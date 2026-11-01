@@ -86,6 +86,7 @@ var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, tea
 var battle_marks: Array = []   # 結果頁時間軸的關鍵事件（第三輪 U5）：{tick, kind, team}
 var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
+var atk_seq := {}         # 單位 id →｛命中 tick: 第幾次出手｝（交替招式用）
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
 var prev_pos := {}
 var accum := 0.0

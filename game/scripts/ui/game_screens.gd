@@ -260,6 +260,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 		last_armies = [a0.copy(), a1.copy()]
 	sim = Sim.new(a0, a1)
 	view = ViewBuffer.new(sim)
+	atk_seq.clear()
 	paused = false
 	follow_id = -1
 	battle_marks.clear()
@@ -1009,7 +1010,7 @@ func _draw_tactical() -> void:
 			if drag_new or drag_from.x >= 0:
 				# 拖曳時敵軍腳下亮圈：被剋淡綠、天敵淡紅（第三輪 U3）
 				var fp := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.82) * CS
-				draw_set_transform(fp, 0, Vector2(1, 0.5))
+				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.5), 0, fp))
 				draw_circle(Vector2.ZERO, 24, Color(bc, 0.28), true, -1.0, true)
 				draw_arc(Vector2.ZERO, 24, 0, TAU, 28, Color(bc, 0.7), 2.0, true)
 				draw_set_transform_matrix(_cam)
@@ -1061,14 +1062,12 @@ func _mini_formation(r: Rect2, pz: Dictionary, en: bool) -> void:
 	var ea = PZ.enemy_army(pz)
 	var cw := r.size.x / 6.0
 	var ch := r.size.y / 9.0
-	var tcols := [Color("#e5e7eb"), Color("#93c5fd"), Color("#86efac"), Color("#fcd34d"), Color("#c4b5fd")]
-	# 敵陣（紅框菱形，兵種色填色）
+	# 敵陣：純紅色大菱形（Antigravity S3 第 2 輪：兵種色小點太小分不出敵我）
 	for u in ea.units:
 		var cx := int(u["col"]) - 10
 		var q := r.position + Vector2((cx + 0.5) * cw, (int(u["row"]) + 0.5) * ch)
-		var rr := minf(cw, ch) * 0.62
+		var rr := maxf(3.5, minf(cw, ch) * 0.75)
 		draw_colored_polygon(PackedVector2Array([q + Vector2(0, -rr), q + Vector2(rr, 0), q + Vector2(0, rr), q + Vector2(-rr, 0)]), Color(Art.team_color(1, cbm()), 1.0 if en else 0.4))
-		draw_circle(q, rr * 0.5, Color(tcols[int(u["type"])], 1.0 if en else 0.4), true, -1.0, true)
 	draw_rect(r, Color(1, 1, 1, 0.3), false, 1.0)
 
 
@@ -1202,7 +1201,7 @@ func _draw_overlay() -> void:
 				_btn(r, "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)], _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
-				_mini_formation(Rect2(r.position + Vector2(8, 16), Vector2(48, 36)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
+				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
 			_btn(Rect2(560, 640, 160, 36), L.t("back"), func(): overlay = "")
 		"settings":
 			_draw_settings()
@@ -1508,10 +1507,10 @@ func _draw_result() -> void:
 			_text(Vector2(640, y), msg, ts(18), ACCENT, true, true, 740)
 			y += ts(18) * 1.5
 	if bool(Save.s("playtest")) and not pt_rated:
-		_text(Vector2(300, y + 4), L.t("pt_rate"), ts(15), ACCENT, false, false, 280)
+		# 試玩評分放在右上角的固定位置，不參與正文排版（Codex S4 #3：150% 時會撞到底部按鈕）
+		_text(Vector2(880, 152), L.t("pt_rate"), ts(12), ACCENT, false, false, 150)
 		for i in 5:
-			_btn(Rect2(600 + i * 52, y, 44, 32), str(i + 1), _pt_rate.bind(i + 1))
-		y += 40
+			_btn(Rect2(880 + i * 30, 152 + ts(12) * 1.4, 26, 26), str(i + 1), _pt_rate.bind(i + 1))
 	var lab := ts(12) * 1.3
 	var tl_y := maxf(y + 8.0 + lab, 540.0)
 	var tl_h := minf(40.0, 640.0 - lab - 4.0 - tl_y)
@@ -1586,6 +1585,16 @@ func _draw_timeline(r: Rect2) -> void:
 		elif x - lw / 2.0 > last_ux + 6.0:
 			_text(Vector2(x, r.position.y - 9 - ts(12) * 1.25), lbl, ts(12), Color(mc, 0.95), true)
 			last_ux = x + lw / 2.0
+		else:
+			# 兩排都放不下：只寫秒數，不留沒字的孤點（Antigravity S3 第 2 輪）
+			var short := "%ds" % (mk[0] / 20)
+			var sw := font.get_string_size(short, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(12)).x
+			if x - sw / 2.0 > last_lx + 4.0:
+				_text(Vector2(x, r.end.y + 2), short, ts(12), Color(mc, 0.95), true)
+				last_lx = x + sw / 2.0
+			elif x - sw / 2.0 > last_ux + 4.0:
+				_text(Vector2(x, r.position.y - 9 - ts(12) * 1.25), short, ts(12), Color(mc, 0.95), true)
+				last_ux = x + sw / 2.0
 
 
 ## 動態判詞：用輸出最高的兵種、結束方式、懸念類型組一句話。

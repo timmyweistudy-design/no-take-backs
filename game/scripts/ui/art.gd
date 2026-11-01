@@ -236,7 +236,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_line(ci, Vector2(10, -18 - sw), Vector2(19, -24 + sw), Color("#f0f0ff"), 2.2, a)
 			# 後手的刀：揮擊時往前交叉斬（第三輪 R4）
 			var bw := maxf(0.0, w)
-			_line(ci, Vector2(-8 + bw * 14, -16 - bw * 4), Vector2(-15 + bw * 33, -21 + bw * 10), Color("#f0f0ff"), 2.2, a)
+			_line(ci, Vector2(-8 + bw * 18, -16 - bw * 6), Vector2(-15 + bw * 44, -21 + bw * 16), Color("#f0f0ff"), 2.8, a)   # 加長加粗，看得出交叉
 			_c(ci, Vector2(10, -18 - sw), 2.8, Color("#2b2140"), a)
 	if type != D.ASSASSIN and type != D.ARCHER and type != D.SWORD:
 		_c(ci, Vector2(-9, -17), 3.0, SKIN, a)
@@ -267,7 +267,7 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	# 腿
 	for lx in [-11.0, -5.0, 6.0, 12.0]:
 		var sw := gallop if (int(lx) % 2 == 0) else -gallop
-		var lift := maxf(0.0, w) * 7.0 if lx > 0.0 else 0.0   # 命中時馬前蹄抬起（第三輪 R4）
+		var lift := maxf(0.0, w) * 12.0 if lx > 0.0 else 0.0   # 命中時馬前蹄抬起（第三輪 R4；Antigravity S4 加大）
 		_line(ci, Vector2(lx, -12), Vector2(lx + sw + lift * 0.6, -2 - lift), Color("#9c6b3c"), 3.0, a)
 	# 身體（圓滾滾）
 	var body := PackedVector2Array()

@@ -167,7 +167,12 @@ func _draw_codex() -> void:
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
 	var items := _cx_left_items(u, lang)
+	# 固定區的高度依名字、定位、口號實際換行後的高度決定（Antigravity S3 第 2 輪：英文 150% 口號被切）
 	var head_h := 160.0
+	var ty := 4.0
+	for tx in items[0]["texts"]:
+		ty += (_wrap(tx["s"], tx["size"], CX_LEFT.size.x - 168).count("\n") + 1) * tx["size"] * 1.3 + 3.0
+	head_h = clampf(maxf(head_h, ty + 8.0), 160.0, 260.0)
 	_scroll_draw("head", Rect2(CX_LEFT.position, Vector2(CX_LEFT.size.x, head_h)), [items[0]], false)
 	draw_line(Vector2(CX_LEFT.position.x, CX_LEFT.position.y + head_h - 2), Vector2(CX_LEFT.end.x, CX_LEFT.position.y + head_h - 2), Color(1, 1, 1, 0.12), 1.0)
 	_scroll_draw("left", Rect2(CX_LEFT.position + Vector2(0, head_h + 4), CX_LEFT.size - Vector2(0, head_h + 4)), items.slice(1))
@@ -245,7 +250,9 @@ func _cx_bars(t: int) -> Array:
 func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> void:
 	if scrollable:
 		cx_regions[name] = r
-	var off: float = cx_scroll.get(name, 0.0)
+	# 先用上一次量到的內容高度夾住位移再畫（Codex S4 #4）
+	var off: float = clampf(float(cx_scroll.get(name, 0.0)), 0.0, maxf(0.0, float(cx_content.get(name, 0.0)) - r.size.y))
+	cx_scroll[name] = off
 	var y := r.position.y - off
 	var top := r.position.y
 	var bot := r.end.y

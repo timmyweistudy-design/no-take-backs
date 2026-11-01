@@ -447,12 +447,15 @@ func _draw_inner() -> void:
 		var y := 220.0 + t * 112.0
 		for c in cols.size():
 			var p := Vector2(170 + c * 122, y)
-			var at: float = [0.0, 0.25, 0.42, 0.75, 0.0, 0.0, 0.0, Art.ATK_WINDUP, 0.42][c]
+			var at: float = [0.0, 0.25, 0.42, 0.75, 0.0, 0.0, 0.0, Art.ATK_WINDUP, 0.52][c]
 			var mood: int = [0, 0, 0, 0, Art.M_HURT, Art.M_BROWS, 0, 0, 0][c]
 			var lean := 0.0
 			var crouch := 1.0
 			var alpha := 1.0
 			var walk := 0.0
+			if c == 7:   # 勝利：站直、武器高舉（和前搖分開）
+				lean = Art.LEAN_BACK
+				crouch = 1.06
 			if c == 6:
 				match t:
 					D.CAVALRY:
@@ -465,7 +468,5 @@ func _draw_inner() -> void:
 				draw_arc(p + Vector2(0, -36), 26.0, 0, TAU, 24, Color(1.0, 0.33, 0.2, 0.6), 3.0, true)
 			_ring(p, 0, t, 1.6)
 			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch, 1 if c == 8 else 0)
-			if c == 2 and t != D.ARCHER:   # 揮擊殘影（實際只有 0.12 秒）
-				var sc2 := p + Vector2(19, -42)
-				draw_arc(sc2, 32.0, -1.2, -1.2 + deg_to_rad(140.0), 18, Color(Art.team_color(0, cbm()), 0.85), 9.0, true)
-				draw_arc(sc2, 32.0, -1.2, -1.2 + deg_to_rad(140.0), 18, Color(1, 1, 1, 0.9), 4.5, true)
+			if c == 2 or c == 8:   # 揮擊殘影（依兵種，實際只有 0.12 秒）
+				_draw_smear(p, t, 0, 1.0, 0.45, 1.0, 1 if c == 8 else 0, 1.6)

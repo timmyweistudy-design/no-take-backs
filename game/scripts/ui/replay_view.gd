@@ -76,6 +76,7 @@ func _seek(target: int) -> void:
 	dying.clear()
 	graves.clear()
 	atk_hit.clear()
+	atk_seq.clear()
 	atk_t.clear()
 	hurt_t.clear()
 	hurt_dir.clear()
