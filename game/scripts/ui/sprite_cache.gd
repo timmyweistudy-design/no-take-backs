@@ -1,7 +1,11 @@
 extends Node
 ## 角色精靈圖快取（第二輪方案 R2、H）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps），
 ## 所以啟動時用同一份 Art.unit 畫法，把每個兵種×隊伍×動作影格一次畫進一張圖集，戰鬥中只貼圖。
-## 畫面和直接繪製完全相同（同一份畫法）；沒有畫面（headless）或還沒建好時，呼叫端退回 Art.unit。
+## 用同一份畫法烘焙，但不是逐像素等價（Codex R1 審查 #3、#4，已知且接受的差異）：
+##  - 走路、攻擊各量化成 6 格；攻擊中不再疊走路相位；走路／攻擊格固定睜眼（只在待機眨眼）。
+##  - 透明度（潛行）是對整張合成好的角色乘 alpha，重疊的部位不會像逐圖元那樣透出底下的線條。
+## 待機呼吸位移在貼圖時加（烘焙時抵銷為 0）；受擊閃白跟著攻擊前衝與走路起伏。
+## 沒有畫面（headless）或還沒建好時，呼叫端退回 Art.unit。
 
 const Art = preload("res://scripts/ui/art.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
@@ -71,12 +75,13 @@ func _rect(idx: int) -> Rect2:
 func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
 		hurt: float, alpha: float, t: float, scale := 1.0) -> void:
 	var idx := frame_index(type, team, walk, atk, t, p.x)
-	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if (walk == 0.0 and atk <= 0.0) else 0.0
+	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
 	var xf := Art.base * Transform2D(0.0, Vector2(scale * face / RS, scale / RS), 0.0, p + Vector2(0, bob * scale))
 	ci.draw_set_transform_matrix(xf)
 	ci.draw_texture_rect_region(tex, Rect2(-ORIGIN, Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
 	if hurt > 0.0:
-		ci.draw_circle(Vector2(0, -26) * RS, 14.0 * RS, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, false)
+		var off := Vector2(sin(atk * PI) * 5.0, -26.0 + (absf(sin(walk)) * -2.5 if walk != 0.0 else 0.0))
+		ci.draw_circle(off * RS, 14.0 * RS, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, false)
 	ci.draw_set_transform_matrix(Art.base)
 
 ## 烘焙用的畫家：一格一格呼叫 Art.unit（face＝+1，翻面由貼圖時處理）。
@@ -105,14 +110,13 @@ class _Painter extends Node2D:
 						atk = (f - 8 + 0.5) / 6.0
 					var p := cell_o + org
 					var ex := 2.0 if type == D2.CAVALRY else 3.5
-					var tt: float
-					if f == 1:
-						tt = 3.7 - ex * 0.13 + 0.05          # 眨眼那一格
-					else:
-						tt = (-p.x * 0.05) / 3.0             # 讓呼吸位移＝0（貼圖時再加）
-						while fmod(tt + ex * 0.13, 3.7) <= 0.12 or fmod(tt + ex * 0.13, 3.7) < 0.0:
-							tt += TAU / 3.0                  # 往後挪一個呼吸週期，避開眨眼
-					Art2.unit(self, p, type, team, 1.0, walk, atk, 0.0, 1.0, tt, RS2, cb)
+					# 眨眼那一格落在眨眼區間中間；其他格取 1.0（不在眨眼區間）
+					var tt: float = (3.7 - ex * 0.13 + 0.05) if f == 1 else 1.0
+					# 沒走路的格子（待機、眨眼、攻擊）Art.unit 會加呼吸位移；這裡反向抵銷，貼圖時再依當下時間加
+					var pb := p
+					if walk == 0.0:
+						pb.y -= sin(tt * 3.0 + p.x * 0.05) * 0.8 * RS2
+					Art2.unit(self, pb, type, team, 1.0, walk, atk, 0.0, 1.0, tt, RS2, cb)
 		# 腳底圈
 		var start: int = D2.COUNT * 2 * per
 		for team in 2:

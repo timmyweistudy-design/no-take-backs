@@ -9,6 +9,7 @@ const AI = preload("res://scripts/core/ai_army.gd")
 const TP = preload("res://scripts/core/turn_placement.gd")
 const MC = preload("res://scripts/core/mirror_check.gd")
 const PZ = preload("res://scripts/game/puzzles.gd")
+const CX = preload("res://scripts/game/codex.gd")
 
 var passed := 0
 var failed := 0
@@ -34,6 +35,7 @@ func _init() -> void:
 	test_rally()
 	test_nav_r1()
 	test_puzzle_solutions()
+	test_codex()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -391,6 +393,15 @@ func test_nav_r1() -> void:
 			flips += 1
 		prev_moving = moving
 	ok(flips <= 6, "追擊不會走一步停一步（狀態切換次數少）", "flips=%d" % flips)
+	# 不能靠「完全不動」過關：騎兵一定要追上並打到弓手（Codex R1 審查 #5）
+	ok(c2.units[1].dmg_taken > 0 or not c2.units[1].alive, "追擊遲滯下騎兵仍然追上並出手", "弓手受傷=%d" % c2.units[1].dmg_taken)
+	# 遲滯的邊界：在攻擊距離內不追；超出 reach 才起步；追到 reach−CHASE_HYST 以內才停
+	var R := 1000
+	var sq := func(v: int) -> int: return v * v
+	ok(not Sim.cav_chase(false, sq.call(R - 10), R), "遲滯：停著時在攻擊距離內不起步")
+	ok(Sim.cav_chase(false, sq.call(R + 10), R), "遲滯：停著時超出攻擊距離就起步")
+	ok(Sim.cav_chase(true, sq.call(R - D.CHASE_HYST + 10), R), "遲滯：追擊中、還沒追進 reach−HYST 就繼續追")
+	ok(not Sim.cav_chase(true, sq.call(R - D.CHASE_HYST - 10), R), "遲滯：追進 reach−HYST 才停")
 
 
 ## 殘局標準解回歸（第二輪方案 §1.4）：每關存的標準解都必須打贏；改戰鬥規則後有任何一關變不能過就會紅。
@@ -403,12 +414,53 @@ func test_puzzle_solutions() -> void:
 			bad.append("%s 沒有標準解" % pz["id"])
 		for sol in sols:
 			var a0 = PZ.player_army(pz)
+			var allowed: Array = []
+			for v in pz.get("allowed", [0, 1, 2, 3, 4]):
+				allowed.append(int(v))   # JSON 讀進來是 float，has(int) 會比不到
 			for e in sol:
-				a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
+				# 用正式的擺放規則驗合法性：預算、格子在區內、沒有重疊、兵種允許（Codex R1 審查 #5）
+				if not allowed.has(int(e[0])):
+					bad.append("%s 標準解用了不允許的兵種 %d" % [pz["id"], int(e[0])])
+				var why: String = a0.check_place(int(e[0]), int(e[1]), int(e[2]))
+				if why != "":
+					bad.append("%s 標準解不合法：%s" % [pz["id"], why])
+				a0.place(int(e[0]), int(e[1]), int(e[2]))
 			var sm = Sim.new(a0, PZ.enemy_army(pz))
 			sm.fast = true
 			sm.run_to_end()
 			total += 1
 			if sm.winner != 0:
 				bad.append("%s 標準解輸了" % pz["id"])
-	ok(total >= 13 and bad.is_empty(), "13 關殘局標準解全部打贏（%d 組）" % total, str(bad))
+	var n_pz: int = (PZ.tutorials() + PZ.puzzles()).size()
+	for pz in PZ.puzzles():
+		if pz.get("solutions", []).size() < 2:
+			bad.append("%s 不到兩組解" % pz["id"])
+	ok(total >= n_pz and bad.is_empty(), "%d 關殘局標準解合法且全部打贏、殘局每關 ≥2 解（%d 組）" % [n_pz, total], str(bad))
+
+
+## 兵種圖鑑（第二輪方案 R3）：資料齊全、技能說明的數值都換得出來、每段示範用真模擬一定觸發預期的技能、老兵筆記贏 5 場解鎖。
+func test_codex() -> void:
+	ok(CX.validate().is_empty(), "圖鑑資料自我檢查通過", str(CX.validate()))
+	var bad: Array = []
+	var n := 0
+	for sk in CX.data()["skills"]:
+		n += 1
+		var ex: String = CX.skill(sk)["demo"]["expect"]
+		var tags := CX.demo_tags(sk)
+		if not tags.has(ex):
+			bad.append("%s 沒有觸發 %s（%s）" % [sk, ex, tags])
+		for lang in ["zh_TW", "en"]:
+			var d := CX.skill_desc(sk, lang)
+			if d.contains("{") or d.contains("}"):
+				bad.append("%s 說明有沒換掉的常數：%s" % [sk, d])
+	ok(n == 14 and bad.is_empty(), "14 個技能示範都觸發預期事件、說明數值都換好", str(bad))
+	# 說明的數值真的來自 unit_defs：改常數名就會在上面紅；這裡再對一個值
+	ok(CX.skill_desc("shield_block", "zh_TW").contains("×%d/%d" % [D.BLOCK_NUM, D.BLOCK_DEN]), "技能說明的數值取自 unit_defs")
+	var sd := {}
+	var newly: Array = []
+	for i in CX.NOTE_WINS:
+		if i == CX.NOTE_WINS - 1:
+			ok(not CX.note_unlocked(sd, D.CAVALRY), "老兵筆記：贏 %d 場時還沒解鎖" % i)
+		newly = CX.record_win(sd, [D.CAVALRY, D.CAVALRY, D.SWORD])
+	ok(CX.note_unlocked(sd, D.CAVALRY) and CX.wins_with(sd, D.CAVALRY) == CX.NOTE_WINS, "老兵筆記：同一場同兵種只算一次、贏 5 場解鎖")
+	ok(newly.has(D.CAVALRY) and newly.has(D.SWORD) and not CX.note_unlocked(sd, D.ARCHER), "老兵筆記：剛好第 5 場回報新解鎖、沒派的兵種不解鎖")

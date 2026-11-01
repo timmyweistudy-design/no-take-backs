@@ -1,4 +1,4 @@
-extends "res://scripts/ui/battle_view.gd"
+extends "res://scripts/ui/codex_view.gd"
 ## 狀態機、模式、輸入、擺放、標題、選單、設定、結果、成就。
 
 func _ready() -> void:
@@ -339,6 +339,9 @@ func _progress_and_achievements() -> void:
 				types[u.type] = true
 		if types.size() == 5:
 			_ach("ALL_TYPES")
+		# 圖鑑老兵筆記：派這個兵種贏一場 +1（第二輪方案 R3）
+		for t in CX.record_win(Save.data, types.keys()):
+			ach_queue.append(L.t("codex_unlocked", [L.t("unit_%d" % t)]))
 		if int(ev_count.get("charge%d" % w, 0)) >= 5:
 			_ach("CHARGE_5")
 		if int(ev_count.get("backstab%d" % w, 0)) >= 3:
@@ -405,6 +408,12 @@ func _cell_at(p: Vector2) -> Vector2i:
 
 func _card_rect(i: int) -> Rect2:
 	return Rect2(128 + i * (CARD_W + 8), CARD_Y, CARD_W, CARD_H)
+
+
+## 兵種卡右上角的「?」：開圖鑑到這個兵種（第二輪方案 R3）。
+func _card_help_rect(i: int) -> Rect2:
+	var r := _card_rect(i)
+	return Rect2(r.end.x - 24, r.position.y + 3, 21, 22)
 
 
 func _card_at(p: Vector2) -> int:
@@ -523,7 +532,8 @@ func _input(ev: InputEvent) -> void:
 		pad_mode = true
 		var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
 			JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
-			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E}
+			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
+			JOY_BUTTON_BACK: KEY_F1}
 		if map.has(ev.button_index):
 			_key(map[ev.button_index])
 		return
@@ -544,6 +554,8 @@ func _mouse_button(mb: InputEventMouseButton) -> void:
 	var c := _cell_at(mouse)
 	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
 		var k := _card_at(mouse)
+		if k >= 0 and _card_help_rect(k).has_point(mouse):
+			return   # 放開時由「?」按鈕處理
 		if k >= 0:
 			if _allowed(k):
 				selected = k
@@ -609,6 +621,8 @@ func _key(k: int) -> void:
 		KEY_DOWN: cursor.y = mini(8, cursor.y + 1)
 		KEY_LEFT: cursor.x = maxi(0, cursor.x - 1)
 		KEY_RIGHT: cursor.x = mini(15, cursor.x + 1)
+		KEY_F1:
+			_open_codex(selected)
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 			var t := k - KEY_1
 			if _allowed(t):
@@ -653,6 +667,8 @@ func _process_inner(delta: float) -> void:
 	for g in dying:
 		g["t"] += delta
 	dying = dying.filter(func(g): return g["t"] < 1.0)
+	if overlay == "codex":
+		_codex_tick(delta)
 	if state == St.TITLE and demo != null and shot_dir == "":
 		demo_acc += delta
 		while demo_acc >= 0.05:
@@ -851,11 +867,12 @@ func _draw_title() -> void:
 		["menu_tutorial", func(): _open("tutorial")],
 		["menu_puzzle", func(): _open("puzzles")],
 		["menu_gauntlet", func(): _start_mode(Mode.GAUNTLET)],
+		["menu_codex", func(): _open_codex(0)],
 		["menu_settings", func(): _open("settings")],
 		["menu_credits", func(): _open("credits")],
 		["menu_quit", func(): get_tree().quit()]]
 	for i in items.size():
-		_btn(Rect2(500, 290 + i * 56, 280, 46), L.t(items[i][0]), items[i][1], true, i == 0)
+		_btn(Rect2(500, 282 + i * 51, 280, 43), L.t(items[i][0]), items[i][1], true, i == 0)
 	_text(Vector2(640, 752), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), D.RULES_VERSION], ts(13), Color(1, 1, 1, 0.5), true)
 
 
@@ -877,6 +894,8 @@ func _pick_puzzle(id: String, tut: bool) -> void:
 
 # ── 覆蓋層 ──
 func _draw_overlay() -> void:
+	if overlay != "":
+		_btns.clear()   # 覆蓋層底下畫面的按鈕不能被點到（例如擺放畫面的開戰、結果頁的按鈕）
 	match overlay:
 		"diff":
 			_panel(Rect2(440, 250, 400, 310))
@@ -919,6 +938,8 @@ func _draw_overlay() -> void:
 			_btn(Rect2(560, 680, 160, 36), L.t("back"), func(): overlay = "")
 		"slots":
 			_draw_slots()
+		"codex":
+			_draw_codex()
 
 
 func _draw_settings() -> void:
@@ -1054,6 +1075,7 @@ func _draw_place_hud() -> void:
 		_text(r.position + Vector2(64, 6), L.t("unit_%d" % i), ts(16), Color.WHITE if afford else Color(1, 1, 1, 0.55), false, true)
 		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color("#f87171"), false, not afford)
 		_text(r.position + Vector2(64, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(13), Color(1, 1, 1, 0.65))
+		_btn(_card_help_rect(i), "?", _open_codex.bind(i))
 	var start_label := L.t("start")
 	var start_en := _ready_to_fight()
 	if mode == Mode.DUEL and tp != null and not tp.done():
@@ -1103,6 +1125,8 @@ func _draw_result() -> void:
 		title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
 		col = Art.team_color(w, cbm())
 	_text(Vector2(640, 108), title, ts(40), col, true, true)
+	var mvp0 = report.get("mvp")
+	_btn(Rect2(904, 112, 124, 34), L.t("menu_codex_short"), _open_codex.bind(mvp0.type if mvp0 != null else 0))
 	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
 		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
 	var tot := float(sim.budget * 1000)

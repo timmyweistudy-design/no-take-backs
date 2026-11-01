@@ -209,6 +209,18 @@ func _run_screenshots() -> void:
 	overlay = "puzzles"
 	Save.data["tutorial"] = 3
 	await _snap("09_puzzles.png")
+	Save.data["unit_wins"] = {"3": 5}
+	_open_codex(D.CAVALRY)
+	cx_skill = 0
+	_cx_restart()
+	for i in 46:
+		_codex_tick(0.05)
+	await _snap("10_codex.png")
+	_open_codex(D.ASSASSIN)
+	_cx_pick_skill(1)
+	for i in 70:
+		_codex_tick(0.05)
+	await _snap("11_codex_locked.png")
 	get_tree().quit()
 
 
@@ -216,6 +228,11 @@ func _run_screenshots() -> void:
 ## 輸出 JSON：p50／p95／最大值（毫秒）。用法：<exe> --path game --resolution 1280x800 -- --perf=<輸出 json 絕對路徑>
 func _run_perf() -> void:
 	await get_tree().process_frame
+	# 等精靈圖快取烘焙完才開始量，否則前幾幀是退回的直接繪製（Codex R1 審查 #6）
+	var waited := 0
+	while sprites != null and not sprites.is_ready(cbm()) and waited < 120:
+		await get_tree().process_frame
+		waited += 1
 	var vp := get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)
 	var a0 := Army.new(0, 100)

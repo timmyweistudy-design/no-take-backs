@@ -67,6 +67,9 @@ var frenzy := false
 var rally := [false, false]    # 這一 tick 哪一隊在「背水」（畫面提示用；計算用的是第④步當下的值）
 var power_log: PackedInt64Array = PackedInt64Array()   # 每 tick 的（藍戰力−紅戰力），懸念指標用
 var _hash := HashingContext.new()
+var _last_rank := 99          # 上一次 _choose_target 選中目標的優先級（1＝嘲諷）
+var _was_stealth := {}         # 刺客上一 tick 是否潛行（現形事件用）
+var _was_rally := [false, false]          # 上一 tick 哪一隊在背水（背水開／關事件用）
 var fast := false              # 平衡工具用：不算每 tick 指紋（結果完全一樣，只是沒有指紋）
 
 func _init(army0, army1) -> void:
@@ -168,6 +171,9 @@ func step() -> void:
 			continue
 		var t := _choose_target(i, sx, sy, st, sk, sh, sv)
 		new_target[i] = t
+		# 技能事件（只給畫面與圖鑑用，不進指紋）：被盾兵嘲諷吸走
+		if t != -1 and t != u.target and _last_rank == 1:
+			events.append({"kind": "taunt", "src": units[t].id, "tgt": u.id, "tags": ["taunt"]})
 		if t == -1 or u.stun > 0:
 			continue
 		var tg := units[t]
@@ -195,10 +201,8 @@ func step() -> void:
 		var need_move := d2 > reach * reach or (u.type == D.ASSASSIN and u.stealth > 0) or flanking
 		if u.type == D.CAVALRY and not flanking:
 			# 追擊遲滯：已經在追就追到 reach−CHASE_HYST 才停；停著的要超出 reach 才起步
-			var inner := reach - D.CHASE_HYST
-			if u.chasing and d2 > inner * inner:
-				need_move = true
-			stop_at = inner
+			need_move = cav_chase(u.chasing, d2, reach)
+			stop_at = reach - D.CHASE_HYST
 			u.chasing = need_move
 		if need_move:
 			var dx := dest_x - u.x
@@ -305,6 +309,10 @@ func step() -> void:
 			if pw[tm] * 100 < pw[1 - tm] * D.RALLY_RATIO_PCT:
 				rally_bonus[tm] = D.RALLY_CD_BONUS
 				rally[tm] = true
+	for tm in 2:
+		if rally[tm] != _was_rally[tm]:
+			events.append({"kind": "rally_on" if rally[tm] else "rally_off", "team": tm, "tags": ["rally"]})
+			_was_rally[tm] = rally[tm]
 	for i in n:
 		var u := units[i]
 		if not u.alive:
@@ -320,43 +328,56 @@ func step() -> void:
 			continue
 		var dmg := u.atk
 		var kind := "hit"
+		var tags: Array = []
 		if u.type == D.SHIELD and tg.type == D.CAVALRY:
 			dmg = dmg * D.ANTICAV_NUM / D.ANTICAV_DEN
 			kind = "anticav"
+			tags.append("anticav")
 		if u.type == D.SWORD:
 			if tg.type == D.SHIELD:
 				dmg = dmg * D.BREAKER_NUM / D.BREAKER_DEN
 				kind = "breaker"
+				tags.append("breaker")
 		elif u.type == D.ARCHER:
 			kind = "arrow"
+			tags.append("arrow")
 			if tg.type == D.ASSASSIN:
 				dmg = dmg * D.ALERT_NUM / D.ALERT_DEN
+				tags.append("alert")
 			if tg.type == D.SHIELD and not _is_behind(u, tg):
 				dmg = dmg * D.BLOCK_NUM / D.BLOCK_DEN
 				kind = "blocked"
+				tags.append("blocked")
 			elif tg.type == D.CAVALRY:
 				dmg = dmg * D.HIDE_ARROW_NUM / D.HIDE_ARROW_DEN
+				tags.append("hide")
 		elif u.type == D.CAVALRY:
 			if u.charge >= D.CHARGE_NEED:
 				if tg.type == D.SHIELD and not _is_behind(u, tg):
 					stun_set[i] = true
 					kind = "braced"
+					tags.append("braced")
 				else:
 					dmg = dmg * D.CHARGE_NUM / D.CHARGE_DEN
 					kind = "charge"
+					tags.append("charge")
 					knock.append([u.target, tg.x - u.x, tg.y - u.y])
 		elif u.type == D.ASSASSIN:
 			if _is_behind(u, tg):
 				dmg = dmg * D.BACKSTAB_NUM / D.BACKSTAB_DEN
 				kind = "backstab"
+				tags.append("backstab")
 			if tg.type == D.CAVALRY:
 				slow_set[u.target] = true
+				tags.append("trip")
 			reveal[i] = true
 			if tg.type == D.SWORD:
 				if not sword_hit_by.has(u.target):
 					sword_hit_by[u.target] = []
 				sword_hit_by[u.target].append(i)
-		hits.append([i, u.target, dmg, kind])
+		if tags.is_empty():
+			tags.append("hit")
+		hits.append([i, u.target, dmg, kind, tags])
 		attacked[i] = 1
 		u.cd += u.cd_base * 4
 		if u.type == D.CAVALRY:
@@ -366,7 +387,7 @@ func step() -> void:
 	swords.sort()
 	for si in swords:
 		var sw := units[si]
-		hits.append([si, pick_counter(si, sword_hit_by[si]), sw.atk * D.COUNTER_PCT / 100, "counter"])
+		hits.append([si, pick_counter(si, sword_hit_by[si]), sw.atk * D.COUNTER_PCT / 100, "counter", ["counter"]])
 
 	# ⑤ 同時結算
 	var dmg_in := PackedInt64Array()
@@ -381,7 +402,7 @@ func step() -> void:
 		units[h[1]].dmg_taken += h[2]
 		var key: int = h[1] * 4096 + h[0]
 		per_pair[key] = int(per_pair.get(key, 0)) + h[2]
-		events.append({"src": units[h[0]].id, "tgt": units[h[1]].id, "dmg": h[2], "kind": h[3]})
+		events.append({"src": units[h[0]].id, "tgt": units[h[1]].id, "dmg": h[2], "kind": h[3], "tags": h[4]})
 	# 擊殺歸屬：傷害最高者；同傷害比列小、再比離自己底線近（只用鏡像不變的鍵）
 	var best_d := PackedInt64Array()
 	best_d.resize(n)
@@ -430,6 +451,9 @@ func step() -> void:
 			u.charge = 0
 		if slow_set.has(i):
 			u.slow = D.SLOW_TICKS
+		if u.type == D.ASSASSIN and u.stealth == 0 and _was_stealth.get(u.id, false):
+			events.append({"kind": "reveal", "src": u.id, "tgt": u.id, "tags": ["reveal"]})
+		_was_stealth[u.id] = u.stealth > 0
 		# 騎兵這一 tick 沒動也沒出手（被擋、等待）→ 衝鋒歸零
 		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
 			u.charge = 0
@@ -463,6 +487,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 	var melee := my_type != D.ARCHER
 	var best := -1
 	var b_rank := 99
+	_last_rank = 99
 	var b_d2 := 0
 	var b_hp := 0
 	var b_y := 0
@@ -508,6 +533,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 		b_hp = sh[j]
 		b_y = sy[j]
 		b_dep = sx[j] if st[j] == 0 else W - sx[j]
+	_last_rank = b_rank
 	return best
 
 ## 劍士反擊選人：打中它的刺客裡挑「最近→列小→離自己底線近」；只用鏡像不變的鍵，不用編號。
@@ -564,6 +590,11 @@ func _update_charge(u: Unit, moved_x: int, moved_y: int) -> void:
 		u.charge += along
 
 ## 騎兵繞翼：目標是弓手、直線上 FLANK_DETECT 內有盾兵時，往敵兵較少的那側偏 FLANK_OFFSET 走途經點。
+## 騎兵追擊遲滯（第二輪方案 R1）：停著的要超出 reach 才起步；已經在追就追到 reach−CHASE_HYST 才停。
+static func cav_chase(chasing: bool, d2: int, reach: int) -> bool:
+	var inner := reach - D.CHASE_HYST
+	return d2 > reach * reach or (chasing and d2 > inner * inner)
+
 func _flank_waypoint(i: int, t: int) -> Vector2i:
 	var u := units[i]
 	var tg := units[t]
@@ -620,8 +651,12 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 	var line_y := u.y + (tg.y - u.y) / 2
 	var up_y := clampi(mini(u.y, tg.y) - D.FLANK_OFFSET, lo, hi)
 	var dn_y := clampi(maxi(u.y, tg.y) + D.FLANK_OFFSET, lo, hi)
-	var up_ok := line_y - up_y >= D.FLANK_DETECT
-	var dn_ok := dn_y - line_y >= D.FLANK_DETECT
+	# 用叉積算候選點到「騎兵→目標」直線的垂直距離（不是只比 y 差），近乎垂直的路線也判得對（Codex R1 審查 #2）
+	var cu: int = (mid_x - u.x) * dy - (up_y - u.y) * dx
+	var cd: int = (mid_x - u.x) * dy - (dn_y - u.y) * dx
+	var need: int = D.FLANK_DETECT * D.FLANK_DETECT * l2
+	var up_ok := up_y < line_y and cu * cu >= need
+	var dn_ok := dn_y > line_y and cd * cd >= need
 	var wy := -1
 	if up_ok and (not dn_ok or above <= below):
 		wy = up_y
@@ -630,6 +665,7 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 	if wy < 0:
 		return Vector2i(-1, -1)   # 兩側都沒有空間繞：直接追
 	u.nav = 1
+	events.append({"kind": "flank", "src": u.id, "tgt": tg.id, "tags": ["flank"]})
 	u.wp_x = mid_x
 	u.wp_y = wy
 	return Vector2i(u.wp_x, u.wp_y)
