@@ -375,6 +375,9 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		"blocked":
 			label = "擋"
 			col = Color("#aaaaaa")
+		"anticav":
+			label = "拒馬"
+			col = Color("#9ad1ff")
 		"counter":
 			label = "反擊"
 			col = Color("#80ffdb")

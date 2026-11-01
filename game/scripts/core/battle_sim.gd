@@ -264,15 +264,22 @@ func step() -> void:
 			continue
 		var dmg: int = D.STATS[u.type]["atk"]
 		var kind := "hit"
+		if u.type == D.SHIELD and tg.type == D.CAVALRY:
+			dmg = dmg * D.ANTICAV_NUM / D.ANTICAV_DEN
+			kind = "anticav"
 		if u.type == D.SWORD:
 			if tg.type == D.SHIELD:
 				dmg = dmg * D.BREAKER_NUM / D.BREAKER_DEN
 				kind = "breaker"
 		elif u.type == D.ARCHER:
 			kind = "arrow"
+			if tg.type == D.ASSASSIN:
+				dmg = dmg * D.ALERT_NUM / D.ALERT_DEN
 			if tg.type == D.SHIELD and not _is_behind(u, tg):
 				dmg = dmg * D.BLOCK_NUM / D.BLOCK_DEN
 				kind = "blocked"
+			elif tg.type == D.CAVALRY:
+				dmg = dmg * D.HIDE_ARROW_NUM / D.HIDE_ARROW_DEN
 		elif u.type == D.CAVALRY:
 			if u.charge >= D.CHARGE_NEED:
 				if tg.type == D.SHIELD and not _is_behind(u, tg):

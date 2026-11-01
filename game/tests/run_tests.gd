@@ -47,9 +47,9 @@ func test_army_rules() -> void:
 	var n := 0
 	for r in 9:
 		for c in 6:
-			if a.place(D.SWORD, c, r):
+			if a.place(D.ARCHER, c, r):
 				n += 1
-	ok(n == 24 and a.spent() == 96, "100 金全劍士只能放 24 隻（人數上限）", "n=%d" % n)
+	ok(n == 24 and a.spent() == 24 * D.cost(D.ARCHER), "最便宜的兵擺滿也只能放 24 隻（人數上限）", "n=%d" % n)
 	a.clear()
 	for i in 14:
 		a.place(D.CAVALRY, i % 6, i / 6)
@@ -180,6 +180,21 @@ func test_traits() -> void:
 				seen_brace = true
 				cav_stunned = s.units[0].stun == D.STUN_TICKS and s.units[0].charge == 0
 	ok(seen_brace and cav_stunned, "盾兵頂住衝鋒（騎兵被暈 20 tick、衝鋒歸零）")
+	# 三條專屬倍率（平衡方案 F1）：拒馬、皮甲、射刺客加碼
+	var exp_anticav: int = D.STATS[D.SHIELD]["atk"] * D.ANTICAV_NUM / D.ANTICAV_DEN
+	var exp_hide: int = D.STATS[D.ARCHER]["atk"] * D.HIDE_ARROW_NUM / D.HIDE_ARROW_DEN
+	var exp_alert: int = D.STATS[D.ARCHER]["atk"] * D.ALERT_NUM / D.ALERT_DEN
+	var got := {}
+	for pair in [[D.SHIELD, D.CAVALRY], [D.ARCHER, D.CAVALRY], [D.ARCHER, D.ASSASSIN]]:
+		var q = Sim.new(army_from(0, [[pair[0], 5, 4]]), army_from(1, [[pair[1], 5, 4]]))
+		for i in 400:
+			q.step()
+			for ev in q.events:
+				if ev.has("src") and q.unit_by_id(ev["src"]).team == 0 and not got.has(pair):
+					got[pair] = ev["dmg"]
+	ok(got.get([D.SHIELD, D.CAVALRY], -1) == exp_anticav, "拒馬：盾兵打騎兵 %d" % exp_anticav, str(got.get([D.SHIELD, D.CAVALRY], -1)))
+	ok(got.get([D.ARCHER, D.CAVALRY], -1) == exp_hide, "皮甲：弓箭射騎兵 %d" % exp_hide, str(got.get([D.ARCHER, D.CAVALRY], -1)))
+	ok(got.get([D.ARCHER, D.ASSASSIN], -1) == exp_alert, "警覺：弓箭射刺客 %d" % exp_alert, str(got.get([D.ARCHER, D.ASSASSIN], -1)))
 	# 刺客開場潛行，弓箭手打不到
 	s = Sim.new(army_from(0, [[D.ARCHER, 0, 4]]), army_from(1, [[D.ASSASSIN, 5, 4]]))
 	var first_seen := -1

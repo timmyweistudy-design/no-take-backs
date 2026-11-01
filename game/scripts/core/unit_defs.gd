@@ -15,9 +15,9 @@ const COUNT := 5
 const NAMES := ["劍士", "盾兵", "弓箭手", "騎兵", "刺客"]
 const BLURB := [
 	"破盾、被刺客打會反擊",
-	"正面擋箭、頂住衝鋒、嘲諷近戰",
-	"遠程拋射、優先射現形刺客",
-	"直衝 3 格後重擊、繞過盾兵找弓手",
+	"正面擋箭、頂住衝鋒、拒馬（打騎兵×2）、嘲諷近戰",
+	"遠程拋射、優先射現形刺客（傷害×1.5）",
+	"直衝 3 格後重擊、皮甲（箭傷減半）、繞過盾兵找弓手",
 	"開場潛行、背刺×2、絆馬",
 ]
 
@@ -29,11 +29,11 @@ const BLURB := [
 #   reach ＝ 攻擊距離（中心到中心；1000＝1 格）
 #   speed ＝ 移動速度（千分之一格／tick；50＝每秒 1 格）
 const STATS := [
-	{"cost": 4, "hp": 100, "atk": 12, "cd": 20, "reach": 700, "speed": 60},   # 劍士
-	{"cost": 5, "hp": 180, "atk": 6, "cd": 24, "reach": 700, "speed": 45},    # 盾兵
-	{"cost": 4, "hp": 60, "atk": 10, "cd": 28, "reach": 6000, "speed": 50},   # 弓箭手
-	{"cost": 7, "hp": 140, "atk": 14, "cd": 22, "reach": 750, "speed": 120},  # 騎兵
-	{"cost": 6, "hp": 70, "atk": 20, "cd": 16, "reach": 700, "speed": 90},    # 刺客
+	{"cost": 5, "hp": 250, "atk": 10, "cd": 20, "reach": 700, "speed": 60},   # 劍士
+	{"cost": 5, "hp": 450, "atk": 6, "cd": 24, "reach": 700, "speed": 45},    # 盾兵
+	{"cost": 4, "hp": 150, "atk": 12, "cd": 24, "reach": 6000, "speed": 50},  # 弓箭手
+	{"cost": 7, "hp": 350, "atk": 14, "cd": 22, "reach": 750, "speed": 120},  # 騎兵
+	{"cost": 6, "hp": 175, "atk": 20, "cd": 16, "reach": 700, "speed": 90},   # 刺客
 ]
 
 # ─── 劍士 ───
@@ -46,6 +46,12 @@ const BLOCK_NUM := 1            # 舉盾：正面被弓箭射中，傷害 ×1/4
 const BLOCK_DEN := 4
 const STUN_TICKS := 20          # 頂住：正面被衝鋒的騎兵暈 20 tick（1 秒）
 const TAUNT_RANGE := 2000       # 嘲諷：2 格內的近戰敵人優先打盾兵
+const ANTICAV_NUM := 2          # 拒馬：盾兵打騎兵 ×2/1
+const ANTICAV_DEN := 1
+
+# ─── 弓箭手 ───
+const ALERT_NUM := 3            # 警覺：射刺客 ×3/2
+const ALERT_DEN := 2
 
 # ─── 騎兵 ───
 const CHARGE_NEED := 3000       # 衝鋒：連續直行 3 格後的第一擊
@@ -54,9 +60,11 @@ const CHARGE_DEN := 2
 const KNOCKBACK := 500          # 衝鋒擊退 0.5 格
 const FLANK_DETECT := 1500      # 繞翼：衝向弓手的直線 1.5 格內有盾兵就繞
 const FLANK_OFFSET := 2000      # 繞翼往上／下偏 2 格
+const HIDE_ARROW_NUM := 1       # 皮甲：騎兵被弓箭射中 ×1/2
+const HIDE_ARROW_DEN := 2
 
 # ─── 刺客 ───
-const STEALTH_TICKS := 60       # 潛行：開場 60 tick（3 秒）不能被指定、不碰撞
+const STEALTH_TICKS := 40       # 潛行：開場 40 tick（2 秒）不能被指定、不碰撞
 const BEHIND_DIST := 600        # 潛行時繞到目標背後 0.6 格的位置
 const BACKSTAB_NUM := 2         # 背刺：從背後攻擊 ×2（無視舉盾）
 const BACKSTAB_DEN := 1
