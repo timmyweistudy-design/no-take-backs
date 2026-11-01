@@ -1,0 +1,1800 @@
+OpenAI Codex v0.163.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a195e7-a1d7-7392-8193-71497a70b2ad
+--------
+user
+# 收尾批第 2 輪（Codex 唯讀，針對性複查）
+
+你在第 1 輪（coordination/fin-r1/codex.out.md）結論「不可」，列了 5 項。Claude 已修並 commit 60abaf7（上一版 dcf9593）：`git diff dcf9593 60abaf7 -- game/`。
+
+修正內容：
+1. steamInitEx 參數順序：Claude 用 ClassDB 查了本機 GodotSteam 4.23.2 的實際簽章，是 `steamInitEx(app_id:int=0, embed_callbacks:bool=false)`，改成 `steamInitEx(app_id)`。
+2. 自我檢查真正唯讀：
+   - `init(app_id, sync_local=false)` 不補送、不 storeStats。
+   - 移除 inputInit。
+   - `--steam-test` 模式改用 `shot_` 存檔前綴，不讀玩家存檔。
+3. 自我檢查會判定：`ok`＝登入、AppID 相符、已知成就讀得到、我們的 ID 讀不到；不 ok 就 exit 1。
+4. 報表：任何一筆缺 digest 就 exit 2（Claude 用故意刪掉 digest 的資料驗過 exit 2；正常 exit 0）。
+5. 膠囊 save_png 失敗會 printerr＋exit 1。
+
+注意：Spacewar 實測與「沒有 Steam 時 exit 1」的實測都被自動權限擋下，沒有實際跑過。
+
+請用繁體中文、≤700 字、附檔案:行號：
+1. 逐項核對 5 項：已解決／未解決。
+2. 修正有沒有新錯誤，尤其要查：
+   - `known.get("ret")` 是否符合 GodotSteam 4.23.2 `getAchievement` 的回傳格式。
+   - `--steam-test` 路徑會不會在任何情況寫入。
+最後一句：這批可否結案（可／有條件可／不可）。不要改任何檔案。
+
+codex
+我會唯讀核對這次 diff、相關呼叫路徑與本機 GodotSteam 資料，重點查 `getAchievement` 回傳格式及 `--steam-test` 是否可能寫入。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g '*steam*' -g '*report*' -g '*capsule*' -g 'codex.out.md' -g '*Steam*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/n1-r2/codex.out.md
+coordination/plan-r2/codex.out.md
+coordination/proto-r1/codex.out.md
+coordination/opt-r2/codex.out.md
+coordination/plan-r1/codex.out.md
+coordination/fin-r1/codex.out.md
+coordination/n1-r3/codex.out.md
+coordination/opt-r1/codex.out.md
+docs/balance-runs/n2-baseline-report.md
+docs/release/steam-setup.md
+coordination/n1-r1/codex.out.md
+docs/store/capsules/library_capsule.png
+docs/balance-runs/n2-baseline/report.md
+game/tools/balance_report.py
+docs/balance-runs/n2-final/report.md
+game/scripts/game/steam.gd
+game/scripts/game/steam.gd.uid
+game/addons/godotsteam/godotsteam.gdextension.uid
+game/addons/godotsteam/godotsteam.gdextension
+game/addons/godotsteam/linux64/libgodotsteam.linux.template_release.x86_64.so
+game/addons/godotsteam/linux64/libsteam_api.so
+game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so
+game/addons/godotsteam/win64/libgodotsteam.windows.template_release.x86_64.dll
+game/addons/godotsteam/win64/libgodotsteam.windows.template_debug.x86_64.dll
+game/addons/godotsteam/win64/steam_api64.dll
+
+exec
+/bin/bash -lc 'git diff dcf9593 60abaf7 -- game/' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 21ms:
+diff --git a/game/scripts/game/steam.gd b/game/scripts/game/steam.gd
+index d876bc5..0ce8b1e 100644
+--- a/game/scripts/game/steam.gd
++++ b/game/scripts/game/steam.gd
+@@ -26,18 +26,22 @@ static var _steam = null
+ static var init_result = null
+ 
+ ## app_id：0＝由 Steam 啟動時決定（正式上架）；開發測試可給 480（Valve 公開測試 App「Spacewar」）。
+-static func init(app_id := 0) -> void:
++## sync_local：初始化後把本機成就補送到 Steam。自我檢查一定傳 false（不寫入任何東西）。
++## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
++static func init(app_id := 0, sync_local := true) -> void:
+ 	if Engine.has_singleton("Steam"):
+ 		_steam = Engine.get_singleton("Steam")
+-		var r = _steam.steamInitEx(false, app_id) if app_id > 0 else _steam.steamInitEx(false)
++		var r = _steam.steamInitEx(app_id) if app_id > 0 else _steam.steamInitEx()
+ 		init_result = r
+ 		if typeof(r) == TYPE_DICTIONARY and int(r.get("status", 1)) != 0:
+ 			_steam = null
+-	if _steam != null:
+-		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam
+-		for id in Save.data.get("achievements", []):
+-			_steam.setAchievement(id)
+-		_steam.storeStats()
++	if _steam != null and sync_local:
++		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam（沒有就不呼叫 storeStats）
++		var got: Array = Save.data.get("achievements", [])
++		if not got.is_empty():
++			for id in got:
++				_steam.setAchievement(id)
++			_steam.storeStats()
+ 
+ static func available() -> bool:
+ 	return _steam != null
+@@ -59,18 +63,23 @@ static func unlock(id: String) -> bool:
+ 		_steam.storeStats()
+ 	return true
+ 
+-## 唯讀自我檢查（N8）：不解鎖任何 Spacewar 成就、不寫入統計。回傳每一項的結果。
+-static func self_test() -> Dictionary:
+-	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available()}
++## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
++## 回傳每一項結果與總判定 ok（任何一項不符就是 false，呼叫端用它決定結束碼）。
++static func self_test(expect_app_id: int) -> Dictionary:
++	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available(), "ok": false}
+ 	if _steam == null:
++		out["why"] = "沒有 GodotSteam 或初始化失敗"
+ 		return out
+ 	out["logged_on"] = _steam.loggedOn()
+ 	out["app_id"] = _steam.getAppID()
+ 	out["running"] = _steam.isSteamRunning()
+-	out["spacewar_ach_read"] = str(_steam.getAchievement("ACH_WIN_ONE_GAME"))   # 唯讀
+-	out["our_id_rejected"] = str(_steam.getAchievement("FIRST_WIN"))            # 我們的 ID 在 480 不存在，應該回報不存在
+-	out["cloud_enabled"] = _steam.isCloudEnabledForApp() if _steam.has_method("isCloudEnabledForApp") else "n/a"
+-	out["input_init"] = _steam.inputInit() if _steam.has_method("inputInit") else "n/a"
++	var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
++	var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
++	out["known_read_ok"] = typeof(known) == TYPE_DICTIONARY and bool(known.get("ret", false))
++	out["our_id_missing"] = typeof(ours) == TYPE_DICTIONARY and not bool(ours.get("ret", true))
++	out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and out["known_read_ok"] and out["our_id_missing"]
++	if not out["ok"]:
++		out["why"] = "有檢查項不符"
+ 	return out
+ 
+ static func run_callbacks() -> void:
+diff --git a/game/scripts/ui/main.gd b/game/scripts/ui/main.gd
+index 670fee5..ffc61e7 100644
+--- a/game/scripts/ui/main.gd
++++ b/game/scripts/ui/main.gd
+@@ -108,14 +108,16 @@ var plants: Array = []
+ 
+ func _ready() -> void:
+ 	for a in OS.get_cmdline_user_args():
+-		if a.begins_with("--shot="):
+-			Save.prefix = "shot_"
++		if a.begins_with("--shot=") or a.begins_with("--steam-test="):
++			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
+ 	Save.load_all()
+ 	for a in OS.get_cmdline_user_args():
+ 		if a.begins_with("--steam-test="):
+-			SteamApi.init(int(a.substr(13)))
+-			print("STEAMTEST ", JSON.stringify(SteamApi.self_test()))
+-			get_tree().quit()
++			var aid := int(a.substr(13))
++			SteamApi.init(aid, false)
++			var res: Dictionary = SteamApi.self_test(aid)
++			print("STEAMTEST ", JSON.stringify(res))
++			get_tree().quit(0 if res["ok"] else 1)
+ 			return
+ 	L.lang = Save.s("lang")
+ 	duel_rule = Save.s("duel_rule")
+@@ -743,7 +745,7 @@ func _process(delta: float) -> void:
+ 	fx = fx.filter(func(f): return f["t"] < f["dur"])
+ 	for g in dying:
+ 		g["t"] += delta
+-	dying = dying.filter(func(g): return g["t"] < 1.4)
++	dying = dying.filter(func(g): return g["t"] < 1.0)
+ 	if state == St.TITLE and demo != null and shot_dir == "":
+ 		demo_acc += delta
+ 		while demo_acc >= 0.05:
+@@ -793,7 +795,7 @@ func _check_clutch() -> void:
+ 		slow_used = true
+ 		if bool(Save.s("slowmo")):
+ 			slow_left = 8.0
+-		_fx_text(Vector2(640, 92), L.t("clutch"), ACCENT, 1.6, 40, true)
++		_fx_text(Vector2(640, 92), L.t("clutch"), ACCENT, 1.4, 34, true)
+ 		sfx.play("clutch")
+ 
+ ## 鏡頭安全框（優化方案 F2）：把所有存活單位框進畫面，四周留 15%。
+@@ -898,7 +900,7 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
+ 		if f["kind"] == "text" and f.get("tid", -1) == tid and f.get("ek", "") == kind and f["t"] < 0.25:
+ 			f["n"] += 1
+ 			f["sum"] += dmg
+-			f["s"] = "%s ×%d %d" % [label, f["n"], f["sum"]]
++			f["s"] = "%s ×%d（%d）" % [label, f["n"], f["sum"]]
+ 			f["t"] = 0.0
+ 			return
+ 	# 排斥：附近已有跳字就往上疊
+@@ -962,9 +964,10 @@ func _draw() -> void:
+ 			draw_rect(Rect2(0, 800 - (i + 1) * 9, 1280, 9), c2)
+ 			draw_rect(Rect2(i * 9, 86, 9, 714), c2)
+ 			draw_rect(Rect2(1280 - (i + 1) * 9, 86, 9, 714), c2)
+-	for f in fx:
+-		if f.get("screen", false):
+-			_draw_fx(f)
++	if state != St.RESULT:
++		for f in fx:
++			if f.get("screen", false):
++				_draw_fx(f)
+ 	match state:
+ 		St.TITLE: _draw_title()
+ 		St.PLACE: _draw_place_hud()
+@@ -982,7 +985,8 @@ func _draw() -> void:
+ 		_focus = 0
+ 	_handle_click()
+ 
+-## 商店膠囊圖（N6）：用目前視窗大小構圖——草地、兩軍對衝、標題。只有遊戲標題文字（Steam 規定）。
++## 商店膠囊圖（N6）：用目前視窗大小構圖——先畫標題帶，再把兩軍放在標題下方對衝，中間有分界線與對射的箭。
++## 只有遊戲標題文字（Steam 規定）。手感輪（收尾批）調整：標題帶不壓角色、中央不留白、小尺寸放大標題與角色、兩側留邊。
+ func _draw_capsule() -> void:
+ 	var vs := get_viewport_rect().size
+ 	var tile := 64.0 * vs.y / 800.0
+@@ -991,39 +995,69 @@ func _draw_capsule() -> void:
+ 			var h := absi((xx * 73856093) ^ (yy * 19349663))
+ 			draw_texture_rect_region(grass, Rect2(xx * tile, yy * tile, tile, tile), Rect2((h % 8) * 32, ((h / 8) % 4) * 32, 32, 32))
+ 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.06, 0.09, 0.16, 0.22))
+-	var sc := vs.y / 800.0 * 2.0
++	var tall := vs.y > vs.x
++	var tiny := get_window().size.y < 300   # 畫布邏輯高度固定 800，要看實際視窗大小
++	# 標題帶（先畫，角色畫在它下方的區域）
++	var big := int(vs.y * (0.12 if tall else (0.30 if tiny else 0.21)))
++	var band_h := big * 1.75
++	var band_y := vs.y * (0.05 if tall else 0.03)
++	draw_rect(Rect2(0, band_y, vs.x, band_h), Color(0.05, 0.06, 0.1, 0.55))
++	_text(Vector2(vs.x / 2, band_y + big * 0.05), L.t("title"), big, Color("#ffe8a3"), true, true)
++	_text(Vector2(vs.x / 2, band_y + big * 1.12), "No Take-Backs", int(big * (0.42 if tiny else 0.34)), Color(1, 1, 1, 0.97), true, true)
++	# 戰場區
++	var top := band_y + band_h + vs.y * 0.02
++	var bottom := vs.y * 0.97
++	var mid := vs.x / 2
++	draw_dashed_line(Vector2(mid, top), Vector2(mid, bottom), Color(1, 1, 1, 0.35), maxf(2.0, vs.y * 0.004), vs.y * 0.02)
++	var sc := (bottom - top) / (110.0 if tiny else 260.0)
++	var per_side := 3 if tiny else (10 if not tall else 6)
++	var cols := 3 if tiny else (2 if tall else 3)
++	var margin := maxf(20.0, vs.x * 0.04)
+ 	var rng2 := RandomNumberGenerator.new()
+ 	rng2.seed = 7
+-	var tall := vs.y > vs.x
++	var order := [1, 0, 2, 3, 4, 0, 1, 2, 3, 0, 4, 2]
+ 	var items: Array = []
+ 	for team in 2:
+-		for k in 14:
+-			var t: int = [1, 0, 0, 2, 3, 4, 1, 0, 2, 3, 0, 2, 4, 1][k]
+-			var fx := 0.06 + 0.07 * (k % 4) + rng2.randf() * 0.03
+-			var fy := 0.42 + 0.14 * (k / 4) + rng2.randf() * 0.05
+-			if tall:
+-				fy = 0.50 + 0.12 * (k / 4) + rng2.randf() * 0.04
+-			var x := fx * vs.x if team == 0 else (1.0 - fx) * vs.x
+-			items.append([fy * vs.y, x, t, team])
++		for k in per_side:
++			var c := k % cols
++			var r := k / cols
++			var rows := int(ceil(float(per_side) / cols))
++			var x := margin + sc * 22.0 + c * (mid - margin - sc * 60.0) / maxf(1, cols) * 0.95 + rng2.randf() * sc * 6.0
++			if team == 1:
++				x = vs.x - x
++			var y := top + sc * 70.0 + r * (bottom - top - sc * 80.0) / maxf(1, rows - 1 if rows > 1 else 1) + rng2.randf() * sc * 6.0
++			if tiny:
++				y = bottom - sc * 6.0
++			items.append([y, x, order[(k + team * 3) % order.size()], team])
+ 	items.sort()
+ 	for it in items:
+-		var p := Vector2(it[1], it[0])
++		Art.ring(self, Vector2(it[1], it[0]), it[3], it[2], false, sc)
++	for it in items:
+ 		var face := 1.0 if it[3] == 0 else -1.0
+-		Art.ring(self, p, it[3], it[2], false, sc)
+-		Art.unit(self, p, it[2], it[3], face, 2.0 + it[1] * 0.01, 0.4 if it[2] == D.SWORD else 0.0, 0.0, 1.0, 1.3, sc)
+-	# 標題
+-	var title_y := vs.y * (0.08 if tall else 0.06)
+-	var big := int(vs.y * (0.13 if tall else 0.22))
+-	var shade := Rect2(0, title_y - vs.y * 0.02, vs.x, big * 2.0)
+-	draw_rect(shade, Color(0.05, 0.06, 0.1, 0.45))
+-	_text(Vector2(vs.x / 2, title_y), L.t("title"), big, Color("#ffe8a3"), true, true)
+-	_text(Vector2(vs.x / 2, title_y + big * 1.18), "No Take-Backs", int(big * 0.36), Color(1, 1, 1, 0.95), true, true)
++		Art.unit(self, Vector2(it[1], it[0]), it[2], it[3], face, 2.0 + it[1] * 0.01, 0.45 if it[2] == D.SWORD else 0.0, 0.0, 1.0, 1.3, sc)
++	# 中央對射的箭
++	for k in (3 if tiny else 6):
++		var y := top + (bottom - top) * (0.2 + 0.13 * k)
++		var dir := 1.0 if k % 2 == 0 else -1.0
++		var p := Vector2(mid - dir * vs.x * 0.06 + rng2.randf() * vs.x * 0.03, y)
++		var tail := p - Vector2(dir * sc * 26.0, -sc * 3.0)
++		draw_line(tail - Vector2(dir * sc * 20.0, -sc * 2.0), tail, Color(1, 1, 1, 0.3), sc * 1.5, true)
++		draw_line(tail, p, Art.OUT, sc * 3.5, true)
++		draw_line(tail, p, Color("#d97706"), sc * 2.0, true)
++		draw_colored_polygon(PackedVector2Array([p + Vector2(dir * sc * 6, 0), p + Vector2(0, sc * 3), p - Vector2(0, sc * 3)]), Color("#e5e7eb"))
++		var tc := Art.team_color(0 if dir > 0 else 1, false)
++		draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
++		draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, -sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
+ 
+ func _capture_capsule() -> void:
+ 	await get_tree().process_frame
+ 	await get_tree().process_frame
+ 	await RenderingServer.frame_post_draw
+-	get_viewport().get_texture().get_image().save_png(capsule_path)
++	var err := get_viewport().get_texture().get_image().save_png(capsule_path)
++	if err != OK:
++		printerr("CAPSULE 存檔失敗 ", capsule_path, " err=", err)
++		get_tree().quit(1)
++		return
+ 	print("CAPSULE ", capsule_path)
+ 	get_tree().quit()
+ 
+@@ -1113,7 +1147,7 @@ func _draw_units_of(s, dim: bool) -> void:
+ 	if not live:
+ 		return
+ 	for g in dying:
+-		var k: float = g["t"] / 1.4
++		var k: float = g["t"] / 1.0
+ 		if k < 0.3:
+ 			Art.unit(self, g["pos"], g["type"], g["team"], g["face"], 0.0, 0.0, 0.8, 1.0 - k / 0.3, time)
+ 			for i in 6:
+diff --git a/game/tools/balance_report.py b/game/tools/balance_report.py
+index 67856a5..8202ee9 100644
+--- a/game/tools/balance_report.py
++++ b/game/tools/balance_report.py
+@@ -83,6 +83,8 @@ def main():
+             print(f"✗ {m} 場次鍵集合不對（少 {len(want - set(keys))}、多 {len(set(keys) - want)}）"); sys.exit(2)
+         rows[key] = [r for _, r in sorted(zip(keys, got), key=lambda kv: kv[0])]
+     digests = {r.get("digest") for v in rows.values() for r in v}
++    if None in digests or "" in digests:
++        print("✗ 有資料缺少數值摘要"); sys.exit(2)
+     if len(digests) != 1:
+         print("✗ 數值摘要不一致：", digests); sys.exit(2)
+     md = [f"# 平衡報表 2.0\n", f"- 數值摘要 `{digests.pop()}`、共 {total} 筆、耗時 {secs} 秒\n"]
+
+exec
+/bin/bash -lc "rg --files -g 'AGENTS.md' /mnt/c/Users/timmy/projects 2>/dev/null; git status --short; cat coordination/fin-r1/codex.out.md; nl -ba game/scripts/game/steam.gd; nl -ba game/scripts/game/save.gd; nl -ba game/project.godot" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 999ms:
+?? coordination/fin-r2/
+唯讀複查結果：1～3 的主要修正成立，但 Steam 自測與假綠燈仍有缺口。
+
+- **嚴重｜自測流程不是唯讀。** `main.gd:113–117` 先載入玩家存檔，再呼叫 `SteamApi.init()`；`steam.gd:36–40` 隨即補送成就並執行 `storeStats()`，空成就清單也會呼叫。`self_test()` 本體雖未設定成就，`steam.gd:73` 還會執行 `inputInit()`。應讓測試初始化明確禁止補送，並移除輸入初始化，才能宣稱唯讀。
+
+- **中｜初始化參數順序有版本相容風險。** `steam.gd:32` 使用 `steamInitEx(false, app_id)`；[官方原始碼](https://raw.githubusercontent.com/GodotSteam/GodotSteam/9a3480ff1bdbc5064f5a53dda8341b5263ea5c09/godotsteam.cpp) 的綁定順序是 `(app_id, embed_callbacks)`。依此介面，480 並未傳入 App ID。須核對隨附擴充版本的實際綁定，不能把尚未跑過的 480 測試視為已可用。
+
+- **中｜Steam 自測會假綠燈。** `main.gd:117–118` 只印結果就以 0 結束；沒有 singleton、初始化失敗、App ID 錯誤或成就讀取失敗，都不會使測試失敗。`steam.gd:71` 的 `our_id_rejected` 也只是字串標籤，沒有判定預期結果。
+
+- **中｜報表摘要驗證仍有漏網。** `balance_report.py:85–87` 只檢查摘要集合大小；所有資料都缺少 `digest` 時，集合是 `{None}`，照樣通過。本輪以全記憶體模擬重現 exit 0。新增的模式白名單、分片檔集合檢查（`:48–56`）本身正確，但完整性尚不能結案。
+
+- **低｜膠囊輸出失敗仍報成功。** `main.gd:1026–1028` 忽略 `save_png()` 回傳值；路徑不存在或無寫入權限時，仍印出 `CAPSULE` 並正常退出。
+
+鏡頭修正正確：`art.gd:32、41` 使用 `base * local` 並恢復 base，`main.gd:943、956` 正確設定／重設。`unit_defs.gd:95–101` 先轉 String 再排序，解決頂層名稱排序問題；目前常數內容未見新增確定性風險。`main.gd:920–921` 的偏移僅作用於畫面。
+
+沒有 singleton，或初始化回傳非零 status 字典時，`steam.gd:30–35、50–59、76–78` 可安全走本機成就與空回呼路徑。判詞與單兵 MVP 口徑亦一致。
+
+本環境 Godot 啟動即 signal 11，未能重現 51/51；未啟動 Spacewar，未修改檔案。既有核心測試也未涵蓋上述 Steam 流程。
+
+這批可否結案：不可。     1	extends RefCounted
+     2	## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+     3	## 遊戲其他地方只呼叫這裡，換 SDK 版本只要改這個檔。
+     4	
+     5	const Save = preload("res://scripts/game/save.gd")
+     6	
+     7	const ACHIEVEMENTS := {
+     8		"FIRST_WIN": ["初陣告捷", "First Victory"],
+     9		"LONE_HERO": ["孤勇者", "Lone Hero"],
+    10		"COMEBACK": ["絕地翻盤", "Comeback"],
+    11		"CLOSE_CALL": ["一線之隔", "By a Hair"],
+    12		"NO_TAKEBACKS": ["落子無悔", "No Take-Backs"],
+    13		"HARD_WIN": ["勝過困難 AI", "Beat Hard AI"],
+    14		"SWEEP": ["二比零", "Clean Sweep"],
+    15		"TUTORIAL": ["學會了", "Graduated"],
+    16		"PUZZLE_ALL": ["殘局全破", "Puzzle Master"],
+    17		"PUZZLE_3STAR": ["完美解", "Perfect Solution"],
+    18		"GAUNTLET": ["七連勝", "Seven Straight"],
+    19		"FRENZY_WIN": ["狂熱中取勝", "Won in the Frenzy"],
+    20		"ALL_TYPES": ["五兵齊出", "Combined Arms"],
+    21		"CHARGE_5": ["鐵騎突擊", "Cavalry Storm"],
+    22		"BACKSTAB_3": ["暗影三連", "Shadow Trio"],
+    23	}
+    24	
+    25	static var _steam = null
+    26	static var init_result = null
+    27	
+    28	## app_id：0＝由 Steam 啟動時決定（正式上架）；開發測試可給 480（Valve 公開測試 App「Spacewar」）。
+    29	## sync_local：初始化後把本機成就補送到 Steam。自我檢查一定傳 false（不寫入任何東西）。
+    30	## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
+    31	static func init(app_id := 0, sync_local := true) -> void:
+    32		if Engine.has_singleton("Steam"):
+    33			_steam = Engine.get_singleton("Steam")
+    34			var r = _steam.steamInitEx(app_id) if app_id > 0 else _steam.steamInitEx()
+    35			init_result = r
+    36			if typeof(r) == TYPE_DICTIONARY and int(r.get("status", 1)) != 0:
+    37				_steam = null
+    38		if _steam != null and sync_local:
+    39			# 離線時解鎖、只記在本機的成就，這裡補送到 Steam（沒有就不呼叫 storeStats）
+    40			var got: Array = Save.data.get("achievements", [])
+    41			if not got.is_empty():
+    42				for id in got:
+    43					_steam.setAchievement(id)
+    44				_steam.storeStats()
+    45	
+    46	static func available() -> bool:
+    47		return _steam != null
+    48	
+    49	static func name_of(id: String, lang: String) -> String:
+    50		var n: Array = ACHIEVEMENTS.get(id, [id, id])
+    51		return n[0] if lang == "zh_TW" else n[1]
+    52	
+    53	## 解鎖成就；回傳 true 表示這次是新解鎖（畫面要跳提示）。
+    54	static func unlock(id: String) -> bool:
+    55		var got: Array = Save.data.get("achievements", [])
+    56		if id in got:
+    57			return false
+    58		got.append(id)
+    59		Save.data["achievements"] = got
+    60		Save.save_data()
+    61		if _steam != null:
+    62			_steam.setAchievement(id)
+    63			_steam.storeStats()
+    64		return true
+    65	
+    66	## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
+    67	## 回傳每一項結果與總判定 ok（任何一項不符就是 false，呼叫端用它決定結束碼）。
+    68	static func self_test(expect_app_id: int) -> Dictionary:
+    69		var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available(), "ok": false}
+    70		if _steam == null:
+    71			out["why"] = "沒有 GodotSteam 或初始化失敗"
+    72			return out
+    73		out["logged_on"] = _steam.loggedOn()
+    74		out["app_id"] = _steam.getAppID()
+    75		out["running"] = _steam.isSteamRunning()
+    76		var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
+    77		var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
+    78		out["known_read_ok"] = typeof(known) == TYPE_DICTIONARY and bool(known.get("ret", false))
+    79		out["our_id_missing"] = typeof(ours) == TYPE_DICTIONARY and not bool(ours.get("ret", true))
+    80		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and out["known_read_ok"] and out["our_id_missing"]
+    81		if not out["ok"]:
+    82			out["why"] = "有檢查項不符"
+    83		return out
+    84	
+    85	static func run_callbacks() -> void:
+    86		if _steam != null:
+    87			_steam.run_callbacks()
+     1	extends RefCounted
+     2	## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
+     3	## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
+     4	
+     5	const SAVE_VERSION := 1
+     6	static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
+     7	
+     8	const DEFAULT_SETTINGS := {
+     9		"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false,
+    10		"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false,
+    11	}
+    12	const DEFAULT_SAVE := {
+    13		"version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
+    14		"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0},
+    15	}
+    16	
+    17	static var settings := {}
+    18	static var data := {}
+    19	
+    20	static func load_all() -> void:
+    21		settings = _read(_sp(), DEFAULT_SETTINGS)
+    22		data = _read(_dp(), DEFAULT_SAVE)
+    23		if int(data.get("version", 0)) != SAVE_VERSION:
+    24			data = _migrate(data)
+    25	
+    26	static func _sp() -> String:
+    27		return "user://%ssettings.json" % prefix
+    28	
+    29	static func _dp() -> String:
+    30		return "user://%ssave.json" % prefix
+    31	
+    32	static func _read(path: String, defaults: Dictionary) -> Dictionary:
+    33		var out := defaults.duplicate(true)
+    34		for p in [path, path + ".bak"]:
+    35			if not FileAccess.file_exists(p):
+    36				continue
+    37			var txt := FileAccess.get_file_as_string(p)
+    38			var parsed = JSON.parse_string(txt)
+    39			if typeof(parsed) == TYPE_DICTIONARY:
+    40				for k in parsed:
+    41					out[k] = parsed[k]
+    42				return out
+    43		return out
+    44	
+    45	static func _migrate(d: Dictionary) -> Dictionary:
+    46		var out := DEFAULT_SAVE.duplicate(true)
+    47		for k in d:
+    48			if out.has(k):
+    49				out[k] = d[k]
+    50		out["version"] = SAVE_VERSION
+    51		return out
+    52	
+    53	static func _write(path: String, d: Dictionary) -> bool:
+    54		var tmp := path + ".tmp"
+    55		var f := FileAccess.open(tmp, FileAccess.WRITE)
+    56		if f == null:
+    57			return false
+    58		var txt := JSON.stringify(d, "\t")
+    59		f.store_string(txt)
+    60		f.close()
+    61		# 讀回驗證：內容不完整（磁碟滿、被中斷）就不覆蓋正式檔
+    62		if FileAccess.get_file_as_string(tmp) != txt:
+    63			return false
+    64		if FileAccess.file_exists(path):
+    65			DirAccess.copy_absolute(path, path + ".bak")
+    66		return DirAccess.rename_absolute(tmp, path) == OK
+    67	
+    68	static func save_settings() -> bool:
+    69		return _write(_sp(), settings)
+    70	
+    71	static func save_data() -> bool:
+    72		return _write(_dp(), data)
+    73	
+    74	static func s(key: String):
+    75		return settings.get(key, DEFAULT_SETTINGS.get(key))
+    76	
+    77	static func set_setting(key: String, v) -> void:
+    78		settings[key] = v
+    79		save_settings()
+    80	
+    81	
+    82	## 試玩紀錄（優化方案 F5、N3）：只在設定開啟時寫在本機 user://playtest_log.jsonl，不上傳。
+    83	static func playtest_log(entry: Dictionary) -> void:
+    84		if not bool(s("playtest")):
+    85			return
+    86		var path := "user://%splaytest_log.jsonl" % prefix
+    87		var f := FileAccess.open(path, FileAccess.READ_WRITE if FileAccess.file_exists(path) else FileAccess.WRITE)
+    88		if f == null:
+    89			return
+    90		f.seek_end()
+    91		entry["time"] = Time.get_datetime_string_from_system()
+    92		f.store_line(JSON.stringify(entry))
+     1	; Engine configuration file.
+     2	; It's best edited using the editor UI and not directly,
+     3	; since the parameters that go here are not all obvious.
+     4	;
+     5	; Format:
+     6	;   [section] ; section goes between []
+     7	;   param=value ; assign values to parameters
+     8	
+     9	config_version=5
+    10	
+    11	[application]
+    12	
+    13	config/name="落子無悔 No Take-Backs"
+    14	config/version="0.2.0"
+    15	run/main_scene="res://scenes/main.tscn"
+    16	config/features=PackedStringArray("4.6")
+    17	config/icon="res://icon.svg"
+    18	
+    19	[debug]
+    20	
+    21	gdscript/warnings/integer_division=0
+    22	
+    23	[display]
+    24	
+    25	window/size/viewport_width=1280
+    26	window/size/viewport_height=800
+    27	window/stretch/mode="canvas_items"
+    28	
+    29	[rendering]
+    30	
+    31	renderer/rendering_method="gl_compatibility"
+    32	environment/defaults/default_clear_color=Color(0.12, 0.13, 0.16, 1)
+
+web search: 
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/main.gd | sed -n '1,240p'; nl -ba game/scripts/ui/main.gd | sed -n '685,760p'; rg -n 'notification|exit_tree|Save\\.|FileAccess|DirAccess|SteamApi|func _input|func _unhandled|func _process|func _draw' game/scripts/ui/main.gd; nl -ba game/tools/balance_report.py | sed -n '1,145p'; rg -n '4.23.2|getAchievement|steamInitEx' coordination/fin-r2 docs game/addons --glob '"'!*.dll'"' --glob '"'!*.so'"'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 116ms:
+     1	extends Node2D
+     2	## 《落子無悔》主畫面：標題 → 模式 → 擺放 → 戰鬥 → 結果。
+     3	## 戰鬥結果完全由 scripts/core/battle_sim.gd 決定；這裡只負責演出（插值、特效、慢動作、鏡頭、聲音），不影響勝負。
+     4	## UI 是自繪的「即時模式按鈕」，同時支援滑鼠、鍵盤、手把（焦點導航）。
+     5	
+     6	const D = preload("res://scripts/core/unit_defs.gd")
+     7	const Army = preload("res://scripts/core/army.gd")
+     8	const Sim = preload("res://scripts/core/battle_sim.gd")
+     9	const AI = preload("res://scripts/core/ai_army.gd")
+    10	const AIT = preload("res://scripts/core/ai_turns.gd")
+    11	const TP = preload("res://scripts/core/turn_placement.gd")
+    12	const Art = preload("res://scripts/ui/art.gd")
+    13	const L = preload("res://scripts/game/strings.gd")
+    14	const Save = preload("res://scripts/game/save.gd")
+    15	const SteamApi = preload("res://scripts/game/steam.gd")
+    16	const PZ = preload("res://scripts/game/puzzles.gd")
+    17	const SfxScript = preload("res://scripts/game/sfx.gd")
+    18	
+    19	enum St { TITLE, PLACE, BATTLE, RESULT }
+    20	enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
+    21	
+    22	const ORIGIN := Vector2(128, 100)
+    23	const CS := 64.0
+    24	const FIELD := Vector2(16 * 64, 9 * 64)
+    25	const CARD_Y := 694.0
+    26	const CARD_W := 140.0
+    27	const CARD_H := 96.0
+    28	const UI_BG := Color(0.08, 0.09, 0.13, 0.94)
+    29	const PANEL := Color(0.12, 0.13, 0.19, 0.97)
+    30	const ACCENT := Color("#ffd166")
+    31	const UNIT_SCALE := 0.92
+    32	
+    33	var font: Font
+    34	var font_bold: Font
+    35	var sfx
+    36	var state := St.TITLE
+    37	var mode := Mode.VS_AI
+    38	var overlay := ""
+    39	var difficulty := 1
+    40	var duel_rule := "snake5"
+    41	var armies: Array = []
+    42	var tp = null
+    43	var blind_phase := 0          # 盲擺：0 藍擺、1 紅擺、2 完成
+    44	var ai_name := ""
+    45	var rng := RandomNumberGenerator.new()
+    46	var selected := D.SWORD
+    47	var hover_card := -1
+    48	var drag_new := false
+    49	var drag_from := Vector2i(-1, -1)
+    50	var painting := false
+    51	var paint_team := 0
+    52	var mouse := Vector2.ZERO
+    53	var cursor := Vector2i(4, 4)
+    54	var pad_mode := false
+    55	var toast := ""
+    56	var toast_t := 0.0
+    57	var ach_queue: Array = []
+    58	var ach_t := 0.0
+    59	var wins := [0, 0]
+    60	var round_no := 1
+    61	var series_over := false
+    62	var last_armies: Array = []
+    63	var last_player_formation: Array = []
+    64	var puzzle_id := ""
+    65	var gauntlet_stage := 1
+    66	var gauntlet_prev: Array = []
+    67	var gauntlet_changes := 3
+    68	var gauntlet_seed := 0
+    69	
+    70	# 戰鬥演出
+    71	var sim = null
+    72	var prev_pos := {}
+    73	var accum := 0.0
+    74	var speed := 1.0
+    75	var slow_used := false
+    76	var slow_left := 0.0
+    77	var hitstop := 0.0
+    78	var zoom := 1.0
+    79	var zoom_target := 1.0
+    80	var zoom_center := ORIGIN + FIELD / 2
+    81	var shake := 0.0
+    82	var fx: Array = []
+    83	var atk_t := {}
+    84	var hurt_t := {}
+    85	var dying: Array = []
+    86	var result_delay := 0.0
+    87	var time := 0.0
+    88	var shot_dir := ""
+    89	var ev_count := {}
+    90	var frenzy_seen := false
+    91	var report := {}
+    92	var pt_call_tick := -1
+    93	var pt_rated := false
+    94	
+    95	# 標題背景的展示戰
+    96	var demo = null
+    97	var demo_acc := 0.0
+    98	
+    99	# 即時模式按鈕
+   100	var _btns: Array = []
+   101	var _focus := 0
+   102	var _click_pending := Vector2(-1, -1)
+   103	
+   104	var capsule_path := ""
+   105	var video_mode := false
+   106	var grass: Texture2D
+   107	var plants: Array = []
+   108	
+   109	func _ready() -> void:
+   110		for a in OS.get_cmdline_user_args():
+   111			if a.begins_with("--shot=") or a.begins_with("--steam-test="):
+   112				Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
+   113		Save.load_all()
+   114		for a in OS.get_cmdline_user_args():
+   115			if a.begins_with("--steam-test="):
+   116				var aid := int(a.substr(13))
+   117				SteamApi.init(aid, false)
+   118				var res: Dictionary = SteamApi.self_test(aid)
+   119				print("STEAMTEST ", JSON.stringify(res))
+   120				get_tree().quit(0 if res["ok"] else 1)
+   121				return
+   122		L.lang = Save.s("lang")
+   123		duel_rule = Save.s("duel_rule")
+   124		speed = float(Save.s("speed"))
+   125		var _ua := OS.get_cmdline_user_args()
+   126		var _special := "--video" in _ua
+   127		for x in _ua:
+   128			if x.begins_with("--capsule="):
+   129				_special = true
+   130		if Save.prefix == "" and not _special:   # 截圖／影片／膠囊模式完全不碰 Steam
+   131			SteamApi.init()
+   132		font = _load_font("res://fonts/NotoSansTC-Regular-sub.otf")
+   133		font_bold = _load_font("res://fonts/NotoSansTC-Bold-sub.otf")
+   134		sfx = SfxScript.new()
+   135		add_child(sfx)
+   136		sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))
+   137		grass = load("res://art/cainos/TX_Tileset_Grass.png")
+   138		for i in 9:
+   139			var tex = load("res://art/cainos/plant_%02d.png" % i)
+   140			if tex:
+   141				plants.append(tex)
+   142		for a in OS.get_cmdline_user_args():
+   143			if a.begins_with("--shot="):
+   144				shot_dir = a.substr(7)
+   145			elif a.begins_with("--capsule="):
+   146				capsule_path = a.substr(10)
+   147			elif a == "--video":
+   148				video_mode = true
+   149		if capsule_path != "":
+   150			get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+   151			_capture_capsule.call_deferred()
+   152			return
+   153		_apply_fullscreen()
+   154		rng.seed = Time.get_ticks_usec() if (shot_dir == "" and not video_mode) else 12345
+   155		if video_mode:
+   156			Save.prefix = "shot_"
+   157			Save.load_all()
+   158		_go_title()
+   159		if shot_dir != "":
+   160			_run_screenshots.call_deferred()
+   161		elif video_mode:
+   162			_run_video.call_deferred()
+   163	
+   164	func _load_font(path: String) -> Font:
+   165		if ResourceLoader.exists(path):
+   166			var f = load(path)
+   167			if f:
+   168				return f
+   169		var sf := SystemFont.new()
+   170		sf.font_names = PackedStringArray(["Microsoft JhengHei UI", "Noto Sans CJK TC", "sans-serif"])
+   171		return sf
+   172	
+   173	func _apply_fullscreen() -> void:
+   174		if shot_dir != "":
+   175			return
+   176		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if Save.s("fullscreen") else DisplayServer.WINDOW_MODE_WINDOWED)
+   177	
+   178	func ts(px: int) -> int:
+   179		return int(px * int(Save.s("text_scale")) / 100)
+   180	
+   181	func cbm() -> bool:
+   182		return bool(Save.s("colorblind"))
+   183	
+   184	# ───────────────────────── 狀態切換 ─────────────────────────
+   185	func _go_title() -> void:
+   186		state = St.TITLE
+   187		overlay = ""
+   188		sim = null
+   189		zoom = 1.0
+   190		_focus = 0
+   191		_new_demo()
+   192		sfx.play_music("music_title")
+   193	
+   194	func _new_demo() -> void:
+   195		var r := RandomNumberGenerator.new()
+   196		r.seed = rng.randi()
+   197		demo = Sim.new(AI.build(0, 100, r)["army"], AI.build(1, 100, r)["army"])
+   198		demo.fast = true
+   199		demo_acc = 0.0
+   200	
+   201	func _start_mode(m: int) -> void:
+   202		mode = m
+   203		wins = [0, 0]
+   204		round_no = 1
+   205		series_over = false
+   206		last_player_formation = []
+   207		overlay = ""
+   208		if m == Mode.GAUNTLET:
+   209			gauntlet_stage = 1
+   210			gauntlet_prev = []
+   211			gauntlet_changes = 99
+   212			gauntlet_seed = rng.randi()
+   213		_reset_place()
+   214	
+   215	func _reset_place(keep_blue := false) -> void:
+   216		state = St.PLACE
+   217		sim = null
+   218		fx.clear()
+   219		dying.clear()
+   220		zoom = 1.0
+   221		tp = null
+   222		blind_phase = 0
+   223		_focus = 0
+   224		var blue_keep = armies[0].copy() if keep_blue and not armies.is_empty() else null
+   225		armies = [Army.new(0, 100), Army.new(1, 100)]
+   226		match mode:
+   227			Mode.VS_AI:
+   228				if blue_keep != null:
+   229					armies[0] = blue_keep
+   230			Mode.DUEL:
+   231				if duel_rule != "blind":
+   232					tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule)
+   233			Mode.TUTORIAL, Mode.PUZZLE:
+   234				var pz := PZ.get_puzzle(puzzle_id)
+   235				armies[0] = PZ.player_army(pz)
+   236				armies[1] = PZ.enemy_army(pz)
+   237				selected = int(pz["allowed"][0])
+   238			Mode.GAUNTLET:
+   239				if not gauntlet_prev.is_empty():
+   240					armies[0].units = gauntlet_prev.duplicate(true)
+   685						_btns[_focus]["cb"].call()
+   686				KEY_ESCAPE:
+   687					if overlay != "":
+   688						overlay = ""
+   689					elif state == St.BATTLE:
+   690						_on_skip()
+   691					elif state != St.TITLE:
+   692						_go_title()
+   693			return
+   694		pad_mode = true
+   695		match k:
+   696			KEY_UP: cursor.y = maxi(0, cursor.y - 1)
+   697			KEY_DOWN: cursor.y = mini(8, cursor.y + 1)
+   698			KEY_LEFT: cursor.x = maxi(0, cursor.x - 1)
+   699			KEY_RIGHT: cursor.x = mini(15, cursor.x + 1)
+   700			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
+   701				var t := k - KEY_1
+   702				if _allowed(t):
+   703					selected = t
+   704			KEY_Q, KEY_E:
+   705				for i in 5:
+   706					selected = (selected + (4 if k == KEY_Q else 1)) % 5
+   707					if _allowed(selected):
+   708						break
+   709			KEY_ENTER, KEY_KP_ENTER:
+   710				if _cur_army().index_at(cursor.x, cursor.y) == -1:
+   711					_try_place(cursor)
+   712			KEY_BACKSPACE, KEY_DELETE:
+   713				_try_remove(cursor)
+   714			KEY_SPACE, KEY_TAB:
+   715				_on_start()
+   716			KEY_ESCAPE:
+   717				_go_title()
+   718	
+   719	func _move_focus(d: int) -> void:
+   720		pad_mode = true
+   721		if _btns.is_empty():
+   722			return
+   723		_focus = posmod(_focus + d, _btns.size())
+   724	
+   725	func _on_skip() -> void:
+   726		while not sim.finished:
+   727			_sim_step(false)
+   728		result_delay = 9.0
+   729	
+   730	# ───────────────────────── 每幀 ─────────────────────────
+   731	func _process(delta: float) -> void:
+   732		time += delta
+   733		SteamApi.run_callbacks()
+   734		if toast_t > 0:
+   735			toast_t -= delta
+   736		if ach_t > 0:
+   737			ach_t -= delta
+   738		elif not ach_queue.is_empty():
+   739			toast = ach_queue.pop_front()
+   740			toast_t = 2.5
+   741			ach_t = 2.6
+   742		shake = maxf(0.0, shake - delta)
+   743		for f in fx:
+   744			f["t"] += delta
+   745		fx = fx.filter(func(f): return f["t"] < f["dur"])
+   746		for g in dying:
+   747			g["t"] += delta
+   748		dying = dying.filter(func(g): return g["t"] < 1.0)
+   749		if state == St.TITLE and demo != null and shot_dir == "":
+   750			demo_acc += delta
+   751			while demo_acc >= 0.05:
+   752				demo_acc -= 0.05
+   753				demo.step()
+   754			if demo.finished:
+   755				_new_demo()
+   756		if state == St.BATTLE and shot_dir == "":
+   757			_battle_process(delta)
+   758		elif state == St.RESULT:
+   759			zoom = lerpf(zoom, 1.0, delta * 4)
+   760		queue_redraw()
+15:const SteamApi = preload("res://scripts/game/steam.gd")
+112:			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
+113:	Save.load_all()
+117:			SteamApi.init(aid, false)
+118:			var res: Dictionary = SteamApi.self_test(aid)
+122:	L.lang = Save.s("lang")
+123:	duel_rule = Save.s("duel_rule")
+124:	speed = float(Save.s("speed"))
+130:	if Save.prefix == "" and not _special:   # 截圖／影片／膠囊模式完全不碰 Steam
+131:		SteamApi.init()
+136:	sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))
+156:		Save.prefix = "shot_"
+157:		Save.load_all()
+176:	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if Save.s("fullscreen") else DisplayServer.WINDOW_MODE_WINDOWED)
+179:	return int(px * int(Save.s("text_scale")) / 100)
+182:	return bool(Save.s("colorblind"))
+342:	if not FileAccess.file_exists("res://data/counter_lib.json"):
+344:	var p = JSON.parse_string(FileAccess.get_file_as_string("res://data/counter_lib.json"))
+370:	speed = float(Save.s("speed"))
+389:	Save.playtest_log(_pt_entry(0))
+399:	Save.playtest_log(_pt_entry(v))
+418:	var st: Dictionary = Save.data.get("stats", {"wins": 0, "games": 0})
+423:	Save.data["stats"] = st
+455:		var ps: Dictionary = Save.data.get("puzzle_stars", {})
+458:		Save.data["puzzle_stars"] = ps
+465:			Save.data["tutorial"] = maxi(int(Save.data.get("tutorial", 0)), idx + 1)
+466:			if int(Save.data["tutorial"]) >= PZ.tutorials().size():
+480:				Save.data["gauntlet_best"] = 7
+482:			Save.data["gauntlet_best"] = maxi(int(Save.data.get("gauntlet_best", 0)), gauntlet_stage - 1)
+486:	if not Save.save_data():
+490:	if SteamApi.unlock(id):
+491:		ach_queue.append(L.t("achievement", [SteamApi.name_of(id, L.lang)]))
+592:func _input(ev: InputEvent) -> void:
+731:func _process(delta: float) -> void:
+733:	SteamApi.run_callbacks()
+796:		if bool(Save.s("slowmo")):
+837:		if bool(Save.s("shake")):
+869:			if bool(Save.s("shake")):
+926:func _draw() -> void:
+935:		if shake > 0 and bool(Save.s("shake")):
+990:func _draw_capsule() -> void:
+1064:func _draw_field() -> void:
+1093:func _draw_units_of(s, dim: bool) -> void:
+1121:		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
+1158:func _draw_place_units() -> void:
+1204:func _draw_tactical() -> void:
+1250:func _draw_fx(f: Dictionary) -> void:
+1346:func _draw_title() -> void:
+1365:	_text(Vector2(640, 752), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), D.RULES_VERSION], ts(13), Color(1, 1, 1, 0.5), true)
+1377:	Save.set_setting("duel_rule", r)
+1385:func _draw_overlay() -> void:
+1403:			var stars: Dictionary = Save.data.get("puzzle_stars", {})
+1404:			var tdone := int(Save.data.get("tutorial", 0))
+1424:			_text(Vector2(240, 140), FileAccess.get_file_as_string("res://data/credits.txt"), ts(13), Color(1, 1, 1, 0.88))
+1429:func _draw_settings() -> void:
+1433:		["set_lang", L.t("lang_name"), func(): _cycle_setting("lang", ["zh_TW", "en"]); L.lang = Save.s("lang")],
+1434:		["set_text", "%d%%" % int(Save.s("text_scale")), func(): _cycle_setting("text_scale", [100, 125, 150])],
+1439:		["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(): _cycle_setting("speed", [0.5, 1.0, 2.0])],
+1440:		["set_music", "%d%%" % int(Save.s("music")), func(): _cycle_setting("music", [0, 30, 50, 70, 100]); sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))],
+1441:		["set_sfx", "%d%%" % int(Save.s("sfx")), func(): _cycle_setting("sfx", [0, 30, 50, 80, 100]); sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))],
+1442:		["set_rule", L.t("rule_" + str(Save.s("duel_rule"))), func(): _cycle_setting("duel_rule", ["snake5", "cap10", "blind"]); duel_rule = Save.s("duel_rule")],
+1454:	if bool(Save.s("playtest")):
+1462:	return L.t("on") if bool(Save.s(k)) else L.t("off")
+1465:	var cur = Save.s(k)
+1470:	Save.set_setting(k, opts[(i + 1) % opts.size()])
+1472:func _draw_slots() -> void:
+1475:	var slots: Array = Save.data.get("slots", ["", "", "", "", ""])
+1495:	var slots: Array = Save.data.get("slots", ["", "", "", "", ""])
+1497:	Save.data["slots"] = slots
+1498:	if Save.save_data():
+1504:	var slots: Array = Save.data.get("slots", ["", "", "", "", ""])
+1516:func _draw_place_hud() -> void:
+1606:func _draw_battle_hud() -> void:
+1633:	if state == St.BATTLE and bool(Save.s("playtest")):
+1640:func _draw_result() -> void:
+1722:	if bool(Save.s("playtest")) and not pt_rated:
+1919:	Save.data["tutorial"] = 3
+     1	#!/usr/bin/env python3
+     2	"""平衡工具 2.0 報表：合併 balance.sh 各分片的 JSONL，檢查紅線，寫 report.md 與 summary.json。
+     3	用法：balance_report.py <資料夾> [總秒數]
+     4	結束碼：0＝紅線全過；1＝有紅線失敗；2＝資料錯誤（零筆、數值摘要不一致）。
+     5	紅線（優化方案 M）：
+     6	  - 剋制五角形 10/10（matrix：剋的一方左右各打一次都要贏）
+     7	  - 碾壓局（勝方剩 >50%）< 20%
+     8	  - 戰鬥秒數中位數 35～75
+     9	  - 勝方剩餘戰力中位數 ≤ 30%
+    10	警示（列入調查，不算失敗）：
+    11	  - 先手或後手勝率 > 55%
+    12	  - 搜尋到保留池勝率 > 65% 的陣型
+    13	  - 鎖定時間比中位數 < 0.4（垃圾時間太長）
+    14	"""
+    15	import json, sys, glob, os, statistics as st
+    16	
+    17	NAMES = ["劍士", "盾兵", "弓箭手", "騎兵", "刺客"]
+    18	BEATS = {0: [4, 1], 1: [3, 2], 2: [0, 4], 3: [2, 0], 4: [1, 3]}
+    19	
+    20	def load(folder):
+    21	    rows = {}
+    22	    for f in sorted(glob.glob(os.path.join(folder, "*.jsonl"))):
+    23	        key = os.path.basename(f).rsplit("_", 1)[0]
+    24	        for line in open(f, encoding="utf-8"):
+    25	            line = line.strip()
+    26	            if line:
+    27	                rows.setdefault(key, []).append(json.loads(line))
+    28	    return rows
+    29	
+    30	def pct(a, b):
+    31	    return 0 if b == 0 else round(100 * a / b)
+    32	
+    33	def main():
+    34	    folder = sys.argv[1]
+    35	    secs = sys.argv[2] if len(sys.argv) > 2 else "?"
+    36	    rows = load(folder)
+    37	    total = sum(len(v) for v in rows.values())
+    38	    if total == 0:
+    39	        print("✗ 零筆結果"); sys.exit(2)
+    40	    # 完整性（Codex N1-r1 #6）：每個模式的筆數要對、不能有重複鍵；依鍵排序
+    41	    man_path = os.path.join(folder, "manifest.json")
+    42	    if not os.path.exists(man_path):
+    43	        print("✗ 沒有 manifest.json，無法確認資料完整"); sys.exit(2)
+    44	    man = json.load(open(man_path))
+    45	    if not isinstance(man.get("modes"), list) or not man["modes"] or not isinstance(man.get("shards"), int) or man["shards"] <= 0:
+    46	        print("✗ manifest.json 不合法"); sys.exit(2)
+    47	    shards = man["shards"]
+    48	    allowed = {"matrix", "league", "turns:cap10", "turns:snake5", "turns:snake5c", "search", "counter", "countersearch"}
+    49	    bad_modes = [m for m in man["modes"] if m not in allowed]
+    50	    if bad_modes:
+    51	        print(f"✗ manifest 有不合法的模式：{bad_modes}"); sys.exit(2)
+    52	    # 分片檔完整性（Codex N1-r3 #6）：每個模式 0～shards-1 片都要在，也不能有 manifest 以外的檔案
+    53	    have = {os.path.basename(f) for f in glob.glob(os.path.join(folder, "*.jsonl"))}
+    54	    want_files = {f"{m.replace(':', '_')}_{i}.jsonl" for m in man["modes"] for i in range(man["shards"])}
+    55	    if have != want_files:
+    56	        print(f"✗ 分片檔不完整：缺 {sorted(want_files - have)[:5]}、多 {sorted(have - want_files)[:5]}"); sys.exit(2)
+    57	    errs = [r for v in rows.values() for r in v if "error" in r]
+    58	    if errs:
+    59	        print(f"✗ 有 {len(errs)} 筆執行錯誤（例：{errs[0]}）"); sys.exit(2)
+    60	    expect = {"matrix": 20, "league": 200 * 12 * 2, "search": shards, "counter": 6, "countersearch": shards}
+    61	    keyset = {
+    62	        "matrix": {(a, b) for a in range(5) for b in range(5) if a != b},
+    63	        "league": {(a, k, s) for a in range(200) for k in range(12) for s in range(2)},
+    64	        "search": {(s,) for s in range(shards)},
+    65	        "counter": {(t,) for t in range(6)},
+    66	        "countersearch": {(s,) for s in range(shards)},
+    67	    }
+    68	    keyf = {"matrix": ("a", "b"), "league": ("a", "k", "side"), "search": ("shard",), "counter": ("template",),
+    69	            "countersearch": ("shard",)}
+    70	    for m in man["modes"]:
+    71	        key = m.replace(":", "_")
+    72	        got = rows.get(key, [])
+    73	        base = m.split(":")[0]
+    74	        exp = 400 if base == "turns" else expect.get(base)
+    75	        want = {(g,) for g in range(400)} if base == "turns" else keyset.get(base)
+    76	        kf = ("game",) if base == "turns" else keyf.get(base, ())
+    77	        keys = [tuple(r.get(k) for k in kf) for r in got]
+    78	        if exp is not None and len(got) != exp:
+    79	            print(f"✗ {m} 筆數 {len(got)}，預期 {exp}"); sys.exit(2)
+    80	        if len(set(keys)) != len(keys):
+    81	            print(f"✗ {m} 有重複的場次"); sys.exit(2)
+    82	        if want is not None and set(keys) != want:
+    83	            print(f"✗ {m} 場次鍵集合不對（少 {len(want - set(keys))}、多 {len(set(keys) - want)}）"); sys.exit(2)
+    84	        rows[key] = [r for _, r in sorted(zip(keys, got), key=lambda kv: kv[0])]
+    85	    digests = {r.get("digest") for v in rows.values() for r in v}
+    86	    if None in digests or "" in digests:
+    87	        print("✗ 有資料缺少數值摘要"); sys.exit(2)
+    88	    if len(digests) != 1:
+    89	        print("✗ 數值摘要不一致：", digests); sys.exit(2)
+    90	    md = [f"# 平衡報表 2.0\n", f"- 數值摘要 `{digests.pop()}`、共 {total} 筆、耗時 {secs} 秒\n"]
+    91	    fails, warns, summary = [], [], {}
+    92	
+    93	    if "matrix" in rows:
+    94	        m = {}
+    95	        for r in rows["matrix"]:
+    96	            m[(r["a"], r["b"])] = r
+    97	        ok = 0
+    98	        md.append("\n## ① 剋制矩陣（各 60 金；列兵種對行兵種：勝/平/負，括號＝勝方剩餘%）\n\n| | " + " | ".join(NAMES) + " |\n|" + "---|" * 6 + "\n")
+    99	        for a in range(5):
+   100	            cells = []
+   101	            for b in range(5):
+   102	                if a == b:
+   103	                    cells.append("—"); continue
+   104	                r1, r2 = m.get((a, b)), m.get((b, a))
+   105	                wins = (r1["res"] == 1) + (r2["res"] == -1)
+   106	                loss = (r1["res"] == -1) + (r2["res"] == 1)
+   107	                cells.append(f"{wins}/{2-wins-loss}/{loss} ({r1['rem']})")
+   108	            md.append(f"| {NAMES[a]} | " + " | ".join(cells) + " |\n")
+   109	        for a, bs in BEATS.items():
+   110	            for b in bs:
+   111	                r1, r2 = m[(a, b)], m[(b, a)]
+   112	                if r1["res"] == 1 and r2["res"] == -1:
+   113	                    ok += 1
+   114	        md.append(f"\n剋制成立 **{ok}/10**\n")
+   115	        summary["pentagon"] = ok
+   116	        if ok < 10:
+   117	            fails.append(f"剋制只成立 {ok}/10")
+   118	
+   119	    if "league" in rows:
+   120	        L = rows["league"]
+   121	        dec = [r for r in L if r["res"] != 0]
+   122	        rem = [r["rem"] for r in dec]
+   123	        sec = [r["ticks"] / 20 for r in L]
+   124	        lock = [r["lock"] / 1000 for r in dec]
+   125	        lc = [r["lc"] for r in L]
+   126	        swing = [r["swing"] for r in dec]
+   127	        blow = pct(sum(1 for x in rem if x > 50), len(rem))
+   128	        close = pct(sum(1 for x in rem if x <= 30), len(rem))
+   129	        med_rem = st.median(rem) if rem else 0
+   130	        med_sec = st.median(sec)
+   131	        med_lock = st.median(lock) if lock else 0
+   132	        summary.update(league_games=len(L), median_rem=med_rem, blowout_pct=blow, close_pct=close, median_secs=med_sec,
+   133	                       median_lock=med_lock, lead_change_pct=pct(sum(1 for x in lc if x >= 1), len(lc)),
+   134	                       comeback_pct=pct(sum(1 for x in swing if x >= 15), len(swing)),
+   135	                       draw_pct=pct(len(L) - len(dec), len(L)), timeout_pct=pct(sum(1 for r in L if r["timeout"]), len(L)))
+   136	        md.append(f"\n## ② 陣型聯賽（訓練池 200 套 × 12 對手 × 交換左右 = {len(L)} 場）\n\n")
+   137	        md.append(f"| 指標 | 數值 | 目標 |\n|---|---|---|\n")
+   138	        md.append(f"| 勝方剩餘戰力中位數 | {med_rem}% | ≤30% |\n| 接近局（勝方剩 ≤30%） | {close}% | — |\n| 碾壓局（勝方剩 >50%） | {blow}% | <20% |\n")
+   139	        md.append(f"| 戰鬥秒數中位數 | {med_sec:.1f} | 35～75 |\n| 鎖定時間比中位數 | {med_lock:.2f} | ≥0.65 理想、<0.4 警示 |\n")
+   140	        md.append(f"| 有領先交換的場次 | {summary['lead_change_pct']}% | — |\n| 翻盤局（贏家曾落後 ≥15%） | {summary['comeback_pct']}% | — |\n")
+   141	        md.append(f"| 平手 | {summary['draw_pct']}% | — |\n| 時間到 | {summary['timeout_pct']}% | — |\n")
+   142	        if blow >= 20: warns.append(f"全池碾壓局 {blow}%（全池含亂擺陣型，只當參考）")
+   143	        if not (35 <= med_sec <= 75): fails.append(f"秒數中位數 {med_sec:.1f}")
+   144	        if med_rem > 30: warns.append(f"全池勝方剩餘中位數 {med_rem}%（只當參考）")
+   145	        if med_lock < 0.4: warns.append(f"鎖定時間比中位數 {med_lock:.2f} < 0.4")
+coordination/fin-r2/codex.prompt.md:6:1. steamInitEx 參數順序：Claude 用 ClassDB 查了本機 GodotSteam 4.23.2 的實際簽章，是 `steamInitEx(app_id:int=0, embed_callbacks:bool=false)`，改成 `steamInitEx(app_id)`。
+coordination/fin-r2/codex.prompt.md:20:   - `known.get("ret")` 是否符合 GodotSteam 4.23.2 `getAchievement` 的回傳格式。
+coordination/fin-r2/codex.log:18:1. steamInitEx 參數順序：Claude 用 ClassDB 查了本機 GodotSteam 4.23.2 的實際簽章，是 `steamInitEx(app_id:int=0, embed_callbacks:bool=false)`，改成 `steamInitEx(app_id)`。
+coordination/fin-r2/codex.log:32:   - `known.get("ret")` 是否符合 GodotSteam 4.23.2 `getAchievement` 的回傳格式。
+coordination/fin-r2/codex.log:37:我會唯讀核對這次 diff、相關呼叫路徑與本機 GodotSteam 資料，重點查 `getAchievement` 回傳格式及 `--steam-test` 是否可能寫入。
+coordination/fin-r2/codex.log:81:+## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
+coordination/fin-r2/codex.log:85:-		var r = _steam.steamInitEx(false, app_id) if app_id > 0 else _steam.steamInitEx(false)
+coordination/fin-r2/codex.log:86:+		var r = _steam.steamInitEx(app_id) if app_id > 0 else _steam.steamInitEx()
+coordination/fin-r2/codex.log:122:-	out["spacewar_ach_read"] = str(_steam.getAchievement("ACH_WIN_ONE_GAME"))   # 唯讀
+coordination/fin-r2/codex.log:123:-	out["our_id_rejected"] = str(_steam.getAchievement("FIRST_WIN"))            # 我們的 ID 在 480 不存在，應該回報不存在
+coordination/fin-r2/codex.log:126:+	var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
+coordination/fin-r2/codex.log:127:+	var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
+coordination/fin-r2/codex.log:335:- **中｜初始化參數順序有版本相容風險。** `steam.gd:32` 使用 `steamInitEx(false, app_id)`；[官方原始碼](https://raw.githubusercontent.com/GodotSteam/GodotSteam/9a3480ff1bdbc5064f5a53dda8341b5263ea5c09/godotsteam.cpp) 的綁定順序是 `(app_id, embed_callbacks)`。依此介面，480 並未傳入 App ID。須核對隨附擴充版本的實際綁定，不能把尚未跑過的 480 測試視為已可用。
+coordination/fin-r2/codex.log:378:    30	## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
+coordination/fin-r2/codex.log:382:    34			var r = _steam.steamInitEx(app_id) if app_id > 0 else _steam.steamInitEx()
+coordination/fin-r2/codex.log:424:    76		var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
+coordination/fin-r2/codex.log:425:    77		var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
+docs/2026-11-01-design-and-plan.md:458:| N8 Steam 完整整合 | ◐ | ✔ **GodotSteam 4.23.2 已安裝**，匯出 build 自動帶 Steam DLL、實跑 0 錯誤；`steam.gd`（成就 15 個、離線補送、唯讀自我檢查）；步驟文件。✘ Spacewar 480 實測：會改你 Steam 狀態，權限擋下，指令留給你；✘ 正式成就與雲端：要你的 AppID |
+docs/release/steam-setup.md:12:1. ✔ 已安裝 GodotSteam GDExtension 4.23.2（https://codeberg.org/godotsteam/godotsteam）到 `game/addons/godotsteam/`。
+docs/release/steam-setup.md:21:2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
+game/addons/godotsteam/readme.md:31:**Version 4.23.2 Changes**
+game/addons/godotsteam/readme.md:64:4.14 | Removed first argument for stat request in steamInit and steamInitEx, steamInit returns intended bool value
+docs/balance-runs/n2-baseline/search_3.jsonl:1:{"code":"418428424050422310221058054423425252430438056051153","comp":[25,5,8,7,48],"digest":"45652b8b5e89ac81","fit_holdout":0.54,"fit_sample":0.625,"mode":"search","shard":3}
+
+web search: https://raw.githubusercontent.com/GodotSteam/GodotSteam/9a3480ff1bdbc5064f5a53dda8341b5263ea5c09/godotsteam.cpp
+web search: 
+web search: https://raw.githubusercontent.com/GodotSteam/GodotSteam/4.23.2/godotsteam.cpp
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/main.gd | sed -n '103,178p'; nl -ba game/scripts/ui/main.gd | sed -n '1045,1065p'; cat game/scenes/main.tscn; sed -n '1,85p' game/addons/godotsteam/readme.md; rg -n 'steamInitEx|Steam::getAchievement|GodotSteam' /tmp --glob '*.cpp' --glob '*.gd' --glob '*.json' --glob '*steam*' --glob '"'!codex*'"' 2>/dev/null" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 0ms:
+   103	
+   104	var capsule_path := ""
+   105	var video_mode := false
+   106	var grass: Texture2D
+   107	var plants: Array = []
+   108	
+   109	func _ready() -> void:
+   110		for a in OS.get_cmdline_user_args():
+   111			if a.begins_with("--shot=") or a.begins_with("--steam-test="):
+   112				Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
+   113		Save.load_all()
+   114		for a in OS.get_cmdline_user_args():
+   115			if a.begins_with("--steam-test="):
+   116				var aid := int(a.substr(13))
+   117				SteamApi.init(aid, false)
+   118				var res: Dictionary = SteamApi.self_test(aid)
+   119				print("STEAMTEST ", JSON.stringify(res))
+   120				get_tree().quit(0 if res["ok"] else 1)
+   121				return
+   122		L.lang = Save.s("lang")
+   123		duel_rule = Save.s("duel_rule")
+   124		speed = float(Save.s("speed"))
+   125		var _ua := OS.get_cmdline_user_args()
+   126		var _special := "--video" in _ua
+   127		for x in _ua:
+   128			if x.begins_with("--capsule="):
+   129				_special = true
+   130		if Save.prefix == "" and not _special:   # 截圖／影片／膠囊模式完全不碰 Steam
+   131			SteamApi.init()
+   132		font = _load_font("res://fonts/NotoSansTC-Regular-sub.otf")
+   133		font_bold = _load_font("res://fonts/NotoSansTC-Bold-sub.otf")
+   134		sfx = SfxScript.new()
+   135		add_child(sfx)
+   136		sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))
+   137		grass = load("res://art/cainos/TX_Tileset_Grass.png")
+   138		for i in 9:
+   139			var tex = load("res://art/cainos/plant_%02d.png" % i)
+   140			if tex:
+   141				plants.append(tex)
+   142		for a in OS.get_cmdline_user_args():
+   143			if a.begins_with("--shot="):
+   144				shot_dir = a.substr(7)
+   145			elif a.begins_with("--capsule="):
+   146				capsule_path = a.substr(10)
+   147			elif a == "--video":
+   148				video_mode = true
+   149		if capsule_path != "":
+   150			get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+   151			_capture_capsule.call_deferred()
+   152			return
+   153		_apply_fullscreen()
+   154		rng.seed = Time.get_ticks_usec() if (shot_dir == "" and not video_mode) else 12345
+   155		if video_mode:
+   156			Save.prefix = "shot_"
+   157			Save.load_all()
+   158		_go_title()
+   159		if shot_dir != "":
+   160			_run_screenshots.call_deferred()
+   161		elif video_mode:
+   162			_run_video.call_deferred()
+   163	
+   164	func _load_font(path: String) -> Font:
+   165		if ResourceLoader.exists(path):
+   166			var f = load(path)
+   167			if f:
+   168				return f
+   169		var sf := SystemFont.new()
+   170		sf.font_names = PackedStringArray(["Microsoft JhengHei UI", "Noto Sans CJK TC", "sans-serif"])
+   171		return sf
+   172	
+   173	func _apply_fullscreen() -> void:
+   174		if shot_dir != "":
+   175			return
+   176		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if Save.s("fullscreen") else DisplayServer.WINDOW_MODE_WINDOWED)
+   177	
+   178	func ts(px: int) -> int:
+  1045			draw_line(tail, p, Art.OUT, sc * 3.5, true)
+  1046			draw_line(tail, p, Color("#d97706"), sc * 2.0, true)
+  1047			draw_colored_polygon(PackedVector2Array([p + Vector2(dir * sc * 6, 0), p + Vector2(0, sc * 3), p - Vector2(0, sc * 3)]), Color("#e5e7eb"))
+  1048			var tc := Art.team_color(0 if dir > 0 else 1, false)
+  1049			draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
+  1050			draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, -sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
+  1051	
+  1052	func _capture_capsule() -> void:
+  1053		await get_tree().process_frame
+  1054		await get_tree().process_frame
+  1055		await RenderingServer.frame_post_draw
+  1056		var err := get_viewport().get_texture().get_image().save_png(capsule_path)
+  1057		if err != OK:
+  1058			printerr("CAPSULE 存檔失敗 ", capsule_path, " err=", err)
+  1059			get_tree().quit(1)
+  1060			return
+  1061		print("CAPSULE ", capsule_path)
+  1062		get_tree().quit()
+  1063	
+  1064	func _draw_field() -> void:
+  1065		draw_rect(Rect2(ORIGIN - Vector2(10, 10), FIELD + Vector2(20, 20)), Color("#5b4632"))
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/main.gd" id="1"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1")
+# GodotSteam for Godot Engine 4.x | Community Edition
+An ecosystem of tools for [Godot Engine](https://godotengine.org) and [Valve's Steam](https://store.steampowered.com). For the Windows, Linux, and Mac platforms.
+
+
+Additional Flavors
+---
+Standard Module | Standard Plug-ins | Server Module | Server Plug-ins | Tools | Examples
+--- | --- | --- | --- | --- | ---
+[Godot 2.x](https://codeberg.org/godotsteam/godotsteam/src/branch/godot2) | [GDNative](https://codeberg.org/godotsteam/godotsteam/src/branch/gdnative) | [Server 3.x](https://codeberg.org/godotsteam/godotsteam-server/src/branch/godot3) | [GDNative](https://codeberg.org/godotsteam/godotsteam-server/src/branch/gdnative) | [GodotSteamKit](https://godotsteam.com/projects/godotsteamkit) | [Skillet](https://codeberg.org/godotsteam/skillet)
+[Godot 3.x](https://codeberg.org/godotsteam/godotsteam/src/branch/godot3) | [GDExtension](https://codeberg.org/godotsteam/godotsteam/src/branch/gdextension) | [Server 4.x](https://codeberg.org/godotsteam/godotsteam-server/src/branch/godot4) | [GDExtension](https://codeberg.org/godotsteam/godotsteam-server/src/branch/gdextension) | --- | [Skillet UGC Editor](https://codeberg.org/godotsteam/skillet/src/branch/ugc_editor)
+[Godot 4.x](https://codeberg.org/godotsteam/godotsteam/src/branch/godot4) | --- | --- | --- | --- | ---
+[MultiplayerPeer](https://codeberg.org/godotsteam/multiplayerpeer)| --- | --- | --- | --- | ---
+
+
+Documentation
+---
+[Documentation is available here](https://godotsteam.com).  You can also check out the Search Help section inside Godot Engine.  [To start, try checking out our tutorial on initializing Steam.](https://godotsteam.com/tutorials/initializing/)  There are additional tutorials, with more in the works.  You can also [check out additional Godot and Steam related videos, text, additional tools, plug-ins, etc. here.](https://godotsteam.com/resources/external/)
+
+Feel free to chat with us about GodotSteam or ask for assistance on the [Stoat server](https://stt.gg/9DxQ3Dcd) or [IRC on Libera Chat](irc://irc.libera.chat/#godotsteam).
+
+
+Donate
+---
+Pull-requests are the best way to help the project out but you can also donate through [Github Sponsors](https://github.com/sponsors/Gramps) or [LiberaPay](https://liberapay.com/godotsteam/donate)! [You can read more about donor perks here.](https://godotsteam.com/contribute/donations/)  [You can also view all our awesome donors here.](https://godotsteam.com/contribute/donors/)
+
+
+Current Build
+---
+You can [download pre-compiled versions of this repo here](https://codeberg.org/godotsteam/godotsteam/releases).
+
+**Version 4.23.2 Changes**
+
+- Added: VSCode to .gitignore; thanks to ***docfail***
+- Added: fix for "poisoned client" bug; thanks to ***docfail***
+- Fixed: minor regressions; thanks to ***Saalvage***
+- Fixed: incorrect name of MacOS file in .gdextension file
+- Removed: `set_auto_init()` and `set_embed_callbacks()` as they are useless
+
+[You can read more change-logs here](https://godotsteam.com/changelog/godot4/).
+
+
+Compatibility
+---
+While rare, sometimes Steamworks SDK updates will break compatibility with older GodotSteam versions. Any compatibility breaks are noted below. Newer API files (dll, so, dylib) _should_ still work for older versions.
+
+Steamworks SDK Version | GodotSteam Version
+---|---
+1.65 | 4.21 or newer
+1.63 to 1.64 | 4.17 to 4.20.1
+1.62 | 4.14 to 4.16.2
+1.61 | 4.12 to 4.13
+1.60 | 4.6 to 4.11
+1.59 | 4.6 to 4.8
+1.58a or older | 4.5.4 or older
+
+Versions of GodotSteam that have compatibility breaks introduced.
+
+GodotSteam Version | Broken Compatibility
+---|---
+4.8 | Networking identity system removed, replaced with Steam IDs
+4.9 | sendMessages returns an Array
+4.11 | setLeaderboardDetailsMax removed
+4.13 | getItemDefinitionProperty return a dictionary, html_needs_paint key 'bgra' changed to 'rbga'
+4.14 | Removed first argument for stat request in steamInit and steamInitEx, steamInit returns intended bool value
+4.16 | Variety of small break points, refer to [4.16 changelog for details](https://godotsteam.com/changelog/godot4/#version-416)
+4.17 | Windows projects using Steam SDK 1.63 are meant to work with Proton 11 or Experimental on Linux / Steam Deck.
+4.19 | Lots of changes to Voice functions, refer to [4.19 changelog for details](https://godotsteam.com/changelog/godot4/#version-419)
+4.20 | Godot 4.7 changed callable_method_pointer.h to callable_mp.h which will break backwards compatibility
+4.21 | ControllerPad enum changed to SteamControllerPad enum, SendMessages added new parameter
+
+
+Known Issues
+---
+- Steam Overlay ***may not*** work when running your game from Godot but the exported project should work perfectly fine in the Steam client. [Read more.](https://godotsteam.com/issues/common_issues/#steam-overlay)
+- If using the Steam version of Godot on Windows, you may need to manually update Godot's steam_api64.dll or steam_api.dll with GodotSteam's version as it is sometimes outdated and may cause the plug-in to fail to load. [Read more.](https://godotsteam.com/issues/windows_issues/#failure-to-load-steam-version)
+
+
+Quick How-To
+---
+For complete instructions on how to build the Godot 4.x version of GodotSteam from scratch as either a custom editor or GDExtension, both apply to this branch:
+
+- [Custom editor (module)](https://godotsteam.com/howto/modules)
+- [GDExtension](https://godotsteam.com/howto/gdextension)
+
+It will have the most up-to-date information.
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R0/scripts/game/steam.gd:2:## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R0/scripts/game/steam.gd:30:		var r = _steam.steamInitEx(false)
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R1/scripts/game/steam.gd:2:## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R1/scripts/game/steam.gd:30:		var r = _steam.steamInitEx(false)
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R3/scripts/game/steam.gd:2:## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R3/scripts/game/steam.gd:30:		var r = _steam.steamInitEx(false)
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R4/scripts/game/steam.gd:2:## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R4/scripts/game/steam.gd:30:		var r = _steam.steamInitEx(false)
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R2/scripts/game/steam.gd:2:## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+/tmp/claude-1000/-mnt-c-Users-timmy/daf65672-2bfd-44b2-ab2a-ec34c9d55673/scratchpad/rally/R2/scripts/game/steam.gd:30:		var r = _steam.steamInitEx(false)
+
+codex
+五項修正的主要邏輯已對上，官方原始碼也使用 `ret`。我會再核對隨附二進位，並確認測試提前結束後有無其他寫入路徑；目前未見遊戲存檔或 Steam 成就寫入。
+exec
+/bin/bash -lc "nm -D -C game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so | rg 'Steam::(getAchievement\\(|steamInitEx\\()'; rg -n 'auto_init|embed_callbacks|steam' game/project.godot game/addons/godotsteam/godotsteam.gdextension; nl -ba game/scripts/ui/main.gd | sed -n '590,655p'; nl -ba game/scripts/ui/main.gd | sed -n '926,990p'; git rev-parse --short HEAD; rg --files /tmp /home/timmy 2>/dev/null | rg '(godotsteam\\.(cpp|h)|AGENTS.md)"'$'"' | head -35" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 74ms:
+game/addons/godotsteam/godotsteam.gdextension:2:entry_symbol = "godotsteam_init"
+game/addons/godotsteam/godotsteam.gdextension:6:linux.debug.x86_64 = "res://addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so"
+game/addons/godotsteam/godotsteam.gdextension:7:linux.release.x86_64 = "res://addons/godotsteam/linux64/libgodotsteam.linux.template_release.x86_64.so"
+game/addons/godotsteam/godotsteam.gdextension:8:windows.debug.x86_64 = "res://addons/godotsteam/win64/libgodotsteam.windows.template_debug.x86_64.dll"
+game/addons/godotsteam/godotsteam.gdextension:9:windows.release.x86_64 = "res://addons/godotsteam/win64/libgodotsteam.windows.template_release.x86_64.dll"
+game/addons/godotsteam/godotsteam.gdextension:12:linux.x86_64 = { "res://addons/godotsteam/linux64/libsteam_api.so": "" }
+game/addons/godotsteam/godotsteam.gdextension:13:windows.x86_64 = { "res://addons/godotsteam/win64/steam_api64.dll": "" }
+   590			sfx.play("ui_click")
+   591	
+   592	func _input(ev: InputEvent) -> void:
+   593		if ev is InputEventMouseMotion:
+   594			mouse = ev.position
+   595			pad_mode = false
+   596			hover_card = _card_at(mouse)
+   597			if state == St.PLACE and overlay == "" and painting:
+   598				if _cur_army().team != paint_team:
+   599					painting = false
+   600				else:
+   601					var c := _cell_at(mouse)
+   602					if c.x >= 0 and _cur_army().index_at(c.x, c.y) == -1:
+   603						_try_place(c)
+   604			return
+   605		if ev is InputEventMouseButton:
+   606			_mouse_button(ev)
+   607			return
+   608		if ev is InputEventKey and ev.pressed:
+   609			if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+   610				_key(ev.keycode)
+   611			return
+   612		if ev is InputEventJoypadButton and ev.pressed:
+   613			pad_mode = true
+   614			var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
+   615				JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
+   616				JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E}
+   617			if map.has(ev.button_index):
+   618				_key(map[ev.button_index])
+   619			return
+   620		if ev is InputEventJoypadMotion and absf(ev.axis_value) > 0.6 and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
+   621			pad_mode = true
+   622			if ev.axis == JOY_AXIS_LEFT_X:
+   623				_key(KEY_RIGHT if ev.axis_value > 0 else KEY_LEFT)
+   624			else:
+   625				_key(KEY_DOWN if ev.axis_value > 0 else KEY_UP)
+   626	
+   627	func _mouse_button(mb: InputEventMouseButton) -> void:
+   628		mouse = mb.position
+   629		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+   630			_click_pending = mouse
+   631		if overlay != "" or state != St.PLACE:
+   632			return
+   633		var c := _cell_at(mouse)
+   634		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+   635			var k := _card_at(mouse)
+   636			if k >= 0:
+   637				if _allowed(k):
+   638					selected = k
+   639					drag_new = true
+   640					sfx.play("ui_click")
+   641				else:
+   642					_toast(L.t("err_type"), true)
+   643				return
+   644			if c.x < 0:
+   645				return
+   646			if _can_edit_existing() and _cur_army().index_at(c.x, c.y) != -1:
+   647				if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) and PZ.is_fixed(PZ.get_puzzle(puzzle_id), c.x, c.y):
+   648					_toast(L.t("err_locked"), true)
+   649					return
+   650				drag_from = c
+   651			else:
+   652				painting = true
+   653				paint_team = _cur_army().team
+   654				_try_place(c)
+   655		elif mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+   926	func _draw() -> void:
+   927		_btns.clear()
+   928		if capsule_path != "":
+   929			_draw_capsule()
+   930			return
+   931		draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
+   932		var cam := Transform2D.IDENTITY
+   933		if state == St.BATTLE or state == St.RESULT:
+   934			var off := Vector2.ZERO
+   935			if shake > 0 and bool(Save.s("shake")):
+   936				off = Vector2(sin(time * 90) * 2, cos(time * 77) * 2)
+   937			var w := clampf((zoom - 1.0) / 0.5, 0.0, 1.0)
+   938			var c := (ORIGIN + FIELD / 2).lerp(zoom_center, w)
+   939			var half := Vector2(640, 388) / zoom
+   940			var lo := ORIGIN + half - Vector2(60, 100)
+   941			var hi := ORIGIN + FIELD - half + Vector2(60, 100)
+   942			c = Vector2(clampf(c.x, minf(lo.x, hi.x), maxf(lo.x, hi.x)), clampf(c.y, minf(lo.y, hi.y), maxf(lo.y, hi.y)))
+   943			cam = Transform2D(0, Vector2(zoom, zoom), 0, Vector2(640, 388) - c * zoom + off)
+   944		draw_set_transform_matrix(cam)
+   945		Art.base = cam
+   946		_draw_field()
+   947		if state == St.TITLE:
+   948			_draw_units_of(demo, true)
+   949		elif state == St.PLACE:
+   950			_draw_place_units()
+   951			_draw_tactical()
+   952		else:
+   953			_draw_units_of(sim, false)
+   954		for f in fx:
+   955			if not f.get("screen", false):
+   956				_draw_fx(f)
+   957		draw_set_transform_matrix(Transform2D.IDENTITY)
+   958		Art.base = Transform2D.IDENTITY
+   959		if state == St.BATTLE and slow_left > 0:
+   960			var va := clampf((8.0 - slow_left) / 0.3, 0.0, 1.0) * 0.45
+   961			for i in 14:
+   962				var c2 := Color(0, 0, 0, va * (1.0 - i / 14.0) * 0.35)
+   963				draw_rect(Rect2(0, 86 + i * 9, 1280, 9), c2)
+   964				draw_rect(Rect2(0, 800 - (i + 1) * 9, 1280, 9), c2)
+   965				draw_rect(Rect2(i * 9, 86, 9, 714), c2)
+   966				draw_rect(Rect2(1280 - (i + 1) * 9, 86, 9, 714), c2)
+   967		if state != St.RESULT:
+   968			for f in fx:
+   969				if f.get("screen", false):
+   970					_draw_fx(f)
+   971		match state:
+   972			St.TITLE: _draw_title()
+   973			St.PLACE: _draw_place_hud()
+   974			St.BATTLE: _draw_battle_hud()
+   975			St.RESULT:
+   976				_draw_battle_hud()
+   977				_draw_result()
+   978		_draw_overlay()
+   979		if toast_t > 0:
+   980			var a := minf(1.0, toast_t * 2)
+   981			var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
+   982			draw_rect(Rect2(640 - tw / 2, 616, tw, 44), Color(0, 0, 0, 0.72 * a))
+   983			_text(Vector2(640, 622), toast, ts(20), Color(1, 0.88, 0.5, a), true)
+   984		if _focus >= _btns.size():
+   985			_focus = 0
+   986		_handle_click()
+   987	
+   988	## 商店膠囊圖（N6）：用目前視窗大小構圖——先畫標題帶，再把兩軍放在標題下方對衝，中間有分界線與對射的箭。
+   989	## 只有遊戲標題文字（Steam 規定）。手感輪（收尾批）調整：標題帶不壓角色、中央不留白、小尺寸放大標題與角色、兩側留邊。
+   990	func _draw_capsule() -> void:
+60abaf7
+/home/timmy/st-linux-tw4/frontend/node_modules/next/AGENTS.md
+/home/timmy/st-linux/frontend/node_modules/next/AGENTS.md
+
+web search: 
+web search: https://codeberg.org/godotsteam/godotsteam/raw/tag/v4.23.2/godotsteam.cpp
+web search: 
+web search: 'Dictionary Steam::steamInitEx'
+exec
+/bin/bash -lc "nm -C game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so 2>/dev/null | rg 'Steam::(getAchievement\\(|steamInitEx\\()'; strings -t x game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so | rg 'steam_appid|achieve_exists|ret"'$|achieved$|SteamAppId|SteamGameId|ofstream'"' | head -30; rg --files docs/balance-runs/n2-final | head -15; nl -ba game/tools/balance_report.py | tail -20" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 115ms:
+ 3c8d24 SteamAppId
+ 3c8d2f SteamGameId
+ 3ca939 secret
+ 3cb05e was_achieved
+docs/balance-runs/n2-final/countersearch_4.jsonl
+docs/balance-runs/n2-final/countersearch_3.jsonl
+docs/balance-runs/n2-final/countersearch_2.jsonl
+docs/balance-runs/n2-final/countersearch_15.jsonl
+docs/balance-runs/n2-final/countersearch_14.jsonl
+docs/balance-runs/n2-final/countersearch_13.jsonl
+docs/balance-runs/n2-final/countersearch_12.jsonl
+docs/balance-runs/n2-final/countersearch_11.jsonl
+docs/balance-runs/n2-final/countersearch_10.jsonl
+docs/balance-runs/n2-final/countersearch_1.jsonl
+docs/balance-runs/n2-final/countersearch_0.jsonl
+docs/balance-runs/n2-final/league_1.jsonl
+docs/balance-runs/n2-final/league_0.jsonl
+docs/balance-runs/n2-final/counter_9.jsonl
+docs/balance-runs/n2-final/counter_8.jsonl
+   225	            warns = [w for w in warns if not w.startswith("搜尋到保留池勝率")]
+   226	            md.append("→ 至少兩類反制存在，不算萬用陣（剋制循環成立）。\n")
+   227	        else:
+   228	            warns.append("找不到兩類能穩定反制搜尋第一名的陣型：疑似萬用陣")
+   229	
+   230	    if "counter" in rows:
+   231	        md.append("\n## ⑤ 離線反制庫\n| 原型 | 最佳反制勝率 | 代碼 |\n|---|---|---|\n")
+   232	        for r in sorted(rows["counter"], key=lambda r: r["template"]):
+   233	            md.append(f"| {r['name']} | {round(r['best_fit']*100)}% | `{r['code']}` |\n")
+   234	
+   235	    md.append("\n## 紅線\n" + ("\n".join(f"- ✗ {x}" for x in fails) if fails else "- ✓ 全過") + "\n")
+   236	    md.append("\n## 警示（列入調查）\n" + ("\n".join(f"- ⚠ {x}" for x in warns) if warns else "- 無") + "\n")
+   237	    summary["fails"] = fails; summary["warns"] = warns
+   238	    open(os.path.join(folder, "report.md"), "w", encoding="utf-8").write("".join(md))
+   239	    json.dump(summary, open(os.path.join(folder, "summary.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+   240	    print("".join(md))
+   241	    sys.exit(1 if fails else 0)
+   242	
+   243	if __name__ == "__main__":
+   244	    main()
+
+exec
+/bin/bash -lc "strings -t x game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so | rg -n -A 14 -B 14 '(getAchievement"'$|User Stats class not found when calling: getAchievement$|was_achieved$)'"'; objdump -T game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so | head -14; ls -lh game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 144ms:
+35678- 3b5170 UGC class not found, Steam may not be initialized: setItemTitle
+35679- 3b51b0 Title cannot have more than %d ASCII characters. Title not set.
+35680- 3b51f0 UGC class not found, Steam may not be initialized: setItemUpdateLanguage
+35681- 3b5240 UGC class not found, Steam may not be initialized: setLanguage
+35682- 3b5280 UGC class not found, Steam may not be initialized: setRequiredGameVersions
+35683- 3b52d0 UGC class not found, Steam may not be initialized: setSearchText
+35684- 3b5318 UGC class not found, Steam may not be initialized: submitItemUpdate
+35685- 3b5360 UGC class not found, Steam may not be initialized: updateItemPreviewFile
+35686- 3b53b0 UGC class not found, Steam may not be initialized: updateItemPreviewVideo
+35687- 3b5400 User class not found, Steam may not be initialized: getAuthTicketForWebApi
+35688- 3b5450 User class not found, Steam may not be initialized: requestStoreAuthURL
+35689- 3b5498 User Stats class not found, Steam may not be initialized: clearAchievement
+35690- 3b54e8 User Stats class not found, Steam may not be initialized: findLeaderboard
+35691- 3b5538 User Stats class not found, Steam may not be initialized: findOrCreateLeaderboard
+35692: 3b5590 User Stats class not found, Steam may not be initialized: getAchievement
+35693- 3b55e0 Condition "SteamAPI_SteamUserStats() == nullptr" is true. Returning: achieve
+35694- 3b5630 User Stats class not found, Steam may not be initialized: getAchievementAchievedPercent
+35695- 3b5688 User Stats class not found, Steam may not be initialized: getAchievementAndUnlockTime
+35696- 3b56e0 User Stats class not found, Steam may not be initialized: getAchievementDisplayAttribute
+35697- 3b5740 getAchievementDisplayAttribute
+35698- 3b5760 User Stats class not found, Steam may not be initialized: getAchievementIcon
+35699- 3b57b0 User Stats class not found, Steam may not be initialized: getAchievementProgressLimitsFloat
+35700- 3b5810 Condition "SteamAPI_SteamUserStats() == nullptr" is true. Returning: progress
+35701- 3b5860 getAchievementProgressLimitsFloat
+35702- 3b5888 User Stats class not found, Steam may not be initialized: getAchievementProgressLimitsInt
+35703- 3b58e8 getAchievementProgressLimitsInt
+35704- 3b5908 User Stats class not found, Steam may not be initialized: getGlobalStatInt
+35705- 3b5958 User Stats class not found, Steam may not be initialized: getGlobalStatFloat
+35706- 3b59a8 Condition "SteamAPI_SteamUserStats() == nullptr" is true. Returning: 0.0
+--
+38047- 3c957c setItemPreview
+38048- 3c958b setItemTitle
+38049- 3c9598 setItemUpdateLanguage
+38050- 3c95ae setLanguage
+38051- 3c95ba setRequiredGameVersions
+38052- 3c95d2 setSearchText
+38053- 3c95e0 submitItemUpdate
+38054- 3c95f1 updateItemPreviewFile
+38055- 3c9607 updateItemPreviewVideo
+38056- 3c961e getAuthTicketForWebApi
+38057- 3c9635 requestStoreAuthURL
+38058- 3c9649 clearAchievement
+38059- 3c965a findLeaderboard
+38060- 3c966a findOrCreateLeaderboard
+38061: 3c9682 getAchievement
+38062- 3c9691 getAchievementAchievedPercent
+38063- 3c96af getAchievementAndUnlockTime
+38064- 3c96cb unlocked
+38065- 3c96d4 getAchievementIcon
+38066- 3c96e7 getGlobalStatInt
+38067- 3c96f8 getGlobalStatFloat
+38068- 3c970b getGlobalStatIntHistory
+38069- 3c9723 getGlobalStatFloatHistory
+38070- 3c973d getStatFloat
+38071- 3c974a getStatInt
+38072- 3c9755 getUserAchievement
+38073- 3c9768 retrieved
+38074- 3c9772 getUserStatFloat
+38075- 3c9783 getUserStatInt
+--
+38490- 3cafa8 eula_data
+38491- 3cafb2 ticket_buffer
+38492- 3cafc0 new_device_cooldown
+38493- 3cafd4 steam_guard_required_days
+38494- 3cafee allowed_at_time
+38495- 3caffe disallow_reason
+38496- 3cb00e is_allowed
+38497- 3cb019 authorized
+38498- 3cb024 retrying
+38499- 3cb02d auth_id
+38500- 3cb035 found
+38501- 3cb03b this_score
+38502- 3cb046 this_handle
+38503- 3cb052 icon_handle
+38504: 3cb05e was_achieved
+38505- 3cb06b group_achieve
+38506- 3cb079 user_id
+38507- 3cb081 entered_text
+38508- 3cb08e submitted
+38509- 3cb098 async_call
+38510- 3cb0a3 is_rtmp
+38511- 3cb0ab current_browser_handle
+38512- 3cb0c2 leaderboard_entries_array
+38513- 3cb0dc ACCOUNT_ID_INVALID
+38514- 3cb0ef API_CALL_INVALID
+38515- 3cb100 APP_ID_INVALID
+38516- 3cb10f AUTH_TICKET_INVALID
+38517- 3cb123 DEPOT_ID_INVALID
+38518- 3cb134 GAME_EXTRA_INFO_MAX
+
+game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so:     file format elf64-x86-64
+
+DYNAMIC SYMBOL TABLE:
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamUGC_RemoveItemPreview
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamHTMLSurface_MouseDoubleClick
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamMatchmaking_LeaveLobby
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamInventory_LoadItemDefinitions
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamNetworkingUtils_IterateGenericEditableConfigValues
+0000000000000000      DF *UND*	0000000000000000 (GLIBC_2.3)  strtold_l
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamScreenshots_AddVRScreenshotToLibrary
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamUtils_FilterText
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_ISteamParentalSettings_BIsFeatureBlocked
+0000000000000000      DF *UND*	0000000000000000  Base        SteamAPI_SteamNetworkingIPAddr_GetFakeIPType
+-rwxrwxrwx 1 timmy timmy 4.8M Nov  1 14:43 game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so
+
+web search: 
+web search: https://raw.githubusercontent.com/GodotSteam/GodotSteam/gdextension/src/godotsteam.cpp
+exec
+/bin/bash -lc "objdump -d -M intel game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so | rg -n -A 65 -B 22 'call.*<SteamAPI_ISteamUserStats_GetAchievement@plt>'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 796ms:
+89493-  10186c:	48 83 ec 58          	sub    rsp,0x58
+89494-  101870:	e8 3b f3 14 00       	call   250bb0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0x1bc50>
+89495-  101875:	e8 b6 f2 fa ff       	call   b0b30 <SteamAPI_SteamUserStats_v013@plt>
+89496-  10187a:	48 85 c0             	test   rax,rax
+89497-  10187d:	0f 84 2d 01 00 00    	je     1019b0 <_ZSt19__throw_ios_failurePKci@@Base+0x4b6c8>
+89498-  101883:	48 8d 5c 24 30       	lea    rbx,[rsp+0x30]
+89499-  101888:	4c 89 e6             	mov    rsi,r12
+89500-  10188b:	c6 44 24 07 00       	mov    BYTE PTR [rsp+0x7],0x0
+89501-  101890:	48 89 df             	mov    rdi,rbx
+89502-  101893:	e8 b8 e2 13 00       	call   23fb50 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xabf0>
+89503-  101898:	4c 8b 64 24 30       	mov    r12,QWORD PTR [rsp+0x30]
+89504-  10189d:	4d 85 e4             	test   r12,r12
+89505-  1018a0:	0f 84 fa 00 00 00    	je     1019a0 <_ZSt19__throw_ios_failurePKci@@Base+0x4b6b8>
+89506-  1018a6:	41 8b 44 24 f0       	mov    eax,DWORD PTR [r12-0x10]
+89507-  1018ab:	85 c0                	test   eax,eax
+89508-  1018ad:	48 8d 05 76 58 2d 00 	lea    rax,[rip+0x2d5876]        # 3d712a <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x3af7a>
+89509-  1018b4:	4c 0f 44 e0          	cmove  r12,rax
+89510-  1018b8:	e8 73 f2 fa ff       	call   b0b30 <SteamAPI_SteamUserStats_v013@plt>
+89511-  1018bd:	48 8d 54 24 07       	lea    rdx,[rsp+0x7]
+89512-  1018c2:	4c 89 e6             	mov    rsi,r12
+89513-  1018c5:	48 89 c7             	mov    rdi,rax
+89514-  1018c8:	4c 8d 6c 24 08       	lea    r13,[rsp+0x8]
+89515:  1018cd:	e8 3e e1 fa ff       	call   afa10 <SteamAPI_ISteamUserStats_GetAchievement@plt>
+89516-  1018d2:	48 89 df             	mov    rdi,rbx
+89517-  1018d5:	41 89 c4             	mov    r12d,eax
+89518-  1018d8:	e8 a3 f0 0c 00       	call   1d0980 <_ZSt19__throw_ios_failurePKci@@Base+0x11a698>
+89519-  1018dd:	41 0f b6 f4          	movzx  esi,r12b
+89520-  1018e1:	48 89 df             	mov    rdi,rbx
+89521-  1018e4:	4c 8d 64 24 10       	lea    r12,[rsp+0x10]
+89522-  1018e9:	e8 62 fb 13 00       	call   241450 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xc4f0>
+89523-  1018ee:	4c 89 ef             	mov    rdi,r13
+89524-  1018f1:	48 8d 35 44 90 2c 00 	lea    rsi,[rip+0x2c9044]        # 3ca93c <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x2e78c>
+89525-  1018f8:	e8 c3 d1 13 00       	call   23eac0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0x9b60>
+89526-  1018fd:	4c 89 ee             	mov    rsi,r13
+89527-  101900:	4c 89 e7             	mov    rdi,r12
+89528-  101903:	e8 d8 fb 13 00       	call   2414e0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xc580>
+89529-  101908:	4c 89 ef             	mov    rdi,r13
+89530-  10190b:	e8 b0 5c 14 00       	call   2475c0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0x12660>
+89531-  101910:	4c 89 e6             	mov    rsi,r12
+89532-  101913:	48 89 ef             	mov    rdi,rbp
+89533-  101916:	e8 c5 f9 13 00       	call   2412e0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xc380>
+89534-  10191b:	48 89 de             	mov    rsi,rbx
+89535-  10191e:	48 89 c7             	mov    rdi,rax
+89536-  101921:	e8 4a 07 14 00       	call   242070 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xd110>
+89537-  101926:	4c 89 e7             	mov    rdi,r12
+89538-  101929:	e8 72 00 14 00       	call   2419a0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xca40>
+89539-  10192e:	48 89 df             	mov    rdi,rbx
+89540-  101931:	e8 6a 00 14 00       	call   2419a0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xca40>
+89541-  101936:	0f b6 74 24 07       	movzx  esi,BYTE PTR [rsp+0x7]
+89542-  10193b:	48 89 df             	mov    rdi,rbx
+89543-  10193e:	e8 0d fb 13 00       	call   241450 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xc4f0>
+89544-  101943:	4c 89 ef             	mov    rdi,r13
+89545-  101946:	48 8d 35 15 97 2c 00 	lea    rsi,[rip+0x2c9715]        # 3cb062 <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x2eeb2>
+89546-  10194d:	e8 6e d1 13 00       	call   23eac0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0x9b60>
+89547-  101952:	4c 89 ee             	mov    rsi,r13
+89548-  101955:	4c 89 e7             	mov    rdi,r12
+89549-  101958:	e8 83 fb 13 00       	call   2414e0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xc580>
+89550-  10195d:	4c 89 ef             	mov    rdi,r13
+89551-  101960:	e8 5b 5c 14 00       	call   2475c0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0x12660>
+89552-  101965:	4c 89 e6             	mov    rsi,r12
+89553-  101968:	48 89 ef             	mov    rdi,rbp
+89554-  10196b:	e8 70 f9 13 00       	call   2412e0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xc380>
+89555-  101970:	48 89 de             	mov    rsi,rbx
+89556-  101973:	48 89 c7             	mov    rdi,rax
+89557-  101976:	e8 f5 06 14 00       	call   242070 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xd110>
+89558-  10197b:	4c 89 e7             	mov    rdi,r12
+89559-  10197e:	e8 1d 00 14 00       	call   2419a0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xca40>
+89560-  101983:	48 89 df             	mov    rdi,rbx
+89561-  101986:	e8 15 00 14 00       	call   2419a0 <_ZNSt6vectorIPFvvESaIS1_EE17_M_realloc_insertIJRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_@@Base+0xca40>
+89562-  10198b:	48 83 c4 58          	add    rsp,0x58
+89563-  10198f:	48 89 e8             	mov    rax,rbp
+89564-  101992:	5b                   	pop    rbx
+89565-  101993:	5d                   	pop    rbp
+89566-  101994:	41 5c                	pop    r12
+89567-  101996:	41 5d                	pop    r13
+89568-  101998:	c3                   	ret
+89569-  101999:	0f 1f 80 00 00 00 00 	nop    DWORD PTR [rax+0x0]
+89570-  1019a0:	4c 8d 25 83 57 2d 00 	lea    r12,[rip+0x2d5783]        # 3d712a <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x3af7a>
+89571-  1019a7:	e9 0c ff ff ff       	jmp    1018b8 <_ZSt19__throw_ios_failurePKci@@Base+0x4b5d0>
+89572-  1019ac:	0f 1f 40 00          	nop    DWORD PTR [rax+0x0]
+89573-  1019b0:	48 83 ec 08          	sub    rsp,0x8
+89574-  1019b4:	48 8d 0d 25 3c 2b 00 	lea    rcx,[rip+0x2b3c25]        # 3b55e0 <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x19430>
+89575-  1019bb:	ba 37 19 00 00       	mov    edx,0x1937
+89576-  1019c0:	45 31 c9             	xor    r9d,r9d
+89577-  1019c3:	6a 00                	push   0x0
+89578-  1019c5:	4c 8d 05 c4 3b 2b 00 	lea    r8,[rip+0x2b3bc4]        # 3b5590 <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x193e0>
+89579-  1019cc:	48 8d 35 32 32 2c 00 	lea    rsi,[rip+0x2c3232]        # 3c4c05 <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x28a55>
+89580-  1019d3:	48 8d 3d a8 7c 2c 00 	lea    rdi,[rip+0x2c7ca8]        # 3c9682 <_ZSt24__is_ios_failure_handlerPKN10__cxxabiv117__class_type_infoE@@Base+0x2d4d2>
+
+web search: 
+web search: https://godotsteam.com/classes/user_stats/#getachievement
+exec
+/bin/bash -lc "python3 -B - <<'PY'
+from pathlib import Path
+import runpy, io, sys, copy
+from unittest.mock import patch
+p=Path('game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so').read_bytes()
+for off in (0x3ca93c,0x3cb062):
+ print(hex(off),p[off:p.index(b'\\0',off)].decode())
+n=runpy.run_path('game/tools/balance_report.py')
+main=n['main']; g=main.__globals__
+rows=g['load']('docs/balance-runs/n2-final')
+real_open=open
+for variant in ('normal','one_missing','all_missing','empty'):
+ data=copy.deepcopy(rows)
+ allrows=[r for v in data.values() for r in v]
+ if variant=='one_missing': allrows[0].pop('digest',None)
+ elif variant=='all_missing':
+  for r in allrows: r.pop('digest',None)
+ elif variant=='empty': allrows[0]['digest']=''
+ g['load']=lambda folder:data
+ def memory_open(path,mode='r',*a,**kw):
+  return io.StringIO() if 'w' in mode else real_open(path,mode,*a,**kw)
+ with patch.object(sys,'argv',['balance_report.py','docs/balance-runs/n2-final']), patch('builtins.open',memory_open), patch('sys.stdout',io.StringIO()):
+  try: main()
+  except SystemExit as ex: code=ex.code
+ print(variant,'exit',code)
+PY" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 529ms:
+0x3ca93c ret
+0x3cb062 achieved
+normal exit 0
+one_missing exit 2
+all_missing exit 2
+empty exit 2
+
+web search: 
+web search: 
+web search: 
+web search: https://partner.steamgames.com/doc/api/ISteamUserStats
+exec
+/bin/bash -lc 'for p in /AGENTS.md /mnt/AGENTS.md /mnt/c/AGENTS.md /mnt/c/Users/AGENTS.md /mnt/c/Users/timmy/AGENTS.md /mnt/c/Users/timmy/projects/AGENTS.md; do if [ -f "$p" ]; then cat "$p"; fi; done; git status --short' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1236ms:
+?? coordination/fin-r2/
+
+web search: 
+web search: site.docs.godotengine.org file_logging enable_file_logging desktop default user://logs/godot.log
+codex
+唯讀核對完成，未修改檔案。
+
+1. **已解決**：初始化以 AppID 為第一參數，符合介面。[steam.gd:34](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/steam.gd:34)
+2. **已解決（存檔／成就範圍）**：測試傳入 `false`，跳過補送與 `storeStats`，已移除 `inputInit`；先設 `shot_`，測完立即返回。[main.gd:111](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/main.gd:111)；載入與遷移僅讀檔、修改記憶體。[save.gd:20](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/save.gd:20)
+3. **已解決**：四項條件共同決定 `ok`，失敗 exit 1。[steam.gd:78](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/steam.gd:78)、[main.gd:120](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/main.gd:120)。反組譯隨附 Linux 4.23.2，確認回傳鍵為 `ret`、`achieved`；`ret` 表示讀取成功，判法正確，與[官方原始碼](https://raw.githubusercontent.com/GodotSteam/GodotSteam/9a3480ff1bdbc5064f5a53dda8341b5263ea5c09/godotsteam.cpp)一致。
+4. **已解決**：記憶體驗證正常 exit 0；單筆缺少、全部缺少、空摘要皆 exit 2。[balance_report.py:85](/mnt/c/Users/timmy/projects/no-take-backs/game/tools/balance_report.py:85)
+5. **已解決**：PNG 失敗會印錯並 exit 1。[main.gd:1056](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/main.gd:1056)
+
+未見新增確定錯誤。但「任何情況零寫入」不成立：[Godot 桌面預設會寫日誌](https://docs.godotengine.org/en/latest/tutorials/scripting/logging.html)，`shot_` 不隔離日誌。結案條件：唯讀口徑限存檔／成就，並補驗 Spacewar 成功及無 Steam exit 1；兩者目前仍未實跑。
+
+這批可否結案：有條件可。
+tokens used
+71,309
+唯讀核對完成，未修改檔案。
+
+1. **已解決**：初始化以 AppID 為第一參數，符合介面。[steam.gd:34](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/steam.gd:34)
+2. **已解決（存檔／成就範圍）**：測試傳入 `false`，跳過補送與 `storeStats`，已移除 `inputInit`；先設 `shot_`，測完立即返回。[main.gd:111](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/main.gd:111)；載入與遷移僅讀檔、修改記憶體。[save.gd:20](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/save.gd:20)
+3. **已解決**：四項條件共同決定 `ok`，失敗 exit 1。[steam.gd:78](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/steam.gd:78)、[main.gd:120](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/main.gd:120)。反組譯隨附 Linux 4.23.2，確認回傳鍵為 `ret`、`achieved`；`ret` 表示讀取成功，判法正確，與[官方原始碼](https://raw.githubusercontent.com/GodotSteam/GodotSteam/9a3480ff1bdbc5064f5a53dda8341b5263ea5c09/godotsteam.cpp)一致。
+4. **已解決**：記憶體驗證正常 exit 0；單筆缺少、全部缺少、空摘要皆 exit 2。[balance_report.py:85](/mnt/c/Users/timmy/projects/no-take-backs/game/tools/balance_report.py:85)
+5. **已解決**：PNG 失敗會印錯並 exit 1。[main.gd:1056](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/main.gd:1056)
+
+未見新增確定錯誤。但「任何情況零寫入」不成立：[Godot 桌面預設會寫日誌](https://docs.godotengine.org/en/latest/tutorials/scripting/logging.html)，`shot_` 不隔離日誌。結案條件：唯讀口徑限存檔／成就，並補驗 Spacewar 成功及無 Steam exit 1；兩者目前仍未實跑。
+
+這批可否結案：有條件可。

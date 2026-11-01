@@ -17,7 +17,12 @@
      ```
      ! "/mnt/c/Users/timmy/OneDrive/桌面/godot/Godot_v4.6.2-stable_win64.exe" --path "C:\Users\timmy\projects\no-take-backs\game" --resolution 640x400 -- --steam-test=480
      ```
-     它只做唯讀檢查：有沒有登入、AppID、讀一個 Spacewar 成就、確認我們的成就 ID 在 480 不存在，**不會解鎖任何成就**。輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次。
+     它只做讀取檢查：有沒有登入、AppID 是否相符、讀得到一個 Spacewar 成就、確認我們的成就 ID 在 480 不存在。
+     - **不會解鎖成就、不寫統計、不讀寫你的遊戲存檔**（會改用 `shot_` 前綴的存檔）。
+     - Godot 本身仍會照常寫執行日誌。
+     - 全部符合就 `exit 0`，任何一項不符就 `exit 1`。
+     - 輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次。
+     - 另外建議在**沒開 Steam** 時跑一次，確認會回報失敗（`exit 1`）。
 2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
 3. **成就**：在 Steamworks 後台建立以下 15 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
 
