@@ -573,12 +573,40 @@ func test_ui_consumers() -> void:
 					before_hit = true
 		if before_hit:
 			var u = g.view.units[0]
-			var at: float = g.atk_progress(g._disp_tick() - (g.atk_hit[u.id] - g.ViewBuffer.DELAY), u.type)
+			var hh: int = g.pick_hit(g.atk_hit[u.id], g._disp_tick(), u.type)
+			var at: float = g.atk_progress(g._disp_tick() - (hh - g.ViewBuffer.DELAY), u.type) if hh >= 0 else 0.0
 			if at > 0.0 and at < Art.ATK_WINDUP:
 				pre_ok = true
 				break
 		g._sim_step(false)
 	ok(pre_ok, "命中前一格畫面上已經在前搖")
+	# 連續反擊（Codex R5 #2）：H 的揮擊不會被 H+1／H+2 的前搖吃掉；揮擊做完才換下一次
+	var sw_t := D.SWORD
+	ok(g.pick_hit([10, 11, 12], 10.0, sw_t) == 10 and g.pick_hit([10, 11, 12], 10.9, sw_t) == 10, "連續命中：前一次揮擊做完前不換")
+	ok(g.pick_hit([10, 12], 11.5, sw_t) == 12 and g.pick_hit([10], 7.9, sw_t) == -1 and g.pick_hit([10], 8.0, sw_t) == 10, "連續命中：揮擊做完換下一次、前搖從命中前 2 tick 開始")
+	# 播完之後（Codex R5 #1）：經過正式的 _battle_process，最後一格插值走完、展示時鐘繼續讓後搖演完、最後才進結果
+	g.sim = Sim.new(army_from(0, [[D.SWORD, 5, 4], [D.SWORD, 5, 5]]), army_from(1, [[D.ARCHER, 5, 4]]))
+	g.view = g.ViewBuffer.new(g.sim)
+	g.atk_hit.clear()
+	g.state = g.St.BATTLE
+	g.speed = 1.0
+	g.slow_used = true
+	g.result_delay = 0.0
+	g._pump_view()
+	var steps := 0
+	while not g.view.finished and steps < 4000:
+		g._battle_process(0.05)
+		steps += 1
+	var tail_ok: bool = g.view.finished and g.state == g.St.BATTLE
+	g._battle_process(0.1)
+	var d1: float = g._disp_tick()
+	g._battle_process(0.1)
+	var d2: float = g._disp_tick()
+	var pos_ok := true
+	for u in g.view.units:
+		if u.alive and g._upos(u).distance_to(g.ORIGIN + Vector2(u.x, u.y) * g.CS / 1000.0) > 6.0:
+			pos_ok = false
+	ok(tail_ok and d2 > d1 and d1 > g.view.tick and pos_ok, "播完後展示時鐘繼續走、存活者插值到最後位置", "tail=%s d1=%.2f d2=%.2f tick=%d pos=%s" % [tail_ok, d1, d2, g.view.tick, pos_ok])
 	# 圖鑑小劇場真的跳字
 	var pop_bad: Array = []
 	for t in D.COUNT:

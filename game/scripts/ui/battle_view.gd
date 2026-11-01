@@ -20,8 +20,7 @@ func _battle_process(delta: float) -> void:
 	while accum >= 0.05 and not view.finished:
 		accum -= 0.05
 		_sim_step(true)
-	if view.finished:
-		accum = 0.0
+	# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
 	_check_clutch()
 	if slow_left > 0 and not view.finished:
 		_frame_alive(delta)
@@ -102,14 +101,34 @@ func _pump_view() -> void:
 	for fr in view.pump(sim):
 		for e in fr["events"]:
 			if event_route(e) == "attack":
-				atk_hit[e["src"]] = int(fr["tick"])
+				var hs: Array = atk_hit.get(e["src"], [])
+				hs.append(int(fr["tick"]))   # 存序列，不覆蓋還沒播到的命中（Codex R5 #2：連續反擊）
+				if hs.size() > 4:
+					hs.pop_front()
+				atk_hit[e["src"]] = hs
 
 
 ## 畫面上現在播到第幾 tick（含小數，插值用）。
 func _disp_tick() -> float:
 	if view == null:
 		return 0.0
-	return view.tick + (clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 0.0)
+	if state != St.BATTLE:
+		return float(view.tick)
+	return view.tick + clampf(accum / 0.05, 0.0, 8.0 if view.finished else 1.0)
+
+
+## 這一刻要演哪一次命中（Codex R5 #2）：取前搖已開始的最近一次；但前一次的揮擊還沒做完就先讓它做完（揮擊優先、後搖可被截斷）。
+static func pick_hit(hits: Array, disp: float, type: int) -> int:
+	var w := float(ViewBuffer.DELAY)
+	var tot := clampf(float(D.STATS[type]["cd"]) / 4.0, 4.0, 6.4)
+	var strike_end := w + 0.22 * tot
+	var cur := -1
+	for h in hits:
+		if float(h) - w <= disp:
+			if cur >= 0 and disp - (float(cur) - w) < strike_end:
+				break   # 前一次還在揮擊，不換
+			cur = h
+	return cur
 
 
 ## 三段式攻擊進度（R5）：前搖固定是命中前 DELAY 個 tick，揮擊與後搖依攻擊間隔壓縮（攻速快的兵動作也快，不會疊在一起）。
@@ -284,6 +303,10 @@ func _draw_field() -> void:
 		draw_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(FIELD.x, i * CS), Color(0, 0, 0, 0.07), 1)
 	draw_dashed_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, FIELD.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
 	draw_dashed_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, FIELD.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
+	# 戰場色調（R6）：一般晨曦、殘局黃昏、遠征月夜。純調色，畫在單位底下，不影響辨識
+	var tone := _tone()
+	if tone.a > 0.0:
+		draw_rect(Rect2(ORIGIN, FIELD), tone)
 	if plants.size() >= 9:
 		var deco := [[0, Vector2(52, 200)], [3, Vector2(70, 280)], [5, Vector2(30, 400)], [1, Vector2(60, 560)], [7, Vector2(90, 660)],
 			[2, Vector2(1220, 190)], [6, Vector2(1240, 300)], [0, Vector2(1215, 470)], [4, Vector2(1245, 600)], [8, Vector2(1200, 676)]]
@@ -291,6 +314,65 @@ func _draw_field() -> void:
 			var tex: Texture2D = plants[d[0]]
 			var sz := tex.get_size() * (0.85 if d[0] <= 2 else 1.4)
 			draw_texture_rect(tex, Rect2(d[1] - Vector2(sz.x / 2, sz.y), sz), false)
+
+
+## 戰場色調：依模式固定（使用者決定：一般晨曦、殘局黃昏、遠征月夜）。
+func _tone() -> Color:
+	if state == St.TITLE:
+		return Color(1.0, 0.72, 0.45, 0.07)
+	match mode:
+		Mode.PUZZLE:
+			return Color(0.95, 0.42, 0.3, 0.16)    # 黃昏
+		Mode.GAUNTLET:
+			return Color(0.12, 0.16, 0.42, 0.30)   # 月夜
+	return Color(1.0, 0.72, 0.45, 0.07)            # 晨曦
+
+
+## 圖示膠囊標籤（R6）：kind＝"coin"／"unit"／"team"。回傳寬度。
+func _pill(p: Vector2, kind: String, label: String, col: Color, size := 16) -> float:
+	var tw := font_bold.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(size)).x
+	var w := tw + 40.0
+	var h := ts(size) + 10.0
+	draw_rect(Rect2(p, Vector2(w, h)), Color(0, 0, 0, 0.45))
+	draw_rect(Rect2(p, Vector2(w, h)), Color(col, 0.6), false, 1.5)
+	var ic := p + Vector2(15, h / 2)
+	match kind:
+		"coin":
+			draw_circle(ic, 7.5, Color("#b8860b"), true, -1.0, true)
+			draw_circle(ic, 5.5, ACCENT, true, -1.0, true)
+			draw_line(ic + Vector2(0, -3), ic + Vector2(0, 3), Color("#b8860b"), 1.6, true)
+		"unit":
+			draw_circle(ic + Vector2(0, -3.5), 3.6, Color.WHITE, true, -1.0, true)
+			draw_rect(Rect2(ic + Vector2(-5, 1), Vector2(10, 6)), Color.WHITE)
+		_:
+			draw_circle(ic, 6.5, col, true, -1.0, true)
+	_text(p + Vector2(28, 5 - ts(size) * 0.05), label, ts(size), Color.WHITE, false, true)
+	return w
+
+
+## 按鍵提示列（R6）：手把時顯示 [A]／[X] 等按鍵圖示，鍵盤時顯示鍵名。items＝[[鍵, 說明], ...]，置中於 cx。
+func _key_hints(cx: float, y: float, items: Array, size := 15) -> void:
+	var widths: Array = []
+	var total := 0.0
+	for it in items:
+		var kw := font_bold.get_string_size(it[0], HORIZONTAL_ALIGNMENT_LEFT, -1, ts(size - 2)).x + 14.0
+		var lw := font.get_string_size(it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, ts(size)).x
+		widths.append([kw, lw])
+		total += kw + 6 + lw + 18
+	var x := cx - total / 2.0
+	for i in items.size():
+		var kw: float = widths[i][0]
+		var key: String = items[i][0]
+		var kc: Color = {"A": Color("#3ccf6e"), "B": Color("#ef5350"), "X": Color("#42a5f5"), "Y": Color("#ffca28")}.get(key, Color(0.75, 0.78, 0.85))
+		var r := Rect2(x, y, kw, ts(size) + 6)
+		if key.length() == 1 and pad_mode:
+			draw_circle(r.get_center(), r.size.y / 2, kc, true, -1.0, true)
+		else:
+			draw_rect(r, Color(kc, 0.9))
+		_text(Vector2(r.get_center().x, y + 1), key, ts(size - 2), Color(0.08, 0.08, 0.1), true, true)
+		x += kw + 6
+		_text(Vector2(x, y + 1), items[i][1], ts(size), Color(1, 1, 1, 0.85))
+		x += widths[i][1] + 18
 
 
 func _draw_units_of(s, dim: bool) -> void:
@@ -317,7 +399,10 @@ func _draw_units_of(s, dim: bool) -> void:
 		var moving: bool = u.mx != 0 or u.my != 0
 		var at := 0.0
 		if live and atk_hit.has(u.id):
-			at = atk_progress(_disp_tick() - (atk_hit[u.id] - ViewBuffer.DELAY), u.type)
+			var dt0 := _disp_tick()
+			var h := pick_hit(atk_hit[u.id], dt0, u.type)
+			if h >= 0:
+				at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
 			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)

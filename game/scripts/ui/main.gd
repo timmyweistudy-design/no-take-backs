@@ -19,7 +19,13 @@ func _draw_capsule() -> void:
 	var band_h := big * 1.75
 	var band_y := vs.y * (0.05 if tall else 0.03)
 	draw_rect(Rect2(0, band_y, vs.x, band_h), Color(0.05, 0.06, 0.1, 0.55))
-	_text(Vector2(vs.x / 2, band_y + big * 0.05), L.t("title"), big, Color("#ffe8a3"), true, true)
+	# 標題：立體投影＋金邊（R6）
+	var tw := font_bold.get_string_size(L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big).x
+	var tp := Vector2(vs.x / 2 - tw / 2, band_y + big * 0.05 + big * 0.85)
+	for d in 4:
+		draw_string(font_bold, tp + Vector2(1, 1) * (d + 1) * big * 0.012, L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big, Color(0.35, 0.18, 0.05, 0.9))
+	draw_string_outline(font_bold, tp, L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big, int(maxf(4.0, big * 0.07)), Color("#b8860b"))
+	draw_string(font_bold, tp, L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big, Color("#ffe8a3"))
 	_text(Vector2(vs.x / 2, band_y + big * 1.12), "No Take-Backs", int(big * (0.42 if tiny else 0.34)), Color(1, 1, 1, 0.97), true, true)
 	# 戰場區
 	var top := band_y + band_h + vs.y * 0.02
@@ -33,29 +39,53 @@ func _draw_capsule() -> void:
 	var rows := 1 if tiny else 3
 	var margin := maxf(20.0, vs.x * 0.05)
 	# 每邊固定 cols×rows 的整齊陣型；弓兵固定在最靠中線的那一欄，箭從弓兵射出
-	var layout := [D.SHIELD, D.SWORD, D.ARCHER, D.CAVALRY, D.ASSASSIN, D.ARCHER, D.SWORD, D.SHIELD, D.ARCHER]
+	# 兩軍在中線交鋒的瞬間（R6）：最前排近戰撞在中線，弓兵在後排放箭，身後有速度線
+	var layout := [D.ARCHER, D.SHIELD, D.SWORD, D.ARCHER, D.ASSASSIN, D.CAVALRY, D.ARCHER, D.SHIELD, D.SWORD]
 	var items: Array = []
 	var archers: Array = []
 	for team in 2:
 		for r in rows:
 			for c in cols:
 				var t: int = layout[(r * cols + c) % layout.size()]
-				if c == cols - 1:
-					t = D.ARCHER if r != 1 or tiny else D.CAVALRY
-				var span := (mid - margin) * 0.62
+				if c == 0 and not tiny:
+					t = D.ARCHER
+				elif c == cols - 1 and t == D.ARCHER:
+					t = D.SWORD   # 最前排一定是近戰撞在中線
+				var span := (mid - margin) * 0.80 - sc * 30.0
 				var x := margin + sc * 24.0 + c * span / maxf(1, cols - 1)
 				if team == 1:
 					x = vs.x - x
 				var y := bottom - sc * 6.0 if tiny else top + sc * 62.0 + r * (bottom - top - sc * 72.0) / maxf(1, rows - 1)
 				items.append([y, x, t, team])
-				if t == D.ARCHER and c == cols - 1 and not tall:   # 只有最靠中線的弓兵放箭；直式太窄就不畫箭
+				if t == D.ARCHER and c == 0 and not tall and not tiny:   # 後排弓兵放箭；直式太窄就不畫箭
 					archers.append(Vector2(x, y))
 	items.sort()
+	# 速度線：每隻身後幾條往外拖的白線
+	for it in items:
+		var dirx := -1.0 if it[3] == 0 else 1.0
+		for k in 3:
+			var yy: float = it[0] - sc * (10.0 + k * 9.0)
+			var x0: float = it[1] + dirx * sc * (22.0 + k * 4.0)
+			draw_line(Vector2(x0, yy), Vector2(x0 + dirx * sc * (26.0 + k * 10.0), yy), Color(1, 1, 1, 0.22 - k * 0.05), maxf(1.5, sc * 1.6), true)
 	for it in items:
 		Art.ring(self, Vector2(it[1], it[0]), it[3], it[2], false, sc)
 	for it in items:
 		var face := 1.0 if it[3] == 0 else -1.0
-		Art.unit(self, Vector2(it[1], it[0]), it[2], it[3], face, 2.0 + it[1] * 0.01, 0.45 if it[2] == D.SWORD else 0.0, 0.0, 1.0, 1.3, sc)
+		var front: bool = absf(it[1] - mid) < (mid - margin) * 0.45
+		var mood := Art.M_SPARKLE if it[2] == D.CAVALRY else (Art.M_BROWS if front else 0)
+		Art.unit(self, Vector2(it[1], it[0]), it[2], it[3], face, 2.0 + it[1] * 0.01, 0.42 if front and it[2] != D.ARCHER else (0.25 if it[2] == D.ARCHER else 0.0), 0.0, 1.0, 1.3, sc, false, mood, 0.2 if it[2] == D.CAVALRY else 0.0)
+	# 中線撞擊光（每一排一個）
+	var ys := {}
+	for it in items:
+		ys[snappedf(it[0], 1.0)] = true
+	for yk in ys.keys():
+		var c0 := Vector2(mid, float(yk) - sc * 24.0)
+		var pts := PackedVector2Array()
+		for i in 16:
+			var an := i * TAU / 16.0
+			pts.append(c0 + Vector2(cos(an), sin(an)) * sc * (16.0 if i % 2 == 0 else 6.0))
+		draw_colored_polygon(pts, Color(1, 0.92, 0.6, 0.85))
+		draw_circle(c0, sc * 5.0, Color.WHITE, true, -1.0, true)
 	# 箭：從每個弓兵的弓往中線飛
 	for ap: Vector2 in archers:
 		var dir := 1.0 if ap.x < mid else -1.0

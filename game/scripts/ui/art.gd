@@ -55,10 +55,12 @@ static func pose(atk: float) -> Array:
 ## 角色的局部座標轉換（以腳底為原點、face＝+1 畫）：呼吸／走路起伏、前撲、傾身、壓扁拉長、翻面。
 ## lean＝額外傾角（騎兵衝鋒前傾）、crouch＝縱向縮放（刺客潛行蹲身）。
 static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0) -> Transform2D:
+	# 外層（位置、起伏、翻面、縮放、額外傾身／蹲身）× 內層（攻擊姿勢，face＝+1 空間）。
+	# 精靈圖快取烘焙的是內層，貼圖時套外層，所以兩條路的順序完全一樣（Codex R5 #3）。
 	var ps := pose(atk)
 	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else absf(sin(walk)) * -2.5
-	var o := p + Vector2(ps[4] * face, bob) * scale
-	return Transform2D((ps[1] + lean) * face, Vector2(scale * face * ps[2], scale * ps[3] * crouch), 0.0, o)
+	var outer := Transform2D(lean * face, Vector2(scale * face, scale * crouch), 0.0, p + Vector2(0, bob * scale))
+	return outer * Transform2D(ps[1], Vector2(ps[2], ps[3]), 0.0, Vector2(ps[4], 0))
 
 ## 單位：p＝腳底；face＝±1；walk＝走路相位（0＝沒走）；atk＝攻擊動作進度 0～1（見上）；hurt＝受擊閃白 0～1；
 ## alpha＝透明度（潛行）；t＝時間（待機呼吸）；scale＝縮放；mood＝表情疊加（M_*）；lean／crouch 見 unit_xf。
@@ -103,7 +105,8 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 		# 槍尖金光（長槍放平時的槍尖位置）
 		var tip := Vector2(-6, -30) + Vector2(cos(-0.55), sin(-0.55)) * 40.0
 		var g := 0.6 + 0.4 * sin(t * 18.0)
-		_star(ci, tip, 4.5 + g * 1.5, Color(1, 0.86, 0.3, a * g))
+		_star(ci, tip, (4.5 + g * 1.5) * 1.5, Color(1, 0.86, 0.3, a * g))
+		_star(ci, tip, (2.5 + g) * 1.5, Color("#fff8a0", a))   # 亮黃白核心（手感輪 R5）
 	if mood & M_BROWS:
 		for i in 2:
 			var e2: Vector2 = eyes[i]

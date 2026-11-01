@@ -742,7 +742,7 @@ func _draw_inner() -> void:
 	if state == St.BATTLE and slow_left > 0:
 		var va := clampf((8.0 - slow_left) / 0.3, 0.0, 1.0) * 0.45
 		for i in 14:
-			var c2 := Color(0, 0, 0, va * (1.0 - i / 14.0) * 0.35)
+			var c2 := Color(0.45, 0.30, 0.02, va * (1.0 - i / 14.0) * 0.45)   # 金色暗角（R6）
 			draw_rect(Rect2(0, 86 + i * 9, 1280, 9), c2)
 			draw_rect(Rect2(0, 800 - (i + 1) * 9, 1280, 9), c2)
 			draw_rect(Rect2(i * 9, 86, 9, 714), c2)
@@ -795,9 +795,26 @@ func _draw_place_units() -> void:
 			draw_arc(p + Vector2(17, -62), 4, PI, TAU, 8, Color(0.9, 0.8, 0.3), 2)
 	if hide_side >= 0:
 		var x0 := 10 if hide_side == 1 else 0
-		draw_rect(Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(6 * CS, FIELD.y)), Color(0.12, 0.08, 0.05, 0.85))
+		# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
+		var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(6 * CS, FIELD.y))
+		draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
+		for k in 3:
+			var cxp := fposmod(time * (14.0 + k * 6.0) + k * 150.0, mr.size.x + 220.0) - 110.0
+			var cc := mr.position + Vector2(cxp, 90.0 + k * 170.0)
+			for b in 5:
+				var off := Vector2((b - 2) * 26.0, -absf(b - 2.0) * -6.0 - 8.0 * float(b % 2))
+				var rr := mr.position.x - 10.0
+				var cp := cc + off
+				if cp.x > rr and cp.x < mr.end.x + 10.0:
+					draw_circle(cp, 26.0 - absf(b - 2.0) * 4.0, Color(0.8, 0.82, 1.0, 0.07), true, -1.0, true)
+		var fp := mr.position + Vector2(mr.size.x / 2 - 8, mr.size.y / 2 - 120)
+		var glow := 0.5 + 0.5 * sin(time * 2.4)
+		draw_circle(fp + Vector2(22, 18), 34 + glow * 6, Color(1, 0.25, 0.25, 0.10 + glow * 0.06), true, -1.0, true)
+		draw_line(fp, fp + Vector2(0, 74), Color(0.85, 0.78, 0.7), 3.0, true)
+		draw_colored_polygon(PackedVector2Array([fp, fp + Vector2(48, 16), fp + Vector2(0, 36)]), Color(0.9, 0.2, 0.22))
+		_text(fp + Vector2(15, 2), "?", ts(22), Color.WHITE, true, true)
 		var msg := L.t("ai_hidden") if mode == Mode.VS_AI else L.t("enemy_hidden")
-		_text(ORIGIN + Vector2((x0 + 3) * CS, FIELD.y / 2 - 30), msg, ts(22), Color(1, 1, 1, 0.8), true, true)
+		_text(ORIGIN + Vector2((x0 + 3) * CS, FIELD.y / 2 - 10), msg, ts(22), Color(1, 1, 1, 0.85), true, true)
 	# 拖曳預覽
 	var dragging_type := -1
 	if drag_new:
@@ -940,6 +957,8 @@ func _draw_overlay() -> void:
 				var en := unlocked and (not tut or i <= tdone)
 				_btn(r, "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)], _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
+				# 主角兵種小頭像（R6）：這關第一個可用的兵種
+				Art.unit(self, r.position + Vector2(32, 60), PZ.hero_type(pz), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if en else 0.4, time, 0.78, cbm())
 			_btn(Rect2(560, 640, 160, 36), L.t("back"), func(): overlay = "")
 		"settings":
 			_draw_settings()
@@ -1054,12 +1073,22 @@ func _draw_place_hud() -> void:
 		head = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 	elif mode == Mode.GAUNTLET:
 		head = L.t("gauntlet_title", [gauntlet_stage])
-	_text(Vector2(640, 4), head, ts(22), tcol if mode == Mode.DUEL else Color.WHITE, true, true)
+	_text(Vector2(640, 1), head, ts(22), tcol if mode == Mode.DUEL else Color.WHITE, true, true)
 	var bx := 400.0
 	var bw := 480.0
-	draw_rect(Rect2(bx, 50, bw, 8), Color(0.2, 0.2, 0.25))
-	draw_rect(Rect2(bx, 50, bw * clampf(float(a.spent()) / a.budget, 0, 1), 8), tcol)
-	_text(Vector2(640, 30), L.t("budget", [L.t("blue") if a.team == 0 else L.t("red"), a.spent(), a.budget, a.count(), Army.MAX_UNITS]), ts(13), Color.WHITE, true)
+	draw_rect(Rect2(bx, 58, bw, 4), Color(0.2, 0.2, 0.25))
+	draw_rect(Rect2(bx, 58, bw * clampf(float(a.spent()) / a.budget, 0, 1), 4), tcol)
+	# 圖示膠囊（R6）：隊伍、金幣、人數
+	var t_lbl := L.t("blue") if a.team == 0 else L.t("red")
+	var g_lbl := "%d / %d" % [a.spent(), a.budget]
+	var u_lbl := "%d / %d" % [a.count(), Army.MAX_UNITS]
+	var est := 0.0
+	for pair in [[t_lbl, 14], [g_lbl, 14], [u_lbl, 14]]:
+		est += font_bold.get_string_size(pair[0], HORIZONTAL_ALIGNMENT_LEFT, -1, ts(pair[1])).x + 48.0
+	var px := 640.0 - est / 2.0
+	px += _pill(Vector2(px, 31), "team", t_lbl, tcol, 13) + 8
+	px += _pill(Vector2(px, 31), "coin", g_lbl, ACCENT, 13) + 8
+	_pill(Vector2(px, 31), "unit", u_lbl, Color.WHITE, 13)
 	var info := "%s：%s" % [L.t("unit_%d" % selected), L.t("blurb_%d" % selected)]
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz2 := PZ.get_puzzle(puzzle_id)
@@ -1069,10 +1098,13 @@ func _draw_place_hud() -> void:
 	elif mode == Mode.DUEL and tp != null:
 		info += "　｜　" + L.t("place_hint_turns")
 	elif pad_mode:
-		info = L.t("pad_hint")
+		info = ""
 	else:
 		info += "　｜　" + L.t("place_hint_free")
-	_text(Vector2(640, 62), info, ts(13), Color(1, 1, 1, 0.82), true)
+	if info == "":
+		_key_hints(640, 64, [["✛", L.t("pk_move")], ["LB/RB", L.t("pk_pick")], ["A", L.t("pk_place")], ["X", L.t("pk_remove")], ["Start", L.t("pk_start")], ["Select", L.t("pk_codex")]], 14)
+	else:
+		_text(Vector2(640, 64), info, ts(15), Color(1, 1, 1, 0.85), true)
 	for i in D.COUNT:
 		var r := _card_rect(i)
 		var afford: bool = D.cost(i) <= a.left() and a.count() < Army.MAX_UNITS and _allowed(i)
@@ -1086,7 +1118,7 @@ func _draw_place_hud() -> void:
 		Art.unit(self, r.position + Vector2(32, 86), i, a.team, 1.0, 0.0, 0.0, 0.0, 1.0 if afford else 0.45, time, 0.95, cbm())
 		_text(r.position + Vector2(64, 6), L.t("unit_%d" % i), ts(16), Color.WHITE if afford else Color(1, 1, 1, 0.55), false, true)
 		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color("#f87171"), false, not afford)
-		_text(r.position + Vector2(64, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(13), Color(1, 1, 1, 0.65))
+		_text(r.position + Vector2(64, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(15), Color(1, 1, 1, 0.7))
 		_btn(_card_help_rect(i), "?", _open_codex.bind(i))
 	var start_label := L.t("start")
 	var start_en := _ready_to_fight()
@@ -1182,8 +1214,16 @@ func _draw_result() -> void:
 		var n: Array = []
 		for k in ek:
 			n.append(int(ev_count.get("%s%d" % [k, tm], 0)))
-		_text(Vector2(280, y + tm * 22), ("● " if tm == 0 else "◆ ") + L.t("report_events", n), ts(12), Art.team_color(tm, cbm()))
-	y += 50
+		# 雙陣營徽章卡（R6）
+		var tcl := Art.team_color(tm, cbm())
+		_text(Vector2(280, y + tm * 34 + 4), "●" if tm == 0 else "◆", ts(16), tcl, false, true)
+		for j in ek.size():
+			var br := Rect2(306 + j * 96, y + tm * 34, 90, 28)
+			var on: bool = n[j] > 0
+			draw_rect(br, Color(tcl, 0.22 if on else 0.07))
+			draw_rect(br, Color(tcl, 0.7 if on else 0.2), false, 1.5)
+			_text(br.position + Vector2(45, 3), "%s %d" % [L.t("ev_short_" + ek[j]), n[j]], ts(15), Color(1, 1, 1, 0.95 if on else 0.4), true, on)
+	y += 74
 	var mvp = report.get("mvp")
 	if mvp != null:
 		var mp := Vector2(980, 300)

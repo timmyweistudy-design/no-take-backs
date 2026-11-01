@@ -68,3 +68,16 @@ static func stars(pz: Dictionary, won: bool, rem_pct: int, spent_extra: int) -> 
 	if spent_extra <= int(pz["star3"]):
 		s += 1
 	return s
+
+
+## 這關的「主角」兵種（殘局選單小頭像用）：標準解裡最常出現的兵種；同數取編號小的。
+static func hero_type(pz: Dictionary) -> int:
+	var cnt := [0, 0, 0, 0, 0]
+	for sol in pz.get("solutions", []):
+		for e in sol:
+			cnt[int(e[0])] += 1
+	var best := int(pz["allowed"][0]) if not pz.get("allowed", []).is_empty() else 0
+	for t in 5:
+		if cnt[t] > cnt[best]:
+			best = t
+	return best

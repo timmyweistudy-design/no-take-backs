@@ -92,7 +92,9 @@ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, wa
 	ci.draw_set_transform_matrix(xf)
 	ci.draw_texture_rect_region(tex, Rect2(-ORIGIN, Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
 	if hurt > 0.0 or mood != 0:
-		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, face, quant_walk(walk), quant_atk(atk), t, scale, lean, crouch))
+		# 攻擊影格烘焙時沒有走路相位（Codex R5 #3）
+		var qa := quant_atk(atk)
+		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, face, 0.0 if qa > 0.0 else quant_walk(walk), qa, t, scale, lean, crouch))
 		if hurt > 0.0:
 			ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, false)
 		if mood != 0:
