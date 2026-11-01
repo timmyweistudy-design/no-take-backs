@@ -33,6 +33,8 @@ var hover_card := -1
 var drag_new := false
 var drag_from := Vector2i(-1, -1)
 var painting := false
+var paint_team := 0
+var series_over := false
 var mouse := Vector2.ZERO
 var toast := ""
 var toast_t := 0.0
@@ -187,6 +189,12 @@ func _on_skip() -> void:
 	result_delay = 0.0
 
 func _on_again() -> void:
+	if series_over:
+		wins = [0, 0]
+		round_no = 1
+		series_over = false
+		_reset_place(false)
+		return
 	round_no += 1
 	_reset_place(true)
 
@@ -194,6 +202,7 @@ func _on_replay() -> void:
 	var w: int = sim.winner
 	if w >= 0:
 		wins[w] -= 1   # 重播不重複計分
+	series_over = false
 	_begin_battle(last_armies[0].copy(), last_armies[1].copy())
 
 func _toast(s: String) -> void:
@@ -234,6 +243,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseMotion:
 		mouse = ev.position
 		hover_card = _card_at(mouse)
+		if state == St.PLACE and painting and _cur_army().team != paint_team:
+			painting = false   # 自動換手了，不能替對手落子
 		if state == St.PLACE and painting:
 			var c := _cell_at(mouse)
 			if c.x >= 0 and _cur_army().index_at(c.x, c.y) == -1:
@@ -255,6 +266,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			drag_from = c
 		else:
 			painting = true
+			paint_team = _cur_army().team
 			_try_place(c)
 	elif mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 		if drag_new and c.x >= 0:
@@ -377,6 +389,8 @@ func _finish_battle() -> void:
 	state = St.RESULT
 	if sim.winner >= 0:
 		wins[sim.winner] += 1
+	series_over = wins[0] >= 2 or wins[1] >= 2 or round_no >= 5
+	buttons["again"].text = "新的一場" if series_over else "下一局"
 	slow_left = 0
 	_refresh_buttons()
 
@@ -718,7 +732,10 @@ func _draw_battle_hud() -> void:
 				mvp = u
 		if mvp != null:
 			_text(Vector2(640, 440), "MVP：%s的%s　傷害 %d・擊殺 %d" % [TEAM_NAME[mvp.team], D.NAMES[mvp.type], mvp.dmg_dealt, mvp.kills], 16, Color(1, 1, 1, 0.85), true)
-		_text(Vector2(640, 480), "指紋 %d（同一場重播一定相同）" % sim.fingerprint, 12, Color(1, 1, 1, 0.45), true)
+		if series_over:
+			var sw := "整場平手" if wins[0] == wins[1] else "%s 拿下整場（%d : %d）" % [TEAM_NAME[0 if wins[0] > wins[1] else 1], wins[0], wins[1]]
+			_text(Vector2(640, 462), "三戰兩勝結束：" + sw, 18, Color.GOLD, true)
+		_text(Vector2(640, 492), "指紋 %d（同一場重播一定相同）" % sim.fingerprint, 12, Color(1, 1, 1, 0.45), true)
 
 # ───────────────────────── 截圖（驗證用） ─────────────────────────
 func _snap(name: String) -> void:

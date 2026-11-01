@@ -129,6 +129,24 @@ func test_termination() -> void:
 	s.run_to_end()
 	ok(s.finished and s.tick <= Sim.MAX_TICKS, "全盾對全盾 90 秒內結束", "tick=%d" % s.tick)
 	ok(s.winner == -1, "一模一樣的軍隊是平手", "winner=%d %s" % [s.winner, s.reason])
+	# 全盾局會在耗損下同歸於盡（上面判平手）；這裡另外驗狂熱與耗損的時間點
+	var f = Sim.new(army_from(0, a0), army_from(1, a1))
+	var frenzy_at := -1
+	while not f.finished and f.tick < Sim.FRENZY_TICK + 5:
+		f.step()
+		if frenzy_at == -1 and f.frenzy:
+			frenzy_at = f.tick
+	ok(frenzy_at == Sim.FRENZY_TICK, "第 1200 tick 起進入狂熱", "frenzy_at=%d" % frenzy_at)
+	# 兩隻盾兵在對角、從第 1650 tick 開始跑（走不到對方，一定撐到 1800）：只在 1700 扣一次（k＝5），1800（k＝6）不扣
+	var g = Sim.new(army_from(0, [[D.SHIELD, 0, 0]]), army_from(1, [[D.SHIELD, 0, 8]]))
+	g.tick = 1650
+	var hits := 0
+	while not g.finished:
+		g.step()
+		for ev in g.events:
+			if ev.get("kind") == "attrition":
+				hits += 1
+	ok(g.tick == Sim.MAX_TICKS and hits == 1 and g.units[0].hp == 180 - 180 * 12 / 100, "耗損在 1700 扣 12%、1800 不扣", "tick=%d hits=%d" % [g.tick, hits])
 	var e = Sim.new(Army.new(0, 100), army_from(1, [[D.SWORD, 5, 4]]))
 	ok(e.finished and e.winner == -1, "空軍隊不能開打")
 
@@ -154,22 +172,35 @@ func test_traits() -> void:
 	# 騎兵正面衝盾兵：被頂住（暈）
 	s = Sim.new(army_from(0, [[D.CAVALRY, 0, 4]]), army_from(1, [[D.SHIELD, 0, 4]]))
 	var seen_brace := false
+	var cav_stunned := false
 	for i in 200:
 		s.step()
 		for ev in s.events:
 			if ev.get("kind") == "braced":
 				seen_brace = true
-	ok(seen_brace, "盾兵頂住衝鋒")
+				cav_stunned = s.units[0].stun == D.STUN_TICKS and s.units[0].charge == 0
+	ok(seen_brace and cav_stunned, "盾兵頂住衝鋒（騎兵被暈 20 tick、衝鋒歸零）")
 	# 刺客開場潛行，弓箭手打不到
 	s = Sim.new(army_from(0, [[D.ARCHER, 0, 4]]), army_from(1, [[D.ASSASSIN, 5, 4]]))
-	s.step()
-	ok(s.units[0].target == -1, "潛行中的刺客不能被指定")
+	var first_seen := -1
+	for i in 100:
+		s.step()
+		if first_seen == -1 and s.units[0].target != -1:
+			first_seen = s.tick
+	ok(first_seen == D.STEALTH_TICKS + 1, "刺客潛行 %d tick 內不能被指定" % D.STEALTH_TICKS, "first_seen=%d" % first_seen)
 	# 劍士被刺客打會反擊
 	s = Sim.new(army_from(0, [[D.SWORD, 5, 4]]), army_from(1, [[D.ASSASSIN, 5, 4]]))
-	var seen_counter := false
+	var counters := 0
+	var bad := false
 	for i in 300:
 		s.step()
+		var per_tick := 0
 		for ev in s.events:
 			if ev.get("kind") == "counter":
-				seen_counter = true
-	ok(seen_counter, "劍士反擊刺客")
+				per_tick += 1
+				if ev["dmg"] != D.STATS[D.SWORD]["atk"]:
+					bad = true
+		if per_tick > 1:
+			bad = true
+		counters += per_tick
+	ok(counters > 0 and not bad, "劍士反擊刺客（傷害 12、每 tick 最多一次）", "counters=%d" % counters)

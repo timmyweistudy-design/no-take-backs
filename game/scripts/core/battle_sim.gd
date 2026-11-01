@@ -108,7 +108,7 @@ func step() -> void:
 	if finished:
 		return
 	tick += 1
-	frenzy = tick > FRENZY_TICK
+	frenzy = tick >= FRENZY_TICK
 	events = []
 	var n := units.size()
 
@@ -310,7 +310,7 @@ func step() -> void:
 			last_hit[h[1]] = h[0]
 		events.append({"src": units[h[0]].id, "tgt": units[h[1]].id, "dmg": h[2], "kind": h[3]})
 	# 狂熱耗損：第 1200+100k tick 扣 (k+1)×2% 滿血（至少 1）
-	if tick >= FRENZY_TICK and (tick - FRENZY_TICK) % 100 == 0:
+	if tick >= FRENZY_TICK and (tick - FRENZY_TICK) % 100 == 0 and (tick - FRENZY_TICK) / 100 <= 5:
 		var k := (tick - FRENZY_TICK) / 100
 		for i in n:
 			if units[i].alive:
@@ -358,7 +358,7 @@ func _choose_target(i: int) -> int:
 	var u: Unit = units[i]
 	var reach: int = D.STATS[u.type]["reach"]
 	var best := -1
-	var bk := [99, 0, 0, 0]
+	var bk := [99, 0, 0, 0, 0, 0]
 	for j in units.size():
 		var e: Unit = units[j]
 		if e.team == u.team or not e.alive or e.stealth > 0:
@@ -373,7 +373,8 @@ func _choose_target(i: int) -> int:
 			rank = 2
 		elif u.type == D.ASSASSIN and (e.type == D.SHIELD or e.type == D.CAVALRY):
 			rank = 2
-		var key := [rank, d2, e.hp, e.id]
+		var depth: int = e.x if e.team == 0 else W - e.x
+		var key := [rank, d2, e.hp, e.y, depth, e.id]
 		if best == -1 or _key_less(key, bk):
 			best = j
 			bk = key
@@ -444,14 +445,15 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 	else:
 		wy = maxi(u.y, tg.y) + 2 * CELL
 	u.wp_for = tg.id
-	u.wp_x = (u.x + tg.x) / 2
+	u.wp_x = u.x + (tg.x - u.x) / 2   # 用差值往 0 截斷，左右鏡像才對稱
 	u.wp_y = clampi(wy, EDGE, H - EDGE)
 	return Vector2i(u.wp_x, u.wp_y)
 
 func _update_fingerprint() -> void:
 	var h := fingerprint
 	for u in units:
-		var v: int = u.x * 7 + u.y * 13 + u.hp * 17 + u.fx * 3 + u.fy * 5 + u.target * 11 + u.cd + u.stealth + u.charge + (1 if u.alive else 0)
+		var v: int = u.x * 7 + u.y * 13 + u.hp * 17 + u.fx * 3 + u.fy * 5 + u.target * 11 + u.cd + u.stealth * 19 + u.charge \
+				+ u.stun * 23 + u.slow * 29 + u.wp_x * 31 + u.wp_y * 37 + u.lmx * 41 + u.lmy * 43 + (1 if u.alive else 0)
 		h = posmod(h * 1000003 + v, HASH_MOD)
 	fingerprint = h
 
