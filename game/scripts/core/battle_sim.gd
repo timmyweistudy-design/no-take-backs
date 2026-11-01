@@ -7,14 +7,14 @@ const D = preload("res://scripts/core/unit_defs.gd")
 const M = preload("res://scripts/core/imath.gd")
 
 const TPS := 20
-const MAX_TICKS := 1800          # 90 秒
-const FRENZY_TICK := 1200        # 60 秒起狂熱
+const MAX_TICKS := D.MATCH_TICKS
+const FRENZY_TICK := D.FRENZY_TICK
 const CELL := 1000
 const COLS := 16
 const ROWS := 9
 const W := COLS * CELL
 const H := ROWS * CELL
-const MIN_SEP := 450             # 最小碰撞間距 0.45 格
+const MIN_SEP := D.MIN_SEP
 const EDGE := 200
 const HASH_MOD := 1099511627689  # < 2^40，乘上 1000003 不會溢位
 
@@ -145,7 +145,7 @@ func step() -> void:
 		var stop_at := reach - 50
 		if u.type == D.ASSASSIN and u.stealth > 0:
 			# 潛行中繞到目標背後
-			dest = Vector2i(tg.x - tg.fx * 6 / 10, tg.y - tg.fy * 6 / 10)
+			dest = Vector2i(tg.x - tg.fx * D.BEHIND_DIST / 1000, tg.y - tg.fy * D.BEHIND_DIST / 1000)
 			stop_at = 0
 		elif u.type == D.CAVALRY:
 			var wp := _flank_waypoint(i, t)
@@ -159,7 +159,7 @@ func step() -> void:
 			var l := M.isqrt(dx * dx + dy * dy)
 			var spd: int = D.STATS[u.type]["speed"]
 			if u.slow > 0:
-				spd /= 2
+				spd = spd * D.SLOW_NUM / D.SLOW_DEN
 			var stp := mini(spd, l - stop_at)
 			if stp > 0 and l > 0:
 				u.mx = dx * stp / l
@@ -247,7 +247,7 @@ func step() -> void:
 	var reveal := {}
 	var knock: Array = []
 	var countered := {}
-	var dec := 5 if frenzy else 4
+	var dec := D.FRENZY_CD_RATE if frenzy else 4
 	for i in n:
 		var u: Unit = units[i]
 		if not u.alive:
@@ -266,12 +266,12 @@ func step() -> void:
 		var kind := "hit"
 		if u.type == D.SWORD:
 			if tg.type == D.SHIELD:
-				dmg = dmg * 3 / 2
+				dmg = dmg * D.BREAKER_NUM / D.BREAKER_DEN
 				kind = "breaker"
 		elif u.type == D.ARCHER:
 			kind = "arrow"
 			if tg.type == D.SHIELD and not _is_behind(u, tg):
-				dmg = dmg / 4
+				dmg = dmg * D.BLOCK_NUM / D.BLOCK_DEN
 				kind = "blocked"
 		elif u.type == D.CAVALRY:
 			if u.charge >= D.CHARGE_NEED:
@@ -279,13 +279,13 @@ func step() -> void:
 					stun_set[i] = true
 					kind = "braced"
 				else:
-					dmg = dmg * 5 / 2
+					dmg = dmg * D.CHARGE_NUM / D.CHARGE_DEN
 					kind = "charge"
 					knock.append([u.target, tg.x - u.x, tg.y - u.y])
 				u.charge = 0
 		elif u.type == D.ASSASSIN:
 			if _is_behind(u, tg):
-				dmg *= 2
+				dmg = dmg * D.BACKSTAB_NUM / D.BACKSTAB_DEN
 				kind = "backstab"
 			if tg.type == D.CAVALRY:
 				slow_set[u.target] = true
@@ -295,7 +295,7 @@ func step() -> void:
 		# 劍士反擊：被刺客打到立刻回砍，每 tick 最多一次，反擊不會再觸發反擊
 		if u.type == D.ASSASSIN and tg.type == D.SWORD and not countered.has(u.target):
 			countered[u.target] = true
-			hits.append([u.target, i, D.STATS[D.SWORD]["atk"], "counter"])
+			hits.append([u.target, i, D.STATS[D.SWORD]["atk"] * D.COUNTER_PCT / 100, "counter"])
 
 	# ⑤ 同時結算
 	var dmg_in := PackedInt64Array()
@@ -314,7 +314,7 @@ func step() -> void:
 		var k := (tick - FRENZY_TICK) / 100
 		for i in n:
 			if units[i].alive:
-				dmg_in[i] += maxi(1, units[i].max_hp * (k + 1) * 2 / 100)
+				dmg_in[i] += maxi(1, units[i].max_hp * (k + 1) * D.ATTRITION_STEP_PCT / 100)
 		events.append({"kind": "attrition", "k": k})
 	for kb in knock:
 		var v := M.unit1000(kb[1], kb[2])
@@ -435,15 +435,15 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 		if proj <= 0 or proj >= l2:
 			continue
 		var cross: int = ex * dy - ey * dx
-		if cross * cross < 1500 * 1500 * l2:
+		if cross * cross < D.FLANK_DETECT * D.FLANK_DETECT * l2:
 			blocked = true
 	if not blocked:
 		return Vector2i(-1, -1)
 	var wy: int
 	if above <= below:
-		wy = mini(u.y, tg.y) - 2 * CELL
+		wy = mini(u.y, tg.y) - D.FLANK_OFFSET
 	else:
-		wy = maxi(u.y, tg.y) + 2 * CELL
+		wy = maxi(u.y, tg.y) + D.FLANK_OFFSET
 	u.wp_for = tg.id
 	u.wp_x = u.x + (tg.x - u.x) / 2   # 用差值往 0 截斷，左右鏡像才對稱
 	u.wp_y = clampi(wy, EDGE, H - EDGE)

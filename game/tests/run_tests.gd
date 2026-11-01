@@ -146,7 +146,7 @@ func test_termination() -> void:
 		for ev in g.events:
 			if ev.get("kind") == "attrition":
 				hits += 1
-	ok(g.tick == Sim.MAX_TICKS and hits == 1 and g.units[0].hp == 180 - 180 * 12 / 100, "耗損在 1700 扣 12%、1800 不扣", "tick=%d hits=%d" % [g.tick, hits])
+	ok(g.tick == Sim.MAX_TICKS and hits == 1 and g.units[0].hp == g.units[0].max_hp - g.units[0].max_hp * 6 * D.ATTRITION_STEP_PCT / 100, "耗損在 1700 扣 6×STEP%、1800 不扣", "tick=%d hits=%d" % [g.tick, hits])
 	var e = Sim.new(Army.new(0, 100), army_from(1, [[D.SWORD, 5, 4]]))
 	ok(e.finished and e.winner == -1, "空軍隊不能開打")
 
@@ -157,18 +157,18 @@ func test_traits() -> void:
 	for i in 200:
 		s.step()
 		for ev in s.events:
-			if ev.get("kind") == "blocked" and ev["dmg"] == 2:
+			if ev.get("kind") == "blocked" and ev["dmg"] == D.STATS[D.ARCHER]["atk"] * D.BLOCK_NUM / D.BLOCK_DEN:
 				seen_block = true
-	ok(seen_block, "盾兵正面擋箭（10→2）")
+	ok(seen_block, "盾兵正面擋箭（傷害×BLOCK）")
 	# 騎兵直衝 3 格以上的第一擊是衝鋒
 	s = Sim.new(army_from(0, [[D.CAVALRY, 0, 4]]), army_from(1, [[D.SWORD, 0, 4]]))
 	var seen_charge := false
 	for i in 200:
 		s.step()
 		for ev in s.events:
-			if ev.get("kind") == "charge" and ev["dmg"] == 35:
+			if ev.get("kind") == "charge" and ev["dmg"] == D.STATS[D.CAVALRY]["atk"] * D.CHARGE_NUM / D.CHARGE_DEN:
 				seen_charge = true
-	ok(seen_charge, "騎兵衝鋒 14×5/2＝35")
+	ok(seen_charge, "騎兵衝鋒傷害×CHARGE")
 	# 騎兵正面衝盾兵：被頂住（暈）
 	s = Sim.new(army_from(0, [[D.CAVALRY, 0, 4]]), army_from(1, [[D.SHIELD, 0, 4]]))
 	var seen_brace := false
@@ -198,9 +198,9 @@ func test_traits() -> void:
 		for ev in s.events:
 			if ev.get("kind") == "counter":
 				per_tick += 1
-				if ev["dmg"] != D.STATS[D.SWORD]["atk"]:
+				if ev["dmg"] != D.STATS[D.SWORD]["atk"] * D.COUNTER_PCT / 100:
 					bad = true
 		if per_tick > 1:
 			bad = true
 		counters += per_tick
-	ok(counters > 0 and not bad, "劍士反擊刺客（傷害 12、每 tick 最多一次）", "counters=%d" % counters)
+	ok(counters > 0 and not bad, "劍士反擊刺客（傷害照 COUNTER_PCT、每 tick 最多一次）", "counters=%d" % counters)
