@@ -165,7 +165,12 @@ func _draw_codex() -> void:
 		var r := Rect2(204 + t * 176, 152, 168, 42)
 		_btn(r, L.t("unit_%d" % t), _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
-	_scroll_draw("left", CX_LEFT, _cx_left_items(u, lang))
+	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
+	var items := _cx_left_items(u, lang)
+	var head_h := 160.0
+	_scroll_draw("head", Rect2(CX_LEFT.position, Vector2(CX_LEFT.size.x, head_h)), [items[0]], false)
+	draw_line(Vector2(CX_LEFT.position.x, CX_LEFT.position.y + head_h - 2), Vector2(CX_LEFT.end.x, CX_LEFT.position.y + head_h - 2), Color(1, 1, 1, 0.12), 1.0)
+	_scroll_draw("left", Rect2(CX_LEFT.position + Vector2(0, head_h + 4), CX_LEFT.size - Vector2(0, head_h + 4)), items.slice(1))
 	# 右欄：技能分頁、說明、小劇場
 	var sks := _cx_skills()
 	var bw := (CX_BOX.size.x - (sks.size() - 1) * 8) / maxf(1.0, sks.size())
@@ -226,7 +231,8 @@ func _cx_bars(t: int) -> Array:
 	var vals: Array = []
 	for k in D.COUNT:
 		var st: Dictionary = D.STATS[k]
-		var v := [float(st["hp"]), float(st["atk"]) * 20.0 / (float(st["cd"]) / 4.0), float(st["reach"]) / 1000.0, float(st["speed"]) * 20.0 / 1000.0]
+		# cd 已經是 tick（Codex S3：原本多除了 4，每秒傷害顯示成 4 倍）
+		var v := [float(st["hp"]), float(st["atk"]) * 20.0 / float(st["cd"]), float(st["reach"]) / 1000.0, float(st["speed"]) * 20.0 / 1000.0]
 		vals.append(v)
 		for i in 4:
 			mx[i] = maxf(mx[i], v[i])
@@ -236,8 +242,9 @@ func _cx_bars(t: int) -> Array:
 		[L.t("bar_range"), sqrt(me[2] / mx[2]), L.t("cells", [me[2]])], [L.t("bar_speed"), me[3] / mx[3], L.t("cells_s", [me[3]])],
 		[L.t("bar_cost"), float(stc["cost"]) / 7.0, L.t("gold", [int(stc["cost"])])]]
 
-func _scroll_draw(name: String, r: Rect2, items: Array) -> void:
-	cx_regions[name] = r
+func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> void:
+	if scrollable:
+		cx_regions[name] = r
 	var off: float = cx_scroll.get(name, 0.0)
 	var y := r.position.y - off
 	var top := r.position.y
@@ -281,9 +288,13 @@ func _scroll_draw(name: String, r: Rect2, items: Array) -> void:
 					y += size * 1.3
 				y += float(it.get("gap", 0.0))
 	cx_content[name] = y + off - r.position.y
+	# 內容變短（換兵種）時，位移要重新夾在範圍內（Codex S3）
+	var maxs := maxf(0.0, float(cx_content[name]) - r.size.y)
+	if off > maxs:
+		cx_scroll[name] = maxs
 	# 捲軸
 	var total: float = cx_content[name]
-	if total > r.size.y + 1.0:
+	if scrollable and total > r.size.y + 1.0:
 		var bar := Rect2(r.end.x - 6, r.position.y, 6, r.size.y)
 		draw_rect(bar, Color("#2a3040"))
 		var th := maxf(24.0, r.size.y * r.size.y / total)

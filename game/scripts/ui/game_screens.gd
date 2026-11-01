@@ -293,6 +293,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 
 func _finish_battle() -> void:
 	sfx.set_muffled(false)
+	fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
 	clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
 	state = St.RESULT
 	_focus = 0
@@ -556,8 +557,7 @@ func _input(ev: InputEvent) -> void:
 		mouse = ev.position
 		pad_mode = false
 		hover_card = _card_at(mouse)
-		if painting:
-			_enqueue("paint", mouse)
+		_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
 		return
 	if ev is InputEventMouseButton:
 		mouse = ev.position
@@ -990,7 +990,8 @@ func _draw_tactical() -> void:
 		if u["type"] == D.ARCHER and (show_all or (c.x == u["col"] and c.y == u["row"])):
 			var ap := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.5) * CS
 			var a0 := -0.6 if army.team == 0 else PI - 0.6
-			_arc_clipped(ap, 6.0 * CS, a0, a0 + 1.2, Color(1, 0.9, 0.5, 0.22), 2.0)
+			var hov: bool = c.x == u["col"] and c.y == u["row"]
+			_arc_clipped(ap, 6.0 * CS, a0, a0 + 1.2, Color(1, 0.9, 0.5, 0.45 if hov else 0.12), 2.0 if hov else 1.5)   # 停著的那隻亮、其他淡（Antigravity S3）
 	if _enemy_visible():
 		for u in armies[1 - army.team].units:
 			var sc := AIT.counter_score(selected, u["type"])
@@ -1054,10 +1055,13 @@ func _mini_formation(r: Rect2, pz: Dictionary, en: bool) -> void:
 	var cw := r.size.x / 6.0
 	var ch := r.size.y / 9.0
 	var tcols := [Color("#e5e7eb"), Color("#93c5fd"), Color("#86efac"), Color("#fcd34d"), Color("#c4b5fd")]
+	# 敵陣（紅框菱形，兵種色填色）
 	for u in ea.units:
 		var cx := int(u["col"]) - 10
 		var q := r.position + Vector2((cx + 0.5) * cw, (int(u["row"]) + 0.5) * ch)
-		draw_circle(q, minf(cw, ch) * 0.45, Color(tcols[int(u["type"])], 1.0 if en else 0.4), true, -1.0, true)
+		var rr := minf(cw, ch) * 0.62
+		draw_colored_polygon(PackedVector2Array([q + Vector2(0, -rr), q + Vector2(rr, 0), q + Vector2(0, rr), q + Vector2(-rr, 0)]), Color(Art.team_color(1, cbm()), 1.0 if en else 0.4))
+		draw_circle(q, rr * 0.5, Color(tcols[int(u["type"])], 1.0 if en else 0.4), true, -1.0, true)
 	draw_rect(r, Color(1, 1, 1, 0.3), false, 1.0)
 
 
@@ -1471,15 +1475,16 @@ func _draw_result() -> void:
 		_text(mp + Vector2(0, 30), "MVP", ts(16), ACCENT, true, true)
 		_text(Vector2(640, y), L.t("mvp", [L.t("blue") if mvp.team == 0 else L.t("red"), L.t("unit_%d" % mvp.type), mvp.dmg_dealt, mvp.kills]), ts(15), Color(1, 1, 1, 0.85), true, false, 740)
 		y += 26
-	_draw_timeline(Rect2(300, maxf(y + 10.0, 548.0), 680, 44))
+	# 先排短的結論行，再把剩下的空間給時間軸（第三輪 T4：大字時不能壓到下方按鈕）
 	if report.has("stars"):
 		var pz := PZ.get_puzzle(puzzle_id)
 		var stn := int(report["stars"])
-		_text(Vector2(640, y), "★".repeat(stn) + "☆".repeat(3 - stn) + "　" + L.t("star_rules", [pz["star2"], pz["star3"]]), ts(15), ACCENT, true)
-		y += 26
+		_text(Vector2(640, y), "★".repeat(stn) + "☆".repeat(3 - stn) + "　" + L.t("star_rules", [pz["star2"], pz["star3"]]), ts(15), ACCENT, true, false, 740)
+		y += ts(15) * 1.5
 	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL):
 		var sw := L.t("series_draw") if wins[0] == wins[1] else L.t("series_win", [L.t("blue") if wins[0] > wins[1] else L.t("red"), wins[0], wins[1]])
-		_text(Vector2(640, y), L.t("series_end", [sw]), ts(17), ACCENT, true, true)
+		_text(Vector2(640, y), L.t("series_end", [sw]), ts(17), ACCENT, true, true, 740)
+		y += ts(17) * 1.5
 	if mode == Mode.GAUNTLET:
 		var msg := ""
 		if w == 0 and gauntlet_stage >= 7:
@@ -1487,12 +1492,23 @@ func _draw_result() -> void:
 		elif w != 0:
 			msg = L.t("gauntlet_over", [gauntlet_stage - 1])
 		if msg != "":
-			_text(Vector2(640, y), msg, ts(18), ACCENT, true, true)
+			_text(Vector2(640, y), msg, ts(18), ACCENT, true, true, 740)
+			y += ts(18) * 1.5
 	if bool(Save.s("playtest")) and not pt_rated:
-		_text(Vector2(420, 590), L.t("pt_rate"), ts(15), ACCENT)
+		_text(Vector2(300, y + 4), L.t("pt_rate"), ts(15), ACCENT, false, false, 280)
 		for i in 5:
-			_btn(Rect2(600 + i * 52, 584, 44, 32), str(i + 1), _pt_rate.bind(i + 1))
-	_text(Vector2(640, 622), L.t("fingerprint", [sim.fingerprint.substr(0, 12)]), ts(11), Color(1, 1, 1, 0.35), true)
+			_btn(Rect2(600 + i * 52, y, 44, 32), str(i + 1), _pt_rate.bind(i + 1))
+		y += 40
+	var lab := ts(12) * 1.3
+	var tl_y := maxf(y + 8.0 + lab, 540.0)
+	var tl_h := minf(40.0, 640.0 - lab - 4.0 - tl_y)
+	if tl_h >= 16.0:
+		_draw_timeline(Rect2(300, tl_y, 680, tl_h))
+		y = tl_y + tl_h + lab + 6.0
+	# 指紋放在時間軸下面；大字時放不下就不畫（它是驗證用的小字，第三輪 T4）
+	var fp_y := maxf(y, 618.0)
+	if fp_y + ts(11) * 1.3 <= 646.0:
+		_text(Vector2(640, fp_y), L.t("fingerprint", [sim.fingerprint.substr(0, 12)]), ts(11), Color(1, 1, 1, 0.35), true, false, 760)
 	var bs: Array = []
 	match mode:
 		Mode.VS_AI, Mode.DUEL:
@@ -1540,6 +1556,7 @@ func _draw_timeline(r: Rect2) -> void:
 		marks.append([lock_t, "lock", sim.winner])
 	marks.sort()
 	var last_lx := -999.0
+	var last_ux := -999.0
 	for mk in marks:
 		var x := r.position.x + r.size.x * clampf(float(mk[0]) / n, 0.0, 1.0)
 		var mc := ACCENT if mk[2] < 0 else Art.team_color(mk[2], cbm())
@@ -1547,9 +1564,13 @@ func _draw_timeline(r: Rect2) -> void:
 		draw_line(Vector2(x, r.position.y + 3), Vector2(x, r.end.y), Color(mc, 0.5), 1.0)
 		var lbl := "%s %ds" % [L.t("tl_" + mk[1]), mk[0] / 20]
 		var lw := font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(12)).x
-		if x - lw / 2.0 > last_lx + 6.0:   # 用實際字寬避讓（第三輪 T4）
+		# 標籤上下兩排交錯：先放下排，放不下改上排（菱形上方），兩排都放不下才省略（Antigravity S3）
+		if x - lw / 2.0 > last_lx + 6.0:
 			_text(Vector2(x, r.end.y + 2), lbl, ts(12), Color(mc, 0.95), true)
 			last_lx = x + lw / 2.0
+		elif x - lw / 2.0 > last_ux + 6.0:
+			_text(Vector2(x, r.position.y - 9 - ts(12) * 1.25), lbl, ts(12), Color(mc, 0.95), true)
+			last_ux = x + lw / 2.0
 
 
 ## 動態判詞：用輸出最高的兵種、結束方式、懸念類型組一句話。

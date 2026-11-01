@@ -94,7 +94,8 @@ func _sim_step(with_fx: bool) -> void:
 		if k == EV.DEATH:
 			deaths += 1
 		if k == EV.CHARGE or k == EV.BACKSTAB or k == EV.BRACED:
-			var team: int = view.unit_by_id(ev["src"]).team
+			# 頂住的 src 是被頂住的騎兵，功勞算盾兵那一隊（Codex S3）
+			var team: int = view.unit_by_id(ev["tgt"] if k == EV.BRACED else ev["src"]).team
 			var seen := false
 			for m in battle_marks:
 				if m["kind"] == k and m["team"] == team:
@@ -147,7 +148,7 @@ static func pick_hit(hits: Array, disp: float, type: int) -> int:
 ## 三段式攻擊進度（R5）：前搖固定是命中前 DELAY 個 tick，揮擊與後搖依攻擊間隔壓縮（攻速快的兵動作也快，不會疊在一起）。
 ## 回傳 Art.unit 的 atk 參數：0＝沒在攻擊；0～0.3125 前搖、0.3125～0.53125 揮擊（命中在 0.3125）、之後後搖到 1。
 static func atk_progress(dt: float, type: int) -> float:
-	var period := float(D.STATS[type]["cd"]) / 4.0
+	var period := float(D.STATS[type]["cd"])   # cd 的單位是 tick（模擬每次出手加 cd×4、每 tick 扣 4）
 	var tot := clampf(period, 4.0, 6.4)
 	var w := float(ViewBuffer.DELAY)
 	var st := 0.22 * tot
@@ -341,6 +342,14 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
 				fn["pop"] = 0.18
 				text_key_shown += 1
 				return
+			# 沒有同種的：取代最舊的關鍵跳字（它已經顯示過了），維持硬上限
+			var old := -1
+			for k4 in fx.size():
+				var f4: Dictionary = fx[k4]
+				if f4["kind"] == "text" and not f4.get("screen", false) and (old < 0 or f4["t"] > fx[old]["t"]):
+					old = k4
+			if old >= 0:
+				fx.remove_at(old)
 	if tier >= 2:
 		text_key_shown += 1
 	fx.append({"kind": "text", "p": p, "s": "%s %d" % [label, dmg], "c": col, "t": 0.0, "dur": 0.85, "size": 18 if tier >= 2 else 16,
@@ -706,7 +715,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			if h >= 0:
 				at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
 				if u.type == D.SWORD:
-					variant = (h / maxi(1, D.STATS[D.SWORD]["cd"] / 4)) % 2   # 劍士橫斬與上挑交替（第三輪 R4）
+					variant = (h / maxi(1, int(D.STATS[D.SWORD]["cd"]))) % 2   # 劍士橫斬與上挑交替（第三輪 R4）
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
 			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
