@@ -247,30 +247,6 @@ func _update_gen() -> void:
 		_gen_key = key
 		_gen += 1
 
-func _process_cmds() -> int:
-	var done := 0
-	_update_gen()
-	var q := _cmds
-	_cmds = []
-	for c in q:
-		if c["gen"] != _gen:
-			# 畫面已經換了：丟掉。但「放開滑鼠」一定要清掉拖曳／塗兵狀態（Codex S1 #2）
-			if c["kind"] == "mb" and not c["data"]["pressed"]:
-				_mb_release_cleanup()
-			continue
-		if c["kind"] == "click":
-			done += _do_click(c["data"])
-		elif c["kind"] == "mb":
-			# 滑鼠按鍵（擺放、拖曳、移除）也走同一個佇列，和鍵盤選兵的先後順序一致（Codex S1 #2）
-			_mb_cmd(c["data"])
-			done += 1
-		elif c["kind"] == "paint":
-			_paint_cmd(c["data"])
-		elif c["kind"] == "key":
-			_key(int(c["data"]))
-			done += 1
-		_update_gen()
-	return done
 
 func _panel(r: Rect2) -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.68))
@@ -317,59 +293,17 @@ func _rebuild_sprites() -> void:
 	if sprites != null:
 		sprites.build(cbm())
 
-# ── 給上層覆寫的佔位（拆檔後，下層程式需要呼叫上層的函式）──
-func _key(_k: int) -> void:
-	pass
 
-func _mb_cmd(_d: Dictionary) -> void:
-	pass
-
-func _paint_cmd(_p: Vector2) -> void:
-	pass
-
-func _mb_release_cleanup() -> void:
-	pass
-
-func _battle_click(_p: Vector2) -> void:
-	pass
-
-func _begin_battle(_a0, _a1, _kind := "official") -> void:
-	pass
-
-## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
-func _do_click(p: Vector2) -> int:
-	if _btns_gen != _gen:
-		return 0
-	for i in _btns.size():
-		var b: Dictionary = _btns[i]
-		if b["r"].has_point(p):
-			if b["en"]:
-				_focus = i
-				if sfx != null:
-					sfx.play("ui_click")
-				b["cb"].call()
-				return 1
-			return 0
-	return 0
-
-func _run_perf() -> void:
-	pass
-
-func _capture_capsule() -> void:
-	pass
-
-func _run_video() -> void:
-	pass
-
-func _run_screenshots() -> void:
-	pass
-
-func _finish_battle() -> void:
-	pass
-
-func _draw_capsule() -> void:
-	pass
-
+## 目前模式的名稱（S8：只用到 ui_base 的狀態，從 game_screens 移下來）
 func _mode_label() -> String:
+	match mode:
+		Mode.VS_AI: return "%s・%s" % [L.t("menu_vs_ai"), L.t(["diff_easy", "diff_normal", "diff_hard"][difficulty])]
+		Mode.DUEL: return "%s・%s" % [L.t("menu_duel"), L.t("rule_" + duel_rule)]
+		Mode.TUTORIAL: return L.t("menu_tutorial")
+		Mode.PUZZLE: return L.t("menu_puzzle")
+		Mode.GAUNTLET: return L.t("menu_gauntlet")
 	return ""
 
+
+## 戰鬥播完（含結算延遲）之後要做的事；由 game_screens 在 _ready 設定（S8：取代基底的空函式）
+var on_battle_finished: Callable = func(): pass

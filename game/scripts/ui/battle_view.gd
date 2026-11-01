@@ -44,7 +44,7 @@ func _battle_process(delta: float) -> void:
 	if view.finished:
 		result_delay += delta
 		if result_delay > 1.4:
-			_finish_battle()
+			on_battle_finished.call()
 
 
 ## 最後時刻（優化方案 F1）：雙方剩餘戰力都 ≤30% 且差距 ≤15%；或雙方各剩 ≤3 隻且差距 ≤15%。
@@ -1083,3 +1083,52 @@ func _draw_battle_hud() -> void:
 		if play_kind == "official":   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
 			_btn(Rect2(1010, 8, 120, 34), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
 		_btn(Rect2(1138, 8, 132, 34), L.t("skip"), func(): _on_skip())
+
+
+## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）
+func _begin_battle(a0, a1, kind := "official") -> void:
+	play_kind = kind
+	if kind == "official":
+		last_armies = [a0.copy(), a1.copy()]
+	sim = Sim.new(a0, a1)
+	view = ViewBuffer.new(sim)
+	atk_seq.clear()
+	clutch_tick = -1
+	replay_total = 0
+	if kind != "official":
+		# 重播／覆盤：先用確定性模擬算出整場長度，時間軸以實際秒數為滿（Antigravity S5）
+		var pre = Sim.new(a0.copy(), a1.copy())
+		pre.fast = true
+		pre.run_to_end()
+		replay_total = pre.tick
+	paused = false
+	follow_id = -1
+	battle_marks.clear()
+	graves.clear()
+	clutch_t = 0.0
+	atk_hit.clear()
+	brace_t.clear()
+	state = St.BATTLE
+	prev_pos.clear()
+	for u in view.units:
+		prev_pos[u.id] = Vector2(u.x, u.y)
+	_pump_view()   # 開場先預填 DELAY 個 tick
+	accum = 0.0
+	slow_used = false
+	slow_left = 0.0
+	hitstop = 0.0
+	zoom = 1.0
+	zoom_target = 1.0
+	fx.clear()
+	dying.clear()
+	atk_t.clear()
+	hurt_t.clear()
+	ev_count = {}
+	frenzy_seen = false
+	result_delay = 0.0
+	pt_call_tick = -1
+	pt_rated = false
+	_focus = 0
+	speed = float(Save.s("speed"))
+	sfx.play("start")
+	sfx.play_music("music_battle")

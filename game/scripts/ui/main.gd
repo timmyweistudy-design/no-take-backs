@@ -415,7 +415,85 @@ func _pstats(a: Array) -> Dictionary:
 ## 動作／表情樣品（R5 截圖驗證用）：每個兵種一列：待機、前搖、揮擊、後搖、受擊、狂熱、專屬（衝鋒／潛行／頂住）、勝利。
 var anim_gallery := false
 
+func _ready() -> void:
+	super._ready()
+	# 宣傳／驗證模式的分派（S8：原本在 game_screens 透過基底的空函式呼叫上來）
+	if capsule_path != "":
+		_capture_capsule.call_deferred()
+	elif shot_dir != "":
+		_run_screenshots.call_deferred()
+	elif video_mode:
+		_run_video.call_deferred()
+	elif perf_path != "":
+		_run_perf.call_deferred()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--mem-check="):
+			_run_mem_check.call_deferred(a.substr(12))
+
+
+## 記憶體檢查（第三輪 P2）：連打 20 場（直接看結果）＋切 20 次色盲（每次重建角色圖集），
+## 暖機（前 3 場）之後記錄靜態記憶體、物件數、貼圖記憶體；結束時不能持續成長。
+## 用法：<exe> --path game --resolution 1280x800 -- --mem-check=<輸出 json 絕對路徑>
+func _run_mem_check(out_path: String) -> void:
+	Save.prefix = "shot_"
+	await get_tree().process_frame
+	var waited := 0
+	while sprites != null and not sprites.is_ready(cbm()) and waited < 240:
+		await get_tree().process_frame
+		waited += 1
+	var samples: Array = []
+	var snap := func(tag: String) -> void:
+		samples.append({"tag": tag, "static_mb": snappedf(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, 0.01),
+			"objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)), "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+			"tex_mb": snappedf(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0, 0.01)})
+	var rng2 := RandomNumberGenerator.new()
+	mode = Mode.VS_AI
+	for i in 20:
+		rng2.seed = 4242 + i
+		var a0: Army = AI.build(0, 100, rng2)["army"]
+		var a1: Army = AI.build(1, 100, rng2)["army"]
+		_begin_battle(a0, a1, "replay")
+		for k in 20:
+			await get_tree().process_frame
+		_on_skip()
+		_finish_battle()
+		await get_tree().process_frame
+		_go_title()
+		await get_tree().process_frame
+		if i == 2:
+			snap.call("暖機後（第 3 場）")
+	snap.call("20 場後")
+	for i in 20:
+		Save.settings["colorblind"] = i % 2 == 0
+		_rebuild_sprites()
+		waited = 0
+		while sprites != null and not sprites.is_ready(cbm()) and waited < 240:
+			await get_tree().process_frame
+			waited += 1
+		if i == 1:
+			snap.call("色盲切換 2 次後")
+	for k in 10:
+		await get_tree().process_frame
+	snap.call("色盲切換 20 次後")
+	var base: Dictionary = samples[0]
+	var end_b: Dictionary = samples[1]
+	var cb0: Dictionary = samples[2]
+	var cb1: Dictionary = samples[3]
+	var ok_b: bool = end_b["static_mb"] <= base["static_mb"] * 1.05 + 1.0 and end_b["nodes"] <= base["nodes"] + 5
+	var ok_c: bool = cb1["static_mb"] <= cb0["static_mb"] * 1.05 + 1.0 and cb1["tex_mb"] <= cb0["tex_mb"] * 1.05 + 1.0 and cb1["nodes"] <= cb0["nodes"] + 5
+	var out := {"samples": samples, "battles_ok": ok_b, "colorblind_ok": ok_c}
+	var f := FileAccess.open(out_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(out, "  "))
+	f.close()
+	print("MEMCHECK ", JSON.stringify(out))
+	get_tree().quit(0 if ok_b and ok_c else 1)
+
+
 func _draw_inner() -> void:
+	if capsule_path != "":
+		_btns.clear()
+		_draw_capsule()
+		return
 	super._draw_inner()
 	if not anim_gallery:
 		return

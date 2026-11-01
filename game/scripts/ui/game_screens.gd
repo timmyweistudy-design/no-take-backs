@@ -2,8 +2,9 @@ extends "res://scripts/ui/replay_view.gd"
 ## 狀態機、模式、輸入、擺放、標題、選單、設定、結果、成就。
 
 func _ready() -> void:
+	on_battle_finished = _finish_battle
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check":
+		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check="):
 			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
 	Save.load_all()
 	for a in OS.get_cmdline_user_args():
@@ -27,7 +28,7 @@ func _ready() -> void:
 	var _ua := OS.get_cmdline_user_args()
 	var _special := "--video" in _ua
 	for x in _ua:
-		if x.begins_with("--perf="):
+		if x.begins_with("--perf=") or x.begins_with("--mem-check="):
 			_special = true
 	for x in _ua:
 		if x.begins_with("--capsule="):
@@ -61,20 +62,13 @@ func _ready() -> void:
 		_boot_check.call_deferred()
 	if capsule_path != "":
 		get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
-		_capture_capsule.call_deferred()
-		return
+		return   # 膠囊圖由 main 接手
 	_apply_fullscreen()
 	rng.seed = Time.get_ticks_usec() if (shot_dir == "" and not video_mode) else 12345
 	if video_mode:
 		Save.prefix = "shot_"
 		Save.load_all()
-	_go_title()
-	if shot_dir != "":
-		_run_screenshots.call_deferred()
-	elif video_mode:
-		_run_video.call_deferred()
-	elif perf_path != "":
-		_run_perf.call_deferred()
+	_go_title()   # 截圖、影片、效能量測由 main 接手（S8）
 
 
 # ───────────────────────── 狀態切換 ─────────────────────────
@@ -266,52 +260,6 @@ static func counter_lib_entries(p) -> Array:
 	return e if e is Array else []
 
 
-func _begin_battle(a0, a1, kind := "official") -> void:
-	play_kind = kind
-	if kind == "official":
-		last_armies = [a0.copy(), a1.copy()]
-	sim = Sim.new(a0, a1)
-	view = ViewBuffer.new(sim)
-	atk_seq.clear()
-	clutch_tick = -1
-	replay_total = 0
-	if kind != "official":
-		# 重播／覆盤：先用確定性模擬算出整場長度，時間軸以實際秒數為滿（Antigravity S5）
-		var pre = Sim.new(a0.copy(), a1.copy())
-		pre.fast = true
-		pre.run_to_end()
-		replay_total = pre.tick
-	paused = false
-	follow_id = -1
-	battle_marks.clear()
-	graves.clear()
-	clutch_t = 0.0
-	atk_hit.clear()
-	brace_t.clear()
-	state = St.BATTLE
-	prev_pos.clear()
-	for u in view.units:
-		prev_pos[u.id] = Vector2(u.x, u.y)
-	_pump_view()   # 開場先預填 DELAY 個 tick
-	accum = 0.0
-	slow_used = false
-	slow_left = 0.0
-	hitstop = 0.0
-	zoom = 1.0
-	zoom_target = 1.0
-	fx.clear()
-	dying.clear()
-	atk_t.clear()
-	hurt_t.clear()
-	ev_count = {}
-	frenzy_seen = false
-	result_delay = 0.0
-	pt_call_tick = -1
-	pt_rated = false
-	_focus = 0
-	speed = float(Save.s("speed"))
-	sfx.play("start")
-	sfx.play_music("music_battle")
 
 
 func _finish_battle() -> void:
@@ -843,9 +791,6 @@ func _draw_inner() -> void:
 	_btns.clear()
 	probe_texts.clear()
 	_probe_ui = false
-	if capsule_path != "":
-		_draw_capsule()
-		return
 	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
 	var cam := Transform2D.IDENTITY
 	if state == St.BATTLE or state == St.RESULT:
@@ -1435,16 +1380,6 @@ func _clear_mine() -> void:
 		a.clear()
 
 
-func _mode_label() -> String:
-	match mode:
-		Mode.VS_AI: return "%s・%s" % [L.t("menu_vs_ai"), L.t(["diff_easy", "diff_normal", "diff_hard"][difficulty])]
-		Mode.DUEL: return "%s・%s" % [L.t("menu_duel"), L.t("rule_" + duel_rule)]
-		Mode.TUTORIAL: return L.t("menu_tutorial")
-		Mode.PUZZLE: return L.t("menu_puzzle")
-		Mode.GAUNTLET: return L.t("menu_gauntlet")
-	return ""
-
-
 func _draw_result() -> void:
 	draw_rect(Rect2(0, 86, 1280, 714), Color(0, 0, 0, 0.5))
 	var r := Rect2(240, 100, 800, 610)
@@ -1719,3 +1654,47 @@ func _boot_check() -> void:
 	await get_tree().process_frame
 	print("BOOTOK state=%d" % state)
 	get_tree().quit(0)
+
+
+## ── 輸入命令佇列的執行端（第三輪 A2；S8 從 ui_base 移下來：基底不再用空函式呼叫上層）──
+func _process_cmds() -> int:
+	var done := 0
+	_update_gen()
+	var q := _cmds
+	_cmds = []
+	for c in q:
+		if c["gen"] != _gen:
+			# 畫面已經換了：丟掉。但「放開滑鼠」一定要清掉拖曳／塗兵狀態（Codex S1 #2）
+			if c["kind"] == "mb" and not c["data"]["pressed"]:
+				_mb_release_cleanup()
+			continue
+		if c["kind"] == "click":
+			done += _do_click(c["data"])
+		elif c["kind"] == "mb":
+			# 滑鼠按鍵（擺放、拖曳、移除）也走同一個佇列，和鍵盤選兵的先後順序一致（Codex S1 #2）
+			_mb_cmd(c["data"])
+			done += 1
+		elif c["kind"] == "paint":
+			_paint_cmd(c["data"])
+		elif c["kind"] == "key":
+			_key(int(c["data"]))
+			done += 1
+		_update_gen()
+	return done
+
+
+## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
+func _do_click(p: Vector2) -> int:
+	if _btns_gen != _gen:
+		return 0
+	for i in _btns.size():
+		var b: Dictionary = _btns[i]
+		if b["r"].has_point(p):
+			if b["en"]:
+				_focus = i
+				if sfx != null:
+					sfx.play("ui_click")
+				b["cb"].call()
+				return 1
+			return 0
+	return 0
