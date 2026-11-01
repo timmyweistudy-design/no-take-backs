@@ -1008,46 +1008,52 @@ func _draw_capsule() -> void:
 	var top := band_y + band_h + vs.y * 0.02
 	var bottom := vs.y * 0.97
 	var mid := vs.x / 2
-	draw_dashed_line(Vector2(mid, top), Vector2(mid, bottom), Color(1, 1, 1, 0.35), maxf(2.0, vs.y * 0.004), vs.y * 0.02)
+	draw_dashed_line(Vector2(mid, top), Vector2(mid, bottom), Color(1, 1, 1, 0.45), maxf(3.0, vs.y * 0.006) * (2.5 if tiny else 1.0), vs.y * 0.02)
 	var sc := (bottom - top) / (110.0 if tiny else 260.0)
-	var per_side := 3 if tiny else (10 if not tall else 6)
+	if tall:
+		sc = minf(sc, vs.x / 380.0)   # 直式：依寬度限制大小，同排兩隻不會擠在一起
 	var cols := 3 if tiny else (2 if tall else 3)
-	var margin := maxf(20.0, vs.x * 0.04)
-	var rng2 := RandomNumberGenerator.new()
-	rng2.seed = 7
-	var order := [1, 0, 2, 3, 4, 0, 1, 2, 3, 0, 4, 2]
+	var rows := 1 if tiny else 3
+	var margin := maxf(20.0, vs.x * 0.05)
+	# 每邊固定 cols×rows 的整齊陣型；弓兵固定在最靠中線的那一欄，箭從弓兵射出
+	var layout := [D.SHIELD, D.SWORD, D.ARCHER, D.CAVALRY, D.ASSASSIN, D.ARCHER, D.SWORD, D.SHIELD, D.ARCHER]
 	var items: Array = []
+	var archers: Array = []
 	for team in 2:
-		for k in per_side:
-			var c := k % cols
-			var r := k / cols
-			var rows := int(ceil(float(per_side) / cols))
-			var x := margin + sc * 22.0 + c * (mid - margin - sc * 60.0) / maxf(1, cols) * 0.95 + rng2.randf() * sc * 6.0
-			if team == 1:
-				x = vs.x - x
-			var y := top + sc * 70.0 + r * (bottom - top - sc * 80.0) / maxf(1, rows - 1 if rows > 1 else 1) + rng2.randf() * sc * 6.0
-			if tiny:
-				y = bottom - sc * 6.0
-			items.append([y, x, order[(k + team * 3) % order.size()], team])
+		for r in rows:
+			for c in cols:
+				var t: int = layout[(r * cols + c) % layout.size()]
+				if c == cols - 1:
+					t = D.ARCHER if r != 1 or tiny else D.CAVALRY
+				var span := (mid - margin) * 0.62
+				var x := margin + sc * 24.0 + c * span / maxf(1, cols - 1)
+				if team == 1:
+					x = vs.x - x
+				var y := bottom - sc * 6.0 if tiny else top + sc * 62.0 + r * (bottom - top - sc * 72.0) / maxf(1, rows - 1)
+				items.append([y, x, t, team])
+				if t == D.ARCHER and c == cols - 1 and not tall:   # 只有最靠中線的弓兵放箭；直式太窄就不畫箭
+					archers.append(Vector2(x, y))
 	items.sort()
 	for it in items:
 		Art.ring(self, Vector2(it[1], it[0]), it[3], it[2], false, sc)
 	for it in items:
 		var face := 1.0 if it[3] == 0 else -1.0
 		Art.unit(self, Vector2(it[1], it[0]), it[2], it[3], face, 2.0 + it[1] * 0.01, 0.45 if it[2] == D.SWORD else 0.0, 0.0, 1.0, 1.3, sc)
-	# 中央對射的箭
-	for k in (3 if tiny else 6):
-		var y := top + (bottom - top) * (0.2 + 0.13 * k)
-		var dir := 1.0 if k % 2 == 0 else -1.0
-		var p := Vector2(mid - dir * vs.x * 0.06 + rng2.randf() * vs.x * 0.03, y)
-		var tail := p - Vector2(dir * sc * 26.0, -sc * 3.0)
-		draw_line(tail - Vector2(dir * sc * 20.0, -sc * 2.0), tail, Color(1, 1, 1, 0.3), sc * 1.5, true)
+	# 箭：從每個弓兵的弓往中線飛
+	for ap: Vector2 in archers:
+		var dir := 1.0 if ap.x < mid else -1.0
+		var start := ap + Vector2(dir * sc * 28.0, -sc * 22.0)
+		var p := Vector2(mid - dir * sc * 18.0, start.y - sc * 8.0)
+		var tail := p - (p - start).normalized() * sc * 26.0
+		draw_line(start, tail, Color(1, 1, 1, 0.28), sc * 1.5, true)
 		draw_line(tail, p, Art.OUT, sc * 3.5, true)
 		draw_line(tail, p, Color("#d97706"), sc * 2.0, true)
-		draw_colored_polygon(PackedVector2Array([p + Vector2(dir * sc * 6, 0), p + Vector2(0, sc * 3), p - Vector2(0, sc * 3)]), Color("#e5e7eb"))
+		var dv := (p - tail).normalized()
+		var nv := dv.orthogonal()
+		draw_colored_polygon(PackedVector2Array([p + dv * sc * 6.0, p + nv * sc * 3.0, p - nv * sc * 3.0]), Color("#e5e7eb"))
 		var tc := Art.team_color(0 if dir > 0 else 1, false)
-		draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
-		draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, -sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
+		draw_colored_polygon(PackedVector2Array([tail, tail - dv * sc * 6.0 + nv * sc * 4.0, tail + dv * sc * 3.0]), tc)
+		draw_colored_polygon(PackedVector2Array([tail, tail - dv * sc * 6.0 - nv * sc * 4.0, tail + dv * sc * 3.0]), tc)
 
 func _capture_capsule() -> void:
 	await get_tree().process_frame
