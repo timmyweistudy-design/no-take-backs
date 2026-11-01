@@ -2,7 +2,8 @@ extends Node
 ## 角色精靈圖快取（第二輪方案 R2、H）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps），
 ## 所以啟動時用同一份 Art.unit 畫法，把每個兵種×隊伍×動作影格一次畫進一張圖集，戰鬥中只貼圖。
 ## 用同一份畫法烘焙，但不是逐像素等價（Codex R1 審查 #3、#4，已知且接受的差異）：
-##  - 走路、攻擊各量化成 6 格；攻擊中不再疊走路相位；走路／攻擊格固定睜眼（只在待機眨眼）。
+##  - 走路量化成 6 格、攻擊 8 格；攻擊中不再疊走路相位；走路／攻擊格固定睜眼（只在待機眨眼）。
+## 表情疊加（受擊、暈眩、衝鋒、狂熱、潛行、頂住）不烘焙，貼完圖再用 Art.overlay 在同一個局部座標畫上去。
 ##  - 透明度（潛行）是對整張合成好的角色乘 alpha，重疊的部位不會像逐圖元那樣透出底下的線條。
 ## 待機呼吸位移在貼圖時加（烘焙時抵銷為 0）；受擊閃白跟著攻擊前衝與走路起伏。
 ## 沒有畫面（headless）或還沒建好時，呼叫端退回 Art.unit。
@@ -14,7 +15,7 @@ const CELL := 160          # 每格像素（以 RS 倍率畫）；比角色大�
 const RS := 1.6            # 烘焙解析度倍率
 const ORIGIN := Vector2(80, 124)   # 角色腳底在格子裡的位置
 const WALK_FRAMES := 6
-const ATK_FRAMES := 6
+const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
 # 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..13 攻擊
 const FRAMES_PER := 2 + WALK_FRAMES + ATK_FRAMES
 
@@ -71,17 +72,31 @@ func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0) -
 func _rect(idx: int) -> Rect2:
 	return Rect2((idx % _cols) * CELL, (idx / _cols) * CELL, CELL, CELL)
 
+## 量化後實際烘焙的走路相位／攻擊進度（疊加表情時用，才會跟貼圖對齊）。
+func quant_walk(walk: float) -> float:
+	if walk == 0.0:
+		return 0.0
+	return 0.0001 + (int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES) * TAU / WALK_FRAMES
+
+func quant_atk(atk: float) -> float:
+	if atk <= 0.0:
+		return 0.0
+	return (clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1) + 0.5) / ATK_FRAMES
+
 ## 貼一隻角色。參數與 Art.unit 相同；待機的呼吸位移在這裡加（烘焙時是 0）。
 func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
-		hurt: float, alpha: float, t: float, scale := 1.0) -> void:
+		hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, cb := false) -> void:
 	var idx := frame_index(type, team, walk, atk, t, p.x)
 	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
-	var xf := Art.base * Transform2D(0.0, Vector2(scale * face / RS, scale / RS), 0.0, p + Vector2(0, bob * scale))
+	var xf := Art.base * Transform2D(lean * face, Vector2(scale * face / RS, scale * crouch / RS), 0.0, p + Vector2(0, bob * scale))
 	ci.draw_set_transform_matrix(xf)
 	ci.draw_texture_rect_region(tex, Rect2(-ORIGIN, Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
-	if hurt > 0.0:
-		var off := Vector2(sin(atk * PI) * 5.0, -26.0 + (absf(sin(walk)) * -2.5 if walk != 0.0 else 0.0))
-		ci.draw_circle(off * RS, 14.0 * RS, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, false)
+	if hurt > 0.0 or mood != 0:
+		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, face, quant_walk(walk), quant_atk(atk), t, scale, lean, crouch))
+		if hurt > 0.0:
+			ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, false)
+		if mood != 0:
+			Art.overlay(ci, type, team, mood, alpha, t, cb)
 	ci.draw_set_transform_matrix(Art.base)
 
 ## 烘焙用的畫家：一格一格呼叫 Art.unit（face＝+1，翻面由貼圖時處理）。
@@ -96,7 +111,7 @@ class _Painter extends Node2D:
 		var CELL2 := 160
 		var RS2 := 1.6
 		var org := Vector2(80, 124)
-		var per := 2 + 6 + 6
+		var per := 2 + 6 + 8
 		for type in D2.COUNT:
 			for team in 2:
 				for f in per:
@@ -107,7 +122,7 @@ class _Painter extends Node2D:
 					if f >= 2 and f < 8:
 						walk = 0.0001 + (f - 2) * TAU / 6.0
 					elif f >= 8:
-						atk = (f - 8 + 0.5) / 6.0
+						atk = (f - 8 + 0.5) / 8.0
 					var p := cell_o + org
 					var ex := 2.0 if type == D2.CAVALRY else 3.5
 					# 眨眼那一格落在眨眼區間中間；其他格取 1.0（不在眨眼區間）

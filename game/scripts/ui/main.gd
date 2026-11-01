@@ -205,15 +205,15 @@ func _run_screenshots() -> void:
 	if stunned != null:
 		stunned.stun = 0   # 只是為了截圖，還原，不影響接下來的模擬
 	fx = saved_fx
-	while not sim.finished and not slow_used:
+	while not view.finished and not slow_used:
 		_sim_step(true)
 		_check_clutch()
-	if slow_used and not sim.finished:
+	if slow_used and not view.finished:
 		for k in 120:
 			_frame_alive(0.1)
 			zoom = lerpf(zoom, zoom_target, 0.3)
 		await _snap("04_clutch.png")
-	while not sim.finished:
+	while not view.finished:
 		_sim_step(false)
 	zoom = 1.0
 	_finish_battle()

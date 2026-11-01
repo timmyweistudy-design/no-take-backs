@@ -17,6 +17,7 @@ const SteamApi = preload("res://scripts/game/steam.gd")
 const PZ = preload("res://scripts/game/puzzles.gd")
 const SfxScript = preload("res://scripts/game/sfx.gd")
 const SpriteCache = preload("res://scripts/ui/sprite_cache.gd")
+const ViewBuffer = preload("res://scripts/ui/view_buffer.gd")
 
 enum St { TITLE, PLACE, BATTLE, RESULT }
 enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
@@ -71,6 +72,8 @@ var gauntlet_seed := 0
 
 # 戰鬥演出
 var sim = null
+var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
+var atk_hit := {}         # 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
 var prev_pos := {}
 var accum := 0.0
 var speed := 1.0
@@ -225,11 +228,12 @@ func _cycle_setting(k: String, opts: Array) -> void:
 	Save.set_setting(k, opts[(i + 1) % opts.size()])
 
 ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
-func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0) -> void:
+func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
+		mood := 0, lean := 0.0, crouch := 1.0) -> void:
 	if sprites != null and sprites.is_ready(cbm()):
-		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale)
+		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm())
 	else:
-		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm())
+		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch)
 
 func _ring(p: Vector2, team: int, type: int, scale := 1.0) -> void:
 	if sprites != null and sprites.is_ready(cbm()):

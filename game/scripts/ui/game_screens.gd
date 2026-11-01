@@ -73,6 +73,7 @@ func _go_title() -> void:
 	state = St.TITLE
 	overlay = ""
 	sim = null
+	view = null
 	zoom = 1.0
 	_focus = 0
 	_new_demo()
@@ -105,6 +106,7 @@ func _start_mode(m: int) -> void:
 func _reset_place(keep_blue := false) -> void:
 	state = St.PLACE
 	sim = null
+	view = null
 	fx.clear()
 	dying.clear()
 	zoom = 1.0
@@ -244,10 +246,13 @@ func _counter_lib() -> Array:
 func _begin_battle(a0, a1) -> void:
 	last_armies = [a0.copy(), a1.copy()]
 	sim = Sim.new(a0, a1)
+	view = ViewBuffer.new(sim)
+	atk_hit.clear()
 	state = St.BATTLE
 	prev_pos.clear()
-	for u in sim.units:
+	for u in view.units:
 		prev_pos[u.id] = Vector2(u.x, u.y)
+	_pump_view()   # 開場先預填 DELAY 個 tick
 	accum = 0.0
 	slow_used = false
 	slow_left = 0.0
@@ -724,7 +729,7 @@ func _draw_inner() -> void:
 		_draw_place_units()
 		_draw_tactical()
 	else:
-		_draw_units_of(sim, false)
+		_draw_units_of(view, false)
 	perf_parts["units"] = Time.get_ticks_usec() - _t
 	_t = Time.get_ticks_usec()
 	for f in fx:

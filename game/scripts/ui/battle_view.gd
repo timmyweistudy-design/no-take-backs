@@ -3,7 +3,7 @@ extends "res://scripts/ui/ui_base.gd"
 
 
 func _on_skip() -> void:
-	while not sim.finished:
+	while not view.finished:
 		_sim_step(false)
 	result_delay = 9.0
 
@@ -17,16 +17,18 @@ func _battle_process(delta: float) -> void:
 		rate *= 0.5
 		slow_left -= delta
 	accum += delta * rate
-	while accum >= 0.05 and not sim.finished:
+	while accum >= 0.05 and not view.finished:
 		accum -= 0.05
 		_sim_step(true)
+	if view.finished:
+		accum = 0.0
 	_check_clutch()
-	if slow_left > 0 and not sim.finished:
+	if slow_left > 0 and not view.finished:
 		_frame_alive(delta)
 	else:
 		zoom_target = 1.0
 	zoom = lerpf(zoom, zoom_target, delta * 3)
-	if sim.finished:
+	if view.finished:
 		result_delay += delta
 		if result_delay > 1.4:
 			_finish_battle()
@@ -34,13 +36,13 @@ func _battle_process(delta: float) -> void:
 
 ## 最後時刻（優化方案 F1）：雙方剩餘戰力都 ≤30% 且差距 ≤15%；或雙方各剩 ≤3 隻且差距 ≤15%。
 func _check_clutch() -> void:
-	if slow_used or sim.finished:
+	if slow_used or view.finished:
 		return
-	var tot := float(sim.budget * 1000)
-	var p0: float = sim.power(0) * 100.0 / tot
-	var p1: float = sim.power(1) * 100.0 / tot
-	var a0: int = sim.alive_count(0)
-	var a1: int = sim.alive_count(1)
+	var tot := float(view.budget * 1000)
+	var p0: float = view.power(0) * 100.0 / tot
+	var p1: float = view.power(1) * 100.0 / tot
+	var a0: int = view.alive_count(0)
+	var a1: int = view.alive_count(1)
 	if absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (a0 <= 3 and a1 <= 3)):
 		slow_used = true
 		if bool(Save.s("slowmo")):
@@ -53,7 +55,7 @@ func _check_clutch() -> void:
 func _frame_alive(delta: float) -> void:
 	var lo := Vector2(1e9, 1e9)
 	var hi := Vector2(-1e9, -1e9)
-	for u in sim.units:
+	for u in view.units:
 		if u.alive:
 			var p := _upos(u)
 			lo = lo.min(p - Vector2(30, 70))
@@ -63,31 +65,71 @@ func _frame_alive(delta: float) -> void:
 	zoom_center = zoom_center.lerp((lo + hi) / 2, minf(1.0, delta * 3))
 
 
+## 畫面前進一個 tick：模擬保持領先 DELAY 個 tick，畫面播最舊的那一份快照（R5 展示緩衝）。
 func _sim_step(with_fx: bool) -> void:
-	for u in sim.units:
+	_pump_view()
+	for u in view.units:
 		prev_pos[u.id] = Vector2(u.x, u.y)
-	sim.step()
-	if sim.frenzy and not frenzy_seen:
+	if not view.advance():
+		view.finished = true
+		return
+	_pump_view()
+	if view.frenzy and not frenzy_seen:
 		frenzy_seen = true
 		if with_fx:
 			_fx_text(Vector2(640, 140), L.t("frenzy_banner"), Color.ORANGE_RED, 2.0, 30, true)
 			sfx.play("frenzy")
 			sfx.play_music("music_frenzy")
 	var deaths := 0
-	for ev in sim.events:
+	for ev in view.events:
 		var k: String = ev["kind"]
 		if ev.has("src"):
-			var s = sim.unit_by_id(ev["src"])
+			var s = view.unit_by_id(ev["src"])
 			var key := "%s%d" % [k, s.team]
 			ev_count[key] = int(ev_count.get(key, 0)) + 1
 		if k == "death":
 			deaths += 1
 		_on_event(ev, with_fx)
 	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
-	if sim.finished and not slow_used and deaths > 0 and with_fx:
+	if view.finished and not slow_used and deaths > 0 and with_fx:
 		hitstop = 0.2
 		if bool(Save.s("shake")):
 			shake = 0.15
+
+
+## 模擬往前補到領先 DELAY 個 tick；新進緩衝的攻擊事件先記下命中 tick，畫面就能在命中前開始演前搖。
+func _pump_view() -> void:
+	for fr in view.pump(sim):
+		for e in fr["events"]:
+			if event_route(e) == "attack":
+				atk_hit[e["src"]] = int(fr["tick"])
+
+
+## 畫面上現在播到第幾 tick（含小數，插值用）。
+func _disp_tick() -> float:
+	if view == null:
+		return 0.0
+	return view.tick + (clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 0.0)
+
+
+## 三段式攻擊進度（R5）：前搖固定是命中前 DELAY 個 tick，揮擊與後搖依攻擊間隔壓縮（攻速快的兵動作也快，不會疊在一起）。
+## 回傳 Art.unit 的 atk 參數：0＝沒在攻擊；0～0.3125 前搖、0.3125～0.53125 揮擊（命中在 0.3125）、之後後搖到 1。
+static func atk_progress(dt: float, type: int) -> float:
+	var period := float(D.STATS[type]["cd"]) / 4.0
+	var tot := clampf(period, 4.0, 6.4)
+	var w := float(ViewBuffer.DELAY)
+	var st := 0.22 * tot
+	var rc := tot - w - st
+	if dt < 0.0 or dt >= tot:
+		return 0.0
+	var a: float
+	if dt < w:
+		a = Art.ATK_WINDUP * dt / w
+	elif dt < w + st:
+		a = Art.ATK_WINDUP + (Art.ATK_STRIKE - Art.ATK_WINDUP) * (dt - w) / st
+	else:
+		a = Art.ATK_STRIKE + (1.0 - Art.ATK_STRIKE) * (dt - w - st) / rc
+	return maxf(a, 0.001)
 
 
 ## 事件分流（Codex R3 審查 #1）：只有帶 dmg 的才是攻擊；背水開關沒有 src；嘲諷、現形、繞翼只有演出。
@@ -106,7 +148,7 @@ static func event_route(ev: Dictionary) -> String:
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var k: String = ev["kind"]
 	if k == "death":
-		var u = sim.unit_by_id(ev["id"])
+		var u = view.unit_by_id(ev["id"])
 		dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
 		if with_fx:
 			sfx.play("death", 0.7)
@@ -116,16 +158,16 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		return
 	match route:
 		"taunt":
-			var sh = sim.unit_by_id(ev["src"])
-			var vic = sim.unit_by_id(ev["tgt"])
+			var sh = view.unit_by_id(ev["src"])
+			var vic = view.unit_by_id(ev["tgt"])
 			fx.append({"kind": "taunt", "p": _upos(sh), "t": 0.0, "dur": 0.6})
 			fx.append({"kind": "bang", "p": _upos(vic) + Vector2(0, -64), "t": 0.0, "dur": 0.7})
 			return
 		"reveal":
-			fx.append({"kind": "puff", "p": _upos(sim.unit_by_id(ev["src"])) + Vector2(0, -20), "t": 0.0, "dur": 0.45})
+			fx.append({"kind": "puff", "p": _upos(view.unit_by_id(ev["src"])) + Vector2(0, -20), "t": 0.0, "dur": 0.45})
 			return
-	var s = sim.unit_by_id(ev["src"])
-	var t = sim.unit_by_id(ev["tgt"])
+	var s = view.unit_by_id(ev["src"])
+	var t = view.unit_by_id(ev["tgt"])
 	var tags: Array = ev.get("tags", [])
 	atk_t[s.id] = time
 	hurt_t[t.id] = time
@@ -246,7 +288,7 @@ func _draw_units_of(s, dim: bool) -> void:
 	for u in s.units:
 		if u.alive:
 			list.append(u)
-	var live: bool = s == sim
+	var live: bool = s == view
 	if live:
 		list.sort_custom(func(a, b): return _upos(a).y < _upos(b).y)
 	else:
@@ -264,10 +306,8 @@ func _draw_units_of(s, dim: bool) -> void:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		var moving: bool = u.mx != 0 or u.my != 0
 		var at := 0.0
-		if live and atk_t.has(u.id):
-			at = clampf((time - atk_t[u.id]) / 0.25, 0, 1)
-			if at >= 1:
-				at = 0
+		if live and atk_hit.has(u.id):
+			at = atk_progress(_disp_tick() - (atk_hit[u.id] - ViewBuffer.DELAY), u.type)
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
 			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
@@ -424,9 +464,9 @@ func _draw_battle_hud() -> void:
 	draw_rect(Rect2(0, 0, 1280, 86), UI_BG)
 	_text(Vector2(20, 8), L.t("title"), ts(26), Color("#ffe8a3"), false, true)
 	_text(Vector2(20, 52), _mode_label(), ts(14), Color(1, 1, 1, 0.6))
-	var tot := float(sim.budget * 1000)
-	var p0: int = sim.power(0)
-	var p1: int = sim.power(1)
+	var tot := float(view.budget * 1000)
+	var p0: int = view.power(0)
+	var p1: int = view.power(1)
 	var bx := 330.0
 	var bw := 620.0
 	var split := bw * p0 / maxf(1.0, p0 + p1)
@@ -437,19 +477,19 @@ func _draw_battle_hud() -> void:
 	_text(Vector2(bx + 8, 42), "%d%%" % roundi(p0 * 100 / tot), ts(15), Color.WHITE, false, true)
 	var rt := "%d%%" % roundi(p1 * 100 / tot)
 	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), Color.WHITE, false, true)
-	_text(Vector2(bx - 70, 42), L.t("units_left", [sim.alive_count(0)]), ts(15), Art.team_color(0, cbm()))
-	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [sim.alive_count(1)]), ts(15), Art.team_color(1, cbm()))
+	_text(Vector2(bx - 70, 42), L.t("units_left", [view.alive_count(0)]), ts(15), Art.team_color(0, cbm()))
+	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [view.alive_count(1)]), ts(15), Art.team_color(1, cbm()))
 	for tm in 2:
-		if sim.rally[tm] and not sim.finished:
+		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
 			_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
-	var secs := maxi(0, 90 - sim.tick / 20)
-	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if sim.frenzy else ""), ts(22), Color.ORANGE_RED if sim.frenzy else Color.WHITE, true, true)
+	var secs := maxi(0, 90 - view.tick / 20)
+	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
 	if mode == Mode.VS_AI and ai_name != "":
 		_text(Vector2(bx + bw - 120, 68), "AI：%s" % ai_name, ts(11), Color(1, 1, 1, 0.55))
 	if state == St.BATTLE and bool(Save.s("playtest")):
 		if pt_call_tick < 0:
-			_btn(Rect2(840, 8, 162, 34), L.t("pt_call"), func(): pt_call_tick = sim.tick; _toast(L.t("pt_called", [sim.tick / 20])))
+			_btn(Rect2(840, 8, 162, 34), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
 	if state == St.BATTLE:
 		_btn(Rect2(1010, 8, 120, 34), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
 		_btn(Rect2(1138, 8, 132, 34), L.t("skip"), func(): _on_skip())
