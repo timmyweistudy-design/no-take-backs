@@ -61,7 +61,18 @@ No gacha, no microtransactions, no stat upgrades. Just placement.
 | 20–27 | 最後時刻慢動作：1 打 2 反殺 | 心跳；「★ 孤勇者 ★」 |
 | 27–30 | 標題＋「心願單」 | 落子聲收尾 |
 
-## 膠囊圖（Capsule）規格 **【你：正式美術版要外包或自己做；目前用遊戲內程式畫面合成】**
+## 膠囊圖（Capsule）——**程式繪製版已產生在 `docs/store/capsules/`**（正式美術版之後再換）
+- 重新產生的指令：`<Godot exe> --path <game> --resolution 920x430 -- --capsule=<輸出 png 絕對路徑>`
+- Library Hero 3840×1240 比螢幕寬，是用 1920×620 畫好再放大 2 倍，正式版建議原尺寸重畫。
+- 商店截圖（1280×800）在 `docs/store/screenshots/`。
+
+**實機影片**（預告素材）——遊戲有自動錄影模式，但會在畫面開一個視窗跑約 1 分鐘，所以由你決定什麼時候錄：
+```
+! "/mnt/c/Users/timmy/OneDrive/桌面/godot/Godot_v4.6.2-stable_win64.exe" --path "C:\Users\timmy\projects\no-take-backs\game" --resolution 1280x800 --write-movie "C:\Users\timmy\projects\no-take-backs\build\gameplay.avi" --fixed-fps 30 -- --video
+```
+內容：標題 → 一隻一隻擺兵（有音效）→ 開戰 → 自動挑一場會出現「最後時刻」的對手 → 結果畫面，約 60 秒、AVI 約 150～250 MB。
+
+規格表：
 | 名稱 | 尺寸 |
 |---|---|
 | Header | 920×430 |

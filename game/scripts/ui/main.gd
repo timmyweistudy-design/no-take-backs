@@ -108,14 +108,16 @@ var plants: Array = []
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--shot="):
-			Save.prefix = "shot_"
+		if a.begins_with("--shot=") or a.begins_with("--steam-test="):
+			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
 	Save.load_all()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--steam-test="):
-			SteamApi.init(int(a.substr(13)))
-			print("STEAMTEST ", JSON.stringify(SteamApi.self_test()))
-			get_tree().quit()
+			var aid := int(a.substr(13))
+			SteamApi.init(aid, false)
+			var res: Dictionary = SteamApi.self_test(aid)
+			print("STEAMTEST ", JSON.stringify(res))
+			get_tree().quit(0 if res["ok"] else 1)
 			return
 	L.lang = Save.s("lang")
 	duel_rule = Save.s("duel_rule")
@@ -743,7 +745,7 @@ func _process(delta: float) -> void:
 	fx = fx.filter(func(f): return f["t"] < f["dur"])
 	for g in dying:
 		g["t"] += delta
-	dying = dying.filter(func(g): return g["t"] < 1.4)
+	dying = dying.filter(func(g): return g["t"] < 1.0)
 	if state == St.TITLE and demo != null and shot_dir == "":
 		demo_acc += delta
 		while demo_acc >= 0.05:
@@ -793,7 +795,7 @@ func _check_clutch() -> void:
 		slow_used = true
 		if bool(Save.s("slowmo")):
 			slow_left = 8.0
-		_fx_text(Vector2(640, 92), L.t("clutch"), ACCENT, 1.6, 40, true)
+		_fx_text(Vector2(640, 92), L.t("clutch"), ACCENT, 1.4, 34, true)
 		sfx.play("clutch")
 
 ## 鏡頭安全框（優化方案 F2）：把所有存活單位框進畫面，四周留 15%。
@@ -898,7 +900,7 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
 		if f["kind"] == "text" and f.get("tid", -1) == tid and f.get("ek", "") == kind and f["t"] < 0.25:
 			f["n"] += 1
 			f["sum"] += dmg
-			f["s"] = "%s ×%d %d" % [label, f["n"], f["sum"]]
+			f["s"] = "%s ×%d（%d）" % [label, f["n"], f["sum"]]
 			f["t"] = 0.0
 			return
 	# 排斥：附近已有跳字就往上疊
@@ -962,9 +964,10 @@ func _draw() -> void:
 			draw_rect(Rect2(0, 800 - (i + 1) * 9, 1280, 9), c2)
 			draw_rect(Rect2(i * 9, 86, 9, 714), c2)
 			draw_rect(Rect2(1280 - (i + 1) * 9, 86, 9, 714), c2)
-	for f in fx:
-		if f.get("screen", false):
-			_draw_fx(f)
+	if state != St.RESULT:
+		for f in fx:
+			if f.get("screen", false):
+				_draw_fx(f)
 	match state:
 		St.TITLE: _draw_title()
 		St.PLACE: _draw_place_hud()
@@ -982,7 +985,8 @@ func _draw() -> void:
 		_focus = 0
 	_handle_click()
 
-## 商店膠囊圖（N6）：用目前視窗大小構圖——草地、兩軍對衝、標題。只有遊戲標題文字（Steam 規定）。
+## 商店膠囊圖（N6）：用目前視窗大小構圖——先畫標題帶，再把兩軍放在標題下方對衝，中間有分界線與對射的箭。
+## 只有遊戲標題文字（Steam 規定）。手感輪（收尾批）調整：標題帶不壓角色、中央不留白、小尺寸放大標題與角色、兩側留邊。
 func _draw_capsule() -> void:
 	var vs := get_viewport_rect().size
 	var tile := 64.0 * vs.y / 800.0
@@ -991,39 +995,69 @@ func _draw_capsule() -> void:
 			var h := absi((xx * 73856093) ^ (yy * 19349663))
 			draw_texture_rect_region(grass, Rect2(xx * tile, yy * tile, tile, tile), Rect2((h % 8) * 32, ((h / 8) % 4) * 32, 32, 32))
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.06, 0.09, 0.16, 0.22))
-	var sc := vs.y / 800.0 * 2.0
+	var tall := vs.y > vs.x
+	var tiny := get_window().size.y < 300   # 畫布邏輯高度固定 800，要看實際視窗大小
+	# 標題帶（先畫，角色畫在它下方的區域）
+	var big := int(vs.y * (0.12 if tall else (0.30 if tiny else 0.21)))
+	var band_h := big * 1.75
+	var band_y := vs.y * (0.05 if tall else 0.03)
+	draw_rect(Rect2(0, band_y, vs.x, band_h), Color(0.05, 0.06, 0.1, 0.55))
+	_text(Vector2(vs.x / 2, band_y + big * 0.05), L.t("title"), big, Color("#ffe8a3"), true, true)
+	_text(Vector2(vs.x / 2, band_y + big * 1.12), "No Take-Backs", int(big * (0.42 if tiny else 0.34)), Color(1, 1, 1, 0.97), true, true)
+	# 戰場區
+	var top := band_y + band_h + vs.y * 0.02
+	var bottom := vs.y * 0.97
+	var mid := vs.x / 2
+	draw_dashed_line(Vector2(mid, top), Vector2(mid, bottom), Color(1, 1, 1, 0.35), maxf(2.0, vs.y * 0.004), vs.y * 0.02)
+	var sc := (bottom - top) / (110.0 if tiny else 260.0)
+	var per_side := 3 if tiny else (10 if not tall else 6)
+	var cols := 3 if tiny else (2 if tall else 3)
+	var margin := maxf(20.0, vs.x * 0.04)
 	var rng2 := RandomNumberGenerator.new()
 	rng2.seed = 7
-	var tall := vs.y > vs.x
+	var order := [1, 0, 2, 3, 4, 0, 1, 2, 3, 0, 4, 2]
 	var items: Array = []
 	for team in 2:
-		for k in 14:
-			var t: int = [1, 0, 0, 2, 3, 4, 1, 0, 2, 3, 0, 2, 4, 1][k]
-			var fx := 0.06 + 0.07 * (k % 4) + rng2.randf() * 0.03
-			var fy := 0.42 + 0.14 * (k / 4) + rng2.randf() * 0.05
-			if tall:
-				fy = 0.50 + 0.12 * (k / 4) + rng2.randf() * 0.04
-			var x := fx * vs.x if team == 0 else (1.0 - fx) * vs.x
-			items.append([fy * vs.y, x, t, team])
+		for k in per_side:
+			var c := k % cols
+			var r := k / cols
+			var rows := int(ceil(float(per_side) / cols))
+			var x := margin + sc * 22.0 + c * (mid - margin - sc * 60.0) / maxf(1, cols) * 0.95 + rng2.randf() * sc * 6.0
+			if team == 1:
+				x = vs.x - x
+			var y := top + sc * 70.0 + r * (bottom - top - sc * 80.0) / maxf(1, rows - 1 if rows > 1 else 1) + rng2.randf() * sc * 6.0
+			if tiny:
+				y = bottom - sc * 6.0
+			items.append([y, x, order[(k + team * 3) % order.size()], team])
 	items.sort()
 	for it in items:
-		var p := Vector2(it[1], it[0])
+		Art.ring(self, Vector2(it[1], it[0]), it[3], it[2], false, sc)
+	for it in items:
 		var face := 1.0 if it[3] == 0 else -1.0
-		Art.ring(self, p, it[3], it[2], false, sc)
-		Art.unit(self, p, it[2], it[3], face, 2.0 + it[1] * 0.01, 0.4 if it[2] == D.SWORD else 0.0, 0.0, 1.0, 1.3, sc)
-	# 標題
-	var title_y := vs.y * (0.08 if tall else 0.06)
-	var big := int(vs.y * (0.13 if tall else 0.22))
-	var shade := Rect2(0, title_y - vs.y * 0.02, vs.x, big * 2.0)
-	draw_rect(shade, Color(0.05, 0.06, 0.1, 0.45))
-	_text(Vector2(vs.x / 2, title_y), L.t("title"), big, Color("#ffe8a3"), true, true)
-	_text(Vector2(vs.x / 2, title_y + big * 1.18), "No Take-Backs", int(big * 0.36), Color(1, 1, 1, 0.95), true, true)
+		Art.unit(self, Vector2(it[1], it[0]), it[2], it[3], face, 2.0 + it[1] * 0.01, 0.45 if it[2] == D.SWORD else 0.0, 0.0, 1.0, 1.3, sc)
+	# 中央對射的箭
+	for k in (3 if tiny else 6):
+		var y := top + (bottom - top) * (0.2 + 0.13 * k)
+		var dir := 1.0 if k % 2 == 0 else -1.0
+		var p := Vector2(mid - dir * vs.x * 0.06 + rng2.randf() * vs.x * 0.03, y)
+		var tail := p - Vector2(dir * sc * 26.0, -sc * 3.0)
+		draw_line(tail - Vector2(dir * sc * 20.0, -sc * 2.0), tail, Color(1, 1, 1, 0.3), sc * 1.5, true)
+		draw_line(tail, p, Art.OUT, sc * 3.5, true)
+		draw_line(tail, p, Color("#d97706"), sc * 2.0, true)
+		draw_colored_polygon(PackedVector2Array([p + Vector2(dir * sc * 6, 0), p + Vector2(0, sc * 3), p - Vector2(0, sc * 3)]), Color("#e5e7eb"))
+		var tc := Art.team_color(0 if dir > 0 else 1, false)
+		draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
+		draw_colored_polygon(PackedVector2Array([tail, tail - Vector2(dir * sc * 6, -sc * 4), tail + Vector2(dir * sc * 3, 0)]), tc)
 
 func _capture_capsule() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(capsule_path)
+	var err := get_viewport().get_texture().get_image().save_png(capsule_path)
+	if err != OK:
+		printerr("CAPSULE 存檔失敗 ", capsule_path, " err=", err)
+		get_tree().quit(1)
+		return
 	print("CAPSULE ", capsule_path)
 	get_tree().quit()
 
@@ -1113,7 +1147,7 @@ func _draw_units_of(s, dim: bool) -> void:
 	if not live:
 		return
 	for g in dying:
-		var k: float = g["t"] / 1.4
+		var k: float = g["t"] / 1.0
 		if k < 0.3:
 			Art.unit(self, g["pos"], g["type"], g["team"], g["face"], 0.0, 0.0, 0.8, 1.0 - k / 0.3, time)
 			for i in 6:

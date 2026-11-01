@@ -26,18 +26,22 @@ static var _steam = null
 static var init_result = null
 
 ## app_id：0＝由 Steam 啟動時決定（正式上架）；開發測試可給 480（Valve 公開測試 App「Spacewar」）。
-static func init(app_id := 0) -> void:
+## sync_local：初始化後把本機成就補送到 Steam。自我檢查一定傳 false（不寫入任何東西）。
+## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
+static func init(app_id := 0, sync_local := true) -> void:
 	if Engine.has_singleton("Steam"):
 		_steam = Engine.get_singleton("Steam")
-		var r = _steam.steamInitEx(false, app_id) if app_id > 0 else _steam.steamInitEx(false)
+		var r = _steam.steamInitEx(app_id) if app_id > 0 else _steam.steamInitEx()
 		init_result = r
 		if typeof(r) == TYPE_DICTIONARY and int(r.get("status", 1)) != 0:
 			_steam = null
-	if _steam != null:
-		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam
-		for id in Save.data.get("achievements", []):
-			_steam.setAchievement(id)
-		_steam.storeStats()
+	if _steam != null and sync_local:
+		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam（沒有就不呼叫 storeStats）
+		var got: Array = Save.data.get("achievements", [])
+		if not got.is_empty():
+			for id in got:
+				_steam.setAchievement(id)
+			_steam.storeStats()
 
 static func available() -> bool:
 	return _steam != null
@@ -59,18 +63,23 @@ static func unlock(id: String) -> bool:
 		_steam.storeStats()
 	return true
 
-## 唯讀自我檢查（N8）：不解鎖任何 Spacewar 成就、不寫入統計。回傳每一項的結果。
-static func self_test() -> Dictionary:
-	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available()}
+## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
+## 回傳每一項結果與總判定 ok（任何一項不符就是 false，呼叫端用它決定結束碼）。
+static func self_test(expect_app_id: int) -> Dictionary:
+	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available(), "ok": false}
 	if _steam == null:
+		out["why"] = "沒有 GodotSteam 或初始化失敗"
 		return out
 	out["logged_on"] = _steam.loggedOn()
 	out["app_id"] = _steam.getAppID()
 	out["running"] = _steam.isSteamRunning()
-	out["spacewar_ach_read"] = str(_steam.getAchievement("ACH_WIN_ONE_GAME"))   # 唯讀
-	out["our_id_rejected"] = str(_steam.getAchievement("FIRST_WIN"))            # 我們的 ID 在 480 不存在，應該回報不存在
-	out["cloud_enabled"] = _steam.isCloudEnabledForApp() if _steam.has_method("isCloudEnabledForApp") else "n/a"
-	out["input_init"] = _steam.inputInit() if _steam.has_method("inputInit") else "n/a"
+	var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
+	var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
+	out["known_read_ok"] = typeof(known) == TYPE_DICTIONARY and bool(known.get("ret", false))
+	out["our_id_missing"] = typeof(ours) == TYPE_DICTIONARY and not bool(ours.get("ret", true))
+	out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and out["known_read_ok"] and out["our_id_missing"]
+	if not out["ok"]:
+		out["why"] = "有檢查項不符"
 	return out
 
 static func run_callbacks() -> void:

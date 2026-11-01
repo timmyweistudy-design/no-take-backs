@@ -8,8 +8,16 @@
 2. 付 Steam Direct 上架費 US$100。營收達 US$1,000 後回收；之後要等 30 天才能發售。
 3. 建立 App，取得 **AppID**。把 AppID 告訴 Claude（寫進 `steam_appid.txt`，只在開發時用）。
 
-## B. 遊戲端整合（Claude）
-1. 安裝 GodotSteam GDExtension，版本要對應 Godot 4.6：https://github.com/GodotSteam/GodotSteam。放進 `game/addons/godotsteam/`。
+## B. 遊戲端整合（Claude）——**11/01 已完成**
+1. ✔ 已安裝 GodotSteam GDExtension 4.23.2（https://codeberg.org/godotsteam/godotsteam）到 `game/addons/godotsteam/`。
+   - 只放 Windows 64 與 Linux 64，約 18 MB。
+   - 匯出的 Windows build 會自動帶上 `steam_api64.dll` 與 GodotSteam 的 DLL，已實跑 0 錯誤。
+   - 沒有 Steam 時自動退回「只記在本機」。
+   - **Spacewar（AppID 480）實測還沒跑**：會讓你的 Steam 狀態顯示「正在玩 Spacewar」，自動權限擋下。你想測的話，在 Claude Code 輸入：
+     ```
+     ! "/mnt/c/Users/timmy/OneDrive/桌面/godot/Godot_v4.6.2-stable_win64.exe" --path "C:\Users\timmy\projects\no-take-backs\game" --resolution 640x400 -- --steam-test=480
+     ```
+     它只做唯讀檢查：有沒有登入、AppID、讀一個 Spacewar 成就、確認我們的成就 ID 在 480 不存在，**不會解鎖任何成就**。輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次。
 2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
 3. **成就**：在 Steamworks 後台建立以下 15 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
 

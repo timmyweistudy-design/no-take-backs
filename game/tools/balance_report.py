@@ -83,6 +83,8 @@ def main():
             print(f"✗ {m} 場次鍵集合不對（少 {len(want - set(keys))}、多 {len(set(keys) - want)}）"); sys.exit(2)
         rows[key] = [r for _, r in sorted(zip(keys, got), key=lambda kv: kv[0])]
     digests = {r.get("digest") for v in rows.values() for r in v}
+    if None in digests or "" in digests:
+        print("✗ 有資料缺少數值摘要"); sys.exit(2)
     if len(digests) != 1:
         print("✗ 數值摘要不一致：", digests); sys.exit(2)
     md = [f"# 平衡報表 2.0\n", f"- 數值摘要 `{digests.pop()}`、共 {total} 筆、耗時 {secs} 秒\n"]
