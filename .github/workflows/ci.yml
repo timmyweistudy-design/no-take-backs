@@ -1,4 +1,4 @@
-# 優化方案 M：每次 push 跑規則測試＋100 組鏡像；Windows 與 Linux 跑同一組測試，比對指紋一致（跨平台確定性）。
+# 優化方案 M／第三輪 T1：每次 push 跑統一檢查 tools/check_all.sh；Windows 與 Linux 跑同一組測試，比對指紋一致（跨平台確定性）。
 # 只改 docs/ 或 coordination/ 不跑（省 Actions 額度）。平衡完整報表約 10 分鐘，只在手動觸發時跑。
 name: ci
 on:
@@ -22,18 +22,12 @@ jobs:
         run: |
           curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
           unzip -q g.zip && mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot && chmod +x godot
-      - name: 匯入
-        run: ./godot --headless --path game --import || true
-      - name: 規則測試
-        run: ./godot --headless --path game --script res://tests/run_tests.gd | tee test.log && grep -q '0 失敗' test.log
-      - name: 100 組左右交換逐 tick 鏡像
-        run: ./godot --headless --path game --script res://tools/mirror_100.gd | tee mirror.log && grep -q '100/100' mirror.log
-      - name: 素材登記
-        run: python3 game/tools/check_assets.py
+      - name: 統一檢查（匯入、載入、正式入口啟動、測試、鏡像、打轉、素材；任一步失敗就紅）
+        run: GODOT=$PWD/godot game/tools/check_all.sh $PWD/check
       - name: 平衡報表（手動）
         if: ${{ inputs.balance }}
         run: GODOT=$PWD/godot SHARDS=4 game/tools/balance.sh ../docs/balance-runs/ci
-      - run: grep FINGERPRINT test.log > fp-linux.txt
+      - run: cp check/fingerprint.txt fp-linux.txt
       - uses: actions/upload-artifact@v4
         with: { name: fp-linux, path: fp-linux.txt }
   windows:
@@ -46,10 +40,9 @@ jobs:
         run: |
           curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_win64.exe.zip"
           unzip -q g.zip && mv Godot_v${GODOT_VERSION}-stable_win64.exe godot.exe
-      - shell: bash
-        run: ./godot.exe --headless --path game --import || true
-      - shell: bash
-        run: ./godot.exe --headless --path game --script res://tests/run_tests.gd | tee test.log && grep -q '0 失敗' test.log && grep FINGERPRINT test.log > fp-windows.txt
+      - name: 統一檢查
+        shell: bash
+        run: GODOT=$PWD/godot.exe game/tools/check_all.sh $PWD/check && cp check/fingerprint.txt fp-windows.txt
       - uses: actions/upload-artifact@v4
         with: { name: fp-windows, path: fp-windows.txt }
   compare:

@@ -3,7 +3,7 @@ extends "res://scripts/ui/codex_view.gd"
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf="):
+		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check":
 			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
 	Save.load_all()
 	for a in OS.get_cmdline_user_args():
@@ -55,6 +55,8 @@ func _ready() -> void:
 			video_mode = true
 		elif a.begins_with("--perf="):
 			perf_path = a.substr(7)
+	if "--boot-check" in OS.get_cmdline_user_args():
+		_boot_check.call_deferred()
 	if capsule_path != "":
 		get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
 		_capture_capsule.call_deferred()
@@ -1346,3 +1348,16 @@ func _gauntlet_next() -> void:
 	gauntlet_stage += 1
 	gauntlet_changes = 3
 	_reset_place(false)
+
+
+## 啟動檢查（第三輪 T1）：從正式入口啟動、畫幾幀標題、開關一次圖鑑，印 BOOTOK 後結束。不碰玩家存檔、不碰 Steam。
+func _boot_check() -> void:
+	for i in 5:
+		await get_tree().process_frame
+	_open_codex(0)
+	for i in 3:
+		await get_tree().process_frame
+	overlay = ""
+	await get_tree().process_frame
+	print("BOOTOK state=%d" % state)
+	get_tree().quit(0)
