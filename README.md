@@ -3,7 +3,7 @@
 可愛派兵自動對決（Steam 小品）。花 100 金擺好小軍隊，按下開戰就不能再動，只能看著它們打到最後一秒。
 
 - 企劃 v1.0：[docs/2026-11-01-design-and-plan.md](docs/2026-11-01-design-and-plan.md)（§15 原型、§16 全面實作進度）
-- 三方優化方案：[第一輪](docs/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/2026-11-01-optimization-plan-v2.md)（§11 進度：打轉修正、圖鑑、動畫、特效、美化、聲音）
+- 三方優化方案：[第一輪](docs/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3（方案，未實作）](docs/2026-11-01-optimization-plan-v3.md)
 - 上架文件：[docs/release/](docs/release/)（商店頁、行銷與定價、法務、Steam 步驟）
 - 真人試玩流程：[docs/playtest/protocol.md](docs/playtest/protocol.md)
 - 第三方授權：[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
