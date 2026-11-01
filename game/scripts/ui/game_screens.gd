@@ -1,4 +1,4 @@
-extends "res://scripts/ui/codex_view.gd"
+extends "res://scripts/ui/replay_view.gd"
 ## 狀態機、模式、輸入、擺放、標題、選單、設定、結果、成就。
 
 func _ready() -> void:
@@ -260,6 +260,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 		last_armies = [a0.copy(), a1.copy()]
 	sim = Sim.new(a0, a1)
 	view = ViewBuffer.new(sim)
+	paused = false
+	follow_id = -1
 	battle_marks.clear()
 	graves.clear()
 	clutch_t = 0.0
@@ -622,6 +624,8 @@ func _mb_cmd(d: Dictionary) -> void:
 	if overlay != "" or state != St.PLACE:
 		if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
 			_mb_release_cleanup()
+			if overlay == "" and state == St.BATTLE and mb.button_index == MOUSE_BUTTON_LEFT:
+				_battle_click(mouse)   # 重播時點兵讓鏡頭跟（第三輪 F2）
 		return
 	var c := _cell_at(mouse)
 	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
@@ -800,6 +804,7 @@ func _process_inner(delta: float) -> void:
 			_new_demo()
 	if state == St.BATTLE and shot_dir == "":
 		_battle_process(delta)
+		_follow_update(delta)
 	elif state == St.RESULT:
 		zoom = lerpf(zoom, 1.0, delta * 4)
 	if font_bold != null:
@@ -868,7 +873,9 @@ func _draw_inner() -> void:
 	match state:
 		St.TITLE: _draw_title()
 		St.PLACE: _draw_place_hud()
-		St.BATTLE: _draw_battle_hud()
+		St.BATTLE:
+			_draw_battle_hud()
+			_draw_replay_controls()
 		St.RESULT:
 			_draw_battle_hud()
 			_draw_result()
@@ -1132,6 +1139,7 @@ func _draw_title() -> void:
 		["menu_quit", func(): get_tree().quit()]]
 	for i in items.size():
 		_btn(Rect2(500, 282 + i * 51, 280, 43), L.t(items[i][0]), items[i][1], true, i == 0)
+	_btn(Rect2(20, 744, 220, 38), L.t("bc_watch"), func(): _watch_battle_code())   # 觀看對戰代碼（第三輪 F3）
 	_text(Vector2(640, 752), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), D.RULES_VERSION], ts(13), Color(1, 1, 1, 0.5), true)
 
 
@@ -1207,6 +1215,8 @@ func _draw_overlay() -> void:
 			_draw_slots()
 		"codex":
 			_draw_codex()
+		"review":
+			_draw_review()
 
 
 func _draw_settings() -> void:
@@ -1410,7 +1420,10 @@ func _draw_result() -> void:
 		title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
 		col = Art.team_color(w, cbm())
 	var title_sz := mini(ts(40), 48)
-	_text(Vector2(640, 106), title, title_sz, col, true, true, 600)
+	_text(Vector2(640, 106), title, title_sz, col, true, true, 480)
+	_btn(Rect2(252, 112, 124, 34), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
+	if play_kind == "review":
+		_text(Vector2(640, 106 + title_sz * 1.15), L.t("review_tag"), ts(13), ACCENT, true, false, 480)
 	var mvp0 = report.get("mvp")
 	_btn(Rect2(904, 112, 124, 34), L.t("menu_codex_short"), _open_codex.bind(mvp0.type if mvp0 != null else 0))
 	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
@@ -1522,9 +1535,11 @@ func _draw_result() -> void:
 				bs.append([L.t("continue"), func(): _gauntlet_next()])
 			else:
 				bs.append([L.t("menu_gauntlet"), func(): _start_mode(Mode.GAUNTLET)])
+	if mode == Mode.VS_AI and last_armies.size() == 2:
+		bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	bs.append([L.t("replay"), func(): _replay()])
 	bs.append([L.t("menu"), func(): _go_title()])
-	var bw2 := 200.0
+	var bw2 := 200.0 if bs.size() <= 3 else 176.0
 	var x := 640.0 - (bs.size() * (bw2 + 12) - 12) / 2.0
 	for i in bs.size():
 		_btn(Rect2(x + i * (bw2 + 12), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
@@ -1607,6 +1622,9 @@ func _next_round() -> void:
 
 func _replay() -> void:
 	# 重播只看不算：比分、進度、成就、日誌都不動（第三輪 A1，原本會重複結算）
+	if play_kind == "review" and rv_last.size() == 2:
+		_begin_battle(rv_last[0].copy(), rv_last[1].copy(), "review")
+		return
 	_begin_battle(last_armies[0].copy(), last_armies[1].copy(), "replay")
 
 

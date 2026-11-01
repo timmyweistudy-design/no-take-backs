@@ -10,6 +10,8 @@ func _on_skip() -> void:
 
 
 func _battle_process(delta: float) -> void:
+	if paused:
+		return
 	if hitstop > 0:
 		hitstop -= delta
 		return

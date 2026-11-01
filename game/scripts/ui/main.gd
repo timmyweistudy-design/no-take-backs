@@ -327,6 +327,22 @@ func _run_screenshots() -> void:
 	for i in 70:
 		_codex_tick(0.05)
 	await _snap("11_codex_locked.png")
+	overlay = ""
+	# 覆盤與重播控制（第三輪 S5）：用 05 那一場
+	mode = Mode.VS_AI
+	_open_review()
+	var u0: Dictionary = rv_army.units[0]
+	rv_sel = Vector2i(int(u0["col"]), int(u0["row"]))
+	_rv_set_type(D.SHIELD if int(u0["type"]) != D.SHIELD else D.SWORD)
+	_rv_recalc()
+	await _snap("16_review.png")
+	overlay = ""
+	_begin_battle(last_armies[0].copy(), last_armies[1].copy(), "replay")
+	for i in 260:
+		_sim_step(true)
+	for f in fx:
+		f["t"] = 0.0
+	await _snap("15_replay.png")
 	get_tree().quit()
 
 

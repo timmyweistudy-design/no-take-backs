@@ -80,6 +80,8 @@ const PLAY_EFFECTS := {
 }
 var play_kind := "official"   # 這一場是哪種播放
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
+var paused := false        # 重播控制：暫停（第三輪 F2）
+var follow_id := -1       # 重播控制：鏡頭跟著哪一隻
 var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出
 var battle_marks: Array = []   # 結果頁時間軸的關鍵事件（第三輪 U5）：{tick, kind, team}
 var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
@@ -322,6 +324,12 @@ func _paint_cmd(_p: Vector2) -> void:
 	pass
 
 func _mb_release_cleanup() -> void:
+	pass
+
+func _battle_click(_p: Vector2) -> void:
+	pass
+
+func _begin_battle(_a0, _a1, _kind := "official") -> void:
 	pass
 
 ## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。

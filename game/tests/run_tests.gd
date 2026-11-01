@@ -48,6 +48,7 @@ func _init() -> void:
 	test_input_queue()
 	test_golden()
 	test_crowd_readability()
+	test_replay_tools()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -768,6 +769,19 @@ func test_play_effects() -> void:
 	ok(games_1 == 1 and snap.call() == after_official and g.play_kind == "replay", "重播 3 次：場次、勝場、兵種勝場、成就、系列比分都不變", "%s → %s" % [after_official, snap.call()])
 	play.call("official")
 	ok(int(SV.data["stats"]["games"]) == 2, "重播之後再打正式的一場，照常記錄")
+	# 覆盤播放：只看不算（副作用矩陣 review）
+	var snap2: String = snap.call()
+	g._open_review()
+	g.rv_sel = Vector2i(5, 4)
+	g._rv_set_type(D.SHIELD)
+	g._rv_recalc()
+	g._rv_play()
+	var guard2 := 0
+	while not g.view.finished and guard2 < 3000:
+		g._sim_step(false)
+		guard2 += 1
+	g._finish_battle()
+	ok(g.play_kind == "review" and snap.call() == snap2, "覆盤播放：比分、進度、成就都不變")
 	g.free()
 	for fn in ["user://test_fx_save.json", "user://test_fx_save.json.bak", "user://test_fx_settings.json"]:
 		if FileAccess.file_exists(fn):
@@ -974,3 +988,76 @@ func test_crowd_readability() -> void:
 	ok(nt <= g.TEXT_CAP, "關鍵跳字一口氣 30 個，畫面上仍 ≤%d 個（%d）" % [g.TEXT_CAP, nt])
 	ok(max_txt <= g.TEXT_CAP and max_fx <= g.FX_CAP, "跳字與特效有上限（跳字最多 %d、特效最多 %d；丟掉一般跳字 %d、特效 %d）" % [max_txt, max_fx, g.text_dropped, g.fx_dropped])
 	g.free()
+
+
+## 回味（第三輪 S5）：對戰代碼來回、竄改要擋、版本不同要提示；覆盤一次只算改一隻、只看不算戰績；
+## 重播跳轉：跳到第 t tick 再往下播，畫面狀態與結局要和從頭播一模一樣。
+func test_replay_tools() -> void:
+	var BC = load("res://scripts/game/battle_code.gd")
+	var a0 = army_from(0, [[D.SWORD, 5, 4], [D.ARCHER, 1, 3], [D.CAVALRY, 3, 7]])
+	var a1 = army_from(1, [[D.SHIELD, 5, 4], [D.ASSASSIN, 3, 2]])
+	var code: String = BC.encode(a0, a1)
+	var r: Dictionary = BC.decode(code)
+	ok(r["ok"] and not r["mismatch"] and r["a0"].to_code() == a0.to_code() and r["a1"].to_code() == a1.to_code(), "對戰代碼：編碼再解碼，雙方陣型一樣")
+	var tampered := code.substr(0, 10) + ("A" if code[10] != "A" else "B") + code.substr(11)
+	ok(not BC.decode(tampered)["ok"] and not BC.decode("NTB1.xx.yy")["ok"], "對戰代碼：被改過或格式不對會擋下")
+	var parts := code.split(".")
+	var j = JSON.parse_string(Marshalls.base64_to_utf8(_pad64(parts[1])))
+	j["r"] = "0.0.1"
+	var body := Marshalls.utf8_to_base64(JSON.stringify(j)).replace("+", "-").replace("/", "_").replace("=", "")
+	var old_ver := "NTB2.%s.%s" % [body, body.sha256_text().substr(0, 6)]
+	var r2: Dictionary = BC.decode(old_ver)
+	ok(r2["ok"] and r2["mismatch"], "對戰代碼：別的版本的代碼可以讀，但會標示版本不同")
+	# 覆盤：改動計數
+	var GS = load("res://scripts/ui/game_screens.gd")
+	if GS == null or not GS.can_instantiate():
+		ok(false, "回味：畫面腳本載入失敗")
+		return
+	var b0 = a0.copy()
+	b0.remove_at(5, 4)
+	b0.place(D.SHIELD, 5, 4)
+	var b1 = a0.copy()
+	b1.move(1, 3, 2, 3)
+	var b2 = b1.copy()
+	b2.remove_at(5, 4)
+	ok(GS.review_changes(a0, a0) == 0 and GS.review_changes(a0, b0) == 1 and GS.review_changes(a0, b1) == 1 and GS.review_changes(a0, b2) == 2,
+		"覆盤：換兵種、移一格各算一隻，兩處算兩隻")
+	var rr: Dictionary = GS.review_run(b0, a1)
+	var sm = Sim.new(b0.copy(), a1.copy()); sm.run_to_end()
+	ok(int(rr["winner"]) == sm.winner and int(rr["ticks"]) == sm.tick, "覆盤：重算和正式模擬同一個結果")
+	# 跳轉一致：從頭播到結束 vs 播到一半跳回第 60 tick 再播到結束
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.mode = g.Mode.VS_AI
+	g.last_armies = [a0.copy(), a1.copy()]
+	g._begin_battle(a0.copy(), a1.copy(), "replay")
+	var straight := {}
+	while not g.view.finished:
+		g._sim_step(false)
+		if g.view.tick == 60 or g.view.tick == 120:
+			straight[g.view.tick] = _view_sig(g.view)
+	var end_sig := _view_sig(g.view)
+	var end_counts := JSON.stringify(g.ev_count)
+	g._begin_battle(a0.copy(), a1.copy(), "replay")
+	for k in 150:
+		g._sim_step(false)
+	g._seek(60)
+	var seek_ok := true
+	while not g.view.finished:
+		g._sim_step(false)
+		if straight.has(g.view.tick) and straight[g.view.tick] != _view_sig(g.view):
+			seek_ok = false
+	ok(seek_ok and _view_sig(g.view) == end_sig and JSON.stringify(g.ev_count) == end_counts, "重播跳轉：跳回第 60 tick 再播，畫面狀態、結局、戰報次數都和從頭播一樣")
+	g.free()
+
+static func _pad64(b: String) -> String:
+	var x := b.replace("-", "+").replace("_", "/")
+	while x.length() % 4 != 0:
+		x += "="
+	return x
+
+static func _view_sig(v) -> String:
+	var parts: Array = [v.tick]
+	for u in v.units:
+		parts.append([u.id, u.x, u.y, u.hp, u.alive])
+	return JSON.stringify(parts)
