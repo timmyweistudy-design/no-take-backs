@@ -70,6 +70,7 @@ func _ready() -> void:
 
 # ───────────────────────── 狀態切換 ─────────────────────────
 func _go_title() -> void:
+	sfx.set_muffled(false)
 	state = St.TITLE
 	overlay = ""
 	sim = null
@@ -276,6 +277,7 @@ func _begin_battle(a0, a1) -> void:
 
 
 func _finish_battle() -> void:
+	sfx.set_muffled(false)
 	state = St.RESULT
 	_focus = 0
 	slow_left = 0.0

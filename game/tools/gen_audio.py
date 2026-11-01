@@ -159,7 +159,44 @@ def music():
         return [(root * [2, 2.5, 3, 2.5][k], 0, 0.9)]
     bar_loop("music_title", 84, 8, [C, G, Am, F], title, drum=False, lead="tri")
 
+# ───── 技能專屬音效（第二輪方案 R8、J）：用獨立的亂數，不改動既有音效與音樂的輸出 ─────
+rnd8 = random.Random(20261108)
+
+def n8():
+    return rnd8.uniform(-1, 1)
+
+def sfx_r8():
+    # 破盾：金屬碎裂（高頻噪音爆＋幾個不和諧的金屬泛音快速衰減）
+    burst = lowpass([n8() * env(i / SR, 0.001, 0.12, 0.14) for i in range(int(SR * 0.14))], 0.75)
+    write("shatter", mix(burst, tone(2310, 0.18, "sine", 0.35, d=0.16), tone(3170, 0.14, "sine", 0.28, d=0.12),
+                         tone(4420, 0.1, "sine", 0.2, d=0.08), tone(180, 0.08, "square", 0.3, d=0.07, bend=-0.4)))
+    # 頂住：鐘鳴（基音＋非整數泛音，長尾）
+    write("bell", mix(tone(660, 0.6, "sine", 0.7, d=0.58), tone(660 * 2.76, 0.45, "sine", 0.3, d=0.42),
+                      tone(660 * 5.4, 0.25, "sine", 0.15, d=0.22), tone(110, 0.12, "square", 0.25, d=0.1)))
+    # 衝鋒：號角三連音（G-C-E 上行，鋸齒波＋低通）
+    tot = int(SR * 0.42)
+    horn = mix(at(tone(392, 0.11, "saw", 0.45, a=0.01, d=0.1), 0.0, tot), at(tone(523, 0.11, "saw", 0.45, a=0.01, d=0.1), 0.12, tot),
+               at(tone(659, 0.2, "saw", 0.5, a=0.01, d=0.19), 0.24, tot))
+    write("bugle", lowpass(horn, 0.3))
+    # 背刺：氣切（快速上滑的嘶聲）
+    write("aircut", mix(lowpass([n8() * env(i / SR, 0.004, 0.1, 0.11) for i in range(int(SR * 0.11))], 0.9),
+                        tone(900, 0.1, "sine", 0.25, d=0.09, bend=1.6)))
+    # 警覺：輕亮的叮
+    write("alert", mix(tone(1760, 0.12, "sine", 0.5, d=0.11), tone(2637, 0.08, "sine", 0.25, d=0.07)))
+    # 絆馬：繩子繃斷（彈撥＋短噪音）
+    write("snap", mix(tone(320, 0.14, "tri", 0.55, d=0.13, bend=-0.6), lowpass([n8() * env(i / SR, 0.001, 0.03, 0.035) for i in range(int(SR * 0.035))], 0.5)))
+    # 嘲諷：低沉的「嘿！」（方波短促下滑）
+    write("taunt", lowpass(tone(170, 0.16, "square", 0.5, a=0.01, d=0.15, bend=-0.25), 0.25))
+    # 現形：一小團「噗」
+    write("reveal", lowpass([n8() * env(i / SR, 0.005, 0.12, 0.13) for i in range(int(SR * 0.13))], 0.12))
+
 if __name__ == "__main__":
+    import sys
+    if "--r8" in sys.argv:
+        sfx_r8()
+        print("audio r8 done")
+        raise SystemExit
     sfx()
     music()
+    sfx_r8()
     print("audio:", sorted(os.listdir(OUT)))

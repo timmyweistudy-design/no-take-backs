@@ -2,7 +2,7 @@ extends RefCounted
 ## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
 ## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
 
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）
 static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
 
 const DEFAULT_SETTINGS := {
@@ -10,8 +10,8 @@ const DEFAULT_SETTINGS := {
 	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false,
 }
 const DEFAULT_SAVE := {
-	"version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
-	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0},
+	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
+	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
 }
 
 static var settings := {}
@@ -19,9 +19,7 @@ static var data := {}
 
 static func load_all() -> void:
 	settings = _read(_sp(), DEFAULT_SETTINGS)
-	data = _read(_dp(), DEFAULT_SAVE)
-	if int(data.get("version", 0)) != SAVE_VERSION:
-		data = _migrate(data)
+	data = migrate(_read(_dp(), DEFAULT_SAVE))
 
 static func _sp() -> String:
 	return "user://%ssettings.json" % prefix
@@ -42,12 +40,23 @@ static func _read(path: String, defaults: Dictionary) -> Dictionary:
 			return out
 	return out
 
-static func _migrate(d: Dictionary) -> Dictionary:
-	var out := DEFAULT_SAVE.duplicate(true)
-	for k in d:
-		if out.has(k):
-			out[k] = d[k]
-	out["version"] = SAVE_VERSION
+## 逐版遷移（純函式，測試用）：舊進度一律保留；不認得的欄位也保留（新版遊戲寫的存檔被舊版讀到時不會被刪掉）。
+## 比目前新的版本：原樣回傳，不降版。
+static func migrate(d: Dictionary) -> Dictionary:
+	var out := d.duplicate(true)
+	var v := int(out.get("schema_version", out.get("version", 1)))
+	if v > SAVE_VERSION:
+		return out
+	if v < 2:
+		# 1 → 2：欄位名 version 改成 schema_version；加 unit_wins
+		out.erase("version")
+		if not out.get("unit_wins") is Dictionary:
+			out["unit_wins"] = {}
+		v = 2
+	for k in DEFAULT_SAVE:
+		if not out.has(k):
+			out[k] = DEFAULT_SAVE[k].duplicate(true) if DEFAULT_SAVE[k] is Dictionary or DEFAULT_SAVE[k] is Array else DEFAULT_SAVE[k]
+	out["schema_version"] = v
 	return out
 
 static func _write(path: String, d: Dictionary) -> bool:

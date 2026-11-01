@@ -234,6 +234,15 @@ func _run_screenshots() -> void:
 	anim_gallery = true
 	await _snap("13_poses.png")
 	anim_gallery = false
+	Save.settings["colorblind"] = true
+	_rebuild_sprites()
+	for i in 4:
+		await get_tree().process_frame
+	await _snap("14_colorblind.png")
+	Save.settings["colorblind"] = false
+	_rebuild_sprites()
+	for i in 4:
+		await get_tree().process_frame
 	freeze_fx = false
 	if stunned != null:
 		stunned.stun = 0   # 只是為了截圖，還原，不影響接下來的模擬

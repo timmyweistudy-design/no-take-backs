@@ -41,6 +41,8 @@ func _init() -> void:
 	test_codex()
 	test_event_routes()
 	test_ui_consumers()
+	test_sfx_priority()
+	test_save_migration()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -523,6 +525,8 @@ class FakeSfx:
 		played.append(n)
 	func play_music(_n: String) -> void:
 		pass
+	func set_muffled(_on: bool) -> void:
+		pass
 
 ## 畫面層真的消費事件（Codex R3 第 2 輪）：把真實戰鬥的每個 tick 交給戰鬥畫面的 _sim_step（含 _on_event、展示緩衝），
 ## 不能報錯、攻擊事件一定產生演出；圖鑑的 _codex_tick 每段示範都要真的跳字、跳在觸發者身上。
@@ -623,3 +627,35 @@ func test_ui_consumers() -> void:
 				pop_bad.append(g._cx_skills()[k])
 	ok(pop_bad.is_empty(), "圖鑑每段小劇場都真的跳字", str(pop_bad))
 	g.free()
+
+
+## 音效優先權（第二輪方案 R8）：聲道滿了，技能音搶走最低優先權裡最早開始的普通命中；普通命中搶不到技能音；有空位先用空位。
+func test_sfx_priority() -> void:
+	var SX = load("res://scripts/game/sfx.gd")
+	var busy := [true, true, true, true]
+	ok(SX.pick_channel([true, false, true, true], [0, 0, 0, 0], [0, 0, 0, 0], 0) == 1, "音效：有空聲道先用空的")
+	ok(SX.pick_channel(busy, [2, 0, 0, 2], [0, 50, 10, 0], 2) == 2, "音效：滿了時技能音搶最低優先權裡最早開始的")
+	ok(SX.pick_channel(busy, [2, 2, 3, 2], [0, 0, 0, 0], 0) == -1, "音效：普通命中搶不到技能音")
+	ok(SX.pick_channel(busy, [2, 2, 2, 2], [0, 0, 0, 0], 2) == -1, "音效：同級不互搶")
+	var missing: Array = []
+	for n in SX.FILES:
+		if not FileAccess.file_exists("res://audio/%s.wav" % n):
+			missing.append(n)
+	for n in SX.PRIO:
+		if not SX.FILES.has(n):
+			missing.append("PRIO 有但 FILES 沒有：" + n)
+	ok(missing.is_empty(), "音效：清單裡的檔案都在", str(missing))
+
+
+## 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。
+func test_save_migration() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var v1 := {"version": 1, "tutorial": 3, "puzzle_stars": {"p1": 3}, "slots": ["NTB1.x", "", "", "", ""], "stats": {"wins": 7, "games": 9}, "future_key": 5}
+	var m: Dictionary = SV.migrate(v1)
+	ok(int(m["schema_version"]) == 2 and not m.has("version") and m["unit_wins"] is Dictionary, "存檔遷移：v1→v2 改欄位名、補 unit_wins")
+	ok(int(m["tutorial"]) == 3 and int(m["puzzle_stars"]["p1"]) == 3 and m["slots"][0] == "NTB1.x" and int(m["stats"]["wins"]) == 7 and int(m["future_key"]) == 5, "存檔遷移：舊進度與不認得的欄位都保留")
+	var v2 := {"schema_version": 2, "unit_wins": {"3": 4}, "tutorial": 1}
+	var m2: Dictionary = SV.migrate(v2)
+	ok(int(m2["unit_wins"]["3"]) == 4 and m2.has("achievements"), "存檔遷移：v2 原樣保留、缺的欄位補預設")
+	var v9 := {"schema_version": 9, "x": 1}
+	ok(SV.migrate(v9) == v9, "存檔遷移：比目前新的版本不降版")

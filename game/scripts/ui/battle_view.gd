@@ -22,6 +22,7 @@ func _battle_process(delta: float) -> void:
 		_sim_step(true)
 	# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
 	_check_clutch()
+	sfx.set_muffled(slow_left > 0 and not view.finished)
 	if slow_left > 0 and not view.finished:
 		_frame_alive(delta)
 	else:
@@ -189,10 +190,12 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			var sh = view.unit_by_id(ev["src"])
 			var vic = view.unit_by_id(ev["tgt"])
 			fx.append({"kind": "taunt", "p": _upos(sh), "t": 0.0, "dur": 0.6})
+			sfx.play("taunt", 0.5)
 			fx.append({"kind": "bang", "p": _upos(vic) + Vector2(0, -64), "t": 0.0, "dur": 0.7})
 			return
 		"reveal":
 			fx.append({"kind": "puff", "p": _upos(view.unit_by_id(ev["src"])) + Vector2(0, -20), "t": 0.0, "dur": 0.45})
+			sfx.play("reveal", 0.6)
 			return
 	var s = view.unit_by_id(ev["src"])
 	var t = view.unit_by_id(ev["tgt"])
@@ -202,10 +205,12 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var sp := _upos(s)
 	var tpos := _upos(t)
 	if tags.has("alert"):
+		sfx.play("alert", 0.5)
 		fx.append({"kind": "aim", "a": sp + Vector2(0, -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.32})
 	if tags.has("hide"):
 		fx.append({"kind": "hide", "p": tpos + Vector2(0, -24), "dir": signf(sp.x - tpos.x) if sp.x != tpos.x else 1.0, "t": 0.0, "dur": 0.4})
 	if tags.has("trip"):
+		sfx.play("snap", 0.7)
 		fx.append({"kind": "trip", "p": tpos + Vector2(0, -4), "t": 0.0, "dur": 0.5})
 	if s.type == D.ARCHER:
 		fx.append({"kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.28, "tc": Art.team_color(s.team, cbm())})
@@ -220,6 +225,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			label = L.t("ev_charge")
 			col = ACCENT
 			sfx.play("charge")
+			sfx.play("bugle", 0.6)
 			if bool(Save.s("shake")):
 				shake = 0.12
 			fx.append({"kind": "dust", "p": tpos, "t": 0.0, "dur": 0.5})
@@ -227,12 +233,13 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			label = L.t("ev_backstab")
 			col = Color("#c77dff")
 			sfx.play("backstab")
+			sfx.play("aircut", 0.7)
 			fx.append({"kind": "flash", "p": tpos + Vector2(0, -26), "c": Color("#c77dff"), "t": 0.0, "dur": 0.25})
 			fx.append({"kind": "vslash", "p": tpos + Vector2(0, -26), "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.3})
 		"braced":
 			label = L.t("ev_braced")
 			col = Color("#9ad1ff")
-			sfx.play("brace")
+			sfx.play("bell", 0.8)
 			brace_t[t.id] = time
 			fx.append({"kind": "hex", "p": tpos + Vector2(10 * signf(sp.x - tpos.x), -24), "t": 0.0, "dur": 0.45})
 		"anticav":
@@ -246,6 +253,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			label = L.t("ev_counter")
 			col = Color("#80ffdb")
 		"breaker":
+			sfx.play("shatter", 0.45)
 			fx.append({"kind": "shard", "p": tpos + Vector2(12, -26), "t": 0.0, "dur": 0.5})
 	if label != "":
 		_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -78), col)
@@ -467,6 +475,15 @@ func _draw_units_of(s, dim: bool) -> void:
 			var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else -58)
 			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
 			draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Art.team_color(u.team, cbm()).lightened(0.25))
+			if cbm():
+				# 色盲模式：血條左邊加隊伍形狀（藍＝●、紅＝◆），不只靠顏色（R8）
+				var mk := top + Vector2(-6, 2)
+				if u.team == 0:
+					draw_circle(mk, 3.6, Art.OUT, true, -1.0, true)
+					draw_circle(mk, 2.6, Art.team_color(0, true), true, -1.0, true)
+				else:
+					draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -4.5), mk + Vector2(4.5, 0), mk + Vector2(0, 4.5), mk + Vector2(-4.5, 0)]), Art.OUT)
+					draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -3.2), mk + Vector2(3.2, 0), mk + Vector2(0, 3.2), mk + Vector2(-3.2, 0)]), Art.team_color(1, true))
 	if not live:
 		return
 	for g in dying:
