@@ -18,7 +18,10 @@ t0=$(date +%s)
 fail=0
 for m in "${MODES[@]}"; do
   mode="${m%%:*}"; extra=""
-  [ "$mode" = "turns" ] && extra="--rule=${m#*:}"
+  if [ "$mode" = "turns" ]; then
+    rest="${m#*:}"; extra="--rule=${rest%@*}"
+    [[ "$rest" == *@* ]] && extra="$extra --level=${rest#*@}"   # turns:snake5@2＝雙方都用困難落子 AI（第三輪 B1）
+  fi
   pids=()
   for ((s=0; s<SHARDS; s++)); do
     "$GODOT" --headless --path . --script res://tools/balance2.gd -- "--mode=$mode" "--shard=$s" "--shards=$SHARDS" $extra \

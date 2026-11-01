@@ -28,6 +28,7 @@ func _init() -> void:
 	match args.get("mode", "league"):
 		"matrix": matrix(shard, shards)
 		"league": league(shard, shards)
+		"valleague": league(shard, shards, true)
 		"turns": turns(shard, shards)
 		"search": search(shard, shards)
 		"counter": counter(shard, shards)
@@ -81,8 +82,8 @@ func matrix(shard: int, shards: int) -> void:
 			r["mode"] = "matrix"; r["a"] = i; r["b"] = j
 			emit(r)
 
-func league(shard: int, shards: int) -> void:
-	var pool := F.training_pool(0)
+func league(shard: int, shards: int, val := false) -> void:
+	var pool := F.validation_pool(0) if val else F.training_pool(0)
 	for i in pool.size():
 		if i % shards != shard:
 			continue
@@ -95,7 +96,7 @@ func league(shard: int, shards: int) -> void:
 				var r := fight(pool[i], pool[j]) if side == 0 else fight(pool[j], pool[i])
 				if side == 1:
 					r["res"] = -r["res"]
-				r["mode"] = "league"; r["a"] = i; r["b"] = j; r["k"] = k; r["side"] = side; r["comp"] = F.composition(pool[i])
+				r["mode"] = "valleague" if val else "league"; r["a"] = i; r["b"] = j; r["k"] = k; r["side"] = side; r["comp"] = F.composition(pool[i])
 				emit(r)
 
 func turns(shard: int, shards: int) -> void:

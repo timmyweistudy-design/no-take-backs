@@ -190,8 +190,43 @@ def sfx_r8():
     # 現形：一小團「噗」
     write("reveal", lowpass([n8() * env(i / SR, 0.005, 0.12, 0.13) for i in range(int(SR * 0.13))], 0.12))
 
+# ───── 戰鬥音樂分軌（第三輪 S1）：低音／鼓／旋律三軌同長度、同一個增益，遊戲依戰況即時混音 ─────
+def battle_stems():
+    C, F, G, Am = 262, 349, 392, 220
+    chords = [Am, F, C, G]
+    bpm, bars = 132, 8
+    beat = 60.0 / bpm
+    total = int(SR * beat * 4 * bars)
+    bass = [0.0] * total; drums = [0.0] * total; mel = [0.0] * total
+    def add(dst, src, t0):
+        o = int(t0 * SR)
+        for i, v in enumerate(src):
+            if o + i < total: dst[o + i] += v
+    for b in range(bars):
+        root = chords[b % len(chords)]
+        for k in range(4):
+            t0 = (b * 4 + k) * beat
+            add(bass, tone(root / 2, beat * 0.9, "tri", 0.35, d=beat * 0.8), t0)
+            add(drums, tone(65, 0.18, "sine", 0.9 if k % 2 == 0 else 0.0, d=0.17, bend=-0.5), t0)
+            if k % 2 == 1:
+                add(drums, [n8() * 0.35 * env(i / SR, 0.001, 0.08, 0.09) for i in range(int(SR * 0.09))], t0)
+            add(drums, [n8() * 0.08 * env(i / SR, 0.001, 0.03, 0.04) for i in range(int(SR * 0.04))], t0 + beat * 0.5)   # 反拍小鈸
+            notes = [(root * 2, 0, 0.5), (root * 2.5, 0.5, 0.45)] if k % 2 == 0 else [(root * 3, 0, 0.3)]
+            for f, off, ln in notes:
+                add(mel, tone(f, beat * ln, "square", 0.28, d=beat * ln * 0.9), t0 + off * beat)
+    m = max(1e-9, max(abs(x + y + z) for x, y, z in zip(bass, drums, mel)))
+    g = 0.6 / m
+    for name, data in (("music_battle_bass", bass), ("music_battle_drums", drums), ("music_battle_mel", mel)):
+        with wave.open(os.path.join(OUT, name + ".wav"), "wb") as w:
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
+            w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, v * g)) * 32767)) for v in data))
+
 if __name__ == "__main__":
     import sys
+    if "--stems" in sys.argv:
+        battle_stems()
+        print("stems done")
+        raise SystemExit
     if "--r8" in sys.argv:
         sfx_r8()
         print("audio r8 done")
@@ -199,4 +234,5 @@ if __name__ == "__main__":
     sfx()
     music()
     sfx_r8()
+    battle_stems()
     print("audio:", sorted(os.listdir(OUT)))

@@ -101,8 +101,9 @@ static func play_turn(tp, rng: RandomNumberGenerator, level := 1) -> int:
 		if c.x < 0 or not tp.place(t, c.x, c.y):
 			break
 		placed += 1
-		# 每一手擺到花不下為止，但留一點讓節奏像真人：困難 AI 會在花超過 60% 後結束這一手，保留後手
-		if tp.current == me and level == 2 and tp.spent_this_turn * 10 >= tp.hand_cap() * 6 and tp.can_end_turn():
+		# 困難 AI 在「沒花完的錢會累積」的規則（snake5c）才會花到 60% 就收手、保留後手。
+		# 第三輪 S6 抓到：原本所有規則都這樣做，snake5／cap10 沒花完的錢會直接浪費（每方只花 70 金），先手勝率被扭曲成 86%。
+		if tp.current == me and level == 2 and tp.rule == "snake5c" and tp.spent_this_turn * 10 >= tp.hand_cap() * 6 and tp.can_end_turn():
 			tp.end_turn()
 			break
 	if tp.current == me and not tp.done():

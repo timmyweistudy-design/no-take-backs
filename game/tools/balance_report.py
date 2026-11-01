@@ -30,6 +30,20 @@ def load(folder):
 def pct(a, b):
     return 0 if b == 0 else round(100 * a / b)
 
+def wilson(k, n, z=1.96):
+    """比例的 95% 信賴區間（Wilson），回傳 (低%, 高%)。第三輪 B1：每個勝率都附區間。"""
+    if n == 0:
+        return (0, 0)
+    p = k / n
+    d = 1 + z * z / n
+    c = p + z * z / (2 * n)
+    h = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5)
+    return (round(100 * (c - h) / d), round(100 * (c + h) / d))
+
+def ci(k, n):
+    lo, hi = wilson(k, n)
+    return f"{pct(k, n)}%（95% 區間 {lo}～{hi}%）"
+
 def main():
     folder = sys.argv[1]
     secs = sys.argv[2] if len(sys.argv) > 2 else "?"
@@ -45,30 +59,38 @@ def main():
     if not isinstance(man.get("modes"), list) or not man["modes"] or not isinstance(man.get("shards"), int) or man["shards"] <= 0:
         print("✗ manifest.json 不合法"); sys.exit(2)
     shards = man["shards"]
-    allowed = {"matrix", "league", "turns:cap10", "turns:snake5", "turns:snake5c", "search", "counter", "countersearch"}
-    bad_modes = [m for m in man["modes"] if m not in allowed]
+    allowed = {"matrix", "league", "valleague", "turns:cap10", "turns:snake5", "turns:snake5c", "search", "counter", "countersearch"}
+    def ok_mode(m):
+        if m in allowed:
+            return True
+        if m.startswith("turns:") and "@" in m:   # turns:<規則>@<AI 等級>
+            r, lv = m[6:].split("@", 1)
+            return f"turns:{r}" in allowed and lv in ("0", "1", "2")
+        return False
+    bad_modes = [m for m in man["modes"] if not ok_mode(m)]
     if bad_modes:
         print(f"✗ manifest 有不合法的模式：{bad_modes}"); sys.exit(2)
     # 分片檔完整性（Codex N1-r3 #6）：每個模式 0～shards-1 片都要在，也不能有 manifest 以外的檔案
     have = {os.path.basename(f) for f in glob.glob(os.path.join(folder, "*.jsonl"))}
-    want_files = {f"{m.replace(':', '_')}_{i}.jsonl" for m in man["modes"] for i in range(man["shards"])}
+    want_files = {f"{m.replace(':', '_', 1)}_{i}.jsonl" for m in man["modes"] for i in range(man["shards"])}
     if have != want_files:
         print(f"✗ 分片檔不完整：缺 {sorted(want_files - have)[:5]}、多 {sorted(have - want_files)[:5]}"); sys.exit(2)
     errs = [r for v in rows.values() for r in v if "error" in r]
     if errs:
         print(f"✗ 有 {len(errs)} 筆執行錯誤（例：{errs[0]}）"); sys.exit(2)
-    expect = {"matrix": 20, "league": 200 * 12 * 2, "search": shards, "counter": 6, "countersearch": shards}
+    expect = {"matrix": 20, "league": 200 * 12 * 2, "valleague": 200 * 12 * 2, "search": shards, "counter": 6, "countersearch": shards}
     keyset = {
         "matrix": {(a, b) for a in range(5) for b in range(5) if a != b},
         "league": {(a, k, s) for a in range(200) for k in range(12) for s in range(2)},
+        "valleague": {(a, k, s) for a in range(200) for k in range(12) for s in range(2)},
         "search": {(s,) for s in range(shards)},
         "counter": {(t,) for t in range(6)},
         "countersearch": {(s,) for s in range(shards)},
     }
-    keyf = {"matrix": ("a", "b"), "league": ("a", "k", "side"), "search": ("shard",), "counter": ("template",),
+    keyf = {"matrix": ("a", "b"), "league": ("a", "k", "side"), "valleague": ("a", "k", "side"), "search": ("shard",), "counter": ("template",),
             "countersearch": ("shard",)}
     for m in man["modes"]:
-        key = m.replace(":", "_")
+        key = m.replace(":", "_", 1)
         got = rows.get(key, [])
         base = m.split(":")[0]
         exp = 400 if base == "turns" else expect.get(base)
@@ -183,12 +205,41 @@ def main():
                 ag += 1; aw += (1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0)
         md.append(f"刺客陣（刺客 ≥30% 金額，{int(ag)} 場）勝率：{pct(aw, ag)}%（目標 38～48%）\n")
         summary["assassin_heavy_winrate"] = pct(aw, ag)
+        lo2, hi2 = wilson(aw, ag)
+        md.append(f"刺客陣 95% 區間 {lo2}～{hi2}%；碾壓局 {ci(sum(1 for x in rem if x > 50), len(rem))}\n")
         # 每套陣型勝率前 5
         per = {}
         for r in L:
             per.setdefault(r["a"], []).append(1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0)
         top = sorted(per.items(), key=lambda kv: -sum(kv[1]) / len(kv[1]))[:5]
         md.append("訓練池勝率前 5：" + "、".join(f"#{k} {pct(sum(v), len(v))}%" for k, v in top) + "\n")
+
+    if "valleague" in rows:
+        # 驗證池（第三輪 B1）：從沒用來調參數的 200 套，看結論是否也成立
+        V = rows["valleague"]
+        vdec = [r for r in V if r["res"] != 0]
+        vrem = [r["rem"] for r in vdec]
+        vblow = sum(1 for x in vrem if x > 50)
+        vlc = sum(1 for r in V if r["lc"] >= 1)
+        vcb = sum(1 for r in vdec if r["swing"] >= 15)
+        vaw = vag = 0.0
+        vtw = [0.0] * 5; vtg = [0.0] * 5
+        for r in V:
+            comp = r["comp"]; s2 = sum(comp) or 1
+            sc = 1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0
+            for t in range(5):
+                vtg[t] += comp[t] / s2; vtw[t] += comp[t] / s2 * sc
+            if comp[4] / s2 >= 0.30:
+                vag += 1; vaw += sc
+        vmed = st.median(vrem) if vrem else 0
+        summary.update(val_median_rem=vmed, val_blowout_pct=pct(vblow, len(vrem)), val_type_winrate=[pct(vtw[t], vtg[t]) for t in range(5)])
+        md.append(f"\n## ②b 驗證池聯賽（從沒用來調參數的 200 套 × 12 × 交換左右 = {len(V)} 場）\n")
+        md.append(f"勝方剩餘中位數 {vmed}%、碾壓局 {ci(vblow, len(vrem))}、有領先交換 {ci(vlc, len(V))}、翻盤局 {ci(vcb, len(vdec))}\n\n")
+        md.append("兵種（金額加權）勝率：" + "、".join(f"{NAMES[t]} {pct(vtw[t], vtg[t])}%" for t in range(5)) + f"；刺客陣 {ci(int(vaw), int(vag))}\n")
+        if pct(vblow, len(vrem)) >= 20:
+            fails.append(f"驗證池碾壓局 {pct(vblow, len(vrem))}%")
+        if vmed > 30:
+            fails.append(f"驗證池勝方剩餘中位數 {vmed}%")
 
     for key in sorted(k for k in rows if k.startswith("turns")):
         T = rows[key]
@@ -201,7 +252,11 @@ def main():
         summary[f"{rule}_blue_win"] = blue
         summary[f"{rule}_first_win"] = fw
         summary[f"{rule}_handoffs"] = ho
-        md.append(f"\n## ③ 先後手（{rule}，{len(T)} 場，雙方同一個會讀對方的 AI）\n先手勝率 **{fw}%**、藍方（左邊）勝率 {blue}%（不含平手 {len(T)-len(dec)} 場）；每局換人次數中位數 {ho}；每方平均花 {sp:.0f} 金\n")
+        lv = T[0].get("level", 1)
+        fk = sum(1 for r in dec if r["first_won"] == 1)
+        lo, hi = wilson(fk, len(dec))
+        summary[f"{rule}_L{lv}_first_ci"] = [lo, hi]
+        md.append(f"\n## ③ 先後手（{rule}，落子 AI 等級 {lv}，{len(T)} 場，雙方同一個會讀對方的 AI）\n先手勝率 **{fw}%**（95% 區間 {lo}～{hi}%）、藍方（左邊）勝率 {blue}%（不含平手 {len(T)-len(dec)} 場）；每局換人次數中位數 {ho}；每方平均花 {sp:.0f} 金\n")
         if fw > 55 or fw < 45:
             warns.append(f"{rule} 先手勝率 {fw}%（>55% 或 <45% 列入調查）")
         if blue > 55 or blue < 45:

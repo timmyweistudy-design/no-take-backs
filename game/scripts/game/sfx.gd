@@ -91,9 +91,59 @@ func play(name: String, vol := 1.0) -> void:
 	_prio_of[ch] = pr
 	_started[ch] = now
 
+# ── 分軌戰鬥音樂（第三輪 S1）：低音、鼓、旋律三軌同時播、各自調音量 ──
+const LAYERS := ["music_battle_bass", "music_battle_drums", "music_battle_mel"]
+var layers: Array[AudioStreamPlayer] = []
+var layer_gain := [1.0, 0.35, 1.0]     # 目標
+var layer_cur := [1.0, 0.35, 1.0]      # 目前（平滑）
+
+func play_layers() -> void:
+	music.stop()
+	music_name = "layers"
+	if layers.is_empty():
+		for n in LAYERS:
+			var p := AudioStreamPlayer.new()
+			add_child(p)
+			var st = load("res://audio/%s.wav" % n)
+			if st is AudioStreamWAV:
+				st.loop_mode = AudioStreamWAV.LOOP_FORWARD
+				st.loop_begin = 0
+				st.loop_end = st.data.size() / 2
+			p.stream = st
+			layers.append(p)
+	layer_cur = layer_gain.duplicate()
+	for i in layers.size():
+		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i]))
+		layers[i].play(0.0)
+
+func stop_layers() -> void:
+	for p in layers:
+		p.stop()
+
+## 戰況 → 三軌目標音量：差距小（≤15%）鼓聲進來；最後時刻只留低音（心跳另外播）。
+static func layer_targets(close: bool, clutch: bool) -> Array:
+	if clutch:
+		return [1.0, 0.0, 0.0]
+	return [1.0, 1.0 if close else 0.35, 1.0]
+
+func set_layer_targets(g: Array) -> void:
+	layer_gain = g
+
+func _process(delta: float) -> void:
+	if music_name != "layers" or layers.is_empty():
+		return
+	for i in layers.size():
+		layer_cur[i] = move_toward(layer_cur[i], layer_gain[i], delta * 1.5)
+		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i]))
+
 func play_music(name: String) -> void:
+	if name == "music_battle":
+		if music_name != "layers":
+			play_layers()
+		return
 	if name == music_name:
 		return
+	stop_layers()
 	music_name = name
 	var st = load("res://audio/%s.wav" % name)
 	if st == null:

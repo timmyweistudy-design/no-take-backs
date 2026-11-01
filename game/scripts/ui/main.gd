@@ -5,104 +5,84 @@ extends "res://scripts/ui/game_screens.gd"
 ## 商店膠囊圖（N6）：用目前視窗大小構圖——先畫標題帶，再把兩軍放在標題下方對衝，中間有分界線與對射的箭。
 ## 只有遊戲標題文字（Steam 規定）。手感輪（收尾批）調整：標題帶不壓角色、中央不留白、小尺寸放大標題與角色、兩側留邊。
 func _draw_capsule() -> void:
+	# 膠囊圖（第三輪 M1）：左藍右紅 15° 斜切＋中央裂縫與對撞星芒、兩邊各 3 隻放大的角色、標題金邊立體投影。
 	var vs := get_viewport_rect().size
-	var tile := 64.0 * vs.y / 800.0
-	for yy in int(vs.y / tile) + 1:
-		for xx in int(vs.x / tile) + 1:
-			var h := absi((xx * 73856093) ^ (yy * 19349663))
-			draw_texture_rect_region(grass, Rect2(xx * tile, yy * tile, tile, tile), Rect2((h % 8) * 32, ((h / 8) % 4) * 32, 32, 32))
-	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.06, 0.09, 0.16, 0.22))
 	var tall := vs.y > vs.x
-	var tiny := get_window().size.y < 300   # 畫布邏輯高度固定 800，要看實際視窗大小
-	# 標題帶（先畫，角色畫在它下方的區域）
-	var big := int(vs.y * (0.12 if tall else (0.30 if tiny else 0.21)))
-	var band_h := big * 1.75
-	var band_y := vs.y * (0.05 if tall else 0.03)
-	draw_rect(Rect2(0, band_y, vs.x, band_h), Color(0.05, 0.06, 0.1, 0.55))
-	# 標題：立體投影＋金邊（R6）
-	var tw := font_bold.get_string_size(L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big).x
-	var tp := Vector2(vs.x / 2 - tw / 2, band_y + big * 0.05 + big * 0.85)
-	for d in 4:
-		draw_string(font_bold, tp + Vector2(1, 1) * (d + 1) * big * 0.012, L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big, Color(0.35, 0.18, 0.05, 0.9))
-	draw_string_outline(font_bold, tp, L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big, int(maxf(4.0, big * 0.07)), Color("#b8860b"))
-	draw_string(font_bold, tp, L.t("title"), HORIZONTAL_ALIGNMENT_LEFT, -1, big, Color("#ffe8a3"))
-	_text(Vector2(vs.x / 2, band_y + big * 1.12), "No Take-Backs", int(big * (0.42 if tiny else 0.34)), Color(1, 1, 1, 0.97), true, true)
-	# 戰場區
-	var top := band_y + band_h + vs.y * 0.02
-	var bottom := vs.y * 0.97
+	var tiny := get_window().size.y < 300
+	var blue := Color("#1b3b6f")
+	var red := Color("#6f1d2b")
 	var mid := vs.x / 2
-	draw_dashed_line(Vector2(mid, top), Vector2(mid, bottom), Color(1, 1, 1, 0.45), maxf(3.0, vs.y * 0.006) * (2.5 if tiny else 1.0), vs.y * 0.02)
-	var sc := (bottom - top) / (110.0 if tiny else 260.0)
+	var slant := tan(deg_to_rad(15.0)) * vs.y / 2
+	draw_rect(Rect2(Vector2.ZERO, vs), red)
+	draw_colored_polygon(PackedVector2Array([Vector2(0, 0), Vector2(mid + slant, 0), Vector2(mid - slant, vs.y), Vector2(0, vs.y)]), blue)
+	# 速度線
+	for k in 14:
+		var yy := vs.y * (0.08 + k * 0.066)
+		var ln := vs.x * (0.12 + 0.06 * (k % 3))
+		draw_line(Vector2(vs.x * 0.02, yy), Vector2(vs.x * 0.02 + ln, yy), Color(1, 1, 1, 0.07), maxf(2.0, vs.y * 0.006), true)
+		draw_line(Vector2(vs.x * 0.98 - ln, yy + vs.y * 0.03), Vector2(vs.x * 0.98, yy + vs.y * 0.03), Color(1, 1, 1, 0.07), maxf(2.0, vs.y * 0.006), true)
+	# 中央裂縫（鋸齒）
+	var crack := PackedVector2Array()
+	for k in 9:
+		var t := k / 8.0
+		var x := lerpf(mid + slant, mid - slant, t) + (8.0 if k % 2 == 0 else -8.0) * vs.y / 430.0
+		crack.append(Vector2(x, vs.y * t))
+	draw_polyline(crack, Color(1, 0.95, 0.75, 0.9), maxf(3.0, vs.y * 0.012), true)
+	# 標題帶
+	var big := int(vs.y * (0.11 if tall else (0.30 if tiny else 0.19)))
+	var band_y := vs.y * (0.04 if tall else 0.03)
+	var tt: String = L.t("title")
+	var tw := font_bold.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, big).x
+	var tp := Vector2(mid - tw / 2, band_y + big * 0.9)
+	var dep := maxf(3.0, big * 0.06)
+	for d in 4:
+		draw_string(font_bold, tp + Vector2(1, 1) * dep * (d + 1) / 4.0, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, big, Color(0.12, 0.05, 0.02, 0.95))
+	draw_string_outline(font_bold, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, big, int(maxf(6.0, big * 0.12)), Color("#3a2205"))
+	draw_string_outline(font_bold, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, big, int(maxf(3.0, big * 0.06)), Color("#d4a017"))
+	draw_string(font_bold, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, big, Color("#ffe8a3"))
+	var sub := int(big * (0.42 if tiny else 0.30))
+	_text(Vector2(mid, band_y + big * 1.12), "No Take-Backs", sub, Color(1, 1, 1, 0.97), true, true)
+	# 角色：兩邊各 3 隻，前排最大、最靠中線
+	var top := band_y + big * 1.12 + sub * 1.4
+	var bottom := vs.y * 0.97
+	var sc := (bottom - top) / (70.0 if tiny else 95.0)
 	if tall:
-		sc = minf(sc, vs.x / 380.0)   # 直式：依寬度限制大小，同排兩隻不會擠在一起
-	var cols := 3 if tiny else (2 if tall else 3)
-	var rows := 1 if tiny else 3
-	var margin := maxf(20.0, vs.x * 0.05)
-	# 每邊固定 cols×rows 的整齊陣型；弓兵固定在最靠中線的那一欄，箭從弓兵射出
-	# 兩軍在中線交鋒的瞬間（R6）：最前排近戰撞在中線，弓兵在後排放箭，身後有速度線
-	var layout := [D.ARCHER, D.SHIELD, D.SWORD, D.ARCHER, D.ASSASSIN, D.CAVALRY, D.ARCHER, D.SHIELD, D.SWORD]
+		sc = minf(sc, vs.x / 118.0)
+	var left := [[D.ARCHER, 0.13, 0.80], [D.CAVALRY, 0.27, 0.92], [D.SWORD, 0.40, 1.0]]
+	var right := [[D.ASSASSIN, 0.87, 0.80], [D.SHIELD, 0.73, 0.92], [D.SWORD, 0.60, 1.0]]
+	if tall:
+		# 直式：每邊兩隻、放大，後排的往上放，填滿中段
+		left = [[D.CAVALRY, 0.17, 0.78], [D.SWORD, 0.31, 1.0]]
+		right = [[D.ASSASSIN, 0.83, 0.78], [D.SWORD, 0.69, 1.0]]
+	if tiny:
+		left = [[D.CAVALRY, 0.22, 0.95], [D.SWORD, 0.40, 1.0]]
+		right = [[D.SHIELD, 0.78, 0.95], [D.SWORD, 0.60, 1.0]]
 	var items: Array = []
-	var archers: Array = []
-	for team in 2:
-		for r in rows:
-			for c in cols:
-				var t: int = layout[(r * cols + c) % layout.size()]
-				if c == 0 and not tiny:
-					t = D.ARCHER
-				elif c == cols - 1 and t == D.ARCHER:
-					t = D.SWORD   # 最前排一定是近戰撞在中線
-				var span := (mid - margin) * 0.80 - sc * 30.0
-				var x := margin + sc * 24.0 + c * span / maxf(1, cols - 1)
-				if team == 1:
-					x = vs.x - x
-				var y := bottom - sc * 6.0 if tiny else top + sc * 62.0 + r * (bottom - top - sc * 72.0) / maxf(1, rows - 1)
-				items.append([y, x, t, team])
-				if t == D.ARCHER and c == 0 and not tall and not tiny:   # 後排弓兵放箭；直式太窄就不畫箭
-					archers.append(Vector2(x, y))
-	items.sort()
-	# 速度線：每隻身後幾條往外拖的白線
-	for it in items:
-		var dirx := -1.0 if it[3] == 0 else 1.0
-		for k in 3:
-			var yy: float = it[0] - sc * (10.0 + k * 9.0)
-			var x0: float = it[1] + dirx * sc * (22.0 + k * 4.0)
-			draw_line(Vector2(x0, yy), Vector2(x0 + dirx * sc * (26.0 + k * 10.0), yy), Color(1, 1, 1, 0.22 - k * 0.05), maxf(1.5, sc * 1.6), true)
-	for it in items:
-		Art.ring(self, Vector2(it[1], it[0]), it[3], it[2], false, sc)
-	for it in items:
-		var face := 1.0 if it[3] == 0 else -1.0
-		var front: bool = absf(it[1] - mid) < (mid - margin) * 0.45
-		var mood := Art.M_SPARKLE if it[2] == D.CAVALRY else (Art.M_BROWS if front else 0)
-		Art.unit(self, Vector2(it[1], it[0]), it[2], it[3], face, 2.0 + it[1] * 0.01, 0.42 if front and it[2] != D.ARCHER else (0.25 if it[2] == D.ARCHER else 0.0), 0.0, 1.0, 1.3, sc, false, mood, 0.2 if it[2] == D.CAVALRY else 0.0)
-	# 中線撞擊光（每一排一個）
-	var ys := {}
-	for it in items:
-		ys[snappedf(it[0], 1.0)] = true
-	for yk in ys.keys():
-		var c0 := Vector2(mid, float(yk) - sc * 24.0)
+	for it in left:
+		items.append([it, 0])
+	for it in right:
+		items.append([it, 1])
+	for e in items:
+		var it: Array = e[0]
+		var team: int = e[1]
+		var k: float = it[2]
+		var s2 := sc * k
+		var p := Vector2(vs.x * float(it[1]), bottom - (1.0 - k) * (bottom - top) * 0.55)
+		var face := 1.0 if team == 0 else -1.0
+		Art.ring(self, p, team, it[0], false, s2)
+		var mood := Art.M_SPARKLE if it[0] == D.CAVALRY else Art.M_BROWS
+		var at := 0.42 if k >= 0.99 else (0.25 if it[0] == D.ARCHER else 0.0)
+		Art.unit(self, p, it[0], team, face, 0.0, at, 0.0, 1.0, 1.3, s2, false, mood, 0.2 if it[0] == D.CAVALRY else 0.0)
+	# 中央對撞星芒
+	var cc := Vector2(mid, bottom - (22.0 if tall else 30.0) * sc)   # 星芒在前排兩隻的武器交會處
+	var r0 := minf(45.0 * vs.y / 430.0, (11.0 if tall else 16.0) * sc) * (0.7 if tiny else 1.0)
+	for layer in 2:
 		var pts := PackedVector2Array()
-		for i in 16:
-			var an := i * TAU / 16.0
-			pts.append(c0 + Vector2(cos(an), sin(an)) * sc * (16.0 if i % 2 == 0 else 6.0))
-		draw_colored_polygon(pts, Color(1, 0.92, 0.6, 0.85))
-		draw_circle(c0, sc * 5.0, Color.WHITE, true, -1.0, true)
-	# 箭：從每個弓兵的弓往中線飛
-	for ap: Vector2 in archers:
-		var dir := 1.0 if ap.x < mid else -1.0
-		var start := ap + Vector2(dir * sc * 28.0, -sc * 22.0)
-		var p := Vector2(mid - dir * sc * 18.0, start.y - sc * 8.0)
-		var tail := p - (p - start).normalized() * sc * 26.0
-		draw_line(start, tail, Color(1, 1, 1, 0.28), sc * 1.5, true)
-		draw_line(tail, p, Art.OUT, sc * 3.5, true)
-		draw_line(tail, p, Color("#d97706"), sc * 2.0, true)
-		var dv := (p - tail).normalized()
-		var nv := dv.orthogonal()
-		draw_colored_polygon(PackedVector2Array([p + dv * sc * 6.0, p + nv * sc * 3.0, p - nv * sc * 3.0]), Color("#e5e7eb"))
-		var tc := Art.team_color(0 if dir > 0 else 1, false)
-		draw_colored_polygon(PackedVector2Array([tail, tail - dv * sc * 6.0 + nv * sc * 4.0, tail + dv * sc * 3.0]), tc)
-		draw_colored_polygon(PackedVector2Array([tail, tail - dv * sc * 6.0 - nv * sc * 4.0, tail + dv * sc * 3.0]), tc)
-
-
+		var rr := r0 * (1.0 - layer * 0.45)
+		for i in 24:
+			var an := i * TAU / 24.0
+			pts.append(cc + Vector2(cos(an), sin(an)) * (rr if i % 2 == 0 else rr * 0.42))
+		draw_colored_polygon(pts, Color(1, 0.9, 0.5, 0.95) if layer == 0 else Color.WHITE)
 func _capture_capsule() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame

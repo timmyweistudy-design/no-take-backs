@@ -80,6 +80,7 @@ func _ready() -> void:
 # ───────────────────────── 狀態切換 ─────────────────────────
 func _go_title() -> void:
 	sfx.set_muffled(false)
+	watch_mode = false
 	clutch_t = 0.0
 	state = St.TITLE
 	overlay = ""
@@ -100,6 +101,7 @@ func _new_demo() -> void:
 
 
 func _start_mode(m: int) -> void:
+	watch_mode = false
 	mode = m
 	wins = [0, 0]
 	round_no = 1
@@ -250,8 +252,18 @@ func _hard_ai(r: RandomNumberGenerator) -> Army:
 func _counter_lib() -> Array:
 	if not FileAccess.file_exists("res://data/counter_lib.json"):
 		return []
-	var p = JSON.parse_string(FileAccess.get_file_as_string("res://data/counter_lib.json"))
-	return p if typeof(p) == TYPE_ARRAY else []
+	return counter_lib_entries(JSON.parse_string(FileAccess.get_file_as_string("res://data/counter_lib.json")))
+
+
+## 反制庫版本檢查（第三輪 A3）：規則版本或數值摘要對不上就不用（退回啟發式），避免用到過期的反制。
+static func counter_lib_entries(p) -> Array:
+	if not p is Dictionary:
+		return []
+	if str(p.get("rules", "")) != D.RULES_VERSION or str(p.get("digest", "")) != D.data_digest():
+		push_warning("counter_lib.json 的規則版本或數值摘要和遊戲不同，困難 AI 改用啟發式")
+		return []
+	var e = p.get("entries", [])
+	return e if e is Array else []
 
 
 func _begin_battle(a0, a1, kind := "official") -> void:
@@ -261,6 +273,14 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	sim = Sim.new(a0, a1)
 	view = ViewBuffer.new(sim)
 	atk_seq.clear()
+	clutch_tick = -1
+	replay_total = 0
+	if kind != "official":
+		# 重播／覆盤：先用確定性模擬算出整場長度，時間軸以實際秒數為滿（Antigravity S5）
+		var pre = Sim.new(a0.copy(), a1.copy())
+		pre.fast = true
+		pre.run_to_end()
+		replay_total = pre.tick
 	paused = false
 	follow_id = -1
 	battle_marks.clear()
@@ -1119,25 +1139,43 @@ func _draw_title() -> void:
 	if overlay != "":
 		return
 	var bob := sin(time * 1.5) * 4
-	draw_rect(Rect2(260, 50, 760, 700), Color(0.05, 0.06, 0.1, 0.6))
-	# 標題區依實際字高往下排（第三輪 T4 抓到 150% 時大標與副標重疊）；大標封頂 96px
+	# 遮罩改成上濃下淡、左右羽化，讓背景的自動對戰露出來（第三輪 U6）：用頂點色漸層，不會有色階
+	var dk := Color(0.05, 0.06, 0.1, 0.66)
+	var cl := Color(0.05, 0.06, 0.1, 0.0)
+	var mid_a := Color(0.05, 0.06, 0.1, 0.30)
+	for q in [[Rect2(330, 30, 620, 380), dk, mid_a], [Rect2(330, 410, 620, 330), mid_a, cl]]:
+		var r: Rect2 = q[0]
+		draw_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]), PackedColorArray([q[1], q[1], q[2], q[2]]))
+		# 左右羽化
+		draw_polygon(PackedVector2Array([r.position - Vector2(90, 0), r.position, Vector2(r.position.x, r.end.y), Vector2(r.position.x - 90, r.end.y)]), PackedColorArray([cl, q[1], q[2], cl]))
+		draw_polygon(PackedVector2Array([Vector2(r.end.x, r.position.y), Vector2(r.end.x + 90, r.position.y), Vector2(r.end.x + 90, r.end.y), r.end]), PackedColorArray([q[1], cl, cl, q[2]]))
+	# 大標：雙層描邊＋深色立體投影（第三輪 U6）
 	var tsz := mini(ts(84), 96)
-	_text(Vector2(640, 64 + bob), L.t("title"), tsz, Color("#ffe8a3"), true, true, 740)
+	var tt: String = L.t("title")
+	var tw := font_bold.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
+	var tp := Vector2(640 - tw / 2, 64 + bob + tsz * 0.85)
+	for d in 4:
+		draw_string(font_bold, tp + Vector2(1, 1) * (d + 1) * 1.6, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color(0.32, 0.17, 0.04, 0.9))
+	draw_string_outline(font_bold, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, 9, Color("#3a2205"))
+	draw_string_outline(font_bold, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, 5, Color("#b8860b"))
+	draw_string(font_bold, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color("#ffe8a3"))
 	var ty := 64.0 + tsz * 1.25
 	_text(Vector2(640, ty), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", mini(ts(26), 30), Color(1, 1, 1, 0.85), true, false, 740)
 	ty += mini(ts(26), 30) * 1.4
 	_text(Vector2(640, ty), L.t("subtitle"), ts(18), Color(1, 1, 1, 0.9), true, false, 740)
-	var items := [["menu_vs_ai", func(): _open("diff")],
-		["menu_duel", func(): _open("rule")],
-		["menu_tutorial", func(): _open("tutorial")],
-		["menu_puzzle", func(): _open("puzzles")],
-		["menu_gauntlet", func(): _start_mode(Mode.GAUNTLET)],
-		["menu_codex", func(): _open_codex(0)],
-		["menu_settings", func(): _open("settings")],
-		["menu_credits", func(): _open("credits")],
-		["menu_quit", func(): get_tree().quit()]]
-	for i in items.size():
-		_btn(Rect2(500, 282 + i * 51, 280, 43), L.t(items[i][0]), items[i][1], true, i == 0)
+	# 主戰場三顆大鈕；訓練挑戰並排三顆；設定、名單、離開在底部小鈕（第三輪 U6）
+	var y0 := maxf(282.0, ty + ts(18) * 1.6 + 16.0)
+	var main := [["menu_vs_ai", func(): _open("diff")], ["menu_duel", func(): _open("rule")], ["menu_gauntlet", func(): _start_mode(Mode.GAUNTLET)]]
+	for i in main.size():
+		_btn(Rect2(490, y0 + i * 58, 300, 50), L.t(main[i][0]), main[i][1], true, i == 0)
+	var y1 := y0 + 3 * 58 + 14
+	var side := [["menu_tutorial", func(): _open("tutorial")], ["menu_puzzle", func(): _open("puzzles")], ["menu_codex", func(): _open_codex(0)]]
+	for i in side.size():
+		_btn(Rect2(400 + i * 164, y1, 156, 44), L.t(side[i][0]), side[i][1])
+	var y2 := y1 + 60
+	var sys := [["menu_settings", func(): _open("settings")], ["menu_credits", func(): _open("credits")], ["menu_quit", func(): get_tree().quit()]]
+	for i in sys.size():
+		_btn(Rect2(460 + i * 124, y2, 116, 36), L.t(sys[i][0]), sys[i][1], true, false, Color(0.12, 0.13, 0.18, 0.9))
 	_btn(Rect2(20, 744, 220, 38), L.t("bc_watch"), func(): _watch_battle_code())   # 觀看對戰代碼（第三輪 F3）
 	_text(Vector2(640, 752), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), D.RULES_VERSION], ts(13), Color(1, 1, 1, 0.5), true)
 
@@ -1511,6 +1549,15 @@ func _draw_result() -> void:
 		_text(Vector2(880, 152), L.t("pt_rate"), ts(12), ACCENT, false, false, 150)
 		for i in 5:
 			_btn(Rect2(880 + i * 30, 152 + ts(12) * 1.4, 26, 26), str(i + 1), _pt_rate.bind(i + 1))
+	# 試玩版結尾（第三輪 F5）：打完一整個三戰兩勝，提示加入願望清單（只在匯出時帶 demo 功能的版本）
+	if OS.has_feature("demo") and series_over and play_kind == "official":
+		var wr := Rect2(300, y, 680, 46)
+		draw_rect(wr, Color(0.35, 0.22, 0.05, 0.95))
+		draw_rect(wr, ACCENT, false, 2.0)
+		_text(Vector2(316, y + 10), L.t("demo_wish"), ts(16), Color.WHITE, false, true, 420)
+		var url: String = SteamApi.STORE_URL
+		_btn(Rect2(760, y + 4, 210, 38), L.t("demo_wish_btn") if url != "" else L.t("demo_wish_soon"), func(): OS.shell_open(url), url != "", true)
+		y += 54.0
 	var lab := ts(12) * 1.3
 	var tl_y := maxf(y + 8.0 + lab, 540.0)
 	var tl_h := minf(40.0, 640.0 - lab - 4.0 - tl_y)
@@ -1534,7 +1581,10 @@ func _draw_result() -> void:
 				bs.append([L.t("continue"), func(): _gauntlet_next()])
 			else:
 				bs.append([L.t("menu_gauntlet"), func(): _start_mode(Mode.GAUNTLET)])
-	if mode == Mode.VS_AI and last_armies.size() == 2:
+	if watch_mode:
+		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
+
+	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
 		bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	bs.append([L.t("replay"), func(): _replay()])
 	bs.append([L.t("menu"), func(): _go_title()])

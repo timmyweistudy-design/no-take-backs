@@ -33,7 +33,7 @@ func _draw_replay_controls() -> void:
 		_btn(Rect2(98 + i * 74, 704, 68, 36), "%s×" % _fmt_num(sp[i]), func(): speed = sp[i], true, false,
 			Color(0.45, 0.3, 0.12) if is_equal_approx(speed, sp[i]) else Color(0, 0, 0, 0))
 	# 時間軸：拉鋸色帶（模擬已跑到的部分）＋目前位置
-	var total := maxf(1.0, float(maxi(sim.tick, view.tick)) if view.finished else float(D.MATCH_TICKS))
+	var total := float(maxi(1, replay_total if replay_total > 0 else D.MATCH_TICKS))   # 以這一場實際長度為滿
 	draw_rect(RC_BAR, Color(0, 0, 0, 0.5))
 	var tot := float(view.budget * 1000)
 	var n: int = sim.power_log.size()
@@ -51,23 +51,29 @@ func _draw_replay_controls() -> void:
 	_text(Vector2(RC_BAR.end.x - hw, RC_BAR.position.y - hz * 1.5), L.t("rc_hint"), hz, Color(1, 1, 1, 0.6))
 	# 整條是一個按鈕：點哪裡就跳到哪一秒
 	_btns.append({"r": RC_BAR, "cb": func(): _seek(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
+	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), "%.1f／%.1f 秒" % [view.tick / 20.0, total / 20.0] if L.lang == "zh_TW" else "%.1f / %.1fs" % [view.tick / 20.0, total / 20.0], ts(12), Color(1, 1, 1, 0.75))
 	if play_kind == "review":
 		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
+	if follow_id >= 0:
+		_text(Vector2(640, 92 + ts(16) * 1.4), L.t("rc_following"), ts(14), Color(1, 1, 1, 0.85), true, false, 600)
 
 ## 跳到某個 tick：同一組陣型從頭快轉（確定性模擬，結果一定一樣），畫面與音效狀態清空重建。
 func _seek(target: int) -> void:
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
 	sim = Sim.new(armies2[0].copy(), armies2[1].copy())
 	ev_count = {}
+	var had_clutch := clutch_tick >= 0 and clutch_tick <= target
+	var keep_ct := clutch_tick
 	battle_marks.clear()
 	var stop := maxi(0, target - ViewBuffer.DELAY)
 	while sim.tick < stop and not sim.finished:
 		sim.step()
-		for ev in sim.events:   # 快轉時也要累計戰報用的次數與時間軸標記
+		for ev in sim.events:   # 快轉時也要累計戰報次數與時間軸標記（Codex S5 #4：共用同一個收集函式）
 			if ev.has("src"):
 				var s = sim.unit_by_id(ev["src"])
 				var key := "%s%d" % [ev["kind"], s.team]
 				ev_count[key] = int(ev_count.get(key, 0)) + 1
+			_collect_mark(ev, sim, sim.tick)
 	view = ViewBuffer.new(sim)
 	prev_pos.clear()
 	for u in view.units:
@@ -85,7 +91,19 @@ func _seek(target: int) -> void:
 	result_delay = 0.0
 	clutch_t = 0.0
 	slow_left = 0.0
+	hitstop = 0.0
+	# 演出狀態依目標時間重建（Codex S5 #5）：最後時刻是否已發生、是否已進狂熱、音樂
+	slow_used = had_clutch
+	clutch_tick = keep_ct if had_clutch else -1
+	if had_clutch:
+		battle_marks.append({"tick": keep_ct, "kind": "clutch", "team": -1})
 	_pump_view()
+	# 畫面推到剛好第 target tick（原本停在 target−DELAY）
+	while view.tick < target and not view.finished:
+		_sim_step(false)
+	frenzy_seen = view.frenzy
+	if sfx != null:
+		sfx.play_music("music_frenzy" if view.frenzy else "music_battle")
 
 ## 點戰場上的兵：鏡頭跟著它；點空地取消。
 func _battle_click(p: Vector2) -> void:
@@ -101,6 +119,8 @@ func _battle_click(p: Vector2) -> void:
 				bd = d
 				best = u.id
 	follow_id = best
+	if best < 0:
+		zoom_target = 1.0   # 取消跟拍：回到全景（中心由 _battle_process 拉回）
 
 func _follow_update(delta: float) -> void:
 	if follow_id < 0 or view == null or state != St.BATTLE:
@@ -127,11 +147,22 @@ func _watch_battle_code() -> void:
 		return
 	if r["mismatch"]:
 		_toast(L.t("bc_mismatch"))
+	watch_code(r["a0"], r["a1"])
+
+## 看一場對戰代碼：當成全新的一局初始化（Codex S5 #2：原本沿用舊的陣型、比分、局數）
+func watch_code(a0, a1) -> void:
 	mode = Mode.VS_AI
 	ai_name = ""
 	overlay = ""
-	last_armies = [r["a0"], r["a1"]]
-	_begin_battle(r["a0"].copy(), r["a1"].copy(), "replay")
+	armies = [a0.copy(), a1.copy()]
+	wins = [0, 0]
+	round_no = 1
+	series_over = false
+	last_player_formation = []
+	last_armies = [a0.copy(), a1.copy()]
+	rv_last = []
+	_begin_battle(a0.copy(), a1.copy(), "replay")
+	watch_mode = true
 
 
 # ── 覆盤 ──
@@ -182,11 +213,38 @@ func _rv_cell(c: Vector2i) -> void:
 func _rv_set_type(t: int) -> void:
 	if rv_sel.x < 0:
 		return
+	# 在副本上換，買不起或不合法就保留原兵並提示（Codex S5 #3：原本會變成直接刪兵）
 	var c := rv_sel
-	_rv_try(func():
-		rv_army.remove_at(c.x, c.y)
-		if t >= 0 and rv_army.check_place(t, c.x, c.y) == "":
-			rv_army.place(t, c.x, c.y))
+	var trial = rv_army.copy()
+	trial.remove_at(c.x, c.y)
+	if t >= 0:
+		var why: String = trial.check_place(t, c.x, c.y)
+		if why != "":
+			_toast(L.t("rv_cant", [L.t("unit_%d" % t)]), true)
+			return
+		trial.place(t, c.x, c.y)
+	if review_changes(rv_orig, trial) > 1:
+		_toast(L.t("rv_one"), true)
+		return
+	rv_army = trial
+	rv_result = {}
+
+## 改了什麼（給畫面顯示）：例如「弓箭手 → 劍士（第 3 列第 5 欄）」
+func review_desc() -> String:
+	for u in rv_orig.units:
+		var i: int = rv_army.index_at(u["col"], u["row"])
+		if i == -1:
+			# 被移走或拿掉
+			for v in rv_army.units:
+				if rv_orig.index_at(v["col"], v["row"]) == -1 and int(v["type"]) == int(u["type"]):
+					return L.t("rv_moved", [L.t("unit_%d" % int(u["type"])), int(u["row"]) + 1, int(u["col"]) + 1, int(v["row"]) + 1, int(v["col"]) + 1])
+			return L.t("rv_removed", [L.t("unit_%d" % int(u["type"])), int(u["row"]) + 1, int(u["col"]) + 1])
+		if int(rv_army.units[i]["type"]) != int(u["type"]):
+			return L.t("rv_swapped", [L.t("unit_%d" % int(u["type"])), L.t("unit_%d" % int(rv_army.units[i]["type"])), int(u["row"]) + 1, int(u["col"]) + 1])
+	for v in rv_army.units:
+		if rv_orig.index_at(v["col"], v["row"]) == -1:
+			return L.t("rv_added", [L.t("unit_%d" % int(v["type"])), int(v["row"]) + 1, int(v["col"]) + 1])
+	return ""
 
 ## 重算「如果」：同一個對手、改過的陣型，用確定性模擬直接跑到結束。
 static func review_run(a0, a1) -> Dictionary:
@@ -227,6 +285,9 @@ func _draw_review() -> void:
 				Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 6), int(rv_army.units[ni]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.62, cbm())
 			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true})
 	_text(Vector2(g0.x, g0.y + 9 * cs + 6), L.t("rv_budget", [rv_army.spent(), rv_army.budget, review_changes(rv_orig, rv_army)]), ts(14), Color.WHITE, false, false, 300)
+	var dsc := review_desc()
+	if dsc != "":
+		_text(Vector2(g0.x, g0.y + 9 * cs + 6 + ts(14) * 1.4), dsc, ts(14), ACCENT, false, false, 300)
 	# 右：換成哪個兵種／拿掉
 	var bx := 500.0
 	for t in D.COUNT:
@@ -259,7 +320,8 @@ func _rv_band(r: Rect2, log: PackedInt64Array) -> void:
 		return
 	var tot := 100000.0
 	var cols := int(r.size.x / 2.0)
-	var span := float(D.MATCH_TICKS)
+	# 原本與如果用同一個時間尺度：兩場裡比較長的那一場為滿（Antigravity S5）
+	var span := float(maxi(n, maxi(int(rv_base.get("ticks", 0)), int(rv_result.get("ticks", 0)))))
 	for i in cols:
 		var t := int(i * 2.0 / r.size.x * span)
 		if t >= n:

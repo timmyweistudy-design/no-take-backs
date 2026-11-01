@@ -104,6 +104,10 @@ static func training_pool(team: int) -> Array:
 static func holdout_pool(team: int) -> Array:
 	return pool(team, 50, 9000011)
 
+## 驗證池（第三輪 B1）：從來沒有用來挑參數或調關卡的 200 套，用來確認結論不是對訓練池過擬合。
+static func validation_pool(team: int) -> Array:
+	return pool(team, 200, 7000001)
+
 ## 搜尋池：萬用陣搜尋演化時用的對手（跟保留池分開，避免資料洩漏）。
 static func search_pool(team: int) -> Array:
 	return pool(team, 60, 5000017)

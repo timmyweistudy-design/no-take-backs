@@ -80,6 +80,9 @@ const PLAY_EFFECTS := {
 }
 var play_kind := "official"   # 這一場是哪種播放
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
+var clutch_tick := -1      # 最後時刻在第幾 tick 觸發（重播跳轉時重建狀態用）
+var watch_mode := false   # 正在看對戰代碼（結果頁不提供「下一局」）
+var replay_total := 0     # 重播這一場總共幾 tick（時間軸比例用）
 var paused := false        # 重播控制：暫停（第三輪 F2）
 var follow_id := -1       # 重播控制：鏡頭跟著哪一隻
 var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出

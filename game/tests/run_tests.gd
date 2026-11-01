@@ -49,6 +49,7 @@ func _init() -> void:
 	test_golden()
 	test_crowd_readability()
 	test_replay_tools()
+	test_counter_lib()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -538,6 +539,10 @@ class FakeSfx:
 		pass
 	func set_muffled(_on: bool) -> void:
 		pass
+	func set_layer_targets(_g: Array) -> void:
+		pass
+	static func layer_targets(close: bool, clutch: bool) -> Array:
+		return [1.0, 1.0 if close else 0.35, 1.0] if not clutch else [1.0, 0.0, 0.0]
 
 ## 畫面層真的消費事件（Codex R3 第 2 輪）：把真實戰鬥的每個 tick 交給戰鬥畫面的 _sim_step（含 _on_event、展示緩衝），
 ## 不能報錯、攻擊事件一定產生演出；圖鑑的 _codex_tick 每段示範都要真的跳字、跳在觸發者身上。
@@ -696,7 +701,12 @@ func test_sfx_priority() -> void:
 	for n in SX.PRIO:
 		if not SX.FILES.has(n):
 			missing.append("PRIO 有但 FILES 沒有：" + n)
-	ok(missing.is_empty(), "音效：清單裡的檔案都在", str(missing))
+	for n in SX.LAYERS:
+		if not FileAccess.file_exists("res://audio/%s.wav" % n):
+			missing.append(n)
+	ok(missing.is_empty(), "音效：清單裡的檔案都在（含三條戰鬥分軌）", str(missing))
+	ok(SX.layer_targets(true, false) == [1.0, 1.0, 1.0] and SX.layer_targets(false, false)[1] < 0.5 and SX.layer_targets(true, true) == [1.0, 0.0, 0.0],
+		"分軌音樂：差距小鼓聲進來、最後時刻只留低音")
 
 
 ## 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。
@@ -1010,6 +1020,14 @@ func test_replay_tools() -> void:
 	var old_ver := "NTB2.%s.%s" % [body, body.sha256_text().substr(0, 6)]
 	var r2: Dictionary = BC.decode(old_ver)
 	ok(r2["ok"] and r2["mismatch"], "對戰代碼：別的版本的代碼可以讀，但會標示版本不同")
+	# 預算也要來回（Codex S5 #1）：遠征敵軍 160 金、殘局玩家 30 金
+	var big := Army.new(1, 160)
+	for k in 9:
+		big.place(D.CAVALRY if k % 2 == 0 else D.SHIELD, 10 + k % 6, k)
+	var small = army_from(0, [[D.SWORD, 5, 4]])
+	small.budget = 30
+	var r3: Dictionary = BC.decode(BC.encode(small, big))
+	ok(r3["ok"] and r3["a1"].budget == 160 and r3["a0"].budget == 30 and r3["a1"].to_code() == big.to_code(), "對戰代碼：預算不是 100 的陣型也能來回", str(r3.get("why", "")))
 	# 覆盤：改動計數
 	var GS = load("res://scripts/ui/game_screens.gd")
 	if GS == null or not GS.can_instantiate():
@@ -1040,16 +1058,37 @@ func test_replay_tools() -> void:
 			straight[g.view.tick] = _view_sig(g.view)
 	var end_sig := _view_sig(g.view)
 	var end_counts := JSON.stringify(g.ev_count)
+	var end_marks := JSON.stringify(g.battle_marks.filter(func(m): return m["kind"] != "clutch"))
 	g._begin_battle(a0.copy(), a1.copy(), "replay")
 	for k in 150:
 		g._sim_step(false)
 	g._seek(60)
+	ok(g.view.tick == 60 and straight.has(60) and _view_sig(g.view) == straight[60], "重播跳轉：畫面剛好停在第 60 tick，狀態和從頭播一樣", "tick=%d" % g.view.tick)
 	var seek_ok := true
 	while not g.view.finished:
 		g._sim_step(false)
 		if straight.has(g.view.tick) and straight[g.view.tick] != _view_sig(g.view):
 			seek_ok = false
 	ok(seek_ok and _view_sig(g.view) == end_sig and JSON.stringify(g.ev_count) == end_counts, "重播跳轉：跳回第 60 tick 再播，畫面狀態、結局、戰報次數都和從頭播一樣")
+	ok(JSON.stringify(g.battle_marks.filter(func(m): return m["kind"] != "clutch")) == end_marks, "重播跳轉：時間軸標記（首次衝鋒等）也和從頭播一樣")
+	# 跳到後段：跳過的標記要重建出來
+	g._seek(int(g.replay_total) - 5)
+	while not g.view.finished:
+		g._sim_step(false)
+	ok(JSON.stringify(g.battle_marks.filter(func(m): return m["kind"] != "clutch")) == end_marks, "重播跳轉：直接跳到結尾附近，前面的標記也會重建")
+	# 看對戰代碼：當成新的一局（Codex S5 #2）
+	g.wins = [1, 1]
+	g.round_no = 3
+	g.armies = []
+	g.watch_code(a0, a1)
+	ok(g.watch_mode and g.wins == [0, 0] and g.round_no == 1 and g.armies.size() == 2 and g.play_kind == "replay", "看對戰代碼：比分、局數、陣型都重新初始化")
+	# 覆盤換兵買不起：保留原兵（Codex S5 #3）
+	g.last_armies = [army_from(0, [[D.SWORD, 5, 4]]), a1.copy()]
+	g.last_armies[0].budget = 6
+	g._open_review()
+	g.rv_sel = Vector2i(5, 4)
+	g._rv_set_type(D.CAVALRY)
+	ok(g.rv_army.units.size() == 1 and int(g.rv_army.units[0]["type"]) == D.SWORD, "覆盤：換成買不起的兵種時保留原兵")
 	g.free()
 
 static func _pad64(b: String) -> String:
@@ -1063,3 +1102,20 @@ static func _view_sig(v) -> String:
 	for u in v.units:
 		parts.append([u.id, u.x, u.y, u.hp, u.alive])
 	return JSON.stringify(parts)
+
+
+## 困難 AI 反制庫（第三輪 A3）：版本要和現在的規則一致；版本不符就不用；每筆反制陣都合法。
+func test_counter_lib() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var raw = JSON.parse_string(FileAccess.get_file_as_string("res://data/counter_lib.json"))
+	var entries: Array = GS.counter_lib_entries(raw)
+	ok(entries.size() >= 12, "反制庫：版本和目前規則一致、至少 12 筆（%d）" % entries.size())
+	var old: Dictionary = raw.duplicate(true)
+	old["digest"] = "0000000000000000"
+	ok(GS.counter_lib_entries(old).is_empty() and GS.counter_lib_entries([{"code": "x"}]).is_empty(), "反制庫：數值摘要不同或舊格式就不用（退回啟發式）")
+	var bad := 0
+	for e in entries:
+		var a := Army.new(1, 100)
+		if a.load_code(str(e["code"])) != "" or a.spent() > 100:
+			bad += 1
+	ok(bad == 0, "反制庫：每一筆反制陣都合法（%d 筆不合法）" % bad)

@@ -28,10 +28,18 @@ func _battle_process(delta: float) -> void:
 	if slow_left > 0:
 		_update_action_focus()
 	sfx.set_muffled(slow_left > 0 and not view.finished)
-	if slow_left > 0 and not view.finished:
+	# 分軌音樂依戰況混音（第三輪 S1）
+	var tot2 := float(view.budget * 1000)
+	var close := absf(view.power(0) - view.power(1)) * 100.0 / tot2 <= 15.0
+	sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
+	# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
+	if follow_id >= 0:
+		pass   # 由 _follow_update 決定
+	elif slow_left > 0 and not view.finished:
 		_frame_alive(delta)
 	else:
 		zoom_target = 1.0
+		zoom_center = zoom_center.lerp(ORIGIN + FIELD / 2, minf(1.0, delta * 3))
 	zoom = lerpf(zoom, zoom_target, delta * 3)
 	if view.finished:
 		result_delay += delta
@@ -50,6 +58,7 @@ func _check_clutch() -> void:
 	var a1: int = view.alive_count(1)
 	if absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (a0 <= 3 and a1 <= 3)):
 		slow_used = true
+		clutch_tick = view.tick
 		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
 		if bool(Save.s("slowmo")):
 			slow_left = 8.0
@@ -95,21 +104,26 @@ func _sim_step(with_fx: bool) -> void:
 			ev_count[key] = int(ev_count.get(key, 0)) + 1
 		if k == EV.DEATH:
 			deaths += 1
-		if k == EV.CHARGE or k == EV.BACKSTAB or k == EV.BRACED:
-			# 頂住的 src 是被頂住的騎兵，功勞算盾兵那一隊（Codex S3）
-			var team: int = view.unit_by_id(ev["tgt"] if k == EV.BRACED else ev["src"]).team
-			var seen := false
-			for m in battle_marks:
-				if m["kind"] == k and m["team"] == team:
-					seen = true
-			if not seen:
-				battle_marks.append({"tick": view.tick, "kind": k, "team": team})
+		_collect_mark(ev, view, view.tick)
 		_on_event(ev, with_fx)
 	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
 	if view.finished and not slow_used and deaths > 0 and with_fx:
 		hitstop = 0.2
 		if bool(Save.s("shake")):
 			shake = 0.15
+
+
+## 時間軸標記（首次衝鋒／背刺／頂住，每隊各一次）：正常播放與重播跳轉共用（Codex S5 #4）。
+## 頂住的 src 是被頂住的騎兵，功勞算盾兵那一隊。
+func _collect_mark(ev: Dictionary, lookup, tick: int) -> void:
+	var k: String = ev["kind"]
+	if k != EV.CHARGE and k != EV.BACKSTAB and k != EV.BRACED:
+		return
+	var team: int = lookup.unit_by_id(ev["tgt"] if k == EV.BRACED else ev["src"]).team
+	for m in battle_marks:
+		if m["kind"] == k and m["team"] == team:
+			return
+	battle_marks.append({"tick": tick, "kind": k, "team": team})
 
 
 ## 模擬往前補到領先 DELAY 個 tick；新進緩衝的攻擊事件先記下命中 tick，畫面就能在命中前開始演前搖。
@@ -604,6 +618,23 @@ func _draw_field() -> void:
 			elif c >= 10:
 				draw_rect(cell, Color(Art.team_color(1, cbm()), 0.06))
 	draw_rect(Rect2(ORIGIN, FIELD), Color(0.06, 0.09, 0.16, 0.18))
+	# 地面層次（第三輪 M2）：固定位置的明暗草塊與小花，畫在格線與單位底下
+	for i in 22:
+		var h := absi((i * 2654435761) ^ 0x5bd1e995) % 100000
+		var pc := ORIGIN + Vector2(float(h % 1000) / 1000.0 * FIELD.x, float((h / 1000) % 100) / 100.0 * FIELD.y)
+		var rr := 40.0 + float(h % 37) * 2.0
+		draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1.0, 0.55), 0, pc))
+		draw_circle(Vector2.ZERO, rr, Color(1, 1, 0.8, 0.045) if i % 2 == 0 else Color(0, 0.08, 0, 0.07), true, -1.0, true)
+	draw_set_transform_matrix(_cam)
+	var fl := [Color("#fff3b0"), Color("#ffb3c6"), Color("#cdb4ff"), Color("#ffffff")]
+	for i in 34:
+		var h2 := absi((i * 40503 + 7) * 2246822519) % 1000003
+		var fp := ORIGIN + Vector2(float(h2 % 997) / 997.0 * FIELD.x, float((h2 / 997) % 991) / 991.0 * FIELD.y)
+		var fc: Color = fl[i % fl.size()]
+		for k in 4:
+			var an := k * PI / 2.0 + i
+			draw_circle(fp + Vector2(cos(an), sin(an)) * 2.2, 1.8, Color(fc, 0.75), true, -1.0, true)
+		draw_circle(fp, 1.3, Color("#f4a300"), true, -1.0, true)
 	for i in 17:
 		draw_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, FIELD.y), Color(0, 0, 0, 0.07), 1)
 	for i in 10:
@@ -778,6 +809,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			var hk: float = (time - float(hurt_t[u.id])) / 0.15
 			if hk >= 0.0 and hk < 1.0:
 				p.x += float(hurt_dir.get(u.id, 0.0)) * 4.0 * (sin(hk * PI) if hk < 1.0 else 0.0)
+		if live and u.id == follow_id:
+			draw_arc(p + Vector2(0, 2), 22.0, 0, TAU, 28, Color(ACCENT, 0.9), 3.0, true)   # 跟拍中的那隻
 		# 擠在一起時，正在出手或受擊的那隻加隊伍色光圈（第三輪 V5）
 		if live and (at > 0.0 or hurt > 0.0) and crowd.get(u.id, 0) >= 3:
 			draw_arc(p + Vector2(0, -24 if u.type != D.CAVALRY else -28), 19.0, 0, TAU, 24, Color(Art.team_color(u.team, cbm()), 0.75 * alpha), 2.0, true)
@@ -1047,5 +1080,6 @@ func _draw_battle_hud() -> void:
 		if pt_call_tick < 0:
 			_btn(Rect2(840, 8, 162, 34), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
 	if state == St.BATTLE:
-		_btn(Rect2(1010, 8, 120, 34), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
+		if play_kind == "official":   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
+			_btn(Rect2(1010, 8, 120, 34), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
 		_btn(Rect2(1138, 8, 132, 34), L.t("skip"), func(): _on_skip())
