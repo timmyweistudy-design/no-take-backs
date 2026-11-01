@@ -80,6 +80,7 @@ const PLAY_EFFECTS := {
 }
 var play_kind := "official"   # 這一場是哪種播放
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
+var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
 var prev_pos := {}
@@ -102,6 +103,8 @@ var shot_dir := ""
 var ev_count := {}
 var frenzy_seen := false
 var report := {}
+var _cam := Transform2D.IDENTITY   # 這一幀戰場的鏡頭轉換（最後時刻淡化跳字用）
+var clutch_t := 0.0                # 最後時刻橫幅剩幾秒
 var freeze_fx := false     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
 var pt_rated := false

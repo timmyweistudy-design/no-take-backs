@@ -297,55 +297,78 @@ func _run_screenshots() -> void:
 	get_tree().quit()
 
 
-## 繪圖效能量測（第二輪方案 R2、H）：48 隻（24 對 24）跑約 6 秒，記錄每一幀的 _draw、_process 與 GPU 時間。
-## 輸出 JSON：p50／p95／最大值（毫秒）。用法：<exe> --path game --resolution 1280x800 -- --perf=<輸出 json 絕對路徑>
+## 繪圖效能量測（第二輪 R2、第三輪 T3）：
+## ・啟動時間（引擎啟動到量測開始）、色盲切換的圖集重建時間
+## ・48 隻（每邊 24，量測專用的 160 金預算，五兵種混合）打完整場，展示速度 4 倍（約 25 秒內走到狂熱與結束）
+## ・每幀的 draw／process／GPU／整幀時間：全場、非狂熱、狂熱分開統計，含 p99；記錄硬體、引擎版本、commit（--perf-commit=）
+## 用法：<exe> --path game --resolution 1280x800 -- --perf=<輸出 json 絕對路徑> [--perf-commit=<hash>]
 func _run_perf() -> void:
+	var boot_ms := Time.get_ticks_msec()
 	await get_tree().process_frame
-	# 等精靈圖快取烘焙完才開始量，否則前幾幀是退回的直接繪製（Codex R1 審查 #6）
 	var waited := 0
-	while sprites != null and not sprites.is_ready(cbm()) and waited < 120:
+	while sprites != null and not sprites.is_ready(cbm()) and waited < 240:
+		await get_tree().process_frame
+		waited += 1
+	var ready_ms := Time.get_ticks_msec()
+	# 色盲切換：圖集重建要多久
+	Save.settings["colorblind"] = true
+	var t_cb := Time.get_ticks_msec()
+	_rebuild_sprites()
+	waited = 0
+	while sprites != null and not sprites.is_ready(true) and waited < 240:
+		await get_tree().process_frame
+		waited += 1
+	var cb_ms := Time.get_ticks_msec() - t_cb
+	Save.settings["colorblind"] = false
+	_rebuild_sprites()
+	waited = 0
+	while sprites != null and not sprites.is_ready(false) and waited < 240:
 		await get_tree().process_frame
 		waited += 1
 	var vp := get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)
-	var a0 := Army.new(0, 100)
-	var a1 := Army.new(1, 100)
-	var spec := [D.SHIELD, D.SWORD, D.ARCHER, D.ARCHER, D.SWORD, D.ARCHER]
+	var a0 := Army.new(0, 160)
+	var spec := [D.SHIELD, D.SWORD, D.ARCHER, D.CAVALRY, D.ASSASSIN, D.ARCHER, D.SWORD, D.ARCHER]
 	for r in 9:
 		for c in 6:
 			if a0.count() < 24:
-				var t: int = spec[(r + c) % spec.size()]
+				var t: int = spec[(r * 6 + c) % spec.size()]
 				if D.cost(t) <= a0.left():
 					a0.place(t, 5 - c, r)
-				elif a0.left() >= 4:
-					a0.place(D.ARCHER, 5 - c, r)
-	a1 = a0.mirrored()
+	var a1 = a0.mirrored()
 	mode = Mode.VS_AI
-	_begin_battle(a0, a1)
-	var draw: Array = []
-	var proc: Array = []
-	var gpu: Array = []
-	var frame: Array = []
-	var units: Array = []
-	var parts := {"field": [], "units": [], "fx": []}
+	_begin_battle(a0, a1, "replay")   # 量測不寫進度
+	speed = 4.0
+	var rows: Array = []   # [draw, proc, gpu, frame, frenzy]
+	var units_start: int = view.alive_count(0) + view.alive_count(1)
 	var last := Time.get_ticks_usec()
-	for i in 360:
+	var guard := 0
+	while state == St.BATTLE and guard < 40000:
+		guard += 1
 		await RenderingServer.frame_post_draw
 		var now := Time.get_ticks_usec()
-		frame.append((now - last) / 1000.0)
+		rows.append([perf_draw_us / 1000.0, perf_proc_us / 1000.0, RenderingServer.viewport_get_measured_render_time_gpu(vp), (now - last) / 1000.0, view.frenzy])
 		last = now
-		draw.append(perf_draw_us / 1000.0)
-		proc.append(perf_proc_us / 1000.0)
-		gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(vp))
-		for k in parts:
-			parts[k].append(perf_parts.get(k, 0) / 1000.0)
-		units.append(sim.alive_count(0) + sim.alive_count(1) if sim != null else 0)
-		if state != St.BATTLE:
-			break
-	var out := {"frames": draw.size(), "units_start": units[0] if units.size() > 0 else 0, "units_end": units[-1] if units.size() > 0 else 0,
-		"draw_ms": _pstats(draw), "process_ms": _pstats(proc), "gpu_ms": _pstats(gpu), "frame_ms": _pstats(frame),
-		"field_ms": _pstats(parts["field"]), "units_ms": _pstats(parts["units"]), "fx_ms": _pstats(parts["fx"]),
-		"note": "frame_ms 受垂直同步限制（約 16.7）；看 draw＋process＋gpu 才是實際成本"}
+	var pick := func(col: int, which: int) -> Array:
+		var o: Array = []
+		for r2 in rows:
+			if which == 0 or (which == 1 and not r2[4]) or (which == 2 and r2[4]):
+				o.append(r2[col])
+		return o
+	var sect := func(which: int) -> Dictionary:
+		return {"frames": pick.call(0, which).size(), "draw_ms": _pstats(pick.call(0, which)), "process_ms": _pstats(pick.call(1, which)),
+			"gpu_ms": _pstats(pick.call(2, which)), "frame_ms": _pstats(pick.call(3, which))}
+	var commit := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--perf-commit="):
+			commit = a.substr(14)
+	var out := {
+		"hardware": {"cpu": OS.get_processor_name(), "cores": OS.get_processor_count(), "gpu": RenderingServer.get_video_adapter_name(),
+			"os": OS.get_name(), "engine": Engine.get_version_info()["string"], "resolution": str(get_viewport().get_visible_rect().size)},
+		"commit": commit, "boot_ms": ready_ms, "boot_to_measure_ms": boot_ms, "colorblind_rebuild_ms": cb_ms,
+		"units_start": units_start, "display_speed": 4.0, "battle_ticks": sim.tick, "reached_frenzy": sim.tick >= Sim.FRENZY_TICK,
+		"all": sect.call(0), "normal": sect.call(1), "frenzy": sect.call(2),
+		"note": "frame_ms 受垂直同步限制（約 16.7）；實際成本看 draw＋process＋gpu。展示速度 4 倍時每幀處理的模擬 tick 比正常多，屬於偏嚴的量法"}
 	var f := FileAccess.open(perf_path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out, "  "))
 	f.close()
@@ -357,7 +380,7 @@ func _pstats(a: Array) -> Dictionary:
 	b.sort()
 	if b.is_empty():
 		return {}
-	return {"p50": snappedf(b[b.size() / 2], 0.01), "p95": snappedf(b[int(b.size() * 0.95)], 0.01), "max": snappedf(b[-1], 0.01)}
+	return {"p50": snappedf(b[b.size() / 2], 0.01), "p95": snappedf(b[int(b.size() * 0.95)], 0.01), "p99": snappedf(b[mini(b.size() - 1, int(b.size() * 0.99))], 0.01), "max": snappedf(b[-1], 0.01)}
 
 
 ## 動作／表情樣品（R5 截圖驗證用）：每個兵種一列：待機、前搖、揮擊、後搖、受擊、狂熱、專屬（衝鋒／潛行／頂住）、勝利。

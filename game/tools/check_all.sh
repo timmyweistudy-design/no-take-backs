@@ -28,8 +28,12 @@ grep FINGERPRINT "$OUT/test.log" > "$OUT/fingerprint.txt"
 "$GODOT" --headless --path . --script res://tools/mirror_100.gd > "$OUT/mirror.log" 2>&1 || fail "鏡像檢查失敗"
 grep -q "^MIRROR100 100/100" "$OUT/mirror.log" || fail "鏡像沒有 100/100"
 
+GN="${GOLDEN_N:-1000}"   # Windows 上一場約 1.5 秒，CI 的 Windows 用 200 場
+"$GODOT" --headless --path . --script res://tools/golden.gd -- --n=$GN > "$OUT/golden.log" 2>&1 || fail "確定性金標準有分歧（看 golden.log 的第一個分歧場次與 tick）"
+grep -q "^GOLDEN {\"n\":$GN,\"ok\":true}" "$OUT/golden.log" || fail "金標準沒有比完 $GN 場"
+
 "$GODOT" --headless --path . --script res://tools/orbit_detect.gd > "$OUT/orbit.log" 2>&1 || fail "騎兵打轉偵測超過門檻"
 
 python3 tools/check_assets.py > "$OUT/assets.log" 2>&1 || fail "素材登記檢查失敗"
 
-echo "CHECK OK：匯入、載入、啟動、測試、鏡像、打轉、素材全過（記錄在 $OUT）"
+echo "CHECK OK：匯入、載入、啟動、測試、鏡像、金標準、打轉、素材全過（記錄在 $OUT）"

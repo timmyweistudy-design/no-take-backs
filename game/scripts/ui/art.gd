@@ -25,8 +25,8 @@ static func team_color(team: int, cb := false) -> Color:
 # atk（0～1）＝一次攻擊動作的進度：0～ATK_WINDUP 前搖、ATK_WINDUP～ATK_STRIKE 揮擊（命中就在 ATK_WINDUP 那一刻）、之後後搖。
 const ATK_WINDUP := 0.3125
 const ATK_STRIKE := 0.53125
-const LEAN_BACK := 0.2094     # 前搖身體後傾 12°
-const LEAN_FWD := 0.3142      # 揮擊前撲 18°
+const LEAN_BACK := 0.2618     # 前搖身體後傾 15°（第三輪 R1，原 12°）
+const LEAN_FWD := 0.3840      # 揮擊前撲 22°（第三輪 R1，原 18°）
 
 # 臉部疊加（表情）：同一份畫法同時給直接繪製與精靈圖快取用，兩條路看起來一樣
 const M_HURT := 1             # 受擊／暈眩：>< 眼
@@ -44,13 +44,13 @@ static func pose(atk: float) -> Array:
 		return [0.0, 0.0, 1.0, 1.0, 0.0]
 	if atk < ATK_WINDUP:
 		var e := _smooth(atk / ATK_WINDUP)
-		return [-e, -LEAN_BACK * e, 1.0 - 0.10 * e, 1.0 + 0.08 * e, -2.0 * e]
+		return [-e, -LEAN_BACK * e, 1.0 + 0.12 * e, 1.0 - 0.12 * e, -2.0 * e]   # 前搖壓扁蓄力 1.12／0.88
 	if atk < ATK_STRIKE:
 		var u := (atk - ATK_WINDUP) / (ATK_STRIKE - ATK_WINDUP)
 		var e2 := 1.0 - (1.0 - u) * (1.0 - u)
-		return [lerpf(-1.0, 1.0, e2), lerpf(-LEAN_BACK, LEAN_FWD, e2), lerpf(0.90, 1.04, e2), lerpf(1.08, 0.96, e2), lerpf(-2.0, 6.0, e2)]
+		return [lerpf(-1.0, 1.0, e2), lerpf(-LEAN_BACK, LEAN_FWD, e2), lerpf(1.12, 0.88, e2), lerpf(0.88, 1.14, e2), lerpf(-2.0, 7.0, e2)]   # 揮擊拉長 0.88／1.14
 	var e3 := _smooth((atk - ATK_STRIKE) / (1.0 - ATK_STRIKE))
-	return [lerpf(1.0, 0.0, e3), lerpf(LEAN_FWD, 0.0, e3), lerpf(1.04, 1.0, e3), lerpf(0.96, 1.0, e3), lerpf(6.0, 0.0, e3)]
+	return [lerpf(1.0, 0.0, e3), lerpf(LEAN_FWD, 0.0, e3), lerpf(0.88, 1.0, e3), lerpf(1.14, 1.0, e3), lerpf(7.0, 0.0, e3)]
 
 ## 角色的局部座標轉換（以腳底為原點、face＝+1 畫）：呼吸／走路起伏、前撲、傾身、壓扁拉長、翻面。
 ## lean＝額外傾角（騎兵衝鋒前傾）、crouch＝縱向縮放（刺客潛行蹲身）。
@@ -105,14 +105,15 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 		# 槍尖金光（長槍放平時的槍尖位置）
 		var tip := Vector2(-6, -30) + Vector2(cos(-0.55), sin(-0.55)) * 40.0
 		var g := 0.6 + 0.4 * sin(t * 18.0)
-		_star(ci, tip, (4.5 + g * 1.5) * 1.5, Color(1, 0.86, 0.3, a * g))
-		_star(ci, tip, (2.5 + g) * 1.5, Color("#fff8a0", a))   # 亮黃白核心（手感輪 R5）
+		_star(ci, tip, 14.0 * (0.8 + 0.2 * g), Color(1, 0.86, 0.3, a * g))   # 14px 十字閃芒（第三輪 R3）
+		_star(ci, tip, 6.0, Color("#fff8a0", a))
 	if mood & M_BROWS:
 		for i in 2:
 			var e2: Vector2 = eyes[i]
 			var inward := 1.0 if i == 0 else -1.0
 			var bc := Color("#ffe066", a) if type == D.ASSASSIN else Color(OUT, a)
-			ci.draw_line(e2 + Vector2(-2.2, -4.2 - inward * 0.9), e2 + Vector2(2.2, -4.2 + inward * 0.9), bc, 1.5, true)
+			ci.draw_line(e2 + Vector2(-2.2, -4.2 - inward * 0.9), e2 + Vector2(2.2, -4.2 + inward * 0.9), bc, 1.8, true)
+			ci.draw_circle(e2 + Vector2(0.6, -0.4), 1.2, Color(1, 0.25, 0.2, a), true, -1.0, true)   # 紅眼光點（第三輪 R3）
 	if mood & M_BRACE and type == D.SHIELD:
 		# 頂住：盾放大 1.35 倍（以盾中心縮放）
 		var cc := Vector2(12, -24)

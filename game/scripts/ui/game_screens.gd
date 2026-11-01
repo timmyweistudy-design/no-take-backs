@@ -691,7 +691,12 @@ func _process_inner(delta: float) -> void:
 	if not freeze_fx:
 		for f in fx:
 			f["t"] += delta
+			if f.has("pop"):
+				f["pop"] = maxf(0.0, f["pop"] - delta)
 		fx = fx.filter(func(f): return f["t"] < f["dur"])
+		clutch_t = maxf(0.0, clutch_t - delta)
+	if font_bold != null:
+		_layout_texts()
 	for g in dying:
 		g["t"] += delta
 	dying = dying.filter(func(g): return g["t"] < 1.0)
@@ -736,6 +741,7 @@ func _draw_inner() -> void:
 		c = Vector2(clampf(c.x, minf(lo.x, hi.x), maxf(lo.x, hi.x)), clampf(c.y, minf(lo.y, hi.y), maxf(lo.y, hi.y)))
 		cam = Transform2D(0, Vector2(zoom, zoom), 0, Vector2(640, 388) - c * zoom + off)
 	draw_set_transform_matrix(cam)
+	_cam = cam
 	Art.base = cam
 	var _t := Time.get_ticks_usec()
 	_draw_field()
@@ -757,13 +763,7 @@ func _draw_inner() -> void:
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 	Art.base = Transform2D.IDENTITY
 	if state == St.BATTLE and slow_left > 0:
-		var va := clampf((8.0 - slow_left) / 0.3, 0.0, 1.0) * 0.45
-		for i in 14:
-			var c2 := Color(0.45, 0.30, 0.02, va * (1.0 - i / 14.0) * 0.45)   # 金色暗角（R6）
-			draw_rect(Rect2(0, 86 + i * 9, 1280, 9), c2)
-			draw_rect(Rect2(0, 800 - (i + 1) * 9, 1280, 9), c2)
-			draw_rect(Rect2(i * 9, 86, 9, 714), c2)
-			draw_rect(Rect2(1280 - (i + 1) * 9, 86, 9, 714), c2)
+		_draw_vignette(clampf((8.0 - slow_left) / 0.3, 0.0, 1.0))   # 多層暗角（第三輪 V2）
 	if state != St.RESULT:
 		for f in fx:
 			if f.get("screen", false):
@@ -775,6 +775,7 @@ func _draw_inner() -> void:
 		St.RESULT:
 			_draw_battle_hud()
 			_draw_result()
+	_draw_clutch_banner()
 	_draw_overlay()
 	if toast_t > 0:
 		var a := minf(1.0, toast_t * 2)

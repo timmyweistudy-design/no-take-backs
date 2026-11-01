@@ -46,6 +46,8 @@ func _init() -> void:
 	test_save_migration()
 	test_play_effects()
 	test_input_queue()
+	test_golden()
+	test_crowd_readability()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -822,4 +824,89 @@ func test_input_queue() -> void:
 	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._enqueue("click", Vector2(500, 500)); g._process_cmds()
 	if hits != [0, 0]: bad.append("8 點空白 %s" % [hits])
 	ok(bad.is_empty(), "輸入佇列：8 組序列（連點、換畫面、停用、覆蓋層、過期清單、Esc、Enter、空白）誤觸與重複執行都是 0", str(bad))
+	g.free()
+
+
+## 確定性金標準（第三輪 T2）：前 20 場對金標準檔（完整 1000 場在 tools/check_all.sh）；
+## fast 模式與正式模式逐 tick 狀態、事件完全一樣；陣型清單順序打亂結果不變。
+func test_golden() -> void:
+	var GT = load("res://tools/golden.gd")
+	var r: Dictionary = GT.check(20)
+	ok(r["ok"], "金標準：前 20 場逐 100 tick 狀態、勝負、指紋都一致", str(r))
+	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/golden.json"))
+	var bad: Array = []
+	for i in 30:
+		var c: Dictionary = g["cases"][i]
+		var a0 := Army.new(0, 100); a0.load_code(c["a"])
+		var a1 := Army.new(1, 100); a1.load_code(c["b"])
+		var s1 = Sim.new(a0.copy(), a1.copy())
+		var s2 = Sim.new(a0.copy(), a1.copy())
+		s2.fast = true
+		while not s1.finished:
+			s1.step()
+			s2.step()
+			if GT.state_sig(s1) != GT.state_sig(s2) or JSON.stringify(s1.events) != JSON.stringify(s2.events):
+				bad.append("場 %d tick %d" % [i, s1.tick])
+				break
+		if not s2.finished:
+			bad.append("場 %d fast 沒同時結束" % i)
+	ok(bad.is_empty(), "fast 與正式模式逐 tick 狀態與事件一致（30 場）", str(bad.slice(0, 3)))
+	# 陣型清單順序不影響結果
+	var order_bad := 0
+	var rng := RandomNumberGenerator.new()
+	for i in 20:
+		var c2: Dictionary = g["cases"][i]
+		var b0 := Army.new(0, 100); b0.load_code(c2["a"])
+		var b1 := Army.new(1, 100); b1.load_code(c2["b"])
+		var x0 = b0.copy()
+		var x1 = b1.copy()
+		rng.seed = i + 99
+		for k in range(x0.units.size() - 1, 0, -1):
+			var j := rng.randi_range(0, k)
+			var tmp = x0.units[k]; x0.units[k] = x0.units[j]; x0.units[j] = tmp
+		x1.units.reverse()
+		var sa = Sim.new(b0, b1); sa.run_to_end()
+		var sb = Sim.new(x0, x1); sb.run_to_end()
+		if sa.fingerprint != sb.fingerprint:
+			order_bad += 1
+	ok(order_bad == 0, "陣型清單順序打亂，指紋不變（20 場）", "不同 %d 場" % order_bad)
+
+
+## 混戰可讀（第三輪 V1／V3）：用正式畫面程式逐幀播 6 場 48 隻左右的戰鬥（60fps），每幀量跳字外框：
+## 正常顯示的兩兩重疊 0%、淡出中 ≤5%；關鍵跳字（衝鋒、背刺、頂住）一個都不漏；特效數不超過上限。
+func test_crowd_readability() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	if GS == null or not GS.can_instantiate():
+		ok(false, "混戰可讀：畫面腳本載入失敗")
+		return
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.font = load("res://fonts/NotoSansTC-Regular-sub.otf")
+	g.font_bold = load("res://fonts/NotoSansTC-Bold-sub.otf")
+	var pool := F.training_pool(0)
+	var worst := 0.0
+	var worst_f := 0.0
+	var max_fx := 0
+	var max_txt := 0
+	var frames := 0
+	for i in 6:
+		g._begin_battle(pool[i * 3].copy(), pool[(i * 17 + 4) % pool.size()].mirrored(), "replay")
+		g.speed = 1.0
+		var guard := 0
+		while g.state == g.St.BATTLE and not g.view.finished and guard < 9000:
+			guard += 1
+			g._process_inner(1.0 / 60.0)
+			frames += 1
+			var st: Dictionary = g.text_overlap_stats()
+			worst = maxf(worst, st["max_overlap"])
+			worst_f = maxf(worst_f, st["max_overlap_fading"])
+			max_txt = maxi(max_txt, st["visible"] + st["fading"])
+			var nfx := 0
+			for f in g.fx:
+				if f["kind"] != "text":
+					nfx += 1
+			max_fx = maxi(max_fx, nfx)
+	ok(worst == 0.0 and worst_f <= 0.05, "跳字：正常顯示 0%% 重疊、淡出中 ≤5%%（%d 幀；最大 %.3f／%.3f）" % [frames, worst, worst_f])
+	ok(g.text_key_in > 0 and g.text_key_in == g.text_key_shown, "關鍵跳字一個都不漏（%d／%d）" % [g.text_key_shown, g.text_key_in])
+	ok(max_txt <= g.TEXT_CAP + 6 and max_fx <= g.FX_CAP, "跳字與特效有上限（跳字最多 %d、特效最多 %d；丟掉一般跳字 %d、特效 %d）" % [max_txt, max_fx, g.text_dropped, g.fx_dropped])
 	g.free()
