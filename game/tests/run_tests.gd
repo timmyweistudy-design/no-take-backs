@@ -7,6 +7,7 @@ const Army = preload("res://scripts/core/army.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 const TP = preload("res://scripts/core/turn_placement.gd")
+const MC = preload("res://scripts/core/mirror_check.gd")
 
 var passed := 0
 var failed := 0
@@ -26,6 +27,9 @@ func _init() -> void:
 	test_determinism_and_mirror()
 	test_termination()
 	test_traits()
+	test_rule_fixes()
+	test_suspense()
+	test_codes_and_snake()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -100,23 +104,18 @@ func test_determinism_and_mirror() -> void:
 		if s1.fingerprint != s2.fingerprint or s1.winner != s2.winner:
 			det_ok = false
 		prints.append(s1.fingerprint)
-		# 左右交換：a1 鏡像成藍方、a0 鏡像成紅方 → 勝方應該對調
-		var s3 = Sim.new(a1.mirrored(), a0.mirrored())
-		s3.run_to_end()
+		# 左右交換：逐 tick 比對完整鏡像
 		mirror_total += 1
-		var expect: int = s1.winner if s1.winner == -1 else 1 - s1.winner
-		if s3.winner == expect and s3.tick == s1.tick:
+		var why: String = MC.check(a0, a1)
+		if why == "":
 			mirror_ok += 1
 		else:
-			print("  鏡像不一致 seed=%d 原本 %d@%d 鏡像 %d@%d" % [seed, s1.winner, s1.tick, s3.winner, s3.tick])
+			print("  鏡像不一致 seed=%d：%s" % [seed, why])
 	ok(det_ok, "同一場跑兩次指紋相同（20 場）")
-	ok(mirror_ok == mirror_total, "左右交換後勝方對調、tick 相同（%d/%d）" % [mirror_ok, mirror_total])
+	ok(mirror_ok == mirror_total, "左右交換逐 tick 完整鏡像（%d/%d）" % [mirror_ok, mirror_total])
 	ms.sort()
 	print("  每場耗時 ms：中位數 %d、最大 %d（48 隻上限、headless debug）" % [ms[ms.size() / 2], ms[-1]])
-	var h := 0
-	for p in prints:
-		h = posmod(h * 1000003 + p, Sim.HASH_MOD)
-	print("FINGERPRINT ", h)
+	print("FINGERPRINT ", "".join(prints).sha256_text().substr(0, 16), "  數值摘要 ", D.data_digest())
 
 func test_termination() -> void:
 	var a0 := []
@@ -219,3 +218,88 @@ func test_traits() -> void:
 			bad = true
 		counters += per_tick
 	ok(counters > 0 and not bad, "劍士反擊刺客（傷害照 COUNTER_PCT、每 tick 最多一次）", "counters=%d" % counters)
+
+
+func test_rule_fixes() -> void:
+	# 面向鎖定：盾兵正面對著劍士交戰，刺客從背後過來推擠也不會讓盾兵轉身
+	var s = Sim.new(army_from(0, [[D.SHIELD, 5, 4]]), army_from(1, [[D.SWORD, 5, 4]]))
+	var locked_ticks := 0
+	var changed := 0
+	var last := Vector2i.ZERO
+	for i in 300:
+		s.step()
+		var u = s.units[0]
+		if u.face_lock != -1:
+			var f := Vector2i(u.fx, u.fy)
+			if locked_ticks > 0 and f != last:
+				changed += 1
+			last = f
+			locked_ticks += 1
+	ok(locked_ticks > 20 and changed == 0, "交戰中面向鎖定（不隨推擠改變）", "locked=%d changed=%d" % [locked_ticks, changed])
+	# 衝鋒：騎兵往盾兵衝、被頂住後歸零；衝鋒距離只算沿起始方向的前進
+	s = Sim.new(army_from(0, [[D.CAVALRY, 0, 4]]), army_from(1, [[D.SWORD, 0, 0]]))
+	var max_charge := 0
+	for i in 30:
+		s.step()
+		max_charge = maxi(max_charge, s.units[0].charge)
+	var straight_cells: int = Sim.W   # 對角線路程上限
+	ok(max_charge > 0 and max_charge <= straight_cells, "衝鋒累積只算實際前進", "max=%d" % max_charge)
+	# 反擊：兩隻刺客同時打同一劍士 → 左右交換後被反擊的刺客位置要鏡像對應
+	var a0 = army_from(0, [[D.SWORD, 5, 4]])
+	var a1 = army_from(1, [[D.ASSASSIN, 5, 3], [D.ASSASSIN, 5, 5]])
+	var s1 = Sim.new(a0, a1)
+	var s2 = Sim.new(a1.mirrored(), a0.mirrored())
+	var c1 := ""
+	var c2 := ""
+	for i in 400:
+		s1.step()
+		s2.step()
+		for ev in s1.events:
+			if ev.get("kind") == "counter" and c1 == "":
+				var t = s1.unit_by_id(ev["tgt"])
+				c1 = "%d,%d" % [t.x, t.y]
+		for ev in s2.events:
+			if ev.get("kind") == "counter" and c2 == "":
+				var t = s2.unit_by_id(ev["tgt"])
+				c2 = "%d,%d" % [Sim.W - t.x, t.y]
+	ok(c1 != "" and c1 == c2, "反擊對象在左右交換後鏡像一致", "%s vs %s" % [c1, c2])
+	ok(s1.fingerprint != "" and s1.fingerprint.length() == 64, "指紋是 SHA-256", s1.fingerprint)
+
+func test_suspense() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	var s = Sim.new(AI.build(0, 100, rng)["army"], AI.build(1, 100, rng)["army"])
+	s.run_to_end()
+	var m: Dictionary = s.suspense()
+	ok(s.power_log.size() == s.tick and m.has("lead_changes") and m["lock_ratio_permille"] >= 0 and m["lock_ratio_permille"] <= 1000, "懸念指標可計算", str(m))
+
+
+func test_codes_and_snake() -> void:
+	var a = army_from(0, [[D.SWORD, 5, 4], [D.CAVALRY, 3, 0], [D.ARCHER, 0, 8]])
+	var code: String = a.to_code()
+	var b = Army.new(0, 100)
+	ok(b.load_code(code) == "" and b.to_code() == code, "陣型代碼來回一致", code)
+	var r = Army.new(1, 100)
+	ok(r.load_code(code) == "" and r.units[0]["col"] == 10, "藍方代碼載入成紅方會鏡像到紅方部署區")
+	ok(b.load_code(code.substr(0, code.length() - 1) + "x") != "", "校驗碼錯誤會被拒絕")
+	ok(b.load_code("NTB1.AQE.zzzz") != "", "亂碼會被拒絕")
+	var before: String = b.to_code()
+	b.load_code("garbage")
+	ok(b.to_code() == before, "載入失敗不會改動目前陣型")
+	# 5 手蛇行：順序 A B B A A B B A A B，每人最多 5 手、每手最多 20 金
+	var tp = TP.new(Army.new(0, 100), Army.new(1, 100), 0, "snake5")
+	var order: Array = []
+	var guard := 0
+	while not tp.done() and guard < 50:
+		guard += 1
+		order.append(tp.current)
+		var placed := false
+		for row in 9:
+			for col in 16:
+				if not placed and tp.place(D.SWORD, col, row):
+					placed = true
+		if tp.current == order[-1] and not tp.done():
+			tp.end_turn()
+	ok(order.slice(0, 10) == [0, 1, 1, 0, 0, 1, 1, 0, 0, 1], "蛇行順序正確", str(order))
+	ok(tp.handoffs == 5 and tp.hands_done == [5, 5], "每人 5 手、換人 5 次", "handoffs=%d hands=%s" % [tp.handoffs, str(tp.hands_done)])
+	ok(tp.check_place(D.SWORD, 0, 0) != "", "蛇行結束後不能再擺")

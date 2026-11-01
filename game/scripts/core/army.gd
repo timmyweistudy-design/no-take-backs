@@ -99,9 +99,41 @@ func mirrored():
 		a.units.append({"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]})
 	return a
 
-## 陣型代碼（分享用）：每隻兵 3 個字元＝兵種＋欄（hex）＋列。
+## 陣型代碼（優化方案 E3）：NTB1.<base64url>.<校驗 4 碼>。
+## 位元組：[版本 1, 隻數, 每隻 (兵種<<4 | 以藍方表示的欄 0～5), 列]。欄位一律存成「自己這一側」，所以紅藍都能讀。
+const CODE_VERSION := 1
+
 func to_code() -> String:
-	var s := ""
+	var b := PackedByteArray([CODE_VERSION, units.size()])
 	for u in units:
-		s += "%d%x%d" % [u["type"], u["col"], u["row"]]
-	return s
+		var c: int = u["col"] if team == 0 else COLS - 1 - u["col"]
+		b.append((int(u["type"]) << 4) | c)
+		b.append(u["row"])
+	var body := Marshalls.raw_to_base64(b).replace("+", "-").replace("/", "_").replace("=", "")
+	return "NTB1.%s.%s" % [body, body.sha256_text().substr(0, 4)]
+
+## 解碼並驗證；成功回傳 ""，失敗回傳原因（不改動目前陣型）。
+func load_code(code: String) -> String:
+	var parts := code.strip_edges().split(".")
+	if parts.size() != 3 or parts[0] != "NTB1":
+		return "格式不對"
+	if parts[1].sha256_text().substr(0, 4) != parts[2]:
+		return "校驗碼不符"
+	var b64 := parts[1].replace("-", "+").replace("_", "/")
+	while b64.length() % 4 != 0:
+		b64 += "="
+	var b := Marshalls.base64_to_raw(b64)
+	if b.size() < 2 or b[0] != CODE_VERSION or b.size() != 2 + b[1] * 2:
+		return "版本或長度不對"
+	var tmp = get_script().new(team, budget)
+	for i in b[1]:
+		var t: int = b[2 + i * 2] >> 4
+		var c: int = b[2 + i * 2] & 15
+		var r: int = b[3 + i * 2]
+		if t >= D.COUNT or c > 5:
+			return "內容不合法"
+		var col: int = c if team == 0 else COLS - 1 - c
+		if not tmp.place(t, col, r):
+			return "超過預算、人數或格子重複"
+	units = tmp.units
+	return ""

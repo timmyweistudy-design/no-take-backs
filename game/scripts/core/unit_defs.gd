@@ -11,6 +11,10 @@ extends RefCounted
 
 enum { SWORD, SHIELD, ARCHER, CAVALRY, ASSASSIN }
 
+## 規則版本：改了戰鬥規則（不是只改數值）就要升版；重播與陣型代碼會帶這個版本。
+const RULES_VERSION := "1.1.0"
+const RULES_VERSION_INT := 10100
+
 const COUNT := 5
 const NAMES := ["劍士", "盾兵", "弓箭手", "騎兵", "刺客"]
 const BLURB := [
@@ -78,6 +82,20 @@ const FRENZY_TICK := 1200       # 60 秒起狂熱
 const FRENZY_CD_RATE := 5       # 狂熱時冷卻每 tick 扣 5（平常 4）＝攻速 ×5/4
 const ATTRITION_STEP_PCT := 2   # 狂熱耗損：第 k 次（k＝0～5，每 5 秒一次）扣 (k+1)×2% 滿血
 const MIN_SEP := 450            # 兵與兵最小間距 0.45 格
+
+static var _digest := ""
+
+## 數值摘要：本檔所有常數的 SHA-256 前 16 碼。遊戲、AI、平衡工具、重播都記錄它，證明跑的是同一份數值。
+static func data_digest() -> String:
+	if _digest == "":
+		var m: Dictionary = load("res://scripts/core/unit_defs.gd").get_script_constant_map()
+		var keys := m.keys()
+		keys.sort()
+		var txt := ""
+		for k in keys:
+			txt += "%s=%s;" % [k, var_to_str(m[k])]
+		_digest = txt.sha256_text().substr(0, 16)
+	return _digest
 
 static func cost(t: int) -> int:
 	return STATS[t]["cost"]

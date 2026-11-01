@@ -1,7 +1,9 @@
 extends RefCounted
-## 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3。
+## 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3；優化方案 B1、L1。
 ## 每 tick 固定五步：①讀快照 ②選目標＋提出移動 ③統一解碰撞 ④產生攻擊 ⑤同時結算。
 ## 任何一步都只讀「這一步開始前」的狀態，所以不會因為誰先算就佔便宜。
+## 禁止新增浮點運算（imath.isqrt 內的浮點估計之後一定用整數修正）。
+## 指紋＝每 tick 完整狀態（固定欄位、int64 小端序）串接後的 SHA-256。
 
 const D = preload("res://scripts/core/unit_defs.gd")
 const M = preload("res://scripts/core/imath.gd")
@@ -16,7 +18,6 @@ const W := COLS * CELL
 const H := ROWS * CELL
 const MIN_SEP := D.MIN_SEP
 const EDGE := 200
-const HASH_MOD := 1099511627689  # < 2^40，乘上 1000003 不會溢位
 
 class Unit:
 	var id: int
@@ -27,14 +28,19 @@ class Unit:
 	var hp: int
 	var max_hp: int
 	var cost: int
-	var cd := 0                # 子刻度（×4）；平常每 tick 扣 4，狂熱扣 5
+	var reach: int
+	var speed: int
+	var atk: int
+	var cd_base: int
+	var cd := 0                # 子刻度（×4）；平常每 tick 扣 4，狂熱扣 FRENZY_CD_RATE
 	var target := -1           # 目標的索引
 	var fx := 0                # 面向（長度約 1000）
 	var fy := 0
+	var face_lock := -1        # 面向鎖定中的目標索引（交戰中只在換目標時重算面向）
 	var mx := 0                # 這一 tick 提出的移動
 	var my := 0
-	var lmx := 0               # 上一次實際移動（判斷騎兵是否直行）
-	var lmy := 0
+	var cdx := 0               # 騎兵這段衝鋒的起始方向
+	var cdy := 0
 	var stealth := 0
 	var charge := 0
 	var stun := 0
@@ -44,20 +50,25 @@ class Unit:
 	var wp_for := -1
 	var alive := true
 	var dmg_dealt := 0
+	var dmg_taken := 0
 	var kills := 0
 
-var units: Array = []          # 依 id 排序
+var units: Array[Unit] = []    # 依 id 排序
 var tick := 0
 var budget := 100
 var finished := false
 var winner := -2               # -2 進行中；-1 平手；0／1 勝方
 var reason := ""
-var fingerprint := 0
+var fingerprint := ""          # 結束時的 SHA-256（十六進位）
 var events: Array = []         # 這一 tick 的事件（給畫面演出用，不影響計算）
 var frenzy := false
+var power_log: PackedInt64Array = PackedInt64Array()   # 每 tick 的（藍戰力−紅戰力），懸念指標用
+var _hash := HashingContext.new()
+var fast := false              # 平衡工具用：不算每 tick 指紋（結果完全一樣，只是沒有指紋）
 
 func _init(army0, army1) -> void:
 	budget = army0.budget
+	_hash.start(HashingContext.HASH_SHA256)
 	var raw: Array = []
 	for a in [army0, army1]:
 		for u in a.units:
@@ -65,7 +76,7 @@ func _init(army0, army1) -> void:
 	raw.sort_custom(func(p, q): return p[0] < q[0])
 	for r in raw:
 		var u = r[2]
-		var s = D.STATS[u["type"]]
+		var s: Dictionary = D.STATS[u["type"]]
 		var n := Unit.new()
 		n.id = r[0]
 		n.team = r[1]
@@ -75,14 +86,19 @@ func _init(army0, army1) -> void:
 		n.hp = s["hp"]
 		n.max_hp = s["hp"]
 		n.cost = s["cost"]
+		n.reach = s["reach"]
+		n.speed = s["speed"]
+		n.atk = s["atk"]
+		n.cd_base = s["cd"]
 		n.fx = 1000 if n.team == 0 else -1000
 		if n.type == D.ASSASSIN:
 			n.stealth = D.STEALTH_TICKS
 		units.append(n)
+	var hdr := PackedInt64Array([D.RULES_VERSION_INT, budget, units.size()])
+	_hash.update(hdr.to_byte_array())
+	_hash.update(D.data_digest().to_utf8_buffer())
 	if alive_count(0) == 0 or alive_count(1) == 0:
-		finished = true
-		winner = -1
-		reason = "有一方沒有兵"
+		_finish(-1, "有一方沒有兵")
 
 func alive_count(team: int) -> int:
 	var c := 0
@@ -112,52 +128,68 @@ func step() -> void:
 	events = []
 	var n := units.size()
 
-	# ② 選目標＋提出移動（只讀舊位置）
-	var nx := PackedInt64Array()
-	var ny := PackedInt64Array()
-	nx.resize(n)
-	ny.resize(n)
+	# ① 快照（之後的選目標、碰撞都只讀這些陣列）
+	var sx := PackedInt64Array()
+	var sy := PackedInt64Array()
+	var st := PackedInt64Array()     # 隊伍
+	var sk := PackedInt64Array()     # 兵種
+	var sh := PackedInt64Array()     # 血
+	var sv := PackedByteArray()      # 可被選為目標（活著且沒潛行）
+	sx.resize(n); sy.resize(n); st.resize(n); sk.resize(n); sh.resize(n); sv.resize(n)
+	for i in n:
+		var u := units[i]
+		sx[i] = u.x
+		sy[i] = u.y
+		st[i] = u.team
+		sk[i] = u.type
+		sh[i] = u.hp
+		sv[i] = 1 if (u.alive and u.stealth == 0) else 0
+
+	# ② 選目標＋提出移動
+	var nx := sx.duplicate()
+	var ny := sy.duplicate()
 	var new_target := PackedInt64Array()
-	new_target.resize(n)
 	var new_fx := PackedInt64Array()
 	var new_fy := PackedInt64Array()
-	new_fx.resize(n)
-	new_fy.resize(n)
+	var new_lock := PackedInt64Array()
+	new_target.resize(n); new_fx.resize(n); new_fy.resize(n); new_lock.resize(n)
 	for i in n:
-		var u: Unit = units[i]
-		nx[i] = u.x
-		ny[i] = u.y
+		var u := units[i]
 		new_target[i] = u.target
 		new_fx[i] = u.fx
 		new_fy[i] = u.fy
-		if not u.alive:
-			continue
-		var t := _choose_target(i)
-		new_target[i] = t
+		new_lock[i] = -1
 		u.mx = 0
 		u.my = 0
+		if not u.alive:
+			continue
+		var t := _choose_target(i, sx, sy, st, sk, sh, sv)
+		new_target[i] = t
 		if t == -1 or u.stun > 0:
 			continue
-		var tg: Unit = units[t]
-		var reach: int = D.STATS[u.type]["reach"]
+		var tg := units[t]
+		var reach := u.reach
 		var d2 := M.dist2(u.x, u.y, tg.x, tg.y)
-		var dest := Vector2i(tg.x, tg.y)
+		var dest_x := tg.x
+		var dest_y := tg.y
 		var stop_at := reach - 50
 		if u.type == D.ASSASSIN and u.stealth > 0:
 			# 潛行中繞到目標背後
-			dest = Vector2i(tg.x - tg.fx * D.BEHIND_DIST / 1000, tg.y - tg.fy * D.BEHIND_DIST / 1000)
+			dest_x = tg.x - tg.fx * D.BEHIND_DIST / 1000
+			dest_y = tg.y - tg.fy * D.BEHIND_DIST / 1000
 			stop_at = 0
 		elif u.type == D.CAVALRY:
 			var wp := _flank_waypoint(i, t)
 			if wp.x >= 0:
-				dest = wp
+				dest_x = wp.x
+				dest_y = wp.y
 				stop_at = 0
 		var need_move := d2 > reach * reach or (u.type == D.ASSASSIN and u.stealth > 0)
 		if need_move:
-			var dx := dest.x - u.x
-			var dy := dest.y - u.y
+			var dx := dest_x - u.x
+			var dy := dest_y - u.y
 			var l := M.isqrt(dx * dx + dy * dy)
-			var spd: int = D.STATS[u.type]["speed"]
+			var spd := u.speed
 			if u.slow > 0:
 				spd = spd * D.SLOW_NUM / D.SLOW_DEN
 			var stp := mini(spd, l - stop_at)
@@ -166,15 +198,20 @@ func step() -> void:
 				u.my = dy * stp / l
 				nx[i] = u.x + u.mx
 				ny[i] = u.y + u.my
-		# 面向：交戰中鎖定朝目標；否則朝移動方向（企劃 §3.3）
-		var face: Vector2i
-		if d2 <= (reach + CELL) * (reach + CELL):
-			face = M.unit1000(tg.x - u.x, tg.y - u.y)
+		# 面向（優化方案 B1）：交戰中鎖定，只有換目標才重算；不交戰時朝移動方向
+		var engage := reach + CELL
+		if d2 <= engage * engage:
+			new_lock[i] = t
+			if u.face_lock != t:
+				var f := M.unit1000(tg.x - u.x, tg.y - u.y)
+				if f != Vector2i.ZERO:
+					new_fx[i] = f.x
+					new_fy[i] = f.y
 		else:
-			face = M.unit1000(u.mx, u.my)
-		if face != Vector2i.ZERO:
-			new_fx[i] = face.x
-			new_fy[i] = face.y
+			var f2 := M.unit1000(u.mx, u.my)
+			if f2 != Vector2i.ZERO:
+				new_fx[i] = f2.x
+				new_fy[i] = f2.y
 
 	# ③ 統一解碰撞（固定兩輪，所有推力加總後一次套用）
 	for _pass in 2:
@@ -183,16 +220,16 @@ func step() -> void:
 		px.resize(n)
 		py.resize(n)
 		for i in n:
-			var a: Unit = units[i]
-			if not a.alive or a.stealth > 0:
+			if sv[i] == 0:
 				continue
+			var xi := nx[i]
+			var yi := ny[i]
 			for j in range(i + 1, n):
-				var b: Unit = units[j]
-				if not b.alive or b.stealth > 0:
+				if sv[j] == 0:
 					continue
-				var dx := nx[j] - nx[i]
-				var dy := ny[j] - ny[i]
-				if absi(dx) >= MIN_SEP or absi(dy) >= MIN_SEP:
+				var dx := nx[j] - xi
+				var dy := ny[j] - yi
+				if dx >= MIN_SEP or dx <= -MIN_SEP or dy >= MIN_SEP or dy <= -MIN_SEP:
 					continue
 				var d2 := dx * dx + dy * dy
 				if d2 >= MIN_SEP * MIN_SEP:
@@ -201,9 +238,9 @@ func step() -> void:
 				var ux := 0
 				var uy := 0
 				if d == 0:
-					# 零距離：不同隊左右分開（藍往左、紅往右）；同隊依編號上下分開
-					if a.team != b.team:
-						ux = 1000 if a.team == 0 else -1000
+					# 零距離：不同隊左右分開（藍往左、紅往右）；同隊上下分開
+					if st[i] != st[j]:
+						ux = 1000 if st[i] == 0 else -1000
 					else:
 						uy = 1000
 				else:
@@ -220,25 +257,19 @@ func step() -> void:
 
 	# 套用移動、目標、面向
 	for i in n:
-		var u: Unit = units[i]
+		var u := units[i]
 		if not u.alive:
 			continue
 		var moved_x: int = nx[i] - u.x
 		var moved_y: int = ny[i] - u.y
 		if u.type == D.CAVALRY:
-			var ml := M.isqrt(moved_x * moved_x + moved_y * moved_y)
-			if ml > 0:
-				if _same_dir(u.lmx, u.lmy, moved_x, moved_y):
-					u.charge += ml
-				else:
-					u.charge = ml
-				u.lmx = moved_x
-				u.lmy = moved_y
+			_update_charge(u, moved_x, moved_y)
 		u.x = nx[i]
 		u.y = ny[i]
 		u.target = new_target[i]
 		u.fx = new_fx[i]
 		u.fy = new_fy[i]
+		u.face_lock = new_lock[i]   # 只在第②步已經轉向目標之後才鎖定
 
 	# ④ 產生攻擊（讀這一 tick 已確定的位置與面向）
 	var hits: Array = []   # [來源, 目標, 傷害, 種類]
@@ -246,23 +277,24 @@ func step() -> void:
 	var slow_set := {}
 	var reveal := {}
 	var knock: Array = []
-	var countered := {}
+	var attacked := PackedByteArray()
+	attacked.resize(n)
+	var sword_hit_by := {}   # 劍士索引 → 這一 tick 打中它的刺客索引們
 	var dec := D.FRENZY_CD_RATE if frenzy else 4
 	for i in n:
-		var u: Unit = units[i]
+		var u := units[i]
 		if not u.alive:
 			continue
 		if u.cd > 0:
 			u.cd = maxi(0, u.cd - dec)
 		if u.stun > 0 or u.target == -1 or u.cd > 0:
 			continue
-		var tg: Unit = units[u.target]
-		var reach: int = D.STATS[u.type]["reach"]
-		if M.dist2(u.x, u.y, tg.x, tg.y) > reach * reach:
+		var tg := units[u.target]
+		if M.dist2(u.x, u.y, tg.x, tg.y) > u.reach * u.reach:
 			continue
 		if u.type == D.ASSASSIN and u.stealth > 0 and not _is_behind(u, tg):
 			continue
-		var dmg: int = D.STATS[u.type]["atk"]
+		var dmg := u.atk
 		var kind := "hit"
 		if u.type == D.SHIELD and tg.type == D.CAVALRY:
 			dmg = dmg * D.ANTICAV_NUM / D.ANTICAV_DEN
@@ -289,7 +321,6 @@ func step() -> void:
 					dmg = dmg * D.CHARGE_NUM / D.CHARGE_DEN
 					kind = "charge"
 					knock.append([u.target, tg.x - u.x, tg.y - u.y])
-				u.charge = 0
 		elif u.type == D.ASSASSIN:
 			if _is_behind(u, tg):
 				dmg = dmg * D.BACKSTAB_NUM / D.BACKSTAB_DEN
@@ -297,12 +328,34 @@ func step() -> void:
 			if tg.type == D.CAVALRY:
 				slow_set[u.target] = true
 			reveal[i] = true
+			if tg.type == D.SWORD:
+				if not sword_hit_by.has(u.target):
+					sword_hit_by[u.target] = []
+				sword_hit_by[u.target].append(i)
 		hits.append([i, u.target, dmg, kind])
-		u.cd += D.STATS[u.type]["cd"] * 4
-		# 劍士反擊：被刺客打到立刻回砍，每 tick 最多一次，反擊不會再觸發反擊
-		if u.type == D.ASSASSIN and tg.type == D.SWORD and not countered.has(u.target):
-			countered[u.target] = true
-			hits.append([u.target, i, D.STATS[D.SWORD]["atk"] * D.COUNTER_PCT / 100, "counter"])
+		attacked[i] = 1
+		u.cd += u.cd_base * 4
+		if u.type == D.CAVALRY:
+			u.charge = 0   # 任何一擊之後都要重新直行才能再衝
+	# 劍士反擊（優化方案 B1）：這一 tick 打中它的刺客裡，挑「最近→列小→離自己底線近」的那一隻，每 tick 最多一次
+	var swords := sword_hit_by.keys()
+	swords.sort()
+	for si in swords:
+		var sw := units[si]
+		var best := -1
+		var bd := 0
+		var by := 0
+		var bdep := 0
+		for ai in sword_hit_by[si]:
+			var a := units[ai]
+			var d2 := M.dist2(sw.x, sw.y, a.x, a.y)
+			var dep: int = a.x if a.team == 0 else W - a.x
+			if best == -1 or d2 < bd or (d2 == bd and (a.y < by or (a.y == by and dep < bdep))):
+				best = ai
+				bd = d2
+				by = a.y
+				bdep = dep
+		hits.append([si, best, sw.atk * D.COUNTER_PCT / 100, "counter"])
 
 	# ⑤ 同時結算
 	var dmg_in := PackedInt64Array()
@@ -313,10 +366,11 @@ func step() -> void:
 	for h in hits:
 		dmg_in[h[1]] += h[2]
 		units[h[0]].dmg_dealt += h[2]
+		units[h[1]].dmg_taken += h[2]
 		if last_hit[h[1]] == -1:
 			last_hit[h[1]] = h[0]
 		events.append({"src": units[h[0]].id, "tgt": units[h[1]].id, "dmg": h[2], "kind": h[3]})
-	# 狂熱耗損：第 1200+100k tick 扣 (k+1)×2% 滿血（至少 1）
+	# 狂熱耗損：第 1200+100k tick（k＝0～5）扣 (k+1)×STEP% 滿血（至少 1）
 	if tick >= FRENZY_TICK and (tick - FRENZY_TICK) % 100 == 0 and (tick - FRENZY_TICK) / 100 <= 5:
 		var k := (tick - FRENZY_TICK) / 100
 		for i in n:
@@ -329,7 +383,7 @@ func step() -> void:
 		t.x = clampi(t.x + v.x * D.KNOCKBACK / 1000, EDGE, W - EDGE)
 		t.y = clampi(t.y + v.y * D.KNOCKBACK / 1000, EDGE, H - EDGE)
 	for i in n:
-		var u: Unit = units[i]
+		var u := units[i]
 		if not u.alive:
 			continue
 		u.hp -= dmg_in[i]
@@ -346,8 +400,11 @@ func step() -> void:
 			u.charge = 0
 		if slow_set.has(i):
 			u.slow = D.SLOW_TICKS
+		# 騎兵這一 tick 沒動也沒出手（被擋、等待）→ 衝鋒歸零
+		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
+			u.charge = 0
 	for i in n:
-		var u: Unit = units[i]
+		var u := units[i]
 		if u.alive and u.hp <= 0:
 			u.alive = false
 			u.hp = 0
@@ -355,43 +412,73 @@ func step() -> void:
 				units[last_hit[i]].kills += 1
 			events.append({"kind": "death", "id": u.id})
 
-	_update_fingerprint()
+	power_log.append(power(0) - power(1))
+	if not fast:
+		_hash_state()
 	_check_end()
 
 # ───────────────────────── 規則細節 ─────────────────────────
 
-## 選目標（企劃 §3.3）：排除潛行 → 弓手警覺 → 盾兵嘲諷（近戰）→ 兵種偏好 → 距離 → 剩血 → 編號。
-func _choose_target(i: int) -> int:
-	var u: Unit = units[i]
-	var reach: int = D.STATS[u.type]["reach"]
+## 選目標（企劃 §3.3）：排除潛行 → 弓手警覺 → 盾兵嘲諷（近戰）→ 兵種偏好 → 距離 → 剩血 → 列 → 深度 → 編號。
+## 只讀快照陣列，比較全部用整數（不配置陣列）。
+func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: PackedInt64Array,
+		sk: PackedInt64Array, sh: PackedInt64Array, sv: PackedByteArray) -> int:
+	var my_team: int = st[i]
+	var my_type: int = sk[i]
+	var ux: int = sx[i]
+	var uy: int = sy[i]
+	var reach: int = units[i].reach
+	var reach2 := reach * reach
+	var taunt2 := D.TAUNT_RANGE * D.TAUNT_RANGE
+	var melee := my_type != D.ARCHER
 	var best := -1
-	var bk := [99, 0, 0, 0, 0, 0]
-	for j in units.size():
-		var e: Unit = units[j]
-		if e.team == u.team or not e.alive or e.stealth > 0:
+	var b_rank := 99
+	var b_d2 := 0
+	var b_hp := 0
+	var b_y := 0
+	var b_dep := 0
+	var n := sx.size()
+	for j in n:
+		if sv[j] == 0 or st[j] == my_team:
 			continue
-		var d2 := M.dist2(u.x, u.y, e.x, e.y)
+		var dx: int = sx[j] - ux
+		var dy: int = sy[j] - uy
+		var d2 := dx * dx + dy * dy
+		var et: int = sk[j]
 		var rank := 3
-		if u.type == D.ARCHER and e.type == D.ASSASSIN and d2 <= reach * reach:
+		if my_type == D.ARCHER and et == D.ASSASSIN and d2 <= reach2:
 			rank = 0
-		elif D.is_melee(u.type) and e.type == D.SHIELD and d2 <= D.TAUNT_RANGE * D.TAUNT_RANGE:
+		elif melee and et == D.SHIELD and d2 <= taunt2:
 			rank = 1
-		elif u.type == D.CAVALRY and e.type == D.ARCHER:
+		elif my_type == D.CAVALRY and et == D.ARCHER:
 			rank = 2
-		elif u.type == D.ASSASSIN and (e.type == D.SHIELD or e.type == D.CAVALRY):
+		elif my_type == D.ASSASSIN and (et == D.SHIELD or et == D.CAVALRY):
 			rank = 2
-		var depth: int = e.x if e.team == 0 else W - e.x
-		var key := [rank, d2, e.hp, e.y, depth, e.id]
-		if best == -1 or _key_less(key, bk):
-			best = j
-			bk = key
+		if best != -1:
+			if rank > b_rank:
+				continue
+			if rank == b_rank:
+				if d2 > b_d2:
+					continue
+				if d2 == b_d2:
+					var hp: int = sh[j]
+					if hp > b_hp:
+						continue
+					if hp == b_hp:
+						var ey: int = sy[j]
+						if ey > b_y:
+							continue
+						if ey == b_y:
+							var dep: int = sx[j] if st[j] == 0 else W - sx[j]
+							if dep >= b_dep:
+								continue
+		best = j
+		b_rank = rank
+		b_d2 = d2
+		b_hp = sh[j]
+		b_y = sy[j]
+		b_dep = sx[j] if st[j] == 0 else W - sx[j]
 	return best
-
-func _key_less(a: Array, b: Array) -> bool:
-	for k in a.size():
-		if a[k] != b[k]:
-			return a[k] < b[k]
-	return false
 
 ## 攻擊者是否在目標背後（以目標面向的內積判斷；剛好側面算正面）。
 func _is_behind(att: Unit, tg: Unit) -> bool:
@@ -408,10 +495,29 @@ func _same_dir(ax: int, ay: int, bx: int, by: int) -> bool:
 	var lb := bx * bx + by * by
 	return dot * dot * 100 >= la * lb * 82
 
-## 騎兵繞翼：目標是弓手、直線上 1.5 格內有盾兵時，往敵兵較少的那側偏 2 格走途經點。
+## 騎兵衝鋒累積（優化方案 B1）：只算「沿著這段衝鋒起始方向」的實際前進距離；
+## 被推開的位移不算；方向跟起始方向差太多（逐步轉彎也算）就重新開始；被擋住前進不到一半就歸零。
+func _update_charge(u: Unit, moved_x: int, moved_y: int) -> void:
+	if u.mx == 0 and u.my == 0:
+		return   # 沒有提出移動（停下攻擊或等待），在第⑤步處理
+	var ml := M.isqrt(u.mx * u.mx + u.my * u.my)
+	var along := (moved_x * u.mx + moved_y * u.my) / maxi(1, ml)
+	if along * 2 < ml:
+		u.charge = 0
+		u.cdx = 0
+		u.cdy = 0
+		return
+	if u.charge == 0 or not _same_dir(u.cdx, u.cdy, u.mx, u.my):
+		u.charge = along
+		u.cdx = u.mx
+		u.cdy = u.my
+	else:
+		u.charge += along
+
+## 騎兵繞翼：目標是弓手、直線上 FLANK_DETECT 內有盾兵時，往敵兵較少的那側偏 FLANK_OFFSET 走途經點。
 func _flank_waypoint(i: int, t: int) -> Vector2i:
-	var u: Unit = units[i]
-	var tg: Unit = units[t]
+	var u := units[i]
+	var tg := units[t]
 	if tg.type != D.ARCHER:
 		u.wp_for = -1
 		return Vector2i(-1, -1)
@@ -456,13 +562,20 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 	u.wp_y = clampi(wy, EDGE, H - EDGE)
 	return Vector2i(u.wp_x, u.wp_y)
 
-func _update_fingerprint() -> void:
-	var h := fingerprint
+## 完整狀態指紋：每 tick 依 id 順序寫入固定 26 個 int64 欄位。
+func _hash_state() -> void:
+	var a := PackedInt64Array()
+	a.resize(units.size() * 26 + 1)
+	a[0] = tick
+	var k := 1
 	for u in units:
-		var v: int = u.x * 7 + u.y * 13 + u.hp * 17 + u.fx * 3 + u.fy * 5 + u.target * 11 + u.cd + u.stealth * 19 + u.charge \
-				+ u.stun * 23 + u.slow * 29 + u.wp_x * 31 + u.wp_y * 37 + u.lmx * 41 + u.lmy * 43 + (1 if u.alive else 0)
-		h = posmod(h * 1000003 + v, HASH_MOD)
-	fingerprint = h
+		a[k] = u.x; a[k + 1] = u.y; a[k + 2] = u.hp; a[k + 3] = u.cd; a[k + 4] = u.target
+		a[k + 5] = u.fx; a[k + 6] = u.fy; a[k + 7] = u.face_lock; a[k + 8] = u.mx; a[k + 9] = u.my
+		a[k + 10] = u.cdx; a[k + 11] = u.cdy; a[k + 12] = u.stealth; a[k + 13] = u.charge; a[k + 14] = u.stun
+		a[k + 15] = u.slow; a[k + 16] = u.wp_x; a[k + 17] = u.wp_y; a[k + 18] = u.wp_for; a[k + 19] = 1 if u.alive else 0
+		a[k + 20] = u.dmg_dealt; a[k + 21] = u.dmg_taken; a[k + 22] = u.kills; a[k + 23] = u.id; a[k + 24] = u.team; a[k + 25] = u.type
+		k += 26
+	_hash.update(a.to_byte_array())
 
 func _check_end() -> void:
 	var a0 := alive_count(0)
@@ -487,9 +600,46 @@ func _finish(w: int, r: String) -> void:
 	finished = true
 	winner = w
 	reason = r
+	_hash.update(PackedInt64Array([tick, w]).to_byte_array())
+	fingerprint = _hash.finish().hex_encode()
 
 func unit_by_id(id: int) -> Unit:
 	for u in units:
 		if u.id == id:
 			return u
 	return null
+
+## 懸念指標（優化方案 B2）：用每 tick 的戰力差 Δ(t) 算。只在結束後呼叫。
+## lead_changes：開戰 5 秒後 Δ 跨過 ±5%（以總預算計）的次數；
+## lock_ratio：勝方從這一 tick 起領先再也不低於 20% 的時間點 ÷ 全場；
+## max_swing：贏家曾經落後的最大幅度（%）。
+func suspense() -> Dictionary:
+	var total := budget * 1000
+	var thr := total * 5 / 100
+	var lock_thr := total * 20 / 100
+	var changes := 0
+	var side := 0
+	for t in range(100, power_log.size()):
+		var d: int = power_log[t]
+		var s := 0
+		if d > thr:
+			s = 1
+		elif d < -thr:
+			s = -1
+		if s != 0:
+			if side != 0 and s != side:
+				changes += 1
+			side = s
+	var lock_t := power_log.size()
+	var swing := 0
+	if winner >= 0:
+		var sign := 1 if winner == 0 else -1
+		lock_t = 0
+		for t in power_log.size():
+			var lead: int = power_log[t] * sign
+			if lead < lock_thr:
+				lock_t = t + 1
+			if -lead > swing:
+				swing = -lead
+	var ratio := lock_t * 1000 / maxi(1, power_log.size())
+	return {"lead_changes": changes, "lock_ratio_permille": ratio, "max_swing_pct": swing * 100 / total}
