@@ -19,7 +19,7 @@ static var data := {}
 
 static func load_all() -> void:
 	settings = _read(_sp(), DEFAULT_SETTINGS)
-	data = migrate(_read(_dp(), DEFAULT_SAVE))
+	data = migrate(_read(_dp(), {}))   # 先讀原始內容再遷移（遷移裡才補預設值），不然舊檔會被當成新版（Codex 收尾輪 #1）
 
 static func _sp() -> String:
 	return "user://%ssettings.json" % prefix
@@ -50,9 +50,9 @@ static func migrate(d: Dictionary) -> Dictionary:
 	if v < 2:
 		# 1 → 2：欄位名 version 改成 schema_version；加 unit_wins
 		out.erase("version")
-		if not out.get("unit_wins") is Dictionary:
-			out["unit_wins"] = {}
 		v = 2
+	if not out.get("unit_wins", {}) is Dictionary:
+		out["unit_wins"] = {}
 	for k in DEFAULT_SAVE:
 		if not out.has(k):
 			out[k] = DEFAULT_SAVE[k].duplicate(true) if DEFAULT_SAVE[k] is Dictionary or DEFAULT_SAVE[k] is Array else DEFAULT_SAVE[k]

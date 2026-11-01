@@ -213,10 +213,10 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		sfx.play("snap", 0.7)
 		fx.append({"kind": "trip", "p": tpos + Vector2(0, -4), "t": 0.0, "dur": 0.5})
 	if s.type == D.ARCHER:
-		fx.append({"kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.28, "tc": Art.team_color(s.team, cbm())})
+		fx.append({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.28, "tc": Art.team_color(s.team, cbm())})
 		sfx.play("arrow", 0.35)
 	else:
-		fx.append({"kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
+		fx.append({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
 		sfx.play("hit" if k == "hit" else "slash", 0.4)
 	var col := Color.WHITE
 	var label := ""
@@ -337,10 +337,11 @@ func _tone() -> Color:
 
 
 ## 圖示膠囊標籤（R6）：kind＝"coin"／"unit"／"team"。回傳寬度。
-func _pill(p: Vector2, kind: String, label: String, col: Color, size := 16) -> float:
-	var tw := font_bold.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(size)).x
+func _pill(p: Vector2, kind: String, label: String, col: Color, size := 16, cap := 99) -> float:
+	var fsz := mini(ts(size), cap)
+	var tw := font_bold.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x
 	var w := tw + 40.0
-	var h := ts(size) + 10.0
+	var h := fsz + 10.0
 	draw_rect(Rect2(p, Vector2(w, h)), Color(0, 0, 0, 0.45))
 	draw_rect(Rect2(p, Vector2(w, h)), Color(col, 0.6), false, 1.5)
 	var ic := p + Vector2(15, h / 2)
@@ -354,34 +355,62 @@ func _pill(p: Vector2, kind: String, label: String, col: Color, size := 16) -> f
 			draw_rect(Rect2(ic + Vector2(-5, 1), Vector2(10, 6)), Color.WHITE)
 		_:
 			draw_circle(ic, 6.5, col, true, -1.0, true)
-	_text(p + Vector2(28, 5 - ts(size) * 0.05), label, ts(size), Color.WHITE, false, true)
+	_text(p + Vector2(28, 5 - fsz * 0.05), label, fsz, Color.WHITE, false, true)
 	return w
 
 
 ## 按鍵提示列（R6）：手把時顯示 [A]／[X] 等按鍵圖示，鍵盤時顯示鍵名。items＝[[鍵, 說明], ...]，置中於 cx。
 func _key_hints(cx: float, y: float, items: Array, size := 15) -> void:
+	# 擺放畫面上方列高度固定 86px：大字設定時這一列最多放大到 17px，寬度不夠再縮（Codex 收尾輪 #3）
+	var fs := mini(ts(size), 17)
 	var widths: Array = []
 	var total := 0.0
 	for it in items:
-		var kw := font_bold.get_string_size(it[0], HORIZONTAL_ALIGNMENT_LEFT, -1, ts(size - 2)).x + 14.0
-		var lw := font.get_string_size(it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, ts(size)).x
+		var kw := font_bold.get_string_size(it[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs - 2).x + 14.0
+		var lw := font.get_string_size(it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		widths.append([kw, lw])
 		total += kw + 6 + lw + 18
+	if total > 1260.0:
+		_key_hints_scaled(cx, y, items, fs - 1)
+		return
 	var x := cx - total / 2.0
 	for i in items.size():
 		var kw: float = widths[i][0]
 		var key: String = items[i][0]
 		var kc: Color = {"A": Color("#3ccf6e"), "B": Color("#ef5350"), "X": Color("#42a5f5"), "Y": Color("#ffca28")}.get(key, Color(0.75, 0.78, 0.85))
-		var r := Rect2(x, y, kw, ts(size) + 6)
+		var r := Rect2(x, y, kw, fs + 6)
 		if key.length() == 1 and pad_mode:
 			draw_circle(r.get_center(), r.size.y / 2, kc, true, -1.0, true)
 		else:
 			draw_rect(r, Color(kc, 0.9))
-		_text(Vector2(r.get_center().x, y + 1), key, ts(size - 2), Color(0.08, 0.08, 0.1), true, true)
+		_text(Vector2(r.get_center().x, y + 1), key, fs - 2, Color(0.08, 0.08, 0.1), true, true)
 		x += kw + 6
-		_text(Vector2(x, y + 1), items[i][1], ts(size), Color(1, 1, 1, 0.85))
+		_text(Vector2(x, y + 1), items[i][1], fs, Color(1, 1, 1, 0.85))
 		x += widths[i][1] + 18
 
+
+
+func _key_hints_scaled(cx: float, y: float, items: Array, fs: int) -> void:
+	# 縮一號再排（以實際像素傳入，避免再乘一次字級）
+	var widths: Array = []
+	var total := 0.0
+	for it in items:
+		var kw := font_bold.get_string_size(it[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs - 2).x + 14.0
+		var lw := font.get_string_size(it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		widths.append([kw, lw])
+		total += kw + 6 + lw + 18
+	if total > 1260.0 and fs > 10:
+		_key_hints_scaled(cx, y, items, fs - 1)
+		return
+	var x := cx - total / 2.0
+	for i in items.size():
+		var kw: float = widths[i][0]
+		var r := Rect2(x, y, kw, fs + 6)
+		draw_rect(r, Color(0.75, 0.78, 0.85, 0.9))
+		_text(Vector2(r.get_center().x, y + 1), items[i][0], fs - 2, Color(0.08, 0.08, 0.1), true, true)
+		x += kw + 6
+		_text(Vector2(x, y + 1), items[i][1], fs, Color(1, 1, 1, 0.85))
+		x += widths[i][1] + 18
 
 func _draw_units_of(s, dim: bool) -> void:
 	var list: Array = []

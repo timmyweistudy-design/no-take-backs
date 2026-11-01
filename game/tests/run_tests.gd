@@ -532,6 +532,10 @@ class FakeSfx:
 ## 不能報錯、攻擊事件一定產生演出；圖鑑的 _codex_tick 每段示範都要真的跳字、跳在觸發者身上。
 func test_ui_consumers() -> void:
 	var GS = load("res://scripts/ui/game_screens.gd")
+	# 畫面腳本有語法錯誤時要紅，不能靜靜跳過後面的檢查（收尾時抓到過一次：79 通過 0 失敗但其實沒跑）
+	ok(GS != null and GS.can_instantiate(), "畫面腳本（game_screens 繼承鏈）能載入")
+	if GS == null or not GS.can_instantiate():
+		return
 	var g = GS.new()
 	g.sfx = FakeSfx.new()
 	var pool := F.training_pool(0)
@@ -551,14 +555,21 @@ func test_ui_consumers() -> void:
 			g.fx.clear()
 			g._sim_step(true)
 			var n_att := 0
+			var srcs := {}
+			for f in g.fx:
+				if f.has("src"):
+					srcs[f["src"]] = int(srcs.get(f["src"], 0)) + 1
 			for e in g.view.events:
 				kinds[e["kind"]] = true
 				if g.event_route(e) == "attack":
 					n_att += 1
+					# 逐事件核對：每一次攻擊都要有一個屬於攻擊者的砍擊／箭（Codex 收尾輪 #5）
+					if int(srcs.get(e["src"], 0)) <= 0:
+						bad.append("tick%d 單位 %d 的攻擊沒有演出" % [g.view.tick, e["src"]])
+					else:
+						srcs[e["src"]] -= 1
 			attacks += n_att
 			if n_att > 0:
-				if g.fx.is_empty():
-					bad.append("tick%d 有 %d 次攻擊卻沒有演出" % [g.view.tick, n_att])
 				fx_seen += 1
 		if g.view.tick != g.sim.tick or not g.sim.finished:
 			bad.append("第 %d 場畫面沒有播到最後（畫面 %d／模擬 %d）" % [i, g.view.tick, g.sim.tick])
@@ -608,7 +619,8 @@ func test_ui_consumers() -> void:
 	var d2: float = g._disp_tick()
 	var pos_ok := true
 	for u in g.view.units:
-		if u.alive and g._upos(u).distance_to(g.ORIGIN + Vector2(u.x, u.y) * g.CS / 1000.0) > 6.0:
+		var jit := Vector2(float((u.id * 37) % 9 - 4), float((u.id * 53) % 7 - 3))   # _upos 的固定錯開
+		if u.alive and g._upos(u).distance_to(g.ORIGIN + Vector2(u.x, u.y) * g.CS / 1000.0 + jit) > 0.5:
 			pos_ok = false
 	ok(tail_ok and d2 > d1 and d1 > g.view.tick and pos_ok, "播完後展示時鐘繼續走、存活者插值到最後位置", "tail=%s d1=%.2f d2=%.2f tick=%d pos=%s" % [tail_ok, d1, d2, g.view.tick, pos_ok])
 	# 圖鑑小劇場真的跳字
@@ -657,5 +669,18 @@ func test_save_migration() -> void:
 	var v2 := {"schema_version": 2, "unit_wins": {"3": 4}, "tutorial": 1}
 	var m2: Dictionary = SV.migrate(v2)
 	ok(int(m2["unit_wins"]["3"]) == 4 and m2.has("achievements"), "存檔遷移：v2 原樣保留、缺的欄位補預設")
+	# 正式載入流程（Codex 收尾輪 #1）：寫一個 v1 檔，用 load_all 讀，舊鍵要被遷移掉
+	var old_prefix: String = SV.prefix
+	SV.prefix = "test_mig_"
+	var f := FileAccess.open("user://test_mig_save.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"version": 1, "tutorial": 2, "unit_wins": 5}))
+	f.close()
+	SV.load_all()
+	var ld: Dictionary = SV.data
+	ok(int(ld["schema_version"]) == 2 and not ld.has("version") and ld["unit_wins"] is Dictionary and int(ld["tutorial"]) == 2 and ld.has("achievements"),
+		"存檔遷移：正式 load_all 讀 v1 檔會遷移、壞掉的 unit_wins 修好、補預設", str(ld))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_save.json"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_settings.json"))
+	SV.prefix = old_prefix
 	var v9 := {"schema_version": 9, "x": 1}
 	ok(SV.migrate(v9) == v9, "存檔遷移：比目前新的版本不降版")

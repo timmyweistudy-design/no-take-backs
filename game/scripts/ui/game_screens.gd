@@ -1080,7 +1080,7 @@ func _draw_place_hud() -> void:
 		head = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 	elif mode == Mode.GAUNTLET:
 		head = L.t("gauntlet_title", [gauntlet_stage])
-	_text(Vector2(640, 1), head, ts(22), tcol if mode == Mode.DUEL else Color.WHITE, true, true, 560)
+	_text(Vector2(640, 1), head, mini(ts(22), 26), tcol if mode == Mode.DUEL else Color.WHITE, true, true, 560)   # 上方列高度固定，大字時封頂
 	var bx := 400.0
 	var bw := 480.0
 	draw_rect(Rect2(bx, 58, bw, 4), Color(0.2, 0.2, 0.25))
@@ -1093,9 +1093,9 @@ func _draw_place_hud() -> void:
 	for pair in [[t_lbl, 14], [g_lbl, 14], [u_lbl, 14]]:
 		est += font_bold.get_string_size(pair[0], HORIZONTAL_ALIGNMENT_LEFT, -1, ts(pair[1])).x + 48.0
 	var px := 640.0 - est / 2.0
-	px += _pill(Vector2(px, 31), "team", t_lbl, tcol, 13) + 8
-	px += _pill(Vector2(px, 31), "coin", g_lbl, ACCENT, 13) + 8
-	_pill(Vector2(px, 31), "unit", u_lbl, Color.WHITE, 13)
+	px += _pill(Vector2(px, 31), "team", t_lbl, tcol, 13, 15) + 8
+	px += _pill(Vector2(px, 31), "coin", g_lbl, ACCENT, 13, 15) + 8
+	_pill(Vector2(px, 31), "unit", u_lbl, Color.WHITE, 13, 15)
 	var info := "%s：%s" % [L.t("unit_%d" % selected), L.t("blurb_%d" % selected)]
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz2 := PZ.get_puzzle(puzzle_id)
@@ -1111,7 +1111,7 @@ func _draw_place_hud() -> void:
 	if info == "":
 		_key_hints(640, 64, [["✛", L.t("pk_move")], ["LB/RB", L.t("pk_pick")], ["A", L.t("pk_place")], ["X", L.t("pk_remove")], ["Start", L.t("pk_start")], ["Select", L.t("pk_codex")]], 14)
 	else:
-		_text(Vector2(640, 64), info, ts(15), Color(1, 1, 1, 0.85), true, false, 1260)
+		_text(Vector2(640, 64), info, mini(ts(15), 17), Color(1, 1, 1, 0.85), true, false, 1260)
 	for i in D.COUNT:
 		var r := _card_rect(i)
 		var afford: bool = D.cost(i) <= a.left() and a.count() < Army.MAX_UNITS and _allowed(i)
