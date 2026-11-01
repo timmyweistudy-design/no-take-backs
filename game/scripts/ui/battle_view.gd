@@ -48,15 +48,17 @@ func _battle_process(delta: float) -> void:
 
 
 ## 最後時刻（優化方案 F1）：雙方剩餘戰力都 ≤30% 且差距 ≤15%；或雙方各剩 ≤3 隻且差距 ≤15%。
+## 最後時刻的條件（view 與 sim 都有 budget／power／alive_count，重播跳轉時用同一個條件重算，Codex S7 #2）。
+static func clutch_cond(s) -> bool:
+	var tot := float(s.budget * 1000)
+	var p0: float = s.power(0) * 100.0 / tot
+	var p1: float = s.power(1) * 100.0 / tot
+	return absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (s.alive_count(0) <= 3 and s.alive_count(1) <= 3))
+
 func _check_clutch() -> void:
 	if slow_used or view.finished:
 		return
-	var tot := float(view.budget * 1000)
-	var p0: float = view.power(0) * 100.0 / tot
-	var p1: float = view.power(1) * 100.0 / tot
-	var a0: int = view.alive_count(0)
-	var a1: int = view.alive_count(1)
-	if absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (a0 <= 3 and a1 <= 3)):
+	if clutch_cond(view):
 		slow_used = true
 		clutch_tick = view.tick
 		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
@@ -89,6 +91,7 @@ func _sim_step(with_fx: bool) -> void:
 		view.finished = true
 		return
 	_pump_view()
+	_check_clutch()   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
 	if view.frenzy and not frenzy_seen:
 		frenzy_seen = true
 		if with_fx:

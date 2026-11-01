@@ -62,8 +62,7 @@ func _seek(target: int) -> void:
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
 	sim = Sim.new(armies2[0].copy(), armies2[1].copy())
 	ev_count = {}
-	var had_clutch := clutch_tick >= 0 and clutch_tick <= target
-	var keep_ct := clutch_tick
+	var keep_ct := -1   # 最後時刻在第幾 tick 觸發：快轉時用同一個條件重算，不靠先前的播放紀錄（Codex S7 #2）
 	battle_marks.clear()
 	var stop := maxi(0, target - ViewBuffer.DELAY)
 	while sim.tick < stop and not sim.finished:
@@ -74,6 +73,9 @@ func _seek(target: int) -> void:
 				var key := "%s%d" % [ev["kind"], s.team]
 				ev_count[key] = int(ev_count.get(key, 0)) + 1
 			_collect_mark(ev, sim, sim.tick)
+		if keep_ct < 0 and not sim.finished and clutch_cond(sim):
+			keep_ct = sim.tick
+	var had_clutch := keep_ct >= 0
 	view = ViewBuffer.new(sim)
 	prev_pos.clear()
 	for u in view.units:

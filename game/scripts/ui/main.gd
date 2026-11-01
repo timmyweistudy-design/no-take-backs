@@ -21,16 +21,18 @@ func _draw_capsule() -> void:
 		var ln := vs.x * (0.12 + 0.06 * (k % 3))
 		draw_line(Vector2(vs.x * 0.02, yy), Vector2(vs.x * 0.02 + ln, yy), Color(1, 1, 1, 0.07), maxf(2.0, vs.y * 0.006), true)
 		draw_line(Vector2(vs.x * 0.98 - ln, yy + vs.y * 0.03), Vector2(vs.x * 0.98, yy + vs.y * 0.03), Color(1, 1, 1, 0.07), maxf(2.0, vs.y * 0.006), true)
-	# 中央裂縫（鋸齒）
-	var crack := PackedVector2Array()
-	for k in 9:
-		var t := k / 8.0
-		var x := lerpf(mid + slant, mid - slant, t) + (8.0 if k % 2 == 0 else -8.0) * vs.y / 430.0
-		crack.append(Vector2(x, vs.y * t))
-	draw_polyline(crack, Color(1, 0.95, 0.75, 0.9), maxf(3.0, vs.y * 0.012), true)
 	# 標題帶
 	var big := int(vs.y * (0.11 if tall else (0.30 if tiny else 0.19)))
 	var band_y := vs.y * (0.04 if tall else 0.03)
+	# 中央裂縫（鋸齒）：從標題帶下方開始，不穿過字（Antigravity S7）
+	var crack := PackedVector2Array()
+	var cy0 := band_y + big * 1.12 + int(big * 0.34) * 1.3
+	for k in 9:
+		var t := k / 8.0
+		var yy2 := lerpf(cy0, vs.y, t)
+		var x := lerpf(mid + slant, mid - slant, yy2 / vs.y) + (8.0 if k % 2 == 0 else -8.0) * vs.y / 430.0
+		crack.append(Vector2(x, yy2))
+	draw_polyline(crack, Color(1, 0.95, 0.75, 0.9), maxf(3.0, vs.y * 0.012), true)
 	var tt: String = L.t("title")
 	var tw := font_bold.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, big).x
 	var tp := Vector2(mid - tw / 2, band_y + big * 0.9)
@@ -52,8 +54,8 @@ func _draw_capsule() -> void:
 	var right := [[D.ASSASSIN, 0.87, 0.80], [D.SHIELD, 0.73, 0.92], [D.SWORD, 0.60, 1.0]]
 	if tall:
 		# 直式：每邊兩隻、放大，後排的往上放，填滿中段
-		left = [[D.CAVALRY, 0.17, 0.78], [D.SWORD, 0.31, 1.0]]
-		right = [[D.ASSASSIN, 0.83, 0.78], [D.SWORD, 0.69, 1.0]]
+		left = [[D.CAVALRY, 0.14, 0.74], [D.SWORD, 0.29, 1.0]]
+		right = [[D.ASSASSIN, 0.86, 0.74], [D.SWORD, 0.71, 1.0]]
 	if tiny:
 		left = [[D.CAVALRY, 0.22, 0.95], [D.SWORD, 0.40, 1.0]]
 		right = [[D.SHIELD, 0.78, 0.95], [D.SWORD, 0.60, 1.0]]

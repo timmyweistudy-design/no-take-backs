@@ -104,12 +104,8 @@ func play_layers() -> void:
 		for n in LAYERS:
 			var p := AudioStreamPlayer.new()
 			add_child(p)
-			var st = load("res://audio/%s.wav" % n)
-			if st is AudioStreamWAV:
-				st.loop_mode = AudioStreamWAV.LOOP_FORWARD
-				st.loop_begin = 0
-				st.loop_end = st.data.size() / 2
-			p.stream = st
+			# 循環在匯入設定裡開（edit/loop_mode=2 整段循環）；檔案匯入時會壓縮，不能用位元組數自己算樣本數（Codex S7 #1）
+			p.stream = load("res://audio/%s.wav" % n)
 			layers.append(p)
 	layer_cur = layer_gain.duplicate()
 	for i in layers.size():

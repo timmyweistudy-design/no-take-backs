@@ -50,6 +50,7 @@ func _init() -> void:
 	test_crowd_readability()
 	test_replay_tools()
 	test_counter_lib()
+	test_seek_clutch()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -705,6 +706,12 @@ func test_sfx_priority() -> void:
 		if not FileAccess.file_exists("res://audio/%s.wav" % n):
 			missing.append(n)
 	ok(missing.is_empty(), "音效：清單裡的檔案都在（含三條戰鬥分軌）", str(missing))
+	var looped := true
+	for n in SX.LAYERS:
+		var st = load("res://audio/%s.wav" % n)
+		if not (st is AudioStreamWAV) or st.loop_mode != AudioStreamWAV.LOOP_FORWARD or absf(float(st.loop_end) / st.mix_rate - st.get_length()) > 0.1:
+			looped = false
+	ok(looped, "分軌音樂：三軌都整段循環（循環終點＝整首長度，Codex S7 #1）")
 	ok(SX.layer_targets(true, false) == [1.0, 1.0, 1.0] and SX.layer_targets(false, false)[1] < 0.5 and SX.layer_targets(true, true) == [1.0, 0.0, 0.0],
 		"分軌音樂：差距小鼓聲進來、最後時刻只留低音")
 
@@ -1119,3 +1126,52 @@ func test_counter_lib() -> void:
 		if a.load_code(str(e["code"])) != "" or a.spent() > 100:
 			bad += 1
 	ok(bad == 0, "反制庫：每一筆反制陣都合法（%d 筆不合法）" % bad)
+
+
+## 重播跳轉與最後時刻（Codex S7 #2）：最後時刻是否已發生要依目標時間重算，不靠先前的播放紀錄。
+## 找一場會觸發最後時刻的戰鬥，從頭播一次記下標記；再「跳到觸發後 → 跳回觸發前 → 再跳到觸發後」播完，標記（含最後時刻）要一樣。
+func test_seek_clutch() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var BVs = load("res://scripts/ui/battle_view.gd")
+	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/golden.json"))
+	var pick := -1
+	var ct := -1
+	for i in 60:
+		var c: Dictionary = g["cases"][i]
+		var a0 := Army.new(0, 100); a0.load_code(c["a"])
+		var a1 := Army.new(1, 100); a1.load_code(c["b"])
+		var sm = Sim.new(a0, a1)
+		sm.fast = true
+		while not sm.finished:
+			sm.step()
+			if not sm.finished and BVs.clutch_cond(sm):
+				ct = sm.tick
+				break
+		if ct > 40:
+			pick = i
+			break
+		ct = -1
+	if pick < 0:
+		ok(false, "重播跳轉＋最後時刻：找不到會觸發最後時刻的測試場")
+		return
+	var c2: Dictionary = g["cases"][pick]
+	var b0 := Army.new(0, 100); b0.load_code(c2["a"])
+	var b1 := Army.new(1, 100); b1.load_code(c2["b"])
+	var gg = GS.new()
+	gg.sfx = FakeSfx.new()
+	gg.mode = gg.Mode.VS_AI
+	gg.last_armies = [b0.copy(), b1.copy()]
+	gg._begin_battle(b0.copy(), b1.copy(), "replay")
+	while not gg.view.finished:
+		gg._sim_step(false)
+	var want := JSON.stringify(gg.battle_marks)
+	var want_ct: int = gg.clutch_tick
+	gg._seek(ct + 20)
+	gg._seek(maxi(0, ct - 20))
+	var before_ok: bool = not gg.slow_used and gg.clutch_tick == -1
+	gg._seek(ct + 20)
+	while not gg.view.finished:
+		gg._sim_step(false)
+	ok(want_ct == ct and before_ok and gg.clutch_tick == want_ct and JSON.stringify(gg.battle_marks) == want,
+		"重播跳轉：最後時刻在觸發點前後來回跳，狀態與標記都和從頭播一樣（觸發於 %d tick）" % ct, "%s vs %s" % [want, JSON.stringify(gg.battle_marks)])
+	gg.free()

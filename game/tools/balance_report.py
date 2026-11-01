@@ -103,6 +103,16 @@ def main():
             print(f"✗ {m} 有重複的場次"); sys.exit(2)
         if want is not None and set(keys) != want:
             print(f"✗ {m} 場次鍵集合不對（少 {len(want - set(keys))}、多 {len(set(keys) - want)}）"); sys.exit(2)
+        # 每一列的內容要和檔名宣稱的模式一致（Codex S7 #3：把訓練池資料改名成驗證池也會被抓到）
+        for r in got:
+            want_mode = base if base != "turns" else "turns"
+            if r.get("mode") != want_mode:
+                print(f"✗ {m} 裡有 mode={r.get('mode')} 的資料"); sys.exit(2)
+            if base == "turns":
+                rest = m.split(":", 1)[1]
+                rule, lv = (rest.split("@", 1) + ["1"])[:2]
+                if r.get("rule") != rule or int(r.get("level", 1)) != int(lv):
+                    print(f"✗ {m} 裡有 rule={r.get('rule')} level={r.get('level')} 的資料"); sys.exit(2)
         rows[key] = [r for _, r in sorted(zip(keys, got), key=lambda kv: kv[0])]
     digests = {r.get("digest") for v in rows.values() for r in v}
     if None in digests or "" in digests:
@@ -218,6 +228,8 @@ def main():
         # 驗證池（第三輪 B1）：從沒用來調參數的 200 套，看結論是否也成立
         V = rows["valleague"]
         vdec = [r for r in V if r["res"] != 0]
+        if not vdec:
+            fails.append("驗證池沒有任何分出勝負的場次（不能宣告通過）")
         vrem = [r["rem"] for r in vdec]
         vblow = sum(1 for x in vrem if x > 50)
         vlc = sum(1 for r in V if r["lc"] >= 1)
@@ -240,6 +252,15 @@ def main():
             fails.append(f"驗證池碾壓局 {pct(vblow, len(vrem))}%")
         if vmed > 30:
             fails.append(f"驗證池勝方剩餘中位數 {vmed}%")
+        vsec = st.median([r["ticks"] / 20 for r in V])
+        vdraw = pct(len(V) - len(vdec), len(V))
+        vto = pct(sum(1 for r in V if r["timeout"]), len(V))
+        summary.update(val_median_secs=vsec, val_draw_pct=vdraw, val_timeout_pct=vto)
+        md.append(f"驗證池秒數中位數 {vsec:.1f}（35～75）、平手 {vdraw}%、時間到 {vto}%\n")
+        if not (35 <= vsec <= 75):
+            fails.append(f"驗證池秒數中位數 {vsec:.1f} 不在 35～75")
+        if vdraw > 5 or vto > 5:
+            fails.append(f"驗證池平手 {vdraw}% 或時間到 {vto}% 超過 5%")
 
     for key in sorted(k for k in rows if k.startswith("turns")):
         T = rows[key]
@@ -249,9 +270,11 @@ def main():
         sp = st.median([r["spent0"] + r["spent1"] for r in T]) / 2
         rule = T[0]["rule"]
         blue = pct(sum(1 for r in dec if (r["first"] == 0) == (r["first_won"] == 1)), len(dec))
-        summary[f"{rule}_blue_win"] = blue
-        summary[f"{rule}_first_win"] = fw
-        summary[f"{rule}_handoffs"] = ho
+        lvk = T[0].get("level", 1)
+        sk = rule if lvk == 1 else f"{rule}_L{lvk}"   # 不同 AI 等級分開存（Codex S7 #5：原本會互相覆蓋）
+        summary[f"{sk}_blue_win"] = blue
+        summary[f"{sk}_first_win"] = fw
+        summary[f"{sk}_handoffs"] = ho
         lv = T[0].get("level", 1)
         fk = sum(1 for r in dec if r["first_won"] == 1)
         lo, hi = wilson(fk, len(dec))
