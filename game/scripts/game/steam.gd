@@ -23,11 +23,14 @@ const ACHIEVEMENTS := {
 }
 
 static var _steam = null
+static var init_result = null
 
-static func init() -> void:
+## app_id：0＝由 Steam 啟動時決定（正式上架）；開發測試可給 480（Valve 公開測試 App「Spacewar」）。
+static func init(app_id := 0) -> void:
 	if Engine.has_singleton("Steam"):
 		_steam = Engine.get_singleton("Steam")
-		var r = _steam.steamInitEx(false)
+		var r = _steam.steamInitEx(false, app_id) if app_id > 0 else _steam.steamInitEx(false)
+		init_result = r
 		if typeof(r) == TYPE_DICTIONARY and int(r.get("status", 1)) != 0:
 			_steam = null
 	if _steam != null:
@@ -55,6 +58,20 @@ static func unlock(id: String) -> bool:
 		_steam.setAchievement(id)
 		_steam.storeStats()
 	return true
+
+## 唯讀自我檢查（N8）：不解鎖任何 Spacewar 成就、不寫入統計。回傳每一項的結果。
+static func self_test() -> Dictionary:
+	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available()}
+	if _steam == null:
+		return out
+	out["logged_on"] = _steam.loggedOn()
+	out["app_id"] = _steam.getAppID()
+	out["running"] = _steam.isSteamRunning()
+	out["spacewar_ach_read"] = str(_steam.getAchievement("ACH_WIN_ONE_GAME"))   # 唯讀
+	out["our_id_rejected"] = str(_steam.getAchievement("FIRST_WIN"))            # 我們的 ID 在 480 不存在，應該回報不存在
+	out["cloud_enabled"] = _steam.isCloudEnabledForApp() if _steam.has_method("isCloudEnabledForApp") else "n/a"
+	out["input_init"] = _steam.inputInit() if _steam.has_method("inputInit") else "n/a"
+	return out
 
 static func run_callbacks() -> void:
 	if _steam != null:

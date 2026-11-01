@@ -12,7 +12,7 @@ const TP = preload("res://scripts/core/turn_placement.gd")
 const Art = preload("res://scripts/ui/art.gd")
 const L = preload("res://scripts/game/strings.gd")
 const Save = preload("res://scripts/game/save.gd")
-const Steam = preload("res://scripts/game/steam.gd")
+const SteamApi = preload("res://scripts/game/steam.gd")
 const PZ = preload("res://scripts/game/puzzles.gd")
 const SfxScript = preload("res://scripts/game/sfx.gd")
 
@@ -101,6 +101,8 @@ var _btns: Array = []
 var _focus := 0
 var _click_pending := Vector2(-1, -1)
 
+var capsule_path := ""
+var video_mode := false
 var grass: Texture2D
 var plants: Array = []
 
@@ -109,10 +111,22 @@ func _ready() -> void:
 		if a.begins_with("--shot="):
 			Save.prefix = "shot_"
 	Save.load_all()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--steam-test="):
+			SteamApi.init(int(a.substr(13)))
+			print("STEAMTEST ", JSON.stringify(SteamApi.self_test()))
+			get_tree().quit()
+			return
 	L.lang = Save.s("lang")
 	duel_rule = Save.s("duel_rule")
 	speed = float(Save.s("speed"))
-	Steam.init()
+	var _ua := OS.get_cmdline_user_args()
+	var _special := "--video" in _ua
+	for x in _ua:
+		if x.begins_with("--capsule="):
+			_special = true
+	if Save.prefix == "" and not _special:   # 截圖／影片／膠囊模式完全不碰 Steam
+		SteamApi.init()
 	font = _load_font("res://fonts/NotoSansTC-Regular-sub.otf")
 	font_bold = _load_font("res://fonts/NotoSansTC-Bold-sub.otf")
 	sfx = SfxScript.new()
@@ -126,11 +140,24 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="):
 			shot_dir = a.substr(7)
+		elif a.begins_with("--capsule="):
+			capsule_path = a.substr(10)
+		elif a == "--video":
+			video_mode = true
+	if capsule_path != "":
+		get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+		_capture_capsule.call_deferred()
+		return
 	_apply_fullscreen()
-	rng.seed = Time.get_ticks_usec() if shot_dir == "" else 12345
+	rng.seed = Time.get_ticks_usec() if (shot_dir == "" and not video_mode) else 12345
+	if video_mode:
+		Save.prefix = "shot_"
+		Save.load_all()
 	_go_title()
 	if shot_dir != "":
 		_run_screenshots.call_deferred()
+	elif video_mode:
+		_run_video.call_deferred()
 
 func _load_font(path: String) -> Font:
 	if ResourceLoader.exists(path):
@@ -458,8 +485,8 @@ func _save() -> void:
 		_toast(L.t("save_failed"), true)
 
 func _ach(id: String) -> void:
-	if Steam.unlock(id):
-		ach_queue.append(L.t("achievement", [Steam.name_of(id, L.lang)]))
+	if SteamApi.unlock(id):
+		ach_queue.append(L.t("achievement", [SteamApi.name_of(id, L.lang)]))
 
 func _toast(s: String, deny := false) -> void:
 	toast = s
@@ -701,7 +728,7 @@ func _on_skip() -> void:
 # ───────────────────────── 每幀 ─────────────────────────
 func _process(delta: float) -> void:
 	time += delta
-	Steam.run_callbacks()
+	SteamApi.run_callbacks()
 	if toast_t > 0:
 		toast_t -= delta
 	if ach_t > 0:
@@ -896,6 +923,9 @@ func _upos(u) -> Vector2:
 # ───────────────────────── 繪圖 ─────────────────────────
 func _draw() -> void:
 	_btns.clear()
+	if capsule_path != "":
+		_draw_capsule()
+		return
 	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
 	var cam := Transform2D.IDENTITY
 	if state == St.BATTLE or state == St.RESULT:
@@ -951,6 +981,51 @@ func _draw() -> void:
 	if _focus >= _btns.size():
 		_focus = 0
 	_handle_click()
+
+## 商店膠囊圖（N6）：用目前視窗大小構圖——草地、兩軍對衝、標題。只有遊戲標題文字（Steam 規定）。
+func _draw_capsule() -> void:
+	var vs := get_viewport_rect().size
+	var tile := 64.0 * vs.y / 800.0
+	for yy in int(vs.y / tile) + 1:
+		for xx in int(vs.x / tile) + 1:
+			var h := absi((xx * 73856093) ^ (yy * 19349663))
+			draw_texture_rect_region(grass, Rect2(xx * tile, yy * tile, tile, tile), Rect2((h % 8) * 32, ((h / 8) % 4) * 32, 32, 32))
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.06, 0.09, 0.16, 0.22))
+	var sc := vs.y / 800.0 * 2.0
+	var rng2 := RandomNumberGenerator.new()
+	rng2.seed = 7
+	var tall := vs.y > vs.x
+	var items: Array = []
+	for team in 2:
+		for k in 14:
+			var t: int = [1, 0, 0, 2, 3, 4, 1, 0, 2, 3, 0, 2, 4, 1][k]
+			var fx := 0.06 + 0.07 * (k % 4) + rng2.randf() * 0.03
+			var fy := 0.42 + 0.14 * (k / 4) + rng2.randf() * 0.05
+			if tall:
+				fy = 0.50 + 0.12 * (k / 4) + rng2.randf() * 0.04
+			var x := fx * vs.x if team == 0 else (1.0 - fx) * vs.x
+			items.append([fy * vs.y, x, t, team])
+	items.sort()
+	for it in items:
+		var p := Vector2(it[1], it[0])
+		var face := 1.0 if it[3] == 0 else -1.0
+		Art.ring(self, p, it[3], it[2], false, sc)
+		Art.unit(self, p, it[2], it[3], face, 2.0 + it[1] * 0.01, 0.4 if it[2] == D.SWORD else 0.0, 0.0, 1.0, 1.3, sc)
+	# 標題
+	var title_y := vs.y * (0.08 if tall else 0.06)
+	var big := int(vs.y * (0.13 if tall else 0.22))
+	var shade := Rect2(0, title_y - vs.y * 0.02, vs.x, big * 2.0)
+	draw_rect(shade, Color(0.05, 0.06, 0.1, 0.45))
+	_text(Vector2(vs.x / 2, title_y), L.t("title"), big, Color("#ffe8a3"), true, true)
+	_text(Vector2(vs.x / 2, title_y + big * 1.18), "No Take-Backs", int(big * 0.36), Color(1, 1, 1, 0.95), true, true)
+
+func _capture_capsule() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(capsule_path)
+	print("CAPSULE ", capsule_path)
+	get_tree().quit()
 
 func _draw_field() -> void:
 	draw_rect(Rect2(ORIGIN - Vector2(10, 10), FIELD + Vector2(20, 20)), Color("#5b4632"))
@@ -1699,6 +1774,35 @@ func _snap(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(shot_dir.path_join(name))
 	print("SHOT ", name)
+
+## 實機影片（N6 預告素材）：用 Godot 錄影模式跑（--write-movie 絕對路徑 --fixed-fps 30），全程自動。
+func _run_video() -> void:
+	await get_tree().create_timer(2.5).timeout
+	difficulty = 1
+	_start_mode(Mode.VS_AI)
+	var plan := [[D.SHIELD, 5, 3], [D.SHIELD, 5, 5], [D.SWORD, 4, 2], [D.SWORD, 4, 6], [D.SWORD, 4, 4],
+		[D.ARCHER, 1, 3], [D.ARCHER, 1, 5], [D.ARCHER, 0, 4], [D.CAVALRY, 3, 0], [D.CAVALRY, 3, 8], [D.ASSASSIN, 2, 4]]
+	for s2 in plan:
+		selected = s2[0]
+		mouse = ORIGIN + Vector2(s2[1] + 0.5, s2[2] + 0.5) * CS
+		await get_tree().create_timer(0.35).timeout
+		_try_place(Vector2i(s2[1], s2[2]))
+	await get_tree().create_timer(1.0).timeout
+	var red_pick = null
+	for k in 40:
+		var r := RandomNumberGenerator.new()
+		r.seed = 777 + k
+		var cand = AI.build(1, 100, r)["army"]
+		if _would_clutch(armies[0], cand):
+			red_pick = cand
+			break
+	last_player_formation = armies[0].units.duplicate(true)
+	ai_name = L.t("diff_normal")
+	_begin_battle(armies[0].copy(), (red_pick if red_pick != null else AI.build(1, 100, rng)["army"]).copy())
+	while state != St.RESULT:
+		await get_tree().process_frame
+	await get_tree().create_timer(4.0).timeout
+	get_tree().quit()
 
 func _would_clutch(a0, a1) -> bool:
 	var t = Sim.new(a0.copy(), a1.copy())

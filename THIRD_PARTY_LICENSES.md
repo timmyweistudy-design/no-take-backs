@@ -7,6 +7,8 @@
 | Godot Engine 4.6 | 引擎 | https://godotengine.org | MIT | 無 | 遊戲內製作名單＋`game/licenses/GODOT_LICENSE.txt` |
 | Noto Sans TC Regular/Bold | 介面字型 | https://github.com/notofonts/noto-cjk | SIL OFL 1.1 | 子集化（`tools/build_font.py`），未改名稱以外的字形 | 製作名單；`game/fonts/OFL-NotoSansTC.txt` 隨遊戲附上 |
 | Cainos「Pixel Art Top Down - Basic」草地 tileset、樹叢 | 戰場地面、兩側裝飾 | https://cainos.itch.io/pixel-art-top-down-basic | 作者條款：可商用、可修改、不得轉賣素材本身；署名非必要 | 樹叢自動裁切成單張 | 製作名單（作者表示「感謝但非必要」） |
+| GodotSteam GDExtension 4.23.2 | Steam 成就、雲端、Remote Play（`game/addons/godotsteam/`，只放 win64、linux64） | https://codeberg.org/godotsteam/godotsteam | MIT | 刪掉用不到的平台與編輯器更新器、精簡 `.gdextension` | `game/licenses/GODOTSTEAM_LICENSE.md` |
+| Steamworks API（`steam_api64.dll`、`libsteam_api.so`） | 隨 GodotSteam | Valve Steamworks SDK | Steamworks SDK 授權：上架 Steam 的遊戲可以附帶 | 無 | 不需要 |
 | 角色、特效 | 全部單位 | 本作程式繪製（`game/scripts/ui/art.gd`） | 本作原創 | — | — |
 | 音效、音樂 | 全部聲音 | 本作程式合成（`game/tools/gen_audio.py`） | 本作原創 | — | — |
 
