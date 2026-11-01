@@ -44,13 +44,13 @@ static func pose(atk: float) -> Array:
 		return [0.0, 0.0, 1.0, 1.0, 0.0]
 	if atk < ATK_WINDUP:
 		var e := _smooth(atk / ATK_WINDUP)
-		return [-e, -LEAN_BACK * e, 1.0 + 0.12 * e, 1.0 - 0.12 * e, -2.0 * e]   # 前搖壓扁蓄力 1.12／0.88
+		return [-e, -LEAN_BACK * e, 1.0 + 0.12 * e, 1.0 - 0.12 * e, -1.0 * e]   # 前搖壓扁蓄力 1.12／0.88
 	if atk < ATK_STRIKE:
 		var u := (atk - ATK_WINDUP) / (ATK_STRIKE - ATK_WINDUP)
 		var e2 := 1.0 - (1.0 - u) * (1.0 - u)
-		return [lerpf(-1.0, 1.0, e2), lerpf(-LEAN_BACK, LEAN_FWD, e2), lerpf(1.12, 0.88, e2), lerpf(0.88, 1.14, e2), lerpf(-2.0, 7.0, e2)]   # 揮擊拉長 0.88／1.14
+		return [lerpf(-1.0, 1.0, e2), lerpf(-LEAN_BACK, LEAN_FWD, e2), lerpf(1.12, 0.88, e2), lerpf(0.88, 1.14, e2), lerpf(-1.0, 3.0, e2)]   # 揮擊拉長 0.88／1.14；前撲位移縮小，腳不滑出底圈（Antigravity S2 #3）
 	var e3 := _smooth((atk - ATK_STRIKE) / (1.0 - ATK_STRIKE))
-	return [lerpf(1.0, 0.0, e3), lerpf(LEAN_FWD, 0.0, e3), lerpf(0.88, 1.0, e3), lerpf(1.14, 1.0, e3), lerpf(7.0, 0.0, e3)]
+	return [lerpf(1.0, 0.0, e3), lerpf(LEAN_FWD, 0.0, e3), lerpf(0.88, 1.0, e3), lerpf(1.14, 1.0, e3), lerpf(3.0, 0.0, e3)]
 
 ## 角色的局部座標轉換（以腳底為原點、face＝+1 畫）：呼吸／走路起伏、前撲、傾身、壓扁拉長、翻面。
 ## lean＝額外傾角（騎兵衝鋒前傾）、crouch＝縱向縮放（刺客潛行蹲身）。

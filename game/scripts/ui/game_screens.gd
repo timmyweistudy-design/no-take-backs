@@ -353,6 +353,12 @@ func _build_report() -> void:
 		if sg != 0:
 			last_sign = sg
 	report["leads"] = leads
+	# 殘局星等算在報告裡（重播也看得到），只有「寫進存檔」才受副作用矩陣管（Codex S1 #8）
+	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
+		var pz := PZ.get_puzzle(puzzle_id)
+		var extra_spent: int = armies[0].spent() - (armies[0].budget - int(pz["budget"]))
+		var rem: int = sim.power(0) * 100 / (sim.budget * 1000) if sim.winner == 0 else 0
+		report["stars"] = PZ.stars(pz, sim.winner == 0, rem, extra_spent)
 
 
 func _progress_and_achievements() -> void:
@@ -393,15 +399,11 @@ func _progress_and_achievements() -> void:
 	if series_over and ((mode == Mode.DUEL and (wins == [2, 0] or wins == [0, 2])) or (mode == Mode.VS_AI and wins == [2, 0])):
 		_ach("SWEEP")
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
-		var pz := PZ.get_puzzle(puzzle_id)
-		var extra_spent: int = armies[0].spent() - (armies[0].budget - int(pz["budget"]))
-		var rem: int = sim.power(0) * 100 / (sim.budget * 1000) if w == 0 else 0
-		var stars := PZ.stars(pz, w == 0, rem, extra_spent)
+		var stars := int(report.get("stars", 0))
 		var ps: Dictionary = Save.data.get("puzzle_stars", {})
 		if stars > int(ps.get(puzzle_id, 0)):
 			ps[puzzle_id] = stars
 		Save.data["puzzle_stars"] = ps
-		report["stars"] = stars
 		if mode == Mode.TUTORIAL and w == 0:
 			var idx := 0
 			for i in PZ.tutorials().size():
@@ -553,16 +555,15 @@ func _input(ev: InputEvent) -> void:
 		mouse = ev.position
 		pad_mode = false
 		hover_card = _card_at(mouse)
-		if state == St.PLACE and overlay == "" and painting:
-			if _cur_army().team != paint_team:
-				painting = false
-			else:
-				var c := _cell_at(mouse)
-				if c.x >= 0 and _cur_army().index_at(c.x, c.y) == -1:
-					_try_place(c)
+		if painting:
+			_enqueue("paint", mouse)
 		return
 	if ev is InputEventMouseButton:
-		_mouse_button(ev)
+		mouse = ev.position
+		if overlay == "codex" and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+			_scroll_at(mouse, -48.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 48.0)   # 圖鑑捲動（第三輪 U1）
+			return
+		_enqueue("mb", {"i": ev.button_index, "pressed": ev.pressed, "pos": ev.position})
 		return
 	if ev is InputEventKey and ev.pressed:
 		if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
@@ -581,26 +582,45 @@ func _input(ev: InputEvent) -> void:
 		pad_mode = true
 		_scroll_by("left", ev.axis_value * 24.0)   # 右搖桿捲圖鑑左欄
 		return
-	if ev is InputEventJoypadMotion and absf(ev.axis_value) > 0.6 and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
-		pad_mode = true
-		if ev.axis == JOY_AXIS_LEFT_X:
-			_enqueue("key", KEY_RIGHT if ev.axis_value > 0 else KEY_LEFT)
-		else:
-			_enqueue("key", KEY_DOWN if ev.axis_value > 0 else KEY_UP)
+	if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
+		# 左搖桿：只記下狀態，由 _stick_repeat 依固定節奏送方向鍵（Codex S1 #6：原本每個抖動事件都會送一次）
+		stick[ev.axis] = ev.axis_value
+		if absf(ev.axis_value) > 0.6:
+			pad_mode = true
 
 
-func _mouse_button(mb: InputEventMouseButton) -> void:
-	mouse = mb.position
-	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
-		_enqueue("click", mouse)
-	if overlay == "codex" and mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
-		_scroll_at(mouse, -48.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 48.0)   # 圖鑑捲動（第三輪 U1）
+## 塗兵（佇列命令）：按住拖過格子連續擺。
+func _paint_cmd(p: Vector2) -> void:
+	if state != St.PLACE or overlay != "" or not painting:
 		return
+	if _cur_army().team != paint_team:
+		painting = false
+		return
+	var c := _cell_at(p)
+	if c.x >= 0 and _cur_army().index_at(c.x, c.y) == -1:
+		_try_place(c)
+
+
+func _mb_release_cleanup() -> void:
+	drag_new = false
+	painting = false
+	drag_from = Vector2i(-1, -1)
+
+
+## 滑鼠按鍵（佇列命令，第三輪 A2）：按鈕點擊、擺放、拖曳、移除。
+func _mb_cmd(d: Dictionary) -> void:
+	var mb := InputEventMouseButton.new()
+	mb.button_index = d["i"]
+	mb.pressed = d["pressed"]
+	mb.position = d["pos"]
+	mouse = d["pos"]
+	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+		if _do_click(mouse) > 0:
+			_mb_release_cleanup()
+			return
 	if overlay != "" or state != St.PLACE:
 		if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
-			drag_new = false
-			painting = false
-			drag_from = Vector2i(-1, -1)
+			_mb_release_cleanup()
 		return
 	var c := _cell_at(mouse)
 	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
@@ -703,7 +723,44 @@ func _process(delta: float) -> void:
 	_process_inner(delta)
 	perf_proc_us = Time.get_ticks_usec() - _t0
 
+## 搖桿連發（第三輪 A2）：超過 0.6 才算推、低於 0.35 才算放開（遲滯）；推下立刻一次，0.35 秒後每 0.12 秒一次。
+var stick := {JOY_AXIS_LEFT_X: 0.0, JOY_AXIS_LEFT_Y: 0.0}
+var _stick_dir := Vector2i.ZERO
+var _stick_t := 0.0
+
+func _stick_repeat(delta: float) -> void:
+	var d := _stick_dir
+	for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
+		var v: float = stick[ax]
+		var cur: int = d.x if ax == JOY_AXIS_LEFT_X else d.y
+		var nv := cur
+		if absf(v) > 0.6:
+			nv = 1 if v > 0 else -1
+		elif absf(v) < 0.35:
+			nv = 0
+		if ax == JOY_AXIS_LEFT_X:
+			d.x = nv
+		else:
+			d.y = nv
+	if d != _stick_dir:
+		_stick_dir = d
+		_stick_t = 0.35
+		_stick_fire()
+	elif d != Vector2i.ZERO:
+		_stick_t -= delta
+		if _stick_t <= 0.0:
+			_stick_t += 0.12
+			_stick_fire()
+
+func _stick_fire() -> void:
+	if _stick_dir.x != 0:
+		_enqueue("key", KEY_RIGHT if _stick_dir.x > 0 else KEY_LEFT)
+	if _stick_dir.y != 0:
+		_enqueue("key", KEY_DOWN if _stick_dir.y > 0 else KEY_UP)
+
+
 func _process_inner(delta: float) -> void:
+	_stick_repeat(delta)
 	_process_cmds()
 	time += delta
 	SteamApi.run_callbacks()
@@ -723,8 +780,6 @@ func _process_inner(delta: float) -> void:
 				f["pop"] = maxf(0.0, f["pop"] - delta)
 		fx = fx.filter(func(f): return f["t"] < f["dur"])
 		clutch_t = maxf(0.0, clutch_t - delta)
-	if font_bold != null:
-		_layout_texts()
 	for g in dying:
 		g["t"] += delta
 	dying = dying.filter(func(g): return g["t"] < 1.0)
@@ -741,6 +796,8 @@ func _process_inner(delta: float) -> void:
 		_battle_process(delta)
 	elif state == St.RESULT:
 		zoom = lerpf(zoom, 1.0, delta * 4)
+	if font_bold != null:
+		_layout_texts()   # 戰鬥事件產生跳字之後才排版，新跳字第一幀就有位置（Codex S1 #3）
 	queue_redraw()
 
 
@@ -786,8 +843,11 @@ func _draw_inner() -> void:
 		_draw_units_of(view, false)
 	perf_parts["units"] = Time.get_ticks_usec() - _t
 	_t = Time.get_ticks_usec()
+	for f in fx:   # 先畫特效，跳字最後畫（Antigravity S2 #1：特效不能蓋住跳字）
+		if not f.get("screen", false) and f["kind"] != "text":
+			_draw_fx(f)
 	for f in fx:
-		if not f.get("screen", false):
+		if not f.get("screen", false) and f["kind"] == "text":
 			_draw_fx(f)
 	perf_parts["fx"] = Time.get_ticks_usec() - _t
 	draw_set_transform_matrix(Transform2D.IDENTITY)

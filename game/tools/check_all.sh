@@ -10,8 +10,9 @@ mkdir -p "$OUT"
 fail() { echo "CHECK FAIL：$1（記錄在 $OUT）"; exit 1; }
 has_err() { grep -E "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script" "$1" >/dev/null; }
 
-"$GODOT" --headless --path . --import > "$OUT/import.log" 2>&1
+"$GODOT" --headless --path . --import > "$OUT/import.log" 2>&1 || fail "匯入失敗（exit 非 0）"
 has_err "$OUT/import.log" && fail "匯入有腳本錯誤"
+grep -E "^ERROR: .*(import|Import|Failed loading resource)" "$OUT/import.log" >/dev/null && fail "有素材匯入失敗"
 
 "$GODOT" --headless --path . --script res://tools/load_all.gd > "$OUT/load.log" 2>&1 || fail "有腳本載入失敗"
 grep -q "^LOADALL .*失敗 0：" "$OUT/load.log" || fail "載入檢查沒有完成"
@@ -33,6 +34,8 @@ GN="${GOLDEN_N:-1000}"   # Windows 上一場約 1.5 秒，CI 的 Windows 用 200
 grep -q "^GOLDEN {\"n\":$GN,\"ok\":true}" "$OUT/golden.log" || fail "金標準沒有比完 $GN 場"
 
 "$GODOT" --headless --path . --script res://tools/orbit_detect.gd > "$OUT/orbit.log" 2>&1 || fail "騎兵打轉偵測超過門檻"
+grep -q "^ORBIT cav_battles=" "$OUT/orbit.log" || fail "打轉偵測沒有完成"
+for lg in mirror golden orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
 
 python3 tools/check_assets.py > "$OUT/assets.log" 2>&1 || fail "素材登記檢查失敗"
 

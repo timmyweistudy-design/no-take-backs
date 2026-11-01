@@ -445,5 +445,11 @@ func _draw_inner() -> void:
 						mood = Art.M_HOOD; crouch = 0.9; alpha = 0.45
 					D.SHIELD:
 						mood = Art.M_BRACE
+			if c == 5:   # 狂熱氣場
+				draw_arc(p + Vector2(0, -36), 26.0, 0, TAU, 24, Color(1.0, 0.33, 0.2, 0.6), 3.0, true)
 			_ring(p, 0, t, 1.6)
 			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch)
+			if c == 2 and t != D.ARCHER:   # 揮擊殘影（實際只有 0.12 秒）
+				var sc2 := p + Vector2(19, -42)
+				draw_arc(sc2, 32.0, -1.2, -1.2 + deg_to_rad(140.0), 18, Color(Art.team_color(0, cbm()), 0.85), 9.0, true)
+				draw_arc(sc2, 32.0, -1.2, -1.2 + deg_to_rad(140.0), 18, Color(1, 1, 1, 0.9), 4.5, true)

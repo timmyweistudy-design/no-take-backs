@@ -23,6 +23,8 @@ func _battle_process(delta: float) -> void:
 		_sim_step(true)
 	# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
 	_check_clutch()
+	if slow_left > 0:
+		_update_action_focus()
 	sfx.set_muffled(slow_left > 0 and not view.finished)
 	if slow_left > 0 and not view.finished:
 		_frame_alive(delta)
@@ -323,6 +325,22 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
 		elif tier < 2:
 			text_dropped += 1
 			return
+		else:
+			# 全部都是關鍵跳字：併進最近的同種跳字（硬上限，Codex S1 #5），關鍵不漏、只是合併
+			var near := -1
+			for k2 in fx.size():
+				var f3: Dictionary = fx[k2]
+				if f3["kind"] == "text" and f3.get("ek", "") == kind and (near < 0 or f3["p"].distance_to(p) < fx[near]["p"].distance_to(p)):
+					near = k2
+			if near >= 0:
+				var fn: Dictionary = fx[near]
+				fn["n"] += 1
+				fn["sum"] += dmg
+				fn["s"] = "%s ×%d（%d）" % [label, fn["n"], fn["sum"]]
+				fn["t"] = 0.0
+				fn["pop"] = 0.18
+				text_key_shown += 1
+				return
 	if tier >= 2:
 		text_key_shown += 1
 	fx.append({"kind": "text", "p": p, "s": "%s %d" % [label, dmg], "c": col, "t": 0.0, "dur": 0.85, "size": 18 if tier >= 2 else 16,
@@ -331,7 +349,7 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
 
 ## 跳字的外框（含描邊與底襯，戰場座標）。
 func _text_rect(f: Dictionary, at: Vector2) -> Rect2:
-	var sz := ts(int(f["size"]))
+	var sz := int(ts(int(f["size"])) * (1.0 + float(f.get("pop", 0.0)) * 1.4))   # 含合併時的彈跳放大（Codex S1 #4）
 	var w := font_bold.get_string_size(f["s"], HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x + 14.0 if font_bold != null else float(f["s"].length() * sz)
 	var h := sz * 1.3 + 6.0
 	return Rect2(at.x - w / 2.0, at.y - 3.0, w, h)
@@ -404,7 +422,18 @@ func _clutch_dim(world_p: Vector2) -> float:
 func _focus_dim(world_p: Vector2) -> float:
 	if slow_left <= 0.0 or state != St.BATTLE:
 		return 1.0
-	return 0.6 if world_p.distance_to(zoom_center) > 260.0 else 1.0
+	return 0.6 if world_p.distance_to(action_focus) > 200.0 else 1.0
+
+## 焦點＝最近 0.8 秒內出手或受擊的單位的中心（Antigravity S2 #2：原本用鏡頭中心，旁觀的弓兵不會淡化）
+var action_focus := Vector2.ZERO
+func _update_action_focus() -> void:
+	var sum := Vector2.ZERO
+	var n := 0
+	for u in view.units:
+		if u.alive and ((hurt_t.has(u.id) and time - hurt_t[u.id] < 0.8) or (atk_t.has(u.id) and time - atk_t[u.id] < 0.8)):
+			sum += _upos(u)
+			n += 1
+	action_focus = sum / n if n > 0 else zoom_center
 
 
 ## 最後時刻橫幅：全寬暗帶＋大字，畫在所有戰場東西上面（螢幕座標）。
@@ -428,8 +457,8 @@ func _draw_vignette(strength: float) -> void:
 	for ring in 6:
 		var k0 := (0.70 + ring * 0.06) * 1.25
 		var k1 := k0 + 0.06 * 1.25
-		var c0 := Color(0.18, 0.11, 0.0, strength * 0.10 * ring)
-		var c1 := Color(0.18, 0.11, 0.0, strength * 0.10 * (ring + 1))
+		var c0 := Color(0.20, 0.12, 0.0, strength * 0.14 * ring)
+		var c1 := Color(0.20, 0.12, 0.0, strength * 0.14 * (ring + 1))
 		for i in 32:
 			var a0 := i * TAU / 32.0
 			var a1 := (i + 1) * TAU / 32.0
@@ -444,8 +473,22 @@ const FX_PRIO := {"dust": 0, "slash": 1, "arrow": 1, "ripple": 1, "aim": 1, "hid
 	"taunt": 2, "bang": 2, "puff": 1, "hex": 2}
 var fx_dropped := 0
 
+var fx_deduped := 0
+
 func _add_fx(d: Dictionary) -> void:
 	var pr: int = FX_PRIO.get(d["kind"], 1)
+	# 同一處同種特效去重（Antigravity S2 #2）：24px 內、0.15 秒內最多 2 個
+	var dp = d.get("p", d.get("b", null))
+	if dp != null and not d.has("src"):   # 帶攻擊者的（砍擊、箭）不去重：每一次攻擊都要有演出
+		var same := 0
+		for f0 in fx:
+			if f0["kind"] == d["kind"] and f0["t"] < 0.15:
+				var fp = f0.get("p", f0.get("b", null))
+				if fp != null and fp.distance_to(dp) < 24.0:
+					same += 1
+		if same >= 2:
+			fx_deduped += 1
+			return
 	var n := 0
 	for f in fx:
 		if f["kind"] != "text":
@@ -465,6 +508,14 @@ func _add_fx(d: Dictionary) -> void:
 		elif pr < 2:
 			fx_dropped += 1
 			return
+		else:
+			# 全部都是關鍵特效：取代最舊的那個（硬上限，Codex S1 #5）
+			var oldest := -1
+			for k3 in fx.size():
+				if fx[k3]["kind"] != "text" and (oldest < 0 or fx[k3]["t"] > fx[oldest]["t"]):
+					oldest = k3
+			fx.remove_at(oldest)
+			fx_dropped += 1
 	fx.append(d)
 
 
@@ -883,9 +934,8 @@ func _draw_fx(f: Dictionary) -> void:
 				var dim := _clutch_dim(p3)
 				col.a *= dim
 				draw_rect(r3, Color(0.047, 0.059, 0.086, 0.72 * col.a))   # 半透明黑膠囊底
-				var pop: float = f.get("pop", 0.0)
-				var sz := int(ts(f["size"]) * (1.0 + pop * 1.4))
-				_text(p3 - Vector2(0, (sz - ts(f["size"])) * 0.5), f["s"], sz, col, true, true)
+				var sz := int(ts(f["size"]) * (1.0 + float(f.get("pop", 0.0)) * 1.4))
+				_text(p3, f["s"], sz, col, true, true)   # 外框與實際畫的字同一份幾何
 
 
 # ── 戰鬥 HUD ──
@@ -916,7 +966,7 @@ func _draw_battle_hud() -> void:
 	var rc := Color("#141820") if cbm() else Color.WHITE
 	_text(Vector2(bx + 8, 42), "%d%%" % roundi(p0 * 100 / tot), ts(15), lc, false, true)
 	var rt := "%d%%" % roundi(p1 * 100 / tot)
-	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), rc, false, true)
+	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), rc, false, true, 0.0, Color(1, 1, 1, 0.0) if cbm() else Color(0, 0, 0, -1))   # 深色字不加黑描邊（Antigravity S2 #1）
 	_text(Vector2(bx - 70, 42), L.t("units_left", [view.alive_count(0)]), ts(15), Art.team_color(0, cbm()), false, false, 64)
 	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [view.alive_count(1)]), ts(15), Art.team_color(1, cbm()), false, false, 70)
 	for tm in 2:

@@ -820,10 +820,60 @@ func test_input_queue() -> void:
 	if hits[0] != 1: bad.append("7a Enter %s" % [hits])
 	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._btns_gen = -1; g._focus = 0; g._enqueue("key", KEY_ENTER); g._process_cmds()
 	if hits[0] != 0: bad.append("7b 過期 Enter %s" % [hits])
+	# 9 同一幀先按 2（選盾兵）再點格子：擺下的是盾兵（Codex S1 #2：滑鼠也進同一個佇列）
+	g.mode = g.Mode.VS_AI
+	g.armies = [Army.new(0, 100), Army.new(1, 100)]
+	g.state = g.St.PLACE
+	g.overlay = ""
+	g.selected = D.SWORD
+	g._cmds.clear()
+	g._update_gen()
+	g._btns = []
+	g._btns_gen = g._gen
+	var cellp: Vector2 = g.ORIGIN + Vector2(4.5, 4.5) * g.CS
+	g._enqueue("key", KEY_2)
+	g._enqueue("mb", {"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": cellp})
+	g._enqueue("mb", {"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": cellp})
+	g._process_cmds()
+	var placed: Array = g.armies[0].units
+	if placed.size() != 1 or int(placed[0]["type"]) != D.SHIELD:
+		bad.append("9 先選兵再點格子 %s" % [placed])
+	# 10 開了圖鑑之後同一幀的塗兵命令要丟掉
+	g.painting = true
+	g.paint_team = 0
+	g._enqueue("key", KEY_F1)
+	g._enqueue("paint", g.ORIGIN + Vector2(3.5, 3.5) * g.CS)
+	g._process_cmds()
+	if g.armies[0].units.size() != 1:
+		bad.append("10 開圖鑑後的塗兵 %d" % g.armies[0].units.size())
+	g.overlay = ""
+	# 11 搖桿連發：推下立刻一次、0.35 秒後每 0.12 秒一次；0.35～0.6 之間的抖動維持原狀；放開就停（Codex S1 #6）
+	g.overlay = "settings"
+	g.state = g.St.TITLE
+	g._update_gen()
+	g._cmds.clear()
+	g.stick[JOY_AXIS_LEFT_Y] = 0.8
+	g._stick_repeat(0.0)
+	var n1: int = g._cmds.size()
+	g._stick_repeat(0.2)
+	var n2: int = g._cmds.size()
+	g.stick[JOY_AXIS_LEFT_Y] = 0.5          # 抖動但沒放開
+	g._stick_repeat(0.2)
+	var n3: int = g._cmds.size()
+	for k in 5:
+		g._stick_repeat(0.12)
+	var n4: int = g._cmds.size()
+	g.stick[JOY_AXIS_LEFT_Y] = 0.1
+	g._stick_repeat(0.5)
+	var n5: int = g._cmds.size()
+	if n1 != 1 or n2 != 1 or n3 != 2 or n4 != 7 or n5 != 7:
+		bad.append("11 搖桿連發 %s" % [[n1, n2, n3, n4, n5]])
+	g._cmds.clear()
+	g.overlay = ""
 	# 8 點在按鈕外：什麼都不做
 	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._enqueue("click", Vector2(500, 500)); g._process_cmds()
 	if hits != [0, 0]: bad.append("8 點空白 %s" % [hits])
-	ok(bad.is_empty(), "輸入佇列：8 組序列（連點、換畫面、停用、覆蓋層、過期清單、Esc、Enter、空白）誤觸與重複執行都是 0", str(bad))
+	ok(bad.is_empty(), "輸入佇列：11 組序列（連點、換畫面、停用、覆蓋層、過期清單、Esc、Enter、選兵後落子、開圖鑑後塗兵、搖桿連發、空白）誤觸與重複執行都是 0", str(bad))
 	g.free()
 
 
@@ -889,6 +939,7 @@ func test_crowd_readability() -> void:
 	var max_fx := 0
 	var max_txt := 0
 	var frames := 0
+	var unplaced := 0
 	for i in 6:
 		g._begin_battle(pool[i * 3].copy(), pool[(i * 17 + 4) % pool.size()].mirrored(), "replay")
 		g.speed = 1.0
@@ -897,6 +948,9 @@ func test_crowd_readability() -> void:
 			guard += 1
 			g._process_inner(1.0 / 60.0)
 			frames += 1
+			for f in g.fx:
+				if f["kind"] == "text" and not f.get("screen", false) and not f.has("rr"):
+					unplaced += 1
 			var st: Dictionary = g.text_overlap_stats()
 			worst = maxf(worst, st["max_overlap"])
 			worst_f = maxf(worst_f, st["max_overlap_fading"])
@@ -906,6 +960,7 @@ func test_crowd_readability() -> void:
 				if f["kind"] != "text":
 					nfx += 1
 			max_fx = maxi(max_fx, nfx)
+	ok(unplaced == 0, "跳字：每一個要畫的跳字都已排版（沒排版的 %d 個）" % unplaced)
 	ok(worst == 0.0 and worst_f <= 0.05, "跳字：正常顯示 0%% 重疊、淡出中 ≤5%%（%d 幀；最大 %.3f／%.3f）" % [frames, worst, worst_f])
 	ok(g.text_key_in > 0 and g.text_key_in == g.text_key_shown, "關鍵跳字一個都不漏（%d／%d）" % [g.text_key_shown, g.text_key_in])
 	ok(max_txt <= g.TEXT_CAP + 6 and max_fx <= g.FX_CAP, "跳字與特效有上限（跳字最多 %d、特效最多 %d；丟掉一般跳字 %d、特效 %d）" % [max_txt, max_fx, g.text_dropped, g.fx_dropped])

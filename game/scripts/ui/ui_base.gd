@@ -190,7 +190,7 @@ func fit(s: String, size: int, maxw: float, bold := false) -> int:
 	return sz
 
 
-func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0) -> void:
+func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
 	var fnt := font_bold if bold else font
 	if maxw > 0.0:
 		size = fit(s, size, maxw, bold)
@@ -201,7 +201,9 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		if layout_probe and _probe_ui and c.a > 0.2 and lines[i].strip_edges() != "":
 			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i]})
-		draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(0, 0, 0, c.a * 0.75))
+		var oc := Color(0, 0, 0, c.a * 0.75) if outline.a < 0.0 else outline
+		if oc.a > 0.0:
+			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, oc)
 		draw_string(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
 
 
@@ -245,21 +247,18 @@ func _process_cmds() -> int:
 	_cmds = []
 	for c in q:
 		if c["gen"] != _gen:
-			continue   # 畫面已經換了：丟掉
+			# 畫面已經換了：丟掉。但「放開滑鼠」一定要清掉拖曳／塗兵狀態（Codex S1 #2）
+			if c["kind"] == "mb" and not c["data"]["pressed"]:
+				_mb_release_cleanup()
+			continue
 		if c["kind"] == "click":
-			if _btns_gen != _gen:
-				continue   # 這個畫面的按鈕還沒畫出來
-			var p: Vector2 = c["data"]
-			for i in _btns.size():
-				var b: Dictionary = _btns[i]
-				if b["r"].has_point(p):
-					if b["en"]:
-						_focus = i
-						if sfx != null:
-							sfx.play("ui_click")
-						b["cb"].call()
-						done += 1
-					break
+			done += _do_click(c["data"])
+		elif c["kind"] == "mb":
+			# 滑鼠按鍵（擺放、拖曳、移除）也走同一個佇列，和鍵盤選兵的先後順序一致（Codex S1 #2）
+			_mb_cmd(c["data"])
+			done += 1
+		elif c["kind"] == "paint":
+			_paint_cmd(c["data"])
 		elif c["kind"] == "key":
 			_key(int(c["data"]))
 			done += 1
@@ -314,6 +313,31 @@ func _rebuild_sprites() -> void:
 # ── 給上層覆寫的佔位（拆檔後，下層程式需要呼叫上層的函式）──
 func _key(_k: int) -> void:
 	pass
+
+func _mb_cmd(_d: Dictionary) -> void:
+	pass
+
+func _paint_cmd(_p: Vector2) -> void:
+	pass
+
+func _mb_release_cleanup() -> void:
+	pass
+
+## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
+func _do_click(p: Vector2) -> int:
+	if _btns_gen != _gen:
+		return 0
+	for i in _btns.size():
+		var b: Dictionary = _btns[i]
+		if b["r"].has_point(p):
+			if b["en"]:
+				_focus = i
+				if sfx != null:
+					sfx.play("ui_click")
+				b["cb"].call()
+				return 1
+			return 0
+	return 0
 
 func _run_perf() -> void:
 	pass
