@@ -73,6 +73,7 @@ var gauntlet_seed := 0
 # 戰鬥演出
 var sim = null
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
+var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
 var atk_hit := {}         # 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
 var prev_pos := {}
 var accum := 0.0

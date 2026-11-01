@@ -41,6 +41,19 @@ static func skill_desc(id: String, lang: String) -> String:
 
 ## {NAME} 換成 unit_defs 的常數；{REACH_n} 是兵種 n 的攻擊距離；前面加 C: 表示換算成格（÷1000，例如 {C:TAUNT_RANGE}→2）。
 static func fill(s: String) -> String:
+	return _pretty_ratio(_fill_raw(s))
+
+## ×5/2 → ×2.5、×2/1 → ×2（手感輪 R3：分數讀起來像程式）
+static func _pretty_ratio(s: String) -> String:
+	var re := RegEx.create_from_string("×(\\d+)/(\\d+)")
+	var out := s
+	for m in re.search_all(s):
+		var v := float(m.get_string(1)) / float(m.get_string(2))
+		var t := str(int(v)) if is_equal_approx(v, roundf(v)) else str(snappedf(v, 0.01))
+		out = out.replace(m.get_string(0), "×" + t)
+	return out
+
+static func _fill_raw(s: String) -> String:
 	var out := s
 	for m in _re().search_all(s):
 		var v = value(m.get_string(2))

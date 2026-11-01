@@ -12,6 +12,7 @@ const PZ = preload("res://scripts/game/puzzles.gd")
 const CX = preload("res://scripts/game/codex.gd")
 const BV = preload("res://scripts/ui/battle_view.gd")
 const F = preload("res://scripts/core/formations.gd")
+const Art = preload("res://scripts/ui/art.gd")
 
 var passed := 0
 var failed := 0
@@ -39,6 +40,7 @@ func _init() -> void:
 	test_puzzle_solutions()
 	test_codex()
 	test_event_routes()
+	test_ui_consumers()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -480,7 +482,7 @@ func test_codex() -> void:
 			pop_bad.append("%s 小劇場沒有任何跳字" % sk)
 	ok(pop_bad.is_empty(), "小劇場每段都會在觸發者位置跳字", str(pop_bad))
 	# 說明的數值真的來自 unit_defs：改常數名就會在上面紅；這裡再對一個值
-	ok(CX.skill_desc("shield_block", "zh_TW").contains("×%d/%d" % [D.BLOCK_NUM, D.BLOCK_DEN]), "技能說明的數值取自 unit_defs")
+	ok(CX.skill_desc("shield_block", "zh_TW").contains("×%s" % str(snappedf(float(D.BLOCK_NUM) / D.BLOCK_DEN, 0.01))), "技能說明的數值取自 unit_defs")
 	var sd := {}
 	var newly: Array = []
 	for i in CX.NOTE_WINS:
@@ -512,3 +514,84 @@ func test_event_routes() -> void:
 	ok(kinds.get("rally_on", "") == "skip" and kinds.get("flank", "") == "skip" and kinds.get("taunt", "") == "taunt"
 		and kinds.get("reveal", "") == "reveal" and kinds.get("hit", "") == "attack" and kinds.get("death", "") == "death" and bad.is_empty(),
 		"戰鬥畫面事件分流：背水／繞翼不當攻擊、攻擊都帶完整欄位", "%s %s" % [kinds, bad.slice(0, 3)])
+
+
+## 不出聲的音效替身：讓畫面層可以在 headless 測試裡跑（只記錄播了什麼）。
+class FakeSfx:
+	var played: Array = []
+	func play(n: String, _v := 1.0) -> void:
+		played.append(n)
+	func play_music(_n: String) -> void:
+		pass
+
+## 畫面層真的消費事件（Codex R3 第 2 輪）：把真實戰鬥的每個 tick 交給戰鬥畫面的 _sim_step（含 _on_event、展示緩衝），
+## 不能報錯、攻擊事件一定產生演出；圖鑑的 _codex_tick 每段示範都要真的跳字、跳在觸發者身上。
+func test_ui_consumers() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	var pool := F.training_pool(0)
+	var attacks := 0
+	var fx_seen := 0
+	var kinds := {}
+	var bad: Array = []
+	for i in 6:
+		g.sim = Sim.new(pool[i].copy(), pool[(i * 11 + 5) % pool.size()].mirrored())
+		g.view = g.ViewBuffer.new(g.sim)
+		g.atk_hit.clear()
+		g.state = g.St.BATTLE
+		g._pump_view()
+		var guard := 0
+		while not g.view.finished and guard < 2000:
+			guard += 1
+			g.fx.clear()
+			g._sim_step(true)
+			var n_att := 0
+			for e in g.view.events:
+				kinds[e["kind"]] = true
+				if g.event_route(e) == "attack":
+					n_att += 1
+			attacks += n_att
+			if n_att > 0:
+				if g.fx.is_empty():
+					bad.append("tick%d 有 %d 次攻擊卻沒有演出" % [g.view.tick, n_att])
+				fx_seen += 1
+		if g.view.tick != g.sim.tick or not g.sim.finished:
+			bad.append("第 %d 場畫面沒有播到最後（畫面 %d／模擬 %d）" % [i, g.view.tick, g.sim.tick])
+	ok(bad.is_empty() and attacks > 100 and kinds.has("rally_on") and kinds.has("death"), "戰鬥畫面消費真實事件：不報錯、攻擊都有演出、緩衝會排空", "%s attacks=%d kinds=%s" % [bad.slice(0, 3), attacks, kinds.keys()])
+	# 前搖：攻擊者在命中那一格之前就已經開始動作（展示緩衝的目的）
+	g.sim = Sim.new(army_from(0, [[D.SWORD, 5, 4]]), army_from(1, [[D.SHIELD, 5, 4]]))
+	g.view = g.ViewBuffer.new(g.sim)
+	g.atk_hit.clear()
+	g._pump_view()
+	var pre_ok := false
+	for i in 200:
+		var before_hit := false
+		for fr in g.view.queue:
+			for e in fr["events"]:
+				if g.event_route(e) == "attack" and int(fr["tick"]) == g.view.tick + 1:
+					before_hit = true
+		if before_hit:
+			var u = g.view.units[0]
+			var at: float = g.atk_progress(g._disp_tick() - (g.atk_hit[u.id] - g.ViewBuffer.DELAY), u.type)
+			if at > 0.0 and at < Art.ATK_WINDUP:
+				pre_ok = true
+				break
+		g._sim_step(false)
+	ok(pre_ok, "命中前一格畫面上已經在前搖")
+	# 圖鑑小劇場真的跳字
+	var pop_bad: Array = []
+	for t in D.COUNT:
+		g._open_codex(t)
+		for k in g._cx_skills().size():
+			g._cx_pick_skill(k)
+			var seen := false
+			for j in 400:
+				g._codex_tick(0.05)
+				if not g.cx_pops.is_empty():
+					seen = true
+					break
+			if not seen:
+				pop_bad.append(g._cx_skills()[k])
+	ok(pop_bad.is_empty(), "圖鑑每段小劇場都真的跳字", str(pop_bad))
+	g.free()

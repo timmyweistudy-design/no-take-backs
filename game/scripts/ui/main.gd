@@ -194,13 +194,16 @@ func _run_screenshots() -> void:
 		f["t"] = f["dur"] * 0.35
 		fx.append(f)
 	var stunned = null
-	for u in sim.units:
+	for u in view.units:   # 只改畫面快照，不碰模擬（Codex R3 第 2 輪建議）
 		if u.alive and u.type == D.CAVALRY and u.stun == 0:
 			stunned = u
 			u.stun = 10
 			break
 	freeze_fx = true
 	await _snap("12_fx.png")
+	anim_gallery = true
+	await _snap("13_poses.png")
+	anim_gallery = false
 	freeze_fx = false
 	if stunned != null:
 		stunned.stun = 0   # 只是為了截圖，還原，不影響接下來的模擬
@@ -316,3 +319,36 @@ func _pstats(a: Array) -> Dictionary:
 	if b.is_empty():
 		return {}
 	return {"p50": snappedf(b[b.size() / 2], 0.01), "p95": snappedf(b[int(b.size() * 0.95)], 0.01), "max": snappedf(b[-1], 0.01)}
+
+
+## 動作／表情樣品（R5 截圖驗證用）：每個兵種一列：待機、前搖、揮擊、後搖、受擊、狂熱、專屬（衝鋒／潛行／頂住）、勝利。
+var anim_gallery := false
+
+func _draw_inner() -> void:
+	super._draw_inner()
+	if not anim_gallery:
+		return
+	draw_rect(Rect2(60, 90, 1160, 640), Color(0.12, 0.16, 0.12, 0.97))
+	var cols := ["待機", "前搖", "揮擊", "後搖", "受擊", "狂熱", "專屬", "勝利"]
+	for c in cols.size():
+		_text(Vector2(190 + c * 130, 100), cols[c], ts(16), Color.WHITE, true)
+	for t in D.COUNT:
+		var y := 220.0 + t * 112.0
+		for c in cols.size():
+			var p := Vector2(190 + c * 130, y)
+			var at: float = [0.0, 0.25, 0.42, 0.75, 0.0, 0.0, 0.0, Art.ATK_WINDUP][c]
+			var mood: int = [0, 0, 0, 0, Art.M_HURT, Art.M_BROWS, 0, 0][c]
+			var lean := 0.0
+			var crouch := 1.0
+			var alpha := 1.0
+			var walk := 0.0
+			if c == 6:
+				match t:
+					D.CAVALRY:
+						mood = Art.M_SPARKLE; lean = 0.26; walk = 1.0
+					D.ASSASSIN:
+						mood = Art.M_HOOD; crouch = 0.9; alpha = 0.45
+					D.SHIELD:
+						mood = Art.M_BRACE
+			_ring(p, 0, t, 1.6)
+			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch)

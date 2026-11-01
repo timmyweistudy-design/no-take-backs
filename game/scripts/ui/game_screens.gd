@@ -248,6 +248,7 @@ func _begin_battle(a0, a1) -> void:
 	sim = Sim.new(a0, a1)
 	view = ViewBuffer.new(sim)
 	atk_hit.clear()
+	brace_t.clear()
 	state = St.BATTLE
 	prev_pos.clear()
 	for u in view.units:
@@ -761,8 +762,9 @@ func _draw_inner() -> void:
 	if toast_t > 0:
 		var a := minf(1.0, toast_t * 2)
 		var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
-		draw_rect(Rect2(640 - tw / 2, 616, tw, 44), Color(0, 0, 0, 0.72 * a))
-		_text(Vector2(640, 622), toast, ts(20), Color(1, 0.88, 0.5, a), true)
+		var ty := 40.0 if overlay != "" else 616.0   # 覆蓋層開著時放上面，不蓋住內容（手感輪 R3）
+		draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, 0.72 * a))
+		_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
 	if _focus >= _btns.size():
 		_focus = 0
 	_handle_click()

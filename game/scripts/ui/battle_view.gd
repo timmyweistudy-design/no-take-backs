@@ -132,6 +132,15 @@ static func atk_progress(dt: float, type: int) -> float:
 	return maxf(a, 0.001)
 
 
+func _star_above(c: Vector2) -> void:
+	var r := 6.0 + sin(time * 6.0) * 1.0
+	var pts := PackedVector2Array()
+	for i in 10:
+		var an := -PI / 2 + i * TAU / 10.0
+		pts.append(c + Vector2(cos(an), sin(an)) * (r if i % 2 == 0 else r * 0.45))
+	draw_colored_polygon(pts, Color(1, 0.88, 0.3))
+
+
 ## 事件分流（Codex R3 審查 #1）：只有帶 dmg 的才是攻擊；背水開關沒有 src；嘲諷、現形、繞翼只有演出。
 ## 回傳 "death"／"skip"／"taunt"／"reveal"／"attack"。測試會把真實戰鬥的每一種事件都丟進來檢查。
 static func event_route(ev: Dictionary) -> String:
@@ -205,14 +214,15 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			label = L.t("ev_braced")
 			col = Color("#9ad1ff")
 			sfx.play("brace")
-			fx.append({"kind": "ripple", "p": tpos + Vector2(10, -24), "c": ACCENT, "t": 0.0, "dur": 0.35})
+			brace_t[t.id] = time
+			fx.append({"kind": "hex", "p": tpos + Vector2(10 * signf(sp.x - tpos.x), -24), "t": 0.0, "dur": 0.45})
 		"anticav":
 			label = L.t("ev_anticav")
 			col = Color("#9ad1ff")
 			sfx.play("brace", 0.6)
 		"blocked":
 			sfx.play("block", 0.5)
-			fx.append({"kind": "ripple", "p": tpos + Vector2(14, -26), "c": ACCENT, "t": 0.0, "dur": 0.3})
+			fx.append({"kind": "ripple", "p": tpos + Vector2(14 * signf(sp.x - tpos.x), -26), "c": Color("#cfe3ff"), "t": 0.0, "dur": 0.3})
 		"counter":
 			label = L.t("ev_counter")
 			col = Color("#80ffdb")
@@ -315,13 +325,40 @@ func _draw_units_of(s, dim: bool) -> void:
 		if dim:
 			alpha *= 0.6
 		var face := signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
+		# 表情與兵種專屬動作（R5）
+		var mood := 0
+		var lean := 0.0
+		var crouch := 1.0
+		if hurt > 0.3 or u.stun > 0:
+			mood |= Art.M_HURT
+		if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
+			mood |= Art.M_SPARKLE
+			lean = 0.26                      # 衝鋒蓄滿前傾 15°
+			for k in 3:                      # 馬蹄噴土
+				var ph := fmod(time * 4.0 + k * 0.33 + u.id * 0.1, 1.0)
+				draw_circle(p + Vector2(-face * (14 + ph * 16), -2 - ph * 6), 3.2 * (1.0 - ph), Color(0.85, 0.75, 0.55, 0.7 * (1.0 - ph)), true, -1.0, true)
+		if s.frenzy and at == 0.0 and not s.finished:
+			mood |= Art.M_BROWS
+		if u.type == D.ASSASSIN and u.stealth > 0:
+			mood |= Art.M_HOOD
+			crouch = 0.9                     # 潛行蹲身
+		if live and brace_t.has(u.id) and time - brace_t[u.id] < 0.35:
+			mood |= Art.M_BRACE
+		# 勝利：存活的勝方每 0.45 秒原地跳 10px、武器高舉
+		var hop := 0.0
+		if state == St.RESULT and live and sim != null and u.team == sim.winner:
+			hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
+			at = Art.ATK_WINDUP
+			_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
+		p.y -= hop
+		var run := 1.6 if u.type == D.CAVALRY else (1.4 if u.type == D.ASSASSIN else 1.0)   # 快的兵跑步節奏也快
 		if u.stealth > 0:
 			# 潛行：身後兩道暗紫殘影
 			for g in 2:
 				var gp := p + Vector2(-(8 + g * 8) * face, 0)
 				draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
 				_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
-		_unit(p, u.type, u.team, face, (time * 10.0 + u.id) if moving else 0.0, at, hurt, alpha, time, UNIT_SCALE)
+		_unit(p, u.type, u.team, face, (time * 10.0 * run + u.id) if moving else 0.0, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch)
 	if dim:
 		return
 	# 第三層：小旗、血條、狀態（永遠畫在最上面）
@@ -407,14 +444,14 @@ func _draw_fx(f: Dictionary) -> void:
 				var pts := PackedVector2Array()
 				for j in 3:
 					pts.append(c0 + Vector2(cos(rot + j * 2.1), sin(rot + j * 2.1)) * r0)
-				draw_colored_polygon(pts, Color(0.78, 0.84, 0.95, 1 - k))
+				draw_colored_polygon(pts, Color(0.93, 0.97, 1.0, 1 - k))
 				draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.2, 0.25, 0.35, 1 - k), 1.2, true)
 		"aim":
 			# 警覺：金色瞄準線先拉出來，再淡掉
 			var a2: Vector2 = f["a"]
 			var b2: Vector2 = f["b"]
 			var e2 := a2.lerp(b2, minf(1.0, k * 2.5))
-			draw_dashed_line(a2, e2, Color(1, 0.84, 0.3, 0.9 * (1 - k)), 2.0, 6.0, true)
+			draw_dashed_line(a2, e2, Color(1, 0.84, 0.3, 0.6 * (1 - k)), 1.6, 6.0, true)
 			draw_arc(b2, 9 - k * 3, 0, TAU, 16, Color(1, 0.84, 0.3, 1 - k), 2.0, true)
 		"hide":
 			# 皮甲：琥珀色弧光擋在中箭的那一側
@@ -427,8 +464,12 @@ func _draw_fx(f: Dictionary) -> void:
 			var c5: Vector2 = f["p"]
 			var gap := 2.0 + k * 14.0
 			var drop := k * k * 8.0
-			draw_line(c5 + Vector2(-20, 0), c5 + Vector2(-gap, drop), Color(1, 1, 1, 1 - k), 2.2, true)
-			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(20, 0), Color(1, 1, 1, 1 - k), 2.2, true)
+			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Art.OUT, 4.6, true)
+			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Art.OUT, 4.6, true)
+			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Color(1, 1, 1, 1 - k), 3.0, true)
+			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Color(1, 1, 1, 1 - k), 3.0, true)
+			if k < 0.25:
+				draw_circle(c5, 5.0 * (1.0 - k * 4.0), Color(1, 1, 1, 0.9), true, -1.0, true)   # 繃斷的閃白
 		"vslash":
 			# 背刺：一道粗的紫色斬痕
 			var c6: Vector2 = f["p"]
@@ -442,16 +483,26 @@ func _draw_fx(f: Dictionary) -> void:
 			# 嘲諷：盾兵身邊擴散的橘色圈
 			for j in 2:
 				var kj := clampf(k * 1.4 - j * 0.3, 0.0, 1.0)
-				draw_arc(f["p"], 12 + kj * 30, 0, TAU, 28, Color(1, 0.55, 0.15, 0.85 * (1 - kj)), 3.0, true)
+				draw_arc(f["p"], 10 + kj * 22, 0, TAU, 28, Color(1, 0.55, 0.15, 0.6 * (1 - kj)), 2.5, true)
 		"bang":
 			# 嘲諷：被吸過去的敵人頭上冒「!」
 			var y4 := -sin(minf(1.0, k * 3.0) * PI * 0.5) * 8.0
 			_text(f["p"] + Vector2(0, y4 - 10), "!", ts(22), Color(1, 0.6, 0.2, 1.0 - k * k), true, true)
+		"hex":
+			# 頂住：藍色六角波紋
+			for j in 2:
+				var kh := clampf(k * 1.3 - j * 0.25, 0.0, 1.0)
+				var rr := 10.0 + kh * 22.0
+				var hp := PackedVector2Array()
+				for q in 7:
+					var an := q * TAU / 6.0 + PI / 6.0
+					hp.append(f["p"] + Vector2(cos(an), sin(an)) * rr)
+				draw_polyline(hp, Color(0.55, 0.8, 1.0, 0.85 * (1 - kh)), 2.5, true)
 		"puff":
 			# 現形：一團暗紫色煙散開
 			for i in 7:
 				var ang2 := i * TAU / 7 + 0.3
-				draw_circle(f["p"] + Vector2(cos(ang2), sin(ang2) * 0.7) * (6 + k * 22), 7 * (1 - k), Color(0.35, 0.2, 0.5, 0.7 * (1 - k)), true, -1.0, true)
+				draw_circle(f["p"] + Vector2(cos(ang2), sin(ang2) * 0.7) * (6 + k * 22), 7 * (1 - k), Color(0.62, 0.45, 0.85, 0.7 * (1 - k)), true, -1.0, true)
 		"text":
 			var p3: Vector2 = f["p"] + Vector2(0, -k * 26)
 			var col: Color = f["c"]
