@@ -481,8 +481,11 @@ func _run_mem_check(out_path: String) -> void:
 	var end_b: Dictionary = samples[1]
 	var cb0: Dictionary = samples[2]
 	var cb1: Dictionary = samples[3]
-	var ok_b: bool = end_b["static_mb"] <= base["static_mb"] * 1.05 + 1.0 and end_b["nodes"] <= base["nodes"] + 5
-	var ok_c: bool = cb1["static_mb"] <= cb0["static_mb"] * 1.05 + 1.0 and cb1["tex_mb"] <= cb0["tex_mb"] * 1.05 + 1.0 and cb1["nodes"] <= cb0["nodes"] + 5
+	# 靜態記憶體、物件數、節點數、貼圖記憶體四項都要比（Codex S8 #4）
+	var grew := func(a: Dictionary, b: Dictionary) -> bool:
+		return b["static_mb"] > a["static_mb"] * 1.05 + 1.0 or b["objects"] > a["objects"] * 1.02 + 20 or b["nodes"] > a["nodes"] + 5 or b["tex_mb"] > a["tex_mb"] * 1.05 + 1.0
+	var ok_b: bool = not grew.call(base, end_b)
+	var ok_c: bool = not grew.call(cb0, cb1)
 	var out := {"samples": samples, "battles_ok": ok_b, "colorblind_ok": ok_c}
 	var f := FileAccess.open(out_path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out, "  "))

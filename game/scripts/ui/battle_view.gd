@@ -22,9 +22,12 @@ func _battle_process(delta: float) -> void:
 	accum += delta * rate
 	while accum >= 0.05 and not view.finished:
 		accum -= 0.05
+		var was_slow := slow_left > 0
 		_sim_step(true)
+		if slow_left > 0 and not was_slow:
+			break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
 	# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
-	_check_clutch()
+	# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
 	if slow_left > 0:
 		_update_action_focus()
 	sfx.set_muffled(slow_left > 0 and not view.finished)
@@ -55,13 +58,16 @@ static func clutch_cond(s) -> bool:
 	var p1: float = s.power(1) * 100.0 / tot
 	return absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (s.alive_count(0) <= 3 and s.alive_count(1) <= 3))
 
-func _check_clutch() -> void:
+## with_fx＝false（直接看結果、重播跳轉補播）只記狀態與標記，不放慢動作、不播音效、不出橫幅（Codex S8 #2）。
+func _check_clutch(with_fx := true) -> void:
 	if slow_used or view.finished:
 		return
 	if clutch_cond(view):
 		slow_used = true
 		clutch_tick = view.tick
 		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
+		if not with_fx:
+			return
 		if bool(Save.s("slowmo")):
 			slow_left = 8.0
 		clutch_t = 1.6   # 最後時刻橫幅（第三輪 V2）：獨立一層畫在 _draw_clutch_banner
@@ -91,7 +97,7 @@ func _sim_step(with_fx: bool) -> void:
 		view.finished = true
 		return
 	_pump_view()
-	_check_clutch()   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
 	if view.frenzy and not frenzy_seen:
 		frenzy_seen = true
 		if with_fx:

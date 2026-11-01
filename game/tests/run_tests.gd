@@ -51,6 +51,7 @@ func _init() -> void:
 	test_replay_tools()
 	test_counter_lib()
 	test_seek_clutch()
+	test_clutch_effects()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -1174,4 +1175,53 @@ func test_seek_clutch() -> void:
 		gg._sim_step(false)
 	ok(want_ct == ct and before_ok and gg.clutch_tick == want_ct and JSON.stringify(gg.battle_marks) == want,
 		"重播跳轉：最後時刻在觸發點前後來回跳，狀態與標記都和從頭播一樣（觸發於 %d tick）" % ct, "%s vs %s" % [want, JSON.stringify(gg.battle_marks)])
+	gg.free()
+
+
+## 最後時刻的演出副作用（Codex S8 #2、#3）：直接看結果／跳轉補播不放慢動作、不播音效；
+## 正常播放時同一幀觸發慢動作後，剩下的累積不再用原速消耗。
+func test_clutch_effects() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var BVs = load("res://scripts/ui/battle_view.gd")
+	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/golden.json"))
+	var pick := -1
+	for i in 60:
+		var c: Dictionary = g["cases"][i]
+		var a0 := Army.new(0, 100); a0.load_code(c["a"])
+		var a1 := Army.new(1, 100); a1.load_code(c["b"])
+		var sm = Sim.new(a0, a1)
+		sm.fast = true
+		var hit := false
+		while not sm.finished:
+			sm.step()
+			if not sm.finished and BVs.clutch_cond(sm):
+				hit = sm.tick > 40
+				break
+		if hit:
+			pick = i
+			break
+	if pick < 0:
+		ok(false, "最後時刻演出：找不到測試場")
+		return
+	var c2: Dictionary = g["cases"][pick]
+	var b0 := Army.new(0, 100); b0.load_code(c2["a"])
+	var b1 := Army.new(1, 100); b1.load_code(c2["b"])
+	var gg = GS.new()
+	var fs := FakeSfx.new()
+	gg.sfx = fs
+	gg.mode = gg.Mode.VS_AI
+	gg._begin_battle(b0.copy(), b1.copy(), "replay")
+	gg._on_skip()
+	ok(gg.slow_used and gg.slow_left == 0.0 and not fs.played.has("clutch"), "直接看結果：最後時刻只記標記，不放慢動作、不播音效")
+	# 正常播放：一次給很大的時間（一幀多個 tick），觸發慢動作的那一 tick 之後要停下來
+	gg._begin_battle(b0.copy(), b1.copy(), "replay")
+	var steps_before := -1
+	var guard := 0
+	while not gg.slow_used and guard < 400:
+		guard += 1
+		var t0: int = gg.view.tick
+		gg._battle_process(0.5)   # 一幀 10 tick
+		if gg.slow_used:
+			steps_before = gg.view.tick - t0
+	ok(gg.slow_used and gg.view.tick == gg.clutch_tick and gg.accum > 0.0, "同一幀觸發慢動作：停在觸發那一 tick，剩下的時間留給慢速（多走了 %d tick）" % (gg.view.tick - gg.clutch_tick))
 	gg.free()
