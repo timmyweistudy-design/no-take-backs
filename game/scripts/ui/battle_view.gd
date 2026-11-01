@@ -1,4 +1,5 @@
 extends "res://scripts/ui/ui_base.gd"
+const EV = preload("res://scripts/core/events.gd")
 ## 戰場、單位、特效、戰鬥 HUD、最後時刻鏡頭（演出層：不影響戰鬥結果）。
 
 
@@ -87,7 +88,7 @@ func _sim_step(with_fx: bool) -> void:
 			var s = view.unit_by_id(ev["src"])
 			var key := "%s%d" % [k, s.team]
 			ev_count[key] = int(ev_count.get(key, 0)) + 1
-		if k == "death":
+		if k == EV.DEATH:
 			deaths += 1
 		_on_event(ev, with_fx)
 	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
@@ -165,9 +166,9 @@ func _star_above(c: Vector2) -> void:
 ## 回傳 "death"／"skip"／"taunt"／"reveal"／"attack"。測試會把真實戰鬥的每一種事件都丟進來檢查。
 static func event_route(ev: Dictionary) -> String:
 	var k: String = ev.get("kind", "")
-	if k == "death":
+	if k == EV.DEATH:
 		return "death"
-	if k == "taunt" or k == "reveal":
+	if k == EV.TAUNT or k == EV.REVEAL:
 		return k if ev.has("src") and ev.has("tgt") else "skip"
 	if ev.has("dmg") and ev.has("src") and ev.has("tgt"):
 		return "attack"
@@ -176,7 +177,7 @@ static func event_route(ev: Dictionary) -> String:
 
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var k: String = ev["kind"]
-	if k == "death":
+	if k == EV.DEATH:
 		var u = view.unit_by_id(ev["id"])
 		dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
 		if with_fx:
@@ -204,12 +205,12 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	hurt_t[t.id] = time
 	var sp := _upos(s)
 	var tpos := _upos(t)
-	if tags.has("alert"):
+	if tags.has(EV.ALERT):
 		sfx.play("alert", 0.5)
 		fx.append({"kind": "aim", "a": sp + Vector2(0, -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.32})
-	if tags.has("hide"):
+	if tags.has(EV.HIDE):
 		fx.append({"kind": "hide", "p": tpos + Vector2(0, -24), "dir": signf(sp.x - tpos.x) if sp.x != tpos.x else 1.0, "t": 0.0, "dur": 0.4})
-	if tags.has("trip"):
+	if tags.has(EV.TRIP):
 		sfx.play("snap", 0.7)
 		fx.append({"kind": "trip", "p": tpos + Vector2(0, -4), "t": 0.0, "dur": 0.5})
 	if s.type == D.ARCHER:
@@ -217,11 +218,11 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		sfx.play("arrow", 0.35)
 	else:
 		fx.append({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
-		sfx.play("hit" if k == "hit" else "slash", 0.4)
+		sfx.play("hit" if k == EV.HIT else "slash", 0.4)
 	var col := Color.WHITE
 	var label := ""
 	match k:
-		"charge":
+		EV.CHARGE:
 			label = L.t("ev_charge")
 			col = ACCENT
 			sfx.play("charge")
@@ -229,30 +230,30 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			if bool(Save.s("shake")):
 				shake = 0.12
 			fx.append({"kind": "dust", "p": tpos, "t": 0.0, "dur": 0.5})
-		"backstab":
+		EV.BACKSTAB:
 			label = L.t("ev_backstab")
 			col = Color("#c77dff")
 			sfx.play("backstab")
 			sfx.play("aircut", 0.7)
 			fx.append({"kind": "flash", "p": tpos + Vector2(0, -26), "c": Color("#c77dff"), "t": 0.0, "dur": 0.25})
 			fx.append({"kind": "vslash", "p": tpos + Vector2(0, -26), "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.3})
-		"braced":
+		EV.BRACED:
 			label = L.t("ev_braced")
 			col = Color("#9ad1ff")
 			sfx.play("bell", 0.8)
 			brace_t[t.id] = time
 			fx.append({"kind": "hex", "p": tpos + Vector2(10 * signf(sp.x - tpos.x), -24), "t": 0.0, "dur": 0.45})
-		"anticav":
+		EV.ANTICAV:
 			label = L.t("ev_anticav")
 			col = Color("#9ad1ff")
 			sfx.play("brace", 0.6)
-		"blocked":
+		EV.BLOCKED:
 			sfx.play("block", 0.5)
 			fx.append({"kind": "ripple", "p": tpos + Vector2(14 * signf(sp.x - tpos.x), -26), "c": Color("#cfe3ff"), "t": 0.0, "dur": 0.3})
-		"counter":
+		EV.COUNTER:
 			label = L.t("ev_counter")
 			col = Color("#80ffdb")
-		"breaker":
+		EV.BREAKER:
 			sfx.play("shatter", 0.45)
 			fx.append({"kind": "shard", "p": tpos + Vector2(12, -26), "t": 0.0, "dur": 0.5})
 	if label != "":

@@ -249,8 +249,10 @@ func _counter_lib() -> Array:
 	return p if typeof(p) == TYPE_ARRAY else []
 
 
-func _begin_battle(a0, a1) -> void:
-	last_armies = [a0.copy(), a1.copy()]
+func _begin_battle(a0, a1, kind := "official") -> void:
+	play_kind = kind
+	if kind == "official":
+		last_armies = [a0.copy(), a1.copy()]
 	sim = Sim.new(a0, a1)
 	view = ViewBuffer.new(sim)
 	atk_hit.clear()
@@ -288,16 +290,20 @@ func _finish_battle() -> void:
 	slow_left = 0.0
 	zoom_target = 1.0
 	var w: int = sim.winner
-	if w >= 0:
-		wins[w] += 1
-	series_over = wins[0] >= 2 or wins[1] >= 2 or round_no >= 5
+	var eff: Dictionary = PLAY_EFFECTS[play_kind]
+	if eff["series"]:
+		if w >= 0:
+			wins[w] += 1
+		series_over = wins[0] >= 2 or wins[1] >= 2 or round_no >= 5
 	_build_report()
 	if mode == Mode.DUEL:
 		sfx.play("win" if w >= 0 else "lose")
 	else:
 		sfx.play("win" if w == 0 else "lose")
-	_progress_and_achievements()
-	Save.playtest_log(_pt_entry(0))
+	if eff["progress"]:
+		_progress_and_achievements()
+	if eff["log"]:
+		Save.playtest_log(_pt_entry(0))
 
 
 func _pt_entry(rating: int) -> Dictionary:
@@ -309,7 +315,8 @@ func _pt_entry(rating: int) -> Dictionary:
 
 func _pt_rate(v: int) -> void:
 	pt_rated = true
-	Save.playtest_log(_pt_entry(v))
+	if PLAY_EFFECTS[play_kind]["log"]:
+		Save.playtest_log(_pt_entry(v))
 	_toast(L.t("pt_thanks"))
 
 
@@ -1316,11 +1323,8 @@ func _next_round() -> void:
 
 
 func _replay() -> void:
-	var w: int = sim.winner
-	if w >= 0:
-		wins[w] -= 1
-	series_over = false
-	_begin_battle(last_armies[0].copy(), last_armies[1].copy())
+	# 重播只看不算：比分、進度、成就、日誌都不動（第三輪 A1，原本會重複結算）
+	_begin_battle(last_armies[0].copy(), last_armies[1].copy(), "replay")
 
 
 func _next_puzzle() -> void:

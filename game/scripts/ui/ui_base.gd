@@ -72,6 +72,13 @@ var gauntlet_seed := 0
 
 # 戰鬥演出
 var sim = null
+## 副作用矩陣（第三輪 A1）：每種播放方式會寫入哪些東西。正式＝真的打了一場；重播＝同一場再看一次；覆盤＝改一隻兵看「如果」。
+const PLAY_EFFECTS := {
+	"official": {"series": true, "progress": true, "log": true},
+	"replay": {"series": false, "progress": false, "log": false},
+	"review": {"series": false, "progress": false, "log": false},
+}
+var play_kind := "official"   # 這一場是哪種播放
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始

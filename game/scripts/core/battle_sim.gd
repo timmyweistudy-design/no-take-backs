@@ -6,6 +6,7 @@ extends RefCounted
 ## 指紋＝每 tick 完整狀態（固定欄位、int64 小端序）串接後的 SHA-256。
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const EV = preload("res://scripts/core/events.gd")
 const M = preload("res://scripts/core/imath.gd")
 
 const TPS := 20
@@ -173,7 +174,7 @@ func step() -> void:
 		new_target[i] = t
 		# 技能事件（只給畫面與圖鑑用，不進指紋）：被盾兵嘲諷吸走
 		if t != -1 and t != u.target and _last_rank == 1:
-			events.append({"kind": "taunt", "src": units[t].id, "tgt": u.id, "tags": ["taunt"]})
+			events.append({"kind": EV.TAUNT, "src": units[t].id, "tgt": u.id, "tags": [EV.TAUNT]})
 		if t == -1 or u.stun > 0:
 			continue
 		var tg := units[t]
@@ -311,7 +312,7 @@ func step() -> void:
 				rally[tm] = true
 	for tm in 2:
 		if rally[tm] != _was_rally[tm]:
-			events.append({"kind": "rally_on" if rally[tm] else "rally_off", "team": tm, "tags": ["rally"]})
+			events.append({"kind": EV.RALLY_ON if rally[tm] else EV.RALLY_OFF, "team": tm, "tags": [EV.RALLY]})
 			_was_rally[tm] = rally[tm]
 	for i in n:
 		var u := units[i]
@@ -327,56 +328,56 @@ func step() -> void:
 		if u.type == D.ASSASSIN and u.stealth > 0 and not _is_behind(u, tg):
 			continue
 		var dmg := u.atk
-		var kind := "hit"
+		var kind: String = EV.HIT
 		var tags: Array = []
 		if u.type == D.SHIELD and tg.type == D.CAVALRY:
 			dmg = dmg * D.ANTICAV_NUM / D.ANTICAV_DEN
-			kind = "anticav"
-			tags.append("anticav")
+			kind = EV.ANTICAV
+			tags.append(EV.ANTICAV)
 		if u.type == D.SWORD:
 			if tg.type == D.SHIELD:
 				dmg = dmg * D.BREAKER_NUM / D.BREAKER_DEN
-				kind = "breaker"
-				tags.append("breaker")
+				kind = EV.BREAKER
+				tags.append(EV.BREAKER)
 		elif u.type == D.ARCHER:
-			kind = "arrow"
-			tags.append("arrow")
+			kind = EV.ARROW
+			tags.append(EV.ARROW)
 			if tg.type == D.ASSASSIN:
 				dmg = dmg * D.ALERT_NUM / D.ALERT_DEN
-				tags.append("alert")
+				tags.append(EV.ALERT)
 			if tg.type == D.SHIELD and not _is_behind(u, tg):
 				dmg = dmg * D.BLOCK_NUM / D.BLOCK_DEN
-				kind = "blocked"
-				tags.append("blocked")
+				kind = EV.BLOCKED
+				tags.append(EV.BLOCKED)
 			elif tg.type == D.CAVALRY:
 				dmg = dmg * D.HIDE_ARROW_NUM / D.HIDE_ARROW_DEN
-				tags.append("hide")
+				tags.append(EV.HIDE)
 		elif u.type == D.CAVALRY:
 			if u.charge >= D.CHARGE_NEED:
 				if tg.type == D.SHIELD and not _is_behind(u, tg):
 					stun_set[i] = true
-					kind = "braced"
-					tags.append("braced")
+					kind = EV.BRACED
+					tags.append(EV.BRACED)
 				else:
 					dmg = dmg * D.CHARGE_NUM / D.CHARGE_DEN
-					kind = "charge"
-					tags.append("charge")
+					kind = EV.CHARGE
+					tags.append(EV.CHARGE)
 					knock.append([u.target, tg.x - u.x, tg.y - u.y])
 		elif u.type == D.ASSASSIN:
 			if _is_behind(u, tg):
 				dmg = dmg * D.BACKSTAB_NUM / D.BACKSTAB_DEN
-				kind = "backstab"
-				tags.append("backstab")
+				kind = EV.BACKSTAB
+				tags.append(EV.BACKSTAB)
 			if tg.type == D.CAVALRY:
 				slow_set[u.target] = true
-				tags.append("trip")
+				tags.append(EV.TRIP)
 			reveal[i] = true
 			if tg.type == D.SWORD:
 				if not sword_hit_by.has(u.target):
 					sword_hit_by[u.target] = []
 				sword_hit_by[u.target].append(i)
 		if tags.is_empty():
-			tags.append("hit")
+			tags.append(EV.HIT)
 		hits.append([i, u.target, dmg, kind, tags])
 		attacked[i] = 1
 		u.cd += u.cd_base * 4
@@ -387,7 +388,7 @@ func step() -> void:
 	swords.sort()
 	for si in swords:
 		var sw := units[si]
-		hits.append([si, pick_counter(si, sword_hit_by[si]), sw.atk * D.COUNTER_PCT / 100, "counter", ["counter"]])
+		hits.append([si, pick_counter(si, sword_hit_by[si]), sw.atk * D.COUNTER_PCT / 100, EV.COUNTER, [EV.COUNTER]])
 
 	# ⑤ 同時結算
 	var dmg_in := PackedInt64Array()
@@ -427,7 +428,7 @@ func step() -> void:
 		for i in n:
 			if units[i].alive:
 				dmg_in[i] += maxi(1, units[i].max_hp * (k + 1) * D.ATTRITION_STEP_PCT / 100)
-		events.append({"kind": "attrition", "k": k})
+		events.append({"kind": EV.ATTRITION, "k": k})
 	for kb in knock:
 		var v := M.unit1000(kb[1], kb[2])
 		var t: Unit = units[kb[0]]
@@ -452,7 +453,7 @@ func step() -> void:
 		if slow_set.has(i):
 			u.slow = D.SLOW_TICKS
 		if u.type == D.ASSASSIN and u.stealth == 0 and _was_stealth.get(u.id, false):
-			events.append({"kind": "reveal", "src": u.id, "tgt": u.id, "tags": ["reveal"]})
+			events.append({"kind": EV.REVEAL, "src": u.id, "tgt": u.id, "tags": [EV.REVEAL]})
 		_was_stealth[u.id] = u.stealth > 0
 		# 騎兵這一 tick 沒動也沒出手（被擋、等待）→ 衝鋒歸零
 		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
@@ -464,7 +465,7 @@ func step() -> void:
 			u.hp = 0
 			if last_hit[i] != -1:
 				units[last_hit[i]].kills += 1
-			events.append({"kind": "death", "id": u.id})
+			events.append({"kind": EV.DEATH, "id": u.id})
 
 	power_log.append(power(0) - power(1))
 	if not fast:
@@ -665,7 +666,7 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 	if wy < 0:
 		return Vector2i(-1, -1)   # 兩側都沒有空間繞：直接追
 	u.nav = 1
-	events.append({"kind": "flank", "src": u.id, "tgt": tg.id, "tags": ["flank"]})
+	events.append({"kind": EV.FLANK, "src": u.id, "tgt": tg.id, "tags": [EV.FLANK]})
 	u.wp_x = mid_x
 	u.wp_y = wy
 	return Vector2i(u.wp_x, u.wp_y)

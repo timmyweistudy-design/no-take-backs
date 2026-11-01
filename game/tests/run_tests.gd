@@ -12,6 +12,7 @@ const PZ = preload("res://scripts/game/puzzles.gd")
 const CX = preload("res://scripts/game/codex.gd")
 const BV = preload("res://scripts/ui/battle_view.gd")
 const F = preload("res://scripts/core/formations.gd")
+const EVS = preload("res://scripts/core/events.gd")
 const Art = preload("res://scripts/ui/art.gd")
 
 var passed := 0
@@ -43,6 +44,7 @@ func _init() -> void:
 	test_ui_consumers()
 	test_sfx_priority()
 	test_save_migration()
+	test_play_effects()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -507,6 +509,11 @@ func test_event_routes() -> void:
 		while not sm.finished:
 			sm.step()
 			for e in sm.events:
+				if not EVS.KINDS.has(e["kind"]):
+					bad.append("未登記的事件種類 %s" % e["kind"])
+				for tg in e.get("tags", []):
+					if not EVS.TAGS.has(tg):
+						bad.append("未登記的標籤 %s" % tg)
 				var r := BV.event_route(e)
 				kinds[e["kind"]] = r
 				if r == "attack" and not (e.has("src") and e.has("tgt") and e.has("dmg")):
@@ -711,3 +718,56 @@ func test_save_migration() -> void:
 	SV.prefix = old_prefix
 	var v9 := {"schema_version": 9, "x": 1}
 	ok(SV.migrate(v9) == v9, "存檔遷移：比目前新的版本不降版")
+
+
+## 副作用矩陣（第三輪 A1）：正式對局才寫比分、進度、成就、試玩日誌；重播 3 次全部不變。
+## 走正式畫面程式（_begin_battle → _sim_step → _finish_battle → _replay），存檔用測試前綴，不碰玩家存檔。
+func test_play_effects() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	if GS == null or not GS.can_instantiate():
+		ok(false, "副作用矩陣：畫面腳本載入失敗")
+		return
+	var old_prefix: String = SV.prefix
+	SV.prefix = "test_fx_"
+	for fn in ["user://test_fx_save.json", "user://test_fx_save.json.bak", "user://test_fx_settings.json"]:
+		if FileAccess.file_exists(fn):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn))
+	SV.load_all()
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.mode = g.Mode.VS_AI
+	g.difficulty = 1
+	var keys := ["official", "replay", "review"]
+	var mx_ok := true
+	for k in keys:
+		mx_ok = mx_ok and g.PLAY_EFFECTS.has(k)
+	ok(mx_ok and g.PLAY_EFFECTS["official"]["progress"] and not g.PLAY_EFFECTS["replay"]["progress"] and not g.PLAY_EFFECTS["review"]["series"], "副作用矩陣：三種播放都有定義、只有正式會寫")
+	var a0 = army_from(0, [[D.SWORD, 5, 4], [D.CAVALRY, 4, 2], [D.ARCHER, 1, 4]])
+	var a1 = army_from(1, [[D.SWORD, 5, 4]])
+	var play := func(kind: String) -> void:
+		if kind == "official":
+			g._begin_battle(a0.copy(), a1.copy())
+		else:
+			g._replay()
+		var guard := 0
+		while not g.view.finished and guard < 3000:
+			g._sim_step(false)
+			guard += 1
+		g._finish_battle()
+	play.call("official")
+	var snap := func() -> String:
+		return JSON.stringify([SV.data.get("stats"), SV.data.get("unit_wins"), SV.data.get("achievements"), g.wins, g.series_over])
+	var after_official: String = snap.call()
+	var games_1 := int(SV.data["stats"]["games"])
+	for i in 3:
+		play.call("replay")
+	ok(games_1 == 1 and snap.call() == after_official and g.play_kind == "replay", "重播 3 次：場次、勝場、兵種勝場、成就、系列比分都不變", "%s → %s" % [after_official, snap.call()])
+	play.call("official")
+	ok(int(SV.data["stats"]["games"]) == 2, "重播之後再打正式的一場，照常記錄")
+	g.free()
+	for fn in ["user://test_fx_save.json", "user://test_fx_save.json.bak", "user://test_fx_settings.json"]:
+		if FileAccess.file_exists(fn):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn))
+	SV.prefix = old_prefix
+	SV.load_all()
