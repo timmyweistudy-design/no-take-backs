@@ -106,6 +106,20 @@ static func demo_sim(id: String):
 	s.fast = true
 	return s
 
+## 這一 tick 觸發預期技能的位置（給小劇場跳字用）。事件裡的 src／tgt 是單位 id，不是 units 陣列的索引，要用 unit_by_id 查。
+static func expect_hits(s, expect: String) -> Array:
+	var out: Array = []
+	for e in s.events:
+		if not e.get("tags", []).has(expect):
+			continue
+		var who: int = int(e.get("src", e.get("tgt", -1)))
+		if who < 0:
+			continue
+		var u = s.unit_by_id(who)
+		if u != null:
+			out.append(Vector2(u.x, u.y))
+	return out
+
 ## 跑完整段示範，回傳出現過的事件標籤（測試與驗證用）。
 static func demo_tags(id: String) -> Dictionary:
 	var s = demo_sim(id)

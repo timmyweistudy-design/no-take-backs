@@ -90,6 +90,19 @@ func _sim_step(with_fx: bool) -> void:
 			shake = 0.15
 
 
+## 事件分流（Codex R3 審查 #1）：只有帶 dmg 的才是攻擊；背水開關沒有 src；嘲諷、現形、繞翼只有演出。
+## 回傳 "death"／"skip"／"taunt"／"reveal"／"attack"。測試會把真實戰鬥的每一種事件都丟進來檢查。
+static func event_route(ev: Dictionary) -> String:
+	var k: String = ev.get("kind", "")
+	if k == "death":
+		return "death"
+	if k == "taunt" or k == "reveal":
+		return k if ev.has("src") and ev.has("tgt") else "skip"
+	if ev.has("dmg") and ev.has("src") and ev.has("tgt"):
+		return "attack"
+	return "skip"
+
+
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var k: String = ev["kind"]
 	if k == "death":
@@ -98,14 +111,32 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		if with_fx:
 			sfx.play("death", 0.7)
 		return
-	if k == "attrition" or not with_fx:
+	var route := event_route(ev)
+	if route == "skip" or not with_fx:
 		return
+	match route:
+		"taunt":
+			var sh = sim.unit_by_id(ev["src"])
+			var vic = sim.unit_by_id(ev["tgt"])
+			fx.append({"kind": "taunt", "p": _upos(sh), "t": 0.0, "dur": 0.6})
+			fx.append({"kind": "bang", "p": _upos(vic) + Vector2(0, -64), "t": 0.0, "dur": 0.7})
+			return
+		"reveal":
+			fx.append({"kind": "puff", "p": _upos(sim.unit_by_id(ev["src"])) + Vector2(0, -20), "t": 0.0, "dur": 0.45})
+			return
 	var s = sim.unit_by_id(ev["src"])
 	var t = sim.unit_by_id(ev["tgt"])
+	var tags: Array = ev.get("tags", [])
 	atk_t[s.id] = time
 	hurt_t[t.id] = time
 	var sp := _upos(s)
 	var tpos := _upos(t)
+	if tags.has("alert"):
+		fx.append({"kind": "aim", "a": sp + Vector2(0, -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.32})
+	if tags.has("hide"):
+		fx.append({"kind": "hide", "p": tpos + Vector2(0, -24), "dir": signf(sp.x - tpos.x) if sp.x != tpos.x else 1.0, "t": 0.0, "dur": 0.4})
+	if tags.has("trip"):
+		fx.append({"kind": "trip", "p": tpos + Vector2(0, -4), "t": 0.0, "dur": 0.5})
 	if s.type == D.ARCHER:
 		fx.append({"kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.28, "tc": Art.team_color(s.team, cbm())})
 		sfx.play("arrow", 0.35)
@@ -127,6 +158,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			col = Color("#c77dff")
 			sfx.play("backstab")
 			fx.append({"kind": "flash", "p": tpos + Vector2(0, -26), "c": Color("#c77dff"), "t": 0.0, "dur": 0.25})
+			fx.append({"kind": "vslash", "p": tpos + Vector2(0, -26), "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.3})
 		"braced":
 			label = L.t("ev_braced")
 			col = Color("#9ad1ff")
@@ -239,12 +271,16 @@ func _draw_units_of(s, dim: bool) -> void:
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
 			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
-		var alpha := 0.38 if u.stealth > 0 else 1.0
+		var alpha := 0.45 if u.stealth > 0 else 1.0
 		if dim:
 			alpha *= 0.6
 		var face := signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
 		if u.stealth > 0:
-			_unit(p + Vector2(-7 * face, 0), u.type, u.team, face, 0.0, 0.0, 0.0, 0.16, time, UNIT_SCALE)
+			# 潛行：身後兩道暗紫殘影
+			for g in 2:
+				var gp := p + Vector2(-(8 + g * 8) * face, 0)
+				draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
+				_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
 		_unit(p, u.type, u.team, face, (time * 10.0 + u.id) if moving else 0.0, at, hurt, alpha, time, UNIT_SCALE)
 	if dim:
 		return
@@ -253,7 +289,13 @@ func _draw_units_of(s, dim: bool) -> void:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		Art.flag(self, p + Vector2(-12, -50 if u.type != D.CAVALRY else -58), u.team, cbm())
 		if u.stun > 0:
-			_text(p + Vector2(0, -78), "✦", ts(16), Color.YELLOW, true)
+			# 暈眩：三顆金色菱形繞著頭轉
+			var hc := p + Vector2(0, -70 if u.type == D.CAVALRY else -62)
+			for j in 3:
+				var an := time * 5.0 + j * TAU / 3.0
+				var dc := hc + Vector2(cos(an) * 13, sin(an) * 4)
+				var sz := 4.0 + sin(an) * 1.0
+				draw_colored_polygon(PackedVector2Array([dc + Vector2(0, -sz), dc + Vector2(sz * 0.7, 0), dc + Vector2(0, sz), dc + Vector2(-sz * 0.7, 0)]), Color(1, 0.85, 0.25))
 		if live and s.rally[u.team]:
 			draw_arc(p + Vector2(0, -24), 22.0, 0, TAU, 20, Color(1, 0.45, 0.2, 0.35 + 0.15 * sin(time * 8)), 2.5, true)
 		if s.frenzy:
@@ -315,9 +357,61 @@ func _draw_fx(f: Dictionary) -> void:
 			var c3: Color = f["c"]
 			draw_arc(f["p"], 6 + k * 18, -1.2, 1.2, 12, Color(c3, 1 - k), 3, true)
 		"shard":
-			for i in 4:
-				var v := Vector2(cos(i * 1.7 + 0.5), sin(i * 1.7 + 0.5)) * k * 26
-				draw_rect(Rect2(f["p"] + v + Vector2(0, k * k * 20), Vector2(5, 5)), Color(0.8, 0.85, 0.95, 1 - k))
+			# 破盾裂片：盾面的灰藍碎片往外飛、旋轉、往下掉
+			for i in 6:
+				var ang := i * 1.13 + 0.4
+				var v := Vector2(cos(ang), sin(ang) * 0.7) * k * 34
+				var c0: Vector2 = f["p"] + v + Vector2(0, k * k * 24)
+				var r0 := 6.0 * (1.0 - k * 0.4)
+				var rot := k * 7.0 + i
+				var pts := PackedVector2Array()
+				for j in 3:
+					pts.append(c0 + Vector2(cos(rot + j * 2.1), sin(rot + j * 2.1)) * r0)
+				draw_colored_polygon(pts, Color(0.78, 0.84, 0.95, 1 - k))
+				draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.2, 0.25, 0.35, 1 - k), 1.2, true)
+		"aim":
+			# 警覺：金色瞄準線先拉出來，再淡掉
+			var a2: Vector2 = f["a"]
+			var b2: Vector2 = f["b"]
+			var e2 := a2.lerp(b2, minf(1.0, k * 2.5))
+			draw_dashed_line(a2, e2, Color(1, 0.84, 0.3, 0.9 * (1 - k)), 2.0, 6.0, true)
+			draw_arc(b2, 9 - k * 3, 0, TAU, 16, Color(1, 0.84, 0.3, 1 - k), 2.0, true)
+		"hide":
+			# 皮甲：琥珀色弧光擋在中箭的那一側
+			var d3: float = f["dir"]
+			var c4: Vector2 = f["p"]
+			var st := -1.1 if d3 > 0 else PI - 1.1
+			draw_arc(c4, 15 + k * 6, st, st + 2.2, 14, Color(1, 0.66, 0.2, 0.95 * (1 - k)), 4.0 - k * 2, true)
+		"trip":
+			# 絆馬：一條白繩在腳邊繃斷，兩段往外彈
+			var c5: Vector2 = f["p"]
+			var gap := 2.0 + k * 14.0
+			var drop := k * k * 8.0
+			draw_line(c5 + Vector2(-20, 0), c5 + Vector2(-gap, drop), Color(1, 1, 1, 1 - k), 2.2, true)
+			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(20, 0), Color(1, 1, 1, 1 - k), 2.2, true)
+		"vslash":
+			# 背刺：一道粗的紫色斬痕
+			var c6: Vector2 = f["p"]
+			var dd: float = f["dir"]
+			var a0 := Vector2(-18 * dd, -16)
+			var a1 := Vector2(18 * dd, 16)
+			var e3 := a0.lerp(a1, minf(1.0, k * 3.0))
+			draw_line(c6 + a0, c6 + e3, Color(0.78, 0.49, 1.0, 1 - k), 6.0 * (1 - k * 0.6), true)
+			draw_line(c6 + a0, c6 + e3, Color(1, 1, 1, 0.8 * (1 - k)), 1.6, true)
+		"taunt":
+			# 嘲諷：盾兵身邊擴散的橘色圈
+			for j in 2:
+				var kj := clampf(k * 1.4 - j * 0.3, 0.0, 1.0)
+				draw_arc(f["p"], 12 + kj * 30, 0, TAU, 28, Color(1, 0.55, 0.15, 0.85 * (1 - kj)), 3.0, true)
+		"bang":
+			# 嘲諷：被吸過去的敵人頭上冒「!」
+			var y4 := -sin(minf(1.0, k * 3.0) * PI * 0.5) * 8.0
+			_text(f["p"] + Vector2(0, y4 - 10), "!", ts(22), Color(1, 0.6, 0.2, 1.0 - k * k), true, true)
+		"puff":
+			# 現形：一團暗紫色煙散開
+			for i in 7:
+				var ang2 := i * TAU / 7 + 0.3
+				draw_circle(f["p"] + Vector2(cos(ang2), sin(ang2) * 0.7) * (6 + k * 22), 7 * (1 - k), Color(0.35, 0.2, 0.5, 0.7 * (1 - k)), true, -1.0, true)
 		"text":
 			var p3: Vector2 = f["p"] + Vector2(0, -k * 26)
 			var col: Color = f["c"]

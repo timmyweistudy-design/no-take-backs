@@ -91,6 +91,7 @@ var shot_dir := ""
 var ev_count := {}
 var frenzy_seen := false
 var report := {}
+var freeze_fx := false     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
 var pt_rated := false
 

@@ -24,6 +24,10 @@ var cx_seen := false           # 這一輪示範有沒有出現預期的技能
 
 
 func _open_codex(t: int) -> void:
+	# 開圖鑑前取消擺放畫面的拖曳／塗兵狀態，不然關掉圖鑑後移動滑鼠會繼續放兵（Codex R3 審查 #3）
+	painting = false
+	drag_new = false
+	drag_from = Vector2i(-1, -1)
 	cx_unit = clampi(t, 0, D.COUNT - 1)
 	_cx_pick_skill(0)
 	_open("codex")
@@ -82,15 +86,11 @@ func _codex_tick(delta: float) -> void:
 			if e.has("dmg"):
 				cx_atk[e["src"]] = time
 				cx_hurt[e["tgt"]] = time
-			var tags: Array = e.get("tags", [])
-			if tags.has(dm.get("expect", "")):
-				cx_seen = true
-				var who: int = e.get("src", e.get("tgt", -1))
-				if who >= 0 and who < cx_sim.units.size():
-					var u = cx_sim.units[who]
-					cx_pops.append({"p": Vector2(u.x, u.y), "s": CX.text(CX.skill(sk), "", L.lang) + "！", "t": 0.0})
-				if cx_pops.size() > 4:
-					cx_pops.pop_front()
+		for hp in CX.expect_hits(cx_sim, str(dm.get("expect", ""))):
+			cx_seen = true
+			cx_pops.append({"p": hp, "s": CX.text(CX.skill(sk), "", L.lang) + "！", "t": 0.0})
+			if cx_pops.size() > 4:
+				cx_pops.pop_front()
 
 
 func _cx_pos(u) -> Vector2:

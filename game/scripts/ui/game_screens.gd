@@ -550,6 +550,10 @@ func _mouse_button(mb: InputEventMouseButton) -> void:
 	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 		_click_pending = mouse
 	if overlay != "" or state != St.PLACE:
+		if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
+			drag_new = false
+			painting = false
+			drag_from = Vector2i(-1, -1)
 		return
 	var c := _cell_at(mouse)
 	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
@@ -661,9 +665,10 @@ func _process_inner(delta: float) -> void:
 		toast_t = 2.5
 		ach_t = 2.6
 	shake = maxf(0.0, shake - delta)
-	for f in fx:
-		f["t"] += delta
-	fx = fx.filter(func(f): return f["t"] < f["dur"])
+	if not freeze_fx:
+		for f in fx:
+			f["t"] += delta
+		fx = fx.filter(func(f): return f["t"] < f["dur"])
 	for g in dying:
 		g["t"] += delta
 	dying = dying.filter(func(g): return g["t"] < 1.0)

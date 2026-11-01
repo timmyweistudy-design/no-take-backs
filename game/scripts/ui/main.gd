@@ -174,6 +174,37 @@ func _run_screenshots() -> void:
 	for f in fx:
 		f["t"] = 0.0
 	await _snap("03_battle.png")
+	# 技能特效樣品（第二輪方案 R4）：在戰場上方一排，每種特效停在 35% 的時刻
+	var saved_fx := fx.duplicate()
+	fx.clear()
+	var y0 := 150.0
+	var kinds := [
+		{"kind": "aim", "a": Vector2(170, y0), "b": Vector2(250, y0 + 6), "dur": 0.32},
+		{"kind": "hide", "p": Vector2(320, y0), "dir": 1.0, "dur": 0.4},
+		{"kind": "trip", "p": Vector2(420, y0 + 20), "dur": 0.5},
+		{"kind": "shard", "p": Vector2(520, y0), "dur": 0.5},
+		{"kind": "vslash", "p": Vector2(620, y0), "dir": 1.0, "dur": 0.3},
+		{"kind": "flash", "p": Vector2(620, y0), "c": Color("#c77dff"), "dur": 0.25},
+		{"kind": "taunt", "p": Vector2(730, y0 + 20), "dur": 0.6},
+		{"kind": "bang", "p": Vector2(830, y0), "dur": 0.7},
+		{"kind": "puff", "p": Vector2(930, y0), "dur": 0.45},
+		{"kind": "ripple", "p": Vector2(1030, y0), "c": ACCENT, "dur": 0.35},
+	]
+	for f in kinds:
+		f["t"] = f["dur"] * 0.35
+		fx.append(f)
+	var stunned = null
+	for u in sim.units:
+		if u.alive and u.type == D.CAVALRY and u.stun == 0:
+			stunned = u
+			u.stun = 10
+			break
+	freeze_fx = true
+	await _snap("12_fx.png")
+	freeze_fx = false
+	if stunned != null:
+		stunned.stun = 0   # 只是為了截圖，還原，不影響接下來的模擬
+	fx = saved_fx
 	while not sim.finished and not slow_used:
 		_sim_step(true)
 		_check_clutch()

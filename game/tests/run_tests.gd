@@ -10,6 +10,8 @@ const TP = preload("res://scripts/core/turn_placement.gd")
 const MC = preload("res://scripts/core/mirror_check.gd")
 const PZ = preload("res://scripts/game/puzzles.gd")
 const CX = preload("res://scripts/game/codex.gd")
+const BV = preload("res://scripts/ui/battle_view.gd")
+const F = preload("res://scripts/core/formations.gd")
 
 var passed := 0
 var failed := 0
@@ -36,6 +38,7 @@ func _init() -> void:
 	test_nav_r1()
 	test_puzzle_solutions()
 	test_codex()
+	test_event_routes()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -454,6 +457,28 @@ func test_codex() -> void:
 			if d.contains("{") or d.contains("}"):
 				bad.append("%s 說明有沒換掉的常數：%s" % [sk, d])
 	ok(n == 14 and bad.is_empty(), "14 個技能示範都觸發預期事件、說明數值都換好", str(bad))
+	# 小劇場跳字的位置要是觸發者本人（事件 id ≠ 陣列索引；Codex R3 審查 #2）
+	var pop_bad: Array = []
+	for sk in CX.data()["skills"]:
+		var sm = CX.demo_sim(sk)
+		var ex2: String = CX.skill(sk)["demo"]["expect"]
+		var got := 0
+		for i in int(CX.skill(sk)["demo"]["ticks"]):
+			if sm.finished:
+				break
+			sm.step()
+			var hits := CX.expect_hits(sm, ex2)
+			var want: Array = []
+			for e in sm.events:
+				if e.get("tags", []).has(ex2):
+					var u = sm.unit_by_id(int(e.get("src", e.get("tgt", -1))))
+					want.append(Vector2(u.x, u.y))
+			if hits != want:
+				pop_bad.append("%s tick%d %s≠%s" % [sk, sm.tick, hits, want])
+			got += hits.size()
+		if got == 0:
+			pop_bad.append("%s 小劇場沒有任何跳字" % sk)
+	ok(pop_bad.is_empty(), "小劇場每段都會在觸發者位置跳字", str(pop_bad))
 	# 說明的數值真的來自 unit_defs：改常數名就會在上面紅；這裡再對一個值
 	ok(CX.skill_desc("shield_block", "zh_TW").contains("×%d/%d" % [D.BLOCK_NUM, D.BLOCK_DEN]), "技能說明的數值取自 unit_defs")
 	var sd := {}
@@ -464,3 +489,26 @@ func test_codex() -> void:
 		newly = CX.record_win(sd, [D.CAVALRY, D.CAVALRY, D.SWORD])
 	ok(CX.note_unlocked(sd, D.CAVALRY) and CX.wins_with(sd, D.CAVALRY) == CX.NOTE_WINS, "老兵筆記：同一場同兵種只算一次、贏 5 場解鎖")
 	ok(newly.has(D.CAVALRY) and newly.has(D.SWORD) and not CX.note_unlocked(sd, D.ARCHER), "老兵筆記：剛好第 5 場回報新解鎖、沒派的兵種不解鎖")
+
+
+## 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg，
+## 背水開關（沒有 src）不能被當成攻擊。純模擬測試抓不到畫面層讀不存在的欄位，所以直接測分流函式。
+func test_event_routes() -> void:
+	var pool := F.training_pool(0)
+	var kinds := {}
+	var bad: Array = []
+	for i in 30:
+		var sm = Sim.new(pool[i].copy(), pool[(i * 7 + 3) % pool.size()].mirrored())
+		sm.fast = true
+		while not sm.finished:
+			sm.step()
+			for e in sm.events:
+				var r := BV.event_route(e)
+				kinds[e["kind"]] = r
+				if r == "attack" and not (e.has("src") and e.has("tgt") and e.has("dmg")):
+					bad.append(e)
+				if (r == "taunt" or r == "reveal") and sm.unit_by_id(int(e["src"])) == null:
+					bad.append(e)
+	ok(kinds.get("rally_on", "") == "skip" and kinds.get("flank", "") == "skip" and kinds.get("taunt", "") == "taunt"
+		and kinds.get("reveal", "") == "reveal" and kinds.get("hit", "") == "attack" and kinds.get("death", "") == "death" and bad.is_empty(),
+		"戰鬥畫面事件分流：背水／繞翼不當攻擊、攻擊都帶完整欄位", "%s %s" % [kinds, bad.slice(0, 3)])
