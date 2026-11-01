@@ -424,15 +424,15 @@ func _draw_inner() -> void:
 	if not anim_gallery:
 		return
 	draw_rect(Rect2(60, 90, 1160, 640), Color(0.12, 0.16, 0.12, 0.97))
-	var cols := ["待機", "前搖", "揮擊", "後搖", "受擊", "狂熱", "專屬", "勝利"]
+	var cols := ["待機", "前搖", "揮擊", "後搖", "受擊", "狂熱", "專屬", "勝利", "交替招式"]
 	for c in cols.size():
-		_text(Vector2(190 + c * 130, 100), cols[c], ts(16), Color.WHITE, true)
+		_text(Vector2(170 + c * 122, 100), cols[c], ts(16), Color.WHITE, true)
 	for t in D.COUNT:
 		var y := 220.0 + t * 112.0
 		for c in cols.size():
-			var p := Vector2(190 + c * 130, y)
-			var at: float = [0.0, 0.25, 0.42, 0.75, 0.0, 0.0, 0.0, Art.ATK_WINDUP][c]
-			var mood: int = [0, 0, 0, 0, Art.M_HURT, Art.M_BROWS, 0, 0][c]
+			var p := Vector2(170 + c * 122, y)
+			var at: float = [0.0, 0.25, 0.42, 0.75, 0.0, 0.0, 0.0, Art.ATK_WINDUP, 0.42][c]
+			var mood: int = [0, 0, 0, 0, Art.M_HURT, Art.M_BROWS, 0, 0, 0][c]
 			var lean := 0.0
 			var crouch := 1.0
 			var alpha := 1.0
@@ -448,7 +448,7 @@ func _draw_inner() -> void:
 			if c == 5:   # 狂熱氣場
 				draw_arc(p + Vector2(0, -36), 26.0, 0, TAU, 24, Color(1.0, 0.33, 0.2, 0.6), 3.0, true)
 			_ring(p, 0, t, 1.6)
-			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch)
+			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch, 1 if c == 8 else 0)
 			if c == 2 and t != D.ARCHER:   # 揮擊殘影（實際只有 0.12 秒）
 				var sc2 := p + Vector2(19, -42)
 				draw_arc(sc2, 32.0, -1.2, -1.2 + deg_to_rad(140.0), 18, Color(Art.team_color(0, cbm()), 0.85), 9.0, true)

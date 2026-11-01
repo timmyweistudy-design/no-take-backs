@@ -80,6 +80,7 @@ const PLAY_EFFECTS := {
 }
 var play_kind := "official"   # 這一場是哪種播放
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
+var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出
 var battle_marks: Array = []   # 結果頁時間軸的關鍵事件（第三輪 U5）：{tick, kind, team}
 var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
@@ -294,11 +295,11 @@ func _cycle_setting(k: String, opts: Array) -> void:
 
 ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
 func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
-		mood := 0, lean := 0.0, crouch := 1.0) -> void:
+		mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
 	if sprites != null and sprites.is_ready(cbm()):
-		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm())
+		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant)
 	else:
-		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch)
+		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
 
 func _ring(p: Vector2, team: int, type: int, scale := 1.0) -> void:
 	if sprites != null and sprites.is_ready(cbm()):

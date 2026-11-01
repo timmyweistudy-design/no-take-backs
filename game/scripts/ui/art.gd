@@ -65,7 +65,7 @@ static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, 
 ## 單位：p＝腳底；face＝±1；walk＝走路相位（0＝沒走）；atk＝攻擊動作進度 0～1（見上）；hurt＝受擊閃白 0～1；
 ## alpha＝透明度（潛行）；t＝時間（待機呼吸）；scale＝縮放；mood＝表情疊加（M_*）；lean／crouch 見 unit_xf。
 static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
-		hurt: float, alpha: float, t: float, scale := 1.0, cb := false, mood := 0, lean := 0.0, crouch := 1.0) -> void:
+		hurt: float, alpha: float, t: float, scale := 1.0, cb := false, mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
 	var tc := team_color(team, cb)
 	var w: float = pose(atk)[0]
 	ci.draw_set_transform_matrix(base * unit_xf(p, face, walk, atk, t, scale, lean, crouch))
@@ -73,7 +73,7 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	if type == D.CAVALRY:
 		_cavalry(ci, tc, walk, w, alpha, t, atk > 0.0)
 	else:
-		_infantry(ci, type, tc, walk, w, alpha, t, atk > 0.0)
+		_infantry(ci, type, tc, walk, w, alpha, t, atk > 0.0, variant)
 	if hurt > 0.0:
 		# 受擊閃白：在身體位置疊一層白
 		ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, true)
@@ -147,7 +147,8 @@ static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, 
 	ci.draw_line(a, b, Color(OUT, al), w + 3.0, true)
 	ci.draw_line(a, b, Color(col, col.a * al), w, true)
 
-static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: float, a: float, t: float, angry := false) -> void:
+## variant：0 一般招式、1 交替招式（劍士上挑；其他兵種同一般）。第三輪 R4。
+static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: float, a: float, t: float, angry := false, variant := 0) -> void:
 	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
 	# 腿
 	_c(ci, Vector2(-4 + leg, -3), 3.6, Color("#4a3b5c"), a)
@@ -180,6 +181,9 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			# 劍：斜舉的亮刃（攻擊時往前揮）
 			# 前搖往後拉 35°、揮擊揮到 +60° 以上
 			var ang := -1.15 + (w * 0.61 if w < 0.0 else w * 1.5)
+			if variant == 1:
+				# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
+				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
 			var hand := Vector2(9, -17)
 			var dir := Vector2(cos(ang), sin(ang))
 			var tip := hand + dir * 24.0
@@ -193,7 +197,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.95, PI * 2.05, 20, Color(STEEL_D, a), 4.5, true)
 			_line(ci, Vector2(-9, hy - 3), Vector2(11, hy - 3), STEEL_D, 2.0, a)
 			# 大方盾（佔身體一半寬，正面）
-			var push := w * 4.0
+			var push := w * 7.0 if w > 0.0 else w * 3.0   # 盾擊：揮擊時整面盾往前推（第三輪 R4）
 			var sh := PackedVector2Array([Vector2(5 + push, -40), Vector2(19 + push, -38), Vector2(19 + push, -12), Vector2(12 + push, -4), Vector2(5 + push, -12)])
 			_poly(ci, sh, STEEL, a)
 			_poly(ci, PackedVector2Array([Vector2(9 + push, -33), Vector2(15 + push, -32), Vector2(15 + push, -16), Vector2(12 + push, -12), Vector2(9 + push, -16)]), tc, a, false)
@@ -212,6 +216,10 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			var mid := Vector2(bc.x - pull, bc.y)
 			ci.draw_line(top, mid, Color(1, 1, 1, 0.9 * a), 1.2, true)
 			ci.draw_line(mid, bot, Color(1, 1, 1, 0.9 * a), 1.2, true)
+			if w < 0.0:
+				# 拉弓時看得到搭在弦上的箭（第三輪 R4）
+				_line(ci, mid, Vector2(bc.x + 16, bc.y), WOOD, 1.6, a)
+				_poly(ci, PackedVector2Array([Vector2(bc.x + 20, bc.y), Vector2(bc.x + 15, bc.y - 2.5), Vector2(bc.x + 15, bc.y + 2.5)]), STEEL, a, false)
 			_c(ci, Vector2(bc.x + 12, bc.y), 3.0, SKIN, a)
 		D.ASSASSIN:
 			# 尖兜帽＋面罩，只露發光的眼睛
@@ -226,7 +234,9 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			# 雙短刃
 			var sw := w * 6.0
 			_line(ci, Vector2(10, -18 - sw), Vector2(19, -24 + sw), Color("#f0f0ff"), 2.2, a)
-			_line(ci, Vector2(-8, -16), Vector2(-15, -21), Color("#f0f0ff"), 2.2, a)
+			# 後手的刀：揮擊時往前交叉斬（第三輪 R4）
+			var bw := maxf(0.0, w)
+			_line(ci, Vector2(-8 + bw * 14, -16 - bw * 4), Vector2(-15 + bw * 33, -21 + bw * 10), Color("#f0f0ff"), 2.2, a)
 			_c(ci, Vector2(10, -18 - sw), 2.8, Color("#2b2140"), a)
 	if type != D.ASSASSIN and type != D.ARCHER and type != D.SWORD:
 		_c(ci, Vector2(-9, -17), 3.0, SKIN, a)
@@ -257,7 +267,8 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	# 腿
 	for lx in [-11.0, -5.0, 6.0, 12.0]:
 		var sw := gallop if (int(lx) % 2 == 0) else -gallop
-		_line(ci, Vector2(lx, -12), Vector2(lx + sw, -2), Color("#9c6b3c"), 3.0, a)
+		var lift := maxf(0.0, w) * 7.0 if lx > 0.0 else 0.0   # 命中時馬前蹄抬起（第三輪 R4）
+		_line(ci, Vector2(lx, -12), Vector2(lx + sw + lift * 0.6, -2 - lift), Color("#9c6b3c"), 3.0, a)
 	# 身體（圓滾滾）
 	var body := PackedVector2Array()
 	for i in 20:

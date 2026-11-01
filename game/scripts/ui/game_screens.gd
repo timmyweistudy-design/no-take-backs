@@ -261,6 +261,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	sim = Sim.new(a0, a1)
 	view = ViewBuffer.new(sim)
 	battle_marks.clear()
+	graves.clear()
 	clutch_t = 0.0
 	atk_hit.clear()
 	brace_t.clear()
@@ -782,7 +783,12 @@ func _process_inner(delta: float) -> void:
 		clutch_t = maxf(0.0, clutch_t - delta)
 	for g in dying:
 		g["t"] += delta
+		if g["t"] >= 1.0:
+			graves.append({"pos": g["pos"], "team": g["team"], "t": 0.0})
 	dying = dying.filter(func(g): return g["t"] < 1.0)
+	for g in graves:
+		g["t"] += delta
+	graves = graves.filter(func(g): return g["t"] < 3.0)
 	if overlay == "codex":
 		_codex_tick(delta)
 	if state == St.TITLE and demo != null and shot_dir == "":

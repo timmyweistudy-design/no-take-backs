@@ -672,6 +672,16 @@ func _draw_units_of(s, dim: bool) -> void:
 			for k in 2:
 				var ph := fmod(time * 1.6 + k * 0.5, 1.0)
 				draw_arc(p0, (14.0 + ph * 10.0) * UNIT_SCALE, 0, TAU, 20, Color(1, 0.42, 0.0, 0.55 * (1.0 - ph)), 2.0, true)
+	# 陣亡痕跡：倒下處的小旗，3 秒淡出，畫在最底層（第三輪 R5）
+	if live:
+		for g in graves:
+			var ga: float = 1.0 - g["t"] / 3.0
+			var gp: Vector2 = g["pos"]
+			draw_line(gp + Vector2(0, 2), gp + Vector2(0, -16), Color(0.35, 0.27, 0.2, 0.8 * ga), 2.0, true)
+			draw_colored_polygon(PackedVector2Array([gp + Vector2(0, -16), gp + Vector2(10, -12), gp + Vector2(0, -8)]), Color(Art.team_color(g["team"], cbm()), 0.75 * ga))
+			draw_set_transform(gp + Vector2(0, 2), 0, Vector2(1, 0.4))
+			draw_circle(Vector2.ZERO, 7, Color(0, 0, 0, 0.25 * ga), true, -1.0, true)
+			draw_set_transform_matrix(_cam)
 	# 擁擠度：40px 內有幾隻（第三輪 V5，只在戰鬥中算）
 	var crowd := {}
 	if live:
@@ -689,11 +699,14 @@ func _draw_units_of(s, dim: bool) -> void:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		var moving: bool = u.mx != 0 or u.my != 0
 		var at := 0.0
+		var variant := 0
 		if live and atk_hit.has(u.id):
 			var dt0 := _disp_tick()
 			var h := pick_hit(atk_hit[u.id], dt0, u.type)
 			if h >= 0:
 				at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
+				if u.type == D.SWORD:
+					variant = (h / maxi(1, D.STATS[D.SWORD]["cd"] / 4)) % 2   # 劍士橫斬與上挑交替（第三輪 R4）
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
 			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
@@ -747,12 +760,12 @@ func _draw_units_of(s, dim: bool) -> void:
 				var gp := p + Vector2(-(8 + g * 8) * face, 0)
 				draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
 				_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
-		_unit(p, u.type, u.team, face, (time * 10.0 * run + u.id) if moving else 0.0, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch)
+		_unit(p, u.type, u.team, face, (time * 10.0 * run + u.id) if moving else 0.0, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
 		# 揮擊殘影（第三輪 R1）：近戰在揮擊那一段畫 140° 雙層月牙，0.12 秒
 		if live and u.type != D.ARCHER and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
 			var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
 			var sc := p + Vector2(face * 12.0, -26)
-			var a0 := -1.2 if face > 0 else PI - 1.2
+			var a0 := (-1.2 if face > 0 else PI - 1.2) if variant == 0 else (0.2 if face > 0 else PI - 2.6)   # 上挑的殘影從下往上
 			var span := deg_to_rad(140.0) * minf(1.0, sk * 2.0)
 			var start := a0 if face > 0 else a0 + deg_to_rad(140.0) - span
 			var sa := (1.0 - sk) * alpha

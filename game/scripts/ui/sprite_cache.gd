@@ -17,7 +17,7 @@ const ORIGIN := Vector2(80, 124)   # 角色腳底在格子裡的位置
 const WALK_FRAMES := 6
 const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
 # 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..13 攻擊
-const FRAMES_PER := 2 + WALK_FRAMES + ATK_FRAMES
+const FRAMES_PER := 2 + WALK_FRAMES + ATK_FRAMES * 2   # 攻擊兩組：一般／交替招式（第三輪 R4）
 
 var tex: Texture2D = null
 var ring_tex: Texture2D = null
@@ -49,10 +49,10 @@ func build(cb: bool) -> void:
 	ready_cb = 1 if cb else 0
 	vp.queue_free()
 
-func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float) -> int:
+func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float, variant := 0) -> int:
 	var base := (type * 2 + team) * FRAMES_PER
 	if atk > 0.0:
-		return base + 2 + WALK_FRAMES + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+		return base + 2 + WALK_FRAMES + ATK_FRAMES * variant + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
 	if walk != 0.0:
 		return base + 2 + int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES
 	var ex := 2.0 if type == D.CAVALRY else 3.5   # Art._eyes 的眼睛中心 x
@@ -85,8 +85,8 @@ func quant_atk(atk: float) -> float:
 
 ## 貼一隻角色。參數與 Art.unit 相同；待機的呼吸位移在這裡加（烘焙時是 0）。
 func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
-		hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, cb := false) -> void:
-	var idx := frame_index(type, team, walk, atk, t, p.x)
+		hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, cb := false, variant := 0) -> void:
+	var idx := frame_index(type, team, walk, atk, t, p.x, variant)
 	if atk > 0.0:
 		walk = 0.0   # 攻擊影格烘焙時沒有走路相位：貼圖與疊加都當成沒在走（Codex 收尾輪 #4）
 	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
@@ -115,7 +115,7 @@ class _Painter extends Node2D:
 		var CELL2 := 160
 		var RS2 := 1.6
 		var org := Vector2(80, 124)
-		var per := 2 + 6 + 8
+		var per := 2 + 6 + 8 + 8
 		for type in D2.COUNT:
 			for team in 2:
 				for f in per:
@@ -123,8 +123,12 @@ class _Painter extends Node2D:
 					var cell_o := Vector2((idx % cols) * CELL2, (idx / cols) * CELL2)
 					var walk := 0.0
 					var atk := 0.0
+					var vr := 0
 					if f >= 2 and f < 8:
 						walk = 0.0001 + (f - 2) * TAU / 6.0
+					elif f >= 16:
+						atk = (f - 16 + 0.5) / 8.0
+						vr = 1
 					elif f >= 8:
 						atk = (f - 8 + 0.5) / 8.0
 					var p := cell_o + org
@@ -135,7 +139,7 @@ class _Painter extends Node2D:
 					var pb := p
 					if walk == 0.0:
 						pb.y -= sin(tt * 3.0 + p.x * 0.05) * 0.8 * RS2
-					Art2.unit(self, pb, type, team, 1.0, walk, atk, 0.0, 1.0, tt, RS2, cb)
+					Art2.unit(self, pb, type, team, 1.0, walk, atk, 0.0, 1.0, tt, RS2, cb, 0, 0.0, 1.0, vr)
 		# 腳底圈
 		var start: int = D2.COUNT * 2 * per
 		for team in 2:
