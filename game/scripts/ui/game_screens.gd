@@ -1090,8 +1090,9 @@ func _draw_place_hud() -> void:
 	var g_lbl := "%d / %d" % [a.spent(), a.budget]
 	var u_lbl := "%d / %d" % [a.count(), Army.MAX_UNITS]
 	var est := 0.0
-	for pair in [[t_lbl, 14], [g_lbl, 14], [u_lbl, 14]]:
-		est += font_bold.get_string_size(pair[0], HORIZONTAL_ALIGNMENT_LEFT, -1, ts(pair[1])).x + 48.0
+	for lbl in [t_lbl, g_lbl, u_lbl]:
+		est += font_bold.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, mini(ts(13), 15)).x + 40.0   # 跟 _pill 實畫同字級
+	est += 16.0   # 兩個間距
 	var px := 640.0 - est / 2.0
 	px += _pill(Vector2(px, 31), "team", t_lbl, tcol, 13, 15) + 8
 	px += _pill(Vector2(px, 31), "coin", g_lbl, ACCENT, 13, 15) + 8

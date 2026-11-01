@@ -623,6 +623,33 @@ func test_ui_consumers() -> void:
 		if u.alive and g._upos(u).distance_to(g.ORIGIN + Vector2(u.x, u.y) * g.CS / 1000.0 + jit) > 0.5:
 			pos_ok = false
 	ok(tail_ok and d2 > d1 and d1 > g.view.tick and pos_ok, "播完後展示時鐘繼續走、存活者插值到最後位置", "tail=%s d1=%.2f d2=%.2f tick=%d pos=%s" % [tail_ok, d1, d2, g.view.tick, pos_ok])
+	# 直接造「最後一格確實有移動、最後一擊剛命中」的狀態（Codex 收尾輪 2 #5）：
+	# 播完後經 _battle_process，位置要從上一格插值到最後一格，攻擊要經過後搖並完成（進度回到 0）。
+	g.state = g.St.BATTLE
+	g.accum = 0.0
+	var mu = null
+	for u in g.view.units:
+		if u.alive:
+			mu = u
+			break
+	var cur := Vector2(mu.x, mu.y)
+	g.prev_pos[mu.id] = cur - Vector2(600, 0)          # 上一格在左邊 0.6 格
+	g.atk_hit[mu.id] = [g.view.tick]                   # 最後一格剛命中
+	var jit2 := Vector2(float((mu.id * 37) % 9 - 4), float((mu.id * 53) % 7 - 3))
+	var start_dist: float = g._upos(mu).distance_to(g.ORIGIN + cur * g.CS / 1000.0 + jit2)
+	var saw_recover := false
+	var done := false
+	for k in 12:
+		g._battle_process(0.05)
+		var hh2: int = g.pick_hit(g.atk_hit[mu.id], g._disp_tick(), mu.type)
+		var at2: float = g.atk_progress(g._disp_tick() - (hh2 - g.ViewBuffer.DELAY), mu.type) if hh2 >= 0 else 0.0
+		if at2 > Art.ATK_STRIKE:
+			saw_recover = true
+		if saw_recover and at2 == 0.0:
+			done = true
+	var end_dist: float = g._upos(mu).distance_to(g.ORIGIN + cur * g.CS / 1000.0 + jit2)
+	ok(start_dist > 30.0 and end_dist < 0.5 and saw_recover and done, "播完後最後一格的移動插值走完、最後一擊演完後搖",
+		"start=%.1f end=%.2f recover=%s done=%s" % [start_dist, end_dist, saw_recover, done])
 	# 圖鑑小劇場真的跳字
 	var pop_bad: Array = []
 	for t in D.COUNT:
