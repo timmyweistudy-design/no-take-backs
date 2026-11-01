@@ -91,11 +91,14 @@ static var _digest := ""
 static func data_digest() -> String:
 	if _digest == "":
 		var m: Dictionary = load("res://scripts/core/unit_defs.gd").get_script_constant_map()
-		var keys := m.keys()
-		keys.sort()
+		# 常數名稱是 StringName，直接排序是比記憶體位址、不是字母順序 → 先轉成 String 再排
+		var pairs: Array = []
+		for k in m:
+			pairs.append([String(k), m[k]])
+		pairs.sort_custom(func(a, b): return a[0] < b[0])
 		var txt := ""
-		for k in keys:
-			txt += "%s=%s;" % [k, var_to_str(m[k])]
+		for pr in pairs:
+			txt += "%s=%s;" % [pr[0], var_to_str(pr[1])]
 		_digest = txt.sha256_text().substr(0, 16)
 	return _digest
 

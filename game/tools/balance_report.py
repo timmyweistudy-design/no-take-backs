@@ -45,6 +45,15 @@ def main():
     if not isinstance(man.get("modes"), list) or not man["modes"] or not isinstance(man.get("shards"), int) or man["shards"] <= 0:
         print("✗ manifest.json 不合法"); sys.exit(2)
     shards = man["shards"]
+    allowed = {"matrix", "league", "turns:cap10", "turns:snake5", "turns:snake5c", "search", "counter", "countersearch"}
+    bad_modes = [m for m in man["modes"] if m not in allowed]
+    if bad_modes:
+        print(f"✗ manifest 有不合法的模式：{bad_modes}"); sys.exit(2)
+    # 分片檔完整性（Codex N1-r3 #6）：每個模式 0～shards-1 片都要在，也不能有 manifest 以外的檔案
+    have = {os.path.basename(f) for f in glob.glob(os.path.join(folder, "*.jsonl"))}
+    want_files = {f"{m.replace(':', '_')}_{i}.jsonl" for m in man["modes"] for i in range(man["shards"])}
+    if have != want_files:
+        print(f"✗ 分片檔不完整：缺 {sorted(want_files - have)[:5]}、多 {sorted(have - want_files)[:5]}"); sys.exit(2)
     errs = [r for v in rows.values() for r in v if "error" in r]
     if errs:
         print(f"✗ 有 {len(errs)} 筆執行錯誤（例：{errs[0]}）"); sys.exit(2)

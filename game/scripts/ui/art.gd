@@ -13,6 +13,9 @@ const WOOD := Color("#b7814e")
 const GOLD := Color("#ffd166")
 
 # 隊伍色（一般／色盲高對比）
+## 呼叫端目前的畫布轉換（鏡頭）。角色繪製要「疊加」在它上面，不能覆蓋掉（手感輪 2 抓到的錯位 bug）。
+static var base := Transform2D.IDENTITY
+
 const TEAM := [[Color("#3fa7ff"), Color("#ff5a5a")], [Color("#2f80ff"), Color("#ffb000")]]
 
 static func team_color(team: int, cb := false) -> Color:
@@ -26,7 +29,7 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else absf(sin(walk)) * -2.5
 	var lunge := sin(atk * PI) * 5.0 * face
 	var o := p + Vector2(lunge, bob) * scale
-	ci.draw_set_transform(o, 0.0, Vector2(scale * face, scale))
+	ci.draw_set_transform_matrix(base * Transform2D(0.0, Vector2(scale * face, scale), 0.0, o))
 	# 以 face＝+1 畫（水平鏡像由 transform 處理）
 	if type == D.CAVALRY:
 		_cavalry(ci, tc, walk, atk, alpha, t)
@@ -35,7 +38,7 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	if hurt > 0.0:
 		# 受擊閃白：在身體位置疊一層白
 		ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, true)
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	ci.draw_set_transform_matrix(base)
 
 static func _c(ci: CanvasItem, c: Vector2, r: float, col: Color, a: float, outline := true) -> void:
 	if outline:

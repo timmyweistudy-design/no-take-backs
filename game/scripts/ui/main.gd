@@ -766,7 +766,7 @@ func _check_clutch() -> void:
 		slow_used = true
 		if bool(Save.s("slowmo")):
 			slow_left = 8.0
-		_fx_text(Vector2(640, 150), L.t("clutch"), ACCENT, 1.6, 44, true)
+		_fx_text(Vector2(640, 92), L.t("clutch"), ACCENT, 1.6, 40, true)
 		sfx.play("clutch")
 
 ## 鏡頭安全框（優化方案 F2）：把所有存活單位框進畫面，四周留 15%。
@@ -889,7 +889,9 @@ func _upos(u) -> Vector2:
 	var cur := Vector2(u.x, u.y)
 	var a := clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 1.0
 	var p: Vector2 = prev_pos.get(u.id, cur).lerp(cur, a)
-	return ORIGIN + p * CS / 1000.0
+	# 純畫面錯開（手感輪 2）：依編號固定偏移 ±4px，讓疊在一起的兵不會完全重合；戰鬥計算不受影響
+	var j := Vector2(float((u.id * 37) % 9 - 4), float((u.id * 53) % 7 - 3))
+	return ORIGIN + p * CS / 1000.0 + j
 
 # ───────────────────────── 繪圖 ─────────────────────────
 func _draw() -> void:
@@ -908,6 +910,7 @@ func _draw() -> void:
 		c = Vector2(clampf(c.x, minf(lo.x, hi.x), maxf(lo.x, hi.x)), clampf(c.y, minf(lo.y, hi.y), maxf(lo.y, hi.y)))
 		cam = Transform2D(0, Vector2(zoom, zoom), 0, Vector2(640, 388) - c * zoom + off)
 	draw_set_transform_matrix(cam)
+	Art.base = cam
 	_draw_field()
 	if state == St.TITLE:
 		_draw_units_of(demo, true)
@@ -920,6 +923,7 @@ func _draw() -> void:
 		if not f.get("screen", false):
 			_draw_fx(f)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+	Art.base = Transform2D.IDENTITY
 	if state == St.BATTLE and slow_left > 0:
 		var va := clampf((8.0 - slow_left) / 0.3, 0.0, 1.0) * 0.45
 		for i in 14:
@@ -1039,7 +1043,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			Art.unit(self, g["pos"], g["type"], g["team"], g["face"], 0.0, 0.0, 0.8, 1.0 - k / 0.3, time)
 			for i in 6:
 				var ang := i * TAU / 6
-				draw_circle(g["pos"] + Vector2(cos(ang), sin(ang) * 0.5) * (8 + k * 70) + Vector2(0, -16), 5 * (1 - k), Color(1, 1, 1, 0.6), true, -1.0, true)
+				draw_circle(g["pos"] + Vector2(cos(ang), sin(ang) * 0.5) * (8 + k * 70) + Vector2(0, -16), 4 * (1 - k), Color(1, 1, 1, 0.35), true, -1.0, true)
 		Art.soul(self, g["pos"] + Vector2(sin(k * 9) * 4, -24 - k * 70), 0.75 * (1.0 - k))
 
 func _draw_place_units() -> void:
@@ -1235,7 +1239,7 @@ func _draw_title() -> void:
 	if overlay != "":
 		return
 	var bob := sin(time * 1.5) * 4
-	draw_rect(Rect2(260, 50, 760, 210), Color(0.05, 0.06, 0.1, 0.55))
+	draw_rect(Rect2(260, 50, 760, 700), Color(0.05, 0.06, 0.1, 0.6))
 	_text(Vector2(640, 64 + bob), L.t("title"), ts(84), Color("#ffe8a3"), true, true)
 	_text(Vector2(640, 182), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", ts(26), Color(1, 1, 1, 0.85), true)
 	_text(Vector2(640, 222), L.t("subtitle"), ts(18), Color(1, 1, 1, 0.9), true)
