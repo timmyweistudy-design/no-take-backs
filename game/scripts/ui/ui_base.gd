@@ -113,7 +113,10 @@ var demo_acc := 0.0
 # 即時模式按鈕
 var _btns: Array = []
 var _focus := 0
-var _click_pending := Vector2(-1, -1)
+var _cmds: Array = []        # 輸入命令佇列（A2）
+var _gen := 0                # 畫面世代
+var _gen_key := ""
+var _btns_gen := -1          # _btns 是哪個世代畫出來的
 
 var capsule_path := ""
 var perf_draw_us := 0     # 這一幀 _draw 花的時間（效能量測用）
@@ -211,20 +214,46 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	_text(r.get_center() - Vector2(0, sz * 0.62), label, sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
 
 
-func _handle_click() -> void:
-	if _click_pending.x < 0:
-		return
-	var p := _click_pending
-	_click_pending = Vector2(-1, -1)
-	for i in _btns.size():
-		var b: Dictionary = _btns[i]
-		if b["r"].has_point(p):
-			if b["en"]:
-				_focus = i
-				sfx.play("ui_click")
-				b["cb"].call_deferred()
-			return
+## ── 輸入命令佇列（第三輪 A2）──
+## 輸入事件不再直接執行，也不在 _draw 裡派發：先排進佇列，在 _process 開頭依序處理。
+## 每個命令記下排入時的「畫面世代」；畫面（狀態、覆蓋層、模式）一換，舊命令就丟掉，避免點到下一個畫面的按鈕。
+## 點擊只對「這個世代畫出來的按鈕」有效（_btns_gen）。
+func _enqueue(kind: String, data) -> void:
+	_cmds.append({"kind": kind, "data": data, "gen": _gen})
 
+func _update_gen() -> void:
+	var key := "%d|%s|%d" % [state, overlay, mode]
+	if key != _gen_key:
+		_gen_key = key
+		_gen += 1
+
+func _process_cmds() -> int:
+	var done := 0
+	_update_gen()
+	var q := _cmds
+	_cmds = []
+	for c in q:
+		if c["gen"] != _gen:
+			continue   # 畫面已經換了：丟掉
+		if c["kind"] == "click":
+			if _btns_gen != _gen:
+				continue   # 這個畫面的按鈕還沒畫出來
+			var p: Vector2 = c["data"]
+			for i in _btns.size():
+				var b: Dictionary = _btns[i]
+				if b["r"].has_point(p):
+					if b["en"]:
+						_focus = i
+						if sfx != null:
+							sfx.play("ui_click")
+						b["cb"].call()
+						done += 1
+					break
+		elif c["kind"] == "key":
+			_key(int(c["data"]))
+			done += 1
+		_update_gen()
+	return done
 
 func _panel(r: Rect2) -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.68))
@@ -272,6 +301,9 @@ func _rebuild_sprites() -> void:
 		sprites.build(cbm())
 
 # ── 給上層覆寫的佔位（拆檔後，下層程式需要呼叫上層的函式）──
+func _key(_k: int) -> void:
+	pass
+
 func _run_perf() -> void:
 	pass
 

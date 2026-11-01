@@ -45,6 +45,7 @@ func _init() -> void:
 	test_sfx_priority()
 	test_save_migration()
 	test_play_effects()
+	test_input_queue()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -771,3 +772,54 @@ func test_play_effects() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn))
 	SV.prefix = old_prefix
 	SV.load_all()
+
+
+## 輸入命令佇列（第三輪 A2）：畫面一換，同一幀排進來的舊命令就丟掉；只對這個畫面畫出來的按鈕有效；停用的按鈕不執行。
+func test_input_queue() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	if GS == null or not GS.can_instantiate():
+		ok(false, "輸入佇列：畫面腳本載入失敗")
+		return
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	var hits := [0, 0]
+	var setup := func(next_state) -> void:
+		g._cmds.clear()
+		g.state = g.St.TITLE
+		g.overlay = ""
+		g._update_gen()
+		g._btns = [
+			{"r": Rect2(0, 0, 100, 40), "cb": func(): hits[0] += 1; g.state = next_state, "en": true},
+			{"r": Rect2(0, 50, 100, 40), "cb": func(): hits[1] += 1, "en": false},
+		]
+		g._btns_gen = g._gen
+	var bad: Array = []
+	# 1 正常點一下：執行一次
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._enqueue("click", Vector2(10, 10)); g._process_cmds()
+	if hits[0] != 1: bad.append("1 正常點擊 %s" % [hits])
+	# 2 同一幀連點兩下，第一下換了畫面：第二下丟掉
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.PLACE); g._enqueue("click", Vector2(10, 10)); g._enqueue("click", Vector2(10, 10)); g._process_cmds()
+	if hits[0] != 1: bad.append("2 連點換畫面 %s" % [hits])
+	# 3 停用的按鈕不執行
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._enqueue("click", Vector2(10, 60)); g._process_cmds()
+	if hits[1] != 0: bad.append("3 停用按鈕 %s" % [hits])
+	# 4 點擊排入後、處理前開了覆蓋層：丟掉
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._enqueue("click", Vector2(10, 10)); g.overlay = "settings"; g._process_cmds()
+	if hits[0] != 0: bad.append("4 開覆蓋層後的舊點擊 %s" % [hits])
+	# 5 畫面換了但新畫面的按鈕還沒畫：新排入的點擊也不能點到舊按鈕
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g.state = g.St.RESULT; g._update_gen(); g._enqueue("click", Vector2(10, 10)); g._process_cmds()
+	if hits[0] != 0: bad.append("5 舊按鈕清單 %s" % [hits])
+	# 6 Esc 關掉覆蓋層，同一幀後面的點擊丟掉
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g.overlay = "settings"; g._update_gen(); g._btns_gen = g._gen
+	g._enqueue("key", KEY_ESCAPE); g._enqueue("click", Vector2(10, 10)); g._process_cmds()
+	if hits[0] != 0 or g.overlay != "": bad.append("6 Esc 後的點擊 %s overlay=%s" % [hits, g.overlay])
+	# 7 Enter 按焦點按鈕；按鈕清單過期時不按
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._focus = 0; g._enqueue("key", KEY_ENTER); g._process_cmds()
+	if hits[0] != 1: bad.append("7a Enter %s" % [hits])
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._btns_gen = -1; g._focus = 0; g._enqueue("key", KEY_ENTER); g._process_cmds()
+	if hits[0] != 0: bad.append("7b 過期 Enter %s" % [hits])
+	# 8 點在按鈕外：什麼都不做
+	hits[0] = 0; hits[1] = 0; setup.call(g.St.TITLE); g._enqueue("click", Vector2(500, 500)); g._process_cmds()
+	if hits != [0, 0]: bad.append("8 點空白 %s" % [hits])
+	ok(bad.is_empty(), "輸入佇列：8 組序列（連點、換畫面、停用、覆蓋層、過期清單、Esc、Enter、空白）誤觸與重複執行都是 0", str(bad))
+	g.free()

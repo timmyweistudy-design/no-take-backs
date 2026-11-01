@@ -548,7 +548,7 @@ func _input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventKey and ev.pressed:
 		if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
-			_key(ev.keycode)
+			_enqueue("key", ev.keycode)
 		return
 	if ev is InputEventJoypadButton and ev.pressed:
 		pad_mode = true
@@ -557,20 +557,20 @@ func _input(ev: InputEvent) -> void:
 			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
 			JOY_BUTTON_BACK: KEY_F1}
 		if map.has(ev.button_index):
-			_key(map[ev.button_index])
+			_enqueue("key", map[ev.button_index])
 		return
 	if ev is InputEventJoypadMotion and absf(ev.axis_value) > 0.6 and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
 		pad_mode = true
 		if ev.axis == JOY_AXIS_LEFT_X:
-			_key(KEY_RIGHT if ev.axis_value > 0 else KEY_LEFT)
+			_enqueue("key", KEY_RIGHT if ev.axis_value > 0 else KEY_LEFT)
 		else:
-			_key(KEY_DOWN if ev.axis_value > 0 else KEY_UP)
+			_enqueue("key", KEY_DOWN if ev.axis_value > 0 else KEY_UP)
 
 
 func _mouse_button(mb: InputEventMouseButton) -> void:
 	mouse = mb.position
 	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
-		_click_pending = mouse
+		_enqueue("click", mouse)
 	if overlay != "" or state != St.PLACE:
 		if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
 			drag_new = false
@@ -630,7 +630,7 @@ func _key(k: int) -> void:
 			KEY_DOWN, KEY_RIGHT, KEY_TAB:
 				_move_focus(1)
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-				if _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:
+				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
 					sfx.play("ui_click")
 					_btns[_focus]["cb"].call()
 			KEY_ESCAPE:
@@ -676,6 +676,7 @@ func _process(delta: float) -> void:
 	perf_proc_us = Time.get_ticks_usec() - _t0
 
 func _process_inner(delta: float) -> void:
+	_process_cmds()
 	time += delta
 	SteamApi.run_callbacks()
 	if toast_t > 0:
@@ -783,7 +784,7 @@ func _draw_inner() -> void:
 		_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
 	if _focus >= _btns.size():
 		_focus = 0
-	_handle_click()
+	_btns_gen = _gen
 
 
 func _draw_place_units() -> void:
