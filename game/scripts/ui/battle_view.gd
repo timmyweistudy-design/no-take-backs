@@ -46,6 +46,7 @@ func _check_clutch() -> void:
 	var a1: int = view.alive_count(1)
 	if absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (a0 <= 3 and a1 <= 3)):
 		slow_used = true
+		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
 		if bool(Save.s("slowmo")):
 			slow_left = 8.0
 		clutch_t = 1.6   # 最後時刻橫幅（第三輪 V2）：獨立一層畫在 _draw_clutch_banner
@@ -90,6 +91,14 @@ func _sim_step(with_fx: bool) -> void:
 			ev_count[key] = int(ev_count.get(key, 0)) + 1
 		if k == EV.DEATH:
 			deaths += 1
+		if k == EV.CHARGE or k == EV.BACKSTAB or k == EV.BRACED:
+			var team: int = view.unit_by_id(ev["src"]).team
+			var seen := false
+			for m in battle_marks:
+				if m["kind"] == k and m["team"] == team:
+					seen = true
+			if not seen:
+				battle_marks.append({"tick": view.tick, "kind": k, "team": team})
 		_on_event(ev, with_fx)
 	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
 	if view.finished and not slow_used and deaths > 0 and with_fx:
@@ -400,7 +409,7 @@ func _focus_dim(world_p: Vector2) -> float:
 
 ## 最後時刻橫幅：全寬暗帶＋大字，畫在所有戰場東西上面（螢幕座標）。
 func _draw_clutch_banner() -> void:
-	if clutch_t <= 0.0:
+	if clutch_t <= 0.0 or state != St.BATTLE:
 		return
 	var a := clampf(clutch_t / 0.3, 0.0, 1.0) * clampf((1.6 - clutch_t) / 0.15, 0.0, 1.0)
 	var y := 104.0

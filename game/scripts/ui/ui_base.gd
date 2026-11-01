@@ -80,6 +80,7 @@ const PLAY_EFFECTS := {
 }
 var play_kind := "official"   # 這一場是哪種播放
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
+var battle_marks: Array = []   # 結果頁時間軸的關鍵事件（第三輪 U5）：{tick, kind, team}
 var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
@@ -105,7 +106,11 @@ var frenzy_seen := false
 var report := {}
 var _cam := Transform2D.IDENTITY   # 這一幀戰場的鏡頭轉換（最後時刻淡化跳字用）
 var clutch_t := 0.0                # 最後時刻橫幅剩幾秒
-var freeze_fx := false     # 截圖用：特效停在當下的時刻不往前跑
+var freeze_fx := false
+## 版面檢查（第三輪 T4）：截圖模式記下每一段介面文字實際畫出的外框，拍照時檢查越界、太小、互相重疊。
+var layout_probe := false
+var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
+var probe_texts: Array = []     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
 var pt_rated := false
 
@@ -193,6 +198,9 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 	for i in lines.size():
 		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
 		var q := p + Vector2(-w / 2, i * size * 1.3 + size * 0.85)
+		if layout_probe and _probe_ui and c.a > 0.2 and lines[i].strip_edges() != "":
+			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i]})
 		draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(0, 0, 0, c.a * 0.75))
 		draw_string(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
 

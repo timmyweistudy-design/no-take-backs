@@ -19,6 +19,8 @@ func _ready() -> void:
 			Save.settings["lang"] = a2.substr(12)
 		elif a2.begins_with("--shot-text="):
 			Save.settings["text_scale"] = int(a2.substr(12))
+		elif a2 == "--layout-check":
+			layout_probe = true
 	L.lang = Save.s("lang")
 	duel_rule = Save.s("duel_rule")
 	speed = float(Save.s("speed"))
@@ -78,6 +80,7 @@ func _ready() -> void:
 # ───────────────────────── 狀態切換 ─────────────────────────
 func _go_title() -> void:
 	sfx.set_muffled(false)
+	clutch_t = 0.0
 	state = St.TITLE
 	overlay = ""
 	sim = null
@@ -257,6 +260,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 		last_armies = [a0.copy(), a1.copy()]
 	sim = Sim.new(a0, a1)
 	view = ViewBuffer.new(sim)
+	battle_marks.clear()
+	clutch_t = 0.0
 	atk_hit.clear()
 	brace_t.clear()
 	state = St.BATTLE
@@ -287,6 +292,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 
 func _finish_battle() -> void:
 	sfx.set_muffled(false)
+	clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
 	state = St.RESULT
 	_focus = 0
 	slow_left = 0.0
@@ -335,6 +341,18 @@ func _build_report() -> void:
 	var sus: Dictionary = sim.suspense()
 	report = {"dealt": dealt, "taken": taken, "mvp": mvp, "sus": sus,
 		"lock_sec": int(sus["lock_ratio_permille"]) * sim.tick / 1000 / 20}
+	# 時間軸的領先交換點（第三輪 U5）：戰力差換號（忽略 1% 以內的小波動），最多 4 個
+	var leads: Array = []
+	var last_sign := 0
+	var eps: int = sim.budget * 1000 / 100
+	for t in sim.power_log.size():
+		var d: int = sim.power_log[t]
+		var sg := 0 if absi(d) <= eps else (1 if d > 0 else -1)
+		if sg != 0 and last_sign != 0 and sg != last_sign and leads.size() < 4:
+			leads.append(t + 1)
+		if sg != 0:
+			last_sign = sg
+	report["leads"] = leads
 
 
 func _progress_and_achievements() -> void:
@@ -559,6 +577,10 @@ func _input(ev: InputEvent) -> void:
 		if map.has(ev.button_index):
 			_enqueue("key", map[ev.button_index])
 		return
+	if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > 0.3:
+		pad_mode = true
+		_scroll_by("left", ev.axis_value * 24.0)   # 右搖桿捲圖鑑左欄
+		return
 	if ev is InputEventJoypadMotion and absf(ev.axis_value) > 0.6 and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
 		pad_mode = true
 		if ev.axis == JOY_AXIS_LEFT_X:
@@ -571,6 +593,9 @@ func _mouse_button(mb: InputEventMouseButton) -> void:
 	mouse = mb.position
 	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 		_enqueue("click", mouse)
+	if overlay == "codex" and mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		_scroll_at(mouse, -48.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 48.0)   # 圖鑑捲動（第三輪 U1）
+		return
 	if overlay != "" or state != St.PLACE:
 		if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
 			drag_new = false
@@ -633,6 +658,9 @@ func _key(k: int) -> void:
 				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
 					sfx.play("ui_click")
 					_btns[_focus]["cb"].call()
+			KEY_PAGEUP, KEY_PAGEDOWN:
+				if overlay == "codex":
+					_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
 			KEY_ESCAPE:
 				if overlay != "":
 					overlay = ""
@@ -724,6 +752,8 @@ func _draw() -> void:
 
 func _draw_inner() -> void:
 	_btns.clear()
+	probe_texts.clear()
+	_probe_ui = false
 	if capsule_path != "":
 		_draw_capsule()
 		return
@@ -761,6 +791,7 @@ func _draw_inner() -> void:
 			_draw_fx(f)
 	perf_parts["fx"] = Time.get_ticks_usec() - _t
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+	_probe_ui = true
 	Art.base = Transform2D.IDENTITY
 	if state == St.BATTLE and slow_left > 0:
 		_draw_vignette(clampf((8.0 - slow_left) / 0.3, 0.0, 1.0))   # 多層暗角（第三輪 V2）
@@ -777,6 +808,7 @@ func _draw_inner() -> void:
 			_draw_result()
 	_draw_clutch_banner()
 	_draw_overlay()
+	_draw_pad_footer()
 	if toast_t > 0:
 		var a := minf(1.0, toast_t * 2)
 		var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
@@ -809,8 +841,13 @@ func _draw_place_units() -> void:
 		_ring(p, it[3], it[2])
 		_unit(p, it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
-			draw_rect(Rect2(p + Vector2(12, -62), Vector2(10, 8)), Color(0.9, 0.8, 0.3))
-			draw_arc(p + Vector2(17, -62), 4, PI, TAU, 8, Color(0.9, 0.8, 0.3), 2)
+			_lock_icon(p + Vector2(17, -60))   # 14px 鎖頭（第三輪 U4）
+	if not pz.is_empty() and not pz.get("fixed", []).is_empty():
+		# 圖例
+		var lg := ORIGIN + Vector2(10, 10)
+		draw_rect(Rect2(lg, Vector2(190, 28)), Color(0, 0, 0, 0.5))
+		_lock_icon(lg + Vector2(16, 16))
+		_text(lg + Vector2(30, 4), L.t("lock_legend"), ts(14), Color.WHITE, false, false, 150)
 	if hide_side >= 0:
 		var x0 := 10 if hide_side == 1 else 0
 		# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
@@ -832,7 +869,10 @@ func _draw_place_units() -> void:
 		draw_colored_polygon(PackedVector2Array([fp, fp + Vector2(48, 16), fp + Vector2(0, 36)]), Color(0.9, 0.2, 0.22))
 		_text(fp + Vector2(15, 2), "?", ts(22), Color.WHITE, true, true)
 		var msg := L.t("ai_hidden") if mode == Mode.VS_AI else L.t("enemy_hidden")
-		_text(ORIGIN + Vector2((x0 + 3) * CS, FIELD.y / 2 - 10), msg, ts(22), Color(1, 1, 1, 0.85), true, true)
+		_text(ORIGIN + Vector2((x0 + 3) * CS, FIELD.y / 2 - 10), msg, ts(22), Color(1, 1, 1, 0.85), true, true, 6 * CS - 20)
+		if mode == Mode.VS_AI:
+			# AI 的難度與性格（第三輪 U3）：不洩漏陣型
+			_text(ORIGIN + Vector2((x0 + 3) * CS, FIELD.y / 2 + 70), L.t("ai_trait_%d" % difficulty), ts(15), Color(1, 0.85, 0.6, 0.8), true, false, 6 * CS - 30)
 	# 拖曳預覽
 	var dragging_type := -1
 	if drag_new:
@@ -860,7 +900,7 @@ func _draw_tactical() -> void:
 		var p := ORIGIN + (Vector2(c) + Vector2(0.5, 0.5)) * CS
 		match selected:
 			D.ARCHER:
-				draw_arc(p, 6.0 * CS, 0, TAU, 64, Color(1, 0.9, 0.5, 0.45), 2.0, true)
+				_arc_clipped(p, 6.0 * CS, 0, TAU, Color(1, 0.9, 0.5, 0.45), 2.0)
 			D.CAVALRY:
 				var q := p + Vector2(3.0 * CS * dir, 0)
 				draw_dashed_line(p, q, Color(1, 0.8, 0.3, 0.85), 3.0, 8.0)
@@ -878,11 +918,13 @@ func _draw_tactical() -> void:
 								best = ep
 					if bd < 1e9:
 						draw_dashed_line(p, best, Color(0.78, 0.5, 1.0, 0.85), 2.5, 7.0)
+	# 已擺的弓手射程：只在「選著弓手、游標停在那隻弓手上、或按住 Alt／LT」時顯示，並裁在棋盤內（第三輪 U3）
+	var show_all := selected == D.ARCHER or Input.is_key_pressed(KEY_ALT) or Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5
 	for u in army.units:
-		if u["type"] == D.ARCHER:
+		if u["type"] == D.ARCHER and (show_all or (c.x == u["col"] and c.y == u["row"])):
 			var ap := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.5) * CS
 			var a0 := -0.6 if army.team == 0 else PI - 0.6
-			draw_arc(ap, 6.0 * CS, a0, a0 + 1.2, 24, Color(1, 0.9, 0.5, 0.14), 2.0, true)
+			_arc_clipped(ap, 6.0 * CS, a0, a0 + 1.2, Color(1, 0.9, 0.5, 0.22), 2.0)
 	if _enemy_visible():
 		for u in armies[1 - army.team].units:
 			var sc := AIT.counter_score(selected, u["type"])
@@ -890,6 +932,13 @@ func _draw_tactical() -> void:
 				continue
 			var ep := ORIGIN + Vector2(u["col"] + 0.5, u["row"] - 0.12) * CS
 			var bc := Color("#4ade80") if sc > 0 else Color("#f87171")
+			if drag_new or drag_from.x >= 0:
+				# 拖曳時敵軍腳下亮圈：被剋淡綠、天敵淡紅（第三輪 U3）
+				var fp := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.82) * CS
+				draw_set_transform(fp, 0, Vector2(1, 0.5))
+				draw_circle(Vector2.ZERO, 24, Color(bc, 0.28), true, -1.0, true)
+				draw_arc(Vector2.ZERO, 24, 0, TAU, 28, Color(bc, 0.7), 2.0, true)
+				draw_set_transform_matrix(_cam)
 			draw_circle(ep, 11, Color("#111827"), true, -1.0, true)
 			draw_arc(ep, 11, 0, TAU, 20, bc, 2.0, true)
 			if sc > 0:
@@ -899,6 +948,95 @@ func _draw_tactical() -> void:
 				draw_line(ep + Vector2(-5, 5), ep + Vector2(5, -5), bc, 3.0, true)
 
 
+## 手把按鍵提示列（第三輪 U7）：用手把時，每個畫面右下角顯示這個畫面能按的鍵（A／B／X／Y 圓形圖示）；
+## 用鍵盤滑鼠時不顯示手把圖示（Steam Deck 規定兩者不能同時出現）。擺放畫面已經在上方列顯示，這裡略過。
+func _draw_pad_footer() -> void:
+	if not pad_mode or (state == St.PLACE and overlay == ""):
+		return
+	var items: Array = []
+	if overlay == "codex":
+		items = [["A", L.t("pk_select")], ["B", L.t("back")], ["R", L.t("pk_scroll")]]
+	elif overlay != "":
+		items = [["A", L.t("pk_select")], ["B", L.t("back")]]
+	else:
+		match state:
+			St.TITLE:
+				items = [["✛", L.t("pk_move")], ["A", L.t("pk_select")]]
+			St.BATTLE:
+				items = [["A", L.t("pk_select")], ["B", L.t("skip")]]
+			St.RESULT:
+				items = [["✛", L.t("pk_move")], ["A", L.t("pk_select")], ["B", L.t("menu")]]
+	if items.is_empty():
+		return
+	draw_rect(Rect2(0, 770, 1280, 30), Color(0, 0, 0, 0.45))
+	_key_hints(640, 773, items, 14)
+
+
+## 鎖頭圖示（固定兵）。
+func _lock_icon(c: Vector2) -> void:
+	draw_arc(c + Vector2(0, -3), 4.5, PI, TAU, 10, Art.OUT, 4.0, true)
+	draw_arc(c + Vector2(0, -3), 4.5, PI, TAU, 10, Color(0.95, 0.82, 0.32), 2.2, true)
+	draw_rect(Rect2(c + Vector2(-7, -3), Vector2(14, 11)), Art.OUT)
+	draw_rect(Rect2(c + Vector2(-6, -2), Vector2(12, 9)), Color(0.95, 0.82, 0.32))
+	draw_circle(c + Vector2(0, 2), 1.6, Art.OUT, true, -1.0, true)
+
+
+## 殘局的迷你敵陣縮圖：右半 6×9 格，每隻敵兵畫一個兵種色點。
+func _mini_formation(r: Rect2, pz: Dictionary, en: bool) -> void:
+	draw_rect(r, Color(0.2, 0.3, 0.18, 0.9 if en else 0.4))
+	var ea = PZ.enemy_army(pz)
+	var cw := r.size.x / 6.0
+	var ch := r.size.y / 9.0
+	var tcols := [Color("#e5e7eb"), Color("#93c5fd"), Color("#86efac"), Color("#fcd34d"), Color("#c4b5fd")]
+	for u in ea.units:
+		var cx := int(u["col"]) - 10
+		var q := r.position + Vector2((cx + 0.5) * cw, (int(u["row"]) + 0.5) * ch)
+		draw_circle(q, minf(cw, ch) * 0.45, Color(tcols[int(u["type"])], 1.0 if en else 0.4), true, -1.0, true)
+	draw_rect(r, Color(1, 1, 1, 0.3), false, 1.0)
+
+
+## 裁在棋盤內的圓弧（第三輪 U3）：取樣點，只畫兩端都在場內的線段。
+func _arc_clipped(c: Vector2, r: float, a0: float, a1: float, col: Color, w: float) -> void:
+	var field := Rect2(ORIGIN, FIELD)
+	var n := 72
+	var prev := c + Vector2(cos(a0), sin(a0)) * r
+	for i in range(1, n + 1):
+		var an := a0 + (a1 - a0) * i / n
+		var q := c + Vector2(cos(an), sin(an)) * r
+		if field.has_point(prev) and field.has_point(q):
+			draw_line(prev, q, col, w, true)
+		prev = q
+
+
+## 兵種卡上方的剋制提示條（第三輪 U3）：「剋」＋被剋的小頭像、「怕」＋天敵的小頭像。
+func _draw_counter_strip(i: int, team: int) -> void:
+	var r := _card_rect(i)
+	var beats: Array = []
+	var fears: Array = []
+	for t in D.COUNT:
+		var sc := AIT.counter_score(i, t)
+		if sc > 0:
+			beats.append(t)
+		elif sc < 0:
+			fears.append(t)
+	var sr := Rect2(r.position.x - 30, r.position.y - 40, r.size.x + 60, 34)
+	draw_rect(sr, Color(0.06, 0.07, 0.1, 0.92))
+	draw_rect(sr, Color(1, 1, 1, 0.25), false, 1.5)
+	var x := sr.position.x + 8
+	var fz := mini(ts(14), 18)
+	_text(Vector2(x, sr.position.y + 6), L.t("beats"), fz, Color("#4ade80"), false, true)
+	x += font_bold.get_string_size(L.t("beats"), HORIZONTAL_ALIGNMENT_LEFT, -1, fz).x + 4
+	for t in beats:
+		Art.unit(self, Vector2(x + 12, sr.position.y + 32), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
+		x += 24
+	x += 10
+	_text(Vector2(x, sr.position.y + 6), L.t("fears"), fz, Color("#f87171"), false, true)
+	x += font_bold.get_string_size(L.t("fears"), HORIZONTAL_ALIGNMENT_LEFT, -1, fz).x + 4
+	for t in fears:
+		Art.unit(self, Vector2(x + 12, sr.position.y + 32), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
+		x += 24
+
+
 # ── 標題 ──
 func _draw_title() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.06, 0.1, 0.42))
@@ -906,9 +1044,13 @@ func _draw_title() -> void:
 		return
 	var bob := sin(time * 1.5) * 4
 	draw_rect(Rect2(260, 50, 760, 700), Color(0.05, 0.06, 0.1, 0.6))
-	_text(Vector2(640, 64 + bob), L.t("title"), ts(84), Color("#ffe8a3"), true, true)
-	_text(Vector2(640, 182), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", ts(26), Color(1, 1, 1, 0.85), true)
-	_text(Vector2(640, 222), L.t("subtitle"), ts(18), Color(1, 1, 1, 0.9), true)
+	# 標題區依實際字高往下排（第三輪 T4 抓到 150% 時大標與副標重疊）；大標封頂 96px
+	var tsz := mini(ts(84), 96)
+	_text(Vector2(640, 64 + bob), L.t("title"), tsz, Color("#ffe8a3"), true, true, 740)
+	var ty := 64.0 + tsz * 1.25
+	_text(Vector2(640, ty), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", mini(ts(26), 30), Color(1, 1, 1, 0.85), true, false, 740)
+	ty += mini(ts(26), 30) * 1.4
+	_text(Vector2(640, ty), L.t("subtitle"), ts(18), Color(1, 1, 1, 0.9), true, false, 740)
 	var items := [["menu_vs_ai", func(): _open("diff")],
 		["menu_duel", func(): _open("rule")],
 		["menu_tutorial", func(): _open("tutorial")],
@@ -965,6 +1107,12 @@ func _draw_overlay() -> void:
 			var unlocked := tut or tdone >= 1
 			_panel(Rect2(240, 110, 800, 580))
 			_text(Vector2(640, 126), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
+			if not tut and unlocked:
+				# 總星數（第三輪 U4）
+				var total := 0
+				for pz0 in list:
+					total += int(stars.get(pz0["id"], 0))
+				_text(Vector2(640, 166), "★ %d／%d" % [total, list.size() * 3], ts(18), ACCENT, true, true)
 			if not unlocked:
 				_text(Vector2(640, 172), L.t("puzzle_locked"), ts(16), ACCENT, true)
 			for i in list.size():
@@ -976,7 +1124,7 @@ func _draw_overlay() -> void:
 				_btn(r, "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)], _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
-				Art.unit(self, r.position + Vector2(32, 60), PZ.hero_type(pz), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if en else 0.4, time, 0.78, cbm())
+				_mini_formation(Rect2(r.position + Vector2(8, 16), Vector2(48, 36)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
 			_btn(Rect2(560, 640, 160, 36), L.t("back"), func(): overlay = "")
 		"settings":
 			_draw_settings()
@@ -1112,6 +1260,8 @@ func _draw_place_hud() -> void:
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz2 := PZ.get_puzzle(puzzle_id)
 		info = pz2["hint_zh"] if L.lang == "zh_TW" else pz2["hint_en"]
+		if mode == Mode.PUZZLE:
+			info += "　｜　" + L.t("star_rules", [pz2["star2"], pz2["star3"]])   # 星級條件放在上方（第三輪 U4）
 	elif mode == Mode.GAUNTLET:
 		info = L.t("gauntlet_hint") if gauntlet_stage == 1 else L.t("gauntlet_changes", [maxi(0, gauntlet_changes - _gauntlet_diff())])
 	elif mode == Mode.DUEL and tp != null:
@@ -1123,7 +1273,7 @@ func _draw_place_hud() -> void:
 	if info == "":
 		_key_hints(640, 64, [["✛", L.t("pk_move")], ["LB/RB", L.t("pk_pick")], ["A", L.t("pk_place")], ["X", L.t("pk_remove")], ["Start", L.t("pk_start")], ["Select", L.t("pk_codex")]], 14)
 	else:
-		_text(Vector2(640, 64), info, mini(ts(15), 17), Color(1, 1, 1, 0.85), true, false, 1260)
+		_text(Vector2(640, 64), info, mini(ts(15), 17), Color(1, 1, 1, 0.85), true, false, 720)   # 不壓到左邊的模式名稱
 	for i in D.COUNT:
 		var r := _card_rect(i)
 		var afford: bool = D.cost(i) <= a.left() and a.count() < Army.MAX_UNITS and _allowed(i)
@@ -1139,6 +1289,8 @@ func _draw_place_hud() -> void:
 		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color("#f87171"), false, not afford, 72)
 		_text(r.position + Vector2(62, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(15), Color(1, 1, 1, 0.7), false, false, 48)
 		_btn(_card_help_rect(i), "?", _open_codex.bind(i))
+	if hover_card >= 0 or overlay == "":
+		_draw_counter_strip(hover_card if hover_card >= 0 else selected, a.team)
 	var start_label := L.t("start")
 	var start_en := _ready_to_fight()
 	if mode == Mode.DUEL and tp != null and not tp.done():
@@ -1187,15 +1339,16 @@ func _draw_result() -> void:
 	if w >= 0:
 		title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
 		col = Art.team_color(w, cbm())
-	_text(Vector2(640, 108), title, ts(40), col, true, true, 600)
+	var title_sz := mini(ts(40), 48)
+	_text(Vector2(640, 106), title, title_sz, col, true, true, 600)
 	var mvp0 = report.get("mvp")
 	_btn(Rect2(904, 112, 124, 34), L.t("menu_codex_short"), _open_codex.bind(mvp0.type if mvp0 != null else 0))
 	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
 		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
 	var tot := float(sim.budget * 1000)
-	_text(Vector2(640, 166), "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0,
+	_text(Vector2(640, 106 + title_sz * 1.3), "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0,
 		L.t("power_left", [roundi(sim.power(0) * 100 / tot), roundi(sim.power(1) * 100 / tot)])], ts(16), Color(1, 1, 1, 0.85), true, false, 740)
-	var y := 196.0
+	var y := 106.0 + title_sz * 1.3 + ts(16) * 1.4 + 4.0
 	if w >= 0 and sim.alive_count(w) == 1:
 		_text(Vector2(640, y), L.t("lone_hero"), ts(20), ACCENT, true, true)
 		y += 30
@@ -1252,6 +1405,7 @@ func _draw_result() -> void:
 		_text(mp + Vector2(0, 30), "MVP", ts(16), ACCENT, true, true)
 		_text(Vector2(640, y), L.t("mvp", [L.t("blue") if mvp.team == 0 else L.t("red"), L.t("unit_%d" % mvp.type), mvp.dmg_dealt, mvp.kills]), ts(15), Color(1, 1, 1, 0.85), true, false, 740)
 		y += 26
+	_draw_timeline(Rect2(300, maxf(y + 10.0, 548.0), 680, 44))
 	if report.has("stars"):
 		var pz := PZ.get_puzzle(puzzle_id)
 		var stn := int(report["stars"])
@@ -1292,6 +1446,44 @@ func _draw_result() -> void:
 	var x := 640.0 - (bs.size() * (bw2 + 12) - 12) / 2.0
 	for i in bs.size():
 		_btn(Rect2(x + i * (bw2 + 12), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
+
+
+## 戰局時間軸（第三輪 U5）：藍紅拉鋸色帶（每 tick 的戰力差）＋關鍵事件點（首次衝鋒／背刺／頂住、領先交換、最後時刻、勝負鎖定）。
+func _draw_timeline(r: Rect2) -> void:
+	if sim == null or sim.power_log.is_empty():
+		return
+	var n: int = sim.power_log.size()
+	var tot := float(sim.budget * 1000)
+	var mid := r.position.y + r.size.y / 2.0
+	draw_rect(r, Color(0, 0, 0, 0.35))
+	var cols := int(r.size.x / 2.0)
+	for i in cols:
+		var t := mini(n - 1, i * n / cols)
+		var d: float = clampf(float(sim.power_log[t]) / tot * 2.0, -1.0, 1.0)
+		var h := absf(d) * r.size.y / 2.0
+		var c := Art.team_color(0 if d > 0 else 1, cbm())
+		draw_rect(Rect2(r.position.x + i * 2.0, mid - (h if d > 0 else 0.0), 2.0, h), Color(c, 0.85))
+	draw_line(Vector2(r.position.x, mid), Vector2(r.end.x, mid), Color(1, 1, 1, 0.3), 1.0)
+	var marks: Array = []
+	for m in battle_marks:
+		marks.append([int(m["tick"]), str(m["kind"]), int(m["team"])])
+	for t2 in report.get("leads", []):
+		marks.append([int(t2), "lead", -1])
+	var lock_t := int(report.get("lock_sec", 0)) * 20
+	if lock_t > 0 and sim.winner >= 0:
+		marks.append([lock_t, "lock", sim.winner])
+	marks.sort()
+	var last_lx := -999.0
+	for mk in marks:
+		var x := r.position.x + r.size.x * clampf(float(mk[0]) / n, 0.0, 1.0)
+		var mc := ACCENT if mk[2] < 0 else Art.team_color(mk[2], cbm())
+		draw_colored_polygon(PackedVector2Array([Vector2(x, r.position.y - 7), Vector2(x + 5, r.position.y - 2), Vector2(x, r.position.y + 3), Vector2(x - 5, r.position.y - 2)]), mc)
+		draw_line(Vector2(x, r.position.y + 3), Vector2(x, r.end.y), Color(mc, 0.5), 1.0)
+		var lbl := "%s %ds" % [L.t("tl_" + mk[1]), mk[0] / 20]
+		var lw := font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(12)).x
+		if x - lw / 2.0 > last_lx + 6.0:   # 用實際字寬避讓（第三輪 T4）
+			_text(Vector2(x, r.end.y + 2), lbl, ts(12), Color(mc, 0.95), true)
+			last_lx = x + lw / 2.0
 
 
 ## 動態判詞：用輸出最高的兵種、結束方式、懸念類型組一句話。

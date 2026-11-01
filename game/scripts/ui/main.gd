@@ -117,6 +117,35 @@ func _capture_capsule() -> void:
 
 
 # ───────────────────────── 截圖（驗證用） ─────────────────────────
+## 版面檢查（第三輪 T4）：這張截圖的介面文字有沒有越界、小於 9px（Steam Deck 下限）、彼此重疊超過 15%。
+func _layout_report(name: String) -> void:
+	var bad: Array = []
+	var sizes: Array = []
+	for t in probe_texts:
+		var r: Rect2 = t["r"]
+		sizes.append(int(t["size"]))
+		if r.position.x < -2 or r.end.x > 1282 or r.position.y < -2 or r.end.y > 802:
+			bad.append({"type": "越界", "s": t["s"], "r": str(r)})
+		if int(t["size"]) < 9:
+			bad.append({"type": "太小", "s": t["s"], "size": t["size"]})
+	for a in probe_texts.size():
+		for b in range(a + 1, probe_texts.size()):
+			var ra: Rect2 = probe_texts[a]["r"]
+			var rb: Rect2 = probe_texts[b]["r"]
+			var x := ra.intersection(rb)
+			if x.has_area() and probe_texts[a]["s"] != probe_texts[b]["s"]:
+				var ratio := x.get_area() / maxf(1.0, minf(ra.get_area(), rb.get_area()))
+				if ratio > 0.15:
+					bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
+	sizes.sort()
+	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": probe_texts.size(),
+		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0, "violations": bad})
+	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
+	f.seek_end()
+	f.store_line(line)
+	f.close()
+
+
 func _snap(name: String) -> void:
 	queue_redraw()
 	await get_tree().process_frame
@@ -124,6 +153,8 @@ func _snap(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(shot_dir.path_join(name))
 	print("SHOT ", name)
+	if layout_probe:
+		_layout_report(name)
 
 
 ## 實機影片（N6 預告素材）：用 Godot 錄影模式跑（--write-movie 絕對路徑 --fixed-fps 30），全程自動。
@@ -289,6 +320,8 @@ func _run_screenshots() -> void:
 	for i in 46:
 		_codex_tick(0.05)
 	await _snap("10_codex.png")
+	_scroll_by("left", 9999.0)   # 捲到底（第三輪 U1）
+	await _snap("10b_codex_scrolled.png")
 	_open_codex(D.ASSASSIN)
 	_cx_pick_skill(1)
 	for i in 70:

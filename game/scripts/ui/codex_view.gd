@@ -8,7 +8,9 @@ const CX = preload("res://scripts/game/codex.gd")
 const CX_PANEL := Rect2(180, 96, 920, 628)
 const CX_BOX := Rect2(596, 318, 474, 267)     # 小劇場畫面
 const CX_VIEW := Rect2(2000, 1100, 12000, 6760)   # 小劇場看的戰場範圍（模擬座標，千分之一格）：中間 12×6.76 格，兵才夠大
-const CX_PAUSE := 1.2                          # 一段示範結束後停多久再重播（秒）
+const CX_PAUSE := 1.2
+const CX_LEFT := Rect2(204, 204, 376, 388)     # 左欄可捲動區
+const CX_DESC := Rect2(596, 256, 474, 58)      # 技能說明可捲動區                          # 一段示範結束後停多久再重播（秒）
 
 var cx_unit := 0
 var cx_skill := 0
@@ -20,7 +22,10 @@ var cx_prev := {}
 var cx_atk := {}
 var cx_hurt := {}
 var cx_pops: Array = []        # 技能觸發時跳出的字：{p, s, t}
-var cx_seen := false           # 這一輪示範有沒有出現預期的技能
+var cx_seen := false
+var cx_scroll := {"left": 0.0, "desc": 0.0, "note": 0.0}   # 各捲動區的位移
+var cx_content := {"left": 0.0, "desc": 0.0, "note": 0.0}  # 各捲動區的內容高度（上一幀量到的）
+var cx_regions := {}                                         # 名稱 → 畫面上的矩形（滾輪判斷用）           # 這一輪示範有沒有出現預期的技能
 
 
 func _open_codex(t: int) -> void:
@@ -39,10 +44,13 @@ func _cx_skills() -> Array:
 
 func _cx_pick_unit(t: int) -> void:
 	cx_unit = t
+	cx_scroll["left"] = 0.0
+	cx_scroll["note"] = 0.0
 	_cx_pick_skill(0)
 
 
 func _cx_pick_skill(i: int) -> void:
+	cx_scroll["desc"] = 0.0
 	cx_skill = clampi(i, 0, maxi(0, _cx_skills().size() - 1))
 	_cx_restart()
 
@@ -156,32 +164,8 @@ func _draw_codex() -> void:
 	for t in D.COUNT:
 		var r := Rect2(204 + t * 176, 152, 168, 42)
 		_btn(r, L.t("unit_%d" % t), _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
-	# 左欄：大頭照、名字、定位、口號、數值（依實際字高往下排，英文／大字也不重疊）
-	var pc := Vector2(282, 352)
-	draw_circle(pc + Vector2(0, -30), 62, Color(1, 1, 1, 0.05), true, -1.0, true)
-	_ring(pc, 0, cx_unit, 2.0)
-	_unit(pc, cx_unit, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0)
-	var y := 208.0
-	var hs := fit(L.t("unit_%d" % cx_unit), ts(26), 208, true)
-	_text(Vector2(372, y), L.t("unit_%d" % cx_unit), hs, Color.WHITE, false, true)
-	y += hs * 1.35
-	var tag := "「%s」" % CX.text(u, "tagline", lang) if lang == "zh_TW" else "\"%s\"" % CX.text(u, "tagline", lang)
-	var st: Dictionary = D.STATS[cx_unit]
-	var stats := L.t("codex_stats", [int(st["cost"]), int(st["hp"]), int(st["atk"]), float(st["reach"]) / 1000.0, float(st["speed"]) * 20.0 / 1000.0])
-	var head_blocks := [[CX.text(u, "role", lang), Color(1, 1, 1, 0.8)], [tag, ACCENT], [stats, Color(1, 1, 1, 0.7)]]
-	var hz := _fit_block([head_blocks[0][0], head_blocks[1][0], head_blocks[2][0]], ts(15), 208, 392.0 - 8 - y, 3)
-	for hb in head_blocks:
-		var wt := _wrap(hb[0], hz, 208)
-		_text(Vector2(372, y), wt, hz, hb[1])
-		y += (wt.count("\n") + 1) * hz * 1.3 + 3
-	y = maxf(y + 6, 392.0)
-	var blocks := [CX.text(u, "story", lang), "✓ " + CX.text(u, "good", lang), "✗ " + CX.text(u, "bad", lang)]
-	var bz := _fit_block(blocks, ts(16), 368, 590.0 - y, 10)
-	var cols := [Color(1, 1, 1, 0.92), Color("#7dff8a"), Color("#ff9b9b")]
-	for k in blocks.size():
-		var wt2 := _wrap(blocks[k], bz, 368)
-		_text(Vector2(204, y), wt2, bz, cols[k])
-		y += (wt2.count("\n") + 1) * bz * 1.3 + (12 if k == 0 else 6)
+	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
+	_scroll_draw("left", CX_LEFT, _cx_left_items(u, lang))
 	# 右欄：技能分頁、說明、小劇場
 	var sks := _cx_skills()
 	var bw := (CX_BOX.size.x - (sks.size() - 1) * 8) / maxf(1.0, sks.size())
@@ -191,8 +175,7 @@ func _draw_codex() -> void:
 			Color(0.45, 0.3, 0.12) if i == cx_skill else Color(0, 0, 0, 0))
 	if not sks.is_empty():
 		var desc := CX.skill_desc(sks[cx_skill], lang)
-		var dz := _fit_block([desc], ts(15), CX_BOX.size.x, CX_BOX.position.y - 258 - 4, 0)
-		_text(Vector2(CX_BOX.position.x, 256), _wrap(desc, dz, CX_BOX.size.x), dz, Color(1, 1, 1, 0.92))
+		_scroll_draw("desc", CX_DESC, [{"type": "text", "s": desc, "size": ts(15), "c": Color(1, 1, 1, 0.92), "x": 0.0, "w": CX_DESC.size.x - 12}])
 	_draw_codex_demo()
 	# 老兵觀察筆記
 	var nr := Rect2(204, 600, 866, 66)
@@ -201,9 +184,111 @@ func _draw_codex() -> void:
 	_text(nr.position + Vector2(12, 4), L.t("codex_note"), ts(14), ACCENT, false, true, 400)
 	var unlocked := CX.note_unlocked(Save.data, cx_unit)
 	var note := CX.text(u, "veteran", lang) if unlocked else L.t("codex_note_locked", [L.t("unit_%d" % cx_unit), CX.NOTE_WINS, mini(CX.wins_with(Save.data, cx_unit), CX.NOTE_WINS), CX.NOTE_WINS])
-	var nz := _fit_block([note], ts(14), nr.size.x - 24, nr.size.y - 28, 0)
-	_text(nr.position + Vector2(12, 26), _wrap(note, nz, nr.size.x - 24), nz, Color(1, 1, 1, 0.9 if unlocked else 0.55))
+	_scroll_draw("note", Rect2(nr.position + Vector2(12, 4 + ts(14) * 1.4), Vector2(nr.size.x - 20, nr.size.y - 8 - ts(14) * 1.4)),
+		[{"type": "text", "s": note, "size": ts(14), "c": Color(1, 1, 1, 0.9 if unlocked else 0.55), "x": 0.0, "w": nr.size.x - 40}])
 	_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): overlay = "")
+
+
+## ── 捲動區（第三輪 U1）──
+## 圖鑑全部是自繪，所以不用 ScrollContainer（混用 Control 會有焦點問題）：
+## 內容依實際字高往下排；只畫「整行都在區域內」的行，所以不會有半個字；內容比區域高時右邊畫捲軸。
+## 滾輪捲滑鼠所在的區域；手把右搖桿與 PageUp／PageDown 捲左欄。
+func _scroll_by(name: String, dy: float) -> void:
+	var r: Rect2 = cx_regions.get(name, Rect2())
+	var maxs := maxf(0.0, float(cx_content.get(name, 0.0)) - r.size.y)
+	cx_scroll[name] = clampf(float(cx_scroll.get(name, 0.0)) + dy, 0.0, maxs)
+
+func _scroll_at(p: Vector2, dy: float) -> bool:
+	for name in cx_regions:
+		if cx_regions[name].has_point(p):
+			_scroll_by(name, dy)
+			return true
+	return false
+
+## 左欄內容：大頭照＋名字、定位、口號；屬性條；故事、擅長、怕。
+func _cx_left_items(u: Dictionary, lang: String) -> Array:
+	var tag := "「%s」" % CX.text(u, "tagline", lang) if lang == "zh_TW" else "\"%s\"" % CX.text(u, "tagline", lang)
+	var items: Array = [
+		{"type": "portrait", "h": 150.0, "texts": [
+			{"s": L.t("unit_%d" % cx_unit), "size": ts(26), "c": Color.WHITE, "bold": true},
+			{"s": CX.text(u, "role", lang), "size": ts(15), "c": Color(1, 1, 1, 0.8)},
+			{"s": tag, "size": ts(15), "c": ACCENT}]},
+		{"type": "bars"},
+		{"type": "text", "s": CX.text(u, "story", lang), "size": ts(16), "c": Color(1, 1, 1, 0.92), "x": 0.0, "w": 356.0, "gap": 12.0},
+		{"type": "text", "s": "✓ " + CX.text(u, "good", lang), "size": ts(15), "c": Color("#7dff8a"), "x": 0.0, "w": 356.0, "gap": 6.0},
+		{"type": "text", "s": "✗ " + CX.text(u, "bad", lang), "size": ts(15), "c": Color("#ff9b9b"), "x": 0.0, "w": 356.0, "gap": 6.0},
+	]
+	return items
+
+## 屬性條（第三輪 U2）：血、每秒傷害、射程、速度，對五兵種最大值正規化。回傳 [標籤, 0～1, 數值文字]。
+func _cx_bars(t: int) -> Array:
+	var mx := [0.0, 0.0, 0.0, 0.0]
+	var vals: Array = []
+	for k in D.COUNT:
+		var st: Dictionary = D.STATS[k]
+		var v := [float(st["hp"]), float(st["atk"]) * 20.0 / (float(st["cd"]) / 4.0), float(st["reach"]) / 1000.0, float(st["speed"]) * 20.0 / 1000.0]
+		vals.append(v)
+		for i in 4:
+			mx[i] = maxf(mx[i], v[i])
+	var me: Array = vals[t]
+	var stc: Dictionary = D.STATS[t]
+	return [[L.t("bar_hp"), me[0] / mx[0], str(int(me[0]))], [L.t("bar_dps"), me[1] / mx[1], "%.0f" % me[1]],
+		[L.t("bar_range"), sqrt(me[2] / mx[2]), L.t("cells", [me[2]])], [L.t("bar_speed"), me[3] / mx[3], L.t("cells_s", [me[3]])],
+		[L.t("bar_cost"), float(stc["cost"]) / 7.0, L.t("gold", [int(stc["cost"])])]]
+
+func _scroll_draw(name: String, r: Rect2, items: Array) -> void:
+	cx_regions[name] = r
+	var off: float = cx_scroll.get(name, 0.0)
+	var y := r.position.y - off
+	var top := r.position.y
+	var bot := r.end.y
+	var inside := func(y0: float, h: float) -> bool: return y0 >= top - 0.5 and y0 + h <= bot + 0.5
+	for it in items:
+		match it["type"]:
+			"portrait":
+				var h: float = it["h"]
+				var pc := Vector2(r.position.x + 70, y + 132)
+				if inside.call(y, h):
+					draw_circle(pc + Vector2(0, -30), 62, Color(1, 1, 1, 0.05), true, -1.0, true)
+					_ring(pc, 0, cx_unit, 2.0)
+					_unit(pc, cx_unit, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0)
+				var ty := y + 4.0
+				for tx in it["texts"]:
+					var wt := _wrap(tx["s"], tx["size"], r.size.x - 168)
+					for ln in wt.split("\n"):
+						if inside.call(ty, tx["size"] * 1.3):
+							_text(Vector2(r.position.x + 160, ty), ln, tx["size"], tx["c"], false, tx.get("bold", false))
+						ty += tx["size"] * 1.3
+					ty += 3.0
+				y += maxf(h, ty - y) + 8.0
+			"bars":
+				var lh := float(ts(13)) * 1.3 + 4.0
+				for b in _cx_bars(cx_unit):
+					if inside.call(y, lh):
+						_text(Vector2(r.position.x, y), b[0], ts(13), Color(1, 1, 1, 0.75), false, false, 90)
+						var bx := r.position.x + 96
+						draw_rect(Rect2(bx, y + lh * 0.38, 150, 7), Color("#2a3040"))
+						draw_rect(Rect2(bx, y + lh * 0.38, 150.0 * clampf(b[1], 0.04, 1.0), 7), Color("#66b2ff"))
+						_text(Vector2(bx + 158, y), b[2], ts(13), Color(1, 1, 1, 0.85), false, false, r.size.x - 260)
+					y += lh
+				y += 10.0
+			"text":
+				var size: int = it["size"]
+				var wt2 := _wrap(it["s"], size, it["w"])
+				for ln2 in wt2.split("\n"):
+					if inside.call(y, size * 1.3):
+						_text(Vector2(r.position.x + it["x"], y), ln2, size, it["c"])
+					y += size * 1.3
+				y += float(it.get("gap", 0.0))
+	cx_content[name] = y + off - r.position.y
+	# 捲軸
+	var total: float = cx_content[name]
+	if total > r.size.y + 1.0:
+		var bar := Rect2(r.end.x - 6, r.position.y, 6, r.size.y)
+		draw_rect(bar, Color("#2a3040"))
+		var th := maxf(24.0, r.size.y * r.size.y / total)
+		var ty2 := r.position.y + (r.size.y - th) * (off / maxf(1.0, total - r.size.y))
+		draw_rect(Rect2(bar.position.x, ty2, 6, th), Color("#5a657d"))
 
 
 func _draw_codex_demo() -> void:
