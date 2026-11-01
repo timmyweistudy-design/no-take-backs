@@ -175,6 +175,14 @@ def main():
                 tw[t] += share * (1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0)
         md.append("\n兵種（依陣中金額比例加權）勝率：" + "、".join(f"{NAMES[t]} {pct(tw[t], tg[t])}%" for t in range(5)) + "\n")
         summary["type_winrate"] = [pct(tw[t], tg[t]) for t in range(5)]
+        # 刺客陣（第二輪方案 R7、I）：刺客佔陣中金額 ≥30% 的陣型勝率（平手算半勝），目標 38～48%
+        aw = ag = 0.0
+        for r in L:
+            comp = r["comp"]; s2 = sum(comp) or 1
+            if comp[4] / s2 >= 0.30:
+                ag += 1; aw += (1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0)
+        md.append(f"刺客陣（刺客 ≥30% 金額，{int(ag)} 場）勝率：{pct(aw, ag)}%（目標 38～48%）\n")
+        summary["assassin_heavy_winrate"] = pct(aw, ag)
         # 每套陣型勝率前 5
         per = {}
         for r in L:
