@@ -134,33 +134,54 @@ func _wrap(s: String, size: int, width: float) -> String:
 	return "\n".join(out)
 
 
+## 一組段落要放進 max_h 高度：從 size 開始縮，直到換行後的總高度放得下（段落間距 gap）。最小 10px。
+func _fit_block(texts: Array, size: int, width: float, max_h: float, gap: float) -> int:
+	var sz := size
+	while sz > 10:
+		var h := 0.0
+		for tx in texts:
+			h += (_wrap(tx, sz, width).count("\n") + 1) * sz * 1.3 + gap
+		if h - gap <= max_h:
+			return sz
+		sz -= 1
+	return sz
+
+
 func _draw_codex() -> void:
 	_panel(CX_PANEL)
 	var u := CX.unit(cx_unit)
 	var lang := L.lang
-	_text(Vector2(640, 108), L.t("codex_title"), ts(26), Color.WHITE, true, true)
+	_text(Vector2(640, 108), L.t("codex_title"), ts(26), Color.WHITE, true, true, 600)
 	# 兵種分頁
 	for t in D.COUNT:
 		var r := Rect2(204 + t * 176, 152, 168, 42)
 		_btn(r, L.t("unit_%d" % t), _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
-	# 左欄：大頭照、名字、定位、口號、數值
+	# 左欄：大頭照、名字、定位、口號、數值（依實際字高往下排，英文／大字也不重疊）
 	var pc := Vector2(282, 352)
 	draw_circle(pc + Vector2(0, -30), 62, Color(1, 1, 1, 0.05), true, -1.0, true)
 	_ring(pc, 0, cx_unit, 2.0)
 	_unit(pc, cx_unit, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0)
-	_text(Vector2(372, 212), L.t("unit_%d" % cx_unit), ts(26), Color.WHITE, false, true)
-	_text(Vector2(372, 250), CX.text(u, "role", lang), ts(16), Color(1, 1, 1, 0.8))
-	_text(Vector2(372, 276), "「%s」" % CX.text(u, "tagline", lang) if lang == "zh_TW" else "\"%s\"" % CX.text(u, "tagline", lang), ts(16), ACCENT)
+	var y := 208.0
+	var hs := fit(L.t("unit_%d" % cx_unit), ts(26), 208, true)
+	_text(Vector2(372, y), L.t("unit_%d" % cx_unit), hs, Color.WHITE, false, true)
+	y += hs * 1.35
+	var tag := "「%s」" % CX.text(u, "tagline", lang) if lang == "zh_TW" else "\"%s\"" % CX.text(u, "tagline", lang)
 	var st: Dictionary = D.STATS[cx_unit]
-	_text(Vector2(372, 304), _wrap(L.t("codex_stats", [int(st["cost"]), int(st["hp"]), int(st["atk"]), float(st["reach"]) / 1000.0, float(st["speed"]) * 20.0 / 1000.0]), ts(14), 200), ts(14), Color(1, 1, 1, 0.7))
-	var y := 392.0
-	var story := _wrap(CX.text(u, "story", lang), ts(16), 368)
-	_text(Vector2(204, y), story, ts(16), Color(1, 1, 1, 0.92))
-	y += (story.count("\n") + 1) * ts(16) * 1.3 + 14
-	var good := _wrap("✓ " + CX.text(u, "good", lang), ts(15), 368)
-	_text(Vector2(204, y), good, ts(15), Color("#7dff8a"))
-	y += (good.count("\n") + 1) * ts(15) * 1.3 + 8
-	_text(Vector2(204, y), _wrap("✗ " + CX.text(u, "bad", lang), ts(15), 368), ts(15), Color("#ff9b9b"))
+	var stats := L.t("codex_stats", [int(st["cost"]), int(st["hp"]), int(st["atk"]), float(st["reach"]) / 1000.0, float(st["speed"]) * 20.0 / 1000.0])
+	var head_blocks := [[CX.text(u, "role", lang), Color(1, 1, 1, 0.8)], [tag, ACCENT], [stats, Color(1, 1, 1, 0.7)]]
+	var hz := _fit_block([head_blocks[0][0], head_blocks[1][0], head_blocks[2][0]], ts(15), 208, 392.0 - 8 - y, 3)
+	for hb in head_blocks:
+		var wt := _wrap(hb[0], hz, 208)
+		_text(Vector2(372, y), wt, hz, hb[1])
+		y += (wt.count("\n") + 1) * hz * 1.3 + 3
+	y = maxf(y + 6, 392.0)
+	var blocks := [CX.text(u, "story", lang), "✓ " + CX.text(u, "good", lang), "✗ " + CX.text(u, "bad", lang)]
+	var bz := _fit_block(blocks, ts(16), 368, 590.0 - y, 10)
+	var cols := [Color(1, 1, 1, 0.92), Color("#7dff8a"), Color("#ff9b9b")]
+	for k in blocks.size():
+		var wt2 := _wrap(blocks[k], bz, 368)
+		_text(Vector2(204, y), wt2, bz, cols[k])
+		y += (wt2.count("\n") + 1) * bz * 1.3 + (12 if k == 0 else 6)
 	# 右欄：技能分頁、說明、小劇場
 	var sks := _cx_skills()
 	var bw := (CX_BOX.size.x - (sks.size() - 1) * 8) / maxf(1.0, sks.size())
@@ -169,16 +190,19 @@ func _draw_codex() -> void:
 		_btn(Rect2(CX_BOX.position.x + i * (bw + 8), 212, bw, 38), CX.text(sd, "", lang), _cx_pick_skill.bind(i), true, false,
 			Color(0.45, 0.3, 0.12) if i == cx_skill else Color(0, 0, 0, 0))
 	if not sks.is_empty():
-		_text(Vector2(CX_BOX.position.x, 258), _wrap(CX.skill_desc(sks[cx_skill], lang), ts(15), CX_BOX.size.x), ts(15), Color(1, 1, 1, 0.92))
+		var desc := CX.skill_desc(sks[cx_skill], lang)
+		var dz := _fit_block([desc], ts(15), CX_BOX.size.x, CX_BOX.position.y - 258 - 4, 0)
+		_text(Vector2(CX_BOX.position.x, 256), _wrap(desc, dz, CX_BOX.size.x), dz, Color(1, 1, 1, 0.92))
 	_draw_codex_demo()
 	# 老兵觀察筆記
 	var nr := Rect2(204, 600, 866, 66)
 	draw_rect(nr, Color(0.2, 0.17, 0.1, 0.85))
 	draw_rect(nr, Color(ACCENT, 0.35), false, 1.5)
-	_text(nr.position + Vector2(12, 6), L.t("codex_note"), ts(14), ACCENT, false, true)
+	_text(nr.position + Vector2(12, 4), L.t("codex_note"), ts(14), ACCENT, false, true, 400)
 	var unlocked := CX.note_unlocked(Save.data, cx_unit)
 	var note := CX.text(u, "veteran", lang) if unlocked else L.t("codex_note_locked", [L.t("unit_%d" % cx_unit), CX.NOTE_WINS, mini(CX.wins_with(Save.data, cx_unit), CX.NOTE_WINS), CX.NOTE_WINS])
-	_text(nr.position + Vector2(12, 30), _wrap(note, ts(14), nr.size.x - 24), ts(14), Color(1, 1, 1, 0.9 if unlocked else 0.55))
+	var nz := _fit_block([note], ts(14), nr.size.x - 24, nr.size.y - 28, 0)
+	_text(nr.position + Vector2(12, 26), _wrap(note, nz, nr.size.x - 24), nz, Color(1, 1, 1, 0.9 if unlocked else 0.55))
 	_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): overlay = "")
 
 

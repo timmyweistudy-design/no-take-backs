@@ -615,8 +615,8 @@ func _draw_fx(f: Dictionary) -> void:
 # ── 戰鬥 HUD ──
 func _draw_battle_hud() -> void:
 	draw_rect(Rect2(0, 0, 1280, 86), UI_BG)
-	_text(Vector2(20, 8), L.t("title"), ts(26), Color("#ffe8a3"), false, true)
-	_text(Vector2(20, 52), _mode_label(), ts(14), Color(1, 1, 1, 0.6))
+	_text(Vector2(20, 8), L.t("title"), ts(26), Color("#ffe8a3"), false, true, 250)
+	_text(Vector2(20, 52), _mode_label(), ts(14), Color(1, 1, 1, 0.6), false, false, 250)
 	var tot := float(view.budget * 1000)
 	var p0: int = view.power(0)
 	var p1: int = view.power(1)
@@ -630,8 +630,8 @@ func _draw_battle_hud() -> void:
 	_text(Vector2(bx + 8, 42), "%d%%" % roundi(p0 * 100 / tot), ts(15), Color.WHITE, false, true)
 	var rt := "%d%%" % roundi(p1 * 100 / tot)
 	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), Color.WHITE, false, true)
-	_text(Vector2(bx - 70, 42), L.t("units_left", [view.alive_count(0)]), ts(15), Art.team_color(0, cbm()))
-	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [view.alive_count(1)]), ts(15), Art.team_color(1, cbm()))
+	_text(Vector2(bx - 70, 42), L.t("units_left", [view.alive_count(0)]), ts(15), Art.team_color(0, cbm()), false, false, 64)
+	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [view.alive_count(1)]), ts(15), Art.team_color(1, cbm()), false, false, 70)
 	for tm in 2:
 		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0

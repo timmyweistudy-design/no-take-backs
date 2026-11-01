@@ -157,8 +157,25 @@ func _move_focus(d: int) -> void:
 	_focus = posmod(_focus + d, _btns.size())
 
 
-func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false) -> void:
+## 字太寬就縮小（英文、大字設定時避免截字；最小 9px）。
+func fit(s: String, size: int, maxw: float, bold := false) -> int:
 	var fnt := font_bold if bold else font
+	var sz := size
+	var w := 0.0
+	for ln in s.split("\n"):
+		w = maxf(w, fnt.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x)
+	while w > maxw and sz > 9:
+		sz -= 1
+		w = 0.0
+		for ln in s.split("\n"):
+			w = maxf(w, fnt.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x)
+	return sz
+
+
+func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0) -> void:
+	var fnt := font_bold if bold else font
+	if maxw > 0.0:
+		size = fit(s, size, maxw, bold)
 	var lines := s.split("\n")
 	for i in lines.size():
 		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
@@ -182,7 +199,8 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		bg = bg.lightened(0.18)
 	draw_rect(r, bg)
 	draw_rect(r, ACCENT if focus else Color(1, 1, 1, 0.18), false, 3 if focus else 1.5)
-	var sz := ts(18) if r.size.y >= 40 else ts(15)
+	var sz := fit(label, ts(18) if r.size.y >= 40 else ts(15), r.size.x - 10, primary)
+	sz = mini(sz, int(r.size.y * 0.8))
 	_text(r.get_center() - Vector2(0, sz * 0.62), label, sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
 
 

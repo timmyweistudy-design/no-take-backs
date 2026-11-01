@@ -14,6 +14,11 @@ func _ready() -> void:
 			print("STEAMTEST ", JSON.stringify(res))
 			get_tree().quit(0 if res["ok"] else 1)
 			return
+	for a2 in OS.get_cmdline_user_args():   # 截圖驗證用：--shot-lang=en、--shot-text=150（只改這次記憶體中的設定）
+		if a2.begins_with("--shot-lang="):
+			Save.settings["lang"] = a2.substr(12)
+		elif a2.begins_with("--shot-text="):
+			Save.settings["text_scale"] = int(a2.substr(12))
 	L.lang = Save.s("lang")
 	duel_rule = Save.s("duel_rule")
 	speed = float(Save.s("speed"))
@@ -421,7 +426,7 @@ func _card_rect(i: int) -> Rect2:
 ## 兵種卡右上角的「?」：開圖鑑到這個兵種（第二輪方案 R3）。
 func _card_help_rect(i: int) -> Rect2:
 	var r := _card_rect(i)
-	return Rect2(r.end.x - 24, r.position.y + 3, 21, 22)
+	return Rect2(r.end.x - 24, r.end.y - 26, 21, 22)   # 右下角，不擋兵種名
 
 
 func _card_at(p: Vector2) -> int:
@@ -1055,11 +1060,11 @@ func _paste_code() -> void:
 # ── 擺放 HUD ──
 func _draw_place_hud() -> void:
 	draw_rect(Rect2(0, 0, 1280, 86), UI_BG)
-	_text(Vector2(20, 8), L.t("title"), ts(26), Color("#ffe8a3"), false, true)
-	_text(Vector2(20, 52), _mode_label(), ts(14), Color(1, 1, 1, 0.6))
+	_text(Vector2(20, 8), L.t("title"), ts(26), Color("#ffe8a3"), false, true, 250)
+	_text(Vector2(20, 52), _mode_label(), ts(14), Color(1, 1, 1, 0.6), false, false, 250)
 	if mode == Mode.VS_AI or mode == Mode.DUEL:
-		_text(Vector2(1110, 8), L.t("round", [round_no]), ts(16), Color.WHITE)
-		_text(Vector2(1110, 34), L.t("score", [wins[0], wins[1]]), ts(16), Color.WHITE)
+		_text(Vector2(1110, 8), L.t("round", [round_no]), ts(16), Color.WHITE, false, false, 160)
+		_text(Vector2(1110, 34), L.t("score", [wins[0], wins[1]]), ts(16), Color.WHITE, false, false, 160)
 	var a = _cur_army()
 	var tcol := Art.team_color(a.team, cbm())
 	var head := L.t("place_title")
@@ -1075,7 +1080,7 @@ func _draw_place_hud() -> void:
 		head = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 	elif mode == Mode.GAUNTLET:
 		head = L.t("gauntlet_title", [gauntlet_stage])
-	_text(Vector2(640, 1), head, ts(22), tcol if mode == Mode.DUEL else Color.WHITE, true, true)
+	_text(Vector2(640, 1), head, ts(22), tcol if mode == Mode.DUEL else Color.WHITE, true, true, 560)
 	var bx := 400.0
 	var bw := 480.0
 	draw_rect(Rect2(bx, 58, bw, 4), Color(0.2, 0.2, 0.25))
@@ -1106,7 +1111,7 @@ func _draw_place_hud() -> void:
 	if info == "":
 		_key_hints(640, 64, [["✛", L.t("pk_move")], ["LB/RB", L.t("pk_pick")], ["A", L.t("pk_place")], ["X", L.t("pk_remove")], ["Start", L.t("pk_start")], ["Select", L.t("pk_codex")]], 14)
 	else:
-		_text(Vector2(640, 64), info, ts(15), Color(1, 1, 1, 0.85), true)
+		_text(Vector2(640, 64), info, ts(15), Color(1, 1, 1, 0.85), true, false, 1260)
 	for i in D.COUNT:
 		var r := _card_rect(i)
 		var afford: bool = D.cost(i) <= a.left() and a.count() < Army.MAX_UNITS and _allowed(i)
@@ -1118,9 +1123,9 @@ func _draw_place_hud() -> void:
 		draw_rect(r, bg if afford else Color(bg, 0.45))
 		draw_rect(r, tcol if i == selected else Color(1, 1, 1, 0.15), false, 2)
 		Art.unit(self, r.position + Vector2(32, 86), i, a.team, 1.0, 0.0, 0.0, 0.0, 1.0 if afford else 0.45, time, 0.95, cbm())
-		_text(r.position + Vector2(64, 6), L.t("unit_%d" % i), ts(16), Color.WHITE if afford else Color(1, 1, 1, 0.55), false, true)
-		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color("#f87171"), false, not afford)
-		_text(r.position + Vector2(64, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(15), Color(1, 1, 1, 0.7))
+		_text(r.position + Vector2(62, 6), L.t("unit_%d" % i), ts(16), Color.WHITE if afford else Color(1, 1, 1, 0.55), false, true, 74)
+		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color("#f87171"), false, not afford, 72)
+		_text(r.position + Vector2(62, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(15), Color(1, 1, 1, 0.7), false, false, 48)
 		_btn(_card_help_rect(i), "?", _open_codex.bind(i))
 	var start_label := L.t("start")
 	var start_en := _ready_to_fight()
@@ -1170,14 +1175,14 @@ func _draw_result() -> void:
 	if w >= 0:
 		title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
 		col = Art.team_color(w, cbm())
-	_text(Vector2(640, 108), title, ts(40), col, true, true)
+	_text(Vector2(640, 108), title, ts(40), col, true, true, 600)
 	var mvp0 = report.get("mvp")
 	_btn(Rect2(904, 112, 124, 34), L.t("menu_codex_short"), _open_codex.bind(mvp0.type if mvp0 != null else 0))
 	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
 		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
 	var tot := float(sim.budget * 1000)
 	_text(Vector2(640, 166), "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0,
-		L.t("power_left", [roundi(sim.power(0) * 100 / tot), roundi(sim.power(1) * 100 / tot)])], ts(16), Color(1, 1, 1, 0.85), true)
+		L.t("power_left", [roundi(sim.power(0) * 100 / tot), roundi(sim.power(1) * 100 / tot)])], ts(16), Color(1, 1, 1, 0.85), true, false, 740)
 	var y := 196.0
 	if w >= 0 and sim.alive_count(w) == 1:
 		_text(Vector2(640, y), L.t("lone_hero"), ts(20), ACCENT, true, true)
@@ -1187,15 +1192,15 @@ func _draw_result() -> void:
 		_text(Vector2(640, y), L.t("report_comeback", [sus["max_swing_pct"]]), ts(18), Color("#7dff8a"), true, true)
 		y += 28
 	if w >= 0:
-		_text(Vector2(640, y), _verdict(w), ts(17), Color(1, 1, 1, 0.95), true, true)
+		_text(Vector2(640, y), _verdict(w), ts(17), Color(1, 1, 1, 0.95), true, true, 740)
 		y += 28
 	var sus_line := L.t("report_suspense", [sus.get("lead_changes", 0), report.get("lock_sec", 0), sus.get("max_swing_pct", 0)])
 	if w >= 0 and int(sus.get("lock_ratio_permille", 0)) == 0:
 		sus_line = L.t("report_led_all")
-	_text(Vector2(640, y), sus_line, ts(14), Color(1, 1, 1, 0.75), true)
+	_text(Vector2(640, y), sus_line, ts(14), Color(1, 1, 1, 0.75), true, false, 740)
 	y += 28
-	_text(Vector2(280, y), L.t("report_title"), ts(16), Color.WHITE, false, true)
-	_text(Vector2(420, y + 2), "■ " + L.t("report_dealt") + "　□ " + L.t("report_taken"), ts(12), Color(1, 1, 1, 0.6))
+	_text(Vector2(280, y), L.t("report_title"), ts(16), Color.WHITE, false, true, 140)
+	_text(Vector2(430, y + 2), "■ " + L.t("report_dealt") + "　□ " + L.t("report_taken"), ts(12), Color(1, 1, 1, 0.6), false, false, 260)
 	y += 30
 	var dealt: Array = report["dealt"]
 	var taken: Array = report["taken"]
@@ -1204,7 +1209,7 @@ func _draw_result() -> void:
 		for t in 5:
 			mx = maxi(mx, maxi(dealt[tm][t], taken[tm][t]))
 	for t in 5:
-		_text(Vector2(280, y + t * 30 - 2), L.t("unit_%d" % t), ts(13), Color.WHITE)
+		_text(Vector2(280, y + t * 30 - 2), L.t("unit_%d" % t), ts(13), Color.WHITE, false, false, 94)
 		for tm in 2:
 			var x0 := 380.0 + tm * 320.0
 			var c := Art.team_color(tm, cbm())
@@ -1224,7 +1229,7 @@ func _draw_result() -> void:
 			var on: bool = n[j] > 0
 			draw_rect(br, Color(tcl, 0.22 if on else 0.07))
 			draw_rect(br, Color(tcl, 0.7 if on else 0.2), false, 1.5)
-			_text(br.position + Vector2(45, 3), "%s %d" % [L.t("ev_short_" + ek[j]), n[j]], ts(15), Color(1, 1, 1, 0.95 if on else 0.4), true, on)
+			_text(br.position + Vector2(45, 3), "%s %d" % [L.t("ev_short_" + ek[j]), n[j]], ts(15), Color(1, 1, 1, 0.95 if on else 0.4), true, on, 84)
 	y += 74
 	var mvp = report.get("mvp")
 	if mvp != null:
@@ -1233,7 +1238,7 @@ func _draw_result() -> void:
 		Art.ring(self, mp + Vector2(0, 20), mvp.team, mvp.type, cbm(), 1.8)
 		Art.unit(self, mp + Vector2(0, 20), mvp.type, mvp.team, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.8, cbm())
 		_text(mp + Vector2(0, 30), "MVP", ts(16), ACCENT, true, true)
-		_text(Vector2(640, y), L.t("mvp", [L.t("blue") if mvp.team == 0 else L.t("red"), L.t("unit_%d" % mvp.type), mvp.dmg_dealt, mvp.kills]), ts(15), Color(1, 1, 1, 0.85), true)
+		_text(Vector2(640, y), L.t("mvp", [L.t("blue") if mvp.team == 0 else L.t("red"), L.t("unit_%d" % mvp.type), mvp.dmg_dealt, mvp.kills]), ts(15), Color(1, 1, 1, 0.85), true, false, 740)
 		y += 26
 	if report.has("stars"):
 		var pz := PZ.get_puzzle(puzzle_id)
