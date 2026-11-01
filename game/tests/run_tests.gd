@@ -30,6 +30,7 @@ func _init() -> void:
 	test_rule_fixes()
 	test_suspense()
 	test_codes_and_snake()
+	test_rally()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -221,49 +222,93 @@ func test_traits() -> void:
 
 
 func test_rule_fixes() -> void:
-	# 面向鎖定：盾兵正面對著劍士交戰，刺客從背後過來推擠也不會讓盾兵轉身
-	var s = Sim.new(army_from(0, [[D.SHIELD, 5, 4]]), army_from(1, [[D.SWORD, 5, 4]]))
+	# 面向鎖定：藍盾兵正面跟紅劍士交戰，紅刺客從背後切過來推擠——鎖定中的盾兵面向一點都不能變
+	var s = Sim.new(army_from(0, [[D.SHIELD, 5, 4]]), army_from(1, [[D.SWORD, 5, 4], [D.ASSASSIN, 4, 4]]))
 	var locked_ticks := 0
 	var changed := 0
 	var last := Vector2i.ZERO
+	var lock_target := -1
+	var pushed := 0
+	var lastpos := Vector2i.ZERO
 	for i in 300:
 		s.step()
 		var u = s.units[0]
-		if u.face_lock != -1:
+		if not u.alive:
+			break
+		if u.face_lock != -1 and u.face_lock == lock_target:
 			var f := Vector2i(u.fx, u.fy)
-			if locked_ticks > 0 and f != last:
+			if f != last:
 				changed += 1
-			last = f
+			if Vector2i(u.x, u.y) != lastpos:
+				pushed += 1
 			locked_ticks += 1
-	ok(locked_ticks > 20 and changed == 0, "交戰中面向鎖定（不隨推擠改變）", "locked=%d changed=%d" % [locked_ticks, changed])
-	# 衝鋒：騎兵往盾兵衝、被頂住後歸零；衝鋒距離只算沿起始方向的前進
-	s = Sim.new(army_from(0, [[D.CAVALRY, 0, 4]]), army_from(1, [[D.SWORD, 0, 0]]))
-	var max_charge := 0
-	for i in 30:
-		s.step()
-		max_charge = maxi(max_charge, s.units[0].charge)
-	var straight_cells: int = Sim.W   # 對角線路程上限
-	ok(max_charge > 0 and max_charge <= straight_cells, "衝鋒累積只算實際前進", "max=%d" % max_charge)
-	# 反擊：兩隻刺客同時打同一劍士 → 左右交換後被反擊的刺客位置要鏡像對應
-	var a0 = army_from(0, [[D.SWORD, 5, 4]])
-	var a1 = army_from(1, [[D.ASSASSIN, 5, 3], [D.ASSASSIN, 5, 5]])
-	var s1 = Sim.new(a0, a1)
-	var s2 = Sim.new(a1.mirrored(), a0.mirrored())
-	var c1 := ""
-	var c2 := ""
-	for i in 400:
-		s1.step()
+		lock_target = u.face_lock
+		last = Vector2i(u.fx, u.fy)
+		lastpos = Vector2i(u.x, u.y)
+	ok(locked_ticks > 20 and pushed > 0 and changed == 0, "交戰中面向鎖定（被推擠位置變了，面向不變）", "locked=%d pushed=%d changed=%d" % [locked_ticks, pushed, changed])
+	# 直接側推：鎖定後把盾兵往旁邊挪 0.4 格，同一個目標還在交戰距離內 → 面向必須維持
+	var s2 = Sim.new(army_from(0, [[D.SHIELD, 5, 4]]), army_from(1, [[D.SWORD, 5, 4]]))
+	var guard := 0
+	while s2.units[0].face_lock == -1 and guard < 200:
 		s2.step()
-		for ev in s1.events:
-			if ev.get("kind") == "counter" and c1 == "":
-				var t = s1.unit_by_id(ev["tgt"])
-				c1 = "%d,%d" % [t.x, t.y]
-		for ev in s2.events:
-			if ev.get("kind") == "counter" and c2 == "":
-				var t = s2.unit_by_id(ev["tgt"])
-				c2 = "%d,%d" % [Sim.W - t.x, t.y]
-	ok(c1 != "" and c1 == c2, "反擊對象在左右交換後鏡像一致", "%s vs %s" % [c1, c2])
-	ok(s1.fingerprint != "" and s1.fingerprint.length() == 64, "指紋是 SHA-256", s1.fingerprint)
+		guard += 1
+	var before := Vector2i(s2.units[0].fx, s2.units[0].fy)
+	var tgt: int = s2.units[0].face_lock
+	s2.units[0].y += 400
+	s2.step()
+	ok(tgt != -1 and s2.units[0].face_lock == tgt and Vector2i(s2.units[0].fx, s2.units[0].fy) == before, "被側推後面向仍鎖定在原本方向",
+		"%s → %s" % [before, Vector2i(s2.units[0].fx, s2.units[0].fy)])
+	# 衝鋒累積：直接驗 _update_charge
+	var c = Sim.new(army_from(0, [[D.CAVALRY, 0, 4]]), army_from(1, [[D.SWORD, 0, 4]]))
+	var cav = c.units[0]
+	cav.charge = 0
+	cav.mx = 120; cav.my = 0
+	c._update_charge(cav, 120, 0)
+	c._update_charge(cav, 120, 0)
+	ok(cav.charge == 240, "直行累積衝鋒距離", str(cav.charge))
+	c._update_charge(cav, 200, 0)
+	ok(cav.charge == 360, "被往前推的位移不算（只算自己提出的 120）", str(cav.charge))
+	c._update_charge(cav, 40, 0)
+	ok(cav.charge == 0, "被擋住前進不到一半就歸零", str(cav.charge))
+	# 逐步轉彎：每步轉 10 度，跟起始方向差超過約 25 度就重新開始
+	cav.charge = 0
+	var resets := 0
+	var prev := 0
+	for k in 6:
+		var ang := deg_to_rad(10.0 * k)
+		cav.mx = int(120 * cos(ang)); cav.my = int(120 * sin(ang))
+		c._update_charge(cav, cav.mx, cav.my)
+		if cav.charge < prev:
+			resets += 1
+		prev = cav.charge
+	ok(resets >= 1 and cav.charge < 6 * 118, "逐步轉彎累積到一定角度會重新開始", "resets=%d charge=%d" % [resets, cav.charge])
+	# 反擊選人：編號小的刺客比較遠 → 要選近的那隻（舊的依編號選人會選錯）
+	var r = Sim.new(army_from(0, [[D.SWORD, 5, 4]]), army_from(1, [[D.ASSASSIN, 5, 2], [D.ASSASSIN, 5, 6]]))
+	var sw_i := 0
+	var a_far := 1
+	var a_near := 2
+	r.units[sw_i].x = 8000; r.units[sw_i].y = 4500
+	r.units[a_far].x = 8600; r.units[a_far].y = 3900
+	r.units[a_near].x = 8500; r.units[a_near].y = 5000
+	ok(r.units[a_far].id < r.units[a_near].id and r.pick_counter(sw_i, [a_far, a_near]) == a_near and r.pick_counter(sw_i, [a_near, a_far]) == a_near, "反擊挑最近的刺客，不看編號與順序")
+	r.units[a_far].y = 5000; r.units[a_far].x = 8500
+	r.units[a_near].y = 4000; r.units[a_near].x = 8500
+	ok(r.pick_counter(sw_i, [a_far, a_near]) == a_near, "距離相同時挑列小的")
+	ok(s.fingerprint == "" or s.fingerprint.length() == 64, "指紋是 SHA-256")
+	var f2 = Sim.new(army_from(0, [[D.SWORD, 5, 4]]), army_from(1, [[D.SWORD, 5, 4]]))
+	f2.run_to_end()
+	ok(f2.fingerprint.length() == 64, "結束後指紋是 64 碼 SHA-256", f2.fingerprint)
+
+func test_rally() -> void:
+	# 背水：紅方剩餘戰力 < 藍方的 RALLY_RATIO_PCT% 時，紅方冷卻每 tick 多扣 RALLY_CD_BONUS
+	var s = Sim.new(army_from(0, [[D.SWORD, 0, 0], [D.SWORD, 0, 2], [D.SWORD, 0, 4]]), army_from(1, [[D.SWORD, 0, 8]]))
+	var red = s.units[3]
+	var blue = s.units[0]
+	red.cd = 40
+	blue.cd = 40
+	s.step()
+	ok(s.rally[1] and not s.rally[0], "戰力落後到門檻以下的那一隊進入背水", str(s.rally))
+	ok(red.cd == 40 - 4 - D.RALLY_CD_BONUS and blue.cd == 36, "背水那一隊冷卻扣得比較快", "red=%d blue=%d" % [red.cd, blue.cd])
 
 func test_suspense() -> void:
 	var rng := RandomNumberGenerator.new()

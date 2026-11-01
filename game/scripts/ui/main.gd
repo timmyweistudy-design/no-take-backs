@@ -28,6 +28,7 @@ const CARD_H := 96.0
 const UI_BG := Color(0.08, 0.09, 0.13, 0.94)
 const PANEL := Color(0.12, 0.13, 0.19, 0.97)
 const ACCENT := Color("#ffd166")
+const UNIT_SCALE := 0.92
 
 var font: Font
 var font_bold: Font
@@ -88,6 +89,8 @@ var shot_dir := ""
 var ev_count := {}
 var frenzy_seen := false
 var report := {}
+var pt_call_tick := -1
+var pt_rated := false
 
 # 標題背景的展示戰
 var demo = null
@@ -261,6 +264,9 @@ func _on_start() -> void:
 	if armies[0].count() == 0:
 		_toast(L.t("err_empty"), true)
 		return
+	if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() > gauntlet_changes:
+		_toast(L.t("err_changes"), true)
+		return
 	if mode == Mode.VS_AI:
 		var r := RandomNumberGenerator.new()
 		r.seed = rng.randi()
@@ -329,6 +335,8 @@ func _begin_battle(a0, a1) -> void:
 	ev_count = {}
 	frenzy_seen = false
 	result_delay = 0.0
+	pt_call_tick = -1
+	pt_rated = false
 	_focus = 0
 	speed = float(Save.s("speed"))
 	sfx.play("start")
@@ -349,6 +357,18 @@ func _finish_battle() -> void:
 	else:
 		sfx.play("win" if w == 0 else "lose")
 	_progress_and_achievements()
+	Save.playtest_log(_pt_entry(0))
+
+func _pt_entry(rating: int) -> Dictionary:
+	return {"event": "rating" if rating > 0 else "battle", "mode": _mode_label(), "round": round_no, "winner": sim.winner,
+		"ticks": sim.tick, "reason": sim.reason, "blue": last_armies[0].to_code(), "red": last_armies[1].to_code(),
+		"power": [sim.power(0), sim.power(1)], "suspense": report.get("sus", {}), "call_tick": pt_call_tick,
+		"rating": rating, "rules": D.RULES_VERSION, "digest": D.data_digest()}
+
+func _pt_rate(v: int) -> void:
+	pt_rated = true
+	Save.playtest_log(_pt_entry(v))
+	_toast(L.t("pt_thanks"))
 
 func _build_report() -> void:
 	var dealt := [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]
@@ -357,7 +377,8 @@ func _build_report() -> void:
 	for u in sim.units:
 		dealt[u.team][u.type] += u.dmg_dealt
 		taken[u.team][u.type] += u.dmg_taken
-		if mvp == null or u.dmg_dealt > mvp.dmg_dealt:
+		# MVP：勝方輸出最高的兵（平手時看全場）
+		if (sim.winner < 0 or u.team == sim.winner) and (mvp == null or u.dmg_dealt > mvp.dmg_dealt):
 			mvp = u
 	var sus: Dictionary = sim.suspense()
 	report = {"dealt": dealt, "taken": taken, "mvp": mvp, "sus": sus,
@@ -430,7 +451,11 @@ func _progress_and_achievements() -> void:
 				Save.data["gauntlet_best"] = 7
 		else:
 			Save.data["gauntlet_best"] = maxi(int(Save.data.get("gauntlet_best", 0)), gauntlet_stage - 1)
-	Save.save_data()
+	_save()
+
+func _save() -> void:
+	if not Save.save_data():
+		_toast(L.t("save_failed"), true)
 
 func _ach(id: String) -> void:
 	if Steam.unlock(id):
@@ -467,9 +492,14 @@ func _allowed(t: int) -> bool:
 	return true
 
 func _can_edit_existing() -> bool:
-	return not (mode == Mode.DUEL and tp != null)
+	return not (mode == Mode.DUEL and (tp != null or blind_phase == 2))
+
+func _locked() -> bool:
+	return mode == Mode.DUEL and tp == null and blind_phase == 2
 
 func _check_place(t: int, c: Vector2i) -> String:
+	if _locked():
+		return L.t("both_done")
 	if not _allowed(t):
 		return L.t("err_type")
 	if mode == Mode.DUEL and tp != null:
@@ -519,6 +549,8 @@ func _try_place(c: Vector2i) -> void:
 		_toast(why, true)
 
 func _try_remove(c: Vector2i) -> void:
+	if _locked():
+		return
 	if mode == Mode.DUEL and tp != null:
 		_toast(L.t("err_notakeback"), true)
 		return
@@ -747,7 +779,7 @@ func _frame_alive(delta: float) -> void:
 			lo = lo.min(p - Vector2(30, 70))
 			hi = hi.max(p + Vector2(30, 20))
 	var size := (hi - lo) / 0.7
-	zoom_target = clampf(minf(1280.0 / maxf(1, size.x), 620.0 / maxf(1, size.y)), 1.0, 1.5)
+	zoom_target = clampf(minf(1280.0 / maxf(1, size.x), 620.0 / maxf(1, size.y)), 1.08, 1.5)
 	zoom_center = zoom_center.lerp((lo + hi) / 2, minf(1.0, delta * 3))
 
 func _sim_step(with_fx: bool) -> void:
@@ -793,7 +825,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var sp := _upos(s)
 	var tpos := _upos(t)
 	if s.type == D.ARCHER:
-		fx.append({"kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.28})
+		fx.append({"kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.28, "tc": Art.team_color(s.team, cbm())})
 		sfx.play("arrow", 0.35)
 	else:
 		fx.append({"kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
@@ -831,7 +863,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		"breaker":
 			fx.append({"kind": "shard", "p": tpos + Vector2(12, -26), "t": 0.0, "dur": 0.5})
 	if label != "":
-		_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -60), col)
+		_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -78), col)
 
 ## 跳字合併（優化方案 F3）：同一目標、同一種效果 0.25 秒內合併成「背刺 ×3 120」。
 func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, col: Color) -> void:
@@ -845,8 +877,8 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
 	# 排斥：附近已有跳字就往上疊
 	var q := p
 	for f in fx:
-		if f["kind"] == "text" and not f.get("screen", false) and f["p"].distance_to(q) < 18:
-			q.y -= 18
+		if f["kind"] == "text" and not f.get("screen", false) and f["p"].distance_to(q) < 22:
+			q.y -= 20
 	fx.append({"kind": "text", "p": q, "s": "%s %d" % [label, dmg], "c": col, "t": 0.0, "dur": 0.85, "size": 18,
 		"tid": tid, "ek": kind, "n": 1, "sum": dmg, "screen": false})
 
@@ -888,6 +920,14 @@ func _draw() -> void:
 		if not f.get("screen", false):
 			_draw_fx(f)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+	if state == St.BATTLE and slow_left > 0:
+		var va := clampf((8.0 - slow_left) / 0.3, 0.0, 1.0) * 0.45
+		for i in 14:
+			var c2 := Color(0, 0, 0, va * (1.0 - i / 14.0) * 0.35)
+			draw_rect(Rect2(0, 86 + i * 9, 1280, 9), c2)
+			draw_rect(Rect2(0, 800 - (i + 1) * 9, 1280, 9), c2)
+			draw_rect(Rect2(i * 9, 86, 9, 714), c2)
+			draw_rect(Rect2(1280 - (i + 1) * 9, 86, 9, 714), c2)
 	for f in fx:
 		if f.get("screen", false):
 			_draw_fx(f)
@@ -922,12 +962,13 @@ func _draw_field() -> void:
 				draw_rect(cell, Color(Art.team_color(0, cbm()), 0.08))
 			elif c >= 10:
 				draw_rect(cell, Color(Art.team_color(1, cbm()), 0.06))
+	draw_rect(Rect2(ORIGIN, FIELD), Color(0.06, 0.09, 0.16, 0.18))
 	for i in 17:
 		draw_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, FIELD.y), Color(0, 0, 0, 0.07), 1)
 	for i in 10:
 		draw_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(FIELD.x, i * CS), Color(0, 0, 0, 0.07), 1)
-	draw_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, FIELD.y), Color(Art.team_color(0, cbm()), 0.7), 3)
-	draw_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, FIELD.y), Color(Art.team_color(1, cbm()), 0.7), 3)
+	draw_dashed_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, FIELD.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
+	draw_dashed_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, FIELD.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
 	if plants.size() >= 9:
 		var deco := [[0, Vector2(52, 200)], [3, Vector2(70, 280)], [5, Vector2(30, 400)], [1, Vector2(60, 560)], [7, Vector2(90, 660)],
 			[2, Vector2(1220, 190)], [6, Vector2(1240, 300)], [0, Vector2(1215, 470)], [4, Vector2(1245, 600)], [8, Vector2(1200, 676)]]
@@ -946,6 +987,15 @@ func _draw_units_of(s, dim: bool) -> void:
 		list.sort_custom(func(a, b): return _upos(a).y < _upos(b).y)
 	else:
 		list.sort_custom(func(a, b): return a.y < b.y)
+	# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
+	for u in list:
+		var p0: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+		Art.ring(self, p0, u.team, u.type, cbm(), UNIT_SCALE)
+		if live and s.rally[u.team] and not s.finished:
+			for k in 2:
+				var ph := fmod(time * 1.6 + k * 0.5, 1.0)
+				draw_arc(p0, (14.0 + ph * 10.0) * UNIT_SCALE, 0, TAU, 20, Color(1, 0.42, 0.0, 0.55 * (1.0 - ph)), 2.0, true)
+	# 第二層：身體
 	for u in list:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		var moving: bool = u.mx != 0 or u.my != 0
@@ -961,15 +1011,19 @@ func _draw_units_of(s, dim: bool) -> void:
 		if dim:
 			alpha *= 0.6
 		var face := signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
-		Art.ring(self, p, u.team, u.type, cbm())
 		if u.stealth > 0:
-			Art.unit(self, p + Vector2(-7 * face, 0), u.type, u.team, face, 0.0, 0.0, 0.0, 0.16, time, 1.0, cbm())
-		Art.unit(self, p, u.type, u.team, face, (time * 10.0 + u.id) if moving else 0.0, at, hurt, alpha, time, 1.0, cbm())
-		if dim:
-			continue
-		Art.flag(self, p + Vector2(-12, -52 if u.type != D.CAVALRY else -60), u.team, cbm())
+			Art.unit(self, p + Vector2(-7 * face, 0), u.type, u.team, face, 0.0, 0.0, 0.0, 0.16, time, UNIT_SCALE, cbm())
+		Art.unit(self, p, u.type, u.team, face, (time * 10.0 + u.id) if moving else 0.0, at, hurt, alpha, time, UNIT_SCALE, cbm())
+	if dim:
+		return
+	# 第三層：小旗、血條、狀態（永遠畫在最上面）
+	for u in list:
+		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+		Art.flag(self, p + Vector2(-12, -50 if u.type != D.CAVALRY else -58), u.team, cbm())
 		if u.stun > 0:
 			_text(p + Vector2(0, -78), "✦", ts(16), Color.YELLOW, true)
+		if live and s.rally[u.team]:
+			draw_arc(p + Vector2(0, -24), 22.0, 0, TAU, 20, Color(1, 0.45, 0.2, 0.35 + 0.15 * sin(time * 8)), 2.5, true)
 		if s.frenzy:
 			draw_circle(p + Vector2(8, -58 - sin(time * 12 + u.id) * 2), 3.0, Color(1, 0.5, 0.1, 0.9), true, -1.0, true)
 		if u.hp < u.max_hp:
@@ -1070,9 +1124,15 @@ func _draw_tactical() -> void:
 			var sc := AIT.counter_score(selected, u["type"])
 			if sc == 0:
 				continue
-			var ep := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.05) * CS
-			draw_circle(ep, 10, Color(0, 0, 0, 0.6), true, -1.0, true)
-			_text(ep + Vector2(0, -11), "✓" if sc > 0 else "✗", ts(14), Color("#7dff8a") if sc > 0 else Color("#ff6b6b"), true, true)
+			var ep := ORIGIN + Vector2(u["col"] + 0.5, u["row"] - 0.12) * CS
+			var bc := Color("#4ade80") if sc > 0 else Color("#f87171")
+			draw_circle(ep, 11, Color("#111827"), true, -1.0, true)
+			draw_arc(ep, 11, 0, TAU, 20, bc, 2.0, true)
+			if sc > 0:
+				draw_polyline(PackedVector2Array([ep + Vector2(-5, 0), ep + Vector2(-1, 4), ep + Vector2(6, -5)]), bc, 3.0, true)
+			else:
+				draw_line(ep + Vector2(-5, -5), ep + Vector2(5, 5), bc, 3.0, true)
+				draw_line(ep + Vector2(-5, 5), ep + Vector2(5, -5), bc, 3.0, true)
 
 func _draw_fx(f: Dictionary) -> void:
 	var k: float = f["t"] / f["dur"]
@@ -1082,10 +1142,21 @@ func _draw_fx(f: Dictionary) -> void:
 			var b: Vector2 = f["b"]
 			var h := minf(60.0, a.distance_to(b) * 0.18)
 			var p := a.lerp(b, k) + Vector2(0, -sin(k * PI) * h)
-			var k2 := maxf(0.0, k - 0.1)
+			var k2 := maxf(0.0, k - 0.06)
 			var p2 := a.lerp(b, k2) + Vector2(0, -sin(k2 * PI) * h)
-			draw_line(p2, p, Color("#fff3c4"), 2.5, true)
-			draw_circle(p, 2.0, Color.WHITE, true, -1.0, true)
+			var dirv := (p - p2).normalized() if p != p2 else Vector2.RIGHT
+			var tail := p - dirv * 16.0
+			for j in 6:
+				var kk := maxf(0.0, k - 0.03 * (j + 1))
+				var pt := a.lerp(b, kk) + Vector2(0, -sin(kk * PI) * h)
+				draw_circle(pt, 1.6, Color(1, 1, 1, 0.35 * (1.0 - j / 6.0)), true, -1.0, true)
+			draw_line(tail, p, Art.OUT, 4.0, true)
+			draw_line(tail, p, Color("#d97706"), 2.2, true)
+			var nrm := dirv.orthogonal()
+			draw_colored_polygon(PackedVector2Array([p + dirv * 5.0, p + nrm * 3.0, p - nrm * 3.0]), Color("#e5e7eb"))
+			var fc: Color = f.get("tc", Color.WHITE)
+			draw_colored_polygon(PackedVector2Array([tail, tail - dirv * 5.0 + nrm * 4.0, tail + dirv * 3.0]), fc)
+			draw_colored_polygon(PackedVector2Array([tail, tail - dirv * 5.0 - nrm * 4.0, tail + dirv * 3.0]), fc)
 		"slash":
 			var c: Vector2 = f["p"] + Vector2(f["dir"] * 16, -24)
 			var start := -1.3 if f["dir"] > 0 else PI - 1.1
@@ -1122,12 +1193,14 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		draw_string(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
 
 ## 即時模式按鈕：每幀重新登記，滑鼠或焦點都能按。
-func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false) -> void:
+func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
 	var idx := _btns.size()
 	_btns.append({"r": r, "cb": action, "en": enabled})
 	var hover := r.has_point(mouse) and not pad_mode
 	var focus := pad_mode and idx == _focus
 	var bg := Color(0.2, 0.22, 0.3) if not primary else Color(0.85, 0.52, 0.14)
+	if tint.a > 0:
+		bg = tint
 	if not enabled:
 		bg = Color(0.16, 0.16, 0.2)
 	elif hover or focus:
@@ -1152,19 +1225,20 @@ func _handle_click() -> void:
 			return
 
 func _panel(r: Rect2) -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.68))
 	draw_rect(r, PANEL)
 	draw_rect(r, Color(1, 1, 1, 0.2), false, 2)
 
 # ── 標題 ──
 func _draw_title() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.06, 0.1, 0.42))
-	var bob := sin(time * 1.5) * 4
-	_text(Vector2(640, 70 + bob), L.t("title"), ts(84), Color("#ffe8a3"), true, true)
-	_text(Vector2(640, 186), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", ts(26), Color(1, 1, 1, 0.8), true)
-	_text(Vector2(640, 228), L.t("subtitle"), ts(18), Color(1, 1, 1, 0.85), true)
 	if overlay != "":
 		return
+	var bob := sin(time * 1.5) * 4
+	draw_rect(Rect2(260, 50, 760, 210), Color(0.05, 0.06, 0.1, 0.55))
+	_text(Vector2(640, 64 + bob), L.t("title"), ts(84), Color("#ffe8a3"), true, true)
+	_text(Vector2(640, 182), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", ts(26), Color(1, 1, 1, 0.85), true)
+	_text(Vector2(640, 222), L.t("subtitle"), ts(18), Color(1, 1, 1, 0.9), true)
 	var items := [["menu_vs_ai", func(): _open("diff")],
 		["menu_duel", func(): _open("rule")],
 		["menu_tutorial", func(): _open("tutorial")],
@@ -1226,7 +1300,8 @@ func _draw_overlay() -> void:
 				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 				var st := int(stars.get(pz["id"], 0))
 				var en := unlocked and (not tut or i <= tdone)
-				_btn(r, "%d. %s　%s" % [i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)], _pick_puzzle.bind(pz["id"], tut), en)
+				_btn(r, "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)], _pick_puzzle.bind(pz["id"], tut), en, false,
+					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
 			_btn(Rect2(560, 640, 160, 36), L.t("back"), func(): overlay = "")
 		"settings":
 			_draw_settings()
@@ -1253,11 +1328,18 @@ func _draw_settings() -> void:
 		["set_sfx", "%d%%" % int(Save.s("sfx")), func(): _cycle_setting("sfx", [0, 30, 50, 80, 100]); sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))],
 		["set_rule", L.t("rule_" + str(Save.s("duel_rule"))), func(): _cycle_setting("duel_rule", ["snake5", "cap10", "blind"]); duel_rule = Save.s("duel_rule")],
 		["set_fullscreen", _onoff("fullscreen"), func(): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()],
+		["set_playtest", _onoff("playtest"), func(): _cycle_setting("playtest", [false, true])],
 	]
 	for i in rows.size():
-		var y := 124 + i * 52
+		var y := 112 + i * 48
 		_text(Vector2(340, y + 6), L.t(rows[i][0]), ts(18), Color.WHITE)
-		_btn(Rect2(660, y, 280, 42), rows[i][1], rows[i][2])
+		var on_val: String = rows[i][1]
+		var tint := Color(0.16, 0.5, 0.3) if on_val == L.t("on") else Color(0, 0, 0, 0)
+		_btn(Rect2(660, y, 280, 40), on_val, rows[i][2], true, false, tint)
+		if on_val.ends_with("%") and rows[i][0] in ["set_music", "set_sfx"]:
+			draw_rect(Rect2(668, y + 33, 264.0 * int(on_val.trim_suffix("%")) / 100.0, 4), ACCENT)
+	if bool(Save.s("playtest")):
+		_btn(Rect2(340, 694, 200, 36), L.t("pt_folder"), func(): OS.shell_open(ProjectSettings.globalize_path("user://")))
 	_btn(Rect2(560, 694, 160, 36), L.t("back"), func(): overlay = "")
 
 func _fmt_num(v: float) -> String:
@@ -1300,8 +1382,10 @@ func _slot_save(i: int) -> void:
 	var slots: Array = Save.data.get("slots", ["", "", "", "", ""])
 	slots[i] = armies[0].to_code()
 	Save.data["slots"] = slots
-	Save.save_data()
-	_toast(L.t("slot", [i + 1]) + " ✓")
+	if Save.save_data():
+		_toast(L.t("slot", [i + 1]) + " ✓")
+	else:
+		_toast(L.t("save_failed"), true)
 
 func _slot_load(i: int) -> void:
 	var slots: Array = Save.data.get("slots", ["", "", "", "", ""])
@@ -1341,9 +1425,9 @@ func _draw_place_hud() -> void:
 	_text(Vector2(640, 4), head, ts(22), tcol if mode == Mode.DUEL else Color.WHITE, true, true)
 	var bx := 400.0
 	var bw := 480.0
-	draw_rect(Rect2(bx, 42, bw, 14), Color(0.2, 0.2, 0.25))
-	draw_rect(Rect2(bx, 42, bw * clampf(float(a.spent()) / a.budget, 0, 1), 14), tcol)
-	_text(Vector2(640, 37), L.t("budget", [L.t("blue") if a.team == 0 else L.t("red"), a.spent(), a.budget, a.count(), Army.MAX_UNITS]), ts(13), Color.WHITE, true)
+	draw_rect(Rect2(bx, 50, bw, 8), Color(0.2, 0.2, 0.25))
+	draw_rect(Rect2(bx, 50, bw * clampf(float(a.spent()) / a.budget, 0, 1), 8), tcol)
+	_text(Vector2(640, 30), L.t("budget", [L.t("blue") if a.team == 0 else L.t("red"), a.spent(), a.budget, a.count(), Army.MAX_UNITS]), ts(13), Color.WHITE, true)
 	var info := "%s：%s" % [L.t("unit_%d" % selected), L.t("blurb_%d" % selected)]
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz2 := PZ.get_puzzle(puzzle_id)
@@ -1365,11 +1449,11 @@ func _draw_place_hud() -> void:
 			bg = Color(0.26, 0.31, 0.45)
 		elif i == hover_card:
 			bg = Color(0.21, 0.23, 0.31)
-		draw_rect(r, bg)
+		draw_rect(r, bg if afford else Color(bg, 0.45))
 		draw_rect(r, tcol if i == selected else Color(1, 1, 1, 0.15), false, 2)
-		Art.unit(self, r.position + Vector2(32, 86), i, a.team, 1.0, 0.0, 0.0, 0.0, 1.0 if afford else 0.35, time, 0.95, cbm())
-		_text(r.position + Vector2(64, 6), L.t("unit_%d" % i), ts(16), Color.WHITE if afford else Color(1, 1, 1, 0.4), false, true)
-		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color(1, 0.5, 0.5, 0.6))
+		Art.unit(self, r.position + Vector2(32, 86), i, a.team, 1.0, 0.0, 0.0, 0.0, 1.0 if afford else 0.45, time, 0.95, cbm())
+		_text(r.position + Vector2(64, 6), L.t("unit_%d" % i), ts(16), Color.WHITE if afford else Color(1, 1, 1, 0.55), false, true)
+		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color("#f87171"), false, not afford)
 		_text(r.position + Vector2(64, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(13), Color(1, 1, 1, 0.65))
 	var start_label := L.t("start")
 	var start_en := _ready_to_fight()
@@ -1380,7 +1464,7 @@ func _draw_place_hud() -> void:
 		start_label = L.t("blind_ready", [L.t("blue") if blind_phase == 0 else L.t("red")])
 		start_en = _cur_army().count() > 0
 	_btn(Rect2(884, 690, 384, 50), start_label, func(): _on_start(), start_en, true)
-	if mode == Mode.VS_AI or mode == Mode.GAUNTLET:
+	if mode == Mode.VS_AI or (mode == Mode.GAUNTLET and gauntlet_stage == 1):
 		_btn(Rect2(884, 746, 120, 44), L.t("formations"), func(): _open("slots"))
 	if _can_edit_existing():
 		_btn(Rect2(1012, 746, 120, 44), L.t("clear"), func(): _clear_mine())
@@ -1425,10 +1509,17 @@ func _draw_battle_hud() -> void:
 	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), Color.WHITE, false, true)
 	_text(Vector2(bx - 70, 42), L.t("units_left", [sim.alive_count(0)]), ts(15), Art.team_color(0, cbm()))
 	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [sim.alive_count(1)]), ts(15), Art.team_color(1, cbm()))
+	for tm in 2:
+		if sim.rally[tm] and not sim.finished:
+			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
+			_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
 	var secs := maxi(0, 90 - sim.tick / 20)
 	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if sim.frenzy else ""), ts(22), Color.ORANGE_RED if sim.frenzy else Color.WHITE, true, true)
 	if mode == Mode.VS_AI and ai_name != "":
 		_text(Vector2(bx + bw - 120, 68), "AI：%s" % ai_name, ts(11), Color(1, 1, 1, 0.55))
+	if state == St.BATTLE and bool(Save.s("playtest")):
+		if pt_call_tick < 0:
+			_btn(Rect2(840, 8, 162, 34), L.t("pt_call"), func(): pt_call_tick = sim.tick; _toast(L.t("pt_called", [sim.tick / 20])))
 	if state == St.BATTLE:
 		_btn(Rect2(1010, 8, 120, 34), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
 		_btn(Rect2(1138, 8, 132, 34), L.t("skip"), func(): _on_skip())
@@ -1457,6 +1548,9 @@ func _draw_result() -> void:
 	var sus: Dictionary = report.get("sus", {})
 	if w >= 0 and int(sus.get("max_swing_pct", 0)) >= 15:
 		_text(Vector2(640, y), L.t("report_comeback", [sus["max_swing_pct"]]), ts(18), Color("#7dff8a"), true, true)
+		y += 28
+	if w >= 0:
+		_text(Vector2(640, y), _verdict(w), ts(17), Color(1, 1, 1, 0.95), true, true)
 		y += 28
 	var sus_line := L.t("report_suspense", [sus.get("lead_changes", 0), report.get("lock_sec", 0), sus.get("max_swing_pct", 0)])
 	if w >= 0 and int(sus.get("lock_ratio_permille", 0)) == 0:
@@ -1489,6 +1583,11 @@ func _draw_result() -> void:
 	y += 50
 	var mvp = report.get("mvp")
 	if mvp != null:
+		var mp := Vector2(980, 300)
+		draw_circle(mp + Vector2(0, -30), 46, Color(1, 0.82, 0.3, 0.18 + 0.06 * sin(time * 3)), true, -1.0, true)
+		Art.ring(self, mp + Vector2(0, 20), mvp.team, mvp.type, cbm(), 1.8)
+		Art.unit(self, mp + Vector2(0, 20), mvp.type, mvp.team, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.8, cbm())
+		_text(mp + Vector2(0, 30), "MVP", ts(16), ACCENT, true, true)
 		_text(Vector2(640, y), L.t("mvp", [L.t("blue") if mvp.team == 0 else L.t("red"), L.t("unit_%d" % mvp.type), mvp.dmg_dealt, mvp.kills]), ts(15), Color(1, 1, 1, 0.85), true)
 		y += 26
 	if report.has("stars"):
@@ -1507,7 +1606,11 @@ func _draw_result() -> void:
 			msg = L.t("gauntlet_over", [gauntlet_stage - 1])
 		if msg != "":
 			_text(Vector2(640, y), msg, ts(18), ACCENT, true, true)
-	_text(Vector2(640, 614), L.t("fingerprint", [sim.fingerprint.substr(0, 12)]), ts(11), Color(1, 1, 1, 0.35), true)
+	if bool(Save.s("playtest")) and not pt_rated:
+		_text(Vector2(420, 590), L.t("pt_rate"), ts(15), ACCENT)
+		for i in 5:
+			_btn(Rect2(600 + i * 52, 584, 44, 32), str(i + 1), _pt_rate.bind(i + 1))
+	_text(Vector2(640, 622), L.t("fingerprint", [sim.fingerprint.substr(0, 12)]), ts(11), Color(1, 1, 1, 0.35), true)
 	var bs: Array = []
 	match mode:
 		Mode.VS_AI, Mode.DUEL:
@@ -1527,6 +1630,25 @@ func _draw_result() -> void:
 	var x := 640.0 - (bs.size() * (bw2 + 12) - 12) / 2.0
 	for i in bs.size():
 		_btn(Rect2(x + i * (bw2 + 12), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
+
+## 動態判詞：用輸出最高的兵種、結束方式、懸念類型組一句話。
+func _verdict(w: int) -> String:
+	var dealt: Array = report["dealt"][w]
+	var top := 0
+	for t in 5:
+		if dealt[t] > dealt[top]:
+			top = t
+	var sus: Dictionary = report["sus"]
+	var side := L.t("blue") if w == 0 else L.t("red")
+	var unit := L.t("unit_%d" % top)
+	var secs := int(sim.tick / 20)
+	if int(sus.get("max_swing_pct", 0)) >= 15:
+		return L.t("verdict_comeback", [side, unit, sus["max_swing_pct"]])
+	if sim.power(w) * 100 / (sim.budget * 1000) <= 10:
+		return L.t("verdict_close", [side, unit, secs])
+	if int(sus.get("lock_ratio_permille", 0)) <= 200:
+		return L.t("verdict_rout", [side, unit, secs])
+	return L.t("verdict_normal", [side, unit, secs])
 
 func _next_round() -> void:
 	if series_over:
@@ -1574,6 +1696,18 @@ func _snap(name: String) -> void:
 	get_viewport().get_texture().get_image().save_png(shot_dir.path_join(name))
 	print("SHOT ", name)
 
+func _would_clutch(a0, a1) -> bool:
+	var t = Sim.new(a0.copy(), a1.copy())
+	t.fast = true
+	var tot := float(t.budget * 1000)
+	while not t.finished:
+		t.step()
+		var p0: float = t.power(0) * 100.0 / tot
+		var p1: float = t.power(1) * 100.0 / tot
+		if absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (t.alive_count(0) <= 3 and t.alive_count(1) <= 3)) and not t.finished:
+			return true
+	return false
+
 func _run_screenshots() -> void:
 	await get_tree().process_frame
 	for i in 160:
@@ -1587,7 +1721,21 @@ func _run_screenshots() -> void:
 	selected = D.ARCHER
 	mouse = ORIGIN + Vector2(2.5, 6.5) * CS
 	await _snap("02_place.png")
-	_on_start()
+	# 找一個會出現「最後時刻」的對手，截圖才拍得到
+	var red_pick = null
+	for k in 40:
+		var r := RandomNumberGenerator.new()
+		r.seed = 777 + k
+		var cand = AI.build(1, 100, r)["army"]
+		if _would_clutch(armies[0], cand):
+			red_pick = cand
+			break
+	if red_pick != null:
+		last_player_formation = armies[0].units.duplicate(true)
+		ai_name = L.t("diff_normal")
+		_begin_battle(armies[0].copy(), red_pick.copy())
+	else:
+		_on_start()
 	for i in 150:
 		_sim_step(true)
 	for f in fx:

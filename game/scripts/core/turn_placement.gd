@@ -39,7 +39,8 @@ func hand_cap() -> int:
 	if rule == "cap10":
 		return 10
 	if rule == "snake5c":
-		return 20 * (hands_done[current] + 1) - armies[current].spent()
+		# 第 k 手最多花到累計 20×k；以「這一手開始前」的花費計算，這一手的花費由 turn_left 扣
+		return 20 * (hands_done[current] + 1) - (armies[current].spent() - spent_this_turn)
 	return 20
 
 func turn_left() -> int:

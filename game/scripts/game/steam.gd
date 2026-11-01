@@ -30,6 +30,11 @@ static func init() -> void:
 		var r = _steam.steamInitEx(false)
 		if typeof(r) == TYPE_DICTIONARY and int(r.get("status", 1)) != 0:
 			_steam = null
+	if _steam != null:
+		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam
+		for id in Save.data.get("achievements", []):
+			_steam.setAchievement(id)
+		_steam.storeStats()
 
 static func available() -> bool:
 	return _steam != null

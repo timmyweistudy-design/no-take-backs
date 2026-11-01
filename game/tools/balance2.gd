@@ -5,6 +5,7 @@ extends SceneTree
 ##   --mode=turns     輪流落子先後手測試（--rule=cap10|snake5|snake5c，--games=N）
 ##   --mode=search    爬山搜尋萬用陣（對保留池評估）
 ##   --mode=counter   離線反制庫：每個原型陣找訓練池裡最能剋它的陣型
+##   --mode=countersearch --target=<代碼>  針對一個（疑似萬用）陣型爬山找反制
 ##   --shard=i --shards=N
 
 const D = preload("res://scripts/core/unit_defs.gd")
@@ -30,6 +31,7 @@ func _init() -> void:
 		"turns": turns(shard, shards)
 		"search": search(shard, shards)
 		"counter": counter(shard, shards)
+		"countersearch": countersearch(shard, shards)
 	quit(0)
 
 func emit(d: Dictionary) -> void:
@@ -88,19 +90,24 @@ func league(shard: int, shards: int) -> void:
 			var j := (i * 37 + k * 53 + 1) % pool.size()
 			if j == i:
 				j = (j + 1) % pool.size()
-			var r := fight(pool[i], pool[j])
-			r["mode"] = "league"; r["a"] = i; r["b"] = j; r["comp"] = F.composition(pool[i])
-			emit(r)
+			# 交換左右各打一次：i 當藍方、i 當紅方（結果都以 i 的角度記錄）
+			for side in 2:
+				var r := fight(pool[i], pool[j]) if side == 0 else fight(pool[j], pool[i])
+				if side == 1:
+					r["res"] = -r["res"]
+				r["mode"] = "league"; r["a"] = i; r["b"] = j; r["k"] = k; r["side"] = side; r["comp"] = F.composition(pool[i])
+				emit(r)
 
 func turns(shard: int, shards: int) -> void:
 	var rule: String = args.get("rule", "cap10")
-	var games := int(args.get("games", "200"))
+	var games := int(args.get("games", "400"))   # 200 組×（同種子交換先手）
 	var level := int(args.get("level", "1"))
 	var rng := RandomNumberGenerator.new()
 	for g in games:
 		if g % shards != shard:
 			continue
-		rng.seed = 424242 + g * 104729
+		# 成對：同一個種子打兩場，只交換先手（隔離先後手效果）
+		rng.seed = 424242 + (g / 2) * 104729
 		var first := g % 2
 		var tp := TP.new(Army.new(0, 100), Army.new(1, 100), first, rule)
 		var guard := 0
@@ -159,9 +166,10 @@ func search(shard: int, shards: int) -> void:
 	var iters := int(args.get("iters", "12"))
 	var nopp := int(args.get("opps", "24"))
 	var hold := F.holdout_pool(0)
+	var spool := F.search_pool(0)
 	var opps: Array = []
 	for k in nopp:
-		opps.append(hold[(k * 2 + shard) % hold.size()])
+		opps.append(spool[(k * 2 + shard) % spool.size()])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 777 + shard * 1009
 	var train := F.training_pool(0)
@@ -173,9 +181,28 @@ func search(shard: int, shards: int) -> void:
 		if f >= cur_f:
 			cur = cand
 			cur_f = f
-	# 最後對整個保留池驗證
+	# 最後對「沒參與演化」的保留池驗證
 	var full := fitness(cur, hold)
 	emit({"mode": "search", "shard": shard, "fit_sample": cur_f, "fit_holdout": full, "code": cur.to_code(), "comp": F.composition(cur)})
+
+## 反制搜尋：從訓練池不同起點爬山，找能打贏 target 的陣型。
+func countersearch(shard: int, shards: int) -> void:
+	var target := Army.new(0, 100)
+	if target.load_code(args.get("target", "")) != "":
+		emit({"mode": "countersearch", "shard": shard, "error": "bad target"})
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31337 + shard * 7717
+	var train := F.training_pool(0)
+	var cur: Army = train[(shard * 13) % train.size()].copy()
+	var cur_f := fitness(cur, [target])
+	for it in int(args.get("iters", "20")):
+		var cand := mutate(cur, rng)
+		var f := fitness(cand, [target])
+		if f >= cur_f:
+			cur = cand
+			cur_f = f
+	emit({"mode": "countersearch", "shard": shard, "fit": cur_f, "code": cur.to_code(), "comp": F.composition(cur)})
 
 ## 離線反制庫：原型陣（AI 模板×種子）→ 訓練池中勝它最多的陣型代碼。
 func counter(shard: int, shards: int) -> void:

@@ -37,6 +37,42 @@ def main():
     total = sum(len(v) for v in rows.values())
     if total == 0:
         print("✗ 零筆結果"); sys.exit(2)
+    # 完整性（Codex N1-r1 #6）：每個模式的筆數要對、不能有重複鍵；依鍵排序
+    man_path = os.path.join(folder, "manifest.json")
+    if not os.path.exists(man_path):
+        print("✗ 沒有 manifest.json，無法確認資料完整"); sys.exit(2)
+    man = json.load(open(man_path))
+    if not isinstance(man.get("modes"), list) or not man["modes"] or not isinstance(man.get("shards"), int) or man["shards"] <= 0:
+        print("✗ manifest.json 不合法"); sys.exit(2)
+    shards = man["shards"]
+    errs = [r for v in rows.values() for r in v if "error" in r]
+    if errs:
+        print(f"✗ 有 {len(errs)} 筆執行錯誤（例：{errs[0]}）"); sys.exit(2)
+    expect = {"matrix": 20, "league": 200 * 12 * 2, "search": shards, "counter": 6, "countersearch": shards}
+    keyset = {
+        "matrix": {(a, b) for a in range(5) for b in range(5) if a != b},
+        "league": {(a, k, s) for a in range(200) for k in range(12) for s in range(2)},
+        "search": {(s,) for s in range(shards)},
+        "counter": {(t,) for t in range(6)},
+        "countersearch": {(s,) for s in range(shards)},
+    }
+    keyf = {"matrix": ("a", "b"), "league": ("a", "k", "side"), "search": ("shard",), "counter": ("template",),
+            "countersearch": ("shard",)}
+    for m in man["modes"]:
+        key = m.replace(":", "_")
+        got = rows.get(key, [])
+        base = m.split(":")[0]
+        exp = 400 if base == "turns" else expect.get(base)
+        want = {(g,) for g in range(400)} if base == "turns" else keyset.get(base)
+        kf = ("game",) if base == "turns" else keyf.get(base, ())
+        keys = [tuple(r.get(k) for k in kf) for r in got]
+        if exp is not None and len(got) != exp:
+            print(f"✗ {m} 筆數 {len(got)}，預期 {exp}"); sys.exit(2)
+        if len(set(keys)) != len(keys):
+            print(f"✗ {m} 有重複的場次"); sys.exit(2)
+        if want is not None and set(keys) != want:
+            print(f"✗ {m} 場次鍵集合不對（少 {len(want - set(keys))}、多 {len(set(keys) - want)}）"); sys.exit(2)
+        rows[key] = [r for _, r in sorted(zip(keys, got), key=lambda kv: kv[0])]
     digests = {r.get("digest") for v in rows.values() for r in v}
     if len(digests) != 1:
         print("✗ 數值摘要不一致：", digests); sys.exit(2)
@@ -92,10 +128,32 @@ def main():
         md.append(f"| 戰鬥秒數中位數 | {med_sec:.1f} | 35～75 |\n| 鎖定時間比中位數 | {med_lock:.2f} | ≥0.65 理想、<0.4 警示 |\n")
         md.append(f"| 有領先交換的場次 | {summary['lead_change_pct']}% | — |\n| 翻盤局（贏家曾落後 ≥15%） | {summary['comeback_pct']}% | — |\n")
         md.append(f"| 平手 | {summary['draw_pct']}% | — |\n| 時間到 | {summary['timeout_pct']}% | — |\n")
-        if blow >= 20: fails.append(f"碾壓局 {blow}%")
+        if blow >= 20: warns.append(f"全池碾壓局 {blow}%（全池含亂擺陣型，只當參考）")
         if not (35 <= med_sec <= 75): fails.append(f"秒數中位數 {med_sec:.1f}")
-        if med_rem > 30: fails.append(f"勝方剩餘中位數 {med_rem}%")
+        if med_rem > 30: warns.append(f"全池勝方剩餘中位數 {med_rem}%（只當參考）")
         if med_lock < 0.4: warns.append(f"鎖定時間比中位數 {med_lock:.2f} < 0.4")
+        # 競技池（優化方案 B2、§14 Codex）：只看「聯賽勝率前 50% 的陣型」彼此對打，排除明顯亂擺的陣型
+        per_wr = {}
+        for r in L:
+            per_wr.setdefault(r["a"], []).append(1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0)
+        ranked = sorted(per_wr, key=lambda k: -sum(per_wr[k]) / len(per_wr[k]))
+        top = set(ranked[: len(ranked) // 2])
+        C = [r for r in L if r["a"] in top and r["b"] in top]
+        cdec = [r for r in C if r["res"] != 0]
+        if cdec:
+            crem = [r["rem"] for r in cdec]
+            c_blow = pct(sum(1 for x in crem if x > 50), len(crem))
+            c_med = st.median(crem)
+            c_lock = st.median([r["lock"] / 1000 for r in cdec])
+            c_lc = pct(sum(1 for r in C if r["lc"] >= 1), len(C))
+            c_cb = pct(sum(1 for r in cdec if r["swing"] >= 15), len(cdec))
+            c_sec = st.median([r["ticks"] / 20 for r in C])
+            summary.update(comp_games=len(C), comp_median_rem=c_med, comp_blowout_pct=c_blow, comp_median_lock=c_lock,
+                           comp_lead_change_pct=c_lc, comp_comeback_pct=c_cb, comp_median_secs=c_sec)
+            md.append(f"\n**競技池**（聯賽勝率前 50% 的陣型彼此對打，{len(C)} 場）：勝方剩餘中位數 {c_med}%、碾壓 {c_blow}%、秒數中位數 {c_sec:.1f}、"
+                      f"鎖定時間比 {c_lock:.2f}、有領先交換 {c_lc}%、翻盤局 {c_cb}%\n")
+            if c_blow >= 20: fails.append(f"競技池碾壓局 {c_blow}%")
+            if c_med > 30: fails.append(f"競技池勝方剩餘中位數 {c_med}%")
         # 兵種出場與勝率：依組成金額加權
         tw = [0.0] * 5; tg = [0.0] * 5
         for r in L:
@@ -141,6 +199,22 @@ def main():
         md.append("\n「沒搜到」只代表在這個搜尋預算內沒找到，不等於證明不存在。\n")
         if best["fit_holdout"] > 0.65:
             warns.append(f"搜尋到保留池勝率 {round(best['fit_holdout']*100)}% 的陣型：要找至少兩種反制")
+
+    if "countersearch" in rows:
+        CS = [r for r in rows["countersearch"] if "fit" in r]
+        good = {}
+        for r in CS:
+            if r["fit"] >= 0.6:
+                good[tuple(1 if x > 0 else 0 for x in r["comp"])] = r
+        summary["counters_found"] = len(good)
+        md.append(f"\n## ④-2 反制搜尋（針對搜尋第一名，{len(CS)} 條爬山）\n能贏它 ≥60% 的反制陣：**{len(good)}** 類（依用到的兵種分類）\n")
+        for r in sorted(CS, key=lambda r: -r["fit"])[:3]:
+            md.append(f"- {round(r['fit']*100)}%　組成 {r['comp']}　`{r['code']}`\n")
+        if len(good) >= 2:
+            warns = [w for w in warns if not w.startswith("搜尋到保留池勝率")]
+            md.append("→ 至少兩類反制存在，不算萬用陣（剋制循環成立）。\n")
+        else:
+            warns.append("找不到兩類能穩定反制搜尋第一名的陣型：疑似萬用陣")
 
     if "counter" in rows:
         md.append("\n## ⑤ 離線反制庫\n| 原型 | 最佳反制勝率 | 代碼 |\n|---|---|---|\n")

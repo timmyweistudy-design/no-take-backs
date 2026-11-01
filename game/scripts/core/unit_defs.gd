@@ -82,6 +82,8 @@ const FRENZY_TICK := 1200       # 60 秒起狂熱
 const FRENZY_CD_RATE := 5       # 狂熱時冷卻每 tick 扣 5（平常 4）＝攻速 ×5/4
 const ATTRITION_STEP_PCT := 2   # 狂熱耗損：第 k 次（k＝0～5，每 5 秒一次）扣 (k+1)×2% 滿血
 const MIN_SEP := 450            # 兵與兵最小間距 0.45 格
+const RALLY_RATIO_PCT := 60     # 背水（追趕機制）：自己的剩餘戰力 < 對方的這個百分比時觸發；0＝關閉。11/01 實驗 5 組後採用 60%／+2
+const RALLY_CD_BONUS := 2       # 背水時冷卻每 tick 多扣幾：平常 4→6（攻速約 ×1.5）、狂熱 5→7（約 ×1.4）；實際間隔取整到 tick
 
 static var _digest := ""
 

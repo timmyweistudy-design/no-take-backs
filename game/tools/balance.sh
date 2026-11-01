@@ -33,5 +33,25 @@ for m in "${MODES[@]}"; do
   done
   echo "· $m 完成（累計 $(( $(date +%s) - t0 )) 秒）"
 done
+# 搜尋到保留池勝率 >65% 的陣型 → 自動對第一名做反制搜尋
+if [[ " ${MODES[*]} " == *" search "* ]]; then
+  top=$(cat "$OUT"/search_*.jsonl | python3 -c "import sys,json; r=sorted((json.loads(l) for l in sys.stdin if l.strip()), key=lambda x:-x['fit_holdout']); print(r[0]['code'] if r and r[0]['fit_holdout']>0.65 else '')")
+  if [ -n "$top" ]; then
+    MODES+=("countersearch")
+    pids=()
+    for ((s=0; s<SHARDS; s++)); do
+      "$GODOT" --headless --path . --script res://tools/balance2.gd -- --mode=countersearch "--shard=$s" "--shards=$SHARDS" "--target=$top" > "$OUT/countersearch_$s.raw" 2>&1 &
+      pids+=($!)
+    done
+    for p in "${pids[@]}"; do wait "$p" || fail=1; done
+    for ((s=0; s<SHARDS; s++)); do
+      grep '^R ' "$OUT/countersearch_$s.raw" | sed 's/^R //' > "$OUT/countersearch_$s.jsonl"
+      if grep -q 'SCRIPT ERROR\|Parse Error' "$OUT/countersearch_$s.raw"; then echo "✗ countersearch 第 $s 片有腳本錯誤" >&2; fail=1; fi
+      rm -f "$OUT/countersearch_$s.raw"
+    done
+    echo "· countersearch 完成（目標 $top）"
+  fi
+fi
+printf '{"modes": [%s], "shards": %d}\n' "$(printf '"%s",' "${MODES[@]}" | sed 's/,$//')" "$SHARDS" > "$OUT/manifest.json"
 [ $fail -ne 0 ] && { echo "✗ 有分片失敗" >&2; exit 2; }
 python3 tools/balance_report.py "$OUT" "$(( $(date +%s) - t0 ))"

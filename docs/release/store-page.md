@@ -1,0 +1,73 @@
+# Steam 商店頁草稿（優化方案 P、N6）
+
+> 素材都由 Claude 從遊戲實際畫面產生（`docs/shots-n4/`、之後的 `docs/store-shots/`）；正式上架前換成正式美術版截圖。
+> 要你決定／操作的部分標 **【你】**。
+
+## 基本資料
+| 欄位 | 內容 |
+|---|---|
+| 名稱 | 落子無悔 No Take-Backs |
+| 類型標籤（最多 20，前 5 最重要） | Auto Battler、Strategy、Cute、Local Multiplayer、Tactical、Casual、Pixel Graphics（地圖）、Turn-Based Strategy、Puzzle、Singleplayer、2D、Colorful、Short、Replay Value、Wargame、Medieval、Family Friendly、Strategy RPG（不選）…… |
+| 功能勾選 | Single-player、Shared/Split Screen PvP、**Remote Play Together**、Steam Achievements、Steam Cloud、Full Controller Support（Deck 驗收後才勾）、Family Sharing |
+| 語言 | 繁體中文（介面、字幕）、English（介面、字幕）；簡中、日文看心願單地區再加 |
+| 價格 | 見 `business.md`（建議 US$4.99，首發 -15%） |
+| 年齡 | 無血腥：死亡是「噗」一團煙＋小靈魂；問卷全部選無（見 `legal.md`） |
+
+## 一句話（Short description，≤300 字元）
+**繁中**：花 100 金擺好你的可愛小軍隊，按下開戰就不能再動——只能看著它們打到最後一秒。五種兵互相剋制、輪流落子心理戰、最後時刻慢動作翻盤。
+**English**: Spend 100 gold, place your tiny army, press Battle — and no take-backs. Five units in a counter loop, a turn-by-turn placement mind game, and slow-motion final seconds where the fight is won or lost.
+
+## 長描述
+### 繁中
+**擺好就不能反悔。**
+《落子無悔》是一款可愛的派兵自動對決小品。你只有 100 金和 24 個名額：劍士、盾兵、弓箭手、騎兵、刺客，每一種都剋兩種、怕兩種。擺好陣型按下開戰，接下來的 90 秒你只能看——看你的騎兵繞過盾牆衝散弓手，看對方的刺客潛行到你背後，看最後兩隻殘血小兵在慢動作裡決定勝負。
+
+- **輪流落子**：和朋友在同一台電腦（或用 Steam 遠端同樂）公開輪流下兵，每人 5 手。你看得到他擺了什麼，他也看得到你——擺下的兵不能收回。
+- **激烈到最後一秒**：雙方都殘血時自動慢動作特寫；落後的一方進入「背水」攻速提升；60 秒後狂熱耗損，不會無止盡拖時間。
+- **看得懂為什麼輸**：戰報告訴你每個兵種輸出多少、在第幾秒勝負已定、有沒有被逆轉；每一場都能完整重播。
+- **單人內容**：3 關教學、10 關「一手逆轉」殘局（每關都有不只一種解法）、7 連勝遠征、三種難度的 AI（困難 AI 會讀你上一局的陣型）。
+- **分享陣型**：一串代碼就能把得意陣型丟給朋友挑戰。
+
+沒有抽卡、沒有課金、沒有讓兵變強的養成——只比擺法。
+
+### English
+**Once it's placed, it stays.**
+No Take-Backs is a cute little auto-battler about one decision: where your army stands. You get 100 gold and 24 slots. Swordsmen, shieldbearers, archers, cavalry and assassins — each counters two and fears two. Place them, press Battle, and for the next 90 seconds all you can do is watch.
+
+- **Turn Draft**: play a friend on one PC (or online with Steam Remote Play Together). Take turns placing units in the open — five hands each. They see your moves, you see theirs, and nothing can be taken back.
+- **Tense to the last second**: slow-motion close-ups when both sides are nearly out; the losing side gets a *Last Stand* attack-speed boost; after 60 seconds the Frenzy makes sure every fight ends.
+- **Know why you lost**: a battle report shows damage by unit type, when the outcome was decided, and whether it was a comeback. Every battle can be replayed exactly.
+- **Solo content**: 3 tutorials, 10 one-move puzzle battles (each with more than one solution), a 7-win Gauntlet, and three AI difficulties — the hard AI reads your last formation.
+- **Share formations** as a short code.
+
+No gacha, no microtransactions, no stat upgrades. Just placement.
+
+## 截圖清單（至少 5 張，1920×1080 或 1280×720）
+1. 拔河條 51:49、最後時刻慢動作特寫、兩隻殘血互砍（**主圖**）
+2. 擺放畫面：戰術預覽（弓手射程、騎兵衝鋒線、剋制 ✓✗）
+3. 大混戰：衝鋒煙塵＋背刺紫光＋拒馬
+4. 輪流落子：「紅方落子中　第 3／5 手」
+5. 戰報：各兵種輸出長條圖＋「逆轉勝！贏家曾落後 23%」
+6. 殘局挑戰選單（星數）
+7. 結果畫面「★ 孤勇者！★」
+
+## 預告片分鏡（30 秒，優化方案 P）
+| 秒 | 畫面 | 字幕／聲音 |
+|---|---|---|
+| 0–3 | 雙方輪流落子特寫，最後一隻騎兵「啪」落在側翼 | 落子聲；「擺好了？」 |
+| 3–6 | 按下開戰，號角，48 隻衝鋒 | 「不能反悔。」 |
+| 6–14 | 剋制蒙太奇：盾擋箭、騎兵衝散弓手、刺客背刺、拒馬頂住騎兵 | 每個剋制一個字卡 |
+| 14–20 | 拔河條拉鋸、狂熱火苗、背水攻速 | 鼓聲加速 |
+| 20–27 | 最後時刻慢動作：1 打 2 反殺 | 心跳；「★ 孤勇者 ★」 |
+| 27–30 | 標題＋「心願單」 | 落子聲收尾 |
+
+## 膠囊圖（Capsule）規格 **【你：正式美術版要外包或自己做；目前用遊戲內程式畫面合成】**
+| 名稱 | 尺寸 |
+|---|---|
+| Header | 920×430 |
+| Small | 462×174 |
+| Main | 1232×706 |
+| Vertical | 748×896 |
+| Library Capsule | 600×900 |
+| Library Hero | 3840×1240 |
+| Library Logo | 1280×720（透明） |

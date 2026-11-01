@@ -7,7 +7,7 @@ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真�
 
 const DEFAULT_SETTINGS := {
 	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false,
-	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false,
+	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false,
 }
 const DEFAULT_SAVE := {
 	"version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
@@ -55,19 +55,21 @@ static func _write(path: String, d: Dictionary) -> bool:
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		return false
-	f.store_string(JSON.stringify(d, "\t"))
+	var txt := JSON.stringify(d, "\t")
+	f.store_string(txt)
 	f.close()
-	var dir := DirAccess.open("user://")
-	var name := path.get_file()
+	# 讀回驗證：內容不完整（磁碟滿、被中斷）就不覆蓋正式檔
+	if FileAccess.get_file_as_string(tmp) != txt:
+		return false
 	if FileAccess.file_exists(path):
-		dir.copy(name, name + ".bak")
-	return dir.rename(tmp.get_file(), name) == OK
+		DirAccess.copy_absolute(path, path + ".bak")
+	return DirAccess.rename_absolute(tmp, path) == OK
 
-static func save_settings() -> void:
-	_write(_sp(), settings)
+static func save_settings() -> bool:
+	return _write(_sp(), settings)
 
-static func save_data() -> void:
-	_write(_dp(), data)
+static func save_data() -> bool:
+	return _write(_dp(), data)
 
 static func s(key: String):
 	return settings.get(key, DEFAULT_SETTINGS.get(key))
@@ -75,3 +77,16 @@ static func s(key: String):
 static func set_setting(key: String, v) -> void:
 	settings[key] = v
 	save_settings()
+
+
+## 試玩紀錄（優化方案 F5、N3）：只在設定開啟時寫在本機 user://playtest_log.jsonl，不上傳。
+static func playtest_log(entry: Dictionary) -> void:
+	if not bool(s("playtest")):
+		return
+	var path := "user://%splaytest_log.jsonl" % prefix
+	var f := FileAccess.open(path, FileAccess.READ_WRITE if FileAccess.file_exists(path) else FileAccess.WRITE)
+	if f == null:
+		return
+	f.seek_end()
+	entry["time"] = Time.get_datetime_string_from_system()
+	f.store_line(JSON.stringify(entry))

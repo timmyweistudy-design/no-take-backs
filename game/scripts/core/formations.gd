@@ -104,6 +104,10 @@ static func training_pool(team: int) -> Array:
 static func holdout_pool(team: int) -> Array:
 	return pool(team, 50, 9000011)
 
+## 搜尋池：萬用陣搜尋演化時用的對手（跟保留池分開，避免資料洩漏）。
+static func search_pool(team: int) -> Array:
+	return pool(team, 60, 5000017)
+
 ## 兵種組成向量（每種兵的金額）。
 static func composition(a: Army) -> Array:
 	var v := [0, 0, 0, 0, 0]

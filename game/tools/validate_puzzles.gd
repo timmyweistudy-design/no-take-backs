@@ -18,9 +18,12 @@ func _init() -> void:
 			args[kv[0]] = kv[1]
 	var samples := int(args.get("samples", "300"))
 	var ids: Array = [args["id"]] if args.has("id") else P.all_ids()
+	var all_ok := true
 	for id in ids:
-		print("V ", JSON.stringify(validate(P.get_puzzle(id), samples)))
-	quit(0)
+		var r := validate(P.get_puzzle(id), samples)
+		all_ok = all_ok and bool(r["ok"])
+		print("V ", JSON.stringify(r))
+	quit(0 if all_ok else 1)
 
 func run(pz: Dictionary, extra: Array) -> Sim:
 	var a0: Army = P.player_army(pz)
@@ -39,6 +42,7 @@ func validate(pz: Dictionary, samples: int) -> Dictionary:
 	var classes := {}
 	var best_rem := 0
 	var min_spend := 999
+	var three_star := false
 	var example := []
 	var allowed: Array = pz["allowed"]
 	var fixed_cells := {}
@@ -76,12 +80,14 @@ func validate(pz: Dictionary, samples: int) -> Dictionary:
 			var rem: int = s.power(0) * 100 / (s.budget * 1000)
 			best_rem = maxi(best_rem, rem)
 			min_spend = mini(min_spend, spend)
+			if rem >= int(pz["star2"]) and spend <= int(pz["star3"]):
+				three_star = true
 			if example.is_empty():
 				example = extra
 	var rate := wins * 100 / maxi(1, samples)
 	var max_rate := 95 if pz.get("tutorial", false) else 70
 	var need_classes := 1 if pz.get("tutorial", false) else 2
 	var ok: bool = base.winner != 0 and classes.size() >= need_classes and rate >= 2 and rate <= max_rate \
-		and best_rem >= int(pz["star2"]) and min_spend <= int(pz["star3"])
+		and three_star
 	return {"id": pz["id"], "ok": ok, "base_winner": base.winner, "win_rate": rate, "classes": classes.size(),
-		"class_list": classes, "best_rem": best_rem, "min_spend": min_spend, "star2": pz["star2"], "star3": pz["star3"], "example": example}
+		"class_list": classes, "best_rem": best_rem, "min_spend": min_spend, "three_star": three_star, "star2": pz["star2"], "star3": pz["star3"], "example": example}
