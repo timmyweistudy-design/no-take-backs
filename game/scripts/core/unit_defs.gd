@@ -12,8 +12,8 @@ extends RefCounted
 enum { SWORD, SHIELD, ARCHER, CAVALRY, ASSASSIN }
 
 ## 規則版本：改了戰鬥規則（不是只改數值）就要升版；重播與陣型代碼會帶這個版本。
-const RULES_VERSION := "1.1.0"
-const RULES_VERSION_INT := 10100
+const RULES_VERSION := "1.2.0"     # 1.2.0：繞翼狀態機、途經點離邊、騎兵追擊遲滯（第二輪方案 R1）
+const RULES_VERSION_INT := 10200
 
 const COUNT := 5
 const NAMES := ["劍士", "盾兵", "弓箭手", "騎兵", "刺客"]
@@ -64,6 +64,9 @@ const CHARGE_DEN := 2
 const KNOCKBACK := 500          # 衝鋒擊退 0.5 格
 const FLANK_DETECT := 1500      # 繞翼：衝向弓手的直線 1.5 格內有盾兵就繞
 const FLANK_OFFSET := 2000      # 繞翼往上／下偏 2 格
+const FLANK_EDGE_MARGIN := 250  # 途經點至少離上下邊界 EDGE＋0.25 格，避免貼牆和推擠互卡
+const WP_REACHED := 400         # 離途經點 0.4 格內＝完成這次繞翼（永久，不會再回頭）
+const CHASE_HYST := 150         # 騎兵追擊遲滯：超出攻擊距離才起步，追到 reach−0.15 格才停
 const HIDE_ARROW_NUM := 1       # 皮甲：騎兵被弓箭射中 ×1/2
 const HIDE_ARROW_DEN := 2
 

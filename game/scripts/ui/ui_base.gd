@@ -1,0 +1,264 @@
+extends Node2D
+## 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。
+## 繼承鏈：ui_base → battle_view（戰場與演出）→ game_screens（狀態機與各畫面）→ main（宣傳工具：截圖、膠囊、影片）。
+## 戰鬥結果完全由 scripts/core/battle_sim.gd 決定；這裡只負責演出（插值、特效、慢動作、鏡頭、聲音），不影響勝負。
+## UI 是自繪的「即時模式按鈕」，同時支援滑鼠、鍵盤、手把（焦點導航）。
+
+const D = preload("res://scripts/core/unit_defs.gd")
+const Army = preload("res://scripts/core/army.gd")
+const Sim = preload("res://scripts/core/battle_sim.gd")
+const AI = preload("res://scripts/core/ai_army.gd")
+const AIT = preload("res://scripts/core/ai_turns.gd")
+const TP = preload("res://scripts/core/turn_placement.gd")
+const Art = preload("res://scripts/ui/art.gd")
+const L = preload("res://scripts/game/strings.gd")
+const Save = preload("res://scripts/game/save.gd")
+const SteamApi = preload("res://scripts/game/steam.gd")
+const PZ = preload("res://scripts/game/puzzles.gd")
+const SfxScript = preload("res://scripts/game/sfx.gd")
+const SpriteCache = preload("res://scripts/ui/sprite_cache.gd")
+
+enum St { TITLE, PLACE, BATTLE, RESULT }
+enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
+
+const ORIGIN := Vector2(128, 100)
+const CS := 64.0
+const FIELD := Vector2(16 * 64, 9 * 64)
+const CARD_Y := 694.0
+const CARD_W := 140.0
+const CARD_H := 96.0
+const UI_BG := Color(0.08, 0.09, 0.13, 0.94)
+const PANEL := Color(0.12, 0.13, 0.19, 0.97)
+const ACCENT := Color("#ffd166")
+const UNIT_SCALE := 0.92
+
+var font: Font
+var font_bold: Font
+var sfx
+var state := St.TITLE
+var mode := Mode.VS_AI
+var overlay := ""
+var difficulty := 1
+var duel_rule := "snake5"
+var armies: Array = []
+var tp = null
+var blind_phase := 0          # 盲擺：0 藍擺、1 紅擺、2 完成
+var ai_name := ""
+var rng := RandomNumberGenerator.new()
+var selected := D.SWORD
+var hover_card := -1
+var drag_new := false
+var drag_from := Vector2i(-1, -1)
+var painting := false
+var paint_team := 0
+var mouse := Vector2.ZERO
+var cursor := Vector2i(4, 4)
+var pad_mode := false
+var toast := ""
+var toast_t := 0.0
+var ach_queue: Array = []
+var ach_t := 0.0
+var wins := [0, 0]
+var round_no := 1
+var series_over := false
+var last_armies: Array = []
+var last_player_formation: Array = []
+var puzzle_id := ""
+var gauntlet_stage := 1
+var gauntlet_prev: Array = []
+var gauntlet_changes := 3
+var gauntlet_seed := 0
+
+# 戰鬥演出
+var sim = null
+var prev_pos := {}
+var accum := 0.0
+var speed := 1.0
+var slow_used := false
+var slow_left := 0.0
+var hitstop := 0.0
+var zoom := 1.0
+var zoom_target := 1.0
+var zoom_center := ORIGIN + FIELD / 2
+var shake := 0.0
+var fx: Array = []
+var atk_t := {}
+var hurt_t := {}
+var dying: Array = []
+var result_delay := 0.0
+var time := 0.0
+var shot_dir := ""
+var ev_count := {}
+var frenzy_seen := false
+var report := {}
+var pt_call_tick := -1
+var pt_rated := false
+
+# 標題背景的展示戰
+var demo = null
+var demo_acc := 0.0
+
+# 即時模式按鈕
+var _btns: Array = []
+var _focus := 0
+var _click_pending := Vector2(-1, -1)
+
+var capsule_path := ""
+var perf_draw_us := 0     # 這一幀 _draw 花的時間（效能量測用）
+var perf_proc_us := 0     # 這一幀 _process 花的時間
+var perf_path := ""
+var perf_parts := {}      # 繪圖各部分耗時（微秒）
+var sprites = null        # 角色精靈圖快取（沒有畫面時是 null，退回直接繪製）
+var video_mode := false
+var grass: Texture2D
+var plants: Array = []
+
+
+func _load_font(path: String) -> Font:
+	if ResourceLoader.exists(path):
+		var f = load(path)
+		if f:
+			return f
+	var sf := SystemFont.new()
+	sf.font_names = PackedStringArray(["Microsoft JhengHei UI", "Noto Sans CJK TC", "sans-serif"])
+	return sf
+
+
+func _apply_fullscreen() -> void:
+	if shot_dir != "":
+		return
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if Save.s("fullscreen") else DisplayServer.WINDOW_MODE_WINDOWED)
+
+
+func ts(px: int) -> int:
+	return int(px * int(Save.s("text_scale")) / 100)
+
+
+func cbm() -> bool:
+	return bool(Save.s("colorblind"))
+
+
+func _toast(s: String, deny := false) -> void:
+	toast = s
+	toast_t = 2.0
+	if deny:
+		sfx.play("ui_deny")
+
+
+func _move_focus(d: int) -> void:
+	pad_mode = true
+	if _btns.is_empty():
+		return
+	_focus = posmod(_focus + d, _btns.size())
+
+
+func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false) -> void:
+	var fnt := font_bold if bold else font
+	var lines := s.split("\n")
+	for i in lines.size():
+		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
+		var q := p + Vector2(-w / 2, i * size * 1.3 + size * 0.85)
+		draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(0, 0, 0, c.a * 0.75))
+		draw_string(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
+
+
+## 即時模式按鈕：每幀重新登記，滑鼠或焦點都能按。
+func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+	var idx := _btns.size()
+	_btns.append({"r": r, "cb": action, "en": enabled})
+	var hover := r.has_point(mouse) and not pad_mode
+	var focus := pad_mode and idx == _focus
+	var bg := Color(0.2, 0.22, 0.3) if not primary else Color(0.85, 0.52, 0.14)
+	if tint.a > 0:
+		bg = tint
+	if not enabled:
+		bg = Color(0.16, 0.16, 0.2)
+	elif hover or focus:
+		bg = bg.lightened(0.18)
+	draw_rect(r, bg)
+	draw_rect(r, ACCENT if focus else Color(1, 1, 1, 0.18), false, 3 if focus else 1.5)
+	var sz := ts(18) if r.size.y >= 40 else ts(15)
+	_text(r.get_center() - Vector2(0, sz * 0.62), label, sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
+
+
+func _handle_click() -> void:
+	if _click_pending.x < 0:
+		return
+	var p := _click_pending
+	_click_pending = Vector2(-1, -1)
+	for i in _btns.size():
+		var b: Dictionary = _btns[i]
+		if b["r"].has_point(p):
+			if b["en"]:
+				_focus = i
+				sfx.play("ui_click")
+				b["cb"].call_deferred()
+			return
+
+
+func _panel(r: Rect2) -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.68))
+	draw_rect(r, PANEL)
+	draw_rect(r, Color(1, 1, 1, 0.2), false, 2)
+
+
+func _open(name: String) -> void:
+	overlay = name
+	_focus = 0
+
+
+func _fmt_num(v: float) -> String:
+	return str(int(v)) if v == floorf(v) else str(v)
+
+
+func _onoff(k: String) -> String:
+	return L.t("on") if bool(Save.s(k)) else L.t("off")
+
+
+func _cycle_setting(k: String, opts: Array) -> void:
+	var cur = Save.s(k)
+	var i := 0
+	for j in opts.size():
+		if str(opts[j]) == str(cur):
+			i = j
+	Save.set_setting(k, opts[(i + 1) % opts.size()])
+
+## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
+func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0) -> void:
+	if sprites != null and sprites.is_ready(cbm()):
+		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale)
+	else:
+		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm())
+
+func _ring(p: Vector2, team: int, type: int, scale := 1.0) -> void:
+	if sprites != null and sprites.is_ready(cbm()):
+		sprites.draw_ring(self, p, team, type, scale)
+	else:
+		Art.ring(self, p, team, type, cbm(), scale)
+
+func _rebuild_sprites() -> void:
+	if sprites != null:
+		sprites.build(cbm())
+
+# ── 給上層覆寫的佔位（拆檔後，下層程式需要呼叫上層的函式）──
+func _run_perf() -> void:
+	pass
+
+func _capture_capsule() -> void:
+	pass
+
+func _run_video() -> void:
+	pass
+
+func _run_screenshots() -> void:
+	pass
+
+func _finish_battle() -> void:
+	pass
+
+func _draw_capsule() -> void:
+	pass
+
+func _mode_label() -> String:
+	return ""
+

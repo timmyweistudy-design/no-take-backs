@@ -43,7 +43,7 @@ func validate(pz: Dictionary, samples: int) -> Dictionary:
 	var best_rem := 0
 	var min_spend := 999
 	var three_star := false
-	var example := []
+	var examples := {}
 	var allowed: Array = pz["allowed"]
 	var fixed_cells := {}
 	for f in pz["fixed"]:
@@ -82,12 +82,12 @@ func validate(pz: Dictionary, samples: int) -> Dictionary:
 			min_spend = mini(min_spend, spend)
 			if rem >= int(pz["star2"]) and spend <= int(pz["star3"]):
 				three_star = true
-			if example.is_empty():
-				example = extra
+			if not examples.has(str(key)) and examples.size() < 2:
+				examples[str(key)] = extra
 	var rate := wins * 100 / maxi(1, samples)
 	var max_rate := 95 if pz.get("tutorial", false) else 70
 	var need_classes := 1 if pz.get("tutorial", false) else 2
 	var ok: bool = base.winner != 0 and classes.size() >= need_classes and rate >= 2 and rate <= max_rate \
 		and three_star
 	return {"id": pz["id"], "ok": ok, "base_winner": base.winner, "win_rate": rate, "classes": classes.size(),
-		"class_list": classes, "best_rem": best_rem, "min_spend": min_spend, "three_star": three_star, "star2": pz["star2"], "star3": pz["star3"], "example": example}
+		"class_list": classes, "best_rem": best_rem, "min_spend": min_spend, "three_star": three_star, "star2": pz["star2"], "star3": pz["star3"], "solutions": examples.values()}

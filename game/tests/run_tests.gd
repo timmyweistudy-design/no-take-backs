@@ -8,6 +8,7 @@ const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 const TP = preload("res://scripts/core/turn_placement.gd")
 const MC = preload("res://scripts/core/mirror_check.gd")
+const PZ = preload("res://scripts/game/puzzles.gd")
 
 var passed := 0
 var failed := 0
@@ -31,6 +32,8 @@ func _init() -> void:
 	test_suspense()
 	test_codes_and_snake()
 	test_rally()
+	test_nav_r1()
+	test_puzzle_solutions()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -345,6 +348,67 @@ func test_codes_and_snake() -> void:
 					placed = true
 		if tp.current == order[-1] and not tp.done():
 			tp.end_turn()
-	ok(order.slice(0, 10) == [0, 1, 1, 0, 0, 1, 1, 0, 0, 1], "蛇行順序正確", str(order))
-	ok(tp.handoffs == 5 and tp.hands_done == [5, 5], "每人 5 手、換人 5 次", "handoffs=%d hands=%s" % [tp.handoffs, str(tp.hands_done)])
+	ok(order.slice(0, 10) == [0, 1, 1, 0, 1, 0, 0, 1, 1, 0], "5 手公平輪序（Thue‑Morse）正確", str(order))
+	ok(tp.handoffs == 6 and tp.hands_done == [5, 5], "每人 5 手、換人 6 次", "handoffs=%d hands=%s" % [tp.handoffs, str(tp.hands_done)])
 	ok(tp.check_place(D.SWORD, 0, 0) != "", "蛇行結束後不能再擺")
+
+
+## 第二輪方案 R1：騎兵打轉修正
+func test_nav_r1() -> void:
+	# 繞翼狀態機：直接操作位置，驗「到過就記住」（舊版用「現在距離」判斷，離開後會回頭）
+	var s = Sim.new(army_from(0, [[D.CAVALRY, 3, 4]]), army_from(1, [[D.SHIELD, 5, 4], [D.SHIELD, 5, 5], [D.ARCHER, 0, 4]]))
+	var cav = s.units[0]
+	var ai := -1
+	for k in s.units.size():
+		if s.units[k].type == D.ARCHER:
+			ai = k
+	var wp: Vector2i = s._flank_waypoint(0, ai)
+	ok(cav.nav == 1 and wp.x >= 0, "被盾兵擋路時會規劃繞翼", str(wp))
+	ok(wp.y >= Sim.EDGE + D.FLANK_EDGE_MARGIN and wp.y <= Sim.H - Sim.EDGE - D.FLANK_EDGE_MARGIN, "途經點離上下邊界至少 EDGE＋FLANK_EDGE_MARGIN", str(wp))
+	cav.x = wp.x + 100
+	cav.y = wp.y
+	var r1: Vector2i = s._flank_waypoint(0, ai)
+	cav.x = wp.x - 1500   # 離開途經點
+	var r2: Vector2i = s._flank_waypoint(0, ai)
+	ok(r1.x == -1 and r2.x == -1 and cav.nav == 2, "到過途經點就不再回頭（同一目標）", "r1=%s r2=%s nav=%d" % [r1, r2, cav.nav])
+	# 貼邊：騎兵和弓手都在最上列 → 往上沒有空間，只能往下繞或直接追，途經點不會貼在邊界
+	var e = Sim.new(army_from(0, [[D.CAVALRY, 3, 0]]), army_from(1, [[D.SHIELD, 5, 0], [D.ARCHER, 0, 0]]))
+	var ea := 2
+	var ewp: Vector2i = e._flank_waypoint(0, ea)
+	ok(ewp.x == -1 or ewp.y >= Sim.EDGE + D.FLANK_EDGE_MARGIN, "上邊緣不會產生貼牆的途經點", str(ewp))
+	# 追擊遲滯：目標往外走時，騎兵不會每隔一 tick 停一次
+	var c2 = Sim.new(army_from(0, [[D.CAVALRY, 5, 4]]), army_from(1, [[D.ARCHER, 5, 4]]))
+	var stops := 0
+	var moves := 0
+	var prev_moving := false
+	var flips := 0
+	for i in 120:
+		c2.step()
+		if not c2.units[0].alive or not c2.units[1].alive:
+			break
+		var moving: bool = c2.units[0].mx != 0 or c2.units[0].my != 0
+		if i > 0 and moving != prev_moving:
+			flips += 1
+		prev_moving = moving
+	ok(flips <= 6, "追擊不會走一步停一步（狀態切換次數少）", "flips=%d" % flips)
+
+
+## 殘局標準解回歸（第二輪方案 §1.4）：每關存的標準解都必須打贏；改戰鬥規則後有任何一關變不能過就會紅。
+func test_puzzle_solutions() -> void:
+	var total := 0
+	var bad: Array = []
+	for pz in PZ.tutorials() + PZ.puzzles():
+		var sols: Array = pz.get("solutions", [])
+		if sols.is_empty():
+			bad.append("%s 沒有標準解" % pz["id"])
+		for sol in sols:
+			var a0 = PZ.player_army(pz)
+			for e in sol:
+				a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
+			var sm = Sim.new(a0, PZ.enemy_army(pz))
+			sm.fast = true
+			sm.run_to_end()
+			total += 1
+			if sm.winner != 0:
+				bad.append("%s 標準解輸了" % pz["id"])
+	ok(total >= 13 and bad.is_empty(), "13 關殘局標準解全部打贏（%d 組）" % total, str(bad))

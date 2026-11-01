@@ -2,13 +2,15 @@ extends RefCounted
 ## 輪流落子（企劃 §4.1、優化方案 A2）。公開輪流擺，擺下不能移動或收回；買得起就不能跳過。
 ## 規則：
 ##   "cap10"   ＝每一手 1～10 金、至少 1 隻；輪流直到雙方都買不起（原型規則）。
-##   "snake5"  ＝每人 5 手、每手最多 20 金，蛇行 A‑B‑B‑A‑A‑B‑B‑A‑A‑B；沒花完的錢不累積。
+##   "snake5"  ＝每人 5 手、每手最多 20 金，公平輪序 A‑B‑B‑A‑B‑A‑A‑B‑B‑A；沒花完的錢不累積。
 ##   "snake5c" ＝同上，但沒花完的錢累積到下一手（第 k 手最多花到累計 20×k）。
 ## 每一手都記成指令（commands），可以重播、序列化（為 v1.1 線上預留）。
 
 const D = preload("res://scripts/core/unit_defs.gd")
 
-const SNAKE := [0, 1, 1, 0, 0, 1, 1, 0, 0, 1]
+## 輪序（第二輪方案 R1 後重測）：原本蛇行 A‑B‑B‑A‑A‑B‑B‑A‑A‑B 在騎兵修好後先手只剩 38%；
+## 改用 Thue‑Morse 公平輪序 A‑B‑B‑A‑B‑A‑A‑B‑B‑A，先手 48%（200 組成對）。規則代號仍叫 snake5，舊設定可用。
+const SNAKE := [0, 1, 1, 0, 1, 0, 0, 1, 1, 0]
 
 var rule := "cap10"
 var armies: Array            # [藍, 紅]
@@ -31,6 +33,9 @@ func _init(a0, a1, p_first := 0, p_rule := "cap10") -> void:
 
 func is_snake() -> bool:
 	return rule.begins_with("snake")
+
+func _order() -> Array:
+	return SNAKE
 
 func done() -> bool:
 	return stopped[0] and stopped[1]
@@ -80,7 +85,7 @@ func end_turn() -> bool:
 			stopped[current] = true
 		turn_index += 1
 		if turn_index < SNAKE.size():
-			current = SNAKE[turn_index] if first == 0 else 1 - SNAKE[turn_index]
+			current = _order()[turn_index] if first == 0 else 1 - _order()[turn_index]
 		else:
 			stopped[0] = true
 			stopped[1] = true
@@ -107,6 +112,6 @@ func _skip_if_stuck() -> void:
 				stopped[0] = true
 				stopped[1] = true
 				return
-			current = SNAKE[turn_index] if first == 0 else 1 - SNAKE[turn_index]
+			current = _order()[turn_index] if first == 0 else 1 - _order()[turn_index]
 		else:
 			current = 1 - current

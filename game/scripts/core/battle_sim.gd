@@ -47,7 +47,9 @@ class Unit:
 	var slow := 0
 	var wp_x := -1             # 騎兵繞翼途經點
 	var wp_y := -1
-	var wp_for := -1
+	var wp_for := -1           # 這條繞翼路線是為了哪個目標（id）
+	var nav := 0               # 繞翼導航：0 沒有／直衝、1 繞翼中、2 已完成（同一個目標不再繞）
+	var chasing := false       # 騎兵追擊遲滯狀態
 	var alive := true
 	var dmg_dealt := 0
 	var dmg_taken := 0
@@ -174,18 +176,30 @@ func step() -> void:
 		var dest_x := tg.x
 		var dest_y := tg.y
 		var stop_at := reach - 50
+		var flanking := false
 		if u.type == D.ASSASSIN and u.stealth > 0:
-			# 潛行中繞到目標背後
-			dest_x = tg.x - tg.fx * D.BEHIND_DIST / 1000
-			dest_y = tg.y - tg.fy * D.BEHIND_DIST / 1000
+			# 潛行中繞到目標背後（目的地夾在場內）
+			dest_x = clampi(tg.x - tg.fx * D.BEHIND_DIST / 1000, EDGE, W - EDGE)
+			dest_y = clampi(tg.y - tg.fy * D.BEHIND_DIST / 1000, EDGE, H - EDGE)
 			stop_at = 0
 		elif u.type == D.CAVALRY:
 			var wp := _flank_waypoint(i, t)
 			if wp.x >= 0:
-				dest_x = wp.x
-				dest_y = wp.y
-				stop_at = 0
-		var need_move := d2 > reach * reach or (u.type == D.ASSASSIN and u.stealth > 0)
+				if d2 <= reach * reach:
+					u.nav = 2            # 敵人已在射程內：結束繞翼直接開打，不卡在未完成狀態
+				else:
+					dest_x = wp.x
+					dest_y = wp.y
+					stop_at = 0
+					flanking = true
+		var need_move := d2 > reach * reach or (u.type == D.ASSASSIN and u.stealth > 0) or flanking
+		if u.type == D.CAVALRY and not flanking:
+			# 追擊遲滯：已經在追就追到 reach−CHASE_HYST 才停；停著的要超出 reach 才起步
+			var inner := reach - D.CHASE_HYST
+			if u.chasing and d2 > inner * inner:
+				need_move = true
+			stop_at = inner
+			u.chasing = need_move
 		if need_move:
 			var dx := dest_x - u.x
 			var dy := dest_y - u.y
@@ -555,11 +569,23 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 	var tg := units[t]
 	if tg.type != D.ARCHER:
 		u.wp_for = -1
+		u.nav = 0
+		u.wp_x = -1
+		u.wp_y = -1
 		return Vector2i(-1, -1)
 	if u.wp_for == tg.id:
-		if M.dist2(u.x, u.y, u.wp_x, u.wp_y) > 400 * 400:
+		# 同一個目標：照狀態走，不會因為離開途經點而回頭（第二輪方案 R1 根因 A）
+		if u.nav == 1:
+			if M.dist2(u.x, u.y, u.wp_x, u.wp_y) <= D.WP_REACHED * D.WP_REACHED:
+				u.nav = 2
+				return Vector2i(-1, -1)
 			return Vector2i(u.wp_x, u.wp_y)
-		return Vector2i(-1, -1)   # 已經到過途經點，直衝
+		return Vector2i(-1, -1)
+	# 新目標：重新規劃一次
+	u.wp_for = tg.id
+	u.nav = 2
+	u.wp_x = -1
+	u.wp_y = -1
 	var dx := tg.x - u.x
 	var dy := tg.y - u.y
 	var l2 := dx * dx + dy * dy
@@ -587,20 +613,31 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 			blocked = true
 	if not blocked:
 		return Vector2i(-1, -1)
-	var wy: int
-	if above <= below:
-		wy = mini(u.y, tg.y) - D.FLANK_OFFSET
-	else:
-		wy = maxi(u.y, tg.y) + D.FLANK_OFFSET
-	u.wp_for = tg.id
-	u.wp_x = u.x + (tg.x - u.x) / 2   # 用差值往 0 截斷，左右鏡像才對稱
-	u.wp_y = clampi(wy, EDGE, H - EDGE)
+	# 上下兩個候選點都先夾在離邊界有餘裕的範圍；夾完之後如果離直線不到 FLANK_DETECT（沒有真的繞開）就不採用
+	var lo := EDGE + D.FLANK_EDGE_MARGIN
+	var hi := H - EDGE - D.FLANK_EDGE_MARGIN
+	var mid_x := u.x + (tg.x - u.x) / 2   # 用差值往 0 截斷，左右鏡像才對稱
+	var line_y := u.y + (tg.y - u.y) / 2
+	var up_y := clampi(mini(u.y, tg.y) - D.FLANK_OFFSET, lo, hi)
+	var dn_y := clampi(maxi(u.y, tg.y) + D.FLANK_OFFSET, lo, hi)
+	var up_ok := line_y - up_y >= D.FLANK_DETECT
+	var dn_ok := dn_y - line_y >= D.FLANK_DETECT
+	var wy := -1
+	if up_ok and (not dn_ok or above <= below):
+		wy = up_y
+	elif dn_ok:
+		wy = dn_y
+	if wy < 0:
+		return Vector2i(-1, -1)   # 兩側都沒有空間繞：直接追
+	u.nav = 1
+	u.wp_x = mid_x
+	u.wp_y = wy
 	return Vector2i(u.wp_x, u.wp_y)
 
 ## 完整狀態指紋：每 tick 依 id 順序寫入固定 26 個 int64 欄位。
 func _hash_state() -> void:
 	var a := PackedInt64Array()
-	a.resize(units.size() * 26 + 1)
+	a.resize(units.size() * 28 + 1)
 	a[0] = tick
 	var k := 1
 	for u in units:
@@ -609,7 +646,8 @@ func _hash_state() -> void:
 		a[k + 10] = u.cdx; a[k + 11] = u.cdy; a[k + 12] = u.stealth; a[k + 13] = u.charge; a[k + 14] = u.stun
 		a[k + 15] = u.slow; a[k + 16] = u.wp_x; a[k + 17] = u.wp_y; a[k + 18] = u.wp_for; a[k + 19] = 1 if u.alive else 0
 		a[k + 20] = u.dmg_dealt; a[k + 21] = u.dmg_taken; a[k + 22] = u.kills; a[k + 23] = u.id; a[k + 24] = u.team; a[k + 25] = u.type
-		k += 26
+		a[k + 26] = u.nav; a[k + 27] = 1 if u.chasing else 0
+		k += 28
 	_hash.update(a.to_byte_array())
 
 func _check_end() -> void:
