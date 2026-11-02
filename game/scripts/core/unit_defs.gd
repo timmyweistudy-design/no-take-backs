@@ -100,13 +100,14 @@ const BOMB_MIN := 1500          # 最短射程 1.5 格：最近的可見敵人�
 const SPLASH_R := 900           # 爆炸半徑：主目標 0.9 格內的其他敵人吃波及
 const SPLASH_DMG := 8           # 波及傷害
 const SPLASH_MAX := 3           # 最多波及幾隻
-const BOMB_SHIELD_NUM := 2      # 火罐專拆盾牆：主擊與波及打盾兵 ×2（第四輪平衡：沒有這條時投彈兵打不贏盾兵為主的陣）
+const BOMB_SHIELD_NUM := 5      # 火罐專拆盾牆：主擊與波及打盾兵 ×5/2（第四輪平衡：沒有這條時投彈兵打不贏盾兵為主的陣）
+const BOMB_SHIELD_DEN := 2
 const BONK_ATK := 8             # 敲人：攻擊、距離、間隔
 const BONK_REACH := 700
 const BONK_CD := 24
 
 # ─── 醫者（第四輪）───
-const HEAL_AMT := 28            # 每次補血量（狂熱時減半）
+const HEAL_AMT := 24            # 每次補血量（狂熱時減半）
 const HEAL_CD := 30             # 補血間隔（tick），不吃任何加速
 const HEAL_FIRST := 20          # 開戰後第一次補血前的等待
 const HEAL_RANGE := 3000        # 補血距離
@@ -115,12 +116,15 @@ const SUPPORT_BACK := 1000
 const SUPPORT_STOP := 300
 
 # ─── 鼓手（第四輪）───
-const DRUM_RANGE := 2500        # 光環 2.5 格（含自己）
+const DRUM_RANGE := 2200        # 光環 2.2 格（含自己）
 const DRUM_BONUS := 2           # 冷卻每 tick 多扣 2（不疊加；平常扣 4）
 const DEC_CAP := 7              # 冷卻每 tick 扣除上限（平常 4／狂熱 5＋背水＋戰鼓）
 
 # ─── 狂戰士（第四輪）───
 const BREACH_TICKS := 60        # 破陣：打中盾兵／長槍兵後 3 秒內嘲諷、正面舉盾、拒騎失效（重複打中刷新）
+const BREACH_SPREAD := 1000     # 破陣擴散：目標 1 格內的其他敵方盾兵／長槍兵一起破陣（劈開一段牆）
+const BREACH_VULN_NUM := 3      # 破陣中受到的所有傷害 ×3/2（第四輪平衡：讓「替隊友開路」真的有用）
+const BREACH_VULN_DEN := 2
 const BERSERK_ARROW_NUM := 5    # 沒穿甲：被弓箭射中 ×5/4
 const BERSERK_ARROW_DEN := 4
 # 不被擊退：騎兵衝鋒的擊退對狂戰士無效

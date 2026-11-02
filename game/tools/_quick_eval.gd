@@ -58,6 +58,27 @@ func _init() -> void:
 						tot[pol] += (sc[0] + sc[1]) / 2.0
 					n += 1
 			print("Q repl %s orig %.0f%%  Δa %+.1f  Δb %+.1f  Δc %+.1f" % [D.NAMES[x], tot["orig"] / n * 100, (tot["orig"] - tot["a"]) / n * 100, (tot["orig"] - tot["b"]) / n * 100, (tot["orig"] - tot["c"]) / n * 100])
+	if args.has("shield"):
+		var sp := UE.shield_pool(200)
+		var x2 := int(args["shield"])
+		idx += 1
+		if idx % parts == part:
+			var o := 0.0
+			var bb := 0.0
+			var n3 := 0
+			for i in 60:
+				var orig = UE.with_unit(x2, nt, i)
+				if orig == null:
+					continue
+				var vb = UE.refill(orig, x2, D.SWORD)
+				for k in 3:
+					var opp = sp[(i * 7 + k * 31) % sp.size()]
+					var s1 := UE.duel2(orig, opp)
+					var s2 := UE.duel2(vb, opp)
+					o += (s1[0] + s1[1]) / 2.0
+					bb += (s2[0] + s2[1]) / 2.0
+					n3 += 1
+			print("Q shield %s Δb %+.1f" % [D.NAMES[x2], (o - bb) / n3 * 100])
 	if args.has("cover"):
 		var opps2 := F.validation_pool(0, nt)
 		for us in str(args["cover"]).split(","):

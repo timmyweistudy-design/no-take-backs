@@ -1365,12 +1365,12 @@ func test_new_units() -> void:
 				bomb_ev.append(ev)
 			elif ev.get("kind") == EVS.SPLASH:
 				sp += 1
-				if ev["dmg"] != D.SPLASH_DMG * D.BOMB_SHIELD_NUM:   # 目標都是盾兵：打盾 ×BOMB_SHIELD_NUM
+				if ev["dmg"] != D.SPLASH_DMG * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN and ev["dmg"] != D.SPLASH_DMG * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN * D.BREACH_VULN_NUM / D.BREACH_VULN_DEN:   # 目標都是盾兵：打盾 ×BOMB_SHIELD
 					sp += 100
 		if sp > 0:
 			splash_per_tick.append(sp)
-	ok(not bomb_ev.is_empty() and bomb_ev[0]["dmg"] == D.STATS[D.BOMBER]["atk"] * D.BOMB_SHIELD_NUM and not splash_per_tick.is_empty() and splash_per_tick.max() == D.SPLASH_MAX,
-		"投彈兵：打盾兵主擊無視舉盾且 ×%d、每次波及恰好最多 %d 隻、波及傷害固定" % [D.BOMB_SHIELD_NUM, D.SPLASH_MAX], "bomb=%s splash=%s" % [bomb_ev.slice(0, 1), splash_per_tick])
+	ok(not bomb_ev.is_empty() and bomb_ev[0]["dmg"] == D.STATS[D.BOMBER]["atk"] * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN and not splash_per_tick.is_empty() and splash_per_tick.max() == D.SPLASH_MAX,
+		"投彈兵：打盾兵主擊無視舉盾且 ×%d/%d、每次波及恰好最多 %d 隻、波及傷害固定" % [D.BOMB_SHIELD_NUM, D.BOMB_SHIELD_DEN, D.SPLASH_MAX], "bomb=%s splash=%s" % [bomb_ev.slice(0, 1), splash_per_tick])
 	# 潛行中的刺客貼在旁邊不會讓投彈兵改敲人（看不見）
 	sc = sim_at([[D.BOMBER, 0, 3000, 4500], [D.ASSASSIN, 1, 3900, 4500], [D.SWORD, 1, 7000, 4500]])
 	s = sc["s"]
@@ -1550,6 +1550,29 @@ func test_new_units() -> void:
 				arrows_after.append(ev)
 	ok(not got_breach.is_empty() and breach_val == D.BREACH_TICKS and blocked_after == 0 and not arrows_after.is_empty(),
 		"狂戰士破陣：盾兵 %d tick 內舉盾失效（弓箭全額）" % D.BREACH_TICKS, "breach=%d blocked=%d arrows=%d" % [breach_val, blocked_after, arrows_after.size()])
+	# 破陣擴散：目標 1 格內的其他敵方盾兵／長槍兵一起破陣，遠一點的不會
+	sc = sim_at([[D.BERSERKER, 0, 6000, 4500], [D.SHIELD, 1, 6700, 4500], [D.PIKE, 1, 6800, 5300], [D.SHIELD, 1, 6700, 6800], [D.ARCHER, 1, 14000, 4500]])
+	s = sc["s"]
+	var spread_ok := false
+	for i in 80:
+		s.step()
+		var fresh := false
+		for ev in s.events:
+			if ev.get("kind") == EVS.BREACH:
+				fresh = true
+		if fresh:
+			spread_ok = s.units[sc["idx"][1]].breach == D.BREACH_TICKS and s.units[sc["idx"][2]].breach == D.BREACH_TICKS and s.units[sc["idx"][3]].breach == 0
+			break
+	ok(spread_ok, "破陣擴散：1 格內的盾兵／長槍兵一起破陣、遠的不會")
+	# 破陣中受到的傷害 ×BREACH_VULN：同一把劍打破陣的盾兵比較痛
+	var dm := []
+	for br in [0, 5000]:
+		sc = sim_at([[D.SWORD, 0, 6000, 4500], [D.SHIELD, 1, 6650, 4500]])
+		s = sc["s"]
+		s.units[sc["idx"][1]].breach = br
+		var hs := count_kind(s, EVS.BREAKER, 40, s.units[sc["idx"][0]].id)
+		dm.append(int(hs[0]["dmg"]) if not hs.is_empty() else -1)
+	ok(dm[0] > 0 and dm[1] == dm[0] * D.BREACH_VULN_NUM / D.BREACH_VULN_DEN, "破陣中受到的傷害 ×%d/%d" % [D.BREACH_VULN_NUM, D.BREACH_VULN_DEN], str(dm))
 	# 破陣的盾兵不嘲諷：劍士選目標時不會被它吸走
 	# 對照組：沒破陣時，2 格內的盾兵會把劍士吸走（即使弓箭手更近）
 	sc = sim_at([[D.SWORD, 0, 6000, 4500], [D.SHIELD, 1, 7200, 3400], [D.ARCHER, 1, 6900, 4500]])

@@ -401,16 +401,17 @@ func step() -> void:
 			var bd2 := M.dist2(u.x, u.y, tg.x, tg.y)
 			if bd2 < D.BOMB_MIN * D.BOMB_MIN or bd2 > u.reach * u.reach:
 				continue
-			hits.append([i, u.target, u.atk * (D.BOMB_SHIELD_NUM if tg.type == D.SHIELD else 1), EV.BOMB, [EV.BOMB]])
+			hits.append([i, u.target, _vuln(tg, u.atk * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if tg.type == D.SHIELD else u.atk), EV.BOMB, [EV.BOMB]])
 			for j in _splash_victims(u.target, st, sv):
-				hits.append([i, j, D.SPLASH_DMG * (D.BOMB_SHIELD_NUM if units[j].type == D.SHIELD else 1), EV.SPLASH, [EV.SPLASH]])
+				var sj := units[j]
+				hits.append([i, j, _vuln(sj, D.SPLASH_DMG * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if sj.type == D.SHIELD else D.SPLASH_DMG), EV.SPLASH, [EV.SPLASH]])
 			attacked[i] = 1
 			u.cd += u.cd_base * 4
 			continue
 		if u.type == D.BOMBER and u.bmode == 2:
 			if M.dist2(u.x, u.y, tg.x, tg.y) > D.BONK_REACH * D.BONK_REACH:
 				continue
-			hits.append([i, u.target, D.BONK_ATK, EV.BONK, [EV.BONK]])
+			hits.append([i, u.target, _vuln(tg, D.BONK_ATK), EV.BONK, [EV.BONK]])
 			attacked[i] = 1
 			u.cd += D.BONK_CD * 4
 			continue
@@ -431,6 +432,12 @@ func step() -> void:
 			tags.append(EV.ANTICAV)
 		elif u.type == D.BERSERKER and (tg.type == D.SHIELD or tg.type == D.PIKE):
 			breach_set[u.target] = true
+			# 破陣擴散：目標 ④ 位置 1 格內、同隊、活著的其他盾兵／長槍兵一起破陣（集合，與順序無關）
+			for j in n:
+				var o := units[j]
+				if j != u.target and o.alive and o.team == tg.team and (o.type == D.SHIELD or o.type == D.PIKE) \
+						and M.dist2(o.x, o.y, tg.x, tg.y) <= D.BREACH_SPREAD * D.BREACH_SPREAD:
+					breach_set[j] = true
 			tags.append(EV.BREACH)
 			if tg.breach == 0:
 				kind = EV.BREACH   # 只有「剛被破陣」那一下算破陣事件（跳字、戰報）；刷新時標籤照帶
@@ -485,7 +492,7 @@ func step() -> void:
 				sword_hit_by[u.target].append(i)
 		if tags.is_empty():
 			tags.append(EV.HIT)
-		hits.append([i, u.target, dmg, kind, tags])
+		hits.append([i, u.target, _vuln(tg, dmg), kind, tags])
 		attacked[i] = 1
 		u.cd += u.cd_base * 4
 		if u.type == D.CAVALRY:
@@ -774,6 +781,10 @@ func _apply_heals(heals: Array) -> void:
 		tg.hp += real
 		units[h[0]].heal_done += real
 		events.append({"kind": EV.HEAL, "src": units[h[0]].id, "tgt": tg.id, "amt": real, "tags": [EV.HEAL]})
+
+## 破陣中受到的傷害 ×BREACH_VULN（用 ④ 當下的破陣狀態；這一 tick 才被破陣的，下一 tick 起才吃加成）。
+static func _vuln(tg, dmg: int) -> int:
+	return dmg * D.BREACH_VULN_NUM / D.BREACH_VULN_DEN if tg.breach > 0 else dmg
 
 ## 補血記功的平手：距離² → 列 → 深度 → 部署格（都是 ④ 存下來的值）。
 static func _heal_key_less(a: Array, b: Array) -> bool:
