@@ -92,6 +92,14 @@ func validate(pz: Dictionary, samples: int) -> Dictionary:
 	var min_rate := 1 if pz.get("trial", false) else 2
 	if pz.get("trial", false) and not three_star:
 		for sol in pz.get("solutions", []):
+			var chk: Army = P.player_army(pz)
+			var legal := true
+			for e in sol:
+				if chk.check_place(int(e[0]), int(e[1]), int(e[2])) != "" or not pz["allowed"].has(float(e[0])) and not pz["allowed"].has(int(e[0])):
+					legal = false
+				chk.place(int(e[0]), int(e[1]), int(e[2]))
+			if not legal:
+				continue   # 不合法的標準解不能拿來證明三星可達（Codex 第 3 輪 #7）
 			var ss := run(pz, sol)
 			var sp := 0
 			for e in sol:

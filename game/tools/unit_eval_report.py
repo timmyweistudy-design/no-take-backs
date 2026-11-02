@@ -61,6 +61,8 @@ def check_rows(m, mode, got, man):
             bad.append(f"模式不符 {r.get('mode')}")
         if r.get("rules") != c["rules"] or r.get("digest") != c["digest"]:
             bad.append(f"規則或數值摘要和契約不同（{r.get('rules')}/{r.get('digest')}）")
+        if "code" in c and r.get("src") != c["code"]:
+            bad.append(f"程式身分和契約不同（{r.get('src')} ≠ {c['code']}）")
         if unit is not None and r.get("unit") != unit:
             bad.append(f"兵種不符 {r.get('unit')}")
         if mode != "core" and r.get("nt") != man["ntypes"]:
@@ -86,6 +88,9 @@ def check_rows(m, mode, got, man):
             bad.append("有重複的列")
         if set(have) != want:
             bad.append(f"鍵集合不對（少 {len(want - set(have))}、多 {len(set(have) - want)}）")
+        badf = [r for r in data if r.get("opp") != (r["i"] * 7 + r["k"] * 31) % 200]
+        if badf:
+            bad.append(f"有 {len(badf)} 列對手編號不符公式")
         opp = {}
         for r in data:
             opp.setdefault((r["i"], r["k"]), set()).add(r.get("opp"))
@@ -100,6 +105,15 @@ def check_rows(m, mode, got, man):
         wrong = [r for r in got if r.get("have") != r.get("kk")]
         if wrong:
             bad.append(f"有 {len(wrong)} 列實際支援兵數 ≠ 要求")
+        # 對手配對（Codex 第 3 輪 #3）：對手要照公式、同一套陣型的 4 個對手互不相同
+        badopp = [r for r in got if r.get("opp") != (r["i"] * 11 + r["k"] * 37) % 200]
+        if badopp:
+            bad.append(f"有 {len(badopp)} 列對手編號不符公式")
+        per_i = {}
+        for r in got:
+            per_i.setdefault(r["i"], set()).add(r.get("opp"))
+        if any(len(v) != 4 for v in per_i.values()):
+            bad.append("有陣型的 4 個對手不是互不相同")
     elif mode == "core":
         have = [(r["r"], r["seed"]) for r in got]
         if len(set(have)) != len(have) or set(have) != {(ri, sd) for ri in range(len(CORE)) for sd in range(40)}:

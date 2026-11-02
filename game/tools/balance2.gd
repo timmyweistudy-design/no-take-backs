@@ -30,6 +30,7 @@ func _init() -> void:
 		"matrix": matrix(shard, shards)
 		"league": league(shard, shards)
 		"valleague": league(shard, shards, true)
+		"sealleague": league(shard, shards, true, true)   # 第四輪 §3.4：封存終驗池，只在最後跑一次
 		"turns": turns(shard, shards)
 		"search": search(shard, shards)
 		"counter": counter(shard, shards)
@@ -86,8 +87,8 @@ func matrix(shard: int, shards: int) -> void:
 			r["mode"] = "matrix"; r["a"] = i; r["b"] = j
 			emit(r)
 
-func league(shard: int, shards: int, val := false) -> void:
-	var pool := F.validation_pool(0, NT) if val else F.training_pool(0, NT)
+func league(shard: int, shards: int, val := false, sealed := false) -> void:
+	var pool := F.sealed_pool(0, NT) if sealed else (F.validation_pool(0, NT) if val else F.training_pool(0, NT))
 	for i in pool.size():
 		if i % shards != shard:
 			continue
@@ -100,7 +101,7 @@ func league(shard: int, shards: int, val := false) -> void:
 				var r := fight(pool[i], pool[j]) if side == 0 else fight(pool[j], pool[i])
 				if side == 1:
 					r["res"] = -r["res"]
-				r["mode"] = "valleague" if val else "league"; r["a"] = i; r["b"] = j; r["k"] = k; r["side"] = side; r["comp"] = F.composition(pool[i])
+				r["mode"] = "sealleague" if sealed else ("valleague" if val else "league"); r["a"] = i; r["b"] = j; r["k"] = k; r["side"] = side; r["comp"] = F.composition(pool[i])
 				emit(r)
 
 func turns(shard: int, shards: int) -> void:

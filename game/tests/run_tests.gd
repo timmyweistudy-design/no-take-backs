@@ -1569,6 +1569,41 @@ func test_new_units() -> void:
 			spread_ok = s.units[sc["idx"][1]].breach == D.BREACH_TICKS and s.units[sc["idx"][2]].breach == D.BREACH_TICKS and s.units[sc["idx"][3]].breach == 0
 			break
 	ok(spread_ok, "破陣擴散：1 格內的盾兵／長槍兵一起破陣、遠的不會")
+	# 剛被破陣的那一 tick 不增傷（用 ④ 當下的狀態），下一次才吃加成；投彈兵打破陣的盾兵：×BOMB_SHIELD 再 ×BREACH_VULN（Codex 第 3 輪 #5）
+	sc = sim_at([[D.BERSERKER, 0, 6000, 4500], [D.SHIELD, 1, 6700, 4500], [D.ARCHER, 1, 14000, 4500]])
+	s = sc["s"]
+	var first_dmg := -1
+	for i in 60:
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.BREACH:
+				first_dmg = int(ev["dmg"])
+		if first_dmg >= 0:
+			break
+	ok(first_dmg == D.STATS[D.BERSERKER]["atk"], "剛被破陣的那一擊不增傷", "dmg=%d" % first_dmg)
+	sc = sim_at([[D.BOMBER, 0, 2500, 4500], [D.SHIELD, 1, 6500, 4500], [D.SHIELD, 1, 6500, 3900]])
+	s = sc["s"]
+	s.units[sc["idx"][1]].breach = 5000
+	s.units[sc["idx"][2]].breach = 5000
+	var bb := count_kind(s, EVS.BOMB, 60)
+	var want := D.STATS[D.BOMBER]["atk"] * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN * D.BREACH_VULN_NUM / D.BREACH_VULN_DEN
+	ok(not bb.is_empty() and bb[0]["dmg"] == want, "投彈兵打破陣的盾兵：打盾倍率再乘破陣增傷", "%s want=%d" % [bb.slice(0, 1), want])
+	# 擴散半徑剛好在邊界上算（≤），超過 1 單位不算
+	sc = sim_at([[D.BERSERKER, 0, 6000, 4500], [D.SHIELD, 1, 6700, 4500], [D.SHIELD, 1, 6700, 4500 + D.BREACH_SPREAD], [D.SHIELD, 1, 6700, 4500 - D.BREACH_SPREAD - 1], [D.ARCHER, 1, 14000, 4500]])
+	s = sc["s"]
+	for k in [1, 2, 3]:
+		s.units[sc["idx"][k]].stun = 5000   # 盾兵站著不動，距離才準
+	var edge_ok := false
+	for i in 60:
+		s.step()
+		var fresh2 := false
+		for ev in s.events:
+			if ev.get("kind") == EVS.BREACH:
+				fresh2 = true
+		if fresh2:
+			edge_ok = s.units[sc["idx"][2]].breach == D.BREACH_TICKS and s.units[sc["idx"][3]].breach == 0
+			break
+	ok(edge_ok, "破陣擴散：剛好 BREACH_SPREAD 算、多 1 不算")
 	# 破陣中受到的傷害 ×BREACH_VULN：同一把劍打破陣的盾兵比較痛
 	var dm := []
 	for br in [0, 5000]:

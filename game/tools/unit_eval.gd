@@ -42,7 +42,7 @@ func _init() -> void:
 		"cover": cover(int(args.get("unit", "7")), nt, shard, shards)
 		"contract":
 			# 實驗契約（Codex 實作審查第 2 輪 #7）：規則、數值摘要、兩個對手池的身分；報表逐列核對
-			print("CONTRACT ", JSON.stringify({"rules": D.RULES_VERSION, "digest": D.data_digest(), "ntypes": nt,
+			print("CONTRACT ", JSON.stringify({"rules": D.RULES_VERSION, "digest": D.data_digest(), "ntypes": nt, "code": code_hash(),
 				"pool_val": pool_hash(F.validation_pool(0, nt)), "pool_shield": pool_hash(shield_pool(200))}))
 	quit(0)
 
@@ -55,9 +55,22 @@ static func pool_hash(opps: Array) -> String:
 		parts.append(a.to_code())
 	return ",".join(parts).sha256_text().substr(0, 12)
 
+## 程式身分（Codex 第 3 輪 #2）：模擬、數值、陣型產生器、AI、本工具的原始碼 SHA-256 前 12 碼；每列都帶，報表核對和契約相同。
+static func code_hash() -> String:
+	var txt := ""
+	for p in ["res://scripts/core/battle_sim.gd", "res://scripts/core/unit_defs.gd", "res://scripts/core/formations.gd", "res://scripts/core/army.gd",
+			"res://scripts/core/ai_army.gd", "res://scripts/core/imath.gd", "res://tools/unit_eval.gd"]:
+		txt += FileAccess.get_file_as_string(p)
+	return txt.sha256_text().substr(0, 12)
+
+static var _code := ""
+
 func emit(d: Dictionary) -> void:
+	if _code == "":
+		_code = code_hash()
 	d["digest"] = D.data_digest()
 	d["rules"] = D.RULES_VERSION
+	d["src"] = _code
 	if pool_id != "":
 		d["pool"] = pool_id
 	print("R ", JSON.stringify(d))
