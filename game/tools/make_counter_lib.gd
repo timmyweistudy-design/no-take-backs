@@ -4,7 +4,7 @@ extends SceneTree
 ## ・原型陣＝AI 的 6 種模板 × 4 個種子＝24 種（不同主力兵種、不同排法）
 ## ・每個原型在訓練池 200 套裡找「交換左右各打一場」勝最多的當反制；兩邊都要贏才收（勝率 ≥0.75）
 ## ・檔案記下規則版本、數值摘要、產生參數；遊戲讀到版本不符就不用它（退回啟發式），不會用到過期的反制
-## ・另外量：困難 AI（有反制庫＋讀上一局）對驗證池 100 套的勝率，要高於普通 AI，附 95% 區間
+## ・另外量：困難 AI（scripts/core/hard_ai.gd：反制庫＋模板＋落子 AI 候選，和上一局模擬後挑最好的）對驗證池 100 套的勝率，要高於普通 AI
 ## 用法：godot --headless --path game --script res://tools/make_counter_lib.gd
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const Army = preload("res://scripts/core/army.gd")
@@ -12,6 +12,7 @@ const AI = preload("res://scripts/core/ai_army.gd")
 const AIT = preload("res://scripts/core/ai_turns.gd")
 const F = preload("res://scripts/core/formations.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
+const HardAI = preload("res://scripts/core/hard_ai.gd")
 const PATH := "res://data/counter_lib.json"
 const SEEDS := 4
 const MIN_FIT := 0.75
@@ -54,10 +55,8 @@ func _init() -> void:
 		var player: Army = val[i]
 		rng.seed = 777 + i
 		var normal: Army = AI.build(1, 100, rng)["army"]
-		var hard: Army = pick(entries, F.composition(player))
-		if hard == null:
-			rng.seed = 777 + i
-			hard = AIT.build_full(1, rng, 2, player.units)
+		rng.seed = 777 + i
+		var hard: Army = HardAI.build(player.units, entries, rng)   # 和遊戲同一個函式（第四輪）
 		hard_w += 1.0 - duel(player, hard.mirrored())
 		norm_w += 1.0 - duel(player, normal.mirrored())
 		n += 1

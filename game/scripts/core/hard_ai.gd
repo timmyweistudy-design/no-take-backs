@@ -1,0 +1,67 @@
+extends RefCounted
+## 困難 AI（第四輪）：真的「讀你上一局」。
+## 第 1 局沒有資訊 → 用原型模板組（和普通 AI 同一套，不會比普通弱）。
+## 第 2 局起 → 準備幾個候選陣型（反制庫裡最接近的那筆、兩套模板陣、會讀對方的落子 AI 陣），
+## 各拿去和你上一局的陣型模擬一場，挑打得最好的。只看你「上一局」公開過的陣型，不偷看這一局。
+## 遊戲（game_screens._hard_ai）和反制庫驗證（tools/make_counter_lib.gd）共用這一個函式。
+## 第三輪的做法（查不到反制就退回落子 AI）在第四輪新模板加入後，對驗證池反而比普通 AI 弱（73.0% vs 74.0%），所以改成這樣。
+
+const D = preload("res://scripts/core/unit_defs.gd")
+const Army = preload("res://scripts/core/army.gd")
+const Sim = preload("res://scripts/core/battle_sim.gd")
+const AI = preload("res://scripts/core/ai_army.gd")
+const AIT = preload("res://scripts/core/ai_turns.gd")
+const F = preload("res://scripts/core/formations.gd")
+
+## known：玩家上一局的兵（藍方座標）；entries：反制庫；回傳紅方陣型。
+static func build(known: Array, entries: Array, rng: RandomNumberGenerator, ntypes := D.COUNT) -> Army:
+	var cands: Array = []
+	cands.append(AI.build(1, 100, rng, -1, ntypes)["army"])
+	if known.is_empty():
+		return cands[0]
+	cands.append(AI.build(1, 100, rng, -1, ntypes)["army"])
+	cands.append(AIT.build_full(1, rng, 2, known, ntypes))
+	var lib := pick_counter(entries, known, ntypes)
+	if lib != null:
+		cands.append(lib)
+	var me := Army.new(0, 100)
+	for u in known:
+		me.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+	var best: Army = cands[0]
+	var bs := -(1 << 40)
+	for c in cands:
+		var s = Sim.new(me.copy(), c.copy())
+		s.fast = true
+		s.run_to_end()
+		var sc: int = (1000000 + s.power(1)) if s.winner == 1 else (s.power(1) - s.power(0))
+		if sc > bs:
+			bs = sc
+			best = c
+	return best
+
+## 反制庫：組成最接近玩家陣型的原型的反制（距離 ≤40）；用到未開放兵種的不算。
+static func pick_counter(entries: Array, known: Array, ntypes: int) -> Army:
+	if entries.is_empty():
+		return null
+	var mine := D.zeros()
+	for u in known:
+		mine[int(u["type"])] += D.cost(int(u["type"]))
+	var best = null
+	var bd := 1 << 30
+	for e in entries:
+		var pc: Array = e["proto_comp"]
+		var d := 0
+		for k in mine.size():
+			d += absi((int(pc[k]) if k < pc.size() else 0) - int(mine[k]))
+		if d < bd:
+			bd = d
+			best = e
+	if best == null or bd > 40:
+		return null
+	var a := Army.new(1, 100)
+	if a.load_code(str(best["code"])) != "":
+		return null
+	for u in a.units:
+		if int(u["type"]) >= ntypes:
+			return null
+	return a

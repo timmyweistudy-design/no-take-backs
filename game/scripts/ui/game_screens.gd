@@ -225,28 +225,9 @@ func _on_start() -> void:
 ## 困難 AI：第 1 局沒有資訊，用會讀對方的落子 AI 自己組；之後讀你上一局的陣型，
 ## 先查離線反制庫（組成最接近的原型），查不到就用啟發式反制。不偷看你這一局。
 func _hard_ai(r: RandomNumberGenerator) -> Army:
+	# 第四輪：候選陣型各和你上一局的陣型模擬一場，挑最好的（scripts/core/hard_ai.gd）
 	var known: Array = last_player_formation if round_no > 1 else []
-	if not known.is_empty():
-		var lib := _counter_lib()
-		if not lib.is_empty():
-			var mine := D.zeros()
-			for u in known:
-				mine[u["type"]] += D.cost(u["type"])
-			var best = null
-			var bd := 1 << 30
-			for e in lib:
-				var d := 0
-				var pc: Array = e["proto_comp"]
-				for k in mine.size():
-					d += absi((int(pc[k]) if k < pc.size() else 0) - mine[k])
-				if d < bd:
-					bd = d
-					best = e
-			if best != null and bd <= 40:
-				var a := Army.new(1, 100)
-				if a.load_code(best["code"]) == "" and _types_ok(a):
-					return a
-	return AIT.build_full(1, r, 2, known, _ntypes())
+	return HardAI.build(known, _counter_lib(), r, _ntypes())
 
 
 ## 反制庫的陣型只能用這場開放的兵種（第四輪：不會拿你還沒解鎖的兵打你）。
