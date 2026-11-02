@@ -107,7 +107,7 @@ const BONK_REACH := 700
 const BONK_CD := 24
 
 # ─── 醫者（第四輪）───
-const HEAL_AMT := 22            # 每次補血量（狂熱時減半）
+const HEAL_AMT := 19            # 每次補血量（狂熱時減半）
 const HEAL_CD := 30             # 補血間隔（tick），不吃任何加速
 const HEAL_FIRST := 20          # 開戰後第一次補血前的等待
 const HEAL_RANGE := 3000        # 補血距離

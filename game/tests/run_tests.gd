@@ -28,6 +28,11 @@ func ok(cond: bool, name: String, extra := "") -> void:
 
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
+	if "--only=ui" in OS.get_cmdline_user_args():
+		test_ui_consumers()
+		print("—— %d 通過 / %d 失敗" % [passed, failed])
+		quit(0)
+		return
 	if "--only=new" in OS.get_cmdline_user_args():
 		test_new_units()
 		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
@@ -481,7 +486,7 @@ func test_codex() -> void:
 			var d := CX.skill_desc(sk, lang)
 			if d.contains("{") or d.contains("}"):
 				bad.append("%s 說明有沒換掉的常數：%s" % [sk, d])
-	ok(n == 14 and bad.is_empty(), "14 個技能示範都觸發預期事件、說明數值都換好", str(bad))
+	ok(n == 25 and bad.is_empty(), "25 個技能示範都觸發預期事件、說明數值都換好", str(bad))
 	# 小劇場跳字的位置要是觸發者本人（事件 id ≠ 陣列索引；Codex R3 審查 #2）
 	var pop_bad: Array = []
 	for sk in CX.data()["skills"]:
@@ -591,11 +596,11 @@ func test_ui_consumers() -> void:
 					srcs[f["src"]] = int(srcs.get(f["src"], 0)) + 1
 			for e in g.view.events:
 				kinds[e["kind"]] = true
-				if g.event_route(e) == "attack":
+				if g.event_route(e) == "attack" and e["kind"] != EVS.SPLASH:   # 波及跟著同一顆炸彈的爆炸演出，不另畫
 					n_att += 1
 					# 逐事件核對：每一次攻擊都要有一個屬於攻擊者的砍擊／箭（Codex 收尾輪 #5）
 					if int(srcs.get(e["src"], 0)) <= 0:
-						bad.append("tick%d 單位 %d 的攻擊沒有演出" % [g.view.tick, e["src"]])
+						bad.append("tick%d 單位 %d 的攻擊（%s）沒有演出" % [g.view.tick, e["src"], e["kind"]])
 					else:
 						srcs[e["src"]] -= 1
 			attacks += n_att
