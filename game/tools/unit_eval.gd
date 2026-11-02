@@ -42,8 +42,20 @@ func _init() -> void:
 		"cover": cover(int(args.get("unit", "7")), nt, shard, shards)
 	quit(0)
 
+var pool_id := ""
+
+## 對手池的身分：池內全部陣型代碼的 SHA-256 前 12 碼（每列都帶，報表核對同一模式只有一個池；Codex 實作審查 #7）
+static func pool_hash(opps: Array) -> String:
+	var parts := PackedStringArray()
+	for a in opps:
+		parts.append(a.to_code())
+	return ",".join(parts).sha256_text().substr(0, 12)
+
 func emit(d: Dictionary) -> void:
 	d["digest"] = D.data_digest()
+	d["rules"] = D.RULES_VERSION
+	if pool_id != "":
+		d["pool"] = pool_id
 	print("R ", JSON.stringify(d))
 
 ## a 是藍方表示的陣型（team 0）、b 也是；交換左右各打一場。回傳 a 的得分列表 [第一場, 第二場]（1／0.5／0）。
@@ -139,6 +151,7 @@ static func shield_pool(n: int) -> Array:
 
 func repl(x: int, nt: int, shard: int, shards: int, vs_shield := false) -> void:
 	var opps := shield_pool(200) if vs_shield else F.validation_pool(0, nt)
+	pool_id = pool_hash(opps)
 	var mname := "replshield" if vs_shield else "repl"
 	var idx := 0
 	for i in REPL_N:
@@ -147,15 +160,15 @@ func repl(x: int, nt: int, shard: int, shards: int, vs_shield := false) -> void:
 			continue
 		var orig := with_unit(x, nt, i)
 		if orig == null:
-			emit({"mode": mname, "unit": x, "i": i, "skip": "no_unit"})
+			emit({"mode": mname, "unit": x, "i": i, "skip": "no_unit", "nt": nt})
 			continue
 		var variants := {"orig": orig, "a": refill(orig, x, most_common_other(orig, x)), "b": refill(orig, x, D.SWORD), "c": refill(orig, x, D.ARCHER)}
 		for k in REPL_OPPS:
 			var opp: Army = opps[(i * 7 + k * 31) % opps.size()]
 			for pol in ["orig", "a", "b", "c"]:
 				var sc := duel2(variants[pol], opp)
-				emit({"mode": mname, "unit": x, "i": i, "k": k, "pol": pol, "s0": sc[0], "s1": sc[1],
-					"left": variants[pol].left(), "n": variants[pol].count()})
+				emit({"mode": mname, "unit": x, "i": i, "k": k, "opp": (i * 7 + k * 31) % opps.size(), "pol": pol, "s0": sc[0], "s1": sc[1],
+					"left": variants[pol].left(), "n": variants[pol].count(), "nt": nt, "code": variants[pol].to_code() if k == 0 else ""})
 
 ## 從後排（離自己底線近）、兩邊往中間拿掉戰鬥兵，直到空出 need 金；再把 k 隻支援兵照角色欄位擺上。
 static func with_supports(base: Army, sup: int, k: int) -> Army:
@@ -175,6 +188,7 @@ static func with_supports(base: Army, sup: int, k: int) -> Army:
 
 func cover(sup: int, nt: int, shard: int, shards: int) -> void:
 	var opps := F.validation_pool(0, nt)
+	pool_id = pool_hash(opps)
 	var idx := 0
 	for i in COVER_N:
 		idx += 1
@@ -194,4 +208,4 @@ func cover(sup: int, nt: int, shard: int, shards: int) -> void:
 			for k in COVER_OPPS:
 				var opp: Army = opps[(i * 11 + k * 37) % opps.size()]
 				var sc := duel2(v, opp)
-				emit({"mode": "cover", "unit": sup, "i": i, "kk": kk, "k": k, "s0": sc[0], "s1": sc[1], "have": v.count_of(sup)})
+				emit({"mode": "cover", "unit": sup, "i": i, "kk": kk, "k": k, "opp": (i * 11 + k * 37) % opps.size(), "s0": sc[0], "s1": sc[1], "have": v.count_of(sup), "nt": nt})

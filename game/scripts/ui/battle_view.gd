@@ -139,7 +139,14 @@ func _collect_mark(ev: Dictionary, lookup, tick: int) -> void:
 func _pump_view() -> void:
 	for fr in view.pump(sim):
 		for e in fr["events"]:
-			if event_route(e) == "attack":
+			# 第四輪：補血、戰鼓也走出手動畫；被貼身敲人、破陣、補血、戰鼓用專屬動作（variant 2）
+			if e["kind"] == EV.HEAL or e["kind"] == EV.DRUM or e["kind"] == EV.BONK or e.get("tags", []).has(EV.BREACH):
+				var ah: Dictionary = alt_hit.get(e["src"], {})
+				ah[int(fr["tick"])] = true
+				if ah.size() > 8:
+					ah.erase(ah.keys().min())
+				alt_hit[e["src"]] = ah
+			if event_route(e) == "attack" or e["kind"] == EV.HEAL or e["kind"] == EV.DRUM:
 				var hs: Array = atk_hit.get(e["src"], [])
 				hs.append(int(fr["tick"]))
 				if e["kind"] == EV.BOMB:
@@ -262,6 +269,10 @@ func _flame(c: Vector2, sc: float) -> void:
 	var fl := sin(time * 14.0) * 1.5
 	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -11 - fl) * sc, c + Vector2(6, 2) * sc, c + Vector2(0, 7) * sc, c + Vector2(-6, 2) * sc]), Color(1, 0.4, 0.1))
 	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -5 - fl * 0.5) * sc, c + Vector2(3, 3) * sc, c + Vector2(0, 6) * sc, c + Vector2(-3, 3) * sc]), Color(1, 0.85, 0.3))
+
+
+static func _smoothstep01(x: float) -> float:
+	return x * x * (3.0 - 2.0 * x)
 
 
 ## 小十字（補血）。
@@ -394,6 +405,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			label = L.t("ev_pike_brace")
 			col = Color("#ffd166")
 			sfx.play("bell", 0.8)
+			brace_t[t.id] = time   # 長槍兵頓槍（M_BRACE 疊加：槍尖銀光）
 			_add_fx({"kind": "hex", "p": tpos + Vector2(10 * signf(sp.x - tpos.x), -24), "t": 0.0, "dur": 0.45})
 		EV.BREACH:
 			label = L.t("ev_breach")
@@ -413,7 +425,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 ## ・上限：戰場上同時最多 TEXT_CAP 個，超過時丟最舊的一般跳字
 ## ・避讓：每幀用「含描邊的實際外框」排版（_layout_texts）：關鍵、新的先佔位，其他重疊就往上推
 const TEXT_CAP := 12
-const TEXT_TIER := {"charge": 2, "backstab": 2, "braced": 2, "anticav": 1, "counter": 1, "pike_brace": 2, "breach": 2, "heal": 0}
+const TEXT_TIER := {"charge": 2, "backstab": 2, "braced": 2, "anticav": 1, "counter": 1, "pike_brace": 2, "breach": 1, "heal": 0}
 const TEXT_CELL := Vector2(48, 32)
 var text_dropped := 0          # 被上限丟掉的跳字數（測試對帳用）
 
@@ -869,6 +881,8 @@ func _draw_units_of(s, dim: bool) -> void:
 						pot_draw.append(pp)
 				if u.type == D.SWORD:
 					variant = int(atk_seq.get(u.id, {}).get(h, 0)) % 2   # 劍士橫斬與上挑逐擊交替（第三輪 R4）
+				elif u.type >= D.CLASSIC and alt_hit.get(u.id, {}).has(h):
+					variant = 2
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
 			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
@@ -960,17 +974,25 @@ func _draw_units_of(s, dim: bool) -> void:
 		if live and s.rally[u.team]:
 			draw_arc(p + Vector2(0, -24), 22.0, 0, TAU, 20, Color(1, 0.45, 0.2, 0.35 + 0.15 * sin(time * 8)), 2.5, true)
 		if live and "breach" in u and u.breach > 0:
-			# 破陣（第四輪 §4.4）：盾面裂痕＋頭上碎盾圖示，持續到破陣結束
-			var cp := p + Vector2(10 * (signf(u.fx) if u.fx != 0 else 1.0), -26)
-			draw_polyline(PackedVector2Array([cp + Vector2(-3, -9), cp + Vector2(1, -3), cp + Vector2(-2, 2), cp + Vector2(2, 8)]), Color(0.1, 0.08, 0.12, 0.9), 2.0, true)
-			var ic := p + Vector2(10, -72 if u.type == D.CAVALRY else -64)
-			draw_colored_polygon(PackedVector2Array([ic + Vector2(-5, -6), ic + Vector2(-1, -6), ic + Vector2(-2, 6), ic + Vector2(-5, 3)]), Color("#ff7a3d"))
-			draw_colored_polygon(PackedVector2Array([ic + Vector2(1, -6), ic + Vector2(5, -6), ic + Vector2(5, 3), ic + Vector2(2, 6)]), Color("#ff7a3d"))
+			# 破陣（第四輪 §4.4）：盾面黑色 Z 字裂紋＋血條右邊一個帶黑邊的亮橘裂盾圖示，持續到破陣結束（Antigravity：原本太小看不到）
+			var cp := p + Vector2(12 * (signf(u.fx) if u.fx != 0 else 1.0), -26)
+			draw_polyline(PackedVector2Array([cp + Vector2(-4, -11), cp + Vector2(2, -4), cp + Vector2(-3, 2), cp + Vector2(3, 10)]), Color(0.08, 0.06, 0.1, 0.95), 3.0, true)
+			var ic := p + Vector2(24, -60)
+			var lh := PackedVector2Array([ic + Vector2(-8, -9), ic + Vector2(-1, -9), ic + Vector2(-3, 1), ic + Vector2(-1, 9), ic + Vector2(-8, 4)])
+			var rh := PackedVector2Array([ic + Vector2(1, -9), ic + Vector2(8, -9), ic + Vector2(8, 4), ic + Vector2(1, 9), ic + Vector2(3, 1)])
+			for hp in [lh, rh]:
+				var cl: PackedVector2Array = hp.duplicate()
+				cl.append(hp[0])
+				draw_polyline(cl, Art.OUT, 3.0, true)
+				draw_colored_polygon(hp, Color("#ff6a2a"))
 		if live and "aura" in u and u.aura > 0 and u.type != D.DRUMMER:
-			# 鼓舞：腳底兩顆小金點輕閃（不畫大圈，避免畫面太吵）
-			var gl := 0.45 + 0.35 * sin(time * 6.0 + u.id)
-			draw_circle(p + Vector2(-7, 3), 1.8, Color(1, 0.85, 0.35, gl), true, -1.0, true)
-			draw_circle(p + Vector2(7, 3), 1.8, Color(1, 0.85, 0.35, gl), true, -1.0, true)
+			# 鼓舞：2 顆亮金小菱形沿腳底圈往上飄（不畫大圈，避免畫面太吵；Antigravity：原本的小金點看不到）
+			for j in 2:
+				var ph := fmod(time * 0.9 + j * 0.5 + u.id * 0.13, 1.0)
+				var dp := p + Vector2((-1.0 if j == 0 else 1.0) * 14.0, 2.0 - ph * 22.0)
+				var ds := 3.6
+				var dpoly := PackedVector2Array([dp + Vector2(0, -ds), dp + Vector2(ds * 0.7, 0), dp + Vector2(0, ds), dp + Vector2(-ds * 0.7, 0)])
+				draw_colored_polygon(dpoly, Color(1, 0.86, 0.3, 0.95 * (1.0 - ph)))
 		if live and u.type == D.DRUMMER and s.tick < 60 and u.alive:
 			# 開戰前 3 秒畫完整的戰鼓範圍
 			draw_arc(p, D.DRUM_RANGE * CS / 1000.0, 0, TAU, 40, Color(1, 0.85, 0.35, 0.35), 2.0, true)
@@ -1118,15 +1140,23 @@ func _draw_fx(f: Dictionary) -> void:
 				draw_circle(f["p"] + Vector2(cos(ang2), sin(ang2) * 0.7) * (6 + k * 22), 7 * (1 - k), Color(0.62, 0.45, 0.85, 0.7 * (1 - k)), true, -1.0, true)
 		"boom":
 			# 爆炸：橘紅鋸齒爆裂圈＋黑煙圈（和平滑同心圓區分，第四輪 §4.4）
-			var bp: Vector2 = f["p"]
-			var br := 10.0 + k * 34.0
+			# 爆炸（Antigravity 實作審查：原本像同心圓標靶）：10 尖角的鋸齒星芒＋黃白核心＋4 團往外散的灰煙
+			var bp: Vector2 = f["p"] + Vector2(0, -14)
+			var br := 14.0 + _smoothstep01(k) * 26.0
 			var spikes := PackedVector2Array()
-			for i in 16:
-				var an := i * TAU / 16.0
-				var rr := br * (1.0 if i % 2 == 0 else 0.62)
-				spikes.append(bp + Vector2(cos(an) * rr, sin(an) * rr * 0.55))
-			draw_colored_polygon(spikes, Color(1.0, 0.45 + 0.3 * (1.0 - k), 0.15, 0.85 * (1.0 - k)))
-			draw_arc(bp + Vector2(0, -k * 18.0), 8.0 + k * 22.0, 0, TAU, 18, Color(0.18, 0.15, 0.2, 0.55 * (1.0 - k)), 5.0, true)
+			for i in 20:
+				var an := i * TAU / 20.0 + 0.2
+				var rr := br * (1.0 if i % 2 == 0 else 0.5)
+				spikes.append(bp + Vector2(cos(an) * rr, sin(an) * rr * 0.8))
+			var fa := 1.0 - k * k
+			draw_colored_polygon(spikes, Color(1.0, 0.42, 0.12, 0.92 * fa))
+			for i in 20:
+				spikes[i] = bp + (spikes[i] - bp) * 0.55
+			draw_colored_polygon(spikes, Color(1.0, 0.86, 0.35, 0.95 * fa))
+			for i in 4:
+				var pa := i * TAU / 4.0 + 0.6
+				var pp := bp + Vector2(cos(pa) * (8.0 + k * 30.0), sin(pa) * (6.0 + k * 20.0) - k * 10.0)
+				draw_circle(pp, 6.0 + k * 5.0, Color(0.25, 0.22, 0.27, 0.6 * (1.0 - k)), true, -1.0, true)
 		"healarc":
 			var ha: Vector2 = f["a"]
 			var hb: Vector2 = f["b"]
@@ -1137,11 +1167,17 @@ func _draw_fx(f: Dictionary) -> void:
 			draw_polyline(pts, Color(0.5, 1.0, 0.6, 0.7 * (1.0 - k)), 2.5, true)
 			_cross(hb + Vector2(0, -k * 14.0), 5.0, Color(0.5, 1.0, 0.6, 1.0 - k))
 		"note":
-			var np: Vector2 = f["p"] + Vector2(sin(k * 6.0) * 3.0, -k * 18.0)
-			var nc := Color(1.0, 0.86, 0.4, 1.0 - k)
-			draw_circle(np, 3.2, nc, true, -1.0, true)
-			draw_line(np + Vector2(3, 0), np + Vector2(3, -10), nc, 1.8, true)
-			draw_line(np + Vector2(3, -10), np + Vector2(7, -7), nc, 1.8, true)
+			# 音符放大 1.6 倍＋深咖啡描邊（Antigravity：原本跟草地小花一樣大）
+			var np: Vector2 = f["p"] + Vector2(sin(k * 6.0) * 4.0, -k * 22.0)
+			var na := 1.0 - k
+			var oc := Color(0.24, 0.14, 0.05, na)
+			var nc := Color(1.0, 0.86, 0.3, na)
+			draw_circle(np, 6.6, oc, true, -1.0, true)
+			draw_line(np + Vector2(5, 1), np + Vector2(5, -16), oc, 4.6, true)
+			draw_line(np + Vector2(5, -16), np + Vector2(11, -11), oc, 4.6, true)
+			draw_circle(np, 5.0, nc, true, -1.0, true)
+			draw_line(np + Vector2(5, 1), np + Vector2(5, -16), nc, 2.4, true)
+			draw_line(np + Vector2(5, -16), np + Vector2(11, -11), nc, 2.4, true)
 		"text":
 			var col: Color = f["c"]
 			col.a = 1.0 - k * k
@@ -1155,7 +1191,10 @@ func _draw_fx(f: Dictionary) -> void:
 				if not f.get("plain", false):
 					draw_rect(r3, Color(0.047, 0.059, 0.086, 0.72 * col.a))   # 半透明黑膠囊底（補血的綠字不加底，第四輪）
 				var sz := int(ts(f["size"]) * (1.0 + float(f.get("pop", 0.0)) * 1.4))
-				_text(p3, f["s"], sz, col, true, true)   # 外框與實際畫的字同一份幾何
+				if f.get("plain", false):
+					_text(p3, f["s"], sz, col, true, true, 0.0, Color(0.05, 0.2, 0.08, col.a))   # 補血綠字加深墨綠描邊
+				else:
+					_text(p3, f["s"], sz, col, true, true)   # 外框與實際畫的字同一份幾何
 
 
 # ── 戰鬥 HUD ──
@@ -1228,6 +1267,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	graves.clear()
 	clutch_t = 0.0
 	atk_hit.clear()
+	alt_hit.clear()
 	bomb_tgt.clear()
 	brace_t.clear()
 	state = St.BATTLE

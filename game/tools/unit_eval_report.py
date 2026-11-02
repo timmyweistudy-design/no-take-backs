@@ -29,23 +29,91 @@ def mean_ci(xs):
 def p(x):
     return f"{x * 100:+.1f}" if x < 0 or x > 0 else "0.0"
 
+def twoway_ci(cells):
+    """雙向群集（陣型 × 對手）的平均與 95% 區間（Cameron–Gelbach–Miller）：cells＝[(陣型, 對手, 值)]。Codex 實作審查 #9。"""
+    n = len(cells)
+    if n == 0:
+        return 0, 0, 0
+    m = sum(c[2] for c in cells) / n
+    def v_by(key):
+        g = {}
+        for c in cells:
+            g[key(c)] = g.get(key(c), 0.0) + (c[2] - m)
+        return sum(x * x for x in g.values()) / (n * n)
+    var = v_by(lambda c: c[0]) + v_by(lambda c: c[1]) - v_by(lambda c: (c[0], c[1]))
+    h = 1.96 * math.sqrt(max(var, 0.0))
+    return m, m - h, m + h
+
 def repl_deltas(got):
     data = [r for r in got if "skip" not in r]
     per = {}
+    cell = {}
     for r in data:
-        per.setdefault(r["i"], {}).setdefault(r["pol"], []).append((r["s0"] + r["s1"]) / 2)
+        sc = (r["s0"] + r["s1"]) / 2
+        per.setdefault(r["i"], {}).setdefault(r["pol"], []).append(sc)
+        cell.setdefault((r["i"], r.get("opp", r["k"]), r["k"]), {})[r["pol"]] = sc
     out = {}
     for pol in ["a", "b", "c"]:
-        out[pol] = mean_ci([sum(v["orig"]) / len(v["orig"]) - sum(v[pol]) / len(v[pol]) for v in per.values()])
+        out[pol] = twoway_ci([(k[0], k[1], v["orig"] - v[pol]) for k, v in cell.items() if "orig" in v and pol in v])
     return out, per
 
+LEGAL = (0.0, 0.5, 1.0)
+
+def check_rows(m, mode, got, man):
+    """逐模式驗完整鍵集合、兵種、分數、開放數、池身分（Codex 實作審查 #6、#7）。有問題直接 exit 2。"""
+    unit = int(m.split(":")[1]) if ":" in m else None
+    bad = []
+    for r in got:
+        if "skip" in r:
+            continue
+        if r.get("s0") not in LEGAL or r.get("s1") not in LEGAL:
+            bad.append(f"分數不合法 {r}")
+        if unit is not None and r.get("unit") != unit:
+            bad.append(f"兵種不符 {r.get('unit')}")
+        if mode != "core" and r.get("nt") != man["ntypes"]:
+            bad.append(f"開放數 {r.get('nt')} ≠ {man['ntypes']}")
+    pools = {r.get("pool") for r in got if "skip" not in r}
+    if mode != "core" and (len(pools) != 1 or None in pools):
+        bad.append(f"對手池不只一個或缺少：{pools}")
+    keys = [tuple(r.get(k) for k in ("i", "k", "pol", "kk", "r", "seed")) for r in got]
+    if len(set(keys)) != len(keys):
+        bad.append("有重複的列")
+    if mode in ("repl", "replshield"):
+        skips = {r["i"] for r in got if "skip" in r}
+        if len(skips) > 10:
+            bad.append(f"跳過的陣型太多（{len(skips)}）")
+        want = {(i, k, pol) for i in range(200) if i not in skips for k in range(6) for pol in ("orig", "a", "b", "c")}
+        have = {(r["i"], r["k"], r["pol"]) for r in got if "skip" not in r}
+        if have != want:
+            bad.append(f"鍵集合不對（少 {len(want - have)}、多 {len(have - want)}）")
+    elif mode == "cover":
+        want = {(i, kk, k) for i in range(120) for kk in range(5) for k in range(4)}
+        have = {(r["i"], r["kk"], r["k"]) for r in got}
+        if have != want:
+            bad.append(f"鍵集合不對（少 {len(want - have)}、多 {len(have - want)}）")
+        wrong = [r for r in got if r.get("have") != r.get("kk")]
+        if wrong:
+            bad.append(f"有 {len(wrong)} 列實際支援兵數 ≠ 要求（例：i={wrong[0]['i']} kk={wrong[0]['kk']} have={wrong[0]['have']}）")
+    elif mode == "core":
+        want = {(ri, sd) for ri in range(len(CORE)) for sd in range(40)}
+        if {(r["r"], r["seed"]) for r in got} != want:
+            bad.append("core 鍵集合不對")
+    if bad:
+        print(f"✗ {m} 資料錯誤：" + "；".join(bad[:5])); sys.exit(2)
+
 def load_band(folder):
+    # 經典範圍資料要完整：開放數 5、恰好劍士／騎兵／刺客三種、每種 200×6×4 列（Codex 實作審查 #8）
+    bman = json.load(open(os.path.join(folder, "manifest.json"), encoding="utf-8"))
+    if bman.get("ntypes") != 5 or sorted(bman.get("modes", [])) != ["repl:0", "repl:3", "repl:4"]:
+        print("✗ 經典範圍資料的設定不對：", bman); sys.exit(2)
     rows = {}
     for f in sorted(glob.glob(os.path.join(folder, "repl_*.jsonl"))):
         for line in open(f, encoding="utf-8"):
             if line.strip():
                 r = json.loads(line)
                 rows.setdefault(r["unit"], []).append(r)
+    if sorted(rows) != [0, 3, 4] or any(len([r for r in v if "skip" not in r]) != 200 * 6 * 4 for v in rows.values()):
+        print("✗ 經典範圍資料不完整：", {u: len(v) for u, v in rows.items()}); sys.exit(2)
     band = {}
     detail = {}
     for u, got in rows.items():
@@ -77,6 +145,9 @@ def main():
         mode = m.split(":")[0]
         if any(r.get("mode") != mode for r in got):
             print(f"✗ {m} 裡有別的模式的資料"); sys.exit(2)
+        if not got:
+            print(f"✗ {m} 沒有資料"); sys.exit(2)
+        check_rows(m, mode, got, man)
         if mode == "core":
             keys = {(r["r"], r["seed"]) for r in got}
             if len(got) != len(CORE) * 40 or len(keys) != len(got):
@@ -103,9 +174,9 @@ def main():
             orig_wr = sum(sum(v["orig"]) / len(v["orig"]) for v in per.values()) / len(per)
             if band:
                 md[-1] = md[-1].replace("| 補法 | Δ（百分點） | 95% 區間 | 判定 |\n|---|---|---|---|\n", "| 補法 | Δ（百分點） | 95% 區間 | 經典範圍 | 判定 |\n|---|---|---|---|---|\n")
+            dd, _ = repl_deltas(got)
             for pol, label in [("a", "補成陣中最多的舊兵種"), ("b", "全補劍士"), ("c", "全補弓箭手")]:
-                ds = [sum(v["orig"]) / len(v["orig"]) - sum(v[pol]) / len(v[pol]) for v in per.values()]
-                mm, lo, hi = mean_ci(ds)
+                mm, lo, hi = dd[pol]   # 雙向群集（陣型 × 對手）區間
                 if band:
                     blo, bhi = band[pol]
                     okk = blo <= mm <= bhi

@@ -725,10 +725,10 @@ func _ratio_less(hpa: int, ma: int, d2a: int, a: Unit, hpb: int, mb: int, d2b: i
 ## 沒有可補的對象就不消耗冷卻；被暈不補。所有醫者從同一份快照選，彼此不影響。
 func _try_heal(i: int, sh: PackedInt64Array, heals: Array) -> void:
 	var u := units[i]
+	# 先扣再判斷（Codex 實作審查 #4：原本扣到 0 的那 tick 直接返回，每次都多等 1 tick）
 	if u.hcd > 0:
 		u.hcd -= 1
-		return
-	if u.stun > 0:
+	if u.hcd > 0 or u.stun > 0:
 		return
 	var best := -1
 	var bd2 := 0
@@ -745,7 +745,8 @@ func _try_heal(i: int, sh: PackedInt64Array, heals: Array) -> void:
 	if best == -1:
 		return
 	var amt := D.HEAL_AMT if not frenzy else D.HEAL_AMT / 2
-	heals.append([i, best, amt, bd2])
+	# 平手鍵在 ④ 就存好（距離、列、深度、部署格），⑤ 的擊退不會改到記功歸屬（Codex 實作審查 #5）
+	heals.append([i, best, amt, bd2, u.y, u.x if u.team == 0 else W - u.x, u.slot])
 	u.hcd = D.HEAL_CD
 
 ## ⑤ 補血：傷害已經扣完；血 ≤0 的照死不補。同一隻被多個醫者選中只吃最大的一筆，記功給（量大→平手鍵）的那個醫者。
@@ -758,7 +759,7 @@ func _apply_heals(heals: Array) -> void:
 			by_t[t] = h
 			continue
 		var cur: Array = by_t[t]
-		if h[2] > cur[2] or (h[2] == cur[2] and _tie_less(h[3], units[h[0]], cur[3], units[cur[0]])):
+		if h[2] > cur[2] or (h[2] == cur[2] and _heal_key_less(h, cur)):
 			by_t[t] = h
 	var ts := by_t.keys()
 	ts.sort()
@@ -773,6 +774,13 @@ func _apply_heals(heals: Array) -> void:
 		tg.hp += real
 		units[h[0]].heal_done += real
 		events.append({"kind": EV.HEAL, "src": units[h[0]].id, "tgt": tg.id, "amt": real, "tags": [EV.HEAL]})
+
+## 補血記功的平手：距離² → 列 → 深度 → 部署格（都是 ④ 存下來的值）。
+static func _heal_key_less(a: Array, b: Array) -> bool:
+	for k in [3, 4, 5, 6]:
+		if a[k] != b[k]:
+			return a[k] < b[k]
+	return false
 
 ## 爆炸波及：主目標 ④ 位置 0.9 格內、① 快照可見、活著的其他敵人，依平手鍵取前 SPLASH_MAX 隻。
 func _splash_victims(ti: int, st: PackedInt64Array, sv: PackedByteArray) -> Array:

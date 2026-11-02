@@ -147,6 +147,13 @@ func _watch_battle_code() -> void:
 	if not r["ok"]:
 		_toast(L.t("bc_bad"), true)
 		return
+	# 試玩版：對戰代碼裡有正式版才有的兵種就不播（Codex 實作審查 #2）
+	if OS.has_feature("demo"):
+		for a in [r["a0"], r["a1"]]:
+			for u in a.units:
+				if int(u["type"]) >= RS.DEMO_MAX:
+					_toast(L.t("bc_demo_locked"), true)
+					return
 	if r["mismatch"]:
 		_toast(L.t("bc_mismatch"))
 	watch_code(r["a0"], r["a1"])
@@ -295,9 +302,9 @@ func _draw_review() -> void:
 	# 第四輪：10 種兵改成頭像按鈕（文字按鈕一排放不下）；只能換成這場開放的兵種
 	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
 	for t in D.COUNT:
-		var br := Rect2(bx + t * 68, 162, 64, 50)
+		var br := Rect2(bx + t * 64, 162, 60, 50)   # 10 顆收在面板內（右緣 1136）
 		_btn(br, "", _rv_set_type.bind(t), rv_sel.x >= 0 and t < nt)
-		Art.unit(self, br.position + Vector2(32, 46), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if t < nt else 0.3, time, 0.55 if t != D.CAVALRY else 0.5, cbm())
+		Art.unit(self, br.position + Vector2(30, 46), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if t < nt else 0.3, time, 0.55 if t != D.CAVALRY else 0.5, cbm())
 	_btn(Rect2(bx, 218, 232, 36), L.t("rv_remove"), _rv_set_type.bind(-1), rv_sel.x >= 0)
 	_btn(Rect2(bx + 240, 218, 232, 36), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1))
 	_btn(Rect2(bx, 270, 352, 46), L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1, true)

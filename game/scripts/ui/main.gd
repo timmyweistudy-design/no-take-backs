@@ -576,6 +576,8 @@ func _draw_inner() -> void:
 			if c == 7:   # 勝利：站直、武器高舉（和前搖分開）
 				lean = Art.LEAN_BACK
 				crouch = 1.06
+			if c == 6 and t >= D.CLASSIC:
+				at = 0.42   # 新兵的專屬動作在揮擊格（精靈圖快取把它烘在交替招式那組）
 			if c == 6:
 				match t:
 					D.CAVALRY:
@@ -587,6 +589,6 @@ func _draw_inner() -> void:
 			if c == 5:   # 狂熱氣場
 				draw_arc(p + Vector2(0, -36), 26.0, 0, TAU, 24, Color(1.0, 0.33, 0.2, 0.6), 3.0, true)
 			_ring(p, 0, t, 1.6)
-			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch, 1 if c == 8 else 0)
+			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch, (2 if t >= D.CLASSIC else 0) if c == 6 else (1 if c == 8 else 0))
 			if c == 2 or c == 8:   # 揮擊殘影（依兵種，實際只有 0.12 秒）
 				_draw_smear(p, t, 0, 1.0, 0.45, 1.0, 1 if c == 8 else 0, 1.6)

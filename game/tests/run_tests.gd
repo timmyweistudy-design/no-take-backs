@@ -1365,12 +1365,12 @@ func test_new_units() -> void:
 				bomb_ev.append(ev)
 			elif ev.get("kind") == EVS.SPLASH:
 				sp += 1
-				if ev["dmg"] != D.SPLASH_DMG:
+				if ev["dmg"] != D.SPLASH_DMG * D.BOMB_SHIELD_NUM:   # 目標都是盾兵：打盾 ×BOMB_SHIELD_NUM
 					sp += 100
 		if sp > 0:
 			splash_per_tick.append(sp)
-	ok(not bomb_ev.is_empty() and bomb_ev[0]["dmg"] == D.STATS[D.BOMBER]["atk"] and not splash_per_tick.is_empty() and splash_per_tick.max() == D.SPLASH_MAX,
-		"投彈兵：主擊無視舉盾、每次波及恰好最多 %d 隻、波及傷害固定" % D.SPLASH_MAX, "bomb=%s splash=%s" % [bomb_ev.slice(0, 1), splash_per_tick])
+	ok(not bomb_ev.is_empty() and bomb_ev[0]["dmg"] == D.STATS[D.BOMBER]["atk"] * D.BOMB_SHIELD_NUM and not splash_per_tick.is_empty() and splash_per_tick.max() == D.SPLASH_MAX,
+		"投彈兵：打盾兵主擊無視舉盾且 ×%d、每次波及恰好最多 %d 隻、波及傷害固定" % [D.BOMB_SHIELD_NUM, D.SPLASH_MAX], "bomb=%s splash=%s" % [bomb_ev.slice(0, 1), splash_per_tick])
 	# 潛行中的刺客貼在旁邊不會讓投彈兵改敲人（看不見）
 	sc = sim_at([[D.BOMBER, 0, 3000, 4500], [D.ASSASSIN, 1, 3900, 4500], [D.SWORD, 1, 7000, 4500]])
 	s = sc["s"]
@@ -1425,8 +1425,20 @@ func test_new_units() -> void:
 	var near_full = s.units[sc["idx"][2]]
 	dead_sw.hp = -3
 	near_full.hp = near_full.max_hp - 5
-	s._apply_heals([[sc["idx"][0], sc["idx"][1], 18, 0], [sc["idx"][0], sc["idx"][2], 18, 0]])
+	s._apply_heals([[sc["idx"][0], sc["idx"][1], 18, 0, 0, 0, 0], [sc["idx"][0], sc["idx"][2], 18, 0, 0, 0, 0]])
 	ok(dead_sw.hp == -3 and near_full.hp == near_full.max_hp and s.units[sc["idx"][0]].heal_done == 5, "當 tick 該死的不會被補回；補血不超過滿血、記實際補量", "dead=%d full=%d done=%d" % [dead_sw.hp, near_full.hp, s.units[sc["idx"][0]].heal_done])
+	# 補血時間：第一次在第 HEAL_FIRST tick，之後每 HEAL_CD tick 一次（Codex 實作審查 #4：原本每次多等 1 tick）
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	s.units[sc["idx"][1]].hp = 20
+	var heal_ticks: Array = []
+	for i in D.HEAL_FIRST + D.HEAL_CD * 2 + 2:
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.HEAL:
+				heal_ticks.append(s.tick)
+	ok(heal_ticks.size() >= 3 and heal_ticks[0] == D.HEAL_FIRST and heal_ticks[1] - heal_ticks[0] == D.HEAL_CD and heal_ticks[2] - heal_ticks[1] == D.HEAL_CD,
+		"補血時間：第一次在第 %d tick、之後每 %d tick" % [D.HEAL_FIRST, D.HEAL_CD], str(heal_ticks))
 	# 狂熱時補血減半
 	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.SHIELD, 1, 15000, 8000]])
 	s = sc["s"]
@@ -1609,7 +1621,15 @@ func test_roster_ui() -> void:
 			if int(u["type"]) >= 5:
 				bad.append("經典模式 AI 用了兵種 %d" % u["type"])
 				break
-	ok(bad.is_empty(), "兵種開放：場數解鎖、試玩版上限、經典模式、AI 不用未開放的兵種", str(bad))
+	# 指定模板也不能繞過開放數（Codex 實作審查 #3）
+	for ti in AI.TEMPLATES.size():
+		rng.seed = 77 + ti
+		var c = AI.build(1, 100, rng, ti, 5)["army"]
+		for u in c.units:
+			if int(u["type"]) >= 5:
+				bad.append("指定模板 %d 用了兵種 %d" % [ti, u["type"]])
+				break
+	ok(bad.is_empty(), "兵種開放：場數解鎖、試玩版上限、經典模式、AI（含指定模板）不用未開放的兵種", str(bad))
 	# 結果頁兵種長條：只列出場的、合計最多的 5 種
 	var dealt := [D.zeros(), D.zeros()]
 	var taken := [D.zeros(), D.zeros()]

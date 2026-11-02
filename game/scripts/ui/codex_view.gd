@@ -34,6 +34,8 @@ func _open_codex(t: int) -> void:
 	drag_new = false
 	drag_from = Vector2i(-1, -1)
 	cx_unit = clampi(t, 0, D.COUNT - 1)
+	cx_scroll["left"] = 0.0   # 每次打開都從頂端開始（Antigravity：沿用上次捲到底的位置，看起來像數值條不見了）
+	cx_scroll["note"] = 0.0
 	_cx_pick_skill(0)
 	_open("codex")
 

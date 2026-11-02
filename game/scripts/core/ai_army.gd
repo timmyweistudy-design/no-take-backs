@@ -57,6 +57,8 @@ static func eligible_templates(ntypes: int) -> Array:
 static func build(team: int, budget: int, rng: RandomNumberGenerator, template := -1, ntypes := D.COUNT):
 	var a = Army.new(team, budget)
 	var el := eligible_templates(ntypes)
+	if template >= 0 and not template_ok(template, ntypes):
+		template = -1   # 指定的模板用到未開放的兵種：改從可用的模板抽（Codex 實作審查 #3）
 	var ti := template if template >= 0 else int(el[rng.randi_range(0, el.size() - 1)])
 	var w: Array = TEMPLATES[ti]["w"]
 	var picks: Array = []
@@ -64,13 +66,13 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 	while a.left() >= D.cheapest() and picks.size() < Army.MAX_UNITS and guard < 200:
 		guard += 1
 		var total := 0
-		for t in D.COUNT:
+		for t in ntypes:
 			if D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0:
 				total += w[t]
 		if total == 0:
 			break
 		var r := rng.randi_range(1, total)
-		for t in D.COUNT:
+		for t in ntypes:
 			if D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0:
 				r -= w[t]
 				if r <= 0:

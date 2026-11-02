@@ -95,6 +95,7 @@ var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.3
 var atk_seq := {}         # 單位 id →｛命中 tick: 第幾次出手｝（交替招式用）
 var pot_draw: Array = []  # 第四輪：這一幀要畫的火罐位置
 var puzzle_tab := 0       # 第四輪：殘局選單分頁（0 經典、1 新兵試玩）
+var alt_hit := {}        # 第四輪：單位 id → {命中 tick: true}，這一擊用專屬動作
 var bomb_tgt := {}       # 第四輪：投彈兵 id → {命中 tick: 目標 id}（畫火罐飛行）
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
 var prev_pos := {}

@@ -87,7 +87,12 @@ static func check(n: int) -> Dictionary:
 	if not g is Dictionary:
 		return {"ok": false, "why": "讀不到相容基準檔"}
 	var cases: Array = g["cases"]
-	for i in mini(n, cases.size()):
+	# 基準必須是完整的 1000 場、而且至少要比 1 場（Codex 實作審查 #10：空的或縮水的基準不能回報成功）
+	if cases.size() != 1000 or str(g.get("from_rules", "")) != "1.2.0":
+		return {"ok": false, "why": "相容基準不完整或來源規則不是 1.2.0（%d 場）" % cases.size()}
+	if n < 1 or n > cases.size():
+		return {"ok": false, "why": "要比的場數 %d 不合法" % n}
+	for i in n:
 		var c: Dictionary = cases[i]
 		var r := run_case(c["a"], c["b"])
 		if r["untouched"] != "":
@@ -98,4 +103,4 @@ static func check(n: int) -> Dictionary:
 			return {"ok": false, "n": i + 1, "first_case": i, "why": "擊殺或傷害統計不同"}
 		if r["roll"] != c["roll"]:
 			return {"ok": false, "n": i + 1, "first_case": i, "why": "逐 tick 狀態分歧"}
-	return {"ok": true, "n": mini(n, cases.size())}
+	return {"ok": true, "n": n}

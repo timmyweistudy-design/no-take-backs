@@ -197,6 +197,10 @@ func _on_start() -> void:
 	if armies[0].count() == 0:
 		_toast(L.t("err_empty"), true)
 		return
+	for u in armies[0].units:   # 開戰前再驗一次（Codex 實作審查 #1）
+		if not _allowed(int(u["type"])) and not (mode == Mode.TUTORIAL or mode == Mode.PUZZLE):
+			_toast(L.t("code_locked"), true)
+			return
 	if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() > gauntlet_changes:
 		_toast(L.t("err_changes"), true)
 		return
@@ -880,7 +884,7 @@ func _draw_inner() -> void:
 	if toast_t > 0:
 		var a := minf(1.0, toast_t * 2)
 		var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
-		var ty := 40.0 if overlay != "" else 616.0   # 覆蓋層開著時放上面，不蓋住內容（手感輪 R3）
+		var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
 		draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, 0.72 * a))
 		_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
 	if _focus >= _btns.size():
@@ -974,8 +978,17 @@ func _draw_tactical() -> void:
 			D.BOMBER:
 				# 甜甜圈：外圈射程（橘白）＋內圈紅色盲區（第四輪 §4.2）
 				_arc_clipped(p, D.STATS[D.BOMBER]["reach"] / 1000.0 * CS, 0, TAU, Color(1, 0.85, 0.7, 0.5), 2.0)
-				draw_circle(p, D.BOMB_MIN / 1000.0 * CS, Color(1, 0.25, 0.2, 0.12), true, -1.0, true)
-				draw_arc(p, D.BOMB_MIN / 1000.0 * CS, 0, TAU, 32, Color(1, 0.3, 0.25, 0.7), 2.0, true)
+				# 盲區：半透明紅底＋紅斜線（Antigravity：只有細紅線會被看成增益光環）
+				var br0 := D.BOMB_MIN / 1000.0 * CS
+				draw_circle(p, br0, Color(1, 0.2, 0.15, 0.22), true, -1.0, true)
+				var hn := Vector2(1, 1).normalized()
+				var ht := Vector2(1, -1).normalized()
+				for hk in range(-4, 5):
+					var dd := hk * br0 / 5.0
+					var hh := sqrt(maxf(0.0, br0 * br0 - dd * dd))
+					var hc := p + hn * dd
+					draw_line(hc - ht * hh, hc + ht * hh, Color(1, 0.3, 0.25, 0.5), 1.5, true)
+				draw_arc(p, br0, 0, TAU, 32, Color(1, 0.3, 0.25, 0.85), 2.5, true)
 			D.MEDIC, D.DRUMMER:
 				# 補血／戰鼓範圍：醫者草綠、鼓手暖金；圈內的友軍微亮
 				var rad: float = (D.HEAL_RANGE if selected == D.MEDIC else D.DRUM_RANGE) / 1000.0 * CS
@@ -1399,16 +1412,30 @@ func _slot_save(i: int) -> void:
 
 func _slot_load(i: int) -> void:
 	var slots: Array = Save.data.get("slots", ["", "", "", "", ""])
-	var why: String = armies[0].load_code(slots[i])
-	_toast(L.t("code_loaded") if why == "" else L.t("code_bad"), why != "")
+	var why := _load_checked(str(slots[i]))
+	_toast(L.t("code_loaded") if why == "" else (L.t("code_locked") if why == "locked" else L.t("code_bad")), why != "")
 	overlay = ""
 
 
 func _paste_code() -> void:
-	var why: String = armies[0].load_code(DisplayServer.clipboard_get())
-	_toast(L.t("code_loaded") if why == "" else L.t("code_bad"), why != "")
+	var why := _load_checked(DisplayServer.clipboard_get())
+	_toast(L.t("code_loaded") if why == "" else (L.t("code_locked") if why == "locked" else L.t("code_bad")), why != "")
 	if why == "":
 		overlay = ""
+
+
+## 載入陣型（存檔格、貼上代碼）：先解碼到暫存陣型，全軍都是這場開放的兵種才替換（Codex 實作審查 #1）。
+## 回傳 ""＝成功、"locked"＝含未開放兵種、其他＝格式錯誤。
+func _load_checked(code: String) -> String:
+	var tmp := Army.new(armies[0].team, armies[0].budget)
+	var why := tmp.load_code(code)
+	if why != "":
+		return why
+	for u in tmp.units:
+		if not _allowed(int(u["type"])):
+			return "locked"
+	armies[0].units = tmp.units
+	return ""
 
 
 # ── 擺放 HUD ──
@@ -1492,7 +1519,7 @@ func _draw_place_hud() -> void:
 			if a.count_of(i) > 0:
 				_text(r.position + Vector2(5, r.size.y - fz - 6), "×%d" % a.count_of(i), fz, Color(1, 1, 1, 0.85), false, true, 44)
 		else:
-			_lock_icon(r.position + Vector2(r.size.x / 2.0, 44))
+			_lock_icon(r.position + Vector2(r.size.x - 14, 14))   # 鎖頭放在價錢的位置，不蓋住頭頂輪廓（Antigravity）
 		_btn(_card_help_rect(i), "?", _open_codex.bind(i))
 	if hover_card >= 0 or overlay == "":
 		_draw_counter_strip(hover_card if hover_card >= 0 else selected, a.team)

@@ -49,10 +49,11 @@ func build(cb: bool) -> void:
 	ready_cb = 1 if cb else 0
 	vp.queue_free()
 
+## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。
 func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float, variant := 0) -> int:
 	var base := (type * 2 + team) * FRAMES_PER
 	if atk > 0.0:
-		return base + 2 + WALK_FRAMES + ATK_FRAMES * variant + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+		return base + 2 + WALK_FRAMES + ATK_FRAMES * mini(variant, 1) + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
 	if walk != 0.0:
 		return base + 2 + int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES
 	var ex := 2.0 if type == D.CAVALRY else 3.5   # Art._eyes 的眼睛中心 x
@@ -128,7 +129,7 @@ class _Painter extends Node2D:
 						walk = 0.0001 + (f - 2) * TAU / 6.0
 					elif f >= 16:
 						atk = (f - 16 + 0.5) / 8.0
-						vr = 1
+						vr = 1 if type < D2.CLASSIC else 2   # 第四輪新兵沒有交替招式，這一組放專屬動作（variant 2）
 					elif f >= 8:
 						atk = (f - 8 + 0.5) / 8.0
 					var p := cell_o + org
