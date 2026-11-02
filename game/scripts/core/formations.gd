@@ -17,17 +17,26 @@ static func random_formation(team: int, rng: RandomNumberGenerator, kind := "mix
 	var a := Army.new(team, 100)
 	var w: Array = D.zeros()
 	var nt := ntypes
+	# 第四輪：支援兵（醫者、鼓手）不能當主力。純兵種、雙兵種的第一種只從戰鬥兵抽；
+	# 混編裡支援兵權重最多 1、每種最多 2 隻（不然一半的池子是「100 金全拿鼓手」這種沒人會擺的陣）。
+	# nt ≤ 5 時沒有支援兵，亂數呼叫順序和舊版完全一樣。
+	var fighters: Array = []
+	for t in nt:
+		if not D.is_support(t):
+			fighters.append(t)
 	match kind:
 		"pure":
-			w[rng.randi_range(0, nt - 1)] = 1
+			w[fighters[rng.randi_range(0, fighters.size() - 1)]] = 1
 		"duo":
-			var p := rng.randi_range(0, nt - 1)
+			var p: int = fighters[rng.randi_range(0, fighters.size() - 1)]
 			var q := (p + rng.randi_range(1, nt - 1)) % nt
 			w[p] = rng.randi_range(1, 3)
 			w[q] = rng.randi_range(1, 3)
 		_:
 			for t in nt:
 				w[t] = rng.randi_range(0, 4)
+				if D.is_support(t):
+					w[t] = mini(w[t], 1)
 			if w.max() == 0:
 				w[rng.randi_range(0, nt - 1)] = 1
 	if style == "":
@@ -39,13 +48,13 @@ static func random_formation(team: int, rng: RandomNumberGenerator, kind := "mix
 		guard += 1
 		var total := 0
 		for t in nt:
-			if w[t] > 0 and D.cost(t) <= budget_left:
+			if w[t] > 0 and D.cost(t) <= budget_left and not (D.is_support(t) and picks.count(t) >= 2):
 				total += w[t]
 		if total == 0:
 			break
 		var r := rng.randi_range(1, total)
 		for t in nt:
-			if w[t] > 0 and D.cost(t) <= budget_left:
+			if w[t] > 0 and D.cost(t) <= budget_left and not (D.is_support(t) and picks.count(t) >= 2):
 				r -= w[t]
 				if r <= 0:
 					picks.append(t)
