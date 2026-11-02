@@ -85,9 +85,20 @@ func validate(pz: Dictionary, samples: int) -> Dictionary:
 			if not examples.has(str(key)) and examples.size() < 2:
 				examples[str(key)] = extra
 	var rate := wins * 100 / maxi(1, samples)
-	var max_rate := 95 if pz.get("tutorial", false) else 70
-	var need_classes := 1 if pz.get("tutorial", false) else 2
-	var ok: bool = base.winner != 0 and classes.size() >= need_classes and rate >= 2 and rate <= max_rate \
+	# 新兵試玩（第四輪 trial）：和教學一樣只要一類解、勝率上限 95%；隨機抽樣很難抽中時，用標準解確認三星可達、勝率下限 1%
+	var easy: bool = pz.get("tutorial", false) or pz.get("trial", false)
+	var max_rate := 95 if easy else 70
+	var need_classes := 1 if easy else 2
+	var min_rate := 1 if pz.get("trial", false) else 2
+	if pz.get("trial", false) and not three_star:
+		for sol in pz.get("solutions", []):
+			var ss := run(pz, sol)
+			var sp := 0
+			for e in sol:
+				sp += D.cost(int(e[0]))
+			if ss.winner == 0 and ss.power(0) * 100 / (ss.budget * 1000) >= int(pz["star2"]) and sp <= int(pz["star3"]):
+				three_star = true
+	var ok: bool = base.winner != 0 and classes.size() >= need_classes and rate >= min_rate and rate <= max_rate \
 		and three_star
 	return {"id": pz["id"], "ok": ok, "base_winner": base.winner, "win_rate": rate, "classes": classes.size(),
 		"class_list": classes, "best_rem": best_rem, "min_spend": min_spend, "three_star": three_star, "star2": pz["star2"], "star3": pz["star3"], "solutions": examples.values()}

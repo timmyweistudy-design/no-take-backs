@@ -48,7 +48,7 @@ const STATS := [
 	{"cost": 6, "hp": 150, "atk": 16, "cd": 40, "reach": 5500, "speed": 45},  # 投彈兵（丟彈；被貼身改敲人見下方）
 	{"cost": 6, "hp": 180, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 醫者（攻擊只在全隊剩支援兵時用）
 	{"cost": 5, "hp": 200, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 鼓手（同上）
-	{"cost": 6, "hp": 300, "atk": 12, "cd": 20, "reach": 700, "speed": 60},   # 狂戰士
+	{"cost": 6, "hp": 300, "atk": 11, "cd": 20, "reach": 700, "speed": 60},   # 狂戰士
 ]
 
 # ─── 劍士 ───
@@ -107,7 +107,7 @@ const BONK_REACH := 700
 const BONK_CD := 24
 
 # ─── 醫者（第四輪）───
-const HEAL_AMT := 24            # 每次補血量（狂熱時減半）
+const HEAL_AMT := 22            # 每次補血量（狂熱時減半）
 const HEAL_CD := 30             # 補血間隔（tick），不吃任何加速
 const HEAL_FIRST := 20          # 開戰後第一次補血前的等待
 const HEAL_RANGE := 3000        # 補血距離
@@ -116,7 +116,7 @@ const SUPPORT_BACK := 1000
 const SUPPORT_STOP := 300
 
 # ─── 鼓手（第四輪）───
-const DRUM_RANGE := 2200        # 光環 2.2 格（含自己）
+const DRUM_RANGE := 2100        # 光環 2.1 格（含自己）
 const DRUM_BONUS := 2           # 冷卻每 tick 多扣 2（不疊加；平常扣 4）
 const DEC_CAP := 7              # 冷卻每 tick 扣除上限（平常 4／狂熱 5＋背水＋戰鼓）
 

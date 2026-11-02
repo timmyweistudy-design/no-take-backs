@@ -431,7 +431,7 @@ func test_nav_r1() -> void:
 func test_puzzle_solutions() -> void:
 	var total := 0
 	var bad: Array = []
-	for pz in PZ.tutorials() + PZ.puzzles():
+	for pz in PZ.tutorials() + PZ.puzzles() + PZ.new_puzzles():
 		var sols: Array = pz.get("solutions", [])
 		if sols.is_empty():
 			bad.append("%s 沒有標準解" % pz["id"])
@@ -454,7 +454,12 @@ func test_puzzle_solutions() -> void:
 			total += 1
 			if sm.winner != 0:
 				bad.append("%s 標準解輸了" % pz["id"])
-	var n_pz: int = (PZ.tutorials() + PZ.puzzles()).size()
+	var n_pz: int = (PZ.tutorials() + PZ.puzzles() + PZ.new_puzzles()).size()
+	for pz in PZ.new_puzzles():
+		# 新兵試玩：主角兵種一定要在允許清單、每組標準解都要用到它（第四輪 §4.8）
+		for sol in pz.get("solutions", []):
+			if sol.filter(func(e): return int(e[0]) == int(pz["unit"])).is_empty():
+				bad.append("%s 的標準解沒用到主角兵種" % pz["id"])
 	for pz in PZ.puzzles():
 		if pz.get("solutions", []).size() < 2:
 			bad.append("%s 不到兩組解" % pz["id"])
