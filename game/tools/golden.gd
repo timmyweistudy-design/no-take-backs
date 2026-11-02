@@ -16,8 +16,8 @@ static func state_sig(s) -> String:
 	var parts := PackedStringArray()
 	parts.append(str(s.tick))
 	for u in s.units:
-		parts.append("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [u.id, u.x, u.y, u.hp, 1 if u.alive else 0, u.target, u.stun,
-			u.stealth, u.charge, u.slow, u.cd, u.fx, u.fy, u.nav, 1 if u.chasing else 0])
+		parts.append("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [u.id, u.x, u.y, u.hp, 1 if u.alive else 0, u.target, u.stun,
+			u.stealth, u.charge, u.slow, u.cd, u.fx, u.fy, u.nav, 1 if u.chasing else 0, u.kills, u.dmg_dealt, u.dmg_taken])   # 第四輪 N0a：補擊殺與傷害統計
 	return ",".join(parts).sha256_text().substr(0, 16)
 
 static func run_case(c0: String, c1: String, fast: bool) -> Dictionary:

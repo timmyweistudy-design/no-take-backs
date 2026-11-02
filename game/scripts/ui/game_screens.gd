@@ -224,15 +224,16 @@ func _hard_ai(r: RandomNumberGenerator) -> Army:
 	if not known.is_empty():
 		var lib := _counter_lib()
 		if not lib.is_empty():
-			var mine := [0, 0, 0, 0, 0]
+			var mine := D.zeros()
 			for u in known:
 				mine[u["type"]] += D.cost(u["type"])
 			var best = null
 			var bd := 1 << 30
 			for e in lib:
 				var d := 0
-				for k in 5:
-					d += absi(int(e["proto_comp"][k]) - mine[k])
+				var pc: Array = e["proto_comp"]
+				for k in mine.size():
+					d += absi((int(pc[k]) if k < pc.size() else 0) - mine[k])
 				if d < bd:
 					bd = d
 					best = e
@@ -302,8 +303,8 @@ func _pt_rate(v: int) -> void:
 
 
 func _build_report() -> void:
-	var dealt := [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]
-	var taken := [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]
+	var dealt := [D.zeros(), D.zeros()]
+	var taken := [D.zeros(), D.zeros()]
 	var mvp = null
 	for u in sim.units:
 		dealt[u.team][u.type] += u.dmg_dealt
@@ -671,13 +672,13 @@ func _key(k: int) -> void:
 		KEY_RIGHT: cursor.x = mini(15, cursor.x + 1)
 		KEY_F1:
 			_open_codex(selected)
-		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
-			var t := k - KEY_1
-			if _allowed(t):
+		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0:
+			var t := 9 if k == KEY_0 else k - KEY_1
+			if t < D.COUNT and _allowed(t):
 				selected = t
 		KEY_Q, KEY_E:
-			for i in 5:
-				selected = (selected + (4 if k == KEY_Q else 1)) % 5
+			for i in D.COUNT:
+				selected = (selected + (D.COUNT - 1 if k == KEY_Q else 1)) % D.COUNT
 				if _allowed(selected):
 					break
 		KEY_ENTER, KEY_KP_ENTER:
@@ -1231,6 +1232,28 @@ func _draw_settings() -> void:
 	_btn(Rect2(560, 694, 160, 36), L.t("back"), func(): overlay = "")
 
 
+## 結果頁兵種長條要列哪幾種：有出場（造成或承受傷害）的兵種，依雙方合計由多到少，最多 5 種；同分取編號小的。
+static func report_rows(dealt: Array, taken: Array) -> Array:
+	var rows: Array = []
+	for t in D.COUNT:
+		if dealt[0][t] + dealt[1][t] + taken[0][t] + taken[1][t] > 0:
+			rows.append(t)
+	rows.sort_custom(func(p, q):
+		var sp: int = dealt[0][p] + dealt[1][p] + taken[0][p] + taken[1][p]
+		var sq: int = dealt[0][q] + dealt[1][q] + taken[0][q] + taken[1][q]
+		return sp > sq or (sp == sq and p < q))
+	return rows.slice(0, 5)
+
+
+## 陣型存檔格的組成摘要：只列有的兵種（兵種多了以後不能再寫死 5 格）。
+func _comp_desc(cnt: Array) -> String:
+	var parts := PackedStringArray()
+	for t in cnt.size():
+		if cnt[t] > 0:
+			parts.append("%s%d" % [L.t("ushort_%d" % t), cnt[t]])
+	return " ".join(parts) if not parts.is_empty() else L.t("empty")
+
+
 func _draw_slots() -> void:
 	_panel(Rect2(330, 150, 620, 500))
 	_text(Vector2(640, 166), L.t("code_title"), ts(24), Color.WHITE, true, true)
@@ -1242,10 +1265,10 @@ func _draw_slots() -> void:
 		if code != "":
 			var tmp := Army.new(0, 100)
 			if tmp.load_code(code) == "":
-				var cnt := [0, 0, 0, 0, 0]
+				var cnt := D.zeros()
 				for u in tmp.units:
 					cnt[u["type"]] += 1
-				desc = ("劍%d 盾%d 弓%d 騎%d 刺%d" if L.lang == "zh_TW" else "Sw%d Sh%d Ar%d Ca%d As%d") % cnt
+				desc = _comp_desc(cnt)
 		_text(Vector2(360, y + 8), "%s　%s" % [L.t("slot", [i + 1]), desc], ts(16), Color.WHITE)
 		_btn(Rect2(700, y, 100, 42), L.t("save"), _slot_save.bind(i))
 		_btn(Rect2(810, y, 100, 42), L.t("load"), _slot_load.bind(i), code != "")
@@ -1426,15 +1449,18 @@ func _draw_result() -> void:
 	var taken: Array = report["taken"]
 	var mx := 1
 	for tm in 2:
-		for t in 5:
+		for t in D.COUNT:
 			mx = maxi(mx, maxi(dealt[tm][t], taken[tm][t]))
-	for t in 5:
-		_text(Vector2(280, y + t * 30 - 2), L.t("unit_%d" % t), ts(13), Color.WHITE, false, false, 94)
+	# 兵種多了（第四輪）：只列這場出場、雙方合計（造成＋承受）最多的 5 種，版面高度不變
+	var rows := report_rows(dealt, taken)
+	for ri in rows.size():
+		var t: int = rows[ri]
+		_text(Vector2(280, y + ri * 30 - 2), L.t("unit_%d" % t), ts(13), Color.WHITE, false, false, 94)
 		for tm in 2:
 			var x0 := 380.0 + tm * 320.0
 			var c := Art.team_color(tm, cbm())
-			draw_rect(Rect2(x0, y + t * 30 + 2, 290.0 * dealt[tm][t] / mx, 9), c)
-			draw_rect(Rect2(x0, y + t * 30 + 13, maxf(1.0, 290.0 * taken[tm][t] / mx), 9), c, false, 1.5)
+			draw_rect(Rect2(x0, y + ri * 30 + 2, 290.0 * dealt[tm][t] / mx, 9), c)
+			draw_rect(Rect2(x0, y + ri * 30 + 13, maxf(1.0, 290.0 * taken[tm][t] / mx), 9), c, false, 1.5)
 	y += 156
 	var ek := ["breaker", "charge", "backstab", "braced", "anticav", "counter"]
 	for tm in 2:
@@ -1586,7 +1612,7 @@ func _draw_timeline(r: Rect2) -> void:
 func _verdict(w: int) -> String:
 	var dealt: Array = report["dealt"][w]
 	var top := 0
-	for t in 5:
+	for t in D.COUNT:
 		if dealt[t] > dealt[top]:
 			top = t
 	var sus: Dictionary = report["sus"]

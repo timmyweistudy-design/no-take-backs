@@ -105,6 +105,13 @@ static func data_digest() -> String:
 		_digest = txt.sha256_text().substr(0, 16)
 	return _digest
 
+## 每種兵一格的 0 陣列（取代到處寫死的 [0, 0, 0, 0, 0]）。
+static func zeros() -> Array:
+	var a: Array = []
+	a.resize(COUNT)
+	a.fill(0)
+	return a
+
 static func cost(t: int) -> int:
 	return STATS[t]["cost"]
 

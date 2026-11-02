@@ -70,7 +70,7 @@ func _init() -> void:
 	for e in entries:
 		var c: Array = e["proto_comp"]
 		var mx := 0
-		for k in 5:
+		for k in c.size():
 			if c[k] > c[mx]:
 				mx = k
 		types[mx] = true
@@ -83,8 +83,9 @@ static func pick(entries: Array, mine: Array) -> Army:
 	var bd := 1 << 30
 	for e in entries:
 		var d := 0
-		for k in 5:
-			d += absi(int(e["proto_comp"][k]) - int(mine[k]))
+		var pc: Array = e["proto_comp"]
+		for k in mine.size():
+			d += absi((int(pc[k]) if k < pc.size() else 0) - int(mine[k]))
 		if d < bd:
 			bd = d
 			best = e

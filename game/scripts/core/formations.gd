@@ -11,22 +11,24 @@ const ROLE_COLS := [
 
 ## 產生一套陣型。kind：
 ##   "mixed" 隨機權重混編；"pure" 單一兵種；"duo" 兩種兵；"template" 用 ai_army 的原型權重。
-static func random_formation(team: int, rng: RandomNumberGenerator, kind := "mixed", style := "") -> Army:
+## ntypes：只用編號 0～ntypes−1 的兵種（預設全部）。亂數呼叫順序和 5 種時完全一樣，所以 ntypes＝5 會產生和舊版相同的池子。
+static func random_formation(team: int, rng: RandomNumberGenerator, kind := "mixed", style := "", ntypes := D.COUNT) -> Army:
 	var a := Army.new(team, 100)
-	var w: Array = [0, 0, 0, 0, 0]
+	var w: Array = D.zeros()
+	var nt := ntypes
 	match kind:
 		"pure":
-			w[rng.randi_range(0, 4)] = 1
+			w[rng.randi_range(0, nt - 1)] = 1
 		"duo":
-			var p := rng.randi_range(0, 4)
-			var q := (p + rng.randi_range(1, 4)) % 5
+			var p := rng.randi_range(0, nt - 1)
+			var q := (p + rng.randi_range(1, nt - 1)) % nt
 			w[p] = rng.randi_range(1, 3)
 			w[q] = rng.randi_range(1, 3)
 		_:
-			for t in 5:
+			for t in nt:
 				w[t] = rng.randi_range(0, 4)
 			if w.max() == 0:
-				w[rng.randi_range(0, 4)] = 1
+				w[rng.randi_range(0, nt - 1)] = 1
 	if style == "":
 		style = STYLES[rng.randi_range(0, STYLES.size() - 1)]
 	var picks: Array = []
@@ -35,13 +37,13 @@ static func random_formation(team: int, rng: RandomNumberGenerator, kind := "mix
 	while picks.size() < Army.MAX_UNITS and guard < 100:
 		guard += 1
 		var total := 0
-		for t in 5:
+		for t in nt:
 			if w[t] > 0 and D.cost(t) <= budget_left:
 				total += w[t]
 		if total == 0:
 			break
 		var r := rng.randi_range(1, total)
-		for t in 5:
+		for t in nt:
 			if w[t] > 0 and D.cost(t) <= budget_left:
 				r -= w[t]
 				if r <= 0:
@@ -114,7 +116,7 @@ static func search_pool(team: int) -> Array:
 
 ## 兵種組成向量（每種兵的金額）。
 static func composition(a: Army) -> Array:
-	var v := [0, 0, 0, 0, 0]
+	var v := D.zeros()
 	for u in a.units:
 		v[u["type"]] += D.cost(u["type"])
 	return v

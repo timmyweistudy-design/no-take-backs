@@ -26,7 +26,7 @@ static func counter_score(a: int, b: int) -> int:
 static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: RandomNumberGenerator, level := 1) -> int:
 	var best := -1
 	var best_s := -1.0e9
-	var have := [0, 0, 0, 0, 0]
+	var have := D.zeros()
 	for u in mine.units:
 		have[u["type"]] += 1
 	var front: int = have[D.SWORD] + have[D.SHIELD]

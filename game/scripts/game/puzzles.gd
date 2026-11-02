@@ -2,6 +2,7 @@ extends RefCounted
 ## 教學與殘局關卡資料（data/puzzles.json）。
 
 const Army = preload("res://scripts/core/army.gd")
+const D = preload("res://scripts/core/unit_defs.gd")
 
 static var _data := {}
 
@@ -72,12 +73,12 @@ static func stars(pz: Dictionary, won: bool, rem_pct: int, spent_extra: int) -> 
 
 ## 這關的「主角」兵種（殘局選單小頭像用）：標準解裡最常出現的兵種；同數取編號小的。
 static func hero_type(pz: Dictionary) -> int:
-	var cnt := [0, 0, 0, 0, 0]
+	var cnt := D.zeros()
 	for sol in pz.get("solutions", []):
 		for e in sol:
 			cnt[int(e[0])] += 1
 	var best := int(pz["allowed"][0]) if not pz.get("allowed", []).is_empty() else 0
-	for t in 5:
+	for t in D.COUNT:
 		if cnt[t] > cnt[best]:
 			best = t
 	return best

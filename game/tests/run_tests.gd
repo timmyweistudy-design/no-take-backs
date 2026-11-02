@@ -911,12 +911,12 @@ func test_input_queue() -> void:
 	g.free()
 
 
-## 確定性金標準（第三輪 T2）：前 20 場對金標準檔（完整 1000 場在 tools/check_all.sh）；
+## 確定性金標準（第三輪 T2；第四輪 N0a 改抽 100 場）：前 100 場對金標準檔（完整 1000 場在 tools/check_all.sh）；
 ## fast 模式與正式模式逐 tick 狀態、事件完全一樣；陣型清單順序打亂結果不變。
 func test_golden() -> void:
 	var GT = load("res://tools/golden.gd")
-	var r: Dictionary = GT.check(20)
-	ok(r["ok"], "金標準：前 20 場逐 100 tick 狀態、勝負、指紋都一致", str(r))
+	var r: Dictionary = GT.check(100)
+	ok(r["ok"], "金標準：前 100 場逐 100 tick 狀態、勝負、指紋都一致", str(r))
 	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/golden.json"))
 	var bad: Array = []
 	for i in 30:

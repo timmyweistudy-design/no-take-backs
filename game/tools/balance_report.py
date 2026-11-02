@@ -14,8 +14,10 @@
 """
 import json, sys, glob, os, statistics as st
 
-NAMES = ["劍士", "盾兵", "弓箭手", "騎兵", "刺客"]
+NAMES = ["劍士", "盾兵", "弓箭手", "騎兵", "刺客", "長槍兵", "投彈兵", "醫者", "狂戰士", "鼓手"]
+# 舊 5 種的剋制五角形（紅線只檢查這 10 條；新兵種的核心關係由 tools/unit_eval.gd 逐條驗收，第四輪 §2.6）
 BEATS = {0: [4, 1], 1: [3, 2], 2: [0, 4], 3: [2, 0], 4: [1, 3]}
+NT = 5   # 兵種數：main() 依資料推定（matrix 的鍵或 comp 的長度）
 
 def load(folder):
     rows = {}
@@ -78,9 +80,16 @@ def main():
     errs = [r for v in rows.values() for r in v if "error" in r]
     if errs:
         print(f"✗ 有 {len(errs)} 筆執行錯誤（例：{errs[0]}）"); sys.exit(2)
-    expect = {"matrix": 20, "league": 200 * 12 * 2, "valleague": 200 * 12 * 2, "search": shards, "counter": 6, "countersearch": shards}
+    global NT
+    for v in rows.values():
+        for r in v:
+            if "comp" in r:
+                NT = max(NT, len(r["comp"]))
+            if "a" in r and "b" in r and r.get("mode") == "matrix":
+                NT = max(NT, int(r["a"]) + 1, int(r["b"]) + 1)
+    expect = {"matrix": NT * (NT - 1), "league": 200 * 12 * 2, "valleague": 200 * 12 * 2, "search": shards, "counter": 6, "countersearch": shards}
     keyset = {
-        "matrix": {(a, b) for a in range(5) for b in range(5) if a != b},
+        "matrix": {(a, b) for a in range(NT) for b in range(NT) if a != b},
         "league": {(a, k, s) for a in range(200) for k in range(12) for s in range(2)},
         "valleague": {(a, k, s) for a in range(200) for k in range(12) for s in range(2)},
         "search": {(s,) for s in range(shards)},
@@ -127,10 +136,10 @@ def main():
         for r in rows["matrix"]:
             m[(r["a"], r["b"])] = r
         ok = 0
-        md.append("\n## ① 剋制矩陣（各 60 金；列兵種對行兵種：勝/平/負，括號＝勝方剩餘%）\n\n| | " + " | ".join(NAMES) + " |\n|" + "---|" * 6 + "\n")
-        for a in range(5):
+        md.append("\n## ① 剋制矩陣（各 60 金；列兵種對行兵種：勝/平/負，括號＝勝方剩餘%）\n\n| | " + " | ".join(NAMES[:NT]) + " |\n|" + "---|" * (NT + 1) + "\n")
+        for a in range(NT):
             cells = []
-            for b in range(5):
+            for b in range(NT):
                 if a == b:
                     cells.append("—"); continue
                 r1, r2 = m.get((a, b)), m.get((b, a))
@@ -198,15 +207,15 @@ def main():
             if c_blow >= 20: fails.append(f"競技池碾壓局 {c_blow}%")
             if c_med > 30: fails.append(f"競技池勝方剩餘中位數 {c_med}%")
         # 兵種出場與勝率：依組成金額加權
-        tw = [0.0] * 5; tg = [0.0] * 5
+        tw = [0.0] * NT; tg = [0.0] * NT
         for r in L:
             comp = r["comp"]; s = sum(comp) or 1
-            for t in range(5):
+            for t in range(min(NT, len(comp))):
                 share = comp[t] / s
                 tg[t] += share
                 tw[t] += share * (1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0)
-        md.append("\n兵種（依陣中金額比例加權）勝率：" + "、".join(f"{NAMES[t]} {pct(tw[t], tg[t])}%" for t in range(5)) + "\n")
-        summary["type_winrate"] = [pct(tw[t], tg[t]) for t in range(5)]
+        md.append("\n兵種（依陣中金額比例加權）勝率：" + "、".join(f"{NAMES[t]} {pct(tw[t], tg[t])}%" for t in range(NT)) + "\n")
+        summary["type_winrate"] = [pct(tw[t], tg[t]) for t in range(NT)]
         # 刺客陣（第二輪方案 R7、I）：刺客佔陣中金額 ≥30% 的陣型勝率（平手算半勝），目標 38～48%
         aw = ag = 0.0
         for r in L:
@@ -235,19 +244,19 @@ def main():
         vlc = sum(1 for r in V if r["lc"] >= 1)
         vcb = sum(1 for r in vdec if r["swing"] >= 15)
         vaw = vag = 0.0
-        vtw = [0.0] * 5; vtg = [0.0] * 5
+        vtw = [0.0] * NT; vtg = [0.0] * NT
         for r in V:
             comp = r["comp"]; s2 = sum(comp) or 1
             sc = 1 if r["res"] == 1 else 0.5 if r["res"] == 0 else 0
-            for t in range(5):
+            for t in range(min(NT, len(comp))):
                 vtg[t] += comp[t] / s2; vtw[t] += comp[t] / s2 * sc
             if comp[4] / s2 >= 0.30:
                 vag += 1; vaw += sc
         vmed = st.median(vrem) if vrem else 0
-        summary.update(val_median_rem=vmed, val_blowout_pct=pct(vblow, len(vrem)), val_type_winrate=[pct(vtw[t], vtg[t]) for t in range(5)])
+        summary.update(val_median_rem=vmed, val_blowout_pct=pct(vblow, len(vrem)), val_type_winrate=[pct(vtw[t], vtg[t]) for t in range(NT)])
         md.append(f"\n## ②b 驗證池聯賽（從沒用來調參數的 200 套 × 12 × 交換左右 = {len(V)} 場）\n")
         md.append(f"勝方剩餘中位數 {vmed}%、碾壓局 {ci(vblow, len(vrem))}、有領先交換 {ci(vlc, len(V))}、翻盤局 {ci(vcb, len(vdec))}\n\n")
-        md.append("兵種（金額加權）勝率：" + "、".join(f"{NAMES[t]} {pct(vtw[t], vtg[t])}%" for t in range(5)) + f"；刺客陣 {ci(int(vaw), int(vag))}\n")
+        md.append("兵種（金額加權）勝率：" + "、".join(f"{NAMES[t]} {pct(vtw[t], vtg[t])}%" for t in range(NT)) + f"；刺客陣 {ci(int(vaw), int(vag))}\n")
         if pct(vblow, len(vrem)) >= 20:
             fails.append(f"驗證池碾壓局 {pct(vblow, len(vrem))}%")
         if vmed > 30:
