@@ -40,6 +40,10 @@ func _init() -> void:
 		"repl": repl(int(args.get("unit", "5")), nt, shard, shards)
 		"replshield": repl(int(args.get("unit", "9")), nt, shard, shards, true)
 		"cover": cover(int(args.get("unit", "7")), nt, shard, shards)
+		"contract":
+			# 實驗契約（Codex 實作審查第 2 輪 #7）：規則、數值摘要、兩個對手池的身分；報表逐列核對
+			print("CONTRACT ", JSON.stringify({"rules": D.RULES_VERSION, "digest": D.data_digest(), "ntypes": nt,
+				"pool_val": pool_hash(F.validation_pool(0, nt)), "pool_shield": pool_hash(shield_pool(200))}))
 	quit(0)
 
 var pool_id := ""
@@ -170,6 +174,39 @@ func repl(x: int, nt: int, shard: int, shards: int, vs_shield := false) -> void:
 				emit({"mode": mname, "unit": x, "i": i, "k": k, "opp": (i * 7 + k * 31) % opps.size(), "pol": pol, "s0": sc[0], "s1": sc[1],
 					"left": variants[pol].left(), "n": variants[pol].count(), "nt": nt, "code": variants[pol].to_code() if k == 0 else ""})
 
+## 和 duel2 一樣，另外回傳支援兵的實際覆蓋（Codex 第 2 輪 #9）：
+## 鼓手＝每隻鼓手平均每 tick 鼓舞到幾隻友軍（drum_cover ÷ 存活 tick）；醫者＝開戰時每隻醫者 3 格內有幾隻戰鬥兵友軍。兩場取平均。
+static func duel2_cover(a: Army, b: Army, sup: int) -> Array:
+	var covs: Array = []
+	var res: Array = []
+	for side in 2:
+		var s = Sim.new(a.copy(), b.mirrored()) if side == 0 else Sim.new(b.copy(), a.mirrored())
+		s.fast = true
+		var me := 0 if side == 0 else 1
+		var start := 0.0
+		var nsup := 0
+		for u in s.units:
+			if u.team == me and u.type == sup:
+				nsup += 1
+				if sup == D.MEDIC:
+					for o in s.units:
+						if o.team == me and not D.is_support(o.type) and (o.x - u.x) * (o.x - u.x) + (o.y - u.y) * (o.y - u.y) <= D.HEAL_RANGE * D.HEAL_RANGE:
+							start += 1.0
+		s.run_to_end()
+		var cv := 0.0
+		if nsup > 0:
+			if sup == D.DRUMMER:
+				var tot := 0
+				for u in s.units:
+					if u.team == me and u.type == sup:
+						tot += u.drum_cover
+				cv = float(tot) / float(nsup * maxi(1, s.tick))
+			else:
+				cv = start / nsup
+		covs.append(cv)
+		res.append((1.0 if s.winner == me else (0.5 if s.winner < 0 else 0.0)))
+	return [res[0], res[1], snappedf((covs[0] + covs[1]) / 2.0, 0.01)]
+
 ## 從後排（離自己底線近）、兩邊往中間拿掉戰鬥兵，直到空出 need 金；再把 k 隻支援兵照角色欄位擺上。
 static func with_supports(base: Army, sup: int, k: int) -> Army:
 	var b: Army = base.copy()
@@ -207,5 +244,6 @@ func cover(sup: int, nt: int, shard: int, shards: int) -> void:
 			var v := with_supports(base, sup, kk)
 			for k in COVER_OPPS:
 				var opp: Army = opps[(i * 11 + k * 37) % opps.size()]
-				var sc := duel2(v, opp)
-				emit({"mode": "cover", "unit": sup, "i": i, "kk": kk, "k": k, "opp": (i * 11 + k * 37) % opps.size(), "s0": sc[0], "s1": sc[1], "have": v.count_of(sup), "nt": nt})
+				var sc := duel2_cover(v, opp, sup)
+				emit({"mode": "cover", "unit": sup, "i": i, "kk": kk, "k": k, "opp": (i * 11 + k * 37) % opps.size(), "s0": sc[0], "s1": sc[1], "have": v.count_of(sup), "nt": nt,
+					"cov": sc[2]})

@@ -1439,6 +1439,19 @@ func test_new_units() -> void:
 				heal_ticks.append(s.tick)
 	ok(heal_ticks.size() >= 3 and heal_ticks[0] == D.HEAL_FIRST and heal_ticks[1] - heal_ticks[0] == D.HEAL_CD and heal_ticks[2] - heal_ticks[1] == D.HEAL_CD,
 		"補血時間：第一次在第 %d tick、之後每 %d tick" % [D.HEAL_FIRST, D.HEAL_CD], str(heal_ticks))
+	# 被暈的醫者這一刻不補（冷卻已到 0，解暈後下一 tick 立刻補）；鼓手不會加快補血
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.DRUMMER, 0, 2200, 4600], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	s.units[sc["idx"][1]].hp = 20
+	s.units[sc["idx"][0]].stun = D.HEAL_FIRST + 5
+	var ht2: Array = []
+	for i in D.HEAL_FIRST + D.HEAL_CD + 10:
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.HEAL:
+				ht2.append(s.tick)
+	ok(ht2.size() >= 2 and ht2[0] == D.HEAL_FIRST + 6 and ht2[1] - ht2[0] == D.HEAL_CD and s.units[sc["idx"][0]].aura == 1,
+		"被暈的醫者延後補血、解暈後立刻補；鼓手光環不加快補血", str(ht2))
 	# 狂熱時補血減半
 	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.SHIELD, 1, 15000, 8000]])
 	s = sc["s"]

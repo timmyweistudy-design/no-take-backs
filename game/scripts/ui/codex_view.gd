@@ -255,8 +255,13 @@ func _cx_bars(t: int) -> Array:
 		dps_row = [L.t("bar_hps"), hps / mx[1], "%.0f" % hps]   # 醫者顯示每秒補血，不顯示 DPS 0（第四輪 §4.6）
 	elif t == D.DRUMMER:
 		dps_row = [L.t("bar_aura"), 0.5, L.t("aura_val", [D.DRUM_BONUS * 100 / 4])]
+	var range_row := [L.t("bar_range"), sqrt(me[2] / mx[2]), L.t("cells", [me[2]])]
+	if D.is_support(t):
+		# 支援兵顯示支援半徑（補血／戰鼓），不顯示貼身的 0.7 格（Antigravity 第 2 輪）
+		var sr := float(D.HEAL_RANGE if t == D.MEDIC else D.DRUM_RANGE) / 1000.0
+		range_row = [L.t("bar_support_range"), sqrt(sr / mx[2]), L.t("cells", [sr])]
 	return [[L.t("bar_hp"), me[0] / mx[0], str(int(me[0]))], dps_row,
-		[L.t("bar_range"), sqrt(me[2] / mx[2]), L.t("cells", [me[2]])], [L.t("bar_speed"), me[3] / mx[3], L.t("cells_s", [me[3]])],
+		range_row, [L.t("bar_speed"), me[3] / mx[3], L.t("cells_s", [me[3]])],
 		[L.t("bar_cost"), float(stc["cost"]) / 7.0, L.t("gold", [int(stc["cost"])])]]
 
 func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> void:

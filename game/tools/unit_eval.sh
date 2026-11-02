@@ -22,6 +22,8 @@ for m in "$@"; do
   done
   echo "· $m 完成（累計 $(( $(date +%s) - t0 )) 秒）"
 done
-printf '{"modes": [%s], "shards": %d, "ntypes": %d, "commit": "%s"}\n' "$(printf '"%s",' "$@" | sed 's/,$//')" "$SHARDS" "$NT" "$(git rev-parse --short HEAD)$(git diff --quiet || echo '+dirty')" > "$OUT/manifest.json"
+CONTRACT=$("$GODOT" --headless --path . --script res://tools/unit_eval.gd -- --mode=contract "--ntypes=$NT" 2>&1 | grep '^CONTRACT ' | sed 's/^CONTRACT //')
+[ -z "$CONTRACT" ] && { echo "✗ 取不到實驗契約" >&2; exit 2; }
+printf '{"modes": [%s], "shards": %d, "ntypes": %d, "commit": "%s", "contract": %s}\n' "$(printf '"%s",' "$@" | sed 's/,$//')" "$SHARDS" "$NT" "$(git rev-parse --short HEAD)$(git diff --quiet || echo '+dirty')" "$CONTRACT" > "$OUT/manifest.json"
 [ $fail -ne 0 ] && { echo "✗ 有分片失敗" >&2; exit 2; }
-python3 tools/unit_eval_report.py "$OUT" ${BAND:+"$BAND"}
+python3 tools/unit_eval_report.py "$OUT"

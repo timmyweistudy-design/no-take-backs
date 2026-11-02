@@ -12,6 +12,8 @@ const Army = preload("res://scripts/core/army.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const PATH := "res://tests/golden/compat_v1.2.json"
 const GOLDEN := "res://tests/golden/golden.json"
+## 基準的 1000 組陣型代碼的身分（"a|b" 以逗號串接後 SHA-256 前 16 碼）；換了一組就不是同一個基準（Codex 第 2 輪 #10）
+const SET_HASH := "76b34d76d7431f12"
 
 ## 舊欄位（第三輪 _hash_state 的 28 個欄位）。新兵種加的狀態不放這裡，另外檢查它們在舊場次一直是初值。
 static func old_fields(u) -> PackedInt64Array:
@@ -32,8 +34,8 @@ const NEW_FIELDS := {"hcd": 0, "aura": 0, "breach": 0, "bmode": 0, "heal_done": 
 static func run_case(c0: String, c1: String) -> Dictionary:
 	var a0 := Army.new(0, 100)
 	var a1 := Army.new(1, 100)
-	a0.load_code(c0)
-	a1.load_code(c1)
+	if a0.load_code(c0) != "" or a1.load_code(c1) != "":
+		return {"error": "陣型代碼解不開"}
 	var s = Sim.new(a0, a1)
 	s.fast = true
 	var h := HashingContext.new()
@@ -90,11 +92,18 @@ static func check(n: int) -> Dictionary:
 	# 基準必須是完整的 1000 場、而且至少要比 1 場（Codex 實作審查 #10：空的或縮水的基準不能回報成功）
 	if cases.size() != 1000 or str(g.get("from_rules", "")) != "1.2.0":
 		return {"ok": false, "why": "相容基準不完整或來源規則不是 1.2.0（%d 場）" % cases.size()}
+	var ids := PackedStringArray()
+	for c in cases:
+		ids.append("%s|%s" % [c["a"], c["b"]])
+	if ",".join(ids).sha256_text().substr(0, 16) != SET_HASH:
+		return {"ok": false, "why": "相容基準的陣型組合不是原本那 1000 組"}
 	if n < 1 or n > cases.size():
 		return {"ok": false, "why": "要比的場數 %d 不合法" % n}
 	for i in n:
 		var c: Dictionary = cases[i]
 		var r := run_case(c["a"], c["b"])
+		if r.has("error"):
+			return {"ok": false, "n": i + 1, "first_case": i, "why": r["error"]}
 		if r["untouched"] != "":
 			return {"ok": false, "n": i + 1, "first_case": i, "why": "新狀態在舊場次被動到：" + r["untouched"]}
 		if int(r["w"]) != int(c["w"]) or int(r["t"]) != int(c["t"]):
