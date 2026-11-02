@@ -27,7 +27,7 @@ static func new_fields_untouched(s) -> String:
 	return ""
 
 ## 第四輪新增的單位狀態與它們的初值（舊 5 種兵永遠不會用到）
-const NEW_FIELDS := {"hcd": 0, "aura": 0, "breach": 0, "bmode": 0, "heal_done": 0, "follow": -1}
+const NEW_FIELDS := {"hcd": 0, "aura": 0, "breach": 0, "bmode": 0, "heal_done": 0, "follow": -1, "drum_cover": 0}
 
 static func run_case(c0: String, c1: String) -> Dictionary:
 	var a0 := Army.new(0, 100)

@@ -52,6 +52,15 @@ class Unit:
 	var nav := 0               # 繞翼導航：0 沒有／直衝、1 繞翼中、2 已完成（同一個目標不再繞）
 	var chasing := false       # 騎兵追擊遲滯狀態
 	var alive := true
+	# ── 第四輪新兵種的狀態（舊 5 種永遠維持初值，tools/compat.gd 會檢查）──
+	var hcd := 0               # 醫者補血冷卻（tick，不吃加速）
+	var aura := 0              # 這一 tick 是否在鼓手光環內（1／0）
+	var breach := 0            # 被狂戰士破陣的剩餘 tick（盾兵、長槍兵）
+	var bmode := 0             # 投彈兵這一 tick 的模式：0 無、1 丟彈、2 敲人
+	var heal_done := 0         # 醫者實際補進去的總量（結果頁用）
+	var drum_cover := 0        # 鼓手：累計「鼓舞到的友軍 × tick」（結果頁用，不含自己）
+	var follow := -1           # 支援兵這一 tick 跟隨的友軍索引（-1＝重心或沒有）
+	var slot := 0              # 部署格（以自己隊伍視角：列×16＋欄），平手規則用，鏡像不變
 	var dmg_dealt := 0
 	var dmg_taken := 0
 	var kills := 0
@@ -100,6 +109,9 @@ func _init(army0, army1) -> void:
 		n.fx = 1000 if n.team == 0 else -1000
 		if n.type == D.ASSASSIN:
 			n.stealth = D.STEALTH_TICKS
+		if n.type == D.MEDIC:
+			n.hcd = D.HEAL_FIRST
+		n.slot = int(u["row"]) * COLS + (int(u["col"]) if n.team == 0 else COLS - 1 - int(u["col"]))
 		units.append(n)
 	var hdr := PackedInt64Array([D.RULES_VERSION_INT, budget, units.size()])
 	_hash.update(hdr.to_byte_array())
@@ -151,6 +163,11 @@ func step() -> void:
 		sk[i] = u.type
 		sh[i] = u.hp
 		sv[i] = 1 if (u.alive and u.stealth == 0) else 0
+	# 每隊還活著的戰鬥兵（非支援）數量：支援兵用來決定「支援模式」還是「自己打」（第四輪）
+	var fighters := [0, 0]
+	for i in n:
+		if units[i].alive and not D.is_support(units[i].type):
+			fighters[units[i].team] += 1
 
 	# ② 選目標＋提出移動
 	var nx := sx.duplicate()
@@ -170,7 +187,43 @@ func step() -> void:
 		u.my = 0
 		if not u.alive:
 			continue
-		var t := _choose_target(i, sx, sy, st, sk, sh, sv)
+		u.follow = -1
+		u.bmode = 0
+		if D.is_support(u.type) and fighters[u.team] > 0:
+			# 支援模式（第四輪 §2.3／§2.5）：不選敵人，跟隨友軍
+			new_target[i] = -1
+			if u.stun > 0:
+				continue
+			var fp := _support_point(i, sx, sy, sh)
+			var bx := fp.x - D.SUPPORT_BACK if u.team == 0 else fp.x + D.SUPPORT_BACK
+			var dest_sx := clampi(bx, EDGE, W - EDGE)
+			var dest_sy := clampi(fp.y, EDGE, H - EDGE)
+			var sdx := dest_sx - u.x
+			var sdy := dest_sy - u.y
+			var sl := M.isqrt(sdx * sdx + sdy * sdy)
+			if sl > D.SUPPORT_STOP:
+				var sstp := mini(u.speed, sl)
+				u.mx = sdx * sstp / sl
+				u.my = sdy * sstp / sl
+				nx[i] = u.x + u.mx
+				ny[i] = u.y + u.my
+			var sf := M.unit1000(fp.x - u.x, fp.y - u.y)
+			if sf != Vector2i.ZERO:
+				new_fx[i] = sf.x
+				new_fy[i] = sf.y
+			continue
+		var t := -1
+		if u.type == D.BOMBER:
+			# 投彈兵（第四輪 §2.2）：最近的「可見」敵人在 1.5 格內 → 這一 tick 敲人；否則只從 ≥1.5 格的敵人裡選丟彈目標
+			var near2 := _nearest_visible_enemy_d2(i, sx, sy, st, sv)
+			if near2 >= 0 and near2 < D.BOMB_MIN * D.BOMB_MIN:
+				u.bmode = 2
+				t = _choose_target(i, sx, sy, st, sk, sh, sv)
+			elif near2 >= 0:
+				u.bmode = 1
+				t = _choose_target(i, sx, sy, st, sk, sh, sv, D.BOMB_MIN * D.BOMB_MIN)
+		else:
+			t = _choose_target(i, sx, sy, st, sk, sh, sv)
 		new_target[i] = t
 		# 技能事件（只給畫面與圖鑑用，不進指紋）：被盾兵嘲諷吸走
 		if t != -1 and t != u.target and _last_rank == 1:
@@ -178,7 +231,7 @@ func step() -> void:
 		if t == -1 or u.stun > 0:
 			continue
 		var tg := units[t]
-		var reach := u.reach
+		var reach := u.reach if u.bmode != 2 else D.BONK_REACH
 		var d2 := M.dist2(u.x, u.y, tg.x, tg.y)
 		var dest_x := tg.x
 		var dest_y := tg.y
@@ -314,15 +367,53 @@ func step() -> void:
 		if rally[tm] != _was_rally[tm]:
 			events.append({"kind": EV.RALLY_ON if rally[tm] else EV.RALLY_OFF, "team": tm, "tags": [EV.RALLY]})
 			_was_rally[tm] = rally[tm]
+	# 戰鼓（第四輪 §2.5）：用 ① 快照的位置；這一 tick 開始時活著、沒被暈的鼓手才算；先算完整陣列再扣冷卻；不疊加
+	for i in n:
+		units[i].aura = 0
+	for di in n:
+		var dr := units[di]
+		if dr.type != D.DRUMMER or not dr.alive or dr.stun > 0:
+			continue
+		var cov := 0
+		for j in n:
+			if units[j].alive and st[j] == st[di] and M.dist2(sx[di], sy[di], sx[j], sy[j]) <= D.DRUM_RANGE * D.DRUM_RANGE:
+				units[j].aura = 1
+				if j != di:
+					cov += 1
+		dr.drum_cover += cov
+		if cov > 0 and tick % 20 == 0:
+			events.append({"kind": EV.DRUM, "src": dr.id, "n": cov, "tags": [EV.DRUM]})   # 每秒一拍（只給畫面與圖鑑）
+	var breach_set := {}
+	var heals: Array = []   # [醫者索引, 目標索引, 量]
 	for i in n:
 		var u := units[i]
 		if not u.alive:
 			continue
 		if u.cd > 0:
-			u.cd = maxi(0, u.cd - dec - rally_bonus[u.team])
+			u.cd = maxi(0, u.cd - mini(D.DEC_CAP, dec + rally_bonus[u.team] + D.DRUM_BONUS * u.aura))
+		if u.type == D.MEDIC:
+			_try_heal(i, sh, heals)
 		if u.stun > 0 or u.target == -1 or u.cd > 0:
 			continue
 		var tg := units[u.target]
+		if u.type == D.BOMBER and u.bmode == 1:
+			# 丟彈：④ 重新驗距離（③ 會移動位置），要在 1.5～4.5 格；不符合就取消，不臨時換模式
+			var bd2 := M.dist2(u.x, u.y, tg.x, tg.y)
+			if bd2 < D.BOMB_MIN * D.BOMB_MIN or bd2 > u.reach * u.reach:
+				continue
+			hits.append([i, u.target, u.atk * (D.BOMB_SHIELD_NUM if tg.type == D.SHIELD else 1), EV.BOMB, [EV.BOMB]])
+			for j in _splash_victims(u.target, st, sv):
+				hits.append([i, j, D.SPLASH_DMG * (D.BOMB_SHIELD_NUM if units[j].type == D.SHIELD else 1), EV.SPLASH, [EV.SPLASH]])
+			attacked[i] = 1
+			u.cd += u.cd_base * 4
+			continue
+		if u.type == D.BOMBER and u.bmode == 2:
+			if M.dist2(u.x, u.y, tg.x, tg.y) > D.BONK_REACH * D.BONK_REACH:
+				continue
+			hits.append([i, u.target, D.BONK_ATK, EV.BONK, [EV.BONK]])
+			attacked[i] = 1
+			u.cd += D.BONK_CD * 4
+			continue
 		if M.dist2(u.x, u.y, tg.x, tg.y) > u.reach * u.reach:
 			continue
 		if u.type == D.ASSASSIN and u.stealth > 0 and not _is_behind(u, tg):
@@ -334,6 +425,15 @@ func step() -> void:
 			dmg = dmg * D.ANTICAV_NUM / D.ANTICAV_DEN
 			kind = EV.ANTICAV
 			tags.append(EV.ANTICAV)
+		elif u.type == D.PIKE and tg.type == D.CAVALRY:
+			dmg = dmg * D.PIKE_ANTICAV_NUM / D.PIKE_ANTICAV_DEN
+			kind = EV.ANTICAV
+			tags.append(EV.ANTICAV)
+		elif u.type == D.BERSERKER and (tg.type == D.SHIELD or tg.type == D.PIKE):
+			breach_set[u.target] = true
+			tags.append(EV.BREACH)
+			if tg.breach == 0:
+				kind = EV.BREACH   # 只有「剛被破陣」那一下算破陣事件（跳字、戰報）；刷新時標籤照帶
 		if u.type == D.SWORD:
 			if tg.type == D.SHIELD:
 				dmg = dmg * D.BREAKER_NUM / D.BREAKER_DEN
@@ -345,24 +445,31 @@ func step() -> void:
 			if tg.type == D.ASSASSIN:
 				dmg = dmg * D.ALERT_NUM / D.ALERT_DEN
 				tags.append(EV.ALERT)
-			if tg.type == D.SHIELD and not _is_behind(u, tg):
+			if tg.type == D.SHIELD and tg.breach == 0 and not _is_behind(u, tg):
 				dmg = dmg * D.BLOCK_NUM / D.BLOCK_DEN
 				kind = EV.BLOCKED
 				tags.append(EV.BLOCKED)
 			elif tg.type == D.CAVALRY:
 				dmg = dmg * D.HIDE_ARROW_NUM / D.HIDE_ARROW_DEN
 				tags.append(EV.HIDE)
+			elif tg.type == D.BERSERKER:
+				dmg = dmg * D.BERSERK_ARROW_NUM / D.BERSERK_ARROW_DEN
 		elif u.type == D.CAVALRY:
 			if u.charge >= D.CHARGE_NEED:
 				if tg.type == D.SHIELD and not _is_behind(u, tg):
 					stun_set[i] = true
 					kind = EV.BRACED
 					tags.append(EV.BRACED)
+				elif tg.type == D.PIKE and tg.breach == 0 and not _is_behind(u, tg):
+					# 拒騎（第四輪 §2.1）：正面衝到長槍兵，衝鋒倍率與擊退都不生效（衝鋒照樣消耗）
+					kind = EV.PIKE_BRACE
+					tags.append(EV.PIKE_BRACE)
 				else:
 					dmg = dmg * D.CHARGE_NUM / D.CHARGE_DEN
 					kind = EV.CHARGE
 					tags.append(EV.CHARGE)
-					knock.append([u.target, tg.x - u.x, tg.y - u.y])
+					if tg.type != D.BERSERKER:   # 狂戰士不被擊退（第四輪 §2.4）
+						knock.append([u.target, tg.x - u.x, tg.y - u.y])
 		elif u.type == D.ASSASSIN:
 			if _is_behind(u, tg):
 				dmg = dmg * D.BACKSTAB_NUM / D.BACKSTAB_DEN
@@ -439,6 +546,10 @@ func step() -> void:
 		if not u.alive:
 			continue
 		u.hp -= dmg_in[i]
+		if u.breach > 0:
+			u.breach -= 1
+		if breach_set.has(i):
+			u.breach = D.BREACH_TICKS
 		if u.stun > 0:
 			u.stun -= 1
 		if u.slow > 0:
@@ -458,6 +569,7 @@ func step() -> void:
 		# 騎兵這一 tick 沒動也沒出手（被擋、等待）→ 衝鋒歸零
 		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
 			u.charge = 0
+	_apply_heals(heals)
 	for i in n:
 		var u := units[i]
 		if u.alive and u.hp <= 0:
@@ -477,7 +589,7 @@ func step() -> void:
 ## 選目標（企劃 §3.3）：排除潛行 → 弓手警覺 → 盾兵嘲諷（近戰）→ 兵種偏好 → 距離 → 剩血 → 列 → 深度 → 編號。
 ## 只讀快照陣列，比較全部用整數（不配置陣列）。
 func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: PackedInt64Array,
-		sk: PackedInt64Array, sh: PackedInt64Array, sv: PackedByteArray) -> int:
+		sk: PackedInt64Array, sh: PackedInt64Array, sv: PackedByteArray, min_d2 := 0) -> int:
 	var my_team: int = st[i]
 	var my_type: int = sk[i]
 	var ux: int = sx[i]
@@ -485,7 +597,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 	var reach: int = units[i].reach
 	var reach2 := reach * reach
 	var taunt2 := D.TAUNT_RANGE * D.TAUNT_RANGE
-	var melee := my_type != D.ARCHER
+	var melee := D.is_melee(my_type)
 	var best := -1
 	var b_rank := 99
 	_last_rank = 99
@@ -500,15 +612,17 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 		var dx: int = sx[j] - ux
 		var dy: int = sy[j] - uy
 		var d2 := dx * dx + dy * dy
+		if d2 < min_d2:
+			continue   # 投彈兵丟彈：最短射程內的不選（第四輪）
 		var et: int = sk[j]
 		var rank := 3
 		if my_type == D.ARCHER and et == D.ASSASSIN and d2 <= reach2:
 			rank = 0
-		elif melee and et == D.SHIELD and d2 <= taunt2:
-			rank = 1
-		elif my_type == D.CAVALRY and et == D.ARCHER:
+		elif melee and et == D.SHIELD and d2 <= taunt2 and units[j].breach == 0:
+			rank = 1   # 被破陣的盾兵不嘲諷（第四輪）
+		elif my_type == D.CAVALRY and (et == D.ARCHER or et == D.MEDIC or et == D.BOMBER):
 			rank = 2
-		elif my_type == D.ASSASSIN and (et == D.SHIELD or et == D.CAVALRY):
+		elif my_type == D.ASSASSIN and (et == D.SHIELD or et == D.CAVALRY or et == D.MEDIC):
 			rank = 2
 		if best != -1:
 			if rank > b_rank:
@@ -536,6 +650,145 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 		b_dep = sx[j] if st[j] == 0 else W - sx[j]
 	_last_rank = b_rank
 	return best
+
+## ───────────────────────── 第四輪新兵種 ─────────────────────────
+
+## 平手鍵（鏡像不變、與輸入順序無關）：距離² → 列 → 離自己底線的深度 → 部署格。a 比 b 優先回傳 true。
+func _tie_less(d2a: int, a: Unit, d2b: int, b: Unit) -> bool:
+	if d2a != d2b:
+		return d2a < d2b
+	if a.y != b.y:
+		return a.y < b.y
+	var da: int = a.x if a.team == 0 else W - a.x
+	var db: int = b.x if b.team == 0 else W - b.x
+	if da != db:
+		return da < db
+	return a.slot < b.slot
+
+## 最近的可見敵人距離²（沒有回傳 -1）。用 ① 快照。
+func _nearest_visible_enemy_d2(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: PackedInt64Array, sv: PackedByteArray) -> int:
+	var best := -1
+	for j in sx.size():
+		if sv[j] == 0 or st[j] == st[i]:
+			continue
+		var d2 := M.dist2(sx[i], sy[i], sx[j], sy[j])
+		if best < 0 or d2 < best:
+			best = d2
+	return best
+
+## 支援兵的跟隨點（第四輪 §2.3）：
+## 醫者先找 3 格內沒滿血、血比例最低的戰鬥兵友軍（交叉相乘比較）；沒有就（鼓手一律）用戰鬥兵友軍重心。
+## 只用 ① 快照的位置與血量；成員只算活著的非支援兵。
+func _support_point(i: int, sx: PackedInt64Array, sy: PackedInt64Array, sh: PackedInt64Array) -> Vector2i:
+	var u := units[i]
+	if u.type == D.MEDIC:
+		var best := -1
+		var bd2 := 0
+		for j in units.size():
+			var a := units[j]
+			if j == i or not a.alive or a.team != u.team or D.is_support(a.type) or sh[j] >= a.max_hp:
+				continue
+			var d2 := M.dist2(sx[i], sy[i], sx[j], sy[j])
+			if d2 > D.HEAL_RANGE * D.HEAL_RANGE:
+				continue
+			if best == -1 or _ratio_less(sh[j], a.max_hp, d2, a, sh[best], units[best].max_hp, bd2, units[best]):
+				best = j
+				bd2 = d2
+		if best != -1:
+			u.follow = best
+			return Vector2i(sx[best], sy[best])
+	# 重心：x 先換成「離自己底線的深度」再平均（鏡像不變），y 直接平均；都是非負整數，截斷方向一致
+	var sd := 0
+	var sy2 := 0
+	var cnt := 0
+	for j in units.size():
+		var a := units[j]
+		if not a.alive or a.team != u.team or D.is_support(a.type):
+			continue
+		sd += sx[j] if u.team == 0 else W - sx[j]
+		sy2 += sy[j]
+		cnt += 1
+	if cnt == 0:
+		return Vector2i(sx[i], sy[i])
+	var dep := sd / cnt
+	return Vector2i(dep if u.team == 0 else W - dep, sy2 / cnt)
+
+## 血比例比較：hp_a/max_a < hp_b/max_b（交叉相乘，不用浮點）；同比例再比平手鍵。
+func _ratio_less(hpa: int, ma: int, d2a: int, a: Unit, hpb: int, mb: int, d2b: int, b: Unit) -> bool:
+	var l := hpa * mb
+	var r := hpb * ma
+	if l != r:
+		return l < r
+	return _tie_less(d2a, a, d2b, b)
+
+## 醫者補血（④）：冷卻每 tick 倒數；到 0 時選 3 格內（④ 位置）、沒滿血、不是自己的活著友軍裡血比例最低的（血量用 ① 快照）。
+## 沒有可補的對象就不消耗冷卻；被暈不補。所有醫者從同一份快照選，彼此不影響。
+func _try_heal(i: int, sh: PackedInt64Array, heals: Array) -> void:
+	var u := units[i]
+	if u.hcd > 0:
+		u.hcd -= 1
+		return
+	if u.stun > 0:
+		return
+	var best := -1
+	var bd2 := 0
+	for j in units.size():
+		var a := units[j]
+		if j == i or not a.alive or a.team != u.team or sh[j] >= a.max_hp:
+			continue
+		var d2 := M.dist2(u.x, u.y, a.x, a.y)
+		if d2 > D.HEAL_RANGE * D.HEAL_RANGE:
+			continue
+		if best == -1 or _ratio_less(sh[j], a.max_hp, d2, a, sh[best], units[best].max_hp, bd2, units[best]):
+			best = j
+			bd2 = d2
+	if best == -1:
+		return
+	var amt := D.HEAL_AMT if not frenzy else D.HEAL_AMT / 2
+	heals.append([i, best, amt, bd2])
+	u.hcd = D.HEAL_CD
+
+## ⑤ 補血：傷害已經扣完；血 ≤0 的照死不補。同一隻被多個醫者選中只吃最大的一筆，記功給（量大→平手鍵）的那個醫者。
+## 這一 tick 死掉的醫者，已經發出的補血仍然有效（同時結算）。
+func _apply_heals(heals: Array) -> void:
+	var by_t := {}
+	for h in heals:
+		var t: int = h[1]
+		if not by_t.has(t):
+			by_t[t] = h
+			continue
+		var cur: Array = by_t[t]
+		if h[2] > cur[2] or (h[2] == cur[2] and _tie_less(h[3], units[h[0]], cur[3], units[cur[0]])):
+			by_t[t] = h
+	var ts := by_t.keys()
+	ts.sort()
+	for t in ts:
+		var h: Array = by_t[t]
+		var tg := units[t]
+		if not tg.alive or tg.hp <= 0:
+			continue
+		var real := mini(int(h[2]), tg.max_hp - tg.hp)
+		if real <= 0:
+			continue
+		tg.hp += real
+		units[h[0]].heal_done += real
+		events.append({"kind": EV.HEAL, "src": units[h[0]].id, "tgt": tg.id, "amt": real, "tags": [EV.HEAL]})
+
+## 爆炸波及：主目標 ④ 位置 0.9 格內、① 快照可見、活著的其他敵人，依平手鍵取前 SPLASH_MAX 隻。
+func _splash_victims(ti: int, st: PackedInt64Array, sv: PackedByteArray) -> Array:
+	var c := units[ti]
+	var cand: Array = []
+	for j in units.size():
+		if j == ti or sv[j] == 0 or st[j] != st[ti] or not units[j].alive:
+			continue
+		var d2 := M.dist2(c.x, c.y, units[j].x, units[j].y)
+		if d2 <= D.SPLASH_R * D.SPLASH_R:
+			cand.append([d2, j])
+	cand.sort_custom(func(p, q): return _tie_less(p[0], units[p[1]], q[0], units[q[1]]))
+	var out: Array = []
+	for k in mini(D.SPLASH_MAX, cand.size()):
+		out.append(cand[k][1])
+	return out
 
 ## 劍士反擊選人：打中它的刺客裡挑「最近→列小→離自己底線近」；只用鏡像不變的鍵，不用編號。
 func pick_counter(si: int, attackers: Array) -> int:
@@ -599,7 +852,7 @@ static func cav_chase(chasing: bool, d2: int, reach: int) -> bool:
 func _flank_waypoint(i: int, t: int) -> Vector2i:
 	var u := units[i]
 	var tg := units[t]
-	if tg.type != D.ARCHER:
+	if tg.type != D.ARCHER and tg.type != D.MEDIC and tg.type != D.BOMBER:   # 第四輪：繞翼也用在醫者、投彈兵
 		u.wp_for = -1
 		u.nav = 0
 		u.wp_x = -1
@@ -671,10 +924,10 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 	u.wp_y = wy
 	return Vector2i(u.wp_x, u.wp_y)
 
-## 完整狀態指紋：每 tick 依 id 順序寫入固定 26 個 int64 欄位。
+## 完整狀態指紋：每 tick 依 id 順序寫入固定 35 個 int64 欄位（第四輪加 7 個）。
 func _hash_state() -> void:
 	var a := PackedInt64Array()
-	a.resize(units.size() * 28 + 1)
+	a.resize(units.size() * 35 + 1)
 	a[0] = tick
 	var k := 1
 	for u in units:
@@ -684,7 +937,9 @@ func _hash_state() -> void:
 		a[k + 15] = u.slow; a[k + 16] = u.wp_x; a[k + 17] = u.wp_y; a[k + 18] = u.wp_for; a[k + 19] = 1 if u.alive else 0
 		a[k + 20] = u.dmg_dealt; a[k + 21] = u.dmg_taken; a[k + 22] = u.kills; a[k + 23] = u.id; a[k + 24] = u.team; a[k + 25] = u.type
 		a[k + 26] = u.nav; a[k + 27] = 1 if u.chasing else 0
-		k += 28
+		a[k + 28] = u.hcd; a[k + 29] = u.aura; a[k + 30] = u.breach; a[k + 31] = u.bmode; a[k + 32] = u.heal_done; a[k + 33] = u.follow
+		a[k + 34] = u.drum_cover
+		k += 35
 	_hash.update(a.to_byte_array())
 
 func _check_end() -> void:

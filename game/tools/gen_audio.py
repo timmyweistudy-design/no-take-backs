@@ -221,8 +221,20 @@ def battle_stems():
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
             w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, v * g)) * 32767)) for v in data))
 
+# ───── 第四輪新兵種音效 ─────
+def sfx_v4():
+    # 爆炸「碰」：低頻下滑＋噪音尾巴
+    boom_noise = lowpass([noise() * env(i / SR, 0.002, 0.28, 0.3) for i in range(int(SR * 0.3))], 0.08)
+    write("boom", mix(tone(90, 0.3, "sine", 1.0, d=0.28, bend=-0.6), boom_noise, tone(55, 0.22, "sine", 0.6, d=0.2)))
+    # 補血「叮」：兩個高音輕輕往上
+    write("heal", mix(tone(1320, 0.18, "sine", 0.45, d=0.17), at(tone(1760, 0.2, "sine", 0.4, d=0.19), 0.07, int(SR * 0.3))), peak=0.6)
+
 if __name__ == "__main__":
     import sys
+    if "--v4" in sys.argv:
+        sfx_v4()
+        print("audio v4 done")
+        raise SystemExit
     if "--stems" in sys.argv:
         battle_stems()
         print("stems done")
@@ -235,4 +247,5 @@ if __name__ == "__main__":
     music()
     sfx_r8()
     battle_stems()
+    sfx_v4()
     print("audio:", sorted(os.listdir(OUT)))

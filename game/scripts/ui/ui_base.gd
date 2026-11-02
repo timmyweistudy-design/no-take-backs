@@ -18,6 +18,7 @@ const PZ = preload("res://scripts/game/puzzles.gd")
 const SfxScript = preload("res://scripts/game/sfx.gd")
 const SpriteCache = preload("res://scripts/ui/sprite_cache.gd")
 const ViewBuffer = preload("res://scripts/ui/view_buffer.gd")
+const RS = preload("res://scripts/game/roster.gd")
 
 enum St { TITLE, PLACE, BATTLE, RESULT }
 enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
@@ -26,7 +27,9 @@ const ORIGIN := Vector2(128, 100)
 const CS := 64.0
 const FIELD := Vector2(16 * 64, 9 * 64)
 const CARD_Y := 694.0
-const CARD_W := 140.0
+const CARD_W := 80.0     # 第四輪：一排 10 張窄卡（方案 D），起點 x＝CARD_X0
+const CARD_X0 := 12.0
+const CARD_GAP := 6.0
 const CARD_H := 96.0
 const UI_BG := Color(0.08, 0.09, 0.13, 0.94)
 const PANEL := Color(0.12, 0.13, 0.19, 0.97)
@@ -90,6 +93,9 @@ var battle_marks: Array = []   # 結果頁時間軸的關鍵事件（第三輪 U
 var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
 var atk_seq := {}         # 單位 id →｛命中 tick: 第幾次出手｝（交替招式用）
+var pot_draw: Array = []  # 第四輪：這一幀要畫的火罐位置
+var puzzle_tab := 0       # 第四輪：殘局選單分頁（0 經典、1 新兵試玩）
+var bomb_tgt := {}       # 第四輪：投彈兵 id → {命中 tick: 目標 id}（畫火罐飛行）
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
 var prev_pos := {}
 var accum := 0.0

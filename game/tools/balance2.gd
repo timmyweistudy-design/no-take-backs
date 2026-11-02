@@ -23,6 +23,7 @@ func _init() -> void:
 		if a.begins_with("--") and "=" in a:
 			var kv := a.substr(2).split("=", true, 1)
 			args[kv[0]] = kv[1]
+	NT = int(args.get("ntypes", str(D.COUNT)))   # 第四輪：池子開放的兵種數（5＝經典，和第三輪相同）
 	var shard := int(args.get("shard", "0"))
 	var shards := int(args.get("shards", "1"))
 	match args.get("mode", "league"):
@@ -35,8 +36,11 @@ func _init() -> void:
 		"countersearch": countersearch(shard, shards)
 	quit(0)
 
+var NT := D.COUNT
+
 func emit(d: Dictionary) -> void:
 	d["digest"] = D.data_digest()
+	d["ntypes"] = NT
 	print("R ", JSON.stringify(d))
 
 ## 打一場：a 是藍方陣型（team 0）、b 也是以藍方表示的陣型（會鏡像成紅方）。回傳以 a 的角度的結果。
@@ -83,7 +87,7 @@ func matrix(shard: int, shards: int) -> void:
 			emit(r)
 
 func league(shard: int, shards: int, val := false) -> void:
-	var pool := F.validation_pool(0) if val else F.training_pool(0)
+	var pool := F.validation_pool(0, NT) if val else F.training_pool(0, NT)
 	for i in pool.size():
 		if i % shards != shard:
 			continue
@@ -144,7 +148,7 @@ func mutate(a: Army, rng: RandomNumberGenerator) -> Army:
 		# 換一隻的兵種（守預算）
 		var i := rng.randi_range(0, b.units.size() - 1)
 		var old: int = b.units[i]["type"]
-		var t := rng.randi_range(0, 4)
+		var t := rng.randi_range(0, NT - 1)
 		if b.spent() - D.cost(old) + D.cost(t) <= 100:
 			b.units[i]["type"] = t
 	elif op == 1:
@@ -159,21 +163,21 @@ func mutate(a: Army, rng: RandomNumberGenerator) -> Army:
 		# 拿掉一隻、補別種
 		if not b.units.is_empty():
 			b.units.remove_at(rng.randi_range(0, b.units.size() - 1))
-		var t := rng.randi_range(0, 4)
+		var t := rng.randi_range(0, NT - 1)
 		F.place_styled(b, t, "role", rng)
 	return b
 
 func search(shard: int, shards: int) -> void:
 	var iters := int(args.get("iters", "12"))
 	var nopp := int(args.get("opps", "24"))
-	var hold := F.holdout_pool(0)
-	var spool := F.search_pool(0)
+	var hold := F.holdout_pool(0, NT)
+	var spool := F.search_pool(0, NT)
 	var opps: Array = []
 	for k in nopp:
 		opps.append(spool[(k * 2 + shard) % spool.size()])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 777 + shard * 1009
-	var train := F.training_pool(0)
+	var train := F.training_pool(0, NT)
 	var cur: Army = train[rng.randi_range(0, train.size() - 1)].copy()
 	var cur_f := fitness(cur, opps)
 	for it in iters:
@@ -194,7 +198,7 @@ func countersearch(shard: int, shards: int) -> void:
 		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 31337 + shard * 7717
-	var train := F.training_pool(0)
+	var train := F.training_pool(0, NT)
 	var cur: Army = train[(shard * 13) % train.size()].copy()
 	var cur_f := fitness(cur, [target])
 	for it in int(args.get("iters", "20")):
@@ -208,7 +212,7 @@ func countersearch(shard: int, shards: int) -> void:
 ## 離線反制庫：原型陣（AI 模板×種子）→ 訓練池中勝它最多的陣型代碼。
 func counter(shard: int, shards: int) -> void:
 	var rng := RandomNumberGenerator.new()
-	var train := F.training_pool(0)
+	var train := F.training_pool(0, NT)
 	for ti in AI.TEMPLATES.size():
 		if ti % shards != shard:
 			continue

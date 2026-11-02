@@ -2,7 +2,7 @@
 # 平衡工具 2.0 多行程分片執行器（優化方案 L2）。
 # 用法：tools/balance.sh [輸出資料夾] [模式...]
 #   預設模式：matrix league turns:cap10 turns:snake5 turns:snake5c search
-# 每個模式開 SHARDS 個 headless 行程（預設 16），每片寫自己的檔案，最後 balance_report.py 依場次合併、檢查紅線。
+# 每個模式開 SHARDS 個 headless 行程（預設 16）；NTYPES＝池子開放的兵種數（預設 10，5＝經典池），每片寫自己的檔案，最後 balance_report.py 依場次合併、檢查紅線。
 # 結束碼：0＝紅線全過；1＝有紅線失敗；2＝執行錯誤（任何一片失敗、零筆結果都算錯）。
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -24,7 +24,7 @@ for m in "${MODES[@]}"; do
   fi
   pids=()
   for ((s=0; s<SHARDS; s++)); do
-    "$GODOT" --headless --path . --script res://tools/balance2.gd -- "--mode=$mode" "--shard=$s" "--shards=$SHARDS" $extra \
+    "$GODOT" --headless --path . --script res://tools/balance2.gd -- "--mode=$mode" "--shard=$s" "--shards=$SHARDS" "--ntypes=${NTYPES:-10}" $extra \
       > "$OUT/${m/:/_}_$s.raw" 2>&1 &
     pids+=($!)
   done

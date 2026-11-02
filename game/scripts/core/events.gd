@@ -13,6 +13,12 @@ const BRACED := "braced"
 const CHARGE := "charge"
 const BACKSTAB := "backstab"
 const COUNTER := "counter"
+# 第四輪新兵種
+const BOMB := "bomb"           # 投彈兵丟彈主擊
+const SPLASH := "splash"       # 爆炸波及
+const BONK := "bonk"           # 投彈兵被貼身敲人
+const PIKE_BRACE := "pike_brace"   # 長槍兵拒騎
+const BREACH := "breach"       # 狂戰士破陣
 # 只有標籤、不會單獨當 kind 的效果
 const ALERT := "alert"
 const HIDE := "hide"
@@ -26,8 +32,10 @@ const RALLY_ON := "rally_on"
 const RALLY_OFF := "rally_off"
 const RALLY := "rally"
 const FLANK := "flank"
+const DRUM := "drum"           # 鼓手一拍（src＝鼓手、n＝鼓舞到幾隻；每秒一次）
+const HEAL := "heal"           # 醫者補血（src＝醫者、tgt＝被補的、amt＝實際補量；沒有 dmg）
 
-const KINDS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER,
+const KINDS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER, BOMB, SPLASH, BONK, PIKE_BRACE, BREACH, HEAL, DRUM,
 	DEATH, ATTRITION, TAUNT, REVEAL, RALLY_ON, RALLY_OFF, FLANK]
-const TAGS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER,
+const TAGS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER, BOMB, SPLASH, BONK, PIKE_BRACE, BREACH, HEAL, DRUM,
 	ALERT, HIDE, TRIP, TAUNT, REVEAL, RALLY, FLANK]

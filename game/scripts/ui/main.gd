@@ -185,6 +185,7 @@ func _would_clutch(a0, a1) -> bool:
 
 func _run_screenshots() -> void:
 	await get_tree().process_frame
+	Save.data["stats"] = {"wins": 0, "games": 99}   # 截圖用暫存存檔：新兵全部解鎖（第四輪）
 	for i in 160:
 		demo.step()
 	await _snap("01_title.png")
@@ -232,6 +233,9 @@ func _run_screenshots() -> void:
 		{"kind": "bang", "p": Vector2(830, y0), "dur": 0.7},
 		{"kind": "puff", "p": Vector2(930, y0), "dur": 0.45},
 		{"kind": "ripple", "p": Vector2(1030, y0), "c": ACCENT, "dur": 0.35},
+		{"kind": "boom", "p": Vector2(220, y0 + 110), "dur": 0.45},
+		{"kind": "healarc", "a": Vector2(330, y0 + 110), "b": Vector2(420, y0 + 100), "dur": 0.25},
+		{"kind": "note", "p": Vector2(520, y0 + 100), "dur": 0.8},
 	]
 	for f in kinds:
 		f["t"] = f["dur"] * 0.35
@@ -246,6 +250,9 @@ func _run_screenshots() -> void:
 	await _snap("12_fx.png")
 	anim_gallery = true
 	await _snap("13_poses.png")
+	gallery_page = 1
+	await _snap("13b_poses_new.png")
+	gallery_page = 0
 	anim_gallery = false
 	Save.settings["colorblind"] = true
 	_rebuild_sprites()
@@ -325,7 +332,55 @@ func _run_screenshots() -> void:
 	for f in fx:
 		f["t"] = 0.0
 	await _snap("15_replay.png")
+	await _shots_v4()
 	get_tree().quit()
+
+
+## 第四輪新兵種的截圖：新兵擺陣（投彈兵範圍預覽）、新兵混戰、圖鑑新兵、殘局新兵分頁、未解鎖卡。
+func _shots_v4() -> void:
+	_go_title()
+	overlay = ""
+	difficulty = 1
+	_start_mode(Mode.VS_AI)
+	for s in [[D.SHIELD, 5, 3], [D.SHIELD, 5, 4], [D.SHIELD, 5, 5], [D.PIKE, 4, 3], [D.PIKE, 4, 4], [D.PIKE, 4, 5],
+			[D.BERSERKER, 5, 1], [D.BERSERKER, 5, 7], [D.DRUMMER, 3, 4], [D.MEDIC, 2, 4], [D.BOMBER, 0, 3], [D.BOMBER, 0, 5],
+			[D.ARCHER, 1, 2], [D.ARCHER, 1, 6], [D.SWORD, 4, 2], [D.SWORD, 4, 6]]:
+		armies[0].place(s[0], s[1], s[2])
+	selected = D.BOMBER
+	hover_card = -1
+	mouse = ORIGIN + Vector2(1.5, 4.5) * CS
+	await _snap("17_place_new.png")
+	selected = D.DRUMMER
+	mouse = ORIGIN + Vector2(3.5, 4.5) * CS
+	await _snap("17b_place_drum.png")
+	var r := RandomNumberGenerator.new()
+	r.seed = 4242
+	var red = AI.build(1, 100, r, 7)["army"]   # 砲擊陣
+	last_player_formation = armies[0].units.duplicate(true)
+	ai_name = L.t("diff_normal")
+	_begin_battle(armies[0].copy(), red.copy())
+	for i in 170:
+		_sim_step(true)
+	await _snap("18_battle_new.png")
+	_go_title()
+	Save.data["unit_wins"] = {"7": 5}
+	_open_codex(D.MEDIC)
+	cx_skill = 0
+	_cx_restart()
+	for i in 60:
+		_codex_tick(0.05)
+	await _snap("19_codex_new.png")
+	overlay = "puzzles"
+	puzzle_tab = 1
+	Save.data["stats"] = {"wins": 0, "games": 6}   # 解鎖到投彈兵：醫者、鼓手、狂戰士的關卡是鎖住的
+	await _snap("20_puzzles_new.png")
+	puzzle_tab = 0
+	overlay = ""
+	_start_mode(Mode.VS_AI)
+	selected = D.SWORD
+	hover_card = D.MEDIC
+	await _snap("21_place_locked.png")
+	hover_card = -1
 
 
 ## 繪圖效能量測（第二輪 R2、第三輪 T3）：
@@ -416,6 +471,7 @@ func _pstats(a: Array) -> Dictionary:
 
 ## 動作／表情樣品（R5 截圖驗證用）：每個兵種一列：待機、前搖、揮擊、後搖、受擊、狂熱、專屬（衝鋒／潛行／頂住）、勝利。
 var anim_gallery := false
+var gallery_page := 0
 
 func _ready() -> void:
 	super._ready()
@@ -506,8 +562,9 @@ func _draw_inner() -> void:
 	var cols := ["待機", "前搖", "揮擊", "後搖", "受擊", "狂熱", "專屬", "勝利", "交替招式"]
 	for c in cols.size():
 		_text(Vector2(170 + c * 122, 100), cols[c], ts(16), Color.WHITE, true)
-	for t in D.COUNT:
-		var y := 220.0 + t * 112.0
+	for ri in 5:   # 第四輪：10 種兵分兩頁（gallery_page 0＝經典、1＝新兵）
+		var t := gallery_page * 5 + ri
+		var y := 220.0 + ri * 112.0
 		for c in cols.size():
 			var p := Vector2(170 + c * 122, y)
 			var at: float = [0.0, 0.25, 0.42, 0.75, 0.0, 0.0, 0.0, Art.ATK_WINDUP, 0.52][c]

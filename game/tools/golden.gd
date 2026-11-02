@@ -9,6 +9,7 @@ const Sim = preload("res://scripts/core/battle_sim.gd")
 const Army = preload("res://scripts/core/army.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
+const F = preload("res://scripts/core/formations.gd")
 const PATH := "res://tests/golden/golden.json"
 const CHECK_EVERY := 100
 
@@ -16,8 +17,9 @@ static func state_sig(s) -> String:
 	var parts := PackedStringArray()
 	parts.append(str(s.tick))
 	for u in s.units:
-		parts.append("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [u.id, u.x, u.y, u.hp, 1 if u.alive else 0, u.target, u.stun,
-			u.stealth, u.charge, u.slow, u.cd, u.fx, u.fy, u.nav, 1 if u.chasing else 0, u.kills, u.dmg_dealt, u.dmg_taken])   # 第四輪 N0a：補擊殺與傷害統計
+		parts.append("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [u.id, u.x, u.y, u.hp, 1 if u.alive else 0, u.target, u.stun,
+			u.stealth, u.charge, u.slow, u.cd, u.fx, u.fy, u.nav, 1 if u.chasing else 0, u.kills, u.dmg_dealt, u.dmg_taken,
+			u.hcd, u.aura, u.breach, u.bmode, u.heal_done, u.follow])   # 第四輪 N0a：補擊殺與傷害統計；1.3.0：新兵種狀態   # 第四輪 N0a：補擊殺與傷害統計
 	return ",".join(parts).sha256_text().substr(0, 16)
 
 static func run_case(c0: String, c1: String, fast: bool) -> Dictionary:
@@ -53,8 +55,9 @@ func _make() -> void:
 	var cases: Array = []
 	for i in 1000:
 		rng.seed = 20261102 + i * 7919
-		var a0: Army = AI.build(0, 100, rng)["army"]
-		var a1: Army = AI.build(1, 100, rng)["army"]
+		# 第四輪：一半用 AI 模板（含新兵模板）、一半用十種兵的隨機混編，確保至少一半場次有新兵
+		var a0: Army = AI.build(0, 100, rng)["army"] if i % 2 == 0 else F.random_formation(0, rng, "mixed", "", D.COUNT)
+		var a1: Army = AI.build(1, 100, rng)["army"] if i % 2 == 0 else F.random_formation(0, rng, "mixed", "", D.COUNT).mirrored()
 		var c0 := a0.to_code()
 		var c1 := a1.to_code()
 		var r := run_case(c0, c1, false)

@@ -161,9 +161,13 @@ func _draw_codex() -> void:
 	var lang := L.lang
 	_text(Vector2(640, 108), L.t("codex_title"), ts(26), Color.WHITE, true, true, 600)
 	# 兵種分頁
+	# 第四輪 §4.7：一排 10 個「頭像＋數字」頁籤；兵種全名在下面左欄的大標題
+	var tw := (866.0 - (D.COUNT - 1) * 6.0) / D.COUNT
 	for t in D.COUNT:
-		var r := Rect2(204 + t * 176, 152, 168, 42)
-		_btn(r, L.t("unit_%d" % t), _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
+		var r := Rect2(204 + t * (tw + 6.0), 150, tw, 46)
+		_btn(r, "", _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
+		Art.unit(self, r.position + Vector2(tw / 2.0 + 4, 60 if t != D.CAVALRY else 66), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.72, cbm())
+		_text(r.position + Vector2(4, 2), str((t + 1) % 10), mini(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
 	var items := _cx_left_items(u, lang)
@@ -243,7 +247,13 @@ func _cx_bars(t: int) -> Array:
 			mx[i] = maxf(mx[i], v[i])
 	var me: Array = vals[t]
 	var stc: Dictionary = D.STATS[t]
-	return [[L.t("bar_hp"), me[0] / mx[0], str(int(me[0]))], [L.t("bar_dps"), me[1] / mx[1], "%.0f" % me[1]],
+	var dps_row := [L.t("bar_dps"), me[1] / mx[1], "%.0f" % me[1]]
+	if t == D.MEDIC:
+		var hps := float(D.HEAL_AMT) * 20.0 / float(D.HEAL_CD)
+		dps_row = [L.t("bar_hps"), hps / mx[1], "%.0f" % hps]   # 醫者顯示每秒補血，不顯示 DPS 0（第四輪 §4.6）
+	elif t == D.DRUMMER:
+		dps_row = [L.t("bar_aura"), 0.5, L.t("aura_val", [D.DRUM_BONUS * 100 / 4])]
+	return [[L.t("bar_hp"), me[0] / mx[0], str(int(me[0]))], dps_row,
 		[L.t("bar_range"), sqrt(me[2] / mx[2]), L.t("cells", [me[2]])], [L.t("bar_speed"), me[3] / mx[3], L.t("cells_s", [me[3]])],
 		[L.t("bar_cost"), float(stc["cost"]) / 7.0, L.t("gold", [int(stc["cost"])])]]
 

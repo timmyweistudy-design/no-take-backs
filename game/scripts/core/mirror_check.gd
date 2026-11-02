@@ -29,11 +29,13 @@ static func check(a0, a1) -> String:
 		for u in s1.units:
 			var v = byid[map[u.id]]
 			var a := [Sim.W - u.x, u.y, u.hp, -u.fx, u.fy, imap[u.target], imap[u.face_lock], u.cd, u.stun, u.slow,
-				u.stealth, u.charge, -u.cdx, u.cdy, -u.mx, u.my, (Sim.W - u.wp_x) if u.wp_x >= 0 else -1, u.wp_y, u.alive, u.dmg_dealt, u.dmg_taken, map.get(u.wp_for, -1), u.kills, u.nav, u.chasing]
+				u.stealth, u.charge, -u.cdx, u.cdy, -u.mx, u.my, (Sim.W - u.wp_x) if u.wp_x >= 0 else -1, u.wp_y, u.alive, u.dmg_dealt, u.dmg_taken, map.get(u.wp_for, -1), u.kills, u.nav, u.chasing,
+				u.hcd, u.aura, u.breach, u.bmode, u.heal_done, imap[u.follow], u.drum_cover]
 			var b := [v.x, v.y, v.hp, v.fx, v.fy, v.target, v.face_lock, v.cd, v.stun, v.slow,
-				v.stealth, v.charge, v.cdx, v.cdy, v.mx, v.my, v.wp_x, v.wp_y, v.alive, v.dmg_dealt, v.dmg_taken, v.wp_for, v.kills, v.nav, v.chasing]
+				v.stealth, v.charge, v.cdx, v.cdy, v.mx, v.my, v.wp_x, v.wp_y, v.alive, v.dmg_dealt, v.dmg_taken, v.wp_for, v.kills, v.nav, v.chasing,
+				v.hcd, v.aura, v.breach, v.bmode, v.heal_done, v.follow, v.drum_cover]
 			if a != b:
-				var names := ["x", "y", "hp", "fx", "fy", "target", "face_lock", "cd", "stun", "slow", "stealth", "charge", "cdx", "cdy", "mx", "my", "wp_x", "wp_y", "alive", "dealt", "taken", "wp_for", "kills", "nav", "chasing"]
+				var names := ["x", "y", "hp", "fx", "fy", "target", "face_lock", "cd", "stun", "slow", "stealth", "charge", "cdx", "cdy", "mx", "my", "wp_x", "wp_y", "alive", "dealt", "taken", "wp_for", "kills", "nav", "chasing", "hcd", "aura", "breach", "bmode", "heal_done", "follow", "drum_cover"]
 				var diff := []
 				for k in a.size():
 					if a[k] != b[k]:

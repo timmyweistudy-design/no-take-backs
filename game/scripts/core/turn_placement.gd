@@ -23,6 +23,7 @@ var turn_index := 0          # 蛇行：第幾手（0～9）
 var hands_done := [0, 0]
 var commands: Array = []     # {"team","type","col","row","turn"}
 var handoffs := 0            # 換人次數
+var ntypes := D.COUNT        # 這場開放的兵種數（經典模式 5；第四輪）
 
 func _init(a0, a1, p_first := 0, p_rule := "cap10") -> void:
 	armies = [a0, a1]

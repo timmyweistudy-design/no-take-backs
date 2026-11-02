@@ -28,6 +28,11 @@ func ok(cond: bool, name: String, extra := "") -> void:
 
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
+	if "--only=new" in OS.get_cmdline_user_args():
+		test_new_units()
+		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
+		quit(1 if failed > 0 or passed == 0 else 0)
+		return
 	test_army_rules()
 	test_turn_placement()
 	test_determinism_and_mirror()
@@ -52,6 +57,8 @@ func _init() -> void:
 	test_counter_lib()
 	test_seek_clutch()
 	test_clutch_effects()
+	test_new_units()
+	test_roster_ui()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -1225,3 +1232,392 @@ func test_clutch_effects() -> void:
 			steps_before = gg.view.tick - t0
 	ok(gg.slow_used and gg.view.tick == gg.clutch_tick and gg.accum > 0.0, "同一幀觸發慢動作：停在觸發那一 tick，剩下的時間留給慢速（多走了 %d tick）" % (gg.view.tick - gg.clutch_tick))
 	gg.free()
+
+
+## ───────── 第四輪：五種新兵（方案 v4 §3.3，每條都有「改壞會紅」的證明，紀錄在 coordination/n1-units/） ─────────
+## 直接擺位置的小場景：spec＝[兵種, 隊, x, y]（絕對座標，1000＝1 格）。
+func sim_at(spec: Array):
+	var a0 = Army.new(0, 400)
+	var a1 = Army.new(1, 400)
+	for k in spec.size():
+		var e: Array = spec[k]
+		var a = a0 if e[1] == 0 else a1
+		# 先放到不重複的格子，建好之後再搬到指定座標
+		a.units.append({"type": e[0], "col": (k % 6) if e[1] == 0 else 15 - (k % 6), "row": k / 6})
+	var s = Sim.new(a0, a1)
+	var by_team := [0, 0]
+	for e in spec:
+		pass
+	# Sim 依 id 排序；依「隊、列、欄」對回 spec 的順序
+	var order: Array = []
+	for k in spec.size():
+		var e: Array = spec[k]
+		var col: int = (k % 6) if e[1] == 0 else 15 - (k % 6)
+		var id: int = e[1] * 1000 + (k / 6) * 16 + col
+		for i in s.units.size():
+			if s.units[i].id == id:
+				order.append(i)
+				s.units[i].x = e[2]
+				s.units[i].y = e[3]
+				s.units[i].fx = 1000 if e[1] == 0 else -1000
+	return {"s": s, "idx": order}
+
+func count_kind(s, kind: String, ticks: int, src := -1) -> Array:
+	var out: Array = []
+	for i in ticks:
+		if s.finished:
+			break
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == kind and (src == -1 or ev.get("src") == src):
+				out.append(ev)
+	return out
+
+func test_new_units() -> void:
+	# ── 長槍兵 ──
+	# 第二排出手：盾兵前排＋長槍兵第二排對上劍士衝陣，長槍兵出手時「有自家前排比它更靠近目標」的比例 ≥80%
+	var spec := []
+	for r in [3, 4, 5]:
+		spec.append([D.SHIELD, 0, 5 * 1000 + 500, r * 1000 + 500])
+		spec.append([D.PIKE, 0, 4 * 1000 + 500, r * 1000 + 500])
+	for r in [3, 4, 5]:   # 同寬正面衝陣（敵方較寬時會從兩翼包抄直接打長槍兵，那是正常戰況，不算在這條）
+		spec.append([D.SWORD, 1, 10 * 1000 + 500, r * 1000 + 500])
+	var sc = sim_at(spec)
+	var s = sc["s"]
+	var pk_hits := 0
+	var pk_second := 0
+	for i in 600:
+		if s.finished:
+			break
+		s.step()
+		for ev in s.events:
+			if ev.get("dmg") == null:
+				continue
+			var a = s.unit_by_id(ev["src"])
+			if a.type != D.PIKE:
+				continue
+			var tg = s.unit_by_id(ev["tgt"])
+			pk_hits += 1
+			var dp: int = (a.x - tg.x) * (a.x - tg.x) + (a.y - tg.y) * (a.y - tg.y)
+			for o in s.units:
+				if o.team == a.team and o.alive and o.type != D.PIKE and (o.x - tg.x) * (o.x - tg.x) + (o.y - tg.y) * (o.y - tg.y) < dp:
+					pk_second += 1
+					break
+	ok(pk_hits > 0 and pk_second * 100 >= pk_hits * 80, "長槍兵站第二排出手（有自家前排更靠近目標的出手 ≥80%）", "%d/%d" % [pk_second, pk_hits])
+	# 拒騎：騎兵正面衝長槍兵 → pike_brace、傷害＝騎兵原攻擊（沒有衝鋒倍率）、沒有擊退、衝鋒被消耗
+	sc = sim_at([[D.CAVALRY, 0, 1500, 4500], [D.PIKE, 1, 9500, 4500]])
+	s = sc["s"]
+	var pk = s.units[sc["idx"][1]]
+	var cav = s.units[sc["idx"][0]]
+	var braces: Array = []
+	var knocked := false
+	var cav_charge_after := -1
+	for i in 200:
+		var bx: int = pk.x
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.PIKE_BRACE:
+				braces.append(ev)
+				knocked = absi(pk.x - bx) > 300
+				cav_charge_after = cav.charge
+		if not braces.is_empty():
+			break
+	ok(braces.size() == 1 and braces[0]["dmg"] == D.STATS[D.CAVALRY]["atk"] and not knocked and cav_charge_after == 0,
+		"長槍兵拒騎：正面衝鋒沒有倍率、沒有擊退、衝鋒被消耗", "%s knocked=%s charge=%d" % [braces, knocked, cav_charge_after])
+	# 被破陣的長槍兵擋不住衝鋒
+	sc = sim_at([[D.CAVALRY, 0, 1500, 4500], [D.PIKE, 1, 9500, 4500]])
+	s = sc["s"]
+	s.units[sc["idx"][1]].breach = 5000
+	ok(count_kind(s, EVS.CHARGE, 200).size() >= 1, "長槍兵被破陣時，騎兵衝鋒照常")
+	# 長槍兵打騎兵 ×3/2
+	sc = sim_at([[D.PIKE, 0, 6000, 4500], [D.CAVALRY, 1, 7000, 4500]])
+	s = sc["s"]
+	var pa := count_kind(s, EVS.ANTICAV, 100, s.units[sc["idx"][0]].id)
+	ok(not pa.is_empty() and pa[0]["dmg"] == D.STATS[D.PIKE]["atk"] * D.PIKE_ANTICAV_NUM / D.PIKE_ANTICAV_DEN, "長槍兵打騎兵 ×3/2", str(pa.slice(0, 1)))
+
+	# ── 投彈兵 ──
+	# 被貼身（1.5 格內有可見敵人）：改敲人，攻 BONK_ATK，沒有爆炸
+	sc = sim_at([[D.BOMBER, 0, 3000, 4500], [D.SWORD, 1, 4000, 4500], [D.SWORD, 1, 4300, 3800]])
+	s = sc["s"]
+	var bonks: Array = []
+	var bombs := 0
+	for i in 80:
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.BONK:
+				bonks.append(ev)
+			elif ev.get("kind") == EVS.BOMB or ev.get("kind") == EVS.SPLASH:
+				bombs += 1
+	ok(not bonks.is_empty() and bonks[0]["dmg"] == D.BONK_ATK and bombs == 0, "投彈兵被貼身改敲人、沒有爆炸", "bonks=%d bombs=%d" % [bonks.size(), bombs])
+	# 丟彈：盾牆正面，主擊無視舉盾（全額）、每次最多波及 SPLASH_MAX 隻
+	spec = [[D.BOMBER, 0, 2500, 4500]]
+	for p in [[6500, 4500], [6500, 3900], [6500, 5100], [6900, 4500], [6100, 4500], [7000, 4000]]:
+		spec.append([D.SHIELD, 1, p[0], p[1]])
+	sc = sim_at(spec)
+	s = sc["s"]
+	var bomb_ev: Array = []
+	var splash_per_tick := []
+	for i in 60:
+		s.step()
+		var sp := 0
+		for ev in s.events:
+			if ev.get("kind") == EVS.BOMB:
+				bomb_ev.append(ev)
+			elif ev.get("kind") == EVS.SPLASH:
+				sp += 1
+				if ev["dmg"] != D.SPLASH_DMG:
+					sp += 100
+		if sp > 0:
+			splash_per_tick.append(sp)
+	ok(not bomb_ev.is_empty() and bomb_ev[0]["dmg"] == D.STATS[D.BOMBER]["atk"] and not splash_per_tick.is_empty() and splash_per_tick.max() == D.SPLASH_MAX,
+		"投彈兵：主擊無視舉盾、每次波及恰好最多 %d 隻、波及傷害固定" % D.SPLASH_MAX, "bomb=%s splash=%s" % [bomb_ev.slice(0, 1), splash_per_tick])
+	# 潛行中的刺客貼在旁邊不會讓投彈兵改敲人（看不見）
+	sc = sim_at([[D.BOMBER, 0, 3000, 4500], [D.ASSASSIN, 1, 3900, 4500], [D.SWORD, 1, 7000, 4500]])
+	s = sc["s"]
+	var early_bomb := false
+	for i in 30:
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.BOMB:
+				early_bomb = true
+	var bm := 0
+	for u in s.units:
+		if u.type == D.BOMBER:
+			bm = u.bmode
+	ok(early_bomb, "潛行刺客不會讓投彈兵改敲人（只看可見敵人）", "bmode=%d" % bm)
+
+	# ── 醫者 ──
+	# 補血對象：3 格內沒滿血、血比例最低、不是自己；補 HEAL_AMT
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.SWORD, 0, 3000, 3500], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	var sw1 = s.units[sc["idx"][1]]
+	var sw2 = s.units[sc["idx"][2]]
+	var med = s.units[sc["idx"][0]]
+	sw1.hp = 150
+	sw2.hp = 100
+	med.hp = 50
+	var heals := count_kind(s, EVS.HEAL, 30)
+	ok(not heals.is_empty() and heals[0]["tgt"] == sw2.id and heals[0]["amt"] == D.HEAL_AMT, "醫者補血比例最低的友軍、不補自己、量＝HEAL_AMT", str(heals.slice(0, 1)))
+	# 不疊加：兩個醫者同時選中同一隻，只吃一筆；兩個醫者的冷卻都消耗
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.MEDIC, 0, 2000, 5500], [D.SWORD, 0, 3000, 5000], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	var swd = s.units[sc["idx"][2]]
+	swd.hp = 100
+	var hp_before := 0
+	var gain := -1
+	var both_cd := false
+	for i in 30:
+		hp_before = swd.hp
+		s.step()
+		var hs := 0
+		for ev in s.events:
+			if ev.get("kind") == EVS.HEAL:
+				hs += 1
+		if hs > 0:
+			gain = swd.hp - hp_before
+			both_cd = s.units[sc["idx"][0]].hcd == D.HEAL_CD and s.units[sc["idx"][1]].hcd == D.HEAL_CD
+			break
+	ok(gain == D.HEAL_AMT and both_cd, "兩個醫者補同一隻不疊加（只補一筆、兩個冷卻都消耗）", "gain=%d cd=%s" % [gain, both_cd])
+	# 當 tick 已經死的不救；補血不超過滿血（直接呼叫 ⑤ 的補血結算）
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.SWORD, 0, 3000, 3500], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	var dead_sw = s.units[sc["idx"][1]]
+	var near_full = s.units[sc["idx"][2]]
+	dead_sw.hp = -3
+	near_full.hp = near_full.max_hp - 5
+	s._apply_heals([[sc["idx"][0], sc["idx"][1], 18, 0], [sc["idx"][0], sc["idx"][2], 18, 0]])
+	ok(dead_sw.hp == -3 and near_full.hp == near_full.max_hp and s.units[sc["idx"][0]].heal_done == 5, "當 tick 該死的不會被補回；補血不超過滿血、記實際補量", "dead=%d full=%d done=%d" % [dead_sw.hp, near_full.hp, s.units[sc["idx"][0]].heal_done])
+	# 狂熱時補血減半
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	s.units[sc["idx"][1]].hp = 100
+	s.tick = D.FRENZY_TICK + 1
+	heals = count_kind(s, EVS.HEAL, 30)
+	ok(not heals.is_empty() and heals[0]["amt"] == D.HEAL_AMT / 2, "狂熱時補血減半", str(heals.slice(0, 1)))
+	# 沒有可補的對象時不消耗冷卻（冷卻停在 0，等有人受傷就立刻補）
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.SWORD, 0, 3000, 4500], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	for i in 40:
+		s.step()
+	var hcd0: int = s.units[sc["idx"][0]].hcd
+	s.units[sc["idx"][1]].hp = 100
+	heals = count_kind(s, EVS.HEAL, 1)
+	ok(hcd0 == 0 and heals.size() == 1, "沒有可補對象時補血冷卻不消耗、有人受傷下一 tick 就補", "hcd=%d heals=%d" % [hcd0, heals.size()])
+	# 可以補潛行中的友軍刺客
+	sc = sim_at([[D.MEDIC, 0, 2000, 4500], [D.ASSASSIN, 0, 2500, 4500], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	s.units[sc["idx"][1]].hp = 100
+	heals = count_kind(s, EVS.HEAL, 30)
+	ok(not heals.is_empty() and heals[0]["tgt"] == s.units[sc["idx"][1]].id and s.units[sc["idx"][1]].stealth > 0, "醫者可以補潛行中的友軍刺客")
+	# 支援兵在隊上還有戰鬥兵時不攻擊；只剩支援兵時才自己打
+	sc = sim_at([[D.MEDIC, 0, 6000, 4500], [D.DRUMMER, 0, 6000, 5500], [D.SWORD, 0, 1000, 500], [D.SWORD, 1, 6700, 4500]])
+	s = sc["s"]
+	var sup_ids := [s.units[sc["idx"][0]].id, s.units[sc["idx"][1]].id]
+	var sup_hits := 0
+	for i in 60:
+		s.step()
+		for ev in s.events:
+			if ev.get("dmg") != null and ev.get("src") in sup_ids:
+				sup_hits += 1
+	s.units[sc["idx"][2]].alive = false
+	s.units[sc["idx"][2]].hp = 0
+	var sup_hits2 := 0
+	for i in 80:
+		if s.finished:
+			break
+		s.step()
+		for ev in s.events:
+			if ev.get("dmg") != null and ev.get("src") in sup_ids:
+				sup_hits2 += 1
+	ok(sup_hits == 0 and sup_hits2 > 0, "支援兵：有戰鬥兵友軍時不攻擊、只剩支援兵時才打", "%d / %d" % [sup_hits, sup_hits2])
+
+	# ── 鼓手 ──
+	# 光環內的友軍冷卻多扣 1；光環外照常；兩個鼓手不疊加；被暈的鼓手不打鼓
+	sc = sim_at([[D.DRUMMER, 0, 2000, 4500], [D.DRUMMER, 0, 2000, 5000], [D.SWORD, 0, 3000, 4500], [D.SWORD, 0, 1000, 500], [D.SHIELD, 1, 15000, 8000]])
+	s = sc["s"]
+	var near_sw = s.units[sc["idx"][2]]
+	var far_sw = s.units[sc["idx"][3]]
+	near_sw.cd = 400
+	far_sw.cd = 400
+	s.step()
+	var dn: int = 400 - near_sw.cd
+	var df: int = 400 - far_sw.cd
+	ok(dn == 4 + D.DRUM_BONUS and df == 4 and near_sw.aura == 1 and far_sw.aura == 0, "鼓手光環：範圍內冷卻每 tick 多扣 DRUM_BONUS、兩個鼓手不疊加、範圍外照常", "near=%d far=%d" % [dn, df])
+	s.units[sc["idx"][0]].stun = 50
+	s.units[sc["idx"][1]].stun = 50
+	near_sw.cd = 400
+	s.step()
+	ok(400 - near_sw.cd == 4, "被暈的鼓手不打鼓", "dec=%d" % (400 - near_sw.cd))
+	# 冷卻扣除上限：狂熱 5＋背水 2＋戰鼓 1 → 封頂 DEC_CAP
+	sc = sim_at([[D.DRUMMER, 0, 2000, 4500], [D.SWORD, 0, 2500, 4500], [D.SHIELD, 1, 15000, 8000], [D.SHIELD, 1, 15000, 7000], [D.SHIELD, 1, 15000, 6000], [D.SHIELD, 1, 15000, 5000]])
+	s = sc["s"]
+	s.tick = D.FRENZY_TICK + 3
+	var sw3 = s.units[sc["idx"][1]]
+	sw3.cd = 400
+	s.step()
+	ok(s.rally[0] and 400 - sw3.cd == D.DEC_CAP, "冷卻扣除上限：狂熱＋背水＋戰鼓封頂 %d" % D.DEC_CAP, "rally=%s dec=%d" % [s.rally, 400 - sw3.cd])
+
+	# ── 狂戰士 ──
+	# 打中盾兵 → 破陣 BREACH_TICKS；破陣中弓箭打盾兵正面不再被擋、不再嘲諷近戰
+	sc = sim_at([[D.BERSERKER, 0, 6000, 4500], [D.ARCHER, 0, 2000, 4500], [D.SHIELD, 1, 6700, 4500]])
+	s = sc["s"]
+	var shd = s.units[sc["idx"][2]]
+	var got_breach: Array = []
+	var breach_val := -1
+	for i in 60:
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.BREACH:
+				got_breach.append(ev)
+		if not got_breach.is_empty():
+			breach_val = shd.breach
+			break
+	var arrows_after: Array = []
+	var blocked_after := 0
+	for i in 40:
+		if s.finished:
+			break
+		s.step()
+		for ev in s.events:
+			if ev.get("kind") == EVS.BLOCKED:
+				blocked_after += 1
+			elif ev.get("kind") == EVS.ARROW and ev.get("tgt") == shd.id:
+				arrows_after.append(ev)
+	ok(not got_breach.is_empty() and breach_val == D.BREACH_TICKS and blocked_after == 0 and not arrows_after.is_empty(),
+		"狂戰士破陣：盾兵 %d tick 內舉盾失效（弓箭全額）" % D.BREACH_TICKS, "breach=%d blocked=%d arrows=%d" % [breach_val, blocked_after, arrows_after.size()])
+	# 破陣的盾兵不嘲諷：劍士選目標時不會被它吸走
+	# 對照組：沒破陣時，2 格內的盾兵會把劍士吸走（即使弓箭手更近）
+	sc = sim_at([[D.SWORD, 0, 6000, 4500], [D.SHIELD, 1, 7200, 3400], [D.ARCHER, 1, 6900, 4500]])
+	s = sc["s"]
+	s.step()
+	var ctrl: int = s.units[sc["idx"][0]].target
+	sc = sim_at([[D.SWORD, 0, 6000, 4500], [D.SHIELD, 1, 7200, 3400], [D.ARCHER, 1, 6900, 4500]])
+	s = sc["s"]
+	s.units[sc["idx"][1]].breach = 500
+	s.step()
+	ok(ctrl == sc["idx"][1] and s.units[sc["idx"][0]].target == sc["idx"][2], "破陣的盾兵不嘲諷近戰（對照：沒破陣時會被吸走）", "ctrl=%d target=%d" % [ctrl, s.units[sc["idx"][0]].target])
+	# 不被擊退：同樣的衝鋒打劍士會被擊退、打狂戰士不會
+	var disp := []
+	for tt in [D.SWORD, D.BERSERKER]:
+		sc = sim_at([[D.CAVALRY, 0, 1500, 4500], [tt, 1, 9500, 4500]])
+		s = sc["s"]
+		var v = s.units[sc["idx"][1]]
+		var moved := -1
+		for i in 200:
+			var bx: int = v.x
+			s.step()
+			var hit := false
+			for ev in s.events:
+				if ev.get("kind") == EVS.CHARGE:
+					hit = true
+			if hit:
+				moved = absi(v.x - bx)
+				break
+		disp.append(moved)
+	ok(disp[0] >= 400 and disp[1] >= 0 and disp[1] < 300, "狂戰士不被衝鋒擊退（劍士會）", str(disp))
+	# 沒穿甲：箭傷 ×5/4
+	sc = sim_at([[D.ARCHER, 0, 2000, 4500], [D.BERSERKER, 1, 7000, 4500]])
+	s = sc["s"]
+	var ar := count_kind(s, EVS.ARROW, 60)
+	ok(not ar.is_empty() and ar[0]["dmg"] == D.STATS[D.ARCHER]["atk"] * D.BERSERK_ARROW_NUM / D.BERSERK_ARROW_DEN, "狂戰士被箭射 ×5/4", str(ar.slice(0, 1)))
+
+	# ── 共通：新兵種混編的鏡像與輸入順序 ──
+	var rng := RandomNumberGenerator.new()
+	var mbad := 0
+	var obad := 0
+	for i in 12:
+		rng.seed = 4040 + i
+		var a0: Army = F.random_formation(0, rng, "mixed", "", D.COUNT)
+		var a1: Army = F.random_formation(1, rng, "mixed", "", D.COUNT)
+		if MC.check(a0, a1) != "":
+			mbad += 1
+		var r0: Army = a0.copy()
+		r0.units.reverse()
+		var r1: Army = a1.copy()
+		r1.units.shuffle()
+		var p = Sim.new(a0.copy(), a1.copy())
+		p.run_to_end()
+		var q = Sim.new(r0, r1)
+		q.run_to_end()
+		if p.fingerprint != q.fingerprint:
+			obad += 1
+	ok(mbad == 0 and obad == 0, "十種兵混編：左右鏡像逐 tick 一致、陣型清單順序打亂結果不變（12 組）", "mirror=%d order=%d" % [mbad, obad])
+
+
+## 第四輪：兵種開放、結果頁兵種長條與技能徽章、存檔相容
+func test_roster_ui() -> void:
+	var RS = load("res://scripts/game/roster.gd")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var bad: Array = []
+	if RS.unlocked_count(0) != 5 or RS.unlocked_count(2) != 5 or RS.unlocked_count(3) != 6 or RS.unlocked_count(11) != 10 or RS.unlocked_count(99) != 10:
+		bad.append("解鎖場數")
+	if RS.unlocked_count(99, true) != 7:
+		bad.append("試玩版上限")
+	if RS.ntypes_for("duel", 0, false) != 10 or RS.ntypes_for("duel", 0, true) != 5 or RS.ntypes_for("ai", 4, false) != 6 or RS.ntypes_for("ai", 99, true) != 5:
+		bad.append("模式開放數")
+	if RS.games_to_unlock(D.MEDIC, 6) != 1 or RS.games_to_unlock(D.SWORD, 0) != 0 or RS.games_to_unlock(D.BERSERKER, 99, true) != -1:
+		bad.append("還要幾場")
+	if RS.newly_unlocked(2, 3) != [D.PIKE] or not RS.newly_unlocked(3, 4).is_empty():
+		bad.append("新解鎖提示")
+	# AI 只用開放的兵種：經典 5 種時，所有模板與落子 AI 都不會拿出新兵
+	var rng := RandomNumberGenerator.new()
+	for i in 40:
+		rng.seed = 900 + i
+		var a = AI.build(1, 100, rng, -1, 5)["army"]
+		var b = load("res://scripts/core/ai_turns.gd").build_full(1, rng, i % 3, [], 5)
+		for u in a.units + b.units:
+			if int(u["type"]) >= 5:
+				bad.append("經典模式 AI 用了兵種 %d" % u["type"])
+				break
+	ok(bad.is_empty(), "兵種開放：場數解鎖、試玩版上限、經典模式、AI 不用未開放的兵種", str(bad))
+	# 結果頁兵種長條：只列出場的、合計最多的 5 種
+	var dealt := [D.zeros(), D.zeros()]
+	var taken := [D.zeros(), D.zeros()]
+	for t in [0, 2, 5, 6, 7, 9]:
+		dealt[0][t] = 10 + t
+	taken[1][3] = 1
+	var rows: Array = GS.report_rows(dealt, taken)
+	ok(rows == [9, 7, 6, 5, 2], "結果頁兵種長條：出場的兵種依合計排序、最多 5 種", str(rows))
+	var cnt := {"heal0": 9, "breach1": 3, "charge0": 1}
+	var bg: Array = GS.report_badges(cnt)
+	ok(bg.size() == 6 and bg[0] == "heal" and bg[1] == "breach" and bg[2] == "charge" and bg.has("breaker"), "結果頁技能徽章：有發生的依次數排前面，支援兵的補血也算", str(bg))

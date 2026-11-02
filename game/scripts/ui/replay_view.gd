@@ -292,8 +292,12 @@ func _draw_review() -> void:
 		_text(Vector2(g0.x, g0.y + 9 * cs + 6 + ts(14) * 1.4), dsc, ts(14), ACCENT, false, false, 300)
 	# 右：換成哪個兵種／拿掉
 	var bx := 500.0
+	# 第四輪：10 種兵改成頭像按鈕（文字按鈕一排放不下）；只能換成這場開放的兵種
+	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
 	for t in D.COUNT:
-		_btn(Rect2(bx + t * 120, 170, 112, 40), L.t("unit_%d" % t), _rv_set_type.bind(t), rv_sel.x >= 0)
+		var br := Rect2(bx + t * 68, 162, 64, 50)
+		_btn(br, "", _rv_set_type.bind(t), rv_sel.x >= 0 and t < nt)
+		Art.unit(self, br.position + Vector2(32, 46), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if t < nt else 0.3, time, 0.55 if t != D.CAVALRY else 0.5, cbm())
 	_btn(Rect2(bx, 218, 232, 36), L.t("rv_remove"), _rv_set_type.bind(-1), rv_sel.x >= 0)
 	_btn(Rect2(bx + 240, 218, 232, 36), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1))
 	_btn(Rect2(bx, 270, 352, 46), L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1, true)

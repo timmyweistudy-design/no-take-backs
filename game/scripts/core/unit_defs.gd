@@ -9,20 +9,26 @@ extends RefCounted
 ##   倍率：寫成「分子／分母」   例：NUM 5、DEN 2 ＝ ×2.5
 ## 改完跑：cd game && godot --headless --path . --script res://tools/balance.gd
 
-enum { SWORD, SHIELD, ARCHER, CAVALRY, ASSASSIN }
+enum { SWORD, SHIELD, ARCHER, CAVALRY, ASSASSIN, PIKE, BOMBER, MEDIC, DRUMMER, BERSERKER }
 
 ## 規則版本：改了戰鬥規則（不是只改數值）就要升版；重播與陣型代碼會帶這個版本。
-const RULES_VERSION := "1.2.0"     # 1.2.0：繞翼狀態機、途經點離邊、騎兵追擊遲滯（第二輪方案 R1）
-const RULES_VERSION_INT := 10200
+const RULES_VERSION := "1.3.0"     # 1.3.0：第四輪新增五種兵（長槍兵、投彈兵、醫者、鼓手、狂戰士）；1.2.0：繞翼狀態機、途經點離邊、騎兵追擊遲滯
+const RULES_VERSION_INT := 10300
 
-const COUNT := 5
-const NAMES := ["劍士", "盾兵", "弓箭手", "騎兵", "刺客"]
+const COUNT := 10
+const CLASSIC := 5      # 經典 5 種（編號 0～4）；第四輪新兵是 5～9
+const NAMES := ["劍士", "盾兵", "弓箭手", "騎兵", "刺客", "長槍兵", "投彈兵", "醫者", "鼓手", "狂戰士"]
 const BLURB := [
 	"破盾、被刺客打會反擊",
 	"正面擋箭、頂住衝鋒、拒馬（打騎兵×2）、嘲諷近戰",
 	"遠程拋射、優先射現形刺客（傷害×1.5）",
 	"直衝 3 格後重擊、皮甲（箭傷減半）、繞過盾兵找弓手",
 	"開場潛行、背刺×2、絆馬",
+	"長柄 1.3 格、隔著前排出手、拒騎",
+	"拋火罐範圍傷害、無視舉盾、被貼身只能敲人",
+	"補附近血最少的友軍、友軍在時不出手",
+	"附近友軍攻速提升、友軍在時不出手",
+	"打中盾兵／長槍兵讓它破陣（嘲諷、舉盾、拒騎失效）",
 ]
 
 # ─── 基本數值 ───
@@ -38,6 +44,11 @@ const STATS := [
 	{"cost": 4, "hp": 150, "atk": 12, "cd": 24, "reach": 6000, "speed": 50},  # 弓箭手
 	{"cost": 7, "hp": 350, "atk": 14, "cd": 22, "reach": 750, "speed": 120},  # 騎兵
 	{"cost": 6, "hp": 175, "atk": 20, "cd": 16, "reach": 700, "speed": 90},   # 刺客
+	{"cost": 5, "hp": 260, "atk": 10, "cd": 22, "reach": 1300, "speed": 50},  # 長槍兵
+	{"cost": 6, "hp": 150, "atk": 16, "cd": 40, "reach": 5500, "speed": 45},  # 投彈兵（丟彈；被貼身改敲人見下方）
+	{"cost": 6, "hp": 180, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 醫者（攻擊只在全隊剩支援兵時用）
+	{"cost": 5, "hp": 200, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 鼓手（同上）
+	{"cost": 6, "hp": 300, "atk": 12, "cd": 20, "reach": 700, "speed": 60},   # 狂戰士
 ]
 
 # ─── 劍士 ───
@@ -79,6 +90,41 @@ const SLOW_TICKS := 20          # 絆馬：打到騎兵讓它減速 20 tick
 const SLOW_NUM := 1             # 減速後速度 ×1/2
 const SLOW_DEN := 2
 
+# ─── 長槍兵（第四輪）───
+const PIKE_ANTICAV_NUM := 2     # 長槍兵打騎兵 ×2
+const PIKE_ANTICAV_DEN := 1
+# 拒騎：騎兵從正面衝鋒打到長槍兵時，衝鋒倍率和擊退都不生效（衝鋒照樣消耗）
+
+# ─── 投彈兵（第四輪）───
+const BOMB_MIN := 1500          # 最短射程 1.5 格：最近的可見敵人比這近，這一 tick 就改敲人
+const SPLASH_R := 900           # 爆炸半徑：主目標 0.9 格內的其他敵人吃波及
+const SPLASH_DMG := 8           # 波及傷害
+const SPLASH_MAX := 3           # 最多波及幾隻
+const BOMB_SHIELD_NUM := 2      # 火罐專拆盾牆：主擊與波及打盾兵 ×2（第四輪平衡：沒有這條時投彈兵打不贏盾兵為主的陣）
+const BONK_ATK := 8             # 敲人：攻擊、距離、間隔
+const BONK_REACH := 700
+const BONK_CD := 24
+
+# ─── 醫者（第四輪）───
+const HEAL_AMT := 28            # 每次補血量（狂熱時減半）
+const HEAL_CD := 30             # 補血間隔（tick），不吃任何加速
+const HEAL_FIRST := 20          # 開戰後第一次補血前的等待
+const HEAL_RANGE := 3000        # 補血距離
+# 支援走位（醫者、鼓手）：跟隨點往自己底線退 1 格、離目的地 0.3 格內就停
+const SUPPORT_BACK := 1000
+const SUPPORT_STOP := 300
+
+# ─── 鼓手（第四輪）───
+const DRUM_RANGE := 2500        # 光環 2.5 格（含自己）
+const DRUM_BONUS := 2           # 冷卻每 tick 多扣 2（不疊加；平常扣 4）
+const DEC_CAP := 7              # 冷卻每 tick 扣除上限（平常 4／狂熱 5＋背水＋戰鼓）
+
+# ─── 狂戰士（第四輪）───
+const BREACH_TICKS := 60        # 破陣：打中盾兵／長槍兵後 3 秒內嘲諷、正面舉盾、拒騎失效（重複打中刷新）
+const BERSERK_ARROW_NUM := 5    # 沒穿甲：被弓箭射中 ×5/4
+const BERSERK_ARROW_DEN := 4
+# 不被擊退：騎兵衝鋒的擊退對狂戰士無效
+
 # ─── 全場規則 ───
 const MATCH_TICKS := 1800       # 一局最長 90 秒
 const FRENZY_TICK := 1200       # 60 秒起狂熱
@@ -116,7 +162,11 @@ static func cost(t: int) -> int:
 	return STATS[t]["cost"]
 
 static func is_melee(t: int) -> bool:
-	return t != ARCHER
+	return t != ARCHER and t != BOMBER
+
+## 支援兵（第四輪）：隊上還有戰鬥兵活著時不攻擊，只做支援走位。
+static func is_support(t: int) -> bool:
+	return t == MEDIC or t == DRUMMER
 
 static func cheapest() -> int:
 	var c := 999

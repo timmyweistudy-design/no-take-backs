@@ -7,6 +7,7 @@ const Army = preload("res://scripts/core/army.gd")
 const STYLES := ["role", "random", "lane_top", "lane_bottom", "center", "front", "spread"]
 const ROLE_COLS := [
 	[5, 4, 3], [5, 4], [0, 1, 2], [3, 2, 4], [2, 3, 1],
+	[4, 3], [0, 1], [1, 2], [3, 2], [5, 4],   # 第四輪：槍、彈、醫、鼓、狂
 ]
 
 ## 產生一套陣型。kind：
@@ -54,6 +55,34 @@ static func random_formation(team: int, rng: RandomNumberGenerator, kind := "mix
 		place_styled(a, t, style, rng)
 	return a
 
+## 指定權重的陣型（第四輪 unit_eval 用）：w 長度＝D.COUNT；權重 0 的兵種不出現。
+static func weighted_formation(team: int, rng: RandomNumberGenerator, w: Array, style := "") -> Army:
+	var a := Army.new(team, 100)
+	if style == "":
+		style = STYLES[rng.randi_range(0, STYLES.size() - 1)]
+	var picks: Array = []
+	var budget_left := 100
+	var guard := 0
+	while picks.size() < Army.MAX_UNITS and guard < 100:
+		guard += 1
+		var total := 0
+		for t in w.size():
+			if w[t] > 0 and D.cost(t) <= budget_left:
+				total += w[t]
+		if total == 0:
+			break
+		var r := rng.randi_range(1, total)
+		for t in w.size():
+			if w[t] > 0 and D.cost(t) <= budget_left:
+				r -= w[t]
+				if r <= 0:
+					picks.append(t)
+					budget_left -= D.cost(t)
+					break
+	for t in picks:
+		place_styled(a, t, style, rng)
+	return a
+
 static func place_styled(a: Army, t: int, style: String, rng: RandomNumberGenerator) -> void:
 	var cols: Array
 	var rows: Array
@@ -91,28 +120,33 @@ static func _abs_col(a: Army, c: int) -> int:
 	return c if a.team == 0 else Army.COLS - 1 - c
 
 ## 訓練池（200）與保留池（50）：不同種子範圍，保留池不參與調參。
-static func pool(team: int, count: int, seed_base: int) -> Array:
+## ntypes：池子只用編號 0～ntypes−1 的兵種（第四輪；5＝經典池，和第三輪的池子完全相同）。
+static func pool(team: int, count: int, seed_base: int, ntypes := D.COUNT) -> Array:
 	var out: Array = []
 	var rng := RandomNumberGenerator.new()
 	var kinds := ["mixed", "mixed", "mixed", "duo", "pure"]
 	for i in count:
 		rng.seed = seed_base + i * 7919
-		out.append(random_formation(team, rng, kinds[i % kinds.size()]))
+		out.append(random_formation(team, rng, kinds[i % kinds.size()], "", ntypes))
 	return out
 
-static func training_pool(team: int) -> Array:
-	return pool(team, 200, 1000003)
+static func training_pool(team: int, ntypes := D.COUNT) -> Array:
+	return pool(team, 200, 1000003, ntypes)
 
-static func holdout_pool(team: int) -> Array:
-	return pool(team, 50, 9000011)
+static func holdout_pool(team: int, ntypes := D.COUNT) -> Array:
+	return pool(team, 50, 9000011, ntypes)
 
 ## 驗證池（第三輪 B1）：從來沒有用來挑參數或調關卡的 200 套，用來確認結論不是對訓練池過擬合。
-static func validation_pool(team: int) -> Array:
-	return pool(team, 200, 7000001)
+static func validation_pool(team: int, ntypes := D.COUNT) -> Array:
+	return pool(team, 200, 7000001, ntypes)
+
+## 封存終驗池（第四輪 §3.4）：只在最後跑一次，不拿來調參或挑冠軍。
+static func sealed_pool(team: int, ntypes := D.COUNT) -> Array:
+	return pool(team, 200, 3000029, ntypes)
 
 ## 搜尋池：萬用陣搜尋演化時用的對手（跟保留池分開，避免資料洩漏）。
-static func search_pool(team: int) -> Array:
-	return pool(team, 60, 5000017)
+static func search_pool(team: int, ntypes := D.COUNT) -> Array:
+	return pool(team, 60, 5000017, ntypes)
 
 ## 兵種組成向量（每種兵的金額）。
 static func composition(a: Army) -> Array:

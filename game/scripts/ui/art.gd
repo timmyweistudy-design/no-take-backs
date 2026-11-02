@@ -157,13 +157,21 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 	if type == D.ARCHER:
 		_poly(ci, PackedVector2Array([Vector2(-11, -28), Vector2(-6, -30), Vector2(-3, -12), Vector2(-8, -11)]), WOOD, a)
 		_line(ci, Vector2(-9, -30), Vector2(-11, -35), Color.WHITE, 1.5, a)
-	# 身體（圓胖的上衣，隊伍色）
+	# 背後的東西（投彈兵的備用火罐包）
+	if type == D.BOMBER:
+		_c(ci, Vector2(-9, -20), 5.0, Color("#3a3346"), a)
+	# 身體（圓胖的上衣，隊伍色；狂戰士赤膊，隊伍色只留在獸皮披肩與褲頭；醫者白袍）
 	var body := PackedVector2Array()
 	for i in 13:
 		var ang := PI + i * PI / 12.0
 		body.append(Vector2(cos(ang) * 10.5, -16 + sin(ang) * 9.0))
 	body.append(Vector2(10, -5)); body.append(Vector2(-10, -5))
-	_poly(ci, body, tc, a)
+	_poly(ci, body, SKIN.darkened(0.06) if type == D.BERSERKER else (Color("#f4f1ea") if type == D.MEDIC else tc), a)
+	if type == D.BERSERKER:
+		_poly(ci, PackedVector2Array([Vector2(-11, -21), Vector2(-3, -26), Vector2(8, -14), Vector2(3, -10), Vector2(-6, -18)]), tc, a, false)   # 獸皮披肩
+		_poly(ci, PackedVector2Array([Vector2(-10, -9), Vector2(10, -9), Vector2(10, -5), Vector2(-10, -5)]), tc.darkened(0.2), a, false)
+	elif type == D.MEDIC:
+		_poly(ci, PackedVector2Array([Vector2(-10, -12), Vector2(10, -12), Vector2(10, -5), Vector2(-10, -5)]), tc, a, false)   # 白袍下擺露出隊伍色
 	ci.draw_line(Vector2(-9, -11), Vector2(9, -11), Color(OUT, 0.35 * a), 2.0, true)   # 腰帶
 	# 頭
 	var hy := -33.0
@@ -238,7 +246,92 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			var bw := maxf(0.0, w)
 			_line(ci, Vector2(-8 + bw * 18, -16 - bw * 6), Vector2(-15 + bw * 44, -21 + bw * 16), Color("#f0f0ff"), 2.8, a)   # 加長加粗，看得出交叉
 			_c(ci, Vector2(10, -18 - sw), 2.8, Color("#2b2140"), a)
-	if type != D.ASSASSIN and type != D.ARCHER and type != D.SWORD:
+		D.PIKE:
+			# 暖銅色扁鍋盔（寬帽簷，避開劍士的銀盔）
+			ci.draw_arc(Vector2(0, hy), 11.5, PI * 1.08, PI * 1.92, 16, Color(OUT, a), 6.5, true)
+			ci.draw_arc(Vector2(0, hy), 11.5, PI * 1.08, PI * 1.92, 16, Color("#c7834a", a), 4.0, true)
+			_line(ci, Vector2(-15, hy - 6), Vector2(15, hy - 6), Color("#c7834a"), 2.6, a)
+			# 長槍：平常斜前上方 45° 伸出頭頂；前搖收槍、揮擊放平直刺（第四輪）
+			var pang := -0.8 + (w * -0.25 if w < 0.0 else w * 0.75)
+			var phand := Vector2(7 + (w * 6.0 if w < 0.0 else w * 9.0), -17)
+			var pdir := Vector2(cos(pang), sin(pang))
+			var pbutt := phand - pdir * 14.0
+			var ptip := phand + pdir * 44.0
+			_line(ci, pbutt, ptip, WOOD, 2.4, a)
+			_poly(ci, PackedVector2Array([ptip + pdir * 8.0, ptip + pdir.orthogonal() * 3.2, ptip - pdir.orthogonal() * 3.2]), STEEL, a)
+			var tas := ptip - pdir * 2.0
+			_poly(ci, PackedVector2Array([tas, tas + Vector2(-3.5, 6.0), tas + Vector2(2.5, 6.5)]), Color("#e23b3b"), a, false)   # 紅纓
+			_c(ci, phand, 3.0, SKIN, a)
+		D.BOMBER:
+			# 橘紅頭巾＋黃銅護目鏡（推在額頭上）
+			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.5, true)
+			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.0, PI * 2.0, 18, Color("#ff7a3d", a), 4.0, true)
+			_poly(ci, PackedVector2Array([Vector2(-11, hy - 2), Vector2(-17, hy + 4), Vector2(-12, hy + 5)]), Color("#ff7a3d"), a)
+			_c(ci, Vector2(1.5, hy - 7.5), 3.4, Color("#d9a441"), a)
+			_c(ci, Vector2(8.5, hy - 7.5), 3.4, Color("#d9a441"), a)
+			ci.draw_circle(Vector2(1.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
+			ci.draw_circle(Vector2(8.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
+			# 肩上托一顆帶引線的黑色大圓火罐：前搖往後拉、揮擊時丟出去（手上就空了）
+			if w <= 0.25:
+				var bp := Vector2(9 + w * 9.0, hy - 13 + (-w) * 4.0)
+				_c(ci, bp, 7.5, Color("#2a2533"), a)
+				ci.draw_circle(bp + Vector2(-2.5, -2.5), 2.0, Color(1, 1, 1, 0.35 * a), true, -1.0, true)
+				_line(ci, bp + Vector2(2, -7), bp + Vector2(5, -11), Color("#c9a26b"), 1.3, a)
+				var sp := 0.6 + 0.4 * sin(t * 22.0)
+				_star(ci, bp + Vector2(5.5, -12), 3.2 * sp + 1.0, Color(1, 0.85, 0.3, a))
+				_c(ci, Vector2(11 + w * 6.0, -19), 3.0, SKIN, a)
+			else:
+				_c(ci, Vector2(12 + w * 4.0, -24 + w * 6.0), 3.0, SKIN, a)
+		D.MEDIC:
+			# 白色高方帽＋綠十字
+			_poly(ci, PackedVector2Array([Vector2(-9, hy - 7), Vector2(-8, hy - 24), Vector2(8, hy - 24), Vector2(9, hy - 7)]), Color("#fbfbf7"), a)
+			ci.draw_rect(Rect2(Vector2(-1.6, hy - 21), Vector2(3.2, 10)), Color("#2fbf71", a))
+			ci.draw_rect(Rect2(Vector2(-5, hy - 17.6), Vector2(10, 3.2)), Color("#2fbf71", a))
+			# 頂端發綠光的長杖：補血時舉高（w 往前＝舉杖）
+			var lift := maxf(0.0, w) * 10.0
+			var sbase := Vector2(12, -4 - lift)
+			var stop := Vector2(14, -48 - lift)
+			_line(ci, sbase, stop, WOOD, 2.2, a)
+			var glow := 0.65 + 0.35 * sin(t * 4.0)
+			ci.draw_circle(stop, 7.0 + lift * 0.4, Color(0.4, 1.0, 0.55, 0.28 * glow * a), true, -1.0, true)
+			_c(ci, stop, 3.4, Color("#7dffa0"), a)
+			_c(ci, Vector2(12.5, -20 - lift), 3.0, SKIN, a)
+		D.DRUMMER:
+			# 紅白羽毛高帽（全兵種最高）
+			_poly(ci, PackedVector2Array([Vector2(-8, hy - 8), Vector2(-7, hy - 20), Vector2(7, hy - 20), Vector2(8, hy - 8)]), Color("#d8343d"), a)
+			_line(ci, Vector2(-8, hy - 10), Vector2(8, hy - 10), GOLD, 1.8, a)
+			_poly(ci, PackedVector2Array([Vector2(-2, hy - 20), Vector2(-6, hy - 36), Vector2(1, hy - 30), Vector2(3, hy - 20)]), Color("#ffffff"), a)
+			_poly(ci, PackedVector2Array([Vector2(1, hy - 20), Vector2(4, hy - 33), Vector2(6, hy - 20)]), Color("#ff6b6b"), a, false)
+			# 胸前大圓鼓
+			var dc := Vector2(7, -15)
+			_c(ci, dc, 9.0, Color("#e9d8a6"), a)
+			ci.draw_arc(dc, 9.0, 0.0, TAU, 24, Color(tc, a), 2.4, true)
+			_line(ci, dc + Vector2(-6, -6), dc + Vector2(6, 6), Color("#b7814e"), 1.0, a)
+			# 鼓棒：平常輕敲、揮擊時舉高大力敲兩下
+			var beat := absf(sin(t * 6.0)) * 3.0
+			var raise := maxf(0.0, -w) * 9.0 + (beat if w == 0.0 else 0.0)
+			for k in 2:
+				var hx := 2.0 + k * 9.0
+				_line(ci, Vector2(hx, -20 - raise), Vector2(hx + 5, -26 - raise - k * 2), Color("#f4e3c1"), 1.8, a)
+				_c(ci, Vector2(hx + 5, -26 - raise - k * 2), 2.0, Color("#f4e3c1"), a)
+		D.BERSERKER:
+			# 火紅刺蝟頭
+			var hair := PackedVector2Array([Vector2(-12, hy - 1), Vector2(-15, hy - 10), Vector2(-9, hy - 9), Vector2(-10, hy - 19), Vector2(-3, hy - 13),
+				Vector2(0, hy - 23), Vector2(4, hy - 13), Vector2(10, hy - 19), Vector2(9, hy - 9), Vector2(15, hy - 9), Vector2(12, hy - 1), Vector2(0, hy - 8)])
+			_poly(ci, hair, Color("#ff5a2a"), a)
+			# 左右手各一把闊斧：揮擊時雙斧往下劈（交叉）
+			# 待機時雙斧垂在身體兩側往外（不擋臉）；前搖舉過頭、揮擊往前下劈
+			var aang := -0.35 + (w * 1.3 if w < 0.0 else w * 1.4)
+			for k2 in 2:
+				var ah := Vector2(9, -15) if k2 == 0 else Vector2(-8, -16)
+				var aa := aang if k2 == 0 else (PI - aang if w <= 0.0 else aang - 0.4)
+				var adir := Vector2(cos(aa), sin(aa))
+				var atip := ah + adir * 20.0
+				_line(ci, ah, atip, WOOD, 2.4, a)
+				var ao := adir.orthogonal()
+				_poly(ci, PackedVector2Array([atip - adir * 2.0 + ao * 1.5, atip - adir * 9.0 + ao * 8.0, atip + adir * 3.0 + ao * 7.0]), STEEL, a)
+				_c(ci, ah, 3.0, SKIN, a)
+	if type != D.ASSASSIN and type != D.ARCHER and type != D.SWORD and type != D.PIKE and type != D.BOMBER and type != D.MEDIC and type != D.BERSERKER:
 		_c(ci, Vector2(-9, -17), 3.0, SKIN, a)
 
 static func _eyes(ci: CanvasItem, c: Vector2, a: float, t: float, angry := false) -> void:

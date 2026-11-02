@@ -25,14 +25,19 @@ static func puzzles() -> Array:
 	_load()
 	return _data["puzzles"]
 
+## 新兵試玩（第四輪 §4.8）：每種新兵一關，unit＝主角兵種；兵種解鎖後才能玩。
+static func new_puzzles() -> Array:
+	_load()
+	return _data.get("new_units", [])
+
 static func all_ids() -> Array:
 	var out: Array = []
-	for p in tutorials() + puzzles():
+	for p in tutorials() + puzzles() + new_puzzles():
 		out.append(p["id"])
 	return out
 
 static func get_puzzle(id: String) -> Dictionary:
-	for p in tutorials() + puzzles():
+	for p in tutorials() + puzzles() + new_puzzles():
 		if p["id"] == id:
 			return p
 	return {}

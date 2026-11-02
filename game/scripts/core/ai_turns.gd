@@ -9,11 +9,18 @@ const Army = preload("res://scripts/core/army.gd")
 const BEATS := [
 	[D.ASSASSIN, D.SHIELD],     # 劍士
 	[D.CAVALRY, D.ARCHER],      # 盾兵
-	[D.SWORD, D.ASSASSIN],      # 弓箭手
-	[D.ARCHER, D.SWORD],        # 騎兵
-	[D.SHIELD, D.CAVALRY],      # 刺客
+	[D.SWORD, D.ASSASSIN, D.BERSERKER, D.BOMBER],      # 弓箭手
+	[D.ARCHER, D.SWORD, D.BOMBER, D.MEDIC],            # 騎兵
+	[D.SHIELD, D.CAVALRY, D.MEDIC, D.DRUMMER],         # 刺客
+	[D.CAVALRY],                # 長槍兵（第四輪 §2.6）
+	[D.SHIELD, D.PIKE, D.DRUMMER],   # 投彈兵
+	[],                         # 醫者（支援，不列）
+	[],                         # 鼓手（支援，不列）
+	[D.SHIELD, D.PIKE],         # 狂戰士（破陣）
 ]
-const ROLE_COLS := [[5, 4, 3], [5, 4], [0, 1, 2], [3, 2, 4], [2, 3, 1]]
+## 支援兵的協同對象（第四輪 §4.1：提示條「協同」顯示用）
+const SYNERGY := {D.MEDIC: [D.SHIELD, D.SWORD], D.DRUMMER: [D.SWORD, D.PIKE]}
+const ROLE_COLS := [[5, 4, 3], [5, 4], [0, 1, 2], [3, 2, 4], [2, 3, 1], [4, 3], [0, 1], [1, 2], [3, 2], [5, 4]]
 
 static func counter_score(a: int, b: int) -> int:
 	if b in BEATS[a]:
@@ -23,14 +30,18 @@ static func counter_score(a: int, b: int) -> int:
 	return 0
 
 ## 選一個兵種。level：0 簡單（隨機性高、不太看對方）、1 普通、2 困難。
-static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: RandomNumberGenerator, level := 1) -> int:
+static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: RandomNumberGenerator, level := 1, ntypes := D.COUNT) -> int:
 	var best := -1
 	var best_s := -1.0e9
 	var have := D.zeros()
 	for u in mine.units:
 		have[u["type"]] += 1
-	var front: int = have[D.SWORD] + have[D.SHIELD]
-	for t in D.COUNT:
+	var front: int = have[D.SWORD] + have[D.SHIELD] + have[D.PIKE] + have[D.BERSERKER]
+	var fighters := 0
+	for u in mine.units:
+		if not D.is_support(u["type"]):
+			fighters += 1
+	for t in ntypes:
 		if D.cost(t) > budget_left:
 			continue
 		var s := 0.0
@@ -42,6 +53,9 @@ static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: R
 			s -= 0.15 * (1 if u["type"] == t else 0)   # 避免全押同一種
 		if front < 3 and (t == D.SWORD or t == D.SHIELD):
 			s += 1.2
+		if D.is_support(t):
+			# 支援兵：要有夠多戰鬥兵才值得帶，而且一種最多帶 2 隻
+			s += 0.5 if fighters >= 5 and have[t] < 2 else -2.0
 		s += float(D.cost(t)) * 0.05                       # 錢花得完
 		var noise := 1.5 if level == 0 else (0.6 if level == 1 else 0.25)
 		s += rng.randf() * noise
@@ -94,7 +108,7 @@ static func play_turn(tp, rng: RandomNumberGenerator, level := 1) -> int:
 	var guard := 0
 	while not tp.done() and tp.current == me and guard < 30:
 		guard += 1
-		var t := choose_type(mine, enemy.units, tp.turn_left(), rng, level)
+		var t := choose_type(mine, enemy.units, tp.turn_left(), rng, level, tp.ntypes)
 		if t == -1:
 			break
 		var c := choose_cell(mine, t, enemy.units, rng)
@@ -111,12 +125,12 @@ static func play_turn(tp, rng: RandomNumberGenerator, level := 1) -> int:
 	return placed
 
 ## 自由擺放（對 AI 模式）：知道對方「上一局」的陣型（困難才用），一次擺滿。
-static func build_full(team: int, rng: RandomNumberGenerator, level: int, known_enemy: Array) -> Army:
+static func build_full(team: int, rng: RandomNumberGenerator, level: int, known_enemy: Array, ntypes := D.COUNT) -> Army:
 	var a := Army.new(team, 100)
 	var guard := 0
 	while a.can_afford_any() and guard < 40:
 		guard += 1
-		var t := choose_type(a, known_enemy if level == 2 else [], a.left(), rng, level)
+		var t := choose_type(a, known_enemy if level == 2 else [], a.left(), rng, level, ntypes)
 		if t == -1:
 			break
 		var c := choose_cell(a, t, known_enemy if level >= 1 else [], rng)

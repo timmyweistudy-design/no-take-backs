@@ -129,6 +129,7 @@ func _reset_place(keep_blue := false) -> void:
 		Mode.DUEL:
 			if duel_rule != "blind":
 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule)
+				tp.ntypes = _ntypes()
 		Mode.TUTORIAL, Mode.PUZZLE:
 			var pz := PZ.get_puzzle(puzzle_id)
 			armies[0] = PZ.player_army(pz)
@@ -140,12 +141,12 @@ func _reset_place(keep_blue := false) -> void:
 			var r := RandomNumberGenerator.new()
 			r.seed = gauntlet_seed + gauntlet_stage * 7919
 			var lvl := mini(2, (gauntlet_stage - 1) / 2)
-			var e := AIT.build_full(1, r, lvl, gauntlet_prev)
+			var e := AIT.build_full(1, r, lvl, gauntlet_prev, _ntypes())
 			e.budget = 100 + 5 * (gauntlet_stage - 1)
 			var guard := 0
 			while e.can_afford_any() and guard < 20:
 				guard += 1
-				var t := AIT.choose_type(e, gauntlet_prev, e.left(), r, lvl)
+				var t := AIT.choose_type(e, gauntlet_prev, e.left(), r, lvl, _ntypes())
 				if t < 0:
 					break
 				var c := AIT.choose_cell(e, t, gauntlet_prev, r)
@@ -204,10 +205,10 @@ func _on_start() -> void:
 		r.seed = rng.randi()
 		match difficulty:
 			0:
-				armies[1] = AIT.build_full(1, r, 0, [])
+				armies[1] = AIT.build_full(1, r, 0, [], _ntypes())
 				ai_name = L.t("diff_easy")
 			1:
-				var res = AI.build(1, 100, r)
+				var res = AI.build(1, 100, r, -1, _ntypes())
 				armies[1] = res["army"]
 				ai_name = "%s・%s" % [L.t("diff_normal"), res["name"]]
 			_:
@@ -239,9 +240,17 @@ func _hard_ai(r: RandomNumberGenerator) -> Army:
 					best = e
 			if best != null and bd <= 40:
 				var a := Army.new(1, 100)
-				if a.load_code(best["code"]) == "":
+				if a.load_code(best["code"]) == "" and _types_ok(a):
 					return a
-	return AIT.build_full(1, r, 2, known)
+	return AIT.build_full(1, r, 2, known, _ntypes())
+
+
+## 反制庫的陣型只能用這場開放的兵種（第四輪：不會拿你還沒解鎖的兵打你）。
+func _types_ok(a: Army) -> bool:
+	for u in a.units:
+		if int(u["type"]) >= _ntypes():
+			return false
+	return true
 
 
 func _counter_lib() -> Array:
@@ -338,7 +347,11 @@ func _build_report() -> void:
 func _progress_and_achievements() -> void:
 	var w: int = sim.winner
 	var st: Dictionary = Save.data.get("stats", {"wins": 0, "games": 0})
-	st["games"] = int(st.get("games", 0)) + 1
+	var g_before := int(st.get("games", 0))
+	st["games"] = g_before + 1
+	# 新兵種解鎖（第四輪 §9）：提示並指向殘局裡的新兵試玩
+	for nt in RS.newly_unlocked(g_before, g_before + 1, OS.has_feature("demo")):
+		ach_queue.append(L.t("unit_unlocked", [L.t("unit_%d" % nt)]))
 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
 	if w == 0 and mode != Mode.DUEL:
 		st["wins"] = int(st.get("wins", 0)) + 1
@@ -422,14 +435,15 @@ func _cell_at(p: Vector2) -> Vector2i:
 	return Vector2i(int(q.x), int(q.y))
 
 
+## 兵種卡的矩形：繪製、點擊、焦點、版面探針共用這一個函式（第四輪 §4.1）。
 func _card_rect(i: int) -> Rect2:
-	return Rect2(128 + i * (CARD_W + 8), CARD_Y, CARD_W, CARD_H)
+	return Rect2(CARD_X0 + i * (CARD_W + CARD_GAP), CARD_Y, CARD_W, CARD_H)
 
 
 ## 兵種卡右上角的「?」：開圖鑑到這個兵種（第二輪方案 R3）。
 func _card_help_rect(i: int) -> Rect2:
 	var r := _card_rect(i)
-	return Rect2(r.end.x - 24, r.end.y - 26, 21, 22)   # 右下角，不擋兵種名
+	return Rect2(r.end.x - 23, r.end.y - 23, 20, 20)   # 下層右邊（第四輪三層卡）
 
 
 func _card_at(p: Vector2) -> int:
@@ -439,7 +453,21 @@ func _card_at(p: Vector2) -> int:
 	return -1
 
 
+## 這一場開放幾種兵（第四輪 §9）：朋友對戰看「兵種」設定；對 AI、遠征看解鎖進度（也可選經典 5 種）；教學與殘局由關卡限制。
+func _ntypes() -> int:
+	var games := int(Save.data.get("stats", {}).get("games", 0))
+	var classic := str(Save.s("roster")) == "classic"
+	var kind := "all"
+	if mode == Mode.DUEL:
+		kind = "duel"
+	elif mode == Mode.VS_AI or mode == Mode.GAUNTLET:
+		kind = "ai"
+	return RS.ntypes_for(kind, games, classic, OS.has_feature("demo"))
+
+
 func _allowed(t: int) -> bool:
+	if t >= _ntypes():
+		return false
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		for x in PZ.get_puzzle(puzzle_id)["allowed"]:
 			if int(x) == t:
@@ -941,6 +969,23 @@ func _draw_tactical() -> void:
 		match selected:
 			D.ARCHER:
 				_arc_clipped(p, 6.0 * CS, 0, TAU, Color(1, 0.9, 0.5, 0.45), 2.0)
+			D.PIKE:
+				_arc_clipped(p, D.STATS[D.PIKE]["reach"] / 1000.0 * CS, 0, TAU, Color(1, 0.9, 0.5, 0.5), 2.0)
+			D.BOMBER:
+				# 甜甜圈：外圈射程（橘白）＋內圈紅色盲區（第四輪 §4.2）
+				_arc_clipped(p, D.STATS[D.BOMBER]["reach"] / 1000.0 * CS, 0, TAU, Color(1, 0.85, 0.7, 0.5), 2.0)
+				draw_circle(p, D.BOMB_MIN / 1000.0 * CS, Color(1, 0.25, 0.2, 0.12), true, -1.0, true)
+				draw_arc(p, D.BOMB_MIN / 1000.0 * CS, 0, TAU, 32, Color(1, 0.3, 0.25, 0.7), 2.0, true)
+			D.MEDIC, D.DRUMMER:
+				# 補血／戰鼓範圍：醫者草綠、鼓手暖金；圈內的友軍微亮
+				var rad: float = (D.HEAL_RANGE if selected == D.MEDIC else D.DRUM_RANGE) / 1000.0 * CS
+				var rc := Color(0.55, 0.95, 0.45) if selected == D.MEDIC else Color(1, 0.82, 0.35)
+				draw_circle(p, rad, Color(rc, 0.08), true, -1.0, true)
+				_arc_clipped(p, rad, 0, TAU, Color(rc, 0.7), 2.0)
+				for u in army.units:
+					var up := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.5) * CS
+					if up.distance_to(p) <= rad and not D.is_support(u["type"]):
+						draw_circle(up + Vector2(0, 14), 9.0, Color(rc, 0.45), true, -1.0, true)
 			D.CAVALRY:
 				var q := p + Vector2(3.0 * CS * dir, 0)
 				draw_dashed_line(p, q, Color(1, 0.8, 0.3, 0.85), 3.0, 8.0)
@@ -1061,13 +1106,37 @@ func _draw_counter_strip(i: int, team: int) -> void:
 			beats.append(t)
 		elif sc < 0:
 			fears.append(t)
-	var sr := Rect2(r.position.x - 30, r.position.y - 40, r.size.x + 60, 34)
+	# 第四輪：兵種名稱放在提示條最左邊；提示條置中在卡片列上方、寬度依內容（最寬 600）
+	var fz := mini(ts(14), 18)
+	var nz := mini(ts(16), 20)
+	var name: String = L.t("unit_%d" % i)
+	var lock := ""
+	if i >= _ntypes():
+		var g := int(Save.data.get("stats", {}).get("games", 0))
+		var left := RS.games_to_unlock(i, g, OS.has_feature("demo"))
+		lock = L.t("locked_demo") if left < 0 else (L.t("locked_classic") if left == 0 else L.t("locked_games", [left]))
+	var syn: Array = AIT.SYNERGY.get(i, [])
+	var lab_b: String = L.t("synergy") if D.is_support(i) else L.t("beats")
+	var list_b: Array = syn if D.is_support(i) else beats
+	var w := font_bold.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, nz).x + 24
+	if lock != "":
+		w += font.get_string_size(lock, HORIZONTAL_ALIGNMENT_LEFT, -1, fz).x + 12
+	else:
+		w += font_bold.get_string_size(lab_b + L.t("fears"), HORIZONTAL_ALIGNMENT_LEFT, -1, fz).x + 8 + 24 * (list_b.size() + fears.size()) + 26
+	w = minf(600.0, w)
+	var cx := clampf(r.get_center().x, 12 + w / 2.0, 876 - w / 2.0)
+	var sr := Rect2(cx - w / 2.0, r.position.y - 40, w, 34)
 	draw_rect(sr, Color(0.06, 0.07, 0.1, 0.92))
 	draw_rect(sr, Color(1, 1, 1, 0.25), false, 1.5)
 	var x := sr.position.x + 8
-	var fz := mini(ts(14), 18)
-	_text(Vector2(x, sr.position.y + 6), L.t("beats"), fz, Color("#4ade80"), false, true)
-	x += font_bold.get_string_size(L.t("beats"), HORIZONTAL_ALIGNMENT_LEFT, -1, fz).x + 4
+	_text(Vector2(x, sr.position.y + 5), name, nz, ACCENT, false, true)
+	x += font_bold.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, nz).x + 12
+	if lock != "":
+		_text(Vector2(x, sr.position.y + 7), lock, fz, Color(1, 1, 1, 0.8), false, false)
+		return
+	_text(Vector2(x, sr.position.y + 6), lab_b, fz, Color("#4ade80"), false, true)
+	x += font_bold.get_string_size(lab_b, HORIZONTAL_ALIGNMENT_LEFT, -1, fz).x + 4
+	beats = list_b
 	for t in beats:
 		Art.unit(self, Vector2(x + 12, sr.position.y + 32), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
 		x += 24
@@ -1126,6 +1195,15 @@ func _draw_title() -> void:
 	_text(Vector2(640, 752), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), D.RULES_VERSION], ts(13), Color(1, 1, 1, 0.5), true)
 
 
+## 「兵種：經典 5 種／全部」切換（第四輪 §9）。對 AI 時「全部」＝已解鎖的兵種。
+func _roster_btn(r: Rect2, kind: String) -> void:
+	var classic := str(Save.s("roster")) == "classic"
+	var games := int(Save.data.get("stats", {}).get("games", 0))
+	var n := RS.ntypes_for(kind, games, false, OS.has_feature("demo"))
+	var lbl: String = L.t("roster_classic") if classic else L.t("roster_all", [n])
+	_btn(r, lbl, func(): Save.set_setting("roster", "all" if classic else "classic"))
+
+
 func _pick_difficulty(d: int) -> void:
 	difficulty = d
 	_start_mode(Mode.VS_AI)
@@ -1148,32 +1226,37 @@ func _draw_overlay() -> void:
 		_btns.clear()   # 覆蓋層底下畫面的按鈕不能被點到（例如擺放畫面的開戰、結果頁的按鈕）
 	match overlay:
 		"diff":
-			_panel(Rect2(440, 250, 400, 310))
-			_text(Vector2(640, 266), L.t("choose_diff"), ts(24), Color.WHITE, true, true)
+			_panel(Rect2(440, 230, 400, 370))
+			_text(Vector2(640, 246), L.t("choose_diff"), ts(24), Color.WHITE, true, true)
 			for i in 3:
-				_btn(Rect2(500, 330 + i * 60, 280, 48), L.t(["diff_easy", "diff_normal", "diff_hard"][i]), _pick_difficulty.bind(i), true, i == 1)
-			_btn(Rect2(560, 514, 160, 36), L.t("back"), func(): overlay = "")
+				_btn(Rect2(500, 306 + i * 60, 280, 48), L.t(["diff_easy", "diff_normal", "diff_hard"][i]), _pick_difficulty.bind(i), true, i == 1)
+			_roster_btn(Rect2(460, 490, 360, 40), "ai")
+			_btn(Rect2(560, 548, 160, 36), L.t("back"), func(): overlay = "")
 		"rule":
-			_panel(Rect2(400, 240, 480, 330))
-			_text(Vector2(640, 256), L.t("choose_rule"), ts(24), Color.WHITE, true, true)
+			_panel(Rect2(400, 220, 480, 390))
+			_text(Vector2(640, 236), L.t("choose_rule"), ts(24), Color.WHITE, true, true)
 			var rules := ["snake5", "cap10", "blind"]
 			for i in 3:
-				_btn(Rect2(440, 320 + i * 62, 400, 50), L.t("rule_" + rules[i]), _pick_rule.bind(rules[i]), true, rules[i] == duel_rule)
-			_btn(Rect2(560, 518, 160, 36), L.t("back"), func(): overlay = "")
+				_btn(Rect2(440, 300 + i * 62, 400, 50), L.t("rule_" + rules[i]), _pick_rule.bind(rules[i]), true, rules[i] == duel_rule)
+			_roster_btn(Rect2(440, 498, 400, 40), "duel")
+			_btn(Rect2(560, 556, 160, 36), L.t("back"), func(): overlay = "")
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
-			var list: Array = PZ.tutorials() if tut else PZ.puzzles()
+			var list: Array = PZ.tutorials() if tut else (PZ.puzzles() if puzzle_tab == 0 else PZ.new_puzzles())
 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
 			var tdone := int(Save.data.get("tutorial", 0))
 			var unlocked := tut or tdone >= 1
 			_panel(Rect2(240, 110, 800, 580))
 			_text(Vector2(640, 126), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
 			if not tut and unlocked:
-				# 總星數（第三輪 U4）
-				var total := 0
-				for pz0 in list:
-					total += int(stars.get(pz0["id"], 0))
-				_text(Vector2(640, 166), "★ %d／%d" % [total, list.size() * 3], ts(18), ACCENT, true, true)
+				# 兩個分頁：經典殘局／新兵試玩（第四輪 §4.8）；頁籤上直接寫各自的總星數（第三輪 U4）
+				var tabs := [PZ.puzzles(), PZ.new_puzzles()]
+				for ti in 2:
+					var total := 0
+					for pz0 in tabs[ti]:
+						total += int(stars.get(pz0["id"], 0))
+					var lbl := "%s　★ %d／%d" % [L.t("puzzle_tab_%d" % ti), total, tabs[ti].size() * 3]
+					_btn(Rect2(380 + ti * 270, 160, 250, 36), lbl, func(): puzzle_tab = ti, true, false, Color(0.26, 0.31, 0.45) if ti == puzzle_tab else Color(0, 0, 0, 0))
 			if not unlocked:
 				_text(Vector2(640, 172), L.t("puzzle_locked"), ts(16), ACCENT, true)
 			for i in list.size():
@@ -1182,7 +1265,14 @@ func _draw_overlay() -> void:
 				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 				var st := int(stars.get(pz["id"], 0))
 				var en := unlocked and (not tut or i <= tdone)
-				_btn(r, "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)], _pick_puzzle.bind(pz["id"], tut), en, false,
+				var line := "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)]
+				if pz.has("unit"):
+					# 新兵試玩：那個兵種解鎖後才能玩
+					var left := RS.games_to_unlock(int(pz["unit"]), int(Save.data.get("stats", {}).get("games", 0)), OS.has_feature("demo"))
+					if left != 0:
+						en = false
+						line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo") if left < 0 else L.t("locked_short", [left])]
+				_btn(r, line, _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
@@ -1243,6 +1333,26 @@ static func report_rows(dealt: Array, taken: Array) -> Array:
 		var sq: int = dealt[0][q] + dealt[1][q] + taken[0][q] + taken[1][q]
 		return sp > sq or (sp == sq and p < q))
 	return rows.slice(0, 5)
+
+
+## 結果頁的技能徽章（第四輪）：候選裡雙方合計次數最多的 6 種；不夠 6 種就用經典的預設順序補。支援兵的補血、戰鼓也在候選裡（對支援兵公平）。
+const BADGE_KEYS := ["breaker", "charge", "backstab", "braced", "anticav", "counter", "pike_brace", "splash", "breach", "heal", "drum"]
+static func report_badges(cnt: Dictionary) -> Array:
+	var used: Array = []
+	for k in BADGE_KEYS:
+		if int(cnt.get(k + "0", 0)) + int(cnt.get(k + "1", 0)) > 0:
+			used.append(k)
+	used.sort_custom(func(p, q):
+		var sp: int = int(cnt.get(p + "0", 0)) + int(cnt.get(p + "1", 0))
+		var sq: int = int(cnt.get(q + "0", 0)) + int(cnt.get(q + "1", 0))
+		return sp > sq or (sp == sq and BADGE_KEYS.find(p) < BADGE_KEYS.find(q)))
+	var out: Array = used.slice(0, 6)
+	for k in BADGE_KEYS:
+		if out.size() >= 6:
+			break
+		if not out.has(k):
+			out.append(k)
+	return out
 
 
 ## 陣型存檔格的組成摘要：只列有的兵種（兵種多了以後不能再寫死 5 格）。
@@ -1367,12 +1477,22 @@ func _draw_place_hud() -> void:
 			bg = Color(0.26, 0.31, 0.45)
 		elif i == hover_card:
 			bg = Color(0.21, 0.23, 0.31)
+		var opened := i < _ntypes()
 		draw_rect(r, bg if afford else Color(bg, 0.45))
 		draw_rect(r, tcol if i == selected else Color(1, 1, 1, 0.15), false, 2)
-		Art.unit(self, r.position + Vector2(32, 86), i, a.team, 1.0, 0.0, 0.0, 0.0, 1.0 if afford else 0.45, time, 0.95, cbm())
-		_text(r.position + Vector2(62, 6), L.t("unit_%d" % i), ts(16), Color.WHITE if afford else Color(1, 1, 1, 0.55), false, true, 74)
-		_text(r.position + Vector2(64, 34), L.t("gold", [D.cost(i)]), ts(15), ACCENT if afford else Color("#f87171"), false, not afford, 72)
-		_text(r.position + Vector2(62, 60), "×%d　[%d]" % [a.count_of(i), i + 1], ts(15), Color(1, 1, 1, 0.7), false, false, 48)
+		# 三層卡（第四輪 §4.1）：上＝快捷鍵、價錢；中＝全身圖；下＝已擺數量、?
+		Art.unit(self, r.position + Vector2(40, 74), i, a.team, 1.0, 0.0, 0.0, 0.0, (1.0 if afford else 0.45) if opened else 0.25, time, 0.78, cbm())
+		var fz := mini(ts(13), 15)
+		_text(r.position + Vector2(5, 3), "%d" % ((i + 1) % 10), fz, Color(1, 1, 1, 0.6), false, false, 20)
+		if opened:
+			var gtxt: String = L.t("gold", [D.cost(i)])
+			var gz := fit(gtxt, fz, 52, true)
+			var gw := font_bold.get_string_size(gtxt, HORIZONTAL_ALIGNMENT_LEFT, -1, gz).x
+			_text(r.position + Vector2(r.size.x - 5 - gw, 3), gtxt, gz, ACCENT if afford else Color("#f87171"), false, true)   # 靠右
+			if a.count_of(i) > 0:
+				_text(r.position + Vector2(5, r.size.y - fz - 6), "×%d" % a.count_of(i), fz, Color(1, 1, 1, 0.85), false, true, 44)
+		else:
+			_lock_icon(r.position + Vector2(r.size.x / 2.0, 44))
 		_btn(_card_help_rect(i), "?", _open_codex.bind(i))
 	if hover_card >= 0 or overlay == "":
 		_draw_counter_strip(hover_card if hover_card >= 0 else selected, a.team)
@@ -1462,7 +1582,7 @@ func _draw_result() -> void:
 			draw_rect(Rect2(x0, y + ri * 30 + 2, 290.0 * dealt[tm][t] / mx, 9), c)
 			draw_rect(Rect2(x0, y + ri * 30 + 13, maxf(1.0, 290.0 * taken[tm][t] / mx), 9), c, false, 1.5)
 	y += 156
-	var ek := ["breaker", "charge", "backstab", "braced", "anticav", "counter"]
+	var ek := report_badges(ev_count)
 	for tm in 2:
 		var n: Array = []
 		for k in ek:
@@ -1649,10 +1769,13 @@ func _replay() -> void:
 
 
 func _next_puzzle() -> void:
-	var list: Array = PZ.tutorials() if mode == Mode.TUTORIAL else PZ.puzzles()
+	var list: Array = PZ.tutorials() if mode == Mode.TUTORIAL else (PZ.new_puzzles() if PZ.get_puzzle(puzzle_id).has("unit") else PZ.puzzles())
 	for i in list.size():
 		if list[i]["id"] == puzzle_id and i + 1 < list.size():
-			puzzle_id = list[i + 1]["id"]
+			var nx: Dictionary = list[i + 1]
+			if nx.has("unit") and RS.games_to_unlock(int(nx["unit"]), int(Save.data.get("stats", {}).get("games", 0)), OS.has_feature("demo")) != 0:
+				break   # 下一關的新兵還沒解鎖
+			puzzle_id = nx["id"]
 			_start_mode(mode)
 			return
 	if mode == Mode.TUTORIAL and not PZ.puzzles().is_empty():

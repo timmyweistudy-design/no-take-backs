@@ -7,7 +7,7 @@ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真�
 
 const DEFAULT_SETTINGS := {
 	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false,
-	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false,
+	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all",
 }
 const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},

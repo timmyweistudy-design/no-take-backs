@@ -61,13 +61,14 @@ static func _fill_raw(s: String) -> String:
 			continue
 		var shown := str(v)
 		if m.get_string(1) != "":
-			var cells := float(v) / 1000.0
+			# C:＝千分之一格換成格；S:＝tick 換成秒（第四輪）
+			var cells := float(v) / (1000.0 if m.get_string(1) == "C:" else 20.0)
 			shown = str(int(cells)) if is_equal_approx(cells, roundf(cells)) else "%.1f" % cells
 		out = out.replace(m.get_string(0), shown)
 	return out
 
 static func _re() -> RegEx:
-	return RegEx.create_from_string("\\{(C:)?([A-Z_0-9]+)\\}")
+	return RegEx.create_from_string("\\{(C:|S:)?([A-Z_0-9]+)\\}")
 
 ## 常數值；找不到回 null。
 static func value(name: String):
