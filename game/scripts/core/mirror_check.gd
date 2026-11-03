@@ -47,3 +47,57 @@ static func check(a0, a1) -> String:
 	if s2.winner != expect:
 		return "勝方沒對調：%d vs %d" % [s1.winner, s2.winner]
 	return ""
+
+## 第六輪（方案 §6.1，Codex 第一輪）：獨立建立左右對應的鏡像檢查——不從 id 反推格子，
+## 而是用 tick 0 的起始座標配對（鏡像後 (W−x, y)），比對索引、slot、事件來源／目標與完整狀態（含 tick 0）。
+## 格子與自由陣型都適用；rules 兩場共用（兩邊對稱的規則）。
+static func check_free(a0, a1, rules = null) -> String:
+	var s1 = Sim.new(a0.copy(), a1.copy(), rules)
+	var s2 = Sim.new(a1.mirrored(), a0.mirrored(), rules)
+	if s1.units.size() != s2.units.size():
+		return "隻數不同"
+	var by_pos := {}
+	for k in s2.units.size():
+		var v = s2.units[k]
+		by_pos[Vector3i(v.team, v.x, v.y)] = k
+	var imap := {-1: -1}
+	var idmap := {}
+	for k in s1.units.size():
+		var u = s1.units[k]
+		var key := Vector3i(1 - u.team, Sim.W - u.x, u.y)
+		if not by_pos.has(key):
+			return "tick 0 找不到單位 %d 的鏡像" % u.id
+		imap[k] = by_pos[key]
+		idmap[u.id] = s2.units[by_pos[key]].id
+		if s2.units[by_pos[key]].slot != u.slot:
+			return "tick 0 單位 %d 的 slot 不對稱：%d vs %d" % [u.id, u.slot, s2.units[by_pos[key]].slot]
+	var first := true
+	while first or not s1.finished or not s2.finished:
+		if not first:
+			s1.step()
+			s2.step()
+		first = false
+		for k in s1.units.size():
+			var u = s1.units[k]
+			var v = s2.units[imap[k]]
+			var a := [Sim.W - u.x, u.y, u.hp, -u.fx, u.fy, imap[u.target], imap[u.face_lock], u.cd, u.stun, u.alive, u.dmg_dealt, u.kills, u.breach, u.aura]
+			var b := [v.x, v.y, v.hp, v.fx, v.fy, v.target, v.face_lock, v.cd, v.stun, v.alive, v.dmg_dealt, v.kills, v.breach, v.aura]
+			if a != b:
+				return "tick %d 單位 %d：%s vs %s" % [s1.tick, u.id, a, b]
+		# 事件：同樣的種類，來源／目標換成對應的 id
+		var e1: Array = []
+		for e in s1.events:
+			e1.append([str(e.get("kind", "")), idmap.get(e.get("src", -1), -1), idmap.get(e.get("tgt", -1), -1)])
+		var e2: Array = []
+		for e in s2.events:
+			e2.append([str(e.get("kind", "")), e.get("src", -1), e.get("tgt", -1)])
+		e1.sort()
+		e2.sort()
+		if e1 != e2:
+			return "tick %d 事件不對稱" % s1.tick
+		if s1.finished != s2.finished:
+			return "結束 tick 不同：%d vs %d" % [s1.tick, s2.tick]
+	var expect: int = s1.winner if s1.winner == -1 else 1 - s1.winner
+	if s2.winner != expect:
+		return "勝方沒對調：%d vs %d" % [s1.winner, s2.winner]
+	return ""

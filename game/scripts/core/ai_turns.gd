@@ -143,7 +143,23 @@ static func build_full(team: int, rng: RandomNumberGenerator, level: int, known_
 		a.apply_rules(rules, team)
 	if pool >= 0:
 		a.pool = pool
+	if rules != null and rules.is_free():
+		a.deploy = "grid"
+		a.depth = 6000
+		a.enemy_pos = []
+		var g := fill_army(a, rng, level, _grid_known(known_enemy))
+		return load("res://scripts/core/ai_army.gd").free_from_grid(g, rules)
 	return fill_army(a, rng, level, known_enemy)
+
+## 困難 AI 讀上一局（自由座標）時，換成最近的格子給格子邏輯用。
+static func _grid_known(known: Array) -> Array:
+	var out: Array = []
+	for u in known:
+		if u.has("col"):
+			out.append(u)
+		else:
+			out.append({"type": u["type"], "col": clampi(int(u["x"]) / 1000, 0, 15), "row": clampi(int(u["y"]) / 1000, 0, 8)})
+	return out
 
 ## 把一支軍隊擺到買不起為止（第五輪：不再寫死 100 金、40 次）。
 static func fill_army(a: Army, rng: RandomNumberGenerator, level: int, known_enemy: Array) -> Army:

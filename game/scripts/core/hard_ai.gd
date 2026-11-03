@@ -35,8 +35,15 @@ static func build(known: Array, entries: Array, rng: RandomNumberGenerator, pool
 		if lib != null:
 			cands.append(lib)
 	var me := Army.new(0, 100 if rules == null else rules.budget_of(0))
+	if rules != null and rules.is_free():
+		me.deploy = "free"   # 第六輪：上一局是自由陣型，照原座標模擬
 	for u in known:
-		me.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+		if u.has("x"):
+			me.units.append({"type": int(u["type"]), "x": int(u["x"]), "y": int(u["y"])})
+		elif me.deploy == "free":
+			me.units.append({"type": int(u["type"]), "x": int(u["col"]) * 1000 + 500, "y": int(u["row"]) * 1000 + 500})
+		else:
+			me.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
 	var best: Army = cands[0]
 	var bs := -(1 << 40)
 	for c in cands:

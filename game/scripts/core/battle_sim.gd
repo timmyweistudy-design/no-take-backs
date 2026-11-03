@@ -6,6 +6,7 @@ extends RefCounted
 ## 指紋＝每 tick 完整狀態（固定欄位、int64 小端序）串接後的 SHA-256。
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const Army = preload("res://scripts/core/army.gd")
 const EV = preload("res://scripts/core/events.gd")
 const M = preload("res://scripts/core/imath.gd")
 
@@ -74,6 +75,7 @@ var max_ticks := MAX_TICKS     # 第五輪：一局 tick 數、狂熱時間表�
 var frenzy_at := FRENZY_TICK
 var attr_step := 100
 var rules = null               # 第五輪：這一場凍結的規則（null＝標準）
+var free := false              # 第六輪：自由部署（起始座標不在格子上、編號依座標排序）
 var power_log2: PackedInt64Array = PackedInt64Array()  # 第五輪：每 tick 兩方戰力（藍、紅交錯），戰力走勢圖用
 # 第五輪沙盒（R3）：每場一份，存在這個實例上（不改全域常數，同時跑兩場不同規則不會互相污染）
 var skill_off := {}            # 關掉的技能 → true
@@ -114,9 +116,23 @@ func _init(army0, army1, p_rules = null) -> void:
 			atk_pct[int(t)] = int(rules.stat_pct[t][1])
 	_hash.start(HashingContext.HASH_SHA256)
 	var raw: Array = []
+	# 第六輪：自由部署（§3.1、§3.8）——同隊依自己視角 (y, x) 排序，第 k 隻 id＝隊伍×1000＋k、slot＝k。
+	# 格子部署走原本的 id（隊伍×1000＋列×16＋欄），雜湊位元組和 1.3.0 相同。
+	free = str(army0.get("deploy")) == "free" or str(army1.get("deploy")) == "free"
+	var mixed: bool = str(army0.get("deploy")) != str(army1.get("deploy"))
 	for a in [army0, army1]:
-		for u in a.units:
-			raw.append([a.team * 1000 + u["row"] * COLS + u["col"], a.team, u])
+		if free:
+			var lst: Array = []
+			for u in a.units:
+				var pp: Vector2i = Army.pos_of(u)
+				var ox: int = pp.x if a.team == 0 else W - pp.x
+				lst.append([pp.y * 100000 + ox, u, pp])
+			lst.sort_custom(func(p, q): return p[0] < q[0])
+			for k in lst.size():
+				raw.append([a.team * 1000 + k, a.team, lst[k][1], lst[k][2], k])
+		else:
+			for u in a.units:
+				raw.append([a.team * 1000 + u["row"] * COLS + u["col"], a.team, u, Vector2i(u["col"] * CELL + CELL / 2, u["row"] * CELL + CELL / 2), -1])
 	raw.sort_custom(func(p, q): return p[0] < q[0])
 	for r in raw:
 		var u = r[2]
@@ -125,8 +141,8 @@ func _init(army0, army1, p_rules = null) -> void:
 		n.id = r[0]
 		n.team = r[1]
 		n.type = u["type"]
-		n.x = u["col"] * CELL + CELL / 2
-		n.y = u["row"] * CELL + CELL / 2
+		n.x = r[3].x
+		n.y = r[3].y
 		n.hp = s["hp"]
 		n.max_hp = s["hp"]
 		n.cost = s["cost"]
@@ -146,14 +162,18 @@ func _init(army0, army1, p_rules = null) -> void:
 			n.stealth = D.STEALTH_TICKS
 		if n.type == D.MEDIC:
 			n.hcd = D.HEAL_FIRST
-		n.slot = int(u["row"]) * COLS + (int(u["col"]) if n.team == 0 else COLS - 1 - int(u["col"]))
+		n.slot = int(r[4]) if free else int(u["row"]) * COLS + (int(u["col"]) if n.team == 0 else COLS - 1 - int(u["col"]))
 		units.append(n)
 	var hdr := PackedInt64Array([D.RULES_VERSION_INT, budget, units.size()])
 	_hash.update(hdr.to_byte_array())
 	_hash.update(D.data_digest().to_utf8_buffer())
 	if not legacy:
 		_hash.update(rules.sim_digest().to_utf8_buffer())
-	if alive_count(0) == 0 or alive_count(1) == 0:
+	elif free:
+		_hash.update("free".to_utf8_buffer())   # 自由陣型但沒給規則（工具）：仍和格子陣型區分
+	if mixed:
+		_finish(-1, "部署版本不一致")
+	elif alive_count(0) == 0 or alive_count(1) == 0:
 		_finish(-1, "有一方沒有兵")
 
 func alive_count(team: int) -> int:

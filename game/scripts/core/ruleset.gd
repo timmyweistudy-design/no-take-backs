@@ -9,6 +9,19 @@ extends RefCounted
 const D = preload("res://scripts/core/unit_defs.gd")
 
 const CODE_PREFIX := "NTBR1"
+const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
+# 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
+const DEPLOYS := ["grid", "free"]
+const SPACING_MIN := 600
+const SPACING_MAX := 1000
+const DEPTH_GRID := 6000        # 格子部署：自己視角 x 上限（第 6 欄的右緣）
+const DEPTH_MIN := 6000
+const DEPTH_MAX := 7500
+const DEPTH_FULL := 15800       # 全場：到對面邊界（中心離邊 0.2 格）
+const FULL_NONE := 0
+const FULL_DUEL := 1            # 雙人輪流落子・全場
+const FULL_AI := 2              # 對 AI 明牌全場
+const ENEMY_GAP := 1500         # 全場時離任何敵兵至少 1.5 格
 const STD_BUDGET := 100
 const STD_TICKS := 1800
 const STD_UNIT_CAP := 24
@@ -45,6 +58,11 @@ var ai_level := 1
 # ── 沙盒（R3）──
 var stat_pct := {}             # type → [hp%, atk%, speed%]；空＝全部 100%
 var skills_off: Array = []     # SKILLS 裡關掉的
+# ── 部署（第六輪）──
+var deploy := "grid"
+var spacing := 1000            # 自由部署的最小中心距離（單位：1 格＝1000）
+var depth := DEPTH_GRID        # 自己視角的 x 上限
+var fullfield := FULL_NONE
 # 只是顯示用，不參與相等判定
 var preset := "standard"
 
@@ -113,6 +131,10 @@ func copy():
 	r.keep_formation = keep_formation
 	r.ai_level = ai_level
 	r.stat_pct = stat_pct.duplicate(true)
+	r.deploy = deploy
+	r.spacing = spacing
+	r.depth = depth
+	r.fullfield = fullfield
 	r.skills_off = skills_off.duplicate()
 	r.preset = preset
 	return r
@@ -138,7 +160,18 @@ func judge() -> int:
 
 ## 模擬是否走舊路徑（雜湊位元組和 1.3.0 相同）。
 func sim_is_legacy() -> bool:
-	return ticks == STD_TICKS and judge() == 1 and not is_sandbox()
+	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid"
+
+func is_free() -> bool:
+	return deploy == "free"
+
+## 這組規則的部署欄位是不是「舊的」（格子、6 欄、沒有全場）：規則代碼可以用 NTBR1。
+func deploy_is_default() -> bool:
+	return deploy == "grid" and spacing == 1000 and depth == DEPTH_GRID and fullfield == FULL_NONE
+
+## 這一隊實際的 x 上限（自己視角）。全場時到對面。
+func depth_of() -> int:
+	return DEPTH_FULL if fullfield != FULL_NONE else depth
 
 ## 狂熱時間表（第五輪 §3.1，Codex 第二輪 ③）：起點 F＝T×2÷3、間隔 S＝T÷18，耗損在 F＋k×S（k＝0～5）。
 ## T＝1800 時精確是 1200、100（1.3.0 的值）。
@@ -207,6 +240,14 @@ func validate() -> Array:
 		if not s in SKILLS:
 			bad.append("rr_bad_sandbox")
 			break
+	# 第六輪：部署欄位與非法組合（§3.8）
+	if not deploy in DEPLOYS or spacing < SPACING_MIN or spacing > SPACING_MAX or spacing % 50 != 0 \
+			or depth < DEPTH_MIN or depth > DEPTH_MAX or depth % 500 != 0 or fullfield < 0 or fullfield > 2:
+		bad.append("rr_bad_deploy")
+	elif deploy == "grid" and (spacing != 1000 or depth != DEPTH_GRID or fullfield != FULL_NONE):
+		bad.append("rr_bad_deploy")
+	elif fullfield != FULL_NONE and place_rule == "blind":
+		bad.append("rr_full_blind")
 	var uniq: Array = []
 	for b in bad:
 		if not b in uniq:
@@ -245,8 +286,11 @@ func key_fields() -> Array:
 		sp.append([int(t), int(stat_pct[t][0]), int(stat_pct[t][1]), int(stat_pct[t][2])])
 	var so := skills_off.duplicate()
 	so.sort()
-	return [budget_of(0), budget_of(1), 1 if handicap else 0, ticks, unit_cap, type_cap, pool_of(0), pool_of(1), 1 if ai_pool_same else 0,
+	var out: Array = [budget_of(0), budget_of(1), 1 if handicap else 0, ticks, unit_cap, type_cap, pool_of(0), pool_of(1), 1 if ai_pool_same else 0,
 		rounds, place_rule, turns, 1 if carry else 0, 1 if keep_formation else 0, ai_level, sp, so]
+	if not deploy_is_default():
+		out.append_array([DEPLOYS.find(deploy), spacing, depth, fullfield])   # 第六輪 NTBR2 的 4 欄
+	return out
 
 ## 模擬那一層的摘要（非舊路徑時加進模擬雜湊）。
 func sim_digest() -> String:
@@ -257,7 +301,10 @@ func sim_digest() -> String:
 		sp.append([int(t), stat_pct[t]])
 	var so := skills_off.duplicate()
 	so.sort()
-	return JSON.stringify([budget_of(0), budget_of(1), ticks, judge(), sp, so]).sha256_text().substr(0, 16)
+	var base: Array = [budget_of(0), budget_of(1), ticks, judge(), sp, so]
+	if deploy == "free":
+		base.append_array(["free", spacing, depth, fullfield])   # 第六輪：自由部署進模擬摘要（格子部署時摘要不變）
+	return JSON.stringify(base).sha256_text().substr(0, 16)
 
 func equals(o) -> bool:
 	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields())
@@ -287,6 +334,14 @@ func diff(std) -> Array:
 		out.append(["rr_carry", std.carry, carry])
 	if is_sandbox():
 		out.append(["rr_sandbox", 0, 1])
+	if deploy != std.deploy:
+		out.append(["rr_deploy", std.deploy, deploy])
+	if spacing != std.spacing and deploy == "free":
+		out.append(["rr_spacing", std.spacing, spacing])
+	if depth != std.depth and deploy == "free":
+		out.append(["rr_depth", std.depth, depth])
+	if fullfield != std.fullfield:
+		out.append(["rr_full", std.fullfield, fullfield])
 	return out
 
 # ───────── 代碼 ─────────
@@ -294,7 +349,7 @@ func diff(std) -> Array:
 func to_code() -> String:
 	var j := JSON.stringify(key_fields())
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
-	return "%s.%s.%s" % [CODE_PREFIX, body, body.sha256_text().substr(0, 6)]
+	return "%s.%s.%s" % [CODE_PREFIX if deploy_is_default() else CODE_PREFIX2, body, body.sha256_text().substr(0, 6)]
 
 ## 回傳 {ok, why, rules}
 static func from_code(code: String) -> Dictionary:
@@ -302,16 +357,23 @@ static func from_code(code: String) -> Dictionary:
 	if c.length() > 2000:
 		return {"ok": false, "why": "rr_code_long"}
 	var parts := c.split(".")
-	if parts.size() != 3 or parts[0] != CODE_PREFIX:
+	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2):
 		return {"ok": false, "why": "rr_code_format"}
+	var v2: bool = parts[0] == CODE_PREFIX2
 	if parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return {"ok": false, "why": "rr_code_checksum"}
 	var b64 := parts[1].replace("-", "+").replace("_", "/")
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Array or j.size() != 17:
+	if not j is Array or j.size() != (21 if v2 else 17):
 		return {"ok": false, "why": "rr_code_body"}
+	if v2:
+		for i in [17, 18, 19, 20]:
+			if not (j[i] is float or j[i] is int) or float(j[i]) != floorf(float(j[i])) or absf(float(j[i])) > 100000:
+				return {"ok": false, "why": "rr_code_body"}
+		if int(j[17]) < 0 or int(j[17]) >= DEPLOYS.size():
+			return {"ok": false, "why": "rr_bad_deploy"}
 	# 逐欄驗型（Codex 實作第 1 輪）：整數欄必須是整數、布林欄只能 0／1、兩個卡池原值都要合法（即使 AI 卡池跟藍方一樣）
 	for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14]:
 		if not (j[i] is float or j[i] is int) or float(j[i]) != floorf(float(j[i])) or absf(float(j[i])) > 100000:
@@ -351,6 +413,13 @@ static func from_code(code: String) -> Dictionary:
 		r.stat_pct[int(e[0])] = [int(e[1]), int(e[2]), int(e[3])]
 	for sk in j[16]:
 		r.skills_off.append(str(sk))
+	if v2:
+		r.deploy = DEPLOYS[int(j[17])]
+		r.spacing = int(j[18])
+		r.depth = int(j[19])
+		r.fullfield = int(j[20])
+		if r.deploy_is_default():
+			return {"ok": false, "why": "rr_code_body"}   # 預設部署必須用 NTBR1（一組規則只有一種寫法）
 	r.preset = "custom"
 	var bad: Array = r.validate()
 	if not bad.is_empty():

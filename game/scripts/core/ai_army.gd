@@ -65,6 +65,10 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 		a.apply_rules(rules, team)
 		a.budget = budget
 		a.pool = pool
+		if rules.is_free():
+			a.deploy = "grid"   # 先用格子擺，最後再拉開成自由座標（free_from_grid）
+			a.depth = 6000
+			a.enemy_pos = []
 	var el := eligible_templates(pool)
 	if template >= 0 and not template_ok(template, pool):
 		template = -1   # 指定的模板用到未開放的兵種：改從可用的模板抽（Codex 實作審查 #3）
@@ -102,7 +106,14 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 		# 自訂規則：模板比例填完還有錢（單種上限、小卡池）→ 落子 AI 補滿
 		var AIT2 = load("res://scripts/core/ai_turns.gd")
 		AIT2.fill_army(a, rng, 1, [])
+	if rules != null and rules.is_free():
+		a = free_from_grid(a, rules)
 	return {"army": a, "name": TEMPLATES[ti]["name"]}
+
+## 第六輪：AI 的自由擺法——先用格子邏輯擺（亂數路徑不變），再依縱深把欄位等比拉開（§5「AI」）。
+static func free_from_grid(a, rules):
+	var F = load("res://scripts/core/formations.gd")
+	return F.to_free(a, rules, null, "stretch")
 
 static func _cap_ok(a, picks: Array, t: int) -> bool:
 	if a.type_cap <= 0:

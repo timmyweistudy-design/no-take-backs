@@ -33,6 +33,12 @@ func _init() -> void:
 		print("—— %d 通過 / %d 失敗" % [passed, failed])
 		quit(0)
 		return
+	if "--only=free" in OS.get_cmdline_user_args():
+		test_free_v6()
+		test_free_skip_v6()
+		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
+		quit(1 if failed > 0 or passed == 0 else 0)
+		return
 	if "--only=rules" in OS.get_cmdline_user_args():
 		test_rules_v5()
 		test_sandbox_v5()
@@ -78,6 +84,8 @@ func _init() -> void:
 	test_battle_code_v5()
 	test_rules_e2e_v5()
 	test_lobby_reopen_v5()
+	test_free_v6()
+	test_free_skip_v6()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -2337,3 +2345,263 @@ func test_lobby_reopen_v5() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn))
 	SV.prefix = old_prefix
 	SV.load_all()
+
+# ═══════════════════ 第六輪：自由排兵 ═══════════════════
+## 獨立判定器（不呼叫 Army 的檢查函式）：型別、量化、部署區、己方間距、敵距、預算、人數、單種、卡池。
+static func legal_free(a, r, team: int, enemy: Array = []) -> String:
+	if a.units.is_empty():
+		return "空的"
+	var spent := 0
+	var per := {}
+	var pts: Array = []
+	for u in a.units:
+		if not u.has("x") or not u.has("y") or not (u["x"] is int) or not (u["y"] is int):
+			return "不是自由座標"
+		var x: int = u["x"]
+		var y: int = u["y"]
+		if x % 50 != 0 or y % 50 != 0:
+			return "沒量化"
+		var ox := x if team == 0 else 16000 - x
+		var dmax: int = 15800 if r.fullfield != 0 and team == 0 or r.fullfield == 1 else r.depth
+		if ox < 200 or ox > dmax or y < 200 or y > 8800:
+			return "出界 (%d,%d)" % [x, y]
+		for q in pts:
+			if (q.x - x) * (q.x - x) + (q.y - y) * (q.y - y) < r.spacing * r.spacing:
+				return "太近"
+		for e in enemy:
+			if (e.x - x) * (e.x - x) + (e.y - y) * (e.y - y) < 1500 * 1500:
+				return "離敵太近"
+		pts.append(Vector2i(x, y))
+		var t: int = u["type"]
+		if (r.pool_of(team) >> t) & 1 == 0:
+			return "卡池"
+		per[t] = int(per.get(t, 0)) + 1
+		if r.type_cap > 0 and per[t] > r.type_cap:
+			return "單種"
+		spent += D.cost(t)
+	if spent > r.budget_of(team) or a.units.size() > r.unit_cap:
+		return "預算或人數"
+	return ""
+
+static func free_rules(spacing := 800, depth := 7500, full := 0):
+	var r = RSET.standard()
+	r.deploy = "free"
+	r.spacing = spacing
+	r.depth = depth
+	r.fullfield = full
+	return r
+
+func test_free_v6() -> void:
+	# 量化
+	var qb: Array = []
+	for c in [[225, 200], [226, 250], [275, 250], [274, 250], [276, 300], [0, 0], [24, 0], [25, 0], [26, 50]]:
+		if Army.quant(c[0]) != c[1]:
+			qb.append(c)
+	ok(qb.is_empty(), "量化：floor((v+24)/50)×50，剛好一半往小（225→200、226→250、275→250）", str(qb))
+	# 舊字串「解碼→編碼」完全相同：封存的 NTB2、AI 的 NTB1、標準 NTBR1
+	var BC = load("res://scripts/game/battle_code.gd")
+	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/battle_codes_v2.json"))
+	var same2 := 0
+	for row in g["rows"]:
+		var d: Dictionary = BC.decode(str(row["code"]))
+		if d["ok"] and BC.encode(d["a0"], d["a1"]) == str(row["code"]):
+			same2 += 1
+	var rng := RandomNumberGenerator.new()
+	var same1 := 0
+	for i in 50:
+		rng.seed = 600 + i
+		var a = AI.build(i % 2, 100, rng)["army"]
+		var b := Army.new(i % 2, 100)
+		if b.load_code(a.to_code()) == "" and b.to_code() == a.to_code():
+			same1 += 1
+	var sr: String = RSET.standard().to_code()
+	ok(same2 == 40 and same1 == 50 and sr.begins_with("NTBR1.") and RSET.from_code(sr)["rules"].to_code() == sr, "舊字串解碼再編碼完全相同：封存 NTB2 40 筆、NTB1 50 筆、標準規則 NTBR1", "%d %d" % [same2, same1])
+	# NTBR2：來回、非法組合被拒、預設部署不能用 NTBR2
+	var fr = free_rules(800, 7000, 1)
+	var c2: String = fr.to_code()
+	var dd: Dictionary = RSET.from_code(c2)
+	var bad_ok := true
+	for mk in [["grid", 1000, 6000, 1], ["free", 550, 7000, 0], ["free", 800, 8000, 0], ["grid", 800, 6000, 0], ["free", 800, 6500, 3]]:
+		var r = RSET.standard()
+		r.deploy = mk[0]
+		r.spacing = mk[1]
+		r.depth = mk[2]
+		r.fullfield = mk[3]
+		bad_ok = bad_ok and not r.validate().is_empty()
+	var fb = free_rules(800, 7000, 1)
+	fb.place_rule = "blind"
+	bad_ok = bad_ok and not fb.validate().is_empty()
+	ok(c2.begins_with("NTBR2.") and dd["ok"] and dd["rules"].equals(fr) and bad_ok, "NTBR2：自由部署規則來回相同；格子＋全場、間距 550、縱深 8000、格子改間距、全場＋暗擺都被拒")
+	# 自由陣型池：三種擺法 × 間距 × 縱深都合法、非空
+	var pb: Array = []
+	var n := 0
+	for sp in [600, 800, 1000]:
+		for dp in [6000, 7000, 7500]:
+			var r = free_rules(sp, dp)
+			var pl: Array = F.free_pool(0, 12, 4400 + sp + dp, r)
+			for a in pl:
+				n += 1
+				var why := legal_free(a, r, 0)
+				if why != "":
+					pb.append([sp, dp, why])
+	ok(n == 108 and pb.is_empty(), "自由陣型池（拉開／偏移／密集 × 間距 3 × 縱深 3）%d 套都合法、非空" % n, str(pb.slice(0, 3)))
+	# 確定性：打亂輸入順序，指紋相同；自由陣型的指紋和格子陣型不同
+	var r8 = free_rules(800, 7500)
+	rng.seed = 77
+	var fa = F.to_free(AI.build(0, 100, rng)["army"], r8, rng, "jitter")
+	var fb2 = F.to_free(AI.build(1, 100, rng)["army"], r8, rng, "dense")
+	var s1 = Sim.new(fa.copy(), fb2.copy(), r8)
+	s1.run_to_end()
+	var fa2 = fa.copy()
+	fa2.units.reverse()
+	var fb3 = fb2.copy()
+	fb3.units.shuffle()
+	var s2 = Sim.new(fa2, fb3, r8)
+	s2.run_to_end()
+	ok(s1.fingerprint == s2.fingerprint and s1.free, "自由陣型：打亂輸入順序指紋相同（編號依自己視角 (y,x) 排序）")
+	# 獨立鏡像（不從 id 反推）：自由 40 組＋格子 10 組
+	var mb: Array = []
+	for i in 40:
+		var r = free_rules([600, 800, 1000][i % 3], [6000, 7000, 7500][(i / 3) % 3])
+		rng.seed = 9100 + i
+		var x0 = F.to_free(F.random_formation(0, rng), r, rng, ["stretch", "jitter", "dense"][i % 3])
+		var x1 = F.to_free(F.random_formation(0, rng), r, rng, ["dense", "stretch", "jitter"][i % 3]).mirrored()
+		var why: String = MC.check_free(x0, x1, r)
+		if why != "":
+			mb.append([i, why])
+	for i in 10:
+		rng.seed = 9300 + i
+		var why2: String = MC.check_free(AI.build(0, 100, rng)["army"], AI.build(1, 100, rng)["army"])
+		if why2 != "":
+			mb.append(["grid", i, why2])
+	ok(mb.is_empty(), "獨立鏡像（tick 0 起始座標配對、比 slot、事件來源目標、完整狀態）：自由 40 組、格子 10 組都對稱", str(mb.slice(0, 2)))
+	# 整群剛體搬移：碰邊貼齊、相對位置不變；撞到群外的兵就不動
+	var ga := Army.new(0, 200)
+	ga.apply_rules(free_rules(800, 7500), 0)
+	ga.guard_combat = false
+	ga.place_xy(D.SWORD, 3000, 3000)
+	ga.place_xy(D.SWORD, 3800, 3000)
+	ga.place_xy(D.ARCHER, 1000, 5000)
+	var before: Array = [ga.pos_of(ga.units[0]), ga.pos_of(ga.units[1])]
+	var mv: Vector2i = ga.move_group([0, 1], 9000, 0)
+	var after: Array = [ga.pos_of(ga.units[0]), ga.pos_of(ga.units[1])]
+	var rigid: bool = after[1] - after[0] == before[1] - before[0] and after[1].x == 7500
+	var mv2: Vector2i = ga.move_group([0, 1], -after[0].x + 1000, 5000 - 3000)
+	ok(rigid and mv2.x == -99999 and ga.pos_of(ga.units[0]) == after[0], "整群剛體搬移：拖過頭就貼著部署區邊停住、相對位置不變；撞到群外的兵整群不動", str([mv, after, mv2]))
+	ok(ga.flip_group([0, 1]) and ga.pos_of(ga.units[0]).y == 6000, "上下翻轉一群（y → 9000−y）")
+	# 輪流落子・全場：批次原子、敵距、會結束、擠滿會跳手並記錄
+	var tb: Array = []
+	var skips := 0
+	for k in 30:
+		var r = free_rules(800, 7500, 1)
+		r.place_rule = "snake5"
+		r.budget = [200, 200]
+		r.unit_cap = 40
+		var ta := Army.new(0, 200)
+		var tb2 := Army.new(1, 200)
+		ta.apply_rules(r, 0)
+		tb2.apply_rules(r, 1)
+		var tp = TP.new(ta, tb2, k % 2, "snake5", r)
+		rng.seed = 1700 + k
+		var guard := 0
+		while not tp.done() and guard < 400:
+			guard += 1
+			var me: int = tp.current
+			var items: Array = []
+			var tries := 0
+			while items.size() < 3 and tries < 60:
+				tries += 1
+				var t: int = [D.SWORD, D.ARCHER, D.SHIELD, D.MEDIC][rng.randi_range(0, 3)]
+				var x := Army.quant(rng.randi_range(200, 15800))
+				var y := Army.quant(rng.randi_range(200, 8800))
+				var spent := 0
+				for it in items:
+					spent += D.cost(it[0])
+				if spent + D.cost(t) > tp.turn_left():
+					continue
+				var probe = tp.armies[me].copy()
+				for it in items:
+					probe.units.append({"type": it[0], "x": it[1], "y": it[2]})
+				if tp.check_place_xy(t, x, y) == "" and probe.check_place_xy(t, x, y) == "":
+					items.append([t, x, y])
+			if items.is_empty() or not tp.place_batch(items):
+				tp.end_turn()
+		skips += tp.skipped.size()
+		var en0: Array = []
+		for u in tb2.units:
+			en0.append(tb2.pos_of(u))
+		if not tp.done():
+			tb.append([k, "沒結束"])
+		else:
+			for u in ta.units:
+				for e in en0:
+					var p := ta.pos_of(u)
+					if (p.x - e.x) * (p.x - e.x) + (p.y - e.y) * (p.y - e.y) < 1500 * 1500:
+						tb.append([k, "敵距"])
+	ok(tb.is_empty(), "輪流落子・全場 30 局：批次落子、雙方離敵兵都 ≥1.5 格、都會結束（跳手 %d 次）" % skips, str(tb.slice(0, 3)))
+	# 對戰代碼：自由部署 NTB3 往返、播出同一場
+	var code: String = BC.encode(fa, fb2, r8)
+	var d3: Dictionary = BC.decode(code)
+	var same3 := false
+	if d3["ok"]:
+		var s3 = Sim.new(d3["a0"], d3["a1"], d3["rules"])
+		s3.run_to_end()
+		same3 = s3.fingerprint == s1.fingerprint
+	ok(code.begins_with("NTB3.") and same3 and fa.to_code().begins_with("NTB5."), "自由部署對戰代碼 NTB3（內含 NTB5 陣型、NTBR2 規則）往返播出同一場", str(d3.get("why", "")))
+	# NTB5：壞資料被拒（保留位不是 0、長度不對、超過格式上限）
+	var raw := Marshalls.base64_to_raw(fa.to_code().split(".")[1].replace("-", "+").replace("_", "/") + "==".substr(0, (4 - fa.to_code().split(".")[1].length() % 4) % 4))
+	var bad5: Array = []
+	var r1 := raw.duplicate()
+	r1[4] = r1[4] | 1
+	bad5.append(r1)
+	var r2 := raw.duplicate()
+	r2[1] = r2[1] + 1
+	bad5.append(r2)
+	var rej5 := 0
+	for bb in bad5:
+		var body := Marshalls.raw_to_base64(bb).replace("+", "-").replace("/", "_").replace("=", "")
+		var t5 := Army.new(0, 200)
+		t5.apply_rules(r8, 0)
+		if t5.load_code("NTB5.%s.%s" % [body, body.sha256_text().substr(0, 4)]) != "":
+			rej5 += 1
+	ok(rej5 == 2, "NTB5 壞資料（保留位不是 0、隻數和長度不符）被拒", str(rej5))
+	# AI 自由擺法：各種規則都合法、在自己半場（全場明牌時 AI 也只擺自己這邊）
+	var ab: Array = []
+	for k in 60:
+		var r = free_rules([600, 800, 1000][k % 3], [6000, 6500, 7000, 7500][k % 4], [0, 0, 2][k % 3])
+		r.budget = [[60, 100, 180][k % 3], [60, 100, 180][k % 3]]
+		r.unit_cap = [12, 24, 40][k % 3]
+		rng.seed = 5600 + k
+		var a
+		match k % 3:
+			0: a = AI.build(1, r.budget_of(1), rng, -1, -1, r)["army"]
+			1: a = AIT5.build_full(1, rng, 1, [], -1, r)
+			_: a = HA5.build([], [], rng, -1, r)
+		var r_half = r.copy()
+		r_half.fullfield = 0
+		var why := legal_free(a, r_half, 1)
+		if why != "" or not a.has_combat():
+			ab.append([k, why])
+	ok(ab.is_empty(), "AI 自由擺法 60 組規則（簡單／普通／困難、間距、縱深、明牌全場）：陣型合法、只在自己半場、有戰鬥兵", str(ab.slice(0, 3)))
+
+func test_free_skip_v6() -> void:
+	# 紅方先把全場每 2 格擺一隻（雙人全場、離敵 1.5 格）→ 藍方沒有任何合法位置 → 自動跳手並記錄
+	var r = free_rules(1000, 7500, 1)
+	r.place_rule = "custom"
+	r.turns = 2
+	r.budget = [200, 200]
+	r.unit_cap = 40
+	var ta := Army.new(0, 200)
+	var tb := Army.new(1, 200)
+	ta.apply_rules(r, 0)
+	tb.apply_rules(r, 1)
+	tb.guard_combat = false
+	var x := 1000
+	while x <= 15000:
+		var y := 700
+		while y <= 8800:
+			tb.units.append({"type": D.ARCHER, "x": x, "y": y})
+			y += 2000
+		x += 2000
+	var tp = TP.new(ta, tb, 0, "custom", r)
+	ok(tp.done() or (tp.current == 1 and not tp.skipped.is_empty()), "全場擠滿：藍方沒有任何合法位置 → 自動跳手並記錄（畫面會提示）", str([tp.current, tp.skipped, tp.done()]))

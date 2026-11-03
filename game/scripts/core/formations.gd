@@ -163,3 +163,58 @@ static func composition(a: Army) -> Array:
 	for u in a.units:
 		v[u["type"]] += D.cost(u["type"])
 	return v
+
+# ───────── 第六輪：自由陣型（方案 §6.3） ─────────
+## 把格子陣型轉成自由陣型。style：
+##   "stretch" 欄位依縱深等比拉開（AI 用的擺法）
+##   "jitter"  拉開後每隻再加 ±(1000−間距)/2 的偏移（保證間距）
+##   "dense"   同樣的兵依原本前後順序，用最小間距排成交錯（六角）密集陣
+## 結果一定合法（不合法的點略過）；部署限制照 r（deploy 必須是 free）。
+static func to_free(src: Army, r, rng: RandomNumberGenerator, style := "stretch") -> Army:
+	var a := Army.new(src.team, src.budget)
+	a.apply_rules(r, src.team)
+	a.guard_combat = false
+	a.depth = r.depth   # 自己的半場（全場模式也一樣，AI 只擺自己這邊）
+	var depth: int = r.depth
+	var j: int = (1000 - int(r.spacing)) / 2
+	if style == "dense":
+		# 依「自己視角 x 由大到小（前排先）」排序，用六角排列填
+		var lst: Array = []
+		for u in src.units:
+			var p := Army.pos_of(u)
+			lst.append([-src.own_x(p.x) * 10 + int(u["row"]) if u.has("row") else 0, int(u["type"])])
+		lst.sort_custom(func(p, q): return p[0] < q[0])
+		var sp: int = r.spacing
+		var rows_per_col := maxi(1, (8600 - 200) / sp + 1)
+		var dx_col := int(sp * 0.87)
+		var k := 0
+		for e in lst:
+			var col := k / rows_per_col
+			var rr := k % rows_per_col
+			var ox := Army.quant(depth - col * dx_col)
+			var y := Army.quant(400 + rr * sp + (sp / 2 if col % 2 == 1 else 0))
+			a.place_xy(e[1], a.world_x(ox), y)
+			k += 1
+		return a
+	for u in src.units:
+		var p := Army.pos_of(u)
+		var ox: int = src.own_x(p.x)
+		var nox := 500 + (ox - 500) * (depth - 1000) / 5000
+		var ny := p.y
+		if style == "jitter" and j > 0:
+			nox += rng.randi_range(-j, j)
+			ny += rng.randi_range(-j, j)
+		nox = clampi(Army.quant(nox), Army.EDGE, depth)
+		ny = clampi(Army.quant(ny), Army.EDGE, Army.H - Army.EDGE)
+		a.place_xy(int(u["type"]), a.world_x(nox), ny)
+	return a
+
+## 自由陣型池：同一個格子池，各自轉成 stretch／jitter／dense（種子固定）。
+static func free_pool(team: int, count: int, seed_base: int, r, ntypes := D.COUNT) -> Array:
+	var out: Array = []
+	var grid := pool(team, count, seed_base, ntypes)
+	var rng := RandomNumberGenerator.new()
+	for i in grid.size():
+		rng.seed = seed_base * 7 + i
+		out.append(to_free(grid[i], r, rng, ["stretch", "jitter", "dense"][i % 3]))
+	return out

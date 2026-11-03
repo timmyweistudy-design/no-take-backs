@@ -24,6 +24,7 @@ var hands_done := [0, 0]
 var commands: Array = []     # {"team","type","col","row","turn"}
 var handoffs := 0            # 換人次數
 var rules = null             # 第五輪：自訂規則（null＝1.3.0 行為：snake 每手 20 金、5 手）
+var skipped: Array = []      # 第六輪：因為沒有位置或買不起而被跳過的 {team, turn}（畫面橫幅用）
 
 ## p_rules：第五輪 Ruleset。給了就用它的每手上限、手數、累積；卡池與人數上限由軍隊本身（Army.apply_rules）管。
 func _init(a0, a1, p_first := 0, p_rule := "cap10", p_rules = null) -> void:
@@ -95,6 +96,54 @@ func check_place(t: int, col: int, row: int) -> String:
 		return "最後一手要擺戰鬥兵"
 	return a.check_place(t, col, row)
 
+# ───────── 第六輪：自由部署的批次落子（§3.8） ─────────
+## 全場時把對方目前的兵同步成自己的禁區。
+func _sync_enemy() -> void:
+	if rules == null or rules.fullfield != 1:
+		return
+	for tm in 2:
+		var lst: Array = []
+		for u in armies[1 - tm].units:
+			lst.append(armies[1 - tm].pos_of(u))
+		armies[tm].enemy_pos = lst
+
+func check_place_xy(t: int, x: int, y: int) -> String:
+	if done():
+		return "擺放已結束"
+	_sync_enemy()
+	if D.cost(t) > hand_cap() - spent_this_turn:
+		return "這一手最多花 %d 金" % hand_cap()
+	var a = armies[current]
+	if rules != null and is_snake() and a.guard_combat and not a.has_combat() and D.is_support(t) and hands_done[current] >= hands_max() - 1:
+		return "最後一手要擺戰鬥兵"
+	return a.check_place_xy(t, x, y)
+
+## 一筆＝一個批次指令，原子提交：全部都合法才放，否則一隻都不放（呼叫端先用預覽把不合法的點濾掉）。
+## 一筆不會自動結束這一手；這一手的金額用完（或沒有可以放的位置）才換手。
+func place_batch(items: Array) -> bool:
+	if done() or items.is_empty():
+		return false
+	var a = armies[current]
+	var keep: Array = a.units.duplicate(true)
+	var spent0 := spent_this_turn
+	for it in items:
+		var why := check_place_xy(int(it[0]), int(it[1]), int(it[2]))
+		if why != "" or not a.place_xy(int(it[0]), int(it[1]), int(it[2])):
+			a.units = keep
+			spent_this_turn = spent0
+			return false
+		spent_this_turn += D.cost(int(it[0]))
+	commands.append({"team": current, "batch": items.duplicate(true), "turn": turn_index})
+	placed_this_turn += items.size()
+	if turn_left() < _min_cost() or not _can_act(current):
+		end_turn()
+	return true
+
+## 這一隊還能不能動：買得起，而且（自由部署）場上還有合法位置。
+func _can_act(tm: int) -> bool:
+	_sync_enemy()
+	return armies[tm].can_afford_any() and armies[tm].has_room()
+
 func place(t: int, col: int, row: int) -> bool:
 	if check_place(t, col, row) != "":
 		return false
@@ -111,14 +160,14 @@ func can_end_turn() -> bool:
 
 ## 結束這一手。還沒擺任何兵、又買得起時不能結束（買得起就不能跳過）。
 func end_turn() -> bool:
-	if placed_this_turn == 0 and turn_left() >= _min_cost() and armies[current].can_afford_any():
+	if placed_this_turn == 0 and turn_left() >= _min_cost() and _can_act(current):
 		return false
 	var prev := current
 	spent_this_turn = 0
 	placed_this_turn = 0
 	if is_snake():
 		hands_done[current] += 1
-		if hands_done[current] >= hands_max() or not armies[current].can_afford_any():
+		if hands_done[current] >= hands_max() or not _can_act(current):
 			stopped[current] = true
 		turn_index += 1
 		if turn_index < hands_max() * 2:
@@ -127,7 +176,7 @@ func end_turn() -> bool:
 			stopped[0] = true
 			stopped[1] = true
 	else:
-		if not armies[current].can_afford_any():
+		if not _can_act(current):
 			stopped[current] = true
 		current = 1 - current
 	_skip_if_stuck()
@@ -139,7 +188,10 @@ func _skip_if_stuck() -> void:
 	for _i in 12:
 		if done():
 			return
-		if not armies[current].can_afford_any():
+		if not _can_act(current):
+			if not stopped[current] and armies[current].deploy == "free":
+				skipped.append({"team": current, "turn": turn_index})   # 第六輪：跳手記錄（畫面要提示；格子規則不記，和舊版指令相同）
+				commands.append({"team": current, "skip": true, "turn": turn_index})
 			stopped[current] = true
 		if not stopped[current]:
 			return
