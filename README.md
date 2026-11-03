@@ -3,7 +3,7 @@
 可愛派兵自動對決（Steam 小品）。花 100 金擺好小軍隊，按下開戰就不能再動，只能看著它們打到最後一秒。
 
 - 企劃 v1.0：[docs/2026-11-01-design-and-plan.md](docs/2026-11-01-design-and-plan.md)（§15 原型、§16 全面實作進度）
-- 三方優化方案：[第一輪](docs/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）
+- 三方優化方案：[第一輪](docs/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/2026-11-03-free-placement-plan-v6.md)（§11 進度）
 - 上架文件：[docs/release/](docs/release/)（商店頁、行銷與定價、法務、Steam 步驟）
 - 真人試玩流程：[docs/playtest/protocol.md](docs/playtest/protocol.md)
 - 第三方授權：[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
@@ -13,6 +13,7 @@ Windows：雙擊 `play.bat`；或用 Godot 4.6 開 `game/project.godot` 按 F5�
 
 | 模式 | 內容 |
 |---|---|
+| 自由排兵（第六輪） | 大廳預設不用格子：按住拖曳＝畫筆沿路擺兵（放開才落下、Shift 直線、G 對齊）、按住已擺的兵拖動、右鍵／拖出場外移除、Ctrl＋Z 復原；選取工具或 Ctrl＋拖曳框住一群一起搬、M 上下翻轉、Delete 刪除。部署分頁可換回格子、調最小間距 0.6～1.0 格與縱深 6～7.5 格；「全場」娛樂變體：對 AI 明牌全場（AI 先擺好公開，你在全場離敵兵 1.5 格外擺）、雙人輪流全場（沒位置自動跳手） |
 | 規則大廳（第五輪） | 對 AI、雙人開戰前選規則：6 個預設（標準、經典 5 種、全部兵種、小規模快打、大軍團、單兵種對決）＋最多 5 組「我的預設」；按「自訂細項」可調金幣 30～200、讓子、人數上限 4～40、單種上限、卡池（玩家與 AI 各自）、一局 60～150 秒、局數 1／3／5／7、落子方式與手數、剩錢累積、保留陣型、AI 難度、沙盒（兵種血／攻／速 50～200%、12 個技能開關）。徽章：平衡認證／娛樂變體／沙盒。規則代碼可複製分享 |
 | 對 AI 快速對戰 | 簡單／普通／困難。困難 AI 第 2 局起會讀你上一局的陣型（反制庫只在標準規則用） |
 | 同機雙人對決 | 輪流落子（公平輪序，預設 5 手）／每手 10 金／同時暗擺／自訂手數；落子要點兩下（可關），擺下不能收回 |
@@ -25,7 +26,7 @@ Windows：雙擊 `play.bat`；或用 Godot 4.6 開 `game/project.godot` 按 F5�
 | 操作 | 滑鼠 | 鍵盤 | 手把 |
 |---|---|---|---|
 | 選兵種 | 點兵種卡 | 1～9、0 | LB／RB |
-| 擺放 | 點或拖到格子（按住可連續擺） | 方向鍵＋Enter | 十字鍵或左搖桿＋A |
+| 擺放 | 點或拖到格子（按住可連續擺）；自由排兵＝按住拖曳畫一排 | 方向鍵＋Enter | 十字鍵或左搖桿＋A（自由排兵：按住 A 移搖桿畫、LT＋A 框選、L3 對齊、R3 密集） |
 | 移除 | 右鍵／拖出場外 | Backspace | X |
 | 開戰／結束這一手 | 按鈕 | Space | Start |
 | 返回 | 按鈕 | Esc | B |
@@ -44,6 +45,9 @@ Windows：雙擊 `play.bat`；或用 Godot 4.6 開 `game/project.godot` 按 F5�
 cd game
 tools/check_all.sh                                                 # 統一檢查：匯入、載入、啟動、測試、鏡像、金標準 1000 場（鎖檔）、舊兵相容 1000 場、封存的舊對戰代碼、打轉、素材、字型涵蓋（CI 也用它）
 godot --headless --path . --script res://tests/run_tests.gd -- --only=rules   # 第五輪規則／沙盒／對戰代碼測試（含 1024 卡池窮舉）
+godot --headless --path . --script res://tests/run_tests.gd -- --only=free    # 第六輪自由排兵（量化、NTB5／NTBR2、鏡像、輪流批次與跳手、has_room 窮舉、覆盤）
+SHARDS=17 tools/free_screen.sh ../docs/balance-runs/<名稱>                       # 第六輪間距×縱深全因子篩選；python3 tools/free_screen_report.py 彙整
+FREE=800,6000 NTYPES=10 SHARDS=16 tools/unit_eval.sh …                          # 自由陣型版的完整驗收
 godot --headless --path . --script res://tools/perf_probe.gd       # 大軍、支援兵密集、困難 AI 的模擬耗時（定人數上限用）
 NTYPES=10 SHARDS=19 tools/unit_eval.sh ../docs/balance-runs/<名稱> core repl:0 repl:3 repl:4 repl:5 …  # 新兵種驗收（核心剋制、替換實驗＋經典範圍、盾牆池、覆蓋曲線）
 godot --headless --path . --script res://tools/compat.gd -- --n=1000  # 舊 5 種兵逐 tick 相容（加新兵不能改到舊兵）
@@ -66,9 +70,9 @@ python3 tools/check_font_coverage.py                               # 子集缺�
 
 | 位置 | 內容 |
 |---|---|
-| `game/scripts/core/` | 純邏輯：`battle_sim.gd`（五步 tick、全整數、SHA-256 完整狀態指紋、懸念指標、背水；可選規則：一局長度、讓子判定、沙盒）、`ruleset.gd`（第五輪規則物件、驗證、規則代碼 NTBR1）、`unit_defs.gd`（**所有數值**）、`army.gd`（含陣型代碼）、`turn_placement.gd`（cap10／snake5／snake5c）、`ai_turns.gd`、`ai_army.gd`、`formations.gd`、`mirror_check.gd` |
+| `game/scripts/core/` | 純邏輯：`battle_sim.gd`（五步 tick、全整數、SHA-256 完整狀態指紋、懸念指標、背水；可選規則：一局長度、讓子判定、沙盒）、`ruleset.gd`（第五輪規則物件、驗證、規則代碼 NTBR1／第六輪 NTBR2：部署、間距、縱深、全場）、`unit_defs.gd`（**所有數值**）、`army.gd`（含陣型代碼 NTB1／第六輪自由座標 NTB5、量化、has_room）、`turn_placement.gd`（cap10／snake5／snake5c）、`ai_turns.gd`、`ai_army.gd`、`formations.gd`、`mirror_check.gd` |
 | `game/scripts/game/` | 字串表、存檔設定（原子寫入）、音效、Steam 介面、關卡資料 |
-| `game/scripts/ui/` | 繼承鏈 `ui_base`（字級表、三種字型角色、換行）→ `battle_view`（戰場、特效、展示緩衝）→ `codex_view`（圖鑑）→ `replay_view`（重播控制、覆盤、對戰代碼）→ `lobby_view`（規則大廳）→ `game_screens`（狀態機與各畫面）→ `main`（截圖、膠囊、影片、效能）；`charts.gd`（中線對比長條、排名條、戰力走勢、金幣條）、`art.gd`（程式繪製角色、三段式攻擊、表情）、`sprite_cache.gd`（圖集）、`view_buffer.gd`（畫面晚 2 tick） |
+| `game/scripts/ui/` | 繼承鏈 `ui_base`（字級表、三種字型角色、換行）→ `battle_view`（戰場、特效、展示緩衝）→ `codex_view`（圖鑑）→ `replay_view`（重播控制、覆盤、對戰代碼）→ `lobby_view`（規則大廳）→ `free_place`（第六輪自由排兵：畫筆、框選、搬群、手把、禁區）→ `game_screens`（狀態機與各畫面）→ `main`（截圖、膠囊、影片、效能）；`charts.gd`（中線對比長條、排名條、戰力走勢、金幣條）、`art.gd`（程式繪製角色、三段式攻擊、表情）、`sprite_cache.gd`（圖集）、`view_buffer.gd`（畫面晚 2 tick） |
 | `game/data/` | `strings.csv`、`puzzles.json`（含標準解）、`codex.json`（圖鑑）、`counter_lib.json`、`credits.txt` |
 | `game/tools/` | 平衡工具 2.0（含刺客陣指標）、殘局驗證、鏡像 100、打轉偵測、音效合成、字型子集、素材檢查 |
 | `.github/workflows/ci.yml` | 建好 GitHub repo 就會跑：測試＋鏡像＋素材檢查＋Windows／Linux 指紋比對 |

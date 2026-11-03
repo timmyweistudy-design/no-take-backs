@@ -1040,6 +1040,8 @@ func _draw_inner() -> void:
 		var a := minf(1.0, toast_t * 2)
 		var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
 		var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
+		if overlay == "" and _is_free():
+			ty = 50.0   # 第六輪：自由擺放整個戰場都可能有兵，提示改蓋在上方的兵種說明條（Codex 實作第 3 輪 #2）
 		draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, 0.72 * a))
 		_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
 	if _focus >= _btns.size():
@@ -2089,6 +2091,8 @@ func _process_cmds() -> int:
 			# 畫面已經換了：丟掉。但「放開滑鼠」一定要清掉拖曳／塗兵狀態（Codex S1 #2）
 			if c["kind"] == "mb" and not c["data"]["pressed"]:
 				_mb_release_cleanup()
+			elif c["kind"] == "padbtn" and not c["data"]["pressed"]:
+				_fp_abort_drag()   # 手把放開 A／X 的事件過期：同樣清掉（Codex 實作第 3 輪 #1）
 			continue
 		if c["kind"] == "click":
 			done += _do_click(c["data"])

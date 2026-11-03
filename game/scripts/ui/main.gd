@@ -507,9 +507,9 @@ func _shots_v6() -> void:
 	rules = _free_rules()
 	_start_mode(Mode.VS_AI)
 	var a = armies[0]
-	for s in [[D.SHIELD, 6200, 3000], [D.SHIELD, 6400, 3900], [D.SHIELD, 6400, 4800], [D.SHIELD, 6200, 5700],
-			[D.PIKE, 5300, 3500], [D.PIKE, 5400, 4400], [D.PIKE, 5300, 5300], [D.SWORD, 6900, 1500], [D.SWORD, 6900, 7400],
-			[D.ARCHER, 3500, 2800], [D.ARCHER, 3200, 4500], [D.ARCHER, 3500, 6200], [D.CAVALRY, 4500, 1000], [D.CAVALRY, 4500, 8000]]:
+	for s in [[D.SHIELD, 5600, 3000], [D.SHIELD, 5800, 3900], [D.SHIELD, 5800, 4800], [D.SHIELD, 5600, 5700],
+			[D.PIKE, 4700, 3500], [D.PIKE, 4800, 4400], [D.PIKE, 4700, 5300], [D.SWORD, 5800, 1500], [D.SWORD, 5800, 7400],
+			[D.ARCHER, 2900, 2800], [D.ARCHER, 2600, 4500], [D.ARCHER, 2900, 6200], [D.CAVALRY, 3900, 1000], [D.CAVALRY, 3900, 8000]]:
 		a.place_xy(s[0], Army.quant(s[1]), Army.quant(s[2]))
 	selected = D.ARCHER
 	show_place_help = false
@@ -543,7 +543,7 @@ func _shots_v6() -> void:
 	toast_t = 0.0
 	ach_queue.clear()
 	rv_fsel = 1
-	_rv_free_click(Vector2i(7400, 3900))
+	_rv_free_click(Vector2i(4600, 2000))
 	_rv_recalc()
 	await _snap("31_review_free.png")
 	overlay = ""

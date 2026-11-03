@@ -328,10 +328,14 @@ func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStrin
 				i = j
 			else:
 				i += 1
-			# 避頭點（第六輪截圖）：句號、逗號、右括號不放行首，掛在上一行尾
-			if cur != "" and _width(cur + tok, size, bold) > maxw and not ("。，、）」』！？；：%" .contains(tok) and tok.length() == 1):
-				out.append(cur.strip_edges(false, true))
-				cur = tok.strip_edges(true, false) if tok == " " else tok
+			if cur != "" and _width(cur + tok, size, bold) > maxw:
+				# 避頭點（第六輪截圖）：句號、逗號、右括號不放行首——把上一行最後一個字一起帶到下一行（不掛出框外）
+				if tok.length() == 1 and "。，、）」』！？；：%".contains(tok) and cur.length() > 1 and cur.unicode_at(cur.length() - 1) >= 0x2E80:
+					out.append(cur.substr(0, cur.length() - 1).strip_edges(false, true))
+					cur = cur.substr(cur.length() - 1) + tok
+				else:
+					out.append(cur.strip_edges(false, true))
+					cur = tok.strip_edges(true, false) if tok == " " else tok
 			else:
 				cur += tok
 		if cur != "":

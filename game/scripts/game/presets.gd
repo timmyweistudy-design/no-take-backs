@@ -10,10 +10,10 @@ const IDS := ["standard", "classic5", "all10", "small", "big", "single"]
 const BADGE_CERT := "cert"       # 平衡認證（綠）
 const BADGE_FUN := "fun"         # 娛樂變體（黃）
 const BADGE_LAB := "lab"         # 沙盒（紫）
-# 第六輪：自由排兵的標準間距與縱深（§6.3 全因子篩選 9 組全過、碾壓局互在區間內，依 §9 體驗面取 0.8 格＋7.5 格；
-# 報表 docs/balance-runs/v6-screen/REPORT.md，完整驗收 docs/balance-runs/v6-accept-800-7500/）
+# 第六輪：自由排兵的標準間距與縱深。全因子篩選 9 組全過（v6-screen/REPORT.md）；完整驗收 0.8×7.5 差 2 項沒過、
+# 0.8×6 全部通過（v6-accept-800-6000/REPORT.md）→ 定 0.8 格＋6 格。縱深 6.5～7.5 仍可在大廳自選（娛樂變體）。
 const FREE_SPACING := 800
-const FREE_DEPTH := 7500
+const FREE_DEPTH := 6000
 
 static func make(id: String, kind: String, unlocked: int):
 	var r = RSET.standard(unlocked)

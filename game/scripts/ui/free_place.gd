@@ -600,7 +600,7 @@ func _fp_draw() -> void:
 			lst.append([w.y, w.x, int(ar.units[i]["type"]), ar.team, ar == a and i in fp_sel])
 	lst.sort()
 	# 占地圈：只在拖曳或懸停時出現（Antigravity）
-	var hover_w := _w_of(mouse)
+	var hover_w: Vector2i = Vector2i(fp_cur) if pad_mode else _w_of(mouse)   # 手把＝準星（Antigravity 實作第 3 輪，未經複查）
 	for it in lst:
 		var w := Vector2i(it[1], it[0])
 		if it[3] == a.team and (drag_on or Vector2(w - hover_w).length() < 2500):
@@ -677,8 +677,8 @@ func _fp_draw() -> void:
 		draw_rect(r, Color(ACCENT, 0.12))
 		draw_rect(r, ACCENT, false, 1.5)
 	# 對齊點陣：只在游標附近 3×3 格淡出
-	if _snap_on() and _fp_in_field(mouse):
-		var c := _q(_w_of(mouse))
+	if _snap_on() and (_fp_in_field(mouse) or pad_mode):
+		var c := _q(hover_w)
 		for gx in range(-3, 4):
 			for gy in range(-3, 4):
 				var w2 := c + Vector2i(gx * 500, gy * 500)
@@ -694,10 +694,10 @@ func _fp_draw() -> void:
 		elif fp_touch:
 			_fp_reticle(_s_of(_q(hover_w)))
 	if pad_mode:
-		_fp_reticle(_s_of(Vector2i(fp_cur)))
+		_fp_reticle(_s_of(_q(Vector2i(fp_cur))))   # 準星畫在量化後的落點
 	# 精簡版戰術預覽（第六輪）：游標處選中兵種的射程／作用範圍；畫筆拖曳中不畫，免得擋住預覽
 	if not drag_on and (_fp_in_field(mouse) or pad_mode):
-		var cw: Vector2i = Vector2i(fp_cur) if pad_mode else _q(hover_w)
+		var cw: Vector2i = _q(hover_w)
 		var cp := _s_of(cw) - Vector2(0, 0.32 * CS)
 		var rad := _fp_range_of(selected)
 		if rad > 0.0:
@@ -767,7 +767,7 @@ func _fp_toolbar() -> void:
 	# 直排在戰場左邊的空白（第六輪截圖：放在戰場裡會擋到全場模式的敵兵）
 	var w := ORIGIN.x - 16
 	var x := 8.0
-	var y := ORIGIN.y
+	var y := ORIGIN.y + 48   # 讓開上方說明條（150% 時會換成兩行）
 	draw_rect(Rect2(x - 4, y - 4, w + 8, items.size() * 46 + 4), Color(0.06, 0.07, 0.1, 0.8))
 	for k in items.size():
 		var id: String = items[k][0]

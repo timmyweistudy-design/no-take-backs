@@ -366,7 +366,7 @@ func _draw_review() -> void:
 	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint"), tz("S"), Color(1, 1, 1, 0.75), true, false, 960)
 	var cs := 40.0
 	var g0 := Vector2(130, 168)
-	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true)
+	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
 	if rv_orig.deploy == "free":
 		_rv_free_board(g0)
 	for r in (0 if rv_orig.deploy == "free" else 9):
@@ -426,7 +426,7 @@ func _draw_review() -> void:
 		Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
 		y += tz("S") * 1.5 + 82
 		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), Color(1, 1, 1, 0.6), false, false, 552)
-		_btn(Rect2(bx, y + text_h(L.t("rv_note"), tz("C"), 552) + 6, 300, 44), L.t("rv_play"), func(): _rv_play())
+		_btn(Rect2(bx + 252, y + text_h(L.t("rv_note"), tz("C"), 552) + 6, 300, 44), L.t("rv_play"), func(): _rv_play())   # 靠右，大字級時不壓到置中的「返回」
 	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "")
 
 func _rv_has_sel() -> bool:
