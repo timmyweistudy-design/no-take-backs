@@ -68,6 +68,13 @@ class Unit:
 var units: Array[Unit] = []    # 依 id 排序
 var tick := 0
 var budget := 100
+var budgets := [100, 100]      # 第五輪：兩邊各自的預算（judge 1 時兩格都等於 budget，畫面算比例才一致）
+var judge := 1                 # 第五輪：1＝1.3.0 舊判定（只看藍方預算）；2＝讓子時的比例判定
+var max_ticks := MAX_TICKS     # 第五輪：一局 tick 數、狂熱時間表改成每場參數（標準值＝1.3.0 常數）
+var frenzy_at := FRENZY_TICK
+var attr_step := 100
+var rules = null               # 第五輪：這一場凍結的規則（null＝標準）
+var power_log2: PackedInt64Array = PackedInt64Array()  # 第五輪：每 tick 兩方戰力（藍、紅交錯），戰力走勢圖用
 var finished := false
 var winner := -2               # -2 進行中；-1 平手；0／1 勝方
 var reason := ""
@@ -82,8 +89,19 @@ var _was_stealth := {}         # 刺客上一 tick 是否潛行（現形事件�
 var _was_rally := [false, false]          # 上一 tick 哪一隊在背水（背水開／關事件用）
 var fast := false              # 平衡工具用：不算每 tick 指紋（結果完全一樣，只是沒有指紋）
 
-func _init(army0, army1) -> void:
+## rules：第五輪 Ruleset（可省略）。省略或是舊路徑規則時，雜湊位元組、判定都和 1.3.0 完全相同。
+func _init(army0, army1, p_rules = null) -> void:
 	budget = army0.budget
+	budgets = [budget, budget]
+	var legacy: bool = p_rules == null or p_rules.sim_is_legacy()
+	if not legacy:
+		rules = p_rules.copy()
+		max_ticks = rules.ticks
+		frenzy_at = rules.frenzy_tick()
+		attr_step = rules.attrition_step()
+		judge = rules.judge()
+		if judge == 2:
+			budgets = [army0.budget, army1.budget]
 	_hash.start(HashingContext.HASH_SHA256)
 	var raw: Array = []
 	for a in [army0, army1]:
@@ -116,6 +134,8 @@ func _init(army0, army1) -> void:
 	var hdr := PackedInt64Array([D.RULES_VERSION_INT, budget, units.size()])
 	_hash.update(hdr.to_byte_array())
 	_hash.update(D.data_digest().to_utf8_buffer())
+	if not legacy:
+		_hash.update(rules.sim_digest().to_utf8_buffer())
 	if alive_count(0) == 0 or alive_count(1) == 0:
 		_finish(-1, "有一方沒有兵")
 
@@ -134,6 +154,14 @@ func power(team: int) -> int:
 			p += u.cost * u.hp * 1000 / u.max_hp
 	return p
 
+## 第五輪：這一隊的預算（judge 1 時兩隊都回傳藍方預算，和 1.3.0 畫面一致）。
+func budget_of(team: int) -> int:
+	return int(budgets[team])
+
+## 剩餘戰力占自己預算的千分比（0～1000）。
+func power_permille(team: int) -> int:
+	return power(team) / maxi(1, budget_of(team))
+
 func run_to_end() -> void:
 	while not finished:
 		step()
@@ -143,7 +171,7 @@ func step() -> void:
 	if finished:
 		return
 	tick += 1
-	frenzy = tick >= FRENZY_TICK
+	frenzy = tick >= frenzy_at
 	events = []
 	var n := units.size()
 
@@ -358,7 +386,7 @@ func step() -> void:
 	var rally_bonus := [0, 0]
 	rally = [false, false]
 	if D.RALLY_RATIO_PCT > 0:
-		var pw := [power(0), power(1)]
+		var pw := [power(0), power(1)] if judge == 1 else [power_permille(0), power_permille(1)]   # 讓子時比各自預算的比例
 		for tm in 2:
 			if pw[tm] * 100 < pw[1 - tm] * D.RALLY_RATIO_PCT:
 				rally_bonus[tm] = D.RALLY_CD_BONUS
@@ -537,8 +565,8 @@ func step() -> void:
 			last_hit[tgt] = src
 			best_d[tgt] = d
 	# 狂熱耗損：第 1200+100k tick（k＝0～5）扣 (k+1)×STEP% 滿血（至少 1）
-	if tick >= FRENZY_TICK and (tick - FRENZY_TICK) % 100 == 0 and (tick - FRENZY_TICK) / 100 <= 5:
-		var k := (tick - FRENZY_TICK) / 100
+	if tick >= frenzy_at and (tick - frenzy_at) % attr_step == 0 and (tick - frenzy_at) / attr_step <= 5:
+		var k := (tick - frenzy_at) / attr_step
 		for i in n:
 			if units[i].alive:
 				dmg_in[i] += maxi(1, units[i].max_hp * (k + 1) * D.ATTRITION_STEP_PCT / 100)
@@ -587,6 +615,8 @@ func step() -> void:
 			events.append({"kind": EV.DEATH, "id": u.id})
 
 	power_log.append(power(0) - power(1))
+	power_log2.append(power(0))
+	power_log2.append(power(1))
 	if not fast:
 		_hash_state()
 	_check_end()
@@ -970,10 +1000,21 @@ func _check_end() -> void:
 		_finish(0, "全滅")
 	elif a0 == 0:
 		_finish(1, "全滅")
-	elif tick >= MAX_TICKS:
+	elif tick >= max_ticks:
 		var p0 := power(0)
 		var p1 := power(1)
-		if absi(p0 - p1) < budget * 30:
+		if judge == 2:
+			# 讓子：比「剩餘戰力占自己預算」；整數交叉相乘避免截斷（Codex 第一輪）
+			var b0: int = budgets[0]
+			var b1: int = budgets[1]
+			var dlt: int = p0 * b1 - p1 * b0
+			if 100 * absi(dlt) < 3 * 1000 * b0 * b1:
+				_finish(-1, "時間到・戰力相當")
+			elif dlt > 0:
+				_finish(0, "時間到・剩餘戰力較高")
+			else:
+				_finish(1, "時間到・剩餘戰力較高")
+		elif absi(p0 - p1) < budget * 30:
 			_finish(-1, "時間到・戰力相當")
 		elif p0 > p1:
 			_finish(0, "時間到・剩餘戰力較高")
@@ -999,12 +1040,19 @@ func unit_by_id(id: int) -> Unit:
 ## max_swing：贏家曾經落後的最大幅度（%）。
 func suspense() -> Dictionary:
 	var total := budget * 1000
+	var lg: PackedInt64Array = power_log
+	if judge == 2:
+		# 讓子：用「占自己預算的比例」差，換算到 1000×1000 的尺度
+		total = 1000 * 1000
+		lg = PackedInt64Array()
+		for t in power_log2.size() / 2:
+			lg.append(power_log2[2 * t] * 1000 / budgets[0] - power_log2[2 * t + 1] * 1000 / budgets[1])
 	var thr := total * 5 / 100
 	var lock_thr := total * 20 / 100
 	var changes := 0
 	var side := 0
-	for t in range(100, power_log.size()):
-		var d: int = power_log[t]
+	for t in range(100, lg.size()):
+		var d: int = lg[t]
 		var s := 0
 		if d > thr:
 			s = 1
@@ -1014,16 +1062,16 @@ func suspense() -> Dictionary:
 			if side != 0 and s != side:
 				changes += 1
 			side = s
-	var lock_t := power_log.size()
+	var lock_t := lg.size()
 	var swing := 0
 	if winner >= 0:
 		var sign := 1 if winner == 0 else -1
 		lock_t = 0
-		for t in power_log.size():
-			var lead: int = power_log[t] * sign
+		for t in lg.size():
+			var lead: int = lg[t] * sign
 			if lead < lock_thr:
 				lock_t = t + 1
 			if -lead > swing:
 				swing = -lead
-	var ratio := lock_t * 1000 / maxi(1, power_log.size())
+	var ratio := lock_t * 1000 / maxi(1, lg.size())
 	return {"lead_changes": changes, "lock_ratio_permille": ratio, "max_swing_pct": swing * 100 / total}

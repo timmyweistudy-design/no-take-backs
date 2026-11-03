@@ -12,6 +12,8 @@ const D = preload("res://scripts/core/unit_defs.gd")
 const F = preload("res://scripts/core/formations.gd")
 const PATH := "res://tests/golden/golden.json"
 const CHECK_EVERY := 100
+const LOCK := "res://tests/golden/golden.lock"   # 第五輪 P0：基準檔的 sha256＋案例數，防止金標準被換成縮水或空的版本
+const CASES := 1000
 
 static func state_sig(s) -> String:
 	var parts := PackedStringArray()
@@ -66,14 +68,23 @@ func _make() -> void:
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out))
 	f.close()
+	var lk := FileAccess.open(LOCK, FileAccess.WRITE)
+	lk.store_string(JSON.stringify({"sha256": FileAccess.get_file_as_string(PATH).sha256_text(), "cases": cases.size()}))
+	lk.close()
 	print("GOLDEN 已產生 %d 場（規則 %s、摘要 %s）" % [cases.size(), D.RULES_VERSION, D.data_digest()])
 	quit(0)
 
 ## 比對前 n 場；回傳 {ok, n, first_case, first_tick, why}
 static func check(n: int) -> Dictionary:
-	var g = JSON.parse_string(FileAccess.get_file_as_string(PATH))
-	if not g is Dictionary:
-		return {"ok": false, "why": "讀不到金標準檔"}
+	var raw := FileAccess.get_file_as_string(PATH)
+	var lk = JSON.parse_string(FileAccess.get_file_as_string(LOCK))
+	if not lk is Dictionary or str(lk.get("sha256", "")) != raw.sha256_text() or int(lk.get("cases", 0)) != CASES:
+		return {"ok": false, "why": "金標準檔和鎖檔不符（檔案被換過、縮水，或沒有用 --make 重產）"}
+	var g = JSON.parse_string(raw)
+	if not g is Dictionary or not g.get("cases") is Array or g["cases"].size() != CASES:
+		return {"ok": false, "why": "讀不到金標準檔，或案例數不是 %d" % CASES}
+	if n <= 0 or n > CASES:
+		return {"ok": false, "why": "n 要在 1～%d" % CASES}
 	if str(g["rules"]) != D.RULES_VERSION or str(g["digest"]) != D.data_digest():
 		return {"ok": false, "why": "規則或數值變了（%s/%s → %s/%s）：若是刻意改規則，請重產金標準並在 commit 說明" % [g["rules"], g["digest"], D.RULES_VERSION, D.data_digest()]}
 	var cases: Array = g["cases"]
@@ -87,4 +98,5 @@ static func check(n: int) -> Dictionary:
 				return {"ok": false, "n": i + 1, "first_case": i, "first_tick": (k + 1) * every if k < cps.size() - 1 else int(c["t"]), "why": "狀態分歧"}
 		if r["cps"].size() != cps.size() or int(r["winner"]) != int(c["w"]) or int(r["ticks"]) != int(c["t"]) or r["fp"] != c["fp"]:
 			return {"ok": false, "n": i + 1, "first_case": i, "first_tick": int(c["t"]), "why": "結果或指紋不同"}
-	return {"ok": true, "n": mini(n, cases.size())}
+	var ran := mini(n, cases.size())
+	return {"ok": ran == n, "n": ran}

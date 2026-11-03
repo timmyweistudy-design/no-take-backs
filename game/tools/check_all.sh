@@ -33,14 +33,17 @@ GN="${GOLDEN_N:-1000}"   # Windows 上一場約 1.5 秒，CI 的 Windows 用 200
 "$GODOT" --headless --path . --script res://tools/golden.gd -- --n=$GN > "$OUT/golden.log" 2>&1 || fail "確定性金標準有分歧（看 golden.log 的第一個分歧場次與 tick）"
 grep -q "^GOLDEN {\"n\":$GN,\"ok\":true}" "$OUT/golden.log" || fail "金標準沒有比完 $GN 場"
 
-CN="${COMPAT_N:-300}"   # 第四輪：舊 5 種兵逐 tick 相容（加新兵後舊兵行為不能變）；里程碑時用 COMPAT_N=1000 跑完整
+CN="${COMPAT_N:-1000}"   # 第四輪：舊 5 種兵逐 tick 相容（加新兵後舊兵行為不能變）；里程碑時用 COMPAT_N=1000 跑完整
 "$GODOT" --headless --path . --script res://tools/compat.gd -- --n=$CN > "$OUT/compat.log" 2>&1 || fail "舊兵種相容檢查有分歧（看 compat.log）"
 grep -q "^COMPAT {\"n\":$CN,\"ok\":true}" "$OUT/compat.log" || fail "相容檢查沒有比完 $CN 場"
 
+"$GODOT" --headless --path . --script res://tools/seal_codes.gd > "$OUT/sealcodes.log" 2>&1 || fail "封存的舊對戰代碼（NTB2）播出不同結果（看 sealcodes.log）"
+grep -q '^SEALCODES {"n":40,"ok":true}' "$OUT/sealcodes.log" || fail "舊對戰代碼檢查沒有完成"
+
 "$GODOT" --headless --path . --script res://tools/orbit_detect.gd > "$OUT/orbit.log" 2>&1 || fail "騎兵打轉偵測超過門檻"
 grep -q "^ORBIT cav_battles=" "$OUT/orbit.log" || fail "打轉偵測沒有完成"
-for lg in mirror golden compat orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
+for lg in mirror golden compat sealcodes orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
 
 python3 tools/check_assets.py > "$OUT/assets.log" 2>&1 || fail "素材登記檢查失敗"
 
-echo "CHECK OK：匯入、載入、啟動、測試、鏡像、金標準、打轉、素材、舊兵相容全過（記錄在 $OUT）"
+echo "CHECK OK：匯入、載入、啟動、測試、鏡像、金標準、打轉、素材、舊兵相容、舊對戰代碼全過（記錄在 $OUT）"

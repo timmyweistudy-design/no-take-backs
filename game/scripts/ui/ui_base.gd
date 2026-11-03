@@ -20,6 +20,7 @@ const SpriteCache = preload("res://scripts/ui/sprite_cache.gd")
 const ViewBuffer = preload("res://scripts/ui/view_buffer.gd")
 const RS = preload("res://scripts/game/roster.gd")
 const HardAI = preload("res://scripts/core/hard_ai.gd")
+const RuleSet = preload("res://scripts/core/ruleset.gd")
 
 enum St { TITLE, PLACE, BATTLE, RESULT }
 enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }

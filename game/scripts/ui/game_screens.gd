@@ -129,7 +129,8 @@ func _reset_place(keep_blue := false) -> void:
 		Mode.DUEL:
 			if duel_rule != "blind":
 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule)
-				tp.ntypes = _ntypes()
+				tp.armies[0].pool = _pool()
+				tp.armies[1].pool = _pool()
 		Mode.TUTORIAL, Mode.PUZZLE:
 			var pz := PZ.get_puzzle(puzzle_id)
 			armies[0] = PZ.player_army(pz)
@@ -141,12 +142,12 @@ func _reset_place(keep_blue := false) -> void:
 			var r := RandomNumberGenerator.new()
 			r.seed = gauntlet_seed + gauntlet_stage * 7919
 			var lvl := mini(2, (gauntlet_stage - 1) / 2)
-			var e := AIT.build_full(1, r, lvl, gauntlet_prev, _ntypes())
+			var e := AIT.build_full(1, r, lvl, gauntlet_prev, _pool())
 			e.budget = 100 + 5 * (gauntlet_stage - 1)
 			var guard := 0
 			while e.can_afford_any() and guard < 20:
 				guard += 1
-				var t := AIT.choose_type(e, gauntlet_prev, e.left(), r, lvl, _ntypes())
+				var t := AIT.choose_type(e, gauntlet_prev, e.left(), r, lvl, _pool())
 				if t < 0:
 					break
 				var c := AIT.choose_cell(e, t, gauntlet_prev, r)
@@ -209,10 +210,10 @@ func _on_start() -> void:
 		r.seed = rng.randi()
 		match difficulty:
 			0:
-				armies[1] = AIT.build_full(1, r, 0, [], _ntypes())
+				armies[1] = AIT.build_full(1, r, 0, [], _pool())
 				ai_name = L.t("diff_easy")
 			1:
-				var res = AI.build(1, 100, r, -1, _ntypes())
+				var res = AI.build(1, 100, r, -1, _pool())
 				armies[1] = res["army"]
 				ai_name = "%s・%s" % [L.t("diff_normal"), res["name"]]
 			_:
@@ -227,7 +228,7 @@ func _on_start() -> void:
 func _hard_ai(r: RandomNumberGenerator) -> Army:
 	# 第四輪：候選陣型各和你上一局的陣型模擬一場，挑最好的（scripts/core/hard_ai.gd）
 	var known: Array = last_player_formation if round_no > 1 else []
-	return HardAI.build(known, _counter_lib(), r, _ntypes())
+	return HardAI.build(known, _counter_lib(), r, _pool())
 
 
 ## 反制庫的陣型只能用這場開放的兵種（第四輪：不會拿你還沒解鎖的兵打你）。
@@ -448,6 +449,11 @@ func _ntypes() -> int:
 	elif mode == Mode.VS_AI or mode == Mode.GAUNTLET:
 		kind = "ai"
 	return RS.ntypes_for(kind, games, classic, OS.has_feature("demo"))
+
+
+## 第五輪：這一場的卡池遮罩（R1 前＝前 N 種）。
+func _pool() -> int:
+	return RuleSet.prefix_pool(_ntypes())
 
 
 func _allowed(t: int) -> bool:

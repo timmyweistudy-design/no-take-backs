@@ -23,14 +23,41 @@ var turn_index := 0          # 蛇行：第幾手（0～9）
 var hands_done := [0, 0]
 var commands: Array = []     # {"team","type","col","row","turn"}
 var handoffs := 0            # 換人次數
-var ntypes := D.COUNT        # 這場開放的兵種數（經典模式 5；第四輪）
+var rules = null             # 第五輪：自訂規則（null＝1.3.0 行為：snake 每手 20 金、5 手）
 
-func _init(a0, a1, p_first := 0, p_rule := "cap10") -> void:
+## p_rules：第五輪 Ruleset。給了就用它的每手上限、手數、累積；卡池與人數上限由軍隊本身（Army.apply_rules）管。
+func _init(a0, a1, p_first := 0, p_rule := "cap10", p_rules = null) -> void:
 	armies = [a0, a1]
 	first = p_first
 	current = p_first
 	rule = p_rule
+	rules = p_rules
+	if rules != null:
+		rule = "snake5" if rules.place_rule == "custom" else rules.place_rule
 	_skip_if_stuck()
+
+func pool_of(team: int) -> int:
+	return armies[team].pool
+
+## 每人幾手（snake）。
+func hands_max() -> int:
+	return rules.turns_per_player() if rules != null else 5
+
+## 第 i 手輪到誰（Thue‑Morse 公平輪序；前 10 手＝SNAKE）。
+func _who(i: int) -> int:
+	var b := 0
+	var x := i
+	while x > 0:
+		b ^= x & 1
+		x >>= 1
+	return b if first == 0 else 1 - b
+
+## 這一隊現在最便宜能買的兵（標準路徑＝全域最便宜 4 金，和 1.3.0 相同）。
+func _min_cost() -> int:
+	if rules == null:
+		return D.cheapest()
+	var a = armies[current]
+	return a.cheapest_combat() if (a.guard_combat and not a.has_combat()) else a.cheapest_in_pool()
 
 func is_snake() -> bool:
 	return rule.begins_with("snake")
@@ -42,6 +69,11 @@ func done() -> bool:
 	return stopped[0] and stopped[1]
 
 func hand_cap() -> int:
+	if rules != null:
+		var cap: int = rules.turn_cap(current)
+		if rules.carry and is_snake():
+			return cap * (hands_done[current] + 1) - (armies[current].spent() - spent_this_turn)
+		return cap
 	if rule == "cap10":
 		return 10
 	if rule == "snake5c":
@@ -66,27 +98,27 @@ func place(t: int, col: int, row: int) -> bool:
 	commands.append({"team": current, "type": t, "col": col, "row": row, "turn": turn_index})
 	spent_this_turn += D.cost(t)
 	placed_this_turn += 1
-	if turn_left() < D.cheapest() or not armies[current].can_afford_any():
+	if turn_left() < _min_cost() or not armies[current].can_afford_any():
 		end_turn()
 	return true
 
 func can_end_turn() -> bool:
-	return placed_this_turn > 0 or turn_left() < D.cheapest()
+	return placed_this_turn > 0 or turn_left() < _min_cost()
 
 ## 結束這一手。還沒擺任何兵、又買得起時不能結束（買得起就不能跳過）。
 func end_turn() -> bool:
-	if placed_this_turn == 0 and turn_left() >= D.cheapest() and armies[current].can_afford_any():
+	if placed_this_turn == 0 and turn_left() >= _min_cost() and armies[current].can_afford_any():
 		return false
 	var prev := current
 	spent_this_turn = 0
 	placed_this_turn = 0
 	if is_snake():
 		hands_done[current] += 1
-		if hands_done[current] >= 5 or not armies[current].can_afford_any():
+		if hands_done[current] >= hands_max() or not armies[current].can_afford_any():
 			stopped[current] = true
 		turn_index += 1
-		if turn_index < SNAKE.size():
-			current = _order()[turn_index] if first == 0 else 1 - _order()[turn_index]
+		if turn_index < hands_max() * 2:
+			current = _who(turn_index)
 		else:
 			stopped[0] = true
 			stopped[1] = true
@@ -109,10 +141,10 @@ func _skip_if_stuck() -> void:
 			return
 		if is_snake():
 			turn_index += 1
-			if turn_index >= SNAKE.size():
+			if turn_index >= hands_max() * 2:
 				stopped[0] = true
 				stopped[1] = true
 				return
-			current = _order()[turn_index] if first == 0 else 1 - _order()[turn_index]
+			current = _who(turn_index)
 		else:
 			current = 1 - current

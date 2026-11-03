@@ -4,9 +4,10 @@ extends RefCounted
 
 const D = preload("res://scripts/core/unit_defs.gd")
 const Army = preload("res://scripts/core/army.gd")
+const RS = preload("res://scripts/core/ruleset.gd")
 
 # 權重順序：劍、盾、弓、騎、刺、槍、彈、醫、鼓、狂（第四輪加後 5 種）。
-# 模板只會在「用到的兵種都已開放」時被選（ntypes：開放編號 0～ntypes−1，經典模式＝5）。
+# 模板只會在「用到的兵種都在卡池裡」時被選（第五輪：pool＝卡池遮罩；經典 5 種＝0b11111）。
 const TEMPLATES := [
 	{"name": "均衡軍", "w": [3, 2, 3, 1, 1, 0, 0, 0, 0, 0]},
 	{"name": "鐵壁弓陣", "w": [1, 4, 5, 0, 0, 0, 0, 0, 0, 0]},
@@ -39,41 +40,53 @@ const PLACE_ORDER := [1, 5, 0, 9, 3, 4, 8, 7, 6, 2]
 const ROW_CENTER := [4, 3, 5, 2, 6, 1, 7, 0, 8]
 const ROW_EDGE := [0, 8, 1, 7, 2, 6, 3, 5, 4]
 
-## 這個模板用到的兵種是否都在 0～ntypes−1 裡。
-static func template_ok(ti: int, ntypes: int) -> bool:
+## 這個模板用到的兵種是否都在卡池裡。
+static func template_ok(ti: int, pool: int) -> bool:
 	var w: Array = TEMPLATES[ti]["w"]
-	for t in range(ntypes, w.size()):
-		if w[t] > 0:
+	for t in w.size():
+		if w[t] > 0 and not RS.has(pool, t):
 			return false
 	return true
 
-static func eligible_templates(ntypes: int) -> Array:
+static func eligible_templates(pool: int) -> Array:
 	var out: Array = []
 	for ti in TEMPLATES.size():
-		if template_ok(ti, ntypes):
+		if template_ok(ti, pool):
 			out.append(ti)
 	return out
 
-static func build(team: int, budget: int, rng: RandomNumberGenerator, template := -1, ntypes := D.COUNT):
+## pool：卡池遮罩（-1＝全部）；rules：第五輪 Ruleset（套人數／單種上限）。
+## 標準卡池時亂數呼叫次數與順序和 1.3.0 相同（金標準靠這個）。
+static func build(team: int, budget: int, rng: RandomNumberGenerator, template := -1, pool := -1, rules = null):
+	if pool < 0:
+		pool = RS.all_pool()
 	var a = Army.new(team, budget)
-	var el := eligible_templates(ntypes)
-	if template >= 0 and not template_ok(template, ntypes):
+	if rules != null:
+		a.apply_rules(rules, team)
+		a.budget = budget
+		a.pool = pool
+	var el := eligible_templates(pool)
+	if template >= 0 and not template_ok(template, pool):
 		template = -1   # 指定的模板用到未開放的兵種：改從可用的模板抽（Codex 實作審查 #3）
+	if el.is_empty() and template < 0:
+		# 第五輪：奇怪的卡池（例如只有刺客＋醫者）沒有合格模板 → 用落子 AI 的選兵邏輯在卡池內組陣
+		var AIT = load("res://scripts/core/ai_turns.gd")
+		return {"army": AIT.fill_army(a, rng, 1, []), "name": "—"}
 	var ti := template if template >= 0 else int(el[rng.randi_range(0, el.size() - 1)])
 	var w: Array = TEMPLATES[ti]["w"]
 	var picks: Array = []
 	var guard := 0
-	while a.left() >= D.cheapest() and picks.size() < Army.MAX_UNITS and guard < 200:
+	while a.left() >= D.cheapest() and picks.size() < a.unit_cap and guard < 200:
 		guard += 1
 		var total := 0
-		for t in ntypes:
-			if D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0:
+		for t in D.COUNT:
+			if RS.has(pool, t) and D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0 and _cap_ok(a, picks, t):
 				total += w[t]
 		if total == 0:
 			break
 		var r := rng.randi_range(1, total)
-		for t in ntypes:
-			if D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0:
+		for t in D.COUNT:
+			if RS.has(pool, t) and D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0 and _cap_ok(a, picks, t):
 				r -= w[t]
 				if r <= 0:
 					picks.append(t)
@@ -85,7 +98,16 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 	picks.sort_custom(func(p, q): return PLACE_ORDER.find(p) < PLACE_ORDER.find(q))
 	for t in picks:
 		_place_pref(a, t)
+	if rules != null and a.can_afford_any():
+		# 自訂規則：模板比例填完還有錢（單種上限、小卡池）→ 落子 AI 補滿
+		var AIT2 = load("res://scripts/core/ai_turns.gd")
+		AIT2.fill_army(a, rng, 1, [])
 	return {"army": a, "name": TEMPLATES[ti]["name"]}
+
+static func _cap_ok(a, picks: Array, t: int) -> bool:
+	if a.type_cap <= 0:
+		return true
+	return picks.count(t) < a.type_cap
 
 static func _cost_sum(picks: Array) -> int:
 	var s := 0

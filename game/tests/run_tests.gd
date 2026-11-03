@@ -33,6 +33,11 @@ func _init() -> void:
 		print("—— %d 通過 / %d 失敗" % [passed, failed])
 		quit(0)
 		return
+	if "--only=rules" in OS.get_cmdline_user_args():
+		test_rules_v5()
+		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
+		quit(1 if failed > 0 or passed == 0 else 0)
+		return
 	if "--only=new" in OS.get_cmdline_user_args():
 		test_new_units()
 		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
@@ -64,6 +69,7 @@ func _init() -> void:
 	test_clutch_effects()
 	test_new_units()
 	test_roster_ui()
+	test_rules_v5()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -1696,8 +1702,8 @@ func test_roster_ui() -> void:
 	var rng := RandomNumberGenerator.new()
 	for i in 40:
 		rng.seed = 900 + i
-		var a = AI.build(1, 100, rng, -1, 5)["army"]
-		var b = load("res://scripts/core/ai_turns.gd").build_full(1, rng, i % 3, [], 5)
+		var a = AI.build(1, 100, rng, -1, 31)["army"]
+		var b = load("res://scripts/core/ai_turns.gd").build_full(1, rng, i % 3, [], 31)
 		for u in a.units + b.units:
 			if int(u["type"]) >= 5:
 				bad.append("經典模式 AI 用了兵種 %d" % u["type"])
@@ -1705,7 +1711,7 @@ func test_roster_ui() -> void:
 	# 指定模板也不能繞過開放數（Codex 實作審查 #3）
 	for ti in AI.TEMPLATES.size():
 		rng.seed = 77 + ti
-		var c = AI.build(1, 100, rng, ti, 5)["army"]
+		var c = AI.build(1, 100, rng, ti, 31)["army"]
 		for u in c.units:
 			if int(u["type"]) >= 5:
 				bad.append("指定模板 %d 用了兵種 %d" % [ti, u["type"]])
@@ -1722,3 +1728,265 @@ func test_roster_ui() -> void:
 	var cnt := {"heal0": 9, "breach1": 3, "charge0": 1}
 	var bg: Array = GS.report_badges(cnt)
 	ok(bg.size() == 6 and bg[0] == "heal" and bg[1] == "breach" and bg[2] == "charge" and bg.has("breaker"), "結果頁技能徽章：有發生的依次數排前面，支援兵的補血也算", str(bg))
+
+
+# ═══════════════════ 第五輪：自訂規則 ═══════════════════
+const RSET = preload("res://scripts/core/ruleset.gd")
+const AIT5 = preload("res://scripts/core/ai_turns.gd")
+const HA5 = preload("res://scripts/core/hard_ai.gd")
+
+## 獨立的陣型合法性判定（不呼叫 Army.check_place，避免用被測的程式驗自己）。
+static func legal_army(a, r, team: int) -> String:
+	var seen := {}
+	var spent := 0
+	var per := {}
+	for u in a.units:
+		var t := int(u["type"])
+		var c := int(u["col"])
+		var row := int(u["row"])
+		var lc := c if team == 0 else 15 - c
+		if lc < 0 or lc > 5 or row < 0 or row > 8:
+			return "出界"
+		if seen.has(Vector2i(c, row)):
+			return "重複格"
+		seen[Vector2i(c, row)] = true
+		if (r.pool_of(team) >> t) & 1 == 0:
+			return "不在卡池 %d" % t
+		per[t] = int(per.get(t, 0)) + 1
+		if r.type_cap > 0 and per[t] > r.type_cap:
+			return "超過單種上限"
+		spent += D.cost(t)
+	if spent > r.budget_of(team):
+		return "超過預算"
+	if a.units.size() > r.unit_cap:
+		return "超過人數"
+	return ""
+
+func test_rules_v5() -> void:
+	# 標準規則：模擬走舊路徑
+	var std = RSET.standard()
+	ok(std.validate().is_empty() and std.sim_is_legacy() and std.judge() == 1, "標準規則合法、走 1.3.0 舊路徑", str(std.validate()))
+	ok(std.frenzy_tick() == 1200 and std.attrition_step() == 100 and std.turn_cap(0) == 20, "標準規則的狂熱 1200／間隔 100／每手 20 金和 1.3.0 相同")
+	# 狂熱時間表：四種時間都符合公式，6 次耗損都在一局之內
+	var tbad: Array = []
+	for T in RSET.TICK_CHOICES:
+		var r = RSET.standard()
+		r.ticks = T
+		if r.frenzy_tick() != T * 2 / 3 or r.attrition_step() != T / 18 or r.frenzy_tick() + 5 * r.attrition_step() >= T:
+			tbad.append(T)
+	ok(tbad.is_empty(), "狂熱時間表：起點 T×2÷3、間隔 T÷18，6 次耗損都在時間內", str(tbad))
+	# 規則代碼來回
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5150
+	var cbad: Array = []
+	var made := 0
+	for i in 300:
+		var r = RSET.standard()
+		r.budget = [rng.randi_range(3, 20) * 10, rng.randi_range(3, 20) * 10]
+		r.handicap = rng.randf() < 0.4
+		r.ticks = RSET.TICK_CHOICES[rng.randi_range(0, 3)]
+		r.unit_cap = rng.randi_range(4, 40)
+		r.type_cap = rng.randi_range(0, 10)
+		r.pool = [rng.randi_range(1, 1023), rng.randi_range(1, 1023)]
+		r.ai_pool_same = rng.randf() < 0.5
+		r.rounds = RSET.ROUND_CHOICES[rng.randi_range(0, 3)]
+		r.place_rule = RSET.PLACE_RULES[rng.randi_range(0, 3)]
+		r.turns = rng.randi_range(1, 10)
+		r.carry = rng.randf() < 0.5
+		r.ai_level = rng.randi_range(0, 2)
+		if not r.validate().is_empty():
+			continue
+		made += 1
+		var d: Dictionary = RSET.from_code(r.to_code())
+		if not d["ok"] or not d["rules"].equals(r):
+			cbad.append([r.to_code(), d["why"]])
+	ok(made > 50 and cbad.is_empty(), "規則代碼：%d 組合法規則來回相同" % made, str(cbad.slice(0, 2)))
+	# 不合法匯入被拒
+	var good: String = std.to_code()
+	var parts := good.split(".")
+	var rej := [RSET.from_code("NTBR9." + parts[1] + "." + parts[2]), RSET.from_code(parts[0] + "." + parts[1] + ".abcdef"),
+		RSET.from_code(good + good), RSET.from_code("x".repeat(3000))]
+	var r0 = RSET.standard()
+	r0.pool = [0b1110000000 & 0b0110000000, 0b0110000000]   # 只有醫者＋鼓手
+	rej.append(RSET.from_code(r0.to_code()))
+	var r1 = RSET.standard()
+	r1.budget = [20, 20]
+	rej.append(RSET.from_code(r1.to_code()))
+	var allrej := true
+	for d in rej:
+		allrej = allrej and not d["ok"]
+	ok(allrej, "規則代碼：錯前綴、錯校驗、超長、只有支援兵、預算超出範圍都被拒")
+	# 逐欄位改壞會紅
+	var mut: Array = []
+	for f in ["budget", "ticks", "unit_cap", "type_cap", "rounds", "place_rule", "turns", "ai_level"]:
+		var r = RSET.standard()
+		match f:
+			"budget": r.budget = [10, 10]
+			"ticks": r.ticks = 1234
+			"unit_cap": r.unit_cap = 99
+			"type_cap": r.type_cap = -1
+			"rounds": r.rounds = 2
+			"place_rule": r.place_rule = "x"
+			"turns": r.turns = 0
+			"ai_level": r.ai_level = 5
+		if r.validate().is_empty():
+			mut.append(f)
+	ok(mut.is_empty(), "規則驗證：每個欄位改成非法值都會被擋", str(mut))
+	# 讓子判定：預算相同時和舊判定一致；剛好 3% 的邊界
+	var jbad: Array = []
+	for i in 2000:
+		var b := rng.randi_range(30, 200)
+		var p0 := rng.randi_range(0, b * 1000)
+		var p1 := rng.randi_range(0, b * 1000)
+		if rng.randf() < 0.2:
+			p1 = p0 + (b * 30 if rng.randf() < 0.5 else -b * 30) + rng.randi_range(-1, 1)
+		var old := -1 if absi(p0 - p1) < b * 30 else (0 if p0 > p1 else 1)
+		var dl := p0 * b - p1 * b
+		var nw := -1 if 100 * absi(dl) < 3 * 1000 * b * b else (0 if dl > 0 else 1)
+		if old != nw:
+			jbad.append([b, p0, p1])
+	ok(jbad.is_empty(), "讓子判定（整數交叉相乘）在兩邊預算相同時和舊判定完全一致，含剛好 3% 的邊界", str(jbad.slice(0, 3)))
+	# 讓子：實際跑一場，鏡像（交換兩邊＋預算）結果對稱
+	var hr = RSET.standard()
+	hr.handicap = true
+	hr.budget = [80, 140]
+	var hb: Array = []
+	for i in 6:
+		rng.seed = 610 + i
+		var a0 = AI.build(0, 80, rng)["army"]
+		var a1 = AI.build(1, 140, rng)["army"]
+		var s1 = Sim.new(a0.copy(), a1.copy(), hr)
+		s1.fast = true
+		s1.run_to_end()
+		var hr2 = RSET.standard()
+		hr2.handicap = true
+		hr2.budget = [140, 80]
+		var m0 = a1.mirrored()
+		var m1 = a0.mirrored()
+		var s2 = Sim.new(m0, m1, hr2)
+		s2.fast = true
+		s2.run_to_end()
+		var w2: int = s2.winner if s2.winner < 0 else 1 - s2.winner
+		if s1.judge != 2 or s1.winner != w2 or s1.tick != s2.tick:
+			hb.append([i, s1.winner, s2.winner, s1.tick, s2.tick])
+	ok(hb.is_empty(), "讓子：用比例判定（judge 2），交換兩邊＋預算後結果對稱", str(hb))
+	# 非標準規則一定改指紋（規則進雜湊），標準規則物件和不給規則指紋相同
+	rng.seed = 42
+	var ba = AI.build(0, 100, rng)["army"]
+	var bb = AI.build(1, 100, rng)["army"]
+	var sa = Sim.new(ba.copy(), bb.copy())
+	sa.run_to_end()
+	var sb = Sim.new(ba.copy(), bb.copy(), RSET.standard())
+	sb.run_to_end()
+	var tr = RSET.standard()
+	tr.ticks = 2400
+	var sc = Sim.new(ba.copy(), bb.copy(), tr)
+	sc.run_to_end()
+	ok(sa.fingerprint == sb.fingerprint and sc.fingerprint != sa.fingerprint, "標準規則物件＝不給規則（指紋相同）；改一局時間會改指紋")
+	# 短局：60 秒一定在 1200 tick 內結束，狂熱在 800 開始
+	var sr = RSET.standard()
+	sr.ticks = 1200
+	var ss = Sim.new(ba.copy(), bb.copy(), sr)
+	var fz := -1
+	while not ss.finished:
+		ss.step()
+		if ss.frenzy and fz < 0:
+			fz = ss.tick
+	ok(ss.tick <= 1200 and (fz == 800 or ss.tick < 800), "60 秒局：最多 1200 tick、狂熱從 800 開始", "tick=%d frenzy=%d" % [ss.tick, fz])
+	# 系列局數
+	var sbad: Array = []
+	for pair in [[1, 1, 1], [3, 2, 5], [5, 3, 7], [7, 4, 9]]:
+		var r = RSET.standard()
+		r.rounds = pair[0]
+		if r.wins_needed() != pair[1] or r.max_rounds() != pair[2]:
+			sbad.append(pair)
+	ok(sbad.is_empty(), "系列：單局只打 1 局；三戰兩勝要 2 勝、最多 5 局（＝1.3.0）；五戰三勝 7 局；七戰四勝 9 局", str(sbad))
+	# 卡池窮舉：1024 個遮罩
+	var mbad: Array = []
+	var rejected := 0
+	for m in 1024:
+		var r = RSET.standard(m)
+		var v: Array = r.validate()
+		var support_only: bool = m != 0 and (m & ~(0b0110000000)) == 0
+		if m == 0 or support_only:
+			if v.is_empty():
+				mbad.append("遮罩 %d 應被拒" % m)
+			else:
+				rejected += 1
+			continue
+		if not v.is_empty():
+			mbad.append("遮罩 %d 被誤拒 %s" % [m, v])
+			continue
+		rng.seed = 3000 + m
+		var lv := m % 3
+		var a
+		if lv == 0:
+			a = AIT5.build_full(1, rng, 0, [], m, r)
+		elif lv == 1:
+			a = AI.build(1, 100, rng, -1, m, r)["army"]
+		else:
+			a = HA5.build([], [], rng, m, r)
+		var why := legal_army(a, r, 1)
+		if why != "" or not a.has_combat() or a.can_afford_any():
+			mbad.append("遮罩 %d：%s combat=%s 還買得起=%s" % [m, why, a.has_combat(), a.can_afford_any()])
+	ok(rejected == 4 and mbad.is_empty(), "卡池窮舉 1024：0 與 3 個純支援遮罩被拒；其餘 1020 個 AI 都組得出合法、含戰鬥兵、花到買不起的陣", str(mbad.slice(0, 4)))
+	# 預算／人數／單種上限邊界
+	var ebad: Array = []
+	for cfg in [[30, 4, 0], [30, 40, 1], [200, 40, 0], [200, 4, 1], [200, 40, 1], [50, 12, 2], [120, 24, 3]]:
+		for m in [1023, 31, 0b1000010001, 0b0000010000, 0b0100001000]:
+			var r = RSET.standard(m)
+			r.budget = [cfg[0], cfg[0]]
+			r.unit_cap = cfg[1]
+			r.type_cap = cfg[2]
+			if not r.validate().is_empty():
+				continue
+			rng.seed = cfg[0] * 7 + cfg[1] * 13 + m
+			var a = AI.build(1, cfg[0], rng, -1, m, r)["army"]
+			var why := legal_army(a, r, 1)
+			if why != "" or not a.has_combat() or a.can_afford_any():
+				ebad.append([cfg, m, why, a.can_afford_any()])
+	ok(ebad.is_empty(), "邊界：金幣 30／200、人數 4／40、單種上限 1～3，AI 陣型都合法且花到買不起", str(ebad.slice(0, 3)))
+	# 防卡死：沒有戰鬥兵時，玩家不能把錢或名額花到買不起戰鬥兵
+	var gr = RSET.standard(0b0010000001)   # 劍士＋醫者
+	gr.budget = [30, 30]
+	var ga := Army.new(0, 30)
+	ga.apply_rules(gr, 0)
+	var g1 := ga.place(D.MEDIC, 0, 0)          # 6 金，剩 24
+	var g2 := ga.place(D.MEDIC, 0, 1)          # 剩 18
+	var g3 := ga.place(D.MEDIC, 0, 2)          # 剩 12
+	var g4 := ga.place(D.MEDIC, 0, 3)          # 剩 6 ≥ 5（劍士）→ 可以
+	var g5 := ga.place(D.MEDIC, 0, 4)          # 剩 0 < 5 → 要擋
+	ok(g1 and g2 and g3 and g4 and not g5 and ga.place(D.SWORD, 1, 0), "防卡死：還沒擺戰鬥兵時，擺支援兵不能讓剩下的錢買不起戰鬥兵")
+	# 自訂手數：輪序是 Thue‑Morse、每手上限依預算
+	var tr2 = RSET.standard()
+	tr2.place_rule = "custom"
+	tr2.turns = 3
+	tr2.budget = [60, 60]
+	var ta := Army.new(0, 60)
+	var tb := Army.new(1, 60)
+	ta.apply_rules(tr2, 0)
+	tb.apply_rules(tr2, 1)
+	var tp = TP.new(ta, tb, 0, "snake5", tr2)
+	var guard := 0
+	while not tp.done() and guard < 50:
+		guard += 1
+		AIT5.play_turn(tp, rng, 1)
+	var order: Array = []
+	var last_turn := -1
+	for c in tp.commands:
+		if int(c["turn"]) != last_turn:
+			last_turn = int(c["turn"])
+			order.append(int(c["team"]))
+	ok(tp.hand_cap() == 20 and order.slice(0, 6) == [0, 1, 1, 0, 1, 0] and tp.hands_done[0] <= 3 and tp.hands_done[1] <= 3,
+		"自訂 3 手：輪序 A‑B‑B‑A‑B‑A、每手上限 ⌈60÷3⌉＝20、每人最多 3 手", str(order))
+	# 30 金、cap10：每手上限至少等於卡池最貴兵價（不會出現 3 金一手買不起）
+	var cr = RSET.standard()
+	cr.place_rule = "cap10"
+	cr.budget = [30, 30]
+	ok(cr.turn_cap(0) >= 7 and cr.validate().is_empty(), "30 金 cap10：每手上限 ≥ 最貴兵價，規則合法", str(cr.turn_cap(0)))
+	# 花不完的錢提示
+	var mr = RSET.standard(0b0000000111)   # 劍、盾、弓
+	mr.budget = [150, 150]
+	mr.type_cap = 1
+	var ms: Dictionary = mr.max_spend(0)
+	ok(ms["units"] == 3 and ms["spend"] == 14 and ms["unused"] == 136, "大廳提示：150 金、3 種兵各限 1 隻 → 最多 3 隻 14 金、136 金用不到", str(ms))

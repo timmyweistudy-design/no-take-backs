@@ -12,25 +12,35 @@ const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 const AIT = preload("res://scripts/core/ai_turns.gd")
 const F = preload("res://scripts/core/formations.gd")
+const RS = preload("res://scripts/core/ruleset.gd")
 
 ## known：玩家上一局的兵（藍方座標）；entries：反制庫；回傳紅方陣型。
-static func build(known: Array, entries: Array, rng: RandomNumberGenerator, ntypes := D.COUNT) -> Army:
+## pool：紅方卡池遮罩（-1＝全部）；rules：第五輪 Ruleset（null＝標準）。
+## 反制庫只在「規則和標準一樣」時用（第五輪 §3.2）；大軍或長局時少一個候選（效能探測：40＋40、150 秒一場可達數秒）。
+static func build(known: Array, entries: Array, rng: RandomNumberGenerator, pool := -1, rules = null) -> Army:
+	if pool < 0:
+		pool = RS.all_pool()
+	var bud: int = 100 if rules == null else rules.budget_of(1)
 	var cands: Array = []
-	cands.append(AI.build(1, 100, rng, -1, ntypes)["army"])
+	cands.append(AI.build(1, bud, rng, -1, pool, rules)["army"])
 	if known.is_empty():
 		return cands[0]
-	cands.append(AI.build(1, 100, rng, -1, ntypes)["army"])
-	cands.append(AIT.build_full(1, rng, 2, known, ntypes))
-	var lib := pick_counter(entries, known, ntypes)
-	if lib != null:
-		cands.append(lib)
-	var me := Army.new(0, 100)
+	var heavy: bool = rules != null and (rules.unit_cap > 24 or rules.ticks > 1800)
+	if not heavy:
+		cands.append(AI.build(1, bud, rng, -1, pool, rules)["army"])
+	var full := AIT.build_full(1, rng, 2, known, pool, rules)
+	cands.append(full)
+	if rules == null or _standard_like(rules):
+		var lib := pick_counter(entries, known, pool)
+		if lib != null:
+			cands.append(lib)
+	var me := Army.new(0, 100 if rules == null else rules.budget_of(0))
 	for u in known:
 		me.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
 	var best: Army = cands[0]
 	var bs := -(1 << 40)
 	for c in cands:
-		var s = Sim.new(me.copy(), c.copy())
+		var s = Sim.new(me.copy(), c.copy(), rules)
 		s.fast = true
 		s.run_to_end()
 		var sc: int = (1000000 + s.power(1)) if s.winner == 1 else (s.power(1) - s.power(0))
@@ -40,7 +50,10 @@ static func build(known: Array, entries: Array, rng: RandomNumberGenerator, ntyp
 	return best
 
 ## 反制庫：組成最接近玩家陣型的原型的反制（距離 ≤40）；用到未開放兵種的不算。
-static func pick_counter(entries: Array, known: Array, ntypes: int) -> Army:
+static func _standard_like(r) -> bool:
+	return r.budget_of(0) == 100 and r.budget_of(1) == 100 and r.unit_cap == 24 and r.type_cap == 0 and r.sim_is_legacy()
+
+static func pick_counter(entries: Array, known: Array, pool: int) -> Army:
 	if entries.is_empty():
 		return null
 	var mine := D.zeros()
@@ -62,6 +75,6 @@ static func pick_counter(entries: Array, known: Array, ntypes: int) -> Army:
 	if a.load_code(str(best["code"])) != "":
 		return null
 	for u in a.units:
-		if int(u["type"]) >= ntypes:
+		if not RS.has(pool, int(u["type"])):
 			return null
 	return a

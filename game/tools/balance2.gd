@@ -9,6 +9,7 @@ extends SceneTree
 ##   --shard=i --shards=N
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const RS = preload("res://scripts/core/ruleset.gd")
 const Army = preload("res://scripts/core/army.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const F = preload("res://scripts/core/formations.gd")
@@ -116,7 +117,8 @@ func turns(shard: int, shards: int) -> void:
 		rng.seed = 424242 + (g / 2) * 104729
 		var first := g % 2
 		var tp := TP.new(Army.new(0, 100), Army.new(1, 100), first, rule)
-		tp.ntypes = NT   # 第四輪：開放兵種數（5＝經典）
+		tp.armies[0].pool = RS.prefix_pool(NT)   # 第四輪：開放兵種數（5＝經典）；第五輪改成卡池遮罩
+		tp.armies[1].pool = RS.prefix_pool(NT)
 		var guard := 0
 		while not tp.done() and guard < 100:
 			guard += 1

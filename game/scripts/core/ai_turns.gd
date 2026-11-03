@@ -3,6 +3,7 @@ extends RefCounted
 ## 只看已經公開的資訊（對方已擺下的兵），不偷看。全部啟發式評分，不跑模擬，每手幾毫秒。
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const RS = preload("res://scripts/core/ruleset.gd")
 const Army = preload("res://scripts/core/army.gd")
 
 # 剋制表：BEATS[a] 是 a 剋的兩種（企劃 §3.1）
@@ -30,7 +31,10 @@ static func counter_score(a: int, b: int) -> int:
 	return 0
 
 ## 選一個兵種。level：0 簡單（隨機性高、不太看對方）、1 普通、2 困難。
-static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: RandomNumberGenerator, level := 1, ntypes := D.COUNT) -> int:
+## pool：卡池遮罩（-1＝看 mine.pool）。第五輪：也遵守單種上限與防卡死（買不起戰鬥兵時不選支援兵）。
+static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: RandomNumberGenerator, level := 1, pool := -1) -> int:
+	if pool < 0:
+		pool = mine.pool
 	var best := -1
 	var best_s := -1.0e9
 	var have := D.zeros()
@@ -41,8 +45,12 @@ static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: R
 	for u in mine.units:
 		if not D.is_support(u["type"]):
 			fighters += 1
-	for t in ntypes:
-		if D.cost(t) > budget_left:
+	for t in D.COUNT:
+		if not RS.has(pool, t) or D.cost(t) > budget_left:
+			continue
+		if mine.type_cap > 0 and have[t] >= mine.type_cap:
+			continue
+		if mine.guard_combat and D.is_support(t) and fighters == 0 and (mine.left() - D.cost(t) < mine.cheapest_combat() or mine.count() + 1 >= mine.unit_cap):
 			continue
 		var s := 0.0
 		var react := 0.4 if level == 0 else (1.0 if level == 1 else 1.6)
@@ -108,7 +116,7 @@ static func play_turn(tp, rng: RandomNumberGenerator, level := 1) -> int:
 	var guard := 0
 	while not tp.done() and tp.current == me and guard < 30:
 		guard += 1
-		var t := choose_type(mine, enemy.units, tp.turn_left(), rng, level, tp.ntypes)
+		var t := choose_type(mine, enemy.units, tp.turn_left(), rng, level, tp.pool_of(me))
 		if t == -1:
 			break
 		var c := choose_cell(mine, t, enemy.units, rng)
@@ -125,12 +133,22 @@ static func play_turn(tp, rng: RandomNumberGenerator, level := 1) -> int:
 	return placed
 
 ## 自由擺放（對 AI 模式）：知道對方「上一局」的陣型（困難才用），一次擺滿。
-static func build_full(team: int, rng: RandomNumberGenerator, level: int, known_enemy: Array, ntypes := D.COUNT) -> Army:
+## pool：卡池遮罩（-1＝全部）；rules：第五輪 Ruleset（預算、人數、單種上限）。
+static func build_full(team: int, rng: RandomNumberGenerator, level: int, known_enemy: Array, pool := -1, rules = null) -> Army:
 	var a := Army.new(team, 100)
+	if rules != null:
+		a.apply_rules(rules, team)
+	if pool >= 0:
+		a.pool = pool
+	return fill_army(a, rng, level, known_enemy)
+
+## 把一支軍隊擺到買不起為止（第五輪：不再寫死 100 金、40 次）。
+static func fill_army(a: Army, rng: RandomNumberGenerator, level: int, known_enemy: Array) -> Army:
 	var guard := 0
-	while a.can_afford_any() and guard < 40:
+	var limit: int = (a.budget / 4 + 10) if a.guard_combat else 40   # 標準路徑維持 40 次（亂數呼叫次數不變）
+	while a.can_afford_any() and guard < limit:
 		guard += 1
-		var t := choose_type(a, known_enemy if level == 2 else [], a.left(), rng, level, ntypes)
+		var t := choose_type(a, known_enemy if level == 2 else [], a.left(), rng, level)
 		if t == -1:
 			break
 		var c := choose_cell(a, t, known_enemy if level >= 1 else [], rng)

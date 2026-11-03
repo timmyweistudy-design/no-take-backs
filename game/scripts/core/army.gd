@@ -11,6 +11,11 @@ const MAX_UNITS := 24
 var team: int
 var budget: int
 var units: Array = []    # 每筆 {"type", "col", "row"}
+# 第五輪：自訂規則的部署限制（預設值＝1.3.0 行為）
+var pool := (1 << D.COUNT) - 1   # 可用兵種遮罩
+var unit_cap := MAX_UNITS
+var type_cap := 0                # 單種上限，0＝不限
+var guard_combat := false        # 防卡死：還沒擺戰鬥兵時，不准擺到買不起戰鬥兵（只有玩家擺放與 AI 用，載入舊代碼不開）
 
 func _init(p_team: int = 0, p_budget: int = 100) -> void:
 	team = p_team
@@ -54,11 +59,54 @@ func check_place(t: int, col: int, row: int) -> String:
 		return "只能放在自己的部署區"
 	if index_at(col, row) != -1:
 		return "這格已經有兵"
-	if count() >= MAX_UNITS:
-		return "最多 %d 隻" % MAX_UNITS
+	if t < 0 or t >= D.COUNT or (pool >> t) & 1 == 0:
+		return "這種兵不在這局的卡池裡"
+	if count() >= unit_cap:
+		return "最多 %d 隻" % unit_cap
+	if type_cap > 0 and count_of(t) >= type_cap:
+		return "這種兵最多 %d 隻" % type_cap
 	if D.cost(t) > left():
 		return "錢不夠"
+	if guard_combat and D.is_support(t) and not has_combat():
+		var cc := cheapest_combat()
+		if count() + 1 >= unit_cap or left() - D.cost(t) < cc:
+			return "要留錢和名額給至少 1 隻戰鬥兵"
 	return ""
+
+## 第五輪：有沒有擺戰鬥兵（開戰條件：雙方各至少 1 隻）。
+func has_combat() -> bool:
+	for u in units:
+		if not D.is_support(int(u["type"])):
+			return true
+	return false
+
+func cheapest_combat() -> int:
+	var c := 1 << 30
+	for t in D.COUNT:
+		if (pool >> t) & 1 == 1 and not D.is_support(t):
+			c = mini(c, D.cost(t))
+	return c
+
+func cheapest_in_pool() -> int:
+	var c := 1 << 30
+	for t in D.COUNT:
+		if (pool >> t) & 1 == 1 and (type_cap == 0 or count_of(t) < type_cap):
+			c = mini(c, D.cost(t))
+	return c
+
+## 第五輪：套用規則（部署層）。
+func apply_rules(r, p_team: int) -> void:
+	budget = r.budget_of(p_team)
+	pool = r.pool_of(p_team)
+	unit_cap = r.unit_cap
+	type_cap = r.type_cap
+	guard_combat = true
+
+func _copy_limits(a) -> void:
+	a.pool = pool
+	a.unit_cap = unit_cap
+	a.type_cap = type_cap
+	a.guard_combat = guard_combat
 
 func place(t: int, col: int, row: int) -> bool:
 	if check_place(t, col, row) != "":
@@ -85,16 +133,22 @@ func clear() -> void:
 	units.clear()
 
 func can_afford_any() -> bool:
-	return count() < MAX_UNITS and left() >= D.cheapest()
+	if count() >= unit_cap:
+		return false
+	if guard_combat and not has_combat():
+		return left() >= cheapest_combat()
+	return left() >= cheapest_in_pool()
 
 func copy():
 	var a = get_script().new(team, budget)
 	a.units = units.duplicate(true)
+	_copy_limits(a)
 	return a
 
 ## 左右鏡像並換隊（測試先手偏差用）。
 func mirrored():
 	var a = get_script().new(1 - team, budget)
+	_copy_limits(a)
 	for u in units:
 		a.units.append({"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]})
 	return a
@@ -126,6 +180,8 @@ func load_code(code: String) -> String:
 	if b.size() < 2 or b[0] != CODE_VERSION or b.size() != 2 + b[1] * 2:
 		return "版本或長度不對"
 	var tmp = get_script().new(team, budget)
+	_copy_limits(tmp)
+	tmp.guard_combat = false
 	for i in b[1]:
 		var t: int = b[2 + i * 2] >> 4
 		var c: int = b[2 + i * 2] & 15
