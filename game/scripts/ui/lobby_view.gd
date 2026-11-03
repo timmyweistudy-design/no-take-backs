@@ -434,9 +434,9 @@ func _diff_text(d: Array) -> String:
 func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
 	for t in D.COUNT:
 		var on := RuleSet.has(p, t)
-		var c := o + Vector2(t * step + step / 2, step * 0.9)
-		draw_circle(c - Vector2(0, step * 0.35), step * 0.42, Color(1, 1, 1, 0.10 if on else 0.03))
-		Art.unit(self, c, t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.22, time, 0.55, cbm())
+		var cc := o + Vector2(t * step + step / 2, step * 0.55)
+		draw_circle(cc, step * 0.42, Color(1, 1, 1, 0.10 if on else 0.03))
+		Art.unit(self, unit_center_feet(cc, t, 0.5), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.22, time, 0.5, cbm())
 
 ## ◀ 值 ▶ 的調整列；點兩側箭頭，也可以點中間（往下一個）。
 func _stepper(r: Rect2, value: String, id: String) -> void:
@@ -517,7 +517,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 				var on := RuleSet.has(int(lobby_r.pool[tm]), t)
 				var can := RuleSet.has(sel, t)
 				_btn(cr, "", _lobby_toggle_unit.bind(tm, t), true, false, Color(0.22, 0.38, 0.3) if on else Color(0.16, 0.16, 0.2))
-				Art.unit(self, cr.position + Vector2(cw / 2, 66), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if (on and can) else 0.3, time, 0.5, cbm())
+				_unit_in(cr, t, 0, 1.0 if (on and can) else 0.3, 0.6)
 				if not can:
 					call("_lock_icon", cr.position + Vector2(cw - 12, 12))
 				elif on:
@@ -532,7 +532,7 @@ func _draw_lab_tab(R: Rect2) -> void:
 	for t in D.COUNT:
 		var cr := Rect2(R.position + Vector2(t * 60, 0), Vector2(56, 64))
 		_btn(cr, "", func(): lobby_sb_unit = t, true, false, Color(0.26, 0.33, 0.5) if t == lobby_sb_unit else Color(0.16, 0.16, 0.2))
-		Art.unit(self, cr.position + Vector2(28, 58), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
+		_unit_in(cr, t, 0, 1.0, 0.55)
 		if lobby_r.stat_pct.has(t):
 			draw_circle(cr.position + Vector2(48, 8), 5, Color("#a46be0"))
 	var cur: Array = lobby_r.stat_pct.get(lobby_sb_unit, [100, 100, 100])

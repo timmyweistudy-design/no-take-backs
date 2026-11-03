@@ -172,9 +172,9 @@ func _draw_codex() -> void:
 	# 第四輪 §4.7：一排 10 個「頭像＋數字」頁籤；兵種全名在下面左欄的大標題
 	var tw := (866.0 - (D.COUNT - 1) * 6.0) / D.COUNT
 	for t in D.COUNT:
-		var r := Rect2(204 + t * (tw + 6.0), 150, tw, 46)
+		var r := Rect2(204 + t * (tw + 6.0), 150, tw, 50)
 		_btn(r, "", _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
-		Art.unit(self, r.position + Vector2(tw / 2.0 + 4, 60 if t != D.CAVALRY else 66), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.72, cbm())
+		_unit_in(r, t, 0, 1.0, 0.6 if t != D.CAVALRY else 0.55)   # 人物在頁籤正中間（原本腳畫到框外）
 		_text(r.position + Vector2(4, 2), str((t + 1) % 10), tcap(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）

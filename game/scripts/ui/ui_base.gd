@@ -441,6 +441,14 @@ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: floa
 	else:
 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
 
+## 在一個框（或圓）的正中間畫一隻兵（使用者回報：圖鑑頁籤的人物沒有在格子正中間）。
+## 角色的腳在原點、頭頂約在 -50（騎兵含騎士約 -54），視覺中心在腳上方 24（騎兵 26）× 縮放。
+static func unit_center_feet(center: Vector2, type: int, scale: float) -> Vector2:
+	return center + Vector2(0, (26.0 if type == D.CAVALRY else 24.0) * scale)
+
+func _unit_in(r: Rect2, type: int, team: int, alpha := 1.0, scale := 0.6) -> void:
+	Art.unit(self, unit_center_feet(r.get_center(), type, scale), type, team, 1.0, 0.0, 0.0, 0.0, alpha, time, scale, cbm())
+
 func _ring(p: Vector2, team: int, type: int, scale := 1.0) -> void:
 	if sprites != null and sprites.is_ready(cbm()):
 		sprites.draw_ring(self, p, team, type, scale)
