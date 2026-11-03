@@ -5,7 +5,7 @@ extends RefCounted
 ## ・朋友對戰：不看個人進度，由「兵種：經典 5 種／全部」設定決定（同一台電腦兩人共用）
 ## ・對 AI 也可以選「經典 5 種」
 ## ・試玩版：最多開到第一批新兵（7 種）；之後的兵卡標「正式版解鎖」
-## 純函式，進度存在 Save.data["stats"]["games"]，不另外存解鎖狀態（不用遷移存檔）。
+## 純函式。進度：第五輪起看 Save.data["unlock_games"]（標準＋自訂局累計，存檔 v3 從舊的正式場數遷移）；設定「全部解鎖」時全開。
 
 const D = preload("res://scripts/core/unit_defs.gd")
 

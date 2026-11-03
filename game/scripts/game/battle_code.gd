@@ -5,17 +5,29 @@ extends RefCounted
 
 const Army = preload("res://scripts/core/army.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
+const RSET = preload("res://scripts/core/ruleset.gd")
+## 第五輪：自訂規則的對戰代碼用 NTB3（多一欄 rules＝規則代碼）。標準規則仍輸出 NTB2，位元組和 1.3.0 相同。
 
-static func encode(a0, a1) -> String:
+## 這組規則能不能用舊格式 NTB2 重播（模擬走舊路徑、陣型在舊的人數上限內）。
+static func needs_v3(rules) -> bool:
+	return rules != null and (not rules.sim_is_legacy() or rules.unit_cap > 24 or rules.type_cap > 0)
+
+static func encode(a0, a1, rules = null) -> String:
+	if needs_v3(rules):
+		var j3 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest(), "rules": rules.to_code()})
+		var body3 := Marshalls.utf8_to_base64(j3).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB3.%s.%s" % [body3, body3.sha256_text().substr(0, 6)]
 	var j := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest()})
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
 	return "NTB2.%s.%s" % [body, body.sha256_text().substr(0, 6)]
 
-## 回傳 {ok, why, a0, a1, mismatch}
+## 回傳 {ok, why, a0, a1, mismatch, rules}（NTB2 的 rules＝null＝用 1.3.0 舊判定重播）
 static func decode(code: String) -> Dictionary:
 	var c := code.strip_edges()
+	if c.length() > 8000:
+		return {"ok": false, "why": "format"}
 	var parts := c.split(".")
-	if parts.size() != 3 or parts[0] != "NTB2":
+	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3"):
 		return {"ok": false, "why": "format"}
 	if parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return {"ok": false, "why": "checksum"}
@@ -32,7 +44,17 @@ static func decode(code: String) -> Dictionary:
 		return {"ok": false, "why": "budget"}
 	var a0 := Army.new(0, ba)
 	var a1 := Army.new(1, bb)
+	var rules = null
+	if parts[0] == "NTB3":
+		var rd: Dictionary = RSET.from_code(str(j.get("rules", "")))
+		if not rd["ok"]:
+			return {"ok": false, "why": "rules"}
+		rules = rd["rules"]
+		if rules.budget_of(0) != ba or rules.budget_of(1) != bb:
+			return {"ok": false, "why": "budget"}
+		for pair in [[a0, 0], [a1, 1]]:
+			pair[0].apply_rules(rules, pair[1])
 	if a0.load_code(str(j["a"])) != "" or a1.load_code(str(j["b"])) != "":
 		return {"ok": false, "why": "army"}
 	var mismatch: bool = str(j.get("r", "")) != D.RULES_VERSION or str(j.get("d", "")) != D.data_digest()
-	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch}
+	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch, "rules": rules}

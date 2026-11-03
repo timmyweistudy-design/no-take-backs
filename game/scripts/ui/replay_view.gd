@@ -60,7 +60,7 @@ func _draw_replay_controls() -> void:
 ## 跳到某個 tick：同一組陣型從頭快轉（確定性模擬，結果一定一樣），畫面與音效狀態清空重建。
 func _seek(target: int) -> void:
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
-	sim = Sim.new(armies2[0].copy(), armies2[1].copy())
+	sim = Sim.new(armies2[0].copy(), armies2[1].copy(), battle_rules)
 	ev_count = {}
 	var keep_ct := -1   # 最後時刻在第幾 tick 觸發：快轉時用同一個條件重算，不靠先前的播放紀錄（Codex S7 #2）
 	battle_marks.clear()
@@ -139,7 +139,7 @@ func _follow_update(delta: float) -> void:
 # ── 對戰代碼 ──
 func _copy_battle_code() -> void:
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
-	DisplayServer.clipboard_set(BattleCode.encode(armies2[0], armies2[1]))
+	DisplayServer.clipboard_set(BattleCode.encode(armies2[0], armies2[1], battle_rules))
 	_toast(L.t("bc_copied"))
 
 func _watch_battle_code() -> void:
@@ -156,11 +156,13 @@ func _watch_battle_code() -> void:
 					return
 	if r["mismatch"]:
 		_toast(L.t("bc_mismatch"))
-	watch_code(r["a0"], r["a1"])
+	watch_code(r["a0"], r["a1"], r.get("rules"))
 
 ## 看一場對戰代碼：當成全新的一局初始化（Codex S5 #2：原本沿用舊的陣型、比分、局數）
-func watch_code(a0, a1) -> void:
+func watch_code(a0, a1, p_rules = null) -> void:
 	mode = Mode.VS_AI
+	rules = p_rules
+	battle_rules = p_rules
 	ai_name = ""
 	overlay = ""
 	armies = [a0.copy(), a1.copy()]
@@ -181,7 +183,7 @@ func _open_review() -> void:
 	rv_enemy = last_armies[1].copy()
 	rv_sel = Vector2i(-1, -1)
 	rv_result = {}
-	rv_base = review_run(rv_orig, rv_enemy)
+	rv_base = review_run(rv_orig, rv_enemy, battle_rules)
 	_open("review")
 
 ## 跟原本比改了幾隻（換兵種、移位、拿掉、新增都算一隻）。
@@ -256,15 +258,15 @@ func review_desc() -> String:
 	return ""
 
 ## 重算「如果」：同一個對手、改過的陣型，用確定性模擬直接跑到結束。
-static func review_run(a0, a1) -> Dictionary:
-	var s = Sim.new(a0.copy(), a1.copy())
+static func review_run(a0, a1, p_rules = null) -> Dictionary:
+	var s = Sim.new(a0.copy(), a1.copy(), p_rules)
 	s.fast = true
 	s.run_to_end()
-	var tot := float(s.budget * 1000)
-	return {"winner": s.winner, "rem": roundi(s.power(s.winner) * 100 / tot) if s.winner >= 0 else 0, "log": s.power_log, "ticks": s.tick}
+	var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else 0
+	return {"winner": s.winner, "rem": rem, "log": s.power_log, "log2": s.power_log2, "b": [s.budget_of(0), s.budget_of(1)], "ticks": s.tick}
 
 func _rv_recalc() -> void:
-	rv_result = review_run(rv_army, rv_enemy)
+	rv_result = review_run(rv_army, rv_enemy, battle_rules)
 
 func _rv_play() -> void:
 	rv_last = [rv_army.copy(), rv_enemy.copy()]

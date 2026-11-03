@@ -27,3 +27,27 @@ for w in ["Regular", "Bold"]:
     sub.subset(font)
     subset.save_font(font, out, opts)
     print(w, len(text), "字", os.path.getsize(out) // 1024, "KB")
+
+# 第五輪：標題字 UoqMunThenKhung（SIL OFL 1.1，取自 timmy-project）。只用在 ≥22px 的粗體標題；
+# 同一份字集子集化，原字型沒有的字由思源黑體 Bold 補（ui_base 設定 fallbacks），並印出缺字數。
+from fontTools.ttLib import TTFont
+tk_src = os.path.join(src, "ThenKhung-Regular.ttf")
+if os.path.exists(tk_src):
+    out = os.path.join(root, "fonts", "ThenKhung-sub.ttf")
+    opts = subset.Options()
+    opts.layout_features = ["*"]
+    opts.name_IDs = ["*"]
+    sub = subset.Subsetter(opts)
+    font = subset.load_font(tk_src, opts)
+    cmap = font.getBestCmap()
+    missing = [c for c in text if ord(c) not in cmap and not c.isspace()]
+    sub.populate(text=text)
+    sub.subset(font)
+    subset.save_font(font, out, opts)
+    got = TTFont(out).getBestCmap()
+    lost = [c for c in text if ord(c) in cmap and ord(c) not in got]
+    if lost:
+        sys.exit("標題字子集漏字：" + "".join(lost[:40]))
+    print("ThenKhung", len(text) - len(missing), "字（原字型沒有 %d 字，由思源黑體補）" % len(missing), os.path.getsize(out) // 1024, "KB")
+else:
+    print("（沒有 ThenKhung-Regular.ttf，略過標題字）")

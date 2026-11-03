@@ -20,6 +20,10 @@ const ACHIEVEMENTS := {
 	"ALL_TYPES": ["五兵齊出", "Combined Arms"],
 	"CHARGE_5": ["鐵騎突擊", "Cavalry Storm"],
 	"BACKSTAB_3": ["暗影三連", "Shadow Trio"],
+	# 第五輪：自訂規則專屬（標準成就只看平衡認證的規則）
+	"CUSTOM_LOWGOLD": ["精打細算", "Shoestring Army"],
+	"CUSTOM_UNDERDOG": ["以寡擊眾", "Underdog"],
+	"CUSTOM_BIG": ["大軍壓境", "Grand Army"],
 }
 
 static var _steam = null

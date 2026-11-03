@@ -2,16 +2,19 @@ extends RefCounted
 ## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
 ## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
 
-const SAVE_VERSION := 2   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）
+const SAVE_VERSION := 3   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則
+const MAX_PRESETS := 5
 static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
 
 const DEFAULT_SETTINGS := {
-	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false,
-	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all",
+	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "confirm_place": true,
+	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "unlock_all": false,
 }
 const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
 	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
+	# 第五輪：解鎖累計場數（標準＋自訂局都算，沙盒不算）、自訂規則戰績、我的預設、上次在大廳用的規則（代碼）
+	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {},
 }
 
 static var settings := {}
@@ -51,8 +54,25 @@ static func migrate(d: Dictionary) -> Dictionary:
 		# 1 → 2：欄位名 version 改成 schema_version；加 unit_wins
 		out.erase("version")
 		v = 2
+	if v < 3:
+		# 2 → 3：解鎖改看獨立的累計場數，初值＝原本的正式場數（已解鎖的兵不會被收回）
+		var st = out.get("stats", {})
+		out["unlock_games"] = int(st.get("games", 0)) if st is Dictionary else 0
+		v = 3
 	if not out.get("unit_wins", {}) is Dictionary:
 		out["unit_wins"] = {}
+	# 我的預設：逐筆驗型、限長、最多 5 組（Codex 第一輪）
+	var ps: Array = []
+	var raw = out.get("rule_presets", [])
+	if raw is Array:
+		for e in raw:
+			if e is Dictionary and e.get("name") is String and e.get("code") is String and str(e["code"]).length() <= 2000 and ps.size() < MAX_PRESETS:
+				ps.append({"name": str(e["name"]).substr(0, 24), "code": str(e["code"])})
+	out["rule_presets"] = ps
+	if not out.get("last_rules", {}) is Dictionary:
+		out["last_rules"] = {}
+	if not out.get("custom_stats", {}) is Dictionary:
+		out["custom_stats"] = {"wins": 0, "games": 0}
 	for k in DEFAULT_SAVE:
 		if not out.has(k):
 			out[k] = DEFAULT_SAVE[k].duplicate(true) if DEFAULT_SAVE[k] is Dictionary or DEFAULT_SAVE[k] is Array else DEFAULT_SAVE[k]

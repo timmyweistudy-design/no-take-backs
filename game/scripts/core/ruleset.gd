@@ -213,24 +213,27 @@ func validate() -> Array:
 			uniq.append(b)
 	return uniq
 
-## 最多能擺幾隻、最多能花多少（大廳「花不完的錢」提示用）。貪心：先用最便宜的兵填人數、受單種上限限制。
+## 最多能花多少錢（大廳「花不完的錢」提示用）：有界背包，在人數上限、單種上限內求最大花費；units＝達到這個花費最少要幾隻。
 func max_spend(team: int) -> Dictionary:
-	var types := types_of(pool_of(team))
-	types.sort_custom(func(a, b): return D.cost(a) < D.cost(b))
-	var left := budget_of(team)
-	var n := 0
-	var spent := 0
-	# 能花最多：從最貴的兵開始買，直到人數或錢用完
-	var desc := types.duplicate()
-	desc.reverse()
-	for t in desc:
-		var k := 0
-		while (type_cap == 0 or k < type_cap) and n < unit_cap and D.cost(t) <= left:
-			left -= D.cost(t)
-			spent += D.cost(t)
-			k += 1
-			n += 1
-	return {"spend": spent, "units": n, "unused": budget_of(team) - spent}
+	var b := budget_of(team)
+	var inf := 1 << 20
+	var dp: Array = []
+	dp.resize(b + 1)
+	dp.fill(inf)
+	dp[0] = 0
+	for t in types_of(pool_of(team)):
+		var c := D.cost(t)
+		var lim: int = b / c if type_cap == 0 else mini(type_cap, b / c)
+		for _k in lim:
+			for s in range(b, c - 1, -1):
+				if dp[s - c] + 1 < dp[s]:
+					dp[s] = dp[s - c] + 1
+	var best := 0
+	for s in range(b, -1, -1):
+		if dp[s] <= unit_cap:
+			best = s
+			break
+	return {"spend": best, "units": dp[best], "unused": b - best}
 
 # ───────── 相等與差異 ─────────
 ## 和規則相等判定有關的欄位（預設名稱、AI 難度這類顯示用的不算）。固定順序。

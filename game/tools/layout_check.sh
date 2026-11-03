@@ -14,15 +14,22 @@ for lang in zh_TW en; do
   done
 done
 EXPECT=$(grep -o '_snap("[^"]*")' scripts/ui/main.gd | wc -l)
-python3 - "$OUT" "$EXPECT" <<'PY'
+NAMES=$(grep -o '_snap("[^"]*")' scripts/ui/main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')
+python3 - "$OUT" "$EXPECT" "$NAMES" <<'PY'
 import json,sys,glob,os
-out=sys.argv[1]; expect=int(sys.argv[2]); total=0; rows=[]
+out=sys.argv[1]; expect=int(sys.argv[2]); names=set(x for x in sys.argv[3].split(',') if x); total=0; rows=[]
 for f in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
     for line in open(f,encoding='utf-8'):
         d=json.loads(line); total+=len(d['violations']); rows.append(d)
+warns=sum(len(d.get('warnings',[])) for d in rows)
+# 第五輪：每組都要剛好是 main.gd 列出的那些畫面（不能用重複畫面湊張數）
+for f2 in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
+    got=[json.loads(l)['shot'] for l in open(f2,encoding='utf-8')]
+    if sorted(got)!=sorted(names) or len(set(got))!=len(got):
+        print('LAYOUT FAIL：%s 的畫面集合不對（少了 %s、多了 %s）' % (f2, sorted(names-set(got)), sorted(set(got)-names))); sys.exit(1)
 by={}
 for d in rows: by.setdefault((d['lang'],d['scale']),[]).append(d['median_size'])
-print('LAYOUT 截圖 %d 張、違規 %d' % (len(rows), total))
+print('LAYOUT 截圖 %d 張、違規 %d、警告 %d（第五輪新規則，U4 起算違規）' % (len(rows), total, sum(len(d.get('warnings',[])) for d in rows)))
 for d in rows:
     for v in d['violations']: print('  %s %s %d%%：%s' % (d['shot'], d['lang'], d['scale'], v))
 for lang in ['zh_TW','en']:

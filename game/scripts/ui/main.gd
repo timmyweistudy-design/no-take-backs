@@ -102,26 +102,52 @@ func _capture_capsule() -> void:
 ## 版面檢查（第三輪 T4）：這張截圖的介面文字有沒有越界、小於 9px（Steam Deck 下限）、彼此重疊超過 15%。
 func _layout_report(name: String) -> void:
 	var bad: Array = []
+	var warn: Array = []      # 第五輪新規則：U0 先報告，U4 改成違規
 	var sizes: Array = []
+	var ui_n := 0
 	for t in probe_texts:
 		var r: Rect2 = t["r"]
-		sizes.append(int(t["size"]))
+		var sz := int(t["size"])
+		if t.get("field", false):
+			if sz < 14:
+				warn.append({"type": "戰場字太小", "s": t["s"], "size": sz})
+			continue
+		ui_n += 1
+		sizes.append(sz)
 		if r.position.x < -2 or r.end.x > 1282 or r.position.y < -2 or r.end.y > 802:
 			bad.append({"type": "越界", "s": t["s"], "r": str(r)})
-		if int(t["size"]) < 9:
-			bad.append({"type": "太小", "s": t["s"], "size": t["size"]})
+		if sz < 9:
+			bad.append({"type": "太小", "s": t["s"], "size": sz})
+		elif sz < tz("C"):
+			warn.append({"type": "小於字級表下限", "s": t["s"], "size": sz})
+		if not size_ok(sz):
+			warn.append({"type": "表外字級", "s": t["s"], "size": sz})
 	for a in probe_texts.size():
+		if probe_texts[a].get("field", false):
+			continue
 		for b in range(a + 1, probe_texts.size()):
+			if probe_texts[b].get("field", false):
+				continue
 			var ra: Rect2 = probe_texts[a]["r"]
 			var rb: Rect2 = probe_texts[b]["r"]
 			var x := ra.intersection(rb)
-			if x.has_area() and probe_texts[a]["s"] != probe_texts[b]["s"]:
-				var ratio := x.get_area() / maxf(1.0, minf(ra.get_area(), rb.get_area()))
-				if ratio > 0.15:
-					bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
+			if not x.has_area():
+				continue
+			var ratio := x.get_area() / maxf(1.0, minf(ra.get_area(), rb.get_area()))
+			if ratio <= 0.15:
+				continue
+			if probe_texts[a]["s"] != probe_texts[b]["s"]:
+				bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
+			elif ra.position.distance_to(rb.position) > 2.0:
+				# 第五輪：相同字串但位置不同也算重疊（原本整個豁免）；同一位置重畫（描邊）才豁免
+				warn.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
+	for r in probe_btns:
+		if r.size.x < 32.0 or r.size.y < 32.0:
+			warn.append({"type": "點擊框太小", "r": str(r)})
 	sizes.sort()
-	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": probe_texts.size(),
-		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0, "violations": bad})
+	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n,
+		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
+		"violations": bad, "warnings": warn})
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()
 	f.store_line(line)
@@ -186,6 +212,7 @@ func _would_clutch(a0, a1) -> bool:
 func _run_screenshots() -> void:
 	await get_tree().process_frame
 	Save.data["stats"] = {"wins": 0, "games": 99}   # 截圖用暫存存檔：新兵全部解鎖（第四輪）
+	Save.data["unlock_games"] = 99
 	for i in 160:
 		demo.step()
 	await _snap("01_title.png")
@@ -373,6 +400,7 @@ func _shots_v4() -> void:
 	overlay = "puzzles"
 	puzzle_tab = 1
 	Save.data["stats"] = {"wins": 0, "games": 6}   # 解鎖到投彈兵：醫者、鼓手、狂戰士的關卡是鎖住的
+	Save.data["unlock_games"] = 6
 	await _snap("20_puzzles_new.png")
 	puzzle_tab = 0
 	overlay = ""
@@ -381,6 +409,35 @@ func _shots_v4() -> void:
 	hover_card = D.MEDIC
 	await _snap("21_place_locked.png")
 	hover_card = -1
+	# 第五輪：規則大廳（精簡、卡池、讓子、雙人、沙盒）
+	Save.data["last_rules"] = {}
+	_open_lobby("ai")
+	mouse = Vector2(-100, -100)
+	await _snap("22_lobby.png")
+	lobby_open = true
+	lobby_tab = 1
+	lobby_r.ai_pool_same = false
+	lobby_r.pool[1] = 0b0000011111
+	_lobby_touch()
+	lobby_item = "pool"
+	await _snap("23_lobby_pool.png")
+	lobby_tab = 0
+	lobby_r.ai_pool_same = true
+	lobby_r.handicap = true
+	lobby_r.budget = [80, 140]
+	lobby_r.type_cap = 2
+	_lobby_touch()
+	lobby_item = "handicap"
+	await _snap("24_lobby_army.png")
+	lobby_tab = 4
+	lobby_sb_unit = D.CAVALRY
+	lobby_r.stat_pct[D.CAVALRY] = [120, 80, 150]
+	lobby_r.skills_off = ["charge"]
+	lobby_item = "lab"
+	await _snap("26_lobby_lab.png")
+	_open_lobby("duel")
+	await _snap("25_lobby_duel.png")
+	overlay = ""
 
 
 ## 繪圖效能量測（第二輪 R2、第三輪 T3）：

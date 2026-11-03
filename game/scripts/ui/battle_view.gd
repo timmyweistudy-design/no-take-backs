@@ -745,7 +745,7 @@ func _tone() -> Color:
 
 ## 圖示膠囊標籤（R6）：kind＝"coin"／"unit"／"team"。回傳寬度。
 func _pill(p: Vector2, kind: String, label: String, col: Color, size := 16, cap := 99) -> float:
-	var fsz := mini(ts(size), cap)
+	var fsz := tcap(ts(size), cap)
 	var tw := font_bold.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x
 	var w := tw + 40.0
 	var h := fsz + 10.0
@@ -769,7 +769,7 @@ func _pill(p: Vector2, kind: String, label: String, col: Color, size := 16, cap 
 ## 按鍵提示列（R6）：手把時顯示 [A]／[X] 等按鍵圖示，鍵盤時顯示鍵名。items＝[[鍵, 說明], ...]，置中於 cx。
 func _key_hints(cx: float, y: float, items: Array, size := 15) -> void:
 	# 擺放畫面上方列高度固定 86px：大字設定時這一列最多放大到 17px，寬度不夠再縮（Codex 收尾輪 #3）
-	var fs := mini(ts(size), 17)
+	var fs := tcap(ts(size), 17)
 	var widths: Array = []
 	var total := 0.0
 	for it in items:
@@ -1250,14 +1250,15 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	play_kind = kind
 	if kind == "official":
 		last_armies = [a0.copy(), a1.copy()]
-	sim = Sim.new(a0, a1)
+		battle_rules = rules.copy() if rules != null else null
+	sim = Sim.new(a0, a1, battle_rules)
 	view = ViewBuffer.new(sim)
 	atk_seq.clear()
 	clutch_tick = -1
 	replay_total = 0
 	if kind != "official":
 		# 重播／覆盤：先用確定性模擬算出整場長度，時間軸以實際秒數為滿（Antigravity S5）
-		var pre = Sim.new(a0.copy(), a1.copy())
+		var pre = Sim.new(a0.copy(), a1.copy(), battle_rules)
 		pre.fast = true
 		pre.run_to_end()
 		replay_total = pre.tick

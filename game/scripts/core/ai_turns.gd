@@ -116,7 +116,10 @@ static func play_turn(tp, rng: RandomNumberGenerator, level := 1) -> int:
 	var guard := 0
 	while not tp.done() and tp.current == me and guard < 30:
 		guard += 1
-		var t := choose_type(mine, enemy.units, tp.turn_left(), rng, level, tp.pool_of(me))
+		var pl: int = tp.pool_of(me)
+		if tp.rules != null and mine.guard_combat and not mine.has_combat() and tp.is_snake() and tp.hands_done[me] >= tp.hands_max() - 1:
+			pl &= ~((1 << D.MEDIC) | (1 << D.DRUMMER))   # 最後一手還沒有戰鬥兵：只選戰鬥兵
+		var t := choose_type(mine, enemy.units, tp.turn_left(), rng, level, pl)
 		if t == -1:
 			break
 		var c := choose_cell(mine, t, enemy.units, rng)

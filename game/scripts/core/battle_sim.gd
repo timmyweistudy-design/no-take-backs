@@ -75,6 +75,9 @@ var frenzy_at := FRENZY_TICK
 var attr_step := 100
 var rules = null               # 第五輪：這一場凍結的規則（null＝標準）
 var power_log2: PackedInt64Array = PackedInt64Array()  # 第五輪：每 tick 兩方戰力（藍、紅交錯），戰力走勢圖用
+# 第五輪沙盒（R3）：每場一份，存在這個實例上（不改全域常數，同時跑兩場不同規則不會互相污染）
+var skill_off := {}            # 關掉的技能 → true
+var atk_pct: Array = []        # 每種兵的攻擊倍率（％）：波及、敲人、補血這些獨立常數也照這個比例
 var finished := false
 var winner := -2               # -2 進行中；-1 平手；0／1 勝方
 var reason := ""
@@ -102,6 +105,13 @@ func _init(army0, army1, p_rules = null) -> void:
 		judge = rules.judge()
 		if judge == 2:
 			budgets = [army0.budget, army1.budget]
+		for k in rules.skills_off:
+			skill_off[k] = true
+	atk_pct.resize(D.COUNT)
+	atk_pct.fill(100)
+	if rules != null:
+		for t in rules.stat_pct:
+			atk_pct[int(t)] = int(rules.stat_pct[t][1])
 	_hash.start(HashingContext.HASH_SHA256)
 	var raw: Array = []
 	for a in [army0, army1]:
@@ -124,8 +134,15 @@ func _init(army0, army1, p_rules = null) -> void:
 		n.speed = s["speed"]
 		n.atk = s["atk"]
 		n.cd_base = s["cd"]
+		if rules != null and rules.stat_pct.has(n.type):
+			# 沙盒倍率：血量、攻擊、速度（整數百分比，至少 1）
+			var pc: Array = rules.stat_pct[n.type]
+			n.hp = maxi(1, n.hp * int(pc[0]) / 100)
+			n.max_hp = n.hp
+			n.atk = maxi(1, n.atk * int(pc[1]) / 100)
+			n.speed = maxi(1, n.speed * int(pc[2]) / 100)
 		n.fx = 1000 if n.team == 0 else -1000
-		if n.type == D.ASSASSIN:
+		if n.type == D.ASSASSIN and not skill_off.has("stealth"):
 			n.stealth = D.STEALTH_TICKS
 		if n.type == D.MEDIC:
 			n.hcd = D.HEAL_FIRST
@@ -171,7 +188,7 @@ func step() -> void:
 	if finished:
 		return
 	tick += 1
-	frenzy = tick >= frenzy_at
+	frenzy = tick >= frenzy_at and not skill_off.has("frenzy")
 	events = []
 	var n := units.size()
 
@@ -385,7 +402,7 @@ func step() -> void:
 	# 背水（追趕機制，預設關閉）：用這一 tick 開始時的戰力判斷，兩隊同時算
 	var rally_bonus := [0, 0]
 	rally = [false, false]
-	if D.RALLY_RATIO_PCT > 0:
+	if D.RALLY_RATIO_PCT > 0 and not skill_off.has("rally"):
 		var pw := [power(0), power(1)] if judge == 1 else [power_permille(0), power_permille(1)]   # 讓子時比各自預算的比例
 		for tm in 2:
 			if pw[tm] * 100 < pw[1 - tm] * D.RALLY_RATIO_PCT:
@@ -400,7 +417,7 @@ func step() -> void:
 		units[i].aura = 0
 	for di in n:
 		var dr := units[di]
-		if dr.type != D.DRUMMER or not dr.alive or dr.stun > 0:
+		if dr.type != D.DRUMMER or not dr.alive or dr.stun > 0 or skill_off.has("drum"):
 			continue
 		var cov := 0
 		for j in n:
@@ -419,7 +436,7 @@ func step() -> void:
 			continue
 		if u.cd > 0:
 			u.cd = maxi(0, u.cd - mini(D.DEC_CAP, dec + rally_bonus[u.team] + D.DRUM_BONUS * u.aura))
-		if u.type == D.MEDIC:
+		if u.type == D.MEDIC and not skill_off.has("heal"):
 			_try_heal(i, sh, heals)
 		if u.stun > 0 or u.target == -1 or u.cd > 0:
 			continue
@@ -430,16 +447,17 @@ func step() -> void:
 			if bd2 < D.BOMB_MIN * D.BOMB_MIN or bd2 > u.reach * u.reach:
 				continue
 			hits.append([i, u.target, _vuln(tg, u.atk * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if tg.type == D.SHIELD else u.atk), EV.BOMB, [EV.BOMB]])
-			for j in _splash_victims(u.target, st, sv):
+			for j in ([] if skill_off.has("splash") else _splash_victims(u.target, st, sv)):
 				var sj := units[j]
-				hits.append([i, j, _vuln(sj, D.SPLASH_DMG * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if sj.type == D.SHIELD else D.SPLASH_DMG), EV.SPLASH, [EV.SPLASH]])
+				var spd: int = D.SPLASH_DMG * atk_pct[D.BOMBER] / 100
+				hits.append([i, j, _vuln(sj, spd * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if sj.type == D.SHIELD else spd), EV.SPLASH, [EV.SPLASH]])
 			attacked[i] = 1
 			u.cd += u.cd_base * 4
 			continue
 		if u.type == D.BOMBER and u.bmode == 2:
 			if M.dist2(u.x, u.y, tg.x, tg.y) > D.BONK_REACH * D.BONK_REACH:
 				continue
-			hits.append([i, u.target, _vuln(tg, D.BONK_ATK), EV.BONK, [EV.BONK]])
+			hits.append([i, u.target, _vuln(tg, maxi(1, D.BONK_ATK * atk_pct[D.BOMBER] / 100)), EV.BONK, [EV.BONK]])
 			attacked[i] = 1
 			u.cd += D.BONK_CD * 4
 			continue
@@ -454,11 +472,11 @@ func step() -> void:
 			dmg = dmg * D.ANTICAV_NUM / D.ANTICAV_DEN
 			kind = EV.ANTICAV
 			tags.append(EV.ANTICAV)
-		elif u.type == D.PIKE and tg.type == D.CAVALRY:
+		elif u.type == D.PIKE and tg.type == D.CAVALRY and not skill_off.has("brace"):
 			dmg = dmg * D.PIKE_ANTICAV_NUM / D.PIKE_ANTICAV_DEN
 			kind = EV.ANTICAV
 			tags.append(EV.ANTICAV)
-		elif u.type == D.BERSERKER and (tg.type == D.SHIELD or tg.type == D.PIKE):
+		elif u.type == D.BERSERKER and (tg.type == D.SHIELD or tg.type == D.PIKE) and not skill_off.has("breach"):
 			breach_set[u.target] = true
 			# 破陣擴散：目標 ④ 位置 1 格內、同隊、活著的其他盾兵／長槍兵一起破陣（集合，與順序無關）
 			for j in n:
@@ -490,12 +508,12 @@ func step() -> void:
 			elif tg.type == D.BERSERKER:
 				dmg = dmg * D.BERSERK_ARROW_NUM / D.BERSERK_ARROW_DEN
 		elif u.type == D.CAVALRY:
-			if u.charge >= D.CHARGE_NEED:
+			if u.charge >= D.CHARGE_NEED and not skill_off.has("charge"):
 				if tg.type == D.SHIELD and not _is_behind(u, tg):
 					stun_set[i] = true
 					kind = EV.BRACED
 					tags.append(EV.BRACED)
-				elif tg.type == D.PIKE and tg.breach == 0 and not _is_behind(u, tg):
+				elif tg.type == D.PIKE and tg.breach == 0 and not _is_behind(u, tg) and not skill_off.has("brace"):
 					# 拒騎（第四輪 §2.1）：正面衝到長槍兵，衝鋒倍率與擊退都不生效（衝鋒照樣消耗）
 					kind = EV.PIKE_BRACE
 					tags.append(EV.PIKE_BRACE)
@@ -506,7 +524,7 @@ func step() -> void:
 					if tg.type != D.BERSERKER:   # 狂戰士不被擊退（第四輪 §2.4）
 						knock.append([u.target, tg.x - u.x, tg.y - u.y])
 		elif u.type == D.ASSASSIN:
-			if _is_behind(u, tg):
+			if _is_behind(u, tg) and not skill_off.has("backstab"):
 				dmg = dmg * D.BACKSTAB_NUM / D.BACKSTAB_DEN
 				kind = EV.BACKSTAB
 				tags.append(EV.BACKSTAB)
@@ -528,7 +546,7 @@ func step() -> void:
 	# 劍士反擊（優化方案 B1）：這一 tick 打中它的刺客裡，挑「最近→列小→離自己底線近」的那一隻，每 tick 最多一次
 	var swords := sword_hit_by.keys()
 	swords.sort()
-	for si in swords:
+	for si in ([] if skill_off.has("counter") else swords):
 		var sw := units[si]
 		hits.append([si, pick_counter(si, sword_hit_by[si]), sw.atk * D.COUNTER_PCT / 100, EV.COUNTER, [EV.COUNTER]])
 
@@ -565,7 +583,7 @@ func step() -> void:
 			last_hit[tgt] = src
 			best_d[tgt] = d
 	# 狂熱耗損：第 1200+100k tick（k＝0～5）扣 (k+1)×STEP% 滿血（至少 1）
-	if tick >= frenzy_at and (tick - frenzy_at) % attr_step == 0 and (tick - frenzy_at) / attr_step <= 5:
+	if frenzy and (tick - frenzy_at) % attr_step == 0 and (tick - frenzy_at) / attr_step <= 5:
 		var k := (tick - frenzy_at) / attr_step
 		for i in n:
 			if units[i].alive:
@@ -633,7 +651,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 	var uy: int = sy[i]
 	var reach: int = units[i].reach
 	var reach2 := reach * reach
-	var taunt2 := D.TAUNT_RANGE * D.TAUNT_RANGE
+	var taunt2 := -1 if skill_off.has("taunt") else D.TAUNT_RANGE * D.TAUNT_RANGE
 	var melee := D.is_melee(my_type)
 	var best := -1
 	var b_rank := 99
@@ -781,7 +799,8 @@ func _try_heal(i: int, sh: PackedInt64Array, heals: Array) -> void:
 			bd2 = d2
 	if best == -1:
 		return
-	var amt := D.HEAL_AMT if not frenzy else D.HEAL_AMT / 2
+	var ha: int = maxi(1, D.HEAL_AMT * atk_pct[D.MEDIC] / 100)   # 沙盒：醫者攻擊倍率也套在補血量
+	var amt := ha if not frenzy else ha / 2
 	# 平手鍵在 ④ 就存好（距離、列、深度、部署格），⑤ 的擊退不會改到記功歸屬（Codex 實作審查 #5）
 	heals.append([i, best, amt, bd2, u.y, u.x if u.team == 0 else W - u.x, u.slot])
 	u.hcd = D.HEAL_CD

@@ -21,6 +21,7 @@ const ViewBuffer = preload("res://scripts/ui/view_buffer.gd")
 const RS = preload("res://scripts/game/roster.gd")
 const HardAI = preload("res://scripts/core/hard_ai.gd")
 const RuleSet = preload("res://scripts/core/ruleset.gd")
+const Presets = preload("res://scripts/game/presets.gd")
 
 enum St { TITLE, PLACE, BATTLE, RESULT }
 enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
@@ -40,6 +41,14 @@ const UNIT_SCALE := 0.92
 
 var font: Font
 var font_bold: Font
+var font_title: Font          # 第五輪：標題字 UoqMunThenKhung（只用在 ≥H2 的粗體、沒有數字的字串）
+
+## 第五輪字級表（§4.2）：基準 1280×800。只允許表內的值；125%／150% 非線性（大字少放大、內文多放大）。
+const TYPE_SCALE := {
+	100: {"D": 64, "DX": 84, "H1": 32, "H2": 22, "B": 17, "S": 15, "C": 14},
+	125: {"D": 70, "DX": 92, "H1": 35, "H2": 26, "B": 21, "S": 18, "C": 17},
+	150: {"D": 70, "DX": 92, "H1": 35, "H2": 28, "B": 24, "S": 21, "C": 20},
+}
 var sfx
 var state := St.TITLE
 var mode := Mode.VS_AI
@@ -84,6 +93,8 @@ const PLAY_EFFECTS := {
 	"review": {"series": false, "progress": false, "log": false},
 }
 var play_kind := "official"   # 這一場是哪種播放
+var rules = null              # 第五輪：這個系列凍結的自訂規則（對 AI、雙人由大廳設定；其他模式 null＝標準）
+var battle_rules = null       # 第五輪：目前／上一場戰鬥用的規則（正式、重播、覆盤、跳轉、看代碼共用）
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
 var clutch_tick := -1      # 最後時刻在第幾 tick 觸發（重播跳轉時重建狀態用）
 var watch_mode := false   # 正在看對戰代碼（結果頁不提供「下一局」）
@@ -126,7 +137,8 @@ var freeze_fx := false
 ## 版面檢查（第三輪 T4）：截圖模式記下每一段介面文字實際畫出的外框，拍照時檢查越界、太小、互相重疊。
 var layout_probe := false
 var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
-var probe_texts: Array = []     # 截圖用：特效停在當下的時刻不往前跑
+var probe_texts: Array = []
+var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
 var pt_rated := false
 
@@ -163,14 +175,73 @@ func _load_font(path: String) -> Font:
 	return sf
 
 
+## 第五輪：數字用等寬（tnum），金幣、秒數、百分比跳動時不會左右晃。
+func _tnum(f: Font) -> Font:
+	var fv := FontVariation.new()
+	fv.base_font = f
+	fv.opentype_features = {TextServerManager.get_primary_interface().name_to_tag("tnum"): 1}
+	return fv
+
+## 第五輪：載入三種字型角色。標題字缺的字由思源黑體 Bold 補。
+func _load_fonts() -> void:
+	var reg := _load_font("res://fonts/NotoSansTC-Regular-sub.otf")
+	var bold := _load_font("res://fonts/NotoSansTC-Bold-sub.otf")
+	font = _tnum(reg)
+	font_bold = _tnum(bold)
+	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
+		var tk = load("res://fonts/ThenKhung-sub.ttf")
+		if tk is FontFile:
+			tk.fallbacks = [bold]
+			font_title = tk
+
+
 func _apply_fullscreen() -> void:
 	if shot_dir != "":
 		return
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if Save.s("fullscreen") else DisplayServer.WINDOW_MODE_WINDOWED)
 
 
+## 舊介面寫的字級數字（11～84）吸附到字級表：11～14→註記、15→次要、16～18→內文、19～24→區塊標題、25～48→畫面標題、49 以上→展示。
+## 這樣全遊戲不會再出現表外字級，也不會小於 14（第五輪 §4.2）。新程式請直接用 tz("B") 這類語意名稱。
+static func role_of(px: int) -> String:
+	if px <= 14:
+		return "C"
+	if px == 15:
+		return "S"
+	if px <= 18:
+		return "B"
+	if px <= 24:
+		return "H2"
+	if px <= 48:
+		return "H1"
+	return "D" if px < 80 else "DX"
+
+func _scale_key() -> int:
+	var sc := int(Save.s("text_scale"))
+	return 150 if sc >= 150 else (125 if sc >= 125 else 100)
+
+func tz(role: String) -> int:
+	return int(TYPE_SCALE[_scale_key()][role])
+
 func ts(px: int) -> int:
-	return int(px * int(Save.s("text_scale")) / 100)
+	return tz(role_of(px))
+
+## 封頂（第五輪）：取字級表裡 ≤ 上限的最大值，但不低於「註記」。取代 tcap(ts(x), N)，避免封出表外字級。
+func tcap(sz: int, maxpx: int) -> int:
+	var best := tz("C")
+	for v in TYPE_SCALE[_scale_key()].values():
+		if v <= mini(sz, maxpx) and v > best:
+			best = v
+	return best
+
+## 這個字級在不在字級表裡（版面檢查用）。
+func size_ok(sz: int) -> bool:
+	return sz in TYPE_SCALE[_scale_key()].values()
+
+
+## 第五輪：解鎖用的累計場數（設定「全部解鎖」時視為全開；試玩版上限由 roster 管）。
+func _unlock_games() -> int:
+	return 99 if bool(Save.s("unlock_all")) else int(Save.data.get("unlock_games", 0))
 
 
 func cbm() -> bool:
@@ -191,32 +262,85 @@ func _move_focus(d: int) -> void:
 	_focus = posmod(_focus + d, _btns.size())
 
 
-## 字太寬就縮小（英文、大字設定時避免截字；最小 9px）。
+## 字太寬就往下一級縮（第五輪：只在字級表內往下走，最小到「註記」，不再縮到 9px；還是太寬就由 _text 換行）。
 func fit(s: String, size: int, maxw: float, bold := false) -> int:
-	var fnt := font_bold if bold else font
 	var sz := size
+	var levels: Array = TYPE_SCALE[_scale_key()].values()
+	levels.sort()
+	while _width(s, sz, bold) > maxw:
+		var nxt := -1
+		for v in levels:
+			if v < sz:
+				nxt = v
+		if nxt < 0:
+			break
+		sz = nxt
+	return sz
+
+func _font_for(s: String, size: int, bold: bool) -> Font:
+	if bold and font_title != null and size >= tz("H2") and not bool(Save.s("plain_titles")) and not _has_digit(s):
+		return font_title
+	return font_bold if bold else font
+
+static func _has_digit(s: String) -> bool:
+	for i in s.length():
+		var c := s.unicode_at(i)
+		if (c >= 48 and c <= 57) or (c >= 0xFF10 and c <= 0xFF19):
+			return true
+	return false
+
+func _width(s: String, size: int, bold := false) -> float:
 	var w := 0.0
 	for ln in s.split("\n"):
-		w = maxf(w, fnt.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x)
-	while w > maxw and sz > 9:
-		sz -= 1
-		w = 0.0
-		for ln in s.split("\n"):
-			w = maxf(w, fnt.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x)
-	return sz
+		w = maxf(w, _font_for(ln, size, bold).get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+	return w
+
+## 換行（第五輪）：中日韓逐字斷、英文逐詞斷；保留原本的 \n。回傳行陣列。
+func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStringArray:
+	var out := PackedStringArray()
+	for para in s.split("\n"):
+		if maxw <= 0.0 or _width(para, size, bold) <= maxw:
+			out.append(para)
+			continue
+		var cur := ""
+		var i := 0
+		while i < para.length():
+			var tok := para[i]
+			if tok.unicode_at(0) < 0x2E80 and tok != " ":
+				# 拉丁字：整個詞一起
+				var j := i + 1
+				while j < para.length() and para[j].unicode_at(0) < 0x2E80 and para[j] != " ":
+					j += 1
+				tok = para.substr(i, j - i)
+				i = j
+			else:
+				i += 1
+			if cur != "" and _width(cur + tok, size, bold) > maxw:
+				out.append(cur.strip_edges(false, true))
+				cur = tok.strip_edges(true, false) if tok == " " else tok
+			else:
+				cur += tok
+		if cur != "":
+			out.append(cur)
+	return out
+
+## 一段字換行後的高度（排版用）。
+func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
+	return wrap_lines(s, size, maxw, bold).size() * size * 1.3
 
 
 func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
-	var fnt := font_bold if bold else font
 	if maxw > 0.0:
 		size = fit(s, size, maxw, bold)
-	var lines := s.split("\n")
+	var lines := wrap_lines(s, size, maxw, bold) if maxw > 0.0 else s.split("\n")
 	for i in lines.size():
+		var fnt := _font_for(lines[i], size, bold)
 		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
 		var q := p + Vector2(-w / 2, i * size * 1.3 + size * 0.85)
-		if layout_probe and _probe_ui and c.a > 0.2 and lines[i].strip_edges() != "":
+		# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
+		if layout_probe and c.a > 0.05 and lines[i].strip_edges() != "":
 			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i]})
+			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a})
 		var oc := Color(0, 0, 0, c.a * 0.75) if outline.a < 0.0 else outline
 		if oc.a > 0.0:
 			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, oc)
@@ -238,9 +362,12 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		bg = bg.lightened(0.18)
 	draw_rect(r, bg)
 	draw_rect(r, ACCENT if focus else Color(1, 1, 1, 0.18), false, 3 if focus else 1.5)
+	if layout_probe:
+		probe_btns.append(r)
 	var sz := fit(label, ts(18) if r.size.y >= 40 else ts(15), r.size.x - 10, primary)
-	sz = mini(sz, int(r.size.y * 0.8))
-	_text(r.get_center() - Vector2(0, sz * 0.62), label, sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
+	var lines := wrap_lines(label, sz, r.size.x - 10, primary)
+	var h := lines.size() * sz * 1.3
+	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
 
 
 ## ── 輸入命令佇列（第三輪 A2）──
@@ -307,7 +434,7 @@ func _rebuild_sprites() -> void:
 func _mode_label() -> String:
 	match mode:
 		Mode.VS_AI: return "%s・%s" % [L.t("menu_vs_ai"), L.t(["diff_easy", "diff_normal", "diff_hard"][difficulty])]
-		Mode.DUEL: return "%s・%s" % [L.t("menu_duel"), L.t("rule_" + duel_rule)]
+		Mode.DUEL: return "%s・%s" % [L.t("menu_duel"), L.t("rule_custom", [rules.turns]) if duel_rule == "custom" and rules != null else L.t("rule_" + duel_rule)]
 		Mode.TUTORIAL: return L.t("menu_tutorial")
 		Mode.PUZZLE: return L.t("menu_puzzle")
 		Mode.GAUNTLET: return L.t("menu_gauntlet")

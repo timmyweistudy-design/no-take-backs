@@ -89,7 +89,11 @@ func check_place(t: int, col: int, row: int) -> String:
 		return "擺放已結束"
 	if D.cost(t) > hand_cap() - spent_this_turn:
 		return "這一手最多花 %d 金" % hand_cap()
-	return armies[current].check_place(t, col, row)
+	var a = armies[current]
+	# 第五輪防卡死：輪流落子的最後一手還沒有戰鬥兵，就只能擺戰鬥兵
+	if rules != null and is_snake() and a.guard_combat and not a.has_combat() and D.is_support(t) and hands_done[current] >= hands_max() - 1:
+		return "最後一手要擺戰鬥兵"
+	return a.check_place(t, col, row)
 
 func place(t: int, col: int, row: int) -> bool:
 	if check_place(t, col, row) != "":

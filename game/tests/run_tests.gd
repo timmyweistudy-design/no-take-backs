@@ -35,6 +35,8 @@ func _init() -> void:
 		return
 	if "--only=rules" in OS.get_cmdline_user_args():
 		test_rules_v5()
+		test_sandbox_v5()
+		test_battle_code_v5()
 		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 		quit(1 if failed > 0 or passed == 0 else 0)
 		return
@@ -70,6 +72,8 @@ func _init() -> void:
 	test_new_units()
 	test_roster_ui()
 	test_rules_v5()
+	test_sandbox_v5()
+	test_battle_code_v5()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -745,7 +749,11 @@ func test_save_migration() -> void:
 	var SV = load("res://scripts/game/save.gd")
 	var v1 := {"version": 1, "tutorial": 3, "puzzle_stars": {"p1": 3}, "slots": ["NTB1.x", "", "", "", ""], "stats": {"wins": 7, "games": 9}, "future_key": 5}
 	var m: Dictionary = SV.migrate(v1)
-	ok(int(m["schema_version"]) == 2 and not m.has("version") and m["unit_wins"] is Dictionary, "存檔遷移：v1→v2 改欄位名、補 unit_wins")
+	ok(int(m["schema_version"]) == 3 and not m.has("version") and m["unit_wins"] is Dictionary, "存檔遷移：v1→v3 改欄位名、補 unit_wins")
+	ok(int(m["unlock_games"]) == 9 and m["rule_presets"] == [] and m["custom_stats"] is Dictionary, "存檔遷移 v3：解鎖累計場數＝舊的正式場數（已解鎖的兵不會被收回）")
+	var bad_ps := {"schema_version": 3, "rule_presets": [{"name": "a", "code": "NTBR1.x.y"}, {"name": 3, "code": "z"}, "junk", {"name": "b", "code": "x".repeat(3000)}] + [{"name": "c", "code": "q"}]}
+	var m3: Dictionary = SV.migrate(bad_ps)
+	ok(m3["rule_presets"].size() == 2 and str(m3["rule_presets"][0]["name"]) == "a", "存檔遷移：我的預設逐筆驗型、限長（壞的丟掉）", str(m3["rule_presets"]))
 	ok(int(m["tutorial"]) == 3 and int(m["puzzle_stars"]["p1"]) == 3 and m["slots"][0] == "NTB1.x" and int(m["stats"]["wins"]) == 7 and int(m["future_key"]) == 5, "存檔遷移：舊進度與不認得的欄位都保留")
 	var v2 := {"schema_version": 2, "unit_wins": {"3": 4}, "tutorial": 1}
 	var m2: Dictionary = SV.migrate(v2)
@@ -758,7 +766,7 @@ func test_save_migration() -> void:
 	f.close()
 	SV.load_all()
 	var ld: Dictionary = SV.data
-	ok(int(ld["schema_version"]) == 2 and not ld.has("version") and ld["unit_wins"] is Dictionary and int(ld["tutorial"]) == 2 and ld.has("achievements"),
+	ok(int(ld["schema_version"]) == 3 and not ld.has("version") and ld["unit_wins"] is Dictionary and int(ld["tutorial"]) == 2 and ld.has("achievements"),
 		"存檔遷移：正式 load_all 讀 v1 檔會遷移、壞掉的 unit_wins 修好、補預設", str(ld))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_save.json"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_settings.json"))
@@ -1990,3 +1998,116 @@ func test_rules_v5() -> void:
 	mr.type_cap = 1
 	var ms: Dictionary = mr.max_spend(0)
 	ok(ms["units"] == 3 and ms["spend"] == 14 and ms["unused"] == 136, "大廳提示：150 金、3 種兵各限 1 隻 → 最多 3 隻 14 金、136 金用不到", str(ms))
+
+## 第五輪沙盒（R3 閘門）：每個技能開關、倍率、不互相污染、100％＝標準。
+static func _sb_tags(armies: Array, r) -> Dictionary:
+	var s = Sim.new(armies[0].copy(), armies[1].copy(), r)
+	var seen := {}
+	var fr := false
+	while not s.finished:
+		s.step()
+		fr = fr or s.frenzy
+		for e in s.events:
+			seen[e["kind"]] = true
+			for tg in e.get("tags", []):
+				seen[tg] = true
+	seen["_frenzy"] = fr
+	return seen
+
+func test_sandbox_v5() -> void:
+	var rng := RandomNumberGenerator.new()
+	# 找一組十種兵都有、標準規則下所有技能事件都會出現的對戰（固定種子）
+	var pairs: Array = []
+	for k in 8:
+		rng.seed = 8800 + k
+		var a0 = F.random_formation(0, rng, "mixed", "", D.COUNT)
+		var a1 = F.random_formation(0, rng, "mixed", "", D.COUNT).mirrored()
+		pairs.append([a0, a1])
+	# 刻意的對戰：騎兵正面衝長槍兵（拒騎）；盾兵牆對盾兵牆打到狂熱
+	pairs.append([army_from(0, [[D.CAVALRY, 2, 3], [D.CAVALRY, 2, 4], [D.CAVALRY, 2, 5]]), army_from(1, [[D.PIKE, 3, 3], [D.PIKE, 3, 4], [D.PIKE, 3, 5]])])
+	var wall0: Array = []
+	var wall1: Array = []
+	for rr in 9:
+		wall0.append([D.SHIELD, 5, rr])
+		wall1.append([D.SHIELD, 5, rr])
+	pairs.append([army_from(0, wall0), army_from(1, wall1)])
+	var std = RSET.standard()
+	var want := {"charge": EVS.CHARGE, "taunt": EVS.TAUNT, "backstab": EVS.BACKSTAB, "counter": EVS.COUNTER, "stealth": EVS.REVEAL,
+		"brace": EVS.PIKE_BRACE, "splash": EVS.SPLASH, "heal": EVS.HEAL, "drum": EVS.DRUM, "breach": EVS.BREACH, "frenzy": "_frenzy", "rally": EVS.RALLY_ON}
+	var bad: Array = []
+	for sk in want:
+		var ev: String = want[sk]
+		var on_any := false
+		var off_any := false
+		var r = RSET.standard()
+		r.skills_off = [sk]
+		for pr in pairs:
+			var a: Dictionary = _sb_tags(pr, std)
+			var b: Dictionary = _sb_tags(pr, r)
+			on_any = on_any or bool(a.get(ev, false))
+			off_any = off_any or bool(b.get(ev, false))
+		if not on_any or off_any:
+			bad.append("%s 開=%s 關=%s" % [sk, on_any, off_any])
+	ok(bad.is_empty(), "沙盒技能開關：12 個技能在標準下會出現、關掉後完全不出現", str(bad))
+	# 倍率
+	var pr0: Array = pairs[0]
+	var r2 = RSET.standard()
+	r2.stat_pct = {D.SWORD: [200, 50, 150]}
+	var s2 = Sim.new(pr0[0].copy(), pr0[1].copy(), r2)
+	var sw = null
+	for u in s2.units:
+		if u.type == D.SWORD:
+			sw = u
+			break
+	ok(sw != null and sw.max_hp == D.STATS[D.SWORD]["hp"] * 2 and sw.atk == D.STATS[D.SWORD]["atk"] / 2 and sw.speed == D.STATS[D.SWORD]["speed"] * 3 / 2,
+		"沙盒倍率：劍士血 200%、攻 50%、速 150% 生效", str([sw.max_hp, sw.atk, sw.speed] if sw else null))
+	# 100％、全開＝標準（不是沙盒、走舊路徑、指紋相同）
+	var r3 = RSET.standard()
+	r3.stat_pct = {D.SWORD: [100, 100, 100]}
+	var sa = Sim.new(pr0[0].copy(), pr0[1].copy())
+	sa.run_to_end()
+	var sb = Sim.new(pr0[0].copy(), pr0[1].copy(), r3)
+	sb.run_to_end()
+	ok(not r3.is_sandbox() and sa.fingerprint == sb.fingerprint, "沙盒 100％、技能全開＝標準規則（指紋相同）")
+	# 交錯跑兩場不同規則：標準那場和單獨跑的指紋相同（沒有共用狀態被污染）
+	var r4 = RSET.standard()
+	r4.stat_pct = {D.ARCHER: [50, 200, 120], D.CAVALRY: [150, 150, 80]}
+	r4.skills_off = ["taunt", "frenzy"]
+	var x = Sim.new(pr0[0].copy(), pr0[1].copy(), r4)
+	var y = Sim.new(pr0[0].copy(), pr0[1].copy())
+	while not (x.finished and y.finished):
+		x.step()
+		y.step()
+	ok(y.fingerprint == sa.fingerprint and x.fingerprint != sa.fingerprint, "沙盒與標準交錯跑：標準那場指紋和單獨跑相同")
+
+func test_battle_code_v5() -> void:
+	var BC = load("res://scripts/game/battle_code.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31337
+	var a0 = AI.build(0, 100, rng)["army"]
+	var a1 = AI.build(1, 100, rng)["army"]
+	ok(BC.encode(a0, a1, RSET.standard()) == BC.encode(a0, a1), "標準規則的對戰代碼仍是 NTB2、和不給規則時位元組相同")
+	var r = RSET.standard()
+	r.budget = [180, 180]
+	r.unit_cap = 40
+	r.ticks = 2400
+	r.stat_pct = {D.ARCHER: [120, 100, 100]}
+	var b0 := Army.new(0, 180)
+	var b1 := Army.new(1, 180)
+	b0.apply_rules(r, 0)
+	b1.apply_rules(r, 1)
+	b0 = AI.build(0, 180, rng, -1, r.pool_of(0), r)["army"]
+	b1 = AI.build(1, 180, rng, -1, r.pool_of(1), r)["army"]
+	var code: String = BC.encode(b0, b1, r)
+	var d: Dictionary = BC.decode(code)
+	var s1 = Sim.new(b0.copy(), b1.copy(), r)
+	s1.run_to_end()
+	var ok_dec: bool = d["ok"] and d["rules"] != null and d["rules"].equals(r)
+	var same := false
+	if ok_dec:
+		var s2 = Sim.new(d["a0"], d["a1"], d["rules"])
+		s2.run_to_end()
+		same = s2.fingerprint == s1.fingerprint
+	ok(code.begins_with("NTB3.") and b0.count() > 24 and ok_dec and same, "自訂規則（180 金、40 隻、120 秒、沙盒）對戰代碼 NTB3：解碼後規則相同、播出同一場", "units=%d %s" % [b0.count(), d.get("why", "")])
+	var broken := code.substr(0, code.length() - 3) + "abc"
+	ok(not BC.decode(broken)["ok"], "NTB3 校驗碼壞掉會被拒")

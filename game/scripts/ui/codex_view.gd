@@ -169,7 +169,7 @@ func _draw_codex() -> void:
 		var r := Rect2(204 + t * (tw + 6.0), 150, tw, 46)
 		_btn(r, "", _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
 		Art.unit(self, r.position + Vector2(tw / 2.0 + 4, 60 if t != D.CAVALRY else 66), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.72, cbm())
-		_text(r.position + Vector2(4, 2), str((t + 1) % 10), mini(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
+		_text(r.position + Vector2(4, 2), str((t + 1) % 10), tcap(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
 	var items := _cx_left_items(u, lang)

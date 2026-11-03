@@ -7,6 +7,7 @@ rules = [  # (路徑樣式, 登記項目)
     ("art/cainos/*.png", "Cainos"),
     ("audio/*.wav", "本作程式合成"),
     ("fonts/NotoSansTC-*.otf", "Noto Sans TC"),
+    ("fonts/ThenKhung-*.ttf", "UoqMunThenKhung"),
     ("icon.svg", "本作程式繪製"),
 ]
 reg = open(os.path.join(root, "..", "THIRD_PARTY_LICENSES.md"), encoding="utf-8").read()
