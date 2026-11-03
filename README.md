@@ -3,7 +3,7 @@
 可愛派兵自動對決（Steam 小品）。花 100 金擺好小軍隊，按下開戰就不能再動，只能看著它們打到最後一秒。
 
 - 企劃 v1.0：[docs/2026-11-01-design-and-plan.md](docs/2026-11-01-design-and-plan.md)（§15 原型、§16 全面實作進度）
-- 三方優化方案：[第一輪](docs/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/2026-11-03-free-placement-plan-v6.md)（§11 進度）
+- 三方優化方案：[第一輪](docs/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/2026-11-03-free-placement-plan-v6.md)（§11 進度）、[第七輪 v7：綜合大優化方案](docs/2026-11-04-grand-optimization-plan-v7.md)（定稿、未實作）
 - 上架文件：[docs/release/](docs/release/)（商店頁、行銷與定價、法務、Steam 步驟）
 - 真人試玩流程：[docs/playtest/protocol.md](docs/playtest/protocol.md)
 - 第三方授權：[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
