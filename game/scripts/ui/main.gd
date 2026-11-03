@@ -463,7 +463,7 @@ func _shots_v4() -> void:
 	mouse = Vector2(-100, -100)
 	await _snap("22_lobby.png")
 	lobby_open = true
-	lobby_tab = 1
+	lobby_tab = 2
 	lobby_r.ai_pool_same = false
 	lobby_r.pool[1] = 0b0000011111
 	_lobby_touch()
@@ -477,7 +477,7 @@ func _shots_v4() -> void:
 	_lobby_touch()
 	lobby_item = "handicap"
 	await _snap("24_lobby_army.png")
-	lobby_tab = 4
+	lobby_tab = 5
 	lobby_sb_unit = D.CAVALRY
 	lobby_r.stat_pct[D.CAVALRY] = [120, 80, 150]
 	lobby_r.skills_off = ["charge"]
@@ -485,6 +485,98 @@ func _shots_v4() -> void:
 	await _snap("26_lobby_lab.png")
 	_open_lobby("duel")
 	await _snap("25_lobby_duel.png")
+	overlay = ""
+	await _shots_v6()
+
+
+## 第六輪：自由排兵（擺好的陣、畫筆預覽、框選、明牌全場、雙人全場、大廳部署分頁、覆盤）。
+func _free_rules(full := 0):
+	var r = RuleSet.standard()
+	r.deploy = "free"
+	r.spacing = Presets.FREE_SPACING
+	r.depth = Presets.FREE_DEPTH
+	r.fullfield = full
+	return r
+
+func _shots_v6() -> void:
+	_go_title()
+	overlay = ""
+	toast_t = 0.0
+	difficulty = 1
+	rules = _free_rules()
+	_start_mode(Mode.VS_AI)
+	var a = armies[0]
+	for s in [[D.SHIELD, 6200, 3000], [D.SHIELD, 6400, 3900], [D.SHIELD, 6400, 4800], [D.SHIELD, 6200, 5700],
+			[D.PIKE, 5300, 3500], [D.PIKE, 5400, 4400], [D.PIKE, 5300, 5300], [D.SWORD, 6900, 1500], [D.SWORD, 6900, 7400],
+			[D.ARCHER, 3500, 2800], [D.ARCHER, 3200, 4500], [D.ARCHER, 3500, 6200], [D.CAVALRY, 4500, 1000], [D.CAVALRY, 4500, 8000]]:
+		a.place_xy(s[0], Army.quant(s[1]), Army.quant(s[2]))
+	selected = D.ARCHER
+	show_place_help = false
+	mouse = ORIGIN + Vector2(2.0, 3.6) * CS
+	await _snap("27_free_place.png")
+	# 畫筆預覽：從左上往下拖一條
+	selected = D.SWORD
+	_fs_begin(_w_of(ORIGIN + Vector2(1.2, 1.0) * CS))
+	for k in 12:
+		mouse = ORIGIN + Vector2(1.2 + k * 0.05, 1.0 + k * 0.6) * CS
+		_fs_extend(_w_of(mouse))
+	await _snap("27b_free_brush.png")
+	_fs_cancel()
+	# 框選：選前排四面盾
+	fp_tool = "select"
+	fp_sel = [0, 1, 2, 3]
+	mouse = ORIGIN + Vector2(6.3, 4.5) * CS
+	await _snap("27c_free_select.png")
+	fp_sel = []
+	fp_tool = "brush"
+	# 打一場，留給覆盤
+	var keep = armies[0].copy()
+	_build_ai()
+	last_player_formation = keep.units.duplicate(true)
+	_begin_battle(keep.copy(), armies[1].copy())
+	while not view.finished:
+		_sim_step(false)
+	_finish_battle()
+	_open_review()
+	toast_t = 0.0
+	rv_fsel = 1
+	_rv_free_click(Vector2i(7400, 3900))
+	_rv_recalc()
+	await _snap("31_review_free.png")
+	overlay = ""
+	# 對 AI 明牌全場
+	rules = _free_rules(2)
+	_start_mode(Mode.VS_AI)
+	for s in [[D.CAVALRY, 6500, 800], [D.CAVALRY, 6500, 8200], [D.SHIELD, 6500, 4500], [D.ARCHER, 3000, 4500]]:
+		armies[0].place_xy(s[0], Army.quant(s[1]), Army.quant(s[2]))
+	selected = D.ASSASSIN
+	mouse = ORIGIN + Vector2(10.5, 4.5) * CS
+	await _snap("28_free_full_ai.png")
+	# 雙人輪流全場
+	rules = _free_rules(1)
+	_start_mode(Mode.DUEL)
+	tp.place_batch([[D.SHIELD, 6000, 4000], [D.SHIELD, 6000, 5000]])
+	tp.end_turn()
+	tp.place_batch([[D.CAVALRY, 9500, 4500], [D.ARCHER, 12500, 4500]])
+	tp.end_turn()
+	selected = D.PIKE
+	mouse = ORIGIN + Vector2(5.0, 6.0) * CS
+	await _snap("29_free_duel_full.png")
+	# 大廳：部署分頁
+	rules = null
+	_go_title()
+	_open_lobby("ai")
+	lobby_open = true
+	lobby_tab = 1
+	lobby_r.deploy = "free"
+	lobby_r.spacing = Presets.FREE_SPACING
+	lobby_r.depth = Presets.FREE_DEPTH
+	lobby_r.fullfield = 2
+	_lobby_touch()
+	lobby_item = "fullfield"
+	mouse = Vector2(-100, -100)
+	toast_t = 0.0
+	await _snap("30_lobby_deploy.png")
 	overlay = ""
 
 

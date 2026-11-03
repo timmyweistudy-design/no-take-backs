@@ -680,6 +680,7 @@ func _upos(u) -> Vector2:
 
 
 func _draw_field() -> void:
+	var free_f: bool = rules != null and rules.is_free() and (mode == Mode.VS_AI or mode == Mode.DUEL)   # 第六輪：自由排兵不畫格子
 	draw_rect(Rect2(ORIGIN - Vector2(10, 10), FIELD + Vector2(20, 20)), Color("#5b4632"))
 	for r in 9:
 		for c in 16:
@@ -689,7 +690,9 @@ func _draw_field() -> void:
 				draw_texture_rect_region(grass, cell, Rect2((h % 8) * 32, ((h / 8) % 4) * 32, 32, 32))
 			else:
 				draw_rect(cell, Color("#7cb342") if (r + c) % 2 == 0 else Color("#73a83d"))
-			if c < 6:
+			if free_f:
+				pass
+			elif c < 6:
 				draw_rect(cell, Color(Art.team_color(0, cbm()), 0.08))
 			elif c >= 10:
 				draw_rect(cell, Color(Art.team_color(1, cbm()), 0.06))
@@ -711,12 +714,13 @@ func _draw_field() -> void:
 			var an := k * PI / 2.0 + i
 			draw_circle(fp + Vector2(cos(an), sin(an)) * 2.2, 1.8, Color(fc, 0.75), true, -1.0, true)
 		draw_circle(fp, 1.3, Color("#f4a300"), true, -1.0, true)
-	for i in 17:
-		draw_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, FIELD.y), Color(0, 0, 0, 0.07), 1)
-	for i in 10:
-		draw_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(FIELD.x, i * CS), Color(0, 0, 0, 0.07), 1)
-	draw_dashed_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, FIELD.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
-	draw_dashed_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, FIELD.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
+	if not free_f:
+		for i in 17:
+			draw_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, FIELD.y), Color(0, 0, 0, 0.07), 1)
+		for i in 10:
+			draw_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(FIELD.x, i * CS), Color(0, 0, 0, 0.07), 1)
+		draw_dashed_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, FIELD.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
+		draw_dashed_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, FIELD.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
 	# 戰場色調（R6）：一般晨曦、殘局黃昏、遠征月夜。純調色，畫在單位底下，不影響辨識
 	var tone := _tone()
 	if tone.a > 0.0:

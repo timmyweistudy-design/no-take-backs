@@ -1,4 +1,4 @@
-extends "res://scripts/ui/lobby_view.gd"
+extends "res://scripts/ui/free_place.gd"
 ## 狀態機、模式、輸入、擺放、標題、選單、設定、結果、成就。
 
 func _ready() -> void:
@@ -119,6 +119,8 @@ func _reset_place(keep_blue := false) -> void:
 	sim = null
 	view = null
 	pending_cell = Vector2i(-1, -1)
+	ai_prebuilt = false
+	_fp_reset()
 	# 第一次進擺放畫面自動打開操作說明（第五輪：說明從頂部移到「?」）
 	if not bool(Save.data.get("seen_place_help", false)) and (mode == Mode.VS_AI or mode == Mode.DUEL) and shot_dir == "":
 		show_place_help = true
@@ -139,6 +141,18 @@ func _reset_place(keep_blue := false) -> void:
 		Mode.VS_AI:
 			if blue_keep != null:
 				armies[0] = blue_keep
+			if rules != null and rules.fullfield == 2:
+				# 第六輪：對 AI 明牌全場——AI 先在自己半場擺好並公開，你在全場離敵兵 1.5 格外擺
+				_build_ai()
+				ai_prebuilt = true
+				armies[0].enemy_pos = []
+				for u in armies[1].units:
+					armies[0].enemy_pos.append(armies[1].pos_of(u))
+				var keep: Array = armies[0].units.duplicate(true)
+				armies[0].units = []
+				for u in keep:
+					var pp: Vector2i = armies[0].pos_of(u)
+					armies[0].place_xy(int(u["type"]), pp.x, pp.y)   # 保留的陣型和新的明牌陣衝突的就拿掉
 		Mode.DUEL:
 			if duel_rule != "blind":
 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule, rules)
@@ -241,7 +255,15 @@ func _on_start() -> void:
 	if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() > gauntlet_changes:
 		_toast(L.t("err_changes"), true)
 		return
-	if mode == Mode.VS_AI:
+	if mode == Mode.VS_AI and not ai_prebuilt:
+		_build_ai()
+	last_player_formation = armies[0].units.duplicate(true)
+	_begin_battle(armies[0].copy(), armies[1].copy())
+
+
+## 組 AI 的陣型（第六輪：明牌全場時在擺放開始就組好）。
+func _build_ai() -> void:
+	if true:
 		var r := RandomNumberGenerator.new()
 		r.seed = rng.randi()
 		var p1: int = rules.pool_of(1) if rules != null else _pool()
@@ -256,8 +278,6 @@ func _on_start() -> void:
 			_:
 				armies[1] = _hard_ai(r)
 				ai_name = L.t("diff_hard")
-	last_player_formation = armies[0].units.duplicate(true)
-	_begin_battle(armies[0].copy(), armies[1].copy())
 
 
 ## 困難 AI：第 1 局沒有資訊，用會讀對方的落子 AI 自己組；之後讀你上一局的陣型，
@@ -655,9 +675,14 @@ func _try_remove(c: Vector2i) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
+		fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
+		return
 	if ev is InputEventMouseMotion:
 		mouse = ev.position
 		pad_mode = false
+		if ev.device != InputEvent.DEVICE_ID_EMULATION:
+			fp_touch = false
 		hover_card = _card_at(mouse)
 		_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
 		return
@@ -671,6 +696,10 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed:
 		if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
 			_enqueue("key", ev.keycode)
+		return
+	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+		pad_mode = true
+		_enqueue("padbtn", {"b": ev.button_index, "pressed": ev.pressed})   # 第六輪：自由排兵要知道按下與放開
 		return
 	if ev is InputEventJoypadButton and ev.pressed:
 		pad_mode = true
@@ -694,6 +723,10 @@ func _input(ev: InputEvent) -> void:
 
 ## 塗兵（佇列命令）：按住拖過格子連續擺。
 func _paint_cmd(p: Vector2) -> void:
+	if _is_free():
+		if overlay == "":
+			_fp_motion(p)
+		return
 	if state != St.PLACE or overlay != "" or not painting:
 		return
 	if _cur_army().team != paint_team:
@@ -721,6 +754,8 @@ func _mb_cmd(d: Dictionary) -> void:
 		if _do_click(mouse) > 0:
 			_mb_release_cleanup()
 			return
+	if state == St.PLACE and overlay == "" and _fp_mb(d):
+		return   # 第六輪：自由排兵處理掉了
 	if overlay != "" or state != St.PLACE:
 		if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
 			_mb_release_cleanup()
@@ -772,6 +807,8 @@ func _mb_cmd(d: Dictionary) -> void:
 
 
 func _key(k: int) -> void:
+	if state == St.PLACE and _fp_key(k):
+		return
 	# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
 	if state != St.PLACE or overlay != "":
 		match k:
@@ -834,6 +871,9 @@ var _stick_dir := Vector2i.ZERO
 var _stick_t := 0.0
 
 func _stick_repeat(delta: float) -> void:
+	if _is_free() and overlay == "":
+		_fp_pad_process(delta, Vector2(stick[JOY_AXIS_LEFT_X], stick[JOY_AXIS_LEFT_Y]))   # 第六輪：平滑游標
+		return
 	var d := _stick_dir
 	for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
 		var v: float = stick[ax]
@@ -949,8 +989,12 @@ func _draw_inner() -> void:
 	if state == St.TITLE:
 		_draw_units_of(demo, true)
 	elif state == St.PLACE:
-		_draw_place_units()
-		_draw_tactical()
+		if _is_free():
+			_fp_draw_zones()   # 第六輪：自由排兵
+			_fp_draw()
+		else:
+			_draw_place_units()
+			_draw_tactical()
 	else:
 		_draw_units_of(view, false)
 	perf_parts["units"] = Time.get_ticks_usec() - _t
@@ -1446,9 +1490,8 @@ func _draw_slots() -> void:
 		var can_load := code != ""
 		var note := ""
 		if code != "":
-			var tmp := Army.new(0, 400)
-			tmp.unit_cap = 54
-			if tmp.load_code(code) == "":
+			var tmp = _decode_any(code)
+			if not tmp is String:
 				var cnt := D.zeros()
 				for u in tmp.units:
 					cnt[u["type"]] += 1
@@ -1463,7 +1506,10 @@ func _draw_slots() -> void:
 						note = L.t("slot_will_drop", [tmp.units.size() - n_ok])
 			else:
 				can_load = false
-		var head := "%s　%s" % [L.t("slot", [i + 1]), desc]
+		var tag := ""
+		if code != "":
+			tag = "［%s］" % L.t("lb_deploy_short_free" if code.begins_with("NTB5.") else "lb_deploy_short_grid")   # 存檔格標自由／格子
+		var head := "%s　%s%s" % [L.t("slot", [i + 1]), tag, desc]
 		_text(Vector2(360, y + 4), head, ts(16), Color.WHITE, false, false, 330)
 		if note != "":
 			_text(Vector2(360, y + 4 + text_h(head, ts(16), 330)), note, tz("C"), Color("#ffb4a0"), false, false, 330)   # 依組成實際換行後的高度往下排
@@ -1474,6 +1520,24 @@ func _draw_slots() -> void:
 	_btn(Rect2(560, 600, 160, 36), L.t("back"), func(): overlay = "")
 
 
+## 第六輪：解任何陣型代碼（NTB1 格子／NTB5 自由），不套這局的限制；回傳 Army 或錯誤字串。
+func _decode_any(code: String):
+	var raw := Army.new(armies[0].team, 400)
+	raw.unit_cap = 54
+	if code.strip_edges().begins_with("NTB5."):
+		raw.deploy = "free"
+		raw.spacing = 600
+		raw.depth = 15800
+	var w0 := raw.load_code(code)
+	return raw if w0 == "" else w0
+
+## 把一隻（格子或自由座標）放進 keep：自由規則照座標放；格子規則吸附到最近的格子（Antigravity 第二輪：自由陣型也能用在格子）。
+func _place_from(keep, u: Dictionary) -> bool:
+	var p: Vector2i = Army.pos_of(u)
+	if keep.deploy == "free":
+		return keep.place_xy(int(u["type"]), Army.quant(p.x), Army.quant(p.y))
+	return keep.place(int(u["type"]), clampi(p.x / 1000, 0, 15), clampi(p.y / 1000, 0, 8))
+
 ## 這個陣型在這一局的規則下能放上去幾隻（跟 _load_checked 同一套：先戰鬥兵、保留戰鬥兵名額）。
 func _slot_fit_count(raw) -> int:
 	var keep = armies[0].copy()
@@ -1483,7 +1547,7 @@ func _slot_fit_count(raw) -> int:
 	ordered.sort_custom(func(p, q): return (0 if not D.is_support(int(p["type"])) else 1) < (0 if not D.is_support(int(q["type"])) else 1))
 	var n := 0
 	for u in ordered:
-		if keep.place(int(u["type"]), int(u["col"]), int(u["row"])):
+		if _place_from(keep, u):
 			n += 1
 	return n
 
@@ -1517,11 +1581,9 @@ func _paste_code() -> void:
 func _load_checked(code: String) -> String:
 	if rules != null:
 		# 第五輪：自訂規則下，存檔格的陣型照這局的限制重新驗證——合法的放上去、不合法的拿掉，並用橫幅列出來
-		var raw := Army.new(armies[0].team, 400)
-		raw.unit_cap = 54
-		var w0 := raw.load_code(code)
-		if w0 != "":
-			return w0
+		var raw = _decode_any(code)
+		if raw is String:
+			return raw
 		var keep = armies[0].copy()
 		keep.units = []
 		keep.guard_combat = true   # 保留戰鬥兵需要的錢與名額（Codex 實作第 2 輪：不會載入成只剩支援兵）
@@ -1530,7 +1592,7 @@ func _load_checked(code: String) -> String:
 		ordered.sort_custom(func(p, q): return (0 if not D.is_support(int(p["type"])) else 1) < (0 if not D.is_support(int(q["type"])) else 1))
 		for u in ordered:
 			var t := int(u["type"])
-			if not keep.place(t, int(u["col"]), int(u["row"])):
+			if not _place_from(keep, u):
 				gone[t] = int(gone.get(t, 0)) + 1
 		armies[0].units = keep.units
 		if not gone.is_empty():
@@ -1723,7 +1785,11 @@ func _draw_place_help() -> void:
 	if not show_place_help:
 		return
 	var lines: Array = []
-	if mode == Mode.DUEL and tp != null:
+	if _is_free():
+		# 第六輪：自由排兵的手勢（雙人＝放開即落子、不能收回）
+		lines.append(L.t("place_hint_fp_turns" if mode == Mode.DUEL and tp != null else "place_hint_fp"))
+		lines.append(L.t("place_hint_fp_tools"))
+	elif mode == Mode.DUEL and tp != null:
 		lines.append(L.t("place_hint_turns"))
 	else:
 		lines.append(L.t("place_hint_free"))
@@ -2014,6 +2080,12 @@ func _process_cmds() -> int:
 			done += 1
 		elif c["kind"] == "paint":
 			_paint_cmd(c["data"])
+		elif c["kind"] == "padbtn":
+			if not _fp_pad_button(int(c["data"]["b"]), bool(c["data"]["pressed"])) and c["data"]["pressed"]:
+				var mp := {JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_B: KEY_ESCAPE}
+				if mp.has(int(c["data"]["b"])):
+					_key(mp[int(c["data"]["b"])])
+			done += 1
 		elif c["kind"] == "key":
 			_key(int(c["data"]))
 			done += 1

@@ -36,6 +36,8 @@ func _init() -> void:
 	if "--only=free" in OS.get_cmdline_user_args():
 		test_free_v6()
 		test_free_skip_v6()
+		test_review_free_v6()
+		test_to_free_keeps_units_v6()
 		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 		quit(1 if failed > 0 or passed == 0 else 0)
 		return
@@ -86,6 +88,8 @@ func _init() -> void:
 	test_lobby_reopen_v5()
 	test_free_v6()
 	test_free_skip_v6()
+	test_review_free_v6()
+	test_to_free_keeps_units_v6()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -2583,6 +2587,50 @@ func test_free_v6() -> void:
 		if why != "" or not a.has_combat():
 			ab.append([k, why])
 	ok(ab.is_empty(), "AI 自由擺法 60 組規則（簡單／普通／困難、間距、縱深、明牌全場）：陣型合法、只在自己半場、有戰鬥兵", str(ab.slice(0, 3)))
+
+## 第六輪（篩選抓到的）：格子陣型轉自由陣型，三種排法、全部間距×縱深都不能少兵、都要合法
+func test_to_free_keeps_units_v6() -> void:
+	var F = load("res://scripts/core/formations.gd")
+	var bad: Array = []
+	var n := 0
+	for sp in [600, 650, 700, 750, 800, 850, 900, 950, 1000]:
+		for dp in [6000, 6500, 7000, 7500]:
+			var r = free_rules(sp, dp)
+			var src: Array = F.pool(0, 30, 777, 10)
+			var rng := RandomNumberGenerator.new()
+			for i in src.size():
+				for st in ["stretch", "jitter", "dense"]:
+					rng.seed = i
+					var a = F.to_free(src[i], r, rng, st)
+					n += 1
+					var why := legal_free(a, r, 0)
+					if a.units.size() != src[i].units.size() or why != "":
+						bad.append("%d/%d %s #%d：%d→%d %s" % [sp, dp, st, i, src[i].units.size(), a.units.size(), why])
+	ok(bad.is_empty(), "格子轉自由 %d 套（9 種間距 × 4 種縱深 × 三種排法）都不少兵且合法" % n, str(bad.slice(0, 5)))
+
+## 第六輪：自由陣型覆盤的改動計數依 eid（編輯識別），不依戰鬥編號
+func test_review_free_v6() -> void:
+	var RV = load("res://scripts/ui/replay_view.gd")
+	var r = free_rules()
+	var a = Army.new(0, 1000)
+	a.apply_rules(r, 0)
+	for p in [[0, 1000, 1000], [0, 2000, 3000], [1, 3000, 5000]]:
+		a.place_xy(p[0], p[1], p[2])
+	for i in a.units.size():
+		a.units[i]["eid"] = i
+	var b = a.copy()
+	ok(RV.review_changes(a, b) == 0, "覆盤自由：沒改＝0")
+	b.move_xy(0, 1500, 1000)
+	ok(RV.review_changes(a, b) == 1, "覆盤自由：搬一隻＝1")
+	var c = a.copy()
+	c.units.remove_at(1)
+	ok(RV.review_changes(a, c) == 1, "覆盤自由：拿掉一隻＝1")
+	b.units.remove_at(2)
+	ok(RV.review_changes(a, b) == 2, "覆盤自由：搬一隻又拿掉一隻＝2")
+	# 搬到比別人前面（排序會變）也只算 1
+	var d = a.copy()
+	d.move_xy(2, 3000, 200)
+	ok(RV.review_changes(a, d) == 1, "覆盤自由：排序改變仍只算 1")
 
 func test_free_skip_v6() -> void:
 	# 紅方先把全場每 2 格擺一隻（雙人全場、離敵 1.5 格）→ 藍方沒有任何合法位置 → 自動跳手並記錄

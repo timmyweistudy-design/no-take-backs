@@ -27,6 +27,13 @@ func _init() -> void:
 	NT = int(args.get("ntypes", str(D.COUNT)))   # 第四輪：池子開放的兵種數（5＝經典，和第三輪相同）
 	var shard := int(args.get("shard", "0"))
 	var shards := int(args.get("shards", "1"))
+	if args.has("free"):
+		# 第六輪：自由部署聯賽（--free=間距,縱深）：池子轉成自由陣型（拉開／偏移／密集輪流），模擬傳規則
+		var fv := str(args["free"]).split(",")
+		FREE_R = load("res://scripts/core/ruleset.gd").standard()
+		FREE_R.deploy = "free"
+		FREE_R.spacing = int(fv[0])
+		FREE_R.depth = int(fv[1])
 	match args.get("mode", "league"):
 		"matrix": matrix(shard, shards)
 		"league": league(shard, shards)
@@ -43,11 +50,15 @@ var NT := D.COUNT
 func emit(d: Dictionary) -> void:
 	d["digest"] = D.data_digest()
 	d["ntypes"] = NT
+	if FREE_R != null:
+		d["free"] = "%d,%d" % [FREE_R.spacing, FREE_R.depth]
 	print("R ", JSON.stringify(d))
 
 ## 打一場：a 是藍方陣型（team 0）、b 也是以藍方表示的陣型（會鏡像成紅方）。回傳以 a 的角度的結果。
+var FREE_R = null
+
 func fight(a: Army, b: Army) -> Dictionary:
-	var s := Sim.new(a.copy(), b.mirrored())
+	var s := Sim.new(a.copy(), b.mirrored(), FREE_R)
 	s.fast = true
 	s.run_to_end()
 	var m: Dictionary = s.suspense()
@@ -58,7 +69,7 @@ func fight(a: Army, b: Army) -> Dictionary:
 		res = -1
 	var rem := 0
 	if s.winner >= 0:
-		rem = s.power(s.winner) * 100 / (s.budget * 1000)
+		rem = s.power(s.winner) * 100 / (s.budget_of(s.winner) * 1000)
 	return {"res": res, "ticks": s.tick, "rem": rem, "timeout": s.reason.begins_with("時間到"),
 		"lc": m["lead_changes"], "lock": m["lock_ratio_permille"], "swing": m["max_swing_pct"]}
 
@@ -90,6 +101,11 @@ func matrix(shard: int, shards: int) -> void:
 
 func league(shard: int, shards: int, val := false, sealed := false) -> void:
 	var pool := F.sealed_pool(0, NT) if sealed else (F.validation_pool(0, NT) if val else F.training_pool(0, NT))
+	if FREE_R != null:
+		var rngf := RandomNumberGenerator.new()
+		for pi in pool.size():
+			rngf.seed = 31337 + pi
+			pool[pi] = F.to_free(pool[pi], FREE_R, rngf, ["stretch", "jitter", "dense"][pi % 3])
 	for i in pool.size():
 		if i % shards != shard:
 			continue
@@ -104,6 +120,10 @@ func league(shard: int, shards: int, val := false, sealed := false) -> void:
 					r["res"] = -r["res"]
 				r["mode"] = "sealleague" if sealed else ("valleague" if val else "league"); r["a"] = i; r["b"] = j; r["k"] = k; r["side"] = side; r["comp"] = F.composition(pool[i])
 				emit(r)
+
+## 第六輪：每一列帶部署設定（報表分組用）
+func _free_tag() -> String:
+	return "" if FREE_R == null else "%d,%d" % [FREE_R.spacing, FREE_R.depth]
 
 func turns(shard: int, shards: int) -> void:
 	var rule: String = args.get("rule", "cap10")

@@ -35,6 +35,13 @@ func _init() -> void:
 	var shard := int(args.get("shard", "0"))
 	var shards := int(args.get("shards", "1"))
 	var nt := int(args.get("ntypes", str(D.COUNT)))
+	if args.has("free"):
+		# 第六輪：自由部署驗收（--free=間距,縱深）：每套陣型照規則用「拉開」轉成自由座標，模擬傳規則
+		var fv := str(args["free"]).split(",")
+		FREE_R = load("res://scripts/core/ruleset.gd").standard()
+		FREE_R.deploy = "free"
+		FREE_R.spacing = int(fv[0])
+		FREE_R.depth = int(fv[1])
 	match args.get("mode", "core"):
 		"core": core(shard, shards)
 		"repl": repl(int(args.get("unit", "5")), nt, shard, shards)
@@ -42,7 +49,7 @@ func _init() -> void:
 		"cover": cover(int(args.get("unit", "7")), nt, shard, shards)
 		"contract":
 			# 實驗契約（Codex 實作審查第 2 輪 #7）：規則、數值摘要、兩個對手池的身分；報表逐列核對
-			print("CONTRACT ", JSON.stringify({"rules": D.RULES_VERSION, "digest": D.data_digest(), "ntypes": nt, "code": code_hash(),
+			print("CONTRACT ", JSON.stringify({"rules": D.RULES_VERSION, "digest": D.data_digest(), "ntypes": nt, "code": code_hash(), "free": str(args.get("free", "")),
 				"pool_val": pool_hash(F.validation_pool(0, nt)), "pool_shield": pool_hash(shield_pool(200))}))
 	quit(0)
 
@@ -71,16 +78,26 @@ func emit(d: Dictionary) -> void:
 	d["digest"] = D.data_digest()
 	d["rules"] = D.RULES_VERSION
 	d["src"] = _code
+	if FREE_R != null:
+		d["free"] = "%d,%d" % [FREE_R.spacing, FREE_R.depth]
 	if pool_id != "":
 		d["pool"] = pool_id
 	print("R ", JSON.stringify(d))
 
 ## a 是藍方表示的陣型（team 0）、b 也是；交換左右各打一場。回傳 a 的得分列表 [第一場, 第二場]（1／0.5／0）。
+static var FREE_R = null
+
+## 自由部署時把格子陣型轉成自由座標（替換實驗換上的兵在同一個座標：先換兵、再轉座標）。
+static func fz(a: Army) -> Army:
+	return a if FREE_R == null else F.to_free(a, FREE_R, null, "stretch")
+
 static func duel2(a: Army, b: Army) -> Array:
-	var s1 = Sim.new(a.copy(), b.mirrored())
+	a = fz(a)
+	b = fz(b)
+	var s1 = Sim.new(a.copy(), b.mirrored(), FREE_R)
 	s1.fast = true
 	s1.run_to_end()
-	var s2 = Sim.new(b.copy(), a.mirrored())
+	var s2 = Sim.new(b.copy(), a.mirrored(), FREE_R)
 	s2.fast = true
 	s2.run_to_end()
 	return [1.0 if s1.winner == 0 else (0.5 if s1.winner < 0 else 0.0), 1.0 if s2.winner == 1 else (0.5 if s2.winner < 0 else 0.0)]
@@ -193,7 +210,9 @@ static func duel2_cover(a: Army, b: Army, sup: int) -> Array:
 	var covs: Array = []
 	var res: Array = []
 	for side in 2:
-		var s = Sim.new(a.copy(), b.mirrored()) if side == 0 else Sim.new(b.copy(), a.mirrored())
+		var fa := fz(a)
+		var fb := fz(b)
+		var s = Sim.new(fa.copy(), fb.mirrored(), FREE_R) if side == 0 else Sim.new(fb.copy(), fa.mirrored(), FREE_R)
 		s.fast = true
 		var me := 0 if side == 0 else 1
 		var start := 0.0

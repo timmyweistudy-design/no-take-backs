@@ -13,7 +13,7 @@ var lobby_item := ""           # 說明欄目前說明的項目
 var lobby_menu := false        # 「我的預設」下拉
 var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 
-const LOBBY_TABS := ["lb_tab_army", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
+const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
 
 func _lobby_unlocked() -> int:
 	return RuleSet.prefix_pool(RS.unlocked_count(_unlock_games(), OS.has_feature("demo")))
@@ -187,6 +187,29 @@ func _lobby_adj(id: String, d: int) -> void:
 			r.ai_level = clampi(r.ai_level + d, 0, 2)
 		"keep":
 			r.keep_formation = not r.keep_formation
+		"deploy":
+			# 第六輪：格子／自由；切到格子時部署欄位回到舊值（NTBR1）
+			if r.deploy == "grid":
+				r.deploy = "free"
+				r.spacing = Presets.FREE_SPACING
+				r.depth = Presets.FREE_DEPTH
+			else:
+				r.deploy = "grid"
+				r.spacing = 1000
+				r.depth = RuleSet.DEPTH_GRID
+				r.fullfield = RuleSet.FULL_NONE
+		"spacing":
+			if r.deploy == "free":
+				r.spacing = clampi(r.spacing + 50 * d, RuleSet.SPACING_MIN, RuleSet.SPACING_MAX)
+		"depth":
+			if r.deploy == "free":
+				r.depth = clampi(r.depth + 500 * d, RuleSet.DEPTH_MIN, RuleSet.DEPTH_MAX)
+		"fullfield":
+			if r.deploy == "free":
+				var want := RuleSet.FULL_AI if lobby_kind == "ai" else RuleSet.FULL_DUEL
+				r.fullfield = RuleSet.FULL_NONE if r.fullfield != RuleSet.FULL_NONE else want
+				if r.fullfield == RuleSet.FULL_DUEL and r.place_rule == "blind":
+					r.place_rule = "snake5"
 		"ai_pool_same":
 			r.ai_pool_same = not r.ai_pool_same
 			if not r.ai_pool_same:
@@ -241,6 +264,8 @@ func _summary(r) -> String:
 	parts.append(L.t("lb_sum_cap", [r.unit_cap]))
 	parts.append(L.t("lb_sum_secs", [_secs(r.ticks)]))
 	parts.append(_rounds_text(r.rounds))
+	if r.deploy == "free":
+		parts.append(L.t("lb_sum_free") if r.fullfield == 0 else L.t("lb_sum_full"))
 	return "・".join(parts)
 
 func _badge_pill(p: Vector2, b: String) -> float:
@@ -419,6 +444,12 @@ func _draw_lobby_notes(R: Rect2) -> void:
 func _diff_text(d: Array) -> String:
 	var k: String = d[0]
 	match k:
+		"rr_deploy":
+			return "%s %s→%s" % [L.t(k), L.t("lb_deploy_short_" + str(d[1])), L.t("lb_deploy_short_" + str(d[2]))]
+		"rr_spacing", "rr_depth":
+			return "%s %.2f→%.2f" % [L.t(k), int(d[1]) / 1000.0, int(d[2]) / 1000.0]
+		"rr_full":
+			return "%s %s" % [L.t(k), L.t("on") if int(d[2]) != 0 else L.t("off")]
 		"rr_pool", "rr_ai_pool":
 			return L.t(k + "_d", [d[1], d[2]])
 		"rr_rounds":
@@ -468,8 +499,16 @@ func _draw_lobby_detail(R: Rect2) -> void:
 			rows.append(["type_cap", L.t("lb_type_cap"), L.t("lb_nolimit") if lobby_r.type_cap == 0 else L.t("lb_n_units", [lobby_r.type_cap])])
 			_rows(L0, rows)
 		1:
-			_draw_pool_tab(L0)
+			var fr: bool = lobby_r.deploy == "free"
+			var rowsd: Array = [["deploy", L.t("lb_deploy"), L.t("lb_deploy_free") if fr else L.t("lb_deploy_grid")]]
+			if fr:
+				rowsd.append(["spacing", L.t("lb_spacing"), L.t("lb_cells", [lobby_r.spacing / 1000.0])])
+				rowsd.append(["depth", L.t("lb_depth"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
+				rowsd.append(["fullfield", L.t("lb_full_ai") if lobby_kind == "ai" else L.t("lb_full_duel"), L.t("on") if lobby_r.fullfield != 0 else L.t("off")])
+			_rows(L0, rowsd)
 		2:
+			_draw_pool_tab(L0)
+		3:
 			var rows2: Array = [["ticks", L.t("lb_time"), L.t("lb_n_secs", [_secs(lobby_r.ticks)])], ["rounds", L.t("lb_rounds"), _rounds_text(lobby_r.rounds)]]
 			if lobby_kind == "duel":
 				rows2.append(["place_rule", L.t("lb_place_rule"), _place_text(lobby_r.place_rule)])
@@ -479,10 +518,10 @@ func _draw_lobby_detail(R: Rect2) -> void:
 					rows2.append(["carry", L.t("lb_carry"), L.t("on") if lobby_r.carry else L.t("off")])
 			rows2.append(["keep", L.t("lb_keep"), L.t("on") if lobby_r.keep_formation else L.t("off")])
 			_rows(L0, rows2)
-		3:
+		4:
 			_rows(L0, [["ai_level", L.t("lb_ai_level"), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])],
 				["ai_pool_same", L.t("lb_ai_pool_same"), L.t("on") if lobby_r.ai_pool_same else L.t("off")]])
-		4:
+		5:
 			_draw_lab_tab(L0)
 	_draw_lobby_desc(D0)
 
@@ -557,7 +596,7 @@ func _draw_lobby_desc(R: Rect2) -> void:
 	var x := R.position.x + 16
 	var w := R.size.x - 32
 	var y := R.position.y + 14
-	var id: String = lobby_item if lobby_item != "" else ["budget", "pool", "ticks", "ai_level", "lab"][lobby_tab]
+	var id: String = lobby_item if lobby_item != "" else ["budget", "deploy", "pool", "ticks", "ai_level", "lab"][lobby_tab]
 	_text(Vector2(x, y), L.t("lbd_t_" + id), tz("H2"), ACCENT, false, true, w)
 	y += tz("H2") * 1.6
 	var body := L.t("lbd_" + id)

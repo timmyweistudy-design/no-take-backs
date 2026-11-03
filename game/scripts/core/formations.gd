@@ -185,15 +185,18 @@ static func to_free(src: Army, r, rng: RandomNumberGenerator, style := "stretch"
 			lst.append([-src.own_x(p.x) * 10 + int(u["row"]) if u.has("row") else 0, int(u["type"])])
 		lst.sort_custom(func(p, q): return p[0] < q[0])
 		var sp: int = r.spacing
-		var rows_per_col := maxi(1, (8600 - 200) / sp + 1)
-		var dx_col := int(sp * 0.87)
+		# 欄距、半格錯位都往上取到 50 的倍數（量化後才不會比間距近；第六輪篩選抓到 1.0 格會掉兵）
+		var dx_col := _ceil50(sp * 87 / 100)
+		var half := _ceil50(sp / 2)
+		var rows_per_col := maxi(1, (Army.H - Army.EDGE - 400 - half) / sp + 1)
 		var k := 0
 		for e in lst:
 			var col := k / rows_per_col
 			var rr := k % rows_per_col
-			var ox := Army.quant(depth - col * dx_col)
-			var y := Army.quant(400 + rr * sp + (sp / 2 if col % 2 == 1 else 0))
-			a.place_xy(e[1], a.world_x(ox), y)
+			var ox := depth - col * dx_col
+			var y := 400 + rr * sp + (half if col % 2 == 1 else 0)
+			if ox < Army.EDGE or not a.place_xy(e[1], a.world_x(ox), y):
+				return to_free(src, r, rng, "stretch")   # 放不下（極端組成）就退回拉伸，不能少兵
 			k += 1
 		return a
 	for u in src.units:
@@ -206,8 +209,14 @@ static func to_free(src: Army, r, rng: RandomNumberGenerator, style := "stretch"
 			ny += rng.randi_range(-j, j)
 		nox = clampi(Army.quant(nox), Army.EDGE, depth)
 		ny = clampi(Army.quant(ny), Army.EDGE, Army.H - Army.EDGE)
-		a.place_xy(int(u["type"]), a.world_x(nox), ny)
+		if not a.place_xy(int(u["type"]), a.world_x(nox), ny):
+			if style != "stretch":
+				return to_free(src, r, rng, "stretch")   # 抖動後撞到：整套改用拉伸（不能少兵）
+			push_error("to_free：拉伸後放不下 (%d,%d)" % [nox, ny])
 	return a
+
+static func _ceil50(v: int) -> int:
+	return int(ceil(v / 50.0)) * 50
 
 ## 自由陣型池：同一個格子池，各自轉成 stretch／jitter／dense（種子固定）。
 static func free_pool(team: int, count: int, seed_base: int, r, ntypes := D.COUNT) -> Array:

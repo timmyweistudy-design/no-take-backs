@@ -100,6 +100,7 @@ var settings_tab := 0        # 第五輪：設定分頁 0 畫面 1 聲音 2 操�
 var settings_item := ""      # 設定說明欄目前說明的項目
 var result_tab := 0           # 第五輪：結果頁 0＝摘要、1＝詳細數據
 var result_metric := 0        # 詳細數據：0＝輸出、1＝承傷
+var ai_prebuilt := false        # 第六輪：明牌全場時 AI 已經在擺放開始組好
 var show_place_help := false   # 第五輪：擺放畫面的操作說明（「?」）
 var pending_cell := Vector2i(-1, -1)   # 第五輪：雙人輪流落子「點兩下才落子」的預覽格
 var removed_banner := ""       # 第五輪：規則變更移除了哪些兵（醒目橫幅）
@@ -327,7 +328,8 @@ func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStrin
 				i = j
 			else:
 				i += 1
-			if cur != "" and _width(cur + tok, size, bold) > maxw:
+			# 避頭點（第六輪截圖）：句號、逗號、右括號不放行首，掛在上一行尾
+			if cur != "" and _width(cur + tok, size, bold) > maxw and not ("。，、）」』！？；：%" .contains(tok) and tok.length() == 1):
 				out.append(cur.strip_edges(false, true))
 				cur = tok.strip_edges(true, false) if tok == " " else tok
 			else:

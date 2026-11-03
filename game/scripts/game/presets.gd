@@ -10,6 +10,9 @@ const IDS := ["standard", "classic5", "all10", "small", "big", "single"]
 const BADGE_CERT := "cert"       # 平衡認證（綠）
 const BADGE_FUN := "fun"         # 娛樂變體（黃）
 const BADGE_LAB := "lab"         # 沙盒（紫）
+# 第六輪：自由排兵的標準間距與縱深（§6.3 全因子實驗後決定）
+const FREE_SPACING := 800
+const FREE_DEPTH := 7500
 
 static func make(id: String, kind: String, unlocked: int):
 	var r = RSET.standard(unlocked)
@@ -50,9 +53,16 @@ static func badge(r, kind: String) -> String:
 	if r.is_sandbox():
 		return BADGE_LAB
 	var base: bool = r.budget_of(0) == 100 and r.budget_of(1) == 100 and r.unit_cap == 24 and r.type_cap == 0 and r.ticks == 1800
+	# 第六輪：部署也要是驗過的——格子，或自由＋預設的間距與縱深；全場一律算娛樂變體
+	base = base and deploy_certified(r)
 	if kind == "ai":
 		return BADGE_CERT if base and is_prefix(r.pool_of(0)) and r.pool_of(1) == r.pool_of(0) else BADGE_FUN
 	return BADGE_CERT if base and r.pool_of(0) == 31 and r.pool_of(1) == 31 and r.place_rule == "snake5" and not r.carry else BADGE_FUN
+
+static func deploy_certified(r) -> bool:
+	if r.fullfield != 0:
+		return false
+	return r.deploy == "grid" or (r.spacing == FREE_SPACING and r.depth == FREE_DEPTH)
 
 ## 算不算「標準紀錄」（標準戰績、標準成就；Codex 實作第 1 輪：和「平衡認證」分開判定）。
 ## 除了認證條件，系列也要是標準的：三戰兩勝、保留陣型、沒有讓子；對 AI 卡池兩邊相同；雙人 snake5、不累積。

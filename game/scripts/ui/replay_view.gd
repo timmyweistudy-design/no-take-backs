@@ -177,10 +177,25 @@ func watch_code(a0, a1, p_rules = null) -> void:
 
 
 # ── 覆盤 ──
+var rv_fsel := -1   # 第六輪：自由陣型覆盤選中的那一隻（索引）
+
 func _open_review() -> void:
 	rv_orig = last_armies[0].copy()
 	rv_army = last_armies[0].copy()
 	rv_enemy = last_armies[1].copy()
+	rv_fsel = -1
+	if rv_orig.deploy == "free":
+		# 編輯識別（和戰鬥編號分開，Codex 第一輪）：覆盤時每隻帶 eid，「只改一隻」依 eid 比
+		for i in rv_orig.units.size():
+			rv_orig.units[i]["eid"] = i
+			rv_army.units[i]["eid"] = i
+		# 全場：搬移時也要守敵距
+		var ep: Array = []
+		for u in rv_enemy.units:
+			ep.append(Army.pos_of(u))
+		if rv_orig.depth > Army.W / 2:
+			rv_army.enemy_pos = ep
+			rv_orig.enemy_pos = ep.duplicate()
 	rv_sel = Vector2i(-1, -1)
 	rv_result = {}
 	rv_base = review_run(rv_orig, rv_enemy, battle_rules)
@@ -188,6 +203,21 @@ func _open_review() -> void:
 
 ## 跟原本比改了幾隻（換兵種、移位、拿掉、新增都算一隻）。
 static func review_changes(orig, now) -> int:
+	if orig.deploy == "free":
+		var ma := {}
+		for u in orig.units:
+			ma[int(u.get("eid", -1))] = [int(u["type"]), int(u["x"]), int(u["y"])]
+		var n := 0
+		var seen := {}
+		for u in now.units:
+			var e := int(u.get("eid", -1))
+			seen[e] = true
+			if not ma.has(e) or ma[e] != [int(u["type"]), int(u["x"]), int(u["y"])]:
+				n += 1
+		for e in ma:
+			if not seen.has(e):
+				n += 1
+		return n
 	var a := {}
 	var b := {}
 	for u in orig.units:
@@ -221,7 +251,49 @@ func _rv_cell(c: Vector2i) -> void:
 		return
 	rv_sel = c
 
+## 第六輪：自由陣型覆盤——點小戰場：點到兵就選它；選了之後點空地就搬過去。
+func _rv_free_click(w: Vector2i) -> void:
+	var hit: int = rv_army.index_near(w.x, w.y, 450)
+	if hit >= 0:
+		rv_fsel = hit
+		return
+	if rv_fsel < 0:
+		return
+	var trial = rv_army.copy()
+	if not trial.move_xy(rv_fsel, Army.quant(w.x), Army.quant(w.y)):
+		_toast(L.t("err_zone"), true)
+		return
+	if review_changes(rv_orig, trial) > 1:
+		_toast(L.t("rv_one"), true)
+		return
+	rv_army = trial
+	rv_result = {}
+
+func _rv_free_set_type(t: int) -> void:
+	if rv_fsel < 0 or rv_fsel >= rv_army.units.size():
+		return
+	var trial = rv_army.copy()
+	var u: Dictionary = trial.units[rv_fsel]
+	var p := Vector2i(int(u["x"]), int(u["y"]))
+	trial.units.remove_at(rv_fsel)
+	if t >= 0:
+		trial.guard_combat = false
+		if trial.check_place_xy(t, p.x, p.y) != "":
+			_toast(L.t("rv_cant", [L.t("unit_%d" % t)]), true)
+			return
+		trial.units.insert(rv_fsel, {"type": t, "x": p.x, "y": p.y, "eid": u.get("eid", -1)})
+	if review_changes(rv_orig, trial) > 1:
+		_toast(L.t("rv_one"), true)
+		return
+	rv_army = trial
+	if t < 0:
+		rv_fsel = -1
+	rv_result = {}
+
 func _rv_set_type(t: int) -> void:
+	if rv_orig.deploy == "free":
+		_rv_free_set_type(t)
+		return
 	if rv_sel.x < 0:
 		return
 	# 在副本上換，買不起或不合法就保留原兵並提示（Codex S5 #3：原本會變成直接刪兵）
@@ -242,6 +314,20 @@ func _rv_set_type(t: int) -> void:
 
 ## 改了什麼（給畫面顯示）：例如「弓箭手 → 劍士（第 3 列第 5 欄）」
 func review_desc() -> String:
+	if rv_orig.deploy == "free":
+		for u in rv_orig.units:
+			var e := int(u.get("eid", -1))
+			var now = null
+			for v in rv_army.units:
+				if int(v.get("eid", -2)) == e:
+					now = v
+			if now == null:
+				return L.t("rv_f_removed", [L.t("unit_%d" % int(u["type"]))])
+			if int(now["type"]) != int(u["type"]):
+				return L.t("rv_f_swapped", [L.t("unit_%d" % int(u["type"])), L.t("unit_%d" % int(now["type"]))])
+			if int(now["x"]) != int(u["x"]) or int(now["y"]) != int(u["y"]):
+				return L.t("rv_f_moved", [L.t("unit_%d" % int(u["type"])), Vector2(int(now["x"]) - int(u["x"]), int(now["y"]) - int(u["y"])).length() / 1000.0])
+		return ""
 	for u in rv_orig.units:
 		var i: int = rv_army.index_at(u["col"], u["row"])
 		if i == -1:
@@ -277,11 +363,13 @@ func _draw_review() -> void:
 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
 	_panel(Rect2(100, 60, 1080, 680))
 	_text(Vector2(640, 70), L.t("rv_title"), tz("H1"), Color.WHITE, true, true, 900)
-	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint"), tz("S"), Color(1, 1, 1, 0.75), true, false, 960)
+	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint"), tz("S"), Color(1, 1, 1, 0.75), true, false, 960)
 	var cs := 40.0
 	var g0 := Vector2(130, 168)
-	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true)
-	for r in 9:
+	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true)
+	if rv_orig.deploy == "free":
+		_rv_free_board(g0)
+	for r in (0 if rv_orig.deploy == "free" else 9):
 		for c in 6:
 			var cell := Rect2(g0 + Vector2(c, r) * cs, Vector2(cs - 2, cs - 2))
 			var sel := rv_sel == Vector2i(c, r)
@@ -299,11 +387,12 @@ func _draw_review() -> void:
 	# 紅方站位（只看不能改）：同一列對齊，右邊是紅方前排
 	var cs2 := 26.0
 	var g1 := Vector2(g0.x + 6 * cs + 18, g0.y + (9 * cs - 9 * cs2) / 2)
-	_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true)
-	for r in 9:
+	if rv_orig.deploy != "free":
+		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true)
+	for r in (0 if rv_orig.deploy == "free" else 9):
 		for c in 6:
 			draw_rect(Rect2(g1 + Vector2(c, r) * cs2, Vector2(cs2 - 2, cs2 - 2)), Color(0.35, 0.2, 0.2, 0.45))
-	for u in rv_enemy.units:
+	for u in (rv_enemy.units if rv_orig.deploy != "free" else []):
 		var lc := int(u["col"]) - (Army.COLS - Army.ZONE)
 		Art.unit(self, g1 + Vector2(lc * cs2 + cs2 / 2, int(u["row"]) * cs2 + cs2 - 3), int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.75, time, 0.34, cbm())
 	var by := g0.y + 9 * cs + 8
@@ -317,12 +406,12 @@ func _draw_review() -> void:
 	for t in D.COUNT:
 		var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
 		var br := Rect2(bx + t * 56, 160, 52, 66)
-		_btn(br, "", _rv_set_type.bind(t), rv_sel.x >= 0 and can)
+		_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
 		var py := br.size.y - tz("C") * 1.15 - 2
 		Art.unit(self, br.position + Vector2(26, py - 2), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
 		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
-	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), rv_sel.x >= 0)
-	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1))
+	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
+	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1); rv_fsel = -1)
 	_btn(Rect2(bx, 284, 552, 48), L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1, true)
 	# 兩條戰力走勢上下對齊（同一個時間軸長度）
 	var y := 350.0
@@ -339,6 +428,72 @@ func _draw_review() -> void:
 		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), Color(1, 1, 1, 0.6), false, false, 552)
 		_btn(Rect2(bx, y + text_h(L.t("rv_note"), tz("C"), 552) + 6, 300, 44), L.t("rv_play"), func(): _rv_play())
 	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "")
+
+func _rv_has_sel() -> bool:
+	if rv_orig.deploy == "free":
+		return rv_fsel >= 0 and rv_fsel < rv_army.units.size()
+	return rv_sel.x >= 0
+
+## 第六輪：自由陣型的小戰場。一般＝左邊自己的部署區（可點）＋右邊紅方部署區（小、只看）；
+## 全場＝整個戰場一張圖，兩隊都畫。原位置留半透明殘影＋虛線，看得出搬了多遠。
+var _rv_map := {}   # 自己這張圖的 {o: 左上, s: 每單位幾像素}
+
+func _rv_free_board(g0: Vector2) -> void:
+	var full: bool = rv_orig.depth > Army.W / 2
+	var s := 0.028 if full else 0.038
+	var wpx: float = (Army.W if full else rv_orig.depth + Army.EDGE) * s
+	var r := Rect2(g0, Vector2(wpx, Army.H * s))
+	draw_rect(r, Color(0.25, 0.4, 0.2))
+	if full:
+		draw_line(g0 + Vector2(Army.W / 2.0 * s, 0), g0 + Vector2(Army.W / 2.0 * s, r.size.y), Color(1, 1, 1, 0.25), 1.0)
+	_rv_map = {"o": g0, "s": s, "r": r}
+	var to_px := func(p: Vector2i) -> Vector2: return g0 + Vector2(p) * s
+	# 殘影：原本位置有改的那隻
+	var now_by := {}
+	for i in rv_army.units.size():
+		now_by[int(rv_army.units[i].get("eid", -1))] = i
+	for u in rv_orig.units:
+		var e := int(u.get("eid", -1))
+		var p0 := Army.pos_of(u)
+		var changed: bool = not now_by.has(e) or Army.pos_of(rv_army.units[now_by[e]]) != p0 or int(rv_army.units[now_by[e]]["type"]) != int(u["type"])
+		if changed:
+			Art.unit(self, to_px.call(p0), int(u["type"]), 0, 1.0, 0.0, 0.0, 0.0, 0.3, time, 0.42, cbm())
+			if now_by.has(e):
+				_dash(to_px.call(p0), to_px.call(Army.pos_of(rv_army.units[now_by[e]])), ACCENT, 2.0)
+	if full:
+		for u in rv_enemy.units:
+			Art.unit(self, to_px.call(Army.pos_of(u)), int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.7, time, 0.36, cbm())
+	var order: Array = range(rv_army.units.size())
+	order.sort_custom(func(a, b): return int(rv_army.units[a]["y"]) < int(rv_army.units[b]["y"]))
+	for i in order:
+		var p: Vector2 = to_px.call(Army.pos_of(rv_army.units[i]))
+		if i == rv_fsel:
+			draw_arc(p + Vector2(0, -6), 13.0, 0, TAU, 24, ACCENT, 2.5)
+		Art.unit(self, p, int(rv_army.units[i]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42 if full else 0.5, cbm())
+	_btns.append({"r": r, "cb": _rv_free_tap, "en": true})
+	if not full:
+		# 紅方部署區（小、只看）
+		var s2 := 0.018
+		var g1 := Vector2(g0.x + wpx + 14, g0.y + (r.size.y - Army.H * s2) / 2)
+		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true)
+		var x0: int = Army.W - rv_orig.depth - Army.EDGE
+		draw_rect(Rect2(g1, Vector2((Army.W - x0) * s2, Army.H * s2)), Color(0.35, 0.2, 0.2, 0.45))
+		for u in rv_enemy.units:
+			var pe := Army.pos_of(u)
+			Art.unit(self, g1 + Vector2(pe.x - x0, pe.y) * s2, int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.75, time, 0.3, cbm())
+
+func _dash(a: Vector2, b: Vector2, c: Color, w: float) -> void:
+	var n: int = maxi(1, int(a.distance_to(b) / 8.0))
+	for k in n:
+		if k % 2 == 0:
+			draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), c, w)
+
+func _rv_free_tap() -> void:
+	if _rv_map.is_empty():
+		return
+	var m := get_local_mouse_position()
+	var w: Vector2 = (m - (_rv_map["o"] as Vector2)) / float(_rv_map["s"])
+	_rv_free_click(Vector2i(int(w.x), int(w.y)))
 
 func _rv_outcome(w: int, rem: int) -> String:
 	if w < 0:
