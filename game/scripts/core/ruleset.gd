@@ -148,7 +148,7 @@ func frenzy_tick() -> int:
 func attrition_step() -> int:
 	return maxi(1, ticks / 18)
 
-## 雙人每手上限（輪流落子）：max(⌈預算÷手數⌉, 卡池最貴兵價)。標準 snake5（100 金、5 手）＝20。
+## 雙人每手上限（輪流落子）：max(預算÷手數（進位）, 卡池最貴兵價)。標準 snake5（100 金、5 手）＝20。
 func turn_cap(team: int) -> int:
 	var n := 5 if place_rule == "snake5" else (10 if place_rule == "cap10" else turns)
 	var b := budget_of(team)

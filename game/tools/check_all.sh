@@ -45,5 +45,6 @@ grep -q "^ORBIT cav_battles=" "$OUT/orbit.log" || fail "打轉偵測沒有完成
 for lg in mirror golden compat sealcodes orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
 
 python3 tools/check_assets.py > "$OUT/assets.log" 2>&1 || fail "素材登記檢查失敗"
+python3 tools/check_font_coverage.py > "$OUT/font.log" 2>&1 || fail "字型子集缺字（改了中文要重跑 tools/build_font.py）"
 
-echo "CHECK OK：匯入、載入、啟動、測試、鏡像、金標準、打轉、素材、舊兵相容、舊對戰代碼全過（記錄在 $OUT）"
+echo "CHECK OK：匯入、載入、啟動、測試、鏡像、金標準、打轉、素材、舊兵相容、舊對戰代碼、字型涵蓋全過（記錄在 $OUT）"

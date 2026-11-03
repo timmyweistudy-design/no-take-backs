@@ -100,28 +100,39 @@ func _capture_capsule() -> void:
 
 # ───────────────────────── 截圖（驗證用） ─────────────────────────
 ## 版面檢查（第三輪 T4）：這張截圖的介面文字有沒有越界、小於 9px（Steam Deck 下限）、彼此重疊超過 15%。
+## 第五輪 U4：新規則全部算違規——表外字級、小於字級表下限、戰場字小於 14、相同字串在不同位置重疊、點擊框小於 32px、
+## 「要讀的文字」段數超過上限（控制項＝按鈕、兵卡裡的字不算）。
+const TEXT_BUDGET := {"02_place.png": 30, "17_place_new.png": 30, "05_result.png": 20, "10_codex.png": 25, "19_codex_new.png": 25,
+	"22_lobby.png": 25, "25_lobby_duel.png": 25, "08_settings.png": 25, "01_title.png": 12}
+
 func _layout_report(name: String) -> void:
 	var bad: Array = []
-	var warn: Array = []      # 第五輪新規則：U0 先報告，U4 改成違規
 	var sizes: Array = []
 	var ui_n := 0
+	var free_n := 0
+	var ctrls: Array = probe_btns + probe_ctrls
 	for t in probe_texts:
 		var r: Rect2 = t["r"]
 		var sz := int(t["size"])
 		if t.get("field", false):
 			if sz < 14:
-				warn.append({"type": "戰場字太小", "s": t["s"], "size": sz})
+				bad.append({"type": "戰場字太小", "s": t["s"], "size": sz})
 			continue
 		ui_n += 1
 		sizes.append(sz)
+		var in_ctrl := false
+		for c in ctrls:
+			if c.has_point(r.get_center()):
+				in_ctrl = true
+				break
+		if not in_ctrl:
+			free_n += 1
 		if r.position.x < -2 or r.end.x > 1282 or r.position.y < -2 or r.end.y > 802:
 			bad.append({"type": "越界", "s": t["s"], "r": str(r)})
-		if sz < 9:
-			bad.append({"type": "太小", "s": t["s"], "size": sz})
-		elif sz < tz("C"):
-			warn.append({"type": "小於字級表下限", "s": t["s"], "size": sz})
+		if sz < tz("C"):
+			bad.append({"type": "小於字級表下限", "s": t["s"], "size": sz})
 		if not size_ok(sz):
-			warn.append({"type": "表外字級", "s": t["s"], "size": sz})
+			bad.append({"type": "表外字級", "s": t["s"], "size": sz})
 	for a in probe_texts.size():
 		if probe_texts[a].get("field", false):
 			continue
@@ -139,15 +150,33 @@ func _layout_report(name: String) -> void:
 			if probe_texts[a]["s"] != probe_texts[b]["s"]:
 				bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
 			elif ra.position.distance_to(rb.position) > 2.0:
-				# 第五輪：相同字串但位置不同也算重疊（原本整個豁免）；同一位置重畫（描邊）才豁免
-				warn.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
+				bad.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
 	for r in probe_btns:
 		if r.size.x < 32.0 or r.size.y < 32.0:
-			warn.append({"type": "點擊框太小", "r": str(r)})
+			bad.append({"type": "點擊框太小", "r": str(r)})
+	# 第五輪（Antigravity 實作第 1 輪抓到自動檢查漏的）：按鈕外的文字壓到按鈕上
+	for t in probe_texts:
+		if t.get("field", false):
+			continue
+		var tr: Rect2 = t["r"]
+		var mine := false
+		for c in ctrls:
+			if c.has_point(tr.get_center()):
+				mine = true
+				break
+		if mine:
+			continue
+		for br in probe_btns:
+			var x2 := tr.intersection(br)
+			if x2.has_area() and x2.get_area() > tr.get_area() * 0.10:
+				bad.append({"type": "文字壓到按鈕", "s": t["s"], "btn": str(br)})
+				break
+	if TEXT_BUDGET.has(name) and int(Save.s("text_scale")) == 100 and free_n > int(TEXT_BUDGET[name]):
+		bad.append({"type": "文字段數超過上限", "n": free_n, "max": TEXT_BUDGET[name]})
 	sizes.sort()
-	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n,
+	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
-		"violations": bad, "warnings": warn})
+		"violations": bad, "warnings": []})
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()
 	f.store_line(line)
@@ -414,6 +443,7 @@ func _shots_v4() -> void:
 	hover_card = -1
 	# 第五輪：規則大廳（精簡、卡池、讓子、雙人、沙盒）
 	Save.data["last_rules"] = {}
+	_go_title()
 	_open_lobby("ai")
 	mouse = Vector2(-100, -100)
 	await _snap("22_lobby.png")

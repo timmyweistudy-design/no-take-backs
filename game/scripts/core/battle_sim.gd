@@ -163,7 +163,7 @@ func alive_count(team: int) -> int:
 			c += 1
 	return c
 
-## 剩餘戰力＝Σ⌊兵價×剩血×1000÷滿血⌋（企劃 §2.4）。
+## 剩餘戰力＝Σ兵價×剩血×1000÷滿血（企劃 §2.4）。
 func power(team: int) -> int:
 	var p := 0
 	for u in units:

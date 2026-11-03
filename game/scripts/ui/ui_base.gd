@@ -147,7 +147,8 @@ var freeze_fx := false
 var layout_probe := false
 var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
 var probe_texts: Array = []
-var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）     # 截圖用：特效停在當下的時刻不往前跑
+var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+var probe_ctrls: Array = []     # 第五輪：其他控制項（兵卡）的外框；裡面的字不算段數     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
 var pt_rated := false
 

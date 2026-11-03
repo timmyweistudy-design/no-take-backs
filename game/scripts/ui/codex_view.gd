@@ -98,7 +98,13 @@ func _codex_tick(delta: float) -> void:
 				cx_hurt[e["tgt"]] = time
 		for hp in CX.expect_hits(cx_sim, str(dm.get("expect", ""))):
 			cx_seen = true
-			cx_pops.append({"p": hp, "s": CX.text(CX.skill(sk), "", L.lang) + "！", "t": 0.0})
+			var txt: String = CX.text(CX.skill(sk), "", L.lang) + "！"
+			var dup := false
+			for q in cx_pops:
+				if q["s"] == txt and float(q["t"]) < 0.5:
+					dup = true   # 同一個技能字 0.5 秒內只跳一次（第五輪版面檢查：同字重疊）
+			if not dup:
+				cx_pops.append({"p": hp, "s": txt, "t": 0.0})
 			if cx_pops.size() > 4:
 				cx_pops.pop_front()
 
@@ -232,7 +238,7 @@ func _cx_left_items(u: Dictionary, lang: String) -> Array:
 		{"type": "ranks"},
 		{"type": "counters"},
 		{"type": "text", "s": "✓ " + CX.text(u, "good", lang), "size": ts(15), "c": Color("#7dff8a"), "x": 0.0, "w": 356.0, "gap": 6.0},
-		{"type": "text", "s": "✗ " + CX.text(u, "bad", lang), "size": ts(15), "c": Color("#ff9b9b"), "x": 0.0, "w": 356.0, "gap": 12.0},
+		{"type": "text", "s": "× " + CX.text(u, "bad", lang), "size": ts(15), "c": Color("#ff9b9b"), "x": 0.0, "w": 356.0, "gap": 12.0},
 		{"type": "text", "s": L.t("codex_story_h"), "size": ts(15), "c": Color(1, 1, 1, 0.6), "x": 0.0, "w": 356.0, "gap": 2.0},
 		{"type": "text", "s": CX.text(u, "story", lang), "size": ts(16), "c": Color(1, 1, 1, 0.92), "x": 0.0, "w": 356.0, "gap": 12.0},
 	]
@@ -326,7 +332,7 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 					ty += 3.0
 				y += maxf(h, ty - y) + 8.0
 			"ranks":
-				var lh2 := float(tz("S")) * 1.7
+				var lh2 := float(tz("S")) * 1.45
 				for b in _cx_ranks(cx_unit):
 					if inside.call(y, lh2):
 						Charts.rank_bar(self, Rect2(r.position.x, y, r.size.x - 12, lh2), b[1], cx_unit, b[0], b[2])
@@ -344,21 +350,26 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 						fears.append(t2)
 				if D.is_support(cx_unit):
 					beats = load("res://scripts/core/ai_turns.gd").SYNERGY.get(cx_unit, [])
+				# 剋、怕並排在同一列（Antigravity 實作第 1 輪：100% 不用捲動就看得到兩邊）；名字放得下才寫
 				var rowh := 34.0 + tz("C") * 1.3
-				for grp in [[L.t("synergy") if D.is_support(cx_unit) else L.t("beats"), beats, Color("#4ade80")], [L.t("fears"), fears, Color("#f87171")]]:
-					if grp[1].is_empty():
-						continue
-					if inside.call(y, rowh):
-						_text(Vector2(r.position.x, y + 8), grp[0], tz("S"), grp[2], false, true)
-						var x := r.position.x + 40
+				if inside.call(y, rowh):
+					var half := (r.size.x - 12) / 2.0
+					var gi := 0
+					for grp in [[L.t("synergy") if D.is_support(cx_unit) else L.t("beats"), beats, Color("#4ade80")], [L.t("fears"), fears, Color("#f87171")]]:
+						var gx := r.position.x + gi * half
+						gi += 1
+						_text(Vector2(gx, y + 8), grp[0], tz("S"), grp[2], false, true)
+						var x := gx + _width(grp[0], tz("S"), true) + 6
+						var cw := 44.0
 						for t3 in grp[1]:
-							if x > r.end.x - 60:
+							if x + cw > gx + half - 4:
 								break
-							Art.unit(self, Vector2(x + 26, y + 32), t3, 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.6, cbm())
-							_text(Vector2(x + 26, y + 34), L.t("unit_%d" % t3), tz("C"), Color(1, 1, 1, 0.8), true, false, 60)
-							x += 64
-					y += rowh
-				y += 6.0
+							Art.unit(self, Vector2(x + cw / 2, y + 32), t3, 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.55, cbm())
+							var nm: String = L.t("unit_%d" % t3)
+							if _width(nm, tz("C")) <= cw + 2:
+								_text(Vector2(x + cw / 2, y + 34), nm, tz("C"), Color(1, 1, 1, 0.8), true)
+							x += cw
+				y += rowh + 4.0
 			"bars":
 				var lh := float(ts(13)) * 1.3 + 4.0
 				for b in _cx_bars(cx_unit):
@@ -430,15 +441,22 @@ func _draw_codex_demo() -> void:
 			var face := signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
 			_unit(p, u.type, u.team, face, (time * 10.0 + u.id) if moving else 0.0, at, hurt, 0.45 if u.stealth > 0 else 1.0, time, sc)
 			if u.stun > 0:
-				_text(p + Vector2(0, -60), "✦", ts(14), Color.YELLOW, true)
+				_text(p + Vector2(0, -60), "◇", ts(14), Color.YELLOW, true)
 			if u.hp < u.max_hp:
 				var w := 24.0
 				var top := p + Vector2(-w / 2, -52 if u.type == D.CAVALRY else -46)
 				draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 5)), Art.OUT)
 				draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 3)), Art.team_color(u.team, cbm()).lightened(0.25))
+	var drawn: Array = []
 	for pp in cx_pops:
 		var kk: float = pp["t"] / 1.1
 		var q: Vector2 = _cx_map(pp["p"]) + Vector2(0, -66 - kk * 26)
+		for dq in drawn:
+			if dq[0] == pp["s"] and dq[1].distance_to(q) < 60.0:
+				q.y = dq[1].y - tz("B") * 1.3   # 同一個技能字靠太近：往上疊一層，不互相蓋住
+		if q.y < b.position.y + tz("C") * 1.5 + 6:
+			continue   # 疊到小劇場標題列就不畫這個重複的字
+		drawn.append([pp["s"], q])
 		_text(q, pp["s"], ts(16), Color(ACCENT, 1.0 - kk * kk), true, true)
 	draw_rect(b, Color(1, 1, 1, 0.25), false, 1.5)
 	_text(b.position + Vector2(8, 4), L.t("codex_demo"), ts(13), Color(1, 1, 1, 0.75))

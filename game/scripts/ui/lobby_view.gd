@@ -232,7 +232,7 @@ func _summary(r) -> String:
 
 func _badge_pill(p: Vector2, b: String) -> float:
 	var col: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
-	var icon: String = {"cert": "⚖", "fun": "★", "lab": "✦"}[b]
+	var icon: String = {"cert": "◎", "fun": "★", "lab": "◇"}[b]
 	var lab: String = icon + " " + L.t("lb_badge_" + b)
 	var fs := tz("S")
 	var w := _width(lab, fs, true) + 20
@@ -311,7 +311,7 @@ func _draw_lobby_menu(o: Vector2) -> void:
 		return
 	for i in ps.size():
 		_btn(Rect2(r.position + Vector2(6, 6 + i * 50), Vector2(160, 44)), str(ps[i]["name"]), _lobby_load_preset.bind(i))
-		_btn(Rect2(r.position + Vector2(170, 6 + i * 50), Vector2(44, 44)), "✕", _lobby_delete_preset.bind(i))
+		_btn(Rect2(r.position + Vector2(170, 6 + i * 50), Vector2(44, 44)), "×", _lobby_delete_preset.bind(i))
 
 ## 精簡模式：一張規則摘要卡＋卡池頭像＋一個最常調的選項＋提示。
 func _draw_lobby_compact(R: Rect2) -> void:
@@ -328,12 +328,13 @@ func _draw_lobby_compact(R: Rect2) -> void:
 	# 右側：最常調的一個選項（對 AI＝難度；雙人＝落子方式）
 	var ox := R.end.x - 420
 	var oy := R.position.y + 110
+	var sy := oy + tz("B") * 1.6
 	if lobby_kind == "ai":
 		_text(Vector2(ox, oy), L.t("lb_ai_level"), tz("B"), Color(1, 1, 1, 0.8))
-		_stepper(Rect2(ox, oy + 30, 380, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level]), "ai_level")
+		_stepper(Rect2(ox, sy, 380, 64), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level]), "ai_level")
 	else:
 		_text(Vector2(ox, oy), L.t("lb_place_rule"), tz("B"), Color(1, 1, 1, 0.8))
-		_stepper(Rect2(ox, oy + 30, 380, 52), _place_text(lobby_r.place_rule), "place_rule")
+		_stepper(Rect2(ox, sy, 380, 64), _place_text(lobby_r.place_rule), "place_rule")
 	# 這個預設是做什麼的（一段白話）
 	var pid: String = lobby_r.preset if lobby_r.preset in Presets.IDS else "custom"
 	var info := L.t("lb_pinfo_" + pid)
@@ -344,7 +345,7 @@ func _draw_lobby_compact(R: Rect2) -> void:
 func _draw_lobby_notes(R: Rect2) -> void:
 	var y := R.position.y
 	for k in lobby_r.validate():
-		_text(Vector2(R.position.x, y), "✗ " + L.t(k), tz("B"), Color("#ff7b7b"), false, true, R.size.x)
+		_text(Vector2(R.position.x, y), "× " + L.t(k), tz("B"), Color("#ff7b7b"), false, true, R.size.x)
 		y += tz("B") * 1.5
 	var two: bool = lobby_r.handicap or not lobby_r.ai_pool_same
 	for tm in (2 if two else 1):
@@ -358,11 +359,27 @@ func _draw_lobby_notes(R: Rect2) -> void:
 	if not df.is_empty():
 		_text(Vector2(R.position.x, y), L.t("lb_diff_n", [df.size()]), tz("S"), Color(1, 1, 1, 0.8), false, true, R.size.x)
 		y += tz("S") * 1.4
+		var fs := tz("S")
+		var left := R.end.y - y
+		var list_h := 0.0
 		for d in df:
-			if y > R.end.y - tz("S"):
-				break
-			_text(Vector2(R.position.x + 10, y), "・" + _diff_text(d), tz("S"), Color(1, 1, 1, 0.7), false, false, R.size.x - 10)
-			y += tz("S") * 1.35
+			list_h += text_h("・" + _diff_text(d), fs, R.size.x - 10)
+		if list_h <= left:
+			for d in df:
+				var ln := "・" + _diff_text(d)
+				_text(Vector2(R.position.x + 10, y), ln, fs, Color(1, 1, 1, 0.7), false, false, R.size.x - 10)
+				y += text_h(ln, fs, R.size.x - 10)
+		else:
+			# 放不下（大字）：改成一段連續文字、用註記字級；還是放不下就截到放得下的項目數＋「…」（Antigravity 實作第 1 輪）
+			fs = tz("C")
+			var bits: Array = []
+			for d in df:
+				bits.append(_diff_text(d))
+			var para := "・".join(bits)
+			while bits.size() > 1 and text_h(para, fs, R.size.x) > left:
+				bits.pop_back()
+				para = "・".join(bits) + "…"
+			_text(Vector2(R.position.x, y), para, fs, Color(1, 1, 1, 0.7), false, false, R.size.x)
 
 func _diff_text(d: Array) -> String:
 	var k: String = d[0]
@@ -495,7 +512,7 @@ func _draw_lab_tab(R: Rect2) -> void:
 	for i in RuleSet.SKILLS.size():
 		var s: String = RuleSet.SKILLS[i]
 		var off: bool = s in lobby_r.skills_off
-		_btn(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("✗ " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
+		_btn(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("× " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
 			Color(0.35, 0.18, 0.2) if off else Color(0.16, 0.26, 0.2))
 	if mouse.y > R.position.y and mouse.y < R.end.y and mouse.x > R.position.x and mouse.x < R.end.x:
 		lobby_item = "lab"

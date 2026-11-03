@@ -336,7 +336,7 @@ func _draw_review() -> void:
 		Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
 		y += tz("S") * 1.5 + 82
 		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), Color(1, 1, 1, 0.6), false, false, 552)
-		_btn(Rect2(bx, y + tz("C") * 1.6, 300, 44), L.t("rv_play"), func(): _rv_play())
+		_btn(Rect2(bx, y + text_h(L.t("rv_note"), tz("C"), 552) + 6, 300, 44), L.t("rv_play"), func(): _rv_play())
 	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "")
 
 func _rv_outcome(w: int, rem: int) -> String:

@@ -29,7 +29,7 @@ for f2 in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
         print('LAYOUT FAIL：%s 的畫面集合不對（少了 %s、多了 %s）' % (f2, sorted(names-set(got)), sorted(set(got)-names))); sys.exit(1)
 by={}
 for d in rows: by.setdefault((d['lang'],d['scale']),[]).append(d['median_size'])
-print('LAYOUT 截圖 %d 張、違規 %d、警告 %d（第五輪新規則，U4 起算違規）' % (len(rows), total, sum(len(d.get('warnings',[])) for d in rows)))
+print('LAYOUT 截圖 %d 張、違規 %d' % (len(rows), total))
 for d in rows:
     for v in d['violations']: print('  %s %s %d%%：%s' % (d['shot'], d['lang'], d['scale'], v))
 for lang in ['zh_TW','en']:

@@ -917,6 +917,7 @@ func _draw_inner() -> void:
 	_btns.clear()
 	probe_texts.clear()
 	probe_btns.clear()
+	probe_ctrls.clear()
 	_probe_ui = false
 	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
 	var cam := Transform2D.IDENTITY
@@ -1161,11 +1162,11 @@ func _draw_pad_footer() -> void:
 	else:
 		match state:
 			St.TITLE:
-				items = [["✛", L.t("pk_move")], ["A", L.t("pk_select")]]
+				items = [["＋", L.t("pk_move")], ["A", L.t("pk_select")]]
 			St.BATTLE:
 				items = [["A", L.t("pk_select")], ["B", L.t("skip")]]
 			St.RESULT:
-				items = [["✛", L.t("pk_move")], ["A", L.t("pk_select")], ["B", L.t("menu")]]
+				items = [["＋", L.t("pk_move")], ["A", L.t("pk_select")], ["B", L.t("menu")]]
 	if items.is_empty():
 		return
 	draw_rect(Rect2(0, 770, 1280, 30), Color(0, 0, 0, 0.45))
@@ -1268,6 +1269,9 @@ func _pick_puzzle(id: String, tut: bool) -> void:
 func _draw_overlay() -> void:
 	if overlay != "":
 		_btns.clear()   # 覆蓋層底下畫面的按鈕不能被點到（例如擺放畫面的開戰、結果頁的按鈕）
+		probe_texts.clear()   # 第五輪：底下畫面的字被遮罩蓋住，版面檢查只量覆蓋層本身
+		probe_btns.clear()
+		probe_ctrls.clear()
 	match overlay:
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
@@ -1573,6 +1577,8 @@ func _draw_place_hud() -> void:
 		var opened := _allowed(i)
 		draw_rect(r, bg if afford else Color(bg, 0.45))
 		draw_rect(r, tcol if i == selected else Color(1, 1, 1, 0.15), false, 2)
+		if layout_probe:
+			probe_ctrls.append(r)   # 兵卡是控制項：卡上的小字不算「要讀的文字」段數
 		# 三層卡：上＝快捷鍵、價錢；中＝全身圖；下＝已擺數量、?
 		Art.unit(self, r.position + Vector2(r.size.x / 2, 74), i, a.team, 1.0, 0.0, 0.0, 0.0, (1.0 if afford else 0.45) if opened else 0.25, time, 0.78, cbm())
 		var fz := tz("C")
@@ -1716,7 +1722,7 @@ func _draw_result() -> void:
 		title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
 		col = Art.team_color(w, cbm())
 	var title_sz := tcap(tz("D"), 64)
-	_text(Vector2(640, 104), title, title_sz, col, true, true, 520)
+	_text(Vector2(640, 104), title, title_sz, col, true, true, 540)
 	_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
 	var mvp = report.get("mvp")
 	_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
@@ -1728,14 +1734,18 @@ func _draw_result() -> void:
 		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
 	var p0 := roundi(sim.power(0) * 100.0 / (sim.budget_of(0) * 1000))
 	var p1 := roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))
-	_text(Vector2(640, y), "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])], tz("S"), Color(1, 1, 1, 0.8), true, false, 820)
-	y += tz("S") * 1.6
+	# 標題區只用左右按鈕之間的寬度（Antigravity 實作第 1 輪：英文 150% 摘要壓到「詳細數據」按鈕）
+	var hw := 540.0 if y < 210 else 820.0
+	var line1 := "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])]
+	_text(Vector2(640, y), line1, tz("S"), Color(1, 1, 1, 0.8), true, false, hw)
+	y += text_h(line1, tz("S"), hw) + 6
 	if w >= 0:
-		_text(Vector2(640, y), _verdict(w), tz("B"), Color.WHITE, true, true, 820)
-		y += text_h(_verdict(w), tz("B"), 820, true) + 8
+		hw = 540.0 if y < 210 else 820.0
+		_text(Vector2(640, y), _verdict(w), tz("B"), Color.WHITE, true, true, hw)
+		y += text_h(_verdict(w), tz("B"), hw, true) + 8
 	if result_tab == 0:
 		# 戰力走勢（放大）＋最多 3 個關鍵時刻
-		var ch := Rect2(250, y + tz("C") * 1.4 + 4, 780, 100)
+		var ch := Rect2(250, y + tz("C") * 1.35 * 2 + 4, 780, 100)   # 上方留兩排標記標籤的空間
 		Charts.momentum(self, ch, sim.power_log2, sim.budget_of(0), sim.budget_of(1), _key_marks(), sim.tick)
 		_text(Vector2(250, ch.end.y + 4), L.t("mom_caption"), tz("C"), Color(1, 1, 1, 0.6), false, false, 780)
 		y = ch.end.y + tz("C") * 1.6 + 6
@@ -1820,7 +1830,7 @@ func _draw_result_details(R: Rect2) -> void:
 	var rows: Array = []
 	for t in report_rows(dealt, taken):
 		rows.append({"label": L.t("unit_%d" % t), "b": src[0][t], "r": src[1][t]})
-	_text(R.position, L.t("report_title"), tz("B"), Color.WHITE, false, true, 200)
+	_text(R.position, L.t("report_by_type"), tz("B"), Color.WHITE, false, true, 210)
 	_btn(Rect2(R.position.x + 220, R.position.y - 4, 120, 34), L.t("report_dealt"), func(): result_metric = 0, true, false, Color(0.26, 0.33, 0.5) if result_metric == 0 else Color(0, 0, 0, 0))
 	_btn(Rect2(R.position.x + 346, R.position.y - 4, 120, 34), L.t("report_taken"), func(): result_metric = 1, true, false, Color(0.26, 0.33, 0.5) if result_metric == 1 else Color(0, 0, 0, 0))
 	var bh := minf(170.0, rows.size() * 34.0)
