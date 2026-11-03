@@ -1443,19 +1443,48 @@ func _draw_slots() -> void:
 		var y := 220 + i * 62
 		var code: String = slots[i]
 		var desc := L.t("empty")
+		var can_load := code != ""
+		var note := ""
 		if code != "":
-			var tmp := Army.new(0, 100)
+			var tmp := Army.new(0, 400)
+			tmp.unit_cap = 54
 			if tmp.load_code(code) == "":
 				var cnt := D.zeros()
 				for u in tmp.units:
 					cnt[u["type"]] += 1
 				desc = _comp_desc(cnt)
-		_text(Vector2(360, y + 8), "%s　%s" % [L.t("slot", [i + 1]), desc], ts(16), Color.WHITE)
+				if rules != null:
+					# 第五輪：預先算這一局的規則下會拿掉幾隻（Codex 實作第 2 輪：載入前就告訴玩家）
+					var n_ok := _slot_fit_count(tmp)
+					if n_ok == 0:
+						can_load = false
+						note = L.t("slot_none_fit")
+					elif n_ok < tmp.units.size():
+						note = L.t("slot_will_drop", [tmp.units.size() - n_ok])
+			else:
+				can_load = false
+		_text(Vector2(360, y + 4), "%s　%s" % [L.t("slot", [i + 1]), desc], ts(16), Color.WHITE, false, false, 330)
+		if note != "":
+			_text(Vector2(360, y + 4 + ts(16) * 1.3), note, tz("C"), Color("#ffb4a0"), false, false, 330)
 		_btn(Rect2(700, y, 100, 42), L.t("save"), _slot_save.bind(i))
-		_btn(Rect2(810, y, 100, 42), L.t("load"), _slot_load.bind(i), code != "")
+		_btn(Rect2(810, y, 100, 42), L.t("load"), _slot_load.bind(i), can_load)
 	_btn(Rect2(370, 540, 260, 42), L.t("copy_code"), func(): DisplayServer.clipboard_set(armies[0].to_code()); _toast(L.t("code_copied")))
 	_btn(Rect2(650, 540, 260, 42), L.t("paste_code"), func(): _paste_code())
 	_btn(Rect2(560, 600, 160, 36), L.t("back"), func(): overlay = "")
+
+
+## 這個陣型在這一局的規則下能放上去幾隻（跟 _load_checked 同一套：先戰鬥兵、保留戰鬥兵名額）。
+func _slot_fit_count(raw) -> int:
+	var keep = armies[0].copy()
+	keep.units = []
+	keep.guard_combat = true
+	var ordered: Array = raw.units.duplicate()
+	ordered.sort_custom(func(p, q): return (0 if not D.is_support(int(p["type"])) else 1) < (0 if not D.is_support(int(q["type"])) else 1))
+	var n := 0
+	for u in ordered:
+		if keep.place(int(u["type"]), int(u["col"]), int(u["row"])):
+			n += 1
+	return n
 
 
 func _slot_save(i: int) -> void:
@@ -1494,9 +1523,11 @@ func _load_checked(code: String) -> String:
 			return w0
 		var keep = armies[0].copy()
 		keep.units = []
-		keep.guard_combat = false
+		keep.guard_combat = true   # 保留戰鬥兵需要的錢與名額（Codex 實作第 2 輪：不會載入成只剩支援兵）
 		var gone := {}
-		for u in raw.units:
+		var ordered: Array = raw.units.duplicate()
+		ordered.sort_custom(func(p, q): return (0 if not D.is_support(int(p["type"])) else 1) < (0 if not D.is_support(int(q["type"])) else 1))
+		for u in ordered:
 			var t := int(u["type"])
 			if not keep.place(t, int(u["col"]), int(u["row"])):
 				gone[t] = int(gone.get(t, 0)) + 1

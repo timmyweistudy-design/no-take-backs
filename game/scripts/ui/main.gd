@@ -162,7 +162,18 @@ func _layout_report(name: String) -> void:
 			continue
 		var tr: Rect2 = t["r"]
 		if t.get("btn", false):
-			continue   # 按鈕自己的標籤
+			# 按鈕標籤：只豁免它自己的按鈕；要完整落在自己的框內，也不能壓到別顆按鈕（Codex 實作第 2 輪）
+			var own: Rect2 = t.get("own", Rect2())
+			if own.has_area() and not own.grow(2.0).encloses(tr):
+				bad.append({"type": "按鈕標籤超出按鈕", "s": t["s"], "btn": str(own)})
+			for br2 in probe_btns:
+				if br2 == own:
+					continue
+				var x3 := tr.intersection(br2)
+				if x3.has_area() and x3.get_area() > tr.get_area() * 0.10:
+					bad.append({"type": "按鈕標籤壓到別的按鈕", "s": t["s"], "btn": str(br2)})
+					break
+			continue
 		var inside := false
 		for c in probe_ctrls:
 			if c.grow(1.0).encloses(tr):

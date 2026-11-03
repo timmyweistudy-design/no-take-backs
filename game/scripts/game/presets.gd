@@ -67,7 +67,7 @@ static func is_standard_record(r, kind: String) -> bool:
 
 ## 部署限制是不是「標準」（前 N 種卡池、24 隻、不限單種、100 金）：對戰代碼可以用舊格式 NTB2、AI 不額外補兵。
 static func deploy_standard(r) -> bool:
-	return r.unit_cap == 24 and r.type_cap == 0 and r.budget_of(0) == 100 and r.budget_of(1) == 100 and is_prefix(r.pool_of(0)) and is_prefix(r.pool_of(1))
+	return r.unit_cap == 24 and r.type_cap == 0 and r.budget_of(0) == 100 and r.budget_of(1) == 100 and is_prefix(r.pool_of(0)) and r.pool_of(1) == r.pool_of(0)
 
 ## 大廳卡池能選的兵：對 AI＝已解鎖的；雙人＝全部（試玩版＝前 7 種）。
 static func selectable(kind: String, unlocked: int, demo: bool) -> int:

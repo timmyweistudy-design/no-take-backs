@@ -2176,6 +2176,29 @@ func test_rules_e2e_v5() -> void:
 		if s.winner != want or s.judge != 2:
 			jb.append([k, s.winner, want])
 	ok(timeouts >= 10 and jb.is_empty(), "讓子判定（實際跑到時間到 %d 場）：模擬器的勝負＝依最終戰力與各自預算獨立算的結果" % timeouts, str(jb))
+	# 判定邊界直接驗正式的 _check_end()：用血量控制戰力（劍士 5 金 250 血→戰力＝20×血）
+	var eb: Array = []
+	var bcases := [
+		# [藍預算, 紅預算, 藍血, 紅血, 期望勝方]：讓子 100 vs 150 剛好 3%（不算平手）、差一點（平手）、反方向
+		[100, 150, 250, 150, 0], [100, 150, 250, 151, -1], [150, 100, 150, 250, 1], [150, 100, 151, 250, -1],
+		# 同預算（舊判定 judge 1）：差剛好 3000＝不平手、2980＝平手、反方向
+		[100, 100, 250, 100, 0], [100, 100, 250, 101, -1], [100, 100, 100, 250, 1], [100, 100, 101, 250, -1]]
+	for c in bcases:
+		var r = RSET.standard()
+		r.handicap = c[0] != c[1]
+		r.budget = [c[0], c[1]]
+		var a0 = army_from(0, [[D.SWORD, 5, 4]])
+		var a1 = army_from(1, [[D.SWORD, 5, 4]])
+		a0.budget = c[0]
+		a1.budget = c[1]
+		var s = Sim.new(a0, a1, r if r.handicap else null)
+		s.units[0].hp = c[2] if s.units[0].team == 0 else c[3]
+		s.units[1].hp = c[3] if s.units[1].team == 1 else c[2]
+		s.tick = s.max_ticks
+		s._check_end()
+		if s.winner != c[4]:
+			eb.append([c, s.winner, s.judge])
+	ok(eb.is_empty(), "判定邊界（直接呼叫正式的 _check_end）：讓子剛好 3% 不平手、差一點平手、正反方向；同預算走舊判定也一樣", str(eb))
 	# 系列：用遊戲裡實際判斷系列結束的函式
 	var sb: Array = []
 	var cases := [[1, [0, 0], 1, true], [1, [1, 0], 1, true], [3, [1, 0], 1, false], [3, [2, 0], 2, true], [3, [1, 1], 3, false], [3, [1, 1], 5, true],
@@ -2193,31 +2216,31 @@ func test_rules_e2e_v5() -> void:
 		var r = RSET.standard(m)
 		if not r.validate().is_empty():
 			continue
-		var rule: String = ["snake5", "cap10", "custom"][m % 3]
-		r.place_rule = rule
-		r.turns = 1 + m % 7
-		r.budget = [[30, 60, 100, 150, 200][m % 5], [30, 60, 100, 150, 200][m % 5]]
-		r.unit_cap = [4, 12, 24, 40][m % 4]
-		r.type_cap = [0, 1, 2, 0][(m / 4) % 4]
-		r.carry = m % 2 == 0
-		if not r.validate().is_empty():
-			continue
-		n += 1
-		var ta := Army.new(0, 100)
-		var tb2 := Army.new(1, 100)
-		ta.apply_rules(r, 0)
-		tb2.apply_rules(r, 1)
-		var tp = TP.new(ta, tb2, m % 2, rule, r)
-		rng.seed = 9000 + m
-		var guard := 0
-		while not tp.done() and guard < 200:
-			guard += 1
-			AIT5.play_turn(tp, rng, m % 3)
-		var why0 := legal_army(ta, r, 0)
-		var why1 := legal_army(tb2, r, 1)
-		if not tp.done() or why0 != "" or why1 != "" or not ta.has_combat() or not tb2.has_combat():
-			tb.append([m, rule, tp.done(), why0, why1, ta.has_combat(), tb2.has_combat()])
-	ok(n > 500 and tb.is_empty(), "輪流落子窮舉 %d 組合法規則（卡池×落子方式×手數×預算×人數×單種上限×累積）：都會結束、陣型合法、雙方都有戰鬥兵" % n, str(tb.slice(0, 3)))
+		for rule in ["snake5", "cap10", "custom"]:
+			r.place_rule = rule
+			r.turns = 1 + m % 7
+			r.budget = [[30, 60, 100, 150, 200][m % 5], [30, 60, 100, 150, 200][m % 5]]
+			r.unit_cap = [4, 12, 24, 40][m % 4]
+			r.type_cap = [0, 1, 2, 0][(m / 4) % 4]
+			r.carry = m % 2 == 0
+			if not r.validate().is_empty():
+				continue
+			n += 1
+			var ta := Army.new(0, 100)
+			var tb2 := Army.new(1, 100)
+			ta.apply_rules(r, 0)
+			tb2.apply_rules(r, 1)
+			var tp = TP.new(ta, tb2, m % 2, rule, r)
+			rng.seed = 9000 + m
+			var guard := 0
+			while not tp.done() and guard < 200:
+				guard += 1
+				AIT5.play_turn(tp, rng, m % 3)
+			var why0 := legal_army(ta, r, 0)
+			var why1 := legal_army(tb2, r, 1)
+			if not tp.done() or why0 != "" or why1 != "" or not ta.has_combat() or not tb2.has_combat():
+				tb.append([m, rule, tp.done(), why0, why1, ta.has_combat(), tb2.has_combat()])
+	ok(n > 1500 and tb.is_empty(), "輪流落子窮舉 %d 組合法規則（卡池×落子方式×手數×預算×人數×單種上限×累積）：都會結束、陣型合法、雙方都有戰鬥兵" % n, str(tb.slice(0, 3)))
 	# 雙方不同卡池（配對抽樣 200 組）：AI 各自只用自己的卡池
 	var pb: Array = []
 	for k in 200:
@@ -2232,6 +2255,31 @@ func test_rules_e2e_v5() -> void:
 		if why != "" or not a.has_combat():
 			pb.append([k, why])
 	ok(pb.is_empty(), "雙方不同卡池（配對抽樣）：AI 只用自己的卡池、陣型合法", str(pb.slice(0, 3)))
+	# 雙方不同卡池的輪流落子：三種方式都會結束、雙方只用自己的卡池、各有戰鬥兵
+	var dp: Array = []
+	var dn := 0
+	for k in 120:
+		rng.seed = 13000 + k
+		var r = RSET.standard()
+		r.ai_pool_same = false
+		r.pool = [rng.randi_range(1, 1023), rng.randi_range(1, 1023)]
+		r.place_rule = ["snake5", "cap10", "custom"][k % 3]
+		r.turns = 1 + k % 6
+		if not r.validate().is_empty():
+			continue
+		dn += 1
+		var ta := Army.new(0, 100)
+		var tb3 := Army.new(1, 100)
+		ta.apply_rules(r, 0)
+		tb3.apply_rules(r, 1)
+		var tp = TP.new(ta, tb3, k % 2, r.place_rule, r)
+		var guard := 0
+		while not tp.done() and guard < 200:
+			guard += 1
+			AIT5.play_turn(tp, rng, k % 3)
+		if not tp.done() or legal_army(ta, r, 0) != "" or legal_army(tb3, r, 1) != "" or not ta.has_combat() or not tb3.has_combat():
+			dp.append([k, r.place_rule, tp.done()])
+	ok(dn > 30 and dp.is_empty(), "雙方不同卡池的輪流落子（%d 組，三種方式）：都會結束、各用自己的卡池、各有戰鬥兵" % dn, str(dp.slice(0, 3)))
 	# 規則代碼壞資料：型別錯誤要回傳拒絕，不是讓程式出錯
 	var bad_bodies := [
 		[100, 100, 0, 1800, 24, 0, 1023, 1023, 1, 3, "snake5", 5, 0, 1, 1, [[0, {}, 100, 100]], []],
@@ -2258,5 +2306,8 @@ func test_rules_e2e_v5() -> void:
 	x1.place(D.SWORD, 10, 4)
 	var r3 = RSET.standard()
 	r3.unit_cap = 4
-	ok(BC.encode(x0, x1, r2).begins_with("NTB3.") and BC.encode(x0, x1, r3).begins_with("NTB3.") and BC.encode(x0, x1, RSET.standard(31)).begins_with("NTB2."),
-		"對戰代碼：卡池（3 種）或人數上限（4 隻）不標準就用 NTB3；經典 5 種仍是 NTB2")
+	var r4 = RSET.standard(31)
+	r4.ai_pool_same = false
+	r4.pool = [31, 1023]
+	ok(BC.encode(x0, x1, r2).begins_with("NTB3.") and BC.encode(x0, x1, r3).begins_with("NTB3.") and BC.encode(x0, x1, r4).begins_with("NTB3.") and BC.encode(x0, x1, RSET.standard(31)).begins_with("NTB2."),
+		"對戰代碼：卡池（3 種）、人數上限（4 隻）、兩邊卡池不同（前 5 種 vs 全部）就用 NTB3；經典 5 種仍是 NTB2")

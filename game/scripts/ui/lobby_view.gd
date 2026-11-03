@@ -114,8 +114,6 @@ func _lobby_paste_code() -> void:
 		_toast(L.t(d["why"]) if d["why"].begins_with("rr_") else L.t("lb_code_bad"), true)
 		return
 	lobby_r = d["rules"]
-	if lobby_kind == "duel":
-		lobby_r.ai_pool_same = true
 	if not _lobby_locked_units().is_empty():
 		_toast(_lobby_block(), true)   # 照原樣保留，開戰鈕會灰掉並寫原因
 	else:
@@ -142,7 +140,7 @@ func _lobby_load_preset(i: int) -> void:
 		return
 	lobby_r = d["rules"]
 	lobby_r.preset = "custom"
-	_lobby_clamp()
+	# 照原樣保留（Codex 實作第 2 輪）：含未解鎖的兵就由開戰鈕灰掉＋原因處理，不偷偷改規則
 
 func _lobby_delete_preset(i: int) -> void:
 	var ps: Array = Save.data.get("rule_presets", [])
@@ -204,8 +202,8 @@ func _lobby_toggle_unit(team: int, t: int) -> void:
 		_toast(L.t("lb_locked_unit"), true)
 		return
 	lobby_r.pool[team] = int(lobby_r.pool[team]) ^ (1 << t)
-	if lobby_kind == "duel" or lobby_r.ai_pool_same:
-		lobby_r.pool[1 - team] = lobby_r.pool[team] if team == 0 else lobby_r.pool[1 - team]
+	if lobby_r.ai_pool_same:
+		lobby_r.pool[1] = lobby_r.pool[0]
 	_lobby_touch()
 
 func _lobby_sb_adj(k: int, d: int) -> void:
@@ -497,12 +495,13 @@ func _rows(R: Rect2, rows: Array) -> void:
 		_stepper(Rect2(R.position.x + 230, y, 360, 52), rows[i][2], rows[i][0])
 
 func _draw_pool_tab(R: Rect2) -> void:
-	var teams := [0] if (lobby_kind == "duel" or lobby_r.ai_pool_same) else [0, 1]
+	var teams := [0] if lobby_r.ai_pool_same else [0, 1]
 	var y := R.position.y
 	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
 	for tm in teams:
 		if teams.size() > 1:
-			_text(Vector2(R.position.x, y), L.t("lb_your_pool") if tm == 0 else L.t("lb_ai_pool"), tz("S"), Color(1, 1, 1, 0.7))
+			var pl: String = (L.t("lb_your_pool") if tm == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if tm == 0 else L.t("lb_red_pool"))
+			_text(Vector2(R.position.x, y), pl, tz("S"), Color(1, 1, 1, 0.7))
 			y += tz("S") * 1.5
 		# 戰鬥兵、支援兵分框（第五輪 §3.6）
 		var groups := [[L.t("lb_combat"), [0, 1, 2, 3, 4, 5, 6, 9]], [L.t("lb_support"), [7, 8]]]

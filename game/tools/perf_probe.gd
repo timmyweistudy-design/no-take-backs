@@ -64,6 +64,47 @@ func _init() -> void:
 	big.ticks = 3000
 	out["max_rules_40_150s"] = bench(40, all, 4, big)
 	out["max_rules_support_40_150s"] = bench(40, [D.SWORD, D.SHIELD, 7, 8, 7, 8], 4, big)
+	# 合法的最大陣（Codex 實作第 2 輪：上面兩項是繞過預算直接塞兵的壓力測試）：200 金、40 隻上限、照規則擺
+	var legal_t := 0
+	var legal_worst := 0
+	for k in 4:
+		var lr := RandomNumberGenerator.new()
+		lr.seed = 300 + k
+		var la = AI.build(0, 200, lr, -1, -1, big)["army"]
+		var lb = AI.build(1, 200, lr, -1, -1, big)["army"]
+		var ls = Sim.new(la, lb, big)
+		ls.fast = true
+		var t3 := Time.get_ticks_usec()
+		ls.run_to_end()
+		var us3 := Time.get_ticks_usec() - t3
+		legal_t += us3
+		legal_worst = maxi(legal_worst, us3)
+	out["legal_max_ai_armies"] = {"avg_ms": legal_t / 4 / 1000, "worst_ms": legal_worst / 1000}
+	# 合法的支援兵密集：10 劍士＋醫者／鼓手交替擺到買不起（200 金、40 隻）
+	var mk := func(team: int) -> Army:
+		var a := Army.new(team, 200)
+		a.apply_rules(big, team)
+		var cells: Array = []
+		for c in Army.ZONE:
+			for r in Army.ROWS:
+				cells.append(Vector2i(c if team == 0 else Army.COLS - 1 - c, r))
+		var i := 0
+		for k in 10:
+			a.place(D.SWORD, cells[i].x, cells[i].y)
+			i += 1
+		var t := 7
+		while a.can_afford_any() and i < cells.size():
+			a.place(t, cells[i].x, cells[i].y)
+			t = 15 - t
+			i += 1
+		return a
+	var sup0: Army = mk.call(0)
+	var sup1: Army = mk.call(1)
+	var ss = Sim.new(sup0, sup1, big)
+	ss.fast = true
+	var t4 := Time.get_ticks_usec()
+	ss.run_to_end()
+	out["legal_support_dense"] = {"units": sup0.count(), "ms": (Time.get_ticks_usec() - t4) / 1000, "ticks": ss.tick}
 	var known2: Array = AI.build(0, 200, rng, -1, -1, big)["army"].units
 	var t1 := Time.get_ticks_usec()
 	for k in 3:

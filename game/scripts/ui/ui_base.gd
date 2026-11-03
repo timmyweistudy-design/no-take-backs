@@ -149,7 +149,8 @@ var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
 var probe_texts: Array = []
 var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
 var probe_ctrls: Array = []
-var _probe_btn_label := false     # 第五輪：其他控制項（兵卡）的外框；裡面的字不算段數     # 截圖用：特效停在當下的時刻不往前跑
+var _probe_btn_label := false
+var _probe_btn_rect := Rect2()     # 第五輪：其他控制項（兵卡）的外框；裡面的字不算段數     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
 var pt_rated := false
 
@@ -356,7 +357,7 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
 		if layout_probe and c.a > 0.05 and lines[i].strip_edges() != "":
 			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label})
+			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect})
 		var oc := Color(0, 0, 0, c.a * 0.75) if outline.a < 0.0 else outline
 		if oc.a > 0.0:
 			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, oc)
@@ -386,6 +387,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var lines := wrap_lines(label, sz, r.size.x - 10, primary)
 	var h := lines.size() * sz * line_h(lines.size())
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
+	_probe_btn_rect = r
 	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
 	_probe_btn_label = false
 

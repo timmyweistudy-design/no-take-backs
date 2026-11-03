@@ -141,12 +141,20 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, 0.85))
 	if cb:
 		# 色盲：紅方（中線以下）的面積加斜線紋，不只靠顏色分辨（Codex 實作第 1 輪：原本是空的）
-		for k in ys.size():
-			if ys[k] < 0.5:
-				var x2 := rect.position.x + k * dx
+		# 整個紅方面積都畫斜線：每條 45° 線從中線往下，只畫在該欄的紅色高度內
+		var step := 7.0
+		var x0 := rect.position.x - rect.size.y
+		while x0 < rect.end.x:
+			for k in ys.size():
+				if ys[k] >= 0.5:
+					continue
+				var xc := rect.position.x + k * dx
 				var yb: float = rect.end.y - rect.size.y * ys[k]
-				if int(x2) % 6 < 3:
-					ui.draw_line(Vector2(x2, mid), Vector2(x2 + 3, minf(yb, mid + 3)), Color(0, 0, 0, 0.45), 1.5)
+				# 這條斜線在 x＝xc 時的 y：y = mid + (xc - x0)
+				var yl := mid + (xc - x0)
+				if yl >= mid and yl <= yb:
+					ui.draw_rect(Rect2(xc, yl, maxf(1.0, dx), 1.5), Color(0, 0, 0, 0.45))
+			x0 += step
 	# 標記：最多 3 個，依時間排，標籤往左右讓開
 	var fs: int = ui.tz("C")
 	var used: Array = []

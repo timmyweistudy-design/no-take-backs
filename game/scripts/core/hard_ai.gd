@@ -53,8 +53,9 @@ static func build(known: Array, entries: Array, rng: RandomNumberGenerator, pool
 	return best
 
 ## 反制庫：組成最接近玩家陣型的原型的反制（距離 ≤40）；用到未開放兵種的不算。
+## 反制庫只在「部署與模擬都標準」時用（集中用 Presets.deploy_standard 判定，Codex 實作第 2 輪）。
 static func _standard_like(r) -> bool:
-	return r.budget_of(0) == 100 and r.budget_of(1) == 100 and r.unit_cap == 24 and r.type_cap == 0 and r.sim_is_legacy()
+	return r.sim_is_legacy() and load("res://scripts/game/presets.gd").deploy_standard(r)
 
 static func pick_counter(entries: Array, known: Array, pool: int) -> Army:
 	if entries.is_empty():
