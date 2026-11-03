@@ -229,12 +229,45 @@ func _cx_left_items(u: Dictionary, lang: String) -> Array:
 			{"s": L.t("unit_%d" % cx_unit), "size": ts(26), "c": Color.WHITE, "bold": true},
 			{"s": CX.text(u, "role", lang), "size": ts(15), "c": Color(1, 1, 1, 0.8)},
 			{"s": tag, "size": ts(15), "c": ACCENT}]},
-		{"type": "bars"},
-		{"type": "text", "s": CX.text(u, "story", lang), "size": ts(16), "c": Color(1, 1, 1, 0.92), "x": 0.0, "w": 356.0, "gap": 12.0},
+		{"type": "ranks"},
+		{"type": "counters"},
 		{"type": "text", "s": "✓ " + CX.text(u, "good", lang), "size": ts(15), "c": Color("#7dff8a"), "x": 0.0, "w": 356.0, "gap": 6.0},
-		{"type": "text", "s": "✗ " + CX.text(u, "bad", lang), "size": ts(15), "c": Color("#ff9b9b"), "x": 0.0, "w": 356.0, "gap": 6.0},
+		{"type": "text", "s": "✗ " + CX.text(u, "bad", lang), "size": ts(15), "c": Color("#ff9b9b"), "x": 0.0, "w": 356.0, "gap": 12.0},
+		{"type": "text", "s": L.t("codex_story_h"), "size": ts(15), "c": Color(1, 1, 1, 0.6), "x": 0.0, "w": 356.0, "gap": 2.0},
+		{"type": "text", "s": CX.text(u, "story", lang), "size": ts(16), "c": Color(1, 1, 1, 0.92), "x": 0.0, "w": 356.0, "gap": 12.0},
 	]
 	return items
+
+## 排名條（第五輪 §4.3）：只在可比的兵種之間排名。回傳 [標籤, {兵種: 值}, 數值文字]；值字典只有一筆＝不排名。
+## 血量、速度：10 種一起比；每秒傷害：只比戰鬥兵；射程：戰鬥兵比射程、支援兵比支援範圍；醫者每秒補血、鼓手光環、價格不排名。
+func _cx_ranks(t: int) -> Array:
+	var hp := {}
+	var dps := {}
+	var rng := {}
+	var spd := {}
+	for k in D.COUNT:
+		var st: Dictionary = D.STATS[k]
+		hp[k] = float(st["hp"])
+		spd[k] = float(st["speed"]) * 20.0 / 1000.0
+		if not D.is_support(k):
+			dps[k] = float(st["atk"]) * 20.0 / float(st["cd"])
+			rng[k] = float(st["reach"]) / 1000.0
+	var out: Array = [[L.t("bar_hp"), hp, str(int(hp[t]))]]
+	if t == D.MEDIC:
+		var hps := float(D.HEAL_AMT) * 20.0 / float(D.HEAL_CD)
+		out.append([L.t("bar_hps"), {t: hps}, "%.0f" % hps])
+	elif t == D.DRUMMER:
+		out.append([L.t("bar_aura"), {t: 1.0}, L.t("aura_val", [D.DRUM_BONUS * 100 / 4])])
+	else:
+		out.append([L.t("bar_dps"), dps, "%.0f" % dps[t]])
+	if D.is_support(t):
+		var sr := float(D.HEAL_RANGE if t == D.MEDIC else D.DRUM_RANGE) / 1000.0
+		out.append([L.t("bar_support_range"), {t: sr}, L.t("cells", [sr])])
+	else:
+		out.append([L.t("bar_range"), rng, L.t("cells", [rng[t]])])
+	out.append([L.t("bar_speed"), spd, L.t("cells_s", [spd[t]])])
+	out.append([L.t("bar_cost"), {t: float(D.STATS[t]["cost"])}, L.t("gold", [int(D.STATS[t]["cost"])])])
+	return out
 
 ## 屬性條（第三輪 U2）：血、每秒傷害、射程、速度，對五兵種最大值正規化。回傳 [標籤, 0～1, 數值文字]。
 func _cx_bars(t: int) -> Array:
@@ -292,6 +325,40 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 						ty += tx["size"] * 1.3
 					ty += 3.0
 				y += maxf(h, ty - y) + 8.0
+			"ranks":
+				var lh2 := float(tz("S")) * 1.7
+				for b in _cx_ranks(cx_unit):
+					if inside.call(y, lh2):
+						Charts.rank_bar(self, Rect2(r.position.x, y, r.size.x - 12, lh2), b[1], cx_unit, b[0], b[2])
+					y += lh2
+				y += 8.0
+			"counters":
+				# 剋／怕（第五輪：圖鑑也查得到，頭像 28px＋短名）
+				var beats: Array = []
+				var fears: Array = []
+				for t2 in D.COUNT:
+					var sc: int = load("res://scripts/core/ai_turns.gd").counter_score(cx_unit, t2)
+					if sc > 0:
+						beats.append(t2)
+					elif sc < 0:
+						fears.append(t2)
+				if D.is_support(cx_unit):
+					beats = load("res://scripts/core/ai_turns.gd").SYNERGY.get(cx_unit, [])
+				var rowh := 34.0 + tz("C") * 1.3
+				for grp in [[L.t("synergy") if D.is_support(cx_unit) else L.t("beats"), beats, Color("#4ade80")], [L.t("fears"), fears, Color("#f87171")]]:
+					if grp[1].is_empty():
+						continue
+					if inside.call(y, rowh):
+						_text(Vector2(r.position.x, y + 8), grp[0], tz("S"), grp[2], false, true)
+						var x := r.position.x + 40
+						for t3 in grp[1]:
+							if x > r.end.x - 60:
+								break
+							Art.unit(self, Vector2(x + 26, y + 32), t3, 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.6, cbm())
+							_text(Vector2(x + 26, y + 34), L.t("unit_%d" % t3), tz("C"), Color(1, 1, 1, 0.8), true, false, 60)
+							x += 64
+					y += rowh
+				y += 6.0
 			"bars":
 				var lh := float(ts(13)) * 1.3 + 4.0
 				for b in _cx_bars(cx_unit):

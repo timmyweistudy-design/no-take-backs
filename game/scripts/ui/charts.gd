@@ -67,8 +67,8 @@ static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
 static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String, value_text: String, accent := Color("#ffd166")) -> void:
 	var fs: int = ui.tz("S")
 	ui._text(rect.position, label, fs, MUTED)
-	var lx := rect.position.x + rect.size.x * 0.30
-	var lw := rect.size.x * 0.40
+	var lx := rect.position.x + rect.size.x * 0.22
+	var lw := rect.size.x * 0.30
 	var cy := rect.position.y + fs * 0.75
 	ui.draw_line(Vector2(lx, cy), Vector2(lx + lw, cy), GRID, 4.0)
 	var mx := 0.0
@@ -89,7 +89,7 @@ static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String
 		ui.draw_line(Vector2(lx, cy), Vector2(pm, cy), accent, 4.0)
 		ui.draw_circle(Vector2(pm, cy), 7.0, accent)
 	var rt: String = value_text if values.size() <= 1 else load("res://scripts/game/strings.gd").t("rank_nth", [value_text, rank])
-	ui._text(Vector2(lx + lw + 14, rect.position.y), rt, fs, Color.WHITE, false, true, rect.end.x - (lx + lw + 14))
+	ui._text(Vector2(lx + lw + 12, rect.position.y), rt, fs, Color.WHITE, false, true, rect.end.x - (lx + lw + 12))
 
 ## 戰力走勢：log2＝每 tick [藍戰力, 紅戰力] 交錯；b0／b1＝兩邊預算。
 ## 值＝藍比例 ÷（藍比例＋紅比例），以 50% 為界上藍下紅；雙方都 0 時沿用上一點；最後一段做平滑（第五輪 §4.3）。

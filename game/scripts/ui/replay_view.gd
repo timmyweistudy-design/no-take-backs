@@ -274,12 +274,13 @@ func _rv_play() -> void:
 	_begin_battle(rv_army.copy(), rv_enemy.copy(), "review")
 
 func _draw_review() -> void:
-	_panel(Rect2(140, 70, 1000, 660))
-	_text(Vector2(640, 82), L.t("rv_title"), ts(26), Color.WHITE, true, true, 900)
-	_text(Vector2(640, 82 + ts(26) * 1.4), L.t("rv_hint"), ts(14), Color(1, 1, 1, 0.75), true, false, 940)
-	# 左：自己的部署區 6×9（藍方視角，右邊是前排）
-	var cs := 46.0
-	var g0 := Vector2(180, 170)
+	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
+	_panel(Rect2(100, 60, 1080, 680))
+	_text(Vector2(640, 70), L.t("rv_title"), tz("H1"), Color.WHITE, true, true, 900)
+	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint"), tz("S"), Color(1, 1, 1, 0.75), true, false, 960)
+	var cs := 40.0
+	var g0 := Vector2(130, 168)
+	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true)
 	for r in 9:
 		for c in 6:
 			var cell := Rect2(g0 + Vector2(c, r) * cs, Vector2(cs - 2, cs - 2))
@@ -293,35 +294,50 @@ func _draw_review() -> void:
 			if sel:
 				draw_rect(cell, ACCENT, false, 3.0)
 			if ni != -1:
-				Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 6), int(rv_army.units[ni]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.62, cbm())
+				Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 5), int(rv_army.units[ni]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.54, cbm())
 			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true})
-	_text(Vector2(g0.x, g0.y + 9 * cs + 6), L.t("rv_budget", [rv_army.spent(), rv_army.budget, review_changes(rv_orig, rv_army)]), ts(14), Color.WHITE, false, false, 300)
+	# 紅方站位（只看不能改）：同一列對齊，右邊是紅方前排
+	var cs2 := 26.0
+	var g1 := Vector2(g0.x + 6 * cs + 18, g0.y + (9 * cs - 9 * cs2) / 2)
+	_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true)
+	for r in 9:
+		for c in 6:
+			draw_rect(Rect2(g1 + Vector2(c, r) * cs2, Vector2(cs2 - 2, cs2 - 2)), Color(0.35, 0.2, 0.2, 0.45))
+	for u in rv_enemy.units:
+		var lc := int(u["col"]) - (Army.COLS - Army.ZONE)
+		Art.unit(self, g1 + Vector2(lc * cs2 + cs2 / 2, int(u["row"]) * cs2 + cs2 - 3), int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.75, time, 0.34, cbm())
+	var by := g0.y + 9 * cs + 8
+	_text(Vector2(g0.x, by), L.t("rv_budget", [rv_army.spent(), rv_army.budget, review_changes(rv_orig, rv_army)]), tz("S"), Color.WHITE, false, false, 420)
 	var dsc := review_desc()
 	if dsc != "":
-		_text(Vector2(g0.x, g0.y + 9 * cs + 6 + ts(14) * 1.4), dsc, ts(14), ACCENT, false, false, 300)
-	# 右：換成哪個兵種／拿掉
-	var bx := 500.0
-	# 第四輪：10 種兵改成頭像按鈕（文字按鈕一排放不下）；只能換成這場開放的兵種
+		_text(Vector2(g0.x, by + tz("S") * 1.4), dsc, tz("S"), ACCENT, false, false, 420)
+	# 右：換成哪個兵種（頭像＋價錢）／拿掉
+	var bx := 580.0
 	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
 	for t in D.COUNT:
-		var br := Rect2(bx + t * 64, 162, 60, 50)   # 10 顆收在面板內（右緣 1136）
-		_btn(br, "", _rv_set_type.bind(t), rv_sel.x >= 0 and t < nt)
-		Art.unit(self, br.position + Vector2(30, 46), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if t < nt else 0.3, time, 0.55 if t != D.CAVALRY else 0.5, cbm())
-	_btn(Rect2(bx, 218, 232, 36), L.t("rv_remove"), _rv_set_type.bind(-1), rv_sel.x >= 0)
-	_btn(Rect2(bx + 240, 218, 232, 36), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1))
-	_btn(Rect2(bx, 270, 352, 46), L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1, true)
-	# 兩條時間軸：原本、如果
-	var y := 340.0
-	_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), ts(15), Color.WHITE, false, true, 600)
-	_rv_band(Rect2(bx, y + ts(15) * 1.5, 600, 34), rv_base.get("log", PackedInt64Array()))
-	y += ts(15) * 1.5 + 50
+		var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
+		var br := Rect2(bx + t * 56, 160, 52, 66)
+		_btn(br, "", _rv_set_type.bind(t), rv_sel.x >= 0 and can)
+		Art.unit(self, br.position + Vector2(26, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
+		_text(br.position + Vector2(26, 46), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
+	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), rv_sel.x >= 0)
+	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1))
+	_btn(Rect2(bx, 284, 552, 48), L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1, true)
+	# 兩條戰力走勢上下對齊（同一個時間軸長度）
+	var y := 350.0
+	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+	var b0: Array = rv_base.get("b", [100, 100])
+	_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
+	Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+	y += tz("S") * 1.5 + 82
 	if not rv_result.is_empty():
-		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), ts(15), ACCENT, false, true, 600)
-		_rv_band(Rect2(bx, y + ts(15) * 1.5, 600, 34), rv_result["log"])
-		y += ts(15) * 1.5 + 50
-		_text(Vector2(bx, y), L.t("rv_note"), ts(13), Color(1, 1, 1, 0.6), false, false, 600)
-		_btn(Rect2(bx, y + 30, 290, 44), L.t("rv_play"), func(): _rv_play())
-	_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): overlay = "")
+		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+		var b1: Array = rv_result.get("b", [100, 100])
+		Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+		y += tz("S") * 1.5 + 82
+		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), Color(1, 1, 1, 0.6), false, false, 552)
+		_btn(Rect2(bx, y + tz("C") * 1.6, 300, 44), L.t("rv_play"), func(): _rv_play())
+	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "")
 
 func _rv_outcome(w: int, rem: int) -> String:
 	if w < 0:

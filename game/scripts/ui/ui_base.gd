@@ -22,6 +22,7 @@ const RS = preload("res://scripts/game/roster.gd")
 const HardAI = preload("res://scripts/core/hard_ai.gd")
 const RuleSet = preload("res://scripts/core/ruleset.gd")
 const Presets = preload("res://scripts/game/presets.gd")
+const Charts = preload("res://scripts/ui/charts.gd")
 
 enum St { TITLE, PLACE, BATTLE, RESULT }
 enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
@@ -94,7 +95,15 @@ const PLAY_EFFECTS := {
 }
 var play_kind := "official"   # 這一場是哪種播放
 var rules = null              # 第五輪：這個系列凍結的自訂規則（對 AI、雙人由大廳設定；其他模式 null＝標準）
-var battle_rules = null       # 第五輪：目前／上一場戰鬥用的規則（正式、重播、覆盤、跳轉、看代碼共用）
+var battle_rules = null
+var settings_tab := 0        # 第五輪：設定分頁 0 畫面 1 聲音 2 操作 3 輔助
+var settings_item := ""      # 設定說明欄目前說明的項目
+var result_tab := 0           # 第五輪：結果頁 0＝摘要、1＝詳細數據
+var result_metric := 0        # 詳細數據：0＝輸出、1＝承傷
+var show_place_help := false   # 第五輪：擺放畫面的操作說明（「?」）
+var pending_cell := Vector2i(-1, -1)   # 第五輪：雙人輪流落子「點兩下才落子」的預覽格
+var removed_banner := ""       # 第五輪：規則變更移除了哪些兵（醒目橫幅）
+var removed_banner_t := 0.0       # 第五輪：目前／上一場戰鬥用的規則（正式、重播、覆盤、跳轉、看代碼共用）
 var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模擬晚 2 tick 的快照
 var clutch_tick := -1      # 最後時刻在第幾 tick 觸發（重播跳轉時重建狀態用）
 var watch_mode := false   # 正在看對戰代碼（結果頁不提供「下一局」）

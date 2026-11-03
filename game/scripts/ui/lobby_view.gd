@@ -4,7 +4,6 @@ extends "res://scripts/ui/replay_view.gd"
 ##   自訂模式：按「自訂細項」展開分頁（軍隊、卡池、對局、AI、沙盒）＋右側說明欄（白話說明、和標準的差異、重置）。
 ## 改的是 lobby_r；按開戰才複製一份凍結成 rules（這個系列不再變）。
 
-const Charts = preload("res://scripts/ui/charts.gd")
 
 var lobby_kind := "ai"
 var lobby_r = null

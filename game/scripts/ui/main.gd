@@ -307,6 +307,9 @@ func _run_screenshots() -> void:
 	zoom = 1.0
 	_finish_battle()
 	await _snap("05_result.png")
+	result_tab = 1
+	await _snap("05b_result_details.png")
+	result_tab = 0
 	puzzle_id = "p1"
 	_start_mode(Mode.PUZZLE)
 	selected = D.CAVALRY
