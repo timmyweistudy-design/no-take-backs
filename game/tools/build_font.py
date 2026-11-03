@@ -48,6 +48,7 @@ if os.path.exists(tk_src):
     lost = [c for c in text if ord(c) in cmap and ord(c) not in got]
     if lost:
         sys.exit("標題字子集漏字：" + "".join(lost[:40]))
+    open(os.path.join(root, "fonts", "ThenKhung-missing.txt"), "w", encoding="utf-8").write("".join(missing))
     print("ThenKhung", len(text) - len(missing), "字（原字型沒有 %d 字，由思源黑體補）" % len(missing), os.path.getsize(out) // 1024, "KB")
 else:
     print("（沒有 ThenKhung-Regular.ttf，略過標題字）")

@@ -10,7 +10,8 @@ const RSET = preload("res://scripts/core/ruleset.gd")
 
 ## 這組規則能不能用舊格式 NTB2 重播（模擬走舊路徑、陣型在舊的人數上限內）。
 static func needs_v3(rules) -> bool:
-	return rules != null and (not rules.sim_is_legacy() or rules.unit_cap > 24 or rules.type_cap > 0)
+	# Codex 實作第 1 輪：卡池、人數、單種上限有任何不標準就用 NTB3，分享後規則不會遺失
+	return rules != null and (not rules.sim_is_legacy() or not load("res://scripts/game/presets.gd").deploy_standard(rules))
 
 static func encode(a0, a1, rules = null) -> String:
 	if needs_v3(rules):
@@ -56,5 +57,7 @@ static func decode(code: String) -> Dictionary:
 			pair[0].apply_rules(rules, pair[1])
 	if a0.load_code(str(j["a"])) != "" or a1.load_code(str(j["b"])) != "":
 		return {"ok": false, "why": "army"}
+	if rules != null and (not a0.has_combat() or not a1.has_combat()):
+		return {"ok": false, "why": "army"}   # NTB3（第五輪新格式）：雙方各至少 1 隻戰鬥兵；舊 NTB2 不加這條（相容）
 	var mismatch: bool = str(j.get("r", "")) != D.RULES_VERSION or str(j.get("d", "")) != D.data_digest()
 	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch, "rules": rules}

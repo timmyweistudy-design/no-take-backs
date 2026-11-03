@@ -16,5 +16,13 @@ for w in ["Regular", "Bold"]:
     miss = [c for c in need if ord(c) not in cmap]
     if miss:
         bad.append(f"{w} 缺 {len(miss)} 字：{''.join(miss[:40])}")
+# 標題字：子集裡沒有的字，必須是原字型本來就沒有的（build_font.py 寫在 ThenKhung-missing.txt），否則就是漏子集化
+tk = os.path.join(root, "fonts", "ThenKhung-sub.ttf")
+if os.path.exists(tk):
+    tcm = TTFont(tk).getBestCmap()
+    allowed = set(open(os.path.join(root, "fonts", "ThenKhung-missing.txt"), encoding="utf-8").read()) if os.path.exists(os.path.join(root, "fonts", "ThenKhung-missing.txt")) else set()
+    miss = [c for c in need if ord(c) not in tcm and c not in allowed]
+    if miss:
+        bad.append(f"標題字缺 {len(miss)} 字（不是原字型沒有的）：{''.join(miss[:40])}")
 print("FONTCOVER", "OK" if not bad else "；".join(bad), f"（{len(need)} 字）")
 sys.exit(1 if bad else 0)

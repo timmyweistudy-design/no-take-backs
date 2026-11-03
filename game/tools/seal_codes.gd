@@ -1,7 +1,7 @@
 extends SceneTree
 ## 第五輪 P0：封存舊格式對戰代碼（NTB2）＋預期結果。
 ## 自訂規則上線後，舊代碼要用舊判定（judge=1）播出完全相同的一場；這裡存的是「當時的字串」，不是用新版自己編再自己解。
-## 產生（只在 1.3.0 規則下做一次）：godot --headless --path game --script res://tools/seal_codes.gd -- --make
+## 產生（只在 1.3.0 規則下做一次；第五輪改成逐 tick 指紋後重封一次——金標準 1000 場證明當時模擬器和 1.3.0 位元組相同）：godot --headless --path game --script res://tools/seal_codes.gd -- --make
 ## 檢查：godot --headless --path game --script res://tools/seal_codes.gd
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
@@ -17,8 +17,8 @@ static func play(code: String) -> Dictionary:
 	var d := BC.decode(code)
 	if not d["ok"]:
 		return {"ok": false, "why": d["why"]}
-	var s = Sim.new(d["a0"], d["a1"])
-	s.fast = true
+	# 逐 tick 雜湊（不用 fast）：指紋涵蓋整個戰鬥過程，不只終局（Codex 第五輪實作第 1 輪）；解出來的規則照樣傳進模擬器（NTB2＝null）
+	var s = Sim.new(d["a0"], d["a1"], d.get("rules"))
 	s.run_to_end()
 	return {"ok": true, "w": s.winner, "t": s.tick, "fp": s.fingerprint, "p0": s.power(0), "p1": s.power(1)}
 

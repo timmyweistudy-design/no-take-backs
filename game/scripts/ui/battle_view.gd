@@ -32,8 +32,7 @@ func _battle_process(delta: float) -> void:
 		_update_action_focus()
 	sfx.set_muffled(slow_left > 0 and not view.finished)
 	# 分軌音樂依戰況混音（第三輪 S1）
-	var tot2 := float(view.budget * 1000)
-	var close := absf(view.power(0) - view.power(1)) * 100.0 / tot2 <= 15.0
+	var close := absf(view.power(0) * 100.0 / (view.budget_of(0) * 1000) - view.power(1) * 100.0 / (view.budget_of(1) * 1000)) <= 15.0
 	sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
 	# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
 	if follow_id >= 0:
@@ -53,9 +52,9 @@ func _battle_process(delta: float) -> void:
 ## 最後時刻（優化方案 F1）：雙方剩餘戰力都 ≤30% 且差距 ≤15%；或雙方各剩 ≤3 隻且差距 ≤15%。
 ## 最後時刻的條件（view 與 sim 都有 budget／power／alive_count，重播跳轉時用同一個條件重算，Codex S7 #2）。
 static func clutch_cond(s) -> bool:
-	var tot := float(s.budget * 1000)
-	var p0: float = s.power(0) * 100.0 / tot
-	var p1: float = s.power(1) * 100.0 / tot
+	# 第五輪：各自用自己的預算算比例（舊判定時兩邊預算相同，和 1.3.0 一樣）
+	var p0: float = s.power(0) * 100.0 / (s.budget_of(0) * 1000.0)
+	var p1: float = s.power(1) * 100.0 / (s.budget_of(1) * 1000.0)
 	return absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (s.alive_count(0) <= 3 and s.alive_count(1) <= 3))
 
 ## with_fx＝false（直接看結果、重播跳轉補播）只記狀態與標記，不放慢動作、不播音效、不出橫幅（Codex S8 #2）。
@@ -1200,14 +1199,17 @@ func _draw_fx(f: Dictionary) -> void:
 # ── 戰鬥 HUD ──
 func _draw_battle_hud() -> void:
 	draw_rect(Rect2(0, 0, 1280, 86), UI_BG)
-	_text(Vector2(20, 8), L.t("title"), ts(26), Color("#ffe8a3"), false, true, 250)
-	_text(Vector2(20, 52), _mode_label(), ts(14), Color(1, 1, 1, 0.6), false, false, 250)
-	var tot := float(view.budget * 1000)
+	# 第五輪：左上和擺放畫面一樣——模式（粗）＋局數比分（小字），不再放遊戲標題（大字時會換行壓到棋盤）
+	_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), Color(1, 1, 1, 0.75), false, true, 300)
+	if mode == Mode.VS_AI or mode == Mode.DUEL:
+		_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), Color(1, 1, 1, 0.6), false, false, 300)
 	var p0: int = view.power(0)
 	var p1: int = view.power(1)
+	var f0: float = float(p0) / view.budget_of(0)
+	var f1: float = float(p1) / view.budget_of(1)
 	var bx := 330.0
 	var bw := 620.0
-	var split := bw * p0 / maxf(1.0, p0 + p1)
+	var split := bw * f0 / maxf(0.001, f0 + f1)
 	draw_rect(Rect2(bx - 2, 40, bw + 4, 26), Art.OUT)
 	draw_rect(Rect2(bx, 42, split, 22), Art.team_color(0, cbm()))
 	draw_rect(Rect2(bx + split, 42, bw - split, 22), Art.team_color(1, cbm()))
@@ -1223,8 +1225,8 @@ func _draw_battle_hud() -> void:
 	# 色盲配色的亮橘底用深色字（對比 ≥7:1）
 	var lc := Color.WHITE
 	var rc := Color("#141820") if cbm() else Color.WHITE
-	_text(Vector2(bx + 8, 42), "%d%%" % roundi(p0 * 100 / tot), ts(15), lc, false, true)
-	var rt := "%d%%" % roundi(p1 * 100 / tot)
+	_text(Vector2(bx + 8, 42), "%d%%" % roundi(p0 * 100.0 / (view.budget_of(0) * 1000)), ts(15), lc, false, true)
+	var rt := "%d%%" % roundi(p1 * 100.0 / (view.budget_of(1) * 1000))
 	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), rc, false, true, 0.0, Color(1, 1, 1, 0.0) if cbm() else Color(0, 0, 0, -1))   # 深色字不加黑描邊（Antigravity S2 #1）
 	_text(Vector2(bx - 70, 42), L.t("units_left", [view.alive_count(0)]), ts(15), Art.team_color(0, cbm()), false, false, 64)
 	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [view.alive_count(1)]), ts(15), Art.team_color(1, cbm()), false, false, 70)
@@ -1232,17 +1234,17 @@ func _draw_battle_hud() -> void:
 		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
 			_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
-	var secs := maxi(0, 90 - view.tick / 20)
+	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
 	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
 	if mode == Mode.VS_AI and ai_name != "":
 		_text(Vector2(bx + bw - 120, 68), "AI：%s" % ai_name, ts(11), Color(1, 1, 1, 0.55))
 	if state == St.BATTLE and bool(Save.s("playtest")):
 		if pt_call_tick < 0:
-			_btn(Rect2(840, 8, 162, 34), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
+			_btn(Rect2(840, 6, 162, 38), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
 	if state == St.BATTLE:
 		if play_kind == "official":   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
-			_btn(Rect2(1010, 8, 120, 34), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
-		_btn(Rect2(1138, 8, 132, 34), L.t("skip"), func(): _on_skip())
+			_btn(Rect2(1010, 6, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
+		_btn(Rect2(1138, 6, 132, 38), L.t("skip"), func(): _on_skip())
 
 
 ## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）

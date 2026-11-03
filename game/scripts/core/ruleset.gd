@@ -312,11 +312,27 @@ static func from_code(code: String) -> Dictionary:
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
 	if not j is Array or j.size() != 17:
 		return {"ok": false, "why": "rr_code_body"}
+	# 逐欄驗型（Codex 實作第 1 輪）：整數欄必須是整數、布林欄只能 0／1、兩個卡池原值都要合法（即使 AI 卡池跟藍方一樣）
 	for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14]:
-		if not (j[i] is float or j[i] is int) or float(j[i]) != floorf(float(j[i])):
+		if not (j[i] is float or j[i] is int) or float(j[i]) != floorf(float(j[i])) or absf(float(j[i])) > 100000:
 			return {"ok": false, "why": "rr_code_body"}
-	if not j[10] is String or not j[15] is Array or not j[16] is Array:
+	for i in [2, 8, 12, 13]:
+		if int(j[i]) != 0 and int(j[i]) != 1:
+			return {"ok": false, "why": "rr_code_body"}
+	for i in [6, 7]:
+		if int(j[i]) < 1 or int(j[i]) > all_pool():
+			return {"ok": false, "why": "rr_bad_pool"}
+	if not j[10] is String or not j[15] is Array or not j[16] is Array or j[15].size() > D.COUNT or j[16].size() > SKILLS.size():
 		return {"ok": false, "why": "rr_code_body"}
+	for e in j[15]:
+		if not e is Array or e.size() != 4:
+			return {"ok": false, "why": "rr_code_body"}
+		for v in e:
+			if not (v is float or v is int) or float(v) != floorf(float(v)):
+				return {"ok": false, "why": "rr_code_body"}
+	for sk in j[16]:
+		if not sk is String:
+			return {"ok": false, "why": "rr_code_body"}
 	var r = load("res://scripts/core/ruleset.gd").new()
 	r.handicap = int(j[2]) == 1
 	r.budget = [int(j[0]), int(j[1])]
@@ -332,11 +348,9 @@ static func from_code(code: String) -> Dictionary:
 	r.keep_formation = int(j[13]) == 1
 	r.ai_level = int(j[14])
 	for e in j[15]:
-		if not e is Array or e.size() != 4:
-			return {"ok": false, "why": "rr_code_body"}
 		r.stat_pct[int(e[0])] = [int(e[1]), int(e[2]), int(e[3])]
-	for s in j[16]:
-		r.skills_off.append(str(s))
+	for sk in j[16]:
+		r.skills_off.append(str(sk))
 	r.preset = "custom"
 	var bad: Array = r.validate()
 	if not bad.is_empty():

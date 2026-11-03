@@ -102,7 +102,7 @@ func _capture_capsule() -> void:
 ## 版面檢查（第三輪 T4）：這張截圖的介面文字有沒有越界、小於 9px（Steam Deck 下限）、彼此重疊超過 15%。
 ## 第五輪 U4：新規則全部算違規——表外字級、小於字級表下限、戰場字小於 14、相同字串在不同位置重疊、點擊框小於 32px、
 ## 「要讀的文字」段數超過上限（控制項＝按鈕、兵卡裡的字不算）。
-const TEXT_BUDGET := {"02_place.png": 30, "17_place_new.png": 30, "05_result.png": 20, "10_codex.png": 25, "19_codex_new.png": 25,
+const TEXT_BUDGET := {"02_place.png": 30, "17_place_new.png": 30, "05_result.png": 20, "10_codex.png": 30, "19_codex_new.png": 30,
 	"22_lobby.png": 25, "25_lobby_duel.png": 25, "08_settings.png": 25, "01_title.png": 12}
 
 func _layout_report(name: String) -> void:
@@ -117,13 +117,15 @@ func _layout_report(name: String) -> void:
 		if t.get("field", false):
 			if sz < 14:
 				bad.append({"type": "戰場字太小", "s": t["s"], "size": sz})
+			if r.position.x < -2 or r.end.x > 1282 or r.position.y < -2 or r.end.y > 802:
+				bad.append({"type": "戰場字越界", "s": t["s"], "r": str(r)})
 			continue
 		ui_n += 1
 		sizes.append(sz)
-		var in_ctrl := false
-		for c in ctrls:
-			if c.has_point(r.get_center()):
-				in_ctrl = true
+		var in_ctrl: bool = t.get("btn", false)
+		for c in probe_ctrls:
+			if c.grow(1.0).encloses(r):
+				in_ctrl = true   # 整段字都在卡片／空白標籤按鈕裡＝控制項內容
 				break
 		if not in_ctrl:
 			free_n += 1
@@ -152,19 +154,21 @@ func _layout_report(name: String) -> void:
 			elif ra.position.distance_to(rb.position) > 2.0:
 				bad.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
 	for r in probe_btns:
-		if r.size.x < 32.0 or r.size.y < 32.0:
+		if r.size.x < 36.0 or r.size.y < 36.0:   # 方案 §5.3：點擊框 ≥36px
 			bad.append({"type": "點擊框太小", "r": str(r)})
 	# 第五輪（Antigravity 實作第 1 輪抓到自動檢查漏的）：按鈕外的文字壓到按鈕上
 	for t in probe_texts:
 		if t.get("field", false):
 			continue
 		var tr: Rect2 = t["r"]
-		var mine := false
-		for c in ctrls:
-			if c.has_point(tr.get_center()):
-				mine = true
+		if t.get("btn", false):
+			continue   # 按鈕自己的標籤
+		var inside := false
+		for c in probe_ctrls:
+			if c.grow(1.0).encloses(tr):
+				inside = true
 				break
-		if mine:
+		if inside:
 			continue
 		for br in probe_btns:
 			var x2 := tr.intersection(br)

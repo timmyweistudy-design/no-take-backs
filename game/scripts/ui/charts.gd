@@ -67,18 +67,18 @@ static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
 static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String, value_text: String, accent := Color("#ffd166")) -> void:
 	var fs: int = ui.tz("S")
 	ui._text(rect.position, label, fs, MUTED)
+	var lx := maxf(rect.position.x + rect.size.x * 0.22, rect.position.x + ui._width(label, fs) + 10)   # 標籤長（英文、大字）就往右讓
 	if values.size() <= 1:
 		# 不排名的指標（價格、補血、光環）：只寫數值，不畫條（Antigravity：灰條看起來像最低分）
-		ui._text(Vector2(rect.position.x + rect.size.x * 0.22, rect.position.y), value_text, fs, Color.WHITE, false, true, rect.size.x * 0.78)
+		ui._text(Vector2(lx, rect.position.y), value_text, fs, Color.WHITE, false, true, rect.end.x - lx)
 		return
-	var lx := rect.position.x + rect.size.x * 0.22
 	# 數值文字放得下為優先：條的寬度＝剩下的空間（30%～最少 50px）
 	var rank_guess := 1
 	for t in values:
 		if t != me and float(values[t]) > float(values.get(me, 0)):
 			rank_guess += 1
 	var rt0: String = value_text if values.size() <= 1 else load("res://scripts/game/strings.gd").t("rank_nth", [value_text, rank_guess])
-	var lw := clampf(rect.size.x * 0.78 - ui._width(rt0, fs, true) - 24, 50.0, rect.size.x * 0.30)
+	var lw := clampf(rect.end.x - lx - ui._width(rt0, fs, true) - 24, 40.0, rect.size.x * 0.30)
 	var cy := rect.position.y + fs * 0.75
 	ui.draw_line(Vector2(lx, cy), Vector2(lx + lw, cy), GRID, 4.0)
 	var mx := 0.0
@@ -140,9 +140,13 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 			var rr := Rect2(x, mid, dx + 0.5, y - mid)
 			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, 0.85))
 	if cb:
+		# 色盲：紅方（中線以下）的面積加斜線紋，不只靠顏色分辨（Codex 實作第 1 輪：原本是空的）
 		for k in ys.size():
 			if ys[k] < 0.5:
-				pass
+				var x2 := rect.position.x + k * dx
+				var yb: float = rect.end.y - rect.size.y * ys[k]
+				if int(x2) % 6 < 3:
+					ui.draw_line(Vector2(x2, mid), Vector2(x2 + 3, minf(yb, mid + 3)), Color(0, 0, 0, 0.45), 1.5)
 	# 標記：最多 3 個，依時間排，標籤往左右讓開
 	var fs: int = ui.tz("C")
 	var used: Array = []

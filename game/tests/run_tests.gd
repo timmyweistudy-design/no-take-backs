@@ -37,6 +37,7 @@ func _init() -> void:
 		test_rules_v5()
 		test_sandbox_v5()
 		test_battle_code_v5()
+		test_rules_e2e_v5()
 		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 		quit(1 if failed > 0 or passed == 0 else 0)
 		return
@@ -74,6 +75,7 @@ func _init() -> void:
 	test_rules_v5()
 	test_sandbox_v5()
 	test_battle_code_v5()
+	test_rules_e2e_v5()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -812,7 +814,7 @@ func test_play_effects() -> void:
 		g._finish_battle()
 	play.call("official")
 	var snap := func() -> String:
-		return JSON.stringify([SV.data.get("stats"), SV.data.get("unit_wins"), SV.data.get("achievements"), g.wins, g.series_over])
+		return JSON.stringify([SV.data.get("stats"), SV.data.get("unit_wins"), SV.data.get("achievements"), g.wins, g.series_over, SV.data.get("custom_stats"), SV.data.get("unlock_games")])
 	var after_official: String = snap.call()
 	var games_1 := int(SV.data["stats"]["games"])
 	for i in 3:
@@ -833,6 +835,28 @@ func test_play_effects() -> void:
 		guard2 += 1
 	g._finish_battle()
 	ok(g.play_kind == "review" and snap.call() == snap2, "覆盤播放：比分、進度、成就都不變")
+	# 第五輪：自訂規則（單局）→ 記在自訂戰績、解鎖場數 +1，標準戰績與標準成就不動；沙盒什麼都不記
+	var RS5 = load("res://scripts/core/ruleset.gd")
+	var cr = RS5.standard()
+	cr.rounds = 1
+	g.rules = cr
+	var st_before := JSON.stringify(SV.data.get("stats"))
+	var ach_before := JSON.stringify(SV.data.get("achievements"))
+	var cs_before := int(SV.data.get("custom_stats", {}).get("games", 0))
+	var ug_before := int(SV.data.get("unlock_games", 0))
+	play.call("official")
+	ok(JSON.stringify(SV.data.get("stats")) == st_before and JSON.stringify(SV.data.get("achievements")) == ach_before
+		and int(SV.data["custom_stats"]["games"]) == cs_before + 1 and int(SV.data["unlock_games"]) == ug_before + 1,
+		"自訂規則（單局，雖然數值是標準）：記在自訂戰績、解鎖場數 +1，標準戰績與成就不變", "%s %s" % [SV.data.get("custom_stats"), SV.data.get("unlock_games")])
+	var sb = RS5.standard()
+	sb.stat_pct = {D.SWORD: [150, 100, 100]}
+	g.rules = sb
+	var snap3: String = snap.call()
+	play.call("official")
+	var after3: String = snap.call()
+	ok(JSON.stringify(JSON.parse_string(after3).slice(0, 3) + JSON.parse_string(after3).slice(5, 7)) == JSON.stringify(JSON.parse_string(snap3).slice(0, 3) + JSON.parse_string(snap3).slice(5, 7)),
+		"沙盒：戰績、自訂戰績、解鎖場數、成就都不記", "%s → %s" % [snap3, after3])
+	g.rules = null
 	g.free()
 	for fn in ["user://test_fx_save.json", "user://test_fx_save.json.bak", "user://test_fx_settings.json"]:
 		if FileAccess.file_exists(fn):
@@ -2111,3 +2135,128 @@ func test_battle_code_v5() -> void:
 	ok(code.begins_with("NTB3.") and b0.count() > 24 and ok_dec and same, "自訂規則（180 金、40 隻、120 秒、沙盒）對戰代碼 NTB3：解碼後規則相同、播出同一場", "units=%d %s" % [b0.count(), d.get("why", "")])
 	var broken := code.substr(0, code.length() - 3) + "abc"
 	ok(not BC.decode(broken)["ok"], "NTB3 校驗碼壞掉會被拒")
+
+
+## 第五輪（Codex 實作第 1 輪）：判定、系列、輪流落子終止都用真的程式驗，不是只驗測試裡自己寫的公式。
+func test_rules_e2e_v5() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var rng := RandomNumberGenerator.new()
+	# 讓子判定：真的跑到時間到，模擬器判的勝負＝用最終戰力獨立算的結果
+	var jb: Array = []
+	var timeouts := 0
+	for k in 40:
+		rng.seed = 7100 + k
+		var r = RSET.standard()
+		r.handicap = true
+		r.budget = [rng.randi_range(5, 18) * 10, rng.randi_range(5, 18) * 10]
+		if r.budget[0] == r.budget[1]:
+			r.budget[1] += 10
+		r.ticks = 1200
+		var wall0: Array = []
+		var wall1: Array = []
+		for rr in 9:
+			if rng.randf() < 0.85:
+				wall0.append([D.SHIELD, 5, rr])
+			if rng.randf() < 0.85:
+				wall1.append([D.SHIELD, 5, rr])
+		var a0 = army_from(0, wall0)
+		var a1 = army_from(1, wall1)
+		a0.budget = r.budget[0]
+		a1.budget = r.budget[1]
+		var s = Sim.new(a0, a1, r)
+		s.fast = true
+		s.run_to_end()
+		if s.tick < 1200 or s.alive_count(0) == 0 or s.alive_count(1) == 0:
+			continue
+		timeouts += 1
+		var b0: int = r.budget[0]
+		var b1: int = r.budget[1]
+		var dl: int = s.power(0) * b1 - s.power(1) * b0
+		var want := -1 if 100 * absi(dl) < 3 * 1000 * b0 * b1 else (0 if dl > 0 else 1)
+		if s.winner != want or s.judge != 2:
+			jb.append([k, s.winner, want])
+	ok(timeouts >= 10 and jb.is_empty(), "讓子判定（實際跑到時間到 %d 場）：模擬器的勝負＝依最終戰力與各自預算獨立算的結果" % timeouts, str(jb))
+	# 系列：用遊戲裡實際判斷系列結束的函式
+	var sb: Array = []
+	var cases := [[1, [0, 0], 1, true], [1, [1, 0], 1, true], [3, [1, 0], 1, false], [3, [2, 0], 2, true], [3, [1, 1], 3, false], [3, [1, 1], 5, true],
+		[5, [2, 2], 4, false], [5, [3, 1], 4, true], [5, [2, 2], 7, true], [7, [3, 3], 8, false], [7, [4, 3], 7, true], [7, [3, 3], 9, true]]
+	for c in cases:
+		var r = RSET.standard()
+		r.rounds = c[0]
+		if GS.series_done(c[1], c[2], r) != c[3]:
+			sb.append(c)
+	ok(sb.is_empty() and GS.series_done([1, 1], 5, null) and not GS.series_done([1, 1], 4, null), "系列結束判斷（遊戲實際用的函式）：單局、三戰兩勝含平手延長、五戰三勝、七戰四勝；沒有規則＝1.3.0", str(sb))
+	# 輪流落子終止：每個合法卡池 × 三種落子方式，雙方都擺完、各有戰鬥兵、陣型合法、不會卡住
+	var tb: Array = []
+	var n := 0
+	for m in range(1, 1024):
+		var r = RSET.standard(m)
+		if not r.validate().is_empty():
+			continue
+		var rule: String = ["snake5", "cap10", "custom"][m % 3]
+		r.place_rule = rule
+		r.turns = 1 + m % 7
+		r.budget = [[30, 60, 100, 150, 200][m % 5], [30, 60, 100, 150, 200][m % 5]]
+		r.unit_cap = [4, 12, 24, 40][m % 4]
+		r.type_cap = [0, 1, 2, 0][(m / 4) % 4]
+		r.carry = m % 2 == 0
+		if not r.validate().is_empty():
+			continue
+		n += 1
+		var ta := Army.new(0, 100)
+		var tb2 := Army.new(1, 100)
+		ta.apply_rules(r, 0)
+		tb2.apply_rules(r, 1)
+		var tp = TP.new(ta, tb2, m % 2, rule, r)
+		rng.seed = 9000 + m
+		var guard := 0
+		while not tp.done() and guard < 200:
+			guard += 1
+			AIT5.play_turn(tp, rng, m % 3)
+		var why0 := legal_army(ta, r, 0)
+		var why1 := legal_army(tb2, r, 1)
+		if not tp.done() or why0 != "" or why1 != "" or not ta.has_combat() or not tb2.has_combat():
+			tb.append([m, rule, tp.done(), why0, why1, ta.has_combat(), tb2.has_combat()])
+	ok(n > 500 and tb.is_empty(), "輪流落子窮舉 %d 組合法規則（卡池×落子方式×手數×預算×人數×單種上限×累積）：都會結束、陣型合法、雙方都有戰鬥兵" % n, str(tb.slice(0, 3)))
+	# 雙方不同卡池（配對抽樣 200 組）：AI 各自只用自己的卡池
+	var pb: Array = []
+	for k in 200:
+		rng.seed = 12000 + k
+		var r = RSET.standard()
+		r.ai_pool_same = false
+		r.pool = [rng.randi_range(1, 1023), rng.randi_range(1, 1023)]
+		if not r.validate().is_empty():
+			continue
+		var a = AI.build(1, 100, rng, -1, r.pool_of(1), r)["army"]
+		var why := legal_army(a, r, 1)
+		if why != "" or not a.has_combat():
+			pb.append([k, why])
+	ok(pb.is_empty(), "雙方不同卡池（配對抽樣）：AI 只用自己的卡池、陣型合法", str(pb.slice(0, 3)))
+	# 規則代碼壞資料：型別錯誤要回傳拒絕，不是讓程式出錯
+	var bad_bodies := [
+		[100, 100, 0, 1800, 24, 0, 1023, 1023, 1, 3, "snake5", 5, 0, 1, 1, [[0, {}, 100, 100]], []],
+		[100, 100, 2, 1800, 24, 0, 1023, 1023, 1, 3, "snake5", 5, 0, 1, 1, [], []],
+		[100, 100, 0, 1800, 24, 0, 1023, 5000, 1, 3, "snake5", 5, 0, 1, 1, [], []],
+		[100, 100, 0, 1800, 24, 0, 1023, 1023, 1, 3, 7, 5, 0, 1, 1, [], []],
+		[100, 100, 0, 1800, 24, 0, 1023, 1023, 1, 3, "snake5", 5, 0, 1, 1, [], [3]],
+		["x", 100, 0, 1800, 24, 0, 1023, 1023, 1, 3, "snake5", 5, 0, 1, 1, [], []]]
+	var rej := 0
+	for body in bad_bodies:
+		var b64 := Marshalls.utf8_to_base64(JSON.stringify(body)).replace("+", "-").replace("/", "_").replace("=", "")
+		var d: Dictionary = RSET.from_code("NTBR1.%s.%s" % [b64, b64.sha256_text().substr(0, 6)])
+		if not d["ok"]:
+			rej += 1
+	ok(rej == bad_bodies.size(), "規則代碼壞資料（沙盒值是字典、布林欄是 2、隱藏的 AI 卡池非法、落子方式不是字串、技能不是字串、金幣是字串）全部被拒", "%d/%d" % [rej, bad_bodies.size()])
+	# 對戰代碼保真：卡池或人數不是標準就輸出 NTB3
+	var BC = load("res://scripts/game/battle_code.gd")
+	var r2 = RSET.standard(0b0000000111)
+	var x0 := Army.new(0, 100)
+	var x1 := Army.new(1, 100)
+	x0.apply_rules(r2, 0)
+	x1.apply_rules(r2, 1)
+	x0.place(D.SWORD, 5, 4)
+	x1.place(D.SWORD, 10, 4)
+	var r3 = RSET.standard()
+	r3.unit_cap = 4
+	ok(BC.encode(x0, x1, r2).begins_with("NTB3.") and BC.encode(x0, x1, r3).begins_with("NTB3.") and BC.encode(x0, x1, RSET.standard(31)).begins_with("NTB2."),
+		"對戰代碼：卡池（3 種）或人數上限（4 隻）不標準就用 NTB3；經典 5 種仍是 NTB2")

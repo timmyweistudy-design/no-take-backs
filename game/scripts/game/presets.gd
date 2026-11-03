@@ -54,6 +54,21 @@ static func badge(r, kind: String) -> String:
 		return BADGE_CERT if base and is_prefix(r.pool_of(0)) and r.pool_of(1) == r.pool_of(0) else BADGE_FUN
 	return BADGE_CERT if base and r.pool_of(0) == 31 and r.pool_of(1) == 31 and r.place_rule == "snake5" and not r.carry else BADGE_FUN
 
+## 算不算「標準紀錄」（標準戰績、標準成就；Codex 實作第 1 輪：和「平衡認證」分開判定）。
+## 除了認證條件，系列也要是標準的：三戰兩勝、保留陣型、沒有讓子；對 AI 卡池兩邊相同；雙人 snake5、不累積。
+static func is_standard_record(r, kind: String) -> bool:
+	if badge(r, kind) != BADGE_CERT:
+		return false
+	if r.rounds != 3 or not r.keep_formation or r.handicap:
+		return false
+	if kind == "ai":
+		return r.ai_pool_same
+	return r.place_rule == "snake5" and not r.carry
+
+## 部署限制是不是「標準」（前 N 種卡池、24 隻、不限單種、100 金）：對戰代碼可以用舊格式 NTB2、AI 不額外補兵。
+static func deploy_standard(r) -> bool:
+	return r.unit_cap == 24 and r.type_cap == 0 and r.budget_of(0) == 100 and r.budget_of(1) == 100 and is_prefix(r.pool_of(0)) and is_prefix(r.pool_of(1))
+
 ## 大廳卡池能選的兵：對 AI＝已解鎖的；雙人＝全部（試玩版＝前 7 種）。
 static func selectable(kind: String, unlocked: int, demo: bool) -> int:
 	var all_p: int = RSET.prefix_pool(7) if demo else RSET.all_pool()

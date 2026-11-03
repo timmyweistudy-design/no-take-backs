@@ -35,6 +35,11 @@ var frenzy := false
 var events: Array = []         # 這一格（畫面上剛發生）的事件
 var finished := false          # 畫面已經播到模擬的最後一 tick
 var budget := 100
+var budgets := [100, 100]      # 第五輪：兩邊預算（讓子時不同；舊判定時兩格都＝藍方預算）
+var max_ticks := 1800          # 第五輪：這一局的長度（一局時間可調）
+
+func budget_of(t: int) -> int:
+	return int(budgets[t])
 var _power := [0, 0]
 var _alive := [0, 0]
 var _by_id := {}
@@ -52,6 +57,8 @@ static func capture(sim) -> Dictionary:
 func _init(sim = null) -> void:
 	if sim != null:
 		budget = sim.budget
+		budgets = sim.budgets.duplicate()
+		max_ticks = sim.max_ticks
 		apply(capture(sim))
 		events = []
 

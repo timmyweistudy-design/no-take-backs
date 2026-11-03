@@ -43,7 +43,10 @@ static func build(known: Array, entries: Array, rng: RandomNumberGenerator, pool
 		var s = Sim.new(me.copy(), c.copy(), rules)
 		s.fast = true
 		s.run_to_end()
+		# 讓子局用各自預算的比例評分（Codex 實作第 1 輪）；標準局算式不變
 		var sc: int = (1000000 + s.power(1)) if s.winner == 1 else (s.power(1) - s.power(0))
+		if s.judge == 2:
+			sc = (1000000 + s.power_permille(1)) if s.winner == 1 else (s.power_permille(1) - s.power_permille(0))
 		if sc > bs:
 			bs = sc
 			best = c

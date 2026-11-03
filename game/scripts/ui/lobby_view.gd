@@ -69,10 +69,32 @@ func _lobby_touch() -> void:
 		if not p.equals(lobby_r):
 			lobby_r.preset = "custom"
 
-func _lobby_start() -> void:
+## 卡池裡還沒解鎖（或試玩版不能用）的兵；有的話不能開戰（Codex 實作第 1 輪：匯入的規則照原樣保留，只是不能開戰）。
+func _lobby_locked_units() -> Array:
+	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	var out: Array = []
+	for tm in 2:
+		for t in D.COUNT:
+			if RuleSet.has(lobby_r.pool_of(tm), t) and not RuleSet.has(sel, t) and not t in out:
+				out.append(t)
+	return out
+
+func _lobby_block() -> String:
 	var bad: Array = lobby_r.validate()
 	if not bad.is_empty():
-		_toast(L.t(bad[0]), true)
+		return L.t(bad[0])
+	var lk := _lobby_locked_units()
+	if not lk.is_empty():
+		var names: Array = []
+		for t in lk:
+			names.append(L.t("unit_%d" % t))
+		return L.t("lb_has_locked", ["、".join(names)])
+	return ""
+
+func _lobby_start() -> void:
+	var why := _lobby_block()
+	if why != "":
+		_toast(why, true)
 		return
 	var lr: Dictionary = Save.data.get("last_rules", {})
 	lr[lobby_kind] = lobby_r.to_code()
@@ -91,16 +113,11 @@ func _lobby_paste_code() -> void:
 	if not d["ok"]:
 		_toast(L.t(d["why"]) if d["why"].begins_with("rr_") else L.t("lb_code_bad"), true)
 		return
-	var r = d["rules"]
-	var removed: Array = Presets.clamp_pool(r, lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
-	lobby_r = r
+	lobby_r = d["rules"]
 	if lobby_kind == "duel":
 		lobby_r.ai_pool_same = true
-	if not removed.is_empty():
-		var names: Array = []
-		for t in removed:
-			names.append(L.t("unit_%d" % t))
-		_toast(L.t("lb_code_locked", ["、".join(names)]), true)
+	if not _lobby_locked_units().is_empty():
+		_toast(_lobby_block(), true)   # 照原樣保留，開戰鈕會灰掉並寫原因
 	else:
 		_toast(L.t("lb_code_loaded"))
 
@@ -217,7 +234,7 @@ func _rounds_text(n: int) -> String:
 	return L.t("lb_rounds_%d" % n)
 
 func _place_text(p: String) -> String:
-	return L.t("rule_" + p) if p != "custom" else L.t("rule_custom", [lobby_r.turns])
+	return L.t("rule_short_" + p) if p != "custom" else L.t("rule_short_custom", [lobby_r.turns])
 
 func _summary(r) -> String:
 	var parts: Array = []
@@ -275,8 +292,10 @@ func _draw_lobby() -> void:
 		_btn(Rect2(478, by, 150, 48), L.t("lb_copy"), _lobby_copy_code)
 		_btn(Rect2(640, by, 150, 48), L.t("lb_paste"), _lobby_paste_code)
 		_btn(Rect2(802, by, 150, 48), L.t("lb_save"), _lobby_save_preset)
-	var bad: Array = lobby_r.validate()
-	_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, bad.is_empty(), true)
+	var why := _lobby_block()
+	_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
+	if why != "":
+		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
 	if lobby_menu:
 		_draw_lobby_menu(Vector2(1000, 186))
 
@@ -293,7 +312,9 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
 		_text(r.position + Vector2(w / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, w - 12)
-		_text(r.position + Vector2(w / 2, 36), L.t("lb_pd_" + id), tz("C"), Color(1, 1, 1, 0.75), true, false, w - 12)
+		var sub_y := 8 + text_h(L.t("lb_p_" + id), tz("B"), w - 12, true) + 2
+		if sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
+			_text(r.position + Vector2(w / 2, sub_y), L.t("lb_pd_" + id), tz("C"), Color(1, 1, 1, 0.75), true, false, w - 12)   # 放不下（大字）就不畫副標，不壓到色條
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
 		draw_rect(Rect2(r.position + Vector2(8, h - 12), Vector2(w - 16, 4)), bc)
@@ -341,6 +362,23 @@ func _draw_lobby_compact(R: Rect2) -> void:
 	_text(Vector2(R.position.x + 24, R.position.y + 250), info, tz("B"), Color(1, 1, 1, 0.85), false, false, 640)
 	_draw_lobby_notes(Rect2(R.end.x - 420, R.position.y + 210, 396, 230))
 
+## 警告＋差異清單大約要多高（說明欄排版用）。
+func _lobby_notes_h(w: float) -> float:
+	var h := 0.0
+	for k in lobby_r.validate():
+		h += text_h("× " + L.t(k), tz("B"), w, true) + 4
+	var two: bool = lobby_r.handicap or not lobby_r.ai_pool_same
+	for tm in (2 if two else 1):
+		var ms: Dictionary = lobby_r.max_spend(tm)
+		if int(ms["unused"]) > 0:
+			h += text_h("⚠ " + L.t("lb_unused", [ms["units"], ms["spend"], ms["unused"]]), tz("S"), w) + 4
+	var df: Array = lobby_r.diff(_lobby_std())
+	if not df.is_empty():
+		h += tz("S") * 1.4
+		for d in df:
+			h += text_h("・" + _diff_text(d), tz("S"), w - 10)
+	return h
+
 ## 驗證錯誤（紅）、花不完的錢（黃）、和標準不同的項目。
 func _draw_lobby_notes(R: Rect2) -> void:
 	var y := R.position.y
@@ -356,11 +394,11 @@ func _draw_lobby_notes(R: Rect2) -> void:
 			_text(Vector2(R.position.x, y), line, tz("S"), Color("#ffd166"), false, false, R.size.x)
 			y += text_h(line, tz("S"), R.size.x) + 4
 	var df: Array = lobby_r.diff(_lobby_std())
-	if not df.is_empty():
+	if not df.is_empty() and y + tz("S") * 1.4 <= R.end.y:
 		_text(Vector2(R.position.x, y), L.t("lb_diff_n", [df.size()]), tz("S"), Color(1, 1, 1, 0.8), false, true, R.size.x)
 		y += tz("S") * 1.4
 		var fs := tz("S")
-		var left := R.end.y - y
+		var left := R.end.y - y - tz("S") * 0.6   # 留一點邊，最後一行不碰到下面的重置鈕
 		var list_h := 0.0
 		for d in df:
 			list_h += text_h("・" + _diff_text(d), fs, R.size.x - 10)
@@ -379,7 +417,8 @@ func _draw_lobby_notes(R: Rect2) -> void:
 			while bits.size() > 1 and text_h(para, fs, R.size.x) > left:
 				bits.pop_back()
 				para = "・".join(bits) + "…"
-			_text(Vector2(R.position.x, y), para, fs, Color(1, 1, 1, 0.7), false, false, R.size.x)
+			if text_h(para, fs, R.size.x) <= left:
+				_text(Vector2(R.position.x, y), para, fs, Color(1, 1, 1, 0.7), false, false, R.size.x)
 
 func _diff_text(d: Array) -> String:
 	var k: String = d[0]
@@ -525,8 +564,13 @@ func _draw_lobby_desc(R: Rect2) -> void:
 	_text(Vector2(x, y), L.t("lbd_t_" + id), tz("H2"), ACCENT, false, true, w)
 	y += tz("H2") * 1.6
 	var body := L.t("lbd_" + id)
-	_text(Vector2(x, y), body, tz("S"), Color(1, 1, 1, 0.88), false, false, w)
-	y += text_h(body, tz("S"), w) + 16
+	var bfs := tz("S") if _scale_key() == 100 else tz("C")   # 大字時說明改用註記字級，讓下面的差異清單放得下
+	# 先估警告＋差異清單要多高；說明＋清單放不下時省略說明，只留警告與差異（Antigravity 實作第 2 輪）
+	var need_h := tz("S") * 2.4 + _lobby_notes_h(w)
+	var avail := R.end.y - 60 - y
+	if text_h(body, bfs, w) + 12 + need_h <= avail:
+		_text(Vector2(x, y), body, bfs, Color(1, 1, 1, 0.88), false, false, w)
+		y += text_h(body, bfs, w) + 12
 	_badge_pill(Vector2(x, y), Presets.badge(lobby_r, lobby_kind))
 	y += tz("S") * 2.4
 	_draw_lobby_notes(Rect2(x, y, w, R.end.y - y - 60))

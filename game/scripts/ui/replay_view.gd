@@ -33,15 +33,15 @@ func _draw_replay_controls() -> void:
 		_btn(Rect2(98 + i * 74, 704, 68, 36), "%s×" % _fmt_num(sp[i]), func(): speed = sp[i], true, false,
 			Color(0.45, 0.3, 0.12) if is_equal_approx(speed, sp[i]) else Color(0, 0, 0, 0))
 	# 時間軸：拉鋸色帶（模擬已跑到的部分）＋目前位置
-	var total := float(maxi(1, replay_total if replay_total > 0 else D.MATCH_TICKS))   # 以這一場實際長度為滿
+	var total := float(maxi(1, replay_total if replay_total > 0 else view.max_ticks))   # 以這一場實際長度為滿
 	draw_rect(RC_BAR, Color(0, 0, 0, 0.5))
-	var tot := float(view.budget * 1000)
+	var tot := 1000.0
 	var n: int = sim.power_log.size()
 	for i in int(RC_BAR.size.x / 3.0):
 		var t := int(i * 3.0 / RC_BAR.size.x * total)
 		if t >= n:
 			break
-		var d: float = clampf(float(sim.power_log[t]) / tot * 2.0, -1.0, 1.0)
+		var d: float = clampf(float(sim.diff_permille(t)) / tot * 2.0, -1.0, 1.0)
 		var h := absf(d) * RC_BAR.size.y / 2.0
 		draw_rect(Rect2(RC_BAR.position.x + i * 3.0, RC_BAR.get_center().y - (h if d > 0 else 0.0), 3.0, h), Color(Art.team_color(0 if d > 0 else 1, cbm()), 0.8))
 	var cx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(view.tick) / total, 0.0, 1.0)
@@ -318,8 +318,9 @@ func _draw_review() -> void:
 		var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
 		var br := Rect2(bx + t * 56, 160, 52, 66)
 		_btn(br, "", _rv_set_type.bind(t), rv_sel.x >= 0 and can)
-		Art.unit(self, br.position + Vector2(26, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
-		_text(br.position + Vector2(26, 46), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
+		var py := br.size.y - tz("C") * 1.15 - 2
+		Art.unit(self, br.position + Vector2(26, py - 2), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
+		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
 	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), rv_sel.x >= 0)
 	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1))
 	_btn(Rect2(bx, 284, 552, 48), L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1, true)

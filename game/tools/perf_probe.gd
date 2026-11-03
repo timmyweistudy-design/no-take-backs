@@ -8,6 +8,7 @@ const Army = preload("res://scripts/core/army.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 const HardAI = preload("res://scripts/core/hard_ai.gd")
+const RSET = preload("res://scripts/core/ruleset.gd")
 
 static func fill(team: int, n: int, rng: RandomNumberGenerator, types: Array) -> Army:
 	var a := Army.new(team, 1000)
@@ -22,14 +23,14 @@ static func fill(team: int, n: int, rng: RandomNumberGenerator, types: Array) ->
 		a.units.append({"type": types[rng.randi_range(0, types.size() - 1)], "col": cells[i].x, "row": cells[i].y})
 	return a
 
-static func bench(n: int, types: Array, reps: int) -> Dictionary:
+static func bench(n: int, types: Array, reps: int, rules = null) -> Dictionary:
 	var tot := 0
 	var worst := 0
 	var ticks := 0
 	for k in reps:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 777 + k * 31 + n
-		var s = Sim.new(fill(0, n, rng, types), fill(1, n, rng, types))
+		var s = Sim.new(fill(0, n, rng, types), fill(1, n, rng, types), rules)
 		s.fast = true
 		var t0 := Time.get_ticks_usec()
 		s.run_to_end()
@@ -56,5 +57,26 @@ func _init() -> void:
 	for k in 5:
 		HardAI.build(known, [], rng)
 	out["hard_ai_build_ms"] = (Time.get_ticks_usec() - t0) / 5 / 1000
+	# 第五輪（Codex 實作第 1 輪）：最大規則情境——40＋40、150 秒、支援兵密集；困難 AI 在最大規則下組陣；重播跳轉到最後
+	var big = RSET.standard()
+	big.budget = [200, 200]
+	big.unit_cap = 40
+	big.ticks = 3000
+	out["max_rules_40_150s"] = bench(40, all, 4, big)
+	out["max_rules_support_40_150s"] = bench(40, [D.SWORD, D.SHIELD, 7, 8, 7, 8], 4, big)
+	var known2: Array = AI.build(0, 200, rng, -1, -1, big)["army"].units
+	var t1 := Time.get_ticks_usec()
+	for k in 3:
+		HardAI.build(known2, [], rng, -1, big)
+	out["hard_ai_build_max_rules_ms"] = (Time.get_ticks_usec() - t1) / 3 / 1000
+	# 重播跳轉：從頭快轉到最後一 tick（畫面的 _seek 也是這樣做）
+	rng.seed = 4242
+	var sa := fill(0, 40, rng, [D.SWORD, D.SHIELD, 7, 8, 7, 8])
+	var sb := fill(1, 40, rng, [D.SWORD, D.SHIELD, 7, 8, 7, 8])
+	var t2 := Time.get_ticks_usec()
+	var sk = Sim.new(sa, sb, big)
+	while not sk.finished:
+		sk.step()
+	out["seek_to_end_max_ms"] = (Time.get_ticks_usec() - t2) / 1000
 	print("PERF ", JSON.stringify(out))
 	quit()

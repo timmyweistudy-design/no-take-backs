@@ -179,6 +179,12 @@ func budget_of(team: int) -> int:
 func power_permille(team: int) -> int:
 	return power(team) / maxi(1, budget_of(team))
 
+## 第五輪：第 t 個 tick 的戰力差，換算成「每 1000 單位預算」的尺度（讓子時用各自預算的比例；畫面、時間軸用）。
+func diff_permille(t: int) -> int:
+	if judge == 2 and 2 * t + 1 < power_log2.size():
+		return power_log2[2 * t] * 1000 / budgets[0] - power_log2[2 * t + 1] * 1000 / budgets[1]
+	return power_log[t] * 1000 / maxi(1, budget) if t < power_log.size() else 0
+
 func run_to_end() -> void:
 	while not finished:
 		step()

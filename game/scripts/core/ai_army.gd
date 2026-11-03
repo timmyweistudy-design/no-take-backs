@@ -98,7 +98,7 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 	picks.sort_custom(func(p, q): return PLACE_ORDER.find(p) < PLACE_ORDER.find(q))
 	for t in picks:
 		_place_pref(a, t)
-	if rules != null and a.can_afford_any():
+	if rules != null and a.can_afford_any() and not load("res://scripts/game/presets.gd").deploy_standard(rules):
 		# 自訂規則：模板比例填完還有錢（單種上限、小卡池）→ 落子 AI 補滿
 		var AIT2 = load("res://scripts/core/ai_turns.gd")
 		AIT2.fill_army(a, rng, 1, [])

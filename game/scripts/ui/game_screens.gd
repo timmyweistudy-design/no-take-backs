@@ -309,9 +309,7 @@ func _finish_battle() -> void:
 	if eff["series"]:
 		if w >= 0:
 			wins[w] += 1
-		var need: int = rules.wins_needed() if rules != null else 2
-		var cap_r: int = rules.max_rounds() if rules != null else 5
-		series_over = wins[0] >= need or wins[1] >= need or round_no >= cap_r
+		series_over = series_done(wins, round_no, rules)
 	_build_report()
 	if mode == Mode.DUEL:
 		sfx.play("win" if w >= 0 else "lose")
@@ -321,6 +319,13 @@ func _finish_battle() -> void:
 		_progress_and_achievements()
 	if eff["log"]:
 		Save.playtest_log(_pt_entry(0))
+
+
+## 系列結束了沒（第五輪：局數可調；沒有規則＝1.3.0 的先兩勝或打滿 5 局）。給測試直接驗。
+static func series_done(w: Array, rn: int, r) -> bool:
+	var need: int = r.wins_needed() if r != null else 2
+	var cap_r: int = r.max_rounds() if r != null else 5
+	return int(w[0]) >= need or int(w[1]) >= need or rn >= cap_r
 
 
 func _pt_entry(rating: int) -> Dictionary:
@@ -354,8 +359,10 @@ func _build_report() -> void:
 	var leads: Array = []
 	var last_sign := 0
 	var eps: int = sim.budget * 1000 / 100
+	if sim.judge == 2:
+		eps = 10   # 讓子：用各自預算的比例（每千分之十＝1%）
 	for t in sim.power_log.size():
-		var d: int = sim.power_log[t]
+		var d: int = sim.power_log[t] if sim.judge == 1 else sim.diff_permille(t)
 		var sg := 0 if absi(d) <= eps else (1 if d > 0 else -1)
 		if sg != 0 and last_sign != 0 and sg != last_sign and leads.size() < 4:
 			leads.append(t + 1)
@@ -378,7 +385,7 @@ func _progress_and_achievements() -> void:
 	if badge == Presets.BADGE_LAB:
 		_save()
 		return
-	var standard := badge == Presets.BADGE_CERT
+	var standard: bool = rules == null or Presets.is_standard_record(rules, kind)
 	var ug_before := int(Save.data.get("unlock_games", 0))
 	Save.data["unlock_games"] = ug_before + 1
 	# 新兵種解鎖（第四輪 §9）：提示並指向殘局裡的新兵試玩（第五輪：看解鎖累計場數）
@@ -514,7 +521,7 @@ func _card_help_rect(i: int) -> Rect2:
 	var r := _card_rect(i)
 	if not r.has_area():
 		return Rect2()
-	return Rect2(r.end.x - 34, r.end.y - 34, 32, 32)
+	return Rect2(r.end.x - 38, r.end.y - 38, 36, 36)
 
 
 func _card_at(p: Vector2) -> int:
@@ -1625,7 +1632,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 	draw_rect(R, Color(0, 0, 0, 0.18))
 	var y := R.position.y + (R.size.y - tz("S") * 1.1) / 2
 	var x := 16.0
-	var help := Rect2(R.end.x - 44, R.position.y + 4, 32, 32)
+	var help := Rect2(R.end.x - 46, R.position.y + 2, 36, 36)
 	_btn(help, "?", func(): show_place_help = not show_place_help)
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz := PZ.get_puzzle(puzzle_id)
@@ -1831,8 +1838,8 @@ func _draw_result_details(R: Rect2) -> void:
 	for t in report_rows(dealt, taken):
 		rows.append({"label": L.t("unit_%d" % t), "b": src[0][t], "r": src[1][t]})
 	_text(R.position, L.t("report_by_type"), tz("B"), Color.WHITE, false, true, 210)
-	_btn(Rect2(R.position.x + 220, R.position.y - 4, 120, 34), L.t("report_dealt"), func(): result_metric = 0, true, false, Color(0.26, 0.33, 0.5) if result_metric == 0 else Color(0, 0, 0, 0))
-	_btn(Rect2(R.position.x + 346, R.position.y - 4, 120, 34), L.t("report_taken"), func(): result_metric = 1, true, false, Color(0.26, 0.33, 0.5) if result_metric == 1 else Color(0, 0, 0, 0))
+	_btn(Rect2(R.position.x + 220, R.position.y - 6, 120, 38), L.t("report_dealt"), func(): result_metric = 0, true, false, Color(0.26, 0.33, 0.5) if result_metric == 0 else Color(0, 0, 0, 0))
+	_btn(Rect2(R.position.x + 346, R.position.y - 6, 120, 38), L.t("report_taken"), func(): result_metric = 1, true, false, Color(0.26, 0.33, 0.5) if result_metric == 1 else Color(0, 0, 0, 0))
 	var bh := minf(170.0, rows.size() * 34.0)
 	Charts.diverging(self, Rect2(R.position.x + 20, R.position.y + 40, R.size.x - 40, bh), rows)
 	var y := R.position.y + 50 + bh
@@ -1879,59 +1886,6 @@ func _key_marks() -> Array:
 			break
 	out.sort_custom(func(a, b): return int(a["t"]) < int(b["t"]))
 	return out
-
-
-## 戰局時間軸（第三輪 U5）：藍紅拉鋸色帶（每 tick 的戰力差）＋關鍵事件點（首次衝鋒／背刺／頂住、領先交換、最後時刻、勝負鎖定）。
-func _draw_timeline(r: Rect2) -> void:
-	if sim == null or sim.power_log.is_empty():
-		return
-	var n: int = sim.power_log.size()
-	var tot := float(sim.budget * 1000)
-	var mid := r.position.y + r.size.y / 2.0
-	draw_rect(r, Color(0, 0, 0, 0.35))
-	var cols := int(r.size.x / 2.0)
-	for i in cols:
-		var t := mini(n - 1, i * n / cols)
-		var d: float = clampf(float(sim.power_log[t]) / tot * 2.0, -1.0, 1.0)
-		var h := absf(d) * r.size.y / 2.0
-		var c := Art.team_color(0 if d > 0 else 1, cbm())
-		draw_rect(Rect2(r.position.x + i * 2.0, mid - (h if d > 0 else 0.0), 2.0, h), Color(c, 0.85))
-	draw_line(Vector2(r.position.x, mid), Vector2(r.end.x, mid), Color(1, 1, 1, 0.3), 1.0)
-	var marks: Array = []
-	for m in battle_marks:
-		marks.append([int(m["tick"]), str(m["kind"]), int(m["team"])])
-	for t2 in report.get("leads", []):
-		marks.append([int(t2), "lead", -1])
-	var lock_t := int(report.get("lock_sec", 0)) * 20
-	if lock_t > 0 and sim.winner >= 0:
-		marks.append([lock_t, "lock", sim.winner])
-	marks.sort()
-	var last_lx := -999.0
-	var last_ux := -999.0
-	for mk in marks:
-		var x := r.position.x + r.size.x * clampf(float(mk[0]) / n, 0.0, 1.0)
-		var mc := ACCENT if mk[2] < 0 else Art.team_color(mk[2], cbm())
-		draw_colored_polygon(PackedVector2Array([Vector2(x, r.position.y - 7), Vector2(x + 5, r.position.y - 2), Vector2(x, r.position.y + 3), Vector2(x - 5, r.position.y - 2)]), mc)
-		draw_line(Vector2(x, r.position.y + 3), Vector2(x, r.end.y), Color(mc, 0.5), 1.0)
-		var lbl := "%s %ds" % [L.t("tl_" + mk[1]), mk[0] / 20]
-		var lw := font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(12)).x
-		# 標籤上下兩排交錯：先放下排，放不下改上排（菱形上方），兩排都放不下才省略（Antigravity S3）
-		if x - lw / 2.0 > last_lx + 6.0:
-			_text(Vector2(x, r.end.y + 2), lbl, ts(12), Color(mc, 0.95), true)
-			last_lx = x + lw / 2.0
-		elif x - lw / 2.0 > last_ux + 6.0:
-			_text(Vector2(x, r.position.y - 9 - ts(12) * 1.25), lbl, ts(12), Color(mc, 0.95), true)
-			last_ux = x + lw / 2.0
-		else:
-			# 兩排都放不下：只寫秒數，不留沒字的孤點（Antigravity S3 第 2 輪）
-			var short := "%ds" % (mk[0] / 20)
-			var sw := font.get_string_size(short, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(12)).x
-			if x - sw / 2.0 > last_lx + 4.0:
-				_text(Vector2(x, r.end.y + 2), short, ts(12), Color(mc, 0.95), true)
-				last_lx = x + sw / 2.0
-			elif x - sw / 2.0 > last_ux + 4.0:
-				_text(Vector2(x, r.position.y - 9 - ts(12) * 1.25), short, ts(12), Color(mc, 0.95), true)
-				last_ux = x + sw / 2.0
 
 
 ## 一句描述（第五輪：只講事實、和 MVP 一致，不宣稱因果——Codex 第二輪）。主角＝MVP（勝方傷害最高的那一隻）。

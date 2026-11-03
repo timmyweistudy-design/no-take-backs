@@ -234,7 +234,7 @@ func _cx_left_items(u: Dictionary, lang: String) -> Array:
 		{"type": "portrait", "h": 150.0, "texts": [
 			{"s": L.t("unit_%d" % cx_unit), "size": ts(26), "c": Color.WHITE, "bold": true},
 			{"s": CX.text(u, "role", lang), "size": ts(15), "c": Color(1, 1, 1, 0.8)},
-			{"s": tag, "size": ts(15), "c": ACCENT}]},
+			{"s": tag if _scale_key() == 100 else "", "size": ts(15), "c": ACCENT}]},   # 大字時省略口號，讓剋／怕不用捲動
 		{"type": "ranks"},
 		{"type": "counters"},
 		{"type": "text", "s": "✓ " + CX.text(u, "good", lang), "size": ts(15), "c": Color("#7dff8a"), "x": 0.0, "w": 356.0, "gap": 6.0},
