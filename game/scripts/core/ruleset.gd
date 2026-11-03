@@ -338,7 +338,7 @@ func diff(std) -> Array:
 		out.append(["rr_deploy", std.deploy, deploy])
 	if spacing != std.spacing and deploy == "free":
 		out.append(["rr_spacing", std.spacing, spacing])
-	if depth != std.depth and deploy == "free":
+	if depth != std.depth and deploy == "free" and fullfield != FULL_DUEL:   # 雙人全場不用縱深
 		out.append(["rr_depth", std.depth, depth])
 	if fullfield != std.fullfield:
 		out.append(["rr_full", std.fullfield, fullfield])

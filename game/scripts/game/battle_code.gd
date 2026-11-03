@@ -57,7 +57,24 @@ static func decode(code: String) -> Dictionary:
 			pair[0].apply_rules(rules, pair[1])
 	if a0.load_code(str(j["a"])) != "" or a1.load_code(str(j["b"])) != "":
 		return {"ok": false, "why": "army"}
-	if rules != null and (not a0.has_combat() or not a1.has_combat()):
+	var full_duel: bool = rules != null and rules.is_free() and rules.fullfield == RSET.FULL_DUEL
+	if rules != null and not full_duel and (not a0.has_combat() or not a1.has_combat()):
 		return {"ok": false, "why": "army"}   # NTB3（第五輪新格式）：雙方各至少 1 隻戰鬥兵；舊 NTB2 不加這條（相容）
+	if rules != null and rules.is_free() and rules.fullfield != RSET.FULL_NONE:
+		# 第六輪（Codex 實作第 1 輪 #3）：全場的跨隊條件——兩軍任兩隻至少隔 ENEMY_GAP；明牌全場的 AI（紅）只在自己半場
+		var g2: int = RSET.ENEMY_GAP * RSET.ENEMY_GAP
+		for u in a0.units:
+			var p := Army.pos_of(u)
+			for v in a1.units:
+				var q := Army.pos_of(v)
+				if (p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y) < g2:
+					return {"ok": false, "why": "army"}
+		if rules.fullfield == RSET.FULL_AI:
+			for v in a1.units:
+				if a1.own_x(Army.pos_of(v).x) > rules.depth:
+					return {"ok": false, "why": "army"}
+	# 輪流落子的指令紀錄（cmds）目前不支援：代碼只證明「最後陣型合法」，不證明輪序（Codex 實作第 1 輪 #10，見方案 §11 已知限制）
+	if j.has("cmds"):
+		return {"ok": false, "why": "body"}
 	var mismatch: bool = str(j.get("r", "")) != D.RULES_VERSION or str(j.get("d", "")) != D.data_digest()
 	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch, "rules": rules}

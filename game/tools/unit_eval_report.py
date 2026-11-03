@@ -63,6 +63,8 @@ def check_rows(m, mode, got, man):
             bad.append(f"規則或數值摘要和契約不同（{r.get('rules')}/{r.get('digest')}）")
         if "code" in c and r.get("src") != c["code"]:
             bad.append(f"程式身分和契約不同（{r.get('src')} ≠ {c['code']}）")
+        if r.get("free", "") != c.get("free", ""):
+            bad.append(f"部署規則和契約不同（{r.get('free', '格子')} ≠ {c.get('free') or '格子'}）")   # 第六輪
         if unit is not None and r.get("unit") != unit:
             bad.append(f"兵種不符 {r.get('unit')}")
         if mode != "core" and r.get("nt") != man["ntypes"]:

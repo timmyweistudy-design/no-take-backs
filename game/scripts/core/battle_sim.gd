@@ -171,8 +171,18 @@ func _init(army0, army1, p_rules = null) -> void:
 		_hash.update(rules.sim_digest().to_utf8_buffer())
 	elif free:
 		_hash.update("free".to_utf8_buffer())   # 自由陣型但沒給規則（工具）：仍和格子陣型區分
+	var cmb := [0, 0]
+	for u in units:
+		if not D.is_support(u.type):
+			cmb[u.team] += 1
 	if mixed:
 		_finish(-1, "部署版本不一致")
+	elif rules != null and free and rules.fullfield == 1 and (cmb[0] == 0 or cmb[1] == 0):
+		# 第六輪 §3.8：雙人全場被封鎖到擺完卻有一方沒有戰鬥兵——不開打；有戰鬥兵的一方勝，雙方都沒有＝和局
+		if cmb[0] == 0 and cmb[1] == 0:
+			_finish(-1, "雙方都沒有戰鬥兵")
+		else:
+			_finish(0 if cmb[0] > 0 else 1, "對方沒有戰鬥兵")
 	elif alive_count(0) == 0 or alive_count(1) == 0:
 		_finish(-1, "有一方沒有兵")
 

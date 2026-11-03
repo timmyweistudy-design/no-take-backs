@@ -279,7 +279,8 @@ func flip_group(idx: Array) -> bool:
 			return false
 	return true
 
-## 這個點陣上還有沒有任何合法位置能放卡池裡買得起的兵（§3.8「沒有合法位置」）。點陣：0.25 格。
+## 還有沒有任何合法位置能放卡池裡買得起的兵（§3.8「沒有合法位置」）。
+## 完整搜尋 0.05 格點陣（Codex 實作第 1 輪：粗點陣會誤判「沒位置」）：先把每個障礙圓蓋到的點標掉，再找沒被蓋的點，最後用 check_place_xy 確認。
 func has_room() -> bool:
 	if deploy != "free":
 		return true
@@ -290,14 +291,35 @@ func has_room() -> bool:
 	if types.is_empty():
 		return false
 	var t0: int = types[0]
-	var ox := EDGE
-	while ox <= depth:
-		var y := EDGE
-		while y <= H - EDGE:
-			if check_place_xy(t0, world_x(ox), y) == "":
+	var nx := (depth - EDGE) / QUANT + 1     # 自己視角 x：EDGE..depth
+	var ny := (H - 2 * EDGE) / QUANT + 1     # y：EDGE..H−EDGE
+	if nx <= 0 or ny <= 0:
+		return false
+	var cov := PackedByteArray()
+	cov.resize(nx * ny)
+	var obs: Array = []
+	for u in units:
+		var p := pos_of(u)
+		obs.append([own_x(p.x), p.y, spacing])
+	for e in enemy_pos:
+		obs.append([own_x(e.x), e.y, enemy_gap])
+	for o in obs:
+		var r: int = o[2]
+		var r2 := r * r
+		var i0 := maxi(0, (int(o[0]) - r - EDGE) / QUANT - 1)
+		var i1 := mini(nx - 1, (int(o[0]) + r - EDGE) / QUANT + 1)
+		var j0 := maxi(0, (int(o[1]) - r - EDGE) / QUANT - 1)
+		var j1 := mini(ny - 1, (int(o[1]) + r - EDGE) / QUANT + 1)
+		for i in range(i0, i1 + 1):
+			var dx: int = EDGE + i * QUANT - int(o[0])
+			for j in range(j0, j1 + 1):
+				var dy: int = EDGE + j * QUANT - int(o[1])
+				if dx * dx + dy * dy < r2:
+					cov[i * ny + j] = 1
+	for i in nx:
+		for j in ny:
+			if cov[i * ny + j] == 0 and check_place_xy(t0, world_x(EDGE + i * QUANT), EDGE + j * QUANT) == "":
 				return true
-			y += 250
-		ox += 250
 	return false
 
 func remove_at(col: int, row: int) -> bool:

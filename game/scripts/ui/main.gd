@@ -502,6 +502,7 @@ func _shots_v6() -> void:
 	_go_title()
 	overlay = ""
 	toast_t = 0.0
+	ach_queue.clear()
 	difficulty = 1
 	rules = _free_rules()
 	_start_mode(Mode.VS_AI)
@@ -513,6 +514,7 @@ func _shots_v6() -> void:
 	selected = D.ARCHER
 	show_place_help = false
 	mouse = ORIGIN + Vector2(2.0, 3.6) * CS
+	toast_t = 0.0
 	await _snap("27_free_place.png")
 	# 畫筆預覽：從左上往下拖一條
 	selected = D.SWORD
@@ -539,6 +541,7 @@ func _shots_v6() -> void:
 	_finish_battle()
 	_open_review()
 	toast_t = 0.0
+	ach_queue.clear()
 	rv_fsel = 1
 	_rv_free_click(Vector2i(7400, 3900))
 	_rv_recalc()
@@ -551,6 +554,7 @@ func _shots_v6() -> void:
 		armies[0].place_xy(s[0], Army.quant(s[1]), Army.quant(s[2]))
 	selected = D.ASSASSIN
 	mouse = ORIGIN + Vector2(10.5, 4.5) * CS
+	toast_t = 0.0
 	await _snap("28_free_full_ai.png")
 	# 雙人輪流全場
 	rules = _free_rules(1)
@@ -561,6 +565,7 @@ func _shots_v6() -> void:
 	tp.end_turn()
 	selected = D.PIKE
 	mouse = ORIGIN + Vector2(5.0, 6.0) * CS
+	toast_t = 0.0
 	await _snap("29_free_duel_full.png")
 	# 大廳：部署分頁
 	rules = null

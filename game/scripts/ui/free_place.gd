@@ -17,6 +17,11 @@ var fp_line := false           # 這一筆是直線
 var fp_start := Vector2i.ZERO  # 直線起點（世界座標）
 var fp_last := Vector2i.ZERO   # 畫筆上一個取樣點
 var fp_full := false           # 錢／人數／這一手用完（後面的點截斷）
+var fp_full_why := ""
+var fp_fine := false           # 畫筆上一點放不下，改小步找          # gold／cap／hand
+var fp_zone_key := -1          # 敵兵禁區點陣的快取鍵
+var fp_zone_rects: Array = []
+var fp_gesture_at := -1.0      # 新手手勢開始的時間（−1＝不播）
 var fp_probe = null            # 預覽用的軍隊副本
 var fp_drag := -1              # 正在搬的那一隻
 var fp_drag_from := Vector2i.ZERO
@@ -30,7 +35,8 @@ var fp_cur := Vector2(4000, 4500)   # 手把游標（世界座標）
 var fp_touch := false
 var fp_pad_a := false
 var fp_pad_x := false
-var fp_skip_seen := 0          # 已經提示過幾次跳手
+var fp_skip_seen := 0
+var fp_stroke_key: Array = []  # 這一筆屬於哪一隊、哪一手（換手就作廢，Codex 實作第 1 輪 #6）          # 已經提示過幾次跳手
 
 # ───────── 座標 ─────────
 func _is_free() -> bool:
@@ -50,9 +56,30 @@ func _snap_on() -> bool:
 
 ## 量化（對齊時吸到 0.5 格的點）。
 func _q(w: Vector2i) -> Vector2i:
+	# 先轉成自己視角再量化（紅方鏡像後結果才和藍方一樣，Codex 實作第 1 輪 #11）
+	var a = _fp_army()
+	var ox: int = a.own_x(w.x)
 	if _snap_on():
-		return Vector2i(int(round(w.x / 500.0)) * 500, int(round(w.y / 500.0)) * 500)
-	return Vector2i(Army.quant(w.x), Army.quant(w.y))
+		return Vector2i(a.world_x(int(round(ox / 500.0)) * 500), int(round(w.y / 500.0)) * 500)
+	return Vector2i(a.world_x(Army.quant(ox)), Army.quant(w.y))
+
+## 這一筆的身分：隊伍＋手次＋暗擺階段。
+func _fp_key_now() -> Array:
+	return [_fp_army().team, tp.turn_index if tp != null else -1, blind_phase]
+
+## 編輯鎖：暗擺雙方都確認後不能再動（沿用格子模式的 _locked／_can_edit_existing，Codex 實作第 1 輪 #2）。
+func _fp_locked() -> bool:
+	return bool(call("_locked"))
+
+func _fp_can_edit() -> bool:
+	return bool(call("_can_edit_existing"))
+
+## 清空、載入、換手後，框選索引可能指到不存在的兵（Codex 實作第 1 輪 #8）。
+func _fp_clean_sel() -> void:
+	var n: int = _fp_army().units.size()
+	fp_sel = fp_sel.filter(func(i): return i >= 0 and i < n)
+	if fp_drag >= n:
+		fp_drag = -1
 
 func _fp_army():
 	return call("_cur_army")
@@ -69,6 +96,11 @@ func _fp_duel_turns() -> bool:
 
 # ───────── 畫筆／直線 ─────────
 func _fs_begin(w: Vector2i) -> void:
+	if _fp_locked():
+		_toast(L.t("both_done"), true)
+		return
+	fp_stroke_key = _fp_key_now()
+	fp_fine = false
 	fp_stroking = true
 	fp_full = false
 	fp_stroke = []
@@ -90,6 +122,7 @@ func _fs_try(w: Vector2i) -> bool:
 	if _fp_duel_turns():
 		if D.cost(t) > tp.turn_left() - cost:
 			fp_full = true
+			fp_full_why = "hand"
 			return false
 		var tw: String = tp.check_place_xy(t, w.x, w.y)
 		if tw == "最後一手要擺戰鬥兵" or tw == "擺放已結束" or tw == "離敵兵太近":
@@ -97,6 +130,7 @@ func _fs_try(w: Vector2i) -> bool:
 	var why: String = fp_probe.check_place_xy(t, w.x, w.y)
 	if why == "錢不夠" or why.begins_with("最多") or why.begins_with("這種兵最多"):
 		fp_full = true   # 錢、人數用完：後面截斷（§3.8）
+		fp_full_why = "gold" if why == "錢不夠" else "cap"
 		return false
 	if why != "":
 		return false
@@ -107,6 +141,9 @@ func _fs_try(w: Vector2i) -> bool:
 ## 畫筆：從上一個取樣點沿著線段，每隔間距取一個點（和滑鼠事件疏密、幀率無關）。
 func _fs_extend(w: Vector2i) -> void:
 	if not fp_stroking:
+		return
+	if fp_stroke_key != _fp_key_now():
+		_fs_cancel()   # 拖曳中換手了：整筆作廢
 		return
 	if fp_line:
 		# 直線：每次重新算整條（起點到現在等距）
@@ -125,11 +162,15 @@ func _fs_extend(w: Vector2i) -> void:
 	var to := Vector2(w)
 	var dist := from.distance_to(to)
 	var guard := 0
-	while dist >= step and guard < 200:
+	# 放不下（撞到兵或禁區）時改用 0.1 格小步往前找，放下後再恢復間距（Antigravity 實作第 1 輪 #8：不留兩倍空洞）
+	# 小步狀態跨滑鼠事件保留（Codex 實作第 2 輪：慢慢拖也不能跳空位）
+	var cur_step := 100.0 if fp_fine else step
+	while dist >= cur_step and guard < 400:
 		guard += 1
-		from = from + (to - from).normalized() * step
+		from = from + (to - from).normalized() * cur_step
 		var p := _q(Vector2i(from))
-		_fs_try(p)
+		fp_fine = not _fs_try(p)
+		cur_step = 100.0 if fp_fine else step
 		fp_last = Vector2i(from)
 		dist = from.distance_to(to)
 
@@ -146,6 +187,9 @@ func _fs_commit() -> void:
 	fp_stroke = []
 	fp_probe = null
 	if items.is_empty():
+		return
+	if fp_stroke_key != _fp_key_now() or _fp_locked():
+		_toast(L.t("err_stroke_stale"), true)   # 換手後才放開：不能算到下一手（Codex 實作第 1 輪 #6）
 		return
 	if _fp_duel_turns():
 		if not tp.place_batch(items):
@@ -168,7 +212,7 @@ func _fp_sound(n: int) -> void:
 
 # ───────── 搬移、框選、刪除、復原 ─────────
 func _fp_push_undo() -> void:
-	fp_undo.append(_fp_army().units.duplicate(true))
+	fp_undo.append({"team": _fp_army().team, "units": _fp_army().units.duplicate(true)})
 	if fp_undo.size() > 40:
 		fp_undo.pop_front()
 	fp_redo.clear()
@@ -177,16 +221,32 @@ func _fp_undo_do(redo := false) -> void:
 	if _fp_duel_turns():
 		_toast(L.t("err_notakeback"), true)
 		return
+	if _fp_locked():
+		return
 	var src: Array = fp_redo if redo else fp_undo
+	var a = _fp_army()
+	# 復原紀錄依隊伍分開：暗擺換方後，另一方的紀錄不能寫進這一方（Codex 實作第 1 輪 #1）
+	while not src.is_empty() and int(src[src.size() - 1]["team"]) != a.team:
+		src.pop_back()
 	if src.is_empty():
 		return
-	var a = _fp_army()
-	(fp_undo if redo else fp_redo).append(a.units.duplicate(true))
-	a.units = src.pop_back()
+	(fp_undo if redo else fp_redo).append({"team": a.team, "units": a.units.duplicate(true)})
+	var snap: Array = src.pop_back()["units"]
+	# 還原前重新驗證（每一隻都在這一方的部署區、間距合法）
+	var trial = a.copy()
+	trial.units = []
+	for u in snap:
+		if not trial.place_xy(int(u["type"]), int(u["x"]), int(u["y"])):
+			trial = null
+			break
+	if trial == null:
+		_toast(L.t("err_zone"), true)
+		return
+	a.units = snap
 	fp_sel = []
 
 func _fp_erase_at(w: Vector2i) -> void:
-	if _fp_duel_turns():
+	if _fp_duel_turns() or not _fp_can_edit():
 		return
 	var a = _fp_army()
 	var i: int = a.index_near(w.x, w.y, PICK_R)
@@ -198,7 +258,8 @@ func _fp_erase_at(w: Vector2i) -> void:
 		fp_erasing = true
 
 func _fp_delete_sel() -> void:
-	if _fp_duel_turns() or fp_sel.is_empty():
+	_fp_clean_sel()
+	if _fp_duel_turns() or not _fp_can_edit() or fp_sel.is_empty():
 		return
 	_fp_push_undo()
 	var a = _fp_army()
@@ -210,7 +271,8 @@ func _fp_delete_sel() -> void:
 	fp_sel = []
 
 func _fp_flip_sel() -> void:
-	if _fp_duel_turns() or fp_sel.is_empty():
+	_fp_clean_sel()
+	if _fp_duel_turns() or not _fp_can_edit() or fp_sel.is_empty():
 		return
 	_fp_push_undo()
 	if not _fp_army().flip_group(fp_sel):
@@ -227,6 +289,7 @@ func _fp_mb(d: Dictionary) -> bool:
 	var a = _fp_army()
 	var btn: int = d["i"]
 	var pressed: bool = d["pressed"]
+	_fp_clean_sel()
 	if btn == MOUSE_BUTTON_RIGHT and pressed:
 		if fp_stroking:
 			_fs_cancel()   # 拖曳中按右鍵：取消整筆
@@ -246,25 +309,34 @@ func _fp_mb(d: Dictionary) -> bool:
 	if pressed:
 		if not _fp_in_field(p):
 			return false
-		var hit: int = a.index_near(w.x, w.y, PICK_R)
-		if Input.is_key_pressed(KEY_CTRL) or (fp_tool == "select" and hit < 0):
-			fp_box = true
-			fp_box_a = p
-			return true
-		if hit >= 0 and not _fp_duel_turns():
-			fp_drag = hit
-			fp_drag_from = a.pos_of(a.units[hit])
-			if not hit in fp_sel:
-				fp_sel = []
-			return true
-		if hit >= 0:
-			return true
-		if not call("_allowed", selected):
-			_toast(L.t("err_type"), true)
-			return true
-		_fs_begin(w)
+		_fp_press(p, w, Input.is_key_pressed(KEY_CTRL))
 		return true
-	# 放開
+	return _fp_release(p, w)
+
+## 按下（滑鼠左鍵、手把 A 共用）：box＝強制框選（Ctrl、手把 LT）。
+func _fp_press(p: Vector2, w: Vector2i, box: bool) -> void:
+	var a = _fp_army()
+	var hit: int = a.index_near(w.x, w.y, PICK_R)
+	if box or (fp_tool == "select" and hit < 0):
+		fp_box = true
+		fp_box_a = p
+		return
+	if hit >= 0 and not _fp_duel_turns() and _fp_can_edit():
+		fp_drag = hit
+		fp_drag_from = a.pos_of(a.units[hit])
+		if not hit in fp_sel:
+			fp_sel = []
+		return
+	if hit >= 0:
+		return
+	if not call("_allowed", selected):
+		_toast(L.t("err_type"), true)
+		return
+	_fs_begin(w)
+
+## 放開（滑鼠左鍵、手把 A 共用）。回傳 true＝自由模式處理掉了。
+func _fp_release(p: Vector2, w: Vector2i) -> bool:
+	var a = _fp_army()
 	if fp_box:
 		fp_box = false
 		var r := Rect2(fp_box_a, Vector2.ZERO).expand(p)
@@ -276,13 +348,18 @@ func _fp_mb(d: Dictionary) -> bool:
 	if fp_drag >= 0:
 		var i := fp_drag
 		fp_drag = -1
+		if _fp_locked() or not _fp_can_edit() or _fp_duel_turns():
+			return true   # 拖曳途中被鎖住（暗擺雙方確認）：放開不生效（Codex 實作第 2 輪 #2）
+		var group: bool = fp_sel.size() > 1 and i in fp_sel
 		if not _fp_in_field(p):
+			if group:
+				return true   # 整群拖出戰場＝取消，不刪單隻（Antigravity 實作第 1 輪 #2）
 			_fp_push_undo()
 			a.units.remove_at(i)
 			fp_sel = []
 			return true
 		var tgt := _q(w)
-		if fp_sel.size() > 1 and i in fp_sel:
+		if group:
 			_fp_push_undo()
 			var mv: Vector2i = a.move_group(fp_sel, tgt.x - fp_drag_from.x, tgt.y - fp_drag_from.y)
 			if mv.x == -99999:
@@ -300,6 +377,19 @@ func _fp_mb(d: Dictionary) -> bool:
 		return true
 	return false
 
+## 拖曳中打開覆蓋層、失焦等，放開事件到不了：把所有拖曳狀態收掉（Antigravity 實作第 1 輪 #2）。
+func _fp_abort_drag() -> void:
+	_fs_cancel()
+	fp_drag = -1
+	fp_box = false
+	fp_erasing = false
+	fp_pad_a = false
+	fp_pad_x = false
+
+## 世界座標 → 畫面上的點（不加腳底偏移；手把游標當成滑鼠位置用）。
+func _fp_scr(w: Vector2i) -> Vector2:
+	return ORIGIN + Vector2(w) / 1000.0 * CS
+
 func _fp_motion(p: Vector2) -> void:
 	if not _is_free():
 		return
@@ -314,6 +404,14 @@ func _fp_key(k: int) -> bool:
 	if not _is_free() or overlay != "":
 		return false
 	match k:
+		KEY_ENTER, KEY_KP_ENTER:
+			if fp_stroking or fp_drag >= 0 or fp_box:
+				return true   # 拖曳中按 Enter 不做事，免得蓋掉這一筆（Codex 實作第 2 輪新問題 1）
+			# 自由模式：在鍵盤／手把游標處放一隻（格子查找不能用，Codex 實作第 1 輪 #9）
+			var at: Vector2i = Vector2i(fp_cur) if (pad_mode or not _fp_in_field(mouse)) else _w_of(mouse)
+			_fs_begin(at)
+			_fs_commit()
+			return true
 		KEY_ESCAPE:
 			if fp_stroking:
 				_fs_cancel()
@@ -359,13 +457,13 @@ func _fp_pad_button(b: int, pressed: bool) -> bool:
 	var w := Vector2i(fp_cur)
 	match b:
 		JOY_BUTTON_A:
+			# 手把：A 和滑鼠左鍵同一套（點兵＝搬、按住 LT＝框選、其他＝畫筆）
 			if pressed:
 				fp_pad_a = true
-				if call("_allowed", selected):
-					_fs_begin(w)
+				_fp_press(_fp_scr(w), w, Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5)
 			else:
 				fp_pad_a = false
-				_fs_commit()
+				_fp_release(_fp_scr(w), w)
 			return true
 		JOY_BUTTON_X:
 			fp_pad_x = pressed
@@ -395,8 +493,12 @@ func _fp_pad_button(b: int, pressed: bool) -> bool:
 			if pressed:
 				var dv := {JOY_BUTTON_DPAD_UP: Vector2(0, -500), JOY_BUTTON_DPAD_DOWN: Vector2(0, 500), JOY_BUTTON_DPAD_LEFT: Vector2(-500, 0), JOY_BUTTON_DPAD_RIGHT: Vector2(500, 0)}
 				fp_cur = Vector2(round((fp_cur.x + dv[b].x) / 500.0) * 500.0, round((fp_cur.y + dv[b].y) / 500.0) * 500.0)
-				fp_cur.x = clampf(fp_cur.x, 500.0, 15500.0)
-				fp_cur.y = clampf(fp_cur.y, 500.0, 8500.0)
+				fp_cur.x = clampf(fp_cur.x, 200.0, 15800.0)
+				fp_cur.y = clampf(fp_cur.y, 200.0, 8800.0)
+				if fp_stroking:
+					_fs_extend(Vector2i(fp_cur))   # 按住 A＋十字鍵也能畫（Antigravity 實作第 1 輪 #4）
+				elif fp_pad_x:
+					_fp_erase_at(Vector2i(fp_cur))
 				return true
 	return false
 
@@ -420,12 +522,61 @@ func _fp_draw_zones() -> void:
 				var fx := (xa + xb) / 2.0
 				draw_line(Vector2(fx, fy - 14), Vector2(fx, fy + 10), Color(0.4, 0.3, 0.2, 0.5), 2.0)
 				draw_colored_polygon(PackedVector2Array([Vector2(fx, fy - 14), Vector2(fx + 12, fy - 9), Vector2(fx, fy - 4)]), Color(0.85, 0.75, 0.55, 0.55))
-	# 全場：敵兵 1.5 格禁區融合成一片淡紅
-	for e in a.enemy_pos:
-		draw_circle(_s_of(e) - Vector2(0, 0.32 * CS), a.enemy_gap / 1000.0 * CS, Color(1, 0.25, 0.25, 0.10), true, -1.0, true)
+	# 全場：敵兵 1.5 格禁區融合成一片均勻淡紅，只畫在戰場內（Antigravity 實作第 1 輪 #6）。
+	# 0.125 格點陣，同一列連續的格子併成一個長方形；敵兵位置不變就用快取。
+	if not a.enemy_pos.is_empty():
+		var key: int = hash([a.enemy_pos, a.enemy_gap])
+		if key != fp_zone_key:
+			fp_zone_key = key
+			fp_zone_rects = _fp_zone_raster(a.enemy_pos, a.enemy_gap)
+		for r in fp_zone_rects:
+			draw_rect(r, Color(1, 0.25, 0.25, 0.16))
+
+func _fp_zone_raster(ep: Array, gap: int) -> Array:
+	var out: Array = []
+	var cell := 125
+	var g2 := gap * gap
+	for j in 9000 / cell:
+		var cy := j * cell + cell / 2
+		var run := -1
+		for i in 16000 / cell + 1:
+			var hit := false
+			if i < 16000 / cell:
+				var cx := i * cell + cell / 2
+				for e in ep:
+					var dx: int = e.x - cx
+					var dy: int = e.y - cy
+					if dx * dx + dy * dy < g2:
+						hit = true
+						break
+			if hit and run < 0:
+				run = i
+			elif not hit and run >= 0:
+				out.append(Rect2(ORIGIN + Vector2(run * cell, j * cell) / 1000.0 * CS, Vector2((i - run) * cell, cell) / 1000.0 * CS))
+				run = -1
+	return out
+
+## 畫筆預覽時，頂部金幣條上預扣的那一段畫斜線（§4.3）。
+func _fp_gold_preview(gb: Rect2, a) -> void:
+	if not fp_stroking or fp_stroke.is_empty():
+		return
+	var cost := 0
+	for it in fp_stroke:
+		cost += D.cost(int(it[0]))
+	var x0: float = gb.position.x + gb.size.x * float(a.spent()) / maxf(1.0, a.budget)
+	var w: float = minf(gb.end.x - x0, gb.size.x * float(cost) / maxf(1.0, a.budget))
+	draw_rect(Rect2(x0, gb.position.y, w, gb.size.y), Color(ACCENT, 0.35))
+	var k := 0.0
+	while k < w + gb.size.y:
+		var p0 := Vector2(x0 + k, gb.end.y)
+		var p1 := Vector2(x0 + k + gb.size.y, gb.position.y)
+		if p0.x <= x0 + w:
+			draw_line(Vector2(maxf(p0.x, x0), p0.y - maxf(0.0, x0 - p0.x)), Vector2(minf(p1.x, x0 + w), p1.y + maxf(0.0, p1.x - x0 - w)), ACCENT, 1.5)
+		k += 5.0
 
 ## 自由模式的兵、預覽、占地圈、選取、框選、對齊點陣、工具列。
 func _fp_draw() -> void:
+	_fp_clean_sel()
 	# 跳手提示（§3.10）：沒有合法位置或買不起的一方被自動跳過
 	if tp != null and tp.skipped.size() > fp_skip_seen:
 		var sk: Dictionary = tp.skipped[tp.skipped.size() - 1]
@@ -443,8 +594,8 @@ func _fp_draw() -> void:
 		if ar.team == hide_side:
 			continue
 		for i in ar.units.size():
-			if ar == a and i == fp_drag:
-				continue
+			if ar == a and (i == fp_drag or (fp_drag >= 0 and fp_sel.size() > 1 and fp_drag in fp_sel and i in fp_sel)):
+				continue   # 搬移中：原位置不畫（整群一起藏，Antigravity 實作第 2 輪）
 			var w: Vector2i = ar.pos_of(ar.units[i])
 			lst.append([w.y, w.x, int(ar.units[i]["type"]), ar.team, ar == a and i in fp_sel])
 	lst.sort()
@@ -466,11 +617,32 @@ func _fp_draw() -> void:
 			var b0 := p + Vector2(-10 * dir, 10)
 			draw_line(b0, b0 + Vector2(22 * dir, 0), Color(1, 1, 1, 0.8), 2.0)
 			draw_colored_polygon(PackedVector2Array([b0 + Vector2(22 * dir, -5), b0 + Vector2(30 * dir, 0), b0 + Vector2(22 * dir, 5)]), Color(1, 1, 1, 0.8))
+	# 密集處：游標附近每隻兵的腳底中心點透到最上層（§4.3，看得出誰站哪）
+	if _fp_in_field(mouse) or pad_mode:
+		var hw: Vector2i = Vector2i(fp_cur) if pad_mode else hover_w
+		for it in lst:
+			if Vector2(Vector2i(it[1], it[0]) - hw).length() < 1800:
+				var fp := _s_of(Vector2i(it[1], it[0])) - Vector2(0, 0.32 * CS)
+				draw_circle(fp, 3.0, Color(0, 0, 0, 0.7), true, -1.0, true)
+				draw_circle(fp, 2.0, Art.team_color(it[3], cbm()), true, -1.0, true)
 	# 搬移中的那一隻
 	if fp_drag >= 0 and fp_drag < a.units.size():
-		var tgt := _q(_w_of(mouse))
-		var ok_m: bool = a.check_place_xy(int(a.units[fp_drag]["type"]), tgt.x, tgt.y, fp_drag) == ""
-		_unit(_s_of(tgt), int(a.units[fp_drag]["type"]), a.team, 1.0, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0)
+		var tgt := _q(Vector2i(fp_cur) if pad_mode else _w_of(mouse))
+		var face := 1.0 if a.team == 0 else -1.0
+		if fp_sel.size() > 1 and fp_drag in fp_sel:
+			# 整群：照位移畫全部的預覽（Antigravity 實作第 1 輪 #3）
+			var dv: Vector2i = tgt - fp_drag_from
+			var trial = a.copy()
+			var mv: Vector2i = trial.move_group(fp_sel, dv.x, dv.y)
+			var ok_g: bool = mv.x != -99999
+			if ok_g:
+				dv = mv   # 用實際（貼邊夾限後）的位移畫，預覽＝落點（Codex 實作第 2 輪新問題 2）
+			for i in fp_sel:
+				var np: Vector2i = a.pos_of(a.units[i]) + dv
+				_unit(_s_of(np), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0)
+		else:
+			var ok_m: bool = a.check_place_xy(int(a.units[fp_drag]["type"]), tgt.x, tgt.y, fp_drag) == ""
+			_unit(_s_of(tgt), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0)
 	# 畫筆預覽：腳底亮點＋半透明小人＋費用泡泡
 	if fp_stroking:
 		var cost := 0
@@ -481,14 +653,27 @@ func _fp_draw() -> void:
 			cost += D.cost(int(it[0]))
 		var tip := L.t("fp_bubble", [cost, fp_stroke.size()])
 		if fp_full:
-			tip += "　" + L.t("fp_full")
-		var bp := mouse + Vector2(18, -36)
+			# 分清楚是錢、人數還是這一手用完，並寫出剩多少（Antigravity 實作第 1 輪 #8）
+			match fp_full_why:
+				"cap":
+					tip += "　" + L.t("fp_full_cap")
+				"hand":
+					tip += "　" + L.t("fp_full_hand")
+				_:
+					tip += "　" + L.t("fp_full_gold", [a.budget - a.spent() - cost])
+		# 多隻預覽：只畫第一隻和最後一隻的射程（§4.3）
+		var rr := _fp_range_of(selected)
+		if rr > 0.0 and fp_stroke.size() > 0:
+			for it in [fp_stroke[0], fp_stroke[fp_stroke.size() - 1]]:
+				call("_arc_clipped", _s_of(Vector2i(it[1], it[2])) - Vector2(0, 0.32 * CS), rr * CS, 0, TAU, Color(1, 0.9, 0.5, 0.35), 1.5)
+		var anchor := _fp_scr(Vector2i(fp_cur)) if pad_mode else mouse
 		var bw := _width(tip, tz("S"), true) + 16
+		var bp := Vector2(clampf(anchor.x + 18, ORIGIN.x, ORIGIN.x + FIELD.x - bw), clampf(anchor.y - 36, ORIGIN.y, ORIGIN.y + FIELD.y - tz("S") * 1.6))
 		draw_rect(Rect2(bp, Vector2(bw, tz("S") * 1.6)), Color(0.06, 0.07, 0.1, 0.9))
 		_text(bp + Vector2(8, tz("S") * 0.25), tip, tz("S"), ACCENT if not fp_full else Color("#ff8a8a"), false, true)
 	# 框選
 	if fp_box:
-		var r := Rect2(fp_box_a, Vector2.ZERO).expand(mouse)
+		var r := Rect2(fp_box_a, Vector2.ZERO).expand(_fp_scr(Vector2i(fp_cur)) if pad_mode else mouse)
 		draw_rect(r, Color(ACCENT, 0.12))
 		draw_rect(r, ACCENT, false, 1.5)
 	# 對齊點陣：只在游標附近 3×3 格淡出
@@ -514,19 +699,45 @@ func _fp_draw() -> void:
 	if not drag_on and (_fp_in_field(mouse) or pad_mode):
 		var cw: Vector2i = Vector2i(fp_cur) if pad_mode else _q(hover_w)
 		var cp := _s_of(cw) - Vector2(0, 0.32 * CS)
-		var rad := 0.0
-		match selected:
-			D.ARCHER:
-				rad = 6.0
-			D.PIKE:
-				rad = D.STATS[D.PIKE]["reach"] / 1000.0
-			D.MEDIC:
-				rad = D.HEAL_RANGE / 1000.0
-			D.DRUMMER:
-				rad = D.DRUM_RANGE / 1000.0
+		var rad := _fp_range_of(selected)
 		if rad > 0.0:
 			call("_arc_clipped", cp, rad * CS, 0, TAU, Color(1, 0.9, 0.5, 0.45), 2.0)
+	_fp_gesture()
 	_fp_toolbar()
+
+## 新手手勢：前排從上往下一隻手拖過去，後面依間距冒出半透明小兵，1.5 秒。
+func _fp_gesture() -> void:
+	if fp_gesture_at < 0.0:
+		return
+	var k: float = (time - fp_gesture_at) / 1.5
+	if k >= 1.0 or k < 0.0:
+		fp_gesture_at = -1.0
+		return
+	var a = _fp_army()
+	var ox: int = maxi(Army.EDGE, a.depth - 600)
+	var y0 := 2500.0
+	var y1 := 6500.0
+	var yc := lerpf(y0, y1, k)
+	var y := y0
+	while y <= yc:
+		_unit(_s_of(Vector2i(a.world_x(ox), int(y))), selected, a.team, 1.0 if a.team == 0 else -1.0, 0.0, 0.0, 0.0, 0.45, time, 1.0)
+		y += a.spacing
+	var hp := _s_of(Vector2i(a.world_x(ox), int(yc))) + Vector2(10, -10)
+	draw_circle(hp, 14.0, Color(1, 1, 1, 0.25 * (1.0 - k) + 0.25), true, -1.0, true)
+	draw_arc(hp, 14.0, 0, TAU, 24, Color(1, 1, 1, 0.9), 2.0, true)
+	_text(hp + Vector2(20, -tz("S") * 0.6), L.t("fp_gesture"), tz("S"), Color.WHITE, false, true)
+
+func _fp_range_of(t: int) -> float:
+	match t:
+		D.ARCHER:
+			return 6.0
+		D.PIKE:
+			return D.STATS[D.PIKE]["reach"] / 1000.0
+		D.MEDIC:
+			return D.HEAL_RANGE / 1000.0
+		D.DRUMMER:
+			return D.DRUM_RANGE / 1000.0
+	return 0.0
 
 func _fp_dashed_circle(c: Vector2, r: float, col: Color) -> void:
 	var n := 24
@@ -544,7 +755,7 @@ func _fp_reticle(p: Vector2) -> void:
 	draw_line(p + Vector2(-20, -2), p + Vector2(-8, -2), ACCENT, 2.0)
 	draw_line(p + Vector2(8, -2), p + Vector2(20, -2), ACCENT, 2.0)
 
-## 工具列：戰場上緣的浮動膠囊列（Antigravity 第二輪：右下放不下）。點＝切換常駐；按住 Shift／Ctrl／G＝暫時。
+## 工具列：戰場左邊的直排工具列（Antigravity 第二輪：右下放不下）。點＝切換常駐；按住 Shift／Ctrl／G＝暫時。
 func _fp_toolbar() -> void:
 	var items: Array = [["brush", L.t("fp_t_brush")], ["line", L.t("fp_t_line")]]
 	if not _fp_duel_turns():
@@ -579,6 +790,7 @@ func _fp_tool_click(id: String) -> void:
 ## 開始擺放時重設自由模式的狀態。
 func _fp_reset() -> void:
 	fp_skip_seen = 0
+	fp_zone_key = -1
 	_fs_cancel()
 	fp_drag = -1
 	fp_sel = []
@@ -587,3 +799,8 @@ func _fp_reset() -> void:
 	fp_undo = []
 	fp_redo = []
 	fp_cur = Vector2(3500, 4500)
+	# 新手手勢（§4.4）：第一次進自由擺放，示範一次「按住拖一排」1.5 秒
+	fp_gesture_at = -1.0
+	if _is_free() and not bool(Save.data.get("seen_fp_gesture", false)) and shot_dir == "":
+		Save.data["seen_fp_gesture"] = true
+		fp_gesture_at = time

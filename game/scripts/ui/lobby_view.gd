@@ -81,6 +81,9 @@ func _lobby_block() -> String:
 	var bad: Array = lobby_r.validate()
 	if not bad.is_empty():
 		return L.t(bad[0])
+	# 第六輪（Codex 實作第 1 輪 #4）：明牌全場只給對 AI、輪流全場只給雙人（貼上的規則代碼也要擋）
+	if (lobby_r.fullfield == RuleSet.FULL_DUEL and lobby_kind != "duel") or (lobby_r.fullfield == RuleSet.FULL_AI and lobby_kind != "ai"):
+		return L.t("rr_full_kind")
 	var lk := _lobby_locked_units()
 	if not lk.is_empty():
 		var names: Array = []
@@ -503,7 +506,11 @@ func _draw_lobby_detail(R: Rect2) -> void:
 			var rowsd: Array = [["deploy", L.t("lb_deploy"), L.t("lb_deploy_free") if fr else L.t("lb_deploy_grid")]]
 			if fr:
 				rowsd.append(["spacing", L.t("lb_spacing"), L.t("lb_cells", [lobby_r.spacing / 1000.0])])
-				rowsd.append(["depth", L.t("lb_depth"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
+				# 全場：雙人沒有縱深（整個戰場）；對 AI 的縱深只管 AI 自己擺多深（Antigravity 實作第 1 輪 #7）
+				if lobby_r.fullfield == RuleSet.FULL_NONE:
+					rowsd.append(["depth", L.t("lb_depth"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
+				elif lobby_kind == "ai":
+					rowsd.append(["depth", L.t("lb_depth_ai"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
 				rowsd.append(["fullfield", L.t("lb_full_ai") if lobby_kind == "ai" else L.t("lb_full_duel"), L.t("on") if lobby_r.fullfield != 0 else L.t("off")])
 			_rows(L0, rowsd)
 		2:

@@ -201,10 +201,15 @@ func _enemy_visible() -> bool:
 	return false
 
 
+## 第六輪（Codex 實作第 1 輪 #5）：雙人全場被封鎖到跳完手、一方沒有戰鬥兵時，照樣按「開戰」——
+## 模擬在第 0 tick 就依 §3.8 判定（有戰鬥兵的一方勝、雙方都沒有＝和局），不能卡在開戰鈕永久灰掉。
+func _full_blocked_ok() -> bool:
+	return mode == Mode.DUEL and tp != null and tp.done() and rules != null and rules.is_free() and rules.fullfield == RuleSet.FULL_DUEL
+
 func _ready_to_fight() -> bool:
 	if mode == Mode.DUEL:
 		if tp != null:
-			return tp.done() and (rules == null or (armies[0].has_combat() and armies[1].has_combat()))
+			return tp.done() and (rules == null or _full_blocked_ok() or (armies[0].has_combat() and armies[1].has_combat()))
 		return blind_phase == 2
 	if rules != null:
 		return armies[0].has_combat()
@@ -220,12 +225,13 @@ func _start_block_reason() -> String:
 	var a = _cur_army()
 	if a.count() == 0:
 		return ""
-	if rules != null and not a.has_combat():
+	if rules != null and not a.has_combat() and not _full_blocked_ok():
 		return L.t("err_need_combat")
 	return ""
 
 
 func _on_start() -> void:
+	_fp_abort_drag()   # 第六輪：拖曳中按開戰／準備好，拖曳作廢（Codex 實作第 2 輪 #2）
 	if mode == Mode.DUEL and tp != null and not tp.done():
 		if not tp.end_turn():
 			_toast(L.t("err_cantskip"), true)
@@ -242,10 +248,10 @@ func _on_start() -> void:
 		blind_phase += 1
 		sfx.play("turn")
 		return
-	if armies[0].count() == 0:
+	if armies[0].count() == 0 and not _full_blocked_ok():
 		_toast(L.t("err_empty"), true)
 		return
-	if rules != null and (not armies[0].has_combat() or (mode == Mode.DUEL and not armies[1].has_combat())):
+	if rules != null and not _full_blocked_ok() and (not armies[0].has_combat() or (mode == Mode.DUEL and not armies[1].has_combat())):
 		_toast(L.t("err_need_combat"), true)
 		return
 	for u in armies[0].units:   # 開戰前再驗一次（Codex 實作審查 #1）
@@ -697,6 +703,8 @@ func _input(ev: InputEvent) -> void:
 		if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
 			_enqueue("key", ev.keycode)
 		return
+	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
+		_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
 	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
 		pad_mode = true
 		_enqueue("padbtn", {"b": ev.button_index, "pressed": ev.pressed})   # 第六輪：自由排兵要知道按下與放開
@@ -738,6 +746,7 @@ func _paint_cmd(p: Vector2) -> void:
 
 
 func _mb_release_cleanup() -> void:
+	_fp_abort_drag()
 	drag_new = false
 	painting = false
 	drag_from = Vector2i(-1, -1)
@@ -1595,6 +1604,8 @@ func _load_checked(code: String) -> String:
 			if not _place_from(keep, u):
 				gone[t] = int(gone.get(t, 0)) + 1
 		armies[0].units = keep.units
+		_fp_abort_drag()
+		fp_sel = []   # 換了陣型，舊的框選索引作廢（Codex 實作第 2 輪 #8）
 		if not gone.is_empty():
 			var bits: Array = []
 			for t in gone:
@@ -1610,6 +1621,7 @@ func _load_checked(code: String) -> String:
 		if not _allowed(int(u["type"])):
 			return "locked"
 	armies[0].units = tmp.units
+	fp_sel = []
 	return ""
 
 
@@ -1652,6 +1664,8 @@ func _draw_place_hud() -> void:
 		star = a.budget - int(pzs["budget"]) + int(pzs["star3"])   # 三星條件（只花 ≤N 金）換算成金幣條上的位置
 	var gb := Rect2(440, 6 + hz * 1.35, 230, 12)
 	Charts.gold_bar(self, gb, a.units, a.budget, star)
+	if _is_free():
+		_fp_gold_preview(gb, a)
 	var gtxt := L.t("gold_of", [a.spent(), a.budget])
 	_text(Vector2(gb.end.x + 10, gb.position.y - tz("S") * 0.45), gtxt, tz("S"), ACCENT, false, true)
 	var ux := gb.end.x + 18 + _width(gtxt, tz("S"), true)
@@ -1811,7 +1825,11 @@ func _clear_mine() -> void:
 	elif mode == Mode.GAUNTLET and gauntlet_stage > 1:
 		a.units = gauntlet_prev.duplicate(true)
 	else:
+		if _is_free():
+			_fp_push_undo()   # 自由模式：清空可以 Ctrl＋Z 復原
 		a.clear()
+	fp_sel = []
+	_fp_abort_drag()
 
 
 func _draw_result() -> void:

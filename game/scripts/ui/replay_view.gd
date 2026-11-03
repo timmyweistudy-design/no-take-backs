@@ -260,7 +260,7 @@ func _rv_free_click(w: Vector2i) -> void:
 	if rv_fsel < 0:
 		return
 	var trial = rv_army.copy()
-	if not trial.move_xy(rv_fsel, Army.quant(w.x), Army.quant(w.y)):
+	if not trial.move_xy(rv_fsel, trial.world_x(Army.quant(trial.own_x(w.x))), Army.quant(w.y)):
 		_toast(L.t("err_zone"), true)
 		return
 	if review_changes(rv_orig, trial) > 1:
@@ -461,6 +461,9 @@ func _rv_free_board(g0: Vector2) -> void:
 			if now_by.has(e):
 				_dash(to_px.call(p0), to_px.call(Army.pos_of(rv_army.units[now_by[e]])), ACCENT, 2.0)
 	if full:
+		# 全場：敵兵 1.5 格禁區（點空地搬不過去時看得出原因）
+		for u in rv_enemy.units:
+			draw_circle(to_px.call(Army.pos_of(u)), float(rv_army.enemy_gap) * s, Color(1, 0.25, 0.25, 0.10))
 		for u in rv_enemy.units:
 			Art.unit(self, to_px.call(Army.pos_of(u)), int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.7, time, 0.36, cbm())
 	var order: Array = range(rv_army.units.size())

@@ -38,6 +38,7 @@ func _init() -> void:
 		test_free_skip_v6()
 		test_review_free_v6()
 		test_to_free_keeps_units_v6()
+		test_free_review_fixes_v6()
 		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 		quit(1 if failed > 0 or passed == 0 else 0)
 		return
@@ -90,6 +91,7 @@ func _init() -> void:
 	test_free_skip_v6()
 	test_review_free_v6()
 	test_to_free_keeps_units_v6()
+	test_free_review_fixes_v6()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -2607,6 +2609,89 @@ func test_to_free_keeps_units_v6() -> void:
 					if a.units.size() != src[i].units.size() or why != "":
 						bad.append("%d/%d %s #%d：%d→%d %s" % [sp, dp, st, i, src[i].units.size(), a.units.size(), why])
 	ok(bad.is_empty(), "格子轉自由 %d 套（9 種間距 × 4 種縱深 × 三種排法）都不少兵且合法" % n, str(bad.slice(0, 5)))
+
+## Codex 實作第 1 輪 #7、#3、#10：has_room 要和 0.05 格完整窮舉一致；全場對戰代碼要驗跨隊距離；cmds 不接受
+func test_free_review_fixes_v6() -> void:
+	var rng := RandomNumberGenerator.new()
+	var bad: Array = []
+	var nfull := 0
+	for k in 6:
+		rng.seed = 5150 + k
+		var r = free_rules([1000, 800, 600][k % 3], 6000)
+		r.budget = [400, 400]
+		r.unit_cap = 40
+		var a = Army.new(0, 400)
+		a.apply_rules(r, 0)
+		for e in 14 + k * 2:
+			a.enemy_pos.append(Vector2i(rng.randi_range(0, 6200), rng.randi_range(0, 9000)))
+		for i in 4000:
+			a.place_xy(D.SWORD, Army.quant(rng.randi_range(200, 6000)), Army.quant(rng.randi_range(200, 8800)))
+			if a.units.size() >= 39:
+				break
+		var brute := false
+		var x := 200
+		while x <= 6000 and not brute:
+			var y := 200
+			while y <= 8800:
+				if a.check_place_xy(D.SWORD, x, y) == "":
+					brute = true
+					break
+				y += 50
+			x += 50
+		if not brute:
+			nfull += 1
+		if a.has_room() != brute:
+			bad.append("#%d %d 隻：has_room=%s 窮舉=%s" % [k, a.units.size(), a.has_room(), brute])
+	ok(bad.is_empty(), "has_room 和 0.05 格完整窮舉一致（6 種隨機擠滿＋敵兵禁區的陣，其中 %d 種真的沒位置）" % nfull, str(bad))
+	# 全場對戰代碼：雙方疊在同一點 → 拒絕
+	var BC = load("res://scripts/game/battle_code.gd")
+	var fr = free_rules(800, 6000, 1)
+	var b0 = Army.new(0, 100)
+	b0.apply_rules(fr, 0)
+	var b1 = Army.new(1, 100)
+	b1.apply_rules(fr, 1)
+	b0.place_xy(D.SWORD, 8000, 4500)
+	b1.place_xy(D.SWORD, 8000, 4500)
+	var dd: Dictionary = BC.decode(BC.encode(b0, b1, fr))
+	ok(not dd["ok"], "全場對戰代碼：兩軍疊在一起（離敵兵不到 1.5 格）被拒")
+	var c0 = Army.new(0, 100)
+	c0.apply_rules(fr, 0)
+	c0.place_xy(D.SWORD, 3000, 4500)
+	var c1 = Army.new(1, 100)
+	c1.apply_rules(fr, 1)
+	c1.place_xy(D.SWORD, 13000, 4500)
+	var good: String = BC.encode(c0, c1, fr)
+	ok(BC.decode(good)["ok"], "全場對戰代碼：合法的仍然接受")
+	# 加了 cmds 的偽造代碼（校驗碼重算）→ 拒絕
+	var body: String = good.split(".")[1].replace("-", "+").replace("_", "/")
+	while body.length() % 4 != 0:
+		body += "="
+	var j: Dictionary = JSON.parse_string(Marshalls.base64_to_utf8(body))
+	j["cmds"] = [{"team": 1, "batch": []}]
+	var b2 := Marshalls.utf8_to_base64(JSON.stringify(j)).replace("+", "-").replace("/", "_").replace("=", "")
+	ok(not BC.decode("NTB3.%s.%s" % [b2, b2.sha256_text().substr(0, 6)])["ok"], "對戰代碼帶 cmds（輪序紀錄，尚不支援驗證）被拒，不會被當成已驗證")
+	# §3.8：雙人全場擺完卻有一方沒有戰鬥兵 → 不開打，有戰鬥兵的一方勝；雙方都沒有＝和局（Codex 實作第 2 輪 #5）
+	var Sim = load("res://scripts/core/battle_sim.gd")
+	var m0 = Army.new(0, 100)
+	m0.apply_rules(fr, 0)
+	m0.place_xy(D.SWORD, 3000, 4500)
+	var m1 = Army.new(1, 100)
+	m1.apply_rules(fr, 1)
+	m1.guard_combat = false
+	m1.place_xy(D.MEDIC, 13000, 4500)
+	var sm = Sim.new(m0.copy(), m1.copy(), fr)
+	ok(sm.finished and sm.winner == 0 and sm.tick == 0, "雙人全場：紅方只有支援兵 → 第 0 tick 藍方勝", "%s %d %d" % [sm.finished, sm.winner, sm.tick])
+	var m2 = Army.new(0, 100)
+	m2.apply_rules(fr, 0)
+	m2.guard_combat = false
+	m2.place_xy(D.MEDIC, 3000, 4500)
+	var sd = Sim.new(m2, m1.copy(), fr)
+	ok(sd.finished and sd.winner == -1, "雙人全場：雙方都沒有戰鬥兵 → 和局")
+	var nf = free_rules(800, 6000, 0)
+	var n1 = m1.copy()
+	n1.apply_rules(nf, 1)
+	var sn = Sim.new(m0.copy(), n1, nf)
+	ok(not sn.finished, "非全場的自由部署不套這條（照常開打）")
 
 ## 第六輪：自由陣型覆盤的改動計數依 eid（編輯識別），不依戰鬥編號
 func test_review_free_v6() -> void:
