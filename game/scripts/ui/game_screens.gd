@@ -1463,9 +1463,10 @@ func _draw_slots() -> void:
 						note = L.t("slot_will_drop", [tmp.units.size() - n_ok])
 			else:
 				can_load = false
-		_text(Vector2(360, y + 4), "%s　%s" % [L.t("slot", [i + 1]), desc], ts(16), Color.WHITE, false, false, 330)
+		var head := "%s　%s" % [L.t("slot", [i + 1]), desc]
+		_text(Vector2(360, y + 4), head, ts(16), Color.WHITE, false, false, 330)
 		if note != "":
-			_text(Vector2(360, y + 4 + ts(16) * 1.3), note, tz("C"), Color("#ffb4a0"), false, false, 330)
+			_text(Vector2(360, y + 4 + text_h(head, ts(16), 330)), note, tz("C"), Color("#ffb4a0"), false, false, 330)   # 依組成實際換行後的高度往下排
 		_btn(Rect2(700, y, 100, 42), L.t("save"), _slot_save.bind(i))
 		_btn(Rect2(810, y, 100, 42), L.t("load"), _slot_load.bind(i), can_load)
 	_btn(Rect2(370, 540, 260, 42), L.t("copy_code"), func(): DisplayServer.clipboard_set(armies[0].to_code()); _toast(L.t("code_copied")))

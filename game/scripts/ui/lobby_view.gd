@@ -39,7 +39,7 @@ func _open_lobby(kind: String) -> void:
 		if kind == "duel":
 			r.place_rule = str(Save.s("duel_rule")) if str(Save.s("duel_rule")) in RuleSet.PLACE_RULES else "snake5"
 	lobby_r = r
-	_lobby_clamp()
+	# 存過的規則照原樣保留（Codex 實作第 3 輪：重開雙人大廳不能把兩邊不同的卡池改成一樣）；含未解鎖兵由開戰鈕擋
 	lobby_open = false
 	lobby_menu = false
 	lobby_item = ""
@@ -48,13 +48,11 @@ func _open_lobby(kind: String) -> void:
 
 func _lobby_clamp() -> void:
 	Presets.clamp_pool(lobby_r, lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
-	if lobby_kind == "duel":
-		lobby_r.ai_pool_same = true
 
 func _lobby_pick(id: String) -> void:
 	var keep_level: int = lobby_r.ai_level
 	var keep_place: String = lobby_r.place_rule
-	lobby_r = Presets.make(id, lobby_kind, _lobby_unlocked())
+	lobby_r = Presets.make(id, lobby_kind, Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo")))
 	lobby_r.ai_level = keep_level
 	if lobby_kind == "duel" and id != "standard" and id != "classic5":
 		lobby_r.place_rule = keep_place

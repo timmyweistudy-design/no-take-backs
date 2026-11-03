@@ -38,6 +38,7 @@ func _init() -> void:
 		test_sandbox_v5()
 		test_battle_code_v5()
 		test_rules_e2e_v5()
+		test_lobby_reopen_v5()
 		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 		quit(1 if failed > 0 or passed == 0 else 0)
 		return
@@ -76,6 +77,7 @@ func _init() -> void:
 	test_sandbox_v5()
 	test_battle_code_v5()
 	test_rules_e2e_v5()
+	test_lobby_reopen_v5()
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
 	quit(1 if failed > 0 or passed == 0 else 0)
 
@@ -2311,3 +2313,27 @@ func test_rules_e2e_v5() -> void:
 	r4.pool = [31, 1023]
 	ok(BC.encode(x0, x1, r2).begins_with("NTB3.") and BC.encode(x0, x1, r3).begins_with("NTB3.") and BC.encode(x0, x1, r4).begins_with("NTB3.") and BC.encode(x0, x1, RSET.standard(31)).begins_with("NTB2."),
 		"對戰代碼：卡池（3 種）、人數上限（4 隻）、兩邊卡池不同（前 5 種 vs 全部）就用 NTB3；經典 5 種仍是 NTB2")
+
+
+## 第五輪（Codex 實作第 3 輪）：存過的雙人規則（兩邊卡池不同）重開大廳要原樣保留。
+func test_lobby_reopen_v5() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var old_prefix: String = SV.prefix
+	SV.prefix = "test_lobby_"
+	SV.load_all()
+	var r = RSET.standard()
+	r.ai_pool_same = false
+	r.pool = [31, 0b1000011111]
+	r.place_rule = "cap10"
+	SV.data["last_rules"] = {"duel": r.to_code(), "duel_preset": "custom"}
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g._open_lobby("duel")
+	ok(g.lobby_r.equals(r) and g.lobby_r.pool_of(1) == 0b1000011111, "重開雙人大廳：存過的規則（兩邊卡池不同、每手 10 金）原樣保留", str([g.lobby_r.pool, g.lobby_r.ai_pool_same]))
+	g.free()
+	for fn in ["user://test_lobby_save.json", "user://test_lobby_save.json.bak", "user://test_lobby_settings.json"]:
+		if FileAccess.file_exists(fn):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn))
+	SV.prefix = old_prefix
+	SV.load_all()
