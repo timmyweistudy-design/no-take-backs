@@ -691,7 +691,7 @@ func test_keymap_v7() -> void:
 	t = KM.rebind(KM.ACTIONS, t, "pause", KEY_F)
 	ok(KM.key_of(t, "pause") == KEY_F and KM.key_of(t, "start") == KEY_P, "K1：撞鍵會互換", str(t))
 	ok(KM.key_name(t, "pause") == "F", "K1：提示跟著按鍵走", KM.key_name(t, "pause"))
-	ok(KM.sanitize(KM.ACTIONS, {"start": "x", "pause": 71.0, "nope": 1}) == {"pause": 71}, "K1：存檔裡的表逐項驗型")
+	ok(KM.sanitize(KM.ACTIONS, {"start": "x", "pause": 70.0, "nope": 1}) == {"pause": 70}, "K1：存檔裡的表逐項驗型")
 	var pt: Dictionary = KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_Y)
 	ok(KM.pad_to_default(pt, JOY_BUTTON_Y) == JOY_BUTTON_START and KM.pad_name(pt, "start") == "Y", "K1：手把也能改")
 	ok(KM.pad_name(pt, "pause") == "Start", "K1：手把撞鍵也互換")
