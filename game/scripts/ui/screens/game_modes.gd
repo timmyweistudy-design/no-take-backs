@@ -115,8 +115,8 @@ func _challenge_decode(c: String) -> Dictionary:
 	if not j is Dictionary or not j.get("a") is String or not j.get("r") is String:
 		return bad
 	var rd: Dictionary = RuleSet.from_code(str(j["r"]))
-	if not rd["ok"]:
-		return bad
+	if not rd["ok"] or rd["rules"].fullfield != RuleSet.FULL_NONE:
+		return bad      # 全場規則是雙方互相看得到才成立，不能當挑戰碼（Codex r2 #3）
 	var r = rd["rules"]
 	r.ai_pool_same = false
 	# 碼是對方當藍軍排的，到這裡他變紅軍：兩邊的預算、卡池要對調（讓子局才有差，Codex #10）
@@ -164,7 +164,7 @@ func _draw_reward() -> void:
 ## ── 雙人：輪流禁選 ──
 func _begin_bans(n: int) -> void:
 	# 卡池太小時少禁幾張，至少留 3 種（Codex #6：5 種禁 2＋2 會卡死）
-	n = mini(n, (RuleSet.pool_count(rules.pool_of(0)) - 3) / 2)
+	n = mini(n, (mini(RuleSet.pool_count(rules.pool_of(0)), RuleSet.pool_count(rules.pool_of(1))) - 3) / 2)
 	if n <= 0:
 		_start_mode(Mode.DUEL)
 		return
@@ -185,11 +185,14 @@ func _ban_next() -> void:
 		_start_mode(Mode.DUEL)
 
 func _ban(t: int) -> void:
-	var p: int = rules.pool_of(0) & ~(1 << t)
-	if not RuleSet.has_combat(p) or RuleSet.pool_count(p) < 3 or RuleSet.cheapest_combat_in(p) > rules.budget_of(0):
-		_toast(L.t("ban_no"), true)
-		return
-	rules.pool = [p, p]
+	# 兩邊卡池可能不同：各自拿掉（Codex r2 #2）
+	var np := [rules.pool_of(0) & ~(1 << t), rules.pool_of(1) & ~(1 << t)]
+	for tm in 2:
+		var p: int = np[tm]
+		if not RuleSet.has_combat(p) or RuleSet.pool_count(p) < 3 or RuleSet.cheapest_combat_in(p) > rules.budget_of(tm):
+			_toast(L.t("ban_no"), true)
+			return
+	rules.pool = np
 	ban_left[ban_turn] -= 1
 	sfx.play("k_error")
 	_ban_next()
@@ -201,7 +204,7 @@ func _draw_ban() -> void:
 	_h1(Vector2(640, 122), L.t("ban_title"))
 	var who := L.t("blue") if ban_turn == 0 else L.t("red")
 	_text(Vector2(640, 186), L.t("ban_turn", [who, ban_left[ban_turn]]), tz("H2"), Art.team_color(ban_turn, cbm()).lightened(0.2), true, true, 860)
-	var ts0: Array = RuleSet.types_of(rules.pool_of(0))
+	var ts0: Array = RuleSet.types_of(rules.pool_of(0) | rules.pool_of(1))
 	for i in ts0.size():
 		var t: int = ts0[i]
 		var r := Rect2(200 + (i % 5) * 178, 250 + (i / 5) * 190, 168, 178)

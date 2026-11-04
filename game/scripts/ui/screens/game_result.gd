@@ -83,7 +83,7 @@ func _draw_result() -> void:
 	var title_sz := tcap(tz("D"), 64)
 	_text(Vector2(640, 104), title, title_sz, col, true, true, 540)
 	_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
-	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode:
+	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
 		_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
 	if report.has("trial_stars"):
 		for ks in 3:
@@ -325,6 +325,7 @@ func _apply_map_mode() -> void:
 	var n: int = MapDefs.MAPS.size()
 	rules.map_id = wrapi(rules.map_id + 1, 0, n) if rules.map_mode == 1 else rng.randi_range(0, n - 1)
 	rules.keep_formation = false
+	rules.vents = false
 
 func _next_round() -> void:
 	if series_over:

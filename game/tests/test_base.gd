@@ -51,6 +51,10 @@ func army_from(team: int, spec: Array):
 
 ## 不出聲的音效替身：讓畫面層可以在 headless 測試裡跑（只記錄播了什麼）。
 class FakeSfx:
+	func play_ambience(_n: String) -> void:
+		pass
+	func duck(_s: float) -> void:
+		pass
 	var played: Array = []
 	func play(n: String, _v := 1.0) -> void:
 		played.append(n)
