@@ -1,6 +1,16 @@
 extends RefCounted
 ## 一方的陣型：預算、人數上限、部署區、格子佔用。純資料，不碰畫面。
 
+## 擺放錯誤碼（第七輪 H6）：畫面靠這些常數判斷，不再比對中文字串。查過：這些字串沒有進任何代碼或存檔。
+const E_ZONE := "只能放在自己的部署區"
+const E_TAKEN := "這格已經有兵"
+const E_POOL := "這種兵不在這局的卡池裡"
+const E_GOLD := "錢不夠"
+const E_RESERVE := "要留錢和名額給至少 1 隻戰鬥兵"
+const E_NEAR := "離其他兵太近"
+const E_NEAR_ENEMY := "離敵兵太近"
+const E_CAP_PREFIX := "最多"
+const E_TYPE_CAP_PREFIX := "這種兵最多"
 const D = preload("res://scripts/core/unit_defs.gd")
 
 const COLS := 16
@@ -69,25 +79,25 @@ func check_place(t: int, col: int, row: int) -> String:
 	if deploy == "free":
 		return check_place_xy(t, col * 1000 + 500, row * 1000 + 500)
 	if not in_zone(col, row):
-		return "只能放在自己的部署區"
+		return E_ZONE
 	if index_at(col, row) != -1:
-		return "這格已經有兵"
+		return E_TAKEN
 	return _check_common(t)
 
 ## 位置以外的條件（卡池、人數、單種、錢、防卡死），格子與自由共用。
 func _check_common(t: int) -> String:
 	if t < 0 or t >= D.COUNT or (pool >> t) & 1 == 0:
-		return "這種兵不在這局的卡池裡"
+		return E_POOL
 	if count() >= unit_cap:
-		return "最多 %d 隻" % unit_cap
+		return E_CAP_PREFIX + " %d 隻" % unit_cap
 	if type_cap > 0 and count_of(t) >= type_cap:
-		return "這種兵最多 %d 隻" % type_cap
+		return E_TYPE_CAP_PREFIX + " %d 隻" % type_cap
 	if D.cost(t) > left():
-		return "錢不夠"
+		return E_GOLD
 	if guard_combat and D.is_support(t) and not has_combat():
 		var cc := cheapest_combat()
 		if count() + 1 >= unit_cap or left() - D.cost(t) < cc:
-			return "要留錢和名額給至少 1 隻戰鬥兵"
+			return E_RESERVE
 	return ""
 
 ## 第五輪：有沒有擺戰鬥兵（開戰條件：雙方各至少 1 隻）。
@@ -169,7 +179,7 @@ func check_place_xy(t: int, x: int, y: int, skip := -1) -> String:
 	if x % QUANT != 0 or y % QUANT != 0:
 		return "位置沒有對齊 0.05 格"
 	if not in_zone_xy(x, y):
-		return "只能放在自己的部署區"
+		return E_ZONE
 	var s2 := spacing * spacing
 	for i in units.size():
 		if i == skip:
@@ -178,13 +188,13 @@ func check_place_xy(t: int, x: int, y: int, skip := -1) -> String:
 		var dx := p.x - x
 		var dy := p.y - y
 		if dx * dx + dy * dy < s2:
-			return "離其他兵太近"
+			return E_NEAR
 	var g2 := enemy_gap * enemy_gap
 	for e in enemy_pos:
 		var dx2: int = e.x - x
 		var dy2: int = e.y - y
 		if dx2 * dx2 + dy2 * dy2 < g2:
-			return "離敵兵太近"
+			return E_NEAR_ENEMY
 	if skip >= 0:
 		return ""
 	return _check_common(t)

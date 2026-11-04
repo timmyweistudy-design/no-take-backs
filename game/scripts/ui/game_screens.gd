@@ -629,11 +629,11 @@ func _check_place(t: int, c: Vector2i) -> String:
 func _err_key(why: String) -> String:
 	if why == "":
 		return ""
-	if why.begins_with("只能放"):
+	if why == Army.E_ZONE:
 		return L.t("err_zone")
-	if why.begins_with("這格"):
+	if why == Army.E_TAKEN:
 		return L.t("err_taken")
-	if why.begins_with("最多"):
+	if why.begins_with(Army.E_CAP_PREFIX):
 		return L.t("err_max", [_cur_army().unit_cap])
 	if why.begins_with("這種兵最多"):
 		return L.t("err_type_cap", [_cur_army().type_cap])
@@ -643,7 +643,7 @@ func _err_key(why: String) -> String:
 		return L.t("err_reserve")
 	if why.begins_with("最後一手"):
 		return L.t("err_last_hand")
-	if why.begins_with("錢不夠"):
+	if why == Army.E_GOLD:
 		return L.t("err_gold")
 	if why.begins_with("這一手"):
 		return L.t("err_hand", [tp.hand_cap() if tp else 10])
@@ -950,6 +950,7 @@ func _key(k: int) -> void:
 # ───────────────────────── 每幀 ─────────────────────────
 func _process(delta: float) -> void:
 	_rv_poll()
+	_settings_hover()
 	var _t0 := Time.get_ticks_usec()
 	_process_inner(delta)
 	perf_proc_us = Time.get_ticks_usec() - _t0
@@ -1113,6 +1114,8 @@ func _draw_inner() -> void:
 		St.BATTLE:
 			_draw_battle_hud()
 			_draw_replay_controls()
+			_draw_frenzy_edge()
+			_draw_start_cue()
 			_draw_battle_report()
 			_draw_unit_info()
 			if skip_busy:
@@ -1162,6 +1165,11 @@ func _draw_hide_fog(hide_side: int) -> void:
 	draw_line(fp, fp + Vector2(0, 74), Color(0.85, 0.78, 0.7), 3.0, true)
 	draw_colored_polygon(PackedVector2Array([fp, fp + Vector2(48, 16), fp + Vector2(0, 36)]), Color(0.9, 0.2, 0.22))
 	_text(fp + Vector2(15, 2), "?", ts(22), Color.WHITE, true, true)
+	# 第七輪 A1：同一系列第 2 局起，留上一局敵陣殘影當參考（對手這局可能換陣）
+	if mode == Mode.VS_AI and round_no > 1 and last_armies.size() == 2:
+		for gu in last_armies[1].units:
+			var gw: Vector2i = Army.pos_of(gu)
+			_unit(ORIGIN + Vector2(gw) * CS / 1000.0, int(gu["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.28, 0.0, 1.0)
 	var msg := L.t("ai_hidden") if mode == Mode.VS_AI else L.t("enemy_hidden")
 	_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, FIELD.y / 2 - 10), msg, ts(22), Color(1, 1, 1, 0.85), true, true, cols * CS - 20)
 	if mode == Mode.VS_AI:
@@ -1523,6 +1531,13 @@ func _draw_overlay() -> void:
 						line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo") if left < 0 else L.t("locked_short", [left])]
 				_btn(r, line, _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
+				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
+				if not tut and en:
+					var note := "%s　★★★ %s" % [L.t("puzzle_budget", [int(pz["budget"])]), L.t("star3_short", [int(pz["star3"])])]
+					_probe_btn_label = true
+					_probe_btn_rect = r
+					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.25), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 70)
+					_probe_btn_label = false
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
 			if tut:
@@ -1551,9 +1566,7 @@ func _draw_overlay() -> void:
 
 
 ## 設定（第五輪 §4.4）：四組分頁＋右側說明欄；多選項用 ◀ ▶；遊戲規則已經搬到規則大廳。
-func _draw_settings() -> void:
-	_panel(Rect2(140, 50, 1000, 700))
-	_text(Vector2(640, 60), L.t("settings_title"), tz("H1"), Color.WHITE, true, true)
+func _settings_rows() -> Array:
 	var groups := {
 		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", ["zh_TW", "en"]); L.lang = Save.s("lang")],
 			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
@@ -1572,12 +1585,34 @@ func _draw_settings() -> void:
 			["set_flash", _onoff("flash"), func(d): _cycle_setting("flash", [true, false])],
 			["set_reduce_fx", _onoff("reduce_fx"), func(d): _cycle_setting("reduce_fx", [false, true])]],
 	}
+	return groups[settings_tab]
+
+
+## 滑鼠停在哪一列：輸入狀態，每幀更新一次（第七輪 H7：原本在繪圖時改狀態）。
+func _settings_hover() -> void:
+	if overlay != "settings":
+		return
+	var rows := _settings_rows()
+	for i in rows.size():
+		if Rect2(370, _settings_row_y(i), 520, 52).has_point(mouse):
+			settings_item = rows[i][0]
+
+
+func _settings_row_y(i: int) -> float:
+	return 120.0 + i * 66.0
+
+
+func _draw_settings() -> void:
+	_panel(Rect2(140, 50, 1000, 700))
+	_text(Vector2(640, 60), L.t("settings_title"), tz("H1"), Color.WHITE, true, true)
 	for i in 4:
 		_btn(Rect2(170, 120 + i * 60, 180, 50), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			Color(0.26, 0.33, 0.5) if i == settings_tab else Color(0, 0, 0, 0))
-	var rows: Array = groups[settings_tab]
+	var rows: Array = _settings_rows()
 	for i in rows.size():
 		var y := 120 + i * 66
+		if i % 2 == 0:
+			draw_rect(Rect2(370, y - 6, 524, 64), Color(1, 1, 1, 0.04))   # 第七輪 E11：斑馬底色
 		_text(Vector2(380, y + 13), L.t(rows[i][0]), tz("B"), Color.WHITE, false, false, 240)
 		var val: String = rows[i][1]
 		var cb: Callable = rows[i][2]
@@ -1588,8 +1623,6 @@ func _draw_settings() -> void:
 		_btn(Rect2(r.end.x - 48, r.position.y, 48, r.size.y), "▶", cb.bind(1))
 		if val.ends_with("%") and rows[i][0] in ["set_music", "set_sfx"]:
 			draw_rect(Rect2(r.position.x + 60, y + 44, (r.size.x - 120) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
-		if Rect2(370, y, 520, 52).has_point(mouse):
-			settings_item = rows[i][0]
 	# 說明欄
 	var D0 := Rect2(900, 120, 220, 560)
 	draw_rect(D0, Color(0, 0, 0, 0.25))
@@ -2054,6 +2087,13 @@ func _draw_result() -> void:
 			_text(mr.position + Vector2(100, 10), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
 			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660)
 			y = mr.end.y + 10
+		# 第七輪 A1：只列事件紀錄裡查得到的事實，不說「因為」（Codex：不宣稱因果）
+		var facts := _result_facts()
+		for fi in facts.size():
+			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
+			y += text_h(facts[fi], tz("S"), 780) + 2
+		if mode == Mode.VS_AI and sim.winner == 1 and play_kind == "official" and last_armies.size() == 2 and not watch_mode:
+			_btn(Rect2(800, y - tz("S") * 1.3 - 8, 230, 40), L.t("res_try_review"), func(): _open_review_on_first_loss())
 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
 			var need: int = rules.wins_needed() if rules != null else 2
 			_text(Vector2(640, y + 4), L.t("series_now", [round_no, wins[0], wins[1], need]), tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
@@ -2116,6 +2156,42 @@ func _draw_result() -> void:
 	var x := 640.0 - (bs.size() * (bw2 + 12) - 12) / 2.0
 	for i in bs.size():
 		_btn(Rect2(x + i * (bw2 + 12), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
+
+
+## 結果頁的事實列：來源都是 battle_marks（模擬事件），每條都有秒數、哪一方。最多 2 條（結果頁段數上限）。
+func _result_facts() -> Array:
+	var out: Array = []
+	var pri := [EV_DEATH, "charge", "backstab", "breach", "rally_on", "braced"]
+	for k in pri:
+		if out.size() >= 2:
+			break
+		for m in battle_marks:
+			if str(m["kind"]) == k:
+				var side: String = L.t("blue") if int(m["team"]) == 0 else L.t("red")
+				out.append([int(m["tick"]), L.t("fact_" + k, [int(m["tick"]) / 20, side])])
+				break
+	out.sort_custom(func(x, y): return x[0] < y[0])   # 依時間排
+	return out.map(func(x): return x[1])
+
+const EV_DEATH := "death"
+
+## 「在覆盤裡試試」：直接開覆盤，選中第一隻陣亡的同種兵（A1）。
+func _open_review_on_first_loss() -> void:
+	_open_review()
+	var dead_type := -1
+	for u in sim.units:
+		if u.team == 0 and not u.alive:
+			dead_type = u.type
+			break
+	if dead_type < 0:
+		return
+	for i in rv_army.units.size():
+		if int(rv_army.units[i]["type"]) == dead_type:
+			if rv_army.deploy == "free":
+				rv_fsel = i
+			else:
+				rv_sel = Vector2i(int(rv_army.units[i]["col"]), int(rv_army.units[i]["row"]))
+			return
 
 
 ## 結果頁第二層：中線對比長條（輸出／承傷切換）＋技能徽章（只列有發生的）＋指紋。

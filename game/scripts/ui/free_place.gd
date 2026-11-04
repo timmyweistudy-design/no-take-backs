@@ -127,12 +127,12 @@ func _fs_try(w: Vector2i) -> bool:
 			fp_full_why = "hand"
 			return false
 		var tw: String = tp.check_place_xy(t, w.x, w.y)
-		if tw == "最後一手要擺戰鬥兵" or tw == "擺放已結束" or tw == "離敵兵太近":
+		if tw == "最後一手要擺戰鬥兵" or tw == "擺放已結束" or tw == Army.E_NEAR_ENEMY:
 			return false
 	var why: String = fp_probe.check_place_xy(t, w.x, w.y)
-	if why == "錢不夠" or why.begins_with("最多") or why.begins_with("這種兵最多"):
+	if why == Army.E_GOLD or why.begins_with(Army.E_CAP_PREFIX) or why.begins_with(Army.E_TYPE_CAP_PREFIX):
 		fp_full = true   # 錢、人數用完：後面截斷（§3.8）
-		fp_full_why = "gold" if why == "錢不夠" else "cap"
+		fp_full_why = "gold" if why == Army.E_GOLD else "cap"
 		return false
 	if why != "":
 		return false

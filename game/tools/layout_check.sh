@@ -23,8 +23,8 @@ for lang in zh_TW en; do
     grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤"; exit 1; }
   done
 done
-EXPECT=$(grep -o '_snap("[^"]*")' scripts/ui/main.gd | wc -l)
-NAMES=$(grep -o '_snap("[^"]*")' scripts/ui/main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')
+EXPECT=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | wc -l)
+NAMES=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')
 python3 - "$OUT" "$EXPECT" "$NAMES" <<'PY'
 import json,sys,glob,os
 out=sys.argv[1]; expect=int(sys.argv[2]); names=set(x for x in sys.argv[3].split(',') if x); total=0; rows=[]
@@ -32,7 +32,7 @@ for f in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
     for line in open(f,encoding='utf-8'):
         d=json.loads(line); total+=len(d['violations']); rows.append(d)
 warns=sum(len(d.get('warnings',[])) for d in rows)
-# 第五輪：每組都要剛好是 main.gd 列出的那些畫面（不能用重複畫面湊張數）
+# 第五輪：每組都要剛好是 dev_main.gd 列出的那些畫面（不能用重複畫面湊張數）
 for f2 in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
     got=[json.loads(l)['shot'] for l in open(f2,encoding='utf-8')]
     if sorted(got)!=sorted(names) or len(set(got))!=len(got):

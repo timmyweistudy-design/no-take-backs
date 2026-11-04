@@ -13,7 +13,7 @@ const D = preload("res://scripts/core/unit_defs.gd")
 
 const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
 const RS := 1.6            # 烘焙解析度倍率
-const ORIGIN := Vector2(74, 170)   # 角色腳底在格子裡的位置（第七輪 C0：原本 124，長槍、法杖、高帽超框被切掉）
+const ORIGIN := Vector2(74, 160)   # 角色腳底在格子裡的位置（第七輪 C0：原本 124，長槍、法杖、高帽超框被切掉）
 const RING_ORIGIN := Vector2(96, 140)   # 腳底圈格子的中心（有影子，要留下方空間）
 const WALK_FRAMES := 6
 const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
@@ -116,7 +116,7 @@ class _Painter extends Node2D:
 		Art2.base = Transform2D.IDENTITY
 		var CELL2 := 192
 		var RS2 := 1.6
-		var org := Vector2(74, 170)
+		var org := Vector2(74, 160)
 		var per := 2 + 6 + 8 + 8
 		for type in D2.COUNT:
 			for team in 2:

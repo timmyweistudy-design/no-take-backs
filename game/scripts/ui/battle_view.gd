@@ -32,6 +32,9 @@ func _draw_busy(pct: int) -> void:
 
 
 func _battle_process(delta: float) -> void:
+	if start_hold > 0.0:
+		start_hold -= delta
+		return
 	if call("_seek_pump"):
 		return
 	if skip_busy:
@@ -488,6 +491,35 @@ func _report_add(team: int, type: int, kind: String, label: String, col: Color) 
 	if report_log.size() > REPORT_CAP:
 		report_log.resize(REPORT_CAP)
 
+## 開戰號角（第七輪 A10）：正式對局開戰前留 1 秒，陣線亮一下。只是畫面緩衝，模擬還沒開始；簡化特效時略過。
+var start_hold := 0.0
+
+func _draw_start_cue() -> void:
+	if start_hold <= 0.0:
+		return
+	var k := clampf(start_hold, 0.0, 1.0)
+	var msg: String = L.t("start")
+	var sz := tcap(tz("D"), 64)
+	_text(Vector2(640, 340), msg, sz, Color(1, 0.85, 0.4, k), true, true)
+	for tm in 2:
+		var x: float = ORIGIN.x + (float(view.max_x(tm)) / 1000.0 if view.has_method("max_x") else (6.0 if tm == 0 else 10.0) * 1.0) * CS
+		draw_line(Vector2(x, ORIGIN.y), Vector2(x, ORIGIN.y + FIELD.y), Color(Art.team_color(tm, cbm()), 0.9 * k), 5.0)
+
+
+## 狂熱暖色暈影（第七輪 D5）：受簡化特效控制。
+func _draw_frenzy_edge() -> void:
+	if view == null or not view.frenzy or view.finished or bool(Save.s("reduce_fx")):
+		return
+	var a := 0.16 + 0.05 * sin(time * 5.0)
+	for k in 4:
+		var w := 22.0 - k * 5.0
+		var col := Color(1.0, 0.42, 0.1, a * (0.35 + k * 0.2))
+		draw_rect(Rect2(0, 86, 1280, w), col)
+		draw_rect(Rect2(0, 800 - w, 1280, w), col)
+		draw_rect(Rect2(0, 86, w, 714), col)
+		draw_rect(Rect2(1280 - w, 86, w, 714), col)
+
+
 func _draw_battle_report() -> void:
 	if report_log.is_empty():
 		return
@@ -823,7 +855,20 @@ func _draw_field() -> void:
 		draw_circle(Vector2.ZERO, rr, Color(1, 1, 0.8, 0.045) if i % 2 == 0 else Color(0, 0.08, 0, 0.07), true, -1.0, true)
 	draw_set_transform_matrix(_cam)
 	var fl := [Color("#fff3b0"), Color("#ffb3c6"), Color("#cdb4ff"), Color("#ffffff")]
-	for i in 34:
+	# 第七輪 D2：一條踩出來的小路＋石頭群；小花少一點，免得和兵搶眼
+	var path_pts := PackedVector2Array()
+	for k5 in 17:
+		path_pts.append(ORIGIN + Vector2(k5 * CS, FIELD.y * 0.5 + sin(k5 * 0.7) * 34.0))
+	draw_polyline(path_pts, Color(0.55, 0.42, 0.24, 0.13), 40.0, true)
+	draw_polyline(path_pts, Color(0.62, 0.5, 0.3, 0.10), 22.0, true)
+	for i3 in 7:
+		var h3 := absi((i3 * 92821 + 13) * 689287499) % 1000003
+		var rp := ORIGIN + Vector2(float(h3 % 991) / 991.0 * FIELD.x, float((h3 / 991) % 977) / 977.0 * FIELD.y)
+		for q2 in 3:
+			var rr2 := Vector2(q2 * 7.0 - 7.0, (q2 % 2) * 3.0)
+			draw_circle(rp + rr2 + Vector2(0, 1.5), 5.0 - q2 * 0.7, Color(0, 0, 0, 0.18), true, -1.0, true)
+			draw_circle(rp + rr2, 5.0 - q2 * 0.7, Color(0.62, 0.62, 0.58, 0.55), true, -1.0, true)
+	for i in 20:
 		var h2 := absi((i * 40503 + 7) * 2246822519) % 1000003
 		var fp := ORIGIN + Vector2(float(h2 % 997) / 997.0 * FIELD.x, float((h2 / 997) % 991) / 991.0 * FIELD.y)
 		var fc: Color = fl[i % fl.size()]
@@ -838,6 +883,14 @@ func _draw_field() -> void:
 			draw_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(FIELD.x, i * CS), Color(0, 0, 0, 0.07), 1)
 		draw_dashed_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, FIELD.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
 		draw_dashed_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, FIELD.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
+	# 第七輪 D2：木框內側陰影
+	for k6 in 3:
+		var sh := Color(0, 0, 0, 0.12 - k6 * 0.035)
+		var ii := float(k6 * 3)
+		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(FIELD.x - ii * 2.0, 3.0)), sh)
+		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(3.0, FIELD.y - ii * 2.0)), sh)
+		draw_rect(Rect2(ORIGIN + Vector2(FIELD.x - ii - 3.0, ii), Vector2(3.0, FIELD.y - ii * 2.0)), sh)
+		draw_rect(Rect2(ORIGIN + Vector2(ii, FIELD.y - ii - 3.0), Vector2(FIELD.x - ii * 2.0, 3.0)), sh)
 	# 戰場色調（R6）：一般晨曦、殘局黃昏、遠征月夜。純調色，畫在單位底下，不影響辨識
 	var tone := _tone()
 	if tone.a > 0.0:
@@ -1401,6 +1454,11 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	battle_marks.clear()
 	report_log.clear()
 	skip_busy = false
+	start_hold = 0.0
+	if kind == "official" and shot_dir == "" and DisplayServer.get_name() != "headless" and not bool(Save.s("reduce_fx")):
+		start_hold = 1.0
+		if sfx != null:
+			sfx.play("bugle", 0.8)
 	graves.clear()
 	clutch_t = 0.0
 	atk_hit.clear()

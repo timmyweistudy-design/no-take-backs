@@ -174,6 +174,8 @@ func _draw_codex() -> void:
 	for t in D.COUNT:
 		var r := Rect2(204 + t * (tw + 6.0), 150, tw, 50)
 		_btn(r, "", _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
+		if t == cx_unit:
+			draw_rect(r.grow(1.0), ACCENT, false, 3.0)   # 第七輪 E9：選中的兵種金框
 		_unit_in(r, t, 0, 1.0, 0.6 if t != D.CAVALRY else 0.55)   # 人物在頁籤正中間（原本腳畫到框外）
 		_text(r.position + Vector2(4, 2), str((t + 1) % 10), tcap(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
@@ -409,12 +411,15 @@ func _draw_codex_demo() -> void:
 	draw_rect(b, Color("#5f8f3a"))
 	var k := b.size.x / CX_VIEW.size.x
 	var cs := 1000.0 * k
-	for c in range(2, 14):
-		for r in range(1, 8):
-			if (c + r) % 2 == 0:
+	# 第七輪 D3：小劇場用真戰場的草地，不再是棋盤格
+	if grass != null:
+		for c in range(2, 14):
+			for r in range(1, 8):
 				var cell := Rect2(b.position + (Vector2(c, r) * 1000.0 - CX_VIEW.position) * k, Vector2(cs, cs)).intersection(b)
 				if cell.has_area():
-					draw_rect(cell, Color(1, 1, 1, 0.05))
+					var h := absi((c * 73856093) ^ (r * 19349663))
+					draw_texture_rect_region(grass, cell, Rect2((h % 8) * 32, ((h / 8) % 4) * 32, 32, 32))
+		draw_rect(b, Color(0.06, 0.09, 0.16, 0.18))
 	for c in [6, 10]:
 		var x: float = b.position.x + (c * 1000.0 - CX_VIEW.position.x) * k
 		draw_dashed_line(Vector2(x, b.position.y), Vector2(x, b.end.y), Color(Art.team_color(0 if c == 6 else 1, cbm()), 0.6), 2.0, 6.0)
