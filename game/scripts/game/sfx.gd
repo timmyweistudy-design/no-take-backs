@@ -5,11 +5,12 @@ extends Node
 
 const FILES := ["arrow", "backstab", "block", "brace", "charge", "clutch", "death", "frenzy", "hit", "lose",
 	"place_heavy", "place_light", "place_mid", "slash", "start", "turn", "ui_click", "ui_deny", "win",
-	"shatter", "bell", "bugle", "aircut", "alert", "snap", "taunt", "reveal", "boom", "heal"]
+	"shatter", "bell", "bugle", "aircut", "alert", "snap", "taunt", "reveal", "boom", "heal",
+	"poison", "baa", "chomp", "squish", "charge_up", "timestop", "raise", "vacuum", "stomp"]
 # 0 普通命中、1 防禦、2 技能／死亡、3 全場事件與介面
 const PRIO := {"hit": 0, "slash": 0, "arrow": 0, "block": 1, "brace": 1, "alert": 1, "taunt": 1, "reveal": 1,
 	"shatter": 2, "bell": 2, "bugle": 2, "aircut": 2, "snap": 2, "charge": 2, "backstab": 2, "death": 2,
-	"clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3}
+	"poison": 0, "squish": 1, "charge_up": 1, "baa": 1, "chomp": 2, "timestop": 2, "raise": 2, "vacuum": 2, "stomp": 2, "clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3}
 var _prio_of := {}       # 聲道 → 正在播的優先權
 var _started := {}       # 聲道 → 開始時間
 var _lowpass_idx := -1

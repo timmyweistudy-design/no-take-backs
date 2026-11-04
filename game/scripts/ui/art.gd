@@ -36,6 +36,9 @@ const M_BROWS := 4            # 狂熱：眉毛內傾
 const M_HOOD := 8             # 刺客潛行：帽簷壓低、黃眼每 0.4 秒眨一次
 const M_BRACE := 16           # 盾兵頂住：盾放大 1.35 倍
 
+# 第八輪：通用表情疊加用的眼睛位置（其他新兵的臉不適合疊）
+const FEATURE_EYES := {10: Vector2(2, -13), 13: Vector2(3, -19), 14: Vector2(3.5, -32), 18: Vector2(3, -33), 19: Vector2(1, -31), 20: Vector2(2, -13)}
+
 static func _smooth(u: float) -> float:
 	return u * u * (3.0 - 2.0 * u)
 
@@ -74,6 +77,8 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	# 以 face＝+1 畫（水平鏡像由 transform 處理）
 	if type == D.CAVALRY:
 		_cavalry(ci, tc, walk, w, alpha, t, atk > 0.0)
+	elif type >= D.COUNT:
+		_fantasy(ci, type, tc, walk, w, alpha, t, atk > 0.0, variant)
 	else:
 		_infantry(ci, type, tc, walk, w, alpha, t, atk > 0.0, variant)
 	if hurt > 0.0:
@@ -86,6 +91,10 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 ## 表情與狀態疊加：呼叫前畫布轉換要已經是這隻角色的局部座標（face＝+1 空間）。
 static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t: float, cb := false) -> void:
 	var ec := Vector2(2.0, -43.0) if type == D.CAVALRY else (Vector2(5.5, -33.5) if type == D.ASSASSIN else Vector2(3.5, -32.0))
+	if type >= D.COUNT:
+		if not FEATURE_EYES.has(type):
+			return   # 寶箱怪、羊、沙漏等臉在別處，不疊通用表情
+		ec = FEATURE_EYES[type]
 	var eyes := [ec + Vector2(-3.0 if type != D.ASSASSIN else -2.5, 0), ec + Vector2(4.0 if type != D.ASSASSIN else 2.5, 0)]
 	var skin := Color("#2b2140") if type == D.ASSASSIN else SKIN
 	if mood & M_HOOD:
@@ -454,7 +463,7 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 ## 腳底隊伍標記：藍＝圓、紅＝菱形（色盲也分得出）；重兵（盾、騎）外框加粗。
 static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, scale := 1.0) -> void:
 	var tc := team_color(team, cb)
-	var w := 4.0 if (type == D.SHIELD or type == D.CAVALRY) else 3.0   # 第七輪 C2：腳底圈加粗
+	var w := 4.0 if (type == D.SHIELD or type == D.CAVALRY or type == 19) else 3.0   # 第七輪 C2：腳底圈加粗
 	ci.draw_circle(p + Vector2(0, 1), 13.0 * scale, Color(0, 0, 0, 0.22), true, -1.0, true)  # 影子
 	var pts := PackedVector2Array()
 	if team == 0:
@@ -479,3 +488,256 @@ static func soul(ci: CanvasItem, p: Vector2, a: float) -> void:
 	ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-7, 0), p + Vector2(7, 0), p + Vector2(3, 10), p + Vector2(0, 7), p + Vector2(-3, 10)]), Color(0.86, 0.95, 1.0, a))
 	ci.draw_circle(p + Vector2(-2.5, -1), 1.3, Color(0.15, 0.15, 0.25, a), true, -1.0, true)
 	ci.draw_circle(p + Vector2(2.5, -1), 1.3, Color(0.15, 0.15, 0.25, a), true, -1.0, true)
+
+# ───────────────────────── 第八輪奇幻軍 ─────────────────────────
+## 隊伍色放上半身、面積要夠（§6）。全部 Q 版二頭身、粗黑框、白眼黑瞳。
+static func _fantasy(ci: CanvasItem, type: int, tc: Color, walk: float, w: float, a: float, t: float, angry := false, variant := 0) -> void:
+	match type:
+		10: _f_spore(ci, tc, w, a, t, angry)
+		11: _f_sheep(ci, tc, walk, w, a, t, angry)
+		12: _f_mimic(ci, tc, walk, w, a, t, angry)
+		13: _f_slime(ci, tc, walk, w, a, t, angry, 1.0)
+		14: _f_ghost(ci, tc, walk, w, a, t, angry)
+		15: _f_doll(ci, tc, walk, w, a, t, angry)
+		16: _f_sprite(ci, tc, w, a, t, angry)
+		17: _f_bone(ci, tc, walk, w, a, t, angry, variant)
+		18: _f_cat(ci, tc, walk, w, a, t, angry, variant)
+		19: _f_golem(ci, tc, walk, w, a, t, angry, variant)
+		20: _f_slime(ci, tc, walk, w, a, t, angry, 0.66)
+		21: _f_skeleton(ci, tc, walk, w, a, t, angry)
+
+static func _ell(c: Vector2, rx: float, ry: float, a0 := 0.0, a1 := TAU, n := 20) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in n:
+		var ang := a0 + (a1 - a0) * i / float(n - (0 if is_equal_approx(a1 - a0, TAU) else 1))
+		pts.append(c + Vector2(cos(ang) * rx, sin(ang) * ry))
+	return pts
+
+static func _f_spore(ci: CanvasItem, tc: Color, w: float, a: float, t: float, angry: bool) -> void:
+	# 短胖的柄＋超大菇傘，傘加粗框才不會融進花草
+	var puff := absf(w) * 2.0
+	_poly(ci, PackedVector2Array([Vector2(-9, -3), Vector2(-7, -22), Vector2(7, -22), Vector2(9, -3)]), Color("#f2e6cf"), a)
+	_eyes(ci, Vector2(2, -13), a, t, angry)
+	var cap := _ell(Vector2(0, -22), 21.0 + puff, 19.0 + puff, PI, TAU, 16)
+	cap.append(Vector2(15, -18)); cap.append(Vector2(-15, -18))
+	_poly(ci, cap, tc, a)
+	for d in [[-10, -30, 3.6], [3, -36, 4.2], [12, -27, 3.0], [-3, -25, 2.4]]:
+		_c(ci, Vector2(d[0], d[1]), d[2], Color("#fff7e6"), a, false)
+
+static func _f_sheep(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
+	for lx in [-9.0, -3.0, 4.0, 10.0]:
+		var sw := leg if int(lx) % 2 == 0 else -leg
+		_line(ci, Vector2(lx, -9), Vector2(lx + sw, -2), Color("#3a3346"), 2.6, a)
+	# 羊毛染隊伍色（白毛會被特效洗掉）
+	var wool := tc.lightened(0.12)
+	var blobs := [[-9, -16, 8.5], [0, -20, 10.0], [9, -16, 8.0], [-4, -12, 7.5], [5, -12, 7.5], [-1, -26, 7.5]]
+	for b in blobs:
+		_c(ci, Vector2(b[0], b[1]), b[2], wool, a)
+	for b2 in blobs:
+		ci.draw_circle(Vector2(b2[0], b2[1]), b2[2], Color(wool, a), true, -1.0, true)
+	ci.draw_circle(Vector2(-2, -24), 3.5, Color(1, 1, 1, 0.35 * a), true, -1.0, true)
+	# 臉
+	_c(ci, Vector2(13, -20), 7.5, Color("#3a3346"), a)
+	ci.draw_circle(Vector2(11, -21), 2.5, Color(1, 1, 1, a), true, -1.0, true)
+	ci.draw_circle(Vector2(16, -21), 2.5, Color(1, 1, 1, a), true, -1.0, true)
+	ci.draw_circle(Vector2(11.6, -21), 1.2, Color(OUT, a), true, -1.0, true)
+	ci.draw_circle(Vector2(16.6, -21), 1.2, Color(OUT, a), true, -1.0, true)
+	# 頭上的引線（招牌）
+	_line(ci, Vector2(-1, -32), Vector2(3, -41), Color("#c9a26b"), 1.6, a)
+	var sp := 0.7 + 0.3 * sin(t * 18.0)
+	_star(ci, Vector2(4, -43), 4.5 * sp + 1.0, Color(1, 0.8, 0.25, a))
+
+static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+	var hop := absf(sin(walk)) * 2.0 if walk != 0.0 else 0.0
+	var open := 0.45 + maxf(0.0, w) * 0.55 - minf(0.0, w) * 0.2
+	var by := -3.0 - hop
+	_poly(ci, PackedVector2Array([Vector2(-16, by), Vector2(-16, by - 15), Vector2(16, by - 15), Vector2(16, by)]), Color("#9c6b3c"), a)
+	ci.draw_line(Vector2(-16, by - 7), Vector2(16, by - 7), Color(OUT, 0.5 * a), 1.6, true)
+	# 舌頭與牙
+	var mouth := by - 15.0
+	_poly(ci, PackedVector2Array([Vector2(-13, mouth), Vector2(13, mouth), Vector2(13, mouth - 4 - open * 10), Vector2(-13, mouth - 4 - open * 10)]), Color("#3b0f1e"), a, false)
+	_poly(ci, PackedVector2Array([Vector2(2, mouth), Vector2(19, mouth + 2), Vector2(21, mouth - 3), Vector2(4, mouth - 5)]), Color("#ff6b81"), a)
+	for k in 4:
+		var tx := -10.0 + k * 7.0
+		ci.draw_colored_polygon(PackedVector2Array([Vector2(tx, mouth), Vector2(tx + 5, mouth), Vector2(tx + 2.5, mouth - 5)]), Color(1, 1, 1, a))
+	# 箱蓋（隊伍色，面積最大）
+	var ly := mouth - 4 - open * 12
+	_poly(ci, PackedVector2Array([Vector2(-19, ly), Vector2(-17, ly - 17), Vector2(17, ly - 19), Vector2(19, ly)]), tc, a)
+	_line(ci, Vector2(-17, ly - 1), Vector2(17, ly - 1), GOLD, 2.0, a)
+	_poly(ci, PackedVector2Array([Vector2(-16, by - 15), Vector2(-9, by - 15), Vector2(-9, by), Vector2(-16, by)]), tc.darkened(0.1), a, false)
+	_poly(ci, PackedVector2Array([Vector2(9, by - 15), Vector2(16, by - 15), Vector2(16, by), Vector2(9, by)]), tc.darkened(0.1), a, false)
+	for k2 in 2:
+		var ex := -6.0 + k2 * 12.0
+		ci.draw_circle(Vector2(ex, ly - 9), 3.6, Color(1, 1, 1, a), true, -1.0, true)
+		ci.draw_circle(Vector2(ex + 1, ly - 9), 1.8, Color(OUT, a), true, -1.0, true)
+	if angry:
+		ci.draw_line(Vector2(-10, ly - 14), Vector2(-3, ly - 12), Color(OUT, a), 1.6, true)
+		ci.draw_line(Vector2(10, ly - 14), Vector2(3, ly - 12), Color(OUT, a), 1.6, true)
+
+## 偽裝中的寶箱：闔上，只有偶爾睜一隻眼。不烘焙，直接畫。
+static func mimic_closed(ci: CanvasItem, p: Vector2, team: int, face: float, a: float, t: float, cb := false, scale := 1.0) -> void:
+	var tc := team_color(team, cb)
+	ci.draw_set_transform_matrix(base * Transform2D(0.0, Vector2(scale * face, scale), 0.0, p))
+	_poly(ci, PackedVector2Array([Vector2(-16, -3), Vector2(-16, -18), Vector2(16, -18), Vector2(16, -3)]), Color("#9c6b3c"), a)
+	_poly(ci, PackedVector2Array([Vector2(-17, -17), Vector2(-15, -31), Vector2(15, -31), Vector2(17, -17)]), tc, a)
+	_line(ci, Vector2(-16, -17), Vector2(16, -17), GOLD, 2.4, a)
+	_poly(ci, PackedVector2Array([Vector2(-3, -21), Vector2(3, -21), Vector2(3, -13), Vector2(-3, -13)]), GOLD, a)
+	if fmod(t, 3.1) < 0.35:
+		ci.draw_circle(Vector2(8, -25), 2.6, Color(1, 1, 1, a), true, -1.0, true)
+		ci.draw_circle(Vector2(8.6, -25), 1.3, Color(OUT, a), true, -1.0, true)
+	ci.draw_set_transform_matrix(base)
+
+static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, k: float) -> void:
+	var sq := 1.0 + (sin(walk) * 0.1 if walk != 0.0 else 0.0) + maxf(0.0, w) * 0.12
+	var rx := 17.0 * k * sq
+	var ry := 19.0 * k / sq
+	var cy := -ry - 1.0
+	var pts := _ell(Vector2(0, cy), rx, ry, 0.0, PI, 10)
+	pts.append(Vector2(-rx * 0.85, cy - ry * 0.55))
+	pts.append(Vector2(-rx * 0.35, cy - ry * 1.05))
+	pts.append(Vector2(1.5 * k, cy - ry * 1.5))
+	pts.append(Vector2(rx * 0.45, cy - ry * 1.0))
+	pts.append(Vector2(rx * 0.88, cy - ry * 0.5))
+	_poly(ci, pts, tc.lightened(0.05), a)
+	ci.draw_circle(Vector2(-rx * 0.4, cy - ry * 0.45), 3.4 * k, Color(1, 1, 1, 0.55 * a), true, -1.0, true)
+	ci.draw_circle(Vector2(-rx * 0.15, cy - ry * 0.8), 1.6 * k, Color(1, 1, 1, 0.55 * a), true, -1.0, true)
+	_eyes(ci, Vector2(3.0 * k, cy + 1.0), a, t, angry)
+
+static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+	# 無腳飄浮：腳底圈和身體中間留一段空隙
+	var body := tc.lightened(0.28)
+	var lean := w * 3.0
+	var top := -40.0
+	var pts := _ell(Vector2(lean, top + 13), 13.5, 13.5, PI, TAU, 12)
+	for s in [[13.0, -14.0], [10.0, -7.0], [6.0, -11.0], [1.0, -6.0], [-4.0, -11.0], [-9.0, -7.0], [-13.0, -14.0]]:
+		pts.append(Vector2(s[0] + lean * 0.4, s[1]))
+	_poly(ci, pts, Color(body, 0.92), a)
+	# 上半身的隊伍色披巾
+	_poly(ci, PackedVector2Array([Vector2(-13 + lean, -26), Vector2(13 + lean, -26), Vector2(14 + lean, -18), Vector2(-14 + lean, -18)]), tc, a, false)
+	_eyes(ci, Vector2(3.5 + lean, -32), a, t, angry)
+	_c(ci, Vector2(-11 + lean + w * 4.0, -21), 3.2, body, a)
+	_c(ci, Vector2(13 + lean + maxf(0.0, w) * 8.0, -22), 3.2, body, a)
+
+static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
+	_line(ci, Vector2(-5, -11), Vector2(-5 + leg, -2), Color("#c9a26b"), 3.2, a)
+	_line(ci, Vector2(5, -11), Vector2(5 - leg, -2), Color("#c9a26b"), 3.2, a)
+	# 隊伍色布身，粗縫線
+	var body := PackedVector2Array([Vector2(-11, -8), Vector2(-13, -24), Vector2(13, -24), Vector2(11, -8)])
+	_poly(ci, body, tc, a)
+	for k in 3:
+		var y := -21.0 + k * 5.0
+		ci.draw_line(Vector2(-3, y), Vector2(3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
+		ci.draw_line(Vector2(3, y), Vector2(-3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
+	_line(ci, Vector2(-12, -21), Vector2(-17, -15 - w * 5.0), tc.darkened(0.15), 3.2, a)
+	_line(ci, Vector2(12, -21), Vector2(18, -15 + w * -5.0), tc.darkened(0.15), 3.2, a)
+	# 麻布頭、一邊大鈕扣、一邊 X
+	_c(ci, Vector2(0, -35), 12.5, Color("#e8d3a8"), a)
+	_c(ci, Vector2(6, -35), 4.6, tc.lightened(0.3), a)
+	ci.draw_circle(Vector2(5, -36), 1.1, Color(OUT, a), true, -1.0, true)
+	ci.draw_circle(Vector2(7.5, -34), 1.1, Color(OUT, a), true, -1.0, true)
+	ci.draw_line(Vector2(-8, -38), Vector2(-3, -33), Color(OUT, a), 2.0, true)
+	ci.draw_line(Vector2(-3, -38), Vector2(-8, -33), Color(OUT, a), 2.0, true)
+	ci.draw_line(Vector2(-4, -28), Vector2(5, -28), Color(OUT, a), 1.5, true)
+	# 頭上插一根大針（招牌）
+	_line(ci, Vector2(-3, -40), Vector2(-11, -54), STEEL, 1.8, a)
+	_c(ci, Vector2(-12, -56), 3.4, Color("#ff4d6d"), a)
+
+static func _f_sprite(ci: CanvasItem, tc: Color, w: float, a: float, t: float, angry: bool) -> void:
+	# 飄浮的大沙漏，不畫人形（免得和鼓手、醫者撞）
+	var flap := sin(t * 9.0) * 3.0 - minf(w, 0.0) * 6.0
+	for s in [-1.0, 1.0]:
+		var wing := PackedVector2Array([Vector2(s * 8, -30), Vector2(s * 26, -46 + flap), Vector2(s * 29, -30 + flap), Vector2(s * 19, -20), Vector2(s * 9, -22)])
+		_poly(ci, wing, Color(tc.lightened(0.4), 0.95), a)
+	var glass := Color("#e8f4ff")
+	_poly(ci, PackedVector2Array([Vector2(-12, -46), Vector2(12, -46), Vector2(2, -27), Vector2(12, -8), Vector2(-12, -8), Vector2(-2, -27)]), glass, a)
+	# 隊伍色的沙：上半剩一點、下半堆起來，動畫用 t 慢慢流
+	_poly(ci, PackedVector2Array([Vector2(-8, -39), Vector2(8, -39), Vector2(1, -28), Vector2(-1, -28)]), tc, a, false)
+	_poly(ci, PackedVector2Array([Vector2(-10, -9), Vector2(10, -9), Vector2(5, -17), Vector2(0, -21), Vector2(-5, -17)]), tc, a, false)
+	ci.draw_line(Vector2(0, -28), Vector2(0, -20), Color(tc, a), 1.6, true)
+	for fy in [-49.0, -7.0]:
+		_line(ci, Vector2(-15, fy), Vector2(15, fy), GOLD, 4.0, a)
+	_eyes(ci, Vector2(1.0, -42.0), a, t, angry)
+
+static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
+	# 駝背骷髏＋破斗篷，手捧紫火書（不拿杖，和醫者分開）
+	var leg := sin(walk) * 2.5 if walk != 0.0 else 0.0
+	_c(ci, Vector2(-4 + leg, -3), 3.2, Color("#ece6d6"), a)
+	_c(ci, Vector2(4 - leg, -3), 3.2, Color("#ece6d6"), a)
+	var cape := PackedVector2Array([Vector2(-15, -4), Vector2(-16, -24), Vector2(-7, -36), Vector2(9, -30), Vector2(12, -6), Vector2(6, -9), Vector2(1, -4), Vector2(-5, -9), Vector2(-10, -4)])
+	_poly(ci, cape, tc, a)
+	# 兜帽＋骷髏臉，頭往前探
+	_poly(ci, _ell(Vector2(2, -37), 14.0, 13.0, PI * 0.75, PI * 2.05, 14), tc.darkened(0.15), a)
+	_c(ci, Vector2(5, -33), 9.5, Color("#f5f0e0"), a)
+	for ex in [1.0, 9.0]:
+		ci.draw_circle(Vector2(ex, -34), 2.9, Color(OUT, a), true, -1.0, true)
+		ci.draw_circle(Vector2(ex + 0.4, -34), 1.0, Color("#c77dff", a), true, -1.0, true)
+	ci.draw_line(Vector2(2, -27), Vector2(9, -27), Color(OUT, a), 1.4, true)
+	# 書與紫火
+	var lift := maxf(0.0, -w) * 6.0 + maxf(0.0, w) * 2.0 + (8.0 if variant == 2 else 0.0)
+	var bk := Vector2(14, -18 - lift)
+	_poly(ci, PackedVector2Array([bk + Vector2(-8, -3), bk + Vector2(8, -3), bk + Vector2(8, 4), bk + Vector2(-8, 4)]), Color("#6b4a2b"), a)
+	var fl := 6.0 + absf(w) * 5.0 + sin(t * 12.0) * 1.2
+	_poly(ci, PackedVector2Array([bk + Vector2(-5, -3), bk + Vector2(5, -3), bk + Vector2(2, -3 - fl), bk + Vector2(0, -6 - fl), bk + Vector2(-2, -3 - fl)]), Color("#b14dff"), a)
+
+static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
+	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
+	# 尾巴、背上的吸塵器桶
+	_line(ci, Vector2(-11, -8), Vector2(-20, -18 + leg), tc.darkened(0.1), 3.0, a)
+	_poly(ci, PackedVector2Array([Vector2(-20, -32), Vector2(-7, -32), Vector2(-7, -8), Vector2(-20, -8)]), Color("#b7bfcc"), a)
+	_poly(ci, PackedVector2Array([Vector2(-20, -24), Vector2(-7, -24), Vector2(-7, -17), Vector2(-20, -17)]), tc, a, false)
+	_c(ci, Vector2(-4 + leg, -3), 3.4, tc.darkened(0.2), a)
+	_c(ci, Vector2(5 - leg, -3), 3.4, tc.darkened(0.2), a)
+	_poly(ci, _ell(Vector2(0, -14), 11.0, 10.0, 0.0, TAU, 16), tc.lightened(0.15), a)
+	# 大頭＋貓耳
+	var hy := -33.0
+	for s in [-1.0, 1.0]:
+		_poly(ci, PackedVector2Array([Vector2(s * 3.5, hy - 11), Vector2(s * 13, hy - 8), Vector2(s * 11, hy - 21)]), tc, a)
+	_c(ci, Vector2(0, hy), 12.0, tc.lightened(0.3), a)
+	_eyes(ci, Vector2(3.0, hy), a, t, angry)
+	for s2 in [-1.0, 1.0]:
+		ci.draw_line(Vector2(s2 * 9 + 2, hy + 4), Vector2(s2 * 16 + 2, hy + 3), Color(OUT, 0.7 * a), 1.0, true)
+	# 吸管與吸頭
+	var aim := -0.1 - w * 0.25 - (0.5 if variant == 2 else 0.0)
+	var nz := Vector2(10, -14) + Vector2(cos(aim), sin(aim)) * 13.0
+	_line(ci, Vector2(-6, -18), Vector2(8, -13), Color("#55606f"), 2.6, a)
+	_line(ci, Vector2(8, -13), nz, Color("#9aa4b4"), 3.0, a)
+	_poly(ci, PackedVector2Array([nz + Vector2(0, -3), nz + Vector2(9, -7), nz + Vector2(9, 7), nz + Vector2(0, 3)]), STEEL, a)
+
+static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
+	# 無頸寬扁巨岩，頭嵌在胸口（和盾兵的前排人形分開）
+	var leg := sin(walk) * 2.0 if walk != 0.0 else 0.0
+	var rock := Color("#8d8a80")
+	_poly(ci, PackedVector2Array([Vector2(-15 + leg, -2), Vector2(-5 + leg, -2), Vector2(-5, -14), Vector2(-15, -14)]), rock.darkened(0.2), a)
+	_poly(ci, PackedVector2Array([Vector2(5 - leg, -2), Vector2(15 - leg, -2), Vector2(15, -14), Vector2(5, -14)]), rock.darkened(0.2), a)
+	var lift := maxf(0.0, -w) * 18.0 - maxf(0.0, w) * 6.0 + (16.0 if variant == 2 else 0.0)
+	# 兩個大拳頭
+	_c(ci, Vector2(-24, -20 - lift), 8.5, rock.darkened(0.1), a)
+	_c(ci, Vector2(24, -20 - lift), 8.5, rock.darkened(0.1), a)
+	_poly(ci, PackedVector2Array([Vector2(-23, -10), Vector2(-27, -36), Vector2(-12, -48), Vector2(13, -48), Vector2(27, -36), Vector2(23, -10)]), rock, a)
+	# 隊伍色肩甲（面積要大）與發光石紋
+	_poly(ci, PackedVector2Array([Vector2(-29, -30), Vector2(-27, -44), Vector2(-9, -50), Vector2(-7, -40), Vector2(-16, -30)]), tc, a)
+	_poly(ci, PackedVector2Array([Vector2(29, -30), Vector2(27, -44), Vector2(9, -50), Vector2(7, -40), Vector2(16, -30)]), tc, a)
+	ci.draw_polyline(PackedVector2Array([Vector2(-16, -14), Vector2(-9, -19), Vector2(-12, -24)]), Color(tc.lightened(0.45), a), 2.2, true)
+	ci.draw_polyline(PackedVector2Array([Vector2(14, -14), Vector2(9, -20), Vector2(13, -25)]), Color(tc.lightened(0.45), a), 2.2, true)
+	# 胸口的臉
+	_poly(ci, PackedVector2Array([Vector2(-10, -37), Vector2(11, -37), Vector2(10, -22), Vector2(-9, -22)]), rock.darkened(0.3), a, false)
+	_eyes(ci, Vector2(1.0, -31.0), a, t, angry)
+
+static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
+	var bone := Color("#ece6d6")
+	_line(ci, Vector2(-4, -10), Vector2(-4 + leg, -2), bone, 2.2, a)
+	_line(ci, Vector2(4, -10), Vector2(4 - leg, -2), bone, 2.2, a)
+	_poly(ci, PackedVector2Array([Vector2(-8, -24), Vector2(8, -24), Vector2(7, -11), Vector2(-7, -11)]), tc, a)
+	for k in 2:
+		ci.draw_line(Vector2(-5, -21 + k * 4.0), Vector2(5, -21 + k * 4.0), Color(bone, a), 1.6, true)
+	_c(ci, Vector2(1, -33), 9.5, Color("#f5f0e0"), a)
+	for ex in [-2.5, 5.0]:
+		ci.draw_circle(Vector2(ex, -33), 2.6, Color(OUT, a), true, -1.0, true)
+	ci.draw_line(Vector2(-1, -27), Vector2(5, -27), Color(OUT, a), 1.2, true)
+	var ang := -1.0 + (w * 0.5 if w < 0.0 else w * 1.4)
+	var hand := Vector2(8, -18)
+	_line(ci, hand, hand + Vector2(cos(ang), sin(ang)) * 16.0, bone, 2.6, a)
+	_c(ci, hand + Vector2(cos(ang), sin(ang)) * 17.0, 3.0, bone, a)

@@ -1,4 +1,5 @@
 extends RefCounted
+const D_TOTAL := 20
 ## 教學與殘局關卡資料（data/puzzles.json）。
 
 const Army = preload("res://scripts/core/army.gd")
@@ -30,14 +31,19 @@ static func new_puzzles() -> Array:
 	_load()
 	return _data.get("new_units", [])
 
+## 奇幻軍試玩（第八輪）：每種一關。
+static func fantasy_puzzles() -> Array:
+	_load()
+	return _data.get("fantasy_units", [])
+
 static func all_ids() -> Array:
 	var out: Array = []
-	for p in tutorials() + puzzles() + new_puzzles():
+	for p in tutorials() + puzzles() + new_puzzles() + fantasy_puzzles():
 		out.append(p["id"])
 	return out
 
 static func get_puzzle(id: String) -> Dictionary:
-	for p in tutorials() + puzzles() + new_puzzles():
+	for p in tutorials() + puzzles() + new_puzzles() + fantasy_puzzles():
 		if p["id"] == id:
 			return p
 	return {}
@@ -52,6 +58,7 @@ static func enemy_army(pz: Dictionary) -> Army:
 static func player_army(pz: Dictionary) -> Army:
 	var fixed_cost := 0
 	var a := Army.new(0, 100)
+	a.pool = (1 << D_TOTAL) - 1
 	for f in pz["fixed"]:
 		a.units.append({"type": int(f[0]), "col": int(f[1]), "row": int(f[2])})
 		fixed_cost += Army.D.cost(int(f[0]))
@@ -83,7 +90,7 @@ static func hero_type(pz: Dictionary) -> int:
 		for e in sol:
 			cnt[int(e[0])] += 1
 	var best := int(pz["allowed"][0]) if not pz.get("allowed", []).is_empty() else 0
-	for t in D.COUNT:
+	for t in D.total():
 		if cnt[t] > cnt[best]:
 			best = t
 	return best

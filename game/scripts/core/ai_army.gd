@@ -20,6 +20,15 @@ const TEMPLATES := [
 	{"name": "醫療鐵壁", "w": [2, 3, 2, 0, 0, 1, 0, 2, 0, 0]},
 	{"name": "戰鼓衝陣", "w": [4, 1, 0, 2, 1, 0, 0, 0, 2, 0]},
 	{"name": "破陣突擊", "w": [2, 0, 3, 0, 0, 1, 0, 0, 0, 4]},
+	# 第八輪奇幻軍（編號 10 孢子菇、11 羊、12 寶箱、13 史萊姆、14 幽靈、15 娃娃、16 沙漏、17 骷髏法師、18 吸塵貓、19 石魔）
+	{"name": "黏黏大軍", "w": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 5, 1, 1, 1, 1, 0, 0]},
+	{"name": "幽靈奇襲", "w": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 5, 0, 0, 1, 1, 0]},
+	{"name": "亡靈法陣", "w": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 3, 1, 1, 1, 3, 0, 1]},
+	{"name": "吸塵爆破", "w": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 0, 2, 1, 0, 0, 0, 3, 1]},
+	{"name": "石魔要塞", "w": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 1, 2, 0, 2, 1, 0, 0, 3]},
+	{"name": "混編傭兵", "w": [2, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 1, 0, 0, 0, 1, 0]},
+	{"name": "陷阱弓陣", "w": [2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 0, 1, 0, 0, 0, 0]},
+	{"name": "羊群衝鋒", "w": [3, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0]},
 ]
 
 # 每種兵偏好的欄（以藍方 0～5 表示，0＝最後排、5＝最前排；紅方自動鏡像）
@@ -34,9 +43,19 @@ const PREF_COLS := [
 	[1, 2],             # 醫者：後排
 	[3, 2],             # 鼓手：中間
 	[5, 4],             # 狂戰士：前排
+	[4, 3, 5],          # 孢子菇：中前排封路
+	[2, 3, 1],          # 爆爆羊：留距離，別貼著主力
+	[5, 4],             # 寶箱怪：陣前陷阱
+	[5, 4],             # 史萊姆：前排
+	[3, 2],             # 幽靈：中間
+	[5, 4],             # 巫毒娃娃：前排
+	[2, 3],             # 沙漏精靈：主力中央
+	[0, 1],             # 骷髏法師：後排
+	[3, 4],             # 吸塵貓：中前
+	[5, 4],             # 小石魔：前排
 ]
 # 擺放順序：前排先佔中間（盾、槍、劍、狂），再騎、刺、鼓、醫、彈、弓
-const PLACE_ORDER := [1, 5, 0, 9, 3, 4, 8, 7, 6, 2]
+const PLACE_ORDER := [1, 5, 0, 9, 3, 4, 8, 7, 6, 2, 19, 13, 15, 12, 10, 18, 14, 16, 11, 17]
 const ROW_CENTER := [4, 3, 5, 2, 6, 1, 7, 0, 8]
 const ROW_EDGE := [0, 8, 1, 7, 2, 6, 3, 5, 4]
 
@@ -83,14 +102,14 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 	while a.left() >= D.cheapest() and picks.size() < a.unit_cap and guard < 200:
 		guard += 1
 		var total := 0
-		for t in D.COUNT:
-			if RS.has(pool, t) and D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0 and _cap_ok(a, picks, t):
+		for t in D.total():
+			if RS.has(pool, t) and D.cost(t) <= a.left() - _cost_sum(picks) and t < w.size() and w[t] > 0 and _cap_ok(a, picks, t):
 				total += w[t]
 		if total == 0:
 			break
 		var r := rng.randi_range(1, total)
-		for t in D.COUNT:
-			if RS.has(pool, t) and D.cost(t) <= a.left() - _cost_sum(picks) and w[t] > 0 and _cap_ok(a, picks, t):
+		for t in D.total():
+			if RS.has(pool, t) and D.cost(t) <= a.left() - _cost_sum(picks) and t < w.size() and w[t] > 0 and _cap_ok(a, picks, t):
 				r -= w[t]
 				if r <= 0:
 					picks.append(t)
@@ -116,6 +135,9 @@ static func free_from_grid(a, rules):
 	return F.to_free(a, rules, null, "stretch")
 
 static func _cap_ok(a, picks: Array, t: int) -> bool:
+	var hc := D.hard_cap(t)
+	if hc > 0 and picks.count(t) >= hc:
+		return false
 	if a.type_cap <= 0:
 		return true
 	return picks.count(t) < a.type_cap

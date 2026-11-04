@@ -467,7 +467,7 @@ func _cycle_setting(k: String, opts: Array) -> void:
 ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
 func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
 		mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
-	if sprites != null and sprites.is_ready(cbm()):
+	if sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):
 		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant)
 	else:
 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)

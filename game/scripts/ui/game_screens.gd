@@ -386,8 +386,8 @@ func _build_report() -> void:
 	var taken := [D.zeros(), D.zeros()]
 	var mvp = null
 	for u in sim.units:
-		dealt[u.team][u.type] += u.dmg_dealt
-		taken[u.team][u.type] += u.dmg_taken
+		dealt[u.team][D.report_type(u.type)] += u.dmg_dealt
+		taken[u.team][D.report_type(u.type)] += u.dmg_taken
 		# MVP：勝方輸出最高的兵（平手時看全場）
 		if (sim.winner < 0 or u.team == sim.winner) and (mvp == null or u.dmg_dealt > mvp.dmg_dealt):
 			mvp = u
@@ -434,6 +434,8 @@ func _progress_and_achievements() -> void:
 	if not bool(Save.s("unlock_all")):
 		for nt in RS.newly_unlocked(ug_before, ug_before + 1, OS.has_feature("demo")):
 			ach_queue.append(L.t("unit_unlocked", [L.t("unit_%d" % nt)]))
+		for nt2 in RS.newly_unlocked_new(ug_before, ug_before + 1, OS.has_feature("demo")):
+			ach_queue.append(L.t("unit_unlocked_new", [L.t("unit_%d" % nt2)]))
 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
 	var stat_key := "stats" if standard else "custom_stats"
 	var st: Dictionary = Save.data.get(stat_key, {"wins": 0, "games": 0})
@@ -465,7 +467,7 @@ func _progress_and_achievements() -> void:
 		var types := {}
 		for u in sim.units:
 			if u.team == w:
-				types[u.type] = true
+				types[D.report_type(u.type)] = true
 		if types.size() == 5:
 			_ach("ALL_TYPES")
 		# 圖鑑老兵筆記：派這個兵種贏一場 +1（第二輪方案 R3）
@@ -475,6 +477,18 @@ func _progress_and_achievements() -> void:
 			_ach("CHARGE_5")
 		if int(ev_count.get("backstab%d" % w, 0)) >= 3:
 			_ach("BACKSTAB_3")
+	# 第八輪成就
+	if w >= 0 and (mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET):
+		if int(ev_count.get("blast%d" % w, 0)) >= 5:
+			_ach("BOOM_5")
+		if int(ev_count.get("raise%d" % w, 0)) >= 3:
+			_ach("RAISE_3")
+		var all_new := true
+		for au in armies[w].units:
+			if int(au["type"]) < D.COUNT:
+				all_new = false
+		if all_new and not armies[w].units.is_empty():
+			_ach("FANTASY_WIN")
 	if mode == Mode.VS_AI and w == 0 and difficulty == 2:
 		_ach("HARD_WIN")
 	if mode == Mode.DUEL and tp != null and series_over:
@@ -536,7 +550,11 @@ func _cell_at(p: Vector2) -> Vector2i:
 ## 自訂規則：卡池；教學／殘局：關卡允許的；遠征與沒有規則的模式：全部（未解鎖的上鎖，提示還要幾場）。
 func _card_types() -> Array:
 	var out: Array = []
-	for t in D.COUNT:
+	if mode == Mode.GAUNTLET:
+		return RuleSet.types_of(_gauntlet_pool())   # 第八輪：遠征沿用對 AI 的出戰名單
+	for t in D.total():
+		if t >= D.COUNT and rules == null and mode != Mode.TUTORIAL and mode != Mode.PUZZLE:
+			continue
 		if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 			if _allowed(t):
 				out.append(t)
@@ -595,7 +613,9 @@ func _pool() -> int:
 func _allowed(t: int) -> bool:
 	if rules != null and (mode == Mode.VS_AI or mode == Mode.DUEL):
 		return RuleSet.has(_cur_army().pool, t)
-	if t >= _ntypes():
+	if mode == Mode.GAUNTLET:
+		return RuleSet.has(_gauntlet_pool(), t)
+	if t >= _ntypes() and (t < D.COUNT or not (mode == Mode.TUTORIAL or mode == Mode.PUZZLE)):
 		return false
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		for x in PZ.get_puzzle(puzzle_id)["allowed"]:
@@ -603,6 +623,19 @@ func _allowed(t: int) -> bool:
 				return true
 		return false
 	return true
+
+
+## 遠征的出戰名單（第八輪）：上次對 AI 用的名單，拿掉沒解鎖的；沒有就是解鎖的舊兵。
+func _gauntlet_pool() -> int:
+	var base := RuleSet.prefix_pool(_ntypes())
+	var code := str(Save.data.get("last_rules", {}).get("ai", ""))
+	if code != "":
+		var d: Dictionary = RuleSet.from_code(code)
+		if d["ok"]:
+			var p: int = int(d["rules"].pool_of(0)) & RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+			if RuleSet.has_combat(p):
+				return p
+	return base
 
 
 func _can_edit_existing() -> bool:
@@ -937,14 +970,20 @@ func _key(k: int) -> void:
 		KEY_F1:
 			_open_codex(selected)
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0:
-			var t := 9 if k == KEY_0 else k - KEY_1
-			if t < D.COUNT and _allowed(t):
-				selected = t
+			# 第八輪：數字鍵對應這一排的第幾張卡，不是兵種編號
+			var pos := 9 if k == KEY_0 else k - KEY_1
+			var cards := _card_types()
+			if pos < cards.size() and _allowed(cards[pos]):
+				selected = cards[pos]
 		KEY_Q, KEY_E:
-			for i in D.COUNT:
-				selected = (selected + (D.COUNT - 1 if k == KEY_Q else 1)) % D.COUNT
-				if _allowed(selected):
-					break
+			var cl := _card_types()
+			if not cl.is_empty():
+				var at := maxi(0, cl.find(selected))
+				for _i in cl.size():
+					at = (at + (cl.size() - 1 if k == KEY_Q else 1)) % cl.size()
+					selected = cl[at]
+					if _allowed(selected):
+						break
 		KEY_ENTER, KEY_KP_ENTER:
 			if _cur_army().index_at(cursor.x, cursor.y) == -1:
 				_try_place(cursor)
@@ -1175,7 +1214,7 @@ func _draw_hide_fog(hide_side: int) -> void:
 	draw_colored_polygon(PackedVector2Array([fp, fp + Vector2(48, 16), fp + Vector2(0, 36)]), Color(0.9, 0.2, 0.22))
 	_text(fp + Vector2(15, 2), "?", ts(22), Color.WHITE, true, true)
 	# 第七輪 A1：同一系列第 2 局起，留上一局敵陣殘影當參考（對手這局可能換陣）
-	if mode == Mode.VS_AI and round_no > 1 and last_armies.size() == 2:
+	if mode == Mode.VS_AI and round_no > 1 and last_armies.size() == 2 and _is_free():
 		for gu in last_armies[1].units:
 			var gw: Vector2i = Army.pos_of(gu)
 			_unit(ORIGIN + Vector2(gw) * CS / 1000.0, int(gu["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.28, 0.0, 1.0)
@@ -1487,11 +1526,21 @@ func _draw_title() -> void:
 		_btn(Rect2(70 + i * 112, y2, 106, 38), L.t(sys[i][0]), sys[i][1], true, false, Color(0.12, 0.13, 0.18, 0.9))
 	_btn(Rect2(70, y2 + 44, 330, 36), L.t("bc_watch"), func(): _watch_battle_code(), true, false, Color(0.12, 0.13, 0.18, 0.9))
 	# 底部：解鎖進度＋最佳紀錄
-	var n := RS.unlocked_count(_unlock_games(), OS.has_feature("demo"))
-	var cap := RS.DEMO_MAX if OS.has_feature("demo") else D.COUNT
+	var demo_b := OS.has_feature("demo")
+	var um := RS.unlocked_mask(_unlock_games(), demo_b)
+	var n := RuleSet.pool_count(um)
+	var cap := RS.DEMO_MAX + 1 if demo_b else D.total()
 	var prog := L.t("unlock_prog", [n, cap])
 	if n < cap:
-		prog += "　" + L.t("unlock_next", [RS.games_to_unlock(n, _unlock_games(), OS.has_feature("demo")), L.t("unit_%d" % n)])
+		var nx_t := -1
+		var nx_g := 99999
+		for ti in D.total():
+			var g2: int = RS.games_to_unlock(ti, _unlock_games(), demo_b)
+			if g2 > 0 and g2 < nx_g:
+				nx_g = g2
+				nx_t = ti
+		if nx_t >= 0:
+			prog += "　" + L.t("unlock_next", [nx_g, L.t("unit_%d" % nx_t)])
 	_text(Vector2(70, 728), prog, tz("S"), Color(1, 1, 1, 0.8), false, false, 380)
 	_text(Vector2(70, 728 + tz("S") * 1.4), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), D.RULES_VERSION], tz("C"), Color(1, 1, 1, 0.6), false, false, 380)
 
@@ -1513,7 +1562,8 @@ func _draw_overlay() -> void:
 	match overlay:
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
-			var list: Array = PZ.tutorials() if tut else (PZ.puzzles() if puzzle_tab == 0 else PZ.new_puzzles())
+			var tabs0 := [PZ.puzzles(), PZ.new_puzzles(), PZ.fantasy_puzzles()]
+			var list: Array = PZ.tutorials() if tut else tabs0[puzzle_tab]
 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
 			var tdone := int(Save.data.get("tutorial", 0))
 			var unlocked := tut or tdone >= 1
@@ -1521,13 +1571,13 @@ func _draw_overlay() -> void:
 			_text(Vector2(640, 126), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
 			if not tut and unlocked:
 				# 兩個分頁：經典殘局／新兵試玩（第四輪 §4.8）；頁籤上直接寫各自的總星數（第三輪 U4）
-				var tabs := [PZ.puzzles(), PZ.new_puzzles()]
-				for ti in 2:
+				var tabs := tabs0
+				for ti in 3:
 					var total := 0
 					for pz0 in tabs[ti]:
 						total += int(stars.get(pz0["id"], 0))
 					var lbl := "%s　★ %d／%d" % [L.t("puzzle_tab_%d" % ti), total, tabs[ti].size() * 3]
-					_btn(Rect2(380 + ti * 270, 160, 250, 36), lbl, func(): puzzle_tab = ti, true, false, Color(0.26, 0.31, 0.45) if ti == puzzle_tab else Color(0, 0, 0, 0))
+					_btn(Rect2(280 + ti * 244, 160, 232, 36), lbl, func(): puzzle_tab = ti, true, false, Color(0.26, 0.31, 0.45) if ti == puzzle_tab else Color(0, 0, 0, 0))
 			if not unlocked:
 				_text(Vector2(640, 172), L.t("puzzle_locked"), ts(16), ACCENT, true)
 			for i in list.size():
@@ -1915,7 +1965,7 @@ func _draw_place_hud() -> void:
 		# 三層卡：上＝快捷鍵、價錢；中＝全身圖；下＝已擺數量、?
 		Art.unit(self, r.position + Vector2(r.size.x / 2, 74), i, a.team, 1.0, 0.0, 0.0, 0.0, (1.0 if afford else 0.45) if opened else 0.25, time, 0.78, cbm())
 		var fz := tz("C")
-		_text(r.position + Vector2(5, 3), "%d" % ((i + 1) % 10), fz, Color(1, 1, 1, 0.6), false, false, 20)
+		_text(r.position + Vector2(5, 3), "%d" % ((_card_types().find(i) + 1) % 10), fz, Color(1, 1, 1, 0.6), false, false, 20)
 		if opened:
 			var gt: String = L.t("gold", [D.cost(i)])
 			var gw := _width(gt, fz, true)
@@ -2312,7 +2362,7 @@ func _replay() -> void:
 
 
 func _next_puzzle() -> void:
-	var list: Array = PZ.tutorials() if mode == Mode.TUTORIAL else (PZ.new_puzzles() if PZ.get_puzzle(puzzle_id).has("unit") else PZ.puzzles())
+	var list: Array = PZ.tutorials() if mode == Mode.TUTORIAL else (PZ.fantasy_puzzles() if int(PZ.get_puzzle(puzzle_id).get("unit", 0)) >= D.COUNT else PZ.new_puzzles() if PZ.get_puzzle(puzzle_id).has("unit") else PZ.puzzles())
 	for i in list.size():
 		if list[i]["id"] == puzzle_id and i + 1 < list.size():
 			var nx: Dictionary = list[i + 1]

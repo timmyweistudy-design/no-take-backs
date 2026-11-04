@@ -229,8 +229,24 @@ def sfx_v4():
     # 補血「叮」：兩個高音輕輕往上
     write("heal", mix(tone(1320, 0.18, "sine", 0.45, d=0.17), at(tone(1760, 0.2, "sine", 0.4, d=0.19), 0.07, int(SR * 0.3))), peak=0.6)
 
+def sfx_v8():
+    # 第八輪奇幻軍（全部程式合成）
+    write("poison", mix(tone(320, 0.16, "sine", 0.35, d=0.15, bend=-0.3), lowpass([noise() * env(i / SR, 0.01, 0.12, 0.16) * 0.3 for i in range(int(SR * 0.16))], 0.2)), peak=0.5)
+    write("baa", mix(tone(420, 0.3, "saw", 0.5, d=0.28, bend=-0.15), tone(630, 0.3, "tri", 0.3, d=0.28, bend=-0.1)), peak=0.7)
+    write("chomp", mix(lowpass([noise() * env(i / SR, 0.002, 0.07, 0.09) for i in range(int(SR * 0.09))], 0.5), tone(150, 0.1, "square", 0.5, d=0.09, bend=-0.4), at(tone(120, 0.1, "square", 0.4, d=0.09), 0.1, int(SR * 0.22))), peak=0.9)
+    write("squish", mix(tone(240, 0.16, "sine", 0.7, d=0.15, bend=1.0), lowpass([noise() * env(i / SR, 0.005, 0.1, 0.14) * 0.3 for i in range(int(SR * 0.14))], 0.15)), peak=0.7)
+    write("charge_up", tone(220, 0.5, "tri", 0.45, a=0.2, d=0.3, bend=1.4), peak=0.5)
+    write("timestop", mix(tone(1568, 0.7, "sine", 0.4, d=0.7, bend=-0.6), tone(784, 0.7, "tri", 0.3, d=0.7, bend=-0.6), at(tone(392, 0.5, "sine", 0.3, d=0.5), 0.15, int(SR * 0.85))), peak=0.8)
+    write("raise", mix(tone(196, 0.6, "tri", 0.5, a=0.1, d=0.45, bend=0.5), tone(294, 0.6, "sine", 0.35, a=0.1, d=0.45, bend=0.5), lowpass([noise() * env(i / SR, 0.2, 0.3, 0.6) * 0.2 for i in range(int(SR * 0.6))], 0.1)), peak=0.8)
+    write("vacuum", mix(lowpass([noise() * env(i / SR, 0.05, 0.5, 0.65) * 0.7 for i in range(int(SR * 0.65))], 0.35), tone(180, 0.65, "saw", 0.3, a=0.05, d=0.55, bend=1.5)), peak=0.8)
+    write("stomp", mix(tone(70, 0.32, "sine", 1.0, d=0.3, bend=-0.5), lowpass([noise() * env(i / SR, 0.002, 0.2, 0.25) for i in range(int(SR * 0.25))], 0.06)), peak=0.95)
+
 if __name__ == "__main__":
     import sys
+    if "--v8" in sys.argv:
+        sfx_v8()
+        print("audio v8 done")
+        raise SystemExit
     if "--v4" in sys.argv:
         sfx_v4()
         print("audio v4 done")

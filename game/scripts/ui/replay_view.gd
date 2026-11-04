@@ -265,7 +265,7 @@ func _watch_code_str(code: String) -> void:
 	if OS.has_feature("demo"):
 		for a in [r["a0"], r["a1"]]:
 			for u in a.units:
-				if int(u["type"]) >= RS.DEMO_MAX:
+				if not RS.is_unlocked(int(u["type"]), 999, true):
 					_toast(L.t("bc_demo_locked"), true)
 					return
 	if r["mismatch"]:

@@ -74,9 +74,11 @@ static func _re() -> RegEx:
 static func value(name: String):
 	if name.begins_with("REACH_"):
 		var t := int(name.substr(6))
-		return int(D.STATS[t]["reach"]) if t >= 0 and t < D.COUNT else null
+		return int(D.stat(t)["reach"]) if t >= 0 and t < D.total() else null
 	var consts: Dictionary = (D as Script).get_script_constant_map()
-	return consts.get(name)
+	if consts.has(name):
+		return consts[name]
+	return (D.f8() as Script).get_script_constant_map().get(name)
 
 ## 老兵筆記解鎖進度：派這個兵種贏了幾場。
 static func wins_with(save_data: Dictionary, t: int) -> int:
@@ -112,6 +114,8 @@ static func demo_sim(id: String):
 	var dm: Dictionary = skill(id).get("demo", {})
 	var a0 := Army.new(0, 1000)
 	var a1 := Army.new(0, 1000)   # 紅方先用藍方視角擺，再鏡像成紅方
+	a0.pool = (1 << D.total()) - 1
+	a1.pool = (1 << D.total()) - 1
 	for e in dm.get("blue", []):
 		a0.place(int(e[0]), int(e[1]), int(e[2]))
 	for e in dm.get("red", []):
@@ -155,8 +159,8 @@ static func validate() -> Array:
 	if int(d.get("schema_version", 0)) != 1:
 		errs.append("schema_version 不是 1")
 	var units: Array = d.get("units", [])
-	if units.size() != D.COUNT:
-		errs.append("兵種數 %d ≠ %d" % [units.size(), D.COUNT])
+	if units.size() != D.total():
+		errs.append("兵種數 %d ≠ %d" % [units.size(), D.total()])
 	var ids := {}
 	var used_skills := {}
 	for u in units:
@@ -169,7 +173,7 @@ static func validate() -> Array:
 			used_skills[sk] = true
 			if skill(sk).is_empty():
 				errs.append("兵種 %d 的技能 %s 不存在" % [int(u["id"]), sk])
-	for t in D.COUNT:
+	for t in D.total():
 		if not ids.has(t):
 			errs.append("缺兵種 %d" % t)
 	for sk in d.get("skills", {}):

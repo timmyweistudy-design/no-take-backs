@@ -33,7 +33,7 @@ func _open_codex(t: int) -> void:
 	painting = false
 	drag_new = false
 	drag_from = Vector2i(-1, -1)
-	cx_unit = clampi(t, 0, D.COUNT - 1)
+	cx_unit = clampi(t, 0, D.total() - 1)
 	cx_scroll["left"] = 0.0   # 每次打開都從頂端開始（Antigravity：沿用上次捲到底的位置，看起來像數值條不見了）
 	cx_scroll["note"] = 0.0
 	_cx_pick_skill(0)
@@ -170,14 +170,19 @@ func _draw_codex() -> void:
 	_text(Vector2(640, 108), L.t("codex_title"), ts(26), Color.WHITE, true, true, 600)
 	# 兵種分頁
 	# 第四輪 §4.7：一排 10 個「頭像＋數字」頁籤；兵種全名在下面左欄的大標題
+	# 第八輪：頁籤分兩頁（王國軍／奇幻軍），各 10 種
+	var page_new: bool = cx_unit >= D.COUNT
+	_btn(Rect2(204, 104, 110, 38), L.t("lb_army_kingdom"), func(): _cx_pick_unit(0), true, false, Color(0.26, 0.31, 0.45) if not page_new else Color(0, 0, 0, 0))
+	_btn(Rect2(320, 104, 110, 38), L.t("lb_army_fantasy"), func(): _cx_pick_unit(D.COUNT), true, false, Color(0.26, 0.31, 0.45) if page_new else Color(0, 0, 0, 0))
 	var tw := (866.0 - (D.COUNT - 1) * 6.0) / D.COUNT
-	for t in D.COUNT:
-		var r := Rect2(204 + t * (tw + 6.0), 150, tw, 50)
+	for t0 in D.COUNT:
+		var t: int = t0 + (D.COUNT if page_new else 0)
+		var r := Rect2(204 + t0 * (tw + 6.0), 150, tw, 50)
 		_btn(r, "", _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
 		if t == cx_unit:
 			draw_rect(r.grow(1.0), ACCENT, false, 3.0)   # 第七輪 E9：選中的兵種金框
 		_unit_in(r, t, 0, 1.0, 0.6 if t != D.CAVALRY else 0.55)   # 人物在頁籤正中間（原本腳畫到框外）
-		_text(r.position + Vector2(4, 2), str((t + 1) % 10), tcap(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
+		_text(r.position + Vector2(4, 2), str((t0 + 1) % 10), tcap(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
 	var items := _cx_left_items(u, lang)
@@ -253,8 +258,8 @@ func _cx_ranks(t: int) -> Array:
 	var dps := {}
 	var rng := {}
 	var spd := {}
-	for k in D.COUNT:
-		var st: Dictionary = D.STATS[k]
+	for k in D.total():
+		var st: Dictionary = D.stat(k)
 		hp[k] = float(st["hp"])
 		spd[k] = float(st["speed"]) * 20.0 / 1000.0
 		if not D.is_support(k):
@@ -269,27 +274,27 @@ func _cx_ranks(t: int) -> Array:
 	else:
 		out.append([L.t("bar_dps"), dps, "%.0f" % dps[t]])
 	if D.is_support(t):
-		var sr := float(D.HEAL_RANGE if t == D.MEDIC else D.DRUM_RANGE) / 1000.0
+		var sr := float(D.HEAL_RANGE if t == D.MEDIC else (2500 if t == 16 else D.DRUM_RANGE)) / 1000.0
 		out.append([L.t("bar_support_range"), {t: sr}, L.t("cells", [sr])])
 	else:
 		out.append([L.t("bar_range"), rng, L.t("cells", [rng[t]])])
 	out.append([L.t("bar_speed"), spd, L.t("cells_s", [spd[t]])])
-	out.append([L.t("bar_cost"), {t: float(D.STATS[t]["cost"])}, L.t("gold", [int(D.STATS[t]["cost"])])])
+	out.append([L.t("bar_cost"), {t: float(D.stat(t)["cost"])}, L.t("gold", [int(D.stat(t)["cost"])])])
 	return out
 
 ## 屬性條（第三輪 U2）：血、每秒傷害、射程、速度，對五兵種最大值正規化。回傳 [標籤, 0～1, 數值文字]。
 func _cx_bars(t: int) -> Array:
 	var mx := [0.0, 0.0, 0.0, 0.0]
 	var vals: Array = []
-	for k in D.COUNT:
-		var st: Dictionary = D.STATS[k]
+	for k in D.total():
+		var st: Dictionary = D.stat(k)
 		# cd 已經是 tick（Codex S3：原本多除了 4，每秒傷害顯示成 4 倍）
 		var v := [float(st["hp"]), float(st["atk"]) * 20.0 / float(st["cd"]), float(st["reach"]) / 1000.0, float(st["speed"]) * 20.0 / 1000.0]
 		vals.append(v)
 		for i in 4:
 			mx[i] = maxf(mx[i], v[i])
 	var me: Array = vals[t]
-	var stc: Dictionary = D.STATS[t]
+	var stc: Dictionary = D.stat(t)
 	var dps_row := [L.t("bar_dps"), me[1] / mx[1], "%.0f" % me[1]]
 	if t == D.MEDIC:
 		var hps := float(D.HEAL_AMT) * 20.0 / float(D.HEAL_CD)
@@ -299,11 +304,11 @@ func _cx_bars(t: int) -> Array:
 	var range_row := [L.t("bar_range"), sqrt(me[2] / mx[2]), L.t("cells", [me[2]])]
 	if D.is_support(t):
 		# 支援兵顯示支援半徑（補血／戰鼓），不顯示貼身的 0.7 格（Antigravity 第 2 輪）
-		var sr := float(D.HEAL_RANGE if t == D.MEDIC else D.DRUM_RANGE) / 1000.0
+		var sr := float(D.HEAL_RANGE if t == D.MEDIC else (2500 if t == 16 else D.DRUM_RANGE)) / 1000.0
 		range_row = [L.t("bar_support_range"), sqrt(sr / mx[2]), L.t("cells", [sr])]
 	return [[L.t("bar_hp"), me[0] / mx[0], str(int(me[0]))], dps_row,
 		range_row, [L.t("bar_speed"), me[3] / mx[3], L.t("cells_s", [me[3]])],
-		[L.t("bar_cost"), float(stc["cost"]) / 7.0, L.t("gold", [int(stc["cost"])])]]
+		[L.t("bar_cost"), float(stc["cost"]) / 9.0, L.t("gold", [int(stc["cost"])])]]
 
 func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> void:
 	if scrollable:
@@ -344,7 +349,7 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 				# 剋／怕（第五輪：圖鑑也查得到，頭像 28px＋短名）
 				var beats: Array = []
 				var fears: Array = []
-				for t2 in D.COUNT:
+				for t2 in D.total():
 					var sc: int = load("res://scripts/core/ai_turns.gd").counter_score(cx_unit, t2)
 					if sc > 0:
 						beats.append(t2)

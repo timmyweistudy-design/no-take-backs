@@ -158,19 +158,77 @@ static func data_digest() -> String:
 ## 每種兵一格的 0 陣列（取代到處寫死的 [0, 0, 0, 0, 0]）。
 static func zeros() -> Array:
 	var a: Array = []
-	a.resize(COUNT)
+	a.resize(total())
 	a.fill(0)
 	return a
 
+# 第八輪：新兵在 fantasy_defs.gd。這裡不能用 const preload（常數會進舊的數值摘要），一律走下面的函式。
+static var _f8 = null
+
+static func f8():
+	if _f8 == null:
+		_f8 = load("res://scripts/core/fantasy_defs.gd")
+	return _f8
+
+## 可以擺的兵種總數（新舊合計）。COUNT 維持 10：舊規則、舊 AI 的迴圈都靠它不變。
+static func total() -> int:
+	return 20
+
+static func stat(t: int) -> Dictionary:
+	return STATS[t] if t < COUNT else f8().STATS[t - COUNT]
+
+static func name_of(t: int) -> String:
+	return NAMES[t] if t < COUNT else f8().NAMES[t - COUNT]
+
+## 用到新兵的場次用的數值摘要。舊場次仍是 data_digest()，一個位元組都不變。
+static var _digest_v8 := ""
+static func digest_v8() -> String:
+	if _digest_v8 == "":
+		var m: Dictionary = f8().get_script_constant_map()
+		var pairs: Array = []
+		for k in m:
+			pairs.append([String(k), m[k]])
+		pairs.sort_custom(func(a, b): return a[0] < b[0])
+		var txt := data_digest()
+		for pr in pairs:
+			txt += "%s=%s;" % [pr[0], var_to_str(pr[1])]
+		_digest_v8 = txt.sha256_text().substr(0, 16)
+	return _digest_v8
+
+static func uses_new(armies: Array) -> bool:
+	for a in armies:
+		for u in a.units:
+			if int(u["type"]) >= COUNT:
+				return true
+	return false
+
+static func version_of(armies: Array) -> String:
+	return "1.4.0" if uses_new(armies) else RULES_VERSION
+
+static func digest_of(armies: Array) -> String:
+	return digest_v8() if uses_new(armies) else data_digest()
+
+## 結果頁、老兵筆記把生出來的兵算回母體的兵種。
+static func report_type(t: int) -> int:
+	return 13 if t == 20 else (17 if t == 21 else t)
+
 static func cost(t: int) -> int:
-	return STATS[t]["cost"]
+	return stat(t)["cost"]
 
 static func is_melee(t: int) -> bool:
-	return t != ARCHER and t != BOMBER
+	return t != ARCHER and t != BOMBER and t != 17   # 17＝骷髏法師
 
 ## 支援兵（第四輪）：隊上還有戰鬥兵活著時不攻擊，只做支援走位。
 static func is_support(t: int) -> bool:
-	return t == MEDIC or t == DRUMMER
+	return t == MEDIC or t == DRUMMER or t == 16   # 16＝沙漏精靈
+
+## 戰鬥兵：開戰至少要有 1 隻。支援兵和奇襲兵（孢子菇、爆爆羊、寶箱怪）都不算。
+static func is_combat(t: int) -> bool:
+	return not is_support(t) and t != 10 and t != 11 and t != 12
+
+## 一隊的硬上限（0＝沒有）。
+static func hard_cap(t: int) -> int:
+	return 0 if t < COUNT else int(f8().HARD_CAP.get(t, 0))
 
 static func cheapest() -> int:
 	var c := 999

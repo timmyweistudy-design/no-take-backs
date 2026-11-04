@@ -6,7 +6,7 @@ extends RefCounted
 const D = preload("res://scripts/core/unit_defs.gd")
 const RSET = preload("res://scripts/core/ruleset.gd")
 
-const IDS := ["standard", "classic5", "all10", "small", "big", "single"]
+const IDS := ["standard", "classic5", "fantasy", "small", "big", "single"]
 const BADGE_CERT := "cert"       # 平衡認證（綠）
 const BADGE_FUN := "fun"         # 娛樂變體（黃）
 const BADGE_LAB := "lab"         # 沙盒（紫）
@@ -16,7 +16,7 @@ const FREE_SPACING := 800
 const FREE_DEPTH := 6000
 
 static func make(id: String, kind: String, unlocked: int):
-	var r = RSET.standard(unlocked)
+	var r = RSET.standard(unlocked & RSET.all_pool())   # 標準只含舊 10 種
 	r.preset = id
 	r.rounds = 3
 	r.place_rule = "snake5"
@@ -30,8 +30,9 @@ static func make(id: String, kind: String, unlocked: int):
 				r.pool = [31, 31]       # 雙人標準＝經典 5 種（唯一驗證過公平的組合）
 		"classic5":
 			r.pool = [31, 31]
-		"all10":
-			r.pool = [unlocked, unlocked]
+		"fantasy":
+			var fp := fantasy_pool(unlocked)
+			r.pool = [fp, fp]
 		"small":
 			r.budget = [50, 50]
 			r.unit_cap = 12
@@ -46,6 +47,22 @@ static func make(id: String, kind: String, unlocked: int):
 	if kind == "duel":
 		r.ai_pool_same = true
 	return r
+
+## 奇幻兵團預設（第八輪）：解鎖的奇幻軍優先，不足 10 種由舊兵補（先補戰鬥兵，免得全是奇襲兵開不了戰）。
+static func fantasy_pool(unlocked: int) -> int:
+	var p := 0
+	var n := 0
+	for t in range(D.COUNT, D.total()):
+		if RSET.has(unlocked, t):
+			p |= 1 << t
+			n += 1
+	for t in [D.SWORD, D.SHIELD, D.ARCHER, D.CAVALRY, D.ASSASSIN, D.PIKE, D.BOMBER, D.BERSERKER, D.MEDIC, D.DRUMMER]:
+		if n >= RSET.ROSTER_MAX:
+			break
+		if RSET.has(unlocked, t):
+			p |= 1 << t
+			n += 1
+	return p
 
 ## 卡池是不是「前 N 種、N≥5」（第四輪 AI 驗收只驗過經典 5 種到全部 10 種的前綴卡池）。
 static func is_prefix(p: int) -> bool:
@@ -86,7 +103,7 @@ static func deploy_standard(r) -> bool:
 
 ## 大廳卡池能選的兵：對 AI＝已解鎖的；雙人＝全部（試玩版＝前 7 種）。
 static func selectable(kind: String, unlocked: int, demo: bool) -> int:
-	var all_p: int = RSET.prefix_pool(7) if demo else RSET.all_pool()
+	var all_p: int = (RSET.prefix_pool(7) | (1 << 11)) if demo else RSET.full_pool()   # 試玩版：舊 7 種＋爆爆羊
 	return (unlocked & all_p) if kind == "ai" else all_p
 
 ## 把規則裡不能選的兵拿掉（解鎖進度、試玩版）；拿掉後沒有戰鬥兵就退回可選的全部。回傳被拿掉的兵種。
@@ -95,7 +112,7 @@ static func clamp_pool(r, kind: String, unlocked: int, demo: bool) -> Array:
 	var removed: Array = []
 	for tm in 2:
 		var p := int(r.pool[tm])
-		for t in D.COUNT:
+		for t in D.total():
 			if RSET.has(p, t) and not RSET.has(sel, t) and not t in removed:
 				removed.append(t)
 		p &= sel

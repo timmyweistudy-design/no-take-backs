@@ -8,6 +8,11 @@ extends RefCounted
 const DELAY := 2
 
 class VUnit:
+	var hidden := false
+	var link := -1
+	var windup := 0
+	var guard := 0
+	var summon := false
 	var id: int
 	var team: int
 	var type: int
@@ -40,6 +45,7 @@ var max_ticks := 1800          # 第五輪：這一局的長度（一局時間�
 
 func budget_of(t: int) -> int:
 	return int(budgets[t])
+var zones: Array = []
 var _power := [0, 0]
 var _alive := [0, 0]
 var _by_id := {}
@@ -49,10 +55,10 @@ var queue: Array = []          # 還沒播的快照（模擬已經跑到、畫�
 static func capture(sim) -> Dictionary:
 	var us: Array = []
 	for u in sim.units:
-		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode])
+		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon])
 	return {"tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
 		"frenzy": sim.frenzy, "finished": sim.finished, "power": [sim.power(0), sim.power(1)],
-		"alive": [sim.alive_count(0), sim.alive_count(1)]}
+		"alive": [sim.alive_count(0), sim.alive_count(1)], "zones": sim.zones.duplicate()}
 
 func _init(sim = null) -> void:
 	if sim != null:
@@ -79,6 +85,11 @@ func apply(fr: Dictionary) -> void:
 		v.breach = a[16] if a.size() > 16 else 0
 		v.aura = a[17] if a.size() > 17 else 0
 		v.bmode = a[18] if a.size() > 18 else 0
+		v.hidden = a[19] == 1 if a.size() > 19 else false
+		v.link = a[20] if a.size() > 20 else -1
+		v.windup = a[21] if a.size() > 21 else 0
+		v.guard = a[22] if a.size() > 22 else 0
+		v.summon = a[23] if a.size() > 23 else false
 		_by_id[v.id] = v
 	tick = fr["tick"]
 	events = fr["events"]
@@ -87,6 +98,7 @@ func apply(fr: Dictionary) -> void:
 	finished = fr["finished"]
 	_power = fr["power"]
 	_alive = fr["alive"]
+	zones = fr.get("zones", [])
 
 func power(t: int) -> int:
 	return _power[t]

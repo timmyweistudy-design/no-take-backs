@@ -127,7 +127,7 @@ func test_steam_v7() -> void:
 	r = ST.self_test(12345)
 	ok(not r["ok"] and r["missing_achievements"] == ["BACKSTAB_3"], "S4：後台少一個成就要抓得到", str(r))
 	ST._steam = null
-	ok(ST.ACHIEVEMENTS.size() == 18, "S4：程式 18 個成就（docs/release/steam-setup.md 要同步）")
+	ok(ST.ACHIEVEMENTS.size() == 21, "S4：程式 21 個成就（docs/release/steam-setup.md 要同步）")
 
 
 class FakeSteam2:

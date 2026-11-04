@@ -59,11 +59,15 @@ static func check_free(a0, a1, rules = null) -> String:
 	var by_pos := {}
 	for k in s2.units.size():
 		var v = s2.units[k]
+		if v.dormant:
+			continue
 		by_pos[Vector3i(v.team, v.x, v.y)] = k
 	var imap := {-1: -1}
 	var idmap := {}
 	for k in s1.units.size():
 		var u = s1.units[k]
+		if u.dormant:
+			continue
 		var key := Vector3i(1 - u.team, Sim.W - u.x, u.y)
 		if not by_pos.has(key):
 			return "tick 0 找不到單位 %d 的鏡像" % u.id
@@ -71,6 +75,19 @@ static func check_free(a0, a1, rules = null) -> String:
 		idmap[u.id] = s2.units[by_pos[key]].id
 		if s2.units[by_pos[key]].slot != u.slot:
 			return "tick 0 單位 %d 的 slot 不對稱：%d vs %d" % [u.id, u.slot, s2.units[by_pos[key]].slot]
+	# 第八輪：預留的生兵用「母體＋子序號」配對（座標還沒定，不能用位置）
+	for k in s1.units.size():
+		var u = s1.units[k]
+		if not u.dormant:
+			continue
+		var want: int = imap[u.parent]
+		for m in s2.units.size():
+			if s2.units[m].dormant and s2.units[m].parent == want and s2.units[m].sub == u.sub:
+				imap[k] = m
+				idmap[u.id] = s2.units[m].id
+				break
+		if not imap.has(k):
+			return "生兵 %d 找不到鏡像" % u.id
 	var first := true
 	while first or not s1.finished or not s2.finished:
 		if not first:
@@ -87,8 +104,18 @@ static func check_free(a0, a1, rules = null) -> String:
 			var b := [v.x, v.y, v.hp, v.fx, v.fy, v.target, v.face_lock, v.cd, v.stun, v.slow,
 				v.stealth, v.charge, v.cdx, v.cdy, v.mx, v.my, v.wp_x, v.wp_y, v.alive,
 				v.dmg_dealt, v.dmg_taken, v.wp_for, v.nav, v.chasing, v.kills, v.hcd, v.aura, v.breach, v.bmode, v.heal_done, v.follow, v.drum_cover, v.max_hp, v.atk, v.speed, v.reach, v.cd_base]
+			if s1.v8:
+				a.append_array([1 if u.dormant else 0, 1 if u.raised else 0, 1 if u.hidden else 0, 1 if u.bite else 0, 1 if u.exploded else 0, imap[u.link], u.link_wait, u.skill_cd, u.windup, 1 if u.used else 0, u.guard, u.zone, -u.pull_x, u.pull_y, u.pull_t])
+				b.append_array([1 if v.dormant else 0, 1 if v.raised else 0, 1 if v.hidden else 0, 1 if v.bite else 0, 1 if v.exploded else 0, v.link, v.link_wait, v.skill_cd, v.windup, 1 if v.used else 0, v.guard, v.zone, v.pull_x, v.pull_y, v.pull_t])
 			if a != b:
 				return "tick %d 單位 %d：%s vs %s" % [s1.tick, u.id, a, b]
+		if s1.v8:
+			var z1: Array = s1.zones.map(func(z): return [Sim.W - int(z[0]), z[1], z[2], 1 - int(z[3])])
+			var z2: Array = s2.zones.duplicate()
+			z1.sort()
+			z2.sort()
+			if str(z1) != str(z2):
+				return "tick %d 碎石區不對稱：%s vs %s" % [s1.tick, z1, z2]
 		# 事件內容（種類、來源、目標、傷害、數量、隊伍）全部比；只換算 id 與隊伍
 		var e1: Array = []
 		for e in s1.events:
@@ -115,7 +142,7 @@ static func _ev_sig(e: Dictionary, map: Dictionary) -> String:
 	keys.sort()
 	for k in keys:
 		var v = e[k]
-		if k in ["src", "tgt", "id"] and not map.is_empty():
+		if k in ["src", "tgt", "id", "by"] and not map.is_empty():
 			v = map.get(v, -1)
 		elif k == "team" and not map.is_empty():
 			v = 1 - int(v)

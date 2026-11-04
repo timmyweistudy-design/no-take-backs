@@ -7,6 +7,7 @@ extends SceneTree
 const SC = preload("res://scripts/ui/sprite_cache.gd")
 const Art = preload("res://scripts/ui/art.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
+const F8 = preload("res://scripts/core/fantasy_defs.gd")
 var out := "."
 var cache
 var cb_frames := 0
@@ -19,26 +20,42 @@ func _initialize() -> void:
 	root.add_child(cache)
 	_run.call_deferred()
 
-func _rect(i: int) -> Rect2i:
-	return Rect2i((i % 16) * SC.CELL, (i / 16) * SC.CELL, SC.CELL, SC.CELL)
+func _r(ty: int, tm: int, f: int) -> Rect2i:
+	var r: Rect2 = cache._rect(int(cache.loc[ty][1]) + tm * SC.FRAMES_PER + f)
+	return Rect2i(r)
+
+func _img(ty: int) -> Image:
+	var pn: int = cache.loc[ty][0]
+	if not _imgs.has(pn):
+		_imgs[pn] = cache.pages[pn]["tex"].get_image()
+	return _imgs[pn]
+
+var _imgs := {}
 
 func _run() -> void:
 	await cache.build(false)
-	var img: Image = cache.tex.get_image()
+	var everything: Array = []
+	for t0 in F8.DRAW_TOTAL:
+		everything.append(t0)
+	await cache.ensure(everything)
+	while cache._busy:
+		await process_frame
 	var per: int = SC.FRAMES_PER
+	var N: int = F8.DRAW_TOTAL
 	var res := {"types": [], "ok": true}
 	var masks := []
-	var contact := Image.create(SC.CELL * 6, SC.CELL * D.COUNT, false, Image.FORMAT_RGBA8)
-	var sil := Image.create(SC.CELL * D.COUNT, SC.CELL, false, Image.FORMAT_RGBA8)
-	var gray := Image.create(SC.CELL * 2, SC.CELL * D.COUNT, false, Image.FORMAT_RGBA8)
+	var contact := Image.create(SC.CELL * 6, SC.CELL * N, false, Image.FORMAT_RGBA8)
+	var sil := Image.create(SC.CELL * N, SC.CELL, false, Image.FORMAT_RGBA8)
+	var gray := Image.create(SC.CELL * 2, SC.CELL * N, false, Image.FORMAT_RGBA8)
 	contact.fill(Color("#5c7a3a"))
 	sil.fill(Color.WHITE)
 	gray.fill(Color("#777777"))
-	for ty in D.COUNT:
+	for ty in N:
 		var clipped := 0
 		for tm in 2:
 			for f in per:
-				var r := _rect((ty * 2 + tm) * per + f)
+				var img: Image = _img(ty)
+				var r := _r(ty, tm, f)
 				for k in SC.CELL:
 					if img.get_pixelv(r.position + Vector2i(k, 0)).a > 0.2 or img.get_pixelv(r.position + Vector2i(k, SC.CELL - 1)).a > 0.2 or img.get_pixelv(r.position + Vector2i(0, k)).a > 0.2 or img.get_pixelv(r.position + Vector2i(SC.CELL - 1, k)).a > 0.2:
 						clipped += 1
@@ -46,12 +63,12 @@ func _run() -> void:
 		var ratio := []
 		for tm2 in 2:
 			var tc: Color = Art.team_color(tm2)
-			var r2 := _rect((ty * 2 + tm2) * per)
+			var r2 := _r(ty, tm2, 0)
 			var opaque := 0
 			var team := 0
 			for y in SC.CELL:
 				for x in SC.CELL:
-					var c := img.get_pixelv(r2.position + Vector2i(x, y))
+					var c := _img(ty).get_pixelv(r2.position + Vector2i(x, y))
 					if c.a < 0.5:
 						continue
 					opaque += 1
@@ -62,10 +79,10 @@ func _run() -> void:
 			ratio.append(snappedf(float(team) / maxf(1.0, opaque), 0.001))
 		var mask := PackedByteArray()
 		mask.resize(SC.CELL * SC.CELL)
-		var r3 := _rect(ty * 2 * per)
+		var r3 := _r(ty, 0, 0)
 		for y2 in SC.CELL:
 			for x2 in SC.CELL:
-				var on: bool = img.get_pixelv(r3.position + Vector2i(x2, y2)).a > 0.5
+				var on: bool = _img(ty).get_pixelv(r3.position + Vector2i(x2, y2)).a > 0.5
 				mask[y2 * SC.CELL + x2] = 1 if on else 0
 				if on:
 					sil.set_pixel(ty * SC.CELL + x2, y2, Color.BLACK)
@@ -73,21 +90,21 @@ func _run() -> void:
 		for col in 6:
 			var tmc: int = col % 2
 			var fr: int = [0, 0, 8 + 3, 8 + 3, 16 + 3, 16 + 3][col]
-			contact.blend_rect(img, _rect((ty * 2 + tmc) * per + fr), Vector2i(col * SC.CELL, ty * SC.CELL))
+			contact.blend_rect(_img(ty), _r(ty, tmc, fr), Vector2i(col * SC.CELL, ty * SC.CELL))
 		for tm3 in 2:
-			var r4 := _rect((ty * 2 + tm3) * per)
+			var r4 := _r(ty, tm3, 0)
 			for y3 in SC.CELL:
 				for x3 in SC.CELL:
-					var c3 := img.get_pixelv(r4.position + Vector2i(x3, y3))
+					var c3 := _img(ty).get_pixelv(r4.position + Vector2i(x3, y3))
 					if c3.a > 0.5:
 						gray.set_pixel(tm3 * SC.CELL + x3, ty * SC.CELL + y3, Color(c3.get_luminance(), c3.get_luminance(), c3.get_luminance()))
-		res["types"].append({"type": ty, "name": D.NAMES[ty], "clipped": clipped, "team_ratio": ratio})
+		res["types"].append({"type": ty, "name": D.name_of(ty), "clipped": clipped, "team_ratio": ratio})
 		if clipped > 0:
 			res["ok"] = false
-	for a in D.COUNT:
+	for a in N:
 		var best := 0.0
 		var bi := -1
-		for b in D.COUNT:
+		for b in N:
 			if a == b:
 				continue
 			var i := 0
@@ -102,7 +119,7 @@ func _run() -> void:
 				best = v
 				bi = b
 		res["types"][a]["iou_max"] = snappedf(best, 0.001)
-		res["types"][a]["iou_with"] = D.NAMES[bi]
+		res["types"][a]["iou_with"] = D.name_of(bi)
 	contact.save_png(out.path_join("contact.png"))
 	sil.save_png(out.path_join("silhouette.png"))
 	gray.save_png(out.path_join("gray.png"))

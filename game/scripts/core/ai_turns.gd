@@ -8,20 +8,31 @@ const Army = preload("res://scripts/core/army.gd")
 
 # 剋制表：BEATS[a] 是 a 剋的兩種（企劃 §3.1）
 const BEATS := [
-	[D.ASSASSIN, D.SHIELD],     # 劍士
-	[D.CAVALRY, D.ARCHER],      # 盾兵
-	[D.SWORD, D.ASSASSIN, D.BERSERKER, D.BOMBER],      # 弓箭手
-	[D.ARCHER, D.SWORD, D.BOMBER, D.MEDIC],            # 騎兵
-	[D.SHIELD, D.CAVALRY, D.MEDIC, D.DRUMMER],         # 刺客
-	[D.CAVALRY],                # 長槍兵（第四輪 §2.6）
-	[D.SHIELD, D.PIKE, D.DRUMMER],   # 投彈兵
+	[D.ASSASSIN, D.SHIELD, 14],     # 劍士
+	[D.CAVALRY, D.ARCHER, 14],      # 盾兵
+	[D.SWORD, D.ASSASSIN, D.BERSERKER, D.BOMBER, 10, 11, 15, 18],      # 弓箭手
+	[D.ARCHER, D.SWORD, D.BOMBER, D.MEDIC, 17],            # 騎兵
+	[D.SHIELD, D.CAVALRY, D.MEDIC, D.DRUMMER, 16, 17, 18, 19],         # 刺客
+	[D.CAVALRY, 11],                # 長槍兵（第四輪 §2.6）
+	[D.SHIELD, D.PIKE, D.DRUMMER, 10, 12, 13],   # 投彈兵
 	[],                         # 醫者（支援，不列）
 	[],                         # 鼓手（支援，不列）
-	[D.SHIELD, D.PIKE],         # 狂戰士（破陣）
+	[D.SHIELD, D.PIKE, 19],         # 狂戰士（破陣）
+	# 第八輪（10 孢子菇 … 19 小石魔）
+	[D.SWORD, D.BERSERKER, 15],     # 孢子菇
+	[D.SHIELD, D.PIKE],             # 爆爆羊：撞盾牆、密集陣
+	[D.CAVALRY, D.ASSASSIN],        # 寶箱怪
+	[D.SWORD, D.ASSASSIN],          # 史萊姆
+	[D.ARCHER, D.BOMBER, 16],       # 幽靈
+	[D.BERSERKER, D.CAVALRY],       # 巫毒娃娃
+	[],                             # 沙漏精靈（支援）
+	[10, 19],                       # 骷髏法師：打慢吞吞的
+	[D.BOMBER, D.MEDIC],            # 吸塵貓
+	[D.CAVALRY, D.SWORD],           # 小石魔
 ]
 ## 支援兵的協同對象（第四輪 §4.1：提示條「協同」顯示用）
-const SYNERGY := {D.MEDIC: [D.SHIELD, D.SWORD], D.DRUMMER: [D.SWORD, D.PIKE]}
-const ROLE_COLS := [[5, 4, 3], [5, 4], [0, 1, 2], [3, 2, 4], [2, 3, 1], [4, 3], [0, 1], [1, 2], [3, 2], [5, 4]]
+const SYNERGY := {D.MEDIC: [D.SHIELD, D.SWORD], D.DRUMMER: [D.SWORD, D.PIKE], 16: [D.SHIELD, 19]}
+const ROLE_COLS := [[5, 4, 3], [5, 4], [0, 1, 2], [3, 2, 4], [2, 3, 1], [4, 3], [0, 1], [1, 2], [3, 2], [5, 4], [4, 3, 5], [2, 3, 1], [5, 4], [5, 4], [3, 2], [5, 4], [2, 3], [0, 1], [3, 4], [5, 4]]
 
 static func counter_score(a: int, b: int) -> int:
 	if b in BEATS[a]:
@@ -40,17 +51,19 @@ static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: R
 	var have := D.zeros()
 	for u in mine.units:
 		have[u["type"]] += 1
-	var front: int = have[D.SWORD] + have[D.SHIELD] + have[D.PIKE] + have[D.BERSERKER]
+	var front: int = have[D.SWORD] + have[D.SHIELD] + have[D.PIKE] + have[D.BERSERKER] + have[13] + have[19]
 	var fighters := 0
 	for u in mine.units:
-		if not D.is_support(u["type"]):
+		if D.is_combat(u["type"]):
 			fighters += 1
-	for t in D.COUNT:
+	for t in D.total():
 		if not RS.has(pool, t) or D.cost(t) > budget_left:
 			continue
 		if mine.type_cap > 0 and have[t] >= mine.type_cap:
 			continue
-		if mine.guard_combat and D.is_support(t) and fighters == 0 and (mine.left() - D.cost(t) < mine.cheapest_combat() or mine.count() + 1 >= mine.unit_cap):
+		if D.hard_cap(t) > 0 and have[t] >= D.hard_cap(t):
+			continue
+		if mine.guard_combat and not D.is_combat(t) and fighters == 0 and (mine.left() - D.cost(t) < mine.cheapest_combat() or mine.count() + 1 >= mine.unit_cap):
 			continue
 		var s := 0.0
 		var react := 0.4 if level == 0 else (1.0 if level == 1 else 1.6)
@@ -61,6 +74,8 @@ static func choose_type(mine: Army, enemy_units: Array, budget_left: int, rng: R
 			s -= 0.15 * (1 if u["type"] == t else 0)   # 避免全押同一種
 		if front < 3 and (t == D.SWORD or t == D.SHIELD):
 			s += 1.2
+		if t >= D.COUNT and not D.is_combat(t) and not D.is_support(t):
+			s += 0.4 if fighters >= 3 and have[t] < 3 else -1.5   # 第八輪：奇襲兵要有主力才帶
 		if D.is_support(t):
 			# 支援兵：要有夠多戰鬥兵才值得帶，而且一種最多帶 2 隻
 			s += 0.5 if fighters >= 5 and have[t] < 2 else -2.0

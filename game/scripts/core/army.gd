@@ -86,15 +86,18 @@ func check_place(t: int, col: int, row: int) -> String:
 
 ## 位置以外的條件（卡池、人數、單種、錢、防卡死），格子與自由共用。
 func _check_common(t: int) -> String:
-	if t < 0 or t >= D.COUNT or (pool >> t) & 1 == 0:
+	if t < 0 or t >= D.total() or (pool >> t) & 1 == 0:
 		return E_POOL
 	if count() >= unit_cap:
 		return E_CAP_PREFIX + " %d 隻" % unit_cap
 	if type_cap > 0 and count_of(t) >= type_cap:
 		return E_TYPE_CAP_PREFIX + " %d 隻" % type_cap
+	var hc := D.hard_cap(t)     # 第八輪：奇幻兵一隊的硬上限
+	if hc > 0 and count_of(t) >= hc:
+		return E_TYPE_CAP_PREFIX + " %d 隻" % hc
 	if D.cost(t) > left():
 		return E_GOLD
-	if guard_combat and D.is_support(t) and not has_combat():
+	if guard_combat and not D.is_combat(t) and not has_combat():
 		var cc := cheapest_combat()
 		if count() + 1 >= unit_cap or left() - D.cost(t) < cc:
 			return E_RESERVE
@@ -103,20 +106,20 @@ func _check_common(t: int) -> String:
 ## 第五輪：有沒有擺戰鬥兵（開戰條件：雙方各至少 1 隻）。
 func has_combat() -> bool:
 	for u in units:
-		if not D.is_support(int(u["type"])):
+		if D.is_combat(int(u["type"])):
 			return true
 	return false
 
 func cheapest_combat() -> int:
 	var c := 1 << 30
-	for t in D.COUNT:
-		if (pool >> t) & 1 == 1 and not D.is_support(t):
+	for t in D.total():
+		if (pool >> t) & 1 == 1 and D.is_combat(t):
 			c = mini(c, D.cost(t))
 	return c
 
 func cheapest_in_pool() -> int:
 	var c := 1 << 30
-	for t in D.COUNT:
+	for t in D.total():
 		if (pool >> t) & 1 == 1 and (type_cap == 0 or count_of(t) < type_cap):
 			c = mini(c, D.cost(t))
 	return c
@@ -295,7 +298,7 @@ func has_room() -> bool:
 	if deploy != "free":
 		return true
 	var types: Array = []
-	for t in D.COUNT:
+	for t in D.total():
 		if _check_common(t) == "":
 			types.append(t)
 	if types.is_empty():
@@ -382,6 +385,8 @@ func mirrored():
 const CODE_VERSION := 1
 
 func to_code() -> String:
+	if D.uses_new([self]):
+		return to_code6()   # 第八輪：用到新兵才用新格式；只有舊兵時輸出不變，舊版還讀得懂
 	if deploy == "free":
 		return to_code5()
 	var b := PackedByteArray([CODE_VERSION, units.size()])
@@ -397,6 +402,8 @@ func load_code(code: String) -> String:
 	var parts := code.strip_edges().split(".")
 	if parts.size() == 3 and parts[0] == "NTB5":
 		return load_code5(code)
+	if parts.size() == 3 and parts[0] == "NTB6":
+		return load_code6(code)
 	if parts.size() != 3 or parts[0] != "NTB1":
 		return "格式不對"
 	if parts[1].sha256_text().substr(0, 4) != parts[2]:
@@ -468,6 +475,65 @@ func load_code5(code: String) -> String:
 			return "內容不合法"
 		if not tmp.place_xy(t, world_x(ox), y):
 			return "超過預算、人數、部署區或離太近"
+	units = tmp.units
+	return ""
+
+# ───────── 第八輪：陣型代碼 NTB6 ─────────
+## NTB6.<base64url>.<校驗 4 碼>；[版本 6][模式 0 格子／1 自由][隻數][每隻 4 bytes：兵種，再來格子＝欄、列、0；自由＝自己視角 x、y 量化後 3 bytes]。
+const CODE6_VERSION := 6
+
+func to_code6() -> String:
+	var fr: bool = deploy == "free"
+	var b := PackedByteArray([CODE6_VERSION, 1 if fr else 0, units.size()])
+	for u in units:
+		b.append(int(u["type"]))
+		if fr:
+			var p := pos_of(u)
+			var v: int = ((own_x(p.x) / QUANT) << 11) | ((p.y / QUANT) << 3)
+			b.append((v >> 16) & 255)
+			b.append((v >> 8) & 255)
+			b.append(v & 255)
+		else:
+			b.append(int(u["col"]) if team == 0 else COLS - 1 - int(u["col"]))
+			b.append(int(u["row"]))
+			b.append(0)
+	var body := Marshalls.raw_to_base64(b).replace("+", "-").replace("/", "_").replace("=", "")
+	return "NTB6.%s.%s" % [body, body.sha256_text().substr(0, 4)]
+
+func load_code6(code: String) -> String:
+	var parts := code.strip_edges().split(".")
+	if parts.size() != 3 or parts[0] != "NTB6":
+		return "格式不對"
+	if parts[1].sha256_text().substr(0, 4) != parts[2]:
+		return "校驗碼不符"
+	var b64 := parts[1].replace("-", "+").replace("_", "/")
+	while b64.length() % 4 != 0:
+		b64 += "="
+	var b := Marshalls.base64_to_raw(b64)
+	if b.size() < 3 or b[0] != CODE6_VERSION or b[1] > 1 or b[2] > CODE5_MAX or b.size() != 3 + b[2] * 4:
+		return "版本或長度不對"
+	var fr: bool = b[1] == 1
+	if fr and deploy != "free":
+		return "這是自由陣型，現在是格子規則"
+	var tmp = get_script().new(team, budget)
+	_copy_limits(tmp)
+	tmp.guard_combat = false
+	for i in b[2]:
+		var o := 3 + i * 4
+		var t: int = b[o]
+		if t >= D.total():
+			return "內容不合法"
+		if fr:
+			var v: int = (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]
+			if v & 7 != 0 or (v >> 20) != 0:
+				return "內容不合法"
+			if not tmp.place_xy(t, own_x(((v >> 11) & 511) * QUANT), ((v >> 3) & 255) * QUANT):
+				return "超過預算、人數、部署區或離太近"
+		else:
+			if b[o + 1] > 5 or b[o + 3] != 0:
+				return "內容不合法"
+			if not tmp.place(t, b[o + 1] if team == 0 else COLS - 1 - b[o + 1], b[o + 2]):
+				return "超過預算、人數或格子重複"
 	units = tmp.units
 	return ""
 

@@ -710,6 +710,8 @@ func _fp_draw() -> void:
 			var lx := clampf(cp.x, ORIGIN.x + 40, ORIGIN.x + FIELD.x - 40)
 			var ly := clampf(cp.y - rad * CS - tz("C") * 1.2, ORIGIN.y + 2, ORIGIN.y + FIELD.y - tz("C") * 1.3)
 			_text(Vector2(lx, ly), lbl, tz("C"), Color(1, 0.93, 0.6, 0.95), true, true)
+	if not drag_on and selected == 15 and (_fp_in_field(mouse) or pad_mode):
+		_doll_lane(_s_of(_q(hover_w)) - Vector2(0, 0.32 * CS), a.team)   # 巫毒娃娃：瞄準線
 	_fp_gesture()
 	_fp_toolbar()
 	_fp_intro_steps(a)
@@ -727,6 +729,19 @@ func _fp_intro_steps(a) -> void:
 	draw_rect(r, Color(0.06, 0.07, 0.1, 0.92))
 	draw_rect(r, ACCENT, false, 2.0)
 	_text(Vector2(640, r.position.y + 6), msg, tz("B"), ACCENT, true, true, w - 24)
+
+## 巫毒娃娃的瞄準走廊：前方、同列 ±1.5 格。
+func _doll_lane(p: Vector2, team: int) -> void:
+	var dir := 1.0 if team == 0 else -1.0
+	var end_x: float = ORIGIN.x + FIELD.x if team == 0 else ORIGIN.x
+	var half := 1.5 * CS
+	var top := maxf(p.y - half, ORIGIN.y)
+	var bot := minf(p.y + half, ORIGIN.y + FIELD.y)
+	var x0: float = minf(p.x, end_x)
+	var w := absf(end_x - p.x)
+	draw_rect(Rect2(x0, top, w, bot - top), Color(1.0, 0.42, 0.7, 0.08))
+	draw_dashed_line(p, Vector2(end_x, p.y), Color(1.0, 0.42, 0.7, 0.75), 2.5, 9.0)
+	draw_colored_polygon(PackedVector2Array([p + Vector2(40 * dir, -7), p + Vector2(40 * dir, 7), p + Vector2(54 * dir, 0)]), Color(1.0, 0.42, 0.7, 0.75))
 
 ## 新手手勢：前排從上往下一隻手拖過去，後面依間距冒出半透明小兵，1.5 秒。
 func _fp_gesture() -> void:
@@ -760,6 +775,18 @@ func _fp_range_of(t: int) -> float:
 			return D.HEAL_RANGE / 1000.0
 		D.DRUMMER:
 			return D.DRUM_RANGE / 1000.0
+		10:
+			return 2.0     # 孢子菇毒圈
+		11:
+			return 1.5     # 爆爆羊爆炸
+		16:
+			return 2.5     # 沙漏結界
+		17:
+			return 4.0     # 骷髏法師
+		18:
+			return 3.0     # 吸塵貓
+		19:
+			return 1.2     # 石魔拍地
 	return 0.0
 
 func _fp_dashed_circle(c: Vector2, r: float, col: Color) -> void:

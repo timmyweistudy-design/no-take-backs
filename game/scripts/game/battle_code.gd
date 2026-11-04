@@ -14,6 +14,11 @@ static func needs_v3(rules) -> bool:
 	return rules != null and (not rules.sim_is_legacy() or not load("res://scripts/game/presets.gd").deploy_standard(rules))
 
 static func encode(a0, a1, rules = null) -> String:
+	if D.uses_new([a0, a1]):
+		# 第八輪：用到新兵走 NTB4（新版 NTB2／3／4 都讀；舊版讀到會回報格式不對）
+		var j4 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code() if rules != null else ""})
+		var body4 := Marshalls.utf8_to_base64(j4).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB4.%s.%s" % [body4, body4.sha256_text().substr(0, 6)]
 	if needs_v3(rules):
 		var j3 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest(), "rules": rules.to_code()})
 		var body3 := Marshalls.utf8_to_base64(j3).replace("+", "-").replace("/", "_").replace("=", "")
@@ -28,7 +33,7 @@ static func decode(code: String) -> Dictionary:
 	if c.length() > 8000:
 		return {"ok": false, "why": "format"}
 	var parts := c.split(".")
-	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3"):
+	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3" and parts[0] != "NTB4"):
 		return {"ok": false, "why": "format"}
 	if parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return {"ok": false, "why": "checksum"}
@@ -53,7 +58,10 @@ static func decode(code: String) -> Dictionary:
 	var a0 := Army.new(0, ba)
 	var a1 := Army.new(1, bb)
 	var rules = null
-	if parts[0] == "NTB3":
+	if parts[0] == "NTB4":
+		a0.pool = RSET.full_pool()
+		a1.pool = RSET.full_pool()
+	if parts[0] == "NTB3" or (parts[0] == "NTB4" and str(j.get("rules", "")) != ""):
 		var rd: Dictionary = RSET.from_code(str(j.get("rules", "")))
 		if not rd["ok"]:
 			return {"ok": false, "why": "rules"}
@@ -83,5 +91,5 @@ static func decode(code: String) -> Dictionary:
 	# 輪流落子的指令紀錄（cmds）目前不支援：代碼只證明「最後陣型合法」，不證明輪序（Codex 實作第 1 輪 #10，見方案 §11 已知限制）
 	if j.has("cmds"):
 		return {"ok": false, "why": "body"}
-	var mismatch: bool = str(j.get("r", "")) != D.RULES_VERSION or str(j.get("d", "")) != D.data_digest()
+	var mismatch: bool = str(j.get("r", "")) != D.version_of([a0, a1]) or str(j.get("d", "")) != D.digest_of([a0, a1])
 	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch, "rules": rules}

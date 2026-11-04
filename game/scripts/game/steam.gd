@@ -24,6 +24,10 @@ const ACHIEVEMENTS := {
 	"CUSTOM_LOWGOLD": ["精打細算", "Shoestring Army"],
 	"CUSTOM_UNDERDOG": ["以寡擊眾", "Underdog"],
 	"CUSTOM_BIG": ["大軍壓境", "Grand Army"],
+	# 第八輪：奇幻兵團
+	"FANTASY_WIN": ["傭兵公會開張", "Monster Mercenaries"],
+	"BOOM_5": ["羊到爆炸", "Sheep Go Boom"],
+	"RAISE_3": ["大家起來", "Rise and Shine"],
 }
 
 static var _steam = null

@@ -34,6 +34,10 @@ static func ntypes_for(mode_kind: String, games: int, classic: bool, demo := fal
 static func games_to_unlock(t: int, games: int, demo := false) -> int:
 	if t < D.CLASSIC:
 		return 0
+	if t >= D.COUNT:
+		if demo:
+			return 0 if t == DEMO_SHOWCASE else -1
+		return maxi(0, int(UNLOCK_NEW[t - D.COUNT]) - games)
 	if demo and t >= DEMO_MAX:
 		return -1
 	return maxi(0, int(UNLOCK_GAMES[t - D.CLASSIC]) - games)
@@ -43,4 +47,33 @@ static func newly_unlocked(games_before: int, games_after: int, demo := false) -
 	var out: Array = []
 	for t in range(unlocked_count(games_before, demo), unlocked_count(games_after, demo)):
 		out.append(t)
+	return out
+
+
+# ───────── 第八輪：奇幻軍解鎖 ─────────
+## 第 11 場之後每 3 場開 1 種（編號 10～19）。
+const UNLOCK_NEW := [14, 17, 20, 23, 26, 29, 32, 35, 38, 41]
+const DEMO_SHOWCASE := 11      # 試玩版多開爆爆羊當賣點（非連號，所以試玩版不能只看 DEMO_MAX）
+
+## 解鎖的兵種遮罩（新舊都算）。
+static func unlocked_mask(games: int, demo := false) -> int:
+	var m := (1 << unlocked_count(games, demo)) - 1
+	if demo:
+		return m | (1 << DEMO_SHOWCASE)
+	for k in UNLOCK_NEW.size():
+		if games >= UNLOCK_NEW[k]:
+			m |= 1 << (D.COUNT + k)
+	return m
+
+static func is_unlocked(t: int, games: int, demo := false) -> bool:
+	return (unlocked_mask(games, demo) >> t) & 1 == 1
+
+## 打完一場新解鎖的奇幻軍（給提示用）。
+static func newly_unlocked_new(games_before: int, games_after: int, demo := false) -> Array:
+	var out: Array = []
+	var a := unlocked_mask(games_before, demo)
+	var b := unlocked_mask(games_after, demo)
+	for t in range(D.COUNT, D.total()):
+		if (b >> t) & 1 == 1 and (a >> t) & 1 == 0:
+			out.append(t)
 	return out

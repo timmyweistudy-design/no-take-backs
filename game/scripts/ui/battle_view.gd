@@ -1,4 +1,5 @@
 extends "res://scripts/ui/ui_base.gd"
+const F8 = preload("res://scripts/core/fantasy_defs.gd")
 const EV = preload("res://scripts/core/events.gd")
 ## 戰場、單位、特效、戰鬥 HUD、最後時刻鏡頭（演出層：不影響戰鬥結果）。
 
@@ -232,7 +233,7 @@ static func pick_hit(hits: Array, disp: float, type: int) -> int:
 ## 回傳 Art.unit 的 atk 參數：0＝沒在攻擊；0～0.3125 前搖、0.3125～0.53125 揮擊（命中在 0.3125）、之後後搖到 1。
 ## 一次攻擊動作的時長（tick）：前搖固定 DELAY，揮擊 0.22×總長；atk_progress 與 pick_hit 共用（Codex S4 #1）。
 static func atk_timing(type: int) -> Array:
-	var period := float(D.STATS[type]["cd"])   # cd 的單位是 tick（模擬每次出手加 cd×4、每 tick 扣 4）
+	var period := float(D.stat(type)["cd"])   # cd 的單位是 tick（模擬每次出手加 cd×4、每 tick 扣 4）
 	var tot := clampf(period, 4.0, 6.4)
 	return [tot, float(ViewBuffer.DELAY), 0.22 * tot]
 
@@ -343,8 +344,132 @@ static func event_route(ev: Dictionary) -> String:
 	return "skip"
 
 
+## 第八輪的事件演出。回傳 true＝處理掉了。全部受簡化特效限制（_add_fx 會擋裝飾性的）。
+func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
+	if not k in [EV.POISON, EV.BLAST, EV.VOODOO, EV.BITE, EV.MIMIC_OPEN, EV.SPLIT, EV.CAST, EV.TIMESTOP, EV.RAISE, EV.VACUUM, EV.STOMP, EV.ROCK]:
+		return false
+	if not with_fx:
+		return true
+	var s = view.unit_by_id(ev.get("src", -1))
+	var t = view.unit_by_id(ev.get("tgt", -1))
+	if s == null:
+		return true
+	var sp := _upos(s)
+	var tp := _upos(t) if t != null else sp
+	match k:
+		EV.POISON:
+			hurt_t[t.id] = time
+			hurt_dir[t.id] = 0.0
+			_add_fx({"kind": "spore", "p": tp + Vector2(0, -30), "t": 0.0, "dur": 0.5})
+			sfx.play("poison", 0.25)
+		EV.VOODOO:
+			hurt_t[t.id] = time
+			hurt_dir[t.id] = 0.0
+			_add_fx({"kind": "pin", "a": sp + Vector2(0, -26), "b": tp + Vector2(0, -26), "t": 0.0, "dur": 0.3})
+			_report_add(s.team, s.type, k, L.t("ev_voodoo"), Color("#ff6bb0"))
+		EV.BLAST:
+			if s.id != t.id:
+				hurt_t[t.id] = time
+				hurt_dir[t.id] = signf(tp.x - sp.x) if tp.x != sp.x else 0.0
+			else:
+				var small: bool = ev.get("small", false)
+				_add_fx({"kind": "boom", "src": s.id, "p": sp + Vector2(0, -8), "t": 0.0, "dur": 0.45, "big": not small})
+				_add_fx({"kind": "wool", "p": sp + Vector2(0, -18), "t": 0.0, "dur": 0.6})
+				sfx.play("boom", 0.8)
+				sfx.play("baa", 0.6)
+				if _fx_on("shake"):
+					shake = 0.1
+				_report_add(s.team, s.type, k, L.t("ev_blast"), Color("#ffb347"))
+		EV.BITE:
+			atk_t[s.id] = time
+			hurt_t[t.id] = time
+			hurt_dir[t.id] = signf(tp.x - sp.x) if tp.x != sp.x else 0.0
+			_add_fx({"kind": "chomp", "p": tp + Vector2(0, -28), "t": 0.0, "dur": 0.35})
+			sfx.play("chomp", 0.9)
+			_report_add(s.team, s.type, k, L.t("ev_bite"), Color("#ffd166"))
+		EV.MIMIC_OPEN:
+			_add_fx({"kind": "puff", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.4})
+			sfx.play("reveal", 0.7)
+		EV.SPLIT:
+			_add_fx({"kind": "puff", "p": sp + Vector2(0, -12), "t": 0.0, "dur": 0.3})
+			sfx.play("squish", 0.5)
+			_report_add(s.team, 13, k, L.t("ev_split"), Color("#7dffa0"))
+		EV.CAST:
+			sfx.play("charge_up", 0.5)
+		EV.TIMESTOP:
+			_add_fx({"kind": "timebell", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.8})
+			sfx.play("bell", 1.0)
+			sfx.play("timestop", 0.9)
+			_report_add(s.team, s.type, k, L.t("ev_timestop"), Color("#ffe08a"))
+		EV.RAISE:
+			_add_fx({"kind": "soulrise", "p": sp + Vector2(0, -16), "t": 0.0, "dur": 0.6})
+			sfx.play("raise", 0.8)
+			_report_add(s.team, 17, k, L.t("ev_raise"), Color("#c77dff"))
+		EV.VACUUM:
+			_add_fx({"kind": "swirl", "p": sp + Vector2(0, -14), "t": 0.0, "dur": 0.6})
+			sfx.play("vacuum", 0.8)
+			_report_add(s.team, s.type, k, L.t("ev_vacuum"), Color("#9ad1ff"))
+		EV.STOMP:
+			_add_fx({"kind": "stompring", "p": sp, "t": 0.0, "dur": 0.45})
+			sfx.play("stomp", 0.9)
+			if _fx_on("shake"):
+				shake = 0.14
+			_report_add(s.team, s.type, k, L.t("ev_stomp"), Color("#d9c9a3"))
+		EV.ROCK:
+			sfx.play("shatter", 0.7)
+	return true
+
+
+## 第八輪地面層：毒圈、碎石區。淡色，畫在單位底下。
+func _draw_v8_ground(s, live: bool) -> void:
+	if not live:
+		return
+	for z in s.zones:
+		var c := ORIGIN + Vector2(int(z[0]), int(z[1])) * CS / 1000.0
+		var rr: float = float(F8.ROCK_R) * CS / 1000.0
+		draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, c))
+		draw_circle(Vector2.ZERO, rr, Color(0.35, 0.3, 0.22, 0.28), true, -1.0, true)
+		for k in 7:
+			var an := k * TAU / 7.0 + 0.4
+			var a0 := Vector2(cos(an), sin(an)) * rr * 0.2
+			var a1 := Vector2(cos(an + 0.3), sin(an + 0.3)) * rr * 0.62
+			var a2 := Vector2(cos(an - 0.1), sin(an - 0.1)) * rr * 0.95
+			draw_polyline(PackedVector2Array([a0, a1, a2]), Color(0.12, 0.1, 0.08, 0.7), 2.5, true)
+		draw_set_transform_matrix(_cam)
+	for u in s.units:
+		if u.alive and u.type == F8.SPORE:
+			var c2 := _upos(u)
+			var r2: float = float(F8.STATS[0]["reach"]) * CS / 1000.0
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, c2))
+			draw_circle(Vector2.ZERO, r2, Color(Art.team_color(u.team, cbm()), 0.08), true, -1.0, true)
+			draw_arc(Vector2.ZERO, r2, 0, TAU, 40, Color(0.6, 0.95, 0.4, 0.35), 1.6, true)
+			draw_set_transform_matrix(_cam)
+			if not bool(Save.s("reduce_fx")):
+				for k2 in 3:
+					var ph := fmod(time * 0.5 + k2 * 0.33 + u.id * 0.07, 1.0)
+					var an2 := k2 * TAU / 3.0 + time * 0.4
+					draw_circle(c2 + Vector2(cos(an2) * r2 * 0.55, sin(an2) * r2 * 0.3 - ph * 26.0), 3.0, Color(0.7, 1.0, 0.45, 0.45 * (1.0 - ph)), true, -1.0, true)
+
+## 第八輪上層：巫毒連線、大招前搖、時停減傷。
+func _draw_v8_top(s, u, p: Vector2) -> void:
+	if u.type == F8.DOLL and u.link >= 0 and u.link < s.units.size() and s.units[u.link].alive:
+		var q := _upos(s.units[u.link])
+		var col := Color(1.0, 0.42, 0.7, 0.55 + 0.2 * sin(time * 6.0))
+		draw_dashed_line(p + Vector2(0, -26), q + Vector2(0, -26), Color(Art.OUT, 0.5), 3.5, 7.0)
+		draw_dashed_line(p + Vector2(0, -26), q + Vector2(0, -26), col, 2.0, 7.0)
+	if u.windup > 0:
+		var k := 1.0 - float(u.windup) / F8.WINDUP
+		var rc := Color("#ffe08a") if u.type == F8.SPRITE else (Color("#c77dff") if u.type == F8.BONE else (Color("#9ad1ff") if u.type == F8.CAT else Color("#d9c9a3")))
+		draw_arc(p + Vector2(0, -24), 26.0, -PI / 2, -PI / 2 + TAU * k, 28, Color(Art.OUT, 0.7), 5.0, true)
+		draw_arc(p + Vector2(0, -24), 26.0, -PI / 2, -PI / 2 + TAU * k, 28, rc, 3.0, true)
+	if u.guard > 0:
+		draw_arc(p + Vector2(0, -24), 20.0, 0, TAU, 24, Color(1.0, 0.88, 0.5, 0.65), 2.5, true)
+
+
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var k: String = ev["kind"]
+	if _on_event_v8(ev, k, with_fx):
+		return
 	if k == EV.DEATH:
 		var u = view.unit_by_id(ev["id"])
 		dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
@@ -771,7 +896,7 @@ var fx_dropped := 0
 var fx_deduped := 0
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "ripple", "note", "hex", "aim", "trip"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	var pr: int = FX_PRIO.get(d["kind"], 1)
 	# 同一處同種特效去重（Antigravity S2 #2）：24px 內、0.15 秒內最多 2 個
@@ -1003,6 +1128,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		list.sort_custom(func(a, b): return _upos(a).y < _upos(b).y)
 	else:
 		list.sort_custom(func(a, b): return a.y < b.y)
+	_draw_v8_ground(s, live)
 	# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
 	for u in list:
 		var p0: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
@@ -1107,7 +1233,12 @@ func _draw_units_of(s, dim: bool) -> void:
 			crouch = 1.06
 			_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
 		p.y -= hop
-		var run := 1.6 if u.type == D.CAVALRY else (1.4 if u.type == D.ASSASSIN else 1.0)   # 快的兵跑步節奏也快
+		if u.hidden:
+			Art.mimic_closed(self, p, u.team, face, alpha, time, cbm(), UNIT_SCALE)   # 偽裝中的寶箱怪
+			continue
+		if u.type == F8.GHOST:
+			alpha *= 0.9
+		var run := 1.6 if u.type == D.CAVALRY else (1.4 if u.type == D.ASSASSIN or u.type == F8.SHEEP else 1.0)   # 快的兵跑步節奏也快
 		if u.stealth > 0:
 			# 潛行：身後兩道暗紫殘影
 			for g in 2:
@@ -1136,7 +1267,12 @@ func _draw_units_of(s, dim: bool) -> void:
 	# 第三層：小旗、血條、狀態（永遠畫在最上面）
 	for u in list:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
-		Art.flag(self, p + Vector2(-12, -50 if u.type != D.CAVALRY else -58), u.team, cbm())
+		if live:
+			_draw_v8_top(s, u, p)
+		if u.hidden:
+			continue   # 偽裝中的寶箱不插小旗、不畫血條
+		var fh: int = -58 if u.type == D.CAVALRY else (-70 if u.type == F8.GOLEM or u.type == F8.SPRITE else (-62 if u.type == F8.DOLL else -50))
+		Art.flag(self, p + Vector2(-12, fh), u.team, cbm())
 		if u.stun > 0:
 			# 暈眩：三顆金色菱形繞著頭轉
 			var hc := p + Vector2(0, -70 if u.type == D.CAVALRY else -62)
@@ -1176,7 +1312,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		var hurt_recent: bool = hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 3.0
 		if u.hp < u.max_hp and (not live or hurt_recent or u.id == follow_id or u.hp * 100 <= u.max_hp * 35):
 			var w := 28.0
-			var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else -58)
+			var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58))
 			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
 			draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Art.team_color(u.team, cbm()).lightened(0.25))
 			if cbm():
@@ -1279,6 +1415,45 @@ func _draw_fx(f: Dictionary) -> void:
 			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Color(1, 1, 1, 1 - k), 3.0, true)
 			if k < 0.25:
 				draw_circle(c5, 5.0 * (1.0 - k * 4.0), Color(1, 1, 1, 0.9), true, -1.0, true)   # 繃斷的閃白
+		"spore":
+			draw_circle(f["p"] + Vector2(0, -k * 14.0), 3.0 + k * 3.0, Color(0.6, 1.0, 0.4, 0.75 * (1.0 - k)), true, -1.0, true)
+		"pin":
+			draw_line(f["a"], f["b"], Color(1.0, 0.42, 0.7, 0.85 * (1.0 - k)), 3.0, true)
+		"wool":
+			for i8 in 9:
+				var an8 := i8 * TAU / 9.0
+				draw_circle(f["p"] + Vector2(cos(an8), sin(an8) * 0.7) * (8.0 + k * 34.0) + Vector2(0, k * k * 16.0), 5.0 * (1.0 - k), Color(1, 1, 1, 0.9 * (1.0 - k)), true, -1.0, true)
+		"chomp":
+			var gap8 := 12.0 * (1.0 - minf(1.0, k * 3.0))
+			for s8 in [-1.0, 1.0]:
+				var base8: Vector2 = f["p"] + Vector2(0, s8 * gap8)
+				var tri := PackedVector2Array()
+				for i9 in 4:
+					tri.append(base8 + Vector2(-15.0 + i9 * 10.0, 0))
+					tri.append(base8 + Vector2(-10.0 + i9 * 10.0, s8 * -8.0))
+				tri.append(base8 + Vector2(25.0, 0))
+				draw_polyline(tri, Color(1, 1, 1, 1.0 - k), 3.0, true)
+		"timebell":
+			var bellr := 18.0 + k * float(F8.SPRITE_R) * CS / 1000.0
+			draw_arc(f["p"], bellr, 0, TAU, 48, Color(Art.OUT, 0.5 * (1.0 - k)), 7.0, true)
+			draw_arc(f["p"], bellr, 0, TAU, 48, Color(1.0, 0.88, 0.5, 0.9 * (1.0 - k)), 4.0, true)
+			draw_circle(f["p"], bellr, Color(1.0, 0.88, 0.5, 0.08 * (1.0 - k)), true, -1.0, true)
+		"soulrise":
+			for i10 in 5:
+				var an10 := i10 * TAU / 5.0 + k * 3.0
+				draw_circle(f["p"] + Vector2(cos(an10) * (14.0 - k * 8.0), -k * 38.0 + sin(an10) * 6.0), 5.0 * (1.0 - k), Color(0.72, 0.42, 1.0, 0.9 * (1.0 - k)), true, -1.0, true)
+		"swirl":
+			var maxr := float(F8.CAT_R) * CS / 1000.0
+			for i11 in 3:
+				var ph11 := fmod(k * 1.5 + i11 * 0.33, 1.0)
+				var r11 := maxr * (1.0 - ph11)
+				draw_arc(f["p"], r11, ph11 * 6.0, ph11 * 6.0 + 4.2, 26, Color(0.6, 0.85, 1.0, 0.7 * ph11), 3.0, true)
+		"stompring":
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, f["p"]))
+			var sr := 14.0 + k * float(F8.GOLEM_R) * CS / 1000.0
+			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(Art.OUT, 0.6 * (1.0 - k)), 8.0, true)
+			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(0.85, 0.78, 0.6, 1.0 - k), 5.0, true)
+			draw_set_transform_matrix(_cam)
 		"vslash":
 			# 背刺：一道粗的紫色斬痕
 			var c6: Vector2 = f["p"]
@@ -1417,6 +1592,14 @@ func _draw_battle_hud() -> void:
 		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
 			_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
+	# 第八輪：生兵戰力 0（時間到不灌水），畫面用副刻度講清楚
+	for tm3 in 2:
+		var sn := 0
+		for su in view.units:
+			if su.alive and su.summon and su.team == tm3:
+				sn += 1
+		if sn > 0:
+			_text(Vector2(bx - 70.0 if tm3 == 0 else bx + bw + 12.0, 66), L.t("summon_n", [sn]), ts(13), Art.team_color(tm3, cbm()), false, false, 80)
 	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
 	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
 	if mode == Mode.VS_AI and ai_name != "":
@@ -1433,9 +1616,27 @@ func _draw_battle_hud() -> void:
 		_btn(Rect2(1138, 6, 132, 38), L.t("skip"), func(): _on_skip())
 
 
+## 這場用到的新兵才烘圖（含生出來的兵）；舊 10 種開遊戲就有。
+func _ensure_sprites(armies_: Array) -> void:
+	if sprites == null:
+		return
+	var need := {}
+	for a in armies_:
+		for u in a.units:
+			var t: int = int(u["type"])
+			if t >= D.COUNT:
+				need[t] = true
+				if t == F8.SLIME:
+					need[F8.MINI_SLIME] = true
+				if t == F8.BONE:
+					need[F8.SKELETON] = true
+	if not need.is_empty():
+		sprites.ensure(need.keys())
+
 ## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）
 func _begin_battle(a0, a1, kind := "official") -> void:
 	play_kind = kind
+	_ensure_sprites([a0, a1])
 	if kind == "official":
 		last_armies = [a0.copy(), a1.copy()]
 		battle_rules = rules.copy() if rules != null else null

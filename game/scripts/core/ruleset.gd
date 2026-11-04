@@ -7,8 +7,11 @@ extends RefCounted
 ## 開戰時用 copy() 凍結一份，之後大廳再怎麼改都不影響這一局。
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const F8 = preload("res://scripts/core/fantasy_defs.gd")
 
+const ROSTER_MAX := 10         # 第八輪：一局每邊最多幾種兵
 const CODE_PREFIX := "NTBR1"
+const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
 const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
 # 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
 const DEPLOYS := ["grid", "free"]
@@ -68,7 +71,15 @@ var preset := "standard"
 
 # ───────── 卡池工具（static，給 AI／Army 用） ─────────
 static func all_pool() -> int:
-	return (1 << D.COUNT) - 1
+	return (1 << D.COUNT) - 1      # 舊 10 種。標準、AI、舊規則都看這個，不能跟著新兵變大
+
+## 第八輪：新舊 20 種全部（只給驗證與大廳用）。
+static func full_pool() -> int:
+	return (1 << D.total()) - 1
+
+## 這個卡池有沒有用到新兵。
+static func has_new(p: int) -> bool:
+	return p > all_pool()
 
 static func prefix_pool(n: int) -> int:
 	return (1 << clampi(n, 0, D.COUNT)) - 1
@@ -78,7 +89,7 @@ static func has(p: int, t: int) -> bool:
 
 static func types_of(p: int) -> Array:
 	var out: Array = []
-	for t in D.COUNT:
+	for t in D.total():
 		if has(p, t):
 			out.append(t)
 	return out
@@ -206,8 +217,10 @@ func validate() -> Array:
 		if b < BUDGET_MIN or b > BUDGET_MAX:
 			bad.append("rr_bad_budget")
 		var p := pool_of(tm)
-		if p <= 0 or p > all_pool():
+		if p <= 0 or p > full_pool():
 			bad.append("rr_bad_pool")
+		elif pool_count(p) > 10:
+			bad.append("rr_roster_over")   # 第八輪：一局每邊最多 10 種
 		elif not has_combat(p):
 			bad.append("rr_no_combat")
 		elif cheapest_combat_in(p) > b:
@@ -229,7 +242,7 @@ func validate() -> Array:
 	if ai_level < 0 or ai_level > 2:
 		bad.append("rr_bad_ai")
 	for t in stat_pct:
-		if int(t) < 0 or int(t) >= D.COUNT or not stat_pct[t] is Array or stat_pct[t].size() != 3:
+		if int(t) < 0 or int(t) >= D.total() or not stat_pct[t] is Array or stat_pct[t].size() != 3:
 			bad.append("rr_bad_sandbox")
 			break
 		for v in stat_pct[t]:
@@ -237,7 +250,7 @@ func validate() -> Array:
 				bad.append("rr_bad_sandbox")
 				break
 	for s in skills_off:
-		if not s in SKILLS:
+		if not s in SKILLS and not s in F8.SKILLS:
 			bad.append("rr_bad_sandbox")
 			break
 	# 第六輪：部署欄位與非法組合（§3.8）
@@ -349,7 +362,21 @@ func diff(std) -> Array:
 func to_code() -> String:
 	var j := JSON.stringify(key_fields())
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	# 用到新兵一律 NTBR3（欄位同 NTBR2：21 欄）
+	if has_new(int(pool[0])) or has_new(int(pool[1])) or _skills_new():
+		var j3 := JSON.stringify(key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield])
+		var b3 := Marshalls.utf8_to_base64(j3).replace("+", "-").replace("/", "_").replace("=", "")
+		return "%s.%s.%s" % [CODE_PREFIX3, b3, b3.sha256_text().substr(0, 6)]
 	return "%s.%s.%s" % [CODE_PREFIX if deploy_is_default() else CODE_PREFIX2, body, body.sha256_text().substr(0, 6)]
+
+func _skills_new() -> bool:
+	for s in skills_off:
+		if s in F8.SKILLS:
+			return true
+	for t in stat_pct:
+		if int(t) >= D.COUNT:
+			return true
+	return false
 
 ## 回傳 {ok, why, rules}
 static func from_code(code: String) -> Dictionary:
@@ -357,9 +384,10 @@ static func from_code(code: String) -> Dictionary:
 	if c.length() > 2000:
 		return {"ok": false, "why": "rr_code_long"}
 	var parts := c.split(".")
-	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2):
+	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX3):
 		return {"ok": false, "why": "rr_code_format"}
-	var v2: bool = parts[0] == CODE_PREFIX2
+	var v3: bool = parts[0] == CODE_PREFIX3
+	var v2: bool = parts[0] == CODE_PREFIX2 or v3
 	if parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return {"ok": false, "why": "rr_code_checksum"}
 	var b64 := parts[1].replace("-", "+").replace("_", "/")
@@ -376,15 +404,19 @@ static func from_code(code: String) -> Dictionary:
 			return {"ok": false, "why": "rr_bad_deploy"}
 	# 逐欄驗型（Codex 實作第 1 輪）：整數欄必須是整數、布林欄只能 0／1、兩個卡池原值都要合法（即使 AI 卡池跟藍方一樣）
 	for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14]:
+		if v3 and (i == 6 or i == 7):
+			if not (j[i] is float or j[i] is int) or float(j[i]) != floorf(float(j[i])) or absf(float(j[i])) > float(full_pool()):
+				return {"ok": false, "why": "rr_code_body"}
+			continue   # 第八輪：卡池遮罩最大 1,048,575，只放寬這兩欄
 		if not (j[i] is float or j[i] is int) or float(j[i]) != floorf(float(j[i])) or absf(float(j[i])) > 100000:
 			return {"ok": false, "why": "rr_code_body"}
 	for i in [2, 8, 12, 13]:
 		if int(j[i]) != 0 and int(j[i]) != 1:
 			return {"ok": false, "why": "rr_code_body"}
 	for i in [6, 7]:
-		if int(j[i]) < 1 or int(j[i]) > all_pool():
+		if int(j[i]) < 1 or int(j[i]) > (full_pool() if v3 else all_pool()):
 			return {"ok": false, "why": "rr_bad_pool"}
-	if not j[10] is String or not j[15] is Array or not j[16] is Array or j[15].size() > D.COUNT or j[16].size() > SKILLS.size():
+	if not j[10] is String or not j[15] is Array or not j[16] is Array or j[15].size() > D.total() or j[16].size() > SKILLS.size():
 		return {"ok": false, "why": "rr_code_body"}
 	for e in j[15]:
 		if not e is Array or e.size() != 4:
@@ -418,7 +450,7 @@ static func from_code(code: String) -> Dictionary:
 		r.spacing = int(j[18])
 		r.depth = int(j[19])
 		r.fullfield = int(j[20])
-		if r.deploy_is_default():
+		if r.deploy_is_default() and not v3:
 			return {"ok": false, "why": "rr_code_body"}   # 預設部署必須用 NTBR1（一組規則只有一種寫法）
 	r.preset = "custom"
 	var bad: Array = r.validate()

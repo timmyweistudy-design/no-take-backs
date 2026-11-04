@@ -16,7 +16,7 @@ var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
 
 func _lobby_unlocked() -> int:
-	return RuleSet.prefix_pool(RS.unlocked_count(_unlock_games(), OS.has_feature("demo")))
+	return RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
 
 func _lobby_std():
 	return Presets.make("standard", lobby_kind, _lobby_unlocked())
@@ -72,7 +72,7 @@ func _lobby_locked_units() -> Array:
 	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
 	var out: Array = []
 	for tm in 2:
-		for t in D.COUNT:
+		for t in D.total():
 			if RuleSet.has(lobby_r.pool_of(tm), t) and not RuleSet.has(sel, t) and not t in out:
 				out.append(t)
 	return out
@@ -224,6 +224,10 @@ func _lobby_toggle_unit(team: int, t: int) -> void:
 	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
 	if not RuleSet.has(sel, t):
 		_toast(L.t("lb_locked_unit"), true)
+		return
+	# 第八輪：一局每邊最多 10 種
+	if not RuleSet.has(int(lobby_r.pool[team]), t) and RuleSet.pool_count(int(lobby_r.pool[team])) >= RuleSet.ROSTER_MAX:
+		_toast(L.t("lb_roster_full"), true)
 		return
 	lobby_r.pool[team] = int(lobby_r.pool[team]) ^ (1 << t)
 	if lobby_r.ai_pool_same:
@@ -469,7 +473,7 @@ func _diff_text(d: Array) -> String:
 	return "%s %s→%s" % [L.t(k), str(d[1]), str(d[2])]
 
 func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
-	for t in D.COUNT:
+	for t in D.total():
 		var on := RuleSet.has(p, t)
 		var cc := o + Vector2(t * step + step / 2, step * 0.55)
 		draw_circle(cc, step * 0.42, Color(1, 1, 1, 0.10 if on else 0.03))
@@ -551,18 +555,26 @@ func _draw_pool_tab(R: Rect2) -> void:
 			_text(Vector2(R.position.x, y), pl, tz("S"), Color(1, 1, 1, 0.7))
 			y += tz("S") * 1.5
 		# 戰鬥兵、支援兵分框（第五輪 §3.6）
-		var groups := [[L.t("lb_combat"), [0, 1, 2, 3, 4, 5, 6, 9]], [L.t("lb_support"), [7, 8]]]
+		# 第八輪：出戰名單 2×10（上王國軍、下奇幻軍）；第一次有新兵解鎖前只有一排，不嚇新手
+		var has_new_row: bool = RuleSet.has_new(sel)
+		var title_r: String = L.t("lb_roster_title", [RuleSet.pool_count(int(lobby_r.pool[tm]))])
+		_text(Vector2(R.position.x, y), title_r, tz("S"), ACCENT, false, true)
+		y += tz("S") * 1.4
+		var groups := [[L.t("lb_army_kingdom"), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]
+		if has_new_row:
+			groups.append([L.t("lb_army_fantasy"), [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]])
 		var x := R.position.x
 		for g in groups:
-			var cw := 52.0
+			var cw := 54.0
 			var gw: float = g[1].size() * (cw + 4) + 12
-			var box := Rect2(x, y, gw, 108)
+			var cardh: float = 58.0 if teams.size() > 1 else 76.0
+			var box := Rect2(x, y, gw, cardh + 12.0 + tz("C") * 1.2)
 			draw_rect(box, Color(1, 1, 1, 0.05))
 			draw_rect(box, Color(1, 1, 1, 0.25), false, 1.0)
-			_text(box.position + Vector2(8, 4), g[0], tz("C"), Color(1, 1, 1, 0.7))
+			_text(box.position + Vector2(8, 2), g[0], tz("C"), Color(1, 1, 1, 0.7))
 			for j in g[1].size():
 				var t: int = g[1][j]
-				var cr := Rect2(box.position + Vector2(8 + j * (cw + 4), 26), Vector2(cw, 76))
+				var cr := Rect2(box.position + Vector2(8 + j * (cw + 4), 4 + tz("C") * 1.2), Vector2(cw, cardh))
 				var on := RuleSet.has(int(lobby_r.pool[tm]), t)
 				var can := RuleSet.has(sel, t)
 				_btn(cr, "", _lobby_toggle_unit.bind(tm, t), true, false, Color(0.22, 0.38, 0.3) if on else Color(0.16, 0.16, 0.2))
@@ -571,15 +583,18 @@ func _draw_pool_tab(R: Rect2) -> void:
 					call("_lock_icon", cr.position + Vector2(cw - 12, 12))
 				elif on:
 					draw_rect(cr, Color("#7ddc8a"), false, 2.0)
-			x += gw + 14
-		y += 124
+			y += box.size.y + 8
 	if lobby_kind == "ai":
 		_text(Vector2(R.position.x, y + 4), L.t("lb_unlock_hint"), tz("S"), Color(1, 1, 1, 0.6), false, false, R.size.x)
 
 func _draw_lab_tab(R: Rect2) -> void:
 	# 沙盒（第五輪 R3）：選兵種 → 調血量／攻擊／速度倍率；技能開關
-	for t in D.COUNT:
-		var cr := Rect2(R.position + Vector2(t * 60, 0), Vector2(56, 64))
+	var lab_types: Array = RuleSet.types_of(int(lobby_r.pool[0]) | int(lobby_r.pool[1]))
+	if not lobby_sb_unit in lab_types and not lab_types.is_empty():
+		lobby_sb_unit = lab_types[0]
+	for lj in lab_types.size():
+		var t: int = lab_types[lj]
+		var cr := Rect2(R.position + Vector2(lj * 58, 0), Vector2(54, 64))
 		_btn(cr, "", func(): lobby_sb_unit = t, true, false, Color(0.26, 0.33, 0.5) if t == lobby_sb_unit else Color(0.16, 0.16, 0.2))
 		_unit_in(cr, t, 0, 1.0, 0.55)
 		if lobby_r.stat_pct.has(t):
@@ -594,13 +609,29 @@ func _draw_lab_tab(R: Rect2) -> void:
 		y += 56
 	_text(Vector2(R.position.x, y + 4), L.t("lb_skills"), tz("S"), Color(1, 1, 1, 0.7))
 	y += 30
-	for i in RuleSet.SKILLS.size():
-		var s: String = RuleSet.SKILLS[i]
+	# 第八輪：只列這局用得到的技能，不然 22 顆放不下
+	var skill_list := _lab_skills(lab_types)
+	for i in skill_list.size():
+		var s: String = skill_list[i]
 		var off: bool = s in lobby_r.skills_off
 		_btn(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("× " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
 			Color(0.35, 0.18, 0.2) if off else Color(0.16, 0.26, 0.2))
 	if mouse.y > R.position.y and mouse.y < R.end.y and mouse.x > R.position.x and mouse.x < R.end.x:
 		lobby_item = "lab"
+
+func _lab_skills(types: Array) -> Array:
+	var owner := {"charge": [3], "taunt": [1], "backstab": [4], "counter": [0], "stealth": [4], "brace": [1, 5], "splash": [6], "heal": [7], "drum": [8], "breach": [9],
+		"poison": [10], "blast": [11], "bite": [12], "split": [13], "ghost": [14], "voodoo": [15], "timestop": [16], "raise": [17], "vacuum": [18], "stomp": [19]}
+	var out: Array = []
+	for s in RuleSet.SKILLS + RuleSet.F8.SKILLS:
+		if not owner.has(s):
+			out.append(s)
+			continue
+		for t in owner[s]:
+			if t in types:
+				out.append(s)
+				break
+	return out
 
 func _draw_lobby_desc(R: Rect2) -> void:
 	var x := R.position.x + 16
