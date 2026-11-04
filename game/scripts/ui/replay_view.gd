@@ -183,6 +183,8 @@ func _toggle_pause() -> void:
 
 ## 進重播前存結算畫面（第七輪 A9）。
 func _replay_snapshot() -> void:
+	if play_kind != "official" and not replay_snap.is_empty():
+		return   # Codex r2：重播完再重播，返回目的地還是最早那個結算
 	replay_snap = {"sim": sim, "view": view, "report": report, "marks": battle_marks.duplicate(true), "kind": play_kind,
 		"tab": result_tab, "overlay": "", "ev_count": ev_count.duplicate(), "pt_rated": pt_rated, "pt_call": pt_call_tick}
 

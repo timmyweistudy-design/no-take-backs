@@ -1456,6 +1456,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	report_log.clear()
 	skip_busy = false
 	seek_target = -1
+	if kind == "official":
+		replay_snap = {}
 	start_hold = 0.0
 	if kind == "official" and shot_dir == "" and DisplayServer.get_name() != "headless" and not bool(Save.s("reduce_fx")):
 		start_hold = 1.0

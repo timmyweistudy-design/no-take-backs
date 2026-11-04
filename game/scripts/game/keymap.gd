@@ -69,6 +69,6 @@ static func sanitize(list: Array, raw) -> Dictionary:
 	if raw is Dictionary:
 		for a in list:
 			var v = raw.get(a[0])
-			if v is int or v is float:
+			if (v is int or v is float) and (list != ACTIONS or can_bind_key(int(v))):
 				out[a[0]] = int(v)
 	return out

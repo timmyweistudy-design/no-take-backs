@@ -685,16 +685,17 @@ func test_keymap_v7() -> void:
 	var KM = load("res://scripts/game/keymap.gd")
 	var t: Dictionary = {}
 	ok(KM.key_to_default(t, KEY_SPACE) == KEY_SPACE and KM.key_to_default(t, KEY_A) == KEY_A, "K1：沒改過＝原樣")
-	t = KM.rebind(KM.ACTIONS, t, "start", KEY_G)
-	ok(KM.key_to_default(t, KEY_G) == KEY_SPACE, "K1：新鍵會換回預設動作")
+	t = KM.rebind(KM.ACTIONS, t, "start", KEY_F)
+	ok(KM.key_to_default(t, KEY_F) == KEY_SPACE, "K1：新鍵會換回預設動作")
 	ok(KM.key_to_default(t, KEY_SPACE) == -1, "K1：舊鍵不再開戰")
-	t = KM.rebind(KM.ACTIONS, t, "pause", KEY_G)
-	ok(KM.key_of(t, "pause") == KEY_G and KM.key_of(t, "start") == KEY_P, "K1：撞鍵會互換", str(t))
-	ok(KM.key_name(t, "pause") == "G", "K1：提示跟著按鍵走", KM.key_name(t, "pause"))
+	t = KM.rebind(KM.ACTIONS, t, "pause", KEY_F)
+	ok(KM.key_of(t, "pause") == KEY_F and KM.key_of(t, "start") == KEY_P, "K1：撞鍵會互換", str(t))
+	ok(KM.key_name(t, "pause") == "F", "K1：提示跟著按鍵走", KM.key_name(t, "pause"))
 	ok(KM.sanitize(KM.ACTIONS, {"start": "x", "pause": 71.0, "nope": 1}) == {"pause": 71}, "K1：存檔裡的表逐項驗型")
 	var pt: Dictionary = KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_Y)
 	ok(KM.pad_to_default(pt, JOY_BUTTON_Y) == JOY_BUTTON_START and KM.pad_name(pt, "start") == "Y", "K1：手把也能改")
 	ok(KM.pad_name(pt, "pause") == "Start", "K1：手把撞鍵也互換")
+	ok(KM.sanitize(KM.ACTIONS, {"start": KEY_LEFT}) == {}, "K1：舊設定裡的保留鍵讀檔時丟掉")
 	ok(not KM.can_bind_key(KEY_LEFT) and not KM.can_bind_key(KEY_SHIFT) and KM.rebind(KM.ACTIONS, {}, "start", KEY_LEFT) == {}, "K1：方向鍵、修飾鍵不能綁")
 
 
@@ -741,7 +742,10 @@ func test_replay_back_v7() -> void:
 	g.paused = true
 	g._on_skip()
 	ok(g.view.finished and g.paused == false and g.result_delay == 9.0, "A6：暫停中直接看結果不會卡住")
+	# Codex r2：重播結束再重播，返回還是回到正式結算
+	g._replay()
 	g._replay_back()
+	ok(g.sim == original_sim and g.play_kind == "official", "A9：連續重播兩次，返回還是原本那一場")
 	g._rv_dirty()
 	var gen0: int = g.rv_gen
 	g._rv_dirty()
