@@ -420,3 +420,19 @@ func test_fantasy_game_v8() -> void:
 	h2.pool = RSET.full_pool()
 	h2.place(F8.SHEEP, 3, 3)
 	ok(not h2.has_combat(), "只有奇襲兵不算有戰鬥兵")
+
+## 總驗收查到：幽靈「×1.5」、骷髏法師「三成血」是調數值前的舊字，圖鑑手寫欄位不會自動跟著變
+func test_fantasy_codex_text_matches_stats() -> void:
+	var units: Dictionary = {}
+	for u in CXF.data()["units"]:
+		units[int(u["id"])] = u
+	var bad: Array = []
+	var times := RegEx.create_from_string("×\\d")
+	for id in range(10, 20):
+		for k in ["role", "good", "bad", "story", "veteran", "tagline"]:
+			for lang in ["zh", "en"]:
+				if times.search(str(units[id]["%s_%s" % [k, lang]])) != null:
+					bad.append("%d %s_%s 手寫了倍率" % [id, k, lang])
+	ok(bad.is_empty(), "新兵圖鑑手寫文字不寫死倍率（倍率只放會自動換值的技能說明）", str(bad))
+	ok(F8.BONE_HP_PCT == 50 and str(units[17]["story_zh"]).contains("一半") and str(units[17]["story_en"]).contains("half"), "骷髏法師故事的血量和 BONE_HP_PCT 一致")
+	ok(F8.SPRITE_STUN == 50 and str(units[16]["story_zh"]).contains("兩秒半") and str(units[16]["story_en"]).contains("two and a half"), "沙漏精靈故事的秒數和 SPRITE_STUN 一致")
