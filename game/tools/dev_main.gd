@@ -208,6 +208,8 @@ func _layout_report(name: String) -> void:
 
 
 func _snap(name: String) -> void:
+	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)   # 真的被縮下去就還原，否則永遠等不到繪製
 	queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -263,6 +265,10 @@ func _would_clutch(a0, a1) -> bool:
 
 
 func _run_screenshots() -> void:
+	# 全套截圖要跑很久：視窗移到畫面外、不搶焦點，不打擾正在用電腦的人。
+	# 最小化會讓 frame_post_draw 永遠不來（_snap 卡死），移到外面也就不會被按到。
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+	DisplayServer.window_set_position(Vector2i(-4000, -4000))
 	await get_tree().process_frame
 	Save.data["stats"] = {"wins": 0, "games": 99}   # 截圖用暫存存檔：新兵全部解鎖（第四輪）
 	Save.data["unlock_games"] = 99

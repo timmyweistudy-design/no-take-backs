@@ -236,22 +236,22 @@ func _scroll_at(p: Vector2, dy: float) -> bool:
 
 const CX_TAG_W := 196.0
 
-## 口號差一點點放不下時縮字，不要讓結尾引號自己掉到下一行（Antigravity 第 2 輪）。
-func _tag_size(tag: String) -> int:
-	var sz: int = ts(15)
-	while _width(tag, sz) > CX_TAG_W and sz > ts(15) - 3:
-		sz -= 1
-	return sz
+## 中文口號差一點放不下時拿掉引號，不要讓結尾引號自己掉到下一行（Antigravity 第 2 輪；不縮字，字級表是底線）。
+func _tag_text(raw: String, lang: String) -> String:
+	if lang != "zh_TW":
+		return "\"%s\"" % raw
+	var q := "「%s」" % raw
+	return raw if _width(q, ts(15)) > CX_TAG_W and _width(raw, ts(15)) <= CX_TAG_W else q
 
 
 ## 左欄內容：大頭照＋名字、定位、口號；屬性條；故事、擅長、怕。
 func _cx_left_items(u: Dictionary, lang: String) -> Array:
-	var tag := "「%s」" % CX.text(u, "tagline", lang) if lang == "zh_TW" else "\"%s\"" % CX.text(u, "tagline", lang)
+	var tag := _tag_text(CX.text(u, "tagline", lang), lang)
 	var items: Array = [
 		{"type": "portrait", "h": 150.0, "texts": [
 			{"s": L.t("unit_%d" % cx_unit), "size": ts(26), "c": Color.WHITE, "bold": true},
 			{"s": CX.text(u, "role", lang), "size": ts(15), "c": Color(1, 1, 1, 0.8)},
-			{"s": tag if _scale_key() == 100 else "", "size": _tag_size(tag), "c": ACCENT}]},   # 大字時省略口號，讓剋／怕不用捲動
+			{"s": tag if _scale_key() == 100 else "", "size": ts(15), "c": ACCENT}]},   # 大字時省略口號，讓剋／怕不用捲動
 		{"type": "ranks"},
 		{"type": "counters"},
 		{"type": "text", "s": "✓ " + CX.text(u, "good", lang), "size": ts(15), "c": Color("#7dff8a"), "x": 0.0, "w": 356.0, "gap": 6.0},

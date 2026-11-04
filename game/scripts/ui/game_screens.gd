@@ -1058,7 +1058,17 @@ func _key(k: int) -> void:
 
 
 # ───────────────────────── 每幀 ─────────────────────────
+## 最小化時 Godot 不繪製，也就沒有垂直同步節流，主迴圈會空轉吃滿一核；降到 10 fps，模擬照常跑（用 delta 累積）。
+var _was_minimized := false
+func _throttle_when_minimized() -> void:
+	var mini: bool = DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED
+	if mini != _was_minimized:
+		_was_minimized = mini
+		Engine.max_fps = 10 if mini else 0
+
+
 func _process(delta: float) -> void:
+	_throttle_when_minimized()
 	_rv_poll()
 	_settings_hover()
 	var _t0 := Time.get_ticks_usec()
@@ -2098,14 +2108,12 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		_draw_place_help()
 		return
 	var blurb: String = L.t("blurb_%d" % i)
-	# 第八輪：大字級放不下一行就先縮字（最多到 72%），還放不下才換行並墊底色，免得掉進戰場
+	# 第八輪：放不下一行就換行並墊底色，免得掉進戰場讀不到（不縮字：字級表是無障礙底線）
 	var bsz: int = tz("S")
-	while _width(blurb, bsz) > 470.0 and bsz > int(tz("S") * 0.72):
-		bsz -= 1
 	if _width(blurb, bsz) > 470.0:
 		var bh: float = font.get_multiline_string_size(blurb, HORIZONTAL_ALIGNMENT_LEFT, 470, bsz).y
 		draw_rect(Rect2(x - 4, y - 2, 478, bh + 6), Color(0.07, 0.08, 0.11, 0.9))
-	_text(Vector2(x, y + (tz("S") - bsz) * 0.5), blurb, bsz, Color(1, 1, 1, 0.85), false, false, 470)
+	_text(Vector2(x, y), blurb, bsz, Color(1, 1, 1, 0.85), false, false, 470)
 	x += minf(_width(blurb, bsz), 470.0) + 20
 	var beats: Array = []
 	var fears: Array = []
