@@ -9,6 +9,7 @@ var skip_busy := false
 func _on_skip() -> void:
 	if skip_busy:
 		return   # 防重入
+	paused = false   # Codex r1：暫停中按直接看結果，算完要能進結算
 	if DisplayServer.get_name() == "headless" or shot_dir != "":
 		while not view.finished:
 			_sim_step(false)
@@ -1454,6 +1455,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	battle_marks.clear()
 	report_log.clear()
 	skip_busy = false
+	seek_target = -1
 	start_hold = 0.0
 	if kind == "official" and shot_dir == "" and DisplayServer.get_name() != "headless" and not bool(Save.s("reduce_fx")):
 		start_hold = 1.0

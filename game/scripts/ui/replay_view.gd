@@ -71,7 +71,6 @@ func _seek(target: int) -> void:
 
 
 ## 第七輪 M3：時間軸點下去不再卡畫面，分批算。headless 測試直接走 _seek。
-var seek_target := -1
 var _seek_stop := 0
 var _seek_ct := -1
 
@@ -185,10 +184,12 @@ func _toggle_pause() -> void:
 ## 進重播前存結算畫面（第七輪 A9）。
 func _replay_snapshot() -> void:
 	replay_snap = {"sim": sim, "view": view, "report": report, "marks": battle_marks.duplicate(true), "kind": play_kind,
-		"tab": result_tab, "overlay": "", "power": null}
+		"tab": result_tab, "overlay": "", "ev_count": ev_count.duplicate(), "pt_rated": pt_rated, "pt_call": pt_call_tick}
 
 ## 重播的「返回」：回到進來的地方。只還原畫面，比分、進度、成就、試玩紀錄都不寫。
 func _replay_back() -> void:
+	seek_target = -1   # Codex r1：算到一半返回，不能把下一場快轉到舊目標
+	skip_busy = false
 	paused = false
 	follow_id = -1
 	zoom = 1.0
@@ -206,6 +207,9 @@ func _replay_back() -> void:
 	battle_marks = replay_snap["marks"]
 	play_kind = replay_snap["kind"]
 	result_tab = replay_snap["tab"]
+	ev_count = replay_snap["ev_count"]   # Codex r1：戰報、評分狀態也要還原，不然同一局能再評一次
+	pt_rated = replay_snap["pt_rated"]
+	pt_call_tick = replay_snap["pt_call"]
 	overlay = replay_snap["overlay"]
 	result_delay = 0.0
 	state = St.RESULT
@@ -305,7 +309,7 @@ func _open_review() -> void:
 			rv_army.enemy_pos = ep
 			rv_orig.enemy_pos = ep.duplicate()
 	rv_sel = Vector2i(-1, -1)
-	rv_result = {}
+	_rv_dirty()
 	rv_base = review_run(rv_orig, rv_enemy, battle_rules)
 	_open("review")
 
@@ -349,7 +353,7 @@ func _rv_try(edit: Callable) -> void:
 		rv_army = before
 		_toast(L.t("rv_one"), true)
 		return
-	rv_result = {}
+	_rv_dirty()
 
 func _rv_cell(c: Vector2i) -> void:
 	if rv_sel.x >= 0 and rv_army.index_at(rv_sel.x, rv_sel.y) != -1 and rv_army.index_at(c.x, c.y) == -1:
@@ -375,7 +379,7 @@ func _rv_free_click(w: Vector2i) -> void:
 		_toast(L.t("rv_one"), true)
 		return
 	rv_army = trial
-	rv_result = {}
+	_rv_dirty()
 
 func _rv_free_set_type(t: int) -> void:
 	if rv_fsel < 0 or rv_fsel >= rv_army.units.size():
@@ -396,7 +400,7 @@ func _rv_free_set_type(t: int) -> void:
 	rv_army = trial
 	if t < 0:
 		rv_fsel = -1
-	rv_result = {}
+	_rv_dirty()
 
 func _rv_set_type(t: int) -> void:
 	if rv_orig.deploy == "free":
@@ -418,7 +422,7 @@ func _rv_set_type(t: int) -> void:
 		_toast(L.t("rv_one"), true)
 		return
 	rv_army = trial
-	rv_result = {}
+	_rv_dirty()
 
 ## 改了什麼（給畫面顯示）：例如「弓箭手 → 劍士（第 3 列第 5 欄）」
 func review_desc() -> String:
@@ -461,6 +465,12 @@ static func review_run(a0, a1, p_rules = null) -> Dictionary:
 
 ## 第七輪 M3：覆盤重算開背景執行緒（模擬是純計算），畫面不卡；算的時候按鈕不能再按（防重入）。
 var rv_thread: Thread = null
+var rv_gen := 0          # 陣型改一次加一；算完時世代不同就丟掉（Codex r1：舊陣型的結果不能配新陣型）
+var rv_thread_gen := 0
+
+func _rv_dirty() -> void:
+	rv_result = {}
+	rv_gen += 1
 
 func _rv_recalc() -> void:
 	if rv_thread != null:
@@ -471,13 +481,16 @@ func _rv_recalc() -> void:
 	var a: Variant = rv_army.copy()
 	var e: Variant = rv_enemy.copy()
 	var r: Variant = battle_rules.copy() if battle_rules != null else null
+	rv_thread_gen = rv_gen
 	rv_thread = Thread.new()
 	rv_thread.start(func(): return review_run(a, e, r))
 
 func _rv_poll() -> void:
 	if rv_thread != null and not rv_thread.is_alive():
-		rv_result = rv_thread.wait_to_finish()
+		var res: Dictionary = rv_thread.wait_to_finish()
 		rv_thread = null
+		if rv_thread_gen == rv_gen:
+			rv_result = res
 
 func _rv_play() -> void:
 	rv_last = [rv_army.copy(), rv_enemy.copy()]
@@ -539,7 +552,7 @@ func _draw_review() -> void:
 		Art.unit(self, br.position + Vector2(26, py - 2), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
 		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
 	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
-	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
 	_btn(Rect2(bx, 284, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null, true)
 	# 兩條戰力走勢上下對齊（同一個時間軸長度）
 	var y := 350.0

@@ -114,6 +114,7 @@ var replay_total := 0     # 重播這一場總共幾 tick（時間軸比例用�
 func _fx_on(k: String) -> bool:
 	return bool(Save.s(k)) and not bool(Save.s("reduce_fx"))
 
+var seek_target := -1      # 第七輪 M3：時間軸分批跳轉的目標
 var replay_snap := {}      # 第七輪 A9：進重播前的結算畫面，返回時原樣還原（不重算、不寫存檔）
 var replay_marks: Array = []   # 第七輪 A7：重播時間軸的關鍵時刻
 var paused := false        # 重播控制：暫停（第三輪 F2）

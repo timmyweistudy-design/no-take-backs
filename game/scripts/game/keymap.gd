@@ -44,8 +44,17 @@ static func pad_name(table: Dictionary, action: String) -> String:
 	var c := int(table.get(action, _default_of(PAD_ACTIONS, action)))
 	return PAD_NAMES.get(c, "B%d" % c)
 
+## 不能拿來綁的鍵（Codex r1）：方向與確認導航、畫筆修飾鍵、選兵數字、固定快捷鍵。
+const RESERVED := [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ESCAPE, KEY_TAB, KEY_SHIFT, KEY_CTRL, KEY_ALT, KEY_META, KEY_G, KEY_Z, KEY_Y, KEY_DELETE,
+	KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9]
+
+static func can_bind_key(code: int) -> bool:
+	return not code in RESERVED
+
 ## 改鍵：撞到別的動作就互換（不會有兩個動作同一個鍵）。
 static func rebind(list: Array, table: Dictionary, action: String, code: int) -> Dictionary:
+	if list == ACTIONS and not can_bind_key(code):
+		return table.duplicate()
 	var out := table.duplicate()
 	var old := int(out.get(action, _default_of(list, action)))
 	for a in list:

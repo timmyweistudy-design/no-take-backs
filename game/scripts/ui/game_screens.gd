@@ -704,6 +704,9 @@ func _keys_input(ev: InputEvent) -> bool:
 	var part := keys_capture.split(":")
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.keycode != KEY_ESCAPE and part[0] == "kb":
+			if not Keymap.can_bind_key(ev.keycode):
+				_toast(L.t("keys_reserved"), true)
+				return true
 			Save.settings["keys"] = Keymap.rebind(Keymap.ACTIONS, Save.s("keys"), part[1], ev.keycode)
 			Save.save_settings()
 		keys_capture = ""
@@ -1443,6 +1446,9 @@ func _draw_title() -> void:
 	var tt: String = L.t("title")
 	var tf: Font = font_title if (font_title != null and not bool(Save.s("plain_titles"))) else font_bold
 	var tw := tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
+	if tw > 430.0:
+		tsz = int(tsz * 430.0 / tw)   # 第七輪：英文 150% 標題原本超出畫面左邊
+		tw = tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
 	var tp := Vector2(235 - tw / 2, 40 + bob + tsz * 0.85)
 	for d in 4:
 		draw_string(tf, tp + Vector2(1, 1) * (d + 1) * 1.6, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color(0.32, 0.17, 0.04, 0.9))
@@ -1534,8 +1540,13 @@ func _draw_overlay() -> void:
 					if left != 0:
 						en = false
 						line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo") if left < 0 else L.t("locked_short", [left])]
-				_btn(r, line, _pick_puzzle.bind(pz["id"], tut), en, false,
+				# 第七輪：標籤靠左、讓開左邊的迷你敵陣（原本置中會被縮圖蓋住）
+				_btn(r, "", _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
+				_probe_btn_label = true
+				_probe_btn_rect = r
+				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
+				_probe_btn_label = false
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
 				if not tut and en:
 					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])

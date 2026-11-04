@@ -695,6 +695,7 @@ func test_keymap_v7() -> void:
 	var pt: Dictionary = KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_Y)
 	ok(KM.pad_to_default(pt, JOY_BUTTON_Y) == JOY_BUTTON_START and KM.pad_name(pt, "start") == "Y", "K1：手把也能改")
 	ok(KM.pad_name(pt, "pause") == "Start", "K1：手把撞鍵也互換")
+	ok(not KM.can_bind_key(KEY_LEFT) and not KM.can_bind_key(KEY_SHIFT) and KM.rebind(KM.ACTIONS, {}, "start", KEY_LEFT) == {}, "K1：方向鍵、修飾鍵不能綁")
 
 
 ## 第七輪 A9：重播返回只還原畫面，比分、進度、成就、試玩紀錄都不寫。
@@ -728,6 +729,23 @@ func test_replay_back_v7() -> void:
 	g._replay_back()
 	ok(g.state == g.St.RESULT and g.sim == original_sim and str(g.sim.fingerprint) == fp and g.play_kind == "official", "A9：返回結算，還是原本那一場")
 	ok(JSON.stringify([SV.data, g.wins, g.series_over]) == snap, "A9：返回不寫比分、進度、成就")
+	# Codex r1 的回歸：評分與戰報還原、算到一半返回不留目標、暫停中直接看結果會結束
+	g.pt_rated = true
+	g.ev_count = {"charge0": 3}
+	g._replay()
+	ok(g.pt_rated == false, "A9：重播會重設評分狀態（前提）")
+	g.seek_target = 100
+	g._replay_back()
+	ok(g.pt_rated == true and g.ev_count == {"charge0": 3} and g.seek_target == -1, "A9：返回還原評分與戰報、清掉未完成的跳轉")
+	g._replay()
+	g.paused = true
+	g._on_skip()
+	ok(g.view.finished and g.paused == false and g.result_delay == 9.0, "A6：暫停中直接看結果不會卡住")
+	g._replay_back()
+	g._rv_dirty()
+	var gen0: int = g.rv_gen
+	g._rv_dirty()
+	ok(g.rv_gen == gen0 + 1 and g.rv_result == {}, "M3：改陣型會讓算到一半的結果作廢")
 	# 看對戰代碼：返回標題
 	g.watch_code(a0.copy(), a1.copy(), null)
 	g._replay_back()
