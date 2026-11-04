@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 GODOT="${GODOT:?要設 GODOT}"; OUT="${1:?要給輸出資料夾}"; MODE="${2:-}"
 [ -d "$OUT" ] && [ -n "$(ls -A "$OUT" 2>/dev/null)" ] && { echo "EXPORT FAIL：$OUT 不是空的"; exit 2; }
 mkdir -p "$OUT/win" "$OUT/demo" "$OUT/linux"
+rm -rf .godot/exported   # 第七輪：舊的匯出快取會帶到搬走的腳本，匯出成品開不起來（實際踩過：main.gd 拆出 dev_main.gd 之後）
 wp() { if [[ "$GODOT" == *.exe ]]; then wslpath -w "$1"; else printf '%s' "$1"; fi; }
 ex() {  # 預設名稱 路徑
   timeout 300 "$GODOT" --headless --path "$(wp .)" --export-release "$1" "$(wp "$2")" > "$OUT/export-$3.log" 2>&1 || { echo "EXPORT FAIL：$1 匯出 exit 非 0"; exit 1; }
