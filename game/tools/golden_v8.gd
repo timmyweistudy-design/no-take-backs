@@ -29,10 +29,12 @@ static func rules_of(group: String):
 		"fantasy":
 			r.pool = [fp, fp]
 		"mixed":
+			r.ai_pool_same = false
 			r.pool = [POOL_A, POOL_B]
 		"full":
 			r.depth = 7000
 			r.fullfield = RSET.FULL_DUEL
+			r.ai_pool_same = false
 			r.pool = [POOL_B, POOL_A]
 		"summon":
 			r.unit_cap = 40

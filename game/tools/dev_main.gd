@@ -571,6 +571,9 @@ func _shots_v8() -> void:
 	overlay = "puzzles"
 	puzzle_tab = 2
 	await _snap("38_puzzles_fantasy.png")
+	overlay = "gauntlet_pick"
+	await _snap("41_gauntlet_pick.png")
+	overlay = ""
 	puzzle_tab = 0
 	overlay = ""
 	rules = null

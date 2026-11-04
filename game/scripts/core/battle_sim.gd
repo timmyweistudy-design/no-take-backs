@@ -696,11 +696,23 @@ func step() -> void:
 			if units[i].alive:
 				dmg_in[i] += maxi(1, units[i].max_hp * (k + 1) * D.ATTRITION_STEP_PCT / 100)
 		events.append({"kind": EV.ATTRITION, "k": k})
-	for kb2 in knock2:
-		var v2 := M.unit1000(kb2[1], kb2[2])
-		var t2: Unit = units[kb2[0]]
-		t2.x = clampi(t2.x + v2.x * F8.GOLEM_KNOCK / 1000, EDGE, W - EDGE)
-		t2.y = clampi(t2.y + v2.y * F8.GOLEM_KNOCK / 1000, EDGE, H - EDGE)
+	if v8:
+		# 第八輪：同一 tick 的擊退先加總再夾邊。逐筆夾邊跟順序有關，兩隻石魔把敵人推過邊界時鏡像會歪（Codex 第 3 輪）
+		var kx := {}
+		var ky := {}
+		for kb2 in knock2:
+			var v2 := M.unit1000(kb2[1], kb2[2])
+			kx[kb2[0]] = int(kx.get(kb2[0], 0)) + v2.x * F8.GOLEM_KNOCK / 1000
+			ky[kb2[0]] = int(ky.get(kb2[0], 0)) + v2.y * F8.GOLEM_KNOCK / 1000
+		for kb in knock:
+			var v3 := M.unit1000(kb[1], kb[2])
+			kx[kb[0]] = int(kx.get(kb[0], 0)) + v3.x * D.KNOCKBACK / 1000
+			ky[kb[0]] = int(ky.get(kb[0], 0)) + v3.y * D.KNOCKBACK / 1000
+		for i in n:
+			if kx.has(i):
+				units[i].x = clampi(units[i].x + int(kx[i]), EDGE, W - EDGE)
+				units[i].y = clampi(units[i].y + int(ky[i]), EDGE, H - EDGE)
+		knock.clear()
 	for kb in knock:
 		var v := M.unit1000(kb[1], kb[2])
 		var t: Unit = units[kb[0]]

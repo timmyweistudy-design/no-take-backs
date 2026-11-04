@@ -142,6 +142,8 @@ func _sim_step(with_fx: bool) -> void:
 			var s = view.unit_by_id(ev["src"])
 			var key := "%s%d" % [k, s.team]
 			ev_count[key] = int(ev_count.get(key, 0)) + 1
+			if k == EV.BLAST and not ev.has("dmg"):   # 第八輪：爆炸演出一筆一次；逐目標傷害不算次數（BOOM_5）
+				ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
 		if k == EV.DEATH:
 			deaths += 1
 		_collect_mark(ev, view, view.tick)

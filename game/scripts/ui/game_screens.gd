@@ -446,6 +446,7 @@ func _progress_and_achievements() -> void:
 	if w == 0 and mode != Mode.DUEL:
 		st["wins"] = int(st.get("wins", 0)) + 1
 	Save.data[stat_key] = st
+	_v8_achievements(w)   # 奇幻軍是娛樂變體，要放在「自訂規則提前返回」之前（Codex 第 3 輪）
 	if not standard:
 		# 自訂規則專屬成就（標準成就只看標準局）
 		if me_won and mode == Mode.VS_AI and w == 0:
@@ -480,18 +481,6 @@ func _progress_and_achievements() -> void:
 			_ach("CHARGE_5")
 		if int(ev_count.get("backstab%d" % w, 0)) >= 3:
 			_ach("BACKSTAB_3")
-	# 第八輪成就
-	if w >= 0 and (mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET):
-		if int(ev_count.get("blast%d" % w, 0)) >= 5:
-			_ach("BOOM_5")
-		if int(ev_count.get("raise%d" % w, 0)) >= 3:
-			_ach("RAISE_3")
-		var all_new := armies.size() > w
-		for au in (armies[w].units if armies.size() > w else []):
-			if int(au["type"]) < D.COUNT:
-				all_new = false
-		if all_new and not armies[w].units.is_empty():
-			_ach("FANTASY_WIN")
 	if mode == Mode.VS_AI and w == 0 and difficulty == 2:
 		_ach("HARD_WIN")
 	if mode == Mode.DUEL and tp != null and series_over:
@@ -633,14 +622,82 @@ func _allowed(t: int) -> bool:
 ## 遠征的出戰名單（第八輪）：上次對 AI 用的名單，拿掉沒解鎖的；沒有就是解鎖的舊兵。
 func _gauntlet_pool() -> int:
 	var base := RuleSet.prefix_pool(_ntypes())
+	# 第八輪：開打前在「遠征用哪支軍隊」選的，整趟沿用；存檔被改壞就當沒選
+	var chosen = Save.data.get("gauntlet_pool", 0)
+	if (chosen is int or chosen is float) and int(chosen) > 0:
+		var cp: int = int(chosen) & RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+		if RuleSet.has_combat(cp) and RuleSet.pool_count(cp) <= RuleSet.ROSTER_MAX:
+			return cp
+	var lp := _gauntlet_last_pool()
+	return lp if lp > 0 else base
+
+
+## 第八輪成就：贏的那隊。沙盒不算（改過數值）。
+## 標題選單進遠征：解鎖奇幻軍之後才要選，否則直接開打（新手不多一步）。
+func _enter_gauntlet() -> void:
+	if RuleSet.has_new(RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))):
+		overlay = "gauntlet_pick"
+	else:
+		_start_gauntlet_with(0)
+
+
+func _start_gauntlet_with(pool: int) -> void:
+	Save.data["gauntlet_pool"] = pool
+	overlay = ""
+	_start_mode(Mode.GAUNTLET)
+
+
+func _draw_gauntlet_pick() -> void:
+	var mask: int = RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+	var opts: Array = [
+		[L.t("lb_army_kingdom"), mask & RuleSet.all_pool()],
+		[L.t("lb_army_fantasy"), Presets.fantasy_pool(mask)],
+	]
+	var last: int = _gauntlet_last_pool()
+	if last > 0 and last != opts[0][1] and last != opts[1][1]:
+		opts.append([L.t("gp_last"), last])
+	_panel(Rect2(240, 120, 800, 560))
+	_text(Vector2(640, 134), L.t("gp_title"), ts(26), Color.WHITE, true, true)
+	_text(Vector2(640, 182), L.t("gp_note"), tz("S"), Color(1, 1, 1, 0.75), true)
+	for i in opts.size():
+		var r := Rect2(280, 226 + i * 128, 720, 116)
+		var pool: int = opts[i][1]
+		_btn(r, "", _start_gauntlet_with.bind(pool), true, false, Color(0.16, 0.18, 0.26))
+		_text(r.position + Vector2(16, 6), opts[i][0], tz("B"), ACCENT, false, true)
+		_draw_pool_heads(r.position + Vector2(16, 44), pool, 58.0)
+	_btn(Rect2(560, 626, 160, 40), L.t("back"), func(): overlay = "")
+
+
+## 上次在大廳用的對 AI 名單（有解鎖、合法才算）。
+func _gauntlet_last_pool() -> int:
 	var code := str(Save.data.get("last_rules", {}).get("ai", ""))
-	if code != "":
-		var d: Dictionary = RuleSet.from_code(code)
-		if d["ok"]:
-			var p: int = int(d["rules"].pool_of(0)) & RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
-			if RuleSet.has_combat(p):
-				return p
-	return base
+	if code == "":
+		return 0
+	var d: Dictionary = RuleSet.from_code(code)
+	if not d["ok"]:
+		return 0
+	var p: int = int(d["rules"].pool_of(0)) & RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+	return p if RuleSet.has_combat(p) else 0
+
+
+func _v8_achievements(w: int) -> void:
+	if w < 0 or not (mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET):
+		return
+	if mode == Mode.VS_AI and w != 0:
+		return
+	if rules != null and rules.is_sandbox():
+		return
+	if int(ev_count.get("blast_fx%d" % w, 0)) >= 5:
+		_ach("BOOM_5")
+	if int(ev_count.get("raise%d" % w, 0)) >= 3:
+		_ach("RAISE_3")
+	var all_new: bool = armies.size() > w and not armies[w].units.is_empty()
+	if all_new:
+		for au in armies[w].units:
+			if int(au["type"]) < D.COUNT:
+				all_new = false
+	if all_new:
+		_ach("FANTASY_WIN")
 
 
 func _can_edit_existing() -> bool:
@@ -1512,8 +1569,8 @@ func _draw_title() -> void:
 	var fresh := _is_new_player()
 	var main := [["menu_tutorial" if fresh else "menu_vs_ai", (func(): _open("tutorial")) if fresh else (func(): _open_lobby("ai")), 0],
 		["menu_vs_ai" if fresh else "menu_duel", (func(): _open_lobby("ai")) if fresh else (func(): _open_lobby("duel")), 3],
-		["menu_duel" if fresh else "menu_gauntlet", (func(): _open_lobby("duel")) if fresh else (func(): _start_mode(Mode.GAUNTLET)), 1],
-		["menu_gauntlet" if fresh else "menu_tutorial", (func(): _start_mode(Mode.GAUNTLET)) if fresh else (func(): _open("tutorial")), 4 if fresh else 2]]
+		["menu_duel" if fresh else "menu_gauntlet", (func(): _open_lobby("duel")) if fresh else (func(): _enter_gauntlet()), 1],
+		["menu_gauntlet" if fresh else "menu_tutorial", (func(): _enter_gauntlet()) if fresh else (func(): _open("tutorial")), 4 if fresh else 2]]
 	for i in main.size():
 		var mr2 := Rect2(70, y0 + i * 60, 330, 52)
 		_btn(mr2, "　　" + L.t(main[i][0]), main[i][1], true, i == 0)
@@ -1634,6 +1691,8 @@ func _draw_overlay() -> void:
 			_btn(Rect2(560, 680, 160, 36), L.t("back"), func(): overlay = "")
 		"slots":
 			_draw_slots()
+		"gauntlet_pick":
+			_draw_gauntlet_pick()
 		"codex":
 			_draw_codex()
 		"review":

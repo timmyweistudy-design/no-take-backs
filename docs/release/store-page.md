@@ -14,8 +14,8 @@
 | 年齡 | 無血腥：死亡是「噗」一團煙＋小靈魂；問卷全部選無（見 `legal.md`） |
 
 ## 一句話（Short description，≤300 字元）
-**繁中**：花 100 金擺好你的可愛小軍隊，按下開戰就不能再動——只能看著它們打到最後一秒。五種兵互相剋制、輪流落子心理戰、最後時刻慢動作翻盤。
-**English**: Spend 100 gold, place your tiny army, press Battle — and no take-backs. Five units in a counter loop, a turn-by-turn placement mind game, and slow-motion final seconds where the fight is won or lost.
+**繁中**：花 100 金擺好你的可愛小軍隊，按下開戰就不能再動——只能看著它們打到最後一秒。二十種兵互相剋制、輪流落子心理戰、最後時刻慢動作翻盤。
+**English**: Spend 100 gold, place your tiny army, press Battle — and no take-backs. Twenty units from swordsmen to exploding sheep, a turn-by-turn placement mind game, and slow-motion final seconds where the fight is won or lost.
 
 ## 長描述
 ### 繁中
@@ -25,7 +25,8 @@
 - **輪流落子**：和朋友在同一台電腦（或用 Steam 遠端同樂）公開輪流下兵，每人 5 手。你看得到他擺了什麼，他也看得到你——擺下的兵不能收回。
 - **激烈到最後一秒**：雙方都殘血時自動慢動作特寫；落後的一方進入「背水」攻速提升；60 秒後狂熱耗損，不會無止盡拖時間。
 - **看得懂為什麼輸**：戰報告訴你每個兵種輸出多少、在第幾秒勝負已定、有沒有被逆轉；每一場都能完整重播。
-- **單人內容**：3 關教學、10 關「一手逆轉」殘局（每關都有不只一種解法）、7 連勝遠征、三種難度的 AI（困難 AI 會讀你上一局的陣型）。
+- **單人內容**：3 關教學、30 關殘局與試玩關（每關都有不只一種解法）、7 連勝遠征、三種難度的 AI（困難 AI 會讀你上一局的陣型）。
+- **傭兵公會開張，連魔物都來應徵**：除了王國軍 10 種，還有會自爆的爆爆羊、裝成寶箱咬人的寶箱怪、死了會分裂的史萊姆、能把敵人吸成一團的吸塵貓。每局自選 10 種上場。
 - **分享陣型**：一串代碼就能把得意陣型丟給朋友挑戰。
 
 沒有抽卡、沒有課金、沒有讓兵變強的養成——只比擺法。
@@ -34,10 +35,11 @@
 **Once it's placed, it stays.**
 No Take-Backs is a cute little auto-battler about one decision: where your army stands. You get 100 gold and 24 slots. Swordsmen, shieldbearers, archers, cavalry and assassins — each counters two and fears two. Place them, press Battle, and for the next 90 seconds all you can do is watch.
 
-- **Turn Draft**: play a friend on one PC (or online with Steam Remote Play Together). Take turns placing units in the open — five hands each. They see your moves, you see theirs, and nothing can be taken back.
-- **Tense to the last second**: slow-motion close-ups when both sides are nearly out; the losing side gets a *Last Stand* attack-speed boost; after 60 seconds the Frenzy makes sure every fight ends.
+- **Alternating deployment**: play a friend on one PC (or online with Steam Remote Play Together). Take turns placing units in the open — five turns each. They see your moves, you see theirs, and nothing can be taken back.
+- **Tense to the last second**: slow-motion close-ups when both sides are nearly out; the losing side gets a *Rally* attack-speed boost; after 60 seconds the Frenzy makes sure every fight ends.
 - **Know why you lost**: a battle report shows damage by unit type, when the outcome was decided, and whether it was a comeback. Every battle can be replayed exactly.
-- **Solo content**: 3 tutorials, 10 one-move puzzle battles (each with more than one solution), a 7-win Gauntlet, and three AI difficulties — the hard AI reads your last formation.
+- **Solo content**: 3 tutorials, 30 puzzle battles and unit trials, a 7-win Gauntlet, and three AI difficulties — the hard AI reads your last formation.
+- **The guild is hiring, even monsters**: beyond the 10 Kingdom units, recruit exploding Boom Sheep, biting Mimics, splitting Slimes and a Vacuum Cat that sucks enemies into a clump. Pick any 10 types per battle.
 - **Share formations** as a short code.
 
 No gacha, no microtransactions, no stat upgrades. Just placement.

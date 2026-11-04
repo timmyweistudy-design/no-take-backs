@@ -115,6 +115,8 @@ func _seek_tick(budget_ms: int) -> bool:
 				var s = sim.unit_by_id(ev["src"])
 				var key := "%s%d" % [ev["kind"], s.team]
 				ev_count[key] = int(ev_count.get(key, 0)) + 1
+				if ev["kind"] == EV.BLAST and not ev.has("dmg"):
+					ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
 			_collect_mark(ev, sim, sim.tick)
 		if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
 			_seek_ct = sim.tick

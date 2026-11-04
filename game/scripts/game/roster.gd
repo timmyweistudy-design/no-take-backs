@@ -55,6 +55,16 @@ static func newly_unlocked(games_before: int, games_after: int, demo := false) -
 const UNLOCK_NEW := [14, 17, 20, 23, 26, 29, 32, 35, 38, 41]
 const DEMO_SHOWCASE := 11      # 試玩版多開爆爆羊當賣點（非連號，所以試玩版不能只看 DEMO_MAX）
 
+## 最近一次解鎖的奇幻兵（大廳蓋「新」章，下一隻解鎖前都在）；還沒有回 -1。
+static func newest_new(games: int, demo := false) -> int:
+	if demo:
+		return DEMO_SHOWCASE
+	var out := -1
+	for i in UNLOCK_NEW.size():
+		if games >= int(UNLOCK_NEW[i]):
+			out = D.COUNT + i
+	return out
+
 ## 解鎖的兵種遮罩（新舊都算）。
 static func unlocked_mask(games: int, demo := false) -> int:
 	var m := (1 << unlocked_count(games, demo)) - 1

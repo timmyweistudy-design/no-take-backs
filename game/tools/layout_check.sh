@@ -18,7 +18,7 @@ winpath() { if command -v wslpath >/dev/null 2>&1 && [[ "$EXE" == *.exe ]]; then
 for lang in zh_TW en; do
   for sc in 100 125 150; do
     d="$OUT/${lang}_${sc}"; mkdir -p "$d"
-    timeout 300 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc --layout-check > "$d/run.log" 2>&1 \
+    timeout 900 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc --layout-check > "$d/run.log" 2>&1 \
       || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0"; exit 1; }
     grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤"; exit 1; }
   done

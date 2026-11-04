@@ -4,9 +4,12 @@ const BC = preload("res://scripts/game/battle_code.gd")
 const CXF = preload("res://scripts/game/codex.gd")
 const ROS = preload("res://scripts/game/roster.gd")
 const PRE = preload("res://scripts/game/presets.gd")
+const SaveS = preload("res://scripts/game/save.gd")
 
 
 ## 擺一隊：spec＝[[type, x（自己視角）, y]]，team 0／1。座標單位 1000＝1 格。
+const RS_ROSTER = preload("res://scripts/game/roster.gd")
+
 func _army(team: int, spec: Array, r = null):
 	var a = Army.new(team, 400)
 	a.pool = RSET.full_pool()
@@ -209,6 +212,45 @@ func test_fantasy_regress_v8() -> void:
 
 ## 鏡像：隨機新舊混編，逐 tick 完全對稱（含生兵）。
 func test_fantasy_mirror_v8() -> void:
+	# 第 3 輪：兩隻石魔同 tick 把貼邊的敵人往兩邊推。格子場鏡像時兵的順序相反，逐筆夾邊的落點就不對稱
+	var e0 = Sim.new(_army(0, [[F8.GOLEM, 500, 2000], [F8.GOLEM, 1500, 2000]]), _army(1, [[F8.GHOST, 15300, 2000]]), null)
+	var e1 = Sim.new(_army(0, [[F8.GHOST, 15300, 2000]]), _army(1, [[F8.GOLEM, 1500, 2000], [F8.GOLEM, 500, 2000]]), null)
+	var stomped := false
+	var edge_ok := true
+	var stomps := 0
+	for _i in 300:
+		# 固定位置等拍地，才測得到「同一 tick、同一位置」
+		for sm in [[e0, false], [e1, true]]:
+			var gs: Array = []
+			for u in sm[0].units:
+				if u.type == F8.GOLEM:
+					gs.append(u)
+				elif u.type == F8.GHOST:
+					u.x = 15300 if sm[1] else 700
+					u.y = 2000
+			gs[0].x = 14500 if sm[1] else 500
+			gs[1].x = 15500 if sm[1] else 1500
+			gs[0].y = 2000
+			gs[1].y = 2000
+		e0.step()
+		e1.step()
+		var g0 = null
+		var g1 = null
+		for u in e0.units:
+			if u.type == F8.GHOST:
+				g0 = u
+		for u in e1.units:
+			if u.type == F8.GHOST:
+				g1 = u
+		stomps = 0
+		for ev in e0.events:
+			if ev["kind"] == "stomp":
+				stomps += 1
+		if stomps >= 2:
+			stomped = true
+			edge_ok = g0.x == Army.W - g1.x
+			break
+	ok(stomped and edge_ok, "鏡像：兩隻石魔同 tick 擊退貼邊敵人，順序不影響落點", "%s %s %d" % [stomped, edge_ok, stomps])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 880011
 	var r = free_rules(800, 6000, 0)
@@ -240,6 +282,7 @@ func _rand_side(rng: RandomNumberGenerator) -> Array:
 
 
 func test_fantasy_codes_v8() -> void:
+	ok(RS_ROSTER.newest_new(13) == -1 and RS_ROSTER.newest_new(14) == 10 and RS_ROSTER.newest_new(19) == 11 and RS_ROSTER.newest_new(0, true) == 11, "新章：標最近解鎖的那隻")
 	var a = Army.new(0, 100)
 	a.pool = RSET.full_pool()
 	ok(a.place(F8.SLIME, 3, 4) and a.place(F8.GOLEM, 2, 2) and a.place(D.SWORD, 5, 4), "代碼：格子可以擺新兵")
@@ -286,6 +329,37 @@ func test_fantasy_codes_v8() -> void:
 
 
 func test_fantasy_game_v8() -> void:
+	# 第 3 輪：奇幻軍是娛樂變體也要能拿成就；爆炸次數只算演出那筆，不算逐目標傷害
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	var saved: Dictionary = SaveS.data.duplicate(true)
+	var was_locked: bool = SaveS.data_locked
+	SaveS.data_locked = true   # 測試不能寫到真的存檔
+	SaveS.data["achievements"] = []
+	g.mode = g.Mode.VS_AI
+	g.rules = PRE.make("fantasy", "ai", ROS.unlocked_mask(99))
+	var fa = Army.new(0, 100)
+	fa.pool = RSET.full_pool()
+	fa.units.append({"type": F8.SHEEP, "x": 2000, "y": 2000})
+	g.armies = [fa, fa]
+	g.ev_count = {"blast0": 4, "blast_fx0": 4, "raise0": 2}
+	g._v8_achievements(0)
+	var a0: Array = SaveS.data["achievements"].duplicate()
+	ok(a0 == ["FANTASY_WIN"], "成就：奇幻預設獲勝給傭兵公會；4 次爆炸不給 BOOM_5", str(a0))
+	g.ev_count = {"blast0": 40, "blast_fx0": 5, "raise0": 3}
+	g._v8_achievements(0)
+	ok("BOOM_5" in SaveS.data["achievements"] and "RAISE_3" in SaveS.data["achievements"], "成就：爆炸 5 次、復活 3 次", str(SaveS.data["achievements"]))
+	# 第 3 輪：遠征名單；存檔被改壞就退回
+	SaveS.data["unlock_games"] = 99
+	SaveS.data["gauntlet_pool"] = (1 << F8.SHEEP) | (1 << F8.SLIME)
+	ok(g._gauntlet_pool() == (1 << F8.SHEEP) | (1 << F8.SLIME), "遠征：用開打前選的軍隊", str(g._gauntlet_pool()))
+	SaveS.data["gauntlet_pool"] = "壞"
+	ok(RSET.has_combat(g._gauntlet_pool()), "遠征：存檔壞掉退回能打的名單")
+	SaveS.data["gauntlet_pool"] = (1 << 20) - 1
+	ok(RSET.pool_count(g._gauntlet_pool()) <= RSET.ROSTER_MAX, "遠征：超過 10 種不採用")
+	g.free()
+	SaveS.data = saved
+	SaveS.data_locked = was_locked
 	ok(CXF.validate().is_empty(), "圖鑑：20 種資料完整", str(CXF.validate()))
 	# 每個新技能的小劇場都真的會觸發
 	for sk in ["spore_poison", "sheep_blast", "mimic_bite", "slime_split", "ghost_phase", "doll_voodoo", "sprite_stop", "bone_raise", "cat_vacuum", "golem_stomp"]:

@@ -597,6 +597,10 @@ func _draw_pool_tab(R: Rect2) -> void:
 					call("_lock_icon", cr.position + Vector2(cw - 12, 12))
 				elif on:
 					draw_rect(cr, Color("#7ddc8a"), false, 2.0)
+				if t == RS.newest_new(_unlock_games(), OS.has_feature("demo")) and not bool(Save.s("unlock_all")):
+					var pw: float = _width(L.t("lb_new_pill"), tz("C")) + 8.0
+					draw_rect(Rect2(cr.position + Vector2(cw - pw, 0), Vector2(pw, tz("C") * 1.25)), Color("#d98a22"))
+					_text(cr.position + Vector2(cw - pw + 4, 0), L.t("lb_new_pill"), tz("C"), Color.WHITE)
 			y += box.size.y + 8
 	if lobby_kind == "ai":
 		_text(Vector2(R.position.x, y + 4), L.t("lb_unlock_hint"), tz("S"), Color(1, 1, 1, 0.6), false, false, R.size.x)
@@ -606,15 +610,18 @@ func _draw_lab_tab(R: Rect2) -> void:
 	var lab_types: Array = RuleSet.types_of(int(lobby_r.pool[0]) | int(lobby_r.pool[1]))
 	if not lobby_sb_unit in lab_types and not lab_types.is_empty():
 		lobby_sb_unit = lab_types[0]
+	var lab_cols := 10
+	var lab_h := 68 if lab_types.size() <= lab_cols else 46
 	for lj in lab_types.size():
 		var t: int = lab_types[lj]
-		var cr := Rect2(R.position + Vector2(lj * 58, 0), Vector2(54, 64))
+		# 第八輪：兩邊名單不同時聯集最多 20 種，一排放不下就換第二排
+		var cr := Rect2(R.position + Vector2((lj % lab_cols) * 58, (lj / lab_cols) * lab_h), Vector2(54, lab_h - 4))
 		_btn(cr, "", func(): lobby_sb_unit = t, true, false, Color(0.26, 0.33, 0.5) if t == lobby_sb_unit else Color(0.16, 0.16, 0.2))
 		_unit_in(cr, t, 0, 1.0, 0.55)
 		if lobby_r.stat_pct.has(t):
 			draw_circle(cr.position + Vector2(48, 8), 5, Color("#a46be0"))
 	var cur: Array = lobby_r.stat_pct.get(lobby_sb_unit, [100, 100, 100])
-	var y := R.position.y + 80
+	var y := R.position.y + (80 if lab_types.size() <= lab_cols else 100)
 	for k in 3:
 		_text(Vector2(R.position.x, y + 14), L.t(["lb_hp", "lb_atk", "lb_spd"][k]), tz("B"), Color.WHITE, false, false, 200)
 		_btn(Rect2(R.position.x + 230, y, 52, 48), "◀", _lobby_sb_adj.bind(k, -1))
