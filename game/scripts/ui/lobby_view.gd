@@ -364,6 +364,9 @@ func _draw_lobby_compact(R: Rect2) -> void:
 	var y := R.position.y + 20
 	_text(Vector2(R.position.x + 24, y), _summary(lobby_r), tz("H2"), Color.WHITE, false, true, 760)
 	_badge_pill(Vector2(R.end.x - 230, y), Presets.badge(lobby_r, lobby_kind))
+	# 第七輪 B4：雙人超過 5 種兵，先後手公平性沒驗證過，要講清楚
+	if lobby_kind == "duel" and maxi(RuleSet.pool_count(lobby_r.pool_of(0)), RuleSet.pool_count(lobby_r.pool_of(1))) > D.CLASSIC:
+		_text(Vector2(R.position.x, R.end.y - tz("C") * 1.3), L.t("lb_unverified"), tz("C"), Color("#ffb86b"), false, false, R.size.x)
 	y += 60
 	_text(Vector2(R.position.x + 24, y), L.t("lb_pool_now"), tz("S"), Color(1, 1, 1, 0.7))
 	_draw_pool_heads(Vector2(R.position.x + 24, y + 28), lobby_r.pool_of(0), 58.0)

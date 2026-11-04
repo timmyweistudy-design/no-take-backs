@@ -360,8 +360,15 @@ static func series_done(w: Array, rn: int, r) -> bool:
 	return int(w[0]) >= need or int(w[1]) >= need or rn >= cap_r
 
 
+## 第七輪 S7：每次啟動一個 session、每局一個 game；彙整工具靠這兩個去重（評分和對戰是兩行，不能重複算局數）。
+var pt_session := str(Time.get_unix_time_from_system()) + "-" + str(randi())
+var pt_game := 0
+
 func _pt_entry(rating: int) -> Dictionary:
-	return {"event": "rating" if rating > 0 else "battle", "mode": _mode_label(), "round": round_no, "winner": sim.winner,
+	if rating == 0:
+		pt_game += 1
+	return {"v": 2, "session": pt_session, "game": pt_game, "code": BattleCode.encode(last_armies[0], last_armies[1], battle_rules),
+		"event": "rating" if rating > 0 else "battle", "mode": _mode_label(), "round": round_no, "winner": sim.winner,
 		"ticks": sim.tick, "reason": sim.reason, "blue": last_armies[0].to_code(), "red": last_armies[1].to_code(),
 		"power": [sim.power(0), sim.power(1)], "suspense": report.get("sus", {}), "call_tick": pt_call_tick,
 		"rating": rating, "rules": D.RULES_VERSION, "digest": D.data_digest()}
@@ -689,7 +696,56 @@ func _try_remove(c: Vector2i) -> void:
 		sfx.play("ui_click")
 
 
+var keys_capture := ""   # 第七輪 K1：正在改哪個按鍵（"kb:start"／"pad:place"）
+
+func _keys_input(ev: InputEvent) -> bool:
+	if keys_capture == "":
+		return false
+	var part := keys_capture.split(":")
+	if ev is InputEventKey and ev.pressed and not ev.echo:
+		if ev.keycode != KEY_ESCAPE and part[0] == "kb":
+			Save.settings["keys"] = Keymap.rebind(Keymap.ACTIONS, Save.s("keys"), part[1], ev.keycode)
+			Save.save_settings()
+		keys_capture = ""
+		return true
+	if ev is InputEventJoypadButton and ev.pressed and part[0] == "pad":
+		Save.settings["pad"] = Keymap.rebind(Keymap.PAD_ACTIONS, Save.s("pad"), part[1], ev.button_index)
+		Save.save_settings()
+		keys_capture = ""
+		return true
+	return ev is InputEventKey or ev is InputEventJoypadButton
+
+
+func _draw_keys() -> void:
+	_panel(Rect2(190, 60, 900, 680))
+	_text(Vector2(640, 70), L.t("keys_title"), tz("H1"), Color.WHITE, true, true)
+	var y0 := 140.0
+	_text(Vector2(240, y0), L.t("keys_kb"), tz("B"), ACCENT, false, true)
+	_text(Vector2(690, y0), L.t("keys_pad"), tz("B"), ACCENT, false, true)
+	y0 += tz("B") * 1.6
+	var kt: Dictionary = Save.s("keys")
+	var pt: Dictionary = Save.s("pad")
+	for i in Keymap.ACTIONS.size():
+		var act: String = Keymap.ACTIONS[i][0]
+		var y := y0 + i * 50
+		_text(Vector2(240, y + 8), L.t("key_" + act), tz("S"), Color.WHITE, false, false, 200)
+		var cap := keys_capture == "kb:" + act
+		_btn(Rect2(450, y, 170, 42), "…" if cap else Keymap.key_name(kt, act), func(): keys_capture = "kb:" + act)
+	for i2 in Keymap.PAD_ACTIONS.size():
+		var act2: String = Keymap.PAD_ACTIONS[i2][0]
+		var y2 := y0 + i2 * 50
+		_text(Vector2(690, y2 + 8), L.t("key_" + act2), tz("S"), Color.WHITE, false, false, 200)
+		var cap2 := keys_capture == "pad:" + act2
+		_btn(Rect2(900, y2, 150, 42), "…" if cap2 else Keymap.pad_name(pt, act2), func(): keys_capture = "pad:" + act2)
+	if keys_capture != "":
+		_text(Vector2(640, 610), L.t("keys_press"), tz("B"), ACCENT, true, true, 800)
+	_btn(Rect2(380, 672, 240, 44), L.t("keys_reset"), func(): Save.settings["keys"] = {}; Save.settings["pad"] = {}; Save.save_settings())
+	_btn(Rect2(660, 672, 240, 44), L.t("back"), func(): keys_capture = ""; overlay = "settings")
+
+
 func _input(ev: InputEvent) -> void:
+	if _keys_input(ev):
+		return
 	if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
 		fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
 		return
@@ -710,8 +766,16 @@ func _input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventKey and ev.pressed:
 		if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
-			_enqueue("key", ev.keycode)
+			var dk: int = Keymap.key_to_default(Save.s("keys"), ev.keycode)
+			if dk >= 0:
+				_enqueue("key", dk)
 		return
+	if ev is InputEventJoypadButton:
+		var db: int = Keymap.pad_to_default(Save.s("pad"), ev.button_index)
+		if db < 0:
+			return
+		ev = ev.duplicate()
+		ev.button_index = db
 	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
 		_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
 	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
@@ -885,6 +949,7 @@ func _key(k: int) -> void:
 
 # ───────────────────────── 每幀 ─────────────────────────
 func _process(delta: float) -> void:
+	_rv_poll()
 	var _t0 := Time.get_ticks_usec()
 	_process_inner(delta)
 	perf_proc_us = Time.get_ticks_usec() - _t0
@@ -1050,6 +1115,10 @@ func _draw_inner() -> void:
 			_draw_replay_controls()
 			_draw_battle_report()
 			_draw_unit_info()
+			if skip_busy:
+				_draw_busy(roundi(view.tick * 100.0 / maxf(1.0, view.max_ticks)))
+			elif seek_target >= 0:
+				_draw_busy(roundi(sim.tick * 100.0 / maxf(1.0, seek_target)))
 		St.RESULT:
 			_draw_battle_hud()
 			_draw_result()
@@ -1466,6 +1535,8 @@ func _draw_overlay() -> void:
 			_draw_lobby()
 		"settings":
 			_draw_settings()
+		"keys":
+			_draw_keys()
 		"credits":
 			_panel(Rect2(200, 70, 880, 660))
 			_text(Vector2(640, 86), L.t("credits_title"), ts(26), Color.WHITE, true, true)
@@ -1493,7 +1564,8 @@ func _draw_settings() -> void:
 		2: [["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(d): _step_setting("speed", [0.5, 1.0, 2.0], d)],
 			["set_confirm", _onoff("confirm_place"), func(d): _cycle_setting("confirm_place", [true, false])],
 			["set_unlock_all", _onoff("unlock_all"), func(d): _cycle_setting("unlock_all", [false, true])],
-			["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])]],
+			["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],
+			["set_keys", L.t("open_it"), func(d): _open("keys")]],
 		3: [["set_cb", _onoff("colorblind"), func(d): _cycle_setting("colorblind", [false, true]); _rebuild_sprites()],
 			["set_shake", _onoff("shake"), func(d): _cycle_setting("shake", [true, false])],
 			["set_slowmo", _onoff("slowmo"), func(d): _cycle_setting("slowmo", [true, false])],
@@ -1900,7 +1972,8 @@ func _draw_place_help() -> void:
 		lines.append(L.t("place_hint_turns"))
 	else:
 		lines.append(L.t("place_hint_free"))
-	lines.append(L.t("place_hint_keys"))
+	var kt: Dictionary = Save.s("keys")
+	lines.append(L.t("place_hint_keys", [Keymap.key_name(kt, "prev"), Keymap.key_name(kt, "next"), Keymap.key_name(kt, "start"), Keymap.key_name(kt, "codex")]))
 	var body := "\n".join(lines)
 	var w := 520.0
 	var h := text_h(body, tz("S"), w - 28) + 24

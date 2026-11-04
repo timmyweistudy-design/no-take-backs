@@ -55,7 +55,7 @@ func _draw_replay_controls() -> void:
 		draw_line(Vector2(mx, RC_BAR.position.y), Vector2(mx, RC_BAR.end.y), Color("#ffd166"), 2.0)
 		draw_colored_polygon(PackedVector2Array([Vector2(mx - 5, RC_BAR.position.y - 7), Vector2(mx + 5, RC_BAR.position.y - 7), Vector2(mx, RC_BAR.position.y)]), Color("#ffd166"))
 	# 整條是一個按鈕：點哪裡就跳到哪一秒
-	_btns.append({"r": RC_BAR, "cb": func(): _seek(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
+	_btns.append({"r": RC_BAR, "cb": func(): _seek_async(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
 	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), "%.1f／%.1f 秒" % [view.tick / 20.0, total / 20.0] if L.lang == "zh_TW" else "%.1f / %.1fs" % [view.tick / 20.0, total / 20.0], ts(12), Color(1, 1, 1, 0.75))
 	if play_kind == "review":
 		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
@@ -64,13 +64,52 @@ func _draw_replay_controls() -> void:
 
 ## 跳到某個 tick：同一組陣型從頭快轉（確定性模擬，結果一定一樣），畫面與音效狀態清空重建。
 func _seek(target: int) -> void:
+	_seek_begin(target)
+	while not _seek_tick(1000000):
+		pass
+	_seek_finish()
+
+
+## 第七輪 M3：時間軸點下去不再卡畫面，分批算。headless 測試直接走 _seek。
+var seek_target := -1
+var _seek_stop := 0
+var _seek_ct := -1
+
+func _seek_async(target: int) -> void:
+	if seek_target >= 0:
+		return
+	if DisplayServer.get_name() == "headless" or shot_dir != "":
+		_seek(target)
+		return
+	seek_target = target
+	_seek_begin(target)
+
+## 這一幀還在算就回傳 true（戰鬥畫面這一幀不動）。
+func _seek_pump() -> bool:
+	if seek_target < 0:
+		return false
+	if _seek_tick(10):
+		seek_target = -1
+		_seek_finish()
+	return true
+
+func _seek_begin(target: int) -> void:
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
 	sim = Sim.new(armies2[0].copy(), armies2[1].copy(), battle_rules)
 	ev_count = {}
-	var keep_ct := -1   # 最後時刻在第幾 tick 觸發：快轉時用同一個條件重算，不靠先前的播放紀錄（Codex S7 #2）
+	_seek_ct = -1
 	battle_marks.clear()
-	var stop := maxi(0, target - ViewBuffer.DELAY)
-	while sim.tick < stop and not sim.finished:
+	_seek_stop = maxi(0, target - ViewBuffer.DELAY)
+	_seek_target_now = target
+
+var _seek_target_now := 0
+
+## 算到時間用完或到達目標；到達回傳 true。
+func _seek_tick(budget_ms: int) -> bool:
+	var t0 := Time.get_ticks_msec()
+	while sim.tick < _seek_stop and not sim.finished:
+		if Time.get_ticks_msec() - t0 >= budget_ms:
+			return false
 		sim.step()
 		for ev in sim.events:   # 快轉時也要累計戰報次數與時間軸標記（Codex S5 #4：共用同一個收集函式）
 			if ev.has("src"):
@@ -78,8 +117,13 @@ func _seek(target: int) -> void:
 				var key := "%s%d" % [ev["kind"], s.team]
 				ev_count[key] = int(ev_count.get(key, 0)) + 1
 			_collect_mark(ev, sim, sim.tick)
-		if keep_ct < 0 and not sim.finished and clutch_cond(sim):
-			keep_ct = sim.tick
+		if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
+			_seek_ct = sim.tick
+	return true
+
+func _seek_finish() -> void:
+	var target := _seek_target_now
+	var keep_ct := _seek_ct
 	var had_clutch := keep_ct >= 0
 	view = ViewBuffer.new(sim)
 	prev_pos.clear()
@@ -171,7 +215,7 @@ func _replay_back() -> void:
 ## 從關鍵時刻開始重播（第七輪 A7）。
 func _replay_from(t: int) -> void:
 	call("_replay")
-	_seek(t)
+	_seek_async(t)
 
 
 func _follow_update(delta: float) -> void:
@@ -403,8 +447,25 @@ static func review_run(a0, a1, p_rules = null) -> Dictionary:
 	var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else 0
 	return {"winner": s.winner, "rem": rem, "log": s.power_log, "log2": s.power_log2, "b": [s.budget_of(0), s.budget_of(1)], "ticks": s.tick}
 
+## 第七輪 M3：覆盤重算開背景執行緒（模擬是純計算），畫面不卡；算的時候按鈕不能再按（防重入）。
+var rv_thread: Thread = null
+
 func _rv_recalc() -> void:
-	rv_result = review_run(rv_army, rv_enemy, battle_rules)
+	if rv_thread != null:
+		return
+	if DisplayServer.get_name() == "headless" or shot_dir != "":
+		rv_result = review_run(rv_army, rv_enemy, battle_rules)
+		return
+	var a: Variant = rv_army.copy()
+	var e: Variant = rv_enemy.copy()
+	var r: Variant = battle_rules.copy() if battle_rules != null else null
+	rv_thread = Thread.new()
+	rv_thread.start(func(): return review_run(a, e, r))
+
+func _rv_poll() -> void:
+	if rv_thread != null and not rv_thread.is_alive():
+		rv_result = rv_thread.wait_to_finish()
+		rv_thread = null
 
 func _rv_play() -> void:
 	rv_last = [rv_army.copy(), rv_enemy.copy()]
@@ -467,7 +528,7 @@ func _draw_review() -> void:
 		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
 	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
 	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); rv_result = {}; rv_sel = Vector2i(-1, -1); rv_fsel = -1)
-	_btn(Rect2(bx, 284, 552, 48), L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1, true)
+	_btn(Rect2(bx, 284, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null, true)
 	# 兩條戰力走勢上下對齊（同一個時間軸長度）
 	var y := 350.0
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))

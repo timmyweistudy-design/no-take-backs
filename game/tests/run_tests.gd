@@ -35,8 +35,9 @@ const SUITES := {
 	"save": ["test_save_migration", "test_save_v7"],
 	"harness": ["test_harness_v7"],
 	"fuzz": ["test_code_fuzz_v7"],
+	"v7": ["test_keymap_v7", "test_replay_back_v7"],
 }
-const ALL_TESTS := ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7"]
+const ALL_TESTS := ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7"]
 
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
@@ -2871,3 +2872,63 @@ class FakeSteam:
 	func storeStats() -> bool:
 		stores += 1
 		return stores > 1
+
+
+## 第七輪 K1：按鍵重設。
+func test_keymap_v7() -> void:
+	var KM = load("res://scripts/game/keymap.gd")
+	var t: Dictionary = {}
+	ok(KM.key_to_default(t, KEY_SPACE) == KEY_SPACE and KM.key_to_default(t, KEY_A) == KEY_A, "K1：沒改過＝原樣")
+	t = KM.rebind(KM.ACTIONS, t, "start", KEY_G)
+	ok(KM.key_to_default(t, KEY_G) == KEY_SPACE, "K1：新鍵會換回預設動作")
+	ok(KM.key_to_default(t, KEY_SPACE) == -1, "K1：舊鍵不再開戰")
+	t = KM.rebind(KM.ACTIONS, t, "pause", KEY_G)
+	ok(KM.key_of(t, "pause") == KEY_G and KM.key_of(t, "start") == KEY_P, "K1：撞鍵會互換", str(t))
+	ok(KM.key_name(t, "pause") == "G", "K1：提示跟著按鍵走", KM.key_name(t, "pause"))
+	ok(KM.sanitize(KM.ACTIONS, {"start": "x", "pause": 71.0, "nope": 1}) == {"pause": 71}, "K1：存檔裡的表逐項驗型")
+	var pt: Dictionary = KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_Y)
+	ok(KM.pad_to_default(pt, JOY_BUTTON_Y) == JOY_BUTTON_START and KM.pad_name(pt, "start") == "Y", "K1：手把也能改")
+
+
+## 第七輪 A9：重播返回只還原畫面，比分、進度、成就、試玩紀錄都不寫。
+func test_replay_back_v7() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var old_prefix: String = SV.prefix
+	SV.prefix = "test_back_"
+	for fn in ["user://test_back_save.json", "user://test_back_save.json.bak", "user://test_back_settings.json"]:
+		if FileAccess.file_exists(fn):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn))
+	SV.load_all()
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.mode = g.Mode.VS_AI
+	g.difficulty = 1
+	var a0 = army_from(0, [[D.SWORD, 5, 4], [D.CAVALRY, 4, 2], [D.ARCHER, 1, 4]])
+	var a1 = army_from(1, [[D.SWORD, 5, 4]])
+	g._begin_battle(a0.copy(), a1.copy())
+	while not g.view.finished:
+		g._sim_step(false)
+	g._finish_battle()
+	g.state = g.St.RESULT
+	var snap := JSON.stringify([SV.data, g.wins, g.series_over])
+	var original_sim = g.sim
+	var fp: String = str(g.sim.fingerprint)
+	g._replay()
+	ok(g.state == g.St.BATTLE and g.play_kind == "replay", "A9：進了重播")
+	for i in 30:
+		g._sim_step(false)
+	g._replay_back()
+	ok(g.state == g.St.RESULT and g.sim == original_sim and str(g.sim.fingerprint) == fp and g.play_kind == "official", "A9：返回結算，還是原本那一場")
+	ok(JSON.stringify([SV.data, g.wins, g.series_over]) == snap, "A9：返回不寫比分、進度、成就")
+	# 看對戰代碼：返回標題
+	g.watch_code(a0.copy(), a1.copy(), null)
+	g._replay_back()
+	ok(g.state == g.St.TITLE, "A9：看代碼的返回目的地是標題", str(g.state))
+	# A7：首殺等關鍵時刻有收
+	ok(g.L.has("tl_death") and g.L.has("tl_breach") and g.L.has("tl_rally_on"), "A7：關鍵時刻都有文字")
+	g.queue_free()
+	for fn2 in ["user://test_back_save.json", "user://test_back_save.json.bak", "user://test_back_settings.json"]:
+		if FileAccess.file_exists(fn2):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn2))
+	SV.prefix = old_prefix

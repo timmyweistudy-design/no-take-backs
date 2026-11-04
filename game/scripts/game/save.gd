@@ -8,7 +8,7 @@ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真�
 
 const DEFAULT_SETTINGS := {
 	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "confirm_place": true,
-	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "unlock_all": false, "reduce_fx": false,
+	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "unlock_all": false, "reduce_fx": false, "keys": {}, "pad": {},
 }
 const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
@@ -108,6 +108,9 @@ static func sanitize_settings(d: Dictionary) -> Dictionary:
 	out["speed"] = clampf(float(out["speed"]), 0.25, 8.0)
 	if not str(out["duel_rule"]) in ["snake5", "snake5c", "cap10", "blind", "custom"]:
 		out["duel_rule"] = DEFAULT_SETTINGS["duel_rule"]
+	var KM = load("res://scripts/game/keymap.gd")
+	out["keys"] = KM.sanitize(KM.ACTIONS, out.get("keys"))
+	out["pad"] = KM.sanitize(KM.PAD_ACTIONS, out.get("pad"))
 	if not str(out["roster"]) in ["all", "classic"]:
 		out["roster"] = DEFAULT_SETTINGS["roster"]
 	return out

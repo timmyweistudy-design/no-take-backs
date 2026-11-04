@@ -3,13 +3,40 @@ const EV = preload("res://scripts/core/events.gd")
 ## 戰場、單位、特效、戰鬥 HUD、最後時刻鏡頭（演出層：不影響戰鬥結果）。
 
 
+## 第七輪 M3：跳到結果不再卡畫面。正常畫面分批算（每幀限時）；headless 與截圖走同步。
+var skip_busy := false
+
 func _on_skip() -> void:
-	while not view.finished:
+	if skip_busy:
+		return   # 防重入
+	if DisplayServer.get_name() == "headless" or shot_dir != "":
+		while not view.finished:
+			_sim_step(false)
+		result_delay = 9.0
+		return
+	skip_busy = true
+
+func _skip_step() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not view.finished and Time.get_ticks_msec() - t0 < 10:
 		_sim_step(false)
-	result_delay = 9.0
+	if view.finished:
+		skip_busy = false
+		result_delay = 9.0
+
+func _draw_busy(pct: int) -> void:
+	var msg: String = L.t("busy_calc", [pct])
+	var w := _width(msg, tz("B"), true) + 40
+	draw_rect(Rect2(640 - w / 2, 360, w, tz("B") * 1.8), Color(0.06, 0.07, 0.1, 0.92))
+	_text(Vector2(640, 360 + tz("B") * 0.35), msg, tz("B"), ACCENT, true, true)
 
 
 func _battle_process(delta: float) -> void:
+	if call("_seek_pump"):
+		return
+	if skip_busy:
+		_skip_step()
+		return
 	if paused:
 		return
 	if hitstop > 0:
@@ -1373,6 +1400,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	follow_id = -1
 	battle_marks.clear()
 	report_log.clear()
+	skip_busy = false
 	graves.clear()
 	clutch_t = 0.0
 	atk_hit.clear()

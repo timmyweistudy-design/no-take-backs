@@ -373,6 +373,8 @@ func _run_screenshots() -> void:
 	_go_title()
 	overlay = "settings"
 	await _snap("08_settings.png")
+	overlay = "keys"
+	await _snap("08b_keys.png")
 	overlay = "puzzles"
 	Save.data["tutorial"] = 3
 	await _snap("09_puzzles.png")

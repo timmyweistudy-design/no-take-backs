@@ -20,6 +20,11 @@ for i, r in enumerate(rows, 2):
     for lang, v in zip(head[1:], r[1:]):
         if v.strip() == "":
             errs.append(f"第 {i} 行 {k} 的 {lang} 是空的")
+    # 第七輪 F2：用語表（docs/terms.md）
+    if re.search(r"\b[Hh]ands?\b|\b[Tt]iles?\b|Turn Draft|Last stand", r[2]):
+        errs.append(f"第 {i} 行 {k} 英文用了用語表禁用的詞：{r[2][:50]}")
+    if "單位" in r[1]:
+        errs.append(f"第 {i} 行 {k} 中文用了「單位」：{r[1][:30]}")
     a, b = sorted(ph.findall(r[1])), sorted(ph.findall(r[2]))
     if a != b:
         errs.append(f"第 {i} 行 {k} 兩語言參數不同：{a} vs {b}")
