@@ -3,6 +3,7 @@
 可愛派兵自動對決（Steam 小品）。花 100 金擺好小軍隊，按下開戰就不能再動，只能看著它們打到最後一秒。
 
 - 企劃 v1.0：[docs/2026-11-01-design-and-plan.md](docs/2026-11-01-design-and-plan.md)（§15 原型、§16 全面實作進度）
+- 第八輪奇幻兵團（再加 10 種兵，已完成）：[方案與進度](docs/2026-11-04-fantasy-units-plan-v8.md) §12；現況看 [docs/STATE.md](docs/STATE.md)
 - 三方優化方案：[第一輪](docs/history/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/history/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/history/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/history/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/history/2026-11-03-free-placement-plan-v6.md)（§11 進度）、[第七輪 v7：綜合大優化方案](docs/2026-11-04-grand-optimization-plan-v7.md)（§20 實作進度）、[第八輪 v8：奇幻兵團（再加 10 種兵）](docs/2026-11-04-fantasy-units-plan-v8.md)（定稿、未實作）
 - **現在的規則與數值：[docs/STATE.md](docs/STATE.md)**；用語表：[docs/terms.md](docs/terms.md)
 - 上架文件：[docs/release/](docs/release/)（商店頁、行銷與定價、法務、Steam 步驟、[手動驗收清單](docs/release/manual-checklist.md)、[預告片腳本](docs/release/trailer-30s.md)）
@@ -46,6 +47,8 @@ Windows：雙擊 `play.bat`；或用 Godot 4.6 開 `game/project.godot` 按 F5�
 cd game
 GODOT=<Godot 4.6.2> tools/check_all.sh                              # 統一檢查：引擎版本、匯入、載入、啟動、測試、鏡像、金標準 1000 場（鎖檔）、自由模式金標準 120 場、舊兵相容 1000 場、封存的舊對戰代碼、打轉、字串表、素材、字型涵蓋（CI 也用它）
 tools/check_quick.sh                                               # 快速檢查（改動時用，不取代統一檢查）
+godot --headless --path . --script res://tools/golden_v8.gd           # 第八輪金標準 60 場（有新兵的戰鬥，check_all 也會跑）
+SHARDS=14 tools/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>          # 奇幻兵平衡；repl 要 --bases=24 --opp=14
 GODOT=<Godot win exe> tools/export_check.sh <空資料夾>                # 匯出正式版、試玩版（有模板時加 Linux），對成品跑 --self-check
 "<Godot win exe>" --path <game> --script res://tools/atlas_check.gd -- --out=<資料夾>  # 角色圖集：超框、隊伍色比例、剪影重疊、接觸表
 python3 tools/check_strings.py                                     # 字串表：欄數、重複鍵、空翻譯、參數、用語表、不存在的鍵、Steam 成就清單
