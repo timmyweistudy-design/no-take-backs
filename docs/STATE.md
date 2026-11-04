@@ -44,3 +44,8 @@
 - `GODOT=<4.6.2> tools/check_all.sh`：統一檢查，CI 也用。
 - `tools/layout_check.sh <win exe> <新資料夾>`：版面（會被擋的項目見腳本）；另外要人工看英文 150%。
 - `GODOT=<win exe> tools/export_check.sh <空資料夾>`：匯出成品自我檢查。
+
+## 最後一次驗收（2026-11-04，第七輪收尾）
+- 規則測試 400 項全過；FINGERPRINT b8fe741bcbfcf800（Godot 4.6 與 4.6.2 相同）。
+- 統一檢查：4.6.2 跑金標準、舊兵相容各 200 場；1000 場用 WSL 的 4.6 跑（本機沒有 Linux 4.6.2，下載被權限擋）。
+- 版面 228 張 0 違規；匯出正式版、試玩版自我檢查通過；Linux 匯出未驗證。
