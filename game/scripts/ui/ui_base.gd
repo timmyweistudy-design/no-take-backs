@@ -109,6 +109,12 @@ var view = null           # 展示緩衝（R5）：戰鬥畫面播的是比模�
 var clutch_tick := -1      # 最後時刻在第幾 tick 觸發（重播跳轉時重建狀態用）
 var watch_mode := false   # 正在看對戰代碼（結果頁不提供「下一局」）
 var replay_total := 0     # 重播這一場總共幾 tick（時間軸比例用）
+## 第七輪 K3：一鍵簡化特效。單項開關＋總開關都要開才算開。
+func _fx_on(k: String) -> bool:
+	return bool(Save.s(k)) and not bool(Save.s("reduce_fx"))
+
+var replay_snap := {}      # 第七輪 A9：進重播前的結算畫面，返回時原樣還原（不重算、不寫存檔）
+var replay_marks: Array = []   # 第七輪 A7：重播時間軸的關鍵時刻
 var paused := false        # 重播控制：暫停（第三輪 F2）
 var follow_id := -1       # 重播控制：鏡頭跟著哪一隻
 var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出
@@ -395,6 +401,23 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
 	_probe_btn_rect = r
 	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
+	_probe_btn_label = false
+
+
+## 安靜的小按鈕（第七輪 N6）：點擊框維持可點的大小，平常只畫一個小記號，滑過才亮。
+func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
+	var idx := _btns.size()
+	_btns.append({"r": r, "cb": action, "en": true})
+	var hot := (r.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)
+	var c := r.end - Vector2(12, 12)
+	draw_circle(c, 9.0, Color(ACCENT, 0.9) if hot else Color(0, 0, 0, 0.55), true, -1.0, true)
+	if layout_probe:
+		probe_btns.append(r)
+		probe_ctrls.append(r)
+	var sz := ts(14)
+	_probe_btn_label = true
+	_probe_btn_rect = r
+	_text(c - Vector2(0, sz * 0.62), label, sz, Color.BLACK if hot else Color(1, 1, 1, 0.8), true, true)
 	_probe_btn_label = false
 
 

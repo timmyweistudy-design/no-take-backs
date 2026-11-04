@@ -436,7 +436,7 @@ func _draw_codex_demo() -> void:
 				if at >= 1:
 					at = 0
 			var hurt := 0.0
-			if cx_hurt.has(u.id) and bool(Save.s("flash")):
+			if cx_hurt.has(u.id) and _fx_on("flash"):
 				hurt = clampf(1.0 - (time - cx_hurt[u.id]) / 0.15, 0, 1)
 			var face := signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
 			_unit(p, u.type, u.team, face, (time * 10.0 + u.id) if moving else 0.0, at, hurt, 0.45 if u.stealth > 0 else 1.0, time, sc)

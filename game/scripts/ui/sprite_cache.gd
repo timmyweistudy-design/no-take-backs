@@ -11,9 +11,10 @@ extends Node
 const Art = preload("res://scripts/ui/art.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 
-const CELL := 160          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
+const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
 const RS := 1.6            # 烘焙解析度倍率
-const ORIGIN := Vector2(80, 124)   # 角色腳底在格子裡的位置
+const ORIGIN := Vector2(74, 170)   # 角色腳底在格子裡的位置（第七輪 C0：原本 124，長槍、法杖、高帽超框被切掉）
+const RING_ORIGIN := Vector2(96, 140)   # 腳底圈格子的中心（有影子，要留下方空間）
 const WALK_FRAMES := 6
 const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
 # 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..13 攻擊
@@ -67,7 +68,7 @@ func ring_index(team: int, heavy: bool) -> int:
 func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0) -> void:
 	var idx := ring_index(team, type == D.SHIELD or type == D.CAVALRY)
 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
-	ci.draw_texture_rect_region(tex, Rect2(-ORIGIN, Vector2(CELL, CELL)), _rect(idx))
+	ci.draw_texture_rect_region(tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), _rect(idx))
 	ci.draw_set_transform_matrix(Art.base)
 
 func _rect(idx: int) -> Rect2:
@@ -113,9 +114,9 @@ class _Painter extends Node2D:
 		var D2 = preload("res://scripts/core/unit_defs.gd")
 		var saved: Transform2D = Art2.base
 		Art2.base = Transform2D.IDENTITY
-		var CELL2 := 160
+		var CELL2 := 192
 		var RS2 := 1.6
-		var org := Vector2(80, 124)
+		var org := Vector2(74, 170)
 		var per := 2 + 6 + 8 + 8
 		for type in D2.COUNT:
 			for team in 2:
@@ -146,6 +147,6 @@ class _Painter extends Node2D:
 		for team in 2:
 			for heavy in 2:
 				var idx2: int = start + team * 2 + heavy
-				var o := Vector2((idx2 % cols) * CELL2, (idx2 / cols) * CELL2) + org
+				var o := Vector2((idx2 % cols) * CELL2, (idx2 / cols) * CELL2) + Vector2(96, 140)
 				Art2.ring(self, o, team, D2.SHIELD if heavy == 1 else D2.SWORD, cb, RS2)
 		Art2.base = saved

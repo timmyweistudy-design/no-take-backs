@@ -67,7 +67,7 @@ func _check_clutch(with_fx := true) -> void:
 		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
 		if not with_fx:
 			return
-		if bool(Save.s("slowmo")):
+		if _fx_on("slowmo"):
 			slow_left = 8.0
 		clutch_t = 1.6   # 最後時刻橫幅（第三輪 V2）：獨立一層畫在 _draw_clutch_banner
 		sfx.play("clutch")
@@ -125,9 +125,19 @@ func _sim_step(with_fx: bool) -> void:
 ## 頂住的 src 是被頂住的騎兵，功勞算盾兵那一隊。
 func _collect_mark(ev: Dictionary, lookup, tick: int) -> void:
 	var k: String = ev["kind"]
-	if k != EV.CHARGE and k != EV.BACKSTAB and k != EV.BRACED:
+	# 第七輪 A7：加首殺、破陣、背水
+	if k != EV.CHARGE and k != EV.BACKSTAB and k != EV.BRACED and k != EV.DEATH and k != EV.BREACH and k != EV.RALLY_ON:
 		return
-	var team: int = lookup.unit_by_id(ev["tgt"] if k == EV.BRACED else ev["src"]).team
+	var team := -1
+	if k == EV.DEATH:
+		team = lookup.unit_by_id(ev["id"]).team
+		for m0 in battle_marks:
+			if m0["kind"] == k:
+				return   # 首殺只記一次（不分隊）
+	elif k == EV.RALLY_ON:
+		team = int(ev["team"])
+	else:
+		team = lookup.unit_by_id(ev["tgt"] if k == EV.BRACED else ev["src"]).team
 	for m in battle_marks:
 		if m["kind"] == k and m["team"] == team:
 			return
@@ -333,7 +343,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			var vic = view.unit_by_id(ev["tgt"])
 			_add_fx({"kind": "taunt", "p": _upos(sh), "t": 0.0, "dur": 0.6})
 			sfx.play("taunt", 0.5)
-			_add_fx({"kind": "bang", "p": _upos(vic) + Vector2(0, -64), "t": 0.0, "dur": 0.7})
+			_add_fx({"kind": "bang", "p": _upos(vic) + Vector2(20, -66), "t": 0.0, "dur": 0.7})   # 第七輪 D1：移到頭頂側上方，不擋臉
 			return
 		"reveal":
 			_add_fx({"kind": "puff", "p": _upos(view.unit_by_id(ev["src"])) + Vector2(0, -20), "t": 0.0, "dur": 0.45})
@@ -374,7 +384,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			col = ACCENT
 			sfx.play("charge")
 			sfx.play("bugle", 0.6)
-			if bool(Save.s("shake")):
+			if _fx_on("shake"):
 				shake = 0.12
 			_add_fx({"kind": "dust", "p": tpos, "t": 0.0, "dur": 0.5})
 		EV.BACKSTAB:
@@ -382,8 +392,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			col = Color("#c77dff")
 			sfx.play("backstab")
 			sfx.play("aircut", 0.7)
-			_add_fx({"kind": "flash", "p": tpos + Vector2(0, -26), "c": Color("#c77dff"), "t": 0.0, "dur": 0.25})
-			_add_fx({"kind": "vslash", "p": tpos + Vector2(0, -26), "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.3})
+			# 第七輪 D7：拿掉閃光 X（混戰疊成一片），只留方向斬痕
+			_add_fx({"kind": "vslash", "p": tpos + Vector2(0, -26), "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.2})
 		EV.BRACED:
 			label = L.t("ev_braced")
 			col = Color("#9ad1ff")
@@ -415,7 +425,85 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			sfx.play("shatter", 0.45)
 			_add_fx({"kind": "shard", "p": tpos + Vector2(12, -26), "t": 0.0, "dur": 0.5})
 	if label != "":
-		_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -78), col)
+		_report_add(s.team, s.type, k, label, col)
+		# 第七輪 D1：混戰（附近 3 隻以上）不再往上疊跳字，技能都進底部戰報列；稀疏時才跳字
+		if _crowd_at(t) < 3:
+			_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -78), col)
+		elif int(TEXT_TIER.get(k, 1)) >= 2:
+			text_key_in += 1
+			text_key_shown += 1   # 關鍵技能仍然有顯示，只是在戰報列（測試對帳用）
+
+
+## 這隻兵附近（60px 內）有幾隻活著的兵，不算自己。
+func _crowd_at(u) -> int:
+	var n := 0
+	var p := _upos(u)
+	for v in view.units:
+		if v.alive and v.id != u.id and _upos(v).distance_squared_to(p) < 3600.0:
+			n += 1
+	return n
+
+
+## 戰報列（第七輪 E1）：承接混戰時的技能跳字。同隊同兵種同技能 2 秒內合併。
+var report_log: Array = []
+const REPORT_CAP := 6
+
+func _report_add(team: int, type: int, kind: String, label: String, col: Color) -> void:
+	for i in report_log.size():
+		var e: Dictionary = report_log[i]
+		if e["team"] == team and e["type"] == type and e["kind"] == kind and time - float(e["t"]) < 2.0:
+			e["n"] += 1
+			e["t"] = time
+			report_log.remove_at(i)
+			report_log.push_front(e)
+			return
+	report_log.push_front({"team": team, "type": type, "kind": kind, "label": label, "col": col, "n": 1, "t": time})
+	if report_log.size() > REPORT_CAP:
+		report_log.resize(REPORT_CAP)
+
+func _draw_battle_report() -> void:
+	if report_log.is_empty():
+		return
+	var ctl: bool = play_kind != "official"
+	var rows := 1 if ctl else 2     # 重播時底部有控制列，只剩一排
+	var rh: float = tz("S") * 1.32
+	var y0: float = 800.0 - rows * rh - 4.0 if ctl else 692.0
+	var cw := 412.0
+	for i in mini(report_log.size(), rows * 3):
+		var e: Dictionary = report_log[i]
+		var age: float = time - float(e["t"])
+		var a := clampf(1.6 - age * 0.4, 0.35, 1.0)
+		var p := Vector2(14.0 + (i % 3) * cw, y0 + (i / 3) * rh)
+		var mark := "●" if e["team"] == 0 else "◆"
+		var line := "%s %s" % [L.t("unit_%d" % int(e["type"])), e["label"]]
+		if int(e["n"]) > 1:
+			line += " ×%d" % int(e["n"])
+		_text(p, mark, tz("S"), Color(Art.team_color(int(e["team"]), cbm()), a), false, true)
+		_text(p + Vector2(tz("S") + 6.0, 0), line, tz("S"), Color(e["col"], a), false, true, cw - tz("S") - 14.0)
+
+
+## 暫停時點一隻兵看狀態（第七輪 A6）。
+func _draw_unit_info() -> void:
+	if not paused or follow_id < 0 or view == null:
+		return
+	var u = view.unit_by_id(follow_id)
+	if u == null:
+		return
+	var tname := L.t("ui_none")
+	if u.target >= 0 and u.target < view.units.size() and view.units[u.target].alive:
+		tname = L.t("unit_%d" % view.units[u.target].type)
+	var lines: Array = [
+		"%s（%s）" % [L.t("unit_%d" % u.type), L.t("blue") if u.team == 0 else L.t("red")],
+		L.t("ui_hp", [u.hp, u.max_hp]),
+		L.t("ui_target", [tname]),
+		L.t("ui_cd", ["%.1f" % (u.cd / 80.0)]),
+		L.t("ui_stats", [u.dmg_dealt, u.kills]),
+	]
+	var R := Rect2(980, 96, 286, 16 + lines.size() * tz("S") * 1.4)
+	draw_rect(R, Color(0.06, 0.07, 0.1, 0.92))
+	draw_rect(R, Color(Art.team_color(u.team, cbm()), 0.9), false, 2.0)
+	for i in lines.size():
+		_text(R.position + Vector2(10, 8 + i * tz("S") * 1.4), lines[i], tz("S"), Color.WHITE, false, i == 0, 266)
 
 
 ## 跳字（第三輪 V1）：
@@ -623,6 +711,8 @@ var fx_dropped := 0
 var fx_deduped := 0
 
 func _add_fx(d: Dictionary) -> void:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "ripple", "note", "hex", "aim", "trip"]:
+		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	var pr: int = FX_PRIO.get(d["kind"], 1)
 	# 同一處同種特效去重（Antigravity S2 #2）：24px 內、0.15 秒內最多 2 個
 	var dp = d.get("p", d.get("b", null))
@@ -887,7 +977,7 @@ func _draw_units_of(s, dim: bool) -> void:
 				elif u.type >= D.CLASSIC and alt_hit.get(u.id, {}).has(h):
 					variant = 2
 		var hurt := 0.0
-		if live and hurt_t.has(u.id) and bool(Save.s("flash")):
+		if live and hurt_t.has(u.id) and _fx_on("flash"):
 			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
 		var alpha := 0.45 if u.stealth > 0 else 1.0
 		if dim:
@@ -1001,7 +1091,9 @@ func _draw_units_of(s, dim: bool) -> void:
 			draw_arc(p, D.DRUM_RANGE * CS / 1000.0, 0, TAU, 40, Color(1, 0.85, 0.35, 0.35), 2.0, true)
 		if s.frenzy:
 			draw_circle(p + Vector2(8, -58 - sin(time * 12 + u.id) * 2), 3.0, Color(1, 0.5, 0.1, 0.9), true, -1.0, true)
-		if u.hp < u.max_hp:
+		# 第七輪 D1：血條只在需要看時才畫（受傷 3 秒內、跟拍、低血量）
+		var hurt_recent: bool = hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 3.0
+		if u.hp < u.max_hp and (not live or hurt_recent or u.id == follow_id or u.hp * 100 <= u.max_hp * 35):
 			var w := 28.0
 			var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else -58)
 			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
@@ -1110,22 +1202,28 @@ func _draw_fx(f: Dictionary) -> void:
 			# 背刺：一道粗的紫色斬痕
 			var c6: Vector2 = f["p"]
 			var dd: float = f["dir"]
-			var a0 := Vector2(-18 * dd, -16)
-			var a1 := Vector2(18 * dd, 16)
+			# 第七輪 D7：頭粗尾細、0.2 秒淡出，一眼看出從哪個方向砍
+			var a0 := Vector2(-20 * dd, -17)
+			var a1 := Vector2(20 * dd, 17)
 			var e3 := a0.lerp(a1, minf(1.0, k * 3.0))
-			draw_line(c6 + a0, c6 + e3, Color(Art.OUT, 0.8 * (1 - k)), 10.0 * (1 - k * 0.6), true)
-			draw_line(c6 + a0, c6 + e3, Color(0.78, 0.49, 1.0, 1 - k), 6.0 * (1 - k * 0.6), true)
-			draw_line(c6 + a0, c6 + e3, Color(1, 1, 1, 0.8 * (1 - k)), 1.6, true)
+			var seg := a0.distance_to(e3)
+			if seg > 2.0:
+				var nrm := (a1 - a0).normalized().orthogonal()
+				var wd := minf(seg * 0.14, 5.0) * (1 - k * 0.4)
+				draw_colored_polygon(PackedVector2Array([c6 + a0, c6 + e3 + nrm * (wd + 1.6), c6 + e3 - nrm * (wd + 1.6)]), Color(Art.OUT, 0.6 * (1 - k)))
+				draw_colored_polygon(PackedVector2Array([c6 + a0, c6 + e3 + nrm * wd, c6 + e3 - nrm * wd]), Color(0.78, 0.49, 1.0, 1 - k))
+				draw_line(c6 + a0, c6 + e3, Color(1, 1, 1, 0.75 * (1 - k)), 1.2, true)
 		"taunt":
-			# 嘲諷：盾兵身邊擴散的橘色圈
-			for j in 2:
-				var kj := clampf(k * 1.4 - j * 0.3, 0.0, 1.0)
-				draw_arc(f["p"], 10 + kj * 22, 0, TAU, 28, Color(Art.OUT, 0.45 * (1 - kj)), 5.0, true)
-				draw_arc(f["p"], 10 + kj * 22, 0, TAU, 28, Color(1, 0.62, 0.2, 0.75 * (1 - kj)), 2.5, true)
+			# 第七輪 D7：嘲諷改腳底橢圓，只畫下半弧，不擋臉
+			var kj := clampf(k * 1.3, 0.0, 1.0)
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.5), 0, f["p"]))
+			draw_arc(Vector2.ZERO, 14 + kj * 20, 0.0, PI, 22, Color(Art.OUT, 0.45 * (1 - kj)), 5.0, true)
+			draw_arc(Vector2.ZERO, 14 + kj * 20, 0.0, PI, 22, Color(1, 0.62, 0.2, 0.85 * (1 - kj)), 2.5, true)
+			draw_set_transform_matrix(_cam)
 		"bang":
 			# 嘲諷：被吸過去的敵人頭上冒「!」
 			var y4 := -sin(minf(1.0, k * 3.0) * PI * 0.5) * 8.0
-			_text(f["p"] + Vector2(0, y4 - 10), "!", ts(26), Color(1, 0.65, 0.2, 1.0 - k * k), true, true)
+			_text(f["p"] + Vector2(0, y4 - 10), "!", ts(20), Color(1, 0.65, 0.2, 1.0 - k * k), true, true)
 		"hex":
 			# 頂住：藍色六角波紋
 			for j in 2:
@@ -1244,9 +1342,12 @@ func _draw_battle_hud() -> void:
 		_text(Vector2(bx + bw - 120, 68), "AI：%s" % ai_name, ts(11), Color(1, 1, 1, 0.55))
 	if state == St.BATTLE and bool(Save.s("playtest")):
 		if pt_call_tick < 0:
-			_btn(Rect2(840, 6, 162, 38), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
+			_btn(Rect2(780, 2, 162, 36), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
 	if state == St.BATTLE:
-		if play_kind == "official":   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
+		if play_kind != "official":
+			_btn(Rect2(1010, 6, 120, 38), L.t("back"), func(): call("_replay_back"))   # 第七輪 A9：立刻回上一個畫面
+		else:   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
+			_btn(Rect2(950, 2, 52, 36), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6
 			_btn(Rect2(1010, 6, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
 		_btn(Rect2(1138, 6, 132, 38), L.t("skip"), func(): _on_skip())
 
@@ -1271,6 +1372,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	paused = false
 	follow_id = -1
 	battle_marks.clear()
+	report_log.clear()
 	graves.clear()
 	clutch_t = 0.0
 	atk_hit.clear()

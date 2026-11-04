@@ -49,6 +49,11 @@ func _draw_replay_controls() -> void:
 	var hz := fit(L.t("rc_hint"), ts(12), 560)
 	var hw := font.get_string_size(L.t("rc_hint"), HORIZONTAL_ALIGNMENT_LEFT, -1, hz).x
 	_text(Vector2(RC_BAR.end.x - hw, RC_BAR.position.y - hz * 1.5), L.t("rc_hint"), hz, Color(1, 1, 1, 0.6))
+	# 第七輪 A7：時間軸上的關鍵時刻刻度
+	for m in replay_marks:
+		var mx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(m["t"]) / total, 0.0, 1.0)
+		draw_line(Vector2(mx, RC_BAR.position.y), Vector2(mx, RC_BAR.end.y), Color("#ffd166"), 2.0)
+		draw_colored_polygon(PackedVector2Array([Vector2(mx - 5, RC_BAR.position.y - 7), Vector2(mx + 5, RC_BAR.position.y - 7), Vector2(mx, RC_BAR.position.y)]), Color("#ffd166"))
 	# 整條是一個按鈕：點哪裡就跳到哪一秒
 	_btns.append({"r": RC_BAR, "cb": func(): _seek(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
 	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), "%.1f／%.1f 秒" % [view.tick / 20.0, total / 20.0] if L.lang == "zh_TW" else "%.1f / %.1fs" % [view.tick / 20.0, total / 20.0], ts(12), Color(1, 1, 1, 0.75))
@@ -109,7 +114,7 @@ func _seek(target: int) -> void:
 
 ## 點戰場上的兵：鏡頭跟著它；點空地取消。
 func _battle_click(p: Vector2) -> void:
-	if not _replay_controls_active():
+	if not _replay_controls_active() and not (paused and state == St.BATTLE):
 		return
 	var world := _cam.affine_inverse() * p
 	var best := -1
@@ -121,10 +126,57 @@ func _battle_click(p: Vector2) -> void:
 				bd = d
 				best = u.id
 	follow_id = best
+	if play_kind == "official":
+		return   # 正式對局暫停時只看資料，不動鏡頭
 	if best < 0:
 		zoom_target = 1.0   # 取消跟拍：回到全景（中心由 _battle_process 拉回）
 
+## 暫停（第七輪 A6）：正式對局也能停下來看；繼續時放掉選取。
+func _toggle_pause() -> void:
+	paused = not paused
+	if not paused and play_kind == "official":
+		follow_id = -1
+
+
+## 進重播前存結算畫面（第七輪 A9）。
+func _replay_snapshot() -> void:
+	replay_snap = {"sim": sim, "view": view, "report": report, "marks": battle_marks.duplicate(true), "kind": play_kind,
+		"tab": result_tab, "overlay": "", "power": null}
+
+## 重播的「返回」：回到進來的地方。只還原畫面，比分、進度、成就、試玩紀錄都不寫。
+func _replay_back() -> void:
+	paused = false
+	follow_id = -1
+	zoom = 1.0
+	zoom_target = 1.0
+	fx.clear()
+	dying.clear()
+	report_log.clear()
+	sfx.set_muffled(false)
+	if watch_mode or replay_snap.is_empty():
+		call("_go_title")
+		return
+	sim = replay_snap["sim"]
+	view = replay_snap["view"]
+	report = replay_snap["report"]
+	battle_marks = replay_snap["marks"]
+	play_kind = replay_snap["kind"]
+	result_tab = replay_snap["tab"]
+	overlay = replay_snap["overlay"]
+	result_delay = 0.0
+	state = St.RESULT
+	replay_snap = {}
+
+
+## 從關鍵時刻開始重播（第七輪 A7）。
+func _replay_from(t: int) -> void:
+	call("_replay")
+	_seek(t)
+
+
 func _follow_update(delta: float) -> void:
+	if play_kind == "official":
+		return
 	if follow_id < 0 or view == null or state != St.BATTLE:
 		return
 	var u = view.unit_by_id(follow_id)
@@ -356,6 +408,9 @@ func _rv_recalc() -> void:
 
 func _rv_play() -> void:
 	rv_last = [rv_army.copy(), rv_enemy.copy()]
+	_replay_snapshot()
+	replay_snap["overlay"] = "review"
+	replay_marks = []
 	overlay = ""
 	_begin_battle(rv_army.copy(), rv_enemy.copy(), "review")
 

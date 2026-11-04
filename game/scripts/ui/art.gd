@@ -90,7 +90,7 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 		# 帽簷壓低：一條兜帽色的帽簷蓋到眼睛上緣；每 0.4 秒整個蓋住一下（眨眼）
 		var shut := fmod(t, 0.4) < 0.07
 		var drop := 4.6 if shut else 2.2
-		ci.draw_rect(Rect2(ec + Vector2(-6.5, -4.8), Vector2(13.0, drop)), Color("#6b3fa0", a))
+		ci.draw_rect(Rect2(ec + Vector2(-6.5, -4.8), Vector2(13.0, drop)), Color("#33304a", a))
 	if mood & M_HURT:
 		for i in 2:
 			var e: Vector2 = eyes[i]
@@ -173,8 +173,10 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 	body.append(Vector2(10, -5)); body.append(Vector2(-10, -5))
 	_poly(ci, body, SKIN.darkened(0.06) if type == D.BERSERKER else (Color("#f4f1ea") if type == D.MEDIC else tc), a)
 	if type == D.BERSERKER:
-		_poly(ci, PackedVector2Array([Vector2(-11, -21), Vector2(-3, -26), Vector2(8, -14), Vector2(3, -10), Vector2(-6, -18)]), tc, a, false)   # 獸皮披肩
-		_poly(ci, PackedVector2Array([Vector2(-10, -9), Vector2(10, -9), Vector2(10, -5), Vector2(-10, -5)]), tc.darkened(0.2), a, false)
+		# 第七輪 C1-10：披肩加寬＋交叉肩帶＋整條褲頭，隊伍色面積拉大
+		_poly(ci, PackedVector2Array([Vector2(-12, -24), Vector2(-2, -27), Vector2(12, -15), Vector2(5, -8), Vector2(-3, -15), Vector2(-11, -13)]), tc, a, false)
+		_poly(ci, PackedVector2Array([Vector2(8, -24), Vector2(11, -21), Vector2(-7, -7), Vector2(-10, -10)]), tc.darkened(0.15), a, false)
+		_poly(ci, PackedVector2Array([Vector2(-10, -14), Vector2(10, -14), Vector2(10, -5), Vector2(-10, -5)]), tc, a, false)
 	elif type == D.MEDIC:
 		_poly(ci, PackedVector2Array([Vector2(-10, -12), Vector2(10, -12), Vector2(10, -5), Vector2(-10, -5)]), tc, a, false)   # 白袍下擺露出隊伍色
 	ci.draw_line(Vector2(-9, -11), Vector2(9, -11), Color(OUT, 0.35 * a), 2.0, true)   # 腰帶
@@ -236,9 +238,14 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_c(ci, Vector2(bc.x + 12, bc.y), 3.0, SKIN, a)
 		D.ASSASSIN:
 			# 尖兜帽＋面罩，只露發光的眼睛
-			var hood := PackedVector2Array([Vector2(-12, hy + 5), Vector2(-12, hy - 6), Vector2(-4, hy - 15), Vector2(-9, hy - 24), Vector2(6, hy - 13), Vector2(12, hy - 4), Vector2(12, hy + 5)])
-			_poly(ci, hood, Color("#6b3fa0"), a)
+			# 第七輪 C1-5：不再戴紫色尖帽（蓋掉隊伍色、又高又像法師）。貼頭的深色頭巾＋隊伍色長圍巾往後飄
+			var flow := sin(t * 5.0 + walk) * 2.0
+			_poly(ci, PackedVector2Array([Vector2(-8, hy + 7), Vector2(-24, hy + 3 + flow), Vector2(-29, hy + 9 + flow), Vector2(-21, hy + 12 + flow * 0.5), Vector2(-7, hy + 13)]), tc, a)
+			var hood := PackedVector2Array([Vector2(-12, hy + 5), Vector2(-13, hy - 6), Vector2(-5, hy - 13), Vector2(6, hy - 13), Vector2(12, hy - 5), Vector2(12, hy + 5)])
+			_poly(ci, hood, Color("#33304a"), a)
+			_poly(ci, PackedVector2Array([Vector2(-12, hy - 7), Vector2(-5, hy - 12), Vector2(6, hy - 12), Vector2(11, hy - 7), Vector2(11, hy - 4), Vector2(-12, hy - 4)]), tc, a, false)
 			_poly(ci, PackedVector2Array([Vector2(-5, hy - 3), Vector2(11, hy - 3), Vector2(11, hy + 6), Vector2(-5, hy + 6)]), Color("#2b2140"), a, false)
+			_poly(ci, PackedVector2Array([Vector2(-11, hy + 5), Vector2(12, hy + 5), Vector2(12, hy + 11), Vector2(-11, hy + 11)]), tc, a)
 			_c(ci, Vector2(3.0, hy - 0.5), 1.8, Color("#ffe066"), a, false)
 			_c(ci, Vector2(8.0, hy - 0.5), 1.8, Color("#ffe066"), a, false)
 			if angry:
@@ -246,7 +253,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 				ci.draw_line(Vector2(10.0, hy - 3.6), Vector2(6.0, hy - 2.4), Color("#ffe066", a), 1.3, true)
 			# 雙短刃
 			var sw := w * 6.0
-			_line(ci, Vector2(10, -18 - sw), Vector2(19, -24 + sw), Color("#f0f0ff"), 2.2, a)
+			_line(ci, Vector2(10, -18 - sw), Vector2(8, -6 + sw), Color("#f0f0ff"), 2.6, a)   # 反手短刃：刃朝下，輪廓和劍士、槍兵分得開
 			# 後手的刀：揮擊時往前交叉斬（第三輪 R4）
 			var bw := maxf(0.0, w)
 			_line(ci, Vector2(-8 + bw * 18, -16 - bw * 6), Vector2(-15 + bw * 44, -21 + bw * 16), Color("#f0f0ff"), 2.8, a)   # 加長加粗，看得出交叉
@@ -320,15 +327,15 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_c(ci, Vector2(12.5, -20 - lift), 3.0, SKIN, a)
 		D.DRUMMER:
 			# 紅白羽毛高帽（全兵種最高）
-			var hatc := Color("#d8343d") if tc.b > tc.r else Color("#6e1f4a")   # 紅隊（或色盲的黃隊）帽身改深酒紅，不跟隊伍色混在一起
+			var hatc := tc.darkened(0.12)   # 第七輪 C1-9：帽子用隊伍色（原本藍方戴紅帽，一眼像紅軍）
 			_poly(ci, PackedVector2Array([Vector2(-8, hy - 8), Vector2(-7, hy - 20), Vector2(7, hy - 20), Vector2(8, hy - 8)]), hatc, a)
 			_line(ci, Vector2(-8, hy - 10), Vector2(8, hy - 10), GOLD, 1.8, a)
 			_poly(ci, PackedVector2Array([Vector2(-2, hy - 20), Vector2(-6, hy - 36), Vector2(1, hy - 30), Vector2(3, hy - 20)]), Color("#ffffff"), a)
-			_poly(ci, PackedVector2Array([Vector2(1, hy - 20), Vector2(4, hy - 33), Vector2(6, hy - 20)]), Color("#ff6b6b"), a, false)
+			_poly(ci, PackedVector2Array([Vector2(1, hy - 20), Vector2(4, hy - 33), Vector2(6, hy - 20)]), tc.lightened(0.35), a, false)
 			# 胸前大圓鼓
-			var dc := Vector2(7, -15)
-			_c(ci, dc, 9.0, Color("#e9d8a6"), a)
-			ci.draw_arc(dc, 9.0, 0.0, TAU, 24, Color(tc, a), 2.4, true)
+			var dc := Vector2(9, -15)   # 第七輪 C1-9：鼓放大、往前凸
+			_c(ci, dc, 11.5, Color("#e9d8a6"), a)
+			ci.draw_arc(dc, 11.5, 0.0, TAU, 28, Color(tc, a), 3.2, true)
 			_line(ci, dc + Vector2(-6, -6), dc + Vector2(6, 6), Color("#b7814e"), 1.0, a)
 			# 鼓棒：平常輕敲、揮擊時舉高大力敲兩下
 			var beat := absf(sin(t * 6.0)) * 4.0
@@ -356,7 +363,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 				var atip := ah + adir * 20.0
 				_line(ci, ah, atip, WOOD, 2.4, a)
 				var ao := adir.orthogonal()
-				var blade := PackedVector2Array([atip - adir * 2.0 + ao * 1.5, atip - adir * 10.0 + ao * 10.0, atip + adir * 4.0 + ao * 9.0])
+				var blade := PackedVector2Array([atip - adir * 3.0 + ao * 1.5, atip - adir * 13.0 + ao * 13.0, atip + adir * 6.0 + ao * 12.0])   # 第七輪 C1-10：斧刃放大
 				_poly(ci, blade, STEEL, a)
 				ci.draw_line(blade[1], blade[2], Color(1, 1, 1, a), 1.6, true)   # 亮銀刃口
 				_c(ci, ah, 3.0, SKIN, a)

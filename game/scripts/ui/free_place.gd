@@ -36,6 +36,8 @@ var fp_touch := false
 var fp_pad_a := false
 var fp_pad_x := false
 var fp_skip_seen := 0
+var free_intro := false        # 第七輪 A4：自由排兵入門關
+var free_intro_moved := false
 var fp_stroke_key: Array = []  # 這一筆屬於哪一隊、哪一手（換手就作廢，Codex 實作第 1 輪 #6）          # 已經提示過幾次跳手
 
 # ───────── 座標 ─────────
@@ -365,12 +367,16 @@ func _fp_release(p: Vector2, w: Vector2i) -> bool:
 			if mv.x == -99999:
 				fp_undo.pop_back()
 				_toast(L.t("err_group_move"), true)
+			else:
+				free_intro_moved = true
 			return true
 		if tgt != fp_drag_from:
 			_fp_push_undo()
 			if not a.move_xy(i, tgt.x, tgt.y):
 				fp_undo.pop_back()
 				_toast(L.t("err_zone"), true)
+			else:
+				free_intro_moved = true
 		return true
 	if fp_stroking:
 		_fs_commit()
@@ -517,11 +523,6 @@ func _fp_draw_zones() -> void:
 		var xb := ORIGIN.x + (16000 - other) / 1000.0 * CS
 		if xb > xa:
 			draw_rect(Rect2(xa, ORIGIN.y, xb - xa, FIELD.y), Color(0.85, 0.75, 0.55, 0.10))
-			for k in 5:
-				var fy := ORIGIN.y + FIELD.y * (k + 0.5) / 5.0
-				var fx := (xa + xb) / 2.0
-				draw_line(Vector2(fx, fy - 14), Vector2(fx, fy + 10), Color(0.4, 0.3, 0.2, 0.5), 2.0)
-				draw_colored_polygon(PackedVector2Array([Vector2(fx, fy - 14), Vector2(fx + 12, fy - 9), Vector2(fx, fy - 4)]), Color(0.85, 0.75, 0.55, 0.55))
 	# 全場：敵兵 1.5 格禁區融合成一片均勻淡紅，只畫在戰場內（Antigravity 實作第 1 輪 #6）。
 	# 0.125 格點陣，同一列連續的格子併成一個長方形；敵兵位置不變就用快取。
 	if not a.enemy_pos.is_empty():
@@ -601,9 +602,11 @@ func _fp_draw() -> void:
 	lst.sort()
 	# 占地圈：只在拖曳或懸停時出現（Antigravity）
 	var hover_w: Vector2i = Vector2i(fp_cur) if pad_mode else _w_of(mouse)   # 手把＝準星（Antigravity 實作第 3 輪，未經複查）
+	if hide_side >= 0:
+		call("_draw_hide_fog", hide_side)   # 第七輪：自由模式也要有迷霧與「敵陣開戰才看得到」，原本右半場空著像沒做完
 	for it in lst:
 		var w := Vector2i(it[1], it[0])
-		if it[3] == a.team and (drag_on or Vector2(w - hover_w).length() < 2500):
+		if it[3] == a.team and (drag_on or Vector2(w - hover_w).length() < 1500):   # 第七輪 D8：範圍縮小減噪
 			_fp_dashed_circle(_s_of(w) - Vector2(0, 0.32 * CS), a.spacing / 2000.0 * CS, Color(1, 1, 1, 0.35))
 	for it in lst:
 		var p := _s_of(Vector2i(it[1], it[0]))
@@ -702,8 +705,28 @@ func _fp_draw() -> void:
 		var rad := _fp_range_of(selected)
 		if rad > 0.0:
 			call("_arc_clipped", cp, rad * CS, 0, TAU, Color(1, 0.9, 0.5, 0.45), 2.0)
+			# 第七輪 N8：弧線要說得出是什麼
+			var lbl: String = L.t("fp_range_tag", [_fmt_num(rad)])
+			var lx := clampf(cp.x, ORIGIN.x + 40, ORIGIN.x + FIELD.x - 40)
+			var ly := clampf(cp.y - rad * CS - tz("C") * 1.2, ORIGIN.y + 2, ORIGIN.y + FIELD.y - tz("C") * 1.3)
+			_text(Vector2(lx, ly), lbl, tz("C"), Color(1, 0.93, 0.6, 0.95), true, true)
 	_fp_gesture()
 	_fp_toolbar()
+	_fp_intro_steps(a)
+
+## 自由排兵入門（第七輪 A4）：一次只講一步，做到就換下一步。
+func _fp_intro_steps(a) -> void:
+	if not free_intro:
+		return
+	var step := "intro_s1"
+	if a.units.size() >= 4:
+		step = "intro_s3" if free_intro_moved else "intro_s2"
+	var msg: String = L.t(step)
+	var w := minf(_width(msg, tz("B"), true) + 40, 900.0)
+	var r := Rect2(640 - w / 2, ORIGIN.y + 8, w, text_h(msg, tz("B"), w - 24, true) + 14)
+	draw_rect(r, Color(0.06, 0.07, 0.1, 0.92))
+	draw_rect(r, ACCENT, false, 2.0)
+	_text(Vector2(640, r.position.y + 6), msg, tz("B"), ACCENT, true, true, w - 24)
 
 ## 新手手勢：前排從上往下一隻手拖過去，後面依間距冒出半透明小兵，1.5 秒。
 func _fp_gesture() -> void:
@@ -768,12 +791,31 @@ func _fp_toolbar() -> void:
 	var w := ORIGIN.x - 16
 	var x := 8.0
 	var y := ORIGIN.y + 48   # 讓開上方說明條（150% 時會換成兩行）
-	draw_rect(Rect2(x - 4, y - 4, w + 8, items.size() * 46 + 4), Color(0.06, 0.07, 0.1, 0.8))
+	# 第七輪 N7：三種性質分組，長得不一樣：模式（三選一，亮底）／開關（右邊有燈）／單次動作（暗底）
+	var extra := 0
+	var prev_g := -1
+	for it in items:
+		var g0: int = 0 if it[0] in ["brush", "line", "select"] else (1 if it[0] in ["snap", "dense"] else 2)
+		if prev_g >= 0 and g0 != prev_g:
+			extra += 10
+		prev_g = g0
+	draw_rect(Rect2(x - 4, y - 4, w + 8, items.size() * 46 + 4 + extra), Color(0.06, 0.07, 0.1, 0.8))
+	prev_g = -1
 	for k in items.size():
 		var id: String = items[k][0]
+		var g: int = 0 if id in ["brush", "line", "select"] else (1 if id in ["snap", "dense"] else 2)
+		if prev_g >= 0 and g != prev_g:
+			draw_line(Vector2(x, y + 2), Vector2(x + w, y + 2), Color(1, 1, 1, 0.25), 1.0)
+			y += 10
+		prev_g = g
 		var on: bool = (id == fp_tool) or (id == "snap" and fp_snap) or (id == "dense" and fp_dense)
 		var cb := func(): _fp_tool_click(id)
-		_btn(Rect2(x, y, w, 40), items[k][1], cb, true, false, Color(0.26, 0.33, 0.5) if on else Color(0.14, 0.15, 0.2, 0.9))
+		var tint := Color(0.26, 0.33, 0.5) if (g == 0 and on) else (Color(0.1, 0.11, 0.15, 0.95) if g == 2 else Color(0.14, 0.15, 0.2, 0.9))
+		_btn(Rect2(x, y, w, 40), items[k][1], cb, true, false, tint)
+		if g == 0 and on:
+			draw_rect(Rect2(x, y, 4, 40), ACCENT)
+		elif g == 1:
+			draw_circle(Vector2(x + w - 7, y + 7), 3.5, ACCENT if on else Color(1, 1, 1, 0.25), true, -1.0, true)
 		y += 46
 
 func _fp_tool_click(id: String) -> void:
