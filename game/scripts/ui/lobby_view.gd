@@ -11,6 +11,7 @@ var lobby_open := false        # 自訂細項展開
 var lobby_tab := 0             # 0 軍隊 1 卡池 2 對局 3 AI 4 沙盒
 var lobby_item := ""           # 說明欄目前說明的項目
 var lobby_menu := false        # 「我的預設」下拉
+var lobby_pool_team := 0       # 第八輪：兩邊名單不同時正在看哪一邊
 var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 
 const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
@@ -549,14 +550,19 @@ func _rows(R: Rect2, rows: Array) -> void:
 		_stepper(Rect2(R.position.x + 230, y, 360, 52), rows[i][2], rows[i][0])
 
 func _draw_pool_tab(R: Rect2) -> void:
-	var teams := [0] if lobby_r.ai_pool_same else [0, 1]
+	# 第八輪：兩邊名單不同時一次只顯示一邊（兩排卡片放不下兩隊），用分頁切換
 	var y := R.position.y
 	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	var two: bool = not lobby_r.ai_pool_same
+	if not two:
+		lobby_pool_team = 0
+	if two:
+		for ti in 2:
+			var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
+			_btn(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, Color(0.26, 0.33, 0.5) if ti == lobby_pool_team else Color(0, 0, 0, 0))
+		y += 44
+	var teams := [lobby_pool_team]
 	for tm in teams:
-		if teams.size() > 1:
-			var pl: String = (L.t("lb_your_pool") if tm == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if tm == 0 else L.t("lb_red_pool"))
-			_text(Vector2(R.position.x, y), pl, tz("S"), Color(1, 1, 1, 0.7))
-			y += tz("S") * 1.5
 		# 戰鬥兵、支援兵分框（第五輪 §3.6）
 		# 第八輪：出戰名單 2×10（上王國軍、下奇幻軍）；第一次有新兵解鎖前只有一排，不嚇新手
 		var has_new_row: bool = RuleSet.has_new(sel)
@@ -570,7 +576,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 		for g in groups:
 			var cw := 54.0
 			var gw: float = g[1].size() * (cw + 4) + 12
-			var cardh: float = 58.0 if teams.size() > 1 else 76.0
+			var cardh: float = 62.0 if two else 76.0
 			var box := Rect2(x, y, gw, cardh + 12.0 + tz("C") * 1.2)
 			draw_rect(box, Color(1, 1, 1, 0.05))
 			draw_rect(box, Color(1, 1, 1, 0.25), false, 1.0)

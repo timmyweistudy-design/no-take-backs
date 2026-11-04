@@ -1144,7 +1144,7 @@ func _v8_vacuum(n: int, cats: Array) -> void:
 		if e.type == D.CAVALRY or e.type == F8.GOLEM:
 			amt /= 2
 		e.pull_t = F8.CAT_PULL_TICKS
-		e.stun = maxi(e.stun, F8.CAT_PULL_TICKS)   # 被吸的時候不能出手
+		e.stun = maxi(e.stun, F8.CAT_PULL_TICKS + 1)   # 被吸的時候不能出手（放招當 tick 會先扣 1）
 		e.pull_x = dx * amt / l / F8.CAT_PULL_TICKS
 		e.pull_y = dy * amt / l / F8.CAT_PULL_TICKS
 
