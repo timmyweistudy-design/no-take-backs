@@ -1551,7 +1551,7 @@ func _draw_overlay() -> void:
 				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
 				_probe_btn_label = false
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
-				# 關卡名稱換行時（英文大字）就不再塞預覽，避免互壓
+				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
 				if not tut and en and text_h(line, tz("S"), r.size.x - 72) <= tz("S") * 1.6:
 					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
 					_probe_btn_label = true
