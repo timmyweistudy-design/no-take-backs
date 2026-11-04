@@ -480,9 +480,9 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var label := func(ic: String, s: String, yy: float) -> void:
 		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
 		_icon(ic, Vector2(x + 26, yy + 24), 26.0, ACCENT)
-		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 100)
-	var cx := x + 150
-	var cw := lw - 160
+		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 112)
+	var cx := x + 160
+	var cw := lw - 170
 	# 地圖
 	label.call("map", L.t("lb_map"), y)
 	_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
