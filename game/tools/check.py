@@ -16,7 +16,7 @@ ERR = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|Failed to load script"
 PRE = re.compile(r'(?:preload|load)\(\s*"res://([^"]+\.(?:gd|json|csv))"')
 TEST_DONE = re.compile(r"^—— ([1-9]\d*) 通過 / 0 失敗", re.M)
 # 這些組會碰存檔（固定檔名、靜態狀態），放同一個行程
-STATEFUL = ["fantasy", "rules", "save", "ui"]
+STATEFUL = ["fantasy", "rules", "save", "ui", "modes"]
 
 
 def sha(p: Path) -> str:

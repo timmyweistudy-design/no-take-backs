@@ -538,7 +538,18 @@ func _free_rules(full := 0):
 # _snap("55_map_small_battle.png")
 # _snap("56_map_large_place.png")
 # _snap("56_map_large_battle.png")
+# _snap("57_lobby_map.png")
 func _shots_v9() -> void:
+	_go_title()
+	_open_lobby("ai")
+	_lobby_pick("standard")
+	lobby_r.map_id = 1
+	lobby_r.ai_style = 1
+	for k1 in 12:
+		await get_tree().process_frame
+	await _snap("57_lobby_map.png")
+	lobby_r.map_id = 0
+	overlay = ""
 	for spec in [[1, 1, "50_map_river"], [2, 1, "51_map_forest"], [3, 1, "52_map_ice"], [4, 1, "53_map_lava"], [5, 1, "54_map_canyon"], [1, 0, "55_map_small"], [5, 2, "56_map_large"]]:
 		_go_title()
 		overlay = ""

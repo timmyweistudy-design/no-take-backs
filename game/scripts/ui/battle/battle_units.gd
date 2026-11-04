@@ -163,7 +163,7 @@ func _draw_unit_info() -> void:
 		L.t("ui_stats", [u.dmg_dealt, u.kills]),
 	]
 	var R := Rect2(980, 96, 286, 16 + lines.size() * tz("S") * 1.4)
-	draw_rect(R, Color(0.06, 0.07, 0.1, 0.92))
+	draw_rect(R, Color(TH_WOOD_D, 0.94))
 	draw_rect(R, Color(Art.team_color(u.team, cbm()), 0.9), false, 2.0)
 	for i in lines.size():
 		_text(R.position + Vector2(10, 8 + i * tz("S") * 1.4), lines[i], tz("S"), Color.WHITE, false, i == 0, 266)

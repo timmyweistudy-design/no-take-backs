@@ -480,7 +480,7 @@ func _draw_place_hud() -> void:
 		var afford: bool = D.cost(i) <= a.left() and a.count() < a.unit_cap and _allowed(i) and cap_ok
 		var bg := Color(0.17, 0.18, 0.24)
 		if i == selected:
-			bg = Color(0.26, 0.31, 0.45)
+			bg = TH_ACTIVE
 		elif i == hover_card:
 			bg = Color(0.21, 0.23, 0.31)
 		var opened := _allowed(i)

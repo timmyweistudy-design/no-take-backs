@@ -158,3 +158,22 @@ static func _place_pref(a, t: int) -> void:
 		for r in rows:
 			if a.place(t, col, r):
 				return
+
+# ── V9：AI 性格＝限定它偏好的兵種（交集後還要有戰鬥兵，否則用原卡池）──
+const STYLE_TYPES := {
+	1: [1, 5, 0, 7, 8, 13, 19, 15],        # 鐵壁
+	2: [2, 6, 17, 10, 7, 1],               # 遠程
+	3: [4, 3, 14, 12, 11, 18, 9],          # 奇襲
+	4: [13, 17, 0, 2, 10, 7, 12],          # 召喚
+}
+static func style_pool(pool: int, style: int, rng: RandomNumberGenerator) -> int:
+	var p := 0
+	if style == 5:
+		var ts: Array = RS.types_of(pool)
+		for k in mini(5, ts.size()):
+			p |= 1 << int(ts[rng.randi_range(0, ts.size() - 1)])
+	elif STYLE_TYPES.has(style):
+		for t in STYLE_TYPES[style]:
+			if RS.has(pool, t):
+				p |= 1 << int(t)
+	return p if p != 0 and RS.has_combat(p) else pool

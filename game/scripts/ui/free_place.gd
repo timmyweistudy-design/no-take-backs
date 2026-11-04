@@ -726,7 +726,7 @@ func _fp_intro_steps(a) -> void:
 	var msg: String = L.t(step)
 	var w := minf(_width(msg, tz("B"), true) + 40, 900.0)
 	var r := Rect2(640 - w / 2, ORIGIN.y + 8, w, text_h(msg, tz("B"), w - 24, true) + 14)
-	draw_rect(r, Color(0.06, 0.07, 0.1, 0.92))
+	draw_rect(r, Color(TH_WOOD_D, 0.94))
 	draw_rect(r, ACCENT, false, 2.0)
 	_text(Vector2(640, r.position.y + 6), msg, tz("B"), ACCENT, true, true, w - 24)
 
@@ -838,7 +838,7 @@ func _fp_toolbar() -> void:
 		prev_g = g
 		var on: bool = (id == fp_tool) or (id == "snap" and fp_snap) or (id == "dense" and fp_dense)
 		var cb := func(): _fp_tool_click(id)
-		var tint := Color(0.26, 0.33, 0.5) if (g == 0 and on) else (Color(0.1, 0.11, 0.15, 0.95) if g == 2 else Color(0.14, 0.15, 0.2, 0.9))
+		var tint := TH_ACTIVE if (g == 0 and on) else (Color(0.1, 0.11, 0.15, 0.95) if g == 2 else Color(0.14, 0.15, 0.2, 0.9))
 		_btn(Rect2(x, y, w, 40), items[k][1], cb, true, false, tint)
 		if g == 0 and on:
 			draw_rect(Rect2(x, y, 4, 40), ACCENT)

@@ -116,10 +116,16 @@ func _enemy_visible() -> bool:
 
 ## 組 AI 的陣型（第六輪：明牌全場時在擺放開始就組好）。
 func _build_ai() -> void:
+	if get("challenge_army") != null:
+		armies[1] = get("challenge_army").copy()     # 挑戰碼：對手就是朋友排好的陣
+		ai_name = L.t("ch_name")
+		return
 	if true:
 		var r := RandomNumberGenerator.new()
 		r.seed = rng.randi()
 		var p1: int = rules.pool_of(1) if rules != null else _pool()
+		if rules != null and rules.ai_style != 0:
+			p1 = AI.style_pool(p1, rules.ai_style, r)
 		match difficulty:
 			0:
 				armies[1] = AIT.build_full(1, r, 0, [], p1, rules)
@@ -623,6 +629,8 @@ func _gauntlet_next() -> void:
 	gauntlet_stage += 1
 	gauntlet_changes = 3
 	_reset_place(false)
+	armies[0].budget += int(get("gauntlet_gold"))
+	armies[0].unit_cap += int(get("gauntlet_cap"))
 
 
 

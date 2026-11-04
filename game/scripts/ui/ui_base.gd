@@ -65,11 +65,11 @@ func _fld_xf() -> Transform2D:
 	return Transform2D(0.0, Vector2(k, k), 0.0, ORIGIN + (FIELD - fld_size * k) / 2.0 - ORIGIN * k)
 
 func _map_tex() -> Texture2D:
-	if fld_map == 0:
-		return null
 	if map_art == null:
 		map_art = MapArt.new()
 		add_child.call_deferred(map_art)
+		return null
+	if fld_map == 0:
 		return null
 	if not map_art.is_inside_tree():
 		return null
@@ -79,9 +79,23 @@ const CARD_W := 80.0     # 第四輪：一排 10 張窄卡（方案 D），起�
 const CARD_X0 := 12.0
 const CARD_GAP := 6.0
 const CARD_H := 96.0
-const UI_BG := Color(0.08, 0.09, 0.13, 0.94)
-const PANEL := Color(0.12, 0.13, 0.19, 0.97)
+const UI_BG := Color(0.11, 0.08, 0.06, 0.95)
+const PANEL := Color(0.17, 0.125, 0.09, 0.98)
 const ACCENT := Color("#ffd166")
+# V9 P5 設計系統：胡桃木為底（白字才讀得清楚），羊皮紙只用在標題緞帶與重點卡片
+const TH_WOOD := Color("#3a2a1f")
+const TH_WOOD_L := Color("#55402d")
+const TH_WOOD_D := Color("#231912")
+const TH_EDGE := Color("#8d6c47")
+const TH_ACTIVE := Color("#8a5a24")
+const TH_PARCH := Color("#efdfbb")
+const TH_INK := Color("#2c2016")
+const TH_PRIMARY := Color("#e08a1e")
+const SP := 8.0        # 間距基準
+const Icons = preload("res://scripts/ui/icons.gd")
+var _sb_cache := {}
+var _hover_key := -1
+var _hover_now := -1
 const UNIT_SCALE := 0.92
 
 var font: Font
@@ -422,20 +436,31 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 
 
 ## 即時模式按鈕：每幀重新登記，滑鼠或焦點都能按。
+## V9 P5 按鈕：圓角木牌、上緣高光、下緣陰影；按下縮一點回彈、懸停亮、焦點金框；主按鈕有流光。
 func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
 	var idx := _btns.size()
 	_btns.append({"r": r, "cb": action, "en": enabled})
 	var hover := r.has_point(mouse) and not pad_mode
 	var focus := pad_mode and idx == _focus
-	var bg := Color(0.2, 0.22, 0.3) if not primary else Color(0.85, 0.52, 0.14)
+	var bg := TH_WOOD_L if not primary else TH_PRIMARY
 	if tint.a > 0:
 		bg = tint
 	if not enabled:
-		bg = Color(0.16, 0.16, 0.2)
+		bg = Color(0.2, 0.17, 0.15)
 	elif hover or focus:
-		bg = bg.lightened(0.18)
-	draw_rect(r, bg)
-	draw_rect(r, ACCENT if focus else Color(1, 1, 1, 0.18), false, 3 if focus else 1.5)
+		bg = bg.lightened(0.16)
+		if hover:
+			_hover_now = idx
+	var pressed := hover and enabled and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	var rd := r.grow(-minf(r.size.x, r.size.y) * 0.025) if pressed else r
+	_box(rd, bg, TH_EDGE.darkened(0.25) if tint.a <= 0.0 or tint.a > 0.6 else Color(0, 0, 0, 0), 7.0, 1.5)
+	if tint.a <= 0.0 or tint.a > 0.6:
+		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
+		draw_line(rd.position + Vector2(6, rd.size.y - 1.5), rd.end - Vector2(6, 1.5), Color(0, 0, 0, 0.3), 2.0)
+	if primary and enabled:
+		_btn_shine(rd)
+	if focus:
+		_box(rd.grow(1), Color(0, 0, 0, 0), ACCENT, 8.0, 3.0)
 	if layout_probe:
 		probe_btns.append(r)
 		if label == "":
@@ -448,6 +473,47 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
 	_probe_btn_label = false
 
+## 主按鈕的流光（可關）。
+func _btn_shine(r: Rect2) -> void:
+	if bool(Save.s("reduce_fx")):
+		return
+	var k := fposmod(time * 0.45, 1.0)
+	if k > 0.5:
+		return
+	var x: float = r.position.x + (r.size.x + 40.0) * (k * 2.0) - 40.0
+	var x0 := maxf(x, r.position.x + 3)
+	var x1 := minf(x + 26.0, r.end.x - 3)
+	if x1 > x0:
+		draw_rect(Rect2(x0, r.position.y + 3, x1 - x0, r.size.y - 6), Color(1, 1, 1, 0.13))
+
+## 圓角方塊（StyleBox 快取，不每幀配新物件）。
+func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw := 0.0) -> void:
+	var k := "%s|%s|%d|%d" % [bg.to_html(), border.to_html(), int(radius), int(bw * 10)]
+	var sb: StyleBoxFlat = _sb_cache.get(k)
+	if sb == null:
+		sb = StyleBoxFlat.new()
+		sb.bg_color = bg
+		sb.border_color = border
+		sb.set_corner_radius_all(int(radius))
+		sb.set_border_width_all(int(ceilf(bw)))
+		sb.anti_aliasing = true
+		_sb_cache[k] = sb
+	draw_style_box(sb, r)
+
+func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
+	Icons.draw(self, name, c, s, col)
+
+## 羊皮紙標題緞帶：畫面標題統一用它。
+func _h1(center: Vector2, s: String, maxw := 0.0) -> void:
+	var sz := tz("H1")
+	var w := minf(_width(s, sz, true) + 72.0, maxw if maxw > 0.0 else 900.0)
+	var r := Rect2(center.x - w / 2, center.y - 2, w, sz * 1.45)
+	var notch := 14.0
+	for sgn in [-1.0, 1.0]:
+		var ex: float = r.position.x if sgn < 0 else r.end.x
+		draw_colored_polygon(PackedVector2Array([Vector2(ex - sgn * 4, r.position.y + 6), Vector2(ex + sgn * 20, r.position.y + 6), Vector2(ex + sgn * (20 - notch), r.get_center().y + 3), Vector2(ex + sgn * 20, r.end.y + 2), Vector2(ex - sgn * 4, r.end.y + 2)]), TH_PARCH.darkened(0.28))
+	_box(r, TH_PARCH, TH_PARCH.darkened(0.45), 4.0, 2.0)
+	_text(center + Vector2(0, sz * 0.07), s, sz, TH_INK, true, true, maxf(w - 20.0, 100.0))
 
 ## 安靜的小按鈕（第七輪 N6）：點擊框維持可點的大小，平常只畫一個小記號，滑過才亮。
 func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
@@ -481,9 +547,18 @@ func _update_gen() -> void:
 
 
 func _panel(r: Rect2) -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.68))
-	draw_rect(r, PANEL)
-	draw_rect(r, Color(1, 1, 1, 0.2), false, 2)
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.62))
+	_box(r.grow(6), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)      # 陰影
+	_box(r, PANEL, TH_EDGE, 10.0, 3.0)
+	_box(r.grow(-5), Color(0, 0, 0, 0), Color(0, 0, 0, 0.35), 7.0, 1.0)
+	# 木紋：固定幾條淡線
+	var n := int(r.size.y / 46.0)
+	for k in n:
+		var y := r.position.y + 24.0 + k * 46.0 + float((k * 37) % 13)
+		draw_line(Vector2(r.position.x + 12, y), Vector2(r.end.x - 12, y + float((k * 13) % 5) - 2.0), Color(1, 0.85, 0.6, 0.022), 2.0)
+	for c in [r.position + Vector2(11, 11), Vector2(r.end.x - 11, r.position.y + 11), Vector2(r.position.x + 11, r.end.y - 11), r.end - Vector2(11, 11)]:
+		draw_circle(c, 3.2, TH_EDGE, true, -1.0, true)
+		draw_circle(c - Vector2(0.8, 0.8), 1.3, TH_PARCH, true, -1.0, true)
 
 
 func _open(name: String) -> void:

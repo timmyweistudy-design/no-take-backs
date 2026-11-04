@@ -172,13 +172,13 @@ func _draw_codex() -> void:
 	# 第四輪 §4.7：一排 10 個「頭像＋數字」頁籤；兵種全名在下面左欄的大標題
 	# 第八輪：頁籤分兩頁（王國軍／奇幻軍），各 10 種
 	var page_new: bool = cx_unit >= D.COUNT
-	_btn(Rect2(204, 104, 110, 38), L.t("lb_army_kingdom"), func(): _cx_pick_unit(0), true, false, Color(0.26, 0.31, 0.45) if not page_new else Color(0, 0, 0, 0))
-	_btn(Rect2(320, 104, 110, 38), L.t("lb_army_fantasy"), func(): _cx_pick_unit(D.COUNT), true, false, Color(0.26, 0.31, 0.45) if page_new else Color(0, 0, 0, 0))
+	_btn(Rect2(204, 104, 110, 38), L.t("lb_army_kingdom"), func(): _cx_pick_unit(0), true, false, TH_ACTIVE if not page_new else Color(0, 0, 0, 0))
+	_btn(Rect2(320, 104, 110, 38), L.t("lb_army_fantasy"), func(): _cx_pick_unit(D.COUNT), true, false, TH_ACTIVE if page_new else Color(0, 0, 0, 0))
 	var tw := (866.0 - (D.COUNT - 1) * 6.0) / D.COUNT
 	for t0 in D.COUNT:
 		var t: int = t0 + (D.COUNT if page_new else 0)
 		var r := Rect2(204 + t0 * (tw + 6.0), 150, tw, 50)
-		_btn(r, "", _cx_pick_unit.bind(t), true, false, Color(0.26, 0.31, 0.45) if t == cx_unit else Color(0, 0, 0, 0))
+		_btn(r, "", _cx_pick_unit.bind(t), true, false, TH_ACTIVE if t == cx_unit else Color(0, 0, 0, 0))
 		if t == cx_unit:
 			draw_rect(r.grow(1.0), ACCENT, false, 3.0)   # 第七輪 E9：選中的兵種金框
 		_unit_in(r, t, 0, 1.0, 0.6 if t != D.CAVALRY else 0.55)   # 人物在頁籤正中間（原本腳畫到框外）

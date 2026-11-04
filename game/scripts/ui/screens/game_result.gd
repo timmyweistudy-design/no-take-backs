@@ -15,7 +15,12 @@ func _start_mode(m: int) -> void:
 	series_over = false
 	last_player_formation = []
 	overlay = ""
+	set("trial_id", -1)
+	if m != Mode.VS_AI:
+		set("challenge_army", null)
 	if m == Mode.GAUNTLET:
+		set("gauntlet_gold", 0)
+		set("gauntlet_cap", 0)
 		gauntlet_stage = 1
 		gauntlet_prev = []
 		gauntlet_changes = 99
@@ -46,6 +51,9 @@ func _finish_battle() -> void:
 		sfx.play("win" if w == 0 else "lose")
 	if eff["progress"]:
 		_progress_and_achievements()
+		if mode == Mode.VS_AI or mode == Mode.GAUNTLET:
+			call("_record_match", w)
+		call("_trial_finish", w)
 	if eff["log"]:
 		Save.playtest_log(_pt_entry(0))
 
@@ -74,6 +82,11 @@ func _draw_result() -> void:
 	var title_sz := tcap(tz("D"), 64)
 	_text(Vector2(640, 104), title, title_sz, col, true, true, 540)
 	_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
+	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode:
+		_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
+	if report.has("trial_stars"):
+		for ks in 3:
+			_icon("star", Vector2(610 + ks * 30, 84), 26.0, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
 	var mvp = report.get("mvp")
 	_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
 	var y := 104.0 + title_sz * 1.25
@@ -163,14 +176,23 @@ func _draw_result() -> void:
 	var bs: Array = []
 	match mode:
 		Mode.VS_AI, Mode.DUEL:
-			bs.append([L.t("new_match") if series_over else L.t("next_round"), func(): _next_round()])
+			if get("trial_id") >= 0:
+				var tid: int = get("trial_id")
+				if w == 0 and tid + 1 < 10:
+					bs.append([L.t("next_puzzle"), func(): call("_start_trial", tid + 1)])
+				bs.append([L.t("retry"), func(): call("_start_trial", tid)])
+				bs.append([L.t("trial_title"), func():
+					_go_title()
+					_open("trials")])
+			else:
+				bs.append([L.t("new_match") if series_over else L.t("next_round"), func(): _next_round()])
 		Mode.TUTORIAL, Mode.PUZZLE:
 			bs.append([L.t("retry"), func(): _start_mode(mode)])
 			if w == 0:
 				bs.append([L.t("next_puzzle"), func(): _next_puzzle()])
 		Mode.GAUNTLET:
 			if w == 0 and gauntlet_stage < 7:
-				bs.append([L.t("continue"), func(): _gauntlet_next()])
+				bs.append([L.t("continue"), func(): call("_gauntlet_reward")])
 			else:
 				bs.append([L.t("menu_gauntlet"), func(): _start_mode(Mode.GAUNTLET)])
 	if watch_mode:
@@ -200,7 +222,25 @@ func _result_facts() -> Array:
 				out.append([int(m["tick"]), L.t("fact_" + k, [int(m["tick"]) / 20, side])])
 				break
 	out.sort_custom(func(x, y): return x[0] < y[0])   # 依時間排
-	return out.map(func(x): return x[1])
+	var res: Array = out.map(func(x): return x[1])
+	# V9：輸了多一條事實：對手誰打最痛、誰克制它（只講數字查得到的，不說「因為」）
+	if mode == Mode.VS_AI and sim.winner == 1 and play_kind == "official":
+		var dmg := {}
+		for u in sim.units:
+			if u.team == 1:
+				dmg[u.type] = int(dmg.get(u.type, 0)) + u.dmg_dealt
+		var top := -1
+		for t in dmg:
+			if top < 0 or int(dmg[t]) > int(dmg[top]):
+				top = t
+		if top >= 0 and top < D.total():
+			var names: Array = []
+			for x in D.total():
+				if top in AIT.BEATS[x] and names.size() < 2:
+					names.append(L.t("unit_%d" % x))
+			if not names.is_empty():
+				res.append(L.t("res_top_enemy", [L.t("unit_%d" % top), "、".join(names)]))
+	return res
 
 
 ## 「在覆盤裡試試」：直接開覆盤，選中第一隻陣亡的同種兵（A1）。
@@ -232,8 +272,8 @@ func _draw_result_details(R: Rect2) -> void:
 	for t in report_rows(dealt, taken):
 		rows.append({"label": L.t("unit_%d" % t), "b": src[0][t], "r": src[1][t]})
 	_text(R.position, L.t("report_by_type"), tz("B"), Color.WHITE, false, true, 210)
-	_btn(Rect2(R.position.x + 220, R.position.y - 6, 120, 38), L.t("report_dealt"), func(): result_metric = 0, true, false, Color(0.26, 0.33, 0.5) if result_metric == 0 else Color(0, 0, 0, 0))
-	_btn(Rect2(R.position.x + 346, R.position.y - 6, 120, 38), L.t("report_taken"), func(): result_metric = 1, true, false, Color(0.26, 0.33, 0.5) if result_metric == 1 else Color(0, 0, 0, 0))
+	_btn(Rect2(R.position.x + 220, R.position.y - 6, 120, 38), L.t("report_dealt"), func(): result_metric = 0, true, false, TH_ACTIVE if result_metric == 0 else Color(0, 0, 0, 0))
+	_btn(Rect2(R.position.x + 346, R.position.y - 6, 120, 38), L.t("report_taken"), func(): result_metric = 1, true, false, TH_ACTIVE if result_metric == 1 else Color(0, 0, 0, 0))
 	var bh := minf(170.0, rows.size() * 34.0)
 	Charts.diverging(self, Rect2(R.position.x + 20, R.position.y + 40, R.size.x - 40, bh), rows)
 	var y := R.position.y + 50 + bh
@@ -277,6 +317,14 @@ func _verdict(w: int) -> String:
 
 
 
+## V9：系列每局換地圖。換圖後舊陣型不一定放得下，所以不保留陣型。
+func _apply_map_mode() -> void:
+	if rules == null or rules.map_mode == 0 or not rules.is_free():
+		return
+	var n: int = MapDefs.MAPS.size()
+	rules.map_id = wrapi(rules.map_id + 1, 0, n) if rules.map_mode == 1 else rng.randi_range(0, n - 1)
+	rules.keep_formation = false
+
 func _next_round() -> void:
 	if series_over:
 		wins = [0, 0]
@@ -286,6 +334,7 @@ func _next_round() -> void:
 		_reset_place(false)
 		return
 	round_no += 1
+	_apply_map_mode()
 	_reset_place(mode == Mode.VS_AI)
 
 

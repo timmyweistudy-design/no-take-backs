@@ -26,7 +26,7 @@ func _replay_controls_active() -> bool:
 func _draw_replay_controls() -> void:
 	if not _replay_controls_active():
 		return
-	draw_rect(Rect2(0, 696, 1280, 52), Color(0.06, 0.07, 0.1, 0.92))
+	draw_rect(Rect2(0, 696, 1280, 52), Color(TH_WOOD_D, 0.94))
 	_btn(Rect2(20, 704, 70, 36), "▶" if paused else "Ⅱ", func(): paused = not paused)
 	var sp := [0.5, 1.0, 2.0]
 	for i in 3:
@@ -508,7 +508,7 @@ func _rv_play() -> void:
 func _draw_review() -> void:
 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
 	_panel(Rect2(100, 60, 1080, 680))
-	_text(Vector2(640, 70), L.t("rv_title"), tz("H1"), Color.WHITE, true, true, 900)
+	_h1(Vector2(640, 62), L.t("rv_title"))
 	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint"), tz("S"), Color(1, 1, 1, 0.75), true, false, 960)
 	var cs := 40.0
 	var g0 := Vector2(130, 168)

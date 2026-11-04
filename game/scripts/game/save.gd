@@ -14,7 +14,7 @@ const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
 	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
 	# 第五輪：解鎖累計場數（標準＋自訂局都算，沙盒不算）、自訂規則戰績、我的預設、上次在大廳用的規則（代碼）
-	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "free_intro_done": false,
+	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false,
 }
 
 static var settings := {}
@@ -141,6 +141,23 @@ static func sanitize_data(out: Dictionary) -> void:
 		for k in raw_uw:
 			uw[str(k)] = _count(raw_uw[k])
 	out["unit_wins"] = uw
+	# V9：新欄位都是可有可無的統計，型別不對就歸零（不用升存檔版本：舊存檔沒有就用預設）
+	for dk in ["trial_stars", "unit_games"]:
+		var dv = out.get(dk, {})
+		var clean := {}
+		if dv is Dictionary:
+			for k9 in dv:
+				clean[str(k9)] = _count(dv[k9])
+		out[dk] = clean
+	for nk in ["streak", "best_streak"]:
+		out[nk] = _count(out.get(nk, 0))
+	var dk2 = out.get("decks", [])
+	var clean2: Array = []
+	if dk2 is Array:
+		for v9 in dk2:
+			if v9 is float or v9 is int:
+				clean2.append(int(v9))
+	out["decks"] = clean2.slice(0, 3)
 	var ach: Array = []
 	var raw_a = out.get("achievements", [])
 	if raw_a is Array:

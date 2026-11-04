@@ -56,8 +56,13 @@ func _lobby_pick(id: String) -> void:
 		return
 	var keep_level: int = lobby_r.ai_level
 	var keep_place: String = lobby_r.place_rule
+	var keep_map: Array = [lobby_r.map_id, lobby_r.map_size, lobby_r.ai_style, lobby_r.map_mode]
 	lobby_r = Presets.make(id, lobby_kind, Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo")))
 	lobby_r.ai_level = keep_level
+	lobby_r.ai_style = keep_map[2]
+	if lobby_r.deploy == "free":
+		lobby_r.map_id = keep_map[0]    # 換玩法不動已經選好的地圖
+		lobby_r.map_mode = keep_map[3]
 	if lobby_kind == "duel" and id != "standard" and id != "classic5":
 		lobby_r.place_rule = keep_place
 	_lobby_clamp()
@@ -107,6 +112,10 @@ func _lobby_start() -> void:
 	Save.data["last_rules"] = lr
 	Save.save_data()
 	rules = lobby_r.copy()
+	set("challenge_army", null)
+	if lobby_kind == "duel" and rules.bans > 0:
+		call("_begin_bans", rules.bans)
+		return
 	call("_start_mode", Mode.VS_AI if lobby_kind == "ai" else Mode.DUEL)
 
 func _lobby_copy_code() -> void:
@@ -165,6 +174,19 @@ func _lobby_adj(id: String, d: int) -> void:
 	var r = lobby_r
 	lobby_item = id
 	match id:
+		"map":
+			r.map_id = wrapi(r.map_id + d, 0, MapDefs.MAPS.size())
+			if not r.map_is_default() and r.deploy != "free":
+				r.deploy = "free"
+				r.spacing = 800
+				r.depth = 6000
+				r.fullfield = 0
+		"ai_style":
+			r.ai_style = wrapi(r.ai_style + d, 0, RuleSet.AI_STYLES)
+		"map_mode":
+			r.map_mode = wrapi(r.map_mode + d, 0, 3)
+		"bans":
+			r.bans = wrapi(r.bans + d, 0, 3)
 		"budget":
 			r.budget[0] = clampi(int(r.budget[0]) + 10 * d, RuleSet.BUDGET_MIN, RuleSet.BUDGET_MAX)
 			if not r.handicap:
@@ -310,20 +332,22 @@ func _draw_lobby() -> void:
 	var P := Rect2(50, 30, 1180, 740)
 	_panel(P)
 	var title := L.t("menu_vs_ai") if lobby_kind == "ai" else L.t("menu_duel")
-	_text(Vector2(640, 44), title, tz("H1"), Color.WHITE, true, true)
-	_draw_lobby_presets(Vector2(80, 100))
+	_h1(Vector2(640, 40), title)
+	_draw_lobby_presets(Vector2(80, 96))
 	if lobby_open:
-		_draw_lobby_detail(Rect2(80, 214, 1120, 470))
+		_draw_lobby_detail(Rect2(80, 176, 1120, 508))
 	else:
-		_draw_lobby_compact(Rect2(80, 214, 1120, 470))
+		_draw_lobby_main(Rect2(80, 176, 1120, 508))
 	# 底列
 	var by := 700.0
 	_btn(Rect2(80, by, 150, 48), L.t("back"), func(): overlay = "")
-	_btn(Rect2(244, by, 220, 48), L.t("lb_collapse") if lobby_open else L.t("lb_expand"), func(): lobby_open = not lobby_open)
+	_btn(Rect2(244, by, 200, 48), L.t("lb_collapse") if lobby_open else L.t("lb_expand"), func(): lobby_open = not lobby_open)
 	if lobby_open:
-		_btn(Rect2(478, by, 150, 48), L.t("lb_copy"), _lobby_copy_code)
-		_btn(Rect2(640, by, 150, 48), L.t("lb_paste"), _lobby_paste_code)
-		_btn(Rect2(802, by, 150, 48), L.t("lb_save"), _lobby_save_preset)
+		_btn(Rect2(458, by, 150, 48), L.t("lb_copy"), _lobby_copy_code)
+		_btn(Rect2(620, by, 150, 48), L.t("lb_paste"), _lobby_paste_code)
+		_btn(Rect2(782, by, 150, 48), L.t("lb_save"), _lobby_save_preset)
+	else:
+		_btn(Rect2(458, by, 200, 48), L.t("lb_random"), _lobby_random)
 	var why := _lobby_block()
 	_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
 	if why != "":
@@ -333,25 +357,25 @@ func _draw_lobby() -> void:
 
 func _draw_lobby_presets(o: Vector2) -> void:
 	var w := 154.0
-	var h := 96.0
+	var h := 68.0
 	for i in Presets.IDS.size():
 		var id: String = Presets.IDS[i]
 		var p = Presets.make(id, lobby_kind, _lobby_unlocked())
 		Presets.clamp_pool(p, lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
 		var r := Rect2(o + Vector2(i * (w + 10), 0), Vector2(w, h))
 		var on: bool = lobby_r.preset == id
-		_btn(r, "", _lobby_pick.bind(id), true, false, Color(0.26, 0.33, 0.5) if on else Color(0.17, 0.19, 0.27))
+		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
 		_text(r.position + Vector2(w / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, w - 12)
 		var sub_y := 8 + text_h(L.t("lb_p_" + id), tz("B"), w - 12, true) + 2
-		if sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
+		if false and sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
 			_text(r.position + Vector2(w / 2, sub_y), L.t("lb_pd_" + id), tz("C"), Color(1, 1, 1, 0.75), true, false, w - 12)   # 放不下（大字）就不畫副標，不壓到色條
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
-		draw_rect(Rect2(r.position + Vector2(8, h - 12), Vector2(w - 16, 4)), bc)
+		_box(Rect2(r.position + Vector2(8, h - 13), Vector2(w - 16, 5)), bc, Color(0, 0, 0, 0), 2.0)
 	var mr := Rect2(o + Vector2(6 * (w + 10), 0), Vector2(1120 - 6 * (w + 10), h))
-	_btn(mr, L.t("lb_mine"), func(): lobby_menu = not lobby_menu, true, false, Color(0.26, 0.33, 0.5) if lobby_r.preset == "custom" else Color(0.17, 0.19, 0.27))
+	_btn(mr, L.t("lb_mine"), func(): lobby_menu = not lobby_menu, true, false, TH_ACTIVE if lobby_r.preset == "custom" else TH_WOOD)
 
 func _draw_lobby_menu(o: Vector2) -> void:
 	var ps: Array = Save.data.get("rule_presets", [])
@@ -365,6 +389,168 @@ func _draw_lobby_menu(o: Vector2) -> void:
 	for i in ps.size():
 		_btn(Rect2(r.position + Vector2(6, 6 + i * 50), Vector2(160, 44)), str(ps[i]["name"]), _lobby_load_preset.bind(i))
 		_btn(Rect2(r.position + Vector2(170, 6 + i * 50), Vector2(44, 44)), "×", _lobby_delete_preset.bind(i))
+
+func _deck_random() -> void:
+	var sel: Array = RuleSet.types_of(Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo")))
+	sel.shuffle()
+	var p := 0
+	for t in sel.slice(0, RuleSet.ROSTER_MAX):
+		p |= 1 << int(t)
+	if not RuleSet.has_combat(p):
+		return
+	lobby_r.pool[lobby_pool_team] = p
+	if lobby_r.ai_pool_same:
+		lobby_r.pool[1] = p
+	_lobby_touch()
+
+func _deck_save() -> void:
+	var decks: Array = Save.data.get("decks", [])
+	decks.append(int(lobby_r.pool[lobby_pool_team]))
+	while decks.size() > 3:
+		decks.pop_front()
+	Save.data["decks"] = decks
+	Save.save_data()
+	_toast(L.t("lb_deck_saved"))
+
+func _deck_load(i: int) -> void:
+	var decks: Array = Save.data.get("decks", [])
+	if i >= decks.size():
+		return
+	var sel: int = Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	var p: int = int(decks[i]) & sel
+	if p == 0 or not RuleSet.has_combat(p):
+		_toast(L.t("lb_deck_locked"), true)
+		return
+	lobby_r.pool[lobby_pool_team] = p
+	if lobby_r.ai_pool_same:
+		lobby_r.pool[1] = p
+	_lobby_touch()
+
+## V9 P5 單頁大廳：左邊四件事（地圖、卡牌、對手、規則），右邊即時預覽；1 秒可開打，細項收在「進階」。
+func _draw_lobby_main(R: Rect2) -> void:
+	var r = lobby_r
+	var x := R.position.x
+	var lw := 600.0
+	var rowh := 96.0
+	var y := R.position.y
+	var label := func(ic: String, s: String, yy: float) -> void:
+		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+		_icon(ic, Vector2(x + 26, yy + 24), 26.0, ACCENT)
+		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 76)
+	var cx := x + 126
+	var cw := lw - 136
+	# 地圖
+	label.call("map", L.t("lb_map"), y)
+	_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
+	var mk: String = MapDefs.MAPS[r.map_id]["key"]
+	_text(Vector2(cx + 134, y + 8), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
+	_text(Vector2(cx + 134, y + 8 + tz("B") * 1.4), L.t("map_d_" + mk), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 134 - 104)
+	_btn(Rect2(x + lw - 104, y + 22, 44, 44), "‹", _lobby_adj.bind("map", -1))
+	_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
+	y += rowh
+	# 大小
+	label.call("size", L.t("lb_size"), y)
+	for i in 3:
+		var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
+		var sz_txt := "%s  %d×%d" % [L.t("map_size_%d" % i), MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
+		_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
+	y += rowh
+	# 卡牌
+	label.call("cards", L.t("lb_cards"), y)
+	var p0: int = r.pool_of(0)
+	_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
+	_text(Vector2(cx, y + 62), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 130)
+	_btn(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
+		lobby_open = true
+		lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
+	y += rowh
+	# 對手
+	if lobby_kind == "ai":
+		label.call("robot", L.t("lb_opponent"), y)
+		var w1 := (cw - 8) / 2.0
+		_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level")
+		_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style")
+	else:
+		label.call("swords", L.t("lb_place_rule"), y)
+		_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
+	y += rowh
+	# 規則
+	label.call("gear", L.t("lb_rules"), y)
+	_text(Vector2(cx, y + 14), _summary(r), tz("S"), Color.WHITE, false, false, cw)
+	_badge_pill(Vector2(cx, y + 52), Presets.badge(r, lobby_kind))
+	# 右：預覽
+	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
+	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
+	_map_thumb(pv, r.map_id, r.map_size, true)
+	var ly := pv.end.y + 12
+	var lx := pv.position.x
+	if r.map_id != 0:
+		for t in [["block", "terrain_block"], ["slow", "terrain_slow"], ["fast", "terrain_fast"]]:
+			_icon(t[0], Vector2(lx + 12, ly + 12), 22.0, Color.WHITE)
+			var tw := _width(L.t(t[1]), tz("C"))
+			_text(Vector2(lx + 28, ly + 2), L.t(t[1]), tz("C"), Color(1, 1, 1, 0.85))
+			lx += 40 + tw + 12
+		ly += 34
+	var pid: String = r.preset if r.preset in Presets.IDS else "custom"
+	_text(Vector2(pv.position.x, ly), L.t("lb_pinfo_" + pid), tz("S"), Color(1, 1, 1, 0.8), false, false, pv.size.x)
+	ly += text_h(L.t("lb_pinfo_" + pid), tz("S"), pv.size.x) + 8
+	_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
+
+## 地圖縮圖：貼上烘好的地面，full 時標出雙方部署區。
+func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:
+	if map_art == null:
+		_map_tex()
+	var tex: Texture2D = null
+	if map_id != 0 and map_art != null and map_art.is_inside_tree():
+		tex = map_art.texture(map_id, size)
+	var w := float(MapDefs.width(size))
+	var h := float(MapDefs.height(size))
+	var k := minf(r.size.x / w, r.size.y / h)
+	var q := Rect2(r.get_center() - Vector2(w, h) * k / 2.0, Vector2(w, h) * k)
+	if tex != null:
+		draw_texture_rect(tex, q, false)
+	else:
+		draw_rect(q, Color("#6f9a4a"))
+		if map_id == 0 and grass != null:
+			draw_texture_rect_region(grass, q, Rect2(0, 0, 256, 128), Color(1, 1, 1, 0.8))
+	if full:
+		var dep: float = lobby_r.half_depth() * k
+		draw_rect(Rect2(q.position, Vector2(dep, q.size.y)), Color(Art.team_color(0, cbm()), 0.2))
+		draw_rect(Rect2(q.end.x - dep, q.position.y, dep, q.size.y), Color(Art.team_color(1, cbm()), 0.2))
+		_icon("flag", q.position + Vector2(20, 22), 28.0, Art.team_color(0, cbm()).lightened(0.3))
+		_icon("flag", Vector2(q.end.x - 20, q.position.y + 22), 28.0, Art.team_color(1, cbm()).lightened(0.3))
+	draw_rect(q, Color(0, 0, 0, 0.5), false, 1.5)
+
+func _lobby_set_size(z: int) -> void:
+	var r = lobby_r
+	lobby_item = "map_size"
+	if r.map_size == z:
+		return
+	r.map_size = z
+	var s: Array = MapDefs.SIZE_SUGGEST[z]
+	r.budget = [int(s[0]), int(s[0])]
+	r.unit_cap = int(s[1])
+	r.ticks = int(s[2])
+	if not r.map_is_default() and r.deploy != "free":
+		r.deploy = "free"
+		r.spacing = 800
+		r.depth = 6000
+		r.fullfield = 0
+	_lobby_touch()
+
+## 隨機一切：地圖、大小、難度、性格；兵種名單不動（玩家解鎖進度不同）。
+func _lobby_random() -> void:
+	var r = lobby_r
+	r.map_id = randi() % MapDefs.MAPS.size()
+	_lobby_set_size(randi() % 3)
+	if r.map_id != 0 and r.deploy != "free":
+		r.deploy = "free"
+		r.spacing = 800
+		r.depth = 6000
+	if lobby_kind == "ai":
+		r.ai_style = randi() % RuleSet.AI_STYLES
+		r.ai_level = randi() % 3
+	_lobby_touch()
 
 ## 精簡模式：一張規則摘要卡＋卡池頭像＋一個最常調的選項＋提示。
 func _draw_lobby_compact(R: Rect2) -> void:
@@ -485,13 +671,14 @@ func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
 			continue
 		var cc := o + Vector2(i * step + step / 2, step * 0.55)
 		draw_circle(cc, step * 0.42, Color(1, 1, 1, 0.10))
-		Art.unit(self, unit_center_feet(cc, t, 0.5), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
+		var hs := minf(0.5, step / 100.0)
+		Art.unit(self, unit_center_feet(cc, t, hs), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, hs, cbm())
 		i += 1
 
 ## ◀ 值 ▶ 的調整列；點兩側箭頭，也可以點中間（往下一個）。
 func _stepper(r: Rect2, value: String, id: String) -> void:
 	_btn(Rect2(r.position, Vector2(52, r.size.y)), "◀", _lobby_adj.bind(id, -1))
-	_btn(Rect2(r.position + Vector2(58, 0), Vector2(r.size.x - 116, r.size.y)), value, _lobby_adj.bind(id, 1), true, false, Color(0.13, 0.15, 0.22))
+	_btn(Rect2(r.position + Vector2(58, 0), Vector2(r.size.x - 116, r.size.y)), value, _lobby_adj.bind(id, 1), true, false, TH_WOOD_D)
 	_btn(Rect2(r.end.x - 52, r.position.y, 52, r.size.y), "▶", _lobby_adj.bind(id, 1))
 	if r.grow(4).has_point(mouse):
 		lobby_item = id
@@ -504,7 +691,7 @@ func _draw_lobby_detail(R: Rect2) -> void:
 	for i in tabs.size():
 		var idx: int = LOBBY_TABS.find(tabs[i])
 		_btn(Rect2(R.position + Vector2(0, i * 58), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx, true, false,
-			Color(0.26, 0.33, 0.5) if idx == lobby_tab else Color(0, 0, 0, 0))
+			TH_ACTIVE if idx == lobby_tab else Color(0, 0, 0, 0))
 	var L0 := Rect2(R.position + Vector2(170, 0), Vector2(600, R.size.y))
 	var D0 := Rect2(Vector2(L0.end.x + 20, R.position.y), Vector2(R.end.x - L0.end.x - 20, R.size.y))
 	draw_rect(D0, Color(0, 0, 0, 0.25))
@@ -539,7 +726,10 @@ func _draw_lobby_detail(R: Rect2) -> void:
 					rows2.append(["turns", L.t("lb_turns"), L.t("lb_n_turns", [lobby_r.turns])])
 				if lobby_r.place_rule != "blind":
 					rows2.append(["carry", L.t("lb_carry"), L.t("on") if lobby_r.carry else L.t("off")])
+				rows2.append(["bans", L.t("lb_bans"), L.t("lb_bans_n", [lobby_r.bans])])
 			rows2.append(["keep", L.t("lb_keep"), L.t("on") if lobby_r.keep_formation else L.t("off")])
+			if lobby_r.deploy == "free":
+				rows2.append(["map_mode", L.t("lb_map_mode"), L.t("map_mode_%d" % lobby_r.map_mode)])
 			_rows(L0, rows2)
 		4:
 			_rows(L0, [["ai_level", L.t("lb_ai_level"), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])],
@@ -564,7 +754,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 	if two:
 		for ti in 2:
 			var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
-			_btn(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, Color(0.26, 0.33, 0.5) if ti == lobby_pool_team else Color(0, 0, 0, 0))
+			_btn(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
 		y += 44
 	var teams := [lobby_pool_team]
 	for tm in teams:
@@ -602,6 +792,14 @@ func _draw_pool_tab(R: Rect2) -> void:
 					draw_rect(Rect2(cr.position + Vector2(cw - pw, 0), Vector2(pw, tz("C") * 1.25)), Color("#d98a22"))
 					_text(cr.position + Vector2(cw - pw + 4, 0), L.t("lb_new_pill"), tz("C"), Color.WHITE)
 			y += box.size.y + 8
+	# V9：牌組：隨機 10 張、存 3 組
+	var by2: float = R.end.y - 52.0
+	_btn(Rect2(R.position.x, by2, 130, 44), L.t("lb_deck_random"), _deck_random)
+	_btn(Rect2(R.position.x + 138, by2, 130, 44), L.t("lb_deck_save"), _deck_save)
+	var decks: Array = Save.data.get("decks", [])
+	for di in 3:
+		var has_d: bool = di < decks.size()
+		_btn(Rect2(R.position.x + 276 + di * 104, by2, 96, 44), L.t("lb_deck_n", [di + 1]), _deck_load.bind(di), has_d)
 	if lobby_kind == "ai":
 		_text(Vector2(R.position.x, y + 4), L.t("lb_unlock_hint"), tz("S"), Color(1, 1, 1, 0.6), false, false, R.size.x)
 
@@ -616,7 +814,7 @@ func _draw_lab_tab(R: Rect2) -> void:
 		var t: int = lab_types[lj]
 		# 第八輪：兩邊名單不同時聯集最多 20 種，一排放不下就換第二排
 		var cr := Rect2(R.position + Vector2((lj % lab_cols) * 58, (lj / lab_cols) * lab_h), Vector2(54, lab_h - 4))
-		_btn(cr, "", func(): lobby_sb_unit = t, true, false, Color(0.26, 0.33, 0.5) if t == lobby_sb_unit else Color(0.16, 0.16, 0.2))
+		_btn(cr, "", func(): lobby_sb_unit = t, true, false, TH_ACTIVE if t == lobby_sb_unit else Color(0.16, 0.16, 0.2))
 		_unit_in(cr, t, 0, 1.0, 0.55)
 		if lobby_r.stat_pct.has(t):
 			draw_circle(cr.position + Vector2(48, 8), 5, Color("#a46be0"))
@@ -625,7 +823,7 @@ func _draw_lab_tab(R: Rect2) -> void:
 	for k in 3:
 		_text(Vector2(R.position.x, y + 14), L.t(["lb_hp", "lb_atk", "lb_spd"][k]), tz("B"), Color.WHITE, false, false, 200)
 		_btn(Rect2(R.position.x + 230, y, 52, 48), "◀", _lobby_sb_adj.bind(k, -1))
-		_btn(Rect2(R.position.x + 288, y, 190, 48), "%d%%" % int(cur[k]), _lobby_sb_adj.bind(k, 1), true, false, Color(0.13, 0.15, 0.22))
+		_btn(Rect2(R.position.x + 288, y, 190, 48), "%d%%" % int(cur[k]), _lobby_sb_adj.bind(k, 1), true, false, TH_WOOD_D)
 		_btn(Rect2(R.position.x + 484, y, 52, 48), "▶", _lobby_sb_adj.bind(k, 1))
 		y += 56
 	_text(Vector2(R.position.x, y + 4), L.t("lb_skills"), tz("S"), Color(1, 1, 1, 0.7))

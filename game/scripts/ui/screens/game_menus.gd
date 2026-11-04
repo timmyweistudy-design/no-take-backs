@@ -1,4 +1,4 @@
-extends "res://scripts/ui/screens/game_result.gd"
+extends "res://scripts/ui/screens/game_modes.gd"
 ## 由 game_screens.gd 拆出（V9 P1，行為不變）
 
 ## 第八輪成就：贏的那隊。沙盒不算（改過數值）。
@@ -42,7 +42,7 @@ func _draw_gauntlet_pick() -> void:
 
 func _draw_keys() -> void:
 	_panel(Rect2(190, 60, 900, 680))
-	_text(Vector2(640, 70), L.t("keys_title"), tz("H1"), Color.WHITE, true, true)
+	_h1(Vector2(640, 62), L.t("keys_title"))
 	var y0 := 140.0
 	_text(Vector2(240, y0), L.t("keys_kb"), tz("B"), ACCENT, false, true)
 	_text(Vector2(690, y0), L.t("keys_pad"), tz("B"), ACCENT, false, true)
@@ -145,8 +145,8 @@ func _draw_title() -> void:
 		Art.unit(self, gp, i, i % 2, 1.0 if i % 2 == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + i, 1.25, cbm())
 	var bob := sin(time * 1.5) * 4
 	# 第五輪 §4.4：主選單收成左側一塊面板，背景的自動對決露出來；標題用標題字
-	var dk := Color(0.05, 0.06, 0.1, 0.78)
-	var cl := Color(0.05, 0.06, 0.1, 0.0)
+	var dk := Color(0.11, 0.075, 0.05, 0.86)
+	var cl := Color(0.11, 0.075, 0.05, 0.0)
 	var pr := Rect2(0, 0, 470, 800)
 	draw_polygon(PackedVector2Array([pr.position, Vector2(pr.end.x, 0), Vector2(pr.end.x, 800), Vector2(0, 800)]), PackedColorArray([dk, dk, dk, dk]))
 	draw_polygon(PackedVector2Array([Vector2(pr.end.x, 0), Vector2(pr.end.x + 120, 0), Vector2(pr.end.x + 120, 800), Vector2(pr.end.x, 800)]), PackedColorArray([dk, cl, cl, dk]))
@@ -186,11 +186,16 @@ func _draw_title() -> void:
 	var y1 := y0 + 4 * 60 + 8
 	_btn(Rect2(70, y1, 162, 44), L.t("menu_puzzle"), func(): _open("puzzles"))
 	_btn(Rect2(238, y1, 162, 44), L.t("menu_codex"), func(): _open_codex(0))
-	var y2 := y1 + 52
+	y1 += 50
+	if not OS.has_feature("demo"):
+		_btn(Rect2(70, y1, 162, 44), L.t("menu_trials"), func(): _open("trials"))
+	_btn(Rect2(238, y1, 162, 44), L.t("menu_profile"), func(): _open("profile"))
+	var y2 := y1 + 50
 	var sys := [["menu_settings", func(): _open("settings")], ["menu_credits", func(): _open("credits")], ["menu_quit", func(): get_tree().quit()]]
 	for i in sys.size():
-		_btn(Rect2(70 + i * 112, y2, 106, 38), L.t(sys[i][0]), sys[i][1], true, false, Color(0.12, 0.13, 0.18, 0.9))
-	_btn(Rect2(70, y2 + 44, 330, 36), L.t("bc_watch"), func(): _watch_battle_code(), true, false, Color(0.12, 0.13, 0.18, 0.9))
+		_btn(Rect2(70 + i * 112, y2, 106, 38), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
+	_btn(Rect2(70, y2 + 44, 162, 36), L.t("bc_watch"), func(): _watch_battle_code(), true, false, Color(TH_WOOD_D, 0.92))
+	_btn(Rect2(238, y2 + 44, 162, 36), L.t("ch_accept"), func(): _accept_challenge(), true, false, Color(TH_WOOD_D, 0.92))
 	# 底部：解鎖進度＋最佳紀錄
 	var demo_b := OS.has_feature("demo")
 	var um := RS.unlocked_mask(_unlock_games(), demo_b)
@@ -228,6 +233,14 @@ func _draw_overlay() -> void:
 		if state == St.TITLE:
 			draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.72))   # 第七輪：標題的示範戰場不透出來
 	match overlay:
+		"trials":
+			_draw_trials()
+		"profile":
+			_draw_profile()
+		"reward":
+			_draw_reward()
+		"ban":
+			_draw_ban()
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
 			var tabs0 := [PZ.puzzles(), PZ.new_puzzles(), PZ.fantasy_puzzles()]
@@ -245,7 +258,7 @@ func _draw_overlay() -> void:
 					for pz0 in tabs[ti]:
 						total += int(stars.get(pz0["id"], 0))
 					var lbl := "%s　★ %d／%d" % [L.t("puzzle_tab_%d" % ti), total, tabs[ti].size() * 3]
-					_btn(Rect2(280 + ti * 244, 160, 232, 36), lbl, func(): puzzle_tab = ti, true, false, Color(0.26, 0.31, 0.45) if ti == puzzle_tab else Color(0, 0, 0, 0))
+					_btn(Rect2(280 + ti * 244, 160, 232, 36), lbl, func(): puzzle_tab = ti, true, false, TH_ACTIVE if ti == puzzle_tab else Color(0, 0, 0, 0))
 			if not unlocked:
 				_text(Vector2(640, 172), L.t("puzzle_locked"), ts(16), ACCENT, true)
 			for i in list.size():
@@ -332,10 +345,10 @@ func _settings_rows() -> Array:
 
 func _draw_settings() -> void:
 	_panel(Rect2(140, 50, 1000, 700))
-	_text(Vector2(640, 60), L.t("settings_title"), tz("H1"), Color.WHITE, true, true)
+	_h1(Vector2(640, 54), L.t("settings_title"))
 	for i in 4:
 		_btn(Rect2(170, 120 + i * 60, 180, 50), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
-			Color(0.26, 0.33, 0.5) if i == settings_tab else Color(0, 0, 0, 0))
+			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
 	var rows: Array = _settings_rows()
 	for i in rows.size():
 		var y := 120 + i * 66
@@ -346,7 +359,7 @@ func _draw_settings() -> void:
 		var cb: Callable = rows[i][2]
 		var r := Rect2(620, y, 260, 52)
 		_btn(Rect2(r.position, Vector2(48, r.size.y)), "◀", cb.bind(-1))
-		var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else Color(0.13, 0.15, 0.22)
+		var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else TH_WOOD_D
 		_btn(Rect2(r.position + Vector2(54, 0), Vector2(r.size.x - 108, r.size.y)), val, cb.bind(1), true, false, tint)
 		_btn(Rect2(r.end.x - 48, r.position.y, 48, r.size.y), "▶", cb.bind(1))
 		if val.ends_with("%") and rows[i][0] in ["set_music", "set_sfx"]:

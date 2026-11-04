@@ -10,6 +10,7 @@ const D = preload("res://scripts/core/unit_defs.gd")
 const F8 = preload("res://scripts/core/fantasy_defs.gd")
 const MapDefs = preload("res://scripts/core/map_defs.gd")
 
+const AI_STYLES := 6
 const ROSTER_MAX := 10         # 第八輪：一局每邊最多幾種兵
 const CODE_PREFIX := "NTBR1"
 const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
@@ -56,7 +57,10 @@ var ai_pool_same := true       # 對手卡池跟藍方一樣
 # ── V9 地圖（進模擬）──
 var map_id := 0                # MapDefs.MAPS 的索引；0＝平原
 var map_size := 1              # 0 小、1 中（標準）、2 大
-var vents := false             # 熔岩噴口（只有熔岩裂谷有）
+var vents := false             # 熔岩噴口（只有熔岩裂谷有；V1.0 不做，欄位保留）
+var map_mode := 0              # 系列：0 固定、1 每局輪替、2 每局隨機（不進模擬，每局定下來才算）
+var bans := 0                  # 雙人每人禁幾種（不進模擬，開打前就從卡池拿掉了）
+var ai_style := 0              # AI 性格：0 均衡、1 鐵壁、2 遠程、3 奇襲、4 召喚、5 亂數（不進模擬）
 # ── 系列 ──
 var rounds := 3
 var place_rule := "snake5"
@@ -158,6 +162,9 @@ func copy():
 	r.map_id = map_id
 	r.map_size = map_size
 	r.vents = vents
+	r.map_mode = map_mode
+	r.ai_style = ai_style
+	r.bans = bans
 	r.skills_off = skills_off.duplicate()
 	r.preset = preset
 	return r
