@@ -16,9 +16,11 @@
          另外依實際覆蓋分組，任何一組（≥30 個陣型×對手）k＝1 的 Δ 不超過 +15
 結束碼：0 全過；1 有門檻沒過；2 資料錯誤。
 """
-import json, sys, glob, os, math
+import re, json, sys, glob, os, math
 
-NAMES = ["劍士", "盾兵", "弓箭手", "騎兵", "刺客", "長槍兵", "投彈兵", "醫者", "鼓手", "狂戰士"]
+# 第七輪 R3：名稱只有一個來源，不再手抄（balance_report 曾把鼓手、狂戰士對調）
+_UD = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "core", "unit_defs.gd"), encoding="utf-8").read()
+NAMES = re.findall(r'"([^"]+)"', re.search(r'const NAMES := \[(.*?)\]', _UD).group(1))
 CORE = ["長槍兵 > 騎兵", "投彈兵 > 盾兵牆", "騎兵 > 投彈兵", "弓箭手 > 投彈兵", "刺客 > 醫者", "弓箭手 > 狂戰士"]
 CLASSIC_BAND = [0, 3, 4]
 LEGAL = (0.0, 0.5, 1.0)

@@ -4,6 +4,8 @@ name: ci
 on:
   push:
     paths-ignore: ["docs/**", "coordination/**", "*.md"]
+  pull_request:
+    paths-ignore: ["docs/**", "coordination/**", "*.md"]
   workflow_dispatch:
     inputs:
       balance:
@@ -22,11 +24,17 @@ jobs:
         run: |
           curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
           unzip -q g.zip && mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot && chmod +x godot
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r game/tools/requirements.txt
       - name: 統一檢查（匯入、載入、正式入口啟動、測試、鏡像、打轉、素材；任一步失敗就紅）
         run: GODOT="$PWD/godot" bash game/tools/check_all.sh "$PWD/check"
       - name: 平衡報表（手動）
         if: ${{ inputs.balance }}
         run: GODOT=$PWD/godot SHARDS=4 game/tools/balance.sh ../docs/balance-runs/ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: logs-linux, path: check/, if-no-files-found: warn }
       - run: cp check/fingerprint.txt fp-linux.txt
       - uses: actions/upload-artifact@v4
         with: { name: fp-linux, path: fp-linux.txt }
@@ -40,9 +48,15 @@ jobs:
         run: |
           curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_win64.exe.zip"
           unzip -q g.zip && mv Godot_v${GODOT_VERSION}-stable_win64.exe godot.exe
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r game/tools/requirements.txt
       - name: 統一檢查
         shell: bash
         run: GOLDEN_N=200 GODOT="$PWD/godot.exe" bash game/tools/check_all.sh "$PWD/check" && cp check/fingerprint.txt fp-windows.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: logs-windows, path: check/, if-no-files-found: warn }
       - uses: actions/upload-artifact@v4
         with: { name: fp-windows, path: fp-windows.txt }
   compare:
@@ -52,3 +66,23 @@ jobs:
       - uses: actions/download-artifact@v4
       - name: Windows／Linux 指紋必須一致
         run: diff fp-linux/fp-linux.txt fp-windows/fp-windows.txt
+  export:   # 第七輪 S3：Linux 模板只在這裡裝；對匯出的 Linux 成品跑 --self-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安裝 Godot 與模板
+        run: |
+          curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q g.zip && mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot && chmod +x godot
+          curl -sSL -o t.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          unzip -q -j t.tpz 'templates/linux_release.x86_64' 'templates/version.txt' -d ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: 匯入
+        run: ./godot --headless --path game --import
+      - name: 匯出並自我檢查
+        run: |
+          OUT="$PWD/export-check"; mkdir -p "$OUT/linux"
+          ./godot --headless --path game --export-release "Linux" "$OUT/linux/NoTakeBacks.x86_64"
+          "$OUT/linux/NoTakeBacks.x86_64" --headless -- --self-check | tee "$OUT/selfcheck.log"
+          grep -q '"ok":true' "$OUT/selfcheck.log"

@@ -80,24 +80,44 @@ static func check_free(a0, a1, rules = null) -> String:
 		for k in s1.units.size():
 			var u = s1.units[k]
 			var v = s2.units[imap[k]]
-			var a := [Sim.W - u.x, u.y, u.hp, -u.fx, u.fy, imap[u.target], imap[u.face_lock], u.cd, u.stun, u.alive, u.dmg_dealt, u.kills, u.breach, u.aura]
-			var b := [v.x, v.y, v.hp, v.fx, v.fy, v.target, v.face_lock, v.cd, v.stun, v.alive, v.dmg_dealt, v.kills, v.breach, v.aura]
+			# 第七輪 S2：完整狀態投影（原本只比 14 欄）；新增欄位要加進來。不影響出貨指紋。
+			var a := [Sim.W - u.x, u.y, u.hp, -u.fx, u.fy, imap[u.target], imap[u.face_lock], u.cd, u.stun, u.slow,
+				u.stealth, u.charge, -u.cdx, u.cdy, -u.mx, u.my, (Sim.W - u.wp_x) if u.wp_x >= 0 else -1, u.wp_y, u.alive,
+				u.dmg_dealt, u.dmg_taken, idmap.get(u.wp_for, -1), u.nav, u.chasing, u.kills, u.hcd, u.aura, u.breach, u.bmode, u.heal_done, imap[u.follow], u.drum_cover, u.max_hp, u.atk, u.speed, u.reach, u.cd_base]
+			var b := [v.x, v.y, v.hp, v.fx, v.fy, v.target, v.face_lock, v.cd, v.stun, v.slow,
+				v.stealth, v.charge, v.cdx, v.cdy, v.mx, v.my, v.wp_x, v.wp_y, v.alive,
+				v.dmg_dealt, v.dmg_taken, v.wp_for, v.nav, v.chasing, v.kills, v.hcd, v.aura, v.breach, v.bmode, v.heal_done, v.follow, v.drum_cover, v.max_hp, v.atk, v.speed, v.reach, v.cd_base]
 			if a != b:
 				return "tick %d 單位 %d：%s vs %s" % [s1.tick, u.id, a, b]
-		# 事件：同樣的種類，來源／目標換成對應的 id
+		# 事件內容（種類、來源、目標、傷害、數量、隊伍）全部比；只換算 id 與隊伍
 		var e1: Array = []
 		for e in s1.events:
-			e1.append([str(e.get("kind", "")), idmap.get(e.get("src", -1), -1), idmap.get(e.get("tgt", -1), -1)])
+			e1.append(_ev_sig(e, idmap))
 		var e2: Array = []
 		for e in s2.events:
-			e2.append([str(e.get("kind", "")), e.get("src", -1), e.get("tgt", -1)])
+			e2.append(_ev_sig(e, {}))
 		e1.sort()
 		e2.sort()
 		if e1 != e2:
-			return "tick %d 事件不對稱" % s1.tick
+			return "tick %d 事件不對稱：%s vs %s" % [s1.tick, e1, e2]
 		if s1.finished != s2.finished:
 			return "結束 tick 不同：%d vs %d" % [s1.tick, s2.tick]
 	var expect: int = s1.winner if s1.winner == -1 else 1 - s1.winner
 	if s2.winner != expect:
 		return "勝方沒對調：%d vs %d" % [s1.winner, s2.winner]
 	return ""
+
+
+## 事件轉成可比較的字串。map 非空＝把 id、隊伍換成鏡像那邊的。
+static func _ev_sig(e: Dictionary, map: Dictionary) -> String:
+	var out := PackedStringArray()
+	var keys := e.keys().map(func(k): return str(k))
+	keys.sort()
+	for k in keys:
+		var v = e[k]
+		if k in ["src", "tgt", "id"] and not map.is_empty():
+			v = map.get(v, -1)
+		elif k == "team" and not map.is_empty():
+			v = 1 - int(v)
+		out.append("%s=%s" % [k, str(v)])
+	return ";".join(out)

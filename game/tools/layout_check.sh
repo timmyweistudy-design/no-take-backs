@@ -4,11 +4,21 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 EXE="$1"; OUT="$2"
-rm -rf "$OUT"; mkdir -p "$OUT"
+# 第七輪 I5：只准清自己產生的輸出夾（有記號檔），或空資料夾；其他一律拒絕，不再無條件 rm -rf
+MARK=".ntb-layout-output"
+if [ -d "$OUT" ] && [ -n "$(ls -A "$OUT" 2>/dev/null)" ]; then
+  if [ ! -f "$OUT/$MARK" ]; then
+    echo "LAYOUT FAIL：$OUT 已有內容但不是版面檢查的輸出夾，不會刪除。請換一個新資料夾。"; exit 2
+  fi
+  rm -rf "$OUT"
+fi
+mkdir -p "$OUT"; : > "$OUT/$MARK"
+# Windows／WSL／Linux 都能跑：有 wslpath 才轉路徑
+winpath() { if command -v wslpath >/dev/null 2>&1 && [[ "$EXE" == *.exe ]]; then wslpath -w "$1"; else printf '%s' "$1"; fi; }
 for lang in zh_TW en; do
   for sc in 100 125 150; do
     d="$OUT/${lang}_${sc}"; mkdir -p "$d"
-    timeout 300 "$EXE" --path "$(wslpath -w .)" --resolution 1280x800 -- --shot="$(wslpath -w "$d")" --shot-lang=$lang --shot-text=$sc --layout-check > "$d/run.log" 2>&1 \
+    timeout 300 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc --layout-check > "$d/run.log" 2>&1 \
       || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0"; exit 1; }
     grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤"; exit 1; }
   done

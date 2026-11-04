@@ -7,8 +7,16 @@ cd "$(dirname "$0")/.."
 GODOT="${GODOT:-godot}"
 OUT="${1:-${TMPDIR:-/tmp}/ntb-check}"
 mkdir -p "$OUT"
+EXPECT_GODOT="4.6.2.stable"   # 第七輪 N3：本機、CI、匯出模板要同一版；確定性和指紋比對都靠這個
 fail() { echo "CHECK FAIL：$1（記錄在 $OUT）"; exit 1; }
 has_err() { grep -E "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script" "$1" >/dev/null; }
+
+GV="$("$GODOT" --version 2>/dev/null | tr -d '\r')"
+case "$GV" in
+  "$EXPECT_GODOT"*) ;;
+  *) [ "${ALLOW_GODOT_MISMATCH:-0}" = "1" ] || fail "Godot 版本是 $GV，應該是 $EXPECT_GODOT（快速開發可設 ALLOW_GODOT_MISMATCH=1，但不能當驗收）"
+     echo "警告：Godot 版本 $GV 不是 $EXPECT_GODOT，這次結果不能當驗收" ;;
+esac
 
 "$GODOT" --headless --path . --import > "$OUT/import.log" 2>&1 || fail "匯入失敗（exit 非 0）"
 has_err "$OUT/import.log" && fail "匯入有腳本錯誤"
@@ -40,11 +48,15 @@ grep -q "^COMPAT {\"n\":$CN,\"ok\":true}" "$OUT/compat.log" || fail "相容檢�
 "$GODOT" --headless --path . --script res://tools/seal_codes.gd > "$OUT/sealcodes.log" 2>&1 || fail "封存的舊對戰代碼（NTB2）播出不同結果（看 sealcodes.log）"
 grep -q '^SEALCODES {"n":40,"ok":true}' "$OUT/sealcodes.log" || fail "舊對戰代碼檢查沒有完成"
 
+"$GODOT" --headless --path . --script res://tools/golden_free.gd > "$OUT/goldenfree.log" 2>&1 || fail "自由模式金標準有分歧（看 goldenfree.log）"
+grep -q '^GOLDENFREE {"n":120' "$OUT/goldenfree.log" || grep -q '^GOLDENFREE {.*"n":120' "$OUT/goldenfree.log" || fail "自由模式金標準沒有比完 120 場"
+
 "$GODOT" --headless --path . --script res://tools/orbit_detect.gd > "$OUT/orbit.log" 2>&1 || fail "騎兵打轉偵測超過門檻"
 grep -q "^ORBIT cav_battles=" "$OUT/orbit.log" || fail "打轉偵測沒有完成"
-for lg in mirror golden compat sealcodes orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
+for lg in mirror golden goldenfree compat sealcodes orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
 
+python3 tools/check_strings.py > "$OUT/strings.log" 2>&1 || fail "字串表有問題（欄數、重複鍵、空翻譯、參數數、不存在的鍵；看 strings.log）"
 python3 tools/check_assets.py > "$OUT/assets.log" 2>&1 || fail "素材登記檢查失敗"
 python3 tools/check_font_coverage.py > "$OUT/font.log" 2>&1 || fail "字型子集缺字（改了中文要重跑 tools/build_font.py）"
 
-echo "CHECK OK：匯入、載入、啟動、測試、鏡像、金標準、打轉、素材、舊兵相容、舊對戰代碼、字型涵蓋全過（記錄在 $OUT）"
+echo "CHECK OK：匯入、載入、啟動、測試、鏡像、金標準、自由金標準、打轉、字串表、素材、舊兵相容、舊對戰代碼、字型涵蓋全過（記錄在 $OUT）"

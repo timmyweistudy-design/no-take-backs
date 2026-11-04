@@ -39,6 +39,13 @@ static func decode(code: String) -> Dictionary:
 	if not j is Dictionary or not j.has("a") or not j.has("b"):
 		return {"ok": false, "why": "body"}
 	# 預算也編進去（Codex S5 #1：遠征敵軍超過 100 金、殘局低預算時，原本會被當成 100）
+	# 第七輪 N2：外部資料先驗型，int([]) 會讓整個解碼中斷，不會回報「代碼錯誤」
+	for bk in ["ba", "bb"]:
+		var bv = j.get(bk, 100)
+		if not (bv is int or bv is float) or float(bv) != floorf(float(bv)) or absf(float(bv)) > 1000:
+			return {"ok": false, "why": "budget"}
+	if not j["a"] is String or not j["b"] is String or not j.get("rules", "") is String:
+		return {"ok": false, "why": "body"}
 	var ba := int(j.get("ba", 100))
 	var bb := int(j.get("bb", 100))
 	if ba < 1 or ba > 400 or bb < 1 or bb > 400:

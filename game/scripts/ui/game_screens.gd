@@ -6,6 +6,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check="):
 			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
+		elif a == "--self-check":
+			Save.prefix = "smoke_"
 	Save.load_all()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--steam-test="):
@@ -59,6 +61,8 @@ func _ready() -> void:
 			perf_path = a.substr(7)
 	if "--boot-check" in OS.get_cmdline_user_args():
 		_boot_check.call_deferred()
+	if "--self-check" in OS.get_cmdline_user_args():
+		_self_check.call_deferred()
 	if capsule_path != "":
 		get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
 		return   # 膠囊圖由 main 接手
@@ -72,6 +76,7 @@ func _ready() -> void:
 
 # ───────────────────────── 狀態切換 ─────────────────────────
 func _go_title() -> void:
+	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
 	sfx.set_muffled(false)
 	watch_mode = false
 	clutch_t = 0.0
@@ -1273,10 +1278,26 @@ func _arc_clipped(c: Vector2, r: float, a0: float, a1: float, col: Color, w: flo
 
 
 # ── 標題 ──
+func _draw_save_notice() -> void:
+	var msg := ""
+	if Save.data_locked:
+		msg = L.t("save_locked")
+	elif Save.data_source == "bak":
+		msg = L.t("save_from_backup")
+	elif Save.has_unsaved():
+		msg = L.t("save_failed")
+	if msg == "":
+		return
+	var h := text_h(msg, tz("S"), 760) + 14
+	draw_rect(Rect2(490, 8, 780, h), Color(0.35, 0.12, 0.08, 0.92))
+	_text(Vector2(500, 12 + tz("S")), msg, tz("S"), Color("#ffe8c8"), false, false, 760)
+
+
 func _draw_title() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.06, 0.1, 0.30))
 	if overlay != "":
 		return
+	_draw_save_notice()
 	var bob := sin(time * 1.5) * 4
 	# 第五輪 §4.4：主選單收成左側一塊面板，背景的自動對決露出來；標題用標題字
 	var dk := Color(0.05, 0.06, 0.1, 0.78)
@@ -2065,6 +2086,43 @@ func _gauntlet_next() -> void:
 	gauntlet_stage += 1
 	gauntlet_changes = 3
 	_reset_place(false)
+
+
+## 匯出成品自我檢查（第七輪 S3）：tools/export_check.sh 對匯出的 exe 跑，印 SELFCHECK 一行 JSON。
+func _self_check() -> void:
+	for i in 3:
+		await get_tree().process_frame
+	var demo := OS.has_feature("demo")
+	var out := {"demo": demo, "exported": OS.has_feature("template"), "engine": Engine.get_version_info().string}
+	out["strings"] = L.has("title") and L.t("title") != "title"
+	out["data"] = FileAccess.file_exists("res://data/puzzles.json") and FileAccess.file_exists("res://data/codex.json") and FileAccess.file_exists("res://data/strings.csv")
+	out["fonts"] = font_title != null and font_bold != null
+	out["audio"] = sfx != null and sfx.get_child_count() > 0
+	out["art"] = grass != null and plants.size() > 0
+	Save.data["tutorial"] = 2
+	var w: bool = Save.save_data()
+	Save.load_all()
+	out["save_roundtrip"] = w and int(Save.data["tutorial"]) == 2 and Save.file_prefix().ends_with("demo_") == demo
+	var a0 := Army.new(0, 100)
+	a0.place(0, 0, 0)
+	var a1 := Army.new(1, 100)
+	a1.place(0, 15, 0)
+	var dec: Dictionary = BattleCode.decode(BattleCode.encode(a0, a1, null))
+	out["battle_code"] = dec.get("ok", false)
+	out["unit_cap"] = RS.unlocked_count(999, demo) == (RS.DEMO_MAX if demo else D.COUNT)
+	# 出貨包不能帶測試與工具；編輯器跑時略過
+	out["no_tools"] = not OS.has_feature("template") or (not ResourceLoader.exists("res://tools/golden.gd") and not ResourceLoader.exists("res://tests/run_tests.gd"))
+	var good := true
+	for k in ["strings", "data", "fonts", "audio", "art", "save_roundtrip", "battle_code", "unit_cap", "no_tools"]:
+		good = good and bool(out[k])
+	out["ok"] = good
+	for suf in ["settings.json", "save.json"]:
+		for ext in ["", ".bak"]:
+			var fp := "user://%s%s%s" % [Save.file_prefix(), suf, ext]
+			if FileAccess.file_exists(fp):
+				DirAccess.remove_absolute(fp)
+	print("SELFCHECK ", JSON.stringify(out))
+	get_tree().quit(0 if good else 1)
 
 
 ## 啟動檢查（第三輪 T1）：從正式入口啟動、畫幾幀標題、開關一次圖鑑，印 BOOTOK 後結束。不碰玩家存檔、不碰 Steam。

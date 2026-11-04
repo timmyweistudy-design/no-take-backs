@@ -28,6 +28,8 @@ const ACHIEVEMENTS := {
 
 static var _steam = null
 static var init_result = null
+static var store_ok := true
+static var _retry_tick := 0
 
 ## 商店頁網址（第三輪 F5：試玩版結尾的願望清單按鈕用）。拿到 AppID 後填進來；空字串時按鈕顯示「上架後開放」。
 const STORE_URL := ""
@@ -67,7 +69,7 @@ static func unlock(id: String) -> bool:
 	Save.save_data()
 	if _steam != null:
 		_steam.setAchievement(id)
-		_steam.storeStats()
+		store_ok = bool(_steam.storeStats())   # 第七輪 R7：送不出去就記著，run_callbacks 定期重試
 	return true
 
 ## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
@@ -92,3 +94,8 @@ static func self_test(expect_app_id: int) -> Dictionary:
 static func run_callbacks() -> void:
 	if _steam != null:
 		_steam.run_callbacks()
+		if not store_ok:
+			_retry_tick += 1
+			if _retry_tick >= 600:
+				_retry_tick = 0
+				store_ok = bool(_steam.storeStats())

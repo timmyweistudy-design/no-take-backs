@@ -26,74 +26,38 @@ func ok(cond: bool, name: String, extra := "") -> void:
 		failed += 1
 		print("FAIL ", name, "  ", extra)
 
+## 測試組（第七輪 R2）：`--only=<名稱>` 一律走同一條路，未知名稱直接失敗，0 項也算失敗。
+const SUITES := {
+	"ui": ["test_ui_consumers"],
+	"free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"],
+	"rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5"],
+	"new": ["test_new_units"],
+	"save": ["test_save_migration", "test_save_v7"],
+	"harness": ["test_harness_v7"],
+	"fuzz": ["test_code_fuzz_v7"],
+}
+const ALL_TESTS := ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7"]
+
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
-	if "--only=ui" in OS.get_cmdline_user_args():
-		test_ui_consumers()
-		print("—— %d 通過 / %d 失敗" % [passed, failed])
-		quit(0)
-		return
-	if "--only=free" in OS.get_cmdline_user_args():
-		test_free_v6()
-		test_free_skip_v6()
-		test_review_free_v6()
-		test_to_free_keeps_units_v6()
-		test_free_review_fixes_v6()
-		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
-		quit(1 if failed > 0 or passed == 0 else 0)
-		return
-	if "--only=rules" in OS.get_cmdline_user_args():
-		test_rules_v5()
-		test_sandbox_v5()
-		test_battle_code_v5()
-		test_rules_e2e_v5()
-		test_lobby_reopen_v5()
-		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
-		quit(1 if failed > 0 or passed == 0 else 0)
-		return
-	if "--only=new" in OS.get_cmdline_user_args():
-		test_new_units()
-		print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
-		quit(1 if failed > 0 or passed == 0 else 0)
-		return
-	test_army_rules()
-	test_turn_placement()
-	test_determinism_and_mirror()
-	test_termination()
-	test_traits()
-	test_rule_fixes()
-	test_suspense()
-	test_codes_and_snake()
-	test_rally()
-	test_nav_r1()
-	test_puzzle_solutions()
-	test_codex()
-	test_event_routes()
-	test_ui_consumers()
-	test_sfx_priority()
-	test_save_migration()
-	test_play_effects()
-	test_input_queue()
-	test_golden()
-	test_crowd_readability()
-	test_replay_tools()
-	test_counter_lib()
-	test_seek_clutch()
-	test_clutch_effects()
-	test_new_units()
-	test_roster_ui()
-	test_rules_v5()
-	test_sandbox_v5()
-	test_battle_code_v5()
-	test_rules_e2e_v5()
-	test_lobby_reopen_v5()
-	test_free_v6()
-	test_free_skip_v6()
-	test_review_free_v6()
-	test_to_free_keeps_units_v6()
-	test_free_review_fixes_v6()
+	var names: Array = ALL_TESTS
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--only="):
+			var k := a.substr(7)
+			if not SUITES.has(k):
+				print("FAIL 未知的測試組：", k, "（可用：", ", ".join(SUITES.keys()), "）")
+				print("—— 0 通過 / 1 失敗")
+				quit(1)
+				return
+			names = SUITES[k]
+	for fn in names:
+		call(fn)
 	print("—— %d 通過 / %d 失敗（%d ms）" % [passed, failed, Time.get_ticks_msec() - t0])
-	quit(1 if failed > 0 or passed == 0 else 0)
+	quit(exit_code(passed, failed))
+
+## 純函式（測試用）：至少 1 項通過且 0 失敗才算成功。
+static func exit_code(p: int, f: int) -> int:
+	return 0 if p > 0 and f == 0 else 1
 
 func army_from(team: int, spec: Array):
 	var a = Army.new(team, 100)
@@ -2738,3 +2702,172 @@ func test_free_skip_v6() -> void:
 		x += 2000
 	var tp = TP.new(ta, tb, 0, "custom", r)
 	ok(tp.done() or (tp.current == 1 and not tp.skipped.is_empty()), "全場擠滿：藍方沒有任何合法位置 → 自動跳手並記錄（畫面會提示）", str([tp.current, tp.skipped, tp.done()]))
+
+
+## 第七輪 N2：校驗碼正確、內容亂填的代碼一律回報失敗，不能中斷（中斷時回傳空字典）。
+func _fuzz_code(prefix: String, body: Variant) -> String:
+	var b64 := Marshalls.utf8_to_base64(JSON.stringify(body)).replace("+", "-").replace("/", "_").replace("=", "")
+	return "%s.%s.%s" % [prefix, b64, b64.sha256_text().substr(0, 6)]
+
+func test_code_fuzz_v7() -> void:
+	var BC = load("res://scripts/game/battle_code.gd")
+	var junk: Array = [[], {}, "x", 1.5, -1, null, true, 1e300, [[1]], {"a": 1}]
+	var bad := 0
+	var total := 0
+	var a := Army.new(0, 100)
+	a.place(0, 0, 0)
+	var ac: String = a.to_code()
+	var b := Army.new(1, 100)
+	b.place(0, 15, 0)
+	var bc: String = b.to_code()
+	for pre in ["NTB2", "NTB3"]:
+		for k in ["a", "b", "ba", "bb", "rules", "r", "d", "cmds"]:
+			for v in junk:
+				var body := {"a": ac, "b": bc, "ba": 100, "bb": 100, "r": "x", "d": "y", "rules": ""}
+				body[k] = v
+				var r: Dictionary = BC.decode(_fuzz_code(pre, body))
+				total += 1
+				if not r.has("ok"):
+					bad += 1
+		for v in junk:
+			var r2: Dictionary = BC.decode(_fuzz_code(pre, v))
+			total += 1
+			if not r2.has("ok"):
+				bad += 1
+	ok(bad == 0, "N2：%d 組亂填的對戰代碼都正常回報（沒有中斷）" % total, "中斷 %d 組" % bad)
+	# 規則代碼：17／21 欄的每一欄都填垃圾
+	var bad2 := 0
+	var total2 := 0
+	for n in [17, 21]:
+		var base: Array = []
+		base.resize(n)
+		base.fill(1)
+		for i in n:
+			for v in junk:
+				var c: Array = base.duplicate()
+				c[i] = v
+				var rr: Dictionary = RSET.from_code(_fuzz_code("NTBR2" if n == 21 else "NTBR1", c))
+				total2 += 1
+				if not rr.has("ok"):
+					bad2 += 1
+	ok(bad2 == 0, "N2：%d 組亂填的規則代碼都正常回報" % total2, "中斷 %d 組" % bad2)
+	# 陣型代碼也不能中斷
+	var a2 := Army.new(0, 100)
+	ok(a2.load_code("NTB1.%s.%s" % ["AAAA", "AAAA".sha256_text().substr(0, 4)]) != "", "N2：亂填的陣型代碼回報錯誤")
+
+
+## 第七輪 R2：測試框架自己的契約。
+func test_harness_v7() -> void:
+	ok(exit_code(1, 0) == 0, "R2：有通過、沒失敗 → exit 0")
+	ok(exit_code(0, 0) == 1, "R2：0 項 → exit 1（不能假綠）")
+	ok(exit_code(5, 1) == 1, "R2：有失敗 → exit 1")
+	ok(SUITES.has("ui") and SUITES.has("free") and SUITES.has("rules") and SUITES.has("new"), "R2：舊的四個測試組都還在")
+	for k in SUITES:
+		for fn in SUITES[k]:
+			ok(has_method(fn), "R2：測試組 %s 的 %s 存在" % [k, fn])
+	for fn in ALL_TESTS:
+		ok(has_method(fn), "R2：完整清單的 %s 存在" % fn)
+
+
+func _sv_clear(SV) -> void:
+	for base in ["user://t7_save.json", "user://t7_settings.json"]:
+		for suf in ["", ".bak", ".tmp", ".bak.tmp", ".corrupt1", ".corrupt2", ".corrupt3"]:
+			if FileAccess.file_exists(base + suf):
+				DirAccess.remove_absolute(base + suf)
+	SV.fail_inject = {}
+	SV.pending = {}
+
+func _sv_put(path: String, txt: String) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(txt)
+	f.close()
+
+## 第七輪 R4～R7、N1：存檔資料安全，全部用真檔案＋故障注入。
+func test_save_v7() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var old_prefix: String = SV.prefix
+	SV.prefix = "t7_"
+	var P := "user://t7_save.json"
+	var B := P + ".bak"
+	# R4：語法對但型別全錯
+	_sv_clear(SV)
+	_sv_put(P, JSON.stringify({"schema_version": 3, "slots": "x", "tutorial": [], "stats": 3, "custom_stats": {"wins": "a"}, "puzzle_stars": {"p1": 99, "p2": []}, "unit_wins": [1], "achievements": {"a": 1}, "gauntlet_best": {}, "unlock_games": "9", "last_rules": 3, "rule_presets": 3, "future_field": 7}))
+	_sv_put("user://t7_settings.json", JSON.stringify({"lang": 3, "text_scale": 999, "music": 500, "sfx": "x", "speed": [], "shake": "yes", "duel_rule": "nope", "roster": 1}))
+	SV.load_all()
+	var d: Dictionary = SV.data
+	ok(d["slots"] is Array and d["slots"].size() == 5 and d["tutorial"] is int and d["stats"]["games"] == 0 and d["custom_stats"]["wins"] == 0, "R4：型別錯的進度欄位回到安全值", str(d))
+	ok(d["puzzle_stars"]["p1"] == 3 and d["puzzle_stars"]["p2"] == 0 and d["unit_wins"] == {} and d["achievements"] == [] and d["last_rules"] == {} and d["rule_presets"] == [], "R4：星數夾 0～3，其餘壞欄位歸零", str(d))
+	ok(d["future_field"] == 7, "R4：不認得的欄位保留")
+	ok(SV.settings["lang"] == "zh_TW" and SV.settings["text_scale"] == 100 and SV.settings["music"] == 100 and SV.settings["sfx"] == 80 and SV.settings["speed"] == 1.0 and SV.settings["shake"] == true and SV.settings["duel_rule"] == "snake5" and SV.settings["roster"] == "all", "R4：設定逐欄驗型", str(SV.settings))
+	# 版本欄位本身型別錯也不能當掉
+	ok(SV.schema_of({"schema_version": []}) == 1, "R4：版本欄位型別錯當 v1")
+	# R5：未來版
+	_sv_clear(SV)
+	var fut := JSON.stringify({"schema_version": 99, "tutorial": 5, "new_stuff": [1, 2]})
+	_sv_put(P, fut)
+	SV.load_all()
+	ok(SV.data_locked and int(SV.data["schema_version"]) == SV.SAVE_VERSION and SV.data["tutorial"] == 0, "R5：未來版存檔鎖定，記憶體用新進度")
+	SV.data["tutorial"] = 3
+	SV.save_data()
+	ok(FileAccess.get_file_as_string(P) == fut and not FileAccess.file_exists(B), "R5：未來版原檔一個位元組都沒變、沒產生備份")
+	SV.data_locked = false
+	# R6：主檔壞 → 讀備份 → 下次寫入失敗 → 好備份還在
+	_sv_clear(SV)
+	var good := JSON.stringify({"schema_version": 3, "tutorial": 2})
+	_sv_put(P, "{壞掉的 json")
+	_sv_put(B, good)
+	SV.load_all()
+	ok(SV.data_source == "bak" and SV.data["tutorial"] == 2, "R6：主檔壞讀備份", SV.data_source)
+	ok(FileAccess.file_exists(P + ".corrupt1") and not FileAccess.file_exists(P), "R6：壞主檔被隔離")
+	ok(FileAccess.get_file_as_string(B) == good, "R6：讀完備份還在")
+	SV.fail_inject = {"tmp": 1}
+	ok(not SV.save_data() and SV.has_unsaved(), "R7：寫入失敗要回報、記下未存")
+	ok(FileAccess.get_file_as_string(B) == good, "R6：寫入失敗後好備份仍在")
+	ok(SV.retry_pending() and not SV.has_unsaved() and FileAccess.file_exists(P), "R7：重試成功清掉未存")
+	ok(FileAccess.get_file_as_string(B) == good, "R6：第一次寫入（主檔空著）不會動備份")
+	# 下一次正常寫入才輪替驗證過的主檔
+	SV.data["tutorial"] = 3
+	ok(SV.save_data(), "R6：正常寫入")
+	ok(JSON.parse_string(FileAccess.get_file_as_string(B))["tutorial"] == 2, "R6：輪替的是驗證過的上一版")
+	# 遊戲開著時主檔被弄壞：不拿它蓋備份
+	var keep := FileAccess.get_file_as_string(B)
+	_sv_put(P, "壞")
+	SV.data["tutorial"] = 4
+	ok(SV.save_data(), "R6：壞主檔也能寫入新檔")
+	ok(FileAccess.get_file_as_string(B) == keep and JSON.parse_string(FileAccess.get_file_as_string(P))["tutorial"] == 4, "R6：執行中壞掉的主檔不會蓋備份")
+	# 輪替失敗：不覆蓋主檔
+	var cur := FileAccess.get_file_as_string(P)
+	SV.fail_inject = {"rotate": 1}
+	SV.data["tutorial"] = 5
+	ok(not SV.save_data() and FileAccess.get_file_as_string(P) == cur and not FileAccess.file_exists(P + ".tmp"), "R6：備份輪替失敗就不動主檔、不留暫存")
+	ok(SV.retry_pending() and JSON.parse_string(FileAccess.get_file_as_string(P))["tutorial"] == 5, "R7：重試後進度沒丟")
+	# 重啟恢復
+	SV.load_all()
+	ok(SV.data_source == "main" and SV.data["tutorial"] == 5, "R6：重啟後讀到最新進度")
+	# R7：Steam 送不出去會重試
+	var ST = load("res://scripts/game/steam.gd")
+	var fake = FakeSteam.new()
+	ST._steam = fake
+	SV.data["achievements"] = []
+	ST.unlock("FIRST_WIN")
+	ok(ST.store_ok == false and fake.stores == 1, "R7：storeStats 失敗有記下")
+	for i in 600:
+		ST.run_callbacks()
+	ok(ST.store_ok == true and fake.stores == 2, "R7：之後會自動重送", str(fake.stores))
+	ST._steam = null
+	# N1：試玩版與正式版不同檔
+	SV.prefix = ""
+	ok(SV.file_prefix(true) == "demo_" and SV.file_prefix(false) == "", "N1：試玩版存檔另一份")
+	SV.prefix = "t7_"
+	ok(SV.file_prefix(true) == "t7_demo_", "N1：測試前綴仍然有效")
+	_sv_clear(SV)
+	SV.prefix = old_prefix
+
+
+class FakeSteam:
+	var stores := 0
+	func setAchievement(_id): pass
+	func run_callbacks(): pass
+	func storeStats() -> bool:
+		stores += 1
+		return stores > 1
