@@ -32,6 +32,11 @@ func _open_lobby(kind: String) -> void:
 		if d["ok"]:
 			r = d["rules"]
 			r.preset = str(Save.data.get("last_rules", {}).get(kind + "_preset", "custom"))
+			var ex = Save.data.get("last_rules", {}).get(kind + "_extra", [])
+			if ex is Array and ex.size() == 3:
+				r.ai_style = clampi(int(ex[0]), 0, RuleSet.AI_STYLES - 1)
+				r.map_mode = clampi(int(ex[1]), 0, 2)
+				r.bans = clampi(int(ex[2]), 0, 2)
 	if r == null:
 		r = Presets.make("standard", kind, _lobby_unlocked())
 		# 第四輪的舊設定當作第一次打開大廳的初始值（Codex 第一輪）
@@ -109,6 +114,7 @@ func _lobby_start() -> void:
 	var lr: Dictionary = Save.data.get("last_rules", {})
 	lr[lobby_kind] = lobby_r.to_code()
 	lr[lobby_kind + "_preset"] = lobby_r.preset
+	lr[lobby_kind + "_extra"] = [lobby_r.ai_style, lobby_r.map_mode, lobby_r.bans]   # 系列選項不進規則碼，另外記（Codex #8）
 	Save.data["last_rules"] = lr
 	Save.save_data()
 	rules = lobby_r.copy()

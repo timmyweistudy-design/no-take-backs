@@ -39,6 +39,7 @@ func _start_trial(i: int) -> void:
 	r.pool[1] = p
 	r.preset = "custom"
 	rules = r
+	challenge_army = null      # 上一場挑戰碼的敵陣不能留到試煉（Codex #5）
 	rng.seed = 7000 + i        # 同一關每次是同一支隊伍
 	_start_mode(Mode.VS_AI)
 	trial_id = i
@@ -118,6 +119,13 @@ func _challenge_decode(c: String) -> Dictionary:
 		return bad
 	var r = rd["rules"]
 	r.ai_pool_same = false
+	# 碼是對方當藍軍排的，到這裡他變紅軍：兩邊的預算、卡池要對調（讓子局才有差，Codex #10）
+	var b0: int = r.budget_of(0)
+	var b1: int = r.budget_of(1)
+	var p0: int = r.pool_of(0)
+	var p1: int = r.pool_of(1)
+	r.budget = [b1, b0]
+	r.pool = [p1, p0]
 	var a = Army.new(1, r.budget_of(1))
 	a.apply_rules(r, 1)
 	a.pool = RuleSet.full_pool()     # 朋友的牌不必在自己的解鎖範圍內
@@ -155,9 +163,26 @@ func _draw_reward() -> void:
 
 ## ── 雙人：輪流禁選 ──
 func _begin_bans(n: int) -> void:
+	# 卡池太小時少禁幾張，至少留 3 種（Codex #6：5 種禁 2＋2 會卡死）
+	n = mini(n, (RuleSet.pool_count(rules.pool_of(0)) - 3) / 2)
+	if n <= 0:
+		_start_mode(Mode.DUEL)
+		return
 	ban_left = [n, n]
 	ban_turn = 0
 	overlay = "ban"
+
+func _ban_skip() -> void:
+	ban_left[ban_turn] -= 1
+	_ban_next()
+
+func _ban_next() -> void:
+	ban_turn = 1 - ban_turn
+	if ban_left[ban_turn] <= 0:
+		ban_turn = 1 - ban_turn
+	if ban_left[0] <= 0 and ban_left[1] <= 0:
+		overlay = ""
+		_start_mode(Mode.DUEL)
 
 func _ban(t: int) -> void:
 	var p: int = rules.pool_of(0) & ~(1 << t)
@@ -166,17 +191,13 @@ func _ban(t: int) -> void:
 		return
 	rules.pool = [p, p]
 	ban_left[ban_turn] -= 1
-	sfx.play("ui_deny")
-	ban_turn = 1 - ban_turn
-	if ban_left[ban_turn] <= 0:
-		ban_turn = 1 - ban_turn
-	if ban_left[0] <= 0 and ban_left[1] <= 0:
-		overlay = ""
-		_start_mode(Mode.DUEL)
+	sfx.play("k_error")
+	_ban_next()
 
 func _draw_ban() -> void:
 	var P := Rect2(170, 110, 940, 560)
 	_panel(P)
+	_box(P.grow(-3), Color(0, 0, 0, 0), Color("#b8393f"), 8.0, 3.0)   # 紅框：這裡是拿掉牌，不是選牌
 	_h1(Vector2(640, 122), L.t("ban_title"))
 	var who := L.t("blue") if ban_turn == 0 else L.t("red")
 	_text(Vector2(640, 186), L.t("ban_turn", [who, ban_left[ban_turn]]), tz("H2"), Art.team_color(ban_turn, cbm()).lightened(0.2), true, true, 860)
@@ -187,6 +208,9 @@ func _draw_ban() -> void:
 		_btn(r, "", _ban.bind(t), true, false, TH_WOOD)
 		_unit_in(Rect2(r.position, Vector2(r.size.x, 120)), t, 0, 1.0, 1.1)
 		_text(r.position + Vector2(84, 128), L.t("unit_%d" % t), tz("B"), Color.WHITE, true, true, 160)
+		if r.has_point(mouse) and not pad_mode:
+			_icon("ban", r.position + Vector2(84, 62), 84.0)
+	_btn(Rect2(1000, 124, 96, 40), L.t("ban_skip"), _ban_skip)
 
 ## ── 戰績 ──
 func _record_match(w: int) -> void:
@@ -249,7 +273,7 @@ func _draw_profile() -> void:
 		var on: bool = k in earned
 		var pos := Vector2(84 + (i2 % 3) * 372, 480 + (i2 / 3) * 30)
 		_icon("star" if on else "lock", pos + Vector2(10, 12), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
-		_text(pos + Vector2(26, 0), str(ach[k][0 if L.lang == "zh_TW" else 1]), tz("C"), Color.WHITE if on else Color(1, 1, 1, 0.5), false, false, 340)
+		_text(pos + Vector2(26, 0), str(ach[k][0 if L.lang == "zh_TW" else 1]), tz("C"), Color.WHITE if on else Color(1, 1, 1, 0.66), false, false, 340)
 	_btn(Rect2(560, 722, 160, 44), L.t("back"), func(): overlay = "")
 
 ## ── 殘局提示：只給方向，不給解 ──

@@ -87,7 +87,7 @@ static func body_xf(t: int, walk: float) -> Transform2D:
 	var k: int = r[0]
 	if k == HOP or k == FLOAT or k == ROOT:
 		return Transform2D(float(r[3]) * sin(walk), Vector2.ZERO)
-	var dy := -absf(sin(walk)) * float(r[2])
+	var dy := -absf(sin(walk)) * float(r[2]) * 1.3
 	var tilt := float(r[3]) * sin(walk)
 	if k != STOMP:
 		tilt += float(r[3]) * 0.5     # 走路時微微前傾

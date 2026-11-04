@@ -587,9 +587,14 @@ var _rv_map := {}   # 自己這張圖的 {o: 左上, s: 每單位幾像素}
 func _rv_free_board(g0: Vector2) -> void:
 	var full: bool = rv_orig.depth > rv_orig.fw / 2
 	var s := 0.028 if full else 0.038
+	s = minf(s, 450.0 / float(rv_orig.fw if full else rv_orig.depth + Army.EDGE))   # 大地圖別蓋到右邊的控制列（Codex #9）
+	s = minf(s, 340.0 / float(rv_orig.fh))
 	var wpx: float = (rv_orig.fw if full else rv_orig.depth + Army.EDGE) * s
 	var r := Rect2(g0, Vector2(wpx, rv_orig.fh * s))
 	draw_rect(r, Color(0.25, 0.4, 0.2))
+	var rv_tex: Texture2D = _map_tex()
+	if rv_tex != null:
+		draw_texture_rect_region(rv_tex, r, Rect2(Vector2.ZERO, Vector2(wpx / s, rv_orig.fh) * CS / 1000.0))   # 覆盤也看得到地形
 	if full:
 		draw_line(g0 + Vector2(rv_orig.fw / 2.0 * s, 0), g0 + Vector2(rv_orig.fw / 2.0 * s, r.size.y), Color(1, 1, 1, 0.25), 1.0)
 	_rv_map = {"o": g0, "s": s, "r": r}

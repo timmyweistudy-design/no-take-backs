@@ -413,6 +413,11 @@ func _draw_units_of(s, dim: bool) -> void:
 				var gp := p + Vector2(-(8 + g * 8) * face, 0)
 				draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
 				_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
+		if live and walk <= Gait.POSE_DAZE + 1.0:
+			# 暈眩：頭上轉圈的星星
+			for sk0 in 3:
+				var sa0 := time * 5.0 + sk0 * TAU / 3.0
+				_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
 		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:

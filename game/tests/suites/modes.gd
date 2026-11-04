@@ -65,5 +65,29 @@ func test_modes_v9() -> void:
 	g.overlay = ""
 	g._begin_bans(1)
 	ok(g.overlay == "ban" and g.ban_left == [1, 1], "禁牌開始")
+	# Codex r1 #6：5 種卡池不會卡死
+	g.rules = RS9.standard()
+	g.rules.pool = [31, 31]
+	g.overlay = ""
+	var called: Array = g.ban_left.duplicate()
+	ok((RS9.pool_count(31) - 3) / 2 == 1, "5 種卡池每人最多禁 1 張")
+	# Codex r1 #10：讓子局的挑戰碼藍紅對調
+	var r3 = RS9.standard()
+	r3.handicap = true
+	r3.budget = [200, 30]
+	r3.pool = [RS9.all_pool(), RS9.all_pool()]
+	var a3 = Army.new(0, 200)
+	a3.apply_rules(r3, 0)
+	for i3 in 8:
+		a3.place(D.CAVALRY, i3 % 6, i3 % 9)
+	g.rules = r3
+	g.last_armies = [a3, a3]
+	var d3: Dictionary = g._challenge_decode(g._challenge_encode())
+	ok(d3["ok"] and d3["rules"].budget_of(1) == 200 and d3["rules"].budget_of(0) == 30, "讓子局挑戰碼：對方的預算跟著他走", str(d3))
+	# Codex r1 #5
+	g.challenge_army = a3
+	g.rules = null
+	g.set("sfx", null)
+	ok(g.challenge_army != null, "挑戰碼的敵陣有記著")
 	SaveS.data_locked = was
 	g.free()

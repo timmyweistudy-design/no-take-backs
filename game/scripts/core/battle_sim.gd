@@ -398,7 +398,7 @@ func step() -> void:
 			stop_at = reach - D.CHASE_HYST
 			u.chasing = need_move
 		if need_move:
-			if terrain != null and u.type != F8.GHOST:
+			if terrain != null and (u.type != F8.GHOST or skill_off.has("ghost")):
 				var nw := _t_nav(i, u, dest_x, dest_y)
 				if nw.x != dest_x or nw.y != dest_y:
 					dest_x = nw.x
@@ -1765,7 +1765,7 @@ func _t_resolve(n: int, sx: PackedInt64Array, sy: PackedInt64Array, nx: PackedIn
 
 ## 瞬間位移（擊退）撞牆：從終點往起點退到第一個能站的位置。
 func _t_back(u: Unit, x0: int, y0: int, x1: int, y1: int) -> Vector2i:
-	if terrain == null or u.type == F8.GHOST or not terrain.blocked(x1, y1, u.team):
+	if terrain == null or (u.type == F8.GHOST and not skill_off.has("ghost")) or not terrain.blocked(x1, y1, u.team):
 		return Vector2i(x1, y1)
 	for k in range(1, 5):
 		var x: int = x1 + (x0 - x1) * k / 4

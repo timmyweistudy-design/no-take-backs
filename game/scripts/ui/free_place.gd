@@ -344,7 +344,7 @@ func _fp_release(p: Vector2, w: Vector2i) -> bool:
 		var r := Rect2(fp_box_a, Vector2.ZERO).expand(p)
 		fp_sel = []
 		for i in a.units.size():
-			if r.has_point(_s_of(a.pos_of(a.units[i]))):
+			if r.has_point(_fld_xf() * _s_of(a.pos_of(a.units[i]))):
 				fp_sel.append(i)
 		return true
 	if fp_drag >= 0:
@@ -449,8 +449,8 @@ func _fp_pad_process(delta: float, stick: Vector2) -> void:
 		# 平滑游標＋輕推時減速（微調）
 		var sp := 5200.0 * pow(stick.length(), 2.0)
 		fp_cur += stick.normalized() * sp * delta
-		fp_cur.x = clampf(fp_cur.x, 200.0, 15800.0)
-		fp_cur.y = clampf(fp_cur.y, 200.0, 8800.0)
+		fp_cur.x = clampf(fp_cur.x, 200.0, fld_w - 200.0)
+		fp_cur.y = clampf(fp_cur.y, 200.0, fld_h - 200.0)
 		var w := Vector2i(fp_cur)
 		if fp_stroking:
 			_fs_extend(w)
@@ -499,8 +499,8 @@ func _fp_pad_button(b: int, pressed: bool) -> bool:
 			if pressed:
 				var dv := {JOY_BUTTON_DPAD_UP: Vector2(0, -500), JOY_BUTTON_DPAD_DOWN: Vector2(0, 500), JOY_BUTTON_DPAD_LEFT: Vector2(-500, 0), JOY_BUTTON_DPAD_RIGHT: Vector2(500, 0)}
 				fp_cur = Vector2(round((fp_cur.x + dv[b].x) / 500.0) * 500.0, round((fp_cur.y + dv[b].y) / 500.0) * 500.0)
-				fp_cur.x = clampf(fp_cur.x, 200.0, 15800.0)
-				fp_cur.y = clampf(fp_cur.y, 200.0, 8800.0)
+				fp_cur.x = clampf(fp_cur.x, 200.0, fld_w - 200.0)
+				fp_cur.y = clampf(fp_cur.y, 200.0, fld_h - 200.0)
 				if fp_stroking:
 					_fs_extend(Vector2i(fp_cur))   # 按住 A＋十字鍵也能畫（Antigravity 實作第 1 輪 #4）
 				elif fp_pad_x:
@@ -685,7 +685,7 @@ func _fp_draw() -> void:
 		for gx in range(-3, 4):
 			for gy in range(-3, 4):
 				var w2 := c + Vector2i(gx * 500, gy * 500)
-				if w2.x >= 200 and w2.x <= 15800 and w2.y >= 200 and w2.y <= 8800:
+				if w2.x >= 200 and w2.x <= fld_w - 200 and w2.y >= 200 and w2.y <= fld_h - 200:
 					draw_circle(_s_of(w2) - Vector2(0, 0.32 * CS), 2.0, Color(1, 1, 1, 0.35 - 0.04 * (absi(gx) + absi(gy))), true, -1.0, true)
 	# 游標（滑鼠在兵上＝搬移游標；手把＝準星）
 	if not fp_stroking and fp_drag < 0 and _fp_in_field(mouse) and not pad_mode:
@@ -808,6 +808,7 @@ func _fp_reticle(p: Vector2) -> void:
 ## 工具列：戰場左邊的直排工具列（Antigravity 第二輪：右下放不下）。點＝切換常駐；按住 Shift／Ctrl／G＝暫時。
 func _fp_toolbar() -> void:
 	draw_set_transform_matrix(Transform2D.IDENTITY)   # V9：工具列不跟著地圖縮放
+	_box(Rect2(4, 92, 120, 420), Color(TH_WOOD_D, 0.82), TH_EDGE.darkened(0.3), 8.0, 1.5)
 	var items: Array = [["brush", L.t("fp_t_brush")], ["line", L.t("fp_t_line")]]
 	if not _fp_duel_turns():
 		items.append(["select", L.t("fp_t_select")])

@@ -54,6 +54,7 @@ func _finish_battle() -> void:
 		if mode == Mode.VS_AI or mode == Mode.GAUNTLET:
 			call("_record_match", w)
 		call("_trial_finish", w)
+		Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
 	if eff["log"]:
 		Save.playtest_log(_pt_entry(0))
 

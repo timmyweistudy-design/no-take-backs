@@ -86,7 +86,7 @@ static func decode(code: String) -> Dictionary:
 					return {"ok": false, "why": "army"}
 		if rules.fullfield == RSET.FULL_AI:
 			for v in a1.units:
-				if a1.own_x(Army.pos_of(v).x) > rules.depth:
+				if a1.own_x(Army.pos_of(v).x) > rules.half_depth():
 					return {"ok": false, "why": "army"}
 	# 輪流落子的指令紀錄（cmds）目前不支援：代碼只證明「最後陣型合法」，不證明輪序（Codex 實作第 1 輪 #10，見方案 §11 已知限制）
 	if j.has("cmds"):

@@ -9,8 +9,8 @@ const BIOME := {
 	"river": {"base": "#6f9a4a", "base2": "#7da655", "slow": "#7a6a44", "fast": "#a9b07a", "block": "#2f7fb5", "edge": "#7cc4e8", "frame": "#5b4632", "sound": "water"},
 	"forest": {"base": "#4e7a3c", "base2": "#578545", "slow": "#6b5233", "fast": "#8f9a5c", "block": "#2f4d29", "edge": "#6f9a4a", "frame": "#3e2f22", "sound": "forest"},
 	"ice": {"base": "#d8e6ef", "base2": "#e6f0f6", "slow": "#f7fbff", "fast": "#8fd0ee", "block": "#5d8fb0", "edge": "#ffffff", "frame": "#5f7485", "sound": "wind"},
-	"lava": {"base": "#4a4048", "base2": "#544952", "slow": "#7e7680", "fast": "#6a5d62", "block": "#e8501c", "edge": "#ffc14d", "frame": "#2c2428", "sound": "lava"},
-	"canyon": {"base": "#d9b37a", "base2": "#e2bf88", "slow": "#c79a5e", "fast": "#a89a86", "block": "#a4593a", "edge": "#d68a5e", "frame": "#6e4a2c", "sound": "wind"},
+	"lava": {"base": "#3f3640", "base2": "#4a4049", "slow": "#7e7680", "fast": "#6a5d62", "block": "#ff5f1c", "edge": "#ffd166", "frame": "#2c2428", "sound": "lava"},
+	"canyon": {"base": "#d9b37a", "base2": "#e2bf88", "slow": "#c79a5e", "fast": "#a89a86", "block": "#6d3a26", "edge": "#c47a4e", "frame": "#6e4a2c", "sound": "wind"},
 }
 
 var _tex := {}       # 鍵 → Texture2D
@@ -152,10 +152,14 @@ class _Painter extends Node2D:
 						draw_arc(o3 + Vector2(Q / 2, (h3 % 20) + 6), 9.0, 0.3, 2.6, 8, Color(1, 1, 1, 0.3), 1.6, true)
 					"lava":
 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(1, 0.6, 0.1, 0.25 + (h3 % 30) / 100.0))
-						draw_circle(o3 + Vector2(h3 % 30, (h3 / 3) % 30), 3.0, Color(biome["edge"]), true, -1.0, true)
+						# 硬殼與裂縫：暗塊之間透出亮岩漿
+						for kl in 2:
+							draw_circle(o3 + Vector2((h3 >> kl) % 30, (h3 >> (kl + 2)) % 30), 7.0 + kl * 2.0, Color("#3a2320"), true, -1.0, true)
+						draw_line(o3 + Vector2(h3 % 12, 2), o3 + Vector2(10 + h3 % 20, 30), Color("#ffe07a"), 2.2, true)
 					"canyon":
 						# 山崖：上面亮、岩層橫紋不對齊，不要像磚牆
-						draw_rect(Rect2(o3, Vector2(Q, Q * 0.42)), Color(Color(biome["edge"]), 0.75))
+						draw_rect(Rect2(o3, Vector2(Q, Q)), Color("#6d3a26"))
+						draw_rect(Rect2(o3, Vector2(Q, Q * 0.42)), Color(Color(biome["edge"]), 0.9))
 						draw_circle(o3 + Vector2(h3 % 28 + 2, 6 + h3 % 6), 4.5, Color(1, 0.9, 0.75, 0.25), true, -1.0, true)
 						draw_line(o3 + Vector2(0, 16 + h3 % 7), o3 + Vector2(Q, 14 + (h3 >> 3) % 9), Color(0, 0, 0, 0.22), 2.0, true)
 						draw_line(o3 + Vector2(0, 25 + h3 % 5), o3 + Vector2(Q, 26 + (h3 >> 4) % 5), Color(0, 0, 0, 0.16), 1.5, true)
@@ -168,7 +172,7 @@ class _Painter extends Node2D:
 					continue
 				var o4 := Vector2(c4, r4) * Q
 				if _cell(c4, r4 + 1) != t.BLOCK and r4 + 1 < t.m:
-					draw_rect(Rect2(o4 + Vector2(0, Q), Vector2(Q, 7)), Color(0, 0, 0, 0.28))
+					draw_rect(Rect2(o4 + Vector2(0, Q), Vector2(Q, 12 if kind == "canyon" else 7)), Color(0, 0, 0, 0.32))
 				for d4 in [[1, 0, Vector2(Q, 0), Vector2(Q, Q)], [-1, 0, Vector2.ZERO, Vector2(0, Q)], [0, -1, Vector2.ZERO, Vector2(Q, 0)], [0, 1, Vector2(0, Q), Vector2(Q, Q)]]:
 					var nb := _cell(c4 + d4[0], r4 + d4[1])
 					if nb != t.BLOCK and nb != -1:
