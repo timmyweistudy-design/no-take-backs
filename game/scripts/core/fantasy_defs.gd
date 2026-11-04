@@ -27,7 +27,7 @@ const STATS := [
 	{"cost": 5, "hp": 340, "atk": 15, "cd": 22, "reach": 700, "speed": 45},   # 寶箱怪
 	{"cost": 5, "hp": 240, "atk": 9, "cd": 24, "reach": 700, "speed": 45},    # 史萊姆
 	{"cost": 6, "hp": 200, "atk": 15, "cd": 20, "reach": 700, "speed": 85},   # 幽靈
-	{"cost": 5, "hp": 280, "atk": 6, "cd": 24, "reach": 700, "speed": 40},    # 巫毒娃娃
+	{"cost": 5, "hp": 250, "atk": 6, "cd": 24, "reach": 700, "speed": 40},    # 巫毒娃娃
 	{"cost": 5, "hp": 180, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 沙漏精靈（支援）
 	{"cost": 6, "hp": 170, "atk": 8, "cd": 24, "reach": 4000, "speed": 45},   # 骷髏法師
 	{"cost": 5, "hp": 260, "atk": 12, "cd": 22, "reach": 700, "speed": 50},   # 吸塵貓
