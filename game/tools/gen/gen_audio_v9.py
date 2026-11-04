@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """V9 音效：腳步、材質打擊、地圖環境音。只用標準函式庫，全部本作合成。
-用法：python3 tools/gen_audio_v9.py（輸出到 audio/）；介面音另外用 Kenney CC0（audio/k_*.wav）。
+用法：python3 tools/gen/gen_audio_v9.py（輸出到 audio/）；介面音另外用 Kenney CC0（audio/k_*.wav）。
 """
 import math, random, struct, wave, os
 SR = 22050
-OUT = os.path.join(os.path.dirname(__file__), "..", "audio")
+OUT = os.path.join(os.path.dirname(__file__), "..", "..", "audio")
 r = random.Random(20261105)
 
 def write(name, xs, peak=0.85):

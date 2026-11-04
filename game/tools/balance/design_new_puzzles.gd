@@ -3,7 +3,7 @@ extends SceneTree
 ##   ① 隨機抽樣（和 validate_puzzles 相同的抽法）量勝率與兵種組合數
 ##   ② 爬山搜尋「最好的擺法」兩次：允許全部兵種、拿掉新兵。新兵要真的是解題關鍵（有新兵的最佳解明顯比較好）
 ##   ③ 找兩組含新兵、組合不同的標準解
-## 用法：godot --headless --path game --script res://tools/design_new_puzzles.gd [-- --id=n1 --samples=400 --iters=300]
+## 用法：godot --headless --path game --script res://tools/balance/design_new_puzzles.gd [-- --id=n1 --samples=400 --iters=300]
 const D = preload("res://scripts/core/unit_defs.gd")
 const Army = preload("res://scripts/core/army.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")

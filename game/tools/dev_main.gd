@@ -538,11 +538,6 @@ func _free_rules(full := 0):
 # _snap("55_map_small_battle.png")
 # _snap("56_map_large_place.png")
 # _snap("56_map_large_battle.png")
-# _snap("57_lobby_map.png")
-# _snap("58_trials.png")
-# _snap("59_profile.png")
-# _snap("60_reward.png")
-# _snap("61_ban.png")
 func _shots_v9() -> void:
 	_go_title()
 	Save.data["trial_stars"] = {"0": 3, "1": 2, "2": 1}

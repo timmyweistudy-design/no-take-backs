@@ -1,5 +1,5 @@
 extends SceneTree
-## 第八輪奇幻軍平衡驗收。godot --headless --path game --script res://tools/fantasy_eval.gd -- --mode=repl --shard=0 --shards=4
+## 第八輪奇幻軍平衡驗收。godot --headless --path game --script res://tools/balance/fantasy_eval.gd -- --mode=repl --shard=0 --shards=4
 ## mode：
 ##   repl：每種兵（舊 10＋新 10）拿 25 金左右換進基準陣，對固定對手的勝率變化。舊兵的範圍當標準。
 ##   core：剋制表每條跑 40 場（主兵種 60 金＋劍士、弓箭手補滿）。

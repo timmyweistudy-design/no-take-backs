@@ -65,10 +65,10 @@ func _draw_trials() -> void:
 	_text(Vector2(640, 104), L.t("trial_rule"), tz("S"), Color(1, 1, 1, 0.8), true, false, 1000)
 	var stars: Dictionary = Save.data.get("trial_stars", {})
 	var cw := 524.0
-	var ch := 100.0
+	var ch := 98.0
 	for i in TRIALS.size():
 		var t: Array = TRIALS[i]
-		var r := Rect2(116 + (i % 2) * (cw + 8), 144 + (i / 2) * (ch + 8), cw, ch)
+		var r := Rect2(116 + (i % 2) * (cw + 8), 164 + (i / 2) * (ch + 7), cw, ch)
 		_btn(r, "", _start_trial.bind(i), true, false, TH_WOOD)
 		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
 		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, L.t("map_" + str(MapDefs.MAPS[t[0]]["key"]))], tz("B"), Color.WHITE, false, true, cw - 240)

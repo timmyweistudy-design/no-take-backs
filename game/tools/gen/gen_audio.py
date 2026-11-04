@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """程式合成音效與音樂（優化方案 H）。只用標準函式庫，輸出 22050Hz 16-bit 單聲道 WAV 到 game/audio/。
 全部是自己合成的聲音，沒有任何外部素材，授權乾淨（本專案原創）。
-用法：python3 tools/gen_audio.py
+用法：python3 tools/gen/gen_audio.py
 """
 import math, random, struct, wave, os
 
 SR = 22050
-OUT = os.path.join(os.path.dirname(__file__), "..", "audio")
+OUT = os.path.join(os.path.dirname(__file__), "..", "..", "audio")
 rnd = random.Random(20261101)
 
 def write(name, samples, peak=0.85):

@@ -15,9 +15,9 @@
 import re, json, sys, glob, os, statistics as st
 
 # 第七輪 R3：名稱只有一個來源，不再手抄（balance_report 曾把鼓手、狂戰士對調）
-_UD = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "core", "unit_defs.gd"), encoding="utf-8").read()
+_UD = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts", "core", "unit_defs.gd"), encoding="utf-8").read()
 NAMES = re.findall(r'"([^"]+)"', re.search(r'const NAMES := \[(.*?)\]', _UD).group(1))
-# 舊 5 種的剋制五角形（紅線只檢查這 10 條；新兵種的核心關係由 tools/unit_eval.gd 逐條驗收，第四輪 §2.6）
+# 舊 5 種的剋制五角形（紅線只檢查這 10 條；新兵種的核心關係由 tools/balance/unit_eval.gd 逐條驗收，第四輪 §2.6）
 BEATS = {0: [4, 1], 1: [3, 2], 2: [0, 4], 3: [2, 0], 4: [1, 3]}
 NT = 5   # 兵種數：main() 依資料推定（matrix 的鍵或 comp 的長度）
 

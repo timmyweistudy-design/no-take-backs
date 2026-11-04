@@ -62,7 +62,7 @@
 - `GODOT=<4.6.2> tools/check_all.sh`：統一檢查，CI 也用。
 - `tools/layout_check.sh <win exe> <新資料夾>`：版面（會被擋的項目見腳本）；另外要人工看英文 150%。
 - `GODOT=<win exe> tools/export_check.sh <空資料夾>`：匯出成品自我檢查。
-- `SHARDS=14 tools/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
+- `SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
 - 統一檢查在 Windows 版要 40～50 分鐘，外層 timeout 至少開 90 分鐘。
 
 ## 最後一次驗收（2026-11-04，第八輪收尾，commit f523d58）

@@ -518,6 +518,8 @@ func _draw_place_hud() -> void:
 	_btn(Rect2(884, 690, 384, 50), start_label, func(): _on_start(), start_en, true)
 	if mode == Mode.VS_AI or (mode == Mode.GAUNTLET and gauntlet_stage == 1):
 		_btn(Rect2(884, 746, 120, 44), L.t("formations"), func(): _open("slots"))
+	if mode == Mode.PUZZLE:
+		_btn(Rect2(884, 746, 120, 44), L.t("menu_hint"), func(): call("_puzzle_hint"))
 	if _can_edit_existing():
 		_btn(Rect2(1012, 746, 120, 44), L.t("clear"), func(): _clear_mine())
 	_btn(Rect2(1140, 746, 128, 44), L.t("menu"), func(): _go_title())

@@ -451,7 +451,9 @@ func _draw_lobby_main(R: Rect2) -> void:
 	label.call("size", L.t("lb_size"), y)
 	for i in 3:
 		var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
-		var sz_txt := "%s  %d×%d" % [L.t("map_size_%d" % i), MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
+		var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
+		if L.lang == "zh_TW":
+			sz_txt = L.t("map_size_%d" % i) + "  " + sz_txt
 		_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
 	y += rowh
 	# 卡牌
@@ -467,8 +469,8 @@ func _draw_lobby_main(R: Rect2) -> void:
 	if lobby_kind == "ai":
 		label.call("robot", L.t("lb_opponent"), y)
 		var w1 := (cw - 8) / 2.0
-		_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level")
-		_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style")
+		_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level", 36.0)
+		_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style", 36.0)
 	else:
 		label.call("swords", L.t("lb_place_rule"), y)
 		_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
@@ -687,10 +689,10 @@ func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
 		i += 1
 
 ## ◀ 值 ▶ 的調整列；點兩側箭頭，也可以點中間（往下一個）。
-func _stepper(r: Rect2, value: String, id: String) -> void:
-	_btn(Rect2(r.position, Vector2(52, r.size.y)), "◀", _lobby_adj.bind(id, -1))
-	_btn(Rect2(r.position + Vector2(58, 0), Vector2(r.size.x - 116, r.size.y)), value, _lobby_adj.bind(id, 1), true, false, TH_WOOD_D)
-	_btn(Rect2(r.end.x - 52, r.position.y, 52, r.size.y), "▶", _lobby_adj.bind(id, 1))
+func _stepper(r: Rect2, value: String, id: String, aw := 52.0) -> void:
+	_btn(Rect2(r.position, Vector2(aw, r.size.y)), "◀", _lobby_adj.bind(id, -1))
+	_btn(Rect2(r.position + Vector2(aw + 6, 0), Vector2(r.size.x - aw * 2 - 12, r.size.y)), value, _lobby_adj.bind(id, 1), true, false, TH_WOOD_D)
+	_btn(Rect2(r.end.x - aw, r.position.y, aw, r.size.y), "▶", _lobby_adj.bind(id, 1))
 	if r.grow(4).has_point(mouse):
 		lobby_item = id
 

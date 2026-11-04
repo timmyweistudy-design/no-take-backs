@@ -19,7 +19,7 @@
 import re, json, sys, glob, os, math
 
 # 第七輪 R3：名稱只有一個來源，不再手抄（balance_report 曾把鼓手、狂戰士對調）
-_UD = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "core", "unit_defs.gd"), encoding="utf-8").read()
+_UD = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts", "core", "unit_defs.gd"), encoding="utf-8").read()
 NAMES = re.findall(r'"([^"]+)"', re.search(r'const NAMES := \[(.*?)\]', _UD).group(1))
 CORE = ["長槍兵 > 騎兵", "投彈兵 > 盾兵牆", "騎兵 > 投彈兵", "弓箭手 > 投彈兵", "刺客 > 醫者", "弓箭手 > 狂戰士"]
 CLASSIC_BAND = [0, 3, 4]

@@ -12,7 +12,7 @@ Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；進行中的�
 ## 鐵則
 - 舊場次位元組不能變：`FINGERPRINT b8fe741bcbfcf800`、舊 `digest` 不變；新東西走版本分流。
 - 模擬只用整數，全部要左右鏡像；畫面狀態不能進模擬。
-- 改中文字串要重建字型（`tools/build_font.py`）；用語看 `docs/terms.md`。
+- 改中文字串要重建字型（`tools/gen/build_font.py`）；用語看 `docs/terms.md`。
 - 改數值：跑平衡、重產 `golden_v8`（`--make`，commit 說明）、對應殘局。
 - 手寫文字不寫死數值；技能說明用常數換值。
 - 新測試要登記在 `tests/run_tests.gd` 兩個清單，否則靜靜不跑。

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""第六輪 §6.3：彙整 tools/free_screen.sh 的全因子篩選結果。
-用法：python3 tools/free_screen_report.py docs/balance-runs/v6-screen > 報表.md
+"""第六輪 §6.3：彙整 tools/balance/free_screen.sh 的全因子篩選結果。
+用法：python3 tools/balance/free_screen_report.py docs/balance-runs/v6-screen > 報表.md
 每個組合：核心剋制 6 條（X 方得分平均、95% 區間，以排法種子為群集）、聯賽的碾壓／接近／翻盤／時間到／秒數中位數。
 定值原則（方案 §6.3）：核心 6 條區間下界都 >50% 的組合裡，選碾壓局最低、平均秒數 30～75 秒的；沒有組合過關＝退回 1.0 格＋6 格。"""
 import json, glob, os, sys, math, statistics as st

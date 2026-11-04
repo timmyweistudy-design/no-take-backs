@@ -1,6 +1,6 @@
 extends SceneTree
 ## 奇幻軍試玩關的標準解搜尋（第八輪）。每關爬山找含主角兵種的解，印成 JSON；python 把解、星級寫回 puzzles.json。
-## godot --headless --path game --script res://tools/solve_fantasy.gd
+## godot --headless --path game --script res://tools/balance/solve_fantasy.gd
 const D = preload("res://scripts/core/unit_defs.gd")
 const Army = preload("res://scripts/core/army.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")

@@ -3,7 +3,7 @@ extends RefCounted
 ## 第 1 局沒有資訊 → 用原型模板組（和普通 AI 同一套，不會比普通弱）。
 ## 第 2 局起 → 準備幾個候選陣型（反制庫裡最接近的那筆、兩套模板陣、會讀對方的落子 AI 陣），
 ## 各拿去和你上一局的陣型模擬一場，挑打得最好的。只看你「上一局」公開過的陣型，不偷看這一局。
-## 遊戲（game_screens._hard_ai）和反制庫驗證（tools/make_counter_lib.gd）共用這一個函式。
+## 遊戲（game_screens._hard_ai）和反制庫驗證（tools/balance/make_counter_lib.gd）共用這一個函式。
 ## 第三輪的做法（查不到反制就退回落子 AI）在第四輪新模板加入後，對驗證池反而比普通 AI 弱（73.0% vs 74.0%），所以改成這樣。
 
 const D = preload("res://scripts/core/unit_defs.gd")

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """字型子集化（優化方案 I）：只留遊戲用得到的字，Noto Sans TC 從 5.7 MB 縮到幾百 KB。
 改了任何中文文案（strings.csv、puzzles.json、credits.txt、程式裡的字）都要重跑。
-用法：python3 tools/build_font.py <Noto 原檔資料夾>
+用法：python3 tools/gen/build_font.py <Noto 原檔資料夾>
 """
 import sys, os, glob, re
 from fontTools import subset
 
 src = sys.argv[1]
-root = os.path.join(os.path.dirname(__file__), "..")
+root = os.path.join(os.path.dirname(__file__), "..", "..")
 chars = set()
 for pat in ["data/*.csv", "data/*.json", "data/*.txt", "scripts/**/*.gd"]:
     for f in glob.glob(os.path.join(root, pat), recursive=True):

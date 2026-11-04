@@ -5,7 +5,7 @@ extends SceneTree
 ## ・每個原型在訓練池 200 套裡找「交換左右各打一場」勝最多的當反制；兩邊都要贏才收（勝率 ≥0.75）
 ## ・檔案記下規則版本、數值摘要、產生參數；遊戲讀到版本不符就不用它（退回啟發式），不會用到過期的反制
 ## ・另外量：困難 AI（scripts/core/hard_ai.gd：反制庫＋模板＋落子 AI 候選，和上一局模擬後挑最好的）對驗證池 100 套的勝率，要高於普通 AI
-## 用法：godot --headless --path game --script res://tools/make_counter_lib.gd
+## 用法：godot --headless --path game --script res://tools/balance/make_counter_lib.gd
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const Army = preload("res://scripts/core/army.gd")
 const AI = preload("res://scripts/core/ai_army.gd")

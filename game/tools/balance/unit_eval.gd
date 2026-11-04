@@ -1,5 +1,5 @@
 extends SceneTree
-## 新兵種驗收工具（第四輪方案 §2.6、§3.4）。由 tools/unit_eval.sh 分片執行，tools/unit_eval_report.py 合併判定。
+## 新兵種驗收工具（第四輪方案 §2.6、§3.4）。由 tools/balance/unit_eval.sh 分片執行，tools/balance/unit_eval_report.py 合併判定。
 ## 模式：
 ##   core  —— 核心剋制關係逐條驗：「X 為主＋同樣的劍弓填充」對「Y 為主＋同樣填充」，40 種排法 × 交換左右
 ##   repl  —— 替換實驗：含 X 的 200 套陣型，整批拿掉 X、用三種固定補法補回，對同一批對手（驗證池）比勝率差 Δ
@@ -66,7 +66,7 @@ static func pool_hash(opps: Array) -> String:
 static func code_hash() -> String:
 	var txt := ""
 	for p in ["res://scripts/core/battle_sim.gd", "res://scripts/core/unit_defs.gd", "res://scripts/core/formations.gd", "res://scripts/core/army.gd",
-			"res://scripts/core/ai_army.gd", "res://scripts/core/imath.gd", "res://tools/unit_eval.gd"]:
+			"res://scripts/core/ai_army.gd", "res://scripts/core/imath.gd", "res://tools/balance/unit_eval.gd"]:
 		txt += FileAccess.get_file_as_string(p)
 	return txt.sha256_text().substr(0, 12)
 

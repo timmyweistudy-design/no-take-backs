@@ -1,5 +1,5 @@
 extends SceneTree
-## 平衡工具 2.0（優化方案 B2、A2、L2）。由 tools/balance.sh 多行程分片呼叫，每場一行 JSON（前綴 "R "）。
+## 平衡工具 2.0（優化方案 B2、A2、L2）。由 tools/balance/balance.sh 多行程分片呼叫，每場一行 JSON（前綴 "R "）。
 ##   --mode=matrix    純兵種 60 金方陣 5×5（剋制）
 ##   --mode=league    訓練池 200 套，每套對 12 個對手、交換左右
 ##   --mode=turns     輪流落子先後手測試（--rule=cap10|snake5|snake5c，--games=N）

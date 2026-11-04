@@ -7,7 +7,7 @@ extends RefCounted
 ##   時間：1 tick ＝ 1/20 秒   例：cd 20 ＝ 1 秒攻擊一次
 ##   速度：千分之一格／tick     例：speed 60 ＝ 每秒 1.2 格（60×20÷1000）
 ##   倍率：寫成「分子／分母」   例：NUM 5、DEN 2 ＝ ×2.5
-## 改完跑：cd game && godot --headless --path . --script res://tools/balance.gd
+## 改完跑：cd game && godot --headless --path . --script res://tools/balance/balance.gd
 
 enum { SWORD, SHIELD, ARCHER, CAVALRY, ASSASSIN, PIKE, BOMBER, MEDIC, DRUMMER, BERSERKER }
 

@@ -49,29 +49,29 @@ cd game
 GODOT=<Godot 4.6.2> tools/check_all.sh                              # 統一檢查：引擎版本、匯入、載入、啟動、測試、鏡像、金標準 1000 場（鎖檔）、自由模式金標準 120 場、舊兵相容 1000 場、封存的舊對戰代碼、打轉、字串表、素材、字型涵蓋（CI 也用它）
 tools/check_quick.sh                                               # 快速檢查（改動時用，不取代統一檢查）
 godot --headless --path . --script res://tools/golden_v8.gd           # 第八輪金標準 60 場（有新兵的戰鬥，check_all 也會跑）
-SHARDS=14 tools/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>          # 奇幻兵平衡；repl 要 --bases=24 --opp=14
+SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>          # 奇幻兵平衡；repl 要 --bases=24 --opp=14
 GODOT=<Godot win exe> tools/export_check.sh <空資料夾>                # 匯出正式版、試玩版（有模板時加 Linux），對成品跑 --self-check
 "<Godot win exe>" --path <game> --script res://tools/atlas_check.gd -- --out=<資料夾>  # 角色圖集：超框、隊伍色比例、剪影重疊、接觸表
 python3 tools/check_strings.py                                     # 字串表：欄數、重複鍵、空翻譯、參數、用語表、不存在的鍵、Steam 成就清單
 python3 tools/playtest_report.py <資料夾>                            # 彙整試玩紀錄（session＋game 去重）
-python3 tools/archive_runs.py [--verify-only]                      # 實驗分片封存；還原看各實驗的 archive.manifest
+python3 tools/balance/archive_runs.py [--verify-only]                      # 實驗分片封存；還原看各實驗的 archive.manifest
 godot --headless --path . --script res://tests/run_tests.gd -- --only=<組>   # 測試組＝tests/suites/ 的檔名：core、content、ui、units（new）、rules、free、save、harness；未知或 0 項都會失敗
-SHARDS=17 tools/free_screen.sh ../docs/balance-runs/<名稱>                       # 第六輪間距×縱深全因子篩選；python3 tools/free_screen_report.py 彙整
-FREE=800,6000 NTYPES=10 SHARDS=16 tools/unit_eval.sh …                          # 自由陣型版的完整驗收
+SHARDS=17 tools/balance/free_screen.sh ../docs/balance-runs/<名稱>                       # 第六輪間距×縱深全因子篩選；python3 tools/balance/free_screen_report.py 彙整
+FREE=800,6000 NTYPES=10 SHARDS=16 tools/balance/unit_eval.sh …                          # 自由陣型版的完整驗收
 godot --headless --path . --script res://tools/perf_probe.gd       # 大軍、支援兵密集、困難 AI 的模擬耗時（定人數上限用）
-NTYPES=10 SHARDS=19 tools/unit_eval.sh ../docs/balance-runs/<名稱> core repl:0 repl:3 repl:4 repl:5 …  # 新兵種驗收（核心剋制、替換實驗＋經典範圍、盾牆池、覆蓋曲線）
+NTYPES=10 SHARDS=19 tools/balance/unit_eval.sh ../docs/balance-runs/<名稱> core repl:0 repl:3 repl:4 repl:5 …  # 新兵種驗收（核心剋制、替換實驗＋經典範圍、盾牆池、覆蓋曲線）
 godot --headless --path . --script res://tools/compat.gd -- --n=1000  # 舊 5 種兵逐 tick 相容（加新兵不能改到舊兵）
 godot --headless --path . --script res://tests/run_tests.gd        # 規則測試（最後一行總結；FINGERPRINT 給跨平台比對）
 godot --headless --path . --script res://tools/golden.gd -- --make # 刻意改規則後重產金標準（要在 commit 說明）
 tools/layout_check.sh "<Godot win exe>" <新資料夾>                  # 版面檢查：兩語言 × 三字級；重疊、越界、表外字級、小於 14、點擊框 <36、按鈕互撞、文字段數上限、畫面集合
-godot --headless --path . --script res://tools/make_counter_lib.gd # 重產困難 AI 反制庫（改平衡後要跑）
+godot --headless --path . --script res://tools/balance/make_counter_lib.gd # 重產困難 AI 反制庫（改平衡後要跑）
 godot --headless --path . --script res://tools/mirror_100.gd       # 100 組左右交換逐 tick 完整鏡像
-SHARDS=18 tools/balance.sh ../docs/balance-runs/<名稱>              # 平衡工具 2.0（多行程；紅線不過 exit 1）
+SHARDS=18 tools/balance/balance.sh ../docs/balance-runs/<名稱>              # 平衡工具 2.0（多行程；紅線不過 exit 1）
 godot --headless --path . --script res://tools/validate_puzzles.gd # 18 關殘局／教學／新兵試玩驗證（不過 exit 1）
 godot --headless --path . --script res://tools/orbit_detect.gd     # 騎兵打轉偵測（A＝0、B≤8、C≤2，否則 exit 1）
 python3 tools/check_assets.py                                      # 素材都要登記在 THIRD_PARTY_LICENSES.md
-python3 tools/gen_audio.py                                         # 重新合成音效音樂
-python3 tools/build_font.py <字型原檔資料夾>                          # 改了中文字要重跑字型子集（Noto Regular／Bold＋ThenKhung-Regular.ttf）
+python3 tools/gen/gen_audio.py                                         # 重新合成音效音樂
+python3 tools/gen/build_font.py <字型原檔資料夾>                          # 改了中文字要重跑字型子集（Noto Regular／Bold＋ThenKhung-Regular.ttf）
 python3 tools/check_font_coverage.py                               # 子集缺字就失敗
 "<Godot win exe>" --path <game> --resolution 1280x800 -- --shot=<輸出資料夾>   # 各畫面截圖（不碰玩家存檔；可加 --shot-lang=en --shot-text=150）
 "<Godot win exe>" --path <game> --resolution 1280x800 -- --perf=<輸出 json>  # 48 隻整場效能量測

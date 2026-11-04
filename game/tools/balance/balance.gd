@@ -1,5 +1,5 @@
 extends SceneTree
-## 平衡報表（原型版）：godot --headless --path game --script res://tools/balance.gd
+## 平衡報表（原型版）：godot --headless --path game --script res://tools/balance/balance.gd
 ## ①兵種對戰矩陣：各 60 金同種兵、整齊方陣，左右交換各打一次。
 ## ②AI 陣型聯賽：每套原型陣型 4 個隨機種子，兩兩對打（交換左右），看「激烈」指標。
 

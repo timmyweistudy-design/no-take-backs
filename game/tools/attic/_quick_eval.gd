@@ -1,7 +1,7 @@
 extends SceneTree
 ## 調參用的快速評估（不是驗收）：核心關係 20 種排法、替換實驗 50 套 × 3 對手 × 補法 a/b/c。
-## godot --headless --path game --script res://tools/_quick_eval.gd -- --units=5,6 --rel=0,1,2,3 --ntypes=7
-const UE = preload("res://tools/unit_eval.gd")
+## godot --headless --path game --script res://tools/balance/_quick_eval.gd -- --units=5,6 --rel=0,1,2,3 --ntypes=7
+const UE = preload("res://tools/balance/unit_eval.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const F = preload("res://scripts/core/formations.gd")
 
