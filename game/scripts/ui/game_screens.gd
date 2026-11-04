@@ -2010,7 +2010,7 @@ func _draw_place_hud() -> void:
 ## 資訊帶（第五輪 §4.4）：選中／停留的兵種名稱、一句定位、剋／怕頭像（28px 以上），右邊「?」開操作說明。
 ## 殘局顯示提示與三星條件；遠征顯示還能改幾隻。
 func _draw_info_band(R: Rect2, i: int, team: int) -> void:
-	draw_rect(R, Color(0, 0, 0, 0.18))
+	draw_rect(R, Color(0, 0, 0, 0.35))
 	var y := R.position.y + (R.size.y - tz("S") * 1.1) / 2
 	var x := 16.0
 	var help := Rect2(R.end.x - 46, R.position.y + 2, 36, 36)

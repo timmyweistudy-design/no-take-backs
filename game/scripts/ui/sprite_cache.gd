@@ -15,7 +15,7 @@ const D = preload("res://scripts/core/unit_defs.gd")
 
 const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
 const RS := 1.6            # 烘焙解析度倍率
-const ORIGIN := Vector2(74, 160)   # 角色腳底在格子裡的位置（第七輪 C0：原本會超框被切掉）
+const ORIGIN := Vector2(78, 160)   # 角色腳底在格子裡的位置（第七輪 C0：原本會超框被切掉）
 const RING_ORIGIN := Vector2(96, 140)   # 腳底圈格子的中心（有影子，要留下方空間）
 const WALK_FRAMES := 6
 const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
@@ -38,6 +38,10 @@ func is_ready(cb: bool) -> bool:
 
 func has_type(t: int) -> bool:
 	return loc.has(t)
+
+## 腳底在格子裡的位置：往前伸得很長的長槍兵靠左、很寬的小石魔靠右，其他都一樣。
+static func origin_of(type: int) -> Vector2:
+	return Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160))
 
 ## 全部清掉，烘舊 10 種和腳底圈。
 func build(cb: bool) -> void:
@@ -158,7 +162,7 @@ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, wa
 	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
 	var xf := Art.base * Transform2D(lean * face, Vector2(scale * face / RS, scale * crouch / RS), 0.0, p + Vector2(0, bob * scale))
 	ci.draw_set_transform_matrix(xf)
-	ci.draw_texture_rect_region(pages[loc[type][0]]["tex"], Rect2(-ORIGIN, Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
+	ci.draw_texture_rect_region(pages[loc[type][0]]["tex"], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
 	if hurt > 0.0 or mood != 0:
 		# 攻擊影格烘焙時沒有走路相位（Codex R5 #3）
 		var qa := quant_atk(atk)
@@ -180,7 +184,6 @@ class _Painter extends Node2D:
 		Art2.base = Transform2D.IDENTITY
 		var CELL2 := 192
 		var RS2 := 1.6
-		var org := Vector2(74, 160)
 		var per := 2 + 6 + 8 + 8
 		var cols := 16
 		for k in types.size():
@@ -199,7 +202,7 @@ class _Painter extends Node2D:
 						vr = 1 if type < D2.CLASSIC else 2   # 第四輪新兵沒有交替招式，這一組放專屬動作（variant 2）
 					elif f >= 8:
 						atk = (f - 8 + 0.5) / 8.0
-					var p := cell_o + org
+					var p := cell_o + (Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160)))
 					var ex := 2.0 if type == D2.CAVALRY else 3.5
 					# 眨眼那一格落在眨眼區間中間；其他格取 1.0（不在眨眼區間）
 					var tt: float = (3.7 - ex * 0.13 + 0.05) if f == 1 else 1.0

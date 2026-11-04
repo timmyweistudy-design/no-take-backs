@@ -428,13 +428,13 @@ func _draw_v8_ground(s, live: bool) -> void:
 		var c := ORIGIN + Vector2(int(z[0]), int(z[1])) * CS / 1000.0
 		var rr: float = float(F8.ROCK_R) * CS / 1000.0
 		draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, c))
-		draw_circle(Vector2.ZERO, rr, Color(0.35, 0.3, 0.22, 0.28), true, -1.0, true)
+		draw_circle(Vector2.ZERO, rr, Color(0.55, 0.45, 0.3, 0.22), true, -1.0, true)
 		for k in 7:
 			var an := k * TAU / 7.0 + 0.4
 			var a0 := Vector2(cos(an), sin(an)) * rr * 0.2
 			var a1 := Vector2(cos(an + 0.3), sin(an + 0.3)) * rr * 0.62
 			var a2 := Vector2(cos(an - 0.1), sin(an - 0.1)) * rr * 0.95
-			draw_polyline(PackedVector2Array([a0, a1, a2]), Color(0.12, 0.1, 0.08, 0.7), 2.5, true)
+			draw_polyline(PackedVector2Array([a0, a1, a2]), Color(0.42, 0.33, 0.22, 0.8), 2.5, true)
 		draw_set_transform_matrix(_cam)
 	for u in s.units:
 		if u.alive and u.type == F8.SPORE:
@@ -455,7 +455,7 @@ func _draw_v8_top(s, u, p: Vector2) -> void:
 	if u.type == F8.DOLL and u.link >= 0 and u.link < s.units.size() and s.units[u.link].alive:
 		var q := _upos(s.units[u.link])
 		var col := Color(1.0, 0.42, 0.7, 0.55 + 0.2 * sin(time * 6.0))
-		draw_dashed_line(p + Vector2(0, -26), q + Vector2(0, -26), Color(Art.OUT, 0.5), 3.5, 7.0)
+		draw_dashed_line(p + Vector2(0, -26), q + Vector2(0, -26), Color(1.0, 0.7, 0.9, 0.3), 4.5, 7.0)
 		draw_dashed_line(p + Vector2(0, -26), q + Vector2(0, -26), col, 2.0, 7.0)
 	if u.windup > 0:
 		var k := 1.0 - float(u.windup) / F8.WINDUP
@@ -1441,13 +1441,13 @@ func _draw_fx(f: Dictionary) -> void:
 		"soulrise":
 			for i10 in 5:
 				var an10 := i10 * TAU / 5.0 + k * 3.0
-				draw_circle(f["p"] + Vector2(cos(an10) * (14.0 - k * 8.0), -k * 38.0 + sin(an10) * 6.0), 5.0 * (1.0 - k), Color(0.72, 0.42, 1.0, 0.9 * (1.0 - k)), true, -1.0, true)
+				draw_circle(f["p"] + Vector2(cos(an10) * (14.0 - k * 8.0), -k * 38.0 + sin(an10) * 6.0), 5.0 * (1.0 - k), Color(0.72, 0.42, 1.0, 0.55 * (1.0 - k)), true, -1.0, true)
 		"swirl":
 			var maxr := float(F8.CAT_R) * CS / 1000.0
 			for i11 in 3:
 				var ph11 := fmod(k * 1.5 + i11 * 0.33, 1.0)
 				var r11 := maxr * (1.0 - ph11)
-				draw_arc(f["p"], r11, ph11 * 6.0, ph11 * 6.0 + 4.2, 26, Color(0.6, 0.85, 1.0, 0.7 * ph11), 3.0, true)
+				draw_arc(f["p"], r11, ph11 * 6.0, ph11 * 6.0 + 4.2, 26, Color(0.6, 0.85, 1.0, 0.4 * ph11), 2.4, true)
 		"stompring":
 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, f["p"]))
 			var sr := 14.0 + k * float(F8.GOLEM_R) * CS / 1000.0
