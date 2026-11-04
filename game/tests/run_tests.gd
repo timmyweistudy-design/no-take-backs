@@ -33,17 +33,26 @@ func _init() -> void:
 	var names: Array = ALL_TESTS
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
-			var k := a.substr(7)
-			if not SUITES.has(k):
-				print("FAIL 未知的測試組：", k, "（可用：", ", ".join(SUITES.keys()), "）")
-				print("—— 0 通過 / 1 失敗")
-				quit(1)
-				return
-			names = SUITES[k]
+			# 第九輪 P0：可以逗號列多個，每項是測試組或單一 test_ 函式名
+			names = []
+			for k in a.substr(7).split(","):
+				if k.begins_with("-"):
+					names.erase(k.substr(1))   # 例：--only=core,-test_golden
+				elif SUITES.has(k):
+					names.append_array(SUITES[k])
+				elif k in ALL_TESTS:
+					names.append(k)
+				else:
+					print("FAIL 未知的測試組：", k, "（可用：", ", ".join(SUITES.keys()), "）")
+					print("—— 0 通過 / 1 失敗")
+					quit(1)
+					return
 	for fn in names:
 		for g in FILES:
 			if fn in FILES[g]:
+				var t1 := Time.get_ticks_msec()
 				_obj(g).call(fn)
+				print("TIME %s %d" % [fn, Time.get_ticks_msec() - t1])
 	var p := 0
 	var f := 0
 	for g2 in _objs:

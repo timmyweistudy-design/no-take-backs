@@ -1,0 +1,29 @@
+# 落子無悔 No Take-Backs
+
+Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；進行中的方案與進度看 `docs/2026-11-04-v1-release-plan-v9.md`（§14 進度）、裁決看 `coordination/v9-ledger.md`。舊輪次不用讀。
+
+## 指令（在 game/ 下，GODOT 指向 Windows 版 4.6.2）
+- 改動時：`python3 tools/check.py`（有快取，只跑受影響的）；更快：`--quick`。
+- 驗收：`tools/check_all.sh`（全部重跑）。只取最後一行結論，細節在 `build/tmp/check/summary.json`。
+- 版面：`tools/layout_check.sh <exe> <新資料夾>`；`LAYOUT_QUICK=1` 只跑 2 組。
+- 匯出：`tools/export_check.sh <空資料夾>`。圖集：`tools/atlas_check.gd`（不能 headless）。
+- 其他流程用 skills：`ntb-check`、`ntb-review`、`ntb-balance`、`ntb-shots`、`ntb-unit`。
+
+## 鐵則
+- 舊場次位元組不能變：`FINGERPRINT b8fe741bcbfcf800`、舊 `digest` 不變；新東西走版本分流。
+- 模擬只用整數，全部要左右鏡像；畫面狀態不能進模擬。
+- 改中文字串要重建字型（`tools/build_font.py`）；用語看 `docs/terms.md`。
+- 改數值：跑平衡、重產 `golden_v8`（`--make`，commit 說明）、對應殘局。
+- 手寫文字不寫死數值；技能說明用常數換值。
+- 新測試要登記在 `tests/run_tests.gd` 兩個清單，否則靜靜不跑。
+- 字級只用字級表，不縮字；版面檢查不看圖，收尾要看截圖。
+- 暫存放 `build/tmp/`；東西不放專案外。
+- 不跑 `--steam-test`；長時間可見視窗先問。
+- commit 用 `git -c user.name=timmy -c user.email=pweihome@gmail.com`，做完推 `origin main`。
+- 背景跑長工作時不要改 `game/`；要改先 `cp -r game build/cg/` 跑快照。
+- WSL 的 timeout 砍不到 Windows Godot；`--script` 有解析錯誤會卡住，一律 `</dev/null` 加 timeout。
+
+## 省 token
+- 工具結果只讀最後一行；長日誌進檔，不進對話。
+- 看圖先拼接觸表，不一張張讀。
+- 找程式用 grep 加行號範圍，不整檔讀（`game_screens.gd` 很大）。

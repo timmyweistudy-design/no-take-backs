@@ -89,7 +89,10 @@ static func check(n: int) -> Dictionary:
 		return {"ok": false, "why": "規則或數值變了（%s/%s → %s/%s）：若是刻意改規則，請重產金標準並在 commit 說明" % [g["rules"], g["digest"], D.RULES_VERSION, D.data_digest()]}
 	var cases: Array = g["cases"]
 	var every := int(g["check_every"])
+	var sh := _shard_args()
 	for i in mini(n, cases.size()):
+		if i % int(sh[1]) != int(sh[0]):
+			continue
 		var c: Dictionary = cases[i]
 		var r := run_case(c["a"], c["b"], false)
 		var cps: Array = c["cps"]
@@ -100,3 +103,11 @@ static func check(n: int) -> Dictionary:
 			return {"ok": false, "n": i + 1, "first_case": i, "first_tick": int(c["t"]), "why": "結果或指紋不同"}
 	var ran := mini(n, cases.size())
 	return {"ok": ran == n, "n": ran}
+
+## 第九輪 P0：--shard=k/m 只跑編號 i % m == k 的案例（tools/check.py 分片平行用）
+static func _shard_args() -> Array:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shard="):
+			var p := a.substr(8).split("/")
+			return [int(p[0]), int(p[1])]
+	return [0, 1]

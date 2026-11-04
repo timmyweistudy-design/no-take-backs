@@ -1614,7 +1614,7 @@ func _draw_title() -> void:
 		if nx_t >= 0:
 			prog += "　" + L.t("unlock_next", [nx_g, L.t("unit_%d" % nx_t)])
 	_text(Vector2(70, 728), prog, tz("S"), Color(1, 1, 1, 0.8), false, false, 380)
-	_text(Vector2(70, 728 + tz("S") * 1.4), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), D.RULES_VERSION], tz("C"), Color(1, 1, 1, 0.6), false, false, 380)
+	_text(Vector2(70, 728 + tz("S") * 1.4), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), Color(1, 1, 1, 0.6), false, false, 380)
 
 
 func _pick_puzzle(id: String, tut: bool) -> void:

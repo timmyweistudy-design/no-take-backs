@@ -17,13 +17,17 @@ mkdir -p "$OUT"; : > "$OUT/$MARK"
 winpath() { if command -v wslpath >/dev/null 2>&1 && [[ "$EXE" == *.exe ]]; then wslpath -w "$1"; else printf '%s' "$1"; fi; }
 # WSL 的 timeout 只殺得到包裝程序，Windows 上的視窗會留著繼續跑：逾時要連它一起關（只關這次輸出夾的）
 kill_win() { if [[ "$EXE" == *.exe ]]; then powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name like 'Godot%'\" | Where-Object { \$_.CommandLine -like '*--shot=$(winpath "$1")*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" >/dev/null 2>&1; fi; }
-for lang in zh_TW en; do
-  for sc in 100 125 150; do
+# 第九輪 P0：LAYOUT_QUICK=1 只跑中文 100%＋英文 150%（最容易出事的兩組）；里程碑跑 6 組
+COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150"
+[ "${LAYOUT_QUICK:-0}" = "1" ] && COMBOS="zh_TW:100 en:150"
+for combo in $COMBOS; do
+  lang="${combo%%:*}"; sc="${combo##*:}"
+  {
     d="$OUT/${lang}_${sc}"; mkdir -p "$d"
     timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc --layout-check > "$d/run.log" 2>&1 \
       || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0"; kill_win "$d"; exit 1; }
     grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤"; exit 1; }
-  done
+  }
 done
 EXPECT=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | wc -l)
 NAMES=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')
@@ -49,7 +53,8 @@ for lang in ['zh_TW','en']:
         a=sorted(by[(lang,100)]); b=sorted(by[(lang,150)])
         print('  %s 中位字級 100%%=%s 150%%=%s' % (lang, a[len(a)//2], b[len(b)//2]))
 runs=glob.glob(os.path.join(out,'*','layout.jsonl'))
-if len(runs)!=6 or len(rows)!=6*expect:
+want=len(runs) if os.environ.get('LAYOUT_QUICK')=='1' else 6
+if len(runs)!=want or len(rows)!=want*expect:
     print('LAYOUT FAIL：應有 6 組 × %d 張，實得 %d 組、%d 張（截圖沒跑完也算失敗）' % (expect, len(runs), len(rows))); sys.exit(1)
 sys.exit(1 if total else 0)
 PY

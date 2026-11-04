@@ -4,8 +4,8 @@
 
 - 企劃 v1.0：[docs/2026-11-01-design-and-plan.md](docs/2026-11-01-design-and-plan.md)（§15 原型、§16 全面實作進度）
 - 第九輪 V1.0 正式版方案（未實作）：[docs/2026-11-04-v1-release-plan-v9.md](docs/2026-11-04-v1-release-plan-v9.md)
-- 第八輪奇幻兵團（再加 10 種兵，已完成）：[方案與進度](docs/2026-11-04-fantasy-units-plan-v8.md) §12；現況看 [docs/STATE.md](docs/STATE.md)
-- 三方優化方案：[第一輪](docs/history/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/history/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/history/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/history/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/history/2026-11-03-free-placement-plan-v6.md)（§11 進度）、[第七輪 v7：綜合大優化方案](docs/2026-11-04-grand-optimization-plan-v7.md)（§20 實作進度）、[第八輪 v8：奇幻兵團（再加 10 種兵）](docs/2026-11-04-fantasy-units-plan-v8.md)（定稿、未實作）
+- 第八輪奇幻兵團（再加 10 種兵，已完成）：[方案與進度](docs/history/2026-11-04-fantasy-units-plan-v8.md) §12；現況看 [docs/STATE.md](docs/STATE.md)
+- 三方優化方案：[第一輪](docs/history/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/history/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/history/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/history/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/history/2026-11-03-free-placement-plan-v6.md)（§11 進度）、[第七輪 v7：綜合大優化方案](docs/history/2026-11-04-grand-optimization-plan-v7.md)（§20 實作進度）、[第八輪 v8：奇幻兵團（再加 10 種兵）](docs/history/2026-11-04-fantasy-units-plan-v8.md)（定稿、未實作）
 - **現在的規則與數值：[docs/STATE.md](docs/STATE.md)**；用語表：[docs/terms.md](docs/terms.md)
 - 上架文件：[docs/release/](docs/release/)（商店頁、行銷與定價、法務、Steam 步驟、[手動驗收清單](docs/release/manual-checklist.md)、[預告片腳本](docs/release/trailer-30s.md)）
 - 真人試玩流程：[docs/playtest/protocol.md](docs/playtest/protocol.md)

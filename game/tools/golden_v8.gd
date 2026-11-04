@@ -142,7 +142,10 @@ static func check() -> Dictionary:
 	var cases: Array = g["cases"]
 	if cases.size() != int(lk.get("cases", 0)) or cases.size() != GROUPS.size() * PER_GROUP:
 		return {"ok": false, "why": "案例數不對"}
+	var sh := _shard_args()
 	for i in cases.size():
+		if i % int(sh[1]) != int(sh[0]):
+			continue
 		var c: Dictionary = cases[i]
 		var r := run_code(str(c["c"]))
 		if r.has("error"):
@@ -150,3 +153,11 @@ static func check() -> Dictionary:
 		if str(r["fp"]) != str(c["fp"]) or int(r["w"]) != int(c["w"]) or int(r["t"]) != int(c["t"]) or r["cps"] != c["cps"]:
 			return {"ok": false, "why": "第 %d 場（%s）分歧" % [i, c["g"]]}
 	return {"ok": true, "n": cases.size()}
+
+## 第九輪 P0：--shard=k/m 只跑編號 i % m == k 的案例（tools/check.py 分片平行用）
+static func _shard_args() -> Array:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shard="):
+			var p := a.substr(8).split("/")
+			return [int(p[0]), int(p[1])]
+	return [0, 1]

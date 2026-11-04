@@ -368,8 +368,8 @@ func test_nav_r1() -> void:
 ## fast 模式與正式模式逐 tick 狀態、事件完全一樣；陣型清單順序打亂結果不變。
 func test_golden() -> void:
 	var GT = load("res://tools/golden.gd")
-	var r: Dictionary = GT.check(100)
-	ok(r["ok"], "金標準：前 100 場逐 100 tick 狀態、勝負、指紋都一致", str(r))
+	var r: Dictionary = GT.check(20)   # 完整的在統一檢查的 golden 步驟
+	ok(r["ok"], "金標準：前 20 場逐 100 tick 狀態、勝負、指紋都一致", str(r))
 	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/golden.json"))
 	var bad: Array = []
 	for i in 30:

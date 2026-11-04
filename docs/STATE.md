@@ -1,7 +1,7 @@
 # 落子無悔：現在的真相
 
 > 第七輪 J3 建立，第八輪更新。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
-> 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/2026-11-04-fantasy-units-plan-v8.md` §12。
+> 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/history/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/history/2026-11-04-fantasy-units-plan-v8.md` §12。
 
 ## 版本
 | 項目 | 值 | 位置 |

@@ -1,4 +1,4 @@
-# SDD ledger — plan: docs/2026-11-04-fantasy-units-plan-v8.md
+# SDD ledger — plan: docs/history/2026-11-04-fantasy-units-plan-v8.md
 使用者 11/04：10 隻全做、不分批停、自己三方討論、只要最後完整成品。方案 §10 預設中「試玩前只做 V0」與「分批可停」因此作廢。
 Ruling: 不做分批暫停，也不等真人試玩 — 使用者明說全做 — 如果錯，tag v8-base 可以退回
 Ruling: 新兵常數放獨立檔 fantasy_defs.gd，舊 unit_defs 常數一個不動 — 這樣舊摘要自然不變，比「重建常數映射」簡單 — 如果錯，舊指紋會紅，golden 擋得住

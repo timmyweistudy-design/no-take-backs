@@ -99,7 +99,10 @@ static func check(n: int) -> Dictionary:
 		return {"ok": false, "why": "相容基準的陣型組合不是原本那 1000 組"}
 	if n < 1 or n > cases.size():
 		return {"ok": false, "why": "要比的場數 %d 不合法" % n}
+	var sh := _shard_args()
 	for i in n:
+		if i % int(sh[1]) != int(sh[0]):
+			continue
 		var c: Dictionary = cases[i]
 		var r := run_case(c["a"], c["b"])
 		if r.has("error"):
@@ -113,3 +116,11 @@ static func check(n: int) -> Dictionary:
 		if r["roll"] != c["roll"]:
 			return {"ok": false, "n": i + 1, "first_case": i, "why": "逐 tick 狀態分歧"}
 	return {"ok": true, "n": n}
+
+## 第九輪 P0：--shard=k/m 只跑編號 i % m == k 的案例（tools/check.py 分片平行用）
+static func _shard_args() -> Array:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shard="):
+			var p := a.substr(8).split("/")
+			return [int(p[0]), int(p[1])]
+	return [0, 1]
