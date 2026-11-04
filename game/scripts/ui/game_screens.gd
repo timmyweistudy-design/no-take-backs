@@ -896,7 +896,7 @@ func _key(k: int) -> void:
 		match k:
 			KEY_UP, KEY_LEFT:
 				_move_focus(-1)
-			KEY_DOWN, KEY_RIGHT, KEY_TAB:
+			KEY_DOWN, KEY_RIGHT:
 				_move_focus(1)
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
@@ -905,9 +905,12 @@ func _key(k: int) -> void:
 			KEY_PAGEUP, KEY_PAGEDOWN:
 				if overlay == "codex":
 					_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
-			KEY_P:
+			KEY_P, KEY_TAB:
+				# 手把 Y 送的是 Tab：戰鬥中＝暫停（第七輪 A6）
 				if state == St.BATTLE and overlay == "":
 					_toggle_pause()
+				elif k == KEY_TAB:
+					_move_focus(1)
 			KEY_ESCAPE:
 				if overlay != "":
 					overlay = ""
@@ -1496,6 +1499,8 @@ func _draw_overlay() -> void:
 		probe_texts.clear()   # 第五輪：底下畫面的字被遮罩蓋住，版面檢查只量覆蓋層本身
 		probe_btns.clear()
 		probe_ctrls.clear()
+		if state == St.TITLE:
+			draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.72))   # 第七輪：標題的示範戰場不透出來
 	match overlay:
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
@@ -1533,7 +1538,7 @@ func _draw_overlay() -> void:
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
 				if not tut and en:
-					var note := "%s　★★★ %s" % [L.t("puzzle_budget", [int(pz["budget"])]), L.t("star3_short", [int(pz["star3"])])]
+					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
 					_probe_btn_label = true
 					_probe_btn_rect = r
 					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.25), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 70)
@@ -1985,9 +1990,9 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		for t in grp[1]:
 			if x > help.position.x - 36:
 				break
-			draw_circle(Vector2(x + 15, R.get_center().y), 15, Color(1, 1, 1, 0.08))
-			Art.unit(self, Vector2(x + 15, R.position.y + 36), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.6, cbm())
-			x += 32
+			draw_circle(Vector2(x + 17, R.get_center().y), 17, Color(1, 1, 1, 0.08))
+			Art.unit(self, Vector2(x + 17, R.position.y + 39), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.68, cbm())
+			x += 36
 		x += 14
 	_draw_place_help()
 

@@ -239,8 +239,20 @@ func _copy_battle_code() -> void:
 	_toast(L.t("bc_copied"))
 
 func _watch_battle_code() -> void:
-	var r := BattleCode.decode(DisplayServer.clipboard_get())
+	_watch_code_str(DisplayServer.clipboard_get())
+
+## 手把：剪貼簿沒有代碼時改開 Steam 鍵盤；沒有 Steam 就提示（第七輪 N4）。
+func _watch_code_str(code: String) -> void:
+	var r := BattleCode.decode(code)
 	if not r["ok"]:
+		if pad_mode and code == DisplayServer.clipboard_get():
+			var cb := func(submitted: bool, text: String, _app: int) -> void:
+				if submitted:
+					_watch_code_str(text)
+			if SteamApi.text_input(L.t("bc_watch"), 8000, cb):
+				return
+			_toast(L.t("bc_pad_hint"), true)
+			return
 		_toast(L.t("bc_bad"), true)
 		return
 	# 試玩版：對戰代碼裡有正式版才有的兵種就不播（Codex 實作審查 #2）

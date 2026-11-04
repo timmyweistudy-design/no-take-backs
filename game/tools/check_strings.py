@@ -33,6 +33,17 @@ for f in glob.glob(os.path.join(root, "scripts/**/*.gd"), recursive=True):
     for m in use.finditer(open(f, encoding="utf-8").read()):
         if m.group(1) not in seen:
             errs.append(f"{os.path.relpath(f, root)} 用到不存在的鍵 {m.group(1)}")
+# 第七輪 S4：程式的成就清單要和 Steam 文件一致（文件在 repo 外就略過，例如只匯出 game/ 時）
+ach = re.findall(r'^\s*"([A-Z0-9_]+)": \[', open(os.path.join(root, "scripts/game/steam.gd"), encoding="utf-8").read(), re.M)
+doc = os.path.join(root, "..", "docs", "release", "steam-setup.md")
+if os.path.exists(doc):
+    dt = open(doc, encoding="utf-8").read()
+    for a in ach:
+        if "| %s |" % a not in dt:
+            errs.append(f"steam-setup.md 少列成就 {a}")
+    m = re.search(r"建立以下 (\d+) 個", dt)
+    if not m or int(m.group(1)) != len(ach):
+        errs.append(f"steam-setup.md 寫的成就數和程式 {len(ach)} 個不同")
 for e in errs:
     print("STRINGS", e)
 print(f"STRINGS {len(seen)} 個鍵，{len(errs)} 個問題")

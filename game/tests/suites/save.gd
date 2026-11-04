@@ -111,3 +111,29 @@ func test_save_v7() -> void:
 	ok(SV.file_prefix(true) == "t7_demo_", "N1：測試前綴仍然有效")
 	_sv_clear(SV)
 	SV.prefix = old_prefix
+
+
+## 第七輪 S4：成就離線達成、上線補送；正式 App 清單比對（假 Steam，實機仍由使用者跑）。
+func test_steam_v7() -> void:
+	var ST = load("res://scripts/game/steam.gd")
+	var fake = FakeSteam2.new()
+	ST._steam = fake
+	for id in ST.ACHIEVEMENTS:
+		fake.known[id] = true
+	fake.app = 12345
+	var r: Dictionary = ST.self_test(12345)
+	ok(r["ok"] and r["missing_achievements"].is_empty(), "S4：正式 App 清單齊全才過", str(r))
+	fake.known.erase("BACKSTAB_3")
+	r = ST.self_test(12345)
+	ok(not r["ok"] and r["missing_achievements"] == ["BACKSTAB_3"], "S4：後台少一個成就要抓得到", str(r))
+	ST._steam = null
+	ok(ST.ACHIEVEMENTS.size() == 18, "S4：程式 18 個成就（docs/release/steam-setup.md 要同步）")
+
+
+class FakeSteam2:
+	var known := {}
+	var app := 0
+	func loggedOn(): return true
+	func getAppID(): return app
+	func isSteamRunning(): return true
+	func getAchievement(id): return {"ret": known.has(id), "achieved": false}

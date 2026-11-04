@@ -17,7 +17,7 @@ const GOLD := Color("#ffd166")
 static var base := Transform2D.IDENTITY
 static var _team_now := 0   # 目前在畫哪一隊（分隊小披風用）
 
-const TEAM := [[Color("#3fa7ff"), Color("#ff5a5a")], [Color("#2f80ff"), Color("#ffb000")]]
+const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]   # 第七輪：紅壓暗，灰階下敵我也分得開（小樣通過條件 ②）
 
 static func team_color(team: int, cb := false) -> Color:
 	return TEAM[1 if cb else 0][team]
@@ -274,7 +274,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 				ci.draw_line(Vector2(10.0, hy - 3.6), Vector2(6.0, hy - 2.4), Color("#ffe066", a), 1.3, true)
 			# 雙短刃
 			var sw := w * 6.0
-			_line(ci, Vector2(10, -18 - sw), Vector2(8, -6 + sw), Color("#f0f0ff"), 2.6, a)   # 反手短刃：刃朝下，輪廓和劍士、槍兵分得開
+			_line(ci, Vector2(10, -18 - sw), Vector2(21, -8 + sw), Color("#f0f0ff"), 2.8, a)   # 反手短刃：刃往前下，剪影露得出刀尖
 			# 後手的刀：揮擊時往前交叉斬（第三輪 R4）
 			var bw := maxf(0.0, w)
 			_line(ci, Vector2(-8 + bw * 18, -16 - bw * 6), Vector2(-15 + bw * 44, -21 + bw * 16), Color("#f0f0ff"), 2.8, a)   # 加長加粗，看得出交叉
@@ -336,8 +336,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			var lift := maxf(0.0, w) * 16.0 + (-w * 4.0 if w < 0.0 else 0.0)
 			if variant == 2:
 				lift = 18.0   # 專屬＝施法：雙手把杖高舉過頭
-			var sbase := Vector2(12, -4 - lift)
-			var stop := Vector2(14, -48 - lift)
+			var sbase := Vector2(15, -4 - lift)
+			var stop := Vector2(21, -48 - lift)   # 第七輪：杖往外斜，剪影和方帽分開
 			_line(ci, sbase, stop, WOOD, 2.2, a)
 			var glow := 0.65 + 0.35 * sin(t * 4.0)
 			ci.draw_circle(stop, 7.0 + lift * 0.5, Color(0.4, 1.0, 0.55, (0.28 + lift * 0.02) * glow * a), true, -1.0, true)
@@ -345,7 +345,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_poly(ci, PackedVector2Array([stop + Vector2(-2, -6), stop + Vector2(2, -6), stop + Vector2(2, -2), stop + Vector2(6, -2), stop + Vector2(6, 2), stop + Vector2(2, 2), stop + Vector2(2, 6), stop + Vector2(-2, 6), stop + Vector2(-2, 2), stop + Vector2(-6, 2), stop + Vector2(-6, -2), stop + Vector2(-2, -2)]), Color("#7dffa0"), a)
 			if variant == 2:
 				_c(ci, Vector2(9.0, -24 - lift), 2.8, SKIN, a)   # 第二隻手也扶著杖
-			_c(ci, Vector2(12.5, -20 - lift), 3.0, SKIN, a)
+			_c(ci, Vector2(17.0, -20 - lift), 3.0, SKIN, a)
 		D.DRUMMER:
 			# 紅白羽毛高帽（全兵種最高）
 			var hatc := tc.darkened(0.12)   # 第七輪 C1-9：帽子用隊伍色（原本藍方戴紅帽，一眼像紅軍）

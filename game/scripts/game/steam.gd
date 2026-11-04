@@ -82,14 +82,34 @@ static func self_test(expect_app_id: int) -> Dictionary:
 	out["logged_on"] = _steam.loggedOn()
 	out["app_id"] = _steam.getAppID()
 	out["running"] = _steam.isSteamRunning()
-	var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
-	var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
-	out["known_read_ok"] = typeof(known) == TYPE_DICTIONARY and bool(known.get("ret", false))
-	out["our_id_missing"] = typeof(ours) == TYPE_DICTIONARY and not bool(ours.get("ret", true))
-	out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and out["known_read_ok"] and out["our_id_missing"]
+	# 第七輪 S4：Spacewar 和正式 App 分開驗
+	if expect_app_id == 480:
+		var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
+		var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
+		out["known_read_ok"] = typeof(known) == TYPE_DICTIONARY and bool(known.get("ret", false))
+		out["our_id_missing"] = typeof(ours) == TYPE_DICTIONARY and not bool(ours.get("ret", true))
+		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and out["known_read_ok"] and out["our_id_missing"]
+	else:
+		# 正式 App：後台的成就清單要和程式一字不差
+		var missing: Array = []
+		for id in ACHIEVEMENTS:
+			var r = _steam.getAchievement(id)
+			if typeof(r) != TYPE_DICTIONARY or not bool(r.get("ret", false)):
+				missing.append(id)
+		out["missing_achievements"] = missing
+		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and missing.is_empty()
 	if not out["ok"]:
 		out["why"] = "有檢查項不符"
 	return out
+
+## 手把貼不了剪貼簿（第七輪 N4）：Steam 的大字幕鍵盤。回傳 false＝沒有 Steam 或不支援，呼叫端要自己提示。
+## 這段只有接上 Steam 才跑得到，還沒實機驗（ClassDB 查過簽章：input_mode、line_input_mode、description、max_text、preset_text）。
+static func text_input(description: String, max_len: int, done: Callable) -> bool:
+	if _steam == null or not _steam.has_method("showGamepadTextInput"):
+		return false
+	if not _steam.is_connected("gamepad_text_input_dismissed", done):
+		_steam.connect("gamepad_text_input_dismissed", done, CONNECT_ONE_SHOT)
+	return bool(_steam.showGamepadTextInput(0, 0, description, max_len, ""))
 
 static func run_callbacks() -> void:
 	if _steam != null:

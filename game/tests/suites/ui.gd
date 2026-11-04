@@ -694,6 +694,7 @@ func test_keymap_v7() -> void:
 	ok(KM.sanitize(KM.ACTIONS, {"start": "x", "pause": 71.0, "nope": 1}) == {"pause": 71}, "K1：存檔裡的表逐項驗型")
 	var pt: Dictionary = KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_Y)
 	ok(KM.pad_to_default(pt, JOY_BUTTON_Y) == JOY_BUTTON_START and KM.pad_name(pt, "start") == "Y", "K1：手把也能改")
+	ok(KM.pad_name(pt, "pause") == "Start", "K1：手把撞鍵也互換")
 
 
 ## 第七輪 A9：重播返回只還原畫面，比分、進度、成就、試玩紀錄都不寫。

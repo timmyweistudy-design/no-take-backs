@@ -3,8 +3,9 @@
 可愛派兵自動對決（Steam 小品）。花 100 金擺好小軍隊，按下開戰就不能再動，只能看著它們打到最後一秒。
 
 - 企劃 v1.0：[docs/2026-11-01-design-and-plan.md](docs/2026-11-01-design-and-plan.md)（§15 原型、§16 全面實作進度）
-- 三方優化方案：[第一輪](docs/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/2026-11-03-free-placement-plan-v6.md)（§11 進度）、[第七輪 v7：綜合大優化方案](docs/2026-11-04-grand-optimization-plan-v7.md)（定稿、未實作）
-- 上架文件：[docs/release/](docs/release/)（商店頁、行銷與定價、法務、Steam 步驟）
+- 三方優化方案：[第一輪](docs/history/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/history/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/history/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/history/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/history/2026-11-03-free-placement-plan-v6.md)（§11 進度）、[第七輪 v7：綜合大優化方案](docs/2026-11-04-grand-optimization-plan-v7.md)（§20 實作進度）
+- **現在的規則與數值：[docs/STATE.md](docs/STATE.md)**；用語表：[docs/terms.md](docs/terms.md)
+- 上架文件：[docs/release/](docs/release/)（商店頁、行銷與定價、法務、Steam 步驟、[手動驗收清單](docs/release/manual-checklist.md)、[預告片腳本](docs/release/trailer-30s.md)）
 - 真人試玩流程：[docs/playtest/protocol.md](docs/playtest/protocol.md)
 - 第三方授權：[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
 
@@ -43,9 +44,14 @@ Windows：雙擊 `play.bat`；或用 Godot 4.6 開 `game/project.godot` 按 F5�
 ## 開發者
 ```bash
 cd game
-tools/check_all.sh                                                 # 統一檢查：匯入、載入、啟動、測試、鏡像、金標準 1000 場（鎖檔）、舊兵相容 1000 場、封存的舊對戰代碼、打轉、素材、字型涵蓋（CI 也用它）
-godot --headless --path . --script res://tests/run_tests.gd -- --only=rules   # 第五輪規則／沙盒／對戰代碼測試（含 1024 卡池窮舉）
-godot --headless --path . --script res://tests/run_tests.gd -- --only=free    # 第六輪自由排兵（量化、NTB5／NTBR2、鏡像、輪流批次與跳手、has_room 窮舉、覆盤）
+GODOT=<Godot 4.6.2> tools/check_all.sh                              # 統一檢查：引擎版本、匯入、載入、啟動、測試、鏡像、金標準 1000 場（鎖檔）、自由模式金標準 120 場、舊兵相容 1000 場、封存的舊對戰代碼、打轉、字串表、素材、字型涵蓋（CI 也用它）
+tools/check_quick.sh                                               # 快速檢查（改動時用，不取代統一檢查）
+GODOT=<Godot win exe> tools/export_check.sh <空資料夾>                # 匯出正式版、試玩版（有模板時加 Linux），對成品跑 --self-check
+"<Godot win exe>" --path <game> --script res://tools/atlas_check.gd -- --out=<資料夾>  # 角色圖集：超框、隊伍色比例、剪影重疊、接觸表
+python3 tools/check_strings.py                                     # 字串表：欄數、重複鍵、空翻譯、參數、用語表、不存在的鍵、Steam 成就清單
+python3 tools/playtest_report.py <資料夾>                            # 彙整試玩紀錄（session＋game 去重）
+python3 tools/archive_runs.py [--verify-only]                      # 實驗分片封存；還原看各實驗的 archive.manifest
+godot --headless --path . --script res://tests/run_tests.gd -- --only=<組>   # 測試組＝tests/suites/ 的檔名：core、content、ui、units（new）、rules、free、save、harness；未知或 0 項都會失敗
 SHARDS=17 tools/free_screen.sh ../docs/balance-runs/<名稱>                       # 第六輪間距×縱深全因子篩選；python3 tools/free_screen_report.py 彙整
 FREE=800,6000 NTYPES=10 SHARDS=16 tools/unit_eval.sh …                          # 自由陣型版的完整驗收
 godot --headless --path . --script res://tools/perf_probe.gd       # 大軍、支援兵密集、困難 AI 的模擬耗時（定人數上限用）
@@ -53,7 +59,7 @@ NTYPES=10 SHARDS=19 tools/unit_eval.sh ../docs/balance-runs/<名稱> core repl:0
 godot --headless --path . --script res://tools/compat.gd -- --n=1000  # 舊 5 種兵逐 tick 相容（加新兵不能改到舊兵）
 godot --headless --path . --script res://tests/run_tests.gd        # 規則測試（最後一行總結；FINGERPRINT 給跨平台比對）
 godot --headless --path . --script res://tools/golden.gd -- --make # 刻意改規則後重產金標準（要在 commit 說明）
-tools/layout_check.sh "<Godot win exe>" <輸出資料夾>                # 版面檢查：兩語言 × 三字級；重疊、越界、表外字級、小於 14、點擊框 <32、文字段數上限、畫面集合
+tools/layout_check.sh "<Godot win exe>" <新資料夾>                  # 版面檢查：兩語言 × 三字級；重疊、越界、表外字級、小於 14、點擊框 <36、按鈕互撞、文字段數上限、畫面集合
 godot --headless --path . --script res://tools/make_counter_lib.gd # 重產困難 AI 反制庫（改平衡後要跑）
 godot --headless --path . --script res://tools/mirror_100.gd       # 100 組左右交換逐 tick 完整鏡像
 SHARDS=18 tools/balance.sh ../docs/balance-runs/<名稱>              # 平衡工具 2.0（多行程；紅線不過 exit 1）
@@ -72,7 +78,7 @@ python3 tools/check_font_coverage.py                               # 子集缺�
 |---|---|
 | `game/scripts/core/` | 純邏輯：`battle_sim.gd`（五步 tick、全整數、SHA-256 完整狀態指紋、懸念指標、背水；可選規則：一局長度、讓子判定、沙盒）、`ruleset.gd`（第五輪規則物件、驗證、規則代碼 NTBR1／第六輪 NTBR2：部署、間距、縱深、全場）、`unit_defs.gd`（**所有數值**）、`army.gd`（含陣型代碼 NTB1／第六輪自由座標 NTB5、量化、has_room）、`turn_placement.gd`（cap10／snake5／snake5c）、`ai_turns.gd`、`ai_army.gd`、`formations.gd`、`mirror_check.gd` |
 | `game/scripts/game/` | 字串表、存檔設定（原子寫入）、音效、Steam 介面、關卡資料 |
-| `game/scripts/ui/` | 繼承鏈 `ui_base`（字級表、三種字型角色、換行）→ `battle_view`（戰場、特效、展示緩衝）→ `codex_view`（圖鑑）→ `replay_view`（重播控制、覆盤、對戰代碼）→ `lobby_view`（規則大廳）→ `free_place`（第六輪自由排兵：畫筆、框選、搬群、手把、禁區）→ `game_screens`（狀態機與各畫面）→ `main`（截圖、膠囊、影片、效能）；`charts.gd`（中線對比長條、排名條、戰力走勢、金幣條）、`art.gd`（程式繪製角色、三段式攻擊、表情）、`sprite_cache.gd`（圖集）、`view_buffer.gd`（畫面晚 2 tick） |
+| `game/scripts/ui/` | 繼承鏈 `ui_base`（字級表、三種字型角色、換行）→ `battle_view`（戰場、特效、展示緩衝）→ `codex_view`（圖鑑）→ `replay_view`（重播控制、覆盤、對戰代碼）→ `lobby_view`（規則大廳）→ `free_place`（第六輪自由排兵：畫筆、框選、搬群、手把、禁區）→ `game_screens`（狀態機與各畫面）→ `main`（出貨入口；開發參數換成 `tools/dev_main.gd`：截圖、膠囊、影片、效能）；`charts.gd`（中線對比長條、排名條、戰力走勢、金幣條）、`art.gd`（程式繪製角色、三段式攻擊、表情）、`sprite_cache.gd`（圖集）、`view_buffer.gd`（畫面晚 2 tick） |
 | `game/data/` | `strings.csv`、`puzzles.json`（含標準解）、`codex.json`（圖鑑）、`counter_lib.json`、`credits.txt` |
 | `game/tools/` | 平衡工具 2.0（含刺客陣指標）、殘局驗證、鏡像 100、打轉偵測、音效合成、字型子集、素材檢查 |
 | `.github/workflows/ci.yml` | 建好 GitHub repo 就會跑：測試＋鏡像＋素材檢查＋Windows／Linux 指紋比對 |

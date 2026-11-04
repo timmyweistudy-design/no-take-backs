@@ -21,10 +21,10 @@
      - **不會解鎖成就、不寫統計、不讀寫你的遊戲存檔**（會改用 `shot_` 前綴的存檔）。
      - Godot 本身仍會照常寫執行日誌。
      - 全部符合就 `exit 0`，任何一項不符就 `exit 1`。
-     - 輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次。
+     - 輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次：正式 App 會逐一核對這 18 個成就都建好了（少一個就 exit 1，會列出缺哪些）。
      - 另外建議在**沒開 Steam** 時跑一次，確認會回報失敗（`exit 1`）。
 2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
-3. **成就**：在 Steamworks 後台建立以下 15 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
+3. **成就**：在 Steamworks 後台建立以下 18 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
 
 | API 名稱 | 中文 | English | 條件 |
 |---|---|---|---|
@@ -43,6 +43,9 @@
 | ALL_TYPES | 五兵齊出 | Combined Arms | 用五種兵獲勝 |
 | CHARGE_5 | 鐵騎突擊 | Cavalry Storm | 一場 5 次以上衝鋒並獲勝 |
 | BACKSTAB_3 | 暗影三連 | Shadow Trio | 一場 3 次以上背刺並獲勝 |
+| CUSTOM_LOWGOLD | 精打細算 | Shoestring Army | 自訂規則：低金幣獲勝 |
+| CUSTOM_UNDERDOG | 以寡擊眾 | Underdog | 自訂規則：讓子時以少勝多 |
+| CUSTOM_BIG | 大軍壓境 | Grand Army | 自訂規則：大軍團獲勝 |
 
 4. **雲端**：後台 Steam Cloud → Auto-Cloud。
    - 路徑：Windows `%APPDATA%/Godot/app_userdata/落子無悔 No Take-Backs/`，檔案 `save.json`（加上 `save.json.bak`）。
