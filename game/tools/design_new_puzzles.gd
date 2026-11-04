@@ -98,7 +98,7 @@ func _init() -> void:
 			args[kv[0]] = kv[1]
 	var samples := int(args.get("samples", "400"))
 	var iters := int(args.get("iters", "300"))
-	for pz in P.new_puzzles():
+	for pz in P.new_puzzles() + P.fantasy_puzzles():
 		if args.has("id") and pz["id"] != args["id"]:
 			continue
 		var nu: int = int(pz["unit"])
