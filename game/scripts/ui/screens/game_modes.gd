@@ -214,6 +214,8 @@ func _draw_ban() -> void:
 
 ## ── 戰績 ──
 func _record_match(w: int) -> void:
+	if armies.is_empty() or armies[0] == null:
+		return
 	var ug: Dictionary = Save.data.get("unit_games", {})
 	var seen := {}
 	for u in armies[0].units:
