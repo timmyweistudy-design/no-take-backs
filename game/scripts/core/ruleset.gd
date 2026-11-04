@@ -59,6 +59,7 @@ var map_id := 0                # MapDefs.MAPS 的索引；0＝平原
 var map_size := 1              # 0 小、1 中（標準）、2 大
 var vents := false             # 熔岩噴口（只有熔岩裂谷有；V1.0 不做，欄位保留）
 var map_mode := 0              # 系列：0 固定、1 每局輪替、2 每局隨機（不進模擬，每局定下來才算）
+var time_of := 0               # 外觀：0 白天、1 黃昏、2 夜晚（只有畫面）
 var bans := 0                  # 雙人每人禁幾種（不進模擬，開打前就從卡池拿掉了）
 var ai_style := 0              # AI 性格：0 均衡、1 鐵壁、2 遠程、3 奇襲、4 召喚、5 亂數（不進模擬）
 # ── 系列 ──
@@ -165,6 +166,7 @@ func copy():
 	r.map_mode = map_mode
 	r.ai_style = ai_style
 	r.bans = bans
+	r.time_of = time_of
 	r.skills_off = skills_off.duplicate()
 	r.preset = preset
 	return r

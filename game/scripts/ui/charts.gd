@@ -48,7 +48,9 @@ static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
 		var y := rect.position.y + i * rh
 		var bh := minf(rh * 0.62, 22.0)
 		var by := y + (rh - bh) / 2
-		ui._text(Vector2(cx + mid_w / 2, y + (rh - fs * 1.1) / 2), str(row["label"]), fs, Color.WHITE, true, false, mid_w - 6)
+		if row.has("type"):
+			ui._unit_in(Rect2(cx, y, 28.0, rh), int(row["type"]), 0, 1.0, minf(0.42, rh / 80.0))   # 兵種頭像（V9）
+		ui._text(Vector2(cx + mid_w / 2 + (12.0 if row.has("type") else 0.0), y + (rh - fs * 1.1) / 2), str(row["label"]), fs, Color.WHITE, true, false, mid_w - 6)
 		var lb := half * float(row["b"]) / maxv
 		var lr := half * float(row["r"]) / maxv
 		ui.draw_rect(Rect2(cx - lb, by, lb, bh), team_col(0, cb))

@@ -96,7 +96,11 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 	if el.is_empty() and template < 0:
 		# 第五輪：奇怪的卡池（例如只有刺客＋醫者）沒有合格模板 → 用落子 AI 的選兵邏輯在卡池內組陣
 		var AIT = load("res://scripts/core/ai_turns.gd")
-		return {"army": AIT.fill_army(a, rng, 1, []), "name": "—"}
+		var filled = AIT.fill_army(a, rng, 1, [])
+		# V9：這條路一樣要轉成自由陣，否則雙方部署不同，開戰第 0 tick 就判無效（流程測試抓到）
+		if rules != null and rules.is_free():
+			filled = free_from_grid(filled, rules) if filled.deploy != "free" else filled
+		return {"army": filled, "name": "—"}
 	var ti := template if template >= 0 else int(el[rng.randi_range(0, el.size() - 1)])
 	var w: Array = TEMPLATES[ti]["w"]
 	var picks: Array = []

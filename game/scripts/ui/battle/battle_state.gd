@@ -150,6 +150,8 @@ func _upos(u) -> Vector2:
 func _tone() -> Color:
 	if state == St.TITLE:
 		return Color(1.0, 0.72, 0.45, 0.07)
+	if rules != null and rules.time_of != 0:
+		return Color(0.95, 0.42, 0.3, 0.16) if rules.time_of == 1 else Color(0.12, 0.16, 0.42, 0.30)
 	match mode:
 		Mode.PUZZLE:
 			return Color(0.95, 0.42, 0.3, 0.16)    # 黃昏

@@ -91,3 +91,127 @@ func test_modes_v9() -> void:
 	ok(g.challenge_army != null, "挑戰碼的敵陣有記著")
 	SaveS.data_locked = was
 	g.free()
+
+## 真的走一遍畫面流程（不開視窗）：試煉、挑戰碼、遠征獎勵、禁牌、地圖戰鬥、重播。
+func _fight(g) -> void:
+	g._on_start()
+	var guard := 0
+	while g.state != g.St.RESULT and guard < 12000:
+		guard += 1
+		if g.view != null and not g.view.finished:
+			g._sim_step(false)
+		else:
+			g._finish_battle()
+			break
+
+func _place_some(g, n := 6) -> void:
+	var a = g.armies[0]
+	var ts0 := [D.SWORD, D.ARCHER, D.SHIELD]
+	var i := 0
+	var y := 800
+	while a.units.size() < n and y < a.fh - 400:
+		a.place_xy(int(ts0[i % 3]), a.world_x(Army.quant(mini(a.depth - 200, 3000))), Army.quant(y))
+		i += 1
+		y += 1000
+
+func test_flows_v9() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var saved_stars = SaveS.data.get("trial_stars", {})
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	# 試煉：每一關都開得起來，AI 用對性格，地圖正確
+	var bad: Array = []
+	for i in g.TRIALS.size():
+		g._start_trial(i)
+		var t: Array = g.TRIALS[i]
+		if g.trial_id != i or g.rules.map_id != int(t[0]) or g.rules.map_size != int(t[1]) or g.mode != g.Mode.VS_AI or g.armies[0].fw != g.rules.field_w():
+			bad.append("第 %d 關狀態不對" % i)
+		g._build_ai()     # AI 是開戰時才排（不偷看），這裡直接叫
+		if g.armies[1].units.is_empty():
+			bad.append("第 %d 關 AI 沒兵" % i)
+		for u in g.armies[1].units:
+			var p: Vector2i = Army.pos_of(u)
+			if g.rules.terrain().blocked(p.x, p.y, 1):
+				bad.append("第 %d 關 AI 站在牆裡" % i)
+	ok(bad.is_empty(), "試煉 10 關都開得起來，AI 有兵、不站牆裡", str(bad))
+	# 打完一關：有星、記錄
+	SaveS.data["trial_stars"] = {}
+	g._start_trial(0)
+	_place_some(g, 8)
+	var n0: int = g.armies[0].units.size()
+	ok(n0 >= 5, "試煉能擺兵", str(n0))
+	_fight(g)
+	ok(g.state == g.St.RESULT and g.sim.finished and g.sim.tick > 20 and g.sim.alive_count(1) + g.sim.alive_count(0) > 0, "試煉打得完，進到結果頁", "tick %d 原因 %s 我方 %d 敵方 %d 部署 %s/%s 狀態 %d" % [g.sim.tick, g.sim.reason, g.sim.alive_count(0), g.sim.alive_count(1), g.armies[0].deploy, g.armies[1].deploy, g.state])
+	# 不管這場誰贏，直接驗星數規則
+	SaveS.data["trial_stars"] = {}
+	g.report = {}
+	g._trial_finish(1)
+	ok(not g.report.has("trial_stars") and SaveS.data["trial_stars"].is_empty(), "輸了沒有星")
+	g._trial_finish(0)
+	ok(g.report.has("trial_stars") and int(SaveS.data["trial_stars"]["0"]) == int(g.report["trial_stars"]), "贏了有星，也記進存檔", str(g.report))
+	# 挑戰碼：下一場對手就是這個陣型；開試煉後清掉
+	var code: String = g._challenge_encode()
+	DisplayServer.clipboard_set(code)
+	var d: Dictionary = g._challenge_decode(code)
+	ok(d["ok"], "結果頁的挑戰碼解得開", str(d))
+	g.rules = d["rules"]
+	g.challenge_army = d["army"]
+	g._start_mode(g.Mode.VS_AI)
+	g._build_ai()
+	ok(g.armies[1].units.size() == d["army"].units.size(), "接受挑戰：對手是朋友的陣型")
+	g._start_trial(1)
+	ok(g.challenge_army == null, "開試煉會清掉挑戰碼的敵陣")
+	# 遠征獎勵
+	g.overlay = ""
+	g._start_mode(g.Mode.GAUNTLET)
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	var b0: int = g.armies[0].budget
+	var c0: int = g.armies[0].unit_cap
+	g._gauntlet_reward()
+	ok(g.overlay == "reward", "遠征贏了跳獎勵")
+	g._take_reward(0)
+	ok(g.overlay == "" and g.gauntlet_stage == 2 and g.armies[0].budget == b0 + 10, "選多 10 金進下一戰", "%d %d" % [g.armies[0].budget, b0])
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	g._take_reward(1)
+	ok(g.armies[0].unit_cap == c0 + 2 and g.armies[0].budget == b0 + 10, "獎勵會累積", "%d" % g.armies[0].unit_cap)
+	# 禁牌走完
+	g.rules = RS9.standard()
+	g.rules.pool = [RS9.all_pool(), RS9.all_pool()]
+	g.rules.place_rule = "snake5"
+	g._begin_bans(1)
+	var before: int = RS9.pool_count(g.rules.pool_of(0))
+	g._ban(D.SWORD)
+	ok(g.ban_turn == 1 and g.overlay == "ban", "藍方禁完換紅方")
+	g._ban_skip()
+	ok(g.overlay == "" and g.mode == g.Mode.DUEL and RS9.pool_count(g.rules.pool_of(0)) == before - 1, "雙方都用完就開打")
+	# 5 種卡池不卡死
+	g.rules = RS9.standard()
+	g.rules.pool = [31, 31]
+	g.overlay = ""
+	g._begin_bans(2)
+	ok(g.ban_left == [1, 1], "5 種卡池自動少禁")
+	# 地圖換局
+	g.overlay = ""
+	var r = RS9.standard()
+	r.deploy = "free"
+	r.spacing = 800
+	r.depth = 6000
+	r.map_id = 1
+	r.map_mode = 1
+	r.pool = [RS9.all_pool(), RS9.all_pool()]
+	g.rules = r
+	g._start_mode(g.Mode.VS_AI)
+	_place_some(g, 6)
+	_fight(g)
+	var m0: int = g.rules.map_id
+	if not g.series_over:
+		g._next_round()
+		ok(g.rules.map_id == wrapi(m0 + 1, 0, 6) and g.armies[0].fw == g.rules.field_w(), "輪替：下一局換地圖")
+	# 重播
+	g._replay()
+	ok(g.sim != null and g.sim.fw == g.rules.field_w(), "地圖戰鬥能重播")
+	SaveS.data["trial_stars"] = saved_stars
+	SaveS.data_locked = was
+	g.free()

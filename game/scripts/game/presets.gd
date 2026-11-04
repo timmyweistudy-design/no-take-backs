@@ -4,6 +4,7 @@ extends RefCounted
 ## unlocked：玩家已解鎖的卡池遮罩（對 AI 用；雙人不看個人進度，只受試玩版限制）。
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const F8 = preload("res://scripts/core/fantasy_defs.gd")
 const RSET = preload("res://scripts/core/ruleset.gd")
 
 const IDS := ["standard", "classic5", "fantasy", "small", "big", "single"]

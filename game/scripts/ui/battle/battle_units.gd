@@ -191,6 +191,8 @@ func _draw_field() -> void:
 			draw_texture_rect(mt, Rect2(ORIGIN, fld_size), false)
 		else:
 			draw_rect(Rect2(ORIGIN, fld_size), Color(fbi.get("base", "#6f9a4a")))
+		if rules != null and rules.time_of != 0:
+			draw_rect(Rect2(ORIGIN, fld_size), _tone())
 		_draw_field_frame()
 		return
 	var f_rows: int = fld_h / 1000

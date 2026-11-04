@@ -271,7 +271,7 @@ func _draw_result_details(R: Rect2) -> void:
 	var src: Array = dealt if result_metric == 0 else taken
 	var rows: Array = []
 	for t in report_rows(dealt, taken):
-		rows.append({"label": L.t("unit_%d" % t), "b": src[0][t], "r": src[1][t]})
+		rows.append({"label": L.t("unit_%d" % t), "b": src[0][t], "r": src[1][t], "type": t})
 	_text(R.position, L.t("report_by_type"), tz("B"), Color.WHITE, false, true, 210)
 	_btn(Rect2(R.position.x + 220, R.position.y - 6, 120, 38), L.t("report_dealt"), func(): result_metric = 0, true, false, TH_ACTIVE if result_metric == 0 else Color(0, 0, 0, 0))
 	_btn(Rect2(R.position.x + 346, R.position.y - 6, 120, 38), L.t("report_taken"), func(): result_metric = 1, true, false, TH_ACTIVE if result_metric == 1 else Color(0, 0, 0, 0))

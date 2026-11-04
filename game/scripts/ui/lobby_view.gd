@@ -12,6 +12,7 @@ var lobby_tab := 0             # 0 軍隊 1 卡池 2 對局 3 AI 4 沙盒
 var lobby_item := ""           # 說明欄目前說明的項目
 var lobby_menu := false        # 「我的預設」下拉
 var lobby_pool_team := 0       # 第八輪：兩邊名單不同時正在看哪一邊
+var lobby_filter := 0          # V9 卡池篩選：0 全部、1 近戰、2 遠程、3 支援、4 奇襲
 var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 
 const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
@@ -33,7 +34,9 @@ func _open_lobby(kind: String) -> void:
 			r = d["rules"]
 			r.preset = str(Save.data.get("last_rules", {}).get(kind + "_preset", "custom"))
 			var ex = Save.data.get("last_rules", {}).get(kind + "_extra", [])
-			if ex is Array and ex.size() == 3:
+			if ex is Array and ex.size() >= 3:
+				if ex.size() >= 4:
+					r.time_of = clampi(int(ex[3]), 0, 2)
 				r.ai_style = clampi(int(ex[0]), 0, RuleSet.AI_STYLES - 1)
 				r.map_mode = clampi(int(ex[1]), 0, 2)
 				r.bans = clampi(int(ex[2]), 0, 2)
@@ -114,7 +117,7 @@ func _lobby_start() -> void:
 	var lr: Dictionary = Save.data.get("last_rules", {})
 	lr[lobby_kind] = lobby_r.to_code()
 	lr[lobby_kind + "_preset"] = lobby_r.preset
-	lr[lobby_kind + "_extra"] = [lobby_r.ai_style, lobby_r.map_mode, lobby_r.bans]   # 系列選項不進規則碼，另外記（Codex #8）
+	lr[lobby_kind + "_extra"] = [lobby_r.ai_style, lobby_r.map_mode, lobby_r.bans, lobby_r.time_of]   # 系列選項不進規則碼，另外記（Codex #8）
 	Save.data["last_rules"] = lr
 	Save.save_data()
 	rules = lobby_r.copy()
@@ -193,6 +196,8 @@ func _lobby_adj(id: String, d: int) -> void:
 			r.map_mode = wrapi(r.map_mode + d, 0, 3)
 		"bans":
 			r.bans = wrapi(r.bans + d, 0, 3)
+		"time_of":
+			r.time_of = wrapi(r.time_of + d, 0, 3)
 		"budget":
 			r.budget[0] = clampi(int(r.budget[0]) + 10 * d, RuleSet.BUDGET_MIN, RuleSet.BUDGET_MAX)
 			if not r.handicap:
@@ -395,6 +400,39 @@ func _draw_lobby_menu(o: Vector2) -> void:
 	for i in ps.size():
 		_btn(Rect2(r.position + Vector2(6, 6 + i * 50), Vector2(160, 44)), str(ps[i]["name"]), _lobby_load_preset.bind(i))
 		_btn(Rect2(r.position + Vector2(170, 6 + i * 50), Vector2(44, 44)), "×", _lobby_delete_preset.bind(i))
+
+func _filter_hit(t: int) -> bool:
+	match lobby_filter:
+		1:
+			return D.is_melee(t) and not D.is_support(t) and not t in Presets.F8.RAID
+		2:
+			return not D.is_melee(t) and not D.is_support(t) and not t in Presets.F8.RAID
+		3:
+			return D.is_support(t)
+		4:
+			return t in Presets.F8.RAID
+	return true
+
+## 部署分頁的陣型小圖：看得到間距和縱深實際長怎樣。
+func _draw_deploy_preview(r: Rect2) -> void:
+	var w: float = lobby_r.field_w()
+	var h: float = lobby_r.field_h()
+	var k: float = minf(r.size.x / w, r.size.y / h)
+	var q := Rect2(r.position, Vector2(w, h) * k)
+	draw_rect(q, Color("#5f8a45"))
+	var free_d: bool = lobby_r.deploy == "free"
+	var dep: float = lobby_r.half_depth() if free_d else 6000.0
+	var sp: float = lobby_r.spacing if free_d else 1000.0
+	draw_rect(Rect2(q.position, Vector2(dep * k, q.size.y)), Color(Art.team_color(0, cbm()), 0.28))
+	draw_rect(Rect2(q.end.x - dep * k, q.position.y, dep * k, q.size.y), Color(Art.team_color(1, cbm()), 0.28))
+	var yy := 500.0
+	while yy < h:
+		var xx := 500.0
+		while xx < dep:
+			draw_circle(q.position + Vector2(xx, yy) * k, 2.2, Color.WHITE, true, -1.0, true)
+			xx += sp
+		yy += sp
+	draw_rect(q, Color(0, 0, 0, 0.5), false, 1.5)
 
 func _deck_random() -> void:
 	var sel: Array = RuleSet.types_of(Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo")))
@@ -735,6 +773,10 @@ func _draw_lobby_detail(R: Rect2) -> void:
 					rowsd.append(["depth", L.t("lb_depth_ai"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
 				rowsd.append(["fullfield", L.t("lb_full_ai") if lobby_kind == "ai" else L.t("lb_full_duel"), L.t("on") if lobby_r.fullfield != 0 else L.t("off")])
 			_rows(L0, rowsd)
+			var pv_y: float = L0.position.y + rowsd.size() * 66 + 8
+			if L0.end.y - pv_y >= 110.0:
+				_draw_deploy_preview(Rect2(L0.position.x + 230, pv_y, 360, L0.end.y - pv_y - 8))
+				_text(Vector2(L0.position.x, pv_y + 4), L.t("lb_deploy_preview"), tz("S"), Color(1, 1, 1, 0.75), false, false, 220)
 		2:
 			_draw_pool_tab(L0)
 		3:
@@ -749,6 +791,7 @@ func _draw_lobby_detail(R: Rect2) -> void:
 			rows2.append(["keep", L.t("lb_keep"), L.t("on") if lobby_r.keep_formation else L.t("off")])
 			if lobby_r.deploy == "free":
 				rows2.append(["map_mode", L.t("lb_map_mode"), L.t("map_mode_%d" % lobby_r.map_mode)])
+			rows2.append(["time_of", L.t("lb_time_of"), L.t("time_of_%d" % lobby_r.time_of)])
 			_rows(L0, rows2)
 		4:
 			_rows(L0, [["ai_level", L.t("lb_ai_level"), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])],
@@ -781,8 +824,11 @@ func _draw_pool_tab(R: Rect2) -> void:
 		# 第八輪：出戰名單 2×10（上王國軍、下奇幻軍）；第一次有新兵解鎖前只有一排，不嚇新手
 		var has_new_row: bool = RuleSet.has_new(sel)
 		var title_r: String = L.t("lb_roster_title", [RuleSet.pool_count(int(lobby_r.pool[tm]))])
-		_text(Vector2(R.position.x, y), title_r, tz("S"), ACCENT, false, true)
-		y += tz("S") * 1.4
+		_text(Vector2(R.position.x, y), title_r, tz("S"), ACCENT, false, true, 190)
+		# 篩選膠囊：不符合的變暗，不會改到名單
+		for fi in 5:
+			_btn(Rect2(R.position.x + 196 + fi * 80, y - 4, 76, 36), L.t("lb_filter_%d" % fi), func(): lobby_filter = fi, true, false, TH_ACTIVE if lobby_filter == fi else TH_WOOD)
+		y += 38.0
 		var groups := [[L.t("lb_army_kingdom"), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]
 		if has_new_row:
 			groups.append([L.t("lb_army_fantasy"), [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]])
@@ -801,7 +847,8 @@ func _draw_pool_tab(R: Rect2) -> void:
 				var on := RuleSet.has(int(lobby_r.pool[tm]), t)
 				var can := RuleSet.has(sel, t)
 				_btn(cr, "", _lobby_toggle_unit.bind(tm, t), true, false, Color(0.22, 0.38, 0.3) if on else Color(0.16, 0.16, 0.2))
-				_unit_in(cr, t, 0, 1.0 if (on and can) else 0.3, 0.6)
+				var fit_f := _filter_hit(t)
+				_unit_in(cr, t, 0, (1.0 if (on and can) else 0.3) * (1.0 if fit_f else 0.35), 0.6)
 				if not can:
 					call("_lock_icon", cr.position + Vector2(cw - 12, 12))
 				elif on:
