@@ -12,17 +12,19 @@ extends Node
 
 const Art = preload("res://scripts/ui/art.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
+const Gait = preload("res://scripts/ui/units/gait.gd")
 
 const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
 const RS := 1.6            # 烘焙解析度倍率
 const ORIGIN := Vector2(78, 160)   # 角色腳底在格子裡的位置（第七輪 C0：原本會超框被切掉）
 const RING_ORIGIN := Vector2(96, 140)   # 腳底圈格子的中心（有影子，要留下方空間）
-const WALK_FRAMES := 6
+const WALK_FRAMES := 8     # V9 P2：6→8，另加拖行、暈眩
+const POSE_FRAMES := 2
 const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
 # 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..23 攻擊兩組（一般／交替或專屬）
-const FRAMES_PER := 2 + WALK_FRAMES + ATK_FRAMES * 2
+const FRAMES_PER := 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * 2
 const COLS := 16
-const TYPES_PER_PAGE := 7  # 7×2×24＝336 格＝21 列×192＝4032px，不超過 4096
+const TYPES_PER_PAGE := 6  # 6×2×28＝336 格＝21 列×192＝4032px，不超過 4096
 const MAX_PAGES := 5
 
 var pages: Array = []      # 每頁 {tex, types}
@@ -126,7 +128,11 @@ func _bake_ring(cb: bool) -> void:
 func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float, variant := 0) -> int:
 	var base: int = int(loc[type][1]) + team * FRAMES_PER
 	if atk > 0.0:
-		return base + 2 + WALK_FRAMES + ATK_FRAMES * mini(variant, 1) + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+		return base + 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * mini(variant, 1) + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+	if walk <= Gait.POSE_DAZE + 1.0:
+		return base + 2 + WALK_FRAMES + 1
+	if walk <= Gait.POSE_DRAG + 1.0:
+		return base + 2 + WALK_FRAMES
 	if walk != 0.0:
 		return base + 2 + int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES
 	var ex := 2.0 if type == D.CAVALRY else 3.5   # Art._eyes 的眼睛中心 x
@@ -146,6 +152,8 @@ func _rect(idx: int) -> Rect2:
 func quant_walk(walk: float) -> float:
 	if walk == 0.0:
 		return 0.0
+	if walk < -50.0:
+		return walk
 	return 0.0001 + (int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES) * TAU / WALK_FRAMES
 
 func quant_atk(atk: float) -> float:
@@ -159,14 +167,15 @@ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, wa
 	var idx := frame_index(type, team, walk, atk, t, p.x, variant)
 	if atk > 0.0:
 		walk = 0.0   # 攻擊影格烘焙時沒有走路相位：貼圖與疊加都當成沒在走（Codex 收尾輪 #4）
-	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
+	var bob := Art.idle_bob(t, p.x) if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
 	var xf := Art.base * Transform2D(lean * face, Vector2(scale * face / RS, scale * crouch / RS), 0.0, p + Vector2(0, bob * scale))
 	ci.draw_set_transform_matrix(xf)
 	ci.draw_texture_rect_region(pages[loc[type][0]]["tex"], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
 	if hurt > 0.0 or mood != 0:
 		# 攻擊影格烘焙時沒有走路相位（Codex R5 #3）
 		var qa := quant_atk(atk)
-		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, face, 0.0 if qa > 0.0 else quant_walk(walk), qa, t, scale, lean, crouch))
+		var qw := 0.0 if qa > 0.0 else quant_walk(walk)
+		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, face, qw, qa, t, scale, lean, crouch, type) * Gait.body_xf(type, qw))
 		if hurt > 0.0:
 			ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, false)
 		if mood != 0:
@@ -184,7 +193,8 @@ class _Painter extends Node2D:
 		Art2.base = Transform2D.IDENTITY
 		var CELL2 := 192
 		var RS2 := 1.6
-		var per := 2 + 6 + 8 + 8
+		var W2 := 8
+		var per := 2 + W2 + 2 + 8 + 8
 		var cols := 16
 		for k in types.size():
 			var type: int = types[k]
@@ -195,13 +205,17 @@ class _Painter extends Node2D:
 					var walk := 0.0
 					var atk := 0.0
 					var vr := 0
-					if f >= 2 and f < 8:
-						walk = 0.0001 + (f - 2) * TAU / 6.0
-					elif f >= 16:
-						atk = (f - 16 + 0.5) / 8.0
+					if f >= 2 and f < 2 + W2:
+						walk = 0.0001 + (f - 2) * TAU / W2
+					elif f == 2 + W2:
+						walk = -100.0   # 拖行（Gait.POSE_DRAG）
+					elif f == 3 + W2:
+						walk = -200.0   # 暈眩（Gait.POSE_DAZE）
+					elif f >= 4 + W2 + 8:
+						atk = (f - (4 + W2 + 8) + 0.5) / 8.0
 						vr = 1 if type < D2.CLASSIC else 2   # 第四輪新兵沒有交替招式，這一組放專屬動作（variant 2）
-					elif f >= 8:
-						atk = (f - 8 + 0.5) / 8.0
+					elif f >= 4 + W2:
+						atk = (f - (4 + W2) + 0.5) / 8.0
 					var p := cell_o + (Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160)))
 					var ex := 2.0 if type == D2.CAVALRY else 3.5
 					# 眨眼那一格落在眨眼區間中間；其他格取 1.0（不在眨眼區間）

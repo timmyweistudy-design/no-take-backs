@@ -4,6 +4,7 @@ extends RefCounted
 ## 全部是向量圖形＋抗鋸齒，沒有外部角色素材。辨識靠三層視覺錨點：腳底隊伍標記、上半身／武器剪影、動態特效。
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const Gait = preload("res://scripts/ui/units/gait.gd")
 
 const OUT := Color("#1d1a2b")
 const SKIN := Color("#ffe1c4")
@@ -16,6 +17,7 @@ const GOLD := Color("#ffd166")
 # 隊伍色（一般／色盲高對比）
 ## 呼叫端目前的畫布轉換（鏡頭）。角色繪製要「疊加」在它上面，不能覆蓋掉（手感輪 2 抓到的錯位 bug）。
 static var base := Transform2D.IDENTITY
+static var _xf := Transform2D.IDENTITY   # 目前角色的畫布轉換（腳底座標），上半身另外疊 Gait.body_xf
 static var _team_now := 0   # 目前在畫哪一隊（分隊小披風用）
 
 const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]   # 第七輪：紅壓暗，灰階下敵我也分得開（小樣通過條件 ②）
@@ -97,3 +99,7 @@ static func _ell(c: Vector2, rx: float, ry: float, a0 := 0.0, a1 := TAU, n := 20
 		var ang := a0 + (a1 - a0) * i / float(n - (0 if is_equal_approx(a1 - a0, TAU) else 1))
 		pts.append(c + Vector2(cos(ang) * rx, sin(ang) * ry))
 	return pts
+
+## 上半身：腳畫完後呼叫，之後畫的東西跟著起伏與傾身。
+static func _push_body(ci: CanvasItem, b: Transform2D) -> void:
+	ci.draw_set_transform_matrix(_xf * b)

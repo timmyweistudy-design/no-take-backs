@@ -128,6 +128,7 @@ func _seek_finish() -> void:
 	var had_clutch := keep_ct >= 0
 	view = ViewBuffer.new(sim)
 	prev_pos.clear()
+	_gait_reset()
 	for u in view.units:
 		prev_pos[u.id] = Vector2(u.x, u.y)
 	fx.clear()

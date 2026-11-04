@@ -270,9 +270,11 @@ func _draw_units_of(s, dim: bool) -> void:
 		list.sort_custom(func(a, b): return a.y < b.y)
 	_draw_v8_ground(s, live)
 	# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
+	var a_now := clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 1.0
 	for u in list:
 		var p0: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
-		_ring(p0, u.team, u.type, UNIT_SCALE)
+		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
+		_ring(p0, u.team, u.type, UNIT_SCALE * (1.0 - air0 * 0.018))   # 跳起來影子縮一點
 		if live and s.rally[u.team] and not s.finished:
 			for k in 2:
 				var ph := fmod(time * 1.6 + k * 0.5, 1.0)
@@ -302,7 +304,8 @@ func _draw_units_of(s, dim: bool) -> void:
 	# 第二層：身體
 	for u in list:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
-		var moving: bool = u.mx != 0 or u.my != 0
+		var walk: float = _walk_of(u, a_now) if live else ((time * Gait.nominal_rate(u.type, float(D.stat(u.type)["speed"]), CS, UNIT_SCALE) + u.id) if (u.mx != 0 or u.my != 0) else 0.0)
+		var moving: bool = walk > 0.0
 		var at := 0.0
 		var variant := 0
 		if live and atk_hit.has(u.id):
@@ -378,14 +381,21 @@ func _draw_units_of(s, dim: bool) -> void:
 			continue
 		if u.type == F8.GHOST:
 			alpha *= 0.9
-		var run := 1.6 if u.type == D.CAVALRY else (1.4 if u.type == D.ASSASSIN or u.type == F8.SHEEP else 1.0)   # 快的兵跑步節奏也快
+		# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
+		if live and walk == 0.0 and at == 0.0:
+			lean += sin(time * 1.1 + u.id * 1.7) * 0.018
+			var idle_k := fmod(time + u.id * 1.37, 7.3)
+			if idle_k < 0.3:
+				crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
+		if live:
+			face = _face_of(u)
 		if u.stealth > 0:
 			# 潛行：身後兩道暗紫殘影
 			for g in 2:
 				var gp := p + Vector2(-(8 + g * 8) * face, 0)
 				draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
 				_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
-		_unit(p, u.type, u.team, face, (time * 10.0 * run + u.id) if moving else 0.0, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
+		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
 			var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
@@ -468,9 +478,75 @@ func _draw_units_of(s, dim: bool) -> void:
 		return
 	for g in dying:
 		var k: float = g["t"] / 1.0
+		_draw_death(g, k)
 		if k < 0.3:
-			_unit(g["pos"], g["type"], g["team"], g["face"], 0.0, 0.0, 0.8, 1.0 - k / 0.3, time)
 			for i in 6:
 				var ang := i * TAU / 6
 				draw_circle(g["pos"] + Vector2(cos(ang), sin(ang) * 0.5) * (8 + k * 70) + Vector2(0, -16), 4 * (1 - k), Color(1, 1, 1, 0.35), true, -1.0, true)
 		Art.soul(self, g["pos"] + Vector2(sin(k * 9) * 4, -24 - k * 70), 0.75 * (1.0 - k))
+
+## V9 P2：每種兵的死法。k＝0～1（1 秒）。只用轉換與粒子，不多烘影格。
+func _draw_death(g: Dictionary, k: float) -> void:
+	var t: int = g["type"]
+	var p: Vector2 = g["pos"]
+	var face: float = g["face"]
+	var u := minf(k / 0.55, 1.0)         # 倒下的主要段落
+	var e := 1.0 - (1.0 - u) * (1.0 - u)
+	var al := 1.0 - maxf(0.0, (k - 0.45) / 0.3)
+	if al <= 0.0:
+		return
+	var lean := 0.0
+	var crouch := 1.0
+	var hurt := maxf(0.0, 0.8 - k * 3.0)
+	match t:
+		D.CAVALRY:
+			lean = e * 1.45          # 連人帶馬往前翻
+		D.BERSERKER, D.PIKE:
+			lean = -e * 1.5          # 仰天倒下
+		D.SHIELD, D.SWORD, D.DRUMMER:
+			lean = e * 1.2           # 往前跪倒
+			crouch = 1.0 - e * 0.25
+		D.ARCHER, D.BOMBER, D.MEDIC:
+			crouch = 1.0 - e * 0.45  # 坐倒
+			lean = -e * 0.35
+		D.ASSASSIN:
+			al *= 1.0 - u * 0.8      # 化煙
+			for i in 5:
+				var a0 := i * TAU / 5.0 + k * 2.0
+				draw_circle(p + Vector2(cos(a0) * (6 + k * 30), -20 - k * 24 + sin(a0) * 6), 7.0 * (1.0 - k), Color(0.25, 0.2, 0.35, 0.5 * (1.0 - k)), true, -1.0, true)
+		10:
+			crouch = 1.0 - e * 0.7   # 孢子菇癟掉
+		11:
+			al *= 1.0 - u            # 羊：羊毛飛散
+			for i in 7:
+				var a1 := i * TAU / 7.0
+				draw_circle(p + Vector2(cos(a1), sin(a1) * 0.6 - 0.8) * (8 + k * 46), 6.0 * (1.0 - k), Color(Art.team_color(g["team"], cbm()).lightened(0.3), 0.8 * (1.0 - k)), true, -1.0, true)
+		12:
+			lean = e * 0.5           # 箱子翻倒，鉚釘掉落
+			for i in 4:
+				draw_circle(p + Vector2((i - 1.5) * (6 + k * 14), -14 + k * k * 14), 1.8, Color(Art.GOLD, 1.0 - k), true, -1.0, true)
+		13, 20:
+			crouch = 1.0 - e * 0.8   # 史萊姆化開成一灘
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.4), 0, p))
+			draw_circle(Vector2.ZERO, 8.0 + e * 16.0, Color(Art.team_color(g["team"], cbm()), 0.45 * (1.0 - k)), true, -1.0, true)
+			draw_set_transform_matrix(_cam)
+		14:
+			p += Vector2(0, -e * 34.0)   # 幽靈往上消散
+			al *= 1.0 - u * 0.7
+		16, 17, 21, 15:
+			crouch = 1.0 - e * 0.5   # 散開：骨頭、沙粒、布屑往外
+			var col := Color("#ece6d6") if t != 16 and t != 15 else (Color("#ffd166") if t == 16 else Color("#e8d3a8"))
+			for i in 6:
+				var a2 := i * TAU / 6.0 + float(g.get("seed", 0.0))
+				var r2 := 8.0 + e * 26.0
+				draw_circle(p + Vector2(cos(a2) * r2, -18.0 + sin(a2) * r2 * 0.5 + k * k * 22.0), 3.0 * (1.0 - k * 0.6), Color(col, 1.0 - k), true, -1.0, true)
+		18:
+			lean = -e * 0.9          # 吸塵貓往後坐倒
+		19:
+			crouch = 1.0 - e * 0.55  # 石魔碎裂
+			for i in 8:
+				var a3 := i * TAU / 8.0
+				var r3 := 10.0 + e * 34.0
+				draw_circle(p + Vector2(cos(a3) * r3, -14.0 + sin(a3) * r3 * 0.45 + k * k * 24.0), 5.0 * (1.0 - k * 0.5), Color(Color("#8d8a80"), 1.0 - k), true, -1.0, true)
+	_unit(p, t, g["team"], face, 0.0, 0.0, hurt, al, time, UNIT_SCALE, 1 if k < 0.4 else 0, lean, maxf(crouch, 0.15))
+

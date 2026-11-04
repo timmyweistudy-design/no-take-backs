@@ -320,6 +320,11 @@ func _draw_fx(f: Dictionary) -> void:
 			var c: Vector2 = f["p"] + Vector2(f["dir"] * 16, -24)
 			var start := -1.3 if f["dir"] > 0 else PI - 1.1
 			draw_arc(c, 16, start, start + 2.4 * k, 12, Color(1, 1, 1, 1 - k), 3.5, true)
+		"step":
+			var bigs: float = 1.8 if f.get("big", false) else 1.0
+			for i in 4:
+				var angs := i * TAU / 4 + 0.6
+				draw_circle(f["p"] + Vector2(cos(angs) * (6 + k * 14) * bigs, sin(angs) * 3 + 1), 2.6 * bigs * (1 - k), Color(0.85, 0.75, 0.55, 0.5 * (1 - k)), true, -1.0, true)
 		"dust":
 			for i in 7:
 				var ang := i * TAU / 7

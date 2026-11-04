@@ -254,3 +254,91 @@ func _ensure_sprites(armies_: Array) -> void:
 					need[F8.SKELETON] = true
 	if not need.is_empty():
 		sprites.ensure(need.keys())
+
+# ── V9 P2 步態驅動：相位由真實位移算，只影響畫面 ──
+const Gait = preload("res://scripts/ui/units/gait.gd")
+var gait_d := {}       # id → [前一 tick 累積距離, 這一 tick 累積距離]（世界單位）
+var gait_on := {}      # id → 這一 tick 算在走路
+var gait_land := {}    # id → 停步後還在收腳幾 tick
+var drag_t := {}       # id → 被擊退、吸走的拖行姿勢還剩幾秒
+var face_now := {}     # id → 目前朝向（轉身有過場）
+
+func _gait_reset() -> void:
+	gait_d.clear()
+	gait_on.clear()
+	gait_land.clear()
+	drag_t.clear()
+	face_now.clear()
+
+## 每個畫面 tick 呼叫一次（prev_pos 是上一 tick、u 是這一 tick）。
+func _gait_tick(with_fx := true) -> void:
+	for u in view.units:
+		if not u.alive:
+			continue
+		var was: Vector2 = prev_pos.get(u.id, Vector2(u.x, u.y))
+		var delta := Vector2(u.x, u.y).distance_to(was)
+		var d: Array = gait_d.get(u.id, [0.0, 0.0])
+		d = [d[1], d[1]]
+		var step: float = maxf(float(D.stat(u.type)["speed"]), 30.0)
+		if delta > maxf(step * 3.0, 150.0) or (u.stun > 0 and delta > 1.0):
+			# 被擊退、吸走：不是走路，切拖行姿勢
+			drag_t[u.id] = 0.28
+			gait_on[u.id] = false
+		elif delta >= 3.0:
+			d[1] = float(d[1]) + delta
+			gait_on[u.id] = true
+			gait_land[u.id] = 3
+		elif gait_on.get(u.id, false):
+			# 沒在動：把這一步踩完再站定，不懸空
+			var left: int = gait_land.get(u.id, 0)
+			var ph: float = Gait.phase_of(u.type, d[1], CS, UNIT_SCALE, u.id)
+			if left <= 0 or absf(sin(ph)) < 0.35:
+				gait_on[u.id] = false
+			else:
+				d[1] = float(d[1]) + Gait.stride(u.type) * UNIT_SCALE * 1000.0 / CS * 0.25
+				gait_land[u.id] = left - 1
+		gait_d[u.id] = d
+		if with_fx and not bool(Save.s("reduce_fx")) and (u.type == 19 or u.type == D.CAVALRY or u.type == 11):
+			_gait_step_fx(u, d)
+
+## 小石魔、馬、羊落地揚塵。
+func _gait_step_fx(u, d: Array) -> void:
+	if not gait_on.get(u.id, false):
+		return
+	var a: float = Gait.phase_of(u.type, d[0], CS, UNIT_SCALE, u.id)
+	var b: float = Gait.phase_of(u.type, d[1], CS, UNIT_SCALE, u.id)
+	if int(a / PI) != int(b / PI):
+		fx.append({"kind": "step", "p": _upos(u), "t": 0.0, "dur": 0.35, "big": u.type == 19})
+
+## 這一幀要畫的走路相位。
+func _walk_of(u, a: float) -> float:
+	var k: int = Gait.kind(u.type)
+	if u.stun > 0 or (drag_t.get(u.id, 0.0) > 0.0):
+		if drag_t.get(u.id, 0.0) > 0.0:
+			return Gait.POSE_DRAG
+		return Gait.POSE_DAZE
+	if k == Gait.ROOT:
+		return 0.0
+	if gait_on.get(u.id, false):
+		var d: Array = gait_d.get(u.id, [0.0, 0.0])
+		return Gait.phase_of(u.type, lerpf(d[0], d[1], a), CS, UNIT_SCALE, u.id)
+	if k == Gait.FLOAT:
+		return 0.0001 + time * 4.0 + u.id * 0.37      # 飄浮的就算停著也在飄
+	return 0.0
+
+func _gait_frame(delta: float) -> void:
+	for id in drag_t.keys():
+		drag_t[id] -= delta
+		if drag_t[id] <= 0.0:
+			drag_t.erase(id)
+	for u in view.units:
+		var tgt: float = signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
+		face_now[u.id] = move_toward(float(face_now.get(u.id, tgt)), tgt, delta * 11.0)
+
+## 轉身過場：不會縮到 0（貼圖會消失）。
+func _face_of(u) -> float:
+	var f: float = face_now.get(u.id, signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0))
+	if absf(f) < 0.18:
+		return 0.18 if f >= 0.0 else -0.18
+	return f
+

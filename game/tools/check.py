@@ -71,11 +71,11 @@ def plan(a) -> list:
         gd(name, t, [f"--only={only}"], TEST_DONE.pattern, [t] + suites, data + ["fonts"])
 
     if a.quick:
-        test("t_harness", "harness")
+        test("t_harness", "harness,anim")
         test("t_ui", "ui")
         gd("golden", "tools/golden.gd", ["--n=30"], r'^GOLDEN \{.*"ok":true')
     else:
-        for s in ["units", "free", "content", "harness"]:
+        for s in ["anim", "units", "free", "content", "harness"]:
             test(f"t_{s}", s)
         # 最慢的幾項各開一個行程（都不碰存檔）；其他留在原組
         test("t_golden", "test_golden")

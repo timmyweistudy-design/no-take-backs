@@ -90,6 +90,7 @@ func _check_clutch(with_fx := true) -> void:
 
 ## 鏡頭安全框（優化方案 F2）：把所有存活單位框進畫面，四周留 15%。
 func _frame_alive(delta: float) -> void:
+	_gait_frame(delta)
 	var lo := Vector2(1e9, 1e9)
 	var hi := Vector2(-1e9, -1e9)
 	for u in view.units:
@@ -111,6 +112,7 @@ func _sim_step(with_fx: bool) -> void:
 	if not view.advance():
 		view.finished = true
 		return
+	_gait_tick(with_fx)
 	_pump_view()
 	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
 	if view.frenzy and not frenzy_seen:
@@ -493,6 +495,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	brace_t.clear()
 	state = St.BATTLE
 	prev_pos.clear()
+	_gait_reset()
 	for u in view.units:
 		prev_pos[u.id] = Vector2(u.x, u.y)
 	_pump_view()   # 開場先預填 DELAY 個 tick

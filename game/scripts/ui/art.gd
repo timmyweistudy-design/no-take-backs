@@ -2,6 +2,9 @@ extends "res://scripts/ui/units/fantasy.gd"
 ## 其他層在同資料夾（V9 P1 拆檔）
 
 ## 攻擊姿勢：[武器 w（−1 往後拉滿、0 平常、+1 揮到底）, 身體傾角（弧度，正＝往前）, 橫向縮放, 縱向縮放, 前撲位移]
+static func idle_bob(t: float, px: float) -> float:
+	return sin(t * 3.0 + px * 0.05) * 0.8
+
 static func pose(atk: float) -> Array:
 	if atk <= 0.0:
 		return [0.0, 0.0, 1.0, 1.0, 0.0]
@@ -18,11 +21,11 @@ static func pose(atk: float) -> Array:
 
 ## 角色的局部座標轉換（以腳底為原點、face＝+1 畫）：呼吸／走路起伏、前撲、傾身、壓扁拉長、翻面。
 ## lean＝額外傾角（騎兵衝鋒前傾）、crouch＝縱向縮放（刺客潛行蹲身）。
-static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0) -> Transform2D:
+static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0, gtype := 0) -> Transform2D:
 	# 外層（位置、起伏、翻面、縮放、額外傾身／蹲身）× 內層（攻擊姿勢，face＝+1 空間）。
 	# 精靈圖快取烘焙的是內層，貼圖時套外層，所以兩條路的順序完全一樣（Codex R5 #3）。
 	var ps := pose(atk)
-	var bob := sin(t * 3.0 + p.x * 0.05) * 0.8 if walk == 0.0 else absf(sin(walk)) * -2.5
+	var bob := idle_bob(t, p.x) if walk == 0.0 else -Gait.air(gtype, walk)
 	var outer := Transform2D(lean * face, Vector2(scale * face, scale * crouch), 0.0, p + Vector2(0, bob * scale))
 	return outer * Transform2D(ps[1], Vector2(ps[2], ps[3]), 0.0, Vector2(ps[4], 0))
 
@@ -34,7 +37,8 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	var tc := team_color(team, cb)
 	_team_now = team
 	var w: float = pose(atk)[0]
-	ci.draw_set_transform_matrix(base * unit_xf(p, face, walk, atk, t, scale, lean, crouch))
+	_xf = base * unit_xf(p, face, walk, atk, t, scale, lean, crouch, type)
+	ci.draw_set_transform_matrix(_xf)
 	# 以 face＝+1 畫（水平鏡像由 transform 處理）
 	if type == D.CAVALRY:
 		_cavalry(ci, tc, walk, w, alpha, t, atk > 0.0)

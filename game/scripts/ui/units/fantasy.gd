@@ -11,7 +11,7 @@ static func _fantasy(ci: CanvasItem, type: int, tc: Color, walk: float, w: float
 		13: _f_slime(ci, tc, walk, w, a, t, angry, 1.0)
 		14: _f_ghost(ci, tc, walk, w, a, t, angry)
 		15: _f_doll(ci, tc, walk, w, a, t, angry)
-		16: _f_sprite(ci, tc, w, a, t, angry)
+		16: _f_sprite(ci, tc, walk, w, a, t, angry)
 		17: _f_bone(ci, tc, walk, w, a, t, angry, variant)
 		18: _f_cat(ci, tc, walk, w, a, t, angry, variant)
 		19: _f_golem(ci, tc, walk, w, a, t, angry, variant)
@@ -44,11 +44,15 @@ static func _f_spore(ci: CanvasItem, tc: Color, w: float, a: float, t: float, an
 
 
 static func _f_sheep(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
-	var leg := sin(walk) * 3.5 if walk != 0.0 else 0.0
+	var wk := Gait.ph(walk)
+	var ft: Array = Gait.feet(11, walk)
 	for lx in [-11.0, -4.0, 5.0, 12.0]:
-		var sw := leg if int(lx) % 2 == 0 else -leg
-		_line(ci, Vector2(lx, -10), Vector2(lx + sw, -3), Color("#4a4258"), 3.0, a)
-		_c(ci, Vector2(lx + sw, -2.5), 2.4, Color("#1d1a2b"), a, false)   # 黑蹄
+		var front: bool = lx > 0.0
+		var sw: float = (ft[0] if front else ft[2]) * 0.32
+		var up: float = (ft[1] if front else ft[3])
+		_line(ci, Vector2(lx, -10), Vector2(lx + sw, -3 - up), Color("#4a4258"), 3.0, a)
+		_c(ci, Vector2(lx + sw, -2.5 - up), 2.4, Color("#1d1a2b"), a, false)   # 黑蹄
+	_push_body(ci, Gait.body_xf(11, walk))
 	# 羊毛染隊伍色（白毛會被特效洗掉）
 	var wool := tc.lightened(0.14)
 	var blobs := [[-11, -18, 9.5], [0, -23, 11.5], [11, -18, 9.0], [-5, -13, 8.5], [6, -13, 8.5], [-1, -30, 8.5], [-9, -26, 7.5], [8, -27, 7.5]]
@@ -67,14 +71,18 @@ static func _f_sheep(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	ci.draw_arc(Vector2(16, -18), 2.6, 0.3, PI - 0.3, 6, Color(1, 1, 1, 0.8 * a), 1.2, true)
 	# 頭上的引線（招牌）：越接近爆炸火花越大
 	_line(ci, Vector2(-1, -37), Vector2(4, -47), Color("#c9a26b"), 1.8, a)
-	var sp := 0.7 + 0.3 * sin(t * 18.0) + maxf(0.0, w)
+	var sp := 0.7 + 0.3 * sin(t * 18.0 + wk * 3.0) + maxf(0.0, w)
 	_star(ci, Vector2(5, -49), 5.0 * sp + 1.0, Color(1, 0.8, 0.25, a))
 
 
 static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
-	var hop := absf(sin(walk)) * 2.0 if walk != 0.0 else 0.0
+	# V9 P2：走路時閉蓋貼地跳（整隻離地在 Gait.air），只有箱蓋輕敲；接敵才張嘴
+	var wk := Gait.ph(walk)
+	_push_body(ci, Gait.body_xf(12, walk))
 	var open := 0.45 + maxf(0.0, w) * 0.55 - minf(0.0, w) * 0.2
-	var by := -3.0 - hop
+	if wk != 0.0 and w == 0.0:
+		open = 0.02 + absf(sin(wk)) * 0.1
+	var by := -3.0
 	_poly(ci, PackedVector2Array([Vector2(-16, by), Vector2(-16, by - 15), Vector2(16, by - 15), Vector2(16, by)]), Color("#9c6b3c"), a)
 	ci.draw_line(Vector2(-16, by - 7), Vector2(16, by - 7), Color(OUT, 0.5 * a), 1.6, true)
 	for rv in [[-14, by - 2], [14, by - 2], [-14, by - 13], [14, by - 13]]:
@@ -83,7 +91,8 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	var mouth := by - 15.0
 	_poly(ci, PackedVector2Array([Vector2(-13, mouth), Vector2(13, mouth), Vector2(13, mouth - 4 - open * 10), Vector2(-13, mouth - 4 - open * 10)]), Color("#3b0f1e"), a, false)
 	var lick := maxf(0.0, w) * 8.0
-	_poly(ci, PackedVector2Array([Vector2(2, mouth), Vector2(19 + lick, mouth + 2), Vector2(23 + lick, mouth - 3), Vector2(19 + lick, mouth - 7), Vector2(4, mouth - 5)]), Color("#ff6b81"), a)
+	if open > 0.2:
+		_poly(ci, PackedVector2Array([Vector2(2, mouth), Vector2(19 + lick, mouth + 2), Vector2(23 + lick, mouth - 3), Vector2(19 + lick, mouth - 7), Vector2(4, mouth - 5)]), Color("#ff6b81"), a)
 	for k in 4:
 		var tx := -10.0 + k * 7.0
 		ci.draw_colored_polygon(PackedVector2Array([Vector2(tx, mouth), Vector2(tx + 5, mouth), Vector2(tx + 2.5, mouth - 5)]), Color(1, 1, 1, a))
@@ -104,7 +113,10 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 
 static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, k: float) -> void:
 	# 果凍：底部微扁、頂上一小尖，走路和攻擊時壓扁彈起
-	var sq := 1.0 + (sin(walk) * 0.14 if walk != 0.0 else 0.0) + maxf(0.0, w) * 0.2 - minf(0.0, w) * 0.12
+	var wk := Gait.ph(walk)
+	var sq := 1.0 + (sin(wk * 2.0) * 0.15 if wk != 0.0 else 0.0) + maxf(0.0, w) * 0.2 - minf(0.0, w) * 0.12
+	if walk < -150.0:
+		sq = 1.22
 	var rx := 20.0 * k * sq
 	var ry := 17.0 * k / sq
 	var cy := -ry - 1.0
@@ -126,8 +138,10 @@ static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
 	# 無腳飄浮：飄逸的長裙擺，隊伍色披巾在肩上；攻擊時張大嘴
 	var body := tc.lightened(0.3)
-	var lean := w * 4.0
-	var sway := sin(t * 2.0 + walk) * 2.0
+	var wk := Gait.ph(walk)
+	var lean := w * 4.0 + (2.5 if wk != 0.0 else 0.0)
+	var sway := sin(t * 2.0 + wk) * 2.6
+	_push_body(ci, Gait.body_xf(14, walk))
 	var top := -48.0
 	var pts := _ell(Vector2(lean, top + 15), 16.0, 15.0, PI, TAU, 14)
 	for s in [[16.0, -24.0], [17.0, -14.0], [11.0, -5.0 + sway], [7.0, -11.0], [2.0, -3.0 - sway], [-3.0, -11.0], [-8.0, -4.0 + sway], [-13.0, -11.0], [-18.0, -7.0 - sway], [-16.0, -24.0]]:
@@ -144,14 +158,18 @@ static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 		ci.draw_circle(Vector2(2.5 + lean, ey + 7), 3.2, Color(OUT, a), true, -1.0, true)
 	else:
 		ci.draw_arc(Vector2(2.5 + lean, ey + 5), 2.2, 0.3, PI - 0.3, 6, Color(OUT, a), 1.3, true)
-	_c(ci, Vector2(-15 + lean + w * 5.0, -25), 3.6, body, a)
-	_c(ci, Vector2(16 + lean + maxf(0.0, w) * 10.0, -26), 3.6, body, a)
+	var hd := sin(wk + 0.9) * 2.0 if wk != 0.0 else 0.0   # 手延遲
+	_c(ci, Vector2(-15 + lean + w * 5.0 - hd, -25 + hd), 3.6, body, a)
+	_c(ci, Vector2(16 + lean + maxf(0.0, w) * 10.0 - hd, -26 - hd), 3.6, body, a)
 
 
 static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
-	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
-	_line(ci, Vector2(-5, -11), Vector2(-5 + leg, -2), Color("#c9a26b"), 3.2, a)
-	_line(ci, Vector2(5, -11), Vector2(5 - leg, -2), Color("#c9a26b"), 3.2, a)
+	var ft: Array = Gait.feet(15, walk)
+	var bx: Transform2D = Gait.body_xf(15, walk)
+	_line(ci, Vector2(-5, -11 + bx.origin.y), Vector2(-5 + ft[0], -2 - ft[1]), Color("#c9a26b"), 3.2, a)
+	_line(ci, Vector2(5, -11 + bx.origin.y), Vector2(5 + ft[2], -2 - ft[3]), Color("#c9a26b"), 3.2, a)
+	_push_body(ci, bx)
+	var sway: float = Gait.swing(15, walk)
 	# 隊伍色布身，粗縫線
 	var body := PackedVector2Array([Vector2(-11, -8), Vector2(-13, -24), Vector2(13, -24), Vector2(11, -8)])
 	_poly(ci, body, tc, a)
@@ -159,8 +177,8 @@ static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 		var y := -21.0 + k * 5.0
 		ci.draw_line(Vector2(-3, y), Vector2(3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
 		ci.draw_line(Vector2(3, y), Vector2(-3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
-	_line(ci, Vector2(-12, -21), Vector2(-17, -15 - w * 5.0), tc.darkened(0.15), 3.2, a)
-	_line(ci, Vector2(12, -21), Vector2(18, -15 + w * -5.0), tc.darkened(0.15), 3.2, a)
+	_line(ci, Vector2(-12, -21), Vector2(-17 - sway * 12.0, -15 - w * 5.0 + sway * 6.0), tc.darkened(0.15), 3.2, a)
+	_line(ci, Vector2(12, -21), Vector2(18 + sway * 12.0, -15 + w * -5.0 + sway * 6.0), tc.darkened(0.15), 3.2, a)
 	# 麻布頭、一邊大鈕扣、一邊 X
 	_c(ci, Vector2(0, -35), 12.5, Color("#e8d3a8"), a)
 	_c(ci, Vector2(6, -35), 4.6, tc.lightened(0.3), a)
@@ -170,13 +188,16 @@ static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 	ci.draw_line(Vector2(-3, -38), Vector2(-8, -33), Color(OUT, a), 2.0, true)
 	ci.draw_line(Vector2(-4, -28), Vector2(5, -28), Color(OUT, a), 1.5, true)
 	# 頭上插一根大針（招牌）
-	_line(ci, Vector2(-3, -40), Vector2(-11, -54), STEEL, 1.8, a)
-	_c(ci, Vector2(-12, -56), 3.4, Color("#ff4d6d"), a)
+	var nd := sway * 14.0
+	_line(ci, Vector2(-3, -40), Vector2(-11 - nd, -54), STEEL, 1.8, a)
+	_c(ci, Vector2(-12 - nd, -56), 3.4, Color("#ff4d6d"), a)
 
 
-static func _f_sprite(ci: CanvasItem, tc: Color, w: float, a: float, t: float, angry: bool) -> void:
+static func _f_sprite(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+	var wk := Gait.ph(walk)
+	_push_body(ci, Gait.body_xf(16, walk))
 	# 飄浮的大沙漏，不畫人形（免得和鼓手、醫者撞）；弧形翅膀、沙子往下流
-	var flap := sin(t * 9.0) * 3.0 - minf(w, 0.0) * 6.0
+	var flap := sin(t * 9.0 + wk * 3.0) * 4.5 - minf(w, 0.0) * 6.0
 	for s in [-1.0, 1.0]:
 		var wing := PackedVector2Array([Vector2(s * 8, -32), Vector2(s * 18, -47 + flap), Vector2(s * 29, -48 + flap), Vector2(s * 33, -37 + flap), Vector2(s * 28, -26 + flap * 0.6), Vector2(s * 19, -19), Vector2(s * 9, -22)])
 		_poly(ci, wing, Color(tc.lightened(0.42), 0.97), a)
@@ -186,7 +207,7 @@ static func _f_sprite(ci: CanvasItem, tc: Color, w: float, a: float, t: float, a
 	_poly(ci, PackedVector2Array([Vector2(-13, -47), Vector2(13, -47), Vector2(2, -27), Vector2(13, -8), Vector2(-13, -8), Vector2(-2, -27)]), glass, a)
 	_poly(ci, PackedVector2Array([Vector2(-9, -41), Vector2(9, -41), Vector2(1, -29), Vector2(-1, -29)]), tc, a, false)
 	_poly(ci, PackedVector2Array([Vector2(-11, -9), Vector2(11, -9), Vector2(6, -17), Vector2(0, -22), Vector2(-6, -17)]), tc, a, false)
-	var flow := fmod(t * 2.0, 1.0)
+	var flow := fmod(t * 2.0 + wk / TAU, 1.0)
 	for k in 3:
 		ci.draw_circle(Vector2(0, -28 + fmod(flow + k * 0.33, 1.0) * 8.0), 1.1, Color(tc, a), true, -1.0, true)
 	ci.draw_line(Vector2(-8, -44), Vector2(-4, -36), Color(1, 1, 1, 0.8 * a), 1.6, true)
@@ -199,10 +220,13 @@ static func _f_sprite(ci: CanvasItem, tc: Color, w: float, a: float, t: float, a
 
 static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
 	# 駝背骷髏＋破斗篷，高舉攤開的魔法書（不拿杖，和醫者分開）；身旁飄一顆小骷髏燈
-	var leg := sin(walk) * 2.5 if walk != 0.0 else 0.0
-	_c(ci, Vector2(-5 + leg, -3), 3.2, Color("#ece6d6"), a)
-	_c(ci, Vector2(4 - leg, -3), 3.2, Color("#ece6d6"), a)
-	var cape := PackedVector2Array([Vector2(-17, -4), Vector2(-19, -26), Vector2(-9, -40), Vector2(9, -32), Vector2(13, -7), Vector2(7, -10), Vector2(2, -4), Vector2(-4, -10), Vector2(-11, -4)])
+	var ft: Array = Gait.feet(17, walk)
+	var wk := Gait.ph(walk)
+	_c(ci, Vector2(-5 + ft[0], -3 - ft[1]), 3.2, Color("#ece6d6"), a)
+	_c(ci, Vector2(4 + ft[2], -3 - ft[3]), 3.2, Color("#ece6d6"), a)
+	_push_body(ci, Gait.body_xf(17, walk))
+	var hem := sin(wk + 1.0) * 2.5 if wk != 0.0 else 0.0   # 袍擺延遲
+	var cape := PackedVector2Array([Vector2(-17 - hem, -4), Vector2(-19 - hem * 0.5, -26), Vector2(-9, -40), Vector2(9, -32), Vector2(13 - hem * 0.6, -7), Vector2(7 - hem * 0.6, -10), Vector2(2 - hem, -4), Vector2(-4 - hem, -10), Vector2(-11 - hem, -4)])
 	_poly(ci, cape, tc, a)
 	for x0 in [-14.0, -3.0]:
 		ci.draw_line(Vector2(x0, -24), Vector2(x0 + 1, -9), Color(tc.darkened(0.25), a), 1.6, true)
@@ -216,24 +240,28 @@ static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 	for k in 4:
 		ci.draw_line(Vector2(2.0 + k * 2.6, -28), Vector2(2.0 + k * 2.6, -25), Color(OUT, a), 1.2, true)
 	# 高舉的書與紫火：專屬動作舉更高
-	var lift := 6.0 + maxf(0.0, -w) * 8.0 + maxf(0.0, w) * 3.0 + (10.0 if variant == 2 else 0.0)
+	var lift: float = 6.0 + maxf(0.0, -w) * 8.0 + maxf(0.0, w) * 3.0 + (10.0 if variant == 2 else 0.0) + Gait.swing(17, walk) * 12.0
 	var bk := Vector2(20, -22 - lift)
 	_line(ci, Vector2(9, -20), bk + Vector2(-2, 4), Color("#ece6d6"), 2.4, a)
 	_poly(ci, PackedVector2Array([bk + Vector2(-10, -2), bk + Vector2(0, 0), bk + Vector2(10, -2), bk + Vector2(10, 4), bk + Vector2(0, 6), bk + Vector2(-10, 4)]), Color("#6b4a2b"), a)
 	ci.draw_line(bk + Vector2(0, 0), bk + Vector2(0, 6), Color(OUT, a), 1.2, true)
-	var fl := 8.0 + absf(w) * 7.0 + sin(t * 12.0) * 1.4
+	var fl := 8.0 + absf(w) * 7.0 + sin(t * 12.0 + wk * 3.0) * 1.8
 	_poly(ci, PackedVector2Array([bk + Vector2(-6, -1), bk + Vector2(6, -1), bk + Vector2(3, -2 - fl), bk + Vector2(0, -6 - fl), bk + Vector2(-3, -2 - fl)]), Color("#b14dff"), a)
 	ci.draw_circle(bk + Vector2(0, -4 - fl * 0.3), 2.4, Color(1, 0.85, 1, 0.9 * a), true, -1.0, true)
 
 
 static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
-	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
+	var ft: Array = Gait.feet(18, walk)
+	var wk := Gait.ph(walk)
+	var leg := sin(wk) * 4.0 if wk != 0.0 else 0.0
+	# 腳先畫，上半身（尾巴、吸塵器、頭）跟著起伏
+	_c(ci, Vector2(-4 + ft[0], -3 - ft[1]), 3.4, tc.darkened(0.2), a)
+	_c(ci, Vector2(5 + ft[2], -3 - ft[3]), 3.4, tc.darkened(0.2), a)
+	_push_body(ci, Gait.body_xf(18, walk))
 	# 尾巴、背上的吸塵器桶
-	_line(ci, Vector2(-11, -8), Vector2(-20, -18 + leg), tc.darkened(0.1), 3.0, a)
+	_line(ci, Vector2(-11, -8), Vector2(-20 - leg * 0.4, -18 + leg), tc.darkened(0.1), 3.0, a)
 	_poly(ci, PackedVector2Array([Vector2(-20, -32), Vector2(-7, -32), Vector2(-7, -8), Vector2(-20, -8)]), Color("#b7bfcc"), a)
 	_poly(ci, PackedVector2Array([Vector2(-20, -24), Vector2(-7, -24), Vector2(-7, -17), Vector2(-20, -17)]), tc, a, false)
-	_c(ci, Vector2(-4 + leg, -3), 3.4, tc.darkened(0.2), a)
-	_c(ci, Vector2(5 - leg, -3), 3.4, tc.darkened(0.2), a)
 	_poly(ci, _ell(Vector2(0, -14), 11.0, 10.0, 0.0, TAU, 16), tc.lightened(0.15), a)
 	# 大頭＋貓耳
 	var hy := -33.0
@@ -244,7 +272,7 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
 	for s2 in [-1.0, 1.0]:
 		ci.draw_line(Vector2(s2 * 9 + 2, hy + 4), Vector2(s2 * 16 + 2, hy + 3), Color(OUT, 0.7 * a), 1.0, true)
 	# 吸管與吸頭
-	var aim := -0.1 - w * 0.25 - (0.5 if variant == 2 else 0.0)
+	var aim: float = -0.1 - w * 0.25 - (0.5 if variant == 2 else 0.0) + Gait.swing(18, walk)
 	var nz := Vector2(10, -14) + Vector2(cos(aim), sin(aim)) * 13.0
 	_line(ci, Vector2(-6, -18), Vector2(8, -13), Color("#55606f"), 2.6, a)
 	_line(ci, Vector2(8, -13), nz, Color("#9aa4b4"), 3.0, a)
@@ -253,11 +281,14 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
 
 static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
 	# 無頸寬扁巨岩，頭嵌在胸口（和盾兵的前排人形分開）；肩甲、胸口石紋都是隊伍色；攻擊雙臂高舉下砸
-	var leg := sin(walk) * 2.0 if walk != 0.0 else 0.0
 	var rock := Color("#8d8a80")
-	_poly(ci, PackedVector2Array([Vector2(-14 + leg, -2), Vector2(-5 + leg, -2), Vector2(-5, -14), Vector2(-14, -14)]), rock.darkened(0.2), a)
-	_poly(ci, PackedVector2Array([Vector2(5 - leg, -2), Vector2(14 - leg, -2), Vector2(14, -14), Vector2(5, -14)]), rock.darkened(0.2), a)
-	var lift := maxf(0.0, -w) * 24.0 - maxf(0.0, w) * 8.0 + (20.0 if variant == 2 else 0.0)
+	var ft: Array = Gait.feet(19, walk)
+	var lf: float = ft[0] * 0.8
+	var rf: float = ft[2] * 0.8
+	_poly(ci, PackedVector2Array([Vector2(-14 + lf, -2 - ft[1]), Vector2(-5 + lf, -2 - ft[1]), Vector2(-5, -14), Vector2(-14, -14)]), rock.darkened(0.2), a)
+	_poly(ci, PackedVector2Array([Vector2(5 + rf, -2 - ft[3]), Vector2(14 + rf, -2 - ft[3]), Vector2(14, -14), Vector2(5, -14)]), rock.darkened(0.2), a)
+	_push_body(ci, Gait.body_xf(19, walk))
+	var lift: float = maxf(0.0, -w) * 24.0 - maxf(0.0, w) * 8.0 + (20.0 if variant == 2 else 0.0) - absf(Gait.swing(19, walk)) * 25.0   # 走路雙臂下沉
 	_line(ci, Vector2(-20, -34), Vector2(-23, -22 - lift), rock.darkened(0.15), 7.0, a)
 	_line(ci, Vector2(20, -34), Vector2(23, -22 - lift), rock.darkened(0.15), 7.0, a)
 	_c(ci, Vector2(-23, -19 - lift), 8.0, rock.darkened(0.1), a)
@@ -278,10 +309,12 @@ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 
 
 static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
-	var leg := sin(walk) * 3.0 if walk != 0.0 else 0.0
 	var bone := Color("#ece6d6")
-	_line(ci, Vector2(-4, -10), Vector2(-4 + leg, -2), bone, 2.2, a)
-	_line(ci, Vector2(4, -10), Vector2(4 - leg, -2), bone, 2.2, a)
+	var ft: Array = Gait.feet(21, walk)
+	var bx: Transform2D = Gait.body_xf(21, walk)
+	_line(ci, Vector2(-4, -10 + bx.origin.y), Vector2(-4 + ft[0], -2 - ft[1]), bone, 2.2, a)
+	_line(ci, Vector2(4, -10 + bx.origin.y), Vector2(4 + ft[2], -2 - ft[3]), bone, 2.2, a)
+	_push_body(ci, bx)
 	_poly(ci, PackedVector2Array([Vector2(-8, -24), Vector2(8, -24), Vector2(7, -11), Vector2(-7, -11)]), tc, a)
 	for k in 2:
 		ci.draw_line(Vector2(-5, -21 + k * 4.0), Vector2(5, -21 + k * 4.0), Color(bone, a), 1.6, true)
@@ -289,7 +322,7 @@ static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: flo
 	for ex in [-2.5, 5.0]:
 		ci.draw_circle(Vector2(ex, -33), 2.6, Color(OUT, a), true, -1.0, true)
 	ci.draw_line(Vector2(-1, -27), Vector2(5, -27), Color(OUT, a), 1.2, true)
-	var ang := -1.0 + (w * 0.5 if w < 0.0 else w * 1.4)
+	var ang: float = -1.0 + (w * 0.5 if w < 0.0 else w * 1.4) + Gait.swing(21, walk) * 1.6
 	var hand := Vector2(8, -18)
 	_line(ci, hand, hand + Vector2(cos(ang), sin(ang)) * 16.0, bone, 2.6, a)
 	_c(ci, hand + Vector2(cos(ang), sin(ang)) * 17.0, 3.0, bone, a)

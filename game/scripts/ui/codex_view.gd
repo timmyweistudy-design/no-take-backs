@@ -459,7 +459,7 @@ func _draw_codex_demo() -> void:
 			if cx_hurt.has(u.id) and _fx_on("flash"):
 				hurt = clampf(1.0 - (time - cx_hurt[u.id]) / 0.15, 0, 1)
 			var face := signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
-			_unit(p, u.type, u.team, face, (time * 10.0 + u.id) if moving else 0.0, at, hurt, 0.45 if u.stealth > 0 else 1.0, time, sc)
+			_unit(p, u.type, u.team, face, (time * Gait.nominal_rate(u.type, float(D.stat(u.type)["speed"]), CS, sc) + u.id) if moving else 0.0, at, hurt, 0.45 if u.stealth > 0 else 1.0, time, sc)
 			if u.stun > 0:
 				_text(p + Vector2(0, -60), "◇", ts(14), Color.YELLOW, true)
 			if u.hp < u.max_hp:

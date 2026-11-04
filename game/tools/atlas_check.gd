@@ -89,7 +89,7 @@ func _run() -> void:
 		masks.append(mask)
 		for col in 6:
 			var tmc: int = col % 2
-			var fr: int = [0, 0, 8 + 3, 8 + 3, 16 + 3, 16 + 3][col]
+			var fr: int = [0, 0, 12 + 3, 12 + 3, 20 + 3, 20 + 3][col]
 			contact.blend_rect(_img(ty), _r(ty, tmc, fr), Vector2i(col * SC.CELL, ty * SC.CELL))
 		for tm3 in 2:
 			var r4 := _r(ty, tm3, 0)
