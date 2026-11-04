@@ -693,9 +693,9 @@ static func _f_sprite(ci: CanvasItem, tc: Color, w: float, a: float, t: float, a
 	ci.draw_line(Vector2(-8, -44), Vector2(-4, -36), Color(1, 1, 1, 0.8 * a), 1.6, true)
 	for fy in [-50.0, -7.0]:
 		_line(ci, Vector2(-16, fy), Vector2(16, fy), GOLD, 4.0, a)
-	# 臉放在頂框上，不擠在沙子裡
-	_c(ci, Vector2(0, -56), 7.0, Color("#fff3d6"), a)
-	_eyes(ci, Vector2(0.5, -56.0), a, t, angry)
+	# 臉畫在上半部玻璃裡（放頂框上面像多擺一顆頭，也會頂到圓框）
+	_c(ci, Vector2(0, -38), 6.5, Color("#fff3d6"), a)
+	_eyes(ci, Vector2(0.5, -38.0), a, t, angry)
 
 static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
 	# 駝背骷髏＋破斗篷，高舉攤開的魔法書（不拿杖，和醫者分開）；身旁飄一顆小骷髏燈

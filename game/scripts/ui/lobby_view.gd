@@ -597,7 +597,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 					call("_lock_icon", cr.position + Vector2(cw - 12, 12))
 				elif on:
 					draw_rect(cr, Color("#7ddc8a"), false, 2.0)
-				if t == RS.newest_new(_unlock_games(), OS.has_feature("demo")) and not bool(Save.s("unlock_all")):
+				if t == RS.newest_new(_unlock_games(), OS.has_feature("demo")) and _unlock_games() < int(RS.UNLOCK_NEW[-1]) + 3:   # 全解鎖一陣子後就不蓋章
 					var pw: float = _width(L.t("lb_new_pill"), tz("C")) + 8.0
 					draw_rect(Rect2(cr.position + Vector2(cw - pw, 0), Vector2(pw, tz("C") * 1.25)), Color("#d98a22"))
 					_text(cr.position + Vector2(cw - pw + 4, 0), L.t("lb_new_pill"), tz("C"), Color.WHITE)

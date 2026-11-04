@@ -307,6 +307,8 @@ func _draw_smear(p: Vector2, type: int, team: int, face: float, sk: float, alpha
 			draw_circle(tip, 4.0 * sc * (1.0 - sk), Color(1, 1, 1, sa), true, -1.0, true)
 
 
+const HUD_LEFT_END := 240.0     # 左上比分文字最寬到這裡
+
 ## 小火焰圖示（背水）。
 func _flame(c: Vector2, sc: float) -> void:
 	var fl := sin(time * 14.0) * 1.5
@@ -1453,8 +1455,8 @@ func _draw_fx(f: Dictionary) -> void:
 		"stompring":
 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, f["p"]))
 			var sr := 14.0 + k * float(F8.GOLEM_R) * CS / 1000.0
-			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(Art.OUT, 0.6 * (1.0 - k)), 8.0, true)
-			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(0.85, 0.78, 0.6, 1.0 - k), 5.0, true)
+			# Antigravity 第 2 輪：環蓋在兵上面，不描黑邊、調淡，才不會切過臉
+			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(0.92, 0.86, 0.68, 0.5 * (1.0 - k)), 3.5, true)
 			draw_set_transform_matrix(_cam)
 		"vslash":
 			# 背刺：一道粗的紫色斬痕
@@ -1598,6 +1600,9 @@ func _draw_battle_hud() -> void:
 		var lb0: String = L.t("units_left", [cnt0]) if sn[tm0] == 0 else "%s＋%d" % [L.t("units_left", [cnt0]), sn[tm0]]
 		# 左邊靠條尾對齊、右邊靠條頭對齊，留出火焰位置；不限寬（大字級「8 隻＋1」不換行）
 		var lb_w: float = font_bold.get_string_size(lb0, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
+		if tm0 == 0 and lb_w > bx - 22.0 - HUD_LEFT_END and sn[tm0] > 0:   # 英文大字級擠不下就只留數字，別撞到左上的比分
+			lb0 = "%d＋%d" % [cnt0, sn[tm0]]
+			lb_w = font_bold.get_string_size(lb0, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
 		_text(Vector2(bx - 22 - lb_w if tm0 == 0 else bx + bw + 22, 42), lb0, ts(15), Art.team_color(tm0, cbm()))
 	for tm in 2:
 		if view.rally[tm] and not view.finished:

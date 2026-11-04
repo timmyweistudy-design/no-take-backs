@@ -2098,12 +2098,15 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		_draw_place_help()
 		return
 	var blurb: String = L.t("blurb_%d" % i)
-	var bw := minf(_width(blurb, tz("S")), 470.0)
-	if _width(blurb, tz("S")) > 470.0:   # 大字級會換行掉進戰場：墊底色才讀得到
-		var bh: float = font.get_multiline_string_size(blurb, HORIZONTAL_ALIGNMENT_LEFT, 470, tz("S")).y if font != null else tz("S") * 2.6
+	# 第八輪：大字級放不下一行就先縮字（最多到 72%），還放不下才換行並墊底色，免得掉進戰場
+	var bsz: int = tz("S")
+	while _width(blurb, bsz) > 470.0 and bsz > int(tz("S") * 0.72):
+		bsz -= 1
+	if _width(blurb, bsz) > 470.0:
+		var bh: float = font.get_multiline_string_size(blurb, HORIZONTAL_ALIGNMENT_LEFT, 470, bsz).y
 		draw_rect(Rect2(x - 4, y - 2, 478, bh + 6), Color(0.07, 0.08, 0.11, 0.9))
-	_text(Vector2(x, y), blurb, tz("S"), Color(1, 1, 1, 0.85), false, false, 470)
-	x += bw + 20
+	_text(Vector2(x, y + (tz("S") - bsz) * 0.5), blurb, bsz, Color(1, 1, 1, 0.85), false, false, 470)
+	x += minf(_width(blurb, bsz), 470.0) + 20
 	var beats: Array = []
 	var fears: Array = []
 	for t in D.COUNT:
