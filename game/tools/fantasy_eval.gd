@@ -84,7 +84,7 @@ func swap_in(g: Army, t: int, gold: int, rng: RandomNumberGenerator) -> Army:
 					break
 			if placed:
 				break
-	return c
+	return _fill(c, rng)   # 硬上限買不完的錢補主力，才公平
 
 func repl() -> void:
 	var opp := opponents(int(a.get("opp", "16")))

@@ -4,7 +4,7 @@ extends "res://tests/test_base.gd"
 func test_puzzle_solutions() -> void:
 	var total := 0
 	var bad: Array = []
-	for pz in PZ.tutorials() + PZ.puzzles() + PZ.new_puzzles():
+	for pz in PZ.tutorials() + PZ.puzzles() + PZ.new_puzzles() + PZ.fantasy_puzzles():
 		var sols: Array = pz.get("solutions", [])
 		if sols.is_empty():
 			bad.append("%s 沒有標準解" % pz["id"])
@@ -27,8 +27,8 @@ func test_puzzle_solutions() -> void:
 			total += 1
 			if sm.winner != 0:
 				bad.append("%s 標準解輸了" % pz["id"])
-	var n_pz: int = (PZ.tutorials() + PZ.puzzles() + PZ.new_puzzles()).size()
-	for pz in PZ.new_puzzles():
+	var n_pz: int = (PZ.tutorials() + PZ.puzzles() + PZ.new_puzzles() + PZ.fantasy_puzzles()).size()
+	for pz in PZ.new_puzzles() + PZ.fantasy_puzzles():
 		# 新兵試玩：主角兵種一定要在允許清單、每組標準解都要用到它（第四輪 §4.8）
 		for sol in pz.get("solutions", []):
 			if sol.filter(func(e): return int(e[0]) == int(pz["unit"])).is_empty():
@@ -54,7 +54,7 @@ func test_codex() -> void:
 			var d := CX.skill_desc(sk, lang)
 			if d.contains("{") or d.contains("}"):
 				bad.append("%s 說明有沒換掉的常數：%s" % [sk, d])
-	ok(n == 25 and bad.is_empty(), "25 個技能示範都觸發預期事件、說明數值都換好", str(bad))
+	ok(n == 35 and bad.is_empty(), "35 個技能示範都觸發預期事件、說明數值都換好", str(bad))
 	# 小劇場跳字的位置要是觸發者本人（事件 id ≠ 陣列索引；Codex R3 審查 #2）
 	var pop_bad: Array = []
 	for sk in CX.data()["skills"]:

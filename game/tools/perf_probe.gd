@@ -45,6 +45,20 @@ func _init() -> void:
 	for t in D.COUNT:
 		all.append(t)
 	var out := {}
+	if "--fantasy" in OS.get_cmdline_user_args():
+		# 第八輪：一局每邊最多 10 種；最壞是大量生兵與大招
+		var fant: Array = []
+		for t8 in range(D.COUNT, D.total()):
+			fant.append(t8)
+		out["fantasy_24"] = bench(24, fant, 6)
+		out["fantasy_40"] = bench(40, fant, 6)
+		out["fantasy_summon_40"] = bench(40, [13, 13, 17, 13, 17, D.SWORD], 6)
+		out["fantasy_spore_40"] = bench(40, [10, 10, D.SWORD, D.ARCHER], 6)
+		out["fantasy_cat_40"] = bench(40, [18, 18, 19, 16, D.SWORD], 6)
+		out["old_support_40"] = bench(40, [D.SWORD, D.SHIELD, 7, 8, 7, 8], 6)
+		print("PERF ", JSON.stringify(out))
+		quit()
+		return
 	for n in [24, 32, 40, 48]:
 		out["mixed_%d" % n] = bench(n, all, 6)
 	out["support_40"] = bench(40, [D.SWORD, D.SHIELD, 7, 8, 7, 8], 6)   # 醫者 7、鼓手 8 密集

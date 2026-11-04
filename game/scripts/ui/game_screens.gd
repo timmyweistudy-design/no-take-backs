@@ -486,8 +486,8 @@ func _progress_and_achievements() -> void:
 			_ach("BOOM_5")
 		if int(ev_count.get("raise%d" % w, 0)) >= 3:
 			_ach("RAISE_3")
-		var all_new := true
-		for au in armies[w].units:
+		var all_new := armies.size() > w
+		for au in (armies[w].units if armies.size() > w else []):
 			if int(au["type"]) < D.COUNT:
 				all_new = false
 		if all_new and not armies[w].units.is_empty():

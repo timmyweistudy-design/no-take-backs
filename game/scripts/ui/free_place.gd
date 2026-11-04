@@ -776,7 +776,7 @@ func _fp_range_of(t: int) -> float:
 		D.DRUMMER:
 			return D.DRUM_RANGE / 1000.0
 		10:
-			return 2.0     # 孢子菇毒圈
+			return 2.2     # 孢子菇毒圈
 		11:
 			return 1.5     # 爆爆羊爆炸
 		16:
@@ -784,7 +784,7 @@ func _fp_range_of(t: int) -> float:
 		17:
 			return 4.0     # 骷髏法師
 		18:
-			return 3.0     # 吸塵貓
+			return 3.5     # 吸塵貓
 		19:
 			return 1.2     # 石魔拍地
 	return 0.0

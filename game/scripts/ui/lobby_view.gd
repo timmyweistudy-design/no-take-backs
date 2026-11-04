@@ -50,6 +50,9 @@ func _lobby_clamp() -> void:
 	Presets.clamp_pool(lobby_r, lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
 
 func _lobby_pick(id: String) -> void:
+	if id == "fantasy" and not RuleSet.has_new(Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))):
+		_toast(L.t("lb_fantasy_locked"), true)   # 第八輪：第 14 場才有第一種奇幻軍
+		return
 	var keep_level: int = lobby_r.ai_level
 	var keep_place: String = lobby_r.place_rule
 	lobby_r = Presets.make(id, lobby_kind, Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo")))

@@ -912,18 +912,22 @@ func _v8_pre_tick(n: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Packed
 		u.hidden = false
 		u.bite = true
 		events.append({"kind": EV.MIMIC_OPEN, "src": u.id, "tgt": u.id, "tags": [EV.MIMIC_OPEN]})
+	# 先列出活著的孢子菇：沒有菇的場次這段就是空迴圈（最壞情況 100 隻，不能每隻都掃一遍）
+	var spores: Array = []
+	if not skill_off.has("poison"):
+		for j in n:
+			if units[j].type == F8.SPORE and units[j].alive:
+				spores.append(units[j])
 	for i in n:
 		var u := units[i]
 		u.zone = 100
 		if not u.alive:
 			continue
 		var pct := 100
-		if not skill_off.has("poison"):
-			for j in n:
-				var s := units[j]
-				if s.type == F8.SPORE and s.alive and s.team != u.team and M.dist2(s.x, s.y, u.x, u.y) <= s.reach * s.reach:
-					pct = F8.SPORE_SLOW_PCT
-					break
+		for s in spores:
+			if s.team != u.team and M.dist2(s.x, s.y, u.x, u.y) <= s.reach * s.reach:
+				pct = F8.SPORE_SLOW_PCT
+				break
 		for z in zones:
 			if int(z[3]) != u.team and M.dist2(int(z[0]), int(z[1]), u.x, u.y) <= F8.ROCK_R * F8.ROCK_R:
 				pct = mini(pct, F8.ROCK_SLOW_PCT)
@@ -986,21 +990,26 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 		_v8_blast(pi[0], true, hits, pi[1])
 	# 毒：一隻敵兵一秒只吃一次（算最近那朵菇的）
 	if tick % F8.STATS[0]["cd"] == 0 and not skill_off.has("poison"):
-		for j in n:
-			var e := units[j]
-			if not e.alive:
-				continue
-			var best := -1
-			var bd := 0
-			for i in n:
-				var s := units[i]
-				if s.type == F8.SPORE and s.alive and s.team != e.team:
-					var d2 := M.dist2(s.x, s.y, e.x, e.y)
-					if d2 <= s.reach * s.reach and (best == -1 or _tie_less(d2, s, bd, units[best])):
-						best = i
-						bd = d2
-			if best != -1:
-				hits.append([best, j, units[best].atk, EV.POISON, [EV.POISON]])
+		var spi: Array = []
+		for i in n:
+			if units[i].type == F8.SPORE and units[i].alive:
+				spi.append(i)
+		if not spi.is_empty():
+			for j in n:
+				var e := units[j]
+				if not e.alive:
+					continue
+				var best := -1
+				var bd := 0
+				for i in spi:
+					var s := units[i]
+					if s.team != e.team:
+						var d2 := M.dist2(s.x, s.y, e.x, e.y)
+						if d2 <= s.reach * s.reach and (best == -1 or _tie_less(d2, s, bd, units[best])):
+							best = i
+							bd = d2
+				if best != -1:
+					hits.append([best, j, units[best].atk, EV.POISON, [EV.POISON]])
 	var cats: Array = []
 	for i in n:
 		var u := units[i]
@@ -1135,6 +1144,7 @@ func _v8_vacuum(n: int, cats: Array) -> void:
 		if e.type == D.CAVALRY or e.type == F8.GOLEM:
 			amt /= 2
 		e.pull_t = F8.CAT_PULL_TICKS
+		e.stun = maxi(e.stun, F8.CAT_PULL_TICKS)   # 被吸的時候不能出手
 		e.pull_x = dx * amt / l / F8.CAT_PULL_TICKS
 		e.pull_y = dy * amt / l / F8.CAT_PULL_TICKS
 

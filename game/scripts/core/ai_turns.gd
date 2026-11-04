@@ -9,26 +9,26 @@ const Army = preload("res://scripts/core/army.gd")
 # 剋制表：BEATS[a] 是 a 剋的兩種（企劃 §3.1）
 const BEATS := [
 	[D.ASSASSIN, D.SHIELD, 14],     # 劍士
-	[D.CAVALRY, D.ARCHER, 14],      # 盾兵
-	[D.SWORD, D.ASSASSIN, D.BERSERKER, D.BOMBER, 10, 11, 15, 18],      # 弓箭手
-	[D.ARCHER, D.SWORD, D.BOMBER, D.MEDIC, 17],            # 騎兵
-	[D.SHIELD, D.CAVALRY, D.MEDIC, D.DRUMMER, 16, 17, 18, 19],         # 刺客
-	[D.CAVALRY, 11],                # 長槍兵（第四輪 §2.6）
-	[D.SHIELD, D.PIKE, D.DRUMMER, 10, 12, 13],   # 投彈兵
+	[D.CAVALRY, D.ARCHER, 14, 11],      # 盾兵
+	[D.SWORD, D.ASSASSIN, D.BERSERKER, D.BOMBER, 10, 11, 18],      # 弓箭手
+	[D.ARCHER, D.SWORD, D.BOMBER, D.MEDIC, 17, 19, 15],            # 騎兵
+	[D.SHIELD, D.CAVALRY, D.MEDIC, D.DRUMMER],         # 刺客
+	[D.CAVALRY],                # 長槍兵（第四輪 §2.6）
+	[D.SHIELD, D.PIKE, D.DRUMMER, 10],   # 投彈兵
 	[],                         # 醫者（支援，不列）
 	[],                         # 鼓手（支援，不列）
-	[D.SHIELD, D.PIKE, 19],         # 狂戰士（破陣）
+	[D.SHIELD, D.PIKE],         # 狂戰士（破陣）
 	# 第八輪（10 孢子菇 … 19 小石魔）
-	[D.SWORD, D.BERSERKER, 15],     # 孢子菇
-	[D.SHIELD, D.PIKE],             # 爆爆羊：撞盾牆、密集陣
-	[D.CAVALRY, D.ASSASSIN],        # 寶箱怪
-	[D.SWORD, D.ASSASSIN],          # 史萊姆
+	[D.SWORD, D.BERSERKER],     # 孢子菇
+	[D.PIKE],                       # 爆爆羊：撞密集陣
+	[D.ASSASSIN, D.BOMBER],         # 寶箱怪
+	[D.SWORD, D.ASSASSIN, D.BOMBER],   # 史萊姆
 	[D.ARCHER, D.BOMBER, 16],       # 幽靈
-	[D.BERSERKER, D.CAVALRY],       # 巫毒娃娃
+	[D.BERSERKER, 10],              # 巫毒娃娃
 	[],                             # 沙漏精靈（支援）
-	[10, 19],                       # 骷髏法師：打慢吞吞的
-	[D.BOMBER, D.MEDIC],            # 吸塵貓
-	[D.CAVALRY, D.SWORD],           # 小石魔
+	[10],                           # 骷髏法師：打不會動的
+	[D.BOMBER, D.MEDIC, D.ASSASSIN],   # 吸塵貓
+	[D.SWORD, D.BERSERKER, D.ASSASSIN, 17],   # 小石魔
 ]
 ## 支援兵的協同對象（第四輪 §4.1：提示條「協同」顯示用）
 const SYNERGY := {D.MEDIC: [D.SHIELD, D.SWORD], D.DRUMMER: [D.SWORD, D.PIKE], 16: [D.SHIELD, 19]}
