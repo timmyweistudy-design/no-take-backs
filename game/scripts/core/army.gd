@@ -32,11 +32,16 @@ const W := COLS * 1000
 const H := ROWS * 1000
 const EDGE := 200
 const QUANT := 50
+const E_TERRAIN := "err_terrain"
 var deploy := "grid"
 var spacing := 1000              # 己方兩隻的最小中心距離
 var depth := 6000                # 自己視角 x 上限（全場＝15800）
 var enemy_pos: Array = []        # 全場時：敵兵的世界座標（Vector2i），離它們至少 ENEMY_GAP
 var enemy_gap := 1500
+# V9 地圖：場地大小與地形（標準＝16×9、沒有地形）
+var fw := W
+var fh := H
+var terrain = null
 
 func _init(p_team: int = 0, p_budget: int = 100) -> void:
 	team = p_team
@@ -135,6 +140,9 @@ func apply_rules(r, p_team: int) -> void:
 	spacing = r.spacing
 	depth = r.depth_of()
 	enemy_gap = r.ENEMY_GAP
+	fw = r.field_w()
+	fh = r.field_h()
+	terrain = r.terrain()
 
 func _copy_limits(a) -> void:
 	a.pool = pool
@@ -146,6 +154,9 @@ func _copy_limits(a) -> void:
 	a.depth = depth
 	a.enemy_gap = enemy_gap
 	a.enemy_pos = enemy_pos.duplicate()
+	a.fw = fw
+	a.fh = fh
+	a.terrain = terrain
 
 func place(t: int, col: int, row: int) -> bool:
 	if deploy == "free":
@@ -158,10 +169,10 @@ func place(t: int, col: int, row: int) -> bool:
 # ───────── 第六輪：自由座標 ─────────
 ## 自己視角的 x（藍方原樣、紅方 16000−x）；鏡像不變。
 func own_x(x: int) -> int:
-	return x if team == 0 else W - x
+	return x if team == 0 else fw - x
 
 func world_x(ox: int) -> int:
-	return ox if team == 0 else W - ox
+	return ox if team == 0 else fw - ox
 
 ## 量化（§3.8）：q(v)＝floor((v＋24)／50)×50，剛好一半往小的方向（225→200、226→250）。
 static func quant(v: int) -> int:
@@ -175,7 +186,7 @@ static func pos_of(u: Dictionary) -> Vector2i:
 
 func in_zone_xy(x: int, y: int) -> bool:
 	var ox := own_x(x)
-	return ox >= EDGE and ox <= depth and y >= EDGE and y <= H - EDGE
+	return ox >= EDGE and ox <= depth and y >= EDGE and y <= fh - EDGE
 
 ## 自由部署能不能放（自己座標、量化、部署區、間距、全場敵距＋共同條件）。skip＝檢查間距時略過的己方索引（搬移用）。
 func check_place_xy(t: int, x: int, y: int, skip := -1) -> String:
@@ -183,6 +194,8 @@ func check_place_xy(t: int, x: int, y: int, skip := -1) -> String:
 		return "位置沒有對齊 0.05 格"
 	if not in_zone_xy(x, y):
 		return E_ZONE
+	if terrain != null and terrain.blocked(x, y, team):
+		return E_TERRAIN
 	var s2 := spacing * spacing
 	for i in units.size():
 		if i == skip:
@@ -248,7 +261,7 @@ func move_group(idx: Array, dx: int, dy: int) -> Vector2i:
 		lo_x = maxi(lo_x, mini(wmin, wmax))
 		hi_x = mini(hi_x, maxi(wmin, wmax))
 		lo_y = maxi(lo_y, EDGE - p.y)
-		hi_y = mini(hi_y, H - EDGE - p.y)
+		hi_y = mini(hi_y, fh - EDGE - p.y)
 	dx = clampi(dx, lo_x, hi_x)
 	dy = clampi(dy, lo_y, hi_y)
 	dx = clampi(quant(dx), lo_x, hi_x)
@@ -280,7 +293,7 @@ func flip_group(idx: Array) -> bool:
 	var newp := {}
 	for i in idx:
 		var p := pos_of(units[i])
-		newp[i] = Vector2i(p.x, H - p.y)
+		newp[i] = Vector2i(p.x, fh - p.y)
 	var keep := units.duplicate(true)
 	for i in idx:
 		units[i]["x"] = newp[i].x
@@ -305,7 +318,7 @@ func has_room() -> bool:
 		return false
 	var t0: int = types[0]
 	var nx := (depth - EDGE) / QUANT + 1     # 自己視角 x：EDGE..depth
-	var ny := (H - 2 * EDGE) / QUANT + 1     # y：EDGE..H−EDGE
+	var ny := (fh - 2 * EDGE) / QUANT + 1     # y：EDGE..H−EDGE
 	if nx <= 0 or ny <= 0:
 		return false
 	var cov := PackedByteArray()
@@ -372,10 +385,10 @@ func mirrored():
 	_copy_limits(a)
 	a.enemy_pos = []
 	for e in enemy_pos:
-		a.enemy_pos.append(Vector2i(W - e.x, e.y))
+		a.enemy_pos.append(Vector2i(fw - e.x, e.y))
 	for u in units:
 		if u.has("x"):
-			a.units.append({"type": u["type"], "x": W - int(u["x"]), "y": u["y"]})
+			a.units.append({"type": u["type"], "x": fw - int(u["x"]), "y": u["y"]})
 		else:
 			a.units.append({"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]})
 	return a

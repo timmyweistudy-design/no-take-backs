@@ -25,6 +25,8 @@ func _init() -> void:
 			a[kv[0]] = kv[1]
 	R = PRE.make("standard", "ai", RS.all_pool())
 	R.pool = [RS.full_pool(), RS.full_pool()]
+	R.map_id = int(a.get("map", "0"))
+	R.map_size = int(a.get("size", "1"))
 	match str(a.get("mode", "repl")):
 		"repl": repl()
 		"core": core()

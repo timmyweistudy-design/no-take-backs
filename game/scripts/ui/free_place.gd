@@ -46,7 +46,7 @@ func _is_free() -> bool:
 
 func _w_of(p: Vector2) -> Vector2i:
 	var lift := Vector2(0, -TOUCH_LIFT) if fp_touch else Vector2.ZERO
-	var q := (p + lift - ORIGIN) / CS * 1000.0
+	var q := (_fld_xf().affine_inverse() * (p + lift) - ORIGIN) / CS * 1000.0
 	return Vector2i(int(q.x), int(q.y))
 
 ## 世界座標 → 畫面上「腳底」的位置（和格子模式一樣：中心往下 0.32 格）。
@@ -91,7 +91,7 @@ func _fp_step() -> int:
 	return int(a.spacing) if fp_dense else maxi(1000, int(a.spacing))
 
 func _fp_in_field(p: Vector2) -> bool:
-	return Rect2(ORIGIN, FIELD).has_point(p)
+	return Rect2(ORIGIN, fld_size).has_point(_fld_xf().affine_inverse() * p)
 
 func _fp_duel_turns() -> bool:
 	return mode == Mode.DUEL and tp != null
@@ -515,14 +515,14 @@ func _fp_draw_zones() -> void:
 	var dep: int = a.depth
 	var tc := Art.team_color(a.team, cbm())
 	if dep < 15000:
-		var x0 := ORIGIN.x + (dep / 1000.0 if a.team == 0 else (16000 - dep) / 1000.0) * CS
-		draw_dashed_line(Vector2(x0, ORIGIN.y), Vector2(x0, ORIGIN.y + FIELD.y), Color(tc, 0.8), 3.0, 8.0)
+		var x0: float = ORIGIN.x + (dep / 1000.0 if a.team == 0 else (a.fw - dep) / 1000.0) * CS
+		draw_dashed_line(Vector2(x0, ORIGIN.y), Vector2(x0, ORIGIN.y + fld_size.y), Color(tc, 0.8), 3.0, 8.0)
 		# 對峙帶（中線兩側到兩邊部署區的邊）
-		var other: int = rules.depth if rules != null else 6000
-		var xa := ORIGIN.x + other / 1000.0 * CS
-		var xb := ORIGIN.x + (16000 - other) / 1000.0 * CS
+		var other: int = rules.depth_of() if rules != null and rules.fullfield == 0 else (rules.depth if rules != null else 6000)
+		var xa: float = ORIGIN.x + other / 1000.0 * CS
+		var xb: float = ORIGIN.x + (a.fw - other) / 1000.0 * CS
 		if xb > xa:
-			draw_rect(Rect2(xa, ORIGIN.y, xb - xa, FIELD.y), Color(0.85, 0.75, 0.55, 0.10))
+			draw_rect(Rect2(xa, ORIGIN.y, xb - xa, fld_size.y), Color(0.85, 0.75, 0.55, 0.10))
 	# 全場：敵兵 1.5 格禁區融合成一片均勻淡紅，只畫在戰場內（Antigravity 實作第 1 輪 #6）。
 	# 0.125 格點陣，同一列連續的格子併成一個長方形；敵兵位置不變就用快取。
 	if not a.enemy_pos.is_empty():
@@ -537,12 +537,12 @@ func _fp_zone_raster(ep: Array, gap: int) -> Array:
 	var out: Array = []
 	var cell := 125
 	var g2 := gap * gap
-	for j in 9000 / cell:
+	for j in fld_h / cell:
 		var cy := j * cell + cell / 2
 		var run := -1
-		for i in 16000 / cell + 1:
+		for i in fld_w / cell + 1:
 			var hit := false
-			if i < 16000 / cell:
+			if i < fld_w / cell:
 				var cx := i * cell + cell / 2
 				for e in ep:
 					var dx: int = e.x - cx
@@ -671,7 +671,7 @@ func _fp_draw() -> void:
 				call("_arc_clipped", _s_of(Vector2i(it[1], it[2])) - Vector2(0, 0.32 * CS), rr * CS, 0, TAU, Color(1, 0.9, 0.5, 0.35), 1.5)
 		var anchor := _fp_scr(Vector2i(fp_cur)) if pad_mode else mouse
 		var bw := _width(tip, tz("S"), true) + 16
-		var bp := Vector2(clampf(anchor.x + 18, ORIGIN.x, ORIGIN.x + FIELD.x - bw), clampf(anchor.y - 36, ORIGIN.y, ORIGIN.y + FIELD.y - tz("S") * 1.6))
+		var bp := Vector2(clampf(anchor.x + 18, ORIGIN.x, ORIGIN.x + fld_size.x - bw), clampf(anchor.y - 36, ORIGIN.y, ORIGIN.y + fld_size.y - tz("S") * 1.6))
 		draw_rect(Rect2(bp, Vector2(bw, tz("S") * 1.6)), Color(0.06, 0.07, 0.1, 0.9))
 		_text(bp + Vector2(8, tz("S") * 0.25), tip, tz("S"), ACCENT if not fp_full else Color("#ff8a8a"), false, true)
 	# 框選
@@ -707,8 +707,8 @@ func _fp_draw() -> void:
 			call("_arc_clipped", cp, rad * CS, 0, TAU, Color(1, 0.9, 0.5, 0.45), 2.0)
 			# 第七輪 N8：弧線要說得出是什麼
 			var lbl: String = L.t("fp_range_tag", [_fmt_num(rad)])
-			var lx := clampf(cp.x, ORIGIN.x + 40, ORIGIN.x + FIELD.x - 40)
-			var ly := clampf(cp.y - rad * CS - tz("C") * 1.2, ORIGIN.y + 2, ORIGIN.y + FIELD.y - tz("C") * 1.3)
+			var lx := clampf(cp.x, ORIGIN.x + 40, ORIGIN.x + fld_size.x - 40)
+			var ly := clampf(cp.y - rad * CS - tz("C") * 1.2, ORIGIN.y + 2, ORIGIN.y + fld_size.y - tz("C") * 1.3)
 			_text(Vector2(lx, ly), lbl, tz("C"), Color(1, 0.93, 0.6, 0.95), true, true)
 	if not drag_on and selected == 15 and (_fp_in_field(mouse) or pad_mode):
 		_doll_lane(_s_of(_q(hover_w)) - Vector2(0, 0.32 * CS), a.team)   # 巫毒娃娃：瞄準線
@@ -733,10 +733,10 @@ func _fp_intro_steps(a) -> void:
 ## 巫毒娃娃的瞄準走廊：前方、同列 ±1.5 格。
 func _doll_lane(p: Vector2, team: int) -> void:
 	var dir := 1.0 if team == 0 else -1.0
-	var end_x: float = ORIGIN.x + FIELD.x if team == 0 else ORIGIN.x
+	var end_x: float = ORIGIN.x + fld_size.x if team == 0 else ORIGIN.x
 	var half := 1.5 * CS
 	var top := maxf(p.y - half, ORIGIN.y)
-	var bot := minf(p.y + half, ORIGIN.y + FIELD.y)
+	var bot := minf(p.y + half, ORIGIN.y + fld_size.y)
 	var x0: float = minf(p.x, end_x)
 	var w := absf(end_x - p.x)
 	draw_rect(Rect2(x0, top, w, bot - top), Color(1.0, 0.42, 0.7, 0.08))
@@ -807,6 +807,7 @@ func _fp_reticle(p: Vector2) -> void:
 
 ## 工具列：戰場左邊的直排工具列（Antigravity 第二輪：右下放不下）。點＝切換常駐；按住 Shift／Ctrl／G＝暫時。
 func _fp_toolbar() -> void:
+	draw_set_transform_matrix(Transform2D.IDENTITY)   # V9：工具列不跟著地圖縮放
 	var items: Array = [["brush", L.t("fp_t_brush")], ["line", L.t("fp_t_line")]]
 	if not _fp_duel_turns():
 		items.append(["select", L.t("fp_t_select")])
@@ -844,6 +845,7 @@ func _fp_toolbar() -> void:
 		elif g == 1:
 			draw_circle(Vector2(x + w - 7, y + 7), 3.5, ACCENT if on else Color(1, 1, 1, 0.25), true, -1.0, true)
 		y += 46
+	draw_set_transform_matrix(_cam)
 
 func _fp_tool_click(id: String) -> void:
 	match id:

@@ -8,10 +8,12 @@ extends RefCounted
 
 const D = preload("res://scripts/core/unit_defs.gd")
 const F8 = preload("res://scripts/core/fantasy_defs.gd")
+const MapDefs = preload("res://scripts/core/map_defs.gd")
 
 const ROSTER_MAX := 10         # 第八輪：一局每邊最多幾種兵
 const CODE_PREFIX := "NTBR1"
 const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
+const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
 const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
 # 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
 const DEPLOYS := ["grid", "free"]
@@ -51,6 +53,10 @@ var unit_cap := STD_UNIT_CAP
 var type_cap := 0              # 0＝不限
 var pool := [0, 0]             # 玩家（藍）／對手（紅）卡池遮罩；0 會被 validate 擋
 var ai_pool_same := true       # 對手卡池跟藍方一樣
+# ── V9 地圖（進模擬）──
+var map_id := 0                # MapDefs.MAPS 的索引；0＝平原
+var map_size := 1              # 0 小、1 中（標準）、2 大
+var vents := false             # 熔岩噴口（只有熔岩裂谷有）
 # ── 系列 ──
 var rounds := 3
 var place_rule := "snake5"
@@ -149,6 +155,9 @@ func copy():
 	r.spacing = spacing
 	r.depth = depth
 	r.fullfield = fullfield
+	r.map_id = map_id
+	r.map_size = map_size
+	r.vents = vents
 	r.skills_off = skills_off.duplicate()
 	r.preset = preset
 	return r
@@ -174,7 +183,21 @@ func judge() -> int:
 
 ## 模擬是否走舊路徑（雜湊位元組和 1.3.0 相同）。
 func sim_is_legacy() -> bool:
-	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid"
+	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid" and map_is_default()
+
+## V9：平原＋標準大小走舊路徑，位元組完全不變。
+func map_is_default() -> bool:
+	return map_id == 0 and map_size == MapDefs.STD_SIZE and not vents
+
+func field_w() -> int:
+	return MapDefs.width(map_size)
+
+func field_h() -> int:
+	return MapDefs.height(map_size)
+
+## 沒有地形回 null（平原），呼叫端可以直接略過。
+func terrain():
+	return MapDefs.terrain(map_id, map_size)
 
 func is_free() -> bool:
 	return deploy == "free"
@@ -184,7 +207,16 @@ func deploy_is_default() -> bool:
 	return deploy == "grid" and spacing == 1000 and depth == DEPTH_GRID and fullfield == FULL_NONE
 
 ## 這一隊實際的 x 上限（自己視角）。全場時到對面。
+## 自己半場的縱深（換算過地圖大小，不管全場）。
+func half_depth() -> int:
+	if map_size != MapDefs.STD_SIZE:
+		return (depth * field_w() / 16000) / 50 * 50
+	return depth
+
 func depth_of() -> int:
+	if map_size != MapDefs.STD_SIZE:
+		# V9：縱深照比例；全場到對面邊界
+		return field_w() - 200 if fullfield != FULL_NONE else (depth * field_w() / 16000) / 50 * 50
 	return DEPTH_FULL if fullfield != FULL_NONE else depth
 
 ## 狂熱時間表（第五輪 §3.1，Codex 第二輪 ③）：起點 F＝T×2÷3、間隔 S＝T÷18，耗損在 F＋k×S（k＝0～5）。
@@ -215,6 +247,12 @@ func max_rounds() -> int:
 ## 回傳不合法原因的字串鍵（空陣列＝合法）。給大廳顯示、代碼匯入、開戰前檢查共用。
 func validate() -> Array:
 	var bad: Array = []
+	if map_id < 0 or map_id >= MapDefs.MAPS.size() or map_size < 0 or map_size >= MapDefs.SIZES.size():
+		bad.append("rr_bad_map")
+	elif not map_is_default() and deploy != "free":
+		bad.append("rr_map_free_only")
+	elif vents and map_id != MapDefs.LAVA:
+		bad.append("rr_bad_map")
 	for tm in 2:
 		var b := budget_of(tm)
 		if b < BUDGET_MIN or b > BUDGET_MAX:
@@ -318,6 +356,8 @@ func sim_digest() -> String:
 	var so := skills_off.duplicate()
 	so.sort()
 	var base: Array = [budget_of(0), budget_of(1), ticks, judge(), sp, so]
+	if not map_is_default():
+		base.append_array(["map", map_id, map_size, 1 if vents else 0, MapDefs.digest(map_id, map_size)])
 	if deploy == "free":
 		base.append_array(["free", spacing, depth, fullfield])   # 第六輪：自由部署進模擬摘要（格子部署時摘要不變）
 	return JSON.stringify(base).sha256_text().substr(0, 16)
@@ -365,6 +405,10 @@ func diff(std) -> Array:
 func to_code() -> String:
 	var j := JSON.stringify(key_fields())
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	if not map_is_default():
+		var j4 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0])
+		var b4 := Marshalls.utf8_to_base64(j4).replace("+", "-").replace("/", "_").replace("=", "")
+		return "%s.%s.%s" % [CODE_PREFIX4, b4, b4.sha256_text().substr(0, 6)]
 	# 用到新兵一律 NTBR3（欄位同 NTBR2：21 欄）
 	if has_new(int(pool[0])) or has_new(int(pool[1])) or _skills_new():
 		var j3 := JSON.stringify(key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield])
@@ -387,9 +431,10 @@ static func from_code(code: String) -> Dictionary:
 	if c.length() > 2000:
 		return {"ok": false, "why": "rr_code_long"}
 	var parts := c.split(".")
-	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX3):
+	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4):
 		return {"ok": false, "why": "rr_code_format"}
-	var v3: bool = parts[0] == CODE_PREFIX3
+	var v4: bool = parts[0] == CODE_PREFIX4
+	var v3: bool = parts[0] == CODE_PREFIX3 or v4
 	var v2: bool = parts[0] == CODE_PREFIX2 or v3
 	if parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return {"ok": false, "why": "rr_code_checksum"}
@@ -397,8 +442,14 @@ static func from_code(code: String) -> Dictionary:
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Array or j.size() != (21 if v2 else 17):
+	if not j is Array or j.size() != (24 if v4 else (21 if v2 else 17)):
 		return {"ok": false, "why": "rr_code_body"}
+	if v4:
+		for i4 in [21, 22, 23]:
+			if not (j[i4] is float or j[i4] is int) or float(j[i4]) != floorf(float(j[i4])):
+				return {"ok": false, "why": "rr_code_body"}
+		if int(j[21]) < 0 or int(j[21]) >= MapDefs.MAPS.size() or int(j[22]) < 0 or int(j[22]) >= MapDefs.SIZES.size() or (int(j[23]) != 0 and int(j[23]) != 1):
+			return {"ok": false, "why": "rr_bad_map"}
 	if v2:
 		for i in [17, 18, 19, 20]:
 			if not (j[i] is float or j[i] is int) or float(j[i]) != floorf(float(j[i])) or absf(float(j[i])) > 100000:
@@ -453,6 +504,12 @@ static func from_code(code: String) -> Dictionary:
 		r.spacing = int(j[18])
 		r.depth = int(j[19])
 		r.fullfield = int(j[20])
+		if v4:
+			r.map_id = int(j[21])
+			r.map_size = int(j[22])
+			r.vents = int(j[23]) == 1
+			if r.map_is_default():
+				return {"ok": false, "why": "rr_code_body"}   # 標準地圖不能用 NTBR4（一組規則只有一種寫法）
 		if r.deploy_is_default() and not v3:
 			return {"ok": false, "why": "rr_code_body"}   # 預設部署必須用 NTBR1（一組規則只有一種寫法）
 	r.preset = "custom"

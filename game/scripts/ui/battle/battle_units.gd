@@ -183,9 +183,20 @@ func _update_action_focus() -> void:
 
 func _draw_field() -> void:
 	var free_f: bool = rules != null and rules.is_free() and (mode == Mode.VS_AI or mode == Mode.DUEL)   # 第六輪：自由排兵不畫格子
-	draw_rect(Rect2(ORIGIN - Vector2(10, 10), FIELD + Vector2(20, 20)), Color("#5b4632"))
-	for r in 9:
-		for c in 16:
+	var fbi: Dictionary = MapArt.BIOME.get(MapDefs.MAPS[fld_map]["biome"], {})
+	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632")))
+	if fld_map != 0:
+		var mt := _map_tex()
+		if mt != null:
+			draw_texture_rect(mt, Rect2(ORIGIN, fld_size), false)
+		else:
+			draw_rect(Rect2(ORIGIN, fld_size), Color(fbi.get("base", "#6f9a4a")))
+		_draw_field_frame()
+		return
+	var f_rows: int = fld_h / 1000
+	var f_cols: int = fld_w / 1000
+	for r in f_rows:
+		for c in f_cols:
 			var cell := Rect2(ORIGIN + Vector2(c, r) * CS, Vector2(CS, CS))
 			if grass:
 				var h := absi((c * 73856093) ^ (r * 19349663))
@@ -198,11 +209,11 @@ func _draw_field() -> void:
 				draw_rect(cell, Color(Art.team_color(0, cbm()), 0.08))
 			elif c >= 10:
 				draw_rect(cell, Color(Art.team_color(1, cbm()), 0.06))
-	draw_rect(Rect2(ORIGIN, FIELD), Color(0.06, 0.09, 0.16, 0.18))
+	draw_rect(Rect2(ORIGIN, fld_size), Color(0.06, 0.09, 0.16, 0.18))
 	# 地面層次（第三輪 M2）：固定位置的明暗草塊與小花，畫在格線與單位底下
 	for i in 22:
 		var h := absi((i * 2654435761) ^ 0x5bd1e995) % 100000
-		var pc := ORIGIN + Vector2(float(h % 1000) / 1000.0 * FIELD.x, float((h / 1000) % 100) / 100.0 * FIELD.y)
+		var pc := ORIGIN + Vector2(float(h % 1000) / 1000.0 * fld_size.x, float((h / 1000) % 100) / 100.0 * fld_size.y)
 		var rr := 40.0 + float(h % 37) * 2.0
 		draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1.0, 0.55), 0, pc))
 		draw_circle(Vector2.ZERO, rr, Color(1, 1, 0.8, 0.045) if i % 2 == 0 else Color(0, 0.08, 0, 0.07), true, -1.0, true)
@@ -210,20 +221,20 @@ func _draw_field() -> void:
 	var fl := [Color("#fff3b0"), Color("#ffb3c6"), Color("#cdb4ff"), Color("#ffffff")]
 	# 第七輪 D2：一條踩出來的小路＋石頭群；小花少一點，免得和兵搶眼
 	var path_pts := PackedVector2Array()
-	for k5 in 17:
-		path_pts.append(ORIGIN + Vector2(k5 * CS, FIELD.y * 0.5 + sin(k5 * 0.7) * 34.0))
+	for k5 in f_cols + 1:
+		path_pts.append(ORIGIN + Vector2(k5 * CS, fld_size.y * 0.5 + sin(k5 * 0.7) * 34.0))
 	draw_polyline(path_pts, Color(0.55, 0.42, 0.24, 0.13), 40.0, true)
 	draw_polyline(path_pts, Color(0.62, 0.5, 0.3, 0.10), 22.0, true)
 	for i3 in 7:
 		var h3 := absi((i3 * 92821 + 13) * 689287499) % 1000003
-		var rp := ORIGIN + Vector2(float(h3 % 991) / 991.0 * FIELD.x, float((h3 / 991) % 977) / 977.0 * FIELD.y)
+		var rp := ORIGIN + Vector2(float(h3 % 991) / 991.0 * fld_size.x, float((h3 / 991) % 977) / 977.0 * fld_size.y)
 		for q2 in 3:
 			var rr2 := Vector2(q2 * 7.0 - 7.0, (q2 % 2) * 3.0)
 			draw_circle(rp + rr2 + Vector2(0, 1.5), 5.0 - q2 * 0.7, Color(0, 0, 0, 0.18), true, -1.0, true)
 			draw_circle(rp + rr2, 5.0 - q2 * 0.7, Color(0.62, 0.62, 0.58, 0.55), true, -1.0, true)
 	for i in 20:
 		var h2 := absi((i * 40503 + 7) * 2246822519) % 1000003
-		var fp := ORIGIN + Vector2(float(h2 % 997) / 997.0 * FIELD.x, float((h2 / 997) % 991) / 991.0 * FIELD.y)
+		var fp := ORIGIN + Vector2(float(h2 % 997) / 997.0 * fld_size.x, float((h2 / 997) % 991) / 991.0 * fld_size.y)
 		var fc: Color = fl[i % fl.size()]
 		for k in 4:
 			var an := k * PI / 2.0 + i
@@ -231,24 +242,17 @@ func _draw_field() -> void:
 		draw_circle(fp, 1.3, Color("#f4a300"), true, -1.0, true)
 	if not free_f:
 		for i in 17:
-			draw_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, FIELD.y), Color(0, 0, 0, 0.07), 1)
+			draw_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, fld_size.y), Color(0, 0, 0, 0.07), 1)
 		for i in 10:
-			draw_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(FIELD.x, i * CS), Color(0, 0, 0, 0.07), 1)
-		draw_dashed_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, FIELD.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
-		draw_dashed_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, FIELD.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
-	# 第七輪 D2：木框內側陰影
-	for k6 in 3:
-		var sh := Color(0, 0, 0, 0.12 - k6 * 0.035)
-		var ii := float(k6 * 3)
-		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(FIELD.x - ii * 2.0, 3.0)), sh)
-		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(3.0, FIELD.y - ii * 2.0)), sh)
-		draw_rect(Rect2(ORIGIN + Vector2(FIELD.x - ii - 3.0, ii), Vector2(3.0, FIELD.y - ii * 2.0)), sh)
-		draw_rect(Rect2(ORIGIN + Vector2(ii, FIELD.y - ii - 3.0), Vector2(FIELD.x - ii * 2.0, 3.0)), sh)
+			draw_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(fld_size.x, i * CS), Color(0, 0, 0, 0.07), 1)
+		draw_dashed_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, fld_size.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
+		draw_dashed_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, fld_size.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
+	_draw_field_frame()
 	# 戰場色調（R6）：一般晨曦、殘局黃昏、遠征月夜。純調色，畫在單位底下，不影響辨識
 	var tone := _tone()
 	if tone.a > 0.0:
-		draw_rect(Rect2(ORIGIN, FIELD), tone)
-	if plants.size() >= 9:
+		draw_rect(Rect2(ORIGIN, fld_size), tone)
+	if plants.size() >= 9 and fld_sz == MapDefs.STD_SIZE:
 		var deco := [[0, Vector2(52, 200)], [3, Vector2(70, 280)], [5, Vector2(30, 400)], [1, Vector2(60, 560)], [7, Vector2(90, 660)],
 			[2, Vector2(1220, 190)], [6, Vector2(1240, 300)], [0, Vector2(1215, 470)], [4, Vector2(1245, 600)], [8, Vector2(1200, 676)]]
 		for d in deco:
@@ -257,6 +261,16 @@ func _draw_field() -> void:
 			draw_texture_rect(tex, Rect2(d[1] - Vector2(sz.x / 2, sz.y), sz), false)
 
 
+
+## 木框內側陰影（第七輪 D2）。
+func _draw_field_frame() -> void:
+	for k6 in 3:
+		var sh := Color(0, 0, 0, 0.12 - k6 * 0.035)
+		var ii := float(k6 * 3)
+		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
+		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
+		draw_rect(Rect2(ORIGIN + Vector2(fld_size.x - ii - 3.0, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
+		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
 
 func _draw_units_of(s, dim: bool) -> void:
 	var list: Array = []
@@ -301,9 +315,13 @@ func _draw_units_of(s, dim: bool) -> void:
 				if a != b and pos[a].distance_squared_to(pos[b]) < 1600.0:
 					n += 1
 			crowd[list[a].id] = n
-	# 第二層：身體
+	# 第二層：身體（V9：地圖的前景物件依腳點 y 插進來，才有前後遮擋）
+	var prop_i := 0
 	for u in list:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+		while prop_i < fld_props.size() and ORIGIN.y + float(fld_props[prop_i][0]) <= p.y:
+			MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
+			prop_i += 1
 		var walk: float = _walk_of(u, a_now) if live else ((time * Gait.nominal_rate(u.type, float(D.stat(u.type)["speed"]), CS, UNIT_SCALE) + u.id) if (u.mx != 0 or u.my != 0) else 0.0)
 		var moving: bool = walk > 0.0
 		var at := 0.0
@@ -407,6 +425,9 @@ func _draw_units_of(s, dim: bool) -> void:
 				var q0 := tip - Vector2(face * k * 8.0, 0)
 				var q1 := tip - Vector2(face * (k + 1) * 8.0, 0)
 				draw_line(q0, q1, Color(1.0, 0.86, 0.3, (0.8 - k * 0.2) * alpha), 3.0 - k * 0.5, true)
+	while prop_i < fld_props.size():
+		MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
+		prop_i += 1
 	for pp in pot_draw:
 		draw_circle(pp, 6.5, Art.OUT, true, -1.0, true)
 		draw_circle(pp, 5.0, Color("#2a2533"), true, -1.0, true)

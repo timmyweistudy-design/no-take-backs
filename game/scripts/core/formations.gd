@@ -175,8 +175,8 @@ static func to_free(src: Army, r, rng: RandomNumberGenerator, style := "stretch"
 	var a := Army.new(src.team, src.budget)
 	a.apply_rules(r, src.team)
 	a.guard_combat = false
-	a.depth = r.depth   # 自己的半場（全場模式也一樣，AI 只擺自己這邊）
-	var depth: int = r.depth
+	a.depth = r.half_depth()   # 自己的半場（全場模式也一樣，AI 只擺自己這邊）
+	var depth: int = r.half_depth()
 	var j: int = (1000 - int(r.spacing)) / 2
 	if style == "dense":
 		# 依「自己視角 x 由大到小（前排先）」排序，用六角排列填
@@ -189,7 +189,7 @@ static func to_free(src: Army, r, rng: RandomNumberGenerator, style := "stretch"
 		# 欄距、半格錯位都往上取到 50 的倍數（量化後才不會比間距近；第六輪篩選抓到 1.0 格會掉兵）
 		var dx_col := _ceil50(sp * 87 / 100)
 		var half := _ceil50(sp / 2)
-		var rows_per_col := maxi(1, (Army.H - Army.EDGE - 400 - half) / sp + 1)
+		var rows_per_col := maxi(1, (a.fh - Army.EDGE - 400 - half) / sp + 1)
 		var k := 0
 		for e in lst:
 			var col := k / rows_per_col
@@ -204,17 +204,33 @@ static func to_free(src: Army, r, rng: RandomNumberGenerator, style := "stretch"
 		var p := Army.pos_of(u)
 		var ox: int = src.own_x(p.x)
 		var nox := 500 + (ox - 500) * (depth - 1000) / 5000
-		var ny := p.y
+		var ny := p.y * a.fh / Army.H    # 格子陣是 9 列，換到這張地圖的高度（標準地圖不變）
 		if style == "jitter" and j > 0:
 			nox += rng.randi_range(-j, j)
 			ny += rng.randi_range(-j, j)
 		nox = clampi(Army.quant(nox), Army.EDGE, depth)
-		ny = clampi(Army.quant(ny), Army.EDGE, Army.H - Army.EDGE)
+		ny = clampi(Army.quant(ny), Army.EDGE, a.fh - Army.EDGE)
 		if not a.place_xy(int(u["type"]), a.world_x(nox), ny):
 			if style != "stretch":
 				return to_free(src, r, rng, "stretch")   # 抖動後撞到：整套改用拉伸（不能少兵）
+			if a.terrain != null or a.fw != Army.W:
+				if _place_near(a, int(u["type"]), nox, ny):
+					continue
 			push_error("to_free：拉伸後放不下 (%d,%d)" % [nox, ny])
 	return a
+
+## V9：撞到地形或被擠掉時，往外一圈圈找最近的合法點（固定順序）。不少兵。
+static func _place_near(a: Army, t: int, ox: int, y: int) -> bool:
+	for rad in range(1, 40):
+		var step := rad * 200
+		for k in 16:
+			var dx: int = Army.quant(int(step * cos(k * TAU / 16.0)))
+			var dy: int = Army.quant(int(step * sin(k * TAU / 16.0)))
+			var nx := clampi(ox + dx, Army.EDGE, a.depth)
+			var ny := clampi(y + dy, Army.EDGE, a.fh - Army.EDGE)
+			if a.place_xy(t, a.world_x(Army.quant(nx)), Army.quant(ny)):
+				return true
+	return false
 
 static func _ceil50(v: int) -> int:
 	return int(ceil(v / 50.0)) * 50

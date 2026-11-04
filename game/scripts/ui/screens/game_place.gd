@@ -126,6 +126,8 @@ func _err_key(why: String) -> String:
 		return ""
 	if why == Army.E_ZONE:
 		return L.t("err_zone")
+	if why == Army.E_TERRAIN:
+		return L.t("err_terrain")
 	if why == Army.E_TAKEN:
 		return L.t("err_taken")
 	if why.begins_with(Army.E_CAP_PREFIX):
@@ -184,10 +186,10 @@ func _try_remove(c: Vector2i) -> void:
 func _draw_hide_fog(hide_side: int) -> void:
 	var cols := 6.0
 	if _is_free():
-		cols = float(rules.depth) / 1000.0
-	var x0 := 16.0 - cols if hide_side == 1 else 0.0
+		cols = float(rules.half_depth()) / 1000.0
+	var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
 	# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
-	var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, FIELD.y))
+	var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, fld_size.y))
 	draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
 	for k in 3:
 		var cxp := fposmod(time * (14.0 + k * 6.0) + k * 150.0, mr.size.x + 220.0) - 110.0
@@ -210,10 +212,10 @@ func _draw_hide_fog(hide_side: int) -> void:
 			var gw: Vector2i = Army.pos_of(gu)
 			_unit(ORIGIN + Vector2(gw) * CS / 1000.0, int(gu["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.28, 0.0, 1.0)
 	var msg := L.t("ai_hidden") if mode == Mode.VS_AI else L.t("enemy_hidden")
-	_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, FIELD.y / 2 - 10), msg, ts(22), Color(1, 1, 1, 0.85), true, true, cols * CS - 20)
+	_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, fld_size.y / 2 - 10), msg, ts(22), Color(1, 1, 1, 0.85), true, true, cols * CS - 20)
 	if mode == Mode.VS_AI:
 		# AI 的難度與性格（第三輪 U3）：不洩漏陣型
-		_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, FIELD.y / 2 + 70), L.t("ai_trait_%d" % difficulty), ts(15), Color(1, 0.85, 0.6, 0.8), true, false, cols * CS - 30)
+		_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, fld_size.y / 2 + 70), L.t("ai_trait_%d" % difficulty), ts(15), Color(1, 0.85, 0.6, 0.8), true, false, cols * CS - 30)
 
 
 

@@ -521,7 +521,7 @@ func _mini_formation(r: Rect2, pz: Dictionary, en: bool) -> void:
 
 ## 裁在棋盤內的圓弧（第三輪 U3）：取樣點，只畫兩端都在場內的線段。
 func _arc_clipped(c: Vector2, r: float, a0: float, a1: float, col: Color, w: float) -> void:
-	var field := Rect2(ORIGIN, FIELD)
+	var field := Rect2(ORIGIN, fld_size)
 	var n := 72
 	var prev := c + Vector2(cos(a0), sin(a0)) * r
 	for i in range(1, n + 1):

@@ -409,18 +409,20 @@ func _draw_inner() -> void:
 	probe_ctrls.clear()
 	_probe_ui = false
 	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
-	var cam := Transform2D.IDENTITY
+	_sync_field()
+	var fxf := _fld_xf()
+	var cam := fxf
 	if state == St.BATTLE or state == St.RESULT:
 		var off := Vector2.ZERO
 		if shake > 0 and _fx_on("shake"):
 			off = Vector2(sin(time * 90) * 2, cos(time * 77) * 2)
 		var w := clampf((zoom - 1.0) / 0.5, 0.0, 1.0)
-		var c := (ORIGIN + FIELD / 2).lerp(zoom_center, w)
+		var c := (ORIGIN + FIELD / 2).lerp(fxf * zoom_center, w)
 		var half := Vector2(640, 388) / zoom
 		var lo := ORIGIN + half - Vector2(60, 100)
 		var hi := ORIGIN + FIELD - half + Vector2(60, 100)
 		c = Vector2(clampf(c.x, minf(lo.x, hi.x), maxf(lo.x, hi.x)), clampf(c.y, minf(lo.y, hi.y), maxf(lo.y, hi.y)))
-		cam = Transform2D(0, Vector2(zoom, zoom), 0, Vector2(640, 388) - c * zoom + off)
+		cam = Transform2D(0, Vector2(zoom, zoom), 0, Vector2(640, 388) - c * zoom + off) * fxf
 	if state == St.TITLE:
 		# 第七輪 D4：示範戰場縮小放右邊，不被左側面板壓到
 		cam = Transform2D(0, Vector2(0.72, 0.72), 0, Vector2(1270.0 - (ORIGIN.x + FIELD.x) * 0.72, 400.0 - (ORIGIN.y + FIELD.y / 2.0) * 0.72))

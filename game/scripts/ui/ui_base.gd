@@ -31,6 +31,49 @@ enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
 const ORIGIN := Vector2(128, 100)
 const CS := 64.0
 const FIELD := Vector2(16 * 64, 9 * 64)
+const MapArt = preload("res://scripts/ui/map_art.gd")
+const MapDefs = preload("res://scripts/core/map_defs.gd")
+# V9：這一場的場地（世界 px）。標準大小時 fld_size＝FIELD、_fld_xf＝單位矩陣，舊畫面完全不變
+var fld_size := FIELD
+var fld_w := 16000
+var fld_h := 9000
+var fld_map := 0
+var fld_sz := 1
+var fld_props: Array = []
+var map_art = null
+
+## 依這一場的規則同步場地。每幀畫面開頭呼叫。
+func _sync_field() -> void:
+	var r = rules if rules != null and rules.is_free() else null
+	var m: int = r.map_id if r != null else 0
+	var z: int = r.map_size if r != null else MapDefs.STD_SIZE
+	if m == fld_map and z == fld_sz:
+		return
+	fld_map = m
+	fld_sz = z
+	fld_w = MapDefs.width(z)
+	fld_h = MapDefs.height(z)
+	fld_size = Vector2(fld_w / 1000.0 * CS, fld_h / 1000.0 * CS)
+	fld_props = MapArt.props(m, z)
+	_map_tex()   # 一換圖就先烘，開場那幾格才看得到地形
+
+## 把場地放進固定的戰場框：等比容納，置中留邊。
+func _fld_xf() -> Transform2D:
+	if fld_sz == MapDefs.STD_SIZE:
+		return Transform2D.IDENTITY
+	var k: float = minf(FIELD.x / fld_size.x, FIELD.y / fld_size.y)
+	return Transform2D(0.0, Vector2(k, k), 0.0, ORIGIN + (FIELD - fld_size * k) / 2.0 - ORIGIN * k)
+
+func _map_tex() -> Texture2D:
+	if fld_map == 0:
+		return null
+	if map_art == null:
+		map_art = MapArt.new()
+		add_child.call_deferred(map_art)
+		return null
+	if not map_art.is_inside_tree():
+		return null
+	return map_art.texture(fld_map, fld_sz)
 const CARD_Y := 694.0
 const CARD_W := 80.0     # 第四輪：一排 10 張窄卡（方案 D），起點 x＝CARD_X0
 const CARD_X0 := 12.0

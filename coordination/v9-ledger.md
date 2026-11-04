@@ -1,3 +1,14 @@
 # SDD ledger — plan: docs/2026-11-04-v1-release-plan-v9.md
 使用者 11/04：依方案全做、不用停、困難自己想辦法、最後收尾回報。§11 全部採預設。基準 tag `v1.0-base`。
 Ruling: 專案外 ntb-* 只有舊截圖與記錄，移到 build/old-shots（不進 git）— 使用者要求東西放專案內 — 錯了也還在 build 裡
+P0: complete — 統一檢查 40 分→5～12 分（平行、快取）；CI 有觸發，Linux 匯出在 CI 通過（第一次驗到）。
+P1: complete — 拆檔用線性繼承鏈，因 GDScript 基底不能呼叫子類函式，用相依圖排層。battle_sim 不拆（只加新模組），避免動到位元組。
+Ruling: 測試裡 golden 由 100 場降到 20 場 — 統一檢查的 golden 步驟有完整的 — 無
+P2: complete — 步態、死亡、動畫檢查；Codex、Antigravity 一輪（v9-p2-r1），修 Codex #1 #4 #5、Antigravity #1 #2 #5 #6 #7 #8。
+Ruling: 跳轉後步態相位直接重置，不重建 — 只有腳的相位差，跳轉本身已是畫面不連續 — 同一 tick 連播與跳轉到達時腳的姿勢可能不同（Codex P2 #2）
+Ruling: overlay 與離地的矩陣順序不統一 — 只有騎兵衝鋒時差 0.5px（Codex P2 #3）— 幾乎看不到
+Ruling: 長槍兵第二組攻擊維持直立發光（拒騎），石魔舉拳維持 — 拒騎本來就是專屬防禦動作；手臂有連線（Antigravity #3 #4）— 美感差異
+P3: complete — 地形格、尋路、可變大小、NTBR4、golden_map 34 場。
+Ruling: 噴口不做 — 方案本來列可砍，Codex 指出定時傷害與死亡連鎖風險，Antigravity 也擔心偏運氣；熔岩裂谷靠灰燼與岩塊已有特色 — 少一種地形；NTBR4 留欄位未來可加
+Ruling: 導航每 4 tick 全體重算，不依單位編號錯開 — 錯開會破壞鏡像 — 同 tick 算量較集中
+Ruling: 沙漏精靈會被牆擋（只有幽靈能穿）— 少一種穿牆停點問題 — 只影響沙漏站位

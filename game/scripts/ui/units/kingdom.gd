@@ -183,7 +183,9 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 				_star(ci, bp + Vector2(5.5, -12), 3.2 * sp + 1.0, Color(1, 0.85, 0.3, a))
 				_c(ci, Vector2(14 + w * 6.0, -17), 3.0, SKIN, a)
 			else:
-				_c(ci, Vector2(12 + w * 4.0, -24 + w * 6.0), 3.0, SKIN, a)
+				# 甩臂：火罐出手後手臂往前下甩（Antigravity P2 #6）
+				_line(ci, Vector2(7, -20), Vector2(12 + w * 12.0, -24 + w * 14.0), SKIN, 2.6, a)
+				_c(ci, Vector2(12 + w * 12.0, -24 + w * 14.0), 3.0, SKIN, a)
 		D.MEDIC:
 			# 白色高方帽＋綠十字
 			_poly(ci, PackedVector2Array([Vector2(-9, hy - 7), Vector2(-8, hy - 24), Vector2(8, hy - 24), Vector2(9, hy - 7)]), Color("#fbfbf7"), a)
@@ -261,7 +263,7 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 		var fx: float = ft[0] if front else ft[2]
 		var fy: float = ft[1] if front else ft[3]
 		var lift := maxf(0.0, w) * 12.0 if front else 0.0   # 命中時馬前蹄抬起（第三輪 R4；Antigravity S4 加大）
-		fx *= 0.5 if k_leg % 2 == 0 else 0.42
+		fx += 0.6 if k_leg % 2 == 0 else -0.6   # 同一對腿微微錯開（不縮步長，否則又會滑）
 		_line(ci, Vector2(lx, -12), Vector2(lx + fx + lift * 0.6, -2 - lift - fy), Color("#9c6b3c"), 3.0, a)
 		k_leg += 1
 	_push_body(ci, Gait.body_xf(D.CAVALRY, walk))

@@ -68,7 +68,7 @@ static func check_free(a0, a1, rules = null) -> String:
 		var u = s1.units[k]
 		if u.dormant:
 			continue
-		var key := Vector3i(1 - u.team, Sim.W - u.x, u.y)
+		var key := Vector3i(1 - u.team, s1.fw - u.x, u.y)
 		if not by_pos.has(key):
 			return "tick 0 找不到單位 %d 的鏡像" % u.id
 		imap[k] = by_pos[key]
@@ -98,8 +98,8 @@ static func check_free(a0, a1, rules = null) -> String:
 			var u = s1.units[k]
 			var v = s2.units[imap[k]]
 			# 第七輪 S2：完整狀態投影（原本只比 14 欄）；新增欄位要加進來。不影響出貨指紋。
-			var a := [Sim.W - u.x, u.y, u.hp, -u.fx, u.fy, imap[u.target], imap[u.face_lock], u.cd, u.stun, u.slow,
-				u.stealth, u.charge, -u.cdx, u.cdy, -u.mx, u.my, (Sim.W - u.wp_x) if u.wp_x >= 0 else -1, u.wp_y, u.alive,
+			var a := [s1.fw - u.x, u.y, u.hp, -u.fx, u.fy, imap[u.target], imap[u.face_lock], u.cd, u.stun, u.slow,
+				u.stealth, u.charge, -u.cdx, u.cdy, -u.mx, u.my, (s1.fw - u.wp_x) if u.wp_x >= 0 else -1, u.wp_y, u.alive,
 				u.dmg_dealt, u.dmg_taken, idmap.get(u.wp_for, -1), u.nav, u.chasing, u.kills, u.hcd, u.aura, u.breach, u.bmode, u.heal_done, imap[u.follow], u.drum_cover, u.max_hp, u.atk, u.speed, u.reach, u.cd_base]
 			var b := [v.x, v.y, v.hp, v.fx, v.fy, v.target, v.face_lock, v.cd, v.stun, v.slow,
 				v.stealth, v.charge, v.cdx, v.cdy, v.mx, v.my, v.wp_x, v.wp_y, v.alive,
@@ -110,7 +110,7 @@ static func check_free(a0, a1, rules = null) -> String:
 			if a != b:
 				return "tick %d 單位 %d：%s vs %s" % [s1.tick, u.id, a, b]
 		if s1.v8:
-			var z1: Array = s1.zones.map(func(z): return [Sim.W - int(z[0]), z[1], z[2], 1 - int(z[3])])
+			var z1: Array = s1.zones.map(func(z): return [s1.fw - int(z[0]), z[1], z[2], 1 - int(z[3])])
 			var z2: Array = s2.zones.duplicate()
 			z1.sort()
 			z2.sort()

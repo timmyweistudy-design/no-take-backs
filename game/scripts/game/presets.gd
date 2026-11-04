@@ -82,8 +82,8 @@ static func badge(r, kind: String) -> String:
 	return BADGE_CERT if base and r.pool_of(0) == 31 and r.pool_of(1) == 31 and r.place_rule == "snake5" and not r.carry else BADGE_FUN
 
 static func deploy_certified(r) -> bool:
-	if r.fullfield != 0:
-		return false
+	if r.fullfield != 0 or not r.map_is_default():
+		return false   # V9：地圖是娛樂變體，平衡認證只給平原中型
 	return r.deploy == "grid" or (r.spacing == FREE_SPACING and r.depth == FREE_DEPTH)
 
 ## 算不算「標準紀錄」（標準戰績、標準成就；Codex 實作第 1 輪：和「平衡認證」分開判定）。

@@ -75,7 +75,7 @@ def plan(a) -> list:
         test("t_ui", "ui")
         gd("golden", "tools/golden.gd", ["--n=30"], r'^GOLDEN \{.*"ok":true')
     else:
-        for s in ["anim", "units", "free", "content", "harness"]:
+        for s in ["maps", "anim", "units", "free", "content", "harness"]:
             test(f"t_{s}", s)
         # 最慢的幾項各開一個行程（都不碰存檔）；其他留在原組
         test("t_golden", "test_golden")
@@ -89,6 +89,7 @@ def plan(a) -> list:
         gd("sealcodes", "tools/seal_codes.gd", [], r'^SEALCODES \{"n":40,"ok":true')
         shards("goldenfree", "tools/golden_free.gd", [], r'^GOLDENFREE \{.*"ok":true', 3)
         shards("goldenv8", "tools/golden_v8.gd", [], r'^GOLDENV8 \{.*"ok":true', 3)
+        shards("goldenmap", "tools/golden_map.gd", [], r'^GOLDENMAP \{.*"ok":true', 3)
         gd("orbit", "tools/orbit_detect.gd", [], r"^ORBIT cav_battles=")
     for name, py in [("strings", "check_strings.py"), ("assets", "check_assets.py"), ("font", "check_font_coverage.py")]:
         if a.quick and name == "assets":

@@ -11,7 +11,9 @@ root = os.path.join(os.path.dirname(__file__), "..")
 chars = set()
 for pat in ["data/*.csv", "data/*.json", "data/*.txt", "scripts/**/*.gd"]:
     for f in glob.glob(os.path.join(root, pat), recursive=True):
-        chars.update(open(f, encoding="utf-8").read())
+        txt = open(f, encoding="utf-8").read()
+        # V9：程式碼只算字串常值，註解的字不必進字型
+        chars.update("".join(re.findall(r'"(?:[^"\\\n]|\\.)*"', txt)) if f.endswith(".gd") else txt)
 chars.update(chr(c) for c in range(0x20, 0x7F))
 chars.update("★☆✓✗✦●◆■□｜・…×％（）：，。！？「」、")
 text = "".join(sorted(c for c in chars if c.isprintable()))

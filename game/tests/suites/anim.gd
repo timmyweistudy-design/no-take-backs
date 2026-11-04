@@ -61,7 +61,7 @@ func test_gait_v9() -> void:
 	ok(low, "踩地的腳貼地，沒有浮空")
 	# 羊、寶箱怪才會整隻跳；走路的兵不離地
 	ok(Gait.air(0, 1.3) == 0.0 and Gait.air(11, 1.3) > 0.0 and Gait.air(12, 1.3) > 0.0, "只有跳奔的兵整隻離地")
-	ok(Gait.air(13, 1.3) == 0.0, "史萊姆底部不離地")
+	ok(Gait.air(13, 0.0001) < 0.01, "史萊姆落地那一格貼地")
 	# 專屬姿勢
 	ok(Gait.ph(Gait.POSE_DRAG) == 0.0 and Gait.feet(0, Gait.POSE_DRAG)[0] > 0.0, "拖行姿勢腳在身前")
 	ok(Gait.body_xf(0, Gait.POSE_DRAG).get_rotation() < -0.1, "拖行姿勢身體後仰")

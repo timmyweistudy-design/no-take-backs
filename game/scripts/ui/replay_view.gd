@@ -310,7 +310,7 @@ func _open_review() -> void:
 		var ep: Array = []
 		for u in rv_enemy.units:
 			ep.append(Army.pos_of(u))
-		if rv_orig.depth > Army.W / 2:
+		if rv_orig.depth > rv_orig.fw / 2:
 			rv_army.enemy_pos = ep
 			rv_orig.enemy_pos = ep.duplicate()
 	rv_sel = Vector2i(-1, -1)
@@ -585,13 +585,13 @@ func _rv_has_sel() -> bool:
 var _rv_map := {}   # 自己這張圖的 {o: 左上, s: 每單位幾像素}
 
 func _rv_free_board(g0: Vector2) -> void:
-	var full: bool = rv_orig.depth > Army.W / 2
+	var full: bool = rv_orig.depth > rv_orig.fw / 2
 	var s := 0.028 if full else 0.038
-	var wpx: float = (Army.W if full else rv_orig.depth + Army.EDGE) * s
-	var r := Rect2(g0, Vector2(wpx, Army.H * s))
+	var wpx: float = (rv_orig.fw if full else rv_orig.depth + Army.EDGE) * s
+	var r := Rect2(g0, Vector2(wpx, rv_orig.fh * s))
 	draw_rect(r, Color(0.25, 0.4, 0.2))
 	if full:
-		draw_line(g0 + Vector2(Army.W / 2.0 * s, 0), g0 + Vector2(Army.W / 2.0 * s, r.size.y), Color(1, 1, 1, 0.25), 1.0)
+		draw_line(g0 + Vector2(rv_orig.fw / 2.0 * s, 0), g0 + Vector2(rv_orig.fw / 2.0 * s, r.size.y), Color(1, 1, 1, 0.25), 1.0)
 	_rv_map = {"o": g0, "s": s, "r": r}
 	var to_px := func(p: Vector2i) -> Vector2: return g0 + Vector2(p) * s
 	# 殘影：原本位置有改的那隻
@@ -623,10 +623,10 @@ func _rv_free_board(g0: Vector2) -> void:
 	if not full:
 		# 紅方部署區（小、只看）
 		var s2 := 0.018
-		var g1 := Vector2(g0.x + wpx + 14, g0.y + (r.size.y - Army.H * s2) / 2)
+		var g1 := Vector2(g0.x + wpx + 14, g0.y + (r.size.y - rv_orig.fh * s2) / 2)
 		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true)
-		var x0: int = Army.W - rv_orig.depth - Army.EDGE
-		draw_rect(Rect2(g1, Vector2((Army.W - x0) * s2, Army.H * s2)), Color(0.35, 0.2, 0.2, 0.45))
+		var x0: int = rv_orig.fw - rv_orig.depth - Army.EDGE
+		draw_rect(Rect2(g1, Vector2((rv_orig.fw - x0) * s2, rv_orig.fh * s2)), Color(0.35, 0.2, 0.2, 0.45))
 		for u in rv_enemy.units:
 			var pe := Army.pos_of(u)
 			Art.unit(self, g1 + Vector2(pe.x - x0, pe.y) * s2, int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.75, time, 0.3, cbm())

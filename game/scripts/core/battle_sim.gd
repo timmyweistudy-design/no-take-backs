@@ -113,6 +113,10 @@ var _last_rank := 99          # 上一次 _choose_target 選中目標的優先�
 var _was_stealth := {}         # 刺客上一 tick 是否潛行（現形事件用）
 var _was_rally := [false, false]          # 上一 tick 哪一隊在背水（背水開／關事件用）
 var v8 := false                # 這一場用到第八輪新兵
+var fw := W                    # V9：場地大小（標準＝舊常數，舊場次完全相同）
+var fh := H
+var terrain = null             # V9：地形（null＝平原，舊路徑不碰）
+var _nav_wp := {}              # V9：單位索引 → 導航途經點（每 4 tick 重算）
 var zones: Array = []          # 碎石區：[x, y, 到期 tick]
 var _pending_blast: Array = [] # 半路被打死、下一 tick 才炸的爆爆羊（索引）
 var fast := false              # 平衡工具用：不算每 tick 指紋（結果完全一樣，只是沒有指紋）
@@ -132,6 +136,9 @@ func _init(army0, army1, p_rules = null) -> void:
 			budgets = [army0.budget, army1.budget]
 		for k in rules.skills_off:
 			skill_off[k] = true
+		fw = rules.field_w()
+		fh = rules.field_h()
+		terrain = rules.terrain()
 	atk_pct.resize(F8.DRAW_TOTAL)
 	atk_pct.fill(100)
 	if rules != null:
@@ -148,7 +155,7 @@ func _init(army0, army1, p_rules = null) -> void:
 			var lst: Array = []
 			for u in a.units:
 				var pp: Vector2i = Army.pos_of(u)
-				var ox: int = pp.x if a.team == 0 else W - pp.x
+				var ox: int = pp.x if a.team == 0 else fw - pp.x
 				lst.append([pp.y * 100000 + ox, u, pp])
 			lst.sort_custom(func(p, q): return p[0] < q[0])
 			for k in lst.size():
@@ -283,6 +290,11 @@ func step() -> void:
 			if units[i].alive and units[i].type == F8.GHOST and not skill_off.has("ghost"):
 				sc[i] = 0      # 幽靈穿過所有兵
 				sa[i] = 0      # 火罐波及打不到幽靈
+	if terrain != null:
+		if not v8:
+			for u0 in units:
+				u0.zone = 100
+		_t_pre_tick(n)
 	# 每隊還活著的戰鬥兵（非支援）數量：支援兵用來決定「支援模式」還是「自己打」（第四輪）
 	var fighters := [0, 0]
 	for i in n:
@@ -316,8 +328,12 @@ func step() -> void:
 				continue
 			var fp := _support_point(i, sx, sy, sh)
 			var bx := fp.x - D.SUPPORT_BACK if u.team == 0 else fp.x + D.SUPPORT_BACK
-			var dest_sx := clampi(bx, EDGE, W - EDGE)
-			var dest_sy := clampi(fp.y, EDGE, H - EDGE)
+			var dest_sx := clampi(bx, EDGE, fw - EDGE)
+			var dest_sy := clampi(fp.y, EDGE, fh - EDGE)
+			if terrain != null:
+				var sw := _t_nav(i, u, dest_sx, dest_sy)
+				dest_sx = sw.x
+				dest_sy = sw.y
 			var sdx := dest_sx - u.x
 			var sdy := dest_sy - u.y
 			var sl := M.isqrt(sdx * sdx + sdy * sdy)
@@ -362,8 +378,8 @@ func step() -> void:
 		var flanking := false
 		if u.type == D.ASSASSIN and u.stealth > 0:
 			# 潛行中繞到目標背後（目的地夾在場內）
-			dest_x = clampi(tg.x - tg.fx * D.BEHIND_DIST / 1000, EDGE, W - EDGE)
-			dest_y = clampi(tg.y - tg.fy * D.BEHIND_DIST / 1000, EDGE, H - EDGE)
+			dest_x = clampi(tg.x - tg.fx * D.BEHIND_DIST / 1000, EDGE, fw - EDGE)
+			dest_y = clampi(tg.y - tg.fy * D.BEHIND_DIST / 1000, EDGE, fh - EDGE)
 			stop_at = 0
 		elif u.type == D.CAVALRY:
 			var wp := _flank_waypoint(i, t)
@@ -382,6 +398,12 @@ func step() -> void:
 			stop_at = reach - D.CHASE_HYST
 			u.chasing = need_move
 		if need_move:
+			if terrain != null and u.type != F8.GHOST:
+				var nw := _t_nav(i, u, dest_x, dest_y)
+				if nw.x != dest_x or nw.y != dest_y:
+					dest_x = nw.x
+					dest_y = nw.y
+					stop_at = 0
 			var dx := dest_x - u.x
 			var dy := dest_y - u.y
 			var l := M.isqrt(dx * dx + dy * dy)
@@ -451,8 +473,10 @@ func step() -> void:
 				px[j] += ux * half / 1000
 				py[j] += uy * half / 1000
 		for i in n:
-			nx[i] = clampi(nx[i] + px[i], EDGE, W - EDGE)
-			ny[i] = clampi(ny[i] + py[i], EDGE, H - EDGE)
+			nx[i] = clampi(nx[i] + px[i], EDGE, fw - EDGE)
+			ny[i] = clampi(ny[i] + py[i], EDGE, fh - EDGE)
+	if terrain != null:
+		_t_resolve(n, sx, sy, nx, ny)
 
 	if v8:
 		for i in n:
@@ -683,8 +707,8 @@ func step() -> void:
 		if not better and d == best_d[tgt]:
 			var a := units[src]
 			var b := units[cur]
-			var da: int = a.x if a.team == 0 else W - a.x
-			var db: int = b.x if b.team == 0 else W - b.x
+			var da: int = a.x if a.team == 0 else fw - a.x
+			var db: int = b.x if b.team == 0 else fw - b.x
 			better = a.y < b.y or (a.y == b.y and da < db)
 		if better:
 			last_hit[tgt] = src
@@ -710,14 +734,26 @@ func step() -> void:
 			ky[kb[0]] = int(ky.get(kb[0], 0)) + v3.y * D.KNOCKBACK / 1000
 		for i in n:
 			if kx.has(i):
-				units[i].x = clampi(units[i].x + int(kx[i]), EDGE, W - EDGE)
-				units[i].y = clampi(units[i].y + int(ky[i]), EDGE, H - EDGE)
+				var kx0: int = units[i].x
+				var ky0: int = units[i].y
+				units[i].x = clampi(units[i].x + int(kx[i]), EDGE, fw - EDGE)
+				units[i].y = clampi(units[i].y + int(ky[i]), EDGE, fh - EDGE)
+				if terrain != null:
+					var kp := _t_back(units[i], kx0, ky0, units[i].x, units[i].y)
+					units[i].x = kp.x
+					units[i].y = kp.y
 		knock.clear()
 	for kb in knock:
 		var v := M.unit1000(kb[1], kb[2])
 		var t: Unit = units[kb[0]]
-		t.x = clampi(t.x + v.x * D.KNOCKBACK / 1000, EDGE, W - EDGE)
-		t.y = clampi(t.y + v.y * D.KNOCKBACK / 1000, EDGE, H - EDGE)
+		var tx0: int = t.x
+		var ty0: int = t.y
+		t.x = clampi(t.x + v.x * D.KNOCKBACK / 1000, EDGE, fw - EDGE)
+		t.y = clampi(t.y + v.y * D.KNOCKBACK / 1000, EDGE, fh - EDGE)
+		if terrain != null:
+			var tp := _t_back(t, tx0, ty0, t.x, t.y)
+			t.x = tp.x
+			t.y = tp.y
 	for i in n:
 		var u := units[i]
 		if not u.alive:
@@ -836,7 +872,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 						if ey > b_y:
 							continue
 						if ey == b_y:
-							var dep: int = sx[j] if st[j] == 0 else W - sx[j]
+							var dep: int = sx[j] if st[j] == 0 else fw - sx[j]
 							if dep >= b_dep:
 								continue
 		best = j
@@ -844,7 +880,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 		b_d2 = d2
 		b_hp = sh[j]
 		b_y = sy[j]
-		b_dep = sx[j] if st[j] == 0 else W - sx[j]
+		b_dep = sx[j] if st[j] == 0 else fw - sx[j]
 	_last_rank = b_rank
 	return best
 
@@ -1251,7 +1287,9 @@ func _v8_on_death(i: int, killer: int) -> void:
 				c.dormant = false
 				c.alive = true
 				c.x = u.x
-				c.y = clampi(u.y + (F8.SLIME_OFFSET if c.sub == 0 else -F8.SLIME_OFFSET), EDGE, H - EDGE)
+				c.y = clampi(u.y + (F8.SLIME_OFFSET if c.sub == 0 else -F8.SLIME_OFFSET), EDGE, fh - EDGE)
+				if terrain != null and terrain.blocked(c.x, c.y, c.team):
+					c.y = u.y     # 裂到牆裡：留在母體位置，碰撞會把它們推開
 				c.cd = c.cd_base * 4
 				events.append({"kind": EV.SPLIT, "src": c.id, "tgt": c.id, "tags": [EV.SPLIT]})
 	elif u.type == F8.GOLEM and not skill_off.has("stomp"):
@@ -1275,6 +1313,10 @@ func _v8_post_tick(raises: Array) -> void:
 		s.alive = true
 		s.x = c.x
 		s.y = c.y
+		if terrain != null and terrain.blocked(s.x, s.y, s.team):
+			var sf: Vector2i = terrain.free_near(s.x, s.y, s.team)   # 幽靈死在牆裡
+			s.x = sf.x
+			s.y = sf.y
 		s.max_hp = mini(c.max_hp * F8.BONE_HP_PCT / 100, F8.BONE_HP_CAP)
 		s.hp = s.max_hp
 		s.cd = s.cd_base * 4
@@ -1301,8 +1343,8 @@ func _tie_less(d2a: int, a: Unit, d2b: int, b: Unit) -> bool:
 		return d2a < d2b
 	if a.y != b.y:
 		return a.y < b.y
-	var da: int = a.x if a.team == 0 else W - a.x
-	var db: int = b.x if b.team == 0 else W - b.x
+	var da: int = a.x if a.team == 0 else fw - a.x
+	var db: int = b.x if b.team == 0 else fw - b.x
 	if da != db:
 		return da < db
 	return a.slot < b.slot
@@ -1347,13 +1389,13 @@ func _support_point(i: int, sx: PackedInt64Array, sy: PackedInt64Array, sh: Pack
 		var a := units[j]
 		if not a.alive or a.team != u.team or D.is_support(a.type):
 			continue
-		sd += sx[j] if u.team == 0 else W - sx[j]
+		sd += sx[j] if u.team == 0 else fw - sx[j]
 		sy2 += sy[j]
 		cnt += 1
 	if cnt == 0:
 		return Vector2i(sx[i], sy[i])
 	var dep := sd / cnt
-	return Vector2i(dep if u.team == 0 else W - dep, sy2 / cnt)
+	return Vector2i(dep if u.team == 0 else fw - dep, sy2 / cnt)
 
 ## 血比例比較：hp_a/max_a < hp_b/max_b（交叉相乘，不用浮點）；同比例再比平手鍵。
 func _ratio_less(hpa: int, ma: int, d2a: int, a: Unit, hpb: int, mb: int, d2b: int, b: Unit) -> bool:
@@ -1389,7 +1431,7 @@ func _try_heal(i: int, sh: PackedInt64Array, heals: Array) -> void:
 	var ha: int = maxi(1, D.HEAL_AMT * atk_pct[D.MEDIC] / 100)   # 沙盒：醫者攻擊倍率也套在補血量
 	var amt := ha if not frenzy else ha / 2
 	# 平手鍵在 ④ 就存好（距離、列、深度、部署格），⑤ 的擊退不會改到記功歸屬（Codex 實作審查 #5）
-	heals.append([i, best, amt, bd2, u.y, u.x if u.team == 0 else W - u.x, u.slot])
+	heals.append([i, best, amt, bd2, u.y, u.x if u.team == 0 else fw - u.x, u.slot])
 	u.hcd = D.HEAL_CD
 
 ## ⑤ 補血：傷害已經扣完；血 ≤0 的照死不補。同一隻被多個醫者選中只吃最大的一筆，記功給（量大→平手鍵）的那個醫者。
@@ -1455,7 +1497,7 @@ func pick_counter(si: int, attackers: Array) -> int:
 	for ai in attackers:
 		var a := units[ai]
 		var d2 := M.dist2(sw.x, sw.y, a.x, a.y)
-		var dep: int = a.x if a.team == 0 else W - a.x
+		var dep: int = a.x if a.team == 0 else fw - a.x
 		if best == -1 or d2 < bd or (d2 == bd and (a.y < by or (a.y == by and dep < bdep))):
 			best = ai
 			bd = d2
@@ -1555,7 +1597,7 @@ func _flank_waypoint(i: int, t: int) -> Vector2i:
 		return Vector2i(-1, -1)
 	# 上下兩個候選點都先夾在離邊界有餘裕的範圍；夾完之後如果離直線不到 FLANK_DETECT（沒有真的繞開）就不採用
 	var lo := EDGE + D.FLANK_EDGE_MARGIN
-	var hi := H - EDGE - D.FLANK_EDGE_MARGIN
+	var hi := fh - EDGE - D.FLANK_EDGE_MARGIN
 	var mid_x := u.x + (tg.x - u.x) / 2   # 用差值往 0 截斷，左右鏡像才對稱
 	var line_y := u.y + (tg.y - u.y) / 2
 	var up_y := clampi(mini(u.y, tg.y) - D.FLANK_OFFSET, lo, hi)
@@ -1683,3 +1725,63 @@ func suspense() -> Dictionary:
 				swing = -lead
 	var ratio := lock_t * 1000 / maxi(1, lg.size())
 	return {"lead_changes": changes, "lock_ratio_permille": ratio, "max_swing_pct": swing * 100 / total}
+
+# ── V9 地形 ──
+## 導航：直線走得到就走直線；否則朝導航場的下一點。每 4 tick 重算（不依單位索引錯開，鏡像才一致）。
+func _t_nav(i: int, u: Unit, dx: int, dy: int) -> Vector2i:
+	if not terrain.has_block:
+		return Vector2i(dx, dy)
+	if tick % 4 == 1 or not _nav_wp.has(i):
+		_nav_wp[i] = terrain.nav_step(u.team, u.x, u.y, dx, dy)
+	var w: Vector2i = _nav_wp[i]
+	if w.x < 0:
+		return Vector2i(dx, dy)
+	return w
+
+## 移動結果撞牆：能沿牆滑就滑，不然留在原地。幽靈可穿，但停下時要出牆。
+func _t_resolve(n: int, sx: PackedInt64Array, sy: PackedInt64Array, nx: PackedInt64Array, ny: PackedInt64Array) -> void:
+	for i in n:
+		var u := units[i]
+		if not u.alive or u.dormant:
+			continue
+		if u.type == F8.GHOST and not skill_off.has("ghost"):
+			if terrain.blocked(int(nx[i]), int(ny[i]), u.team) and u.mx == 0 and u.my == 0 and u.stun <= 0:
+				var f: Vector2i = terrain.free_near(int(nx[i]), int(ny[i]), u.team)
+				var ex: int = f.x - int(nx[i])
+				var ey: int = f.y - int(ny[i])
+				var el := M.isqrt(ex * ex + ey * ey)
+				if el > 0:
+					nx[i] += ex * mini(u.speed, el) / el
+					ny[i] += ey * mini(u.speed, el) / el
+			continue
+		if terrain.blocked(int(nx[i]), int(ny[i]), u.team):
+			if not terrain.blocked(int(nx[i]), int(sy[i]), u.team):
+				ny[i] = sy[i]
+			elif not terrain.blocked(int(sx[i]), int(ny[i]), u.team):
+				nx[i] = sx[i]
+			else:
+				nx[i] = sx[i]
+				ny[i] = sy[i]
+
+## 瞬間位移（擊退）撞牆：從終點往起點退到第一個能站的位置。
+func _t_back(u: Unit, x0: int, y0: int, x1: int, y1: int) -> Vector2i:
+	if terrain == null or u.type == F8.GHOST or not terrain.blocked(x1, y1, u.team):
+		return Vector2i(x1, y1)
+	for k in range(1, 5):
+		var x: int = x1 + (x0 - x1) * k / 4
+		var y: int = y1 + (y0 - y1) * k / 4
+		if not terrain.blocked(x, y, u.team):
+			return Vector2i(x, y)
+	return Vector2i(x0, y0)
+
+## 每 tick 依腳底取樣地形速度：u.zone＝min(地形％, 技能％)；完全沒減速才吃加速。
+func _t_pre_tick(n: int) -> void:
+	for i in n:
+		var u := units[i]
+		if not u.alive or u.dormant or u.type == F8.GHOST or u.type == F8.SPRITE:
+			continue
+		var pct: int = terrain.speed_pct(u.x, u.y, u.team)
+		if pct < 100:
+			u.zone = mini(u.zone, pct)
+		elif pct > 100 and u.zone == 100:
+			u.zone = pct

@@ -23,6 +23,8 @@ func _skip_step() -> void:
 
 
 func _battle_process(delta: float) -> void:
+	if view != null:
+		_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
 	if start_hold > 0.0:
 		start_hold -= delta
 		return
@@ -62,7 +64,7 @@ func _battle_process(delta: float) -> void:
 		_frame_alive(delta)
 	else:
 		zoom_target = 1.0
-		zoom_center = zoom_center.lerp(ORIGIN + FIELD / 2, minf(1.0, delta * 3))
+		zoom_center = zoom_center.lerp(ORIGIN + fld_size / 2, minf(1.0, delta * 3))
 	zoom = lerpf(zoom, zoom_target, delta * 3)
 	if view.finished:
 		result_delay += delta
@@ -90,7 +92,6 @@ func _check_clutch(with_fx := true) -> void:
 
 ## 鏡頭安全框（優化方案 F2）：把所有存活單位框進畫面，四周留 15%。
 func _frame_alive(delta: float) -> void:
-	_gait_frame(delta)
 	var lo := Vector2(1e9, 1e9)
 	var hi := Vector2(-1e9, -1e9)
 	for u in view.units:

@@ -37,6 +37,8 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	var tc := team_color(team, cb)
 	_team_now = team
 	var w: float = pose(atk)[0]
+	if atk > 0.0:
+		walk = 0.0   # 和精靈圖一致：攻擊格沒有走路相位
 	_xf = base * unit_xf(p, face, walk, atk, t, scale, lean, crouch, type)
 	ci.draw_set_transform_matrix(_xf)
 	# 以 face＝+1 畫（水平鏡像由 transform 處理）

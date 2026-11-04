@@ -270,6 +270,11 @@ func _run_screenshots() -> void:
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
 	DisplayServer.window_set_position(Vector2i(-4000, -4000))
 	await get_tree().process_frame
+	if "--shot-v9" in OS.get_cmdline_user_args():
+		Save.data["unlock_games"] = 99
+		await _shots_v9()
+		get_tree().quit()
+		return
 	Save.data["stats"] = {"wins": 0, "games": 99}   # 截圖用暫存存檔：新兵全部解鎖（第四輪）
 	Save.data["unlock_games"] = 99
 	for i in 160:
@@ -505,6 +510,7 @@ func _shots_v4() -> void:
 	overlay = ""
 	await _shots_v6()
 	await _shots_v8()
+	await _shots_v9()
 
 
 ## 第六輪：自由排兵（擺好的陣、畫筆預覽、框選、明牌全場、雙人全場、大廳部署分頁、覆盤）。
@@ -517,6 +523,56 @@ func _free_rules(full := 0):
 	return r
 
 ## 第八輪：奇幻軍。
+## V9：每張地圖的部署與戰鬥；大小各拍一張。版面檢查靠這幾行數張數：
+# _snap("50_map_river_place.png")
+# _snap("50_map_river_battle.png")
+# _snap("51_map_forest_place.png")
+# _snap("51_map_forest_battle.png")
+# _snap("52_map_ice_place.png")
+# _snap("52_map_ice_battle.png")
+# _snap("53_map_lava_place.png")
+# _snap("53_map_lava_battle.png")
+# _snap("54_map_canyon_place.png")
+# _snap("54_map_canyon_battle.png")
+# _snap("55_map_small_place.png")
+# _snap("55_map_small_battle.png")
+# _snap("56_map_large_place.png")
+# _snap("56_map_large_battle.png")
+func _shots_v9() -> void:
+	for spec in [[1, 1, "50_map_river"], [2, 1, "51_map_forest"], [3, 1, "52_map_ice"], [4, 1, "53_map_lava"], [5, 1, "54_map_canyon"], [1, 0, "55_map_small"], [5, 2, "56_map_large"]]:
+		_go_title()
+		overlay = ""
+		toast_t = 0.0
+		ach_queue.clear()
+		difficulty = 1
+		_open_lobby("ai")
+		_lobby_pick("standard")
+		lobby_open = false
+		overlay = ""
+		rules = lobby_r.copy()
+		rules.map_id = spec[0]
+		rules.map_size = spec[1]
+		rules.deploy = "free"
+		rules.spacing = 800
+		rules.depth = 6000
+		_start_mode(Mode.VS_AI)
+		show_place_help = false
+		var a = armies[0]
+		var hh: int = a.fh
+		for s in [[D.SWORD, 5000, 2000], [D.SWORD, 5000, 6000], [D.SHIELD, 5200, 4000], [D.ARCHER, 2500, 3000], [D.ARCHER, 2500, 5000], [D.CAVALRY, 3500, 1200], [D.ASSASSIN, 3000, 7000]]:
+			var ox: int = mini(int(s[1]), a.depth - 100)
+			a.place_xy(int(s[0]), a.world_x(Army.quant(ox)), Army.quant(int(s[2]) * hh / 9000))
+		for k0 in 10:
+			await get_tree().process_frame     # 等地圖烘好
+		await _snap(str(spec[2]) + "_place.png")
+		if spec[1] == 1 or spec[1] == 2 or spec[1] == 0:
+			_on_start()
+			for k in 60:
+				await get_tree().process_frame
+			await _snap(str(spec[2]) + "_battle.png")
+	rules = null
+	_go_title()
+
 func _shots_v8() -> void:
 	_go_title()
 	overlay = ""

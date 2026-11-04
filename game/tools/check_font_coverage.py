@@ -2,13 +2,15 @@
 """字型涵蓋檢查（第五輪 §5.3）：遊戲會顯示的字（strings.csv、puzzles.json、codex.json、credits.txt、程式裡的字）
 都要在思源黑體子集裡；不然那幾個字會靜靜 fallback 成系統字型（循徑拾光踩過的坑）。缺字 exit 1。
 標題字 ThenKhung 原字型本來就沒有的字由思源黑體 Bold 補，不算缺字。"""
-import os, glob, sys
+import os, glob, re, sys
 from fontTools.ttLib import TTFont
 root = os.path.join(os.path.dirname(__file__), "..")
 chars = set()
 for pat in ["data/*.csv", "data/*.json", "data/*.txt", "scripts/**/*.gd"]:
     for f in glob.glob(os.path.join(root, pat), recursive=True):
-        chars.update(open(f, encoding="utf-8").read())
+        txt = open(f, encoding="utf-8").read()
+        # V9：程式碼只算字串常值，註解的字不必進字型
+        chars.update("".join(re.findall(r'"(?:[^"\\\n]|\\.)*"', txt)) if f.endswith(".gd") else txt)
 need = sorted(c for c in chars if c.isprintable() and not c.isspace() and ord(c) >= 0x20)
 bad = []
 for w in ["Regular", "Bold"]:

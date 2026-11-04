@@ -40,7 +40,7 @@ func _draw_start_cue() -> void:
 	_text(Vector2(640, 340), msg, sz, Color(1, 0.85, 0.4, k), true, true)
 	for tm in 2:
 		var x: float = ORIGIN.x + (float(view.max_x(tm)) / 1000.0 if view.has_method("max_x") else (6.0 if tm == 0 else 10.0) * 1.0) * CS
-		draw_line(Vector2(x, ORIGIN.y), Vector2(x, ORIGIN.y + FIELD.y), Color(Art.team_color(tm, cbm()), 0.9 * k), 5.0)
+		draw_line(Vector2(x, ORIGIN.y), Vector2(x, ORIGIN.y + fld_size.y), Color(Art.team_color(tm, cbm()), 0.9 * k), 5.0)
 
 
 

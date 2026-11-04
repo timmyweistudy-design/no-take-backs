@@ -5,7 +5,7 @@ extends "res://scripts/ui/units/kingdom.gd"
 ## 隊伍色放上半身、面積要夠（§6）。全部 Q 版二頭身、粗黑框、白眼黑瞳。
 static func _fantasy(ci: CanvasItem, type: int, tc: Color, walk: float, w: float, a: float, t: float, angry := false, variant := 0) -> void:
 	match type:
-		10: _f_spore(ci, tc, w, a, t, angry)
+		10: _f_spore(ci, tc, walk, w, a, t, angry)
 		11: _f_sheep(ci, tc, walk, w, a, t, angry)
 		12: _f_mimic(ci, tc, walk, w, a, t, angry)
 		13: _f_slime(ci, tc, walk, w, a, t, angry, 1.0)
@@ -19,7 +19,8 @@ static func _fantasy(ci: CanvasItem, type: int, tc: Color, walk: float, w: float
 		21: _f_skeleton(ci, tc, walk, w, a, t, angry)
 
 
-static func _f_spore(ci: CanvasItem, tc: Color, w: float, a: float, t: float, angry: bool) -> void:
+static func _f_spore(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+	_push_body(ci, Gait.body_xf(10, walk))
 	# 短胖的柄＋超大菇傘；攻擊（噴毒）時整朵壓扁再彈起，底下兩朵小芽
 	var sq := 1.0 + maxf(0.0, w) * 0.22 - minf(0.0, w) * 0.1
 	var low := 1.0 - maxf(0.0, w) * 0.2
@@ -48,7 +49,7 @@ static func _f_sheep(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	var ft: Array = Gait.feet(11, walk)
 	for lx in [-11.0, -4.0, 5.0, 12.0]:
 		var front: bool = lx > 0.0
-		var sw: float = (ft[0] if front else ft[2]) * 0.32
+		var sw: float = (ft[0] if front else ft[2])
 		var up: float = (ft[1] if front else ft[3])
 		_line(ci, Vector2(lx, -10), Vector2(lx + sw, -3 - up), Color("#4a4258"), 3.0, a)
 		_c(ci, Vector2(lx + sw, -2.5 - up), 2.4, Color("#1d1a2b"), a, false)   # 黑蹄
@@ -81,7 +82,7 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	_push_body(ci, Gait.body_xf(12, walk))
 	var open := 0.45 + maxf(0.0, w) * 0.55 - minf(0.0, w) * 0.2
 	if wk != 0.0 and w == 0.0:
-		open = 0.02 + absf(sin(wk)) * 0.1
+		open = 0.04 + absf(sin(wk)) * 0.26   # 跳到最高才張嘴露一點舌（Antigravity P2 #1）
 	var by := -3.0
 	_poly(ci, PackedVector2Array([Vector2(-16, by), Vector2(-16, by - 15), Vector2(16, by - 15), Vector2(16, by)]), Color("#9c6b3c"), a)
 	ci.draw_line(Vector2(-16, by - 7), Vector2(16, by - 7), Color(OUT, 0.5 * a), 1.6, true)
@@ -114,7 +115,8 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, k: float) -> void:
 	# 果凍：底部微扁、頂上一小尖，走路和攻擊時壓扁彈起
 	var wk := Gait.ph(walk)
-	var sq := 1.0 + (sin(wk * 2.0) * 0.15 if wk != 0.0 else 0.0) + maxf(0.0, w) * 0.2 - minf(0.0, w) * 0.12
+	# 落地壓扁、騰空拉長（Antigravity P2 #2）：拉長時整隻離地（Gait.air）
+	var sq := (1.14 - absf(sin(wk)) * 0.26 if wk != 0.0 else 1.0) + maxf(0.0, w) * 0.2 - minf(0.0, w) * 0.12
 	if walk < -150.0:
 		sq = 1.22
 	var rx := 20.0 * k * sq
@@ -139,7 +141,7 @@ static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	# 無腳飄浮：飄逸的長裙擺，隊伍色披巾在肩上；攻擊時張大嘴
 	var body := tc.lightened(0.3)
 	var wk := Gait.ph(walk)
-	var lean := w * 4.0 + (2.5 if wk != 0.0 else 0.0)
+	var lean := w * 4.0 + (4.5 if wk != 0.0 else 0.0)   # 前進要看得出來（Antigravity P2 #7）
 	var sway := sin(t * 2.0 + wk) * 2.6
 	_push_body(ci, Gait.body_xf(14, walk))
 	var top := -48.0
@@ -283,8 +285,8 @@ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	# 無頸寬扁巨岩，頭嵌在胸口（和盾兵的前排人形分開）；肩甲、胸口石紋都是隊伍色；攻擊雙臂高舉下砸
 	var rock := Color("#8d8a80")
 	var ft: Array = Gait.feet(19, walk)
-	var lf: float = ft[0] * 0.8
-	var rf: float = ft[2] * 0.8
+	var lf: float = ft[0]
+	var rf: float = ft[2]
 	_poly(ci, PackedVector2Array([Vector2(-14 + lf, -2 - ft[1]), Vector2(-5 + lf, -2 - ft[1]), Vector2(-5, -14), Vector2(-14, -14)]), rock.darkened(0.2), a)
 	_poly(ci, PackedVector2Array([Vector2(5 + rf, -2 - ft[3]), Vector2(14 + rf, -2 - ft[3]), Vector2(14, -14), Vector2(5, -14)]), rock.darkened(0.2), a)
 	_push_body(ci, Gait.body_xf(19, walk))
