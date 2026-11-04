@@ -151,13 +151,13 @@ func test_fantasy_rules_v8() -> void:
 			back += 1
 	ok(back >= 1 and back <= F8.BONE_KIDS, "骷髏法師：最多 %d 隻" % F8.BONE_KIDS, str(back))
 	# 吸塵貓
-	s = _sim([[F8.CAT, 7000, 4000], [D.SWORD, 7000, 1000]], [[D.ARCHER, 6000, 4000]])
+	s = _sim([[F8.CAT, 7000, 4000], [D.SWORD, 7000, 1000]], [[D.ARCHER, 2000, 4000]])
 	var ar = null
 	for u5 in s.units:
 		if u5.type == D.ARCHER:
 			ar = u5
 	var toward := false
-	while not s.finished and s.tick < 120:
+	while not s.finished and s.tick < 200:
 		s.step()
 		if ar.pull_t > 0 and ar.pull_x < 0:
 			toward = true
@@ -172,6 +172,39 @@ func test_fantasy_rules_v8() -> void:
 		for e2 in s.events:
 			k[str(e2.get("kind", ""))] = 1
 	ok(k.has("stomp") and k.has("rock") and saw_zone, "小石魔：拍地、死後留碎石區", str(k.keys()))
+
+
+func test_fantasy_regress_v8() -> void:
+	# Codex r1：最後一隻羊被殺，要等它爆完才判勝負
+	var s = _sim([[F8.SHEEP, 7000, 4000]], [[D.ARCHER, 8000, 4000]])
+	for u in s.units:
+		if u.type == F8.SHEEP:
+			u.hp = 1
+	var k := _run(s, 200)
+	ok(int(k.get("blast", 0)) >= 1, "羊：最後一隻被殺仍然會爆", str(k))
+	# 純奇襲卡池不合法；末手不能只留奇襲兵
+	ok(not RSET.has_combat((1 << F8.SPORE) | (1 << F8.SHEEP) | (1 << F8.MIMIC)), "卡池：只有奇襲兵不算有戰鬥兵")
+	var rr = free_rules(800, 6000, 0)
+	rr.pool = [(1 << F8.SPORE) | (1 << F8.SHEEP), (1 << F8.SPORE) | (1 << F8.SHEEP)]
+	ok("rr_no_combat" in rr.validate(), "規則：純奇襲卡池不能開戰", str(rr.validate()))
+	# 關掉所有技能的規則代碼讀得回來
+	var r3 = free_rules(800, 6000, 0)
+	r3.pool = [RSET.full_pool() ^ 1023, RSET.full_pool() ^ 1023]
+	r3.skills_off = RSET.SKILLS + F8.SKILLS
+	ok(RSET.from_code(r3.to_code())["ok"], "規則代碼：關 22 個技能也讀得回來", str(RSET.from_code(r3.to_code()).get("why", "")))
+	# 兩隻貓同時吸、兩隻寶箱同時觸發：鏡像對稱
+	var why: String = MC.check_free(_army(0, [[F8.CAT, 6000, 3000], [F8.CAT, 6000, 5000], [F8.MIMIC, 7000, 4000], [F8.MIMIC, 7000, 4800], [D.SWORD, 1000, 1000]]), _army(1, [[F8.CAT, 6000, 3000], [F8.CAT, 6000, 5000], [F8.MIMIC, 7000, 4000], [F8.MIMIC, 7000, 4800], [D.SWORD, 1000, 1000]]), null)
+	ok(why == "", "鏡像：多貓多箱同時放招", why)
+	# 時停前搖被打斷，之後還能放
+	var sp = _sim([[F8.SPRITE, 7000, 4000], [D.SWORD, 7500, 3500], [D.SWORD, 7500, 4500]], [[D.SWORD, 8000, 3500], [D.SWORD, 8000, 4500]])
+	var spr = null
+	for u2 in sp.units:
+		if u2.type == F8.SPRITE:
+			spr = u2
+	spr.windup = 5
+	spr.stun = 3
+	sp.step()
+	ok(not spr.used and spr.windup == 0, "時停：前搖被打斷不算用掉")
 
 
 ## 鏡像：隨機新舊混編，逐 tick 完全對稱（含生兵）。

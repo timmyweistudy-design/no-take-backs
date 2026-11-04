@@ -749,7 +749,7 @@ func step() -> void:
 				units[last_hit[i]].kills += 1
 			events.append({"kind": EV.DEATH, "id": u.id})
 			if v8:
-				_v8_on_death(i)
+				_v8_on_death(i, last_hit[i])
 	if v8:
 		_v8_post_tick(raises)
 
@@ -891,6 +891,8 @@ func _v8_pre_tick(n: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Packed
 		var u := units[i]
 		if u.alive and u.type != F8.SPORE and not u.hidden:
 			able[u.team] += 1
+	# 先用這一 tick 開始的狀態決定誰現身，再一起套用（一隻現身不會連帶觸發別隻，鏡像才對稱）
+	var opening: Array = []
 	for i in n:
 		var u := units[i]
 		if not u.alive or not u.hidden:
@@ -902,11 +904,14 @@ func _v8_pre_tick(n: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Packed
 					open = true
 					break
 		if open:
-			u.hidden = false
-			u.bite = true
-			events.append({"kind": EV.MIMIC_OPEN, "src": u.id, "tgt": u.id, "tags": [EV.MIMIC_OPEN]})
+			opening.append(i)
 		else:
 			sv[i] = 0
+	for i in opening:
+		var u := units[i]
+		u.hidden = false
+		u.bite = true
+		events.append({"kind": EV.MIMIC_OPEN, "src": u.id, "tgt": u.id, "tags": [EV.MIMIC_OPEN]})
 	for i in n:
 		var u := units[i]
 		u.zone = 100
@@ -978,7 +983,7 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 	var pend := _pending_blast
 	_pending_blast = []
 	for pi in pend:
-		_v8_blast(pi, true, hits)
+		_v8_blast(pi[0], true, hits, pi[1])
 	# 毒：一隻敵兵一秒只吃一次（算最近那朵菇的）
 	if tick % F8.STATS[0]["cd"] == 0 and not skill_off.has("poison"):
 		for j in n:
@@ -996,6 +1001,7 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 						bd = d2
 			if best != -1:
 				hits.append([best, j, units[best].atk, EV.POISON, [EV.POISON]])
+	var cats: Array = []
 	for i in n:
 		var u := units[i]
 		if not u.alive:
@@ -1008,7 +1014,10 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 		if u.windup > 0:
 			u.windup -= 1
 			if u.windup == 0:
-				_v8_fire(i, n, long_stun, knock2, raises)
+				if u.type == F8.CAT:
+					cats.append(i)
+				else:
+					_v8_fire(i, n, long_stun, knock2, raises)
 			continue
 		match u.type:
 			F8.SPRITE:
@@ -1020,8 +1029,7 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 					if a.alive and a.team == u.team and a.hp * 100 < a.max_hp * F8.SPRITE_LOW_PCT and M.dist2(u.x, u.y, a.x, a.y) <= F8.SPRITE_R * F8.SPRITE_R:
 						low += 1
 				if low >= F8.SPRITE_NEED:
-					u.used = true
-					_v8_cast(u, EV.TIMESTOP)
+					_v8_cast(u, EV.TIMESTOP)   # 前搖被打斷不算用掉
 			F8.BONE:
 				if u.skill_cd == 0 and not skill_off.has("raise") and _v8_free_kid(i) != -1 and _v8_corpse(i, n) != -1:
 					u.skill_cd = F8.BONE_CD
@@ -1034,6 +1042,8 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 				if u.skill_cd == 0 and not skill_off.has("stomp") and _v8_enemy_in(i, n, F8.GOLEM_R):
 					u.skill_cd = F8.GOLEM_CD
 					_v8_cast(u, EV.STOMP)
+	if not cats.is_empty():
+		_v8_vacuum(n, cats)
 
 func _v8_cast(u: Unit, skill: String) -> void:
 	u.windup = F8.WINDUP
@@ -1074,6 +1084,7 @@ func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Arra
 	var u := units[i]
 	match u.type:
 		F8.SPRITE:
+			u.used = true
 			for j in n:
 				var o := units[j]
 				if not o.alive or M.dist2(u.x, u.y, o.x, o.y) > F8.SPRITE_R * F8.SPRITE_R:
@@ -1087,28 +1098,6 @@ func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Arra
 			var c := _v8_corpse(i, n)
 			if c != -1:
 				raises.append([i, c])
-		F8.CAT:
-			# 拉向身前 1 格；同一隻只吃一隻貓（下一次才會被別隻拉）；孢子菇、偽裝中不拉
-			var fx: int = u.x + u.fx * F8.CAT_FRONT / 1000
-			var fy: int = u.y + u.fy * F8.CAT_FRONT / 1000
-			for j in n:
-				var e := units[j]
-				if not e.alive or e.team == u.team or e.hidden or e.type == F8.SPORE or e.pull_t > 0:
-					continue
-				if M.dist2(u.x, u.y, e.x, e.y) > F8.CAT_R * F8.CAT_R:
-					continue
-				var dx: int = fx - e.x
-				var dy: int = fy - e.y
-				var l := M.isqrt(dx * dx + dy * dy)
-				if l == 0:
-					continue
-				var amt := mini(l, F8.CAT_PULL)
-				if e.type == D.CAVALRY or e.type == F8.GOLEM:
-					amt /= 2
-				e.pull_t = F8.CAT_PULL_TICKS
-				e.pull_x = dx * amt / l / F8.CAT_PULL_TICKS
-				e.pull_y = dy * amt / l / F8.CAT_PULL_TICKS
-			events.append({"kind": EV.VACUUM, "src": u.id, "tags": [EV.VACUUM]})
 		F8.GOLEM:
 			for j in n:
 				var e2 := units[j]
@@ -1116,8 +1105,41 @@ func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Arra
 					knock2.append([j, e2.x - u.x, e2.y - u.y])
 			events.append({"kind": EV.STOMP, "src": u.id, "tags": [EV.STOMP]})
 
+## 這一 tick 放招的吸塵貓：每隻敵兵只被最近的那隻拉（平手鍵鏡像不變，和貓的順序無關）。孢子菇、偽裝中不拉。
+func _v8_vacuum(n: int, cats: Array) -> void:
+	for c in cats:
+		events.append({"kind": EV.VACUUM, "src": units[c].id, "tags": [EV.VACUUM]})
+	for j in n:
+		var e := units[j]
+		if not e.alive or e.hidden or e.type == F8.SPORE or e.pull_t > 0:
+			continue
+		var best := -1
+		var bd := 0
+		for c in cats:
+			var u := units[c]
+			if u.team == e.team or not u.alive:
+				continue
+			var d2 := M.dist2(u.x, u.y, e.x, e.y)
+			if d2 <= F8.CAT_R * F8.CAT_R and (best == -1 or _tie_less(d2, u, bd, units[best])):
+				best = c
+				bd = d2
+		if best == -1:
+			continue
+		var cat := units[best]
+		var dx: int = cat.x + cat.fx * F8.CAT_FRONT / 1000 - e.x
+		var dy: int = cat.y + cat.fy * F8.CAT_FRONT / 1000 - e.y
+		var l := M.isqrt(dx * dx + dy * dy)
+		if l == 0:
+			continue
+		var amt := mini(l, F8.CAT_PULL)
+		if e.type == D.CAVALRY or e.type == F8.GOLEM:
+			amt /= 2
+		e.pull_t = F8.CAT_PULL_TICKS
+		e.pull_x = dx * amt / l / F8.CAT_PULL_TICKS
+		e.pull_y = dy * amt / l / F8.CAT_PULL_TICKS
+
 ## 爆爆羊爆炸。died＝半路被打死（小範圍、友敵都傷）。同一隻單位一 tick 最多吃 BLAST_CAP 次，敵方的羊優先、再比位置，順序鏡像不變。
-func _v8_blast(i: int, died: bool, hits: Array) -> void:
+func _v8_blast(i: int, died: bool, hits: Array, credit := -1) -> void:
 	var u := units[i]
 	if u.exploded or skill_off.has("blast"):
 		return
@@ -1133,7 +1155,7 @@ func _v8_blast(i: int, died: bool, hits: Array) -> void:
 			continue
 		if M.dist2(u.x, u.y, e.x, e.y) > r * r:
 			continue
-		hits.append([i, j, dmg, EV.BLAST, [EV.BLAST]])
+		hits.append([credit if credit >= 0 else i, j, dmg, EV.BLAST, [EV.BLAST]])   # 半路被打死的爆炸，傷害與擊殺記給打死它的那一方
 
 ## 羊爆上限：把這一 tick 的羊爆整理成每隻最多 BLAST_CAP 次。
 func _v8_cap_blasts(hits: Array) -> Array:
@@ -1196,10 +1218,10 @@ func _v8_voodoo(n: int, hits: Array, voodoo: Array) -> void:
 	hits.append_array(extra)
 
 ## 單位倒下：史萊姆分裂、石魔留碎石、羊排到下一 tick 爆。
-func _v8_on_death(i: int) -> void:
+func _v8_on_death(i: int, killer: int) -> void:
 	var u := units[i]
 	if u.type == F8.SHEEP and not u.exploded:
-		_pending_blast.append(i)
+		_pending_blast.append([i, killer])
 	elif u.type == F8.SLIME and not skill_off.has("split"):
 		for j in range(i + 1, units.size()):
 			var c := units[j]
@@ -1554,6 +1576,8 @@ func _hash_state() -> void:
 	_hash.update(a.to_byte_array())
 
 func _check_end() -> void:
+	if v8 and not _pending_blast.is_empty() and tick < max_ticks:
+		return   # 第八輪：還有羊在下一 tick 才爆，先別判勝負（Codex 第八輪 r1）
 	var a0 := alive_count(0)
 	var a1 := alive_count(1)
 	if a0 == 0 and a1 == 0:

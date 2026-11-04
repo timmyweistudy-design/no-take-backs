@@ -143,6 +143,9 @@ func _reset_place(keep_blue := false) -> void:
 	if rules != null and (mode == Mode.VS_AI or mode == Mode.DUEL):
 		armies[0].apply_rules(rules, 0)
 		armies[1].apply_rules(rules, 1)
+	if mode == Mode.GAUNTLET:
+		armies[0].pool = _gauntlet_pool()
+		armies[1].pool = _gauntlet_pool()
 	match mode:
 		Mode.VS_AI:
 			if blue_keep != null:
@@ -607,6 +610,8 @@ func _ntypes() -> int:
 func _pool() -> int:
 	if rules != null:
 		return rules.pool_of(0)
+	if mode == Mode.GAUNTLET:
+		return _gauntlet_pool()
 	return RuleSet.prefix_pool(_ntypes())
 
 

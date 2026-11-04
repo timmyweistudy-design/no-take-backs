@@ -23,7 +23,7 @@ static func random_formation(team: int, rng: RandomNumberGenerator, kind := "mix
 	# nt ≤ 5 時沒有支援兵，亂數呼叫順序和舊版完全一樣。
 	var fighters: Array = []
 	for t in nt:
-		if not D.is_support(t):
+		if D.is_combat(t):
 			fighters.append(t)
 	match kind:
 		"pure":

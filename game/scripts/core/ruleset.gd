@@ -70,6 +70,9 @@ var fullfield := FULL_NONE
 var preset := "standard"
 
 # ───────── 卡池工具（static，給 AI／Army 用） ─────────
+static func _not_combat(t: int) -> bool:
+	return not D.is_combat(t)   # 第八輪：奇襲兵也不算戰鬥兵
+
 static func all_pool() -> int:
 	return (1 << D.COUNT) - 1      # 舊 10 種。標準、AI、舊規則都看這個，不能跟著新兵變大
 
@@ -106,7 +109,7 @@ static func cheapest_in(p: int) -> int:
 static func cheapest_combat_in(p: int) -> int:
 	var c := 1 << 30
 	for t in types_of(p):
-		if not D.is_support(t):
+		if not _not_combat(t):
 			c = mini(c, D.cost(t))
 	return c
 
@@ -416,7 +419,7 @@ static func from_code(code: String) -> Dictionary:
 	for i in [6, 7]:
 		if int(j[i]) < 1 or int(j[i]) > (full_pool() if v3 else all_pool()):
 			return {"ok": false, "why": "rr_bad_pool"}
-	if not j[10] is String or not j[15] is Array or not j[16] is Array or j[15].size() > D.total() or j[16].size() > SKILLS.size():
+	if not j[10] is String or not j[15] is Array or not j[16] is Array or j[15].size() > D.total() or j[16].size() > SKILLS.size() + F8.SKILLS.size():
 		return {"ok": false, "why": "rr_code_body"}
 	for e in j[15]:
 		if not e is Array or e.size() != 4:

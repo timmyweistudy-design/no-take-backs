@@ -31,6 +31,7 @@ var ring_tex: Texture2D = null
 var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
 var _busy := false
 var _queue: Array = []
+var _baking: Array = []
 
 func is_ready(cb: bool) -> bool:
 	return ring_tex != null and ready_cb == (1 if cb else 0)
@@ -44,6 +45,7 @@ func build(cb: bool) -> void:
 		return
 	pages.clear()
 	loc.clear()
+	_queue.clear()
 	ring_tex = null
 	ready_cb = 1 if cb else 0
 	var base: Array = []
@@ -57,7 +59,7 @@ func ensure(types: Array) -> void:
 	if DisplayServer.get_name() == "headless" or ready_cb < 0:
 		return
 	for t in types:
-		if not loc.has(t) and not t in _queue:
+		if not loc.has(t) and not t in _queue and not t in _baking:
 			_queue.append(t)
 	if _busy or _queue.is_empty():
 		return
@@ -65,7 +67,9 @@ func ensure(types: Array) -> void:
 	while not _queue.is_empty():
 		var chunk: Array = _queue.slice(0, TYPES_PER_PAGE)
 		_queue = _queue.slice(chunk.size())
+		_baking = chunk
 		await _bake_page(chunk)
+		_baking = []
 	_busy = false
 
 func _viewport(size: Vector2i, painter: Node) -> SubViewport:
@@ -96,7 +100,8 @@ func _bake_page(types: Array) -> void:
 		for i in pages.size():
 			if pages[i] != null and int(pages[i]["types"][0]) >= D.COUNT:
 				for t in pages[i]["types"]:
-					loc.erase(t)
+					if loc.has(t) and int(loc[t][0]) == i:
+						loc.erase(t)
 				pages[i] = null
 				break
 	var pn := pages.size()
