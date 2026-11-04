@@ -3,7 +3,7 @@
 可愛派兵自動對決（Steam 小品）。花 100 金擺好小軍隊，按下開戰就不能再動，只能看著它們打到最後一秒。
 
 - 企劃 v1.0：[docs/2026-11-01-design-and-plan.md](docs/2026-11-01-design-and-plan.md)（§15 原型、§16 全面實作進度）
-- 第九輪 V1.0 正式版方案（未實作）：[docs/2026-11-04-v1-release-plan-v9.md](docs/2026-11-04-v1-release-plan-v9.md)
+- 第九輪 V1.0 正式版（已實作）：[docs/2026-11-04-v1-release-plan-v9.md](docs/2026-11-04-v1-release-plan-v9.md)
 - 第八輪奇幻兵團（再加 10 種兵，已完成）：[方案與進度](docs/history/2026-11-04-fantasy-units-plan-v8.md) §12；現況看 [docs/STATE.md](docs/STATE.md)
 - 三方優化方案：[第一輪](docs/history/2026-11-01-optimization-plan.md)、[第二輪 v2](docs/history/2026-11-01-optimization-plan-v2.md)（§11 進度）、[第三輪 v3](docs/history/2026-11-01-optimization-plan-v3.md)（§15 進度：可信、混戰、讀得懂、覆盤、門面）、[第四輪 v4：新增五種兵](docs/history/2026-11-02-new-units-plan-v4.md)（§12 進度）、[第五輪 v5：自訂規則＋版面大整理](docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md)（§11 進度）、[第六輪 v6：捨棄格子、自由排兵](docs/history/2026-11-03-free-placement-plan-v6.md)（§11 進度）、[第七輪 v7：綜合大優化方案](docs/history/2026-11-04-grand-optimization-plan-v7.md)（§20 實作進度）、[第八輪 v8：奇幻兵團（再加 10 種兵）](docs/history/2026-11-04-fantasy-units-plan-v8.md)（定稿、未實作）
 - **現在的規則與數值：[docs/STATE.md](docs/STATE.md)**；用語表：[docs/terms.md](docs/terms.md)
@@ -24,6 +24,9 @@ Windows：雙擊 `play.bat`；或用 Godot 4.6 開 `game/project.godot` 按 F5�
 | 殘局挑戰 10 關＋新兵試玩 5 關＋奇幻軍試玩 10 關 | 固定敵陣＋有限預算；★ 獲勝 ★★ 剩餘戰力門檻 ★★★ 花費上限。經典殘局每關驗證過至少兩類解法；新兵試玩每關都要用到那種新兵（兵種解鎖後才能玩） |
 | 連勝遠征 | 7 連勝；開打前選王國軍／奇幻軍／上次名單；贏了可以改最多 3 隻兵；敵人逐戰變強 |
 | 重播與覆盤 | 重播可暫停、變速、點時間軸跳到任一秒、點兵跟拍；對 AI 輸了可以「覆盤」改一隻兵看結果（不算戰績）；結果頁可複製對戰代碼，標題可觀看 |
+| 地圖（V9） | 6 張地圖 × 3 種大小，在大廳選；地形：擋路、慢、快 |
+| 主題試煉（V9） | 10 關固定地圖＋AI 性格，自己組牌，三星 |
+| 挑戰碼（V9） | 結果頁複製陣型傳給朋友，標題「接受挑戰」就能打 |
 | 兵種圖鑑 | 王國軍、奇幻軍兩頁共 20 種故事、技能說明（數值即時取自規則）、每個技能一段真模擬小劇場；派該兵種贏 5 場解鎖老兵筆記。標題選單、兵種卡 ?、手把 Select、結果頁都能開 |
 
 | 操作 | 滑鼠 | 鍵盤 | 手把 |

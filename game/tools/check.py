@@ -216,7 +216,7 @@ def main() -> int:
             m2 = re.search(r"^FINGERPRINT .*$", txt, re.M)
             fp = m2.group(0).strip() if m2 else fp
     if fp:
-        (out / "fingerprint.txt").write_text(fp + "\n", encoding="utf-8")
+        (out / "fingerprint.txt").write_text(fp + "\n", encoding="utf-8", newline="\n")   # Windows 預設 CRLF，跨平台比對會假失敗
     wall = time.time() - t0
     bad = [r for r in res if not r["ok"]]
     times.sort(key=lambda x: -x[1])
