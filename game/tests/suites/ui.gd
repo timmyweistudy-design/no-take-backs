@@ -695,6 +695,7 @@ func test_keymap_v7() -> void:
 	var pt: Dictionary = KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_Y)
 	ok(KM.pad_to_default(pt, JOY_BUTTON_Y) == JOY_BUTTON_START and KM.pad_name(pt, "start") == "Y", "K1：手把也能改")
 	ok(KM.pad_name(pt, "pause") == "Start", "K1：手把撞鍵也互換")
+	ok(KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_DPAD_UP) == {} and KM.sanitize(KM.PAD_ACTIONS, {"start": JOY_BUTTON_DPAD_UP}) == {}, "K1：手把十字鍵不能綁")
 	ok(KM.sanitize(KM.ACTIONS, {"start": KEY_LEFT}) == {}, "K1：舊設定裡的保留鍵讀檔時丟掉")
 	ok(not KM.can_bind_key(KEY_LEFT) and not KM.can_bind_key(KEY_SHIFT) and KM.rebind(KM.ACTIONS, {}, "start", KEY_LEFT) == {}, "K1：方向鍵、修飾鍵不能綁")
 

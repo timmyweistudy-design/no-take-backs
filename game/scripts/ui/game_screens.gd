@@ -712,6 +712,9 @@ func _keys_input(ev: InputEvent) -> bool:
 		keys_capture = ""
 		return true
 	if ev is InputEventJoypadButton and ev.pressed and part[0] == "pad":
+		if not Keymap.can_bind_pad(ev.button_index):
+			_toast(L.t("keys_reserved"), true)
+			return true
 		Save.settings["pad"] = Keymap.rebind(Keymap.PAD_ACTIONS, Save.s("pad"), part[1], ev.button_index)
 		Save.save_settings()
 		keys_capture = ""

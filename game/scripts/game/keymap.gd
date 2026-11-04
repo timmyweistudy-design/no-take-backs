@@ -51,9 +51,15 @@ const RESERVED := [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ESCAPE, KEY_TAB, K
 static func can_bind_key(code: int) -> bool:
 	return not code in RESERVED
 
+## 十字鍵是導航，不能綁（Codex r3）。
+const PAD_RESERVED := [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]
+
+static func can_bind_pad(code: int) -> bool:
+	return not code in PAD_RESERVED
+
 ## 改鍵：撞到別的動作就互換（不會有兩個動作同一個鍵）。
 static func rebind(list: Array, table: Dictionary, action: String, code: int) -> Dictionary:
-	if list == ACTIONS and not can_bind_key(code):
+	if (list == ACTIONS and not can_bind_key(code)) or (list == PAD_ACTIONS and not can_bind_pad(code)):
 		return table.duplicate()
 	var out := table.duplicate()
 	var old := int(out.get(action, _default_of(list, action)))
@@ -69,6 +75,6 @@ static func sanitize(list: Array, raw) -> Dictionary:
 	if raw is Dictionary:
 		for a in list:
 			var v = raw.get(a[0])
-			if (v is int or v is float) and (list != ACTIONS or can_bind_key(int(v))):
+			if (v is int or v is float) and (can_bind_key(int(v)) if list == ACTIONS else can_bind_pad(int(v))):
 				out[a[0]] = int(v)
 	return out
