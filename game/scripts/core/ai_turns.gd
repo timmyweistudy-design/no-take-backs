@@ -9,8 +9,8 @@ const Army = preload("res://scripts/core/army.gd")
 # 剋制表：BEATS[a] 是 a 剋的兩種（企劃 §3.1）
 const BEATS := [
 	[D.ASSASSIN, D.SHIELD, 14],     # 劍士
-	[D.CAVALRY, D.ARCHER, 14, 11],      # 盾兵
-	[D.SWORD, D.ASSASSIN, D.BERSERKER, D.BOMBER, 10, 11, 18],      # 弓箭手
+	[D.CAVALRY, D.ARCHER, 14, 11, 13],      # 盾兵
+	[D.SWORD, D.ASSASSIN, D.BERSERKER, D.BOMBER, 10, 11, 12, 18],      # 弓箭手
 	[D.ARCHER, D.SWORD, D.BOMBER, D.MEDIC, 17, 19, 15],            # 騎兵
 	[D.SHIELD, D.CAVALRY, D.MEDIC, D.DRUMMER],         # 刺客
 	[D.CAVALRY],                # 長槍兵（第四輪 §2.6）

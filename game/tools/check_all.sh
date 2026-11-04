@@ -51,9 +51,12 @@ grep -q '^SEALCODES {"n":40,"ok":true}' "$OUT/sealcodes.log" || fail "舊對戰�
 "$GODOT" --headless --path . --script res://tools/golden_free.gd > "$OUT/goldenfree.log" 2>&1 || fail "自由模式金標準有分歧（看 goldenfree.log）"
 grep -q '^GOLDENFREE {"n":120' "$OUT/goldenfree.log" || grep -q '^GOLDENFREE {.*"n":120' "$OUT/goldenfree.log" || fail "自由模式金標準沒有比完 120 場"
 
+"$GODOT" --headless --path . --script res://tools/golden_v8.gd > "$OUT/goldenv8.log" 2>&1 || fail "第八輪金標準有分歧（看 goldenv8.log）"
+grep -q '^GOLDENV8 {.*"n":60' "$OUT/goldenv8.log" || fail "第八輪金標準沒有比完 60 場"
+
 "$GODOT" --headless --path . --script res://tools/orbit_detect.gd > "$OUT/orbit.log" 2>&1 || fail "騎兵打轉偵測超過門檻"
 grep -q "^ORBIT cav_battles=" "$OUT/orbit.log" || fail "打轉偵測沒有完成"
-for lg in mirror golden goldenfree compat sealcodes orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
+for lg in mirror golden goldenfree goldenv8 compat sealcodes orbit; do has_err "$OUT/$lg.log" && fail "$lg 過程有腳本錯誤"; done
 
 python3 tools/check_strings.py > "$OUT/strings.log" 2>&1 || fail "字串表有問題（欄數、重複鍵、空翻譯、參數數、不存在的鍵；看 strings.log）"
 python3 tools/check_assets.py > "$OUT/assets.log" 2>&1 || fail "素材登記檢查失敗"

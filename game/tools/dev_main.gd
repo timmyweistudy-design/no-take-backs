@@ -525,6 +525,14 @@ func _shots_v8() -> void:
 	lobby_open = true
 	lobby_tab = LOBBY_TABS.find("lb_tab_pool")
 	await _snap("33_lobby_roster.png")
+	lobby_r.ai_pool_same = false
+	lobby_r.pool[1] = 0b1111111111
+	lobby_pool_team = 1
+	await _snap("39_lobby_roster_ai.png")
+	lobby_pool_team = 0
+	await _snap("40_lobby_roster_two.png")
+	lobby_r.ai_pool_same = true
+	lobby_r.pool[1] = lobby_r.pool[0]
 	lobby_open = false
 	overlay = ""
 	rules = lobby_r.copy()

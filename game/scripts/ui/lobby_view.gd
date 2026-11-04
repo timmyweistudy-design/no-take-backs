@@ -465,7 +465,8 @@ func _diff_text(d: Array) -> String:
 		"rr_full":
 			return "%s %s" % [L.t(k), L.t("on") if int(d[2]) != 0 else L.t("off")]
 		"rr_pool", "rr_ai_pool":
-			return L.t(k + "_d", [d[1], d[2]])
+			# 第八輪：奇幻軍和標準一樣 10 種，寫「10→10」看不出差別
+			return L.t(k + "_swap", [d[2]]) if d[1] == d[2] else L.t(k + "_d", [d[1], d[2]])
 		"rr_rounds":
 			return "%s %s→%s" % [L.t(k), _rounds_text(int(d[1])), _rounds_text(int(d[2]))]
 		"rr_place":
@@ -477,11 +478,15 @@ func _diff_text(d: Array) -> String:
 	return "%s %s→%s" % [L.t(k), str(d[1]), str(d[2])]
 
 func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
+	# 第八輪：20 種全畫會超出面板，只畫這場名單裡的（一邊最多 10 種，步距 58 剛好在左欄內）
+	var i := 0
 	for t in D.total():
-		var on := RuleSet.has(p, t)
-		var cc := o + Vector2(t * step + step / 2, step * 0.55)
-		draw_circle(cc, step * 0.42, Color(1, 1, 1, 0.10 if on else 0.03))
-		Art.unit(self, unit_center_feet(cc, t, 0.5), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.22, time, 0.5, cbm())
+		if not RuleSet.has(p, t):
+			continue
+		var cc := o + Vector2(i * step + step / 2, step * 0.55)
+		draw_circle(cc, step * 0.42, Color(1, 1, 1, 0.10))
+		Art.unit(self, unit_center_feet(cc, t, 0.5), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
+		i += 1
 
 ## ◀ 值 ▶ 的調整列；點兩側箭頭，也可以點中間（往下一個）。
 func _stepper(r: Rect2, value: String, id: String) -> void:

@@ -1594,7 +1594,9 @@ func _draw_battle_hud() -> void:
 	for tm0 in 2:
 		var cnt0: int = view.alive_count(tm0) - sn[tm0]
 		var lb0: String = L.t("units_left", [cnt0]) if sn[tm0] == 0 else "%s＋%d" % [L.t("units_left", [cnt0]), sn[tm0]]
-		_text(Vector2(bx - 70 if tm0 == 0 else bx + bw + 12, 42), lb0, ts(15), Art.team_color(tm0, cbm()), false, false, 66 if tm0 == 0 else 80)
+		# 左邊靠條尾對齊、右邊靠條頭對齊，留出火焰位置；不限寬（大字級「8 隻＋1」不換行）
+		var lb_w: float = font_bold.get_string_size(lb0, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
+		_text(Vector2(bx - 22 - lb_w if tm0 == 0 else bx + bw + 22, 42), lb0, ts(15), Art.team_color(tm0, cbm()))
 	for tm in 2:
 		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0

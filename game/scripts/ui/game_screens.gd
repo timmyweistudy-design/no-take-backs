@@ -1573,7 +1573,7 @@ func _draw_overlay() -> void:
 			var tdone := int(Save.data.get("tutorial", 0))
 			var unlocked := tut or tdone >= 1
 			_panel(Rect2(240, 110, 800, 580))
-			_text(Vector2(640, 126), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
+			_text(Vector2(640, 114), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
 			if not tut and unlocked:
 				# 兩個分頁：經典殘局／新兵試玩（第四輪 §4.8）；頁籤上直接寫各自的總星數（第三輪 U4）
 				var tabs := tabs0
@@ -2040,6 +2040,9 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		return
 	var blurb: String = L.t("blurb_%d" % i)
 	var bw := minf(_width(blurb, tz("S")), 470.0)
+	if _width(blurb, tz("S")) > 470.0:   # 大字級會換行掉進戰場：墊底色才讀得到
+		var bh: float = font.get_multiline_string_size(blurb, HORIZONTAL_ALIGNMENT_LEFT, 470, tz("S")).y if font != null else tz("S") * 2.6
+		draw_rect(Rect2(x - 4, y - 2, 478, bh + 6), Color(0.07, 0.08, 0.11, 0.9))
 	_text(Vector2(x, y), blurb, tz("S"), Color(1, 1, 1, 0.85), false, false, 470)
 	x += bw + 20
 	var beats: Array = []
