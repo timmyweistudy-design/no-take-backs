@@ -13,8 +13,8 @@ const GRID := Color(1, 1, 1, 0.12)
 const MUTED := Color(1, 1, 1, 0.6)
 
 ## 兵種定位色系（金幣條分段用，4 色系，不做 10 種彩虹）：近戰／遠程／突擊／支援
-const ROLE_OF := [0, 0, 1, 2, 2, 0, 1, 3, 3, 0]   # 劍盾弓騎刺槍彈醫鼓狂
-const ROLE_COL := [Color("#5b8def"), Color("#3fb6a8"), Color("#a46be0"), Color("#79c46a")]
+const ROLE_OF := [0, 0, 1, 2, 2, 0, 1, 3, 3, 0, 4, 4, 4, 0, 2, 0, 3, 1, 2, 0]   # 劍盾弓騎刺槍彈醫鼓狂
+const ROLE_COL := [Color("#5b8def"), Color("#3fb6a8"), Color("#a46be0"), Color("#79c46a"), Color("#e0a03c")]
 
 static func team_col(team: int, cb: bool) -> Color:
 	if cb:

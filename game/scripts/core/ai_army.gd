@@ -80,6 +80,8 @@ static func build(team: int, budget: int, rng: RandomNumberGenerator, template :
 	if pool < 0:
 		pool = RS.all_pool()
 	var a = Army.new(team, budget)
+	if RS.has_new(pool):
+		a.pool = pool     # 第八輪：奇幻軍要明確開放（舊卡池維持原本的流程）
 	if rules != null:
 		a.apply_rules(rules, team)
 		a.budget = budget

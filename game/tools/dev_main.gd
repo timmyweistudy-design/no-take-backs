@@ -498,6 +498,7 @@ func _shots_v4() -> void:
 	await _snap("25_lobby_duel.png")
 	overlay = ""
 	await _shots_v6()
+	await _shots_v8()
 
 
 ## 第六輪：自由排兵（擺好的陣、畫筆預覽、框選、明牌全場、雙人全場、大廳部署分頁、覆盤）。
@@ -508,6 +509,63 @@ func _free_rules(full := 0):
 	r.depth = Presets.FREE_DEPTH
 	r.fullfield = full
 	return r
+
+## 第八輪：奇幻軍。
+func _shots_v8() -> void:
+	_go_title()
+	overlay = ""
+	toast_t = 0.0
+	ach_queue.clear()
+	difficulty = 1
+	Save.data["unlock_games"] = 60
+	Save.data["stats"] = {"wins": 0, "games": 60}
+	_open_lobby("ai")
+	_lobby_pick("fantasy")
+	await _snap("32_lobby_fantasy.png")
+	lobby_open = true
+	lobby_tab = LOBBY_TABS.find("lb_tab_pool")
+	await _snap("33_lobby_roster.png")
+	lobby_open = false
+	overlay = ""
+	rules = lobby_r.copy()
+	_start_mode(Mode.VS_AI)
+	var a = armies[0]
+	for s in [[F8.GOLEM, 5400, 4400], [13, 5600, 2600], [13, 5600, 6200], [10, 4800, 3200], [12, 5800, 7600], [14, 3800, 4400], [15, 5600, 1200], [16, 3800, 2800], [17, 1800, 4400], [18, 3800, 6000], [11, 3000, 1400]]:
+		a.place_xy(int(s[0]), Army.quant(s[1]), Army.quant(s[2]))
+	selected = F8.DOLL
+	show_place_help = false
+	mouse = ORIGIN + Vector2(3.0, 3.0) * CS
+	toast_t = 0.0
+	await _snap("34_fantasy_place.png")
+	var rr := RandomNumberGenerator.new()
+	rr.seed = 919
+	var red = AI.build(1, 100, rr, 12, rules.pool_of(1), rules)["army"]
+	ai_name = L.t("diff_normal")
+	sprites.ensure(RuleSet.types_of(RuleSet.full_pool() - RuleSet.all_pool()) + [20, 21])
+	await get_tree().create_timer(0.3).timeout
+	while sprites._busy:
+		await get_tree().process_frame
+	_begin_battle(a.copy(), red.copy())
+	for i in 190:
+		_sim_step(true)
+	await _snap("35_fantasy_battle.png")
+	for i in 220:
+		_sim_step(true)
+	await _snap("36_fantasy_late.png")
+	_go_title()
+	Save.data["unit_wins"] = {"13": 5}
+	_open_codex(F8.SLIME)
+	cx_skill = 0
+	_cx_restart()
+	for i in 60:
+		_codex_tick(0.05)
+	await _snap("37_codex_fantasy.png")
+	overlay = "puzzles"
+	puzzle_tab = 2
+	await _snap("38_puzzles_fantasy.png")
+	puzzle_tab = 0
+	overlay = ""
+	rules = null
 
 func _shots_v6() -> void:
 	_go_title()

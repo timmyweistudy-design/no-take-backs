@@ -1586,20 +1586,19 @@ func _draw_battle_hud() -> void:
 	_text(Vector2(bx + 8, 42), "%d%%" % roundi(p0 * 100.0 / (view.budget_of(0) * 1000)), ts(15), lc, false, true)
 	var rt := "%d%%" % roundi(p1 * 100.0 / (view.budget_of(1) * 1000))
 	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), rc, false, true, 0.0, Color(1, 1, 1, 0.0) if cbm() else Color(0, 0, 0, -1))   # 深色字不加黑描邊（Antigravity S2 #1）
-	_text(Vector2(bx - 70, 42), L.t("units_left", [view.alive_count(0)]), ts(15), Art.team_color(0, cbm()), false, false, 64)
-	_text(Vector2(bx + bw + 12, 42), L.t("units_left", [view.alive_count(1)]), ts(15), Art.team_color(1, cbm()), false, false, 70)
+	# 第八輪：生兵戰力 0（時間到不灌水），隻數用「本隊＋召喚」講清楚
+	var sn := [0, 0]
+	for su in view.units:
+		if su.alive and su.summon:
+			sn[su.team] += 1
+	for tm0 in 2:
+		var cnt0: int = view.alive_count(tm0) - sn[tm0]
+		var lb0: String = L.t("units_left", [cnt0]) if sn[tm0] == 0 else "%s＋%d" % [L.t("units_left", [cnt0]), sn[tm0]]
+		_text(Vector2(bx - 70 if tm0 == 0 else bx + bw + 12, 42), lb0, ts(15), Art.team_color(tm0, cbm()), false, false, 66 if tm0 == 0 else 80)
 	for tm in 2:
 		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
 			_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
-	# 第八輪：生兵戰力 0（時間到不灌水），畫面用副刻度講清楚
-	for tm3 in 2:
-		var sn := 0
-		for su in view.units:
-			if su.alive and su.summon and su.team == tm3:
-				sn += 1
-		if sn > 0:
-			_text(Vector2(bx - 70.0 if tm3 == 0 else bx + bw + 12.0, 66), L.t("summon_n", [sn]), ts(13), Art.team_color(tm3, cbm()), false, false, 80)
 	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
 	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
 	if mode == Mode.VS_AI and ai_name != "":
