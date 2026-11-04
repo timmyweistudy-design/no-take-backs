@@ -331,6 +331,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	else:
 		_add_fx({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
 		sfx.play("hit" if k == EV.HIT else "slash", 0.4)
+		_hit_material(int(ev.get("tgt", -1)))
 	var col := Color.WHITE
 	var label := ""
 	match k:
@@ -393,6 +394,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 # ── 戰鬥 HUD ──
 func _draw_battle_hud() -> void:
 	draw_rect(Rect2(0, 0, 1280, 86), UI_BG)
+	draw_line(Vector2(0, 86), Vector2(1280, 86), TH_EDGE, 2.0)
 	# 第五輪：左上和擺放畫面一樣——模式（粗）＋局數比分（小字），不再放遊戲標題（大字時會換行壓到棋盤）
 	_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), Color(1, 1, 1, 0.75), false, true, 300)
 	if mode == Mode.VS_AI or mode == Mode.DUEL:
@@ -404,10 +406,12 @@ func _draw_battle_hud() -> void:
 	var bx := 330.0
 	var bw := 620.0
 	var split := bw * f0 / maxf(0.001, f0 + f1)
-	draw_rect(Rect2(bx - 2, 40, bw + 4, 26), Art.OUT)
-	draw_rect(Rect2(bx, 42, split, 22), Art.team_color(0, cbm()))
-	draw_rect(Rect2(bx + split, 42, bw - split, 22), Art.team_color(1, cbm()))
-	draw_line(Vector2(bx + bw / 2, 36), Vector2(bx + bw / 2, 70), Color(1, 1, 1, 0.7), 2)
+	_box(Rect2(bx - 4, 36, bw + 8, 34), Art.OUT, TH_EDGE, 6.0, 2.0)
+	draw_rect(Rect2(bx, 40, split, 26), Art.team_color(0, cbm()))
+	draw_rect(Rect2(bx + split, 40, bw - split, 26), Art.team_color(1, cbm()))
+	draw_rect(Rect2(bx, 40, bw, 7), Color(1, 1, 1, 0.14))      # 上緣高光
+	draw_line(Vector2(bx + split, 38), Vector2(bx + split, 68), Color.WHITE, 3.0)   # 交界線
+	draw_line(Vector2(bx + bw / 2, 32), Vector2(bx + bw / 2, 74), Color(1, 1, 1, 0.55), 2)
 	# 戰力條狀態（第三輪 V6）：狂熱整條加橘框；背水那端加火焰圖示與脈衝框
 	if view.frenzy and not view.finished:
 		draw_rect(Rect2(bx - 4, 38, bw + 8, 30), Color(1, 0.45, 0.1, 0.7 + 0.3 * sin(time * 6)), false, 3)
@@ -518,4 +522,5 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	_focus = 0
 	speed = float(Save.s("speed"))
 	sfx.play("start")
+	sfx.play("horn", 0.55)
 	sfx.play_music("music_battle")

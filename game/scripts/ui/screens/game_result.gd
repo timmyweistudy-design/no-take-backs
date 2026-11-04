@@ -71,8 +71,8 @@ func _draw_result() -> void:
 	# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.7))   # 第七輪 E2：整個畫面（含 HUD）壓暗
 	var r := Rect2(200, 100, 880, 610)
-	draw_rect(r, PANEL)
-	draw_rect(r, Color(1, 1, 1, 0.2), false, 2)
+	_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
+	_box(r, PANEL, TH_EDGE, 10.0, 3.0)
 	var w: int = sim.winner
 	var title := L.t("draw")
 	var col := Color.WHITE
@@ -121,10 +121,10 @@ func _draw_result() -> void:
 		y = ch.end.y + tz("C") * 1.6 + 6
 		if mvp != null:
 			var mr := Rect2(250, y, 780, 76)
-			draw_rect(mr, Color(1, 0.82, 0.3, 0.08))
-			draw_rect(mr, Color(1, 0.82, 0.3, 0.35), false, 1.5)
-			Art.ring(self, mr.position + Vector2(52, 62), mvp.team, mvp.type, cbm(), 1.1)
-			Art.unit(self, mr.position + Vector2(52, 62), mvp.type, mvp.team, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.1, cbm())
+			_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
+			_icon("trophy", mr.end - Vector2(34, 38), 34.0)
+			Art.ring(self, mr.position + Vector2(52, 66), mvp.team, mvp.type, cbm(), 1.25)
+			Art.unit(self, mr.position + Vector2(52, 66), mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.25, cbm())
 			_text(mr.position + Vector2(100, 10), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
 			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660)
 			y = mr.end.y + 10

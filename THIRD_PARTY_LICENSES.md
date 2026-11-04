@@ -11,7 +11,8 @@
 | GodotSteam GDExtension 4.23.2 | Steam 成就、雲端、Remote Play（`game/addons/godotsteam/`，只放 win64、linux64） | https://codeberg.org/godotsteam/godotsteam | MIT | 刪掉用不到的平台與編輯器更新器、精簡 `.gdextension` | `game/licenses/GODOTSTEAM_LICENSE.md` |
 | Steamworks API（`steam_api64.dll`、`libsteam_api.so`） | 隨 GodotSteam | Valve Steamworks SDK | Steamworks SDK 授權：上架 Steam 的遊戲可以附帶 | 無 | 不需要 |
 | 角色、特效 | 全部單位 | 本作程式繪製（`game/scripts/ui/art.gd`） | 本作原創 | — | — |
-| 音效、音樂 | 全部聲音 | 本作程式合成（`game/tools/gen_audio.py`） | 本作原創 | — | — |
+| 音效、音樂 | 戰鬥音效、音樂、環境音 | 本作程式合成（`game/tools/gen_audio.py`、`gen_audio_v9.py`） | 本作原創 | — | — |
+| Kenney Interface Sounds 1.0 | 介面音（`game/audio/k_*.wav`） | https://kenney.nl/assets/interface-sounds | CC0 1.0 | 不要求署名 | 取自 https://github.com/Calinou/kenney-interface-sounds |
 
 ## 目前**沒有**使用、等來源確認才能用的素材
 | 素材 | 狀態 |

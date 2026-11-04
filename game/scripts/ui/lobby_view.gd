@@ -436,15 +436,14 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var label := func(ic: String, s: String, yy: float) -> void:
 		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
 		_icon(ic, Vector2(x + 26, yy + 24), 26.0, ACCENT)
-		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 76)
-	var cx := x + 126
-	var cw := lw - 136
+		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 100)
+	var cx := x + 150
+	var cw := lw - 160
 	# 地圖
 	label.call("map", L.t("lb_map"), y)
 	_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
 	var mk: String = MapDefs.MAPS[r.map_id]["key"]
-	_text(Vector2(cx + 134, y + 8), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
-	_text(Vector2(cx + 134, y + 8 + tz("B") * 1.4), L.t("map_d_" + mk), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 134 - 104)
+	_text(Vector2(cx + 134, y + 26), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
 	_btn(Rect2(x + lw - 104, y + 22, 44, 44), "‹", _lobby_adj.bind("map", -1))
 	_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
 	y += rowh
@@ -476,8 +475,8 @@ func _draw_lobby_main(R: Rect2) -> void:
 	y += rowh
 	# 規則
 	label.call("gear", L.t("lb_rules"), y)
-	_text(Vector2(cx, y + 14), _summary(r), tz("S"), Color.WHITE, false, false, cw)
-	_badge_pill(Vector2(cx, y + 52), Presets.badge(r, lobby_kind))
+	_text(Vector2(cx, y + 8), _summary(r), tz("S"), Color.WHITE, false, false, cw)
+	_badge_pill(Vector2(cx, y + 12 + text_h(_summary(r), tz("S"), cw)), Presets.badge(r, lobby_kind))
 	# 右：預覽
 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
 	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
@@ -491,10 +490,22 @@ func _draw_lobby_main(R: Rect2) -> void:
 			_text(Vector2(lx + 28, ly + 2), L.t(t[1]), tz("C"), Color(1, 1, 1, 0.85))
 			lx += 40 + tw + 12
 		ly += 34
-	var pid: String = r.preset if r.preset in Presets.IDS else "custom"
-	_text(Vector2(pv.position.x, ly), L.t("lb_pinfo_" + pid), tz("S"), Color(1, 1, 1, 0.8), false, false, pv.size.x)
-	ly += text_h(L.t("lb_pinfo_" + pid), tz("S"), pv.size.x) + 8
-	_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
+	# 地圖是什麼樣的玩法（第一眼就要懂）
+	_text(Vector2(pv.position.x, ly), L.t("map_d_" + mk), tz("S"), Color(1, 1, 1, 0.88), false, false, pv.size.x)
+	ly += text_h(L.t("map_d_" + mk), tz("S"), pv.size.x) + 8
+	var notes_h := _lobby_notes_h(pv.size.x)
+	if notes_h > 0.0:
+		_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
+	elif R.end.y - ly >= 96.0:
+		# 空下來的地方放雙方陣容，填補留白也提醒「要打了」
+		var my := minf(R.end.y - 10.0, ly + 104.0)
+		var mine: Array = RuleSet.types_of(r.pool_of(0))
+		var foes: Array = RuleSet.types_of(r.pool_of(1))
+		for k in mini(3, mine.size()):
+			Art.unit(self, Vector2(pv.position.x + 50 + k * 66, my), int(mine[(k * 3) % mine.size()]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time + k, 1.3, cbm())
+		for k2 in mini(3, foes.size()):
+			Art.unit(self, Vector2(pv.end.x - 50 - k2 * 66, my), int(foes[(k2 * 4 + 1) % foes.size()]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k2, 1.3, cbm())
+		_icon("swords", Vector2(pv.get_center().x, my - 32), 44.0, ACCENT)
 
 ## 地圖縮圖：貼上烘好的地面，full 時標出雙方部署區。
 func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:

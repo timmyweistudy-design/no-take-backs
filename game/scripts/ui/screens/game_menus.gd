@@ -28,7 +28,7 @@ func _draw_gauntlet_pick() -> void:
 	if last > 0 and last != opts[0][1] and last != opts[1][1]:
 		opts.append([L.t("gp_last"), last])
 	_panel(Rect2(240, 120, 800, 560))
-	_text(Vector2(640, 134), L.t("gp_title"), ts(26), Color.WHITE, true, true)
+	_h1(Vector2(640, 124), L.t("gp_title"))
 	_text(Vector2(640, 182), L.t("gp_note"), tz("S"), Color(1, 1, 1, 0.75), true)
 	for i in opts.size():
 		var r := Rect2(280, 226 + i * 128, 720, 116)
@@ -305,7 +305,7 @@ func _draw_overlay() -> void:
 			_draw_keys()
 		"credits":
 			_panel(Rect2(200, 70, 880, 660))
-			_text(Vector2(640, 86), L.t("credits_title"), ts(26), Color.WHITE, true, true)
+			_h1(Vector2(640, 76), L.t("credits_title"))
 			_text(Vector2(240, 140), FileAccess.get_file_as_string("res://data/credits.txt"), ts(13), Color(1, 1, 1, 0.88))
 			_btn(Rect2(560, 680, 160, 36), L.t("back"), func(): overlay = "")
 		"slots":

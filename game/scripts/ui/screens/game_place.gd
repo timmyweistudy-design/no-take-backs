@@ -15,6 +15,7 @@ func _go_title() -> void:
 	_focus = 0
 	_new_demo()
 	sfx.play_music("music_title")
+	sfx.play_ambience("")
 
 
 
@@ -155,7 +156,7 @@ func _try_place(c: Vector2i) -> void:
 			# 第五輪防手滑（Antigravity 第二輪）：輪流落子時先點一下出現預覽，再點同一格才落子；設定可關。擺下仍不能收回。
 			if bool(Save.s("confirm_place")) and pending_cell != c:
 				pending_cell = c
-				sfx.play("ui_click")
+				sfx.play("k_click", 0.7)
 				return
 			pending_cell = Vector2i(-1, -1)
 			tp.place(selected, c.x, c.y)
@@ -178,7 +179,7 @@ func _try_remove(c: Vector2i) -> void:
 		_toast(L.t("err_locked"), true)
 		return
 	if _cur_army().remove_at(c.x, c.y):
-		sfx.play("ui_click")
+		sfx.play("k_click", 0.7)
 
 
 

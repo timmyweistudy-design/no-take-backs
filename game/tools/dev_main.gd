@@ -539,7 +539,28 @@ func _free_rules(full := 0):
 # _snap("56_map_large_place.png")
 # _snap("56_map_large_battle.png")
 # _snap("57_lobby_map.png")
+# _snap("58_trials.png")
+# _snap("59_profile.png")
+# _snap("60_reward.png")
+# _snap("61_ban.png")
 func _shots_v9() -> void:
+	_go_title()
+	Save.data["trial_stars"] = {"0": 3, "1": 2, "2": 1}
+	_open("trials")
+	for k3 in 12:
+		await get_tree().process_frame
+	await _snap("58_trials.png")
+	_open("profile")
+	await _snap("59_profile.png")
+	_open("reward")
+	await _snap("60_reward.png")
+	rules = RuleSet.standard()
+	rules.pool = [RuleSet.all_pool(), RuleSet.all_pool()]
+	ban_left = [1, 1]
+	_open("ban")
+	await _snap("61_ban.png")
+	rules = null
+	overlay = ""
 	_go_title()
 	_open_lobby("ai")
 	_lobby_pick("standard")

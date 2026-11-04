@@ -300,6 +300,35 @@ func _gait_tick(with_fx := true) -> void:
 		gait_d[u.id] = d
 		if with_fx and not bool(Save.s("reduce_fx")) and (u.type == 19 or u.type == D.CAVALRY or u.type == 11):
 			_gait_step_fx(u, d)
+		if with_fx and gait_on.get(u.id, false):
+			_gait_step_snd(u, d)
+
+## 腳步聲：全場一起走會變噪音，所以限量（約每 0.11 秒最多一聲）、音量很小；小石魔例外。
+var _step_cool := 0
+func _gait_step_snd(u, d: Array) -> void:
+	var k: int = Gait.kind(u.type)
+	if k == Gait.FLOAT or k == Gait.ROOT or k == Gait.HOP:
+		return
+	var a: float = Gait.phase_of(u.type, d[0], CS, UNIT_SCALE, u.id)
+	var b: float = Gait.phase_of(u.type, d[1], CS, UNIT_SCALE, u.id)
+	if int(a / PI) == int(b / PI):
+		return
+	if u.type == 19:
+		sfx.play("step_heavy", 0.55)
+		return
+	if view.tick <= _step_cool:
+		return
+	_step_cool = view.tick + 2
+	var snd := "step_grass"
+	match MapDefs.MAPS[fld_map]["biome"]:
+		"ice":
+			snd = "step_snow"
+		"lava", "canyon":
+			snd = "step_stone"
+		"river":
+			if absi(int(u.x) - fld_w / 2) < fld_w / 10:
+				snd = "step_wood"
+	sfx.play(snd, 0.16)
 
 ## 小石魔、馬、羊落地揚塵。
 func _gait_step_fx(u, d: Array) -> void:
@@ -342,3 +371,17 @@ func _face_of(u) -> float:
 		return 0.18 if f >= 0.0 else -0.18
 	return f
 
+## 打到不同東西聲音不同：盾與石魔是硬的、史萊姆是軟的。
+func _hit_material(id: int) -> void:
+	if id < 0 or view == null:
+		return
+	var u = view.unit_by_id(id)
+	if u == null:
+		return
+	match u.type:
+		D.SHIELD:
+			sfx.play("hit_metal", 0.22)
+		19, 12:
+			sfx.play("hit_wood", 0.3)
+		13, 20:
+			sfx.play("hit_soft", 0.3)

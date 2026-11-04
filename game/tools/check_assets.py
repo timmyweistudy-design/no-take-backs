@@ -5,6 +5,7 @@ import os, sys, fnmatch
 root = os.path.join(os.path.dirname(__file__), "..")
 rules = [  # (路徑樣式, 登記項目)
     ("art/cainos/*.png", "Cainos"),
+    ("audio/k_*.wav", "Kenney"),
     ("audio/*.wav", "本作程式合成"),
     ("fonts/NotoSansTC-*.otf", "Noto Sans TC"),
     ("fonts/ThenKhung-*.ttf", "UoqMunThenKhung"),

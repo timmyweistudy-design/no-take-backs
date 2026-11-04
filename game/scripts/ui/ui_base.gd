@@ -95,6 +95,8 @@ const SP := 8.0        # 間距基準
 const Icons = preload("res://scripts/ui/icons.gd")
 var _sb_cache := {}
 var _hover_key := -1
+var _trans_gen := -1
+var _trans_t := -10.0
 var _hover_now := -1
 const UNIT_SCALE := 0.92
 
@@ -439,7 +441,7 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 ## V9 P5 按鈕：圓角木牌、上緣高光、下緣陰影；按下縮一點回彈、懸停亮、焦點金框；主按鈕有流光。
 func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
 	var idx := _btns.size()
-	_btns.append({"r": r, "cb": action, "en": enabled})
+	_btns.append({"r": r, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
 	var hover := r.has_point(mouse) and not pad_mode
 	var focus := pad_mode and idx == _focus
 	var bg := TH_WOOD_L if not primary else TH_PRIMARY

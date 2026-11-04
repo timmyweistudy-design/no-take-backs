@@ -93,6 +93,7 @@ func _reset_place(keep_blue := false) -> void:
 					break
 			armies[1] = e
 	sfx.play_music("music_place")
+	sfx.play_ambience(str(MapArt.BIOME.get(MapDefs.MAPS[rules.map_id if rules != null and rules.is_free() else 0]["biome"], {}).get("sound", "")))
 
 
 

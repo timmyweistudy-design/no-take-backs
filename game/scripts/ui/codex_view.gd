@@ -167,7 +167,7 @@ func _draw_codex() -> void:
 	_panel(CX_PANEL)
 	var u := CX.unit(cx_unit)
 	var lang := L.lang
-	_text(Vector2(640, 108), L.t("codex_title"), ts(26), Color.WHITE, true, true, 600)
+	_h1(Vector2(640, 96), L.t("codex_title"), 600)
 	# 兵種分頁
 	# 第四輪 §4.7：一排 10 個「頭像＋數字」頁籤；兵種全名在下面左欄的大標題
 	# 第八輪：頁籤分兩頁（王國軍／奇幻軍），各 10 種
@@ -389,13 +389,16 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 				y += rowh + 4.0
 			"bars":
 				var lh := float(ts(13)) * 1.3 + 4.0
+				var bar_i := 0
 				for b in _cx_bars(cx_unit):
 					if inside.call(y, lh):
-						_text(Vector2(r.position.x, y), b[0], ts(13), Color(1, 1, 1, 0.75), false, false, 90)
+						_icon(["heart", "sword", "range", "speed", "coin"][mini(bar_i, 4)], Vector2(r.position.x + 9, y + lh * 0.5), 18.0, Color.WHITE)
+						_text(Vector2(r.position.x + 22, y), b[0], ts(13), Color(1, 1, 1, 0.75), false, false, 72)
 						var bx := r.position.x + 96
-						draw_rect(Rect2(bx, y + lh * 0.38, 150, 7), Color("#2a3040"))
+						draw_rect(Rect2(bx, y + lh * 0.38, 150, 7), TH_WOOD_D)
 						draw_rect(Rect2(bx, y + lh * 0.38, 150.0 * clampf(b[1], 0.04, 1.0), 7), Color("#66b2ff"))
 						_text(Vector2(bx + 158, y), b[2], ts(13), Color(1, 1, 1, 0.85), false, false, r.size.x - 260)
+					bar_i += 1
 					y += lh
 				y += 10.0
 			"text":

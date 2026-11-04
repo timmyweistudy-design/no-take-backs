@@ -222,7 +222,7 @@ func _mb_cmd(d: Dictionary) -> void:
 			if _allowed(k):
 				selected = k
 				drag_new = true
-				sfx.play("ui_click")
+				sfx.play("k_click", 0.7)
 			else:
 				_toast(L.t("err_type"), true)
 			return
@@ -270,7 +270,7 @@ func _key(k: int) -> void:
 				_move_focus(1)
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
-					sfx.play("ui_click")
+					sfx.play("k_click", 0.7)
 					_btns[_focus]["cb"].call()
 			KEY_PAGEUP, KEY_PAGEDOWN:
 				if overlay == "codex":
@@ -493,6 +493,18 @@ func _draw_inner() -> void:
 	if _focus >= _btns.size():
 		_focus = 0
 	_btns_gen = _gen
+	# V9：畫面切換 0.25 秒淡入（版面檢查、簡化特效時不做）
+	if _gen != _trans_gen:
+		_trans_gen = _gen
+		_trans_t = time
+	if not layout_probe and not bool(Save.s("reduce_fx")) and time - _trans_t < 0.25:
+		draw_rect(Rect2(0, 0, 1280, 800), Color(TH_WOOD_D, 0.9 * (1.0 - (time - _trans_t) / 0.25)))
+	# V9：懸停音（換了一顆才響）
+	if _hover_now != _hover_key:
+		_hover_key = _hover_now
+		if _hover_now >= 0 and sfx != null:
+			sfx.play("k_hover", 0.28)
+	_hover_now = -1
 
 
 
@@ -583,7 +595,7 @@ func _do_click(p: Vector2) -> int:
 			if b["en"]:
 				_focus = i
 				if sfx != null:
-					sfx.play("ui_click")
+					sfx.play(str(b.get("snd", "k_click")), 0.7)
 				b["cb"].call()
 				return 1
 			return 0

@@ -6,10 +6,14 @@ extends Node
 const FILES := ["arrow", "backstab", "block", "brace", "charge", "clutch", "death", "frenzy", "hit", "lose",
 	"place_heavy", "place_light", "place_mid", "slash", "start", "turn", "ui_click", "ui_deny", "win",
 	"shatter", "bell", "bugle", "aircut", "alert", "snap", "taunt", "reveal", "boom", "heal",
-	"poison", "baa", "chomp", "squish", "charge_up", "timestop", "raise", "vacuum", "stomp"]
+	"poison", "baa", "chomp", "squish", "charge_up", "timestop", "raise", "vacuum", "stomp",
+	"k_hover", "k_click", "k_back", "k_confirm", "k_tab", "k_toggle", "k_error", "k_open", "k_close", "k_unlock", "k_star", "k_place",
+	"step_grass", "step_snow", "step_wood", "step_stone", "step_heavy", "hit_metal", "hit_wood", "hit_soft", "horn"]
 # 0 普通命中、1 防禦、2 技能／死亡、3 全場事件與介面
 const PRIO := {"hit": 0, "slash": 0, "arrow": 0, "block": 1, "brace": 1, "alert": 1, "taunt": 1, "reveal": 1,
 	"shatter": 2, "bell": 2, "bugle": 2, "aircut": 2, "snap": 2, "charge": 2, "backstab": 2, "death": 2,
+	"step_grass": 0, "step_snow": 0, "step_wood": 0, "step_stone": 0, "step_heavy": 1, "hit_metal": 0, "hit_wood": 0, "hit_soft": 0, "horn": 3,
+	"k_hover": 3, "k_click": 3, "k_back": 3, "k_confirm": 3, "k_tab": 3, "k_toggle": 3, "k_error": 3, "k_open": 3, "k_close": 3, "k_unlock": 3, "k_star": 3, "k_place": 3,
 	"poison": 0, "squish": 1, "charge_up": 1, "baa": 1, "chomp": 2, "timestop": 2, "raise": 2, "vacuum": 2, "stomp": 2, "clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3}
 var _prio_of := {}       # 聲道 → 正在播的優先權
 var _started := {}       # 聲道 → 開始時間
@@ -19,6 +23,9 @@ var players: Array[AudioStreamPlayer] = []
 var recent := {}   # 名稱 → [時間戳...]
 var music: AudioStreamPlayer
 var music_name := ""
+var amb: AudioStreamPlayer       # V9：地圖環境音
+var amb_name := ""
+var duck_t := 0.0                # V9：大招、號角時暫時壓低音樂
 var sfx_vol := 0.8
 var music_vol := 0.7
 var rng := RandomNumberGenerator.new()
@@ -35,6 +42,9 @@ func _ready() -> void:
 	music = AudioStreamPlayer.new()
 	add_child(music)
 	music.finished.connect(func(): music.play())
+	amb = AudioStreamPlayer.new()
+	add_child(amb)
+	amb.finished.connect(func(): amb.play())
 	var lp := AudioEffectLowPassFilter.new()
 	lp.cutoff_hz = 900.0
 	AudioServer.add_bus_effect(0, lp)
@@ -65,6 +75,8 @@ func set_volumes(sfx_pct: int, music_pct: int) -> void:
 func play(name: String, vol := 1.0) -> void:
 	if not streams.has(name) or sfx_vol <= 0.0:
 		return
+	if int(PRIO.get(name, 0)) >= 2 and not name.begins_with("k_"):
+		duck(0.7)
 	var now := Time.get_ticks_msec()
 	var r: Array = recent.get(name, [])
 	r = r.filter(func(t): return now - t < 80)
@@ -110,7 +122,7 @@ func play_layers() -> void:
 			layers.append(p)
 	layer_cur = layer_gain.duplicate()
 	for i in layers.size():
-		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i]))
+		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i] * (0.45 if duck_t > 0.0 else 1.0)))
 		layers[i].play(0.0)
 
 func stop_layers() -> void:
@@ -127,11 +139,33 @@ func set_layer_targets(g: Array) -> void:
 	layer_gain = g
 
 func _process(delta: float) -> void:
+	if duck_t > 0.0:
+		duck_t -= delta
+		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * (0.45 if duck_t > 0.0 else 1.0)))
 	if music_name != "layers" or layers.is_empty():
 		return
 	for i in layers.size():
 		layer_cur[i] = move_toward(layer_cur[i], layer_gain[i], delta * 1.5)
 		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i]))
+
+## V9：地圖環境音；空字串＝停。
+func play_ambience(name: String) -> void:
+	if name == amb_name:
+		return
+	amb_name = name
+	if name == "":
+		amb.stop()
+		return
+	var st = load("res://audio/amb_%s.wav" % name)
+	if st == null:
+		amb.stop()
+		return
+	amb.stream = st
+	amb.volume_db = linear_to_db(maxf(0.0001, sfx_vol * 0.22))
+	amb.play()
+
+func duck(sec: float) -> void:
+	duck_t = maxf(duck_t, sec)
 
 func play_music(name: String) -> void:
 	if name == "music_battle":
