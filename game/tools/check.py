@@ -111,6 +111,7 @@ def godot_cmd(godot: str, args: list, marker: str) -> list:
 
 
 def run_step(s, godot, out, timeout, marker):
+    os.environ["PYTHONUTF8"] = "1"
     log = out / f"{s['name']}.log"
     t0 = time.time()
     if s["kind"] == "py":
@@ -146,6 +147,8 @@ def serial(godot, out, name, args, ok_re=None):
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")   # Windows 主控台預設不是 UTF-8，印中文會當掉
     p = argparse.ArgumentParser()
     p.add_argument("--out", default=str(GAME.parent / "build/tmp/check"))
     p.add_argument("--quick", action="store_true")

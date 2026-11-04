@@ -28,7 +28,7 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -r game/tools/requirements.txt
       - name: 統一檢查（匯入、載入、正式入口啟動、測試、鏡像、打轉、素材；任一步失敗就紅）
-        run: GODOT="$PWD/godot" bash game/tools/check_all.sh "$PWD/check"
+        run: GOLDEN_N=200 COMPAT_N=200 GODOT="$PWD/godot" bash game/tools/check_all.sh "$PWD/check"
       - name: 平衡報表（手動）
         if: ${{ inputs.balance }}
         run: GODOT=$PWD/godot SHARDS=4 game/tools/balance.sh ../docs/balance-runs/ci
@@ -53,7 +53,7 @@ jobs:
       - run: pip install -r game/tools/requirements.txt
       - name: 統一檢查
         shell: bash
-        run: GOLDEN_N=200 GODOT="$PWD/godot.exe" bash game/tools/check_all.sh "$PWD/check" && cp check/fingerprint.txt fp-windows.txt
+        run: GOLDEN_N=200 COMPAT_N=200 PYTHONUTF8=1 GODOT="$(cygpath -w "$PWD/godot.exe")" bash game/tools/check_all.sh "$PWD/check" && cp check/fingerprint.txt fp-windows.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: logs-windows, path: check/, if-no-files-found: warn }
