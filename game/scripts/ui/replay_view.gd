@@ -193,6 +193,7 @@ func _replay_snapshot() -> void:
 
 ## 重播的「返回」：回到進來的地方。只還原畫面，比分、進度、成就、試玩紀錄都不寫。
 func _replay_back() -> void:
+	call("_pre_join")
 	seek_target = -1   # Codex r1：算到一半返回，不能把下一場快轉到舊目標
 	skip_busy = false
 	paused = false
@@ -254,13 +255,7 @@ func _watch_battle_code() -> void:
 func _watch_code_str(code: String) -> void:
 	var r := BattleCode.decode(code)
 	if not r["ok"]:
-		if pad_mode and code == DisplayServer.clipboard_get():
-			var cb := func(submitted: bool, text: String, _app: int) -> void:
-				if submitted:
-					_watch_code_str(text)
-			if SteamApi.text_input(L.t("bc_watch"), 8000, cb):
-				return
-			_toast(L.t("bc_pad_hint"), true)
+		if code == DisplayServer.clipboard_get() and _ask_code(L.t("bc_watch"), _watch_code_str):
 			return
 		_toast(L.t("bc_bad"), true)
 		return

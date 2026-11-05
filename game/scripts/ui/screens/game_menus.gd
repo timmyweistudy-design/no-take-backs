@@ -4,6 +4,14 @@ extends "res://scripts/ui/screens/game_modes.gd"
 ## 第八輪成就：贏的那隊。沙盒不算（改過數值）。
 ## 標題選單進遠征：解鎖奇幻軍之後才要選，否則直接開打（新手不多一步）。
 func _enter_gauntlet() -> void:
+	if not Save.data.get("gauntlet_run", {}).is_empty():
+		overlay = "gauntlet_resume"
+		_focus = 0
+		return
+	_enter_gauntlet_new()
+
+func _enter_gauntlet_new() -> void:
+	call("_gauntlet_clear")
 	if RuleSet.has_new(RS.unlocked_mask(_unlock_games(), _demo())):
 		overlay = "gauntlet_pick"
 	else:
@@ -60,7 +68,7 @@ func _draw_keys() -> void:
 		var y2 := y0 + i2 * 50
 		_text(Vector2(690, y2 + 8), L.t("key_" + act2), tz("S"), Color.WHITE, false, false, 200)
 		var cap2 := keys_capture == "pad:" + act2
-		_btn(Rect2(900, y2, 150, 42), "…" if cap2 else Keymap.pad_name(pt, act2), func(): keys_capture = "pad:" + act2)
+		_btn(Rect2(900, y2, 150, 42), "…" if cap2 else _pk(act2), func(): keys_capture = "pad:" + act2)
 	if keys_capture != "":
 		_text(Vector2(640, 610), L.t("keys_press"), tz("B"), ACCENT, true, true, 800)
 	_btn(Rect2(380, 672, 240, 44), L.t("keys_reset"), func(): Save.settings["keys"] = {}; Save.settings["pad"] = {}; Save.save_settings())
@@ -241,6 +249,15 @@ func _draw_overlay() -> void:
 			_draw_reward()
 		"ban":
 			_draw_ban()
+		"ai_busy":
+			_draw_busy(-1)
+		"gauntlet_resume":
+			_panel(Rect2(340, 250, 600, 300))
+			_h1(Vector2(640, 254), L.t("menu_gauntlet"))
+			_text(Vector2(640, 320), L.t("gr_body", [int(Save.data["gauntlet_run"]["stage"])]), tz("B"), Color.WHITE, true, true, 540)
+			_btn(Rect2(380, 380, 520, 52), L.t("gr_go"), func(): call("_gauntlet_resume"), true, true)
+			_btn(Rect2(380, 442, 250, 44), L.t("gr_new"), func(): _enter_gauntlet_new())
+			_btn(Rect2(650, 442, 250, 44), L.t("back"), func(): overlay = "")
 		"leave":
 			_panel(Rect2(340, 270, 600, 260))
 			_text(Vector2(640, 294), L.t("leave_title"), tz("H2"), Color.WHITE, true, true, 540)

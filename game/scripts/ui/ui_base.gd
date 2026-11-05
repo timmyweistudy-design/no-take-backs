@@ -33,6 +33,22 @@ const BATTLE_DY := 36.0   # 第十輪 B9：戰鬥鏡頭下移，貼上緣的兵�
 var force_demo := false   # 測試用：不必匯出就能走試玩版流程
 func _demo() -> bool:
 	return force_demo or OS.has_feature("demo")
+var force_async := false  # 測試用：headless 也走背景計算
+var last_joy := 0         # 最後操作的手把（提示要依它顯示）
+func _async_ok() -> bool:
+	return force_async or (DisplayServer.get_name() != "headless" and shot_dir == "")
+func _pk(action: String) -> String:
+	return load("res://scripts/game/keymap.gd").pad_glyph(Save.s("pad"), action, Input.get_joy_name(last_joy))
+## 第十輪 I3：手把沒辦法貼上時開 Steam 鍵盤；沒有 Steam 就提示。有接手回傳 true。
+func _ask_code(prompt: String, on_text: Callable) -> bool:
+	if not pad_mode:
+		return false
+	var cb := func(submitted: bool, text: String, _app: int) -> void:
+		if submitted:
+			on_text.call(text)
+	if not SteamApi.text_input(prompt, 8000, cb):
+		_toast(L.t("bc_pad_hint"), true)
+	return true
 const CS := 64.0
 const FIELD := Vector2(16 * 64, 9 * 64)
 const MapArt = preload("res://scripts/ui/map_art.gd")

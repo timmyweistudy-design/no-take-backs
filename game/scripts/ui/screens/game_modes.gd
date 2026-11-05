@@ -91,11 +91,14 @@ func _copy_challenge() -> void:
 	DisplayServer.clipboard_set(_challenge_encode())
 	_toast(L.t("ch_copied"))
 
-func _accept_challenge() -> void:
-	var c := DisplayServer.clipboard_get().strip_edges()
-	var d := _challenge_decode(c)
+func _accept_challenge(c := "") -> void:
+	var from_clip := c == ""
+	if from_clip:
+		c = DisplayServer.clipboard_get().strip_edges()
+	var d := _challenge_decode(c.strip_edges())
 	if not d["ok"]:
-		_toast(L.t("ch_bad"), true)
+		if not (from_clip and _ask_code(L.t("ch_accept"), _accept_challenge)):
+			_toast(L.t("ch_bad"), true)
 		return
 	rules = d["rules"]
 	challenge_army = d["army"]
@@ -163,6 +166,7 @@ func _take_reward(k: int) -> void:
 	call("_gauntlet_next")
 	if k == 2:
 		gauntlet_changes += 2
+	call("_gauntlet_save")
 
 func _draw_reward() -> void:
 	var P := Rect2(240, 200, 800, 380)
@@ -252,6 +256,8 @@ func _record_match(w: int) -> void:
 	for k in seen:
 		ug[k] = int(ug.get(k, 0)) + 1
 	Save.data["unit_games"] = ug
+	if mode == Mode.DUEL:
+		return    # 連勝只算單人
 	if w == 0:
 		Save.data["streak"] = int(Save.data.get("streak", 0)) + 1
 		Save.data["best_streak"] = maxi(int(Save.data.get("best_streak", 0)), int(Save.data["streak"]))

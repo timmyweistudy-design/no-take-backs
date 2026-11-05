@@ -26,6 +26,7 @@ func _leave_confirm() -> void:
 	_go_title()
 
 func _go_title() -> void:
+	call("_pre_join")
 	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
 	sfx.set_muffled(false)
 	watch_mode = false
@@ -115,7 +116,12 @@ func _on_start() -> void:
 		_toast(L.t("err_changes"), true)
 		return
 	if mode == Mode.VS_AI and not ai_prebuilt:
+		if _build_ai_async():
+			return
 		_build_ai()
+	_on_start_go()
+
+func _on_start_go() -> void:
 	last_player_formation = armies[0].units.duplicate(true)
 	_begin_battle(armies[0].copy(), armies[1].copy())
 

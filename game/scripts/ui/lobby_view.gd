@@ -131,10 +131,16 @@ func _lobby_copy_code() -> void:
 	DisplayServer.clipboard_set(lobby_r.to_code())
 	_toast(L.t("lb_code_copied"))
 
-func _lobby_paste_code() -> void:
-	var d: Dictionary = RuleSet.from_code(DisplayServer.clipboard_get())
+func _lobby_paste_code(text := "") -> void:
+	var from_clip := text == ""
+	var d: Dictionary = RuleSet.from_code(DisplayServer.clipboard_get() if from_clip else text)
 	if not d["ok"]:
+		if from_clip and _ask_code(L.t("menu_custom") if L.has("menu_custom") else "NTBR", _lobby_paste_code):
+			return
 		_toast(L.t(d["why"]) if d["why"].begins_with("rr_") else L.t("lb_code_bad"), true)
+		return
+	if _demo() and not call("_demo_ok", d["rules"]):
+		_toast(L.t("bc_demo_locked"), true)
 		return
 	lobby_r = d["rules"]
 	if not _lobby_locked_units().is_empty():

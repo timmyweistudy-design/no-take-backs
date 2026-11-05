@@ -723,7 +723,7 @@ func _fp_intro_steps(a) -> void:
 	var step := "intro_s1"
 	if a.units.size() >= 4:
 		step = "intro_s3" if free_intro_moved else "intro_s2"
-	var msg: String = L.t(step)
+	var msg: String = L.t(step + "_pad", [_pk("start") if step == "intro_s3" else _pk("place")]) if pad_mode else L.t(step)
 	var w := minf(_width(msg, tz("B"), true) + 40, 900.0)
 	var r := Rect2(640 - w / 2, ORIGIN.y + 8, w, text_h(msg, tz("B"), w - 24, true) + 14)
 	draw_rect(r, Color(TH_WOOD_D, 0.94))

@@ -22,7 +22,25 @@ func _skip_step() -> void:
 		result_delay = 9.0
 
 
+## 第十輪 I4：重播的全長在背景算，算完才開始播。
+func _pre_join() -> void:
+	if pre_thread != null:
+		var v = pre_thread.wait_to_finish()
+		pre_thread = null
+		if v != null:
+			replay_total = int(v)
+
+func _exit_tree() -> void:
+	_pre_join()
+	if ai_thread != null:
+		ai_thread.wait_to_finish()
+		ai_thread = null
+
 func _battle_process(delta: float) -> void:
+	if pre_thread != null:
+		if pre_thread.is_alive():
+			return
+		_pre_join()
 	if view != null:
 		_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
 	if start_hold > 0.0:
@@ -463,6 +481,7 @@ func _draw_battle_hud() -> void:
 
 ## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）
 func _begin_battle(a0, a1, kind := "official") -> void:
+	_pre_join()
 	play_kind = kind
 	_ensure_sprites([a0, a1])
 	if kind == "official":
@@ -475,10 +494,19 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	replay_total = 0
 	if kind != "official":
 		# 重播／覆盤：先用確定性模擬算出整場長度，時間軸以實際秒數為滿（Antigravity S5）
-		var pre = Sim.new(a0.copy(), a1.copy(), battle_rules)
-		pre.fast = true
-		pre.run_to_end()
-		replay_total = pre.tick
+		var pa0 = a0.copy()
+		var pa1 = a1.copy()
+		var pr = battle_rules.copy() if battle_rules != null else null
+		var run_pre := func() -> int:
+			var pre = Sim.new(pa0, pa1, pr)
+			pre.fast = true
+			pre.run_to_end()
+			return pre.tick
+		if _async_ok():
+			pre_thread = Thread.new()
+			pre_thread.start(run_pre)
+		else:
+			replay_total = run_pre.call()
 	paused = false
 	follow_id = -1
 	battle_marks.clear()

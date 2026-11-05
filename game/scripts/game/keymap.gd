@@ -44,6 +44,31 @@ static func pad_name(table: Dictionary, action: String) -> String:
 	var c := int(table.get(action, _default_of(PAD_ACTIONS, action)))
 	return PAD_NAMES.get(c, "B%d" % c)
 
+## 第十輪 I1：提示依手把種類與重綁設定顯示。Steam Deck、Xbox＝A／B／X／Y。
+const GLYPH_PS := {JOY_BUTTON_A: "×", JOY_BUTTON_B: "O", JOY_BUTTON_X: "□", JOY_BUTTON_Y: "▲", JOY_BUTTON_START: "Options", JOY_BUTTON_BACK: "Share", JOY_BUTTON_LEFT_SHOULDER: "L1", JOY_BUTTON_RIGHT_SHOULDER: "R1"}
+const GLYPH_NIN := {JOY_BUTTON_A: "B", JOY_BUTTON_B: "A", JOY_BUTTON_X: "Y", JOY_BUTTON_Y: "X", JOY_BUTTON_START: "+", JOY_BUTTON_BACK: "-", JOY_BUTTON_LEFT_SHOULDER: "L", JOY_BUTTON_RIGHT_SHOULDER: "R"}
+
+static func pad_family(joy_name: String) -> String:
+	var n := joy_name.to_lower()
+	for w in ["playstation", "dualshock", "dualsense", "sony", "ps3", "ps4", "ps5"]:
+		if n.contains(w):
+			return "ps"
+	for w2 in ["nintendo", "switch", "joy-con", "joycon"]:
+		if n.contains(w2):
+			return "nintendo"
+	return "xbox"
+
+static func pad_glyph(table: Dictionary, action: String, joy_name := "") -> String:
+	var c := int(table.get(action, _default_of(PAD_ACTIONS, action)))
+	match pad_family(joy_name):
+		"ps":
+			if GLYPH_PS.has(c):
+				return GLYPH_PS[c]
+		"nintendo":
+			if GLYPH_NIN.has(c):
+				return GLYPH_NIN[c]
+	return PAD_NAMES.get(c, "B%d" % c)
+
 ## 不能拿來綁的鍵（Codex r1）：方向與確認導航、畫筆修飾鍵、選兵數字、固定快捷鍵。
 const RESERVED := [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ESCAPE, KEY_TAB, KEY_SHIFT, KEY_CTRL, KEY_ALT, KEY_META, KEY_G, KEY_Z, KEY_Y, KEY_DELETE,
 	KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9]

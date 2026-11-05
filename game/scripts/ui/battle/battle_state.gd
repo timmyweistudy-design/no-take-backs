@@ -7,6 +7,8 @@ const EV = preload("res://scripts/core/events.gd")
 
 ## 第七輪 M3：跳到結果不再卡畫面。正常畫面分批算（每幀限時）；headless 與截圖走同步。
 var skip_busy := false
+var pre_thread: Thread = null   # 第十輪 I4：重播先算全長放背景
+var ai_thread: Thread = null    # 第十輪 I4：困難 AI 放背景
 
 const HUD_LEFT_END := 240.0     # 左上比分文字最寬到這裡
 
@@ -203,7 +205,7 @@ func _key_hints(cx: float, y: float, items: Array, size := 15) -> void:
 	for i in items.size():
 		var kw: float = widths[i][0]
 		var key: String = items[i][0]
-		var kc: Color = {"A": Color("#3ccf6e"), "B": Color("#ef5350"), "X": Color("#42a5f5"), "Y": Color("#ffca28")}.get(key, Color(0.75, 0.78, 0.85))
+		var kc: Color = {"×": Color("#42a5f5"), "O": Color("#ef5350"), "□": Color("#ec7fc1"), "▲": Color("#3ccf6e"), "A": Color("#3ccf6e"), "B": Color("#ef5350"), "X": Color("#42a5f5"), "Y": Color("#ffca28")}.get(key, Color(0.75, 0.78, 0.85))
 		var r := Rect2(x, y, kw, fs + 6)
 		if key.length() == 1 and pad_mode:
 			draw_circle(r.get_center(), r.size.y / 2, kc, true, -1.0, true)

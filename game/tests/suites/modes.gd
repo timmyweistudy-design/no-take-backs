@@ -4,6 +4,7 @@ const GS = preload("res://scripts/ui/game_screens.gd")
 const RS9 = preload("res://scripts/core/ruleset.gd")
 const SaveS = preload("res://scripts/game/save.gd")
 const AI9 = preload("res://scripts/core/ai_army.gd")
+const L = preload("res://scripts/game/strings.gd")
 
 func test_modes_v9() -> void:
 	var was: bool = SaveS.data_locked
@@ -357,3 +358,109 @@ func test_v10_fixes() -> void:
 	g.overlay = ""
 	SaveS.data_locked = was
 	g.free()
+
+## 第十輪批次 B：手把提示、代碼輸入、背景計算、遠征存點。
+func test_v10_input() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var K = load("res://scripts/game/keymap.gd")
+	ok(K.pad_glyph({}, "place", "") == "A" and K.pad_glyph({}, "back", "Steam Deck") == "B", "I1 Deck／Xbox 顯示 A、B")
+	ok(K.pad_glyph({}, "place", "DualSense Wireless Controller") == "×", "I1 PS 手把顯示 ×")
+	ok(K.pad_glyph({}, "place", "Nintendo Switch Pro") == "B", "I1 Switch 手把確定鍵是 B 字樣")
+	ok(K.pad_glyph({"place": JOY_BUTTON_Y}, "place", "") == "Y", "I1 重綁後提示跟著變")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g.pad_mode = true
+	var pad0 = SaveS.settings.get("pad", {})
+	SaveS.settings["pad"] = {"place": JOY_BUTTON_Y}
+	g.state = g.St.TITLE
+	g.overlay = "settings"
+	ok(g._pad_footer_items()[0][0] == "Y", "I1 提示列讀重綁設定", str(g._pad_footer_items()))
+	SaveS.settings["pad"] = pad0
+	g.overlay = ""
+	# I3：手把貼不上時不能安靜地失敗
+	DisplayServer.clipboard_set("not a code")
+	g._accept_challenge()
+	ok(g.toast == L.t("bc_pad_hint"), "I3 手把貼挑戰碼失敗會提示用鍵盤", g.toast)
+	g.toast = ""
+	g.lobby_r = RS9.standard()
+	g._lobby_paste_code()
+	ok(g.toast == L.t("bc_pad_hint"), "I3 手把貼規則碼失敗會提示用鍵盤", g.toast)
+	g.pad_mode = false
+	g._accept_challenge()
+	ok(g.toast == L.t("ch_bad"), "I3 滑鼠維持原提示", g.toast)
+	# I4：重播全長在背景算，結果和同步一樣
+	var rf = RS9.standard()
+	rf.deploy = "free"
+	rf.spacing = 800
+	rf.depth = 6000
+	g.rules = rf
+	g.challenge_army = null
+	g._start_mode(g.Mode.VS_AI)
+	_place_some(g, 6)
+	g._build_ai()
+	var ra0 = g.armies[0].copy()
+	var ra1 = g.armies[1].copy()
+	g._begin_battle(ra0.copy(), ra1.copy(), "replay")
+	var sync_total: int = g.replay_total
+	g.force_async = true
+	g.replay_total = 0
+	g._begin_battle(ra0.copy(), ra1.copy(), "replay")
+	ok(g.pre_thread != null, "I4 重播改背景算")
+	g._pre_join()
+	ok(g.pre_thread == null and g.replay_total == sync_total and sync_total > 0, "I4 背景算的全長相同", "%d %d" % [sync_total, g.replay_total])
+	g.force_async = false
+	# I4：困難 AI 背景算，和同步同一支隊伍
+	var rr = RS9.standard()
+	rr.ai_level = 2
+	rr.preset = "custom"
+	g.rules = rr
+	g._start_mode(g.Mode.VS_AI)
+	_place_some(g, 6)
+	g.difficulty = 2
+	g.round_no = 2
+	g.last_player_formation = g.armies[0].units.duplicate(true)
+	g.rng.seed = 77
+	g._build_ai()
+	var sync_code: String = g.armies[1].to_code()
+	g.force_async = true
+	g.rng.seed = 77
+	ok(g._build_ai_async() and g.overlay == "ai_busy", "I4 困難 AI 改背景算")
+	g.ai_thread.wait_to_finish()
+	g.ai_thread = null
+	g.overlay = ""
+	g.rng.seed = 77
+	g._build_ai_async()
+	while g.ai_thread.is_alive():
+		OS.delay_msec(5)
+	g.force_async = false
+	g._ai_poll()
+	ok(g.ai_thread == null and g.overlay == "" and g.state == g.St.BATTLE and g.last_armies != null, "I4 算完自動開戰")
+	ok(g.armies[1].to_code() == sync_code, "I4 背景算和同步同一支隊伍")
+	# I5：遠征存點
+	g.rules = null
+	g._start_mode(g.Mode.GAUNTLET)
+	_place_some(g, 6)
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	g._take_reward(0)
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(SaveS.data["gauntlet_run"]))
+	ok(int(saved["stage"]) == 2 and int(saved["gold"]) == 10, "I5 戰間有存點", str(saved))
+	var enemy: String = g.armies[1].to_code()
+	var bud: int = g.armies[0].budget
+	var n: int = g.armies[0].units.size()
+	var g2 = GS.new()
+	g2.sfx = FakeSfx.new()
+	g2.time = 1.0
+	SaveS.data["gauntlet_run"] = SaveS.sanitize_run(saved)
+	g2._enter_gauntlet()
+	ok(g2.overlay == "gauntlet_resume", "I5 有存點先問要不要接著打")
+	g2._gauntlet_resume()
+	ok(g2.mode == g2.Mode.GAUNTLET and g2.gauntlet_stage == 2 and g2.armies[0].budget == bud and g2.armies[0].units.size() == n and g2.overlay == "", "I5 接回來狀態相同")
+	ok(g2.armies[1].to_code() == enemy, "I5 接回來對手相同")
+	ok(SaveS.sanitize_run({"stage": "x"}).is_empty() and SaveS.sanitize_run({"stage": 99, "seed": 1, "gold": 0, "cap": 0, "changes": 3, "pool": 0, "prev": []}).is_empty(), "I5 壞存點當沒有")
+	g2._gauntlet_clear()
+	g2.free()
+	g.free()
+	SaveS.data["gauntlet_run"] = {}
+	SaveS.data_locked = was

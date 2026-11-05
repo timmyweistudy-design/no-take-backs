@@ -150,6 +150,7 @@ func _input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventJoypadButton and ev.pressed:
 		pad_mode = true
+		last_joy = ev.device
 		var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
 			JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
 			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
@@ -282,7 +283,9 @@ func _key(k: int) -> void:
 				elif k == KEY_TAB:
 					_move_focus(1)
 			KEY_ESCAPE:
-				if overlay != "":
+				if overlay == "ai_busy":
+					pass      # 第十輪 I4：AI 計算中不能取消
+				elif overlay != "":
 					overlay = ""
 				elif state == St.BATTLE:
 					if play_kind != "official":
@@ -377,6 +380,8 @@ func _process_inner(delta: float) -> void:
 	graves = graves.filter(func(g): return g["t"] < 3.0)
 	if overlay == "codex":
 		_codex_tick(delta)
+	if overlay == "ai_busy":
+		_ai_poll()
 	if state == St.TITLE and demo != null and shot_dir == "":
 		demo_acc += delta
 		while demo_acc >= 0.05:
@@ -473,7 +478,9 @@ func _draw_inner() -> void:
 			_draw_start_cue()
 			_draw_battle_report()
 			_draw_unit_info()
-			if skip_busy:
+			if pre_thread != null:
+				_draw_busy(-1)
+			elif skip_busy:
 				_draw_busy(roundi(view.tick * 100.0 / maxf(1.0, view.max_ticks)))
 			elif seek_target >= 0:
 				_draw_busy(roundi(sim.tick * 100.0 / maxf(1.0, seek_target)))
@@ -509,24 +516,26 @@ func _draw_inner() -> void:
 
 
 
+func _pad_footer_items() -> Array:
+	if overlay == "codex":
+		return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("back")], ["R", L.t("pk_scroll")]]
+	if overlay != "":
+		return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("back")]]
+	match state:
+		St.TITLE:
+			return [["＋", L.t("pk_move")], [_pk("place"), L.t("pk_select")]]
+		St.BATTLE:
+			return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("skip")]]
+		St.RESULT:
+			return [["＋", L.t("pk_move")], [_pk("place"), L.t("pk_select")], [_pk("back"), L.t("menu")]]
+	return []
+
 ## 手把按鍵提示列（第三輪 U7）：用手把時，每個畫面右下角顯示這個畫面能按的鍵（A／B／X／Y 圓形圖示）；
 ## 用鍵盤滑鼠時不顯示手把圖示（Steam Deck 規定兩者不能同時出現）。擺放畫面已經在上方列顯示，這裡略過。
 func _draw_pad_footer() -> void:
 	if not pad_mode or (state == St.PLACE and overlay == ""):
 		return
-	var items: Array = []
-	if overlay == "codex":
-		items = [["A", L.t("pk_select")], ["B", L.t("back")], ["R", L.t("pk_scroll")]]
-	elif overlay != "":
-		items = [["A", L.t("pk_select")], ["B", L.t("back")]]
-	else:
-		match state:
-			St.TITLE:
-				items = [["＋", L.t("pk_move")], ["A", L.t("pk_select")]]
-			St.BATTLE:
-				items = [["A", L.t("pk_select")], ["B", L.t("skip")]]
-			St.RESULT:
-				items = [["＋", L.t("pk_move")], ["A", L.t("pk_select")], ["B", L.t("menu")]]
+	var items: Array = _pad_footer_items()
 	if items.is_empty():
 		return
 	draw_rect(Rect2(0, 770, 1280, 30), Color(0, 0, 0, 0.45))

@@ -2,7 +2,7 @@ extends "res://scripts/ui/battle/battle_state.gd"
 ## 由 battle_view.gd 拆出（V9 P1，行為不變）
 
 func _draw_busy(pct: int) -> void:
-	var msg: String = L.t("busy_calc", [pct])
+	var msg: String = L.t("busy_wait") if pct < 0 else L.t("busy_calc", [pct])
 	var w := _width(msg, tz("B"), true) + 40
 	draw_rect(Rect2(640 - w / 2, 360, w, tz("B") * 1.8), Color(TH_WOOD_D, 0.94))
 	_text(Vector2(640, 360 + tz("B") * 0.35), msg, tz("B"), ACCENT, true, true)

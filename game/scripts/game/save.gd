@@ -14,7 +14,7 @@ const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
 	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
 	# 第五輪：解鎖累計場數（標準＋自訂局都算，沙盒不算）、自訂規則戰績、我的預設、上次在大廳用的規則（代碼）
-	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false,
+	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false, "gauntlet_run": {},
 }
 
 static var settings := {}
@@ -174,6 +174,36 @@ static func sanitize_data(out: Dictionary) -> void:
 			elif raw_lr[k] is Array and str(k).ends_with("_extra") and raw_lr[k].size() <= 4 and raw_lr[k].all(func(v): return v is int or v is float):
 				lr[str(k)] = raw_lr[k].map(func(v): return int(v))   # 第十輪 B3：性格、輪替、禁牌、時段（JSON 讀回是浮點數）
 	out["last_rules"] = lr
+	out["gauntlet_run"] = sanitize_run(out.get("gauntlet_run", {}))
+
+## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
+static func sanitize_run(g) -> Dictionary:
+	if not g is Dictionary:
+		return {}
+	var out := {}
+	for k in ["stage", "seed", "gold", "cap", "changes", "pool"]:
+		var v = g.get(k)
+		if not (v is int or v is float):
+			return {}
+		out[k] = int(v)
+	if out["stage"] < 2 or out["stage"] > 7 or out["gold"] < 0 or out["gold"] > 70 or out["cap"] < 0 or out["cap"] > 14:
+		return {}
+	var raw = g.get("prev")
+	if not raw is Array or raw.size() > 80:
+		return {}
+	var prev: Array = []
+	for u in raw:
+		if not u is Dictionary or not u.has("type"):
+			return {}
+		var o := {}
+		for k2 in u:
+			var v2 = u[k2]
+			if not (v2 is int or v2 is float):
+				return {}
+			o[str(k2)] = int(v2)
+		prev.append(o)
+	out["prev"] = prev
+	return out
 
 ## 逐版遷移（純函式，測試用）：舊進度一律保留；不認得的欄位也保留（新版遊戲寫的存檔被舊版讀到時不會被刪掉）。
 ## 比目前新的版本：原樣回傳，不降版。

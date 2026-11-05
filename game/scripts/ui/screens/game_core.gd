@@ -115,6 +115,36 @@ func _enemy_visible() -> bool:
 
 
 
+func _ai_pool(r: RandomNumberGenerator) -> int:
+	var p1: int = rules.pool_of(1) if rules != null else _pool()
+	if rules != null and rules.ai_style != 0:
+		p1 = AI.style_pool(p1, rules.ai_style, r)
+	return p1
+
+## 第十輪 I4：困難 AI 第二局起要模擬候選陣型，放背景算，畫面不凍住。回傳 true＝已交給背景。
+func _build_ai_async() -> bool:
+	if not _async_ok() or difficulty != 2 or round_no <= 1 or get("challenge_army") != null:
+		return false
+	var r := RandomNumberGenerator.new()
+	r.seed = rng.randi()
+	var p1: int = _ai_pool(r)
+	var known: Array = last_player_formation.duplicate(true)
+	var lib: Array = _counter_lib()
+	var rr = rules.copy() if rules != null else null
+	ai_thread = Thread.new()
+	ai_thread.start(func(): return HardAI.build(known, lib, r, p1, rr))
+	overlay = "ai_busy"
+	return true
+
+func _ai_poll() -> void:
+	if ai_thread == null or ai_thread.is_alive():
+		return
+	armies[1] = ai_thread.wait_to_finish()
+	ai_thread = null
+	ai_name = L.t("diff_hard")
+	overlay = ""
+	call("_on_start_go")
+
 ## 組 AI 的陣型（第六輪：明牌全場時在擺放開始就組好）。
 func _build_ai() -> void:
 	if get("challenge_army") != null:
@@ -124,9 +154,7 @@ func _build_ai() -> void:
 	if true:
 		var r := RandomNumberGenerator.new()
 		r.seed = rng.randi()
-		var p1: int = rules.pool_of(1) if rules != null else _pool()
-		if rules != null and rules.ai_style != 0:
-			p1 = AI.style_pool(p1, rules.ai_style, r)
+		var p1: int = _ai_pool(r)
 		match difficulty:
 			0:
 				armies[1] = AIT.build_full(1, r, 0, [], p1, rules)
@@ -322,7 +350,9 @@ func _progress_and_achievements() -> void:
 			if gauntlet_stage >= 7:
 				_ach("GAUNTLET")
 				Save.data["gauntlet_best"] = 7
+				_gauntlet_clear()
 		else:
+			_gauntlet_clear()
 			Save.data["gauntlet_best"] = maxi(int(Save.data.get("gauntlet_best", 0)), gauntlet_stage - 1)
 	_save()
 
@@ -633,6 +663,37 @@ func _gauntlet_next() -> void:
 	_reset_place(false)
 	armies[0].budget += int(get("gauntlet_gold"))
 	armies[0].unit_cap += int(get("gauntlet_cap"))
+
+## 第十輪 I5：遠征只在每戰之間存檔。
+func _gauntlet_save() -> void:
+	var prev: Array = []
+	for u in gauntlet_prev:
+		var o := {}
+		for k in u:
+			o[str(k)] = int(u[k])
+		prev.append(o)
+	Save.data["gauntlet_run"] = {"stage": gauntlet_stage, "seed": gauntlet_seed, "gold": int(get("gauntlet_gold")), "cap": int(get("gauntlet_cap")),
+		"changes": gauntlet_changes, "pool": int(Save.data.get("gauntlet_pool", 0)), "prev": prev}
+	Save.save_data()
+
+func _gauntlet_clear() -> void:
+	Save.data["gauntlet_run"] = {}
+
+func _gauntlet_resume() -> void:
+	var g: Dictionary = Save.data.get("gauntlet_run", {})
+	if g.is_empty():
+		return
+	Save.data["gauntlet_pool"] = int(g["pool"])
+	call("_start_mode", Mode.GAUNTLET)
+	set("gauntlet_gold", int(g["gold"]))
+	set("gauntlet_cap", int(g["cap"]))
+	gauntlet_stage = int(g["stage"])
+	gauntlet_seed = int(g["seed"])
+	gauntlet_prev = g["prev"].duplicate(true)
+	_reset_place(false)
+	armies[0].budget += int(g["gold"])
+	armies[0].unit_cap += int(g["cap"])
+	gauntlet_changes = int(g["changes"])
 
 
 

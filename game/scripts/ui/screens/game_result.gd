@@ -51,7 +51,7 @@ func _finish_battle() -> void:
 		sfx.play("win" if w == 0 else "lose")
 	if eff["progress"]:
 		_progress_and_achievements()
-		if mode == Mode.VS_AI or mode == Mode.GAUNTLET:
+		if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
 			call("_record_match", w)
 		call("_trial_finish", w)
 		Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
