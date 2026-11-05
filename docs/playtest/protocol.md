@@ -4,7 +4,7 @@
 > **【你】**找人、**Claude**準備版本與分析數據。
 
 ## 準備（Claude）
-1. 出一個試玩 build（要你當次說「可以 build」）。
+1. 試玩包在 `build/playtest-v1.0.1/`（第十輪產生，含 `kit-readme.md`）。之後改版要重新產生。
 2. 遊戲的「設定 → 試玩紀錄」預設關閉。試玩前請每位玩家**打開**。
    - 每場戰鬥會寫一行到本機 `playtest_log.jsonl`：模式、陣型代碼、結果、懸念指標。
    - 戰鬥中右上角多一顆「我知道誰會贏了」按鈕，按下會記錄是第幾秒。
@@ -40,6 +40,9 @@
 | 「我知道誰會贏了」平均按下時間 | 戰鬥長度的 60% 以後 | `call_tick ÷ ticks` |
 | 新人 5 分鐘內獨立完成第一場 | ≥8／10 | 觀察 |
 | 一局擺放時間中位數 | ≤75 秒 | 觀察或錄影 |
+
+## 試玩前先聽音效
+開 `docs/playtest/listen.html`，約 5 分鐘，把結果貼給 Claude。新增音效後跑 `python3 game/tools/gen/make_listen_sheet.py`。
 
 ## 分析（Claude）
 - 把收回的 `playtest_log.jsonl` 放進 `docs/playtest/logs/`，Claude 會出一份報告：
