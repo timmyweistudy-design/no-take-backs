@@ -34,6 +34,7 @@ func _finish_battle() -> void:
 	fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
 	clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
 	state = St.RESULT
+	result_t = time
 	result_tab = 0
 	_focus = 0
 	slow_left = 0.0
@@ -81,7 +82,12 @@ func _draw_result() -> void:
 		title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
 		col = Art.team_color(w, cbm())
 	var title_sz := tcap(tz("D"), 64)
-	_text(Vector2(640, 104), title, title_sz, col, true, true, 540)
+	# 第十輪 V2、F2：標題離上緣遠一點；橫幅從上面落下（版面檢查、簡化特效不演）
+	var drop := 0.0
+	if not layout_probe and not bool(Save.s("reduce_fx")):
+		var dk := clampf((time - result_t) / 0.25, 0.0, 1.0)
+		drop = (1.0 - dk) * (1.0 - dk) * -60.0
+	_text(Vector2(640, 114 + drop), title, title_sz, col, true, true, 540)
 	_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
 	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
 		_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
@@ -90,7 +96,7 @@ func _draw_result() -> void:
 			_icon("star", Vector2(610 + ks * 30, 84), 26.0, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
 	var mvp = report.get("mvp")
 	_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
-	var y := 104.0 + title_sz * 1.25
+	var y := 112.0 + title_sz * 1.25
 	if play_kind == "review":
 		_text(Vector2(640, y), L.t("review_tag"), tz("C"), ACCENT, true, false, 480)
 		y += tz("C") * 1.4
@@ -200,15 +206,26 @@ func _draw_result() -> void:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 
 	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
-		bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
+		if _near_miss():
+			bs.insert(0, [L.t("review_near"), func(): _open_review()])   # 第十輪 F4：輸得很近，主推覆盤
+		else:
+			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	bs.append([L.t("replay"), func(): _replay()])
 	bs.append([L.t("menu"), func(): _request_leave()])
 	var bw2 := 200.0 if bs.size() <= 3 else 176.0
 	var x := 640.0 - (bs.size() * (bw2 + 12) - 12) / 2.0
+	if mode == Mode.VS_AI and not watch_mode and _near_miss():
+		_text(Vector2(640, 618), L.t("review_near_d", [roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))]), tz("S"), ACCENT, true, true, 820)
 	for i in bs.size():
 		_btn(Rect2(x + i * (bw2 + 12), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
 
 
+
+## 第十輪 F4：輸了、對手剩不到 15% 戰力。
+func _near_miss() -> bool:
+	if sim == null or sim.winner != 1 or last_armies.size() != 2:
+		return false
+	return sim.power(1) * 100 < sim.budget_of(1) * 1000 * 15
 
 ## 結果頁的事實列：來源都是 battle_marks（模擬事件），每條都有秒數、哪一方。最多 2 條（結果頁段數上限）。
 func _result_facts() -> Array:

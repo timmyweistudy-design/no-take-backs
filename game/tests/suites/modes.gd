@@ -464,3 +464,117 @@ func test_v10_input() -> void:
 	g.free()
 	SaveS.data["gauntlet_run"] = {}
 	SaveS.data_locked = was
+
+func _final_case(g) -> Array:
+	var r = RS9.standard()
+	r.deploy = "free"
+	r.spacing = 800
+	r.depth = 6000
+	g.rules = r
+	g.challenge_army = null
+	g._start_mode(g.Mode.VS_AI)
+	var a0 = g.armies[0]
+	for y in [2000, 3000, 4000, 5000, 6000, 7000]:
+		a0.place_xy(D.SWORD, a0.world_x(5500), y)
+	var a1 = g.armies[1]
+	a1.place_xy(D.SWORD, a1.world_x(5500), 4500)
+	return [a0, a1]
+
+## 第十輪批次 C：最後一擊只改畫面。
+func test_v10_feel() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	var ar: Array = _final_case(g)
+	var fast = Sim.new(ar[0].copy(), ar[1].copy(), g.rules)
+	fast.fast = true
+	fast.run_to_end()
+	ok(fast.winner == 0 and fast.reason == "全滅", "測試場次是碾壓", str(fast.reason))
+	var fx0 = SaveS.settings.get("reduce_fx", false)
+	var sm0 = SaveS.settings.get("slowmo", true)
+	SaveS.settings["reduce_fx"] = false
+	SaveS.settings["slowmo"] = true
+	g._begin_battle(ar[0].copy(), ar[1].copy(), "official")
+	g.start_hold = 0.0
+	var saw_slow := false
+	var guard := 0
+	while not g.view.finished and guard < 20000:
+		guard += 1
+		g._battle_process(0.05)
+		g.time += 0.05
+		saw_slow = saw_slow or g.final_left > 0.0
+	ok(saw_slow and g.final_used, "F1 碾壓局有最後一擊慢動作")
+	var fp_show: String = g.sim.fingerprint
+	var tick_show: int = g.sim.tick
+	# 跳過：立刻算完，不演；演不演都是同一場
+	g._begin_battle(ar[0].copy(), ar[1].copy(), "official")
+	g._on_skip()
+	ok(g.view.finished and g.final_left == 0.0 and not g.final_used, "F1 直接看結果不演")
+	ok(g.sim.fingerprint == fp_show and g.sim.tick == tick_show and g.sim.tick == fast.tick, "F1 不影響模擬", "%s %s" % [g.sim.fingerprint, fp_show])
+	# 簡化特效：不慢放
+	SaveS.settings["reduce_fx"] = true
+	g._begin_battle(ar[0].copy(), ar[1].copy(), "official")
+	g.start_hold = 0.0
+	saw_slow = false
+	guard = 0
+	while not g.view.finished and guard < 20000:
+		guard += 1
+		g._battle_process(0.05)
+		saw_slow = saw_slow or g.final_left > 0.0
+	ok(not saw_slow, "F1 簡化特效不慢放")
+	SaveS.settings["reduce_fx"] = fx0
+	SaveS.settings["slowmo"] = sm0
+	# F4：差一點才主推覆盤
+	g.sim.winner = 1
+	g.last_armies = [ar[0], ar[1]]
+	ok(g._near_miss() == (g.sim.power(1) * 100 < g.sim.budget_of(1) * 1000 * 15), "F4 差一點的判定")
+	g.sim.winner = 0
+	ok(not g._near_miss(), "F4 贏了不算")
+	g.free()
+	SaveS.data_locked = was
+
+## 第十輪 T4、R1：試玩版的範圍。
+func test_v10_demo() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g.force_demo = true
+	var P = load("res://scripts/game/presets.gd")
+	g.overlay = ""
+	g._enter_gauntlet()
+	ok(g.overlay == "" and g.toast == L.t("demo_locked"), "R1 試玩版不開遠征")
+	g.toast = ""
+	g._start_trial(1)
+	ok(g.toast == L.t("demo_locked") and g.trial_id != 1, "R1 不開的試煉進不去")
+	var mask: int = load("res://scripts/game/roster.gd").unlocked_mask(1 << 20, true)
+	for i in P.DEMO_TRIALS:
+		g._start_trial(i)
+		ok(g.trial_id == i and g.rules.map_id in P.DEMO_MAPS, "R1 試煉 %d 開得起來、地圖有開放" % i)
+		g._build_ai()
+		var off: Array = []
+		for u in g.armies[1].units:
+			if not RS9.has(mask, int(u["type"])):
+				off.append(int(u["type"]))
+		ok(off.is_empty() and not g.armies[1].units.is_empty(), "R1 試煉 %d 對手沒有正式版兵" % i, str(off))
+	g._open_lobby("ai")
+	for _i in 8:
+		g._lobby_adj("map", 1)
+		ok(g.lobby_r.map_id in P.DEMO_MAPS, "R1 大廳換圖只有開放的", str(g.lobby_r.map_id))
+	g.lobby_r.ai_level = 1
+	g._lobby_adj("ai_level", 1)
+	ok(g.lobby_r.ai_level == 1, "R1 大廳選不到困難")
+	for _j in 20:
+		g._lobby_random()
+		ok(g.lobby_r.map_id in P.DEMO_MAPS and g.lobby_r.ai_level <= 1, "R1 隨機一切不超出範圍")
+	g.lobby_r.map_id = 0
+	g.lobby_r.ai_level = 0
+	var ok_block: String = g._lobby_block()
+	g.lobby_r.map_id = 4
+	g.lobby_r.deploy = "free"
+	ok(g._lobby_block() == L.t("demo_locked") and ok_block != L.t("demo_locked"), "R1 貼上不開放的地圖不能開打", ok_block)
+	g.free()
+	SaveS.data_locked = was

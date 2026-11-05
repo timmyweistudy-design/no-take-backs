@@ -98,6 +98,8 @@ func _lobby_block() -> String:
 	var bad: Array = lobby_r.validate()
 	if not bad.is_empty():
 		return L.t(bad[0])
+	if _demo() and (not call("_demo_ok", lobby_r) or lobby_r.ai_level > 1):
+		return L.t("demo_locked")     # 第十輪 R1：貼上的規則、舊的上次設定都走這裡
 	# 第六輪（Codex 實作第 1 輪 #4）：明牌全場只給對 AI、輪流全場只給雙人（貼上的規則代碼也要擋）
 	if (lobby_r.fullfield == RuleSet.FULL_DUEL and lobby_kind != "duel") or (lobby_r.fullfield == RuleSet.FULL_AI and lobby_kind != "ai"):
 		return L.t("rr_full_kind")
@@ -190,7 +192,11 @@ func _lobby_adj(id: String, d: int) -> void:
 	lobby_item = id
 	match id:
 		"map":
-			r.map_id = wrapi(r.map_id + d, 0, MapDefs.MAPS.size())
+			if _demo():
+				var dm: Array = Presets.DEMO_MAPS
+				r.map_id = dm[wrapi(dm.find(r.map_id) + d, 0, dm.size())]
+			else:
+				r.map_id = wrapi(r.map_id + d, 0, MapDefs.MAPS.size())
 			if not r.map_is_default() and r.deploy != "free":
 				r.deploy = "free"
 				r.spacing = 800
@@ -230,7 +236,7 @@ func _lobby_adj(id: String, d: int) -> void:
 		"carry":
 			r.carry = not r.carry
 		"ai_level":
-			r.ai_level = clampi(r.ai_level + d, 0, 2)
+			r.ai_level = clampi(r.ai_level + d, 0, 1 if _demo() else 2)
 		"keep":
 			r.keep_formation = not r.keep_formation
 		"deploy":
@@ -545,6 +551,9 @@ func _draw_lobby_main(R: Rect2) -> void:
 	# 地圖是什麼樣的玩法（第一眼就要懂）
 	_text(Vector2(pv.position.x, ly), L.t("map_d_" + mk), tz("S"), Color(1, 1, 1, 0.88), false, false, pv.size.x)
 	ly += text_h(L.t("map_d_" + mk), tz("S"), pv.size.x) + 8
+	if lobby_r.map_id != 0 and RuleSet.has_new(lobby_r.pool_of(0)):   # 第十輪 R7：講清楚沒認證，不動 AI 也不動數值
+		_text(Vector2(pv.position.x, ly), L.t("lb_map_fantasy_note"), tz("C"), ACCENT, false, false, pv.size.x)
+		ly += text_h(L.t("lb_map_fantasy_note"), tz("C"), pv.size.x) + 8
 	var notes_h := _lobby_notes_h(pv.size.x)
 	if notes_h > 0.0:
 		_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
@@ -604,7 +613,7 @@ func _lobby_set_size(z: int) -> void:
 ## 隨機一切：地圖、大小、難度、性格；兵種名單不動（玩家解鎖進度不同）。
 func _lobby_random() -> void:
 	var r = lobby_r
-	r.map_id = randi() % MapDefs.MAPS.size()
+	r.map_id = Presets.DEMO_MAPS[randi() % Presets.DEMO_MAPS.size()] if _demo() else randi() % MapDefs.MAPS.size()
 	_lobby_set_size(randi() % 3)
 	if r.map_id != 0 and r.deploy != "free":
 		r.deploy = "free"
@@ -612,7 +621,7 @@ func _lobby_random() -> void:
 		r.depth = 6000
 	if lobby_kind == "ai":
 		r.ai_style = randi() % RuleSet.AI_STYLES
-		r.ai_level = randi() % 3
+		r.ai_level = randi() % (2 if _demo() else 3)
 	_lobby_touch()
 
 ## 精簡模式：一張規則摘要卡＋卡池頭像＋一個最常調的選項＋提示。

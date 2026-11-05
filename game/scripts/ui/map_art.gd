@@ -6,11 +6,11 @@ const CS := 64.0
 
 ## 每種地貌的色：底、慢、快、擋、擋的高光、框。
 const BIOME := {
-	"river": {"base": "#6f9a4a", "base2": "#7da655", "slow": "#7a6a44", "fast": "#a9b07a", "block": "#2f7fb5", "edge": "#7cc4e8", "frame": "#5b4632", "sound": "water"},
-	"forest": {"base": "#4e7a3c", "base2": "#578545", "slow": "#6b5233", "fast": "#8f9a5c", "block": "#2f4d29", "edge": "#6f9a4a", "frame": "#3e2f22", "sound": "forest"},
-	"ice": {"base": "#d8e6ef", "base2": "#e6f0f6", "slow": "#f7fbff", "fast": "#8fd0ee", "block": "#5d8fb0", "edge": "#ffffff", "frame": "#5f7485", "sound": "wind"},
-	"lava": {"base": "#3f3640", "base2": "#4a4049", "slow": "#7e7680", "fast": "#6a5d62", "block": "#ff5f1c", "edge": "#ffd166", "frame": "#2c2428", "sound": "lava"},
-	"canyon": {"base": "#d9b37a", "base2": "#e2bf88", "slow": "#c79a5e", "fast": "#a89a86", "block": "#6d3a26", "edge": "#c47a4e", "frame": "#6e4a2c", "sound": "wind"},
+	"river": {"base": "#6f9a4a", "base2": "#7da655", "slow": "#7a6a44", "fast": "#a9b07a", "block": "#2f7fb5", "edge": "#7cc4e8", "frame": "#5b4632", "sound": "water", "outer": "#22351f"},
+	"forest": {"base": "#4e7a3c", "base2": "#578545", "slow": "#6b5233", "fast": "#8f9a5c", "block": "#2f4d29", "edge": "#6f9a4a", "frame": "#3e2f22", "sound": "forest", "outer": "#16261a"},
+	"ice": {"base": "#b7ccda", "base2": "#c3d6e2", "slow": "#d3e1ea", "fast": "#7fb6d3", "block": "#4a7796", "edge": "#e4f0f7", "frame": "#4f6475", "sound": "wind", "outer": "#2c3d4c"},
+	"lava": {"base": "#3f3640", "base2": "#4a4049", "slow": "#7e7680", "fast": "#6a5d62", "block": "#d94a14", "edge": "#7a3322", "frame": "#2c2428", "sound": "lava", "outer": "#19131a"},
+	"canyon": {"base": "#d9b37a", "base2": "#e2bf88", "slow": "#c79a5e", "fast": "#a89a86", "block": "#6d3a26", "edge": "#c47a4e", "frame": "#6e4a2c", "sound": "wind", "outer": "#3f2c1e"},
 }
 
 var _tex := {}       # 鍵 → Texture2D
@@ -69,6 +69,21 @@ static func props(map_id: int, size: int) -> Array:
 	out.sort_custom(func(a, b): return a[0] < b[0])
 	return out
 
+## 第十輪 V4：場外裝飾，只放左右兩條空白；不碰場地，不會被誤認成障礙。
+static func draw_outfield(ci: CanvasItem, field: Rect2, biome: String) -> void:
+	var bi: Dictionary = BIOME.get(biome, {})
+	ci.draw_rect(Rect2(-300, -300, 1900, 1400), Color(bi.get("outer", "#1b2a1f")))
+	var kinds: Array = {"river": ["bush", "bush", "rock"], "forest": ["forest", "forest", "bush"], "ice": ["pine", "pine", "ice"], "lava": ["lava", "lava", "rock"], "canyon": ["deadtree", "rock", "rock"]}.get(biome, [])
+	if kinds.is_empty():
+		return
+	for i in 18:
+		var h := absi((i * 73856093) ^ ((i + 11) * 19349663)) % 100000
+		var left := i % 2 == 0
+		var span := field.position.x - 40.0
+		var x: float = 16.0 + h % int(span) if left else field.end.x + 24.0 + h % int(span)
+		var y: float = field.position.y + 10.0 + i * (field.size.y + 60.0) / 18.0 + h % 16
+		draw_prop(ci, Vector2.ZERO, [y, kinds[h % 3], x, 1.0 + (h % 50) / 100.0], 0.0)
+
 ## 畫一個前景物件。ci 已經是場地座標（鏡頭已套用）。
 static func draw_prop(ci: CanvasItem, origin: Vector2, pr: Array, time: float) -> void:
 	var p := origin + Vector2(pr[2], pr[0])
@@ -80,6 +95,24 @@ static func draw_prop(ci: CanvasItem, origin: Vector2, pr: Array, time: float) -
 			ci.draw_circle(p + Vector2(0, -24) * s, 17.0 * s, Color("#1d3a22"), true, -1.0, true)
 			ci.draw_circle(p + Vector2(0, -24) * s, 15.0 * s, Color("#2f6b37"), true, -1.0, true)
 			ci.draw_circle(p + Vector2(-5, -29) * s, 8.0 * s, Color("#4c9150"), true, -1.0, true)
+		"bush":
+			ci.draw_circle(p + Vector2(0, -6) * s, 13.0 * s, Color("#1f3a1c"), true, -1.0, true)
+			ci.draw_circle(p + Vector2(-5, -9) * s, 9.0 * s, Color("#3f6f33"), true, -1.0, true)
+			ci.draw_circle(p + Vector2(6, -7) * s, 7.0 * s, Color("#4f8240"), true, -1.0, true)
+		"rock":
+			ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-13, 0) * s, p + Vector2(-8, -11) * s, p + Vector2(4, -15) * s, p + Vector2(13, -5) * s, p + Vector2(12, 0) * s]), Color(0.28, 0.26, 0.28))
+			ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-8, -11) * s, p + Vector2(4, -15) * s, p + Vector2(1, -6) * s]), Color(0.42, 0.4, 0.42))
+		"pine":
+			ci.draw_rect(Rect2(p + Vector2(-3, -8) * s, Vector2(6, 9) * s), Color("#4a3a2c"))
+			for k in 3:
+				var ky: float = -8.0 - k * 11.0
+				var kw: float = 16.0 - k * 4.0
+				ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-kw, ky) * s, p + Vector2(0, ky - 17.0) * s, p + Vector2(kw, ky) * s]), Color("#2f5a55"))
+				ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-kw * 0.45, ky - 9.0) * s, p + Vector2(0, ky - 17.0) * s, p + Vector2(kw * 0.45, ky - 9.0) * s]), Color("#e4f0f7"))
+		"deadtree":
+			ci.draw_line(p, p + Vector2(1, -28) * s, Color("#3a2a1c"), 5.0 * s, true)
+			ci.draw_line(p + Vector2(1, -16) * s, p + Vector2(-11, -28) * s, Color("#3a2a1c"), 3.0 * s, true)
+			ci.draw_line(p + Vector2(1, -22) * s, p + Vector2(11, -36) * s, Color("#3a2a1c"), 3.0 * s, true)
 		"ice":
 			ci.draw_circle(p + Vector2(0, 2), 11.0 * s, Color(0, 0.1, 0.3, 0.2), true, -1.0, true)
 			ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-11, 0) * s, p + Vector2(-5, -20) * s, p + Vector2(2, -26) * s, p + Vector2(10, -12) * s, p + Vector2(11, 0) * s]), Color("#a9d8ee"))
@@ -100,6 +133,24 @@ class _Painter extends Node2D:
 		if c < 0 or c >= t.n or r < 0 or r >= t.m:
 			return -1
 		return t.grid[c + r * t.n]
+	## 第十輪 V5、V6：牆邊往外（可走的那一側）長碎石或碎冰，牆只會看起來更厚，不會多出可走的缺口。
+	func _rim(m: Vector2, out_dir: Vector2, h: int) -> void:
+		if kind != "lava" and kind != "ice" and kind != "canyon":
+			return
+		var side := Vector2(out_dir.y, out_dir.x)
+		for k in 3:
+			var hh := (h >> (k * 3)) % 64
+			var pos: Vector2 = m + side * ((k - 1) * 10.0 + hh % 5) + out_dir * (hh % 3)
+			var r := 2.5 + hh % 4
+			match kind:
+				"lava":
+					draw_circle(pos, r + 1.0, Color("#2d1a18"), true, -1.0, true)
+					draw_circle(pos - Vector2(0.5, 0.8), r * 0.6, Color("#55352c"), true, -1.0, true)
+				"ice":
+					draw_colored_polygon(PackedVector2Array([pos + side * r * 1.4, pos + out_dir * r * 1.2, pos - side * r * 1.4, pos - out_dir * r * 0.5]), Color("#e4f0f7"))
+				"canyon":
+					draw_circle(pos, r, Color("#8d5a3a"), true, -1.0, true)
+
 	func _draw() -> void:
 		var Q := 32.0
 		var base := Color(biome["base"])
@@ -155,7 +206,8 @@ class _Painter extends Node2D:
 						# 硬殼與裂縫：暗塊之間透出亮岩漿
 						for kl in 2:
 							draw_circle(o3 + Vector2((h3 >> kl) % 30, (h3 >> (kl + 2)) % 30), 7.0 + kl * 2.0, Color("#3a2320"), true, -1.0, true)
-						draw_line(o3 + Vector2(h3 % 12, 2), o3 + Vector2(10 + h3 % 20, 30), Color("#ffe07a"), 2.2, true)
+						if h3 % 3 == 0:   # 第十輪 V6：裂縫不要每格一條，才不會像條紋
+							draw_line(o3 + Vector2(h3 % 12, 4 + h3 % 8), o3 + Vector2(6 + h3 % 22, 18 + h3 % 12), Color("#ffb347"), 1.8, true)
 					"canyon":
 						# 山崖：上面亮、岩層橫紋不對齊，不要像磚牆
 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color("#6d3a26"))
@@ -177,6 +229,7 @@ class _Painter extends Node2D:
 					var nb := _cell(c4 + d4[0], r4 + d4[1])
 					if nb != t.BLOCK and nb != -1:
 						draw_line(o4 + d4[2], o4 + d4[3], Color(biome["edge"]), 2.5, true)
+						_rim(o4 + (d4[2] + d4[3]) / 2.0, Vector2(d4[0], d4[1]), _h(c4, r4))
 		# 橋：河裡的空格鋪木板
 		if kind == "river":
 			for r5 in t.m:

@@ -613,15 +613,18 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 	for grp in [[lab_b, list_b, Color("#4ade80")], [L.t("fears"), fears, Color("#f87171")]]:
 		if grp[1].is_empty():
 			continue
+		# 第十輪 V8：一組一個底框，圖示不貼字
+		var pill_w: float = _width(grp[0], tz("S"), true) + 16.0 + grp[1].size() * 38.0
+		_box(Rect2(x - 6, R.position.y + 2, minf(pill_w, help.position.x - x), R.size.y - 4), Color(0, 0, 0, 0.22), Color(0, 0, 0, 0), 8.0)
 		_text(Vector2(x, y), grp[0], tz("S"), grp[2], false, true)
-		x += _width(grp[0], tz("S"), true) + 6
+		x += _width(grp[0], tz("S"), true) + 10
 		for t in grp[1]:
-			if x > help.position.x - 36:
+			if x > help.position.x - 40:
 				break
 			draw_circle(Vector2(x + 17, R.get_center().y), 17, Color(1, 1, 1, 0.08))
 			Art.unit(self, Vector2(x + 17, R.position.y + 39), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.68, cbm())
-			x += 36
-		x += 14
+			x += 38
+		x += 18
 	_draw_place_help()
 
 

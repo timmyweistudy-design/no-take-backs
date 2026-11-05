@@ -14,6 +14,9 @@ var ban_turn := 0
 
 ## ── 主題試煉 ──
 func _start_trial(i: int) -> void:
+	if _demo() and not i in Presets.DEMO_TRIALS:
+		_toast(L.t("demo_locked"), true)
+		return
 	var t: Array = TRIALS[i]
 	var r = Presets.make("standard", "ai", RS.unlocked_mask(_unlock_games(), _demo()))
 	r.deploy = "free"
@@ -36,6 +39,8 @@ func _start_trial(i: int) -> void:
 			p |= 1 << int(x)
 	else:
 		p = RuleSet.all_pool()
+	if _demo():
+		p &= RS.unlocked_mask(1 << 20, true)
 	r.pool[1] = p
 	r.preset = "custom"
 	rules = r
@@ -70,7 +75,7 @@ func _draw_trials() -> void:
 	for i in TRIALS.size():
 		var t: Array = TRIALS[i]
 		var r := Rect2(116 + (i % 2) * (cw + 8), 164 + (i / 2) * (ch + 7), cw, ch)
-		_btn(r, "", _start_trial.bind(i), true, false, TH_WOOD)
+		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
 		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
 		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, L.t("map_" + str(MapDefs.MAPS[t[0]]["key"]))], tz("B"), Color.WHITE, false, true, cw - 240)
 		var sz := "%s %d×%d" % [L.t("map_size_%d" % int(t[1])), MapDefs.SIZES[t[1]][0], MapDefs.SIZES[t[1]][1]]

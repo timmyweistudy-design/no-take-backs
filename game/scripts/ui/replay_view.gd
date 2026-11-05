@@ -261,6 +261,9 @@ func _watch_code_str(code: String) -> void:
 		return
 	# 試玩版：對戰代碼裡有正式版才有的兵種就不播（Codex 實作審查 #2）
 	if _demo():
+		if r["rules"] != null and not r["rules"].map_id in Presets.DEMO_MAPS:
+			_toast(L.t("bc_demo_locked"), true)
+			return
 		for a in [r["a0"], r["a1"]]:
 			for u in a.units:
 				if not RS.is_unlocked(int(u["type"]), 999, true):

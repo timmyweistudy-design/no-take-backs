@@ -67,7 +67,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_poly(ci, PackedVector2Array([Vector2(-2, hy - 12), Vector2(4, hy - 21), Vector2(7, hy - 19), Vector2(3, hy - 11)]), tc.lightened(0.2), a)
 			# 劍：斜舉的亮刃（攻擊時往前揮）
 			# 前搖往後拉 35°、揮擊揮到 +60° 以上
-			var ang := -1.15 + (w * 0.61 if w < 0.0 else w * 1.5) + sway
+			var ang := -1.15 + (w * 0.9 if w < 0.0 else w * 1.95) + sway   # 第十輪 F3：揮幅加大
 			if variant == 1:
 				# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
 				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
@@ -86,7 +86,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.95, PI * 2.05, 20, Color(STEEL_D, a), 4.5, true)
 			_line(ci, Vector2(-9, hy - 3), Vector2(11, hy - 3), STEEL_D, 2.0, a)
 			# 大方盾（佔身體一半寬，正面）
-			var push := (w * 7.0 if w > 0.0 else w * 3.0) + sway * 14.0   # 盾擊：揮擊時整面盾往前推（第三輪 R4）；走路時盾微晃
+			var push := (w * 12.0 if w > 0.0 else w * 5.0) + sway * 14.0   # 盾擊：揮擊時整面盾往前推（第三輪 R4）；走路時盾微晃
 			# 第七輪 C1-2：盾放大（遮身體六成）、上寬下尖、深鐵色外框，混戰時不會融進隊伍色塊
 			var sh := PackedVector2Array([Vector2(1 + push, -43), Vector2(21 + push, -41), Vector2(21 + push, -14), Vector2(11 + push, -2), Vector2(1 + push, -14)])
 			_poly(ci, sh, Color("#4a5468"), a)

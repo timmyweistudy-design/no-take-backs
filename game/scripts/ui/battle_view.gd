@@ -60,6 +60,10 @@ func _battle_process(delta: float) -> void:
 	if slow_left > 0:
 		rate *= 0.5
 		slow_left -= delta
+	if final_left > 0:
+		rate *= 0.25      # 第十輪 F1：最後一擊
+		final_left -= delta
+		_update_action_focus()
 	accum += delta * rate
 	while accum >= 0.05 and not view.finished:
 		accum -= 0.05
@@ -123,9 +127,18 @@ func _frame_alive(delta: float) -> void:
 
 
 
+## 第十輪 F1：模擬領先畫面 DELAY 個 tick，已知全滅就在倒下前放慢。和局、逾時、同歸於盡都不演。
+func _check_final(with_fx: bool) -> void:
+	if final_used or not with_fx or not sim.finished or sim.winner < 0 or sim.reason != "全滅":
+		return
+	final_used = true
+	if _fx_on("slowmo"):
+		final_left = 0.6
+
 ## 畫面前進一個 tick：模擬保持領先 DELAY 個 tick，畫面播最舊的那一份快照（R5 展示緩衝）。
 func _sim_step(with_fx: bool) -> void:
 	_pump_view()
+	_check_final(with_fx)
 	for u in view.units:
 		prev_pos[u.id] = Vector2(u.x, u.y)
 	if not view.advance():
@@ -154,7 +167,7 @@ func _sim_step(with_fx: bool) -> void:
 		_collect_mark(ev, view, view.tick)
 		_on_event(ev, with_fx)
 	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
-	if view.finished and not slow_used and deaths > 0 and with_fx:
+	if view.finished and (not slow_used or final_used) and deaths > 0 and with_fx:
 		hitstop = 0.2
 		if bool(Save.s("shake")):
 			shake = 0.15
@@ -441,8 +454,8 @@ func _draw_battle_hud() -> void:
 	# 色盲配色的亮橘底用深色字（對比 ≥7:1）
 	var lc := Color.WHITE
 	var rc := Color("#141820") if cbm() else Color.WHITE
-	_text(Vector2(bx + 8, 42), "%d%%" % roundi(p0 * 100.0 / (view.budget_of(0) * 1000)), ts(15), lc, false, true)
-	var rt := "%d%%" % roundi(p1 * 100.0 / (view.budget_of(1) * 1000))
+	_text(Vector2(bx + 8, 42), L.t("hud_power", [roundi(p0 * 100.0 / (view.budget_of(0) * 1000))]), ts(15), lc, false, true)
+	var rt: String = L.t("hud_power", [roundi(p1 * 100.0 / (view.budget_of(1) * 1000))])
 	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), rc, false, true, 0.0, Color(1, 1, 1, 0.0) if cbm() else Color(0, 0, 0, -1))   # 深色字不加黑描邊（Antigravity S2 #1）
 	# 第八輪：生兵戰力 0（時間到不灌水），隻數用「本隊＋召喚」講清楚
 	var sn := [0, 0]
@@ -465,7 +478,8 @@ func _draw_battle_hud() -> void:
 	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
 	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
 	if mode == Mode.VS_AI and ai_name != "":
-		_text(Vector2(bx + bw - 120, 68), "AI：%s" % ai_name, ts(11), Color(1, 1, 1, 0.55))
+		var ai_lb := "AI：%s" % ai_name
+		_text(Vector2(bx + bw - _width(ai_lb, tz("C")), 69), ai_lb, tz("C"), Color(1, 1, 1, 0.9))
 	if state == St.BATTLE and bool(Save.s("playtest")):
 		if pt_call_tick < 0:
 			_btn(Rect2(780, 2, 162, 36), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
@@ -534,6 +548,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	_pump_view()   # 開場先預填 DELAY 個 tick
 	accum = 0.0
 	slow_used = false
+	final_used = false
+	final_left = 0.0
 	slow_left = 0.0
 	hitstop = 0.0
 	zoom = 1.0

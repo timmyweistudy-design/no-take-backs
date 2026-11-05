@@ -25,9 +25,10 @@
 - **輪流落子**：和朋友在同一台電腦（或用 Steam 遠端同樂）公開輪流下兵，每人 5 手。你看得到他擺了什麼，他也看得到你——擺下的兵不能收回。
 - **激烈到最後一秒**：雙方都殘血時自動慢動作特寫；落後的一方進入「背水」攻速提升；60 秒後狂熱耗損，不會無止盡拖時間。
 - **看得懂為什麼輸**：戰報告訴你每個兵種輸出多少、在第幾秒勝負已定、有沒有被逆轉；每一場都能完整重播。
-- **單人內容**：3 關教學、30 關殘局與試玩關（每關都有不只一種解法）、7 連勝遠征、三種難度的 AI（困難 AI 會讀你上一局的陣型）。
+- **單人內容**：3 關教學、25 關殘局與試玩關（每關都有不只一種解法）、10 關主題試煉、7 連勝遠征（每戰之間自動存點）、三種難度的 AI（困難 AI 會讀你上一局的陣型）。
 - **傭兵公會開張，連魔物都來應徵**：除了王國軍 10 種，還有會自爆的爆爆羊、裝成寶箱咬人的寶箱怪、死了會分裂的史萊姆、能把敵人吸成一團的吸塵貓。每局自選 10 種上場。
-- **分享陣型**：一串代碼就能把得意陣型丟給朋友挑戰。
+- **6 張地圖、3 種大小**：青草平原、雙橋河谷、林間小徑、冰湖雪原、熔岩裂谷、古道峽谷。擋路、減速、加速地形會改變你的擺法。
+- **分享陣型**：一串挑戰碼就能把得意陣型丟給朋友挑戰；雙人還能輪流禁牌。
 
 沒有抽卡、沒有課金、沒有讓兵變強的養成——只比擺法。
 
@@ -38,20 +39,22 @@ No Take-Backs is a cute little auto-battler about one decision: where your army 
 - **Alternating deployment**: play a friend on one PC (or online with Steam Remote Play Together). Take turns placing units in the open — five turns each. They see your moves, you see theirs, and nothing can be taken back.
 - **Tense to the last second**: slow-motion close-ups when both sides are nearly out; the losing side gets a *Rally* attack-speed boost; after 60 seconds the Frenzy makes sure every fight ends.
 - **Know why you lost**: a battle report shows damage by unit type, when the outcome was decided, and whether it was a comeback. Every battle can be replayed exactly.
-- **Solo content**: 3 tutorials, 30 puzzle battles and unit trials, a 7-win Gauntlet, and three AI difficulties — the hard AI reads your last formation.
+- **Solo content**: 3 tutorials, 25 puzzle battles and unit trials, 10 themed Trials, a 7-win Gauntlet with saves between battles, and three AI difficulties — the hard AI reads your last formation.
 - **The guild is hiring, even monsters**: beyond the 10 Kingdom units, recruit exploding Boom Sheep, biting Mimics, splitting Slimes and a Vacuum Cat that sucks enemies into a clump. Pick any 10 types per battle.
-- **Share formations** as a short code.
+- **6 maps, 3 sizes**: Plain, River, Forest, Ice Lake, Lava Rift and Canyon, with blocking, slow and fast terrain that change how you deploy.
+- **Share formations** as a short challenge code, and ban cards in local duels.
 
 No gacha, no microtransactions, no stat upgrades. Just placement.
 
-## 截圖清單（至少 5 張，1920×1080 或 1280×720）
-1. 拔河條 51:49、最後時刻慢動作特寫、兩隻殘血互砍（**主圖**）
-2. 擺放畫面：戰術預覽（弓手射程、騎兵衝鋒線、剋制 ✓✗）
-3. 大混戰：衝鋒煙塵＋背刺紫光＋拒馬
-4. 輪流落子：「紅方落子中　第 3／5 手」
-5. 戰報：各兵種輸出長條圖＋「逆轉勝！贏家曾落後 23%」
-6. 殘局挑戰選單（星數）
-7. 結果畫面「★ 孤勇者！★」
+## 截圖清單（第十輪換過，檔案在 `docs/store/screenshots/`，1280×800）
+排序依第十輪三方討論：排兵和覆盤最能說明玩法，放前面。
+1. `01_place.png` 擺放：射程與剋制提示（**主圖**）
+2. `02_review.png` 覆盤：改一隻兵再打一次
+3. `03_clutch.png` 最後時刻慢動作
+4. `04_battle.png` 大混戰
+5. `05_map_river.png`、`06_map_ice.png`、`07_map_lava.png` 地圖
+6. `08_result.png` 結果：勝負、走勢、MVP
+7. `09_duel.png` 輪流落子
 
 ## 預告片分鏡（30 秒，優化方案 P）
 | 秒 | 畫面 | 字幕／聲音 |

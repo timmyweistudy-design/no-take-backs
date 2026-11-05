@@ -554,6 +554,21 @@ func _shots_v9() -> void:
 	ban_left = [1, 1]
 	_open("ban")
 	await _snap("61_ban.png")
+	# 第十輪 T1：極端資料與新畫面
+	rules.ai_pool_same = false
+	rules.pool = [1023, ~1023 & ((1 << 20) - 1)]
+	await _snap("62_ban_20.png")
+	rules.pool = [RuleSet.all_pool(), RuleSet.all_pool()]
+	mode = Mode.GAUNTLET
+	overlay = "leave"
+	await _snap("63_leave.png")
+	mode = Mode.VS_AI
+	overlay = "codes"
+	await _snap("64_codes.png")
+	Save.data["gauntlet_run"] = {"stage": 4, "seed": 1, "gold": 10, "cap": 2, "changes": 3, "pool": 0, "prev": []}
+	overlay = "gauntlet_resume"
+	await _snap("65_gauntlet_resume.png")
+	Save.data["gauntlet_run"] = {}
 	rules = null
 	overlay = ""
 	_go_title()

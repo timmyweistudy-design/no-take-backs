@@ -20,7 +20,7 @@ static func _fantasy(ci: CanvasItem, type: int, tc: Color, walk: float, w: float
 
 
 static func _f_spore(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
-	_push_body(ci, Gait.body_xf(10, walk))
+	_push_body(ci, _atk_xf(Gait.body_xf(10, walk), w, 0.3, 0.0, true))
 	# 短胖的柄＋超大菇傘；攻擊（噴毒）時整朵壓扁再彈起，底下兩朵小芽
 	var sq := 1.0 + maxf(0.0, w) * 0.22 - minf(0.0, w) * 0.1
 	var low := 1.0 - maxf(0.0, w) * 0.2
@@ -116,7 +116,7 @@ static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	# 果凍：底部微扁、頂上一小尖，走路和攻擊時壓扁彈起
 	var wk := Gait.ph(walk)
 	# 落地壓扁、騰空拉長（Antigravity P2 #2）：拉長時整隻離地（Gait.air）
-	var sq := (1.14 - absf(sin(wk)) * 0.26 if wk != 0.0 else 1.0) + maxf(0.0, w) * 0.2 - minf(0.0, w) * 0.12
+	var sq := (1.14 - absf(sin(wk)) * 0.26 if wk != 0.0 else 1.0) + maxf(0.0, w) * 0.36 - minf(0.0, w) * 0.22
 	if walk < -150.0:
 		sq = 1.22
 	var rx := 20.0 * k * sq
@@ -226,7 +226,7 @@ static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 	var wk := Gait.ph(walk)
 	_c(ci, Vector2(-5 + ft[0], -3 - ft[1]), 3.2, Color("#ece6d6"), a)
 	_c(ci, Vector2(4 + ft[2], -3 - ft[3]), 3.2, Color("#ece6d6"), a)
-	_push_body(ci, Gait.body_xf(17, walk))
+	_push_body(ci, _atk_xf(Gait.body_xf(17, walk), w, 0.1, 3.0))
 	var hem := sin(wk + 1.0) * 2.5 if wk != 0.0 else 0.0   # 袍擺延遲
 	var cape := PackedVector2Array([Vector2(-17 - hem, -4), Vector2(-19 - hem * 0.5, -26), Vector2(-9, -40), Vector2(9, -32), Vector2(13 - hem * 0.6, -7), Vector2(7 - hem * 0.6, -10), Vector2(2 - hem, -4), Vector2(-4 - hem, -10), Vector2(-11 - hem, -4)])
 	_poly(ci, cape, tc, a)
@@ -259,7 +259,7 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
 	# 腳先畫，上半身（尾巴、吸塵器、頭）跟著起伏
 	_c(ci, Vector2(-4 + ft[0], -3 - ft[1]), 3.4, tc.darkened(0.2), a)
 	_c(ci, Vector2(5 + ft[2], -3 - ft[3]), 3.4, tc.darkened(0.2), a)
-	_push_body(ci, Gait.body_xf(18, walk))
+	_push_body(ci, _atk_xf(Gait.body_xf(18, walk), w, 0.14, 5.0))
 	# 尾巴、背上的吸塵器桶
 	_line(ci, Vector2(-11, -8), Vector2(-20 - leg * 0.4, -18 + leg), tc.darkened(0.1), 3.0, a)
 	_poly(ci, PackedVector2Array([Vector2(-20, -32), Vector2(-7, -32), Vector2(-7, -8), Vector2(-20, -8)]), Color("#b7bfcc"), a)
@@ -313,7 +313,7 @@ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
 	var bone := Color("#ece6d6")
 	var ft: Array = Gait.feet(21, walk)
-	var bx: Transform2D = Gait.body_xf(21, walk)
+	var bx: Transform2D = _atk_xf(Gait.body_xf(21, walk), w, 0.08, 4.0)
 	_line(ci, Vector2(-4, -10 + bx.origin.y), Vector2(-4 + ft[0], -2 - ft[1]), bone, 2.2, a)
 	_line(ci, Vector2(4, -10 + bx.origin.y), Vector2(4 + ft[2], -2 - ft[3]), bone, 2.2, a)
 	_push_body(ci, bx)

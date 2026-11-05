@@ -67,6 +67,8 @@ func _draw_battle_report() -> void:
 	var rh: float = tz("S") * 1.32
 	var y0: float = 800.0 - rows * rh - 4.0 if ctl else minf(720.0, 766.0 - rows * rh)
 	var cw := 412.0
+	if not ctl:
+		draw_rect(Rect2(0, y0 - 3, 1280, mini(ceili(report_log.size() / 3.0), rows) * rh + 6), Color(0, 0, 0, 0.5))   # 第十輪 V10：底條
 	for i in mini(report_log.size(), rows * 3):
 		var e: Dictionary = report_log[i]
 		var age: float = time - float(e["t"])

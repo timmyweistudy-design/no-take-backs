@@ -101,5 +101,25 @@ static func _ell(c: Vector2, rx: float, ry: float, a0 := 0.0, a1 := TAU, n := 20
 	return pts
 
 ## 上半身：腳畫完後呼叫，之後畫的東西跟著起伏與傾身。
+## 第十輪 F3：攻擊時整隻壓扁、前衝。腳底為原點，所以不會和腿分離。up＝彈起（往上拉長）。
+static func _atk_xf(b: Transform2D, w: float, sq: float, lunge := 0.0, up := false) -> Transform2D:
+	if w == 0.0:
+		return b
+	var sx := 1.0
+	var sy := 1.0
+	var dx := 0.0
+	if w < 0.0:
+		sx = 1.0 - w * sq
+		sy = 1.0 + w * sq
+		dx = w * lunge * 0.3
+	elif up:
+		sx = 1.0 - w * sq * 0.4
+		sy = 1.0 + w * sq * 0.6
+	else:
+		sx = 1.0 + w * sq * 0.6
+		sy = 1.0 - w * sq * 0.3
+		dx = w * lunge
+	return Transform2D(0.0, Vector2(sx, sy), 0.0, Vector2(dx, 0.0)) * b
+
 static func _push_body(ci: CanvasItem, b: Transform2D) -> void:
 	ci.draw_set_transform_matrix(_xf * b)

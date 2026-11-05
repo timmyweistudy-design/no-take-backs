@@ -4,6 +4,9 @@ extends "res://scripts/ui/screens/game_modes.gd"
 ## 第八輪成就：贏的那隊。沙盒不算（改過數值）。
 ## 標題選單進遠征：解鎖奇幻軍之後才要選，否則直接開打（新手不多一步）。
 func _enter_gauntlet() -> void:
+	if _demo():
+		_toast(L.t("demo_locked"), true)
+		return
 	if not Save.data.get("gauntlet_run", {}).is_empty():
 		overlay = "gauntlet_resume"
 		_focus = 0
@@ -35,7 +38,8 @@ func _draw_gauntlet_pick() -> void:
 	var last: int = _gauntlet_last_pool()
 	if last > 0 and last != opts[0][1] and last != opts[1][1]:
 		opts.append([L.t("gp_last"), last])
-	_panel(Rect2(240, 120, 800, 560))
+	var pick_h := 160.0 + opts.size() * 128.0 + 60.0     # 第十輪 V7：面板依內容高度
+	_panel(Rect2(240, 120, 800, pick_h))
 	_h1(Vector2(640, 124), L.t("gp_title"))
 	_text(Vector2(640, 182), L.t("gp_note"), tz("S"), Color(1, 1, 1, 0.75), true)
 	for i in opts.size():
@@ -44,7 +48,7 @@ func _draw_gauntlet_pick() -> void:
 		_btn(r, "", _start_gauntlet_with.bind(pool), true, false, Color(0.16, 0.18, 0.26))
 		_text(r.position + Vector2(16, 6), opts[i][0], tz("B"), ACCENT, false, true)
 		_draw_pool_heads(r.position + Vector2(16, 44), pool, 58.0)
-	_btn(Rect2(560, 626, 160, 40), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, 120 + pick_h - 54, 160, 40), L.t("back"), func(): overlay = "")
 
 
 
@@ -185,25 +189,23 @@ func _draw_title() -> void:
 		["menu_gauntlet" if fresh else "menu_tutorial", (func(): _enter_gauntlet()) if fresh else (func(): _open("tutorial")), 4 if fresh else 2]]
 	for i in main.size():
 		var mr2 := Rect2(70, y0 + i * 60, 330, 52)
-		_btn(mr2, "　　" + L.t(main[i][0]), main[i][1], true, i == 0)
+		_btn(mr2, "　　" + L.t(main[i][0]), main[i][1], not (_demo() and main[i][0] == "menu_gauntlet"), i == 0)
 		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if i == 0 else Color(1, 1, 1, 0.35))
 		Art.unit(self, mr2.position + Vector2(32, 48), int(main[i][2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.72, cbm())
 	if fresh:
 		var pulse := 0.5 + 0.5 * sin(time * 3.0)
 		draw_rect(Rect2(68, y0 - 2, 334, 56), Color(ACCENT, 0.5 + 0.5 * pulse), false, 3.0)
 	var y1 := y0 + 4 * 60 + 8
+	# 第十輪 V3：4 主＋4 次＋一列系統鈕；製作名單進設定，代碼類合成一顆
 	_btn(Rect2(70, y1, 162, 44), L.t("menu_puzzle"), func(): _open("puzzles"))
 	_btn(Rect2(238, y1, 162, 44), L.t("menu_codex"), func(): _open_codex(0))
 	y1 += 50
-	if not _demo():
-		_btn(Rect2(70, y1, 162, 44), L.t("menu_trials"), func(): _open("trials"))
+	_btn(Rect2(70, y1, 162, 44), L.t("menu_trials"), func(): _open("trials"))
 	_btn(Rect2(238, y1, 162, 44), L.t("menu_profile"), func(): _open("profile"))
-	var y2 := y1 + 50
-	var sys := [["menu_settings", func(): _open("settings")], ["menu_credits", func(): _open("credits")], ["menu_quit", func(): get_tree().quit()]]
+	var y2 := y1 + 54
+	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): get_tree().quit()]]
 	for i in sys.size():
 		_btn(Rect2(70 + i * 112, y2, 106, 38), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
-	_btn(Rect2(70, y2 + 44, 162, 36), L.t("bc_watch"), func(): _watch_battle_code(), true, false, Color(TH_WOOD_D, 0.92))
-	_btn(Rect2(238, y2 + 44, 162, 36), L.t("ch_accept"), func(): _accept_challenge(), true, false, Color(TH_WOOD_D, 0.92))
 	# 底部：解鎖進度＋最佳紀錄
 	var demo_b := _demo()
 	var um := RS.unlocked_mask(_unlock_games(), demo_b)
@@ -251,6 +253,13 @@ func _draw_overlay() -> void:
 			_draw_ban()
 		"ai_busy":
 			_draw_busy(-1)
+		"codes":
+			_panel(Rect2(340, 250, 600, 300))
+			_h1(Vector2(640, 254), L.t("menu_codes"))
+			_text(Vector2(640, 316), L.t("codes_hint"), tz("S"), Color(1, 1, 1, 0.8), true, false, 540)
+			_btn(Rect2(380, 370, 250, 52), L.t("bc_watch"), func(): overlay = ""; _watch_battle_code())
+			_btn(Rect2(650, 370, 250, 52), L.t("ch_accept"), func(): overlay = ""; _accept_challenge())
+			_btn(Rect2(560, 480, 160, 44), L.t("back"), func(): overlay = "")
 		"gauntlet_resume":
 			_panel(Rect2(340, 250, 600, 300))
 			_h1(Vector2(640, 254), L.t("menu_gauntlet"))
@@ -289,7 +298,7 @@ func _draw_overlay() -> void:
 				var r := Rect2(280 + (i % 2) * 370, 210 + (i / 2) * 82, 350, 68)
 				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 				var st := int(stars.get(pz["id"], 0))
-				var en := unlocked and (not tut or i <= tdone)
+				var en: bool = unlocked and (not tut or i <= tdone) and (not _demo() or tut or (puzzle_tab == 0 and i < Presets.DEMO_PUZZLES))
 				var line := "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)]
 				if pz.has("unit"):
 					# 新兵試玩：那個兵種解鎖後才能玩
@@ -367,14 +376,14 @@ func _settings_rows() -> Array:
 
 
 func _draw_settings() -> void:
-	_panel(Rect2(140, 50, 1000, 700))
-	_h1(Vector2(640, 54), L.t("settings_title"))
+	_panel(Rect2(140, 70, 1000, 620))     # 第十輪 V7：最多 5 列，面板縮到內容
+	_h1(Vector2(640, 74), L.t("settings_title"))
 	for i in 4:
-		_btn(Rect2(170, 120 + i * 60, 180, 50), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
+		_btn(Rect2(170, 140 + i * 60, 180, 50), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
 	var rows: Array = _settings_rows()
 	for i in rows.size():
-		var y := 120 + i * 66
+		var y := 140 + i * 66
 		if i % 2 == 0:
 			draw_rect(Rect2(370, y - 6, 524, 64), Color(1, 1, 1, 0.04))   # 第七輪 E11：斑馬底色
 		_text(Vector2(380, y + 13), L.t(rows[i][0]), tz("B"), Color.WHITE, false, false, 240)
@@ -388,14 +397,15 @@ func _draw_settings() -> void:
 		if val.ends_with("%") and rows[i][0] in ["set_music", "set_sfx"]:
 			draw_rect(Rect2(r.position.x + 60, y + 44, (r.size.x - 120) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
 	# 說明欄
-	var D0 := Rect2(900, 120, 220, 560)
+	var D0 := Rect2(900, 140, 220, 480)
 	draw_rect(D0, Color(0, 0, 0, 0.25))
 	var key: String = settings_item if settings_item != "" else rows[0][0]
 	_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
 	_text(D0.position + Vector2(14, 12 + tz("B") * 1.6), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)
 	if bool(Save.s("playtest")) and settings_tab == 2:
-		_btn(Rect2(380, 120 + rows.size() * 66, 240, 44), L.t("pt_folder"), func(): OS.shell_open(ProjectSettings.globalize_path("user://")))
-	_btn(Rect2(560, 690, 160, 44), L.t("back"), func(): overlay = "")
+		_btn(Rect2(380, 140 + rows.size() * 66, 240, 44), L.t("pt_folder"), func(): OS.shell_open(ProjectSettings.globalize_path("user://")))
+	_btn(Rect2(560, 634, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(380, 634, 160, 44), L.t("menu_credits"), func(): _open("credits"))
 
 
 

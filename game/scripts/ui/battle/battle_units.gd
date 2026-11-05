@@ -184,6 +184,8 @@ func _update_action_focus() -> void:
 func _draw_field() -> void:
 	var free_f: bool = rules != null and rules.is_free() and (mode == Mode.VS_AI or mode == Mode.DUEL)   # 第六輪：自由排兵不畫格子
 	var fbi: Dictionary = MapArt.BIOME.get(MapDefs.MAPS[fld_map]["biome"], {})
+	if fld_map != 0:
+		MapArt.draw_outfield(self, Rect2(ORIGIN, FIELD), str(MapDefs.MAPS[fld_map]["biome"]))
 	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632")))
 	if fld_map != 0:
 		var mt := _map_tex()
@@ -389,7 +391,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			mood |= Art.M_BRACE
 		# 勝利：存活的勝方每 0.45 秒原地跳 10px、武器高舉
 		var hop := 0.0
-		if state == St.RESULT and live and sim != null and u.team == sim.winner:
+		if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
 			hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
 			at = Art.ATK_WINDUP
 			lean = Art.LEAN_BACK      # 抵銷前搖的後仰：站直、武器高舉（和前搖分得開，Antigravity S4）

@@ -34,6 +34,8 @@ if [ "$MODE" != "--smoke" ]; then
   # Linux 匯出要 linux_release.x86_64 模板。本機只裝了 Windows 模板時明講略過（不是通過）；CI 的 export job 會實跑。
   if [ -n "${LINUX_TEMPLATE_OK:-}" ] || [[ "$GODOT" != *.exe ]] || ls "$(wslpath -u "$(cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')")/Godot/export_templates/4.6.2.stable/linux_release.x86_64" >/dev/null 2>&1; then
     ex "Linux" "$OUT/linux/NoTakeBacks.x86_64" linux
+    mkdir -p "$OUT/linux-demo"
+    ex "Linux Demo" "$OUT/linux-demo/NoTakeBacksDemo.x86_64" linux-demo
     chmod +x "$OUT/linux/NoTakeBacks.x86_64"
     sc "$OUT/linux/NoTakeBacks.x86_64" false linux
   else
