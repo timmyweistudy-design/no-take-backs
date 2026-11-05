@@ -211,10 +211,9 @@ func _draw_codex() -> void:
 	draw_rect(nr, Color(0.2, 0.17, 0.1, 0.85))
 	draw_rect(nr, Color(ACCENT, 0.35), false, 1.5)
 	_text(nr.position + Vector2(12, 4), L.t("codex_note"), ts(14), ACCENT, false, true, 400)
-	var unlocked := CX.note_unlocked(Save.data, cx_unit)
-	var note := CX.text(u, "veteran", lang) if unlocked else L.t("codex_note_locked", [L.t("unit_%d" % cx_unit), CX.NOTE_WINS, mini(CX.wins_with(Save.data, cx_unit), CX.NOTE_WINS), CX.NOTE_WINS])
+	var note := CX.text(u, "veteran", lang)   # 第十一輪：筆記直接看得到
 	_scroll_draw("note", Rect2(nr.position + Vector2(12, 4 + ts(14) * 1.4), Vector2(nr.size.x - 20, nr.size.y - 8 - ts(14) * 1.4)),
-		[{"type": "text", "s": note, "size": ts(14), "c": Color(1, 1, 1, 0.9 if unlocked else 0.55), "x": 0.0, "w": nr.size.x - 40}])
+		[{"type": "text", "s": note, "size": ts(14), "c": Color(1, 1, 1, 0.9), "x": 0.0, "w": nr.size.x - 40}])
 	_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): overlay = "")
 
 

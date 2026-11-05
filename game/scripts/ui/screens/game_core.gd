@@ -266,14 +266,7 @@ func _progress_and_achievements() -> void:
 	if free_intro:
 		Save.data["free_intro_done"] = true
 		free_intro = false
-	var ug_before := int(Save.data.get("unlock_games", 0))
-	Save.data["unlock_games"] = ug_before + 1
-	# 新兵種解鎖（第四輪 §9）：提示並指向殘局裡的新兵試玩（第五輪：看解鎖累計場數）
-	if not bool(Save.s("unlock_all")):
-		for nt in RS.newly_unlocked(ug_before, ug_before + 1, _demo()):
-			ach_queue.append(L.t("unit_unlocked", [L.t("unit_%d" % nt)]))
-		for nt2 in RS.newly_unlocked_new(ug_before, ug_before + 1, _demo()):
-			ach_queue.append(L.t("unit_unlocked_new", [L.t("unit_%d" % nt2)]))
+	Save.data["unlock_games"] = int(Save.data.get("unlock_games", 0)) + 1   # 只是累計場數（判斷新玩家用），不解鎖任何東西
 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
 	var stat_key := "stats" if standard else "custom_stats"
 	var st: Dictionary = Save.data.get(stat_key, {"wins": 0, "games": 0})
@@ -288,8 +281,7 @@ func _progress_and_achievements() -> void:
 		for u in sim.units:
 			if u.team == w:
 				types[D.report_type(u.type)] = true
-		for t in CX.record_win(Save.data, types.keys()):
-			ach_queue.append(L.t("codex_unlocked", [L.t("unit_%d" % t)]))
+		CX.record_win(Save.data, types.keys())
 	if not standard:
 		# 自訂規則專屬成就（標準成就只看標準局）
 		if me_won and mode == Mode.VS_AI and w == 0:
@@ -431,14 +423,13 @@ func _card_at(p: Vector2) -> int:
 
 ## 這一場開放幾種兵（第四輪 §9）：朋友對戰看「兵種」設定；對 AI、遠征看解鎖進度（也可選經典 5 種）；教學與殘局由關卡限制。
 func _ntypes() -> int:
-	var games := _unlock_games()
 	var classic := str(Save.s("roster")) == "classic"
 	var kind := "all"
 	if mode == Mode.DUEL:
 		kind = "duel"
 	elif mode == Mode.VS_AI or mode == Mode.GAUNTLET:
 		kind = "ai"
-	return RS.ntypes_for(kind, games, classic, _demo())
+	return RS.ntypes_for(kind, classic, _demo())
 
 
 
@@ -474,7 +465,7 @@ func _gauntlet_pool() -> int:
 	# 第八輪：開打前在「遠征用哪支軍隊」選的，整趟沿用；存檔被改壞就當沒選
 	var chosen = Save.data.get("gauntlet_pool", 0)
 	if (chosen is int or chosen is float) and int(chosen) > 0:
-		var cp: int = int(chosen) & RS.unlocked_mask(_unlock_games(), _demo())
+		var cp: int = int(chosen) & RS.mask(_demo())
 		if RuleSet.has_combat(cp) and RuleSet.pool_count(cp) <= RuleSet.ROSTER_MAX:
 			return cp
 	var lp := _gauntlet_last_pool()
@@ -490,7 +481,7 @@ func _gauntlet_last_pool() -> int:
 	var d: Dictionary = RuleSet.from_code(code)
 	if not d["ok"]:
 		return 0
-	var p: int = int(d["rules"].pool_of(0)) & RS.unlocked_mask(_unlock_games(), _demo())
+	var p: int = int(d["rules"].pool_of(0)) & RS.mask(_demo())
 	return p if RuleSet.has_combat(p) else 0
 
 
@@ -718,7 +709,7 @@ func _self_check() -> void:
 	a1.place(0, 15, 0)
 	var dec: Dictionary = BattleCode.decode(BattleCode.encode(a0, a1, null))
 	out["battle_code"] = dec.get("ok", false)
-	out["unit_cap"] = RS.unlocked_count(999, demo) == (RS.DEMO_MAX if demo else D.COUNT)
+	out["unit_cap"] = RuleSet.pool_count(RS.mask(demo)) == (RS.DEMO_MAX + 1 if demo else D.total())
 	# 出貨包不能帶測試與工具；編輯器跑時略過
 	out["no_tools"] = not OS.has_feature("template") or (not ResourceLoader.exists("res://tools/golden.gd") and not ResourceLoader.exists("res://tests/run_tests.gd"))
 	var good := true

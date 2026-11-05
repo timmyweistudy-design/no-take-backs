@@ -635,16 +635,8 @@ func test_roster_ui() -> void:
 	var RS = load("res://scripts/game/roster.gd")
 	var GS = load("res://scripts/ui/game_screens.gd")
 	var bad: Array = []
-	if RS.unlocked_count(0) != 5 or RS.unlocked_count(2) != 5 or RS.unlocked_count(3) != 6 or RS.unlocked_count(11) != 10 or RS.unlocked_count(99) != 10:
-		bad.append("解鎖場數")
-	if RS.unlocked_count(99, true) != 7:
-		bad.append("試玩版上限")
-	if RS.ntypes_for("duel", 0, false) != 10 or RS.ntypes_for("duel", 0, true) != 5 or RS.ntypes_for("ai", 4, false) != 6 or RS.ntypes_for("ai", 99, true) != 5:
+	if RS.ntypes_for("duel", false) != 10 or RS.ntypes_for("duel", true) != 5 or RS.ntypes_for("ai", false) != 10 or RS.ntypes_for("ai", true) != 5 or RS.ntypes_for("ai", false, true) != 7:
 		bad.append("模式開放數")
-	if RS.games_to_unlock(D.MEDIC, 6) != 1 or RS.games_to_unlock(D.SWORD, 0) != 0 or RS.games_to_unlock(D.BERSERKER, 99, true) != -1:
-		bad.append("還要幾場")
-	if RS.newly_unlocked(2, 3) != [D.PIKE] or not RS.newly_unlocked(3, 4).is_empty():
-		bad.append("新解鎖提示")
 	# AI 只用開放的兵種：經典 5 種時，所有模板與落子 AI 都不會拿出新兵
 	var rng := RandomNumberGenerator.new()
 	for i in 40:

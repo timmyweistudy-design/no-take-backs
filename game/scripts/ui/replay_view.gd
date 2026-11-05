@@ -268,7 +268,7 @@ func _watch_code_str(code: String) -> void:
 			return
 		for a in [r["a0"], r["a1"]]:
 			for u in a.units:
-				if not RS.is_unlocked(int(u["type"]), 999, true):
+				if not RS.available(int(u["type"]), true):
 					_toast(L.t("bc_demo_locked"), true)
 					return
 	if r["mismatch"]:

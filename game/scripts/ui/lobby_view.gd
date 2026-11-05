@@ -18,7 +18,7 @@ var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
 
 func _lobby_unlocked() -> int:
-	return RS.unlocked_mask(_unlock_games(), _demo())
+	return RS.mask(_demo())
 
 func _lobby_std():
 	return Presets.make("standard", lobby_kind, _lobby_unlocked())
@@ -33,6 +33,8 @@ func _open_lobby(kind: String) -> void:
 		if d["ok"]:
 			r = d["rules"]
 			r.preset = str(Save.data.get("last_rules", {}).get(kind + "_preset", "custom"))
+			if r.preset == "standard":
+				r.pool = Presets.make("standard", kind, _lobby_unlocked()).pool.duplicate()   # 舊存檔的標準可能只存到解鎖的幾種
 			var ex = Save.data.get("last_rules", {}).get(kind + "_extra", [])
 			if ex is Array and ex.size() >= 3:
 				if ex.size() >= 4:
@@ -270,6 +272,7 @@ func _lobby_adj(id: String, d: int) -> void:
 
 func _lobby_toggle_unit(team: int, t: int) -> void:
 	lobby_item = "pool"
+	lobby_brief = t      # 觸控沒有懸停：點一下也會講這隻
 	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
 	if not RuleSet.has(sel, t):
 		_toast(L.t("lb_locked_unit"), true)
@@ -821,7 +824,124 @@ func _rows(R: Rect2, rows: Array) -> void:
 		_text(Vector2(R.position.x, y + 14), rows[i][1], tz("B"), Color.WHITE, false, false, 220)
 		_stepper(Rect2(R.position.x + 230, y, 360, 52), rows[i][2], rows[i][0])
 
+# ── 選卡時的兵種簡介：指到哪張（滑鼠或手把焦點）就講哪隻 ──
+var lobby_brief := -1
+
+## 四條比較條，0～1，以全部兵種的最大值為滿：血量、每秒攻擊、射程、速度。
+func _brief_stats(t: int) -> Array:
+	var mx := [1.0, 1.0, 1.0, 1.0]
+	for i in D.total():
+		var v: Array = _brief_raw(i)
+		for k in 4:
+			mx[k] = maxf(mx[k], v[k])
+	var cur: Array = _brief_raw(t)
+	var out: Array = []
+	for k2 in 4:
+		out.append(cur[k2] / mx[k2])
+	return out
+
+func _brief_raw(t: int) -> Array:
+	var st: Dictionary = D.stat(t)
+	return [float(st["hp"]), float(st["atk"]) * 20.0 / maxf(1.0, float(st["cd"])), float(st["reach"]), float(st["speed"])]
+
+func _brief_role(t: int) -> String:
+	return load("res://scripts/game/codex.gd").text(load("res://scripts/game/codex.gd").unit(t), "role", L.lang)
+
+## 剋誰、怕誰（支援兵左邊改成協同）。試玩版不露正式版的兵。
+func _brief_matchups(t: int) -> Dictionary:
+	var mask: int = RS.mask(true) if _demo() else RuleSet.full_pool()
+	var good: Array = []
+	var bad: Array = []
+	for o in D.total():
+		if not RuleSet.has(mask, o) or o == t:
+			continue
+		var sc: int = AIT.counter_score(t, o)
+		if sc > 0:
+			good.append(o)
+		elif sc < 0:
+			bad.append(o)
+	if D.is_support(t):
+		good = AIT.SYNERGY.get(t, []).filter(func(o): return RuleSet.has(mask, o))
+	return {"good": good, "bad": bad}
+
+## 這一幀要講哪一隻：指到的 > 上一次指到的（還在清單裡）> 清單第一張。
+func _brief_pick(list: Array, hot: int) -> int:
+	if hot >= 0:
+		return hot
+	if lobby_brief in list:
+		return lobby_brief
+	return int(list[0]) if not list.is_empty() else -1
+
+## 按鈕剛畫完時呼叫：這顆是否被滑鼠指到或手把焦點在上面。
+func _brief_hot(r: Rect2) -> bool:
+	return (r.has_point(mouse) and not pad_mode) or (pad_mode and _btns.size() - 1 == _focus)
+
+func _unit_brief(r: Rect2, t: int, locked := false) -> void:
+	if t < 0:
+		return
+	var pw := 92.0
+	var x := r.position.x + pw + 8
+	var w := r.size.x - pw - 18
+	var name_s: String = L.t("unit_%d" % t)
+	var x2 := x + minf(_width(name_s, tz("B"), true), w * 0.5) + 12
+	var meta: String = L.t("gold", [D.cost(t)]) + "・" + (L.t("lb_locked_tag") if locked else _brief_role(t))
+	var blurb: String = L.t("blurb_%d" % t)
+	var head_h: float = maxf(tz("B") * 1.35, text_h(meta, tz("S"), r.end.x - x2 - 8) + 2)
+	var blurb_h: float = text_h(blurb, tz("S"), w) + 6
+	# 由上往下排，高度不夠時先拿掉比較條，再拿掉剋制（字級不縮）；框只包到內容
+	var bar_h: float = tz("C") * 1.2 + 10
+	var mu_h := 36.0
+	var room: float = r.size.y - 12 - head_h - blurb_h
+	var show_mu: bool = room >= mu_h
+	var show_bar: bool = room >= mu_h + bar_h
+	var h: float = 12 + head_h + blurb_h + (mu_h if show_mu else 0.0) + (bar_h if show_bar else 0.0)
+	h = maxf(h, minf(r.size.y, 100.0))
+	var box := Rect2(r.position, Vector2(r.size.x, h))
+	_box(box, Color(0, 0, 0, 0.28), Color(1, 1, 1, 0.22), 8.0, 1.0)
+	var cy: float = r.position.y + h / 2
+	draw_circle(Vector2(r.position.x + pw / 2 + 2, cy), minf(40.0, h / 2 - 4), Color(1, 1, 1, 0.07))
+	_unit_in(Rect2(r.position.x + 2, cy - 50, pw, 100), t, 0, 0.45 if locked else 1.0, 0.95)
+	var y := r.position.y + 6
+	_text(Vector2(x, y), name_s, tz("B"), ACCENT, false, true, w * 0.5)
+	_text(Vector2(x2, y + (tz("B") - tz("S")) * 0.5), meta, tz("S"), Color(1, 1, 1, 0.75), false, false, r.end.x - x2 - 8)
+	y += head_h
+	_text(Vector2(x, y), blurb, tz("S"), Color.WHITE, false, false, w)
+	y += blurb_h
+	if show_mu:
+		_brief_mu(Vector2(x, y), w, t)
+		y += mu_h
+	if show_bar:
+		_brief_bars(Rect2(x, y, w, bar_h), t)
+
+func _brief_bars(r: Rect2, t: int) -> void:
+	var st: Array = _brief_stats(t)
+	var cw: float = r.size.x / 4.0
+	for k in 4:
+		var cx: float = r.position.x + k * cw
+		_text(Vector2(cx, r.position.y), L.t(["ub_hp", "ub_atk", "ub_range", "ub_spd"][k]), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 8)
+		var br := Rect2(cx, r.end.y - 7, cw - 12, 6)
+		draw_rect(br, Color(1, 1, 1, 0.12))
+		draw_rect(Rect2(br.position, Vector2(br.size.x * float(st[k]), br.size.y)), ACCENT)
+
+func _brief_mu(p: Vector2, w: float, t: int) -> void:
+	var m: Dictionary = _brief_matchups(t)
+	var x := p.x
+	var groups := [[L.t("synergy") if D.is_support(t) else L.t("beats"), m["good"], Color("#4ade80")], [L.t("fears"), m["bad"], Color("#f87171")]]
+	for g in groups:
+		if g[1].is_empty():
+			continue
+		_text(Vector2(x, p.y + 6), g[0], tz("S"), g[2], false, true, 80)
+		x += minf(_width(g[0], tz("S"), true), 80.0) + 6
+		for o in g[1]:
+			if x + 34 > p.x + w:
+				break
+			_unit_in(Rect2(x, p.y, 34, 34), o, 1, 1.0, 0.5)
+			x += 34
+		x += 14
+
 func _draw_pool_tab(R: Rect2) -> void:
+	var brief_list: Array = []
+	var brief_hot := -1
 	# 第八輪：兩邊名單不同時一次只顯示一邊（兩排卡片放不下兩隊），用分頁切換
 	var y := R.position.y
 	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
@@ -862,16 +982,16 @@ func _draw_pool_tab(R: Rect2) -> void:
 				var on := RuleSet.has(int(lobby_r.pool[tm]), t)
 				var can := RuleSet.has(sel, t)
 				_btn(cr, "", _lobby_toggle_unit.bind(tm, t), true, false, Color(0.22, 0.38, 0.3) if on else Color(0.16, 0.16, 0.2))
+				if _brief_hot(cr):
+					brief_hot = t
+				if on:
+					brief_list.append(t)
 				var fit_f := _filter_hit(t)
 				_unit_in(cr, t, 0, (1.0 if (on and can) else 0.3) * (1.0 if fit_f else 0.35), 0.6)
 				if not can:
 					call("_lock_icon", cr.position + Vector2(cw - 12, 12))
 				elif on:
 					draw_rect(cr, Color("#7ddc8a"), false, 2.0)
-				if t == RS.newest_new(_unlock_games(), _demo()) and _unlock_games() < int(RS.UNLOCK_NEW[-1]) + 3:   # 全解鎖一陣子後就不蓋章
-					var pw: float = _width(L.t("lb_new_pill"), tz("C")) + 8.0
-					draw_rect(Rect2(cr.position + Vector2(cw - pw, 0), Vector2(pw, tz("C") * 1.25)), Color("#d98a22"))
-					_text(cr.position + Vector2(cw - pw + 4, 0), L.t("lb_new_pill"), tz("C"), Color.WHITE)
 			y += box.size.y + 8
 	# V9：牌組：隨機 10 張、存 3 組
 	var by2: float = R.end.y - 52.0
@@ -881,8 +1001,12 @@ func _draw_pool_tab(R: Rect2) -> void:
 	for di in 3:
 		var has_d: bool = di < decks.size()
 		_btn(Rect2(R.position.x + 276 + di * 104, by2, 96, 44), L.t("lb_deck_n", [di + 1]), _deck_load.bind(di), has_d)
-	if lobby_kind == "ai":
-		_text(Vector2(R.position.x, y + 4), L.t("lb_unlock_hint"), tz("S"), Color(1, 1, 1, 0.6), false, false, R.size.x)
+	if brief_list.is_empty():
+		brief_list = RuleSet.types_of(sel)
+	lobby_brief = _brief_pick(brief_list, brief_hot)
+	var brief_r := Rect2(R.position.x, y + 2, R.size.x, by2 - y - 10)
+	if brief_r.size.y >= 60.0:
+		_unit_brief(brief_r, lobby_brief, not RuleSet.has(sel, lobby_brief))
 
 func _draw_lab_tab(R: Rect2) -> void:
 	# 沙盒（第五輪 R3）：選兵種 → 調血量／攻擊／速度倍率；技能開關

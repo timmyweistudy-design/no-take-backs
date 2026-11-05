@@ -374,8 +374,8 @@ func _next_puzzle() -> void:
 	for i in list.size():
 		if list[i]["id"] == puzzle_id and i + 1 < list.size():
 			var nx: Dictionary = list[i + 1]
-			if nx.has("unit") and RS.games_to_unlock(int(nx["unit"]), _unlock_games(), _demo()) != 0:
-				break   # 下一關的新兵還沒解鎖
+			if nx.has("unit") and not RS.available(int(nx["unit"]), _demo()):
+				break   # 試玩版沒有下一關的兵
 			puzzle_id = nx["id"]
 			_start_mode(mode)
 			return

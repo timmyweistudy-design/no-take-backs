@@ -282,7 +282,6 @@ func _rand_side(rng: RandomNumberGenerator) -> Array:
 
 
 func test_fantasy_codes_v8() -> void:
-	ok(RS_ROSTER.newest_new(13) == -1 and RS_ROSTER.newest_new(14) == 10 and RS_ROSTER.newest_new(19) == 11 and RS_ROSTER.newest_new(0, true) == 11, "新章：標最近解鎖的那隻")
 	var a = Army.new(0, 100)
 	a.pool = RSET.full_pool()
 	ok(a.place(F8.SLIME, 3, 4) and a.place(F8.GOLEM, 2, 2) and a.place(D.SWORD, 5, 4), "代碼：格子可以擺新兵")
@@ -337,7 +336,7 @@ func test_fantasy_game_v8() -> void:
 	SaveS.data_locked = true   # 測試不能寫到真的存檔
 	SaveS.data["achievements"] = []
 	g.mode = g.Mode.VS_AI
-	g.rules = PRE.make("fantasy", "ai", ROS.unlocked_mask(99))
+	g.rules = PRE.make("fantasy", "ai", ROS.mask())
 	var fa = Army.new(0, 100)
 	fa.pool = RSET.full_pool()
 	fa.units.append({"type": F8.SHEEP, "x": 2000, "y": 2000})
@@ -373,20 +372,15 @@ func test_fantasy_game_v8() -> void:
 				if e.get("tags", []).has(want):
 					hit = true
 		ok(hit, "圖鑑小劇場 %s 會出現 %s" % [sk, want], "tick %d" % s.tick)
-	# 解鎖
-	ok(ROS.unlocked_mask(0) == 31 and ROS.unlocked_mask(11) == 1023, "解鎖：第 11 場前只有舊兵")
-	ok(RSET.has(ROS.unlocked_mask(14), 10) and not RSET.has(ROS.unlocked_mask(14), 11), "解鎖：第 14 場開第一種奇幻軍")
-	ok(ROS.unlocked_mask(41) == RSET.full_pool(), "解鎖：第 41 場全開")
-	ok(ROS.newly_unlocked_new(13, 14) == [10], "解鎖：跳提示")
-	var dm: int = ROS.unlocked_mask(999, true)
-	ok(RSET.pool_count(dm) == 8 and RSET.has(dm, F8.SHEEP) and not RSET.has(dm, 7), "試玩版：舊 7 種＋爆爆羊（非連號）", str(dm))
-	ok(ROS.games_to_unlock(F8.SLIME, 0, true) == -1 and ROS.games_to_unlock(F8.SHEEP, 0, true) == 0, "試玩版：其他奇幻軍鎖住")
+	var dm: int = ROS.mask(true)
+	ok(RSET.pool_count(dm) == 8 and RSET.has(dm, F8.SHEEP) and not RSET.has(dm, 7), "試玩版：舊 7 種＋爆爆羊（非連號）")
+	ok(not ROS.available(F8.SLIME, true) and ROS.available(F8.SHEEP, true), "試玩版：其他奇幻軍沒有")
 	# 預設
-	var std = PRE.make("standard", "ai", ROS.unlocked_mask(50))
+	var std = PRE.make("standard", "ai", ROS.mask())
 	ok(std.pool_of(0) == 1023, "標準規則仍是舊 10 種", str(std.pool_of(0)))
-	var fan = PRE.make("fantasy", "ai", ROS.unlocked_mask(50))
+	var fan = PRE.make("fantasy", "ai", ROS.mask())
 	ok(fan.pool_of(0) == RSET.full_pool() - 1023 and fan.validate().is_empty(), "奇幻兵團：全開時是 10 種奇幻軍", str(fan.validate()))
-	var early = PRE.make("fantasy", "ai", ROS.unlocked_mask(14))
+	var early = PRE.make("fantasy", "ai", 1023 | (1 << 10))
 	ok(RSET.pool_count(early.pool_of(0)) == 10 and early.validate().is_empty(), "奇幻兵團：剛解鎖時由舊兵補", str(early.validate()))
 	ok(PRE.badge(fan, "ai") == PRE.BADGE_FUN, "奇幻兵團：驗收前是娛樂變體")
 	# AI 會用新兵、都守硬上限、一定有戰鬥兵

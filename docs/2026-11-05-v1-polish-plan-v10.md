@@ -162,6 +162,12 @@ B1、B3 特別要注意：V9 回報時說這兩項有作用，實際沒有完整
 
 兩輪結論都是「有條件」，條件已併入本文。未採納的意見與原因見 §4、§5 和上表。F1、F2 的做法來自 Codex 讀程式，要到實作時才驗得到。
 
+## 15. 第十輪之後的追加（第十一輪，使用者要求）
+1. **選卡看得到兵種簡介**：大廳卡池、雙人禁牌下方加簡介卡。遠征選軍只選整支軍隊，沒有加。
+2. **不要玩幾場解鎖，全部開放**：拿掉兵種解鎖、奇幻軍解鎖、殘局要先過教學、教學循序、圖鑑老兵筆記要贏 5 場、解鎖提示與「全部解鎖」設定。試玩版範圍不變，它是版本內容差異。
+
+沒有送三方審查，只跑自動驗收。
+
 ## 13. 參考資料
 
 - [Steam Next Fest 2027 年 2 月](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest/feb_2027)、[6 月](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest/june_2027)、[總覽](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest)

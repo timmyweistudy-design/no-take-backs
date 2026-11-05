@@ -343,8 +343,6 @@ func size_ok(sz: int) -> bool:
 
 
 ## 第五輪：解鎖用的累計場數（設定「全部解鎖」時視為全開；試玩版上限由 roster 管）。
-func _unlock_games() -> int:
-	return 99 if bool(Save.s("unlock_all")) else int(Save.data.get("unlock_games", 0))
 
 
 func cbm() -> bool:

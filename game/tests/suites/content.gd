@@ -80,13 +80,9 @@ func test_codex() -> void:
 	# 說明的數值真的來自 unit_defs：改常數名就會在上面紅；這裡再對一個值
 	ok(CX.skill_desc("shield_block", "zh_TW").contains("×%s" % str(snappedf(float(D.BLOCK_NUM) / D.BLOCK_DEN, 0.01))), "技能說明的數值取自 unit_defs")
 	var sd := {}
-	var newly: Array = []
-	for i in CX.NOTE_WINS:
-		if i == CX.NOTE_WINS - 1:
-			ok(not CX.note_unlocked(sd, D.CAVALRY), "老兵筆記：贏 %d 場時還沒解鎖" % i)
-		newly = CX.record_win(sd, [D.CAVALRY, D.CAVALRY, D.SWORD])
-	ok(CX.note_unlocked(sd, D.CAVALRY) and CX.wins_with(sd, D.CAVALRY) == CX.NOTE_WINS, "老兵筆記：同一場同兵種只算一次、贏 5 場解鎖")
-	ok(newly.has(D.CAVALRY) and newly.has(D.SWORD) and not CX.note_unlocked(sd, D.ARCHER), "老兵筆記：剛好第 5 場回報新解鎖、沒派的兵種不解鎖")
+	for i in 3:
+		CX.record_win(sd, [D.CAVALRY, D.CAVALRY, D.SWORD])
+	ok(CX.wins_with(sd, D.CAVALRY) == 3 and CX.wins_with(sd, D.SWORD) == 3 and CX.wins_with(sd, D.ARCHER) == 0, "勝場：同一場同種只算一次")
 
 
 ## 困難 AI 反制庫（第三輪 A3）：版本要和現在的規則一致；版本不符就不用；每筆反制陣都合法。

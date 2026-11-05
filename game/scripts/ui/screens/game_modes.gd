@@ -18,7 +18,7 @@ func _start_trial(i: int) -> void:
 		_toast(L.t("demo_locked"), true)
 		return
 	var t: Array = TRIALS[i]
-	var r = Presets.make("standard", "ai", RS.unlocked_mask(_unlock_games(), _demo()))
+	var r = Presets.make("standard", "ai", RS.mask(_demo()))
 	r.deploy = "free"
 	r.spacing = 800
 	r.depth = 6000
@@ -40,7 +40,7 @@ func _start_trial(i: int) -> void:
 	else:
 		p = RuleSet.all_pool()
 	if _demo():
-		p &= RS.unlocked_mask(1 << 20, true)
+		p &= RS.mask(true)
 	r.pool[1] = p
 	r.preset = "custom"
 	rules = r
@@ -145,7 +145,7 @@ func _challenge_decode(c: String) -> Dictionary:
 
 ## 第十輪 R1：試玩版的範圍集中在這裡。匯入的規則與陣型都走這條。
 func _demo_ok(r, a = null) -> bool:
-	var mask: int = RS.unlocked_mask(1 << 20, true)
+	var mask: int = RS.mask(true)
 	if r != null:
 		if not r.map_id in Presets.DEMO_MAPS:
 			return false
@@ -225,30 +225,37 @@ func _ban(t: int) -> void:
 ## 第十輪 B2：雙方卡池不同時最多 20 張；超過 10 張改小格，全部留在面板內。
 func _ban_cell(i: int, n: int) -> Rect2:
 	if n <= 10:
-		return Rect2(200 + (i % 5) * 178, 250 + (i / 5) * 190, 168, 178)
-	return Rect2(76 + (i % 7) * 162, 232 + (i / 7) * 142, 156, 136)
+		return Rect2(200 + (i % 5) * 178, 196 + (i / 5) * 172, 168, 164)
+	return Rect2(76 + (i % 7) * 162, 192 + (i / 7) * 136, 156, 130)
 
 func _ban_panel(n: int) -> Rect2:
-	return Rect2(170, 110, 940, 560) if n <= 10 else Rect2(60, 110, 1160, 560)
+	return Rect2(170, 66, 940, 650) if n <= 10 else Rect2(60, 66, 1160, 700)    # 下方留給兵種簡介
 
 func _draw_ban() -> void:
 	var ts0: Array = RuleSet.types_of(rules.pool_of(0) | rules.pool_of(1))
 	var P: Rect2 = _ban_panel(ts0.size())
 	_panel(P)
 	_box(P.grow(-3), Color(0, 0, 0, 0), Color("#b8393f"), 8.0, 3.0)   # 紅框：這裡是拿掉牌，不是選牌
-	_h1(Vector2(640, 122), L.t("ban_title"))
+	_h1(Vector2(640, 70), L.t("ban_title"))
 	var who := L.t("blue") if ban_turn == 0 else L.t("red")
-	_text(Vector2(640, 186), L.t("ban_turn", [who, ban_left[ban_turn]]), tz("H2"), Art.team_color(ban_turn, cbm()).lightened(0.2), true, true, 860)
+	_text(Vector2(640, 134), L.t("ban_turn", [who, ban_left[ban_turn]]), tz("H2"), Art.team_color(ban_turn, cbm()).lightened(0.2), true, true, 860)
+	var ban_hot := -1
 	for i in ts0.size():
 		var t: int = ts0[i]
 		var r: Rect2 = _ban_cell(i, ts0.size())
 		var small: bool = ts0.size() > 10
 		_btn(r, "", _ban.bind(t), true, false, TH_WOOD)
-		_unit_in(Rect2(r.position, Vector2(r.size.x, 74 if small else 120)), t, 0, 1.0, 0.72 if small else 1.1)
-		_text(r.position + Vector2(r.size.x / 2, 76 if small else 128), L.t("unit_%d" % t), tz("C") if small else tz("B"), Color.WHITE, true, true, r.size.x - 8)
+		if _brief_hot(r):
+			ban_hot = t
+		_unit_in(Rect2(r.position, Vector2(r.size.x, 74 if small else 112)), t, 0, 1.0, 0.72 if small else 1.05)
+		_text(r.position + Vector2(r.size.x / 2, 76 if small else 116), L.t("unit_%d" % t), tz("C") if small else tz("B"), Color.WHITE, true, true, r.size.x - 8)
 		if r.has_point(mouse) and not pad_mode:
 			_icon("ban", r.position + Vector2(r.size.x / 2, 42 if small else 62), 60.0 if small else 84.0)
-	_btn(Rect2(P.end.x - 110, 124, 96, 40), L.t("ban_skip"), _ban_skip)
+	_btn(Rect2(P.end.x - 110, 76, 96, 40), L.t("ban_skip"), _ban_skip)
+	lobby_brief = _brief_pick(ts0, ban_hot)
+	var last: Rect2 = _ban_cell(ts0.size() - 1, ts0.size())
+	var by: float = last.end.y + 8
+	_unit_brief(Rect2(P.position.x + 24, by, P.size.x - 48, P.end.y - by - 12), lobby_brief)
 
 ## ── 戰績 ──
 func _record_match(w: int) -> void:
@@ -296,7 +303,7 @@ func _draw_profile() -> void:
 	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
 	var ug: Dictionary = Save.data.get("unit_games", {})
 	var uw: Dictionary = Save.data.get("unit_wins", {})
-	var um := RS.unlocked_mask(_unlock_games(), _demo())
+	var um := RS.mask(_demo())
 	var cw := 108.0
 	for t in D.total():
 		var r2 := Rect2(78 + (t % 10) * (cw + 4), 212 + (t / 10) * 116, cw, 110)

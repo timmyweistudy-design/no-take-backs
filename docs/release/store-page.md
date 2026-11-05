@@ -30,7 +30,7 @@
 - **6 張地圖、3 種大小**：青草平原、雙橋河谷、林間小徑、冰湖雪原、熔岩裂谷、古道峽谷。擋路、減速、加速地形會改變你的擺法。
 - **分享陣型**：一串挑戰碼就能把得意陣型丟給朋友挑戰；雙人還能輪流禁牌。
 
-沒有抽卡、沒有課金、沒有讓兵變強的養成——只比擺法。
+沒有抽卡、沒有課金、沒有讓兵變強的養成，所有兵種一開始就能用——只比擺法。
 
 ### English
 **Once it's placed, it stays.**
@@ -44,7 +44,7 @@ No Take-Backs is a cute little auto-battler about one decision: where your army 
 - **6 maps, 3 sizes**: Plain, River, Forest, Ice Lake, Lava Rift and Canyon, with blocking, slow and fast terrain that change how you deploy.
 - **Share formations** as a short challenge code, and ban cards in local duels.
 
-No gacha, no microtransactions, no stat upgrades. Just placement.
+No gacha, no microtransactions, no stat upgrades, and every unit is available from the start. Just placement.
 
 ## 截圖清單（第十輪換過，檔案在 `docs/store/screenshots/`，1280×800）
 排序依第十輪三方討論：排兵和覆盤最能說明玩法，放前面。

@@ -6,7 +6,6 @@ const D = preload("res://scripts/core/unit_defs.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const Army = preload("res://scripts/core/army.gd")
 
-const NOTE_WINS := 5          # 派這個兵種贏幾場解鎖「老兵觀察筆記」
 
 static var _data := {}
 
@@ -87,27 +86,18 @@ static func wins_with(save_data: Dictionary, t: int) -> int:
 		return int(uw.get(str(t), 0))
 	return 0
 
-static func note_unlocked(save_data: Dictionary, t: int) -> bool:
-	return wins_with(save_data, t) >= NOTE_WINS
-
-## 一場贏了：每個有派上場的兵種 +1（同一場同兵種只算一次）。
-static func record_win(save_data: Dictionary, types: Array) -> Array:
+static func record_win(save_data: Dictionary, types: Array) -> void:
 	var uw = save_data.get("unit_wins", {})
 	if not uw is Dictionary:
 		uw = {}
-	var newly: Array = []
 	var seen := {}
 	for t in types:
 		var k := str(int(t))
 		if seen.has(k):
 			continue
 		seen[k] = true
-		var before := int(uw.get(k, 0))
-		uw[k] = before + 1
-		if before + 1 == NOTE_WINS:
-			newly.append(int(t))
+		uw[k] = int(uw.get(k, 0)) + 1
 	save_data["unit_wins"] = uw
-	return newly
 
 ## 示範戰鬥：用真的模擬跑技能的小劇場。blue／red 都寫藍方視角（欄 0～5，5 是前排），紅方自動鏡像。
 static func demo_sim(id: String):

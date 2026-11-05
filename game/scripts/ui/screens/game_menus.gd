@@ -15,7 +15,7 @@ func _enter_gauntlet() -> void:
 
 func _enter_gauntlet_new() -> void:
 	call("_gauntlet_clear")
-	if RuleSet.has_new(RS.unlocked_mask(_unlock_games(), _demo())):
+	if RuleSet.has_new(RS.mask(_demo())):
 		overlay = "gauntlet_pick"
 	else:
 		_start_gauntlet_with(0)
@@ -30,7 +30,7 @@ func _start_gauntlet_with(pool: int) -> void:
 
 
 func _draw_gauntlet_pick() -> void:
-	var mask: int = RS.unlocked_mask(_unlock_games(), _demo())
+	var mask: int = RS.mask(_demo())
 	var opts: Array = [
 		[L.t("lb_army_kingdom"), mask & RuleSet.all_pool()],
 		[L.t("lb_army_fantasy"), Presets.fantasy_pool(mask)],
@@ -206,24 +206,8 @@ func _draw_title() -> void:
 	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): get_tree().quit()]]
 	for i in sys.size():
 		_btn(Rect2(70 + i * 112, y2, 106, 38), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
-	# 底部：解鎖進度＋最佳紀錄
-	var demo_b := _demo()
-	var um := RS.unlocked_mask(_unlock_games(), demo_b)
-	var n := RuleSet.pool_count(um)
-	var cap := RS.DEMO_MAX + 1 if demo_b else D.total()
-	var prog := L.t("unlock_prog", [n, cap])
-	if n < cap:
-		var nx_t := -1
-		var nx_g := 99999
-		for ti in D.total():
-			var g2: int = RS.games_to_unlock(ti, _unlock_games(), demo_b)
-			if g2 > 0 and g2 < nx_g:
-				nx_g = g2
-				nx_t = ti
-		if nx_t >= 0:
-			prog += "　" + L.t("unlock_next", [nx_g, L.t("unit_%d" % nx_t)])
-	_text(Vector2(70, 728), prog, tz("S"), Color(1, 1, 1, 0.8), false, false, 380)
-	_text(Vector2(70, 728 + tz("S") * 1.4), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), Color(1, 1, 1, 0.6), false, false, 380)
+	# 底部：最佳紀錄、版本
+	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), Color(1, 1, 1, 0.6), false, false, 380)
 
 
 
@@ -278,11 +262,9 @@ func _draw_overlay() -> void:
 			var tabs0 := [PZ.puzzles(), PZ.new_puzzles(), PZ.fantasy_puzzles()]
 			var list: Array = PZ.tutorials() if tut else tabs0[puzzle_tab]
 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
-			var tdone := int(Save.data.get("tutorial", 0))
-			var unlocked := tut or tdone >= 1
 			_panel(Rect2(240, 110, 800, 580))
 			_text(Vector2(640, 114), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
-			if not tut and unlocked:
+			if not tut:
 				# 兩個分頁：經典殘局／新兵試玩（第四輪 §4.8）；頁籤上直接寫各自的總星數（第三輪 U4）
 				var tabs := tabs0
 				for ti in 3:
@@ -291,21 +273,16 @@ func _draw_overlay() -> void:
 						total += int(stars.get(pz0["id"], 0))
 					var lbl := "%s　★ %d／%d" % [L.t("puzzle_tab_%d" % ti), total, tabs[ti].size() * 3]
 					_btn(Rect2(280 + ti * 244, 160, 232, 36), lbl, func(): puzzle_tab = ti, true, false, TH_ACTIVE if ti == puzzle_tab else Color(0, 0, 0, 0))
-			if not unlocked:
-				_text(Vector2(640, 172), L.t("puzzle_locked"), ts(16), ACCENT, true)
 			for i in list.size():
 				var pz: Dictionary = list[i]
 				var r := Rect2(280 + (i % 2) * 370, 210 + (i / 2) * 82, 350, 68)
 				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 				var st := int(stars.get(pz["id"], 0))
-				var en: bool = unlocked and (not tut or i <= tdone) and (not _demo() or tut or (puzzle_tab == 0 and i < Presets.DEMO_PUZZLES))
+				var en: bool = not _demo() or tut or (puzzle_tab == 0 and i < Presets.DEMO_PUZZLES)   # 第十一輪：關卡全開，只有試玩版有範圍
 				var line := "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)]
-				if pz.has("unit"):
-					# 新兵試玩：那個兵種解鎖後才能玩
-					var left := RS.games_to_unlock(int(pz["unit"]), _unlock_games(), _demo())
-					if left != 0:
-						en = false
-						line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo") if left < 0 else L.t("locked_short", [left])]
+				if pz.has("unit") and not RS.available(int(pz["unit"]), _demo()):
+					en = false
+					line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo")]
 				# 第七輪：標籤靠左、讓開左邊的迷你敵陣（原本置中會被縮圖蓋住）
 				_btn(r, "", _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
@@ -362,7 +339,6 @@ func _settings_rows() -> Array:
 			["set_sfx", "%d%%" % int(Save.s("sfx")), func(d): _step_setting("sfx", [0, 30, 50, 80, 100], d); sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))]],
 		2: [["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(d): _step_setting("speed", [0.5, 1.0, 2.0], d)],
 			["set_confirm", _onoff("confirm_place"), func(d): _cycle_setting("confirm_place", [true, false])],
-			["set_unlock_all", _onoff("unlock_all"), func(d): _cycle_setting("unlock_all", [false, true])],
 			["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],
 			["set_keys", L.t("open_it"), func(d): _open("keys")]],
 		3: [["set_cb", _onoff("colorblind"), func(d): _cycle_setting("colorblind", [false, true]); _rebuild_sprites()],

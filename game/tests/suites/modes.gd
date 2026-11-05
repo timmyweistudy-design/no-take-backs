@@ -578,7 +578,7 @@ func test_v10_demo() -> void:
 	g.toast = ""
 	g._start_trial(1)
 	ok(g.toast == L.t("demo_locked") and g.trial_id != 1, "R1 不開的試煉進不去")
-	var mask: int = load("res://scripts/game/roster.gd").unlocked_mask(1 << 20, true)
+	var mask: int = load("res://scripts/game/roster.gd").mask(true)
 	for i in P.DEMO_TRIALS:
 		g._start_trial(i)
 		ok(g.trial_id == i and g.rules.map_id in P.DEMO_MAPS, "R1 試煉 %d 開得起來、地圖有開放" % i)
@@ -605,4 +605,101 @@ func test_v10_demo() -> void:
 	g.lobby_r.deploy = "free"
 	ok(g._lobby_block() == L.t("demo_locked") and ok_block != L.t("demo_locked"), "R1 貼上不開放的地圖不能開打", ok_block)
 	g.free()
+	SaveS.data_locked = was
+
+## 選卡時的兵種簡介。
+func test_unit_brief() -> void:
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	for t in D.total():
+		var st: Array = g._brief_stats(t)
+		var good: bool = st.size() == 4
+		for v in st:
+			good = good and v >= 0.0 and v <= 1.0
+		ok(good, "兵種 %d 四條比較條都在 0～1" % t, str(st))
+		var m: Dictionary = g._brief_matchups(t)
+		ok(m["good"] is Array and m["bad"] is Array, "兵種 %d 剋制資料" % t)
+		ok(L.t("blurb_%d" % t) != "blurb_%d" % t and g._brief_role(t) != "", "兵種 %d 有一句話和定位" % t, g._brief_role(t))
+	var hi: Array = g._brief_stats(19)
+	var lo: Array = g._brief_stats(10)
+	ok(hi[0] > g._brief_stats(16)[0], "石魔血比沙漏厚")
+	ok(lo[3] == 0.0, "孢子菇不會動，速度條是空的")
+	ok(g._brief_stats(17)[2] > g._brief_stats(0)[2], "骷髏法師射程比劍士遠")
+	# 沒指到任何卡時：顯示卡池第一張；指過就記住
+	g.lobby_brief = -1
+	ok(g._brief_pick([3, 5], -1) == 3, "預設顯示第一張")
+	ok(g._brief_pick([3, 5], 5) == 5, "指到哪張顯示哪張")
+	g.lobby_brief = 5
+	ok(g._brief_pick([3, 5], -1) == 5, "移開後留在上一張")
+	ok(g._brief_pick([3, 7], -1) == 3, "上一張已不在清單就回第一張")
+	# 滑鼠指到或手把焦點都算
+	var cell := Rect2(100, 100, 50, 50)
+	g.pad_mode = false
+	g.mouse = Vector2(120, 120)
+	ok(g._brief_hot(cell), "滑鼠指到")
+	g.mouse = Vector2(10, 10)
+	ok(not g._brief_hot(cell), "滑鼠沒指到")
+	g.pad_mode = true
+	g._btns = [{"r": cell, "cb": func(): pass, "en": true}]
+	g._focus = 0
+	ok(g._brief_hot(cell), "手把焦點在這顆")
+	g._focus = 5
+	ok(not g._brief_hot(cell), "手把焦點在別顆")
+	g._btns = []
+	g.free()
+
+## 第十一輪：不靠場數解鎖。全新存檔一開始就全部能用；試玩版是版本差異。
+func test_no_unlock() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var saved: Dictionary = SaveS.data.duplicate(true)
+	var RSTR = load("res://scripts/game/roster.gd")
+	var P = load("res://scripts/game/presets.gd")
+	SaveS.data["unlock_games"] = 0
+	SaveS.data["tutorial"] = 0
+	SaveS.data["unit_wins"] = {}
+	SaveS.data["last_rules"] = {}
+	SaveS.data["gauntlet_pool"] = 0
+	ok(RSTR.mask() == RS9.full_pool(), "全新存檔 20 種全開")
+	var dm: int = RSTR.mask(true)
+	ok(RS9.pool_count(dm) == 8 and RS9.has(dm, 11) and not RS9.has(dm, 7), "試玩版固定舊 7 種＋爆爆羊")
+	ok(RSTR.available(19) and not RSTR.available(19, true) and RSTR.available(11, true), "正式版都能用；試玩版看內容")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	# 大廳：預設標準是 10 種王國軍，20 種都選得到，沒有鎖住的兵
+	g._open_lobby("ai")
+	ok(g.lobby_r.pool_of(0) == RS9.all_pool(), "第一次開大廳是王國軍 10 種", str(g.lobby_r.pool_of(0)))
+	ok(P.selectable("ai", g._lobby_unlocked(), false) == RS9.full_pool(), "第一次開大廳 20 種都選得到")
+	ok(g._lobby_locked_units().is_empty() and g._lobby_block() == "", "第一次開大廳就能開打", g._lobby_block())
+	g._lobby_pick("fantasy")
+	ok(g.lobby_r.pool_of(0) == RS9.full_pool() - RS9.all_pool(), "奇幻兵團是 10 種奇幻軍", str(g.lobby_r.pool_of(0)))
+	# 不用打場數的快速對戰、遠征
+	g.rules = null
+	g._start_mode(g.Mode.VS_AI)
+	ok(g._ntypes() == 10 and g._pool() == RS9.all_pool(), "快速對戰 10 種全開")
+	for t in 10:
+		ok(g._allowed(t), "兵種 %d 第一場就能用" % t)
+	g._start_mode(g.Mode.GAUNTLET)
+	ok(RS9.pool_count(g._gauntlet_pool()) == 10, "遠征第一次就有 10 種")
+	# 舊存檔：以前存的「標準」只有 7 種，要變回 10 種
+	var old = RS9.standard(127)
+	SaveS.data["last_rules"] = {"ai": old.to_code(), "ai_preset": "standard"}
+	g._open_lobby("ai")
+	ok(g.lobby_r.pool_of(0) == RS9.all_pool(), "舊存檔的標準卡池補回 10 種", str(g.lobby_r.pool_of(0)))
+	# 打完不跳解鎖提示，設定沒有全部解鎖
+	g.settings_tab = 2
+	var names: Array = []
+	for row in g._settings_rows():
+		names.append(row[0])
+	ok(not "set_unlock_all" in names, "設定沒有全部解鎖", str(names))
+	ok(L.t("unlock_next") == "unlock_next" and L.t("unit_unlocked") == "unit_unlocked" and L.t("locked_games") == "locked_games", "解鎖提示文字都拿掉了")
+	# 圖鑑老兵筆記不用贏也看得到；勝場照記（戰績頁用）
+	var CXN = load("res://scripts/game/codex.gd")
+	var sd := {}
+	CXN.record_win(sd, [D.SWORD, D.SWORD, D.ARCHER])
+	ok(CXN.wins_with(sd, D.SWORD) == 1 and CXN.wins_with(sd, D.ARCHER) == 1, "勝場照記，同場同種只算一次")
+	g.free()
+	SaveS.data = saved
 	SaveS.data_locked = was

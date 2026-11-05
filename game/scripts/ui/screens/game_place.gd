@@ -587,8 +587,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 	_text(Vector2(x, y - 2), name, tz("B"), ACCENT, false, true)
 	x += _width(name, tz("B"), true) + 12
 	if not _allowed(i) and not (rules != null):
-		var left := RS.games_to_unlock(i, _unlock_games(), _demo())
-		var lock: String = L.t("locked_demo") if left < 0 else (L.t("locked_classic") if left == 0 else L.t("locked_games", [left]))
+		var lock: String = L.t("locked_demo") if not RS.available(i, _demo()) else L.t("locked_classic")
 		_text(Vector2(x, y), lock, tz("S"), Color(1, 1, 1, 0.8))
 		_draw_place_help()
 		return
