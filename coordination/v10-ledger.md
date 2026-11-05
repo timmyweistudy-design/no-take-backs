@@ -18,3 +18,4 @@ Ruling: R7 不改 AI，只在大廳提示「地形圖沒有平衡認證」— �
 F: complete — 商店文案、截圖（docs/store/screenshots）；膠囊圖、預告片沒動。
 Final: v10-r1 Codex 6 條全修；Antigravity 5 條修。修正未再審。
 Final: minor (deferred): 地形殘局（第九輪留下）。
+Final: v1.0.1 打完才發現孢子菇、史萊姆前搖過扁 — 不移動已推送的 tag，調整後打 v1.0.2 — tag 多一個

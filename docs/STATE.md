@@ -1,12 +1,12 @@
 # 落子無悔：現在的真相
 
-> 第七輪 J3 建立，第十輪（V1.0.1）更新。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
+> 第七輪 J3 建立，第十輪（V1.0.2）更新。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
 > 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/history/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/history/2026-11-04-fantasy-units-plan-v8.md` §12、第九輪 `docs/2026-11-04-v1-release-plan-v9.md` §14、第十輪 `docs/2026-11-05-v1-polish-plan-v10.md` §14。
 
 ## 版本
 | 項目 | 值 | 位置 |
 |---|---|---|
-| App | 1.0.1（單一來源 `project.godot`，匯出設定同步；標題頁顯示） | `project.godot` |
+| App | 1.0.2（單一來源 `project.godot`，匯出設定同步；標題頁顯示） | `project.godot` |
 | 引擎 | Godot 4.6.2-stable（本機、CI、匯出模板要一致，`check_all.sh` 會擋） | `tools/check_all.sh`、`.github/workflows/ci.yml` |
 | 規則版本 | `D.RULES_VERSION`（1.3.0）；用到新兵的場次顯示 1.4.0 | `scripts/core/unit_defs.gd` |
 | 存檔格式 | `SAVE_VERSION` | `scripts/game/save.gd` |
@@ -74,7 +74,7 @@
 - `SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
 - 統一檢查在 Windows 版要 40～50 分鐘，外層 timeout 至少開 90 分鐘。
 
-## 最後一次驗收（2026-11-05，第十輪收尾，commit e76997b）
+## 最後一次驗收（2026-11-05，第十輪收尾，v1.0.2）
 - 統一檢查 CHECK OK（37 步、約 16 分鐘、`--no-cache`）：測試 698 項全過；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79，和第七、八、九輪相同，`scripts/core` 這輪沒有改動。
 - 版面 426 張（2 語言 × 3 字級）0 違規，含 20 張禁牌、離開確認、代碼、遠征續玩；手把流程 6 組全過（版面檢查的一部分，真實輸入事件走標題、選單、大廳、禁牌、打完一場試煉）。
 - 動畫檢查 22 種 × 28 格 0 問題；圖集通過；正式版、試玩版匯出自我檢查通過。Linux 匯出（含新的試玩版）本機沒模板，看 CI。

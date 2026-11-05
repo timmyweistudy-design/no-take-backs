@@ -20,7 +20,7 @@ static func _fantasy(ci: CanvasItem, type: int, tc: Color, walk: float, w: float
 
 
 static func _f_spore(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
-	_push_body(ci, _atk_xf(Gait.body_xf(10, walk), w, 0.3, 0.0, true))
+	_push_body(ci, _atk_xf(Gait.body_xf(10, walk), maxf(w, 0.0), 0.3, 0.0, true))
 	# 短胖的柄＋超大菇傘；攻擊（噴毒）時整朵壓扁再彈起，底下兩朵小芽
 	var sq := 1.0 + maxf(0.0, w) * 0.22 - minf(0.0, w) * 0.1
 	var low := 1.0 - maxf(0.0, w) * 0.2
@@ -116,7 +116,7 @@ static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	# 果凍：底部微扁、頂上一小尖，走路和攻擊時壓扁彈起
 	var wk := Gait.ph(walk)
 	# 落地壓扁、騰空拉長（Antigravity P2 #2）：拉長時整隻離地（Gait.air）
-	var sq := (1.14 - absf(sin(wk)) * 0.26 if wk != 0.0 else 1.0) + maxf(0.0, w) * 0.36 - minf(0.0, w) * 0.22
+	var sq := (1.14 - absf(sin(wk)) * 0.26 if wk != 0.0 else 1.0) + maxf(0.0, w) * 0.3 - minf(0.0, w) * 0.12
 	if walk < -150.0:
 		sq = 1.22
 	var rx := 20.0 * k * sq
