@@ -673,7 +673,7 @@ func _gauntlet_save() -> void:
 			o[str(k)] = int(u[k])
 		prev.append(o)
 	Save.data["gauntlet_run"] = {"stage": gauntlet_stage, "seed": gauntlet_seed, "gold": int(get("gauntlet_gold")), "cap": int(get("gauntlet_cap")),
-		"changes": gauntlet_changes, "pool": int(Save.data.get("gauntlet_pool", 0)), "prev": prev}
+		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev}   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
 	Save.save_data()
 
 func _gauntlet_clear() -> void:

@@ -26,7 +26,7 @@ func _leave_confirm() -> void:
 	_go_title()
 
 func _go_title() -> void:
-	call("_pre_join")
+	call("_pre_drop")
 	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
 	sfx.set_muffled(false)
 	watch_mode = false

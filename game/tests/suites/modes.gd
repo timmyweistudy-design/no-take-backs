@@ -459,8 +459,29 @@ func test_v10_input() -> void:
 	ok(g2.mode == g2.Mode.GAUNTLET and g2.gauntlet_stage == 2 and g2.armies[0].budget == bud and g2.armies[0].units.size() == n and g2.overlay == "", "I5 接回來狀態相同")
 	ok(g2.armies[1].to_code() == enemy, "I5 接回來對手相同")
 	ok(SaveS.sanitize_run({"stage": "x"}).is_empty() and SaveS.sanitize_run({"stage": 99, "seed": 1, "gold": 0, "cap": 0, "changes": 3, "pool": 0, "prev": []}).is_empty(), "I5 壞存點當沒有")
+	var good_u := {"type": 0, "col": 3, "row": 4}
+	var base := {"stage": 3, "seed": 1, "gold": 0, "cap": 0, "changes": 3, "pool": 1023}
+	var rg: Dictionary = base.duplicate()
+	rg["prev"] = [good_u]
+	ok(not SaveS.sanitize_run(rg).is_empty(), "I5 合法存點留下")
+	for bad_u in [{"type": 0}, {"type": 99, "col": 1, "row": 1}, {"type": 0, "col": 99, "row": 1}, {"type": 0, "x": -5, "y": 3}]:
+		var rb: Dictionary = base.duplicate()
+		rb["prev"] = [bad_u]
+		ok(SaveS.sanitize_run(rb).is_empty(), "I5 壞兵的存點不要", str(bad_u))
+	# Codex #2：存實際卡池，之後改大廳不影響
+	var pool_at_save: int = int(saved["pool"])
+	ok(pool_at_save > 0, "I5 存的是實際卡池", str(pool_at_save))
 	g2._gauntlet_clear()
 	g2.free()
+	# Codex #3：還沒算完就返回，不等它
+	g.force_async = true
+	g._begin_battle(ra0.copy(), ra1.copy(), "replay")
+	var th: Thread = g.pre_thread
+	g._replay_back()
+	ok(g.pre_thread == null and (th in g.pre_old or g.pre_old.is_empty()), "I4 返回不等背景工作")
+	g._exit_tree()
+	ok(g.pre_old.is_empty(), "I4 關閉時全部收回")
+	g.force_async = false
 	g.free()
 	SaveS.data["gauntlet_run"] = {}
 	SaveS.data_locked = was
@@ -506,6 +527,13 @@ func test_v10_feel() -> void:
 		g.time += 0.05
 		saw_slow = saw_slow or g.final_left > 0.0
 	ok(saw_slow and g.final_used, "F1 碾壓局有最後一擊慢動作")
+	ok(g.final_left <= 0.6, "F1 慢動作時間有上限")
+	g.final_left = 0.3
+	g._seek(10)
+	ok(not g.final_used and g.final_left == 0.0, "F1 跳回前段會清掉最後一擊狀態", "%s %s" % [g.final_used, g.final_left])
+	while not g.view.finished and guard < 40000:     # 跳完播到結尾，指紋不受影響
+		guard += 1
+		g._sim_step(false)
 	var fp_show: String = g.sim.fingerprint
 	var tick_show: int = g.sim.tick
 	# 跳過：立刻算完，不演；演不演都是同一場

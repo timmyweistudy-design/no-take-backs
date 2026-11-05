@@ -9,6 +9,7 @@ const EV = preload("res://scripts/core/events.gd")
 var skip_busy := false
 var pre_thread: Thread = null   # 第十輪 I4：重播先算全長放背景
 var ai_thread: Thread = null    # 第十輪 I4：困難 AI 放背景
+var pre_old: Array = []         # 返回時還沒算完的舊工作：不等它，算完再收（Codex v10-r1 #3）
 
 const HUD_LEFT_END := 240.0     # 左上比分文字最寬到這裡
 

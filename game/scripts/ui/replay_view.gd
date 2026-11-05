@@ -144,6 +144,8 @@ func _seek_finish() -> void:
 	result_delay = 0.0
 	clutch_t = 0.0
 	slow_left = 0.0
+	final_left = 0.0     # Codex v10-r1 #4：跳回前段不能留著慢動作，再播到末擊要再演
+	final_used = false
 	hitstop = 0.0
 	# 演出狀態依目標時間重建（Codex S5 #5）：最後時刻是否已發生、是否已進狂熱、音樂
 	slow_used = had_clutch
@@ -193,7 +195,7 @@ func _replay_snapshot() -> void:
 
 ## 重播的「返回」：回到進來的地方。只還原畫面，比分、進度、成就、試玩紀錄都不寫。
 func _replay_back() -> void:
-	call("_pre_join")
+	call("_pre_drop")
 	seek_target = -1   # Codex r1：算到一半返回，不能把下一場快轉到舊目標
 	skip_busy = false
 	paused = false

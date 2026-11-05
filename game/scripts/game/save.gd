@@ -186,7 +186,7 @@ static func sanitize_run(g) -> Dictionary:
 		if not (v is int or v is float):
 			return {}
 		out[k] = int(v)
-	if out["stage"] < 2 or out["stage"] > 7 or out["gold"] < 0 or out["gold"] > 70 or out["cap"] < 0 or out["cap"] > 14:
+	if out["pool"] <= 0 or out["stage"] < 2 or out["stage"] > 7 or out["gold"] < 0 or out["gold"] > 70 or out["cap"] < 0 or out["cap"] > 14:
 		return {}
 	var raw = g.get("prev")
 	if not raw is Array or raw.size() > 80:
@@ -194,6 +194,17 @@ static func sanitize_run(g) -> Dictionary:
 	var prev: Array = []
 	for u in raw:
 		if not u is Dictionary or not u.has("type"):
+			return {}
+		# Codex v10-r1 #1：座標與兵種都要合法，少一項就整份不要（下一輪開場會直接讀）
+		var free_u: bool = u.has("x") and u.has("y")
+		var grid_u: bool = u.has("col") and u.has("row")
+		if not (free_u or grid_u):
+			return {}
+		if int(u["type"]) < 0 or int(u["type"]) >= 20:
+			return {}
+		if free_u and (int(u["x"]) < 0 or int(u["x"]) > 18000 or int(u["y"]) < 0 or int(u["y"]) > 10000):
+			return {}
+		if grid_u and (int(u["col"]) < 0 or int(u["col"]) > 15 or int(u["row"]) < 0 or int(u["row"]) > 8):
 			return {}
 		var o := {}
 		for k2 in u:

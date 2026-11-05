@@ -142,6 +142,8 @@ func _input(ev: InputEvent) -> void:
 			return
 		ev = ev.duplicate()
 		ev.button_index = db
+	if ev is InputEventJoypadButton:
+		last_joy = ev.device     # 所有分流之前記（Codex v10-r1 #6）
 	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
 		_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
 	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
@@ -150,7 +152,6 @@ func _input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventJoypadButton and ev.pressed:
 		pad_mode = true
-		last_joy = ev.device
 		var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
 			JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
 			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
@@ -382,6 +383,8 @@ func _process_inner(delta: float) -> void:
 		_codex_tick(delta)
 	if overlay == "ai_busy":
 		_ai_poll()
+	if not pre_old.is_empty():
+		_pre_reap()
 	if state == St.TITLE and demo != null and shot_dir == "":
 		demo_acc += delta
 		while demo_acc >= 0.05:

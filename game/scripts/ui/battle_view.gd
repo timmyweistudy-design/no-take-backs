@@ -30,8 +30,24 @@ func _pre_join() -> void:
 		if v != null:
 			replay_total = int(v)
 
+## 不要等：還在算就留給 _pre_reap 收。
+func _pre_drop() -> void:
+	if pre_thread != null:
+		pre_old.append(pre_thread)
+		pre_thread = null
+
+func _pre_reap() -> void:
+	for i in range(pre_old.size() - 1, -1, -1):
+		if not pre_old[i].is_alive():
+			pre_old[i].wait_to_finish()
+			pre_old.remove_at(i)
+
 func _exit_tree() -> void:
 	_pre_join()
+	_pre_drop()
+	for th in pre_old:
+		th.wait_to_finish()
+	pre_old.clear()
 	if ai_thread != null:
 		ai_thread.wait_to_finish()
 		ai_thread = null
@@ -67,9 +83,9 @@ func _battle_process(delta: float) -> void:
 	accum += delta * rate
 	while accum >= 0.05 and not view.finished:
 		accum -= 0.05
-		var was_slow := slow_left > 0
+		var was_slow := slow_left > 0 or final_left > 0
 		_sim_step(true)
-		if slow_left > 0 and not was_slow:
+		if (slow_left > 0 or final_left > 0) and not was_slow:
 			break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
 	# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
 	# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
@@ -495,7 +511,7 @@ func _draw_battle_hud() -> void:
 
 ## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）
 func _begin_battle(a0, a1, kind := "official") -> void:
-	_pre_join()
+	_pre_drop()
 	play_kind = kind
 	_ensure_sprites([a0, a1])
 	if kind == "official":
