@@ -703,3 +703,334 @@ func test_no_unlock() -> void:
 	g.free()
 	SaveS.data = saved
 	SaveS.data_locked = was
+
+# ── 第十二輪：手動技能 ──
+const CMD = preload("res://scripts/core/cmd_defs.gd")
+const BC = preload("res://scripts/game/battle_code.gd")
+const MC9 = preload("res://scripts/core/mirror_check.gd")
+
+func _cmd_rules(mask := 7, uses := 2):
+	var r = RS9.standard()
+	r.deploy = "free"
+	r.spacing = 800
+	r.depth = 6000
+	r.pool = [1023, 1023]
+	r.ai_pool_same = false
+	r.cmd_mask = [mask, mask]
+	r.cmd_uses = uses
+	r.cmd_cd = 200
+	r.cmd_power = 100
+	return r
+
+func _cmd_army(team: int, r, types := [D.SWORD, D.ARCHER, D.SHIELD, D.SWORD, D.CAVALRY, D.ARCHER]):
+	var a = Army.new(team, r.budget_of(team))
+	a.apply_rules(r, team)
+	a.pool = RS9.full_pool()
+	var y := 1500
+	for t in types:
+		a.place_xy(int(t), a.world_x(5000), y)
+		y += 1000
+	return a
+
+func _hp(s, team: int) -> int:
+	var h := 0
+	for u in s.units:
+		if u.team == team and u.alive:
+			h += u.hp
+	return h
+
+func test_cmd_sim() -> void:
+	var r = _cmd_rules()
+	ok(not r.sim_is_legacy() and r.validate().is_empty(), "開技能不走舊路徑", str(r.validate()))
+	var off = r.copy()
+	off.cmd_mask = [0, 0]
+	ok(not off.cmd_on(), "雙方都 0 就是關閉")
+	ok(RS9.standard().to_code().begins_with("NTBR1") or not RS9.standard().to_code().begins_with("NTBR5"), "沒開技能規則碼不變")
+	# 規則碼往返
+	var code: String = r.to_code()
+	ok(code.begins_with("NTBR5"), "有技能用 NTBR5", code.substr(0, 6))
+	var d: Dictionary = RS9.from_code(code)
+	ok(d["ok"] and d["rules"].cmd_mask == [7, 7] and d["rules"].cmd_uses == 2 and d["rules"].cmd_cd == 200 and d["rules"].cmd_power == 100, "規則碼往返", str(d.get("why")))
+	ok(d["ok"] and d["rules"].deploy == "free" and d["rules"].spacing == 800, "規則碼保留部署")
+	var bad = r.copy()
+	bad.cmd_mask = [63, 1]
+	ok(not bad.validate().is_empty(), "不合法的技能遮罩擋下")
+	var r3 = _cmd_rules(7, 1)
+	r3.cmd_mask = [7, 15]
+	ok(not r3.validate().is_empty(), "一邊最多帶 3 種")
+	# 次數、開場限制、冷卻
+	var s = Sim.new(_cmd_army(0, r), _cmd_army(1, r), r)
+	ok(not s.cast(0, CMD.AEGIS), "開場 3 秒不能用")
+	while s.tick < CMD.START_TICKS:
+		s.step()
+	ok(s.cast(0, CMD.AEGIS), "3 秒後能用")
+	ok(not s.cast(0, CMD.AEGIS), "同一招不能重複排")
+	var hp0 := 0
+	for u in s.units:
+		if u.team == 0:
+			hp0 = u.max_hp
+			break
+	s.step()
+	var shielded := true
+	for u in s.units:
+		if u.team == 0 and u.alive and u.shield != u.max_hp * CMD.AEGIS_PCT / 100:
+			shielded = false
+		if u.team == 1 and u.shield != 0:
+			shielded = false
+	ok(shielded and s.cmd_log.size() == 1 and hp0 > 0, "全員護盾：只有我方有盾，數值正確")
+	ok(not s.cast(0, CMD.AEGIS), "冷卻中不能再用")
+	# 護盾先吃傷害
+	var victim = s.units[0]
+	var hp_before: int = victim.hp
+	victim.shield = 1000
+	s._cmd_dmg.fill(0)
+	var guard := 0
+	while victim.alive and victim.shield == 1000 and guard < 400:
+		guard += 1
+		s.step()
+	ok(victim.hp == hp_before or victim.shield < 1000 or guard == 400, "傷害先扣盾")
+	# 次數用完
+	var r5 = _cmd_rules(31)   # 測效果用：五招全帶（模擬不看上限，上限在 validate）
+	var s2 = Sim.new(_cmd_army(0, r5), _cmd_army(1, r5), r5)
+	while s2.tick < CMD.START_TICKS:
+		s2.step()
+	s2.cast(0, CMD.HEAL)
+	s2.step()
+	s2.cmd_ready[0][CMD.HEAL] = 0
+	s2.cast(0, CMD.HEAL)
+	s2.step()
+	s2.cmd_ready[0][CMD.HEAL] = 0
+	ok(s2.cmd_left[0][CMD.HEAL] == 0 and not s2.cast(0, CMD.HEAL), "次數用完不能再用")
+	# 各技能效果
+	var h = Sim.new(_cmd_army(0, r5), _cmd_army(1, r5), r5)
+	while h.tick < CMD.START_TICKS:
+		h.step()
+	h.units[0].hp = 10
+	var mx: int = h.units[0].max_hp
+	h.cast(h.units[0].team, CMD.HEAL)
+	h.step()
+	ok(h.units[0].hp >= 10 + mx * CMD.HEAL_PCT / 100 - 200 or not h.units[0].alive, "治癒之雨：回血", str(h.units[0].hp))
+	var w = Sim.new(_cmd_army(0, r5), _cmd_army(1, r5), r5)
+	while w.tick < CMD.START_TICKS:
+		w.step()
+	w.cast(0, CMD.WARCRY)
+	w.step()
+	var hasted := true
+	for u in w.units:
+		if u.alive and ((u.team == 0) != (u.haste_t > 0)):
+			hasted = false
+	ok(hasted, "戰吼：只有我方加速")
+	var f = Sim.new(_cmd_army(0, r5), _cmd_army(1, r5), r5)
+	while f.tick < CMD.START_TICKS:
+		f.step()
+	f.cast(0, CMD.FREEZE)
+	f.step()
+	var frozen := true
+	for u in f.units:
+		if u.alive and u.team == 1 and u.stun < CMD.FREEZE_TICKS - 2:
+			frozen = false
+	ok(frozen, "冰封：敵人全部定身")
+	var m = Sim.new(_cmd_army(0, r5), _cmd_army(1, r5), r5)
+	while m.tick < CMD.START_TICKS:
+		m.step()
+	m.cast(0, CMD.METEOR)
+	m.step()
+	var hit_n := 0
+	var mine_hit := 0
+	for e in m.events:
+		if e["kind"] == "cmd_hit":
+			var tu = m.unit_by_id(e["tgt"])
+			if tu.team == 1:
+				hit_n += 1
+			else:
+				mine_hit += 1
+	ok(hit_n >= 1 and mine_hit == 0, "隕石：打到敵人、不傷友軍", "%d %d" % [hit_n, mine_hit])
+	# 重播：同一份紀錄同一個指紋（含 AI）
+	var a0 = _cmd_army(0, r)
+	var a1 = _cmd_army(1, r)
+	var live = Sim.new(a0.copy(), a1.copy(), r)
+	live.cmd_auto = [false, true]
+	var pressed := false
+	while not live.finished:
+		if not pressed and live.tick == 80:
+			pressed = live.cast(0, CMD.AEGIS)
+		live.step()
+	ok(pressed and live.cmd_log.size() >= 2, "玩家與 AI 都有放", str(live.cmd_log))
+	var rep = Sim.new(a0.copy(), a1.copy(), r)
+	rep.cmd_play(live.cmd_log)
+	while not rep.finished:
+		rep.step()
+	ok(rep.fingerprint == live.fingerprint and rep.cmd_log == live.cmd_log and rep.winner == live.winner, "重播同一個指紋")
+	var none = Sim.new(a0.copy(), a1.copy(), r)
+	while not none.finished:
+		none.step()
+	ok(none.fingerprint != live.fingerprint, "有放技能的指紋不同")
+	var rep2 = Sim.new(a0.copy(), a1.copy(), r)
+	rep2.cmd_play(live.cmd_log)
+	ok(not rep2.cast(0, CMD.AEGIS), "重播時按了沒用")
+	# 對戰代碼帶施放紀錄
+	var bc: String = BC.encode(a0, a1, r, live.cmd_log)
+	ok(bc.begins_with("NTB7"), "對戰代碼用 NTB7", bc.substr(0, 5))
+	var dec: Dictionary = BC.decode(bc)
+	ok(dec["ok"] and dec["cmds"] == live.cmd_log and dec["rules"].cmd_on(), "對戰代碼往返", str(dec.get("why")))
+	if dec["ok"]:
+		var rep3 = Sim.new(dec["a0"], dec["a1"], dec["rules"])
+		rep3.cmd_play(dec["cmds"])
+		while not rep3.finished:
+			rep3.step()
+		ok(rep3.fingerprint == live.fingerprint, "貼代碼播出同一場")
+	# 鏡像：雙方 AI 都開，左右完全對稱
+	for mask in [31, 1 << CMD.METEOR, (1 << CMD.FREEZE) | (1 << CMD.HEAL)]:
+		var rm = _cmd_rules(mask, 3)
+		var why: String = MC9.check_free(_cmd_army(0, rm), _cmd_army(1, rm), rm, true)
+		ok(why == "", "技能鏡像一致 mask=%d" % mask, why)
+
+func test_cmd_ui() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	var r = _cmd_rules(7, 2)
+	g.rules = r
+	g.challenge_army = null
+	g._start_mode(g.Mode.VS_AI)
+	g.armies[0] = _cmd_army(0, r)
+	g.armies[1] = _cmd_army(1, r)
+	g._begin_battle(g.armies[0].copy(), g.armies[1].copy(), "official")
+	ok(g.sim.cmd_on and g.sim.cmd_auto == [false, true], "對 AI：紅方由 AI 放")
+	while g.sim.tick < CMD.START_TICKS + 2:
+		g._sim_step(false)
+	ok(g._cmd_press(0, 0), "按第一格放第一招")
+	g._sim_step(false)
+	g._sim_step(false)
+	ok(g.sim.cmd_log.size() >= 1 and int(g.sim.cmd_log[0][2]) == CMD.AEGIS, "真的放了")
+	ok(not g._cmd_press(1, 0), "對 AI 時不能幫紅方按")
+	ok(g._cmd_key(KEY_2), "數字鍵 2 放第二招")
+	ok(not g._cmd_key(KEY_5), "不是技能鍵")
+	while not g.view.finished:
+		g._sim_step(false)
+	g._finish_battle()
+	var log: Array = g.last_cmds.duplicate(true)
+	ok(log.size() >= 2, "結束時記下施放紀錄", str(log))
+	var fp: String = g.sim.fingerprint
+	g._begin_battle(g.last_armies[0].copy(), g.last_armies[1].copy(), "replay")
+	ok(g.sim.cmd_scripted, "重播走紀錄")
+	ok(not g._cmd_press(0, 1), "重播不能按")
+	while not g.view.finished:
+		g._sim_step(false)
+	ok(g.sim.fingerprint == fp, "重播同一場", "%s %s" % [g.sim.fingerprint, fp])
+	# 跳轉也要照紀錄
+	g._begin_battle(g.last_armies[0].copy(), g.last_armies[1].copy(), "replay")
+	g._seek(200)
+	ok(g.sim.cmd_scripted and g.sim.cmd_log.size() >= 1, "跳轉照紀錄", str(g.sim.cmd_log))
+	# 雙人：兩邊都能按、AI 不動
+	g.rules = r.copy()
+	g._start_mode(g.Mode.DUEL)
+	g.armies[0] = _cmd_army(0, r)
+	g.armies[1] = _cmd_army(1, r)
+	g._begin_battle(g.armies[0].copy(), g.armies[1].copy(), "official")
+	ok(g.sim.cmd_auto == [false, false], "雙人沒有 AI 施放")
+	while g.sim.tick < CMD.START_TICKS + 2:
+		g._sim_step(false)
+	ok(g._cmd_press(1, 0), "雙人紅方能按")
+	ok(g._cmd_key(KEY_8) == true, "紅方鍵 8")
+	# Codex v12-r1：相等比較、護盾承傷
+	var eq1 = RS9.standard()
+	var eq2 = RS9.standard()
+	eq2.cmd_mask = [1, 1]
+	ok(not eq1.equals(eq2), "開技能的規則和標準不相等")
+	var st = Sim.new(_cmd_army(0, r), _cmd_army(1, r), r)
+	var su = st.units[0]
+	su.shield = 100000
+	su.shield_t = 9999
+	var guard2 := 0
+	while su.alive and su.dmg_taken == 0 and su.shield == 100000 and guard2 < 800:
+		guard2 += 1
+		st.step()
+	ok(su.shield < 100000 and su.dmg_taken == 0 and su.hp == su.max_hp, "全被盾擋下：承傷是 0、血沒掉", "%d %d" % [su.shield, su.dmg_taken])
+	# 大廳設定
+	g.mode = g.Mode.VS_AI
+	g.rules = null
+	g._open_lobby("ai")
+	ok(not g.lobby_r.cmd_on(), "大廳預設關閉")
+	var badge0: String = load("res://scripts/game/presets.gd").badge(g.lobby_r, "ai")
+	g._lobby_adj("cmd_on", 1)
+	ok(g.lobby_r.cmd_on() and g.lobby_r.cmd_mask == [CMD.DEFAULT_MASK, CMD.DEFAULT_MASK], "開啟給預設兩招")
+	ok(g.lobby_r.preset == "custom", "開技能後不再標成標準", g.lobby_r.preset)
+	ok(g._lobby_block() == "", "開啟後能開打", g._lobby_block())
+	var badge1: String = load("res://scripts/game/presets.gd").badge(g.lobby_r, "ai")
+	ok(badge0 == "cert" and badge1 != "cert", "開技能就不是平衡認證", badge1)
+	g._cmd_toggle(0, CMD.HEAL)
+	ok(CMD.count_of(g.lobby_r.cmd_mask[0]) == 3, "加一招")
+	g._cmd_toggle(0, CMD.FREEZE)
+	ok(CMD.count_of(g.lobby_r.cmd_mask[0]) == 3, "超過 3 種擋下")
+	g._cmd_toggle(0, CMD.HEAL)
+	g._cmd_toggle(0, CMD.METEOR)
+	g._cmd_toggle(0, CMD.AEGIS)
+	ok(CMD.count_of(g.lobby_r.cmd_mask[0]) == 1, "至少留一招")
+	for key in ["cmd_uses", "cmd_cd", "cmd_power"]:
+		g._lobby_adj(key, 1)
+	ok(g.lobby_r.validate().is_empty() and g.lobby_r.cmd_uses == 2 and g.lobby_r.cmd_cd == 600 and g.lobby_r.cmd_power == 150, "次數、冷卻、強度能調", str(g.lobby_r.validate()))
+	ok(RS9.from_code(g.lobby_r.to_code())["ok"], "調完的規則碼有效")
+	g._lobby_adj("cmd_on", 1)
+	ok(not g.lobby_r.cmd_on(), "可以關回去")
+	# 每招都有名字和說明
+	for i in CMD.COUNT:
+		ok(L.t("cmd_%d" % i) != "cmd_%d" % i and "%d" not in g._cmd_desc(i, 100) and "%s" not in g._cmd_desc(i, 100), "技能 %d 有名字和說明" % i, g._cmd_desc(i, 100))
+	# 挑戰碼：朋友的技能要跟著對調
+	var rc = _cmd_rules(1, 1)
+	rc.cmd_mask = [1, 8]
+	rc.pool = [1023, 1023]
+	g.rules = rc
+	g.challenge_army = null
+	g._start_mode(g.Mode.VS_AI)
+	_place_some(g, 6)
+	g.last_armies = [g.armies[0].copy(), g.armies[0].copy()]
+	var dc: Dictionary = g._challenge_decode(g._challenge_encode())
+	ok(dc["ok"] and dc["rules"].cmd_mask == [8, 1], "挑戰碼對調雙方技能", str(dc.get("rules").cmd_mask if dc["ok"] else "bad"))
+	g.free()
+	SaveS.data_locked = was
+
+## 第十二輪：每一關留一組已知三星解。改數值讓三星拿不到時這裡會紅，就要重找解或調門檻。
+func test_star_solutions() -> void:
+	var f := FileAccess.open("res://tests/golden/star_solutions.json", FileAccess.READ)
+	var data: Dictionary = JSON.parse_string(f.get_as_text())
+	var PZ = load("res://scripts/game/puzzles.gd")
+	var Sim = load("res://scripts/core/battle_sim.gd")
+	var seen := 0
+	for pz in PZ.puzzles() + PZ.new_puzzles() + PZ.fantasy_puzzles():
+		var ex: Array = data["puzzles"].get(pz["id"], [])
+		ok(not ex.is_empty(), "殘局有三星解紀錄", str(pz["id"]))
+		var a0 = PZ.player_army(pz)
+		var fixed: int = a0.budget - int(pz["budget"])
+		for e in ex:
+			a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
+		var extra: int = a0.spent() - fixed
+		var s = Sim.new(a0, PZ.enemy_army(pz))
+		s.fast = true
+		s.run_to_end()
+		var rem: int = PZ.rem_pct(s.power(0), s.budget) if s.winner == 0 else 0
+		ok(PZ.stars(pz, s.winner == 0, rem, extra) == 3, "殘局三星拿得到", "%s 剩 %d 花 %d" % [pz["id"], rem, extra])
+		seen += 1
+	ok(seen == 25, "殘局 25 關都驗到", str(seen))
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	for i in g.TRIALS.size():
+		g._start_trial(i)
+		g._build_ai()
+		var a = g.armies[0].copy()
+		a.units = []
+		for u in data["trials"][str(i)]:
+			a.place_xy(int(u[0]), a.world_x(int(u[1])), int(u[2]))
+		var s2 = Sim.new(a.copy(), g.armies[1].copy(), g.rules)
+		s2.fast = true
+		s2.run_to_end()
+		var rem2: int = PZ.rem_pct(s2.power(0), s2.budget_of(0))
+		var st: int = g.trial_stars(int(g.TRIALS[i][3]), rem2, a.spent(), a.budget, g.trial_spend_pct(i)) if s2.winner == 0 else 0
+		ok(st == 3, "試煉三星拿得到", "第 %d 關 %d 星，剩 %d 花 %d" % [i + 1, st, rem2, a.spent()])
+	g.free()
+	SaveS.data_locked = was

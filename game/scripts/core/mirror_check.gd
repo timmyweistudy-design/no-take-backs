@@ -51,9 +51,12 @@ static func check(a0, a1) -> String:
 ## 第六輪（方案 §6.1，Codex 第一輪）：獨立建立左右對應的鏡像檢查——不從 id 反推格子，
 ## 而是用 tick 0 的起始座標配對（鏡像後 (W−x, y)），比對索引、slot、事件來源／目標與完整狀態（含 tick 0）。
 ## 格子與自由陣型都適用；rules 兩場共用（兩邊對稱的規則）。
-static func check_free(a0, a1, rules = null) -> String:
+static func check_free(a0, a1, rules = null, cmd_auto := false) -> String:
 	var s1 = Sim.new(a0.copy(), a1.copy(), rules)
 	var s2 = Sim.new(a1.mirrored(), a0.mirrored(), rules)
+	if cmd_auto:      # 第十二輪：雙方 AI 都放手動技能，也要左右對稱
+		s1.cmd_auto = [true, true]
+		s2.cmd_auto = [true, true]
 	if s1.units.size() != s2.units.size():
 		return "隻數不同"
 	var by_pos := {}
@@ -119,7 +122,7 @@ static func check_free(a0, a1, rules = null) -> String:
 		# 事件內容（種類、來源、目標、傷害、數量、隊伍）全部比；只換算 id 與隊伍
 		var e1: Array = []
 		for e in s1.events:
-			e1.append(_ev_sig(e, idmap))
+			e1.append(_ev_sig(e, idmap, s1.fw))
 		var e2: Array = []
 		for e in s2.events:
 			e2.append(_ev_sig(e, {}))
@@ -136,7 +139,7 @@ static func check_free(a0, a1, rules = null) -> String:
 
 
 ## 事件轉成可比較的字串。map 非空＝把 id、隊伍換成鏡像那邊的。
-static func _ev_sig(e: Dictionary, map: Dictionary) -> String:
+static func _ev_sig(e: Dictionary, map: Dictionary, fw := 16000) -> String:
 	var out := PackedStringArray()
 	var keys := e.keys().map(func(k): return str(k))
 	keys.sort()
@@ -146,5 +149,7 @@ static func _ev_sig(e: Dictionary, map: Dictionary) -> String:
 			v = map.get(v, -1)
 		elif k == "team" and not map.is_empty():
 			v = 1 - int(v)
+		elif k == "x" and e.get("kind") == "cmd" and not map.is_empty():
+			v = fw - int(v)     # 第十二輪：隕石落點是世界座標
 		out.append("%s=%s" % [k, str(v)])
 	return ";".join(out)

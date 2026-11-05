@@ -23,6 +23,8 @@ class VUnit:
 	var alive: bool
 	var stealth: int
 	var stun: int
+	var shield := 0
+	var haste_t := 0
 	var fx: int
 	var fy: int
 	var mx: int
@@ -55,7 +57,7 @@ var queue: Array = []          # 還沒播的快照（模擬已經跑到、畫�
 static func capture(sim) -> Dictionary:
 	var us: Array = []
 	for u in sim.units:
-		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon])
+		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon, u.shield, u.haste_t])
 	return {"tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
 		"frenzy": sim.frenzy, "finished": sim.finished, "power": [sim.power(0), sim.power(1)],
 		"alive": [sim.alive_count(0), sim.alive_count(1)], "zones": sim.zones.duplicate()}
@@ -80,6 +82,7 @@ func apply(fr: Dictionary) -> void:
 		var a: Array = us[i]
 		var v: VUnit = units[i]
 		v.id = a[0]; v.team = a[1]; v.type = a[2]; v.x = a[3]; v.y = a[4]; v.hp = a[5]; v.max_hp = a[6]
+		v.shield = a[a.size() - 2]; v.haste_t = a[a.size() - 1]
 		v.alive = a[7]; v.stealth = a[8]; v.stun = a[9]; v.fx = a[10]; v.fy = a[11]; v.mx = a[12]; v.my = a[13]
 		v.charge = a[14]; v.target = a[15]
 		v.breach = a[16] if a.size() > 16 else 0

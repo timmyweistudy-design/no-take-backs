@@ -298,6 +298,20 @@ func _fx_text(p: Vector2, s: String, c: Color, dur: float, size: int, screen := 
 func _draw_fx(f: Dictionary) -> void:
 	var k: float = f["t"] / f["dur"]
 	match f["kind"]:
+		"cmd_flash":
+			draw_rect(Rect2(0, 0, 1280, 800), Color(f["c"], 0.28 * (1.0 - k)))
+		"meteor":
+			var mp: Vector2 = f["p"]
+			var mr: float = f["r"]
+			if k < 0.3:
+				var drop := 1.0 - k / 0.3
+				draw_circle(mp - Vector2(-120, 320) * drop, 15.0, Color("#ff8a3c"))
+				draw_circle(mp - Vector2(-120, 320) * drop, 8.0, Color("#fff0b0"))
+				draw_arc(mp, mr, 0, TAU, 40, Color(1, 0.5, 0.2, 0.7), 2.0, true)
+			else:
+				var bk := (k - 0.3) / 0.7
+				draw_circle(mp, mr * (0.4 + bk * 0.6), Color(1, 0.5, 0.15, 0.45 * (1.0 - bk)))
+				draw_arc(mp, mr * (0.4 + bk * 0.6), 0, TAU, 40, Color(1, 0.9, 0.6, 1.0 - bk), 4.0, true)
 		"arrow":
 			var a: Vector2 = f["a"]
 			var b: Vector2 = f["b"]

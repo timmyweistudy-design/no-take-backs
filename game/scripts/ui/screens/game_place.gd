@@ -573,7 +573,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		var pz := PZ.get_puzzle(puzzle_id)
 		var hint: String = pz["hint_zh"] if L.lang == "zh_TW" else pz["hint_en"]
 		if mode == Mode.PUZZLE:
-			var st := "　★★ " + L.t("star2_short", [pz["star2"]]) + "　★★★ " + L.t("star3_short", [pz["star3"]])
+			var st := "　★ " + L.t("star2_short", [pz["star2"]]) + "　★ " + L.t("star3_short", [pz["star3"]])
 			_text(Vector2(R.end.x - 60 - _width(st, tz("S"), true), y), st, tz("S"), ACCENT, false, true)
 			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 120 - _width(st, tz("S"), true))
 		else:

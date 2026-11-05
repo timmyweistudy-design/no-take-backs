@@ -15,7 +15,7 @@ var lobby_pool_team := 0       # 第八輪：兩邊名單不同時正在看哪�
 var lobby_filter := 0          # V9 卡池篩選：0 全部、1 近戰、2 遠程、3 支援、4 奇襲
 var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 
-const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
+const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab", "lb_tab_cmd"]
 
 func _lobby_unlocked() -> int:
 	return RS.mask(_demo())
@@ -189,10 +189,78 @@ static func _step_in(v: int, opts: Array, d: int) -> int:
 		i = 0
 	return opts[clampi(i + d, 0, opts.size() - 1)]
 
+## 第十二輪：手動技能。卡片點一下帶或不帶，一邊 1～3 種。
+func _cmd_toggle(team: int, s: int) -> void:
+	lobby_item = "cmd_on"
+	var m := int(lobby_r.cmd_mask[team])
+	if (m >> s) & 1 == 1:
+		if CmdD.count_of(m) <= 1:
+			_toast(L.t("lb_cmd_min"), true)
+			return
+	elif CmdD.count_of(m) >= CmdD.MAX_SLOTS:
+		_toast(L.t("lb_cmd_max", [CmdD.MAX_SLOTS]), true)
+		return
+	lobby_r.cmd_mask[team] = m ^ (1 << s)
+	_lobby_touch()
+
+func _draw_cmd_tab(R: Rect2) -> void:
+	var on: bool = lobby_r.cmd_on()
+	_rows(Rect2(R.position, Vector2(R.size.x, 66)), [["cmd_on", L.t("lb_cmd_enable"), L.t("on") if on else L.t("off")]])
+	var y := R.position.y + 70
+	if not on:
+		_text(Vector2(R.position.x, y), L.t("lb_cmd_hint"), tz("S"), Color(1, 1, 1, 0.8), false, false, R.size.x)
+		return
+	for ti in 2:
+		var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
+		_btn(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
+	y += 44
+	var tm: int = clampi(lobby_pool_team, 0, 1)
+	var m := int(lobby_r.cmd_mask[tm])
+	var hot := -1
+	var cw := 114.0
+	for s in CmdD.COUNT:
+		var cr := Rect2(R.position.x + s * (cw + 6), y, cw, 100)
+		var sel: bool = (m >> s) & 1 == 1
+		_btn(cr, "", _cmd_toggle.bind(tm, s), true, false, Color(0.22, 0.38, 0.3) if sel else Color(0.16, 0.16, 0.2))
+		if _brief_hot(cr):
+			hot = s
+		_probe_btn_label = true
+		_probe_btn_rect = cr
+		_icon(CmdD.ICONS[s], cr.position + Vector2(cw / 2, 22), 30.0, ACCENT if sel else Color(1, 1, 1, 0.4))
+		_text(cr.position + Vector2(cw / 2, 40), L.t("cmd_%d" % s), tz("C"), Color.WHITE if sel else Color(1, 1, 1, 0.65), true, false, cw - 6)
+		_probe_btn_label = false
+		if sel:
+			draw_rect(cr, Color("#7ddc8a"), false, 2.0)
+	y += 106
+	if hot >= 0:
+		lobby_cmd_hot = hot
+	elif (m >> lobby_cmd_hot) & 1 == 0:
+		var lst: Array = CmdD.list_of(m)
+		lobby_cmd_hot = int(lst[0]) if not lst.is_empty() else 0
+	var ds: String = _cmd_desc(lobby_cmd_hot, lobby_r.cmd_power)
+	_text(Vector2(R.position.x, y), L.t("cmd_%d" % lobby_cmd_hot), tz("B"), ACCENT, false, true, R.size.x)
+	y += tz("B") * 1.35
+	_text(Vector2(R.position.x, y), ds, tz("S"), Color.WHITE, false, false, R.size.x)
+	y += text_h(ds, tz("S"), R.size.x) + 10
+	var w3: float = (R.size.x - 16) / 3.0
+	var items := [["cmd_uses", L.t("lb_cmd_uses"), L.t("lb_cmd_n", [lobby_r.cmd_uses])], ["cmd_cd", L.t("lb_cmd_cd"), L.t("lb_cmd_secs", [lobby_r.cmd_cd / 20])], ["cmd_power", L.t("lb_cmd_power"), "%d%%" % lobby_r.cmd_power]]
+	for k in 3:
+		var sx: float = R.position.x + k * (w3 + 8)
+		_text(Vector2(sx, y), items[k][1], tz("S"), Color(1, 1, 1, 0.8), false, false, w3)
+		_stepper(Rect2(sx, y + tz("S") * 1.35, w3, 52), items[k][2], items[k][0], 36.0)
+
 func _lobby_adj(id: String, d: int) -> void:
 	var r = lobby_r
 	lobby_item = id
 	match id:
+		"cmd_on":
+			r.cmd_mask = [0, 0] if r.cmd_on() else [CmdD.DEFAULT_MASK, CmdD.DEFAULT_MASK]
+		"cmd_uses":
+			r.cmd_uses = CmdD.USES[wrapi(CmdD.USES.find(r.cmd_uses) + d, 0, CmdD.USES.size())]
+		"cmd_cd":
+			r.cmd_cd = CmdD.CD_TICKS[wrapi(CmdD.CD_TICKS.find(r.cmd_cd) + d, 0, CmdD.CD_TICKS.size())]
+		"cmd_power":
+			r.cmd_power = CmdD.POWERS[wrapi(CmdD.POWERS.find(r.cmd_power) + d, 0, CmdD.POWERS.size())]
 		"map":
 			if _demo():
 				var dm: Array = Presets.DEMO_MAPS
@@ -325,6 +393,8 @@ func _summary(r) -> String:
 	parts.append(_rounds_text(r.rounds))
 	if r.deploy == "free":
 		parts.append(L.t("lb_sum_free") if r.fullfield == 0 else L.t("lb_sum_full"))
+	if r.cmd_on():
+		parts.append(L.t("lb_sum_cmd", [CmdD.count_of(int(r.cmd_mask[0]))]))
 	return "・".join(parts)
 
 func _badge_pill(p: Vector2, b: String) -> float:
@@ -537,7 +607,9 @@ func _draw_lobby_main(R: Rect2) -> void:
 	# 規則
 	label.call("gear", L.t("lb_rules"), y)
 	_text(Vector2(cx, y + 8), _summary(r), tz("S"), Color.WHITE, false, false, cw)
-	_badge_pill(Vector2(cx, y + 12 + text_h(_summary(r), tz("S"), cw)), Presets.badge(r, lobby_kind))
+	var by0: float = y + 12 + text_h(_summary(r), tz("S"), cw)
+	_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
+	_btn(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
 	# 右：預覽
 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
 	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
@@ -723,7 +795,7 @@ func _diff_text(d: Array) -> String:
 			return "%s %s→%s" % [L.t(k), L.t("lb_deploy_short_" + str(d[1])), L.t("lb_deploy_short_" + str(d[2]))]
 		"rr_spacing", "rr_depth":
 			return "%s %.2f→%.2f" % [L.t(k), int(d[1]) / 1000.0, int(d[2]) / 1000.0]
-		"rr_full":
+		"rr_full", "rr_cmd":
 			return "%s %s" % [L.t(k), L.t("on") if int(d[2]) != 0 else L.t("off")]
 		"rr_pool", "rr_ai_pool":
 			# 第八輪：奇幻軍和標準一樣 10 種，寫「10→10」看不出差別
@@ -816,6 +888,8 @@ func _draw_lobby_detail(R: Rect2) -> void:
 				["ai_pool_same", L.t("lb_ai_pool_same"), L.t("on") if lobby_r.ai_pool_same else L.t("off")]])
 		5:
 			_draw_lab_tab(L0)
+		6:
+			_draw_cmd_tab(L0)
 	_draw_lobby_desc(D0)
 
 func _rows(R: Rect2, rows: Array) -> void:
@@ -823,6 +897,8 @@ func _rows(R: Rect2, rows: Array) -> void:
 		var y := R.position.y + i * 66
 		_text(Vector2(R.position.x, y + 14), rows[i][1], tz("B"), Color.WHITE, false, false, 220)
 		_stepper(Rect2(R.position.x + 230, y, 360, 52), rows[i][2], rows[i][0])
+
+var lobby_cmd_hot := 0
 
 # ── 選卡時的兵種簡介：指到哪張（滑鼠或手把焦點）就講哪隻 ──
 var lobby_brief := -1
@@ -1061,7 +1137,7 @@ func _draw_lobby_desc(R: Rect2) -> void:
 	var x := R.position.x + 16
 	var w := R.size.x - 32
 	var y := R.position.y + 14
-	var id: String = lobby_item if lobby_item != "" else ["budget", "deploy", "pool", "ticks", "ai_level", "lab"][lobby_tab]
+	var id: String = lobby_item if lobby_item != "" else ["budget", "deploy", "pool", "ticks", "ai_level", "lab", "cmd_on"][lobby_tab]
 	_text(Vector2(x, y), L.t("lbd_t_" + id), tz("H2"), ACCENT, false, true, w)
 	y += tz("H2") * 1.6
 	var body := L.t("lbd_" + id)

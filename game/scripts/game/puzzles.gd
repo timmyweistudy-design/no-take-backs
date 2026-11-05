@@ -71,7 +71,11 @@ static func is_fixed(pz: Dictionary, col: int, row: int) -> bool:
 			return true
 	return false
 
-## 星數：1 勝；2 勝方剩 ≥star2%；3 花費 ≤star3。
+## 剩餘戰力 %：和結果頁顯示同一個數字（四捨五入），畫面寫 25% 就算 25%。
+static func rem_pct(power: int, budget: int) -> int:
+	return (power * 200 + budget * 1000) / (budget * 2000)
+
+## 星數：獲勝、剩 ≥star2%、花費 ≤star3，每達成一項一顆星（沒贏就是 0）。
 static func stars(pz: Dictionary, won: bool, rem_pct: int, spent_extra: int) -> int:
 	if not won:
 		return 0

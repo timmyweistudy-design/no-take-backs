@@ -29,6 +29,7 @@
 - **傭兵公會開張，連魔物都來應徵**：除了王國軍 10 種，還有會自爆的爆爆羊、裝成寶箱咬人的寶箱怪、死了會分裂的史萊姆、能把敵人吸成一團的吸塵貓。每局自選 10 種上場。
 - **6 張地圖、3 種大小**：青草平原、雙橋河谷、林間小徑、冰湖雪原、熔岩裂谷、古道峽谷。擋路、減速、加速地形會改變你的擺法。
 - **分享陣型**：一串挑戰碼就能把得意陣型丟給朋友挑戰；雙人還能輪流禁牌。
+- **手動技能（可選）**：全軍護盾、戰吼、治療、隕石、凍結，自己挑時機按下去。自訂規則開啟，平衡認證的標準局不受影響。
 
 沒有抽卡、沒有課金、沒有讓兵變強的養成，所有兵種一開始就能用——只比擺法。
 
@@ -43,6 +44,7 @@ No Take-Backs is a cute little auto-battler about one decision: where your army 
 - **The guild is hiring, even monsters**: beyond the 10 Kingdom units, recruit exploding Boom Sheep, biting Mimics, splitting Slimes and a Vacuum Cat that sucks enemies into a clump. Pick any 10 types per battle.
 - **6 maps, 3 sizes**: Plain, River, Forest, Ice Lake, Lava Rift and Canyon, with blocking, slow and fast terrain that change how you deploy.
 - **Share formations** as a short challenge code, and ban cards in local duels.
+- **Manual skills (optional)**: team shield, war cry, heal, meteor and freeze, cast at the moment you choose. Turn them on in custom rules; certified standard matches are untouched.
 
 No gacha, no microtransactions, no stat upgrades, and every unit is available from the start. Just placement.
 

@@ -13,7 +13,12 @@ static func needs_v3(rules) -> bool:
 	# Codex 實作第 1 輪：卡池、人數、單種上限有任何不標準就用 NTB3，分享後規則不會遺失
 	return rules != null and (not rules.sim_is_legacy() or not load("res://scripts/game/presets.gd").deploy_standard(rules))
 
-static func encode(a0, a1, rules = null) -> String:
+static func encode(a0, a1, rules = null, cmds: Array = []) -> String:
+	if rules != null and rules.cmd_on():
+		# 第十二輪 NTB7：手動技能要連施放紀錄一起存，才播得出同一場
+		var j7 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code(), "c": cmds})
+		var body7 := Marshalls.utf8_to_base64(j7).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB7.%s.%s" % [body7, body7.sha256_text().substr(0, 6)]
 	if D.uses_new([a0, a1]):
 		# 第八輪：用到新兵走 NTB4（新版 NTB2／3／4 都讀；舊版讀到會回報格式不對）
 		var j4 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code() if rules != null else ""})
@@ -33,7 +38,7 @@ static func decode(code: String) -> Dictionary:
 	if c.length() > 8000:
 		return {"ok": false, "why": "format"}
 	var parts := c.split(".")
-	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3" and parts[0] != "NTB4"):
+	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3" and parts[0] != "NTB4" and parts[0] != "NTB7"):
 		return {"ok": false, "why": "format"}
 	if parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return {"ok": false, "why": "checksum"}
@@ -58,10 +63,24 @@ static func decode(code: String) -> Dictionary:
 	var a0 := Army.new(0, ba)
 	var a1 := Army.new(1, bb)
 	var rules = null
-	if parts[0] == "NTB4":
+	var cmds: Array = []
+	if parts[0] == "NTB7":
+		var raw_c = j.get("c", [])
+		if not raw_c is Array or raw_c.size() > 200 or str(j.get("rules", "")) == "":
+			return {"ok": false, "why": "body"}
+		for e in raw_c:
+			if not e is Array or e.size() != 3:
+				return {"ok": false, "why": "body"}
+			for v0 in e:
+				if not (v0 is int or v0 is float) or float(v0) != floorf(float(v0)) or float(v0) < 0 or float(v0) > 100000:
+					return {"ok": false, "why": "body"}
+			if int(e[1]) > 1 or int(e[2]) >= 5:
+				return {"ok": false, "why": "body"}
+			cmds.append([int(e[0]), int(e[1]), int(e[2])])
+	if parts[0] == "NTB4" or parts[0] == "NTB7":
 		a0.pool = RSET.full_pool()
 		a1.pool = RSET.full_pool()
-	if parts[0] == "NTB3" or (parts[0] == "NTB4" and str(j.get("rules", "")) != ""):
+	if parts[0] == "NTB3" or parts[0] == "NTB7" or (parts[0] == "NTB4" and str(j.get("rules", "")) != ""):
 		var rd: Dictionary = RSET.from_code(str(j.get("rules", "")))
 		if not rd["ok"]:
 			return {"ok": false, "why": "rules"}
@@ -92,4 +111,4 @@ static func decode(code: String) -> Dictionary:
 	if j.has("cmds"):
 		return {"ok": false, "why": "body"}
 	var mismatch: bool = str(j.get("r", "")) != D.version_of([a0, a1]) or str(j.get("d", "")) != D.digest_of([a0, a1])
-	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch, "rules": rules}
+	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch, "rules": rules, "cmds": cmds}

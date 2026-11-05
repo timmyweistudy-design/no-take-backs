@@ -95,6 +95,7 @@ func _seek_pump() -> bool:
 func _seek_begin(target: int) -> void:
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
 	sim = Sim.new(armies2[0].copy(), armies2[1].copy(), battle_rules)
+	call("_cmd_setup", sim, play_kind)
 	ev_count = {}
 	_seek_ct = -1
 	battle_marks.clear()
@@ -247,7 +248,7 @@ func _follow_update(delta: float) -> void:
 # ── 對戰代碼 ──
 func _copy_battle_code() -> void:
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
-	DisplayServer.clipboard_set(BattleCode.encode(armies2[0], armies2[1], battle_rules))
+	DisplayServer.clipboard_set(BattleCode.encode(armies2[0], armies2[1], battle_rules, last_cmds))
 	_toast(L.t("bc_copied"))
 
 func _watch_battle_code() -> void:
@@ -273,6 +274,7 @@ func _watch_code_str(code: String) -> void:
 					return
 	if r["mismatch"]:
 		_toast(L.t("bc_mismatch"))
+	last_cmds = r.get("cmds", [])
 	watch_code(r["a0"], r["a1"], r.get("rules"))
 
 ## 看一場對戰代碼：當成全新的一局初始化（Codex S5 #2：原本沿用舊的陣型、比分、局數）
@@ -315,7 +317,7 @@ func _open_review() -> void:
 			rv_orig.enemy_pos = ep.duplicate()
 	rv_sel = Vector2i(-1, -1)
 	_rv_dirty()
-	rv_base = review_run(rv_orig, rv_enemy, battle_rules)
+	rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)
 	_open("review")
 
 ## 跟原本比改了幾隻（換兵種、移位、拿掉、新增都算一隻）。
@@ -461,8 +463,10 @@ func review_desc() -> String:
 	return ""
 
 ## 重算「如果」：同一個對手、改過的陣型，用確定性模擬直接跑到結束。
-static func review_run(a0, a1, p_rules = null) -> Dictionary:
+static func review_run(a0, a1, p_rules = null, cmds: Array = []) -> Dictionary:
 	var s = Sim.new(a0.copy(), a1.copy(), p_rules)
+	if s.cmd_on:
+		s.cmd_play(cmds)
 	s.fast = true
 	s.run_to_end()
 	var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else 0
@@ -481,14 +485,15 @@ func _rv_recalc() -> void:
 	if rv_thread != null:
 		return
 	if DisplayServer.get_name() == "headless" or shot_dir != "":
-		rv_result = review_run(rv_army, rv_enemy, battle_rules)
+		rv_result = review_run(rv_army, rv_enemy, battle_rules, last_cmds)
 		return
 	var a: Variant = rv_army.copy()
 	var e: Variant = rv_enemy.copy()
 	var r: Variant = battle_rules.copy() if battle_rules != null else null
 	rv_thread_gen = rv_gen
 	rv_thread = Thread.new()
-	rv_thread.start(func(): return review_run(a, e, r))
+	var lg: Array = last_cmds.duplicate(true)
+	rv_thread.start(func(): return review_run(a, e, r, lg))
 
 func _rv_poll() -> void:
 	if rv_thread != null and not rv_thread.is_alive():

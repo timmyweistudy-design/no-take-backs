@@ -23,7 +23,7 @@ const SKELETON := 21
 const NAMES := ["孢子菇", "爆爆羊", "寶箱怪", "史萊姆", "幽靈", "巫毒娃娃", "沙漏精靈", "骷髏法師", "吸塵貓", "小石魔", "小史萊姆", "骷髏"]
 const STATS := [
 	{"cost": 5, "hp": 360, "atk": 9, "cd": 20, "reach": 2200, "speed": 0},    # 孢子菇：atk＝毒傷、cd＝毒傷間隔、reach＝毒圈
-	{"cost": 4, "hp": 110, "atk": 55, "cd": 20, "reach": 500, "speed": 110},  # 爆爆羊：atk＝爆炸傷害；碰到就炸
+	{"cost": 3, "hp": 110, "atk": 50, "cd": 20, "reach": 500, "speed": 110},  # 爆爆羊：atk＝爆炸傷害（第十二輪：4 金 55 傷→3 金 50 傷）；碰到就炸
 	{"cost": 5, "hp": 340, "atk": 15, "cd": 22, "reach": 700, "speed": 45},   # 寶箱怪
 	{"cost": 5, "hp": 240, "atk": 9, "cd": 24, "reach": 700, "speed": 45},    # 史萊姆
 	{"cost": 6, "hp": 200, "atk": 15, "cd": 20, "reach": 700, "speed": 85},   # 幽靈
@@ -31,12 +31,12 @@ const STATS := [
 	{"cost": 5, "hp": 180, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 沙漏精靈（支援）
 	{"cost": 6, "hp": 170, "atk": 8, "cd": 24, "reach": 4000, "speed": 45},   # 骷髏法師
 	{"cost": 5, "hp": 260, "atk": 12, "cd": 22, "reach": 700, "speed": 50},   # 吸塵貓
-	{"cost": 9, "hp": 820, "atk": 24, "cd": 36, "reach": 800, "speed": 30},   # 小石魔
+	{"cost": 8, "hp": 820, "atk": 24, "cd": 36, "reach": 800, "speed": 30},   # 小石魔（第十二輪：9→8 金；移速是特色，不動）
 	{"cost": 0, "hp": 85, "atk": 5, "cd": 24, "reach": 700, "speed": 45},     # 小史萊姆（戰力 0：時間到不灌水）
 	{"cost": 0, "hp": 130, "atk": 8, "cd": 24, "reach": 700, "speed": 50},    # 骷髏（hp 依屍體重算）
 ]
 ## 一隊的硬上限：擋單兵種全買，也決定生兵配額。
-const HARD_CAP := {SPORE: 6, SHEEP: 8, MIMIC: 6, SLIME: 8, GHOST: 8, DOLL: 4, SPRITE: 3, BONE: 3, CAT: 3, GOLEM: 3}
+const HARD_CAP := {SPORE: 6, SHEEP: 8, MIMIC: 6, SLIME: 8, GHOST: 8, DOLL: 4, SPRITE: 3, BONE: 3, CAT: 3, GOLEM: 2}
 ## 奇襲兵：不算戰鬥兵，要另外帶主力。
 const RAID := [SPORE, SHEEP, MIMIC]
 
@@ -74,14 +74,15 @@ const BONE_KIDS := 3
 const BONE_HP_PCT := 50
 const BONE_HP_CAP := 110
 # 吸塵貓
-const CAT_CD := 120             # 每 6 秒
-const CAT_R := 3500
-const CAT_FRONT := 1000         # 拉向身前 1 格
-const CAT_PULL := 1200          # 每隻最多拉 1.2 格
+const CAT_CD := 100             # 每 5 秒（第十二輪：原本 6 秒）
+const CAT_R := 4500             # 第十二輪：3.5→4.5 格，吸得到更多人
+const CAT_STOP := 900           # 第十二輪：拉向貓本身，到這個距離就停（原本拉向身前 1 格，貼身的敵人會被推開）
+const CAT_PULL := 2000          # 第十二輪：每隻最多拉 2 格（原本 1.2）
 const CAT_PULL_TICKS := 12      # 分 12 tick 拉完（畫面看得到被吸過去）；這段時間不能出手
 # 小石魔
-const GOLEM_CD := 100           # 每 5 秒
-const GOLEM_R := 1200
+const GOLEM_CD := 80            # 第十二輪：每 4 秒（原本 5）
+const GOLEM_R := 1500           # 第十二輪：1.2→1.5 格
+const GOLEM_STOMP := 3          # 第十二輪：拍地範圍傷害（原本沒有）；傷害 10 時勝率 78%，3 時 58%
 const GOLEM_KNOCK := 800
 const ROCK_R := 1500
 const ROCK_TICKS := 400

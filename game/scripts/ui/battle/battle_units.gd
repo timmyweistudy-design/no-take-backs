@@ -293,6 +293,10 @@ func _draw_units_of(s, dim: bool) -> void:
 		var p0: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
 		_ring(p0, u.team, u.type, UNIT_SCALE * (1.0 - air0 * 0.018))   # 跳起來影子縮一點
+		if u.shield > 0:       # 第十二輪：手動技能的護盾、戰吼
+			draw_arc(p0 + Vector2(0, -24) * UNIT_SCALE, 28.0 * UNIT_SCALE, 0, TAU, 24, Color(0.55, 0.85, 1.0, 0.75), 2.5, true)
+		if u.haste_t > 0:
+			draw_arc(p0, 19.0 * UNIT_SCALE, 0, TAU, 20, Color(1.0, 0.75, 0.25, 0.85), 2.5, true)
 		if live and s.rally[u.team] and not s.finished:
 			for k in 2:
 				var ph := fmod(time * 1.6 + k * 0.5, 1.0)

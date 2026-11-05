@@ -14,6 +14,7 @@ const AI_STYLES := 6
 const ROSTER_MAX := 10         # 第八輪：一局每邊最多幾種兵
 const CODE_PREFIX := "NTBR1"
 const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
+const CODE_PREFIX5 := "NTBR5"   # 第十二輪：有手動技能（NTBR4 的欄位再加 5 欄）
 const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
 const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
 # 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
@@ -62,6 +63,11 @@ var map_mode := 0              # 系列：0 固定、1 每局輪替、2 每局�
 var time_of := 0               # 外觀：0 白天、1 黃昏、2 夜晚（只有畫面）
 var bans := 0                  # 雙人每人禁幾種（不進模擬，開打前就從卡池拿掉了）
 var ai_style := 0              # AI 性格：0 均衡、1 鐵壁、2 遠程、3 奇襲、4 召喚、5 亂數（不進模擬）
+# ── 第十二輪手動技能（進模擬）──
+var cmd_mask := [0, 0]         # 雙方帶哪幾種；都 0＝關閉
+var cmd_uses := 1              # 每種可用次數
+var cmd_cd := 400              # 同一種的冷卻（tick）
+var cmd_power := 100           # 效果強度 %
 # ── 系列 ──
 var rounds := 3
 var place_rule := "snake5"
@@ -168,6 +174,10 @@ func copy():
 	r.bans = bans
 	r.time_of = time_of
 	r.skills_off = skills_off.duplicate()
+	r.cmd_mask = cmd_mask.duplicate()
+	r.cmd_uses = cmd_uses
+	r.cmd_cd = cmd_cd
+	r.cmd_power = cmd_power
 	r.preset = preset
 	return r
 
@@ -192,7 +202,10 @@ func judge() -> int:
 
 ## 模擬是否走舊路徑（雜湊位元組和 1.3.0 相同）。
 func sim_is_legacy() -> bool:
-	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid" and map_is_default()
+	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid" and map_is_default() and not cmd_on()
+
+func cmd_on() -> bool:
+	return int(cmd_mask[0]) != 0 or int(cmd_mask[1]) != 0
 
 ## V9：平原＋標準大小走舊路徑，位元組完全不變。
 func map_is_default() -> bool:
@@ -256,6 +269,15 @@ func max_rounds() -> int:
 ## 回傳不合法原因的字串鍵（空陣列＝合法）。給大廳顯示、代碼匯入、開戰前檢查共用。
 func validate() -> Array:
 	var bad: Array = []
+	if cmd_on():
+		var CMD = load("res://scripts/core/cmd_defs.gd")
+		for tm0 in 2:
+			var m0 := int(cmd_mask[tm0])
+			if m0 < 0 or m0 >= (1 << CMD.COUNT) or CMD.count_of(m0) < 1 or CMD.count_of(m0) > CMD.MAX_SLOTS:
+				bad.append("rr_bad_cmd")
+				break
+		if not cmd_uses in CMD.USES or not cmd_cd in CMD.CD_TICKS or not cmd_power in CMD.POWERS:
+			bad.append("rr_bad_cmd")
 	if map_id < 0 or map_id >= MapDefs.MAPS.size() or map_size < 0 or map_size >= MapDefs.SIZES.size():
 		bad.append("rr_bad_map")
 	elif not map_is_default() and deploy != "free":
@@ -367,12 +389,14 @@ func sim_digest() -> String:
 	var base: Array = [budget_of(0), budget_of(1), ticks, judge(), sp, so]
 	if not map_is_default():
 		base.append_array(["map", map_id, map_size, 1 if vents else 0, MapDefs.digest(map_id, map_size)])
+	if cmd_on():
+		base.append_array(["cmd", cmd_mask[0], cmd_mask[1], cmd_uses, cmd_cd, cmd_power])
 	if deploy == "free":
 		base.append_array(["free", spacing, depth, fullfield])   # 第六輪：自由部署進模擬摘要（格子部署時摘要不變）
 	return JSON.stringify(base).sha256_text().substr(0, 16)
 
 func equals(o) -> bool:
-	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields())
+	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields()) and cmd_mask == o.cmd_mask and (not cmd_on() or (cmd_uses == o.cmd_uses and cmd_cd == o.cmd_cd and cmd_power == o.cmd_power))
 
 ## 和標準規則（同一個卡池基準）不同的項目：[[鍵, 標準值, 現在值], …]
 func diff(std) -> Array:
@@ -407,6 +431,8 @@ func diff(std) -> Array:
 		out.append(["rr_depth", std.depth, depth])
 	if fullfield != std.fullfield:
 		out.append(["rr_full", std.fullfield, fullfield])
+	if cmd_on():
+		out.append(["rr_cmd", 0, 1])
 	return out
 
 # ───────── 代碼 ─────────
@@ -414,6 +440,10 @@ func diff(std) -> Array:
 func to_code() -> String:
 	var j := JSON.stringify(key_fields())
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	if cmd_on():
+		var j5 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power])
+		var b5 := Marshalls.utf8_to_base64(j5).replace("+", "-").replace("/", "_").replace("=", "")
+		return "%s.%s.%s" % [CODE_PREFIX5, b5, b5.sha256_text().substr(0, 6)]
 	if not map_is_default():
 		var j4 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0])
 		var b4 := Marshalls.utf8_to_base64(j4).replace("+", "-").replace("/", "_").replace("=", "")
@@ -440,9 +470,10 @@ static func from_code(code: String) -> Dictionary:
 	if c.length() > 2000:
 		return {"ok": false, "why": "rr_code_long"}
 	var parts := c.split(".")
-	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4):
+	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX5 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4):
 		return {"ok": false, "why": "rr_code_format"}
-	var v4: bool = parts[0] == CODE_PREFIX4
+	var v5: bool = parts[0] == CODE_PREFIX5
+	var v4: bool = parts[0] == CODE_PREFIX4 or v5
 	var v3: bool = parts[0] == CODE_PREFIX3 or v4
 	var v2: bool = parts[0] == CODE_PREFIX2 or v3
 	if parts[1].sha256_text().substr(0, 6) != parts[2]:
@@ -451,8 +482,15 @@ static func from_code(code: String) -> Dictionary:
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Array or j.size() != (24 if v4 else (21 if v2 else 17)):
+	if not j is Array or j.size() != (29 if v5 else (24 if v4 else (21 if v2 else 17))):
 		return {"ok": false, "why": "rr_code_body"}
+	var cmd_f: Array = []
+	if v5:
+		cmd_f = j.slice(24)
+		j = j.slice(0, 24)
+		for vc in cmd_f:
+			if not (vc is float or vc is int) or float(vc) != floorf(float(vc)):
+				return {"ok": false, "why": "rr_code_body"}
 	if v4:
 		for i4 in [21, 22, 23]:
 			if not (j[i4] is float or j[i4] is int) or float(j[i4]) != floorf(float(j[i4])):
@@ -517,10 +555,17 @@ static func from_code(code: String) -> Dictionary:
 			r.map_id = int(j[21])
 			r.map_size = int(j[22])
 			r.vents = int(j[23]) == 1
-			if r.map_is_default():
+			if r.map_is_default() and not v5:
 				return {"ok": false, "why": "rr_code_body"}   # 標準地圖不能用 NTBR4（一組規則只有一種寫法）
 		if r.deploy_is_default() and not v3:
 			return {"ok": false, "why": "rr_code_body"}   # 預設部署必須用 NTBR1（一組規則只有一種寫法）
+	if v5:
+		r.cmd_mask = [int(cmd_f[0]), int(cmd_f[1])]
+		r.cmd_uses = int(cmd_f[2])
+		r.cmd_cd = int(cmd_f[3])
+		r.cmd_power = int(cmd_f[4])
+		if not r.cmd_on():
+			return {"ok": false, "why": "rr_code_body"}   # 沒開技能不能用 NTBR5（一組規則只有一種寫法）
 	r.preset = "custom"
 	var bad: Array = r.validate()
 	if not bad.is_empty():

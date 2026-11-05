@@ -96,7 +96,13 @@ func repl() -> void:
 		rng.seed = 7000 + i * 977
 		bases.append(AI.build(0, 100, rng, -1, RS.all_pool())["army"])
 	var idx := 0
+	var only: Array = []     # 第十二輪：--types=-1,11,19 只量這幾種，調數值時快很多
+	if a.has("types"):
+		for x in str(a["types"]).split(","):
+			only.append(int(x))
 	for t in range(-1, D.total()):
+		if not only.is_empty() and not t in only:
+			continue
 		idx += 1
 		if not _shard(idx):
 			continue

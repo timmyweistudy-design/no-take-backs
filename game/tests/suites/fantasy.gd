@@ -3,6 +3,7 @@ const F8 = preload("res://scripts/core/fantasy_defs.gd")
 const BC = preload("res://scripts/game/battle_code.gd")
 const CXF = preload("res://scripts/game/codex.gd")
 const ROS = preload("res://scripts/game/roster.gd")
+const M9 = preload("res://scripts/core/imath.gd")
 const PRE = preload("res://scripts/game/presets.gd")
 const SaveS = preload("res://scripts/game/save.gd")
 
@@ -430,3 +431,68 @@ func test_fantasy_codex_text_matches_stats() -> void:
 	ok(bad.is_empty(), "新兵圖鑑手寫文字不寫死倍率（倍率只放會自動換值的技能說明）", str(bad))
 	ok(F8.BONE_HP_PCT == 50 and str(units[17]["story_zh"]).contains("一半") and str(units[17]["story_en"]).contains("half"), "骷髏法師故事的血量和 BONE_HP_PCT 一致")
 	ok(F8.SPRITE_STUN == 50 and str(units[16]["story_zh"]).contains("兩秒半") and str(units[16]["story_en"]).contains("two and a half"), "沙漏精靈故事的秒數和 SPRITE_STUN 一致")
+
+## 第十二輪：吸塵貓把人拉向自己。貼身的不能被推開，貓自己不動。
+func test_cat_pull() -> void:
+	var dist := func(s, a, b) -> int:
+		return M9.isqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y))
+	# 貼身的敵人（在貓前面 0.8 格）：吸完不能比原本遠
+	var s = _sim([[F8.CAT, 7000, 4500]], [[D.ARCHER, 6000, 4500], [D.SHIELD, 14000, 800]])   # 弓手站著射，距離 3 格
+	var cat = null
+	var e = null
+	for u in s.units:
+		if u.type == F8.CAT:
+			cat = u
+		elif e == null and u.type == D.ARCHER:
+			e = u
+	var max_d := 0
+	var cat_x0: int = cat.x
+	var pulled := false
+	for i in 300:
+		if s.finished:
+			break
+		var before: int = dist.call(s, cat, e)
+		var pt0: int = e.pull_t
+		s.step()
+		if e.pull_t > 0 or pt0 > 0:
+			pulled = true
+			var after: int = dist.call(s, cat, e)
+			max_d = maxi(max_d, after - before)
+	ok(pulled, "貓有吸到人")
+	ok(max_d <= 0, "被吸的時候只會靠近貓，不會被推開", str(max_d))
+	# 已經貼身的不拉、不定身
+	var adj = _sim([[F8.CAT, 7000, 4500]], [[D.SHIELD, 8300, 4500]])   # 距離 0.7 格
+	var adj_pulled := false
+	for i2 in 200:
+		if adj.finished:
+			break
+		adj.step()
+		for u6 in adj.units:
+			if u6.team == 1 and u6.pull_t > 0:
+				adj_pulled = true
+	ok(not adj_pulled, "貼身的敵人不會被吸（也不會被推開）")
+	# 遠處的人：一次拉得明顯，而且貓自己不被拉走
+	var far = _sim([[F8.CAT, 3000, 4500], [D.SHIELD, 3000, 800]], [[D.SHIELD, 7000, 4500], [D.SHIELD, 7000, 2500], [D.SHIELD, 7000, 6500], [D.ARCHER, 7300, 8000]])
+	var fc = null
+	var ens: Array = []
+	for u in far.units:
+		if u.type == F8.CAT:
+			fc = u
+		elif u.team == 1:
+			ens.append(u)
+	var grabbed := {}
+	var gain := 0
+	var guard := 0
+	while not far.finished and guard < 300:
+		guard += 1
+		var d0: Dictionary = {}
+		for e2 in ens:
+			d0[e2.id] = dist.call(far, fc, e2)
+		far.step()
+		for e2 in ens:
+			if e2.pull_t > 0:
+				grabbed[e2.id] = true
+				gain = maxi(gain, d0[e2.id] - dist.call(far, fc, e2))
+	ok(grabbed.size() >= 3, "一次吸得到多隻", str(grabbed.size()))
+	ok(gain > 0, "吸的時候距離確實變近", str(gain))
+	ok(F8.CAT_R >= 4500 and F8.CAT_PULL >= 2000, "範圍與拉力加大", "%d %d" % [F8.CAT_R, F8.CAT_PULL])

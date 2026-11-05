@@ -432,6 +432,7 @@ func _run_screenshots() -> void:
 		f["t"] = 0.0
 	await _snap("15_replay.png")
 	await _shots_v4()
+	await _shots_cmd()
 	await _pad_walk()
 	get_tree().quit()
 
@@ -1097,3 +1098,59 @@ func _pad_walk() -> void:
 		print("PADWALK OK")
 	else:
 		print("PADWALK FAIL ", "；".join(_pw_bad))
+
+# ── 第十二輪：手動技能的畫面 ──
+func _shots_cmd() -> void:
+	_go_title()
+	_open_lobby("ai")
+	_lobby_pick("standard")
+	lobby_open = true
+	lobby_tab = 6
+	await _snap("70_lobby_cmd_off.png")
+	_lobby_adj("cmd_on", 1)
+	await _snap("71_lobby_cmd_on.png")
+	lobby_open = false
+	_lobby_pick("standard")
+	_lobby_adj("cmd_on", 1)
+	await _snap("72_lobby_cmd_quick.png")
+	lobby_r.cmd_mask = [7, 24]
+	lobby_r.cmd_uses = 2
+	rules = lobby_r.copy()
+	rules.deploy = "free"
+	rules.spacing = 800
+	rules.depth = 6000
+	challenge_army = null
+	_start_mode(Mode.VS_AI)
+	var y := 1500
+	for t in [D.SWORD, D.SWORD, D.SHIELD, D.ARCHER, D.CAVALRY, D.PIKE, D.SWORD]:
+		armies[0].place_xy(t, armies[0].world_x(5500), y)
+		y += 1000
+	_build_ai()
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	for i in 90:
+		_sim_step(true)
+	await _snap("73_cmd_ready.png")
+	sim.cast(0, CmdD.AEGIS)
+	for i in 8:
+		_sim_step(true)
+	await _snap("74_cmd_cast.png")
+	sim.cast(0, CmdD.HEAL)
+	for i in 30:
+		_sim_step(true)
+	await _snap("75_cmd_cd.png")
+	# 雙人：兩邊都有按鈕
+	var r2 = rules.copy()
+	rules = r2
+	rules.place_rule = "blind"
+	_start_mode(Mode.DUEL)
+	var y2 := 1500
+	for t in [D.SWORD, D.SHIELD, D.ARCHER, D.CAVALRY]:
+		armies[0].place_xy(t, armies[0].world_x(5000), y2)
+		armies[1].place_xy(t, armies[1].world_x(5000), y2)
+		y2 += 1500
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	for i in 70:
+		_sim_step(true)
+	await _snap("76_cmd_duel.png")
+	rules = null
+	_go_title()

@@ -35,6 +35,8 @@ func _finish_battle() -> void:
 	clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
 	state = St.RESULT
 	result_t = time
+	if play_kind == "official" and sim != null:
+		last_cmds = sim.cmd_log.duplicate(true)
 	result_tab = 0
 	_focus = 0
 	slow_left = 0.0
@@ -153,8 +155,14 @@ func _draw_result() -> void:
 	if report.has("stars"):
 		var pz := PZ.get_puzzle(puzzle_id)
 		var stn := int(report["stars"])
-		_text(Vector2(640, y), "★".repeat(stn) + "☆".repeat(3 - stn) + "　" + L.t("star_rules", [pz["star2"], pz["star3"]]), tz("S"), ACCENT, true, false, 820)
-		y += tz("S") * 1.5
+		var sl: String = "★".repeat(stn) + "☆".repeat(3 - stn) + "　" + str(report.get("star_lines", L.t("star_rules", [pz["star2"], pz["star3"]])))
+		_text(Vector2(640, y), sl, tz("S"), ACCENT, true, false, 820)
+		y += text_h(sl, tz("S"), 820) + 4
+	if report.has("trial_lines"):
+		var tn := int(report.get("trial_stars", 0))
+		var tl: String = "★".repeat(tn) + "☆".repeat(3 - tn) + "　" + str(report["trial_lines"])
+		_text(Vector2(640, y), tl, tz("S"), ACCENT, true, false, 820)
+		y += text_h(tl, tz("S"), 820) + 4
 	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL):
 		var sw := L.t("series_draw") if wins[0] == wins[1] else L.t("series_win", [L.t("blue") if wins[0] > wins[1] else L.t("red"), wins[0], wins[1]])
 		_text(Vector2(640, y), L.t("series_end", [sw]), tz("B"), ACCENT, true, true, 820)

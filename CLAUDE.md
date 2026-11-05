@@ -1,6 +1,6 @@
 # 落子無悔 No Take-Backs
 
-Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；方案與進度看 `docs/2026-11-05-v1-polish-plan-v10.md`（§14 進度）、裁決看 `coordination/v10-ledger.md`。舊輪次不用讀。
+Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；方案與進度看 `docs/2026-11-05-v1-polish-plan-v10.md`（§14 進度、§15 追加）、裁決看 `coordination/v10-ledger.md`。舊輪次不用讀。
 
 ## 指令（在 game/ 下，GODOT 指向 Windows 版 4.6.2）
 - 改動時：`python3 tools/check.py`（有快取，只跑受影響的）；更快：`--quick`。
@@ -13,8 +13,8 @@ Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；方案與進�
 ## 鐵則
 - 舊場次位元組不能變：`FINGERPRINT b8fe741bcbfcf800`、舊 `digest` 不變；新東西走版本分流。
 - 模擬只用整數，全部要左右鏡像；畫面狀態不能進模擬。
-- 改中文字串要重建字型（`tools/gen/build_font.py`）；用語看 `docs/terms.md`。
-- 改數值：跑平衡、重產 `golden_v8`（`--make`，commit 說明）、對應殘局。
+- 改中文字串要重建字型（`python3 tools/gen/build_font.py ../build/fontsrc`，來源字型在 `build/fontsrc`）；用語看 `docs/terms.md`。
+- 改數值：跑平衡、重產 `golden_v8`、`golden_map`（`--make`，commit 說明）、重驗三星（`tools/balance/star_check.gd`、`trial_check.gd`，測試 `star_solutions` 會擋）。
 - 手寫文字不寫死數值；技能說明用常數換值。
 - 新測試要登記在 `tests/run_tests.gd` 兩個清單，否則靜靜不跑。
 - 字級只用字級表，不縮字；版面檢查不看圖，收尾要看截圖。

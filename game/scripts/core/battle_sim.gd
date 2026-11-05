@@ -10,6 +10,7 @@ const Army = preload("res://scripts/core/army.gd")
 const EV = preload("res://scripts/core/events.gd")
 const F8 = preload("res://scripts/core/fantasy_defs.gd")
 const M = preload("res://scripts/core/imath.gd")
+const CMD = preload("res://scripts/core/cmd_defs.gd")
 
 const TPS := 20
 const MAX_TICKS := D.MATCH_TICKS
@@ -73,6 +74,10 @@ class Unit:
 	var sub := 0               # 第幾個子單位
 	var raised := false        # 屍體已被復活
 	var hidden := false        # 寶箱怪偽裝中
+	# ── 第十二輪手動技能（沒開技能時維持初值，也不進指紋）
+	var shield := 0
+	var shield_t := 0
+	var haste_t := 0
 	var bite := false          # 下一擊是現身咬
 	var exploded := false      # 爆爆羊炸過了
 	var link := -1             # 巫毒綁定的目標（索引）
@@ -122,6 +127,21 @@ var _pending_blast: Array = [] # 半路被打死、下一 tick 才炸的爆爆�
 var fast := false              # 平衡工具用：不算每 tick 指紋（結果完全一樣，只是沒有指紋）
 
 ## rules：第五輪 Ruleset（可省略）。省略或是舊路徑規則時，雜湊位元組、判定都和 1.3.0 完全相同。
+# ── 第十二輪手動技能 ──
+var cmd_on := false
+var cmd_mask := [0, 0]
+var cmd_cd := 0
+var cmd_power := 100
+var cmd_left := [[], []]         # 每隊每種還能用幾次
+var cmd_ready := [[], []]        # 每隊每種第幾 tick 起能再用
+var cmd_pending: Array = []      # 玩家按了、下一 tick 生效：[隊, 技能]
+var cmd_log: Array = []          # 實際施放：[tick, 隊, 技能]；重播靠它
+var cmd_script := {}             # 重播用：tick → [[隊, 技能]…]
+var cmd_scripted := false
+var cmd_auto := [false, false]   # 哪一隊由 AI 決定
+var cmd_ai_every := 20
+var _cmd_dmg := PackedInt64Array()
+
 func _init(army0, army1, p_rules = null) -> void:
 	budget = army0.budget
 	budgets = [budget, budget]
@@ -139,6 +159,16 @@ func _init(army0, army1, p_rules = null) -> void:
 		fw = rules.field_w()
 		fh = rules.field_h()
 		terrain = rules.terrain()
+		if rules.cmd_on():
+			cmd_on = true
+			cmd_mask = rules.cmd_mask.duplicate()
+			cmd_cd = rules.cmd_cd
+			cmd_power = rules.cmd_power
+			cmd_ai_every = [40, 20, 10][clampi(rules.ai_level, 0, 2)]
+			for tm in 2:
+				for i in CMD.COUNT:
+					cmd_left[tm].append(rules.cmd_uses if (cmd_mask[tm] >> i) & 1 == 1 else 0)
+					cmd_ready[tm].append(CMD.START_TICKS)
 	atk_pct.resize(F8.DRAW_TOTAL)
 	atk_pct.fill(100)
 	if rules != null:
@@ -263,6 +293,8 @@ func step() -> void:
 	frenzy = tick >= frenzy_at and not skill_off.has("frenzy")
 	events = []
 	var n := units.size()
+	if cmd_on:
+		_cmd_tick(n)
 
 	# ① 快照（之後的選目標、碰撞都只讀這些陣列）
 	var sx := PackedInt64Array()
@@ -550,7 +582,7 @@ func step() -> void:
 		if not u.alive:
 			continue
 		if u.cd > 0:
-			u.cd = maxi(0, u.cd - mini(D.DEC_CAP, dec + rally_bonus[u.team] + D.DRUM_BONUS * u.aura))
+			u.cd = maxi(0, u.cd - mini(D.DEC_CAP, dec + rally_bonus[u.team] + D.DRUM_BONUS * u.aura + (CMD.WAR_BONUS if u.haste_t > 0 else 0)))
 		if u.type == D.MEDIC and not skill_off.has("heal"):
 			_try_heal(i, sh, heals)
 		if u.stun > 0 or u.target == -1 or u.cd > 0:
@@ -720,6 +752,12 @@ func step() -> void:
 			if units[i].alive:
 				dmg_in[i] += maxi(1, units[i].max_hp * (k + 1) * D.ATTRITION_STEP_PCT / 100)
 		events.append({"kind": EV.ATTRITION, "k": k})
+	if cmd_on:
+		for i in n:
+			if _cmd_dmg[i] > 0:
+				dmg_in[i] += _cmd_dmg[i]
+				units[i].dmg_taken += _cmd_dmg[i]
+				events.append({"kind": EV.CMD_HIT, "tgt": units[i].id, "dmg": _cmd_dmg[i], "tags": [EV.CMD_HIT]})
 	if v8:
 		# 第八輪：同一 tick 的擊退先加總再夾邊。逐筆夾邊跟順序有關，兩隻石魔把敵人推過邊界時鏡像會歪（Codex 第 3 輪）
 		var kx := {}
@@ -758,6 +796,11 @@ func step() -> void:
 		var u := units[i]
 		if not u.alive:
 			continue
+		if u.shield > 0:
+			var absorbed: int = mini(u.shield, dmg_in[i])
+			u.shield -= absorbed
+			dmg_in[i] -= absorbed
+			u.dmg_taken -= absorbed     # 戰報的承傷只算真的扣血（Codex v12-r1 #4）
 		u.hp -= dmg_in[i]
 		if u.breach > 0:
 			u.breach -= 1
@@ -808,6 +851,8 @@ func step() -> void:
 		_hash_state()
 		if v8:
 			_hash_v8()
+		if cmd_on:
+			_hash_cmd()
 	_check_end()
 
 # ───────────────────────── 規則細節 ─────────────────────────
@@ -1074,7 +1119,7 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 				if u.type == F8.CAT:
 					cats.append(i)
 				else:
-					_v8_fire(i, n, long_stun, knock2, raises)
+					_v8_fire(i, n, long_stun, knock2, raises, hits)
 			continue
 		match u.type:
 			F8.SPRITE:
@@ -1137,7 +1182,7 @@ func _v8_corpse(i: int, n: int) -> int:
 	return best
 
 ## 前搖結束，放招。
-func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Array) -> void:
+func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Array, hits: Array) -> void:
 	var u := units[i]
 	match u.type:
 		F8.SPRITE:
@@ -1158,7 +1203,10 @@ func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Arra
 		F8.GOLEM:
 			for j in n:
 				var e2 := units[j]
-				if e2.alive and e2.team != u.team and not e2.hidden and e2.type != F8.GOLEM and e2.type != F8.SPORE and M.dist2(u.x, u.y, e2.x, e2.y) <= F8.GOLEM_R * F8.GOLEM_R:
+				if not e2.alive or e2.team == u.team or e2.hidden or M.dist2(u.x, u.y, e2.x, e2.y) > F8.GOLEM_R * F8.GOLEM_R:
+					continue
+				hits.append([i, j, F8.GOLEM_STOMP * atk_pct[F8.GOLEM] / 100, EV.SPLASH, [EV.SPLASH]])   # 第十二輪：拍地有傷害
+				if e2.type != F8.GOLEM and e2.type != F8.SPORE:
 					knock2.append([j, e2.x - u.x, e2.y - u.y])
 			events.append({"kind": EV.STOMP, "src": u.id, "tags": [EV.STOMP]})
 
@@ -1183,12 +1231,12 @@ func _v8_vacuum(n: int, cats: Array) -> void:
 		if best == -1:
 			continue
 		var cat := units[best]
-		var dx: int = cat.x + cat.fx * F8.CAT_FRONT / 1000 - e.x
-		var dy: int = cat.y + cat.fy * F8.CAT_FRONT / 1000 - e.y
+		var dx: int = cat.x - e.x
+		var dy: int = cat.y - e.y
 		var l := M.isqrt(dx * dx + dy * dy)
-		if l == 0:
-			continue
-		var amt := mini(l, F8.CAT_PULL)
+		if l <= F8.CAT_STOP:
+			continue      # 已經貼身：不拉、不定身，也不會被推開
+		var amt := mini(l - F8.CAT_STOP, F8.CAT_PULL)
 		if e.type == D.CAVALRY or e.type == F8.GOLEM:
 			amt /= 2
 		e.pull_t = F8.CAT_PULL_TICKS
@@ -1213,7 +1261,8 @@ func _v8_blast(i: int, died: bool, hits: Array, credit := -1) -> void:
 			continue
 		if M.dist2(u.x, u.y, e.x, e.y) > r * r:
 			continue
-		hits.append([credit if credit >= 0 else i, j, dmg, EV.BLAST, [EV.BLAST]])   # 半路被打死的爆炸，傷害與擊殺記給打死它的那一方
+		var hurt: int = dmg / 2 if e.team == u.team else dmg     # 第十二輪：半路被打死傷友軍減半
+		hits.append([credit if credit >= 0 else i, j, hurt, EV.BLAST, [EV.BLAST]])   # 半路被打死的爆炸，傷害與擊殺記給打死它的那一方
 
 ## 羊爆上限：把這一 tick 的羊爆整理成每隻最多 BLAST_CAP 次。
 func _v8_cap_blasts(hits: Array) -> Array:
@@ -1328,6 +1377,153 @@ func _v8_post_tick(raises: Array) -> void:
 	zones = live
 
 ## 新欄位的指紋（只有用到新兵的場次才有）。
+## ── 第十二輪手動技能 ──
+## 這一隊現在能不能用這一招。
+func cmd_can(team: int, s: int) -> bool:
+	return cmd_on and not finished and s >= 0 and s < CMD.COUNT and int(cmd_left[team][s]) > 0 and tick >= int(cmd_ready[team][s])
+
+## 玩家按下：下一 tick 生效。重播時不接受。
+func cast(team: int, s: int) -> bool:
+	if cmd_scripted or not cmd_can(team, s):
+		return false
+	for p in cmd_pending:
+		if p[0] == team and p[1] == s:
+			return false
+	cmd_pending.append([team, s])
+	return true
+
+## 重播：照紀錄在同一 tick 施放，AI 不再自己決定。
+func cmd_play(log: Array) -> void:
+	cmd_scripted = true
+	cmd_script = {}
+	for e in log:
+		var t := int(e[0])
+		if not cmd_script.has(t):
+			cmd_script[t] = []
+		cmd_script[t].append([int(e[1]), int(e[2])])
+
+func _cmd_tick(n: int) -> void:
+	_cmd_dmg.resize(n)
+	_cmd_dmg.fill(0)
+	for u in units:
+		if u.shield_t > 0:
+			u.shield_t -= 1
+			if u.shield_t == 0:
+				u.shield = 0
+		if u.haste_t > 0:
+			u.haste_t -= 1
+	var casts: Array = []
+	if cmd_scripted:
+		casts = cmd_script.get(tick, [])
+	else:
+		casts = cmd_pending.duplicate()
+		cmd_pending.clear()
+		if tick % cmd_ai_every == 0:
+			for tm in 2:   # 都先讀這一 tick 開始前的狀態才決定，誰先算不佔便宜
+				if cmd_auto[tm]:
+					var want := _cmd_ai_pick(tm)
+					if want >= 0:
+						casts.append([tm, want])
+	for c in casts:
+		if cmd_can(int(c[0]), int(c[1])):
+			_cmd_apply(int(c[0]), int(c[1]))
+
+func _cmd_apply(team: int, s: int) -> void:
+	cmd_left[team][s] = int(cmd_left[team][s]) - 1
+	cmd_ready[team][s] = tick + cmd_cd
+	cmd_log.append([tick, team, s])
+	var ev := {"kind": EV.CMD, "team": team, "skill": s}
+	match s:
+		CMD.AEGIS:
+			for u in units:
+				if u.alive and u.team == team:
+					u.shield = maxi(u.shield, u.max_hp * CMD.scaled(CMD.AEGIS_PCT, cmd_power) / 100)
+					u.shield_t = CMD.AEGIS_TICKS
+		CMD.WARCRY:
+			for u in units:
+				if u.alive and u.team == team:
+					u.haste_t = CMD.scaled(CMD.WAR_TICKS, cmd_power)
+		CMD.HEAL:
+			for u in units:
+				if u.alive and u.team == team:
+					u.hp = mini(u.max_hp, u.hp + u.max_hp * CMD.scaled(CMD.HEAL_PCT, cmd_power) / 100)
+		CMD.METEOR:
+			var c: Array = _cmd_cluster(team)
+			if int(c[0]) > 0:
+				ev["x"] = c[1]
+				ev["y"] = c[2]
+				var r2: int = CMD.METEOR_R * CMD.METEOR_R
+				for i in units.size():
+					var v := units[i]
+					if v.alive and v.team != team and (v.x - c[1]) * (v.x - c[1]) + (v.y - c[2]) * (v.y - c[2]) <= r2:
+						_cmd_dmg[i] += CMD.scaled(CMD.METEOR_DMG, cmd_power)
+		CMD.FREEZE:
+			for u in units:
+				if u.alive and u.team != team:
+					u.stun = maxi(u.stun, CMD.scaled(CMD.FREEZE_TICKS, cmd_power))
+					u.charge = 0
+	events.append(ev)
+
+## 敵人最密的位置：[範圍內幾隻, x, y]。平手用鏡像不變的鍵（列小、離自己底線近）。
+func _cmd_cluster(team: int) -> Array:
+	var best := [0, 0, 0]
+	var best_d := 0
+	var r2: int = CMD.METEOR_R * CMD.METEOR_R
+	for a in units:
+		if not a.alive or a.team == team:
+			continue
+		var cnt := 0
+		for b in units:
+			if b.alive and b.team != team and (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) <= r2:
+				cnt += 1
+		var d: int = a.x if team == 0 else fw - a.x
+		if cnt > int(best[0]) or (cnt == int(best[0]) and (a.y < int(best[2]) or (a.y == int(best[2]) and d < best_d))):
+			best = [cnt, a.x, a.y]
+			best_d = d
+	return best
+
+## AI 這一 tick 要放哪一招（-1＝不放）。只看戰況，沒有亂數；左右對稱。
+func _cmd_ai_pick(team: int) -> int:
+	for s in CMD.list_of(int(cmd_mask[team])):
+		if cmd_can(team, s) and _cmd_ai_wants(team, s):
+			return s
+	return -1
+
+func _cmd_ai_wants(team: int, s: int) -> bool:
+	var mine := 0
+	var contact := 0
+	var missing := 0
+	var total := 0
+	var g2 := 2000 * 2000
+	for u in units:
+		if not u.alive or u.team != team:
+			continue
+		mine += 1
+		missing += u.max_hp - u.hp
+		total += u.max_hp
+		for e in units:
+			if e.alive and e.team != team and (u.x - e.x) * (u.x - e.x) + (u.y - e.y) * (u.y - e.y) <= g2:
+				contact += 1
+				break
+	if mine == 0:
+		return false
+	match s:
+		CMD.AEGIS, CMD.WARCRY, CMD.FREEZE:
+			return contact >= 3 and contact * 2 >= mine
+		CMD.HEAL:
+			return missing * 100 >= total * 30
+		CMD.METEOR:
+			return int(_cmd_cluster(team)[0]) >= 4
+	return false
+
+func _hash_cmd() -> void:
+	var a := PackedInt64Array()
+	for u in units:
+		a.append_array(PackedInt64Array([u.shield, u.shield_t, u.haste_t]))
+	for e in cmd_log:
+		a.append_array(PackedInt64Array([int(e[0]), int(e[1]), int(e[2])]))
+	_hash.update(a.to_byte_array())
+
 func _hash_v8() -> void:
 	var a := PackedInt64Array()
 	for u in units:

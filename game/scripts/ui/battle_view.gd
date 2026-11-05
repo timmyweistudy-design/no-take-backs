@@ -314,8 +314,106 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 
 
 
+# ── 第十二輪手動技能 ──
+func _cmd_setup(s, kind: String) -> void:
+	if not s.cmd_on:
+		return
+	if kind == "official":
+		s.cmd_auto = [false, mode == Mode.VS_AI]
+	else:
+		s.cmd_play(last_cmds)
+
+## 按第 slot 格（這一隊帶的第幾招）。成功回 true。
+func _cmd_press(team: int, slot: int) -> bool:
+	if sim == null or not sim.cmd_on or play_kind != "official" or sim.finished:
+		return false
+	if team == 1 and mode != Mode.DUEL:
+		return false
+	var list: Array = CmdD.list_of(int(sim.cmd_mask[team]))
+	if slot >= list.size():
+		return false
+	if sim.cast(team, int(list[slot])):
+		sfx.play("k_confirm", 0.8)
+		return true
+	sfx.play("k_error", 0.7)
+	return false
+
+## 鍵盤：藍方 1 2 3（手把 LB、RB 送的是 Q、E），雙人紅方 8 9 0。是技能鍵就回 true。
+func _cmd_key(k: int) -> bool:
+	if sim == null or not sim.cmd_on or play_kind != "official":
+		return false
+	var slot: int = {KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_Q: 0, KEY_E: 1}.get(k, -1)
+	if slot >= 0:
+		_cmd_press(0, slot)
+		return true
+	if mode == Mode.DUEL:
+		var red: int = {KEY_8: 0, KEY_9: 1, KEY_0: 2}.get(k, -1)
+		if red >= 0:
+			_cmd_press(1, red)
+			return true
+	return false
+
+func _cmd_desc(i: int, power: int) -> String:
+	return L.t("cmd_d_%d" % i, CmdD.desc_args(i, power))
+
+func _cmd_event(ev: Dictionary, with_fx: bool) -> void:
+	if ev["kind"] == EV.CMD_HIT:
+		if with_fx:
+			var u = view.unit_by_id(ev["tgt"])
+			if u != null:
+				_fx_text(_upos(u) - Vector2(0, 44), str(int(ev["dmg"])), Color("#ffb347"), 0.7, ts(16))
+		return
+	var tm := int(ev["team"])
+	var sk := int(ev["skill"])
+	battle_marks.append({"tick": view.tick, "kind": "cmd", "team": tm})
+	if not with_fx:
+		return
+	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
+	fx = fx.filter(func(f): return f.get("cmd_tm", -1) != tm)     # 一隊同時只留最新一條，不疊字
+	_fx_text(Vector2(400.0 if tm == 0 else 880.0, 128), "%s　%s" % [L.t("blue") if tm == 0 else L.t("red"), L.t("cmd_%d" % sk)], Art.team_color(tm, cbm()).lightened(0.25), 1.3, tz("H2"), true)
+	fx[-1]["cmd_tm"] = tm
+	if _fx_on("flash"):
+		_add_fx({"kind": "cmd_flash", "t": 0.0, "dur": 0.35, "screen": true, "c": Color("#7fd3ff") if sk == CmdD.FREEZE else (Color("#fff0b0") if sk != CmdD.METEOR else Color("#ff8a3c"))})
+	if sk == CmdD.METEOR and ev.has("x"):
+		_add_fx({"kind": "meteor", "p": ORIGIN + Vector2(int(ev["x"]), int(ev["y"])) * CS / 1000.0, "t": 0.0, "dur": 0.6, "r": CmdD.METEOR_R * CS / 1000.0})
+		if _fx_on("shake"):
+			shake = maxf(shake, 0.2)
+
+func _draw_cmd_bar() -> void:
+	var live: bool = play_kind == "official"
+	for tm in 2:
+		var list: Array = CmdD.list_of(int(sim.cmd_mask[tm]))
+		var mine: bool = live and (tm == 0 or mode == Mode.DUEL)
+		for i in list.size():
+			var s: int = list[i]
+			var r := Rect2(8.0 if tm == 0 else 1168.0, 190.0 + i * 112.0, 104.0, 104.0)
+			var ready: bool = sim.cmd_can(tm, s)
+			if mine:
+				_btn(r, "", _cmd_press.bind(tm, i), ready, false, TH_WOOD if ready else TH_WOOD_D)
+			else:
+				_box(r, Color(TH_WOOD_D, 0.85), TH_EDGE, 6.0, 1.0)
+			_probe_btn_label = mine
+			_probe_btn_rect = r
+			_icon(CmdD.ICONS[s], r.position + Vector2(52, 26), 30.0, ACCENT if ready else Color(1, 1, 1, 0.35))
+			_text(r.position + Vector2(52, 46), L.t("cmd_%d" % s), tz("C"), Color.WHITE if ready else Color(1, 1, 1, 0.55), true, false, 98)
+			var left_s := "×%d" % int(sim.cmd_left[tm][s])
+			_text(Vector2(r.end.x - _width(left_s, tz("C")) - 6, r.position.y + 4), left_s, tz("C"), Color.WHITE)
+			if mine:
+				var hk: String = ["1", "2", "3"][i] if tm == 0 else ["8", "9", "0"][i]
+				if pad_mode and tm == 0 and i < 2:
+					hk = _pk("prev" if i == 0 else "next")
+				_text(r.position + Vector2(6, 4), hk, tz("C"), Color(1, 1, 1, 0.75))
+			_probe_btn_label = false
+			var wait: int = int(sim.cmd_ready[tm][s]) - sim.tick
+			if wait > 0 and int(sim.cmd_left[tm][s]) > 0:
+				var frac: float = clampf(float(wait) / maxf(1.0, float(sim.cmd_cd)), 0.0, 1.0)
+				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
+
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var k: String = ev["kind"]
+	if k == EV.CMD or k == EV.CMD_HIT:
+		_cmd_event(ev, with_fx)
+		return
 	if _on_event_v8(ev, k, with_fx):
 		return
 	if k == EV.DEATH:
@@ -520,6 +618,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 		last_armies = [a0.copy(), a1.copy()]
 		battle_rules = rules.copy() if rules != null else null
 	sim = Sim.new(a0, a1, battle_rules)
+	_cmd_setup(sim, kind)
 	view = ViewBuffer.new(sim)
 	atk_seq.clear()
 	clutch_tick = -1
@@ -529,8 +628,11 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 		var pa0 = a0.copy()
 		var pa1 = a1.copy()
 		var pr = battle_rules.copy() if battle_rules != null else null
+		var plog: Array = last_cmds.duplicate(true)
 		var run_pre := func() -> int:
 			var pre = Sim.new(pa0, pa1, pr)
+			if pre.cmd_on:
+				pre.cmd_play(plog)
 			pre.fast = true
 			pre.run_to_end()
 			return pre.tick

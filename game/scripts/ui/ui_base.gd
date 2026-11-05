@@ -23,6 +23,7 @@ const Keymap = preload("res://scripts/game/keymap.gd")
 const HardAI = preload("res://scripts/core/hard_ai.gd")
 const RuleSet = preload("res://scripts/core/ruleset.gd")
 const Presets = preload("res://scripts/game/presets.gd")
+const CmdD = preload("res://scripts/core/cmd_defs.gd")
 const Charts = preload("res://scripts/ui/charts.gd")
 
 enum St { TITLE, PLACE, BATTLE, RESULT }

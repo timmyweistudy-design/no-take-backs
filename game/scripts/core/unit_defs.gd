@@ -203,7 +203,7 @@ static func uses_new(armies: Array) -> bool:
 	return false
 
 static func version_of(armies: Array) -> String:
-	return "1.4.0" if uses_new(armies) else RULES_VERSION
+	return "1.4.1" if uses_new(armies) else RULES_VERSION   # 1.4.1：第十二輪吸塵貓改成拉向自己
 
 static func digest_of(armies: Array) -> String:
 	return digest_v8() if uses_new(armies) else data_digest()

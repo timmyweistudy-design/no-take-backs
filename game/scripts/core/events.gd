@@ -23,6 +23,9 @@ const BREACH := "breach"       # 狂戰士破陣
 const ALERT := "alert"
 const HIDE := "hide"
 const TRIP := "trip"
+# 第十二輪手動技能
+const CMD := "cmd"             # 施放（帶 team、skill、x、y）
+const CMD_HIT := "cmd_hit"     # 隕石打中（帶 tgt、dmg）
 # 非攻擊事件
 const DEATH := "death"
 const ATTRITION := "attrition"

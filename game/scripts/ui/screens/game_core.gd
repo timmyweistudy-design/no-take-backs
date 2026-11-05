@@ -210,7 +210,7 @@ static func series_done(w: Array, rn: int, r) -> bool:
 func _pt_entry(rating: int) -> Dictionary:
 	if rating == 0:
 		pt_game += 1
-	return {"v": 2, "session": pt_session, "game": pt_game, "code": BattleCode.encode(last_armies[0], last_armies[1], battle_rules),
+	return {"v": 2, "session": pt_session, "game": pt_game, "code": BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds),
 		"event": "rating" if rating > 0 else "battle", "mode": _mode_label(), "round": round_no, "winner": sim.winner,
 		"ticks": sim.tick, "reason": sim.reason, "blue": last_armies[0].to_code(), "red": last_armies[1].to_code(),
 		"power": [sim.power(0), sim.power(1)], "suspense": report.get("sus", {}), "call_tick": pt_call_tick,
@@ -249,8 +249,9 @@ func _build_report() -> void:
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz := PZ.get_puzzle(puzzle_id)
 		var extra_spent: int = armies[0].spent() - (armies[0].budget - int(pz["budget"]))
-		var rem: int = sim.power(0) * 100 / (sim.budget * 1000) if sim.winner == 0 else 0
+		var rem: int = PZ.rem_pct(sim.power(0), sim.budget) if sim.winner == 0 else 0
 		report["stars"] = PZ.stars(pz, sim.winner == 0, rem, extra_spent)
+		report["star_lines"] = _star_lines(sim.winner == 0, rem, int(pz["star2"]), extra_spent, int(pz["star3"]))
 
 
 
@@ -622,6 +623,14 @@ func _decode_any(code: String):
 	var w0 := raw.load_code(code)
 	return raw if w0 == "" else w0
 
+
+## 結果頁：每個條件有沒有達成、這場多少，一眼看出差在哪。
+func _star_lines(won: bool, rem: int, need_rem: int, spent: int, need_spent: int) -> String:
+	var yes := "✓"
+	var no := "×"
+	return "%s %s　%s %s　%s %s" % [yes if won else no, L.t("star_c_win"),
+		yes if won and rem >= need_rem else no, L.t("star_c_rem", [need_rem, rem]),
+		yes if spent <= need_spent else no, L.t("star_c_spent", [need_spent, spent])]
 
 ## 戰力走勢的標記：最多 3 個，優先「勝負已定」「領先交換」「最後時刻」，再補第一個技能時刻。
 func _key_marks() -> Array:

@@ -263,6 +263,8 @@ func _mb_cmd(d: Dictionary) -> void:
 func _key(k: int) -> void:
 	if state == St.PLACE and _fp_key(k):
 		return
+	if state == St.BATTLE and overlay == "" and _cmd_key(k):
+		return
 	# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
 	if state != St.PLACE or overlay != "":
 		match k:
@@ -477,6 +479,8 @@ func _draw_inner() -> void:
 		St.BATTLE:
 			_draw_battle_hud()
 			_draw_replay_controls()
+			if sim != null and sim.cmd_on:
+				_draw_cmd_bar()
 			_draw_frenzy_edge()
 			_draw_start_cue()
 			_draw_battle_report()

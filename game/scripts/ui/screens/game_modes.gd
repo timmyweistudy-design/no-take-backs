@@ -49,15 +49,31 @@ func _start_trial(i: int) -> void:
 	_start_mode(Mode.VS_AI)
 	trial_id = i
 
-## 結算星數：贏＝1；剩餘戰力 ≥50%＝2；只花 ≤80% 預算＝3。
+## 第十二輪：每達成一項一顆星，和殘局同一套。原本要花 ≤80% 預算還要剩「整個預算」的 50%，電腦都找不到解。
+const TRIAL_REM := [0, 30, 20]     # 剩餘戰力門檻（依難度，索引同 AI 等級）
+const TRIAL_SPEND_PCT := 80
+const TRIAL_SPEND_OVERRIDE := {7: 85}   # 第 8 關：80% 搜尋 13 組種子都到不了，最好是 23% 剩餘花 81%
+
+static func trial_spend_pct(id: int) -> int:
+	return int(TRIAL_SPEND_OVERRIDE.get(id, TRIAL_SPEND_PCT))
+
+static func trial_stars(level: int, rem: int, spent: int, budget: int, spend_pct: int = TRIAL_SPEND_PCT) -> int:
+	var st := 1
+	if rem >= int(TRIAL_REM[level]):
+		st += 1
+	if spent * 100 <= budget * spend_pct:
+		st += 1
+	return st
+
 func _trial_finish(w: int) -> void:
 	if trial_id < 0 or w != 0:
 		return
-	var st := 1
-	if sim.power(0) * 100 >= sim.budget_of(0) * 1000 * 50:
-		st = 2
-		if armies[0].spent() * 100 <= armies[0].budget * 80:
-			st = 3
+	var lvl: int = int(TRIALS[trial_id][3])
+	var rem: int = PZ.rem_pct(sim.power(0), sim.budget_of(0))
+	var spent: int = armies[0].spent()
+	var pct: int = trial_spend_pct(trial_id)
+	var st: int = trial_stars(lvl, rem, spent, armies[0].budget, pct)
+	report["trial_lines"] = call("_star_lines", true, rem, int(TRIAL_REM[lvl]), spent, armies[0].budget * pct / 100)
 	var all: Dictionary = Save.data.get("trial_stars", {})
 	all[str(trial_id)] = maxi(int(all.get(str(trial_id), 0)), st)
 	Save.data["trial_stars"] = all
@@ -80,6 +96,8 @@ func _draw_trials() -> void:
 		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, L.t("map_" + str(MapDefs.MAPS[t[0]]["key"]))], tz("B"), Color.WHITE, false, true, cw - 240)
 		var sz := "%s %d×%d" % [L.t("map_size_%d" % int(t[1])), MapDefs.SIZES[t[1]][0], MapDefs.SIZES[t[1]][1]]
 		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), L.t(["diff_easy", "diff_normal", "diff_hard"][int(t[3])])], tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 165)
+		var tb: int = int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
+		_text(r.position + Vector2(154, 8 + tz("B") * 1.4 + tz("C") * 1.35), L.t("trial_cond", [int(TRIAL_REM[int(t[3])]), tb * trial_spend_pct(i) / 100]), tz("C"), ACCENT, false, false, cw - 160)
 		var got := int(stars.get(str(i), 0))
 		for k in 3:
 			_icon("star", r.position + Vector2(cw - 66 + k * 22, 20), 20.0, Color("#ffd166") if k < got else Color(1, 1, 1, 0.16))
@@ -134,6 +152,7 @@ func _challenge_decode(c: String) -> Dictionary:
 	var p1: int = r.pool_of(1)
 	r.budget = [b1, b0]
 	r.pool = [p1, p0]
+	r.cmd_mask = [int(r.cmd_mask[1]), int(r.cmd_mask[0])]   # 第十二輪：手動技能也要對調
 	var a = Army.new(1, r.budget_of(1))
 	a.apply_rules(r, 1)
 	a.pool = RuleSet.full_pool()     # 朋友的牌不必在自己的解鎖範圍內
