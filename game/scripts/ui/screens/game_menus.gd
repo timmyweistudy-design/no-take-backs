@@ -153,7 +153,7 @@ func _draw_title() -> void:
 	_draw_save_notice()
 	# 第七輪 D4：右下角色群像
 	for i in D.COUNT:
-		var gp := Vector2(560.0 + i * 72.0, 720.0 + (i % 2) * 22.0)
+		var gp := Vector2(544.0 + i * 70.0, 720.0 + (i % 2) * 22.0)
 		Art.unit(self, gp, i, i % 2, 1.0 if i % 2 == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + i, 1.25, cbm())
 	var bob := sin(time * 1.5) * 4
 	# 第五輪 §4.4：主選單收成左側一塊面板，背景的自動對決露出來；標題用標題字
@@ -376,14 +376,14 @@ func _settings_rows() -> Array:
 
 
 func _draw_settings() -> void:
-	_panel(Rect2(140, 70, 1000, 620))     # 第十輪 V7：最多 5 列，面板縮到內容
-	_h1(Vector2(640, 74), L.t("settings_title"))
+	_panel(Rect2(140, 130, 1000, 540))     # 第十輪 V7：最多 5 列，面板縮到內容
+	_h1(Vector2(640, 134), L.t("settings_title"))
 	for i in 4:
-		_btn(Rect2(170, 140 + i * 60, 180, 50), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
+		_btn(Rect2(170, 196 + i * 60, 180, 50), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
 	var rows: Array = _settings_rows()
 	for i in rows.size():
-		var y := 140 + i * 66
+		var y := 196 + i * 66
 		if i % 2 == 0:
 			draw_rect(Rect2(370, y - 6, 524, 64), Color(1, 1, 1, 0.04))   # 第七輪 E11：斑馬底色
 		_text(Vector2(380, y + 13), L.t(rows[i][0]), tz("B"), Color.WHITE, false, false, 240)
@@ -397,15 +397,15 @@ func _draw_settings() -> void:
 		if val.ends_with("%") and rows[i][0] in ["set_music", "set_sfx"]:
 			draw_rect(Rect2(r.position.x + 60, y + 44, (r.size.x - 120) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
 	# 說明欄
-	var D0 := Rect2(900, 140, 220, 480)
+	var D0 := Rect2(900, 196, 220, 400)
 	draw_rect(D0, Color(0, 0, 0, 0.25))
 	var key: String = settings_item if settings_item != "" else rows[0][0]
 	_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
 	_text(D0.position + Vector2(14, 12 + tz("B") * 1.6), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)
 	if bool(Save.s("playtest")) and settings_tab == 2:
-		_btn(Rect2(380, 140 + rows.size() * 66, 240, 44), L.t("pt_folder"), func(): OS.shell_open(ProjectSettings.globalize_path("user://")))
-	_btn(Rect2(560, 634, 160, 44), L.t("back"), func(): overlay = "")
-	_btn(Rect2(380, 634, 160, 44), L.t("menu_credits"), func(): _open("credits"))
+		_btn(Rect2(380, 196 + rows.size() * 66, 240, 44), L.t("pt_folder"), func(): OS.shell_open(ProjectSettings.globalize_path("user://")))
+	_btn(Rect2(560, 612, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(380, 612, 160, 44), L.t("menu_credits"), func(): _open("credits"))
 
 
 

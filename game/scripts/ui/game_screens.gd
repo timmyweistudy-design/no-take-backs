@@ -558,7 +558,7 @@ func _settings_hover() -> void:
 
 
 func _settings_row_y(i: int) -> float:
-	return 120.0 + i * 66.0
+	return 196.0 + i * 66.0
 
 
 

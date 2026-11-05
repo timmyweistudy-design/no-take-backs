@@ -108,6 +108,9 @@ const TEXT_BUDGET := {"02_place.png": 30, "17_place_new.png": 30, "05_result.png
 
 func _layout_report(name: String) -> void:
 	var bad: Array = []
+	for b in _btns:     # 第十輪 T5：按鈕不能跑出畫面（手把焦點會走到看不見的地方）
+		if not Rect2(0, 0, 1280, 800).encloses(b["r"]):
+			bad.append({"type": "按鈕超出畫面", "s": name, "r": str(b["r"])})
 	var sizes: Array = []
 	var ui_n := 0
 	var free_n := 0
@@ -429,6 +432,7 @@ func _run_screenshots() -> void:
 		f["t"] = 0.0
 	await _snap("15_replay.png")
 	await _shots_v4()
+	await _pad_walk()
 	get_tree().quit()
 
 
@@ -978,3 +982,118 @@ func _draw_inner() -> void:
 			_unit(p, t, 0, 1.0, walk, at, 0.0, alpha, 1.0, 1.6, mood, lean, crouch, (2 if t >= D.CLASSIC else 0) if c == 6 else (1 if c == 8 else 0))
 			if c == 2 or c == 8:   # 揮擊殘影（依兵種，實際只有 0.12 秒）
 				_draw_smear(p, t, 0, 1.0, 0.45, 1.0, 1 if c == 8 else 0, 1.6)
+
+# ── 第十輪 T5：只用手把走主要流程。失敗印 PADWALK FAIL，版面檢查會擋 ──
+var _pw_bad: Array = []
+
+func _pw_check(cond: bool, what: String) -> void:
+	if not cond:
+		_pw_bad.append(what)
+
+func _pw_btn(b: int) -> void:
+	for pressed in [true, false]:
+		var ev := InputEventJoypadButton.new()
+		ev.button_index = b
+		ev.pressed = pressed
+		ev.device = 0
+		_input(ev)
+		await _pw_frames(2)
+
+func _pw_frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+## 方向鍵走到第 i 顆再按 A；同時確認焦點走得到。
+func _pw_pick(i: int, what: String) -> void:
+	await _pw_frames(2)
+	_pw_check(i < _btns.size(), "%s：沒有第 %d 顆按鈕（共 %d）" % [what, i, _btns.size()])
+	var guard := 0
+	while _focus != i and guard < 60:
+		guard += 1
+		await _pw_btn(JOY_BUTTON_DPAD_DOWN)
+	_pw_check(_focus == i, "%s：焦點走不到第 %d 顆" % [what, i])
+	await _pw_btn(JOY_BUTTON_A)
+	await _pw_frames(3)
+
+## 這個畫面的每顆按鈕都走得到、都在畫面內。
+func _pw_cycle(what: String) -> void:
+	await _pw_frames(2)
+	var n: int = _btns.size()
+	_pw_check(n > 0, "%s：沒有按鈕" % what)
+	for b in _btns:
+		_pw_check(Rect2(0, 0, 1280, 800).encloses(b["r"]), "%s：按鈕超出畫面 %s" % [what, str(b["r"])])
+	var seen := {}
+	for k in n:
+		seen[_focus] = true
+		await _pw_btn(JOY_BUTTON_DPAD_DOWN)
+	_pw_check(seen.size() == n, "%s：焦點只走到 %d／%d 顆" % [what, seen.size(), n])
+
+func _pad_walk() -> void:
+	_pw_bad = []
+	layout_probe = false
+	shot_dir = ""
+	rules = null
+	overlay = ""
+	_go_title()
+	await _pw_frames(3)
+	await _pw_cycle("標題")
+	for step in [[6, "trials"], [7, "profile"], [8, "settings"], [9, "codes"]]:
+		_go_title()
+		await _pw_pick(step[0], "標題→" + str(step[1]))
+		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])
+		await _pw_cycle(str(step[1]))
+		await _pw_btn(JOY_BUTTON_B)
+		_pw_check(overlay == "", "%s：B 關不掉" % step[1])
+	_go_title()
+	await _pw_pick(0, "標題→大廳")
+	await _pw_cycle("大廳")
+	_go_title()
+	overlay = "reward"
+	await _pw_cycle("獎勵")
+	overlay = ""
+	rules = RuleSet.standard()
+	rules.ai_pool_same = false
+	rules.pool = [1023, ~1023 & ((1 << 20) - 1)]
+	ban_left = [1, 1]
+	overlay = "ban"
+	await _pw_cycle("禁牌 20 張")
+	overlay = ""
+	rules = null
+	# 試煉從頭打到結果：擺一隻、開戰、跳過、看結果、回主選單
+	_go_title()
+	_open("trials")
+	await _pw_pick(0, "試煉第 1 關")
+	_pw_check(state == St.PLACE, "試煉沒有進擺放")
+	await _pw_btn(JOY_BUTTON_LEFT_SHOULDER)
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = JOY_BUTTON_A
+	ev.pressed = true
+	_input(ev)
+	await _pw_frames(3)
+	var ev2 := InputEventJoypadButton.new()
+	ev2.button_index = JOY_BUTTON_A
+	ev2.pressed = false
+	_input(ev2)
+	await _pw_frames(3)
+	if armies[0].units.is_empty():
+		_pw_bad.append("手把 A 擺不下兵")
+		armies[0].place_xy(0, armies[0].world_x(3000), 3000)
+	await _pw_btn(JOY_BUTTON_START)
+	await _pw_frames(5)
+	_pw_check(state == St.BATTLE, "Start 沒有開戰，現在 %d" % state)
+	await _pw_btn(JOY_BUTTON_B)
+	var wait := 0
+	while state != St.RESULT and wait < 900:
+		wait += 1
+		await get_tree().process_frame
+	_pw_check(state == St.RESULT, "B 跳過後沒進結果頁")
+	await _pw_cycle("結果頁")
+	await _pw_btn(JOY_BUTTON_B)
+	await _pw_frames(3)
+	if overlay == "leave":
+		await _pw_pick(1, "離開確認")
+	_pw_check(state == St.TITLE, "結果頁 B 沒回標題，現在 %d" % state)
+	if _pw_bad.is_empty():
+		print("PADWALK OK")
+	else:
+		print("PADWALK FAIL ", "；".join(_pw_bad))

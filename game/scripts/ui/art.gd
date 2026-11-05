@@ -123,7 +123,7 @@ static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, 
 			pts.append(p + Vector2(cos(ang) * 15.0, sin(ang) * 7.5) * scale)
 	else:
 		pts = PackedVector2Array([p + Vector2(-16, 0) * scale, p + Vector2(0, -8.5) * scale, p + Vector2(16, 0) * scale, p + Vector2(0, 8.5) * scale, p + Vector2(-16, 0) * scale])
-	ci.draw_polyline(pts, OUT, w + (5.0 if cb else 2.5), true)   # 第十輪 V9：色盲配色黑邊加粗，黃底座在沙地、草地才分得開
+	ci.draw_polyline(pts, OUT, w + (6.5 if cb else 2.5), true)   # 第十輪 V9：色盲配色黑邊加粗，黃底座在沙地、草地才分得開
 	ci.draw_polyline(pts, tc, w, true)
 
 

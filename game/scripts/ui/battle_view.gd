@@ -150,6 +150,8 @@ func _check_final(with_fx: bool) -> void:
 	final_used = true
 	if _fx_on("slowmo"):
 		final_left = 0.6
+	if _fx_on("shake"):
+		shake = maxf(shake, 0.15)
 
 ## 畫面前進一個 tick：模擬保持領先 DELAY 個 tick，畫面播最舊的那一份快照（R5 展示緩衝）。
 func _sim_step(with_fx: bool) -> void:
@@ -183,7 +185,7 @@ func _sim_step(with_fx: bool) -> void:
 		_collect_mark(ev, view, view.tick)
 		_on_event(ev, with_fx)
 	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
-	if view.finished and (not slow_used or final_used) and deaths > 0 and with_fx:
+	if view.finished and not slow_used and deaths > 0 and with_fx:
 		hitstop = 0.2
 		if bool(Save.s("shake")):
 			shake = 0.15

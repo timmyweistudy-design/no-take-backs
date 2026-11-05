@@ -27,6 +27,7 @@ for combo in $COMBOS; do
     timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc --layout-check > "$d/run.log" 2>&1 \
       || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0"; kill_win "$d"; exit 1; }
     grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤"; exit 1; }
+    grep -q "PADWALK OK" "$d/run.log" || { echo "LAYOUT FAIL：$lang $sc% 手把流程：$(grep PADWALK "$d/run.log" | cut -c1-400)"; exit 1; }
   }
 done
 EXPECT=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | wc -l)

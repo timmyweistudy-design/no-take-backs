@@ -133,19 +133,33 @@ class _Painter extends Node2D:
 		if c < 0 or c >= t.n or r < 0 or r >= t.m:
 			return -1
 		return t.grid[c + r * t.n]
+	## 沿一格的邊往外畫一條鋸齒帶；m＝邊的中點。
+	func _jag(m: Vector2, out_dir: Vector2, col: Color, h: int, depth: float) -> void:
+		var side := Vector2(out_dir.y, out_dir.x)
+		var half := 16.5
+		var pts := PackedVector2Array([m - side * half, m + side * half])
+		for k in 5:
+			var f: float = 1.0 - k * 0.5
+			var bump: float = depth * (0.45 + float((h >> (k * 2)) % 4) * 0.2)
+			pts.append(m + side * (f * half) + out_dir * bump)
+		draw_colored_polygon(pts, col)
+
 	## 第十輪 V5、V6：牆邊往外（可走的那一側）長碎石或碎冰，牆只會看起來更厚，不會多出可走的缺口。
 	func _rim(m: Vector2, out_dir: Vector2, h: int) -> void:
 		if kind != "lava" and kind != "ice" and kind != "canyon":
 			return
 		var side := Vector2(out_dir.y, out_dir.x)
+		if kind == "lava":
+			_jag(m, out_dir, Color("#2d1a18"), h, 6.0)
+			_jag(m, out_dir, Color("#55352c"), h >> 3, 2.5)
+			return
 		for k in 3:
 			var hh := (h >> (k * 3)) % 64
 			var pos: Vector2 = m + side * ((k - 1) * 10.0 + hh % 5) + out_dir * (hh % 3)
 			var r := 2.5 + hh % 4
 			match kind:
 				"lava":
-					draw_circle(pos, r + 1.0, Color("#2d1a18"), true, -1.0, true)
-					draw_circle(pos - Vector2(0.5, 0.8), r * 0.6, Color("#55352c"), true, -1.0, true)
+					pass      # 石岸在 _rim 開頭畫成連續折線
 				"ice":
 					draw_colored_polygon(PackedVector2Array([pos + side * r * 1.4, pos + out_dir * r * 1.2, pos - side * r * 1.4, pos - out_dir * r * 0.5]), Color("#e4f0f7"))
 				"canyon":
@@ -176,7 +190,7 @@ class _Painter extends Node2D:
 					draw_rect(Rect2(o, Vector2(Q, Q)), Color(biome["fast"]))
 					if kind == "canyon":
 						draw_rect(Rect2(o + Vector2(1, 1), Vector2(Q - 2, Q - 2)), Color(1, 1, 1, 0.08))
-						draw_rect(Rect2(o, Vector2(Q, Q)), Color(0, 0, 0, 0.14), false, 1.5)
+						draw_rect(Rect2(o, Vector2(Q, Q)), Color(0, 0, 0, 0.07), false, 1.0)   # 第十輪：線淡一點，石道才不像城牆
 					else:
 						draw_line(o + Vector2(4, (h2 % 20) + 4), o + Vector2(Q - 6, (h2 % 20) + 9), Color(1, 1, 1, 0.45), 1.6, true)
 		# 慢、快的邊界柔化
@@ -189,7 +203,7 @@ class _Painter extends Node2D:
 				for d2 in [[1, 0], [-1, 0], [0, 1], [0, -1]]:
 					if _cell(c2 + d2[0], r2 + d2[1]) == t.FREE:
 						var e := (Vector2(c2, r2) + Vector2(0.5, 0.5) + Vector2(d2[0], d2[1]) * 0.5) * Q
-						draw_circle(e, 11.0, col, true, -1.0, true)
+						_jag(e, Vector2(d2[0], d2[1]), col, _h(c2 * 3 + d2[0], r2 * 3 + d2[1]), 5.0)   # 第十輪：不規則折線，不外溢超過 6 px
 		# 擋路
 		for r3 in t.m:
 			for c3 in t.n:

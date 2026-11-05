@@ -247,8 +247,8 @@ func test_v10_fixes() -> void:
 				off.append(int(u["type"]))
 		ok(off.is_empty() and not g.armies[1].units.is_empty(), "B1 困難 AI 性格 %d 的兵都在性格卡池內" % st, str(off))
 	# B2：禁牌格子不能超出面板
-	var panel := Rect2(170, 110, 940, 560)
 	for n in [5, 10, 11, 15, 20]:
+		var panel: Rect2 = g._ban_panel(n)
 		var cells: Array = []
 		var good := true
 		for i in n:

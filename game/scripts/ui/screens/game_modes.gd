@@ -226,26 +226,29 @@ func _ban(t: int) -> void:
 func _ban_cell(i: int, n: int) -> Rect2:
 	if n <= 10:
 		return Rect2(200 + (i % 5) * 178, 250 + (i / 5) * 190, 168, 178)
-	return Rect2(188 + (i % 7) * 130, 236 + (i / 7) * 138, 124, 130)
+	return Rect2(76 + (i % 7) * 162, 232 + (i / 7) * 142, 156, 136)
+
+func _ban_panel(n: int) -> Rect2:
+	return Rect2(170, 110, 940, 560) if n <= 10 else Rect2(60, 110, 1160, 560)
 
 func _draw_ban() -> void:
-	var P := Rect2(170, 110, 940, 560)
+	var ts0: Array = RuleSet.types_of(rules.pool_of(0) | rules.pool_of(1))
+	var P: Rect2 = _ban_panel(ts0.size())
 	_panel(P)
 	_box(P.grow(-3), Color(0, 0, 0, 0), Color("#b8393f"), 8.0, 3.0)   # 紅框：這裡是拿掉牌，不是選牌
 	_h1(Vector2(640, 122), L.t("ban_title"))
 	var who := L.t("blue") if ban_turn == 0 else L.t("red")
 	_text(Vector2(640, 186), L.t("ban_turn", [who, ban_left[ban_turn]]), tz("H2"), Art.team_color(ban_turn, cbm()).lightened(0.2), true, true, 860)
-	var ts0: Array = RuleSet.types_of(rules.pool_of(0) | rules.pool_of(1))
 	for i in ts0.size():
 		var t: int = ts0[i]
 		var r: Rect2 = _ban_cell(i, ts0.size())
 		var small: bool = ts0.size() > 10
 		_btn(r, "", _ban.bind(t), true, false, TH_WOOD)
-		_unit_in(Rect2(r.position, Vector2(r.size.x, 84 if small else 120)), t, 0, 1.0, 0.8 if small else 1.1)
-		_text(r.position + Vector2(r.size.x / 2, 88 if small else 128), L.t("unit_%d" % t), tz("C") if small else tz("B"), Color.WHITE, true, true, r.size.x - 8)
+		_unit_in(Rect2(r.position, Vector2(r.size.x, 74 if small else 120)), t, 0, 1.0, 0.72 if small else 1.1)
+		_text(r.position + Vector2(r.size.x / 2, 76 if small else 128), L.t("unit_%d" % t), tz("C") if small else tz("B"), Color.WHITE, true, true, r.size.x - 8)
 		if r.has_point(mouse) and not pad_mode:
 			_icon("ban", r.position + Vector2(r.size.x / 2, 42 if small else 62), 60.0 if small else 84.0)
-	_btn(Rect2(1000, 124, 96, 40), L.t("ban_skip"), _ban_skip)
+	_btn(Rect2(P.end.x - 110, 124, 96, 40), L.t("ban_skip"), _ban_skip)
 
 ## ── 戰績 ──
 func _record_match(w: int) -> void:
