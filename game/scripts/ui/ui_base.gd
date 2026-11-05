@@ -29,6 +29,10 @@ enum St { TITLE, PLACE, BATTLE, RESULT }
 enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
 
 const ORIGIN := Vector2(128, 100)
+const BATTLE_DY := 36.0   # 第十輪 B9：戰鬥鏡頭下移，貼上緣的兵頭不被頂列蓋住（只改畫面）
+var force_demo := false   # 測試用：不必匯出就能走試玩版流程
+func _demo() -> bool:
+	return force_demo or OS.has_feature("demo")
 const CS := 64.0
 const FIELD := Vector2(16 * 64, 9 * 64)
 const MapArt = preload("res://scripts/ui/map_art.gd")

@@ -15,7 +15,7 @@ var ban_turn := 0
 ## ── 主題試煉 ──
 func _start_trial(i: int) -> void:
 	var t: Array = TRIALS[i]
-	var r = Presets.make("standard", "ai", RS.unlocked_mask(_unlock_games(), OS.has_feature("demo")))
+	var r = Presets.make("standard", "ai", RS.unlocked_mask(_unlock_games(), _demo()))
 	r.deploy = "free"
 	r.spacing = 800
 	r.depth = 6000
@@ -131,7 +131,23 @@ func _challenge_decode(c: String) -> Dictionary:
 	a.pool = RuleSet.full_pool()     # 朋友的牌不必在自己的解鎖範圍內
 	if a.load_code(str(j["a"])) != "" or not a.has_combat():
 		return bad
+	if _demo() and not _demo_ok(r, a):
+		return bad      # 第十輪 B7：試玩版不能靠挑戰碼帶進正式版內容
 	return {"ok": true, "rules": r, "army": a}
+
+## 第十輪 R1：試玩版的範圍集中在這裡。匯入的規則與陣型都走這條。
+func _demo_ok(r, a = null) -> bool:
+	var mask: int = RS.unlocked_mask(1 << 20, true)
+	if r != null:
+		if not r.map_id in Presets.DEMO_MAPS:
+			return false
+		if r.pool_of(0) & ~mask != 0 or r.pool_of(1) & ~mask != 0:
+			return false
+	if a != null:
+		for u in a.units:
+			if not RuleSet.has(mask, int(u["type"])):
+				return false
+	return true
 
 ## ── 遠征：每戰後三選一 ──
 func _gauntlet_reward() -> void:
@@ -197,6 +213,12 @@ func _ban(t: int) -> void:
 	sfx.play("k_error")
 	_ban_next()
 
+## 第十輪 B2：雙方卡池不同時最多 20 張；超過 10 張改小格，全部留在面板內。
+func _ban_cell(i: int, n: int) -> Rect2:
+	if n <= 10:
+		return Rect2(200 + (i % 5) * 178, 250 + (i / 5) * 190, 168, 178)
+	return Rect2(188 + (i % 7) * 130, 236 + (i / 7) * 138, 124, 130)
+
 func _draw_ban() -> void:
 	var P := Rect2(170, 110, 940, 560)
 	_panel(P)
@@ -207,12 +229,13 @@ func _draw_ban() -> void:
 	var ts0: Array = RuleSet.types_of(rules.pool_of(0) | rules.pool_of(1))
 	for i in ts0.size():
 		var t: int = ts0[i]
-		var r := Rect2(200 + (i % 5) * 178, 250 + (i / 5) * 190, 168, 178)
+		var r: Rect2 = _ban_cell(i, ts0.size())
+		var small: bool = ts0.size() > 10
 		_btn(r, "", _ban.bind(t), true, false, TH_WOOD)
-		_unit_in(Rect2(r.position, Vector2(r.size.x, 120)), t, 0, 1.0, 1.1)
-		_text(r.position + Vector2(84, 128), L.t("unit_%d" % t), tz("B"), Color.WHITE, true, true, 160)
+		_unit_in(Rect2(r.position, Vector2(r.size.x, 84 if small else 120)), t, 0, 1.0, 0.8 if small else 1.1)
+		_text(r.position + Vector2(r.size.x / 2, 88 if small else 128), L.t("unit_%d" % t), tz("C") if small else tz("B"), Color.WHITE, true, true, r.size.x - 8)
 		if r.has_point(mouse) and not pad_mode:
-			_icon("ban", r.position + Vector2(84, 62), 84.0)
+			_icon("ban", r.position + Vector2(r.size.x / 2, 42 if small else 62), 60.0 if small else 84.0)
 	_btn(Rect2(1000, 124, 96, 40), L.t("ban_skip"), _ban_skip)
 
 ## ── 戰績 ──
@@ -223,6 +246,9 @@ func _record_match(w: int) -> void:
 	var seen := {}
 	for u in armies[0].units:
 		seen[str(int(u["type"]))] = true
+	if mode == Mode.DUEL and armies.size() > 1 and armies[1] != null:   # 第十輪 B4：雙人兩邊贏了都算勝場，場數也要兩邊算
+		for u2 in armies[1].units:
+			seen[str(int(u2["type"]))] = true
 	for k in seen:
 		ug[k] = int(ug.get(k, 0)) + 1
 	Save.data["unit_games"] = ug
@@ -256,7 +282,7 @@ func _draw_profile() -> void:
 	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
 	var ug: Dictionary = Save.data.get("unit_games", {})
 	var uw: Dictionary = Save.data.get("unit_wins", {})
-	var um := RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+	var um := RS.unlocked_mask(_unlock_games(), _demo())
 	var cw := 108.0
 	for t in D.total():
 		var r2 := Rect2(78 + (t % 10) * (cw + 4), 212 + (t / 10) * 116, cw, 110)

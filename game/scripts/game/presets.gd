@@ -1,4 +1,9 @@
 extends RefCounted
+
+## 第十輪 R1：試玩版開放的地圖（平原、雙橋河谷、冰湖雪原）與試煉（第 1、3 關）、殘局前 5 關。
+const DEMO_MAPS := [0, 1, 3]
+const DEMO_TRIALS := [0, 2]
+const DEMO_PUZZLES := 5
 ## 規則大廳的預設組合與徽章（第五輪 §3.5）。純函式，不碰畫面。
 ## kind："ai"（對 AI 快速對戰）、"duel"（同機雙人）。
 ## unlocked：玩家已解鎖的卡池遮罩（對 AI 用；雙人不看個人進度，只受試玩版限制）。

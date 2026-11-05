@@ -167,7 +167,7 @@ func _draw_result() -> void:
 		for i in 5:
 			_btn(Rect2(214 + i * 36, 160 + tz("C") * 1.4, 32, 32), str(i + 1), _pt_rate.bind(i + 1))
 	# 試玩版結尾（第三輪 F5）
-	if OS.has_feature("demo") and series_over and play_kind == "official":
+	if _demo() and series_over and play_kind == "official":
 		var wr := Rect2(260, minf(y, 588), 760, 52)
 		draw_rect(wr, Color(0.35, 0.22, 0.05, 0.95))
 		draw_rect(wr, ACCENT, false, 2.0)
@@ -202,7 +202,7 @@ func _draw_result() -> void:
 	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
 		bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	bs.append([L.t("replay"), func(): _replay()])
-	bs.append([L.t("menu"), func(): _go_title()])
+	bs.append([L.t("menu"), func(): _request_leave()])
 	var bw2 := 200.0 if bs.size() <= 3 else 176.0
 	var x := 640.0 - (bs.size() * (bw2 + 12) - 12) / 2.0
 	for i in bs.size():
@@ -357,7 +357,7 @@ func _next_puzzle() -> void:
 	for i in list.size():
 		if list[i]["id"] == puzzle_id and i + 1 < list.size():
 			var nx: Dictionary = list[i + 1]
-			if nx.has("unit") and RS.games_to_unlock(int(nx["unit"]), _unlock_games(), OS.has_feature("demo")) != 0:
+			if nx.has("unit") and RS.games_to_unlock(int(nx["unit"]), _unlock_games(), _demo()) != 0:
 				break   # 下一關的新兵還沒解鎖
 			puzzle_id = nx["id"]
 			_start_mode(mode)

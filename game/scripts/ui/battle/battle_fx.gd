@@ -65,7 +65,7 @@ func _draw_battle_report() -> void:
 	var ctl: bool = play_kind != "official"
 	var rows := 1 if ctl else 2     # 重播時底部有控制列，只剩一排
 	var rh: float = tz("S") * 1.32
-	var y0: float = 800.0 - rows * rh - 4.0 if ctl else 692.0
+	var y0: float = 800.0 - rows * rh - 4.0 if ctl else minf(720.0, 766.0 - rows * rh)
 	var cw := 412.0
 	for i in mini(report_log.size(), rows * 3):
 		var e: Dictionary = report_log[i]

@@ -71,6 +71,8 @@ func set_volumes(sfx_pct: int, music_pct: int) -> void:
 	sfx_vol = sfx_pct / 100.0
 	music_vol = music_pct / 100.0
 	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6))
+	if amb != null:
+		amb.volume_db = linear_to_db(maxf(0.0001, sfx_vol * 0.22))   # 第十輪 B6：環境音跟音效音量
 
 func play(name: String, vol := 1.0) -> void:
 	if not streams.has(name) or sfx_vol <= 0.0:

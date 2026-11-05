@@ -18,7 +18,7 @@ var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab"]
 
 func _lobby_unlocked() -> int:
-	return RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+	return RS.unlocked_mask(_unlock_games(), _demo())
 
 func _lobby_std():
 	return Presets.make("standard", lobby_kind, _lobby_unlocked())
@@ -56,16 +56,16 @@ func _open_lobby(kind: String) -> void:
 	_open("lobby")
 
 func _lobby_clamp() -> void:
-	Presets.clamp_pool(lobby_r, lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	Presets.clamp_pool(lobby_r, lobby_kind, _lobby_unlocked(), _demo())
 
 func _lobby_pick(id: String) -> void:
-	if id == "fantasy" and not RuleSet.has_new(Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))):
+	if id == "fantasy" and not RuleSet.has_new(Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())):
 		_toast(L.t("lb_fantasy_locked"), true)   # 第八輪：第 14 場才有第一種奇幻軍
 		return
 	var keep_level: int = lobby_r.ai_level
 	var keep_place: String = lobby_r.place_rule
 	var keep_map: Array = [lobby_r.map_id, lobby_r.map_size, lobby_r.ai_style, lobby_r.map_mode]
-	lobby_r = Presets.make(id, lobby_kind, Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo")))
+	lobby_r = Presets.make(id, lobby_kind, Presets.selectable(lobby_kind, _lobby_unlocked(), _demo()))
 	lobby_r.ai_level = keep_level
 	lobby_r.ai_style = keep_map[2]
 	if lobby_r.deploy == "free":
@@ -86,7 +86,7 @@ func _lobby_touch() -> void:
 
 ## 卡池裡還沒解鎖（或試玩版不能用）的兵；有的話不能開戰（Codex 實作第 1 輪：匯入的規則照原樣保留，只是不能開戰）。
 func _lobby_locked_units() -> Array:
-	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
 	var out: Array = []
 	for tm in 2:
 		for t in D.total():
@@ -258,7 +258,7 @@ func _lobby_adj(id: String, d: int) -> void:
 
 func _lobby_toggle_unit(team: int, t: int) -> void:
 	lobby_item = "pool"
-	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
 	if not RuleSet.has(sel, t):
 		_toast(L.t("lb_locked_unit"), true)
 		return
@@ -372,7 +372,7 @@ func _draw_lobby_presets(o: Vector2) -> void:
 	for i in Presets.IDS.size():
 		var id: String = Presets.IDS[i]
 		var p = Presets.make(id, lobby_kind, _lobby_unlocked())
-		Presets.clamp_pool(p, lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+		Presets.clamp_pool(p, lobby_kind, _lobby_unlocked(), _demo())
 		var r := Rect2(o + Vector2(i * (w + 10), 0), Vector2(w, h))
 		var on: bool = lobby_r.preset == id
 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
@@ -435,7 +435,7 @@ func _draw_deploy_preview(r: Rect2) -> void:
 	draw_rect(q, Color(0, 0, 0, 0.5), false, 1.5)
 
 func _deck_random() -> void:
-	var sel: Array = RuleSet.types_of(Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo")))
+	var sel: Array = RuleSet.types_of(Presets.selectable(lobby_kind, _lobby_unlocked(), _demo()))
 	sel.shuffle()
 	var p := 0
 	for t in sel.slice(0, RuleSet.ROSTER_MAX):
@@ -460,7 +460,7 @@ func _deck_load(i: int) -> void:
 	var decks: Array = Save.data.get("decks", [])
 	if i >= decks.size():
 		return
-	var sel: int = Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	var sel: int = Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
 	var p: int = int(decks[i]) & sel
 	if p == 0 or not RuleSet.has_combat(p):
 		_toast(L.t("lb_deck_locked"), true)
@@ -809,7 +809,7 @@ func _rows(R: Rect2, rows: Array) -> void:
 func _draw_pool_tab(R: Rect2) -> void:
 	# 第八輪：兩邊名單不同時一次只顯示一邊（兩排卡片放不下兩隊），用分頁切換
 	var y := R.position.y
-	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), OS.has_feature("demo"))
+	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
 	var two: bool = not lobby_r.ai_pool_same
 	if not two:
 		lobby_pool_team = 0
@@ -853,7 +853,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 					call("_lock_icon", cr.position + Vector2(cw - 12, 12))
 				elif on:
 					draw_rect(cr, Color("#7ddc8a"), false, 2.0)
-				if t == RS.newest_new(_unlock_games(), OS.has_feature("demo")) and _unlock_games() < int(RS.UNLOCK_NEW[-1]) + 3:   # 全解鎖一陣子後就不蓋章
+				if t == RS.newest_new(_unlock_games(), _demo()) and _unlock_games() < int(RS.UNLOCK_NEW[-1]) + 3:   # 全解鎖一陣子後就不蓋章
 					var pw: float = _width(L.t("lb_new_pill"), tz("C")) + 8.0
 					draw_rect(Rect2(cr.position + Vector2(cw - pw, 0), Vector2(pw, tz("C") * 1.25)), Color("#d98a22"))
 					_text(cr.position + Vector2(cw - pw + 4, 0), L.t("lb_new_pill"), tz("C"), Color.WHITE)

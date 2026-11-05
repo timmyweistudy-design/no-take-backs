@@ -2,6 +2,29 @@ extends "res://scripts/ui/screens/game_core.gd"
 ## 由 game_screens.gd 拆出（V9 P1，行為不變）
 
 # ───────────────────────── 狀態切換 ─────────────────────────
+## 第十輪 B10：玩家按離開。系列打到一半或遠征途中，先確認（自動導頁直接呼叫 _go_title，不跳確認）。
+func _leave_at_risk() -> bool:
+	if state == St.TITLE or watch_mode:
+		return false
+	if mode == Mode.GAUNTLET:
+		if state == St.RESULT and sim != null:
+			return sim.winner == 0 and gauntlet_stage < 7
+		return gauntlet_stage > 1
+	if mode == Mode.VS_AI or mode == Mode.DUEL:
+		return wins[0] + wins[1] > 0 and not series_over
+	return false
+
+func _request_leave() -> void:
+	if _leave_at_risk():
+		overlay = "leave"
+		_focus = 0
+	else:
+		_go_title()
+
+func _leave_confirm() -> void:
+	overlay = ""
+	_go_title()
+
 func _go_title() -> void:
 	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
 	sfx.set_muffled(false)
@@ -522,7 +545,7 @@ func _draw_place_hud() -> void:
 		_btn(Rect2(884, 746, 120, 44), L.t("menu_hint"), func(): call("_puzzle_hint"))
 	if _can_edit_existing():
 		_btn(Rect2(1012, 746, 120, 44), L.t("clear"), func(): _clear_mine())
-	_btn(Rect2(1140, 746, 128, 44), L.t("menu"), func(): _go_title())
+	_btn(Rect2(1140, 746, 128, 44), L.t("menu"), func(): _request_leave())
 	if removed_banner_t > 0.0:
 		var bw := _width(removed_banner, tz("B"), true) + 40
 		var br := Rect2(640 - bw / 2, 100, bw, tz("B") * 1.8)
@@ -558,7 +581,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 	_text(Vector2(x, y - 2), name, tz("B"), ACCENT, false, true)
 	x += _width(name, tz("B"), true) + 12
 	if not _allowed(i) and not (rules != null):
-		var left := RS.games_to_unlock(i, _unlock_games(), OS.has_feature("demo"))
+		var left := RS.games_to_unlock(i, _unlock_games(), _demo())
 		var lock: String = L.t("locked_demo") if left < 0 else (L.t("locked_classic") if left == 0 else L.t("locked_games", [left]))
 		_text(Vector2(x, y), lock, tz("S"), Color(1, 1, 1, 0.8))
 		_draw_place_help()

@@ -171,6 +171,8 @@ static func sanitize_data(out: Dictionary) -> void:
 		for k in raw_lr:
 			if raw_lr[k] is String and str(raw_lr[k]).length() <= 2000:
 				lr[str(k)] = raw_lr[k]
+			elif raw_lr[k] is Array and str(k).ends_with("_extra") and raw_lr[k].size() <= 4 and raw_lr[k].all(func(v): return v is int or v is float):
+				lr[str(k)] = raw_lr[k].map(func(v): return int(v))   # 第十輪 B3：性格、輪替、禁牌、時段（JSON 讀回是浮點數）
 	out["last_rules"] = lr
 
 ## 逐版遷移（純函式，測試用）：舊進度一律保留；不認得的欄位也保留（新版遊戲寫的存檔被舊版讀到時不會被刪掉）。

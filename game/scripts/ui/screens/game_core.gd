@@ -136,17 +136,17 @@ func _build_ai() -> void:
 				armies[1] = res["army"]
 				ai_name = "%s・%s" % [L.t("diff_normal"), res["name"]]
 			_:
-				armies[1] = _hard_ai(r)
+				armies[1] = _hard_ai(r, p1)
 				ai_name = L.t("diff_hard")
 
 
 
 ## 困難 AI：第 1 局沒有資訊，用會讀對方的落子 AI 自己組；之後讀你上一局的陣型，
 ## 先查離線反制庫（組成最接近的原型），查不到就用啟發式反制。不偷看你這一局。
-func _hard_ai(r: RandomNumberGenerator) -> Army:
+func _hard_ai(r: RandomNumberGenerator, pool: int) -> Army:
 	# 第四輪：候選陣型各和你上一局的陣型模擬一場，挑最好的（scripts/core/hard_ai.gd）
 	var known: Array = last_player_formation if round_no > 1 else []
-	return HardAI.build(known, _counter_lib(), r, rules.pool_of(1) if rules != null else _pool(), rules)
+	return HardAI.build(known, _counter_lib(), r, pool, rules)
 
 
 
@@ -242,9 +242,9 @@ func _progress_and_achievements() -> void:
 	Save.data["unlock_games"] = ug_before + 1
 	# 新兵種解鎖（第四輪 §9）：提示並指向殘局裡的新兵試玩（第五輪：看解鎖累計場數）
 	if not bool(Save.s("unlock_all")):
-		for nt in RS.newly_unlocked(ug_before, ug_before + 1, OS.has_feature("demo")):
+		for nt in RS.newly_unlocked(ug_before, ug_before + 1, _demo()):
 			ach_queue.append(L.t("unit_unlocked", [L.t("unit_%d" % nt)]))
-		for nt2 in RS.newly_unlocked_new(ug_before, ug_before + 1, OS.has_feature("demo")):
+		for nt2 in RS.newly_unlocked_new(ug_before, ug_before + 1, _demo()):
 			ach_queue.append(L.t("unit_unlocked_new", [L.t("unit_%d" % nt2)]))
 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
 	var stat_key := "stats" if standard else "custom_stats"
@@ -254,6 +254,14 @@ func _progress_and_achievements() -> void:
 		st["wins"] = int(st.get("wins", 0)) + 1
 	Save.data[stat_key] = st
 	_v8_achievements(w)   # 奇幻軍是娛樂變體，要放在「自訂規則提前返回」之前（Codex 第 3 輪）
+	# 圖鑑老兵筆記：派這個兵種贏一場 +1（第二輪方案 R3）。第十輪 B4：自訂規則、奇幻軍也算（放在提前返回之前）
+	var types := {}
+	if me_won:
+		for u in sim.units:
+			if u.team == w:
+				types[D.report_type(u.type)] = true
+		for t in CX.record_win(Save.data, types.keys()):
+			ach_queue.append(L.t("codex_unlocked", [L.t("unit_%d" % t)]))
 	if not standard:
 		# 自訂規則專屬成就（標準成就只看標準局）
 		if me_won and mode == Mode.VS_AI and w == 0:
@@ -275,15 +283,8 @@ func _progress_and_achievements() -> void:
 			_ach("CLOSE_CALL")
 		if sim.tick >= Sim.FRENZY_TICK:
 			_ach("FRENZY_WIN")
-		var types := {}
-		for u in sim.units:
-			if u.team == w:
-				types[D.report_type(u.type)] = true
 		if types.size() == 5:
 			_ach("ALL_TYPES")
-		# 圖鑑老兵筆記：派這個兵種贏一場 +1（第二輪方案 R3）
-		for t in CX.record_win(Save.data, types.keys()):
-			ach_queue.append(L.t("codex_unlocked", [L.t("unit_%d" % t)]))
 		if int(ev_count.get("charge%d" % w, 0)) >= 5:
 			_ach("CHARGE_5")
 		if int(ev_count.get("backstab%d" % w, 0)) >= 3:
@@ -407,7 +408,7 @@ func _ntypes() -> int:
 		kind = "duel"
 	elif mode == Mode.VS_AI or mode == Mode.GAUNTLET:
 		kind = "ai"
-	return RS.ntypes_for(kind, games, classic, OS.has_feature("demo"))
+	return RS.ntypes_for(kind, games, classic, _demo())
 
 
 
@@ -443,7 +444,7 @@ func _gauntlet_pool() -> int:
 	# 第八輪：開打前在「遠征用哪支軍隊」選的，整趟沿用；存檔被改壞就當沒選
 	var chosen = Save.data.get("gauntlet_pool", 0)
 	if (chosen is int or chosen is float) and int(chosen) > 0:
-		var cp: int = int(chosen) & RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+		var cp: int = int(chosen) & RS.unlocked_mask(_unlock_games(), _demo())
 		if RuleSet.has_combat(cp) and RuleSet.pool_count(cp) <= RuleSet.ROSTER_MAX:
 			return cp
 	var lp := _gauntlet_last_pool()
@@ -459,7 +460,7 @@ func _gauntlet_last_pool() -> int:
 	var d: Dictionary = RuleSet.from_code(code)
 	if not d["ok"]:
 		return 0
-	var p: int = int(d["rules"].pool_of(0)) & RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+	var p: int = int(d["rules"].pool_of(0)) & RS.unlocked_mask(_unlock_games(), _demo())
 	return p if RuleSet.has_combat(p) else 0
 
 
@@ -549,7 +550,7 @@ func _is_new_player() -> bool:
 ## 結果頁兵種長條要列哪幾種：有出場（造成或承受傷害）的兵種，依雙方合計由多到少，最多 5 種；同分取編號小的。
 static func report_rows(dealt: Array, taken: Array) -> Array:
 	var rows: Array = []
-	for t in D.COUNT:
+	for t in D.total():
 		if dealt[0][t] + dealt[1][t] + taken[0][t] + taken[1][t] > 0:
 			rows.append(t)
 	rows.sort_custom(func(p, q):
@@ -639,7 +640,7 @@ func _gauntlet_next() -> void:
 func _self_check() -> void:
 	for i in 3:
 		await get_tree().process_frame
-	var demo := OS.has_feature("demo")
+	var demo := _demo()
 	var out := {"demo": demo, "exported": OS.has_feature("template"), "engine": Engine.get_version_info().string}
 	out["strings"] = L.has("title") and L.t("title") != "title"
 	out["data"] = FileAccess.file_exists("res://data/puzzles.json") and FileAccess.file_exists("res://data/codex.json") and FileAccess.file_exists("res://data/strings.csv")

@@ -290,7 +290,7 @@ func _key(k: int) -> void:
 					else:
 						_on_skip()
 				elif state != St.TITLE:
-					_go_title()
+					_request_leave()
 		return
 	pad_mode = true
 	match k:
@@ -323,7 +323,7 @@ func _key(k: int) -> void:
 		KEY_SPACE, KEY_TAB:
 			_on_start()
 		KEY_ESCAPE:
-			_go_title()
+			_request_leave()
 
 
 
@@ -419,10 +419,11 @@ func _draw_inner() -> void:
 		var w := clampf((zoom - 1.0) / 0.5, 0.0, 1.0)
 		var c := (ORIGIN + FIELD / 2).lerp(fxf * zoom_center, w)
 		var half := Vector2(640, 388) / zoom
+		var anchor := Vector2(640, 388 + BATTLE_DY)
 		var lo := ORIGIN + half - Vector2(60, 100)
 		var hi := ORIGIN + FIELD - half + Vector2(60, 100)
 		c = Vector2(clampf(c.x, minf(lo.x, hi.x), maxf(lo.x, hi.x)), clampf(c.y, minf(lo.y, hi.y), maxf(lo.y, hi.y)))
-		cam = Transform2D(0, Vector2(zoom, zoom), 0, Vector2(640, 388) - c * zoom + off) * fxf
+		cam = Transform2D(0, Vector2(zoom, zoom), 0, anchor - c * zoom + off) * fxf
 	if state == St.TITLE:
 		# 第七輪 D4：示範戰場縮小放右邊，不被左側面板壓到
 		cam = Transform2D(0, Vector2(0.72, 0.72), 0, Vector2(1270.0 - (ORIGIN.x + FIELD.x) * 0.72, 400.0 - (ORIGIN.y + FIELD.y / 2.0) * 0.72))

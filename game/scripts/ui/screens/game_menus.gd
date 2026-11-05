@@ -4,7 +4,7 @@ extends "res://scripts/ui/screens/game_modes.gd"
 ## 第八輪成就：贏的那隊。沙盒不算（改過數值）。
 ## 標題選單進遠征：解鎖奇幻軍之後才要選，否則直接開打（新手不多一步）。
 func _enter_gauntlet() -> void:
-	if RuleSet.has_new(RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))):
+	if RuleSet.has_new(RS.unlocked_mask(_unlock_games(), _demo())):
 		overlay = "gauntlet_pick"
 	else:
 		_start_gauntlet_with(0)
@@ -19,7 +19,7 @@ func _start_gauntlet_with(pool: int) -> void:
 
 
 func _draw_gauntlet_pick() -> void:
-	var mask: int = RS.unlocked_mask(_unlock_games(), OS.has_feature("demo"))
+	var mask: int = RS.unlocked_mask(_unlock_games(), _demo())
 	var opts: Array = [
 		[L.t("lb_army_kingdom"), mask & RuleSet.all_pool()],
 		[L.t("lb_army_fantasy"), Presets.fantasy_pool(mask)],
@@ -187,7 +187,7 @@ func _draw_title() -> void:
 	_btn(Rect2(70, y1, 162, 44), L.t("menu_puzzle"), func(): _open("puzzles"))
 	_btn(Rect2(238, y1, 162, 44), L.t("menu_codex"), func(): _open_codex(0))
 	y1 += 50
-	if not OS.has_feature("demo"):
+	if not _demo():
 		_btn(Rect2(70, y1, 162, 44), L.t("menu_trials"), func(): _open("trials"))
 	_btn(Rect2(238, y1, 162, 44), L.t("menu_profile"), func(): _open("profile"))
 	var y2 := y1 + 50
@@ -197,7 +197,7 @@ func _draw_title() -> void:
 	_btn(Rect2(70, y2 + 44, 162, 36), L.t("bc_watch"), func(): _watch_battle_code(), true, false, Color(TH_WOOD_D, 0.92))
 	_btn(Rect2(238, y2 + 44, 162, 36), L.t("ch_accept"), func(): _accept_challenge(), true, false, Color(TH_WOOD_D, 0.92))
 	# 底部：解鎖進度＋最佳紀錄
-	var demo_b := OS.has_feature("demo")
+	var demo_b := _demo()
 	var um := RS.unlocked_mask(_unlock_games(), demo_b)
 	var n := RuleSet.pool_count(um)
 	var cap := RS.DEMO_MAX + 1 if demo_b else D.total()
@@ -241,6 +241,12 @@ func _draw_overlay() -> void:
 			_draw_reward()
 		"ban":
 			_draw_ban()
+		"leave":
+			_panel(Rect2(340, 270, 600, 260))
+			_text(Vector2(640, 294), L.t("leave_title"), tz("H2"), Color.WHITE, true, true, 540)
+			_text(Vector2(640, 354), L.t("leave_body_gauntlet") if mode == Mode.GAUNTLET else L.t("leave_body_series"), tz("B"), Color(1, 1, 1, 0.85), true, false, 540)
+			_btn(Rect2(380, 450, 250, 52), L.t("leave_stay"), func(): overlay = "", true, true)
+			_btn(Rect2(650, 450, 250, 52), L.t("leave_go"), func(): _leave_confirm())
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
 			var tabs0 := [PZ.puzzles(), PZ.new_puzzles(), PZ.fantasy_puzzles()]
@@ -270,7 +276,7 @@ func _draw_overlay() -> void:
 				var line := "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)]
 				if pz.has("unit"):
 					# 新兵試玩：那個兵種解鎖後才能玩
-					var left := RS.games_to_unlock(int(pz["unit"]), _unlock_games(), OS.has_feature("demo"))
+					var left := RS.games_to_unlock(int(pz["unit"]), _unlock_games(), _demo())
 					if left != 0:
 						en = false
 						line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo") if left < 0 else L.t("locked_short", [left])]
