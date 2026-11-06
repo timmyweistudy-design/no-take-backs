@@ -7,12 +7,16 @@ const D = preload("res://scripts/core/unit_defs.gd")
 const RS = preload("res://scripts/core/ruleset.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const CMD = preload("res://scripts/core/cmd_defs.gd")
-## 第十三輪：10 章，每章 10 關。1＝經典 p、2＝新兵 n＋extra、3＝奇幻 f，其他都在 extra（"ch" 欄）。
-const CHAPTERS := 10
-const GOALS := ["win", "protect", "survive", "kill"]
+## 第十三輪：10 章，每章 10 關（V1.1 加第 11 章）。1＝經典 p、2＝新兵 n＋extra、3＝奇幻 f，其他都在 extra（"ch" 欄）。
+const CHAPTERS := 11   # V1.1：第 11 章完美主義
+const GOALS := ["win", "protect", "survive", "kill", "flawless", "margin"]   # V1.1 D5：後兩種只看戰後狀態
 const MAP_SIZE := 1             # 地形殘局只用中尺寸（16×9＝格子殘局的場地）
 
 static var _data := {}
+static var _custom := {}   # V1.1 D3：工坊碼匯入的那一關（id "ws"），不進清單、不存星數
+
+static func set_custom(pz: Dictionary) -> void:
+	_custom = pz
 
 static func _load() -> void:
 	if not _data.is_empty():
@@ -91,6 +95,8 @@ static func all_ids() -> Array:
 	return out
 
 static func get_puzzle(id: String) -> Dictionary:
+	if id == "ws":
+		return _custom
 	for p in tutorials() + all_puzzles():
 		if p["id"] == id:
 			return p
@@ -171,6 +177,14 @@ static func unit_alive(sim, team: int, cell: Array) -> bool:
 			return u.alive
 	return false
 
+## 我方某兵種倒了幾隻（召喚物不算我方擺的兵）。
+static func lost_of_type(sim, t: int) -> int:
+	var n := 0
+	for u in sim.units:
+		if u.team == 0 and u.type == t and not u.alive and not u.summon:
+			n += 1
+	return n
+
 ## 打完之後：這關算不算過、剩餘戰力、星數、各條件（遊戲、工具、測試共用）。
 static func outcome(pz: Dictionary, sim, spent_extra: int) -> Dictionary:
 	var g := goal(pz)
@@ -183,6 +197,10 @@ static func outcome(pz: Dictionary, sim, spent_extra: int) -> Dictionary:
 			ok = won and not unit_alive(sim, 1, pz["goal_unit"])
 		"survive":
 			ok = sim.alive_count(0) > 0
+		"flawless":
+			ok = won and lost_of_type(sim, int(pz["goal_type"])) == 0   # V1.1 D5：這種兵一隻都不能倒
+		"margin":
+			ok = won and rem_pct(sim.power(0), sim.budget) >= int(pz["goal_rem"])   # V1.1 D5：贏得夠漂亮
 	var rem: int = rem_pct(sim.power(0), sim.budget) if ok else 0
 	return {"ok": ok, "won": won, "goal": g, "rem": rem, "spent": spent_extra, "stars": stars(pz, ok, rem, spent_extra)}
 

@@ -620,6 +620,11 @@ func _fp_draw() -> void:
 			var b0 := p + Vector2(-10 * dir, 10)
 			draw_line(b0, b0 + Vector2(22 * dir, 0), Color(1, 1, 1, 0.8), 2.0)
 			draw_colored_polygon(PackedVector2Array([b0 + Vector2(22 * dir, -5), b0 + Vector2(30 * dir, 0), b0 + Vector2(22 * dir, 5)]), Color(1, 1, 1, 0.8))
+	# V1.1 C5：密陣被下排蓋到臉的補畫半透明
+	var xr: Array = []
+	for it3 in lst:
+		xr.append([_s_of(Vector2i(it3[1], it3[0])), [it3[2], it3[3], 1.0 if it3[3] == 0 else -1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0]])
+	_draw_xray(xr)
 	# 密集處：游標附近每隻兵的腳底中心點透到最上層（§4.3，看得出誰站哪）
 	if _fp_in_field(mouse) or pad_mode:
 		var hw: Vector2i = Vector2i(fp_cur) if pad_mode else hover_w

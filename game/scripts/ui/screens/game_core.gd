@@ -334,7 +334,7 @@ func _progress_and_achievements() -> void:
 		_ach("NO_TAKEBACKS")
 	if series_over and ((mode == Mode.DUEL and (wins == [2, 0] or wins == [0, 2])) or (mode == Mode.VS_AI and wins == [2, 0])):
 		_ach("SWEEP")
-	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
+	if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) and puzzle_id != "ws":   # V1.1 D3：工坊殘局不存星數
 		var stars := int(report.get("stars", 0))
 		var ps: Dictionary = Save.data.get("puzzle_stars", {})
 		if stars > int(ps.get(puzzle_id, 0)):
@@ -667,6 +667,10 @@ func _goal_text(pz: Dictionary) -> String:
 			return L.t("star_c_" + PZ.goal(pz), [L.t("unit_%d" % t)])
 		"survive":
 			return L.t("star_c_survive", [int(pz["goal_ticks"]) / 20])
+		"flawless":
+			return L.t("star_c_flawless", [L.t("unit_%d" % int(pz["goal_type"]))])
+		"margin":
+			return L.t("star_c_margin", [int(pz["goal_rem"])])
 	return L.t("star_c_win")
 
 func _star_lines(won: bool, rem: int, need_rem: int, spent: int, need_spent: int, goal := "") -> String:

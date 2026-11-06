@@ -301,6 +301,11 @@ func _draw_place_units() -> void:
 			_lock_icon(p + Vector2(17, -60))   # 14px 鎖頭（第三輪 U4）
 		if not pz.is_empty() and pz.has("goal_unit") and int(pz["goal_unit"][0]) == it[1] and int(pz["goal_unit"][1]) == it[0] and it[3] == (0 if PZ.goal(pz) == "protect" else 1):
 			_goal_marker(ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS, PZ.goal(pz))
+	# V1.1 C5：擺放時被下排蓋到臉的也補畫半透明
+	var xr: Array = []
+	for it2 in list:
+		xr.append([ORIGIN + Vector2(it2[1] + 0.5, it2[0] + 0.82) * CS, [it2[2], it2[3], 1.0 if it2[3] == 0 else -1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0]])
+	_draw_xray(xr)
 	if not pz.is_empty() and not pz.get("fixed", []).is_empty():
 		# 圖例
 		var lg := ORIGIN + Vector2(10, 10)

@@ -46,7 +46,12 @@ static func build(known: Array, entries: Array, rng: RandomNumberGenerator, pool
 			me.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
 	var best: Army = cands[0]
 	var bs := -(1 << 40)
+	var seen := {}   # V1.1 E5：一樣的候選陣型只算一次（分數一定相同，後到的又不會取代，結果不變）
 	for c in cands:
+		var ck: String = c.to_code()
+		if seen.has(ck):
+			continue
+		seen[ck] = true
 		var s = Sim.new(me.copy(), c.copy(), rules)
 		s.fast = true
 		s.cmd_auto = [false, true]     # 第十二輪：評估時紅方照實戰放技能（Codex v12-r1 #5）

@@ -222,7 +222,7 @@ func _draw_result() -> void:
 				bs.append([L.t("new_match") if series_over else L.t("next_round"), func(): _next_round()])
 		Mode.TUTORIAL, Mode.PUZZLE:
 			bs.append([L.t("retry"), func(): _start_mode(mode)])
-			if (w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false)):
+			if ((w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false))) and puzzle_id != "ws":
 				bs.append([L.t("next_puzzle"), func(): _next_puzzle()])
 		Mode.GAUNTLET:
 			if w == 0 and gauntlet_stage < 7:
@@ -237,6 +237,8 @@ func _draw_result() -> void:
 			bs.insert(0, [L.t("review_near"), func(): _open_review()])   # 第十輪 F4：輸得很近，主推覆盤
 		else:
 			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
+	if _ws_ok(w):
+		bs.append([L.t("ws_make"), func(): call("_make_workshop")])   # V1.1 D3：打贏的格子對戰可以出題
 	bs.append([L.t("replay"), func(): _replay()])
 	bs.append([L.t("menu"), func(): _request_leave()])
 	# 按鈕寬依結果框內寬分（框 880、左右各留 16）：試煉贏了最多 6 顆，舊的固定 176 會凸出框外（使用者截圖）
@@ -391,6 +393,19 @@ static func loss_summary(counts: Dictionary, pool: Array) -> String:
 	if best >= 0:
 		return L.t("loss_hint", [L.t("unit_%d" % top), pct, L.t("unit_%d" % best)])
 	return L.t("loss_hint_n", [L.t("unit_%d" % top), pct])
+
+## V1.1 D3：這場能不能做成殘局碼（藍方贏、格子部署、平原、沒開技能、不是試煉／每日／觀戰）。
+func _ws_ok(w: int) -> bool:
+	if w != 0 or watch_mode or play_kind == "review" or last_armies.size() != 2 or not (mode == Mode.VS_AI or mode == Mode.DUEL):
+		return false
+	if int(get("trial_id")) >= 0 or not (get("daily_spec") as Dictionary).is_empty():
+		return false
+	if rules != null and (rules.is_free() or rules.map_id != 0 or rules.cmd_on() or rules.fullfield != 0):
+		return false
+	for u in last_armies[0].units + last_armies[1].units:
+		if not u.has("col"):
+			return false
+	return true
 
 func _verdict(w: int) -> String:
 	var mvp = report.get("mvp")

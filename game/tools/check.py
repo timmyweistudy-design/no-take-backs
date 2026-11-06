@@ -108,7 +108,10 @@ def plan(a) -> list:
         test("t_determinism", "test_determinism_and_mirror")
         test("t_core", "core,-test_golden,-test_determinism_and_mirror")
         test("t_sandbox", "test_sandbox_v5")
-        test("t_stateful", ",".join(STATEFUL) + ",-test_sandbox_v5")
+        # V1.1 E1：t_stateful 是關鍵路徑（845 秒）。不寫存檔的慢測試拆成各自的行程（三星解有鎖存檔、另兩個不碰存檔）
+        for nm, fn in [("t_star", "test_star_solutions"), ("t_fmirror", "test_fantasy_mirror_v8"), ("t_events", "test_event_routes")]:
+            test(nm, fn)
+        test("t_stateful", ",".join(STATEFUL) + ",-test_sandbox_v5,-test_star_solutions,-test_fantasy_mirror_v8,-test_event_routes")
         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
         # V1.1 E1：最慢的兩組各切 6 片（基準 984 秒時每片約 740 秒，是整體的關鍵路徑）
         shards("golden", "tools/golden.gd", [f"--n={gn}"], r'^GOLDEN \{.*"ok":true', 6)

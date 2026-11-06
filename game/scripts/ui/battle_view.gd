@@ -237,6 +237,28 @@ static func event_route(ev: Dictionary) -> String:
 
 
 
+## V1.1 B2：這一關「斬首」目標的單位 id（不是斬首關＝-1）。id 規則同 PZ.unit_alive。
+func _goal_target_id() -> int:
+	var pz := PZ.get_puzzle(puzzle_id)
+	if pz.is_empty() or PZ.goal(pz) != "kill" or not pz.has("goal_unit"):
+		return -1
+	return 1000 + int(pz["goal_unit"][1]) * Sim.COLS + int(pz["goal_unit"][0])
+
+## V1.1 A7：兵種專屬的倒下演出（骷髏散骨、寶箱怪吐金幣、史萊姆濺開、爆爆羊留焦痕、幽靈化煙）。
+func _death_extra(u) -> void:
+	var p := _upos(u)
+	match u.type:
+		17, 21:
+			_add_fx({"kind": "bones", "p": p + Vector2(0, -16), "t": 0.0, "dur": 0.7})
+		12:
+			_add_fx({"kind": "coins", "p": p + Vector2(0, -20), "t": 0.0, "dur": 0.8})
+		13, 20:
+			_add_fx({"kind": "chips", "p": p + Vector2(0, -14), "t": 0.0, "dur": 0.5, "c": Color(0.45, 1.0, 0.55, 0.85), "drop": true})
+		14:
+			_add_fx({"kind": "puff", "p": p + Vector2(0, -24), "t": 0.0, "dur": 0.5})
+		19:
+			_add_fx({"kind": "chips", "p": p + Vector2(0, -20), "t": 0.0, "dur": 0.6, "c": Color("#a89a86")})
+
 var last_blast_tick := -99   # V1.1 B2：連環爆偵測（用模擬 tick，8 tick＝0.4 秒；開戰與跳轉時重置）
 
 ## 第八輪的事件演出。回傳 true＝處理掉了。全部受簡化特效限制（_add_fx 會擋裝飾性的）。
@@ -447,6 +469,14 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
 		if with_fx:
 			sfx.play("death", 0.7)
+			_death_extra(u)
+			# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
+			if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):
+				hitstop = maxf(hitstop, 0.3)
+				if _fx_on("shake"):
+					shake = maxf(shake, 0.18)
+				_fx_text(Vector2(640, 150), L.t("ev_behead"), ACCENT, 1.2, tz("H2"), true)
+				sfx.play("bell", 0.9)
 		return
 	if k == EV.HEAL and with_fx:
 		# 補血（第四輪 §4.4）：醫者到目標一條淡綠弧線＋綠色「+N」（不加黑底）

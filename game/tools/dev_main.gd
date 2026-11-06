@@ -1252,5 +1252,14 @@ func _shots_v13() -> void:
 	_open("reward")
 	await _snap("95_route_reward.png")
 	overlay = ""
+	# V1.1 D5：第 11 章清單與一關「不能倒」的擺放畫面
+	_go_title()
+	overlay = "puzzles"
+	puzzle_tab = 10
+	await _snap("96_chapter11.png")
+	overlay = ""
+	puzzle_id = "w1"
+	_start_mode(Mode.PUZZLE)
+	await _snap("97_place_flawless.png")
 	_go_title()
 	Save.data["puzzle_stars"] = {}

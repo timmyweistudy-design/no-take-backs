@@ -334,6 +334,11 @@ func step() -> void:
 			fighters[units[i].team] += 1
 
 	# ② 選目標＋提出移動
+	# V1.1 E4：每隊「可被選的敵人」索引先列好（遞增順序，和原本逐一掃描跳過的結果完全一樣），選目標只掃這份
+	_foes = [PackedInt32Array(), PackedInt32Array()]
+	for j0 in n:
+		if sv[j0] != 0:
+			_foes[1 - st[j0]].append(j0)
 	var nx := sx.duplicate()
 	var ny := sy.duplicate()
 	var new_target := PackedInt64Array()
@@ -467,19 +472,23 @@ func step() -> void:
 	if v8:
 		_v8_apply_pull(n, nx, ny)
 	# ③ 統一解碰撞（固定兩輪，所有推力加總後一次套用）
+	# V1.1 E4：參與碰撞的索引先列好（遞增；配對順序與原本相同，推力是整數加總，結果位元相同）
+	var act := PackedInt32Array()
+	for i0 in n:
+		if sc[i0] != 0:
+			act.append(i0)
+	var na := act.size()
 	for _pass in 2:
 		var px := PackedInt64Array()
 		var py := PackedInt64Array()
 		px.resize(n)
 		py.resize(n)
-		for i in n:
-			if sc[i] == 0:
-				continue
+		for a in na:
+			var i: int = act[a]
 			var xi := nx[i]
 			var yi := ny[i]
-			for j in range(i + 1, n):
-				if sc[j] == 0:
-					continue
+			for b in range(a + 1, na):
+				var j: int = act[b]
 				var dx := nx[j] - xi
 				var dy := ny[j] - yi
 				if dx >= MIN_SEP or dx <= -MIN_SEP or dy >= MIN_SEP or dy <= -MIN_SEP:
@@ -859,6 +868,8 @@ func step() -> void:
 
 ## 選目標（企劃 §3.3）：排除潛行 → 弓手警覺 → 盾兵嘲諷（近戰）→ 兵種偏好 → 距離 → 剩血 → 列 → 深度 → 編號。
 ## 只讀快照陣列，比較全部用整數（不配置陣列）。
+var _foes: Array = [PackedInt32Array(), PackedInt32Array()]   # V1.1 E4：這一 tick 每隊可選的敵人（只在 step 的 ② 有效）
+
 func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: PackedInt64Array,
 		sk: PackedInt64Array, sh: PackedInt64Array, sv: PackedByteArray, min_d2 := 0) -> int:
 	var my_team: int = st[i]
@@ -877,13 +888,21 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 	var b_hp := 0
 	var b_y := 0
 	var b_dep := 0
-	var n := sx.size()
-	for j in n:
-		if sv[j] == 0 or st[j] == my_team:
-			continue
+	var foes: PackedInt32Array = _foes[my_team]
+	# V1.1 E4：這種攻擊者最好能給到的優先級。目前最佳已經是這一級時，比它遠的敵人不可能勝出（優先級只會 ≥、距離又較遠），直接跳過
+	var min_r := 3
+	if my_type == D.ARCHER:
+		min_r = 0
+	elif melee and taunt2 >= 0:
+		min_r = 1
+	elif my_type == F8.GHOST or my_type == D.CAVALRY or my_type == D.ASSASSIN:
+		min_r = 2
+	for j in foes:
 		var dx: int = sx[j] - ux
 		var dy: int = sy[j] - uy
 		var d2 := dx * dx + dy * dy
+		if best != -1 and b_rank <= min_r and d2 > b_d2:
+			continue
 		if d2 < min_d2:
 			continue   # 投彈兵丟彈：最短射程內的不選（第四輪）
 		var et: int = sk[j]
@@ -1548,9 +1567,7 @@ func _tie_less(d2a: int, a: Unit, d2b: int, b: Unit) -> bool:
 ## 最近的可見敵人距離²（沒有回傳 -1）。用 ① 快照。
 func _nearest_visible_enemy_d2(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: PackedInt64Array, sv: PackedByteArray) -> int:
 	var best := -1
-	for j in sx.size():
-		if sv[j] == 0 or st[j] == st[i]:
-			continue
+	for j in _foes[st[i]]:
 		var d2 := M.dist2(sx[i], sy[i], sx[j], sy[j])
 		if best < 0 or d2 < best:
 			best = d2

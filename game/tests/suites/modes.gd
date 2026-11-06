@@ -1165,3 +1165,53 @@ func test_loss_summary_v11() -> void:
 	ok(s.find(L.t("unit_6")) >= 0 and s.find("75") >= 0, "B1 抓到傷害最多的敵兵與占比（只看藍方受傷）", s)
 	var s2: String = GR.loss_summary({"dmgby0_6": 300}, [])
 	ok(s2 != "" and s2 == L.t("loss_hint_n", [L.t("unit_6"), 100]), "B1 沒有可建議的兵就只講來源", s2)
+
+
+## V1.1 D3：工坊碼。拿一關有三星解的一般殘局當「打贏的對戰」出題，驗：可解才給碼、竄改擋下、門檻＝作者成績、不存星數。
+## V1.1 D5：新目標 margin／flawless 的判定。
+func test_workshop_v11() -> void:
+	var WSx = preload("res://scripts/game/workshop.gd")
+	var src := {}
+	for p in PZ.all_puzzles():
+		if PZ.goal(p) == "win" and p.get("fixed", []).is_empty() and not p.has("map") and not p.has("cmd") and p.has("best"):
+			src = p
+			break
+	ok(not src.is_empty(), "D3 找得到一關當素材")
+	var sol: Array = src["best"]["u"]
+	var code: String = WSx.encode(src["enemy"], sol)
+	ok(code.begins_with("NTP1."), "D3 打得贏就給碼", code.substr(0, 20))
+	var d: Dictionary = WSx.decode(code)
+	ok(bool(d["ok"]), "D3 碼解得回來而且作者解重跑過關", str(d.get("why")))
+	var cost := 0
+	for u in sol:
+		cost += D.cost(int(u[0]))
+	ok(int(d["pz"]["star3"]) == cost and int(d["pz"]["budget"]) == cost, "D3 預算與三星花費＝作者花的錢")
+	var r: Dictionary = PZ.play(d["pz"], sol)
+	ok(int(r["stars"]) == 3, "D3 照作者的解打＝三星", str(r))
+	var parts := code.split(".")
+	ok(not bool(WSx.decode(parts[0] + "." + parts[1] + "A." + parts[2])["ok"]), "D3 竄改內容擋下（雜湊不符）")
+	ok(not bool(WSx.decode("NTP1.xx.yy")["ok"]) and not bool(WSx.decode("")["ok"]), "D3 亂碼擋下")
+	ok(WSx.encode(src["enemy"], [sol[0]]) == "" or bool(WSx.decode(WSx.encode(src["enemy"], [sol[0]]))["ok"]), "D3 打不贏的解不給碼")
+	ok(WSx.encode([[0, 3, 3]], sol) == "", "D3 敵陣不在敵方欄就不收")
+	PZ.set_custom(d["pz"])
+	ok(PZ.get_puzzle("ws")["star3"] == cost and not "ws" in PZ.all_ids(), "D3 工坊殘局不進清單")
+	# D5：margin 以剩餘戰力判定、flawless 以指定兵種陣亡數判定
+	var won: Dictionary = PZ.play(src, sol)
+	var m := src.duplicate(true)
+	m["goal"] = "margin"
+	m["goal_rem"] = int(won["rem"])
+	ok(bool(PZ.play(m, sol)["ok"]), "D5 margin：剛好達標算過")
+	m["goal_rem"] = int(won["rem"]) + 1
+	ok(not bool(PZ.play(m, sol)["ok"]), "D5 margin：差 1% 不過")
+	var f := src.duplicate(true)
+	f["goal"] = "flawless"
+	var unused := -1
+	for t in [19, 18, 17, 16, 15]:
+		var used := false
+		for u in sol:
+			used = used or int(u[0]) == t
+		if not used:
+			unused = t
+			break
+	f["goal_type"] = unused
+	ok(bool(PZ.play(f, sol)["ok"]), "D5 flawless：沒帶的兵種＝不可能陣亡＝過")

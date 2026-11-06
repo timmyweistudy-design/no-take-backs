@@ -9,12 +9,12 @@
 | `ai_army.gd` | 183 | AI 陣型（原型＝企劃 §7 的「普通」：從原型陣型挑一套再隨機微調）。 |
 | `ai_turns.gd` | 192 | 會「讀對方」的落子 AI（優化方案 A2、C）。用在：輪流落子模式、平衡工具的先後手測試、AI 難度。 |
 | `army.gd` | 563 | 一方的陣型：預算、人數上限、部署區、格子佔用。純資料，不碰畫面。 |
-| `battle_sim.gd` | 1983 | 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3；優化方案 B1、L1。 |
+| `battle_sim.gd` | 2000 | 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3；優化方案 B1、L1。 |
 | `cmd_defs.gd` | 64 | 手動技能（第十二輪）：玩家戰鬥中按下的全隊技能。純資料、全整數。 |
 | `events.gd` | 56 | 事件名稱表（第三輪 A4）：模擬送出的事件種類（kind）與效果標籤（tags）只能用這裡的常數。 |
 | `fantasy_defs.gd` | 91 | 第八輪奇幻兵團的數值與常數。獨立成一個檔案：unit_defs.gd 的常數決定舊場次的數值摘要，一個都不能動。 |
 | `formations.gd` | 246 | 陣型產生器（平衡工具 2.0 的訓練池／保留池，優化方案 B2）。全部由種子決定。 |
-| `hard_ai.gd` | 92 | 困難 AI（第四輪）：真的「讀你上一局」。 |
+| `hard_ai.gd` | 97 | 困難 AI（第四輪）：真的「讀你上一局」。 |
 | `imath.gd` | 25 | 確定性整數數學。GDScript 的 int/int 是「往 0 截斷」，左右鏡像時結果對稱，所以全部沿用。 |
 | `map_defs.gd` | 80 | V9 地圖資料（純資料＋整數）：左半邊的矩形清單，右半邊自動鏡像，所以公平性由建構保證。 |
 | `mirror_check.gd` | 155 | 左右交換逐 tick 比對（優化方案 B1／L1）：原本 (隊,列,欄) ↔ 鏡像 (1-隊,列,15-欄)，每 tick 比位置、血、面向、存活。 |
@@ -32,23 +32,24 @@
 | `daily.gd` | 116 | V1.1 D2：每日挑戰＋每週突變。純函式，不碰畫面（遊戲、測試共用）。 |
 | `keymap.gd` | 106 | 按鍵重設（第七輪 K1、F9）。程式裡的按鍵判斷都用預設按鍵常數，這裡在入口把實際按下的鍵換回預設， |
 | `presets.gd` | 130 | 第十輪 R1：試玩版開放的地圖（平原、雙橋河谷、冰湖雪原）與試煉（第 1、3 關）、殘局前 5 關。 |
-| `puzzles.gd` | 269 | 教學與殘局關卡資料（data/puzzles.json）。 |
+| `puzzles.gd` | 287 | 教學與殘局關卡資料（data/puzzles.json）。 |
 | `roster.gd` | 23 | 兵種開放（第十一輪）：不靠場數解鎖，正式版一開始 20 種全部能用。 |
 | `save.gd` | 357 | 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。 |
 | `sfx.gd` | 187 | 音效與音樂（優化方案 H）：同類音效 80ms 內最多 2 個、音高 ±10% 隨機；音樂與音效分軌。 |
 | `steam.gd` | 129 | Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。 |
 | `strings.gd` | 50 | 字串表（優化方案 I）：data/strings.csv，欄位 key,zh_TW,en。所有畫面文字都從這裡來，不寫死在程式裡。 |
 | `trial_data.gd` | 10 | 第十三輪：新增試煉（索引 ≥10）的資料快取，讀 data/trials.json。 |
+| `workshop.gd` | 92 | V1.1 D3：殘局工坊碼 NTP1。打贏一場格子對戰 → 把敵陣＋自己的解做成殘局碼傳給朋友解。 |
 
 ## game/scripts/ui
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
-| `art.gd` | 190 | 其他層在同資料夾（V9 P1 拆檔） |
-| `battle_view.gd` | 720 | 其他層在同資料夾（V9 P1 拆檔） |
+| `art.gd` | 204 | 其他層在同資料夾（V9 P1 拆檔） |
+| `battle_view.gd` | 750 | 其他層在同資料夾（V9 P1 拆檔） |
 | `charts.gd` | 198 | 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。 |
 | `codex_view.gd` | 484 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
-| `free_place.gd` | 878 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
+| `free_place.gd` | 883 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
 | `game_screens.gd` | 625 | 其他層在同資料夾（V9 P1 拆檔） |
 | `icons.gd` | 167 | V9 P5 圖示：全部向量自繪，不靠字型（思源黑體沒有這些符號）。一律 24×24 概念，c＝中心、s＝邊長。 |
 | `lobby_view.gd` | 1039 | 規則大廳（第五輪 §3.5、§3.6）。兩段式： |
@@ -64,19 +65,19 @@
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
-| `battle_fx.gd` | 577 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_fx.gd` | 595 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
 | `battle_state.gd` | 398 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
-| `battle_units.gd` | 645 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_units.gd` | 681 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
 
 ## game/scripts/ui/screens
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
-| `game_core.gd` | 795 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_menus.gd` | 509 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_modes.gd` | 677 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
-| `game_place.gd` | 761 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_result.gd` | 462 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_core.gd` | 799 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_menus.gd` | 510 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_modes.gd` | 714 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
+| `game_place.gd` | 766 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_result.gd` | 477 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
 
 ## game/scripts/ui/units
 
@@ -105,7 +106,7 @@
 | `free.gd` | 347 |  |
 | `harness.gd` | 25 | 第七輪 R2：測試框架自己的契約。 |
 | `maps.gd` | 105 | 地圖（V9 P3）：鏡像、可達、舊路徑不變、代碼、尋路不卡死。 |
-| `modes.gd` | 1167 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
+| `modes.gd` | 1217 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
 | `rules.gd` | 579 |  |
 | `save.gd` | 157 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
 | `ui.gd` | 757 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
@@ -118,7 +119,7 @@
 | `anim_sheet.gd` | 38 | 角色全影格拼圖（V9 P2）：要真的繪圖，不能 headless。 |
 | `atlas_check.gd` | 130 | 角色圖集檢查（第七輪 C0）：要真的繪圖，不能 headless。 |
 | `compat.gd` | 126 | 舊兵種相容檢查（第四輪方案 §3.1～3.2）。 |
-| `dev_main.gd` | 1256 | 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。 |
+| `dev_main.gd` | 1265 | 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。 |
 | `golden.gd` | 113 | 確定性金標準（第三輪 T2）。 |
 | `golden_free.gd` | 158 | 自由模式跨版本金標準（第七輪 S1）。舊金標準 golden.gd 只鎖格子舊路徑，自由模式原本只有同版自比。 |
 | `golden_map.gd` | 130 | V9 金標準：鎖住有地圖或非標準大小的戰鬥。舊金標準不會走這些分支。 |

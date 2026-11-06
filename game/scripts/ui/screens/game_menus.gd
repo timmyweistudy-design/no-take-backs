@@ -255,7 +255,8 @@ func _draw_overlay() -> void:
 			_text(Vector2(640, 316), L.t("codes_hint"), tz("S"), Color(1, 1, 1, 0.8), true, false, 540)
 			_btn(Rect2(380, 370, 250, 52), L.t("bc_watch"), func(): overlay = ""; _watch_battle_code())
 			_btn(Rect2(650, 370, 250, 52), L.t("ch_accept"), func(): overlay = ""; _accept_challenge())
-			_btn(Rect2(560, 480, 160, 44), L.t("back"), func(): overlay = "")
+			_btn(Rect2(380, 428, 520, 44), L.t("ws_accept"), func(): overlay = ""; call("_accept_workshop"))   # V1.1 D3
+			_btn(Rect2(560, 486, 160, 44), L.t("back"), func(): overlay = "")
 		"gauntlet_resume":
 			_panel(Rect2(340, 250, 600, 300))
 			_h1(Vector2(640, 254), L.t("menu_gauntlet"))

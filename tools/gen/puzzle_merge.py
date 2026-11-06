@@ -96,7 +96,11 @@ def main():
     # 章內依難度：隨機擺法過關率高的在前；同率照草稿順序
     pos = {i: k for k, i in enumerate(order)}
     extra.sort(key=lambda d: (d["ch"], -d["_m"].get("rand_pct", 0), pos[d["id"]]))
-    data["extra"] = extra
+    # V1.1：第 11 章（chapter11_merge.py 附加的）原樣保留，重跑前 10 章的合併不會把它洗掉
+    keep11 = [p for p in json.load(open(DATA, encoding="utf-8"))["extra"] if int(p.get("ch", 0)) >= 11]
+    data["extra"] = extra + keep11
+    if keep11:
+        data["chapters"] = data["chapters"][:10] + json.load(open(DATA, encoding="utf-8"))["chapters"][10:]
     json.dump(data, open(DATA, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("併入", len(extra), "關")
     for i, why in skipped:

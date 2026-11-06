@@ -161,6 +161,25 @@ func _draw_v8_top(s, u, p: Vector2) -> void:
 
 
 
+## V1.1 C5：0.8 格密陣時下排的頭會蓋到上排的臉。被蓋到的那隻（正下方 30px 內有另一隻）在最上面補畫一層 35% 透明的自己。
+## 純畫面；不改排序（y 排序照舊），所以前後關係還是對的，只是臉看得到。
+func _draw_xray(items: Array) -> void:
+	if items.size() < 2:
+		return
+	for i in items.size():
+		var pa: Vector2 = items[i][0]
+		var hid := false
+		for j in items.size():
+			if j == i:
+				continue
+			var pb: Vector2 = items[j][0]
+			if pb.y > pa.y and pb.y - pa.y < 30.0 * UNIT_SCALE and absf(pb.x - pa.x) < 20.0 * UNIT_SCALE:
+				hid = true
+				break
+		if hid:
+			var a: Array = items[i][1]
+			_unit(pa, int(a[0]), int(a[1]), float(a[2]), float(a[3]), float(a[4]), 0.0, float(a[5]) * 0.35, time, UNIT_SCALE, 0, float(a[6]), float(a[7]), int(a[8]))
+
 ## 這隻兵附近（60px 內）有幾隻活著的兵，不算自己。
 func _crowd_at(u) -> int:
 	var n := 0
@@ -371,6 +390,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			crowd[list[a].id] = n
 	# 第二層：身體（V9：地圖的前景物件依腳點 y 插進來，才有前後遮擋）
 	var prop_i := 0
+	var xray: Array = []   # V1.1 C5：[腳點, 參數]，給被下排蓋到臉的那隻補畫半透明
 	for u in list:
 		var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		while prop_i < fld_props.size() and ORIGIN.y + float(fld_props[prop_i][0]) <= p.y:
@@ -459,6 +479,19 @@ func _draw_units_of(s, dim: bool) -> void:
 			lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
 			crouch = 1.06
 			_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
+			# V1.1 A7：兵種專屬的勝利小動作
+			match u.type:
+				D.DRUMMER:   # 鼓手：頭邊冒音符
+					var nk := fmod(time * 1.6 + u.id * 0.3, 1.0)
+					_icon("sound", p + Vector2(18 + nk * 8, -48 - nk * 22 - hop), 14.0, Color(1.0, 0.85, 0.4, 1.0 - nk))
+				D.BERSERKER:   # 狂戰士：雙斧互敲的火花圈
+					var bk := absf(sin((time + u.id * 0.05) * PI / 0.45))
+					draw_arc(p + Vector2(0, -50 - hop), 8.0 + bk * 6.0, 0, TAU, 16, Color(1.0, 0.55, 0.2, 0.8 * bk), 2.5, true)
+				D.MEDIC:   # 醫者：綠色小十字往上飄
+					var mk := fmod(time * 1.2 + u.id * 0.4, 1.0)
+					var mc := p + Vector2(-16, -44 - mk * 24 - hop)
+					draw_line(mc - Vector2(4, 0), mc + Vector2(4, 0), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+					draw_line(mc - Vector2(0, 4), mc + Vector2(0, 4), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
 		p.y -= hop
 		if u.hidden:
 			Art.mimic_closed(self, p, u.team, face, alpha, time, cbm(), UNIT_SCALE)   # 偽裝中的寶箱怪
@@ -486,6 +519,8 @@ func _draw_units_of(s, dim: bool) -> void:
 				var sa0 := time * 5.0 + sk0 * TAU / 3.0
 				_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
 		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
+		if live and not u.hidden:
+			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
 			var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
@@ -497,6 +532,7 @@ func _draw_units_of(s, dim: bool) -> void:
 				var q0 := tip - Vector2(face * k * 8.0, 0)
 				var q1 := tip - Vector2(face * (k + 1) * 8.0, 0)
 				draw_line(q0, q1, Color(1.0, 0.86, 0.3, (0.8 - k * 0.2) * alpha), 3.0 - k * 0.5, true)
+	_draw_xray(xray)
 	while prop_i < fld_props.size():
 		MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
 		prop_i += 1

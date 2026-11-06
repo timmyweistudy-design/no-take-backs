@@ -281,6 +281,43 @@ func _demo_ok(r, a = null) -> bool:
 				return false
 	return true
 
+## ── V1.1 D3：殘局工坊碼 ──
+const WS = preload("res://scripts/game/workshop.gd")
+
+func _ws_list(a) -> Array:
+	var out: Array = []
+	for u in a.units:
+		out.append([int(u["type"]), int(u["col"]), int(u["row"])])
+	return out
+
+func _make_workshop() -> void:
+	var code: String = WS.encode(_ws_list(last_armies[1]), _ws_list(last_armies[0]))
+	if code == "":
+		_toast(L.t("ws_cant"), true)
+		return
+	DisplayServer.clipboard_set(code)
+	_toast(L.t("ws_copied"))
+
+func _accept_workshop(c := "") -> void:
+	var from_clip := c == ""
+	if from_clip:
+		c = DisplayServer.clipboard_get().strip_edges()
+	var d: Dictionary = WS.decode(c)
+	if not bool(d["ok"]):
+		if not (from_clip and _ask_code(L.t("ws_accept"), _accept_workshop)):
+			_toast(L.t(str(d["why"])), true)
+		return
+	var pz: Dictionary = d["pz"]
+	if _demo():
+		var dm: int = RS.mask(true)
+		for e in pz["enemy"] + d["sol"]:
+			if not RuleSet.has(dm, int(e[0])):
+				_toast(L.t("demo_locked"), true)
+				return
+	PZ.set_custom(pz)
+	puzzle_id = "ws"
+	_start_mode(Mode.PUZZLE)
+
 ## ── V1.1 D2：每日挑戰 ──
 func _start_daily() -> void:
 	if _demo():

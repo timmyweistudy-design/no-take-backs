@@ -244,7 +244,7 @@ func _draw_vignette(strength: float) -> void:
 
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "chips", "tell", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	var pr: int = FX_PRIO.get(d["kind"], 1)
 	# 同一處同種特效去重（Antigravity S2 #2）：24px 內、0.15 秒內最多 2 個
@@ -356,6 +356,24 @@ func _draw_fx(f: Dictionary) -> void:
 		"ripple":
 			var c3: Color = f["c"]
 			draw_arc(f["p"], 6 + k * 18, -1.2, 1.2, 12, Color(c3, 1 - k), 3, true)
+		"bones":
+			# V1.1 A7：骷髏散成幾根骨頭彈開、往下掉
+			for i in 5:
+				var an := -PI * 0.5 + (i - 2) * 0.55
+				var v := Vector2(cos(an), sin(an)) * k * 30.0 + Vector2(0, k * k * 34.0)
+				var c0: Vector2 = f["p"] + v
+				var rot := k * 9.0 + i
+				var d0 := Vector2(cos(rot), sin(rot)) * 6.0
+				draw_line(c0 - d0, c0 + d0, Color(Art.OUT, 1.0 - k), 5.0, true)
+				draw_line(c0 - d0, c0 + d0, Color(0.95, 0.93, 0.85, 1.0 - k), 3.0, true)
+		"coins":
+			# V1.1 A7：寶箱怪倒下吐出幾枚金幣
+			for i in 6:
+				var an2 := -PI * 0.5 + (i - 2.5) * 0.45
+				var v2 := Vector2(cos(an2), sin(an2)) * k * 34.0 + Vector2(0, k * k * 40.0)
+				var c1: Vector2 = f["p"] + v2
+				draw_circle(c1, 4.5, Color(Art.OUT, 1.0 - k), true, -1.0, true)
+				draw_circle(c1, 3.2, Color(1.0, 0.82, 0.3, 1.0 - k), true, -1.0, true)
 		"badge":
 			var bc: Color = f["c"]
 			var bs := 7.0 * (1.0 + 0.4 * sin(minf(k * 2.0, 1.0) * PI))
