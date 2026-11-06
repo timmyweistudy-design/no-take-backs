@@ -299,6 +299,8 @@ func _draw_place_units() -> void:
 			_counter_mark(p, selected, int(it[2]))   # V1.1 B3
 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
 			_lock_icon(p + Vector2(17, -60))   # 14px 鎖頭（第三輪 U4）
+		if not pz.is_empty() and PZ.goal(pz) == "flawless" and it[3] == 0 and int(it[2]) == int(pz["goal_type"]):
+			_goal_marker(ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS, "protect")   # V1.1：不能倒的那種兵每隻都標
 		if not pz.is_empty() and pz.has("goal_unit") and int(pz["goal_unit"][0]) == it[1] and int(pz["goal_unit"][1]) == it[0] and it[3] == (0 if PZ.goal(pz) == "protect" else 1):
 			_goal_marker(ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS, PZ.goal(pz))
 	# V1.1 C5：擺放時被下排蓋到臉的也補畫半透明
@@ -612,7 +614,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		if mode == Mode.PUZZLE:
 			var st := "　★ " + L.t("star2_short", [pz["star2"]]) + "　★ " + L.t("star3_short", [pz["star3"]])
 			if PZ.goal(pz) != "win":
-				st = "　" + _goal_text(pz) + st   # 第十三輪：護送、撐住、斬首
+				st = "　" + L.t("goal_prefix") + _goal_text(pz) + st   # 第十三輪：護送、撐住、斬首（V1.1：前面加「過關：」，和星數條件分開）
 			if pz.has("cap"):
 				st = "　" + L.t("cap_note", [int(pz["cap"])]) + st
 			_text(Vector2(R.end.x - 60 - _width(st, tz("S"), true), y), st, tz("S"), ACCENT, false, true)

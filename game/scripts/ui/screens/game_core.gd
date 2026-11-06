@@ -788,6 +788,9 @@ func _self_check() -> void:
 
 ## 啟動檢查（第三輪 T1）：從正式入口啟動、畫幾幀標題、開關一次圖鑑，印 BOOTOK 後結束。不碰玩家存檔、不碰 Steam。
 func _boot_check() -> void:
+	var bp: Dictionary = get("boot_parts")
+	bp["first_frame"] = Time.get_ticks_msec()
+	print("BOOTMS %s" % JSON.stringify(bp))
 	for i in 5:
 		await get_tree().process_frame
 	_open_codex(0)

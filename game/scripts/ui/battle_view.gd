@@ -472,7 +472,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			_death_extra(u)
 			# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
 			if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):
-				hitstop = maxf(hitstop, 0.3)
+				if not bool(Save.s("reduce_fx")):
+					hitstop = maxf(hitstop, 0.3)   # 簡化特效時不頓格（Codex v110-impl2）
 				if _fx_on("shake"):
 					shake = maxf(shake, 0.18)
 				_fx_text(Vector2(640, 150), L.t("ev_behead"), ACCENT, 1.2, tz("H2"), true)

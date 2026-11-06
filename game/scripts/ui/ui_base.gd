@@ -84,6 +84,8 @@ func _goal_mark() -> Array:
 		return [-1, ""]
 	var pz := PZ.get_puzzle(puzzle_id)
 	var g := PZ.goal(pz)
+	if g == "flawless":
+		return [-2, "flawless", int(pz["goal_type"])]   # V1.1：-2＝標整個兵種（我方每一隻）
 	if g != "protect" and g != "kill":
 		return [-1, ""]
 	var c: Array = pz["goal_unit"]

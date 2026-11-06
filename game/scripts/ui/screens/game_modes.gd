@@ -310,8 +310,11 @@ func _accept_workshop(c := "") -> void:
 	var pz: Dictionary = d["pz"]
 	if _demo():
 		var dm: int = RS.mask(true)
+		var ts: Array = pz["allowed"].duplicate()   # Codex v110-impl2：可用兵種表也要在試玩版範圍內
 		for e in pz["enemy"] + d["sol"]:
-			if not RuleSet.has(dm, int(e[0])):
+			ts.append(int(e[0]))
+		for t0 in ts:
+			if not RuleSet.has(dm, int(t0)):
 				_toast(L.t("demo_locked"), true)
 				return
 	PZ.set_custom(pz)

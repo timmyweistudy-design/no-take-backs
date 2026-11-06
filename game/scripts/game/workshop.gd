@@ -11,6 +11,13 @@ const MAX_UNITS := 40
 const MAX_LEN := 6000
 const ID := "ws"
 
+## 是整數（JSON 讀回是浮點）而且在 [lo, hi] 內。
+static func _is_int(v, lo: int, hi: int) -> bool:
+	if not (v is int or v is float):
+		return false
+	var f := float(v)
+	return f == floorf(f) and f >= lo and f <= hi
+
 static func _clean(list, c0: int, c1: int) -> Array:
 	if not list is Array or list.is_empty() or list.size() > MAX_UNITS:
 		return []
@@ -62,15 +69,17 @@ static func decode(code: String) -> Dictionary:
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Dictionary or int(j.get("v", 0)) != 1:
+	if not j is Dictionary or not _is_int(j.get("v"), 1, 1):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
 		return bad
 	var e := _clean(j.get("e"), 10, 15)
 	var s := _clean(j.get("s"), 0, 5)
 	if e.is_empty() or s.is_empty() or not j.get("a") is Array:
 		return bad
 	var allowed: Array = []
+	if j["a"].is_empty() or j["a"].size() > D.total():
+		return bad
 	for t in j["a"]:
-		if not (t is int or t is float) or int(t) < 0 or int(t) >= D.total():
+		if not _is_int(t, 0, D.total() - 1) or int(t) in allowed:
 			return bad
 		allowed.append(int(t))
 	var spent := 0

@@ -935,7 +935,9 @@ func _run_mem_check(out_path: String) -> void:
 	var grew := func(a: Dictionary, b: Dictionary) -> bool:
 		return b["static_mb"] > a["static_mb"] * 1.05 + 1.0 or b["objects"] > a["objects"] * 1.02 + 20 or b["nodes"] > a["nodes"] + 5 or b["tex_mb"] > a["tex_mb"] * 1.05 + 1.0
 	var ok_b: bool = not grew.call(base, end_b)
-	var ok_c: bool = not grew.call(cb0, cb1)
+	# V1.1：換色後圖集是非同步重烘（`is_ready` 只保證腳底圈好了），換色 2 次時取樣常在重烘途中、貼圖偏低，拿它當基準會誤判成長。
+	# 「換色 20 次不持續增長」改跟暖機基準比（兩次取樣時用到的兵種頁相同）。
+	var ok_c: bool = not grew.call(base, cb1)
 	var out := {"samples": samples, "battles_ok": ok_b, "colorblind_ok": ok_c}
 	var f := FileAccess.open(out_path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out, "  "))

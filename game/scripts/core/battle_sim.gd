@@ -901,8 +901,15 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 		var dx: int = sx[j] - ux
 		var dy: int = sy[j] - uy
 		var d2 := dx * dx + dy * dy
-		if best != -1 and b_rank <= min_r and d2 > b_d2:
-			continue
+		if best != -1 and d2 > b_d2:
+			# 這隻敵人「最好」能拿到的優先級：嘲諷（1）只在嘲諷距離內、弓手盯刺客（0）只在射程內，超出就退回這種攻擊者的次一級
+			var cmin := min_r
+			if cmin == 0 and d2 > reach2:
+				cmin = 3
+			elif cmin == 1 and d2 > taunt2:
+				cmin = 2 if (my_type == D.CAVALRY or my_type == D.ASSASSIN) else 3
+			if b_rank <= cmin:
+				continue
 		if d2 < min_d2:
 			continue   # 投彈兵丟彈：最短射程內的不選（第四輪）
 		var et: int = sk[j]

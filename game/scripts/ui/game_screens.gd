@@ -1,7 +1,10 @@
 extends "res://scripts/ui/screens/game_menus.gd"
 ## 其他層在同資料夾（V9 P1 拆檔）
 
+var boot_parts := {}   # V1.1 E6：啟動各階段的時間點（毫秒，從程式啟動算），--boot-check 印出來
+
 func _ready() -> void:
+	boot_parts["ready_in"] = Time.get_ticks_msec()
 	on_battle_finished = _finish_battle
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check="):
@@ -37,9 +40,12 @@ func _ready() -> void:
 			_special = true
 	if Save.prefix == "" and not _special:   # 截圖／影片／膠囊模式完全不碰 Steam
 		SteamApi.init()
+	boot_parts["save"] = Time.get_ticks_msec()
 	_load_fonts()
+	boot_parts["fonts"] = Time.get_ticks_msec()
 	sfx = SfxScript.new()
 	add_child(sfx)
+	boot_parts["sfx"] = Time.get_ticks_msec()
 	sprites = SpriteCache.new()
 	add_child(sprites)
 	if capsule_path == "":
@@ -72,6 +78,7 @@ func _ready() -> void:
 		Save.prefix = "shot_"
 		Save.load_all()
 	_go_title()   # 截圖、影片、效能量測由 main 接手（S8）
+	boot_parts["title"] = Time.get_ticks_msec()
 
 
 

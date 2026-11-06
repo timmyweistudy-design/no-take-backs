@@ -1215,3 +1215,27 @@ func test_workshop_v11() -> void:
 			break
 	f["goal_type"] = unused
 	ok(bool(PZ.play(f, sol)["ok"]), "D5 flawless：沒帶的兵種＝不可能陣亡＝過")
+
+
+## V1.1 Codex v110-impl2：工坊碼的型別漏洞（版本與可用兵種先驗整數性與範圍）。
+func test_workshop_types_v11() -> void:
+	var WSx = preload("res://scripts/game/workshop.gd")
+	var src := {}
+	for p in PZ.all_puzzles():
+		if PZ.goal(p) == "win" and p.get("fixed", []).is_empty() and not p.has("map") and not p.has("cmd") and p.has("best"):
+			src = p
+			break
+	var sol: Array = src["best"]["u"]
+	var types: Array = []
+	for u in sol:
+		if not int(u[0]) in types:
+			types.append(int(u[0]))
+	for bad_v in [{}, [], 1.9, "1"]:
+		ok(not bool(WSx.decode(_ws_code({"v": bad_v, "e": src["enemy"], "s": sol, "a": types}))["ok"]), "工坊碼：版本 %s 擋下" % str(bad_v))
+	for bad_a in [[-0.5] + types, [3.9] + types, types + [types[0]], []]:
+		ok(not bool(WSx.decode(_ws_code({"v": 1, "e": src["enemy"], "s": sol, "a": bad_a}))["ok"]), "工坊碼：兵種表 %s 擋下" % str(bad_a))
+	ok(bool(WSx.decode(_ws_code({"v": 1, "e": src["enemy"], "s": sol, "a": types}))["ok"]), "工坊碼：正常的照樣收")
+
+func _ws_code(j: Dictionary) -> String:
+	var b := Marshalls.utf8_to_base64(JSON.stringify(j)).replace("+", "-").replace("/", "_").replace("=", "")
+	return "NTP1.%s.%s" % [b, b.sha256_text().substr(0, 6)]

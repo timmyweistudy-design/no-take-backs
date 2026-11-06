@@ -207,10 +207,10 @@ def main() -> int:
     if not (GAME / ".godot").is_dir() or a.no_cache:
         if not serial(godot, out, "import", ["--headless", "--path", ".", "--import"]):
             return fail("匯入失敗")
-    if not serial(godot, out, "load", ["--headless", "--path", ".", "--script", "res://tools/load_all.gd"], r"^LOADALL .*失敗 0："):
-        return fail("有腳本載入失敗")
-    if not serial(godot, out, "boot", ["--headless", "--path", ".", "--", "--boot-check"], r"^BOOTOK"):
-        return fail("正式入口啟動失敗")
+    # V1.1 E1：載入與啟動檢查改成和其他步驟一起平行跑（結果一樣要過，只是不再先排隊等）
+    gate = cf.ThreadPoolExecutor(2)
+    f_load = gate.submit(serial, godot, out, "load", ["--headless", "--path", ".", "--script", "res://tools/load_all.gd"], r"^LOADALL .*失敗 0：")
+    f_boot = gate.submit(serial, godot, out, "boot", ["--headless", "--path", ".", "--", "--boot-check"], r"^BOOTOK")
     steps = plan(a)
     if a.only:
         want = a.only.split(",")
@@ -224,7 +224,17 @@ def main() -> int:
             res.append({"name": s["name"], "ok": True, "why": "", "sec": 0.0, "cached": True})
         else:
             todo.append(s)
-    with cf.ThreadPoolExecutor(a.jobs) as ex:
+    # V1.1 E1：最久的先開跑（用上一次的秒數；沒有紀錄的排前面），整體完工時間最短
+    prev = {}
+    for f in [out / "summary.json", GAME.parent / "build/tmp/check/summary.json"]:
+        try:
+            for r0 in json.loads(f.read_text(encoding="utf-8")).get("steps", []):
+                if not r0.get("cached") and r0.get("sec", 0) > prev.get(r0["name"], 0):
+                    prev[r0["name"]] = r0["sec"]
+        except (OSError, ValueError):
+            pass
+    todo.sort(key=lambda s: -prev.get(s["name"], 10 ** 6))
+    with cf.ThreadPoolExecutor(max(1, a.jobs - 2)) as ex:
         futs = {ex.submit(run_step, s, godot, out, a.timeout, marker): s for s in todo}
         for fu in cf.as_completed(futs):
             r = fu.result()
@@ -234,6 +244,11 @@ def main() -> int:
                 for old in cache.glob(f"{s['name']}-*.log"):
                     old.unlink()
                 shutil.copy(out / f"{s['name']}.log", cache / f"{s['name']}-{s['key']}.log")
+    if not f_load.result():
+        return fail("有腳本載入失敗")
+    if not f_boot.result():
+        return fail("正式入口啟動失敗")
+    gate.shutdown()
     tests, times = 0, []
     fp = ""
     for s in steps:

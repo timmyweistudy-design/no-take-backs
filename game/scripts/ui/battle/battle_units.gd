@@ -360,8 +360,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			draw_arc(p0 + Vector2(0, -24) * UNIT_SCALE, 28.0 * UNIT_SCALE, 0, TAU, 24, Color(0.55, 0.85, 1.0, 0.75), 2.5, true)
 		if u.haste_t > 0:
 			draw_arc(p0, 19.0 * UNIT_SCALE, 0, TAU, 20, Color(1.0, 0.75, 0.25, 0.85), 2.5, true)
-		if u.id == int(gm[0]):
-			_goal_marker(p0, str(gm[1]))   # 第十三輪：要護送／斬首的那一隻
+		if u.id == int(gm[0]) or (int(gm[0]) == -2 and u.team == 0 and u.type == int(gm[2]) and not u.summon):
+			_goal_marker(p0, "protect" if int(gm[0]) == -2 else str(gm[1]))   # 第十三輪：要護送／斬首的那一隻；V1.1：不能倒的那種兵每隻都標
 		if live and s.rally[u.team] and not s.finished:
 			for k in 2:
 				var ph := fmod(time * 1.6 + k * 0.5, 1.0)
@@ -479,8 +479,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
 			crouch = 1.06
 			_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
-			# V1.1 A7：兵種專屬的勝利小動作
-			match u.type:
+			# V1.1 A7：兵種專屬的勝利小動作（簡化特效時不畫）
+			match -1 if bool(Save.s("reduce_fx")) else u.type:
 				D.DRUMMER:   # 鼓手：頭邊冒音符
 					var nk := fmod(time * 1.6 + u.id * 0.3, 1.0)
 					_icon("sound", p + Vector2(18 + nk * 8, -48 - nk * 22 - hop), 14.0, Color(1.0, 0.85, 0.4, 1.0 - nk))
