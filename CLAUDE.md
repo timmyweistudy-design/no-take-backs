@@ -15,9 +15,9 @@ Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；最新一輪�
 - 舊場次位元組不能變：`FINGERPRINT b8fe741bcbfcf800`、舊 `digest` 不變；新東西走版本分流。
 - 模擬只用整數，全部要左右鏡像；畫面狀態不能進模擬。
 - 改中文字串要重建字型（`python3 tools/gen/build_font.py ../build/fontsrc`，來源字型在 `build/fontsrc`）；用語看 `docs/terms.md`。
-- 改數值：跑平衡、重產 `golden_v8`、`golden_map`（`--make`，commit 說明）、重驗三星（`tools/balance/star_check.gd`、`trial_check.gd`，測試 `star_solutions` 會擋）。
+- 改數值（預設不改；要改先升 `RULES_VERSION`，見 STATE 版本契約）：跑平衡、新增新版金標準基準（舊基準不覆蓋，commit 說明）、重驗三星（`tools/balance/star_check.gd`、`trial_check.gd`，測試 `star_solutions` 會擋）。
 - 手寫文字不寫死數值；技能說明用常數換值。
-- 新測試要登記在 `tests/run_tests.gd` 兩個清單，否則靜靜不跑。
+- 新測試登記在 `tests/run_tests.gd` 的 `FILES`（V1.1 起單一登錄；漏登記會直接失敗）。
 - 字級只用字級表，不縮字；版面檢查不看圖，收尾要看截圖。
 - 暫存放 `build/tmp/`；東西不放專案外。
 - 不跑 `--steam-test`；長時間可見視窗先問。
@@ -28,4 +28,4 @@ Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；最新一輪�
 ## 省 token
 - 工具結果只讀最後一行；長日誌進檔，不進對話。
 - 看圖先拼接觸表，不一張張讀。
-- 找程式用 grep 加行號範圍，不整檔讀（`game_screens.gd` 很大）。
+- 找程式先看 `docs/MODULES.md`（模組索引，`python3 tools/gen/module_index.py` 重產），再 grep 加行號範圍，不整檔讀（`game_screens.gd` 很大）。

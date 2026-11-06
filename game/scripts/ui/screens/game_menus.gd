@@ -124,6 +124,7 @@ func _start_free_intro() -> void:
 	lobby_r.ai_level = 0
 	rules = lobby_r.copy()
 	difficulty = 0
+	set("challenge_army", null)
 	_start_mode(Mode.VS_AI)
 	free_intro = true
 	free_intro_moved = false
@@ -202,6 +203,13 @@ func _draw_title() -> void:
 	y1 += 50
 	_btn(Rect2(70, y1, 162, 44), L.t("menu_trials"), func(): _open("trials"))
 	_btn(Rect2(238, y1, 162, 44), L.t("menu_profile"), func(): _open("profile"))
+	y1 += 50
+	# V1.1 D2：每日挑戰（一顆寬鈕，右邊小字是這週突變與今天最佳）
+	var dr := Rect2(70, y1, 330, 44)
+	_btn(dr, "", func(): call("_start_daily"), not _demo())
+	_icon("dice", dr.position + Vector2(24, 22), 24.0, ACCENT if not _demo() else Color(1, 1, 1, 0.35))
+	_text(dr.position + Vector2(44, 22 - tz("B") * 0.68), L.t("menu_daily"), tz("B"), Color.WHITE, false, true, 140)
+	_text(dr.position + Vector2(250, 22 - tz("C") * 0.68), str(call("_daily_caption")), tz("C"), ACCENT, true, false, 150)
 	var y2 := y1 + 54
 	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): get_tree().quit()]]
 	for i in sys.size():

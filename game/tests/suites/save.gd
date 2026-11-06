@@ -137,3 +137,21 @@ class FakeSteam2:
 	func getAppID(): return app
 	func isSteamRunning(): return true
 	func getAchievement(id): return {"ret": known.has(id), "achieved": false}
+
+
+## V1.1 F2：本機遊玩紀錄（嘗試次數、第一次過關花費）
+func test_play_log_v11() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var keep: Dictionary = SV.data.duplicate(true)
+	SV.data = {}
+	SV.note_try("puzzle", "c1", false, 90)
+	SV.note_try("puzzle", "c1", true, 84)
+	SV.note_try("puzzle", "c1", true, 70)
+	ok(int(SV.data["puzzle_tries"]["c1"]) == 3, "F2：每打一次 +1")
+	ok(int(SV.data["puzzle_first"]["c1"]) == 84 and int(SV.data["puzzle_first"]["c1@"]) == 2, "F2：只記第一次過關的花費與第幾次")
+	SV.note_try("trial", "12", false, 50)
+	ok(int(SV.data["trial_tries"]["12"]) == 1 and not SV.data["trial_first"].has("12"), "F2：沒過關不記 first")
+	var bad := {"puzzle_tries": {"c1": "x", "c2": -5}, "trial_first": "oops"}
+	SV.sanitize_data(bad)
+	ok(int(bad["puzzle_tries"]["c1"]) == 0 and int(bad["puzzle_tries"]["c2"]) == 0 and bad["trial_first"] is Dictionary, "F2：壞資料歸零、不當掉")
+	SV.data = keep

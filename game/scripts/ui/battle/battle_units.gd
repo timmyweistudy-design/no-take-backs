@@ -5,6 +5,13 @@ extends "res://scripts/ui/battle/battle_fx.gd"
 ## 頂住的 src 是被頂住的騎兵，功勞算盾兵那一隊。
 func _collect_mark(ev: Dictionary, lookup, tick: int) -> void:
 	var k: String = ev["kind"]
+	# V1.1 B1：逐 tick 累計「誰打了哪一隊多少血」（快轉、正常播放共用這裡）。只看相關，不宣稱因果
+	if ev.has("dmg") and ev.has("src") and ev.has("tgt"):
+		var su = lookup.unit_by_id(ev["src"])
+		var tu = lookup.unit_by_id(ev["tgt"])
+		if su != null and tu != null and su.team != tu.team:
+			var dk := "dmgby%d_%d" % [tu.team, su.type]
+			ev_count[dk] = int(ev_count.get(dk, 0)) + int(ev["dmg"])
 	# 第七輪 A7：加首殺、破陣、背水
 	if k != EV.CHARGE and k != EV.BACKSTAB and k != EV.BRACED and k != EV.DEATH and k != EV.BREACH and k != EV.RALLY_ON:
 		return
@@ -102,6 +109,26 @@ func _draw_v8_ground(s, live: bool) -> void:
 			var a2 := Vector2(cos(an - 0.1), sin(an - 0.1)) * rr * 0.95
 			draw_polyline(PackedVector2Array([a0, a1, a2]), Color(0.42, 0.33, 0.22, 0.8), 2.5, true)
 		draw_set_transform_matrix(_cam)
+	# V1.1 A3：大招前搖的地面預警圈（實際作用半徑），前搖 1 秒內由內往外長滿
+	for u in s.units:
+		if not u.alive or u.windup <= 0:
+			continue
+		var wk := clampf(1.0 - float(u.windup) / F8.WINDUP, 0.0, 1.0)
+		var rad: int = {F8.GOLEM: F8.GOLEM_R, F8.CAT: F8.CAT_R, F8.SPRITE: F8.SPRITE_R}.get(u.type, 0)
+		if rad <= 0:
+			continue
+		var tc: Color = {F8.GOLEM: Color("#ff8a3c"), F8.CAT: Color("#9ad1ff"), F8.SPRITE: Color("#ffe08a")}[u.type]
+		var rp: float = float(rad) * CS / 1000.0
+		draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, _upos(u)))
+		draw_circle(Vector2.ZERO, rp * wk, Color(tc, 0.14 + 0.1 * wk), true, -1.0, true)
+		draw_arc(Vector2.ZERO, rp, 0, TAU, 48, Color(tc, 0.35 + 0.4 * wk), 2.5, true)
+		if u.type == F8.CAT:
+			for k3 in 6:   # 吸氣線：從外圈往貓身上收
+				var an3 := k3 * TAU / 6.0 + time * 1.5
+				var ph3 := fmod(time * 1.6 + k3 * 0.17, 1.0)
+				var r0 := rp * (1.0 - ph3 * 0.7)
+				draw_line(Vector2(cos(an3), sin(an3)) * r0, Vector2(cos(an3), sin(an3)) * (r0 - 14.0), Color(tc, 0.7 * (1.0 - ph3)), 2.0, true)
+		draw_set_transform_matrix(_cam)
 	for u in s.units:
 		if u.alive and u.type == F8.SPORE:
 			var c2 := _upos(u)
@@ -184,6 +211,7 @@ func _update_action_focus() -> void:
 func _draw_field() -> void:
 	var free_f: bool = rules != null and rules.is_free() and (mode == Mode.VS_AI or mode == Mode.DUEL)   # 第六輪：自由排兵不畫格子
 	var fbi: Dictionary = MapArt.BIOME.get(MapDefs.MAPS[fld_map]["biome"], {})
+	ring_shadow = float(fbi.get("shadow", 0.0))
 	if fld_map != 0:
 		MapArt.draw_outfield(self, Rect2(ORIGIN, FIELD), str(MapDefs.MAPS[fld_map]["biome"]))
 	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632")))
@@ -395,6 +423,18 @@ func _draw_units_of(s, dim: bool) -> void:
 		var crouch := 1.0
 		if hurt > 0.3 or u.stun > 0:
 			mood |= Art.M_HURT
+		if hurt > 0.0:
+			crouch *= 1.0 - 0.12 * hurt                 # V1.1 A2：受擊壓扁（縱 0.88），配合後退與閃白
+			lean -= 0.06 * hurt * float(hurt_dir.get(u.id, 0.0)) * face
+		if live and u.windup > 0 and at == 0.0:
+			# V1.1 A3：大招前搖的身體預警。小石魔高舉拉長、吸塵貓吸氣鼓脹、沙漏精靈與骷髏法師浮起
+			var wk := 1.0 - float(u.windup) / F8.WINDUP
+			if u.type == F8.GOLEM:
+				at = Art.ATK_WINDUP * minf(1.0, wk * 1.4) * 0.999
+			elif u.type == F8.CAT:
+				crouch *= 1.0 + 0.14 * sin(minf(1.0, wk) * PI * 0.5)
+			else:
+				p.y -= 4.0 * sin(minf(1.0, wk) * PI * 0.5)
 		if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
 			mood |= Art.M_SPARKLE
 			lean = 0.26                      # 衝鋒蓄滿前傾 15°
@@ -416,7 +456,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
 			hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
 			at = Art.ATK_WINDUP
-			lean = Art.LEAN_BACK      # 抵銷前搖的後仰：站直、武器高舉（和前搖分得開，Antigravity S4）
+			lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
 			crouch = 1.06
 			_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
 		p.y -= hop
@@ -425,6 +465,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			continue
 		if u.type == F8.GHOST:
 			alpha *= 0.9
+			p.y -= 3.0 + 2.5 * sin(time * 2.2 + u.id * 0.9)   # V1.1 A4：幽靈上下漂
 		# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
 		if live and walk == 0.0 and at == 0.0:
 			lean += sin(time * 1.1 + u.id * 1.7) * 0.018

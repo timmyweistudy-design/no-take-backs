@@ -966,7 +966,7 @@ func _draw_inner() -> void:
 			var alpha := 1.0
 			var walk := 0.0
 			if c == 7:   # 勝利：站直、武器高舉（和前搖分開）
-				lean = Art.LEAN_BACK
+				lean = Art.windup_lean(t)
 				crouch = 1.06
 			if c == 6 and t >= D.CLASSIC:
 				at = 0.42   # 新兵的專屬動作在揮擊格（精靈圖快取把它烘在交替招式那組）
@@ -1039,7 +1039,7 @@ func _pad_walk() -> void:
 	_go_title()
 	await _pw_frames(3)
 	await _pw_cycle("標題")
-	for step in [[6, "trials"], [7, "profile"], [8, "settings"], [9, "codes"]]:
+	for step in [[6, "trials"], [7, "profile"], [9, "settings"], [10, "codes"]]:   # V1.1：第 8 顆是每日挑戰
 		_go_title()
 		await _pw_pick(step[0], "標題→" + str(step[1]))
 		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])
@@ -1225,5 +1225,30 @@ func _shots_v13() -> void:
 		_sim_step(true)
 	_finish_battle()
 	await _snap("92_trial_win_result.png")
+	# V1.1：每日挑戰的擺放畫面（標題列＝每日挑戰・突變名，提示說明突變數值）
+	_go_title()
+	call("_start_daily")
+	for k5 in 6:
+		await get_tree().process_frame
+	toast_t = 0.0   # 突變說明是開場提示（幾秒就消失），截圖量版面時先清掉，跟試煉截圖一樣
+	await _snap("93_daily_place.png")
+	# V1.1 B1：輸掉的殘局結果頁，標題下那一行換成「多半傷害來自…→ 可以試試…」
+	_go_title()
+	puzzle_id = str(PZ.all_puzzles()[0]["id"])
+	_start_mode(Mode.PUZZLE)
+	var pz5 := PZ.get_puzzle(puzzle_id)
+	armies[0].place(int(pz5["allowed"][0]), 0, 4)
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	while not sim.finished:
+		_sim_step(true)
+	_finish_battle()
+	await _snap("94_loss_result.png")
+	# V1.1 D1：遠征路線（第 3 戰打贏後選事件，下一戰是菁英）
+	_go_title()
+	_start_mode(Mode.GAUNTLET)
+	gauntlet_stage = 3
+	_open("reward")
+	await _snap("95_route_reward.png")
+	overlay = ""
 	_go_title()
 	Save.data["puzzle_stars"] = {}

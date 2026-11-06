@@ -51,6 +51,16 @@ def key_of(ver: str, entries: list, extra_dirs: list) -> str:
     return h.hexdigest()[:20]
 
 
+def suite_map() -> dict:
+    """run_tests.gd 的 FILES（JSON 相容）＋別名 new＝units。"""
+    src = (GAME / "tests/run_tests.gd").read_text(encoding="utf-8")
+    m = re.search(r"^const FILES := (\{.*\})$", src, re.M)
+    files = json.loads(m.group(1)) if m else {}
+    if "units" in files:
+        files["new"] = files["units"]
+    return files
+
+
 def plan(a) -> list:
     gn = int(os.environ.get("GOLDEN_N", "1000"))
     cn = int(os.environ.get("COMPAT_N", "1000"))
@@ -63,12 +73,28 @@ def plan(a) -> list:
         st.append({"name": name, "kind": "gd", "script": script, "args": args, "ok": ok,
                    "entries": entries or [script], "dirs": data if dirs is None else dirs})
 
+    sim_only = ["tests/golden"]   # V1.1 E1：純模擬的工具不讀 data/（已查：相依樹與字面路徑都沒有），改字串不必重跑
+
     def shards(name, script, args, ok, m):
         for k in range(m):
-            gd(f"{name}{k}", script, args + [f"--shard={k}/{m}"], ok)
+            gd(f"{name}{k}", script, args + [f"--shard={k}/{m}"], ok, dirs=sim_only)
+
+    files = suite_map()
 
     def test(name, only):
-        gd(name, t, [f"--only={only}"], TEST_DONE.pattern, [t] + suites, data + ["fonts"])
+        # V1.1 E1：快取鍵只含這一步會跑到的測試組（以前是全部 suites，改一個測試檔全部重跑）
+        groups = set()
+        for k in only.split(","):
+            k = k.lstrip("-")
+            if k in files:
+                groups.add(k)
+            else:
+                groups |= {g for g, fns in files.items() if k in fns}
+        if "harness" in groups or not groups:
+            ent = suites   # 框架測試會載入每個測試組
+        else:
+            ent = [f"tests/suites/{g}.gd" for g in sorted(groups)]
+        gd(name, t, [f"--only={only}"], TEST_DONE.pattern, [t, "tests/test_base.gd"] + ent, data + ["fonts"])
 
     if a.quick:
         test("t_harness", "harness,anim")
@@ -84,13 +110,14 @@ def plan(a) -> list:
         test("t_sandbox", "test_sandbox_v5")
         test("t_stateful", ",".join(STATEFUL) + ",-test_sandbox_v5")
         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
-        shards("golden", "tools/golden.gd", [f"--n={gn}"], r'^GOLDEN \{.*"ok":true', 4)
-        shards("compat", "tools/compat.gd", [f"--n={cn}"], r'^COMPAT \{.*"ok":true', 4)
-        gd("sealcodes", "tools/seal_codes.gd", [], r'^SEALCODES \{"n":40,"ok":true')
+        # V1.1 E1：最慢的兩組各切 6 片（基準 984 秒時每片約 740 秒，是整體的關鍵路徑）
+        shards("golden", "tools/golden.gd", [f"--n={gn}"], r'^GOLDEN \{.*"ok":true', 6)
+        shards("compat", "tools/compat.gd", [f"--n={cn}"], r'^COMPAT \{.*"ok":true', 6)
+        gd("sealcodes", "tools/seal_codes.gd", [], r'^SEALCODES \{"n":40,"ok":true', dirs=sim_only)
         shards("goldenfree", "tools/golden_free.gd", [], r'^GOLDENFREE \{.*"ok":true', 3)
         shards("goldenv8", "tools/golden_v8.gd", [], r'^GOLDENV8 \{.*"ok":true', 3)
         shards("goldenmap", "tools/golden_map.gd", [], r'^GOLDENMAP \{.*"ok":true', 3)
-        gd("orbit", "tools/orbit_detect.gd", [], r"^ORBIT cav_battles=")
+        gd("orbit", "tools/orbit_detect.gd", [], r"^ORBIT cav_battles=", dirs=sim_only)
     for name, py in [("strings", "check_strings.py"), ("assets", "check_assets.py"), ("font", "check_font_coverage.py")]:
         if a.quick and name == "assets":
             continue
@@ -153,7 +180,7 @@ def main() -> int:
     p.add_argument("--out", default=str(GAME.parent / "build/tmp/check"))
     p.add_argument("--quick", action="store_true")
     p.add_argument("--no-cache", action="store_true")
-    p.add_argument("--jobs", type=int, default=min(12, max(2, (os.cpu_count() or 4) - 4)))
+    p.add_argument("--jobs", type=int, default=min(16, max(2, (os.cpu_count() or 4) - 4)))   # V1.1 E1：20 核心時開 16
     p.add_argument("--only", default="")
     p.add_argument("--timeout", type=int, default=2400)
     a = p.parse_args()

@@ -12,6 +12,8 @@ const TRIALS := [[1, 1, 2, 1], [2, 1, 3, 1], [3, 1, 3, 1], [4, 1, 1, 1], [5, 1, 
 	[2, 2, 0, 2], [3, 0, 0, 2], [4, 1, 0, 2], [5, 1, 0, 2], [1, 2, 0, 2]]
 const TRIAL_PAGE := 10
 const TD = preload("res://scripts/game/trial_data.gd")
+const Daily = preload("res://scripts/game/daily.gd")
+var daily_spec := {}      # V1.1 D2：這場是每日挑戰時的規格；其他模式是空的
 
 ## 第十三輪新增試煉的資料（索引 ≥10）：主題名稱、固定敵陣、規則變形、星數門檻。快取在 trial_data.gd。
 static func trial_x(i: int) -> Dictionary:
@@ -21,6 +23,13 @@ var trial_id := -1
 var challenge_army = null       # 挑戰碼的對手陣型
 var gauntlet_gold := 0
 var gauntlet_cap := 0
+## V1.1 D1：遠征路線。7 戰的節點類型與戰間事件（只改戰前配置：預算、隻數、可換隻數、卡池、下一戰敵方預算／隻數）。
+const GA_NODES := ["outpost", "fight", "fight", "elite", "fight", "elite", "boss"]
+const GA_NODE_GOLD := {"outpost": 0, "fight": 0, "elite": 10, "boss": 20}
+const GA_EVENTS := ["rw_gold", "rw_cap", "rw_change", "rw_recruit", "rw_scout", "rw_ambush"]
+const GA_EVENT_ICONS := ["coin", "people", "swap", "flag", "map", "ban"]
+var gauntlet_foe_gold := 0     # 只影響下一戰
+var gauntlet_foe_cap := 0
 var ban_left := [0, 0]
 var ban_turn := 0
 
@@ -125,6 +134,8 @@ static func trial_stars(level: int, rem: int, spent: int, budget: int, spend_pct
 	return st
 
 func _trial_finish(w: int) -> void:
+	if trial_id >= 0:
+		Save.note_try("trial", str(trial_id), w == 0, armies[0].spent())   # V1.1 F2
 	if trial_id < 0 or w != 0:
 		return
 	var lvl: int = int(TRIALS[trial_id][3])
@@ -179,8 +190,15 @@ func _draw_trials() -> void:
 			line2 = "%s・%s" % [str(x["tag_zh"] if L.lang == "zh_TW" else x["tag_en"]), diff]
 		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 160)
 		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
-		var cond := L.t("trial_cond", [trial_rem(i), tb * trial_spend_pct(i) / 100])
-		_text(r.position + Vector2(154, 8 + tz("B") * 1.4 + tz("C") * 1.35), cond, tz("C"), ACCENT, false, false, cw - 160)
+		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
+		var cy0: float = r.position.y + 8 + tz("B") * 1.4 + tz("C") * 1.35
+		var cx0: float = r.position.x + 154
+		_icon("heart", Vector2(cx0 + 9, cy0 + tz("C") * 0.62), 16.0, ACCENT)
+		var c1s := "≥%d%%" % trial_rem(i)
+		_text(Vector2(cx0 + 22, cy0), c1s, tz("C"), ACCENT, false, true, 120)
+		var cx1: float = cx0 + 34 + font_bold.get_string_size(c1s, HORIZONTAL_ALIGNMENT_LEFT, -1, tz("C")).x
+		_icon("coin", Vector2(cx1 + 9, cy0 + tz("C") * 0.62), 16.0, ACCENT)
+		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), ACCENT, false, true, 120)
 		var got := int(stars.get(str(i), 0))
 		for k2 in 3:
 			_icon("star", r.position + Vector2(cw - 66 + k2 * 22, 20), 20.0, Color("#ffd166") if k2 < got else Color(1, 1, 1, 0.16))
@@ -211,6 +229,7 @@ func _accept_challenge(c := "") -> void:
 		return
 	rules = d["rules"]
 	challenge_army = d["army"]
+	daily_spec = {}
 	rules.rounds = 1
 	_start_mode(Mode.VS_AI)
 
@@ -262,34 +281,167 @@ func _demo_ok(r, a = null) -> bool:
 				return false
 	return true
 
-## ── 遠征：每戰後三選一 ──
+## ── V1.1 D2：每日挑戰 ──
+func _start_daily() -> void:
+	if _demo():
+		_toast(L.t("demo_locked"), true)
+		return
+	var sp: Dictionary = Daily.spec(Daily.today())
+	var r = Daily.make_rules(sp, RS.mask(false))
+	if not r.validate().is_empty():
+		_toast(L.t("ch_bad"), true)
+		return
+	rules = r
+	challenge_army = Daily.enemy(sp, r)   # 同一天同一支敵軍（固定陣，走挑戰碼那條路）
+	_start_mode(Mode.VS_AI)
+	daily_spec = sp
+	_toast(_daily_desc(sp, r))
+
+## 突變說明：數值一律從這組規則讀（不寫死在字串裡）。
+func _daily_desc(sp: Dictionary, r) -> String:
+	var mut := int(sp["mut"])
+	var sk: Array = []
+	for s in CmdD.list_of(int(r.cmd_mask[0])):
+		sk.append(L.t("cmd_%d" % int(s)))
+	var sks := "、".join(sk) if L.lang == "zh_TW" else ", ".join(sk)
+	var args: Array = [[r.ticks / 20], [r.unit_cap, r.type_cap, r.budget_of(0)], [r.unit_cap], [L.t("map_" + str(MapDefs.MAPS[r.map_id]["key"]))],
+		[r.type_cap, r.budget_of(0)], [r.ticks / 20, sks], [r.budget_of(0), r.type_cap], [r.budget_of(0), r.unit_cap, sks]][mut]
+	return L.t("daily_mut_%d_d" % mut, args)
+
+func _daily_finish(w: int) -> void:
+	if daily_spec.is_empty() or w != 0:
+		return
+	var rem: int = PZ.rem_pct(sim.power(0), sim.budget_of(0))
+	var spent: int = armies[0].spent()
+	var best: Dictionary = Save.data.get("daily_best", {})
+	var nw := Daily.record(best, daily_spec, rem, spent)
+	Save.data["daily_best"] = best
+	_toast(L.t("daily_new" if nw else "daily_best", [rem, spent]))
+	Save.save_data()
+
+## 標題頁按鈕上的小字：今天的突變＋今天最佳。
+func _daily_caption() -> String:
+	var sp: Dictionary = Daily.spec(Daily.today())
+	var b: Array = Save.data.get("daily_best", {}).get(sp["key"], [])
+	var s: String = L.t("daily_mut_%d" % int(sp["mut"]))
+	return s if b.is_empty() else "%s・%d%%" % [s, int(b[0])]
+
+## ── 遠征：每戰後三選一（V1.1 D1：從 6 種事件用種子抽 3 種） ──
 func _gauntlet_reward() -> void:
 	overlay = "reward"
 
+static func ga_node(stage: int) -> String:
+	return GA_NODES[clampi(stage - 1, 0, GA_NODES.size() - 1)]
+
+## 這一站提供的 3 個事件（同一趟同一站永遠一樣，續局也一樣）。募兵沒有可換的就不出。
+func _gauntlet_offers() -> Array:
+	var r := RandomNumberGenerator.new()
+	r.seed = gauntlet_seed * 31 + gauntlet_stage * 977 + 5
+	var ids: Array = [0, 1, 2, 3, 4, 5]
+	if _recruit_pick().is_empty():
+		ids.erase(3)
+	var out: Array = []
+	while out.size() < 3 and not ids.is_empty():
+		var k: int = ids[r.randi() % ids.size()]
+		ids.erase(k)
+		out.append(k)
+	out.sort()
+	return out
+
+## 募兵：[加入的兵種, 離隊的兵種]。離隊的不能是上一戰陣型裡有的；換完還要有戰鬥兵。
+func _recruit_pick() -> Array:
+	var pool: int = int(call("_gauntlet_pool"))
+	var used := {}
+	for u in gauntlet_prev:
+		used[int(u["type"])] = true
+	var ins: Array = []
+	var outs: Array = []
+	for ty in 20:
+		if not RuleSet.has(RS.mask(_demo()), ty):
+			continue
+		if RuleSet.has(pool, ty):
+			if not used.has(ty):
+				outs.append(ty)
+		else:
+			ins.append(ty)
+	if ins.is_empty() or outs.is_empty():
+		return []
+	var r := RandomNumberGenerator.new()
+	r.seed = gauntlet_seed * 17 + gauntlet_stage * 131 + 3
+	for _i in 8:
+		var a: int = ins[r.randi() % ins.size()]
+		var b: int = outs[r.randi() % outs.size()]
+		var np: int = (pool | (1 << a)) & ~(1 << b)
+		if RuleSet.has_combat(np):
+			return [a, b]
+	return []
+
 func _take_reward(k: int) -> void:
 	overlay = ""
+	gauntlet_foe_gold = 0
+	gauntlet_foe_cap = 0
 	match k:
 		0:
 			gauntlet_gold += 10
 		1:
 			gauntlet_cap += 2
+		3:
+			var rp := _recruit_pick()
+			if not rp.is_empty():
+				var pool: int = int(call("_gauntlet_pool"))
+				Save.data["gauntlet_pool"] = (pool | (1 << int(rp[0]))) & ~(1 << int(rp[1]))
+		4:
+			gauntlet_foe_gold = -10
+		5:
+			gauntlet_foe_cap = -2
 	call("_gauntlet_next")
 	if k == 2:
 		gauntlet_changes += 2
 	call("_gauntlet_save")
 
+func _ga_event_desc(k: int) -> String:
+	if k == 3:
+		var rp := _recruit_pick()
+		return L.t("rw_recruit_d", [L.t("unit_%d" % int(rp[0])), L.t("unit_%d" % int(rp[1]))]) if not rp.is_empty() else ""
+	return L.t(GA_EVENTS[k] + "_d")
+
 func _draw_reward() -> void:
-	var P := Rect2(240, 200, 800, 380)
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(240, 150, 800, 480)
 	_panel(P)
-	_h1(Vector2(640, 212), L.t("rw_title"))
-	var items := [["coin", "rw_gold"], ["people", "rw_cap"], ["swap", "rw_change"]]
-	for i in 3:
-		var r := Rect2(268 + i * 252, 290, 240, 200)
-		_btn(r, "", _take_reward.bind(i), true, false, TH_WOOD_L)
-		_icon(items[i][0], r.position + Vector2(120, 58), 64.0, ACCENT)
-		_text(r.position + Vector2(120, 104), L.t(items[i][1]), tz("B"), Color.WHITE, true, true, 220)
-		_text(r.position + Vector2(120, 104 + tz("B") * 1.5), L.t(items[i][1] + "_d"), tz("C"), Color(1, 1, 1, 0.75), true, false, 220)
-	_text(Vector2(640, 512), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), Color(1, 1, 1, 0.75), true, false, 740)
+	_h1(Vector2(640, 162), L.t("rw_title"))
+	_draw_route(Rect2(300, 222, 680, 56), gauntlet_stage + 1)
+	var offers := _gauntlet_offers()
+	for i in offers.size():
+		var k: int = offers[i]
+		var r := Rect2(268 + i * 252, 300, 240, 210)
+		_btn(r, "", _take_reward.bind(k), true, false, TH_WOOD_L)
+		_icon(GA_EVENT_ICONS[k], r.position + Vector2(120, 52), 56.0, ACCENT)
+		_text(r.position + Vector2(120, 92), L.t(GA_EVENTS[k]), tz("B"), Color.WHITE, true, true, 220)
+		_text(r.position + Vector2(120, 92 + tz("B") * 1.5), _ga_event_desc(k), tz("C"), Color(1, 1, 1, 0.75), true, false, 220)
+	_text(Vector2(640, 530), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), Color(1, 1, 1, 0.75), true, false, 740)
+	_text(Vector2(640, 530 + tz("S") * 1.5), L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), ACCENT, true, true, 740)
+
+## 遠征路線條：7 個節點，已打過的打勾、下一戰亮框；菁英、首領用不同圖示。
+func _draw_route(R: Rect2, next_stage: int) -> void:
+	var n := GA_NODES.size()
+	var step := R.size.x / (n - 1)
+	var cy := R.position.y + R.size.y * 0.5
+	draw_line(Vector2(R.position.x, cy), Vector2(R.end.x, cy), Color(1, 1, 1, 0.25), 3.0)
+	for i in n:
+		var c := Vector2(R.position.x + i * step, cy)
+		var kind: String = GA_NODES[i]
+		var done := i + 1 < next_stage
+		var rad := 20.0 if kind == "boss" else (16.0 if kind == "elite" else 12.0)
+		var col := Color("#6b7f5a") if done else (Color("#c0392b") if kind == "boss" else (Color("#b07d2a") if kind == "elite" else Color("#5b4632")))
+		draw_circle(c, rad + 3.0, Art.OUT)
+		draw_circle(c, rad, col)
+		if done:
+			draw_polyline(PackedVector2Array([c + Vector2(-rad * 0.5, 0), c + Vector2(-rad * 0.1, rad * 0.4), c + Vector2(rad * 0.55, -rad * 0.45)]), Color.WHITE, 3.0, true)
+		elif kind != "fight" and kind != "outpost":
+			_icon("star" if kind == "elite" else "swords", c, rad * 1.2, Color.WHITE)
+		if i + 1 == next_stage:
+			draw_arc(c, rad + 7.0, 0, TAU, 28, Color(ACCENT, 0.6 + 0.4 * sin(time * 4.0)), 3.0, true)
 
 ## ── 雙人：輪流禁選 ──
 func _begin_bans(n: int) -> void:
@@ -416,8 +568,10 @@ func _draw_profile() -> void:
 		var open: bool = RuleSet.has(um, t)
 		_unit_in(Rect2(r2.position, Vector2(cw, 70)), t, 0, 1.0 if open else 0.3, 0.62)
 		var gg := int(ug.get(str(t), 0))
-		var line := "—" if gg == 0 else "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg)
-		_text(r2.position + Vector2(cw / 2, 68), line, tz("B"), Color.WHITE, true, true, cw - 6)
+		if gg == 0:
+			_text(r2.position + Vector2(cw / 2, 74), L.t("pf_none"), tz("C"), Color(1, 1, 1, 0.5), true, false, cw - 6)   # V1.1 C4：沒出戰不寫 0%
+		else:
+			_text(r2.position + Vector2(cw / 2, 68), "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg), tz("B"), Color.WHITE, true, true, cw - 6)
 		if gg > 0:
 			pass
 	# 成就
@@ -429,6 +583,8 @@ func _draw_profile() -> void:
 		var k: String = keys[i2]
 		var on: bool = k in earned
 		var pos := Vector2(84 + (i2 % 3) * 372, 480 + (i2 / 3) * 30)
+		if on:
+			_box(Rect2(pos - Vector2(4, 1), Vector2(364, 26)), Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
 		_icon("star" if on else "lock", pos + Vector2(10, 12), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
 		_text(pos + Vector2(26, 0), str(ach[k][0 if L.lang == "zh_TW" else 1]), tz("C"), Color.WHITE if on else Color(1, 1, 1, 0.66), false, false, 340)
 	_btn(Rect2(560, 722, 160, 44), L.t("back"), func(): overlay = "")
@@ -462,6 +618,7 @@ func _puzzle_hint_text() -> String:
 	return L.t("hint_main", [L.t("unit_%d" % top)]) if who == "" else L.t("hint_counter", [L.t("unit_%d" % top), who])
 
 func _draw_puzzle_hint() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.75))   # V1.1 C4：底下的兵與格線不干擾閱讀
 	var pz := PZ.get_puzzle(puzzle_id)
 	var R := Rect2(290, 150, 700, 500)
 	_panel(R)

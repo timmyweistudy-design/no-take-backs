@@ -5,9 +5,19 @@ extends "res://scripts/ui/units/fantasy.gd"
 static func idle_bob(t: float, px: float) -> float:
 	return sin(t * 3.0 + px * 0.05) * 0.8
 
-static func pose(atk: float) -> Array:
+## V1.1 A1：兵種專屬三段式（前搖／命中／收招）。值＝[前搖橫縮, 前搖縱縮, 後仰, 前搖位移, 命中橫縮, 命中縱縮, 前撲角, 前撲位移, 收招停頓比例]。
+## 命中時間點（ATK_WINDUP）所有兵種相同，只改形狀，不影響模擬與命中同步。沒列的兵種走舊曲線（位元不變）。
+const POSE_PROFILE := {
+	0: [1.14, 0.86, 0.42, -2.0, 0.86, 1.16, 0.50, 5.0, 0.25],    # 劍士：後仰扭腰劍舉過頭 → 前撲大弧 → 劍尖點地停頓
+	6: [1.08, 0.90, 0.50, -2.0, 0.90, 1.12, 0.32, 3.0, 0.15],    # 投彈兵：反弓拉滿 → 甩臂墊步 → 甩腕
+	19: [0.90, 1.18, 0.12, 0.0, 1.25, 0.75, 0.12, 1.5, 0.35],    # 小石魔：雙臂高舉身體拉長 → 砸地壓扁 25% → 拳頭卡地再拔起
+}
+
+static func pose(atk: float, type := -1) -> Array:
 	if atk <= 0.0:
 		return [0.0, 0.0, 1.0, 1.0, 0.0]
+	if POSE_PROFILE.has(type):
+		return _pose_prof(atk, POSE_PROFILE[type])
 	if atk < ATK_WINDUP:
 		var e := _smooth(atk / ATK_WINDUP)
 		return [-e, -LEAN_BACK * e, 1.0 + 0.12 * e, 1.0 - 0.12 * e, -1.0 * e]   # 前搖壓扁蓄力 1.12／0.88
@@ -19,12 +29,29 @@ static func pose(atk: float) -> Array:
 	return [lerpf(1.0, 0.0, e3), lerpf(LEAN_FWD, 0.0, e3), lerpf(0.88, 1.0, e3), lerpf(1.14, 1.0, e3), lerpf(3.0, 0.0, e3)]
 
 
+## 前搖到底的後仰角（勝利姿勢用來抵銷，站直）。
+static func windup_lean(type: int) -> float:
+	return float(POSE_PROFILE[type][2]) if POSE_PROFILE.has(type) else LEAN_BACK
+
+static func _pose_prof(atk: float, f: Array) -> Array:
+	if atk < ATK_WINDUP:
+		var e := _smooth(atk / ATK_WINDUP)
+		return [-e, -f[2] * e, lerpf(1.0, f[0], e), lerpf(1.0, f[1], e), f[3] * e]
+	if atk < ATK_STRIKE:
+		var u := (atk - ATK_WINDUP) / (ATK_STRIKE - ATK_WINDUP)
+		var e2 := 1.0 - (1.0 - u) * (1.0 - u)
+		return [lerpf(-1.0, 1.0, e2), lerpf(-f[2], f[6], e2), lerpf(f[0], f[4], e2), lerpf(f[1], f[5], e2), lerpf(f[3], f[7], e2)]
+	var r := (atk - ATK_STRIKE) / (1.0 - ATK_STRIKE)
+	var e3 := _smooth(clampf((r - f[8]) / (1.0 - f[8]), 0.0, 1.0))   # 先停在命中姿勢 f[8]，再收回
+	return [lerpf(1.0, 0.0, e3), lerpf(f[6], 0.0, e3), lerpf(f[4], 1.0, e3), lerpf(f[5], 1.0, e3), lerpf(f[7], 0.0, e3)]
+
+
 ## 角色的局部座標轉換（以腳底為原點、face＝+1 畫）：呼吸／走路起伏、前撲、傾身、壓扁拉長、翻面。
 ## lean＝額外傾角（騎兵衝鋒前傾）、crouch＝縱向縮放（刺客潛行蹲身）。
 static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0, gtype := 0) -> Transform2D:
 	# 外層（位置、起伏、翻面、縮放、額外傾身／蹲身）× 內層（攻擊姿勢，face＝+1 空間）。
 	# 精靈圖快取烘焙的是內層，貼圖時套外層，所以兩條路的順序完全一樣（Codex R5 #3）。
-	var ps := pose(atk)
+	var ps := pose(atk, gtype)
 	var bob := idle_bob(t, p.x) if walk == 0.0 else -Gait.air(gtype, walk)
 	var outer := Transform2D(lean * face, Vector2(scale * face, scale * crouch), 0.0, p + Vector2(0, bob * scale))
 	return outer * Transform2D(ps[1], Vector2(ps[2], ps[3]), 0.0, Vector2(ps[4], 0))
@@ -36,7 +63,7 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 		hurt: float, alpha: float, t: float, scale := 1.0, cb := false, mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
 	var tc := team_color(team, cb)
 	_team_now = team
-	var w: float = pose(atk)[0]
+	var w: float = pose(atk, type)[0]
 	if atk > 0.0:
 		walk = 0.0   # 和精靈圖一致：攻擊格沒有走路相位
 	_xf = base * unit_xf(p, face, walk, atk, t, scale, lean, crouch, type)

@@ -1061,3 +1061,98 @@ func test_trial_rules_valid() -> void:
 				ok(e.place_xy(t, int(u["x"]), int(u["y"])), "固定敵陣擺法合法", "第 %d 關 %s：%s" % [i + 1, str(u), e.check_place_xy(t, int(u["x"]), int(u["y"]))])
 	g.free()
 	SaveS.data_locked = was
+
+
+## V1.1 D2：每日挑戰。8 種突變都合法、敵陣固定（釘住；改到 AI 或產生器要升 Daily.VER 再更新）、紀錄比較正確。
+const DailyS = preload("res://scripts/game/daily.gd")
+const DAILY_PIN := {20400: "bb68a92bc1f3", 20407: "3de9eb1ef182"}
+func test_daily_v11() -> void:
+	var muts := {}
+	for d in range(20398, 20398 + 7 * 9):
+		var sp: Dictionary = DailyS.spec(d)
+		muts[int(sp["mut"])] = true
+		var r = DailyS.make_rules(sp, RS9.full_pool())
+		var bad: Array = r.validate()
+		ok(bad.is_empty(), "D2 第 %d 天規則合法（突變 %d）" % [d, int(sp["mut"])], str(bad))
+		var e = DailyS.enemy(sp, r)
+		ok(e.has_combat() and e.units.size() > 0, "D2 第 %d 天敵陣有戰鬥兵" % d)
+		var e2 = DailyS.enemy(DailyS.spec(d), DailyS.make_rules(DailyS.spec(d), RS9.full_pool()))
+		ok(e.to_code() == e2.to_code(), "D2 同一天同一支敵軍")
+		for u in e.units:
+			ok(RS9.has(r.pool_of(1), int(u["type"])), "D2 敵兵在卡池內")
+		if DAILY_PIN.has(d):
+			var h: String = e.to_code().sha256_text().substr(0, 12)
+			if str(DAILY_PIN[d]) == "":
+				print("DAILYPIN %d %s" % [d, h])
+			else:
+				ok(h == str(DAILY_PIN[d]), "D2 第 %d 天敵陣沒漂移（漂了就升 Daily.VER）" % d, h)
+	ok(muts.size() == DailyS.MUTATORS, "D2 九週內 8 種突變都出現")
+	ok(DailyS.spec(20400)["key"] == "20400-v%d" % DailyS.VER, "D2 紀錄鍵含版本")
+	var best := {}
+	ok(DailyS.record(best, DailyS.spec(1), 40, 90), "D2 第一次贏就是紀錄")
+	ok(not DailyS.record(best, DailyS.spec(1), 30, 50), "D2 剩得少不算新紀錄")
+	ok(DailyS.record(best, DailyS.spec(1), 40, 80), "D2 一樣剩、花得少算新紀錄")
+	for d2 in range(2, 20):
+		DailyS.record(best, DailyS.spec(d2), 10, 10)
+	ok(best.size() == DailyS.KEEP_DAYS and best.has(DailyS.spec(19)["key"]) and not best.has(DailyS.spec(1)["key"]), "D2 只留最近 %d 天" % DailyS.KEEP_DAYS)
+	var dirty := {"daily_best": {"5-v1": [120, -3], "x": "bad", "6-v1": [1]}}
+	SaveS.sanitize_data(dirty)
+	ok(dirty["daily_best"].size() == 1 and int(dirty["daily_best"]["5-v1"][0]) == 100 and int(dirty["daily_best"]["5-v1"][1]) == 0, "D2 存檔壞資料清掉、超界夾住")
+
+
+## V1.1 D1：遠征路線。節點類型、事件種子固定、募兵換卡池、下一戰敵方變弱、舊續局沒有新欄位也能讀。
+func test_gauntlet_route_v11() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	ok(g.ga_node(1) == "outpost" and g.ga_node(4) == "elite" and g.ga_node(7) == "boss", "D1 節點：前哨、菁英、首領")
+	g.rules = null
+	g._start_mode(g.Mode.GAUNTLET)
+	_place_some(g, 6)
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	var o1: Array = g._gauntlet_offers()
+	ok(o1.size() == 3 and o1 == g._gauntlet_offers(), "D1 每站固定 3 個事件", str(o1))
+	var pool0: int = g._gauntlet_pool()
+	var rp: Array = g._recruit_pick()
+	if not rp.is_empty():
+		g._take_reward(3)
+		var pool1: int = g._gauntlet_pool()
+		ok(RS9.has(pool1, int(rp[0])) and not RS9.has(pool1, int(rp[1])) and RS9.pool_count(pool1) == RS9.pool_count(pool0), "D1 募兵：一進一出，種數不變")
+		ok(int(SaveS.data["gauntlet_run"]["pool"]) == pool1, "D1 募兵後的卡池有存進續局")
+	else:
+		g._take_reward(0)
+	var e_full: int = g.armies[1].budget
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	g._take_reward(4)
+	ok(g.armies[1].budget == e_full + 5 - 10, "D1 斥候劫掠：下一戰敵方少 10 金", "%d %d" % [g.armies[1].budget, e_full])
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(SaveS.data["gauntlet_run"]))
+	ok(int(saved["foe_gold"]) == -10, "D1 下一戰效果有存", str(saved))
+	var g2 = GS.new()
+	g2.sfx = FakeSfx.new()
+	g2.time = 1.0
+	SaveS.data["gauntlet_run"] = SaveS.sanitize_run(saved)
+	g2._gauntlet_resume()
+	ok(g2.armies[1].to_code() == g.armies[1].to_code(), "D1 接回來敵陣一樣（含下一戰效果）")
+	var old := saved.duplicate(true)
+	old.erase("foe_gold")
+	old.erase("foe_cap")
+	var cl: Dictionary = SaveS.sanitize_run(old)
+	ok(not cl.is_empty() and int(cl["foe_gold"]) == 0 and int(cl["foe_cap"]) == 0, "D1 舊續局沒有新欄位＝0（遷移）")
+	old["foe_gold"] = -500
+	ok(int(SaveS.sanitize_run(old)["foe_gold"]) == 0, "D1 超界的值歸 0")
+	g._gauntlet_clear()
+	g2.free()
+	g.free()
+	SaveS.data_locked = was
+
+
+## V1.1 B1：敗因摘要（純函式）。
+func test_loss_summary_v11() -> void:
+	var GR = preload("res://scripts/ui/screens/game_result.gd")
+	ok(GR.loss_summary({}, [0, 1]) == "", "B1 沒資料就不顯示")
+	var s: String = GR.loss_summary({"dmgby0_6": 300, "dmgby0_2": 100, "dmgby1_0": 999}, [0, 1, 3, 4])
+	ok(s.find(L.t("unit_6")) >= 0 and s.find("75") >= 0, "B1 抓到傷害最多的敵兵與占比（只看藍方受傷）", s)
+	var s2: String = GR.loss_summary({"dmgby0_6": 300}, [])
+	ok(s2 != "" and s2 == L.t("loss_hint_n", [L.t("unit_6"), 100]), "B1 沒有可建議的兵就只講來源", s2)

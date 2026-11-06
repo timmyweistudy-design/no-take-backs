@@ -244,7 +244,7 @@ func _draw_vignette(strength: float) -> void:
 
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "chips", "tell", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	var pr: int = FX_PRIO.get(d["kind"], 1)
 	# 同一處同種特效去重（Antigravity S2 #2）：24px 內、0.15 秒內最多 2 個
@@ -356,6 +356,51 @@ func _draw_fx(f: Dictionary) -> void:
 		"ripple":
 			var c3: Color = f["c"]
 			draw_arc(f["p"], 6 + k * 18, -1.2, 1.2, 12, Color(c3, 1 - k), 3, true)
+		"badge":
+			var bc: Color = f["c"]
+			var bs := 7.0 * (1.0 + 0.4 * sin(minf(k * 2.0, 1.0) * PI))
+			var bp: Vector2 = f["p"] - Vector2(0, k * 8.0)
+			var dm := PackedVector2Array([bp + Vector2(0, -bs), bp + Vector2(bs * 0.8, 0), bp + Vector2(0, bs), bp + Vector2(-bs * 0.8, 0)])
+			draw_colored_polygon(dm, Color(bc, 1.0 - k))
+			draw_polyline(dm + PackedVector2Array([dm[0]]), Color(Art.OUT, 1.0 - k), 2.0, true)
+		"sigil":
+			var sc: Color = f["c"]
+			var a0 := (1.0 - k) * (k * 6.0 if k < 0.15 else 1.0)
+			for q in f["pts"]:
+				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.5), 0, q))
+				var rr := 15.0 + k * 6.0
+				match int(f["sk"]):
+					0:
+						var hx := PackedVector2Array()
+						for j in 7:
+							hx.append(Vector2(cos(j * TAU / 6.0), sin(j * TAU / 6.0)) * rr)
+						draw_polyline(hx, Color(sc, 0.8 * a0), 2.5, true)
+					1:
+						for j in 3:
+							var an := j * TAU / 3.0 + k * 2.0
+							draw_arc(Vector2.ZERO, rr, an, an + 1.4, 8, Color(sc, 0.85 * a0), 3.0, true)
+					2:
+						draw_arc(Vector2.ZERO, rr, 0, TAU, 20, Color(sc, 0.6 * a0), 2.0, true)
+						draw_line(Vector2(-6, 0), Vector2(6, 0), Color(sc, 0.9 * a0), 3.0, true)
+						draw_line(Vector2(0, -6), Vector2(0, 6), Color(sc, 0.9 * a0), 3.0, true)
+					_:
+						for j in 6:
+							var an2 := j * TAU / 6.0
+							draw_line(Vector2(cos(an2), sin(an2)) * rr * 0.5, Vector2(cos(an2), sin(an2)) * rr * 1.1, Color(sc, 0.9 * a0), 2.5, true)
+			draw_set_transform_matrix(_cam)
+		"chips":
+			# V1.1 A2：受擊材質碎屑（盾火花、石屑、史萊姆滴），4 顆往外彈、往下掉
+			var cc: Color = f["c"]
+			for i in 4:
+				var ang := -PI * 0.5 + (i - 1.5) * 0.7 + float(int(f["p"].x) % 7) * 0.05
+				var v := Vector2(cos(ang), sin(ang)) * k * 22.0 + Vector2(0, k * k * 18.0)
+				var c0: Vector2 = f["p"] + v
+				if f.get("spark", false):
+					draw_line(c0, c0 - v.normalized() * 6.0 * (1.0 - k), Color(cc, 1.0 - k), 2.0, true)
+				elif f.get("drop", false):
+					draw_circle(c0, 3.2 * (1.0 - k * 0.5), Color(cc, (1.0 - k) * cc.a), true, -1.0, true)
+				else:
+					draw_rect(Rect2(c0 - Vector2(2.5, 2.5), Vector2(5, 5)), Color(cc, 1.0 - k))
 		"shard":
 			# 破盾裂片：盾面的灰藍碎片往外飛、旋轉、往下掉
 			for i in 6:

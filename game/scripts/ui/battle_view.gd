@@ -237,6 +237,8 @@ static func event_route(ev: Dictionary) -> String:
 
 
 
+var last_blast_t := -9.0   # V1.1 B2：連環爆偵測
+
 ## 第八輪的事件演出。回傳 true＝處理掉了。全部受簡化特效限制（_add_fx 會擋裝飾性的）。
 func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 	if not k in [EV.POISON, EV.BLAST, EV.VOODOO, EV.BITE, EV.MIMIC_OPEN, EV.SPLIT, EV.CAST, EV.TIMESTOP, EV.RAISE, EV.VACUUM, EV.STOMP, EV.ROCK]:
@@ -272,6 +274,10 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 				sfx.play("baa", 0.6)
 				if _fx_on("shake"):
 					shake = 0.1
+				# V1.1 B2：連環爆（0.4 秒內第二顆起）短頓格，看得出是一串連鎖
+				if time - last_blast_t < 0.4 and _fx_on("shake"):
+					hitstop = maxf(hitstop, 0.06)
+				last_blast_t = time
 				_report_add(s.team, s.type, k, L.t("ev_blast"), Color("#ffb347"))
 		EV.BITE:
 			atk_t[s.id] = time
@@ -288,7 +294,17 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 			sfx.play("squish", 0.5)
 			_report_add(s.team, 13, k, L.t("ev_split"), Color("#7dffa0"))
 		EV.CAST:
+			# V1.1 A6：大招前搖依技能配音（共用合成音，音量分層）
 			sfx.play("charge_up", 0.5)
+			match str(ev.get("skill", "")):
+				EV.STOMP:
+					sfx.play("stomp", 0.3)
+				EV.VACUUM:
+					sfx.play("vacuum", 0.35)
+				EV.TIMESTOP:
+					sfx.play("bell", 0.35)
+				EV.RAISE:
+					sfx.play("raise", 0.3)
 		EV.TIMESTOP:
 			_add_fx({"kind": "timebell", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.8})
 			sfx.play("bell", 1.0)
@@ -376,6 +392,14 @@ func _cmd_event(ev: Dictionary, with_fx: bool) -> void:
 	fx[-1]["cmd_tm"] = tm
 	if _fx_on("flash"):
 		_add_fx({"kind": "cmd_flash", "t": 0.0, "dur": 0.35, "screen": true, "c": Color("#7fd3ff") if sk == CmdD.FREEZE else (Color("#fff0b0") if sk != CmdD.METEOR else Color("#ff8a3c"))})
+	if sk != CmdD.METEOR:
+		# V1.1 A3：手動技能地面法陣（護盾六角、戰吼紅紋、治療綠十字、冰封冰刺），畫在受影響那隊每隻腳下
+		var side := tm if sk != CmdD.FREEZE else 1 - tm
+		var pts: Array = []
+		for u0 in view.units:
+			if u0.alive and u0.team == side and not u0.hidden:
+				pts.append(_upos(u0))
+		_add_fx({"kind": "sigil", "pts": pts, "sk": sk, "t": 0.0, "dur": 0.9, "c": [Color("#7fd3ff"), Color("#ff6b5b"), Color("#7dff8a"), Color.WHITE, Color("#bfefff")][sk]})
 	if sk == CmdD.METEOR and ev.has("x"):
 		_add_fx({"kind": "meteor", "p": ORIGIN + Vector2(int(ev["x"]), int(ev["y"])) * CS / 1000.0, "t": 0.0, "dur": 0.6, "r": CmdD.METEOR_R * CS / 1000.0})
 		if _fx_on("shake"):
@@ -532,7 +556,10 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	if label != "":
 		_report_add(s.team, s.type, k, label, col)
 		# 第七輪 D1：混戰（附近 3 隻以上）不再往上疊跳字，技能都進底部戰報列；稀疏時才跳字
-		if _crowd_at(t) < 3:
+		if int(TEXT_TIER.get(k, 1)) < 2:
+			# V1.1 A5：一般狀態（反騎、反擊、破陣）不出字，只在頭頂閃一個小菱形，字留在底部戰報列
+			_add_fx({"kind": "badge", "p": tpos + Vector2(0, -64), "c": col, "t": 0.0, "dur": 0.4})
+		elif _crowd_at(t) < 3:
 			_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -78), col)
 		elif int(TEXT_TIER.get(k, 1)) >= 2:
 			text_key_in += 1

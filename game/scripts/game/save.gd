@@ -14,7 +14,7 @@ const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
 	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
 	# 第五輪：解鎖累計場數（標準＋自訂局都算，沙盒不算）、自訂規則戰績、我的預設、上次在大廳用的規則（代碼）
-	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false, "gauntlet_run": {},
+	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false, "gauntlet_run": {}, "puzzle_tries": {}, "puzzle_first": {}, "trial_tries": {}, "trial_first": {}, "daily_best": {},
 }
 
 static var settings := {}
@@ -142,7 +142,7 @@ static func sanitize_data(out: Dictionary) -> void:
 			uw[str(k)] = _count(raw_uw[k])
 	out["unit_wins"] = uw
 	# V9：新欄位都是可有可無的統計，型別不對就歸零（不用升存檔版本：舊存檔沒有就用預設）
-	for dk in ["trial_stars", "unit_games"]:
+	for dk in ["trial_stars", "unit_games", "puzzle_tries", "puzzle_first", "trial_tries", "trial_first"]:
 		var dv = out.get(dk, {})
 		var clean := {}
 		if dv is Dictionary:
@@ -175,6 +175,15 @@ static func sanitize_data(out: Dictionary) -> void:
 				lr[str(k)] = raw_lr[k].map(func(v): return int(v))   # 第十輪 B3：性格、輪替、禁牌、時段（JSON 讀回是浮點數）
 	out["last_rules"] = lr
 	out["gauntlet_run"] = sanitize_run(out.get("gauntlet_run", {}))
+	# V1.1 D2：每日挑戰最佳紀錄 {"日數-vN": [剩餘%, 花費]}；壞的丟掉
+	var db := {}
+	var raw_db = out.get("daily_best", {})
+	if raw_db is Dictionary:
+		for k in raw_db:
+			var v = raw_db[k]
+			if str(k).length() <= 24 and v is Array and v.size() == 2 and (v[0] is int or v[0] is float) and (v[1] is int or v[1] is float) and db.size() < 30:
+				db[str(k)] = [clampi(int(v[0]), 0, 100), clampi(int(v[1]), 0, 1000)]
+	out["daily_best"] = db
 
 ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
 static func sanitize_run(g) -> Dictionary:
@@ -214,6 +223,10 @@ static func sanitize_run(g) -> Dictionary:
 			o[str(k2)] = int(v2)
 		prev.append(o)
 	out["prev"] = prev
+	# V1.1 D1：遠征路線的「下一戰敵方」事件。可有可無（舊續局沒有＝0），超出範圍歸 0
+	for k3 in [["foe_gold", -10], ["foe_cap", -2]]:
+		var fv = g.get(k3[0], 0)
+		out[k3[0]] = int(fv) if (fv is int or fv is float) and int(fv) >= int(k3[1]) and int(fv) <= 0 else 0
 	return out
 
 ## 逐版遷移（純函式，測試用）：舊進度一律保留；不認得的欄位也保留（新版遊戲寫的存檔被舊版讀到時不會被刪掉）。
@@ -314,6 +327,19 @@ static func s(key: String):
 static func set_setting(key: String, v) -> void:
 	settings[key] = v
 	save_settings()
+
+
+## V1.1 F2：本機遊玩紀錄（不上傳、不升存檔版本）。kind＝"puzzle"／"trial"：每打一次 +1；
+## 第一次過關時記下當時的嘗試次數與花費（first＝花費、first_try＝第幾次）。之後重打不改，用來校準三星。
+static func note_try(kind: String, id: String, cleared: bool, cost: int) -> void:
+	var tries: Dictionary = data.get(kind + "_tries", {})
+	tries[id] = int(tries.get(id, 0)) + 1
+	data[kind + "_tries"] = tries
+	var first: Dictionary = data.get(kind + "_first", {})
+	if cleared and not first.has(id):
+		first[id] = cost
+		first[id + "@"] = int(tries[id])
+	data[kind + "_first"] = first
 
 
 ## 試玩紀錄（優化方案 F5、N3）：只在設定開啟時寫在本機 user://playtest_log.jsonl，不上傳。

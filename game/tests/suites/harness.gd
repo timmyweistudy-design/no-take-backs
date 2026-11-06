@@ -15,3 +15,11 @@ func test_harness_v7() -> void:
 			ok(fn2 in runner.ALL_TESTS, "R2：%s 在完整清單裡" % fn2)
 	for fn in runner.ALL_TESTS:
 		ok(runner.has_test(fn), "R2：完整清單的 %s 存在" % fn)
+	# V1.1 E2：單一登錄。suites 裡每個 test_ 函式都要登記，ORDER 不能有 FILES 沒有的名字
+	ok(runner.unregistered().is_empty(), "E2：沒有漏登記的測試函式")
+	var reg := {}
+	for g2 in runner.FILES:
+		for fn3 in runner.FILES[g2]:
+			reg[fn3] = true
+	for fn4 in runner.ORDER:
+		ok(reg.has(fn4), "E2：ORDER 的 %s 有在 FILES" % fn4)

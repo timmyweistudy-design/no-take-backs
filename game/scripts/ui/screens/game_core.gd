@@ -82,9 +82,12 @@ func _reset_place(keep_blue := false) -> void:
 				armies[0].units = gauntlet_prev.duplicate(true)
 			var r := RandomNumberGenerator.new()
 			r.seed = gauntlet_seed + gauntlet_stage * 7919
-			var lvl := mini(2, (gauntlet_stage - 1) / 2)
+			var node: String = call("ga_node", gauntlet_stage)
+			var lvl := 2 if node == "boss" else mini(2, (gauntlet_stage - 1) / 2 + (1 if node == "elite" else 0))
 			var e := AIT.build_full(1, r, lvl, gauntlet_prev, _pool())
-			e.budget = 100 + 5 * (gauntlet_stage - 1)
+			# V1.1 D1：菁英 +10、首領 +20；斥候劫掠／截斷補給只影響這一戰
+			e.budget = 100 + 5 * (gauntlet_stage - 1) + int(get("GA_NODE_GOLD")[node]) + int(get("gauntlet_foe_gold"))
+			e.unit_cap = maxi(4, e.unit_cap + int(get("gauntlet_foe_cap")))
 			var guard := 0
 			while e.can_afford_any() and guard < 20:
 				guard += 1
@@ -152,7 +155,8 @@ func _ai_poll() -> void:
 func _build_ai() -> void:
 	if get("challenge_army") != null:
 		armies[1] = get("challenge_army").copy()     # 挑戰碼：對手就是朋友排好的陣
-		ai_name = L.t("ch_name")
+		var dsp = get("daily_spec")
+		ai_name = L.t("menu_daily") if dsp is Dictionary and not dsp.is_empty() else L.t("ch_name")
 		return
 	var tid = get("trial_id")
 	if tid != null and int(tid) >= 0:
@@ -333,6 +337,8 @@ func _progress_and_achievements() -> void:
 		if stars > int(ps.get(puzzle_id, 0)):
 			ps[puzzle_id] = stars
 		Save.data["puzzle_stars"] = ps
+		if mode == Mode.PUZZLE:
+			Save.note_try("puzzle", puzzle_id, stars >= 1, armies[0].spent())   # V1.1 F2
 		if mode == Mode.TUTORIAL and w == 0:
 			var idx := 0
 			for i in PZ.tutorials().size():
@@ -708,7 +714,8 @@ func _gauntlet_save() -> void:
 			o[str(k)] = int(u[k])
 		prev.append(o)
 	Save.data["gauntlet_run"] = {"stage": gauntlet_stage, "seed": gauntlet_seed, "gold": int(get("gauntlet_gold")), "cap": int(get("gauntlet_cap")),
-		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev}   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
+		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev,
+		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap"))}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
 	Save.save_data()
 
 func _gauntlet_clear() -> void:
@@ -725,6 +732,8 @@ func _gauntlet_resume() -> void:
 	gauntlet_stage = int(g["stage"])
 	gauntlet_seed = int(g["seed"])
 	gauntlet_prev = g["prev"].duplicate(true)
+	set("gauntlet_foe_gold", int(g.get("foe_gold", 0)))
+	set("gauntlet_foe_cap", int(g.get("foe_cap", 0)))
 	_reset_place(false)
 	armies[0].budget += int(g["gold"])
 	armies[0].unit_cap += int(g["cap"])

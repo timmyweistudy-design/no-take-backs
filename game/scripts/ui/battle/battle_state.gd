@@ -384,10 +384,15 @@ func _hit_material(id: int) -> void:
 	var u = view.unit_by_id(id)
 	if u == null:
 		return
+	var cp: Vector2 = _upos(u) + Vector2(0, -26)
 	match u.type:
 		D.SHIELD:
 			sfx.play("hit_metal", 0.22)
+			call("_add_fx", {"kind": "chips", "p": cp, "t": 0.0, "dur": 0.32, "c": Color("#e8f0ff"), "spark": true})   # V1.1 A2：盾面火花
 		19, 12:
 			sfx.play("hit_wood", 0.3)
+			if u.type == 19:
+				call("_add_fx", {"kind": "chips", "p": cp, "t": 0.0, "dur": 0.38, "c": Color("#a89a86")})   # 小石魔碎屑
 		13, 20:
 			sfx.play("hit_soft", 0.3)
+			call("_add_fx", {"kind": "chips", "p": cp, "t": 0.0, "dur": 0.4, "c": Color(0.45, 1.0, 0.55, 0.85), "drop": true})   # 史萊姆綠滴

@@ -653,7 +653,15 @@ static func unit_center_feet(center: Vector2, type: int, scale: float) -> Vector
 func _unit_in(r: Rect2, type: int, team: int, alpha := 1.0, scale := 0.6) -> void:
 	Art.unit(self, unit_center_feet(r.get_center(), type, scale), type, team, 1.0, 0.0, 0.0, 0.0, alpha, time, scale, cbm())
 
+var ring_shadow := 0.0   # V1.1 C6：亮色地圖（冰原）額外加深腳底影子；0＝不加
+
 func _ring(p: Vector2, team: int, type: int, scale := 1.0) -> void:
+	if ring_shadow > 0.0:
+		var sh := PackedVector2Array()
+		for i in 16:
+			var an := i * TAU / 16.0
+			sh.append(p + Vector2(cos(an) * 17.0, 3.0 + sin(an) * 7.0) * Vector2(scale, scale) + Vector2(0, 0))
+		draw_colored_polygon(sh, Color(0.05, 0.08, 0.15, ring_shadow))
 	if sprites != null and sprites.is_ready(cbm()):
 		sprites.draw_ring(self, p, team, type, scale)
 	else:
@@ -667,7 +675,11 @@ func _rebuild_sprites() -> void:
 ## 目前模式的名稱（S8：只用到 ui_base 的狀態，從 game_screens 移下來）
 func _mode_label() -> String:
 	match mode:
-		Mode.VS_AI: return "%s・%s" % [L.t("menu_vs_ai"), L.t(["diff_easy", "diff_normal", "diff_hard"][difficulty])]
+		Mode.VS_AI:
+			var dsp = get("daily_spec")
+			if dsp is Dictionary and not dsp.is_empty():
+				return "%s・%s" % [L.t("menu_daily"), L.t("daily_mut_%d" % int(dsp["mut"]))]   # V1.1 D2
+			return "%s・%s" % [L.t("menu_vs_ai"), L.t(["diff_easy", "diff_normal", "diff_hard"][difficulty])]
 		Mode.DUEL: return "%s・%s" % [L.t("menu_duel"), L.t("rule_custom", [rules.turns]) if duel_rule == "custom" and rules != null else L.t("rule_" + duel_rule)]
 		Mode.TUTORIAL: return L.t("menu_tutorial")
 		Mode.PUZZLE: return L.t("menu_puzzle")

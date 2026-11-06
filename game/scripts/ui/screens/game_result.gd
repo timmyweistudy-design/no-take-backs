@@ -16,11 +16,15 @@ func _start_mode(m: int) -> void:
 	last_player_formation = []
 	overlay = ""
 	set("trial_id", -1)
+	if m != Mode.VS_AI or get("challenge_army") == null:
+		set("daily_spec", {})   # V1.1 D2：每日挑戰按「再來一次」時保留（敵陣在 challenge_army）
 	if m != Mode.VS_AI:
 		set("challenge_army", null)
 	if m == Mode.GAUNTLET:
 		set("gauntlet_gold", 0)
 		set("gauntlet_cap", 0)
+		set("gauntlet_foe_gold", 0)
+		set("gauntlet_foe_cap", 0)
 		gauntlet_stage = 1
 		gauntlet_prev = []
 		gauntlet_changes = 99
@@ -59,6 +63,7 @@ func _finish_battle() -> void:
 		if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
 			call("_record_match", w)
 		call("_trial_finish", w)
+		call("_daily_finish", w)
 		Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
 	if eff["log"]:
 		Save.playtest_log(_pt_entry(0))
@@ -118,7 +123,13 @@ func _draw_result() -> void:
 	_text(Vector2(640, y), line1, tz("S"), Color(1, 1, 1, 0.8), true, false, hw)
 	y += text_h(line1, tz("S"), hw) + 6
 	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
-	if w >= 0 and not goal_mode:   # 第十三輪：護送、撐住、斬首不寫一般勝負敘述（Codex v13-r1 #6）
+	var loss := _loss_line(w, goal_mode)
+	if loss != "":
+		# V1.1 B1：輸的時候這一行改講「主要傷害來源＋可以試的兵」，不另外加高版面
+		hw = 540.0 if y < 210 else 820.0
+		_text(Vector2(640, y), loss, tz("B"), Color("#ffd8a8"), true, true, hw)
+		y += text_h(loss, tz("B"), hw, true) + 8
+	elif w >= 0 and not goal_mode:   # 第十三輪：護送、撐住、斬首不寫一般勝負敘述（Codex v13-r1 #6）
 		hw = 540.0 if y < 210 else 820.0
 		_text(Vector2(640, y), _verdict(w), tz("B"), Color.WHITE, true, true, hw)
 		y += text_h(_verdict(w), tz("B"), hw, true) + 8
@@ -336,6 +347,51 @@ func _draw_result_details(R: Rect2) -> void:
 
 
 ## 一句描述（第五輪：只講事實、和 MVP 一致，不宣稱因果——Codex 第二輪）。主角＝MVP（勝方傷害最高的那一隻）。
+## V1.1 B1：藍方（玩家）輸了才有。傷害最多的敵方兵種與占比；能帶的兵裡剋它最強的那種當建議。雙人、觀戰不顯示。
+func _loss_line(w: int, goal_mode: bool) -> String:
+	if mode == Mode.DUEL or watch_mode or play_kind == "review":
+		return ""
+	var lost: bool = (bool(report.get("goal_ok", true)) == false) if goal_mode else (w == 1)
+	if not lost:
+		return ""
+	return loss_summary(ev_count, _loss_pool())
+
+func _loss_pool() -> Array:
+	if mode == Mode.PUZZLE or mode == Mode.TUTORIAL:
+		return PZ.get_puzzle(puzzle_id).get("allowed", [])
+	var out: Array = []
+	var pool: int = int(armies[0].pool) if not armies.is_empty() else 0
+	for ty in 20:
+		if RuleSet.has(pool, ty):
+			out.append(ty)
+	return out
+
+## 純函式（測試用）。counts＝ev_count（含 dmgby0_<兵種>）、pool＝可以帶的兵種。
+static func loss_summary(counts: Dictionary, pool: Array) -> String:
+	var total := 0
+	var top := -1
+	var top_v := 0
+	for k in counts:
+		if str(k).begins_with("dmgby0_"):
+			var v := int(counts[k])
+			total += v
+			if v > top_v:
+				top_v = v
+				top = int(str(k).substr(7))
+	if top < 0 or total <= 0:
+		return ""
+	var best := -1
+	var best_sc := 0
+	for ty in pool:
+		var sc: int = AIT.counter_score(int(ty), top)
+		if sc > best_sc:
+			best_sc = sc
+			best = int(ty)
+	var pct := roundi(top_v * 100.0 / total)
+	if best >= 0:
+		return L.t("loss_hint", [L.t("unit_%d" % top), pct, L.t("unit_%d" % best)])
+	return L.t("loss_hint_n", [L.t("unit_%d" % top), pct])
+
 func _verdict(w: int) -> String:
 	var mvp = report.get("mvp")
 	var side := L.t("blue") if w == 0 else L.t("red")

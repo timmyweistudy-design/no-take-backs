@@ -249,6 +249,20 @@ func _draw_hide_fog(hide_side: int) -> void:
 
 
 
+## V1.1 B3：部署剋制提示。選中的兵剋這隻敵兵＝頭上綠色 ▲，被這隻剋＝紅色 ▼（只讀剋制表，不跑模擬）。
+func _counter_mark(p: Vector2, mine: int, foe: int) -> void:
+	if mine == foe:
+		return
+	var sc: int = AIT.counter_score(mine, foe)
+	if sc == 0:
+		return
+	var c := p + Vector2(0, -74 if foe != D.CAVALRY else -82)
+	var s := 9.0
+	var up := sc > 0
+	var tri := PackedVector2Array([c + Vector2(0, -s if up else s), c + Vector2(s, s * 0.6 if up else -s * 0.6), c + Vector2(-s, s * 0.6 if up else -s * 0.6)])
+	draw_colored_polygon(tri, Color("#4ade80") if up else Color("#f87171"))
+	draw_polyline(tri + PackedVector2Array([tri[0]]), Art.OUT, 2.0, true)
+
 func _draw_place_units() -> void:
 	var list: Array = []
 	var hide_side := -1
@@ -269,6 +283,8 @@ func _draw_place_units() -> void:
 		var p := ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS
 		_ring(p, it[3], it[2])
 		_unit(p, it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
+		if it[3] == 1 and selected >= 0 and _cur_army().team == 0:
+			_counter_mark(p, selected, int(it[2]))   # V1.1 B3
 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
 			_lock_icon(p + Vector2(17, -60))   # 14px 鎖頭（第三輪 U4）
 		if not pz.is_empty() and pz.has("goal_unit") and int(pz["goal_unit"][0]) == it[1] and int(pz["goal_unit"][1]) == it[0] and it[3] == (0 if PZ.goal(pz) == "protect" else 1):
@@ -481,7 +497,7 @@ func _draw_place_hud() -> void:
 		var pz := PZ.get_puzzle(puzzle_id)
 		head = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 	elif mode == Mode.GAUNTLET:
-		head = L.t("gauntlet_title", [gauntlet_stage])
+		head = "%s・%s" % [L.t("gauntlet_title", [gauntlet_stage]), L.t("ga_node_" + str(call("ga_node", gauntlet_stage)))]
 	var hz := tcap(tz("H2"), 26)
 	_text(Vector2(640, 2), head, hz, tcol if mode == Mode.DUEL else Color.WHITE, true, true, 520)
 	var star := -1
