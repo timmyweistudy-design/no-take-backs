@@ -243,7 +243,19 @@ func _draw_hide_fog(hide_side: int) -> void:
 			_unit(ORIGIN + Vector2(gw) * CS / 1000.0, int(gu["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.28, 0.0, 1.0)
 	var msg := L.t("ai_hidden") if mode == Mode.VS_AI else L.t("enemy_hidden")
 	_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, fld_size.y / 2 - 10), msg, ts(22), Color(1, 1, 1, 0.85), true, true, cols * CS - 20)
-	if mode == Mode.VS_AI:
+	var dsp = get("daily_spec")
+	if mode == Mode.VS_AI and dsp is Dictionary and not dsp.is_empty():
+		# V1.1 D2：每日挑戰把本週突變、計分方式、今日最佳寫在迷霧區（不洩漏陣型）
+		var dw := cols * CS - 30
+		var dy: float = fld_size.y / 2 - 10 + text_h(msg, ts(22), cols * CS - 20, true) + 14   # 接在「AI 的陣型開戰後揭曉」（大字會換行）下面
+		var dl: Array = [str(call("_daily_desc", dsp, rules)), L.t("daily_score")]
+		var b0: Array = Save.data.get("daily_best", {}).get(str(dsp["key"]), [])
+		if not b0.is_empty():
+			dl.append(L.t("daily_best", [int(b0[0]), int(b0[1])]))
+		for s0 in dl:
+			_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, dy), s0, ts(15), Color(1, 0.85, 0.6, 0.85), true, false, dw)
+			dy += text_h(s0, ts(15), dw) + 6
+	elif mode == Mode.VS_AI:
 		# AI 的難度與性格（第三輪 U3）：不洩漏陣型
 		_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, fld_size.y / 2 + 70), L.t("ai_trait_%d" % difficulty), ts(15), Color(1, 0.85, 0.6, 0.8), true, false, cols * CS - 30)
 

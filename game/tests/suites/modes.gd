@@ -1095,7 +1095,7 @@ func test_daily_v11() -> void:
 	for d2 in range(2, 20):
 		DailyS.record(best, DailyS.spec(d2), 10, 10)
 	ok(best.size() == DailyS.KEEP_DAYS and best.has(DailyS.spec(19)["key"]) and not best.has(DailyS.spec(1)["key"]), "D2 只留最近 %d 天" % DailyS.KEEP_DAYS)
-	var dirty := {"daily_best": {"5-v1": [120, -3], "x": "bad", "6-v1": [1]}}
+	var dirty := {"daily_best": {"5-v1": [120, -3], "x": "bad", "6-v1": [1], "999999999-v1": [100, 0], "ab-v1": [1, 1]}}
 	SaveS.sanitize_data(dirty)
 	ok(dirty["daily_best"].size() == 1 and int(dirty["daily_best"]["5-v1"][0]) == 100 and int(dirty["daily_best"]["5-v1"][1]) == 0, "D2 存檔壞資料清掉、超界夾住")
 
@@ -1127,8 +1127,17 @@ func test_gauntlet_route_v11() -> void:
 	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
 	g._take_reward(4)
 	ok(g.armies[1].budget == e_full + 5 - 10, "D1 斥候劫掠：下一戰敵方少 10 金", "%d %d" % [g.armies[1].budget, e_full])
+	ok(g.armies[1].spent() <= g.armies[1].budget and g.armies[1].units.size() <= g.armies[1].unit_cap, "D1 敵陣不超出調低後的預算與隻數（Codex v110-impl #2）", "%d/%d" % [g.armies[1].spent(), g.armies[1].budget])
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	var rp2: Array = g._recruit_pick()
+	var used2 := {}
+	for u2 in g.last_armies[0].units:
+		used2[int(u2["type"])] = true
+	ok(rp2.is_empty() or not used2.has(int(rp2[1])), "D1 募兵離隊的不會是剛打完那一戰的兵（Codex v110-impl #1）")
+	g._take_reward(5)
+	ok(g.armies[1].units.size() <= g.armies[1].unit_cap and g.armies[1].spent() <= g.armies[1].budget, "D1 截斷援軍：敵方隻數上限照扣、不超出")
 	var saved: Dictionary = JSON.parse_string(JSON.stringify(SaveS.data["gauntlet_run"]))
-	ok(int(saved["foe_gold"]) == -10, "D1 下一戰效果有存", str(saved))
+	ok(int(saved["foe_cap"]) == -2 and int(saved["foe_gold"]) == 0, "D1 下一戰效果有存、上一個效果只用一戰", str(saved))
 	var g2 = GS.new()
 	g2.sfx = FakeSfx.new()
 	g2.time = 1.0

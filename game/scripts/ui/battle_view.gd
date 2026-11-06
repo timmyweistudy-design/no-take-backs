@@ -237,7 +237,7 @@ static func event_route(ev: Dictionary) -> String:
 
 
 
-var last_blast_t := -9.0   # V1.1 B2：連環爆偵測
+var last_blast_tick := -99   # V1.1 B2：連環爆偵測（用模擬 tick，8 tick＝0.4 秒；開戰與跳轉時重置）
 
 ## 第八輪的事件演出。回傳 true＝處理掉了。全部受簡化特效限制（_add_fx 會擋裝飾性的）。
 func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
@@ -275,9 +275,9 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 				if _fx_on("shake"):
 					shake = 0.1
 				# V1.1 B2：連環爆（0.4 秒內第二顆起）短頓格，看得出是一串連鎖
-				if time - last_blast_t < 0.4 and _fx_on("shake"):
+				if view.tick - last_blast_tick <= 8 and _fx_on("shake"):
 					hitstop = maxf(hitstop, 0.06)
-				last_blast_t = time
+				last_blast_tick = view.tick
 				_report_add(s.team, s.type, k, L.t("ev_blast"), Color("#ffb347"))
 		EV.BITE:
 			atk_t[s.id] = time
@@ -707,6 +707,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	dying.clear()
 	atk_t.clear()
 	hurt_t.clear()
+	last_blast_tick = -99
 	ev_count = {}
 	frenzy_seen = false
 	result_delay = 0.0

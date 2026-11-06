@@ -782,6 +782,8 @@ func _shots_v6() -> void:
 ## 用法：<exe> --path game --resolution 1280x800 -- --perf=<輸出 json 絕對路徑> [--perf-commit=<hash>]
 func _run_perf() -> void:
 	var boot_ms := Time.get_ticks_msec()
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)   # V1.1：量效能時視窗移到畫面外（不打擾、也不是最小化，照常繪圖）
+	DisplayServer.window_set_position(Vector2i(-4000, -4000))
 	await get_tree().process_frame
 	var waited := 0
 	while sprites != null and not sprites.is_ready(cbm()) and waited < 240:

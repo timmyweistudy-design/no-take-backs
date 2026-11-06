@@ -181,7 +181,9 @@ static func sanitize_data(out: Dictionary) -> void:
 	if raw_db is Dictionary:
 		for k in raw_db:
 			var v = raw_db[k]
-			if str(k).length() <= 24 and v is Array and v.size() == 2 and (v[0] is int or v[0] is float) and (v[1] is int or v[1] is float) and db.size() < 30:
+			var dk3 := str(k)
+			var okk := dk3.length() <= 24 and dk3.get_slice("-v", 0).is_valid_int() and dk3.get_slice("-v", 1).is_valid_int() and dk3.contains("-v") and int(dk3.get_slice("-v", 0)) <= int(Time.get_unix_time_from_system()) / 86400 + 2
+			if okk and v is Array and v.size() == 2 and (v[0] is int or v[0] is float) and (v[1] is int or v[1] is float) and db.size() < 30:
 				db[str(k)] = [clampi(int(v[0]), 0, 100), clampi(int(v[1]), 0, 1000)]
 	out["daily_best"] = db
 

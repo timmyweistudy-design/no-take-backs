@@ -88,6 +88,9 @@ func _reset_place(keep_blue := false) -> void:
 			# V1.1 D1：菁英 +10、首領 +20；斥候劫掠／截斷補給只影響這一戰
 			e.budget = 100 + 5 * (gauntlet_stage - 1) + int(get("GA_NODE_GOLD")[node]) + int(get("gauntlet_foe_gold"))
 			e.unit_cap = maxi(4, e.unit_cap + int(get("gauntlet_foe_cap")))
+			# Codex v110-impl #2：先組好的陣可能超出調低後的預算／隻數，從最後放的往回拿掉（至少留一隻戰鬥兵）
+			while e.units.size() > 1 and (e.spent() > e.budget or e.units.size() > e.unit_cap):
+				e.units.pop_back()
 			var guard := 0
 			while e.can_afford_any() and guard < 20:
 				guard += 1

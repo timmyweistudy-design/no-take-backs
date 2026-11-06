@@ -294,8 +294,7 @@ func _start_daily() -> void:
 	rules = r
 	challenge_army = Daily.enemy(sp, r)   # 同一天同一支敵軍（固定陣，走挑戰碼那條路）
 	_start_mode(Mode.VS_AI)
-	daily_spec = sp
-	_toast(_daily_desc(sp, r))
+	daily_spec = sp   # 突變說明畫在敵方迷霧區（Antigravity v110-impl：開場提示會壓住兵種說明列）
 
 ## 突變說明：數值一律從這組規則讀（不寫死在字串裡）。
 func _daily_desc(sp: Dictionary, r) -> String:
@@ -352,7 +351,9 @@ func _gauntlet_offers() -> Array:
 func _recruit_pick() -> Array:
 	var pool: int = int(call("_gauntlet_pool"))
 	var used := {}
-	for u in gauntlet_prev:
+	# Codex v110-impl #1：離隊的不能是剛打完那一戰陣型裡的兵（下一戰會沿用那個陣型）
+	var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
+	for u in cur:
 		used[int(u["type"])] = true
 	var ins: Array = []
 	var outs: Array = []

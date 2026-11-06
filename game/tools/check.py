@@ -13,7 +13,7 @@ from pathlib import Path
 GAME = Path(__file__).resolve().parent.parent
 EXPECT = "4.6.2.stable"
 ERR = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|Failed to load script")
-PRE = re.compile(r'(?:preload|load)\(\s*"res://([^"]+\.(?:gd|json|csv))"')
+PRE = re.compile(r'(?:preload|load)\(\s*"res://([^"]+\.(?:gd|json|csv))"|^extends\s+"res://([^"]+\.gd)"', re.M)   # V1.1（Codex v110-impl #3）：也追繼承鏈
 TEST_DONE = re.compile(r"^—— ([1-9]\d*) 通過 / 0 失敗", re.M)
 # 這些組會碰存檔（固定檔名、靜態狀態），放同一個行程
 STATEFUL = ["fantasy", "rules", "save", "ui", "modes"]
@@ -30,7 +30,7 @@ def deps(entry: str, seen=None) -> set:
     seen.add(entry)
     if entry.endswith(".gd"):
         for m in PRE.findall((GAME / entry).read_text(encoding="utf-8", errors="ignore")):
-            deps(m, seen)
+            deps(m[0] or m[1], seen)
     return seen
 
 

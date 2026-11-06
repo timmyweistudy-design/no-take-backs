@@ -97,6 +97,7 @@ func _seek_begin(target: int) -> void:
 	sim = Sim.new(armies2[0].copy(), armies2[1].copy(), battle_rules)
 	call("_cmd_setup", sim, play_kind)
 	ev_count = {}
+	set("last_blast_tick", -99)
 	_seek_ct = -1
 	battle_marks.clear()
 	_seek_stop = maxi(0, target - ViewBuffer.DELAY)
