@@ -1217,5 +1217,13 @@ func _shots_v13() -> void:
 	call("_start_trial", 14)
 	_build_ai()
 	await _snap("91_trial_fixed.png")
+	# 試煉打贏的結果頁：按鈕最多 6 顆（下一關、再試、試煉、覆盤、重播、主選單），要整排在框內
+	for u in call("trial_x", 14).get("best", []):
+		armies[0].place_xy(int(u[0]), int(u[1]), int(u[2]))
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	while not sim.finished:
+		_sim_step(true)
+	_finish_battle()
+	await _snap("92_trial_win_result.png")
 	_go_title()
 	Save.data["puzzle_stars"] = {}

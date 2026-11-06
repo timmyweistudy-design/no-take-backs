@@ -170,7 +170,8 @@ func _draw_result() -> void:
 		var tl: String = "★".repeat(tn) + "☆".repeat(3 - tn) + "　" + str(report["trial_lines"])
 		_text(Vector2(640, y), tl, tz("S"), ACCENT, true, false, 820)
 		y += text_h(tl, tz("S"), 820) + 4
-	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL):
+	# 試煉只有一場，不顯示「三戰兩勝結束」（使用者截圖；大字級時還會壓到按鈕）
+	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL) and int(get("trial_id")) < 0:
 		var sw := L.t("series_draw") if wins[0] == wins[1] else L.t("series_win", [L.t("blue") if wins[0] > wins[1] else L.t("red"), wins[0], wins[1]])
 		_text(Vector2(640, y), L.t("series_end", [sw]), tz("B"), ACCENT, true, true, 820)
 		y += tz("B") * 1.5
@@ -227,12 +228,14 @@ func _draw_result() -> void:
 			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	bs.append([L.t("replay"), func(): _replay()])
 	bs.append([L.t("menu"), func(): _request_leave()])
-	var bw2 := 200.0 if bs.size() <= 3 else 176.0
-	var x := 640.0 - (bs.size() * (bw2 + 12) - 12) / 2.0
+	# 按鈕寬依結果框內寬分（框 880、左右各留 16）：試煉贏了最多 6 顆，舊的固定 176 會凸出框外（使用者截圖）
+	var gap := 8.0
+	var bw2: float = minf(200.0, (848.0 - (bs.size() - 1) * gap) / maxf(1.0, bs.size()))
+	var x := 640.0 - (bs.size() * (bw2 + gap) - gap) / 2.0
 	if mode == Mode.VS_AI and not watch_mode and _near_miss():
 		_text(Vector2(640, 618), L.t("review_near_d", [roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))]), tz("S"), ACCENT, true, true, 820)
 	for i in bs.size():
-		_btn(Rect2(x + i * (bw2 + 12), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
+		_btn(Rect2(x + i * (bw2 + gap), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
 
 
 
