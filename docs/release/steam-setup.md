@@ -21,10 +21,10 @@
      - **不會解鎖成就、不寫統計、不讀寫你的遊戲存檔**（會改用 `shot_` 前綴的存檔）。
      - Godot 本身仍會照常寫執行日誌。
      - 全部符合就 `exit 0`，任何一項不符就 `exit 1`。
-     - 輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次：正式 App 會逐一核對這 21 個成就都建好了（少一個就 exit 1，會列出缺哪些）。
+     - 輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次：正式 App 會逐一核對這 24 個成就都建好了（少一個就 exit 1，會列出缺哪些）。
      - 另外建議在**沒開 Steam** 時跑一次，確認會回報失敗（`exit 1`）。
 2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
-3. **成就**：在 Steamworks 後台建立以下 21 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
+3. **成就**：在 Steamworks 後台建立以下 24 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
 
 | API 名稱 | 中文 | English | 條件 |
 |---|---|---|---|
@@ -49,6 +49,9 @@
 | FANTASY_WIN | 傭兵公會開張 | Monster Mercenaries | 只用奇幻軍獲勝 |
 | BOOM_5 | 羊到爆炸 | Sheep Go Boom | 一場 5 次以上羊爆並獲勝 |
 | RAISE_3 | 大家起來 | Rise and Shine | 一場復活 3 隻以上並獲勝 |
+| PUZZLE_100 | 百局通關 | Hundred Puzzles | 100 關殘局全部過關（第十三輪） |
+| PUZZLE_ALL3 | 百局三星 | Hundred Perfect | 100 關殘局全部三星 |
+| TRIAL_ALL3 | 試煉滿星 | Trial Perfectionist | 30 關主題試煉全部三星 |
 
 4. **雲端**：後台 Steam Cloud → Auto-Cloud。
    - 路徑：Windows `%APPDATA%/Godot/app_userdata/落子無悔 No Take-Backs/`，檔案 `save.json`（加上 `save.json.bak`）。

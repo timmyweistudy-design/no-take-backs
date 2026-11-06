@@ -50,6 +50,8 @@ func _finish_battle() -> void:
 	_build_report()
 	if mode == Mode.DUEL:
 		sfx.play("win" if w >= 0 else "lose")
+	elif mode == Mode.PUZZLE and report.has("goal_ok"):
+		sfx.play("win" if bool(report["goal_ok"]) else "lose")   # 第十三輪：照過關條件（Codex v13-r1 #6）
 	else:
 		sfx.play("win" if w == 0 else "lose")
 	if eff["progress"]:
@@ -83,6 +85,9 @@ func _draw_result() -> void:
 	if w >= 0:
 		title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
 		col = Art.team_color(w, cbm())
+	if mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win":
+		title = L.t("goal_ok") if bool(report["goal_ok"]) else L.t("goal_fail")   # 第十三輪：護送、撐住、斬首看條件
+		col = Color("#ffd166") if bool(report["goal_ok"]) else Color(1, 1, 1, 0.8)
 	var title_sz := tcap(tz("D"), 64)
 	# 第十輪 V2、F2：標題離上緣遠一點；橫幅從上面落下（版面檢查、簡化特效不演）
 	var drop := 0.0
@@ -90,7 +95,8 @@ func _draw_result() -> void:
 		var dk := clampf((time - result_t) / 0.25, 0.0, 1.0)
 		drop = (1.0 - dk) * (1.0 - dk) * -60.0
 	_text(Vector2(640, 114 + drop), title, title_sz, col, true, true, 540)
-	_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
+	if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則（地形、撐住、技能）的代碼讀不回來，不給複製（Codex v13-r1 #1）
+		_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
 	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
 		_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
 	if report.has("trial_stars"):
@@ -111,7 +117,8 @@ func _draw_result() -> void:
 	var line1 := "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])]
 	_text(Vector2(640, y), line1, tz("S"), Color(1, 1, 1, 0.8), true, false, hw)
 	y += text_h(line1, tz("S"), hw) + 6
-	if w >= 0:
+	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
+	if w >= 0 and not goal_mode:   # 第十三輪：護送、撐住、斬首不寫一般勝負敘述（Codex v13-r1 #6）
 		hw = 540.0 if y < 210 else 820.0
 		_text(Vector2(640, y), _verdict(w), tz("B"), Color.WHITE, true, true, hw)
 		y += text_h(_verdict(w), tz("B"), hw, true) + 8
@@ -193,7 +200,7 @@ func _draw_result() -> void:
 		Mode.VS_AI, Mode.DUEL:
 			if get("trial_id") >= 0:
 				var tid: int = get("trial_id")
-				if w == 0 and tid + 1 < 10:
+				if w == 0 and tid + 1 < get("TRIALS").size():
 					bs.append([L.t("next_puzzle"), func(): call("_start_trial", tid + 1)])
 				bs.append([L.t("retry"), func(): call("_start_trial", tid)])
 				bs.append([L.t("trial_title"), func():
@@ -203,7 +210,7 @@ func _draw_result() -> void:
 				bs.append([L.t("new_match") if series_over else L.t("next_round"), func(): _next_round()])
 		Mode.TUTORIAL, Mode.PUZZLE:
 			bs.append([L.t("retry"), func(): _start_mode(mode)])
-			if w == 0:
+			if (w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false)):
 				bs.append([L.t("next_puzzle"), func(): _next_puzzle()])
 		Mode.GAUNTLET:
 			if w == 0 and gauntlet_stage < 7:
@@ -378,12 +385,14 @@ func _replay() -> void:
 
 
 func _next_puzzle() -> void:
-	var list: Array = PZ.tutorials() if mode == Mode.TUTORIAL else (PZ.fantasy_puzzles() if int(PZ.get_puzzle(puzzle_id).get("unit", 0)) >= D.COUNT else PZ.new_puzzles() if PZ.get_puzzle(puzzle_id).has("unit") else PZ.puzzles())
+	var list: Array = PZ.tutorials() if mode == Mode.TUTORIAL else PZ.all_puzzles()   # 第十三輪：照章節順序接下一關
 	for i in list.size():
 		if list[i]["id"] == puzzle_id and i + 1 < list.size():
 			var nx: Dictionary = list[i + 1]
 			if nx.has("unit") and not RS.available(int(nx["unit"]), _demo()):
 				break   # 試玩版沒有下一關的兵
+			if _demo() and mode == Mode.PUZZLE and i + 1 >= Presets.DEMO_PUZZLES:
+				break   # 試玩版只有第一章前幾關
 			puzzle_id = nx["id"]
 			_start_mode(mode)
 			return

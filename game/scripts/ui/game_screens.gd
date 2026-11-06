@@ -155,7 +155,7 @@ func _input(ev: InputEvent) -> void:
 		var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
 			JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
 			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
-			JOY_BUTTON_BACK: KEY_F1}
+			JOY_BUTTON_BACK: KEY_F1, JOY_BUTTON_LEFT_STICK: KEY_H, JOY_BUTTON_RIGHT_STICK: KEY_P}
 		if map.has(ev.button_index):
 			_enqueue("key", map[ev.button_index])
 		return
@@ -306,6 +306,12 @@ func _key(k: int) -> void:
 		KEY_RIGHT: cursor.x = mini(15, cursor.x + 1)
 		KEY_F1:
 			_open_codex(selected)
+		KEY_H:
+			if mode == Mode.PUZZLE:
+				call("_puzzle_hint")   # 第十三輪：手把 L3
+		KEY_P:
+			if mode == Mode.PUZZLE and PZ.get_puzzle(puzzle_id).has("cmd"):
+				overlay = "puzzle_plan"   # 第十三輪：手把 R3
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0:
 			# 第八輪：數字鍵對應這一排的第幾張卡，不是兵種編號
 			var pos := 9 if k == KEY_0 else k - KEY_1

@@ -689,6 +689,7 @@ func test_keymap_v7() -> void:
 	ok(KM.pad_name(pt, "pause") == "Start", "K1：手把撞鍵也互換")
 	ok(KM.rebind(KM.PAD_ACTIONS, {}, "start", JOY_BUTTON_DPAD_UP) == {} and KM.sanitize(KM.PAD_ACTIONS, {"start": JOY_BUTTON_DPAD_UP}) == {}, "K1：手把十字鍵不能綁")
 	ok(KM.sanitize(KM.ACTIONS, {"start": KEY_LEFT}) == {}, "K1：舊設定裡的保留鍵讀檔時丟掉")
+	ok(KM.rebind(KM.PAD_ACTIONS, {}, "codex", JOY_BUTTON_LEFT_STICK) == {} and KM.sanitize(KM.PAD_ACTIONS, {"pause": JOY_BUTTON_RIGHT_STICK}) == {}, "第十三輪：L3、R3 留給殘局提示與時間設定，不能綁（Codex v13-r2 #2）")
 	ok(not KM.can_bind_key(KEY_LEFT) and not KM.can_bind_key(KEY_SHIFT) and KM.rebind(KM.ACTIONS, {}, "start", KEY_LEFT) == {}, "K1：方向鍵、修飾鍵不能綁")
 
 

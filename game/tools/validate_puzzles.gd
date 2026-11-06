@@ -77,7 +77,7 @@ func validate(pz: Dictionary, samples: int) -> Dictionary:
 			var key := types.keys()
 			key.sort()
 			classes[str(key)] = classes.get(str(key), 0) + 1
-			var rem: int = s.power(0) * 100 / (s.budget * 1000)
+			var rem: int = P.rem_pct(s.power(0), s.budget)   # 第十三輪：和遊戲同一套（四捨五入）
 			best_rem = maxi(best_rem, rem)
 			min_spend = mini(min_spend, spend)
 			if rem >= int(pz["star2"]) and spend <= int(pz["star3"]):

@@ -27,7 +27,21 @@ func test_puzzle_solutions() -> void:
 			total += 1
 			if sm.winner != 0:
 				bad.append("%s 標準解輸了" % pz["id"])
-	var n_pz: int = (PZ.tutorials() + PZ.puzzles() + PZ.new_puzzles() + PZ.fantasy_puzzles()).size()
+	# 第十三輪新增的關：可能有目標、技能、地形，一律用和遊戲同一套的 PZ.play（含合法性）判定
+	for pz in PZ.extra_puzzles():
+		var plans: Array = pz.get("sol_plans", [])
+		for si in pz.get("solutions", []).size():
+			var r: Dictionary = PZ.play(pz, pz["solutions"][si], plans[si] if si < plans.size() else [])
+			total += 1
+			if r.has("illegal"):
+				bad.append("%s 標準解不合法：%s" % [pz["id"], r["illegal"]])
+			elif not bool(r["ok"]):
+				bad.append("%s 標準解沒過關" % pz["id"])
+		if pz.get("solutions", []).is_empty():
+			bad.append("%s 沒有標準解" % pz["id"])
+		if bool(PZ.play(pz, [])["ok"]):
+			bad.append("%s 什麼都不放就過關" % pz["id"])
+	var n_pz: int = (PZ.tutorials() + PZ.all_puzzles()).size()
 	for pz in PZ.new_puzzles() + PZ.fantasy_puzzles():
 		# 新兵試玩：主角兵種一定要在允許清單、每組標準解都要用到它（第四輪 §4.8）
 		for sol in pz.get("solutions", []):

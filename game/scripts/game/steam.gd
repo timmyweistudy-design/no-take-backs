@@ -28,6 +28,10 @@ const ACHIEVEMENTS := {
 	"FANTASY_WIN": ["傭兵公會開張", "Monster Mercenaries"],
 	"BOOM_5": ["羊到爆炸", "Sheep Go Boom"],
 	"RAISE_3": ["大家起來", "Rise and Shine"],
+	# 第十三輪：百關殘局、30 關試煉
+	"PUZZLE_100": ["百局通關", "Hundred Puzzles"],
+	"PUZZLE_ALL3": ["百局三星", "Hundred Perfect"],
+	"TRIAL_ALL3": ["試煉滿星", "Trial Perfectionist"],
 }
 
 static var _steam = null

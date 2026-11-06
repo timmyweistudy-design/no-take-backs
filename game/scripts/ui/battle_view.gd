@@ -318,14 +318,16 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 func _cmd_setup(s, kind: String) -> void:
 	if not s.cmd_on:
 		return
-	if kind == "official":
+	if kind == "official" and mode == Mode.PUZZLE:
+		s.cmd_play(PZ.cmd_log(PZ.get_puzzle(puzzle_id), puzzle_plan))   # 第十三輪：時序殘局照戰前設定的時間放
+	elif kind == "official":
 		s.cmd_auto = [false, mode == Mode.VS_AI]
 	else:
 		s.cmd_play(last_cmds)
 
 ## 按第 slot 格（這一隊帶的第幾招）。成功回 true。
 func _cmd_press(team: int, slot: int) -> bool:
-	if sim == null or not sim.cmd_on or play_kind != "official" or sim.finished:
+	if sim == null or not sim.cmd_on or play_kind != "official" or sim.finished or mode == Mode.PUZZLE:
 		return false
 	if team == 1 and mode != Mode.DUEL:
 		return false
@@ -616,7 +618,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	_ensure_sprites([a0, a1])
 	if kind == "official":
 		last_armies = [a0.copy(), a1.copy()]
-		battle_rules = rules.copy() if rules != null else null
+		battle_rules = rules.copy() if rules != null else _puzzle_rules()   # 第十三輪：殘局自帶規則
 	sim = Sim.new(a0, a1, battle_rules)
 	_cmd_setup(sim, kind)
 	view = ViewBuffer.new(sim)

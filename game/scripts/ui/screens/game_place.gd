@@ -271,6 +271,8 @@ func _draw_place_units() -> void:
 		_unit(p, it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
 			_lock_icon(p + Vector2(17, -60))   # 14px 鎖頭（第三輪 U4）
+		if not pz.is_empty() and pz.has("goal_unit") and int(pz["goal_unit"][0]) == it[1] and int(pz["goal_unit"][1]) == it[0] and it[3] == (0 if PZ.goal(pz) == "protect" else 1):
+			_goal_marker(ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS, PZ.goal(pz))
 	if not pz.is_empty() and not pz.get("fixed", []).is_empty():
 		# 圖例
 		var lg := ORIGIN + Vector2(10, 10)
@@ -549,6 +551,8 @@ func _draw_place_hud() -> void:
 		_btn(Rect2(884, 746, 120, 44), L.t("formations"), func(): _open("slots"))
 	if mode == Mode.PUZZLE:
 		_btn(Rect2(884, 746, 120, 44), L.t("menu_hint"), func(): call("_puzzle_hint"))
+		if PZ.get_puzzle(puzzle_id).has("cmd"):
+			_draw_plan_panel(Rect2(520, 692, 356, 100))
 	if _can_edit_existing():
 		_btn(Rect2(1012, 746, 120, 44), L.t("clear"), func(): _clear_mine())
 	_btn(Rect2(1140, 746, 128, 44), L.t("menu"), func(): _request_leave())
@@ -574,6 +578,10 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		var hint: String = pz["hint_zh"] if L.lang == "zh_TW" else pz["hint_en"]
 		if mode == Mode.PUZZLE:
 			var st := "　★ " + L.t("star2_short", [pz["star2"]]) + "　★ " + L.t("star3_short", [pz["star3"]])
+			if PZ.goal(pz) != "win":
+				st = "　" + _goal_text(pz) + st   # 第十三輪：護送、撐住、斬首
+			if pz.has("cap"):
+				st = "　" + L.t("cap_note", [int(pz["cap"])]) + st
 			_text(Vector2(R.end.x - 60 - _width(st, tz("S"), true), y), st, tz("S"), ACCENT, false, true)
 			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 120 - _width(st, tz("S"), true))
 		else:
@@ -666,3 +674,60 @@ func _clear_mine() -> void:
 		a.clear()
 	fp_sel = []
 	_fp_abort_drag()
+
+## 第十三輪：時序殘局的施放時間（戰鬥中不能按，照這裡設定的秒數放）。每格 0.5 秒。
+func _draw_plan_panel(R: Rect2) -> void:
+	var pz := PZ.get_puzzle(puzzle_id)
+	var c: Dictionary = pz["cmd"]
+	_box(R, Color(0, 0, 0, 0.45), TH_EDGE, 8.0, 1.5)
+	var nm: String = L.t("cmd_%d" % int(c["skill"]))
+	var en_list: Array = []
+	for e in c.get("enemy", []):
+		en_list.append(L.t("plan_enemy_item", [_fmt_num(int(e[0]) / 20.0), L.t("cmd_%d" % int(e[1]))]))
+	# 左欄：技能、對方技能、各次施放秒數（一行）；右欄：每次一組 ◀▶，用整個面板高度分，
+	# 大字級時按鈕也不會小於 44（版面檢查 84_place_plan：擠在一起會折行、按鈕太小）
+	var lw: float = R.size.x - 124
+	var top := 6.0
+	_text(R.position + Vector2(10, top), L.t("plan_head", [nm]), tz("C"), ACCENT, false, false, lw)
+	top += text_h(L.t("plan_head", [nm]), tz("C"), lw) + 2
+	if not en_list.is_empty():
+		var et := L.t("plan_enemy", [", ".join(en_list)])
+		_text(R.position + Vector2(10, top), et, tz("C"), Color(1, 1, 1, 0.75), false, false, lw)
+		top += text_h(et, tz("C"), lw) + 2
+	if pad_mode and overlay == "":
+		_text(Vector2(R.position.x + 10, R.position.y - tz("C") * 1.4), L.t("plan_pad"), tz("C"), Color(1, 1, 1, 0.7), false, false, R.size.x)
+	var rows: int = puzzle_plan.size()
+	var parts: Array = []
+	for i in rows:
+		parts.append(L.t("plan_row", [i + 1, _fmt_num(int(puzzle_plan[i]) / 20.0)]))
+	_text(R.position + Vector2(10, top), "　".join(parts), tz("S"), Color.WHITE, false, true, lw)
+	var rh: float = minf(48.0, (R.size.y - 8) / maxf(1.0, rows))
+	for i in rows:
+		var y: float = R.position.y + 4 + (R.size.y - 8 - rh * rows) / 2.0 + i * rh
+		var idx := i
+		var lo_hi := _plan_range(idx)
+		_btn(Rect2(R.end.x - 108, y, 48, rh - 4), "◀", func(): _plan_nudge(idx, -10), int(puzzle_plan[idx]) > int(lo_hi[0]))
+		_btn(Rect2(R.end.x - 56, y, 48, rh - 4), "▶", func(): _plan_nudge(idx, 10), int(puzzle_plan[idx]) < int(lo_hi[1]))
+
+## 第 i 次能設的範圍：不早於開場可放的時間、和前後兩次至少隔一個冷卻，不晚於局長（Codex v13-r1 #4）。
+func _plan_range(i: int) -> Array:
+	var pz := PZ.get_puzzle(puzzle_id)
+	var cd: int = PZ.rules_of(pz).cmd_cd
+	var lo: int = CmdD.START_TICKS if i == 0 else int(puzzle_plan[i - 1]) + cd
+	var hi: int = int(pz.get("goal_ticks", Sim.MAX_TICKS)) - 10
+	if i + 1 < puzzle_plan.size():
+		hi = mini(hi, int(puzzle_plan[i + 1]) - cd)
+	return [lo, hi]
+
+func _plan_nudge(i: int, d: int) -> void:
+	var lo_hi := _plan_range(i)
+	puzzle_plan[i] = clampi(int(puzzle_plan[i]) + d, int(lo_hi[0]), maxi(int(lo_hi[0]), int(lo_hi[1])))
+	sfx.play("k_click", 0.6)
+
+## 手把：L3 開提示、R3 開時間設定（格子部署時方向鍵是游標，進不了畫面按鈕，Codex v13-r1 #3）。
+func _draw_plan_overlay() -> void:
+	var R := Rect2(340, 250, 600, 280)
+	_panel(R)
+	_h1(Vector2(640, 256), L.t("plan_title"))
+	_draw_plan_panel(Rect2(380, 320, 520, 130))
+	_btn(Rect2(560, R.end.y - 60, 160, 44), L.t("back"), func(): overlay = "", true, true)

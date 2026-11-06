@@ -74,6 +74,9 @@ func _reset_place(keep_blue := false) -> void:
 			armies[0] = PZ.player_army(pz)
 			armies[1] = PZ.enemy_army(pz)
 			selected = int(pz["allowed"][0])
+			if puzzle_plan_id != puzzle_id:
+				puzzle_plan = PZ.default_plan(pz)   # 第十三輪：同一關重來保留上次設定的時間，換關重設
+				puzzle_plan_id = puzzle_id
 		Mode.GAUNTLET:
 			if not gauntlet_prev.is_empty():
 				armies[0].units = gauntlet_prev.duplicate(true)
@@ -151,6 +154,13 @@ func _build_ai() -> void:
 		armies[1] = get("challenge_army").copy()     # 挑戰碼：對手就是朋友排好的陣
 		ai_name = L.t("ch_name")
 		return
+	var tid = get("trial_id")
+	if tid != null and int(tid) >= 0:
+		var te = call("_trial_enemy")   # 第十三輪：新試煉是固定敵陣
+		if te != null:
+			armies[1] = te
+			ai_name = call("trial_name", int(tid))
+			return
 	if true:
 		var r := RandomNumberGenerator.new()
 		r.seed = rng.randi()
@@ -249,9 +259,10 @@ func _build_report() -> void:
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz := PZ.get_puzzle(puzzle_id)
 		var extra_spent: int = armies[0].spent() - (armies[0].budget - int(pz["budget"]))
-		var rem: int = PZ.rem_pct(sim.power(0), sim.budget) if sim.winner == 0 else 0
-		report["stars"] = PZ.stars(pz, sim.winner == 0, rem, extra_spent)
-		report["star_lines"] = _star_lines(sim.winner == 0, rem, int(pz["star2"]), extra_spent, int(pz["star3"]))
+		var oc := PZ.outcome(pz, sim, extra_spent)   # 第十三輪：和工具、測試同一套判定（含護送、撐住、斬首）
+		report["stars"] = int(oc["stars"])
+		report["goal_ok"] = bool(oc["ok"])
+		report["star_lines"] = _star_lines(bool(oc["ok"]), int(oc["rem"]), int(pz["star2"]), extra_spent, int(pz["star3"]), _goal_text(pz))
 
 
 
@@ -338,6 +349,15 @@ func _progress_and_achievements() -> void:
 				all_done = false
 		if all_done:
 			_ach("PUZZLE_ALL")
+		var cleared := 0
+		var perfect := 0
+		for p2 in PZ.all_puzzles():
+			cleared += 1 if int(ps.get(p2["id"], 0)) > 0 else 0
+			perfect += 1 if int(ps.get(p2["id"], 0)) >= 3 else 0
+		if cleared >= 100:
+			_ach("PUZZLE_100")   # 第十三輪
+		if perfect >= 100:
+			_ach("PUZZLE_ALL3")
 	if mode == Mode.GAUNTLET:
 		if w == 0:
 			if gauntlet_stage >= 7:
@@ -625,10 +645,25 @@ func _decode_any(code: String):
 
 
 ## 結果頁：每個條件有沒有達成、這場多少，一眼看出差在哪。
-func _star_lines(won: bool, rem: int, need_rem: int, spent: int, need_spent: int) -> String:
+## 第十三輪：這關的過關條件（一般關是「獲勝」）。
+func _goal_text(pz: Dictionary) -> String:
+	match PZ.goal(pz):
+		"protect", "kill":
+			var c: Array = pz["goal_unit"]
+			var lst: Array = pz["fixed"] if PZ.goal(pz) == "protect" else pz["enemy"]
+			var t := 0
+			for e in lst:
+				if int(e[1]) == int(c[0]) and int(e[2]) == int(c[1]):
+					t = int(e[0])
+			return L.t("star_c_" + PZ.goal(pz), [L.t("unit_%d" % t)])
+		"survive":
+			return L.t("star_c_survive", [int(pz["goal_ticks"]) / 20])
+	return L.t("star_c_win")
+
+func _star_lines(won: bool, rem: int, need_rem: int, spent: int, need_spent: int, goal := "") -> String:
 	var yes := "✓"
 	var no := "×"
-	return "%s %s　%s %s　%s %s" % [yes if won else no, L.t("star_c_win"),
+	return "%s %s　%s %s　%s %s" % [yes if won else no, goal if goal != "" else L.t("star_c_win"),
 		yes if won and rem >= need_rem else no, L.t("star_c_rem", [need_rem, rem]),
 		yes if spent <= need_spent else no, L.t("star_c_spent", [need_spent, spent])]
 

@@ -2,8 +2,20 @@ extends "res://scripts/ui/screens/game_result.gd"
 ## V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。
 
 ## 主題試煉：10 關固定地圖＋AI 性格，玩家自己組牌。[地圖, 大小, 性格, 難度]
+## 第十三輪：再加 20 關（索引 10～29，只往後加、不重排，存檔用索引）：敵陣固定在 data/trials.json，
+## 主題是限定卡池、單主題與混搭頭目、規則變形；性格欄填 0，卡片顯示主題名稱。
 const TRIALS := [[1, 1, 2, 1], [2, 1, 3, 1], [3, 1, 3, 1], [4, 1, 1, 1], [5, 1, 4, 1],
-	[1, 0, 1, 2], [2, 2, 4, 2], [3, 2, 2, 2], [4, 0, 3, 2], [5, 2, 5, 2]]
+	[1, 0, 1, 2], [2, 2, 4, 2], [3, 2, 2, 2], [4, 0, 3, 2], [5, 2, 5, 2],
+	[1, 1, 0, 1], [2, 1, 0, 1], [3, 1, 0, 1], [4, 1, 0, 1], [1, 1, 0, 1],
+	[2, 1, 0, 1], [3, 1, 0, 1], [4, 0, 0, 1], [5, 1, 0, 1], [1, 2, 0, 2],
+	[2, 1, 0, 2], [3, 1, 0, 2], [4, 2, 0, 2], [5, 1, 0, 2], [1, 0, 0, 2],
+	[2, 2, 0, 2], [3, 0, 0, 2], [4, 1, 0, 2], [5, 1, 0, 2], [1, 2, 0, 2]]
+const TRIAL_PAGE := 10
+const TD = preload("res://scripts/game/trial_data.gd")
+
+## 第十三輪新增試煉的資料（索引 ≥10）：主題名稱、固定敵陣、規則變形、星數門檻。快取在 trial_data.gd。
+static func trial_x(i: int) -> Dictionary:
+	return TD.get_x(i)
 
 var trial_id := -1
 var challenge_army = null       # 挑戰碼的對手陣型
@@ -17,6 +29,14 @@ func _start_trial(i: int) -> void:
 	if _demo() and not i in Presets.DEMO_TRIALS:
 		_toast(L.t("demo_locked"), true)
 		return
+	rules = _trial_rules(i, trial_x(i))
+	challenge_army = null      # 上一場挑戰碼的敵陣不能留到試煉（Codex #5）
+	rng.seed = 7000 + i        # 同一關每次是同一支隊伍
+	_start_mode(Mode.VS_AI)
+	trial_id = i
+
+## 試煉的規則（遊戲與工具共用）。x＝第十三輪的關卡資料（舊 10 關是空的）。
+func _trial_rules(i: int, x: Dictionary):
 	var t: Array = TRIALS[i]
 	var r = Presets.make("standard", "ai", RS.mask(_demo()))
 	r.deploy = "free"
@@ -35,19 +55,55 @@ func _start_trial(i: int) -> void:
 	r.ai_pool_same = false
 	var p := 0
 	if AI.STYLE_TYPES.has(r.ai_style):
-		for x in AI.STYLE_TYPES[r.ai_style]:
-			p |= 1 << int(x)
+		for st0 in AI.STYLE_TYPES[r.ai_style]:
+			p |= 1 << int(st0)
 	else:
 		p = RuleSet.all_pool()
 	if _demo():
 		p &= RS.mask(true)
 	r.pool[1] = p
 	r.preset = "custom"
-	rules = r
-	challenge_army = null      # 上一場挑戰碼的敵陣不能留到試煉（Codex #5）
-	rng.seed = 7000 + i        # 同一關每次是同一支隊伍
-	_start_mode(Mode.VS_AI)
-	trial_id = i
+	if x.has("enemy"):
+		# 第十三輪：敵方卡池＝固定敵陣實際用到的兵種（一邊最多 10 種），代碼才讀得回（Codex v13-r1 #2、v13-r2 #1）
+		var pe := 0
+		for u in x["enemy"]:
+			pe |= 1 << int(u[0])
+		r.pool[1] = pe
+	if x.has("pool0"):
+		var p0 := 0
+		for t0 in x["pool0"]:
+			p0 |= 1 << int(t0)
+		r.pool[0] = p0 & RS.mask(_demo())
+	if x.has("budget"):
+		r.budget = [int(x["budget"]), int(x["budget"])]
+	if x.has("depth"):
+		r.depth = int(x["depth"])
+	if x.has("type_cap"):
+		r.type_cap = int(x["type_cap"])
+	if x.has("cmd"):
+		r.cmd_mask = [int(x["cmd"]), int(x["cmd"])]
+	return r
+
+## 第十三輪：固定敵陣（世界座標）。舊 10 關回 null，照舊由 AI 用固定種子生成。
+func _trial_enemy():
+	var x := trial_x(trial_id)
+	if not x.has("enemy"):
+		return null
+	var e := Army.new(1, rules.budget_of(1))
+	e.apply_rules(rules, 1)
+	for u in x["enemy"]:
+		e.units.append({"type": int(u[0]), "x": int(u[1]), "y": int(u[2])})
+	return e
+
+func trial_rem(i: int) -> int:
+	var x := trial_x(i)
+	return int(x["rem"]) if x.has("rem") else int(TRIAL_REM[int(TRIALS[i][3])])
+
+func trial_name(i: int) -> String:
+	var x := trial_x(i)
+	if x.has("zh"):
+		return str(x["zh"] if L.lang == "zh_TW" else x["en"])
+	return L.t("map_" + str(MapDefs.MAPS[TRIALS[i][0]]["key"]))
 
 ## 第十二輪：每達成一項一顆星，和殘局同一套。原本要花 ≤80% 預算還要剩「整個預算」的 50%，電腦都找不到解。
 const TRIAL_REM := [0, 30, 20]     # 剩餘戰力門檻（依難度，索引同 AI 等級）
@@ -55,11 +111,14 @@ const TRIAL_SPEND_PCT := 80
 const TRIAL_SPEND_OVERRIDE := {7: 85}   # 第 8 關：80% 搜尋 13 組種子都到不了，最好是 23% 剩餘花 81%
 
 static func trial_spend_pct(id: int) -> int:
+	var x := trial_x(id)
+	if x.has("spend"):
+		return int(x["spend"])
 	return int(TRIAL_SPEND_OVERRIDE.get(id, TRIAL_SPEND_PCT))
 
-static func trial_stars(level: int, rem: int, spent: int, budget: int, spend_pct: int = TRIAL_SPEND_PCT) -> int:
+static func trial_stars(level: int, rem: int, spent: int, budget: int, spend_pct: int = TRIAL_SPEND_PCT, need_rem: int = -1) -> int:
 	var st := 1
-	if rem >= int(TRIAL_REM[level]):
+	if rem >= (int(TRIAL_REM[level]) if need_rem < 0 else need_rem):
 		st += 1
 	if spent * 100 <= budget * spend_pct:
 		st += 1
@@ -72,13 +131,20 @@ func _trial_finish(w: int) -> void:
 	var rem: int = PZ.rem_pct(sim.power(0), sim.budget_of(0))
 	var spent: int = armies[0].spent()
 	var pct: int = trial_spend_pct(trial_id)
-	var st: int = trial_stars(lvl, rem, spent, armies[0].budget, pct)
-	report["trial_lines"] = call("_star_lines", true, rem, int(TRIAL_REM[lvl]), spent, armies[0].budget * pct / 100)
+	var st: int = trial_stars(lvl, rem, spent, armies[0].budget, pct, trial_rem(trial_id))
+	report["trial_lines"] = call("_star_lines", true, rem, trial_rem(trial_id), spent, armies[0].budget * pct / 100)
 	var all: Dictionary = Save.data.get("trial_stars", {})
 	all[str(trial_id)] = maxi(int(all.get(str(trial_id), 0)), st)
 	Save.data["trial_stars"] = all
 	report["trial_stars"] = st
+	var full := 0
+	for k in TRIALS.size():
+		full += 1 if int(all.get(str(k), 0)) >= 3 else 0
+	if full >= TRIALS.size():
+		call("_ach", "TRIAL_ALL3")   # 第十三輪
 	Save.save_data()
+
+var trial_page := 0
 
 func _draw_trials() -> void:
 	var P := Rect2(90, 40, 1100, 720)
@@ -86,21 +152,41 @@ func _draw_trials() -> void:
 	_h1(Vector2(640, 50), L.t("trial_title"))
 	_text(Vector2(640, 104), L.t("trial_rule"), tz("S"), Color(1, 1, 1, 0.8), true, false, 1000)
 	var stars: Dictionary = Save.data.get("trial_stars", {})
+	var pages: int = ceili(TRIALS.size() / float(TRIAL_PAGE))
+	trial_page = clampi(trial_page, 0, pages - 1)
+	# 第十三輪：30 關分 3 頁
+	var tot := 0
+	for k0 in TRIALS.size():
+		tot += int(stars.get(str(k0), 0))
+	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), Color(1, 1, 1, 0.75), false, false, 360)
 	var cw := 524.0
 	var ch := 98.0
-	for i in TRIALS.size():
+	for k in TRIAL_PAGE:
+		var i: int = trial_page * TRIAL_PAGE + k
+		if i >= TRIALS.size():
+			break
 		var t: Array = TRIALS[i]
-		var r := Rect2(116 + (i % 2) * (cw + 8), 164 + (i / 2) * (ch + 7), cw, ch)
+		var x := trial_x(i)
+		var r := Rect2(116 + (k % 2) * (cw + 8), 164 + (k / 2) * (ch + 7), cw, ch)
 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
 		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
-		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, L.t("map_" + str(MapDefs.MAPS[t[0]]["key"]))], tz("B"), Color.WHITE, false, true, cw - 240)
+		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, trial_name(i)], tz("B"), Color.WHITE, false, true, cw - 240)
 		var sz := "%s %d×%d" % [L.t("map_size_%d" % int(t[1])), MapDefs.SIZES[t[1]][0], MapDefs.SIZES[t[1]][1]]
-		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), L.t(["diff_easy", "diff_normal", "diff_hard"][int(t[3])])], tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 165)
-		var tb: int = int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
-		_text(r.position + Vector2(154, 8 + tz("B") * 1.4 + tz("C") * 1.35), L.t("trial_cond", [int(TRIAL_REM[int(t[3])]), tb * trial_spend_pct(i) / 100]), tz("C"), ACCENT, false, false, cw - 160)
+		var diff: String = L.t(["diff_easy", "diff_normal", "diff_hard"][int(t[3])])
+		# 第十三輪新關：第二行放主題規則＋難度（地圖看縮圖就知道），第三行只放星數條件，150% 字級才排得下
+		var line2: String = "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), diff]
+		if x.has("tag_zh"):
+			line2 = "%s・%s" % [str(x["tag_zh"] if L.lang == "zh_TW" else x["tag_en"]), diff]
+		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 160)
+		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
+		var cond := L.t("trial_cond", [trial_rem(i), tb * trial_spend_pct(i) / 100])
+		_text(r.position + Vector2(154, 8 + tz("B") * 1.4 + tz("C") * 1.35), cond, tz("C"), ACCENT, false, false, cw - 160)
 		var got := int(stars.get(str(i), 0))
-		for k in 3:
-			_icon("star", r.position + Vector2(cw - 66 + k * 22, 20), 20.0, Color("#ffd166") if k < got else Color(1, 1, 1, 0.16))
+		for k2 in 3:
+			_icon("star", r.position + Vector2(cw - 66 + k2 * 22, 20), 20.0, Color("#ffd166") if k2 < got else Color(1, 1, 1, 0.16))
+	# 翻頁鈕放在關卡卡片後面：手把焦點先落在第一關（版面檢查 PADWALK）
+	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
+	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
 	_btn(Rect2(560, 700, 160, 44), L.t("back"), func(): overlay = "")
 
 ## ── 挑戰碼：把自己的陣型傳給朋友打（不需要伺服器）──
@@ -347,8 +433,17 @@ func _draw_profile() -> void:
 		_text(pos + Vector2(26, 0), str(ach[k][0 if L.lang == "zh_TW" else 1]), tz("C"), Color.WHITE if on else Color(1, 1, 1, 0.66), false, false, 340)
 	_btn(Rect2(560, 722, 160, 44), L.t("back"), func(): overlay = "")
 
-## ── 殘局提示：只給方向，不給解 ──
+## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
 func _puzzle_hint() -> void:
+	if mode == Mode.PUZZLE and not PZ.get_puzzle(puzzle_id).get("best", {}).is_empty():
+		puzzle_reveal = false
+		overlay = "puzzle_hint"
+		return
+	var tx := _puzzle_hint_text()
+	if tx != "":
+		_toast(tx)
+
+func _puzzle_hint_text() -> String:
 	var cnt := {}
 	for u in armies[1].units:
 		var t := int(u["type"])
@@ -358,10 +453,67 @@ func _puzzle_hint() -> void:
 		if top < 0 or int(cnt[t2]) > int(cnt[top]):
 			top = t2
 	if top < 0:
-		return
+		return ""
 	var who := ""
 	for x in D.total():
 		if top in AIT.BEATS[x] and _allowed(x):
 			who = L.t("unit_%d" % x)
 			break
-	_toast(L.t("hint_main", [L.t("unit_%d" % top)]) if who == "" else L.t("hint_counter", [L.t("unit_%d" % top), who]))
+	return L.t("hint_main", [L.t("unit_%d" % top)]) if who == "" else L.t("hint_counter", [L.t("unit_%d" % top), who])
+
+func _draw_puzzle_hint() -> void:
+	var pz := PZ.get_puzzle(puzzle_id)
+	var R := Rect2(290, 150, 700, 500)
+	_panel(R)
+	_h1(Vector2(640, 156), L.t("menu_hint"))
+	var y := 220.0
+	var w := 620.0
+	var x := 330.0
+	# 第一層：這關的提示句＋對手主力
+	_text(Vector2(x, y), L.t("ph_l1"), tz("S"), ACCENT, false, true, w)
+	y += tz("S") * 1.5
+	var h1: String = str(pz["hint_zh"] if L.lang == "zh_TW" else pz["hint_en"]) + "　" + _puzzle_hint_text()
+	_text(Vector2(x, y), h1, tz("S"), Color(1, 1, 1, 0.88), false, false, w)
+	y += text_h(h1, tz("S"), w) + 16
+	# 第二層：三星編制（兵種與隻數，不給位置）
+	var got := int(Save.data.get("puzzle_stars", {}).get(puzzle_id, 0))
+	_text(Vector2(x, y), L.t("ph_l2"), tz("S"), ACCENT, false, true, w)
+	y += tz("S") * 1.5
+	if got >= 1:
+		var lx := x
+		for it in PZ.best_lineup(pz):
+			_unit(Vector2(lx + 22, y + 52), int(it[0]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.62)
+			_text(Vector2(lx + 44, y + 30), "×%d" % int(it[1]), tz("B"), Color.WHITE, false, true)
+			lx += 96
+		y += 66
+		var cond := L.t("ph_cond", [int(pz["star3"]), int(pz["star2"])])
+		_text(Vector2(x, y), cond, tz("S"), Color(1, 1, 1, 0.8), false, false, w)
+		y += text_h(cond, tz("S"), w) + 16
+	else:
+		_text(Vector2(x, y), L.t("ph_locked"), tz("S"), Color(1, 1, 1, 0.55), false, false, w)
+		y += tz("S") * 1.6 + 16
+	# 第三層：揭曉解答（要再按一次確認）
+	_text(Vector2(x, y), L.t("ph_l3"), tz("S"), ACCENT, false, true, w)
+	y += tz("S") * 1.5
+	if not puzzle_reveal:
+		_btn(Rect2(x, y, 260, 44), L.t("ph_reveal"), func(): puzzle_reveal = true)
+	else:
+		_text(Vector2(x, y), L.t("ph_reveal_q"), tz("S"), Color(1, 1, 1, 0.85), false, false, w)
+		y += text_h(L.t("ph_reveal_q"), tz("S"), w) + 6
+		_btn(Rect2(x, y, 220, 44), L.t("ph_apply"), func(): _apply_best(), true, true)
+		_btn(Rect2(x + 236, y, 160, 44), L.t("ph_cancel"), func(): puzzle_reveal = false)
+	# 返回和第三層按鈕同一列、靠右：大字級時內文變長也不會撞（版面檢查 86_hint_open en 150%）
+	_btn(Rect2(x + w - 160, y, 160, 44), L.t("back"), func(): overlay = "")
+
+## 把三星解直接擺上去（固定兵留著），技能關連施放時間一起帶。
+func _apply_best() -> void:
+	var pz := PZ.get_puzzle(puzzle_id)
+	var best: Dictionary = pz.get("best", {})
+	armies[0] = PZ.player_army(pz)
+	for e in best.get("u", []):
+		armies[0].place(int(e[0]), int(e[1]), int(e[2]))
+	if not best.get("p", []).is_empty():
+		puzzle_plan = best["p"].duplicate()
+	puzzle_reveal = false
+	overlay = ""
+	_toast(L.t("ph_applied"))

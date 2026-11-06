@@ -1,6 +1,6 @@
 # 落子無悔 No Take-Backs
 
-Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；方案與進度看 `docs/2026-11-05-v1-polish-plan-v10.md`（§14 進度、§15 追加）、裁決看 `coordination/v10-ledger.md`。舊輪次不用讀。
+Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；最新一輪（殘局 100、試煉 30）方案與進度看 `docs/2026-11-06-puzzle-expansion-plan-v13.md`（§16 進度）、裁決看 `coordination/v13-ledger.md`；更早的看 `docs/2026-11-05-v1-polish-plan-v10.md`、`coordination/v10-ledger.md`。舊輪次不用讀。
 
 ## 指令（在 game/ 下，GODOT 指向 Windows 版 4.6.2）
 - 改動時：`python3 tools/check.py`（有快取，只跑受影響的）；更快：`--quick`。
@@ -8,6 +8,7 @@ Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；方案與進�
 - 版面：`tools/layout_check.sh <exe> <新資料夾>`；`LAYOUT_QUICK=1` 只跑 2 組。也會走一次手把流程（`PADWALK`）。
 - 試玩版流程用 `g.force_demo = true` 測，背景計算用 `g.force_async = true`，不必匯出。
 - 匯出：`tools/export_check.sh <空資料夾>`。圖集：`tools/atlas_check.gd`（不能 headless）。
+- 殘局量產（`tools/gen/*.py` 在專案根目錄、`.gd` 在 game/ 下）：草稿 `tools/gen/puzzle_drafts.py` → `tools/balance/puzzle_forge.gd`（爬山求解、訂星）→ `tools/gen/puzzle_tune.py`（自動調預算）→ `tools/gen/puzzle_merge.py`（併進 `data/puzzles.json`）。試煉：`tools/gen/trial_specs.py` → `tools/balance/trial_forge.gd` → `tools/gen/trial_merge.py`（寫 `data/trials.json`）。量產在 `build/cg/game` 快照跑。
 - 其他流程用 skills：`ntb-check`、`ntb-review`、`ntb-balance`、`ntb-shots`、`ntb-unit`。
 
 ## 鐵則

@@ -24,7 +24,7 @@ func test_modes_v9() -> void:
 	for t in g.TRIALS:
 		if int(t[0]) <= 0 or int(t[1]) < 0 or int(t[1]) > 2:
 			bad.append(t)
-	ok(g.TRIALS.size() == 10 and bad.is_empty(), "試煉 10 關都有新地圖", str(bad))
+	ok(g.TRIALS.size() == 30 and bad.is_empty(), "試煉 30 關都有新地圖（第十三輪 10→30）", str(bad))
 	# 挑戰碼
 	var r = RS9.standard()
 	r.deploy = "free"
@@ -993,27 +993,27 @@ func test_cmd_ui() -> void:
 	SaveS.data_locked = was
 
 ## 第十二輪：每一關留一組已知三星解。改數值讓三星拿不到時這裡會紅，就要重找解或調門檻。
+## 第十三輪：殘局的三星解存在關卡資料的 "best"（提示第二、三層也用它），用 PZ.play 判定（含擺放合法、目標、技能時間）。
 func test_star_solutions() -> void:
-	var f := FileAccess.open("res://tests/golden/star_solutions.json", FileAccess.READ)
-	var data: Dictionary = JSON.parse_string(f.get_as_text())
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/star_solutions.json"))
 	var PZ = load("res://scripts/game/puzzles.gd")
 	var Sim = load("res://scripts/core/battle_sim.gd")
 	var seen := 0
-	for pz in PZ.puzzles() + PZ.new_puzzles() + PZ.fantasy_puzzles():
-		var ex: Array = data["puzzles"].get(pz["id"], [])
-		ok(not ex.is_empty(), "殘局有三星解紀錄", str(pz["id"]))
-		var a0 = PZ.player_army(pz)
-		var fixed: int = a0.budget - int(pz["budget"])
-		for e in ex:
-			a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
-		var extra: int = a0.spent() - fixed
-		var s = Sim.new(a0, PZ.enemy_army(pz))
-		s.fast = true
-		s.run_to_end()
-		var rem: int = PZ.rem_pct(s.power(0), s.budget) if s.winner == 0 else 0
-		ok(PZ.stars(pz, s.winner == 0, rem, extra) == 3, "殘局三星拿得到", "%s 剩 %d 花 %d" % [pz["id"], rem, extra])
+	var ids := {}
+	for pz in PZ.all_puzzles():
+		ok(not ids.has(pz["id"]), "殘局 ID 不重複", str(pz["id"]))
+		ids[pz["id"]] = true
+		# 第十三輪：遊戲用 get_puzzle(ID) 開關；和教學關撞 ID（t1～t3）時會開成教學（截圖抓到）
+		ok(str(PZ.get_puzzle(pz["id"]).get("zh", "")) == str(pz["zh"]), "用 ID 開得到同一關（不和教學撞）", str(pz["id"]))
+		var best: Dictionary = pz.get("best", {})
+		ok(not best.is_empty(), "殘局有三星解紀錄", str(pz["id"]))
+		var r: Dictionary = PZ.play(pz, best.get("u", []), best.get("p", []))
+		ok(not r.has("illegal"), "三星解擺法合法", "%s %s" % [pz["id"], str(r.get("illegal", ""))])
+		ok(int(r["stars"]) == 3, "殘局三星拿得到", "%s 剩 %d 花 %d" % [pz["id"], int(r["rem"]), int(r["spent"])])
 		seen += 1
-	ok(seen == 25, "殘局 25 關都驗到", str(seen))
+	ok(seen == PZ.CHAPTERS * 10, "殘局 %d 關都驗到" % (PZ.CHAPTERS * 10), str(seen))
+	for n in range(1, PZ.CHAPTERS + 1):
+		ok(PZ.chapter(n).size() == 10 and not PZ.chapter_info(n).is_empty(), "第 %d 章 10 關、有名稱與故事" % n, str(PZ.chapter(n).size()))
 	var was: bool = SaveS.data_locked
 	SaveS.data_locked = true
 	var g = load("res://scripts/ui/game_screens.gd").new()
@@ -1024,13 +1024,40 @@ func test_star_solutions() -> void:
 		g._build_ai()
 		var a = g.armies[0].copy()
 		a.units = []
-		for u in data["trials"][str(i)]:
-			a.place_xy(int(u[0]), a.world_x(int(u[1])), int(u[2]))
+		var spec: Array = data["trials"][str(i)] if data["trials"].has(str(i)) else g.trial_x(i).get("best", [])
+		ok(not spec.is_empty(), "試煉有三星解紀錄", str(i + 1))
+		for u in spec:
+			ok(a.place_xy(int(u[0]), a.world_x(int(u[1])), int(u[2])), "試煉三星解擺法合法", "第 %d 關 %s" % [i + 1, str(u)])
 		var s2 = Sim.new(a.copy(), g.armies[1].copy(), g.rules)
+		if s2.cmd_on:
+			s2.cmd_auto = [false, true]   # 和遊戲一樣：紅方自動放技能
 		s2.fast = true
 		s2.run_to_end()
 		var rem2: int = PZ.rem_pct(s2.power(0), s2.budget_of(0))
-		var st: int = g.trial_stars(int(g.TRIALS[i][3]), rem2, a.spent(), a.budget, g.trial_spend_pct(i)) if s2.winner == 0 else 0
+		var st: int = g.trial_stars(int(g.TRIALS[i][3]), rem2, a.spent(), a.budget, g.trial_spend_pct(i), g.trial_rem(i)) if s2.winner == 0 else 0
 		ok(st == 3, "試煉三星拿得到", "第 %d 關 %d 星，剩 %d 花 %d" % [i + 1, st, rem2, a.spent()])
+	g.free()
+	SaveS.data_locked = was
+
+## 第十三輪（Codex v13-r2 #1）：每關試煉的規則要能通過規則驗證（對戰代碼才讀得回），
+## 固定敵陣要照敵方規則一隻隻擺得進去（卡池、預算、隻數、每種上限、位置、間距）。
+func test_trial_rules_valid() -> void:
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	for i in g.TRIALS.size():
+		g._start_trial(i)
+		var bad: Array = g.rules.validate()
+		ok(bad.is_empty(), "試煉規則通過驗證", "第 %d 關 %s" % [i + 1, str(bad)])
+		g._build_ai()
+		if g.trial_x(i).has("enemy"):
+			var e = Army.new(1, g.rules.budget_of(1))
+			e.apply_rules(g.rules, 1)
+			for u in g.armies[1].units:
+				var t: int = int(u["type"])
+				ok((g.rules.pool_of(1) >> t) & 1 == 1, "固定敵陣兵種在敵方卡池內", "第 %d 關 兵種 %d" % [i + 1, t])
+				ok(e.place_xy(t, int(u["x"]), int(u["y"])), "固定敵陣擺法合法", "第 %d 關 %s：%s" % [i + 1, str(u), e.check_place_xy(t, int(u["x"]), int(u["y"]))])
 	g.free()
 	SaveS.data_locked = was

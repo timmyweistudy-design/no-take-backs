@@ -433,6 +433,7 @@ func _run_screenshots() -> void:
 	await _snap("15_replay.png")
 	await _shots_v4()
 	await _shots_cmd()
+	await _shots_v13()
 	await _pad_walk()
 	get_tree().quit()
 
@@ -1154,3 +1155,67 @@ func _shots_cmd() -> void:
 	await _snap("76_cmd_duel.png")
 	rules = null
 	_go_title()
+
+## 第十三輪：章節、地形殘局、護送標記、技能時間面板、三層提示、撐住結果、試煉分頁、固定敵陣試煉。
+func _shots_v13() -> void:
+	_go_title()
+	Save.data["puzzle_stars"] = {"p1": 3, "p2": 1, "x1": 2}
+	overlay = "puzzles"
+	puzzle_tab = 3
+	await _snap("80_chapter4.png")
+	puzzle_tab = 6
+	puzzle_only_open = true
+	await _snap("81_chapter7_filter.png")
+	puzzle_only_open = false
+	puzzle_tab = 0
+	overlay = ""
+	# 每張都寫成字面的截圖呼叫：版面檢查從原始碼抓預期的畫面清單
+	puzzle_id = "d1"
+	_start_mode(Mode.PUZZLE)
+	await _snap("82_place_terrain.png")
+	puzzle_id = "g1"
+	_start_mode(Mode.PUZZLE)
+	await _snap("83_place_protect.png")
+	puzzle_id = "s1"
+	_start_mode(Mode.PUZZLE)
+	await _snap("84_place_plan.png")
+	puzzle_id = "x1"
+	_start_mode(Mode.PUZZLE)
+	Save.data["puzzle_stars"]["x1"] = 0
+	_puzzle_hint()
+	await _snap("85_hint_locked.png")
+	Save.data["puzzle_stars"]["x1"] = 2
+	puzzle_reveal = true
+	await _snap("86_hint_open.png")
+	_apply_best()
+	await _snap("86b_hint_applied.png")
+	puzzle_id = "d1"
+	_start_mode(Mode.PUZZLE)
+	_apply_best()
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	for i in 140:
+		_sim_step(true)
+	await _snap("87_battle_terrain.png")
+	puzzle_id = "g4"
+	_start_mode(Mode.PUZZLE)
+	_apply_best()
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	while not sim.finished:
+		_sim_step(true)
+	_finish_battle()
+	await _snap("88_result_survive.png")
+	_go_title()
+	toast = ""      # 前面「已擺上三星解」的提示泡泡不要帶進後面的截圖
+	toast_t = 0.0
+	overlay = "trials"
+	set("trial_page", 1)
+	await _snap("89_trials_p2.png")
+	set("trial_page", 2)
+	await _snap("90_trials_p3.png")
+	set("trial_page", 0)
+	overlay = ""
+	call("_start_trial", 14)
+	_build_ai()
+	await _snap("91_trial_fixed.png")
+	_go_title()
+	Save.data["puzzle_stars"] = {}

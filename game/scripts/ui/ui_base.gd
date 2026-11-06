@@ -63,9 +63,36 @@ var fld_sz := 1
 var fld_props: Array = []
 var map_art = null
 
+## 第十三輪：殘局自帶的規則（地形、撐住秒數、技能）；不是殘局或不用規則回 null。
+func _puzzle_rules():
+	if (mode == Mode.PUZZLE or mode == Mode.TUTORIAL) and puzzle_id != "":
+		return PZ.rules_of(PZ.get_puzzle(puzzle_id))
+	return null
+
+## 場地用哪一組規則畫：自由部署的大廳規則，或格子放在地圖上的殘局。
+func _field_rules():
+	if rules != null and rules.is_free():
+		return rules
+	var pr = _puzzle_rules()
+	if pr != null and pr.map_id != 0:
+		return pr
+	return null
+
+## 這關要護送／斬首的單位：[模擬 id, "protect"／"kill"]，沒有回 [-1, ""]。
+func _goal_mark() -> Array:
+	if mode != Mode.PUZZLE or puzzle_id == "":
+		return [-1, ""]
+	var pz := PZ.get_puzzle(puzzle_id)
+	var g := PZ.goal(pz)
+	if g != "protect" and g != "kill":
+		return [-1, ""]
+	var c: Array = pz["goal_unit"]
+	var team := 0 if g == "protect" else 1
+	return [team * 1000 + int(c[1]) * 16 + int(c[0]), g]
+
 ## 依這一場的規則同步場地。每幀畫面開頭呼叫。
 func _sync_field() -> void:
-	var r = rules if rules != null and rules.is_free() else null
+	var r = _field_rules()
 	var m: int = r.map_id if r != null else 0
 	var z: int = r.map_size if r != null else MapDefs.STD_SIZE
 	if m == fld_map and z == fld_sz:
@@ -205,7 +232,11 @@ var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
 var atk_seq := {}         # 單位 id →｛命中 tick: 第幾次出手｝（交替招式用）
 var pot_draw: Array = []  # 第四輪：這一幀要畫的火罐位置
-var puzzle_tab := 0       # 第四輪：殘局選單分頁（0 經典、1 新兵試玩）
+var puzzle_tab := 0       # 第四輪：殘局選單分頁；第十三輪：第幾章（0 起算）
+var puzzle_plan: Array = []   # 第十三輪：時序殘局，玩家設定的施放 tick
+var puzzle_plan_id := ""      # puzzle_plan 是哪一關的（換關就重設，Codex v13-r1 #5）
+var puzzle_only_open := false   # 第十三輪：殘局清單只看沒滿三星的
+var puzzle_reveal := false      # 第十三輪：提示視窗裡「揭曉解答」的確認狀態
 var alt_hit := {}        # 第四輪：單位 id → {命中 tick: true}，這一擊用專屬動作
 var bomb_tgt := {}       # 第四輪：投彈兵 id → {命中 tick: 目標 id}（畫火罐飛行）
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始

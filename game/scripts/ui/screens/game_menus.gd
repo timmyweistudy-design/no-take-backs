@@ -229,6 +229,10 @@ func _draw_overlay() -> void:
 	match overlay:
 		"trials":
 			_draw_trials()
+		"puzzle_hint":
+			_draw_puzzle_hint()
+		"puzzle_plan":
+			_draw_plan_overlay()
 		"profile":
 			_draw_profile()
 		"reward":
@@ -259,23 +263,41 @@ func _draw_overlay() -> void:
 			_btn(Rect2(650, 450, 250, 52), L.t("leave_go"), func(): _leave_confirm())
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
-			var tabs0 := [PZ.puzzles(), PZ.new_puzzles(), PZ.fantasy_puzzles()]
-			var list: Array = PZ.tutorials() if tut else tabs0[puzzle_tab]
+			puzzle_tab = clampi(puzzle_tab, 0, PZ.CHAPTERS - 1)
+			var chap: Array = PZ.chapter(puzzle_tab + 1)
+			var list: Array = PZ.tutorials() if tut else chap
 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
 			_panel(Rect2(240, 110, 800, 580))
 			_text(Vector2(640, 114), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
+			var y0 := 210.0
+			var idx: Array = []
+			for i0 in list.size():
+				idx.append(i0)
 			if not tut:
-				# 兩個分頁：經典殘局／新兵試玩（第四輪 §4.8）；頁籤上直接寫各自的總星數（第三輪 U4）
-				var tabs := tabs0
-				for ti in 3:
-					var total := 0
-					for pz0 in tabs[ti]:
-						total += int(stars.get(pz0["id"], 0))
-					var lbl := "%s　★ %d／%d" % [L.t("puzzle_tab_%d" % ti), total, tabs[ti].size() * 3]
-					_btn(Rect2(280 + ti * 244, 160, 232, 36), lbl, func(): puzzle_tab = ti, true, false, TH_ACTIVE if ti == puzzle_tab else Color(0, 0, 0, 0))
-			for i in list.size():
+				# 第十三輪：10 章，左右切換；章名旁寫這章的星數，下面一行是開場小故事
+				var total := 0
+				var all_total := 0
+				for pz0 in chap:
+					total += int(stars.get(pz0["id"], 0))
+				for pz1 in PZ.all_puzzles():
+					all_total += int(stars.get(pz1["id"], 0))
+				var info := PZ.chapter_info(puzzle_tab + 1)
+				var cname: String = str(info.get("zh" if L.lang == "zh_TW" else "en", ""))
+				_btn(Rect2(280, 158, 48, 40), "◀", func(): puzzle_tab = wrapi(puzzle_tab - 1, 0, PZ.CHAPTERS), puzzle_tab > 0 and not _demo())
+				_btn(Rect2(952, 158, 48, 40), "▶", func(): puzzle_tab = wrapi(puzzle_tab + 1, 0, PZ.CHAPTERS), puzzle_tab < PZ.CHAPTERS - 1 and not _demo())
+				_text(Vector2(640, 162), L.t("chapter_head", [puzzle_tab + 1, cname, total, chap.size() * 3]), tz("B"), ACCENT, true, true, 600)
+				var story: String = str(info.get("story_zh" if L.lang == "zh_TW" else "story_en", ""))
+				_text(Vector2(640, 162 + tz("B") * 1.5), story, tz("C"), Color(1, 1, 1, 0.75), true, false, 700)
+				y0 = 162 + tz("B") * 1.5 + text_h(story, tz("C"), 700) + 10
+				_text(Vector2(280, 648), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), Color(1, 1, 1, 0.7), false, false, 260)
+				_btn(Rect2(800, 640, 200, 36), ("✓ " if puzzle_only_open else "") + L.t("puzzle_only_open"), func(): puzzle_only_open = not puzzle_only_open)
+				if puzzle_only_open:
+					idx = idx.filter(func(k): return int(stars.get(list[k]["id"], 0)) < 3)
+			var step: float = minf(82.0, (632.0 - y0) / 5.0)
+			for k in idx.size():
+				var i: int = idx[k]
 				var pz: Dictionary = list[i]
-				var r := Rect2(280 + (i % 2) * 370, 210 + (i / 2) * 82, 350, 68)
+				var r := Rect2(280 + (k % 2) * 370, y0 + (k / 2) * step, 350, step - 14)
 				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 				var st := int(stars.get(pz["id"], 0))
 				var en: bool = not _demo() or tut or (puzzle_tab == 0 and i < Presets.DEMO_PUZZLES)   # 第十一輪：關卡全開，只有試玩版有範圍

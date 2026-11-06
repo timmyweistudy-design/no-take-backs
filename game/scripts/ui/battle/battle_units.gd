@@ -276,6 +276,21 @@ func _draw_field_frame() -> void:
 		draw_rect(Rect2(ORIGIN + Vector2(fld_size.x - ii - 3.0, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
 		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
 
+## 第十三輪：護送＝金色雙圈，斬首＝紅色準星。
+func _goal_marker(p: Vector2, kind: String) -> void:
+	var pulse := 0.5 + 0.5 * sin(time * 4.0)
+	if kind == "protect":
+		var c := Color(1.0, 0.82, 0.3, 0.75 + 0.25 * pulse)
+		draw_arc(p, 22.0 * UNIT_SCALE, 0, TAU, 28, c, 3.0, true)
+		draw_arc(p, 27.0 * UNIT_SCALE, 0, TAU, 28, Color(c, 0.45), 2.0, true)
+	else:
+		var c2 := Color(1.0, 0.3, 0.25, 0.8 + 0.2 * pulse)
+		var r := 24.0 * UNIT_SCALE
+		var q := p + Vector2(0, -22) * UNIT_SCALE
+		draw_arc(q, r, 0, TAU, 28, c2, 2.5, true)
+		for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+			draw_line(q + d * r * 0.55, q + d * r * 1.3, c2, 2.5, true)
+
 func _draw_units_of(s, dim: bool) -> void:
 	var list: Array = []
 	for u in s.units:
@@ -289,6 +304,7 @@ func _draw_units_of(s, dim: bool) -> void:
 	_draw_v8_ground(s, live)
 	# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
 	var a_now := clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 1.0
+	var gm: Array = _goal_mark()
 	for u in list:
 		var p0: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
@@ -297,6 +313,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			draw_arc(p0 + Vector2(0, -24) * UNIT_SCALE, 28.0 * UNIT_SCALE, 0, TAU, 24, Color(0.55, 0.85, 1.0, 0.75), 2.5, true)
 		if u.haste_t > 0:
 			draw_arc(p0, 19.0 * UNIT_SCALE, 0, TAU, 20, Color(1.0, 0.75, 0.25, 0.85), 2.5, true)
+		if u.id == int(gm[0]):
+			_goal_marker(p0, str(gm[1]))   # 第十三輪：要護送／斬首的那一隻
 		if live and s.rally[u.team] and not s.finished:
 			for k in 2:
 				var ph := fmod(time * 1.6 + k * 0.5, 1.0)

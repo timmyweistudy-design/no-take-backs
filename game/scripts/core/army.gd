@@ -87,6 +87,8 @@ func check_place(t: int, col: int, row: int) -> String:
 		return E_ZONE
 	if index_at(col, row) != -1:
 		return E_TAKEN
+	if terrain != null and terrain.blocked(col * 1000 + 500, row * 1000 + 500, team):
+		return E_TERRAIN   # 第十三輪：地形殘局（格子放在地圖上），牆內格子不能放
 	return _check_common(t)
 
 ## 位置以外的條件（卡池、人數、單種、錢、防卡死），格子與自由共用。

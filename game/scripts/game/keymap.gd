@@ -77,7 +77,8 @@ static func can_bind_key(code: int) -> bool:
 	return not code in RESERVED
 
 ## 十字鍵是導航，不能綁（Codex r3）。
-const PAD_RESERVED := [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]
+const PAD_RESERVED := [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT,
+	JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK]   # 第十三輪：L3 殘局提示、R3 時間設定（Codex v13-r2 #2）
 
 static func can_bind_pad(code: int) -> bool:
 	return not code in PAD_RESERVED
