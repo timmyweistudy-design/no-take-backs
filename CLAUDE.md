@@ -1,6 +1,6 @@
 # 落子無悔 No Take-Backs
 
-Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；最新一輪（殘局 100、試煉 30）方案與進度看 `docs/2026-11-06-puzzle-expansion-plan-v13.md`（§16 進度）、裁決看 `coordination/v13-ledger.md`；更早的看 `docs/2026-11-05-v1-polish-plan-v10.md`、`coordination/v10-ledger.md`。舊輪次不用讀。
+Godot 4.6.2 確定性自動對決。現況只看 `docs/STATE.md`；最新一輪（殘局 100、試煉 30）方案與進度看 `docs/2026-11-06-puzzle-expansion-plan-v13.md`（§16 進度）、裁決看 `coordination/v13-ledger.md`；更早的看 `docs/2026-11-05-v1-polish-plan-v10.md`、`coordination/v10-ledger.md`。舊輪次不用讀。下一版 V1.1.0 方案（未實作）：`docs/2026-11-06-v1.1.0-plan.md`、裁決 `coordination/v110-ledger.md`。
 
 ## 指令（在 game/ 下，GODOT 指向 Windows 版 4.6.2）
 - 改動時：`python3 tools/check.py`（有快取，只跑受影響的）；更快：`--quick`。
