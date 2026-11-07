@@ -484,7 +484,6 @@ func _draw_inner() -> void:
 			_draw_fx(f)
 	perf_parts["fx"] = Time.get_ticks_usec() - _t
 	draw_set_transform_matrix(Transform2D.IDENTITY)
-	_update_grade(cam)
 	# V1.2 F2：畫面四周暈影（戰場與標題背景，壓在介面底下），讓視線集中在中間
 	var vg := _ui_tex("res://art/ui/vignette.png")
 	if vg != null and not bool(Save.s("plain_ui")):
@@ -649,29 +648,3 @@ func _do_click(p: Vector2) -> int:
 				return 1
 			return 0
 	return 0
-
-
-## V1.2 F2：戰場調色。子節點讀畫面材質，只蓋戰場範圍（上方資訊列與下方戰報在外面，不會變色）；
-## 只在戰鬥中、沒有覆蓋層時開；簡化介面、簡化特效、沒有 shader 檔時關。
-var _grade: ColorRect = null
-
-func _update_grade(cam: Transform2D) -> void:
-	var on: bool = state == St.BATTLE and overlay == "" and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_fx")) \
-		and DisplayServer.get_name() != "headless"
-	if on and _grade == null:
-		var sh_path := "res://shaders/world_grade.gdshader"
-		if not ResourceLoader.exists(sh_path):
-			return
-		_grade = ColorRect.new()
-		var m := ShaderMaterial.new()
-		m.shader = load(sh_path)
-		_grade.material = m
-		_grade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(_grade)
-	if _grade == null:
-		return
-	_grade.visible = on
-	if on:
-		var fr := (cam * Rect2(ORIGIN, fld_size)).intersection(Rect2(0, 92, 1280, 620))
-		_grade.position = fr.position
-		_grade.size = fr.size

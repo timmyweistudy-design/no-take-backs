@@ -20,7 +20,7 @@ static func key_of(map_id: int, size: int) -> int:
 	return map_id * 10 + size
 
 func texture(map_id: int, size: int) -> Texture2D:
-	var k := key_of(map_id, size)
+	var k := key_of(map_id, size) * 2 + (1 if _plain() else 0)   # 簡化介面另存一張（不烘紙紋、不調色）
 	if _tex.has(k):
 		return _tex[k]
 	if not _busy.has(k):
@@ -40,12 +40,43 @@ func _bake(map_id: int, size: int) -> void:
 	p.biome = BIOME[MD.MAPS[map_id]["biome"]]
 	p.kind = MD.MAPS[map_id]["biome"]
 	p.t = t
+	var plain := _plain()
+	p.plain = plain
 	vp.add_child(p)
 	add_child(vp)
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	_tex[key_of(map_id, size)] = ImageTexture.create_from_image(vp.get_texture().get_image())
+	var img := vp.get_texture().get_image()
 	vp.queue_free()
+	if not plain:
+		img = await _grade(img)
+	_tex[key_of(map_id, size) * 2 + (1 if plain else 0)] = ImageTexture.create_from_image(img)
+
+static func _plain() -> bool:
+	return bool(preload("res://scripts/game/save.gd").s("plain_ui"))
+
+## V1.2 F2：地塊調色在烘焙時跑一次 shader（shaders/grade_bake.gdshader）；沒有檔就原樣。
+func _grade(img: Image) -> Image:
+	var sh := "res://shaders/grade_bake.gdshader"
+	if not ResourceLoader.exists(sh):
+		return img
+	var tr := TextureRect.new()
+	tr.texture = ImageTexture.create_from_image(img)
+	var m := ShaderMaterial.new()
+	m.shader = load(sh)
+	tr.material = m
+	var vp := SubViewport.new()
+	vp.size = img.get_size()
+	vp.transparent_bg = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	vp.disable_3d = true
+	vp.add_child(tr)
+	add_child(vp)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var out := vp.get_texture().get_image()
+	vp.queue_free()
+	return out
 
 ## 前景物件（世界 px，相對場地左上）：[y, 種類, x, 大小]，依 y 排好。
 static func props(map_id: int, size: int) -> Array:
@@ -124,6 +155,7 @@ static func draw_prop(ci: CanvasItem, origin: Vector2, pr: Array, time: float) -
 			ci.draw_line(p + Vector2(-3, -2) * s, p + Vector2(1, -14) * s, Color(1.0, 0.55, 0.15, g), 2.0, true)
 
 class _Painter extends Node2D:
+	var plain := false
 	var biome: Dictionary
 	var kind := ""
 	var t
@@ -185,7 +217,7 @@ class _Painter extends Node2D:
 					draw_rect(Rect2(o, Vector2(Q, Q)), Color(biome["slow"]))
 					for k in 6:
 						var d := Vector2((h2 >> k) % 30 + 1, (h2 >> (k + 3)) % 30 + 1)
-						draw_circle(o + d, 1.6, Color(Color(biome["slow"]).darkened(0.25), 0.8), true, -1.0, true)
+						draw_circle(o + d, 1.6, Color(1, 1, 1, 0.45) if kind == "ice" else Color(Color(biome["slow"]).darkened(0.25), 0.8), true, -1.0, true)   # 冰原：霜點，不是灰點（Antigravity impl4）
 				elif v == t.FAST:
 					draw_rect(Rect2(o, Vector2(Q, Q)), Color(biome["fast"]))
 					if kind == "canyon":
@@ -284,8 +316,7 @@ class _Painter extends Node2D:
 					draw_line(p + Vector2(-1, -1), p + Vector2(-2, -5), Color(lite, 0.45), 1.0, true)
 				"ice":                # 冰面細紋
 					var a := float(h % 628) / 100.0
-					draw_line(p, p + Vector2.from_angle(a) * (8.0 + h % 9), Color(1, 1, 1, 0.32), 1.0, true)
-					draw_line(p, p + Vector2.from_angle(a + 1.1) * (5.0 + h % 5), Color(1, 1, 1, 0.22), 1.0, true)
+					draw_line(p, p + Vector2.from_angle(a) * (5.0 + h % 5), Color(1, 1, 1, 0.16), 1.0, true)   # 淡而短，不要像除錯線
 				"lava":               # 焦土裂紋
 					var a2 := float(h % 628) / 100.0
 					var q := p + Vector2.from_angle(a2) * 7.0
@@ -321,7 +352,7 @@ class _Painter extends Node2D:
 							draw_circle(Vector2(x, y0 + dirv * 2.0), 2.5 + hx % 2, Color("#9a6a44"), true, -1.0, true)
 			x += 8.0 if kind != "river" and kind != "forest" else 4.0
 		# 紙紋 5%（烘進去，跑起來不用每幀再疊一次）
-		var gr: Texture2D = load("res://art/ui/paper.png") if ResourceLoader.exists("res://art/ui/paper.png") else null
+		var gr: Texture2D = load("res://art/ui/paper.png") if ResourceLoader.exists("res://art/ui/paper.png") and not plain else null
 		if gr != null:
 			texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 			draw_texture_rect(gr, Rect2(0, 0, W, H), true, Color(0.5, 0.42, 0.32, 0.055))

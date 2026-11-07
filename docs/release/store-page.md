@@ -48,7 +48,7 @@ No Take-Backs is a cute little auto-battler about one decision: where your army 
 
 No gacha, no microtransactions, no stat upgrades, and every unit is available from the start. Just placement.
 
-## 截圖清單（第十輪換過，檔案在 `docs/store/screenshots/`，1280×800）
+## 截圖清單（第十輪換過，檔案在 `docs/release/capsules/screenshots/`，1280×800）
 排序依第十輪三方討論：排兵和覆盤最能說明玩法，放前面。
 1. `01_place.png` 擺放：射程與剋制提示（**主圖**）
 2. `02_review.png` 覆盤：改一隻兵再打一次
@@ -68,10 +68,10 @@ No gacha, no microtransactions, no stat upgrades, and every unit is available fr
 | 20–27 | 最後時刻慢動作：1 打 2 反殺 | 心跳；「★ 孤勇者 ★」 |
 | 27–30 | 標題＋「心願單」 | 落子聲收尾 |
 
-## 膠囊圖（Capsule）——**程式繪製版已產生在 `docs/store/capsules/`**（正式美術版之後再換）
+## 膠囊圖（Capsule）——**程式繪製版已產生在 `docs/release/capsules/`**（正式美術版之後再換）
 - 重新產生的指令：`<Godot exe> --path <game> --resolution 920x430 -- --capsule=<輸出 png 絕對路徑>`
 - Library Hero 3840×1240 比螢幕寬，是用 1920×620 畫好再放大 2 倍，正式版建議原尺寸重畫。
-- 商店截圖（1280×800）在 `docs/store/screenshots/`。
+- 商店截圖（1280×800）在 `docs/release/capsules/screenshots/`。
 
 **實機影片**（預告素材）——遊戲有自動錄影模式，但會在畫面開一個視窗跑約 1 分鐘，所以由你決定什麼時候錄：
 ```

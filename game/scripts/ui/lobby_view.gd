@@ -464,14 +464,6 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
-			if not bool(Save.s("plain_ui")):
-				# V1.2 C1：選中的預設像夾在筆記本上的書籤，垂到紙頁上緣
-				var bx := r.end.x - 30.0
-				var by0 := r.end.y - 2.0
-				var bl := 20.0
-				draw_colored_polygon(PackedVector2Array([Vector2(bx, by0), Vector2(bx + 16, by0), Vector2(bx + 16, by0 + bl), Vector2(bx + 8, by0 + bl - 6), Vector2(bx, by0 + bl)]), Color("#b5441f"))
-				draw_rect(Rect2(bx, by0, 16, 3), Color(0, 0, 0, 0.25))
-				draw_line(Vector2(bx + 3, by0 + 3), Vector2(bx + 3, by0 + bl - 2), Color(1, 0.85, 0.6, 0.35), 1.0)
 		_text(r.position + Vector2(w / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, w - 12)
 		var sub_y := 8 + text_h(L.t("lb_p_" + id), tz("B"), w - 12, true) + 2
 		if false and sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
@@ -574,7 +566,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	# V1.2 C1：左欄是一頁羊皮紙（像攤開的戰役筆記），紙上的字用墨色
 	if not bool(Save.s("plain_ui")):
 		# V1.2 C1：攤開的戰術筆記：木書殼＋左右兩頁羊皮紙＋中間書脊陰影（上緣和頁籤留空，Antigravity impl3）
-		var top := y - 2.0
+		var top := y - 8.0   # 紙頁上緣和預覽木框之間留白（Antigravity impl4）
 		var bot := R.end.y + 6.0
 		_tex_box(Rect2(x - 16, top - 4, R.size.x + 32, bot - top + 10), "wood", Color(0.42, 0.27, 0.16))
 		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
@@ -583,6 +575,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 			var a := 0.22 - k * 0.035
 			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
 			draw_rect(Rect2(x + lw + 9 + k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+		_draw_bookmark()
 		_ink_mode = true
 	var label := func(ic: String, s: String, yy: float) -> void:
 		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
@@ -1064,3 +1057,18 @@ func _draw_lobby_desc(R: Rect2) -> void:
 	y += tz("S") * 2.4
 	_draw_lobby_notes(Rect2(x, y, w, R.end.y - y - 60))
 	_btn(Rect2(x, R.end.y - 54, 200, 44), L.t("lb_reset"), func(): _lobby_pick("standard"))
+
+
+## V1.2 C1：選中的預設像夾在筆記本上的書籤，從分頁底下垂進紙頁（紙頁畫完才畫，才不會被蓋住）。
+func _draw_bookmark() -> void:
+	var i := Presets.IDS.find(lobby_r.preset)
+	if i < 0:
+		return
+	var r := Rect2(Vector2(80, 96) + Vector2(i * (154.0 + 10.0), 0), Vector2(154, 68))   # 和 _draw_lobby_presets 同一套位置
+	var bx := r.end.x - 34.0
+	var by0 := r.end.y - 4.0
+	var bl := 30.0
+	draw_colored_polygon(PackedVector2Array([Vector2(bx + 2, by0 + 3), Vector2(bx + 22, by0 + 3), Vector2(bx + 22, by0 + bl + 3), Vector2(bx + 12, by0 + bl - 4), Vector2(bx + 2, by0 + bl + 3)]), Color(0, 0, 0, 0.3))
+	draw_colored_polygon(PackedVector2Array([Vector2(bx, by0), Vector2(bx + 20, by0), Vector2(bx + 20, by0 + bl), Vector2(bx + 10, by0 + bl - 7), Vector2(bx, by0 + bl)]), Color("#b5441f"))
+	draw_rect(Rect2(bx, by0, 20, 3), Color(0, 0, 0, 0.25))
+	draw_line(Vector2(bx + 4, by0 + 3), Vector2(bx + 4, by0 + bl - 3), Color(1, 0.85, 0.6, 0.4), 1.5)

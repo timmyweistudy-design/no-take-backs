@@ -1,0 +1,593 @@
+diff --git a/game/scripts/game/sfx.gd b/game/scripts/game/sfx.gd
+index c932ffa..fdfb29a 100644
+--- a/game/scripts/game/sfx.gd
++++ b/game/scripts/game/sfx.gd
+@@ -30,6 +30,25 @@ var sfx_vol := 0.8
+ var music_vol := 0.7
+ var rng := RandomNumberGenerator.new()
+ 
++# V1.2 E4：具名匯流排（全部送進 Master；最後時刻低通仍掛在 Master，整體一起悶）
++const BUS_MUSIC := "Music"
++const BUS_SFX := "SFX"
++const BUS_UI := "UI"
++const BUS_AMB := "Ambience"
++var music_old: AudioStreamPlayer   # 換曲時淡出的上一首
++var fade_in := 1.0                 # 新曲淡入 0→1
++var fade_out := 0.0                # 舊曲淡出 1→0
++const FADE_SEC := 0.6
++
++## 沒有就建立（同名不重複建；測試可以重複呼叫）。
++static func _ensure_buses() -> void:
++	for n in [BUS_MUSIC, BUS_SFX, BUS_UI, BUS_AMB]:
++		if AudioServer.get_bus_index(n) < 0:
++			AudioServer.add_bus()
++			var i := AudioServer.bus_count - 1
++			AudioServer.set_bus_name(i, n)
++			AudioServer.set_bus_send(i, "Master")
++
+ ## V1.2 E：優先讀 CC0 錄音轉的 .ogg（tools/gen/import_audio.py），沒有才用程式合成的 .wav。
+ ## 同名變體（名稱__2、__3…）一起載入，播放時隨機挑、避免連續同一個。
+ static func load_audio(n: String):
+@@ -54,14 +73,21 @@ func _ready() -> void:
+ 					break
+ 				vs.append(v)
+ 			variants[n] = vs
++	_ensure_buses()
+ 	for i in 12:
+ 		var p := AudioStreamPlayer.new()
++		p.bus = BUS_SFX
+ 		add_child(p)
+ 		players.append(p)
+ 	music = AudioStreamPlayer.new()
++	music.bus = BUS_MUSIC
+ 	add_child(music)
+ 	music.finished.connect(func(): music.play())
++	music_old = AudioStreamPlayer.new()
++	music_old.bus = BUS_MUSIC
++	add_child(music_old)
+ 	amb = AudioStreamPlayer.new()
++	amb.bus = BUS_AMB
+ 	add_child(amb)
+ 	amb.finished.connect(func(): amb.play())
+ 	var lp := AudioEffectLowPassFilter.new()
+@@ -118,6 +144,7 @@ func play(name: String, vol := 1.0) -> void:
+ 		return
+ 	var p := players[ch]
+ 	p.stop()
++	p.bus = BUS_UI if (name.begins_with("k_") or name.begins_with("ui_")) else BUS_SFX
+ 	p.stream = _pick_variant(name)
+ 	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
+ 	p.volume_db = linear_to_db(maxf(0.0001, sfx_vol * vol))
+@@ -149,6 +176,7 @@ func play_layers() -> void:
+ 	if layers.is_empty():
+ 		for n in LAYERS:
+ 			var p := AudioStreamPlayer.new()
++			p.bus = BUS_MUSIC
+ 			add_child(p)
+ 			# 循環在匯入設定裡開（edit/loop_mode=2 整段循環）；檔案匯入時會壓縮，不能用位元組數自己算樣本數（Codex S7 #1）
+ 			p.stream = load("res://audio/%s.wav" % n)
+@@ -181,8 +209,14 @@ func _process(delta: float) -> void:
+ 		duck_t -= delta
+ 	# V1.2：單軌戰鬥曲用「緊張程度」調音量（分軌時的鼓聲進出改成整首大小聲），並套用大招壓低
+ 	single_cur = move_toward(single_cur, single_gain, delta * 1.5)
++	fade_in = move_toward(fade_in, 1.0, delta / FADE_SEC)
++	if fade_out > 0.0:
++		fade_out = move_toward(fade_out, 0.0, delta / FADE_SEC)
++		music_old.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * fade_out))
++		if fade_out <= 0.0:
++			music_old.stop()
+ 	if music.playing:
+-		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * (0.45 if duck_t > 0.0 else 1.0)))
++		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * fade_in * (0.45 if duck_t > 0.0 else 1.0)))
+ 	if music_name != "layers" or layers.is_empty():
+ 		return
+ 	for i in layers.size():
+@@ -227,6 +261,14 @@ func play_music(name: String) -> void:
+ 		music.pitch_scale = pitch
+ 		return
+ 	stop_layers()
++	# V1.2 E4：換曲交叉淡入淡出（上一首交給 music_old 淡出）
++	if music.playing and music.stream != null:
++		music_old.stream = music.stream
++		music_old.pitch_scale = music.pitch_scale
++		music_old.play(music.get_playback_position())
++		fade_out = 1.0
++		music_old.volume_db = music.volume_db
++	fade_in = 0.0
+ 	music_name = name
+ 	var st = load_audio(src)
+ 	if st == null:
+@@ -238,5 +280,5 @@ func play_music(name: String) -> void:
+ 	music.pitch_scale = pitch
+ 	single_gain = 1.0
+ 	single_cur = 1.0
+-	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6))
++	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * fade_in))   # 從 0 淡入，_process 往上拉
+ 	music.play()
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index 7177d6f..4f0c04d 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -67,8 +67,15 @@ func _draw_battle_report() -> void:
+ 	var rh: float = tz("S") * 1.32
+ 	var y0: float = 800.0 - rows * rh - 4.0 if ctl else minf(720.0, 766.0 - rows * rh)
+ 	var cw := 412.0
++	var plain := bool(Save.s("plain_ui"))
+ 	if not ctl:
+-		draw_rect(Rect2(0, y0 - 3, 1280, mini(ceili(report_log.size() / 3.0), rows) * rh + 6), Color(0, 0, 0, 0.5))   # 第十輪 V10：底條
++		var bar := Rect2(0, y0 - 3, 1280, mini(ceili(report_log.size() / 3.0), rows) * rh + 6)
++		if plain:
++			draw_rect(bar, Color(0, 0, 0, 0.5))   # 第十輪 V10：底條
++		else:
++			# V1.2 C6：戰報條是一條深木槽（上緣一道亮邊），不是黑色半透明帶
++			_tex_box(bar, "groove", Color(0.42, 0.31, 0.22, 0.92))
++			draw_rect(Rect2(0, bar.position.y, 1280, 1.5), Color(1, 0.88, 0.62, 0.22))
+ 	for i in mini(report_log.size(), rows * 3):
+ 		var e: Dictionary = report_log[i]
+ 		var age: float = time - float(e["t"])
+@@ -78,7 +85,24 @@ func _draw_battle_report() -> void:
+ 		var line := "%s %s" % [L.t("unit_%d" % int(e["type"])), e["label"]]
+ 		if int(e["n"]) > 1:
+ 			line += " ×%d" % int(e["n"])
+-		_text(p, mark, tz("S"), Color(Art.team_color(int(e["team"]), cbm()), a), false, true)
++		if plain:
++			_text(p, mark, tz("S"), Color(Art.team_color(int(e["team"]), cbm()), a), false, true)
++		else:
++			# V1.2 C6：隊色小章（藍圓、紅菱形，色盲也分得出）＋兵種小頭像，取代純文字記號
++			var sz := float(tz("S"))
++			var c := p + Vector2(sz * 0.5, sz * 0.62)
++			var tc := Art.team_color(int(e["team"]), cbm())
++			var rr := sz * 0.56
++			if int(e["team"]) == 0:
++				draw_circle(c, rr + 1.5, Color(INK, a), true, -1.0, true)
++				draw_circle(c, rr, Color(tc.darkened(0.15), a), true, -1.0, true)
++			else:
++				var dm := PackedVector2Array([c + Vector2(0, -rr - 2), c + Vector2(rr + 2, 0), c + Vector2(0, rr + 2), c + Vector2(-rr - 2, 0)])
++				draw_colored_polygon(dm, Color(INK, a))
++				var di := PackedVector2Array([c + Vector2(0, -rr), c + Vector2(rr, 0), c + Vector2(0, rr), c + Vector2(-rr, 0)])
++				draw_colored_polygon(di, Color(tc.darkened(0.15), a))
++			var hs := sz / 78.0
++			_unit(unit_center_feet(c + Vector2(0, -sz * 0.06), int(e["type"]), hs), int(e["type"]), int(e["team"]), 1.0, 0.0, 0.0, 0.0, a, time, hs)   # 走圖集（向量直畫每幀太貴）
+ 		_text(p + Vector2(tz("S") + 6.0, 0), line, tz("S"), Color(e["col"], a), false, true, cw - tz("S") - 14.0)
+ 
+ 
+@@ -306,8 +330,35 @@ func _fx_text(p: Vector2, s: String, c: Color, dur: float, size: int, screen :=
+ 
+ 
+ 
++# V1.2 F2：亮的特效底下墊一層柔光（放射漸層貼圖，執行時生成；不用全域 Glow）
++const GLOW := {"boom": [Color(1.0, 0.55, 0.2), 70.0], "meteor": [Color(1.0, 0.5, 0.2), 90.0], "healarc": [Color(0.45, 1.0, 0.55), 40.0],
++	"soulrise": [Color(0.7, 0.85, 1.0), 44.0], "timebell": [Color(1.0, 0.85, 0.4), 80.0], "sigil": [Color(1.0, 0.9, 0.55), 60.0]}
++var _glow_tex: GradientTexture2D = null
++
++func _draw_glow(f: Dictionary, k: float) -> void:
++	if _glow_tex == null:
++		var gr := Gradient.new()
++		gr.set_color(0, Color(1, 1, 1, 1))
++		gr.set_color(1, Color(1, 1, 1, 0))
++		gr.add_point(0.45, Color(1, 1, 1, 0.35))
++		_glow_tex = GradientTexture2D.new()
++		_glow_tex.gradient = gr
++		_glow_tex.fill = GradientTexture2D.FILL_RADIAL
++		_glow_tex.fill_from = Vector2(0.5, 0.5)
++		_glow_tex.fill_to = Vector2(1.0, 0.5)
++		_glow_tex.width = 64
++		_glow_tex.height = 64
++	var g: Array = GLOW[f["kind"]]
++	var gp = f.get("p", f.get("b", null))
++	if gp == null:
++		return
++	var r: float = g[1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
++	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(g[0], 0.32 * (1.0 - k)))
++
+ func _draw_fx(f: Dictionary) -> void:
+ 	var k: float = f["t"] / f["dur"]
++	if GLOW.has(f["kind"]) and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_fx")):
++		_draw_glow(f, k)
+ 	match f["kind"]:
+ 		"cmd_flash":
+ 			draw_rect(Rect2(0, 0, 1280, 800), Color(f["c"], 0.28 * (1.0 - k)))
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index ffa388f..f8cbdb0 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -317,7 +317,7 @@ func _draw_field() -> void:
+ func _draw_field_frame() -> void:
+ 	# V1.2 D3：場地底紋（亞麻布紋，約 6%），跟著場地（在鏡頭座標裡畫），不是貼在螢幕上
+ 	var gr := _ui_tex(TEX_PAPER)
+-	if gr != null and not bool(Save.s("plain_ui")):
++	if gr != null and not bool(Save.s("plain_ui")) and (fld_map == 0 or _map_tex() == null):   # 地形圖的紙紋已烘進地塊（map_art._decor）
+ 		# 一次平鋪（節點開了 texture_repeat），每幀一個繪製呼叫（Codex v120-impl2：原本每格一次）
+ 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+ 		draw_texture_rect(gr, Rect2(ORIGIN, fld_size), true, Color(0.5, 0.42, 0.32, 0.07))
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 2969f2e..fbbcb4c 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -484,6 +484,7 @@ func _draw_inner() -> void:
+ 			_draw_fx(f)
+ 	perf_parts["fx"] = Time.get_ticks_usec() - _t
+ 	draw_set_transform_matrix(Transform2D.IDENTITY)
++	_update_grade(cam)
+ 	# V1.2 F2：畫面四周暈影（戰場與標題背景，壓在介面底下），讓視線集中在中間
+ 	var vg := _ui_tex("res://art/ui/vignette.png")
+ 	if vg != null and not bool(Save.s("plain_ui")):
+@@ -648,3 +649,29 @@ func _do_click(p: Vector2) -> int:
+ 				return 1
+ 			return 0
+ 	return 0
++
++
++## V1.2 F2：戰場調色。子節點讀畫面材質，只蓋戰場範圍（上方資訊列與下方戰報在外面，不會變色）；
++## 只在戰鬥中、沒有覆蓋層時開；簡化介面、簡化特效、沒有 shader 檔時關。
++var _grade: ColorRect = null
++
++func _update_grade(cam: Transform2D) -> void:
++	var on: bool = state == St.BATTLE and overlay == "" and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_fx")) \
++		and DisplayServer.get_name() != "headless"
++	if on and _grade == null:
++		var sh_path := "res://shaders/world_grade.gdshader"
++		if not ResourceLoader.exists(sh_path):
++			return
++		_grade = ColorRect.new()
++		var m := ShaderMaterial.new()
++		m.shader = load(sh_path)
++		_grade.material = m
++		_grade.mouse_filter = Control.MOUSE_FILTER_IGNORE
++		add_child(_grade)
++	if _grade == null:
++		return
++	_grade.visible = on
++	if on:
++		var fr := (cam * Rect2(ORIGIN, fld_size)).intersection(Rect2(0, 92, 1280, 620))
++		_grade.position = fr.position
++		_grade.size = fr.size
+diff --git a/game/scripts/ui/icons.gd b/game/scripts/ui/icons.gd
+index 503654e..154b1ac 100644
+--- a/game/scripts/ui/icons.gd
++++ b/game/scripts/ui/icons.gd
+@@ -1,6 +1,11 @@
+ extends RefCounted
+ ## V9 P5 圖示：全部向量自繪，不靠字型（思源黑體沒有這些符號）。一律 24×24 概念，c＝中心、s＝邊長。
+ const OUT := Color("#1d1a2b")
++## V1.2 B4：畫剪影（外框、厚度）時，所有固定色（金幣金、外框紫）都換成同一個顏色；平常是透明＝不換。
++static var force := Color(0, 0, 0, 0)
++
++static func _k(c: Color) -> Color:
++	return Color(force, force.a * c.a) if force.a > 0.0 else c
+ 
+ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
+ 	var u := s / 24.0
+@@ -8,10 +13,10 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 	var w := maxf(1.6, 2.2 * u)
+ 	match name:
+ 		"coin":
+-			ci.draw_circle(c, 10.5 * u, OUT, true, -1.0, true)
+-			ci.draw_circle(c, 9.0 * u, Color("#ffd166"), true, -1.0, true)
+-			ci.draw_circle(c, 5.5 * u, Color("#f4a300"), true, -1.0, true)
+-			ci.draw_circle(P.call(-1.5, -1.5), 2.2 * u, Color("#ffe9a8"), true, -1.0, true)
++			ci.draw_circle(c, 10.5 * u, _k(OUT), true, -1.0, true)
++			ci.draw_circle(c, 9.0 * u, _k(Color("#ffd166")), true, -1.0, true)
++			ci.draw_circle(c, 5.5 * u, _k(Color("#f4a300")), true, -1.0, true)
++			ci.draw_circle(P.call(-1.5, -1.5), 2.2 * u, _k(Color("#ffe9a8")), true, -1.0, true)
+ 		"people":
+ 			for k in [[-5.5, 0.82], [5.5, 0.82], [0.0, 1.0]]:
+ 				var f: float = k[1]
+@@ -32,14 +37,14 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 		"cards":
+ 			ci.draw_rect(Rect2(P.call(-9, -6), Vector2(11, 15) * u), Color(col, 0.55))
+ 			ci.draw_rect(Rect2(P.call(-3, -9), Vector2(11, 15) * u), col)
+-			ci.draw_rect(Rect2(P.call(-3, -9), Vector2(11, 15) * u), OUT, false, w * 0.6)
++			ci.draw_rect(Rect2(P.call(-3, -9), Vector2(11, 15) * u), _k(OUT), false, w * 0.6)
+ 		"robot":
+ 			ci.draw_rect(Rect2(P.call(-8, -6), Vector2(16, 13) * u), col)
+ 			ci.draw_line(P.call(0, -6), P.call(0, -10), col, w, true)
+ 			ci.draw_circle(P.call(0, -10.5), 1.8 * u, col, true, -1.0, true)
+-			ci.draw_circle(P.call(-3.5, -1), 2.0 * u, OUT, true, -1.0, true)
+-			ci.draw_circle(P.call(3.5, -1), 2.0 * u, OUT, true, -1.0, true)
+-			ci.draw_rect(Rect2(P.call(-4, 3.5), Vector2(8, 1.6) * u), OUT)
++			ci.draw_circle(P.call(-3.5, -1), 2.0 * u, _k(OUT), true, -1.0, true)
++			ci.draw_circle(P.call(3.5, -1), 2.0 * u, _k(OUT), true, -1.0, true)
++			ci.draw_rect(Rect2(P.call(-4, 3.5), Vector2(8, 1.6) * u), _k(OUT))
+ 		"gear":
+ 			for k2 in 8:
+ 				var a := k2 * TAU / 8.0
+@@ -48,7 +53,7 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 		"dice":
+ 			ci.draw_rect(Rect2(P.call(-9, -9), Vector2(18, 18) * u), col)
+ 			for d in [[-4.5, -4.5], [4.5, -4.5], [0, 0], [-4.5, 4.5], [4.5, 4.5]]:
+-				ci.draw_circle(P.call(d[0], d[1]), 1.9 * u, OUT, true, -1.0, true)
++				ci.draw_circle(P.call(d[0], d[1]), 1.9 * u, _k(OUT), true, -1.0, true)
+ 		"copy":
+ 			ci.draw_rect(Rect2(P.call(-8, -4), Vector2(12, 13) * u), Color(col, 0.55), false, w)
+ 			ci.draw_rect(Rect2(P.call(-4, -9), Vector2(12, 13) * u), col, false, w)
+@@ -57,8 +62,8 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 			ci.draw_rect(Rect2(P.call(-4, -10), Vector2(8, 5) * u), col)
+ 		"save":
+ 			ci.draw_colored_polygon(PackedVector2Array([P.call(-9, -9), P.call(5, -9), P.call(9, -5), P.call(9, 9), P.call(-9, 9)]), col)
+-			ci.draw_rect(Rect2(P.call(-5, 2), Vector2(10, 7) * u), OUT)
+-			ci.draw_rect(Rect2(P.call(-4, -9), Vector2(7, 5) * u), OUT)
++			ci.draw_rect(Rect2(P.call(-5, 2), Vector2(10, 7) * u), _k(OUT))
++			ci.draw_rect(Rect2(P.call(-4, -9), Vector2(7, 5) * u), _k(OUT))
+ 		"back":
+ 			ci.draw_polyline(PackedVector2Array([P.call(3, -8), P.call(-5, 0), P.call(3, 8)]), col, w * 1.5, true)
+ 		"next":
+@@ -80,9 +85,9 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 		"shield":
+ 			ci.draw_colored_polygon(PackedVector2Array([P.call(-8, -9), P.call(8, -9), P.call(8, 2), P.call(0, 10), P.call(-8, 2)]), col)
+ 		"heart":
+-			ci.draw_circle(P.call(-4, -3), 4.8 * u, Color("#ff5d73"), true, -1.0, true)
+-			ci.draw_circle(P.call(4, -3), 4.8 * u, Color("#ff5d73"), true, -1.0, true)
+-			ci.draw_colored_polygon(PackedVector2Array([P.call(-8.6, -1), P.call(8.6, -1), P.call(0, 10)]), Color("#ff5d73"))
++			ci.draw_circle(P.call(-4, -3), 4.8 * u, _k(Color("#ff5d73")), true, -1.0, true)
++			ci.draw_circle(P.call(4, -3), 4.8 * u, _k(Color("#ff5d73")), true, -1.0, true)
++			ci.draw_colored_polygon(PackedVector2Array([P.call(-8.6, -1), P.call(8.6, -1), P.call(0, 10)]), _k(Color("#ff5d73")))
+ 		"speed":
+ 			ci.draw_polyline(PackedVector2Array([P.call(-9, -7), P.call(-2, 0), P.call(-9, 7)]), col, w * 1.3, true)
+ 			ci.draw_polyline(PackedVector2Array([P.call(0, -7), P.call(7, 0), P.call(0, 7)]), col, w * 1.3, true)
+@@ -99,24 +104,24 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 				var r: float = (10.5 if i % 2 == 0 else 4.6) * u
+ 				var an := -PI / 2 + i * PI / 5
+ 				st.append(c + Vector2(cos(an), sin(an)) * r)
+-			ci.draw_colored_polygon(st, Color("#ffd166") if col == Color.WHITE else col)
++			ci.draw_colored_polygon(st, _k(Color("#ffd166")) if col == Color.WHITE else col)
+ 		"lock":
+ 			ci.draw_arc(P.call(0, -3), 5.0 * u, PI, TAU, 12, col, w, true)
+ 			ci.draw_rect(Rect2(P.call(-7, -3), Vector2(14, 12) * u), col)
+ 		"trophy":
+-			ci.draw_colored_polygon(PackedVector2Array([P.call(-6, -9), P.call(6, -9), P.call(4, 2), P.call(-4, 2)]), Color("#ffd166"))
+-			ci.draw_arc(P.call(-7, -5), 3.2 * u, PI * 0.5, PI * 1.5, 8, Color("#ffd166"), w * 0.8, true)
+-			ci.draw_arc(P.call(7, -5), 3.2 * u, -PI * 0.5, PI * 0.5, 8, Color("#ffd166"), w * 0.8, true)
+-			ci.draw_rect(Rect2(P.call(-1.5, 2), Vector2(3, 5) * u), Color("#ffd166"))
+-			ci.draw_rect(Rect2(P.call(-5.5, 7), Vector2(11, 2.6) * u), Color("#ffd166"))
++			ci.draw_colored_polygon(PackedVector2Array([P.call(-6, -9), P.call(6, -9), P.call(4, 2), P.call(-4, 2)]), _k(Color("#ffd166")))
++			ci.draw_arc(P.call(-7, -5), 3.2 * u, PI * 0.5, PI * 1.5, 8, _k(Color("#ffd166")), w * 0.8, true)
++			ci.draw_arc(P.call(7, -5), 3.2 * u, -PI * 0.5, PI * 0.5, 8, _k(Color("#ffd166")), w * 0.8, true)
++			ci.draw_rect(Rect2(P.call(-1.5, 2), Vector2(3, 5) * u), _k(Color("#ffd166")))
++			ci.draw_rect(Rect2(P.call(-5.5, 7), Vector2(11, 2.6) * u), _k(Color("#ffd166")))
+ 		"flag":
+ 			ci.draw_line(P.call(-7, -10), P.call(-7, 10), col, w, true)
+ 			ci.draw_colored_polygon(PackedVector2Array([P.call(-6, -10), P.call(9, -5.5), P.call(-6, -1)]), col)
+ 		"skull":
+ 			ci.draw_circle(P.call(0, -2), 8.0 * u, col, true, -1.0, true)
+ 			ci.draw_rect(Rect2(P.call(-4.5, 4), Vector2(9, 5) * u), col)
+-			ci.draw_circle(P.call(-3, -2), 2.2 * u, OUT, true, -1.0, true)
+-			ci.draw_circle(P.call(3, -2), 2.2 * u, OUT, true, -1.0, true)
++			ci.draw_circle(P.call(-3, -2), 2.2 * u, _k(OUT), true, -1.0, true)
++			ci.draw_circle(P.call(3, -2), 2.2 * u, _k(OUT), true, -1.0, true)
+ 		"sound":
+ 			ci.draw_colored_polygon(PackedVector2Array([P.call(-9, -3), P.call(-4, -3), P.call(2, -8), P.call(2, 8), P.call(-4, 3), P.call(-9, 3)]), col)
+ 			ci.draw_arc(P.call(2, 0), 5.0 * u, -0.8, 0.8, 8, col, w * 0.8, true)
+@@ -127,19 +132,19 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 		"puzzle":
+ 			ci.draw_rect(Rect2(P.call(-8, -6), Vector2(16, 15) * u), col)
+ 			ci.draw_circle(P.call(0, -7), 3.4 * u, col, true, -1.0, true)
+-			ci.draw_circle(P.call(8, 2), 3.2 * u, OUT, true, -1.0, true)
++			ci.draw_circle(P.call(8, 2), 3.2 * u, _k(OUT), true, -1.0, true)
+ 		"tower":
+ 			ci.draw_rect(Rect2(P.call(-6, -6), Vector2(12, 16) * u), col)
+ 			for t in 3:
+ 				ci.draw_rect(Rect2(P.call(-7.5 + t * 6.0, -10), Vector2(3.2, 4.2) * u), col)
+-			ci.draw_rect(Rect2(P.call(-2, 3), Vector2(4, 7) * u), OUT)
++			ci.draw_rect(Rect2(P.call(-2, 3), Vector2(4, 7) * u), _k(OUT))
+ 		"road":
+ 			ci.draw_colored_polygon(PackedVector2Array([P.call(-3, -10), P.call(3, -10), P.call(9, 10), P.call(-9, 10)]), col)
+ 			for r2 in 3:
+-				ci.draw_rect(Rect2(P.call(-0.8, -8 + r2 * 6.5), Vector2(1.6, 3.6) * u), OUT)
++				ci.draw_rect(Rect2(P.call(-0.8, -8 + r2 * 6.5), Vector2(1.6, 3.6) * u), _k(OUT))
+ 		"block":
+ 			ci.draw_circle(c, 9.5 * u, col, true, -1.0, true)
+-			ci.draw_line(P.call(-6, -6), P.call(6, 6), OUT, w * 1.3, true)
++			ci.draw_line(P.call(-6, -6), P.call(6, 6), _k(OUT), w * 1.3, true)
+ 		"slow":
+ 			ci.draw_arc(P.call(-2, 2), 7.0 * u, PI, TAU, 12, col, w * 1.4, true)
+ 			ci.draw_circle(P.call(7, 2), 2.4 * u, col, true, -1.0, true)
+@@ -147,8 +152,8 @@ static func draw(ci: CanvasItem, name: String, c: Vector2, s: float, col := Colo
+ 		"fast":
+ 			ci.draw_colored_polygon(PackedVector2Array([P.call(3, -10), P.call(-6, 2), P.call(0, 2), P.call(-3, 10), P.call(7, -3), P.call(1, -3)]), col)
+ 		"ban":
+-			ci.draw_arc(c, 9.0 * u, 0, TAU, 24, Color("#ff6b6b"), w * 1.2, true)
+-			ci.draw_line(P.call(-6.4, -6.4), P.call(6.4, 6.4), Color("#ff6b6b"), w * 1.2, true)
++			ci.draw_arc(c, 9.0 * u, 0, TAU, 24, _k(Color("#ff6b6b")), w * 1.2, true)
++			ci.draw_line(P.call(-6.4, -6.4), P.call(6.4, 6.4), _k(Color("#ff6b6b")), w * 1.2, true)
+ 		"hint":
+ 			ci.draw_arc(P.call(0, -2), 7.0 * u, PI * 0.8, PI * 2.2, 16, col, w, true)
+ 			ci.draw_rect(Rect2(P.call(-3, 6), Vector2(6, 2.2) * u), col)
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index 8e4dded..50f33bc 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -434,6 +434,7 @@ func _draw_lobby() -> void:
+ 		_draw_lobby_detail(Rect2(80, 176, 1120, 508))
+ 	else:
+ 		_draw_lobby_main(Rect2(80, 176, 1120, 508))
++		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
+ 	# 底列
+ 	var by := 700.0
+ 	_btn(Rect2(80, by, 150, 48), L.t("back"), func(): overlay = "")
+@@ -463,6 +464,14 @@ func _draw_lobby_presets(o: Vector2) -> void:
+ 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+ 		if on:
+ 			draw_rect(r, ACCENT, false, 3.0)
++			if not bool(Save.s("plain_ui")):
++				# V1.2 C1：選中的預設像夾在筆記本上的書籤，垂到紙頁上緣
++				var bx := r.end.x - 30.0
++				var by0 := r.end.y - 2.0
++				var bl := 20.0
++				draw_colored_polygon(PackedVector2Array([Vector2(bx, by0), Vector2(bx + 16, by0), Vector2(bx + 16, by0 + bl), Vector2(bx + 8, by0 + bl - 6), Vector2(bx, by0 + bl)]), Color("#b5441f"))
++				draw_rect(Rect2(bx, by0, 16, 3), Color(0, 0, 0, 0.25))
++				draw_line(Vector2(bx + 3, by0 + 3), Vector2(bx + 3, by0 + bl - 2), Color(1, 0.85, 0.6, 0.35), 1.0)
+ 		_text(r.position + Vector2(w / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, w - 12)
+ 		var sub_y := 8 + text_h(L.t("lb_p_" + id), tz("B"), w - 12, true) + 2
+ 		if false and sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
+@@ -563,9 +572,17 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 	var rowh := 96.0
+ 	var y := R.position.y
+ 	# V1.2 C1：左欄是一頁羊皮紙（像攤開的戰役筆記），紙上的字用墨色
+-	var pg_h := rowh * 4.0 + 12.0 + text_h(_summary(r), tz("S"), lw - 170) + 44.0
+ 	if not bool(Save.s("plain_ui")):
+-		_tex_box(Rect2(x - 10, y - 2, lw + 20, pg_h + 12), "paper")   # 上緣和頁籤留空（Antigravity impl3）
++		# V1.2 C1：攤開的戰術筆記：木書殼＋左右兩頁羊皮紙＋中間書脊陰影（上緣和頁籤留空，Antigravity impl3）
++		var top := y - 2.0
++		var bot := R.end.y + 6.0
++		_tex_box(Rect2(x - 16, top - 4, R.size.x + 32, bot - top + 10), "wood", Color(0.42, 0.27, 0.16))
++		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
++		_tex_box(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), "paper")
++		for k in 6:   # 書脊：中間往兩邊漸淡的陰影
++			var a := 0.22 - k * 0.035
++			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
++			draw_rect(Rect2(x + lw + 9 + k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+ 		_ink_mode = true
+ 	var label := func(ic: String, s: String, yy: float) -> void:
+ 		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+@@ -623,6 +640,7 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 	_wood_frame(pv, 9.0)   # V1.2 C1：沙盤預覽加木框
+ 	var ly := pv.end.y + 12
+ 	var lx := pv.position.x
++	_ink_mode = not bool(Save.s("plain_ui"))   # 右頁也是紙：說明字用墨色
+ 	if r.map_id != 0:
+ 		for t in [["block", "terrain_block"], ["slow", "terrain_slow"], ["fast", "terrain_fast"]]:
+ 			_icon(t[0], Vector2(lx + 12, ly + 12), 22.0, Color.WHITE)
+@@ -639,6 +657,7 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 	var notes_h := _lobby_notes_h(pv.size.x)
+ 	if notes_h > 0.0:
+ 		_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
++		_ink_mode = false
+ 	elif R.end.y - ly >= 96.0:
+ 		# 空下來的地方放雙方陣容，填補留白也提醒「要打了」
+ 		var my := minf(R.end.y - 10.0, ly + 104.0)
+@@ -649,6 +668,7 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 		for k2 in mini(3, foes.size()):
+ 			Art.unit(self, Vector2(pv.end.x - 50 - k2 * 66, my), int(foes[(k2 * 4 + 1) % foes.size()]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k2, 1.3, cbm())
+ 		_icon("swords", Vector2(pv.get_center().x, my - 32), 44.0, ACCENT)
++	_ink_mode = false
+ 
+ ## 地圖縮圖：貼上烘好的地面，full 時標出雙方部署區。
+ func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:
+diff --git a/game/scripts/ui/map_art.gd b/game/scripts/ui/map_art.gd
+index 31b9479..9598a54 100644
+--- a/game/scripts/ui/map_art.gd
++++ b/game/scripts/ui/map_art.gd
+@@ -263,3 +263,65 @@ class _Painter extends Node2D:
+ 						draw_rect(Rect2(o5, Vector2(Q, Q)), Color("#8a6238"))
+ 						for k5 in 3:
+ 							draw_line(o5 + Vector2(k5 * 11.0, 0), o5 + Vector2(k5 * 11.0, Q), Color("#5b3f23"), 2.0, true)
++		_decor(Q)
++
++	## V1.2 D3：手繪筆觸（草簇、碎石、冰紋、裂紋）、場地邊緣裝飾（木柵欄、冰柱、焦岩）、紙紋 5%，全部烘進地塊。
++	## 邊緣裝飾只在最外 7px 內，不擋到站在邊上的兵；只畫在可走的格子上，不改變地形判讀。
++	func _decor(Q: float) -> void:
++		var W: float = t.n * Q
++		var H: float = t.m * Q
++		var dark := Color(biome["base"]).darkened(0.32)
++		var lite := Color(biome["base2"]).lightened(0.18)
++		for i in 140:
++			var h := _h(i * 31 + 7, i * 17 + 3)
++			var p := Vector2(float(h % 1000) / 1000.0 * W, float((h / 1000) % 100) / 100.0 * H)
++			if _cell(int(p.x / Q), int(p.y / Q)) != t.FREE:
++				continue
++			match kind:
++				"river", "forest":   # 草簇：三筆往上撇
++					for s in [-1.0, 0.0, 1.0]:
++						draw_line(p, p + Vector2(s * 3.5, -6.0 - absf(s) * -1.5), Color(dark, 0.55), 1.4, true)
++					draw_line(p + Vector2(-1, -1), p + Vector2(-2, -5), Color(lite, 0.45), 1.0, true)
++				"ice":                # 冰面細紋
++					var a := float(h % 628) / 100.0
++					draw_line(p, p + Vector2.from_angle(a) * (8.0 + h % 9), Color(1, 1, 1, 0.32), 1.0, true)
++					draw_line(p, p + Vector2.from_angle(a + 1.1) * (5.0 + h % 5), Color(1, 1, 1, 0.22), 1.0, true)
++				"lava":               # 焦土裂紋
++					var a2 := float(h % 628) / 100.0
++					var q := p + Vector2.from_angle(a2) * 7.0
++					draw_polyline(PackedVector2Array([p, q, q + Vector2.from_angle(a2 + 0.8) * 5.0]), Color(0.1, 0.06, 0.07, 0.45), 1.3, true)
++				"canyon":             # 碎石
++					draw_circle(p, 1.6 + h % 3, Color(0.45, 0.3, 0.2, 0.45), true, -1.0, true)
++					draw_circle(p + Vector2(-0.6, -0.6), 0.8, Color(1, 0.92, 0.8, 0.35), true, -1.0, true)
++		# 邊緣裝飾（上下兩條邊）
++		var x := 6.0
++		while x < W - 6.0:
++			var hx := _h(int(x), 77)
++			for edge in [0, 1]:
++				var y0 := 0.0 if edge == 0 else H
++				var dirv := 1.0 if edge == 0 else -1.0
++				if _cell(int(x / Q), 0 if edge == 0 else t.m - 1) != t.FREE:
++					continue
++				match kind:
++					"river", "forest":
++						if int(x) % 48 < 16:   # 木柵欄：短木樁＋橫木
++							draw_rect(Rect2(x - 1.5, y0 + (0.0 if edge == 0 else -7.0), 3.0, 7.0), Color("#6b4a2c"))
++							draw_rect(Rect2(x - 1.5, y0 + (0.0 if edge == 0 else -7.0), 3.0, 1.5), Color("#a07a4e"))
++					"ice":       # 冰柱（上緣往下）、雪堆（下緣）
++						if edge == 0:
++							var L := 3.0 + hx % 5
++							draw_colored_polygon(PackedVector2Array([Vector2(x - 2.2, 0), Vector2(x + 2.2, 0), Vector2(x, L)]), Color(0.92, 0.97, 1.0, 0.85))
++						else:
++							draw_circle(Vector2(x, H), 4.0 + hx % 3, Color(0.95, 0.98, 1.0, 0.7), true, -1.0, true)
++					"lava":      # 焦岩
++						if hx % 3 == 0:
++							draw_colored_polygon(PackedVector2Array([Vector2(x - 4, y0), Vector2(x - 1, y0 + dirv * (4.0 + hx % 3)), Vector2(x + 3, y0 + dirv * 2.0), Vector2(x + 5, y0)]), Color("#241a1d"))
++					"canyon":
++						if hx % 2 == 0:
++							draw_circle(Vector2(x, y0 + dirv * 2.0), 2.5 + hx % 2, Color("#9a6a44"), true, -1.0, true)
++			x += 8.0 if kind != "river" and kind != "forest" else 4.0
++		# 紙紋 5%（烘進去，跑起來不用每幀再疊一次）
++		var gr: Texture2D = load("res://art/ui/paper.png") if ResourceLoader.exists("res://art/ui/paper.png") else null
++		if gr != null:
++			texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
++			draw_texture_rect(gr, Rect2(0, 0, W, H), true, Color(0.5, 0.42, 0.32, 0.055))
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index f44a1ba..374b507 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -700,13 +700,30 @@ func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
+ 			draw_rect(fr, col)
+ 			draw_rect(Rect2(fr.position, Vector2(fr.size.x, maxf(1.0, fr.size.y * 0.35))), Color(1, 1, 1, 0.28))
+ 
++const ICON_SOLID := ["people", "cards", "robot", "gear", "shield", "heart", "star", "lock", "trophy", "flag", "skull", "book", "puzzle", "tower", "dice", "save"]   # 有實心面、放得下高光點的圖示
++
+ func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
+ 	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
+ 	if _ink_mode:
+ 		col = _ink(col)
+ 	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")):
++		# V1.2 B4：Q 版厚塗刻印 ── 深焦茶粗外框（8 方向剪影）＋落影＋右下深一階的厚度（雙色塊）＋實心圖示左上高光點
++		var ow := maxf(1.2, s * 0.06)
+ 		var off := maxf(1.0, s * 0.07)
+-		Icons.draw(self, name, c + Vector2(off, off), s, Color(INK, col.a * 0.75))
++		Icons.force = Color(INK, col.a * 0.7)
++		Icons.draw(self, name, c + Vector2(off, off) * 1.4, s, Icons.force)
++		Icons.force = Color(INK, col.a)
++		for k in 4:   # 四個斜角就夠成粗框（8 方向每幀太貴）
++			var d := Vector2.from_angle(PI / 4.0 + k * TAU / 4.0) * ow * 1.15
++			Icons.draw(self, name, c + d, s, Icons.force)
++		var dk := Color(col.darkened(0.35), col.a)
++		Icons.force = dk
++		Icons.draw(self, name, c + Vector2(ow, ow) * 0.6, s, dk)
++		Icons.force = Color(0, 0, 0, 0)
++		Icons.draw(self, name, c, s, col)
++		if name in ICON_SOLID:
++			draw_circle(c + Vector2(-s * 0.2, -s * 0.22), maxf(1.2, s * 0.06), Color(1, 0.98, 0.9, 0.55 * col.a), true, -1.0, true)
++		return
+ 	Icons.draw(self, name, c, s, col)
+ 
+ ## 羊皮紙標題緞帶：畫面標題統一用它。
+diff --git a/game/shaders/world_grade.gdshader b/game/shaders/world_grade.gdshader
+new file mode 100644
+index 0000000..ec85fa8
+--- /dev/null
++++ b/game/shaders/world_grade.gdshader
+@@ -0,0 +1,15 @@
++shader_type canvas_item;
++// V1.2 F2：戰場調色（只蓋在戰場範圍，介面不經過這裡）。暖色暗部、微提對比與飽和，像暖光下的桌面沙盤。
++uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
++uniform float strength = 1.0;
++
++void fragment() {
++	vec3 c = texture(screen_tex, SCREEN_UV).rgb;
++	vec3 g = c;
++	float l = dot(g, vec3(0.299, 0.587, 0.114));
++	g = mix(vec3(l), g, 1.07);                        // 飽和 +7%
++	g = (g - 0.5) * 1.05 + 0.5;                       // 對比 +5%
++	g += vec3(0.030, 0.014, -0.012) * (1.0 - l);      // 暗部偏暖
++	g *= vec3(1.015, 1.0, 0.975);                     // 整體微暖
++	COLOR = vec4(mix(c, clamp(g, 0.0, 1.0), strength), 1.0);
++}

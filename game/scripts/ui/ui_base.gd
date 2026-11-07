@@ -706,7 +706,7 @@ func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
 	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
 	if _ink_mode:
 		col = _ink(col)
-	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")):
+	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")) and not _ink_mode:   # 紙上的墨色圖示不厚塗（會糊成一團，Antigravity impl4）
 		# V1.2 B4：Q 版厚塗刻印 ── 深焦茶粗外框（8 方向剪影）＋落影＋右下深一階的厚度（雙色塊）＋實心圖示左上高光點
 		var ow := maxf(1.2, s * 0.06)
 		var off := maxf(1.0, s * 0.07)

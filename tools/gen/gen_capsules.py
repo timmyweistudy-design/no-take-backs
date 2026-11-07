@@ -20,9 +20,9 @@ def shot(name):
     return Image.open(os.path.join(SHOTS, name + ".png")).convert("RGB")
 
 def field_crop():
-    """戰鬥畫面只取戰場（去掉上方資訊列與下方戰報）。"""
-    im = shot("03_battle")
-    return im.crop((60, 96, 1220, 690))
+    """標題畫面的示範戰場：兩軍對峙、沒有飄字與介面（Antigravity impl4：底圖不能有戰鬥 UI 字）。"""
+    im = shot("01_title")
+    return im.crop((535, 195, 1265, 555))
 
 def cover(im, w, h, blur=0.0, dark=0.0):
     r = max(w / im.width, h / im.height)
@@ -87,18 +87,18 @@ def logo(w, h, transparent=False):
     text_outlined(d, (w // 2, py + ph + int(h * 0.15)), "NO TAKE-BACKS", fl, CREAM, INK, max(2, int(h * 0.15) // 9))
     return im
 
-def capsule(w, h, logo_frac=0.78, blur=1.2, dark=0.08, src=None):
+def capsule(w, h, logo_frac=0.78, blur=0.0, dark=0.08, src=None, ax=0.5):
     bg = cover(src or field_crop(), w, h, blur=blur, dark=dark)
     bg = vignette(bg).convert("RGBA")
     lw = int(min(w * logo_frac, h * 0.92 / 0.42))   # 木牌不能比圖高
     lh = int(lw * 0.42)
     lg = logo(lw, lh)
-    bg.alpha_composite(lg, ((w - lw) // 2, (h - lh) // 2))
+    bg.alpha_composite(lg, (int((w - lw) * ax), (h - lh) // 2))   # ax：木牌水平位置（0 左、0.5 中）
     return bg.convert("RGB")
 
 def vertical(w, h):
-    melee = shot("03_battle").crop((600, 220, 1000, 690))   # 混戰那一塊（直式只放得下中間）
-    bg = cover(melee, w, h, blur=1.2, dark=0.1)
+    melee = shot("01_title").crop((760, 190, 1080, 560))   # 兩軍交界那一塊（直式只放得下中間）
+    bg = cover(melee, w, h, blur=0.0, dark=0.1)
     bg = vignette(bg).convert("RGBA")
     lw = int(w * 0.9)
     lh = int(lw * 0.42)
@@ -106,9 +106,9 @@ def vertical(w, h):
     return bg.convert("RGB")
 
 out = {
-    "header_capsule_920x430.png": capsule(920, 430),
-    "small_capsule_462x174.png": capsule(462, 174, logo_frac=0.92, blur=1.5, dark=0.2),
-    "main_capsule_1232x706.png": capsule(1232, 706, logo_frac=0.7),
+    "header_capsule_920x430.png": capsule(920, 430, logo_frac=0.56, ax=0.06),   # 木牌靠左，右邊露出兩軍交界
+    "small_capsule_462x174.png": capsule(462, 174, logo_frac=0.92, dark=0.2),
+    "main_capsule_1232x706.png": capsule(1232, 706, logo_frac=0.5, ax=0.06),
     "vertical_capsule_748x896.png": vertical(748, 896),
     "library_capsule_600x900.png": vertical(600, 900),
     "library_hero_3840x1240.png": vignette(cover(field_crop(), 3840, 1240, blur=3.0, dark=0.05), 0.4),

@@ -193,16 +193,11 @@ func test_sfx_priority() -> void:
 	for n in SX.PRIO:
 		if not SX.FILES.has(n):
 			missing.append("PRIO 有但 FILES 沒有：" + n)
-	for n in SX.LAYERS:
-		if not FileAccess.file_exists("res://audio/%s.wav" % n):
-			missing.append(n)
-	ok(missing.is_empty(), "音效：清單裡的檔案都在（含三條戰鬥分軌）", str(missing))
-	var looped := true
-	for n in SX.LAYERS:
-		var st = load("res://audio/%s.wav" % n)
-		if not (st is AudioStreamWAV) or st.loop_mode != AudioStreamWAV.LOOP_FORWARD or absf(float(st.loop_end) / st.mix_rate - st.get_length()) > 0.1:
-			looped = false
-	ok(looped, "分軌音樂：三軌都整段循環（循環終點＝整首長度，Codex S7 #1）")
+	if not FileAccess.file_exists("res://audio/music_battle.ogg"):
+		missing.append("music_battle.ogg")
+	ok(missing.is_empty(), "音效：清單裡的檔案都在（含錄音戰鬥曲）", str(missing))
+	var mb = SX.load_audio("music_battle")
+	ok(mb != null and "loop" in mb, "戰鬥曲：錄音單軌可設循環（V1.2 取代合成三分軌）")
 	ok(SX.layer_targets(true, false) == [1.0, 1.0, 1.0] and SX.layer_targets(false, false)[1] < 0.5 and SX.layer_targets(true, true) == [1.0, 0.0, 0.0],
 		"分軌音樂：差距小鼓聲進來、最後時刻只留低音")
 

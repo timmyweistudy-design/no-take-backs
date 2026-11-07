@@ -38,6 +38,7 @@ const BUS_AMB := "Ambience"
 var music_old: AudioStreamPlayer   # 換曲時淡出的上一首
 var fade_in := 1.0                 # 新曲淡入 0→1
 var fade_out := 0.0                # 舊曲淡出 1→0
+var fade_from := 1.0               # 交接當下舊曲的增益（淡入進度×戰況音量），從這裡往下淡
 const FADE_SEC := 0.6
 
 ## 沒有就建立（同名不重複建；測試可以重複呼叫）。
@@ -164,32 +165,8 @@ func _pick_variant(name: String):
 	_last_var[name] = k
 	return vs[k]
 
-# ── 分軌戰鬥音樂（第三輪 S1）：低音、鼓、旋律三軌同時播、各自調音量 ──
-const LAYERS := ["music_battle_bass", "music_battle_drums", "music_battle_mel"]
-var layers: Array[AudioStreamPlayer] = []
-var layer_gain := [1.0, 0.35, 1.0]     # 目標
-var layer_cur := [1.0, 0.35, 1.0]      # 目前（平滑）
-
-func play_layers() -> void:
-	music.stop()
-	music_name = "layers"
-	if layers.is_empty():
-		for n in LAYERS:
-			var p := AudioStreamPlayer.new()
-			p.bus = BUS_MUSIC
-			add_child(p)
-			# 循環在匯入設定裡開（edit/loop_mode=2 整段循環）；檔案匯入時會壓縮，不能用位元組數自己算樣本數（Codex S7 #1）
-			p.stream = load("res://audio/%s.wav" % n)
-			layers.append(p)
-	layer_cur = layer_gain.duplicate()
-	for i in layers.size():
-		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i] * (0.45 if duck_t > 0.0 else 1.0)))
-		layers[i].play(0.0)
-
-func stop_layers() -> void:
-	for p in layers:
-		p.stop()
-
+# V1.2：戰鬥曲是錄音單軌（music_battle.ogg），舊的合成三分軌已移除；戰況只調整首大小聲。
+var layer_gain := [1.0, 0.35, 1.0]     # 戰況目標（給 single_gain 換算）
 ## 戰況 → 三軌目標音量：差距小（≤15%）鼓聲進來；最後時刻只留低音（心跳另外播）。
 static func layer_targets(close: bool, clutch: bool) -> Array:
 	if clutch:
@@ -212,16 +189,11 @@ func _process(delta: float) -> void:
 	fade_in = move_toward(fade_in, 1.0, delta / FADE_SEC)
 	if fade_out > 0.0:
 		fade_out = move_toward(fade_out, 0.0, delta / FADE_SEC)
-		music_old.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * fade_out))
+		music_old.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * fade_from * fade_out * (0.45 if duck_t > 0.0 else 1.0)))   # 從交接音量往下淡，也吃 duck（Codex v120-final2）
 		if fade_out <= 0.0:
 			music_old.stop()
 	if music.playing:
 		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * fade_in * (0.45 if duck_t > 0.0 else 1.0)))
-	if music_name != "layers" or layers.is_empty():
-		return
-	for i in layers.size():
-		layer_cur[i] = move_toward(layer_cur[i], layer_gain[i], delta * 1.5)
-		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i] * (0.45 if duck_t > 0.0 else 1.0)))   # V1.2：分軌也要被大招壓低（原本漏乘）
 
 ## V9：地圖環境音；空字串＝停。
 func play_ambience(name: String) -> void:
@@ -243,29 +215,24 @@ func duck(sec: float) -> void:
 	duck_t = maxf(duck_t, sec)
 
 func play_music(name: String) -> void:
-	# V1.2 E：有錄音的戰鬥曲（music_battle.ogg）就單軌播；沒有才用舊的合成三軌
-	var real_battle := ResourceLoader.exists("res://audio/music_battle.ogg")
-	if name == "music_battle" and not real_battle:
-		if music_name != "layers":
-			play_layers()
-		return
+	# V1.2 E：戰鬥曲是錄音單軌（music_battle.ogg）
 	var src := name
 	var pitch := 1.0
-	if name == "music_frenzy" and real_battle:
+	if name == "music_frenzy":
 		src = "music_battle"     # 狂熱：同一首加快一點，不換成合成音
 		pitch = 1.08
 	if name == music_name:
 		return
-	if src == "music_battle" and (music_name == "music_battle" or music_name == "music_frenzy") and music.playing and real_battle:
+	if src == "music_battle" and (music_name == "music_battle" or music_name == "music_frenzy") and music.playing:
 		music_name = name     # 狂熱與一般戰鬥是同一首：只改音高、不從頭播（Codex v120-impl2）
 		music.pitch_scale = pitch
 		return
-	stop_layers()
 	# V1.2 E4：換曲交叉淡入淡出（上一首交給 music_old 淡出）
 	if music.playing and music.stream != null:
 		music_old.stream = music.stream
 		music_old.pitch_scale = music.pitch_scale
 		music_old.play(music.get_playback_position())
+		fade_from = single_cur * fade_in
 		fade_out = 1.0
 		music_old.volume_db = music.volume_db
 	fade_in = 0.0

@@ -88,22 +88,25 @@ func _draw_battle_report() -> void:
 		if plain:
 			_text(p, mark, tz("S"), Color(Art.team_color(int(e["team"]), cbm()), a), false, true)
 		else:
-			# V1.2 C6：隊色小章（藍圓、紅菱形，色盲也分得出）＋兵種小頭像，取代純文字記號
+			# V1.2 C6：隊色小章（藍圓、紅菱形，色盲也分得出）；頭像太小會糊（Antigravity impl4），不放
 			var sz := float(tz("S"))
 			var c := p + Vector2(sz * 0.5, sz * 0.62)
 			var tc := Art.team_color(int(e["team"]), cbm())
-			var rr := sz * 0.56
+			var rr := sz * 0.42
 			if int(e["team"]) == 0:
-				draw_circle(c, rr + 1.5, Color(INK, a), true, -1.0, true)
-				draw_circle(c, rr, Color(tc.darkened(0.15), a), true, -1.0, true)
+				draw_circle(c, rr + 2.0, Color(INK, a), true, -1.0, true)
+				draw_circle(c, rr, Color(tc, a), true, -1.0, true)
+				draw_circle(c + Vector2(-rr * 0.35, -rr * 0.35), rr * 0.28, Color(1, 1, 1, 0.45 * a), true, -1.0, true)
 			else:
-				var dm := PackedVector2Array([c + Vector2(0, -rr - 2), c + Vector2(rr + 2, 0), c + Vector2(0, rr + 2), c + Vector2(-rr - 2, 0)])
+				var dm := PackedVector2Array([c + Vector2(0, -rr - 3), c + Vector2(rr + 3, 0), c + Vector2(0, rr + 3), c + Vector2(-rr - 3, 0)])
 				draw_colored_polygon(dm, Color(INK, a))
 				var di := PackedVector2Array([c + Vector2(0, -rr), c + Vector2(rr, 0), c + Vector2(0, rr), c + Vector2(-rr, 0)])
-				draw_colored_polygon(di, Color(tc.darkened(0.15), a))
-			var hs := sz / 78.0
-			_unit(unit_center_feet(c + Vector2(0, -sz * 0.06), int(e["type"]), hs), int(e["type"]), int(e["team"]), 1.0, 0.0, 0.0, 0.0, a, time, hs)   # 走圖集（向量直畫每幀太貴）
-		_text(p + Vector2(tz("S") + 6.0, 0), line, tz("S"), Color(e["col"], a), false, true, cw - tz("S") - 14.0)
+				draw_colored_polygon(di, Color(tc, a))
+				draw_circle(c + Vector2(-rr * 0.25, -rr * 0.3), rr * 0.22, Color(1, 1, 1, 0.45 * a), true, -1.0, true)
+		var lc: Color = e["col"]
+		if not plain and lc.get_luminance() < 0.55:
+			lc = lc.lightened(0.45)   # 深木槽上，深色技能字（刺客紫）提亮（Antigravity impl4）
+		_text(p + Vector2(tz("S") + 6.0, 0), line, tz("S"), Color(lc, a), false, true, cw - tz("S") - 14.0)
 
 
 
