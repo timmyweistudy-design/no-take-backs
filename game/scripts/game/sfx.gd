@@ -130,8 +130,9 @@ func _pick_variant(name: String):
 	var vs: Array = variants.get(name, [streams[name]])
 	if vs.size() <= 1:
 		return vs[0]
-	var k := rng.randi_range(0, vs.size() - 2)
-	if k >= int(_last_var.get(name, -1)):
+	var last := int(_last_var.get(name, -1))
+	var k := rng.randi_range(0, vs.size() - 1) if last < 0 else rng.randi_range(0, vs.size() - 2)
+	if last >= 0 and k >= last:
 		k += 1
 	_last_var[name] = k
 	return vs[k]
@@ -220,6 +221,10 @@ func play_music(name: String) -> void:
 		src = "music_battle"     # 狂熱：同一首加快一點，不換成合成音
 		pitch = 1.08
 	if name == music_name:
+		return
+	if src == "music_battle" and (music_name == "music_battle" or music_name == "music_frenzy") and music.playing and real_battle:
+		music_name = name     # 狂熱與一般戰鬥是同一首：只改音高、不從頭播（Codex v120-impl2）
+		music.pitch_scale = pitch
 		return
 	stop_layers()
 	music_name = name

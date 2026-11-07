@@ -53,11 +53,11 @@ def apply_shift(base, shift):
 
 
 def wood(w=64, h=64, rad=8):
-    g = noise(w, h, 16, 1, 40).filter(ImageFilter.GaussianBlur(0.8))
-    g = g.point(lambda v: int(200 + (v - 128) * 0.22))          # 很淡的木紋：底色 ~200
+    g = noise(w, h, 32, 2, 40).filter(ImageFilter.GaussianBlur(1.0))
+    g = g.point(lambda v: int(200 + (v - 128) * 0.12))   # 紋理更淡、更長（Antigravity impl1：太密像拉絲金屬）          # 很淡的木紋：底色 ~200
     # 幾條較深的木紋線
     d = ImageDraw.Draw(g)
-    for k in range(5):
+    for k in range(3):
         y = R.randint(6, h - 6)
         amp = R.uniform(0.5, 2.0)
         pts = [(x, y + amp * math.sin(x / R.uniform(6, 12) + k)) for x in range(0, w, 2)]
@@ -83,7 +83,7 @@ def groove(w=48, h=48, rad=6):
 
 def paper(w=128, h=128, rad=6):
     base = Image.new("RGB", (w, h), (236, 218, 182))
-    fib = noise(w, h, 3, 1, 60).point(lambda v: int((v - 128) * 0.28 + 128))
+    fib = noise(w, h, 8, 3, 60).filter(ImageFilter.GaussianBlur(0.8)).point(lambda v: int((v - 128) * 0.12 + 128))
     blot = noise(w, h, 24, 24, 80).filter(ImageFilter.GaussianBlur(4)).point(lambda v: int((v - 128) * 0.25 + 128))
     tone = ImageChops.add(fib, blot, 1.0, -128)
     r, g, b = base.split()
@@ -131,13 +131,29 @@ def vignette(w=256, h=160):
             dx = (x - w / 2) / (w / 2)
             dy = (y - h / 2) / (h / 2)
             dd = math.sqrt(dx * dx * 0.9 + dy * dy * 1.1)
-            px[x, y] = int(max(0.0, min(1.0, (dd - 0.55) / 0.6)) ** 1.6 * 200)
+            px[x, y] = int(max(0.0, min(1.0, (dd - 0.6) / 0.6)) ** 1.6 * 150)
     img = Image.new("RGBA", (w, h), (20, 11, 6, 0))
     img.putalpha(m.filter(ImageFilter.GaussianBlur(3)))
     return img
 
 
-for name, im in [("wood", wood()), ("groove", groove()), ("paper", paper()), ("frame", frame()), ("vignette", vignette())]:
+def cursor(s=32):
+    """游標：斜放的小劍（劍尖在左上 (2,2)），深焦茶描邊、鋼刃、木柄、金護手。"""
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    ink = (36, 21, 11, 255)
+    blade = [(2, 2), (6, 3), (19, 16), (16, 19), (3, 6)]
+    d.polygon(blade, fill=(214, 222, 235, 255), outline=ink)
+    d.line([(4, 4), (17, 17)], fill=(250, 252, 255, 255), width=1)
+    d.line([(14, 22), (22, 14)], fill=ink, width=5)
+    d.line([(14, 22), (22, 14)], fill=(232, 178, 74, 255), width=3)
+    d.line([(19, 19), (27, 27)], fill=ink, width=6)
+    d.line([(19, 19), (27, 27)], fill=(150, 96, 52, 255), width=4)
+    d.ellipse((25, 25, 30, 30), fill=(232, 178, 74, 255), outline=ink)
+    return img
+
+
+for name, im in [("cursor", cursor()), ("wood", wood()), ("groove", groove()), ("paper", paper()), ("frame", frame()), ("vignette", vignette())]:
     p = os.path.join(OUT, name + ".png")
     im.save(p)
     print(name, im.size, os.path.getsize(p), "B")

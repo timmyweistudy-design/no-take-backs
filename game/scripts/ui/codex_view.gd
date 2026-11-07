@@ -394,8 +394,7 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 						_icon(["heart", "sword", "range", "speed", "coin"][mini(bar_i, 4)], Vector2(r.position.x + 9, y + lh * 0.5), 18.0, Color.WHITE)
 						_text(Vector2(r.position.x + 22, y), b[0], ts(13), Color(1, 1, 1, 0.75), false, false, 72)
 						var bx := r.position.x + 96
-						draw_rect(Rect2(bx, y + lh * 0.38, 150, 7), TH_WOOD_D)
-						draw_rect(Rect2(bx, y + lh * 0.38, 150.0 * clampf(b[1], 0.04, 1.0), 7), Color("#66b2ff"))
+						_seg_bar(Rect2(bx, y + lh * 0.3, 150, 11), clampf(b[1], 0.04, 1.0), Color("#e8a33a"))   # V1.2 C2：8 格刻印條
 						_text(Vector2(bx + 158, y), b[2], ts(13), Color(1, 1, 1, 0.85), false, false, r.size.x - 260)
 					bar_i += 1
 					y += lh

@@ -315,13 +315,56 @@ func _draw_field() -> void:
 
 ## 木框內側陰影（第七輪 D2）。
 func _draw_field_frame() -> void:
-	for k6 in 3:
-		var sh := Color(0, 0, 0, 0.12 - k6 * 0.035)
-		var ii := float(k6 * 3)
+	# V1.2 D3：場地底紋（亞麻布紋，約 6%），跟著場地（在鏡頭座標裡畫），不是貼在螢幕上
+	var gr := _ui_tex(TEX_PAPER)
+	if gr != null and not bool(Save.s("plain_ui")):
+		# 一次平鋪（節點開了 texture_repeat），每幀一個繪製呼叫（Codex v120-impl2：原本每格一次）
+		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		draw_texture_rect(gr, Rect2(ORIGIN, fld_size), true, Color(0.5, 0.42, 0.32, 0.07))
+	_draw_ambient()
+	# V1.2 C4：戰場外圍木製沙盤框（九宮格、四角銅釘），蓋在原本的平塗邊上
+	var fx := _ui_tex(TEX_FRAME)
+	if fx != null and not bool(Save.s("plain_ui")):
+		var sb: StyleBoxTexture = _sb_cache.get("field_frame")
+		if sb == null:
+			sb = StyleBoxTexture.new()
+			sb.texture = fx
+			for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+				sb.set_texture_margin(side, 22.0)
+			sb.draw_center = false
+			_sb_cache["field_frame"] = sb
+		draw_style_box(sb, Rect2(ORIGIN, fld_size).grow(14))
+	for k6 in 4:   # V1.2：沙盤內緣落影加深（草地像陷在木框裡）
+		var sh := Color(0, 0, 0, 0.2 - k6 * 0.045)
+		var ii := float(k6 * 2)
 		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
 		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
 		draw_rect(Rect2(ORIGIN + Vector2(fld_size.x - ii - 3.0, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
 		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
+
+## V1.2 F3：環境動態（確定性：只看時間與編號，不進模擬）。草地／林間落葉、冰原落雪、熔岩火星；簡化特效時不畫。
+func _draw_ambient() -> void:
+	if bool(Save.s("reduce_fx")) or bool(Save.s("plain_ui")):
+		return
+	var biome := str(MapDefs.MAPS[fld_map]["biome"]) if fld_map < MapDefs.MAPS.size() else "grass"
+	var n := 14
+	for i in n:
+		var seed := float(i) * 12.9898
+		var ph := fposmod(time * (0.05 + fposmod(seed, 0.04)) + fposmod(seed * 3.7, 1.0), 1.0)
+		var x := fposmod(seed * 97.3 + sin(time * 0.6 + seed) * 18.0, fld_size.x)
+		match biome:
+			"ice":
+				var p := ORIGIN + Vector2(x + ph * 40.0, ph * fld_size.y)
+				draw_circle(p, 1.6 + fposmod(seed, 1.2), Color(1, 1, 1, 0.55 * sin(ph * PI)), true, -1.0, true)
+			"lava":
+				var p2 := ORIGIN + Vector2(x, fld_size.y * (1.0 - ph))
+				draw_circle(p2, 1.4, Color(1.0, 0.55 + 0.3 * fposmod(seed, 1.0), 0.15, 0.7 * sin(ph * PI)), true, -1.0, true)
+			_:
+				if i % 2 == 0:
+					var p3 := ORIGIN + Vector2(x + sin(time * 1.3 + seed) * 10.0, ph * fld_size.y)
+					var rot := time * 2.0 + seed
+					var d := Vector2(cos(rot), sin(rot)) * 3.0
+					draw_line(p3 - d, p3 + d, Color(0.55, 0.62, 0.25, 0.5 * sin(ph * PI)), 2.4, true)
 
 ## 第十三輪：護送＝金色雙圈，斬首＝紅色準星。
 func _goal_marker(p: Vector2, kind: String) -> void:

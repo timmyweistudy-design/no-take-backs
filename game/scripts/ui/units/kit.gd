@@ -6,7 +6,8 @@ extends RefCounted
 const D = preload("res://scripts/core/unit_defs.gd")
 const Gait = preload("res://scripts/ui/units/gait.gd")
 
-const OUT := Color("#1d1a2b")
+const OUT := Color("#2b2236")   # V1.2 D1：內線色（較淡）；外輪廓改在圖集烘焙時用隊伍墨色加粗（shaders/unit_bake.gdshader）
+const INNER_W := 1.2              # V1.2 D1：部件內線寬（原 1.6／3.2／+3）
 const SKIN := Color("#ffe1c4")
 const BLUSH := Color(1.0, 0.55, 0.6, 0.55)
 const STEEL := Color("#c9d3e3")
@@ -55,7 +56,7 @@ static func _star(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
 
 static func _c(ci: CanvasItem, c: Vector2, r: float, col: Color, a: float, outline := true) -> void:
 	if outline:
-		ci.draw_circle(c, r + 1.6, Color(OUT, a), true, -1.0, true)
+		ci.draw_circle(c, r + INNER_W, Color(OUT, a), true, -1.0, true)
 	ci.draw_circle(c, r, Color(col, col.a * a), true, -1.0, true)
 
 
@@ -63,12 +64,12 @@ static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float,
 	if outline:
 		var closed := pts.duplicate()
 		closed.append(pts[0])
-		ci.draw_polyline(closed, Color(OUT, a), 3.2, true)
+		ci.draw_polyline(closed, Color(OUT, a), INNER_W * 2.0, true)
 	ci.draw_colored_polygon(pts, Color(col, col.a * a))
 
 
 static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, al: float) -> void:
-	ci.draw_line(a, b, Color(OUT, al), w + 3.0, true)
+	ci.draw_line(a, b, Color(OUT, al), w + INNER_W * 1.9, true)
 	ci.draw_line(a, b, Color(col, col.a * al), w, true)
 
 

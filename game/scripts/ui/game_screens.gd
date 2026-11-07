@@ -3,6 +3,9 @@ extends "res://scripts/ui/screens/game_menus.gd"
 
 var boot_parts := {}   # V1.1 E6：啟動各階段的時間點（毫秒，從程式啟動算），--boot-check 印出來
 
+var _ov_seen := ""   # V1.2 F1：覆蓋層動畫用
+var _ov_t := -9.0
+
 func _ready() -> void:
 	boot_parts["ready_in"] = Time.get_ticks_msec()
 	on_battle_finished = _finish_battle
@@ -43,6 +46,9 @@ func _ready() -> void:
 	boot_parts["save"] = Time.get_ticks_msec()
 	_load_fonts()
 	boot_parts["fonts"] = Time.get_ticks_msec()
+	# V1.2：自訂游標（小劍，tools/gen/gen_ui_tex.py 生成）；plain_ui 時用系統游標
+	if not bool(Save.s("plain_ui")) and ResourceLoader.exists("res://art/ui/cursor.png"):
+		Input.set_custom_mouse_cursor(load("res://art/ui/cursor.png"), Input.CURSOR_ARROW, Vector2(2, 2))
 	sfx = SfxScript.new()
 	add_child(sfx)
 	boot_parts["sfx"] = Time.get_ticks_msec()
@@ -478,6 +484,10 @@ func _draw_inner() -> void:
 			_draw_fx(f)
 	perf_parts["fx"] = Time.get_ticks_usec() - _t
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+	# V1.2 F2：畫面四周暈影（戰場與標題背景，壓在介面底下），讓視線集中在中間
+	var vg := _ui_tex("res://art/ui/vignette.png")
+	if vg != null and not bool(Save.s("plain_ui")):
+		draw_texture_rect(vg, Rect2(0, 0, 1280, 800), false, Color(1, 1, 1, 0.5))
 	_probe_ui = true
 	Art.base = Transform2D.IDENTITY
 	if state == St.BATTLE and slow_left > 0:
@@ -508,7 +518,15 @@ func _draw_inner() -> void:
 			_draw_battle_hud()
 			_draw_result()
 	_draw_clutch_banner()
+	# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
+	if overlay != _ov_seen:
+		_ov_seen = overlay
+		_ov_t = time
+	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
 	_draw_overlay()
+	if ok_k < 1.0:
+		draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
 	_draw_pad_footer()
 	if toast_t > 0:
 		var a := minf(1.0, toast_t * 2)

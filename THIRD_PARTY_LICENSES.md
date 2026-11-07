@@ -13,7 +13,12 @@
 | Steamworks API（`steam_api64.dll`、`libsteam_api.so`） | 隨 GodotSteam | Valve Steamworks SDK | Steamworks SDK 授權：上架 Steam 的遊戲可以附帶 | 無 | 不需要 |
 | 角色、特效 | 全部單位 | 本作程式繪製（`game/scripts/ui/art.gd`） | 本作原創 | — | — |
 | 音效、音樂 | 戰鬥音效、音樂、環境音 | 本作程式合成（`game/tools/gen_audio.py`、`gen_audio_v9.py`） | 本作原創 | — | — |
-| OpenGameArt CC0 錄音（V1.2，`game/audio/*.ogg`） | 配樂：RandomMind〈Medieval: The Bard's Tale〉（標題）、〈The Old Tower Inn〉（擺陣）、〈Minstrel Dance〉（戰鬥）；音效：StarNinjas〈20 Sword Sound Effects〉、rubberduck〈100 CC0 metal and wood SFX〉、Kenney〈50 RPG sound effects〉 | https://opengameart.org/content/medieval-the-bards-tale 、/medieval-the-old-tower-inn 、/medieval-minstrel-dance 、/20-sword-sound-effects-attacks-and-clashes 、/100-cc0-metal-and-wood-sfx 、/50-rpg-sound-effects | CC0 1.0（2026-11-07 逐頁確認，原始頁面存於 build/dl/oga/*/page.html） | 轉 Ogg、單聲道（音效）、去靜音、正規化、尾端淡出（`tools/gen/import_audio.py`） | 不要求署名；製作名單仍列出 |
+| RandomMind〈Medieval: The Bard's Tale〉 | 標題配樂 `music_title.ogg` | https://opengameart.org/content/medieval-the-bards-tale （Loop_The_Bards_Tale.wav） | CC0 1.0，2026-11-07 下載、頁面存 build/dl/oga/medieval-the-bards-tale/page.html | 轉 Ogg、正規化 | 製作名單列出 |
+| RandomMind〈Medieval: The Old Tower Inn〉 | 擺陣配樂 `music_place.ogg` | https://opengameart.org/content/medieval-the-old-tower-inn （Loop_The_Old_Tower_Inn.wav） | CC0 1.0，2026-11-07 | 同上 | 製作名單列出 |
+| RandomMind〈Medieval: Minstrel Dance〉 | 戰鬥配樂 `music_battle.ogg`（狂熱時加快 8%） | https://opengameart.org/content/medieval-minstrel-dance （Loop_Minstrel_Dance_0.wav） | CC0 1.0，2026-11-07 | 同上 | 製作名單列出 |
+| StarNinjas〈20 Sword Sound Effects (Attacks and Clashes)〉 | `slash*.ogg`、`block*.ogg` | https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes | CC0 1.0，2026-11-07 | 單聲道、去靜音、正規化、尾端淡出（`tools/gen/import_audio.py`） | 製作名單列出 |
+| rubberduck〈100 CC0 metal and wood SFX〉 | `hit_metal*.ogg`、`hit_wood*.ogg`、`place_mid*.ogg`、`place_heavy__2.ogg` | https://opengameart.org/content/100-cc0-metal-and-wood-sfx | CC0 1.0，2026-11-07 | 同上 | 製作名單列出 |
+| Kenney〈50 RPG sound effects〉 | `hit*.ogg`、`place_light*.ogg`、`place_heavy.ogg`、`k_tab*`、`k_open`、`k_close`、`k_place*`、`k_star*`、`k_unlock`、`step_*` | https://opengameart.org/content/50-rpg-sound-effects | CC0 1.0，2026-11-07 | 同上 | 製作名單列出 |
 | Kenney Interface Sounds 1.0 | 介面音（`game/audio/k_*.wav`） | https://kenney.nl/assets/interface-sounds | CC0 1.0 | 不要求署名 | 取自 https://github.com/Calinou/kenney-interface-sounds |
 
 ## 目前**沒有**使用、等來源確認才能用的素材

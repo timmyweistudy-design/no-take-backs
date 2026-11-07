@@ -6,7 +6,7 @@ root = os.path.join(os.path.dirname(__file__), "..")
 rules = [  # (路徑樣式, 登記項目)
     ("art/cainos/*.png", "Cainos"),
     ("audio/k_*.wav", "Kenney"),
-    ("audio/*.ogg", "OpenGameArt"),   # V1.2：CC0 錄音（tools/gen/import_audio.py）
+    ("audio/*.ogg", "opengameart.org"),   # V1.2：CC0 錄音（tools/gen/import_audio.py），逐條登記
     ("audio/*.wav", "本作程式合成"),
     ("fonts/NTBRounded-*.otf", "源泉圓體"),
     ("fonts/NTBLatin-*.ttf", "Fredoka"),

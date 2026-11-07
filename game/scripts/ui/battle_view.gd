@@ -600,7 +600,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 
 # ── 戰鬥 HUD ──
 func _draw_battle_hud() -> void:
-	draw_rect(Rect2(0, 0, 1280, 86), UI_BG)
+	_hud_bar(Rect2(0, 0, 1280, 86))   # V1.2：頂部資訊列改深木紋（原本是平塗深底）
 	draw_line(Vector2(0, 86), Vector2(1280, 86), TH_EDGE, 2.0)
 	# 第五輪：左上和擺放畫面一樣——模式（粗）＋局數比分（小字），不再放遊戲標題（大字時會換行壓到棋盤）
 	_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), Color(1, 1, 1, 0.75), false, true, 300)

@@ -220,16 +220,24 @@ func _draw_hide_fog(hide_side: int) -> void:
 	var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
 	# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
 	var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, fld_size.y))
-	draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
-	for k in 3:
-		var cxp := fposmod(time * (14.0 + k * 6.0) + k * 150.0, mr.size.x + 220.0) - 110.0
-		var cc := mr.position + Vector2(cxp, 90.0 + k * 170.0)
-		for b in 5:
-			var off := Vector2((b - 2) * 26.0, -absf(b - 2.0) * -6.0 - 8.0 * float(b % 2))
-			var rr := mr.position.x - 10.0
-			var cp := cc + off
-			if cp.x > rr and cp.x < mr.end.x + 10.0:
-				draw_circle(cp, 26.0 - absf(b - 2.0) * 4.0, Color(0.8, 0.82, 1.0, 0.07), true, -1.0, true)
+	# V1.2 C4：敵陣遮擋改成木製屏風（木紋、三扇接縫、銅鉸鏈），不再是黑色半透明罩
+	if not bool(Save.s("plain_ui")) and _tex_box(mr, "wood", Color(0.62, 0.46, 0.33)):
+		var panels := 3
+		for pj in panels:   # 屏風的扇面交替明暗，看得出折角
+			var pr := Rect2(mr.position.x + mr.size.x * pj / panels, mr.position.y, mr.size.x / panels, mr.size.y)
+			draw_rect(pr, Color(1, 0.95, 0.85, 0.06) if pj % 2 == 0 else Color(0, 0, 0, 0.12))
+		for pi in range(1, panels):
+			var sx := mr.position.x + mr.size.x * pi / panels
+			draw_line(Vector2(sx, mr.position.y + 4), Vector2(sx, mr.end.y - 4), Color(0.1, 0.06, 0.03, 0.75), 3.0)
+			draw_line(Vector2(sx + 2, mr.position.y + 4), Vector2(sx + 2, mr.end.y - 4), Color(1, 0.9, 0.7, 0.12), 1.0)
+			for hy in [0.18, 0.5, 0.82]:
+				var hp := Vector2(sx, mr.position.y + mr.size.y * hy)
+				draw_circle(hp, 4.5, Color("#2a190d"), true, -1.0, true)
+				draw_circle(hp, 3.2, Color("#b98a45"), true, -1.0, true)
+				draw_circle(hp - Vector2(1, 1), 1.2, Color("#f0d9a0"), true, -1.0, true)
+		draw_rect(mr, Color(0, 0, 0, 0.18))   # 壓暗一點，讓上面的字更清楚
+	else:
+		draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
 	var fp := mr.position + Vector2(mr.size.x / 2 - 8, mr.size.y / 2 - 120)
 	var glow := 0.5 + 0.5 * sin(time * 2.4)
 	draw_circle(fp + Vector2(22, 18), 34 + glow * 6, Color(1, 0.25, 0.25, 0.10 + glow * 0.06), true, -1.0, true)
@@ -490,7 +498,7 @@ func _load_checked(code: String) -> String:
 func _draw_place_hud() -> void:
 	# 第五輪 §4.4：頂部兩行。第一行＝模式／局數（左）、目前在做什麼＋金幣條＋人數（中）、規則徽章（右）；
 	# 第二行＝選中兵種的資訊帶（名稱、一句定位、剋／怕頭像），完全在棋盤外，不蓋部署格。
-	draw_rect(Rect2(0, 0, 1280, 92), UI_BG)
+	_hud_bar(Rect2(0, 0, 1280, 92))   # V1.2：頂部資訊列改深木紋（原本是平塗深底）
 	draw_line(Vector2(0, 50), Vector2(1280, 50), Color(1, 1, 1, 0.08), 1.0)
 	var a = _cur_army()
 	var tcol := Art.team_color(a.team, cbm())
@@ -545,13 +553,16 @@ func _draw_place_hud() -> void:
 		var r := _card_rect(i)
 		var cap_ok: bool = a.type_cap == 0 or a.count_of(i) < a.type_cap
 		var afford: bool = D.cost(i) <= a.left() and a.count() < a.unit_cap and _allowed(i) and cap_ok
-		var bg := Color(0.17, 0.18, 0.24)
+		var bg := TH_WOOD   # V1.2：兵卡改木牌色（原本藍灰，像工程介面）
 		if i == selected:
 			bg = TH_ACTIVE
 		elif i == hover_card:
-			bg = Color(0.21, 0.23, 0.31)
+			bg = TH_WOOD_L
 		var opened := _allowed(i)
-		draw_rect(r, bg if afford else Color(bg, 0.45))
+		if afford and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28)):
+			pass
+		else:
+			draw_rect(r, bg if afford else Color(bg, 0.45))
 		draw_rect(r, tcol if i == selected else Color(1, 1, 1, 0.15), false, 2)
 		if layout_probe:
 			probe_ctrls.append(r)   # 兵卡是控制項：卡上的小字不算「要讀的文字」段數

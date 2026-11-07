@@ -45,7 +45,7 @@ func _draw_gauntlet_pick() -> void:
 	for i in opts.size():
 		var r := Rect2(280, 226 + i * 128, 720, 116)
 		var pool: int = opts[i][1]
-		_btn(r, "", _start_gauntlet_with.bind(pool), true, false, Color(0.16, 0.18, 0.26))
+		_btn(r, "", _start_gauntlet_with.bind(pool), true, false, TH_WOOD)
 		_text(r.position + Vector2(16, 6), opts[i][0], tz("B"), ACCENT, false, true)
 		_draw_pool_heads(r.position + Vector2(16, 44), pool, 58.0)
 	_btn(Rect2(560, 120 + pick_h - 54, 160, 40), L.t("back"), func(): overlay = "")
@@ -171,6 +171,13 @@ func _draw_title() -> void:
 		tsz = int(tsz * 430.0 / tw)   # 第七輪：英文 150% 標題原本超出畫面左邊
 		tw = tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
 	var tp := Vector2(235 - tw / 2, 40 + bob + tsz * 0.85)
+	# V1.2 G：標題墊一塊木牌（木紋、銅釘框）＋兩側交叉雙劍，像掛在營帳前的招牌
+	if not bool(Save.s("plain_ui")):
+		var plq := Rect2(235 - tw / 2 - 34, tp.y - tsz * 0.92, tw + 68, tsz * 1.16)
+		if _tex_box(plq, "wood", Color(0.62, 0.42, 0.26)):
+			_wood_frame(plq, 6.0, "title_frame")
+			for sx in [plq.position.x - 4, plq.end.x + 4]:
+				_icon("swords", Vector2(sx, plq.get_center().y), 34.0, Color("#e8c26a"))
 	for d in 4:
 		draw_string(tf, tp + Vector2(1, 1) * (d + 1) * 1.6, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color(0.32, 0.17, 0.04, 0.9))
 	draw_string_outline(tf, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, 9, Color("#3a2205"))
@@ -319,18 +326,18 @@ func _draw_overlay() -> void:
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
 				_probe_btn_label = true
 				_probe_btn_rect = r
-				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 132)
+				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
 				_probe_btn_label = false
 				if en:
-					for ks in 3:
-						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.position.y + 16), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
+					for ks in 3:   # 星數在右下角（和下方說明同一列，說明讓出寬度）
+						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.end.y - tz("C") * 0.75), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
 				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
-				if not tut and en and text_h(line, tz("S"), r.size.x - 132) <= tz("S") * 1.6:
+				if not tut and en and text_h(line, tz("S"), r.size.x - 72) <= tz("S") * 1.6:
 					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
 					_probe_btn_label = true
 					_probe_btn_rect = r
-					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.25), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 70)
+					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.25), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)
 					_probe_btn_label = false
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）

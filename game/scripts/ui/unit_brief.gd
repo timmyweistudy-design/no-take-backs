@@ -97,9 +97,7 @@ func _brief_bars(r: Rect2, t: int) -> void:
 	for k in 4:
 		var cx: float = r.position.x + k * cw
 		_text(Vector2(cx, r.position.y), L.t(["ub_hp", "ub_atk", "ub_range", "ub_spd"][k]), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 8)
-		var br := Rect2(cx, r.end.y - 7, cw - 12, 6)
-		draw_rect(br, Color(1, 1, 1, 0.12))
-		draw_rect(Rect2(br.position, Vector2(br.size.x * float(st[k]), br.size.y)), ACCENT)
+		_seg_bar(Rect2(cx, r.end.y - 9, cw - 12, 8), float(st[k]), ACCENT)   # V1.2 C2：刻印格條
 
 func _brief_mu(p: Vector2, w: float, t: int) -> void:
 	var m: Dictionary = _brief_matchups(t)

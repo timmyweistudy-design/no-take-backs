@@ -614,6 +614,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
 	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
 	_map_thumb(pv, r.map_id, r.map_size, true)
+	_wood_frame(pv, 9.0)   # V1.2 C1：沙盤預覽加木框
 	var ly := pv.end.y + 12
 	var lx := pv.position.x
 	if r.map_id != 0:

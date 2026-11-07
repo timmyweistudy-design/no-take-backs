@@ -290,6 +290,17 @@ func _add_fx(d: Dictionary) -> void:
 
 
 
+## V1.2 C6：對話泡。r＝文字外框；尖角朝下指向角色。透明度跟著字淡出。
+func _bubble(r: Rect2, a: float) -> void:
+	var rr := r.grow_individual(4, 1, 4, 2)
+	var fill := Color(0.10, 0.07, 0.05, 0.82 * a)
+	var edge := Color(0.95, 0.86, 0.66, 0.55 * a)
+	var mid := rr.position.x + rr.size.x * 0.5
+	var tail := PackedVector2Array([Vector2(mid - 5, rr.end.y - 1), Vector2(mid + 5, rr.end.y - 1), Vector2(mid - 1, rr.end.y + 7)])
+	_box(rr, fill, edge, minf(10.0, rr.size.y * 0.5), 1.5)
+	draw_colored_polygon(tail, fill)
+	draw_polyline(PackedVector2Array([tail[0], tail[2], tail[1]]), edge, 1.5, true)
+
 func _fx_text(p: Vector2, s: String, c: Color, dur: float, size: int, screen := false) -> void:
 	fx.append({"kind": "text", "p": p, "s": s, "c": c, "t": 0.0, "dur": dur, "size": size, "screen": screen})
 
@@ -587,7 +598,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var dim := _clutch_dim(p3)
 				col.a *= dim
 				if not f.get("plain", false):
-					draw_rect(r3, Color(0.047, 0.059, 0.086, 0.72 * col.a))   # 半透明黑膠囊底（補血的綠字不加底，第四輪）
+					_bubble(r3, col.a)   # V1.2 C6：漫畫對話泡（羊皮紙色圓角＋墨線＋朝下的尖角），取代黑色膠囊
 				var sz := int(ts(f["size"]) * (1.0 + float(f.get("pop", 0.0)) * 1.4))
 				if f.get("plain", false):
 					_text(p3, f["s"], sz, col, true, true, 0.0, Color(0.05, 0.2, 0.08, col.a))   # 補血綠字加深墨綠描邊

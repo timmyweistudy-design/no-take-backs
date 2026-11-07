@@ -99,14 +99,42 @@ func _draw_result() -> void:
 	if not layout_probe and not bool(Save.s("reduce_fx")):
 		var dk := clampf((time - result_t) / 0.25, 0.0, 1.0)
 		drop = (1.0 - dk) * (1.0 - dk) * -60.0
-	_text(Vector2(640, 114 + drop), title, title_sz, col, true, true, 540)
+	# V1.2 C3：勝負大字墊一條布幔絲帶（勝方隊色、兩端燕尾、金邊），不再是浮在面板上的單色字
+	if not bool(Save.s("plain_ui")):
+		var tw: float = minf(540.0, _width(title, title_sz, true)) + 120.0
+		var ry := 114.0 + drop - title_sz * 0.02
+		var rh := title_sz * 1.05   # 不能蓋到下一行的勝負摘要
+		var rx0 := 640.0 - tw / 2.0
+		var rib: Color = (col.darkened(0.35) if w >= 0 else Color("#5b4632"))
+		for sgn in [-1.0, 1.0]:
+			var ex: float = rx0 if sgn < 0 else rx0 + tw
+			draw_colored_polygon(PackedVector2Array([Vector2(ex, ry + 8), Vector2(ex + sgn * 34, ry + 8), Vector2(ex + sgn * 20, ry + rh * 0.5 + 8), Vector2(ex + sgn * 34, ry + rh + 8), Vector2(ex, ry + rh + 8)]), rib.darkened(0.35))
+		draw_rect(Rect2(rx0, ry, tw, rh), rib)
+		draw_rect(Rect2(rx0, ry, tw, 3), Color("#e8c26a"))
+		draw_rect(Rect2(rx0, ry + rh - 3, tw, 3), Color("#e8c26a"))
+		draw_rect(Rect2(rx0, ry + 3, tw, rh * 0.3), Color(1, 1, 1, 0.08))
+		col = Color("#fff6e0")
+		# 布幔上下要留白（Antigravity impl1）：往下一級字級（只能用字級表裡的值）
+		var lv: Array = TYPE_SCALE[_scale_key()].values()
+		var nxt := title_sz
+		for v in lv:
+			if v < title_sz and (nxt == title_sz or v > nxt):
+				nxt = v
+		title_sz = nxt
+	_text(Vector2(640, 114 + drop + (title_sz * 0.08 if not bool(Save.s("plain_ui")) else 0.0)), title, title_sz, col, true, true, 540)
 	if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則（地形、撐住、技能）的代碼讀不回來，不給複製（Codex v13-r1 #1）
 		_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
 	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
 		_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
 	if report.has("trial_stars"):
 		for ks in 3:
-			_icon("star", Vector2(610 + ks * 30, 84), 26.0, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
+			# V1.2 F1：星星一顆一顆彈出（截圖、版面檢查、簡化特效時直接到位）
+			var kk := 1.0
+			if not layout_probe and shot_dir == "" and not bool(Save.s("reduce_fx")):
+				kk = clampf((time - result_t - 0.35 - ks * 0.18) / 0.22, 0.0, 1.0)
+			var pop := 1.0 + 0.35 * sin(kk * PI)
+			if kk > 0.0:
+				_icon("star", Vector2(610 + ks * 30, 84), 26.0 * pop * kk, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
 	var mvp = report.get("mvp")
 	_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
 	var y := 112.0 + title_sz * 1.25

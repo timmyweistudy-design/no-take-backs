@@ -498,6 +498,10 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
 		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
 		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
+		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
+		var emboss := outline.a < 0.0 and c.get_luminance() < 0.35 and c.s < 0.45
+		if emboss:
+			oc = Color(0, 0, 0, 0)
 		var ow := text_outline_w(size)
 		var sh := text_shadow_dy(size)
 		# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
@@ -509,6 +513,8 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 			var ey := maxf(0.0, ex - size * 0.05)
 			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
 			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect})
+		if emboss:
+			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
 		if oc.a > 0.0:
 			# V1.2 A3：先畫柔和的下方陰影，再畫深焦茶描邊（取代純黑），最後正文
 			draw_string_outline(fnt, q + Vector2(0, sh), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, Color(INK_SHADOW, oc.a * 0.55))
@@ -544,10 +550,10 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var rd := r.grow(-minf(r.size.x, r.size.y) * 0.025) if pressed else r
 	# V1.2 B3：按鈕下緣 3px 厚度（木牌的側面）；按下時往下沉、厚度消失
 	var solid: bool = tint.a <= 0.0 or tint.a > 0.6
-	if solid and not pressed and r.size.y >= 20.0:
-		_box(Rect2(rd.position + Vector2(0, 3), rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
-	elif pressed:
-		rd.position.y += 2.0
+	if solid and r.size.y >= 20.0:
+		# 厚度畫在按鈕框內（下緣 3px），命中框、探針與畫面一致（Codex v120-impl2）；按下時面板往下壓、厚度被蓋住
+		_box(Rect2(rd.position, rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
+		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
 	_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
 	if tint.a <= 0.0 or tint.a > 0.6:
 		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
@@ -575,11 +581,15 @@ func _btn_shine(r: Rect2) -> void:
 	var k := fposmod(time * 0.45, 1.0)
 	if k > 0.5:
 		return
-	var x: float = r.position.x + (r.size.x + 40.0) * (k * 2.0) - 40.0
-	var x0 := maxf(x, r.position.x + 3)
-	var x1 := minf(x + 26.0, r.end.x - 3)
-	if x1 > x0:
-		draw_rect(Rect2(x0, r.position.y + 3, x1 - x0, r.size.y - 6), Color(1, 1, 1, 0.13))
+	var x: float = r.position.x + (r.size.x + 60.0) * (k * 2.0) - 30.0
+	# V1.2：斜的、窄的、淡的流光（直的半透明帶在截圖裡像破圖）
+	var sk := r.size.y * 0.5
+	var pts := PackedVector2Array([Vector2(x, r.end.y - 3), Vector2(x + 14, r.end.y - 3), Vector2(x + 14 + sk, r.position.y + 3), Vector2(x + sk, r.position.y + 3)])
+	var clip := PackedVector2Array()
+	for pp in pts:
+		clip.append(Vector2(clampf(pp.x, r.position.x + 3, r.end.x - 3), pp.y))
+	if clip[1].x > clip[0].x or clip[2].x > clip[3].x:
+		draw_colored_polygon(clip, Color(1, 1, 1, 0.09))
 
 ## V1.2 B3：材質貼圖（tools/gen/gen_ui_tex.py 生成）。木紋是灰階，用原本的底色染，配色不變、多了木紋與上亮下暗的斜角。
 const TEX_WOOD := "res://art/ui/wood.png"
@@ -592,6 +602,29 @@ func _ui_tex(path: String) -> Texture2D:
 	if not _tex_cache.has(path):
 		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
 	return _tex_cache[path]
+
+## V1.2：頂部資訊列：深木紋＋下緣一條亮線與落影（沒有貼圖時照舊平塗）。
+func _hud_bar(r: Rect2) -> void:
+	if bool(Save.s("plain_ui")) or not _tex_box(r.grow_individual(8, 8, 8, 0), "wood", Color(0.3, 0.21, 0.15, 0.97)):
+		draw_rect(r, UI_BG)
+		return
+	draw_rect(Rect2(r.position.x, r.end.y - 2, r.size.x, 2), Color(0.55, 0.42, 0.28, 0.9))
+	draw_rect(Rect2(r.position.x, r.end.y, r.size.x, 4), Color(0, 0, 0, 0.25))
+
+## V1.2：木製框（九宮格、四角銅釘、中間透明），面板、戰場、大廳沙盤預覽共用。grow＝往外擴多少。
+func _wood_frame(r: Rect2, grow := 8.0, key := "frame") -> void:
+	var fx := _ui_tex(TEX_FRAME)
+	if fx == null or bool(Save.s("plain_ui")):
+		return
+	var sb: StyleBoxTexture = _sb_cache.get(key)
+	if sb == null:
+		sb = StyleBoxTexture.new()
+		sb.texture = fx
+		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+			sb.set_texture_margin(side, 22.0)
+		sb.draw_center = false
+		_sb_cache[key] = sb
+	draw_style_box(sb, r.grow(grow))
 
 ## 材質方塊：kind＝wood（染色）／groove（染色）／paper（原色）。沒有貼圖時退回平塗。
 func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
@@ -609,8 +642,10 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 		sb.texture_margin_right = m
 		sb.texture_margin_top = m
 		sb.texture_margin_bottom = m
-		sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
-		sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		# 羊皮紙整張拉伸（紋理不能無縫平鋪，平鋪會出現直條接縫）；木紋、凹槽平鋪保持紋理比例
+		var mode := StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH if kind == "paper" else StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		sb.axis_stretch_horizontal = mode
+		sb.axis_stretch_vertical = mode
 		sb.modulate_color = tint
 		_sb_cache[k] = sb
 	draw_style_box(sb, r)
@@ -635,7 +670,26 @@ func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw :=
 		_sb_cache[k] = sb
 	draw_style_box(sb, r)
 
+## V1.2 C2：8 格刻印能力條（取代細長滑桿）：凹槽底＋一格一格填色，最後一格依比例部分填。
+func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
+	var gap := 2.0
+	var sw := (r.size.x - gap * (segs - 1)) / segs
+	var filled := clampf(frac, 0.0, 1.0) * segs
+	for i in segs:
+		var sr := Rect2(r.position.x + i * (sw + gap), r.position.y, sw, r.size.y)
+		draw_rect(sr, Color(0.06, 0.04, 0.03, 0.75))
+		draw_rect(Rect2(sr.position, Vector2(sw, 1.0)), Color(0, 0, 0, 0.5))
+		var f := clampf(filled - i, 0.0, 1.0)
+		if f > 0.0:
+			var fr := Rect2(sr.position + Vector2(1, 1), Vector2((sw - 2.0) * f, sr.size.y - 2.0))
+			draw_rect(fr, col)
+			draw_rect(Rect2(fr.position, Vector2(fr.size.x, maxf(1.0, fr.size.y * 0.35))), Color(1, 1, 1, 0.28))
+
 func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
+	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
+	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")):
+		var off := maxf(1.0, s * 0.07)
+		Icons.draw(self, name, c + Vector2(off, off), s, Color(INK, col.a * 0.75))
 	Icons.draw(self, name, c, s, col)
 
 ## 羊皮紙標題緞帶：畫面標題統一用它。
@@ -725,7 +779,17 @@ func _cycle_setting(k: String, opts: Array) -> void:
 ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
 func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
 		mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
-	if sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):
+	if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
+		# V1.2 D2：大圖（圖鑑、MVP）站在木製圓底座上，像桌上的棋偶公仔
+		var bw := 30.0 * scale
+		var bh := 9.0 * scale
+		draw_set_transform(p + Vector2(0, 2 * scale), 0.0, Vector2(1, bh / bw))
+		draw_circle(Vector2(0, 3 * scale * bw / bh), bw * 1.04, Color(0, 0, 0, 0.3), true, -1.0, true)
+		draw_circle(Vector2.ZERO, bw, Color("#5a3b22"), true, -1.0, true)
+		draw_circle(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, Color("#8a5f37"), true, -1.0, true)
+		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊
 		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant)
 	else:
 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)

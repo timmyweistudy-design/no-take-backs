@@ -82,7 +82,9 @@ static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String
 	var rt0: String = value_text if values.size() <= 1 else load("res://scripts/game/strings.gd").t("rank_nth", [value_text, rank_guess])
 	var lw := clampf(rect.end.x - lx - ui._width(rt0, fs, true) - 24, 40.0, rect.size.x * 0.30)
 	var cy := rect.position.y + fs * 0.75
-	ui.draw_line(Vector2(lx, cy), Vector2(lx + lw, cy), GRID, 4.0)
+	var seg: bool = ui.has_method("_seg_bar") and not bool(ui.Save.s("plain_ui"))
+	if not seg:
+		ui.draw_line(Vector2(lx, cy), Vector2(lx + lw, cy), GRID, 4.0)
 	var mx := 0.0
 	var mn := 1e18
 	for t in values:
@@ -94,9 +96,17 @@ static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String
 		if t != me and float(values[t]) > float(values.get(me, 0)):
 			rank += 1
 		var px := lx + lw * (float(values[t]) - mn) / span
-		if t != me:
+		if t != me and not seg:
 			ui.draw_circle(Vector2(px, cy), 4.0, Color(1, 1, 1, 0.35))
-	if values.has(me):
+	if seg:
+		# V1.2 C2：8 格刻印條；其他兵種的位置改成條下緣的小刻痕（資訊保留、不像滑桿）
+		var fr: float = (float(values.get(me, 0)) - mn) / span if values.has(me) else 0.0
+		ui._seg_bar(Rect2(lx, cy - 5, lw, 10), maxf(0.06, fr), accent)
+		for t2 in values:
+			if t2 != me:
+				var px2 := lx + lw * (float(values[t2]) - mn) / span
+				ui.draw_line(Vector2(px2, cy + 6), Vector2(px2, cy + 9), Color(1, 1, 1, 0.35), 1.5)
+	elif values.has(me):
 		var pm := lx + lw * (float(values[me]) - mn) / span
 		ui.draw_line(Vector2(lx, cy), Vector2(pm, cy), accent, 4.0)
 		ui.draw_circle(Vector2(pm, cy), 7.0, accent)
@@ -110,8 +120,12 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 	var cb: bool = ui.cbm()
 	var n := log2.size() / 2
 	var mid := rect.position.y + rect.size.y / 2
-	ui.draw_rect(rect, Color(0, 0, 0, 0.25))
-	ui.draw_line(Vector2(rect.position.x, mid), Vector2(rect.end.x, mid), Color(1, 1, 1, 0.35), 1.0)
+	# V1.2 C3：羊皮紙底＋墨水中線（原本是半透明黑底、白線，像看盤軟體）
+	var paper: bool = ui.has_method("_tex_box") and not bool(ui.Save.s("plain_ui")) and ui._tex_box(rect.grow_individual(6, 6, 6, 2), "paper")
+	if not paper:
+		ui.draw_rect(rect, Color(0, 0, 0, 0.25))
+	ui.draw_line(Vector2(rect.position.x, mid), Vector2(rect.end.x, mid), Color(0.14, 0.08, 0.04, 0.55) if paper else Color(1, 1, 1, 0.35), 1.0)
+	var wash := 0.62 if paper else 0.85
 	if n <= 1:
 		return []
 	var span := maxi(n, total_ticks)
@@ -137,10 +151,17 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 		var x := rect.position.x + k * dx
 		var y: float = rect.end.y - rect.size.y * ys[k]
 		if y < mid:
-			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, 0.85))
+			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, wash))
 		else:
 			var rr := Rect2(x, mid, dx + 0.5, y - mid)
-			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, 0.85))
+			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, wash))
+	if paper:
+		# 墨線描出戰力曲線（像手繪在紙上）
+		var ink := PackedVector2Array()
+		for k2 in ys.size():
+			ink.append(Vector2(rect.position.x + k2 * dx, rect.end.y - rect.size.y * ys[k2]))
+		if ink.size() >= 2:
+			ui.draw_polyline(ink, Color(0.14, 0.08, 0.04, 0.85), 1.6, true)
 	if cb:
 		# 色盲：紅方（中線以下）的面積加斜線紋，不只靠顏色分辨（Codex 實作第 1 輪：原本是空的）
 		# 整個紅方面積都畫斜線：每條 45° 線從中線往下，只畫在該欄的紅色高度內

@@ -13,6 +13,7 @@ extends Node
 const Art = preload("res://scripts/ui/art.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const Gait = preload("res://scripts/ui/units/gait.gd")
+const Save = preload("res://scripts/game/save.gd")
 
 const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
 const RS := 1.6            # 烘焙解析度倍率
@@ -32,6 +33,7 @@ var loc := {}              # 兵種 → [頁, 這一種在頁裡的起始格]
 var ring_tex: Texture2D = null
 var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
 var _busy := false
+var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
 var _queue: Array = []
 var _baking: Array = []
 
@@ -49,9 +51,12 @@ static func origin_of(type: int) -> Vector2:
 func build(cb: bool) -> void:
 	if DisplayServer.get_name() == "headless":
 		return
+	_gen += 1
 	pages.clear()
 	loc.clear()
 	_queue.clear()
+	_baking = []
+	_busy = false
 	ring_tex = null
 	ready_cb = 1 if cb else 0
 	var base: Array = []
@@ -88,6 +93,7 @@ func _viewport(size: Vector2i, painter: Node) -> SubViewport:
 	return vp
 
 func _bake_page(types: Array) -> void:
+	var gen0 := _gen
 	var cb := ready_cb == 1
 	var total := types.size() * 2 * FRAMES_PER
 	var rows := int(ceil(float(total) / COLS))
@@ -99,8 +105,9 @@ func _bake_page(types: Array) -> void:
 	await RenderingServer.frame_post_draw
 	var img := vp.get_texture().get_image()
 	vp.queue_free()
-	if (1 if cb else 0) != ready_cb:
-		return   # 烘的時候換了配色：這一批作廢
+	img = await _post(img)
+	if (1 if cb else 0) != ready_cb or gen0 != _gen:
+		return   # 烘的時候換了配色（或重建了）：這一批作廢
 	# 新兵頁太多就丟最舊的（舊 10 種那兩頁不丟）
 	if pages.size() >= MAX_PAGES:
 		for i in pages.size():
@@ -114,6 +121,27 @@ func _bake_page(types: Array) -> void:
 	pages.append({"tex": ImageTexture.create_from_image(img), "types": types})
 	for k in types.size():
 		loc[types[k]] = [pn, k * 2 * FRAMES_PER]
+
+## V1.2 D1：烘好的整頁再跑一次後處理 shader（外輪廓＋頂亮底暗）。沒有 shader 檔或 plain_ui 時原樣。
+func _post(img: Image) -> Image:
+	var sh_path := "res://shaders/unit_bake.gdshader"
+	if not ResourceLoader.exists(sh_path) or bool(Save.s("plain_ui")):
+		return img
+	var tr := TextureRect.new()
+	tr.texture = ImageTexture.create_from_image(img)
+	tr.size = Vector2(img.get_width(), img.get_height())
+	var mat := ShaderMaterial.new()
+	mat.shader = load(sh_path)
+	mat.set_shader_parameter("cell", float(CELL))
+	mat.set_shader_parameter("per", float(FRAMES_PER))
+	mat.set_shader_parameter("cols", float(COLS))
+	tr.material = mat
+	var vp := _viewport(Vector2i(img.get_width(), img.get_height()), tr)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var out := vp.get_texture().get_image()
+	vp.queue_free()
+	return out
 
 func _bake_ring(cb: bool) -> void:
 	var painter := _RingPainter.new()
