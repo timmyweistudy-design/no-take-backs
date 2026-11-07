@@ -6,10 +6,13 @@ root = os.path.join(os.path.dirname(__file__), "..")
 rules = [  # (路徑樣式, 登記項目)
     ("art/cainos/*.png", "Cainos"),
     ("audio/k_*.wav", "Kenney"),
+    ("audio/*.ogg", "OpenGameArt"),   # V1.2：CC0 錄音（tools/gen/import_audio.py）
     ("audio/*.wav", "本作程式合成"),
-    ("fonts/NotoSansTC-*.otf", "Noto Sans TC"),
+    ("fonts/NTBRounded-*.otf", "源泉圓體"),
+    ("fonts/NTBLatin-*.ttf", "Fredoka"),
     ("fonts/ThenKhung-*.ttf", "UoqMunThenKhung"),
     ("icon.svg", "本作程式繪製"),
+    ("art/ui/*.png", "本作程式繪製"),   # V1.2：tools/gen/gen_ui_tex.py 生成
 ]
 reg = open(os.path.join(root, "..", "THIRD_PARTY_LICENSES.md"), encoding="utf-8").read()
 bad = []

@@ -7,7 +7,7 @@ const MAX_PRESETS := 5
 static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
 
 const DEFAULT_SETTINGS := {
-	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "confirm_place": true,
+	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
 	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
 }
 const DEFAULT_SAVE := {

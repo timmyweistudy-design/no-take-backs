@@ -149,6 +149,9 @@ var _trans_gen := -1
 var _trans_t := -10.0
 var _hover_now := -1
 const UNIT_SCALE := 0.92
+## V1.2 A2／B1：文字描邊與陰影的墨色（深焦茶，取代純黑）
+const INK := Color("#24150B")
+const INK_SHADOW := Color("#140B06")
 
 var font: Font
 var font_bold: Font
@@ -312,6 +315,16 @@ func _load_font(path: String) -> Font:
 	return sf
 
 
+## V1.2 A1：英數字型疊在中文字型上（中文缺字落到後備）。沒有英數字型檔時直接用中文字型。
+func _latin_over(path: String, cjk: Font) -> Font:
+	if ResourceLoader.exists(path):
+		var lf = load(path)
+		if lf is FontFile:
+			var f2: FontFile = lf.duplicate()
+			f2.fallbacks = [cjk]
+			return f2
+	return _tnum(cjk)
+
 ## 第五輪：數字用等寬（tnum），金幣、秒數、百分比跳動時不會左右晃。
 func _tnum(f: Font) -> Font:
 	var fv := FontVariation.new()
@@ -319,12 +332,14 @@ func _tnum(f: Font) -> Font:
 	fv.opentype_features = {TextServerManager.get_primary_interface().name_to_tag("tnum"): 1}
 	return fv
 
-## 第五輪：載入三種字型角色。標題字缺的字由思源黑體 Bold 補。
+## 第五輪：載入三種字型角色。標題字缺的字由介面字型 Bold 補。
+## V1.2 A1：介面字＝「NTB Latin（Fredoka，英數、數字等寬）為主字型＋NTB Rounded（源泉圓體 TW）為後備」：
+## 主字型只有拉丁字，中文自動落到後備，所以同一行裡英數用 Fredoka、中文用源泉圓體，不用拆段。
 func _load_fonts() -> void:
-	var reg := _load_font("res://fonts/NotoSansTC-Regular-sub.otf")
-	var bold := _load_font("res://fonts/NotoSansTC-Bold-sub.otf")
-	font = _tnum(reg)
-	font_bold = _tnum(bold)
+	var reg := _load_font("res://fonts/NTBRounded-R-sub.otf")
+	var bold := _load_font("res://fonts/NTBRounded-B-sub.otf")
+	font = _latin_over("res://fonts/NTBLatin-M-sub.ttf", reg)
+	font_bold = _latin_over("res://fonts/NTBLatin-B-sub.ttf", bold)
 	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
 		var tk = load("res://fonts/ThenKhung-sub.ttf")
 		if tk is FontFile:
@@ -482,14 +497,31 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		var fnt := _font_for(lines[i], size, bold)
 		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
 		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
+		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
+		var ow := text_outline_w(size)
+		var sh := text_shadow_dy(size)
 		# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
+		# V1.2 A3：外框算進描邊外擴（左右上各半個描邊、下方再加陰影位移），換字與換框才不會靜靜爆框
 		if layout_probe and c.a > 0.05 and lines[i].strip_edges() != "":
 			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect})
-		var oc := Color(0, 0, 0, c.a * 0.75) if outline.a < 0.0 else outline
+			var ex := ow * 0.5 if oc.a > 0.0 else 0.0
+			# 直向：原本的框（1.1 倍字高）已經留了上下各約 0.05 字高的空，描邊與陰影只算超出的部分
+			var ey := maxf(0.0, ex - size * 0.05)
+			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
+			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect})
 		if oc.a > 0.0:
-			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, oc)
+			# V1.2 A3：先畫柔和的下方陰影，再畫深焦茶描邊（取代純黑），最後正文
+			draw_string_outline(fnt, q + Vector2(0, sh), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, Color(INK_SHADOW, oc.a * 0.55))
+			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, oc)
 		draw_string(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
+
+
+## V1.2 A3：描邊依字級減薄（小字描太粗會糊）、陰影位移依字級（純函式，測試與探針共用）。
+static func text_outline_w(size: int) -> int:
+	return 3 if size <= 16 else (4 if size <= 22 else 5)
+
+static func text_shadow_dy(size: int) -> float:
+	return maxf(1.0, roundf(size / 12.0))
 
 
 ## 即時模式按鈕：每幀重新登記，滑鼠或焦點都能按。
@@ -510,7 +542,13 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 			_hover_now = idx
 	var pressed := hover and enabled and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 	var rd := r.grow(-minf(r.size.x, r.size.y) * 0.025) if pressed else r
-	_box(rd, bg, TH_EDGE.darkened(0.25) if tint.a <= 0.0 or tint.a > 0.6 else Color(0, 0, 0, 0), 7.0, 1.5)
+	# V1.2 B3：按鈕下緣 3px 厚度（木牌的側面）；按下時往下沉、厚度消失
+	var solid: bool = tint.a <= 0.0 or tint.a > 0.6
+	if solid and not pressed and r.size.y >= 20.0:
+		_box(Rect2(rd.position + Vector2(0, 3), rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
+	elif pressed:
+		rd.position.y += 2.0
+	_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
 	if tint.a <= 0.0 or tint.a > 0.6:
 		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
 		draw_line(rd.position + Vector2(6, rd.size.y - 1.5), rd.end - Vector2(6, 1.5), Color(0, 0, 0, 0.3), 2.0)
@@ -543,8 +581,48 @@ func _btn_shine(r: Rect2) -> void:
 	if x1 > x0:
 		draw_rect(Rect2(x0, r.position.y + 3, x1 - x0, r.size.y - 6), Color(1, 1, 1, 0.13))
 
+## V1.2 B3：材質貼圖（tools/gen/gen_ui_tex.py 生成）。木紋是灰階，用原本的底色染，配色不變、多了木紋與上亮下暗的斜角。
+const TEX_WOOD := "res://art/ui/wood.png"
+const TEX_FRAME := "res://art/ui/frame.png"
+const TEX_GROOVE := "res://art/ui/groove.png"
+const TEX_PAPER := "res://art/ui/paper.png"
+var _tex_cache := {}
+
+func _ui_tex(path: String) -> Texture2D:
+	if not _tex_cache.has(path):
+		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
+	return _tex_cache[path]
+
+## 材質方塊：kind＝wood（染色）／groove（染色）／paper（原色）。沒有貼圖時退回平塗。
+func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
+	var path: String = {"wood": TEX_WOOD, "groove": TEX_GROOVE, "paper": TEX_PAPER}[kind]
+	var tx := _ui_tex(path)
+	if tx == null:
+		return false
+	var k := "t|%s|%s" % [kind, tint.to_html()]
+	var sb: StyleBoxTexture = _sb_cache.get(k)
+	if sb == null:
+		sb = StyleBoxTexture.new()
+		sb.texture = tx
+		var m := 10.0 if kind != "paper" else 14.0
+		sb.texture_margin_left = m
+		sb.texture_margin_right = m
+		sb.texture_margin_top = m
+		sb.texture_margin_bottom = m
+		sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		sb.modulate_color = tint
+		_sb_cache[k] = sb
+	draw_style_box(sb, r)
+	return true
+
 ## 圓角方塊（StyleBox 快取，不每幀配新物件）。
+## V1.2 B3：夠大、夠不透明的實心方塊改用木紋材質（用 bg 染色），外框線另外畫在上面；小東西與半透明的陰影維持平塗。
 func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw := 0.0) -> void:
+	if bg.a >= 0.6 and minf(r.size.x, r.size.y) >= 20.0 and not bool(Save.s("plain_ui")) and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28, bg.a)):
+		if bw > 0.0 and border.a > 0.0:
+			_box(r, Color(0, 0, 0, 0), border, radius, bw)
+		return
 	var k := "%s|%s|%d|%d" % [bg.to_html(), border.to_html(), int(radius), int(bw * 10)]
 	var sb: StyleBoxFlat = _sb_cache.get(k)
 	if sb == null:
@@ -606,16 +684,21 @@ func _update_gen() -> void:
 func _panel(r: Rect2) -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.62))
 	_box(r.grow(6), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)      # 陰影
-	_box(r, PANEL, TH_EDGE, 10.0, 3.0)
-	_box(r.grow(-5), Color(0, 0, 0, 0), Color(0, 0, 0, 0.35), 7.0, 1.0)
-	# 木紋：固定幾條淡線
-	var n := int(r.size.y / 46.0)
-	for k in n:
-		var y := r.position.y + 24.0 + k * 46.0 + float((k * 37) % 13)
-		draw_line(Vector2(r.position.x + 12, y), Vector2(r.end.x - 12, y + float((k * 13) % 5) - 2.0), Color(1, 0.85, 0.6, 0.022), 2.0)
-	for c in [r.position + Vector2(11, 11), Vector2(r.end.x - 11, r.position.y + 11), Vector2(r.position.x + 11, r.end.y - 11), r.end - Vector2(11, 11)]:
-		draw_circle(c, 3.2, TH_EDGE, true, -1.0, true)
-		draw_circle(c - Vector2(0.8, 0.8), 1.3, TH_PARCH, true, -1.0, true)
+	_box(r, PANEL, Color(0, 0, 0, 0), 10.0)
+	# V1.2 B3：深木外框＋四角銅釘（九宮格貼圖）；沒有貼圖時退回舊的細框
+	var fx := _ui_tex(TEX_FRAME)
+	if fx != null and not bool(Save.s("plain_ui")):
+		var sb: StyleBoxTexture = _sb_cache.get("frame")
+		if sb == null:
+			sb = StyleBoxTexture.new()
+			sb.texture = fx
+			for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+				sb.set_texture_margin(side, 22.0)
+			sb.draw_center = false
+			_sb_cache["frame"] = sb
+		draw_style_box(sb, r.grow(8))
+	else:
+		_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
 
 
 func _open(name: String) -> void:

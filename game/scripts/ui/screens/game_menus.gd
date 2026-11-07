@@ -310,7 +310,7 @@ func _draw_overlay() -> void:
 				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
 				var st := int(stars.get(pz["id"], 0))
 				var en: bool = not _demo() or tut or (puzzle_tab == 0 and i < Presets.DEMO_PUZZLES)   # 第十一輪：關卡全開，只有試玩版有範圍
-				var line := "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)]
+				var line := "%s%d. %s" % ["✓ " if st > 0 else "", i + 1, name]   # V1.2：星數改畫圖示（不再用 ★☆ 字元，大字級不會擠出框）
 				if pz.has("unit") and not RS.available(int(pz["unit"]), _demo()):
 					en = false
 					line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo")]
@@ -319,11 +319,14 @@ func _draw_overlay() -> void:
 					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
 				_probe_btn_label = true
 				_probe_btn_rect = r
-				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
+				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 132)
 				_probe_btn_label = false
+				if en:
+					for ks in 3:
+						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.position.y + 16), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
 				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
-				if not tut and en and text_h(line, tz("S"), r.size.x - 72) <= tz("S") * 1.6:
+				if not tut and en and text_h(line, tz("S"), r.size.x - 132) <= tz("S") * 1.6:
 					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
 					_probe_btn_label = true
 					_probe_btn_rect = r

@@ -180,7 +180,7 @@ func test_sfx_priority() -> void:
 	ok(SX.pick_channel(busy, [2, 2, 2, 2], [0, 0, 0, 0], 2) == -1, "音效：同級不互搶")
 	var missing: Array = []
 	for n in SX.FILES:
-		if not FileAccess.file_exists("res://audio/%s.wav" % n):
+		if not FileAccess.file_exists("res://audio/%s.wav" % n) and not FileAccess.file_exists("res://audio/%s.ogg" % n):   # V1.2：CC0 錄音轉 ogg
 			missing.append(n)
 	for n in SX.PRIO:
 		if not SX.FILES.has(n):
@@ -397,8 +397,7 @@ func test_crowd_readability() -> void:
 		return
 	var g = GS.new()
 	g.sfx = FakeSfx.new()
-	g.font = load("res://fonts/NotoSansTC-Regular-sub.otf")
-	g.font_bold = load("res://fonts/NotoSansTC-Bold-sub.otf")
+	g._load_fonts()   # V1.2：和遊戲同一套字型組合
 	var pool := F.training_pool(0)
 	var worst := 0.0
 	var worst_f := 0.0

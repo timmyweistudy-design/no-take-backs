@@ -4,7 +4,7 @@
 import glob, os
 
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
-files = sorted(os.path.basename(f) for f in glob.glob(os.path.join(root, "audio", "*.wav")))
+files = sorted(os.path.basename(f) for f in glob.glob(os.path.join(root, "audio", "*.wav")) + glob.glob(os.path.join(root, "audio", "*.ogg")))   # V1.2：含 CC0 錄音 ogg
 groups = {
     "介面": [f for f in files if f.startswith(("k_", "ui_"))],
     "音樂": [f for f in files if f.startswith("music")],

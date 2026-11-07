@@ -30,11 +30,30 @@ var sfx_vol := 0.8
 var music_vol := 0.7
 var rng := RandomNumberGenerator.new()
 
+## V1.2 E：優先讀 CC0 錄音轉的 .ogg（tools/gen/import_audio.py），沒有才用程式合成的 .wav。
+## 同名變體（名稱__2、__3…）一起載入，播放時隨機挑、避免連續同一個。
+static func load_audio(n: String):
+	for ext in ["ogg", "wav"]:
+		var path := "res://audio/%s.%s" % [n, ext]
+		if ResourceLoader.exists(path):
+			return load(path)
+	return null
+
+var variants := {}     # 名稱 → [stream...]（含本體）
+var _last_var := {}    # 名稱 → 上次用的變體索引
+
 func _ready() -> void:
 	for n in FILES:
-		var st = load("res://audio/%s.wav" % n)
+		var st = load_audio(n)
 		if st:
 			streams[n] = st
+			var vs: Array = [st]
+			for k in range(2, 9):
+				var v = load_audio("%s__%d" % [n, k])
+				if v == null:
+					break
+				vs.append(v)
+			variants[n] = vs
 	for i in 12:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
@@ -99,12 +118,23 @@ func play(name: String, vol := 1.0) -> void:
 		return
 	var p := players[ch]
 	p.stop()
-	p.stream = streams[name]
+	p.stream = _pick_variant(name)
 	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
 	p.volume_db = linear_to_db(maxf(0.0001, sfx_vol * vol))
 	p.play()
 	_prio_of[ch] = pr
 	_started[ch] = now
+
+## 變體：隨機挑一個，但不和上一次相同（只有一個就用它）。
+func _pick_variant(name: String):
+	var vs: Array = variants.get(name, [streams[name]])
+	if vs.size() <= 1:
+		return vs[0]
+	var k := rng.randi_range(0, vs.size() - 2)
+	if k >= int(_last_var.get(name, -1)):
+		k += 1
+	_last_var[name] = k
+	return vs[k]
 
 # ── 分軌戰鬥音樂（第三輪 S1）：低音、鼓、旋律三軌同時播、各自調音量 ──
 const LAYERS := ["music_battle_bass", "music_battle_drums", "music_battle_mel"]
@@ -139,16 +169,24 @@ static func layer_targets(close: bool, clutch: bool) -> Array:
 
 func set_layer_targets(g: Array) -> void:
 	layer_gain = g
+	# 單軌：差距小時全音量、拉開時略小聲、最後時刻壓低（心跳另外播）
+	single_gain = 0.55 if float(g[2]) <= 0.0 else (1.0 if float(g[1]) >= 1.0 else 0.8)
+
+var single_gain := 1.0
+var single_cur := 1.0
 
 func _process(delta: float) -> void:
 	if duck_t > 0.0:
 		duck_t -= delta
-		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * (0.45 if duck_t > 0.0 else 1.0)))
+	# V1.2：單軌戰鬥曲用「緊張程度」調音量（分軌時的鼓聲進出改成整首大小聲），並套用大招壓低
+	single_cur = move_toward(single_cur, single_gain, delta * 1.5)
+	if music.playing:
+		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * (0.45 if duck_t > 0.0 else 1.0)))
 	if music_name != "layers" or layers.is_empty():
 		return
 	for i in layers.size():
 		layer_cur[i] = move_toward(layer_cur[i], layer_gain[i], delta * 1.5)
-		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i]))
+		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i] * (0.45 if duck_t > 0.0 else 1.0)))   # V1.2：分軌也要被大招壓低（原本漏乘）
 
 ## V9：地圖環境音；空字串＝停。
 func play_ambience(name: String) -> void:
@@ -170,18 +208,30 @@ func duck(sec: float) -> void:
 	duck_t = maxf(duck_t, sec)
 
 func play_music(name: String) -> void:
-	if name == "music_battle":
+	# V1.2 E：有錄音的戰鬥曲（music_battle.ogg）就單軌播；沒有才用舊的合成三軌
+	var real_battle := ResourceLoader.exists("res://audio/music_battle.ogg")
+	if name == "music_battle" and not real_battle:
 		if music_name != "layers":
 			play_layers()
 		return
+	var src := name
+	var pitch := 1.0
+	if name == "music_frenzy" and real_battle:
+		src = "music_battle"     # 狂熱：同一首加快一點，不換成合成音
+		pitch = 1.08
 	if name == music_name:
 		return
 	stop_layers()
 	music_name = name
-	var st = load("res://audio/%s.wav" % name)
+	var st = load_audio(src)
 	if st == null:
 		music.stop()
 		return
+	if "loop" in st:
+		st.loop = true       # Ogg 的循環在這裡開（匯入預設不循環）
 	music.stream = st
+	music.pitch_scale = pitch
+	single_gain = 1.0
+	single_cur = 1.0
 	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6))
 	music.play()
