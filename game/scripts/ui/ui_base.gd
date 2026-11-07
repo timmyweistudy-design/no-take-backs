@@ -144,6 +144,7 @@ const TH_PRIMARY := Color("#e08a1e")
 const SP := 8.0        # 間距基準
 const Icons = preload("res://scripts/ui/icons.gd")
 var _sb_cache := {}
+var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
 var _hover_key := -1
 var _trans_gen := -1
 var _trans_t := -10.0
@@ -490,6 +491,8 @@ func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
 
 
 func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+	if _ink_mode:
+		c = _ink(c)
 	if maxw > 0.0:
 		size = fit(s, size, maxw, bold)
 	var lines := wrap_lines(s, size, maxw, bold) if maxw > 0.0 else s.split("\n")
@@ -499,7 +502,7 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
 		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
 		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
-		var emboss := outline.a < 0.0 and c.get_luminance() < 0.35 and c.s < 0.45
+		var emboss := outline.a < 0.0 and (_ink_mode or (c.get_luminance() < 0.35 and c.s < 0.8))
 		if emboss:
 			oc = Color(0, 0, 0, 0)
 		var ow := text_outline_w(size)
@@ -532,6 +535,15 @@ static func text_shadow_dy(size: int) -> float:
 
 ## 即時模式按鈕：每幀重新登記，滑鼠或焦點都能按。
 ## V9 P5 按鈕：圓角木牌、上緣高光、下緣陰影；按下縮一點回彈、懸停亮、焦點金框；主按鈕有流光。
+## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
+static func _ink(c: Color) -> Color:
+	var lum := c.get_luminance()
+	if lum < 0.45:
+		return c
+	if c.s < 0.25:
+		return Color(INK, clampf(c.a * 1.1, 0.0, 1.0))
+	return Color(c.darkened(0.58), c.a)
+
 func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
 	var idx := _btns.size()
 	_btns.append({"r": r, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
@@ -571,7 +583,10 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var h := lines.size() * sz * line_h(lines.size())
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
 	_probe_btn_rect = r
+	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色
+	_ink_mode = false
 	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
+	_ink_mode = ink0
 	_probe_btn_label = false
 
 ## 主按鈕的流光（可關）。
@@ -687,6 +702,8 @@ func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
 
 func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
 	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
+	if _ink_mode:
+		col = _ink(col)
 	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")):
 		var off := maxf(1.0, s * 0.07)
 		Icons.draw(self, name, c + Vector2(off, off), s, Color(INK, col.a * 0.75))

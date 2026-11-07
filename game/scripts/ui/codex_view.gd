@@ -192,9 +192,14 @@ func _draw_codex() -> void:
 	for tx in items[0]["texts"]:
 		ty += (_wrap(tx["s"], tx["size"], CX_LEFT.size.x - 168).count("\n") + 1) * tx["size"] * 1.3 + 3.0
 	head_h = clampf(maxf(head_h, ty + 8.0), 160.0, 260.0)
+	# V1.2 C2：左欄是一張羊皮紙卡，字用墨色
+	if not bool(Save.s("plain_ui")):
+		_tex_box(CX_LEFT.grow_individual(8, 0, 8, 8), "paper")   # 上緣和頁籤留空（Antigravity impl3）
+		_ink_mode = true
 	_scroll_draw("head", Rect2(CX_LEFT.position, Vector2(CX_LEFT.size.x, head_h)), [items[0]], false)
-	draw_line(Vector2(CX_LEFT.position.x, CX_LEFT.position.y + head_h - 2), Vector2(CX_LEFT.end.x, CX_LEFT.position.y + head_h - 2), Color(1, 1, 1, 0.12), 1.0)
+	draw_line(Vector2(CX_LEFT.position.x, CX_LEFT.position.y + head_h - 2), Vector2(CX_LEFT.end.x, CX_LEFT.position.y + head_h - 2), Color(INK, 0.25) if _ink_mode else Color(1, 1, 1, 0.12), 1.0)
 	_scroll_draw("left", Rect2(CX_LEFT.position + Vector2(0, head_h + 4), CX_LEFT.size - Vector2(0, head_h + 4)), items.slice(1))
+	_ink_mode = false
 	# 右欄：技能分頁、說明、小劇場
 	var sks := _cx_skills()
 	var bw := (CX_BOX.size.x - (sks.size() - 1) * 8) / maxf(1.0, sks.size())
@@ -479,5 +484,12 @@ func _draw_codex_demo() -> void:
 			continue   # 疊到小劇場標題列就不畫這個重複的字
 		drawn.append([pp["s"], q])
 		_text(q, pp["s"], ts(16), Color(ACCENT, 1.0 - kk * kk), true, true)
-	draw_rect(b, Color(1, 1, 1, 0.25), false, 1.5)
+	if bool(Save.s("plain_ui")):
+		draw_rect(b, Color(1, 1, 1, 0.25), false, 1.5)
+	else:
+		# V1.2：小劇場像嵌在木盒裡的沙盤：深木邊＋四層內陰影（上方沒有空間放外框；Antigravity impl3）
+		for kl in 4:
+			draw_rect(b.grow(-2.0 - kl * 2.0), Color(0, 0, 0, 0.2 - kl * 0.045), false, 2.0)
+		draw_rect(b, TH_WOOD_D, false, 3.0)
+		draw_line(b.position + Vector2(0, b.size.y + 1.5), b.end + Vector2(0, 1.5), Color(1, 0.9, 0.7, 0.18), 1.0)
 	_text(b.position + Vector2(8, 4), L.t("codex_demo"), ts(13), Color(1, 1, 1, 0.75))

@@ -284,7 +284,7 @@ func _draw_overlay() -> void:
 			var list: Array = PZ.tutorials() if tut else chap
 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
 			_panel(Rect2(240, 110, 800, 580))
-			_text(Vector2(640, 114), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
+			_h1(Vector2(640, 110), L.t("menu_tutorial") if tut else L.t("puzzle_title"), 600)   # V1.2：和圖鑑、大廳同款標題緞帶（Antigravity impl3）
 			var y0 := 210.0
 			var idx: Array = []
 			for i0 in list.size():

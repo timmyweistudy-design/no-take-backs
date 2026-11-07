@@ -562,8 +562,13 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var lw := 600.0
 	var rowh := 96.0
 	var y := R.position.y
+	# V1.2 C1：左欄是一頁羊皮紙（像攤開的戰役筆記），紙上的字用墨色
+	var pg_h := rowh * 4.0 + 12.0 + text_h(_summary(r), tz("S"), lw - 170) + 44.0
+	if not bool(Save.s("plain_ui")):
+		_tex_box(Rect2(x - 10, y - 2, lw + 20, pg_h + 12), "paper")   # 上緣和頁籤留空（Antigravity impl3）
+		_ink_mode = true
 	var label := func(ic: String, s: String, yy: float) -> void:
-		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
 		_icon(ic, Vector2(x + 26, yy + 24), 26.0, ACCENT)
 		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 112)
 	var cx := x + 160
@@ -610,6 +615,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var by0: float = y + 12 + text_h(_summary(r), tz("S"), cw)
 	_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
 	_btn(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
+	_ink_mode = false
 	# 右：預覽
 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
 	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)

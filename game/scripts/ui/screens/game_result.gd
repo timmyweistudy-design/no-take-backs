@@ -101,25 +101,31 @@ func _draw_result() -> void:
 		drop = (1.0 - dk) * (1.0 - dk) * -60.0
 	# V1.2 C3：勝負大字墊一條布幔絲帶（勝方隊色、兩端燕尾、金邊），不再是浮在面板上的單色字
 	if not bool(Save.s("plain_ui")):
-		var tw: float = minf(540.0, _width(title, title_sz, true)) + 120.0
+		var l1 := _result_line1()
+		# 也要包住摘要第一行；最寬 504，兩端燕尾剛好停在左右按鈕前（x 354～926）
+		var tw: float = minf(504.0, maxf(minf(540.0, _width(title, title_sz, true)) + 120.0, _width(l1, tz("S")) + 40.0))
 		var ry := 114.0 + drop - title_sz * 0.02
-		var rh := title_sz * 1.05   # 不能蓋到下一行的勝負摘要
-		var rx0 := 640.0 - tw / 2.0
-		var rib: Color = (col.darkened(0.35) if w >= 0 else Color("#5b4632"))
-		for sgn in [-1.0, 1.0]:
-			var ex: float = rx0 if sgn < 0 else rx0 + tw
-			draw_colored_polygon(PackedVector2Array([Vector2(ex, ry + 8), Vector2(ex + sgn * 34, ry + 8), Vector2(ex + sgn * 20, ry + rh * 0.5 + 8), Vector2(ex + sgn * 34, ry + rh + 8), Vector2(ex, ry + rh + 8)]), rib.darkened(0.35))
-		draw_rect(Rect2(rx0, ry, tw, rh), rib)
-		draw_rect(Rect2(rx0, ry, tw, 3), Color("#e8c26a"))
-		draw_rect(Rect2(rx0, ry + rh - 3, tw, 3), Color("#e8c26a"))
-		draw_rect(Rect2(rx0, ry + 3, tw, rh * 0.3), Color(1, 1, 1, 0.08))
-		col = Color("#fff6e0")
 		# 布幔上下要留白（Antigravity impl1）：往下一級字級（只能用字級表裡的值）
 		var lv: Array = TYPE_SCALE[_scale_key()].values()
 		var nxt := title_sz
 		for v in lv:
 			if v < title_sz and (nxt == title_sz or v > nxt):
 				nxt = v
+		# 布幔包住標題＋摘要第一行，下緣金邊落在第一行和勝負敘述之間的空隙（Antigravity impl3：敘述壓到金邊）
+		var y1 := 112.0 + nxt * 1.25 + (float(tz("C")) * 1.4 if play_kind == "review" else 0.0)
+		var l1w := 540.0 if y1 < 210 else 820.0   # 寬度規則和下面正文相同；_text 會先 fit 縮級，高度照實際字級量
+		var l1h := y1 - (112.0 + nxt * 1.25) + text_h(l1, fit(l1, tz("S"), l1w), l1w)
+		var rh := 112.0 + nxt * 1.25 + l1h + 4.0 - ry
+		var rx0 := 640.0 - tw / 2.0
+		var rib: Color = (col.darkened(0.35) if w >= 0 else Color("#5b4632"))
+		for sgn in [-1.0, 1.0]:
+			var ex: float = rx0 if sgn < 0 else rx0 + tw
+			draw_colored_polygon(PackedVector2Array([Vector2(ex, ry + 8), Vector2(ex + sgn * 34, ry + 8), Vector2(ex + sgn * 20, ry + rh * 0.5 + 4), Vector2(ex + sgn * 34, ry + rh), Vector2(ex, ry + rh)]), rib.darkened(0.35))
+		draw_rect(Rect2(rx0, ry, tw, rh), rib)
+		draw_rect(Rect2(rx0, ry, tw, 3), Color("#e8c26a"))
+		draw_rect(Rect2(rx0, ry + rh - 3, tw, 3), Color("#e8c26a"))
+		draw_rect(Rect2(rx0, ry + 3, tw, rh * 0.3), Color(1, 1, 1, 0.08))
+		col = Color("#fff6e0")
 		title_sz = nxt
 	_text(Vector2(640, 114 + drop + (title_sz * 0.08 if not bool(Save.s("plain_ui")) else 0.0)), title, title_sz, col, true, true, 540)
 	if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則（地形、撐住、技能）的代碼讀不回來，不給複製（Codex v13-r1 #1）
@@ -141,13 +147,9 @@ func _draw_result() -> void:
 	if play_kind == "review":
 		_text(Vector2(640, y), L.t("review_tag"), tz("C"), ACCENT, true, false, 480)
 		y += tz("C") * 1.4
-	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
-		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
-	var p0 := roundi(sim.power(0) * 100.0 / (sim.budget_of(0) * 1000))
-	var p1 := roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))
 	# 標題區只用左右按鈕之間的寬度（Antigravity 實作第 1 輪：英文 150% 摘要壓到「詳細數據」按鈕）
 	var hw := 540.0 if y < 210 else 820.0
-	var line1 := "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])]
+	var line1 := _result_line1()
 	_text(Vector2(640, y), line1, tz("S"), Color(1, 1, 1, 0.8), true, false, hw)
 	y += text_h(line1, tz("S"), hw) + 6
 	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
@@ -503,3 +505,12 @@ func _next_puzzle() -> void:
 		_start_mode(Mode.PUZZLE)
 		return
 	_go_title()
+
+
+## 結果頁摘要第一行（勝負原因・時間｜剩餘戰力）；緞帶高度和正文共用（V1.2）。
+func _result_line1() -> String:
+	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
+		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
+	var p0 := roundi(sim.power(0) * 100.0 / (sim.budget_of(0) * 1000))
+	var p1 := roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))
+	return "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])]
