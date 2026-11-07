@@ -1,0 +1,2632 @@
+OpenAI Codex v0.163.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1b6d9-5646-7bc2-988a-15395c78d2fe
+--------
+user
+你是資深 Godot 4.6 遊戲工程師兼 2D 技術美術、遊戲設計顧問，可上網查資料。唯讀：不要改檔、不要跑 Godot。
+專案《落子無悔》（game/；docs/STATE.md、docs/MODULES.md）。《V1.3.0》第 2 輪互評：Claude 草案 coordination/v130-r2/draft1.md；Antigravity（美術）第 1 輪 coordination/v130-r1/google.out.md；你第 1 輪 coordination/v130-r1/codex.out.md。
+請（繁中、1500 字內）：
+1. 對 draft1 每節：同意／修改／反對，引用 檔案:行 確認可行性。重點：A1a（窄位壓扁＋小跳＋厚度邊）能不能真的蓋掉紙片感；A1b 試點 6 種的烘焙與記憶體；A3 亮面依朝向重建怎麼做；A5 倒棋與現有 _draw_death；B1 預烘手繪輪廓的位置（map_art 烘焙、ui_base 框）；C1 藏血條對可讀性與版面探針；C4 播放減速對重播／ViewBuffer／音效同步的影響；D3 粉筆線能不能不跑模擬；D6 迷霧／國王規則碼細節。
+2. 回應 Antigravity 的提案（廢底部戰報改頭頂木牌、地形路障、木碗、連環畫）。
+3. 回答草案「待第 2 輪決定」5 題。
+4. 你的 P0（最多 8）／P1／P2／不做，每條含人時、p95 估計、驗收。
+最後一行「結論：…」。
+
+codex
+我會先讀草案、兩份首輪意見與專案狀態，再對照程式碼確認可行性；全程唯讀，不啟動 Godot。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'STATE.md' -g 'MODULES.md' -g '*draft1*' -g '*out.md'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 38ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+docs/STATE.md
+coordination/v130-r2/google.out.md
+coordination/v130-r2/draft1.md
+coordination/v130-r2/codex.out.md
+coordination/v121-r3/google.out.md
+coordination/v121-r3/codex.out.md
+coordination/v130-r1/google.out.md
+coordination/v130-r1/codex.out.md
+docs/MODULES.md
+coordination/v120-r2/google.out.md
+coordination/v120-r2/codex.out.md
+coordination/v120-impl4/google.out.md
+coordination/v120-impl2/codex.out.md
+coordination/v121-r1/google.out.md
+coordination/v121-r1/codex.out.md
+coordination/v130-r2/agy/draft1.md
+coordination/v120-impl1/google.out.md
+coordination/v120-final2/codex.out.md
+coordination/v120-final/codex.out.md
+coordination/v120-impl3/google.out.md
+coordination/v121-r2/google.out.md
+coordination/v121-r2/draft1.md
+coordination/v121-r2/codex.out.md
+coordination/v120-r1/google.out.md
+coordination/v120-r1/codex.out.md
+coordination/v121-impl1/google.out.md
+coordination/v121-impl1/codex.out.md
+coordination/v121-impl2/google.out.md
+coordination/v121-impl2/codex.out.md
+coordination/v121-r2/agy/draft1.md
+coordination/v120-r3/google.out.md
+coordination/v120-r3/codex.out.md
+
+exec
+/bin/bash -lc 'for p in /AGENTS.md /mnt/AGENTS.md /mnt/c/AGENTS.md /mnt/c/Users/AGENTS.md /mnt/c/Users/timmy/AGENTS.md /mnt/c/Users/timmy/projects/AGENTS.md /mnt/c/Users/timmy/projects/no-take-backs/AGENTS.md; do if [ -f "$p" ]; then cat "$p"; fi; done' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+exec
+/bin/bash -lc 'nl -ba coordination/v130-r2/draft1.md' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+     1	# V1.3.0 草案 1（Claude 整合第 1 輪：Codex＋Antigravity）
+     2	
+     3	## 0. 診斷修正（Codex 讀程式，Claude 已核對）
+     4	- 轉身不是瞬間翻：`battle_state.gd:398` face_now 以每秒 11 往目標移（約 0.18 秒），`_face_of` 最窄 0.18。**紙片感正是「整張貼圖等比變窄再鏡像」**：像一張卡片在轉。所以光改時間沒用，要改「造型」或把窄位藏起來。
+     5	- 已有：步態 id 相位（gait.gd:52）、披風延遲擺動（kingdom.gd:19）、受擊壓扁傾身（battle_units.gd:490）、跳起影子縮小（:401）。缺：呼吸只看 x（同欄同步，art.gd:6）、眨眼同兵種同步（sprite_cache.gd:175）、死亡只是整圖旋轉縮放（:675）、沒有厚度、底座與人黏在一起。
+     6	
+     7	## A 角色去紙片感
+     8	- A1 轉身（分兩段）：
+     9	  - A1a 先做便宜的：窄位時身體壓扁 0.85＋小跳 3px＋腳下揚塵、窄位疊 2px 背光側深色「立牌厚度」、展開時 1.08→1.0 回彈；窄位時間縮到 0.10 秒。估 6～8 人時，p95≈0。
+    10	  - A1b 真轉身影格：另開轉身頁，每兵每隊 3～5 張中間姿勢（頭、胸、武器前後遮擋改變）。Codex 估全 22 種約 31.5 MiB、32～48 人時。先做 6 種試點（劍士、盾兵、騎兵、長槍、史萊姆、小石魔）量記憶體與烘焙尖峰，再決定全做。
+    11	- A2 去同步：呼吸、眨眼、待機小動作用 id 雜湊錯開（相位、頻率 ±10%、傾角 ±3°）。
+    12	- A3 接地與厚度：底座改「厚木座」（下緣 2px 深邊），腳底接觸陰影與隊圈分開，跳起時陰影留地縮小；暗側面烘進貼圖，光源固定左上，翻面時亮面依朝向重建（不跟著鏡像翻）。
+    13	- A4 次級動作：只用既有 8 張步態影格加滯後＋停步解析式衰減（不做逐兵彈簧狀態）。
+    14	- A5 倒棋：死亡改成立牌被打飛後「咔啦」側倒桌面、變暗木色，停 1 秒後淡出；結束可選「收棋」動畫。
+    15	- A6 受擊：保留壓扁傾身，閃白圓改白邊。
+    16	- 不做：遠處兵縮小（破壞距離判讀，兩方反對）。
+    17	
+    18	## B 去機器感
+    19	- B1 消滅幾何原語：冰面、破冰、熔岩邊界、光環、射程弧、方格高亮改「頂點微擾的手繪墨線／拓印圈」；全部**預先烘焙**固定輪廓，不每幀重算；焦點裝飾可預烘 3 版、6Hz 換圖（line boil），文字永不抖。
+    20	- B2 頂部五彩編制條改「木槽＋木珠／籌碼」；松樹三角形改手繪剪影。
+    21	- B3 擺陣手感：拖曳時棋子抬 12px、陰影變寬變淡，放下 120ms 沉降＋木頭落子聲；落點立即提交（不延遲輸入）。
+    22	- B4 手作聲音：落子、翻頁、羽毛筆、木幣聲；多變體。
+    23	- B5 暗角＋暖調，不做景深。
+    24	
+    25	## C 簡潔好懂
+    26	- C0 先省效能：擁擠度雙迴圈改固定空間桶（battle_units.gd:428）、靜態裝飾預烘；目標省 0.1～0.4 ms（未實測不抵帳）。
+    27	- C1 血條：滿血且 2 秒沒受擊就藏；選取、跟拍、殘血一律顯示。
+    28	- C2 混戰降噪：同時最多 N 個狀態符號，舊驚嘆號／音符先砍再加新的。
+    29	- C3 戰報：Antigravity 要廢底部戰報、改頭頂木牌；Codex 主張減裝飾不加東西。草案：戰報保留但只留最近 2 條，同時在發生處閃一個 0.6 秒的小木牌圖示（不帶字）。
+    30	- C4 關鍵時刻：Antigravity 要破陣 0.3 秒慢鏡＋推鏡；Codex 反對自動推鏡。草案：只做「周圍暗 15%＋0.25 秒播放減速」，不動鏡頭，預設開、可關，重播一樣。
+    31	- C5 剪影灰階測試，太像的加招牌外形。
+    32	- C6 結果頁走勢圖：前段放大縱軸（以實際差距調尺度），兩個黃字標籤錯開。
+    33	
+    34	## D 好玩的（可選）
+    35	- D1 結果頁「三格戰報連環畫」（開局、轉折、終局，點格跳到重播該秒）＝ 高光回放的低成本版。
+    36	- D2 戰利品木碗：打倒敵兵時小木幣飛進側邊木碗（純畫面）。
+    37	- D3 粉筆戰術線：擺陣時畫出騎兵衝鋒、刺客跳躍預計路線（只用公開規則推算，不模擬）。
+    38	- D4 新挑戰類型（不改模擬，只用既有戰前配置，Codex 提）：三枚棋子破陣、少花一金、換一兵救局、同陣雙圖、我的預判筆記。
+    39	- D5 戰前預判：猜勝方與剩餘戰力。
+    40	- D6 新規則碼候選（NTBR6／NTB8）：迷霧開局（只改部署揭露）、國王（沿用護送判定）。援軍、地形路障會改模擬 → 不進 V1.3.0。
+    41	- 不做：觀戰台詞泡泡、天氣（干擾清晰、吃效能）；外觀收藏、拍照 GIF 延後。
+    42	
+    43	## E 驗收
+    44	FINGERPRINT 不變；先省再加，總 p95 ≤ 9.79 ms（同機交錯量測）；轉身逐格條、同欄相位差、灰階剪影表、混戰遮擋率；版面 14 組；真人 5 人「哪裡像紙片」前後對比。
+    45	
+    46	## 待第 2 輪決定
+    47	1. A1b 真轉身影格做幾種（試點 6 種 vs 全做）。2. C3 戰報。3. C4 慢鏡。4. D 選哪 3～4 個進 V1.3.0。5. P0 排序。
+
+exec
+/bin/bash -lc 'cat docs/STATE.md; cat docs/MODULES.md' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+# 落子無悔：現在的真相
+
+> 第七輪 J3 建立，V1.2.1 更新。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
+> 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/history/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/history/2026-11-04-fantasy-units-plan-v8.md` §12、第九輪 `docs/2026-11-04-v1-release-plan-v9.md` §14、第十輪 `docs/2026-11-05-v1-polish-plan-v10.md` §14，第十一、十二輪追加在同一份 §15；第十三輪 `docs/2026-11-06-puzzle-expansion-plan-v13.md` §14、裁決 `coordination/v13-ledger.md`。
+
+## 版本
+| 項目 | 值 | 位置 |
+|---|---|---|
+| App | 1.2.1（單一來源 `project.godot`，匯出設定同步；標題頁顯示） | `project.godot` |
+| 引擎 | Godot 4.6.2-stable（本機、CI、匯出模板要一致，`check_all.sh` 會擋） | `tools/check_all.sh`、`.github/workflows/ci.yml` |
+| 規則版本 | `D.RULES_VERSION`（1.3.0）；用到新兵的場次顯示 1.4.1 | `scripts/core/unit_defs.gd` |
+| 存檔格式 | `SAVE_VERSION` | `scripts/game/save.gd` |
+| GodotSteam | 4.23.2 | `addons/godotsteam/` |
+
+## 規則
+- 標準：自由排兵，最小間距 0.8 格、縱深 6 格；100 金、24 隻、90 秒。平衡認證只給「格子標準」和這一組。
+- 兵種 20 種，一局每方最多帶 10 種（出戰名單）。舊 10 種數值在 `unit_defs.gd`，編號 0 劍士、1 盾兵、2 弓箭手、3 騎兵、4 刺客、5 長槍兵、6 投彈兵、7 醫者、8 鼓手、9 狂戰士。
+- 奇幻 10 種數值在 `fantasy_defs.gd`（表下）；召喚物 20 小史萊姆、21 骷髏不能購買。孢子菇、爆爆羊、寶箱怪是奇襲兵，不算戰鬥兵，要另帶主力。
+- 標準規則與平衡認證仍只含舊 10 種；奇幻軍是獨立預設，徽章「娛樂」。
+- 開放：不靠場數解鎖（第十一輪拿掉）。正式版一開始 20 種兵、全部殘局與教學、圖鑑老兵筆記都能用；第一次開遊戲仍主推教學，預設「標準」是王國軍 10 種。試玩版是版本內容差異（`roster.gd`）。`unlock_games` 只是累計場數，判斷新玩家用。
+- 選卡簡介：大廳卡池、雙人禁牌下方有兵種簡介卡，滑鼠或手把指到哪張講哪隻：頭像、金幣、定位、一句話、剋與怕、血量／攻擊／射程／速度比較條（以全部兵種最大值為滿）。
+- 地圖（V9）：6 張（青草平原、雙橋河谷、林間小徑、冰湖雪原、熔岩裂谷、古道峽谷）× 3 大小（12×7、16×9、18×10），只配自由排兵。地形 3 種：擋路（只有幽靈能穿，不能停牆內）、慢 ×70%、快 ×120%（有減速就不吃加速）。全部左右鏡像，資料在 `map_defs.gd`、查詢與整數尋路在 `terrain.gd`。平原＋16×9 走舊路徑；其他是娛樂徽章。規則碼 NTBR4。
+- 模式（V9）：主題試煉 30 關（見下）；挑戰碼 NTC1（陣型傳給朋友打，全場規則不適用）；遠征每戰後三選一；雙人輪流禁牌（0～2 張）；AI 性格 6 種；每局地圖固定／輪替／隨機；牌組 3 組；戰績頁。AI 性格、每局地圖、禁牌不進規則碼。
+- 試玩版（V10）：教學 3 關、殘局前 5 關、對 AI 簡單與普通、雙人、試煉第 1、3 關；舊 7 種＋爆爆羊；地圖平原、雙橋河谷、冰湖雪原；不開遠征、困難。定義在 `presets.gd`（`DEMO_*`）與 `_demo_ok`，匯入碼、重播、貼上規則都走這裡。
+- 遠征（V10）：每戰之間自動存點（`gauntlet_run`），開遠征時問要不要接著打；三戰兩勝不存，離開時跳確認。
+- 遠征路線（V1.1）：7 戰是節點（前哨、遭遇、菁英、首領；菁英敵方 +10 金且 AI 高一級、首領 +20 金），每戰後從 6 種事件用種子抽 3 種：多 10 金、多 2 隻、多換 2 隻、募兵（卡池一進一出，離隊的不能是剛打完那一戰的兵）、斥候劫掠（下一戰敵方 −10 金）、截斷援軍（下一戰敵方 −2 隻）。只改戰前配置，每場仍是一般對戰、舊代碼可重播；續局存檔多 `foe_gold`／`foe_cap`（沒有＝0）。
+- 每日挑戰（V1.1）：標題頁一顆鈕。UTC 日數決定地圖、AI 性格與種子，每 7 天換一種突變（8 種，只用現有規則參數：預算、隻數、每種上限、卡池、地圖、縱深、局長、雙方手動技能）；敵陣是普通 AI＋固定種子組好的固定陣（`scripts/game/daily.gd`）。最佳紀錄存 `daily_best`（鍵＝「日數-v版本」，留最近 10 天，先比剩餘戰力再比花費）。改到 AI 或產生器要升 `Daily.VER`（`test_daily_v11` 釘住兩天的敵陣）。試玩版不開。
+- 雙方名單可以不同；有新兵的對戰代碼用 NTB6（軍隊）、NTB4（對戰）、NTBR3（規則），沒用新兵照舊格式；開手動技能用 NTB7、NTBR5。
+
+| # | 兵種 | 金 | 血 | 攻 | 冷卻 | 射程 | 移速 | 上限 |
+|---|---|---|---|---|---|---|---|---|
+| 10 | 孢子菇 | 5 | 360 | 9 | 20 | 2200 | 0 | 6 |
+| 11 | 爆爆羊 | 3 | 110 | 50 | 20 | 500 | 110 | 8 |
+| 12 | 寶箱怪 | 5 | 340 | 15 | 22 | 700 | 45 | 6 |
+| 13 | 史萊姆 | 5 | 240 | 9 | 24 | 700 | 45 | 8 |
+| 14 | 幽靈 | 6 | 200 | 15 | 20 | 700 | 85 | 8 |
+| 15 | 巫毒娃娃 | 5 | 250 | 6 | 24 | 700 | 40 | 4 |
+| 16 | 沙漏精靈 | 5 | 180 | 3 | 24 | 700 | 50 | 3 |
+| 17 | 骷髏法師 | 6 | 170 | 8 | 24 | 4000 | 45 | 3 |
+| 18 | 吸塵貓 | 5 | 260 | 12 | 22 | 700 | 50 | 3 |
+| 19 | 小石魔 | 8 | 820 | 24 | 36 | 800 | 30 | 2 |
+- 爆爆羊：爆炸半徑 1.5 格，只傷敵（半路被打死的爆炸友敵都傷，對友軍減半）。吸塵貓：每 5 秒把 4.5 格內的敵人往貓身上拉，每隻最多 2 格，拉到 0.9 格停。小石魔：每 4 秒拍地，半徑 1.5 格內敵人受 3 傷、擊退 0.8 格，留碎石區。常數在 `fantasy_defs.gd`。
+- 手動技能（V1.0.4，大廳「技能」分頁，預設關）：護盾、戰吼、治療、隕石、凍結 5 種可選，每場最多帶 3 種，次數、冷卻、威力可調。程式 `cmd_defs.gd`；名稱和說明在 `data/strings.csv`（`cmd_0`～`cmd_4`、`cmd_d_*`），改名後要重建字型。施放記成 `[tick, 隊伍, 技能]`，重播照紀錄；AI 用確定性規則施放。開啟後徽章一律「娛樂」，規則碼 NTBR5、對戰代碼 NTB7（帶 `c`）；沒開走舊路徑，舊雜湊不變。
+- 殘局（V1.0.5）：100 關、10 章各 10 關（王國基礎、王國新兵、魔物報到、跨界連鎖、連鎖大作戰、護送・死守・斬首、地利、限制與借力、時序、宗師），章名與開場小故事在 `data/puzzles.json` 的 `chapters`；舊 25 關在第 1～3 章（位置與存檔不變），新 75 關在 `extra`。目標 4 種：打贏、護送（指定我方兵要活著）、撐住（局長 N tick 結束時沒被打光）、斬首（指定敵兵要死），都用戰後狀態判定，判定只有一份（`puzzles.gd` 的 `outcome／play`，遊戲、工具、測試共用）。第 7 章是 16×9 地形圖上的格子部署；第 8 章有每關隻數上限；第 9 章戰前寫好技能施放秒數（受開場時間與冷卻限制），敵方技能照腳本。自帶規則的殘局不給複製對戰代碼。列表可切章、只看未滿三星，顯示總星數。
+- 殘局第 11 章（V1.1）「完美主義」10 關：目標 flawless（獲勝且 `goal_type` 那種兵一隻都不倒）、margin（獲勝且剩餘 ≥ `goal_rem`%），一樣只看戰後狀態、判定在 `puzzles.gd outcome`。`CHAPTERS` = 11；資料由 `tools/gen/chapter11_merge.py` 附加，`puzzle_merge.py` 重跑會保留第 11 章。
+- 殘局工坊碼（V1.1）：打贏的格子對戰（平原、沒開技能、非試煉／每日）結果頁有「做成殘局碼」（`NTP1.`，`scripts/game/workshop.gd`）；「代碼」→「解殘局碼」先驗格式、兵種、座標、重複格、預算 ≤200，再用 `PZ.play` 重跑作者解，過關才收。門檻＝作者成績（剩餘 ≥ 作者、花費 ≤ 作者）。這關 id 是 `ws`，不進清單、不存星數、不記嘗試次數。
+- 三層提示（V1.0.5）：第一層講條件與主題、第二層顯示三星解的兵種（要先打過一次）、第三層確認後把三星解擺上去（不影響星數）。手把 L3 提示、R3 時間設定。
+- 主題試煉（V1.0.5）：30 關，分 3 頁。第 1～10 關照舊；第 11～30 關資料在 `data/trials.json`：限定卡池、單主題與混搭頭目、規則變形（預算、縱深、每種兵上限、雙方技能），敵陣由 AI 用固定種子組好後凍結成資料，剩餘與花費門檻各關不同。存檔以索引為鍵，只能往後加。
+- 看得懂（V1.1）：擺放時選中的兵對看得到的敵兵頭上畫 ▲（剋它）／▼（被剋，只讀剋制表）；輸的時候結果頁標題下一行改成「多半傷害來自 X（N%）→ 可以試試 Y」（逐 tick 累計受傷來源，快轉與播放共用 `_collect_mark`）。
+- 三星：殘局條件是勝利、剩餘戰力、花費，以和畫面相同的四捨五入百分比判定，結果頁逐條顯示 ✓／× 和本場數值。試煉：過關 1 星，剩餘戰力達標（普通 30%、困難 20%）加 1 星，花費不超過 80% 加 1 星，兩項分開算。
+- 雙人：輪流落子 5 手為預設，另有每手 10 金、同時暗擺、自訂手數。
+- 模式與部署：對戰、遠征可自由；殘局、教學是格子（教學多一關自由排兵入門是例外）。
+
+## 存檔
+- 位置 `user://`：`save.json`（進度，Steam Auto-Cloud 同步）、`settings.json`（本機）；試玩版前綴 `demo_`，進度不帶進正式版。
+- 主檔壞掉：移成 `.corruptN` 留證據 → 讀 `.bak`。只有驗證過的主檔才會輪替成備份。
+- 比目前新的存檔：不碰原檔，這次不寫，標題頁提示。
+- 寫入失敗：記為未存，回標題時重試，標題頁提示。
+
+## 版本契約（S5）：什麼改動影響什麼
+| 改動 | 重播／對戰代碼 | 金標準 | 要做什麼 |
+|---|---|---|---|
+| 模擬規則、`unit_defs`／`fantasy_defs` 數值 | **預設不做**（鐵則：舊 FINGERPRINT／digest 不變）。新機制走新規則欄位＋新代碼前綴，缺欄位走舊路徑。真的要改既有數值時：舊代碼顯示警告、用新規則重算（不留舊模擬） | 舊基準不覆蓋；只新增新版基準檔（例 `golden_v8` 之後另開新檔），commit 說明 | 升 `RULES_VERSION`；重跑平衡驗收、反制庫、殘局 |
+| 只有部署規則（間距、縱深、全場） | 代碼帶部署欄位，舊代碼照舊規則驗合法性 | `golden_free` 看案例 | 不升 `RULES_VERSION`；更新 `presets.gd` 認證 |
+| 畫面、特效、文字 | 不影響 | 不影響 | 版面檢查、改中文要重建字型 |
+| 存檔欄位 | 不影響 | 不影響 | 升 `SAVE_VERSION`、寫遷移、測未來版鎖定 |
+| 代碼格式（NTB*／NTBR*） | 舊格式要能解 | `seal_codes`、`golden_free` 會紅 | 加新前綴，舊的不能拿掉 |
+
+## 畫面（V1.1）
+- 攻擊動作是三段式（前搖／命中／收招）：`art.gd` 的 `POSE_PROFILE` 給全部 22 種（含召喚物）專屬形狀與收招停頓；命中時間點 `ATK_WINDUP` 全兵種相同。
+- 密陣：被正下方的兵蓋到臉時，在最上層補畫 35% 透明的自己（`_draw_xray`）。倒下：骷髏散骨、寶箱怪吐金幣、史萊姆濺開、幽靈化煙、小石魔碎石；勝利：鼓手音符、狂戰士火花、醫者綠十字。殘局斬首目標倒下有頓格＋「斬首成功！」。
+- 受擊：閃白＋壓扁＋後退；盾兵火花、小石魔石屑、史萊姆綠滴。大招前搖：小石魔、吸塵貓、沙漏精靈畫實際作用半徑的地面預警圈；手動技能在受影響那隊腳下畫法陣。
+- 第 1 層技能字（反騎、反擊、破陣）不出字，頭上閃小菱形；字只進底部戰報。
+- 冰湖雪原底色降 15%，亮色地圖腳底加深色影子（`BIOME.shadow`）。
+
+## 畫面與聲音（V1.2 質感）
+- 字型：`fonts/NTBRounded-{R,B}-sub.otf`（源泉圓體 TW，中文）＋`fonts/NTBLatin-{M,B}-sub.ttf`（Fredoka，英數主字型，中文落到後備；0～9 等寬置中）；ThenKhung 只給粗體 ≥H2 標題。來源字型在 `build/fontsrc`，`tools/gen/build_font.py` 重建。
+- 文字：深焦茶描邊（3／4／5px 依字級）＋下方陰影；深色字（含紙上墨色字）不描邊、改淺浮雕。`_ink_mode` 時淺色字自動轉墨色、彩色字壓暗，`_btn` 內固定白字。
+- 材質：`art/ui/` 木紋、凹槽、羊皮紙、銅釘木框、暈影、游標由 `tools/gen/gen_ui_tex.py` 生成（雜訊非決定性，重跑會變檔）。`_box` 對夠大夠實的方塊畫染色木紋；面板、戰場、大廳預覽有木框；大廳左欄、圖鑑左欄是羊皮紙頁；結果頁勝負字墊隊色緞帶。
+- 兵：圖集烘焙後跑 `shaders/unit_bake.gdshader`（隊伍墨色外輪廓、頂亮底暗）；縮放 >1.4 倍改向量直畫＋木底座。換色重烘有世代保護。
+- 設定 `plain_ui`（預設 false）：關掉材質、緞帶、紙頁、外輪廓烘焙、暈影等，回到 V1.1 平面介面。
+- 大廳是攤開的雙頁筆記（木書殼、兩頁羊皮紙、書脊、紅書籤）；戰報條是深木槽＋隊色小章（藍圓、紅菱）；圖示 Q 版厚塗（`Icons.force` 畫剪影）。
+- 地塊烘焙（`map_art.gd`）含手繪筆觸、邊緣裝飾、紙紋 5% 與調色（`shaders/grade_bake.gdshader`）；快取分簡化介面與否兩份。亮的特效墊放射柔光。
+- 商店圖：`tools/gen/gen_capsules.py <zh_TW_100 截圖夾>` → `docs/release/capsules/`（Steam 全尺寸＋8 張截圖）。
+- 聲音匯流排 Music／SFX／UI／Ambience（都送 Master，最後時刻低通掛 Master）；換曲 0.6 秒交叉淡入淡出。
+- 聲音：OpenGameArt CC0 配樂 3 首（`music_title`／`music_place`／`music_battle`，Ogg，執行時設循環）、音效 47 個（`名稱__2` 變體隨機、不連抽）；`tools/gen/import_audio.py`（`build/venv-audio`）。戰鬥曲是錄音單軌，狂熱同曲 1.08 倍音高（舊合成三分軌已移除）。
+
+## 介面細節（V1.2.1）
+- 文字：次要字用不透明暖灰 `TXT_DIM`；彩色小字在 `_text` 自動提亮（對描邊 5:1）；紙上墨字至少 85% 不透明。
+- 按鈕：懸停與手把焦點同一樣式（深邊＋金亮邊）、按下內陰影；`btn_paper` 畫紙面，`last_btn_paper`／`last_btn_enabled` 給呼叫端決定卡片內文字。
+- 版面檢查（`tools/dev_main.gd`）：文字對比用截圖取樣（反鋸齒排除、透明度合成、描邊三種比法取最好、背景未知必敗、停用另報）；九宮格依材質登記的斜邊內距（木紋上 3／下 4／左右 3、紙 5、凹槽 3）檢查字形框；缺圖算違規；狀態 `--shot-state=plain,cb,pad,dis`。
+- 聲音：四條音量（音樂、音效、介面、環境，設定裡有試聽）；`data/audio_trim.json`（`tools/gen/audio_trim.py` 產生）逐檔修響度。
+- 本地化前置：`L.field(資料, 後綴)`、`L.pick`、`LANGS`／`SUFFIX`；加語言看 `docs/localization.md`。
+- 商店圖：小膠囊不放副標（120×45 可讀）；`tools/gen/gen_capsules.py`。
+
+## 已知限制
+- V1.1：無快取統一檢查同機約 958 秒（目標 750 沒達到；新增的每日挑戰測試多 1174 項）；同機量測繪圖 p95 約 9 ms、整幀 p95 約 18 ms（新舊版相同，沒退步，但沒達 6／16.7 ms 目標；歷史量過 4.6 ms，機器狀態差異大）。
+- V1.1：模擬快 12.7%（選目標改掃每隊可選敵人表、碰撞依 x 排序掃描，位元相同）；統一檢查全部重跑 748～774 秒（750 秒目標落在機器波動內，沒有穩定低於）；模擬比 v1.0.5 快 13.4%；正式啟動約 1.85～1.98 秒。
+- 遠征路線、每日挑戰、第 11 章、工坊碼沒有真人試玩；第 11 章難度只有求解器指標（w8 隨機擺法過關率 0%，最難）。
+- 對戰代碼不帶輪序紀錄：只證明最後陣型合法，帶 `cmds` 一律拒絕。
+- 自由模式的困難 AI 不用離線反制庫，走模擬候選陣型。
+- 0.8 格密陣時，上排的臉會被下排的頭蓋到一點。
+- 最壞規則（40＋40、一半支援兵、150 秒）一場重算約 7.5 秒；同一台機器有時整體慢約 3 倍（11/04 晚上量到 22 秒，舊程式同樣慢），數字要同次比較。
+- Windows 視窗最小化時 `frame_post_draw` 不會觸發，遊戲內已降到 10 fps；WSL 的 `timeout` 只砍外層，Windows 程序可能留下。
+- 10 兵種雙人先手勝率 AI 代理量不出公平性，大廳標「未驗證」。
+- 地形圖上奇幻軍對王國軍只有 30～41%（平原 51%）；AI 擺法沒有針對地形最佳化。娛樂徽章，數值未調；大廳會提示沒有平衡認證。
+- V1.2：介面、戰鬥音與配樂換成 OpenGameArt CC0 錄音，沒有真人試聽；環境音仍是程式合成。
+- V1.2：沒有真人看過新質感；圖示、地塊、商店圖都是程式繪製版（零預算），正式美術版之後可替換；英文 150% 結果頁摘要會在緞帶內換兩行。
+- V1.2：`build/dl` 只留授權頁 html（原始音檔已轉進 `game/audio`）；要重跑 `tools/gen/import_audio.py` 得重新下載來源。
+- V1.2.1：響度只靠量測修正，沒有真人盲聽；版面狀態矩陣只在 150% 跑（狀態 × 100／125% 沒跑）；手把模式重播時不畫底部戰報。
+- PS、Switch 手把提示只測過字串，沒接過實體手把；PS 的 ○ 用字母 O、△ 用 ▲（字型子集沒有，且本機沒有原始字型檔）。
+- 小地圖最上排的兵，帽尖可能壓到場地框或頂列一點（畫面問題，模擬不動）。
+- 奇幻 10 種和手動技能沒有真人試玩資料；平衡只有 AI 對戰數字，技能強度只有每種 24 場。
+- 小石魔替換實驗勝率 57.9%，是 20 種裡最高，高於第十二輪定的 45～48% 目標；傷害 0 也有 50%，要再降就得動使用者選的冷卻、半徑或金額。
+- 三星搜尋只證明「拿得到」，不代表難度合理；舊 25 關與試煉前 10 關解法在 `tests/golden/star_solutions.json`，新關的三星解存在關卡資料的 `best`。
+- 新 75 殘局、20 試煉的難度只有求解器指標（隨機擺法過關率、容錯、兵種數），沒有真人校準；章內依隨機過關率排序。時序章有幾關三星解在開場就放，時機不算關鍵。有些關不帶主角也能過（只記錄 `hero_free_ok`，不擋）。
+- 新成就 3 個（PUZZLE_100、PUZZLE_ALL3、TRIAL_ALL3，共 24 個）要在 Steamworks 後台建立才會解鎖。
+- 拿掉循序解鎖後，新手第一場就面對 10 種兵（選奇幻是另外 10 種）：靠教學、預設、簡介卡引導，有沒有資訊過量要看真人試玩。
+
+## 驗證入口
+- `GODOT=<4.6.2> tools/check_all.sh`：統一檢查，CI 也用。
+- `tools/layout_check.sh <win exe> <新資料夾>`：版面（會被擋的項目見腳本）；另外要人工看英文 150%。
+- `GODOT=<win exe> tools/export_check.sh <空資料夾>`：匯出成品自我檢查。
+- `SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
+- 統一檢查在 Windows 版要 40～50 分鐘，外層 timeout 至少開 90 分鐘。
+
+## 最後一次驗收（2026-11-07，V1.2.1 收尾）
+- 統一檢查 CHECK OK（48 步全部重跑）：測試 3993 項全過，811 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。
+- 版面 14 組 1400 張 0 違規（兩語 × 三字級＋簡化、色盲、手把、停用各兩語 150%），含文字對比、九宮格內距、缺圖、手把流程；截圖人工看過。
+- 匯出 EXPORT OK；標題顯示 v1.2.1。
+- 效能（同機、效能模式）：繪圖 p95 9.61 ms（V1.1 8.90，+8%）；開機 3.4 秒（這台機器 2.6～3.4 秒雙峰）。`docs/perf/v121-draw.json`。
+- 三方：方案三輪；實作 Codex、Antigravity 各審兩輪，必修都修完或已裁決（`coordination/v121-*`）。沒有真人玩過 V1.2.1。
+# 模組索引（自動產生，勿手改：`python3 tools/gen/module_index.py`）
+
+找程式先看這裡，再用 grep 加行號範圍讀；大檔不要整檔讀。
+
+## game/scripts/core
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `ai_army.gd` | 183 | AI 陣型（原型＝企劃 §7 的「普通」：從原型陣型挑一套再隨機微調）。 |
+| `ai_turns.gd` | 192 | 會「讀對方」的落子 AI（優化方案 A2、C）。用在：輪流落子模式、平衡工具的先後手測試、AI 難度。 |
+| `army.gd` | 563 | 一方的陣型：預算、人數上限、部署區、格子佔用。純資料，不碰畫面。 |
+| `battle_sim.gd` | 2030 | 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3；優化方案 B1、L1。 |
+| `cmd_defs.gd` | 64 | 手動技能（第十二輪）：玩家戰鬥中按下的全隊技能。純資料、全整數。 |
+| `events.gd` | 56 | 事件名稱表（第三輪 A4）：模擬送出的事件種類（kind）與效果標籤（tags）只能用這裡的常數。 |
+| `fantasy_defs.gd` | 91 | 第八輪奇幻兵團的數值與常數。獨立成一個檔案：unit_defs.gd 的常數決定舊場次的數值摘要，一個都不能動。 |
+| `formations.gd` | 246 | 陣型產生器（平衡工具 2.0 的訓練池／保留池，優化方案 B2）。全部由種子決定。 |
+| `hard_ai.gd` | 97 | 困難 AI（第四輪）：真的「讀你上一局」。 |
+| `imath.gd` | 25 | 確定性整數數學。GDScript 的 int/int 是「往 0 截斷」，左右鏡像時結果對稱，所以全部沿用。 |
+| `map_defs.gd` | 80 | V9 地圖資料（純資料＋整數）：左半邊的矩形清單，右半邊自動鏡像，所以公平性由建構保證。 |
+| `mirror_check.gd` | 155 | 左右交換逐 tick 比對（優化方案 B1／L1）：原本 (隊,列,欄) ↔ 鏡像 (1-隊,列,15-欄)，每 tick 比位置、血、面向、存活。 |
+| `ruleset.gd` | 573 | 自訂規則（第五輪 §3）。純資料，不碰畫面。三層： |
+| `terrain.gd` | 269 | V9 地形格（0.5 格一點）。所有查詢都用「隊伍視角」換算，左右鏡像才會逐位元一致： |
+| `turn_placement.gd` | 209 | 輪流落子（企劃 §4.1、優化方案 A2）。公開輪流擺，擺下不能移動或收回；買得起就不能跳過。 |
+| `unit_defs.gd` | 237 | ════════════════════════════════════════════════════════════════════ |
+
+## game/scripts/game
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `battle_code.gd` | 114 | 對戰代碼（第三輪 F3）：把雙方陣型、規則版本、數值摘要編成一串，貼給朋友就能看同一場。 |
+| `codex.gd` | 183 | 兵種圖鑑（第二輪方案 R3）：讀 data/codex.json，驗證 ID 與示範，技能說明裡的 {常數名} 換成 unit_defs 的數值。 |
+| `daily.gd` | 116 | V1.1 D2：每日挑戰＋每週突變。純函式，不碰畫面（遊戲、測試共用）。 |
+| `keymap.gd` | 106 | 按鍵重設（第七輪 K1、F9）。程式裡的按鍵判斷都用預設按鍵常數，這裡在入口把實際按下的鍵換回預設， |
+| `presets.gd` | 130 | 第十輪 R1：試玩版開放的地圖（平原、雙橋河谷、冰湖雪原）與試煉（第 1、3 關）、殘局前 5 關。 |
+| `puzzles.gd` | 287 | 教學與殘局關卡資料（data/puzzles.json）。 |
+| `roster.gd` | 23 | 兵種開放（第十一輪）：不靠場數解鎖，正式版一開始 20 種全部能用。 |
+| `save.gd` | 366 | 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。 |
+| `sfx.gd` | 278 | 音效與音樂（優化方案 H）：同類音效 80ms 內最多 2 個、音高 ±10% 隨機；音樂與音效分軌。 |
+| `steam.gd` | 132 | Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。 |
+| `strings.gd` | 65 | 字串表（優化方案 I）：data/strings.csv，欄位 key,zh_TW,en。所有畫面文字都從這裡來，不寫死在程式裡。 |
+| `trial_data.gd` | 10 | 第十三輪：新增試煉（索引 ≥10）的資料快取，讀 data/trials.json。 |
+| `workshop.gd` | 101 | V1.1 D3：殘局工坊碼 NTP1。打贏一場格子對戰 → 把敵陣＋自己的解做成殘局碼傳給朋友解。 |
+
+## game/scripts/ui
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `art.gd` | 204 | 其他層在同資料夾（V9 P1 拆檔） |
+| `battle_view.gd` | 754 | 其他層在同資料夾（V9 P1 拆檔） |
+| `charts.gd` | 226 | 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。 |
+| `codex_view.gd` | 518 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
+| `free_place.gd` | 883 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
+| `game_screens.gd` | 662 | 其他層在同資料夾（V9 P1 拆檔） |
+| `icons.gd` | 172 | V9 P5 圖示：全部向量自繪，不靠字型（思源黑體沒有這些符號）。一律 24×24 概念，c＝中心、s＝邊長。 |
+| `lobby_view.gd` | 1087 | 規則大廳（第五輪 §3.5、§3.6）。兩段式： |
+| `main.gd` | 23 | 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。 |
+| `map_art.gd` | 362 | V9 地圖美術：每種 地圖＋大小 烘一張地面貼圖（全程式繪製，一張圖只畫一次，不佔每幀繪製）。 |
+| `replay_view.gd` | 679 | 回味（第三輪 S5）：重播控制、對戰代碼、覆盤。 |
+| `sprite_cache.gd` | 277 | 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps）， |
+| `ui_base.gd` | 965 | 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。 |
+| `unit_brief.gd` | 116 | V1.1 E3：由 lobby_view.gd 拆出（行為不變）。選卡時的兵種簡介卡：大廳卡池、雙人禁牌共用。 |
+| `view_buffer.gd` | 130 | 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。 |
+
+## game/scripts/ui/battle
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `battle_fx.gd` | 663 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_state.gd` | 426 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_units.gd` | 724 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+
+## game/scripts/ui/screens
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `game_core.gd` | 812 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_menus.gd` | 559 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_modes.gd` | 772 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
+| `game_place.gd` | 790 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_result.gd` | 539 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+
+## game/scripts/ui/units
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `fantasy.gd` | 330 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `gait.gd` | 114 | 步態（V9 P2）：Q 版微跳步。相位由真實位移決定（battle_state._gait_tick），腳踩地時不滑。 |
+| `kingdom.gd` | 300 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `kit.gd` | 126 | 由 art.gd 拆出（V9 P1，行為不變） |
+
+## game/tests
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `run_tests.gd` | 96 | 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測 |
+| `test_base.gd` | 237 | 測試共用（第七輪 I1）：斷言、常數、輔助函式。各主題的測試在 tests/suites/。 |
+
+## game/tests/suites
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `anim.gd` | 117 | 角色動畫（V9 P2）：腳踩地不滑、被推與被吸的姿勢正確。 |
+| `content.gd` | 116 | 殘局標準解回歸（第二輪方案 §1.4）：每關存的標準解都必須打贏；改戰鬥規則後有任何一關變不能過就會紅。 |
+| `core.gd` | 420 |  |
+| `fantasy.gd` | 498 | 擺一隊：spec＝[[type, x（自己視角）, y]]，team 0／1。座標單位 1000＝1 格。 |
+| `free.gd` | 347 |  |
+| `harness.gd` | 25 | 第七輪 R2：測試框架自己的契約。 |
+| `maps.gd` | 105 | 地圖（V9 P3）：鏡像、可達、舊路徑不變、代碼、尋路不卡死。 |
+| `modes.gd` | 1248 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
+| `rules.gd` | 584 |  |
+| `save.gd` | 198 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
+| `ui.gd` | 801 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
+| `units.gd` | 394 |  |
+
+## game/tools
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `anim_sheet.gd` | 38 | 角色全影格拼圖（V9 P2）：要真的繪圖，不能 headless。 |
+| `atlas_check.gd` | 130 | 角色圖集檢查（第七輪 C0）：要真的繪圖，不能 headless。 |
+| `compat.gd` | 143 | 舊兵種相容檢查（第四輪方案 §3.1～3.2）。 |
+| `dev_main.gd` | 1422 | 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。 |
+| `golden.gd` | 113 | 確定性金標準（第三輪 T2）。 |
+| `golden_free.gd` | 158 | 自由模式跨版本金標準（第七輪 S1）。舊金標準 golden.gd 只鎖格子舊路徑，自由模式原本只有同版自比。 |
+| `golden_map.gd` | 130 | V9 金標準：鎖住有地圖或非標準大小的戰鬥。舊金標準不會走這些分支。 |
+| `golden_v8.gd` | 163 | 第八輪金標準：鎖住有奇幻兵的戰鬥（舊金標準不會碰到 v8 分支）。案例存成對戰代碼 NTB4，所以同時鎖住代碼格式。 |
+| `load_all.gd` | 26 | 載入檢查（第三輪 T1）：res://scripts、res://tools、res://tests 底下每一個 .gd 都要能載入、能編譯。 |
+| `mirror_100.gd` | 21 | 100 組隨機陣型的左右交換逐 tick 比對（N1 驗收）。godot --headless --path game --script res://tools/mirror_10 |
+| `orbit_detect.gd` | 84 | 騎兵打轉偵測（第二輪方案 §1.4）：訓練池 120 場，40 tick 內走了 >3 格但淨位移 <0.8 格就算一次。 |
+| `perf_probe.gd` | 137 | 第五輪 P0：效能探測。人數上限、一局時間要依這裡的數字定，不憑感覺。 |
+| `seal_codes.gd` | 63 | 第五輪 P0：封存舊格式對戰代碼（NTB2）＋預期結果。 |
+| `validate_puzzles.gd` | 112 | 殘局／教學驗證（優化方案 D、附錄 A）：每關隨機抽樣擺法，檢查 |
+
+## game/tools/balance
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `balance.gd` | 111 | 平衡報表（原型版）：godot --headless --path game --script res://tools/balance/balance.gd |
+| `balance2.gd` | 253 | 平衡工具 2.0（優化方案 B2、A2、L2）。由 tools/balance/balance.sh 多行程分片呼叫，每場一行 JSON（前綴 "R "）。 |
+| `cmd_eval.gd` | 52 | 手動技能強度（第十二輪）：同一對陣型左右各打一次，只有一邊會放這招（AI 判斷時機），看勝率。 |
+| `design_new_puzzles.gd` | 131 | 新兵試玩殘局的設計輔助（第四輪 §4.8）。每關： |
+| `fantasy_eval.gd` | 241 | 第八輪奇幻軍平衡驗收。godot --headless --path game --script res://tools/balance/fantasy_eval.gd -- -- |
+| `make_counter_lib.gd` | 95 | 困難 AI 的離線反制庫（第三輪 A3）。 |
+| `puzzle_forge.gd` | 277 | 第十三輪：殘局量產。讀草稿（敵陣、固定兵、預算、可用兵種、目標），自動： |
+| `solve_fantasy.gd` | 102 | 奇幻軍試玩關的標準解搜尋（第八輪）。每關爬山找含主角兵種的解，印成 JSON；python 把解、星級寫回 puzzles.json。 |
+| `star_check.gd` | 102 | 每一關的三星到底拿不拿得到（第十二輪）：先看標準解，沒有就爬山搜尋。印出最好的解。 |
+| `trial_check.gd` | 113 | 主題試煉 10 關的星數拿不拿得到（第十二輪）：走遊戲同一條路開關（同一支對手），爬山找陣型。 |
+| `trial_forge.gd` | 169 | 第十三輪：主題試煉第 11～30 關量產。依規格（tools/gen/trial_specs.py）： |
+| `unit_eval.gd` | 281 | 新兵種驗收工具（第四輪方案 §2.6、§3.4）。由 tools/balance/unit_eval.sh 分片執行，tools/balance/unit_eval_report. |
+
+exec
+/bin/bash -lc 'nl -ba coordination/v130-r1/google.out.md; nl -ba coordination/v130-r1/codex.out.md' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+     1	# 《落子無悔》V1.3.0 第 1 輪：獨立提案
+     2	
+     3	### 1. 截圖視覺與 UX 診斷
+     4	* **最像紙片**：
+     5	  * [10_codex.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/10_codex.png) 左上騎兵放大立繪與 [01_title.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/01_title.png) 底部兵種列：純平色塊加等寬黑邊，木馬與底座完全無厚度或立體陰影，像扁平剪紙貼在底座上。
+     6	  * [52_map_ice_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/52_map_ice_battle.png) 右側整排紅方騎兵與劍士：姿勢、角度、朝向 100% 同步複製，加上轉身瞬間 `scale.x` 正負翻轉，紙板感極強。
+     7	* **最機器感／電腦感**：
+     8	  * [52_map_ice_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/52_map_ice_battle.png) 中央冰面與兩塊破冰區：完全筆直的矩形邊界、規則排列的白色短斜線與鋸齒白邊，以及兩側幾何三角形松樹，極度像程式繪圖 primitives。
+     9	  * [35_fantasy_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/35_fantasy_battle.png) 靈氣圈與波紋、[02_place.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/02_place.png) 射程弧線與藍紅虛線、方格高亮：正圓、純幾何線段與電腦感霓虹色條（頂部五彩編制條）。
+    10	* **不夠好懂**：
+    11	  * [03_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/03_battle.png) 與 [35_fantasy_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/35_fantasy_battle.png) 中央混戰團（Mosh Pit）：20 隻兵疊在一起時，黑邊、血條、小旗子與滿天驚嘆號／音符糊成一團，看不出誰在打誰。
+    12	  * [03_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/03_battle.png) 底部黑底戰況跑馬燈（紫字、橘字）：打仗時視線在中間，根本來不及低頭讀底部三欄文字。
+    13	  * [05_result.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/05_result.png) 戰力走勢圖：前 35 秒幾乎貼平中線，視覺起伏太小，且「領先交換 41s／勝負已定 47s」黃字擠在右上角重疊難讀。
+    14	
+    15	---
+    16	
+    17	### 2. 去紙片感做法（2D 動畫原理與參考作品）
+    18	* **轉身（預備動作＋弧線＋假厚度）**：參考 **《Paper Mario》** 與 **《Cult of the Lamb》**——翻面絕不一幀鏡像，而是先往下壓扁（Squash, `scale.y=0.85`）、向上微跳同時 `scale.x` 縮過窄位（約 0.14 秒），在窄位幀將角色外框往背光側偏移 2px 深色塊充當「木雕立牌側面厚度」，落地時帶一點 Overshoot 回彈（`scale.x=1.08→1.0`）。
+    19	* **重疊動作（Follow-through）**：參考 **《Wildfrost》** 卡牌棋子晃動——不重繪精靈圖，僅把「武器／盾牌／頭飾」拆成獨立小貼圖或單點錨點，移動與停步時用簡單彈簧公式延遲 2～3 幀擺動。
+    20	* **擠壓伸展（Squash & Stretch）**：參考 **《Into the Breach》** 與 **《TABS》**——蓄力攻擊時橫向壓扁、刺出時順攻擊方向微幅拉伸（Skew/Stretch），受擊時瞬間橫向擠壓並閃白。
+    21	* **接地（Grounding）**：參考 **《Kingdom Two Crowns》**——底座改為橢圓厚木座（下緣加 2px 深色立體邊），跳躍時木座留地變成陰影縮小、角色本體微浮，徹底擺脫「人跟底盤黏死在同一張紙」的感覺。
+    22	* **錯開（Offset）**：用 `unit_id` 雜湊出呼吸頻率（±12%）、相位、搖擺傾角（±3°）與眨眼間隔，破除複製人大軍感。
+    23	
+    24	---
+    25	
+    26	### 3. 去機器感與簡潔好懂的做法
+    27	* **消滅幾何原語（去機器感）**：
+    28	  * 冰面邊界、草地色塊與光環改用「多邊形頂點微擾＋手繪墨水虛線／羊皮紙拓印圈」，取代完美正圓與直線。
+    29	  * [02_place.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/02_place.png) 頂部刺眼的彩色方塊條改為「木盤凹槽＋雙色木珠／籌碼」；[22_lobby.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/22_lobby.png) 規則設定區改像真實桌遊說明書的鉛筆勾選框。
+    30	* **混戰減噪（簡潔好懂）**：
+    31	  * **血條聰明隱藏**：滿血與未受擊超過 2 秒的兵隱藏血條；混戰重疊時，只最前排或殘血兵顯示血條。
+    32	  * **廢除底部文字跑馬燈**：將「刺客背刺 ×7」改為戰場該兵種頭頂直接彈出「桌遊木牌標籤」，並拉一條短虛線指到發動者。
+    33	  * **焦點聚光燈**：關鍵破陣或大招觸發時，周圍微暗 15%、鏡頭輕推 0.25 秒，讓玩家秒懂戰局轉折。
+    34	
+    35	---
+    36	
+    37	### 4. 好玩的新想法（5 條大膽提案）
+    38	1. **【純畫面】桌遊「倒棋」物理演出**：兵死掉不要只淡出！改成木製立牌被擊飛後「咔啦」一聲側倒在棋盤上（轉 90 度變灰暗木棋），結束時一隻無形的手（或推尺）把全場木棋嘩啦啦推回木盒。桌遊爽感直接拉滿！
+    39	2. **【純畫面】「粉筆戰術畫線」擺陣**：在 [02_place.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/02_place.png) 擺陣時，桌面自動用粉筆／炭筆畫出我方騎兵預計衝鋒路線、刺客跳躍落點的虛線草圖，開戰後粉筆痕隨戰火漸漸擦除，好懂又有軍師感。
+    40	3. **【純畫面】棋盤邊緣「戰利品碗」**：打倒敵兵時，一顆代表敵兵費用的小木幣拋物線飛進畫面側邊的木碗裡敲出清脆木頭聲，不用看頂部百分比也能直覺感受「賺翻了」。
+    41	4. **【要新玩法／新規則碼】「地形骨牌／紙板屏風」**：擺陣階段給玩家 1～2 個免費的「木製路障／紙板草叢」可擺在己方半場，用來卡住敵方騎兵直線衝鋒或藏匿弓箭手，真正發揮「落子無悔」的擺陣博弈！
+    42	5. **【純畫面】戰後「羊皮紙戰報連環畫」**：在 [05_result.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/05_result.png) 把平淡的折線圖改成三格手繪風「戰報快照」（開局衝撞→關鍵轉折→終局），點擊任一格直接重播該秒數。
+    43	
+    44	---
+    45	
+    46	### 5. 對 [seed.md](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/seed.md) 各節（A～E）之評議與優先序
+    47	* **A 角色立體與生命感**：**同意 A1、A2、A3、A5、A6；修改 A4、A7**。
+    48	  * *修改*：A4 即時分層彈簧在 40 隻兵混戰時極易讓 `_draw` 超標（V1.2.1 已 9.61ms，上限約 9.79ms），建議改為「烘焙 3 幀關鍵動態＋整體 Skew 變形」；A7 情緒泡泡在 [03_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/03_battle.png) 已經太多驚嘆號，應先砍舊符號再放。**優先序：A1 > A3 > A2 > A6 > A5 > A4 > A7**。
+    49	* **B 去機器感**：**同意 B2、B4、B5、B6；修改 B1、B3**。
+    50	  * *修改*：B1 若每幀動態抖動線條會耗效能且眼花，應在烘焙期做靜態手繪不規則邊框；B3「遠處兵略小略淡」在俯視棋盤會破壞距離判讀，建議只做桌面暗角與底座立體厚度。**優先序：B4 > B1 > B5 > B2 > B6 > B3**。
+    51	* **C 簡潔好懂**：**全部同意，補充 C1**。
+    52	  * *補充*：C1 除了減傷害數字，務必「隱藏滿血血條」與「整合底部跑馬燈上戰場」。**優先序：C1 > C2 > C3 > C5 > C4**。
+    53	* **D 好玩的新想法**：**同意 D1、D2、D4；反對 D5、D6；延後 D3、D7**。
+    54	  * *反對*：D5 觀戰台詞泡泡與 D6 雨雪天氣會嚴重干擾戰鬥清晰度並吃掉 p95 繪圖預算。**優先序：D1 > D4 > D2**。
+    55	* **E 驗收**：**完全同意**，建議將「混戰重疊處的血條／圖示遮擋率」與「p95 先減後加」列為首要門檻。
+    56	
+    57	---
+    58	
+    59	### 6. V1.3.0 開發優先級（P0 / P1 / P2）
+    60	* **P0（核心必做，共 8 項）**：
+    61	  1. **繪圖效能減法（為特效騰空間）**：滿血隱藏血條、合併重複小符號繪製，先把 p95 壓回 8.5ms 以下。
+    62	  2. **立牌轉身動畫（A1+A3）**：0.15 秒壓扁小跳翻面＋窄位側面木牌厚度色塊。
+    63	  3. **底座立體化與分離接地（A3）**：雙層厚木座繪製，角色跳動時底座留地。
+    64	  4. **同兵種去同步化（A2）**：以 ID 錯開呼吸相位、微傾角与待機眨眼。
+    65	  5. **受擊擠壓與「倒棋」物理感（A6+新想法1）**：受擊 Skew 擠壓閃白，擊倒時像立牌側倒桌面。
+    66	  6. **擺陣桌遊手感（B4+新想法2）**：抓起棋子放大＋陰影下移、落子木頭震動與粉筆預計路線。
+    67	  7. **消滅幾何原語（B1）**：重繪 [52_map_ice_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/52_map_ice_battle.png) 冰面邊界与光環為手繪拓印質感。
+    68	  8. **混戰視覺降噪與關鍵慢動作（C1+C2）**：移除底部文字欄改頭頂木牌、破陣瞬間 0.3 秒微慢鏡。
+    69	* **P1（重要體驗提升）**：
+    70	  * 結算頁 [05_result.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v130-r1/agy/05_result.png) 走勢圖排版修正與 5 秒高光回放（D1）、音效手作木頭多變體（B5）、兵種剪影強化（C3）、戰前勝方預測押注（D4）。
+    71	* **P2（錦上添花／下階段新規則）**：
+    72	  * 拍照／GIF 匯出（D2）、戰利品木碗動畫（新想法3）、地形路障新規則模式（新想法4／D7）。
+    73	
+    74	結論：V1.3.0 應以「木座立牌的厚實翻轉與倒棋感」根治紙片味，用「消滅幾何直線＋滿血藏血條」換取清爽度與效能空間，讓沙盤真正像親手擺弄的實體桌遊。
+     1	**P0**
+     2	
+     3	- **修正 A 的診斷**：轉身已有約 0.18 秒插值與最小寬度（`battle/battle_state.gd:398`），`battle_units.gd:552` 覆蓋了472行的符號面向；紙片感來自整圖縮窄再鏡像（`sprite_cache.gd:207`、`art.gd:76`）。步態已有 id 相位（`units/gait.gd:52`）；披風已有延遲擺動（`units/kingdom.gd:19`）；受擊已有壓扁與傾身（`battle_units.gd:490`），死亡仍主要靠整圖旋轉縮放（675行）。故 **A 修改**，不能當成全數缺功能。風險：只改時間仍像紙板；驗：轉身逐格條；2–3人時。
+     4	
+     5	- **轉身改造型**：新增五張中間姿勢，讓頭、胸、武器前後遮擋改變，保留體積；0.16秒播完，攻擊期間優先維持命中方向。業界用網格變形、部件位移表達深度，可參考 [Spine 示範](https://es.esotericsoftware.com/spine-twitch)。現有每隊28格、192²、16欄，每滿頁3072×4032，RGBA8約47.25MiB（`sprite_cache.gd:18`）。另開轉身頁：每種×兩隊×5格；六種3072×768＝9MiB，22種約31.5MiB，不乘走路／攻擊格。風險：武器跳位、烘焙尖峰；戰前預熱、沿用世代保護。驗：長槍不裁切、反覆轉向、色盲與向量後備一致；32–48人時，估Δp95＋0～0.06ms。
+     6	
+     7	- **先省再加；E 同意並補強**：`battle_units.gd:428` 每幀雙迴圈算擁擠度，改固定空間桶，保留相同40px距離判定；靜態裝飾預烘。風險：快取失效；驗：同機同重播交錯量測、冷啟動另測，總p95≤9.79ms；舊 FINGERPRINT／摘要、版面與匯出全過。8–14人時；估省0.1–0.4ms，**尚未實測，不可先抵帳**。
+     8	
+     9	**P1**
+    10	
+    11	- **相位、次級動作**：呼吸取決於x（`art.gd:6`），同欄同步；眨眼同兵種同步（`sprite_cache.gd:175`）。以id雜湊錯開兩者，步頻仍依位移；披風先在既有八張步態中增加滯後，停步加解析式衰減，避免逐兵彈簧狀態。參考 [Spine 次級動作](https://us.esotericsoftware.com/spine-physics-constraints)、[Disney 擠壓伸展](https://www.disneyanimation.com/process/animation/)。風險：橡皮感；驗：同欄不同步、腳不滑、跳播不殘留；12–18人時，估＋0～0.04ms。
+    12	
+    13	- **假厚度／接觸陰影**：暗側面烘進角色，左上亮面按朝向重建，避免鏡像把光源翻轉；已有跳起縮影（`battle_units.gd:401`），改獨立腳底陰影，隊圈固定。風險：糊黑；驗：冰原、密陣辨腳點；10–16人時，估＋0～0.05ms。
+    14	
+    15	- **B 修改：克制手作感**。地面已有雜湊變化（`map_art.gd:166`），HUD仍規整直線（`ui_base.gd:694`）。框線預生成固定不規則輪廓；boiling僅焦點裝飾預烘三版、6Hz換圖，禁止每幀重算及文字抖動，參考 [Blender Noise](https://docs.staging.blender.org/manual/en/latest/grease_pencil/modifiers/deform/noise.html)。風險：閃爍；驗：靜止畫面與簡化模式；8–12人時，估＋0～0.03ms。
+    16	
+    17	- **拿起放下**：只抬拖曳顯示12px、陰影變寬，落點立即提交，120ms沉降與落子聲獨立播放。風險：視覺落點錯位；驗：連續拖放、取消、手把；6–10人時，估＋0～0.02ms。
+    18	
+    19	- **C 修改**：保留關鍵控制，降低裝飾對比，以剪影、形狀區分隊伍與狀態；[TFT 官方](https://followthefix.teamfighttactics.leagueoflegends.com/en-us/)也聚焦小尺寸圖示及避免重疊。風險：資訊藏太深；驗：5人辨兵種／危險事件；8–12人時，估0或下降。
+    20	
+    21	**P2**
+    22	
+    23	D 修改，先做五個自提玩法，皆只用既有戰前配置：
+    24	
+    25	- 三枚棋子破陣：限三兵；風險解太窄；驗三種解；6–10時。
+    26	- 少花一金挑戰：同敵陣逐次減預算；風險挫折；驗完成率；6–8時。
+    27	- 換一兵救局：敗局只換一隻；風險無解；驗已知解；8–12時。
+    28	- 同陣雙圖：比較既有地形；風險混淆；驗能說出差異；8–12時。
+    29	- 我的預判筆記：戰前寫理由、戰後對照；風險打斷節奏；驗自願使用率；6–10時。
+    30	
+    31	以上估戰鬥Δp95≈0。
+    32	
+    33	**不做**
+    34	
+    35	D7援軍本輪反對：會改模擬。迷霧可只改部署揭露；國王可沿用戰後護送判定。需分享時新增候選 `NTBR6／NTB8`，明載模式、目標id與參數；缺欄走舊路、舊碼序列化不動。援軍另開確定性分支與新版金標準，不能只靠新前綴保證 FINGERPRINT。風險：摘要漏欄；驗舊碼逐tick、新碼往返；迷霧／國王各16–24時，援軍另估。亦不做景深縮兵、自動推鏡、全場抖線；零實作人時。
+    36	
+    37	結論：先省效能，再補真正轉身造型；以少量不規則、接地感與讀陣挑戰取代特效堆疊。
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/sprite_cache.gd | sed -n '1,277p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+     1	extends Node
+     2	## 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps），
+     3	## 所以用同一份 Art.unit 畫法，把兵種×隊伍×動作影格畫進圖集，戰鬥中只貼圖。
+     4	## 第八輪：一張大圖放 22 種會到 3072×11712，Compatibility 渲染器超過 4096 有風險。改成每頁 ≤4096（7 種兵），
+     5	## 開場只烘舊 10 種，新兵上場才烘；還沒烘好時呼叫端直接畫，不會缺圖。頁數有上限，超過丟最舊的新兵頁。
+     6	## 用同一份畫法烘焙，但不是逐像素等價（Codex R1 審查 #3、#4，已知且接受的差異）：
+     7	##  - 走路量化成 6 格、攻擊 8 格；攻擊中不再疊走路相位；走路／攻擊格固定睜眼（只在待機眨眼）。
+     8	## 表情疊加（受擊、暈眩、衝鋒、狂熱、潛行、頂住）不烘焙，貼完圖再用 Art.overlay 在同一個局部座標畫上去。
+     9	##  - 透明度（潛行）是對整張合成好的角色乘 alpha，重疊的部位不會像逐圖元那樣透出底下的線條。
+    10	## 待機呼吸位移在貼圖時加（烘焙時抵銷為 0）；受擊閃白跟著攻擊前衝與走路起伏。
+    11	## 沒有畫面（headless）或還沒建好時，呼叫端退回 Art.unit。
+    12	
+    13	const Art = preload("res://scripts/ui/art.gd")
+    14	const D = preload("res://scripts/core/unit_defs.gd")
+    15	const Gait = preload("res://scripts/ui/units/gait.gd")
+    16	const Save = preload("res://scripts/game/save.gd")
+    17	
+    18	const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
+    19	const RS := 1.6            # 烘焙解析度倍率
+    20	const ORIGIN := Vector2(78, 160)   # 角色腳底在格子裡的位置（第七輪 C0：原本會超框被切掉）
+    21	const RING_ORIGIN := Vector2(96, 140)   # 腳底圈格子的中心（有影子，要留下方空間）
+    22	const WALK_FRAMES := 8     # V9 P2：6→8，另加拖行、暈眩
+    23	const POSE_FRAMES := 2
+    24	const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
+    25	# 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..23 攻擊兩組（一般／交替或專屬）
+    26	const FRAMES_PER := 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * 2
+    27	const COLS := 16
+    28	const TYPES_PER_PAGE := 6  # 6×2×28＝336 格＝21 列×192＝4032px，不超過 4096
+    29	const MAX_PAGES := 5
+    30	
+    31	var pages: Array = []      # 每頁 {tex, types}
+    32	var loc := {}              # 兵種 → [頁, 這一種在頁裡的起始格]
+    33	var ring_tex: Texture2D = null
+    34	var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
+    35	var _busy := false
+    36	var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
+    37	var _queue: Array = []
+    38	var _baking: Array = []
+    39	
+    40	func is_ready(cb: bool) -> bool:
+    41		return ring_tex != null and ready_cb == (1 if cb else 0)
+    42	
+    43	func has_type(t: int) -> bool:
+    44		return loc.has(t)
+    45	
+    46	## 腳底在格子裡的位置：往前伸得很長的長槍兵靠左、很寬的小石魔靠右，其他都一樣。
+    47	static func origin_of(type: int) -> Vector2:
+    48		return Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160))
+    49	
+    50	## 全部清掉，烘舊 10 種和腳底圈。
+    51	func build(cb: bool) -> void:
+    52		if DisplayServer.get_name() == "headless":
+    53			return
+    54		_gen += 1
+    55		pages.clear()
+    56		loc.clear()
+    57		_queue.clear()
+    58		_baking = []
+    59		_busy = false
+    60		ring_tex = null
+    61		ready_cb = 1 if cb else 0
+    62		var base: Array = []
+    63		for t in D.COUNT:
+    64			base.append(t)
+    65		var g0 := _gen
+    66		await _bake_ring(cb)
+    67		if g0 != _gen:
+    68			return   # 烘腳底圈時又重建了：交給新的那次
+    69		await ensure(base)
+    70	
+    71	## 這場要用到的兵種。缺的才烘；烘的時候呼叫端先直接畫。
+    72	func ensure(types: Array) -> void:
+    73		if DisplayServer.get_name() == "headless" or ready_cb < 0:
+    74			return
+    75		for t in types:
+    76			if not loc.has(t) and not t in _queue and not t in _baking:
+    77				_queue.append(t)
+    78		if _busy or _queue.is_empty():
+    79			return
+    80		_busy = true
+    81		var g0 := _gen   # 世代變了（build 清空並重設狀態）就不再碰共用狀態（Codex v120-final）
+    82		while not _queue.is_empty():
+    83			var chunk: Array = _queue.slice(0, TYPES_PER_PAGE)
+    84			_queue = _queue.slice(chunk.size())
+    85			_baking = chunk
+    86			await _bake_page(chunk)
+    87			if g0 != _gen:
+    88				return
+    89			_baking = []
+    90		_busy = false
+    91	
+    92	func _viewport(size: Vector2i, painter: Node) -> SubViewport:
+    93		var vp := SubViewport.new()
+    94		vp.size = size
+    95		vp.transparent_bg = true
+    96		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+    97		vp.add_child(painter)
+    98		add_child(vp)
+    99		return vp
+   100	
+   101	func _bake_page(types: Array) -> void:
+   102		var gen0 := _gen
+   103		var cb := ready_cb == 1
+   104		var total := types.size() * 2 * FRAMES_PER
+   105		var rows := int(ceil(float(total) / COLS))
+   106		var painter := _Painter.new()
+   107		painter.cb = cb
+   108		painter.types = types
+   109		var vp := _viewport(Vector2i(COLS * CELL, rows * CELL), painter)
+   110		await RenderingServer.frame_post_draw
+   111		await RenderingServer.frame_post_draw
+   112		var img := vp.get_texture().get_image()
+   113		vp.queue_free()
+   114		img = await _post(img)
+   115		if (1 if cb else 0) != ready_cb or gen0 != _gen:
+   116			return   # 烘的時候換了配色（或重建了）：這一批作廢
+   117		# 新兵頁太多就丟最舊的（舊 10 種那兩頁不丟）
+   118		if pages.size() >= MAX_PAGES:
+   119			for i in pages.size():
+   120				if pages[i] != null and int(pages[i]["types"][0]) >= D.COUNT:
+   121					for t in pages[i]["types"]:
+   122						if loc.has(t) and int(loc[t][0]) == i:
+   123							loc.erase(t)
+   124					pages[i] = null
+   125					break
+   126		var pn := pages.size()
+   127		pages.append({"tex": ImageTexture.create_from_image(img), "types": types})
+   128		for k in types.size():
+   129			loc[types[k]] = [pn, k * 2 * FRAMES_PER]
+   130	
+   131	## V1.2 D1：烘好的整頁再跑一次後處理 shader（外輪廓＋頂亮底暗）。沒有 shader 檔或 plain_ui 時原樣。
+   132	func _post(img: Image) -> Image:
+   133		var sh_path := "res://shaders/unit_bake.gdshader"
+   134		if not ResourceLoader.exists(sh_path) or bool(Save.s("plain_ui")):
+   135			return img
+   136		var tr := TextureRect.new()
+   137		tr.texture = ImageTexture.create_from_image(img)
+   138		tr.size = Vector2(img.get_width(), img.get_height())
+   139		var mat := ShaderMaterial.new()
+   140		mat.shader = load(sh_path)
+   141		mat.set_shader_parameter("cell", float(CELL))
+   142		mat.set_shader_parameter("per", float(FRAMES_PER))
+   143		mat.set_shader_parameter("cols", float(COLS))
+   144		tr.material = mat
+   145		var vp := _viewport(Vector2i(img.get_width(), img.get_height()), tr)
+   146		await RenderingServer.frame_post_draw
+   147		await RenderingServer.frame_post_draw
+   148		var out := vp.get_texture().get_image()
+   149		vp.queue_free()
+   150		return out
+   151	
+   152	func _bake_ring(cb: bool) -> void:
+   153		var painter := _RingPainter.new()
+   154		painter.cb = cb
+   155		var vp := _viewport(Vector2i(4 * CELL, CELL), painter)
+   156		var g0 := _gen
+   157		await RenderingServer.frame_post_draw
+   158		await RenderingServer.frame_post_draw
+   159		if g0 == _gen:
+   160			ring_tex = ImageTexture.create_from_image(vp.get_texture().get_image())
+   161		vp.queue_free()
+   162	
+   163	## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。
+   164	func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float, variant := 0) -> int:
+   165		var base: int = int(loc[type][1]) + team * FRAMES_PER
+   166		if atk > 0.0:
+   167			return base + 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * mini(variant, 1) + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+   168		if walk <= Gait.POSE_DAZE + 1.0:
+   169			return base + 2 + WALK_FRAMES + 1
+   170		if walk <= Gait.POSE_DRAG + 1.0:
+   171			return base + 2 + WALK_FRAMES
+   172		if walk != 0.0:
+   173			return base + 2 + int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES
+   174		var ex := 2.0 if type == D.CAVALRY else 3.5   # Art._eyes 的眼睛中心 x
+   175		var blink := fmod(t + ex * 0.13, 3.7) <= 0.12   # 與 Art._eyes 相同的眨眼節奏
+   176		return base + (1 if blink else 0)
+   177	
+   178	func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0) -> void:
+   179		var idx := team * 2 + (1 if (type == D.SHIELD or type == D.CAVALRY or type == 19) else 0)
+   180		ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+   181		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(idx * CELL, 0, CELL, CELL))
+   182		ci.draw_set_transform_matrix(Art.base)
+   183	
+   184	func _rect(idx: int) -> Rect2:
+   185		return Rect2((idx % COLS) * CELL, (idx / COLS) * CELL, CELL, CELL)
+   186	
+   187	## 量化後實際烘焙的走路相位／攻擊進度（疊加表情時用，才會跟貼圖對齊）。
+   188	func quant_walk(walk: float) -> float:
+   189		if walk == 0.0:
+   190			return 0.0
+   191		if walk < -50.0:
+   192			return walk
+   193		return 0.0001 + (int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES) * TAU / WALK_FRAMES
+   194	
+   195	func quant_atk(atk: float) -> float:
+   196		if atk <= 0.0:
+   197			return 0.0
+   198		return (clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1) + 0.5) / ATK_FRAMES
+   199	
+   200	## 貼一隻角色。參數與 Art.unit 相同；待機的呼吸位移在這裡加（烘焙時是 0）。
+   201	func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
+   202			hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, cb := false, variant := 0) -> void:
+   203		var idx := frame_index(type, team, walk, atk, t, p.x, variant)
+   204		if atk > 0.0:
+   205			walk = 0.0   # 攻擊影格烘焙時沒有走路相位：貼圖與疊加都當成沒在走（Codex 收尾輪 #4）
+   206		var bob := Art.idle_bob(t, p.x) if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
+   207		var xf := Art.base * Transform2D(lean * face, Vector2(scale * face / RS, scale * crouch / RS), 0.0, p + Vector2(0, bob * scale))
+   208		ci.draw_set_transform_matrix(xf)
+   209		ci.draw_texture_rect_region(pages[loc[type][0]]["tex"], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
+   210		if hurt > 0.0 or mood != 0:
+   211			# 攻擊影格烘焙時沒有走路相位（Codex R5 #3）
+   212			var qa := quant_atk(atk)
+   213			var qw := 0.0 if qa > 0.0 else quant_walk(walk)
+   214			ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, face, qw, qa, t, scale, lean, crouch, type) * Gait.body_xf(type, qw))
+   215			if hurt > 0.0:
+   216				ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, false)
+   217			if mood != 0:
+   218				Art.overlay(ci, type, team, mood, alpha, t, cb)
+   219		ci.draw_set_transform_matrix(Art.base)
+   220	
+   221	## 烘焙用的畫家：一格一格呼叫 Art.unit（face＝+1，翻面由貼圖時處理）。
+   222	class _Painter extends Node2D:
+   223		var cb := false
+   224		var types: Array = []
+   225		func _draw() -> void:
+   226			var Art2 = preload("res://scripts/ui/art.gd")
+   227			var D2 = preload("res://scripts/core/unit_defs.gd")
+   228			var saved: Transform2D = Art2.base
+   229			Art2.base = Transform2D.IDENTITY
+   230			var CELL2 := 192
+   231			var RS2 := 1.6
+   232			var W2 := 8
+   233			var per := 2 + W2 + 2 + 8 + 8
+   234			var cols := 16
+   235			for k in types.size():
+   236				var type: int = types[k]
+   237				for team in 2:
+   238					for f in per:
+   239						var idx: int = (k * 2 + team) * per + f
+   240						var cell_o := Vector2((idx % cols) * CELL2, (idx / cols) * CELL2)
+   241						var walk := 0.0
+   242						var atk := 0.0
+   243						var vr := 0
+   244						if f >= 2 and f < 2 + W2:
+   245							walk = 0.0001 + (f - 2) * TAU / W2
+   246						elif f == 2 + W2:
+   247							walk = -100.0   # 拖行（Gait.POSE_DRAG）
+   248						elif f == 3 + W2:
+   249							walk = -200.0   # 暈眩（Gait.POSE_DAZE）
+   250						elif f >= 4 + W2 + 8:
+   251							atk = (f - (4 + W2 + 8) + 0.5) / 8.0
+   252							vr = 1 if type < D2.CLASSIC else 2   # 第四輪新兵沒有交替招式，這一組放專屬動作（variant 2）
+   253						elif f >= 4 + W2:
+   254							atk = (f - (4 + W2) + 0.5) / 8.0
+   255						var p := cell_o + (Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160)))
+   256						var ex := 2.0 if type == D2.CAVALRY else 3.5
+   257						# 眨眼那一格落在眨眼區間中間；其他格取 1.0（不在眨眼區間）
+   258						var tt: float = (3.7 - ex * 0.13 + 0.05) if f == 1 else 1.0
+   259						# 沒走路的格子（待機、眨眼、攻擊）Art.unit 會加呼吸位移；這裡反向抵銷，貼圖時再依當下時間加
+   260						var pb := p
+   261						if walk == 0.0:
+   262							pb.y -= sin(tt * 3.0 + p.x * 0.05) * 0.8 * RS2
+   263						Art2.unit(self, pb, type, team, 1.0, walk, atk, 0.0, 1.0, tt, RS2, cb, 0, 0.0, 1.0, vr)
+   264			Art2.base = saved
+   265	
+   266	class _RingPainter extends Node2D:
+   267		var cb := false
+   268		func _draw() -> void:
+   269			var Art2 = preload("res://scripts/ui/art.gd")
+   270			var D2 = preload("res://scripts/core/unit_defs.gd")
+   271			var saved: Transform2D = Art2.base
+   272			Art2.base = Transform2D.IDENTITY
+   273			for team in 2:
+   274				for heavy in 2:
+   275					var o := Vector2((team * 2 + heavy) * 192, 0) + Vector2(96, 140)
+   276					Art2.ring(self, o, team, D2.SHIELD if heavy == 1 else D2.SWORD, cb, 1.6)
+   277			Art2.base = saved
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/battle/battle_units.gd | sed -n '370,724p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+   370	func _goal_marker(p: Vector2, kind: String) -> void:
+   371		var pulse := 0.5 + 0.5 * sin(time * 4.0)
+   372		if kind == "protect":
+   373			var c := Color(1.0, 0.82, 0.3, 0.75 + 0.25 * pulse)
+   374			draw_arc(p, 22.0 * UNIT_SCALE, 0, TAU, 28, c, 3.0, true)
+   375			draw_arc(p, 27.0 * UNIT_SCALE, 0, TAU, 28, Color(c, 0.45), 2.0, true)
+   376		else:
+   377			var c2 := Color(1.0, 0.3, 0.25, 0.8 + 0.2 * pulse)
+   378			var r := 24.0 * UNIT_SCALE
+   379			var q := p + Vector2(0, -22) * UNIT_SCALE
+   380			draw_arc(q, r, 0, TAU, 28, c2, 2.5, true)
+   381			for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+   382				draw_line(q + d * r * 0.55, q + d * r * 1.3, c2, 2.5, true)
+   383	
+   384	func _draw_units_of(s, dim: bool) -> void:
+   385		var list: Array = []
+   386		for u in s.units:
+   387			if u.alive:
+   388				list.append(u)
+   389		var live: bool = s == view
+   390		if live:
+   391			list.sort_custom(func(a, b): return _upos(a).y < _upos(b).y)
+   392		else:
+   393			list.sort_custom(func(a, b): return a.y < b.y)
+   394		_draw_v8_ground(s, live)
+   395		# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
+   396		var a_now := clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 1.0
+   397		var gm: Array = _goal_mark()
+   398		for u in list:
+   399			var p0: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+   400			var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
+   401			_ring(p0, u.team, u.type, UNIT_SCALE * (1.0 - air0 * 0.018))   # 跳起來影子縮一點
+   402			if u.shield > 0:       # 第十二輪：手動技能的護盾、戰吼
+   403				draw_arc(p0 + Vector2(0, -24) * UNIT_SCALE, 28.0 * UNIT_SCALE, 0, TAU, 24, Color(0.55, 0.85, 1.0, 0.75), 2.5, true)
+   404			if u.haste_t > 0:
+   405				draw_arc(p0, 19.0 * UNIT_SCALE, 0, TAU, 20, Color(1.0, 0.75, 0.25, 0.85), 2.5, true)
+   406			if u.id == int(gm[0]) or (int(gm[0]) == -2 and u.team == 0 and u.type == int(gm[2]) and not u.summon):
+   407				_goal_marker(p0, "protect" if int(gm[0]) == -2 else str(gm[1]))   # 第十三輪：要護送／斬首的那一隻；V1.1：不能倒的那種兵每隻都標
+   408			if live and s.rally[u.team] and not s.finished:
+   409				for k in 2:
+   410					var ph := fmod(time * 1.6 + k * 0.5, 1.0)
+   411					draw_arc(p0, (14.0 + ph * 10.0) * UNIT_SCALE, 0, TAU, 20, Color(1, 0.42, 0.0, 0.55 * (1.0 - ph)), 2.0, true)
+   412		# 陣亡痕跡：倒下處的小旗，3 秒淡出，畫在最底層（第三輪 R5）
+   413		if live:
+   414			for g in graves:
+   415				var ga: float = 1.0 - g["t"] / 3.0
+   416				var gp: Vector2 = g["pos"]
+   417				draw_line(gp + Vector2(0, 2), gp + Vector2(0, -16), Color(0.35, 0.27, 0.2, 0.8 * ga), 2.0, true)
+   418				draw_colored_polygon(PackedVector2Array([gp + Vector2(0, -16), gp + Vector2(10, -12), gp + Vector2(0, -8)]), Color(Art.team_color(g["team"], cbm()), 0.75 * ga))
+   419				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.4), 0, gp + Vector2(0, 2)))   # 疊在鏡頭上（Codex S4 #5）
+   420				draw_circle(Vector2.ZERO, 7, Color(0, 0, 0, 0.25 * ga), true, -1.0, true)
+   421				draw_set_transform_matrix(_cam)
+   422		# 擁擠度：40px 內有幾隻（第三輪 V5，只在戰鬥中算）
+   423		var crowd := {}
+   424		if live:
+   425			var pos: Array = []
+   426			for u in list:
+   427				pos.append(_upos(u))
+   428			for a in list.size():
+   429				var n := 0
+   430				for b in list.size():
+   431					if a != b and pos[a].distance_squared_to(pos[b]) < 1600.0:
+   432						n += 1
+   433				crowd[list[a].id] = n
+   434		# 第二層：身體（V9：地圖的前景物件依腳點 y 插進來，才有前後遮擋）
+   435		var prop_i := 0
+   436		var xray: Array = []   # V1.1 C5：[腳點, 參數]，給被下排蓋到臉的那隻補畫半透明
+   437		for u in list:
+   438			var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+   439			while prop_i < fld_props.size() and ORIGIN.y + float(fld_props[prop_i][0]) <= p.y:
+   440				MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
+   441				prop_i += 1
+   442			var walk: float = _walk_of(u, a_now) if live else ((time * Gait.nominal_rate(u.type, float(D.stat(u.type)["speed"]), CS, UNIT_SCALE) + u.id) if (u.mx != 0 or u.my != 0) else 0.0)
+   443			var moving: bool = walk > 0.0
+   444			var at := 0.0
+   445			var variant := 0
+   446			if live and atk_hit.has(u.id):
+   447				var dt0 := _disp_tick()
+   448				var h := pick_hit(atk_hit[u.id], dt0, u.type)
+   449				if h >= 0:
+   450					at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
+   451					# 火罐飛行（第四輪 §4.4）：前搖期間從手上飛向目標，命中那一刻落地（模擬不受影響）
+   452					if u.type == D.BOMBER and at > 0.0 and at < Art.ATK_WINDUP and bomb_tgt.get(u.id, {}).has(h):
+   453						var bt = view.unit_by_id(bomb_tgt[u.id][h])
+   454						if bt != null:
+   455							var fk := at / Art.ATK_WINDUP
+   456							var src_p: Vector2 = _upos(u) + Vector2(0, -50)
+   457							var dst_p: Vector2 = _upos(bt) + Vector2(0, -10)
+   458							var pp := src_p.lerp(dst_p, fk) + Vector2(0, -sin(fk * PI) * minf(70.0, src_p.distance_to(dst_p) * 0.3))
+   459							pot_draw.append(pp)
+   460					if u.type == D.SWORD:
+   461						variant = int(atk_seq.get(u.id, {}).get(h, 0)) % 2   # 劍士橫斬與上挑逐擊交替（第三輪 R4）
+   462					elif u.type >= D.CLASSIC and alt_hit.get(u.id, {}).has(h):
+   463						variant = 2
+   464			var hurt := 0.0
+   465			if live and hurt_t.has(u.id) and _fx_on("flash"):
+   466				hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
+   467			var alpha := 0.45 if u.stealth > 0 else 1.0
+   468			if dim:
+   469				alpha *= 0.6
+   470			if live:
+   471				alpha *= _focus_dim(p)
+   472			var face := signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
+   473			# 受擊後退 4px（第三輪 R2）：0.08 秒退、0.07 秒回，只是畫面
+   474			if live and hurt_t.has(u.id):
+   475				var hk: float = (time - float(hurt_t[u.id])) / 0.15
+   476				if hk >= 0.0 and hk < 1.0:
+   477					p.x += float(hurt_dir.get(u.id, 0.0)) * 4.0 * (sin(hk * PI) if hk < 1.0 else 0.0)
+   478			if live and u.id == follow_id:
+   479				draw_arc(p + Vector2(0, 2), 22.0, 0, TAU, 28, Color(ACCENT, 0.9), 3.0, true)   # 跟拍中的那隻
+   480			# 擠在一起時，正在出手或受擊的那隻加隊伍色光圈（第三輪 V5）
+   481			if live and (at > 0.0 or hurt > 0.0) and crowd.get(u.id, 0) >= 3:
+   482				draw_arc(p + Vector2(0, -24 if u.type != D.CAVALRY else -28), 19.0, 0, TAU, 24, Color(Art.team_color(u.team, cbm()), 0.75 * alpha), 2.0, true)
+   483			# 表情與兵種專屬動作（R5）
+   484			var mood := 0
+   485			var lean := 0.0
+   486			var crouch := 1.0
+   487			if hurt > 0.3 or u.stun > 0:
+   488				mood |= Art.M_HURT
+   489			if hurt > 0.0:
+   490				crouch *= 1.0 - 0.12 * hurt                 # V1.1 A2：受擊壓扁（縱 0.88），配合後退與閃白
+   491				lean -= 0.06 * hurt * float(hurt_dir.get(u.id, 0.0)) * face
+   492			if live and u.windup > 0 and at == 0.0:
+   493				# V1.1 A3：大招前搖的身體預警。小石魔高舉拉長、吸塵貓吸氣鼓脹、沙漏精靈與骷髏法師浮起
+   494				var wk := 1.0 - float(u.windup) / F8.WINDUP
+   495				if u.type == F8.GOLEM:
+   496					at = Art.ATK_WINDUP * minf(1.0, wk * 1.4) * 0.999
+   497				elif u.type == F8.CAT:
+   498					crouch *= 1.0 + 0.14 * sin(minf(1.0, wk) * PI * 0.5)
+   499				else:
+   500					p.y -= 4.0 * sin(minf(1.0, wk) * PI * 0.5)
+   501			if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
+   502				mood |= Art.M_SPARKLE
+   503				lean = 0.26                      # 衝鋒蓄滿前傾 15°
+   504				for k in 3:                      # 馬蹄噴土
+   505					var ph := fmod(time * 4.0 + k * 0.33 + u.id * 0.1, 1.0)
+   506					draw_circle(p + Vector2(-face * (14 + ph * 16), -2 - ph * 6), 3.2 * (1.0 - ph), Color(0.85, 0.75, 0.55, 0.7 * (1.0 - ph)), true, -1.0, true)
+   507			if s.frenzy and at == 0.0 and not s.finished:
+   508				mood |= Art.M_BROWS
+   509				# 狂熱氣場（第三輪 R3）：身邊橘紅脈衝圈
+   510				var pulse := 0.5 + 0.5 * sin(time * 7.0 + u.id)
+   511				draw_arc(p + Vector2(0, -22), 15.0 + pulse * 3.0, 0, TAU, 20, Color(1.0, 0.33, 0.2, (0.35 + 0.3 * pulse) * alpha), 2.0, true)
+   512			if u.type == D.ASSASSIN and u.stealth > 0:
+   513				mood |= Art.M_HOOD
+   514				crouch = 0.9                     # 潛行蹲身
+   515			if live and brace_t.has(u.id) and time - brace_t[u.id] < 0.35:
+   516				mood |= Art.M_BRACE
+   517			# 勝利：存活的勝方每 0.45 秒原地跳 10px、武器高舉
+   518			var hop := 0.0
+   519			if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
+   520				hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
+   521				at = Art.ATK_WINDUP
+   522				lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
+   523				crouch = 1.06
+   524				_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
+   525				# V1.1 A7：兵種專屬的勝利小動作（簡化特效時不畫）
+   526				match -1 if bool(Save.s("reduce_fx")) else u.type:
+   527					D.DRUMMER:   # 鼓手：頭邊冒音符
+   528						var nk := fmod(time * 1.6 + u.id * 0.3, 1.0)
+   529						_icon("sound", p + Vector2(18 + nk * 8, -48 - nk * 22 - hop), 14.0, Color(1.0, 0.85, 0.4, 1.0 - nk))
+   530					D.BERSERKER:   # 狂戰士：雙斧互敲的火花圈
+   531						var bk := absf(sin((time + u.id * 0.05) * PI / 0.45))
+   532						draw_arc(p + Vector2(0, -50 - hop), 8.0 + bk * 6.0, 0, TAU, 16, Color(1.0, 0.55, 0.2, 0.8 * bk), 2.5, true)
+   533					D.MEDIC:   # 醫者：綠色小十字往上飄
+   534						var mk := fmod(time * 1.2 + u.id * 0.4, 1.0)
+   535						var mc := p + Vector2(-16, -44 - mk * 24 - hop)
+   536						draw_line(mc - Vector2(4, 0), mc + Vector2(4, 0), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+   537						draw_line(mc - Vector2(0, 4), mc + Vector2(0, 4), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+   538			p.y -= hop
+   539			if u.hidden:
+   540				Art.mimic_closed(self, p, u.team, face, alpha, time, cbm(), UNIT_SCALE)   # 偽裝中的寶箱怪
+   541				continue
+   542			if u.type == F8.GHOST:
+   543				alpha *= 0.9
+   544				p.y -= 3.0 + 2.5 * sin(time * 2.2 + u.id * 0.9)   # V1.1 A4：幽靈上下漂
+   545			# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
+   546			if live and walk == 0.0 and at == 0.0:
+   547				lean += sin(time * 1.1 + u.id * 1.7) * 0.018
+   548				var idle_k := fmod(time + u.id * 1.37, 7.3)
+   549				if idle_k < 0.3:
+   550					crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
+   551			if live:
+   552				face = _face_of(u)
+   553			if u.stealth > 0:
+   554				# 潛行：身後兩道暗紫殘影
+   555				for g in 2:
+   556					var gp := p + Vector2(-(8 + g * 8) * face, 0)
+   557					draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
+   558					_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
+   559			if live and walk <= Gait.POSE_DAZE + 1.0:
+   560				# 暈眩：頭上轉圈的星星
+   561				for sk0 in 3:
+   562					var sa0 := time * 5.0 + sk0 * TAU / 3.0
+   563					_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
+   564			_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
+   565			if live and not u.hidden:
+   566				xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
+   567			# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+   568			if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
+   569				var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
+   570				_draw_smear(p, u.type, u.team, face, sk, alpha, variant, 1.0)
+   571			# 衝鋒就緒的金色拖尾（第三輪 R3）
+   572			if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
+   573				var tip := p + Vector2(face * 26.0, -44.0)
+   574				for k in 4:
+   575					var q0 := tip - Vector2(face * k * 8.0, 0)
+   576					var q1 := tip - Vector2(face * (k + 1) * 8.0, 0)
+   577					draw_line(q0, q1, Color(1.0, 0.86, 0.3, (0.8 - k * 0.2) * alpha), 3.0 - k * 0.5, true)
+   578		_draw_xray(xray)
+   579		while prop_i < fld_props.size():
+   580			MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
+   581			prop_i += 1
+   582		for pp in pot_draw:
+   583			draw_circle(pp, 6.5, Art.OUT, true, -1.0, true)
+   584			draw_circle(pp, 5.0, Color("#2a2533"), true, -1.0, true)
+   585			draw_circle(pp + Vector2(3, -5), 2.0, Color(1, 0.8, 0.3), true, -1.0, true)
+   586		pot_draw.clear()
+   587		if dim:
+   588			return
+   589		# 第三層：小旗、血條、狀態（永遠畫在最上面）
+   590		for u in list:
+   591			var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+   592			if live:
+   593				_draw_v8_top(s, u, p)
+   594			if u.hidden:
+   595				continue   # 偽裝中的寶箱不插小旗、不畫血條
+   596			var fh: int = -58 if u.type == D.CAVALRY else (-70 if u.type == F8.GOLEM or u.type == F8.SPRITE else (-62 if u.type == F8.DOLL else -50))
+   597			Art.flag(self, p + Vector2(-12, fh), u.team, cbm())
+   598			if u.stun > 0:
+   599				# 暈眩：三顆金色菱形繞著頭轉
+   600				var hc := p + Vector2(0, -70 if u.type == D.CAVALRY else -62)
+   601				for j in 3:
+   602					var an := time * 5.0 + j * TAU / 3.0
+   603					var dc := hc + Vector2(cos(an) * 13, sin(an) * 4)
+   604					var sz := 4.0 + sin(an) * 1.0
+   605					draw_colored_polygon(PackedVector2Array([dc + Vector2(0, -sz), dc + Vector2(sz * 0.7, 0), dc + Vector2(0, sz), dc + Vector2(-sz * 0.7, 0)]), Color(1, 0.85, 0.25))
+   606			if live and s.rally[u.team]:
+   607				draw_arc(p + Vector2(0, -24), 22.0, 0, TAU, 20, Color(1, 0.45, 0.2, 0.35 + 0.15 * sin(time * 8)), 2.5, true)
+   608			if live and "breach" in u and u.breach > 0:
+   609				# 破陣（第四輪 §4.4）：盾面黑色 Z 字裂紋＋血條右邊一個帶黑邊的亮橘裂盾圖示，持續到破陣結束（Antigravity：原本太小看不到）
+   610				var cp := p + Vector2(12 * (signf(u.fx) if u.fx != 0 else 1.0), -26)
+   611				draw_polyline(PackedVector2Array([cp + Vector2(-4, -11), cp + Vector2(2, -4), cp + Vector2(-3, 2), cp + Vector2(3, 10)]), Color(0.08, 0.06, 0.1, 0.95), 3.0, true)
+   612				var ic := p + Vector2(24, -60)
+   613				var lh := PackedVector2Array([ic + Vector2(-8, -9), ic + Vector2(-1, -9), ic + Vector2(-3, 1), ic + Vector2(-1, 9), ic + Vector2(-8, 4)])
+   614				var rh := PackedVector2Array([ic + Vector2(1, -9), ic + Vector2(8, -9), ic + Vector2(8, 4), ic + Vector2(1, 9), ic + Vector2(3, 1)])
+   615				for hp in [lh, rh]:
+   616					var cl: PackedVector2Array = hp.duplicate()
+   617					cl.append(hp[0])
+   618					draw_polyline(cl, Art.OUT, 3.0, true)
+   619					draw_colored_polygon(hp, Color("#ff6a2a"))
+   620			if live and "aura" in u and u.aura > 0 and u.type != D.DRUMMER:
+   621				# 鼓舞：2 顆亮金小菱形沿腳底圈往上飄（不畫大圈，避免畫面太吵；Antigravity：原本的小金點看不到）
+   622				for j in 2:
+   623					var ph := fmod(time * 0.9 + j * 0.5 + u.id * 0.13, 1.0)
+   624					var dp := p + Vector2((-1.0 if j == 0 else 1.0) * 14.0, 2.0 - ph * 22.0)
+   625					var ds := 3.6
+   626					var dpoly := PackedVector2Array([dp + Vector2(0, -ds), dp + Vector2(ds * 0.7, 0), dp + Vector2(0, ds), dp + Vector2(-ds * 0.7, 0)])
+   627					draw_colored_polygon(dpoly, Color(1, 0.86, 0.3, 0.95 * (1.0 - ph)))
+   628			if live and u.type == D.DRUMMER and s.tick < 60 and u.alive:
+   629				# 開戰前 3 秒畫完整的戰鼓範圍
+   630				draw_arc(p, D.DRUM_RANGE * CS / 1000.0, 0, TAU, 40, Color(1, 0.85, 0.35, 0.35), 2.0, true)
+   631			if s.frenzy:
+   632				draw_circle(p + Vector2(8, -58 - sin(time * 12 + u.id) * 2), 3.0, Color(1, 0.5, 0.1, 0.9), true, -1.0, true)
+   633			# 第七輪 D1：血條只在需要看時才畫（受傷 3 秒內、跟拍、低血量）
+   634			var hurt_recent: bool = hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 3.0
+   635			if u.hp < u.max_hp and (not live or hurt_recent or u.id == follow_id or u.hp * 100 <= u.max_hp * 35):
+   636				var w := 28.0
+   637				var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58))
+   638				draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
+   639				draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Art.team_color(u.team, cbm()).lightened(0.25))
+   640				if cbm():
+   641					# 色盲模式：血條左邊加隊伍形狀（藍＝●、紅＝◆），不只靠顏色（R8）
+   642					var mk := top + Vector2(-8, 2)   # 8px 標記＋黑邊（第三輪 V5）
+   643					if u.team == 0:
+   644						draw_circle(mk, 5.5, Art.OUT, true, -1.0, true)
+   645						draw_circle(mk, 4.0, Art.team_color(0, true), true, -1.0, true)
+   646					else:
+   647						draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -6.5), mk + Vector2(6.5, 0), mk + Vector2(0, 6.5), mk + Vector2(-6.5, 0)]), Art.OUT)
+   648						draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -4.5), mk + Vector2(4.5, 0), mk + Vector2(0, 4.5), mk + Vector2(-4.5, 0)]), Art.team_color(1, true))
+   649		if not live:
+   650			return
+   651		for g in dying:
+   652			var k: float = g["t"] / 1.0
+   653			_draw_death(g, k)
+   654			if k < 0.3:
+   655				for i in 6:
+   656					var ang := i * TAU / 6
+   657					draw_circle(g["pos"] + Vector2(cos(ang), sin(ang) * 0.5) * (8 + k * 70) + Vector2(0, -16), 4 * (1 - k), Color(1, 1, 1, 0.35), true, -1.0, true)
+   658			Art.soul(self, g["pos"] + Vector2(sin(k * 9) * 4, -24 - k * 70), 0.75 * (1.0 - k))
+   659	
+   660	## V9 P2：每種兵的死法。k＝0～1（1 秒）。只用轉換與粒子，不多烘影格。
+   661	func _draw_death(g: Dictionary, k: float) -> void:
+   662		var t: int = g["type"]
+   663		var p: Vector2 = g["pos"]
+   664		var face: float = g["face"]
+   665		var u := minf(k / 0.55, 1.0)         # 倒下的主要段落
+   666		var e := 1.0 - (1.0 - u) * (1.0 - u)
+   667		var al := 1.0 - maxf(0.0, (k - 0.45) / 0.3)
+   668		if al <= 0.0:
+   669			return
+   670		var lean := 0.0
+   671		var crouch := 1.0
+   672		var hurt := maxf(0.0, 0.8 - k * 3.0)
+   673		match t:
+   674			D.CAVALRY:
+   675				lean = e * 1.45          # 連人帶馬往前翻
+   676			D.BERSERKER, D.PIKE:
+   677				lean = -e * 1.5          # 仰天倒下
+   678			D.SHIELD, D.SWORD, D.DRUMMER:
+   679				lean = e * 1.2           # 往前跪倒
+   680				crouch = 1.0 - e * 0.25
+   681			D.ARCHER, D.BOMBER, D.MEDIC:
+   682				crouch = 1.0 - e * 0.45  # 坐倒
+   683				lean = -e * 0.35
+   684			D.ASSASSIN:
+   685				al *= 1.0 - u * 0.8      # 化煙
+   686				for i in 5:
+   687					var a0 := i * TAU / 5.0 + k * 2.0
+   688					draw_circle(p + Vector2(cos(a0) * (6 + k * 30), -20 - k * 24 + sin(a0) * 6), 7.0 * (1.0 - k), Color(0.25, 0.2, 0.35, 0.5 * (1.0 - k)), true, -1.0, true)
+   689			10:
+   690				crouch = 1.0 - e * 0.7   # 孢子菇癟掉
+   691			11:
+   692				al *= 1.0 - u            # 羊：羊毛飛散
+   693				for i in 7:
+   694					var a1 := i * TAU / 7.0
+   695					draw_circle(p + Vector2(cos(a1), sin(a1) * 0.6 - 0.8) * (8 + k * 46), 6.0 * (1.0 - k), Color(Art.team_color(g["team"], cbm()).lightened(0.3), 0.8 * (1.0 - k)), true, -1.0, true)
+   696			12:
+   697				lean = e * 0.5           # 箱子翻倒，鉚釘掉落
+   698				for i in 4:
+   699					draw_circle(p + Vector2((i - 1.5) * (6 + k * 14), -14 + k * k * 14), 1.8, Color(Art.GOLD, 1.0 - k), true, -1.0, true)
+   700			13, 20:
+   701				crouch = 1.0 - e * 0.8   # 史萊姆化開成一灘
+   702				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.4), 0, p))
+   703				draw_circle(Vector2.ZERO, 8.0 + e * 16.0, Color(Art.team_color(g["team"], cbm()), 0.45 * (1.0 - k)), true, -1.0, true)
+   704				draw_set_transform_matrix(_cam)
+   705			14:
+   706				p += Vector2(0, -e * 34.0)   # 幽靈往上消散
+   707				al *= 1.0 - u * 0.7
+   708			16, 17, 21, 15:
+   709				crouch = 1.0 - e * 0.5   # 散開：骨頭、沙粒、布屑往外
+   710				var col := Color("#ece6d6") if t != 16 and t != 15 else (Color("#ffd166") if t == 16 else Color("#e8d3a8"))
+   711				for i in 6:
+   712					var a2 := i * TAU / 6.0 + float(g.get("seed", 0.0))
+   713					var r2 := 8.0 + e * 26.0
+   714					draw_circle(p + Vector2(cos(a2) * r2, -18.0 + sin(a2) * r2 * 0.5 + k * k * 22.0), 3.0 * (1.0 - k * 0.6), Color(col, 1.0 - k), true, -1.0, true)
+   715			18:
+   716				lean = -e * 0.9          # 吸塵貓往後坐倒
+   717			19:
+   718				crouch = 1.0 - e * 0.55  # 石魔碎裂
+   719				for i in 8:
+   720					var a3 := i * TAU / 8.0
+   721					var r3 := 10.0 + e * 34.0
+   722					draw_circle(p + Vector2(cos(a3) * r3, -14.0 + sin(a3) * r3 * 0.45 + k * k * 24.0), 5.0 * (1.0 - k * 0.5), Color(Color("#8d8a80"), 1.0 - k), true, -1.0, true)
+   723		_unit(p, t, g["team"], face, 0.0, 0.0, hurt, al, time, UNIT_SCALE, 1 if k < 0.4 else 0, lean, maxf(crouch, 0.15))
+   724	
+
+exec
+/bin/bash -lc "rg -n 'speed|delta|sfx|advance|seek|sample|tick|DELAY' game/scripts/ui/{battle_view,replay_view,view_buffer}.gd game/scripts/ui/battle/battle_state.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+game/scripts/ui/battle_view.gd:17:	var t0 := Time.get_ticks_msec()
+game/scripts/ui/battle_view.gd:18:	while not view.finished and Time.get_ticks_msec() - t0 < 10:
+game/scripts/ui/battle_view.gd:55:func _battle_process(delta: float) -> void:
+game/scripts/ui/battle_view.gd:61:		_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
+game/scripts/ui/battle_view.gd:63:		start_hold -= delta
+game/scripts/ui/battle_view.gd:65:	if call("_seek_pump"):
+game/scripts/ui/battle_view.gd:73:		hitstop -= delta
+game/scripts/ui/battle_view.gd:75:	var rate := speed
+game/scripts/ui/battle_view.gd:78:		slow_left -= delta
+game/scripts/ui/battle_view.gd:81:		final_left -= delta
+game/scripts/ui/battle_view.gd:83:	accum += delta * rate
+game/scripts/ui/battle_view.gd:89:			break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
+game/scripts/ui/battle_view.gd:91:	# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
+game/scripts/ui/battle_view.gd:94:	sfx.set_muffled(slow_left > 0 and not view.finished)
+game/scripts/ui/battle_view.gd:97:	sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
+game/scripts/ui/battle_view.gd:102:		_frame_alive(delta)
+game/scripts/ui/battle_view.gd:105:		zoom_center = zoom_center.lerp(ORIGIN + fld_size / 2, minf(1.0, delta * 3))
+game/scripts/ui/battle_view.gd:106:	zoom = lerpf(zoom, zoom_target, delta * 3)
+game/scripts/ui/battle_view.gd:108:		result_delay += delta
+game/scripts/ui/battle_view.gd:120:		clutch_tick = view.tick
+game/scripts/ui/battle_view.gd:121:		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
+game/scripts/ui/battle_view.gd:127:		sfx.play("clutch")
+game/scripts/ui/battle_view.gd:132:func _frame_alive(delta: float) -> void:
+game/scripts/ui/battle_view.gd:142:	zoom_center = zoom_center.lerp((lo + hi) / 2, minf(1.0, delta * 3))
+game/scripts/ui/battle_view.gd:146:## 第十輪 F1：模擬領先畫面 DELAY 個 tick，已知全滅就在倒下前放慢。和局、逾時、同歸於盡都不演。
+game/scripts/ui/battle_view.gd:156:## 畫面前進一個 tick：模擬保持領先 DELAY 個 tick，畫面播最舊的那一份快照（R5 展示緩衝）。
+game/scripts/ui/battle_view.gd:162:	if not view.advance():
+game/scripts/ui/battle_view.gd:165:	_gait_tick(with_fx)
+game/scripts/ui/battle_view.gd:167:	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+game/scripts/ui/battle_view.gd:172:			sfx.play("frenzy")
+game/scripts/ui/battle_view.gd:173:			sfx.play_music("music_frenzy")
+game/scripts/ui/battle_view.gd:185:		_collect_mark(ev, view, view.tick)
+game/scripts/ui/battle_view.gd:195:## 模擬往前補到領先 DELAY 個 tick；新進緩衝的攻擊事件先記下命中 tick，畫面就能在命中前開始演前搖。
+game/scripts/ui/battle_view.gd:202:				ah[int(fr["tick"])] = true
+game/scripts/ui/battle_view.gd:208:				hs.append(int(fr["tick"]))
+game/scripts/ui/battle_view.gd:210:					# 投彈兵（第四輪 §4.4）：記下命中 tick → 目標，前搖期間畫火罐飛過去，命中那一刻剛好落地
+game/scripts/ui/battle_view.gd:212:					bt[int(fr["tick"])] = e["tgt"]
+game/scripts/ui/battle_view.gd:216:				# 每隻單位的第幾次出手（交替招式用，Codex S4 #2：原本用 tick 奇偶，連續反擊會同招）
+game/scripts/ui/battle_view.gd:218:				sq[int(fr["tick"])] = sq.size()
+game/scripts/ui/battle_view.gd:262:var last_blast_tick := -99   # V1.1 B2：連環爆偵測（用模擬 tick，8 tick＝0.4 秒；開戰與跳轉時重置）
+game/scripts/ui/battle_view.gd:281:			sfx.play("poison", 0.25)
+game/scripts/ui/battle_view.gd:295:				sfx.play("boom", 0.8)
+game/scripts/ui/battle_view.gd:296:				sfx.play("baa", 0.6)
+game/scripts/ui/battle_view.gd:300:				if view.tick - last_blast_tick <= 8 and _fx_on("shake"):
+game/scripts/ui/battle_view.gd:302:				last_blast_tick = view.tick
+game/scripts/ui/battle_view.gd:309:			sfx.play("chomp", 0.9)
+game/scripts/ui/battle_view.gd:313:			sfx.play("reveal", 0.7)
+game/scripts/ui/battle_view.gd:316:			sfx.play("squish", 0.5)
+game/scripts/ui/battle_view.gd:320:			sfx.play("charge_up", 0.5)
+game/scripts/ui/battle_view.gd:323:					sfx.play("stomp", 0.3)
+game/scripts/ui/battle_view.gd:325:					sfx.play("vacuum", 0.35)
+game/scripts/ui/battle_view.gd:327:					sfx.play("bell", 0.35)
+game/scripts/ui/battle_view.gd:329:					sfx.play("raise", 0.3)
+game/scripts/ui/battle_view.gd:332:			sfx.play("bell", 1.0)
+game/scripts/ui/battle_view.gd:333:			sfx.play("timestop", 0.9)
+game/scripts/ui/battle_view.gd:337:			sfx.play("raise", 0.8)
+game/scripts/ui/battle_view.gd:341:			sfx.play("vacuum", 0.8)
+game/scripts/ui/battle_view.gd:345:			sfx.play("stomp", 0.9)
+game/scripts/ui/battle_view.gd:350:			sfx.play("shatter", 0.7)
+game/scripts/ui/battle_view.gd:376:		sfx.play("k_confirm", 0.8)
+game/scripts/ui/battle_view.gd:378:	sfx.play("k_error", 0.7)
+game/scripts/ui/battle_view.gd:408:	battle_marks.append({"tick": view.tick, "kind": "cmd", "team": tm})
+game/scripts/ui/battle_view.gd:411:	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
+game/scripts/ui/battle_view.gd:455:			var wait: int = int(sim.cmd_ready[tm][s]) - sim.tick
+game/scripts/ui/battle_view.gd:471:			sfx.play("death", 0.7)
+game/scripts/ui/battle_view.gd:480:				sfx.play("bell", 0.9)
+game/scripts/ui/battle_view.gd:489:			sfx.play("heal", 0.35)
+game/scripts/ui/battle_view.gd:504:			sfx.play("taunt", 0.5)
+game/scripts/ui/battle_view.gd:509:			sfx.play("reveal", 0.6)
+game/scripts/ui/battle_view.gd:520:		sfx.play("alert", 0.5)
+game/scripts/ui/battle_view.gd:525:		sfx.play("snap", 0.7)
+game/scripts/ui/battle_view.gd:529:		sfx.play("boom", 0.55)
+game/scripts/ui/battle_view.gd:534:		sfx.play("arrow", 0.35)
+game/scripts/ui/battle_view.gd:537:		sfx.play("hit" if k == EV.HIT else "slash", 0.4)
+game/scripts/ui/battle_view.gd:545:			sfx.play("charge")
+game/scripts/ui/battle_view.gd:546:			sfx.play("bugle", 0.6)
+game/scripts/ui/battle_view.gd:553:			sfx.play("backstab")
+game/scripts/ui/battle_view.gd:554:			sfx.play("aircut", 0.7)
+game/scripts/ui/battle_view.gd:560:			sfx.play("bell", 0.8)
+game/scripts/ui/battle_view.gd:566:			sfx.play("brace", 0.6)
+game/scripts/ui/battle_view.gd:568:			sfx.play("block", 0.5)
+game/scripts/ui/battle_view.gd:576:			sfx.play("bell", 0.8)
+game/scripts/ui/battle_view.gd:582:			sfx.play("shatter", 0.6)
+game/scripts/ui/battle_view.gd:585:			sfx.play("shatter", 0.45)
+game/scripts/ui/battle_view.gd:657:	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
+game/scripts/ui/battle_view.gd:663:		if pt_call_tick < 0:
+game/scripts/ui/battle_view.gd:664:			_btn(Rect2(780, 2, 162, 36), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
+game/scripts/ui/battle_view.gd:670:			_btn(Rect2(1010, 6, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
+game/scripts/ui/battle_view.gd:687:	clutch_tick = -1
+game/scripts/ui/battle_view.gd:701:			return pre.tick
+game/scripts/ui/battle_view.gd:712:	seek_target = -1
+game/scripts/ui/battle_view.gd:718:		if sfx != null:
+game/scripts/ui/battle_view.gd:719:			sfx.play("bugle", 0.8)
+game/scripts/ui/battle_view.gd:731:	_pump_view()   # 開場先預填 DELAY 個 tick
+game/scripts/ui/battle_view.gd:744:	last_blast_tick = -99
+game/scripts/ui/battle_view.gd:748:	pt_call_tick = -1
+game/scripts/ui/battle_view.gd:751:	speed = float(Save.s("speed"))
+game/scripts/ui/battle_view.gd:752:	sfx.play("start")
+game/scripts/ui/battle_view.gd:753:	sfx.play("horn", 0.55)
+game/scripts/ui/battle_view.gd:754:	sfx.play_music("music_battle")
+game/scripts/ui/view_buffer.gd:2:## 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。
+game/scripts/ui/view_buffer.gd:3:## 模擬先跑，每個 tick 存一份「畫面需要的狀態」快照＋事件；畫面依展示時鐘一格一格播。
+game/scripts/ui/view_buffer.gd:4:## 這樣命中事件在畫面上發生前 DELAY 個 tick 就知道了，可以先演前搖；
+game/scripts/ui/view_buffer.gd:8:const DELAY := 2
+game/scripts/ui/view_buffer.gd:34:	var breach: int            # 第四輪：被破陣剩幾 tick
+game/scripts/ui/view_buffer.gd:39:var tick := 0
+game/scripts/ui/view_buffer.gd:43:var finished := false          # 畫面已經播到模擬的最後一 tick
+game/scripts/ui/view_buffer.gd:46:var max_ticks := 1800          # 第五輪：這一局的長度（一局時間可調）
+game/scripts/ui/view_buffer.gd:61:	return {"tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
+game/scripts/ui/view_buffer.gd:69:		max_ticks = sim.max_ticks
+game/scripts/ui/view_buffer.gd:97:	tick = fr["tick"]
+game/scripts/ui/view_buffer.gd:115:## 模擬往前跑，直到緩衝裡有 DELAY 份還沒播的快照（或模擬結束）。回傳這次新加的快照，給前搖預告用。
+game/scripts/ui/view_buffer.gd:118:	while queue.size() < DELAY and not sim.finished:
+game/scripts/ui/view_buffer.gd:126:func advance() -> bool:
+game/scripts/ui/replay_view.gd:33:		_btn(Rect2(98 + i * 74, 704, 68, 36), "%s×" % _fmt_num(sp[i]), func(): speed = sp[i], true, false,
+game/scripts/ui/replay_view.gd:34:			Color(0.45, 0.3, 0.12) if is_equal_approx(speed, sp[i]) else Color(0, 0, 0, 0))
+game/scripts/ui/replay_view.gd:36:	var total := float(maxi(1, replay_total if replay_total > 0 else view.max_ticks))   # 以這一場實際長度為滿
+game/scripts/ui/replay_view.gd:47:	var cx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(view.tick) / total, 0.0, 1.0)
+game/scripts/ui/replay_view.gd:58:	_btns.append({"r": RC_BAR, "cb": func(): _seek_async(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
+game/scripts/ui/replay_view.gd:59:	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), L.t("rc_time", [view.tick / 20.0, total / 20.0]), tz("C"), TXT_DIM)   # V1.2.1 B2／G3：字級表＋字串表
+game/scripts/ui/replay_view.gd:65:## 跳到某個 tick：同一組陣型從頭快轉（確定性模擬，結果一定一樣），畫面與音效狀態清空重建。
+game/scripts/ui/replay_view.gd:66:func _seek(target: int) -> void:
+game/scripts/ui/replay_view.gd:67:	_seek_begin(target)
+game/scripts/ui/replay_view.gd:68:	while not _seek_tick(1000000):
+game/scripts/ui/replay_view.gd:70:	_seek_finish()
+game/scripts/ui/replay_view.gd:73:## 第七輪 M3：時間軸點下去不再卡畫面，分批算。headless 測試直接走 _seek。
+game/scripts/ui/replay_view.gd:74:var _seek_stop := 0
+game/scripts/ui/replay_view.gd:75:var _seek_ct := -1
+game/scripts/ui/replay_view.gd:77:func _seek_async(target: int) -> void:
+game/scripts/ui/replay_view.gd:78:	if seek_target >= 0:
+game/scripts/ui/replay_view.gd:81:		_seek(target)
+game/scripts/ui/replay_view.gd:83:	seek_target = target
+game/scripts/ui/replay_view.gd:84:	_seek_begin(target)
+game/scripts/ui/replay_view.gd:87:func _seek_pump() -> bool:
+game/scripts/ui/replay_view.gd:88:	if seek_target < 0:
+game/scripts/ui/replay_view.gd:90:	if _seek_tick(10):
+game/scripts/ui/replay_view.gd:91:		seek_target = -1
+game/scripts/ui/replay_view.gd:92:		_seek_finish()
+game/scripts/ui/replay_view.gd:95:func _seek_begin(target: int) -> void:
+game/scripts/ui/replay_view.gd:100:	set("last_blast_tick", -99)
+game/scripts/ui/replay_view.gd:101:	_seek_ct = -1
+game/scripts/ui/replay_view.gd:103:	_seek_stop = maxi(0, target - ViewBuffer.DELAY)
+game/scripts/ui/replay_view.gd:104:	_seek_target_now = target
+game/scripts/ui/replay_view.gd:106:var _seek_target_now := 0
+game/scripts/ui/replay_view.gd:109:func _seek_tick(budget_ms: int) -> bool:
+game/scripts/ui/replay_view.gd:110:	var t0 := Time.get_ticks_msec()
+game/scripts/ui/replay_view.gd:111:	while sim.tick < _seek_stop and not sim.finished:
+game/scripts/ui/replay_view.gd:112:		if Time.get_ticks_msec() - t0 >= budget_ms:
+game/scripts/ui/replay_view.gd:122:			_collect_mark(ev, sim, sim.tick)
+game/scripts/ui/replay_view.gd:123:		if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
+game/scripts/ui/replay_view.gd:124:			_seek_ct = sim.tick
+game/scripts/ui/replay_view.gd:127:func _seek_finish() -> void:
+game/scripts/ui/replay_view.gd:128:	var target := _seek_target_now
+game/scripts/ui/replay_view.gd:129:	var keep_ct := _seek_ct
+game/scripts/ui/replay_view.gd:154:	clutch_tick = keep_ct if had_clutch else -1
+game/scripts/ui/replay_view.gd:156:		battle_marks.append({"tick": keep_ct, "kind": "clutch", "team": -1})
+game/scripts/ui/replay_view.gd:158:	# 畫面推到剛好第 target tick（原本停在 target−DELAY）
+game/scripts/ui/replay_view.gd:159:	while view.tick < target and not view.finished:
+game/scripts/ui/replay_view.gd:162:	if sfx != null:
+game/scripts/ui/replay_view.gd:163:		sfx.play_music("music_frenzy" if view.frenzy else "music_battle")
+game/scripts/ui/replay_view.gd:196:		"tab": result_tab, "overlay": "", "ev_count": ev_count.duplicate(), "pt_rated": pt_rated, "pt_call": pt_call_tick}
+game/scripts/ui/replay_view.gd:201:	seek_target = -1   # Codex r1：算到一半返回，不能把下一場快轉到舊目標
+game/scripts/ui/replay_view.gd:210:	sfx.set_muffled(false)
+game/scripts/ui/replay_view.gd:222:	pt_call_tick = replay_snap["pt_call"]
+game/scripts/ui/replay_view.gd:232:	_seek_async(t)
+game/scripts/ui/replay_view.gd:235:func _follow_update(delta: float) -> void:
+game/scripts/ui/replay_view.gd:245:	zoom_center = zoom_center.lerp(_upos(u), minf(1.0, delta * 6.0))
+game/scripts/ui/replay_view.gd:246:	zoom = lerpf(zoom, zoom_target, minf(1.0, delta * 4.0))
+game/scripts/ui/replay_view.gd:474:	return {"winner": s.winner, "rem": rem, "log": s.power_log, "log2": s.power_log2, "b": [s.budget_of(0), s.budget_of(1)], "ticks": s.tick}
+game/scripts/ui/replay_view.gd:570:	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+game/scripts/ui/replay_view.gd:671:	var span := float(maxi(n, maxi(int(rv_base.get("ticks", 0)), int(rv_result.get("ticks", 0)))))
+game/scripts/ui/battle/battle_state.gd:57:## 畫面上現在播到第幾 tick（含小數，插值用）。
+game/scripts/ui/battle/battle_state.gd:58:func _disp_tick() -> float:
+game/scripts/ui/battle/battle_state.gd:62:		return float(view.tick)
+game/scripts/ui/battle/battle_state.gd:63:	return view.tick + clampf(accum / 0.05, 0.0, 8.0 if view.finished else 1.0)
+game/scripts/ui/battle/battle_state.gd:82:## 三段式攻擊進度（R5）：前搖固定是命中前 DELAY 個 tick，揮擊與後搖依攻擊間隔壓縮（攻速快的兵動作也快，不會疊在一起）。
+game/scripts/ui/battle/battle_state.gd:84:## 一次攻擊動作的時長（tick）：前搖固定 DELAY，揮擊 0.22×總長；atk_progress 與 pick_hit 共用（Codex S4 #1）。
+game/scripts/ui/battle/battle_state.gd:86:	var period := float(D.stat(type)["cd"])   # cd 的單位是 tick（模擬每次出手加 cd×4、每 tick 扣 4）
+game/scripts/ui/battle/battle_state.gd:88:	return [tot, float(ViewBuffer.DELAY), 0.22 * tot]
+game/scripts/ui/battle/battle_state.gd:294:var gait_d := {}       # id → [前一 tick 累積距離, 這一 tick 累積距離]（世界單位）
+game/scripts/ui/battle/battle_state.gd:295:var gait_on := {}      # id → 這一 tick 算在走路
+game/scripts/ui/battle/battle_state.gd:296:var gait_land := {}    # id → 停步後還在收腳幾 tick
+game/scripts/ui/battle/battle_state.gd:307:## 每個畫面 tick 呼叫一次（prev_pos 是上一 tick、u 是這一 tick）。
+game/scripts/ui/battle/battle_state.gd:308:func _gait_tick(with_fx := true) -> void:
+game/scripts/ui/battle/battle_state.gd:313:		var delta := Vector2(u.x, u.y).distance_to(was)
+game/scripts/ui/battle/battle_state.gd:316:		var step: float = maxf(float(D.stat(u.type)["speed"]), 30.0)
+game/scripts/ui/battle/battle_state.gd:317:		if delta > maxf(step * 3.0, 150.0) or (u.stun > 0 and delta > 1.0):
+game/scripts/ui/battle/battle_state.gd:321:		elif delta >= 3.0:
+game/scripts/ui/battle/battle_state.gd:322:			d[1] = float(d[1]) + delta
+game/scripts/ui/battle/battle_state.gd:351:		sfx.play("step_heavy", 0.55)
+game/scripts/ui/battle/battle_state.gd:353:	if view.tick <= _step_cool:
+game/scripts/ui/battle/battle_state.gd:355:	_step_cool = view.tick + 2
+game/scripts/ui/battle/battle_state.gd:365:	sfx.play(snd, 0.16)
+game/scripts/ui/battle/battle_state.gd:392:func _gait_frame(delta: float) -> void:
+game/scripts/ui/battle/battle_state.gd:394:		drag_t[id] -= delta
+game/scripts/ui/battle/battle_state.gd:399:		face_now[u.id] = move_toward(float(face_now.get(u.id, tgt)), tgt, delta * 11.0)
+game/scripts/ui/battle/battle_state.gd:418:			sfx.play("hit_metal", 0.22)
+game/scripts/ui/battle/battle_state.gd:421:			sfx.play("hit_wood", 0.3)
+game/scripts/ui/battle/battle_state.gd:425:			sfx.play("hit_soft", 0.3)
+
+exec
+/bin/bash -lc "rg -n 'bake|SubViewport|frame_post|generation|panel|frame|bar|hp|health' game/scripts/ui/{map_art,ui_base}.gd game/tools/dev_main.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+game/scripts/ui/ui_base.gd:677:const TEX_FRAME := "res://art/ui/frame.png"
+game/scripts/ui/ui_base.gd:690:func _hud_bar(r: Rect2) -> void:
+game/scripts/ui/ui_base.gd:698:func _wood_frame(r: Rect2, grow := 8.0, key := "frame") -> void:
+game/scripts/ui/ui_base.gd:780:func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
+game/scripts/ui/ui_base.gd:863:func _panel(r: Rect2) -> void:
+game/scripts/ui/ui_base.gd:870:		var sb: StyleBoxTexture = _sb_cache.get("frame")
+game/scripts/ui/ui_base.gd:877:			_sb_cache["frame"] = sb
+game/scripts/ui/map_art.gd:9:	"river": {"base": "#6f9a4a", "base2": "#7da655", "slow": "#7a6a44", "fast": "#a9b07a", "block": "#2f7fb5", "edge": "#7cc4e8", "frame": "#5b4632", "sound": "water", "outer": "#22351f"},
+game/scripts/ui/map_art.gd:10:	"forest": {"base": "#4e7a3c", "base2": "#578545", "slow": "#6b5233", "fast": "#8f9a5c", "block": "#2f4d29", "edge": "#6f9a4a", "frame": "#3e2f22", "sound": "forest", "outer": "#16261a"},
+game/scripts/ui/map_art.gd:11:	"ice": {"base": "#9cadb9", "base2": "#a6b6c0", "slow": "#bccbd5", "shadow": 0.42, "fast": "#7fb6d3", "block": "#4a7796", "edge": "#e4f0f7", "frame": "#4f6475", "sound": "wind", "outer": "#2c3d4c"},
+game/scripts/ui/map_art.gd:12:	"lava": {"base": "#3f3640", "base2": "#4a4049", "slow": "#7e7680", "fast": "#6a5d62", "block": "#d94a14", "edge": "#7a3322", "frame": "#2c2428", "sound": "lava", "outer": "#19131a"},
+game/scripts/ui/map_art.gd:13:	"canyon": {"base": "#d9b37a", "base2": "#e2bf88", "slow": "#c79a5e", "fast": "#a89a86", "block": "#6d3a26", "edge": "#c47a4e", "frame": "#6e4a2c", "sound": "wind", "outer": "#3f2c1e"},
+game/scripts/ui/map_art.gd:28:		_bake.call_deferred(map_id, size, _plain())   # 鍵與設定在排程當下固定（Codex v121：延後才讀會留下卡住的 busy）
+game/scripts/ui/map_art.gd:31:func _bake(map_id: int, size: int, plain := false) -> void:
+game/scripts/ui/map_art.gd:37:	var vp := SubViewport.new()
+game/scripts/ui/map_art.gd:39:	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+game/scripts/ui/map_art.gd:48:	await RenderingServer.frame_post_draw
+game/scripts/ui/map_art.gd:49:	await RenderingServer.frame_post_draw
+game/scripts/ui/map_art.gd:62:## V1.2 F2：地塊調色在烘焙時跑一次 shader（shaders/grade_bake.gdshader）；沒有檔就原樣。
+game/scripts/ui/map_art.gd:64:	var sh := "res://shaders/grade_bake.gdshader"
+game/scripts/ui/map_art.gd:72:	var vp := SubViewport.new()
+game/scripts/ui/map_art.gd:75:	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+game/scripts/ui/map_art.gd:79:	await RenderingServer.frame_post_draw
+game/scripts/ui/map_art.gd:80:	await RenderingServer.frame_post_draw
+game/tools/dev_main.gd:90:	await get_tree().process_frame
+game/tools/dev_main.gd:91:	await get_tree().process_frame
+game/tools/dev_main.gd:92:	await RenderingServer.frame_post_draw
+game/tools/dev_main.gd:356:	await get_tree().process_frame
+game/tools/dev_main.gd:357:	await get_tree().process_frame
+game/tools/dev_main.gd:358:	await RenderingServer.frame_post_draw
+game/tools/dev_main.gd:392:		await get_tree().process_frame
+game/tools/dev_main.gd:412:	# 最小化會讓 frame_post_draw 永遠不來（_snap 卡死），移到外面也就不會被按到。
+game/tools/dev_main.gd:415:	await get_tree().process_frame
+game/tools/dev_main.gd:494:		await get_tree().process_frame
+game/tools/dev_main.gd:499:		await get_tree().process_frame
+game/tools/dev_main.gd:504:		await get_tree().process_frame
+game/tools/dev_main.gd:509:		await get_tree().process_frame
+game/tools/dev_main.gd:519:			_frame_alive(0.1)
+game/tools/dev_main.gd:707:		await get_tree().process_frame
+game/tools/dev_main.gd:741:		await get_tree().process_frame
+game/tools/dev_main.gd:769:			await get_tree().process_frame     # 等地圖烘好
+game/tools/dev_main.gd:774:				await get_tree().process_frame
+game/tools/dev_main.gd:820:		await get_tree().process_frame
+game/tools/dev_main.gd:942:	await get_tree().process_frame
+game/tools/dev_main.gd:945:		await get_tree().process_frame
+game/tools/dev_main.gd:954:		await get_tree().process_frame
+game/tools/dev_main.gd:961:		await get_tree().process_frame
+game/tools/dev_main.gd:977:	var rows: Array = []   # [draw, proc, gpu, frame, frenzy]
+game/tools/dev_main.gd:983:		await RenderingServer.frame_post_draw
+game/tools/dev_main.gd:994:		return {"frames": pick.call(0, which).size(), "draw_ms": _pstats(pick.call(0, which)), "process_ms": _pstats(pick.call(1, which)),
+game/tools/dev_main.gd:995:			"gpu_ms": _pstats(pick.call(2, which)), "frame_ms": _pstats(pick.call(3, which))}
+game/tools/dev_main.gd:1006:		"note": "frame_ms 受垂直同步限制（約 16.7）；實際成本看 draw＋process＋gpu。展示速度 4 倍時每幀處理的模擬 tick 比正常多，屬於偏嚴的量法"}
+game/tools/dev_main.gd:1046:	await get_tree().process_frame
+game/tools/dev_main.gd:1049:		await get_tree().process_frame
+game/tools/dev_main.gd:1064:			await get_tree().process_frame
+game/tools/dev_main.gd:1067:		await get_tree().process_frame
+game/tools/dev_main.gd:1069:		await get_tree().process_frame
+game/tools/dev_main.gd:1078:			await get_tree().process_frame
+game/tools/dev_main.gd:1083:		await get_tree().process_frame
+game/tools/dev_main.gd:1161:		await _pw_frames(2)
+game/tools/dev_main.gd:1163:func _pw_frames(n: int) -> void:
+game/tools/dev_main.gd:1165:		await get_tree().process_frame
+game/tools/dev_main.gd:1169:	await _pw_frames(2)
+game/tools/dev_main.gd:1177:	await _pw_frames(3)
+game/tools/dev_main.gd:1181:	await _pw_frames(2)
+game/tools/dev_main.gd:1199:	await _pw_frames(3)
+game/tools/dev_main.gd:1233:	await _pw_frames(3)
+game/tools/dev_main.gd:1238:	await _pw_frames(3)
+game/tools/dev_main.gd:1243:	await _pw_frames(5)
+game/tools/dev_main.gd:1249:		await get_tree().process_frame
+game/tools/dev_main.gd:1253:	await _pw_frames(3)
+game/tools/dev_main.gd:1391:		await get_tree().process_frame
+
+exec
+/bin/bash -lc "rg -n 'NTBR|NTB[0-9]|escort|king|fog|hidden|reveal|charge|assassin|jump' game/scripts/{core/ruleset,core/battle_sim,game/battle_code,ui/screens/game_modes,ui/screens/game_place}.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+game/scripts/core/ruleset.gd:15:const CODE_PREFIX := "NTBR1"
+game/scripts/core/ruleset.gd:16:const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
+game/scripts/core/ruleset.gd:17:const CODE_PREFIX5 := "NTBR5"   # 第十二輪：有手動技能（NTBR4 的欄位再加 5 欄）
+game/scripts/core/ruleset.gd:18:const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
+game/scripts/core/ruleset.gd:19:const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
+game/scripts/core/ruleset.gd:47:const SKILLS := ["charge", "taunt", "backstab", "counter", "stealth", "brace", "splash", "heal", "drum", "breach", "frenzy", "rally"]
+game/scripts/core/ruleset.gd:227:## 這組規則的部署欄位是不是「舊的」（格子、6 欄、沒有全場）：規則代碼可以用 NTBR1。
+game/scripts/core/ruleset.gd:377:		out.append_array([DEPLOYS.find(deploy), spacing, depth, fullfield])   # 第六輪 NTBR2 的 4 欄
+game/scripts/core/ruleset.gd:439:## NTBR1.<base64url(JSON 陣列)>.<校驗 6 碼>；固定欄序、整數型別。
+game/scripts/core/ruleset.gd:451:	# 用到新兵一律 NTBR3（欄位同 NTBR2：21 欄）
+game/scripts/core/ruleset.gd:559:				return {"ok": false, "why": "rr_code_body"}   # 標準地圖不能用 NTBR4（一組規則只有一種寫法）
+game/scripts/core/ruleset.gd:561:			return {"ok": false, "why": "rr_code_body"}   # 預設部署必須用 NTBR1（一組規則只有一種寫法）
+game/scripts/core/ruleset.gd:568:			return {"ok": false, "why": "rr_code_body"}   # 沒開技能不能用 NTBR5（一組規則只有一種寫法）
+game/scripts/game/battle_code.gd:3:## 格式：NTB2.<base64url(JSON)>.<校驗 6 碼>。JSON：{a/b: 雙方陣型代碼, ba/bb: 雙方預算, r: 規則版本, d: 數值摘要}
+game/scripts/game/battle_code.gd:9:## 第五輪：自訂規則的對戰代碼用 NTB3（多一欄 rules＝規則代碼）。標準規則仍輸出 NTB2，位元組和 1.3.0 相同。
+game/scripts/game/battle_code.gd:11:## 這組規則能不能用舊格式 NTB2 重播（模擬走舊路徑、陣型在舊的人數上限內）。
+game/scripts/game/battle_code.gd:13:	# Codex 實作第 1 輪：卡池、人數、單種上限有任何不標準就用 NTB3，分享後規則不會遺失
+game/scripts/game/battle_code.gd:18:		# 第十二輪 NTB7：手動技能要連施放紀錄一起存，才播得出同一場
+game/scripts/game/battle_code.gd:21:		return "NTB7.%s.%s" % [body7, body7.sha256_text().substr(0, 6)]
+game/scripts/game/battle_code.gd:23:		# 第八輪：用到新兵走 NTB4（新版 NTB2／3／4 都讀；舊版讀到會回報格式不對）
+game/scripts/game/battle_code.gd:26:		return "NTB4.%s.%s" % [body4, body4.sha256_text().substr(0, 6)]
+game/scripts/game/battle_code.gd:30:		return "NTB3.%s.%s" % [body3, body3.sha256_text().substr(0, 6)]
+game/scripts/game/battle_code.gd:33:	return "NTB2.%s.%s" % [body, body.sha256_text().substr(0, 6)]
+game/scripts/game/battle_code.gd:35:## 回傳 {ok, why, a0, a1, mismatch, rules}（NTB2 的 rules＝null＝用 1.3.0 舊判定重播）
+game/scripts/game/battle_code.gd:41:	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3" and parts[0] != "NTB4" and parts[0] != "NTB7"):
+game/scripts/game/battle_code.gd:67:	if parts[0] == "NTB7":
+game/scripts/game/battle_code.gd:80:	if parts[0] == "NTB4" or parts[0] == "NTB7":
+game/scripts/game/battle_code.gd:83:	if parts[0] == "NTB3" or parts[0] == "NTB7" or (parts[0] == "NTB4" and str(j.get("rules", "")) != ""):
+game/scripts/game/battle_code.gd:96:		return {"ok": false, "why": "army"}   # NTB3（第五輪新格式）：雙方各至少 1 隻戰鬥兵；舊 NTB2 不加這條（相容）
+game/scripts/ui/screens/game_modes.gd:662:		puzzle_reveal = false
+game/scripts/ui/screens/game_modes.gd:722:	if not puzzle_reveal:
+game/scripts/ui/screens/game_modes.gd:723:		_btn(Rect2(x, y, 260, 44), L.t("ph_reveal"), func(): puzzle_reveal = true)
+game/scripts/ui/screens/game_modes.gd:725:		_text(Vector2(x, y), L.t("ph_reveal_q"), tz("S"), Color(1, 1, 1, 0.85), false, false, w)
+game/scripts/ui/screens/game_modes.gd:726:		y += text_h(L.t("ph_reveal_q"), tz("S"), w) + 6
+game/scripts/ui/screens/game_modes.gd:728:		_btn(Rect2(x + 236, y, 160, 44), L.t("ph_cancel"), func(): puzzle_reveal = false)
+game/scripts/ui/screens/game_modes.gd:741:	puzzle_reveal = false
+game/scripts/ui/screens/game_modes.gd:761:	"CHARGE_5": ["一場衝鋒 5 次以上並獲勝", "Win with 5+ cavalry charges in one battle"],
+game/scripts/ui/screens/game_place.gd:216:func _draw_hide_fog(hide_side: int) -> void:
+game/scripts/ui/screens/game_place.gd:251:		var sg := L.t("fog_sign", [eb, ec])
+game/scripts/ui/screens/game_place.gd:263:	var msg := L.t("ai_hidden") if mode == Mode.VS_AI else L.t("enemy_hidden")
+game/scripts/ui/screens/game_place.gd:337:		_draw_hide_fog(hide_side)
+game/scripts/ui/screens/game_place.gd:404:				_text(q + Vector2(0, -30), L.t("ev_charge"), ts(13), Color(1, 0.85, 0.4), true, true)
+game/scripts/core/battle_sim.gd:49:	var charge := 0
+game/scripts/core/battle_sim.gd:76:	var hidden := false        # 寶箱怪偽裝中
+game/scripts/core/battle_sim.gd:388:		if v8 and (u.type == F8.SPORE or u.hidden):
+game/scripts/core/battle_sim.gd:415:		var flanking := false
+game/scripts/core/battle_sim.gd:430:					flanking = true
+game/scripts/core/battle_sim.gd:431:		var need_move := d2 > reach * reach or (u.type == D.ASSASSIN and u.stealth > 0) or flanking
+game/scripts/core/battle_sim.gd:432:		if u.type == D.CAVALRY and not flanking:
+game/scripts/core/battle_sim.gd:547:			_update_charge(u, moved_x, moved_y)
+game/scripts/core/battle_sim.gd:559:	var reveal := {}
+game/scripts/core/battle_sim.gd:683:			if u.charge >= D.CHARGE_NEED and not skill_off.has("charge"):
+game/scripts/core/battle_sim.gd:706:			reveal[i] = true
+game/scripts/core/battle_sim.gd:726:			u.charge = 0   # 任何一擊之後都要重新直行才能再衝
+game/scripts/core/battle_sim.gd:836:		if reveal.has(i):
+game/scripts/core/battle_sim.gd:840:			u.charge = 0
+game/scripts/core/battle_sim.gd:843:			u.charge = 0
+game/scripts/core/battle_sim.gd:853:			u.charge = 0
+game/scripts/core/battle_sim.gd:1012:			p.hidden = true
+game/scripts/core/battle_sim.gd:1024:		if u.alive and u.type != F8.SPORE and not u.hidden:
+game/scripts/core/battle_sim.gd:1030:		if not u.alive or not u.hidden:
+game/scripts/core/battle_sim.gd:1035:				if sv[j] == 1 and st[j] != st[i] and not units[j].hidden and M.dist2(sx[i], sy[i], sx[j], sy[j]) <= F8.MIMIC_TRIGGER * F8.MIMIC_TRIGGER:
+game/scripts/core/battle_sim.gd:1044:		u.hidden = false
+game/scripts/core/battle_sim.gd:1067:					u.charge = 0
+game/scripts/core/battle_sim.gd:1197:		if e.alive and e.team != u.team and not e.hidden and e.stealth == 0 and M.dist2(u.x, u.y, e.x, e.y) <= r * r:
+game/scripts/core/battle_sim.gd:1235:				elif not o.hidden:
+game/scripts/core/battle_sim.gd:1245:				if not e2.alive or e2.team == u.team or e2.hidden or M.dist2(u.x, u.y, e2.x, e2.y) > F8.GOLEM_R * F8.GOLEM_R:
+game/scripts/core/battle_sim.gd:1258:		if not e.alive or e.hidden or e.type == F8.SPORE or e.pull_t > 0:
+game/scripts/core/battle_sim.gd:1503:					u.charge = 0
+game/scripts/core/battle_sim.gd:1569:		a.append_array(PackedInt64Array([1 if u.dormant else 0, 1 if u.raised else 0, 1 if u.hidden else 0, 1 if u.bite else 0, 1 if u.exploded else 0,
+game/scripts/core/battle_sim.gd:1768:func _update_charge(u: Unit, moved_x: int, moved_y: int) -> void:
+game/scripts/core/battle_sim.gd:1775:		u.charge = 0
+game/scripts/core/battle_sim.gd:1779:	if u.charge == 0 or not _same_dir(u.cdx, u.cdy, u.mx, u.my):
+game/scripts/core/battle_sim.gd:1780:		u.charge = along
+game/scripts/core/battle_sim.gd:1784:		u.charge += along
+game/scripts/core/battle_sim.gd:1876:		a[k + 10] = u.cdx; a[k + 11] = u.cdy; a[k + 12] = u.stealth; a[k + 13] = u.charge; a[k + 14] = u.stun
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/battle/battle_units.gd | sed -n '480,585p;665,724p'; nl -ba game/scripts/ui/view_buffer.gd | sed -n '1,130p'; rg -n 'func _process|accum \\+=|clutch|_frame_alive|_gait_frame|sfx.play|speed' game/scripts/ui/screens/game_core.gd game/scripts/ui/battle_view.gd game/scripts/ui/battle/battle_fx.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+   480			# 擠在一起時，正在出手或受擊的那隻加隊伍色光圈（第三輪 V5）
+   481			if live and (at > 0.0 or hurt > 0.0) and crowd.get(u.id, 0) >= 3:
+   482				draw_arc(p + Vector2(0, -24 if u.type != D.CAVALRY else -28), 19.0, 0, TAU, 24, Color(Art.team_color(u.team, cbm()), 0.75 * alpha), 2.0, true)
+   483			# 表情與兵種專屬動作（R5）
+   484			var mood := 0
+   485			var lean := 0.0
+   486			var crouch := 1.0
+   487			if hurt > 0.3 or u.stun > 0:
+   488				mood |= Art.M_HURT
+   489			if hurt > 0.0:
+   490				crouch *= 1.0 - 0.12 * hurt                 # V1.1 A2：受擊壓扁（縱 0.88），配合後退與閃白
+   491				lean -= 0.06 * hurt * float(hurt_dir.get(u.id, 0.0)) * face
+   492			if live and u.windup > 0 and at == 0.0:
+   493				# V1.1 A3：大招前搖的身體預警。小石魔高舉拉長、吸塵貓吸氣鼓脹、沙漏精靈與骷髏法師浮起
+   494				var wk := 1.0 - float(u.windup) / F8.WINDUP
+   495				if u.type == F8.GOLEM:
+   496					at = Art.ATK_WINDUP * minf(1.0, wk * 1.4) * 0.999
+   497				elif u.type == F8.CAT:
+   498					crouch *= 1.0 + 0.14 * sin(minf(1.0, wk) * PI * 0.5)
+   499				else:
+   500					p.y -= 4.0 * sin(minf(1.0, wk) * PI * 0.5)
+   501			if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
+   502				mood |= Art.M_SPARKLE
+   503				lean = 0.26                      # 衝鋒蓄滿前傾 15°
+   504				for k in 3:                      # 馬蹄噴土
+   505					var ph := fmod(time * 4.0 + k * 0.33 + u.id * 0.1, 1.0)
+   506					draw_circle(p + Vector2(-face * (14 + ph * 16), -2 - ph * 6), 3.2 * (1.0 - ph), Color(0.85, 0.75, 0.55, 0.7 * (1.0 - ph)), true, -1.0, true)
+   507			if s.frenzy and at == 0.0 and not s.finished:
+   508				mood |= Art.M_BROWS
+   509				# 狂熱氣場（第三輪 R3）：身邊橘紅脈衝圈
+   510				var pulse := 0.5 + 0.5 * sin(time * 7.0 + u.id)
+   511				draw_arc(p + Vector2(0, -22), 15.0 + pulse * 3.0, 0, TAU, 20, Color(1.0, 0.33, 0.2, (0.35 + 0.3 * pulse) * alpha), 2.0, true)
+   512			if u.type == D.ASSASSIN and u.stealth > 0:
+   513				mood |= Art.M_HOOD
+   514				crouch = 0.9                     # 潛行蹲身
+   515			if live and brace_t.has(u.id) and time - brace_t[u.id] < 0.35:
+   516				mood |= Art.M_BRACE
+   517			# 勝利：存活的勝方每 0.45 秒原地跳 10px、武器高舉
+   518			var hop := 0.0
+   519			if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
+   520				hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
+   521				at = Art.ATK_WINDUP
+   522				lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
+   523				crouch = 1.06
+   524				_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
+   525				# V1.1 A7：兵種專屬的勝利小動作（簡化特效時不畫）
+   526				match -1 if bool(Save.s("reduce_fx")) else u.type:
+   527					D.DRUMMER:   # 鼓手：頭邊冒音符
+   528						var nk := fmod(time * 1.6 + u.id * 0.3, 1.0)
+   529						_icon("sound", p + Vector2(18 + nk * 8, -48 - nk * 22 - hop), 14.0, Color(1.0, 0.85, 0.4, 1.0 - nk))
+   530					D.BERSERKER:   # 狂戰士：雙斧互敲的火花圈
+   531						var bk := absf(sin((time + u.id * 0.05) * PI / 0.45))
+   532						draw_arc(p + Vector2(0, -50 - hop), 8.0 + bk * 6.0, 0, TAU, 16, Color(1.0, 0.55, 0.2, 0.8 * bk), 2.5, true)
+   533					D.MEDIC:   # 醫者：綠色小十字往上飄
+   534						var mk := fmod(time * 1.2 + u.id * 0.4, 1.0)
+   535						var mc := p + Vector2(-16, -44 - mk * 24 - hop)
+   536						draw_line(mc - Vector2(4, 0), mc + Vector2(4, 0), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+   537						draw_line(mc - Vector2(0, 4), mc + Vector2(0, 4), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+   538			p.y -= hop
+   539			if u.hidden:
+   540				Art.mimic_closed(self, p, u.team, face, alpha, time, cbm(), UNIT_SCALE)   # 偽裝中的寶箱怪
+   541				continue
+   542			if u.type == F8.GHOST:
+   543				alpha *= 0.9
+   544				p.y -= 3.0 + 2.5 * sin(time * 2.2 + u.id * 0.9)   # V1.1 A4：幽靈上下漂
+   545			# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
+   546			if live and walk == 0.0 and at == 0.0:
+   547				lean += sin(time * 1.1 + u.id * 1.7) * 0.018
+   548				var idle_k := fmod(time + u.id * 1.37, 7.3)
+   549				if idle_k < 0.3:
+   550					crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
+   551			if live:
+   552				face = _face_of(u)
+   553			if u.stealth > 0:
+   554				# 潛行：身後兩道暗紫殘影
+   555				for g in 2:
+   556					var gp := p + Vector2(-(8 + g * 8) * face, 0)
+   557					draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
+   558					_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
+   559			if live and walk <= Gait.POSE_DAZE + 1.0:
+   560				# 暈眩：頭上轉圈的星星
+   561				for sk0 in 3:
+   562					var sa0 := time * 5.0 + sk0 * TAU / 3.0
+   563					_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
+   564			_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
+   565			if live and not u.hidden:
+   566				xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
+   567			# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+   568			if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
+   569				var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
+   570				_draw_smear(p, u.type, u.team, face, sk, alpha, variant, 1.0)
+   571			# 衝鋒就緒的金色拖尾（第三輪 R3）
+   572			if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
+   573				var tip := p + Vector2(face * 26.0, -44.0)
+   574				for k in 4:
+   575					var q0 := tip - Vector2(face * k * 8.0, 0)
+   576					var q1 := tip - Vector2(face * (k + 1) * 8.0, 0)
+   577					draw_line(q0, q1, Color(1.0, 0.86, 0.3, (0.8 - k * 0.2) * alpha), 3.0 - k * 0.5, true)
+   578		_draw_xray(xray)
+   579		while prop_i < fld_props.size():
+   580			MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
+   581			prop_i += 1
+   582		for pp in pot_draw:
+   583			draw_circle(pp, 6.5, Art.OUT, true, -1.0, true)
+   584			draw_circle(pp, 5.0, Color("#2a2533"), true, -1.0, true)
+   585			draw_circle(pp + Vector2(3, -5), 2.0, Color(1, 0.8, 0.3), true, -1.0, true)
+   665		var u := minf(k / 0.55, 1.0)         # 倒下的主要段落
+   666		var e := 1.0 - (1.0 - u) * (1.0 - u)
+   667		var al := 1.0 - maxf(0.0, (k - 0.45) / 0.3)
+   668		if al <= 0.0:
+   669			return
+   670		var lean := 0.0
+   671		var crouch := 1.0
+   672		var hurt := maxf(0.0, 0.8 - k * 3.0)
+   673		match t:
+   674			D.CAVALRY:
+   675				lean = e * 1.45          # 連人帶馬往前翻
+   676			D.BERSERKER, D.PIKE:
+   677				lean = -e * 1.5          # 仰天倒下
+   678			D.SHIELD, D.SWORD, D.DRUMMER:
+   679				lean = e * 1.2           # 往前跪倒
+   680				crouch = 1.0 - e * 0.25
+   681			D.ARCHER, D.BOMBER, D.MEDIC:
+   682				crouch = 1.0 - e * 0.45  # 坐倒
+   683				lean = -e * 0.35
+   684			D.ASSASSIN:
+   685				al *= 1.0 - u * 0.8      # 化煙
+   686				for i in 5:
+   687					var a0 := i * TAU / 5.0 + k * 2.0
+   688					draw_circle(p + Vector2(cos(a0) * (6 + k * 30), -20 - k * 24 + sin(a0) * 6), 7.0 * (1.0 - k), Color(0.25, 0.2, 0.35, 0.5 * (1.0 - k)), true, -1.0, true)
+   689			10:
+   690				crouch = 1.0 - e * 0.7   # 孢子菇癟掉
+   691			11:
+   692				al *= 1.0 - u            # 羊：羊毛飛散
+   693				for i in 7:
+   694					var a1 := i * TAU / 7.0
+   695					draw_circle(p + Vector2(cos(a1), sin(a1) * 0.6 - 0.8) * (8 + k * 46), 6.0 * (1.0 - k), Color(Art.team_color(g["team"], cbm()).lightened(0.3), 0.8 * (1.0 - k)), true, -1.0, true)
+   696			12:
+   697				lean = e * 0.5           # 箱子翻倒，鉚釘掉落
+   698				for i in 4:
+   699					draw_circle(p + Vector2((i - 1.5) * (6 + k * 14), -14 + k * k * 14), 1.8, Color(Art.GOLD, 1.0 - k), true, -1.0, true)
+   700			13, 20:
+   701				crouch = 1.0 - e * 0.8   # 史萊姆化開成一灘
+   702				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.4), 0, p))
+   703				draw_circle(Vector2.ZERO, 8.0 + e * 16.0, Color(Art.team_color(g["team"], cbm()), 0.45 * (1.0 - k)), true, -1.0, true)
+   704				draw_set_transform_matrix(_cam)
+   705			14:
+   706				p += Vector2(0, -e * 34.0)   # 幽靈往上消散
+   707				al *= 1.0 - u * 0.7
+   708			16, 17, 21, 15:
+   709				crouch = 1.0 - e * 0.5   # 散開：骨頭、沙粒、布屑往外
+   710				var col := Color("#ece6d6") if t != 16 and t != 15 else (Color("#ffd166") if t == 16 else Color("#e8d3a8"))
+   711				for i in 6:
+   712					var a2 := i * TAU / 6.0 + float(g.get("seed", 0.0))
+   713					var r2 := 8.0 + e * 26.0
+   714					draw_circle(p + Vector2(cos(a2) * r2, -18.0 + sin(a2) * r2 * 0.5 + k * k * 22.0), 3.0 * (1.0 - k * 0.6), Color(col, 1.0 - k), true, -1.0, true)
+   715			18:
+   716				lean = -e * 0.9          # 吸塵貓往後坐倒
+   717			19:
+   718				crouch = 1.0 - e * 0.55  # 石魔碎裂
+   719				for i in 8:
+   720					var a3 := i * TAU / 8.0
+   721					var r3 := 10.0 + e * 34.0
+   722					draw_circle(p + Vector2(cos(a3) * r3, -14.0 + sin(a3) * r3 * 0.45 + k * k * 24.0), 5.0 * (1.0 - k * 0.5), Color(Color("#8d8a80"), 1.0 - k), true, -1.0, true)
+   723		_unit(p, t, g["team"], face, 0.0, 0.0, hurt, al, time, UNIT_SCALE, 1 if k < 0.4 else 0, lean, maxf(crouch, 0.15))
+   724	
+     1	extends RefCounted
+     2	## 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。
+     3	## 模擬先跑，每個 tick 存一份「畫面需要的狀態」快照＋事件；畫面依展示時鐘一格一格播。
+     4	## 這樣命中事件在畫面上發生前 DELAY 個 tick 就知道了，可以先演前搖；
+     5	## 血量、死亡、音效、HUD、跳字全部讀同一個延後的快照，所以一起延後，不會只有動作延後。
+     6	## 純演出：模擬本身的計算、結果、指紋完全不受影響。
+     7	
+     8	const DELAY := 2
+     9	
+    10	class VUnit:
+    11		var hidden := false
+    12		var link := -1
+    13		var windup := 0
+    14		var guard := 0
+    15		var summon := false
+    16		var id: int
+    17		var team: int
+    18		var type: int
+    19		var x: int
+    20		var y: int
+    21		var hp: int
+    22		var max_hp: int
+    23		var alive: bool
+    24		var stealth: int
+    25		var stun: int
+    26		var shield := 0
+    27		var haste_t := 0
+    28		var fx: int
+    29		var fy: int
+    30		var mx: int
+    31		var my: int
+    32		var charge: int
+    33		var target: int
+    34		var breach: int            # 第四輪：被破陣剩幾 tick
+    35		var aura: int              # 第四輪：在鼓手光環內
+    36		var bmode: int             # 第四輪：投彈兵模式
+    37	
+    38	var units: Array = []          # 跟 sim.units 同順序
+    39	var tick := 0
+    40	var rally := [false, false]
+    41	var frenzy := false
+    42	var events: Array = []         # 這一格（畫面上剛發生）的事件
+    43	var finished := false          # 畫面已經播到模擬的最後一 tick
+    44	var budget := 100
+    45	var budgets := [100, 100]      # 第五輪：兩邊預算（讓子時不同；舊判定時兩格都＝藍方預算）
+    46	var max_ticks := 1800          # 第五輪：這一局的長度（一局時間可調）
+    47	
+    48	func budget_of(t: int) -> int:
+    49		return int(budgets[t])
+    50	var zones: Array = []
+    51	var _power := [0, 0]
+    52	var _alive := [0, 0]
+    53	var _by_id := {}
+    54	var queue: Array = []          # 還沒播的快照（模擬已經跑到、畫面還沒到）
+    55	
+    56	## 把模擬當下的狀態存成一份快照。
+    57	static func capture(sim) -> Dictionary:
+    58		var us: Array = []
+    59		for u in sim.units:
+    60			us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon, u.shield, u.haste_t])
+    61		return {"tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
+    62			"frenzy": sim.frenzy, "finished": sim.finished, "power": [sim.power(0), sim.power(1)],
+    63			"alive": [sim.alive_count(0), sim.alive_count(1)], "zones": sim.zones.duplicate()}
+    64	
+    65	func _init(sim = null) -> void:
+    66		if sim != null:
+    67			budget = sim.budget
+    68			budgets = sim.budgets.duplicate()
+    69			max_ticks = sim.max_ticks
+    70			apply(capture(sim))
+    71			events = []
+    72	
+    73	func apply(fr: Dictionary) -> void:
+    74		var us: Array = fr["units"]
+    75		if units.size() != us.size():
+    76			units.clear()
+    77			_by_id.clear()
+    78			for i in us.size():
+    79				var v := VUnit.new()
+    80				units.append(v)
+    81		for i in us.size():
+    82			var a: Array = us[i]
+    83			var v: VUnit = units[i]
+    84			v.id = a[0]; v.team = a[1]; v.type = a[2]; v.x = a[3]; v.y = a[4]; v.hp = a[5]; v.max_hp = a[6]
+    85			v.shield = a[a.size() - 2]; v.haste_t = a[a.size() - 1]
+    86			v.alive = a[7]; v.stealth = a[8]; v.stun = a[9]; v.fx = a[10]; v.fy = a[11]; v.mx = a[12]; v.my = a[13]
+    87			v.charge = a[14]; v.target = a[15]
+    88			v.breach = a[16] if a.size() > 16 else 0
+    89			v.aura = a[17] if a.size() > 17 else 0
+    90			v.bmode = a[18] if a.size() > 18 else 0
+    91			v.hidden = a[19] == 1 if a.size() > 19 else false
+    92			v.link = a[20] if a.size() > 20 else -1
+    93			v.windup = a[21] if a.size() > 21 else 0
+    94			v.guard = a[22] if a.size() > 22 else 0
+    95			v.summon = a[23] if a.size() > 23 else false
+    96			_by_id[v.id] = v
+    97		tick = fr["tick"]
+    98		events = fr["events"]
+    99		rally = fr["rally"]
+   100		frenzy = fr["frenzy"]
+   101		finished = fr["finished"]
+   102		_power = fr["power"]
+   103		_alive = fr["alive"]
+   104		zones = fr.get("zones", [])
+   105	
+   106	func power(t: int) -> int:
+   107		return _power[t]
+   108	
+   109	func alive_count(t: int) -> int:
+   110		return _alive[t]
+   111	
+   112	func unit_by_id(id: int):
+   113		return _by_id.get(id)
+   114	
+   115	## 模擬往前跑，直到緩衝裡有 DELAY 份還沒播的快照（或模擬結束）。回傳這次新加的快照，給前搖預告用。
+   116	func pump(sim) -> Array:
+   117		var added: Array = []
+   118		while queue.size() < DELAY and not sim.finished:
+   119			sim.step()
+   120			var fr := capture(sim)
+   121			queue.append(fr)
+   122			added.append(fr)
+   123		return added
+   124	
+   125	## 畫面前進一格；沒有可播的就回傳 false。
+   126	func advance() -> bool:
+   127		if queue.is_empty():
+   128			return false
+   129		apply(queue.pop_front())
+   130		return true
+game/scripts/ui/battle_view.gd:61:		_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
+game/scripts/ui/battle_view.gd:75:	var rate := speed
+game/scripts/ui/battle_view.gd:83:	accum += delta * rate
+game/scripts/ui/battle_view.gd:102:		_frame_alive(delta)
+game/scripts/ui/battle_view.gd:115:func _check_clutch(with_fx := true) -> void:
+game/scripts/ui/battle_view.gd:118:	if clutch_cond(view):
+game/scripts/ui/battle_view.gd:120:		clutch_tick = view.tick
+game/scripts/ui/battle_view.gd:121:		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
+game/scripts/ui/battle_view.gd:126:		clutch_t = 1.6   # 最後時刻橫幅（第三輪 V2）：獨立一層畫在 _draw_clutch_banner
+game/scripts/ui/battle_view.gd:127:		sfx.play("clutch")
+game/scripts/ui/battle_view.gd:132:func _frame_alive(delta: float) -> void:
+game/scripts/ui/battle_view.gd:167:	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+game/scripts/ui/battle_view.gd:172:			sfx.play("frenzy")
+game/scripts/ui/battle_view.gd:173:			sfx.play_music("music_frenzy")
+game/scripts/ui/battle_view.gd:281:			sfx.play("poison", 0.25)
+game/scripts/ui/battle_view.gd:295:				sfx.play("boom", 0.8)
+game/scripts/ui/battle_view.gd:296:				sfx.play("baa", 0.6)
+game/scripts/ui/battle_view.gd:309:			sfx.play("chomp", 0.9)
+game/scripts/ui/battle_view.gd:313:			sfx.play("reveal", 0.7)
+game/scripts/ui/battle_view.gd:316:			sfx.play("squish", 0.5)
+game/scripts/ui/battle_view.gd:320:			sfx.play("charge_up", 0.5)
+game/scripts/ui/battle_view.gd:323:					sfx.play("stomp", 0.3)
+game/scripts/ui/battle_view.gd:325:					sfx.play("vacuum", 0.35)
+game/scripts/ui/battle_view.gd:327:					sfx.play("bell", 0.35)
+game/scripts/ui/battle_view.gd:329:					sfx.play("raise", 0.3)
+game/scripts/ui/battle_view.gd:332:			sfx.play("bell", 1.0)
+game/scripts/ui/battle_view.gd:333:			sfx.play("timestop", 0.9)
+game/scripts/ui/battle_view.gd:337:			sfx.play("raise", 0.8)
+game/scripts/ui/battle_view.gd:341:			sfx.play("vacuum", 0.8)
+game/scripts/ui/battle_view.gd:345:			sfx.play("stomp", 0.9)
+game/scripts/ui/battle_view.gd:350:			sfx.play("shatter", 0.7)
+game/scripts/ui/battle_view.gd:376:		sfx.play("k_confirm", 0.8)
+game/scripts/ui/battle_view.gd:378:	sfx.play("k_error", 0.7)
+game/scripts/ui/battle_view.gd:411:	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
+game/scripts/ui/battle_view.gd:471:			sfx.play("death", 0.7)
+game/scripts/ui/battle_view.gd:480:				sfx.play("bell", 0.9)
+game/scripts/ui/battle_view.gd:489:			sfx.play("heal", 0.35)
+game/scripts/ui/battle_view.gd:504:			sfx.play("taunt", 0.5)
+game/scripts/ui/battle_view.gd:509:			sfx.play("reveal", 0.6)
+game/scripts/ui/battle_view.gd:520:		sfx.play("alert", 0.5)
+game/scripts/ui/battle_view.gd:525:		sfx.play("snap", 0.7)
+game/scripts/ui/battle_view.gd:529:		sfx.play("boom", 0.55)
+game/scripts/ui/battle_view.gd:534:		sfx.play("arrow", 0.35)
+game/scripts/ui/battle_view.gd:537:		sfx.play("hit" if k == EV.HIT else "slash", 0.4)
+game/scripts/ui/battle_view.gd:545:			sfx.play("charge")
+game/scripts/ui/battle_view.gd:546:			sfx.play("bugle", 0.6)
+game/scripts/ui/battle_view.gd:553:			sfx.play("backstab")
+game/scripts/ui/battle_view.gd:554:			sfx.play("aircut", 0.7)
+game/scripts/ui/battle_view.gd:560:			sfx.play("bell", 0.8)
+game/scripts/ui/battle_view.gd:566:			sfx.play("brace", 0.6)
+game/scripts/ui/battle_view.gd:568:			sfx.play("block", 0.5)
+game/scripts/ui/battle_view.gd:576:			sfx.play("bell", 0.8)
+game/scripts/ui/battle_view.gd:582:			sfx.play("shatter", 0.6)
+game/scripts/ui/battle_view.gd:585:			sfx.play("shatter", 0.45)
+game/scripts/ui/battle_view.gd:670:			_btn(Rect2(1010, 6, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
+game/scripts/ui/battle_view.gd:687:	clutch_tick = -1
+game/scripts/ui/battle_view.gd:719:			sfx.play("bugle", 0.8)
+game/scripts/ui/battle_view.gd:721:	clutch_t = 0.0
+game/scripts/ui/battle_view.gd:751:	speed = float(Save.s("speed"))
+game/scripts/ui/battle_view.gd:752:	sfx.play("start")
+game/scripts/ui/battle_view.gd:753:	sfx.play("horn", 0.55)
+game/scripts/ui/battle_view.gd:754:	sfx.play_music("music_battle")
+game/scripts/ui/screens/game_core.gd:104:	sfx.play_music("music_place")
+game/scripts/ui/screens/game_core.gd:105:	sfx.play_ambience(str(MapArt.BIOME.get(MapDefs.MAPS[rules.map_id if rules != null and rules.is_free() else 0]["biome"], {}).get("sound", "")))
+game/scripts/ui/screens/game_core.gd:695:		if str(m["kind"]) == "clutch":
+game/scripts/ui/screens/game_core.gd:696:			out.append({"t": int(m["tick"]), "label": "%s %ds" % [L.t("tl_clutch"), int(m["tick"]) / 20]})
+game/scripts/ui/screens/game_core.gd:700:		if str(m["kind"]) != "clutch":
+game/scripts/ui/battle/battle_fx.gd:228:func _clutch_dim(world_p: Vector2) -> float:
+game/scripts/ui/battle/battle_fx.gd:229:	if slow_left <= 0.0 and clutch_t <= 0.0:
+game/scripts/ui/battle/battle_fx.gd:244:func _draw_clutch_banner() -> void:
+game/scripts/ui/battle/battle_fx.gd:245:	if clutch_t <= 0.0 or state != St.BATTLE:
+game/scripts/ui/battle/battle_fx.gd:247:	var a := clampf(clutch_t / 0.3, 0.0, 1.0) * clampf((1.6 - clutch_t) / 0.15, 0.0, 1.0)
+game/scripts/ui/battle/battle_fx.gd:251:	_text(Vector2(640, y - 2), L.t("clutch"), ts(34), Color(ACCENT, a), true, true, 900)
+game/scripts/ui/battle/battle_fx.gd:655:				var dim := _clutch_dim(p3)
+
+codex
+已確認兩個需要修正的前提：死亡已有各兵種專屬演出，慢鏡也已有播放減速機制。A1a 能增加木製立牌感，但無法單靠壓扁與厚度邊消除紙片感；另需把 A3 的雙朝向光照成本算進 A1b 圖集預算。
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/battle_view.gd | sed -n '45,180p;446,478p'; nl -ba game/scripts/ui/battle/battle_units.gd | sed -n '586,665p'; nl -ba game/scripts/ui/screens/game_place.gd | sed -n '210,225p;300,340p;375,410p'; rg -n 'protect|escort|assassinate|goal|king' game/scripts/game/puzzles.gd game/scripts/ui/screens/game_core.gd game/scripts/core/battle_sim.gd; nl -ba game/shaders/unit_bake.gdshader" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+    45	func _exit_tree() -> void:
+    46		_pre_join()
+    47		_pre_drop()
+    48		for th in pre_old:
+    49			th.wait_to_finish()
+    50		pre_old.clear()
+    51		if ai_thread != null:
+    52			ai_thread.wait_to_finish()
+    53			ai_thread = null
+    54	
+    55	func _battle_process(delta: float) -> void:
+    56		if pre_thread != null:
+    57			if pre_thread.is_alive():
+    58				return
+    59			_pre_join()
+    60		if view != null:
+    61			_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
+    62		if start_hold > 0.0:
+    63			start_hold -= delta
+    64			return
+    65		if call("_seek_pump"):
+    66			return
+    67		if skip_busy:
+    68			_skip_step()
+    69			return
+    70		if paused:
+    71			return
+    72		if hitstop > 0:
+    73			hitstop -= delta
+    74			return
+    75		var rate := speed
+    76		if slow_left > 0:
+    77			rate *= 0.5
+    78			slow_left -= delta
+    79		if final_left > 0:
+    80			rate *= 0.25      # 第十輪 F1：最後一擊
+    81			final_left -= delta
+    82			_update_action_focus()
+    83		accum += delta * rate
+    84		while accum >= 0.05 and not view.finished:
+    85			accum -= 0.05
+    86			var was_slow := slow_left > 0 or final_left > 0
+    87			_sim_step(true)
+    88			if (slow_left > 0 or final_left > 0) and not was_slow:
+    89				break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
+    90		# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
+    91		# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
+    92		if slow_left > 0:
+    93			_update_action_focus()
+    94		sfx.set_muffled(slow_left > 0 and not view.finished)
+    95		# 分軌音樂依戰況混音（第三輪 S1）
+    96		var close := absf(view.power(0) * 100.0 / (view.budget_of(0) * 1000) - view.power(1) * 100.0 / (view.budget_of(1) * 1000)) <= 15.0
+    97		sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
+    98		# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
+    99		if follow_id >= 0:
+   100			pass   # 由 _follow_update 決定
+   101		elif slow_left > 0 and not view.finished:
+   102			_frame_alive(delta)
+   103		else:
+   104			zoom_target = 1.0
+   105			zoom_center = zoom_center.lerp(ORIGIN + fld_size / 2, minf(1.0, delta * 3))
+   106		zoom = lerpf(zoom, zoom_target, delta * 3)
+   107		if view.finished:
+   108			result_delay += delta
+   109			if result_delay > 1.4:
+   110				on_battle_finished.call()
+   111	
+   112	
+   113	
+   114	## with_fx＝false（直接看結果、重播跳轉補播）只記狀態與標記，不放慢動作、不播音效、不出橫幅（Codex S8 #2）。
+   115	func _check_clutch(with_fx := true) -> void:
+   116		if slow_used or view.finished:
+   117			return
+   118		if clutch_cond(view):
+   119			slow_used = true
+   120			clutch_tick = view.tick
+   121			battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
+   122			if not with_fx:
+   123				return
+   124			if _fx_on("slowmo"):
+   125				slow_left = 8.0
+   126			clutch_t = 1.6   # 最後時刻橫幅（第三輪 V2）：獨立一層畫在 _draw_clutch_banner
+   127			sfx.play("clutch")
+   128	
+   129	
+   130	
+   131	## 鏡頭安全框（優化方案 F2）：把所有存活單位框進畫面，四周留 15%。
+   132	func _frame_alive(delta: float) -> void:
+   133		var lo := Vector2(1e9, 1e9)
+   134		var hi := Vector2(-1e9, -1e9)
+   135		for u in view.units:
+   136			if u.alive:
+   137				var p := _upos(u)
+   138				lo = lo.min(p - Vector2(30, 70))
+   139				hi = hi.max(p + Vector2(30, 20))
+   140		var size := (hi - lo) / 0.7
+   141		zoom_target = clampf(minf(1280.0 / maxf(1, size.x), 620.0 / maxf(1, size.y)) * 1.05, 1.08, 1.55)   # 再往勝負焦點收 5%（V2）
+   142		zoom_center = zoom_center.lerp((lo + hi) / 2, minf(1.0, delta * 3))
+   143	
+   144	
+   145	
+   146	## 第十輪 F1：模擬領先畫面 DELAY 個 tick，已知全滅就在倒下前放慢。和局、逾時、同歸於盡都不演。
+   147	func _check_final(with_fx: bool) -> void:
+   148		if final_used or not with_fx or not sim.finished or sim.winner < 0 or sim.reason != "全滅":
+   149			return
+   150		final_used = true
+   151		if _fx_on("slowmo"):
+   152			final_left = 0.6
+   153		if _fx_on("shake"):
+   154			shake = maxf(shake, 0.15)
+   155	
+   156	## 畫面前進一個 tick：模擬保持領先 DELAY 個 tick，畫面播最舊的那一份快照（R5 展示緩衝）。
+   157	func _sim_step(with_fx: bool) -> void:
+   158		_pump_view()
+   159		_check_final(with_fx)
+   160		for u in view.units:
+   161			prev_pos[u.id] = Vector2(u.x, u.y)
+   162		if not view.advance():
+   163			view.finished = true
+   164			return
+   165		_gait_tick(with_fx)
+   166		_pump_view()
+   167		_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+   168		if view.frenzy and not frenzy_seen:
+   169			frenzy_seen = true
+   170			if with_fx:
+   171				_fx_text(Vector2(640, 140), L.t("frenzy_banner"), Color.ORANGE_RED, 2.0, 30, true)
+   172				sfx.play("frenzy")
+   173				sfx.play_music("music_frenzy")
+   174		var deaths := 0
+   175		for ev in view.events:
+   176			var k: String = ev["kind"]
+   177			if ev.has("src"):
+   178				var s = view.unit_by_id(ev["src"])
+   179				var key := "%s%d" % [k, s.team]
+   180				ev_count[key] = int(ev_count.get(key, 0)) + 1
+   446				_text(r.position + Vector2(52, 46), L.t("cmd_%d" % s), tz("C"), Color.WHITE if ready else TXT_DIM, true, false, 98)
+   447				var left_s := "×%d" % int(sim.cmd_left[tm][s])
+   448				_text(Vector2(r.end.x - _width(left_s, tz("C")) - 6, r.position.y + 4), left_s, tz("C"), Color.WHITE)
+   449				if mine:
+   450					var hk: String = ["1", "2", "3"][i] if tm == 0 else ["8", "9", "0"][i]
+   451					if pad_mode and tm == 0 and i < 2:
+   452						hk = _pk("prev" if i == 0 else "next")
+   453					_text(r.position + Vector2(6, 4), hk, tz("C"), TXT_DIM)
+   454				_probe_btn_label = false
+   455				var wait: int = int(sim.cmd_ready[tm][s]) - sim.tick
+   456				if wait > 0 and int(sim.cmd_left[tm][s]) > 0:
+   457					var frac: float = clampf(float(wait) / maxf(1.0, float(sim.cmd_cd)), 0.0, 1.0)
+   458					draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
+   459	
+   460	func _on_event(ev: Dictionary, with_fx: bool) -> void:
+   461		var k: String = ev["kind"]
+   462		if k == EV.CMD or k == EV.CMD_HIT:
+   463			_cmd_event(ev, with_fx)
+   464			return
+   465		if _on_event_v8(ev, k, with_fx):
+   466			return
+   467		if k == EV.DEATH:
+   468			var u = view.unit_by_id(ev["id"])
+   469			dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
+   470			if with_fx:
+   471				sfx.play("death", 0.7)
+   472				_death_extra(u)
+   473				# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
+   474				if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):
+   475					if not bool(Save.s("reduce_fx")):
+   476						hitstop = maxf(hitstop, 0.3)   # 簡化特效時不頓格（Codex v110-impl2）
+   477					if _fx_on("shake"):
+   478						shake = maxf(shake, 0.18)
+   586		pot_draw.clear()
+   587		if dim:
+   588			return
+   589		# 第三層：小旗、血條、狀態（永遠畫在最上面）
+   590		for u in list:
+   591			var p: Vector2 = _upos(u) if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+   592			if live:
+   593				_draw_v8_top(s, u, p)
+   594			if u.hidden:
+   595				continue   # 偽裝中的寶箱不插小旗、不畫血條
+   596			var fh: int = -58 if u.type == D.CAVALRY else (-70 if u.type == F8.GOLEM or u.type == F8.SPRITE else (-62 if u.type == F8.DOLL else -50))
+   597			Art.flag(self, p + Vector2(-12, fh), u.team, cbm())
+   598			if u.stun > 0:
+   599				# 暈眩：三顆金色菱形繞著頭轉
+   600				var hc := p + Vector2(0, -70 if u.type == D.CAVALRY else -62)
+   601				for j in 3:
+   602					var an := time * 5.0 + j * TAU / 3.0
+   603					var dc := hc + Vector2(cos(an) * 13, sin(an) * 4)
+   604					var sz := 4.0 + sin(an) * 1.0
+   605					draw_colored_polygon(PackedVector2Array([dc + Vector2(0, -sz), dc + Vector2(sz * 0.7, 0), dc + Vector2(0, sz), dc + Vector2(-sz * 0.7, 0)]), Color(1, 0.85, 0.25))
+   606			if live and s.rally[u.team]:
+   607				draw_arc(p + Vector2(0, -24), 22.0, 0, TAU, 20, Color(1, 0.45, 0.2, 0.35 + 0.15 * sin(time * 8)), 2.5, true)
+   608			if live and "breach" in u and u.breach > 0:
+   609				# 破陣（第四輪 §4.4）：盾面黑色 Z 字裂紋＋血條右邊一個帶黑邊的亮橘裂盾圖示，持續到破陣結束（Antigravity：原本太小看不到）
+   610				var cp := p + Vector2(12 * (signf(u.fx) if u.fx != 0 else 1.0), -26)
+   611				draw_polyline(PackedVector2Array([cp + Vector2(-4, -11), cp + Vector2(2, -4), cp + Vector2(-3, 2), cp + Vector2(3, 10)]), Color(0.08, 0.06, 0.1, 0.95), 3.0, true)
+   612				var ic := p + Vector2(24, -60)
+   613				var lh := PackedVector2Array([ic + Vector2(-8, -9), ic + Vector2(-1, -9), ic + Vector2(-3, 1), ic + Vector2(-1, 9), ic + Vector2(-8, 4)])
+   614				var rh := PackedVector2Array([ic + Vector2(1, -9), ic + Vector2(8, -9), ic + Vector2(8, 4), ic + Vector2(1, 9), ic + Vector2(3, 1)])
+   615				for hp in [lh, rh]:
+   616					var cl: PackedVector2Array = hp.duplicate()
+   617					cl.append(hp[0])
+   618					draw_polyline(cl, Art.OUT, 3.0, true)
+   619					draw_colored_polygon(hp, Color("#ff6a2a"))
+   620			if live and "aura" in u and u.aura > 0 and u.type != D.DRUMMER:
+   621				# 鼓舞：2 顆亮金小菱形沿腳底圈往上飄（不畫大圈，避免畫面太吵；Antigravity：原本的小金點看不到）
+   622				for j in 2:
+   623					var ph := fmod(time * 0.9 + j * 0.5 + u.id * 0.13, 1.0)
+   624					var dp := p + Vector2((-1.0 if j == 0 else 1.0) * 14.0, 2.0 - ph * 22.0)
+   625					var ds := 3.6
+   626					var dpoly := PackedVector2Array([dp + Vector2(0, -ds), dp + Vector2(ds * 0.7, 0), dp + Vector2(0, ds), dp + Vector2(-ds * 0.7, 0)])
+   627					draw_colored_polygon(dpoly, Color(1, 0.86, 0.3, 0.95 * (1.0 - ph)))
+   628			if live and u.type == D.DRUMMER and s.tick < 60 and u.alive:
+   629				# 開戰前 3 秒畫完整的戰鼓範圍
+   630				draw_arc(p, D.DRUM_RANGE * CS / 1000.0, 0, TAU, 40, Color(1, 0.85, 0.35, 0.35), 2.0, true)
+   631			if s.frenzy:
+   632				draw_circle(p + Vector2(8, -58 - sin(time * 12 + u.id) * 2), 3.0, Color(1, 0.5, 0.1, 0.9), true, -1.0, true)
+   633			# 第七輪 D1：血條只在需要看時才畫（受傷 3 秒內、跟拍、低血量）
+   634			var hurt_recent: bool = hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 3.0
+   635			if u.hp < u.max_hp and (not live or hurt_recent or u.id == follow_id or u.hp * 100 <= u.max_hp * 35):
+   636				var w := 28.0
+   637				var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58))
+   638				draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
+   639				draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Art.team_color(u.team, cbm()).lightened(0.25))
+   640				if cbm():
+   641					# 色盲模式：血條左邊加隊伍形狀（藍＝●、紅＝◆），不只靠顏色（R8）
+   642					var mk := top + Vector2(-8, 2)   # 8px 標記＋黑邊（第三輪 V5）
+   643					if u.team == 0:
+   644						draw_circle(mk, 5.5, Art.OUT, true, -1.0, true)
+   645						draw_circle(mk, 4.0, Art.team_color(0, true), true, -1.0, true)
+   646					else:
+   647						draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -6.5), mk + Vector2(6.5, 0), mk + Vector2(0, 6.5), mk + Vector2(-6.5, 0)]), Art.OUT)
+   648						draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -4.5), mk + Vector2(4.5, 0), mk + Vector2(0, 4.5), mk + Vector2(-4.5, 0)]), Art.team_color(1, true))
+   649		if not live:
+   650			return
+   651		for g in dying:
+   652			var k: float = g["t"] / 1.0
+   653			_draw_death(g, k)
+   654			if k < 0.3:
+   655				for i in 6:
+   656					var ang := i * TAU / 6
+   657					draw_circle(g["pos"] + Vector2(cos(ang), sin(ang) * 0.5) * (8 + k * 70) + Vector2(0, -16), 4 * (1 - k), Color(1, 1, 1, 0.35), true, -1.0, true)
+   658			Art.soul(self, g["pos"] + Vector2(sin(k * 9) * 4, -24 - k * 70), 0.75 * (1.0 - k))
+   659	
+   660	## V9 P2：每種兵的死法。k＝0～1（1 秒）。只用轉換與粒子，不多烘影格。
+   661	func _draw_death(g: Dictionary, k: float) -> void:
+   662		var t: int = g["type"]
+   663		var p: Vector2 = g["pos"]
+   664		var face: float = g["face"]
+   665		var u := minf(k / 0.55, 1.0)         # 倒下的主要段落
+   210		if _cur_army().remove_at(c.x, c.y):
+   211			sfx.play("k_click", 0.7)
+   212	
+   213	
+   214	
+   215	## 看不到的那一邊：迷霧、問號旗、提示（第七輪：格子與自由共用）。
+   216	func _draw_hide_fog(hide_side: int) -> void:
+   217		var cols := 6.0
+   218		if _is_free():
+   219			cols = float(rules.half_depth()) / 1000.0
+   220		var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
+   221		# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
+   222		var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, fld_size.y))
+   223		# V1.2 C4：敵陣遮擋改成木製屏風（木紋、三扇接縫、銅鉸鏈），不再是黑色半透明罩
+   224		if not bool(Save.s("plain_ui")) and _tex_box(mr, "wood", Color(0.62, 0.46, 0.33)):
+   225			var panels := 3
+   300		if mode == Mode.VS_AI:
+   301			hide_side = 1
+   302		elif mode == Mode.DUEL and tp == null:
+   303			hide_side = 1 if blind_phase == 0 else (0 if blind_phase == 1 else -1)
+   304		for a in armies:
+   305			if a.team == hide_side:
+   306				continue
+   307			for u in a.units:
+   308				if drag_from.x >= 0 and a == _cur_army() and u["col"] == drag_from.x and u["row"] == drag_from.y:
+   309					continue
+   310				list.append([u["row"], u["col"], u["type"], a.team])
+   311		list.sort()
+   312		var pz := PZ.get_puzzle(puzzle_id) if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) else {}
+   313		for it in list:
+   314			var p := ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS
+   315			_ring(p, it[3], it[2])
+   316			_unit(p, it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
+   317			if it[3] == 1 and selected >= 0 and _cur_army().team == 0:
+   318				_counter_mark(p, selected, int(it[2]))   # V1.1 B3
+   319			if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
+   320				_lock_icon(p + Vector2(17, -60))   # 14px 鎖頭（第三輪 U4）
+   321			if not pz.is_empty() and PZ.goal(pz) == "flawless" and it[3] == 0 and int(it[2]) == int(pz["goal_type"]):
+   322				_goal_marker(ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS, "protect")   # V1.1：不能倒的那種兵每隻都標
+   323			if not pz.is_empty() and pz.has("goal_unit") and int(pz["goal_unit"][0]) == it[1] and int(pz["goal_unit"][1]) == it[0] and it[3] == (0 if PZ.goal(pz) == "protect" else 1):
+   324				_goal_marker(ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS, PZ.goal(pz))
+   325		# V1.1 C5：擺放時被下排蓋到臉的也補畫半透明
+   326		var xr: Array = []
+   327		for it2 in list:
+   328			xr.append([ORIGIN + Vector2(it2[1] + 0.5, it2[0] + 0.82) * CS, [it2[2], it2[3], 1.0 if it2[3] == 0 else -1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0]])
+   329		_draw_xray(xr)
+   330		if not pz.is_empty() and not pz.get("fixed", []).is_empty():
+   331			# 圖例
+   332			var lg := ORIGIN + Vector2(10, 10)
+   333			draw_rect(Rect2(lg, Vector2(190, 28)), Color(0, 0, 0, 0.5))
+   334			_lock_icon(lg + Vector2(16, 16))
+   335			_text(lg + Vector2(30, 4), L.t("lock_legend"), ts(14), Color.WHITE, false, false, 150)
+   336		if hide_side >= 0:
+   337			_draw_hide_fog(hide_side)
+   338		# 拖曳預覽
+   339		var dragging_type := -1
+   340		if drag_new:
+   375					_arc_clipped(p, D.STATS[D.PIKE]["reach"] / 1000.0 * CS, 0, TAU, Color(1, 0.9, 0.5, 0.5), 2.0)
+   376				D.BOMBER:
+   377					# 甜甜圈：外圈射程（橘白）＋內圈紅色盲區（第四輪 §4.2）
+   378					_arc_clipped(p, D.STATS[D.BOMBER]["reach"] / 1000.0 * CS, 0, TAU, Color(1, 0.85, 0.7, 0.5), 2.0)
+   379					# 盲區：半透明紅底＋紅斜線（Antigravity：只有細紅線會被看成增益光環）
+   380					var br0 := D.BOMB_MIN / 1000.0 * CS
+   381					draw_circle(p, br0, Color(1, 0.2, 0.15, 0.22), true, -1.0, true)
+   382					var hn := Vector2(1, 1).normalized()
+   383					var ht := Vector2(1, -1).normalized()
+   384					for hk in range(-4, 5):
+   385						var dd := hk * br0 / 5.0
+   386						var hh := sqrt(maxf(0.0, br0 * br0 - dd * dd))
+   387						var hc := p + hn * dd
+   388						draw_line(hc - ht * hh, hc + ht * hh, Color(1, 0.3, 0.25, 0.5), 1.5, true)
+   389					draw_arc(p, br0, 0, TAU, 32, Color(1, 0.3, 0.25, 0.85), 2.5, true)
+   390				D.MEDIC, D.DRUMMER:
+   391					# 補血／戰鼓範圍：醫者草綠、鼓手暖金；圈內的友軍微亮
+   392					var rad: float = (D.HEAL_RANGE if selected == D.MEDIC else D.DRUM_RANGE) / 1000.0 * CS
+   393					var rc := Color(0.55, 0.95, 0.45) if selected == D.MEDIC else Color(1, 0.82, 0.35)
+   394					draw_circle(p, rad, Color(rc, 0.08), true, -1.0, true)
+   395					_arc_clipped(p, rad, 0, TAU, Color(rc, 0.7), 2.0)
+   396					for u in army.units:
+   397						var up := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.5) * CS
+   398						if up.distance_to(p) <= rad and not D.is_support(u["type"]):
+   399							draw_circle(up + Vector2(0, 14), 9.0, Color(rc, 0.45), true, -1.0, true)
+   400				D.CAVALRY:
+   401					var q := p + Vector2(3.0 * CS * dir, 0)
+   402					draw_dashed_line(p, q, Color(1, 0.8, 0.3, 0.85), 3.0, 8.0)
+   403					draw_circle(q, 6, Color(1, 0.8, 0.3, 0.9), true, -1.0, true)
+   404					_text(q + Vector2(0, -30), L.t("ev_charge"), ts(13), Color(1, 0.85, 0.4), true, true)
+   405				D.ASSASSIN:
+   406					if _enemy_visible():
+   407						var best := Vector2.ZERO
+   408						var bd := 1e9
+   409						for u in armies[1 - army.team].units:
+   410							if u["type"] == D.SHIELD or u["type"] == D.CAVALRY:
+game/scripts/game/puzzles.gd:12:const GOALS := ["win", "protect", "survive", "kill", "flawless", "margin"]   # V1.1 D5：後兩種只看戰後狀態
+game/scripts/game/puzzles.gd:126:static func goal(pz: Dictionary) -> String:
+game/scripts/game/puzzles.gd:127:	return str(pz.get("goal", "win"))
+game/scripts/game/puzzles.gd:131:	if not pz.has("map") and goal(pz) != "survive" and not pz.has("cmd"):
+game/scripts/game/puzzles.gd:137:	if goal(pz) == "survive":
+game/scripts/game/puzzles.gd:138:		r.ticks = int(pz["goal_ticks"])
+game/scripts/game/puzzles.gd:190:	var g := goal(pz)
+game/scripts/game/puzzles.gd:194:		"protect":
+game/scripts/game/puzzles.gd:195:			ok = won and unit_alive(sim, 0, pz["goal_unit"])
+game/scripts/game/puzzles.gd:197:			ok = won and not unit_alive(sim, 1, pz["goal_unit"])
+game/scripts/game/puzzles.gd:201:			ok = won and lost_of_type(sim, int(pz["goal_type"])) == 0   # V1.1 D5：這種兵一隻都不能倒
+game/scripts/game/puzzles.gd:203:			ok = won and rem_pct(sim.power(0), sim.budget) >= int(pz["goal_rem"])   # V1.1 D5：贏得夠漂亮
+game/scripts/game/puzzles.gd:205:	return {"ok": ok, "won": won, "goal": g, "rem": rem, "spent": spent_extra, "stars": stars(pz, ok, rem, spent_extra)}
+game/scripts/core/battle_sim.gd:415:		var flanking := false
+game/scripts/core/battle_sim.gd:430:					flanking = true
+game/scripts/core/battle_sim.gd:431:		var need_move := d2 > reach * reach or (u.type == D.ASSASSIN and u.stealth > 0) or flanking
+game/scripts/core/battle_sim.gd:432:		if u.type == D.CAVALRY and not flanking:
+game/scripts/ui/screens/game_core.gd:271:		report["goal_ok"] = bool(oc["ok"])
+game/scripts/ui/screens/game_core.gd:272:		report["star_lines"] = _star_lines(bool(oc["ok"]), int(oc["rem"]), int(pz["star2"]), extra_spent, int(pz["star3"]), _goal_text(pz))
+game/scripts/ui/screens/game_core.gd:658:func _goal_text(pz: Dictionary) -> String:
+game/scripts/ui/screens/game_core.gd:659:	match PZ.goal(pz):
+game/scripts/ui/screens/game_core.gd:660:		"protect", "kill":
+game/scripts/ui/screens/game_core.gd:661:			var c: Array = pz["goal_unit"]
+game/scripts/ui/screens/game_core.gd:662:			var lst: Array = pz["fixed"] if PZ.goal(pz) == "protect" else pz["enemy"]
+game/scripts/ui/screens/game_core.gd:667:			return L.t("star_c_" + PZ.goal(pz), [L.t("unit_%d" % t)])
+game/scripts/ui/screens/game_core.gd:669:			return L.t("star_c_survive", [int(pz["goal_ticks"]) / 20])
+game/scripts/ui/screens/game_core.gd:671:			return L.t("star_c_flawless", [L.t("unit_%d" % int(pz["goal_type"]))])
+game/scripts/ui/screens/game_core.gd:673:			return L.t("star_c_margin", [int(pz["goal_rem"])])
+game/scripts/ui/screens/game_core.gd:676:func _star_lines(won: bool, rem: int, need_rem: int, spent: int, need_spent: int, goal := "") -> String:
+game/scripts/ui/screens/game_core.gd:679:	return "%s %s　%s %s　%s %s" % [yes if won else no, goal if goal != "" else L.t("star_c_win"),
+     1	shader_type canvas_item;
+     2	// V1.2 D1：角色圖集烘焙後處理（只在烘焙時跑一次，每幀貼圖成本不變）。
+     3	// ① 外輪廓：沿 alpha 往外擴 radius 像素，用隊伍墨色（藍方冷深褐、紅方暖深焦茶）；部件自己的描邊變成較細的內線。
+     4	// ② 頂亮底暗：依格子內高度，上半疊暖光、下半疊冷影（左右翻面不穿幫，不做左右光）。
+     5	uniform vec4 ink0 : source_color = vec4(0.114, 0.102, 0.149, 1.0);
+     6	uniform vec4 ink1 : source_color = vec4(0.157, 0.086, 0.071, 1.0);
+     7	uniform float cell = 192.0;
+     8	uniform float per = 28.0;
+     9	uniform float cols = 16.0;
+    10	uniform float radius = 3.0;
+    11	uniform float hi_amt = 0.09;
+    12	uniform float sh_amt = 0.20;
+    13	
+    14	void fragment() {
+    15		vec2 px = UV / TEXTURE_PIXEL_SIZE;
+    16		vec4 c = texture(TEXTURE, UV);
+    17		float cidx = floor(px.y / cell) * cols + floor(px.x / cell);
+    18		float team = mod(floor(cidx / per), 2.0);
+    19		vec4 ink = team < 0.5 ? ink0 : ink1;
+    20		float a = 0.0;
+    21		for (int r = 1; r <= 2; r++) {
+    22			float rr = radius * float(r) / 2.0;
+    23			for (int i = 0; i < 16; i++) {
+    24				float ang = 6.2831853 * (float(i) + 0.5 * float(r)) / 16.0;
+    25				a = max(a, texture(TEXTURE, UV + vec2(cos(ang), sin(ang)) * rr * TEXTURE_PIXEL_SIZE).a);
+    26			}
+    27		}
+    28		vec3 col = c.rgb;
+    29		float ly = mod(px.y, cell) / cell;
+    30		float hi = clamp((0.50 - ly) / 0.28, 0.0, 1.0) * hi_amt;
+    31		float sh = clamp((ly - 0.62) / 0.20, 0.0, 1.0) * sh_amt;
+    32		col = mix(col, vec3(1.0, 0.953, 0.839), hi);
+    33		col = mix(col, col * vec3(0.48, 0.42, 0.58), sh);
+    34		float oa = a * ink.a;
+    35		float outa = c.a + oa * (1.0 - c.a);
+    36		vec3 rgb = outa > 0.0 ? (col * c.a + ink.rgb * oa * (1.0 - c.a)) / outa : vec3(0.0);
+    37		COLOR = vec4(rgb, outa);
+    38	}
+
+exec
+/bin/bash -lc "nl -ba game/scripts/core/ruleset.gd | sed -n '439,495p;540,573p'; nl -ba game/scripts/game/battle_code.gd | sed -n '15,35p;65,95p'; nl -ba game/scripts/ui/screens/game_place.gd | sed -n '405,435p'; rg -n 'dying|hurt_t|slow_left|time \\+=' game/scripts/ui/screens/game_core.gd game/scripts/ui/ui_base.gd game/scripts/ui/battle/battle_state.gd game/scripts/ui/replay_view.gd; nl -ba game/scripts/ui/map_art.gd | sed -n '17,62p'; nl -ba game/scripts/ui/ui_base.gd | sed -n '688,713p;860,881p'; rg -n 'probe|health|hp|contrast' game/tools/dev_main.gd | tail -18" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+   439	## NTBR1.<base64url(JSON 陣列)>.<校驗 6 碼>；固定欄序、整數型別。
+   440	func to_code() -> String:
+   441		var j := JSON.stringify(key_fields())
+   442		var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+   443		if cmd_on():
+   444			var j5 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power])
+   445			var b5 := Marshalls.utf8_to_base64(j5).replace("+", "-").replace("/", "_").replace("=", "")
+   446			return "%s.%s.%s" % [CODE_PREFIX5, b5, b5.sha256_text().substr(0, 6)]
+   447		if not map_is_default():
+   448			var j4 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0])
+   449			var b4 := Marshalls.utf8_to_base64(j4).replace("+", "-").replace("/", "_").replace("=", "")
+   450			return "%s.%s.%s" % [CODE_PREFIX4, b4, b4.sha256_text().substr(0, 6)]
+   451		# 用到新兵一律 NTBR3（欄位同 NTBR2：21 欄）
+   452		if has_new(int(pool[0])) or has_new(int(pool[1])) or _skills_new():
+   453			var j3 := JSON.stringify(key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield])
+   454			var b3 := Marshalls.utf8_to_base64(j3).replace("+", "-").replace("/", "_").replace("=", "")
+   455			return "%s.%s.%s" % [CODE_PREFIX3, b3, b3.sha256_text().substr(0, 6)]
+   456		return "%s.%s.%s" % [CODE_PREFIX if deploy_is_default() else CODE_PREFIX2, body, body.sha256_text().substr(0, 6)]
+   457	
+   458	func _skills_new() -> bool:
+   459		for s in skills_off:
+   460			if s in F8.SKILLS:
+   461				return true
+   462		for t in stat_pct:
+   463			if int(t) >= D.COUNT:
+   464				return true
+   465		return false
+   466	
+   467	## 回傳 {ok, why, rules}
+   468	static func from_code(code: String) -> Dictionary:
+   469		var c := code.strip_edges()
+   470		if c.length() > 2000:
+   471			return {"ok": false, "why": "rr_code_long"}
+   472		var parts := c.split(".")
+   473		if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX5 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4):
+   474			return {"ok": false, "why": "rr_code_format"}
+   475		var v5: bool = parts[0] == CODE_PREFIX5
+   476		var v4: bool = parts[0] == CODE_PREFIX4 or v5
+   477		var v3: bool = parts[0] == CODE_PREFIX3 or v4
+   478		var v2: bool = parts[0] == CODE_PREFIX2 or v3
+   479		if parts[1].sha256_text().substr(0, 6) != parts[2]:
+   480			return {"ok": false, "why": "rr_code_checksum"}
+   481		var b64 := parts[1].replace("-", "+").replace("_", "/")
+   482		while b64.length() % 4 != 0:
+   483			b64 += "="
+   484		var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
+   485		if not j is Array or j.size() != (29 if v5 else (24 if v4 else (21 if v2 else 17))):
+   486			return {"ok": false, "why": "rr_code_body"}
+   487		var cmd_f: Array = []
+   488		if v5:
+   489			cmd_f = j.slice(24)
+   490			j = j.slice(0, 24)
+   491			for vc in cmd_f:
+   492				if not (vc is float or vc is int) or float(vc) != floorf(float(vc)):
+   493					return {"ok": false, "why": "rr_code_body"}
+   494		if v4:
+   495			for i4 in [21, 22, 23]:
+   540		r.place_rule = str(j[10])
+   541		r.turns = int(j[11])
+   542		r.carry = int(j[12]) == 1
+   543		r.keep_formation = int(j[13]) == 1
+   544		r.ai_level = int(j[14])
+   545		for e in j[15]:
+   546			r.stat_pct[int(e[0])] = [int(e[1]), int(e[2]), int(e[3])]
+   547		for sk in j[16]:
+   548			r.skills_off.append(str(sk))
+   549		if v2:
+   550			r.deploy = DEPLOYS[int(j[17])]
+   551			r.spacing = int(j[18])
+   552			r.depth = int(j[19])
+   553			r.fullfield = int(j[20])
+   554			if v4:
+   555				r.map_id = int(j[21])
+   556				r.map_size = int(j[22])
+   557				r.vents = int(j[23]) == 1
+   558				if r.map_is_default() and not v5:
+   559					return {"ok": false, "why": "rr_code_body"}   # 標準地圖不能用 NTBR4（一組規則只有一種寫法）
+   560			if r.deploy_is_default() and not v3:
+   561				return {"ok": false, "why": "rr_code_body"}   # 預設部署必須用 NTBR1（一組規則只有一種寫法）
+   562		if v5:
+   563			r.cmd_mask = [int(cmd_f[0]), int(cmd_f[1])]
+   564			r.cmd_uses = int(cmd_f[2])
+   565			r.cmd_cd = int(cmd_f[3])
+   566			r.cmd_power = int(cmd_f[4])
+   567			if not r.cmd_on():
+   568				return {"ok": false, "why": "rr_code_body"}   # 沒開技能不能用 NTBR5（一組規則只有一種寫法）
+   569		r.preset = "custom"
+   570		var bad: Array = r.validate()
+   571		if not bad.is_empty():
+   572			return {"ok": false, "why": bad[0]}
+   573		return {"ok": true, "why": "", "rules": r}
+    15	
+    16	static func encode(a0, a1, rules = null, cmds: Array = []) -> String:
+    17		if rules != null and rules.cmd_on():
+    18			# 第十二輪 NTB7：手動技能要連施放紀錄一起存，才播得出同一場
+    19			var j7 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code(), "c": cmds})
+    20			var body7 := Marshalls.utf8_to_base64(j7).replace("+", "-").replace("/", "_").replace("=", "")
+    21			return "NTB7.%s.%s" % [body7, body7.sha256_text().substr(0, 6)]
+    22		if D.uses_new([a0, a1]):
+    23			# 第八輪：用到新兵走 NTB4（新版 NTB2／3／4 都讀；舊版讀到會回報格式不對）
+    24			var j4 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code() if rules != null else ""})
+    25			var body4 := Marshalls.utf8_to_base64(j4).replace("+", "-").replace("/", "_").replace("=", "")
+    26			return "NTB4.%s.%s" % [body4, body4.sha256_text().substr(0, 6)]
+    27		if needs_v3(rules):
+    28			var j3 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest(), "rules": rules.to_code()})
+    29			var body3 := Marshalls.utf8_to_base64(j3).replace("+", "-").replace("/", "_").replace("=", "")
+    30			return "NTB3.%s.%s" % [body3, body3.sha256_text().substr(0, 6)]
+    31		var j := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest()})
+    32		var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+    33		return "NTB2.%s.%s" % [body, body.sha256_text().substr(0, 6)]
+    34	
+    35	## 回傳 {ok, why, a0, a1, mismatch, rules}（NTB2 的 rules＝null＝用 1.3.0 舊判定重播）
+    65		var rules = null
+    66		var cmds: Array = []
+    67		if parts[0] == "NTB7":
+    68			var raw_c = j.get("c", [])
+    69			if not raw_c is Array or raw_c.size() > 200 or str(j.get("rules", "")) == "":
+    70				return {"ok": false, "why": "body"}
+    71			for e in raw_c:
+    72				if not e is Array or e.size() != 3:
+    73					return {"ok": false, "why": "body"}
+    74				for v0 in e:
+    75					if not (v0 is int or v0 is float) or float(v0) != floorf(float(v0)) or float(v0) < 0 or float(v0) > 100000:
+    76						return {"ok": false, "why": "body"}
+    77				if int(e[1]) > 1 or int(e[2]) >= 5:
+    78					return {"ok": false, "why": "body"}
+    79				cmds.append([int(e[0]), int(e[1]), int(e[2])])
+    80		if parts[0] == "NTB4" or parts[0] == "NTB7":
+    81			a0.pool = RSET.full_pool()
+    82			a1.pool = RSET.full_pool()
+    83		if parts[0] == "NTB3" or parts[0] == "NTB7" or (parts[0] == "NTB4" and str(j.get("rules", "")) != ""):
+    84			var rd: Dictionary = RSET.from_code(str(j.get("rules", "")))
+    85			if not rd["ok"]:
+    86				return {"ok": false, "why": "rules"}
+    87			rules = rd["rules"]
+    88			if rules.budget_of(0) != ba or rules.budget_of(1) != bb:
+    89				return {"ok": false, "why": "budget"}
+    90			for pair in [[a0, 0], [a1, 1]]:
+    91				pair[0].apply_rules(rules, pair[1])
+    92		if a0.load_code(str(j["a"])) != "" or a1.load_code(str(j["b"])) != "":
+    93			return {"ok": false, "why": "army"}
+    94		var full_duel: bool = rules != null and rules.is_free() and rules.fullfield == RSET.FULL_DUEL
+    95		if rules != null and not full_duel and (not a0.has_combat() or not a1.has_combat()):
+   405				D.ASSASSIN:
+   406					if _enemy_visible():
+   407						var best := Vector2.ZERO
+   408						var bd := 1e9
+   409						for u in armies[1 - army.team].units:
+   410							if u["type"] == D.SHIELD or u["type"] == D.CAVALRY:
+   411								var ep := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.5) * CS
+   412								if ep.distance_to(p) < bd:
+   413									bd = ep.distance_to(p)
+   414									best = ep
+   415						if bd < 1e9:
+   416							draw_dashed_line(p, best, Color(0.78, 0.5, 1.0, 0.85), 2.5, 7.0)
+   417		# 已擺的弓手射程：只在「選著弓手、游標停在那隻弓手上、或按住 Alt／LT」時顯示，並裁在棋盤內（第三輪 U3）
+   418		var show_all := selected == D.ARCHER or Input.is_key_pressed(KEY_ALT) or Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5
+   419		# 第七輪 D8：不再一隻一條弧線疊在一起，只畫全軍最前緣那一條；按 Alt／LT 才看全部
+   420		var want_all := Input.is_key_pressed(KEY_ALT) or Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5
+   421		var front := -1
+   422		for fi in army.units.size():
+   423			var fu: Dictionary = army.units[fi]
+   424			if fu["type"] == D.ARCHER and (front < 0 or (int(fu["col"]) - int(army.units[front]["col"])) * dir > 0):
+   425				front = fi
+   426		for ui in army.units.size():
+   427			var u: Dictionary = army.units[ui]
+   428			if ui != front and not want_all and not (c.x == u["col"] and c.y == u["row"]):
+   429				continue
+   430			if u["type"] == D.ARCHER and (show_all or (c.x == u["col"] and c.y == u["row"])):
+   431				var ap := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.5) * CS
+   432				var a0 := -0.6 if army.team == 0 else PI - 0.6
+   433				var hov: bool = c.x == u["col"] and c.y == u["row"]
+   434				_arc_clipped(ap, 6.0 * CS, a0, a0 + 1.2, Color(1, 0.9, 0.5, 0.45 if hov else 0.12), 2.0 if hov else 1.5)   # 停著的那隻亮、其他淡（Antigravity S3）
+   435		if _enemy_visible():
+game/scripts/ui/replay_view.gd:137:	dying.clear()
+game/scripts/ui/replay_view.gd:142:	hurt_t.clear()
+game/scripts/ui/replay_view.gd:148:	slow_left = 0.0
+game/scripts/ui/replay_view.gd:208:	dying.clear()
+game/scripts/ui/ui_base.gd:266:var slow_left := 0.0
+game/scripts/ui/ui_base.gd:274:var hurt_t := {}
+game/scripts/ui/ui_base.gd:275:var dying: Array = []
+game/scripts/ui/screens/game_core.gd:36:	dying.clear()
+    17	var _busy := {}
+    18	
+    19	static func key_of(map_id: int, size: int) -> int:
+    20		return map_id * 10 + size
+    21	
+    22	func texture(map_id: int, size: int) -> Texture2D:
+    23		var k := key_of(map_id, size) * 2 + (1 if _plain() else 0)   # 簡化介面另存一張（不烘紙紋、不調色）
+    24		if _tex.has(k):
+    25			return _tex[k]
+    26		if not _busy.has(k):
+    27			_busy[k] = true
+    28			_bake.call_deferred(map_id, size, _plain())   # 鍵與設定在排程當下固定（Codex v121：延後才讀會留下卡住的 busy）
+    29		return null
+    30	
+    31	func _bake(map_id: int, size: int, plain := false) -> void:
+    32		var k := key_of(map_id, size) * 2 + (1 if plain else 0)
+    33		var t = MD.terrain(map_id, size)
+    34		if t == null:
+    35			_busy.erase(k)   # 失敗也清掉，下次可以重試
+    36			return
+    37		var vp := SubViewport.new()
+    38		vp.size = Vector2i(int(t.w / 1000.0 * CS), int(t.h / 1000.0 * CS))
+    39		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+    40		vp.disable_3d = true
+    41		var p := _Painter.new()
+    42		p.biome = BIOME[MD.MAPS[map_id]["biome"]]
+    43		p.kind = MD.MAPS[map_id]["biome"]
+    44		p.t = t
+    45		p.plain = plain
+    46		vp.add_child(p)
+    47		add_child(vp)
+    48		await RenderingServer.frame_post_draw
+    49		await RenderingServer.frame_post_draw
+    50		var img := vp.get_texture().get_image()
+    51		vp.queue_free()
+    52		if not plain:
+    53			img = await _grade(img)
+    54		_busy.erase(k)
+    55		if img == null or img.is_empty():
+    56			return
+    57		_tex[k] = ImageTexture.create_from_image(img)
+    58	
+    59	static func _plain() -> bool:
+    60		return bool(preload("res://scripts/game/save.gd").s("plain_ui"))
+    61	
+    62	## V1.2 F2：地塊調色在烘焙時跑一次 shader（shaders/grade_bake.gdshader）；沒有檔就原樣。
+   688	
+   689	## V1.2：頂部資訊列：深木紋＋下緣一條亮線與落影（沒有貼圖時照舊平塗）。
+   690	func _hud_bar(r: Rect2) -> void:
+   691		if bool(Save.s("plain_ui")) or not _tex_box(r.grow_individual(8, 8, 8, 0), "wood", Color(0.3, 0.21, 0.15, 0.97)):
+   692			draw_rect(r, UI_BG)
+   693			return
+   694		draw_rect(Rect2(r.position.x, r.end.y - 2, r.size.x, 2), Color(0.55, 0.42, 0.28, 0.9))
+   695		draw_rect(Rect2(r.position.x, r.end.y, r.size.x, 4), Color(0, 0, 0, 0.25))
+   696	
+   697	## V1.2：木製框（九宮格、四角銅釘、中間透明），面板、戰場、大廳沙盤預覽共用。grow＝往外擴多少。
+   698	func _wood_frame(r: Rect2, grow := 8.0, key := "frame") -> void:
+   699		var fx := _ui_tex(TEX_FRAME)
+   700		if fx == null or bool(Save.s("plain_ui")):
+   701			return
+   702		var sb: StyleBoxTexture = _sb_cache.get(key)
+   703		if sb == null:
+   704			sb = StyleBoxTexture.new()
+   705			sb.texture = fx
+   706			for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+   707				sb.set_texture_margin(side, 22.0)
+   708			sb.draw_center = false
+   709			_sb_cache[key] = sb
+   710		draw_style_box(sb, r.grow(grow))
+   711	
+   712	## 材質方塊：kind＝wood（染色）／groove（染色）／paper（原色）。沒有貼圖時退回平塗。
+   713	func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
+   860			_gen += 1
+   861	
+   862	
+   863	func _panel(r: Rect2) -> void:
+   864		draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.62))
+   865		_box(r.grow(6), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)      # 陰影
+   866		_box(r, PANEL, Color(0, 0, 0, 0), 10.0)
+   867		# V1.2 B3：深木外框＋四角銅釘（九宮格貼圖）；沒有貼圖時退回舊的細框
+   868		var fx := _ui_tex(TEX_FRAME)
+   869		if fx != null and not bool(Save.s("plain_ui")):
+   870			var sb: StyleBoxTexture = _sb_cache.get("frame")
+   871			if sb == null:
+   872				sb = StyleBoxTexture.new()
+   873				sb.texture = fx
+   874				for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+   875					sb.set_texture_margin(side, 22.0)
+   876				sb.draw_center = false
+   877				_sb_cache["frame"] = sb
+   878			draw_style_box(sb, r.grow(8))
+   879		else:
+   880			_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
+   881	
+273:			var ra: Rect2 = probe_texts[a]["r"]
+274:			var rb: Rect2 = probe_texts[b]["r"]
+281:			if probe_texts[a]["s"] != probe_texts[b]["s"]:
+282:				bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
+284:				bad.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
+286:	for t in probe_texts:
+292:		for bx in probe_boxes:
+298:	for bi in probe_btns.size():
+299:		for bj in range(bi + 1, probe_btns.size()):
+300:			var r1: Rect2 = probe_btns[bi]
+301:			var r2: Rect2 = probe_btns[bj]
+305:	for r in probe_btns:
+309:	for t in probe_texts:
+318:			for br2 in probe_btns:
+327:		for c in probe_ctrls:
+333:		for br in probe_btns:
+362:	if layout_probe:
+1194:	layout_probe = false
+
+codex
+唯讀審查完成，未跑 Godot。以下檔名均指 `game/` 下同名檔；效能為未實測的繪圖 Δp95。
+
+- **0、A1 修改**：A1a 能強化「木立牌」，不能消除紙片感：整圖仍縮窄鏡像（`sprite_cache.gd:207`）。小跳也可能像受擊；僅作過渡，不接受 p95≈0 的保證。A1b 同意六種試點：192²、16欄，雙隊3～5格為 **6.75～9MiB**，不是固定9；不乘步態／攻擊格。另頁預熱、沿用世代檢查，量冷啟動與換色峰值；現有讀回、後處理會同時持有多份影像（`sprite_cache.gd:101`）。
+- **A2、A4 同意**；待機已有 id 錯相，補呼吸與眨眼即可（`battle_units.gd:546`、`sprite_cache.gd:175`）。
+- **A3 修改**：隊圈、接觸陰影、木座分離。現 shader 只有頂亮底暗（`unit_bake.gdshader:4`）；固定左上光須先烘左右造型，再各自加世界左上亮面，播放時選頁、不再鏡像。完整雙朝向會增加既有動作頁；轉身頁本身升至11.25～18MiB，不能只報9MiB。
+- **A5 修改、A6 同意**：死亡已有化煙、化攤、碎裂等分支（`battle_units.gd:660`），不可全抹成倒棋。一般兵改腳點側倒、暗色落地層；停留一秒須連死亡容器清理一起改，不能只延長淡出。白邊沿用圖集輪廓。
+- **B1 修改**：地形輪廓放 `map_art.gd:31` 烘焙；HUD框放 `ui_base.gd:698` 九宮格。光環／射程用獨立快取輪廓，不能烘死在地圖；微擾不可改可走邊界。**B2～B5 同意**，木珠仍保留數量標示。
+- **C0 同意；C1 修改**：血條早已隱藏滿血，受傷三秒、跟拍、≤35%才顯示（`battle_units.gd:633`）；草案不是新省效能來源。改兩秒前先測讀危險能力，選取／跟拍例外須跳過滿血門檻。版面探針主要查文字與控制項（`dev_main.gd:273`），須另登記血條／圖示框，14組零違規不能證明混戰可讀。
+- **C2、C5 同意；C3 修改**：留兩條可讀戰報，取消新增頭頂木牌，避免再佔臉部空間。**C6 修改**：尺度清楚標示，勿誇大微差。
+- **C4 修改**：已有半速、末擊四分之一速（`battle_view.gd:75`），禁止相乘成八分之一速。事件從 `view.events` 觸發，僅改展示時鐘，保留兩tick緩衝（`view_buffer.gd:115`）；姿勢與特效也須同速。跳播遵守 `with_fx=false`，重建觸發狀態；音效跟展示事件播一次，不調全域時間／音高。預設關，不另推鏡。
+- **D1 同意**：三格沿用事件標記跳播，不必存逐幀截圖；**D2 延後**，木碗另佔版面，費用不能冒充交換優勢。**D3 修改**：不跑模擬只能畫「起手意圖」，不能承諾衝鋒路徑或刺客落點；已有直線提示（`game_place.gd:400`），受地形、選敵影響，隱藏敵陣不得洩漏。**D4、D5 同意**。
+- **D6 修改**：部署遮蔽已有（`game_place.gd:300`）；護送是「獲勝且指定兵存活」，不是王死立即敗（`puzzles.gd:194`）。先做挑戰配置即可；若新規則碼，NTBR6須定義揭露策略／王的穩定身分與勝負語義，NTB8保留技能紀錄，更新嚴格欄數、校驗、標準編碼及舊碼回歸（`ruleset.gd:485`、`battle_code.gd:67`）。
+- **E 同意**：補烘焙峰值；舊指紋不變，新玩法另驗。
+
+五題裁決：六種；留兩條戰報；慢鏡預設關；D選連環畫、起手線、配置挑戰、預判；P0依下列排序。
+
+各項格式為「人時／Δp95毫秒／驗收」：
+
+- **P0①** C0：8～14／−0.1～−0.4／40px鄰居判定一致。
+- **P0②** 六種轉身：16～24／＋0～0.06／逐格有遮擋變化、長槍不裁切、峰值有報告。
+- **P0③** A2＋接地：10～16／＋0～0.05／同欄不同步、跳起陰影留地。
+- **P0④** C1～3、C5～6：10～16／−0.05～＋0.02／危險辨識不退步、探針過。
+- **P0⑤** B1：8～12／＋0～0.03／地形邊界一致、簡化模式清晰。
+- **P1** A4～6、B2～5：24～36／＋0～0.08／死亡辨識、拖放即提交、音量一致。
+- **P2** 四項D＋C4：28～44／＋0～0.10／跳播音畫一致、無隱藏資訊外洩。
+- **不做** 路障、王死即敗、全兵轉身、自動推鏡：本版0人時／0／無新增模擬分支。
+
+結論：先驗六種造型轉身與減噪；總p95≤9.79ms，節省未實測前不得抵帳。
+tokens used
+67,607
