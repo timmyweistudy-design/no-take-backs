@@ -251,14 +251,19 @@ func test_sandbox_v5() -> void:
 	var want := {"charge": EVS.CHARGE, "taunt": EVS.TAUNT, "backstab": EVS.BACKSTAB, "counter": EVS.COUNTER, "stealth": EVS.REVEAL,
 		"brace": EVS.PIKE_BRACE, "splash": EVS.SPLASH, "heal": EVS.HEAL, "drum": EVS.DRUM, "breach": EVS.BREACH, "frenzy": "_frenzy", "rally": EVS.RALLY_ON}
 	var bad: Array = []
+	# V1.1 E1：標準規則的結果每組對戰只算一次（模擬是確定性的，原本 12 個技能各重算一次＝同樣的 120 場）
+	var std_tags: Array = []
+	for pr in pairs:
+		std_tags.append(_sb_tags(pr, std))
 	for sk in want:
 		var ev: String = want[sk]
 		var on_any := false
 		var off_any := false
 		var r = RSET.standard()
 		r.skills_off = [sk]
-		for pr in pairs:
-			var a: Dictionary = _sb_tags(pr, std)
+		for pi in pairs.size():
+			var pr: Array = pairs[pi]
+			var a: Dictionary = std_tags[pi]
 			var b: Dictionary = _sb_tags(pr, r)
 			on_any = on_any or bool(a.get(ev, false))
 			off_any = off_any or bool(b.get(ev, false))

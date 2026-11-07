@@ -61,6 +61,9 @@ def suite_map() -> dict:
     return files
 
 
+FULL_GOLDEN = False
+
+
 def plan(a) -> list:
     gn = int(os.environ.get("GOLDEN_N", "1000"))
     cn = int(os.environ.get("COMPAT_N", "1000"))
@@ -113,9 +116,11 @@ def plan(a) -> list:
             test(nm, fn)
         test("t_stateful", ",".join(STATEFUL) + ",-test_sandbox_v5,-test_star_solutions,-test_fantasy_mirror_v8,-test_event_routes")
         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
-        # V1.1 E1：最慢的兩組各切 6 片（基準 984 秒時每片約 740 秒，是整體的關鍵路徑）
-        shards("golden", "tools/golden.gd", [f"--n={gn}"], r'^GOLDEN \{.*"ok":true', 6)
-        shards("compat", "tools/compat.gd", [f"--n={cn}"], r'^COMPAT \{.*"ok":true', 6)
+        # V1.1 E1：最慢的兩組各切 8 片（每片太長，最後幾分鐘只剩少數工作在跑）
+        global FULL_GOLDEN
+        FULL_GOLDEN = gn >= 20   # 完整 golden 步驟涵蓋測試裡的前 20 場
+        shards("golden", "tools/golden.gd", [f"--n={gn}"], r'^GOLDEN \{.*"ok":true', 8)
+        shards("compat", "tools/compat.gd", [f"--n={cn}"], r'^COMPAT \{.*"ok":true', 8)
         gd("sealcodes", "tools/seal_codes.gd", [], r'^SEALCODES \{"n":40,"ok":true', dirs=sim_only)
         shards("goldenfree", "tools/golden_free.gd", [], r'^GOLDENFREE \{.*"ok":true', 3)
         shards("goldenv8", "tools/golden_v8.gd", [], r'^GOLDENV8 \{.*"ok":true', 3)
@@ -142,6 +147,9 @@ def godot_cmd(godot: str, args: list, marker: str) -> list:
 
 def run_step(s, godot, out, timeout, marker):
     os.environ["PYTHONUTF8"] = "1"
+    os.environ["NTB_FULL_GOLDEN"] = "1" if FULL_GOLDEN else "0"   # 這一輪有完整 golden 步驟時，測試裡的 20 場抽查就不重複跑
+    if "NTB_FULL_GOLDEN" not in os.environ.get("WSLENV", ""):
+        os.environ["WSLENV"] = (os.environ.get("WSLENV", "") + ":NTB_FULL_GOLDEN").lstrip(":")   # WSL 呼叫 Windows 版 Godot 時環境變數要列在 WSLENV 才會傳過去
     log = out / f"{s['name']}.log"
     t0 = time.time()
     if s["kind"] == "py":
@@ -234,7 +242,7 @@ def main() -> int:
         except (OSError, ValueError):
             pass
     todo.sort(key=lambda s: -prev.get(s["name"], 10 ** 6))
-    with cf.ThreadPoolExecutor(max(1, a.jobs - 2)) as ex:
+    with cf.ThreadPoolExecutor(a.jobs) as ex:   # 載入／啟動檢查只佔前 20 秒，不另外扣名額
         futs = {ex.submit(run_step, s, godot, out, a.timeout, marker): s for s in todo}
         for fu in cf.as_completed(futs):
             r = fu.result()

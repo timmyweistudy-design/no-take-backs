@@ -336,13 +336,9 @@ func step() -> void:
 	# ② 選目標＋提出移動
 	# V1.1 E4：每隊「可被選的敵人」索引先列好（遞增順序，和原本逐一掃描跳過的結果完全一樣），選目標只掃這份
 	_foes = [PackedInt32Array(), PackedInt32Array()]
-	_foes_x = [PackedInt64Array(), PackedInt64Array()]
 	for j0 in n:
 		if sv[j0] != 0:
 			_foes[1 - st[j0]].append(j0)
-			_foes_x[1 - st[j0]].append(((sx[j0] + XOFF) << 12) | j0)
-	_foes_x[0].sort()
-	_foes_x[1].sort()
 	var nx := sx.duplicate()
 	var ny := sy.duplicate()
 	var new_target := PackedInt64Array()
@@ -885,8 +881,8 @@ func step() -> void:
 ## 選目標（企劃 §3.3）：排除潛行 → 弓手警覺 → 盾兵嘲諷（近戰）→ 兵種偏好 → 距離 → 剩血 → 列 → 深度 → 編號。
 ## 只讀快照陣列，比較全部用整數（不配置陣列）。
 var _foes: Array = [PackedInt32Array(), PackedInt32Array()]   # V1.1 E4：這一 tick 每隊可選的敵人（只在 step 的 ② 有效）
-var _foes_x: Array = [PackedInt64Array(), PackedInt64Array()]   # 同上，依 x 排序：鍵＝(x＋XOFF)<<12 | 索引
-const XOFF := 1048576
+var _cent_tick := -1   # V1.1 E4：支援兵重心快取（每 tick、每隊）
+var _cent: Array = [null, null]
 
 func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: PackedInt64Array,
 		sk: PackedInt64Array, sh: PackedInt64Array, sv: PackedByteArray, min_d2 := 0) -> int:
@@ -1619,20 +1615,30 @@ func _support_point(i: int, sx: PackedInt64Array, sy: PackedInt64Array, sh: Pack
 			u.follow = best
 			return Vector2i(sx[best], sy[best])
 	# 重心：x 先換成「離自己底線的深度」再平均（鏡像不變），y 直接平均；都是非負整數，截斷方向一致
-	var sd := 0
-	var sy2 := 0
-	var cnt := 0
-	for j in units.size():
-		var a := units[j]
-		if not a.alive or a.team != u.team or D.is_support(a.type):
-			continue
-		sd += sx[j] if u.team == 0 else fw - sx[j]
-		sy2 += sy[j]
-		cnt += 1
-	if cnt == 0:
+	# V1.1 E4：同一 tick 同一隊的重心只算一次（只讀 ① 快照與存活，② 期間不變）；沒有戰鬥兵時照舊回自己的位置
+	if _cent_tick != tick:
+		_cent_tick = tick
+		_cent = [null, null]
+	if _cent[u.team] == null:
+		var sd := 0
+		var sy2 := 0
+		var cnt := 0
+		for j in units.size():
+			var a := units[j]
+			if not a.alive or a.team != u.team or D.is_support(a.type):
+				continue
+			sd += sx[j] if u.team == 0 else fw - sx[j]
+			sy2 += sy[j]
+			cnt += 1
+		if cnt == 0:
+			_cent[u.team] = Vector2i(-1, -1)
+		else:
+			var dep := sd / cnt
+			_cent[u.team] = Vector2i(dep if u.team == 0 else fw - dep, sy2 / cnt)
+	var c: Vector2i = _cent[u.team]
+	if c.x < 0:
 		return Vector2i(sx[i], sy[i])
-	var dep := sd / cnt
-	return Vector2i(dep if u.team == 0 else fw - dep, sy2 / cnt)
+	return c
 
 ## 血比例比較：hp_a/max_a < hp_b/max_b（交叉相乘，不用浮點）；同比例再比平手鍵。
 func _ratio_less(hpa: int, ma: int, d2a: int, a: Unit, hpb: int, mb: int, d2b: int, b: Unit) -> bool:

@@ -366,10 +366,20 @@ func test_nav_r1() -> void:
 
 ## 確定性金標準（第三輪 T2；第四輪 N0a 改抽 100 場）：前 100 場對金標準檔（完整 1000 場在 tools/check_all.sh）；
 ## fast 模式與正式模式逐 tick 狀態、事件完全一樣；陣型清單順序打亂結果不變。
+## golden.gd state_sig 用的同一組 24 個欄位（加 tick），不經字串與雜湊。
+static func _state_arr(s) -> PackedInt64Array:
+	var a := PackedInt64Array([s.tick])
+	for u in s.units:
+		a.append_array(PackedInt64Array([u.id, u.x, u.y, u.hp, 1 if u.alive else 0, u.target, u.stun, u.stealth, u.charge, u.slow, u.cd, u.fx, u.fy,
+			u.nav, 1 if u.chasing else 0, u.kills, u.dmg_dealt, u.dmg_taken, u.hcd, u.aura, u.breach, u.bmode, u.heal_done, u.follow]))
+	return a
+
 func test_golden() -> void:
 	var GT = load("res://tools/golden.gd")
-	var r: Dictionary = GT.check(20)   # 完整的在統一檢查的 golden 步驟
-	ok(r["ok"], "金標準：前 20 場逐 100 tick 狀態、勝負、指紋都一致", str(r))
+	# V1.1 E1：統一檢查（check.py）同一輪會用同一個 GT.check 跑完整 1000 場，這 20 場是重複的；只在單獨跑測試時做
+	if OS.get_environment("NTB_FULL_GOLDEN") != "1":
+		var r: Dictionary = GT.check(20)
+		ok(r["ok"], "金標準：前 20 場逐 100 tick 狀態、勝負、指紋都一致", str(r))
 	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/golden.json"))
 	var bad: Array = []
 	for i in 30:
@@ -382,7 +392,8 @@ func test_golden() -> void:
 		while not s1.finished:
 			s1.step()
 			s2.step()
-			if GT.state_sig(s1) != GT.state_sig(s2) or JSON.stringify(s1.events) != JSON.stringify(s2.events):
+			# V1.1 E1：直接比欄位陣列與型別精確的二進位序列化（比原本的字串＋SHA、JSON 字串同等或更嚴格，少掉每 tick 的格式化）
+			if _state_arr(s1) != _state_arr(s2) or var_to_bytes(s1.events) != var_to_bytes(s2.events):
 				bad.append("場 %d tick %d" % [i, s1.tick])
 				break
 		if not s2.finished:
