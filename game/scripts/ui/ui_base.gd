@@ -261,6 +261,9 @@ var accum := 0.0
 var speed := 1.0
 var slow_used := false
 var final_used := false   # 第十輪 F1
+var key_used := false     # V1.3 C4：這場的關鍵時刻（第一次破陣）用過了
+var key_t := -10.0
+var key_p := Vector2.ZERO
 var final_left := 0.0
 var result_t := -100.0    # 第十輪 F2：進結果頁的時間
 var slow_left := 0.0
@@ -929,7 +932,86 @@ func _unit_in(r: Rect2, type: int, team: int, alpha := 1.0, scale := 0.6) -> voi
 
 var ring_shadow := 0.0   # V1.1 C6：亮色地圖（冰原）額外加深腳底影子；0＝不加
 
-func _ring(p: Vector2, team: int, type: int, scale := 1.0) -> void:
+## V1.3 B1：手繪圈（取代整圈的 draw_arc）。半徑有 ±3.5% 的起伏、尾端多畫 5% 疊過起點，像筆畫的圈。
+## 三個版本預先算好（單位圓），只換縮放，不比 draw_arc 貴。boil＝焦點裝飾每秒換 6 次版本（線條微動），簡化特效時固定第一版。
+static var _hr_pts: Array = []
+static func _hr_build() -> void:
+	for v in 3:
+		var pts := PackedVector2Array()
+		var a0 := -0.9 + v * 2.1
+		for i in 35:
+			var an := a0 + TAU * 1.05 * i / 34.0
+			var k := 1.0 + 0.022 * sin(an * 3.0 + v * 1.7) + 0.013 * sin(an * 5.0 + v * 4.1)
+			pts.append(Vector2(cos(an), sin(an)) * k)
+		_hr_pts.append(pts)
+
+## V1.3 B3：擺陣手感。拿起的棋子抬高 LIFT_PX、地上留一個變寬變淡的影子；放下後 0.18 秒沉降（先落下、再微微壓一下）。
+## 只是畫面：落點在放開那一刻就已經提交。
+const LIFT_PX := 12.0
+var settle_t := {}   # 格子／世界座標 → 放下的時間
+func _lift_shadow(p: Vector2) -> void:
+	draw_colored_polygon(Art._ell(p + Vector2(0, 1), 17.0, 7.0), Color(0, 0, 0, 0.16))
+
+func _settle_dy(key) -> float:
+	if not settle_t.has(key):
+		return 0.0
+	var k: float = (time - float(settle_t[key])) / 0.18
+	if k < 0.0:
+		return -LIFT_PX
+	if k >= 1.0:
+		settle_t.erase(key)
+		return 0.0
+	if k < 0.7:
+		var f := k / 0.7
+		return -LIFT_PX * (1.0 - f) * (1.0 - f)
+	return 1.5 * sin((k - 0.7) / 0.3 * PI)
+
+## V1.3 B1：粉筆虛線（取代 draw_dashed_line）。每段長短、間隔、濃淡、粗細與左右偏移都不一樣，
+## 但只看段號（不看位置），拖曳時花紋不會閃。
+func _chalk_line(a: Vector2, b: Vector2, col: Color, w := 2.0, dash := 8.0, _aligned := true) -> void:
+	var L := a.distance_to(b)
+	if L < 1.0:
+		return
+	var d := (b - a) / L
+	var n := d.orthogonal()
+	col = Color(col.lerp(Color(0.96, 0.93, 0.86), 0.3), col.a * 0.8)   # 粉筆：彩度降一點、偏粉白（Antigravity v130-impl1）
+	var x := 0.0
+	var i := 0
+	while x < L and i < 400:
+		var hh := absi((i * 40503 + 17) * 2246822519) % 100000
+		var seg := dash * (0.7 + float(hh % 60) / 100.0)
+		var gap := dash * (0.55 + float((hh / 60) % 45) / 100.0)
+		var e := minf(x + seg, L)
+		var o1 := n * (float(hh % 7) - 3.0) * 0.22
+		var o2 := n * (float((hh / 7) % 7) - 3.0) * 0.22
+		draw_line(a + d * x + o1, a + d * e + o2, Color(col, col.a * (0.72 + float(hh % 29) / 100.0)), w * (0.8 + float((hh / 11) % 5) * 0.1), true)
+		x = e + gap
+		i += 1
+
+## V1.3 B1：微微起伏的細線（格線用）：7 點折線，偏移固定（依起點），不會閃。
+func _wob_line(a: Vector2, b: Vector2, col: Color, w := 1.0) -> void:
+	var n := (b - a).normalized().orthogonal()
+	var h := absi(int(a.x * 13.0 + a.y * 7.0 + 5.0) * 2654435761) % 100000
+	var pts := PackedVector2Array()
+	for k in 7:
+		var off := 0.0 if k == 0 or k == 6 else (float((h >> (k * 2)) % 5) - 2.0) * 0.45
+		pts.append(a.lerp(b, k / 6.0) + n * off)
+	draw_polyline(pts, col, w, false)   # 格線很淡，不用抗鋸齒（省效能）
+
+func _hand_ring(c: Vector2, r: float, col: Color, w: float, boil := false, seed := 0) -> void:
+	if _hr_pts.is_empty():
+		_hr_build()
+	var v := seed % 3
+	if boil and not bool(Save.s("reduce_fx")):
+		v = (v + int(time * 6.0)) % 3
+	var src: PackedVector2Array = _hr_pts[v]
+	var pts := PackedVector2Array()
+	pts.resize(src.size())
+	for i in src.size():
+		pts[i] = c + src[i] * r
+	draw_polyline(pts, col, w, true)
+
+func _ring(p: Vector2, team: int, type: int, scale := 1.0, air := 0.0) -> void:
 	if ring_shadow > 0.0:
 		var sh := PackedVector2Array()
 		for i in 16:
@@ -937,9 +1019,9 @@ func _ring(p: Vector2, team: int, type: int, scale := 1.0) -> void:
 			sh.append(p + Vector2(cos(an) * 17.0, 3.0 + sin(an) * 7.0) * Vector2(scale, scale) + Vector2(0, 0))
 		draw_colored_polygon(sh, Color(0.05, 0.08, 0.15, ring_shadow))
 	if sprites != null and sprites.is_ready(cbm()):
-		sprites.draw_ring(self, p, team, type, scale)
+		sprites.draw_ring(self, p, team, type, scale, air)
 	else:
-		Art.ring(self, p, team, type, cbm(), scale)
+		Art.ring(self, p, team, type, cbm(), scale, air)
 
 func _rebuild_sprites() -> void:
 	if sprites != null:

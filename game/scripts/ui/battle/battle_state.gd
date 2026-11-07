@@ -40,6 +40,8 @@ var action_focus := Vector2.ZERO
 const FX_CAP := 40
 const FX_PRIO := {"dust": 0, "slash": 1, "arrow": 1, "ripple": 1, "aim": 1, "hide": 1, "trip": 2, "shard": 2, "flash": 2, "vslash": 2,
 	"taunt": 2, "bang": 2, "puff": 1, "hex": 2}
+const OVERHEAD_CAP := {"note": 4, "bang": 6, "inkring": 4}
+const FX_TEXT_CAP := 12   # V1.3：戰場跳字上限（_fx_text 直接加的那一路；TEXT_CAP 是合併跳字那一路）
 var fx_dropped := 0
 
 var fx_deduped := 0
@@ -296,6 +298,9 @@ var gait_on := {}      # id → 這一 tick 算在走路
 var gait_land := {}    # id → 停步後還在收腳幾 tick
 var drag_t := {}       # id → 被擊退、吸走的拖行姿勢還剩幾秒
 var face_now := {}     # id → 目前朝向（轉身有過場）
+var turn_t := {}       # id → 上次翻面的時間（V1.3 A1a）
+var stop_t := {}       # id → 停步的時間（V1.3 A4）
+var walking := {}      # id → 上一幀在走
 
 func _gait_reset() -> void:
 	gait_d.clear()
@@ -303,6 +308,9 @@ func _gait_reset() -> void:
 	gait_land.clear()
 	drag_t.clear()
 	face_now.clear()
+	turn_t.clear()
+	stop_t.clear()
+	walking.clear()
 
 ## 每個畫面 tick 呼叫一次（prev_pos 是上一 tick、u 是這一 tick）。
 func _gait_tick(with_fx := true) -> void:
@@ -396,14 +404,33 @@ func _gait_frame(delta: float) -> void:
 			drag_t.erase(id)
 	for u in view.units:
 		var tgt: float = signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
-		face_now[u.id] = move_toward(float(face_now.get(u.id, tgt)), tgt, delta * 11.0)
+		var f0: float = float(face_now.get(u.id, tgt))
+		var f1: float = move_toward(f0, tgt, delta * 11.0)
+		face_now[u.id] = f1
+		if f0 != 0.0 and signf(f1) != signf(f0):
+			turn_t[u.id] = time   # V1.3 A1a：翻面那一刻（腳下揚塵、展開回彈從這裡算）
 
-## 轉身過場：不會縮到 0（貼圖會消失）。
+## 轉身過場（V1.3 A1a）：像厚木牌俐落翻面，不是紙片等比夾扁。
+## 寬度不低於 TURN_MIN_W（窄位直接跳過去），展開段 X 微回彈 1.04；不做 Y 下壓（混戰時會像受擊）。
+const TURN_MIN_W := 0.45
+const TURN_BOUNCE := 0.04
 func _face_of(u) -> float:
 	var f: float = face_now.get(u.id, signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0))
-	if absf(f) < 0.18:
-		return 0.18 if f >= 0.0 else -0.18
-	return f
+	var a := absf(f)
+	if a < 0.9 and sprites != null and sprites.has_turn(u.type):
+		# 有轉身影格的兵：傳原本的朝向，貼圖端選中間姿勢（不能是 0，退回直接繪製時才不會消失）
+		return maxf(a, 0.18) * (1.0 if f >= 0.0 else -1.0)
+	var w := TURN_MIN_W + (1.0 - TURN_MIN_W) * a
+	if a < 1.0 and turn_t.has(u.id) and time - float(turn_t[u.id]) < 0.25:
+		w *= 1.0 + TURN_BOUNCE * sin(clampf((a - 0.55) / 0.45, 0.0, 1.0) * PI)
+	return w if f >= 0.0 else -w
+
+## 剛翻面的兵腳下的小揚塵：0～1（1＝剛翻），超過 0.25 秒＝0。
+func _turn_dust_k(u) -> float:
+	if not turn_t.has(u.id):
+		return 0.0
+	var k: float = (time - float(turn_t[u.id])) / 0.25
+	return 1.0 - k if k >= 0.0 and k < 1.0 else 0.0
 
 ## 打到不同東西聲音不同：盾與石魔是硬的、史萊姆是軟的。
 func _hit_material(id: int) -> void:

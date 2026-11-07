@@ -52,8 +52,9 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 		_poly(ci, PackedVector2Array([Vector2(-12, -11), Vector2(12, -11), Vector2(13, -5), Vector2(-13, -5)]), tc, a, false)   # 白袍下擺露出隊伍色
 		_poly(ci, PackedVector2Array([Vector2(-10, -24), Vector2(-3, -26), Vector2(8, -22), Vector2(10, -16), Vector2(0, -19), Vector2(-11, -15)]), tc, a)   # 第七輪 C1-8：大面積隊伍色披肩
 	ci.draw_line(Vector2(-9, -11), Vector2(9, -11), Color(OUT, 0.35 * a), 2.0, true)   # 腰帶
-	# 頭
+	# 頭（V1.3 A1b：轉身時頭不壓扁）
 	var hy := -33.0
+	_part(ci, 0.0, 0.0)
 	_c(ci, Vector2(0, hy), 11.5, SKIN, a)
 	# 臉（朝右）
 	if type != D.ASSASSIN:
@@ -65,6 +66,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.05, PI * 1.95, 18, Color(OUT, a), 6.5, true)
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.05, PI * 1.95, 18, Color(STEEL, a), 4.0, true)
 			_poly(ci, PackedVector2Array([Vector2(-2, hy - 12), Vector2(4, hy - 21), Vector2(7, hy - 19), Vector2(3, hy - 11)]), tc.lightened(0.2), a)
+			_part_end(ci)
 			# 劍：斜舉的亮刃（攻擊時往前揮）
 			# 前搖往後拉 35°、揮擊揮到 +60° 以上
 			var ang := -1.15 + (w * 0.9 if w < 0.0 else w * 1.95) + sway   # 第十輪 F3：揮幅加大
@@ -73,6 +75,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
 			# 第七輪 C1-1：隊伍色短領巾；劍身加寬、十字護手
 			_poly(ci, PackedVector2Array([Vector2(-9, -24), Vector2(8, -24), Vector2(6, -20), Vector2(-3, -19), Vector2(-5, -14), Vector2(-9, -17)]), tc.lightened(0.15), a, true)
+			_part(ci, -4.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（不橫切五官，Antigravity v130-impl1）
 			var hand := Vector2(9, -17 + sway * 8.0)
 			var dir := Vector2(cos(ang), sin(ang))
 			var tip := hand + dir * 24.0
@@ -80,19 +83,22 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_poly(ci, PackedVector2Array([hand + side, tip + side * 0.3, tip + dir * 3.0, tip - side * 0.3, hand - side]), Color("#f4f7ff"), a)
 			_line(ci, hand - dir.orthogonal() * 7.0, hand + dir.orthogonal() * 7.0, GOLD, 3.0, a)
 			_c(ci, hand, 3.0, SKIN, a)
+			_part_end(ci)
 		D.SHIELD:
 			# 圓頭盔＋面罩
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.95, PI * 2.05, 20, Color(OUT, a), 7.0, true)
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.95, PI * 2.05, 20, Color(STEEL_D, a), 4.5, true)
 			_line(ci, Vector2(-9, hy - 3), Vector2(11, hy - 3), STEEL_D, 2.0, a)
+			_part(ci, -3.0, 0.0)   # V1.3 A1b：大盾朝前，轉向鏡頭時不跟著變窄（Antigravity v130-impl1）
 			# 大方盾（佔身體一半寬，正面）
-			var push := (w * 12.0 if w > 0.0 else w * 5.0) + sway * 14.0   # 盾擊：揮擊時整面盾往前推（第三輪 R4）；走路時盾微晃
+			var push := (w * 12.0 if w > 0.0 else w * 5.0) + sway * 14.0 + 3.0   # V1.3：盾往外 3px，剪影不再是圓膠囊（Antigravity v130-impl1）   # 盾擊：揮擊時整面盾往前推（第三輪 R4）；走路時盾微晃
 			# 第七輪 C1-2：盾放大（遮身體六成）、上寬下尖、深鐵色外框，混戰時不會融進隊伍色塊
 			var sh := PackedVector2Array([Vector2(1 + push, -43), Vector2(21 + push, -41), Vector2(21 + push, -14), Vector2(11 + push, -2), Vector2(1 + push, -14)])
 			_poly(ci, sh, Color("#4a5468"), a)
 			var shi := PackedVector2Array([Vector2(4 + push, -39), Vector2(18 + push, -38), Vector2(18 + push, -15), Vector2(11 + push, -6), Vector2(4 + push, -15)])
 			_poly(ci, shi, STEEL, a, false)
 			_poly(ci, PackedVector2Array([Vector2(7 + push, -33), Vector2(15 + push, -32), Vector2(15 + push, -17), Vector2(11 + push, -11), Vector2(7 + push, -17)]), tc, a, false)
+			_part_end(ci)
 		D.ARCHER:
 			# 綠兜帽＋羽毛
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.9, PI * 2.1, 20, Color(OUT, a), 7.0, true)
@@ -141,6 +147,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			# 第七輪 C1-6：尖角錐笠，輪廓和圓頭盔分得開
 			_poly(ci, PackedVector2Array([Vector2(-16, hy - 5), Vector2(0, hy - 18), Vector2(16, hy - 5)]), Color("#c7834a"), a)
 			ci.draw_line(Vector2(-8, hy - 7), Vector2(0, hy - 15), Color(1.0, 0.86, 0.55, 0.9 * a), 1.8, true)
+			_part(ci, -9.0, 1.0)   # V1.3 A1b：長槍透視縮短、整支移到臉的前方（Antigravity v130-impl2：cos 0.3 時貫穿雙眼）
 			# 長槍：平常斜前上方 45° 伸出頭頂；前搖收槍、揮擊放平直刺（第四輪）；專屬＝拒騎：槍幾乎直立、槍尾頓地
 			var pang := -0.8 + (w * -0.25 if w < 0.0 else w * 0.75) + sway * 0.8
 			var phand := Vector2(7 + (w * 6.0 if w < 0.0 else w * 9.0), -17)
@@ -157,6 +164,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			if variant == 2:
 				_star(ci, ptip + pdir * 6.0, 9.0, Color(0.92, 0.95, 1.0, a))   # 拒騎：槍尖銀色十字閃光
 			_c(ci, phand, 3.0, SKIN, a)
+			_part_end(ci)
 		D.BOMBER:
 			# 橘紅頭巾＋黃銅護目鏡（推在額頭上）
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.5, true)
@@ -282,15 +290,18 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	ci.draw_circle(Vector2(23.6, -31.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
 	# 鞍布
 	_poly(ci, PackedVector2Array([Vector2(-7, -25), Vector2(6, -25), Vector2(7, -15), Vector2(-8, -15)]), tc, a)
-	# 騎士（小一號）
+	# 騎士（小一號；V1.3 A1b：轉身時騎士不跟著馬壓扁）
 	var hy := -44.0
+	_part(ci, 0.0, 0.3)
 	_c(ci, Vector2(-1, -30), 6.5, tc.darkened(0.15), a)
+	_part(ci, 0.0, 0.0)
 	_c(ci, Vector2(-1, hy), 9.0, SKIN, a)
 	_eyes(ci, Vector2(2.0, hy + 1), a, t, angry)
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.0, true)
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(GOLD, a), 3.5, true)
 	# 長槍＋小旗（衝鋒時放平前刺）
 	var tilt: float = (-0.55 + w * 0.3 if w < 0.0 else -0.55 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺
+	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
 	var base := Vector2(-6, -30)
 	var dir := Vector2(cos(tilt), sin(tilt))
 	var tip := base + dir * 50.0   # 第七輪 C1-4：騎槍加長
@@ -298,3 +309,4 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
 	var f0 := base + dir * 32.0
 	_poly(ci, PackedVector2Array([f0, f0 + dir * 11.0, f0 + dir * 3.0 + dir.orthogonal() * 10.0]), tc.lightened(0.2), a)   # 隊伍色小旗放大
+	_part_end(ci)

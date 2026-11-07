@@ -17,7 +17,10 @@ func _flame(c: Vector2, sc: float) -> void:
 
 
 
-func _report_add(team: int, type: int, kind: String, label: String, col: Color) -> void:
+func _report_add(team: int, type: int, kind: String, label: String, col: Color, src = null) -> void:
+	# V1.3 C3：戰報事件發生的地方，地上閃一個墨圈（0.6 秒，畫在影子與隊伍圈底下），視線不用一直往下看
+	if src != null:
+		_add_fx({"kind": "inkring", "p": _upos(src), "t": 0.0, "dur": 0.6})
 	for i in report_log.size():
 		var e: Dictionary = report_log[i]
 		if e["team"] == team and e["type"] == type and e["kind"] == kind and time - float(e["t"]) < 2.0:
@@ -253,6 +256,23 @@ func _draw_clutch_banner() -> void:
 
 
 ## 慢動作暗角：螢幕四周往內的多層橢圓暗帶（金色調）。
+## V1.3 C4：關鍵時刻。焦點外圍壓暗 15%（中間 170px 留亮）、一圈手繪墨線往中心收，0.8 秒。只是畫面，不改播放速度。
+func _draw_key_moment(k: float) -> void:
+	var sp: Vector2 = _cam * key_p
+	var st := sin(k * PI) * 0.15
+	var r0 := 170.0
+	var r1 := 1700.0
+	for i in 28:
+		var a0 := i * TAU / 28.0
+		var a1 := (i + 1) * TAU / 28.0
+		var d0 := Vector2(cos(a0), sin(a0))
+		var d1 := Vector2(cos(a1), sin(a1))
+		var ci := Color(0.08, 0.05, 0.02, 0.0)
+		var co := Color(0.08, 0.05, 0.02, st)
+		draw_primitive(PackedVector2Array([sp + d0 * r0, sp + d1 * r0, sp + d1 * (r0 + 60.0), sp + d0 * (r0 + 60.0)]), PackedColorArray([ci, ci, co, co]), PackedVector2Array())
+		draw_primitive(PackedVector2Array([sp + d0 * (r0 + 60.0), sp + d1 * (r0 + 60.0), sp + d1 * r1, sp + d0 * r1]), PackedColorArray([co, co, co, co]), PackedVector2Array())
+	_hand_ring(sp + Vector2(0, -16), lerpf(150.0, 34.0, k), Color(0.12, 0.07, 0.04, 0.7 * (1.0 - k)), 3.0, true, 2)
+
 func _draw_vignette(strength: float) -> void:
 	if strength <= 0.0:
 		return
@@ -274,7 +294,7 @@ func _draw_vignette(strength: float) -> void:
 
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	var pr: int = FX_PRIO.get(d["kind"], 1)
 	# 同一處同種特效去重（Antigravity S2 #2）：24px 內、0.15 秒內最多 2 個
@@ -289,6 +309,18 @@ func _add_fx(d: Dictionary) -> void:
 		if same >= 2:
 			fx_deduped += 1
 			return
+	# V1.3 C：混戰降噪（先過去重再淘汰，Codex v130-impl2）。頭頂符號（鼓舞音符、嘲諷驚嘆號）同時最多幾個，多的不畫（舊的先留著，讀得到）
+	if OVERHEAD_CAP.has(d["kind"]):
+		var on := 0
+		var old_i := -1
+		for i1 in fx.size():
+			if fx[i1]["kind"] == d["kind"]:
+				on += 1
+				if old_i < 0 or fx[i1]["t"] > fx[old_i]["t"]:
+					old_i = i1
+		if on >= int(OVERHEAD_CAP[d["kind"]]) and old_i >= 0:
+			fx.remove_at(old_i)   # 滿了先砍最舊的，新的事件提示才看得到（Codex v130-impl1）
+			fx_dropped += 1
 	var n := 0
 	for f in fx:
 		if f["kind"] != "text":
@@ -332,6 +364,19 @@ func _bubble(r: Rect2, a: float) -> void:
 	draw_polyline(PackedVector2Array([tail[0], tail[2], tail[1]]), edge, 1.5, true)
 
 func _fx_text(p: Vector2, s: String, c: Color, dur: float, size: int, screen := false) -> void:
+	# V1.3（Codex 第 3 輪）：跳字原本直接加、不受上限管。戰場上的跳字最多 TEXT_CAP 個，滿了丟最舊的那個
+	if not screen:
+		var n := 0
+		var oldest := -1
+		for i in fx.size():
+			if fx[i]["kind"] == "text" and not fx[i].get("screen", false):
+				n += 1
+				var ti: int = fx[i].get("tier", 1)
+				if oldest < 0 or ti < int(fx[oldest].get("tier", 1)) or (ti == int(fx[oldest].get("tier", 1)) and fx[i]["t"] > fx[oldest]["t"]):
+					oldest = i   # 先丟不重要的（tier 低），同級丟最舊的
+		if n >= FX_TEXT_CAP and oldest >= 0:
+			fx.remove_at(oldest)
+			fx_dropped += 1
 	fx.append({"kind": "text", "p": p, "s": s, "c": c, "t": 0.0, "dur": dur, "size": size, "screen": screen})
 
 
@@ -384,6 +429,21 @@ func _draw_fx(f: Dictionary) -> void:
 			var a: Vector2 = f["a"]
 			var b: Vector2 = f["b"]
 			var h := minf(60.0, a.distance_to(b) * 0.18)
+			var fly: float = f.get("fly", f["dur"])
+			if f["t"] >= fly:
+				# V1.3 P1：命中後箭釘在目標上抖 0.18 秒（像箭插進木頭），再消失
+				var q: float = (f["t"] - fly) / maxf(0.01, f["dur"] - fly)
+				var d0 := (b - a).normalized() if b != a else Vector2.RIGHT
+				var wob := sin(q * 38.0) * 0.32 * (1.0 - q)
+				var dv := d0.rotated(wob)
+				var tl := b - dv * 13.0
+				draw_line(tl, b, Color(Art.OUT, 1.0 - q), 4.0, true)
+				draw_line(tl, b, Color(Color("#d97706"), 1.0 - q), 2.2, true)
+				var fc0: Color = f.get("tc", Color.WHITE)
+				draw_colored_polygon(PackedVector2Array([tl, tl - dv * 5.0 + dv.orthogonal() * 4.0, tl + dv * 3.0]), Color(fc0, 1.0 - q))
+				draw_colored_polygon(PackedVector2Array([tl, tl - dv * 5.0 - dv.orthogonal() * 4.0, tl + dv * 3.0]), Color(fc0, 1.0 - q))
+				return
+			k = f["t"] / fly
 			var p := a.lerp(b, k) + Vector2(0, -sin(k * PI) * h)
 			var k2 := maxf(0.0, k - 0.06)
 			var p2 := a.lerp(b, k2) + Vector2(0, -sin(k2 * PI) * h)
@@ -486,7 +546,14 @@ func _draw_fx(f: Dictionary) -> void:
 				elif f.get("drop", false):
 					draw_circle(c0, 3.2 * (1.0 - k * 0.5), Color(cc, (1.0 - k) * cc.a), true, -1.0, true)
 				else:
-					draw_rect(Rect2(c0 - Vector2(2.5, 2.5), Vector2(5, 5)), Color(cc, 1.0 - k))
+					# V1.3 P1：碎屑不再是正方形：不規則四邊形，邊飛邊翻滾
+					var rot := k * (6.0 + i * 2.0) + i
+					var sz0 := 2.4 + float(i % 2) * 0.9
+					var q := PackedVector2Array()
+					for j in 4:
+						var aj := rot + j * TAU / 4.0 + (0.35 if j % 2 == 0 else -0.2)
+						q.append(c0 + Vector2(cos(aj), sin(aj)) * sz0 * (1.15 if j == i % 4 else 0.85))
+					draw_colored_polygon(q, Color(cc, 1.0 - k))
 		"shard":
 			# 破盾裂片：盾面的灰藍碎片往外飛、旋轉、往下掉
 			for i in 6:
@@ -652,6 +719,10 @@ func _draw_fx(f: Dictionary) -> void:
 			else:
 				var p3: Vector2 = f.get("rp", f["p"] + Vector2(0, -k * 26))
 				var r3: Rect2 = f.get("rr", Rect2(p3, Vector2.ZERO))
+				# V1.3 P1：印章式出場：前 0.1 秒從上方 8px 壓下來就停住（泡泡和字一起移，字級與外框幾何不變）
+				var slam := 1.0 - minf(float(f["t"]) / 0.1, 1.0)
+				p3.y -= 8.0 * slam * slam
+				r3.position.y -= 8.0 * slam * slam
 				var dim := _clutch_dim(p3)
 				col.a *= dim
 				if not f.get("plain", false):

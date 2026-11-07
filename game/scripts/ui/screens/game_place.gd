@@ -344,6 +344,7 @@ func _draw_place_units() -> void:
 		if idx >= 0:
 			dragging_type = _cur_army().units[idx]["type"]
 	if dragging_type >= 0:
+		_lift_shadow(mouse + Vector2(0, 24 + LIFT_PX))   # V1.3 B3：拿起來的棋子在地上留影子
 		Art.unit(self, mouse + Vector2(0, 24), dragging_type, _cur_army().team, 1.0, 0.0, 0.0, 0.0, 0.75, time)
 	var c := cursor if pad_mode else _cell_at(mouse)
 	if c.x >= 0:
@@ -386,7 +387,7 @@ func _draw_tactical() -> void:
 					var hh := sqrt(maxf(0.0, br0 * br0 - dd * dd))
 					var hc := p + hn * dd
 					draw_line(hc - ht * hh, hc + ht * hh, Color(1, 0.3, 0.25, 0.5), 1.5, true)
-				draw_arc(p, br0, 0, TAU, 32, Color(1, 0.3, 0.25, 0.85), 2.5, true)
+				_hand_ring(p, br0, Color(1, 0.3, 0.25, 0.85), 2.5)
 			D.MEDIC, D.DRUMMER:
 				# 補血／戰鼓範圍：醫者草綠、鼓手暖金；圈內的友軍微亮
 				var rad: float = (D.HEAL_RANGE if selected == D.MEDIC else D.DRUM_RANGE) / 1000.0 * CS
@@ -399,7 +400,7 @@ func _draw_tactical() -> void:
 						draw_circle(up + Vector2(0, 14), 9.0, Color(rc, 0.45), true, -1.0, true)
 			D.CAVALRY:
 				var q := p + Vector2(3.0 * CS * dir, 0)
-				draw_dashed_line(p, q, Color(1, 0.8, 0.3, 0.85), 3.0, 8.0)
+				_chalk_line(p, q, Color(1, 0.8, 0.3, 0.85), 3.0, 8.0)
 				draw_circle(q, 6, Color(1, 0.8, 0.3, 0.9), true, -1.0, true)
 				_text(q + Vector2(0, -30), L.t("ev_charge"), ts(13), Color(1, 0.85, 0.4), true, true)
 			D.ASSASSIN:
@@ -413,7 +414,7 @@ func _draw_tactical() -> void:
 								bd = ep.distance_to(p)
 								best = ep
 					if bd < 1e9:
-						draw_dashed_line(p, best, Color(0.78, 0.5, 1.0, 0.85), 2.5, 7.0)
+						_chalk_line(p, best, Color(0.78, 0.5, 1.0, 0.85), 2.5, 7.0)
 	# 已擺的弓手射程：只在「選著弓手、游標停在那隻弓手上、或按住 Alt／LT」時顯示，並裁在棋盤內（第三輪 U3）
 	var show_all := selected == D.ARCHER or Input.is_key_pressed(KEY_ALT) or Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5
 	# 第七輪 D8：不再一隻一條弧線疊在一起，只畫全軍最前緣那一條；按 Alt／LT 才看全部
@@ -444,10 +445,10 @@ func _draw_tactical() -> void:
 				var fp := ORIGIN + Vector2(u["col"] + 0.5, u["row"] + 0.82) * CS
 				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.5), 0, fp))
 				draw_circle(Vector2.ZERO, 24, Color(bc, 0.28), true, -1.0, true)
-				draw_arc(Vector2.ZERO, 24, 0, TAU, 28, Color(bc, 0.7), 2.0, true)
+				_hand_ring(Vector2.ZERO, 24, Color(bc, 0.7), 2.0)
 				draw_set_transform_matrix(_cam)
 			draw_circle(ep, 11, Color("#111827"), true, -1.0, true)
-			draw_arc(ep, 11, 0, TAU, 20, bc, 2.0, true)
+			_hand_ring(ep, 11, bc, 2.0)
 			if sc > 0:
 				draw_polyline(PackedVector2Array([ep + Vector2(-5, 0), ep + Vector2(-1, 4), ep + Vector2(6, -5)]), bc, 3.0, true)
 			else:

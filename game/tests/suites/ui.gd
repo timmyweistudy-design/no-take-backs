@@ -799,3 +799,69 @@ func test_replay_back_v7() -> void:
 		if FileAccess.file_exists(fn2):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(fn2))
 	SV.prefix = old_prefix
+
+
+class FakeTurnUnit:
+	var id := 0
+	var fx := 1
+	var team := 0
+	var type := 0
+	func _init(i: int, t: int) -> void:
+		id = i
+		type = t
+
+## V1.3：轉身寬度、呼吸錯開、倒棋時間、特效上限、擺陣沉降（只是畫面，不碰模擬）。
+func test_feel_v130() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var Art = load("res://scripts/ui/art.gd")
+	var D = load("res://scripts/core/unit_defs.gd")
+	var g = GS.new()
+	g.time = 10.0
+	var u := FakeTurnUnit.new(7, D.ARCHER)
+	for f in [0.0, 0.05, -0.05, 0.3, -0.3, 0.9, -1.0]:
+		g.face_now[u.id] = f
+		var w: float = g._face_of(u)
+		ok(absf(w) >= g.TURN_MIN_W - 0.001 and absf(w) <= 1.0 + g.TURN_BOUNCE + 0.001, "A1a：轉身寬度不低於 %.2f（朝向 %.2f → %.3f）" % [g.TURN_MIN_W, f, w])
+	g.face_now[u.id] = 0.5
+	g.turn_t[u.id] = 9.9
+	ok(g._turn_dust_k(u) > 0.0, "A1a：剛翻面有腳下揚塵")
+	g.time = 11.0
+	ok(g._turn_dust_k(u) == 0.0, "A1a：揚塵 0.25 秒後消失")
+	# 呼吸：同一欄（x 相同）不同列，相位不同
+	var b1: float = Art.idle_bob(3.0, Vector2(400, 300))
+	var b2: float = Art.idle_bob(3.0, Vector2(400, 364))
+	ok(absf(b1 - b2) > 0.05, "A2：同一欄上下兩隻呼吸不同步", "%.3f %.3f" % [b1, b2])
+	Art.bake_no_bob = true
+	ok(Art.idle_bob(3.0, Vector2(400, 300)) == 0.0, "A2：烘焙時不加呼吸")
+	Art.bake_no_bob = false
+	ok(Art.turn_c == 1.0 and Art.turn_s == 0.0, "A1b：平常 turn_c＝1（一般影格不受轉身影響）")
+	# 倒棋
+	ok(g.death_life(D.SWORD) > 1.5 and g.death_life(14) == 1.0, "A5：一般兵倒棋留 1.7 秒、幽靈等專屬死法 1 秒")
+	# 頭頂符號上限：滿了丟最舊的，新的留著
+	g.fx = []
+	for i in 9:
+		g._add_fx({"kind": "bang", "p": Vector2(100 + i * 60, 200), "t": 0.01 * (9 - i), "dur": 0.7, "tag": i})
+	var n_bang := 0
+	var has_last := false
+	for f in g.fx:
+		if f["kind"] == "bang":
+			n_bang += 1
+			if int(f.get("tag", -1)) == 8:
+				has_last = true
+	ok(n_bang <= int(g.OVERHEAD_CAP["bang"]) and has_last, "C：頭頂驚嘆號最多 %d 個、最新的一定在" % int(g.OVERHEAD_CAP["bang"]), str(n_bang))
+	# 跳字上限
+	g.fx = []
+	for i in 30:
+		g._fx_text(Vector2(100 + i * 20, 300), "-%d" % i, Color.WHITE, 1.0, 12)
+	var n_txt := 0
+	for f in g.fx:
+		if f["kind"] == "text":
+			n_txt += 1
+	ok(n_txt <= g.FX_TEXT_CAP, "P1：_fx_text 有上限", str(n_txt))
+	# 擺陣沉降
+	g.time = 5.0
+	g.settle_t[Vector2i(1000, 2000)] = 4.95
+	ok(g._settle_dy(Vector2i(1000, 2000)) < 0.0, "B3：剛放下時還在空中")
+	g.time = 5.5
+	ok(g._settle_dy(Vector2i(1000, 2000)) == 0.0 and not g.settle_t.has(Vector2i(1000, 2000)), "B3：沉降結束歸位並清掉")
+	g.free()

@@ -154,9 +154,15 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 		last = v
 		ys.append(v)
 	var dx := rect.size.x / cols
+	# V1.3 C：差距小的時候縱軸放大（最多 3 倍），前半場不再貼平中線；放大倍數寫在左上角，不誇大
+	var dev := 0.0
+	for v0 in ys:
+		dev = maxf(dev, absf(float(v0) - 0.5))
+	var zoom := clampf(snappedf(0.45 / maxf(dev, 0.05), 0.5), 1.0, 3.0)
+	var yat := func(v: float) -> float: return clampf(mid - (v - 0.5) * rect.size.y * zoom, rect.position.y, rect.end.y)
 	for k in ys.size():
 		var x := rect.position.x + k * dx
-		var y: float = rect.end.y - rect.size.y * ys[k]
+		var y: float = yat.call(ys[k])
 		if y < mid:
 			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, wash))
 		else:
@@ -166,7 +172,7 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 		# 墨線描出戰力曲線（像手繪在紙上）
 		var ink := PackedVector2Array()
 		for k2 in ys.size():
-			ink.append(Vector2(rect.position.x + k2 * dx, rect.end.y - rect.size.y * ys[k2]))
+			ink.append(Vector2(rect.position.x + k2 * dx, yat.call(ys[k2])))
 		if ink.size() >= 2:
 			ui.draw_polyline(ink, Color(0.14, 0.08, 0.04, 0.85), 1.6, true)
 	if cb:
@@ -179,7 +185,7 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 				if ys[k] >= 0.5:
 					continue
 				var xc := rect.position.x + k * dx
-				var yb: float = rect.end.y - rect.size.y * ys[k]
+				var yb: float = yat.call(ys[k])
 				# 這條斜線在 x＝xc 時的 y：y = mid + (xc - x0)
 				var yl := mid + (xc - x0)
 				if yl >= mid and yl <= yb:
@@ -187,6 +193,8 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 			x0 += step
 	# 標記：最多 3 個，依時間排，標籤往左右讓開
 	var fs: int = ui.tz("C")
+	if zoom > 1.0:
+		ui._text(Vector2(rect.position.x + 6, rect.position.y + fs + 2), load("res://scripts/game/strings.gd").t("chart_zoom", [str(zoom).trim_suffix(".0")]), fs, Color(0.14, 0.08, 0.04) if paper else Color.WHITE)
 	var used: Array = []
 	var shown := 0
 	for m in marks:
@@ -209,18 +217,35 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 	return ys
 
 ## 金幣條：連續條，已擺的兵依定位色系分段；右側大字「花了／上限 金」。star＝三星金額刻度（-1＝不畫）。
+## V1.3 B2：木槽＋木珠。底是凹槽，每隻兵是一顆圓角木珠（定位色相保留、彩度壓低、上緣一道亮光），不再是霓虹色條。
 static func gold_bar(ui, rect: Rect2, units: Array, budget: int, star := -1) -> void:
-	ui.draw_rect(rect, Color(1, 1, 1, 0.10))
+	var plain: bool = bool(ui.Save.s("plain_ui"))
+	if plain:
+		ui.draw_rect(rect, Color(1, 1, 1, 0.10))
+	else:
+		# 深色內凹木槽（條很矮，九宮格材質放不下，用圓角平面＋上緣陰影、下緣亮邊；Antigravity v130-impl2）
+		var gr := rect.grow(2.0)
+		ui.draw_style_box(ui._flat_sb(Color(0.20, 0.13, 0.08, 0.95), Color(0.08, 0.05, 0.03, 0.9), gr.size.y * 0.5, 1), gr)
+		ui.draw_line(gr.position + Vector2(4, 1.5), Vector2(gr.end.x - 4, gr.position.y + 1.5), Color(0, 0, 0, 0.45), 1.5)
+		ui.draw_line(Vector2(gr.position.x + 4, gr.end.y - 0.5), Vector2(gr.end.x - 4, gr.end.y - 0.5), Color(1, 0.9, 0.7, 0.25), 1.0)
 	var x := rect.position.x
 	var spent := 0
 	for u in units:
 		var c: int = D.cost(int(u["type"]))
 		var w := rect.size.x * float(c) / maxf(1.0, budget)
-		ui.draw_rect(Rect2(x, rect.position.y, maxf(1.0, w - 1.0), rect.size.y), ROLE_COL[ROLE_OF[int(u["type"])]])
+		var rc: Color = ROLE_COL[ROLE_OF[int(u["type"])]]
+		var bead := Rect2(x + 0.5, rect.position.y + 1.0, maxf(1.0, w - 1.5), maxf(1.0, rect.size.y - 2.0))
+		if plain or bead.size.x < 4.0:
+			ui.draw_rect(Rect2(x, rect.position.y, maxf(1.0, w - 1.0), rect.size.y), rc)
+		else:
+			var bc := rc.lerp(Color(0.55, 0.42, 0.3), 0.35)   # 降彩度，像上了色的木珠
+			ui.draw_style_box(ui._flat_sb(bc, Color(0.1, 0.06, 0.03, 0.55), minf(bead.size.y * 0.5, bead.size.x * 0.5), 1), bead)
+			ui.draw_line(bead.position + Vector2(3, 2), Vector2(bead.end.x - 3, bead.position.y + 2), Color(1, 1, 1, 0.35), 1.2)
 		x += w
 		spent += c
 	if star >= 0 and star < budget:
 		var sx := rect.position.x + rect.size.x * float(star) / budget
 		var over := spent > star
 		ui.draw_line(Vector2(sx, rect.position.y - 4), Vector2(sx, rect.end.y + 4), Color.RED if over else Color("#ffd166"), 2.5)
-	ui.draw_rect(rect, Color(1, 1, 1, 0.35), false, 1.0)
+	if plain:
+		ui.draw_rect(rect, Color(1, 1, 1, 0.35), false, 1.0)

@@ -148,6 +148,8 @@ func _seek_finish() -> void:
 	slow_left = 0.0
 	final_left = 0.0     # Codex v10-r1 #4：跳回前段不能留著慢動作，再播到末擊要再演
 	final_used = false
+	key_used = false
+	key_t = -10.0
 	hitstop = 0.0
 	# 演出狀態依目標時間重建（Codex S5 #5）：最後時刻是否已發生、是否已進狂熱、音樂
 	slow_used = had_clutch

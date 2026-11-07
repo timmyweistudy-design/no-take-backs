@@ -283,7 +283,7 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 			hurt_t[t.id] = time
 			hurt_dir[t.id] = 0.0
 			_add_fx({"kind": "pin", "a": sp + Vector2(0, -26), "b": tp + Vector2(0, -26), "t": 0.0, "dur": 0.3})
-			_report_add(s.team, s.type, k, L.t("ev_voodoo"), Color("#ff6bb0"))
+			_report_add(s.team, s.type, k, L.t("ev_voodoo"), Color("#ff6bb0"), s)
 		EV.BLAST:
 			if s.id != t.id:
 				hurt_t[t.id] = time
@@ -300,21 +300,21 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 				if view.tick - last_blast_tick <= 8 and _fx_on("shake"):
 					hitstop = maxf(hitstop, 0.06)
 				last_blast_tick = view.tick
-				_report_add(s.team, s.type, k, L.t("ev_blast"), Color("#ffb347"))
+				_report_add(s.team, s.type, k, L.t("ev_blast"), Color("#ffb347"), s)
 		EV.BITE:
 			atk_t[s.id] = time
 			hurt_t[t.id] = time
 			hurt_dir[t.id] = signf(tp.x - sp.x) if tp.x != sp.x else 0.0
 			_add_fx({"kind": "chomp", "p": tp + Vector2(0, -28), "t": 0.0, "dur": 0.35})
 			sfx.play("chomp", 0.9)
-			_report_add(s.team, s.type, k, L.t("ev_bite"), Color("#ffd166"))
+			_report_add(s.team, s.type, k, L.t("ev_bite"), Color("#ffd166"), s)
 		EV.MIMIC_OPEN:
 			_add_fx({"kind": "puff", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.4})
 			sfx.play("reveal", 0.7)
 		EV.SPLIT:
 			_add_fx({"kind": "puff", "p": sp + Vector2(0, -12), "t": 0.0, "dur": 0.3})
 			sfx.play("squish", 0.5)
-			_report_add(s.team, 13, k, L.t("ev_split"), Color("#7dffa0"))
+			_report_add(s.team, 13, k, L.t("ev_split"), Color("#7dffa0"), s)
 		EV.CAST:
 			# V1.1 A6：大招前搖依技能配音（共用合成音，音量分層）
 			sfx.play("charge_up", 0.5)
@@ -331,21 +331,21 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 			_add_fx({"kind": "timebell", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.8})
 			sfx.play("bell", 1.0)
 			sfx.play("timestop", 0.9)
-			_report_add(s.team, s.type, k, L.t("ev_timestop"), Color("#ffe08a"))
+			_report_add(s.team, s.type, k, L.t("ev_timestop"), Color("#ffe08a"), s)
 		EV.RAISE:
 			_add_fx({"kind": "soulrise", "p": sp + Vector2(0, -16), "t": 0.0, "dur": 0.6})
 			sfx.play("raise", 0.8)
-			_report_add(s.team, 17, k, L.t("ev_raise"), Color("#c77dff"))
+			_report_add(s.team, 17, k, L.t("ev_raise"), Color("#c77dff"), s)
 		EV.VACUUM:
 			_add_fx({"kind": "swirl", "p": sp + Vector2(0, -14), "t": 0.0, "dur": 0.6})
 			sfx.play("vacuum", 0.8)
-			_report_add(s.team, s.type, k, L.t("ev_vacuum"), Color("#9ad1ff"))
+			_report_add(s.team, s.type, k, L.t("ev_vacuum"), Color("#9ad1ff"), s)
 		EV.STOMP:
 			_add_fx({"kind": "stompring", "p": sp, "t": 0.0, "dur": 0.45})
 			sfx.play("stomp", 0.9)
 			if _fx_on("shake"):
 				shake = 0.14
-			_report_add(s.team, s.type, k, L.t("ev_stomp"), Color("#d9c9a3"))
+			_report_add(s.team, s.type, k, L.t("ev_stomp"), Color("#d9c9a3"), s)
 		EV.ROCK:
 			sfx.play("shatter", 0.7)
 	return true
@@ -494,6 +494,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			_add_fx({"kind": "note", "p": _upos(dr0) + Vector2(6, -78), "t": 0.0, "dur": 0.8})
 		return
 	var route := event_route(ev)
+	if not with_fx and (k == EV.BREACH or ev.get("tags", []).has(EV.BREACH)):
+		key_used = true   # V1.3 C4：跳播／直接看結果也要記得第一次破陣已發生（Codex v130-impl2）
 	if route == "skip" or not with_fx:
 		return
 	match route:
@@ -530,7 +532,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	elif k == EV.SPLASH:
 		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）
 	elif s.type == D.ARCHER:
-		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.28, "tc": Art.team_color(s.team, cbm())})
+		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.28, "dur": 0.46, "tc": Art.team_color(s.team, cbm())})   # V1.3：飛 0.28 秒＋釘住抖 0.18 秒
 		sfx.play("arrow", 0.35)
 	else:
 		_add_fx({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
@@ -578,6 +580,13 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			_add_fx({"kind": "hex", "p": tpos + Vector2(10 * signf(sp.x - tpos.x), -24), "t": 0.0, "dur": 0.45})
 		EV.BREACH:
 			label = L.t("ev_breach")
+			if not key_used:
+				# V1.3 C4：每場第一次破陣是「關鍵時刻」：四周壓暗、向心墨圈，不動時間（預設開，簡化特效關）。
+				# 跳播（with_fx＝false）時也記下「用過了」，跳過去之後的第二次破陣不會再演（Codex v130-impl1）
+				key_used = true
+				if with_fx:
+					key_t = time
+					key_p = tpos
 			col = Color("#ff7a3d")
 			sfx.play("shatter", 0.6)
 			_add_fx({"kind": "shard", "p": tpos + Vector2(12, -26), "t": 0.0, "dur": 0.5})
@@ -585,7 +594,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			sfx.play("shatter", 0.45)
 			_add_fx({"kind": "shard", "p": tpos + Vector2(12, -26), "t": 0.0, "dur": 0.5})
 	if label != "":
-		_report_add(s.team, s.type, k, label, col)
+		_report_add(s.team, s.type, k, label, col, s)
 		# 第七輪 D1：混戰（附近 3 隻以上）不再往上疊跳字，技能都進底部戰報列；稀疏時才跳字
 		if int(TEXT_TIER.get(k, 1)) < 2:
 			# V1.1 A5：一般狀態（反騎、反擊、破陣）不出字，只在頭頂閃一個小菱形，字留在底部戰報列
@@ -732,6 +741,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	accum = 0.0
 	slow_used = false
 	final_used = false
+	key_used = false
+	key_t = -10.0
 	final_left = 0.0
 	slow_left = 0.0
 	hitstop = 0.0

@@ -8,13 +8,13 @@ const FILES := ["arrow", "backstab", "block", "brace", "charge", "clutch", "deat
 	"shatter", "bell", "bugle", "aircut", "alert", "snap", "taunt", "reveal", "boom", "heal",
 	"poison", "baa", "chomp", "squish", "charge_up", "timestop", "raise", "vacuum", "stomp",
 	"k_hover", "k_click", "k_back", "k_confirm", "k_tab", "k_toggle", "k_error", "k_open", "k_close", "k_unlock", "k_star", "k_place",
-	"step_grass", "step_snow", "step_wood", "step_stone", "step_heavy", "hit_metal", "hit_wood", "hit_soft", "horn"]
+	"step_grass", "step_snow", "step_wood", "step_stone", "step_heavy", "hit_metal", "hit_wood", "hit_soft", "horn", "ui_quill"]
 # 0 普通命中、1 防禦、2 技能／死亡、3 全場事件與介面
 const PRIO := {"hit": 0, "slash": 0, "arrow": 0, "block": 1, "brace": 1, "alert": 1, "taunt": 1, "reveal": 1,
 	"shatter": 2, "bell": 2, "bugle": 2, "aircut": 2, "snap": 2, "charge": 2, "backstab": 2, "death": 2,
 	"step_grass": 0, "step_snow": 0, "step_wood": 0, "step_stone": 0, "step_heavy": 1, "hit_metal": 0, "hit_wood": 0, "hit_soft": 0, "horn": 3,
 	"k_hover": 3, "k_click": 3, "k_back": 3, "k_confirm": 3, "k_tab": 3, "k_toggle": 3, "k_error": 3, "k_open": 3, "k_close": 3, "k_unlock": 3, "k_star": 3, "k_place": 3,
-	"poison": 0, "squish": 1, "charge_up": 1, "baa": 1, "chomp": 2, "timestop": 2, "raise": 2, "vacuum": 2, "stomp": 2, "clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3}
+	"poison": 0, "squish": 1, "charge_up": 1, "baa": 1, "chomp": 2, "timestop": 2, "raise": 2, "vacuum": 2, "stomp": 2, "clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3, "ui_quill": 3}
 var _prio_of := {}       # 聲道 → 正在播的優先權
 var _started := {}       # 聲道 → 開始時間
 var _lowpass_idx := -1

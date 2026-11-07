@@ -21,6 +21,33 @@ static var base := Transform2D.IDENTITY
 static var _xf := Transform2D.IDENTITY   # 目前角色的畫布轉換（腳底座標），上半身另外疊 Gait.body_xf
 static var _team_now := 0   # 目前在畫哪一隊（分隊小披風用）
 
+# V1.3 A1b：轉身中間影格（只在烘焙轉身頁時用；平常 turn_c＝1，下面的函式都不動作，畫出來和以前一模一樣）。
+# 不是整張等比夾扁：身體依兵種只縮一部分（圓的頭、史萊姆不縮），往前伸的武器跟著透視縮短，
+# 近側（z＞0，畫在身體前面）的武器／盾往後移、遠側的往前移，前後遮擋關係就會改變，看起來是轉身不是紙片翻面。
+static var turn_c := 1.0     # cos θ：1＝正側面，越小越轉向鏡頭
+static var turn_s := 0.0     # sin θ
+static var _xf0 := Transform2D.IDENTITY   # 轉身時沒縮過的角色轉換
+static var _b_now := Transform2D.IDENTITY # 目前的上半身轉換（_push_body 設）
+static var _cur_xf := Transform2D.IDENTITY # 目前畫布轉換（部件之間切換用；_eyes 畫完要還原成這個）
+const TURN_FWD := {3: 0.6, 13: 0.0, 19: 0.3}   # 騎兵的馬最窄約 0.58（Antigravity v130-impl1：太窄像插在木棍上）   # 身體跟著縮的比例（沒列＝0.4）：騎兵的馬是長的、史萊姆是圓的
+
+static func turn_body_w(type: int) -> float:
+	return lerpf(1.0, turn_c, float(TURN_FWD.get(type, 0.4)))
+
+## 接下來畫的部件：z＝側向深度（＋近側），fwd＝沿前後方向的長度比例（1＝整個跟著透視縮短，0＝不縮）。
+static func _part(ci: CanvasItem, z: float, fwd: float) -> void:
+	if turn_c >= 1.0:
+		return
+	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(lerpf(1.0, turn_c, fwd), 1.0), 0.0, Vector2(-z * turn_s, 0.0))
+	ci.draw_set_transform_matrix(_cur_xf)
+
+## 回到身體的轉換。
+static func _part_end(ci: CanvasItem) -> void:
+	if turn_c >= 1.0:
+		return
+	_cur_xf = _xf * _b_now
+	ci.draw_set_transform_matrix(_cur_xf)
+
 const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]   # 第七輪：紅壓暗，灰階下敵我也分得開（小樣通過條件 ②）
 
 # ── 三段式攻擊（第二輪方案 R5）──
@@ -75,6 +102,16 @@ static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, 
 
 static func _eyes(ci: CanvasItem, c: Vector2, a: float, t: float, angry := false) -> void:
 	var blink := 1.0 if fmod(t + c.x * 0.13, 3.7) > 0.12 else 0.15
+	if turn_c < 1.0:
+		# V1.3 A1b：轉向鏡頭時臉往中間移，眼睛不跟著身體壓扁（保持圓的）
+		ci.draw_set_transform_matrix(_xf0 * _b_now)
+		c = Vector2(c.x * turn_c, c.y)
+		_eyes_draw(ci, c, a, blink, angry)
+		ci.draw_set_transform_matrix(_cur_xf)   # 還原成呼叫前的部件轉換（頭盔接著畫，Codex v130-impl1）
+		return
+	_eyes_draw(ci, c, a, blink, angry)
+
+static func _eyes_draw(ci: CanvasItem, c: Vector2, a: float, blink: float, angry: bool) -> void:
 	for dx in [-3.0, 4.0]:
 		var e := c + Vector2(dx, 0)
 		ci.draw_circle(e, 2.6, Color(OUT, a), true, -1.0, true)
@@ -123,4 +160,6 @@ static func _atk_xf(b: Transform2D, w: float, sq: float, lunge := 0.0, up := fal
 	return Transform2D(0.0, Vector2(sx, sy), 0.0, Vector2(dx, 0.0)) * b
 
 static func _push_body(ci: CanvasItem, b: Transform2D) -> void:
+	_b_now = b
+	_cur_xf = _xf * b
 	ci.draw_set_transform_matrix(_xf * b)

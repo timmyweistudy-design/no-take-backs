@@ -382,6 +382,8 @@ func _process_inner(delta: float) -> void:
 	_stick_repeat(delta)
 	_process_cmds()
 	time += delta
+	if paused and key_t > 0.0:
+		key_t += delta   # V1.3 C4：暫停時關鍵時刻的演出凍結（Codex v130-impl2）
 	SteamApi.run_callbacks()
 	if toast_t > 0:
 		toast_t -= delta
@@ -402,10 +404,11 @@ func _process_inner(delta: float) -> void:
 		fx = fx.filter(func(f): return f["t"] < f["dur"])
 		clutch_t = maxf(0.0, clutch_t - delta)
 	for g in dying:
+		var t0: float = g["t"]
 		g["t"] += delta
-		if g["t"] >= 1.0:
+		if t0 < 1.0 and g["t"] >= 1.0:   # 只在跨過 1 秒那一幀插旗（倒棋留 1.7 秒，Codex v130-impl1）
 			graves.append({"pos": g["pos"], "team": g["team"], "t": 0.0})
-	dying = dying.filter(func(g): return g["t"] < 1.0)
+	dying = dying.filter(func(g): return g["t"] < death_life(int(g["type"])))   # V1.3 A5：倒棋留 1.7 秒
 	for g in graves:
 		g["t"] += delta
 	graves = graves.filter(func(g): return g["t"] < 3.0)
@@ -502,6 +505,8 @@ func _draw_inner() -> void:
 	Art.base = Transform2D.IDENTITY
 	if state == St.BATTLE and slow_left > 0:
 		_draw_vignette(clampf((8.0 - slow_left) / 0.3, 0.0, 1.0))   # 多層暗角（第三輪 V2）
+	if state == St.BATTLE and time - key_t < 0.8 and not bool(Save.s("reduce_fx")):
+		_draw_key_moment((time - key_t) / 0.8)
 	if state != St.RESULT:
 		for f in fx:
 			if f.get("screen", false):

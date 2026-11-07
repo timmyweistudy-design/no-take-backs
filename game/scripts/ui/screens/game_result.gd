@@ -58,6 +58,7 @@ func _finish_battle() -> void:
 		sfx.play("win" if bool(report["goal_ok"]) else "lose")   # 第十三輪：照過關條件（Codex v13-r1 #6）
 	else:
 		sfx.play("win" if w == 0 else "lose")
+	sfx.play("ui_quill", 0.45)   # V1.3 B4：戰報寫上羊皮紙的筆聲（各模式都有）
 	if eff["progress"]:
 		_progress_and_achievements()
 		if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:

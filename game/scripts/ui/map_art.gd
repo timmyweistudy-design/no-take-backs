@@ -139,11 +139,17 @@ static func draw_prop(ci: CanvasItem, origin: Vector2, pr: Array, time: float) -
 			ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-8, -11) * s, p + Vector2(4, -15) * s, p + Vector2(1, -6) * s]), Color(0.42, 0.4, 0.42))
 		"pine":
 			ci.draw_rect(Rect2(p + Vector2(-3, -8) * s, Vector2(6, 9) * s), Color("#4a3a2c"))
+			# V1.3 B1：不再是三個正三角形。每層是下垂的枝條（尖端往下勾、底緣波浪、頂點略歪），雪蓋也不對稱
+			var hj := int(absf(p.x * 7.3 + p.y * 3.1)) % 97
 			for k in 3:
 				var ky: float = -8.0 - k * 11.0
-				var kw: float = 16.0 - k * 4.0
-				ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-kw, ky) * s, p + Vector2(0, ky - 17.0) * s, p + Vector2(kw, ky) * s]), Color("#2f5a55"))
-				ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-kw * 0.45, ky - 9.0) * s, p + Vector2(0, ky - 17.0) * s, p + Vector2(kw * 0.45, ky - 9.0) * s]), Color("#e4f0f7"))
+				var kw: float = 16.0 - k * 4.0 + float((hj >> k) % 3) - 1.0
+				var ax: float = (1.2 if (hj + k) % 2 == 0 else -1.2)
+				ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-kw, ky + 1.5) * s, p + Vector2(-kw * 0.55, ky - 4.0) * s, p + Vector2(-kw * 0.68, ky - 5.5) * s,
+					p + Vector2(ax, ky - 17.0) * s, p + Vector2(kw * 0.66, ky - 5.0) * s, p + Vector2(kw * 0.52, ky - 3.5) * s, p + Vector2(kw, ky + 1.0) * s,
+					p + Vector2(kw * 0.45, ky - 1.2) * s, p + Vector2(0, ky + 0.6) * s, p + Vector2(-kw * 0.48, ky - 1.0) * s]), Color("#2f5a55"))
+				ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-kw * 0.5, ky - 8.0) * s, p + Vector2(ax, ky - 17.0) * s, p + Vector2(kw * 0.42, ky - 9.5) * s,
+					p + Vector2(kw * 0.15, ky - 8.2) * s, p + Vector2(-kw * 0.1, ky - 9.6) * s]), Color("#e4f0f7"))
 		"deadtree":
 			ci.draw_line(p, p + Vector2(1, -28) * s, Color("#3a2a1c"), 5.0 * s, true)
 			ci.draw_line(p + Vector2(1, -16) * s, p + Vector2(-11, -28) * s, Color("#3a2a1c"), 3.0 * s, true)
@@ -179,6 +185,20 @@ class _Painter extends Node2D:
 			var bump: float = depth * (0.45 + float((h >> (k * 2)) % 4) * 0.2)
 			pts.append(m + side * (f * half) + out_dir * bump)
 		draw_colored_polygon(pts, col)
+
+	## V1.3 B1：牆邊不再是尺規直線。先往外長一圈不規則的牆色小鼓包（只會讓牆看起來厚一點，不多出可走缺口），
+	## 再沿著它畫一條粗細、位置都有微小起伏的描邊。全部烘進地塊，跑起來沒有成本。
+	func _wob_edge(a0: Vector2, a1: Vector2, out_dir: Vector2, h: int) -> void:
+		var m := (a0 + a1) / 2.0
+		_jag(m, out_dir, Color(biome["block"]), h, 3.2)
+		var pts := PackedVector2Array()
+		for k in 7:
+			var f := k / 6.0
+			var off := (float((h >> (k * 2)) % 5) - 1.0) * 0.55 + 0.6
+			if k == 0 or k == 6:
+				off = 0.4
+			pts.append(a0.lerp(a1, f) + out_dir * off)
+		draw_polyline(pts, Color(biome["edge"]), 2.2 + float(h % 3) * 0.3, true)
 
 	## 第十輪 V5、V6：牆邊往外（可走的那一側）長碎石或碎冰，牆只會看起來更厚，不會多出可走的缺口。
 	func _rim(m: Vector2, out_dir: Vector2, h: int) -> void:
@@ -227,8 +247,12 @@ class _Painter extends Node2D:
 					if kind == "canyon":
 						draw_rect(Rect2(o + Vector2(1, 1), Vector2(Q - 2, Q - 2)), Color(1, 1, 1, 0.08))
 						draw_rect(Rect2(o, Vector2(Q, Q)), Color(0, 0, 0, 0.07), false, 1.0)   # 第十輪：線淡一點，石道才不像城牆
-					else:
-						draw_line(o + Vector2(4, (h2 % 20) + 4), o + Vector2(Q - 6, (h2 % 20) + 9), Color(1, 1, 1, 0.45), 1.6, true)
+					elif h2 % 3 != 0:
+						# V1.3 B1：亮紋長短、角度、位置都錯開，三格留一格空白，不再是規則排列的短斜線
+						var y1 := float(h2 % 20) + 4.0
+						var x1 := 2.0 + float((h2 >> 4) % 8)
+						var ln := 9.0 + float((h2 >> 6) % 12)
+						draw_line(o + Vector2(x1, y1), o + Vector2(x1 + ln, y1 + 2.0 + float((h2 >> 9) % 5)), Color(1, 1, 1, 0.32 + float((h2 >> 2) % 3) * 0.06), 1.3 + float(h2 % 2) * 0.5, true)
 		# 慢、快的邊界柔化
 		for r2 in t.m:
 			for c2 in t.n:
@@ -278,7 +302,7 @@ class _Painter extends Node2D:
 				for d4 in [[1, 0, Vector2(Q, 0), Vector2(Q, Q)], [-1, 0, Vector2.ZERO, Vector2(0, Q)], [0, -1, Vector2.ZERO, Vector2(Q, 0)], [0, 1, Vector2(0, Q), Vector2(Q, Q)]]:
 					var nb := _cell(c4 + d4[0], r4 + d4[1])
 					if nb != t.BLOCK and nb != -1:
-						draw_line(o4 + d4[2], o4 + d4[3], Color(biome["edge"]), 2.5, true)
+						_wob_edge(o4 + d4[2], o4 + d4[3], Vector2(d4[0], d4[1]), _h(c4 * 5 + d4[0], r4 * 5 + d4[1]))
 						_rim(o4 + (d4[2] + d4[3]) / 2.0, Vector2(d4[0], d4[1]), _h(c4, r4))
 		# 橋：河裡的空格鋪木板
 		if kind == "river":

@@ -2,8 +2,13 @@ extends "res://scripts/ui/units/fantasy.gd"
 ## 其他層在同資料夾（V9 P1 拆檔）
 
 ## 攻擊姿勢：[武器 w（−1 往後拉滿、0 平常、+1 揮到底）, 身體傾角（弧度，正＝往前）, 橫向縮放, 縱向縮放, 前撲位移]
-static func idle_bob(t: float, px: float) -> float:
-	return sin(t * 3.0 + px * 0.05) * 0.8
+## V1.3 A2：呼吸依位置（x 與 y）錯開相位、頻率 ±10%，同一欄的兵不再一起起伏。p＝腳底。
+static var bake_no_bob := false   # 烘焙時不加呼吸（貼圖時才加）
+static func idle_bob(t: float, p: Vector2) -> float:
+	if bake_no_bob:
+		return 0.0
+	var h := fposmod(p.x * 0.0731 + p.y * 0.1173, 1.0)
+	return sin(t * 3.0 * (0.9 + 0.2 * h) + h * TAU) * 0.8
 
 ## V1.1 A1：兵種專屬三段式（前搖／命中／收招）。值＝[前搖橫縮, 前搖縱縮, 後仰, 前搖位移, 命中橫縮, 命中縱縮, 前撲角, 前撲位移, 收招停頓比例]。
 ## 命中時間點（ATK_WINDUP）所有兵種相同，只改形狀，不影響模擬與命中同步。沒列的兵種走舊曲線（位元不變）。
@@ -72,7 +77,7 @@ static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, 
 	# 外層（位置、起伏、翻面、縮放、額外傾身／蹲身）× 內層（攻擊姿勢，face＝+1 空間）。
 	# 精靈圖快取烘焙的是內層，貼圖時套外層，所以兩條路的順序完全一樣（Codex R5 #3）。
 	var ps := pose(atk, gtype)
-	var bob := idle_bob(t, p.x) if walk == 0.0 else -Gait.air(gtype, walk)
+	var bob := idle_bob(t, p) if walk == 0.0 else -Gait.air(gtype, walk)
 	var outer := Transform2D(lean * face, Vector2(scale * face, scale * crouch), 0.0, p + Vector2(0, bob * scale))
 	return outer * Transform2D(ps[1], Vector2(ps[2], ps[3]), 0.0, Vector2(ps[4], 0))
 
@@ -87,6 +92,13 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	if atk > 0.0:
 		walk = 0.0   # 和精靈圖一致：攻擊格沒有走路相位
 	_xf = base * unit_xf(p, face, walk, atk, t, scale, lean, crouch, type)
+	_b_now = Transform2D.IDENTITY
+	if turn_c < 1.0:
+		_xf0 = _xf
+		# 史萊姆轉向鏡頭時微微拉高（Antigravity v130-impl1：只有眼睛動看不出在轉）
+		var sy := 1.0 + 0.06 * (1.0 - turn_c) if type == 13 else 1.0
+		_xf = _xf * Transform2D(0.0, Vector2(turn_body_w(type) * (0.97 if type == 13 else 1.0), sy), 0.0, Vector2.ZERO)
+	_cur_xf = _xf
 	ci.draw_set_transform_matrix(_xf)
 	# 以 face＝+1 畫（水平鏡像由 transform 處理）
 	if type == D.CAVALRY:
@@ -159,10 +171,28 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 
 
 ## 腳底隊伍標記：藍＝圓、紅＝菱形（色盲也分得出）；重兵（盾、騎）外框加粗。
-static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, scale := 1.0) -> void:
+## V1.3 A3：腳底三層，由下往上：厚木座（棋子底座，留在地上）→ 接觸影子（跳起來會縮）→ 隊伍圈。
+## air＝離地程度 0～1（只縮影子）。
+static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, scale := 1.0, air := 0.0) -> void:
+	ring_base(ci, p, scale)
+	ring_shadow(ci, p, scale * (1.0 - air * 0.35))
+	ring_mark(ci, p, team, type, cb, scale)
+
+## 厚木座：下緣 2.5px 深色厚度、頂面木色、上緣 1px 亮倒角（深色地面也看得出邊）。
+static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
+	# 比隊伍圈寬一圈（rx 21），外露的木邊看得出是棋子底座（Antigravity v130-impl1：原本被隊伍圈蓋住）
+	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale), Color(0.30, 0.20, 0.12, 0.85 * a))
+	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(0.56, 0.41, 0.26, 0.92 * a))
+	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(0.62, 0.47, 0.30, 0.6 * a))
+	ci.draw_arc(p + Vector2(0, -0.2) * scale, 20.4 * scale, PI * 1.08, PI * 1.92, 14, Color(1.0, 0.9, 0.7, 0.5 * a), 1.1 * scale, true)
+
+## 接觸影子（角色腳下）。
+static func ring_shadow(ci: CanvasItem, p: Vector2, scale := 1.0) -> void:
+	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.5) * scale, 12.0 * scale, 5.6 * scale), Color(0.08, 0.05, 0.03, 0.34))
+
+static func ring_mark(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, scale := 1.0) -> void:
 	var tc := team_color(team, cb)
 	var w := 4.0 if (type == D.SHIELD or type == D.CAVALRY or type == 19) else 3.0   # 第七輪 C2：腳底圈加粗
-	ci.draw_circle(p + Vector2(0, 1), 13.0 * scale, Color(0, 0, 0, 0.22), true, -1.0, true)  # 影子
 	var pts := PackedVector2Array()
 	if team == 0:
 		for i in 25:

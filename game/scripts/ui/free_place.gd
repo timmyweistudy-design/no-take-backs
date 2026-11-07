@@ -202,6 +202,8 @@ func _fs_commit() -> void:
 		var a = _fp_army()
 		for it in items:
 			a.place_xy(int(it[0]), int(it[1]), int(it[2]))
+	for k in items.size():
+		settle_t[Vector2i(int(items[k][1]), int(items[k][2]))] = time + k * 0.03   # V1.3 B3：一隻接一隻落下
 	show_place_help = false
 	_fp_sound(items.size())
 
@@ -377,6 +379,9 @@ func _fp_release(p: Vector2, w: Vector2i) -> bool:
 				_toast(L.t("err_zone"), true)
 			else:
 				free_intro_moved = true
+				settle_t[a.pos_of(a.units[i])] = time   # V1.3 B3：放下沉降＋落子聲（落點已經提交，只是畫面）
+				if sfx != null:
+					sfx.play("place_light", 0.55)
 		return true
 	if fp_stroking:
 		_fs_commit()
@@ -516,7 +521,7 @@ func _fp_draw_zones() -> void:
 	var tc := Art.team_color(a.team, cbm())
 	if dep < 15000:
 		var x0: float = ORIGIN.x + (dep / 1000.0 if a.team == 0 else (a.fw - dep) / 1000.0) * CS
-		draw_dashed_line(Vector2(x0, ORIGIN.y), Vector2(x0, ORIGIN.y + fld_size.y), Color(tc, 0.8), 3.0, 8.0)
+		_chalk_line(Vector2(x0, ORIGIN.y), Vector2(x0, ORIGIN.y + fld_size.y), Color(tc, 0.8), 3.0, 8.0)
 		# 對峙帶（中線兩側到兩邊部署區的邊）
 		var other: int = rules.depth_of() if rules != null and rules.fullfield == 0 else (rules.depth if rules != null else 6000)
 		var xa: float = ORIGIN.x + other / 1000.0 * CS
@@ -611,9 +616,10 @@ func _fp_draw() -> void:
 	for it in lst:
 		var p := _s_of(Vector2i(it[1], it[0]))
 		_ring(p, it[3], it[2])
-		_unit(p, it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1] * 0.001, 1.0)
+		var sd := _settle_dy(Vector2i(it[1], it[0]))
+		_unit(p + Vector2(0, sd), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1] * 0.001, 1.0)
 		if it[4]:
-			draw_arc(p - Vector2(0, 2), 24, 0, TAU, 28, ACCENT, 2.5, true)
+			_hand_ring(p - Vector2(0, 2), 24, ACCENT, 2.5, true)
 		# 全場：擺到敵方半場的兵畫開戰朝向箭頭（會先往敵方底線走）
 		if rules != null and rules.fullfield != 0 and ((it[3] == 0 and it[1] > 8000) or (it[3] == 1 and it[1] < 8000)):
 			var dir := 1.0 if it[3] == 0 else -1.0
@@ -647,10 +653,12 @@ func _fp_draw() -> void:
 				dv = mv   # 用實際（貼邊夾限後）的位移畫，預覽＝落點（Codex 實作第 2 輪新問題 2）
 			for i in fp_sel:
 				var np: Vector2i = a.pos_of(a.units[i]) + dv
-				_unit(_s_of(np), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0)
+				_lift_shadow(_s_of(np))
+				_unit(_s_of(np) - Vector2(0, LIFT_PX), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0)
 		else:
 			var ok_m: bool = a.check_place_xy(int(a.units[fp_drag]["type"]), tgt.x, tgt.y, fp_drag) == ""
-			_unit(_s_of(tgt), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0)
+			_lift_shadow(_s_of(tgt))
+			_unit(_s_of(tgt) - Vector2(0, LIFT_PX), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0)
 	# 畫筆預覽：腳底亮點＋半透明小人＋費用泡泡
 	if fp_stroking:
 		var cost := 0
@@ -697,7 +705,7 @@ func _fp_draw() -> void:
 		var hi: int = a.index_near(hover_w.x, hover_w.y, PICK_R)
 		if hi >= 0 and not _fp_duel_turns():
 			var hp := _s_of(a.pos_of(a.units[hi]))
-			draw_arc(hp - Vector2(0, 2), 22, 0, TAU, 24, Color(1, 1, 1, 0.8), 2.0, true)
+			_hand_ring(hp - Vector2(0, 2), 22, Color(1, 1, 1, 0.8), 2.0)
 			_fp_move_icon(mouse + Vector2(14, 14))
 		elif fp_touch:
 			_fp_reticle(_s_of(_q(hover_w)))
@@ -745,7 +753,7 @@ func _doll_lane(p: Vector2, team: int) -> void:
 	var x0: float = minf(p.x, end_x)
 	var w := absf(end_x - p.x)
 	draw_rect(Rect2(x0, top, w, bot - top), Color(1.0, 0.42, 0.7, 0.08))
-	draw_dashed_line(p, Vector2(end_x, p.y), Color(1.0, 0.42, 0.7, 0.75), 2.5, 9.0)
+	_chalk_line(p, Vector2(end_x, p.y), Color(1.0, 0.42, 0.7, 0.75), 2.5, 9.0)
 	draw_colored_polygon(PackedVector2Array([p + Vector2(40 * dir, -7), p + Vector2(40 * dir, 7), p + Vector2(54 * dir, 0)]), Color(1.0, 0.42, 0.7, 0.75))
 
 ## 新手手勢：前排從上往下一隻手拖過去，後面依間距冒出半透明小兵，1.5 秒。
@@ -767,7 +775,7 @@ func _fp_gesture() -> void:
 		y += a.spacing
 	var hp := _s_of(Vector2i(a.world_x(ox), int(yc))) + Vector2(10, -10)
 	draw_circle(hp, 14.0, Color(1, 1, 1, 0.25 * (1.0 - k) + 0.25), true, -1.0, true)
-	draw_arc(hp, 14.0, 0, TAU, 24, Color(1, 1, 1, 0.9), 2.0, true)
+	_hand_ring(hp, 14.0, Color(1, 1, 1, 0.9), 2.0)
 	_text(hp + Vector2(20, -tz("S") * 0.6), L.t("fp_gesture"), tz("S"), Color.WHITE, false, true)
 
 func _fp_range_of(t: int) -> float:
@@ -806,7 +814,7 @@ func _fp_move_icon(p: Vector2) -> void:
 		draw_colored_polygon(PackedVector2Array([p + dv * 12, p + dv * 8 + Vector2(dv.y, dv.x) * 3, p + dv * 8 - Vector2(dv.y, dv.x) * 3]), Color.WHITE)
 
 func _fp_reticle(p: Vector2) -> void:
-	draw_arc(p - Vector2(0, 2), 14, 0, TAU, 20, ACCENT, 2.0, true)
+	_hand_ring(p - Vector2(0, 2), 14, ACCENT, 2.0)
 	draw_line(p + Vector2(-20, -2), p + Vector2(-8, -2), ACCENT, 2.0)
 	draw_line(p + Vector2(8, -2), p + Vector2(20, -2), ACCENT, 2.0)
 

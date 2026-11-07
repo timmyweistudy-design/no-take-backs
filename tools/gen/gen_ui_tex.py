@@ -32,6 +32,50 @@ def rounded_mask(w, h, rad):
     return m
 
 
+def rough_mask(w, h, rad, amp=1.3, seed=1):
+    """V1.3 B1：手作邊。四個角半徑各不相同（±2），邊緣往內有 0～amp 像素的平滑起伏（磨損），4 倍超取樣再縮小。
+    只動最外 amp 像素，九宮格的內容內距（木 3／紙 5／凹槽 3）不受影響。"""
+    r = random.Random(seed)
+    S = 4
+    rads = [max(2.0, rad + r.uniform(-2.0, 2.0)) for _ in range(4)]   # 左上、右上、右下、左下
+    ph = [r.uniform(0, math.tau) for _ in range(6)]
+    pts = []
+    W, H = w * S, h * S
+    def bump(t):
+        # 低頻：每邊只有兩三處緩緩的削角／微凹（Antigravity v130-impl1：高頻像抗鋸齒失敗的毛邊）
+        v = 0.45 + 0.35 * math.sin(t * 3.0 + ph[0]) + 0.20 * math.sin(t * 7.0 + ph[1])
+        return max(0.0, min(1.0, v)) * amp * S
+    corners = [(rads[0], rads[0], math.pi, 1.5 * math.pi), (w - rads[1], rads[1], 1.5 * math.pi, 2 * math.pi),
+               (w - rads[2], h - rads[2], 0.0, 0.5 * math.pi), (rads[3], h - rads[3], 0.5 * math.pi, math.pi)]
+    n = 0
+    total = 480
+    for ci, (cx, cy, a0, a1) in enumerate(corners):
+        rr = rads[ci]
+        for k in range(16):
+            an = a0 + (a1 - a0) * k / 15.0
+            t = n / total * math.tau
+            d = rr * S - bump(t)
+            pts.append((cx * S + math.cos(an) * d, cy * S + math.sin(an) * d))
+            n += 1
+        # 到下一個角之間的直邊
+        nx_, ny_ = corners[(ci + 1) % 4][0], corners[(ci + 1) % 4][1]
+        ex, ey = cx + math.cos(a1) * rr, cy + math.sin(a1) * rr
+        rn = rads[(ci + 1) % 4]
+        a2 = corners[(ci + 1) % 4][2]
+        sx, sy = nx_ + math.cos(a2) * rn, ny_ + math.sin(a2) * rn
+        inx, iny = -math.cos(a1), -math.sin(a1)
+        for k in range(1, 104):
+            f = k / 104.0
+            t = n / total * math.tau
+            px = (ex + (sx - ex) * f) * S + inx * bump(t)
+            py = (ey + (sy - ey) * f) * S + iny * bump(t)
+            pts.append((px, py))
+            n += 1
+    m = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(m).polygon(pts, fill=255)
+    return m.resize((w, h), Image.LANCZOS)
+
+
 def bevel(w, h, rad, top=46, bottom=56):
     """上亮下暗的斜角：用逐列漸層（128＝不變），圓角由遮罩處理，四角不會缺。"""
     b = Image.new("L", (w, h), 128)
@@ -64,7 +108,7 @@ def wood(w=64, h=64, rad=8):
         d.line(pts, fill=184, width=1)
     g = g.filter(ImageFilter.GaussianBlur(0.4))
     g = ImageChops.add(g, bevel(w, h, rad), 1.0, -128)
-    img = Image.merge("LA", (g, rounded_mask(w, h, rad)))
+    img = Image.merge("LA", (g, rough_mask(w, h, rad, 1.3, 3)))
     return img.convert("RGBA")
 
 
@@ -77,7 +121,7 @@ def groove(w=48, h=48, rad=6):
     sh = sh.filter(ImageFilter.GaussianBlur(1.2))
     g = ImageChops.subtract(g, sh)
     g = ImageChops.add(g, noise(w, h, 2, 2, 20).point(lambda v: int((v - 128) * 0.15 + 128)), 1.0, -128)
-    img = Image.merge("LA", (g, rounded_mask(w, h, rad)))
+    img = Image.merge("LA", (g, rough_mask(w, h, rad, 1.0, 5)))
     return img.convert("RGBA")
 
 
@@ -100,7 +144,7 @@ def paper(w=128, h=128, rad=6):
     burn = Image.new("RGB", (w, h), (120, 80, 40))
     img = Image.composite(burn, img, edge.point(lambda v: int(v * 0.55)))
     out = img.convert("RGBA")
-    out.putalpha(rounded_mask(w, h, rad))
+    out.putalpha(rough_mask(w, h, rad, 1.6, 7))
     return out
 
 
@@ -109,7 +153,7 @@ def frame(w=96, h=96, border=14, rad=12):
     wd = wood(w, h, rad)
     col = Image.new("RGBA", (w, h), (92, 64, 42, 255))
     img = ImageChops.multiply(col, wd)
-    img.putalpha(rounded_mask(w, h, rad))
+    img.putalpha(rough_mask(w, h, rad, 1.5, 11))
     hole = Image.new("L", (w, h), 255)
     ImageDraw.Draw(hole).rounded_rectangle((border, border, w - 1 - border, h - 1 - border), 6, fill=0)
     a = ImageChops.multiply(img.getchannel("A"), hole)
