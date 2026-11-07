@@ -66,12 +66,16 @@ func _draw_battle_report() -> void:
 	var rows := 1 if ctl else 2     # 重播時底部有控制列，只剩一排
 	var rh: float = tz("S") * 1.32
 	var y0: float = 800.0 - rows * rh - 4.0 if ctl else minf(720.0, 766.0 - rows * rh)
+	if pad_mode:
+		if ctl:
+			return   # V1.2.1：重播／覆盤有控制列＋手把提示列，底部放不下戰報（事件看時間軸）
+		y0 -= 32.0   # V1.2.1：手把模式底部有按鍵提示列（30px），戰報讓開
 	var cw := 412.0
 	var plain := bool(Save.s("plain_ui"))
 	if not ctl:
 		var bar := Rect2(0, y0 - 3, 1280, mini(ceili(report_log.size() / 3.0), rows) * rh + 6)
 		if plain:
-			draw_rect(bar, Color(0, 0, 0, 0.5))   # 第十輪 V10：底條
+			draw_rect(bar, Color(0, 0, 0, 0.72))   # 第十輪 V10：底條（V1.2.1 加深，戰報字對比）
 		else:
 			# V1.2 C6：戰報條是一條深木槽（上緣一道亮邊），不是黑色半透明帶
 			_tex_box(bar, "groove", Color(0.42, 0.31, 0.22, 0.92))
@@ -79,7 +83,7 @@ func _draw_battle_report() -> void:
 	for i in mini(report_log.size(), rows * 3):
 		var e: Dictionary = report_log[i]
 		var age: float = time - float(e["t"])
-		var a := clampf(1.6 - age * 0.4, 0.35, 1.0)
+		var a := clampf(1.6 - age * 0.4, 0.8, 1.0)   # V1.2.1 F5：舊條目最淡到 80%（35% 讀不到）
 		var p := Vector2(14.0 + (i % 3) * cw, y0 + (i / 3) * rh)
 		var mark := "●" if e["team"] == 0 else "◆"
 		var line := "%s %s" % [L.t("unit_%d" % int(e["type"])), e["label"]]
@@ -104,7 +108,7 @@ func _draw_battle_report() -> void:
 				draw_colored_polygon(di, Color(tc, a))
 				draw_circle(c + Vector2(-rr * 0.25, -rr * 0.3), rr * 0.22, Color(1, 1, 1, 0.45 * a), true, -1.0, true)
 		var lc: Color = e["col"]
-		if not plain and lc.get_luminance() < 0.55:
+		if lc.get_luminance() < 0.55:
 			lc = lc.lightened(0.45)   # 深木槽上，深色技能字（刺客紫）提亮（Antigravity impl4）
 		_text(p + Vector2(tz("S") + 6.0, 0), line, tz("S"), Color(lc, a), false, true, cw - tz("S") - 14.0)
 

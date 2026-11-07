@@ -506,9 +506,9 @@ func _draw_place_hud() -> void:
 	var ml := _mode_label()
 	if mode == Mode.DUEL:
 		ml = L.t("menu_duel")   # 規則細節已經在中間大字，左上只放模式名稱（避免換行）
-	_text(Vector2(16, 6), ml, tz("S"), Color(1, 1, 1, 0.75), false, true, 380)
+	_text(Vector2(16, 6), ml, tz("S"), TXT_DIM, false, true, 380)
 	if mode == Mode.VS_AI or mode == Mode.DUEL:
-		_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), Color(1, 1, 1, 0.6), false, false, 300)
+		_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), TXT_DIM, false, false, 300)
 	# 中：一句話＋金幣條
 	var head := L.t("place_title")
 	if mode == Mode.DUEL:
@@ -538,9 +538,9 @@ func _draw_place_hud() -> void:
 	var gtxt := L.t("gold_of", [a.spent(), a.budget])
 	_text(Vector2(gb.end.x + 10, gb.position.y - tz("S") * 0.45), gtxt, tz("S"), ACCENT, false, true)
 	var ux := gb.end.x + 18 + _width(gtxt, tz("S"), true)
-	_text(Vector2(ux, gb.position.y - tz("S") * 0.45), L.t("units_of", [a.count(), a.unit_cap]), tz("S"), Color(1, 1, 1, 0.8), false, true)
+	_text(Vector2(ux, gb.position.y - tz("S") * 0.45), L.t("units_of", [a.count(), a.unit_cap]), tz("S"), TXT_DIM, false, true)
 	if mode == Mode.DUEL and tp != null and rules != null and rules.handicap:
-		_text(Vector2(440, gb.end.y + 2), L.t("hc_both", [rules.budget_of(0), rules.budget_of(1)]), tz("C"), Color(1, 1, 1, 0.6))
+		_text(Vector2(440, gb.end.y + 2), L.t("hc_both", [rules.budget_of(0), rules.budget_of(1)]), tz("C"), TXT_DIM)
 	# 右：規則徽章（非標準時）
 	if rules != null and (mode == Mode.VS_AI or mode == Mode.DUEL):
 		var b := Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai")
@@ -569,7 +569,7 @@ func _draw_place_hud() -> void:
 		# 三層卡：上＝快捷鍵、價錢；中＝全身圖；下＝已擺數量、?
 		Art.unit(self, r.position + Vector2(r.size.x / 2, 74), i, a.team, 1.0, 0.0, 0.0, 0.0, (1.0 if afford else 0.45) if opened else 0.25, time, 0.78, cbm())
 		var fz := tz("C")
-		_text(r.position + Vector2(5, 3), "%d" % ((_card_types().find(i) + 1) % 10), fz, Color(1, 1, 1, 0.6), false, false, 20)
+		_text(r.position + Vector2(5, 3), "%d" % ((_card_types().find(i) + 1) % 10), fz, TXT_DIM, false, false, 20)
 		if opened:
 			var gt: String = L.t("gold", [D.cost(i)])
 			var gw := _width(gt, fz, true)
@@ -642,7 +642,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 	x += _width(name, tz("B"), true) + 12
 	if not _allowed(i) and not (rules != null):
 		var lock: String = L.t("locked_demo") if not RS.available(i, _demo()) else L.t("locked_classic")
-		_text(Vector2(x, y), lock, tz("S"), Color(1, 1, 1, 0.8))
+		_text(Vector2(x, y), lock, tz("S"), TXT_DIM)
 		_draw_place_help()
 		return
 	var blurb: String = L.t("blurb_%d" % i)
@@ -738,10 +738,10 @@ func _draw_plan_panel(R: Rect2) -> void:
 	top += text_h(L.t("plan_head", [nm]), tz("C"), lw) + 2
 	if not en_list.is_empty():
 		var et := L.t("plan_enemy", [", ".join(en_list)])
-		_text(R.position + Vector2(10, top), et, tz("C"), Color(1, 1, 1, 0.75), false, false, lw)
+		_text(R.position + Vector2(10, top), et, tz("C"), TXT_DIM, false, false, lw)
 		top += text_h(et, tz("C"), lw) + 2
 	if pad_mode and overlay == "":
-		_text(Vector2(R.position.x + 10, R.position.y - tz("C") * 1.4), L.t("plan_pad"), tz("C"), Color(1, 1, 1, 0.7), false, false, R.size.x)
+		_text(Vector2(R.position.x + 10, R.position.y - tz("C") * 1.4), L.t("plan_pad"), tz("C"), TXT_DIM, false, false, R.size.x)
 	var rows: int = puzzle_plan.size()
 	var parts: Array = []
 	for i in rows:

@@ -6,6 +6,8 @@ var boot_parts := {}   # V1.1 E6：啟動各階段的時間點（毫秒，從程
 var _ov_seen := ""   # V1.2 F1：覆蓋層動畫用
 var _ov_t := -9.0
 
+var shot_state := {}   # V1.2.1：版面檢查這一組的固定狀態（截圖程式切換後要還原成這裡的值）
+
 func _ready() -> void:
 	boot_parts["ready_in"] = Time.get_ticks_msec()
 	on_battle_finished = _finish_battle
@@ -30,6 +32,13 @@ func _ready() -> void:
 			Save.settings["text_scale"] = int(a2.substr(12))
 		elif a2 == "--layout-check":
 			layout_probe = true
+		elif a2.begins_with("--shot-state="):   # V1.2.1：版面檢查的狀態矩陣（plain、cb、pad）
+			for st in a2.substr(13).split(","):
+				shot_state[st] = true
+			if shot_state.has("plain"):
+				Save.settings["plain_ui"] = true
+			if shot_state.has("cb"):
+				Save.settings["colorblind"] = true
 	L.lang = Save.s("lang")
 	duel_rule = Save.s("duel_rule")
 	speed = float(Save.s("speed"))
@@ -56,7 +65,7 @@ func _ready() -> void:
 	add_child(sprites)
 	if capsule_path == "":
 		_rebuild_sprites.call_deferred()
-	sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))
+	sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")), int(Save.s("ui_vol")), int(Save.s("amb_vol")))
 	grass = load("res://art/cainos/TX_Tileset_Grass.png")
 	for i in 9:
 		var tex = load("res://art/cainos/plant_%02d.png" % i)
@@ -436,6 +445,7 @@ func _draw_inner() -> void:
 	probe_texts.clear()
 	probe_btns.clear()
 	probe_ctrls.clear()
+	probe_boxes.clear()
 	_probe_ui = false
 	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
 	_sync_field()

@@ -46,9 +46,9 @@ func _draw_replay_controls() -> void:
 		draw_rect(Rect2(RC_BAR.position.x + i * 3.0, RC_BAR.get_center().y - (h if d > 0 else 0.0), 3.0, h), Color(Art.team_color(0 if d > 0 else 1, cbm()), 0.8))
 	var cx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(view.tick) / total, 0.0, 1.0)
 	draw_line(Vector2(cx, RC_BAR.position.y - 3), Vector2(cx, RC_BAR.end.y + 3), ACCENT, 3.0)
-	var hz := fit(L.t("rc_hint"), ts(12), 560)
+	var hz := fit(L.t("rc_hint"), tz("C"), 560)   # V1.2.1 B2：走字級表
 	var hw := font.get_string_size(L.t("rc_hint"), HORIZONTAL_ALIGNMENT_LEFT, -1, hz).x
-	_text(Vector2(RC_BAR.end.x - hw, RC_BAR.position.y - hz * 1.5), L.t("rc_hint"), hz, Color(1, 1, 1, 0.6))
+	_text(Vector2(RC_BAR.end.x - hw, RC_BAR.position.y - hz * 1.5), L.t("rc_hint"), hz, TXT_DIM)
 	# 第七輪 A7：時間軸上的關鍵時刻刻度
 	for m in replay_marks:
 		var mx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(m["t"]) / total, 0.0, 1.0)
@@ -56,7 +56,7 @@ func _draw_replay_controls() -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(mx - 5, RC_BAR.position.y - 7), Vector2(mx + 5, RC_BAR.position.y - 7), Vector2(mx, RC_BAR.position.y)]), Color("#ffd166"))
 	# 整條是一個按鈕：點哪裡就跳到哪一秒
 	_btns.append({"r": RC_BAR, "cb": func(): _seek_async(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
-	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), "%.1f／%.1f 秒" % [view.tick / 20.0, total / 20.0] if L.lang == "zh_TW" else "%.1f / %.1fs" % [view.tick / 20.0, total / 20.0], ts(12), Color(1, 1, 1, 0.75))
+	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), L.t("rc_time", [view.tick / 20.0, total / 20.0]), tz("C"), TXT_DIM)   # V1.2.1 B2／G3：字級表＋字串表
 	if play_kind == "review":
 		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
 	if follow_id >= 0:
@@ -515,7 +515,7 @@ func _draw_review() -> void:
 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
 	_panel(Rect2(100, 60, 1080, 680))
 	_h1(Vector2(640, 62), L.t("rv_title"))
-	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint"), tz("S"), Color(1, 1, 1, 0.75), true, false, 960)
+	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint"), tz("S"), TXT_DIM, true, false, 960)
 	var cs := 40.0
 	var g0 := Vector2(130, 168)
 	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
@@ -559,7 +559,7 @@ func _draw_review() -> void:
 		var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
 		var br := Rect2(bx + t * 56, 160, 52, 66)
 		_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
-		var py := br.size.y - tz("C") * 1.15 - 2
+		var py := br.size.y - tz("C") * 1.15 - 5   # V1.2.1：按鈕下緣有 3px 厚度，價錢要在面板內
 		Art.unit(self, br.position + Vector2(26, py - 2), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
 		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
 	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
@@ -577,7 +577,7 @@ func _draw_review() -> void:
 		var b1: Array = rv_result.get("b", [100, 100])
 		Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
 		y += tz("S") * 1.5 + 82
-		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), Color(1, 1, 1, 0.6), false, false, 552)
+		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)
 		_btn(Rect2(bx + 252, y + text_h(L.t("rv_note"), tz("C"), 552) + 6, 300, 44), L.t("rv_play"), func(): _rv_play())   # 靠右，大字級時不壓到置中的「返回」
 	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "")
 

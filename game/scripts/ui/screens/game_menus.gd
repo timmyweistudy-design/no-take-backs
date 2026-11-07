@@ -41,7 +41,7 @@ func _draw_gauntlet_pick() -> void:
 	var pick_h := 160.0 + opts.size() * 128.0 + 60.0     # 第十輪 V7：面板依內容高度
 	_panel(Rect2(240, 120, 800, pick_h))
 	_h1(Vector2(640, 124), L.t("gp_title"))
-	_text(Vector2(640, 182), L.t("gp_note"), tz("S"), Color(1, 1, 1, 0.75), true)
+	_text(Vector2(640, 182), L.t("gp_note"), tz("S"), TXT_DIM, true)
 	for i in opts.size():
 		var r := Rect2(280, 226 + i * 128, 720, 116)
 		var pool: int = opts[i][1]
@@ -186,7 +186,7 @@ func _draw_title() -> void:
 	var ty := 40.0 + tsz * 1.2
 	_text(Vector2(235, ty), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", tz("B"), Color(1, 1, 1, 0.85), true, false, 420)
 	ty += tz("B") * 1.4
-	_text(Vector2(235, ty), L.t("subtitle"), tz("S"), Color(1, 1, 1, 0.8), true, false, 420)
+	_text(Vector2(235, ty), L.t("subtitle"), tz("S"), TXT_DIM, true, false, 420)
 	ty += text_h(L.t("subtitle"), tz("S"), 420) + 18
 	var y0 := maxf(250.0, ty)
 	# 第七輪 E7：四顆主玩法有兵種圖示與亮邊；其餘縮小。新手第一次進來，主推教學（A4）
@@ -222,7 +222,7 @@ func _draw_title() -> void:
 	for i in sys.size():
 		_btn(Rect2(70 + i * 112, y2, 106, 38), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
 	# 底部：最佳紀錄、版本
-	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), Color(1, 1, 1, 0.6), false, false, 380)
+	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), TXT_DIM, false, false, 380)
 
 
 
@@ -259,7 +259,7 @@ func _draw_overlay() -> void:
 		"codes":
 			_panel(Rect2(340, 250, 600, 300))
 			_h1(Vector2(640, 254), L.t("menu_codes"))
-			_text(Vector2(640, 316), L.t("codes_hint"), tz("S"), Color(1, 1, 1, 0.8), true, false, 540)
+			_text(Vector2(640, 316), L.t("codes_hint"), tz("S"), TXT_DIM, true, false, 540)
 			_btn(Rect2(380, 370, 250, 52), L.t("bc_watch"), func(): overlay = ""; _watch_battle_code())
 			_btn(Rect2(650, 370, 250, 52), L.t("ch_accept"), func(): overlay = ""; _accept_challenge())
 			_btn(Rect2(380, 428, 520, 44), L.t("ws_accept"), func(): overlay = ""; call("_accept_workshop"))   # V1.1 D3
@@ -303,9 +303,9 @@ func _draw_overlay() -> void:
 				_btn(Rect2(952, 158, 48, 40), "▶", func(): puzzle_tab = wrapi(puzzle_tab + 1, 0, PZ.CHAPTERS), puzzle_tab < PZ.CHAPTERS - 1 and not _demo())
 				_text(Vector2(640, 162), L.t("chapter_head", [puzzle_tab + 1, cname, total, chap.size() * 3]), tz("B"), ACCENT, true, true, 600)
 				var story: String = str(info.get("story_zh" if L.lang == "zh_TW" else "story_en", ""))
-				_text(Vector2(640, 162 + tz("B") * 1.5), story, tz("C"), Color(1, 1, 1, 0.75), true, false, 700)
+				_text(Vector2(640, 162 + tz("B") * 1.5), story, tz("C"), TXT_DIM, true, false, 700)
 				y0 = 162 + tz("B") * 1.5 + text_h(story, tz("C"), 700) + 10
-				_text(Vector2(280, 648), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), Color(1, 1, 1, 0.7), false, false, 260)
+				_text(Vector2(280, 648), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), TXT_DIM, false, false, 260)
 				_btn(Rect2(800, 640, 200, 36), ("✓ " if puzzle_only_open else "") + L.t("puzzle_only_open"), func(): puzzle_only_open = not puzzle_only_open)
 				if puzzle_only_open:
 					idx = idx.filter(func(k): return int(stars.get(list[k]["id"], 0)) < 3)
@@ -337,7 +337,7 @@ func _draw_overlay() -> void:
 					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
 					_probe_btn_label = true
 					_probe_btn_rect = r
-					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.25), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)
+					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.4), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)
 					_probe_btn_label = false
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
@@ -369,6 +369,20 @@ func _draw_overlay() -> void:
 
 
 
+## V1.2.1 E1：四條音量套用並試聽那一軌（sample＝""不試聽、"amb"＝放 1.5 秒森林環境音）。
+func _apply_volumes(sample: String) -> void:
+	if sfx == null:
+		return
+	sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")), int(Save.s("ui_vol")), int(Save.s("amb_vol")))
+	if sample == "amb":
+		if sfx.amb_name == "":
+			sfx.play_ambience("forest")
+			get_tree().create_timer(1.5).timeout.connect(func():
+				if sfx != null and state != St.BATTLE:
+					sfx.play_ambience(""))
+	elif sample != "":
+		sfx.play(sample)
+
 ## 設定（第五輪 §4.4）：四組分頁＋右側說明欄；多選項用 ◀ ▶；遊戲規則已經搬到規則大廳。
 func _settings_rows() -> Array:
 	var groups := {
@@ -376,8 +390,10 @@ func _settings_rows() -> Array:
 			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
 			["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
 			["set_fullscreen", _onoff("fullscreen"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()]],
-		1: [["set_music", "%d%%" % int(Save.s("music")), func(d): _step_setting("music", [0, 30, 50, 70, 100], d); sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))],
-			["set_sfx", "%d%%" % int(Save.s("sfx")), func(d): _step_setting("sfx", [0, 30, 50, 80, 100], d); sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")))]],
+		1: [["set_music", "%d%%" % int(Save.s("music")), func(d): _step_setting("music", [0, 30, 50, 70, 100], d); _apply_volumes("")],
+			["set_sfx", "%d%%" % int(Save.s("sfx")), func(d): _step_setting("sfx", [0, 30, 50, 80, 100], d); _apply_volumes("hit")],
+			["set_ui_vol", "%d%%" % int(Save.s("ui_vol")), func(d): _step_setting("ui_vol", [0, 30, 50, 80, 100], d); _apply_volumes("k_confirm")],
+			["set_amb_vol", "%d%%" % int(Save.s("amb_vol")), func(d): _step_setting("amb_vol", [0, 30, 50, 80, 100], d); _apply_volumes("amb")]],
 		2: [["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(d): _step_setting("speed", [0.5, 1.0, 2.0], d)],
 			["set_confirm", _onoff("confirm_place"), func(d): _cycle_setting("confirm_place", [true, false])],
 			["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],

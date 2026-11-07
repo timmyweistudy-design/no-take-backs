@@ -27,6 +27,8 @@ var amb: AudioStreamPlayer       # V9：地圖環境音
 var amb_name := ""
 var duck_t := 0.0                # V9：大招、號角時暫時壓低音樂
 var sfx_vol := 0.8
+var ui_vol := 0.8      # V1.2.1 E1：介面音（k_*、ui_*）
+var amb_vol := 0.8     # V1.2.1 E1：環境音
 var music_vol := 0.7
 var rng := RandomNumberGenerator.new()
 
@@ -113,15 +115,19 @@ static func pick_channel(busy: Array, prios: Array, starts: Array, prio: int) ->
 			best = i
 	return best
 
-func set_volumes(sfx_pct: int, music_pct: int) -> void:
+## V1.2.1 E1：四條音量各自獨立；介面音、環境音沒給（-1）時跟音效相同（舊呼叫相容）。
+func set_volumes(sfx_pct: int, music_pct: int, ui_pct := -1, amb_pct := -1) -> void:
 	sfx_vol = sfx_pct / 100.0
 	music_vol = music_pct / 100.0
+	ui_vol = (ui_pct if ui_pct >= 0 else sfx_pct) / 100.0
+	amb_vol = (amb_pct if amb_pct >= 0 else sfx_pct) / 100.0
 	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6))
 	if amb != null:
-		amb.volume_db = linear_to_db(maxf(0.0001, sfx_vol * 0.22))   # 第十輪 B6：環境音跟音效音量
+		amb.volume_db = linear_to_db(maxf(0.0001, amb_vol * 0.22))   # V1.2.1：環境音有自己的音量
 
 func play(name: String, vol := 1.0) -> void:
-	if not streams.has(name) or sfx_vol <= 0.0:
+	var gain := gain_for(name)
+	if not streams.has(name) or gain <= 0.0:
 		return
 	if int(PRIO.get(name, 0)) >= 2 and not name.begins_with("k_"):
 		duck(0.7)
@@ -145,13 +151,20 @@ func play(name: String, vol := 1.0) -> void:
 		return
 	var p := players[ch]
 	p.stop()
-	p.bus = BUS_UI if (name.begins_with("k_") or name.begins_with("ui_")) else BUS_SFX
+	p.bus = BUS_UI if is_ui(name) else BUS_SFX
 	p.stream = _pick_variant(name)
 	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
-	p.volume_db = linear_to_db(maxf(0.0001, sfx_vol * vol))
+	p.volume_db = linear_to_db(maxf(0.0001, gain * vol))
 	p.play()
 	_prio_of[ch] = pr
 	_started[ch] = now
+
+static func is_ui(name: String) -> bool:
+	return name.begins_with("k_") or name.begins_with("ui_")
+
+## 這個音效走哪一條音量（介面音或音效）。
+func gain_for(name: String) -> float:
+	return ui_vol if is_ui(name) else sfx_vol
 
 ## 變體：隨機挑一個，但不和上一次相同（只有一個就用它）。
 func _pick_variant(name: String):
@@ -208,7 +221,7 @@ func play_ambience(name: String) -> void:
 		amb.stop()
 		return
 	amb.stream = st
-	amb.volume_db = linear_to_db(maxf(0.0001, sfx_vol * 0.22))
+	amb.volume_db = linear_to_db(maxf(0.0001, amb_vol * 0.22))
 	amb.play()
 
 func duck(sec: float) -> void:

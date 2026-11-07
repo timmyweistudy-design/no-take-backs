@@ -102,11 +102,12 @@ func _draw_result() -> void:
 	# V1.2 C3：勝負大字墊一條布幔絲帶（勝方隊色、兩端燕尾、金邊），不再是浮在面板上的單色字
 	var rib_in := 0.0   # 有緞帶時，摘要第一行用緞帶內寬排版（Codex v120-final：長行跨出緞帶）
 	if not bool(Save.s("plain_ui")):
-		var l1 := _result_line1()
+		var l1 := _result_line1(540.0 - 24.0)
 		# 緞帶最寬 540；燕尾依剩下的空間縮短，停在左右按鈕前（x 354～926）
 		var tw: float = minf(540.0, maxf(minf(540.0, _width(title, title_sz, true)) + 120.0, _width(l1, tz("S")) + 40.0))
 		var tail := clampf((572.0 - tw) / 2.0, 10.0, 34.0)
 		rib_in = tw - 24.0
+		l1 = _result_line1(rib_in)   # 高度用和正文同一個寬度決定的斷行
 		var ry0 := 114.0 - title_sz * 0.02
 		var ry := ry0 + drop
 		# 布幔上下要留白（Antigravity impl1）：往下一級字級（只能用字級表裡的值）
@@ -152,9 +153,9 @@ func _draw_result() -> void:
 		y += tz("C") * 1.4
 	# 標題區只用左右按鈕之間的寬度（Antigravity 實作第 1 輪：英文 150% 摘要壓到「詳細數據」按鈕）
 	var hw := 540.0 if y < 210 else 820.0
-	var line1 := _result_line1()
+	var line1 := _result_line1(rib_in if rib_in > 0.0 else hw)
 	var hw1 := rib_in if rib_in > 0.0 else hw
-	_text(Vector2(640, y), line1, tz("S"), Color(1, 1, 1, 0.8), true, false, hw1)
+	_text(Vector2(640, y), line1, tz("S"), TXT_DIM, true, false, hw1)
 	y += text_h(line1, fit(line1, tz("S"), hw1), hw1) + 6   # 和 _text 一樣先 fit 再量
 	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
 	var loss := _loss_line(w, goal_mode)
@@ -178,7 +179,7 @@ func _draw_result() -> void:
 			var mx := ch.position.x + ch.size.x * clampf(float(m["t"]) / maxf(1.0, span - 1), 0.0, 1.0)
 			var tt := int(m["t"])
 			_btns.append({"r": Rect2(mx - 18, ch.position.y, 36, ch.size.y), "cb": func(): _replay_from(tt), "en": true})
-		_text(Vector2(250, ch.end.y + 4), L.t("mom_caption"), tz("C"), Color(1, 1, 1, 0.6), false, false, 780)
+		_text(Vector2(250, ch.end.y + 4), L.t("mom_caption"), tz("C"), TXT_DIM, false, false, 780)
 		y = ch.end.y + tz("C") * 1.6 + 6
 		if mvp != null:
 			var mr := Rect2(250, y, 780, 76)
@@ -512,9 +513,15 @@ func _next_puzzle() -> void:
 
 
 ## 結果頁摘要第一行（勝負原因・時間｜剩餘戰力）；緞帶高度和正文共用（V1.2）。
-func _result_line1() -> String:
+func _result_line1(maxw := 0.0) -> String:
 	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
 		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
 	var p0 := roundi(sim.power(0) * 100.0 / (sim.budget_of(0) * 1000))
 	var p1 := roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))
-	return "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])]
+	var a := "%s・%.1fs" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0]
+	var b := L.t("power_left", [p0, p1])
+	var one := "%s　｜　%s" % [a, b]
+	# V1.2.1 B1：放不下就在「｜」那裡分兩行（原因／戰力），不讓百分比孤零零掉到下一行
+	if maxw > 0.0 and _width(one, tz("S")) > maxw:
+		return a + "\n" + b
+	return one

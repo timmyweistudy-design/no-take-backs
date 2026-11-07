@@ -25,12 +25,14 @@ func texture(map_id: int, size: int) -> Texture2D:
 		return _tex[k]
 	if not _busy.has(k):
 		_busy[k] = true
-		_bake.call_deferred(map_id, size)
+		_bake.call_deferred(map_id, size, _plain())   # 鍵與設定在排程當下固定（Codex v121：延後才讀會留下卡住的 busy）
 	return null
 
-func _bake(map_id: int, size: int) -> void:
+func _bake(map_id: int, size: int, plain := false) -> void:
+	var k := key_of(map_id, size) * 2 + (1 if plain else 0)
 	var t = MD.terrain(map_id, size)
 	if t == null:
+		_busy.erase(k)   # 失敗也清掉，下次可以重試
 		return
 	var vp := SubViewport.new()
 	vp.size = Vector2i(int(t.w / 1000.0 * CS), int(t.h / 1000.0 * CS))
@@ -40,7 +42,6 @@ func _bake(map_id: int, size: int) -> void:
 	p.biome = BIOME[MD.MAPS[map_id]["biome"]]
 	p.kind = MD.MAPS[map_id]["biome"]
 	p.t = t
-	var plain := _plain()
 	p.plain = plain
 	vp.add_child(p)
 	add_child(vp)
@@ -50,7 +51,10 @@ func _bake(map_id: int, size: int) -> void:
 	vp.queue_free()
 	if not plain:
 		img = await _grade(img)
-	_tex[key_of(map_id, size) * 2 + (1 if plain else 0)] = ImageTexture.create_from_image(img)
+	_busy.erase(k)
+	if img == null or img.is_empty():
+		return
+	_tex[k] = ImageTexture.create_from_image(img)
 
 static func _plain() -> bool:
 	return bool(preload("res://scripts/game/save.gd").s("plain_ui"))

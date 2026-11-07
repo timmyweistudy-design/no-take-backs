@@ -106,8 +106,101 @@ func _capture_capsule() -> void:
 const TEXT_BUDGET := {"02_place.png": 30, "17_place_new.png": 30, "05_result.png": 20, "10_codex.png": 30, "19_codex_new.png": 30,
 	"22_lobby.png": 25, "25_lobby_duel.png": 25, "08_settings.png": 25, "01_title.png": 12}
 
-func _layout_report(name: String) -> void:
+## V1.2.1 F5：WCAG 相對亮度（線性 sRGB）與對比。
+static func rel_lum(c: Color) -> float:
+	var f := func(v: float) -> float: return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
+	return 0.2126 * f.call(c.r) + 0.7152 * f.call(c.g) + 0.0722 * f.call(c.b)
+
+static func contrast(a: Color, b: Color) -> float:
+	var la := rel_lum(a)
+	var lb := rel_lum(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+## 從截圖取一段字的背景色：字框內取樣，去掉像字色、像描邊色的像素，剩下的取亮度中位數。
+## 背景像素不到 15% 回傳 null（背景未知＝不能算通過）。
+static func text_bg(img: Image, r: Rect2, c: Color, oc: Color, sx: float, sy: float):
+	var x0 := clampi(int(r.position.x * sx), 0, img.get_width() - 1)
+	var y0 := clampi(int(r.position.y * sy), 0, img.get_height() - 1)
+	var x1 := clampi(int(r.end.x * sx), 0, img.get_width() - 1)
+	var y1 := clampi(int(r.end.y * sy), 0, img.get_height() - 1)
+	if x1 <= x0 or y1 <= y0:
+		return null
+	var step := maxi(1, int(sqrt(float((x1 - x0) * (y1 - y0)) / 500.0)))
+	var all := 0
+	var bg: Array = []
+	var y := y0
+	while y <= y1:
+		var x := x0
+		while x <= x1:
+			var p := img.get_pixel(x, y)
+			all += 1
+			var dc := absf(p.r - c.r) + absf(p.g - c.g) + absf(p.b - c.b)
+			var do := absf(p.r - oc.r) + absf(p.g - oc.g) + absf(p.b - oc.b) if oc.a > 0.0 else 9.0
+			if dc > 0.30 and do > 0.30:
+				bg.append(p)
+			x += step
+		y += step
+	if all == 0 or float(bg.size()) / all < 0.15:
+		# 小字（例如單一數字）字框裡幾乎都是字：改取字框外圍一圈當背景
+		bg = []
+		for k in 24:
+			var a := k * TAU / 24.0
+			var pp := r.get_center() + Vector2(cos(a) * (r.size.x / 2.0 + 3.0), sin(a) * (r.size.y / 2.0 + 3.0))
+			var px := clampi(int(pp.x * sx), 0, img.get_width() - 1)
+			var py := clampi(int(pp.y * sy), 0, img.get_height() - 1)
+			var p2 := img.get_pixel(px, py)
+			if absf(p2.r - c.r) + absf(p2.g - c.g) + absf(p2.b - c.b) > 0.30:
+				bg.append(p2)
+		if bg.size() < 8:
+			return null
+	bg.sort_custom(func(a, b): return rel_lum(a) < rel_lum(b))
+	return bg[bg.size() / 2]
+
+## 一段字是否算大字（WCAG：24px 以上，或粗體 18.66px 以上；以 1280×800 顯示尺寸算）。
+static func large_text(size: int, bold: bool) -> bool:
+	return size >= 24 or (bold and size >= 19)
+
+## F5：截圖上的文字對比。有足夠描邊的字比「字對描邊」，其他比「字對背景」（半透明字先疊在背景上）。
+func _contrast_issues(img: Image) -> Dictionary:
 	var bad: Array = []
+	var warn: Array = []
+	if img == null:
+		return {"bad": bad, "warn": warn}
+	var sx := img.get_width() / 1280.0
+	var sy := img.get_height() / 800.0
+	for t in probe_texts:
+		if t.get("field", false) or not t.has("c"):
+			continue
+		var c: Color = t["c"]
+		var oc: Color = t["oc"]
+		var size := int(t["size"])
+		var need := 3.0 if large_text(size, bool(t.get("bold", false))) else 4.5
+		var outlined: bool = oc.a >= 0.6 and float(t["ow"]) >= float(text_outline_w(size)) * 0.9
+		var bgc = text_bg(img, t["r"], c, oc, sx, sy)
+		var ratio := 0.0
+		if outlined:
+			ratio = contrast(c, oc)
+		elif bgc == null:
+			bad.append({"type": "背景未知", "s": t["s"]})
+			continue
+		else:
+			var eff := Color(c.r * c.a + bgc.r * (1.0 - c.a), c.g * c.a + bgc.g * (1.0 - c.a), c.b * c.a + bgc.b * (1.0 - c.a))
+			ratio = contrast(eff, bgc)
+		if ratio >= need:
+			continue
+		var item := {"type": "對比不足", "s": t["s"], "ratio": snappedf(ratio, 0.01), "need": need}
+		if c.a < 0.5 or (t.get("btn", false) and c.a < 0.45):
+			warn.append(item)   # 停用、淡化裝飾字另報（WCAG 豁免停用元件）
+		else:
+			bad.append(item)
+	return {"bad": bad, "warn": warn}
+
+func _layout_report(name: String, img: Image = null) -> void:
+	var bad: Array = []
+	var cres := _contrast_issues(img)
+	bad.append_array(cres["bad"])
+	for mp in probe_missing:
+		bad.append({"type": "缺圖", "s": mp})   # V1.2.1：材質缺檔不能默默退回平塗
 	for b in _btns:     # 第十輪 T5：按鈕不能跑出畫面（手把焦點會走到看不見的地方）
 		if not Rect2(0, 0, 1280, 800).encloses(b["r"]):
 			bad.append({"type": "按鈕超出畫面", "s": name, "r": str(b["r"])})
@@ -135,9 +228,9 @@ func _layout_report(name: String) -> void:
 			free_n += 1
 		if r.position.x < -2 or r.end.x > 1282 or r.position.y < -2 or r.end.y > 802:
 			bad.append({"type": "越界", "s": t["s"], "r": str(r)})
-		if sz < tz("C"):
+		if sz < tz("C") and not t.get("glyph", false):
 			bad.append({"type": "小於字級表下限", "s": t["s"], "size": sz})
-		if not size_ok(sz):
+		if not size_ok(sz) and not t.get("glyph", false):
 			bad.append({"type": "表外字級", "s": t["s"], "size": sz})
 	for a in probe_texts.size():
 		if probe_texts[a].get("field", false):
@@ -157,7 +250,19 @@ func _layout_report(name: String) -> void:
 				bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
 			elif ra.position.distance_to(rb.position) > 2.0:
 				bad.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
-	# 第七輪 I3：按鈕框互撞（重疊但不是一個包住另一個）
+	# V1.2.1 F1：字壓進九宮格外圈斜邊（3px）——字的中心在方塊內、但字框跨進斜邊帶
+	for t in probe_texts:
+		if t.get("field", false) or t.get("btn", false):   # 按鈕標籤另外檢查（要在自己的框內）
+			continue
+		var tr2: Rect2 = t["r"]
+		var cc := tr2.get_center()
+		var best := Rect2()   # 只看包住字中心的最小方塊（緞帶標題跨在木條上時，算緞帶自己的框）
+		for bx in probe_boxes:
+			if bx.grow(-2.0).has_point(cc) and (not best.has_area() or bx.get_area() < best.get_area()):
+				best = bx
+		if best.has_area() and not best.grow(-2.0).encloses(tr2.grow(-2.0)) and best.encloses(tr2.grow(-4.0)):   # 字框含描邊與行高，內縮 2px 才是字形
+			bad.append({"type": "字壓到九宮格邊", "s": t["s"], "box": str(best)})
+		# 第七輪 I3：按鈕框互撞（重疊但不是一個包住另一個）
 	for bi in probe_btns.size():
 		for bj in range(bi + 1, probe_btns.size()):
 			var r1: Rect2 = probe_btns[bi]
@@ -203,7 +308,7 @@ func _layout_report(name: String) -> void:
 	sizes.sort()
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
-		"violations": bad, "warnings": []})
+		"violations": bad, "warnings": cres["warn"]})
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()
 	f.store_line(line)
@@ -213,14 +318,17 @@ func _layout_report(name: String) -> void:
 func _snap(name: String) -> void:
 	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)   # 真的被縮下去就還原，否則永遠等不到繪製
+	if shot_state.has("pad"):
+		pad_mode = true   # V1.2.1：手把焦點狀態（焦點框畫在目前的按鈕上）
 	queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(shot_dir.path_join(name))
+	var img := get_viewport().get_texture().get_image()
+	img.save_png(shot_dir.path_join(name))
 	print("SHOT ", name)
 	if layout_probe:
-		_layout_report(name)
+		_layout_report(name, img)
 
 
 ## 實機影片（N6 預告素材）：用 Godot 錄影模式跑（--write-movie 絕對路徑 --fixed-fps 30），全程自動。
@@ -353,7 +461,7 @@ func _run_screenshots() -> void:
 	for i in 4:
 		await get_tree().process_frame
 	await _snap("14_colorblind.png")
-	Save.settings["colorblind"] = false
+	Save.settings["colorblind"] = shot_state.has("cb")
 	_rebuild_sprites()
 	for i in 4:
 		await get_tree().process_frame
@@ -363,7 +471,7 @@ func _run_screenshots() -> void:
 	for i in 4:
 		await get_tree().process_frame
 	await _snap("14b_plain_ui.png")
-	Save.settings["plain_ui"] = false
+	Save.settings["plain_ui"] = shot_state.has("plain")
 	_rebuild_sprites()
 	for i in 4:
 		await get_tree().process_frame
@@ -406,6 +514,8 @@ func _run_screenshots() -> void:
 	_go_title()
 	overlay = "settings"
 	await _snap("08_settings.png")
+	settings_tab = 1   # V1.2.1 E1：聲音分頁四條音量
+	await _snap("08d_settings_sound.png")
 	settings_tab = 3   # V1.2：畫面分頁多了「簡化介面」一列
 	await _snap("08c_settings_visual.png")
 	settings_tab = 0
@@ -812,7 +922,7 @@ func _run_perf() -> void:
 		await get_tree().process_frame
 		waited += 1
 	var cb_ms := Time.get_ticks_msec() - t_cb
-	Save.settings["colorblind"] = false
+	Save.settings["colorblind"] = shot_state.has("cb")
 	_rebuild_sprites()
 	waited = 0
 	while sprites != null and not sprites.is_ready(false) and waited < 240:

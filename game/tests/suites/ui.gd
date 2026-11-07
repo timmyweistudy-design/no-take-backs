@@ -204,6 +204,32 @@ func test_sfx_priority() -> void:
 
 ## 副作用矩陣（第三輪 A1）：正式對局才寫比分、進度、成就、試玩日誌；重播 3 次全部不變。
 ## 走正式畫面程式（_begin_battle → _sim_step → _finish_battle → _replay），存檔用測試前綴，不碰玩家存檔。
+## V1.2.1：普通 AI 的陣型名都有英文（英文介面原本顯示中文陣型名）
+func test_ai_names_v121() -> void:
+	var AI = load("res://scripts/core/ai_army.gd")
+	var GC = load("res://scripts/ui/screens/game_core.gd")
+	var miss: Array = []
+	for tp in AI.TEMPLATES:
+		if not GC.AI_TPL_EN.has(tp["name"]):
+			miss.append(tp["name"])
+	ok(miss.is_empty(), "AI 陣型名都有英文", str(miss))
+
+
+## V1.2.1 F1：樣式快取量化與上限（淡出不會讓快取無限成長；相近透明度共用同一個樣式）
+func test_style_cache_v121() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	for i in 2000:
+		g._flat_sb(Color(0.2, 0.1, 0.05, i / 2000.0), Color(0, 0, 0, 0), 6.0, 0.0)
+	ok(g._sb_cache.size() <= 16, "F1：同色 2000 種透明度只產生 ≤16 個樣式", str(g._sb_cache.size()))
+	ok(g._flat_sb(Color(0.2, 0.1, 0.05, 0.50), Color(0, 0, 0, 0), 6.0, 0.0) == g._flat_sb(Color(0.2, 0.1, 0.05, 0.51), Color(0, 0, 0, 0), 6.0, 0.0), "F1：相近透明度共用樣式")
+	for i in 1200:
+		g._flat_sb(Color(float(i % 256) / 255.0, float(i / 256) / 255.0, 0.3, 1.0), Color(0, 0, 0, 0), 6.0, 0.0)
+	ok(g._sb_cache.size() <= g.SB_CACHE_MAX, "F1：快取有上限", str(g._sb_cache.size()))
+	ok(g.qcol(Color(0.3, 0.3, 0.3, 0.5)).a == g._flat_sb(Color(0.3, 0.3, 0.3, 0.5), Color(0, 0, 0, 0), 6.0, 0.0).bg_color.a, "F1：樣式用的是量化後的顏色（鍵與實際一致）")
+	g.free()
+
+
 func test_play_effects() -> void:
 	var SV = load("res://scripts/game/save.gd")
 	var GS = load("res://scripts/ui/game_screens.gd")

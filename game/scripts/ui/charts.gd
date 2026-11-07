@@ -10,7 +10,7 @@ const RED := Color("#ff5a5a")
 const BLUE_CB := Color("#33ddff")
 const RED_CB := Color("#ff9a1f")
 const GRID := Color(1, 1, 1, 0.12)
-const MUTED := Color(1, 1, 1, 0.6)
+const MUTED := Color("#cfc3ae")   # V1.2.1 F5：不透明暖灰（原 60% 白在深木上只有 2.2:1）
 
 ## 兵種定位色系（金幣條分段用，4 色系，不做 10 種彩虹）：近戰／遠程／突擊／支援
 const ROLE_OF := [0, 0, 1, 2, 2, 0, 1, 3, 3, 0, 4, 4, 4, 0, 2, 0, 3, 1, 2, 0]   # 劍盾弓騎刺槍彈醫鼓狂

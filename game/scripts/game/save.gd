@@ -8,7 +8,7 @@ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真�
 
 const DEFAULT_SETTINGS := {
 	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
-	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
+	"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
 }
 const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
@@ -88,6 +88,13 @@ static func schema_of(d: Dictionary) -> int:
 ## 設定逐欄驗型（R4）：型別不對用預設，數值夾在合法範圍；不認得的欄位保留。
 static func sanitize_settings(d: Dictionary) -> Dictionary:
 	var out := d.duplicate(true)
+	# V1.2.1 F4：介面音、環境音是新欄位；舊檔沒有（或型別錯）時承接舊的音效值，舊靜音也保持靜音
+	var old_sfx = out.get("sfx", DEFAULT_SETTINGS["sfx"])
+	if not (old_sfx is int or old_sfx is float):
+		old_sfx = DEFAULT_SETTINGS["sfx"]
+	for nk in ["ui_vol", "amb_vol"]:
+		if not (out.get(nk) is int or out.get(nk) is float):
+			out[nk] = int(old_sfx)
 	for k in DEFAULT_SETTINGS:
 		var dv = DEFAULT_SETTINGS[k]
 		var v = out.get(k, dv)
@@ -105,6 +112,8 @@ static func sanitize_settings(d: Dictionary) -> Dictionary:
 		out["text_scale"] = DEFAULT_SETTINGS["text_scale"]
 	out["music"] = clampi(int(out["music"]), 0, 100)
 	out["sfx"] = clampi(int(out["sfx"]), 0, 100)
+	out["ui_vol"] = clampi(int(out["ui_vol"]), 0, 100)
+	out["amb_vol"] = clampi(int(out["amb_vol"]), 0, 100)
 	out["speed"] = clampf(float(out["speed"]), 0.25, 8.0)
 	if not str(out["duel_rule"]) in ["snake5", "snake5c", "cap10", "blind", "custom"]:
 		out["duel_rule"] = DEFAULT_SETTINGS["duel_rule"]

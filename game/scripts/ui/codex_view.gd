@@ -182,7 +182,9 @@ func _draw_codex() -> void:
 		if t == cx_unit:
 			draw_rect(r.grow(1.0), ACCENT, false, 3.0)   # 第七輪 E9：選中的兵種金框
 		_unit_in(r, t, 0, 1.0, 0.6 if t != D.CAVALRY else 0.55)   # 人物在頁籤正中間（原本腳畫到框外）
-		_text(r.position + Vector2(4, 2), str((t0 + 1) % 10), tcap(ts(12), 14), Color(1, 1, 1, 0.7), false, true)
+		_probe_glyph = true   # V1.2.1：頁籤角落的快捷鍵數字是符號
+		_text(r.position + Vector2(4, 2), str((t0 + 1) % 10), tcap(tz("C"), 14), TXT_DIM, false, true)
+		_probe_glyph = false
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
 	var items := _cx_left_items(u, lang)
@@ -254,13 +256,13 @@ func _cx_left_items(u: Dictionary, lang: String) -> Array:
 	var items: Array = [
 		{"type": "portrait", "h": 150.0, "texts": [
 			{"s": L.t("unit_%d" % cx_unit), "size": ts(26), "c": Color.WHITE, "bold": true},
-			{"s": CX.text(u, "role", lang), "size": ts(15), "c": Color(1, 1, 1, 0.8)},
+			{"s": CX.text(u, "role", lang), "size": ts(15), "c": TXT_DIM},
 			{"s": tag if _scale_key() == 100 else "", "size": ts(15), "c": ACCENT}]},   # 大字時省略口號，讓剋／怕不用捲動
 		{"type": "ranks"},
 		{"type": "counters"},
 		{"type": "text", "s": "✓ " + CX.text(u, "good", lang), "size": ts(15), "c": Color("#7dff8a"), "x": 0.0, "w": 356.0, "gap": 6.0},
 		{"type": "text", "s": "× " + CX.text(u, "bad", lang), "size": ts(15), "c": Color("#ff9b9b"), "x": 0.0, "w": 356.0, "gap": 12.0},
-		{"type": "text", "s": L.t("codex_story_h"), "size": ts(15), "c": Color(1, 1, 1, 0.6), "x": 0.0, "w": 356.0, "gap": 2.0},
+		{"type": "text", "s": L.t("codex_story_h"), "size": ts(15), "c": TXT_DIM, "x": 0.0, "w": 356.0, "gap": 2.0},
 		{"type": "text", "s": CX.text(u, "story", lang), "size": ts(16), "c": Color(1, 1, 1, 0.92), "x": 0.0, "w": 356.0, "gap": 12.0},
 	]
 	return items
@@ -388,7 +390,7 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 							Art.unit(self, Vector2(x + cw / 2, y + 32), t3, 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.55, cbm())
 							var nm: String = L.t("unit_%d" % t3)
 							if _width(nm, tz("C")) <= cw + 2:
-								_text(Vector2(x + cw / 2, y + 34), nm, tz("C"), Color(1, 1, 1, 0.8), true)
+								_text(Vector2(x + cw / 2, y + 34), nm, tz("C"), TXT_DIM, true)
 							x += cw
 				y += rowh + 4.0
 			"bars":
@@ -397,7 +399,7 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 				for b in _cx_bars(cx_unit):
 					if inside.call(y, lh):
 						_icon(["heart", "sword", "range", "speed", "coin"][mini(bar_i, 4)], Vector2(r.position.x + 9, y + lh * 0.5), 18.0, Color.WHITE)
-						_text(Vector2(r.position.x + 22, y), b[0], ts(13), Color(1, 1, 1, 0.75), false, false, 72)
+						_text(Vector2(r.position.x + 22, y), b[0], ts(13), TXT_DIM, false, false, 72)
 						var bx := r.position.x + 96
 						_seg_bar(Rect2(bx, y + lh * 0.3, 150, 11), clampf(b[1], 0.04, 1.0), Color("#e8a33a"))   # V1.2 C2：8 格刻印條
 						_text(Vector2(bx + 158, y), b[2], ts(13), Color(1, 1, 1, 0.85), false, false, r.size.x - 260)
@@ -421,10 +423,23 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 	var total: float = cx_content[name]
 	if scrollable and total > r.size.y + 1.0:
 		var bar := Rect2(r.end.x - 6, r.position.y, 6, r.size.y)
-		draw_rect(bar, Color("#2a3040"))
+		draw_rect(bar, Color("#2a1d14"))   # V1.2.1：捲軸改木色（原藍灰像工程介面）
 		var th := maxf(24.0, r.size.y * r.size.y / total)
 		var ty2 := r.position.y + (r.size.y - th) * (off / maxf(1.0, total - r.size.y))
-		draw_rect(Rect2(bar.position.x, ty2, 6, th), Color("#5a657d"))
+		draw_rect(Rect2(bar.position.x, ty2, 6, th), Color("#9a7650"))
+		# V1.2.1 B3：還有內容的那一邊加淡陰影＋小箭頭（只在真的還有時出現），看得出可以捲
+		var cw2 := r.size.x - 10.0
+		if off > 1.0:
+			for k in 4:
+				draw_rect(Rect2(r.position.x, r.position.y + k * 3.0, cw2, 3.0), Color(0, 0, 0, 0.16 - k * 0.04))
+			var up := Vector2(r.position.x + cw2 - 10, r.position.y + 8)
+			draw_colored_polygon(PackedVector2Array([up + Vector2(-6, 4), up + Vector2(6, 4), up + Vector2(0, -3)]), Color(INK, 0.85) if _ink_mode else ACCENT)
+		if off < maxs - 1.0:
+			for k in 4:
+				draw_rect(Rect2(r.position.x, r.end.y - (k + 1) * 3.0, cw2, 3.0), Color(0, 0, 0, 0.16 - k * 0.04))
+			var ac := Color(INK, 0.85) if _ink_mode else ACCENT
+			var ap := Vector2(r.position.x + cw2 - 10, r.end.y - 8)
+			draw_colored_polygon(PackedVector2Array([ap + Vector2(-6, -4), ap + Vector2(6, -4), ap + Vector2(0, 3)]), ac)
 
 
 func _draw_codex_demo() -> void:
@@ -492,4 +507,4 @@ func _draw_codex_demo() -> void:
 			draw_rect(b.grow(-2.0 - kl * 2.0), Color(0, 0, 0, 0.2 - kl * 0.045), false, 2.0)
 		draw_rect(b, TH_WOOD_D, false, 3.0)
 		draw_line(b.position + Vector2(0, b.size.y + 1.5), b.end + Vector2(0, 1.5), Color(1, 0.9, 0.7, 0.18), 1.0)
-	_text(b.position + Vector2(8, 4), L.t("codex_demo"), ts(13), Color(1, 1, 1, 0.75))
+	_text(b.position + Vector2(8, 4), L.t("codex_demo"), ts(13), TXT_DIM)

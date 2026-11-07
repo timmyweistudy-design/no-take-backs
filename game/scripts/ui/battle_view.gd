@@ -443,14 +443,14 @@ func _draw_cmd_bar() -> void:
 			_probe_btn_label = mine
 			_probe_btn_rect = r
 			_icon(CmdD.ICONS[s], r.position + Vector2(52, 26), 30.0, ACCENT if ready else Color(1, 1, 1, 0.35))
-			_text(r.position + Vector2(52, 46), L.t("cmd_%d" % s), tz("C"), Color.WHITE if ready else Color(1, 1, 1, 0.55), true, false, 98)
+			_text(r.position + Vector2(52, 46), L.t("cmd_%d" % s), tz("C"), Color.WHITE if ready else TXT_DIM, true, false, 98)
 			var left_s := "×%d" % int(sim.cmd_left[tm][s])
 			_text(Vector2(r.end.x - _width(left_s, tz("C")) - 6, r.position.y + 4), left_s, tz("C"), Color.WHITE)
 			if mine:
 				var hk: String = ["1", "2", "3"][i] if tm == 0 else ["8", "9", "0"][i]
 				if pad_mode and tm == 0 and i < 2:
 					hk = _pk("prev" if i == 0 else "next")
-				_text(r.position + Vector2(6, 4), hk, tz("C"), Color(1, 1, 1, 0.75))
+				_text(r.position + Vector2(6, 4), hk, tz("C"), TXT_DIM)
 			_probe_btn_label = false
 			var wait: int = int(sim.cmd_ready[tm][s]) - sim.tick
 			if wait > 0 and int(sim.cmd_left[tm][s]) > 0:
@@ -600,12 +600,12 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 
 # ── 戰鬥 HUD ──
 func _draw_battle_hud() -> void:
-	_hud_bar(Rect2(0, 0, 1280, 86))   # V1.2：頂部資訊列改深木紋（原本是平塗深底）
+	_hud_bar(Rect2(0, 0, 1280, 96))   # V1.2：頂部資訊列改深木紋（原本是平塗深底）；V1.2.1 加高，大字級的下排小字（AI 名）也在木條內
 	draw_line(Vector2(0, 86), Vector2(1280, 86), TH_EDGE, 2.0)
 	# 第五輪：左上和擺放畫面一樣——模式（粗）＋局數比分（小字），不再放遊戲標題（大字時會換行壓到棋盤）
-	_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), Color(1, 1, 1, 0.75), false, true, 300)
+	_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), TXT_DIM, false, true, 300)
 	if mode == Mode.VS_AI or mode == Mode.DUEL:
-		_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), Color(1, 1, 1, 0.6), false, false, 300)
+		_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), TXT_DIM, false, false, 300)
 	var p0: int = view.power(0)
 	var p1: int = view.power(1)
 	var f0: float = float(p0) / view.budget_of(0)
@@ -629,10 +629,13 @@ func _draw_battle_hud() -> void:
 			_flame(Vector2(ex + 20 + (-30 if tm2 == 0 else 30), 53), 1.0)
 	# 色盲配色的亮橘底用深色字（對比 ≥7:1）
 	var lc := Color.WHITE
-	var rc := Color("#141820") if cbm() else Color.WHITE
 	_text(Vector2(bx + 8, 42), L.t("hud_power", [roundi(p0 * 100.0 / (view.budget_of(0) * 1000))]), ts(15), lc, false, true)
 	var rt: String = L.t("hud_power", [roundi(p1 * 100.0 / (view.budget_of(1) * 1000))])
-	_text(Vector2(bx + bw - 8 - font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x, 42), rt, ts(15), rc, false, true, 0.0, Color(1, 1, 1, 0.0) if cbm() else Color(0, 0, 0, -1))   # 深色字不加黑描邊（Antigravity S2 #1）
+	var rtw := font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
+	# V1.2.1 F5：深色字只在字底下真的是亮橘條時用；紅方戰力低、字底下是藍條或空槽時改白字描邊
+	var on_orange: bool = cbm() and state == St.BATTLE and split <= bw - 8.0 - rtw - 4.0   # 結果頁有暗幕，深字不清楚
+	var rc := Color("#141820") if on_orange else Color.WHITE
+	_text(Vector2(bx + bw - 8 - rtw, 42), rt, ts(15), rc, false, true, 0.0, Color(1, 1, 1, 0.0) if on_orange else Color(0, 0, 0, -1))   # 深色字不加黑描邊（Antigravity S2 #1）
 	# 第八輪：生兵戰力 0（時間到不灌水），隻數用「本隊＋召喚」講清楚
 	var sn := [0, 0]
 	for su in view.units:
@@ -655,7 +658,7 @@ func _draw_battle_hud() -> void:
 	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
 	if mode == Mode.VS_AI and ai_name != "":
 		var ai_lb := "AI：%s" % ai_name
-		_text(Vector2(bx + bw - _width(ai_lb, tz("C")), 69), ai_lb, tz("C"), Color(1, 1, 1, 0.9))
+		_text(Vector2(bx + bw - _width(ai_lb, tz("C")), 69.0), ai_lb, tz("C"), Color(1, 1, 1, 0.9))   # V1.2.1：大字級也在木條內
 	if state == St.BATTLE and bool(Save.s("playtest")):
 		if pt_call_tick < 0:
 			_btn(Rect2(780, 2, 162, 36), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))

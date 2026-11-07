@@ -213,7 +213,9 @@ func _key_hints(cx: float, y: float, items: Array, size := 15) -> void:
 			draw_circle(r.get_center(), r.size.y / 2, kc, true, -1.0, true)
 		else:
 			draw_rect(r, Color(kc, 0.9))
+		_probe_glyph = true   # V1.2.1：鍵帽上的字母是符號，不算內文字級
 		_text(Vector2(r.get_center().x, y + 1), key, fs - 2, Color(0.08, 0.08, 0.1), true, true)
+		_probe_glyph = false
 		x += kw + 6
 		_text(Vector2(x, y + 1), items[i][1], fs, Color(1, 1, 1, 0.85))
 		x += widths[i][1] + 18
@@ -238,7 +240,9 @@ func _key_hints_scaled(cx: float, y: float, items: Array, fs: int) -> void:
 		var kw: float = widths[i][0]
 		var r := Rect2(x, y, kw, fs + 6)
 		draw_rect(r, Color(0.75, 0.78, 0.85, 0.9))
+		_probe_glyph = true
 		_text(Vector2(r.get_center().x, y + 1), items[i][0], fs - 2, Color(0.08, 0.08, 0.1), true, true)
+		_probe_glyph = false
 		x += kw + 6
 		_text(Vector2(x, y + 1), items[i][1], fs, Color(1, 1, 1, 0.85))
 		x += widths[i][1] + 18

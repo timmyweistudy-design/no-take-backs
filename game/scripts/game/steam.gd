@@ -117,7 +117,10 @@ static func text_input(description: String, max_len: int, done: Callable) -> boo
 		return false
 	if not _steam.is_connected("gamepad_text_input_dismissed", done):
 		_steam.connect("gamepad_text_input_dismissed", done, CONNECT_ONE_SHOT)
-	return bool(_steam.showGamepadTextInput(0, 0, description, max_len, ""))
+	var ok := bool(_steam.showGamepadTextInput(0, 0, description, max_len, ""))
+	if not ok and _steam.is_connected("gamepad_text_input_dismissed", done):
+		_steam.disconnect("gamepad_text_input_dismissed", done)   # V1.2.1 F3：鍵盤沒開成要解除，不然下次關閉會觸發舊動作
+	return ok
 
 static func run_callbacks() -> void:
 	if _steam != null:

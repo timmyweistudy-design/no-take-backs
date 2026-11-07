@@ -208,7 +208,7 @@ func _draw_cmd_tab(R: Rect2) -> void:
 	_rows(Rect2(R.position, Vector2(R.size.x, 66)), [["cmd_on", L.t("lb_cmd_enable"), L.t("on") if on else L.t("off")]])
 	var y := R.position.y + 70
 	if not on:
-		_text(Vector2(R.position.x, y), L.t("lb_cmd_hint"), tz("S"), Color(1, 1, 1, 0.8), false, false, R.size.x)
+		_text(Vector2(R.position.x, y), L.t("lb_cmd_hint"), tz("S"), TXT_DIM, false, false, R.size.x)
 		return
 	for ti in 2:
 		var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
@@ -227,7 +227,7 @@ func _draw_cmd_tab(R: Rect2) -> void:
 		_probe_btn_label = true
 		_probe_btn_rect = cr
 		_icon(CmdD.ICONS[s], cr.position + Vector2(cw / 2, 22), 30.0, ACCENT if sel else Color(1, 1, 1, 0.4))
-		_text(cr.position + Vector2(cw / 2, 40), L.t("cmd_%d" % s), tz("C"), Color.WHITE if sel else Color(1, 1, 1, 0.65), true, false, cw - 6)
+		_text(cr.position + Vector2(cw / 2, 40), L.t("cmd_%d" % s), tz("C"), Color.WHITE if sel else TXT_DIM, true, false, cw - 6)
 		_probe_btn_label = false
 		if sel:
 			draw_rect(cr, Color("#7ddc8a"), false, 2.0)
@@ -246,7 +246,7 @@ func _draw_cmd_tab(R: Rect2) -> void:
 	var items := [["cmd_uses", L.t("lb_cmd_uses"), L.t("lb_cmd_n", [lobby_r.cmd_uses])], ["cmd_cd", L.t("lb_cmd_cd"), L.t("lb_cmd_secs", [lobby_r.cmd_cd / 20])], ["cmd_power", L.t("lb_cmd_power"), "%d%%" % lobby_r.cmd_power]]
 	for k in 3:
 		var sx: float = R.position.x + k * (w3 + 8)
-		_text(Vector2(sx, y), items[k][1], tz("S"), Color(1, 1, 1, 0.8), false, false, w3)
+		_text(Vector2(sx, y), items[k][1], tz("S"), TXT_DIM, false, false, w3)
 		_stepper(Rect2(sx, y + tz("S") * 1.35, w3, 52), items[k][2], items[k][0], 36.0)
 
 func _lobby_adj(id: String, d: int) -> void:
@@ -467,7 +467,7 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		_text(r.position + Vector2(w / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, w - 12)
 		var sub_y := 8 + text_h(L.t("lb_p_" + id), tz("B"), w - 12, true) + 2
 		if false and sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
-			_text(r.position + Vector2(w / 2, sub_y), L.t("lb_pd_" + id), tz("C"), Color(1, 1, 1, 0.75), true, false, w - 12)   # 放不下（大字）就不畫副標，不壓到色條
+			_text(r.position + Vector2(w / 2, sub_y), L.t("lb_pd_" + id), tz("C"), TXT_DIM, true, false, w - 12)   # 放不下（大字）就不畫副標，不壓到色條
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
 		_box(Rect2(r.position + Vector2(8, h - 13), Vector2(w - 16, 5)), bc, Color(0, 0, 0, 0), 2.0)
@@ -481,7 +481,7 @@ func _draw_lobby_menu(o: Vector2) -> void:
 	draw_rect(r, PANEL)
 	draw_rect(r, Color(1, 1, 1, 0.3), false, 1.5)
 	if ps.is_empty():
-		_text(r.position + Vector2(110, 18), L.t("lb_mine_empty"), tz("S"), Color(1, 1, 1, 0.7), true, false, 200)
+		_text(r.position + Vector2(110, 18), L.t("lb_mine_empty"), tz("S"), TXT_DIM, true, false, 200)
 		return
 	for i in ps.size():
 		_btn(Rect2(r.position + Vector2(6, 6 + i * 50), Vector2(160, 44)), str(ps[i]["name"]), _lobby_load_preset.bind(i))
@@ -604,7 +604,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	label.call("cards", L.t("lb_cards"), y)
 	var p0: int = r.pool_of(0)
 	_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
-	_text(Vector2(cx, y + 62), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 130)
+	_text(Vector2(cx, y + 62), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)
 	_btn(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
 		lobby_open = true
 		lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
@@ -729,20 +729,20 @@ func _draw_lobby_compact(R: Rect2) -> void:
 	if lobby_kind == "duel" and maxi(RuleSet.pool_count(lobby_r.pool_of(0)), RuleSet.pool_count(lobby_r.pool_of(1))) > D.CLASSIC:
 		_text(Vector2(R.position.x, R.end.y - tz("C") * 1.3), L.t("lb_unverified"), tz("C"), Color("#ffb86b"), false, false, R.size.x)
 	y += 60
-	_text(Vector2(R.position.x + 24, y), L.t("lb_pool_now"), tz("S"), Color(1, 1, 1, 0.7))
+	_text(Vector2(R.position.x + 24, y), L.t("lb_pool_now"), tz("S"), TXT_DIM)
 	_draw_pool_heads(Vector2(R.position.x + 24, y + 28), lobby_r.pool_of(0), 58.0)
 	if lobby_kind == "ai" and not lobby_r.ai_pool_same:
-		_text(Vector2(R.position.x + 24, y + 104), L.t("lb_ai_pool"), tz("S"), Color(1, 1, 1, 0.7))
+		_text(Vector2(R.position.x + 24, y + 104), L.t("lb_ai_pool"), tz("S"), TXT_DIM)
 		_draw_pool_heads(Vector2(R.position.x + 24, y + 132), lobby_r.pool_of(1), 58.0)
 	# 右側：最常調的一個選項（對 AI＝難度；雙人＝落子方式）
 	var ox := R.end.x - 420
 	var oy := R.position.y + 110
 	var sy := oy + tz("B") * 1.6
 	if lobby_kind == "ai":
-		_text(Vector2(ox, oy), L.t("lb_ai_level"), tz("B"), Color(1, 1, 1, 0.8))
+		_text(Vector2(ox, oy), L.t("lb_ai_level"), tz("B"), TXT_DIM)
 		_stepper(Rect2(ox, sy, 380, 64), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level]), "ai_level")
 	else:
-		_text(Vector2(ox, oy), L.t("lb_place_rule"), tz("B"), Color(1, 1, 1, 0.8))
+		_text(Vector2(ox, oy), L.t("lb_place_rule"), tz("B"), TXT_DIM)
 		_stepper(Rect2(ox, sy, 380, 64), _place_text(lobby_r.place_rule), "place_rule")
 	# 這個預設是做什麼的（一段白話）
 	var pid: String = lobby_r.preset if lobby_r.preset in Presets.IDS else "custom"
@@ -783,7 +783,7 @@ func _draw_lobby_notes(R: Rect2) -> void:
 			y += text_h(line, tz("S"), R.size.x) + 4
 	var df: Array = lobby_r.diff(_lobby_std())
 	if not df.is_empty() and y + tz("S") * 1.4 <= R.end.y:
-		_text(Vector2(R.position.x, y), L.t("lb_diff_n", [df.size()]), tz("S"), Color(1, 1, 1, 0.8), false, true, R.size.x)
+		_text(Vector2(R.position.x, y), L.t("lb_diff_n", [df.size()]), tz("S"), TXT_DIM, false, true, R.size.x)
 		y += tz("S") * 1.4
 		var fs := tz("S")
 		var left := R.end.y - y - tz("S") * 0.6   # 留一點邊，最後一行不碰到下面的重置鈕
@@ -793,7 +793,7 @@ func _draw_lobby_notes(R: Rect2) -> void:
 		if list_h <= left:
 			for d in df:
 				var ln := "・" + _diff_text(d)
-				_text(Vector2(R.position.x + 10, y), ln, fs, Color(1, 1, 1, 0.7), false, false, R.size.x - 10)
+				_text(Vector2(R.position.x + 10, y), ln, fs, TXT_DIM, false, false, R.size.x - 10)
 				y += text_h(ln, fs, R.size.x - 10)
 		else:
 			# 放不下（大字）：改成一段連續文字、用註記字級；還是放不下就截到放得下的項目數＋「…」（Antigravity 實作第 1 輪）
@@ -806,7 +806,7 @@ func _draw_lobby_notes(R: Rect2) -> void:
 				bits.pop_back()
 				para = "・".join(bits) + "…"
 			if text_h(para, fs, R.size.x) <= left:
-				_text(Vector2(R.position.x, y), para, fs, Color(1, 1, 1, 0.7), false, false, R.size.x)
+				_text(Vector2(R.position.x, y), para, fs, TXT_DIM, false, false, R.size.x)
 
 func _diff_text(d: Array) -> String:
 	var k: String = d[0]
@@ -886,7 +886,7 @@ func _draw_lobby_detail(R: Rect2) -> void:
 			var pv_y: float = L0.position.y + rowsd.size() * 66 + 8
 			if L0.end.y - pv_y >= 110.0:
 				_draw_deploy_preview(Rect2(L0.position.x + 230, pv_y, 360, L0.end.y - pv_y - 8))
-				_text(Vector2(L0.position.x, pv_y + 4), L.t("lb_deploy_preview"), tz("S"), Color(1, 1, 1, 0.75), false, false, 220)
+				_text(Vector2(L0.position.x, pv_y + 4), L.t("lb_deploy_preview"), tz("S"), TXT_DIM, false, false, 220)
 		2:
 			_draw_pool_tab(L0)
 		3:
@@ -956,7 +956,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 			var box := Rect2(x, y, gw, cardh + 12.0 + tz("C") * 1.2)
 			draw_rect(box, Color(1, 1, 1, 0.05))
 			draw_rect(box, Color(1, 1, 1, 0.25), false, 1.0)
-			_text(box.position + Vector2(8, 2), g[0], tz("C"), Color(1, 1, 1, 0.7))
+			_text(box.position + Vector2(8, 2), g[0], tz("C"), TXT_DIM)
 			for j in g[1].size():
 				var t: int = g[1][j]
 				var cr := Rect2(box.position + Vector2(8 + j * (cw + 4), 4 + tz("C") * 1.2), Vector2(cw, cardh))
@@ -1012,7 +1012,7 @@ func _draw_lab_tab(R: Rect2) -> void:
 		_btn(Rect2(R.position.x + 288, y, 190, 48), "%d%%" % int(cur[k]), _lobby_sb_adj.bind(k, 1), true, false, TH_WOOD_D)
 		_btn(Rect2(R.position.x + 484, y, 52, 48), "▶", _lobby_sb_adj.bind(k, 1))
 		y += 56
-	_text(Vector2(R.position.x, y + 4), L.t("lb_skills"), tz("S"), Color(1, 1, 1, 0.7))
+	_text(Vector2(R.position.x, y + 4), L.t("lb_skills"), tz("S"), TXT_DIM)
 	y += 30
 	# 第八輪：只列這局用得到的技能，不然 22 顆放不下
 	var skill_list := _lab_skills(lab_types)

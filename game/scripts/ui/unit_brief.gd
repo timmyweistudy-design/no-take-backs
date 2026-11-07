@@ -81,7 +81,7 @@ func _unit_brief(r: Rect2, t: int, locked := false) -> void:
 	_unit_in(Rect2(r.position.x + 2, cy - 50, pw, 100), t, 0, 0.45 if locked else 1.0, 0.95)
 	var y := r.position.y + 6
 	_text(Vector2(x, y), name_s, tz("B"), ACCENT, false, true, w * 0.5)
-	_text(Vector2(x2, y + (tz("B") - tz("S")) * 0.5), meta, tz("S"), Color(1, 1, 1, 0.75), false, false, r.end.x - x2 - 8)
+	_text(Vector2(x2, y + (tz("B") - tz("S")) * 0.5), meta, tz("S"), TXT_DIM, false, false, r.end.x - x2 - 8)
 	y += head_h
 	_text(Vector2(x, y), blurb, tz("S"), Color.WHITE, false, false, w)
 	y += blurb_h
@@ -96,7 +96,7 @@ func _brief_bars(r: Rect2, t: int) -> void:
 	var cw: float = r.size.x / 4.0
 	for k in 4:
 		var cx: float = r.position.x + k * cw
-		_text(Vector2(cx, r.position.y), L.t(["ub_hp", "ub_atk", "ub_range", "ub_spd"][k]), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 8)
+		_text(Vector2(cx, r.position.y), L.t(["ub_hp", "ub_atk", "ub_range", "ub_spd"][k]), tz("C"), TXT_DIM, false, false, cw - 8)
 		_seg_bar(Rect2(cx, r.end.y - 9, cw - 12, 8), float(st[k]), ACCENT)   # V1.2 C2：刻印格條
 
 func _brief_mu(p: Vector2, w: float, t: int) -> void:

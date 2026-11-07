@@ -48,6 +48,21 @@ func test_save_v7() -> void:
 	ok(d["puzzle_stars"]["p1"] == 3 and d["puzzle_stars"]["p2"] == 0 and d["unit_wins"] == {} and d["achievements"] == [] and d["last_rules"] == {} and d["rule_presets"] == [], "R4：星數夾 0～3，其餘壞欄位歸零", str(d))
 	ok(d["future_field"] == 7, "R4：不認得的欄位保留")
 	ok(SV.settings["lang"] == "zh_TW" and SV.settings["text_scale"] == 100 and SV.settings["music"] == 100 and SV.settings["sfx"] == 80 and SV.settings["speed"] == 1.0 and SV.settings["shake"] == true and SV.settings["duel_rule"] == "snake5" and SV.settings["roster"] == "all", "R4：設定逐欄驗型", str(SV.settings))
+	# V1.2.1 F4：新的介面音、環境音欄位，舊檔沒有時承接舊音效值（含靜音），型別錯回合法值
+	_sv_clear(SV)
+	_sv_put("user://t7_settings.json", JSON.stringify({"sfx": 0, "music": 40}))
+	SV.load_all()
+	ok(SV.settings["ui_vol"] == 0 and SV.settings["amb_vol"] == 0, "F4：舊檔靜音音效 → 介面音、環境音也靜音", str(SV.settings))
+	_sv_clear(SV)
+	_sv_put("user://t7_settings.json", JSON.stringify({"sfx": 55}))
+	SV.load_all()
+	ok(SV.settings["ui_vol"] == 55 and SV.settings["amb_vol"] == 55, "F4：舊檔音效 55 → 新兩條承接 55", str(SV.settings))
+	_sv_clear(SV)
+	_sv_put("user://t7_settings.json", JSON.stringify({"sfx": 30, "ui_vol": "x", "amb_vol": 999}))
+	SV.load_all()
+	ok(SV.settings["ui_vol"] == 30 and SV.settings["amb_vol"] == 100, "F4：型別錯承接音效、超界夾到 100", str(SV.settings))
+	var again: Dictionary = SV.sanitize_settings(SV.settings)
+	ok(again["ui_vol"] == 30 and again["amb_vol"] == 100, "F4：重複遷移結果不變")
 	# 版本欄位本身型別錯也不能當掉
 	ok(SV.schema_of({"schema_version": []}) == 1, "R4：版本欄位型別錯當 v1")
 	# R5：未來版
@@ -128,6 +143,32 @@ func test_steam_v7() -> void:
 	ok(not r["ok"] and r["missing_achievements"] == ["BACKSTAB_3"], "S4：後台少一個成就要抓得到", str(r))
 	ST._steam = null
 	ok(ST.ACHIEVEMENTS.size() == 24, "S4：程式 24 個成就（docs/release/steam-setup.md 要同步）")
+	# V1.2.1 F3：大字幕鍵盤開不起來時要解除訊號（不然下次關閉會觸發舊動作）
+	var fk = FakeSteamKb.new()
+	ST._steam = fk
+	var hits := [0]
+	var cb := func(_a = null, _b = null): hits[0] += 1
+	ok(ST.text_input("x", 8, cb) == false and not fk.is_connected("gamepad_text_input_dismissed", cb), "F3：鍵盤開失敗會解除訊號")
+	fk.open_ok = true
+	ok(ST.text_input("x", 8, cb) == true and fk.is_connected("gamepad_text_input_dismissed", cb), "F3：開成功才保留訊號")
+	fk.emit_signal("gamepad_text_input_dismissed", true, "abc")
+	ok(hits[0] == 1, "F3：關閉只觸發一次", str(hits[0]))
+	ST._steam = null
+	fk.free()
+	# V1.2.1 F2：地塊烘焙失敗（沒有地形資料）要清掉 busy，下次可以重試
+	var MA = load("res://scripts/ui/map_art.gd")
+	var ma = MA.new()
+	var bk: int = MA.key_of(0, 0) * 2   # 平原沒有地形資料：走失敗路徑
+	ma._busy[bk] = true
+	ma._bake(0, 0, false)
+	ok(not ma._busy.has(bk), "F2：烘焙失敗清掉 busy")
+	ma.free()
+
+
+class FakeSteamKb extends Node:
+	signal gamepad_text_input_dismissed(submitted, text)
+	var open_ok := false
+	func showGamepadTextInput(_a, _b, _c, _d, _e): return open_ok
 
 
 class FakeSteam2:

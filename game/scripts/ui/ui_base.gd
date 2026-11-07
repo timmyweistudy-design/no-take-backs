@@ -132,6 +132,8 @@ const CARD_H := 96.0
 const UI_BG := Color(0.11, 0.08, 0.06, 0.95)
 const PANEL := Color(0.17, 0.125, 0.09, 0.98)
 const ACCENT := Color("#ffd166")
+## V1.2.1 F5：次要字用不透明暖灰（原本是白色 50～80% 透明，疊在木紋上對比只有 2～3）
+const TXT_DIM := Color("#cfc3ae")
 # V9 P5 設計系統：胡桃木為底（白字才讀得清楚），羊皮紙只用在標題緞帶與重點卡片
 const TH_WOOD := Color("#3a2a1f")
 const TH_WOOD_L := Color("#55402d")
@@ -144,6 +146,9 @@ const TH_PRIMARY := Color("#e08a1e")
 const SP := 8.0        # 間距基準
 const Icons = preload("res://scripts/ui/icons.gd")
 var _sb_cache := {}
+var _probe_glyph := false   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
+var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
+var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
 var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
 var _hover_key := -1
 var _trans_gen := -1
@@ -493,6 +498,8 @@ func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
 func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
 	if _ink_mode:
 		c = _ink(c)
+	elif outline.a < 0.0 and not (size >= 24 or (bold and size >= 19)) and c.s >= 0.25 and not (c.get_luminance() < 0.35 and c.s < 0.8):   # 深色低彩度的浮雕字不動
+		c = Color(_legible(Color(c, 1.0)), c.a)   # V1.2.1 F5：深描邊上的彩色小字自動提亮到 4.5:1
 	if maxw > 0.0:
 		size = fit(s, size, maxw, bold)
 	var lines := wrap_lines(s, size, maxw, bold) if maxw > 0.0 else s.split("\n")
@@ -515,7 +522,8 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 			# 直向：原本的框（1.1 倍字高）已經留了上下各約 0.05 字高的空，描邊與陰影只算超出的部分
 			var ey := maxf(0.0, ex - size * 0.05)
 			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
-			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect})
+			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
+				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph})   # V1.2.1 F5：對比檢查要實際字色與描邊
 		if emboss:
 			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
 		if oc.a > 0.0:
@@ -535,14 +543,34 @@ static func text_shadow_dy(size: int) -> float:
 
 ## 即時模式按鈕：每幀重新登記，滑鼠或焦點都能按。
 ## V9 P5 按鈕：圓角木牌、上緣高光、下緣陰影；按下縮一點回彈、懸停亮、焦點金框；主按鈕有流光。
+## V1.2.1 F5：彩色小字對深焦茶描邊至少 4.5:1；不夠就一點點提亮（依顏色快取）。
+static var _legible_cache := {}
+static func _legible(c: Color) -> Color:
+	var k := c.to_html()
+	if _legible_cache.has(k):
+		return _legible_cache[k]
+	var out := c
+	for i in 12:
+		if _wcag(out, INK) >= 4.5:
+			break
+		out = out.lightened(0.08)
+	_legible_cache[k] = out
+	return out
+
+static func _wcag(a: Color, b: Color) -> float:
+	var f := func(v: float) -> float: return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
+	var la: float = 0.2126 * f.call(a.r) + 0.7152 * f.call(a.g) + 0.0722 * f.call(a.b)
+	var lb: float = 0.2126 * f.call(b.r) + 0.7152 * f.call(b.g) + 0.0722 * f.call(b.b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
 ## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
 static func _ink(c: Color) -> Color:
 	var lum := c.get_luminance()
 	if lum < 0.45:
 		return c
 	if c.s < 0.25:
-		return Color(INK, c.a)
-	return Color(c.darkened(0.58), c.a)
+		return Color(INK, maxf(c.a, 0.85))   # V1.2.1 F5：紙上墨字至少 85%（原透明度太淡只有 3.6:1）
+	return Color(c.darkened(0.66), maxf(c.a, 0.85))
 
 func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
 	var idx := _btns.size()
@@ -616,6 +644,8 @@ var _tex_cache := {}
 func _ui_tex(path: String) -> Texture2D:
 	if not _tex_cache.has(path):
 		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
+	if _tex_cache[path] == null and layout_probe and not path in probe_missing:
+		probe_missing.append(path)
 	return _tex_cache[path]
 
 ## V1.2：頂部資訊列：深木紋＋下緣一條亮線與落影（沒有貼圖時照舊平塗）。
@@ -647,9 +677,11 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 	var tx := _ui_tex(path)
 	if tx == null:
 		return false
+	tint = qcol(tint)   # V1.2.1 F1：量化後當鍵，淡出時不會每幀多一個樣式
 	var k := "t|%s|%s" % [kind, tint.to_html()]
 	var sb: StyleBoxTexture = _sb_cache.get(k)
 	if sb == null:
+		_sb_room()
 		sb = StyleBoxTexture.new()
 		sb.texture = tx
 		var m := 10.0 if kind != "paper" else 14.0
@@ -664,7 +696,19 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 		sb.modulate_color = tint
 		_sb_cache[k] = sb
 	draw_style_box(sb, r)
+	if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
+		probe_boxes.append(r)   # V1.2.1 F1：九宮格外圈斜邊，字不能壓進去
 	return true
+
+## V1.2.1 F1：樣式快取的顏色量化（透明度 16 級、RGB 8 位元），鍵和實際樣式用同一個值。
+static func qcol(c: Color) -> Color:
+	return Color(roundf(c.r * 255.0) / 255.0, roundf(c.g * 255.0) / 255.0, roundf(c.b * 255.0) / 255.0, roundf(clampf(c.a, 0.0, 1.0) * 15.0) / 15.0)
+
+const SB_CACHE_MAX := 512
+## 快取滿了整個清掉（用到再建；每個樣式只是幾個欄位，重建很便宜）。
+func _sb_room() -> void:
+	if _sb_cache.size() >= SB_CACHE_MAX:
+		_sb_cache.clear()
 
 ## 圓角方塊（StyleBox 快取，不每幀配新物件）。
 ## V1.2 B3：夠大、夠不透明的實心方塊改用木紋材質（用 bg 染色），外框線另外畫在上面；小東西與半透明的陰影維持平塗。
@@ -673,9 +717,16 @@ func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw :=
 		if bw > 0.0 and border.a > 0.0:
 			_box(r, Color(0, 0, 0, 0), border, radius, bw)
 		return
+	draw_style_box(_flat_sb(bg, border, radius, bw), r)
+
+## 平塗方塊的樣式（量化後快取；測試可以直接呼叫，不必在繪製階段）。
+func _flat_sb(bg: Color, border: Color, radius: float, bw: float) -> StyleBoxFlat:
+	bg = qcol(bg)
+	border = qcol(border)
 	var k := "%s|%s|%d|%d" % [bg.to_html(), border.to_html(), int(radius), int(bw * 10)]
 	var sb: StyleBoxFlat = _sb_cache.get(k)
 	if sb == null:
+		_sb_room()
 		sb = StyleBoxFlat.new()
 		sb.bg_color = bg
 		sb.border_color = border
@@ -683,7 +734,7 @@ func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw :=
 		sb.set_border_width_all(int(ceilf(bw)))
 		sb.anti_aliasing = true
 		_sb_cache[k] = sb
-	draw_style_box(sb, r)
+	return sb
 
 ## V1.2 C2：8 格刻印能力條（取代細長滑桿）：凹槽底＋一格一格填色，最後一格依比例部分填。
 func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
@@ -751,7 +802,7 @@ func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
 	var sz := ts(14)
 	_probe_btn_label = true
 	_probe_btn_rect = r
-	_text(c - Vector2(0, sz * 0.62), label, sz, Color.BLACK if hot else Color(1, 1, 1, 0.8), true, true)
+	_text(c - Vector2(0, sz * 0.62), label, sz, Color.BLACK if hot else TXT_DIM, true, true)
 	_probe_btn_label = false
 
 

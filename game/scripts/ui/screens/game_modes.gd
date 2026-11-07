@@ -161,7 +161,7 @@ func _draw_trials() -> void:
 	var P := Rect2(90, 40, 1100, 720)
 	_panel(P)
 	_h1(Vector2(640, 50), L.t("trial_title"))
-	_text(Vector2(640, 104), L.t("trial_rule"), tz("S"), Color(1, 1, 1, 0.8), true, false, 1000)
+	_text(Vector2(640, 104), L.t("trial_rule"), tz("S"), TXT_DIM, true, false, 1000)
 	var stars: Dictionary = Save.data.get("trial_stars", {})
 	var pages: int = ceili(TRIALS.size() / float(TRIAL_PAGE))
 	trial_page = clampi(trial_page, 0, pages - 1)
@@ -169,7 +169,7 @@ func _draw_trials() -> void:
 	var tot := 0
 	for k0 in TRIALS.size():
 		tot += int(stars.get(str(k0), 0))
-	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), Color(1, 1, 1, 0.75), false, false, 360)
+	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
 	var cw := 524.0
 	var ch := 98.0
 	for k in TRIAL_PAGE:
@@ -188,7 +188,7 @@ func _draw_trials() -> void:
 		var line2: String = "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), diff]
 		if x.has("tag_zh"):
 			line2 = "%s・%s" % [str(x["tag_zh"] if L.lang == "zh_TW" else x["tag_en"]), diff]
-		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 160)
+		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), TXT_DIM, false, false, cw - 160)
 		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
 		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
 		var cy0: float = r.position.y + 8 + tz("B") * 1.4 + tz("C") * 1.35
@@ -459,8 +459,8 @@ func _draw_reward() -> void:
 		_btn(r, "", _take_reward.bind(k), true, false, TH_WOOD_L)
 		_icon(GA_EVENT_ICONS[k], r.position + Vector2(120, 52), 56.0, ACCENT)
 		_text(r.position + Vector2(120, 92), L.t(GA_EVENTS[k]), tz("B"), Color.WHITE, true, true, 220)
-		_text(r.position + Vector2(120, 92 + tz("B") * 1.5), _ga_event_desc(k), tz("C"), Color(1, 1, 1, 0.75), true, false, 220)
-	_text(Vector2(640, 530), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), Color(1, 1, 1, 0.75), true, false, 740)
+		_text(r.position + Vector2(120, 92 + tz("B") * 1.5), _ga_event_desc(k), tz("C"), TXT_DIM, true, false, 220)
+	_text(Vector2(640, 530), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), TXT_DIM, true, false, 740)
 	_text(Vector2(640, 530 + tz("S") * 1.5), L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), ACCENT, true, true, 740)
 
 ## 遠征路線條：7 個節點，已打過的打勾、下一戰亮框；菁英、首領用不同圖示。
@@ -545,8 +545,12 @@ func _draw_ban() -> void:
 		_btn(r, "", _ban.bind(t), true, false, TH_WOOD)
 		if _brief_hot(r):
 			ban_hot = t
-		_unit_in(Rect2(r.position, Vector2(r.size.x, 74 if small else 112)), t, 0, 1.0, 0.72 if small else 1.05)
-		_text(r.position + Vector2(r.size.x / 2, 76 if small else 116), L.t("unit_%d" % t), tz("C") if small else tz("B"), Color.WHITE, true, true, r.size.x - 8)
+		var nfs: int = tz("C") if small else tz("B")
+		var nm: String = L.t("unit_%d" % t)
+		var nh: float = text_h(nm, fit(nm, nfs, r.size.x - 16, true), r.size.x - 16, true)
+		var ny: float = minf(76.0 if small else 116.0, r.size.y - nh - 8.0)   # V1.2.1：名字（含換行）從卡片底往上算（英文 150% 原本超出卡片）
+		_unit_in(Rect2(r.position, Vector2(r.size.x, minf(74.0 if small else 112.0, ny - 2.0))), t, 0, 1.0, 0.72 if small else 1.05)
+		_text(r.position + Vector2(r.size.x / 2, ny), L.t("unit_%d" % t), nfs, Color.WHITE, true, true, r.size.x - 16)
 		if r.has_point(mouse) and not pad_mode:
 			_icon("ban", r.position + Vector2(r.size.x / 2, 42 if small else 62), 60.0 if small else 84.0)
 	_btn(Rect2(P.end.x - 110, 76, 96, 40), L.t("ban_skip"), _ban_skip)
@@ -595,7 +599,7 @@ func _draw_profile() -> void:
 		var r := Rect2(78 + i * (tw + 8), 92, tw, 80)
 		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 7.0)
 		_icon(tiles[i][0], r.position + Vector2(30, 40), 34.0, ACCENT)
-		_text(r.position + Vector2(56, 10), L.t(tiles[i][1]), tz("C"), Color(1, 1, 1, 0.72), false, false, tw - 62)
+		_text(r.position + Vector2(56, 10), L.t(tiles[i][1]), tz("C"), TXT_DIM, false, false, tw - 62)
 		_text(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true, tw - 62)
 	# 兵種勝率
 	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
@@ -610,7 +614,7 @@ func _draw_profile() -> void:
 		_unit_in(Rect2(r2.position, Vector2(cw, 70)), t, 0, 1.0 if open else 0.3, 0.62)
 		var gg := int(ug.get(str(t), 0))
 		if gg == 0:
-			_text(r2.position + Vector2(cw / 2, 74), L.t("pf_none"), tz("C"), Color(1, 1, 1, 0.5), true, false, cw - 6)   # V1.1 C4：沒出戰不寫 0%
+			_text(r2.position + Vector2(cw / 2, 74), L.t("pf_none"), tz("C"), TXT_DIM, true, false, cw - 6)   # V1.1 C4：沒出戰不寫 0%
 		else:
 			_text(r2.position + Vector2(cw / 2, 68), "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg), tz("B"), Color.WHITE, true, true, cw - 6)
 		if gg > 0:
@@ -627,7 +631,7 @@ func _draw_profile() -> void:
 		if on:
 			_box(Rect2(pos - Vector2(4, 1), Vector2(364, 26)), Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
 		_icon("star" if on else "lock", pos + Vector2(10, 12), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
-		_text(pos + Vector2(26, 0), str(ach[k][0 if L.lang == "zh_TW" else 1]), tz("C"), Color.WHITE if on else Color(1, 1, 1, 0.66), false, false, 340)
+		_text(pos + Vector2(26, 0), str(ach[k][0 if L.lang == "zh_TW" else 1]), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 340)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
 	_btn(Rect2(560, 722, 160, 44), L.t("back"), func(): overlay = "")
 
 ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
@@ -685,10 +689,10 @@ func _draw_puzzle_hint() -> void:
 			lx += 96
 		y += 66
 		var cond := L.t("ph_cond", [int(pz["star3"]), int(pz["star2"])])
-		_text(Vector2(x, y), cond, tz("S"), Color(1, 1, 1, 0.8), false, false, w)
+		_text(Vector2(x, y), cond, tz("S"), TXT_DIM, false, false, w)
 		y += text_h(cond, tz("S"), w) + 16
 	else:
-		_text(Vector2(x, y), L.t("ph_locked"), tz("S"), Color(1, 1, 1, 0.55), false, false, w)
+		_text(Vector2(x, y), L.t("ph_locked"), tz("S"), TXT_DIM, false, false, w)
 		y += tz("S") * 1.6 + 16
 	# 第三層：揭曉解答（要再按一次確認）
 	_text(Vector2(x, y), L.t("ph_l3"), tz("S"), ACCENT, false, true, w)

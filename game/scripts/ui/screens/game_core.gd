@@ -179,7 +179,7 @@ func _build_ai() -> void:
 			1:
 				var res = AI.build(1, rules.budget_of(1) if rules != null else 100, r, -1, p1, rules)
 				armies[1] = res["army"]
-				ai_name = "%s・%s" % [L.t("diff_normal"), res["name"]]
+				ai_name = ("%s・%s" if L.lang == "zh_TW" else "%s · %s") % [L.t("diff_normal"), ai_tpl_name(str(res["name"]))]
 			_:
 				armies[1] = _hard_ai(r, p1)
 				ai_name = L.t("diff_hard")
@@ -800,3 +800,13 @@ func _boot_check() -> void:
 	await get_tree().process_frame
 	print("BOOTOK state=%d" % state)
 	get_tree().quit(0)
+
+
+## V1.2.1：普通 AI 陣型名的英文（核心模板只有中文名，只用來顯示，不進模擬）。
+const AI_TPL_EN := {"均衡軍": "Balanced Host", "鐵壁弓陣": "Shield & Bow Wall", "鐵騎突擊": "Cavalry Charge", "暗影刺殺": "Shadow Strike",
+	"劍海": "Sea of Swords", "騎射混編": "Horse & Bow", "槍盾方陣": "Pike Square", "砲擊陣": "Bombard Line", "醫療鐵壁": "Medic Wall",
+	"戰鼓衝陣": "War-Drum Rush", "破陣突擊": "Line Breakers", "黏黏大軍": "Slime Horde", "幽靈奇襲": "Ghost Ambush", "亡靈法陣": "Necro Circle",
+	"吸塵爆破": "Vacuum Blast", "石魔要塞": "Golem Fortress", "混編傭兵": "Mixed Mercs", "陷阱弓陣": "Trap & Bow", "羊群衝鋒": "Sheep Stampede"}
+
+static func ai_tpl_name(zh: String) -> String:
+	return zh if L.lang == "zh_TW" else str(AI_TPL_EN.get(zh, zh))

@@ -279,6 +279,13 @@ func test_v10_fixes() -> void:
 	ok(sx.amb.volume_db <= -60.0, "B6 音效 0 時環境音靜音", str(sx.amb.volume_db))
 	sx.set_volumes(100, 50)
 	ok(sx.amb.volume_db > -30.0, "B6 音效開回來環境音也回來", str(sx.amb.volume_db))
+	# V1.2.1 E1：四條音量各自獨立（介面音不再跟音效共用增益）
+	sx.set_volumes(80, 50, 0, 100)
+	ok(sx.gain_for("k_click") == 0.0 and absf(sx.gain_for("slash") - 0.8) < 0.001, "E1 介面音 0 不影響音效", "%s %s" % [sx.gain_for("k_click"), sx.gain_for("slash")])
+	sx.set_volumes(0, 50, 70, 100)
+	ok(sx.gain_for("slash") == 0.0 and absf(sx.gain_for("ui_click") - 0.7) < 0.001 and sx.amb.volume_db > -30.0, "E1 音效 0 時介面音、環境音照常", str(sx.amb.volume_db))
+	sx.set_volumes(80, 50, 80, 0)
+	ok(sx.amb.volume_db <= -60.0, "E1 環境音可單獨靜音", str(sx.amb.volume_db))
 	sx.music.free()
 	sx.amb.free()
 	sx.free()
