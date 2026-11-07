@@ -184,28 +184,32 @@ func _draw_trials() -> void:
 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
 		btn_paper = false
 		_ink_mode = last_btn_paper
+		_probe_dis = not last_btn_enabled   # 停用的卡片：裡面的字也算停用（另報）
 		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
-		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, trial_name(i)], tz("B"), Color.WHITE, false, true, cw - 240)
+		var tcol := Color.WHITE if last_btn_enabled else Color(1, 1, 1, 0.4)
+		var acol := ACCENT if last_btn_enabled else Color(ACCENT, 0.4)
+		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, trial_name(i)], tz("B"), tcol, false, true, cw - 240)
 		var sz := "%s %d×%d" % [L.t("map_size_%d" % int(t[1])), MapDefs.SIZES[t[1]][0], MapDefs.SIZES[t[1]][1]]
 		var diff: String = L.t(["diff_easy", "diff_normal", "diff_hard"][int(t[3])])
 		# 第十三輪新關：第二行放主題規則＋難度（地圖看縮圖就知道），第三行只放星數條件，150% 字級才排得下
 		var line2: String = "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), diff]
 		if x.has("tag_zh"):
 			line2 = L.t("name_sep_fmt", [L.field(x, "tag"), diff])
-		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), TXT_DIM, false, false, cw - 160)
+		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), TXT_DIM if last_btn_enabled else Color(TXT_DIM, 0.4), false, false, cw - 160)
 		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
 		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
 		var cy0: float = r.position.y + 8 + tz("B") * 1.4 + tz("C") * 1.35
 		var cx0: float = r.position.x + 154
-		_icon("heart", Vector2(cx0 + 9, cy0 + tz("C") * 0.62), 16.0, ACCENT)
+		_icon("heart", Vector2(cx0 + 9, cy0 + tz("C") * 0.62), 16.0, acol)
 		var c1s := "≥%d%%" % trial_rem(i)
-		_text(Vector2(cx0 + 22, cy0), c1s, tz("C"), ACCENT, false, true, 120)
+		_text(Vector2(cx0 + 22, cy0), c1s, tz("C"), acol, false, true, 120)
 		var cx1: float = cx0 + 34 + font_bold.get_string_size(c1s, HORIZONTAL_ALIGNMENT_LEFT, -1, tz("C")).x
-		_icon("coin", Vector2(cx1 + 9, cy0 + tz("C") * 0.62), 16.0, ACCENT)
-		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), ACCENT, false, true, 120)
+		_icon("coin", Vector2(cx1 + 9, cy0 + tz("C") * 0.62), 16.0, acol)
+		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), acol, false, true, 120)
 		for k2 in 3:
 			_icon("star", r.position + Vector2(cw - 66 + k2 * 22, 20), 20.0, Color("#ffd166") if k2 < got else Color(1, 1, 1, 0.16))
 		_ink_mode = false
+		_probe_dis = false
 	# 翻頁鈕放在關卡卡片後面：手把焦點先落在第一關（版面檢查 PADWALK）
 	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
 	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
@@ -638,8 +642,11 @@ func _draw_profile() -> void:
 			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
 		else:
 			_box(ar, Color(0, 0, 0, 0.16), Color(1, 1, 1, 0.10), 4.0, 1.0)   # V1.2.1：未解鎖也有框（三欄對稱）
-		if (ar.has_point(mouse) and not pad_mode) or (pad_mode and i2 == int(time / 2.5) % keys.size()):
-			hover_k = k   # 手把：每 2.5 秒自動輪到下一個成就顯示條件（成就不是可選按鈕）
+		# 手把：成就是看不見的焦點目標（不畫按鈕），焦點移到哪一個就顯示它的條件（Codex v121-impl2：不能只輪播）
+		var fi := _btns.size()
+		_btns.append({"r": ar, "cb": func(): pass, "en": true, "snd": "k_click"})
+		if (ar.has_point(mouse) and not pad_mode) or (pad_mode and fi == _focus):
+			hover_k = k
 			_box(ar.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.7), 5.0, 1.5)
 		_icon("star" if on else "lock", pos + Vector2(10, 12), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
 		_text(pos + Vector2(26, 0), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 340)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1

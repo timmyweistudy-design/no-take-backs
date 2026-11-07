@@ -338,9 +338,10 @@ func _draw_overlay() -> void:
 					Color(0.15, 0.32, 0.22) if st > 0 and plain_ui_now() else Color(0, 0, 0, 0))
 				btn_paper = false
 				_ink_mode = last_btn_paper
+				_probe_dis = not last_btn_enabled
 				_probe_btn_label = true
 				_probe_btn_rect = r
-				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
+				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en and last_btn_enabled else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
 				_probe_btn_label = false
 				if en:
 					for ks in 3:   # 星數在右下角（和下方說明同一列，說明讓出寬度）
@@ -359,6 +360,7 @@ func _draw_overlay() -> void:
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
 				_ink_mode = false
+				_probe_dis = false
 			if tut:
 				# 第七輪 A4：自由排兵入門（畫筆、搬移、開戰），一步一步帶
 				var fr := Rect2(280 + (list.size() % 2) * 370, 210 + (list.size() / 2) * 82, 350, 68)

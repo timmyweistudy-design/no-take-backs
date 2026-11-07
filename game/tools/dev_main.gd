@@ -199,7 +199,7 @@ func _contrast_issues(img: Image) -> Dictionary:
 	var sx := img.get_width() / 1280.0
 	var sy := img.get_height() / 800.0
 	for t in probe_texts:
-		if t.get("field", false) or not t.has("c") or t.get("glyph", false):
+		if t.get("field", false) or not t.has("c") or t.get("anim", false):   # 鍵帽字母等符號仍要檢查對比，只有淡出特效字不檢查
 			continue
 		var c: Color = t["c"]
 		var oc: Color = t["oc"]
@@ -215,9 +215,9 @@ func _contrast_issues(img: Image) -> Dictionary:
 		var ceff: Color = over.call(c, bgc)
 		var ratio := contrast(ceff, bgc)
 		if outlined:
-			# 描邊字：描邊先疊在背景上、字再疊在描邊上；取「字對描邊」「字對背景」較好的（裁決 R8）
+			# 描邊字（裁決 R8）：描邊先疊在背景上、字再疊在描邊上；「字對背景」「描邊對背景」「字對描邊」取最好的
 			var oeff: Color = over.call(oc, bgc)
-			ratio = maxf(ratio, contrast(over.call(c, oeff), oeff))
+			ratio = maxf(ratio, maxf(contrast(oeff, bgc), contrast(over.call(c, oeff), oeff)))
 		if ratio >= need:
 			continue
 		var item := {"type": "對比不足", "s": t["s"], "ratio": snappedf(ratio, 0.01), "need": need}

@@ -223,9 +223,9 @@ func _process(delta: float) -> void:
 var amb_owner := 0   # V1.2.1：每次換環境音加一；設定試聽的計時器只在自己還是擁有者時才關（Codex v121-impl1）
 
 func play_ambience(name: String) -> void:
+	amb_owner += 1   # 同名也算換手（試聽 forest 後進森林地圖，舊計時器不能停掉新場景的環境音）
 	if name == amb_name:
 		return
-	amb_owner += 1
 	amb_name = name
 	if name == "":
 		amb.stop()

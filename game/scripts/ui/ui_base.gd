@@ -146,9 +146,11 @@ const TH_PRIMARY := Color("#e08a1e")
 const SP := 8.0        # 間距基準
 const Icons = preload("res://scripts/ui/icons.gd")
 var _sb_cache := {}
+var last_btn_enabled := true   # 上一顆 _btn 實際是否可按（版面檢查的停用狀態會強制停用；卡片內文字要跟著變暗）
 var last_btn_paper := false   # 上一顆 _btn 實際有沒有畫成紙面（呼叫端決定裡面的字要不要墨色）
 var btn_paper := false   # V1.2.1 R1：下一顆 _btn 畫紙面（呼叫端設、用完還原）
 var _probe_glyph := false
+var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對比）
 var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
@@ -526,7 +528,7 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 			var ey := maxf(0.0, ex - size * 0.05)
 			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
 			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
-				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "dis": _probe_dis,
+				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis,
 				"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
 		if emboss:
 			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
@@ -612,6 +614,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
 	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
 	last_btn_paper = paper_face
+	last_btn_enabled = enabled
 	if paper_face:
 		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
 		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)

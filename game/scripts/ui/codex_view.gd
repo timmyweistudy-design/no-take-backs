@@ -504,9 +504,9 @@ func _draw_codex_demo() -> void:
 		if q.y < b.position.y + tz("C") * 1.5 + 6:
 			continue   # 疊到小劇場標題列就不畫這個重複的字
 		drawn.append([pp["s"], q])
-		_probe_glyph = true   # 小劇場的技能跳字是淡出中的特效，不算介面文字
+		_probe_anim = true   # 小劇場的技能跳字是淡出中的特效，不算介面文字
 		_text(q, pp["s"], ts(16), Color(ACCENT, 1.0 - kk * kk), true, true)
-		_probe_glyph = false
+		_probe_anim = false
 	if bool(Save.s("plain_ui")):
 		draw_rect(b, Color(1, 1, 1, 0.25), false, 1.5)
 	else:
