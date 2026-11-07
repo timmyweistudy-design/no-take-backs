@@ -541,7 +541,7 @@ static func _ink(c: Color) -> Color:
 	if lum < 0.45:
 		return c
 	if c.s < 0.25:
-		return Color(INK, clampf(c.a * 1.1, 0.0, 1.0))
+		return Color(INK, c.a)
 	return Color(c.darkened(0.58), c.a)
 
 func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:

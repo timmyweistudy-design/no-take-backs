@@ -1,0 +1,1159 @@
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index 4bc4a3c..b2f03ce 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -7,7 +7,7 @@ const MAX_PRESETS := 5
+ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
+ 
+ const DEFAULT_SETTINGS := {
+-	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "confirm_place": true,
++	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
+ 	"speed": 1.0, "music": 70, "sfx": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
+ }
+ const DEFAULT_SAVE := {
+diff --git a/game/scripts/game/sfx.gd b/game/scripts/game/sfx.gd
+index 4dd6432..c932ffa 100644
+--- a/game/scripts/game/sfx.gd
++++ b/game/scripts/game/sfx.gd
+@@ -30,11 +30,30 @@ var sfx_vol := 0.8
+ var music_vol := 0.7
+ var rng := RandomNumberGenerator.new()
+ 
++## V1.2 E：優先讀 CC0 錄音轉的 .ogg（tools/gen/import_audio.py），沒有才用程式合成的 .wav。
++## 同名變體（名稱__2、__3…）一起載入，播放時隨機挑、避免連續同一個。
++static func load_audio(n: String):
++	for ext in ["ogg", "wav"]:
++		var path := "res://audio/%s.%s" % [n, ext]
++		if ResourceLoader.exists(path):
++			return load(path)
++	return null
++
++var variants := {}     # 名稱 → [stream...]（含本體）
++var _last_var := {}    # 名稱 → 上次用的變體索引
++
+ func _ready() -> void:
+ 	for n in FILES:
+-		var st = load("res://audio/%s.wav" % n)
++		var st = load_audio(n)
+ 		if st:
+ 			streams[n] = st
++			var vs: Array = [st]
++			for k in range(2, 9):
++				var v = load_audio("%s__%d" % [n, k])
++				if v == null:
++					break
++				vs.append(v)
++			variants[n] = vs
+ 	for i in 12:
+ 		var p := AudioStreamPlayer.new()
+ 		add_child(p)
+@@ -99,13 +118,25 @@ func play(name: String, vol := 1.0) -> void:
+ 		return
+ 	var p := players[ch]
+ 	p.stop()
+-	p.stream = streams[name]
++	p.stream = _pick_variant(name)
+ 	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
+ 	p.volume_db = linear_to_db(maxf(0.0001, sfx_vol * vol))
+ 	p.play()
+ 	_prio_of[ch] = pr
+ 	_started[ch] = now
+ 
++## 變體：隨機挑一個，但不和上一次相同（只有一個就用它）。
++func _pick_variant(name: String):
++	var vs: Array = variants.get(name, [streams[name]])
++	if vs.size() <= 1:
++		return vs[0]
++	var last := int(_last_var.get(name, -1))
++	var k := rng.randi_range(0, vs.size() - 1) if last < 0 else rng.randi_range(0, vs.size() - 2)
++	if last >= 0 and k >= last:
++		k += 1
++	_last_var[name] = k
++	return vs[k]
++
+ # ── 分軌戰鬥音樂（第三輪 S1）：低音、鼓、旋律三軌同時播、各自調音量 ──
+ const LAYERS := ["music_battle_bass", "music_battle_drums", "music_battle_mel"]
+ var layers: Array[AudioStreamPlayer] = []
+@@ -139,16 +170,24 @@ static func layer_targets(close: bool, clutch: bool) -> Array:
+ 
+ func set_layer_targets(g: Array) -> void:
+ 	layer_gain = g
++	# 單軌：差距小時全音量、拉開時略小聲、最後時刻壓低（心跳另外播）
++	single_gain = 0.55 if float(g[2]) <= 0.0 else (1.0 if float(g[1]) >= 1.0 else 0.8)
++
++var single_gain := 1.0
++var single_cur := 1.0
+ 
+ func _process(delta: float) -> void:
+ 	if duck_t > 0.0:
+ 		duck_t -= delta
+-		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * (0.45 if duck_t > 0.0 else 1.0)))
++	# V1.2：單軌戰鬥曲用「緊張程度」調音量（分軌時的鼓聲進出改成整首大小聲），並套用大招壓低
++	single_cur = move_toward(single_cur, single_gain, delta * 1.5)
++	if music.playing:
++		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * (0.45 if duck_t > 0.0 else 1.0)))
+ 	if music_name != "layers" or layers.is_empty():
+ 		return
+ 	for i in layers.size():
+ 		layer_cur[i] = move_toward(layer_cur[i], layer_gain[i], delta * 1.5)
+-		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i]))
++		layers[i].volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * layer_cur[i] * (0.45 if duck_t > 0.0 else 1.0)))   # V1.2：分軌也要被大招壓低（原本漏乘）
+ 
+ ## V9：地圖環境音；空字串＝停。
+ func play_ambience(name: String) -> void:
+@@ -170,18 +209,34 @@ func duck(sec: float) -> void:
+ 	duck_t = maxf(duck_t, sec)
+ 
+ func play_music(name: String) -> void:
+-	if name == "music_battle":
++	# V1.2 E：有錄音的戰鬥曲（music_battle.ogg）就單軌播；沒有才用舊的合成三軌
++	var real_battle := ResourceLoader.exists("res://audio/music_battle.ogg")
++	if name == "music_battle" and not real_battle:
+ 		if music_name != "layers":
+ 			play_layers()
+ 		return
++	var src := name
++	var pitch := 1.0
++	if name == "music_frenzy" and real_battle:
++		src = "music_battle"     # 狂熱：同一首加快一點，不換成合成音
++		pitch = 1.08
+ 	if name == music_name:
+ 		return
++	if src == "music_battle" and (music_name == "music_battle" or music_name == "music_frenzy") and music.playing and real_battle:
++		music_name = name     # 狂熱與一般戰鬥是同一首：只改音高、不從頭播（Codex v120-impl2）
++		music.pitch_scale = pitch
++		return
+ 	stop_layers()
+ 	music_name = name
+-	var st = load("res://audio/%s.wav" % name)
++	var st = load_audio(src)
+ 	if st == null:
+ 		music.stop()
+ 		return
++	if "loop" in st:
++		st.loop = true       # Ogg 的循環在這裡開（匯入預設不循環）
+ 	music.stream = st
++	music.pitch_scale = pitch
++	single_gain = 1.0
++	single_cur = 1.0
+ 	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6))
+ 	music.play()
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index 3aa9139..7177d6f 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -290,6 +290,17 @@ func _add_fx(d: Dictionary) -> void:
+ 
+ 
+ 
++## V1.2 C6：對話泡。r＝文字外框；尖角朝下指向角色。透明度跟著字淡出。
++func _bubble(r: Rect2, a: float) -> void:
++	var rr := r.grow_individual(4, 1, 4, 2)
++	var fill := Color(0.10, 0.07, 0.05, 0.82 * a)
++	var edge := Color(0.95, 0.86, 0.66, 0.55 * a)
++	var mid := rr.position.x + rr.size.x * 0.5
++	var tail := PackedVector2Array([Vector2(mid - 5, rr.end.y - 1), Vector2(mid + 5, rr.end.y - 1), Vector2(mid - 1, rr.end.y + 7)])
++	_box(rr, fill, edge, minf(10.0, rr.size.y * 0.5), 1.5)
++	draw_colored_polygon(tail, fill)
++	draw_polyline(PackedVector2Array([tail[0], tail[2], tail[1]]), edge, 1.5, true)
++
+ func _fx_text(p: Vector2, s: String, c: Color, dur: float, size: int, screen := false) -> void:
+ 	fx.append({"kind": "text", "p": p, "s": s, "c": c, "t": 0.0, "dur": dur, "size": size, "screen": screen})
+ 
+@@ -587,7 +598,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var dim := _clutch_dim(p3)
+ 				col.a *= dim
+ 				if not f.get("plain", false):
+-					draw_rect(r3, Color(0.047, 0.059, 0.086, 0.72 * col.a))   # 半透明黑膠囊底（補血的綠字不加底，第四輪）
++					_bubble(r3, col.a)   # V1.2 C6：漫畫對話泡（羊皮紙色圓角＋墨線＋朝下的尖角），取代黑色膠囊
+ 				var sz := int(ts(f["size"]) * (1.0 + float(f.get("pop", 0.0)) * 1.4))
+ 				if f.get("plain", false):
+ 					_text(p3, f["s"], sz, col, true, true, 0.0, Color(0.05, 0.2, 0.08, col.a))   # 補血綠字加深墨綠描邊
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index c485238..ffa388f 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -315,14 +315,57 @@ func _draw_field() -> void:
+ 
+ ## 木框內側陰影（第七輪 D2）。
+ func _draw_field_frame() -> void:
+-	for k6 in 3:
+-		var sh := Color(0, 0, 0, 0.12 - k6 * 0.035)
+-		var ii := float(k6 * 3)
++	# V1.2 D3：場地底紋（亞麻布紋，約 6%），跟著場地（在鏡頭座標裡畫），不是貼在螢幕上
++	var gr := _ui_tex(TEX_PAPER)
++	if gr != null and not bool(Save.s("plain_ui")):
++		# 一次平鋪（節點開了 texture_repeat），每幀一個繪製呼叫（Codex v120-impl2：原本每格一次）
++		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
++		draw_texture_rect(gr, Rect2(ORIGIN, fld_size), true, Color(0.5, 0.42, 0.32, 0.07))
++	_draw_ambient()
++	# V1.2 C4：戰場外圍木製沙盤框（九宮格、四角銅釘），蓋在原本的平塗邊上
++	var fx := _ui_tex(TEX_FRAME)
++	if fx != null and not bool(Save.s("plain_ui")):
++		var sb: StyleBoxTexture = _sb_cache.get("field_frame")
++		if sb == null:
++			sb = StyleBoxTexture.new()
++			sb.texture = fx
++			for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
++				sb.set_texture_margin(side, 22.0)
++			sb.draw_center = false
++			_sb_cache["field_frame"] = sb
++		draw_style_box(sb, Rect2(ORIGIN, fld_size).grow(14))
++	for k6 in 4:   # V1.2：沙盤內緣落影加深（草地像陷在木框裡）
++		var sh := Color(0, 0, 0, 0.2 - k6 * 0.045)
++		var ii := float(k6 * 2)
+ 		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
+ 		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
+ 		draw_rect(Rect2(ORIGIN + Vector2(fld_size.x - ii - 3.0, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
+ 		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
+ 
++## V1.2 F3：環境動態（確定性：只看時間與編號，不進模擬）。草地／林間落葉、冰原落雪、熔岩火星；簡化特效時不畫。
++func _draw_ambient() -> void:
++	if bool(Save.s("reduce_fx")) or bool(Save.s("plain_ui")):
++		return
++	var biome := str(MapDefs.MAPS[fld_map]["biome"]) if fld_map < MapDefs.MAPS.size() else "grass"
++	var n := 14
++	for i in n:
++		var seed := float(i) * 12.9898
++		var ph := fposmod(time * (0.05 + fposmod(seed, 0.04)) + fposmod(seed * 3.7, 1.0), 1.0)
++		var x := fposmod(seed * 97.3 + sin(time * 0.6 + seed) * 18.0, fld_size.x)
++		match biome:
++			"ice":
++				var p := ORIGIN + Vector2(x + ph * 40.0, ph * fld_size.y)
++				draw_circle(p, 1.6 + fposmod(seed, 1.2), Color(1, 1, 1, 0.55 * sin(ph * PI)), true, -1.0, true)
++			"lava":
++				var p2 := ORIGIN + Vector2(x, fld_size.y * (1.0 - ph))
++				draw_circle(p2, 1.4, Color(1.0, 0.55 + 0.3 * fposmod(seed, 1.0), 0.15, 0.7 * sin(ph * PI)), true, -1.0, true)
++			_:
++				if i % 2 == 0:
++					var p3 := ORIGIN + Vector2(x + sin(time * 1.3 + seed) * 10.0, ph * fld_size.y)
++					var rot := time * 2.0 + seed
++					var d := Vector2(cos(rot), sin(rot)) * 3.0
++					draw_line(p3 - d, p3 + d, Color(0.55, 0.62, 0.25, 0.5 * sin(ph * PI)), 2.4, true)
++
+ ## 第十三輪：護送＝金色雙圈，斬首＝紅色準星。
+ func _goal_marker(p: Vector2, kind: String) -> void:
+ 	var pulse := 0.5 + 0.5 * sin(time * 4.0)
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index 09df0a8..bbb5f33 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -600,7 +600,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 
+ # ── 戰鬥 HUD ──
+ func _draw_battle_hud() -> void:
+-	draw_rect(Rect2(0, 0, 1280, 86), UI_BG)
++	_hud_bar(Rect2(0, 0, 1280, 86))   # V1.2：頂部資訊列改深木紋（原本是平塗深底）
+ 	draw_line(Vector2(0, 86), Vector2(1280, 86), TH_EDGE, 2.0)
+ 	# 第五輪：左上和擺放畫面一樣——模式（粗）＋局數比分（小字），不再放遊戲標題（大字時會換行壓到棋盤）
+ 	_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), Color(1, 1, 1, 0.75), false, true, 300)
+diff --git a/game/scripts/ui/charts.gd b/game/scripts/ui/charts.gd
+index 5c7dcc8..9126358 100644
+--- a/game/scripts/ui/charts.gd
++++ b/game/scripts/ui/charts.gd
+@@ -82,7 +82,9 @@ static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String
+ 	var rt0: String = value_text if values.size() <= 1 else load("res://scripts/game/strings.gd").t("rank_nth", [value_text, rank_guess])
+ 	var lw := clampf(rect.end.x - lx - ui._width(rt0, fs, true) - 24, 40.0, rect.size.x * 0.30)
+ 	var cy := rect.position.y + fs * 0.75
+-	ui.draw_line(Vector2(lx, cy), Vector2(lx + lw, cy), GRID, 4.0)
++	var seg: bool = ui.has_method("_seg_bar") and not bool(ui.Save.s("plain_ui"))
++	if not seg:
++		ui.draw_line(Vector2(lx, cy), Vector2(lx + lw, cy), GRID, 4.0)
+ 	var mx := 0.0
+ 	var mn := 1e18
+ 	for t in values:
+@@ -94,9 +96,17 @@ static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String
+ 		if t != me and float(values[t]) > float(values.get(me, 0)):
+ 			rank += 1
+ 		var px := lx + lw * (float(values[t]) - mn) / span
+-		if t != me:
++		if t != me and not seg:
+ 			ui.draw_circle(Vector2(px, cy), 4.0, Color(1, 1, 1, 0.35))
+-	if values.has(me):
++	if seg:
++		# V1.2 C2：8 格刻印條；其他兵種的位置改成條下緣的小刻痕（資訊保留、不像滑桿）
++		var fr: float = (float(values.get(me, 0)) - mn) / span if values.has(me) else 0.0
++		ui._seg_bar(Rect2(lx, cy - 5, lw, 10), maxf(0.06, fr), accent)
++		for t2 in values:
++			if t2 != me:
++				var px2 := lx + lw * (float(values[t2]) - mn) / span
++				ui.draw_line(Vector2(px2, cy + 6), Vector2(px2, cy + 9), Color(1, 1, 1, 0.35), 1.5)
++	elif values.has(me):
+ 		var pm := lx + lw * (float(values[me]) - mn) / span
+ 		ui.draw_line(Vector2(lx, cy), Vector2(pm, cy), accent, 4.0)
+ 		ui.draw_circle(Vector2(pm, cy), 7.0, accent)
+@@ -110,8 +120,12 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int,
+ 	var cb: bool = ui.cbm()
+ 	var n := log2.size() / 2
+ 	var mid := rect.position.y + rect.size.y / 2
+-	ui.draw_rect(rect, Color(0, 0, 0, 0.25))
+-	ui.draw_line(Vector2(rect.position.x, mid), Vector2(rect.end.x, mid), Color(1, 1, 1, 0.35), 1.0)
++	# V1.2 C3：羊皮紙底＋墨水中線（原本是半透明黑底、白線，像看盤軟體）
++	var paper: bool = ui.has_method("_tex_box") and not bool(ui.Save.s("plain_ui")) and ui._tex_box(rect.grow_individual(6, 6, 6, 2), "paper")
++	if not paper:
++		ui.draw_rect(rect, Color(0, 0, 0, 0.25))
++	ui.draw_line(Vector2(rect.position.x, mid), Vector2(rect.end.x, mid), Color(0.14, 0.08, 0.04, 0.55) if paper else Color(1, 1, 1, 0.35), 1.0)
++	var wash := 0.62 if paper else 0.85
+ 	if n <= 1:
+ 		return []
+ 	var span := maxi(n, total_ticks)
+@@ -137,10 +151,17 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int,
+ 		var x := rect.position.x + k * dx
+ 		var y: float = rect.end.y - rect.size.y * ys[k]
+ 		if y < mid:
+-			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, 0.85))
++			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, wash))
+ 		else:
+ 			var rr := Rect2(x, mid, dx + 0.5, y - mid)
+-			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, 0.85))
++			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, wash))
++	if paper:
++		# 墨線描出戰力曲線（像手繪在紙上）
++		var ink := PackedVector2Array()
++		for k2 in ys.size():
++			ink.append(Vector2(rect.position.x + k2 * dx, rect.end.y - rect.size.y * ys[k2]))
++		if ink.size() >= 2:
++			ui.draw_polyline(ink, Color(0.14, 0.08, 0.04, 0.85), 1.6, true)
+ 	if cb:
+ 		# 色盲：紅方（中線以下）的面積加斜線紋，不只靠顏色分辨（Codex 實作第 1 輪：原本是空的）
+ 		# 整個紅方面積都畫斜線：每條 45° 線從中線往下，只畫在該欄的紅色高度內
+diff --git a/game/scripts/ui/codex_view.gd b/game/scripts/ui/codex_view.gd
+index fd52fcf..72b262b 100644
+--- a/game/scripts/ui/codex_view.gd
++++ b/game/scripts/ui/codex_view.gd
+@@ -192,9 +192,14 @@ func _draw_codex() -> void:
+ 	for tx in items[0]["texts"]:
+ 		ty += (_wrap(tx["s"], tx["size"], CX_LEFT.size.x - 168).count("\n") + 1) * tx["size"] * 1.3 + 3.0
+ 	head_h = clampf(maxf(head_h, ty + 8.0), 160.0, 260.0)
++	# V1.2 C2：左欄是一張羊皮紙卡，字用墨色
++	if not bool(Save.s("plain_ui")):
++		_tex_box(CX_LEFT.grow_individual(8, 0, 8, 8), "paper")   # 上緣和頁籤留空（Antigravity impl3）
++		_ink_mode = true
+ 	_scroll_draw("head", Rect2(CX_LEFT.position, Vector2(CX_LEFT.size.x, head_h)), [items[0]], false)
+-	draw_line(Vector2(CX_LEFT.position.x, CX_LEFT.position.y + head_h - 2), Vector2(CX_LEFT.end.x, CX_LEFT.position.y + head_h - 2), Color(1, 1, 1, 0.12), 1.0)
++	draw_line(Vector2(CX_LEFT.position.x, CX_LEFT.position.y + head_h - 2), Vector2(CX_LEFT.end.x, CX_LEFT.position.y + head_h - 2), Color(INK, 0.25) if _ink_mode else Color(1, 1, 1, 0.12), 1.0)
+ 	_scroll_draw("left", Rect2(CX_LEFT.position + Vector2(0, head_h + 4), CX_LEFT.size - Vector2(0, head_h + 4)), items.slice(1))
++	_ink_mode = false
+ 	# 右欄：技能分頁、說明、小劇場
+ 	var sks := _cx_skills()
+ 	var bw := (CX_BOX.size.x - (sks.size() - 1) * 8) / maxf(1.0, sks.size())
+@@ -394,8 +399,7 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
+ 						_icon(["heart", "sword", "range", "speed", "coin"][mini(bar_i, 4)], Vector2(r.position.x + 9, y + lh * 0.5), 18.0, Color.WHITE)
+ 						_text(Vector2(r.position.x + 22, y), b[0], ts(13), Color(1, 1, 1, 0.75), false, false, 72)
+ 						var bx := r.position.x + 96
+-						draw_rect(Rect2(bx, y + lh * 0.38, 150, 7), TH_WOOD_D)
+-						draw_rect(Rect2(bx, y + lh * 0.38, 150.0 * clampf(b[1], 0.04, 1.0), 7), Color("#66b2ff"))
++						_seg_bar(Rect2(bx, y + lh * 0.3, 150, 11), clampf(b[1], 0.04, 1.0), Color("#e8a33a"))   # V1.2 C2：8 格刻印條
+ 						_text(Vector2(bx + 158, y), b[2], ts(13), Color(1, 1, 1, 0.85), false, false, r.size.x - 260)
+ 					bar_i += 1
+ 					y += lh
+@@ -480,5 +484,12 @@ func _draw_codex_demo() -> void:
+ 			continue   # 疊到小劇場標題列就不畫這個重複的字
+ 		drawn.append([pp["s"], q])
+ 		_text(q, pp["s"], ts(16), Color(ACCENT, 1.0 - kk * kk), true, true)
+-	draw_rect(b, Color(1, 1, 1, 0.25), false, 1.5)
++	if bool(Save.s("plain_ui")):
++		draw_rect(b, Color(1, 1, 1, 0.25), false, 1.5)
++	else:
++		# V1.2：小劇場像嵌在木盒裡的沙盤：深木邊＋四層內陰影（上方沒有空間放外框；Antigravity impl3）
++		for kl in 4:
++			draw_rect(b.grow(-2.0 - kl * 2.0), Color(0, 0, 0, 0.2 - kl * 0.045), false, 2.0)
++		draw_rect(b, TH_WOOD_D, false, 3.0)
++		draw_line(b.position + Vector2(0, b.size.y + 1.5), b.end + Vector2(0, 1.5), Color(1, 0.9, 0.7, 0.18), 1.0)
+ 	_text(b.position + Vector2(8, 4), L.t("codex_demo"), ts(13), Color(1, 1, 1, 0.75))
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index c0e1dc2..2969f2e 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -3,6 +3,9 @@ extends "res://scripts/ui/screens/game_menus.gd"
+ 
+ var boot_parts := {}   # V1.1 E6：啟動各階段的時間點（毫秒，從程式啟動算），--boot-check 印出來
+ 
++var _ov_seen := ""   # V1.2 F1：覆蓋層動畫用
++var _ov_t := -9.0
++
+ func _ready() -> void:
+ 	boot_parts["ready_in"] = Time.get_ticks_msec()
+ 	on_battle_finished = _finish_battle
+@@ -43,6 +46,9 @@ func _ready() -> void:
+ 	boot_parts["save"] = Time.get_ticks_msec()
+ 	_load_fonts()
+ 	boot_parts["fonts"] = Time.get_ticks_msec()
++	# V1.2：自訂游標（小劍，tools/gen/gen_ui_tex.py 生成）；plain_ui 時用系統游標
++	if not bool(Save.s("plain_ui")) and ResourceLoader.exists("res://art/ui/cursor.png"):
++		Input.set_custom_mouse_cursor(load("res://art/ui/cursor.png"), Input.CURSOR_ARROW, Vector2(2, 2))
+ 	sfx = SfxScript.new()
+ 	add_child(sfx)
+ 	boot_parts["sfx"] = Time.get_ticks_msec()
+@@ -478,6 +484,10 @@ func _draw_inner() -> void:
+ 			_draw_fx(f)
+ 	perf_parts["fx"] = Time.get_ticks_usec() - _t
+ 	draw_set_transform_matrix(Transform2D.IDENTITY)
++	# V1.2 F2：畫面四周暈影（戰場與標題背景，壓在介面底下），讓視線集中在中間
++	var vg := _ui_tex("res://art/ui/vignette.png")
++	if vg != null and not bool(Save.s("plain_ui")):
++		draw_texture_rect(vg, Rect2(0, 0, 1280, 800), false, Color(1, 1, 1, 0.5))
+ 	_probe_ui = true
+ 	Art.base = Transform2D.IDENTITY
+ 	if state == St.BATTLE and slow_left > 0:
+@@ -508,7 +518,15 @@ func _draw_inner() -> void:
+ 			_draw_battle_hud()
+ 			_draw_result()
+ 	_draw_clutch_banner()
++	# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
++	if overlay != _ov_seen:
++		_ov_seen = overlay
++		_ov_t = time
++	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
++	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+ 	_draw_overlay()
++	if ok_k < 1.0:
++		draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
+ 	_draw_pad_footer()
+ 	if toast_t > 0:
+ 		var a := minf(1.0, toast_t * 2)
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index c102903..8e4dded 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -562,8 +562,13 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 	var lw := 600.0
+ 	var rowh := 96.0
+ 	var y := R.position.y
++	# V1.2 C1：左欄是一頁羊皮紙（像攤開的戰役筆記），紙上的字用墨色
++	var pg_h := rowh * 4.0 + 12.0 + text_h(_summary(r), tz("S"), lw - 170) + 44.0
++	if not bool(Save.s("plain_ui")):
++		_tex_box(Rect2(x - 10, y - 2, lw + 20, pg_h + 12), "paper")   # 上緣和頁籤留空（Antigravity impl3）
++		_ink_mode = true
+ 	var label := func(ic: String, s: String, yy: float) -> void:
+-		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
++		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+ 		_icon(ic, Vector2(x + 26, yy + 24), 26.0, ACCENT)
+ 		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 112)
+ 	var cx := x + 160
+@@ -610,10 +615,12 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 	var by0: float = y + 12 + text_h(_summary(r), tz("S"), cw)
+ 	_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
+ 	_btn(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
++	_ink_mode = false
+ 	# 右：預覽
+ 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
+ 	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
+ 	_map_thumb(pv, r.map_id, r.map_size, true)
++	_wood_frame(pv, 9.0)   # V1.2 C1：沙盤預覽加木框
+ 	var ly := pv.end.y + 12
+ 	var lx := pv.position.x
+ 	if r.map_id != 0:
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index f609708..45b47e4 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -45,7 +45,7 @@ func _draw_gauntlet_pick() -> void:
+ 	for i in opts.size():
+ 		var r := Rect2(280, 226 + i * 128, 720, 116)
+ 		var pool: int = opts[i][1]
+-		_btn(r, "", _start_gauntlet_with.bind(pool), true, false, Color(0.16, 0.18, 0.26))
++		_btn(r, "", _start_gauntlet_with.bind(pool), true, false, TH_WOOD)
+ 		_text(r.position + Vector2(16, 6), opts[i][0], tz("B"), ACCENT, false, true)
+ 		_draw_pool_heads(r.position + Vector2(16, 44), pool, 58.0)
+ 	_btn(Rect2(560, 120 + pick_h - 54, 160, 40), L.t("back"), func(): overlay = "")
+@@ -171,6 +171,13 @@ func _draw_title() -> void:
+ 		tsz = int(tsz * 430.0 / tw)   # 第七輪：英文 150% 標題原本超出畫面左邊
+ 		tw = tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
+ 	var tp := Vector2(235 - tw / 2, 40 + bob + tsz * 0.85)
++	# V1.2 G：標題墊一塊木牌（木紋、銅釘框）＋兩側交叉雙劍，像掛在營帳前的招牌
++	if not bool(Save.s("plain_ui")):
++		var plq := Rect2(235 - tw / 2 - 34, tp.y - tsz * 0.92, tw + 68, tsz * 1.16)
++		if _tex_box(plq, "wood", Color(0.62, 0.42, 0.26)):
++			_wood_frame(plq, 6.0, "title_frame")
++			for sx in [plq.position.x - 4, plq.end.x + 4]:
++				_icon("swords", Vector2(sx, plq.get_center().y), 34.0, Color("#e8c26a"))
+ 	for d in 4:
+ 		draw_string(tf, tp + Vector2(1, 1) * (d + 1) * 1.6, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color(0.32, 0.17, 0.04, 0.9))
+ 	draw_string_outline(tf, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, 9, Color("#3a2205"))
+@@ -277,7 +284,7 @@ func _draw_overlay() -> void:
+ 			var list: Array = PZ.tutorials() if tut else chap
+ 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
+ 			_panel(Rect2(240, 110, 800, 580))
+-			_text(Vector2(640, 114), L.t("menu_tutorial") if tut else L.t("puzzle_title"), ts(26), Color.WHITE, true, true)
++			_h1(Vector2(640, 110), L.t("menu_tutorial") if tut else L.t("puzzle_title"), 600)   # V1.2：和圖鑑、大廳同款標題緞帶（Antigravity impl3）
+ 			var y0 := 210.0
+ 			var idx: Array = []
+ 			for i0 in list.size():
+@@ -310,7 +317,7 @@ func _draw_overlay() -> void:
+ 				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
+ 				var st := int(stars.get(pz["id"], 0))
+ 				var en: bool = not _demo() or tut or (puzzle_tab == 0 and i < Presets.DEMO_PUZZLES)   # 第十一輪：關卡全開，只有試玩版有範圍
+-				var line := "%s%d. %s　%s" % ["✓ " if st > 0 else "", i + 1, name, "★".repeat(st) + "☆".repeat(3 - st)]
++				var line := "%s%d. %s" % ["✓ " if st > 0 else "", i + 1, name]   # V1.2：星數改畫圖示（不再用 ★☆ 字元，大字級不會擠出框）
+ 				if pz.has("unit") and not RS.available(int(pz["unit"]), _demo()):
+ 					en = false
+ 					line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo")]
+@@ -321,13 +328,16 @@ func _draw_overlay() -> void:
+ 				_probe_btn_rect = r
+ 				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
+ 				_probe_btn_label = false
++				if en:
++					for ks in 3:   # 星數在右下角（和下方說明同一列，說明讓出寬度）
++						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.end.y - tz("C") * 0.75), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
+ 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
+ 				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
+ 				if not tut and en and text_h(line, tz("S"), r.size.x - 72) <= tz("S") * 1.6:
+ 					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
+ 					_probe_btn_label = true
+ 					_probe_btn_rect = r
+-					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.25), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 70)
++					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.25), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)
+ 					_probe_btn_label = false
+ 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
+ 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index d7d0b19..1a8de7b 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -220,16 +220,24 @@ func _draw_hide_fog(hide_side: int) -> void:
+ 	var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
+ 	# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
+ 	var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, fld_size.y))
+-	draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
+-	for k in 3:
+-		var cxp := fposmod(time * (14.0 + k * 6.0) + k * 150.0, mr.size.x + 220.0) - 110.0
+-		var cc := mr.position + Vector2(cxp, 90.0 + k * 170.0)
+-		for b in 5:
+-			var off := Vector2((b - 2) * 26.0, -absf(b - 2.0) * -6.0 - 8.0 * float(b % 2))
+-			var rr := mr.position.x - 10.0
+-			var cp := cc + off
+-			if cp.x > rr and cp.x < mr.end.x + 10.0:
+-				draw_circle(cp, 26.0 - absf(b - 2.0) * 4.0, Color(0.8, 0.82, 1.0, 0.07), true, -1.0, true)
++	# V1.2 C4：敵陣遮擋改成木製屏風（木紋、三扇接縫、銅鉸鏈），不再是黑色半透明罩
++	if not bool(Save.s("plain_ui")) and _tex_box(mr, "wood", Color(0.62, 0.46, 0.33)):
++		var panels := 3
++		for pj in panels:   # 屏風的扇面交替明暗，看得出折角
++			var pr := Rect2(mr.position.x + mr.size.x * pj / panels, mr.position.y, mr.size.x / panels, mr.size.y)
++			draw_rect(pr, Color(1, 0.95, 0.85, 0.06) if pj % 2 == 0 else Color(0, 0, 0, 0.12))
++		for pi in range(1, panels):
++			var sx := mr.position.x + mr.size.x * pi / panels
++			draw_line(Vector2(sx, mr.position.y + 4), Vector2(sx, mr.end.y - 4), Color(0.1, 0.06, 0.03, 0.75), 3.0)
++			draw_line(Vector2(sx + 2, mr.position.y + 4), Vector2(sx + 2, mr.end.y - 4), Color(1, 0.9, 0.7, 0.12), 1.0)
++			for hy in [0.18, 0.5, 0.82]:
++				var hp := Vector2(sx, mr.position.y + mr.size.y * hy)
++				draw_circle(hp, 4.5, Color("#2a190d"), true, -1.0, true)
++				draw_circle(hp, 3.2, Color("#b98a45"), true, -1.0, true)
++				draw_circle(hp - Vector2(1, 1), 1.2, Color("#f0d9a0"), true, -1.0, true)
++		draw_rect(mr, Color(0, 0, 0, 0.18))   # 壓暗一點，讓上面的字更清楚
++	else:
++		draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
+ 	var fp := mr.position + Vector2(mr.size.x / 2 - 8, mr.size.y / 2 - 120)
+ 	var glow := 0.5 + 0.5 * sin(time * 2.4)
+ 	draw_circle(fp + Vector2(22, 18), 34 + glow * 6, Color(1, 0.25, 0.25, 0.10 + glow * 0.06), true, -1.0, true)
+@@ -490,7 +498,7 @@ func _load_checked(code: String) -> String:
+ func _draw_place_hud() -> void:
+ 	# 第五輪 §4.4：頂部兩行。第一行＝模式／局數（左）、目前在做什麼＋金幣條＋人數（中）、規則徽章（右）；
+ 	# 第二行＝選中兵種的資訊帶（名稱、一句定位、剋／怕頭像），完全在棋盤外，不蓋部署格。
+-	draw_rect(Rect2(0, 0, 1280, 92), UI_BG)
++	_hud_bar(Rect2(0, 0, 1280, 92))   # V1.2：頂部資訊列改深木紋（原本是平塗深底）
+ 	draw_line(Vector2(0, 50), Vector2(1280, 50), Color(1, 1, 1, 0.08), 1.0)
+ 	var a = _cur_army()
+ 	var tcol := Art.team_color(a.team, cbm())
+@@ -545,13 +553,16 @@ func _draw_place_hud() -> void:
+ 		var r := _card_rect(i)
+ 		var cap_ok: bool = a.type_cap == 0 or a.count_of(i) < a.type_cap
+ 		var afford: bool = D.cost(i) <= a.left() and a.count() < a.unit_cap and _allowed(i) and cap_ok
+-		var bg := Color(0.17, 0.18, 0.24)
++		var bg := TH_WOOD   # V1.2：兵卡改木牌色（原本藍灰，像工程介面）
+ 		if i == selected:
+ 			bg = TH_ACTIVE
+ 		elif i == hover_card:
+-			bg = Color(0.21, 0.23, 0.31)
++			bg = TH_WOOD_L
+ 		var opened := _allowed(i)
+-		draw_rect(r, bg if afford else Color(bg, 0.45))
++		if afford and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28)):
++			pass
++		else:
++			draw_rect(r, bg if afford else Color(bg, 0.45))
+ 		draw_rect(r, tcol if i == selected else Color(1, 1, 1, 0.15), false, 2)
+ 		if layout_probe:
+ 			probe_ctrls.append(r)   # 兵卡是控制項：卡上的小字不算「要讀的文字」段數
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index b722bae..a428cd5 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -99,27 +99,57 @@ func _draw_result() -> void:
+ 	if not layout_probe and not bool(Save.s("reduce_fx")):
+ 		var dk := clampf((time - result_t) / 0.25, 0.0, 1.0)
+ 		drop = (1.0 - dk) * (1.0 - dk) * -60.0
+-	_text(Vector2(640, 114 + drop), title, title_sz, col, true, true, 540)
++	# V1.2 C3：勝負大字墊一條布幔絲帶（勝方隊色、兩端燕尾、金邊），不再是浮在面板上的單色字
++	if not bool(Save.s("plain_ui")):
++		var l1 := _result_line1()
++		# 也要包住摘要第一行；最寬 504，兩端燕尾剛好停在左右按鈕前（x 354～926）
++		var tw: float = minf(504.0, maxf(minf(540.0, _width(title, title_sz, true)) + 120.0, _width(l1, tz("S")) + 40.0))
++		var ry := 114.0 + drop - title_sz * 0.02
++		# 布幔上下要留白（Antigravity impl1）：往下一級字級（只能用字級表裡的值）
++		var lv: Array = TYPE_SCALE[_scale_key()].values()
++		var nxt := title_sz
++		for v in lv:
++			if v < title_sz and (nxt == title_sz or v > nxt):
++				nxt = v
++		# 布幔包住標題＋摘要第一行，下緣金邊落在第一行和勝負敘述之間的空隙（Antigravity impl3：敘述壓到金邊）
++		var y1 := 112.0 + nxt * 1.25 + (float(tz("C")) * 1.4 if play_kind == "review" else 0.0)
++		var l1w := 540.0 if y1 < 210 else 820.0   # 寬度規則和下面正文相同；_text 會先 fit 縮級，高度照實際字級量
++		var l1h := y1 - (112.0 + nxt * 1.25) + text_h(l1, fit(l1, tz("S"), l1w), l1w)
++		var rh := 112.0 + nxt * 1.25 + l1h + 4.0 - ry
++		var rx0 := 640.0 - tw / 2.0
++		var rib: Color = (col.darkened(0.35) if w >= 0 else Color("#5b4632"))
++		for sgn in [-1.0, 1.0]:
++			var ex: float = rx0 if sgn < 0 else rx0 + tw
++			draw_colored_polygon(PackedVector2Array([Vector2(ex, ry + 8), Vector2(ex + sgn * 34, ry + 8), Vector2(ex + sgn * 20, ry + rh * 0.5 + 4), Vector2(ex + sgn * 34, ry + rh), Vector2(ex, ry + rh)]), rib.darkened(0.35))
++		draw_rect(Rect2(rx0, ry, tw, rh), rib)
++		draw_rect(Rect2(rx0, ry, tw, 3), Color("#e8c26a"))
++		draw_rect(Rect2(rx0, ry + rh - 3, tw, 3), Color("#e8c26a"))
++		draw_rect(Rect2(rx0, ry + 3, tw, rh * 0.3), Color(1, 1, 1, 0.08))
++		col = Color("#fff6e0")
++		title_sz = nxt
++	_text(Vector2(640, 114 + drop + (title_sz * 0.08 if not bool(Save.s("plain_ui")) else 0.0)), title, title_sz, col, true, true, 540)
+ 	if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則（地形、撐住、技能）的代碼讀不回來，不給複製（Codex v13-r1 #1）
+ 		_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
+ 	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
+ 		_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
+ 	if report.has("trial_stars"):
+ 		for ks in 3:
+-			_icon("star", Vector2(610 + ks * 30, 84), 26.0, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
++			# V1.2 F1：星星一顆一顆彈出（截圖、版面檢查、簡化特效時直接到位）
++			var kk := 1.0
++			if not layout_probe and shot_dir == "" and not bool(Save.s("reduce_fx")):
++				kk = clampf((time - result_t - 0.35 - ks * 0.18) / 0.22, 0.0, 1.0)
++			var pop := 1.0 + 0.35 * sin(kk * PI)
++			if kk > 0.0:
++				_icon("star", Vector2(610 + ks * 30, 84), 26.0 * pop * kk, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
+ 	var mvp = report.get("mvp")
+ 	_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
+ 	var y := 112.0 + title_sz * 1.25
+ 	if play_kind == "review":
+ 		_text(Vector2(640, y), L.t("review_tag"), tz("C"), ACCENT, true, false, 480)
+ 		y += tz("C") * 1.4
+-	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
+-		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
+-	var p0 := roundi(sim.power(0) * 100.0 / (sim.budget_of(0) * 1000))
+-	var p1 := roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))
+ 	# 標題區只用左右按鈕之間的寬度（Antigravity 實作第 1 輪：英文 150% 摘要壓到「詳細數據」按鈕）
+ 	var hw := 540.0 if y < 210 else 820.0
+-	var line1 := "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])]
++	var line1 := _result_line1()
+ 	_text(Vector2(640, y), line1, tz("S"), Color(1, 1, 1, 0.8), true, false, hw)
+ 	y += text_h(line1, tz("S"), hw) + 6
+ 	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
+@@ -475,3 +505,12 @@ func _next_puzzle() -> void:
+ 		_start_mode(Mode.PUZZLE)
+ 		return
+ 	_go_title()
++
++
++## 結果頁摘要第一行（勝負原因・時間｜剩餘戰力）；緞帶高度和正文共用（V1.2）。
++func _result_line1() -> String:
++	var reason_key := {"全滅": "reason_wipe", "同時全滅": "reason_bothwipe", "時間到・戰力相當": "reason_time_even",
++		"時間到・剩餘戰力較高": "reason_time_power", "有一方沒有兵": "reason_empty"}
++	var p0 := roundi(sim.power(0) * 100.0 / (sim.budget_of(0) * 1000))
++	var p1 := roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))
++	return "%s・%.1fs　｜　%s" % [L.t(reason_key.get(sim.reason, "draw")), sim.tick / 20.0, L.t("power_left", [p0, p1])]
+diff --git a/game/scripts/ui/sprite_cache.gd b/game/scripts/ui/sprite_cache.gd
+index 0f1bd01..f9c34ad 100644
+--- a/game/scripts/ui/sprite_cache.gd
++++ b/game/scripts/ui/sprite_cache.gd
+@@ -13,6 +13,7 @@ extends Node
+ const Art = preload("res://scripts/ui/art.gd")
+ const D = preload("res://scripts/core/unit_defs.gd")
+ const Gait = preload("res://scripts/ui/units/gait.gd")
++const Save = preload("res://scripts/game/save.gd")
+ 
+ const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
+ const RS := 1.6            # 烘焙解析度倍率
+@@ -32,6 +33,7 @@ var loc := {}              # 兵種 → [頁, 這一種在頁裡的起始格]
+ var ring_tex: Texture2D = null
+ var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
+ var _busy := false
++var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
+ var _queue: Array = []
+ var _baking: Array = []
+ 
+@@ -49,9 +51,12 @@ static func origin_of(type: int) -> Vector2:
+ func build(cb: bool) -> void:
+ 	if DisplayServer.get_name() == "headless":
+ 		return
++	_gen += 1
+ 	pages.clear()
+ 	loc.clear()
+ 	_queue.clear()
++	_baking = []
++	_busy = false
+ 	ring_tex = null
+ 	ready_cb = 1 if cb else 0
+ 	var base: Array = []
+@@ -88,6 +93,7 @@ func _viewport(size: Vector2i, painter: Node) -> SubViewport:
+ 	return vp
+ 
+ func _bake_page(types: Array) -> void:
++	var gen0 := _gen
+ 	var cb := ready_cb == 1
+ 	var total := types.size() * 2 * FRAMES_PER
+ 	var rows := int(ceil(float(total) / COLS))
+@@ -99,8 +105,9 @@ func _bake_page(types: Array) -> void:
+ 	await RenderingServer.frame_post_draw
+ 	var img := vp.get_texture().get_image()
+ 	vp.queue_free()
+-	if (1 if cb else 0) != ready_cb:
+-		return   # 烘的時候換了配色：這一批作廢
++	img = await _post(img)
++	if (1 if cb else 0) != ready_cb or gen0 != _gen:
++		return   # 烘的時候換了配色（或重建了）：這一批作廢
+ 	# 新兵頁太多就丟最舊的（舊 10 種那兩頁不丟）
+ 	if pages.size() >= MAX_PAGES:
+ 		for i in pages.size():
+@@ -115,6 +122,27 @@ func _bake_page(types: Array) -> void:
+ 	for k in types.size():
+ 		loc[types[k]] = [pn, k * 2 * FRAMES_PER]
+ 
++## V1.2 D1：烘好的整頁再跑一次後處理 shader（外輪廓＋頂亮底暗）。沒有 shader 檔或 plain_ui 時原樣。
++func _post(img: Image) -> Image:
++	var sh_path := "res://shaders/unit_bake.gdshader"
++	if not ResourceLoader.exists(sh_path) or bool(Save.s("plain_ui")):
++		return img
++	var tr := TextureRect.new()
++	tr.texture = ImageTexture.create_from_image(img)
++	tr.size = Vector2(img.get_width(), img.get_height())
++	var mat := ShaderMaterial.new()
++	mat.shader = load(sh_path)
++	mat.set_shader_parameter("cell", float(CELL))
++	mat.set_shader_parameter("per", float(FRAMES_PER))
++	mat.set_shader_parameter("cols", float(COLS))
++	tr.material = mat
++	var vp := _viewport(Vector2i(img.get_width(), img.get_height()), tr)
++	await RenderingServer.frame_post_draw
++	await RenderingServer.frame_post_draw
++	var out := vp.get_texture().get_image()
++	vp.queue_free()
++	return out
++
+ func _bake_ring(cb: bool) -> void:
+ 	var painter := _RingPainter.new()
+ 	painter.cb = cb
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index e518ae4..33aeda1 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -144,11 +144,15 @@ const TH_PRIMARY := Color("#e08a1e")
+ const SP := 8.0        # 間距基準
+ const Icons = preload("res://scripts/ui/icons.gd")
+ var _sb_cache := {}
++var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
+ var _hover_key := -1
+ var _trans_gen := -1
+ var _trans_t := -10.0
+ var _hover_now := -1
+ const UNIT_SCALE := 0.92
++## V1.2 A2／B1：文字描邊與陰影的墨色（深焦茶，取代純黑）
++const INK := Color("#24150B")
++const INK_SHADOW := Color("#140B06")
+ 
+ var font: Font
+ var font_bold: Font
+@@ -312,6 +316,16 @@ func _load_font(path: String) -> Font:
+ 	return sf
+ 
+ 
++## V1.2 A1：英數字型疊在中文字型上（中文缺字落到後備）。沒有英數字型檔時直接用中文字型。
++func _latin_over(path: String, cjk: Font) -> Font:
++	if ResourceLoader.exists(path):
++		var lf = load(path)
++		if lf is FontFile:
++			var f2: FontFile = lf.duplicate()
++			f2.fallbacks = [cjk]
++			return f2
++	return _tnum(cjk)
++
+ ## 第五輪：數字用等寬（tnum），金幣、秒數、百分比跳動時不會左右晃。
+ func _tnum(f: Font) -> Font:
+ 	var fv := FontVariation.new()
+@@ -319,12 +333,14 @@ func _tnum(f: Font) -> Font:
+ 	fv.opentype_features = {TextServerManager.get_primary_interface().name_to_tag("tnum"): 1}
+ 	return fv
+ 
+-## 第五輪：載入三種字型角色。標題字缺的字由思源黑體 Bold 補。
++## 第五輪：載入三種字型角色。標題字缺的字由介面字型 Bold 補。
++## V1.2 A1：介面字＝「NTB Latin（Fredoka，英數、數字等寬）為主字型＋NTB Rounded（源泉圓體 TW）為後備」：
++## 主字型只有拉丁字，中文自動落到後備，所以同一行裡英數用 Fredoka、中文用源泉圓體，不用拆段。
+ func _load_fonts() -> void:
+-	var reg := _load_font("res://fonts/NotoSansTC-Regular-sub.otf")
+-	var bold := _load_font("res://fonts/NotoSansTC-Bold-sub.otf")
+-	font = _tnum(reg)
+-	font_bold = _tnum(bold)
++	var reg := _load_font("res://fonts/NTBRounded-R-sub.otf")
++	var bold := _load_font("res://fonts/NTBRounded-B-sub.otf")
++	font = _latin_over("res://fonts/NTBLatin-M-sub.ttf", reg)
++	font_bold = _latin_over("res://fonts/NTBLatin-B-sub.ttf", bold)
+ 	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
+ 		var tk = load("res://fonts/ThenKhung-sub.ttf")
+ 		if tk is FontFile:
+@@ -475,6 +491,8 @@ func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
+ 
+ 
+ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
++	if _ink_mode:
++		c = _ink(c)
+ 	if maxw > 0.0:
+ 		size = fit(s, size, maxw, bold)
+ 	var lines := wrap_lines(s, size, maxw, bold) if maxw > 0.0 else s.split("\n")
+@@ -482,18 +500,50 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold :=
+ 		var fnt := _font_for(lines[i], size, bold)
+ 		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
+ 		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
++		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
++		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
++		var emboss := outline.a < 0.0 and (_ink_mode or (c.get_luminance() < 0.35 and c.s < 0.8))
++		if emboss:
++			oc = Color(0, 0, 0, 0)
++		var ow := text_outline_w(size)
++		var sh := text_shadow_dy(size)
+ 		# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
++		# V1.2 A3：外框算進描邊外擴（左右上各半個描邊、下方再加陰影位移），換字與換框才不會靜靜爆框
+ 		if layout_probe and c.a > 0.05 and lines[i].strip_edges() != "":
+ 			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+-			probe_texts.append({"r": Rect2(q.x, q.y - size * 0.85, ww, size * 1.1), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect})
+-		var oc := Color(0, 0, 0, c.a * 0.75) if outline.a < 0.0 else outline
++			var ex := ow * 0.5 if oc.a > 0.0 else 0.0
++			# 直向：原本的框（1.1 倍字高）已經留了上下各約 0.05 字高的空，描邊與陰影只算超出的部分
++			var ey := maxf(0.0, ex - size * 0.05)
++			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
++			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect})
++		if emboss:
++			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
+ 		if oc.a > 0.0:
+-			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, oc)
++			# V1.2 A3：先畫柔和的下方陰影，再畫深焦茶描邊（取代純黑），最後正文
++			draw_string_outline(fnt, q + Vector2(0, sh), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, Color(INK_SHADOW, oc.a * 0.55))
++			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, oc)
+ 		draw_string(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
+ 
+ 
++## V1.2 A3：描邊依字級減薄（小字描太粗會糊）、陰影位移依字級（純函式，測試與探針共用）。
++static func text_outline_w(size: int) -> int:
++	return 3 if size <= 16 else (4 if size <= 22 else 5)
++
++static func text_shadow_dy(size: int) -> float:
++	return maxf(1.0, roundf(size / 12.0))
++
++
+ ## 即時模式按鈕：每幀重新登記，滑鼠或焦點都能按。
+ ## V9 P5 按鈕：圓角木牌、上緣高光、下緣陰影；按下縮一點回彈、懸停亮、焦點金框；主按鈕有流光。
++## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
++static func _ink(c: Color) -> Color:
++	var lum := c.get_luminance()
++	if lum < 0.45:
++		return c
++	if c.s < 0.25:
++		return Color(INK, clampf(c.a * 1.1, 0.0, 1.0))
++	return Color(c.darkened(0.58), c.a)
++
+ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+ 	var idx := _btns.size()
+ 	_btns.append({"r": r, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
+@@ -510,7 +560,13 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 			_hover_now = idx
+ 	var pressed := hover and enabled and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+ 	var rd := r.grow(-minf(r.size.x, r.size.y) * 0.025) if pressed else r
+-	_box(rd, bg, TH_EDGE.darkened(0.25) if tint.a <= 0.0 or tint.a > 0.6 else Color(0, 0, 0, 0), 7.0, 1.5)
++	# V1.2 B3：按鈕下緣 3px 厚度（木牌的側面）；按下時往下沉、厚度消失
++	var solid: bool = tint.a <= 0.0 or tint.a > 0.6
++	if solid and r.size.y >= 20.0:
++		# 厚度畫在按鈕框內（下緣 3px），命中框、探針與畫面一致（Codex v120-impl2）；按下時面板往下壓、厚度被蓋住
++		_box(Rect2(rd.position, rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
++		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
++	_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
+ 	if tint.a <= 0.0 or tint.a > 0.6:
+ 		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
+ 		draw_line(rd.position + Vector2(6, rd.size.y - 1.5), rd.end - Vector2(6, 1.5), Color(0, 0, 0, 0.3), 2.0)
+@@ -527,7 +583,10 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 	var h := lines.size() * sz * line_h(lines.size())
+ 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
+ 	_probe_btn_rect = r
++	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色
++	_ink_mode = false
+ 	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
++	_ink_mode = ink0
+ 	_probe_btn_label = false
+ 
+ ## 主按鈕的流光（可關）。
+@@ -537,14 +596,83 @@ func _btn_shine(r: Rect2) -> void:
+ 	var k := fposmod(time * 0.45, 1.0)
+ 	if k > 0.5:
+ 		return
+-	var x: float = r.position.x + (r.size.x + 40.0) * (k * 2.0) - 40.0
+-	var x0 := maxf(x, r.position.x + 3)
+-	var x1 := minf(x + 26.0, r.end.x - 3)
+-	if x1 > x0:
+-		draw_rect(Rect2(x0, r.position.y + 3, x1 - x0, r.size.y - 6), Color(1, 1, 1, 0.13))
++	var x: float = r.position.x + (r.size.x + 60.0) * (k * 2.0) - 30.0
++	# V1.2：斜的、窄的、淡的流光（直的半透明帶在截圖裡像破圖）
++	var sk := r.size.y * 0.5
++	var pts := PackedVector2Array([Vector2(x, r.end.y - 3), Vector2(x + 14, r.end.y - 3), Vector2(x + 14 + sk, r.position.y + 3), Vector2(x + sk, r.position.y + 3)])
++	var clip := PackedVector2Array()
++	for pp in pts:
++		clip.append(Vector2(clampf(pp.x, r.position.x + 3, r.end.x - 3), pp.y))
++	if clip[1].x > clip[0].x or clip[2].x > clip[3].x:
++		draw_colored_polygon(clip, Color(1, 1, 1, 0.09))
++
++## V1.2 B3：材質貼圖（tools/gen/gen_ui_tex.py 生成）。木紋是灰階，用原本的底色染，配色不變、多了木紋與上亮下暗的斜角。
++const TEX_WOOD := "res://art/ui/wood.png"
++const TEX_FRAME := "res://art/ui/frame.png"
++const TEX_GROOVE := "res://art/ui/groove.png"
++const TEX_PAPER := "res://art/ui/paper.png"
++var _tex_cache := {}
++
++func _ui_tex(path: String) -> Texture2D:
++	if not _tex_cache.has(path):
++		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
++	return _tex_cache[path]
++
++## V1.2：頂部資訊列：深木紋＋下緣一條亮線與落影（沒有貼圖時照舊平塗）。
++func _hud_bar(r: Rect2) -> void:
++	if bool(Save.s("plain_ui")) or not _tex_box(r.grow_individual(8, 8, 8, 0), "wood", Color(0.3, 0.21, 0.15, 0.97)):
++		draw_rect(r, UI_BG)
++		return
++	draw_rect(Rect2(r.position.x, r.end.y - 2, r.size.x, 2), Color(0.55, 0.42, 0.28, 0.9))
++	draw_rect(Rect2(r.position.x, r.end.y, r.size.x, 4), Color(0, 0, 0, 0.25))
++
++## V1.2：木製框（九宮格、四角銅釘、中間透明），面板、戰場、大廳沙盤預覽共用。grow＝往外擴多少。
++func _wood_frame(r: Rect2, grow := 8.0, key := "frame") -> void:
++	var fx := _ui_tex(TEX_FRAME)
++	if fx == null or bool(Save.s("plain_ui")):
++		return
++	var sb: StyleBoxTexture = _sb_cache.get(key)
++	if sb == null:
++		sb = StyleBoxTexture.new()
++		sb.texture = fx
++		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
++			sb.set_texture_margin(side, 22.0)
++		sb.draw_center = false
++		_sb_cache[key] = sb
++	draw_style_box(sb, r.grow(grow))
++
++## 材質方塊：kind＝wood（染色）／groove（染色）／paper（原色）。沒有貼圖時退回平塗。
++func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
++	var path: String = {"wood": TEX_WOOD, "groove": TEX_GROOVE, "paper": TEX_PAPER}[kind]
++	var tx := _ui_tex(path)
++	if tx == null:
++		return false
++	var k := "t|%s|%s" % [kind, tint.to_html()]
++	var sb: StyleBoxTexture = _sb_cache.get(k)
++	if sb == null:
++		sb = StyleBoxTexture.new()
++		sb.texture = tx
++		var m := 10.0 if kind != "paper" else 14.0
++		sb.texture_margin_left = m
++		sb.texture_margin_right = m
++		sb.texture_margin_top = m
++		sb.texture_margin_bottom = m
++		# 羊皮紙整張拉伸（紋理不能無縫平鋪，平鋪會出現直條接縫）；木紋、凹槽平鋪保持紋理比例
++		var mode := StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH if kind == "paper" else StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
++		sb.axis_stretch_horizontal = mode
++		sb.axis_stretch_vertical = mode
++		sb.modulate_color = tint
++		_sb_cache[k] = sb
++	draw_style_box(sb, r)
++	return true
+ 
+ ## 圓角方塊（StyleBox 快取，不每幀配新物件）。
++## V1.2 B3：夠大、夠不透明的實心方塊改用木紋材質（用 bg 染色），外框線另外畫在上面；小東西與半透明的陰影維持平塗。
+ func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw := 0.0) -> void:
++	if bg.a >= 0.6 and minf(r.size.x, r.size.y) >= 20.0 and not bool(Save.s("plain_ui")) and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28, bg.a)):
++		if bw > 0.0 and border.a > 0.0:
++			_box(r, Color(0, 0, 0, 0), border, radius, bw)
++		return
+ 	var k := "%s|%s|%d|%d" % [bg.to_html(), border.to_html(), int(radius), int(bw * 10)]
+ 	var sb: StyleBoxFlat = _sb_cache.get(k)
+ 	if sb == null:
+@@ -557,7 +685,28 @@ func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw :=
+ 		_sb_cache[k] = sb
+ 	draw_style_box(sb, r)
+ 
++## V1.2 C2：8 格刻印能力條（取代細長滑桿）：凹槽底＋一格一格填色，最後一格依比例部分填。
++func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
++	var gap := 2.0
++	var sw := (r.size.x - gap * (segs - 1)) / segs
++	var filled := clampf(frac, 0.0, 1.0) * segs
++	for i in segs:
++		var sr := Rect2(r.position.x + i * (sw + gap), r.position.y, sw, r.size.y)
++		draw_rect(sr, Color(0.06, 0.04, 0.03, 0.75))
++		draw_rect(Rect2(sr.position, Vector2(sw, 1.0)), Color(0, 0, 0, 0.5))
++		var f := clampf(filled - i, 0.0, 1.0)
++		if f > 0.0:
++			var fr := Rect2(sr.position + Vector2(1, 1), Vector2((sw - 2.0) * f, sr.size.y - 2.0))
++			draw_rect(fr, col)
++			draw_rect(Rect2(fr.position, Vector2(fr.size.x, maxf(1.0, fr.size.y * 0.35))), Color(1, 1, 1, 0.28))
++
+ func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
++	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
++	if _ink_mode:
++		col = _ink(col)
++	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")):
++		var off := maxf(1.0, s * 0.07)
++		Icons.draw(self, name, c + Vector2(off, off), s, Color(INK, col.a * 0.75))
+ 	Icons.draw(self, name, c, s, col)
+ 
+ ## 羊皮紙標題緞帶：畫面標題統一用它。
+@@ -606,16 +755,21 @@ func _update_gen() -> void:
+ func _panel(r: Rect2) -> void:
+ 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.62))
+ 	_box(r.grow(6), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)      # 陰影
+-	_box(r, PANEL, TH_EDGE, 10.0, 3.0)
+-	_box(r.grow(-5), Color(0, 0, 0, 0), Color(0, 0, 0, 0.35), 7.0, 1.0)
+-	# 木紋：固定幾條淡線
+-	var n := int(r.size.y / 46.0)
+-	for k in n:
+-		var y := r.position.y + 24.0 + k * 46.0 + float((k * 37) % 13)
+-		draw_line(Vector2(r.position.x + 12, y), Vector2(r.end.x - 12, y + float((k * 13) % 5) - 2.0), Color(1, 0.85, 0.6, 0.022), 2.0)
+-	for c in [r.position + Vector2(11, 11), Vector2(r.end.x - 11, r.position.y + 11), Vector2(r.position.x + 11, r.end.y - 11), r.end - Vector2(11, 11)]:
+-		draw_circle(c, 3.2, TH_EDGE, true, -1.0, true)
+-		draw_circle(c - Vector2(0.8, 0.8), 1.3, TH_PARCH, true, -1.0, true)
++	_box(r, PANEL, Color(0, 0, 0, 0), 10.0)
++	# V1.2 B3：深木外框＋四角銅釘（九宮格貼圖）；沒有貼圖時退回舊的細框
++	var fx := _ui_tex(TEX_FRAME)
++	if fx != null and not bool(Save.s("plain_ui")):
++		var sb: StyleBoxTexture = _sb_cache.get("frame")
++		if sb == null:
++			sb = StyleBoxTexture.new()
++			sb.texture = fx
++			for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
++				sb.set_texture_margin(side, 22.0)
++			sb.draw_center = false
++			_sb_cache["frame"] = sb
++		draw_style_box(sb, r.grow(8))
++	else:
++		_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
+ 
+ 
+ func _open(name: String) -> void:
+@@ -642,7 +796,17 @@ func _cycle_setting(k: String, opts: Array) -> void:
+ ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
+ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
+ 		mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
+-	if sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):
++	if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
++		# V1.2 D2：大圖（圖鑑、MVP）站在木製圓底座上，像桌上的棋偶公仔
++		var bw := 30.0 * scale
++		var bh := 9.0 * scale
++		draw_set_transform(p + Vector2(0, 2 * scale), 0.0, Vector2(1, bh / bw))
++		draw_circle(Vector2(0, 3 * scale * bw / bh), bw * 1.04, Color(0, 0, 0, 0.3), true, -1.0, true)
++		draw_circle(Vector2.ZERO, bw, Color("#5a3b22"), true, -1.0, true)
++		draw_circle(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, Color("#8a5f37"), true, -1.0, true)
++		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
++		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
++	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊
+ 		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant)
+ 	else:
+ 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
+diff --git a/game/scripts/ui/unit_brief.gd b/game/scripts/ui/unit_brief.gd
+index d92e4e7..0cae82b 100644
+--- a/game/scripts/ui/unit_brief.gd
++++ b/game/scripts/ui/unit_brief.gd
+@@ -97,9 +97,7 @@ func _brief_bars(r: Rect2, t: int) -> void:
+ 	for k in 4:
+ 		var cx: float = r.position.x + k * cw
+ 		_text(Vector2(cx, r.position.y), L.t(["ub_hp", "ub_atk", "ub_range", "ub_spd"][k]), tz("C"), Color(1, 1, 1, 0.72), false, false, cw - 8)
+-		var br := Rect2(cx, r.end.y - 7, cw - 12, 6)
+-		draw_rect(br, Color(1, 1, 1, 0.12))
+-		draw_rect(Rect2(br.position, Vector2(br.size.x * float(st[k]), br.size.y)), ACCENT)
++		_seg_bar(Rect2(cx, r.end.y - 9, cw - 12, 8), float(st[k]), ACCENT)   # V1.2 C2：刻印格條
+ 
+ func _brief_mu(p: Vector2, w: float, t: int) -> void:
+ 	var m: Dictionary = _brief_matchups(t)
+diff --git a/game/scripts/ui/units/kit.gd b/game/scripts/ui/units/kit.gd
+index f031b87..5ee8343 100644
+--- a/game/scripts/ui/units/kit.gd
++++ b/game/scripts/ui/units/kit.gd
+@@ -6,7 +6,8 @@ extends RefCounted
+ const D = preload("res://scripts/core/unit_defs.gd")
+ const Gait = preload("res://scripts/ui/units/gait.gd")
+ 
+-const OUT := Color("#1d1a2b")
++const OUT := Color("#2b2236")   # V1.2 D1：內線色（較淡）；外輪廓改在圖集烘焙時用隊伍墨色加粗（shaders/unit_bake.gdshader）
++const INNER_W := 1.2              # V1.2 D1：部件內線寬（原 1.6／3.2／+3）
+ const SKIN := Color("#ffe1c4")
+ const BLUSH := Color(1.0, 0.55, 0.6, 0.55)
+ const STEEL := Color("#c9d3e3")
+@@ -55,7 +56,7 @@ static func _star(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
+ 
+ static func _c(ci: CanvasItem, c: Vector2, r: float, col: Color, a: float, outline := true) -> void:
+ 	if outline:
+-		ci.draw_circle(c, r + 1.6, Color(OUT, a), true, -1.0, true)
++		ci.draw_circle(c, r + INNER_W, Color(OUT, a), true, -1.0, true)
+ 	ci.draw_circle(c, r, Color(col, col.a * a), true, -1.0, true)
+ 
+ 
+@@ -63,12 +64,12 @@ static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float,
+ 	if outline:
+ 		var closed := pts.duplicate()
+ 		closed.append(pts[0])
+-		ci.draw_polyline(closed, Color(OUT, a), 3.2, true)
++		ci.draw_polyline(closed, Color(OUT, a), INNER_W * 2.0, true)
+ 	ci.draw_colored_polygon(pts, Color(col, col.a * a))
+ 
+ 
+ static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, al: float) -> void:
+-	ci.draw_line(a, b, Color(OUT, al), w + 3.0, true)
++	ci.draw_line(a, b, Color(OUT, al), w + INNER_W * 1.9, true)
+ 	ci.draw_line(a, b, Color(col, col.a * al), w, true)
+ 
+ 
+diff --git a/game/shaders/unit_bake.gdshader b/game/shaders/unit_bake.gdshader
+new file mode 100644
+index 0000000..5ebd446
+--- /dev/null
++++ b/game/shaders/unit_bake.gdshader
+@@ -0,0 +1,38 @@
++shader_type canvas_item;
++// V1.2 D1：角色圖集烘焙後處理（只在烘焙時跑一次，每幀貼圖成本不變）。
++// ① 外輪廓：沿 alpha 往外擴 radius 像素，用隊伍墨色（藍方冷深褐、紅方暖深焦茶）；部件自己的描邊變成較細的內線。
++// ② 頂亮底暗：依格子內高度，上半疊暖光、下半疊冷影（左右翻面不穿幫，不做左右光）。
++uniform vec4 ink0 : source_color = vec4(0.114, 0.102, 0.149, 1.0);
++uniform vec4 ink1 : source_color = vec4(0.157, 0.086, 0.071, 1.0);
++uniform float cell = 192.0;
++uniform float per = 28.0;
++uniform float cols = 16.0;
++uniform float radius = 3.0;
++uniform float hi_amt = 0.09;
++uniform float sh_amt = 0.20;
++
++void fragment() {
++	vec2 px = UV / TEXTURE_PIXEL_SIZE;
++	vec4 c = texture(TEXTURE, UV);
++	float cidx = floor(px.y / cell) * cols + floor(px.x / cell);
++	float team = mod(floor(cidx / per), 2.0);
++	vec4 ink = team < 0.5 ? ink0 : ink1;
++	float a = 0.0;
++	for (int r = 1; r <= 2; r++) {
++		float rr = radius * float(r) / 2.0;
++		for (int i = 0; i < 16; i++) {
++			float ang = 6.2831853 * (float(i) + 0.5 * float(r)) / 16.0;
++			a = max(a, texture(TEXTURE, UV + vec2(cos(ang), sin(ang)) * rr * TEXTURE_PIXEL_SIZE).a);
++		}
++	}
++	vec3 col = c.rgb;
++	float ly = mod(px.y, cell) / cell;
++	float hi = clamp((0.50 - ly) / 0.28, 0.0, 1.0) * hi_amt;
++	float sh = clamp((ly - 0.62) / 0.20, 0.0, 1.0) * sh_amt;
++	col = mix(col, vec3(1.0, 0.953, 0.839), hi);
++	col = mix(col, col * vec3(0.48, 0.42, 0.58), sh);
++	float oa = a * ink.a;
++	float outa = c.a + oa * (1.0 - c.a);
++	vec3 rgb = outa > 0.0 ? (col * c.a + ink.rgb * oa * (1.0 - c.a)) / outa : vec3(0.0);
++	COLOR = vec4(rgb, outa);
++}
+diff --git a/game/shaders/unit_bake.gdshader.uid b/game/shaders/unit_bake.gdshader.uid
+new file mode 100644
+index 0000000..b9e3e3d
+--- /dev/null
++++ b/game/shaders/unit_bake.gdshader.uid
+@@ -0,0 +1 @@
++uid://dcjsx6qyikls

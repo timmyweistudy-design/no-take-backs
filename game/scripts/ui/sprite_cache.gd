@@ -62,7 +62,10 @@ func build(cb: bool) -> void:
 	var base: Array = []
 	for t in D.COUNT:
 		base.append(t)
+	var g0 := _gen
 	await _bake_ring(cb)
+	if g0 != _gen:
+		return   # 烘腳底圈時又重建了：交給新的那次
 	await ensure(base)
 
 ## 這場要用到的兵種。缺的才烘；烘的時候呼叫端先直接畫。
@@ -75,11 +78,14 @@ func ensure(types: Array) -> void:
 	if _busy or _queue.is_empty():
 		return
 	_busy = true
+	var g0 := _gen   # 世代變了（build 清空並重設狀態）就不再碰共用狀態（Codex v120-final）
 	while not _queue.is_empty():
 		var chunk: Array = _queue.slice(0, TYPES_PER_PAGE)
 		_queue = _queue.slice(chunk.size())
 		_baking = chunk
 		await _bake_page(chunk)
+		if g0 != _gen:
+			return
 		_baking = []
 	_busy = false
 
@@ -147,9 +153,11 @@ func _bake_ring(cb: bool) -> void:
 	var painter := _RingPainter.new()
 	painter.cb = cb
 	var vp := _viewport(Vector2i(4 * CELL, CELL), painter)
+	var g0 := _gen
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	ring_tex = ImageTexture.create_from_image(vp.get_texture().get_image())
+	if g0 == _gen:
+		ring_tex = ImageTexture.create_from_image(vp.get_texture().get_image())
 	vp.queue_free()
 
 ## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。

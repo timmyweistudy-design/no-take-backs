@@ -559,7 +559,7 @@ func _draw_place_hud() -> void:
 		elif i == hover_card:
 			bg = TH_WOOD_L
 		var opened := _allowed(i)
-		if afford and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28)):
+		if afford and not bool(Save.s("plain_ui")) and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28)):
 			pass
 		else:
 			draw_rect(r, bg if afford else Color(bg, 0.45))
