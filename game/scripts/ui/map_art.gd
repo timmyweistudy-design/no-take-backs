@@ -263,3 +263,65 @@ class _Painter extends Node2D:
 						draw_rect(Rect2(o5, Vector2(Q, Q)), Color("#8a6238"))
 						for k5 in 3:
 							draw_line(o5 + Vector2(k5 * 11.0, 0), o5 + Vector2(k5 * 11.0, Q), Color("#5b3f23"), 2.0, true)
+		_decor(Q)
+
+	## V1.2 D3：手繪筆觸（草簇、碎石、冰紋、裂紋）、場地邊緣裝飾（木柵欄、冰柱、焦岩）、紙紋 5%，全部烘進地塊。
+	## 邊緣裝飾只在最外 7px 內，不擋到站在邊上的兵；只畫在可走的格子上，不改變地形判讀。
+	func _decor(Q: float) -> void:
+		var W: float = t.n * Q
+		var H: float = t.m * Q
+		var dark := Color(biome["base"]).darkened(0.32)
+		var lite := Color(biome["base2"]).lightened(0.18)
+		for i in 140:
+			var h := _h(i * 31 + 7, i * 17 + 3)
+			var p := Vector2(float(h % 1000) / 1000.0 * W, float((h / 1000) % 100) / 100.0 * H)
+			if _cell(int(p.x / Q), int(p.y / Q)) != t.FREE:
+				continue
+			match kind:
+				"river", "forest":   # 草簇：三筆往上撇
+					for s in [-1.0, 0.0, 1.0]:
+						draw_line(p, p + Vector2(s * 3.5, -6.0 - absf(s) * -1.5), Color(dark, 0.55), 1.4, true)
+					draw_line(p + Vector2(-1, -1), p + Vector2(-2, -5), Color(lite, 0.45), 1.0, true)
+				"ice":                # 冰面細紋
+					var a := float(h % 628) / 100.0
+					draw_line(p, p + Vector2.from_angle(a) * (8.0 + h % 9), Color(1, 1, 1, 0.32), 1.0, true)
+					draw_line(p, p + Vector2.from_angle(a + 1.1) * (5.0 + h % 5), Color(1, 1, 1, 0.22), 1.0, true)
+				"lava":               # 焦土裂紋
+					var a2 := float(h % 628) / 100.0
+					var q := p + Vector2.from_angle(a2) * 7.0
+					draw_polyline(PackedVector2Array([p, q, q + Vector2.from_angle(a2 + 0.8) * 5.0]), Color(0.1, 0.06, 0.07, 0.45), 1.3, true)
+				"canyon":             # 碎石
+					draw_circle(p, 1.6 + h % 3, Color(0.45, 0.3, 0.2, 0.45), true, -1.0, true)
+					draw_circle(p + Vector2(-0.6, -0.6), 0.8, Color(1, 0.92, 0.8, 0.35), true, -1.0, true)
+		# 邊緣裝飾（上下兩條邊）
+		var x := 6.0
+		while x < W - 6.0:
+			var hx := _h(int(x), 77)
+			for edge in [0, 1]:
+				var y0 := 0.0 if edge == 0 else H
+				var dirv := 1.0 if edge == 0 else -1.0
+				if _cell(int(x / Q), 0 if edge == 0 else t.m - 1) != t.FREE:
+					continue
+				match kind:
+					"river", "forest":
+						if int(x) % 48 < 16:   # 木柵欄：短木樁＋橫木
+							draw_rect(Rect2(x - 1.5, y0 + (0.0 if edge == 0 else -7.0), 3.0, 7.0), Color("#6b4a2c"))
+							draw_rect(Rect2(x - 1.5, y0 + (0.0 if edge == 0 else -7.0), 3.0, 1.5), Color("#a07a4e"))
+					"ice":       # 冰柱（上緣往下）、雪堆（下緣）
+						if edge == 0:
+							var L := 3.0 + hx % 5
+							draw_colored_polygon(PackedVector2Array([Vector2(x - 2.2, 0), Vector2(x + 2.2, 0), Vector2(x, L)]), Color(0.92, 0.97, 1.0, 0.85))
+						else:
+							draw_circle(Vector2(x, H), 4.0 + hx % 3, Color(0.95, 0.98, 1.0, 0.7), true, -1.0, true)
+					"lava":      # 焦岩
+						if hx % 3 == 0:
+							draw_colored_polygon(PackedVector2Array([Vector2(x - 4, y0), Vector2(x - 1, y0 + dirv * (4.0 + hx % 3)), Vector2(x + 3, y0 + dirv * 2.0), Vector2(x + 5, y0)]), Color("#241a1d"))
+					"canyon":
+						if hx % 2 == 0:
+							draw_circle(Vector2(x, y0 + dirv * 2.0), 2.5 + hx % 2, Color("#9a6a44"), true, -1.0, true)
+			x += 8.0 if kind != "river" and kind != "forest" else 4.0
+		# 紙紋 5%（烘進去，跑起來不用每幀再疊一次）
+		var gr: Texture2D = load("res://art/ui/paper.png") if ResourceLoader.exists("res://art/ui/paper.png") else null
+		if gr != null:
+			texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+			draw_texture_rect(gr, Rect2(0, 0, W, H), true, Color(0.5, 0.42, 0.32, 0.055))

@@ -317,7 +317,7 @@ func _draw_field() -> void:
 func _draw_field_frame() -> void:
 	# V1.2 D3：場地底紋（亞麻布紋，約 6%），跟著場地（在鏡頭座標裡畫），不是貼在螢幕上
 	var gr := _ui_tex(TEX_PAPER)
-	if gr != null and not bool(Save.s("plain_ui")):
+	if gr != null and not bool(Save.s("plain_ui")) and (fld_map == 0 or _map_tex() == null):   # 地形圖的紙紋已烘進地塊（map_art._decor）
 		# 一次平鋪（節點開了 texture_repeat），每幀一個繪製呼叫（Codex v120-impl2：原本每格一次）
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		draw_texture_rect(gr, Rect2(ORIGIN, fld_size), true, Color(0.5, 0.42, 0.32, 0.07))

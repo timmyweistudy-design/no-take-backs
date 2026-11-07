@@ -700,13 +700,30 @@ func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
 			draw_rect(fr, col)
 			draw_rect(Rect2(fr.position, Vector2(fr.size.x, maxf(1.0, fr.size.y * 0.35))), Color(1, 1, 1, 0.28))
 
+const ICON_SOLID := ["people", "cards", "robot", "gear", "shield", "heart", "star", "lock", "trophy", "flag", "skull", "book", "puzzle", "tower", "dice", "save"]   # 有實心面、放得下高光點的圖示
+
 func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
 	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
 	if _ink_mode:
 		col = _ink(col)
 	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")):
+		# V1.2 B4：Q 版厚塗刻印 ── 深焦茶粗外框（8 方向剪影）＋落影＋右下深一階的厚度（雙色塊）＋實心圖示左上高光點
+		var ow := maxf(1.2, s * 0.06)
 		var off := maxf(1.0, s * 0.07)
-		Icons.draw(self, name, c + Vector2(off, off), s, Color(INK, col.a * 0.75))
+		Icons.force = Color(INK, col.a * 0.7)
+		Icons.draw(self, name, c + Vector2(off, off) * 1.4, s, Icons.force)
+		Icons.force = Color(INK, col.a)
+		for k in 4:   # 四個斜角就夠成粗框（8 方向每幀太貴）
+			var d := Vector2.from_angle(PI / 4.0 + k * TAU / 4.0) * ow * 1.15
+			Icons.draw(self, name, c + d, s, Icons.force)
+		var dk := Color(col.darkened(0.35), col.a)
+		Icons.force = dk
+		Icons.draw(self, name, c + Vector2(ow, ow) * 0.6, s, dk)
+		Icons.force = Color(0, 0, 0, 0)
+		Icons.draw(self, name, c, s, col)
+		if name in ICON_SOLID:
+			draw_circle(c + Vector2(-s * 0.2, -s * 0.22), maxf(1.2, s * 0.06), Color(1, 0.98, 0.9, 0.55 * col.a), true, -1.0, true)
+		return
 	Icons.draw(self, name, c, s, col)
 
 ## 羊皮紙標題緞帶：畫面標題統一用它。

@@ -30,6 +30,25 @@ var sfx_vol := 0.8
 var music_vol := 0.7
 var rng := RandomNumberGenerator.new()
 
+# V1.2 E4：具名匯流排（全部送進 Master；最後時刻低通仍掛在 Master，整體一起悶）
+const BUS_MUSIC := "Music"
+const BUS_SFX := "SFX"
+const BUS_UI := "UI"
+const BUS_AMB := "Ambience"
+var music_old: AudioStreamPlayer   # 換曲時淡出的上一首
+var fade_in := 1.0                 # 新曲淡入 0→1
+var fade_out := 0.0                # 舊曲淡出 1→0
+const FADE_SEC := 0.6
+
+## 沒有就建立（同名不重複建；測試可以重複呼叫）。
+static func _ensure_buses() -> void:
+	for n in [BUS_MUSIC, BUS_SFX, BUS_UI, BUS_AMB]:
+		if AudioServer.get_bus_index(n) < 0:
+			AudioServer.add_bus()
+			var i := AudioServer.bus_count - 1
+			AudioServer.set_bus_name(i, n)
+			AudioServer.set_bus_send(i, "Master")
+
 ## V1.2 E：優先讀 CC0 錄音轉的 .ogg（tools/gen/import_audio.py），沒有才用程式合成的 .wav。
 ## 同名變體（名稱__2、__3…）一起載入，播放時隨機挑、避免連續同一個。
 static func load_audio(n: String):
@@ -54,14 +73,21 @@ func _ready() -> void:
 					break
 				vs.append(v)
 			variants[n] = vs
+	_ensure_buses()
 	for i in 12:
 		var p := AudioStreamPlayer.new()
+		p.bus = BUS_SFX
 		add_child(p)
 		players.append(p)
 	music = AudioStreamPlayer.new()
+	music.bus = BUS_MUSIC
 	add_child(music)
 	music.finished.connect(func(): music.play())
+	music_old = AudioStreamPlayer.new()
+	music_old.bus = BUS_MUSIC
+	add_child(music_old)
 	amb = AudioStreamPlayer.new()
+	amb.bus = BUS_AMB
 	add_child(amb)
 	amb.finished.connect(func(): amb.play())
 	var lp := AudioEffectLowPassFilter.new()
@@ -118,6 +144,7 @@ func play(name: String, vol := 1.0) -> void:
 		return
 	var p := players[ch]
 	p.stop()
+	p.bus = BUS_UI if (name.begins_with("k_") or name.begins_with("ui_")) else BUS_SFX
 	p.stream = _pick_variant(name)
 	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
 	p.volume_db = linear_to_db(maxf(0.0001, sfx_vol * vol))
@@ -149,6 +176,7 @@ func play_layers() -> void:
 	if layers.is_empty():
 		for n in LAYERS:
 			var p := AudioStreamPlayer.new()
+			p.bus = BUS_MUSIC
 			add_child(p)
 			# 循環在匯入設定裡開（edit/loop_mode=2 整段循環）；檔案匯入時會壓縮，不能用位元組數自己算樣本數（Codex S7 #1）
 			p.stream = load("res://audio/%s.wav" % n)
@@ -181,8 +209,14 @@ func _process(delta: float) -> void:
 		duck_t -= delta
 	# V1.2：單軌戰鬥曲用「緊張程度」調音量（分軌時的鼓聲進出改成整首大小聲），並套用大招壓低
 	single_cur = move_toward(single_cur, single_gain, delta * 1.5)
+	fade_in = move_toward(fade_in, 1.0, delta / FADE_SEC)
+	if fade_out > 0.0:
+		fade_out = move_toward(fade_out, 0.0, delta / FADE_SEC)
+		music_old.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * fade_out))
+		if fade_out <= 0.0:
+			music_old.stop()
 	if music.playing:
-		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * (0.45 if duck_t > 0.0 else 1.0)))
+		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * fade_in * (0.45 if duck_t > 0.0 else 1.0)))
 	if music_name != "layers" or layers.is_empty():
 		return
 	for i in layers.size():
@@ -227,6 +261,14 @@ func play_music(name: String) -> void:
 		music.pitch_scale = pitch
 		return
 	stop_layers()
+	# V1.2 E4：換曲交叉淡入淡出（上一首交給 music_old 淡出）
+	if music.playing and music.stream != null:
+		music_old.stream = music.stream
+		music_old.pitch_scale = music.pitch_scale
+		music_old.play(music.get_playback_position())
+		fade_out = 1.0
+		music_old.volume_db = music.volume_db
+	fade_in = 0.0
 	music_name = name
 	var st = load_audio(src)
 	if st == null:
@@ -238,5 +280,5 @@ func play_music(name: String) -> void:
 	music.pitch_scale = pitch
 	single_gain = 1.0
 	single_cur = 1.0
-	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6))
+	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * fade_in))   # 從 0 淡入，_process 往上拉
 	music.play()

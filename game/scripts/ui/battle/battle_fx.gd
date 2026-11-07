@@ -67,8 +67,15 @@ func _draw_battle_report() -> void:
 	var rh: float = tz("S") * 1.32
 	var y0: float = 800.0 - rows * rh - 4.0 if ctl else minf(720.0, 766.0 - rows * rh)
 	var cw := 412.0
+	var plain := bool(Save.s("plain_ui"))
 	if not ctl:
-		draw_rect(Rect2(0, y0 - 3, 1280, mini(ceili(report_log.size() / 3.0), rows) * rh + 6), Color(0, 0, 0, 0.5))   # 第十輪 V10：底條
+		var bar := Rect2(0, y0 - 3, 1280, mini(ceili(report_log.size() / 3.0), rows) * rh + 6)
+		if plain:
+			draw_rect(bar, Color(0, 0, 0, 0.5))   # 第十輪 V10：底條
+		else:
+			# V1.2 C6：戰報條是一條深木槽（上緣一道亮邊），不是黑色半透明帶
+			_tex_box(bar, "groove", Color(0.42, 0.31, 0.22, 0.92))
+			draw_rect(Rect2(0, bar.position.y, 1280, 1.5), Color(1, 0.88, 0.62, 0.22))
 	for i in mini(report_log.size(), rows * 3):
 		var e: Dictionary = report_log[i]
 		var age: float = time - float(e["t"])
@@ -78,7 +85,24 @@ func _draw_battle_report() -> void:
 		var line := "%s %s" % [L.t("unit_%d" % int(e["type"])), e["label"]]
 		if int(e["n"]) > 1:
 			line += " ×%d" % int(e["n"])
-		_text(p, mark, tz("S"), Color(Art.team_color(int(e["team"]), cbm()), a), false, true)
+		if plain:
+			_text(p, mark, tz("S"), Color(Art.team_color(int(e["team"]), cbm()), a), false, true)
+		else:
+			# V1.2 C6：隊色小章（藍圓、紅菱形，色盲也分得出）＋兵種小頭像，取代純文字記號
+			var sz := float(tz("S"))
+			var c := p + Vector2(sz * 0.5, sz * 0.62)
+			var tc := Art.team_color(int(e["team"]), cbm())
+			var rr := sz * 0.56
+			if int(e["team"]) == 0:
+				draw_circle(c, rr + 1.5, Color(INK, a), true, -1.0, true)
+				draw_circle(c, rr, Color(tc.darkened(0.15), a), true, -1.0, true)
+			else:
+				var dm := PackedVector2Array([c + Vector2(0, -rr - 2), c + Vector2(rr + 2, 0), c + Vector2(0, rr + 2), c + Vector2(-rr - 2, 0)])
+				draw_colored_polygon(dm, Color(INK, a))
+				var di := PackedVector2Array([c + Vector2(0, -rr), c + Vector2(rr, 0), c + Vector2(0, rr), c + Vector2(-rr, 0)])
+				draw_colored_polygon(di, Color(tc.darkened(0.15), a))
+			var hs := sz / 78.0
+			_unit(unit_center_feet(c + Vector2(0, -sz * 0.06), int(e["type"]), hs), int(e["type"]), int(e["team"]), 1.0, 0.0, 0.0, 0.0, a, time, hs)   # 走圖集（向量直畫每幀太貴）
 		_text(p + Vector2(tz("S") + 6.0, 0), line, tz("S"), Color(e["col"], a), false, true, cw - tz("S") - 14.0)
 
 
@@ -306,8 +330,35 @@ func _fx_text(p: Vector2, s: String, c: Color, dur: float, size: int, screen := 
 
 
 
+# V1.2 F2：亮的特效底下墊一層柔光（放射漸層貼圖，執行時生成；不用全域 Glow）
+const GLOW := {"boom": [Color(1.0, 0.55, 0.2), 70.0], "meteor": [Color(1.0, 0.5, 0.2), 90.0], "healarc": [Color(0.45, 1.0, 0.55), 40.0],
+	"soulrise": [Color(0.7, 0.85, 1.0), 44.0], "timebell": [Color(1.0, 0.85, 0.4), 80.0], "sigil": [Color(1.0, 0.9, 0.55), 60.0]}
+var _glow_tex: GradientTexture2D = null
+
+func _draw_glow(f: Dictionary, k: float) -> void:
+	if _glow_tex == null:
+		var gr := Gradient.new()
+		gr.set_color(0, Color(1, 1, 1, 1))
+		gr.set_color(1, Color(1, 1, 1, 0))
+		gr.add_point(0.45, Color(1, 1, 1, 0.35))
+		_glow_tex = GradientTexture2D.new()
+		_glow_tex.gradient = gr
+		_glow_tex.fill = GradientTexture2D.FILL_RADIAL
+		_glow_tex.fill_from = Vector2(0.5, 0.5)
+		_glow_tex.fill_to = Vector2(1.0, 0.5)
+		_glow_tex.width = 64
+		_glow_tex.height = 64
+	var g: Array = GLOW[f["kind"]]
+	var gp = f.get("p", f.get("b", null))
+	if gp == null:
+		return
+	var r: float = g[1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
+	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(g[0], 0.32 * (1.0 - k)))
+
 func _draw_fx(f: Dictionary) -> void:
 	var k: float = f["t"] / f["dur"]
+	if GLOW.has(f["kind"]) and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_fx")):
+		_draw_glow(f, k)
 	match f["kind"]:
 		"cmd_flash":
 			draw_rect(Rect2(0, 0, 1280, 800), Color(f["c"], 0.28 * (1.0 - k)))

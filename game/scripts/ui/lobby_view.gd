@@ -434,6 +434,7 @@ func _draw_lobby() -> void:
 		_draw_lobby_detail(Rect2(80, 176, 1120, 508))
 	else:
 		_draw_lobby_main(Rect2(80, 176, 1120, 508))
+		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
 	# 底列
 	var by := 700.0
 	_btn(Rect2(80, by, 150, 48), L.t("back"), func(): overlay = "")
@@ -463,6 +464,14 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
+			if not bool(Save.s("plain_ui")):
+				# V1.2 C1：選中的預設像夾在筆記本上的書籤，垂到紙頁上緣
+				var bx := r.end.x - 30.0
+				var by0 := r.end.y - 2.0
+				var bl := 20.0
+				draw_colored_polygon(PackedVector2Array([Vector2(bx, by0), Vector2(bx + 16, by0), Vector2(bx + 16, by0 + bl), Vector2(bx + 8, by0 + bl - 6), Vector2(bx, by0 + bl)]), Color("#b5441f"))
+				draw_rect(Rect2(bx, by0, 16, 3), Color(0, 0, 0, 0.25))
+				draw_line(Vector2(bx + 3, by0 + 3), Vector2(bx + 3, by0 + bl - 2), Color(1, 0.85, 0.6, 0.35), 1.0)
 		_text(r.position + Vector2(w / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, w - 12)
 		var sub_y := 8 + text_h(L.t("lb_p_" + id), tz("B"), w - 12, true) + 2
 		if false and sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
@@ -563,9 +572,17 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var rowh := 96.0
 	var y := R.position.y
 	# V1.2 C1：左欄是一頁羊皮紙（像攤開的戰役筆記），紙上的字用墨色
-	var pg_h := rowh * 4.0 + 12.0 + text_h(_summary(r), tz("S"), lw - 170) + 44.0
 	if not bool(Save.s("plain_ui")):
-		_tex_box(Rect2(x - 10, y - 2, lw + 20, pg_h + 12), "paper")   # 上緣和頁籤留空（Antigravity impl3）
+		# V1.2 C1：攤開的戰術筆記：木書殼＋左右兩頁羊皮紙＋中間書脊陰影（上緣和頁籤留空，Antigravity impl3）
+		var top := y - 2.0
+		var bot := R.end.y + 6.0
+		_tex_box(Rect2(x - 16, top - 4, R.size.x + 32, bot - top + 10), "wood", Color(0.42, 0.27, 0.16))
+		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
+		_tex_box(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), "paper")
+		for k in 6:   # 書脊：中間往兩邊漸淡的陰影
+			var a := 0.22 - k * 0.035
+			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+			draw_rect(Rect2(x + lw + 9 + k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
 		_ink_mode = true
 	var label := func(ic: String, s: String, yy: float) -> void:
 		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
@@ -623,6 +640,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	_wood_frame(pv, 9.0)   # V1.2 C1：沙盤預覽加木框
 	var ly := pv.end.y + 12
 	var lx := pv.position.x
+	_ink_mode = not bool(Save.s("plain_ui"))   # 右頁也是紙：說明字用墨色
 	if r.map_id != 0:
 		for t in [["block", "terrain_block"], ["slow", "terrain_slow"], ["fast", "terrain_fast"]]:
 			_icon(t[0], Vector2(lx + 12, ly + 12), 22.0, Color.WHITE)
@@ -639,6 +657,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var notes_h := _lobby_notes_h(pv.size.x)
 	if notes_h > 0.0:
 		_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
+		_ink_mode = false
 	elif R.end.y - ly >= 96.0:
 		# 空下來的地方放雙方陣容，填補留白也提醒「要打了」
 		var my := minf(R.end.y - 10.0, ly + 104.0)
@@ -649,6 +668,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 		for k2 in mini(3, foes.size()):
 			Art.unit(self, Vector2(pv.end.x - 50 - k2 * 66, my), int(foes[(k2 * 4 + 1) % foes.size()]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k2, 1.3, cbm())
 		_icon("swords", Vector2(pv.get_center().x, my - 32), 44.0, ACCENT)
+	_ink_mode = false
 
 ## 地圖縮圖：貼上烘好的地面，full 時標出雙方部署區。
 func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:

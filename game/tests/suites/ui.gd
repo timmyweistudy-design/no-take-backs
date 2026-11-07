@@ -178,6 +178,14 @@ func test_sfx_priority() -> void:
 	ok(SX.pick_channel(busy, [2, 0, 0, 2], [0, 50, 10, 0], 2) == 2, "音效：滿了時技能音搶最低優先權裡最早開始的")
 	ok(SX.pick_channel(busy, [2, 2, 3, 2], [0, 0, 0, 0], 0) == -1, "音效：普通命中搶不到技能音")
 	ok(SX.pick_channel(busy, [2, 2, 2, 2], [0, 0, 0, 0], 2) == -1, "音效：同級不互搶")
+	# V1.2 E4：具名匯流排都送進 Master（低通掛在 Master，整體一起悶），重複建立不會變多
+	SX._ensure_buses()
+	var nb := AudioServer.bus_count
+	SX._ensure_buses()
+	ok(AudioServer.bus_count == nb, "音效：匯流排不重複建立")
+	for bn in ["Music", "SFX", "UI", "Ambience"]:
+		var bi := AudioServer.get_bus_index(bn)
+		ok(bi > 0 and AudioServer.get_bus_send(bi) == &"Master", "音效：%s 匯流排存在且送進 Master" % bn)
 	var missing: Array = []
 	for n in SX.FILES:
 		if not FileAccess.file_exists("res://audio/%s.wav" % n) and not FileAccess.file_exists("res://audio/%s.ogg" % n):   # V1.2：CC0 錄音轉 ogg
