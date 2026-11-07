@@ -153,8 +153,38 @@ static func text_bg(img: Image, r: Rect2, c: Color, oc: Color, sx: float, sy: fl
 				bg.append(p2)
 		if bg.size() < 8:
 			return null
-	bg.sort_custom(func(a, b): return rel_lum(a) < rel_lum(b))
-	return bg[bg.size() / 2]
+	# 反鋸齒的邊緣像素是字色和背景的混色，不是背景：先用中位數估主背景，排除落在混色線上的像素
+	var tmp := bg.duplicate()
+	tmp.sort_custom(func(a, b): return rel_lum(a) < rel_lum(b))
+	var med: Color = tmp[tmp.size() / 2]
+	var segs: Array = [[c, med]]
+	if oc.a > 0.0:
+		segs.append([oc, med])
+		segs.append([c, oc])
+	var keep: Array = []
+	for p in bg:
+		var on_blend := false
+		for sg in segs:
+			if seg_dist(p, sg[0], sg[1]) < 0.06:
+				on_blend = true
+				break
+		if not on_blend or seg_dist(p, med, med) < 0.06:
+			keep.append(p)
+	if keep.size() >= 6:
+		bg = keep
+	# 取「最接近字色亮度」那一側的 20% 分位：紙紋、木紋上局部低對比的地方也算進去（Codex v121-impl1：中位數會漏）
+	var lt := rel_lum(c)
+	bg.sort_custom(func(a, b): return absf(rel_lum(a) - lt) < absf(rel_lum(b) - lt))
+	return bg[int(bg.size() * 0.2)]
+
+## 顏色 p 到線段 a–b（RGB 空間）的距離：判斷是不是兩色的混色（反鋸齒）。
+static func seg_dist(p: Color, a: Color, b: Color) -> float:
+	var pv := Vector3(p.r, p.g, p.b)
+	var av := Vector3(a.r, a.g, a.b)
+	var bv := Vector3(b.r, b.g, b.b)
+	var ab := bv - av
+	var t := 0.0 if ab.length_squared() < 1e-6 else clampf((pv - av).dot(ab) / ab.length_squared(), 0.0, 1.0)
+	return pv.distance_to(av + ab * t)
 
 ## 一段字是否算大字（WCAG：24px 以上，或粗體 18.66px 以上；以 1280×800 顯示尺寸算）。
 static func large_text(size: int, bold: bool) -> bool:
@@ -169,7 +199,7 @@ func _contrast_issues(img: Image) -> Dictionary:
 	var sx := img.get_width() / 1280.0
 	var sy := img.get_height() / 800.0
 	for t in probe_texts:
-		if t.get("field", false) or not t.has("c"):
+		if t.get("field", false) or not t.has("c") or t.get("glyph", false):
 			continue
 		var c: Color = t["c"]
 		var oc: Color = t["oc"]
@@ -177,20 +207,22 @@ func _contrast_issues(img: Image) -> Dictionary:
 		var need := 3.0 if large_text(size, bool(t.get("bold", false))) else 4.5
 		var outlined: bool = oc.a >= 0.6 and float(t["ow"]) >= float(text_outline_w(size)) * 0.9
 		var bgc = text_bg(img, t["r"], c, oc, sx, sy)
-		var ratio := 0.0
-		if outlined:
-			ratio = contrast(c, oc)
-		elif bgc == null:
-			bad.append({"type": "背景未知", "s": t["s"]})
+		var dis: bool = bool(t.get("dis", false))
+		if bgc == null:
+			(warn if dis else bad).append({"type": "背景未知", "s": t["s"]})   # 背景不可靠一律不算通過
 			continue
-		else:
-			var eff := Color(c.r * c.a + bgc.r * (1.0 - c.a), c.g * c.a + bgc.g * (1.0 - c.a), c.b * c.a + bgc.b * (1.0 - c.a))
-			ratio = contrast(eff, bgc)
+		var over := func(fg: Color, bk: Color) -> Color: return Color(fg.r * fg.a + bk.r * (1.0 - fg.a), fg.g * fg.a + bk.g * (1.0 - fg.a), fg.b * fg.a + bk.b * (1.0 - fg.a))
+		var ceff: Color = over.call(c, bgc)
+		var ratio := contrast(ceff, bgc)
+		if outlined:
+			# 描邊字：描邊先疊在背景上、字再疊在描邊上；取「字對描邊」「字對背景」較好的（裁決 R8）
+			var oeff: Color = over.call(oc, bgc)
+			ratio = maxf(ratio, contrast(over.call(c, oeff), oeff))
 		if ratio >= need:
 			continue
 		var item := {"type": "對比不足", "s": t["s"], "ratio": snappedf(ratio, 0.01), "need": need}
-		if c.a < 0.5 or (t.get("btn", false) and c.a < 0.45):
-			warn.append(item)   # 停用、淡化裝飾字另報（WCAG 豁免停用元件）
+		if dis:
+			warn.append(item)   # 只有登記為停用的元件另報（WCAG 豁免停用元件）
 		else:
 			bad.append(item)
 	return {"bad": bad, "warn": warn}
@@ -250,19 +282,19 @@ func _layout_report(name: String, img: Image = null) -> void:
 				bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
 			elif ra.position.distance_to(rb.position) > 2.0:
 				bad.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
-	# V1.2.1 F1：字壓進九宮格外圈斜邊（3px）——字的中心在方塊內、但字框跨進斜邊帶
+	# V1.2.1 F1：字要完整在九宮格的內容區裡（材質登記的實際斜邊內距）；只看包住字中心的最上層方塊，按鈕標籤也算
 	for t in probe_texts:
-		if t.get("field", false) or t.get("btn", false):   # 按鈕標籤另外檢查（要在自己的框內）
+		if t.get("field", false) or t.get("glyph", false):
 			continue
-		var tr2: Rect2 = t["r"]
+		var tr2: Rect2 = t.get("gr", t["r"])   # 字形框
 		var cc := tr2.get_center()
-		var best := Rect2()   # 只看包住字中心的最小方塊（緞帶標題跨在木條上時，算緞帶自己的框）
+		var best = null
 		for bx in probe_boxes:
-			if bx.grow(-2.0).has_point(cc) and (not best.has_area() or bx.get_area() < best.get_area()):
-				best = bx
-		if best.has_area() and not best.grow(-2.0).encloses(tr2.grow(-2.0)) and best.encloses(tr2.grow(-4.0)):   # 字框含描邊與行高，內縮 2px 才是字形
-			bad.append({"type": "字壓到九宮格邊", "s": t["s"], "box": str(best)})
-		# 第七輪 I3：按鈕框互撞（重疊但不是一個包住另一個）
+			if bx["inner"].has_point(cc):
+				best = bx   # 最上層（最後畫）的方塊：疊在別的面板上的視窗算自己的框
+		if best != null and not best["inner"].grow(0.5).encloses(tr2):
+			bad.append({"type": "字壓到九宮格邊", "s": t["s"], "box": str(best["r"])})
+	# 第七輪 I3：按鈕框互撞（重疊但不是一個包住另一個）
 	for bi in probe_btns.size():
 		for bj in range(bi + 1, probe_btns.size()):
 			var r1: Rect2 = probe_btns[bi]

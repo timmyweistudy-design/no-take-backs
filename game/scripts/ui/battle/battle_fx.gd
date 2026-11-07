@@ -83,14 +83,14 @@ func _draw_battle_report() -> void:
 	for i in mini(report_log.size(), rows * 3):
 		var e: Dictionary = report_log[i]
 		var age: float = time - float(e["t"])
-		var a := clampf(1.6 - age * 0.4, 0.8, 1.0)   # V1.2.1 F5：舊條目最淡到 80%（35% 讀不到）
+		var a := clampf(1.6 - age * 0.4, 0.9, 1.0)   # V1.2.1 F5：舊條目最淡到 90%（35% 讀不到）
 		var p := Vector2(14.0 + (i % 3) * cw, y0 + (i / 3) * rh)
 		var mark := "●" if e["team"] == 0 else "◆"
 		var line := "%s %s" % [L.t("unit_%d" % int(e["type"])), e["label"]]
 		if int(e["n"]) > 1:
 			line += " ×%d" % int(e["n"])
 		if plain:
-			_text(p, mark, tz("S"), Color(Art.team_color(int(e["team"]), cbm()), a), false, true)
+			_text(p, mark, tz("S"), Color(_legible_on(Art.team_color(int(e["team"]), cbm()), Color(0.14, 0.16, 0.1)), 1.0), false, true)   # V1.2.1：深色隊色記號在黑底條上提亮
 		else:
 			# V1.2 C6：隊色小章（藍圓、紅菱形，色盲也分得出）；頭像太小會糊（Antigravity impl4），不放
 			var sz := float(tz("S"))
@@ -108,8 +108,7 @@ func _draw_battle_report() -> void:
 				draw_colored_polygon(di, Color(tc, a))
 				draw_circle(c + Vector2(-rr * 0.25, -rr * 0.3), rr * 0.22, Color(1, 1, 1, 0.45 * a), true, -1.0, true)
 		var lc: Color = e["col"]
-		if lc.get_luminance() < 0.55:
-			lc = lc.lightened(0.45)   # 深木槽上，深色技能字（刺客紫）提亮（Antigravity impl4）
+		lc = _legible_on(lc, Color(0.3, 0.22, 0.15) if not plain else Color(0.24, 0.26, 0.16))   # 對木槽（或黑底條）提亮到 5:1（刺客紫原本太暗）
 		_text(p + Vector2(tz("S") + 6.0, 0), line, tz("S"), Color(lc, a), false, true, cw - tz("S") - 14.0)
 
 

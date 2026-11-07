@@ -559,7 +559,7 @@ func _draw_review() -> void:
 		var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
 		var br := Rect2(bx + t * 56, 160, 52, 66)
 		_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
-		var py := br.size.y - tz("C") * 1.15 - 5   # V1.2.1：按鈕下緣有 3px 厚度，價錢要在面板內
+		var py := br.size.y - tz("C") * 1.15 - 7   # V1.2.1：按鈕下緣有 3px 厚度，價錢要在面板內
 		Art.unit(self, br.position + Vector2(26, py - 2), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
 		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
 	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())

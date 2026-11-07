@@ -337,7 +337,7 @@ func _draw_overlay() -> void:
 				_btn(r, "", _pick_puzzle.bind(pz["id"], tut), en, false,
 					Color(0.15, 0.32, 0.22) if st > 0 and plain_ui_now() else Color(0, 0, 0, 0))
 				btn_paper = false
-				_ink_mode = st > 0 and en and not plain_ui_now()
+				_ink_mode = last_btn_paper
 				_probe_btn_label = true
 				_probe_btn_rect = r
 				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
@@ -347,11 +347,14 @@ func _draw_overlay() -> void:
 						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.end.y - tz("C") * 0.75), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
 				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
-				if not tut and en and text_h(line, tz("S"), r.size.x - 72) <= tz("S") * 1.6:
-					var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
+				var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
+				# V1.2.1：備註放得下一行才畫（中文 150% 原本換成兩行跑出卡片）
+				var note_y: float = r.size.y - tz("C") * 1.4 - 3.0
+				if not tut and en and text_h(line, tz("S"), r.size.x - 72) <= tz("S") * 1.6 and _width(note, tz("C")) <= r.size.x - 132 \
+						and note_y >= 8.0 + tz("S") * 1.25:   # 標題下面放得下才畫（英文 150% 卡片矮，不畫備註）
 					_probe_btn_label = true
 					_probe_btn_rect = r
-					_text(r.position + Vector2(62, r.size.y - tz("C") * 1.4), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)
+					_text(r.position + Vector2(62, note_y), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)
 					_probe_btn_label = false
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
@@ -392,8 +395,9 @@ func _apply_volumes(sample: String) -> void:
 	if sample == "amb":
 		if sfx.amb_name == "":
 			sfx.play_ambience("forest")
+			var token: int = sfx.amb_owner
 			get_tree().create_timer(1.5).timeout.connect(func():
-				if sfx != null and state != St.BATTLE:
+				if sfx != null and sfx.amb_owner == token:   # 這段環境音還是試聽那次（離開設定、進場換了環境音就不碰）
 					sfx.play_ambience(""))
 	elif sample != "":
 		sfx.play(sample)

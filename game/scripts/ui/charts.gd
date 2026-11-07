@@ -40,6 +40,10 @@ static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
 		maxv = maxi(maxv, maxi(int(row["b"]), int(row["r"])))
 	var n := maxi(1, rows.size())
 	var rh := rect.size.y / n
+	# V1.2.1：中間兵種名欄依最長的名字算寬（英文 150% 的 Shieldbearer 原本被長條和數字蓋住）
+	for row in rows:
+		mid_w = maxf(mid_w, ui._width(str(row["label"]), ui.tz("S")) + (40.0 if row.has("type") else 16.0))
+	mid_w = minf(mid_w, rect.size.x * 0.4)
 	var half := (rect.size.x - mid_w) / 2.0
 	var cx := rect.position.x + half
 	var fs: int = ui.tz("S")

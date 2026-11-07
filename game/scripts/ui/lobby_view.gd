@@ -942,8 +942,14 @@ func _draw_pool_tab(R: Rect2) -> void:
 		var title_r: String = L.t("lb_roster_title", [RuleSet.pool_count(int(lobby_r.pool[tm]))])
 		_text(Vector2(R.position.x, y), title_r, tz("S"), ACCENT, false, true, 190)
 		# 篩選膠囊：不符合的變暗，不會改到名單
+		# V1.2.1：膠囊接在標題後面，寬度依最長標籤、但不超過剩下的空間（英文 150% 的 Support 原本比按鈕寬）
+		var fx0: float = minf(196.0, _width(title_r, tz("S"), true) + 12.0)
+		var fw := 76.0
+		for fi0 in 5:
+			fw = maxf(fw, _width(L.t("lb_filter_%d" % fi0), ts(15)) + 14.0)
+		fw = minf(fw, (R.size.x - fx0) / 5.0 - 4.0)
 		for fi in 5:
-			_btn(Rect2(R.position.x + 196 + fi * 80, y - 4, 76, 36), L.t("lb_filter_%d" % fi), func(): lobby_filter = fi, true, false, TH_ACTIVE if lobby_filter == fi else TH_WOOD)
+			_btn(Rect2(R.position.x + fx0 + fi * (fw + 4.0), y - 4, fw, 36), L.t("lb_filter_%d" % fi), func(): lobby_filter = fi, true, false, TH_ACTIVE if lobby_filter == fi else TH_WOOD)
 		y += 38.0
 		var groups := [[L.t("lb_army_kingdom"), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]
 		if has_new_row:

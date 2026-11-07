@@ -146,8 +146,10 @@ const TH_PRIMARY := Color("#e08a1e")
 const SP := 8.0        # 間距基準
 const Icons = preload("res://scripts/ui/icons.gd")
 var _sb_cache := {}
+var last_btn_paper := false   # 上一顆 _btn 實際有沒有畫成紙面（呼叫端決定裡面的字要不要墨色）
 var btn_paper := false   # V1.2.1 R1：下一顆 _btn 畫紙面（呼叫端設、用完還原）
-var _probe_glyph := false   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
+var _probe_glyph := false
+var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
 var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
@@ -524,7 +526,8 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 			var ey := maxf(0.0, ex - size * 0.05)
 			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
 			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
-				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph})   # V1.2.1 F5：對比檢查要實際字色與描邊
+				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "dis": _probe_dis,
+				"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
 		if emboss:
 			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
 		if oc.a > 0.0:
@@ -552,10 +555,19 @@ static func _legible(c: Color) -> Color:
 		return _legible_cache[k]
 	var out := c
 	for i in 12:
-		if _wcag(out, INK) >= 4.5:
+		if _wcag(out, INK) >= 5.0:   # 目標 5:1（底色不一定是純描邊色，留餘裕）
 			break
 		out = out.lightened(0.08)
 	_legible_cache[k] = out
+	return out
+
+## 對指定底色提亮到 5:1（黑底條上的隊色記號）。
+static func _legible_on(c: Color, bg: Color) -> Color:
+	var out := c
+	for i in 14:
+		if _wcag(out, bg) >= 5.0:
+			break
+		out = out.lightened(0.08)
 	return out
 
 static func _wcag(a: Color, b: Color) -> float:
@@ -575,6 +587,8 @@ static func _ink(c: Color) -> Color:
 	return Color(c.darkened(0.74), a)
 
 func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+	if layout_probe and get("shot_dir") != "" and (get("shot_state") as Dictionary).has("dis"):
+		enabled = false   # V1.2.1：版面檢查的「停用」狀態：全部按鈕畫成停用，檢查停用樣式（手把流程不受影響）
 	var idx := _btns.size()
 	_btns.append({"r": r, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
 	var hover := r.has_point(mouse) and not pad_mode
@@ -597,6 +611,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		_box(Rect2(rd.position, rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
 		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
 	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
+	last_btn_paper = paper_face
 	if paper_face:
 		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
 		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
@@ -626,11 +641,13 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var h := lines.size() * sz * line_h(lines.size())
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
 	_probe_btn_rect = r
+	_probe_dis = not enabled
 	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色（紙面按鈕用墨色）
 	_ink_mode = paper_face
-	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
+	_text(rd.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)   # V1.2.1：對按鈕面置中（扣掉下緣厚度），按下時字跟著下沉
 	_ink_mode = ink0
 	_probe_btn_label = false
+	_probe_dis = false
 
 static func plain_ui_now() -> bool:
 	return bool(Save.s("plain_ui"))
@@ -715,7 +732,9 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 		_sb_cache[k] = sb
 	draw_style_box(sb, r)
 	if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
-		probe_boxes.append(r)   # V1.2.1 F1：九宮格外圈斜邊，字不能壓進去
+		# V1.2.1 F1：登記材質的內容內距（gen_ui_tex.py 的實際斜邊：木紋上 3／下 4／左右 3，紙 5，凹槽 3），字不能壓進去
+		var ins: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
+		probe_boxes.append({"r": r, "inner": r.grow_individual(-ins[0], -ins[1], -ins[2], -ins[3])})
 	return true
 
 ## V1.2.1 F1：樣式快取的顏色量化（透明度 16 級、RGB 8 位元），鍵和實際樣式用同一個值。

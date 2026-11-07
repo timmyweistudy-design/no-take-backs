@@ -220,9 +220,12 @@ func _process(delta: float) -> void:
 		music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * single_cur * fade_in * (0.45 if duck_t > 0.0 else 1.0)))
 
 ## V9：地圖環境音；空字串＝停。
+var amb_owner := 0   # V1.2.1：每次換環境音加一；設定試聽的計時器只在自己還是擁有者時才關（Codex v121-impl1）
+
 func play_ambience(name: String) -> void:
 	if name == amb_name:
 		return
+	amb_owner += 1
 	amb_name = name
 	if name == "":
 		amb.stop()
