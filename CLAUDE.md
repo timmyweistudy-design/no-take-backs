@@ -1,11 +1,11 @@
 # 落子無悔 No Take-Backs
 
-Godot 4.6.2 確定性自動對決。下一版 V1.2.1（細節優化）方案（未實作）：`docs/2026-11-07-v1.2.1-plan.md`。V1.2.0（質感升級，零預算）已實作：方案與進度 `docs/2026-11-07-v1.2.0-plan.md` §11、裁決 `coordination/v120-ledger.md`。現況只看 `docs/STATE.md`；最新一輪 V1.1.0（動作、遠征路線、每日挑戰）方案與進度看 `docs/2026-11-06-v1.1.0-plan.md`（§11 進度）、裁決看 `coordination/v110-ledger.md`；上一輪（殘局 100、試煉 30）看 `docs/2026-11-06-puzzle-expansion-plan-v13.md`、`coordination/v13-ledger.md`。舊輪次不用讀。
+Godot 4.6.2 確定性自動對決。V1.2.1（細節優化）已實作：方案與進度 `docs/2026-11-07-v1.2.1-plan.md` §10、裁決 `coordination/v121-ledger.md`。V1.2.0（質感升級，零預算）已實作：方案與進度 `docs/2026-11-07-v1.2.0-plan.md` §11、裁決 `coordination/v120-ledger.md`。現況只看 `docs/STATE.md`；最新一輪 V1.1.0（動作、遠征路線、每日挑戰）方案與進度看 `docs/2026-11-06-v1.1.0-plan.md`（§11 進度）、裁決看 `coordination/v110-ledger.md`；上一輪（殘局 100、試煉 30）看 `docs/2026-11-06-puzzle-expansion-plan-v13.md`、`coordination/v13-ledger.md`。舊輪次不用讀。
 
 ## 指令（在 game/ 下，GODOT 指向 Windows 版 4.6.2）
 - 改動時：`python3 tools/check.py`（有快取，只跑受影響的）；更快：`--quick`。
 - 驗收：`tools/check_all.sh`（全部重跑）。只取最後一行結論，細節在 `build/tmp/check/summary.json`。
-- 版面：`tools/layout_check.sh <exe> <新資料夾>`；`LAYOUT_QUICK=1` 只跑 2 組。也會走一次手把流程（`PADWALK`）。
+- 版面：`tools/layout_check.sh <exe> <新資料夾>`（14 組：兩語 × 三字級＋簡化／色盲／手把／停用）；`LAYOUT_QUICK=1` 跑 4 組。會檢查文字對比（截圖取樣）、九宮格內距、缺圖，也走一次手把流程（`PADWALK`）。
 - 試玩版流程用 `g.force_demo = true` 測，背景計算用 `g.force_async = true`，不必匯出。
 - 匯出：`tools/export_check.sh <空資料夾>`。圖集：`tools/atlas_check.gd`（不能 headless）。
 - 殘局量產（`tools/gen/*.py` 在專案根目錄、`.gd` 在 game/ 下）：草稿 `tools/gen/puzzle_drafts.py` → `tools/balance/puzzle_forge.gd`（爬山求解、訂星）→ `tools/gen/puzzle_tune.py`（自動調預算）→ `tools/gen/puzzle_merge.py`（併進 `data/puzzles.json`）。試煉：`tools/gen/trial_specs.py` → `tools/balance/trial_forge.gd` → `tools/gen/trial_merge.py`（寫 `data/trials.json`）。量產在 `build/cg/game` 快照跑。

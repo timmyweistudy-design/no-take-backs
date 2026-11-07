@@ -587,6 +587,8 @@ func _draw_pad_footer() -> void:
 	if items.is_empty():
 		return
 	draw_rect(Rect2(0, 770, 1280, 30), Color(0, 0, 0, 0.45))
+	if layout_probe:
+		probe_boxes.append({"r": Rect2(0, 770, 1280, 30), "inner": Rect2(0, 766, 1280, 34)})   # 提示列是最上層的底（不是底下兵卡的字）
 	_key_hints(640, 773, items, 14)
 
 
