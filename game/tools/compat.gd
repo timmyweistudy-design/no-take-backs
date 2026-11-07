@@ -41,14 +41,31 @@ static func run_case(c0: String, c1: String) -> Dictionary:
 	var h := HashingContext.new()
 	h.start(HashingContext.HASH_SHA256)
 	var untouched := ""
+	# V1.1 E1：每 tick 的雜湊輸入和原本 old_fields() 串起來的位元組完全相同，只是緩衝區一場配一次、直接填值（少掉每隻每 tick 一個新陣列）
+	var nu: int = s.units.size()
+	var buf := PackedInt64Array()
+	buf.resize(1 + nu * 28)
 	while not s.finished:
 		s.step()
-		var buf := PackedInt64Array([s.tick])
+		if s.units.size() != nu:
+			nu = s.units.size()
+			buf.resize(1 + nu * 28)
+		buf[0] = s.tick
+		var o := 1
 		for u in s.units:
-			buf.append_array(old_fields(u))
+			buf[o] = u.x; buf[o + 1] = u.y; buf[o + 2] = u.hp; buf[o + 3] = u.cd; buf[o + 4] = u.target; buf[o + 5] = u.fx; buf[o + 6] = u.fy
+			buf[o + 7] = u.face_lock; buf[o + 8] = u.mx; buf[o + 9] = u.my; buf[o + 10] = u.cdx; buf[o + 11] = u.cdy; buf[o + 12] = u.stealth
+			buf[o + 13] = u.charge; buf[o + 14] = u.stun; buf[o + 15] = u.slow; buf[o + 16] = u.wp_x; buf[o + 17] = u.wp_y; buf[o + 18] = u.wp_for
+			buf[o + 19] = 1 if u.alive else 0; buf[o + 20] = u.dmg_dealt; buf[o + 21] = u.dmg_taken; buf[o + 22] = u.kills; buf[o + 23] = u.id
+			buf[o + 24] = u.team; buf[o + 25] = u.type; buf[o + 26] = u.nav; buf[o + 27] = 1 if u.chasing else 0
+			o += 28
 		h.update(buf.to_byte_array())
 		if untouched == "":
-			untouched = new_fields_untouched(s)
+			# 和 new_fields_untouched() 同一組欄位與初值；全部是初值時跳過逐欄比對（不是初值才走原本的函式產生訊息）
+			for u in s.units:
+				if u.hcd != 0 or u.aura != 0 or u.breach != 0 or u.bmode != 0 or u.heal_done != 0 or u.follow != -1 or u.drum_cover != 0:
+					untouched = new_fields_untouched(s)
+					break
 	var per := PackedStringArray()
 	for u in s.units:
 		per.append("%d:%d:%d:%d" % [u.id, u.kills, u.dmg_dealt, u.dmg_taken])

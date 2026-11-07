@@ -336,9 +336,13 @@ func step() -> void:
 	# ② 選目標＋提出移動
 	# V1.1 E4：每隊「可被選的敵人」索引先列好（遞增順序，和原本逐一掃描跳過的結果完全一樣），選目標只掃這份
 	_foes = [PackedInt32Array(), PackedInt32Array()]
+	_foes_x = [PackedInt64Array(), PackedInt64Array()]
 	for j0 in n:
 		if sv[j0] != 0:
 			_foes[1 - st[j0]].append(j0)
+			_foes_x[1 - st[j0]].append(((sx[j0] + XOFF) << 12) | j0)
+	_foes_x[0].sort()
+	_foes_x[1].sort()
 	var nx := sx.duplicate()
 	var ny := sy.duplicate()
 	var new_target := PackedInt64Array()
@@ -472,7 +476,7 @@ func step() -> void:
 	if v8:
 		_v8_apply_pull(n, nx, ny)
 	# ③ 統一解碰撞（固定兩輪，所有推力加總後一次套用）
-	# V1.1 E4：參與碰撞的索引先列好（遞增；配對順序與原本相同，推力是整數加總，結果位元相同）
+	# V1.1 E4：參與碰撞的索引先列好
 	var act := PackedInt32Array()
 	for i0 in n:
 		if sc[i0] != 0:
@@ -483,14 +487,26 @@ func step() -> void:
 		var py := PackedInt64Array()
 		px.resize(n)
 		py.resize(n)
+		# V1.1 E4：依 x 排序後掃描，x 差 ≥ MIN_SEP 就停（原本這些配對一律跳過）。每對只算一次，而且仍以「索引小的當 i」
+		# 計算（零距離時的分開方向看 i、j 順序）；推力是整數加總、與配對順序無關，所以結果位元相同。
+		var keys := PackedInt64Array()
+		keys.resize(na)
+		for a0 in na:
+			keys[a0] = ((nx[act[a0]] + 1048576) << 12) | act[a0]
+		keys.sort()
 		for a in na:
-			var i: int = act[a]
-			var xi := nx[i]
-			var yi := ny[i]
+			var ka: int = keys[a]
+			var xa: int = (ka >> 12) - 1048576
+			var ia: int = ka & 4095
 			for b in range(a + 1, na):
-				var j: int = act[b]
-				var dx := nx[j] - xi
-				var dy := ny[j] - yi
+				var kb: int = keys[b]
+				if (kb >> 12) - 1048576 - xa >= MIN_SEP:
+					break
+				var ib: int = kb & 4095
+				var i: int = mini(ia, ib)
+				var j: int = maxi(ia, ib)
+				var dx := nx[j] - nx[i]
+				var dy := ny[j] - ny[i]
 				if dx >= MIN_SEP or dx <= -MIN_SEP or dy >= MIN_SEP or dy <= -MIN_SEP:
 					continue
 				var d2 := dx * dx + dy * dy
@@ -869,6 +885,8 @@ func step() -> void:
 ## 選目標（企劃 §3.3）：排除潛行 → 弓手警覺 → 盾兵嘲諷（近戰）→ 兵種偏好 → 距離 → 剩血 → 列 → 深度 → 編號。
 ## 只讀快照陣列，比較全部用整數（不配置陣列）。
 var _foes: Array = [PackedInt32Array(), PackedInt32Array()]   # V1.1 E4：這一 tick 每隊可選的敵人（只在 step 的 ② 有效）
+var _foes_x: Array = [PackedInt64Array(), PackedInt64Array()]   # 同上，依 x 排序：鍵＝(x＋XOFF)<<12 | 索引
+const XOFF := 1048576
 
 func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: PackedInt64Array,
 		sk: PackedInt64Array, sh: PackedInt64Array, sv: PackedByteArray, min_d2 := 0) -> int:
@@ -888,7 +906,6 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 	var b_hp := 0
 	var b_y := 0
 	var b_dep := 0
-	var foes: PackedInt32Array = _foes[my_team]
 	# V1.1 E4：這種攻擊者最好能給到的優先級。目前最佳已經是這一級時，比它遠的敵人不可能勝出（優先級只會 ≥、距離又較遠），直接跳過
 	var min_r := 3
 	if my_type == D.ARCHER:
@@ -897,7 +914,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 		min_r = 1
 	elif my_type == F8.GHOST or my_type == D.CAVALRY or my_type == D.ASSASSIN:
 		min_r = 2
-	for j in foes:
+	for j in _foes[my_team]:
 		var dx: int = sx[j] - ux
 		var dy: int = sy[j] - uy
 		var d2 := dx * dx + dy * dy
@@ -945,7 +962,7 @@ func _choose_target(i: int, sx: PackedInt64Array, sy: PackedInt64Array, st: Pack
 						if ey == b_y:
 							var dep: int = sx[j] if st[j] == 0 else fw - sx[j]
 							if dep >= b_dep:
-								continue
+								continue   # 完全平手取索引小的（原本遞增掃描的結果）
 		best = j
 		b_rank = rank
 		b_d2 = d2
