@@ -386,7 +386,8 @@ func _settings_rows() -> Array:
 			["set_shake", _onoff("shake"), func(d): _cycle_setting("shake", [true, false])],
 			["set_slowmo", _onoff("slowmo"), func(d): _cycle_setting("slowmo", [true, false])],
 			["set_flash", _onoff("flash"), func(d): _cycle_setting("flash", [true, false])],
-			["set_reduce_fx", _onoff("reduce_fx"), func(d): _cycle_setting("reduce_fx", [false, true])]],
+			["set_reduce_fx", _onoff("reduce_fx"), func(d): _cycle_setting("reduce_fx", [false, true])],
+			["set_plain_ui", _onoff("plain_ui"), func(d): _cycle_setting("plain_ui", [false, true]); _rebuild_sprites()]],   # V1.2：外框烘在圖集裡，切換要重烘
 	}
 	return groups[settings_tab]
 

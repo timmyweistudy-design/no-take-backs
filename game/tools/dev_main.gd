@@ -357,6 +357,16 @@ func _run_screenshots() -> void:
 	_rebuild_sprites()
 	for i in 4:
 		await get_tree().process_frame
+	# V1.2：簡化介面（plain_ui）同一個戰鬥畫面，確認能回到平面介面
+	Save.settings["plain_ui"] = true
+	_rebuild_sprites()
+	for i in 4:
+		await get_tree().process_frame
+	await _snap("14b_plain_ui.png")
+	Save.settings["plain_ui"] = false
+	_rebuild_sprites()
+	for i in 4:
+		await get_tree().process_frame
 	freeze_fx = false
 	if stunned != null:
 		stunned.stun = 0   # 只是為了截圖，還原，不影響接下來的模擬
@@ -396,6 +406,9 @@ func _run_screenshots() -> void:
 	_go_title()
 	overlay = "settings"
 	await _snap("08_settings.png")
+	settings_tab = 3   # V1.2：畫面分頁多了「簡化介面」一列
+	await _snap("08c_settings_visual.png")
+	settings_tab = 0
 	overlay = "keys"
 	await _snap("08b_keys.png")
 	overlay = "puzzles"

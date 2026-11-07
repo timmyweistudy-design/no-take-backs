@@ -35,7 +35,7 @@
 | `puzzles.gd` | 287 | 教學與殘局關卡資料（data/puzzles.json）。 |
 | `roster.gd` | 23 | 兵種開放（第十一輪）：不靠場數解鎖，正式版一開始 20 種全部能用。 |
 | `save.gd` | 357 | 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。 |
-| `sfx.gd` | 187 | 音效與音樂（優化方案 H）：同類音效 80ms 內最多 2 個、音高 ±10% 隨機；音樂與音效分軌。 |
+| `sfx.gd` | 242 | 音效與音樂（優化方案 H）：同類音效 80ms 內最多 2 個、音高 ±10% 隨機；音樂與音效分軌。 |
 | `steam.gd` | 129 | Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。 |
 | `strings.gd` | 50 | 字串表（優化方案 I）：data/strings.csv，欄位 key,zh_TW,en。所有畫面文字都從這裡來，不寫死在程式裡。 |
 | `trial_data.gd` | 10 | 第十三輪：新增試煉（索引 ≥10）的資料快取，讀 data/trials.json。 |
@@ -47,37 +47,37 @@
 |---|---|---|
 | `art.gd` | 204 | 其他層在同資料夾（V9 P1 拆檔） |
 | `battle_view.gd` | 751 | 其他層在同資料夾（V9 P1 拆檔） |
-| `charts.gd` | 198 | 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。 |
-| `codex_view.gd` | 484 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
+| `charts.gd` | 219 | 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。 |
+| `codex_view.gd` | 495 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
 | `free_place.gd` | 883 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
-| `game_screens.gd` | 632 | 其他層在同資料夾（V9 P1 拆檔） |
+| `game_screens.gd` | 650 | 其他層在同資料夾（V9 P1 拆檔） |
 | `icons.gd` | 167 | V9 P5 圖示：全部向量自繪，不靠字型（思源黑體沒有這些符號）。一律 24×24 概念，c＝中心、s＝邊長。 |
-| `lobby_view.gd` | 1039 | 規則大廳（第五輪 §3.5、§3.6）。兩段式： |
+| `lobby_view.gd` | 1046 | 規則大廳（第五輪 §3.5、§3.6）。兩段式： |
 | `main.gd` | 23 | 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。 |
 | `map_art.gd` | 265 | V9 地圖美術：每種 地圖＋大小 烘一張地面貼圖（全程式繪製，一張圖只畫一次，不佔每幀繪製）。 |
 | `replay_view.gd` | 679 | 回味（第三輪 S5）：重播控制、對戰代碼、覆盤。 |
-| `sprite_cache.gd` | 241 | 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps）， |
-| `ui_base.gd` | 693 | 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。 |
-| `unit_brief.gd` | 118 | V1.1 E3：由 lobby_view.gd 拆出（行為不變）。選卡時的兵種簡介卡：大廳卡池、雙人禁牌共用。 |
+| `sprite_cache.gd` | 277 | 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps）， |
+| `ui_base.gd` | 857 | 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。 |
+| `unit_brief.gd` | 116 | V1.1 E3：由 lobby_view.gd 拆出（行為不變）。選卡時的兵種簡介卡：大廳卡池、雙人禁牌共用。 |
 | `view_buffer.gd` | 130 | 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。 |
 
 ## game/scripts/ui/battle
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
-| `battle_fx.gd` | 595 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_fx.gd` | 606 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
 | `battle_state.gd` | 398 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
-| `battle_units.gd` | 681 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_units.gd` | 724 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
 
 ## game/scripts/ui/screens
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
 | `game_core.gd` | 802 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_menus.gd` | 510 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_menus.gd` | 520 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
 | `game_modes.gd` | 717 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
-| `game_place.gd` | 768 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_result.gd` | 477 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_place.gd` | 779 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_result.gd` | 520 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
 
 ## game/scripts/ui/units
 
@@ -86,7 +86,7 @@
 | `fantasy.gd` | 330 | 由 art.gd 拆出（V9 P1，行為不變） |
 | `gait.gd` | 114 | 步態（V9 P2）：Q 版微跳步。相位由真實位移決定（battle_state._gait_tick），腳踩地時不滑。 |
 | `kingdom.gd` | 300 | 由 art.gd 拆出（V9 P1，行為不變） |
-| `kit.gd` | 125 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `kit.gd` | 126 | 由 art.gd 拆出（V9 P1，行為不變） |
 
 ## game/tests
 
@@ -109,7 +109,7 @@
 | `modes.gd` | 1241 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
 | `rules.gd` | 584 |  |
 | `save.gd` | 157 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
-| `ui.gd` | 757 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
+| `ui.gd` | 756 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
 | `units.gd` | 394 |  |
 
 ## game/tools
