@@ -122,6 +122,18 @@ func _draw_result() -> void:
 		var rh := 112.0 + nxt * 1.25 + l1h + 4.0 - ry0   # 靜態高度；開場落下時整條一起移動
 		var rx0 := 640.0 - tw / 2.0
 		var rib: Color = (col.darkened(0.35) if w >= 0 else Color("#5b4632"))
+		# V1.2.1 R3：勝方緞帶後方一次性放射光＋燕尾上方 6 顆金星（0.6 秒；畫在緞帶下、只在燕尾外，不擋字；簡化特效時不演）
+		var cel_k := clampf((time - result_t - 0.2) / 0.6, 0.0, 1.0)
+		if w >= 0 and cel_k < 1.0 and not bool(Save.s("reduce_fx")) and not layout_probe and shot_dir == "":
+			var cc := Vector2(640, ry0 + rh * 0.5)
+			var ga := sin(cel_k * PI)
+			for kk in 6:
+				draw_circle(cc, (tw * 0.35 + kk * 18.0) * (0.8 + 0.2 * cel_k), Color(1.0, 0.85, 0.45, 0.05 * ga), true, -1.0, true)
+			for si in 6:
+				var side := -1.0 if si < 3 else 1.0
+				var j := si % 3
+				var sp := Vector2(640 + side * (tw / 2.0 + tail * 0.4 - j * 22.0), ry0 - 6.0 - j * 9.0 - cel_k * 16.0)   # 從燕尾上方往上飄（兩側是按鈕，不往外放）
+				_icon("star", sp, 14.0 - j * 2.0, Color(1.0, 0.85, 0.4, ga))
 		for sgn in [-1.0, 1.0]:
 			var ex: float = rx0 if sgn < 0 else rx0 + tw
 			draw_colored_polygon(PackedVector2Array([Vector2(ex, ry + 8), Vector2(ex + sgn * tail, ry + 8), Vector2(ex + sgn * tail * 0.6, ry + rh * 0.5 + 4), Vector2(ex + sgn * tail, ry + rh), Vector2(ex, ry + rh)]), rib.darkened(0.35))

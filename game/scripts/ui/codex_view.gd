@@ -215,12 +215,18 @@ func _draw_codex() -> void:
 	_draw_codex_demo()
 	# 老兵觀察筆記
 	var nr := Rect2(204, 600, 866, 66)
-	draw_rect(nr, Color(0.2, 0.17, 0.1, 0.85))
-	draw_rect(nr, Color(ACCENT, 0.35), false, 1.5)
+	var paper := not bool(Save.s("plain_ui"))
+	if paper:
+		_tex_box(nr.grow(3), "paper")   # V1.2.1 R1：老兵筆記是一張夾在木盒裡的紙條（墨色字）
+		_ink_mode = true
+	else:
+		draw_rect(nr, Color(0.2, 0.17, 0.1, 0.85))
+		draw_rect(nr, Color(ACCENT, 0.35), false, 1.5)
 	_text(nr.position + Vector2(12, 4), L.t("codex_note"), ts(14), ACCENT, false, true, 400)
 	var note := CX.text(u, "veteran", lang)   # 第十一輪：筆記直接看得到
 	_scroll_draw("note", Rect2(nr.position + Vector2(12, 4 + ts(14) * 1.4), Vector2(nr.size.x - 20, nr.size.y - 8 - ts(14) * 1.4)),
 		[{"type": "text", "s": note, "size": ts(14), "c": Color(1, 1, 1, 0.9), "x": 0.0, "w": nr.size.x - 40}])
+	_ink_mode = false
 	_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): overlay = "")
 
 

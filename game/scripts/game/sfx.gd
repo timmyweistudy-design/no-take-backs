@@ -154,10 +154,21 @@ func play(name: String, vol := 1.0) -> void:
 	p.bus = BUS_UI if is_ui(name) else BUS_SFX
 	p.stream = _pick_variant(name)
 	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
-	p.volume_db = linear_to_db(maxf(0.0001, gain * vol))
+	p.volume_db = linear_to_db(maxf(0.0001, gain * vol)) + trim_db(p.stream)   # V1.2.1 E2：個別音檔響度修正
 	p.play()
 	_prio_of[ch] = pr
 	_started[ch] = now
+
+## V1.2.1 E2：tools/gen/audio_trim.py 量出的個別音檔修正（dB），依檔名查。
+static var _trim := {}
+static func trim_db(st) -> float:
+	if _trim.is_empty():
+		var f := FileAccess.get_file_as_string("res://data/audio_trim.json")
+		var j = JSON.parse_string(f) if f != "" else null
+		_trim = j["trim"] if j is Dictionary and j.has("trim") else {"_": 0.0}
+	if st == null or not ("resource_path" in st):
+		return 0.0
+	return float(_trim.get(str(st.resource_path).get_file(), 0.0))
 
 static func is_ui(name: String) -> bool:
 	return name.begins_with("k_") or name.begins_with("ui_")

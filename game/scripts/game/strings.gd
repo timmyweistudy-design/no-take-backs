@@ -4,6 +4,21 @@ extends RefCounted
 static var _table := {}
 static var lang := "zh_TW"
 const LANGS := ["zh_TW", "en"]
+## V1.2.1 G3：資料檔（殘局、章節、試煉、圖鑑）的語言欄位後綴。之後加簡中、日文：這裡加 "zh_CN": "sc"、"ja": "ja"，
+## strings.csv 加一欄、資料檔加 *_sc／*_ja 欄位、字型子集加字，程式不用再到處改。
+const SUFFIX := {"zh_TW": "zh", "en": "en"}
+
+## 依目前語言取資料欄位：field(pz, "") → pz["zh"]／pz["en"]；field(pz, "hint") → pz["hint_zh"]／pz["hint_en"]。缺的退回英文、再退回中文。
+static func field(d: Dictionary, base: String) -> String:
+	var pre := base + "_" if base != "" else ""
+	for suf in [SUFFIX.get(lang, "en"), "en", "zh"]:
+		if d.has(pre + suf):
+			return str(d[pre + suf])
+	return ""
+
+## 二選一的舊資料（[中文, 英文]）：之後加語言時改成字典。
+static func pick(zh, en):
+	return zh if lang == "zh_TW" else en
 
 static func load_table() -> void:
 	if not _table.is_empty():

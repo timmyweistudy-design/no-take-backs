@@ -244,6 +244,17 @@ func _draw_hide_fog(hide_side: int) -> void:
 	draw_line(fp, fp + Vector2(0, 74), Color(0.85, 0.78, 0.7), 3.0, true)
 	draw_colored_polygon(PackedVector2Array([fp, fp + Vector2(48, 16), fp + Vector2(0, 36)]), Color(0.9, 0.2, 0.22))
 	_text(fp + Vector2(15, 2), "?", ts(22), Color.WHITE, true, true)
+	# V1.2.1 R5：旗竿底座的小木牌，只寫公開資訊（敵方預算、兵數上限），不洩漏陣型
+	if not bool(Save.s("plain_ui")):
+		var eb: int = rules.budget_of(hide_side) if rules != null else 100
+		var ec: int = rules.unit_cap if rules != null else 24
+		var sg := L.t("fog_sign", [eb, ec])
+		var sfs: int = tz("C")
+		var sw := _width(sg, sfs, true) + 24.0
+		var sr := Rect2(fp.x - sw / 2.0, fp.y + 74, sw, sfs * 1.5)
+		_tex_box(sr, "wood", Color(0.62, 0.44, 0.3))
+		draw_rect(Rect2(sr.position.x + 3, sr.end.y - 2, sr.size.x - 6, 2), Color(0, 0, 0, 0.3))
+		_text(Vector2(fp.x, sr.position.y + sfs * 0.2), sg, sfs, Color.WHITE, true, true, sw)
 	# 第七輪 A1：同一系列第 2 局起，留上一局敵陣殘影當參考（對手這局可能換陣）
 	if mode == Mode.VS_AI and round_no > 1 and last_armies.size() == 2 and _is_free():
 		for gu in last_armies[1].units:
@@ -522,7 +533,7 @@ func _draw_place_hud() -> void:
 			head = L.t("both_done") if blind_phase == 2 else L.t("blind_turn", [L.t("blue") if blind_phase == 0 else L.t("red"), L.t("red") if blind_phase == 0 else L.t("blue")])
 	elif mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz := PZ.get_puzzle(puzzle_id)
-		head = pz["zh"] if L.lang == "zh_TW" else pz["en"]
+		head = L.field(pz, "")
 	elif mode == Mode.GAUNTLET:
 		head = "%s・%s" % [L.t("gauntlet_title", [gauntlet_stage]), L.t("ga_node_" + str(call("ga_node", gauntlet_stage)))]
 	var hz := tcap(tz("H2"), 26)
@@ -621,7 +632,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 	_btn(help, "?", func(): show_place_help = not show_place_help)
 	if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz := PZ.get_puzzle(puzzle_id)
-		var hint: String = pz["hint_zh"] if L.lang == "zh_TW" else pz["hint_en"]
+		var hint: String = L.field(pz, "hint")
 		if mode == Mode.PUZZLE:
 			var st := "　★ " + L.t("star2_short", [pz["star2"]]) + "　★ " + L.t("star3_short", [pz["star3"]])
 			if PZ.goal(pz) != "win":

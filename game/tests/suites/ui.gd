@@ -213,6 +213,22 @@ func test_ai_names_v121() -> void:
 		if not GC.AI_TPL_EN.has(tp["name"]):
 			miss.append(tp["name"])
 	ok(miss.is_empty(), "AI 陣型名都有英文", str(miss))
+	# V1.2.1：每個成就都有解鎖條件（中英）
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var ST = load("res://scripts/game/steam.gd")
+	var miss2: Array = []
+	for k in ST.ACHIEVEMENTS:
+		if not GM.ACH_DESC.has(k) or str(GM.ACH_DESC[k][0]) == "" or str(GM.ACH_DESC[k][1]) == "":
+			miss2.append(k)
+	ok(miss2.is_empty(), "成就都有解鎖條件", str(miss2))
+	# V1.2.1 E2：響度修正表的檔名都存在、修正幅度有限（不硬拉成同一響度）
+	var tj = JSON.parse_string(FileAccess.get_file_as_string("res://data/audio_trim.json"))
+	var badt: Array = []
+	for fn in tj["trim"]:
+		var v := float(tj["trim"][fn])
+		if not FileAccess.file_exists("res://audio/" + fn) or absf(v) > 6.0 or v > 2.5:
+			badt.append("%s %s" % [fn, v])
+	ok(tj is Dictionary and badt.is_empty(), "E2：響度修正檔名存在、幅度 ≤6 dB、拉大聲 ≤2.5 dB", str(badt))
 
 
 ## V1.2.1 F1：樣式快取量化與上限（淡出不會讓快取無限成長；相近透明度共用同一個樣式）

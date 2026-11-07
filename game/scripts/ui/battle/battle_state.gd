@@ -213,15 +213,36 @@ func _key_hints(cx: float, y: float, items: Array, size := 15) -> void:
 			draw_circle(r.get_center(), r.size.y / 2, kc, true, -1.0, true)
 		else:
 			draw_rect(r, Color(kc, 0.9))
-		_probe_glyph = true   # V1.2.1：鍵帽上的字母是符號，不算內文字級
-		_text(Vector2(r.get_center().x, y + 1), key, fs - 2, Color(0.08, 0.08, 0.1), true, true)
-		_probe_glyph = false
+		if pad_mode and key in PS_SYMS:
+			_ps_glyph(r.get_center(), fs * 0.62, key)   # V1.2.1 G2：PS 鍵用向量符號（字型裡沒有 ○△，原本用字母 O／▲ 代替）
+		else:
+			_probe_glyph = true   # V1.2.1：鍵帽上的字母是符號，不算內文字級
+			_text(Vector2(r.get_center().x, y + 1), key, fs - 2, Color(0.08, 0.08, 0.1), true, true)
+			_probe_glyph = false
 		x += kw + 6
 		_text(Vector2(x, y + 1), items[i][1], fs, Color(1, 1, 1, 0.85))
 		x += widths[i][1] + 18
 
 
 
+
+const PS_SYMS := ["×", "O", "□", "▲"]
+
+## V1.2.1 G2：PS 按鍵符號（叉、圈、方塊、三角）畫成向量，深色線條。
+func _ps_glyph(c: Vector2, s: float, key: String) -> void:
+	var col := Color(0.08, 0.08, 0.1)
+	var w := maxf(1.6, s * 0.2)
+	var h := s * 0.5
+	match key:
+		"×":
+			draw_line(c + Vector2(-h, -h), c + Vector2(h, h), col, w, true)
+			draw_line(c + Vector2(-h, h), c + Vector2(h, -h), col, w, true)
+		"O":
+			draw_arc(c, h, 0.0, TAU, 20, col, w, true)
+		"□":
+			draw_rect(Rect2(c - Vector2(h, h) * 0.9, Vector2(h, h) * 1.8), col, false, w)
+		"▲":
+			draw_polyline(PackedVector2Array([c + Vector2(0, -h * 1.05), c + Vector2(h * 1.05, h * 0.8), c + Vector2(-h * 1.05, h * 0.8), c + Vector2(0, -h * 1.05)]), col, w, true)
 
 func _key_hints_scaled(cx: float, y: float, items: Array, fs: int) -> void:
 	# 縮一號再排（以實際像素傳入，避免再乘一次字級）
@@ -240,9 +261,12 @@ func _key_hints_scaled(cx: float, y: float, items: Array, fs: int) -> void:
 		var kw: float = widths[i][0]
 		var r := Rect2(x, y, kw, fs + 6)
 		draw_rect(r, Color(0.75, 0.78, 0.85, 0.9))
-		_probe_glyph = true
-		_text(Vector2(r.get_center().x, y + 1), items[i][0], fs - 2, Color(0.08, 0.08, 0.1), true, true)
-		_probe_glyph = false
+		if pad_mode and str(items[i][0]) in PS_SYMS:
+			_ps_glyph(r.get_center(), fs * 0.62, str(items[i][0]))
+		else:
+			_probe_glyph = true
+			_text(Vector2(r.get_center().x, y + 1), items[i][0], fs - 2, Color(0.08, 0.08, 0.1), true, true)
+			_probe_glyph = false
 		x += kw + 6
 		_text(Vector2(x, y + 1), items[i][1], fs, Color(1, 1, 1, 0.85))
 		x += widths[i][1] + 18

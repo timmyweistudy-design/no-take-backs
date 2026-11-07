@@ -179,7 +179,7 @@ func _build_ai() -> void:
 			1:
 				var res = AI.build(1, rules.budget_of(1) if rules != null else 100, r, -1, p1, rules)
 				armies[1] = res["army"]
-				ai_name = ("%s・%s" if L.lang == "zh_TW" else "%s · %s") % [L.t("diff_normal"), ai_tpl_name(str(res["name"]))]
+				ai_name = L.t("name_sep_fmt", [L.t("diff_normal"), ai_tpl_name(str(res["name"]))])
 			_:
 				armies[1] = _hard_ai(r, p1)
 				ai_name = L.t("diff_hard")

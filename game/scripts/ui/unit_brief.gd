@@ -113,4 +113,4 @@ func _brief_mu(p: Vector2, w: float, t: int) -> void:
 				break
 			_unit_in(Rect2(x, p.y, 34, 34), o, 1, 1.0, 0.5)
 			x += 34
-		x += 14
+		x += 24   # V1.2.1：兩組（剋／怕）之間拉開，英文 150% 不會看起來黏在一起

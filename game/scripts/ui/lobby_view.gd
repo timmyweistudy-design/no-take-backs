@@ -604,7 +604,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	label.call("cards", L.t("lb_cards"), y)
 	var p0: int = r.pool_of(0)
 	_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
-	_text(Vector2(cx, y + 62), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)
+	_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
 	_btn(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
 		lobby_open = true
 		lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
@@ -1062,6 +1062,13 @@ func _draw_lobby_desc(R: Rect2) -> void:
 ## V1.2 C1：選中的預設像夾在筆記本上的書籤，從分頁底下垂進紙頁（紙頁畫完才畫，才不會被蓋住）。
 func _draw_bookmark() -> void:
 	var i := Presets.IDS.find(lobby_r.preset)
+	# V1.2.1 B7：沒選中的預設也有一小段書籤耳（較短、較暗），選中的那條長而亮
+	for j in Presets.IDS.size():
+		if j == i:
+			continue
+		var rj := Rect2(Vector2(80, 96) + Vector2(j * (154.0 + 10.0), 0), Vector2(154, 68))
+		var ex := rj.end.x - 30.0
+		draw_colored_polygon(PackedVector2Array([Vector2(ex, rj.end.y - 4), Vector2(ex + 14, rj.end.y - 4), Vector2(ex + 14, rj.end.y + 9), Vector2(ex + 7, rj.end.y + 5), Vector2(ex, rj.end.y + 9)]), Color("#6e3b25"))
 	if i < 0:
 		return
 	var r := Rect2(Vector2(80, 96) + Vector2(i * (154.0 + 10.0), 0), Vector2(154, 68))   # 和 _draw_lobby_presets 同一套位置

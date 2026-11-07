@@ -106,7 +106,7 @@ static func sanitize_settings(d: Dictionary) -> Dictionary:
 			out[k] = int(v) if (v is int or v is float) else dv
 		elif dv is float:
 			out[k] = float(v) if (v is int or v is float) else dv
-	if not str(out["lang"]) in ["zh_TW", "en"]:
+	if not str(out["lang"]) in preload("res://scripts/game/strings.gd").LANGS:   # V1.2.1 G3：語言清單單一來源
 		out["lang"] = DEFAULT_SETTINGS["lang"]
 	if not int(out["text_scale"]) in [100, 125, 150]:
 		out["text_scale"] = DEFAULT_SETTINGS["text_scale"]

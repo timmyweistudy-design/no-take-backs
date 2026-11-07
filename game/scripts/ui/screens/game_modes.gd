@@ -111,7 +111,7 @@ func trial_rem(i: int) -> int:
 func trial_name(i: int) -> String:
 	var x := trial_x(i)
 	if x.has("zh"):
-		return str(x["zh"] if L.lang == "zh_TW" else x["en"])
+		return L.field(x, "")
 	return L.t("map_" + str(MapDefs.MAPS[TRIALS[i][0]]["key"]))
 
 ## 第十二輪：每達成一項一顆星，和殘局同一套。原本要花 ≤80% 預算還要剩「整個預算」的 50%，電腦都找不到解。
@@ -179,7 +179,11 @@ func _draw_trials() -> void:
 		var t: Array = TRIALS[i]
 		var x := trial_x(i)
 		var r := Rect2(116 + (k % 2) * (cw + 8), 164 + (k / 2) * (ch + 7), cw, ch)
+		var got := int(stars.get(str(i), 0))
+		btn_paper = got > 0   # V1.2.1 R1：過關的試煉卡是紙面
 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+		btn_paper = false
+		_ink_mode = got > 0 and not plain_ui_now() and (not _demo() or i in Presets.DEMO_TRIALS)
 		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
 		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, trial_name(i)], tz("B"), Color.WHITE, false, true, cw - 240)
 		var sz := "%s %d×%d" % [L.t("map_size_%d" % int(t[1])), MapDefs.SIZES[t[1]][0], MapDefs.SIZES[t[1]][1]]
@@ -187,7 +191,7 @@ func _draw_trials() -> void:
 		# 第十三輪新關：第二行放主題規則＋難度（地圖看縮圖就知道），第三行只放星數條件，150% 字級才排得下
 		var line2: String = "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), diff]
 		if x.has("tag_zh"):
-			line2 = "%s・%s" % [str(x["tag_zh"] if L.lang == "zh_TW" else x["tag_en"]), diff]
+			line2 = L.t("name_sep_fmt", [L.field(x, "tag"), diff])
 		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), TXT_DIM, false, false, cw - 160)
 		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
 		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
@@ -199,9 +203,9 @@ func _draw_trials() -> void:
 		var cx1: float = cx0 + 34 + font_bold.get_string_size(c1s, HORIZONTAL_ALIGNMENT_LEFT, -1, tz("C")).x
 		_icon("coin", Vector2(cx1 + 9, cy0 + tz("C") * 0.62), 16.0, ACCENT)
 		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), ACCENT, false, true, 120)
-		var got := int(stars.get(str(i), 0))
 		for k2 in 3:
 			_icon("star", r.position + Vector2(cw - 66 + k2 * 22, 20), 20.0, Color("#ffd166") if k2 < got else Color(1, 1, 1, 0.16))
+		_ink_mode = false
 	# 翻頁鈕放在關卡卡片後面：手把焦點先落在第一關（版面檢查 PADWALK）
 	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
 	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
@@ -342,7 +346,7 @@ func _daily_desc(sp: Dictionary, r) -> String:
 	var sk: Array = []
 	for s in CmdD.list_of(int(r.cmd_mask[0])):
 		sk.append(L.t("cmd_%d" % int(s)))
-	var sks := "、".join(sk) if L.lang == "zh_TW" else ", ".join(sk)
+	var sks := L.t("list_sep").join(sk)
 	var args: Array = [[r.ticks / 20], [r.unit_cap, r.type_cap, r.budget_of(0)], [r.unit_cap], [L.t("map_" + str(MapDefs.MAPS[r.map_id]["key"]))],
 		[r.type_cap, r.budget_of(0)], [r.ticks / 20, sks], [r.budget_of(0), r.type_cap], [r.budget_of(0), r.unit_cap, sks]][mut]
 	return L.t("daily_mut_%d_d" % mut, args)
@@ -624,14 +628,25 @@ func _draw_profile() -> void:
 	var ach: Dictionary = SteamApi.ACHIEVEMENTS
 	var keys := ach.keys()
 	_text(Vector2(80, 448), L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), ACCENT, false, true, 600)
+	var hover_k := ""
 	for i2 in keys.size():
 		var k: String = keys[i2]
 		var on: bool = k in earned
 		var pos := Vector2(84 + (i2 % 3) * 372, 480 + (i2 / 3) * 30)
+		var ar := Rect2(pos - Vector2(4, 1), Vector2(364, 26))
 		if on:
-			_box(Rect2(pos - Vector2(4, 1), Vector2(364, 26)), Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
+			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
+		else:
+			_box(ar, Color(0, 0, 0, 0.16), Color(1, 1, 1, 0.10), 4.0, 1.0)   # V1.2.1：未解鎖也有框（三欄對稱）
+		if ar.has_point(mouse) and not pad_mode:
+			hover_k = k
+			_box(ar.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.7), 5.0, 1.5)
 		_icon("star" if on else "lock", pos + Vector2(10, 12), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
-		_text(pos + Vector2(26, 0), str(ach[k][0 if L.lang == "zh_TW" else 1]), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 340)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
+		_text(pos + Vector2(26, 0), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 340)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
+	# V1.2.1：滑過成就，標題列右邊顯示解鎖條件（未解鎖的也看得到怎麼拿）
+	var cond: String = L.t("pf_ach_hint") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
+	var cw2 := 640.0
+	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
 	_btn(Rect2(560, 722, 160, 44), L.t("back"), func(): overlay = "")
 
 ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
@@ -674,7 +689,7 @@ func _draw_puzzle_hint() -> void:
 	# 第一層：這關的提示句＋對手主力
 	_text(Vector2(x, y), L.t("ph_l1"), tz("S"), ACCENT, false, true, w)
 	y += tz("S") * 1.5
-	var h1: String = str(pz["hint_zh"] if L.lang == "zh_TW" else pz["hint_en"]) + "　" + _puzzle_hint_text()
+	var h1: String = L.field(pz, "hint") + "　" + _puzzle_hint_text()
 	_text(Vector2(x, y), h1, tz("S"), Color(1, 1, 1, 0.88), false, false, w)
 	y += text_h(h1, tz("S"), w) + 16
 	# 第二層：三星編制（兵種與隻數，不給位置）
@@ -719,3 +734,32 @@ func _apply_best() -> void:
 	puzzle_reveal = false
 	overlay = ""
 	_toast(L.t("ph_applied"))
+
+
+## V1.2.1：成就的解鎖條件（docs/release/steam-setup.md 同步；PUZZLE_ALL 是第 1 章的 10 關）。
+const ACH_DESC := {
+	"FIRST_WIN": ["第一次獲勝", "Win your first battle"],
+	"LONE_HERO": ["只剩最後一隻兵時拿下勝利", "Win with only one unit left standing"],
+	"COMEBACK": ["曾落後 15% 以上戰力後獲勝", "Win after trailing by 15% power or more"],
+	"CLOSE_CALL": ["勝利時剩餘戰力 5% 以下", "Win with 5% power or less remaining"],
+	"NO_TAKEBACKS": ["打完一場輪流落子的三戰兩勝", "Finish a best-of-3 with turn-by-turn placement"],
+	"HARD_WIN": ["打贏困難 AI", "Beat the Hard AI"],
+	"SWEEP": ["三戰兩勝以 2:0 拿下", "Win a best-of-3 2–0"],
+	"TUTORIAL": ["完成 3 關教學", "Finish all 3 tutorials"],
+	"PUZZLE_ALL": ["第 1 章 10 關殘局全部過關", "Clear all 10 Chapter 1 puzzles"],
+	"PUZZLE_3STAR": ["任一關殘局拿到三星", "Get 3 stars on any puzzle"],
+	"GAUNTLET": ["連勝遠征打到最後一關並獲勝", "Win the final battle of a Gauntlet run"],
+	"FRENZY_WIN": ["打進狂熱時間後獲勝", "Win after the Frenzy begins"],
+	"ALL_TYPES": ["用 5 種不同的兵獲勝", "Win using 5 different unit types"],
+	"CHARGE_5": ["一場衝鋒 5 次以上並獲勝", "Win with 5+ cavalry charges in one battle"],
+	"BACKSTAB_3": ["一場背刺 3 次以上並獲勝", "Win with 3+ backstabs in one battle"],
+	"CUSTOM_LOWGOLD": ["自訂規則：用低金幣獲勝", "Custom rules: win on a low budget"],
+	"CUSTOM_UNDERDOG": ["自訂規則：讓子時以少勝多", "Custom rules: win with the smaller budget"],
+	"CUSTOM_BIG": ["自訂規則：大軍團獲勝", "Custom rules: win a grand-army battle"],
+	"FANTASY_WIN": ["只用奇幻軍獲勝", "Win using only Monster units"],
+	"BOOM_5": ["一場羊爆 5 次以上並獲勝", "Win with 5+ sheep explosions in one battle"],
+	"RAISE_3": ["一場復活 3 隻以上並獲勝", "Win after raising 3+ units in one battle"],
+	"PUZZLE_100": ["100 關殘局全部過關", "Clear all 100 puzzles"],
+	"PUZZLE_ALL3": ["100 關殘局全部三星", "Get 3 stars on all 100 puzzles"],
+	"TRIAL_ALL3": ["30 關主題試煉全部三星", "Get 3 stars on all 30 trials"],
+}

@@ -43,6 +43,9 @@ static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
 	var half := (rect.size.x - mid_w) / 2.0
 	var cx := rect.position.x + half
 	var fs: int = ui.tz("S")
+	# V1.2.1：最長的條也要在條尾外留出數字的位置（原本滿格時數字被夾進條內，和其他列不一致）
+	var lab_w: float = ui._width(str(maxv), fs) + 8.0
+	var bar_half := maxf(20.0, half - lab_w)
 	for i in rows.size():
 		var row: Dictionary = rows[i]
 		var y := rect.position.y + i * rh
@@ -51,8 +54,8 @@ static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
 		if row.has("type"):
 			ui._unit_in(Rect2(cx, y, 28.0, rh), int(row["type"]), 0, 1.0, minf(0.42, rh / 80.0))   # 兵種頭像（V9）
 		ui._text(Vector2(cx + mid_w / 2 + (12.0 if row.has("type") else 0.0), y + (rh - fs * 1.1) / 2), str(row["label"]), fs, Color.WHITE, true, false, mid_w - 6)
-		var lb := half * float(row["b"]) / maxv
-		var lr := half * float(row["r"]) / maxv
+		var lb := bar_half * float(row["b"]) / maxv
+		var lr := bar_half * float(row["r"]) / maxv
 		ui.draw_rect(Rect2(cx - lb, by, lb, bh), team_col(0, cb))
 		var rr := Rect2(cx + mid_w, by, lr, bh)
 		ui.draw_rect(rr, team_col(1, cb))
@@ -61,8 +64,8 @@ static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
 		var vb := str(int(row["b"]))
 		var vr := str(int(row["r"]))
 		var wb: float = ui._width(vb, fs)
-		ui._text(Vector2(maxf(rect.position.x, cx - lb - wb - 6), y + (rh - fs * 1.1) / 2), vb, fs, MUTED)
-		ui._text(Vector2(minf(rect.end.x - ui._width(vr, fs), cx + mid_w + lr + 6), y + (rh - fs * 1.1) / 2), vr, fs, MUTED)
+		ui._text(Vector2(cx - lb - wb - 6, y + (rh - fs * 1.1) / 2), vb, fs, MUTED)
+		ui._text(Vector2(cx + mid_w + lr + 6, y + (rh - fs * 1.1) / 2), vr, fs, MUTED)
 
 ## 排名條：values＝這個指標在可比兵種裡的值（Dictionary type→值）；me＝這一種。
 ## 灰點＝其他兵種的位置，亮點＝這一種；右邊標「值・第 N 高」。只傳可比的兵種（第五輪 §4.3）。
@@ -197,7 +200,7 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 			continue   # 最多兩排標籤（上方只留了兩排空間）
 		used.append(lx)
 		ui.draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y), Color("#ffd166"), 1.5)
-		ui._text(Vector2(lx, rect.position.y - fs * 1.35 * (row + 1)), lab, fs, Color("#ffd166"))
+		ui._text(Vector2(lx, rect.position.y - fs * 1.5 * (row + 1)), lab, fs, Color("#ffd166"))   # V1.2.1 B4：兩排拉開（原 1.35 只差 2px）
 		shown += 1
 	return ys
 

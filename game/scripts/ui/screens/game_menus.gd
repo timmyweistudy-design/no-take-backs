@@ -153,6 +153,16 @@ func _draw_title() -> void:
 		return
 	_draw_save_notice()
 	# 第七輪 D4：右下角色群像
+	if not bool(Save.s("plain_ui")):
+		# V1.2.1 R4：兵站在一座木台上（上表面透視梯形＋前面側邊），不再浮在黑底上
+		var top := PackedVector2Array([Vector2(512, 708), Vector2(1214, 708), Vector2(1236, 752), Vector2(490, 752)])
+		draw_colored_polygon(top, Color("#6b4a2e"))
+		for k in 5:
+			var yk := 714.0 + k * 8.0
+			draw_line(Vector2(512 - (yk - 708) * 0.5, yk), Vector2(1214 + (yk - 708) * 0.5, yk), Color(0.25, 0.15, 0.08, 0.35), 1.0)
+		draw_line(Vector2(512, 708), Vector2(1214, 708), Color(1, 0.85, 0.6, 0.3), 1.5)
+		_tex_box(Rect2(490, 752, 746, 22), "wood", Color(0.45, 0.3, 0.19))
+		draw_rect(Rect2(490, 774, 746, 6), Color(0, 0, 0, 0.35))
 	for i in D.COUNT:
 		var gp := Vector2(544.0 + i * 70.0, 720.0 + (i % 2) * 22.0)
 		Art.unit(self, gp, i, i % 2, 1.0 if i % 2 == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + i, 1.25, cbm())
@@ -177,14 +187,15 @@ func _draw_title() -> void:
 		if _tex_box(plq, "wood", Color(0.62, 0.42, 0.26)):
 			_wood_frame(plq, 6.0, "title_frame")
 			for sx in [plq.position.x - 4, plq.end.x + 4]:
-				_icon("swords", Vector2(sx, plq.get_center().y), 34.0, Color("#e8c26a"))
+				draw_circle(Vector2(sx, plq.get_center().y), 22.0, Color(1.0, 0.86, 0.45, 0.18), true, -1.0, true)   # V1.2.1 R4：雙劍尺寸不變，墊一圈淡金光（縮圖也認得出）
+				_icon("swords", Vector2(sx, plq.get_center().y), 34.0, Color("#f2cf73"))
 	for d in 4:
 		draw_string(tf, tp + Vector2(1, 1) * (d + 1) * 1.6, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color(0.32, 0.17, 0.04, 0.9))
 	draw_string_outline(tf, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, 9, Color("#3a2205"))
 	draw_string_outline(tf, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, 5, Color("#b8860b"))
 	draw_string(tf, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color("#ffe8a3"))
 	var ty := 40.0 + tsz * 1.2
-	_text(Vector2(235, ty), "No Take-Backs" if L.lang == "zh_TW" else "落子無悔", tz("B"), Color(1, 1, 1, 0.85), true, false, 420)
+	_text(Vector2(235, ty), L.t("title_alt"), tz("B"), Color(1, 1, 1, 0.85), true, false, 420)
 	ty += tz("B") * 1.4
 	_text(Vector2(235, ty), L.t("subtitle"), tz("S"), TXT_DIM, true, false, 420)
 	ty += text_h(L.t("subtitle"), tz("S"), 420) + 18
@@ -298,11 +309,11 @@ func _draw_overlay() -> void:
 				for pz1 in PZ.all_puzzles():
 					all_total += int(stars.get(pz1["id"], 0))
 				var info := PZ.chapter_info(puzzle_tab + 1)
-				var cname: String = str(info.get("zh" if L.lang == "zh_TW" else "en", ""))
+				var cname: String = L.field(info, "")
 				_btn(Rect2(280, 158, 48, 40), "◀", func(): puzzle_tab = wrapi(puzzle_tab - 1, 0, PZ.CHAPTERS), puzzle_tab > 0 and not _demo())
 				_btn(Rect2(952, 158, 48, 40), "▶", func(): puzzle_tab = wrapi(puzzle_tab + 1, 0, PZ.CHAPTERS), puzzle_tab < PZ.CHAPTERS - 1 and not _demo())
 				_text(Vector2(640, 162), L.t("chapter_head", [puzzle_tab + 1, cname, total, chap.size() * 3]), tz("B"), ACCENT, true, true, 600)
-				var story: String = str(info.get("story_zh" if L.lang == "zh_TW" else "story_en", ""))
+				var story: String = L.field(info, "story")
 				_text(Vector2(640, 162 + tz("B") * 1.5), story, tz("C"), TXT_DIM, true, false, 700)
 				y0 = 162 + tz("B") * 1.5 + text_h(story, tz("C"), 700) + 10
 				_text(Vector2(280, 648), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), TXT_DIM, false, false, 260)
@@ -314,7 +325,7 @@ func _draw_overlay() -> void:
 				var i: int = idx[k]
 				var pz: Dictionary = list[i]
 				var r := Rect2(280 + (k % 2) * 370, y0 + (k / 2) * step, 350, step - 14)
-				var name: String = pz["zh"] if L.lang == "zh_TW" else pz["en"]
+				var name: String = L.field(pz, "")
 				var st := int(stars.get(pz["id"], 0))
 				var en: bool = not _demo() or tut or (puzzle_tab == 0 and i < Presets.DEMO_PUZZLES)   # 第十一輪：關卡全開，只有試玩版有範圍
 				var line := "%s%d. %s" % ["✓ " if st > 0 else "", i + 1, name]   # V1.2：星數改畫圖示（不再用 ★☆ 字元，大字級不會擠出框）
@@ -322,8 +333,11 @@ func _draw_overlay() -> void:
 					en = false
 					line = "%d. %s（%s）" % [i + 1, name, L.t("locked_demo")]
 				# 第七輪：標籤靠左、讓開左邊的迷你敵陣（原本置中會被縮圖蓋住）
+				btn_paper = st > 0   # V1.2.1 R1：已過關的卡片是紙面（未過關留木，進度一眼看得出）
 				_btn(r, "", _pick_puzzle.bind(pz["id"], tut), en, false,
-					Color(0.15, 0.32, 0.22) if st > 0 else Color(0, 0, 0, 0))
+					Color(0.15, 0.32, 0.22) if st > 0 and plain_ui_now() else Color(0, 0, 0, 0))
+				btn_paper = false
+				_ink_mode = st > 0 and en and not plain_ui_now()
 				_probe_btn_label = true
 				_probe_btn_rect = r
 				_text(r.position + Vector2(64, 8), line, tz("S"), Color.WHITE if en else Color(1, 1, 1, 0.4), false, false, r.size.x - 72)
@@ -341,6 +355,7 @@ func _draw_overlay() -> void:
 					_probe_btn_label = false
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
+				_ink_mode = false
 			if tut:
 				# 第七輪 A4：自由排兵入門（畫筆、搬移、開戰），一步一步帶
 				var fr := Rect2(280 + (list.size() % 2) * 370, 210 + (list.size() / 2) * 82, 350, 68)
@@ -386,7 +401,8 @@ func _apply_volumes(sample: String) -> void:
 ## 設定（第五輪 §4.4）：四組分頁＋右側說明欄；多選項用 ◀ ▶；遊戲規則已經搬到規則大廳。
 func _settings_rows() -> Array:
 	var groups := {
-		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", ["zh_TW", "en"]); L.lang = Save.s("lang")],
+		# V1.2.1 G3：語言在 L.LANGS 裡循環（單一來源）
+		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang")],
 			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
 			["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
 			["set_fullscreen", _onoff("fullscreen"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()]],

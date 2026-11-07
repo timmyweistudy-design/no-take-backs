@@ -36,7 +36,7 @@
 | HARD_WIN | 勝過困難 AI | Beat Hard AI | 打贏困難 AI |
 | SWEEP | 二比零 | Clean Sweep | 三戰兩勝以 2:0 拿下 |
 | TUTORIAL | 學會了 | Graduated | 完成 3 關教學 |
-| PUZZLE_ALL | 殘局全破 | Puzzle Master | 10 關殘局都過關 |
+| PUZZLE_ALL | 殘局全破 | Puzzle Master | 第 1 章 10 關殘局都過關 |
 | PUZZLE_3STAR | 完美解 | Perfect Solution | 任一關三星 |
 | GAUNTLET | 七連勝 | Seven Straight | 遠征通關 |
 | FRENZY_WIN | 狂熱中取勝 | Won in the Frenzy | 打到 60 秒後獲勝 |

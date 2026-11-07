@@ -146,6 +146,7 @@ const TH_PRIMARY := Color("#e08a1e")
 const SP := 8.0        # 間距基準
 const Icons = preload("res://scripts/ui/icons.gd")
 var _sb_cache := {}
+var btn_paper := false   # V1.2.1 R1：下一顆 _btn 畫紙面（呼叫端設、用完還原）
 var _probe_glyph := false   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
@@ -568,9 +569,10 @@ static func _ink(c: Color) -> Color:
 	var lum := c.get_luminance()
 	if lum < 0.45:
 		return c
+	var a := c.a if c.a < 0.45 else maxf(c.a, 0.85)   # V1.2.1 F5：紙上墨字至少 85%；很淡的裝飾（空星）保持淡
 	if c.s < 0.25:
-		return Color(INK, maxf(c.a, 0.85))   # V1.2.1 F5：紙上墨字至少 85%（原透明度太淡只有 3.6:1）
-	return Color(c.darkened(0.66), maxf(c.a, 0.85))
+		return Color(INK, a)
+	return Color(c.darkened(0.74), a)
 
 func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
 	var idx := _btns.size()
@@ -594,13 +596,26 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		# 厚度畫在按鈕框內（下緣 3px），命中框、探針與畫面一致（Codex v120-impl2）；按下時面板往下壓、厚度被蓋住
 		_box(Rect2(rd.position, rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
 		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
-	_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
-	if tint.a <= 0.0 or tint.a > 0.6:
+	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
+	if paper_face:
+		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
+		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
+		_box(rd, Color(0, 0, 0, 0), TH_EDGE.darkened(0.25), 7.0, 1.5)
+	else:
+		_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
+	if (tint.a <= 0.0 or tint.a > 0.6) and not paper_face:
 		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
 		draw_line(rd.position + Vector2(6, rd.size.y - 1.5), rd.end - Vector2(6, 1.5), Color(0, 0, 0, 0.3), 2.0)
+	if pressed:
+		for k in 3:   # V1.2.1 R2：按下時上緣內陰影（像被壓進去）
+			draw_rect(Rect2(rd.position + Vector2(3, 2 + k * 2.0), Vector2(rd.size.x - 6, 2.0)), Color(0, 0, 0, 0.22 - k * 0.07))
 	if primary and enabled:
 		_btn_shine(rd)
-	if focus:
+	if (focus or hover) and enabled and not plain_ui_now():
+		# V1.2.1 R2：滑鼠懸停與手把焦點同一種樣式：深邊＋金亮邊（深邊讓金框在紙上也看得到，Codex v121-r2）
+		_box(rd.grow(2.5), Color(0, 0, 0, 0), Color(INK, 0.7), 9.0, 1.5)
+		_box(rd.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.95 if focus else 0.75), 8.0, 2.5)
+	elif focus:
 		_box(rd.grow(1), Color(0, 0, 0, 0), ACCENT, 8.0, 3.0)
 	if layout_probe:
 		probe_btns.append(r)
@@ -611,11 +626,14 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var h := lines.size() * sz * line_h(lines.size())
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
 	_probe_btn_rect = r
-	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色
-	_ink_mode = false
+	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色（紙面按鈕用墨色）
+	_ink_mode = paper_face
 	_text(r.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)
 	_ink_mode = ink0
 	_probe_btn_label = false
+
+static func plain_ui_now() -> bool:
+	return bool(Save.s("plain_ui"))
 
 ## 主按鈕的流光（可關）。
 func _btn_shine(r: Rect2) -> void:
