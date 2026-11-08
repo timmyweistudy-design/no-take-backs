@@ -103,6 +103,9 @@ func _battle_process(delta: float) -> void:
 		pass   # 由 _follow_update 決定
 	elif slow_left > 0 and not view.finished:
 		_frame_alive(delta)
+	elif pinch_zoom > 1.01:
+		zoom_target = pinch_zoom   # V1.4 #18：玩家用雙指放大，就停在那裡
+		zoom_center = zoom_center.lerp(pinch_center, minf(1.0, delta * 6))
 	else:
 		zoom_target = 1.0
 		zoom_center = zoom_center.lerp(ORIGIN + fld_size / 2, minf(1.0, delta * 3))
@@ -760,6 +763,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	hitstop = 0.0
 	zoom = 1.0
 	zoom_target = 1.0
+	pinch_zoom = 1.0   # V1.4 #18：新的一場不沿用上一場的縮放
 	fx.clear()
 	dying.clear()
 	atk_t.clear()

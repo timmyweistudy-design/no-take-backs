@@ -1378,3 +1378,23 @@ func test_waves_lock_v140() -> void:
 	ok(g.daily_spec.is_empty() and g.wv_lock.is_empty(), "開車輪戰會清掉每日挑戰與舊殘兵")
 	g.free()
 
+
+## V1.4 #4 審查修正：預設排程一定合法；往右推到底會停在最右的合法位置（不整個退回）。
+func test_plan_fix_v140() -> void:
+	var PZ0 = load("res://scripts/game/puzzles.gd")
+	var bad: Array = []
+	for id in ["c1", "c2", "c5", "c7", "c10"]:
+		var pz: Dictionary = PZ0.get_puzzle(id)
+		if pz.is_empty():
+			bad.append(id + " 不存在")
+			continue
+		var p: Array = PZ0.default_plan(pz)
+		if PZ0.plan_fix(pz, p, -1, 0) != p:
+			bad.append(id + " 預設排程不合法")
+		var last := p.size() - 1
+		var q: Array = PZ0.plan_fix(pz, p, last, 100000)
+		var lim: int = int(pz.get("goal_ticks", 1800)) - 10
+		if q == p or PZ0.plan_tick(pz, int(q[last])) > lim:
+			bad.append(id + " 推到底沒有停在局末")
+	ok(bad.is_empty(), "第 12 章：預設排程合法、推到底停在局末", str(bad))
+

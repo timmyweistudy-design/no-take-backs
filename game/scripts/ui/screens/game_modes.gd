@@ -1316,7 +1316,8 @@ func _draw_draft() -> void:
 		_btn(r, "", _draft_take.bind(t), not mine and not ai and df_mine.size() < 4)
 		btn_paper = false
 		Art.unit(self, r.position + Vector2(100, 98), t, 0 if not ai else 1, 1.0, 0.0, 0.0, 0.0, 1.0 if not (mine or ai) else 0.55, time, 0.9, cbm())
-		_ink_mode = not mine and not ai and not bool(Save.s("plain_ui"))   # 簡化介面沒有紙卡：字用淺色（V1.4 版面檢查：對比不足）
+		var paper_on: bool = bool(_btns[_btns.size() - 1]["en"]) and not mine and not ai and not bool(Save.s("plain_ui"))
+		_ink_mode = paper_on   # 停用或簡化介面時卡片是深色木牌：字用淺色（V1.4 版面檢查：對比不足）
 		_text(r.position + Vector2(100, 106), L.t("unit_%d" % t), tz("S"), INK if _ink_mode else Color.WHITE, true, true, 190)
 		_text(r.position + Vector2(100, 106 + tz("S") * 1.3), L.t("gold", [D.cost(t)]), tz("C"), Color("#7a4a10") if _ink_mode else ACCENT, true, false, 190)
 		_ink_mode = false
@@ -1439,11 +1440,17 @@ const PAINT_UNLOCK := [0, 2, 5, 9]
 const PAINT_ROWS := [["paint_blue", 4, true], ["paint_red", 4, true], ["paint_wash", 3, false], ["paint_dry", 3, false], ["paint_wood", 4, true], ["paint_frame", 4, true]]
 var pt_before := ""
 
+const PAINT_HI := [3, 3, 2, 2, 3, 3]
+
 func _paint_apply() -> void:
 	var p = Save.data.get("paint", [0, 0, 1, 1, 0, 0])
+	var ach_n: int = Save.data.get("achievements", []).size()
 	if p is Array and p.size() == 6:
 		for i in 6:
-			Art.paint[i] = int(p[i])
+			var v := clampi(int(p[i]), 0, int(PAINT_HI[i]))
+			if paint_locked(bool(PAINT_ROWS[i][2]), v, ach_n):
+				v = 0   # 存檔被改過、或成就被重置：鎖住的選項退回原色（Antigravity v140-i4）
+			Art.paint[i] = v
 
 static func paint_locked(row_locks: bool, k: int, ach_n: int) -> bool:
 	return row_locks and ach_n < int(PAINT_UNLOCK[clampi(k, 0, 3)])
@@ -1457,11 +1464,14 @@ func _paint_close() -> void:
 	if str(Art.paint) != pt_before:
 		Save.data["paint"] = Art.paint.duplicate()
 		Save.save_data()
-		_rebuild_sprites()   # 底漆、漬洗、乾掃、木座烘在圖集裡，要重烘
 
+## 每點一次就在背景重烘圖集（舊的那次會作廢），左邊預覽用圖集畫，漬洗、乾掃當下就看得到（Codex v140-i4）。
 func _paint_pick(row: int, k: int) -> void:
+	if int(Art.paint[row]) == k:
+		return
 	Art.paint[row] = k
 	sfx.play("place")
+	_rebuild_sprites()
 
 func _draw_paint() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
@@ -1480,8 +1490,8 @@ func _draw_paint() -> void:
 	for t in 2:
 		for j in 3:
 			var p := B.position + Vector2(80 + t * 160, 110 + j * 118)
-			Art.ring(self, p, t, types[j], cbm(), 1.5)
-			Art.unit(self, p, types[j], t, 1.0 if t == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.5, cbm())
+			_ring(p, t, types[j], 1.4)
+			_unit(p, types[j], t, 1.0 if t == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.4)   # 用烘好的圖集畫：漬洗、乾掃看得到
 	_text(Vector2(B.get_center().x, B.end.y + 20), L.t("paint_note") if not cbm() else L.t("paint_cb"), tz("C"), TXT_DIM, true, false, 340)
 	# 右：六列，每列「名稱｜四個色票」排一橫（V1.4 版面檢查：150% 時上下排會壓到完成鈕）
 	var x0 := 540.0
@@ -1494,7 +1504,7 @@ func _draw_paint() -> void:
 		_text(Vector2(x0, y + (rh - 14.0) / 2.0 - tz("B") * 0.68), L.t(spec[0]), tz("B"), Color.WHITE, false, true, lw)
 		for k in int(spec[1]):
 			var r := Rect2(x0 + lw + 10 + k * 98, by, 90, 40)
-			var lock := paint_locked(bool(spec[2]), k, ach_n)
+			var lock := paint_locked(bool(spec[2]), k, ach_n) or (row <= 1 and k > 0 and cbm())   # 色盲配色時底漆不能換（Antigravity v140-i4）
 			var on := int(Art.paint[row]) == k
 			var rr := row
 			var kk := k

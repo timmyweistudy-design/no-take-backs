@@ -137,6 +137,10 @@ func _input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
 		fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
+		_touch_input(ev)   # V1.4 #18：長按＝右鍵、雙指縮放
+		return
+	if ev is InputEventMagnifyGesture and (state == St.BATTLE or state == St.RESULT):
+		_pinch_by(ev.factor, ev.position)   # 觸控板的捏合也一樣
 		return
 	if ev is InputEventMouseMotion:
 		mouse = ev.position
@@ -257,6 +261,9 @@ func _mb_cmd(d: Dictionary) -> void:
 			if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) and PZ.is_fixed(PZ.get_puzzle(puzzle_id), c.x, c.y):
 				_toast(L.t("err_locked"), true)
 				return
+			if mode == Mode.VS_AI and bool(call("wave_is_locked", c)):
+				_toast(L.t("wv_locked"), true)   # V1.4 #11：車輪戰殘兵不能搬
+				return
 			drag_from = c
 		else:
 			painting = true
@@ -311,6 +318,8 @@ func _key(k: int) -> void:
 			KEY_ESCAPE:
 				if overlay == "ai_busy":
 					pass      # 第十輪 I4：AI 計算中不能取消
+				elif overlay == "paint":
+					call("_paint_close")   # V1.4 #15：Esc／手把 B 也要存塗裝（Codex、Antigravity v140-i4）
 				elif overlay != "":
 					overlay = ""
 				elif state == St.BATTLE:
@@ -379,7 +388,56 @@ func _process(delta: float) -> void:
 	perf_proc_us = Time.get_ticks_usec() - _t0
 
 
+## ── V1.4 #18 觸控：點＝左鍵（引擎把觸控模擬成滑鼠）、長按 0.5 秒＝右鍵（拿掉兵）、雙指捏合＝縮放戰場 ──
+const LONG_PRESS := 0.5
+var touches := {}            # 手指編號 → 位置
+var lp_t := -1.0             # 長按計時（-1＝沒有在算）
+var lp_pos := Vector2.ZERO
+
+func _touch_input(ev: InputEvent) -> void:
+	if ev is InputEventScreenTouch:
+		if ev.pressed:
+			touches[ev.index] = ev.position
+		else:
+			touches.erase(ev.index)
+		lp_t = 0.0 if (ev.pressed and touches.size() == 1) else -1.0
+		lp_pos = ev.position
+		return
+	if ev is InputEventScreenDrag:
+		var old: Vector2 = touches.get(ev.index, ev.position)
+		touches[ev.index] = ev.position
+		if lp_t >= 0.0 and ev.position.distance_to(lp_pos) > 12.0:
+			lp_t = -1.0   # 拖動了就不是長按
+		if touches.size() == 2 and (state == St.BATTLE or state == St.RESULT):
+			var ks := touches.keys()
+			var other: Vector2 = touches[ks[0] if ks[1] == ev.index else ks[1]]
+			var d0: float = old.distance_to(other)
+			var d1: float = ev.position.distance_to(other)
+			if d0 > 8.0:
+				_pinch_by(d1 / d0, (ev.position + other) / 2.0)
+
+func _pinch_by(f: float, at: Vector2) -> void:
+	pinch_zoom = clampf(pinch_zoom * f, 1.0, 2.0)
+	pinch_center = _fld_xf().affine_inverse() * at
+
+func _touch_tick(delta: float) -> void:
+	if lp_t < 0.0:
+		return
+	lp_t += delta
+	if lp_t >= LONG_PRESS:
+		lp_t = -1.0
+		# 長按：取消左鍵的拖曳，改送一次右鍵（擺陣時拿掉兵；其他畫面右鍵本來就是返回／取消）
+		drag_new = false
+		painting = false
+		drag_from = Vector2i(-1, -1)
+		if _is_free():
+			_fp_abort_drag()
+		_enqueue("mb", {"i": MOUSE_BUTTON_RIGHT, "pressed": true, "pos": lp_pos})
+		_enqueue("mb", {"i": MOUSE_BUTTON_RIGHT, "pressed": false, "pos": lp_pos})
+		Input.vibrate_handheld(30)
+
 func _process_inner(delta: float) -> void:
+	_touch_tick(delta)
 	_stick_repeat(delta)
 	_process_cmds()
 	time += delta

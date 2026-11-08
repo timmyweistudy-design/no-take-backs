@@ -16,14 +16,34 @@ import l10n_extract as X
 ROOT = Path(__file__).resolve().parents[2]
 G = ROOT / "game"
 cc = OpenCC("tw2sp")
-FIX = [("缺省", "预设"), ("殘局", "残局"), ("土豆", "马铃薯")]
+FIX = [("拷贝", "复制"), ("缺省", "预设"), ("接口", "界面"), ("手把", "手柄"), ("全屏幕", "全屏"), ("殘局", "残局"), ("土豆", "马铃薯")]
 LANG_NAME = {"zh_CN": "简体中文", "ja": "日本語"}
-OVERRIDE = {("ja", "title"): "落子無悔", ("ja", "lang_unproofed"): "AI翻訳・未校正", ("zh_CN", "lang_unproofed"): "AI 翻译・未校对"}
+OVERRIDE = {("ja", "title"): "落子無悔",
+    ("ja", "pf_none"): "未出撃", ("ja", "ct_clean_d"): "戦力6割以上で勝利", ("ja", "pt_call"): "勝敗が見えた", ("ja", "rv_moved"): "%sを%dマス動かしました", ("ja", "rv_you_free"): "自軍陣形（兵を選んで編集）",
+    ("ja", "lb_pinfo_fantasy"): "傭兵ギルド解禁：魔物軍全10種が参戦。調整中のお遊びルールです。", ("ja", "err_locked"): "このユニットは固定です",
+    # 簡中「預設＝默認值」的地方（「我的预设」是存下來的配置，保留）（Codex v140-i4）
+    ("zh_CN", "set_speed"): "默认观战速度", ("zh_CN", "set_rule"): "双人默认规则",
+    ("zh_CN", "sd_set_plain_titles"): "标题改用一般的黑体字（默认是毛笔风格的标题字）。",
+    # 日文用語統一與不自然的譯法（Codex v140-i4）
+    ("ja", "paint_wash"): "ウォッシュ", ("ja", "paint_dry"): "ドライブラシ", ("ja", "rv_remove"): "外す", ("ja", "rv_removed"): "%sを外した",
+    # 版面檢查（日文 150%）抓到的太長字串，手動縮短
+    ("ja", "sd_set_lang"): "表示言語。日本語はAI翻訳で、まだ校正していません。", ("zh_CN", "sd_set_lang"): "界面语言。简体中文是 AI 翻译，尚未校对。",
+    ("ja", "lb_cmd_quick"): "技：%s", ("ja", "lb_deck_random"): "ランダム", ("ja", "lb_roster_title"): "出撃（%d／10）",
+    ("ja", "tm_btn"): "時を戻して1体変更", ("ja", "pf_ach_hint"): "触れると条件表示", ("ja", "menu_daily"): "日替わり",
+    ("ja", "rv_hint"): "マスを選んで種類変更・撤去・移動。変更は1体まで、戦績には残りません。",
+    ("ja", "rv_hint_free"): "ユニットを選んで種類変更・撤去・移動。変更は1体まで、戦績には残りません。",
+    ("ja", "rw_recruit_d"): "%s加入、%s離脱（この遠征のみ）", ("ja", "ph_locked"): "星を1つ取ると、星3解答のユニット構成が見られます。",
+    ("ja", "pr_wager_d"): "AI同士の陣形を見て、勝者と差を予想。当てて眼力アップ。",
+    ("ja", "pr_draft_d"): "8枚からAIと交互に4枚ずつ取り、そのカードで勝負。",
+    ("ja", "pr_waves_d"): "一度の配置で三連戦。生き残りはその場に残り、15 G追加。",
+    ("ja", "pr_sealed_d"): "2人が陣形を3つ封印。1戦ごとに1通開封、2勝先取。"}
+DATA_OVERRIDE = {"落子無悔（ノー・テイクバック）": "落子無悔"}
+JA_FIX = [("モンスター兵団", "魔物兵団"), ("モンスター軍", "魔物軍")]   # 用語統一（短、和中文一樣是漢字）
 PH = re.compile(r"%[-+0-9.]*[sdf]|\{[A-Z0-9_]+\}")
 
 
 def sc(s):
-    t = cc.convert(s)
+    t = cc.convert(s.replace("隻", "個"))   # 兵的量詞：大陸遊戲用「个」，不用「只」（「这只是」會被讀成「僅僅是」，Antigravity v140-i4）
     for a, b in FIX:
         t = t.replace(a, b)
     return t
@@ -50,9 +70,12 @@ def main():
         if not isinstance(v, str) or not v.strip():
             bad.append((item["id"], "沒翻"))
             return item["en"] or item["zh"]
-        if sorted(PH.findall(v)) != sorted(PH.findall(item["zh"])):
+        stray = lambda x: PH.sub("", x.replace("%%", "")).count("%")   # 落單的 %（例如把 %d%% 寫成 %d%）
+        if sorted(PH.findall(v)) != sorted(PH.findall(item["zh"])) or stray(v) != stray(item["zh"]):
             bad.append((item["id"], "佔位符不同"))
             return item["en"] or item["zh"]
+        for a, b in JA_FIX:
+            v = v.replace(a, b)
         return v
 
     # strings.csv
@@ -84,7 +107,8 @@ def main():
                 o = o[int(seg)] if isinstance(o, list) else o[seg]
             pre = base + "_" if base else ""
             o[pre + "sc"] = sc(it["zh"])
-            o[pre + "ja"] = jp(it) if it["zh"].strip() else ""
+            v = jp(it) if it["zh"].strip() else ""
+            o[pre + "ja"] = DATA_OVERRIDE.get(v, v)
         json.dump(d, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=2 if fn == "trials.json" else 1)
     # 程式裡的二元陣列
     ex = X.extra()

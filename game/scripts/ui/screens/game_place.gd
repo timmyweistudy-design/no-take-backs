@@ -791,16 +791,19 @@ func _draw_plan_panel(R: Rect2) -> void:
 ## V1.4 #4 軍令連鎖：連鎖的組合（先放 a、3 秒內放 b）。只是提示，模擬照原本規則算。
 const CHAINS := [[4, 3, "chain_freeze_meteor"], [0, 1, "chain_aegis_war"], [4, 1, "chain_freeze_war"], [1, 2, "chain_war_heal"]]
 var plan_sel := 0
+var plan_drag := -1          # V1.4 #4：正在拖的軍令（Codex v140-i4：說好可拖曳）
+var plan_press_prev := false
 
 ## 完整的軍令時間軸：木刻度尺（羊皮紙底＋墨線刻度），我方軍令是木棋子、敵方是紅旗；同一種技能的冷卻畫成淡帶，
 ## 連鎖用金色弧線連起來。點棋子選取、點尺上任一處把選取的那一道移過去；◀▶ 微調半秒（手把用）。
 func _draw_plan_timeline(R: Rect2) -> void:
 	var pz := PZ.get_puzzle(puzzle_id)
 	var c: Dictionary = pz["cmd"]
+	plan_sel = clampi(plan_sel, 0, maxi(0, puzzle_plan.size() - 1))   # 換關後索引不越界（Antigravity v140-i4）
 	var goal: int = int(pz.get("goal_ticks", Sim.MAX_TICKS))
 	var cd: int = PZ.rules_of(pz).cmd_cd
 	var ruler := Rect2(R.position.x + 20, R.position.y + 64, R.size.x - 40, 74)
-	_tex_box(ruler.grow(6), "paper")
+	_tex_box(Rect2(ruler.position - Vector2(6, 6), ruler.size + Vector2(12, 14 + tz("C") * 1.3)), "paper")   # 秒數也在紙上（版面檢查：墨字落到深色底對比不足）
 	var x_of := func(t: int) -> float: return ruler.position.x + ruler.size.x * clampf(float(t) / float(goal), 0.0, 1.0)
 	# 刻度：每秒一小刻、每 5 秒一大刻＋秒數
 	_ink_mode = true
@@ -827,20 +830,36 @@ func _draw_plan_timeline(R: Rect2) -> void:
 		for b in puzzle_plan.size():
 			var ta := PZ.plan_tick(pz, int(puzzle_plan[a]))
 			var tb := PZ.plan_tick(pz, int(puzzle_plan[b]))
-			if tb < ta or tb - ta > 60 or a == b:
-				continue
+			if tb < ta or tb - ta > 60 or a == b or (tb == ta and b < a):
+				continue   # 同一刻照排程順序（和 cmd_log 一致）
 			for ch in CHAINS:
 				if PZ.plan_skill(pz, int(puzzle_plan[a])) == int(ch[0]) and PZ.plan_skill(pz, int(puzzle_plan[b])) == int(ch[1]):
 					var xa: float = x_of.call(ta)
 					var xb: float = x_of.call(tb)
 					var mid := Vector2((xa + xb) * 0.5, ruler.position.y + 4)
 					draw_polyline(PackedVector2Array([Vector2(xa, ruler.position.y + 20), mid - Vector2(0, 10), Vector2(xb, ruler.position.y + 20)]), Color("#d4a017"), 3.0, true)
-					chains_on.append(str(ch[2]))
-	# 我方軍令：木棋子（技能圖示），選取的那一個金框
+					if not chains_on.has(str(ch[2])):
+						chains_on.append(str(ch[2]))
+	# 我方軍令：木棋子（技能圖示），選取的那一個金框。同一秒附近的棋子往右錯開、拉一條細線指回真正的時間（Codex v140-i4）
+	var pressed := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	var placed: Array = []
 	for i in puzzle_plan.size():
 		var t2 := PZ.plan_tick(pz, int(puzzle_plan[i]))
 		var cx: float = x_of.call(t2)
-		var cpos := Vector2(cx, ruler.position.y + 26)
+		var lane := 0
+		for px in placed:
+			if absf(float(px) - cx) < 30.0:
+				lane += 1
+		placed.append(cx)
+		var cpos := Vector2(cx + lane * 32.0, ruler.position.y + 26)
+		if lane > 0:
+			draw_line(Vector2(cx, ruler.position.y + 40), cpos + Vector2(-10, 10), Color(INK, 0.6), 1.4, true)
+		var hit := Rect2(cpos - Vector2(16, 16), Vector2(32, 32))
+		if pressed and not plan_press_prev and plan_drag < 0 and hit.has_point(mouse) and not pad_mode:
+			plan_drag = i
+			plan_sel = i
+		if plan_drag == i:
+			cpos.x = clampf(mouse.x, ruler.position.x, ruler.end.x)   # 拖曳中跟著滑鼠
 		var sk := PZ.plan_skill(pz, int(puzzle_plan[i]))
 		draw_circle(cpos + Vector2(0, 2), 15.0, Color(0.2, 0.12, 0.06, 0.5), true, -1.0, true)
 		draw_circle(cpos, 15.0, Color("#8a5f37"), true, -1.0, true)
@@ -850,6 +869,14 @@ func _draw_plan_timeline(R: Rect2) -> void:
 			_hand_ring(cpos, 19.0, ACCENT, 2.6, true)
 		var ii := i
 		_btns.append({"r": Rect2(cpos - Vector2(16, 16), Vector2(32, 32)), "cb": func(): plan_sel = ii, "en": true})
+	if plan_drag >= 0 and not pressed:
+		# 放開：照冷卻與開場限制修正後落子
+		if plan_drag < puzzle_plan.size():
+			var td := int(clampf((mouse.x - ruler.position.x) / ruler.size.x, 0.0, 1.0) * goal / 10.0) * 10
+			puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_drag, td - PZ.plan_tick(pz, int(puzzle_plan[plan_drag])))
+			sfx.play("place_light")
+		plan_drag = -1
+	plan_press_prev = pressed
 	# 點尺：把選取的軍令移過去（照冷卻與開場限制修正）
 	_btns.append({"r": Rect2(ruler.position.x, ruler.position.y + 44, ruler.size.x, ruler.size.y - 44), "cb": func():
 		var tt := int(clampf((mouse.x - ruler.position.x) / ruler.size.x, 0.0, 1.0) * goal / 10.0) * 10
@@ -867,7 +894,7 @@ func _draw_plan_timeline(R: Rect2) -> void:
 		var names: Array = []
 		for k in chains_on:
 			names.append(L.t(k))
-		_text(Vector2(R.position.x + 20, y), L.t("chain_on", ["、".join(names)]), tz("S"), Color("#ffd166"), false, true, R.size.x - 40)
+		_text(Vector2(R.position.x + 20, y), L.t("chain_on", [L.t("list_sep").join(names)]), tz("S"), Color("#ffd166"), false, true, R.size.x - 40)
 
 ## 第 i 次能設的範圍：不早於開場可放的時間、和前後兩次至少隔一個冷卻，不晚於局長（Codex v13-r1 #4）。
 func _plan_range(i: int) -> Array:

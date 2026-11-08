@@ -23,6 +23,7 @@ kill_win() { if [[ "$EXE" == *.exe ]]; then powershell.exe -NoProfile -Command "
 # V1.4 #17：加簡中、日文各 100％／150％（共 18 組）；快速版多跑日文 150％
 COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:150:plain zh_TW:150:cb en:150:cb zh_TW:150:pad en:150:pad zh_TW:150:dis en:150:dis zh_CN:100 zh_CN:150 ja:100 ja:150"
 [ "${LAYOUT_QUICK:-0}" = "1" ] && COMBOS="zh_TW:100 en:150 en:150:plain,cb,pad zh_TW:150:dis ja:150"
+[ -n "${LAYOUT_COMBOS:-}" ] && COMBOS="$LAYOUT_COMBOS"   # 只重跑指定組（修版面時用）
 export LAYOUT_N=$(echo $COMBOS | wc -w)
 for combo in $COMBOS; do
   IFS=: read -r lang sc st <<< "$combo"

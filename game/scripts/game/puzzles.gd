@@ -185,12 +185,23 @@ static func plan_fix(pz: Dictionary, plan: Array, i: int, d: int) -> Array:
 				idx.append(k)
 		idx.sort_custom(func(a, b): return plan_tick(pz, int(p2[a])) < plan_tick(pz, int(p2[b])))
 		var last := -100000
+		var over := false
 		for k in idx:
 			var t := maxi(plan_tick(pz, int(p2[k])), maxi(lo0, last + cd))
 			if t > lim:
-				return plan
+				over = true
 			p2[k] = plan_make(pz, int(sk), t)
 			last = t
+		if over:
+			# 往右推到底：改從局末往回壓（停在最右的合法位置，不整個退回，Antigravity v140-i4）
+			var nxt := lim + cd
+			for j in range(idx.size() - 1, -1, -1):
+				var k2: int = idx[j]
+				var t2 := mini(plan_tick(pz, int(p2[k2])), nxt - cd)
+				if t2 < lo0:
+					return plan
+				p2[k2] = plan_make(pz, int(sk), t2)
+				nxt = t2
 	return p2
 
 ## 技能關：玩家設定的施放 tick（plan）＋敵方寫死的時間 → 重播紀錄。
@@ -212,10 +223,11 @@ static func default_plan(pz: Dictionary) -> Array:
 		return out
 	var r = rules_of(pz)
 	var sks := skills_of(pz)
+	var t0: int = maxi(CMD.START_TICKS, int(pz.get("plan_min", 0)))
 	for k in sks.size():
 		for i in int(pz["cmd"].get("uses", 1)):
-			out.append(plan_make(pz, int(sks[k]), CMD.START_TICKS + i * r.cmd_cd + k * 40))   # 多技能：每種錯開 2 秒
-	return out
+			out.append(plan_make(pz, int(sks[k]), t0 + i * r.cmd_cd + k * 40))   # 多技能：每種錯開 2 秒
+	return plan_fix(pz, out, -1, 0)   # 保證合法（不早於 plan_min、不超過局長，Antigravity v140-i4）
 
 ## 格子座標的單位在模擬裡還活著嗎（team 0 用自己的欄，敵方用絕對欄）。
 static func unit_alive(sim, team: int, cell: Array) -> bool:

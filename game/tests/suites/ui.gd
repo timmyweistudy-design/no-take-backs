@@ -1000,3 +1000,47 @@ func test_l10n_v140() -> void:
 	ok(CX.text({"role_zh": "前排", "role_en": "Front", "role_ja": "前衛"}, "role", "ja") == "前衛", "圖鑑文字走語言後綴")
 	L0.lang = keep
 
+
+## V1.4 #18 觸控：長按 0.5 秒＝右鍵（擺陣時拿掉兵）；拖動就取消長按；雙指縮放有上下限。
+func test_touch_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g._start_mode(g.Mode.VS_AI)
+	g.armies[0].units = [{"type": 0, "col": 2, "row": 3}]
+	var at := Vector2(-1, -1)
+	for y in range(0, 800, 4):
+		for x in range(0, 1280, 4):
+			if g._cell_at(Vector2(x, y)) == Vector2i(2, 3):
+				at = Vector2(x, y)
+				break
+		if at.x >= 0:
+			break
+	ok(at.x >= 0, "找得到格子的畫面位置")
+	var t := InputEventScreenTouch.new()
+	t.pressed = true
+	t.position = at
+	g._touch_input(t)
+	var dr := InputEventScreenDrag.new()
+	dr.position = at + Vector2(30, 0)
+	g._touch_input(dr)
+	g._touch_tick(0.7)
+	g._process_cmds()
+	ok(g.armies[0].units.size() == 1, "拖動了就不是長按")
+	t.pressed = false
+	g._touch_input(t)
+	t.pressed = true
+	g._touch_input(t)
+	g._touch_tick(0.3)
+	g._process_cmds()
+	ok(g.armies[0].units.size() == 1, "0.3 秒還不算長按")
+	g._touch_tick(0.3)
+	g._process_cmds()
+	ok(g.armies[0].units.is_empty(), "長按 0.5 秒拿掉兵")
+	g._pinch_by(5.0, Vector2(640, 400))
+	ok(is_equal_approx(g.pinch_zoom, 2.0), "放大上限 2 倍")
+	g._pinch_by(0.01, Vector2(640, 400))
+	ok(is_equal_approx(g.pinch_zoom, 1.0), "縮小回全景為止")
+	g.free()
+

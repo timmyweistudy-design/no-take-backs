@@ -7,7 +7,6 @@ const LANGS := ["zh_TW", "en", "zh_CN", "ja"]   # V1.4 #17：簡中、日文（A
 ## V1.2.1 G3：資料檔（殘局、章節、試煉、圖鑑）的語言欄位後綴。之後加簡中、日文：這裡加 "zh_CN": "sc"、"ja": "ja"，
 ## strings.csv 加一欄、資料檔加 *_sc／*_ja 欄位、字型子集加字，程式不用再到處改。
 const SUFFIX := {"zh_TW": "zh", "en": "en", "zh_CN": "sc", "ja": "ja"}
-const UNPROOFED := ["zh_CN", "ja"]   # 設定頁標「未校對」
 static var _extra := {}   # data/l10n_extra.csv：程式裡的二元陣列（成就名、條件、AI 陣型名）其他語言的譯文，以中文原文為鍵
 
 ## 中文系（漢字、不用空白分詞、用全形標點）：版面、引號、斷行用。

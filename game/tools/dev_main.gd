@@ -1399,6 +1399,11 @@ func _shots_v13() -> void:
 	puzzle_id = "s1"
 	_start_mode(Mode.PUZZLE)
 	await _snap("84_place_plan.png")
+	puzzle_id = "c10"   # V1.4 #4：第 12 章軍令連鎖的時間軸（三道軍令、敵方隕石紅旗）
+	_start_mode(Mode.PUZZLE)
+	overlay = "puzzle_plan"
+	await _snap("84b_plan_chain.png")
+	overlay = ""
 	puzzle_id = "x1"
 	_start_mode(Mode.PUZZLE)
 	Save.data["puzzle_stars"]["x1"] = 0

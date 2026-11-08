@@ -124,8 +124,9 @@ const FRAMES := ["", "#3b2618", "#5d5a55", "#7a2620"]   # 棋盤框：地圖原�
 static var paint := [0, 0, 1, 1, 0, 0]   # 藍底漆、紅底漆、漬洗、乾掃、木座、棋盤框
 
 static func team_color(team: int, cb := false) -> Color:
-	if not cb and int(paint[team]) > 0:
-		return PAINTS[team][int(paint[team])]
+	var pi := clampi(int(paint[team]), 0, 3)
+	if not cb and pi > 0:
+		return PAINTS[team][pi]
 	return TEAM[1 if cb else 0][team]
 
 static func paint_sig() -> String:

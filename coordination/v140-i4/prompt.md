@@ -1,0 +1,1003 @@
+你是《落子無悔》（Godot 4.6.2 確定性自動對決、桌上戰棋沙盤風格：木框、羊皮紙、墨字、手繪線）V1.4.0 的審查者。這一批三項：
+- #4 軍令連鎖：殘局關卡可帶多個手動技能（計畫編碼 tick*8+skill，各技能各自冷卻），玩家在「木刻度尺」時間軸排施放時間（拖曳、◀▶ 微調、冷卻帶、敵方技能紅旗、連鎖提示弧線）；新增第 12 章 10 關（爬山求解訂星）。
+- #15 塗裝室：戰績頁進入。兩軍各 4 種同色系底漆、漬洗／乾掃 3 段（烘焙圖集後處理 shader 的 sh_amt／hi_amt）、木座 4 種木料、棋盤框 4 種；成就數解鎖；色盲配色時不換色；改了要重烘圖集（簽章 paint_sig）。
+- #17 簡中、日文：LANGS 加 zh_CN、ja；簡中 OpenCC tw2sp 轉＋用語修正；日文由 Codex 翻（未校對，設定頁說明有標）；字型 Resource Han Rounded CN、源泉圓體 JP 子集，缺字落回繁中字型；日文行首禁則；成就名等程式內二元陣列走 data/l10n_extra.csv；資料欄位後綴 _sc／_ja，缺的退回英文。
+請找真正的問題：狀態錯誤（切換語言後字型、快取、存檔清洗、paint 存檔與圖集重烘時機、headless/測試環境）、邊界（索引越界、舊存檔、缺欄位）、在地化品質（抽樣譯文是否自然、是否像機器翻譯、用語是否一致、簡中是否有台灣用語殘留）、介面是否好懂與風格一致。每條給：嚴重度（高/中/低）、位置、重現情境、建議修法。不用稱讚。繁體中文回答。
+
+diff --git a/game/scripts/game/puzzles.gd b/game/scripts/game/puzzles.gd
+index e891685..d0a73d5 100644
+--- a/game/scripts/game/puzzles.gd
++++ b/game/scripts/game/puzzles.gd
+@@ -8,7 +8,7 @@ const RS = preload("res://scripts/core/ruleset.gd")
+ const Sim = preload("res://scripts/core/battle_sim.gd")
+ const CMD = preload("res://scripts/core/cmd_defs.gd")
+ ## 第十三輪：10 章，每章 10 關（V1.1 加第 11 章）。1＝經典 p、2＝新兵 n＋extra、3＝奇幻 f，其他都在 extra（"ch" 欄）。
+-const CHAPTERS := 11   # V1.1：第 11 章完美主義
++const CHAPTERS := 12   # V1.1：第 11 章完美主義
+ const GOALS := ["win", "protect", "survive", "kill", "flawless", "margin"]   # V1.1 D5：後兩種只看戰後狀態
+ const MAP_SIZE := 1             # 地形殘局只用中尺寸（16×9＝格子殘局的場地）
+ 
+@@ -141,19 +141,65 @@ static func rules_of(pz: Dictionary):
+ 		var em := 0
+ 		for e in c.get("enemy", []):
+ 			em |= 1 << int(e[1])
+-		r.cmd_mask = [1 << int(c["skill"]), em]
++		var mm := 0
++		for sk in skills_of(pz):
++			mm |= 1 << int(sk)
++		r.cmd_mask = [mm, em]
+ 		r.cmd_uses = int(c.get("uses", 1))
+ 		r.cmd_cd = int(c.get("cd", CMD.CD_TICKS[0]))
+ 		r.cmd_power = 100
+ 	return r
+ 
++## V1.4 #4 軍令連鎖：一關可以給多種技能（cmd.skills）。多技能關的 plan 每一筆是「tick × 8 ＋ 技能」，
++## 單技能關照舊只存 tick（舊關卡、舊存檔、三星解都不變）。
++static func multi(pz: Dictionary) -> bool:
++	return pz.has("cmd") and pz["cmd"].has("skills")
++
++static func skills_of(pz: Dictionary) -> Array:
++	if not pz.has("cmd"):
++		return []
++	return pz["cmd"]["skills"] if multi(pz) else [int(pz["cmd"]["skill"])]
++
++static func plan_tick(pz: Dictionary, e: int) -> int:
++	return e / 8 if multi(pz) else e
++
++static func plan_skill(pz: Dictionary, e: int) -> int:
++	return e % 8 if multi(pz) else int(pz["cmd"]["skill"])
++
++static func plan_make(pz: Dictionary, skill: int, tick: int) -> int:
++	return tick * 8 + skill if multi(pz) else tick
++
++## 多技能關：把第 i 筆往後挪 d tick，再讓同一種技能前後至少隔一個冷卻、不早於開場、不晚於局長。
++## 遊戲面板與求解器共用（Codex v13-r1 #4 的同一套限制）。
++static func plan_fix(pz: Dictionary, plan: Array, i: int, d: int) -> Array:
++	var cd: int = rules_of(pz).cmd_cd
++	var lim: int = int(pz.get("goal_ticks", 1800)) - 10
++	var lo0: int = maxi(CMD.START_TICKS, int(pz.get("plan_min", 0)))
++	var p2: Array = plan.duplicate()
++	if i >= 0 and i < p2.size():
++		p2[i] = plan_make(pz, plan_skill(pz, int(p2[i])), clampi(plan_tick(pz, int(p2[i])) + d, lo0, lim))
++	for sk in skills_of(pz):
++		var idx: Array = []
++		for k in p2.size():
++			if plan_skill(pz, int(p2[k])) == int(sk):
++				idx.append(k)
++		idx.sort_custom(func(a, b): return plan_tick(pz, int(p2[a])) < plan_tick(pz, int(p2[b])))
++		var last := -100000
++		for k in idx:
++			var t := maxi(plan_tick(pz, int(p2[k])), maxi(lo0, last + cd))
++			if t > lim:
++				return plan
++			p2[k] = plan_make(pz, int(sk), t)
++			last = t
++	return p2
++
+ ## 技能關：玩家設定的施放 tick（plan）＋敵方寫死的時間 → 重播紀錄。
+ static func cmd_log(pz: Dictionary, plan: Array) -> Array:
+ 	if not pz.has("cmd"):
+ 		return []
+ 	var log: Array = []
+-	for t in plan:
+-		log.append([int(t), 0, int(pz["cmd"]["skill"])])
++	for e in plan:
++		log.append([plan_tick(pz, int(e)), 0, plan_skill(pz, int(e))])
+ 	for e in pz["cmd"].get("enemy", []):
+ 		log.append([int(e[0]), 1, int(e[1])])
+ 	log.sort_custom(func(a, b): return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
+@@ -165,8 +211,10 @@ static func default_plan(pz: Dictionary) -> Array:
+ 	if not pz.has("cmd"):
+ 		return out
+ 	var r = rules_of(pz)
+-	for i in int(pz["cmd"].get("uses", 1)):
+-		out.append(CMD.START_TICKS + i * r.cmd_cd)
++	var sks := skills_of(pz)
++	for k in sks.size():
++		for i in int(pz["cmd"].get("uses", 1)):
++			out.append(plan_make(pz, int(sks[k]), CMD.START_TICKS + i * r.cmd_cd + k * 40))   # 多技能：每種錯開 2 秒
+ 	return out
+ 
+ ## 格子座標的單位在模擬裡還活著嗎（team 0 用自己的欄，敵方用絕對欄）。
+diff --git a/game/scripts/game/codex.gd b/game/scripts/game/codex.gd
+index 27329c8..e0020a1 100644
+--- a/game/scripts/game/codex.gd
++++ b/game/scripts/game/codex.gd
+@@ -5,6 +5,7 @@ extends RefCounted
+ const D = preload("res://scripts/core/unit_defs.gd")
+ const Sim = preload("res://scripts/core/battle_sim.gd")
+ const Army = preload("res://scripts/core/army.gd")
++const L = preload("res://scripts/game/strings.gd")
+ 
+ 
+ static var _data := {}
+@@ -30,9 +31,10 @@ static func skill(id: String) -> Dictionary:
+ 
+ ## 取一個欄位的當前語言版本（xxx_zh／xxx_en；技能名稱是 zh／en）。
+ static func text(d: Dictionary, field: String, lang: String) -> String:
+-	var suf := "zh" if lang == "zh_TW" else "en"
++	var suf: String = L.SUFFIX.get(lang, "en")
+ 	var k := suf if field == "" else "%s_%s" % [field, suf]
+-	return str(d.get(k, d.get("zh" if field == "" else field + "_zh", "")))
++	var en_k := "en" if field == "" else field + "_en"
++	return str(d.get(k, d.get(en_k, d.get("zh" if field == "" else field + "_zh", ""))))
+ 
+ ## 技能說明：把 {常數名} 換成 unit_defs 的值。找不到的常數原樣保留（validate 會抓出來）。
+ static func skill_desc(id: String, lang: String) -> String:
+diff --git a/game/scripts/game/steam.gd b/game/scripts/game/steam.gd
+index 399acf6..9925b4a 100644
+--- a/game/scripts/game/steam.gd
++++ b/game/scripts/game/steam.gd
+@@ -3,6 +3,7 @@ extends RefCounted
+ ## 遊戲其他地方只呼叫這裡，換 SDK 版本只要改這個檔。
+ 
+ const Save = preload("res://scripts/game/save.gd")
++const L = preload("res://scripts/game/strings.gd")
+ 
+ const ACHIEVEMENTS := {
+ 	"FIRST_WIN": ["初陣告捷", "First Victory"],
+@@ -65,7 +66,7 @@ static func available() -> bool:
+ 
+ static func name_of(id: String, lang: String) -> String:
+ 	var n: Array = ACHIEVEMENTS.get(id, [id, id])
+-	return n[0] if lang == "zh_TW" else n[1]
++	return str(L.pick_for(n[0], n[1], lang))
+ 
+ ## 解鎖成就；回傳 true 表示這次是新解鎖（畫面要跳提示）。
+ static func unlock(id: String) -> bool:
+diff --git a/game/scripts/game/strings.gd b/game/scripts/game/strings.gd
+index 81e2ba2..c3b8dc5 100644
+--- a/game/scripts/game/strings.gd
++++ b/game/scripts/game/strings.gd
+@@ -3,10 +3,16 @@ extends RefCounted
+ 
+ static var _table := {}
+ static var lang := "zh_TW"
+-const LANGS := ["zh_TW", "en"]
++const LANGS := ["zh_TW", "en", "zh_CN", "ja"]   # V1.4 #17：簡中、日文（AI 翻譯，未經母語校對）
+ ## V1.2.1 G3：資料檔（殘局、章節、試煉、圖鑑）的語言欄位後綴。之後加簡中、日文：這裡加 "zh_CN": "sc"、"ja": "ja"，
+ ## strings.csv 加一欄、資料檔加 *_sc／*_ja 欄位、字型子集加字，程式不用再到處改。
+-const SUFFIX := {"zh_TW": "zh", "en": "en"}
++const SUFFIX := {"zh_TW": "zh", "en": "en", "zh_CN": "sc", "ja": "ja"}
++const UNPROOFED := ["zh_CN", "ja"]   # 設定頁標「未校對」
++static var _extra := {}   # data/l10n_extra.csv：程式裡的二元陣列（成就名、條件、AI 陣型名）其他語言的譯文，以中文原文為鍵
++
++## 中文系（漢字、不用空白分詞、用全形標點）：版面、引號、斷行用。
++static func cjk(l := "") -> bool:
++	return (lang if l == "" else l) != "en"
+ 
+ ## 依目前語言取資料欄位：field(pz, "") → pz["zh"]／pz["en"]；field(pz, "hint") → pz["hint_zh"]／pz["hint_en"]。缺的退回英文、再退回中文。
+ static func field(d: Dictionary, base: String) -> String:
+@@ -18,7 +24,33 @@ static func field(d: Dictionary, base: String) -> String:
+ 
+ ## 二選一的舊資料（[中文, 英文]）：之後加語言時改成字典。
+ static func pick(zh, en):
+-	return zh if lang == "zh_TW" else en
++	return pick_for(zh, en, lang)
++
++static func pick_for(zh, en, l: String):
++	if l == "zh_TW":
++		return zh
++	if l == "en":
++		return en
++	_load_extra()
++	var s: String = str(_extra.get(str(zh), {}).get(l, ""))
++	return s if s != "" else en
++
++static func _load_extra() -> void:
++	if not _extra.is_empty():
++		return
++	_extra["_"] = {}
++	var f := FileAccess.open("res://data/l10n_extra.csv", FileAccess.READ)
++	if f == null:
++		return
++	var header := f.get_csv_line()
++	while not f.eof_reached():
++		var row := f.get_csv_line()
++		if row.size() < header.size() or row[0] == "":
++			continue
++		var d := {}
++		for i in range(1, header.size()):
++			d[header[i]] = row[i]
++		_extra[row[0]] = d
+ 
+ static func load_table() -> void:
+ 	if not _table.is_empty():
+@@ -40,7 +72,9 @@ static func load_table() -> void:
+ static func t(key: String, args: Array = []) -> String:
+ 	load_table()
+ 	var d: Dictionary = _table.get(key, {})
+-	var s: String = d.get(lang, d.get("zh_TW", key))
++	var s: String = d.get(lang, "")
++	if s == "":
++		s = d.get("en", d.get("zh_TW", key))   # 沒翻到的退回英文
+ 	if s == "":
+ 		s = key
+ 	if args.is_empty():
+diff --git a/game/scripts/ui/art.gd b/game/scripts/ui/art.gd
+index bfc6991..2109b61 100644
+--- a/game/scripts/ui/art.gd
++++ b/game/scripts/ui/art.gd
+@@ -206,9 +206,10 @@ static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false,
+ ## 厚木座：下緣 2.5px 深色厚度、頂面木色、上緣 1px 亮倒角（深色地面也看得出邊）。
+ static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
+ 	# 比隊伍圈寬一圈（rx 21），外露的木邊看得出是棋子底座（Antigravity v130-impl1：原本被隊伍圈蓋住）
+-	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale), Color(0.30, 0.20, 0.12, 0.85 * a))
+-	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(0.56, 0.41, 0.26, 0.92 * a))
+-	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(0.62, 0.47, 0.30, 0.6 * a))
++	var wd: Array = WOODS[clampi(int(paint[4]), 0, 3)]   # V1.4 #15：木座木料
++	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale), Color(wd[0], 0.85 * a))
++	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(wd[1], 0.92 * a))
++	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(wd[2], 0.6 * a))
+ 	ci.draw_arc(p + Vector2(0, -0.2) * scale, 20.4 * scale, PI * 1.08, PI * 1.92, 14, Color(1.0, 0.9, 0.7, 0.5 * a), 1.1 * scale, true)
+ 
+ ## 接觸影子（角色腳下）。
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 6bb20d0..37a8233 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -233,7 +233,8 @@ func _draw_field() -> void:
+ 	ring_shadow = float(fbi.get("shadow", 0.0))
+ 	if fld_map != 0:
+ 		MapArt.draw_outfield(self, Rect2(ORIGIN, FIELD), str(MapDefs.MAPS[fld_map]["biome"]))
+-	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632")))
++	var fr_i := clampi(int(Art.paint[5]), 0, 3)   # V1.4 #15 棋盤框
++	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632") if fr_i == 0 else Art.FRAMES[fr_i]))
+ 	if fld_map != 0:
+ 		var mt := _map_tex()
+ 		if mt != null:
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 07cc36e..c07bb17 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -227,7 +227,9 @@ func _draw_title() -> void:
+ 	_btn(dr, "", func(): call("_start_daily"), not _demo())
+ 	_icon("dice", dr.position + Vector2(22, 22), 22.0, ACCENT if not _demo() else Color(1, 1, 1, 0.35))
+ 	_text(dr.position + Vector2(40, 22 - tz("S") * 0.68), L.t("menu_daily"), tz("S"), Color.WHITE, false, true, 86)
+-	_text(dr.position + Vector2(162, 22 - tz("C") * 0.68), str(call("_daily_caption")), tz("C"), ACCENT, true, false, 84)
++	var dcap := str(call("_daily_caption"))
++	if _width(dcap, tz("C")) <= 84.0:   # 放不下一行就不放（今日名稱在每日挑戰頁看得到；V1.4 版面檢查：英文 150% 會折兩行壓到下一排）
++		_text(dr.position + Vector2(162, 22 - tz("C") * 0.68), dcap, tz("C"), ACCENT, true, false, 84)
+ 	# V1.4 #16：遊戲間（觀戰競猜、輪抽）
+ 	_btn(Rect2(282, y1, 118, 44), L.t("menu_playroom"), func(): overlay = "playroom", not _demo())
+ 	var y2 := y1 + 54
+@@ -265,6 +267,8 @@ func _draw_overlay() -> void:
+ 			_draw_profile()
+ 		"nemeses":
+ 			_draw_nemeses()
++		"paint":
++			_draw_paint()
+ 		"relay":
+ 			_draw_relay()
+ 		"postcard":
+@@ -425,7 +429,7 @@ func _apply_volumes(sample: String) -> void:
+ func _settings_rows() -> Array:
+ 	var groups := {
+ 		# V1.2.1 G3：語言在 L.LANGS 裡循環（單一來源）
+-		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang")],
++		0: [["set_lang", L.t("lang_name") + ("（%s）" % L.t("lang_unproofed") if L.lang in L.UNPROOFED else ""), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
+ 			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
+ 			["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
+ 			["set_fullscreen", _onoff("fullscreen"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()]],
+diff --git a/game/scripts/ui/sprite_cache.gd b/game/scripts/ui/sprite_cache.gd
+index ecc8e4f..dc16b28 100644
+--- a/game/scripts/ui/sprite_cache.gd
++++ b/game/scripts/ui/sprite_cache.gd
+@@ -49,6 +49,7 @@ var wt_pages: Array = []         # V1.3.1：走路轉身頁
+ var wt_loc := {}                 # 兵種 → [頁, 起始格]
+ var fid_tex: Texture2D = null    # V1.3.1：待機小動作＋受擊帽子
+ var fid_loc := {}
++var ready_paint := ""     # V1.4 #15：這份快取是用哪套塗裝烘的
+ var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
+ var _busy := false
+ var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
+@@ -56,7 +57,7 @@ var _queue: Array = []
+ var _baking: Array = []
+ 
+ func is_ready(cb: bool) -> bool:
+-	return ring_tex != null and ready_cb == (1 if cb else 0)
++	return ring_tex != null and ready_cb == (1 if cb else 0) and ready_paint == Art.paint_sig()
+ 
+ func has_type(t: int) -> bool:
+ 	return loc.has(t)
+@@ -86,6 +87,7 @@ func build(cb: bool) -> void:
+ 	fid_tex = null
+ 	fid_loc.clear()
+ 	ready_cb = 1 if cb else 0
++	ready_paint = Art.paint_sig()
+ 	var base: Array = []
+ 	for t in D.COUNT:
+ 		base.append(t)
+@@ -226,6 +228,8 @@ func _post(img: Image, per := FRAMES_PER) -> Image:
+ 	mat.set_shader_parameter("cell", float(CELL))
+ 	mat.set_shader_parameter("per", float(per))
+ 	mat.set_shader_parameter("cols", float(COLS))
++	mat.set_shader_parameter("sh_amt", float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]))   # V1.4 #15 漬洗
++	mat.set_shader_parameter("hi_amt", float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))    # 乾掃
+ 	tr.material = mat
+ 	var vp := _viewport(Vector2i(img.get_width(), img.get_height()), tr)
+ 	await RenderingServer.frame_post_draw
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 35ebcd1..2bd61a2 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -355,13 +355,25 @@ func _tnum(f: Font) -> Font:
+ func _load_fonts() -> void:
+ 	var reg := _load_font("res://fonts/NTBRounded-R-sub.otf")
+ 	var bold := _load_font("res://fonts/NTBRounded-B-sub.otf")
++	# V1.4 #17：簡中用 Resource Han Rounded CN、日文用源泉圓體 JP（都是 OFL 子集）；缺字再落到繁中字型
++	var alt: String = {"zh_CN": "SC", "ja": "JP"}.get(L.lang, "")
++	if alt != "" and ResourceLoader.exists("res://fonts/NTBRounded%s-R-sub.otf" % alt):
++		var r2 = load("res://fonts/NTBRounded%s-R-sub.otf" % alt)
++		var b2 = load("res://fonts/NTBRounded%s-B-sub.otf" % alt)
++		if r2 is FontFile and b2 is FontFile:
++			r2 = r2.duplicate()
++			b2 = b2.duplicate()
++			r2.fallbacks = [reg]
++			b2.fallbacks = [bold]
++			reg = r2
++			bold = b2
+ 	font = _latin_over("res://fonts/NTBLatin-M-sub.ttf", reg)
+ 	font_bold = _latin_over("res://fonts/NTBLatin-B-sub.ttf", bold)
+ 	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
+ 		var tk = load("res://fonts/ThenKhung-sub.ttf")
+ 		if tk is FontFile:
+ 			tk.fallbacks = [bold]
+-			font_title = tk
++			font_title = tk if alt == "" else bold   # 標題字只有繁中字形，簡中、日文的標題用圓體粗體（字形才一致）
+ 
+ 
+ func _apply_fullscreen() -> void:
+@@ -463,6 +475,8 @@ func _width(s: String, size: int, bold := false) -> float:
+ 	return w
+ 
+ ## 換行（第五輪）：中日韓逐字斷、英文逐詞斷；保留原本的 \n。回傳行陣列。
++const NO_LINE_HEAD := "。，、）」』！？；：%”’ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶーゝゞヽヾ・"
++
+ func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStringArray:
+ 	var out := PackedStringArray()
+ 	for para in s.split("\n"):
+@@ -484,7 +498,8 @@ func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStrin
+ 				i += 1
+ 			if cur != "" and _width(cur + tok, size, bold) > maxw:
+ 				# 避頭點（第六輪截圖）：句號、逗號、右括號不放行首——把上一行最後一個字一起帶到下一行（不掛出框外）
+-				if tok.length() == 1 and "。，、）」』！？；：%".contains(tok) and cur.length() > 1 and cur.unicode_at(cur.length() - 1) >= 0x2E80:
++				# V1.4 #17：日文另加小假名、長音、中黑點不放行首；簡中的右引號也算
++				if tok.length() == 1 and NO_LINE_HEAD.contains(tok) and cur.length() > 1 and cur.unicode_at(cur.length() - 1) >= 0x2E80:
+ 					out.append(cur.substr(0, cur.length() - 1).strip_edges(false, true))
+ 					cur = cur.substr(cur.length() - 1) + tok
+ 				else:
+diff --git a/game/scripts/ui/units/kit.gd b/game/scripts/ui/units/kit.gd
+index 91e097e..49f9b34 100644
+--- a/game/scripts/ui/units/kit.gd
++++ b/game/scripts/ui/units/kit.gd
+@@ -111,9 +111,26 @@ const FEATURE_EYES := {10: Vector2(1.5, -13), 13: Vector2(3, -17), 18: Vector2(3
+ 	11: Vector2(16.5, -23), 14: Vector2(2.0, -40), 17: Vector2(5.5, -36), 21: Vector2(0.5, -33)}   # V1.3.1：羊、幽靈、骷髏法師、骷髏也吃得到表情（Codex v131-impl1）
+ 
+ 
++## V1.4 #15 塗裝室：每隊 4 種底漆（第 0 種＝原色；同色系，敵我一眼還分得開）、漬洗／乾掃深淺、木座 4 種木料、棋盤框 4 種。
++## 色盲配色時一律用原本的色盲色（塗裝不能蓋掉無障礙）。
++const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]
++const WASH := [0.12, 0.20, 0.32]     # 烘焙後處理的底部陰影（shaders/unit_bake.gdshader 的 sh_amt）
++const DRY := [0.04, 0.09, 0.16]      # 頂部亮邊（hi_amt）
++const WOODS := [[Color(0.30, 0.20, 0.12), Color(0.56, 0.41, 0.26), Color(0.62, 0.47, 0.30)],   # 橡木（原本）
++	[Color(0.20, 0.12, 0.07), Color(0.38, 0.24, 0.14), Color(0.45, 0.30, 0.18)],   # 胡桃
++	[Color(0.09, 0.08, 0.08), Color(0.20, 0.18, 0.17), Color(0.27, 0.24, 0.22)],   # 烏木
++	[Color(0.42, 0.30, 0.10), Color(0.74, 0.58, 0.26), Color(0.84, 0.69, 0.36)]]   # 黃銅
++const FRAMES := ["", "#3b2618", "#5d5a55", "#7a2620"]   # 棋盤框：地圖原色、胡桃、石、朱漆
++static var paint := [0, 0, 1, 1, 0, 0]   # 藍底漆、紅底漆、漬洗、乾掃、木座、棋盤框
++
+ static func team_color(team: int, cb := false) -> Color:
++	if not cb and int(paint[team]) > 0:
++		return PAINTS[team][int(paint[team])]
+ 	return TEAM[1 if cb else 0][team]
+ 
++static func paint_sig() -> String:
++	return str(paint[0], paint[1], paint[2], paint[3], paint[4])
++
+ 
+ static func _smooth(u: float) -> float:
+ 	return u * u * (3.0 - 2.0 * u)
+diff --git a/game/tools/gen/fontchars.py b/game/tools/gen/fontchars.py
+new file mode 100644
+index 0000000..27451d3
+--- /dev/null
++++ b/game/tools/gen/fontchars.py
+@@ -0,0 +1,65 @@
++"""V1.4 #17：字型子集與涵蓋檢查共用的「要用到哪些字」。
++base_text：繁中＋英文（strings.csv 的 zh_TW／en、資料檔不是 _sc／_ja 的欄位、程式字串常值、credits）。
++lang_text：某一語言（zh_CN／ja）自己的字。"""
++import csv, glob, json, os, re
++
++EXTRA = "★☆✓✗✦●◆■□｜・…×％（）：，。！？「」、"
++ALT = {"zh_CN": "sc", "ja": "ja"}
++
++
++def _walk(o, keep, out):
++    if isinstance(o, dict):
++        for k, v in o.items():
++            if isinstance(v, str):
++                if keep(k):
++                    out.update(v)
++            else:
++                _walk(v, keep, out)
++    elif isinstance(o, list):
++        for x in o:
++            if isinstance(x, str):
++                if keep(""):   # 字串陣列算原文（繁中／英文）
++                    out.update(x)
++            else:
++                _walk(x, keep, out)
++
++
++def _alt_key(k):
++    return any(k == s or k.endswith("_" + s) for s in ALT.values())
++
++
++def base_text(root, extra=True):
++    t = set()
++    with open(os.path.join(root, "data/strings.csv"), encoding="utf-8", newline="") as f:
++        for row in csv.DictReader(f):
++            for c in ("key", "zh_TW", "en"):
++                t.update(row.get(c, "") or "")
++    for fn in glob.glob(os.path.join(root, "data/*.json")):
++        _walk(json.load(open(fn, encoding="utf-8")), lambda k: not _alt_key(k), t)
++    for fn in glob.glob(os.path.join(root, "data/*.txt")):
++        t.update(open(fn, encoding="utf-8").read())
++    for fn in glob.glob(os.path.join(root, "scripts/**/*.gd"), recursive=True):
++        t.update("".join(re.findall(r'"(?:[^"\\\n]|\\.)*"', open(fn, encoding="utf-8").read())))
++    t.update(chr(c) for c in range(0x20, 0x7F))
++    if extra:
++        t.update(EXTRA)
++    return "".join(sorted(c for c in t if c.isprintable()))
++
++
++def lang_text(root, col, extra=True):
++    suf = ALT[col]
++    t = set()
++    with open(os.path.join(root, "data/strings.csv"), encoding="utf-8", newline="") as f:
++        for row in csv.DictReader(f):
++            t.update(row.get(col, "") or "")
++    ex = os.path.join(root, "data/l10n_extra.csv")
++    if os.path.exists(ex):
++        with open(ex, encoding="utf-8", newline="") as f:
++            for row in csv.DictReader(f):
++                t.update(row.get(col, "") or "")
++    for fn in glob.glob(os.path.join(root, "data/*.json")):
++        _walk(json.load(open(fn, encoding="utf-8")), lambda k: k == suf or k.endswith("_" + suf), t)
++    t.update(chr(c) for c in range(0x20, 0x7F))
++    if extra:
++        t.update(EXTRA + "“”")
++    return "".join(sorted(c for c in t if c.isprintable()))
+diff --git a/tools/gen/l10n_build.py b/tools/gen/l10n_build.py
+new file mode 100644
+index 0000000..cc6c8f0
+--- /dev/null
++++ b/tools/gen/l10n_build.py
+@@ -0,0 +1,103 @@
++#!/usr/bin/env python3
++"""V1.4 #17：把簡中、日文寫進遊戲資料。
++用法：PYTHONPATH=build/pylib17 python3 tools/gen/l10n_build.py <日文譯稿資料夾（ja_*.json）>
++- 簡中：OpenCC tw2sp（台灣正體→大陸簡體＋慣用詞），再套 FIX 修正遊戲用語。
++- 日文：Codex 譯稿（{id: 日文}）；缺的、佔位符對不上的退回英文並列出來。
++- 寫入：strings.csv 加 zh_CN、ja 兩欄；puzzles/trials/codex.json 加 *_sc、*_ja；data/l10n_extra.csv（程式裡的二元陣列）。
++重跑會覆蓋舊的簡中／日文欄位。翻譯是 AI 產生、未經母語校對（設定頁有標示）。
++"""
++import csv, io, json, re, sys
++from pathlib import Path
++from opencc import OpenCC
++
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import l10n_extract as X
++
++ROOT = Path(__file__).resolve().parents[2]
++G = ROOT / "game"
++cc = OpenCC("tw2sp")
++FIX = [("缺省", "预设"), ("殘局", "残局"), ("土豆", "马铃薯")]
++LANG_NAME = {"zh_CN": "简体中文", "ja": "日本語"}
++OVERRIDE = {("ja", "title"): "落子無悔", ("ja", "lang_unproofed"): "AI翻訳・未校正", ("zh_CN", "lang_unproofed"): "AI 翻译・未校对"}
++PH = re.compile(r"%[-+0-9.]*[sdf]|\{[A-Z0-9_]+\}")
++
++
++def sc(s):
++    t = cc.convert(s)
++    for a, b in FIX:
++        t = t.replace(a, b)
++    return t
++
++
++def load_ja(d):
++    ja = {}
++    for f in sorted(Path(d).glob("ja_*.json")):
++        txt = f.read_text(encoding="utf-8").strip()
++        txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt)
++        try:
++            ja.update(json.loads(txt))
++        except Exception as e:
++            print("讀不到", f.name, e)
++    return ja
++
++
++def main():
++    ja = load_ja(sys.argv[1])
++    bad = []
++
++    def jp(item):
++        v = ja.get(item["id"], "")
++        if not isinstance(v, str) or not v.strip():
++            bad.append((item["id"], "沒翻"))
++            return item["en"] or item["zh"]
++        if sorted(PH.findall(v)) != sorted(PH.findall(item["zh"])):
++            bad.append((item["id"], "佔位符不同"))
++            return item["en"] or item["zh"]
++        return v
++
++    # strings.csv
++    p = G / "data/strings.csv"
++    rows = list(csv.reader(open(p, encoding="utf-8", newline="")))
++    head = rows[0][:3]
++    out = [head + ["zh_CN", "ja"]]
++    for r in rows[1:]:
++        if not r:
++            continue
++        k, zh, en = r[0], r[1], r[2]
++        if k == "lang_name":
++            out.append([k, zh, en, LANG_NAME["zh_CN"], LANG_NAME["ja"]])
++            continue
++        out.append([k, zh, en, OVERRIDE.get(("zh_CN", k), sc(zh)), OVERRIDE.get(("ja", k)) or jp({"id": "s:" + k, "zh": zh, "en": en})])
++    buf = io.StringIO()
++    csv.writer(buf, lineterminator="\n").writerows(out)
++    p.write_text(buf.getvalue(), encoding="utf-8")
++    # 資料檔
++    for fn in X.DATA:
++        fp = G / "data" / fn
++        d = json.load(open(fp, encoding="utf-8"))
++        items = []
++        X.walk(d, "", fn, items)
++        for it in items:
++            _, _, path, base = it["id"].split(":", 3)
++            o = d
++            for seg in [s for s in path.split(".") if s != ""]:
++                o = o[int(seg)] if isinstance(o, list) else o[seg]
++            pre = base + "_" if base else ""
++            o[pre + "sc"] = sc(it["zh"])
++            o[pre + "ja"] = jp(it) if it["zh"].strip() else ""
++        json.dump(d, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=2 if fn == "trials.json" else 1)
++    # 程式裡的二元陣列
++    ex = X.extra()
++    buf = io.StringIO()
++    w = csv.writer(buf, lineterminator="\n")
++    w.writerow(["zh_TW", "zh_CN", "ja"])
++    for it in ex:
++        w.writerow([it["zh"], sc(it["zh"]), jp(it)])
++    (G / "data/l10n_extra.csv").write_text(buf.getvalue(), encoding="utf-8")
++    print("簡中、日文寫入完成；日文退回英文 %d 筆" % len(bad))
++    for i, why in bad[:40]:
++        print("  ", why, i)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tools/gen/l10n_extract.py b/tools/gen/l10n_extract.py
+new file mode 100644
+index 0000000..bb22fd7
+--- /dev/null
++++ b/tools/gen/l10n_extract.py
+@@ -0,0 +1,77 @@
++#!/usr/bin/env python3
++"""V1.4 #17：把要翻成日文的所有文字抽成批次（給 Codex 翻；簡中用 OpenCC 轉，不用翻）。
++用法：python3 tools/gen/l10n_extract.py <輸出資料夾> [每批筆數]
++輸出 batch_NN.json：[{"id": ..., "zh": 中文, "en": 英文}]。id 規則：
++  s:<key>　　　　　strings.csv
++  d:<檔名>:<json 路徑>:<欄位基底>　資料檔（例 d:puzzles.json:extra.3:hint）
++  x:<中文>　　　　　程式裡的二元陣列（成就名、成就條件、AI 陣型名）
++"""
++import csv, json, os, re, sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[2]
++G = ROOT / "game"
++DATA = ["puzzles.json", "trials.json", "codex.json"]
++
++
++def strings():
++    out = []
++    with open(G / "data/strings.csv", encoding="utf-8", newline="") as f:
++        for row in csv.DictReader(f):
++            out.append({"id": "s:" + row["key"], "zh": row["zh_TW"], "en": row["en"]})
++    return out
++
++
++def walk(o, path, fname, out):
++    if isinstance(o, dict):
++        for k, v in o.items():
++            m = re.fullmatch(r"(?:(.+)_)?zh", k)
++            if m and isinstance(v, str):
++                base = m.group(1) or ""
++                en = o.get((base + "_" if base else "") + "en", "")
++                out.append({"id": "d:%s:%s:%s" % (fname, path, base), "zh": v, "en": en if isinstance(en, str) else ""})
++            elif isinstance(v, (dict, list)):
++                walk(v, path + "." + k if path else k, fname, out)
++    elif isinstance(o, list):
++        for i, x in enumerate(o):
++            walk(x, path + "." + str(i) if path else str(i), fname, out)
++
++
++def data():
++    out = []
++    for fn in DATA:
++        walk(json.load(open(G / "data" / fn, encoding="utf-8")), "", fn, out)
++    return out
++
++
++def extra():
++    """程式裡的 ["中文", "English"] 二元陣列與 AI 陣型名。"""
++    out, seen = [], set()
++    pair = re.compile(r'\[\s*"([^"]*[一-鿿][^"]*)"\s*,\s*"([^"]*)"\s*\]')
++    for fn in ["scripts/game/steam.gd", "scripts/ui/screens/game_modes.gd"]:
++        txt = open(G / fn, encoding="utf-8").read()
++        for zh, en in pair.findall(txt):
++            if zh not in seen:
++                seen.add(zh)
++                out.append({"id": "x:" + zh, "zh": zh, "en": en})
++    txt = open(G / "scripts/ui/screens/game_core.gd", encoding="utf-8").read()
++    m = re.search(r"const AI_TPL_EN := \{(.*?)\}", txt, re.S)
++    for zh, en in re.findall(r'"([^"]+)":\s*"([^"]+)"', m.group(1)):
++        if zh not in seen:
++            seen.add(zh)
++            out.append({"id": "x:" + zh, "zh": zh, "en": en})
++    return out
++
++
++def all_items():
++    return strings() + data() + extra()
++
++
++if __name__ == "__main__":
++    od = Path(sys.argv[1])
++    n = int(sys.argv[2]) if len(sys.argv) > 2 else 260
++    od.mkdir(parents=True, exist_ok=True)
++    items = [i for i in all_items() if i["zh"].strip()]
++    for b in range(0, len(items), n):
++        json.dump(items[b:b + n], open(od / ("batch_%02d.json" % (b // n)), "w", encoding="utf-8"), ensure_ascii=False, indent=0)
++    print(len(items), "筆，", (len(items) + n - 1) // n, "批")
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index c07bb17..62e1a35 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -429,7 +429,7 @@ func _apply_volumes(sample: String) -> void:
+ func _settings_rows() -> Array:
+ 	var groups := {
+ 		# V1.2.1 G3：語言在 L.LANGS 裡循環（單一來源）
+-		0: [["set_lang", L.t("lang_name") + ("（%s）" % L.t("lang_unproofed") if L.lang in L.UNPROOFED else ""), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
++		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
+ 			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
+ 			["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
+ 			["set_fullscreen", _onoff("fullscreen"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()]],
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index 9854cf8..d9e1c46 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -1316,7 +1316,8 @@ func _draw_draft() -> void:
+ 		_btn(r, "", _draft_take.bind(t), not mine and not ai and df_mine.size() < 4)
+ 		btn_paper = false
+ 		Art.unit(self, r.position + Vector2(100, 98), t, 0 if not ai else 1, 1.0, 0.0, 0.0, 0.0, 1.0 if not (mine or ai) else 0.55, time, 0.9, cbm())
+-		_ink_mode = not mine and not ai and not bool(Save.s("plain_ui"))   # 簡化介面沒有紙卡：字用淺色（V1.4 版面檢查：對比不足）
++		var paper_on: bool = bool(_btns[_btns.size() - 1]["en"]) and not mine and not ai and not bool(Save.s("plain_ui"))
++		_ink_mode = paper_on   # 停用或簡化介面時卡片是深色木牌：字用淺色（V1.4 版面檢查：對比不足）
+ 		_text(r.position + Vector2(100, 106), L.t("unit_%d" % t), tz("S"), INK if _ink_mode else Color.WHITE, true, true, 190)
+ 		_text(r.position + Vector2(100, 106 + tz("S") * 1.3), L.t("gold", [D.cost(t)]), tz("C"), Color("#7a4a10") if _ink_mode else ACCENT, true, false, 190)
+ 		_ink_mode = false
+diff --git a/tools/gen/l10n_build.py b/tools/gen/l10n_build.py
+index cc6c8f0..6fdfca6 100644
+--- a/tools/gen/l10n_build.py
++++ b/tools/gen/l10n_build.py
+@@ -16,9 +16,22 @@ import l10n_extract as X
+ ROOT = Path(__file__).resolve().parents[2]
+ G = ROOT / "game"
+ cc = OpenCC("tw2sp")
+-FIX = [("缺省", "预设"), ("殘局", "残局"), ("土豆", "马铃薯")]
++FIX = [("缺省", "预设"), ("接口", "界面"), ("殘局", "残局"), ("土豆", "马铃薯")]
+ LANG_NAME = {"zh_CN": "简体中文", "ja": "日本語"}
+-OVERRIDE = {("ja", "title"): "落子無悔", ("ja", "lang_unproofed"): "AI翻訳・未校正", ("zh_CN", "lang_unproofed"): "AI 翻译・未校对"}
++OVERRIDE = {("ja", "title"): "落子無悔", ("ja", "lang_unproofed"): "AI翻訳・未校正", ("zh_CN", "lang_unproofed"): "AI 翻译・未校对",
++    # 版面檢查（日文 150%）抓到的太長字串，手動縮短
++    ("ja", "sd_set_lang"): "表示言語。日本語はAI翻訳で、まだ校正していません。", ("zh_CN", "sd_set_lang"): "界面语言。简体中文是 AI 翻译，尚未校对。",
++    ("ja", "lb_cmd_quick"): "技：%s", ("ja", "lb_deck_random"): "ランダム", ("ja", "lb_roster_title"): "出撃（%d／10）",
++    ("ja", "tm_btn"): "時を戻して1体変更", ("ja", "pf_ach_hint"): "触れると条件表示", ("ja", "menu_daily"): "日替わり",
++    ("ja", "rv_hint"): "マスを選んで種類変更・撤去・移動。変更は1体まで、戦績には残りません。",
++    ("ja", "rv_hint_free"): "ユニットを選んで種類変更・撤去・移動。変更は1体まで、戦績には残りません。",
++    ("ja", "rw_recruit_d"): "%s加入、%s離脱（この遠征のみ）", ("ja", "ph_locked"): "星を1つ取ると、星3解答のユニット構成が見られます。",
++    ("ja", "pr_wager_d"): "AI同士の陣形を見て、勝者と差を予想。当てて眼力アップ。",
++    ("ja", "pr_draft_d"): "8枚からAIと交互に4枚ずつ取り、そのカードで勝負。",
++    ("ja", "pr_waves_d"): "一度の配置で三連戦。生き残りはその場に残り、15 G追加。",
++    ("ja", "pr_sealed_d"): "2人が陣形を3つ封印。1戦ごとに1通開封、2勝先取。"}
++DATA_OVERRIDE = {"落子無悔（ノー・テイクバック）": "落子無悔"}
++JA_FIX = [("モンスター兵団", "魔物兵団"), ("モンスター軍", "魔物軍")]   # 用語統一（短、和中文一樣是漢字）
+ PH = re.compile(r"%[-+0-9.]*[sdf]|\{[A-Z0-9_]+\}")
+ 
+ 
+@@ -53,6 +66,8 @@ def main():
+         if sorted(PH.findall(v)) != sorted(PH.findall(item["zh"])):
+             bad.append((item["id"], "佔位符不同"))
+             return item["en"] or item["zh"]
++        for a, b in JA_FIX:
++            v = v.replace(a, b)
+         return v
+ 
+     # strings.csv
+@@ -84,7 +99,8 @@ def main():
+                 o = o[int(seg)] if isinstance(o, list) else o[seg]
+             pre = base + "_" if base else ""
+             o[pre + "sc"] = sc(it["zh"])
+-            o[pre + "ja"] = jp(it) if it["zh"].strip() else ""
++            v = jp(it) if it["zh"].strip() else ""
++            o[pre + "ja"] = DATA_OVERRIDE.get(v, v)
+         json.dump(d, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=2 if fn == "trials.json" else 1)
+     # 程式裡的二元陣列
+     ex = X.extra()
+
+# ==== game_place.gd 現況： func _draw_plan_panel ====
+func _draw_plan_panel(R: Rect2) -> void:
+	# V1.4 #4：擺陣畫面只放精簡摘要＋「排軍令」按鈕；完整的木刻度尺在 overlay（_draw_plan_overlay）
+	var pz := PZ.get_puzzle(puzzle_id)
+	_tex_box(R, "paper")
+	_ink_mode = true
+	var parts: Array = []
+	for e in puzzle_plan:
+		parts.append(L.t("plan_item", [L.t("cmd_%d" % PZ.plan_skill(pz, int(e))), _fmt_num(PZ.plan_tick(pz, int(e)) / 20.0)]))
+	_text(R.position + Vector2(12, 8), L.t("plan_title"), tz("C"), INK, false, true, R.size.x - 24)
+	_text(R.position + Vector2(12, 8 + tz("C") * 1.35), "・".join(parts), tz("C"), INK, false, false, R.size.x - 24)
+	_ink_mode = false
+	_btn(Rect2(R.end.x - 132, R.end.y - 46, 124, 40), L.t("plan_open"), func(): overlay = "puzzle_plan")
+	if pad_mode:
+		_text(Vector2(R.position.x + 10, R.position.y - tz("C") * 1.4), L.t("plan_pad"), tz("C"), TXT_DIM, false, false, R.size.x)
+
+## V1.4 #4 軍令連鎖：連鎖的組合（先放 a、3 秒內放 b）。只是提示，模擬照原本規則算。
+const CHAINS := [[4, 3, "chain_freeze_meteor"], [0, 1, "chain_aegis_war"], [4, 1, "chain_freeze_war"], [1, 2, "chain_war_heal"]]
+var plan_sel := 0
+
+## 完整的軍令時間軸：木刻度尺（羊皮紙底＋墨線刻度），我方軍令是木棋子、敵方是紅旗；同一種技能的冷卻畫成淡帶，
+## 連鎖用金色弧線連起來。點棋子選取、點尺上任一處把選取的那一道移過去；◀▶ 微調半秒（手把用）。
+
+# ==== game_place.gd 現況： func _draw_plan_timeline ====
+func _draw_plan_timeline(R: Rect2) -> void:
+	var pz := PZ.get_puzzle(puzzle_id)
+	var c: Dictionary = pz["cmd"]
+	var goal: int = int(pz.get("goal_ticks", Sim.MAX_TICKS))
+	var cd: int = PZ.rules_of(pz).cmd_cd
+	var ruler := Rect2(R.position.x + 20, R.position.y + 64, R.size.x - 40, 74)
+	_tex_box(ruler.grow(6), "paper")
+	var x_of := func(t: int) -> float: return ruler.position.x + ruler.size.x * clampf(float(t) / float(goal), 0.0, 1.0)
+	# 刻度：每秒一小刻、每 5 秒一大刻＋秒數
+	_ink_mode = true
+	for sec in int(goal / 20) + 1:
+		var x: float = x_of.call(sec * 20)
+		var big := sec % 5 == 0
+		draw_line(Vector2(x, ruler.end.y - (14 if big else 7)), Vector2(x, ruler.end.y), Color(INK, 0.75 if big else 0.4), 1.6 if big else 1.0, true)
+		if big:
+			_text(Vector2(x, ruler.end.y + 4), "%ds" % sec, tz("C"), INK, true, false, 60)
+	_ink_mode = false
+	# 冷卻淡帶
+	for e in puzzle_plan:
+		var t := PZ.plan_tick(pz, int(e))
+		draw_rect(Rect2(x_of.call(t), ruler.position.y + 44, x_of.call(t + cd) - x_of.call(t), 8), Color(0.42, 0.3, 0.16, 0.22))
+	# 敵方軍令：紅色小旗（在尺的上緣）
+	for en in c.get("enemy", []):
+		var ex: float = x_of.call(int(en[0]))
+		draw_line(Vector2(ex, ruler.position.y - 18), Vector2(ex, ruler.position.y + 6), Color("#5a1d14"), 2.0, true)
+		draw_colored_polygon(PackedVector2Array([Vector2(ex, ruler.position.y - 18), Vector2(ex + 14, ruler.position.y - 13), Vector2(ex, ruler.position.y - 8)]), Color("#b3261e"))
+		_icon(CmdD.ICONS[int(en[1])], Vector2(ex + 26, ruler.position.y - 13), 16.0, Color("#ffb4a8"))
+	# 連鎖：金色弧線
+	var chains_on: Array = []
+	for a in puzzle_plan.size():
+		for b in puzzle_plan.size():
+			var ta := PZ.plan_tick(pz, int(puzzle_plan[a]))
+			var tb := PZ.plan_tick(pz, int(puzzle_plan[b]))
+			if tb < ta or tb - ta > 60 or a == b:
+				continue
+			for ch in CHAINS:
+				if PZ.plan_skill(pz, int(puzzle_plan[a])) == int(ch[0]) and PZ.plan_skill(pz, int(puzzle_plan[b])) == int(ch[1]):
+					var xa: float = x_of.call(ta)
+					var xb: float = x_of.call(tb)
+					var mid := Vector2((xa + xb) * 0.5, ruler.position.y + 4)
+					draw_polyline(PackedVector2Array([Vector2(xa, ruler.position.y + 20), mid - Vector2(0, 10), Vector2(xb, ruler.position.y + 20)]), Color("#d4a017"), 3.0, true)
+					chains_on.append(str(ch[2]))
+	# 我方軍令：木棋子（技能圖示），選取的那一個金框
+	for i in puzzle_plan.size():
+		var t2 := PZ.plan_tick(pz, int(puzzle_plan[i]))
+		var cx: float = x_of.call(t2)
+		var cpos := Vector2(cx, ruler.position.y + 26)
+		var sk := PZ.plan_skill(pz, int(puzzle_plan[i]))
+		draw_circle(cpos + Vector2(0, 2), 15.0, Color(0.2, 0.12, 0.06, 0.5), true, -1.0, true)
+		draw_circle(cpos, 15.0, Color("#8a5f37"), true, -1.0, true)
+		draw_circle(cpos, 12.0, Color("#b5895a"), true, -1.0, true)
+		_icon(CmdD.ICONS[sk], cpos, 16.0, Color.WHITE)
+		if i == plan_sel:
+			_hand_ring(cpos, 19.0, ACCENT, 2.6, true)
+		var ii := i
+		_btns.append({"r": Rect2(cpos - Vector2(16, 16), Vector2(32, 32)), "cb": func(): plan_sel = ii, "en": true})
+	# 點尺：把選取的軍令移過去（照冷卻與開場限制修正）
+	_btns.append({"r": Rect2(ruler.position.x, ruler.position.y + 44, ruler.size.x, ruler.size.y - 44), "cb": func():
+		var tt := int(clampf((mouse.x - ruler.position.x) / ruler.size.x, 0.0, 1.0) * goal / 10.0) * 10
+		if plan_sel >= 0 and plan_sel < puzzle_plan.size():
+			puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, tt - PZ.plan_tick(pz, int(puzzle_plan[plan_sel]))), "en": true})
+	# 說明列：選取的是哪一道、幾秒；連鎖
+	var y := ruler.end.y + tz("C") * 1.6 + 8
+	if plan_sel >= 0 and plan_sel < puzzle_plan.size():
+		var se := int(puzzle_plan[plan_sel])
+		_text(Vector2(R.position.x + 20, y), L.t("plan_sel", [L.t("cmd_%d" % PZ.plan_skill(pz, se)), _fmt_num(PZ.plan_tick(pz, se) / 20.0)]), tz("S"), Color.WHITE, false, true, R.size.x - 180)
+		_btn(Rect2(R.end.x - 132, y - 6, 56, 40), "◀", func(): puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, -10))
+		_btn(Rect2(R.end.x - 72, y - 6, 56, 40), "▶", func(): puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, 10))
+	y += tz("S") * 1.6
+	if not chains_on.is_empty():
+		var names: Array = []
+		for k in chains_on:
+			names.append(L.t(k))
+		_text(Vector2(R.position.x + 20, y), L.t("chain_on", ["、".join(names)]), tz("S"), Color("#ffd166"), false, true, R.size.x - 40)
+
+## 第 i 次能設的範圍：不早於開場可放的時間、和前後兩次至少隔一個冷卻，不晚於局長（Codex v13-r1 #4）。
+
+# ==== game_place.gd 現況： func _draw_plan_overlay ====
+func _draw_plan_overlay() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
+	var R := Rect2(170, 170, 940, 470)
+	_panel(R)
+	_h1(Vector2(640, 182), L.t("plan_title"))
+	_text(Vector2(640, 182 + tz("H1") * 1.4), L.t("plan_help"), tz("C"), TXT_DIM, true, false, 860)
+	_draw_plan_timeline(Rect2(R.position.x + 20, R.position.y + 90, R.size.x - 40, 300))
+	_btn(Rect2(560, R.end.y - 60, 160, 44), L.t("plan_done"), func(): overlay = "", true, true)
+
+# ==== game_modes.gd 塗裝室 現況 ====
+## ── V1.4 #15 塗裝室：替兩軍的棋子上底漆、漬洗、乾掃，換木座木料與棋盤框。只改外觀，存檔記住。 ──
+## 解鎖：每一列的第 2～4 個選項要成就數 PAINT_UNLOCK[k]（漬洗、乾掃不鎖）。
+const PAINT_UNLOCK := [0, 2, 5, 9]
+const PAINT_ROWS := [["paint_blue", 4, true], ["paint_red", 4, true], ["paint_wash", 3, false], ["paint_dry", 3, false], ["paint_wood", 4, true], ["paint_frame", 4, true]]
+var pt_before := ""
+
+func _paint_apply() -> void:
+	var p = Save.data.get("paint", [0, 0, 1, 1, 0, 0])
+	if p is Array and p.size() == 6:
+		for i in 6:
+			Art.paint[i] = int(p[i])
+
+static func paint_locked(row_locks: bool, k: int, ach_n: int) -> bool:
+	return row_locks and ach_n < int(PAINT_UNLOCK[clampi(k, 0, 3)])
+
+func _paint_open() -> void:
+	pt_before = str(Art.paint)
+	overlay = "paint"
+
+func _paint_close() -> void:
+	overlay = "profile"
+	if str(Art.paint) != pt_before:
+		Save.data["paint"] = Art.paint.duplicate()
+		Save.save_data()
+		_rebuild_sprites()   # 底漆、漬洗、乾掃、木座烘在圖集裡，要重烘
+
+func _paint_pick(row: int, k: int) -> void:
+	Art.paint[row] = k
+	sfx.play("place")
+
+func _draw_paint() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(150, 60, 980, 680)
+	_panel(P)
+	_h1(Vector2(640, 72), L.t("paint_head"))
+	var ach_n: int = Save.data.get("achievements", []).size()
+	# 左：試塗棋盤（棋盤框＋氈布＋兩軍各三隻）。向量直接畫，改了馬上看得到
+	var B := Rect2(184, 150, 320, 430)
+	var fr_i := clampi(int(Art.paint[5]), 0, 3)
+	draw_rect(B.grow(10), Color("#5b4632") if fr_i == 0 else Color(Art.FRAMES[fr_i]))
+	draw_rect(B, Color("#6f9a4a"))
+	for i in 4:
+		draw_line(B.position + Vector2(0, 86 * (i + 1)), B.position + Vector2(B.size.x, 86 * (i + 1)), Color(0, 0, 0, 0.06), 1.0)
+	var types := [0, 1, 2]
+	for t in 2:
+		for j in 3:
+			var p := B.position + Vector2(80 + t * 160, 110 + j * 118)
+			Art.ring(self, p, t, types[j], cbm(), 1.5)
+			Art.unit(self, p, types[j], t, 1.0 if t == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.5, cbm())
+	_text(Vector2(B.get_center().x, B.end.y + 20), L.t("paint_note") if not cbm() else L.t("paint_cb"), tz("C"), TXT_DIM, true, false, 340)
+	# 右：六列，每列「名稱｜四個色票」排一橫（V1.4 版面檢查：150% 時上下排會壓到完成鈕）
+	var x0 := 540.0
+	var lw := 186.0
+	var rh := maxf(tz("B") * 1.5, 44.0) + 14.0
+	var y := 150.0
+	for row in PAINT_ROWS.size():
+		var spec: Array = PAINT_ROWS[row]
+		var by := y + (rh - 14.0 - 40.0) / 2.0
+		_text(Vector2(x0, y + (rh - 14.0) / 2.0 - tz("B") * 0.68), L.t(spec[0]), tz("B"), Color.WHITE, false, true, lw)
+		for k in int(spec[1]):
+			var r := Rect2(x0 + lw + 10 + k * 98, by, 90, 40)
+			var lock := paint_locked(bool(spec[2]), k, ach_n)
+			var on := int(Art.paint[row]) == k
+			var rr := row
+			var kk := k
+			_btn(r, "", func(): _paint_pick(rr, kk), not lock, on)
+			_paint_swatch(row, k, r, lock, on)
+		y += rh
+	if ach_n < int(PAINT_UNLOCK[3]):
+		_text(Vector2(x0, y + 4), L.t("paint_unlock", [ach_n]), tz("C"), TXT_DIM, false, false, 570)
+	_btn(Rect2(560, 672, 160, 44), L.t("paint_done"), func(): _paint_close(), true, true)
+
+## 色票：底漆＝色塊；漬洗／乾掃＝三格深淺；木座＝木料橢圓；棋盤框＝框色條。鎖住的畫鎖頭。
+func _paint_swatch(row: int, k: int, r: Rect2, lock: bool, on: bool) -> void:
+	var c := r.get_center()
+	if lock:
+		_icon("lock", c, 18.0, Color(1, 1, 1, 0.5))
+		return
+	match row:
+		0, 1:
+			draw_circle(c, 13.0, Art.OUT, true, -1.0, true)
+			draw_circle(c, 11.0, Art.PAINTS[row][k], true, -1.0, true)
+		2, 3:
+			for i in 3:
+				var a := 0.25 + 0.5 * float(i <= k)
+				var col := Color(0.12, 0.08, 0.05, a) if row == 2 else Color(1.0, 0.95, 0.8, a)
+				draw_rect(Rect2(c + Vector2(-27 + i * 19, -8), Vector2(16, 16)), col)
+		4:
+			var wd: Array = Art.WOODS[k]
+			draw_colored_polygon(_ellipse_pts(c + Vector2(0, 3), 26.0, 9.0), wd[0])
+			draw_colored_polygon(_ellipse_pts(c, 26.0, 9.0), wd[1])
+		5:
+			draw_rect(Rect2(c - Vector2(30, 10), Vector2(60, 20)), Color("#5b4632") if k == 0 else Color(Art.FRAMES[k]))
+			draw_rect(Rect2(c - Vector2(22, 5), Vector2(44, 10)), Color("#6f9a4a"))
+	if on:
+		_hand_ring(c + Vector2(35, -10), 5.0, Color("#e8c46a"), 2.0)
+
+func _ellipse_pts(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in 20:
+		var an := i * TAU / 20.0
+		pts.append(c + Vector2(cos(an) * rx, sin(an) * ry))
+	return pts
+
+
+
+# ==== 譯文抽樣（key | 繁中 | 簡中 | 日文）====
+map_size_1 | 中 | 中 | 中
+rr_ai_pool | AI 卡池 | AI 卡池 | AIプール
+hud_power | 戰力 %d%% | 战力 %d%% | 戦力 %d%%
+set_fullscreen | 全螢幕 | 全屏幕 | 全画面
+ushort_3 | 騎 | 骑 | 騎
+codex_note | 老兵觀察筆記 | 老兵观察笔记 | 古参兵の手記
+ga_node_fight | 遭遇戰 | 遭遇战 | 遭遇戦
+copy_code | 複製目前陣型代碼 | 拷贝目前阵型代码 | 陣形コード複製
+hc_both | 讓子：藍 %d 金・紅 %d 金 | 让子：蓝 %d 金・红 %d 金 | ハンデ：青 %d G・赤 %d G
+series_draw | 整場平手 | 整场平手 | 総合引分
+pt_call | 我知道誰會贏了 | 我知道谁会赢了 | 勝つ側がわかった
+tm_ghost_hint | 地上的白圈是原本那一場的位置 | 地上的白圈是原本那一场的位置 | 地面の白い輪は、元の戦いでの位置です
+trial_cond | ★ 剩 ≥%d%%　★ 花 ≤%d 金 | ★ 剩 ≥%d%%　★ 花 ≤%d 金 | ★ 残り ≥%d%%　★ 消費 ≤%d G
+unit_8 | 鼓手 | 鼓手 | 鼓手
+fp_full | 錢或人數用完 | 钱或人数用完 | Gか枠が不足
+verdict_rout | %s的%s部隊主導全場，%d 秒完封對手 | %s的%s部队主导全场，%d 秒完封对手 | %sの%s部隊が戦場を圧倒し、%d秒で相手を完封しました
+ph_l2 | ② 三星編制 | ② 三星编制 | ② 星3の編成
+code_bad | 代碼無效或版本不符，請重新複製一次 | 代码无效或版本不符，请重新拷贝一次 | コードが無効か、バージョンが違います。もう一度コピーしてください
+rv_moved | %s 往前後移了 %d 格 | %s 往前后移了 %d 格 | %sを前後に%dマス移動しました
+rv_you_free | 你的陣型（點兵修改） | 你的阵型（点兵修改） | 自軍陣形（兵タップで編集）
+err_gold | 錢不夠：拿掉幾隻或選便宜的兵 | 钱不够：拿掉几只或选便宜的兵 | ゴールドが足りません。何体か外すか、安いユニットを選んでください
+codes_hint | 先複製朋友給的代碼，再按下面的按鈕。 | 先拷贝朋友给的代码，再按下面的按钮。 | 友達からもらったコードをコピーしてから、下のボタンを押してください。
+credits_title | 製作名單 | 制作名单 | クレジット
+res_details | 詳細數據 › | 详细数据 › | 詳細データ ›
+set_ui_vol | 介面音量 | 界面音量 | 操作音の音量
+ev_short_drum | 戰鼓 | 战鼓 | 戦太鼓
+unit_18 | 吸塵貓 | 吸尘猫 | 掃除ネコ
+puzzle_all_stars | 全部 ★ %d／%d | 全部 ★ %d／%d | 合計 ★ %d／%d
+rr_bad_sandbox | 沙盒設定不合法 | 沙盒设置不合法 | 実験設定が不正
+rv_remove | 拿掉這隻 | 拿掉这只 | この体除外
+lb_pinfo_fantasy | 傭兵公會開張：奇幻軍 10 種全部上場。還在驗收中，屬於娛樂變體。 | 佣兵公会开张：奇幻军 10 种全部上场。还在验收中，属于娱乐变体。 | 傭兵ギルド開業です！魔物軍10種類が全員参戦します。まだ調整中のお楽しみルールです。
+lb_n_units | %d 隻 | %d 只 | %d体
+cells_s | %.1f 格／秒 | %.1f 格／秒 | %.1fマス／秒
+lb_spd | 移動速度 | 移动速度 | 移動速度
+pf_units | 派出時的勝率 | 派出时的胜率 | 出撃時の勝率
+ev_short_breaker | 破盾 | 破盾 | 盾崩し
+err_locked | 這隻是關卡固定的兵 | 这只是关卡固定的兵 | 詰め戦の固定ユニット
+code_loaded | 已載入陣型 | 已加载阵型 | 陣形読込済
+lbd_t_keep | 保留陣型 | 保留阵型 | 陣形維持
+sealed_done | 第 %d 封已上火漆，清空擺下一陣 | 第 %d 封已上火漆，清空摆下一阵 | %d 通目を封じました。盤面を空にして次の陣形を組みます。
+ph_apply | 擺上去 | 摆上去 | 配置する
+sk_ghost | 穿牆 | 穿墙 | すり抜け
+pc_result | %s勝 | %s胜 | %sの勝利
+plan_open | 排軍令 | 排军令 | 軍令を組む
+rw_recruit | 募兵站 | 募兵站 | 募兵所

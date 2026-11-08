@@ -261,6 +261,8 @@ var accum := 0.0
 var speed := 1.0
 var slow_used := false
 var final_used := false   # 第十輪 F1
+var pinch_zoom := 1.0             # V1.4 #18：雙指縮放戰場（1＝不縮；戰鬥中蓋過自動全景）
+var pinch_center := Vector2.ZERO
 var tm_ghost = null           # V1.4 #1 時光機：播放「如果」時，原本那條時間線同步跑的模擬（畫淡圈）
 var last_kill := [-1, -10.0]   # V1.3.1 P2：最近一次擊倒 [擊倒者 id, 時間]
 var last_hitter := {}          # 目標 id → 最後打到它的 id
@@ -372,6 +374,7 @@ func _load_fonts() -> void:
 	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
 		var tk = load("res://fonts/ThenKhung-sub.ttf")
 		if tk is FontFile:
+			tk = tk.duplicate()   # 切語言時不要改到共用的資源（Antigravity v140-i4）
 			tk.fallbacks = [bold]
 			font_title = tk if alt == "" else bold   # 標題字只有繁中字形，簡中、日文的標題用圓體粗體（字形才一致）
 
@@ -500,8 +503,12 @@ func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStrin
 				# 避頭點（第六輪截圖）：句號、逗號、右括號不放行首——把上一行最後一個字一起帶到下一行（不掛出框外）
 				# V1.4 #17：日文另加小假名、長音、中黑點不放行首；簡中的右引號也算
 				if tok.length() == 1 and NO_LINE_HEAD.contains(tok) and cur.length() > 1 and cur.unicode_at(cur.length() - 1) >= 0x2E80:
-					out.append(cur.substr(0, cur.length() - 1).strip_edges(false, true))
-					cur = cur.substr(cur.length() - 1) + tok
+					# 往回多帶幾個字，直到新的一行開頭不是禁則字（「ュー」這種連續的也處理，Codex v140-i4）；最多帶 4 個
+					var n := 1
+					while n < 4 and n < cur.length() - 1 and NO_LINE_HEAD.contains(cur[cur.length() - n]) and cur.unicode_at(cur.length() - n - 1) >= 0x2E80:
+						n += 1
+					out.append(cur.substr(0, cur.length() - n).strip_edges(false, true))
+					cur = cur.substr(cur.length() - n) + tok
 				else:
 					out.append(cur.strip_edges(false, true))
 					cur = tok.strip_edges(true, false) if tok == " " else tok

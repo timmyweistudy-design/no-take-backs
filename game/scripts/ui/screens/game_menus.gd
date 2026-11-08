@@ -429,7 +429,7 @@ func _apply_volumes(sample: String) -> void:
 func _settings_rows() -> Array:
 	var groups := {
 		# V1.2.1 G3：語言在 L.LANGS 裡循環（單一來源）
-		0: [["set_lang", L.t("lang_name") + ("（%s）" % L.t("lang_unproofed") if L.lang in L.UNPROOFED else ""), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
+		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
 			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
 			["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
 			["set_fullscreen", _onoff("fullscreen"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()]],
