@@ -1756,15 +1756,19 @@ func _draw_ghosts() -> void:
 		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
 		_ink_mode = on_paper   # 停用／簡化時卡片是深色：字用淺色
 		var gname := L.field(g, "")
-		_text(r.position + Vector2(16, 12), gname, tz("B"), INK if _ink_mode else Color.WHITE, false, true, 220)
-		_text(r.position + Vector2(16, 18 + text_h(gname, tz("B"), 220, true)), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
+		_text(r.position + Vector2(16, 12), gname, tz("B"), INK if _ink_mode else Color.WHITE, false, true, 200)
+		_text(r.position + Vector2(16, 18 + text_h(gname, tz("B"), 200, true)), ai_tpl_name(str(g.get("tpl", ""))), tz("C"), Color("#4a3622") if _ink_mode else TXT_DIM, false, false, 200)
+		# 難度星放右欄、陣型下面（只畫星，不佔左邊文字欄；收尾驗證：英文兩行名稱會擠到）
+		var stars := "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))
+		var sw := minf(_width(stars, tz("C"), true), 96.0)
+		_text(Vector2(r.end.x - 20 - sw / 2.0, r.position.y + 96), stars, tz("C"), Color("#6b3e08") if on_paper else ACCENT, true, true, 96)   # 右緣留 20px 內距
 		_ink_mode = false
 		# 右側：迷你陣型（紅點）
 		var mx := r.end.x - 64
 		for u in g.get("units", []):
 			draw_circle(Vector2(mx + (int(u["col"]) - 10) * 8.0, r.position.y + 16 + int(u["row"]) * 8.0), 3.0, Color("#9c4a3c", 0.85), true, -1.0, true)
 		if str(g["id"]) in beat:
-			var sp := r.position + Vector2(r.size.x - 38, r.size.y - 30)
+			var sp := Vector2(r.end.x - 44, r.position.y + 48)   # 「破」蓋在陣型上
 			_hand_ring(sp, 18.0, Color("#8e1b14", 0.9), 2.6)
 			_text(sp - Vector2(0, tz("C") * 0.68), L.t("gh_stamp"), tz("C"), Color("#8e1b14") if on_paper else Color("#ff8a7a"), true, true, 40)
 	if pages > 1:
@@ -1872,7 +1876,7 @@ func _draw_ga_info() -> void:
 	for ln in _ga_info_lines():
 		if y > paper.end.y - tz("S") * 1.5:
 			break
-		_text(Vector2(paper.position.x + 20, y), str(ln[0]), tz("S"), Color("#7a4a10") if _ink_mode else ACCENT, false, true, lw)
+		_text(Vector2(paper.position.x + 20, y), str(ln[0]), tz("S"), Color("#5a3008") if _ink_mode else ACCENT, false, true, lw)
 		var body := str(ln[1])
 		_text(Vector2(paper.position.x + 30 + lw, y), body, tz("S"), tc, false, false, paper.size.x - lw - 50)
 		y += text_h(body, tz("S"), paper.size.x - lw - 50) + 10
