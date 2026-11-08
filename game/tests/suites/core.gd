@@ -418,3 +418,99 @@ func test_golden() -> void:
 		if sa.fingerprint != sb.fingerprint:
 			order_bad += 1
 	ok(order_bad == 0, "陣型清單順序打亂，指紋不變（20 場）", "不同 %d 場" % order_bad)
+
+
+## V1.4 #9 木座貼紙：代碼往返、效果（鐵皮、迅捷、開局衝鋒、護符）、確定性、左右鏡像對稱；沒貼紙的陣不受影響。
+func test_stickers_v140() -> void:
+	var Sim0 = load("res://scripts/core/battle_sim.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var STK = load("res://scripts/core/sticker_defs.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 909
+	var a0 = AI0.build(0, 100, rng)["army"]
+	var a1 = AI0.build(1, 100, rng)["army"]
+	var plain = Sim0.new(a0.copy(), a1.copy())
+	plain.run_to_end()
+	for k in a0.units.size():
+		a0.units[k]["st"] = 1 + k % STK.COUNT
+	var code: String = a0.to_code()
+	var b0 = a0.copy()
+	b0.units = []
+	ok(code.begins_with("NTB6.") and b0.load_code(code) == "" and b0.units == a0.units, "有貼紙的陣型代碼往返一致", code)
+	var s1 = Sim0.new(a0.copy(), a1.copy())
+	var s2 = Sim0.new(a0.copy(), a1.copy())
+	s1.run_to_end()
+	s2.run_to_end()
+	ok(s1.winner == s2.winner and s1.tick == s2.tick and s1.fingerprint == s2.fingerprint, "有貼紙一樣是確定性")
+	ok(s1.fingerprint != plain.fingerprint, "有貼紙的對局雜湊和沒貼紙的不同")
+	var t0 = Sim0.new(a0.copy(), a1.copy())
+	var bad: Array = []
+	for u in t0.units:
+		var base: Dictionary = load("res://scripts/core/unit_defs.gd").stat(u.type)
+		if u.st == STK.TOUGH and u.max_hp != int(base["hp"]) * STK.TOUGH_PCT / 100:
+			bad.append("鐵皮")
+		if u.st == STK.SWIFT and u.cd_base >= int(base["cd"]):
+			bad.append("迅捷")
+		if u.st == STK.CHARGE and u.st_t != STK.CHARGE_TICKS:
+			bad.append("衝鋒")
+		if u.st == STK.WARD and not u.ward:
+			bad.append("護符")
+	ok(bad.is_empty(), "開場時貼紙效果都套上", str(bad))
+	# 鏡像：把有貼紙的藍軍鏡像成紅軍，對手也鏡像 → 勝方互換、時間一樣
+	var m0 = a1.mirrored()
+	var m1 = a0.mirrored()
+	var sm = Sim0.new(m0, m1)
+	sm.run_to_end()
+	ok(sm.tick == s1.tick and (sm.winner == -1 if s1.winner == -1 else sm.winner == 1 - s1.winner), "貼紙左右鏡像對稱", "%d/%d %d/%d" % [s1.winner, sm.winner, s1.tick, sm.tick])
+	ok(plain.winner >= -1, "沒貼紙的對局照常（雜湊由 test_golden 守）")
+
+
+## V1.4 #12 巨獸：代碼往返、確定性、左右鏡像、部位會被打掉、勝率不是一面倒（遠征終點仍打得贏）。
+func test_boss_v140() -> void:
+	var Sim0 = load("res://scripts/core/battle_sim.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1212
+	var BD = load("res://scripts/core/boss_defs.gd")
+	var e = AI0.build(1, 150 - BD.BUDGET_CUT, rng)["army"]
+	GM.add_boss(e)
+	var nb := 0
+	for u in e.units:
+		nb += int(u.get("boss", 0))
+	ok(nb == 1, "敵陣多一隻巨獸")
+	var code: String = e.to_code()
+	var e2 = e.copy()
+	e2.units = []
+	ok(e2.load_code(code) == "" and e2.units == e.units, "巨獸陣型代碼往返", code)
+	var wins := 0
+	var arm_broke := 0
+	var plate_broke := 0
+	for k in 12:
+		var r := RandomNumberGenerator.new()
+		r.seed = 5000 + k
+		var p = AI0.build(0, 135, r)["army"]
+		var s = Sim0.new(p.copy(), e.copy())
+		s.fast = true
+		while not s.finished:
+			s.step()
+			for ev in s.events:
+				if ev["kind"] == "boss_arm":
+					arm_broke += 1
+				elif ev["kind"] == "boss_plate":
+					plate_broke += 1
+		if s.winner == 0:
+			wins += 1
+	print("BOSS 玩家勝 %d／12、前臂斷 %d、背甲碎 %d" % [wins, arm_broke, plate_broke])
+	ok(wins >= 1 and wins <= 9, "遠征終點打得贏但不輕鬆（12 場隨機陣勝 1～9）", str(wins))
+	ok(arm_broke + plate_broke > 0, "部位會被打掉")
+	var a = AI0.build(0, 130, rng)["army"]
+	var s1 = Sim0.new(a.copy(), e.copy())
+	var s2 = Sim0.new(a.copy(), e.copy())
+	s1.run_to_end()
+	s2.run_to_end()
+	ok(s1.fingerprint == s2.fingerprint, "巨獸對局確定性")
+	var sm = Sim0.new(e.mirrored(), a.mirrored())
+	sm.run_to_end()
+	ok(sm.tick == s1.tick and (sm.winner == -1 if s1.winner == -1 else sm.winner == 1 - s1.winner), "巨獸左右鏡像", "%d/%d %d/%d" % [s1.winner, sm.winner, s1.tick, sm.tick])
+

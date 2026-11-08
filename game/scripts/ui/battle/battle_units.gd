@@ -342,7 +342,74 @@ func _draw_field_frame() -> void:
 		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
 		draw_rect(Rect2(ORIGIN + Vector2(fld_size.x - ii - 3.0, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
 		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
+	_draw_map_events()
 
+## V1.4 #10 沙盤機關：畫在沙盤上。還沒發動＝虛線框＋倒數秒數；崩塌後＝碎石；火牆燒時＝火焰；推進板＝木板＋往中線的箭頭。
+func _draw_map_events() -> void:
+	var ev: Array = MapDefs.events(fld_map)
+	if ev.is_empty():
+		return
+	var tk: float = _disp_tick() if (state == St.BATTLE or state == St.RESULT) else 0.0
+	for e in ev:
+		var rc: Array = e["r"]
+		var t0 := int(e["t"])
+		for side in 2:
+			var x0: float = float(rc[0]) * fld_size.x / 2.0 / 1000.0
+			var x1: float = float(rc[2]) * fld_size.x / 2.0 / 1000.0
+			if side == 1:
+				var a := fld_size.x - x1
+				x1 = fld_size.x - x0
+				x0 = a
+			var R := Rect2(ORIGIN + Vector2(x0, float(rc[1]) * fld_size.y / 1000.0), Vector2(x1 - x0, float(rc[3] - rc[1]) * fld_size.y / 1000.0))
+			match str(e["k"]):
+				"collapse":
+					if tk >= t0:
+						# 碎石：深色底＋幾顆石頭（位置只看格子編號，固定）
+						draw_rect(R, Color(0.24, 0.19, 0.15, 0.92))
+						for k in 7:
+							var sp := R.position + Vector2(fposmod(k * 37.0 + side * 11.0, R.size.x - 12.0) + 6.0, fposmod(k * 23.0 + 5.0, R.size.y - 12.0) + 6.0)
+							draw_circle(sp, 5.0 + (k % 3) * 2.0, Color(0.42, 0.35, 0.28), true, -1.0, true)
+							draw_circle(sp - Vector2(1.5, 1.5), 2.0, Color(0.6, 0.52, 0.42, 0.7), true, -1.0, true)
+					else:
+						_ev_warn(R, t0, tk, Color("#8a5a2b"))
+				"fire":
+					var t1 := t0 + int(e["d"])
+					if tk >= t0 and tk <= t1:
+						var fl := 0.55 + 0.25 * sin(time * 14.0 + side)
+						draw_rect(R, Color(0.95, 0.42, 0.12, 0.38 * fl))
+						for k in int(R.size.y / 18.0):
+							var fp := R.position + Vector2(R.size.x * (0.2 + 0.6 * fposmod(k * 0.37, 1.0)), 10.0 + k * 18.0)
+							draw_colored_polygon(PackedVector2Array([fp + Vector2(-6, 6), fp + Vector2(0, -10 - 4 * sin(time * 9.0 + k)), fp + Vector2(6, 6)]), Color(1.0, 0.7, 0.2, 0.75))
+					elif tk < t1:
+						_ev_warn(R, t0, tk, Color("#c0392b"))
+				"push":
+					var hot := tk >= t0 and tk < t0 + 12
+					draw_rect(R.grow(-4), Color(0.55, 0.4, 0.24, 0.55 if not hot else 0.85))
+					for k in 3:
+						var ay := R.position.y + R.size.y * (0.25 + k * 0.25)
+						var ax := R.get_center().x
+						var d := 1.0 if side == 0 else -1.0
+						draw_colored_polygon(PackedVector2Array([Vector2(ax - 8 * d, ay - 7), Vector2(ax + 8 * d, ay), Vector2(ax - 8 * d, ay + 7)]), Color(0.98, 0.9, 0.7, 0.8))
+					if tk < t0:
+						_ev_warn(R, t0, tk, Color("#6b4a2b"), false)
+
+## 機關還沒發動：虛線框＋「第 N 秒」小牌（戰鬥中改成倒數）。
+func _ev_warn(R: Rect2, t0: int, tk: float, col: Color, outline := true) -> void:
+	if outline:
+		var pts := [R.position, Vector2(R.end.x, R.position.y), R.end, Vector2(R.position.x, R.end.y), R.position]
+		for k in 4:
+			var a: Vector2 = pts[k]
+			var b: Vector2 = pts[k + 1]
+			var segs := int(a.distance_to(b) / 10.0)
+			for s2 in segs:
+				if s2 % 2 == 0:
+					draw_line(a.lerp(b, float(s2) / segs), a.lerp(b, float(s2 + 1) / segs), Color(col, 0.85), 2.0, true)
+	var left := (t0 - tk) / 20.0
+	var lab := ("%ds" % int(ceil(left))) if tk > 0.0 else ("%ds" % (t0 / 20))
+	var c := R.get_center()
+	draw_circle(c, 15.0, Color(0.98, 0.94, 0.84, 0.92), true, -1.0, true)
+	draw_arc(c, 15.0, 0, TAU, 24, col, 2.0, true)
+	_text(c - Vector2(0, tz("C") * 0.68), lab, tz("C"), Color(0.25, 0.15, 0.08), true, true, 40)
 ## V1.2 F3：環境動態（確定性：只看時間與編號，不進模擬）。草地／林間落葉、冰原落雪、熔岩火星；簡化特效時不畫。
 func _draw_ambient() -> void:
 	if bool(Save.s("reduce_fx")) or bool(Save.s("plain_ui")):
@@ -443,7 +510,10 @@ func _draw_units_of(s, dim: bool) -> void:
 		var p0: Vector2 = pc[u.id] if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
 		var ar0 := clampf(air0 * 0.05, 0.0, 1.0)
-		_ring(p0, u.team, u.type, UNIT_SCALE, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層（效能：合成格一次貼完）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
+		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0)   # V1.4 #12 巨獸畫大
+		_ring(p0, u.team, u.type, bsc, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層（效能：合成格一次貼完）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
+		if u.st > 0:
+			_sticker_badge(p0, u.st, UNIT_SCALE, u.ward or u.st != 3)   # V1.4 #9：護符用掉就淡掉
 		if u.shield > 0:       # 第十二輪：手動技能的護盾、戰吼
 			_hand_ring(p0 + Vector2(0, -24) * UNIT_SCALE, 28.0 * UNIT_SCALE, Color(0.55, 0.85, 1.0, 0.75), 2.5)
 		if u.haste_t > 0:
@@ -673,7 +743,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			var tm := fmod(time + u.id * 3.7, per)
 			if tm < 1.2:
 				fid = mini(3, int(tm / 1.2 * 4.0))
-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant, fid)
+		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0), mood, lean, crouch, variant, fid)
 		if live and not u.hidden:
 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
@@ -742,6 +812,9 @@ func _draw_units_of(s, dim: bool) -> void:
 			_hand_ring(p, D.DRUM_RANGE * CS / 1000.0, Color(1, 0.85, 0.35, 0.35), 2.0)
 		if s.frenzy:
 			draw_circle(p + Vector2(8, -58 - sin(time * 12 + u.id) * 2), 3.0, Color(1, 0.5, 0.1, 0.9), true, -1.0, true)
+		if u.boss:
+			_boss_bars(p, u)   # V1.4 #12：巨獸一直顯示大血條＋前臂、背甲兩條部位血條
+			continue
 		# 第七輪 D1：血條只在需要看時才畫（受傷 3 秒內、跟拍、低血量）
 		var hurt_recent: bool = hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 3.0
 		# V1.3 C：選中（跟拍）的那隻就算滿血也畫，不然點了會以為血條壞了
@@ -878,4 +951,23 @@ func _draw_relic(t: int, p: Vector2, face: float, k: float, team: int) -> void:
 				var dx := (-1.0 if c == 0 else 1.0) * (10.0 + k * 22.0)
 				var up := sin(minf(k / 0.7, 1.0) * PI) * 26.0
 				draw_circle(p + Vector2(dx, -18.0 - up + k * 14.0) * UNIT_SCALE, 3.2 * UNIT_SCALE, Color(Art.GOLD, a), true, -1.0, true)
+
+
+## V1.4 #12 巨獸血條：上面一條大的（本體），下面兩條小的（前臂、背甲），部位斷了畫成灰色斷條。
+func _boss_bars(p: Vector2, u) -> void:
+	var w := 84.0
+	var top := p + Vector2(-w / 2.0, -76.0 * BossD.DRAW_SCALE)
+	draw_rect(Rect2(top - Vector2(2, 2), Vector2(w + 4, 9)), Art.OUT)
+	draw_rect(Rect2(top, Vector2(w * maxf(0.0, float(u.hp)) / maxf(1.0, float(u.max_hp)), 5)), Color("#e05a3a"))
+	var rows := [["sword", u.arm_hp, float(u.max_hp) * BossD.ARM_PCT / 100.0], ["shield", u.plate_hp, float(u.max_hp) * BossD.PART_PCT / 100.0]]
+	for k in 2:
+		var y := top.y + 10.0 + k * 9.0
+		var x0 := top.x + 14.0
+		_icon(str(rows[k][0]), Vector2(top.x + 5.0, y + 2.5), 9.0, Color(1, 1, 1, 0.9))
+		draw_rect(Rect2(Vector2(x0 - 1, y - 1), Vector2(w - 13.0, 5)), Art.OUT)
+		var hp_k := float(rows[k][1])
+		if hp_k > 0.0:
+			draw_rect(Rect2(Vector2(x0, y), Vector2((w - 15.0) * hp_k / maxf(1.0, float(rows[k][2])), 3)), Color("#d4a017"))
+		else:
+			draw_line(Vector2(x0, y + 1.5), Vector2(x0 + w - 15.0, y + 1.5), Color(0.5, 0.5, 0.5, 0.8), 1.5, true)
 

@@ -61,10 +61,10 @@ static func load_table() -> void:
 	var header := f.get_csv_line()
 	while not f.eof_reached():
 		var row := f.get_csv_line()
-		if row.size() < header.size() or row[0] == "":
+		if row.size() < 3 or row[0] == "":
 			continue
 		var d := {}
-		for i in range(1, header.size()):
+		for i in range(1, mini(header.size(), row.size())):   # 少了後面的語言欄（剛加、還沒跑翻譯）：那幾種語言退回英文
 			d[header[i]] = row[i].replace("\\n", "\n")
 		_table[row[0]] = d
 

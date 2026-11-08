@@ -88,6 +88,8 @@ func _reset_place(keep_blue := false) -> void:
 			set("gauntlet_nemesis", call("_nemesis_for_stage"))   # V1.4 #2：菁英站可能遇到宿敵
 			# V1.1 D1：菁英 +10、首領 +20；斥候劫掠／截斷補給只影響這一戰
 			e.budget = 100 + 5 * (gauntlet_stage - 1) + int(get("GA_NODE_GOLD")[node]) + int(get("gauntlet_foe_gold"))
+			if node == "boss" and not _demo():
+				e.budget -= BossD.BUDGET_CUT   # V1.4 #12：巨獸是送的，敵方其他兵少一點錢
 			e.unit_cap = maxi(4, e.unit_cap + int(get("gauntlet_foe_cap")))
 			# Codex v110-impl #2：先組好的陣可能超出調低後的預算／隻數，從最後放的往回拿掉（至少留一隻戰鬥兵）
 			while e.units.size() > 1 and (e.spent() > e.budget or e.units.size() > e.unit_cap):
@@ -102,6 +104,9 @@ func _reset_place(keep_blue := false) -> void:
 				if c.x < 0 or not e.place(t, c.x, c.y):
 					break
 			armies[1] = e
+			if node == "boss" and not _demo():
+				call("add_boss", armies[1])   # V1.4 #12：遠征終點多一隻巨獸
+				_toast(L.t("boss_here"))
 			if int(get("gauntlet_nemesis")) >= 0:
 				armies[1] = call("_nemesis_army", int(get("gauntlet_nemesis")))
 				var nt: String = call("nemesis_title", Save.data["nemeses"][int(get("gauntlet_nemesis"))])

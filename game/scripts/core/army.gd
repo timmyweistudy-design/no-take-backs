@@ -12,6 +12,7 @@ const E_NEAR_ENEMY := "離敵兵太近"
 const E_CAP_PREFIX := "最多"
 const E_TYPE_CAP_PREFIX := "這種兵最多"
 const D = preload("res://scripts/core/unit_defs.gd")
+const STK = preload("res://scripts/core/sticker_defs.gd")
 
 const COLS := 16
 const ROWS := 9
@@ -375,6 +376,12 @@ func can_afford_any() -> bool:
 		return left() >= cheapest_combat()
 	return left() >= cheapest_in_pool()
 
+func has_stickers() -> bool:
+	for u in units:
+		if int(u.get("st", 0)) != 0 or int(u.get("boss", 0)) == 1:
+			return true   # 貼紙或巨獸：都要 NTB6 才存得下
+	return false
+
 func copy():
 	var a = get_script().new(team, budget)
 	a.units = units.duplicate(true)
@@ -392,7 +399,12 @@ func mirrored():
 		if u.has("x"):
 			a.units.append({"type": u["type"], "x": fw - int(u["x"]), "y": u["y"]})
 		else:
-			a.units.append({"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]})
+			var mu := {"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]}
+			if u.has("st"):
+				mu["st"] = u["st"]   # V1.4 #9 貼紙跟著鏡像
+			if u.has("boss"):
+				mu["boss"] = u["boss"]
+			a.units.append(mu)
 	return a
 
 ## 陣型代碼（優化方案 E3）：NTB1.<base64url>.<校驗 4 碼>。
@@ -400,8 +412,8 @@ func mirrored():
 const CODE_VERSION := 1
 
 func to_code() -> String:
-	if D.uses_new([self]):
-		return to_code6()   # 第八輪：用到新兵才用新格式；只有舊兵時輸出不變，舊版還讀得懂
+	if D.uses_new([self]) or has_stickers():
+		return to_code6()   # V1.4 #9：有貼紙也走 NTB6（貼紙在每隻的第 4 個位元組）   # 第八輪：用到新兵才用新格式；只有舊兵時輸出不變，舊版還讀得懂
 	if deploy == "free":
 		return to_code5()
 	var b := PackedByteArray([CODE_VERSION, units.size()])
@@ -511,7 +523,7 @@ func to_code6() -> String:
 		else:
 			b.append(int(u["col"]) if team == 0 else COLS - 1 - int(u["col"]))
 			b.append(int(u["row"]))
-			b.append(0)
+			b.append((clampi(int(u.get("st", 0)), 0, 127)) | (128 if int(u.get("boss", 0)) == 1 else 0))   # V1.4 #12：最高位元＝巨獸
 	var body := Marshalls.raw_to_base64(b).replace("+", "-").replace("/", "_").replace("=", "")
 	return "NTB6.%s.%s" % [body, body.sha256_text().substr(0, 4)]
 
@@ -545,10 +557,22 @@ func load_code6(code: String) -> String:
 			if not tmp.place_xy(t, own_x(((v >> 11) & 511) * QUANT), ((v >> 3) & 255) * QUANT):
 				return "超過預算、人數、部署區或離太近"
 		else:
-			if b[o + 1] > 5 or b[o + 3] != 0:
+			var stb: int = b[o + 3] & 127
+			var bossb: bool = (b[o + 3] & 128) != 0
+			if b[o + 1] > 5 or (stb != 0 and not STK.valid(stb)) or (bossb and t != 19):
 				return "內容不合法"
-			if not tmp.place(t, b[o + 1] if team == 0 else COLS - 1 - b[o + 1], b[o + 2]):
+			var cc: int = b[o + 1] if team == 0 else COLS - 1 - b[o + 1]
+			if bossb:
+				# V1.4 #12 巨獸不佔預算與隻數（遠征終點加送的），只檢查格子
+				if b[o + 2] > 8 or tmp.index_at(cc, b[o + 2]) != -1:
+					return "內容不合法"
+				tmp.units.append({"type": t, "col": cc, "row": int(b[o + 2])})
+			elif not tmp.place(t, cc, b[o + 2]):
 				return "超過預算、人數或格子重複"
+			if stb != 0:
+				tmp.units[tmp.units.size() - 1]["st"] = stb   # V1.4 #9 貼紙
+			if bossb:
+				tmp.units[tmp.units.size() - 1]["boss"] = 1   # V1.4 #12 巨獸
 	units = tmp.units
 	return ""
 

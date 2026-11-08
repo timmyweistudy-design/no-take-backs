@@ -18,6 +18,15 @@ const FOREST := 2
 const ICE := 3
 const LAVA := 4
 const CANYON := 5
+const QUARRY := 6     # V1.4 #10 沙盤機關：崩塌礦坑
+const BEACON := 7     # 烽火關
+const PLATES := 8     # 推進板
+
+## V1.4 #10 定時機關：{"t": 第幾 tick, "k": 種類, "r": 左半千分比矩形 [x0, y0, x1, y1]（右半鏡像）, "d": 持續 tick}
+## collapse＝崩成擋路（之後一直在）；fire＝火牆燒 d tick（每 FIRE_EVERY tick 扣 FIRE_DMG）；push＝推進板把上面的兵往前推 PUSH 距離。
+const FIRE_EVERY := 10
+const FIRE_DMG := 6
+const PUSH := 1000
 
 ## 後面的矩形蓋掉前面。名稱鍵在 strings.csv：map_<key>。biome 給畫面用。
 const MAPS := [
@@ -54,7 +63,25 @@ const MAPS := [
 		[SLOW, 620, 380, 1000, 620],
 		[BLOCK, 720, 260, 1000, 380], [BLOCK, 720, 620, 1000, 740],
 	]},
+	# V1.4 #10 崩塌礦坑：開局三條路；第 20 秒中路礦坑崩塌變成擋路，只剩上下兩路
+	{"key": "quarry", "biome": "canyon", "rects": [
+		[BLOCK, 760, 0, 860, 180], [BLOCK, 760, 820, 860, 1000],
+	], "events": [{"t": 400, "k": "collapse", "r": [800, 400, 920, 600], "d": 0}]},
+	# 烽火關：中線附近兩道火牆在第 15、35 秒各燒 3 秒，站在上面會被燒
+	{"key": "beacon", "biome": "lava", "rects": [
+		[SLOW, 900, 0, 1000, 160], [SLOW, 900, 840, 1000, 1000],
+	], "events": [{"t": 300, "k": "fire", "r": [880, 240, 1000, 760], "d": 60}, {"t": 700, "k": "fire", "r": [880, 240, 1000, 760], "d": 60}]},
+	# 推進板：上下兩塊木板在第 8、28 秒把上面的兵往前推一格（衝上去搶位置，也可能被推進敵陣）
+	{"key": "plates", "biome": "forest", "rects": [
+		[BLOCK, 880, 430, 1000, 570],
+	], "events": [{"t": 160, "k": "push", "r": [560, 120, 760, 340], "d": 0}, {"t": 160, "k": "push", "r": [560, 660, 760, 880], "d": 0},
+		{"t": 560, "k": "push", "r": [560, 120, 760, 340], "d": 0}, {"t": 560, "k": "push", "r": [560, 660, 760, 880], "d": 0}]},
 ]
+
+static func events(map_id: int) -> Array:
+	if map_id < 0 or map_id >= MAPS.size():
+		return []
+	return MAPS[map_id].get("events", [])
 
 static var _cache := {}
 
@@ -77,4 +104,7 @@ static func terrain(map_id: int, size: int):
 ## 進規則摘要：地形內容一變，舊代碼就會回報不一致。
 static func digest(map_id: int, size: int) -> String:
 	var t = terrain(map_id, size)
-	return "plain" if t == null else t.digest()
+	var base: String = "plain" if t == null else t.digest()
+	if not events(map_id).is_empty():
+		base += "|ev" + JSON.stringify(events(map_id)).sha256_text().substr(0, 12)   # V1.4 #10：機關內容一變，舊代碼就不一致
+	return base

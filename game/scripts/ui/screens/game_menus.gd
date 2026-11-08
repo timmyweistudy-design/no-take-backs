@@ -269,6 +269,10 @@ func _draw_overlay() -> void:
 			_draw_nemeses()
 		"paint":
 			_draw_paint()
+		"ghosts":
+			_draw_ghosts()
+		"weekly":
+			_draw_weekly()
 		"relay":
 			_draw_relay()
 		"postcard":

@@ -34,6 +34,11 @@ class VUnit:
 	var breach: int            # 第四輪：被破陣剩幾 tick
 	var aura: int              # 第四輪：在鼓手光環內
 	var bmode: int             # 第四輪：投彈兵模式
+	var st := 0                # V1.4 #9 貼紙
+	var ward := false
+	var boss := false          # V1.4 #12 巨獸與部位
+	var arm_hp := 0
+	var plate_hp := 0
 
 var units: Array = []          # 跟 sim.units 同順序
 var tick := 0
@@ -57,7 +62,7 @@ var queue: Array = []          # 還沒播的快照（模擬已經跑到、畫�
 static func capture(sim) -> Dictionary:
 	var us: Array = []
 	for u in sim.units:
-		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon, u.shield, u.haste_t])
+		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon, u.st, 1 if u.ward else 0, 1 if u.boss else 0, u.arm_hp, u.plate_hp, u.shield, u.haste_t])
 	return {"tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
 		"frenzy": sim.frenzy, "finished": sim.finished, "power": [sim.power(0), sim.power(1)],
 		"alive": [sim.alive_count(0), sim.alive_count(1)], "zones": sim.zones.duplicate()}
@@ -93,6 +98,8 @@ func apply(fr: Dictionary) -> void:
 		v.windup = a[21] if a.size() > 21 else 0
 		v.guard = a[22] if a.size() > 22 else 0
 		v.summon = a[23] if a.size() > 23 else false
+		if a.size() > 30:
+			v.st = a[24]; v.ward = a[25] == 1; v.boss = a[26] == 1; v.arm_hp = a[27]; v.plate_hp = a[28]
 		_by_id[v.id] = v
 	tick = fr["tick"]
 	events = fr["events"]

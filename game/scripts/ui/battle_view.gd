@@ -472,6 +472,21 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	if k == EV.CMD or k == EV.CMD_HIT:
 		_cmd_event(ev, with_fx)
 		return
+	if k in ["boss_arm", "boss_plate"]:
+		if with_fx:
+			_fx_text(Vector2(640, 150), L.t("ev_" + k), ACCENT, 1.2, tz("H2"), true)   # V1.4 #12 巨獸部位破壞
+			sfx.play("bell", 0.8)
+			if _fx_on("shake"):
+				shake = maxf(shake, 0.25)
+		return
+	if k in ["collapse", "fire", "push"]:
+		# V1.4 #10 沙盤機關發動：中間一句大字＋音效（不進模擬）
+		if with_fx:
+			_fx_text(Vector2(640, 150), L.t("ev_" + k), Color("#ffb347") if k != "push" else Color("#f3e3c0"), 1.0, tz("H2"), true)
+			sfx.play("bell" if k == "collapse" else ("poison" if k == "fire" else "turn"), 0.6)
+			if k == "collapse" and _fx_on("shake"):
+				shake = maxf(shake, 0.2)
+		return
 	if _on_event_v8(ev, k, with_fx):
 		return
 	if k == EV.DEATH:

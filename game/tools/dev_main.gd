@@ -765,6 +765,14 @@ func _shots_v9() -> void:
 	sealed[0].append([])
 	await _snap("59g_sealed.png")
 	toast_t = 0.0
+	var gb_keep = Save.data.get("ghost_beat", [])   # V1.4 #7 幽靈軍團（破了兩個）、每週棋盒
+	Save.data["ghost_beat"] = ["g01", "g04"]
+	overlay = "ghosts"
+	await _snap("59i_ghosts.png")
+	Save.data["ghost_beat"] = gb_keep
+	overlay = "weekly"
+	await _snap("59j_weekly.png")
+	overlay = ""
 	_start_mode(Mode.VS_AI)
 	overlay = ""
 	_open("reward")

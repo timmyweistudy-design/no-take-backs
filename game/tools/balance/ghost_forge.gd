@@ -5,19 +5,26 @@ extends SceneTree
 
 const AI = preload("res://scripts/core/ai_army.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
+const RS = preload("res://scripts/core/ruleset.gd")
+
+func _arg(k: String, d: String) -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--%s=" % k):
+			return a.split("=")[1]
+	return d
 
 func _init() -> void:
 	var foes: Array = []
 	var fr := RandomNumberGenerator.new()
 	fr.seed = 7001
-	for i in 40:
+	for i in int(_arg("foes", "40")):
 		foes.append(AI.build(0, 100, fr)["army"])
 	var cands: Array = []
-	for ti in AI.TEMPLATES.size():
-		for s in 8:
+	for ti in range(int(_arg("t0", "0")), mini(AI.TEMPLATES.size(), int(_arg("t1", "99")))):
+		for s in int(_arg("seeds", "8")):
 			var r := RandomNumberGenerator.new()
 			r.seed = 9000 + ti * 101 + s * 7
-			var b: Dictionary = AI.build(1, 100, r, ti)
+			var b: Dictionary = AI.build(1, 100, r, ti, RS.full_pool() if "--full" in OS.get_cmdline_user_args() else -1)
 			var a = b["army"]
 			if a.units.is_empty():
 				continue
@@ -28,7 +35,9 @@ func _init() -> void:
 				sim.run_to_end()
 				if sim.winner == 1:
 					wins += 1
-			cands.append({"t": ti, "tpl": str(b["name"]), "units": a.units.duplicate(true), "wr": wins * 100 / foes.size(), "cost": a.spent()})
+			var cd := {"t": ti, "tpl": str(b["name"]), "units": a.units.duplicate(true), "wr": wins * 100 / foes.size(), "cost": a.spent()}
+			cands.append(cd)
+			print("CAND ", JSON.stringify(cd))   # 邊算邊印：中途被砍也留得下結果
 	cands.sort_custom(func(x, y): return int(x["wr"]) > int(y["wr"]))
 	var per := {}
 	var out := 0

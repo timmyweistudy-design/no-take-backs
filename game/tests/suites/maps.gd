@@ -103,3 +103,47 @@ func test_maps_mirror_v9() -> void:
 				stuck.append("%s %d 打不起來" % [MD.MAPS[id]["key"], sz])
 	ok(bad.is_empty(), "所有地圖逐 tick 左右鏡像", str(bad))
 	ok(stuck.is_empty(), "所有地圖沒有單位站進牆裡、都打得起來", str(stuck))
+
+
+## V1.4 #10 沙盤機關：崩塌後那幾格變擋路、站在上面的兵被挪開；火牆會扣血；推進板往中線推；確定性、左右鏡像；舊地圖沒有機關。
+func test_map_events_v140() -> void:
+	var Sim0 = load("res://scripts/core/battle_sim.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var MD = load("res://scripts/core/map_defs.gd")
+	ok(MD.events(0).is_empty() and MD.events(5).is_empty() and not MD.events(MD.QUARRY).is_empty(), "只有新地圖帶機關")
+	for mid in [MD.QUARRY, MD.BEACON, MD.PLATES]:
+		var r = RS0.standard()
+		r.map_id = mid
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 1000 + mid
+		var a0 = AI0.build(0, 100, rng, -1, -1, r)["army"]
+		var a1 = AI0.build(1, 100, rng, -1, -1, r)["army"]
+		var s1 = Sim0.new(a0.copy(), a1.copy(), r)
+		var s2 = Sim0.new(a0.copy(), a1.copy(), r)
+		s1.run_to_end()
+		s2.run_to_end()
+		ok(s1.fingerprint == s2.fingerprint, "機關地圖 %d 確定性" % mid)
+		var sm = Sim0.new(a1.mirrored(), a0.mirrored(), r)
+		sm.run_to_end()
+		ok(sm.tick == s1.tick and (sm.winner == -1 if s1.winner == -1 else sm.winner == 1 - s1.winner), "機關地圖 %d 左右鏡像" % mid, "%d/%d %d/%d" % [s1.winner, sm.winner, s1.tick, sm.tick])
+	# 崩塌：第 400 tick 之後中路變擋路，共用快取的地形不受影響
+	var rq = RS0.standard()
+	rq.map_id = MD.QUARRY
+	var tq = MD.terrain(MD.QUARRY, 1)
+	var mid_y: int = tq.h / 2
+	var mx: int = tq.w / 2 - 800
+	ok(not tq.blocked(mx, mid_y, 0), "崩塌前中路可走")
+	var rng2 := RandomNumberGenerator.new()
+	rng2.seed = 3
+	var sq = Sim0.new(AI0.build(0, 100, rng2, -1, -1, rq)["army"], AI0.build(1, 100, rng2, -1, -1, rq)["army"], rq)
+	while sq.tick < 401 and not sq.finished:
+		sq.step()
+	if not sq.finished:
+		ok(sq.terrain.blocked(mx, mid_y, 0) and not tq.blocked(mx, mid_y, 0), "崩塌後這一場中路擋住、共用地形不變")
+		var stuck := 0
+		for u in sq.units:
+			if u.alive and sq.terrain.blocked(u.x, u.y, u.team):
+				stuck += 1
+		ok(stuck == 0, "沒有兵卡在崩塌的格子裡")
+

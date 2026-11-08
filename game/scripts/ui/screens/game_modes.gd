@@ -26,8 +26,9 @@ var gauntlet_cap := 0
 ## V1.1 D1：遠征路線。7 戰的節點類型與戰間事件（只改戰前配置：預算、隻數、可換隻數、卡池、下一戰敵方預算／隻數）。
 const GA_NODES := ["outpost", "fight", "fight", "elite", "fight", "elite", "boss"]
 const GA_NODE_GOLD := {"outpost": 0, "fight": 0, "elite": 10, "boss": 20}
-const GA_EVENTS := ["rw_gold", "rw_cap", "rw_change", "rw_recruit", "rw_scout", "rw_ambush"]
-const GA_EVENT_ICONS := ["coin", "people", "swap", "flag", "map", "ban"]
+const GA_EVENTS := ["rw_gold", "rw_cap", "rw_change", "rw_recruit", "rw_scout", "rw_ambush", "rw_sticker"]
+const STK = preload("res://scripts/core/sticker_defs.gd")
+const GA_EVENT_ICONS := ["coin", "people", "swap", "flag", "map", "ban", "star"]
 ## V1.4 #3 戰利品契約：每一站抽 2 份可簽（或不簽）。判定只看戰前陣型與戰後狀態，模擬不動。
 ## [字串鍵, 獎勵金, 獎勵隻數, 本戰預算變動, 本戰隻數變動]
 const CONTRACTS := [["ct_noranged", 10, 0, 0, 0], ["ct_three", 0, 2, 0, 0], ["ct_fast", 10, 0, 0, 0],
@@ -587,9 +588,11 @@ static func ga_node(stage: int) -> String:
 func _gauntlet_offers() -> Array:
 	var r := RandomNumberGenerator.new()
 	r.seed = gauntlet_seed * 31 + gauntlet_stage * 977 + 5
-	var ids: Array = [0, 1, 2, 3, 4, 5]
+	var ids: Array = [0, 1, 2, 3, 4, 5, 6]
 	if _recruit_pick().is_empty():
 		ids.erase(3)
+	if _sticker_pick().is_empty():
+		ids.erase(6)
 	var out: Array = []
 	while out.size() < 3 and not ids.is_empty():
 		var k: int = ids[r.randi() % ids.size()]
@@ -628,7 +631,44 @@ func _recruit_pick() -> Array:
 			return [a, b]
 	return []
 
+## V1.4 #9 木座貼紙：[貼紙, 欄, 列]——這一站固定抽一種貼紙、貼在下一戰沿用陣型裡還沒貼的一隻（同一趟同一站永遠一樣）。
+func _sticker_pick() -> Array:
+	var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
+	var cand: Array = []
+	for u in cur:
+		if u.has("col") and int(u.get("st", 0)) == 0:
+			cand.append(u)
+	if cand.is_empty():
+		return []
+	var r := RandomNumberGenerator.new()
+	r.seed = gauntlet_seed * 71 + gauntlet_stage * 293 + 9
+	var st: int = 1 + r.randi() % STK.COUNT
+	var u: Dictionary = cand[r.randi() % cand.size()]
+	return [st, int(u["col"]), int(u["row"])]
+
+## 貼紙說明（數值從常數換進去，不寫死）。英文語序不同，參數順序跟著語言。
+static func sticker_desc(st: int) -> String:
+	var en := L.lang == "en"
+	match st:
+		STK.CHARGE:
+			return L.t("st_1_d", [STK.CHARGE_PCT - 100, STK.CHARGE_TICKS / 20] if en else [STK.CHARGE_TICKS / 20, STK.CHARGE_PCT - 100])
+		STK.BLAST:
+			var r := "%.1f" % (STK.BLAST_R / 1000.0)
+			return L.t("st_2_d", [STK.BLAST_DMG, r] if en else [r, STK.BLAST_DMG])
+		STK.TOUGH:
+			return L.t("st_5_d", [STK.TOUGH_PCT - 100])
+		STK.SWIFT:
+			return L.t("st_6_d", [100 - STK.SWIFT_PCT])
+	return L.t("st_%d_d" % st)
+
+func _apply_sticker(sp: Array) -> void:
+	for lst in [gauntlet_prev, armies[0].units]:
+		for u in lst:
+			if u.has("col") and int(u["col"]) == int(sp[1]) and int(u["row"]) == int(sp[2]):
+				u["st"] = int(sp[0])
+
 func _take_reward(k: int) -> void:
+	var sp := _sticker_pick() if k == 6 else []
 	overlay = ""
 	gauntlet_foe_gold = 0
 	gauntlet_foe_cap = 0
@@ -648,12 +688,24 @@ func _take_reward(k: int) -> void:
 			gauntlet_foe_cap = -2
 	gauntlet_contract = ct_pick   # V1.4 #3：選完事件才生效
 	call("_gauntlet_next")
+	if not sp.is_empty():
+		_apply_sticker(sp)
 	_apply_contract_cost()
 	if k == 2:
 		gauntlet_changes += 2
 	call("_gauntlet_save")
 
 func _ga_event_desc(k: int) -> String:
+	if k == 6:
+		var sp := _sticker_pick()
+		if sp.is_empty():
+			return ""
+		var ty := -1
+		var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
+		for u in cur:
+			if u.has("col") and int(u["col"]) == int(sp[1]) and int(u["row"]) == int(sp[2]):
+				ty = int(u["type"])
+		return L.t("rw_sticker_d", [L.t("st_%d" % int(sp[0])), L.t("unit_%d" % ty), sticker_desc(int(sp[0]))])
 	if k == 3:
 		var rp := _recruit_pick()
 		return L.t("rw_recruit_d", [L.t("unit_%d" % int(rp[0])), L.t("unit_%d" % int(rp[1]))]) if not rp.is_empty() else ""
@@ -1179,7 +1231,10 @@ func _draw_playroom() -> void:
 		rec.append(L.t("pr_wave_best", [int(Save.data.get("wave_best", 0))]))   # Antigravity v140-i3：車輪戰紀錄要看得到
 	if not rec.is_empty():
 		_text(Vector2(640, 548), "　・　".join(rec), tz("S"), ACCENT, true, true, 960)
-	_btn(Rect2(560, 626, 160, 44), L.t("back"), func(): overlay = "")
+	# 第二排：幽靈軍團、每週棋盒（V1.4 #7）
+	_btn(Rect2(330, 626, 200, 44), L.t("gh_open"), func(): overlay = "ghosts")
+	_btn(Rect2(540, 626, 200, 44), L.t("wk_open"), func(): overlay = "weekly")
+	_btn(Rect2(750, 626, 200, 44), L.t("back"), func(): overlay = "")
 
 ## 競猜：用 AI 組兩支軍隊（同樣 100 金），先看陣型再押注。
 func _wager_new() -> void:
@@ -1546,4 +1601,195 @@ func _ellipse_pts(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
 		var an := i * TAU / 20.0
 		pts.append(c + Vector2(cos(an) * rx, sin(an) * ry))
 	return pts
+
+
+## ── V1.4 #7 幽靈軍團＋每週棋盒 ──
+## 幽靈：30 個凍結的「名人陣」（data/ghosts.json，tools/balance/ghost_forge.gd 鍛造：每個 AI 模板對 40 支隨機軍的勝率挑最強）。
+## 打贏記在 Save.data.ghost_beat。接上 Steam 後可以從排行榜抓玩家上傳的陣（SteamApi.ghost_*，未實測）。
+## 每週棋盒：依週數固定 6 種兵的卡池、預算、對手（其中一個幽靈）；本地記最少花費破關，Steam 上同一題比排行榜。
+var ghost_id := ""
+var wk_active := false
+var gh_page := 0
+static func ghosts() -> Array:
+	return load("res://scripts/game/ghost_data.gd").all()
+
+static func ghost_army(g: Dictionary):
+	var a = Army.new(1, 100)
+	for u in g.get("units", []):
+		a.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+	return a
+
+## 週數：從 1970-01-05（週一）起算，每週一換題。
+static func week_no(unix: int) -> int:
+	return int(floor((unix / 86400.0 - 4.0) / 7.0))
+
+## 這週的題目：卡池（舊 10 種裡抽 6 種，一定有戰鬥兵）、預算、對手幽靈。同一週大家一樣。
+static func weekly_spec(wk: int) -> Dictionary:
+	var r := RandomNumberGenerator.new()
+	r.seed = 1400000 + wk
+	var mask := 0
+	for _try in 50:
+		var types := range(D.COUNT)
+		mask = 0
+		for k in 6:
+			var j := r.randi_range(0, types.size() - 1)
+			mask |= 1 << int(types[j])
+			types.remove_at(j)
+		if RuleSet.has_combat(mask):
+			break
+	var gs := ghosts()
+	return {"wk": wk, "pool": mask, "budget": [80, 90, 100, 110, 120][posmod(wk, 5)], "ghost": posmod(wk * 7, maxi(1, gs.size()))}
+
+func _ghost_start(i: int) -> void:
+	var gs := ghosts()
+	if i < 0 or i >= gs.size():
+		return
+	var r = RuleSet.standard()
+	r.rounds = 1
+	rules = r
+	challenge_army = ghost_army(gs[i])
+	overlay = ""
+	_start_mode(Mode.VS_AI)
+	challenge_army = ghost_army(gs[i])
+	ghost_id = str(gs[i]["id"])
+	_toast(L.t("gh_toast", [L.field(gs[i], "")]))
+
+func _weekly_start() -> void:
+	var sp := weekly_spec(week_no(int(Time.get_unix_time_from_system())))
+	var gs := ghosts()
+	if gs.is_empty():
+		return
+	var r = RuleSet.standard()
+	r.rounds = 1
+	r.pool = [int(sp["pool"]), RuleSet.all_pool()]
+	r.ai_pool_same = false
+	r.handicap = true
+	r.budget = [int(sp["budget"]), 100]
+	rules = r
+	challenge_army = ghost_army(gs[int(sp["ghost"])])
+	overlay = ""
+	_start_mode(Mode.VS_AI)
+	challenge_army = ghost_army(gs[int(sp["ghost"])])
+	wk_active = true
+	_toast(L.t("wk_toast", [int(sp["budget"])]))
+
+## 戰鬥結束（正式局）呼叫一次：記幽靈戰果、每週最少花費。
+func _ghost_settle(w: int) -> void:
+	if mode != Mode.VS_AI or play_kind != "official":
+		return
+	if ghost_id != "" and w == 0:
+		var beat: Array = Save.data.get("ghost_beat", [])
+		if not ghost_id in beat:
+			beat.append(ghost_id)
+			Save.data["ghost_beat"] = beat
+			Save.save_data()
+			report["gh_line"] = L.t("gh_beat_new", [beat.size(), ghosts().size()])
+	if wk_active:
+		var wk := week_no(int(Time.get_unix_time_from_system()))
+		var rec: Dictionary = Save.data.get("weekly", {})
+		if int(rec.get("wk", -1)) != wk:
+			rec = {"wk": wk, "best": 0, "tries": 0}
+		rec["tries"] = int(rec.get("tries", 0)) + 1
+		if w == 0:
+			var spent: int = last_armies[0].spent()
+			if int(rec["best"]) <= 0 or spent < int(rec["best"]):
+				rec["best"] = spent
+				report["gh_line"] = L.t("wk_best_new", [spent])
+				SteamApi.weekly_upload(wk, spent, last_armies[0])   # 有 Steam 才會送（未實測）
+		Save.data["weekly"] = rec
+		Save.save_data()
+
+func _draw_ghosts() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(130, 60, 1020, 680)
+	_panel(P)
+	_h1(Vector2(640, 72), L.t("gh_head"))
+	var gs := ghosts()
+	var beat: Array = Save.data.get("ghost_beat", [])
+	_text(Vector2(640, 72 + tz("H1") * 1.4), L.t("gh_help", [beat.size(), gs.size()]), tz("S"), TXT_DIM, true, false, 900)
+	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
+	var per := 12
+	var pages := maxi(1, int(ceil(gs.size() / float(per))))
+	gh_page = clampi(gh_page, 0, pages - 1)
+	for k in per:
+		var i := gh_page * per + k
+		if i >= gs.size():
+			break
+		var g: Dictionary = gs[i]
+		var r := Rect2(160 + (k % 3) * 324, 150 + (k / 3) * 116, 312, 104)
+		var gi := i
+		btn_paper = true
+		_btn(r, "", func(): _ghost_start(gi))
+		btn_paper = false
+		_ink_mode = not bool(Save.s("plain_ui"))
+		_text(r.position + Vector2(16, 12), L.field(g, ""), tz("B"), INK if _ink_mode else Color.WHITE, false, true, 220)
+		_text(r.position + Vector2(16, 12 + tz("B") * 1.45), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), int(g.get("wr", 0))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
+		_ink_mode = false
+		# 右側：迷你陣型（紅點）
+		var mx := r.end.x - 64
+		for u in g.get("units", []):
+			draw_circle(Vector2(mx + (int(u["col"]) - 10) * 8.0, r.position.y + 16 + int(u["row"]) * 8.0), 3.0, Color("#b3261e"), true, -1.0, true)
+		if str(g["id"]) in beat:
+			var sp := r.position + Vector2(r.size.x - 38, r.size.y - 30)
+			_hand_ring(sp, 18.0, Color("#8e1b14", 0.9), 2.6)
+			_text(sp - Vector2(0, tz("C") * 0.68), L.t("gh_stamp"), tz("C"), Color("#8e1b14"), true, true, 40)
+	if pages > 1:
+		_btn(Rect2(470, 626, 56, 44), "◀", func(): gh_page = posmod(gh_page - 1, pages))
+		_text(Vector2(640, 636), "%d／%d" % [gh_page + 1, pages], tz("S"), Color.WHITE, true, true, 100)
+		_btn(Rect2(754, 626, 56, 44), "▶", func(): gh_page = posmod(gh_page + 1, pages))
+	_btn(Rect2(560, 680, 160, 44), L.t("back"), func(): overlay = "playroom")
+
+func _draw_weekly() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(260, 120, 760, 540)
+	_panel(P)
+	_h1(Vector2(640, 132), L.t("wk_head"))
+	var wk := week_no(int(Time.get_unix_time_from_system()))
+	var sp := weekly_spec(wk)
+	var gs := ghosts()
+	var rec: Dictionary = Save.data.get("weekly", {})
+	if int(rec.get("wk", -1)) != wk:
+		rec = {}
+	var paper := Rect2(300, 200, 680, 330)
+	_tex_box(paper, "paper")
+	_ink_mode = true
+	var y := paper.position.y + 18
+	_text(Vector2(640, y), L.t("wk_sub", [wk]), tz("B"), INK, true, true, 640)
+	y += tz("B") * 1.8
+	_text(Vector2(330, y), L.t("wk_pool"), tz("S"), INK, false, true, 200)
+	var n := 0
+	for t in D.COUNT:
+		if int(sp["pool"]) & (1 << t):
+			Art.unit(self, Vector2(520 + n * 74, y + 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.9, cbm())
+			n += 1
+	y += 74
+	_text(Vector2(330, y), L.t("wk_budget", [int(sp["budget"])]), tz("S"), INK, false, true, 600)
+	y += tz("S") * 1.7
+	if not gs.is_empty():
+		_text(Vector2(330, y), L.t("wk_foe", [L.field(gs[int(sp["ghost"])], "")]), tz("S"), INK, false, true, 620)
+	y += tz("S") * 1.7
+	var best := int(rec.get("best", 0))
+	_text(Vector2(330, y), L.t("wk_best", [best]) if best > 0 else L.t("wk_none"), tz("S"), Color("#8e1b14") if best > 0 else Color("#5a4630"), false, true, 620)
+	_ink_mode = false
+	_text(Vector2(640, paper.end.y + 14), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
+	_btn(Rect2(460, 594, 160, 44), L.t("back"), func(): overlay = "playroom")
+	_btn(Rect2(660, 594, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
+
+
+## ── V1.4 #12 巨獸：遠征終點的敵陣中央放一隻（不佔預算、隻數）。格子被佔了就把那隻換掉。──
+const BOSS_CELLS := [[12, 4], [11, 4], [12, 3], [12, 5], [13, 4], [11, 3], [11, 5]]
+
+static func add_boss(a) -> void:
+	for u in a.units:
+		if int(u.get("boss", 0)) == 1:
+			return
+	var cell: Array = BOSS_CELLS[0]
+	for c in BOSS_CELLS:
+		if a.index_at(int(c[0]), int(c[1])) == -1:
+			cell = c
+			break
+	var i: int = a.index_at(int(cell[0]), int(cell[1]))
+	if i != -1:
+		a.units.remove_at(i)
+	a.units.append({"type": 19, "col": int(cell[0]), "row": int(cell[1]), "boss": 1})
 

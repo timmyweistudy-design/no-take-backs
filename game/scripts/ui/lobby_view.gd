@@ -689,8 +689,9 @@ func _draw_lobby_main(R: Rect2) -> void:
 			lx += 40 + tw + 12
 		ly += 34
 	# 地圖是什麼樣的玩法（第一眼就要懂）
-	_text(Vector2(pv.position.x, ly), L.t("map_d_" + mk), tz("S"), Color(1, 1, 1, 0.88), false, false, pv.size.x)
-	ly += text_h(L.t("map_d_" + mk), tz("S"), pv.size.x) + 8
+	var md := map_desc(r.map_id)
+	_text(Vector2(pv.position.x, ly), md, tz("S"), Color(1, 1, 1, 0.88), false, false, pv.size.x)
+	ly += text_h(md, tz("S"), pv.size.x) + 8
 	if lobby_r.map_id != 0 and RuleSet.has_new(lobby_r.pool_of(0)):   # 第十輪 R7：講清楚沒認證，不動 AI 也不動數值
 		_text(Vector2(pv.position.x, ly), L.t("lb_map_fantasy_note"), tz("C"), ACCENT, false, false, pv.size.x)
 		ly += text_h(L.t("lb_map_fantasy_note"), tz("C"), pv.size.x) + 8
@@ -1132,3 +1133,25 @@ func _draw_bookmark() -> void:
 	draw_colored_polygon(PackedVector2Array([Vector2(bx, by0), Vector2(bx + 20, by0), Vector2(bx + 20, by0 + bl), Vector2(bx + 10, by0 + bl - 7), Vector2(bx, by0 + bl)]), Color("#b5441f"))
 	draw_rect(Rect2(bx, by0, 20, 3), Color(0, 0, 0, 0.25))
 	draw_line(Vector2(bx + 4, by0 + 3), Vector2(bx + 4, by0 + bl - 3), Color(1, 0.85, 0.6, 0.4), 1.5)
+
+
+## V1.4 #10：地圖說明（有機關的地圖把秒數從地圖資料帶進去，不寫死）。
+static func map_desc(map_id: int) -> String:
+	var mk: String = str(MapDefs.MAPS[map_id]["key"])
+	var ev: Array = MapDefs.events(map_id)
+	if ev.is_empty():
+		return L.t("map_d_" + mk)
+	var secs: Array = []
+	for e in ev:
+		var sec := int(e["t"]) / 20
+		if not secs.has(sec):
+			secs.append(sec)
+	match mk:
+		"quarry":
+			return L.t("map_d_quarry", [secs[0]])
+		"beacon":
+			return L.t("map_d_beacon", [secs[0], secs[1], int(ev[0]["d"]) / 20])
+		"plates":
+			return L.t("map_d_plates", [secs[0], secs[1]])
+	return L.t("map_d_" + mk)
+

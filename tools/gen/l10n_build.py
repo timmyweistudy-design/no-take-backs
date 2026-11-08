@@ -97,6 +97,8 @@ def main():
     # 資料檔
     for fn in X.DATA:
         fp = G / "data" / fn
+        if not fp.exists():
+            continue
         d = json.load(open(fp, encoding="utf-8"))
         items = []
         X.walk(d, "", fn, items)

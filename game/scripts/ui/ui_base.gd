@@ -54,6 +54,7 @@ const CS := 64.0
 const FIELD := Vector2(16 * 64, 9 * 64)
 const MapArt = preload("res://scripts/ui/map_art.gd")
 const MapDefs = preload("res://scripts/core/map_defs.gd")
+const BossD = preload("res://scripts/core/boss_defs.gd")
 # V9：這一場的場地（世界 px）。標準大小時 fld_size＝FIELD、_fld_xf＝單位矩陣，舊畫面完全不變
 var fld_size := FIELD
 var fld_w := 16000
@@ -844,6 +845,18 @@ func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
 			draw_circle(c + Vector2(-s * 0.2, -s * 0.22), maxf(1.2, s * 0.06), Color(1, 0.98, 0.9, 0.55 * col.a), true, -1.0, true)
 		return
 	Icons.draw(self, name, c, s, col)
+
+## V1.4 #9 木座貼紙：木座右前方一枚小圓貼（隊伍無關的顏色＋白圖示）。on＝false 時淡掉（護符用掉了）。
+func _sticker_badge(p: Vector2, st: int, scale := 1.0, on := true) -> void:
+	var STK = preload("res://scripts/core/sticker_defs.gd")
+	if st < 1 or st > STK.COUNT:
+		return
+	var c := p + Vector2(15, 5) * scale
+	var a := 1.0 if on else 0.35
+	draw_circle(c + Vector2(0, 1.2) * scale, 7.5 * scale, Color(0.1, 0.06, 0.03, 0.5 * a), true, -1.0, true)
+	draw_circle(c, 7.0 * scale, Color(0.98, 0.94, 0.84, a), true, -1.0, true)
+	draw_circle(c, 5.6 * scale, Color(Color(STK.COLORS[st]), a), true, -1.0, true)
+	Icons.draw(self, STK.ICONS[st], c, 8.0 * scale, Color(1, 1, 1, a))
 
 ## 羊皮紙標題緞帶：畫面標題統一用它。
 func _h1(center: Vector2, s: String, maxw := 0.0) -> void:

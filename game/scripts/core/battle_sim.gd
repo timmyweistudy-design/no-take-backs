@@ -11,6 +11,9 @@ const EV = preload("res://scripts/core/events.gd")
 const F8 = preload("res://scripts/core/fantasy_defs.gd")
 const M = preload("res://scripts/core/imath.gd")
 const CMD = preload("res://scripts/core/cmd_defs.gd")
+const STK = preload("res://scripts/core/sticker_defs.gd")
+const MapDefs = preload("res://scripts/core/map_defs.gd")
+const BOSS = preload("res://scripts/core/boss_defs.gd")
 
 const TPS := 20
 const MAX_TICKS := D.MATCH_TICKS
@@ -90,6 +93,12 @@ class Unit:
 	var pull_x := 0            # 被吸塵貓拉的每 tick 位移
 	var pull_y := 0
 	var pull_t := 0
+	var st := 0                # V1.4 #9 木座貼紙（0＝沒有）
+	var st_t := 0              # 開局衝鋒剩幾 tick
+	var ward := false          # 護符還在
+	var boss := false          # V1.4 #12 巨獸
+	var arm_hp := 0            # 前臂部位血量（0＝斷了，不再橫掃）
+	var plate_hp := 0          # 背甲部位血量（0＝碎了，不再分攤傷害）
 
 var units: Array[Unit] = []    # 依 id 排序
 var tick := 0
@@ -118,9 +127,13 @@ var _last_rank := 99          # 上一次 _choose_target 選中目標的優先�
 var _was_stealth := {}         # 刺客上一 tick 是否潛行（現形事件用）
 var _was_rally := [false, false]          # 上一 tick 哪一隊在背水（背水開／關事件用）
 var v8 := false                # 這一場用到第八輪新兵
+var has_st := false            # V1.4 #9：有沒有任何一隻貼了貼紙
+var has_boss := false          # V1.4 #12：場上有巨獸
 var fw := W                    # V9：場地大小（標準＝舊常數，舊場次完全相同）
 var fh := H
 var terrain = null             # V9：地形（null＝平原，舊路徑不碰）
+var map_ev: Array = []           # V1.4 #10：這張圖的定時機關（空＝沒有，舊路徑不碰）
+var fire_until: Array = []       # 正在燒的火牆：[矩形, 燒到第幾 tick]
 var _nav_wp := {}              # V9：單位索引 → 導航途經點（每 4 tick 重算）
 var zones: Array = []          # 碎石區：[x, y, 到期 tick]
 var _pending_blast: Array = [] # 半路被打死、下一 tick 才炸的爆爆羊（索引）
@@ -159,6 +172,9 @@ func _init(army0, army1, p_rules = null) -> void:
 		fw = rules.field_w()
 		fh = rules.field_h()
 		terrain = rules.terrain()
+		map_ev = MapDefs.events(rules.map_id) if not rules.map_is_default() else []
+		if not map_ev.is_empty() and terrain != null:
+			terrain = terrain.clone()   # 會崩塌：這一場自己一份地形，不改到共用快取
 		if rules.cmd_on():
 			cmd_on = true
 			cmd_mask = rules.cmd_mask.duplicate()
@@ -217,6 +233,30 @@ func _init(army0, army1, p_rules = null) -> void:
 			n.max_hp = n.hp
 			n.atk = maxi(1, n.atk * int(pc[1]) / 100)
 			n.speed = maxi(1, n.speed * int(pc[2]) / 100)
+		var stv: int = int(u.get("st", 0))
+		if STK.valid(stv):
+			n.st = stv
+			has_st = true
+			match stv:
+				STK.CHARGE:
+					n.st_t = STK.CHARGE_TICKS
+				STK.WARD:
+					n.ward = true
+				STK.TOUGH:
+					n.hp = n.hp * STK.TOUGH_PCT / 100
+					n.max_hp = n.hp
+				STK.SWIFT:
+					n.cd_base = maxi(1, n.cd_base * STK.SWIFT_PCT / 100)
+		if int(u.get("boss", 0)) == 1 and n.type == F8.GOLEM:
+			n.boss = true
+			has_boss = true
+			n.hp *= BOSS.HP_MUL
+			n.max_hp = n.hp
+			n.atk *= BOSS.ATK_MUL
+			n.reach += BOSS.REACH_ADD
+			n.speed = n.speed * BOSS.SPEED_PCT / 100
+			n.arm_hp = n.max_hp * BOSS.ARM_PCT / 100
+			n.plate_hp = n.max_hp * BOSS.PART_PCT / 100
 		n.fx = 1000 if n.team == 0 else -1000
 		if n.type == D.ASSASSIN and not skill_off.has("stealth"):
 			n.stealth = D.STEALTH_TICKS
@@ -235,6 +275,16 @@ func _init(army0, army1, p_rules = null) -> void:
 	_hash.update((D.digest_v8() if v8 else D.data_digest()).to_utf8_buffer())
 	if not legacy:
 		_hash.update(rules.sim_digest().to_utf8_buffer())
+	if has_boss:
+		_hash.update("boss".to_utf8_buffer())   # V1.4 #12：有巨獸才多這段
+	if has_st:
+		# V1.4 #9：有貼紙才多這段（沒貼紙的對局雜湊位元組和以前一樣）
+		var sb := PackedInt64Array()
+		for u in units:
+			sb.append(u.id)
+			sb.append(u.st)
+		_hash.update("st".to_utf8_buffer())
+		_hash.update(sb.to_byte_array())
 	elif free:
 		_hash.update("free".to_utf8_buffer())   # 自由陣型但沒給規則（工具）：仍和格子陣型區分
 	var cmb := [0, 0]
@@ -295,6 +345,8 @@ func step() -> void:
 	var n := units.size()
 	if cmd_on:
 		_cmd_tick(n)
+	if not map_ev.is_empty():
+		_ev_tick(n)   # V1.4 #10 沙盤機關（在快照之前，這一 tick 大家看到的是同一個場面）
 
 	# ① 快照（之後的選目標、碰撞都只讀這些陣列）
 	var sx := PackedInt64Array()
@@ -445,6 +497,8 @@ func step() -> void:
 			var dy := dest_y - u.y
 			var l := M.isqrt(dx * dx + dy * dy)
 			var spd := u.speed
+			if u.st_t > 0:
+				spd = spd * STK.CHARGE_PCT / 100   # V1.4 #9 開局衝鋒
 			if u.slow > 0:
 				spd = spd * D.SLOW_NUM / D.SLOW_DEN
 			spd = spd * u.zone / 100
@@ -485,6 +539,7 @@ func step() -> void:
 		py.resize(n)
 		# V1.1 E4：依 x 排序後掃描，x 差 ≥ MIN_SEP 就停（原本這些配對一律跳過）。每對只算一次，而且仍以「索引小的當 i」
 		# 計算（零距離時的分開方向看 i、j 順序）；推力是整數加總、與配對順序無關，所以結果位元相同。
+		var scan := MIN_SEP + (BOSS.SEP_EXTRA * 2 if has_boss else 0)
 		var keys := PackedInt64Array()
 		keys.resize(na)
 		for a0 in na:
@@ -496,17 +551,20 @@ func step() -> void:
 			var ia: int = ka & 4095
 			for b in range(a + 1, na):
 				var kb: int = keys[b]
-				if (kb >> 12) - 1048576 - xa >= MIN_SEP:
+				if (kb >> 12) - 1048576 - xa >= scan:
 					break
 				var ib: int = kb & 4095
 				var i: int = mini(ia, ib)
 				var j: int = maxi(ia, ib)
+				var sep := MIN_SEP
+				if has_boss:
+					sep += (BOSS.SEP_EXTRA if units[i].boss else 0) + (BOSS.SEP_EXTRA if units[j].boss else 0)   # V1.4 #12 巨獸比較大
 				var dx := nx[j] - nx[i]
 				var dy := ny[j] - ny[i]
-				if dx >= MIN_SEP or dx <= -MIN_SEP or dy >= MIN_SEP or dy <= -MIN_SEP:
+				if dx >= sep or dx <= -sep or dy >= sep or dy <= -sep:
 					continue
 				var d2 := dx * dx + dy * dy
-				if d2 >= MIN_SEP * MIN_SEP:
+				if d2 >= sep * sep:
 					continue
 				var d := M.isqrt(d2)
 				var ux := 0
@@ -520,7 +578,7 @@ func step() -> void:
 				else:
 					ux = dx * 1000 / d
 					uy = dy * 1000 / d
-				var half := (MIN_SEP - d) / 2 + 1
+				var half := (sep - d) / 2 + 1
 				px[i] -= ux * half / 1000
 				py[i] -= uy * half / 1000
 				px[j] += ux * half / 1000
@@ -719,6 +777,8 @@ func step() -> void:
 				dmg = dmg * F8.GHOST_MELEE_NUM / F8.GHOST_MELEE_DEN
 		if tags.is_empty():
 			tags.append(EV.HIT)
+		if u.st == STK.FROST:
+			slow_set[u.target] = true   # V1.4 #9 寒霜
 		hits.append([i, u.target, _vuln(tg, dmg), kind, tags])
 		attacked[i] = 1
 		u.cd += u.cd_base * 4
@@ -741,6 +801,8 @@ func step() -> void:
 	last_hit.resize(n)
 	last_hit.fill(-1)
 	var per_pair := {}   # (目標, 攻擊者) → 這一 tick 的傷害
+	if has_boss:
+		_boss_parts(hits)   # V1.4 #12：打在巨獸身上的先分給背甲、前臂
 	for h in hits:
 		dmg_in[h[1]] += h[2]
 		units[h[0]].dmg_dealt += h[2]
@@ -817,6 +879,12 @@ func step() -> void:
 		var u := units[i]
 		if not u.alive:
 			continue
+		if u.ward and dmg_in[i] > 0:
+			u.dmg_taken -= dmg_in[i]   # V1.4 #9 護符：第一次受傷整筆擋掉
+			dmg_in[i] = 0
+			u.ward = false
+		if u.st_t > 0:
+			u.st_t -= 1
 		if u.shield > 0:
 			var absorbed: int = mini(u.shield, dmg_in[i])
 			u.shield -= absorbed
@@ -852,6 +920,7 @@ func step() -> void:
 		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
 			u.charge = 0
 	_apply_heals(heals)
+	var st_blasts: Array = []
 	for i in n:
 		var u := units[i]
 		if u.alive and u.hp <= 0:
@@ -862,6 +931,19 @@ func step() -> void:
 			events.append({"kind": EV.DEATH, "id": u.id})
 			if v8:
 				_v8_on_death(i, last_hit[i])
+			if u.st == STK.BLAST:
+				st_blasts.append(i)
+	# V1.4 #9 倒下自爆：全部倒下判定完才一起炸（不受索引順序影響，左右鏡像一致）；炸到的人下一 tick 才判定倒下
+	for bi in st_blasts:
+		var b: Unit = units[bi]
+		events.append({"kind": EV.BLAST, "src": b.id, "tgt": b.id, "tags": [EV.BLAST], "small": true})
+		for j in n:
+			var e := units[j]
+			if not e.alive or e.team == b.team or M.dist2(b.x, b.y, e.x, e.y) > STK.BLAST_R * STK.BLAST_R:
+				continue
+			e.hp -= STK.BLAST_DMG
+			e.dmg_taken += STK.BLAST_DMG
+			b.dmg_dealt += STK.BLAST_DMG
 	if v8:
 		_v8_post_tick(raises)
 
@@ -1180,7 +1262,9 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
 					u.skill_cd = F8.CAT_CD
 					_v8_cast(u, EV.VACUUM)
 			F8.GOLEM:
-				if u.skill_cd == 0 and not skill_off.has("stomp") and _v8_enemy_in(i, n, F8.GOLEM_R):
+				if u.boss and u.arm_hp <= 0:
+					pass   # 前臂斷了：巨獸不能橫掃
+				elif u.skill_cd == 0 and not skill_off.has("stomp") and _v8_enemy_in(i, n, BOSS.SWEEP_R if u.boss else F8.GOLEM_R):
 					u.skill_cd = F8.GOLEM_CD
 					_v8_cast(u, EV.STOMP)
 	if not cats.is_empty():
@@ -1242,9 +1326,10 @@ func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Arra
 		F8.GOLEM:
 			for j in n:
 				var e2 := units[j]
-				if not e2.alive or e2.team == u.team or e2.hidden or M.dist2(u.x, u.y, e2.x, e2.y) > F8.GOLEM_R * F8.GOLEM_R:
+				var gr: int = BOSS.SWEEP_R if u.boss else F8.GOLEM_R
+				if not e2.alive or e2.team == u.team or e2.hidden or M.dist2(u.x, u.y, e2.x, e2.y) > gr * gr:
 					continue
-				hits.append([i, j, F8.GOLEM_STOMP * atk_pct[F8.GOLEM] / 100, EV.SPLASH, [EV.SPLASH]])   # 第十二輪：拍地有傷害
+				hits.append([i, j, F8.GOLEM_STOMP * atk_pct[F8.GOLEM] / 100 * (BOSS.SWEEP_MUL if u.boss else 1), EV.SPLASH, [EV.SPLASH]])   # 第十二輪：拍地有傷害；V1.4 巨獸橫掃
 				if e2.type != F8.GOLEM and e2.type != F8.SPORE:
 					knock2.append([j, e2.x - u.x, e2.y - u.y])
 			events.append({"kind": EV.STOMP, "src": u.id, "tags": [EV.STOMP]})
@@ -2028,3 +2113,73 @@ func _t_pre_tick(n: int) -> void:
 			u.zone = mini(u.zone, pct)
 		elif pct > 100 and u.zone == 100:
 			u.zone = pct
+
+
+## ── V1.4 #10 沙盤機關（只有帶 events 的新地圖會走到）。全部用整數、左右鏡像（矩形本來就鏡像），依地圖資料順序處理。──
+func _ev_tick(n: int) -> void:
+	for e in map_ev:
+		if int(e["t"]) != tick:
+			continue
+		var rc: Array = e["r"]
+		match str(e["k"]):
+			"collapse":
+				terrain.apply_rects([[MapDefs.BLOCK, rc[0], rc[1], rc[2], rc[3]]])
+				for i in n:
+					var u := units[i]
+					if u.alive and terrain.blocked(u.x, u.y, u.team):
+						var p: Vector2i = terrain.free_near(u.x, u.y, u.team)
+						u.x = p.x
+						u.y = p.y
+				events.append({"kind": "collapse", "src": -1, "tgt": -1, "tags": ["collapse"], "rect": rc})
+			"fire":
+				fire_until.append([rc, tick + int(e["d"])])
+				events.append({"kind": "fire", "src": -1, "tgt": -1, "tags": ["fire"], "rect": rc})
+			"push":
+				for i in n:
+					var u := units[i]
+					if not u.alive or u.dormant or u.x * 2 == fw or not terrain.in_rect(u.x, u.y, rc):
+						continue
+					var dirx: int = 1 if u.x < fw / 2 else -1   # 往中線推（鏡像）
+					var nx: int = clampi(u.x + dirx * MapDefs.PUSH, EDGE, fw - EDGE)
+					if not terrain.blocked(nx, u.y, u.team):
+						u.x = nx
+				events.append({"kind": "push", "src": -1, "tgt": -1, "tags": ["push"], "rect": rc})
+	if fire_until.is_empty():
+		return
+	var keep: Array = []
+	for f in fire_until:
+		if tick > int(f[1]):
+			continue
+		keep.append(f)
+		if (tick - int(f[1])) % MapDefs.FIRE_EVERY != 0:
+			continue
+		for i in n:
+			var u := units[i]
+			if u.alive and not u.dormant and terrain.in_rect(u.x, u.y, f[0]):
+				u.hp -= MapDefs.FIRE_DMG
+				u.dmg_taken += MapDefs.FIRE_DMG
+	fire_until = keep
+
+
+## V1.4 #12：打在巨獸身上的傷害先分給部位。背甲還在：每筆 40% 打在背甲；前臂還在：近戰打來的剩下一半打在前臂。
+## 部位扣光時發事件（畫面喊「前臂斷了」「背甲碎了」）。照 hits 的順序處理（hits 本身順序確定，左右鏡像時巨獸只會在一邊）。
+func _boss_parts(hits: Array) -> void:
+	for h in hits:
+		var tg: Unit = units[h[1]]
+		if not tg.boss or int(h[2]) <= 0:
+			continue
+		var d: int = h[2]
+		if tg.plate_hp > 0:
+			var a: int = mini(tg.plate_hp, d * BOSS.PLATE_ABSORB / 100)
+			tg.plate_hp -= a
+			d -= a
+			if tg.plate_hp == 0:
+				events.append({"kind": "boss_plate", "src": tg.id, "tgt": tg.id, "tags": ["boss_plate"]})
+		if tg.arm_hp > 0 and D.is_melee(units[h[0]].type):
+			var b: int = mini(tg.arm_hp, d * BOSS.ARM_SHARE / 100)
+			tg.arm_hp -= b
+			d -= b
+			if tg.arm_hp == 0:
+				events.append({"kind": "boss_arm", "src": tg.id, "tgt": tg.id, "tags": ["boss_arm"]})
+		h[2] = d
+

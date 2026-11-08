@@ -30,6 +30,8 @@ func _go_title() -> void:
 	set("wv_mode", false)
 	set("sealed_on", false)   # V1.4 #13
 	set("sealed", [[], []])
+	set("ghost_id", "")
+	set("wk_active", false)
 	set("wg_active", false)   # V1.4 #16：離開就取消押注，不能拿下一場來結算（Codex v140-i2）
 	call("_pre_drop")
 	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
@@ -338,13 +340,18 @@ func _draw_place_units() -> void:
 		for u in a.units:
 			if drag_from.x >= 0 and a == _cur_army() and u["col"] == drag_from.x and u["row"] == drag_from.y:
 				continue
-			list.append([u["row"], u["col"], u["type"], a.team])
+			list.append([u["row"], u["col"], u["type"], a.team, int(u.get("st", 0)), int(u.get("boss", 0))])
 	list.sort()
 	var pz := PZ.get_puzzle(puzzle_id) if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) else {}
 	for it in list:
 		var p := ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS
-		_ring(p, it[3], it[2])
-		_unit(p + Vector2(0, _settle_dy(Vector2i(it[1], it[0]))), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
+		var bsc := BossD.DRAW_SCALE if int(it[5]) == 1 else 1.0   # V1.4 #12 巨獸
+		_ring(p, it[3], it[2], bsc)
+		if int(it[4]) > 0:
+			_sticker_badge(p, int(it[4]), 1.0)
+		_unit(p + Vector2(0, _settle_dy(Vector2i(it[1], it[0]))), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], bsc)
+		if int(it[5]) == 1:
+			_text(p + Vector2(0, -84.0 * bsc), L.t("boss_name"), tz("C"), Color("#ffb4a8"), true, true, 120)
 		if it[3] == 1 and selected >= 0 and _cur_army().team == 0:
 			_counter_mark(p, selected, int(it[2]))   # V1.1 B3
 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):

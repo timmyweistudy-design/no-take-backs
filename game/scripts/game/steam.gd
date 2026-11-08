@@ -131,3 +131,78 @@ static func run_callbacks() -> void:
 			if _retry_tick >= 600:
 				_retry_tick = 0
 				store_ok = bool(_steam.storeStats())
+
+
+## ── V1.4 #7 排行榜（每週棋盒＋幽靈陣）。沒有 Steam 時全部安靜略過。未在 Steam 後台建排行榜、未實測（不跑 --steam-test）。──
+## 排行榜名稱 weekly_<週數>，分數＝花費（越少越好），附加資料（details，最多 64 個 int）放陣型：
+## [版本 1, 兵數 n, 每隻 type*10000+col*100+row ...]。下載前幾名的 details 就能還原成「玩家幽靈陣」。
+const LB_VER := 1
+
+static func pack_army(units: Array) -> PackedInt32Array:
+	var out := PackedInt32Array([LB_VER, mini(units.size(), 60)])
+	for i in mini(units.size(), 60):
+		var u: Dictionary = units[i]
+		if not u.has("col"):
+			return PackedInt32Array()   # 自由排兵的陣不上傳
+		out.append(int(u["type"]) * 10000 + int(u["col"]) * 100 + int(u["row"]))
+	return out
+
+static func unpack_army(d: PackedInt32Array) -> Array:
+	var out: Array = []
+	if d.size() < 2 or d[0] != LB_VER or d[1] != d.size() - 2:
+		return out
+	for i in range(2, d.size()):
+		var v := int(d[i])
+		var t := v / 10000
+		var c := (v / 100) % 100
+		var r := v % 100
+		if t < 0 or t >= 40 or c < 0 or c >= 32 or r < 0 or r >= 16:
+			return []
+		out.append({"type": t, "col": c, "row": r})
+	return out
+
+static var _lb_pending := {}   # 排行榜名稱 → 等找到 handle 後要送的 [分數, details]
+
+static func weekly_upload(wk: int, score: int, army) -> void:
+	if _steam == null or not _steam.has_method("findOrCreateLeaderboard"):
+		return
+	var det := pack_army(army.units)
+	var name := "weekly_%d" % wk
+	_lb_pending[name] = [score, det]
+	if not _steam.is_connected("leaderboard_find_result", _on_lb_found):
+		_steam.connect("leaderboard_find_result", _on_lb_found)
+	_steam.findOrCreateLeaderboard(name, 1, 1)   # 1＝分數越小越前面、1＝顯示數字
+
+static func _on_lb_found(handle: int, found: int) -> void:
+	if found == 0 or _steam == null:
+		return
+	var name := str(_steam.getLeaderboardName(handle)) if _steam.has_method("getLeaderboardName") else ""
+	if not _lb_pending.has(name):
+		return
+	var p: Array = _lb_pending[name]
+	_lb_pending.erase(name)
+	_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
+
+## 抓這週排行榜前 20 名的陣（給遊戲間的「玩家幽靈」用）。done(armies: Array)；沒有 Steam 直接回空陣列。
+static func ghost_fetch(wk: int, done: Callable) -> void:
+	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
+		done.call([])
+		return
+	_steam.setLeaderboardDetailsMax(64)
+	var name := "weekly_%d" % wk
+	var on_found := func(handle: int, found: int) -> void:
+		if found == 0:
+			done.call([])
+			return
+		var on_dl := func(_msg, _h, result: Array) -> void:
+			var out: Array = []
+			for e in result:
+				var units := unpack_army(PackedInt32Array(e.get("details", [])))
+				if not units.is_empty():
+					out.append({"name": str(e.get("steam_id", "")), "units": units})
+			done.call(out)
+		_steam.connect("leaderboard_scores_downloaded", on_dl, CONNECT_ONE_SHOT)
+		_steam.downloadLeaderboardEntries(0, 19, 0, handle)
+	_steam.connect("leaderboard_find_result", on_found, CONNECT_ONE_SHOT)
+	_steam.findLeaderboard(name)
+

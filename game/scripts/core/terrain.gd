@@ -26,20 +26,50 @@ func _init(rects: Array, p_w: int, p_h: int) -> void:
 	n = w / Q
 	m = h / Q
 	grid.resize(n * m)
+	_paint(rects, true)
+	_build_nav()
+
+## 依左半邊千分比矩形塗格子（右半邊鏡像）。all＝true 時沒蓋到的格子設回空地（建構時用）。
+func _paint(rects: Array, all: bool) -> void:
 	var half := n / 2
 	for c in half:
 		var nx: int = (c * Q + Q / 2) * 1000 / (w / 2)
 		for r in m:
 			var ny: int = (r * Q + Q / 2) * 1000 / h
-			var v := FREE
+			var v := FREE if all else -1
 			for rc in rects:
 				if nx >= int(rc[1]) and nx < int(rc[3]) and ny >= int(rc[2]) and ny < int(rc[4]):
 					v = int(rc[0])
+			if v < 0:
+				continue
 			grid[c + r * n] = v
 			grid[n - 1 - c + r * n] = v
 			if v == BLOCK:
 				has_block = true
+
+## V1.4 #10 沙盤機關：戰鬥中途改地形（崩塌成擋路）。重算導航、清掉距離場快取。只能用在 clone() 出來的那份。
+func apply_rects(rects: Array) -> void:
+	_paint(rects, false)
+	_build_nav()
+	_fields.clear()
+
+func clone():
+	var t = get_script().new([], w, h)
+	t.grid = grid.duplicate()
+	t.has_block = has_block
+	t._build_nav()
+	return t
+
+## 這一點是不是落在（左半千分比、右半鏡像的）矩形裡。給火牆、推撞板判定用。
+func in_rect(x: int, y: int, rc: Array) -> bool:
+	var ox: int = x if x < w / 2 else w - x
+	var nx: int = ox * 1000 / (w / 2)
+	var ny: int = y * 1000 / h
+	return nx >= int(rc[0]) and nx < int(rc[2]) and ny >= int(rc[1]) and ny < int(rc[3])
+
+func _build_nav() -> void:
 	nav.resize(n * m)
+	nav.fill(0)
 	for r2 in m:
 		for c2 in n:
 			if grid[c2 + r2 * n] == BLOCK:

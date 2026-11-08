@@ -1398,3 +1398,70 @@ func test_plan_fix_v140() -> void:
 			bad.append(id + " 推到底沒有停在局末")
 	ok(bad.is_empty(), "第 12 章：預設排程合法、推到底停在局末", str(bad))
 
+
+## V1.4 #7 幽靈軍團＋每週棋盒：30 個幽靈、每週題目固定且合法、陣型打包解包、打贏記錄。
+func test_ghosts_v140() -> void:
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var ST = load("res://scripts/game/steam.gd")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var gs: Array = GM.ghosts()
+	ok(gs.size() == 30, "30 個幽靈陣", str(gs.size()))
+	var bad: Array = []
+	for g in gs:
+		var a = GM.ghost_army(g)
+		if a.units.is_empty() or a.spent() > 100:
+			bad.append(str(g["id"]))
+	ok(bad.is_empty(), "每個幽靈陣都有兵、不超過 100 金", str(bad))
+	ok(GM.week_no(1762732800) == GM.week_no(1762732800 + 6 * 86400) and GM.week_no(1762732800) + 1 == GM.week_no(1762732800 + 7 * 86400), "週數：同一週一樣、下週加一（週一換題）")
+	var a1: Dictionary = GM.weekly_spec(2913)
+	ok(a1 == GM.weekly_spec(2913) and RS0.has_combat(int(a1["pool"])) and int(a1["ghost"]) < gs.size(), "每週題目固定、卡池有戰鬥兵", str(a1))
+	var units := [{"type": 3, "col": 12, "row": 4}, {"type": 0, "col": 10, "row": 0}]
+	ok(ST.unpack_army(ST.pack_army(units)) == units and ST.unpack_army(PackedInt32Array([9, 1, 5])).is_empty(), "排行榜附加資料：陣型打包解包、壞資料不收")
+	var SaveS = load("res://scripts/game/save.gd")
+	var keep = SaveS.data.get("ghost_beat", [])
+	SaveS.data_locked = true
+	SaveS.data["ghost_beat"] = []
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g._ghost_start(0)
+	ok(g.ghost_id == str(gs[0]["id"]) and g.challenge_army != null and g.challenge_army.units.size() == gs[0]["units"].size(), "開幽靈戰：對手就是那個陣")
+	g.last_armies = [g.armies[0].copy(), g.challenge_army.copy()]
+	g._ghost_settle(0)
+	ok(SaveS.data["ghost_beat"] == [str(gs[0]["id"])], "打贏記下來")
+	g._start_mode(g.Mode.VS_AI)
+	ok(g.ghost_id == "" and not g.wk_active, "開別的對戰就清掉")
+	SaveS.data["ghost_beat"] = keep
+	g.free()
+
+
+## V1.4 #9 遠征的木座貼紙事件：固定抽一張、貼在沿用陣型裡還沒貼的一隻；說明的數值從常數來。
+func test_sticker_reward_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var Army0 = load("res://scripts/core/army.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g._start_mode(g.Mode.GAUNTLET)
+	g.gauntlet_seed = 4242
+	g.gauntlet_stage = 2
+	var a = Army0.new(0, 100)
+	a.units = [{"type": 0, "col": 5, "row": 3}, {"type": 2, "col": 3, "row": 4}]
+	g.last_armies = [a, a.copy()]
+	g.gauntlet_prev = a.units.duplicate(true)
+	var sp: Array = g._sticker_pick()
+	ok(sp.size() == 3 and sp == g._sticker_pick() and int(sp[0]) >= 1 and int(sp[0]) <= 6, "同一站抽到的貼紙固定", str(sp))
+	g.armies[0].units = a.units.duplicate(true)
+	g._apply_sticker(sp)
+	var hit := 0
+	for u in g.gauntlet_prev + g.armies[0].units:
+		if int(u.get("st", 0)) == int(sp[0]):
+			hit += 1
+	ok(hit == 2, "沿用陣型與目前擺陣都貼上")
+	ok(g.sticker_desc(1).contains("50") and not g.sticker_desc(5).contains("%d"), "說明數值從常數帶入", g.sticker_desc(1))
+	var SV = load("res://scripts/game/save.gd")
+	var run: Dictionary = SV.sanitize_run({"stage": 2, "seed": 1, "gold": 0, "cap": 0, "changes": 0, "pool": 1023, "prev": [{"type": 0, "col": 5, "row": 3, "st": 4}, {"type": 1, "col": 4, "row": 3, "st": 99}]})
+	ok(int(run["prev"][0].get("st", 0)) == 4 and not run["prev"][1].has("st"), "續局存檔留貼紙、不合法的丟掉")
+	g.free()
+

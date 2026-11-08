@@ -247,6 +247,20 @@ static func sanitize_data(out: Dictionary) -> void:
 			if pt[i] is int or pt[i] is float:
 				pt2[i] = clampi(int(pt[i]), 0, hi[i])
 	out["paint"] = pt2
+	var gb = out.get("ghost_beat", [])   # V1.4 #7：打贏的幽靈（id 字串）
+	var gb2: Array = []
+	if gb is Array:
+		for x in gb:
+			if x is String and x.length() <= 8 and not x in gb2:
+				gb2.append(x)
+	out["ghost_beat"] = gb2
+	var wr = out.get("weekly", {})
+	var wr2 := {}
+	if wr is Dictionary:
+		for k in ["wk", "best", "tries"]:
+			var v = wr.get(k, 0)
+			wr2[k] = clampi(int(v), -1, 100000000) if (v is int or v is float) else 0
+	out["weekly"] = wr2
 
 ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
 static func sanitize_run(g) -> Dictionary:
@@ -287,6 +301,8 @@ static func sanitize_run(g) -> Dictionary:
 			if not (v2 is int or v2 is float):
 				return {}
 			o[str(k2)] = int(v2)
+		if o.has("st") and (int(o["st"]) < 1 or int(o["st"]) > 6):
+			o.erase("st")   # V1.4 #9 貼紙只收 1～6
 		prev.append(o)
 	out["prev"] = prev
 	# V1.1 D1：遠征路線的「下一戰敵方」事件。可有可無（舊續局沒有＝0），超出範圍歸 0

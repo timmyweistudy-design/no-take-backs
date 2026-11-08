@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 G = ROOT / "game"
-DATA = ["puzzles.json", "trials.json", "codex.json"]
+DATA = ["puzzles.json", "trials.json", "codex.json", "ghosts.json"]
 
 
 def strings():
@@ -40,7 +40,8 @@ def walk(o, path, fname, out):
 def data():
     out = []
     for fn in DATA:
-        walk(json.load(open(G / "data" / fn, encoding="utf-8")), "", fn, out)
+        if (G / "data" / fn).exists():
+            walk(json.load(open(G / "data" / fn, encoding="utf-8")), "", fn, out)
     return out
 
 

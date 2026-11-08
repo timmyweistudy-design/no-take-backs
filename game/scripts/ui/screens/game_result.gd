@@ -21,6 +21,8 @@ func _start_mode(m: int) -> void:
 	if m != Mode.VS_AI:
 		set("challenge_army", null)
 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+	set("ghost_id", "")       # V1.4 #7：幽靈、每週棋盒也是在 _start_mode 之後才設
+	set("wk_active", false)
 	set("wv_mode", false)   # V1.4 #11：開別的模式就不是車輪戰（_wave_setup 會在 _start_mode 之後再設回來）
 	set("wv_active", false)
 	if m == Mode.GAUNTLET:
@@ -64,6 +66,7 @@ func _finish_battle() -> void:
 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
 		set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
 	_build_report()
+	call("_ghost_settle", w)   # V1.4 #7
 	call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
 		call("_wave_end", w == 0)   # V1.4 #11：車輪戰結束（輸了或三波打完）
@@ -228,6 +231,8 @@ func _draw_result() -> void:
 			if str(report.get("rec_new", "")) != "":
 				facts.insert(0, str(report["rec_new"]))
 			facts.append(str(report["rec_line"]))
+		if str(report.get("gh_line", "")) != "":
+			facts.insert(0, str(report["gh_line"]))   # V1.4 #7：擊破幽靈／每週新紀錄
 		for fi in facts.size():
 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
 			y += text_h(facts[fi], tz("S"), 780) + 2
