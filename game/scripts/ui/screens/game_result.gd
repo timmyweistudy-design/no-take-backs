@@ -38,6 +38,7 @@ func _start_mode(m: int) -> void:
 
 func _finish_battle() -> void:
 	sfx.set_muffled(false)
+	_pc_capture()   # V1.4 #14：最後一格戰場畫面留給戰報卡
 	fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
 	clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
 	state = St.RESULT
@@ -56,6 +57,7 @@ func _finish_battle() -> void:
 			wins[w] += 1
 		series_over = series_done(wins, round_no, rules)
 	_build_report()
+	call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
 	if mode == Mode.DUEL:
 		sfx.play("win" if w >= 0 else "lose")
 	elif mode == Mode.PUZZLE and report.has("goal_ok"):
@@ -185,6 +187,9 @@ func _draw_result() -> void:
 		hw = 540.0 if y < 210 else 820.0
 		_text(Vector2(640, y), _verdict(w), tz("B"), Color.WHITE, true, true, hw)
 		y += text_h(_verdict(w), tz("B"), hw, true) + 8
+	if str(report.get("wager_line", "")) != "":
+		_text(Vector2(640, y), str(report["wager_line"]), tz("B"), Color("#ffd166"), true, true, 820)   # V1.4 #16 競猜結果
+		y += tz("B") * 1.5
 	if result_tab == 0:
 		# 戰力走勢（放大）＋最多 3 個關鍵時刻
 		var ch := Rect2(250, y + tz("C") * 1.35 * 2 + 4, 780, 100)   # 上方留兩排標記標籤的空間
@@ -209,6 +214,11 @@ func _draw_result() -> void:
 			y = mr.end.y + 10
 		# 第七輪 A1：只列事件紀錄裡查得到的事實，不說「因為」（Codex：不宣稱因果）
 		var facts := _result_facts()
+		if mode == Mode.PUZZLE and str(report.get("rec_line", "")) != "":
+			# V1.4 #6 最小成本懸賞：本次 vs 你的最佳；破紀錄放最前面
+			if str(report.get("rec_new", "")) != "":
+				facts.insert(0, str(report["rec_new"]))
+			facts.append(str(report["rec_line"]))
 		for fi in facts.size():
 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
 			y += text_h(facts[fi], tz("S"), 780) + 2
@@ -276,6 +286,8 @@ func _draw_result() -> void:
 			bs.append([L.t("retry"), func(): _start_mode(mode)])
 			if ((w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false))) and puzzle_id != "ws":
 				bs.append([L.t("next_puzzle"), func(): _next_puzzle()])
+			if puzzle_id == "ws" and bool(report.get("goal_ok", false)) and play_kind == "official":
+				bs.append([L.t("rl_btn"), func(): call("_open_relay")])   # V1.4 #5 接力：改兩隻敵兵傳回去
 		Mode.GAUNTLET:
 			if w == 0 and gauntlet_stage < 7:
 				bs.append([L.t("continue"), func(): call("_gauntlet_reward")])
@@ -291,6 +303,8 @@ func _draw_result() -> void:
 			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	if _ws_ok(w):
 		bs.append([L.t("ws_make"), func(): call("_make_workshop")])   # V1.1 D3：打贏的格子對戰可以出題
+	if play_kind == "official" and pc_shot != null and bs.size() <= 3:   # 按鈕列滿了就不放（英文 150% 會擠）
+		bs.append([L.t("pc_btn"), func(): overlay = "postcard"])   # V1.4 #14 戰報明信片
 	bs.append([L.t("replay"), func(): _replay()])
 	bs.append([L.t("menu"), func(): _request_leave()])
 	# 按鈕寬依結果框內寬分（框 880、左右各留 16）：試煉贏了最多 6 顆，舊的固定 176 會凸出框外（使用者截圖）
@@ -542,3 +556,87 @@ func _result_line1(maxw := 0.0) -> String:
 	if maxw > 0.0 and _width(one, tz("S")) > maxw:
 		return a + "\n" + b
 	return one
+
+
+## ── V1.4 #14 戰報明信片 ──
+var pc_shot: ImageTexture = null
+var pc_saving := false
+
+func _pc_capture() -> void:
+	if DisplayServer.get_name() == "headless" or get_viewport() == null:
+		return
+	var img := get_viewport().get_texture().get_image()
+	if img == null or img.is_empty():
+		return
+	img = img.get_region(Rect2i(Vector2i(0, 60), Vector2i(1280, 690)))
+	img.resize(560, 302, Image.INTERPOLATE_BILINEAR)
+	pc_shot = ImageTexture.create_from_image(img)
+
+func _draw_postcard() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.03, 0.02, 0.9))   # 底下的結果頁按鈕不能透出來（Antigravity v140-i2）
+	var P := Rect2(150, 90, 980, 560)
+	_tex_box(P, "paper")
+	draw_rect(P.grow(-14), Color("#9a7b3c", 0.85), false, 2.0)   # 暗金內框
+	draw_rect(P.grow(-19), Color("#9a7b3c", 0.45), false, 1.0)
+	_ink_mode = true
+	# 左：戰場快照，木框
+	var pic := Rect2(P.position + Vector2(30, 70), Vector2(560, 302))
+	_tex_box(pic.grow(10), "wood", Color(0.55, 0.38, 0.22))
+	if pc_shot != null:
+		draw_texture_rect(pc_shot, pic, false)
+	# 標題：戰報（墨字）＋紅印章
+	_text(P.position + Vector2(30, 20), L.t("pc_head"), tz("H1"), INK, false, true, 560)
+	var w := int(sim.winner) if sim != null else -1
+	var res: String = L.t("draw") if w < 0 else L.t("pc_result", [L.t("blue") if w == 0 else L.t("red")])
+	var x0 := P.position.x + 630
+	var y := P.position.y + 80.0
+	_text(Vector2(x0, y), res, tz("H1"), Color("#7a140e"), false, true, 320)
+	y += tz("H1") * 1.6
+	var lines: Array = [L.t("pc_mode", [_mode_label()]), L.t("pc_time", [_fmt_num(snappedf(sim.tick / 20.0, 0.1))])]
+	if w >= 0:
+		lines.append(L.t("pc_left", [PZ.rem_pct(sim.power(w), sim.budget_of(w))]))
+	var mvp = report.get("mvp")
+	if mvp != null:
+		lines.append(L.t("pc_mvp", [L.t("unit_%d" % mvp.type), mvp.dmg_dealt]))
+	if last_armies.size() == 2:
+		lines.append(L.t("pc_armies", [last_armies[0].spent(), last_armies[0].units.size(), last_armies[1].spent(), last_armies[1].units.size()]))
+	for ln in lines:
+		_text(Vector2(x0, y), ln, tz("B"), INK, false, false, 320)
+		y += text_h(ln, tz("B"), 320) + tz("B") * 0.45
+	# 下：重播碼（朋友貼上就能看這一場）
+	var code := ""
+	if last_armies.size() == 2 and not (mode == Mode.PUZZLE and battle_rules != null):
+		code = BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
+	if code != "":
+		# 重播碼不印在卡上（亂碼又會被截斷，Codex／Antigravity v140-i2）：卡上只寫一句，按鈕複製完整的碼
+		_text(P.position + Vector2(30, 410), L.t("pc_code"), tz("S"), INK, false, false, 560)
+	_ink_mode = false
+	# 右上紅色「戰報」印章
+	var sp := P.position + Vector2(P.size.x - 84, 70)
+	draw_set_transform_matrix(Transform2D(0.2, sp))
+	_hand_ring(Vector2.ZERO, 40.0, Color("#8e1b14", 0.95), 5.0)
+	_hand_ring(Vector2.ZERO, 33.0, Color("#8e1b14", 0.8), 2.0, false, 2)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	_text(sp - Vector2(0, tz("B") * 0.62), L.t("pc_stamp"), tz("B"), Color("#8e1b14"), true, true, 70)
+	if pc_saving:
+		return   # 存圖這一格不畫按鈕
+	_btn(Rect2(300, 670, 220, 46), L.t("pc_save"), func(): _pc_save(), true, true)
+	if code != "":
+		_btn(Rect2(530, 670, 220, 46), L.t("pc_copy"), func(): DisplayServer.clipboard_set(code); _toast(L.t("ws_copied")))
+	_btn(Rect2(760, 670, 200, 46), L.t("back"), func(): overlay = "")
+
+func _pc_save() -> void:
+	pc_saving = true
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	pc_saving = false
+	if img == null:
+		return
+	img = img.get_region(Rect2i(150, 90, 980, 560))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://postcards"))
+	var fn := "user://postcards/battle_%s_%d.png" % [Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "_"), Time.get_ticks_msec() % 1000]
+	if img.save_png(fn) != OK:
+		_toast(L.t("gif_fail"), true)
+		return
+	_toast(L.t("pc_saved", [ProjectSettings.globalize_path(fn)]))

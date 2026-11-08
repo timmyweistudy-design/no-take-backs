@@ -62,6 +62,14 @@ func _draw_replay_controls() -> void:
 		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
 		if tm_ghost != null:
 			_text(Vector2(640, 92 + ts(16) * 1.4), L.t("tm_ghost_hint"), tz("C"), TXT_DIM, true, false, 600)
+	if play_kind == "replay" and DisplayServer.get_name() != "headless":
+		# V1.4 #14：錄 3 秒 GIF（從現在開始播 3 秒，320×172、10 fps）
+		if gif_frames.is_empty() and gif_thread == null:
+			_btn(Rect2(350, 650, 220, 40), L.t("gif_btn"), func(): gif_on = true; paused = false)
+		else:
+			_text(Vector2(360, 658), L.t("gif_rec", [gif_frames.size(), GIF_N]) if gif_thread == null else L.t("gif_busy"), tz("S"), Color("#ff8a8a"), false, true, 260)
+	if play_kind == "review":
+		pass
 	elif paused and play_kind == "replay" and mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
 		# V1.4 #1 時光機：重播暫停時，從這裡回到開戰前改一隻兵
 		btn_paper = true   # 羊皮紙按鈕：像翻開推演筆記，不是系統按鈕（Antigravity v140-i1）
@@ -741,3 +749,49 @@ func _rv_band(r: Rect2, log: PackedInt64Array) -> void:
 		var h := absf(d) * r.size.y / 2.0
 		draw_rect(Rect2(r.position.x + i * 2.0, r.get_center().y - (h if d > 0 else 0.0), 2.0, h), Color(Art.team_color(0 if d > 0 else 1, cbm()), 0.85))
 	draw_line(Vector2(r.position.x, r.get_center().y), Vector2(r.end.x, r.get_center().y), Color(1, 1, 1, 0.3), 1.0)
+
+
+## ── V1.4 #14 錄 GIF ──
+const GIFENC = preload("res://scripts/game/gif.gd")
+const GIF_N := 30
+var gif_on := false
+var gif_frames: Array = []
+var gif_acc := 0.0
+var gif_thread: Thread = null
+
+func _gif_tick(delta: float) -> void:
+	if gif_thread != null and not gif_thread.is_alive():
+		var path: String = gif_thread.wait_to_finish()
+		gif_thread = null
+		gif_frames = []
+		_toast(L.t("pc_saved", [path]) if path != "" else L.t("gif_fail"), path == "")
+	if not gif_on:
+		return
+	if play_kind != "replay" or state != St.BATTLE or overlay != "":
+		gif_on = false   # 開了別的畫面就取消，不把設定頁錄進去（Codex v140-i2）
+		gif_frames = []
+		return
+	gif_acc += delta
+	if gif_acc < 0.1:
+		return
+	gif_acc = 0.0
+	var img := get_viewport().get_texture().get_image()
+	if img == null:
+		return
+	img = img.get_region(Rect2i(0, 60, 1280, 636))
+	img.resize(320, 159, Image.INTERPOLATE_BILINEAR)
+	gif_frames.append(img)
+	if gif_frames.size() >= GIF_N:
+		gif_on = false
+		var frames := gif_frames.duplicate()
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://gifs"))
+		var fn := "user://gifs/battle_%s.gif" % Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "_")
+		gif_thread = Thread.new()
+		gif_thread.start(func():
+			var b: PackedByteArray = GIFENC.encode(frames, 10)
+			var fa := FileAccess.open(fn, FileAccess.WRITE)
+			if fa == null:
+				return ""
+			fa.store_buffer(b)
+			fa.close()
+			return ProjectSettings.globalize_path(fn))

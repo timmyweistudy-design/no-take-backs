@@ -223,11 +223,13 @@ func _draw_title() -> void:
 	_btn(Rect2(238, y1, 162, 44), L.t("menu_profile"), func(): _open("profile"))
 	y1 += 50
 	# V1.1 D2：每日挑戰（一顆寬鈕，右邊小字是這週突變與今天最佳）
-	var dr := Rect2(70, y1, 330, 44)
+	var dr := Rect2(70, y1, 206, 44)
 	_btn(dr, "", func(): call("_start_daily"), not _demo())
-	_icon("dice", dr.position + Vector2(24, 22), 24.0, ACCENT if not _demo() else Color(1, 1, 1, 0.35))
-	_text(dr.position + Vector2(44, 22 - tz("B") * 0.68), L.t("menu_daily"), tz("B"), Color.WHITE, false, true, 140)
-	_text(dr.position + Vector2(250, 22 - tz("C") * 0.68), str(call("_daily_caption")), tz("C"), ACCENT, true, false, 150)
+	_icon("dice", dr.position + Vector2(22, 22), 22.0, ACCENT if not _demo() else Color(1, 1, 1, 0.35))
+	_text(dr.position + Vector2(40, 22 - tz("S") * 0.68), L.t("menu_daily"), tz("S"), Color.WHITE, false, true, 86)
+	_text(dr.position + Vector2(162, 22 - tz("C") * 0.68), str(call("_daily_caption")), tz("C"), ACCENT, true, false, 84)
+	# V1.4 #16：遊戲間（觀戰競猜、輪抽）
+	_btn(Rect2(282, y1, 118, 44), L.t("menu_playroom"), func(): overlay = "playroom", not _demo())
 	var y2 := y1 + 54
 	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): get_tree().quit()]]
 	for i in sys.size():
@@ -263,6 +265,16 @@ func _draw_overlay() -> void:
 			_draw_profile()
 		"nemeses":
 			_draw_nemeses()
+		"relay":
+			_draw_relay()
+		"postcard":
+			_draw_postcard()
+		"playroom":
+			_draw_playroom()
+		"wager":
+			_draw_wager()
+		"draft":
+			_draw_draft()
 		"reward":
 			_draw_reward()
 		"ban":
@@ -351,6 +363,9 @@ func _draw_overlay() -> void:
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
 				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
 				var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
+				var pbest: Array = Save.data.get("pz_best", {}).get(str(pz["id"]), [])
+				if pbest.size() == 3:
+					note = L.t("puzzle_note_best", [int(pbest[0]), int(pz["star3"])])   # V1.4 #6：破過就顯示自己的最低花費
 				# V1.2.1：備註放得下一行才畫（中文 150% 原本換成兩行跑出卡片）
 				var note_y: float = r.size.y - tz("C") * 1.4 - 3.0
 				if not tut and en and text_h(line, tz("S"), r.size.x - 72) <= tz("S") * 1.6 and _width(note, tz("C")) <= r.size.x - 132 \

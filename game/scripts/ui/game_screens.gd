@@ -382,6 +382,7 @@ func _process_inner(delta: float) -> void:
 	_stick_repeat(delta)
 	_process_cmds()
 	time += delta
+	call("_gif_tick", delta)   # V1.4 #14
 	if paused and key_t > 0.0:
 		key_t += delta
 	if paused and float(last_kill[1]) > 0.0:

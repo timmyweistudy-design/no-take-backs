@@ -195,6 +195,48 @@ static func sanitize_data(out: Dictionary) -> void:
 			if okk and v is Array and v.size() == 2 and (v[0] is int or v[0] is float) and (v[1] is int or v[1] is float) and db.size() < 30:
 				db[str(k)] = [clampi(int(v[0]), 0, 100), clampi(int(v[1]), 0, 1000)]
 	out["daily_best"] = db
+	# V1.4 #6 每關最佳 [花費, 兵數, tick]；#2 宿敵（最多 6 個）。型別不對就丟掉那一筆
+	var pb = out.get("pz_best", {})
+	var pb2 := {}
+	if pb is Dictionary:
+		for k in pb:
+			var v = pb[k]
+			if v is Array and v.size() == 3 and pb2.size() < 400:
+				var okv := true
+				for x in v:
+					if not (x is int or x is float) or float(x) < 0 or float(x) > 100000:
+						okv = false
+				if okv:
+					pb2[str(k)] = [int(v[0]), int(v[1]), int(v[2])]
+	out["pz_best"] = pb2
+	var nm = out.get("nemeses", [])
+	var nm2: Array = []
+	if nm is Array:
+		for n in nm:
+			if not n is Dictionary or not n.get("units") is Array or n["units"].is_empty() or n["units"].size() > 40 or nm2.size() >= 6:
+				continue
+			var us: Array = []
+			var okn := true
+			for u in n["units"]:
+				if not u is Dictionary or not (u.get("type") is int or u.get("type") is float) or not (u.get("col") is int or u.get("col") is float) or not (u.get("row") is int or u.get("row") is float):
+					okn = false
+					break
+				if int(u["type"]) < 0 or int(u["type"]) >= 22 or int(u["col"]) < 10 or int(u["col"]) > 15 or int(u["row"]) < 0 or int(u["row"]) > 8:
+					okn = false
+					break
+				us.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+			if okn:
+				var ls = n.get("losses", 1)
+				var st = n.get("stage", 1)
+				nm2.append({"units": us, "losses": clampi(int(ls) if (ls is int or ls is float) else 1, 1, 999), "revenged": n.get("revenged", false) == true, "stage": clampi(int(st) if (st is int or st is float) else 1, 1, 7)})
+	out["nemeses"] = nm2
+	var ey = out.get("eye", {})
+	var ey2 := {}
+	if ey is Dictionary:
+		for k in ["n", "pts", "streak", "best"]:
+			var v = ey.get(k, 0)
+			ey2[k] = clampi(int(v), 0, 1000000) if (v is int or v is float) else 0
+	out["eye"] = ey2   # V1.4 #16 競猜眼力
 
 ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
 static func sanitize_run(g) -> Dictionary:

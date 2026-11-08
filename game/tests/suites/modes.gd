@@ -1246,3 +1246,57 @@ func test_workshop_types_v11() -> void:
 func _ws_code(j: Dictionary) -> String:
 	var b := Marshalls.utf8_to_base64(JSON.stringify(j)).replace("+", "-").replace("/", "_").replace("=", "")
 	return "NTP1.%s.%s" % [b, b.sha256_text().substr(0, 6)]
+
+
+## V1.4 #5 接力殘局：NTP2 帶第幾棒；NTP1 照舊；改格數計算；打不贏不給碼。
+func test_relay_v140() -> void:
+	var WSx = preload("res://scripts/game/workshop.gd")
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var src := {}
+	for p in PZ.all_puzzles():
+		if PZ.goal(p) == "win" and p.get("fixed", []).is_empty() and not p.has("map") and not p.has("cmd") and p.has("best"):
+			src = p
+			break
+	var sol: Array = src["best"]["u"]
+	var c2: String = WSx.encode(src["enemy"], sol, 3)
+	ok(c2.begins_with("NTP2."), "接力碼用 NTP2", c2.substr(0, 12))
+	var d: Dictionary = WSx.decode(c2)
+	ok(bool(d["ok"]) and int(d["pz"]["relay"]) == 3, "解得回來而且是第 3 棒", str(d.get("why")))
+	var d1: Dictionary = WSx.decode(WSx.encode(src["enemy"], sol))
+	ok(bool(d1["ok"]) and int(d1["pz"]["relay"]) == 0, "NTP1 照舊能用（第 0 棒）")
+	var o: Array = [[0, 10, 1], [1, 11, 2], [2, 12, 3]]
+	var n1: Array = o.duplicate(true)
+	n1[0][0] = 5
+	ok(GM.relay_changes(o, n1) == 1, "換兵種＝改一格")
+	n1.remove_at(1)
+	ok(GM.relay_changes(o, n1) == 2, "再拿掉一隻＝改兩格")
+	var n2: Array = o.duplicate(true)
+	n2[2] = [2, 13, 3]
+	ok(GM.relay_changes(o, n2) == 2, "搬移＝兩格")
+	var heavy: Array = src["enemy"].duplicate(true)
+	for k in 30:
+		heavy.append([19, 10 + k % 6, k % 9])
+	ok(WSx.encode(heavy, sol, 1) == "", "改到作者打不贏就不給碼")
+
+
+## V1.4 #16 遊戲間：競猜區間、輪抽卡池遮罩。
+func test_playroom_v140() -> void:
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	ok(GM.wager_band(10) == 0 and GM.wager_band(34) == 1 and GM.wager_band(67) == 2, "剩餘戰力分三區（險勝／普通／大勝）")
+	ok(GM.draft_mask([0, 2, 5]) == (1 | 4 | 32), "輪抽卡池遮罩")
+
+
+## V1.4 #8 指揮官：兩邊交替選，預算＝基礎＋自己的加成，不會越加越多。
+func test_commanders_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var g = GS.new()
+	g.lobby_r = RS0.standard()
+	g._cmdr_pick(0, 5)   # 老兵 +10
+	ok(g.lobby_r.budget_of(0) == 110 and g.lobby_r.budget_of(1) == 100, "藍選老兵：110／100", str([g.lobby_r.budget_of(0), g.lobby_r.budget_of(1)]))
+	g._cmdr_pick(1, 5)
+	ok(g.lobby_r.budget_of(0) == 110 and g.lobby_r.budget_of(1) == 110, "紅也選老兵：110／110")
+	g._cmdr_pick(0, 2)   # 隕星 +5
+	ok(g.lobby_r.budget_of(0) == 105 and g.lobby_r.budget_of(1) == 110, "藍改隕星：105／110（不累加）")
+	ok(g.cmdr_of(0) == 2 and int(g.lobby_r.cmd_mask[0]) == 8, "藍的軍令＝隕石")
+	g.free()

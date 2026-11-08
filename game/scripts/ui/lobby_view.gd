@@ -203,6 +203,35 @@ func _cmd_toggle(team: int, s: int) -> void:
 	lobby_r.cmd_mask[team] = m ^ (1 << s)
 	_lobby_touch()
 
+## V1.4 #8 指揮官：六位將軍＝手動技能系統的具名套組（帶哪幾種軍令）＋開局多幾金。
+## 不新增模擬或規則碼：就是 cmd_mask 與雙方預算（讓子），舊碼照舊。[名字鍵, 技能遮罩, 多幾金]
+const COMMANDERS := [["cmdr_iron", 5, 0], ["cmdr_gale", 18, 0], ["cmdr_star", 8, 5], ["cmdr_bishop", 4, 5], ["cmdr_frost", 24, 0], ["cmdr_vet", 1, 10]]
+
+var lobby_cmdr := [-1, -1]     # 兩邊選了哪位指揮官（-1＝自訂；不進規則碼，規則碼只存軍令與預算）
+var lobby_cbase := [100, 100]  # 選指揮官前的預算（加成從這裡算，不會越加越多，Codex v140-i2）
+
+func _cmdr_pick(team: int, k: int) -> void:
+	lobby_item = "cmd_on"
+	if int(lobby_cmdr[0]) < 0 and int(lobby_cmdr[1]) < 0:
+		lobby_cbase = [lobby_r.budget_of(0), lobby_r.budget_of(1)]
+	lobby_cmdr[team] = k
+	lobby_r.cmd_mask[team] = int(COMMANDERS[k][1])
+	var b: Array = [0, 0]
+	for t in 2:
+		var bonus: int = int(COMMANDERS[int(lobby_cmdr[t])][2]) if int(lobby_cmdr[t]) >= 0 else 0
+		b[t] = clampi(int(lobby_cbase[t]) + bonus, RuleSet.BUDGET_MIN, RuleSet.BUDGET_MAX)
+	lobby_r.budget = b
+	lobby_r.handicap = int(b[0]) != int(b[1])
+	_lobby_touch()
+
+## 目前這一邊是哪一位指揮官；軍令被手動改過就算自訂。
+func cmdr_of(team: int) -> int:
+	var k := int(lobby_cmdr[team])
+	if k >= 0 and int(lobby_r.cmd_mask[team]) != int(COMMANDERS[k][1]):
+		lobby_cmdr[team] = -1
+		return -1
+	return k
+
 func _draw_cmd_tab(R: Rect2) -> void:
 	var on: bool = lobby_r.cmd_on()
 	_rows(Rect2(R.position, Vector2(R.size.x, 66)), [["cmd_on", L.t("lb_cmd_enable"), L.t("on") if on else L.t("off")]])
@@ -215,6 +244,24 @@ func _draw_cmd_tab(R: Rect2) -> void:
 		_btn(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
 	y += 44
 	var tm: int = clampi(lobby_pool_team, 0, 1)
+	# V1.4 #8 指揮官：一排羊皮紙名牌，點一位就套用他的軍令與開局金
+	var cur := cmdr_of(tm)
+	var chw: float = (R.size.x - 2 * 6) / 3.0   # 兩列三欄：英文 150% 也放得下（Antigravity v140-i2）
+	for k in COMMANDERS.size():
+		var crr := Rect2(R.position.x + (k % 3) * (chw + 6), y + (k / 3) * 48, chw, 42)
+		btn_paper = k == cur
+		_btn(crr, "", _cmdr_pick.bind(tm, k), true, false, Color(0, 0, 0, 0))
+		btn_paper = false
+		_ink_mode = last_btn_paper
+		_probe_btn_label = true
+		_probe_btn_rect = crr
+		_text(crr.get_center() - Vector2(0, tz("C") * 0.62), L.t(str(COMMANDERS[k][0])), tz("C"), INK if _ink_mode else Color.WHITE, true, true, chw - 8)
+		_probe_btn_label = false
+		_ink_mode = false
+	y += 98
+	if cur >= 0:
+		_text(Vector2(R.position.x, y), L.t(str(COMMANDERS[cur][0]) + "_d"), tz("C"), ACCENT, false, false, R.size.x)
+		y += text_h(L.t(str(COMMANDERS[cur][0]) + "_d"), tz("C"), R.size.x) + 6
 	var m := int(lobby_r.cmd_mask[tm])
 	var hot := -1
 	var cw := 114.0

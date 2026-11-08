@@ -7,6 +7,7 @@ extends RefCounted
 const PZ = preload("res://scripts/game/puzzles.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const PREFIX := "NTP1"
+const PREFIX2 := "NTP2"   # V1.4 #5 接力殘局：多一欄「第幾棒」n（1～99）；NTP1 照舊能用（n＝0）
 const MAX_UNITS := 40
 const MAX_LEN := 6000
 const ID := "ws"
@@ -43,7 +44,7 @@ static func _clean(list, c0: int, c1: int) -> Array:
 
 ## 把一場打贏的格子對戰做成殘局碼。enemy／sol＝[[兵種, 欄, 列], ...]（敵陣用絕對欄 10～15）。
 ## 先用殘局規則重跑一次，作者解在殘局規則下也要贏才給碼（對戰可能用了不同局長等規則）。不合格回 ""。
-static func encode(enemy: Array, sol: Array) -> String:
+static func encode(enemy: Array, sol: Array, n := 0) -> String:
 	var e := _clean(enemy, 10, 15)
 	var s := _clean(sol, 0, 5)
 	if e.is_empty() or s.is_empty():
@@ -53,9 +54,12 @@ static func encode(enemy: Array, sol: Array) -> String:
 		if not int(u[0]) in allowed:
 			allowed.append(int(u[0]))
 	allowed.sort()
-	var j := JSON.stringify({"v": 1, "e": e, "s": s, "a": allowed})
+	var body := {"v": 1, "e": e, "s": s, "a": allowed}
+	if n > 0:
+		body = {"v": 2, "e": e, "s": s, "a": allowed, "n": clampi(n, 1, 99)}
+	var j := JSON.stringify(body)
 	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
-	var code := "%s.%s.%s" % [PREFIX, b, b.sha256_text().substr(0, 6)]
+	var code := "%s.%s.%s" % [PREFIX2 if n > 0 else PREFIX, b, b.sha256_text().substr(0, 6)]
 	return code if bool(decode(code)["ok"]) else ""
 
 ## 解碼＋驗證＋重跑作者解。回傳 {ok, pz, sol, why}。
@@ -63,14 +67,20 @@ static func decode(code: String) -> Dictionary:
 	var bad := {"ok": false, "why": "ws_bad"}
 	code = code.strip_edges()
 	var parts := code.split(".")
-	if code.length() > MAX_LEN or parts.size() != 3 or parts[0] != PREFIX or parts[1].sha256_text().substr(0, 6) != parts[2]:
+	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] == PREFIX or parts[0] == PREFIX2) or parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return bad
 	var b64 := parts[1].replace("-", "+").replace("_", "/")
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Dictionary or not _is_int(j.get("v"), 1, 1):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
+	var v2 := parts[0] == PREFIX2
+	if not j is Dictionary or not _is_int(j.get("v"), 2 if v2 else 1, 2 if v2 else 1):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
 		return bad
+	var relay := 0
+	if v2:
+		if not _is_int(j.get("n"), 1, 99):
+			return bad
+		relay = int(j["n"])
 	var e := _clean(j.get("e"), 10, 15)
 	var s := _clean(j.get("s"), 0, 5)
 	if e.is_empty() or s.is_empty() or not j.get("a") is Array:
@@ -89,7 +99,7 @@ static func decode(code: String) -> Dictionary:
 		spent += D.cost(int(u[0]))
 	if spent > 200:
 		return bad
-	var pz := {"id": ID, "ch": 0, "zh": "工坊殘局", "en": "Workshop Puzzle",
+	var pz := {"id": ID, "ch": 0, "zh": "工坊殘局" if relay == 0 else "接力殘局・第 %d 棒" % relay, "en": "Workshop Puzzle" if relay == 0 else "Relay Puzzle · Leg %d" % relay, "relay": relay,
 		"hint_zh": "朋友打贏過這一關。用一樣的兵種、一樣多的錢，打得比他漂亮就是三星。",
 		"hint_en": "A friend beat this one. Same units, same gold: beat their result for 3 stars.",
 		"enemy": e, "fixed": [], "budget": spent, "allowed": allowed, "star2": 0, "star3": spent}

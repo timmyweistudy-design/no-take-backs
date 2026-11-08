@@ -340,6 +340,130 @@ func _accept_workshop(c := "") -> void:
 	puzzle_id = "ws"
 	_start_mode(Mode.PUZZLE)
 
+## ── V1.4 #5 接力殘局：破了朋友的題，改最多兩隻敵兵再傳回去。你剛才的解要還打得贏改過的陣才給碼 ──
+var rl_orig: Array = []      # 原本的敵陣 [兵種, 欄, 列]
+var rl_enemy: Array = []     # 改過的敵陣
+var rl_sel := Vector2i(-1, -1)
+var rl_types: Array = []     # 可以換成的兵種（這一關可用的＋敵陣原有的）
+var rl_code := ""
+
+func _open_relay() -> void:
+	var pz: Dictionary = PZ.get_puzzle("ws")
+	rl_orig = []
+	for e in pz.get("enemy", []):
+		rl_orig.append([int(e[0]), int(e[1]), int(e[2])])
+	rl_enemy = rl_orig.duplicate(true)
+	rl_types = pz.get("allowed", []).duplicate()
+	for e in rl_orig:
+		if not int(e[0]) in rl_types:
+			rl_types.append(int(e[0]))
+	rl_types.sort()
+	rl_sel = Vector2i(-1, -1)
+	rl_code = ""
+	overlay = "relay"
+
+static func relay_at(list: Array, c: int, r: int) -> int:
+	for i in list.size():
+		if int(list[i][1]) == c and int(list[i][2]) == r:
+			return i
+	return -1
+
+## 改了幾格（換兵種、拿掉、新增都算一格；搬移＝兩格）。
+static func relay_changes(orig: Array, now: Array) -> int:
+	var n := 0
+	for c in range(10, 16):
+		for r in 9:
+			var a := relay_at(orig, c, r)
+			var b := relay_at(now, c, r)
+			if (a < 0) != (b < 0) or (a >= 0 and b >= 0 and int(orig[a][0]) != int(now[b][0])):
+				n += 1
+	return n
+
+func _relay_set(t: int) -> void:
+	if rl_sel.x < 0:
+		return
+	var trial: Array = rl_enemy.duplicate(true)
+	var i := relay_at(trial, rl_sel.x, rl_sel.y)
+	if t < 0:
+		if i >= 0:
+			trial.remove_at(i)
+	elif i >= 0:
+		trial[i][0] = t
+	else:
+		trial.append([t, rl_sel.x, rl_sel.y])
+	if relay_changes(rl_orig, trial) > 2:
+		_toast(L.t("rl_too_many"), true)
+		return
+	if trial.is_empty():
+		return
+	rl_enemy = trial
+	rl_code = ""
+
+func _relay_make() -> void:
+	var n: int = int(PZ.get_puzzle("ws").get("relay", 0)) + 1
+	var code: String = WS.encode(rl_enemy, _ws_list(last_armies[0]), n)
+	if code == "":
+		_toast(L.t("rl_unsolved"), true)
+		return
+	rl_code = code
+	DisplayServer.clipboard_set(code)
+	_toast(L.t("ws_copied"))
+
+func _draw_relay() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(170, 60, 940, 680)
+	_panel(P)
+	_h1(Vector2(640, 72), L.t("rl_title", [int(PZ.get_puzzle("ws").get("relay", 0)) + 1]))
+	_text(Vector2(640, 72 + tz("H1") * 1.4), L.t("rl_help"), tz("S"), TXT_DIM, true, false, 860)
+	# 左：敵方部署區（羊皮紙棋盤，6 欄 × 9 列）；改過的格子淡金底
+	# 左：你剛才過關的藍軍（半透明、鎖定），看著對位改（Antigravity v140-i2）
+	var bs := 24.0
+	var bg := Vector2(196, 186 + (9 * 40 - 9 * bs) / 2.0)
+	_text(Vector2(bg.x, bg.y - tz("C") * 1.5), L.t("rl_yours"), tz("C"), Charts.team_col(0, cbm()), false, true, 160)
+	for r0 in 9:
+		for c0 in 6:
+			draw_rect(Rect2(bg + Vector2(c0, r0) * bs, Vector2(bs - 2, bs - 2)), Color(0.2, 0.3, 0.45, 0.25))
+	if last_armies.size() >= 1:
+		for u in last_armies[0].units:
+			Art.unit(self, bg + Vector2(int(u["col"]) * bs + bs / 2, int(u["row"]) * bs + bs - 3), int(u["type"]), 0, 1.0, 0.0, 0.0, 0.0, 0.6, time, 0.3, cbm())
+	var cs := 40.0
+	var g0 := Vector2(372, 186)
+	_tex_box(Rect2(g0 - Vector2(10, 10), Vector2(6 * cs + 20, 9 * cs + 20)), "paper")
+	for r in 9:
+		for c in 6:
+			var col := 10 + c
+			var cell := Rect2(g0 + Vector2(c, r) * cs, Vector2(cs - 3, cs - 3))
+			var a := relay_at(rl_orig, col, r)
+			var b := relay_at(rl_enemy, col, r)
+			var changed := (a < 0) != (b < 0) or (a >= 0 and b >= 0 and int(rl_orig[a][0]) != int(rl_enemy[b][0]))
+			draw_rect(cell, Color(0.83, 0.71, 0.45, 0.55) if changed else Color(0.42, 0.3, 0.18, 0.12))
+			if rl_sel == Vector2i(col, r):
+				_hand_ring(cell.get_center(), cs * 0.5, ACCENT, 2.6, true)
+			if b >= 0:
+				Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 6), int(rl_enemy[b][0]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.6, cbm())
+			var cc := Vector2i(col, r)
+			_btns.append({"r": cell, "cb": func(): rl_sel = cc, "en": true})
+	# 右：換成哪種兵、拿掉、還原
+	var bx := 660.0
+	_text(Vector2(bx, 186), L.t("rl_changes", [relay_changes(rl_orig, rl_enemy)]), tz("S"), Color.WHITE, false, true, 400)
+	var by := 186.0 + tz("S") * 1.6
+	for k in rl_types.size():
+		var t: int = rl_types[k]
+		var br := Rect2(bx + (k % 6) * 66, by + (k / 6) * 84, 62, 78)
+		_btn(br, "", _relay_set.bind(t), rl_sel.x >= 0)
+		var py := br.size.y - tz("C") * 1.15 - 7   # 和覆盤同一個算法：價錢在按鈕面板內
+		Art.unit(self, br.position + Vector2(31, py - 2), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0 if rl_sel.x >= 0 else 0.35, time, 0.5, cbm())
+		_text(br.position + Vector2(31, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if rl_sel.x >= 0 else Color(1, 1, 1, 0.3), true, true, 58)
+	by += (rl_types.size() + 5) / 6 * 84 + 8
+	_btn(Rect2(bx, by, 190, 44), L.t("rv_remove"), _relay_set.bind(-1), rl_sel.x >= 0)
+	_btn(Rect2(bx + 200, by, 190, 44), L.t("rv_reset"), func(): rl_enemy = rl_orig.duplicate(true); rl_code = "")
+	by += 56
+	_btn(Rect2(bx, by, 390, 52), L.t("rl_make"), func(): _relay_make(), relay_changes(rl_orig, rl_enemy) >= 1, true)
+	by += 66
+	if rl_code != "":
+		_text(Vector2(bx, by), L.t("rl_done"), tz("S"), Color("#ffd166"), false, true, 390)
+	_btn(Rect2(560, 676, 160, 44), L.t("back"), func(): overlay = "")
+
 ## ── V1.1 D2：每日挑戰 ──
 func _start_daily() -> void:
 	if _demo():
@@ -1018,3 +1142,183 @@ func _draw_nemeses() -> void:
 			Art.unit(self, r.position + Vector2(530 + k * 18, 74), int(us[k]["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.9, time, 0.36, cbm())
 		y += 98
 	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "profile")
+
+
+## ── V1.4 #16 遊戲間：觀戰競猜、輪抽 ──
+var wg_armies: Array = []      # 競猜：兩支 AI 軍
+var wg_pick := [-1, -1]        # [押哪一隊, 剩餘戰力區間 0 險勝／1 普通／2 大勝]
+var wg_active := false
+var df_pool: Array = []        # 輪抽：公池 8 張
+var df_mine: Array = []
+var df_ai: Array = []
+
+func _draw_playroom() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(240, 140, 800, 500)
+	_panel(P)
+	_h1(Vector2(640, 152), L.t("menu_playroom"))
+	var eye: Dictionary = Save.data.get("eye", {})
+	var cards := [["pr_wager", "pr_wager_d", "dice", func(): _wager_new()], ["pr_draft", "pr_draft_d", "flag", func(): _draft_new()]]
+	for i in 2:
+		var r := Rect2(280 + i * 370, 230, 350, 300)
+		_tex_box(r, "paper")
+		_ink_mode = true
+		_icon(str(cards[i][2]), r.position + Vector2(175, 56), 44.0, Color("#7a4a10"))
+		_text(r.position + Vector2(175, 96), L.t(str(cards[i][0])), tz("B"), INK, true, true, 320)
+		_text(r.position + Vector2(24, 140), L.t(str(cards[i][1])), tz("S"), INK, false, false, 302)
+		_ink_mode = false
+		_btn(Rect2(r.position.x + 95, r.end.y - 62, 160, 46), L.t("pr_go"), cards[i][3], true, i == 0)
+	if not eye.is_empty():
+		_text(Vector2(640, 546), L.t("pr_eye", [int(eye.get("pts", 0)), int(eye.get("n", 0)), int(eye.get("best", 0))]), tz("S"), ACCENT, true, true, 720)
+	_btn(Rect2(560, 584, 160, 44), L.t("back"), func(): overlay = "")
+
+## 競猜：用 AI 組兩支軍隊（同樣 100 金），先看陣型再押注。
+func _wager_new() -> void:
+	var r := RandomNumberGenerator.new()
+	r.randomize()
+	wg_armies = [AI.build(0, 100, r)["army"], AI.build(1, 100, r)["army"]]
+	wg_pick = [-1, -1]
+	overlay = "wager"
+
+func _draw_wager() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(160, 70, 960, 660)
+	_panel(P)
+	_h1(Vector2(640, 82), L.t("pr_wager"))
+	_text(Vector2(640, 82 + tz("H1") * 1.4), L.t("wg_help"), tz("S"), TXT_DIM, true, false, 880)
+	# 兩支軍隊的陣型縮影（羊皮紙棋盤），藍左紅右
+	for side in 2:
+		var a = wg_armies[side]
+		var g := Rect2(200 + side * 450, 180, 430, 250)
+		_tex_box(g, "paper")
+		# 標題放在木條上（不是白底橫條，Antigravity v140-i2）
+		var hb := Rect2(g.position + Vector2(8, 8), Vector2(g.size.x - 16, tz("B") * 1.5))
+		_tex_box(hb, "wood", Charts.team_col(side, cbm()).darkened(0.45))
+		_text(hb.position + Vector2(12, tz("B") * 0.18), L.t("blue") if side == 0 else L.t("red"), tz("B"), Color.WHITE, false, true, 160)
+		_text(Vector2(hb.end.x - 12 - minf(170.0, _width(L.t("wg_units", [a.units.size(), a.spent()]), tz("C"))), hb.position.y + (tz("B") * 1.5 - tz("C")) * 0.42), L.t("wg_units", [a.units.size(), a.spent()]), tz("C"), Color.WHITE, false, false, 170)
+		for u in a.units:
+			var c: int = int(u["col"]) if side == 0 else int(u["col"]) - 10
+			var q := g.position + Vector2(40 + c * 60, 64 + int(u["row"]) * 20)
+			Art.unit(self, q, int(u["type"]), side, 1.0 if side == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+	_text(Vector2(640, 290), "VS", tz("H1"), Color("#ffd166"), true, true, 60)
+	# 押注：哪一隊贏、贏多少
+	var y := 452.0
+	_text(Vector2(200, y), L.t("wg_who"), tz("S"), Color.WHITE, false, true, 300)
+	for side in 2:
+		_btn(Rect2(480 + side * 220, y - 6, 200, 44), L.t("blue") if side == 0 else L.t("red"), func(): wg_pick[0] = side, true, false, Charts.team_col(side, cbm()).darkened(0.25) if wg_pick[0] == side else Color(0, 0, 0, 0))
+	y += 60
+	_text(Vector2(200, y), L.t("wg_how"), tz("S"), Color.WHITE, false, true, 300)
+	for b in 3:
+		_btn(Rect2(480 + b * 150, y - 6, 140, 44), L.t("wg_band_%d" % b), func(): wg_pick[1] = b, true, false, TH_ACTIVE if wg_pick[1] == b else Color(0, 0, 0, 0))
+	_btn(Rect2(420, 640, 220, 50), L.t("wg_go"), func(): _wager_go(), wg_pick[0] >= 0 and wg_pick[1] >= 0, true)
+	_btn(Rect2(660, 640, 200, 50), L.t("back"), func(): overlay = "playroom")
+
+func _wager_go() -> void:
+	wg_active = true
+	call("watch_code", wg_armies[0], wg_armies[1], null)
+
+## 剩餘戰力落在哪一區：0 險勝（<34%）、1 普通、2 大勝（≥67%）。
+static func wager_band(rem: int) -> int:
+	return 0 if rem < 34 else (1 if rem < 67 else 2)
+
+## 結算：押對勝方 1 分、連區間也對再 1 分。存「眼力」：總分、場數、最高連對。
+func _wager_settle() -> void:
+	if not wg_active or sim == null:
+		return
+	wg_active = false
+	var w: int = sim.winner
+	var rem: int = PZ.rem_pct(sim.power(w), sim.budget_of(w)) if w >= 0 else 0
+	var pts := 0
+	if w == int(wg_pick[0]):
+		pts += 1
+		if wager_band(rem) == int(wg_pick[1]):
+			pts += 1
+	var eye: Dictionary = Save.data.get("eye", {})
+	eye["n"] = int(eye.get("n", 0)) + 1
+	eye["pts"] = int(eye.get("pts", 0)) + pts
+	eye["streak"] = int(eye.get("streak", 0)) + 1 if pts > 0 else 0
+	eye["best"] = maxi(int(eye.get("best", 0)), int(eye["streak"]))
+	Save.data["eye"] = eye
+	Save.save_data()
+	report["wager_line"] = L.t("wg_res_%d" % pts, [rem])
+
+## 輪抽：公池 8 張（舊 10 種裡抽，至少 6 張戰鬥兵），你先抽、輪流各 4 張，抽到的就是這一場的卡池。
+func _draft_new() -> void:
+	var r := RandomNumberGenerator.new()
+	r.randomize()
+	var ids: Array = range(10)
+	df_pool = []
+	while df_pool.size() < 8:
+		var k: int = ids[r.randi() % ids.size()]
+		ids.erase(k)
+		df_pool.append(k)
+	df_pool.sort()
+	df_mine = []
+	df_ai = []
+	overlay = "draft"
+
+func _draft_take(t: int) -> void:
+	if t in df_mine or t in df_ai or df_mine.size() >= 4:
+		return
+	df_mine.append(t)
+	# AI 抽：剩下的裡面最貴的戰鬥兵優先（簡單、可預期）
+	var best := -1
+	for x in df_pool:
+		if x in df_mine or x in df_ai:
+			continue
+		if best < 0 or D.cost(int(x)) > D.cost(best):
+			best = int(x)
+	if best >= 0 and df_ai.size() < 4:
+		df_ai.append(best)
+
+static func draft_mask(list: Array) -> int:
+	var m := 0
+	for t in list:
+		m |= 1 << int(t)
+	return m
+
+func _draft_go() -> void:
+	var r = RuleSet.standard()
+	var m0 := draft_mask(df_mine)
+	var m1 := draft_mask(df_ai)
+	if not RuleSet.has_combat(m0) or not RuleSet.has_combat(m1):
+		_toast(L.t("df_no_combat"), true)
+		return
+	r.pool = [m0, m1]
+	r.ai_pool_same = false   # 電腦用自己抽到的牌（Codex v140-i2）
+	r.rounds = 1
+	rules = r
+	challenge_army = null
+	overlay = ""
+	_start_mode(Mode.VS_AI)
+
+func _draw_draft() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(160, 80, 960, 640)
+	_panel(P)
+	_h1(Vector2(640, 92), L.t("pr_draft"))
+	_text(Vector2(640, 92 + tz("H1") * 1.4), L.t("df_help"), tz("S"), TXT_DIM, true, false, 880)
+	for i in df_pool.size():
+		var t: int = df_pool[i]
+		var r := Rect2(210 + (i % 4) * 220, 190 + (i / 4) * 190, 200, 172)
+		var mine: bool = t in df_mine
+		var ai: bool = t in df_ai
+		btn_paper = not mine and not ai
+		_btn(r, "", _draft_take.bind(t), not mine and not ai and df_mine.size() < 4)
+		btn_paper = false
+		Art.unit(self, r.position + Vector2(100, 110), t, 0 if not ai else 1, 1.0, 0.0, 0.0, 0.0, 1.0 if not (mine or ai) else 0.55, time, 0.9, cbm())
+		_ink_mode = not mine and not ai
+		_text(r.position + Vector2(100, 120), L.t("unit_%d" % t), tz("S"), INK if _ink_mode else Color.WHITE, true, true, 190)
+		_text(r.position + Vector2(100, 120 + tz("S") * 1.3), L.t("gold", [D.cost(t)]), tz("C"), Color("#7a4a10") if _ink_mode else ACCENT, true, false, 190)
+		_ink_mode = false
+		if mine or ai:
+			# 抽走的卡：隊伍色邊框＋火漆印（Antigravity v140-i2）
+			var tcol: Color = Charts.team_col(0 if mine else 1, cbm())
+			draw_rect(r.grow(-3), tcol, false, 3.0)
+			var sc := r.position + Vector2(r.size.x - 26, 26)
+			draw_circle(sc, 17.0, tcol.darkened(0.35), true, -1.0, true)
+			draw_circle(sc, 13.0, tcol, true, -1.0, true)
+			_text(r.position + Vector2(100, 12), L.t("df_mine") if mine else L.t("df_ai"), tz("S"), Color.WHITE, true, true, 150)
+	_text(Vector2(640, 582), L.t("df_count", [df_mine.size(), df_ai.size()]), tz("S"), Color.WHITE, true, true, 700)
+	_btn(Rect2(420, 640, 220, 50), L.t("df_go"), func(): _draft_go(), df_mine.size() == 4, true)
+	_btn(Rect2(660, 640, 200, 50), L.t("back"), func(): overlay = "playroom")

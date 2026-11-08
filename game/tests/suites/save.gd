@@ -196,3 +196,17 @@ func test_play_log_v11() -> void:
 	SV.sanitize_data(bad)
 	ok(int(bad["puzzle_tries"]["c1"]) == 0 and int(bad["puzzle_tries"]["c2"]) == 0 and bad["trial_first"] is Dictionary, "F2：壞資料歸零、不當掉")
 	SV.data = keep
+
+
+## V1.4 #6 最小成本紀錄合併、#2 宿敵與紀錄的存檔清理。
+func test_records_v140() -> void:
+	var GC = load("res://scripts/ui/screens/game_core.gd")
+	ok(GC.record_merge([], 30, 6, 900) == [30, 6, 900], "第一次＝本次成績")
+	ok(GC.record_merge([30, 6, 900], 28, 7, 950) == [28, 6, 900], "三項各自取最小")
+	var SV = load("res://scripts/game/save.gd")
+	var d := {"pz_best": {"a1": [10, 3, 400], "bad": [1, 2], "neg": [-1, 2, 3]},
+		"nemeses": [{"units": [{"type": 5, "col": 10, "row": 2}], "losses": 2, "revenged": true, "stage": 3},
+			{"units": [{"type": 5, "col": 3, "row": 2}]}, "junk", {"units": []}]}
+	SV.sanitize_data(d)
+	ok(d["pz_best"].size() == 1 and d["pz_best"]["a1"] == [10, 3, 400], "紀錄：格式不對的丟掉", str(d["pz_best"]))
+	ok(d["nemeses"].size() == 1 and d["nemeses"][0]["revenged"] == true, "宿敵：欄位不在敵方區、空陣、亂資料都丟掉", str(d["nemeses"]))

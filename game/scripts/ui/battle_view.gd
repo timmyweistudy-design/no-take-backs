@@ -43,6 +43,9 @@ func _pre_reap() -> void:
 			pre_old.remove_at(i)
 
 func _exit_tree() -> void:
+	var gt = get("gif_thread")
+	if gt != null:
+		gt.wait_to_finish()   # V1.4 #14：GIF 還在寫就等它寫完（Codex v140-i2）
 	_pre_join()
 	_pre_drop()
 	for th in pre_old:

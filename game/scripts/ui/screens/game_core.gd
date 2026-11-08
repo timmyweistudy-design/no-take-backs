@@ -348,6 +348,8 @@ func _progress_and_achievements() -> void:
 		Save.data["puzzle_stars"] = ps
 		if mode == Mode.PUZZLE:
 			Save.note_try("puzzle", puzzle_id, stars >= 1, armies[0].spent())   # V1.1 F2
+			if stars >= 1:
+				_puzzle_record(puzzle_id, armies[0].spent(), armies[0].units.size(), sim.tick)
 		if mode == Mode.TUTORIAL and w == 0:
 			var idx := 0
 			for i in PZ.tutorials().size():
@@ -720,6 +722,29 @@ func _key_marks() -> Array:
 	return out
 
 
+
+## V1.4 #6 最小成本懸賞：每一關記三項最佳（花費、兵數、時間），各自取最小。破紀錄就在結果頁說出來。
+static func record_merge(old: Array, spent: int, units: int, ticks: int) -> Array:
+	if old.size() != 3:
+		return [spent, units, ticks]
+	return [mini(int(old[0]), spent), mini(int(old[1]), units), mini(int(old[2]), ticks)]
+
+func _puzzle_record(pid: String, spent: int, units: int, ticks: int) -> void:
+	var all: Dictionary = Save.data.get("pz_best", {})
+	var old: Array = all.get(pid, [])
+	var nw := record_merge(old, spent, units, ticks)
+	var better: Array = []
+	if old.size() == 3:
+		if nw[0] < int(old[0]):
+			better.append(L.t("rec_gold", [int(old[0]) - nw[0]]))
+		if nw[1] < int(old[1]):
+			better.append(L.t("rec_units", [int(old[1]) - nw[1]]))
+		if nw[2] < int(old[2]):
+			better.append(L.t("rec_time", [_fmt_num(snappedf((int(old[2]) - nw[2]) / 20.0, 0.1))]))
+	all[pid] = nw
+	Save.data["pz_best"] = all
+	report["rec_line"] = L.t("rec_line", [spent, units, _fmt_num(snappedf(ticks / 20.0, 0.1)), nw[0], nw[1], _fmt_num(snappedf(nw[2] / 20.0, 0.1))])
+	report["rec_new"] = L.t("rec_new", ["、".join(better)]) if not better.is_empty() else ""
 
 func _gauntlet_next() -> void:
 	gauntlet_prev = last_armies[0].units.duplicate(true)

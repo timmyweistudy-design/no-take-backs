@@ -526,6 +526,10 @@ func _run_screenshots() -> void:
 	await _snap("05_result.png")
 	result_tab = 1
 	await _snap("05b_result_details.png")
+	if pc_shot != null:   # V1.4 #14 戰報明信片
+		overlay = "postcard"
+		await _snap("05c_postcard.png")
+		overlay = ""
 	result_tab = 0
 	puzzle_id = "p1"
 	_start_mode(Mode.PUZZLE)
@@ -725,6 +729,28 @@ func _shots_v9() -> void:
 	overlay = "nemeses"
 	await _snap("59b_nemeses.png")
 	Save.data["nemeses"] = nem_keep
+	# V1.4 #5 接力殘局：拿第一個能做成工坊碼的關卡當素材
+	for p0 in PZ.all_puzzles():
+		if PZ.goal(p0) == "win" and p0.get("fixed", []).is_empty() and not p0.has("map") and not p0.has("cmd") and p0.has("best"):
+			var dws: Dictionary = WS.decode(WS.encode(p0["enemy"], p0["best"]["u"], 2))
+			if bool(dws["ok"]):
+				PZ.set_custom(dws["pz"])
+				_open_relay()
+				rl_sel = Vector2i(10, 4)
+				_relay_set(int(rl_types[0]))
+				await _snap("59c_relay.png")
+				overlay = ""
+			break
+	# V1.4 #16 遊戲間
+	overlay = "playroom"
+	await _snap("59d_playroom.png")
+	_wager_new()
+	wg_pick = [0, 1]
+	await _snap("59e_wager.png")
+	_draft_new()
+	_draft_take(int(df_pool[0]))
+	await _snap("59f_draft.png")
+	overlay = ""
 	_open("reward")
 	await _snap("60_reward.png")
 	rules = RuleSet.standard()
@@ -1217,7 +1243,7 @@ func _pad_walk() -> void:
 	_go_title()
 	await _pw_frames(3)
 	await _pw_cycle("標題")
-	for step in [[6, "trials"], [7, "profile"], [9, "settings"], [10, "codes"]]:   # V1.1：第 8 顆是每日挑戰
+	for step in [[6, "trials"], [7, "profile"], [9, "playroom"], [10, "settings"], [11, "codes"]]:   # V1.1：第 8 顆是每日挑戰；V1.4：第 9 顆是遊戲間
 		_go_title()
 		await _pw_pick(step[0], "標題→" + str(step[1]))
 		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])

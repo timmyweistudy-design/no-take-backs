@@ -26,6 +26,7 @@ func _leave_confirm() -> void:
 	_go_title()
 
 func _go_title() -> void:
+	set("wg_active", false)   # V1.4 #16：離開就取消押注，不能拿下一場來結算（Codex v140-i2）
 	call("_pre_drop")
 	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
 	sfx.set_muffled(false)
