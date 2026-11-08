@@ -400,7 +400,7 @@ func _touch_input(ev: InputEvent) -> void:
 			touches[ev.index] = ev.position
 		else:
 			touches.erase(ev.index)
-		lp_t = 0.0 if (ev.pressed and touches.size() == 1) else -1.0
+		lp_t = 0.0 if (ev.pressed and touches.size() == 1 and overlay == "") else -1.0   # 覆蓋層（例如軍令時間軸）不用長按，免得拖曳變右鍵
 		lp_pos = ev.position
 		return
 	if ev is InputEventScreenDrag:

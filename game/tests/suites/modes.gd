@@ -1465,3 +1465,28 @@ func test_sticker_reward_v140() -> void:
 	ok(int(run["prev"][0].get("st", 0)) == 4 and not run["prev"][1].has("st"), "續局存檔留貼紙、不合法的丟掉")
 	g.free()
 
+
+## V1.4 收尾第 1 輪：契約代價修剪先拿沒貼紙的兵；本戰條件列出契約、巨獸、貼紙。
+func test_ga_info_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g._start_mode(g.Mode.GAUNTLET)
+	g.gauntlet_stage = 3
+	g.armies[0].budget = 30
+	g.armies[0].units = [{"type": 0, "col": 5, "row": 1, "st": 3}, {"type": 0, "col": 5, "row": 2}, {"type": 0, "col": 5, "row": 3, "st": 5}, {"type": 0, "col": 5, "row": 4}, {"type": 0, "col": 5, "row": 5}, {"type": 0, "col": 5, "row": 6}, {"type": 0, "col": 5, "row": 7}]
+	g.gauntlet_contract = 5
+	g._apply_contract_cost()
+	var kept := 0
+	for u in g.armies[0].units:
+		kept += 1 if int(u.get("st", 0)) > 0 else 0
+	ok(kept == 2 and g.armies[0].spent() <= g.armies[0].budget, "修剪先拿沒貼紙的兵", str(g.armies[0].units))
+	g.gauntlet_contract = 0
+	g.armies[1].units = [{"type": 19, "col": 12, "row": 4, "boss": 1}]
+	var txt := ""
+	for ln in g._ga_info_lines():
+		txt += str(ln[1]) + "|"
+	ok(txt.contains(g.L.t("boss_here")) and txt.contains(g.L.t("st_3")) and txt.contains(g.L.t(str(g.CONTRACTS[0][0]))), "本戰條件列出契約、巨獸、貼紙", txt)
+	g.free()
+

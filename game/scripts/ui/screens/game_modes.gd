@@ -512,8 +512,11 @@ func _daily_caption() -> String:
 	return s if b.is_empty() else "%s・%d%%" % [s, int(b[0])]
 
 ## ── 遠征：每戰後三選一（V1.1 D1：從 6 種事件用種子抽 3 種） ──
+var ev_pick := -1   # V1.4 收尾第 1 輪：先選事件與契約，再按「前往下一站」才生效（Codex：點了獎勵就跳過契約）
+
 func _gauntlet_reward() -> void:
 	ct_pick = -1
+	ev_pick = -1
 	overlay = "reward"
 
 ## V1.4 #3：正式遠征每一戰結束就結算契約（贏、輸、最後一站都會結算；Codex v140-i1）。
@@ -579,7 +582,13 @@ func _apply_contract_cost() -> void:
 	armies[0].unit_cap = maxi(4, armies[0].unit_cap + int(c[4]))
 	# 沿用的陣型可能超出降低後的預算／隻數：從最後放的往回拿掉（代價不能被繞過，Codex v140-i1）
 	while armies[0].units.size() > 1 and (armies[0].spent() > armies[0].budget or armies[0].units.size() > armies[0].unit_cap):
-		armies[0].units.pop_back()
+		# 先拿掉沒貼紙的（剛領的貼紙不要被契約代價吃掉，Antigravity 收尾第 1 輪）；全都貼了才拿最後一隻
+		var drop: int = armies[0].units.size() - 1
+		for k in range(armies[0].units.size() - 1, -1, -1):
+			if int(armies[0].units[k].get("st", 0)) == 0:
+				drop = k
+				break
+		armies[0].units.remove_at(drop)
 
 static func ga_node(stage: int) -> String:
 	return GA_NODES[clampi(stage - 1, 0, GA_NODES.size() - 1)]
@@ -721,7 +730,10 @@ func _draw_reward() -> void:
 	for i in offers.size():
 		var k: int = offers[i]
 		var r := Rect2(268 + i * 252, 236, 240, 200)
-		_btn(r, "", _take_reward.bind(k), true, false, TH_WOOD_L)
+		var kk0 := k
+		_btn(r, "", func(): ev_pick = kk0, true, false, TH_ACTIVE if ev_pick == k else TH_WOOD_L)
+		if ev_pick == k:
+			_hand_ring(r.position + Vector2(r.size.x - 22, 22), 12.0, Color("#ffd166"), 2.6)
 		_icon(GA_EVENT_ICONS[k], r.position + Vector2(120, 52), 56.0, ACCENT)
 		_text(r.position + Vector2(120, 92), L.t(GA_EVENTS[k]), tz("B"), Color.WHITE, true, true, 220)
 		_text(r.position + Vector2(120, 92 + tz("B") * 1.5), _ga_event_desc(k), tz("C"), TXT_DIM, true, false, 220)
@@ -763,8 +775,8 @@ func _draw_reward() -> void:
 	if ct_last != "":
 		_text(Vector2(640, cy), ct_last, tz("S"), ACCENT, true, true, 740)
 		cy += tz("S") * 1.4
-	_text(Vector2(640, cy), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), TXT_DIM, true, false, 740)
-	_text(Vector2(640, cy + tz("S") * 1.4), L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), ACCENT, true, true, 740)
+	_text(Vector2(640, cy), L.t("rw_now", [gauntlet_gold, gauntlet_cap]) + "　・　" + L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), TXT_DIM, true, false, 740)
+	_btn(Rect2(540, 668, 200, 44), L.t("rw_go"), func(): _take_reward(ev_pick), ev_pick >= 0, true)
 
 ## 遠征路線條：7 個節點，已打過的打勾、下一戰亮框；菁英、首領用不同圖示。
 func _draw_route(R: Rect2, next_stage: int) -> void:
@@ -1738,7 +1750,7 @@ func _draw_ghosts() -> void:
 		btn_paper = false
 		_ink_mode = not bool(Save.s("plain_ui"))
 		_text(r.position + Vector2(16, 12), L.field(g, ""), tz("B"), INK if _ink_mode else Color.WHITE, false, true, 220)
-		_text(r.position + Vector2(16, 12 + tz("B") * 1.45), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), int(g.get("wr", 0))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
+		_text(r.position + Vector2(16, 12 + tz("B") * 1.45), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
 		_ink_mode = false
 		# 右側：迷你陣型（紅點）
 		var mx := r.end.x - 64
@@ -1769,7 +1781,9 @@ func _draw_weekly() -> void:
 	_tex_box(paper, "paper")
 	_ink_mode = true
 	var y := paper.position.y + 18
-	_text(Vector2(640, y), L.t("wk_sub", [wk]), tz("B"), INK, true, true, 640)
+	var d0 := Time.get_date_dict_from_unix_time((wk * 7 + 4) * 86400)
+	var d1 := Time.get_date_dict_from_unix_time((wk * 7 + 10) * 86400)
+	_text(Vector2(640, y), L.t("wk_sub", ["%d/%d" % [d0["month"], d0["day"]], "%d/%d" % [d1["month"], d1["day"]]]), tz("B"), INK, true, true, 640)   # 日期範圍，不寫內部週數（Codex 收尾第 1 輪）
 	y += tz("B") * 1.8
 	_text(Vector2(330, y), L.t("wk_pool"), tz("S"), INK, false, true, 200)
 	var n := 0
@@ -1807,4 +1821,54 @@ static func add_boss(a) -> void:
 	if i != -1:
 		a.units.remove_at(i)
 	a.units.append({"type": 19, "col": int(cell[0]), "row": int(cell[1]), "boss": 1})
+
+
+## ── V1.4 收尾第 1 輪（Codex、Antigravity）：遠征擺陣頁的「本戰條件」。離開獎勵頁或讀檔後也查得到：
+## 這一站是什麼、簽了什麼契約、累積加成、敵方特別之處（宿敵、巨獸、斥候／截斷），以及我方每張貼紙的效果。
+func _ga_info_lines() -> Array:
+	var out: Array = []
+	out.append([L.t("gi_stage"), L.t("gauntlet_title", [gauntlet_stage]) + "・" + L.t("ga_node_" + ga_node(gauntlet_stage))])
+	if gauntlet_contract >= 0 and gauntlet_contract < CONTRACTS.size():
+		var c: Array = CONTRACTS[gauntlet_contract]
+		out.append([L.t("gi_contract"), L.t(str(c[0])) + "：" + L.t(str(c[0]) + "_d") + "（" + _ct_reward(gauntlet_contract) + "）"])
+	out.append([L.t("gi_bonus"), L.t("rw_now", [gauntlet_gold, gauntlet_cap])])
+	var foe: Array = []
+	if gauntlet_nemesis >= 0 and gauntlet_nemesis < Save.data.get("nemeses", []).size():
+		foe.append(L.t("gi_nemesis", [nemesis_title(Save.data["nemeses"][gauntlet_nemesis])]))
+	for u in armies[1].units:
+		if int(u.get("boss", 0)) == 1:
+			foe.append(L.t("boss_here"))
+			break
+	if gauntlet_foe_gold != 0:
+		foe.append(L.t("rw_scout_d"))
+	if gauntlet_foe_cap != 0:
+		foe.append(L.t("rw_ambush_d"))
+	if not foe.is_empty():
+		out.append([L.t("gi_foe"), L.t("list_sep").join(foe)])
+	for u in armies[0].units:
+		var st := int(u.get("st", 0))
+		if st > 0:
+			out.append([L.t("gi_sticker"), "%s・%s：%s" % [L.t("unit_%d" % int(u["type"])), L.t("st_%d" % st), sticker_desc(st)]])
+	return out
+
+func _draw_ga_info() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(220, 110, 840, 560)
+	_panel(P)
+	_h1(Vector2(640, 122), L.t("ga_info"))
+	var paper := Rect2(250, 190, 780, 400)
+	_tex_box(paper, "paper")
+	_ink_mode = not bool(Save.s("plain_ui"))
+	var tc: Color = INK if _ink_mode else Color.WHITE
+	var y := paper.position.y + 18
+	var lw := 150.0
+	for ln in _ga_info_lines():
+		if y > paper.end.y - tz("S") * 1.5:
+			break
+		_text(Vector2(paper.position.x + 20, y), str(ln[0]), tz("S"), Color("#7a4a10") if _ink_mode else ACCENT, false, true, lw)
+		var body := str(ln[1])
+		_text(Vector2(paper.position.x + 30 + lw, y), body, tz("S"), tc, false, false, paper.size.x - lw - 50)
+		y += text_h(body, tz("S"), paper.size.x - lw - 50) + 10
+	_ink_mode = false
+	_btn(Rect2(560, 610, 160, 44), L.t("back"), func(): overlay = "")
 

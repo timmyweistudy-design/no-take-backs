@@ -314,7 +314,6 @@ func _draw_result() -> void:
 			bs.append([L.t("wv_next", [int(get("wv_no")) + 1]), func(): call("_wave_next")])
 		else:
 			bs.append([L.t("wv_again"), func(): call("_wave_start")])
-		bs.append([L.t("replay"), func(): _replay()])
 	if watch_mode:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 

@@ -9,6 +9,8 @@ rules = [  # (路徑樣式, 登記項目)
     ("audio/*.ogg", "opengameart.org"),   # V1.2：CC0 錄音（tools/gen/import_audio.py），逐條登記
     ("audio/*.wav", "本作程式合成"),
     ("fonts/NTBRounded-*.otf", "源泉圓體"),
+    ("fonts/NTBRoundedJP-*.otf", "GenSenRounded2 JP"),   # V1.4 #17
+    ("fonts/NTBRoundedSC-*.otf", "Resource Han Rounded CN"),
     ("fonts/NTBLatin-*.ttf", "Fredoka"),
     ("fonts/ThenKhung-*.ttf", "UoqMunThenKhung"),
     ("icon.svg", "本作程式繪製"),

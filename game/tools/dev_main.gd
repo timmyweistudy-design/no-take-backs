@@ -777,6 +777,18 @@ func _shots_v9() -> void:
 	overlay = ""
 	_open("reward")
 	await _snap("60_reward.png")
+	ev_pick = 1   # V1.4 收尾：選了事件、還沒按「前往下一站」
+	await _snap("60a_reward_picked.png")
+	ev_pick = -1
+	var gst_keep: int = gauntlet_stage
+	gauntlet_stage = maxi(2, gauntlet_stage)
+	gauntlet_contract = 0
+	if not armies[0].units.is_empty():
+		armies[0].units[0]["st"] = 3
+	overlay = "ga_info"
+	await _snap("60b_ga_info.png")
+	gauntlet_contract = -1
+	gauntlet_stage = gst_keep
 	rules = RuleSet.standard()
 	rules.pool = [RuleSet.all_pool(), RuleSet.all_pool()]
 	ban_left = [1, 1]

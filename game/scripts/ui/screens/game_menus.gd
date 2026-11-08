@@ -271,6 +271,8 @@ func _draw_overlay() -> void:
 			_draw_paint()
 		"ghosts":
 			_draw_ghosts()
+		"ga_info":
+			_draw_ga_info()
 		"weekly":
 			_draw_weekly()
 		"relay":
