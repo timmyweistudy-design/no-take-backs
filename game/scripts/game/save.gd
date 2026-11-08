@@ -206,8 +206,11 @@ static func sanitize_run(g) -> Dictionary:
 		if not (v is int or v is float):
 			return {}
 		out[k] = int(v)
-	if out["pool"] <= 0 or out["stage"] < 2 or out["stage"] > 7 or out["gold"] < 0 or out["gold"] > 70 or out["cap"] < 0 or out["cap"] > 14:
+	# V1.4 #3：契約獎勵可以疊在事件上（每站最多 +20 金或 +3 隻），上限放寬
+	if out["pool"] <= 0 or out["stage"] < 2 or out["stage"] > 7 or out["gold"] < 0 or out["gold"] > 220 or out["cap"] < 0 or out["cap"] > 40:
 		return {}
+	var ctr = g.get("contract", -1)
+	out["contract"] = clampi(int(ctr), -1, 5) if (ctr is int or ctr is float) else -1
 	var raw = g.get("prev")
 	if not raw is Array or raw.size() > 80:
 		return {}

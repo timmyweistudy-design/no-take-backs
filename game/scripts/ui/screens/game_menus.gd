@@ -261,6 +261,8 @@ func _draw_overlay() -> void:
 			_draw_plan_overlay()
 		"profile":
 			_draw_profile()
+		"nemeses":
+			_draw_nemeses()
 		"reward":
 			_draw_reward()
 		"ban":

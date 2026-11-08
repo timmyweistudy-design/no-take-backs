@@ -250,6 +250,8 @@ func _draw_hide_fog(hide_side: int) -> void:
 		var eb: int = rules.budget_of(hide_side) if rules != null else 100
 		var ec: int = rules.unit_cap if rules != null else 24
 		var sg := L.t("fog_sign", [eb, ec])
+		if mode == Mode.GAUNTLET and int(get("gauntlet_nemesis")) >= 0:
+			sg = L.t("nem_sign", [ai_name])   # V1.4 #2：宿敵攔路時木牌寫它的名號
 		var sfs: int = tz("C")
 		var sw := _width(sg, sfs, true) + 24.0
 		var sr := Rect2(fp.x - sw / 2.0, fp.y + 74, sw, sfs * 1.5)
@@ -736,37 +738,100 @@ func _clear_mine() -> void:
 
 ## 第十三輪：時序殘局的施放時間（戰鬥中不能按，照這裡設定的秒數放）。每格 0.5 秒。
 func _draw_plan_panel(R: Rect2) -> void:
+	# V1.4 #4：擺陣畫面只放精簡摘要＋「排軍令」按鈕；完整的木刻度尺在 overlay（_draw_plan_overlay）
+	var pz := PZ.get_puzzle(puzzle_id)
+	_tex_box(R, "paper")
+	_ink_mode = true
+	var parts: Array = []
+	for e in puzzle_plan:
+		parts.append(L.t("plan_item", [L.t("cmd_%d" % PZ.plan_skill(pz, int(e))), _fmt_num(PZ.plan_tick(pz, int(e)) / 20.0)]))
+	_text(R.position + Vector2(12, 8), L.t("plan_title"), tz("C"), INK, false, true, R.size.x - 24)
+	_text(R.position + Vector2(12, 8 + tz("C") * 1.35), "・".join(parts), tz("C"), INK, false, false, R.size.x - 24)
+	_ink_mode = false
+	_btn(Rect2(R.end.x - 132, R.end.y - 46, 124, 40), L.t("plan_open"), func(): overlay = "puzzle_plan")
+	if pad_mode:
+		_text(Vector2(R.position.x + 10, R.position.y - tz("C") * 1.4), L.t("plan_pad"), tz("C"), TXT_DIM, false, false, R.size.x)
+
+## V1.4 #4 軍令連鎖：連鎖的組合（先放 a、3 秒內放 b）。只是提示，模擬照原本規則算。
+const CHAINS := [[4, 3, "chain_freeze_meteor"], [0, 1, "chain_aegis_war"], [4, 1, "chain_freeze_war"], [1, 2, "chain_war_heal"]]
+var plan_sel := 0
+
+## 完整的軍令時間軸：木刻度尺（羊皮紙底＋墨線刻度），我方軍令是木棋子、敵方是紅旗；同一種技能的冷卻畫成淡帶，
+## 連鎖用金色弧線連起來。點棋子選取、點尺上任一處把選取的那一道移過去；◀▶ 微調半秒（手把用）。
+func _draw_plan_timeline(R: Rect2) -> void:
 	var pz := PZ.get_puzzle(puzzle_id)
 	var c: Dictionary = pz["cmd"]
-	_box(R, Color(0, 0, 0, 0.45), TH_EDGE, 8.0, 1.5)
-	var nm: String = L.t("cmd_%d" % int(c["skill"]))
-	var en_list: Array = []
-	for e in c.get("enemy", []):
-		en_list.append(L.t("plan_enemy_item", [_fmt_num(int(e[0]) / 20.0), L.t("cmd_%d" % int(e[1]))]))
-	# 左欄：技能、對方技能、各次施放秒數（一行）；右欄：每次一組 ◀▶，用整個面板高度分，
-	# 大字級時按鈕也不會小於 44（版面檢查 84_place_plan：擠在一起會折行、按鈕太小）
-	var lw: float = R.size.x - 124
-	var top := 6.0
-	_text(R.position + Vector2(10, top), L.t("plan_head", [nm]), tz("C"), ACCENT, false, false, lw)
-	top += text_h(L.t("plan_head", [nm]), tz("C"), lw) + 2
-	if not en_list.is_empty():
-		var et := L.t("plan_enemy", [", ".join(en_list)])
-		_text(R.position + Vector2(10, top), et, tz("C"), TXT_DIM, false, false, lw)
-		top += text_h(et, tz("C"), lw) + 2
-	if pad_mode and overlay == "":
-		_text(Vector2(R.position.x + 10, R.position.y - tz("C") * 1.4), L.t("plan_pad"), tz("C"), TXT_DIM, false, false, R.size.x)
-	var rows: int = puzzle_plan.size()
-	var parts: Array = []
-	for i in rows:
-		parts.append(L.t("plan_row", [i + 1, _fmt_num(int(puzzle_plan[i]) / 20.0)]))
-	_text(R.position + Vector2(10, top), "　".join(parts), tz("S"), Color.WHITE, false, true, lw)
-	var rh: float = minf(48.0, (R.size.y - 8) / maxf(1.0, rows))
-	for i in rows:
-		var y: float = R.position.y + 4 + (R.size.y - 8 - rh * rows) / 2.0 + i * rh
-		var idx := i
-		var lo_hi := _plan_range(idx)
-		_btn(Rect2(R.end.x - 108, y, 48, rh - 4), "◀", func(): _plan_nudge(idx, -10), int(puzzle_plan[idx]) > int(lo_hi[0]))
-		_btn(Rect2(R.end.x - 56, y, 48, rh - 4), "▶", func(): _plan_nudge(idx, 10), int(puzzle_plan[idx]) < int(lo_hi[1]))
+	var goal: int = int(pz.get("goal_ticks", Sim.MAX_TICKS))
+	var cd: int = PZ.rules_of(pz).cmd_cd
+	var ruler := Rect2(R.position.x + 20, R.position.y + 64, R.size.x - 40, 74)
+	_tex_box(ruler.grow(6), "paper")
+	var x_of := func(t: int) -> float: return ruler.position.x + ruler.size.x * clampf(float(t) / float(goal), 0.0, 1.0)
+	# 刻度：每秒一小刻、每 5 秒一大刻＋秒數
+	_ink_mode = true
+	for sec in int(goal / 20) + 1:
+		var x: float = x_of.call(sec * 20)
+		var big := sec % 5 == 0
+		draw_line(Vector2(x, ruler.end.y - (14 if big else 7)), Vector2(x, ruler.end.y), Color(INK, 0.75 if big else 0.4), 1.6 if big else 1.0, true)
+		if big:
+			_text(Vector2(x, ruler.end.y + 4), "%ds" % sec, tz("C"), INK, true, false, 60)
+	_ink_mode = false
+	# 冷卻淡帶
+	for e in puzzle_plan:
+		var t := PZ.plan_tick(pz, int(e))
+		draw_rect(Rect2(x_of.call(t), ruler.position.y + 44, x_of.call(t + cd) - x_of.call(t), 8), Color(0.42, 0.3, 0.16, 0.22))
+	# 敵方軍令：紅色小旗（在尺的上緣）
+	for en in c.get("enemy", []):
+		var ex: float = x_of.call(int(en[0]))
+		draw_line(Vector2(ex, ruler.position.y - 18), Vector2(ex, ruler.position.y + 6), Color("#5a1d14"), 2.0, true)
+		draw_colored_polygon(PackedVector2Array([Vector2(ex, ruler.position.y - 18), Vector2(ex + 14, ruler.position.y - 13), Vector2(ex, ruler.position.y - 8)]), Color("#b3261e"))
+		_icon(CmdD.ICONS[int(en[1])], Vector2(ex + 26, ruler.position.y - 13), 16.0, Color("#ffb4a8"))
+	# 連鎖：金色弧線
+	var chains_on: Array = []
+	for a in puzzle_plan.size():
+		for b in puzzle_plan.size():
+			var ta := PZ.plan_tick(pz, int(puzzle_plan[a]))
+			var tb := PZ.plan_tick(pz, int(puzzle_plan[b]))
+			if tb < ta or tb - ta > 60 or a == b:
+				continue
+			for ch in CHAINS:
+				if PZ.plan_skill(pz, int(puzzle_plan[a])) == int(ch[0]) and PZ.plan_skill(pz, int(puzzle_plan[b])) == int(ch[1]):
+					var xa: float = x_of.call(ta)
+					var xb: float = x_of.call(tb)
+					var mid := Vector2((xa + xb) * 0.5, ruler.position.y + 4)
+					draw_polyline(PackedVector2Array([Vector2(xa, ruler.position.y + 20), mid - Vector2(0, 10), Vector2(xb, ruler.position.y + 20)]), Color("#d4a017"), 3.0, true)
+					chains_on.append(str(ch[2]))
+	# 我方軍令：木棋子（技能圖示），選取的那一個金框
+	for i in puzzle_plan.size():
+		var t2 := PZ.plan_tick(pz, int(puzzle_plan[i]))
+		var cx: float = x_of.call(t2)
+		var cpos := Vector2(cx, ruler.position.y + 26)
+		var sk := PZ.plan_skill(pz, int(puzzle_plan[i]))
+		draw_circle(cpos + Vector2(0, 2), 15.0, Color(0.2, 0.12, 0.06, 0.5), true, -1.0, true)
+		draw_circle(cpos, 15.0, Color("#8a5f37"), true, -1.0, true)
+		draw_circle(cpos, 12.0, Color("#b5895a"), true, -1.0, true)
+		_icon(CmdD.ICONS[sk], cpos, 16.0, Color.WHITE)
+		if i == plan_sel:
+			_hand_ring(cpos, 19.0, ACCENT, 2.6, true)
+		var ii := i
+		_btns.append({"r": Rect2(cpos - Vector2(16, 16), Vector2(32, 32)), "cb": func(): plan_sel = ii, "en": true})
+	# 點尺：把選取的軍令移過去（照冷卻與開場限制修正）
+	_btns.append({"r": Rect2(ruler.position.x, ruler.position.y + 44, ruler.size.x, ruler.size.y - 44), "cb": func():
+		var tt := int(clampf((mouse.x - ruler.position.x) / ruler.size.x, 0.0, 1.0) * goal / 10.0) * 10
+		if plan_sel >= 0 and plan_sel < puzzle_plan.size():
+			puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, tt - PZ.plan_tick(pz, int(puzzle_plan[plan_sel]))), "en": true})
+	# 說明列：選取的是哪一道、幾秒；連鎖
+	var y := ruler.end.y + tz("C") * 1.6 + 8
+	if plan_sel >= 0 and plan_sel < puzzle_plan.size():
+		var se := int(puzzle_plan[plan_sel])
+		_text(Vector2(R.position.x + 20, y), L.t("plan_sel", [L.t("cmd_%d" % PZ.plan_skill(pz, se)), _fmt_num(PZ.plan_tick(pz, se) / 20.0)]), tz("S"), Color.WHITE, false, true, R.size.x - 180)
+		_btn(Rect2(R.end.x - 132, y - 6, 56, 40), "◀", func(): puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, -10))
+		_btn(Rect2(R.end.x - 72, y - 6, 56, 40), "▶", func(): puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, 10))
+	y += tz("S") * 1.6
+	if not chains_on.is_empty():
+		var names: Array = []
+		for k in chains_on:
+			names.append(L.t(k))
+		_text(Vector2(R.position.x + 20, y), L.t("chain_on", ["、".join(names)]), tz("S"), Color("#ffd166"), false, true, R.size.x - 40)
 
 ## 第 i 次能設的範圍：不早於開場可放的時間、和前後兩次至少隔一個冷卻，不晚於局長（Codex v13-r1 #4）。
 func _plan_range(i: int) -> Array:
@@ -785,8 +850,10 @@ func _plan_nudge(i: int, d: int) -> void:
 
 ## 手把：L3 開提示、R3 開時間設定（格子部署時方向鍵是游標，進不了畫面按鈕，Codex v13-r1 #3）。
 func _draw_plan_overlay() -> void:
-	var R := Rect2(340, 250, 600, 280)
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
+	var R := Rect2(170, 170, 940, 470)
 	_panel(R)
-	_h1(Vector2(640, 256), L.t("plan_title"))
-	_draw_plan_panel(Rect2(380, 320, 520, 130))
-	_btn(Rect2(560, R.end.y - 60, 160, 44), L.t("back"), func(): overlay = "", true, true)
+	_h1(Vector2(640, 182), L.t("plan_title"))
+	_text(Vector2(640, 182 + tz("H1") * 1.4), L.t("plan_help"), tz("C"), TXT_DIM, true, false, 860)
+	_draw_plan_timeline(Rect2(R.position.x + 20, R.position.y + 90, R.size.x - 40, 300))
+	_btn(Rect2(560, R.end.y - 60, 160, 44), L.t("plan_done"), func(): overlay = "", true, true)

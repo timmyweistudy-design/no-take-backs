@@ -28,6 +28,17 @@ const GA_NODES := ["outpost", "fight", "fight", "elite", "fight", "elite", "boss
 const GA_NODE_GOLD := {"outpost": 0, "fight": 0, "elite": 10, "boss": 20}
 const GA_EVENTS := ["rw_gold", "rw_cap", "rw_change", "rw_recruit", "rw_scout", "rw_ambush"]
 const GA_EVENT_ICONS := ["coin", "people", "swap", "flag", "map", "ban"]
+## V1.4 #3 戰利品契約：每一站抽 2 份可簽（或不簽）。判定只看戰前陣型與戰後狀態，模擬不動。
+## [字串鍵, 獎勵金, 獎勵隻數, 本戰預算變動, 本戰隻數變動]
+const CONTRACTS := [["ct_noranged", 10, 0, 0, 0], ["ct_three", 0, 2, 0, 0], ["ct_fast", 10, 0, 0, 0],
+	["ct_clean", 15, 0, 0, 0], ["ct_few", 0, 3, 0, -4], ["ct_poor", 20, 0, -10, 0]]
+const RANGED := [2, 6, 10, 17]   # 弓箭手、投彈兵、孢子菇、骷髏法師
+var gauntlet_contract := -1      # 這一戰簽的契約（-1＝沒簽）
+var ct_pick := -1                # 獎勵畫面上正在勾選的契約
+var ct_last := ""                # 上一份契約的結果（獎勵畫面顯示）
+## V1.4 #2 宿敵戰記：遠征裡打敗你的敵陣會被記住（最多 6 個），之後在菁英站再來攔路；打贏就是復仇。模擬不動，宿敵就是存下來的敵陣。
+const NEM_MAX := 6
+var gauntlet_nemesis := -1       # 這一戰的對手是哪個宿敵（-1＝一般 AI）
 var gauntlet_foe_gold := 0     # 只影響下一戰
 var gauntlet_foe_cap := 0
 var ban_left := [0, 0]
@@ -375,7 +386,73 @@ func _daily_caption() -> String:
 
 ## ── 遠征：每戰後三選一（V1.1 D1：從 6 種事件用種子抽 3 種） ──
 func _gauntlet_reward() -> void:
+	ct_pick = -1
 	overlay = "reward"
+
+## V1.4 #3：正式遠征每一戰結束就結算契約（贏、輸、最後一站都會結算；Codex v140-i1）。
+func _settle_contract() -> void:
+	ct_last = ""
+	if gauntlet_contract >= 0 and gauntlet_contract < CONTRACTS.size():
+		var c: Array = CONTRACTS[gauntlet_contract]
+		if contract_ok(gauntlet_contract, last_armies[0], sim.winner == 0, sim.tick, PZ.rem_pct(sim.power(0), sim.budget_of(0))):
+			gauntlet_gold += int(c[1])
+			gauntlet_cap += int(c[2])
+			ct_last = L.t("ct_done", [L.t(str(c[0])), _ct_reward(gauntlet_contract)])
+		else:
+			ct_last = L.t("ct_fail", [L.t(str(c[0]))])
+		if sim.winner != 0 or gauntlet_stage >= 7:
+			_toast(ct_last)
+	gauntlet_contract = -1
+
+## 契約達成了嗎（純函式，測試用）。army＝這一戰我方陣型；win＝我方贏；tick＝結束時間；rem＝我方剩餘戰力 %。
+static func contract_ok(k: int, army, win: bool, tick: int, rem: int) -> bool:
+	if not win:
+		return false
+	match k:
+		0:
+			for u in army.units:
+				if int(u["type"]) in RANGED:
+					return false
+			return true
+		1:
+			var kinds := {}
+			for u in army.units:
+				kinds[int(u["type"])] = true
+			return kinds.size() <= 3
+		2:
+			return tick <= 900
+		3:
+			return rem >= 60
+		_:
+			return true   # 少帶、窮兵：簽了就是條件，贏了就達成
+
+func _ct_reward(k: int) -> String:
+	var c: Array = CONTRACTS[k]
+	return L.t("ct_gold", [int(c[1])]) if int(c[1]) > 0 else L.t("ct_cap", [int(c[2])])
+
+## 這一站可簽的 2 份契約（同一趟同一站永遠一樣）。
+func _contract_offers() -> Array:
+	var r := RandomNumberGenerator.new()
+	r.seed = gauntlet_seed * 53 + gauntlet_stage * 389 + 11
+	var ids: Array = range(CONTRACTS.size())
+	var out: Array = []
+	while out.size() < 2:
+		var k: int = ids[r.randi() % ids.size()]
+		ids.erase(k)
+		out.append(k)
+	out.sort()
+	return out
+
+## 簽了的契約這一戰的代價（預算、隻數），在 _gauntlet_next 之後套上。
+func _apply_contract_cost() -> void:
+	if gauntlet_contract < 0 or armies.is_empty():
+		return
+	var c: Array = CONTRACTS[gauntlet_contract]
+	armies[0].budget += int(c[3])
+	armies[0].unit_cap = maxi(4, armies[0].unit_cap + int(c[4]))
+	# 沿用的陣型可能超出降低後的預算／隻數：從最後放的往回拿掉（代價不能被繞過，Codex v140-i1）
+	while armies[0].units.size() > 1 and (armies[0].spent() > armies[0].budget or armies[0].units.size() > armies[0].unit_cap):
+		armies[0].units.pop_back()
 
 static func ga_node(stage: int) -> String:
 	return GA_NODES[clampi(stage - 1, 0, GA_NODES.size() - 1)]
@@ -443,7 +520,9 @@ func _take_reward(k: int) -> void:
 			gauntlet_foe_gold = -10
 		5:
 			gauntlet_foe_cap = -2
+	gauntlet_contract = ct_pick   # V1.4 #3：選完事件才生效
 	call("_gauntlet_next")
+	_apply_contract_cost()
 	if k == 2:
 		gauntlet_changes += 2
 	call("_gauntlet_save")
@@ -456,20 +535,58 @@ func _ga_event_desc(k: int) -> String:
 
 func _draw_reward() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(240, 150, 800, 480)
+	var P := Rect2(240, 96, 800, 624)
 	_panel(P)
-	_h1(Vector2(640, 162), L.t("rw_title"))
-	_draw_route(Rect2(300, 222, 680, 56), gauntlet_stage + 1)
+	_h1(Vector2(640, 108), L.t("rw_title"))
+	_draw_route(Rect2(300, 164, 680, 56), gauntlet_stage + 1)
 	var offers := _gauntlet_offers()
 	for i in offers.size():
 		var k: int = offers[i]
-		var r := Rect2(268 + i * 252, 300, 240, 210)
+		var r := Rect2(268 + i * 252, 236, 240, 200)
 		_btn(r, "", _take_reward.bind(k), true, false, TH_WOOD_L)
 		_icon(GA_EVENT_ICONS[k], r.position + Vector2(120, 52), 56.0, ACCENT)
 		_text(r.position + Vector2(120, 92), L.t(GA_EVENTS[k]), tz("B"), Color.WHITE, true, true, 220)
 		_text(r.position + Vector2(120, 92 + tz("B") * 1.5), _ga_event_desc(k), tz("C"), TXT_DIM, true, false, 220)
-	_text(Vector2(640, 530), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), TXT_DIM, true, false, 740)
-	_text(Vector2(640, 530 + tz("S") * 1.5), L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), ACCENT, true, true, 740)
+	# V1.4 #3 戰利品契約：羊皮紙小卡，可簽一份或不簽（選完上面的事件才生效）
+	var cy := 452.0
+	_text(Vector2(640, cy), L.t("ct_title"), tz("B"), Color.WHITE, true, true, 740)
+	cy += tz("B") * 1.45
+	var cts := _contract_offers()
+	for i in 3:
+		var cr := Rect2(268 + i * 252, cy, 240, 100)
+		var kk: int = cts[i] if i < cts.size() else -1
+		var on := ct_pick == kk
+		# 契約是羊皮紙籤（不像上面的獎勵木牌）；「不簽」是次要的木色小鈕；選中的契約蓋紅色火漆章（Antigravity v140-i1）
+		btn_paper = kk >= 0
+		_btn(cr if kk >= 0 else Rect2(cr.position + Vector2(40, 18), Vector2(160, 48)), "", func(): ct_pick = kk, true, false, Color(0, 0, 0, 0) if kk >= 0 or not on else TH_ACTIVE)
+		var paper := last_btn_paper
+		btn_paper = false
+		var en := last_btn_enabled
+		_probe_dis = not en
+		_ink_mode = paper
+		var tc := (INK if paper else Color.WHITE) if en else TXT_DIM
+		if on and kk >= 0 and en:
+			var sc := cr.position + Vector2(cr.size.x - 22, cr.size.y - 20)
+			draw_circle(sc, 14.0, Color("#7d1f1f"), true, -1.0, true)
+			draw_circle(sc, 11.0, Color("#9e2a2b"), true, -1.0, true)
+			_hand_ring(sc, 8.0, Color("#c9584f"), 1.6)
+		if kk < 0:
+			_text(cr.get_center() - Vector2(0, tz("S") * 0.6), L.t("ct_none"), tz("S"), tc, true, true, 220)
+		else:
+			# 一行：名稱（左）＋報酬（右）；一行：條件（短）
+			var rw := _ct_reward(kk)
+			var rww := minf(96.0, _width(rw, tz("C"), true))
+			_text(cr.position + Vector2(12, 10), L.t(str(CONTRACTS[kk][0])), tz("S"), tc, false, true, cr.size.x - rww - 34)
+			_text(Vector2(cr.end.x - 12 - rww, cr.position.y + 10 + (tz("S") - tz("C")) * 0.5), rw, tz("C"), Color("#7a4a10") if paper else ACCENT, false, true, 96)
+			_text(cr.position + Vector2(12, 14 + tz("S") * 1.3), L.t(str(CONTRACTS[kk][0]) + "_d"), tz("C"), tc, false, false, 190)
+		_ink_mode = false
+		_probe_dis = false
+	cy += 112
+	if ct_last != "":
+		_text(Vector2(640, cy), ct_last, tz("S"), ACCENT, true, true, 740)
+		cy += tz("S") * 1.4
+	_text(Vector2(640, cy), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), TXT_DIM, true, false, 740)
+	_text(Vector2(640, cy + tz("S") * 1.4), L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), ACCENT, true, true, 740)
 
 ## 遠征路線條：7 個節點，已打過的打勾、下一戰亮框；菁英、首領用不同圖示。
 func _draw_route(R: Rect2, next_stage: int) -> void:
@@ -654,7 +771,8 @@ func _draw_profile() -> void:
 	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
 	var cw2 := 640.0
 	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
-	_btn(Rect2(560, 722, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(470, 722, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(650, 722, 200, 44), L.t("nem_open"), func(): overlay = "nemeses")   # V1.4 #2 宿敵戰記
 
 ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
 func _puzzle_hint() -> void:
@@ -770,3 +888,133 @@ const ACH_DESC := {
 	"PUZZLE_ALL3": ["100 關殘局全部三星", "Get 3 stars on all 100 puzzles"],
 	"TRIAL_ALL3": ["30 關主題試煉全部三星", "Get 3 stars on all 30 trials"],
 }
+
+
+## ── V1.4 #2 宿敵戰記 ──
+## 宿敵的稱號：依陣型決定地名、主力兵種與稱呼（同一個陣永遠同一個名字）。
+static func nemesis_title_parts(units: Array) -> Array:
+	var cnt := {}
+	var h := 7
+	for u in units:
+		var t := int(u["type"])
+		cnt[t] = int(cnt.get(t, 0)) + 1
+		h = (h * 31 + t * 7 + int(u.get("col", 0)) * 3 + int(u.get("row", 0))) % 100003
+	var main := -1
+	for t in cnt:
+		if main < 0 or int(cnt[t]) > int(cnt[main]) or (int(cnt[t]) == int(cnt[main]) and int(t) < main):
+			main = int(t)
+	return [h % 6, maxi(0, main), (h / 6) % 4]
+
+func nemesis_title(n: Dictionary) -> String:
+	var p: Array = nemesis_title_parts(n.get("units", []))
+	return L.t("nem_title", [L.t("nem_place_%d" % int(p[0])), L.t("unit_%d" % int(p[1])), L.t("nem_suf_%d" % int(p[2]))])
+
+## 遠征輸了：記下打敗你的敵陣（同一個陣再輸一次就加次數）。
+func _nemesis_record(enemy) -> void:
+	var list: Array = Save.data.get("nemeses", [])
+	if gauntlet_nemesis >= 0 and gauntlet_nemesis < list.size():
+		# 宿敵又贏了：加在原本那筆（它帶著增援，陣型和存的不一樣，Codex v140-i1）
+		list[gauntlet_nemesis]["losses"] = int(list[gauntlet_nemesis].get("losses", 1)) + 1
+		Save.data["nemeses"] = list
+		return
+	var units: Array = []
+	for u in enemy.units:
+		units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+	units.sort_custom(func(a, b): return a["col"] < b["col"] or (a["col"] == b["col"] and a["row"] < b["row"]))
+	for n in list:
+		if n.get("units", []) == units:
+			n["losses"] = int(n.get("losses", 1)) + 1
+			n["revenged"] = false
+			Save.data["nemeses"] = list
+			return
+	list.append({"units": units, "losses": 1, "revenged": false, "stage": gauntlet_stage})
+	while list.size() > NEM_MAX:
+		var drop := 0
+		for i in list.size():
+			if bool(list[i].get("revenged", false)):
+				drop = i
+				break
+		list.remove_at(drop)
+	Save.data["nemeses"] = list
+
+## 這一站要不要讓宿敵攔路：菁英站，有還沒復仇的宿敵，依種子 60%。回傳宿敵索引或 -1。
+func _nemesis_for_stage() -> int:
+	if ga_node(gauntlet_stage) != "elite":
+		return -1
+	var list: Array = Save.data.get("nemeses", [])
+	var open: Array = []
+	for i in list.size():
+		if not bool(list[i].get("revenged", false)):
+			open.append(i)
+	if open.is_empty():
+		return -1
+	var r := RandomNumberGenerator.new()
+	r.seed = gauntlet_seed * 97 + gauntlet_stage * 13 + 1
+	if r.randf() >= 0.6:
+		return -1
+	return int(open[r.randi() % open.size()])
+
+## 宿敵的陣：存下來的原陣，再多帶一隻它最貴的兵（宿敵變強了）。
+func _nemesis_army(i: int):
+	var n: Dictionary = Save.data["nemeses"][i]
+	var e = Army.new(1, 9999)
+	e.pool = (1 << D.total()) - 1
+	for u in n.get("units", []):
+		e.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+	var best := -1
+	for u in e.units:
+		if best < 0 or D.cost(int(u["type"])) > D.cost(best):
+			best = int(u["type"])
+	if best >= 0:
+		for c in range(Army.COLS - 1, Army.COLS - 1 - Army.ZONE, -1):
+			var done := false
+			for rr in Army.ROWS:
+				if e.index_at(c, rr) < 0:
+					done = true
+					if e.check_place(best, c, rr) == "":   # 守兵種上限（例如小石魔最多 2 隻，Codex v140-i1）
+						e.units.append({"type": best, "col": c, "row": rr})
+					break
+			if done:
+				break
+	e.budget = e.spent()
+	e.unit_cap = e.units.size()
+	return e
+
+func _draw_nemeses() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(190, 60, 900, 680)
+	_panel(P)
+	_h1(Vector2(640, 72), L.t("nem_head"))
+	var list: Array = Save.data.get("nemeses", [])
+	var y := 72.0 + tz("H1") * 1.6
+	if list.is_empty():
+		_text(Vector2(640, y + 40), L.t("nem_empty"), tz("S"), TXT_DIM, true, false, 760)
+	for i in list.size():
+		var n: Dictionary = list[i]
+		var r := Rect2(220, y, 840, 88)
+		_tex_box(r, "paper")
+		_ink_mode = true
+		var done := bool(n.get("revenged", false))
+		_text(r.position + Vector2(18, 10), nemesis_title(n), tz("B"), INK, false, true, 520)
+		_text(r.position + Vector2(18, 10 + tz("B") * 1.4), L.t("nem_line", [int(n.get("losses", 1)), int(n.get("stage", 1))]), tz("C"), INK, false, false, 520)
+		_ink_mode = false
+		# 狀態：已復仇＝朱紅「雪恥」印章；還沒＝墨色小字（Antigravity v140-i1）
+		var sp := r.position + Vector2(r.size.x - 74, 44)   # 離紙邊夠遠，英文 150% 的 Unavenged 也放得下
+		if done:
+			draw_set_transform_matrix(Transform2D(-0.18, sp))
+			_hand_ring(Vector2.ZERO, 30.0, Color("#8e1b14", 0.95), 3.0)
+			_hand_ring(Vector2.ZERO, 25.0, Color("#8e1b14", 0.75), 1.4, false, 1)
+			draw_set_transform_matrix(Transform2D.IDENTITY)
+			_ink_mode = true
+			_text(sp - Vector2(0, tz("S") * 0.62), L.t("nem_done"), tz("S"), Color("#7a140e"), true, true, 56)
+			_ink_mode = false
+		else:
+			_ink_mode = true
+			_text(sp - Vector2(0, tz("C") * 0.62), L.t("nem_open_state"), tz("C"), INK, true, false, 120)
+			_ink_mode = false
+		# 陣型縮影：最多 12 隻小兵頭像
+		var us: Array = n.get("units", [])
+		for k in mini(12, us.size()):
+			Art.unit(self, r.position + Vector2(530 + k * 18, 74), int(us[k]["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.9, time, 0.36, cbm())
+		y += 98
+	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "profile")

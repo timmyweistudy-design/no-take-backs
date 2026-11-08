@@ -261,6 +261,7 @@ var accum := 0.0
 var speed := 1.0
 var slow_used := false
 var final_used := false   # 第十輪 F1
+var tm_ghost = null           # V1.4 #1 時光機：播放「如果」時，原本那條時間線同步跑的模擬（畫淡圈）
 var last_kill := [-1, -10.0]   # V1.3.1 P2：最近一次擊倒 [擊倒者 id, 時間]
 var last_hitter := {}          # 目標 id → 最後打到它的 id
 var key_used := false     # V1.3 C4：這場的關鍵時刻（第一次破陣）用過了

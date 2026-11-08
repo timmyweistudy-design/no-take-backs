@@ -16,6 +16,7 @@ var rv_enemy = null         # 對手陣型（不變）
 var rv_sel := Vector2i(-1, -1)
 var rv_result := {}         # {winner, rem, log}
 var rv_base := {}           # 原本那一場（打開覆盤時用同一組陣型重算，不依賴目前的 sim）
+var rv_div := -1            # V1.4 #1 時光機：原本與如果第一次不一樣的 tick（-1＝還沒算或完全一樣）
 var rv_last: Array = []     # 覆盤播放用的雙方陣型（重播覆盤時用）
 
 
@@ -59,6 +60,13 @@ func _draw_replay_controls() -> void:
 	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), L.t("rc_time", [view.tick / 20.0, total / 20.0]), tz("C"), TXT_DIM)   # V1.2.1 B2／G3：字級表＋字串表
 	if play_kind == "review":
 		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
+		if tm_ghost != null:
+			_text(Vector2(640, 92 + ts(16) * 1.4), L.t("tm_ghost_hint"), tz("C"), TXT_DIM, true, false, 600)
+	elif paused and play_kind == "replay" and mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
+		# V1.4 #1 時光機：重播暫停時，從這裡回到開戰前改一隻兵
+		btn_paper = true   # 羊皮紙按鈕：像翻開推演筆記，不是系統按鈕（Antigravity v140-i1）
+		_btn(Rect2(20, 650, 320, 40), L.t("tm_btn"), func(): _open_review())
+		btn_paper = false
 	if follow_id >= 0:
 		_text(Vector2(640, 92 + ts(16) * 1.4), L.t("rc_following"), ts(14), Color(1, 1, 1, 0.85), true, false, 600)
 
@@ -125,6 +133,7 @@ func _seek_tick(budget_ms: int) -> bool:
 	return true
 
 func _seek_finish() -> void:
+	call_deferred("_tm_sync")
 	var target := _seek_target_now
 	var keep_ct := _seek_ct
 	var had_clutch := keep_ct >= 0
@@ -201,6 +210,7 @@ func _replay_snapshot() -> void:
 
 ## 重播的「返回」：回到進來的地方。只還原畫面，比分、進度、成就、試玩紀錄都不寫。
 func _replay_back() -> void:
+	tm_ghost = null   # V1.4 #1：回到結果頁，原本時間線的淡圈不能留下
 	call("_pre_drop")
 	seek_target = -1   # Codex r1：算到一半返回，不能把下一場快轉到舊目標
 	skip_busy = false
@@ -458,13 +468,13 @@ func review_desc() -> String:
 			# 被移走或拿掉
 			for v in rv_army.units:
 				if rv_orig.index_at(v["col"], v["row"]) == -1 and int(v["type"]) == int(u["type"]):
-					return L.t("rv_moved", [L.t("unit_%d" % int(u["type"])), int(u["row"]) + 1, int(u["col"]) + 1, int(v["row"]) + 1, int(v["col"]) + 1])
-			return L.t("rv_removed", [L.t("unit_%d" % int(u["type"])), int(u["row"]) + 1, int(u["col"]) + 1])
+					return L.t("rv_moved", [L.t("unit_%d" % int(u["type"])), absi(int(v["col"]) - int(u["col"]))])
+			return L.t("rv_removed", [L.t("unit_%d" % int(u["type"]))])
 		if int(rv_army.units[i]["type"]) != int(u["type"]):
-			return L.t("rv_swapped", [L.t("unit_%d" % int(u["type"])), L.t("unit_%d" % int(rv_army.units[i]["type"])), int(u["row"]) + 1, int(u["col"]) + 1])
+			return L.t("rv_swapped", [L.t("unit_%d" % int(u["type"])), L.t("unit_%d" % int(rv_army.units[i]["type"]))])
 	for v in rv_army.units:
 		if rv_orig.index_at(v["col"], v["row"]) == -1:
-			return L.t("rv_added", [L.t("unit_%d" % int(v["type"])), int(v["row"]) + 1, int(v["col"]) + 1])
+			return L.t("rv_added", [L.t("unit_%d" % int(v["type"]))])
 	return ""
 
 ## 重算「如果」：同一個對手、改過的陣型，用確定性模擬直接跑到結束。
@@ -477,6 +487,18 @@ static func review_run(a0, a1, p_rules = null, cmds: Array = []) -> Dictionary:
 	var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else 0
 	return {"winner": s.winner, "rem": rem, "log": s.power_log, "log2": s.power_log2, "b": [s.budget_of(0), s.budget_of(1)], "ticks": s.tick}
 
+## V1.4 #1 時光機：兩條戰力紀錄第一次不一樣的 tick（兩隊戰力交錯存放）。完全一樣回 -1。
+static func diverge_tick(a: PackedInt64Array, b: PackedInt64Array) -> int:
+	var n := mini(a.size(), b.size())
+	for i in n:
+		if a[i] != b[i]:
+			return i / 2 + 1   # 模擬先加 tick 才記戰力：第一筆是 tick 1（Codex v140-i1）
+	return -1 if a.size() == b.size() else n / 2 + 1
+
+func _rv_set_result(res: Dictionary) -> void:
+	rv_result = res
+	rv_div = diverge_tick(rv_base.get("log2", PackedInt64Array()), res.get("log2", PackedInt64Array())) if not res.is_empty() else -1
+
 ## 第七輪 M3：覆盤重算開背景執行緒（模擬是純計算），畫面不卡；算的時候按鈕不能再按（防重入）。
 var rv_thread: Thread = null
 var rv_gen := 0          # 陣型改一次加一；算完時世代不同就丟掉（Codex r1：舊陣型的結果不能配新陣型）
@@ -484,13 +506,14 @@ var rv_thread_gen := 0
 
 func _rv_dirty() -> void:
 	rv_result = {}
+	rv_div = -1
 	rv_gen += 1
 
 func _rv_recalc() -> void:
 	if rv_thread != null:
 		return
 	if DisplayServer.get_name() == "headless" or shot_dir != "":
-		rv_result = review_run(rv_army, rv_enemy, battle_rules, last_cmds)
+		_rv_set_result(review_run(rv_army, rv_enemy, battle_rules, last_cmds))
 		return
 	var a: Variant = rv_army.copy()
 	var e: Variant = rv_enemy.copy()
@@ -505,7 +528,7 @@ func _rv_poll() -> void:
 		var res: Dictionary = rv_thread.wait_to_finish()
 		rv_thread = null
 		if rv_thread_gen == rv_gen:
-			rv_result = res
+			_rv_set_result(res)
 
 func _rv_play() -> void:
 	rv_last = [rv_army.copy(), rv_enemy.copy()]
@@ -514,6 +537,10 @@ func _rv_play() -> void:
 	replay_marks = []
 	overlay = ""
 	_begin_battle(rv_army.copy(), rv_enemy.copy(), "review")
+	# V1.4 #1 時光機：原本那條時間線跟著同步跑，畫成淡圈；從分岔前 2 秒開始看
+	_tm_new_ghost()
+	if rv_div > 40:
+		_seek_async(rv_div - 40)
 
 func _draw_review() -> void:
 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
@@ -574,16 +601,49 @@ func _draw_review() -> void:
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
 	var b0: Array = rv_base.get("b", [100, 100])
 	_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
-	Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+	var c0 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
+	Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
 	y += tz("S") * 1.5 + 82
 	if not rv_result.is_empty():
 		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
 		var b1: Array = rv_result.get("b", [100, 100])
-		Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+		var c1 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
+		Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+		_rv_div_mark(Rect2(c0.position, Vector2(c0.size.x, c1.end.y - c0.position.y)), span)   # 一條金色粉筆線貫穿兩張圖
 		y += tz("S") * 1.5 + 82
+		if rv_div >= 0:
+			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
+			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+			y += tz("S") * 1.5
 		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)
-		_btn(Rect2(bx + 252, y + text_h(L.t("rv_note"), tz("C"), 552) + 6, 300, 44), L.t("rv_play"), func(): _rv_play())   # 靠右，大字級時不壓到置中的「返回」
-	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "")
+		_btn(Rect2(650, 684, 320, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）
+	_btn(Rect2(470 if not rv_result.is_empty() else 560, 684, 160, 44), L.t("back"), func(): overlay = "")
+
+## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
+func _tm_new_ghost() -> void:
+	tm_ghost = Sim.new(rv_orig.copy(), rv_enemy.copy(), battle_rules)
+	if tm_ghost.cmd_on:
+		tm_ghost.cmd_play(last_cmds)
+	tm_ghost.fast = true
+
+## 讓原本的時間線跟上畫面上的 tick；跳回較早的時間就重建再追（模擬是確定性的，追到同一 tick 狀態一樣）。
+func _tm_sync() -> void:
+	if tm_ghost == null or view == null:
+		return
+	if tm_ghost.tick > view.tick:
+		_tm_new_ghost()
+	var guard := 0
+	while tm_ghost.tick < view.tick and not tm_ghost.finished and guard < 20000:
+		tm_ghost.step()
+		guard += 1
+
+## V1.4 #1：在走勢圖上畫分岔點（墨色虛線＋小三角）。
+func _rv_div_mark(r: Rect2, span: int) -> void:
+	if rv_div < 0 or span <= 0:
+		return
+	var x := r.position.x + r.size.x * clampf(float(rv_div) / float(span), 0.0, 1.0)
+	_chalk_line(Vector2(x, r.position.y - 2), Vector2(x, r.end.y + 2), Color("#ffd166"), 2.6, 6.0)
+	draw_colored_polygon(PackedVector2Array([Vector2(x - 5, r.position.y - 8), Vector2(x + 5, r.position.y - 8), Vector2(x, r.position.y - 1)]), ACCENT)
 
 func _rv_has_sel() -> bool:
 	if rv_orig.deploy == "free":

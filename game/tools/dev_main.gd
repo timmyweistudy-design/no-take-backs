@@ -579,13 +579,23 @@ func _run_screenshots() -> void:
 	_rv_set_type(D.SHIELD if int(u0["type"]) != D.SHIELD else D.SWORD)
 	_rv_recalc()
 	await _snap("16_review.png")
+	# V1.4 #1 時光機：播放「如果」，原本時間線畫成地上的白圈
+	_rv_play()
+	while seek_target >= 0:
+		_seek_pump()
+		await get_tree().process_frame
+	for i in 60:
+		_sim_step(false)
+	await _snap("16b_time_machine.png")
 	overlay = ""
 	_begin_battle(last_armies[0].copy(), last_armies[1].copy(), "replay")
 	for i in 260:
 		_sim_step(true)
 	for f in fx:
 		f["t"] = 0.0
+	paused = true
 	await _snap("15_replay.png")
+	paused = false
 	await _shots_v4()
 	await _shots_cmd()
 	await _shots_v13()
@@ -708,6 +718,13 @@ func _shots_v9() -> void:
 	await _snap("58_trials.png")
 	_open("profile")
 	await _snap("59_profile.png")
+	# V1.4 #2 宿敵戰記（範例資料，截完還原）
+	var nem_keep = Save.data.get("nemeses", [])
+	Save.data["nemeses"] = [{"units": [{"type": 5, "col": 10, "row": 2}, {"type": 5, "col": 10, "row": 3}, {"type": 2, "col": 12, "row": 4}, {"type": 1, "col": 10, "row": 5}], "losses": 2, "revenged": false, "stage": 3},
+		{"units": [{"type": 3, "col": 11, "row": 1}, {"type": 9, "col": 10, "row": 4}, {"type": 7, "col": 13, "row": 4}], "losses": 1, "revenged": true, "stage": 5}]
+	overlay = "nemeses"
+	await _snap("59b_nemeses.png")
+	Save.data["nemeses"] = nem_keep
 	_open("reward")
 	await _snap("60_reward.png")
 	rules = RuleSet.standard()

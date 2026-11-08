@@ -25,6 +25,9 @@ func _start_mode(m: int) -> void:
 		set("gauntlet_cap", 0)
 		set("gauntlet_foe_gold", 0)
 		set("gauntlet_foe_cap", 0)
+		set("gauntlet_contract", -1)
+		set("ct_pick", -1)
+		set("ct_last", "")
 		gauntlet_stage = 1
 		gauntlet_prev = []
 		gauntlet_changes = 99
@@ -38,6 +41,7 @@ func _finish_battle() -> void:
 	fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
 	clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
 	state = St.RESULT
+	tm_ghost = null
 	result_t = time
 	if play_kind == "official" and sim != null:
 		last_cmds = sim.cmd_log.duplicate(true)

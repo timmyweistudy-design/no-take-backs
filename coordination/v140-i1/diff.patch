@@ -1,0 +1,749 @@
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index 3bad41d..30dab02 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -888,3 +888,43 @@ trial_page,第 %d／%d 頁　★ %d／%d,Page %d/%d  ★ %d/%d
+ plan_title,施放時間,Cast times
+ plan_pad,手把：L3 提示　R3 時間,Pad: L3 hint  R3 times
+ chart_zoom,縱軸放大 ×%s,Scale ×%s
++tm_btn,時光機：回到開戰前改一隻兵,Time machine: change one unit
++rv_diverge,第 %s 秒開始兩條時間線分岔,Timelines split at %ss
++tm_ghost_hint,地上的白圈是原本那一場的位置,White rings show the original battle
++ct_title,契約（可選）：達成就永久加成,Contract (optional): rewards are permanent
++ct_none,不簽,No contract
++ct_noranged,輕裝,Light Kit
++ct_noranged_d,不帶遠程兵打贏,Win with no ranged units
++ct_three,精兵,Elite Few
++ct_three_d,最多 3 種兵打贏,Win with 3 unit types max
++ct_fast,速戰,Blitz
++ct_fast_d,45 秒內打贏,Win within 45s
++ct_clean,完勝,Clean Sweep
++ct_clean_d,剩六成以上戰力打贏,Win with 60%+ power left
++ct_few,寡兵,Short Handed
++ct_few_d,這一戰上限少 4 隻,4 fewer slots this battle
++ct_poor,窮兵,Lean Purse
++ct_poor_d,這一戰少 10 金,10g less this battle
++ct_gold,+%d 金,+%dg
++ct_cap,+%d 隻,+%d slots
++ct_done,契約達成：%s（%s）,Contract kept: %s (%s)
++ct_fail,契約沒達成：%s,Contract failed: %s
++nem_open,宿敵戰記,Nemeses
++nem_head,宿敵戰記,Nemesis Chronicle
++nem_empty,還沒有宿敵。在遠征裡輸掉的那一陣會被記在這裡。,No nemeses yet. The army that beats you on an Expedition is recorded here.
++nem_title,%s的%s%s,%s %s %s
++nem_line,打敗你 %d 次・第 %d 站初遇,Beat you %d time(s) · first met at stage %d
++nem_done,已復仇,Avenged
++nem_open_state,尚未復仇,Unavenged
++nem_back,宿敵再臨：%s（打敗過你 %d 次）,Your nemesis returns: %s (beat you %d times)
++nem_revenge,復仇成功：%s,Revenge: %s
++nem_place_0,霧谷,Mistvale
++nem_place_1,北原,Northmoor
++nem_place_2,鴉嶺,Crowridge
++nem_place_3,赤沙,Redsand
++nem_place_4,舊橋,Oldbridge
++nem_place_5,冰湖,Frostmere
++nem_suf_0,之牆,Wall
++nem_suf_1,軍團,Legion
++nem_suf_2,獵手,Hunters
++nem_suf_3,大陣,Host
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 9b705ea..ecba95f 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -416,6 +416,16 @@ func _draw_units_of(s, dim: bool) -> void:
+ 	# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
+ 	var a_now := clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 1.0
+ 	var gm: Array = _goal_mark()
++	if live and tm_ghost != null:
++		# V1.4 #1 時光機：原本那條時間線的兵畫成地上的淡圈（隊伍色點＋白圈），看得出兩條時間線從哪裡分開
++		for gu in tm_ghost.units:
++			if not gu.alive:
++				continue
++			var gq: Vector2 = ORIGIN + Vector2(gu.x, gu.y) * CS / 1000.0
++			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.5), 0, gq))
++			_hand_ring(Vector2.ZERO, 15.0 * UNIT_SCALE, Color(1, 1, 1, 0.55), 2.0, false, gu.id % 3)
++			draw_set_transform_matrix(_cam)
++			draw_circle(gq, 3.0, Color(Art.team_color(gu.team, cbm()), 0.75), true, -1.0, true)
+ 	if live:
+ 		# V1.3 C3：戰報墨圈畫在最底層（腳底三層之下）
+ 		for f in fx:
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index 15d07d1..9d944fb 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -162,6 +162,8 @@ func _sim_step(with_fx: bool) -> void:
+ 	if not view.advance():
+ 		view.finished = true
+ 		return
++	if tm_ghost != null:
++		call("_tm_sync")
+ 	_gait_tick(with_fx)
+ 	_pump_view()
+ 	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+@@ -689,6 +691,7 @@ func _draw_battle_hud() -> void:
+ func _begin_battle(a0, a1, kind := "official") -> void:
+ 	_pre_drop()
+ 	play_kind = kind
++	tm_ghost = null   # V1.4 #1：時光機的原本時間線只在「如果」播放時存在（_rv_play 之後會再設）
+ 	_ensure_sprites([a0, a1])
+ 	if kind == "official":
+ 		last_armies = [a0.copy(), a1.copy()]
+diff --git a/game/scripts/ui/replay_view.gd b/game/scripts/ui/replay_view.gd
+index ede96e5..f8c8196 100644
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -16,6 +16,7 @@ var rv_enemy = null         # 對手陣型（不變）
+ var rv_sel := Vector2i(-1, -1)
+ var rv_result := {}         # {winner, rem, log}
+ var rv_base := {}           # 原本那一場（打開覆盤時用同一組陣型重算，不依賴目前的 sim）
++var rv_div := -1            # V1.4 #1 時光機：原本與如果第一次不一樣的 tick（-1＝還沒算或完全一樣）
+ var rv_last: Array = []     # 覆盤播放用的雙方陣型（重播覆盤時用）
+ 
+ 
+@@ -59,6 +60,11 @@ func _draw_replay_controls() -> void:
+ 	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), L.t("rc_time", [view.tick / 20.0, total / 20.0]), tz("C"), TXT_DIM)   # V1.2.1 B2／G3：字級表＋字串表
+ 	if play_kind == "review":
+ 		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
++		if tm_ghost != null:
++			_text(Vector2(640, 92 + ts(16) * 1.4), L.t("tm_ghost_hint"), tz("C"), TXT_DIM, true, false, 600)
++	elif paused and play_kind == "replay" and mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
++		# V1.4 #1 時光機：重播暫停時，從這裡回到開戰前改一隻兵
++		_btn(Rect2(20, 650, 300, 40), L.t("tm_btn"), func(): _open_review())
+ 	if follow_id >= 0:
+ 		_text(Vector2(640, 92 + ts(16) * 1.4), L.t("rc_following"), ts(14), Color(1, 1, 1, 0.85), true, false, 600)
+ 
+@@ -125,6 +131,7 @@ func _seek_tick(budget_ms: int) -> bool:
+ 	return true
+ 
+ func _seek_finish() -> void:
++	call_deferred("_tm_sync")
+ 	var target := _seek_target_now
+ 	var keep_ct := _seek_ct
+ 	var had_clutch := keep_ct >= 0
+@@ -477,6 +484,18 @@ static func review_run(a0, a1, p_rules = null, cmds: Array = []) -> Dictionary:
+ 	var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else 0
+ 	return {"winner": s.winner, "rem": rem, "log": s.power_log, "log2": s.power_log2, "b": [s.budget_of(0), s.budget_of(1)], "ticks": s.tick}
+ 
++## V1.4 #1 時光機：兩條戰力紀錄第一次不一樣的 tick（兩隊戰力交錯存放）。完全一樣回 -1。
++static func diverge_tick(a: PackedInt64Array, b: PackedInt64Array) -> int:
++	var n := mini(a.size(), b.size())
++	for i in n:
++		if a[i] != b[i]:
++			return i / 2
++	return -1 if a.size() == b.size() else n / 2
++
++func _rv_set_result(res: Dictionary) -> void:
++	rv_result = res
++	rv_div = diverge_tick(rv_base.get("log2", PackedInt64Array()), res.get("log2", PackedInt64Array())) if not res.is_empty() else -1
++
+ ## 第七輪 M3：覆盤重算開背景執行緒（模擬是純計算），畫面不卡；算的時候按鈕不能再按（防重入）。
+ var rv_thread: Thread = null
+ var rv_gen := 0          # 陣型改一次加一；算完時世代不同就丟掉（Codex r1：舊陣型的結果不能配新陣型）
+@@ -484,13 +503,14 @@ var rv_thread_gen := 0
+ 
+ func _rv_dirty() -> void:
+ 	rv_result = {}
++	rv_div = -1
+ 	rv_gen += 1
+ 
+ func _rv_recalc() -> void:
+ 	if rv_thread != null:
+ 		return
+ 	if DisplayServer.get_name() == "headless" or shot_dir != "":
+-		rv_result = review_run(rv_army, rv_enemy, battle_rules, last_cmds)
++		_rv_set_result(review_run(rv_army, rv_enemy, battle_rules, last_cmds))
+ 		return
+ 	var a: Variant = rv_army.copy()
+ 	var e: Variant = rv_enemy.copy()
+@@ -505,7 +525,7 @@ func _rv_poll() -> void:
+ 		var res: Dictionary = rv_thread.wait_to_finish()
+ 		rv_thread = null
+ 		if rv_thread_gen == rv_gen:
+-			rv_result = res
++			_rv_set_result(res)
+ 
+ func _rv_play() -> void:
+ 	rv_last = [rv_army.copy(), rv_enemy.copy()]
+@@ -514,6 +534,10 @@ func _rv_play() -> void:
+ 	replay_marks = []
+ 	overlay = ""
+ 	_begin_battle(rv_army.copy(), rv_enemy.copy(), "review")
++	# V1.4 #1 時光機：原本那條時間線跟著同步跑，畫成淡圈；從分岔前 2 秒開始看
++	_tm_new_ghost()
++	if rv_div > 40:
++		_seek_async(rv_div - 40)
+ 
+ func _draw_review() -> void:
+ 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
+@@ -574,17 +598,51 @@ func _draw_review() -> void:
+ 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+ 	var b0: Array = rv_base.get("b", [100, 100])
+ 	_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
+-	Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
++	var c0 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
++	Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
++	_rv_div_mark(c0, span)
+ 	y += tz("S") * 1.5 + 82
+ 	if not rv_result.is_empty():
+ 		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+ 		var b1: Array = rv_result.get("b", [100, 100])
+-		Charts.momentum(self, Rect2(bx, y + tz("S") * 1.5, 552, 70), rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
++		var c1 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
++		Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
++		_rv_div_mark(c1, span)
+ 		y += tz("S") * 1.5 + 82
++		if rv_div >= 0:
++			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
++			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
++			y += tz("S") * 1.5
+ 		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)
+ 		_btn(Rect2(bx + 252, y + text_h(L.t("rv_note"), tz("C"), 552) + 6, 300, 44), L.t("rv_play"), func(): _rv_play())   # 靠右，大字級時不壓到置中的「返回」
+ 	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "")
+ 
++## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
++func _tm_new_ghost() -> void:
++	tm_ghost = Sim.new(rv_orig.copy(), rv_enemy.copy(), battle_rules)
++	if tm_ghost.cmd_on:
++		tm_ghost.cmd_play(last_cmds)
++	tm_ghost.fast = true
++
++## 讓原本的時間線跟上畫面上的 tick；跳回較早的時間就重建再追（模擬是確定性的，追到同一 tick 狀態一樣）。
++func _tm_sync() -> void:
++	if tm_ghost == null or view == null:
++		return
++	if tm_ghost.tick > view.tick:
++		_tm_new_ghost()
++	var guard := 0
++	while tm_ghost.tick < view.tick and not tm_ghost.finished and guard < 20000:
++		tm_ghost.step()
++		guard += 1
++
++## V1.4 #1：在走勢圖上畫分岔點（墨色虛線＋小三角）。
++func _rv_div_mark(r: Rect2, span: int) -> void:
++	if rv_div < 0 or span <= 0:
++		return
++	var x := r.position.x + r.size.x * clampf(float(rv_div) / float(span), 0.0, 1.0)
++	_chalk_line(Vector2(x, r.position.y - 2), Vector2(x, r.end.y + 2), Color(ACCENT, 0.95), 2.0, 5.0)
++	draw_colored_polygon(PackedVector2Array([Vector2(x - 5, r.position.y - 8), Vector2(x + 5, r.position.y - 8), Vector2(x, r.position.y - 1)]), ACCENT)
++
+ func _rv_has_sel() -> bool:
+ 	if rv_orig.deploy == "free":
+ 		return rv_fsel >= 0 and rv_fsel < rv_army.units.size()
+diff --git a/game/scripts/ui/screens/game_core.gd b/game/scripts/ui/screens/game_core.gd
+index 6bac05a..82bd018 100644
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -85,6 +85,7 @@ func _reset_place(keep_blue := false) -> void:
+ 			var node: String = call("ga_node", gauntlet_stage)
+ 			var lvl := 2 if node == "boss" else mini(2, (gauntlet_stage - 1) / 2 + (1 if node == "elite" else 0))
+ 			var e := AIT.build_full(1, r, lvl, gauntlet_prev, _pool())
++			set("gauntlet_nemesis", call("_nemesis_for_stage"))   # V1.4 #2：菁英站可能遇到宿敵
+ 			# V1.1 D1：菁英 +10、首領 +20；斥候劫掠／截斷補給只影響這一戰
+ 			e.budget = 100 + 5 * (gauntlet_stage - 1) + int(get("GA_NODE_GOLD")[node]) + int(get("gauntlet_foe_gold"))
+ 			e.unit_cap = maxi(4, e.unit_cap + int(get("gauntlet_foe_cap")))
+@@ -101,6 +102,11 @@ func _reset_place(keep_blue := false) -> void:
+ 				if c.x < 0 or not e.place(t, c.x, c.y):
+ 					break
+ 			armies[1] = e
++			if int(get("gauntlet_nemesis")) >= 0:
++				armies[1] = call("_nemesis_army", int(get("gauntlet_nemesis")))
++				var nt: String = call("nemesis_title", Save.data["nemeses"][int(get("gauntlet_nemesis"))])
++				ai_name = nt
++				_toast(L.t("nem_back", [nt, int(Save.data["nemeses"][int(get("gauntlet_nemesis"))].get("losses", 1))]))
+ 	sfx.play_music("music_place")
+ 	sfx.play_ambience(str(MapArt.BIOME.get(MapDefs.MAPS[rules.map_id if rules != null and rules.is_free() else 0]["biome"], {}).get("sound", "")))
+ 
+@@ -367,6 +373,16 @@ func _progress_and_achievements() -> void:
+ 			_ach("PUZZLE_100")   # 第十三輪
+ 		if perfect >= 100:
+ 			_ach("PUZZLE_ALL3")
++	if mode == Mode.GAUNTLET and play_kind == "official":
++		# V1.4 #2 宿敵戰記：輸了記下打敗你的陣；打贏宿敵就是復仇
++		if w != 0 and last_armies.size() == 2:
++			call("_nemesis_record", last_armies[1])
++		elif w == 0 and int(get("gauntlet_nemesis")) >= 0:
++			var nl: Array = Save.data.get("nemeses", [])
++			var ni := int(get("gauntlet_nemesis"))
++			if ni < nl.size():
++				nl[ni]["revenged"] = true
++				_toast(L.t("nem_revenge", [call("nemesis_title", nl[ni])]))
+ 	if mode == Mode.GAUNTLET:
+ 		if w == 0:
+ 			if gauntlet_stage >= 7:
+@@ -722,7 +738,7 @@ func _gauntlet_save() -> void:
+ 		prev.append(o)
+ 	Save.data["gauntlet_run"] = {"stage": gauntlet_stage, "seed": gauntlet_seed, "gold": int(get("gauntlet_gold")), "cap": int(get("gauntlet_cap")),
+ 		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev,
+-		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap"))}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
++		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap")), "contract": int(get("gauntlet_contract"))}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
+ 	Save.save_data()
+ 
+ func _gauntlet_clear() -> void:
+@@ -741,9 +757,11 @@ func _gauntlet_resume() -> void:
+ 	gauntlet_prev = g["prev"].duplicate(true)
+ 	set("gauntlet_foe_gold", int(g.get("foe_gold", 0)))
+ 	set("gauntlet_foe_cap", int(g.get("foe_cap", 0)))
++	set("gauntlet_contract", int(g.get("contract", -1)))   # V1.4 #3：舊存檔沒有＝沒簽
+ 	_reset_place(false)
+ 	armies[0].budget += int(g["gold"])
+ 	armies[0].unit_cap += int(g["cap"])
++	call("_apply_contract_cost")
+ 	gauntlet_changes = int(g["changes"])
+ 
+ 
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 3d53feb..5abe6d8 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -261,6 +261,8 @@ func _draw_overlay() -> void:
+ 			_draw_plan_overlay()
+ 		"profile":
+ 			_draw_profile()
++		"nemeses":
++			_draw_nemeses()
+ 		"reward":
+ 			_draw_reward()
+ 		"ban":
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index d8dc64d..0539e1c 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -28,6 +28,17 @@ const GA_NODES := ["outpost", "fight", "fight", "elite", "fight", "elite", "boss
+ const GA_NODE_GOLD := {"outpost": 0, "fight": 0, "elite": 10, "boss": 20}
+ const GA_EVENTS := ["rw_gold", "rw_cap", "rw_change", "rw_recruit", "rw_scout", "rw_ambush"]
+ const GA_EVENT_ICONS := ["coin", "people", "swap", "flag", "map", "ban"]
++## V1.4 #3 戰利品契約：每一站抽 2 份可簽（或不簽）。判定只看戰前陣型與戰後狀態，模擬不動。
++## [字串鍵, 獎勵金, 獎勵隻數, 本戰預算變動, 本戰隻數變動]
++const CONTRACTS := [["ct_noranged", 10, 0, 0, 0], ["ct_three", 0, 2, 0, 0], ["ct_fast", 10, 0, 0, 0],
++	["ct_clean", 15, 0, 0, 0], ["ct_few", 0, 3, 0, -4], ["ct_poor", 20, 0, -10, 0]]
++const RANGED := [2, 6, 10, 17]   # 弓箭手、投彈兵、孢子菇、骷髏法師
++var gauntlet_contract := -1      # 這一戰簽的契約（-1＝沒簽）
++var ct_pick := -1                # 獎勵畫面上正在勾選的契約
++var ct_last := ""                # 上一份契約的結果（獎勵畫面顯示）
++## V1.4 #2 宿敵戰記：遠征裡打敗你的敵陣會被記住（最多 6 個），之後在菁英站再來攔路；打贏就是復仇。模擬不動，宿敵就是存下來的敵陣。
++const NEM_MAX := 6
++var gauntlet_nemesis := -1       # 這一戰的對手是哪個宿敵（-1＝一般 AI）
+ var gauntlet_foe_gold := 0     # 只影響下一戰
+ var gauntlet_foe_cap := 0
+ var ban_left := [0, 0]
+@@ -375,8 +386,67 @@ func _daily_caption() -> String:
+ 
+ ## ── 遠征：每戰後三選一（V1.1 D1：從 6 種事件用種子抽 3 種） ──
+ func _gauntlet_reward() -> void:
++	# V1.4 #3：先結算這一戰的契約
++	ct_last = ""
++	if gauntlet_contract >= 0 and gauntlet_contract < CONTRACTS.size():
++		var c: Array = CONTRACTS[gauntlet_contract]
++		if contract_ok(gauntlet_contract, last_armies[0], sim.winner == 0, sim.tick, PZ.rem_pct(sim.power(0), sim.budget_of(0))):
++			gauntlet_gold += int(c[1])
++			gauntlet_cap += int(c[2])
++			ct_last = L.t("ct_done", [L.t(str(c[0])), _ct_reward(gauntlet_contract)])
++		else:
++			ct_last = L.t("ct_fail", [L.t(str(c[0]))])
++	gauntlet_contract = -1
++	ct_pick = -1
+ 	overlay = "reward"
+ 
++## 契約達成了嗎（純函式，測試用）。army＝這一戰我方陣型；win＝我方贏；tick＝結束時間；rem＝我方剩餘戰力 %。
++static func contract_ok(k: int, army, win: bool, tick: int, rem: int) -> bool:
++	if not win:
++		return false
++	match k:
++		0:
++			for u in army.units:
++				if int(u["type"]) in RANGED:
++					return false
++			return true
++		1:
++			var kinds := {}
++			for u in army.units:
++				kinds[int(u["type"])] = true
++			return kinds.size() <= 3
++		2:
++			return tick <= 900
++		3:
++			return rem >= 60
++		_:
++			return true   # 少帶、窮兵：簽了就是條件，贏了就達成
++
++func _ct_reward(k: int) -> String:
++	var c: Array = CONTRACTS[k]
++	return L.t("ct_gold", [int(c[1])]) if int(c[1]) > 0 else L.t("ct_cap", [int(c[2])])
++
++## 這一站可簽的 2 份契約（同一趟同一站永遠一樣）。
++func _contract_offers() -> Array:
++	var r := RandomNumberGenerator.new()
++	r.seed = gauntlet_seed * 53 + gauntlet_stage * 389 + 11
++	var ids: Array = range(CONTRACTS.size())
++	var out: Array = []
++	while out.size() < 2:
++		var k: int = ids[r.randi() % ids.size()]
++		ids.erase(k)
++		out.append(k)
++	out.sort()
++	return out
++
++## 簽了的契約這一戰的代價（預算、隻數），在 _gauntlet_next 之後套上。
++func _apply_contract_cost() -> void:
++	if gauntlet_contract < 0 or armies.is_empty():
++		return
++	var c: Array = CONTRACTS[gauntlet_contract]
++	armies[0].budget += int(c[3])
++	armies[0].unit_cap = maxi(4, armies[0].unit_cap + int(c[4]))
++
+ static func ga_node(stage: int) -> String:
+ 	return GA_NODES[clampi(stage - 1, 0, GA_NODES.size() - 1)]
+ 
+@@ -443,7 +513,9 @@ func _take_reward(k: int) -> void:
+ 			gauntlet_foe_gold = -10
+ 		5:
+ 			gauntlet_foe_cap = -2
++	gauntlet_contract = ct_pick   # V1.4 #3：選完事件才生效
+ 	call("_gauntlet_next")
++	_apply_contract_cost()
+ 	if k == 2:
+ 		gauntlet_changes += 2
+ 	call("_gauntlet_save")
+@@ -456,20 +528,50 @@ func _ga_event_desc(k: int) -> String:
+ 
+ func _draw_reward() -> void:
+ 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+-	var P := Rect2(240, 150, 800, 480)
++	var P := Rect2(240, 96, 800, 624)
+ 	_panel(P)
+-	_h1(Vector2(640, 162), L.t("rw_title"))
+-	_draw_route(Rect2(300, 222, 680, 56), gauntlet_stage + 1)
++	_h1(Vector2(640, 108), L.t("rw_title"))
++	_draw_route(Rect2(300, 164, 680, 56), gauntlet_stage + 1)
+ 	var offers := _gauntlet_offers()
+ 	for i in offers.size():
+ 		var k: int = offers[i]
+-		var r := Rect2(268 + i * 252, 300, 240, 210)
++		var r := Rect2(268 + i * 252, 236, 240, 200)
+ 		_btn(r, "", _take_reward.bind(k), true, false, TH_WOOD_L)
+ 		_icon(GA_EVENT_ICONS[k], r.position + Vector2(120, 52), 56.0, ACCENT)
+ 		_text(r.position + Vector2(120, 92), L.t(GA_EVENTS[k]), tz("B"), Color.WHITE, true, true, 220)
+ 		_text(r.position + Vector2(120, 92 + tz("B") * 1.5), _ga_event_desc(k), tz("C"), TXT_DIM, true, false, 220)
+-	_text(Vector2(640, 530), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), TXT_DIM, true, false, 740)
+-	_text(Vector2(640, 530 + tz("S") * 1.5), L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), ACCENT, true, true, 740)
++	# V1.4 #3 戰利品契約：羊皮紙小卡，可簽一份或不簽（選完上面的事件才生效）
++	var cy := 452.0
++	_text(Vector2(640, cy), L.t("ct_title"), tz("B"), Color.WHITE, true, true, 740)
++	cy += tz("B") * 1.45
++	var cts := _contract_offers()
++	for i in 3:
++		var cr := Rect2(268 + i * 252, cy, 240, 84)
++		var kk: int = cts[i] if i < cts.size() else -1
++		var on := ct_pick == kk
++		btn_paper = on
++		_btn(cr, "", func(): ct_pick = kk, true, false, TH_ACTIVE if on else Color(0, 0, 0, 0))
++		btn_paper = false
++		var en := last_btn_enabled
++		_probe_dis = not en
++		_ink_mode = on and last_btn_paper
++		var tc := (INK if on else Color.WHITE) if en else TXT_DIM
++		if kk < 0:
++			_text(cr.get_center() - Vector2(0, tz("S") * 0.6), L.t("ct_none"), tz("S"), tc, true, true, 220)
++		else:
++			# 一行：名稱（左）＋報酬（右）；一行：條件（短）
++			_text(cr.position + Vector2(12, 10), L.t(str(CONTRACTS[kk][0])), tz("S"), tc, false, true, 110)
++			var rw := _ct_reward(kk)
++			_text(Vector2(cr.end.x - 12 - minf(110.0, _width(rw, tz("C"))), cr.position.y + 10 + (tz("S") - tz("C")) * 0.5), rw, tz("C"), ACCENT if not on else Color("#7a4a10"), false, true, 110)
++			_text(cr.position + Vector2(12, 14 + tz("S") * 1.3), L.t(str(CONTRACTS[kk][0]) + "_d"), tz("C"), tc if on else (TXT_DIM if en else tc), false, false, 216)
++		_ink_mode = false
++		_probe_dis = false
++	cy += 96
++	if ct_last != "":
++		_text(Vector2(640, cy), ct_last, tz("S"), ACCENT, true, true, 740)
++		cy += tz("S") * 1.4
++	_text(Vector2(640, cy), L.t("rw_now", [gauntlet_gold, gauntlet_cap]), tz("S"), TXT_DIM, true, false, 740)
++	_text(Vector2(640, cy + tz("S") * 1.4), L.t("rw_next", [L.t("ga_node_" + ga_node(gauntlet_stage + 1))]), tz("S"), ACCENT, true, true, 740)
+ 
+ ## 遠征路線條：7 個節點，已打過的打勾、下一戰亮框；菁英、首領用不同圖示。
+ func _draw_route(R: Rect2, next_stage: int) -> void:
+@@ -654,7 +756,8 @@ func _draw_profile() -> void:
+ 	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
+ 	var cw2 := 640.0
+ 	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
+-	_btn(Rect2(560, 722, 160, 44), L.t("back"), func(): overlay = "")
++	_btn(Rect2(470, 722, 160, 44), L.t("back"), func(): overlay = "")
++	_btn(Rect2(650, 722, 200, 44), L.t("nem_open"), func(): overlay = "nemeses")   # V1.4 #2 宿敵戰記
+ 
+ ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
+ func _puzzle_hint() -> void:
+@@ -770,3 +873,113 @@ const ACH_DESC := {
+ 	"PUZZLE_ALL3": ["100 關殘局全部三星", "Get 3 stars on all 100 puzzles"],
+ 	"TRIAL_ALL3": ["30 關主題試煉全部三星", "Get 3 stars on all 30 trials"],
+ }
++
++
++## ── V1.4 #2 宿敵戰記 ──
++## 宿敵的稱號：依陣型決定地名、主力兵種與稱呼（同一個陣永遠同一個名字）。
++static func nemesis_title_parts(units: Array) -> Array:
++	var cnt := {}
++	var h := 7
++	for u in units:
++		var t := int(u["type"])
++		cnt[t] = int(cnt.get(t, 0)) + 1
++		h = (h * 31 + t * 7 + int(u.get("col", 0)) * 3 + int(u.get("row", 0))) % 100003
++	var main := -1
++	for t in cnt:
++		if main < 0 or int(cnt[t]) > int(cnt[main]) or (int(cnt[t]) == int(cnt[main]) and int(t) < main):
++			main = int(t)
++	return [h % 6, maxi(0, main), (h / 6) % 4]
++
++func nemesis_title(n: Dictionary) -> String:
++	var p: Array = nemesis_title_parts(n.get("units", []))
++	return L.t("nem_title", [L.t("nem_place_%d" % int(p[0])), L.t("unit_%d" % int(p[1])), L.t("nem_suf_%d" % int(p[2]))])
++
++## 遠征輸了：記下打敗你的敵陣（同一個陣再輸一次就加次數）。
++func _nemesis_record(enemy) -> void:
++	var list: Array = Save.data.get("nemeses", [])
++	var units: Array = []
++	for u in enemy.units:
++		units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
++	for n in list:
++		if n.get("units", []) == units:
++			n["losses"] = int(n.get("losses", 1)) + 1
++			n["revenged"] = false
++			Save.data["nemeses"] = list
++			return
++	list.append({"units": units, "losses": 1, "revenged": false, "stage": gauntlet_stage})
++	while list.size() > NEM_MAX:
++		var drop := 0
++		for i in list.size():
++			if bool(list[i].get("revenged", false)):
++				drop = i
++				break
++		list.remove_at(drop)
++	Save.data["nemeses"] = list
++
++## 這一站要不要讓宿敵攔路：菁英站，有還沒復仇的宿敵，依種子 60%。回傳宿敵索引或 -1。
++func _nemesis_for_stage() -> int:
++	if ga_node(gauntlet_stage) != "elite":
++		return -1
++	var list: Array = Save.data.get("nemeses", [])
++	var open: Array = []
++	for i in list.size():
++		if not bool(list[i].get("revenged", false)):
++			open.append(i)
++	if open.is_empty():
++		return -1
++	var r := RandomNumberGenerator.new()
++	r.seed = gauntlet_seed * 97 + gauntlet_stage * 13 + 1
++	if r.randf() >= 0.6:
++		return -1
++	return int(open[r.randi() % open.size()])
++
++## 宿敵的陣：存下來的原陣，再多帶一隻它最貴的兵（宿敵變強了）。
++func _nemesis_army(i: int):
++	var n: Dictionary = Save.data["nemeses"][i]
++	var e = Army.new(1, 999)
++	e.pool = (1 << D.total()) - 1
++	for u in n.get("units", []):
++		e.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
++	var best := -1
++	for u in e.units:
++		if best < 0 or D.cost(int(u["type"])) > D.cost(best):
++			best = int(u["type"])
++	if best >= 0:
++		for c in range(Army.COLS - 1, Army.COLS - 1 - Army.ZONE, -1):
++			var done := false
++			for rr in Army.ROWS:
++				if e.index_at(c, rr) < 0:
++					e.units.append({"type": best, "col": c, "row": rr})
++					done = true
++					break
++			if done:
++				break
++	e.budget = e.spent()
++	e.unit_cap = e.units.size()
++	return e
++
++func _draw_nemeses() -> void:
++	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
++	var P := Rect2(190, 60, 900, 680)
++	_panel(P)
++	_h1(Vector2(640, 72), L.t("nem_head"))
++	var list: Array = Save.data.get("nemeses", [])
++	var y := 72.0 + tz("H1") * 1.6
++	if list.is_empty():
++		_text(Vector2(640, y + 40), L.t("nem_empty"), tz("S"), TXT_DIM, true, false, 760)
++	for i in list.size():
++		var n: Dictionary = list[i]
++		var r := Rect2(220, y, 840, 88)
++		_tex_box(r, "paper")
++		_ink_mode = true
++		var done := bool(n.get("revenged", false))
++		_text(r.position + Vector2(18, 10), nemesis_title(n), tz("B"), INK, false, true, 520)
++		_text(r.position + Vector2(18, 10 + tz("B") * 1.4), L.t("nem_line", [int(n.get("losses", 1)), int(n.get("stage", 1))]), tz("C"), INK, false, false, 520)
++		_text(r.position + Vector2(r.size.x - 18 - _width(L.t("nem_done" if done else "nem_open_state"), tz("S")), 10), L.t("nem_done" if done else "nem_open_state"), tz("S"), Color("#2e6b2a") if done else Color("#8a2a1a"), false, true)
++		_ink_mode = false
++		# 陣型縮影：最多 12 隻小兵頭像
++		var us: Array = n.get("units", [])
++		for k in mini(12, us.size()):
++			Art.unit(self, r.position + Vector2(560 + k * 22, 74), int(us[k]["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.9, time, 0.36, cbm())
++		y += 98
++	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "profile")
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index 2a120bb..2afa4d8 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -25,6 +25,9 @@ func _start_mode(m: int) -> void:
+ 		set("gauntlet_cap", 0)
+ 		set("gauntlet_foe_gold", 0)
+ 		set("gauntlet_foe_cap", 0)
++		set("gauntlet_contract", -1)
++		set("ct_pick", -1)
++		set("ct_last", "")
+ 		gauntlet_stage = 1
+ 		gauntlet_prev = []
+ 		gauntlet_changes = 99
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index a12a51e..35ebcd1 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -261,6 +261,7 @@ var accum := 0.0
+ var speed := 1.0
+ var slow_used := false
+ var final_used := false   # 第十輪 F1
++var tm_ghost = null           # V1.4 #1 時光機：播放「如果」時，原本那條時間線同步跑的模擬（畫淡圈）
+ var last_kill := [-1, -10.0]   # V1.3.1 P2：最近一次擊倒 [擊倒者 id, 時間]
+ var last_hitter := {}          # 目標 id → 最後打到它的 id
+ var key_used := false     # V1.3 C4：這場的關鍵時刻（第一次破陣）用過了
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index c1f2549..0ac0c0e 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11"], "maps": ["test_maps_v9", "test_maps_mirror_v9"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11"], "maps": ["test_maps_v9", "test_maps_mirror_v9"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index e9ef9fa..89764ee 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -903,3 +903,76 @@ func test_characters_v131() -> void:
+ 	var g = GS.new()
+ 	ok(int(g.last_kill[0]) == -1 and g.has_method("_draw_relic"), "P2：最後一擊紀錄預設為空、遺物落地函式存在")
+ 	g.free()
++
++
++## V1.4 #1 時光機：分岔點計算、原本時間線同步（確定性：同一組陣型追到同一 tick 狀態一樣）。
++func test_time_machine_v140() -> void:
++	var RV = load("res://scripts/ui/replay_view.gd")
++	var a := PackedInt64Array([5, 5, 6, 6, 7, 7])
++	var b := PackedInt64Array([5, 5, 6, 6, 8, 7])
++	ok(RV.diverge_tick(a, b) == 2, "分岔點＝第一個不一樣的 tick", str(RV.diverge_tick(a, b)))
++	ok(RV.diverge_tick(a, a) == -1, "完全一樣回 -1")
++	ok(RV.diverge_tick(a, a.slice(0, 4)) == 2, "一場比較早結束：分岔在較短那場的尾端")
++	var Sim = load("res://scripts/core/battle_sim.gd")
++	var AI = load("res://scripts/core/ai_army.gd")
++	var rng := RandomNumberGenerator.new()
++	rng.seed = 140
++	var a0 = AI.build(0, 100, rng, 3)["army"]
++	var a1 = AI.build(1, 100, rng, 4)["army"]
++	var s1 = Sim.new(a0.copy(), a1.copy())
++	s1.fast = true
++	for i in 300:
++		s1.step()
++	var s2 = Sim.new(a0.copy(), a1.copy())
++	s2.fast = true
++	for i in 300:
++		s2.step()
++	var same: bool = s1.units.size() == s2.units.size()
++	for i in mini(s1.units.size(), s2.units.size()):
++		if s1.units[i].x != s2.units[i].x or s1.units[i].hp != s2.units[i].hp:
++			same = false
++	ok(same, "原本時間線重建後追到同一 tick，位置與血量完全一樣（淡圈才對得上）")
++
++
++## V1.4 #3 戰利品契約：判定只看陣型與戰後狀態。
++func test_contracts_v140() -> void:
++	var GM = load("res://scripts/ui/screens/game_modes.gd")
++	var Army = load("res://scripts/core/army.gd")
++	var a = Army.new(0, 100)
++	a.units = [{"type": 0, "col": 0, "row": 0}, {"type": 1, "col": 1, "row": 0}, {"type": 0, "col": 2, "row": 0}]
++	ok(GM.contract_ok(0, a, true, 800, 50), "輕裝：沒有遠程兵＋贏＝達成")
++	a.units.append({"type": 2, "col": 3, "row": 0})
++	ok(not GM.contract_ok(0, a, true, 800, 50), "輕裝：帶了弓箭手＝失敗")
++	ok(GM.contract_ok(1, a, true, 800, 50), "精兵：3 種兵以內")
++	a.units.append({"type": 5, "col": 4, "row": 0})
++	ok(not GM.contract_ok(1, a, true, 800, 50), "精兵：4 種兵＝失敗")
++	ok(GM.contract_ok(2, a, true, 900, 10) and not GM.contract_ok(2, a, true, 901, 10), "速戰：45 秒（900 tick）內")
++	ok(GM.contract_ok(3, a, true, 2000, 60) and not GM.contract_ok(3, a, true, 2000, 59), "完勝：剩 60% 以上")
++	ok(not GM.contract_ok(4, a, false, 100, 99), "輸了一律沒達成")
++	ok(GM.CONTRACTS.size() == 6, "6 份契約")
++
++
++## V1.4 #2 宿敵戰記：稱號固定、同陣再輸加次數、最多 6 個、宿敵陣多帶一隻最貴的兵。
++func test_nemesis_v140() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var Army = load("res://scripts/core/army.gd")
++	var g = GS.new()
++	var keep = SV.data.get("nemeses", [])
++	SV.data["nemeses"] = []
++	var e = Army.new(1, 100)
++	e.units = [{"type": 5, "col": 10, "row": 2}, {"type": 0, "col": 11, "row": 3}]
++	ok(g.nemesis_title_parts(e.units) == g.nemesis_title_parts(e.units.duplicate(true)), "同一個陣稱號一樣")
++	g._nemesis_record(e)
++	g._nemesis_record(e)
++	ok(SV.data["nemeses"].size() == 1 and int(SV.data["nemeses"][0]["losses"]) == 2, "同一個陣再輸一次是加次數")
++	for k in 8:
++		var e2 = Army.new(1, 100)
++		e2.units = [{"type": k % 10, "col": 10, "row": k % 9}]
++		g._nemesis_record(e2)
++	ok(SV.data["nemeses"].size() <= g.NEM_MAX, "最多 6 個宿敵")
++	SV.data["nemeses"] = [{"units": [{"type": 5, "col": 10, "row": 2}, {"type": 0, "col": 11, "row": 3}], "losses": 1, "revenged": false}]
++	var na = g._nemesis_army(0)
++	ok(na.units.size() == 3 and int(na.units[2]["type"]) == 5, "宿敵多帶一隻最貴的兵（長槍兵）", str(na.units))
++	SV.data["nemeses"] = keep
++	g.free()
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index c03d200..aebecf5 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -579,13 +579,23 @@ func _run_screenshots() -> void:
+ 	_rv_set_type(D.SHIELD if int(u0["type"]) != D.SHIELD else D.SWORD)
+ 	_rv_recalc()
+ 	await _snap("16_review.png")
++	# V1.4 #1 時光機：播放「如果」，原本時間線畫成地上的白圈
++	_rv_play()
++	while seek_target >= 0:
++		_seek_pump()
++		await get_tree().process_frame
++	for i in 60:
++		_sim_step(false)
++	await _snap("16b_time_machine.png")
+ 	overlay = ""
+ 	_begin_battle(last_armies[0].copy(), last_armies[1].copy(), "replay")
+ 	for i in 260:
+ 		_sim_step(true)
+ 	for f in fx:
+ 		f["t"] = 0.0
++	paused = true
+ 	await _snap("15_replay.png")
++	paused = false
+ 	await _shots_v4()
+ 	await _shots_cmd()
+ 	await _shots_v13()
+@@ -708,6 +718,13 @@ func _shots_v9() -> void:
+ 	await _snap("58_trials.png")
+ 	_open("profile")
+ 	await _snap("59_profile.png")
++	# V1.4 #2 宿敵戰記（範例資料，截完還原）
++	var nem_keep = Save.data.get("nemeses", [])
++	Save.data["nemeses"] = [{"units": [{"type": 5, "col": 10, "row": 2}, {"type": 5, "col": 10, "row": 3}, {"type": 2, "col": 12, "row": 4}, {"type": 1, "col": 10, "row": 5}], "losses": 2, "revenged": false, "stage": 3},
++		{"units": [{"type": 3, "col": 11, "row": 1}, {"type": 9, "col": 10, "row": 4}, {"type": 7, "col": 13, "row": 4}], "losses": 1, "revenged": true, "stage": 5}]
++	overlay = "nemeses"
++	await _snap("59b_nemeses.png")
++	Save.data["nemeses"] = nem_keep
+ 	_open("reward")
+ 	await _snap("60_reward.png")
+ 	rules = RuleSet.standard()

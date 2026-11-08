@@ -85,6 +85,7 @@ func _reset_place(keep_blue := false) -> void:
 			var node: String = call("ga_node", gauntlet_stage)
 			var lvl := 2 if node == "boss" else mini(2, (gauntlet_stage - 1) / 2 + (1 if node == "elite" else 0))
 			var e := AIT.build_full(1, r, lvl, gauntlet_prev, _pool())
+			set("gauntlet_nemesis", call("_nemesis_for_stage"))   # V1.4 #2：菁英站可能遇到宿敵
 			# V1.1 D1：菁英 +10、首領 +20；斥候劫掠／截斷補給只影響這一戰
 			e.budget = 100 + 5 * (gauntlet_stage - 1) + int(get("GA_NODE_GOLD")[node]) + int(get("gauntlet_foe_gold"))
 			e.unit_cap = maxi(4, e.unit_cap + int(get("gauntlet_foe_cap")))
@@ -101,6 +102,11 @@ func _reset_place(keep_blue := false) -> void:
 				if c.x < 0 or not e.place(t, c.x, c.y):
 					break
 			armies[1] = e
+			if int(get("gauntlet_nemesis")) >= 0:
+				armies[1] = call("_nemesis_army", int(get("gauntlet_nemesis")))
+				var nt: String = call("nemesis_title", Save.data["nemeses"][int(get("gauntlet_nemesis"))])
+				ai_name = nt
+				_toast(L.t("nem_back", [nt, int(Save.data["nemeses"][int(get("gauntlet_nemesis"))].get("losses", 1))]))
 	sfx.play_music("music_place")
 	sfx.play_ambience(str(MapArt.BIOME.get(MapDefs.MAPS[rules.map_id if rules != null and rules.is_free() else 0]["biome"], {}).get("sound", "")))
 
@@ -367,6 +373,17 @@ func _progress_and_achievements() -> void:
 			_ach("PUZZLE_100")   # 第十三輪
 		if perfect >= 100:
 			_ach("PUZZLE_ALL3")
+	if mode == Mode.GAUNTLET and play_kind == "official":
+		# V1.4 #2 宿敵戰記：輸了記下打敗你的陣；打贏宿敵就是復仇
+		call("_settle_contract")   # V1.4 #3：每一戰結束就結算契約
+		if w == 1 and last_armies.size() == 2:   # 和局不算被打敗（Codex v140-i1）
+			call("_nemesis_record", last_armies[1])
+		elif w == 0 and int(get("gauntlet_nemesis")) >= 0:
+			var nl: Array = Save.data.get("nemeses", [])
+			var ni := int(get("gauntlet_nemesis"))
+			if ni < nl.size():
+				nl[ni]["revenged"] = true
+				_toast(L.t("nem_revenge", [call("nemesis_title", nl[ni])]))
 	if mode == Mode.GAUNTLET:
 		if w == 0:
 			if gauntlet_stage >= 7:
@@ -722,7 +739,7 @@ func _gauntlet_save() -> void:
 		prev.append(o)
 	Save.data["gauntlet_run"] = {"stage": gauntlet_stage, "seed": gauntlet_seed, "gold": int(get("gauntlet_gold")), "cap": int(get("gauntlet_cap")),
 		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev,
-		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap"))}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
+		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap")), "contract": int(get("gauntlet_contract"))}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
 	Save.save_data()
 
 func _gauntlet_clear() -> void:
@@ -741,9 +758,11 @@ func _gauntlet_resume() -> void:
 	gauntlet_prev = g["prev"].duplicate(true)
 	set("gauntlet_foe_gold", int(g.get("foe_gold", 0)))
 	set("gauntlet_foe_cap", int(g.get("foe_cap", 0)))
+	set("gauntlet_contract", int(g.get("contract", -1)))   # V1.4 #3：舊存檔沒有＝沒簽
 	_reset_place(false)
 	armies[0].budget += int(g["gold"])
 	armies[0].unit_cap += int(g["cap"])
+	call("_apply_contract_cost")
 	gauntlet_changes = int(g["changes"])
 
 

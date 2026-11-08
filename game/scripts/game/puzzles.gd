@@ -141,19 +141,65 @@ static func rules_of(pz: Dictionary):
 		var em := 0
 		for e in c.get("enemy", []):
 			em |= 1 << int(e[1])
-		r.cmd_mask = [1 << int(c["skill"]), em]
+		var mm := 0
+		for sk in skills_of(pz):
+			mm |= 1 << int(sk)
+		r.cmd_mask = [mm, em]
 		r.cmd_uses = int(c.get("uses", 1))
 		r.cmd_cd = int(c.get("cd", CMD.CD_TICKS[0]))
 		r.cmd_power = 100
 	return r
+
+## V1.4 #4 軍令連鎖：一關可以給多種技能（cmd.skills）。多技能關的 plan 每一筆是「tick × 8 ＋ 技能」，
+## 單技能關照舊只存 tick（舊關卡、舊存檔、三星解都不變）。
+static func multi(pz: Dictionary) -> bool:
+	return pz.has("cmd") and pz["cmd"].has("skills")
+
+static func skills_of(pz: Dictionary) -> Array:
+	if not pz.has("cmd"):
+		return []
+	return pz["cmd"]["skills"] if multi(pz) else [int(pz["cmd"]["skill"])]
+
+static func plan_tick(pz: Dictionary, e: int) -> int:
+	return e / 8 if multi(pz) else e
+
+static func plan_skill(pz: Dictionary, e: int) -> int:
+	return e % 8 if multi(pz) else int(pz["cmd"]["skill"])
+
+static func plan_make(pz: Dictionary, skill: int, tick: int) -> int:
+	return tick * 8 + skill if multi(pz) else tick
+
+## 多技能關：把第 i 筆往後挪 d tick，再讓同一種技能前後至少隔一個冷卻、不早於開場、不晚於局長。
+## 遊戲面板與求解器共用（Codex v13-r1 #4 的同一套限制）。
+static func plan_fix(pz: Dictionary, plan: Array, i: int, d: int) -> Array:
+	var cd: int = rules_of(pz).cmd_cd
+	var lim: int = int(pz.get("goal_ticks", 1800)) - 10
+	var lo0: int = maxi(CMD.START_TICKS, int(pz.get("plan_min", 0)))
+	var p2: Array = plan.duplicate()
+	if i >= 0 and i < p2.size():
+		p2[i] = plan_make(pz, plan_skill(pz, int(p2[i])), clampi(plan_tick(pz, int(p2[i])) + d, lo0, lim))
+	for sk in skills_of(pz):
+		var idx: Array = []
+		for k in p2.size():
+			if plan_skill(pz, int(p2[k])) == int(sk):
+				idx.append(k)
+		idx.sort_custom(func(a, b): return plan_tick(pz, int(p2[a])) < plan_tick(pz, int(p2[b])))
+		var last := -100000
+		for k in idx:
+			var t := maxi(plan_tick(pz, int(p2[k])), maxi(lo0, last + cd))
+			if t > lim:
+				return plan
+			p2[k] = plan_make(pz, int(sk), t)
+			last = t
+	return p2
 
 ## 技能關：玩家設定的施放 tick（plan）＋敵方寫死的時間 → 重播紀錄。
 static func cmd_log(pz: Dictionary, plan: Array) -> Array:
 	if not pz.has("cmd"):
 		return []
 	var log: Array = []
-	for t in plan:
-		log.append([int(t), 0, int(pz["cmd"]["skill"])])
+	for e in plan:
+		log.append([plan_tick(pz, int(e)), 0, plan_skill(pz, int(e))])
 	for e in pz["cmd"].get("enemy", []):
 		log.append([int(e[0]), 1, int(e[1])])
 	log.sort_custom(func(a, b): return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
@@ -165,8 +211,10 @@ static func default_plan(pz: Dictionary) -> Array:
 	if not pz.has("cmd"):
 		return out
 	var r = rules_of(pz)
-	for i in int(pz["cmd"].get("uses", 1)):
-		out.append(CMD.START_TICKS + i * r.cmd_cd)
+	var sks := skills_of(pz)
+	for k in sks.size():
+		for i in int(pz["cmd"].get("uses", 1)):
+			out.append(plan_make(pz, int(sks[k]), CMD.START_TICKS + i * r.cmd_cd + k * 40))   # 多技能：每種錯開 2 秒
 	return out
 
 ## 格子座標的單位在模擬裡還活著嗎（team 0 用自己的欄，敵方用絕對欄）。

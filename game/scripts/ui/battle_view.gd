@@ -162,6 +162,8 @@ func _sim_step(with_fx: bool) -> void:
 	if not view.advance():
 		view.finished = true
 		return
+	if tm_ghost != null:
+		call("_tm_sync")
 	_gait_tick(with_fx)
 	_pump_view()
 	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
@@ -689,6 +691,7 @@ func _draw_battle_hud() -> void:
 func _begin_battle(a0, a1, kind := "official") -> void:
 	_pre_drop()
 	play_kind = kind
+	tm_ghost = null   # V1.4 #1：時光機的原本時間線只在「如果」播放時存在（_rv_play 之後會再設）
 	_ensure_sprites([a0, a1])
 	if kind == "official":
 		last_armies = [a0.copy(), a1.copy()]

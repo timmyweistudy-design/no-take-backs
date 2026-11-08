@@ -416,6 +416,20 @@ func _draw_units_of(s, dim: bool) -> void:
 	# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
 	var a_now := clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 1.0
 	var gm: Array = _goal_mark()
+	if live and tm_ghost != null and play_kind == "review":
+		# V1.4 #1 時光機：原本那條時間線的兵畫成地上的淡圈（隊伍色點＋白圈），看得出兩條時間線從哪裡分開
+		for gu in tm_ghost.units:
+			if not gu.alive:
+				continue
+			var gq: Vector2 = ORIGIN + Vector2(gu.x, gu.y) * CS / 1000.0
+			# 粉筆虛線圈（米白、45%），不是 RTS 選取框（Antigravity v140-i1）
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.5), 0, gq))
+			var rr := 15.0 * UNIT_SCALE
+			for sgm in 8:
+				var a0 := sgm * TAU / 8.0 + float(gu.id % 5) * 0.2
+				draw_arc(Vector2.ZERO, rr, a0, a0 + TAU / 14.0, 4, Color("#e8dcc4", 0.45), 2.2, true)
+			draw_set_transform_matrix(_cam)
+			draw_circle(gq, 2.4, Color(Art.team_color(gu.team, cbm()), 0.5), true, -1.0, true)
 	if live:
 		# V1.3 C3：戰報墨圈畫在最底層（腳底三層之下）
 		for f in fx:

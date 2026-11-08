@@ -72,6 +72,8 @@ func mutate(pz: Dictionary, ex: Array, allowed: Array, rng: RandomNumberGenerato
 func mutate_plan(pz: Dictionary, plan: Array, rng: RandomNumberGenerator) -> Array:
 	if plan.is_empty():
 		return plan
+	if P.multi(pz):
+		return P.plan_fix(pz, plan, rng.randi_range(0, plan.size() - 1), rng.randi_range(-12, 12) * 10)
 	var p2: Array = plan.duplicate()
 	var i := rng.randi_range(0, p2.size() - 1)
 	var lim: int = int(pz.get("goal_ticks", 1800)) - 10
@@ -89,7 +91,7 @@ func start_plan(pz: Dictionary) -> Array:
 	var out: Array = []
 	var pm: int = int(pz.get("plan_min", 0))
 	for t in P.default_plan(pz):
-		out.append(maxi(int(t), pm))
+		out.append(P.plan_make(pz, P.plan_skill(pz, int(t)), maxi(P.plan_tick(pz, int(t)), pm)))
 	return out
 
 ## 草稿可選 "need"：三星解一定要有這種兵（提示點名的主角）。

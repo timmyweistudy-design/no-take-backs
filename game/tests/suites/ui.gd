@@ -903,3 +903,76 @@ func test_characters_v131() -> void:
 	var g = GS.new()
 	ok(int(g.last_kill[0]) == -1 and g.has_method("_draw_relic"), "P2：最後一擊紀錄預設為空、遺物落地函式存在")
 	g.free()
+
+
+## V1.4 #1 時光機：分岔點計算、原本時間線同步（確定性：同一組陣型追到同一 tick 狀態一樣）。
+func test_time_machine_v140() -> void:
+	var RV = load("res://scripts/ui/replay_view.gd")
+	var a := PackedInt64Array([5, 5, 6, 6, 7, 7])
+	var b := PackedInt64Array([5, 5, 6, 6, 8, 7])
+	ok(RV.diverge_tick(a, b) == 3, "分岔點＝第一個不一樣的 tick（紀錄第一筆是 tick 1）", str(RV.diverge_tick(a, b)))
+	ok(RV.diverge_tick(a, a) == -1, "完全一樣回 -1")
+	ok(RV.diverge_tick(a, a.slice(0, 4)) == 3, "一場比較早結束：分岔在較短那場結束後的那一 tick")
+	var Sim = load("res://scripts/core/battle_sim.gd")
+	var AI = load("res://scripts/core/ai_army.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 140
+	var a0 = AI.build(0, 100, rng, 3)["army"]
+	var a1 = AI.build(1, 100, rng, 4)["army"]
+	var s1 = Sim.new(a0.copy(), a1.copy())
+	s1.fast = true
+	for i in 300:
+		s1.step()
+	var s2 = Sim.new(a0.copy(), a1.copy())
+	s2.fast = true
+	for i in 300:
+		s2.step()
+	var same: bool = s1.units.size() == s2.units.size()
+	for i in mini(s1.units.size(), s2.units.size()):
+		if s1.units[i].x != s2.units[i].x or s1.units[i].hp != s2.units[i].hp:
+			same = false
+	ok(same, "原本時間線重建後追到同一 tick，位置與血量完全一樣（淡圈才對得上）")
+
+
+## V1.4 #3 戰利品契約：判定只看陣型與戰後狀態。
+func test_contracts_v140() -> void:
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var Army = load("res://scripts/core/army.gd")
+	var a = Army.new(0, 100)
+	a.units = [{"type": 0, "col": 0, "row": 0}, {"type": 1, "col": 1, "row": 0}, {"type": 0, "col": 2, "row": 0}]
+	ok(GM.contract_ok(0, a, true, 800, 50), "輕裝：沒有遠程兵＋贏＝達成")
+	a.units.append({"type": 2, "col": 3, "row": 0})
+	ok(not GM.contract_ok(0, a, true, 800, 50), "輕裝：帶了弓箭手＝失敗")
+	ok(GM.contract_ok(1, a, true, 800, 50), "精兵：3 種兵以內")
+	a.units.append({"type": 5, "col": 4, "row": 0})
+	ok(not GM.contract_ok(1, a, true, 800, 50), "精兵：4 種兵＝失敗")
+	ok(GM.contract_ok(2, a, true, 900, 10) and not GM.contract_ok(2, a, true, 901, 10), "速戰：45 秒（900 tick）內")
+	ok(GM.contract_ok(3, a, true, 2000, 60) and not GM.contract_ok(3, a, true, 2000, 59), "完勝：剩 60% 以上")
+	ok(not GM.contract_ok(4, a, false, 100, 99), "輸了一律沒達成")
+	ok(GM.CONTRACTS.size() == 6, "6 份契約")
+
+
+## V1.4 #2 宿敵戰記：稱號固定、同陣再輸加次數、最多 6 個、宿敵陣多帶一隻最貴的兵。
+func test_nemesis_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var Army = load("res://scripts/core/army.gd")
+	var g = GS.new()
+	var keep = SV.data.get("nemeses", [])
+	SV.data["nemeses"] = []
+	var e = Army.new(1, 100)
+	e.units = [{"type": 5, "col": 10, "row": 2}, {"type": 0, "col": 11, "row": 3}]
+	ok(g.nemesis_title_parts(e.units) == g.nemesis_title_parts(e.units.duplicate(true)), "同一個陣稱號一樣")
+	g._nemesis_record(e)
+	g._nemesis_record(e)
+	ok(SV.data["nemeses"].size() == 1 and int(SV.data["nemeses"][0]["losses"]) == 2, "同一個陣再輸一次是加次數")
+	for k in 8:
+		var e2 = Army.new(1, 100)
+		e2.units = [{"type": k % 10, "col": 10, "row": k % 9}]
+		g._nemesis_record(e2)
+	ok(SV.data["nemeses"].size() <= g.NEM_MAX, "最多 6 個宿敵")
+	SV.data["nemeses"] = [{"units": [{"type": 5, "col": 10, "row": 2}, {"type": 0, "col": 11, "row": 3}], "losses": 1, "revenged": false}]
+	var na = g._nemesis_army(0)
+	ok(na.units.size() == 3 and int(na.units[2]["type"]) == 5, "宿敵多帶一隻最貴的兵（長槍兵）", str(na.units))
+	SV.data["nemeses"] = keep
+	g.free()
