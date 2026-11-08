@@ -1,0 +1,3107 @@
+OpenAI Codex v0.163.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1bd3c-f8bc-7990-94a3-0d88a4a5f817
+--------
+user
+你是《落子無悔》（Godot 4.6.2、程式繪製的 Q 版派兵自動對決、桌上戰棋沙盤風格）V1.5.0 規劃的三方之一（另兩方是 Claude 與另一個模型）。這是第 1 輪：各自獨立提案，先不實作。
+請讀附的簡報 brief.md 與圖片（audit_0～3.png 角色檢查表、codex_crop.png 圖鑑放大、title_now.png 主畫面、settings_now.png 設定、v140_screens_a.png V1.4 畫面）。可以再查資料（附網址）。
+產出一份「V1.5.0 完整提案」，至少包含：
+A. 主畫面：建議幾顆主按鈕、每顆是什麼、底下收哪些東西（畫出資訊架構樹），第一次開遊戲與老玩家的差別，手把與觸控動線。
+B. 客製化全面剖析：把所有可以讓玩家自訂的東西分類（畫面／介面、聲音、操作與輸入、遊戲性與難度、觀戰與鏡頭、無障礙、外觀與收藏、規則與對戰預設、資料與隱私…你們可以加），每一項寫清楚：選項名稱、可選值、預設值、放在哪個分頁、為什麼有用、會不會影響模擬（會影響就要走規則碼）。也提出設定頁本身的新結構（搜尋？預設組？一鍵無障礙預設？第一次啟動先問？）。
+C. 角色：(1) 每種遠程兵的投射物設計（形狀、飛行時間、軌跡、命中效果、和攻擊時機對齊）；(2) 手持物的畫法修正（握柄、護手、前後層、手指包住）；(3) 轉身不像紙片的做法（部件前後錯動、臉跟著轉、遮罩、側面專屬部件、多角度…），要能用程式繪製做到；(4) 圖鑑大圖的構圖（不被裁、名稱不被壓）；(5) 驗收方式：怎麼錄影或拼表讓使用者和我們一起逐種確認（例如每種兵 360 度轉一圈的 GIF、攻擊慢動作逐格表）。
+D. 其他基於 V1.4.0 要完善或新增的大項（例如 V1.4 收尾延後的大廳／設定／結果頁／大量混戰層級整理、新玩法的平衡、Steam 前置…），自由提出，每項寫細節。
+E. 每一大項給：優先序（必做／該做／可做）、人時估計、風險、相依。
+繁體中文，條列清楚，不要稱讚，不要客套。
+
+# V1.5.0 規劃簡報（給三方，先不實作）
+
+## 使用者要求（原話整理）
+- 基於 V1.4.0 列出 V1.5.0 完整方案；每一大項列出要完善的細節與優化，要加什麼都能加。
+- 額外三個重點：
+  1. 客製化全面新增、細想：能客製化的都放進「選項」，深度剖析。
+  2. 主畫面整理成約五大按鈕（不一定五個，由我們決定），減少按鈕、讓畫面精簡。
+  3. 角色建模瑕疵：有些遠程攻擊沒射出東西就傷到人；圖鑑放大時手拿的東西像被裁掉；轉身像紙片。容量先不管，先把角色做好。使用者會看圖鑑裡小人的動畫確認是否完整；我們也可以用這方式（錄影或其他）。
+- 全面查資料、先不做、三方綜合討論三輪。
+
+## 現況（查證過）
+### 主畫面（title_now.png）
+13 顆按鈕：主玩法 4（對 AI／雙人／遠征／教學，新玩家順序不同）、次 4（殘局、圖鑑、試煉、戰績）、每日挑戰、遊戲間、系統 3（設定、代碼、離開）。遊戲間裡面還有競猜、輪抽、車輪戰、雙封蠟、幽靈、每週棋盒。戰績頁裡有宿敵戰記、塗裝室。
+### 設定（settings_now.png）：4 分頁 18 項
+- 畫面：語言（4 種）、文字大小 100／125／150、標題一般字型、全螢幕
+- 聲音：音樂、音效、介面、環境 四條音量
+- 操作：預設觀戰速度、擺放確認、試玩紀錄、按鍵重設（鍵盤＋手把）
+- 輔助：色盲配色、震動、慢動作、閃白、減少特效、簡化介面
+### 其他已有的客製化
+- 大廳規則 7 分頁（軍勢、部署、卡池、對戰、AI、實驗室數值倍率、技能），我的預設 5 格，規則碼分享。
+- 塗裝室（戰績頁裡）：兩軍底漆 4、漬洗 3、乾掃 3、木座 4、棋盤框 4；成就解鎖。
+- 雙人預設規則、出戰名單、陣型存檔 5 格。
+### 角色檢查（自己畫的檢查表 audit_0～3.png：22 種兵，每列 8 格＝正側面、轉身 cos 0.8／0.55／0.3、前搖、揮擊、朝左、受擊；圖鑑同 2 倍）
+- 轉身：所有兵都是「水平壓扁＋臉一直朝正面」，看起來像紙片翻面；部件沒有前後層錯動、臉沒跟著轉。
+- 遠程投射物（battle_view.gd 的特效）：
+  - 弓箭手：有箭飛出，但前搖時弓上沒有搭箭（箭憑空出現）。
+  - 投彈兵（射程遠）：只在目標點爆炸，手上沒有拋出的彈、沒有拋物線。
+  - 孢子菇（射程 2.2 格）：只在目標身上冒孢子，沒有飛行的孢子。
+  - 骷髏法師（射程 4 格）：只在自己身上一個揮擊特效，書上的紫火沒有飛出去。
+  - 巫毒娃娃：有一條針線連到目標（可以）。醫者補血有弧線（可以）。
+- 手持物「像被裁掉」：劍、刺客短刀只有刀身、握柄與護手在手後面或沒畫，看起來在手的位置被切斷；長槍桿穿過手；圖鑑裡騎兵的長槍尖伸進名稱區（codex_crop.png）。
+- 圖鑑大圖：點角色轉一圈＋小動作（`codex_view.gd` `_cx_portrait`）；小劇場是真模擬的小場面。
+### 資料（查到的）
+- Game Accessibility Guidelines：分 Motor／Cognitive／Vision／Hearing／General，各分基本、中階、進階；基本項例：可調遊戲速度、設定要存、遊戲內說明無障礙功能、避免閃爍；中階：遊戲中可改難度、遊戲內提示。https://gameaccessibilityguidelines.com/
+- Xbox Accessibility Guidelines（XAG 101 文字、104 字幕、107 輸入）：文字大小／字型可選、完整按鍵重設、按住改切換；第一次啟動在主選單前先問無障礙設定。https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/101
+- The Last of Us Part II：60 多項無障礙設定，三組預設（視覺、聽覺、動作）一鍵套用再細調。https://blog.playstation.com/2020/06/09/the-last-of-us-part-ii-accessibility-features-detailed
+- 設定選單資訊架構：分類、常用在前、進階收起、手把可操作、遊戲中可改（bugnet.io、gamedeveloper「settings checklist」）。
+- 2D 轉身：畫多個角度切換、頭部分前後片錯動（鼻子／眼睛位移）、遮罩讓眼睛轉到後面消失、配合少量上下伸縮；Spine 的網格變形。https://fr.esotericsoftware.com/forum/d/11466-25d-face-rig-ideas
+- Riot 清晰度：特效要有層級（自己、隊友、敵人的重要度），普攻特效不能太亮蓋過重要訊息。https://www.leagueoflegends.com/en-us/news/dev/clarity-in-league/
+
+codex
+我會先讀專案內的簡報與相關程式，核對圖片反映的問題，再查官方參考資料，整理成含優先序、工時、相依與驗收標準的提案；本輪不修改程式。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g '*brief*' -g '*v140*' -g '*codex_view*' -g '*battle_view*' -g '*unit*' -g '*settings*' -g '*title*' -g '*README*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 99ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+README.md
+coordination/v150-r1/v140_screens_a.png
+coordination/v150-r1/title_now.png
+coordination/v150-r1/settings_now.png
+coordination/v150-r1/brief.md
+docs/history/2026-11-04-fantasy-units-plan-v8.md
+docs/history/2026-11-02-new-units-plan-v4.md
+game/tools/golden_v140.gd.uid
+game/tools/golden_v140.gd
+docs/release/capsules/screenshots/01_title.png
+coordination/v140-ledger.md
+game/tools/balance/unit_eval_report.py
+game/tools/balance/unit_eval.sh
+game/tools/balance/unit_eval.gd.uid
+game/tools/balance/unit_eval.gd
+game/tests/suites/units.gd.uid
+game/tests/suites/units.gd
+game/tests/golden/v140_cases.json
+game/shaders/unit_bake.gdshader.uid
+game/shaders/unit_bake.gdshader
+game/scripts/ui/unit_brief.gd.uid
+game/scripts/ui/unit_brief.gd
+game/audio/music_title.ogg
+game/audio/music_title.ogg.import
+game/scripts/ui/battle_view.gd.uid
+game/scripts/ui/battle_view.gd
+game/scripts/ui/codex_view.gd.uid
+game/scripts/ui/codex_view.gd
+game/scripts/core/unit_defs.gd
+game/scripts/core/unit_defs.gd.uid
+game/scripts/ui/battle/battle_units.gd
+game/scripts/ui/battle/battle_units.gd.uid
+
+web search: 
+exec
+/bin/bash -lc "cat coordination/v150-r1/brief.md; rg --files -g 'AGENTS.md' -g '*v140*' -g '*options*' -g '*renderer*' -g '*draw*' -g '*settings*' game docs coordination; cat coordination/v140-ledger.md" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg -n 'projectile|ranged|bomb|spore|voodoo|mage|attack|_cx_portrait' game/scripts/core/unit_defs.gd game/scripts/ui/battle_view.gd game/scripts/ui/codex_view.gd; rg --files game/scripts | head -90" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 142ms:
+# V1.5.0 規劃簡報（給三方，先不實作）
+
+## 使用者要求（原話整理）
+- 基於 V1.4.0 列出 V1.5.0 完整方案；每一大項列出要完善的細節與優化，要加什麼都能加。
+- 額外三個重點：
+  1. 客製化全面新增、細想：能客製化的都放進「選項」，深度剖析。
+  2. 主畫面整理成約五大按鈕（不一定五個，由我們決定），減少按鈕、讓畫面精簡。
+  3. 角色建模瑕疵：有些遠程攻擊沒射出東西就傷到人；圖鑑放大時手拿的東西像被裁掉；轉身像紙片。容量先不管，先把角色做好。使用者會看圖鑑裡小人的動畫確認是否完整；我們也可以用這方式（錄影或其他）。
+- 全面查資料、先不做、三方綜合討論三輪。
+
+## 現況（查證過）
+### 主畫面（title_now.png）
+13 顆按鈕：主玩法 4（對 AI／雙人／遠征／教學，新玩家順序不同）、次 4（殘局、圖鑑、試煉、戰績）、每日挑戰、遊戲間、系統 3（設定、代碼、離開）。遊戲間裡面還有競猜、輪抽、車輪戰、雙封蠟、幽靈、每週棋盒。戰績頁裡有宿敵戰記、塗裝室。
+### 設定（settings_now.png）：4 分頁 18 項
+- 畫面：語言（4 種）、文字大小 100／125／150、標題一般字型、全螢幕
+- 聲音：音樂、音效、介面、環境 四條音量
+- 操作：預設觀戰速度、擺放確認、試玩紀錄、按鍵重設（鍵盤＋手把）
+- 輔助：色盲配色、震動、慢動作、閃白、減少特效、簡化介面
+### 其他已有的客製化
+- 大廳規則 7 分頁（軍勢、部署、卡池、對戰、AI、實驗室數值倍率、技能），我的預設 5 格，規則碼分享。
+- 塗裝室（戰績頁裡）：兩軍底漆 4、漬洗 3、乾掃 3、木座 4、棋盤框 4；成就解鎖。
+- 雙人預設規則、出戰名單、陣型存檔 5 格。
+### 角色檢查（自己畫的檢查表 audit_0～3.png：22 種兵，每列 8 格＝正側面、轉身 cos 0.8／0.55／0.3、前搖、揮擊、朝左、受擊；圖鑑同 2 倍）
+- 轉身：所有兵都是「水平壓扁＋臉一直朝正面」，看起來像紙片翻面；部件沒有前後層錯動、臉沒跟著轉。
+- 遠程投射物（battle_view.gd 的特效）：
+  - 弓箭手：有箭飛出，但前搖時弓上沒有搭箭（箭憑空出現）。
+  - 投彈兵（射程遠）：只在目標點爆炸，手上沒有拋出的彈、沒有拋物線。
+  - 孢子菇（射程 2.2 格）：只在目標身上冒孢子，沒有飛行的孢子。
+  - 骷髏法師（射程 4 格）：只在自己身上一個揮擊特效，書上的紫火沒有飛出去。
+  - 巫毒娃娃：有一條針線連到目標（可以）。醫者補血有弧線（可以）。
+- 手持物「像被裁掉」：劍、刺客短刀只有刀身、握柄與護手在手後面或沒畫，看起來在手的位置被切斷；長槍桿穿過手；圖鑑裡騎兵的長槍尖伸進名稱區（codex_crop.png）。
+- 圖鑑大圖：點角色轉一圈＋小動作（`codex_view.gd` `_cx_portrait`）；小劇場是真模擬的小場面。
+### 資料（查到的）
+- Game Accessibility Guidelines：分 Motor／Cognitive／Vision／Hearing／General，各分基本、中階、進階；基本項例：可調遊戲速度、設定要存、遊戲內說明無障礙功能、避免閃爍；中階：遊戲中可改難度、遊戲內提示。https://gameaccessibilityguidelines.com/
+- Xbox Accessibility Guidelines（XAG 101 文字、104 字幕、107 輸入）：文字大小／字型可選、完整按鍵重設、按住改切換；第一次啟動在主選單前先問無障礙設定。https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/101
+- The Last of Us Part II：60 多項無障礙設定，三組預設（視覺、聽覺、動作）一鍵套用再細調。https://blog.playstation.com/2020/06/09/the-last-of-us-part-ii-accessibility-features-detailed
+- 設定選單資訊架構：分類、常用在前、進階收起、手把可操作、遊戲中可改（bugnet.io、gamedeveloper「settings checklist」）。
+- 2D 轉身：畫多個角度切換、頭部分前後片錯動（鼻子／眼睛位移）、遮罩讓眼睛轉到後面消失、配合少量上下伸縮；Spine 的網格變形。https://fr.esotericsoftware.com/forum/d/11466-25d-face-rig-ideas
+- Riot 清晰度：特效要有層級（自己、隊友、敵人的重要度），普攻特效不能太亮蓋過重要訊息。https://www.leagueoflegends.com/en-us/news/dev/clarity-in-league/
+coordination/v150-r1/v140_screens_a.png
+coordination/v150-r1/settings_now.png
+game/tools/golden_v140.gd.uid
+game/tools/golden_v140.gd
+coordination/v140-ledger.md
+docs/perf/v131-draw.json
+docs/perf/v130-draw.json
+docs/perf/v121-draw.json
+docs/perf/v120-draw.json
+docs/perf/v110-draw-new.json
+docs/perf/v110-draw-base.json
+game/tests/golden/v140_cases.json
+# V1.4.0 裁決紀錄
+- 方案 docs/2026-11-08-v1.4.0-plan.md；方向候選 docs/2026-11-08-v1.4.0-directions.md（v140-r1、r2）。使用者：每一項都完整規劃、全做。
+## 第一批（#1 時光機、#3 契約、#2 宿敵；審查 coordination/v140-i1）
+- Codex 必修全修：契約存檔欄位與上限、代價不可繞過（修剪超額陣型）、每戰結束結算契約（含輸與第 7 站）、覆盤淡圈回原局要清、分岔 tick +1、和局不算被打敗、宿敵再贏加在原紀錄、宿敵增援守兵種上限。
+- Antigravity 美化全採用：米白粉筆虛線圈、分岔線貫穿兩圖、覆盤兩顆按鈕同列、拿掉格子座標、契約羊皮紙籤＋火漆章、「不簽」次要樣式、宿敵木牌、雪恥印章、時光機羊皮紙按鈕。
+- Ruling B1：宿敵只在遠征（格子模式）— 遠征是格子陣型，存 (兵種, 欄, 列) 就能重現；自由陣型與地圖變體不收 — 代價：其他模式輸了不會記宿敵。
+- Ruling B2：契約獎勵是「永久」加成（和事件一樣）— 契約有代價與風險，報酬要夠吸引 — 代價：遠征後段可能比以前強；存檔上限放寬到 220 金／40 隻。
+- Ruling B3：時光機的原本時間線用第二份模擬同步跑（每 tick 多一次 step），不預錄位置 — 確定性保證同 tick 同狀態；成本只在覆盤播放時 — 代價：跳回很前面時要重追。
+
+## 第二批（#5 接力、#6 最小成本、#14 戰報卡／GIF、#16 遊戲間、#8 指揮官；審查 coordination/v140-i2）
+- Codex 必修全修：輪抽 AI 用自己的卡池、競猜結果行在報告重建後才寫、離開就取消押注、指揮官預算改成「基礎＋自己加成」（明確記選誰）、GIF 執行緒退出時等寫完、重播碼不印在卡上改按鈕複製；建議也修：錄影中開別的畫面就取消、存圖檢查回傳值與檔名加毫秒。
+- Antigravity 美化採用：接力編輯看得到自己的藍軍、戰報卡加深遮罩＋暗金內框＋粗紅印章＋右側大字＋雙方金／兵數、競猜木條標題＋VS＋隊伍色押注鈕、輪抽抽走的卡加隊伍色邊框與火漆印、標題兩顆鈕寬度平衡、指揮官名牌兩列三欄。
+- Ruling B4：#6 全球分佈圖不做假資料，本地版只比「本次 vs 自己最佳」；全球榜等 #7 接 Steam — 代價：沒有 Opus Magnum 式的大家分佈圖。
+- Ruling B5：#8 指揮官＝手動技能的具名套組＋讓子金，不做全軍被動（被動要新模擬欄位與規則碼）— 代價：將軍之間的差別只有軍令與開局金。
+- Ruling B6：#16 競猜的兩軍用 AI 隨機組（每次不同），眼力分只記本地 — 代價：無排行。
+- Ruling B7：#6 最小成本的「圖示＋數值」改法不做，維持文字（版面檢查已過）— 代價：較像文字列。
+- Ruling B8：Antigravity 說競猜兩軍「同向」：實際藍左朝右、紅右朝左已是對峙，只加 VS 強化 — 代價：無。
+
+## 第三批（#11 車輪戰、#13 雙封蠟、#15 塗裝室；審查 coordination/v140-i3）
+- 兩方都指出：遊戲間 4 張 186 寬卡片在英文大字級塞不下 → 面板加寬到 1020、卡片 230×346，四張說明重寫成一句。
+- Antigravity 必修全修：車輪戰殘兵鎖在原位（不能撤、清空會放回、被載入陣型換掉就不能開戰、畫鎖頭）；殘兵在戰鬥結束當下就定（看重播、時光機不影響）；開車輪戰清掉每日挑戰；雙封蠟三戰打完就結束（平手不打第 4 局）、「再寫一份封蠟戰書」重新封三陣、回標題清封蠟；第三封封完提示換人／揭曉；擺陣頁常駐「第 N／3 波」；遊戲間顯示車輪戰最佳。
+- Ruling B9：#11 車輪戰不新增規則欄位，每波就是一般對 AI（讓子預算），殘兵帶原格子 — 不動模擬、重播碼照舊 — 代價：每波重播是獨立的，沒有「整場三波」的重播。
+- Ruling B10：#11 殘兵全滅但靠召喚物贏時，下一波預算仍夾到規則下限 30 金（不是 15）— 規則碼要求預算 ≥30 — 代價：這種極端情況多送 15 金。
+- Ruling B11：#13 揭封後停在擺陣頁（雙方陣型攤開、已鎖），按開戰才打 — 揭曉是這個模式的高潮，要給看的時間；擺陣頁本來就鎖住（_locked）— 代價：多按一下。
+- Ruling B12：#15 「桌布」改成「棋盤框」4 種 — 桌外背景跟著地圖生態走，換掉會和地圖不搭；框是每張圖都看得到的木邊 — 代價：沒有桌布選項。
+- Ruling B13：#15 底漆只在同色系內換（藍 4 種、紅 4 種），色盲配色開著時一律用色盲色 — 敵我辨識與無障礙優先 — 代價：不能把藍軍塗成紅色。
+- Ruling B14：#15 介面上的隊伍色（文字、圖表）不跟底漆變，只有棋子與腳底圈變 — 介面色是辨識系統 — 代價：棋子與介面色可能略不同。
+
+## 第四批（#4 軍令連鎖、#15 塗裝室、#17 簡中日文、#18 觸控；審查 coordination/v140-i4）
+- Codex 8 條、Antigravity 15 條，重疊的合併後全修：塗裝室 Esc／手把 B 也存檔；每點一次就背景重烘圖集（預覽用圖集畫，漬洗乾掃當下看得到，也解掉「烘到一半改塗裝」的混色）；存檔與 team_color 夾範圍、鎖住的選項讀檔時退回原色；色盲時底漆列鎖住；時間軸真的能拖曳、同一秒的棋子錯開並拉細線；預設排程保證合法（plan_min）、推到底停在局末；換關 plan_sel 不越界；連鎖名稱去重、同刻照排程順序；連鎖名稱用語言的分隔符；日文禁則連續回退；標題字資源 duplicate；簡中「隻→个」「拷贝→复制」「手把→手柄」「全屏幕→全屏」「預設值→默认」；日文「この体除外」等不自然譯法改掉、ウォッシュ／ドライブラシ統一、落單 % 檢查。
+- 版面（日文 150%）：157 個按鈕與短標籤由 Codex 縮短到中文長度的 1.3 倍內，另手動縮短 15 條；違規 231 → 0（剩時間軸秒數對比，已把羊皮紙延伸到秒數下方）。
+- Ruling B15：設定頁不在語言值旁標「未校對」（日文 150% 放不下），改寫在該項的說明欄 — 代價：要看說明欄才知道。
+- Ruling B16：日文用「詰め戦」稱殘局、「ユニット／体」稱兵（Antigravity 建議「詰め将棋」式用語，但那是將棋專名）— 代價：母語校對時可能要改。
+- Ruling B17：#18 觸控只做「點＝左鍵、長按 0.5 秒＝右鍵（短震）、雙指／觸控板捏合縮放戰場 1～2 倍」；Deck 實機驗收清單在 `docs/release/deck-checklist.md` 交給使用者 — 代價：沒有實機數據。
+
+## 第五批（#7 幽靈／每週棋盒、#9 貼紙、#10 機關、#12 巨獸；審查 coordination/v140-i5）
+- Codex 14 條、Antigravity 12 條。必修全修：雜湊分支被貼紙段接到 `elif free` 會改到舊自由陣型指紋（還原，並新增 16 場跨版本金標準 `tests/golden/v140_cases.json`：在改動前的 commit 算出、新版逐場相同）；巨獸部位分傷改用「這一 tick 總量＋近戰總量」整數分配（和 hits 順序無關、鏡像一致）；自爆改成同 tick 分批結算（炸死的同 tick 倒下、再炸，最多 4 輪）、火牆移到倒下判定前；巨獸位元只在重播對戰碼的紅方、最多一隻、要在部署區；一般陣型碼匯入去掉貼紙與巨獸；續局存檔去掉 boss；護符也擋火牆與自爆；幽靈／每週入口清每日挑戰；每週題目開題時存下（跨週一照舊題）；排行榜：用隨附 GodotSteam 的 `set_leaderboard_details_max`、名次 1～20、請求用榜名與 handle 對回、下載的陣型嚴格驗證（兵種 <20、紅方欄 10～15、列 ≤8、不重複）、沒陣型不上傳、最佳成績記 pend 之後補送、上傳成功才清；沙盤機關事件不帶 src（之前讓結果統計當掉）；碎石畫法窄矩形保護；時間軸兩端秒數不寫。
+- 不採用（查證後）：Antigravity #4 機關矩形與 free_near 鏡像不對稱（in_rect 以中線對折、free_near 依隊伍視角，鏡像對局換隊也換邊，對稱）；#6 畫面快照欄位順序（護盾、加速從陣列尾端讀，新欄位插在前面是對的）；#9 宿敵蓋掉巨獸（宿敵只在菁英站）；#10 貼紙抽樣與套用不同源（都以上一戰陣型的格子為準）。
+- Ruling B18：#9 貼紙不新增規則欄位，存在陣型資料；只有遠征能貼，一般陣型碼匯入會拿掉 — 代價：大廳自訂規則沒有貼紙。
+- Ruling B19：#12 巨獸用石魔加旗標（不新增兵種，奇幻軍數值摘要不變）；試算 16 場隨機陣：沒巨獸 150 金勝 7、巨獸＋108 金勝 4，所以有巨獸那站敵方少 42 金 — 代價：真人玩家勝率要實測。
+- Ruling B20：#12 前臂只有近戰打得到，部位血量 8%（隨機陣很少斷臂，是給玩家「派近戰去斷臂」的選擇）— 代價：遠程陣看不到斷臂。
+- Ruling B21：#7 幽靈陣 30 個在第一次合併後凍結（之後不重算，免得存檔裡打贏的 id 對不上）— 代價：之後要換陣得另開 id。
+- Ruling B22：#7 Steam 排行榜只寫好程式、沒在後台建榜、沒實測（不跑 --steam-test）— 代價：接 Steam 時可能要修。
+
+## 收尾討論（coordination/v140-f1、f2、f3）
+- 第 1 輪（整體）：遠征獎勵改先選後確認、擺陣頁「本戰條件」（契約、加成、宿敵／巨獸、貼紙說明）、契約修剪保留貼紙兵、覆蓋層不長按、車輪戰不重複重播鈕、用語（契約加成「這趟遠征一直有效」、每週棋盒寫日期範圍、排行榜未開放照實說、幽靈勝率改難度星）。
+- 第 2 輪（畫面）：時間軸每 15 秒才標數字、接力編輯左側改羊皮紙、遠征路線終點改城塔（不像紅叉）、輪抽抽走的卡留紙底、遊戲間圖示（輪抽＝牌、封蠟＝書）、印章英文放得進圓、幽靈陣型點降飽和、機關預警統一琥珀色、幽靈卡 3×3、每週按鈕下移。
+- Ruling B23：設定頁、大廳、大量混戰的層級整理（兩方第 2 輪提的開關樣式、模式分兩列、飄字合併、事件列）是 V1.4 以前就有的畫面，留到之後 — 代價：這幾張仍偏資訊密。
+- Ruling B24：遊戲間維持四張大卡＋兩顆次入口（幽靈、每週），不改成六個同層入口 — 版面已過檢查、改動大 — 代價：幽靈與每週較不顯眼。
+- 第 3 輪（確認收尾）：Antigravity「可以收（等版面驗證）」；Codex「補巨獸近戰說明＋續局與模式切換的整段驗收＋版面零違規即可收」。已補：巨獸說明（本戰條件、到站提示都寫「前臂只有近戰打得到」）、`test_sticker_contract_resume_v140`（領貼紙＋窮兵契約→存檔→重開續局一致）、`test_mode_chain_v140`（指揮官→車輪戰→幽靈→每週→一般對戰狀態都乾淨）、版面矩陣加日文 150% 簡化／色盲／手把一組、翻譯建置會擋「原文改過還沿用舊譯稿」。
+- Ruling B25：結果頁分享／出題收進次入口、競猜勝負差距說明、擺陣頂欄 Beats／Fears 右欄，三方同意轉後續（純視覺層級，不擋發版）— 代價：這幾處仍偏擠。
+
+ succeeded in 148ms:
+game/scripts/ui/codex_view.gd:357:					_cx_portrait(pc)
+game/scripts/ui/codex_view.gd:528:func _cx_portrait(pc: Vector2) -> void:
+game/scripts/ui/battle_view.gd:214:			if event_route(e) == "attack" or e["kind"] == EV.HEAL or e["kind"] == EV.DRUM:
+game/scripts/ui/battle_view.gd:219:					var bt: Dictionary = bomb_tgt.get(e["src"], {})
+game/scripts/ui/battle_view.gd:223:					bomb_tgt[e["src"]] = bt
+game/scripts/ui/battle_view.gd:235:## 回傳 "death"／"skip"／"taunt"／"reveal"／"attack"。測試會把真實戰鬥的每一種事件都丟進來檢查。
+game/scripts/ui/battle_view.gd:243:		return "attack"
+game/scripts/ui/battle_view.gd:288:			_add_fx({"kind": "spore", "p": tp + Vector2(0, -30), "t": 0.0, "dur": 0.5})
+game/scripts/ui/battle_view.gd:294:			_report_add(s.team, s.type, k, L.t("ev_voodoo"), Color("#ff6bb0"), s)
+game/scripts/ui/battle_view.gd:761:	bomb_tgt.clear()
+game/scripts/ui/lobby_view.gd.uid
+game/scripts/ui/lobby_view.gd
+game/scripts/ui/icons.gd.uid
+game/scripts/ui/icons.gd
+game/scripts/ui/game_screens.gd.uid
+game/scripts/ui/game_screens.gd
+game/scripts/ui/free_place.gd.uid
+game/scripts/ui/free_place.gd
+game/scripts/ui/codex_view.gd.uid
+game/scripts/ui/codex_view.gd
+game/scripts/ui/charts.gd.uid
+game/scripts/ui/charts.gd
+game/scripts/ui/battle_view.gd.uid
+game/scripts/ui/battle_view.gd
+game/scripts/ui/sprite_cache.gd
+game/scripts/ui/art.gd
+game/scripts/ui/art.gd.uid
+game/scripts/ui/map_art.gd
+game/scripts/ui/replay_view.gd.uid
+game/scripts/ui/main.gd
+game/scripts/ui/replay_view.gd
+game/scripts/ui/view_buffer.gd
+game/scripts/ui/view_buffer.gd.uid
+game/scripts/ui/main.gd.uid
+game/scripts/ui/map_art.gd.uid
+game/scripts/ui/ui_base.gd
+game/scripts/ui/sprite_cache.gd.uid
+game/scripts/ui/ui_base.gd.uid
+game/scripts/ui/unit_brief.gd.uid
+game/scripts/ui/unit_brief.gd
+game/scripts/core/formations.gd.uid
+game/scripts/game/puzzles.gd
+game/scripts/game/ghost_data.gd
+game/scripts/core/formations.gd
+game/scripts/core/fantasy_defs.gd.uid
+game/scripts/core/fantasy_defs.gd
+game/scripts/core/events.gd.uid
+game/scripts/core/events.gd
+game/scripts/core/cmd_defs.gd.uid
+game/scripts/core/cmd_defs.gd
+game/scripts/core/boss_defs.gd.uid
+game/scripts/core/boss_defs.gd
+game/scripts/core/battle_sim.gd.uid
+game/scripts/core/battle_sim.gd
+game/scripts/core/army.gd.uid
+game/scripts/core/army.gd
+game/scripts/core/ai_turns.gd.uid
+game/scripts/core/ai_turns.gd
+game/scripts/core/ai_army.gd.uid
+game/scripts/core/ai_army.gd
+game/scripts/core/ruleset.gd
+game/scripts/core/mirror_check.gd.uid
+game/scripts/core/mirror_check.gd
+game/scripts/core/map_defs.gd.uid
+game/scripts/core/map_defs.gd
+game/scripts/core/imath.gd.uid
+game/scripts/core/imath.gd
+game/scripts/core/hard_ai.gd.uid
+game/scripts/core/hard_ai.gd
+game/scripts/core/terrain.gd.uid
+game/scripts/core/terrain.gd
+game/scripts/core/sticker_defs.gd.uid
+game/scripts/core/sticker_defs.gd
+game/scripts/core/ruleset.gd.uid
+game/scripts/core/turn_placement.gd.uid
+game/scripts/core/turn_placement.gd
+game/scripts/core/unit_defs.gd
+game/scripts/core/unit_defs.gd.uid
+game/scripts/game/codex.gd
+game/scripts/game/battle_code.gd.uid
+game/scripts/game/battle_code.gd
+game/scripts/game/daily.gd
+game/scripts/game/codex.gd.uid
+game/scripts/game/daily.gd.uid
+game/scripts/game/keymap.gd
+game/scripts/game/gif.gd.uid
+game/scripts/game/gif.gd
+game/scripts/game/ghost_data.gd.uid
+game/scripts/game/presets.gd
+game/scripts/game/keymap.gd.uid
+game/scripts/game/presets.gd.uid
+game/scripts/game/steam.gd
+game/scripts/game/sfx.gd.uid
+game/scripts/game/sfx.gd
+game/scripts/game/save.gd.uid
+game/scripts/game/save.gd
+game/scripts/game/roster.gd.uid
+game/scripts/game/roster.gd
+game/scripts/game/puzzles.gd.uid
+game/scripts/game/trial_data.gd
+
+web search: https://gameaccessibilityguidelines.com/
+web search: 
+exec
+/bin/bash -lc "rg -n 'attack|EV.HIT|EV.HEAL|EV.BOMB|EV.SPORE|cooldown|wind|ranged' game/scripts/core/battle_sim.gd game/scripts/core/events.gd game/scripts/ui/art.gd game/scripts/ui/sprite_cache.gd; sed -n '1,170p' docs/2026-11-08-v1.4.0-plan.md; rg -n 'tick|step|buffer|delay' game/scripts/ui/view_buffer.gd game/scripts/ui/battle_view.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "sed -n '170,325p' game/scripts/ui/battle_view.gd; sed -n '528,602p' game/scripts/ui/codex_view.gd; cat game/scripts/core/unit_defs.gd; cat game/scripts/core/fantasy_defs.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+		return
+	if tm_ghost != null:
+		call("_tm_sync")
+	_gait_tick(with_fx)
+	_pump_view()
+	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+	if view.frenzy and not frenzy_seen:
+		frenzy_seen = true
+		if with_fx:
+			_fx_text(Vector2(640, 140), L.t("frenzy_banner"), Color.ORANGE_RED, 2.0, 30, true)
+			sfx.play("frenzy")
+			sfx.play_music("music_frenzy")
+	var deaths := 0
+	for ev in view.events:
+		var k: String = ev["kind"]
+		var s = view.unit_by_id(ev["src"]) if ev.has("src") else null
+		if s != null:   # V1.4 #10：沙盤機關的事件沒有來源單位（src＝-1）
+			var key := "%s%d" % [k, s.team]
+			ev_count[key] = int(ev_count.get(key, 0)) + 1
+			if k == EV.BLAST and not ev.has("dmg"):   # 第八輪：爆炸演出一筆一次；逐目標傷害不算次數（BOOM_5）
+				ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
+		if k == EV.DEATH:
+			deaths += 1
+		_collect_mark(ev, view, view.tick)
+		_on_event(ev, with_fx)
+	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
+	if view.finished and not slow_used and deaths > 0 and with_fx:
+		hitstop = 0.2
+		if bool(Save.s("shake")):
+			shake = 0.15
+
+
+
+## 模擬往前補到領先 DELAY 個 tick；新進緩衝的攻擊事件先記下命中 tick，畫面就能在命中前開始演前搖。
+func _pump_view() -> void:
+	for fr in view.pump(sim):
+		for e in fr["events"]:
+			# 第四輪：補血、戰鼓也走出手動畫；被貼身敲人、破陣、補血、戰鼓用專屬動作（variant 2）
+			if e["kind"] == EV.HEAL or e["kind"] == EV.DRUM or e["kind"] == EV.BONK or e.get("tags", []).has(EV.BREACH):
+				var ah: Dictionary = alt_hit.get(e["src"], {})
+				ah[int(fr["tick"])] = true
+				if ah.size() > 8:
+					ah.erase(ah.keys().min())
+				alt_hit[e["src"]] = ah
+			if event_route(e) == "attack" or e["kind"] == EV.HEAL or e["kind"] == EV.DRUM:
+				var hs: Array = atk_hit.get(e["src"], [])
+				hs.append(int(fr["tick"]))
+				if e["kind"] == EV.BOMB:
+					# 投彈兵（第四輪 §4.4）：記下命中 tick → 目標，前搖期間畫火罐飛過去，命中那一刻剛好落地
+					var bt: Dictionary = bomb_tgt.get(e["src"], {})
+					bt[int(fr["tick"])] = e["tgt"]
+					if bt.size() > 6:
+						bt.erase(bt.keys().min())
+					bomb_tgt[e["src"]] = bt
+				# 每隻單位的第幾次出手（交替招式用，Codex S4 #2：原本用 tick 奇偶，連續反擊會同招）
+				var sq: Dictionary = atk_seq.get(e["src"], {})
+				sq[int(fr["tick"])] = sq.size()
+				atk_seq[e["src"]] = sq   # 存序列，不覆蓋還沒播到的命中（Codex R5 #2：連續反擊）
+				if hs.size() > 4:
+					hs.pop_front()
+				atk_hit[e["src"]] = hs
+
+
+
+## 事件分流（Codex R3 審查 #1）：只有帶 dmg 的才是攻擊；背水開關沒有 src；嘲諷、現形、繞翼只有演出。
+## 回傳 "death"／"skip"／"taunt"／"reveal"／"attack"。測試會把真實戰鬥的每一種事件都丟進來檢查。
+static func event_route(ev: Dictionary) -> String:
+	var k: String = ev.get("kind", "")
+	if k == EV.DEATH:
+		return "death"
+	if k == EV.TAUNT or k == EV.REVEAL:
+		return k if ev.has("src") and ev.has("tgt") else "skip"
+	if ev.has("dmg") and ev.has("src") and ev.has("tgt"):
+		return "attack"
+	return "skip"
+
+
+
+## V1.1 B2：這一關「斬首」目標的單位 id（不是斬首關＝-1）。id 規則同 PZ.unit_alive。
+func _goal_target_id() -> int:
+	var pz := PZ.get_puzzle(puzzle_id)
+	if pz.is_empty() or PZ.goal(pz) != "kill" or not pz.has("goal_unit"):
+		return -1
+	return 1000 + int(pz["goal_unit"][1]) * Sim.COLS + int(pz["goal_unit"][0])
+
+## V1.1 A7：兵種專屬的倒下演出（骷髏散骨、寶箱怪吐金幣、史萊姆濺開、爆爆羊留焦痕、幽靈化煙）。
+func _death_extra(u) -> void:
+	var p := _upos(u)
+	match u.type:
+		17, 21:
+			_add_fx({"kind": "bones", "p": p + Vector2(0, -16), "t": 0.0, "dur": 0.7})
+		12:
+			_add_fx({"kind": "coins", "p": p + Vector2(0, -20), "t": 0.0, "dur": 0.8})
+		13, 20:
+			_add_fx({"kind": "chips", "p": p + Vector2(0, -14), "t": 0.0, "dur": 0.5, "c": Color(0.45, 1.0, 0.55, 0.85), "drop": true})
+		14:
+			_add_fx({"kind": "puff", "p": p + Vector2(0, -24), "t": 0.0, "dur": 0.5})
+		19:
+			_add_fx({"kind": "chips", "p": p + Vector2(0, -20), "t": 0.0, "dur": 0.6, "c": Color("#a89a86")})
+
+var last_blast_tick := -99   # V1.1 B2：連環爆偵測（用模擬 tick，8 tick＝0.4 秒；開戰與跳轉時重置）
+
+## 第八輪的事件演出。回傳 true＝處理掉了。全部受簡化特效限制（_add_fx 會擋裝飾性的）。
+func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
+	if not k in [EV.POISON, EV.BLAST, EV.VOODOO, EV.BITE, EV.MIMIC_OPEN, EV.SPLIT, EV.CAST, EV.TIMESTOP, EV.RAISE, EV.VACUUM, EV.STOMP, EV.ROCK]:
+		return false
+	if not with_fx:
+		return true
+	var s = view.unit_by_id(ev.get("src", -1))
+	var t = view.unit_by_id(ev.get("tgt", -1))
+	if s == null:
+		return true
+	var sp := _upos(s)
+	var tp := _upos(t) if t != null else sp
+	match k:
+		EV.POISON:
+			hurt_t[t.id] = time
+			hurt_dir[t.id] = 0.0
+			_add_fx({"kind": "spore", "p": tp + Vector2(0, -30), "t": 0.0, "dur": 0.5})
+			sfx.play("poison", 0.25)
+		EV.VOODOO:
+			hurt_t[t.id] = time
+			hurt_dir[t.id] = 0.0
+			_add_fx({"kind": "pin", "a": sp + Vector2(0, -26), "b": tp + Vector2(0, -26), "t": 0.0, "dur": 0.3})
+			_report_add(s.team, s.type, k, L.t("ev_voodoo"), Color("#ff6bb0"), s)
+		EV.BLAST:
+			if s.id != t.id:
+				hurt_t[t.id] = time
+				hurt_dir[t.id] = signf(tp.x - sp.x) if tp.x != sp.x else 0.0
+			else:
+				var small: bool = ev.get("small", false)
+				_add_fx({"kind": "boom", "src": s.id, "p": sp + Vector2(0, -8), "t": 0.0, "dur": 0.45, "big": not small})
+				_add_fx({"kind": "wool", "p": sp + Vector2(0, -18), "t": 0.0, "dur": 0.6})
+				sfx.play("boom", 0.8)
+				sfx.play("baa", 0.6)
+				if _fx_on("shake"):
+					shake = 0.1
+				# V1.1 B2：連環爆（0.4 秒內第二顆起）短頓格，看得出是一串連鎖
+				if view.tick - last_blast_tick <= 8 and _fx_on("shake"):
+					hitstop = maxf(hitstop, 0.06)
+				last_blast_tick = view.tick
+				_report_add(s.team, s.type, k, L.t("ev_blast"), Color("#ffb347"), s)
+		EV.BITE:
+			atk_t[s.id] = time
+			hurt_t[t.id] = time
+			hurt_dir[t.id] = signf(tp.x - sp.x) if tp.x != sp.x else 0.0
+			_add_fx({"kind": "chomp", "p": tp + Vector2(0, -28), "t": 0.0, "dur": 0.35})
+			sfx.play("chomp", 0.9)
+			_report_add(s.team, s.type, k, L.t("ev_bite"), Color("#ffd166"), s)
+		EV.MIMIC_OPEN:
+			_add_fx({"kind": "puff", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.4})
+			sfx.play("reveal", 0.7)
+		EV.SPLIT:
+			_add_fx({"kind": "puff", "p": sp + Vector2(0, -12), "t": 0.0, "dur": 0.3})
+			sfx.play("squish", 0.5)
+			_report_add(s.team, 13, k, L.t("ev_split"), Color("#7dffa0"), s)
+func _cx_portrait(pc: Vector2) -> void:
+	var u := (time - cx_spin_t) if not bool(Save.s("reduce_fx")) and not layout_probe else 99.0   # 截圖／版面檢查時固定正側面
+	var face := 1.0
+	var atk := 0.0
+	if u >= 0.0 and u < 1.2:
+		var cf := cos(u / 1.2 * TAU)
+		face = 1.0 if cf >= 0.0 else -1.0
+		if absf(cf) < 0.95:
+			Art.turn_c = maxf(absf(cf), 0.3)
+			Art.turn_s = sqrt(1.0 - Art.turn_c * Art.turn_c)
+	elif u >= 1.2 and u < 2.2:
+		var spec: Array = preload("res://scripts/ui/sprite_cache.gd").FIDGET.get(cx_unit, [0.2, 0.0])
+		var wgt := sin((u - 1.2) / 1.0 * PI)
+		atk = Art.ATK_WINDUP * float(spec[0]) * wgt
+		Art.calm = true
+		Art.look = float(spec[1]) * wgt
+	_unit(pc, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, 2.0)
+	Art.turn_c = 1.0
+	Art.turn_s = 0.0
+	Art.calm = false
+	Art.look = 0.0
+extends RefCounted
+## ════════════════════════════════════════════════════════════════════
+##  《落子無悔》兵種數值表 —— 要調平衡只改這個檔案
+## ════════════════════════════════════════════════════════════════════
+## 單位換算（全部整數，才能保證兩台電腦算出一樣的結果）：
+##   距離：1000 ＝ 1 格        例：reach 700 ＝ 0.7 格
+##   時間：1 tick ＝ 1/20 秒   例：cd 20 ＝ 1 秒攻擊一次
+##   速度：千分之一格／tick     例：speed 60 ＝ 每秒 1.2 格（60×20÷1000）
+##   倍率：寫成「分子／分母」   例：NUM 5、DEN 2 ＝ ×2.5
+## 改完跑：cd game && godot --headless --path . --script res://tools/balance/balance.gd
+
+enum { SWORD, SHIELD, ARCHER, CAVALRY, ASSASSIN, PIKE, BOMBER, MEDIC, DRUMMER, BERSERKER }
+
+## 規則版本：改了戰鬥規則（不是只改數值）就要升版；重播與陣型代碼會帶這個版本。
+const RULES_VERSION := "1.3.0"     # 1.3.0：第四輪新增五種兵（長槍兵、投彈兵、醫者、鼓手、狂戰士）；1.2.0：繞翼狀態機、途經點離邊、騎兵追擊遲滯
+const RULES_VERSION_INT := 10300
+
+const COUNT := 10
+const CLASSIC := 5      # 經典 5 種（編號 0～4）；第四輪新兵是 5～9
+const NAMES := ["劍士", "盾兵", "弓箭手", "騎兵", "刺客", "長槍兵", "投彈兵", "醫者", "鼓手", "狂戰士"]
+const BLURB := [
+	"破盾、被刺客打會反擊",
+	"正面擋箭、頂住衝鋒、拒馬（打騎兵×2）、嘲諷近戰",
+	"遠程拋射、優先射現形刺客（傷害×1.5）",
+	"直衝 3 格後重擊、皮甲（箭傷減半）、繞過盾兵找弓手",
+	"開場潛行、背刺×2、絆馬",
+	"長柄 1.3 格、隔著前排出手、拒騎",
+	"拋火罐範圍傷害、無視舉盾、被貼身只能敲人",
+	"補附近血最少的友軍、友軍在時不出手",
+	"附近友軍攻速提升、友軍在時不出手",
+	"打中盾兵／長槍兵讓它破陣（嘲諷、舉盾、拒騎失效）",
+]
+
+# ─── 基本數值 ───
+#   cost  ＝ 價錢（金）
+#   hp    ＝ 血量
+#   atk   ＝ 每次攻擊傷害
+#   cd    ＝ 攻擊間隔（tick；20＝1 秒）
+#   reach ＝ 攻擊距離（中心到中心；1000＝1 格）
+#   speed ＝ 移動速度（千分之一格／tick；50＝每秒 1 格）
+const STATS := [
+	{"cost": 5, "hp": 250, "atk": 10, "cd": 20, "reach": 700, "speed": 60},   # 劍士
+	{"cost": 5, "hp": 450, "atk": 6, "cd": 24, "reach": 700, "speed": 45},    # 盾兵
+	{"cost": 4, "hp": 150, "atk": 12, "cd": 24, "reach": 6000, "speed": 50},  # 弓箭手
+	{"cost": 7, "hp": 350, "atk": 14, "cd": 22, "reach": 750, "speed": 120},  # 騎兵
+	{"cost": 6, "hp": 175, "atk": 20, "cd": 16, "reach": 700, "speed": 90},   # 刺客
+	{"cost": 5, "hp": 260, "atk": 10, "cd": 22, "reach": 1300, "speed": 50},  # 長槍兵
+	{"cost": 6, "hp": 150, "atk": 16, "cd": 40, "reach": 5500, "speed": 45},  # 投彈兵（丟彈；被貼身改敲人見下方）
+	{"cost": 6, "hp": 180, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 醫者（攻擊只在全隊剩支援兵時用）
+	{"cost": 5, "hp": 200, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 鼓手（同上）
+	{"cost": 6, "hp": 300, "atk": 11, "cd": 20, "reach": 700, "speed": 60},   # 狂戰士
+]
+
+# ─── 劍士 ───
+const BREAKER_NUM := 3          # 破盾：打盾兵的傷害 ×3/2
+const BREAKER_DEN := 2
+const COUNTER_PCT := 100        # 反擊：被刺客打到立刻回砍，傷害＝劍士攻擊的 100%
+
+# ─── 盾兵 ───
+const BLOCK_NUM := 1            # 舉盾：正面被弓箭射中，傷害 ×1/4
+const BLOCK_DEN := 4
+const STUN_TICKS := 20          # 頂住：正面被衝鋒的騎兵暈 20 tick（1 秒）
+const TAUNT_RANGE := 2000       # 嘲諷：2 格內的近戰敵人優先打盾兵
+const ANTICAV_NUM := 2          # 拒馬：盾兵打騎兵 ×2/1
+const ANTICAV_DEN := 1
+
+# ─── 弓箭手 ───
+const ALERT_NUM := 3            # 警覺：射刺客 ×3/2
+const ALERT_DEN := 2
+
+# ─── 騎兵 ───
+const CHARGE_NEED := 3000       # 衝鋒：連續直行 3 格後的第一擊
+const CHARGE_NUM := 5           # 衝鋒傷害 ×5/2
+const CHARGE_DEN := 2
+const KNOCKBACK := 500          # 衝鋒擊退 0.5 格
+const FLANK_DETECT := 1500      # 繞翼：衝向弓手的直線 1.5 格內有盾兵就繞
+const FLANK_OFFSET := 2000      # 繞翼往上／下偏 2 格
+const FLANK_EDGE_MARGIN := 250  # 途經點至少離上下邊界 EDGE＋0.25 格，避免貼牆和推擠互卡
+const WP_REACHED := 400         # 離途經點 0.4 格內＝完成這次繞翼（永久，不會再回頭）
+const CHASE_HYST := 150         # 騎兵追擊遲滯：超出攻擊距離才起步，追到 reach−0.15 格才停
+const HIDE_ARROW_NUM := 1       # 皮甲：騎兵被弓箭射中 ×1/2
+const HIDE_ARROW_DEN := 2
+
+# ─── 刺客 ───
+const STEALTH_TICKS := 40       # 潛行：開場 40 tick（2 秒）不能被指定、不碰撞
+const BEHIND_DIST := 600        # 潛行時繞到目標背後 0.6 格的位置
+const BACKSTAB_NUM := 2         # 背刺：從背後攻擊 ×2（無視舉盾）
+const BACKSTAB_DEN := 1
+const SLOW_TICKS := 20          # 絆馬：打到騎兵讓它減速 20 tick
+const SLOW_NUM := 1             # 減速後速度 ×1/2
+const SLOW_DEN := 2
+
+# ─── 長槍兵（第四輪）───
+const PIKE_ANTICAV_NUM := 2     # 長槍兵打騎兵 ×2
+const PIKE_ANTICAV_DEN := 1
+# 拒騎：騎兵從正面衝鋒打到長槍兵時，衝鋒倍率和擊退都不生效（衝鋒照樣消耗）
+
+# ─── 投彈兵（第四輪）───
+const BOMB_MIN := 1500          # 最短射程 1.5 格：最近的可見敵人比這近，這一 tick 就改敲人
+const SPLASH_R := 900           # 爆炸半徑：主目標 0.9 格內的其他敵人吃波及
+const SPLASH_DMG := 8           # 波及傷害
+const SPLASH_MAX := 3           # 最多波及幾隻
+const BOMB_SHIELD_NUM := 5      # 火罐專拆盾牆：主擊與波及打盾兵 ×5/2（第四輪平衡：沒有這條時投彈兵打不贏盾兵為主的陣）
+const BOMB_SHIELD_DEN := 2
+const BONK_ATK := 8             # 敲人：攻擊、距離、間隔
+const BONK_REACH := 700
+const BONK_CD := 24
+
+# ─── 醫者（第四輪）───
+const HEAL_AMT := 19            # 每次補血量（狂熱時減半）
+const HEAL_CD := 30             # 補血間隔（tick），不吃任何加速
+const HEAL_FIRST := 20          # 開戰後第一次補血前的等待
+const HEAL_RANGE := 3000        # 補血距離
+# 支援走位（醫者、鼓手）：跟隨點往自己底線退 1 格、離目的地 0.3 格內就停
+const SUPPORT_BACK := 1000
+const SUPPORT_STOP := 300
+
+# ─── 鼓手（第四輪）───
+const DRUM_RANGE := 2100        # 光環 2.1 格（含自己）
+const DRUM_BONUS := 2           # 冷卻每 tick 多扣 2（不疊加；平常扣 4）
+const DEC_CAP := 7              # 冷卻每 tick 扣除上限（平常 4／狂熱 5＋背水＋戰鼓）
+
+# ─── 狂戰士（第四輪）───
+const BREACH_TICKS := 60        # 破陣：打中盾兵／長槍兵後 3 秒內嘲諷、正面舉盾、拒騎失效（重複打中刷新）
+const BREACH_SPREAD := 1000     # 破陣擴散：目標 1 格內的其他敵方盾兵／長槍兵一起破陣（劈開一段牆）
+const BREACH_VULN_NUM := 3      # 破陣中受到的所有傷害 ×3/2（第四輪平衡：讓「替隊友開路」真的有用）
+const BREACH_VULN_DEN := 2
+const BERSERK_ARROW_NUM := 5    # 沒穿甲：被弓箭射中 ×5/4
+const BERSERK_ARROW_DEN := 4
+# 不被擊退：騎兵衝鋒的擊退對狂戰士無效
+
+# ─── 全場規則 ───
+const MATCH_TICKS := 1800       # 一局最長 90 秒
+const FRENZY_TICK := 1200       # 60 秒起狂熱
+const FRENZY_CD_RATE := 5       # 狂熱時冷卻每 tick 扣 5（平常 4）＝攻速 ×5/4
+const ATTRITION_STEP_PCT := 2   # 狂熱耗損：第 k 次（k＝0～5，每 5 秒一次）扣 (k+1)×2% 滿血
+const MIN_SEP := 450            # 兵與兵最小間距 0.45 格
+const RALLY_RATIO_PCT := 60     # 背水（追趕機制）：自己的剩餘戰力 < 對方的這個百分比時觸發；0＝關閉。11/01 實驗 5 組後採用 60%／+2
+const RALLY_CD_BONUS := 2       # 背水時冷卻每 tick 多扣幾：平常 4→6（攻速約 ×1.5）、狂熱 5→7（約 ×1.4）；實際間隔取整到 tick
+
+static var _digest := ""
+
+## 數值摘要：本檔所有常數的 SHA-256 前 16 碼。遊戲、AI、平衡工具、重播都記錄它，證明跑的是同一份數值。
+static func data_digest() -> String:
+	if _digest == "":
+		var m: Dictionary = load("res://scripts/core/unit_defs.gd").get_script_constant_map()
+		# 常數名稱是 StringName，直接排序是比記憶體位址、不是字母順序 → 先轉成 String 再排
+		var pairs: Array = []
+		for k in m:
+			pairs.append([String(k), m[k]])
+		pairs.sort_custom(func(a, b): return a[0] < b[0])
+		var txt := ""
+		for pr in pairs:
+			txt += "%s=%s;" % [pr[0], var_to_str(pr[1])]
+		_digest = txt.sha256_text().substr(0, 16)
+	return _digest
+
+## 每種兵一格的 0 陣列（取代到處寫死的 [0, 0, 0, 0, 0]）。
+static func zeros() -> Array:
+	var a: Array = []
+	a.resize(total())
+	a.fill(0)
+	return a
+
+# 第八輪：新兵在 fantasy_defs.gd。這裡不能用 const preload（常數會進舊的數值摘要），一律走下面的函式。
+static var _f8 = null
+
+static func f8():
+	if _f8 == null:
+		_f8 = load("res://scripts/core/fantasy_defs.gd")
+	return _f8
+
+## 可以擺的兵種總數（新舊合計）。COUNT 維持 10：舊規則、舊 AI 的迴圈都靠它不變。
+static func total() -> int:
+	return 20
+
+static func stat(t: int) -> Dictionary:
+	return STATS[t] if t < COUNT else f8().STATS[t - COUNT]
+
+static func name_of(t: int) -> String:
+	return NAMES[t] if t < COUNT else f8().NAMES[t - COUNT]
+
+## 用到新兵的場次用的數值摘要。舊場次仍是 data_digest()，一個位元組都不變。
+static var _digest_v8 := ""
+static func digest_v8() -> String:
+	if _digest_v8 == "":
+		var m: Dictionary = f8().get_script_constant_map()
+		var pairs: Array = []
+		for k in m:
+			pairs.append([String(k), m[k]])
+		pairs.sort_custom(func(a, b): return a[0] < b[0])
+		var txt := data_digest()
+		for pr in pairs:
+			txt += "%s=%s;" % [pr[0], var_to_str(pr[1])]
+		_digest_v8 = txt.sha256_text().substr(0, 16)
+	return _digest_v8
+
+static func uses_new(armies: Array) -> bool:
+	for a in armies:
+		for u in a.units:
+			if int(u["type"]) >= COUNT:
+				return true
+	return false
+
+static func version_of(armies: Array) -> String:
+	return "1.4.1" if uses_new(armies) else RULES_VERSION   # 1.4.1：第十二輪吸塵貓改成拉向自己
+
+static func digest_of(armies: Array) -> String:
+	return digest_v8() if uses_new(armies) else data_digest()
+
+## 結果頁、老兵筆記把生出來的兵算回母體的兵種。
+static func report_type(t: int) -> int:
+	return 13 if t == 20 else (17 if t == 21 else t)
+
+static func cost(t: int) -> int:
+	return stat(t)["cost"]
+
+static func is_melee(t: int) -> bool:
+	return t != ARCHER and t != BOMBER and t != 17   # 17＝骷髏法師
+
+## 支援兵（第四輪）：隊上還有戰鬥兵活著時不攻擊，只做支援走位。
+static func is_support(t: int) -> bool:
+	return t == MEDIC or t == DRUMMER or t == 16   # 16＝沙漏精靈
+
+## 戰鬥兵：開戰至少要有 1 隻。支援兵和奇襲兵（孢子菇、爆爆羊、寶箱怪）都不算。
+static func is_combat(t: int) -> bool:
+	return not is_support(t) and t != 10 and t != 11 and t != 12
+
+## 一隊的硬上限（0＝沒有）。
+static func hard_cap(t: int) -> int:
+	return 0 if t < COUNT else int(f8().HARD_CAP.get(t, 0))
+
+static func cheapest() -> int:
+	var c := 999
+	for s in STATS:
+		c = mini(c, s["cost"])
+	return c
+extends RefCounted
+## 第八輪奇幻兵團的數值與常數。獨立成一個檔案：unit_defs.gd 的常數決定舊場次的數值摘要，一個都不能動。
+## 兵種編號 10～19 可以擺；20、21 是戰鬥中才生出來的。
+
+const FIRST := 10
+const TOTAL := 20               # 可以擺的兵種總數
+const DRAW_TOTAL := 22          # 含生出來的小史萊姆、骷髏（圖集要畫）
+const ROSTER_MAX := 10          # 一局每邊最多幾種兵（出戰名單）
+
+const SPORE := 10
+const SHEEP := 11
+const MIMIC := 12
+const SLIME := 13
+const GHOST := 14
+const DOLL := 15
+const SPRITE := 16
+const BONE := 17
+const CAT := 18
+const GOLEM := 19
+const MINI_SLIME := 20
+const SKELETON := 21
+
+const NAMES := ["孢子菇", "爆爆羊", "寶箱怪", "史萊姆", "幽靈", "巫毒娃娃", "沙漏精靈", "骷髏法師", "吸塵貓", "小石魔", "小史萊姆", "骷髏"]
+const STATS := [
+	{"cost": 5, "hp": 360, "atk": 9, "cd": 20, "reach": 2200, "speed": 0},    # 孢子菇：atk＝毒傷、cd＝毒傷間隔、reach＝毒圈
+	{"cost": 3, "hp": 110, "atk": 50, "cd": 20, "reach": 500, "speed": 110},  # 爆爆羊：atk＝爆炸傷害（第十二輪：4 金 55 傷→3 金 50 傷）；碰到就炸
+	{"cost": 5, "hp": 340, "atk": 15, "cd": 22, "reach": 700, "speed": 45},   # 寶箱怪
+	{"cost": 5, "hp": 240, "atk": 9, "cd": 24, "reach": 700, "speed": 45},    # 史萊姆
+	{"cost": 6, "hp": 200, "atk": 15, "cd": 20, "reach": 700, "speed": 85},   # 幽靈
+	{"cost": 5, "hp": 250, "atk": 6, "cd": 24, "reach": 700, "speed": 40},    # 巫毒娃娃
+	{"cost": 5, "hp": 180, "atk": 3, "cd": 24, "reach": 700, "speed": 50},    # 沙漏精靈（支援）
+	{"cost": 6, "hp": 170, "atk": 8, "cd": 24, "reach": 4000, "speed": 45},   # 骷髏法師
+	{"cost": 5, "hp": 260, "atk": 12, "cd": 22, "reach": 700, "speed": 50},   # 吸塵貓
+	{"cost": 8, "hp": 820, "atk": 24, "cd": 36, "reach": 800, "speed": 30},   # 小石魔（第十二輪：9→8 金；移速是特色，不動）
+	{"cost": 0, "hp": 85, "atk": 5, "cd": 24, "reach": 700, "speed": 45},     # 小史萊姆（戰力 0：時間到不灌水）
+	{"cost": 0, "hp": 130, "atk": 8, "cd": 24, "reach": 700, "speed": 50},    # 骷髏（hp 依屍體重算）
+]
+## 一隊的硬上限：擋單兵種全買，也決定生兵配額。
+const HARD_CAP := {SPORE: 6, SHEEP: 8, MIMIC: 6, SLIME: 8, GHOST: 8, DOLL: 4, SPRITE: 3, BONE: 3, CAT: 3, GOLEM: 2}
+## 奇襲兵：不算戰鬥兵，要另外帶主力。
+const RAID := [SPORE, SHEEP, MIMIC]
+
+# 孢子菇
+const SPORE_DMG := 9           # 圖鑑顯示用；實際值在 STATS
+const SPORE_SLOW_PCT := 70      # 圈內移速 ×70%
+# 爆爆羊
+const BLAST_R := 1500           # 撞上爆炸半徑，只傷敵
+const DEATH_BLAST_R := 1200     # 半路被打死的爆炸半徑，友敵都傷
+const BLAST_CAP := 2            # 一隻單位一 tick 最多吃幾次羊爆
+# 寶箱怪
+const MIMIC_TRIGGER := 1500     # 敵兵進這個距離就現身
+const BITE_DMG := 120
+const BITE_HEAL := 60
+# 史萊姆
+const SLIME_KIDS := 2
+const SLIME_OFFSET := 350
+# 幽靈
+const GHOST_MELEE_NUM := 5      # 受近戰 ×5/4
+const GHOST_MELEE_DEN := 4
+# 巫毒娃娃
+const DOLL_LANE := 1500         # 同列走廊半寬
+const DOLL_REBIND := 60         # 對方死後 3 秒重綁
+# 沙漏精靈
+const SPRITE_R := 2500
+const SPRITE_LOW_PCT := 35
+const SPRITE_NEED := 2          # 範圍內至少幾隻殘血才放
+const SPRITE_STUN := 50         # 敵兵暈 2.5 秒
+const SPRITE_GUARD := 50        # 友軍減傷 2.5 秒
+const WINDUP := 20              # 大招前搖 1 秒
+# 骷髏法師
+const BONE_CD := 70             # 每 3.5 秒
+const BONE_R := 5000           # 法師本來就站在 4 格外，3 格碰不到前排的屍體
+const BONE_KIDS := 3
+const BONE_HP_PCT := 50
+const BONE_HP_CAP := 110
+# 吸塵貓
+const CAT_CD := 100             # 每 5 秒（第十二輪：原本 6 秒）
+const CAT_R := 4500             # 第十二輪：3.5→4.5 格，吸得到更多人
+const CAT_STOP := 900           # 第十二輪：拉向貓本身，到這個距離就停（原本拉向身前 1 格，貼身的敵人會被推開）
+const CAT_PULL := 2000          # 第十二輪：每隻最多拉 2 格（原本 1.2）
+const CAT_PULL_TICKS := 12      # 分 12 tick 拉完（畫面看得到被吸過去）；這段時間不能出手
+# 小石魔
+const GOLEM_CD := 80            # 第十二輪：每 4 秒（原本 5）
+const GOLEM_R := 1500           # 第十二輪：1.2→1.5 格
+const GOLEM_STOMP := 3          # 第十二輪：拍地範圍傷害（原本沒有）；傷害 10 時勝率 78%，3 時 58%
+const GOLEM_KNOCK := 800
+const ROCK_R := 1500
+const ROCK_TICKS := 400
+const ROCK_SLOW_PCT := 60       # 碎石區移速 ×60%
+const SKILLS := ["poison", "blast", "bite", "split", "ghost", "voodoo", "timestop", "raise", "vacuum", "stomp"]
+const FIRST_CD := 40            # 大招開場等 2 秒
+
+ succeeded in 95ms:
+game/scripts/ui/art.gd:58:static func windup_lean(type: int) -> float:
+game/scripts/core/battle_sim.gd:89:	var windup := 0            # 大招前搖（tick）
+game/scripts/core/battle_sim.gd:619:	var attacked := PackedByteArray()
+game/scripts/core/battle_sim.gd:620:	attacked.resize(n)
+game/scripts/core/battle_sim.gd:679:			hits.append([i, u.target, _vuln(tg, u.atk * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if tg.type == D.SHIELD else u.atk), EV.BOMB, [EV.BOMB]])
+game/scripts/core/battle_sim.gd:684:			attacked[i] = 1
+game/scripts/core/battle_sim.gd:691:			attacked[i] = 1
+game/scripts/core/battle_sim.gd:699:		var kind: String = EV.HIT
+game/scripts/core/battle_sim.gd:779:			tags.append(EV.HIT)
+game/scripts/core/battle_sim.gd:783:		attacked[i] = 1
+game/scripts/core/battle_sim.gd:920:		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
+game/scripts/core/battle_sim.gd:1255:			u.windup = 0       # 被暈就取消前搖，冷卻不退
+game/scripts/core/battle_sim.gd:1257:		if u.windup > 0:
+game/scripts/core/battle_sim.gd:1258:			u.windup -= 1
+game/scripts/core/battle_sim.gd:1259:			if u.windup == 0:
+game/scripts/core/battle_sim.gd:1294:	u.windup = F8.WINDUP
+game/scripts/core/battle_sim.gd:1675:			u.link, u.link_wait, u.skill_cd, u.windup, 1 if u.used else 0, u.guard, u.zone, u.pull_x, u.pull_y, u.pull_t, u.max_hp]))
+game/scripts/core/battle_sim.gd:1809:		events.append({"kind": EV.HEAL, "src": units[h[0]].id, "tgt": tg.id, "amt": real, "tags": [EV.HEAL]})
+game/scripts/core/battle_sim.gd:1839:func pick_counter(si: int, attackers: Array) -> int:
+game/scripts/core/battle_sim.gd:1845:	for ai in attackers:
+# 落子無悔 V1.4.0 實作方案：18 個方向全做（進度見 §3）
+
+> 2026-11-08。使用者選「每一項都完整規劃、全做」。候選與三方評分在 `docs/2026-11-08-v1.4.0-directions.md`；過程在 `coordination/v140-*`；裁決 `coordination/v140-ledger.md`。
+> 進行方式：每一大項先寫細節、再實作、測試、看截圖，然後三方審查至少一輪，修完提交推送。全部做完後三方討論三輪才收尾。
+
+## 0. 共同原則
+- 舊對戰碼、重播、殘局解不能變（`FINGERPRINT b8fe741bcbfcf800`、數值摘要 `288176c5c9af5a79`）。會改戰鬥的玩法一律走新規則欄位，缺欄位走舊路。
+- 畫面延續 V1.2～1.3 的「桌上戰棋沙盤」：木框、羊皮紙、墨字、手繪線條；新畫面不能長得像除錯工具。
+- 版面要簡潔：每個畫面一個主要動作，次要資訊放到第二層；兩語三字級、簡化介面、色盲、手把都要過版面檢查。
+- 零預算：程式繪製、程式合成音效；需要真人或後台的部分（Steam 排行榜、母語校對、Deck 實機）做到能做的最遠，剩下交給使用者。
+
+## 1. 順序（依相依與成本）
+1 時光機 → 3 契約 → 2 宿敵 → 4 軍令連鎖 → 5 接力殘局 → 6 最小成本 → 14 戰報卡 → 16 競猜／輪抽 → 8 指揮官 → 9 木座貼紙 → 11 車輪戰 → 10 沙盤機關 → 13 雙封蠟 → 12 巨型頭目 → 15 塗裝收藏 → 17 簡中日文 → 18 Deck／觸控 → 7 幽靈軍團
+
+## 2. 各項細節
+
+### #1 戰術時光機／一子之差
+- **現況**：輸了以後的「覆盤」已經可以改一隻兵、重算、比較兩條走勢、播放「如果」。
+- **新增**
+  - 重播暫停時出現「時光機：回到開戰前改一隻兵」，直接進覆盤。
+  - 覆盤算出兩條時間線第一次不一樣的那一秒，在兩張走勢圖上畫分岔記號，並寫出「第 N 秒開始分岔」。
+  - 播放「如果」時從分岔前 2 秒開始；原本那條時間線同步在跑，兵的位置畫成地上的白圈（隊伍色小點）。看得出哪裡開始不一樣。
+- **規則碼**：不動（覆盤本來就只看不算）。
+- **驗收**：分岔計算與時間線同步的測試；覆盤截圖兩語三字級。
+
+### #3 戰利品契約
+- 遠征每戰前多一個選項「簽契約」，從 3 份抽出的契約選 0～1 份。
+  - 例如：不准帶遠程、只能帶 N 種兵、要在 45 秒內打完、我方少 10 金。
+  - 達成就拿額外報酬：多一次事件三選一，或下一戰多 10 金。
+- 判定只看戰前配置與戰後狀態，不改模擬（和殘局目標同一套判定）。
+- 介面：在遠征的戰前節點下方放一張羊皮紙契約卡，打勾簽名；結果頁顯示「契約達成／失敗」。
+
+### #2 宿敵戰記
+- 遠征裡打敗你的那個敵陣會被記成「宿敵」：取一個稱號（例如「雙橋的長槍牆」），存它的陣型、規則與你輸的次數。
+- 之後的遠征有機率在菁英節點遇到它：它會強化（+10 金、AI 高一級），開戰前有一張宿敵卡。
+- 打贏就是「復仇」，寫進戰績頁的戰記。
+- 不改模擬：宿敵就是存下來的敵陣＋既有的遠征加成參數。
+
+### #4 軍令連鎖
+- 新的殘局章「軍令」10 關：關卡給定手動技能、次數與冷卻，玩家在時間軸上排 3 道施放時間，解連鎖。
+- 時間軸介面要做成可拖曳的木刻度尺。
+- 沿用既有的手動技能與定時施放紀錄（第 9 章已有腳本），規則碼已存在。
+
+### #5 接力殘局
+- 殘局工坊碼加一條修改鏈。破了朋友的題之後，可以「只改兩隻兵」做成新題傳回去。
+- 碼裡帶上一手的作者解與修改次數。
+- 新前綴 `NTP2.`，舊 `NTP1.` 照舊能用。
+
+### #6 最小成本懸賞
+- 每一關記下你的最佳「花費／兵數／時間」三項。
+- 結果頁畫一張本地分佈圖：曲線是隨機擺法基準，上面標你的位置。
+- 全球榜要接 #7，列為後續。
+
+### #14 戰報明信片／GIF
+- 結果頁「做成明信片」：把翻盤瞬間的截圖、雙方陣型縮圖、勝負、重播碼排成一張羊皮紙卡，存成 PNG。
+- GIF 用程式自己編碼：最多 3 秒、低幀數、調色盤量化，放進使用者資料夾。
+
+### #16 觀戰競猜／輪抽
+- **競猜**：系統用 AI 生成兩軍，看完陣型押誰贏、押剩多少，答對累積「眼力」分數。
+- **輪抽**：雙方輪流從 8 張的公池各抽一張，擺陣開打（對 AI 或雙人）。
+
+### #8 指揮官
+- 開戰前選一位將軍（6 位），每位一個全軍被動，加一次性主動（沿用手動技能槽）。
+- 例如：「鐵壁伯爵：前排盾兵受傷 −15%」「疾風將軍：開場 5 秒全軍移速 +20%」。
+- 要新規則欄位 `cmdr`，有選才走新碼，徽章「娛樂」。
+
+### #9 木座貼紙
+- 遠征獎勵與自訂規則可以給單隻兵貼一張貼紙（12 種），例如：開局衝鋒、倒下自爆、第一次受擊無效、攻擊附減速。
+- 要新規則欄位，並記在陣型資料裡；新的軍隊碼前綴。
+
+### #11 多波車輪戰
+- 新模式：擺一次陣，迎接 3 波敵軍，殘兵不回血（可選一次整備：補 2 隻）。
+- 要新規則欄位 `waves`；每波是一般對戰，殘兵帶到下一波。
+
+### #10 沙盤機關
+- 地圖可帶「定時機關」：第 N 秒某幾格崩塌成擋路、火牆燒 3 秒、推撞板把格上的兵推 1 格。
+- 開戰前畫在地圖上，附倒數。
+- 要新規則欄位與動態尋路，只在新地圖變體出現。
+
+### #13 雙封蠟戰書
+- 雙人模式變體：雙方各擺 3 個陣，封蠟後依序兩兩揭曉交鋒，三戰兩勝。
+- 本機輪流用暗擺，延用既有雙人暗擺流程。
+
+### #12 多格巨型頭目
+- 遠征終點的頭目：佔 2×2 的巨獸，有前臂與背甲兩個部位（各自血量，打掉會失去對應能力），會橫掃。
+- 要新的單位型別與碰撞半徑（以大半徑近似多格，避免重寫網格），只在新規則下出現。
+
+### #15 塗裝與收藏
+- **塗裝室**：每支軍隊選底漆色、漬洗深淺、乾掃亮度、木座材質（4 種）、桌布（4 種），用烘焙時的調色參數實作。
+- 只影響外觀，有保存。
+- 解鎖靠成就與挑戰。
+
+### #17 簡中、日文
+- 依 `docs/localization.md`：
+  - 加兩欄字串，翻譯先由 AI 產生、標「未校對」。
+  - 字型用 Resource Han Rounded CN 與源泉圓體 JP（OFL）子集。
+  - 日文加行首禁則。
+  - 版面矩陣加兩語。
+- 母語校對交給使用者。
+
+### #18 Steam Deck／觸控
+- 觸控：點選＝左鍵、長按＝右鍵、雙指縮放戰場。
+- 字級在 1280×800 最小 12px。
+- 手把流程走過全部新畫面。
+- 實機驗收交給使用者。
+
+### #7 幽靈軍團＋每週棋盒
+- **幽靈**：玩家把自己的陣（軍隊碼）上傳到 Steam 排行榜附檔，打的時候從排行榜抓別人的陣。
+- **沒有 Steam 時的本地版**：內建 30 個「名人幽靈陣」，由 AI 產生並凍結。
+- **每週棋盒**：每週固定卡池與預算，本地紀錄最佳成績；接上 Steam 後同一題可以比排行榜。
+- 後台設定與實測交給使用者，不跑 `--steam-test`。
+
+## 3. 進度
+| # | 項目 | 狀態 | 三方 | 備註 |
+|---|---|---|---|---|
+| 1 | 時光機 | 完成 | 1 輪 | 重播暫停按鈕、分岔秒數與貫穿兩圖的金色粉筆線、從分岔前 2 秒播「如果」、原本時間線畫米白粉筆虛線圈 |
+| 3 | 契約 | 完成 | 1 輪 | 6 份契約、每站抽 2＋不簽；羊皮紙籤＋紅火漆章；每戰結束結算；代價會修剪超額陣型；續局存檔 |
+| 2 | 宿敵 | 完成 | 1 輪 | 輸了記下敵陣、取稱號；菁英站 60% 攔路＋多帶一隻最貴兵（守兵種上限）；木牌寫名號；戰記頁「雪恥」印章 |
+| 4 | 軍令連鎖 | 完成 | 1 輪 | 多技能關卡格式（tick×8＋技能）、木刻度尺時間軸（拖曳、◀▶ 微調、冷卻帶、敵方紅旗、連鎖弧線）；第 12 章「軍令連鎖」10 關全部求出解並訂星 |
+| 5 | 接力殘局 | 完成 | 1 輪 | NTP2 帶棒次；最多改兩格敵兵、你的陣還要贏；編輯時看得到自己的藍軍 |
+| 6 | 最小成本 | 完成（本地） | 1 輪 | 每關三項最佳、結果頁事實列、破紀錄金字、殘局卡顯示最佳花費；全球榜待 #7 |
+| 14 | 戰報卡／GIF | 完成 | 1 輪 | 羊皮紙戰報卡（快照、戰果、暗金框、紅印章）存 PNG、複製重播碼；重播中錄 3 秒 GIF（自寫編碼器） |
+| 16 | 競猜／輪抽 | 完成 | 1 輪 | 標題「遊戲間」：觀戰競猜（眼力分）、輪抽（各抽 4 張當卡池） |
+| 8 | 指揮官 | 完成 | 1 輪 | 大廳技能分頁六位將軍（軍令組合＋開局金），不新增規則碼 |
+| 9 | 木座貼紙 | 完成 | 1 輪 | 6 種（開局衝鋒、倒下自爆、護符、寒霜、鐵皮、迅捷）；存在 NTB6 每隻第 4 位元組（不新增規則欄位）；遠征「木座貼紙」事件；木座右前方小圓貼；數值從常數帶入說明 |
+| 11 | 車輪戰 | 完成 | 1 輪 | 遊戲間第三張卡：擺一次陣迎三波（敵 70／90／110 金）；殘兵鎖在原格、多 15 金補兵；擺陣頁常駐波數；不改模擬 |
+| 10 | 沙盤機關 | 完成 | 1 輪 | 三張新地圖：崩塌礦坑（20 秒中路崩成擋路、重算導航）、烽火關（中線火牆兩次各 3 秒）、推進板（兩次把兵往前推一格）；倒數牌、碎石、火焰、木板 |
+| 13 | 雙封蠟 | 完成 | 1 輪 | 遊戲間第四張卡：雙人各暗封三陣、一戰揭一封、三戰兩勝（平手不加賽）；揭封後鎖定可看再開戰；不改模擬 |
+| 12 | 巨型頭目 | 完成 | 1 輪 | 遠征終點「巨獸」：石魔為底、血×2、大碰撞半徑、橫掃；背甲分攤 35%、前臂分攤近戰 50%，打掉失去能力；試算後敵方少 42 金（隨機陣勝率約 25～50%） |
+| 15 | 塗裝收藏 | 完成 | 1 輪 | 戰績頁「塗裝室」：兩軍各 4 種同色系底漆、漬洗／乾掃 3 段（烘圖集時的陰影／亮邊參數）、木座 4 種木料、棋盤框 4 種；成就數解鎖；色盲時不換色 |
+| 17 | 簡中日文 | 完成（未校對） | 1 輪 | 簡中：OpenCC 台→陸用語轉換；日文：Codex 翻 1,600 筆（佔位符全對）；字型 Resource Han Rounded CN、源泉圓體 JP 子集；日文行首禁則；設定頁標「AI 翻譯・未校對」；版面矩陣加兩語 |
+| 18 | Deck／觸控 | 完成（待實機） | 1 輪 | 長按 0.5 秒＝右鍵（短震）、雙指與觸控板捏合縮放戰場；原生 1280×800、最小字 14px；手把流程隨版面檢查；實機清單 `docs/release/deck-checklist.md` |
+| 7 | 幽靈軍團 | 完成（Steam 待實測） | 1 輪 | 30 個名人幽靈陣（各 AI 模板對 30 支隨機軍勝率挑選、依模板命名）、打贏蓋「破」；每週棋盒（週一換題、6 種兵卡池、預算、幽靈對手、本地最省紀錄）；排行榜上傳／下載程式（附加資料放陣型）未實測 |
+game/scripts/ui/battle_view.gd:10:			_sim_step(false)
+game/scripts/ui/battle_view.gd:11:		result_delay = 9.0
+game/scripts/ui/battle_view.gd:16:func _skip_step() -> void:
+game/scripts/ui/battle_view.gd:17:	var t0 := Time.get_ticks_msec()
+game/scripts/ui/battle_view.gd:18:	while not view.finished and Time.get_ticks_msec() - t0 < 10:
+game/scripts/ui/battle_view.gd:19:		_sim_step(false)
+game/scripts/ui/battle_view.gd:22:		result_delay = 9.0
+game/scripts/ui/battle_view.gd:71:		_skip_step()
+game/scripts/ui/battle_view.gd:90:		_sim_step(true)
+game/scripts/ui/battle_view.gd:92:			break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
+game/scripts/ui/battle_view.gd:94:	# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
+game/scripts/ui/battle_view.gd:114:		result_delay += delta
+game/scripts/ui/battle_view.gd:115:		if result_delay > 1.4:
+game/scripts/ui/battle_view.gd:126:		clutch_tick = view.tick
+game/scripts/ui/battle_view.gd:127:		battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
+game/scripts/ui/battle_view.gd:152:## 第十輪 F1：模擬領先畫面 DELAY 個 tick，已知全滅就在倒下前放慢。和局、逾時、同歸於盡都不演。
+game/scripts/ui/battle_view.gd:162:## 畫面前進一個 tick：模擬保持領先 DELAY 個 tick，畫面播最舊的那一份快照（R5 展示緩衝）。
+game/scripts/ui/battle_view.gd:163:func _sim_step(with_fx: bool) -> void:
+game/scripts/ui/battle_view.gd:173:	_gait_tick(with_fx)
+game/scripts/ui/battle_view.gd:175:	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+game/scripts/ui/battle_view.gd:193:		_collect_mark(ev, view, view.tick)
+game/scripts/ui/battle_view.gd:203:## 模擬往前補到領先 DELAY 個 tick；新進緩衝的攻擊事件先記下命中 tick，畫面就能在命中前開始演前搖。
+game/scripts/ui/battle_view.gd:210:				ah[int(fr["tick"])] = true
+game/scripts/ui/battle_view.gd:216:				hs.append(int(fr["tick"]))
+game/scripts/ui/battle_view.gd:218:					# 投彈兵（第四輪 §4.4）：記下命中 tick → 目標，前搖期間畫火罐飛過去，命中那一刻剛好落地
+game/scripts/ui/battle_view.gd:220:					bt[int(fr["tick"])] = e["tgt"]
+game/scripts/ui/battle_view.gd:224:				# 每隻單位的第幾次出手（交替招式用，Codex S4 #2：原本用 tick 奇偶，連續反擊會同招）
+game/scripts/ui/battle_view.gd:226:				sq[int(fr["tick"])] = sq.size()
+game/scripts/ui/battle_view.gd:270:var last_blast_tick := -99   # V1.1 B2：連環爆偵測（用模擬 tick，8 tick＝0.4 秒；開戰與跳轉時重置）
+game/scripts/ui/battle_view.gd:308:				if view.tick - last_blast_tick <= 8 and _fx_on("shake"):
+game/scripts/ui/battle_view.gd:310:				last_blast_tick = view.tick
+game/scripts/ui/battle_view.gd:416:	battle_marks.append({"tick": view.tick, "kind": "cmd", "team": tm})
+game/scripts/ui/battle_view.gd:463:			var wait: int = int(sim.cmd_ready[tm][s]) - sim.tick
+game/scripts/ui/battle_view.gd:693:	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
+game/scripts/ui/battle_view.gd:699:		if pt_call_tick < 0:
+game/scripts/ui/battle_view.gd:700:			_btn(Rect2(780, 2, 162, 36), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
+game/scripts/ui/battle_view.gd:724:	clutch_tick = -1
+game/scripts/ui/battle_view.gd:738:			return pre.tick
+game/scripts/ui/battle_view.gd:768:	_pump_view()   # 開場先預填 DELAY 個 tick
+game/scripts/ui/battle_view.gd:786:	last_blast_tick = -99
+game/scripts/ui/battle_view.gd:789:	result_delay = 0.0
+game/scripts/ui/battle_view.gd:790:	pt_call_tick = -1
+game/scripts/ui/view_buffer.gd:2:## 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。
+game/scripts/ui/view_buffer.gd:3:## 模擬先跑，每個 tick 存一份「畫面需要的狀態」快照＋事件；畫面依展示時鐘一格一格播。
+game/scripts/ui/view_buffer.gd:4:## 這樣命中事件在畫面上發生前 DELAY 個 tick 就知道了，可以先演前搖；
+game/scripts/ui/view_buffer.gd:34:	var breach: int            # 第四輪：被破陣剩幾 tick
+game/scripts/ui/view_buffer.gd:44:var tick := 0
+game/scripts/ui/view_buffer.gd:48:var finished := false          # 畫面已經播到模擬的最後一 tick
+game/scripts/ui/view_buffer.gd:51:var max_ticks := 1800          # 第五輪：這一局的長度（一局時間可調）
+game/scripts/ui/view_buffer.gd:66:	return {"tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
+game/scripts/ui/view_buffer.gd:74:		max_ticks = sim.max_ticks
+game/scripts/ui/view_buffer.gd:104:	tick = fr["tick"]
+game/scripts/ui/view_buffer.gd:126:		sim.step()
+
+web search: https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/107
+codex
+程式裡已有「模擬領先畫面」的展示緩衝，也有投彈兵命中前的目標記錄，可以沿用來補飛行演出。另有一點會影響提案：孢子菇目前是範圍持續傷害，不能畫成逐顆命中的單體子彈，否則會誤導玩家對規則的理解。
+web search: 
+web search: 
+exec
+/bin/bash -lc "cat game/scripts/ui/view_buffer.gd | head -24; rg -n 'bomb_tgt|\"arrow\"|EV.CAST|EV.HIT|EV.BOMB' game/scripts/ui/battle_view.gd game/scripts/ui/battle/battle_units.gd; rg -n 'DEFAULT|settings|\"shake\"|\"speed\"|\"music\"|\"record\"' game/scripts/game/save.gd; sed -n '1,100p' game/scripts/ui/art.gd; sed -n '1,100p' game/scripts/ui/sprite_cache.gd; sed -n '1,120p' game/scripts/core/ruleset.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 205ms:
+extends RefCounted
+## 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。
+## 模擬先跑，每個 tick 存一份「畫面需要的狀態」快照＋事件；畫面依展示時鐘一格一格播。
+## 這樣命中事件在畫面上發生前 DELAY 個 tick 就知道了，可以先演前搖；
+## 血量、死亡、音效、HUD、跳字全部讀同一個延後的快照，所以一起延後，不會只有動作延後。
+## 純演出：模擬本身的計算、結果、指紋完全不受影響。
+
+const DELAY := 2
+
+class VUnit:
+	var hidden := false
+	var link := -1
+	var windup := 0
+	var guard := 0
+	var summon := false
+	var id: int
+	var team: int
+	var type: int
+	var x: int
+	var y: int
+	var hp: int
+	var max_hp: int
+	var alive: bool
+	var stealth: int
+game/scripts/ui/battle_view.gd:217:				if e["kind"] == EV.BOMB:
+game/scripts/ui/battle_view.gd:219:					var bt: Dictionary = bomb_tgt.get(e["src"], {})
+game/scripts/ui/battle_view.gd:223:					bomb_tgt[e["src"]] = bt
+game/scripts/ui/battle_view.gd:274:	if not k in [EV.POISON, EV.BLAST, EV.VOODOO, EV.BITE, EV.MIMIC_OPEN, EV.SPLIT, EV.CAST, EV.TIMESTOP, EV.RAISE, EV.VACUUM, EV.STOMP, EV.ROCK]:
+game/scripts/ui/battle_view.gd:326:		EV.CAST:
+game/scripts/ui/battle_view.gd:556:	if s.type == D.BOMBER and k == EV.BOMB:
+game/scripts/ui/battle_view.gd:562:		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.28, "dur": 0.46, "tc": Art.team_color(s.team, cbm())})   # V1.3：飛 0.28 秒＋釘住抖 0.18 秒
+game/scripts/ui/battle_view.gd:563:		sfx.play_unit("arrow", 0.35, s.type)
+game/scripts/ui/battle_view.gd:566:		sfx.play_unit("hit" if k == EV.HIT else "slash", 0.4, s.type)   # V1.3.1：出手聲依兵種音高
+game/scripts/ui/battle_view.gd:761:	bomb_tgt.clear()
+game/scripts/ui/battle/battle_units.gd:583:				if u.type == D.BOMBER and at > 0.0 and at < Art.ATK_WINDUP and bomb_tgt.get(u.id, {}).has(h):
+game/scripts/ui/battle/battle_units.gd:584:					var bt = view.unit_by_id(bomb_tgt[u.id][h])
+3:## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
+9:const DEFAULT_SETTINGS := {
+10:	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
+11:	"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
+13:const DEFAULT_SAVE := {
+20:static var settings := {}
+33:	settings = sanitize_settings(_read(_sp(), {}).get("value", {}))
+46:	return "user://%ssettings.json" % file_prefix()
+89:static func sanitize_settings(d: Dictionary) -> Dictionary:
+92:	var old_sfx = out.get("sfx", DEFAULT_SETTINGS["sfx"])
+94:		old_sfx = DEFAULT_SETTINGS["sfx"]
+98:	for k in DEFAULT_SETTINGS:
+99:		var dv = DEFAULT_SETTINGS[k]
+110:		out["lang"] = DEFAULT_SETTINGS["lang"]
+112:		out["text_scale"] = DEFAULT_SETTINGS["text_scale"]
+113:	out["music"] = clampi(int(out["music"]), 0, 100)
+117:	out["speed"] = clampf(float(out["speed"]), 0.25, 8.0)
+119:		out["duel_rule"] = DEFAULT_SETTINGS["duel_rule"]
+124:		out["roster"] = DEFAULT_SETTINGS["roster"]
+347:	for k in DEFAULT_SAVE:
+349:			out[k] = DEFAULT_SAVE[k].duplicate(true) if DEFAULT_SAVE[k] is Dictionary or DEFAULT_SAVE[k] is Array else DEFAULT_SAVE[k]
+395:static func save_settings() -> bool:
+396:	return _tracked_write(_sp(), settings)
+410:		save_settings()
+416:	return settings.get(key, DEFAULT_SETTINGS.get(key))
+419:	settings[key] = v
+420:	save_settings()
+extends "res://scripts/ui/units/fantasy.gd"
+## 其他層在同資料夾（V9 P1 拆檔）
+
+## 攻擊姿勢：[武器 w（−1 往後拉滿、0 平常、+1 揮到底）, 身體傾角（弧度，正＝往前）, 橫向縮放, 縱向縮放, 前撲位移]
+## V1.3 A2：呼吸依位置（x 與 y）錯開相位、頻率 ±10%，同一欄的兵不再一起起伏。p＝腳底。
+static var bake_no_bob := false   # 烘焙時不加呼吸（貼圖時才加）
+static func idle_bob(t: float, p: Vector2) -> float:
+	if bake_no_bob:
+		return 0.0
+	var h := fposmod(p.x * 0.0731 + p.y * 0.1173, 1.0)
+	return sin(t * 3.0 * (0.9 + 0.2 * h) + h * TAU) * 0.8
+
+## V1.1 A1：兵種專屬三段式（前搖／命中／收招）。值＝[前搖橫縮, 前搖縱縮, 後仰, 前搖位移, 命中橫縮, 命中縱縮, 前撲角, 前撲位移, 收招停頓比例]。
+## 命中時間點（ATK_WINDUP）所有兵種相同，只改形狀，不影響模擬與命中同步。沒列的兵種走舊曲線（位元不變）。
+const POSE_PROFILE := {
+	0: [1.14, 0.86, 0.36, -2.0, 0.86, 1.16, 0.50, 5.0, 0.25],    # 劍士：後仰扭腰劍舉過頭 → 前撲大弧 → 劍尖點地停頓
+	6: [1.08, 0.90, 0.40, -2.0, 0.90, 1.12, 0.32, 3.0, 0.15],    # 投彈兵：反弓拉滿 → 甩臂墊步 → 甩腕
+	19: [0.90, 1.18, 0.12, 0.0, 1.25, 0.75, 0.12, 1.5, 0.35],    # 小石魔：雙臂高舉身體拉長 → 砸地壓扁 25% → 拳頭卡地再拔起
+	# A1b（試點驗收後擴充）
+	1: [1.12, 0.88, 0.25, -3.0, 0.92, 1.08, 0.35, 5.0, 0.15],    # 盾兵：縮身頂盾 → 往前撞盾
+	3: [1.06, 0.94, 0.20, -2.0, 0.88, 1.10, 0.45, 6.0, 0.10],    # 騎兵：收槍 → 長槍前刺
+	4: [1.10, 0.82, 0.15, -1.0, 0.85, 1.20, 0.55, 6.0, 0.10],    # 刺客：伏低 → 竄出直刺
+	5: [1.06, 0.94, 0.25, -3.0, 0.90, 1.10, 0.30, 7.0, 0.20],    # 長槍兵：後拉 → 長刺定住
+	9: [1.16, 0.84, 0.55, -2.0, 0.84, 1.18, 0.55, 4.0, 0.20],    # 狂戰士：雙斧高舉大後仰 → 全身劈下
+	2: [1.08, 0.92, 0.32, -3.0, 0.94, 1.08, 0.18, 1.5, 0.30],    # 弓箭手：拉弓 → 放箭、手停在弦上（V1.3.1：滿弓後仰加大）
+	7: [1.10, 0.90, 0.36, -2.0, 0.92, 1.10, 0.34, 2.5, 0.20],    # 醫者：舉杖 → 點地（V1.3.1：高舉施法更明顯）
+	8: [1.12, 0.88, 0.35, -2.0, 0.88, 1.14, 0.38, 2.0, 0.15],    # 鼓手：高舉鼓槌 → 重敲
+	10: [1.15, 0.85, 0.00, 0.0, 0.88, 1.15, 0.00, 0.0, 0.20],    # 孢子菇：縮傘 → 噴孢子（不前撲，定點）
+	11: [1.10, 0.90, 0.10, -2.0, 0.90, 1.10, 0.30, 4.0, 0.10],   # 爆爆羊：後蹲 → 衝撞
+	12: [1.12, 0.86, 0.10, -1.0, 0.90, 1.14, 0.35, 5.0, 0.15],   # 寶箱怪：蓋子壓低 → 撲咬
+	13: [1.20, 0.80, 0.00, 0.0, 0.85, 1.20, 0.20, 4.0, 0.20],    # 史萊姆：壓扁蓄力 → 彈出
+	14: [1.00, 1.00, 0.20, -2.0, 0.92, 1.10, 0.40, 6.0, 0.10],   # 幽靈：後飄 → 穿刺
+	15: [1.05, 0.95, 0.20, -1.0, 0.95, 1.06, 0.25, 2.0, 0.25],   # 巫毒娃娃：舉針 → 扎下
+	16: [1.00, 1.05, 0.15, 0.0, 0.95, 1.08, 0.20, 2.0, 0.20],    # 沙漏精靈：上浮 → 點擊
+	17: [0.98, 1.12, 0.32, 0.0, 0.94, 1.10, 0.30, 2.5, 0.25],    # 骷髏法師：舉書聚光 → 施放（V1.3.1：後仰拉高）
+	18: [1.12, 0.88, 0.15, -2.0, 0.90, 1.12, 0.40, 5.0, 0.15],   # 吸塵貓：弓背 → 撲抓
+	20: [1.20, 0.80, 0.00, 0.0, 0.85, 1.20, 0.20, 3.0, 0.20],    # 小史萊姆
+	21: [1.14, 0.86, 0.30, -2.0, 0.86, 1.16, 0.40, 4.0, 0.20],   # 骷髏：舉骨刀 → 劈
+}
+
+static func pose(atk: float, type := -1) -> Array:
+	if atk <= 0.0:
+		return [0.0, 0.0, 1.0, 1.0, 0.0]
+	if POSE_PROFILE.has(type):
+		return _pose_prof(atk, POSE_PROFILE[type])
+	if atk < ATK_WINDUP:
+		var e := _smooth(atk / ATK_WINDUP)
+		return [-e, -LEAN_BACK * e, 1.0 + 0.12 * e, 1.0 - 0.12 * e, -1.0 * e]   # 前搖壓扁蓄力 1.12／0.88
+	if atk < ATK_STRIKE:
+		var u := (atk - ATK_WINDUP) / (ATK_STRIKE - ATK_WINDUP)
+		var e2 := 1.0 - (1.0 - u) * (1.0 - u)
+		return [lerpf(-1.0, 1.0, e2), lerpf(-LEAN_BACK, LEAN_FWD, e2), lerpf(1.12, 0.88, e2), lerpf(0.88, 1.14, e2), lerpf(-1.0, 3.0, e2)]   # 揮擊拉長 0.88／1.14；前撲位移縮小，腳不滑出底圈（Antigravity S2 #3）
+	var e3 := _smooth((atk - ATK_STRIKE) / (1.0 - ATK_STRIKE))
+	return [lerpf(1.0, 0.0, e3), lerpf(LEAN_FWD, 0.0, e3), lerpf(0.88, 1.0, e3), lerpf(1.14, 1.0, e3), lerpf(3.0, 0.0, e3)]
+
+
+## 前搖到底的後仰角（勝利姿勢用來抵銷，站直）。
+static func windup_lean(type: int) -> float:
+	return float(POSE_PROFILE[type][2]) if POSE_PROFILE.has(type) else LEAN_BACK
+
+static func _pose_prof(atk: float, f: Array) -> Array:
+	if atk < ATK_WINDUP:
+		var e := _smooth(atk / ATK_WINDUP)
+		return [-e, -f[2] * e, lerpf(1.0, f[0], e), lerpf(1.0, f[1], e), f[3] * e]
+	if atk < ATK_STRIKE:
+		var u := (atk - ATK_WINDUP) / (ATK_STRIKE - ATK_WINDUP)
+		var e2 := 1.0 - (1.0 - u) * (1.0 - u)
+		return [lerpf(-1.0, 1.0, e2), lerpf(-f[2], f[6], e2), lerpf(f[0], f[4], e2), lerpf(f[1], f[5], e2), lerpf(f[3], f[7], e2)]
+	var r := (atk - ATK_STRIKE) / (1.0 - ATK_STRIKE)
+	var e3 := _smooth(clampf((r - f[8]) / (1.0 - f[8]), 0.0, 1.0))   # 先停在命中姿勢 f[8]，再收回
+	return [lerpf(1.0, 0.0, e3), lerpf(f[6], 0.0, e3), lerpf(f[4], 1.0, e3), lerpf(f[5], 1.0, e3), lerpf(f[7], 0.0, e3)]
+
+
+## 角色的局部座標轉換（以腳底為原點、face＝+1 畫）：呼吸／走路起伏、前撲、傾身、壓扁拉長、翻面。
+## lean＝額外傾角（騎兵衝鋒前傾）、crouch＝縱向縮放（刺客潛行蹲身）。
+static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0, gtype := 0) -> Transform2D:
+	# 外層（位置、起伏、翻面、縮放、額外傾身／蹲身）× 內層（攻擊姿勢，face＝+1 空間）。
+	# 精靈圖快取烘焙的是內層，貼圖時套外層，所以兩條路的順序完全一樣（Codex R5 #3）。
+	var ps := pose(atk, gtype)
+	var bob := idle_bob(t, p) if walk == 0.0 else -Gait.air(gtype, walk)
+	var outer := Transform2D(lean * face, Vector2(scale * face, scale * crouch), 0.0, p + Vector2(0, bob * scale))
+	return outer * Transform2D(ps[1], Vector2(ps[2], ps[3]), 0.0, Vector2(ps[4], 0))
+
+
+## 單位：p＝腳底；face＝±1；walk＝走路相位（0＝沒走）；atk＝攻擊動作進度 0～1（見上）；hurt＝受擊閃白 0～1；
+## alpha＝透明度（潛行）；t＝時間（待機呼吸）；scale＝縮放；mood＝表情疊加（M_*）；lean／crouch 見 unit_xf。
+static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
+		hurt: float, alpha: float, t: float, scale := 1.0, cb := false, mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
+	var tc := team_color(team, cb)
+	_team_now = team
+	var w: float = pose(atk, type)[0]
+	if atk > 0.0:
+		walk = 0.0   # 和精靈圖一致：攻擊格沒有走路相位
+	_xf = base * unit_xf(p, face, walk, atk, t, scale, lean, crouch, type)
+	_b_now = Transform2D.IDENTITY
+	if turn_c < 1.0:
+		_xf0 = _xf
+		# 史萊姆轉向鏡頭時微微拉高（Antigravity v130-impl1：只有眼睛動看不出在轉）
+		var sy := 1.0 + 0.06 * (1.0 - turn_c) if type == 13 else 1.0
+		_xf = _xf * Transform2D(0.0, Vector2(turn_body_w(type) * (0.97 if type == 13 else 1.0), sy), 0.0, Vector2.ZERO)
+extends Node
+## 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps），
+## 所以用同一份 Art.unit 畫法，把兵種×隊伍×動作影格畫進圖集，戰鬥中只貼圖。
+## 第八輪：一張大圖放 22 種會到 3072×11712，Compatibility 渲染器超過 4096 有風險。改成每頁 ≤4096（7 種兵），
+## 開場只烘舊 10 種，新兵上場才烘；還沒烘好時呼叫端直接畫，不會缺圖。頁數有上限，超過丟最舊的新兵頁。
+## 用同一份畫法烘焙，但不是逐像素等價（Codex R1 審查 #3、#4，已知且接受的差異）：
+##  - 走路量化成 6 格、攻擊 8 格；攻擊中不再疊走路相位；走路／攻擊格固定睜眼（只在待機眨眼）。
+## 表情疊加（受擊、暈眩、衝鋒、狂熱、潛行、頂住）不烘焙，貼完圖再用 Art.overlay 在同一個局部座標畫上去。
+##  - 透明度（潛行）是對整張合成好的角色乘 alpha，重疊的部位不會像逐圖元那樣透出底下的線條。
+## 待機呼吸位移在貼圖時加（烘焙時抵銷為 0）；受擊閃白跟著攻擊前衝與走路起伏。
+## 沒有畫面（headless）或還沒建好時，呼叫端退回 Art.unit。
+
+const Art = preload("res://scripts/ui/art.gd")
+const D = preload("res://scripts/core/unit_defs.gd")
+const Gait = preload("res://scripts/ui/units/gait.gd")
+const Save = preload("res://scripts/game/save.gd")
+
+const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
+const RS := 1.6            # 烘焙解析度倍率
+const ORIGIN := Vector2(78, 160)   # 角色腳底在格子裡的位置（第七輪 C0：原本會超框被切掉）
+const RING_ORIGIN := Vector2(96, 140)   # 腳底圈格子的中心（有影子，要留下方空間）
+const WALK_FRAMES := 8     # V9 P2：6→8，另加拖行、暈眩
+const POSE_FRAMES := 2
+const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
+# 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..23 攻擊兩組（一般／交替或專屬）
+const FRAMES_PER := 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * 2
+const COLS := 16
+const TYPES_PER_PAGE := 6  # 6×2×28＝336 格＝21 列×192＝4032px，不超過 4096
+const MAX_PAGES := 5
+const TURN_TYPES := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]   # V1.3.1：全部 22 種（V1.3.0 只有 6 種試點）
+const TURN_C := [0.8, 0.55, 0.3]
+# V1.3.1 P1：走路中轉身（2 個角度 × 4 個步相，保留步相；每頁 11 種兵）、待機小動作 4 格＋受擊帽子彈起 1 格
+const WT_C := [0.55]   # V1.3.1 驗收：兩個角度實測貼圖記憶體 +126 MiB 超過 §0 的 104，改一個角度（一頁放得下 22 種）
+const WT_PH := 4
+const WT_TYPES_PER_PAGE := 22
+const FID_PER := 5
+## 每種兵的待機小動作：[前搖姿勢的幅度 0～1（舉武器、掀蓋、抬杖）, 回頭看 0～1]
+# V1.3.1 審查後：幅度加大（Antigravity：1～2px 看不出來）；投彈兵借前搖會讓火罐離手，改成回頭看；羊、幽靈的臉不讀 look，改用前搖
+const FIDGET := {0: [0.35, 0.0], 1: [0.8, 0.0], 2: [0.4, 0.0], 3: [0.35, 1.0], 4: [0.8, 0.0], 5: [0.35, 1.0], 6: [0.0, 1.0],
+	7: [0.8, 0.0], 8: [0.3, 1.0], 9: [0.35, 0.0], 10: [0.9, 0.0], 11: [0.5, 0.0], 12: [0.9, 0.0], 13: [0.35, 0.0],
+	14: [0.5, 0.0], 15: [0.8, 1.0], 16: [0.35, 0.0], 17: [0.35, 1.0], 18: [0.8, 0.0], 19: [0.3, 1.0], 20: [0.35, 0.0], 21: [0.35, 1.0]}
+
+var pages: Array = []      # 每頁 {tex, types}
+var loc := {}              # 兵種 → [頁, 這一種在頁裡的起始格]
+var ring_tex: Texture2D = null
+var turn_tex: Texture2D = null   # V1.3 A1b：轉身頁（6 種 × 2 隊 × 3 張）
+var turn_loc := {}               # 兵種 → 轉身頁起始格
+var wt_pages: Array = []         # V1.3.1：走路轉身頁
+var wt_loc := {}                 # 兵種 → [頁, 起始格]
+var fid_tex: Texture2D = null    # V1.3.1：待機小動作＋受擊帽子
+var fid_loc := {}
+var ready_paint := ""     # V1.4 #15：這份快取是用哪套塗裝烘的
+var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
+var _busy := false
+var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
+var _queue: Array = []
+var _baking: Array = []
+
+func is_ready(cb: bool) -> bool:
+	return ring_tex != null and ready_cb == (1 if cb else 0) and ready_paint == Art.paint_sig()
+
+func has_type(t: int) -> bool:
+	return loc.has(t)
+
+func has_turn(t: int) -> bool:
+	return turn_tex != null and turn_loc.has(t)
+
+## 腳底在格子裡的位置：往前伸得很長的長槍兵靠左、很寬的小石魔靠右，其他都一樣。
+static func origin_of(type: int) -> Vector2:
+	return Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160))
+
+## 全部清掉，烘舊 10 種和腳底圈。
+func build(cb: bool) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	_gen += 1
+	pages.clear()
+	loc.clear()
+	_queue.clear()
+	_baking = []
+	_busy = false
+	ring_tex = null
+	turn_tex = null
+	turn_loc.clear()
+	wt_pages.clear()
+	wt_loc.clear()
+	fid_tex = null
+	fid_loc.clear()
+	ready_cb = 1 if cb else 0
+	ready_paint = Art.paint_sig()
+	var base: Array = []
+	for t in D.COUNT:
+		base.append(t)
+	var g0 := _gen
+	await _bake_ring(cb)
+	if g0 != _gen:
+		return   # 烘腳底圈時又重建了：交給新的那次
+	await ensure(base)
+	if g0 != _gen:
+		return
+extends RefCounted
+## 自訂規則（第五輪 §3）。純資料，不碰畫面。三層：
+##   模擬規則：兩邊預算、一局 tick 數、判定版本、（沙盒）數值倍率與技能開關 → 進模擬雜湊與對戰代碼
+##   部署規則：人數上限、單種上限、雙方卡池 → 進對戰代碼（重播要驗陣型合法）
+##   系列規則：局數、落子方式、手數、累積、保留陣型、AI 難度 → 只在大廳與系列流程用
+## 標準規則下模擬器走原本的路徑（雜湊表頭位元組不變），所以這個檔案**不能**把常數放進 unit_defs.gd（會改數值摘要）。
+## 開戰時用 copy() 凍結一份，之後大廳再怎麼改都不影響這一局。
+
+const D = preload("res://scripts/core/unit_defs.gd")
+const F8 = preload("res://scripts/core/fantasy_defs.gd")
+const MapDefs = preload("res://scripts/core/map_defs.gd")
+
+const AI_STYLES := 6
+const ROSTER_MAX := 10         # 第八輪：一局每邊最多幾種兵
+const CODE_PREFIX := "NTBR1"
+const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
+const CODE_PREFIX5 := "NTBR5"   # 第十二輪：有手動技能（NTBR4 的欄位再加 5 欄）
+const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
+const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
+# 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
+const DEPLOYS := ["grid", "free"]
+const SPACING_MIN := 600
+const SPACING_MAX := 1000
+const DEPTH_GRID := 6000        # 格子部署：自己視角 x 上限（第 6 欄的右緣）
+const DEPTH_MIN := 6000
+const DEPTH_MAX := 7500
+const DEPTH_FULL := 15800       # 全場：到對面邊界（中心離邊 0.2 格）
+const FULL_NONE := 0
+const FULL_DUEL := 1            # 雙人輪流落子・全場
+const FULL_AI := 2              # 對 AI 明牌全場
+const ENEMY_GAP := 1500         # 全場時離任何敵兵至少 1.5 格
+const STD_BUDGET := 100
+const STD_TICKS := 1800
+const STD_UNIT_CAP := 24
+const TICK_CHOICES := [1200, 1800, 2400, 3000]     # 60／90／120／150 秒
+const BUDGET_MIN := 30
+const BUDGET_MAX := 200
+const UNIT_CAP_MIN := 4
+const UNIT_CAP_MAX := 40       # 效能探測（docs/perf/v5-probe.json）：40＋40 每 tick 約 1.3 ms，支援兵密集 2.6 ms
+const TYPE_CAP_MAX := 10
+const ROUND_CHOICES := [1, 3, 5, 7]
+const PLACE_RULES := ["snake5", "cap10", "blind", "custom"]
+const TURNS_MIN := 1
+const TURNS_MAX := 10
+const PCT_MIN := 50            # 沙盒倍率
+const PCT_MAX := 200
+const SKILLS := ["charge", "taunt", "backstab", "counter", "stealth", "brace", "splash", "heal", "drum", "breach", "frenzy", "rally"]
+
+# ── 模擬 ──
+var budget := [STD_BUDGET, STD_BUDGET]   # 讓子關閉時兩邊相同
+var handicap := false
+var ticks := STD_TICKS
+# ── 部署 ──
+var unit_cap := STD_UNIT_CAP
+var type_cap := 0              # 0＝不限
+var pool := [0, 0]             # 玩家（藍）／對手（紅）卡池遮罩；0 會被 validate 擋
+var ai_pool_same := true       # 對手卡池跟藍方一樣
+# ── V9 地圖（進模擬）──
+var map_id := 0                # MapDefs.MAPS 的索引；0＝平原
+var map_size := 1              # 0 小、1 中（標準）、2 大
+var vents := false             # 熔岩噴口（只有熔岩裂谷有；V1.0 不做，欄位保留）
+var map_mode := 0              # 系列：0 固定、1 每局輪替、2 每局隨機（不進模擬，每局定下來才算）
+var time_of := 0               # 外觀：0 白天、1 黃昏、2 夜晚（只有畫面）
+var bans := 0                  # 雙人每人禁幾種（不進模擬，開打前就從卡池拿掉了）
+var ai_style := 0              # AI 性格：0 均衡、1 鐵壁、2 遠程、3 奇襲、4 召喚、5 亂數（不進模擬）
+# ── 第十二輪手動技能（進模擬）──
+var cmd_mask := [0, 0]         # 雙方帶哪幾種；都 0＝關閉
+var cmd_uses := 1              # 每種可用次數
+var cmd_cd := 400              # 同一種的冷卻（tick）
+var cmd_power := 100           # 效果強度 %
+# ── 系列 ──
+var rounds := 3
+var place_rule := "snake5"
+var turns := 5                 # place_rule＝custom 時每人幾手
+var carry := false             # 沒花完的錢累積到下一手
+var keep_formation := true
+var ai_level := 1
+# ── 沙盒（R3）──
+var stat_pct := {}             # type → [hp%, atk%, speed%]；空＝全部 100%
+var skills_off: Array = []     # SKILLS 裡關掉的
+# ── 部署（第六輪）──
+var deploy := "grid"
+var spacing := 1000            # 自由部署的最小中心距離（單位：1 格＝1000）
+var depth := DEPTH_GRID        # 自己視角的 x 上限
+var fullfield := FULL_NONE
+# 只是顯示用，不參與相等判定
+var preset := "standard"
+
+# ───────── 卡池工具（static，給 AI／Army 用） ─────────
+static func _not_combat(t: int) -> bool:
+	return not D.is_combat(t)   # 第八輪：奇襲兵也不算戰鬥兵
+
+static func all_pool() -> int:
+	return (1 << D.COUNT) - 1      # 舊 10 種。標準、AI、舊規則都看這個，不能跟著新兵變大
+
+## 第八輪：新舊 20 種全部（只給驗證與大廳用）。
+static func full_pool() -> int:
+	return (1 << D.total()) - 1
+
+## 這個卡池有沒有用到新兵。
+static func has_new(p: int) -> bool:
+	return p > all_pool()
+
+static func prefix_pool(n: int) -> int:
+	return (1 << clampi(n, 0, D.COUNT)) - 1
+
+static func has(p: int, t: int) -> bool:
+	return (p >> t) & 1 == 1
+
+static func types_of(p: int) -> Array:
+	var out: Array = []
+	for t in D.total():
+		if has(p, t):
+			out.append(t)
+	return out
+
+static func pool_count(p: int) -> int:
+	return types_of(p).size()
+
+static func cheapest_in(p: int) -> int:
+
+web search: https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/101
+web search: https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/107
+exec
+/bin/bash -lc "sed -n '535,570p' game/scripts/ui/battle_view.gd; sed -n '563,601p' game/scripts/ui/battle/battle_units.gd; sed -n '630,680p' game/scripts/core/battle_sim.gd; rg -n 'POISON|SPORE' game/scripts/core/battle_sim.gd | head -16; rg --files game/scripts/ui/units; sed -n '1,20p' game/scripts/game/save.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 299ms:
+			return
+		"reveal":
+			_add_fx({"kind": "puff", "p": _upos(view.unit_by_id(ev["src"])) + Vector2(0, -20), "t": 0.0, "dur": 0.45})
+			sfx.play("reveal", 0.6)
+			return
+	var s = view.unit_by_id(ev["src"])
+	var t = view.unit_by_id(ev["tgt"])
+	var tags: Array = ev.get("tags", [])
+	atk_t[s.id] = time
+	hurt_t[t.id] = time
+	var sp := _upos(s)
+	var tpos := _upos(t)
+	hurt_dir[t.id] = signf(tpos.x - sp.x) if tpos.x != sp.x else (1.0 if t.team == 1 else -1.0)
+	if tags.has(EV.ALERT):
+		sfx.play("alert", 0.5)
+		_add_fx({"kind": "aim", "a": sp + Vector2(0, -24), "b": tpos + Vector2(0, -22), "t": 0.0, "dur": 0.32})
+	if tags.has(EV.HIDE):
+		_add_fx({"kind": "hide", "p": tpos + Vector2(0, -24), "dir": signf(sp.x - tpos.x) if sp.x != tpos.x else 1.0, "t": 0.0, "dur": 0.4})
+	if tags.has(EV.TRIP):
+		sfx.play("snap", 0.7)
+		_add_fx({"kind": "trip", "p": tpos + Vector2(0, -4), "t": 0.0, "dur": 0.5})
+	if s.type == D.BOMBER and k == EV.BOMB:
+		_add_fx({"src": s.id, "kind": "boom", "p": tpos + Vector2(0, -6), "t": 0.0, "dur": 0.45})   # 帶攻擊者：同點多顆炸彈不被去重吃掉
+		sfx.play("boom", 0.55)
+	elif k == EV.SPLASH:
+		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）
+	elif s.type == D.ARCHER:
+		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.28, "dur": 0.46, "tc": Art.team_color(s.team, cbm())})   # V1.3：飛 0.28 秒＋釘住抖 0.18 秒
+		sfx.play_unit("arrow", 0.35, s.type)
+	else:
+		_add_fx({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
+		sfx.play_unit("hit" if k == EV.HIT else "slash", 0.4, s.type)   # V1.3.1：出手聲依兵種音高
+		_hit_material(int(ev.get("tgt", -1)))
+	var col := Color.WHITE
+	var label := ""
+	match k:
+	# 第二層：身體（V9：地圖的前景物件依腳點 y 插進來，才有前後遮擋）
+	var prop_i := 0
+	var xray: Array = []   # V1.1 C5：[腳點, 參數]，給被下排蓋到臉的那隻補畫半透明
+	for u in list:
+		var p: Vector2 = pc[u.id] if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+		while prop_i < fld_props.size() and ORIGIN.y + float(fld_props[prop_i][0]) <= p.y:
+			MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
+			prop_i += 1
+		var walk: float = _walk_of(u, a_now) if live else ((time * Gait.nominal_rate(u.type, float(D.stat(u.type)["speed"]), CS, UNIT_SCALE) + u.id) if (u.mx != 0 or u.my != 0) else 0.0)
+		var moving: bool = walk > 0.0
+		var at := 0.0
+		var variant := 0
+		var hit_now := -1
+		if live and atk_hit.has(u.id):
+			var dt0 := _disp_tick()
+			var h := pick_hit(atk_hit[u.id], dt0, u.type)
+			hit_now = h
+			if h >= 0:
+				at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
+				# 火罐飛行（第四輪 §4.4）：前搖期間從手上飛向目標，命中那一刻落地（模擬不受影響）
+				if u.type == D.BOMBER and at > 0.0 and at < Art.ATK_WINDUP and bomb_tgt.get(u.id, {}).has(h):
+					var bt = view.unit_by_id(bomb_tgt[u.id][h])
+					if bt != null:
+						var fk := at / Art.ATK_WINDUP
+						var fsg: float = float(atk_face[u.id][1]) if atk_face.has(u.id) and int(atk_face[u.id][0]) == h else signf(u.fx) if u.fx != 0 else (signf(_upos(bt).x - _upos(u).x) if _upos(bt).x != _upos(u).x else 1.0)
+						var src_p: Vector2 = _upos(u) + Vector2(fsg * 17.0, -24.0) * UNIT_SCALE   # V1.3.1：從手上的火罐位置起飛（原本是頭頂固定點）
+						var dst_p: Vector2 = _upos(bt) + Vector2(0, -10)
+						var pp := src_p.lerp(dst_p, fk) + Vector2(0, -sin(fk * PI) * minf(70.0, src_p.distance_to(dst_p) * 0.3))
+						pot_draw.append(pp)
+				if u.type == D.SWORD:
+					variant = int(atk_seq.get(u.id, {}).get(h, 0)) % 2   # 劍士橫斬與上挑逐擊交替（第三輪 R4）
+				elif u.type >= D.CLASSIC and alt_hit.get(u.id, {}).has(h):
+					variant = 2
+		var hurt := 0.0
+		if live and hurt_t.has(u.id) and _fx_on("flash"):
+			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
+		var alpha := 0.45 if u.stealth > 0 else 1.0
+		if dim:
+			alpha *= 0.6
+				rally_bonus[tm] = D.RALLY_CD_BONUS
+				rally[tm] = true
+	for tm in 2:
+		if rally[tm] != _was_rally[tm]:
+			events.append({"kind": EV.RALLY_ON if rally[tm] else EV.RALLY_OFF, "team": tm, "tags": [EV.RALLY]})
+			_was_rally[tm] = rally[tm]
+	# 戰鼓（第四輪 §2.5）：用 ① 快照的位置；這一 tick 開始時活著、沒被暈的鼓手才算；先算完整陣列再扣冷卻；不疊加
+	for i in n:
+		units[i].aura = 0
+	for di in n:
+		var dr := units[di]
+		if dr.type != D.DRUMMER or not dr.alive or dr.stun > 0 or skill_off.has("drum"):
+			continue
+		var cov := 0
+		for j in n:
+			if units[j].alive and st[j] == st[di] and M.dist2(sx[di], sy[di], sx[j], sy[j]) <= D.DRUM_RANGE * D.DRUM_RANGE:
+				units[j].aura = 1
+				if j != di:
+					cov += 1
+		dr.drum_cover += cov
+		if cov > 0 and tick % 20 == 0:
+			events.append({"kind": EV.DRUM, "src": dr.id, "n": cov, "tags": [EV.DRUM]})   # 每秒一拍（只給畫面與圖鑑）
+	var breach_set := {}
+	var heals: Array = []   # [醫者索引, 目標索引, 量]
+	var long_stun := {}     # 第八輪：時停（取較大值，不覆寫）
+	var knock2: Array = []  # 第八輪：石魔拍地
+	var raises: Array = []  # 第八輪：[法師索引, 屍體索引]
+	if v8:
+		_v8_skills(n, hits, heals, long_stun, knock2, raises, sa)
+	for i in n:
+		var u := units[i]
+		if not u.alive:
+			continue
+		if u.cd > 0:
+			u.cd = maxi(0, u.cd - mini(D.DEC_CAP, dec + rally_bonus[u.team] + D.DRUM_BONUS * u.aura + (CMD.WAR_BONUS if u.haste_t > 0 else 0)))
+		if u.type == D.MEDIC and not skill_off.has("heal"):
+			_try_heal(i, sh, heals)
+		if u.stun > 0 or u.target == -1 or u.cd > 0:
+			continue
+		var tg := units[u.target]
+		if v8 and u.type == F8.SHEEP:
+			if M.dist2(u.x, u.y, tg.x, tg.y) <= u.reach * u.reach and not u.exploded:
+				_v8_blast(i, false, hits)
+			continue
+		if u.type == D.BOMBER and u.bmode == 1:
+			# 丟彈：④ 重新驗距離（③ 會移動位置），要在 1.5～4.5 格；不符合就取消，不臨時換模式
+			var bd2 := M.dist2(u.x, u.y, tg.x, tg.y)
+			if bd2 < D.BOMB_MIN * D.BOMB_MIN or bd2 > u.reach * u.reach:
+				continue
+			hits.append([i, u.target, _vuln(tg, u.atk * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if tg.type == D.SHIELD else u.atk), EV.BOMB, [EV.BOMB]])
+			for j in ([] if skill_off.has("splash") else _splash_victims(u.target, st, sa)):
+440:		if v8 and (u.type == F8.SPORE or u.hidden):
+594:			if units[i].type == F8.SPORE:
+1126:		if u.alive and u.type != F8.SPORE and not u.hidden:
+1153:			if units[j].type == F8.SPORE and units[j].alive:
+1163:				pct = F8.SPORE_SLOW_PCT
+1229:			if units[i].type == F8.SPORE and units[i].alive:
+1246:					hits.append([best, j, units[best].atk, EV.POISON, [EV.POISON]])
+1353:				if e2.type != F8.GOLEM and e2.type != F8.SPORE:
+1363:		if not e.alive or e.hidden or e.type == F8.SPORE or e.pull_t > 0:
+game/scripts/ui/units/gait.gd.uid
+game/scripts/ui/units/gait.gd
+game/scripts/ui/units/fantasy.gd.uid
+game/scripts/ui/units/fantasy.gd
+game/scripts/ui/units/kingdom.gd.uid
+game/scripts/ui/units/kingdom.gd
+game/scripts/ui/units/kit.gd
+game/scripts/ui/units/kit.gd.uid
+extends RefCounted
+## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
+## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
+
+const SAVE_VERSION := 3   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則
+const MAX_PRESETS := 5
+static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
+
+const DEFAULT_SETTINGS := {
+	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
+	"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
+}
+const DEFAULT_SAVE := {
+	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
+	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
+	# 第五輪：解鎖累計場數（標準＋自訂局都算，沙盒不算）、自訂規則戰績、我的預設、上次在大廳用的規則（代碼）
+	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false, "gauntlet_run": {}, "puzzle_tries": {}, "puzzle_first": {}, "trial_tries": {}, "trial_first": {}, "daily_best": {},
+}
+
+static var settings := {}
+
+web search: 
+web search: '800' in https://partner.steamgames.com/doc/steamdeck/compat
+codex
+進一步查到，投彈兵其實已有拋物線繪製，但現有展示緩衝只有 0.1 秒；弓箭則在命中事件發生後才開始飛。提案會把這兩種情況分開處理，並列出飛行、扣血與音效對齊的驗收條件。手動軍令也會另外處理，避免拉長展示緩衝後造成操作延遲。
+codex
+**V1.5.0 建議定位：把角色、選項與主要操作流程做完整。必做核心是角色演出修正、主畫面重整、設定系統重建，以及 V1.4 延後的資訊層級整理。**
+
+本提案是第 1 輪獨立方案，未實作。已讀 `brief.md`、全部附圖、V1.4 裁決紀錄，並核對角色繪製、圖鑑、戰鬥演出、展示緩衝、規則與存檔程式。
+
+**先修正三個會影響規劃的現況判斷：**
+
+- **22 種是繪製驗收對象，實際可部署兵種是 20 種**；小史萊姆、骷髏是召喚／衍生單位，也必須驗收。
+- **投彈兵已有拋物線程式**，位於 `battle_units.gd`；問題應追查演出時間太短、手持物與飛行物交接、遮擋及是否實際畫出，不能直接當成完全缺功能。
+- **孢子菇是範圍毒傷與減速來源**。它需要看得見的孢子傳播，但不宜畫成可閃躲、逐顆命中的單體子彈。
+- 現有展示緩衝只有 **2 tick＝0.1 秒**；弓箭則在命中事件後才建立 0.28 秒飛行效果。這是需要修正的時間關係。
+
+---
+
+**A．主畫面：五顆主按鈕，固定位置**
+
+建議五顆：**開始對戰、冒險挑戰、棋子與收藏、戰績與重播、選項**。
+
+退出保留底部小型文字按鈕；版本號、製作名單、更新紀錄放頁尾。它們不和主要遊玩入口競爭。
+
+```text
+主畫面
+├─ 1. 開始對戰
+│  ├─ 快速對 AI
+│  ├─ 同機雙人
+│  ├─ 自訂對戰
+│  │  ├─ 對戰規則
+│  │  ├─ 我的規則預設
+│  │  └─ 陣型庫
+│  └─ 遊戲間
+│     ├─ 輪抽
+│     ├─ 車輪戰
+│     ├─ 雙封蠟
+│     └─ 觀戰競猜
+├─ 2. 冒險挑戰
+│  ├─ 繼續遠征／開始遠征
+│  ├─ 殘局
+│  │  ├─ 章節
+│  │  ├─ 接力殘局
+│  │  └─ 最小成本紀錄
+│  ├─ 主題試煉
+│  ├─ 每日挑戰
+│  ├─ 每週棋盒
+│  ├─ 幽靈軍團
+│  └─ 教學
+├─ 3. 棋子與收藏
+│  ├─ 兵種圖鑑
+│  ├─ 塗裝室
+│  ├─ 成就與解鎖
+│  └─ 我的陣型
+├─ 4. 戰績與重播
+│  ├─ 最近對戰
+│  ├─ 已收藏重播
+│  ├─ 宿敵戰記
+│  ├─ 統計
+│  └─ 匯入代碼
+├─ 5. 選項
+│  └─ 個人設定、無障礙、資料管理
+└─ 頁尾
+   ├─ 更新紀錄／版本
+   ├─ 製作名單
+   └─ 離開遊戲
+```
+
+**入口歸屬原則**
+
+- 每個功能有一個正式歸屬；其他位置可放捷徑，開啟同一份資料。
+- 「我的陣型」可從收藏與大廳進入，避免出現兩套存檔。
+- 「匯入代碼」也可出現在對戰、殘局頁；先辨認代碼類型，再開啟正確預覽。
+- 每日、每週移出遊戲間，集中到挑戰，顯示日期及完成狀態。
+- 宿敵、塗裝不再藏在戰績的次入口裡。
+
+**主畫面構圖**
+
+- 左側固定五顆按鈕。
+- 右側保留沙盤示範，下方棋子展示可直接進圖鑑。
+- 右側只放一張情境卡：新玩家是教學；有續局是繼續遠征；其他情況是最近玩法。
+- 情境卡不搶初始焦點、不自動彈出，也不使用輪播廣告式切換。
+- 示範戰鬥可關閉，或改成靜態棋桌。
+
+**第一次與老玩家**
+
+| 情況 | 預設行為 |
+|---|---|
+| 第一次啟動 | 先顯示可略過的語言、字級、無障礙快速設定，再到主畫面 |
+| 尚未完成教學 | 右側顯示「學會擺第一場」，可直接進正常對戰 |
+| 已完成教學 | 初始焦點停在「開始對戰」；右側顯示最近玩法 |
+| 有遠征續局 | 顯示站數、軍隊摘要與「繼續遠征」 |
+| 升級至 V1.5 | 保留原設定、續局與預設，只顯示一次可關閉的入口搬遷說明 |
+
+不依玩家身分重排五顆按鈕，讓操作位置可以記住。
+
+**手把動線**
+
+- 十字鍵／左搖桿上下選主按鈕，確認進入，返回退一層。
+- 肩鍵切換子分頁；返回後恢復原焦點與捲動位置。
+- 焦點框同時使用外框、亮度及小指標，不能只有顏色差異。
+- 子頁第一焦點放主要動作；續局與新局有不同標籤，避免誤覆蓋。
+- 開始對戰 → 快速對 AI → 擺陣，最多兩次確認抵達擺陣頁。
+
+**觸控動線**
+
+- 以 1280×800 為驗收基準，主要觸控目標至少約 48×48 邏輯像素。
+- 重要功能都有可見按鈕，長按只是替代操作。
+- 擺陣提供「選棋子→點位置→確認」，拖曳可選。
+- 雙人交接使用整頁遮罩與「已交給對方」確認，遮罩期間禁止長按穿透。
+- 捏合縮放之外，提供縮放＋／－與重置鏡頭。
+
+---
+
+**B．客製化：先建立分類、作用範圍與資料契約**
+
+**設定頁新結構**
+
+左側分類、中央選項、右側說明與即時預覽；小畫面改成「分類頁→選項頁」，不硬塞三欄。
+
+分頁：
+
+1. 常用
+2. 畫面
+3. 介面
+4. 聲音
+5. 操作
+6. 觀戰與鏡頭
+7. 無障礙
+8. 遊玩偏好
+9. 外觀與收藏
+10. 資料與系統
+
+另放明確入口 **「對戰規則：影響本局」**，開啟大廳規則編輯器。
+
+**設定頁本身必備**
+
+- 搜尋名稱、說明與同義詞，例如「晃動」能找到鏡頭震動。
+- 常用頁是原選項的捷徑，不另外儲存一份。
+- 顯示「已修改」、預設值、是否立即生效。
+- 每項、每分頁、全部三種重設範圍。
+- 搜尋結果顯示所在分類，手把可直接跳到該列。
+- 布林值使用開關；枚舉使用分段選擇／清單；音量使用滑桿，改掉所有值都靠左右箭頭輪轉的做法。
+- 顯示設定修改後即時預覽；解析度／視窗模式使用限時復原。
+- 規則修改在開戰前確認，戰鬥中不能改已凍結的本局規則。
+- 所有預設組套用前列出差異，允許撤回。
+
+**作用標記**
+
+| 標記 | 意義 |
+|---|---|
+| **顯** | 顯示、聲音、輸入方式或資料管理；相同陣型、規則與軍令紀錄下，不改模擬結果 |
+| **局** | 影響組局、部署合法性、AI 或系列流程；寫入規則碼／對局中繼資料 |
+| **戰** | 改戰鬥計算；寫入規則碼、重播資料及適用的模擬指紋 |
+
+輸入方式、觀戰速度可能改變真人下軍令的時機；**真正執行的軍令 tick 必須記錄在重播**，不能只存玩家的操作偏好。
+
+以下是新安裝預設；升級玩家保留既有值。
+
+**B1．畫面分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 顯示器 | 系統偵測清單；目前螢幕 | 多螢幕使用 | 顯 |
+| 視窗模式 | 視窗／無邊框／全螢幕；視窗 | 取代單一全螢幕開關 | 顯 |
+| 視窗尺寸 | 1280×800、其他適用尺寸、自訂；1280×800，超出桌面則縮小 | 小螢幕與桌面配置 | 顯 |
+| 垂直同步 | 開／關；開 | 減少撕裂 | 顯 |
+| 幀率上限 | 30／60／120／不限；60 | 功耗與流暢度取捨 | 顯 |
+| 背景幀率 | 5／15／30；15 | 切出遊戲時節電 | 顯 |
+| 畫質預設 | 省電／標準／完整／自訂；標準 | 快速套用繪製設定 | 顯 |
+| 裝飾特效密度 | 低／中／高；中 | 控制煙塵、碎片數量，保留攻擊路徑 | 顯 |
+| 地景動態 | 關／低／完整；低 | 降低背景干擾 | 顯 |
+| 沙盤亮度 | 80～120%；100% | 改善暗部辨識 | 顯 |
+| 主畫面背景 | 動態戰鬥／靜態棋桌；動態戰鬥 | 減少動作或功耗 | 顯 |
+
+「低畫質」不得隱藏炸彈、箭、毒區與機關預警。
+
+**B2．介面分頁**
+
+文字大小、字型與提示也要套用到錯誤訊息、浮動說明及彈窗，這與 [XAG 101](https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/101) 的文字可讀性方向一致。
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 語言 | 繁中／簡中／英文／日文；繁中 | 延續現有支援 | 顯 |
+| 文字大小 | 100／125／150／175%；100% | 175% 使用重排版面，列為該做 | 顯 |
+| 介面尺寸 | 標準／加大；標準 | 放大按鈕、列高與間距 | 顯 |
+| 標題字型 | 裝飾／一般；裝飾 | 改善標題辨識 | 顯 |
+| 介面密度 | 精簡／標準／詳細；標準 | 控制摘要與進階資訊 | 顯 |
+| 說明顯示延遲 | 立即／0.3／0.6 秒；0.3 秒 | 避免提示擋住操作 | 顯 |
+| 說明固定 | 關／開；關 | 讓長說明可以慢慢讀 | 顯 |
+| 提示停留時間 | 3／6 秒／手動關閉；6 秒 | 避免訊息讀不完 | 顯 |
+| 數值呈現 | 數字／數字＋量表；數字＋量表 | 圖鑑與戰報維持精確資訊 | 顯 |
+| 新手提示 | 完整／重要／關；完整 | 老玩家可減少重複提示 | 顯 |
+| 按鍵提示圖示 | 自動／鍵鼠／Xbox／PlayStation；自動 | 對應使用裝置 | 顯 |
+| 介面安全邊界 | 0～8%；0% | 避免電視或特殊畫面邊緣被切 | 顯 |
+
+圖鑑的排行條、數值與說明分開顯示，不能讓量表取代精確數字。
+
+**B3．聲音分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 總音量 | 0～100%；100% | 統一控制輸出 | 顯 |
+| 音樂音量 | 0～100%；70% | 延續既有預設 | 顯 |
+| 戰鬥音效音量 | 0～100%；80% | 延續既有預設 | 顯 |
+| 介面音量 | 0～100%；80% | 延續既有預設 | 顯 |
+| 環境音量 | 0～100%；80% | 延續既有預設 | 顯 |
+| 動態範圍 | 標準／夜間；標準 | 降低爆炸與細小提示的音量落差 | 顯 |
+| 單聲道 | 關／開；關 | 不依賴左右聲道辨識 | 顯 |
+| 切出遊戲音訊 | 保持／降低／靜音；降低 | 避免背景持續吵雜 | 顯 |
+| 同類音效密度 | 精簡／標準／完整；標準 | 大混戰不重疊播放數十次相同聲音 | 顯 |
+| 重要事件提示音 | 關／開；開 | 保留軍令、機關、結算提示 | 顯 |
+
+音量旁提供試聽；靜音後仍有完整視覺提示。
+
+**B4．操作分頁**
+
+完整動作重綁、單鍵操作與按住／切換替代，是 [XAG 107](https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/107) 提到的重要方向。
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 鍵鼠動作重綁 | 每動作主鍵＋副鍵；既有配置 | 包含選單、擺陣、鏡頭、軍令、重播 | 顯 |
+| 手把動作重綁 | 每動作自訂；既有配置 | 雙人可各用配置 | 顯 |
+| 操作預設組 | 標準／左手／右手／自訂；標準 | 提供單手起點 | 顯 |
+| 搖桿死區 | 5～40%；20% | 處理漂移 | 顯 |
+| 搖桿游標速度 | 25～200%；100% | 適應不同手把 | 顯 |
+| 方向鍵重複速度 | 慢／標準／快；標準 | 格子移動與清單選擇 | 顯 |
+| 擺放方式 | 點選／拖曳／兩者；兩者 | 不強迫精準拖曳 | 顯 |
+| 擺放確認 | 開／關；開 | 延續既有設定 | 顯 |
+| 連續擺放 | 單次／點擊連放／按住連放；單次 | 減少大量重複操作 | 顯 |
+| 觸控長按時間 | 0.3／0.5／0.8 秒；0.5 秒 | 配合手部控制能力 | 顯 |
+| 觸控右鍵替代 | 長按／明示選單／兩者；兩者 | 不把功能藏在手勢 | 顯 |
+| 觸控按鈕配置 | 標準／左手；標準 | 單手或左手使用 | 顯 |
+| 觸控放大定位窗 | 自動／開／關；自動 | 手指遮住落點時顯示放大區 | 顯 |
+| 手把震動強度 | 0～100%；50% | 可調整而非只有開關 | 顯 |
+| 危險操作確認 | 開／關；開 | 清空陣型、覆寫預設；刪進度另行確認 | 顯 |
+| 輸入裝置切換 | 自動／鎖定；自動 | 避免搖桿漂移不停切換提示 | 顯 |
+
+重綁介面顯示衝突，允許直接交換；確認、返回與重設必須留有可操作的復原路徑。
+
+**B5．觀戰與鏡頭分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 預設播放速度 | 0.25／0.5／1／2／4／8 倍；1 倍 | 延續現有速度範圍 | 顯 |
+| 開戰先暫停 | 關／開；關 | 先看清雙方陣型 | 顯 |
+| 鏡頭模式 | 全場固定／跟隨選取／自動事件；全場固定 | 提供穩定或聚焦觀看 | 顯 |
+| 預設縮放 | 全場／上次位置／自訂；全場 | 保留觀看習慣 | 顯 |
+| 鏡頭移動速度 | 25～200%；100% | 手把與觸控調整 | 顯 |
+| 邊緣捲動 | 關／開；關 | 避免滑鼠靠邊誤移動 | 顯 |
+| 自動慢動作 | 關／關鍵事件／完整；關鍵事件 | 控制戲劇演出 | 顯 |
+| 命中停頓 | 關／低／標準；低 | 降低頻繁頓格 | 顯 |
+| 血條 | 選取／受傷／全部／關；受傷 | 控制資訊密度 | 顯 |
+| 傷害與治療數字 | 關／逐次／合併；合併 | 大混戰減少飄字 | 顯 |
+| 狀態圖示 | 重要／全部／關；重要 | 讓暈眩、毒傷等可辨識 | 顯 |
+| 戰鬥事件列 | 關／重要／全部；重要 | 看清軍令、機關與召喚 | 顯 |
+| 被遮擋棋子提示 | 關／輪廓／輪廓＋標記；輪廓 | 避免前景蓋住關鍵單位 | 顯 |
+| 結算切換 | 自動／手動；自動 | 不想被自動帶離戰場的玩家可停留 | 顯 |
+
+8 倍速允許略掉裝飾影格，但不能重播已略過的命中特效，也不能讓事件順序倒置。
+
+**B6．無障礙分頁**
+
+提供「閱讀」「低動態」「低操作負擔」「聽覺提示」四組可疊加預設。套用後可逐項修改，與《The Last of Us Part II》使用預設組降低設定負擔的方式相近，但採用本作需要的項目。[官方說明](https://blog.playstation.com/2020/06/09/the-last-of-us-part-ii-accessibility-features-detailed/)
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 無障礙預設組 | 上述四組，可疊加；未套用 | 一次調整相關設定 | 顯 |
+| 隊伍配色 | 標準／既有色盲方案／其他經驗證方案；標準 | 改善敵我辨識 | 顯 |
+| 隊伍形狀標記 | 關／開；開 | 色彩以外的第二辨識管道 | 顯 |
+| 文字高對比 | 關／開；關 | 加深文字底板、提高可讀性 | 顯 |
+| 焦點框強度 | 標準／加強；標準 | 更容易追蹤選單位置 | 顯 |
+| 鏡頭震動 | 0～100%；25% | 減少晃動 | 顯 |
+| 受擊閃白 | 關／低／標準；低 | 避免大片閃白蓋住角色 | 顯 |
+| 全畫面閃光 | 關／開；關 | 保留局部效果即可傳達事件 | 顯 |
+| 減少動態 | 關／開；關 | 降低背景、轉場與自動旋轉 | 顯 |
+| 重要音效文字提示 | 關／開；開 | 顯示機關啟動、軍令施放等事件 | 顯 |
+| 提示自動消失 | 正常／延長／不自動；正常 | 與介面提示時間連動 | 顯 |
+| 按住操作替代 | 按住／切換；切換 | 避免長時間持續施力 | 顯 |
+| 選單文字朗讀 | 關／焦點／焦點＋說明；關 | 可做；需先驗證四語與平台支援 | 顯 |
+
+跨分頁重複出現的選項是捷徑，例如「減少動態」只存一個值。
+
+低動態模式下，圖鑑保留手動角度控制、暫停與逐格，不以關閉動畫阻斷角色檢查。
+
+**B7．遊玩偏好分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 主畫面情境卡 | 自動／續局／最近玩法／隱藏；自動 | 減少重複尋找入口 | 顯 |
+| 教學提示程度 | 完整／重要／關；完整 | 控制提示量 | 顯 |
+| 失敗後提示 | 詢問／顯示／隱藏；詢問 | 不主動洩漏殘局解法 | 顯 |
+| 開戰前檢查 | 完整／重要；完整 | 提醒剩餘預算、非法陣型與特殊條件 | 顯 |
+| 新對戰預設 | 標準／我的預設／上次使用；標準 | 自動填入候選規則，開戰前仍顯示摘要 | 局 |
+| AI 難度預設 | 現有合法級別；一般 | 新對戰使用 | 局 |
+| AI 性格預設 | 均衡／鐵壁／遠程／奇襲／召喚／亂數；均衡 | 方便練習特定對手 | 局 |
+| 雙人落子預設 | 蛇形／分批／暗封／自訂；既有蛇形規則 | 保留同機習慣 | 局 |
+
+不設隱藏的自適應難度。若提供降低難度建議，需明示改了哪些條件；殘局、每日、每週使用各自固定規則。
+
+**B8．外觀與收藏分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 藍軍底漆 | 既有 4 種、依解鎖；原色 | 延續收藏 | 顯 |
+| 紅軍底漆 | 既有 4 種、依解鎖；原色 | 延續收藏 | 顯 |
+| 漬洗 | 既有 3 段；中 | 控制陰影 | 顯 |
+| 乾掃 | 既有 3 段；中 | 控制亮邊 | 顯 |
+| 木座 | 既有 4 種、依解鎖；原木 | 延續收藏 | 顯 |
+| 棋盤框 | 既有 4 種、依解鎖；標準 | 延續收藏 | 顯 |
+| 外觀套組 | 官方／自訂／隨機已解鎖；官方標準 | 一次切換整套 | 顯 |
+| 棋盤時段 | 白天／黃昏／夜晚；白天 | 集中既有純外觀設定 | 顯 |
+| 外觀隨機範圍 | 關／每次啟動／每場；關 | 增加變化但不逐幀變動 | 顯 |
+| 收藏通知 | 全部／重要／關；全部 | 控制解鎖通知 | 顯 |
+| 圖鑑自動旋轉 | 關／開；關 | 預設穩定構圖，玩家主動檢查 | 顯 |
+| 圖鑑底板 | 棋桌／素色／格線；棋桌 | 看輪廓、持物與比例 | 顯 |
+| 戰報署名 | 空白／自訂文字；空白 | 匯出分享卡使用 | 顯 |
+
+維持 V1.4 的同色系塗裝限制。配色優先順序是：**無障礙隊伍辨識 → 隊伍形狀 → 塗裝**。不得因外觀改變攻擊範圍、輪廓辨識或敵我關係。
+
+**B9．規則與對戰預設**
+
+「都能在選項找到」不代表全部變成全域開關。這一區從選項可進，但編輯的是**下一局／目前大廳的規則**。
+
+| 所在分頁 | 選項名稱 | 可選值；預設 | 用途／作用 |
+|---|---|---|---|
+| 軍勢 | 雙方預算 | 30～200 金；各 100 | 讓子與規模；局 |
+| 軍勢 | 兵數上限 | 4～40；24 | 控制軍隊規模；局 |
+| 軍勢 | 單兵種上限 | 不限或合法數量；不限，兵種硬上限仍有效 | 避免單一兵種堆疊；局 |
+| 部署 | 部署方式 | 格子／自由；格子 | 部署合法性；局，必要時戰 |
+| 部署 | 自由部署間距 | 0.6～1 格；1 格 | 控制密度；局 |
+| 部署 | 部署縱深 | 沿用合法範圍；標準半場 | 控制可放區域；局 |
+| 部署 | 全場部署 | 關／雙人／對 AI；關 | 特殊部署玩法；局 |
+| 卡池 | 雙方可用兵種 | 20 種合法集合；標準 10 種 | 每方出戰名單最多 10 種；局 |
+| 卡池 | 雙方共用卡池 | 開／關；開 | 對稱或非對稱對戰；局 |
+| 卡池 | 雙人禁用兵種數 | 沿用合法範圍；0 | 戰前禁選；局 |
+| 對戰 | 局數 | 1／3／5／7；3 | 系列流程；局 |
+| 對戰 | 落子方式 | 蛇形／分批／暗封／自訂；蛇形 | 系列流程；局 |
+| 對戰 | 自訂手數 | 1～10；5 | 自訂落子節奏；局 |
+| 對戰 | 剩餘金累積 | 開／關；關 | 系列經濟；局 |
+| 對戰 | 保留陣型 | 開／關；開 | 系列便利性；局 |
+| 戰場 | 地圖 | 現有地圖清單；平原 | 地形會影響戰鬥；戰 |
+| 戰場 | 地圖大小 | 小／中／大；中 | 戰場尺寸；戰 |
+| 戰場 | 換圖方式 | 固定／輪替／隨機；固定 | 選圖流程；局；實際地圖入戰碼 |
+| 戰場 | 機關 | 依地圖合法選項；標準 | 改變戰鬥；戰 |
+| AI | 難度 | 現有級別；一般 | 影響組軍；局 |
+| AI | 性格 | 現有 6 種；均衡 | 影響組軍；局 |
+| 實驗室 | 血量倍率 | 50～200%；100% | 沙盒平衡；戰 |
+| 實驗室 | 攻擊倍率 | 50～200%；100% | 沙盒平衡；戰 |
+| 實驗室 | 移速倍率 | 50～200%；100% | 沙盒平衡；戰 |
+| 實驗室 | 最長戰鬥時間 | 60／90／120／150 秒；90 秒 | 結束條件；戰 |
+| 技能 | 兵種技能開關 | 各技能開／關；全開 | 改變兵種能力；戰 |
+| 技能 | 手動軍令組 | 無／現有合法組合；無 | 改變戰鬥；戰 |
+| 技能 | 軍令次數、冷卻、強度 | 沿用合法範圍；1 次／20 秒／100% | 改變戰鬥；戰 |
+
+規則預設增加：
+
+- 命名、複製、收藏、排序、與標準比較。
+- 從目前 5 格擴為可管理清單，建議上限 50 組。
+- 陣型存檔另設清單，不和規則預設混存。
+- 模式不支援的選項顯示原因，不能悄悄忽略。
+- 規則碼攜帶組局條件；只有影響模擬的欄位進戰鬥指紋，維持既有分層。
+- 指揮官仍按 V1.4 裁決作為軍令套組與讓子；若要新增被動，另立新規則。
+
+**B10．資料與系統分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 最近對戰保留量 | 20／50／100；50 場 | 控制儲存空間；收藏不自動清除 | 顯 |
+| 自動備份 | 關／最近 3／10 份；3 份 | 更新與損毀復原 | 顯 |
+| 設定匯出／匯入 | 預覽後執行；手動 | 搬移個人設定 | 顯 |
+| 進度備份／還原 | 預覽後執行；手動 | 顯示版本、時間、會覆蓋的內容 | 顯 |
+| 重播收藏 | 手動收藏／取消；未收藏 | 保護重要對局 | 顯 |
+| 圖片匯出尺寸 | 標準／高解析；標準 | 分享與保存 | 顯 |
+| GIF 匯出品質 | 省空間／標準／清晰；標準 | 控制畫質與編碼時間 | 顯 |
+| 匯出位置 | 預設資料夾／自訂；預設資料夾 | 容易找到成果 | 顯 |
+| Steam 排行榜提交 | 詢問／自動／關閉；詢問 | 控制外部上傳 | 顯 |
+| 分享玩家名稱 | 隱藏／顯示；隱藏 | 戰報與匯出資料使用 | 顯 |
+| 診斷資料匯出 | 手動；不自動傳送 | 供使用者附上錯誤報告 | 顯 |
+| 試玩紀錄 | 關／開；關 | 延續現有功能，說明記錄欄位與位置 | 顯 |
+| 清除資料 | 分類選擇後確認；手動 | 分別清除快取、重播、紀錄或全部進度 | 顯 |
+
+Steam Cloud 顯示同步範圍與狀態；若由平台控制，提供說明與入口，不做無法真正控制的平台開關。現有「進度同步、裝置設定留本機」原則可延續。
+
+**設定資料設計**
+
+每個設定定義統一登記：
+
+```text
+穩定 ID／分類／資料型別／合法值／預設值
+作用範圍／生效時機／搜尋詞／說明
+相依條件／預設組歸屬／版本遷移方式
+```
+
+- 裝置設定：解析度、效能、輸入、音量，留本機。
+- 個人偏好：字級、提示、收藏，可匯出。
+- 規則預設：獨立版本與規則碼。
+- 進行中對局：凍結規則，不跟著全域偏好改動。
+- 舊版 `reduce_fx` 等複合開關遷移成新值時，保留原本降低動態的效果。
+
+---
+
+**C．角色：投射物、握持、轉身、圖鑑與共同驗收**
+
+**C1．遠程演出：統一從發射到命中的時間關係**
+
+每次攻擊建立可辨識的演出紀錄：
+
+```text
+攻擊識別
+→ 前搖
+→ 離手／離弦
+→ 飛行或連結
+→ 命中
+→ 血條、狀態、受擊、聲音
+→ 收招
+```
+
+飛行物不能再由「扣血事件發生後」才啟動。角色手上的物件與飛行物必須共用發射錨點，交接時只存在一份。
+
+| 兵種／效果 | 形狀與發射準備 | 飛行與軌跡建議 | 命中表現 |
+|---|---|---|---|
+| 弓箭手 | 木桿、金屬箭頭、羽尾；前搖先搭箭，箭尾跟弦移動 | 淺拋物線；被動觀戰約 0.15～0.30 秒 | 箭尖抵達才扣血；盾面短火花、肉身短停留，材質音不同 |
+| 投彈兵 | 清楚的火罐／黑色彈體、短引信；甩手時離手 | 高拋物線約 0.25～0.40 秒；以距離調整弧高 | 落點爆裂，主目標與波及共用一次爆炸，避免每個受害者再炸一顆 |
+| 骷髏法師普攻 | 書頁紫火聚成帶尾焰的火種 | 低弧／近直線約 0.15～0.30 秒 | 紫色小爆散與骨屑；避免整片白閃 |
+| 孢子菇 | 傘緣吐出淡綠孢子，有來源與擴散方向 | 孢子向毒圈內飄散，單粒壽命約 0.3～0.6 秒；不代表單粒傷害 | 實際毒傷 tick 時目標出現小毒標與短促反應 |
+| 醫者 | 杖頂十字聚光 | 保留治療弧線，約 0.10～0.20 秒 | 抵達時增加血量、出現十字；不能像攻擊爆炸 |
+| 巫毒娃娃 | 扎針動作、針頭與線端可辨識 | 保留綁定線，傷害時約 0.10 秒脈衝沿線傳遞 | 目標同步抽動；不是可躲避的飛針 |
+| 鼓手 | 鼓槌接觸鼓面 | 短距離聲波圈約 0.2 秒 | 表示鼓舞，不畫成傷害彈 |
+| 吸塵貓 | 吸口與目標間有氣流方向 | 流線朝吸口移動，跟既有拉動期間一致 | 不額外創造撞擊或飛行傷害 |
+| 沙漏精靈 | 沙粒向沙漏聚集、施法前兆 | 效果範圍內沙粒／刻度波紋 | 對齊既有時停事件，不偽裝成單體彈 |
+| 法師召喚 | 書頁符號連到合法屍體位置 | 短暫符線、骨片由地面組起 | 和普攻紫火明確區別 |
+
+爆爆羊是本體接觸／死亡爆炸，小石魔是拍地效果，皆不新增憑空飛出的遠程武器。
+
+**時間同步的實作選擇**
+
+上述較長飛行時間**超過目前 0.1 秒展示緩衝**，不能只改特效長度。
+
+建議分兩條：
+
+- **純自動對決、重播、圖鑑真模擬**：展示緩衝擴至約 8～10 tick，容納前搖與飛行；血條、死亡、音效、戰報事件一起使用展示時間。
+- **有即時手動軍令的對局**：先維持短緩衝，使用約 0.05～0.10 秒快速飛行。不能直接把長緩衝套上去，增加操作延遲。
+- 若要求手動軍令也有完整長飛行，應另設真正的發射／命中模擬事件，明確決定追蹤、失去目標、飛行中死亡等規則；這屬於**新戰鬥規則版本**，列為可做。
+
+共同限制：
+
+- 使用展示 tick 與插值，不用彼此獨立的牆鐘計時器。
+- 飛行終點取實際命中時的目標位置；保留足夠快照，不能只查目前畫面位置。
+- 暫停時飛行停住，倍速時同步加速，跳轉後清除並重建。
+- 第一擊缺少完整前置時間時縮短演出，不在開戰前憑空飛彈。
+- 同一發炸彈的波及事件不能生成多顆彈。
+- 減少特效仍保留物件本體、路徑方向及必要命中提示。
+
+**C2．手持物：建立共同握持畫法**
+
+現在的「像被裁掉」至少有三個不同來源：物件本身沒畫完整、手部遮擋順序不對、圖鑑構圖越界。應分別修。
+
+**共同部件**
+
+- 武器局部座標包含：握點、柄尾、護手、刃根／工具根、尖端、發射點。
+- 手分成掌後片與手指前片。
+- 一般順序：遠手／掌後 → 握柄 → 掌前與手指 → 護手、刃身；實際順序由角度調整。
+- 手指以少量弧線與指節塊面包住柄，不需要寫實五指。
+- 握柄被手蓋住的部分合理隱藏，但柄尾、護手與刃根要讓人能判讀連接。
+
+**逐類修正**
+
+- 劍士：補柄尾、握柄、護手，避免刀刃直接插進掌心。
+- 刺客：兩把短刀分別有握點；遠手與近手不能共用固定最前層。
+- 騎兵／長槍兵：槍桿在握點分前後段，手指覆在桿前；刺擊時手與槍一起移動。
+- 弓箭手：弓把、握弓手、拉弦手、箭與弦各自有錨點，拉弦時不能脫離。
+- 投彈兵：火罐在離手前跟手，離手後從手部層移除。
+- 醫者：手包住杖身，十字與杖頂不隨轉身穿頭。
+- 鼓手：鼓槌有短柄尾；敲擊終點落在鼓面。
+- 狂戰士：兩柄斧的斧頭、柄與手分離，側身時遠斧可被身體遮住。
+- 法師：手托住書脊／底邊，書頁朝向與胸部朝向一致。
+- 巫毒娃娃與骷髏：針、骨製工具也走同一握持規則。
+
+驗收包括待機、前搖、命中、收招與各方向，不能只修正面待機圖。
+
+**C3．轉身：用程式部件做有厚度的多角度角色**
+
+建議採用 **8 個主要方向＋角度間部件插值**。保留程式繪製，完成後可烘焙圖集。
+
+不再使用整隻角色水平壓縮至 0.3 的方式。
+
+**角色分層**
+
+```text
+底座與接地陰影
+遠側腳／遠側手／遠側持物
+後腦、頭盔後片、披風、背部配件
+軀幹與頭部主體
+臉部
+近側腳／近側手／近側持物
+必要前景裝飾
+```
+
+**轉向規則**
+
+- 頭部保持體積，只允許少量輪廓變化。
+- 臉部中心隨角度沿頭部橢圓移動；遠眼逐漸變窄、被輪廓遮住。
+- 側面加入鼻部／口部小輪廓，背面不畫眼睛。
+- 帽沿、頭盔護頰、盾邊、書厚度有側面專屬幾何。
+- 肩、手、腳及持物依近遠側錯開，轉過側面時交換前後層。
+- 軀幹先轉、頭略提早看向目標，武器稍後跟上；差距保持短，避免像零件散開。
+- 步行轉向保留步相與腳底位置，不能在換角度時滑動。
+- 裝備左右手歸屬固定；完整旋轉不等於整張鏡像翻面。
+
+**不同輪廓族群**
+
+| 類型 | 需要專屬處理 |
+|---|---|
+| 人形兵 | 共用頭、肩、手腳的角度骨架，各自加帽與武器 |
+| 騎兵 | 人、馬、長槍分開轉；馬頭與身體有側面長度 |
+| 蘑菇／史萊姆 | 外形保持體積，臉、斑點、冠飾繞體移動 |
+| 寶箱怪 | 蓋板、箱體、鉸鏈、牙與舌頭有前後厚度 |
+| 幽靈 | 臉跟著轉，尾部與雙手錯動 |
+| 娃娃 | 球頭、鈕扣眼、縫線與針方向一致 |
+| 沙漏精靈 | 框架、玻璃、翅片分層，側面仍有框厚 |
+| 吸塵貓 | 耳、背包、吸管與口部不可一起壓扁 |
+| 石魔 | 肩甲、拳、軀幹有側面面積與遮擋 |
+
+先以**劍士、弓箭手、騎兵、寶箱怪、史萊姆、法師**六種驗證方法，再展開其餘兵種。
+
+Godot 的自訂繪製與繪製變換可支援這種部件式方案；無須先改用外部角色工具。[Godot 4.6 文件](https://docs.godotengine.org/en/4.6/tutorials/2d/custom_drawing_in_2d.html)
+
+容量先不設否決門檻，但要量測：
+
+- 各方向圖集佔用、冷啟動、首次進圖鑑及換塗裝時間。
+- 圖鑑高解析預覽與戰場快取分開。
+- 分頁／按需產生，避免所有兵種、方向、塗裝全部同步常駐。
+- 快取與直接繪製必須有同角度比較表，不能兩套畫法越改越不同。
+
+**C4．圖鑑大圖：固定名稱區，角色使用完整動作包絡**
+
+建議卡片分區：
+
+```text
+┌──────────────────────────────┐
+│ 名稱、定位、費用              │ 固定標題區
+├──────────────────────────────┤
+│                              │
+│     棋子完整展示區            │ 角色與持物都在此區
+│                              │
+│ 旋轉／動作／播放／逐格         │
+├──────────────────────────────┤
+│ 數值、技能、克制與被克制       │
+└──────────────────────────────┘
+```
+
+- 對每兵種計算所有方向、待機與攻擊姿勢的聯集邊界。
+- 以聯集邊界選定固定縮放，不在每一幀忽大忽小。
+- 長槍、旗、火罐前搖也計入邊界，不能只算身體。
+- 預留約 10% 安全邊；需要時加大展示區，不把整隻縮到難辨識。
+- 底座位置穩定；標題區與角色區不能互相侵入。
+- 「完整棋子」與「近看細節」兩種視圖；近看可平移，完整視圖一鍵復原。
+- 攻擊展示預留目標假人與飛行區，不讓箭飛進名稱或說明。
+- 法師普攻、召喚，投彈兵投彈、貼身敲擊等，要能分別選擇。
+- 小劇場保留真模擬，不能只靠擺姿勢驗收攻擊。
+
+**C5．共同驗收：每種兵都有可逐格核對的證據**
+
+每次檢查包標明版本、兵種 ID、角度、狀態、規則碼與種子，輸出：
+
+1. **360 度影片／GIF**
+   - 每兵種 4～6 秒，完整一圈。
+   - 正常速度與慢速各一份。
+   - 附 16 個角度的靜態拼表，用來檢查側面與遮擋。
+
+2. **持物細節表**
+   - 握點、護手、柄尾放大。
+   - 前後左右與攻擊關鍵姿勢。
+   - 同時提供原尺寸，確認縮小後仍看得懂。
+
+3. **攻擊逐格表**
+   - 前搖、離手、飛行中點、命中前、命中、收招。
+   - 標出展示 tick、傷害 tick、HP 前後值與音效時點。
+   - 不以 GIF 作為唯一精確驗收資料，另附影片與逐格圖。
+
+4. **圖鑑版面表**
+   - 四語、三個既有字級。
+   - 完整動作包絡與名稱區疊圖。
+   - 若新增 175%，獨立增加一組。
+
+5. **真戰鬥案例**
+   - 遠程近距離與最遠距離、移動目標、盾兵。
+   - 施放者同 tick 死亡、目標死亡、多發同點爆炸。
+   - 暫停、倍速、倒回、跳轉、減少特效與色盲模式。
+
+共同確認表：
+
+| 兵種 | 轉身 | 握持／部件 | 攻擊同步 | 圖鑑構圖 | 結論 |
+|---|---|---|---|---|---|
+| 每種一列 | 通過／問題編號 | 通過／不適用／問題編號 | 通過／問題編號 | 通過／問題編號 | 待修／待複核／通過 |
+
+使用者可以回覆「騎兵 135° 槍桿穿手」，我們能直接重現，不必重新描述整段動畫。
+
+---
+
+**D．V1.4 基礎上需要完成的大項**
+
+**D1．大廳重整：先選玩法，再看條件，再擺陣｜必做**
+
+承接 V1.4 裁決 B23、B25：
+
+- 頂部只顯示模式、雙方、規則摘要與續局狀態。
+- 左側顯示本戰條件，中央棋盤，底部兵種卡，右側選取兵種說明。
+- `Beats／Fears` 改成完整本地化的克制／被克制區，不擠在擺陣頂欄。
+- 進階七類規則收進抽屜式編輯器，主畫面只顯示與標準不同之處。
+- 契約、貼紙、巨獸、宿敵的效果先摘要；選取可展開詳細條件。
+- 非法陣型直接標出哪隻兵、哪個條件，提供定位。
+- 開戰是唯一主要動作；清空、載入、匯入降低視覺權重。
+- 設定頁開關與規則編輯器使用同一套控件行為。
+
+**D2．結果頁重整：讓玩家知道下一步與發生原因｜必做**
+
+承接 V1.4 裁決 B25：
+
+- 第一層：勝負、耗時、剩餘戰力、關卡／契約達成狀態。
+- 主要按鈕依模式變成下一站、下一局或再試一次。
+- 第二層：重播、時光機、統計。
+- 分享卡、GIF、出題、接力收到「分享與工坊」。
+- 損失原因使用可查證事件，例如「第 24 秒右路失守」，點擊跳到重播。
+- 不把相關性寫成因果；無法證明時顯示事件描述。
+- 競猜明示原先選擇、實際勝負、差距與得分公式。
+- 車輪戰明示留下哪些殘兵；雙封蠟顯示三封總結果。
+
+**D3．大量混戰：整理地面、棋子、飛行物與事件層級｜必做**
+
+- 地面先畫範圍與機關；角色依腳點排序；空中飛行物按高度及必要遮擋處理。
+- 機關預警、時停、衝鋒／破陣等關鍵訊息高於普攻裝飾。
+- 飄字在短時間窗合併，治療與傷害分流，重要狀態不合併掉。
+- 同類爆炸保留各自實際位置，減少的是煙塵與殘片。
+- 選取單位顯示目標、狀態及受遮擋輪廓。
+- 事件列可篩選隊伍與事件類型，點擊定位／跳重播。
+- 簡化模式保留敵我、傷害來源與危險區域。
+
+這符合 Riot 對特效層級、輪廓與減少雜訊的設計原則；此處是對本作的具體套用。[Riot 原文](https://www.leagueoflegends.com/en-us/news/dev/clarity-in-league/)
+
+**D4．新玩法平衡與流程補完｜該做**
+
+不再只看隨機陣型總勝率。
+
+- 巨獸：近戰斷臂路線、純遠程、混編、廉價大量兵分開驗證。
+- 車輪戰：殘兵累積是否滾雪球、支援兵是否過強、最低預算補正是否可利用。
+- 輪抽：先後手、卡池組合、AI 選卡與實際可部署性。
+- 雙封蠟：先封／後封、平手、交接資訊是否洩漏。
+- 遠征：契約永久加成、貼紙、事件獎勵的疊加上限與強勢組合。
+- 每週棋盒：題目種子、卡池、對手與規則摘要固定保存。
+- 幽靈軍團：保留既有 ID；修改內容另開版本，不能讓已通關 ID 指向另一陣型。
+- 測試使用鏡像換邊、固定代表陣、隨機陣與刻意尋找漏洞的陣型。
+- 先建立基準，再決定調數值；任何改戰鬥的調整都走版本與規則碼。
+
+**D5．資料、代碼與重播生命週期｜必做**
+
+- 匯入先預覽類型、版本、模式、規則差異與合法性。
+- 對損毀、過長、未知欄位、不合法兵種、越界位置提供明確錯誤。
+- 舊重播支援時使用對應規則；不支援時明示，不能用新版偷偷重算。
+- 分享檔標示遊戲版本、規則版本、數值摘要。
+- 設定、規則、進度各自遷移與備份。
+- 匯出中切頁、退出、磁碟滿與失敗都能恢復，不留下無限等待。
+- 模式切換繼續驗證每日、每週、車輪戰、封蠟與遠征狀態互不污染。
+- 舊金標準與對戰指紋列為回歸門檻。
+
+**D6．四語與大字級收尾｜該做**
+
+- 簡中、日文優先校對玩法、勝敗、資料刪除、契約與規則用語。
+- 統一兵種名、數量詞、時間單位與技能名。
+- 所有新設定說明、動作名稱、規則差異都進翻譯流程。
+- 驗證文字換行、焦點捲動、長名稱與數值變動。
+- 未校對語言繼續明示狀態；程式版面檢查不能取代語意校對。
+
+**D7．Steam 與 Deck 前置｜該做；外部實測獨立列管**
+
+- Steam 排行榜後台建置、測試資料隔離、上傳／下載與離線補送實測。
+- 成績攜帶題目版本、規則摘要與必要驗證資料。
+- Cloud 做兩裝置衝突、舊檔、新檔與中斷復原測試。
+- 手把全流程、重綁、熱插拔、文字輸入與按鍵圖示。
+- Deck 驗證字級、效能、功耗、休眠喚醒、觸控與匯入輸入法。
+- Steam 缺席時核心玩法正常運作；排行榜入口顯示實際狀態。
+- 不把「程式已接」寫成「後台／實機已驗證」。
+
+Steam 相容性判定依平台審查與實際裝置結果，提案中的測試不能自行視為認證。[Steamworks 文件](https://partner.steamgames.com/doc/steamdeck/compat)
+
+**D8．可新增玩法：戰術試驗桌｜可做**
+
+優先於再增加一個獨立大型模式：
+
+- 任選雙方兵種、數量、位置與既有規則。
+- 一鍵鏡像、重置、連跑固定種子組。
+- 指定觀察兵種、顯示狀態、慢速與逐格。
+- 保存試驗碼，從圖鑑直接進入。
+- 使用同一模擬器，不做另一套假戰鬥。
+- 自訂試驗與正式紀錄、成就、排行榜分開標示。
+
+用途同時涵蓋玩家學習、角色檢查、平衡重現與問題回報。
+
+---
+
+**E．優先序、工時、風險與相依**
+
+工時為初估人時，包含實作、必要自動化、畫面檢查與修正；不把等待使用者或平台審核算成工時。設定選項以 B 區為候選全集，「可做」項目不納入必要發版範圍。
+
+| 工作包 | 優先序 | 人時 | 主要風險 | 相依 |
+|---|---|---:|---|---|
+| A 五入口、情境卡、導航與入口搬遷 | 必做 | 32～48 | 只是把按鈕藏深、續局入口不清楚 | 共用焦點／返回規則 |
+| B 設定定義、儲存與遷移基礎 | 必做 | 28～44 | 舊設定遺失、同設定存兩份 | 先盤點既有欄位 |
+| B 設定頁、搜尋、預設組與常用頁 | 必做 | 36～56 | 手把搜尋、大字級版面 | 設定基礎 |
+| B 基本畫面、介面、聲音、操作、觀戰選項 | 必做 | 64～104 | 控件與功能不同步、組合過多 | 設定頁 |
+| B 無障礙及觸控完整流程 | 必做 | 40～64 | 只改外觀，實際仍有操作障礙 | 設定基礎、焦點系統 |
+| B 外觀、收藏與規則預設管理 | 該做 | 32～52 | 快取重建競態、預設與本局混淆 | 設定基礎、規則資料 |
+| C1 遠程演出與時間同步 | 必做 | 28～44 | 軍令延遲、飛行晚於扣血 | 展示緩衝、事件識別 |
+| C2 全兵種握持與部件修正 | 必做 | 28～44 | 只修某角度、攻擊時再穿模 | 共同握點規格 |
+| C3 多角度轉身與圖集整合 | 必做 | 64～96 | 工作量擴張、圖集與直接繪製不一致 | 六種試點先驗收 |
+| C4 圖鑑構圖與動畫檢查控制 | 必做 | 16～24 | 武器包絡漏算、角色過小 | 握持與多角度資料 |
+| C5 自動輸出檢查包及逐種修正 | 必做 | 24～36 | 拼表與真戰鬥結果不一致 | C1～C4 |
+| D1 大廳整理 | 必做 | 28～44 | 條件藏太深、模式狀態殘留 | 規則編輯器、入口架構 |
+| D2 結果頁整理 | 必做 | 16～24 | 主動作依模式判斷錯誤 | 各模式結算資料 |
+| D3 大混戰層級整理 | 必做 | 24～40 | 簡化時刪掉必要資訊 | 投射物與事件分類 |
+| D4 平衡與模式流程 | 該做 | 24～40 | 測試樣本失真、調數值破壞舊局 | 固定基準與版本策略 |
+| D5 資料、代碼與重播 | 必做 | 24～36 | 舊碼與存檔回歸 | 設定遷移、規則版本 |
+| D6 四語校對與版面 | 該做 | 16～28 | 缺母語校對 | 新文案大致凍結 |
+| D7 Steam／Deck 前置 | 該做 | 24～40 | 後台權限與實機不可得 | 穩定候選版本 |
+| 發版整合與完整流程驗收 | 必做 | 24～40 | 各頁單獨通過，串接仍失敗 | 上述工作包 |
+
+**上述完整建議範圍合計約 672～1,060 人時。**  
+另留約 20% 預備，主要用於多角度角色修正、輸入流程與存檔回歸。三方審查可以縮短日曆時間，但不應直接把總人時除以三。
+
+另列可做項目：
+
+| 工作包 | 人時 | 風險／相依 |
+|---|---:|---|
+| 選單文字朗讀 | 24～48 | 四語、平台與焦點語意支援 |
+| 175% 大字級與完整重排 | 16～28 | 所有畫面需追加驗收 |
+| 戰術試驗桌 | 32～56 | 依賴規則、圖鑑與重播控制 |
+| 真正有飛行時間的戰鬥規則 | 56～96 | 新模擬事件、規則版本、AI 與平衡重驗 |
+
+**建議執行順序**
+
+1. 凍結相容性基準、設定分類與攻擊時間契約。
+2. 六種角色試點，同時建立檢查包。
+3. 設定基礎、主畫面、大廳與結果頁。
+4. 全 22 種角色、投射物與圖鑑整合。
+5. 大混戰、資料回歸、四語與各模式流程。
+6. 平衡驗證、Steam／Deck、發版候選驗收。
+
+**V1.5.0 發版門檻**
+
+- 22 種角色逐種有轉身、持物／部件、攻擊與圖鑑驗收紀錄。
+- 遠程不再先扣血再飛行；孢子、連結與範圍效果符合真實機制。
+- 名稱區、角色區、飛行區不互相侵入。
+- 鍵鼠、手把、觸控都能完成主要遊玩與設定流程。
+- 舊存檔、陣型、規則碼及支援中的重播通過回歸。
+- Steam 後台、Deck 實機、母語校對分別標記完成狀態。
+
+**第 2 輪應優先裁決五件事：五入口的歸屬、設定必做清單、多角度角色標準、手動軍令的飛行時間策略，以及本版是否納入任何新戰鬥規則。**
+tokens used
+82,784
+**V1.5.0 建議定位：把角色、選項與主要操作流程做完整。必做核心是角色演出修正、主畫面重整、設定系統重建，以及 V1.4 延後的資訊層級整理。**
+
+本提案是第 1 輪獨立方案，未實作。已讀 `brief.md`、全部附圖、V1.4 裁決紀錄，並核對角色繪製、圖鑑、戰鬥演出、展示緩衝、規則與存檔程式。
+
+**先修正三個會影響規劃的現況判斷：**
+
+- **22 種是繪製驗收對象，實際可部署兵種是 20 種**；小史萊姆、骷髏是召喚／衍生單位，也必須驗收。
+- **投彈兵已有拋物線程式**，位於 `battle_units.gd`；問題應追查演出時間太短、手持物與飛行物交接、遮擋及是否實際畫出，不能直接當成完全缺功能。
+- **孢子菇是範圍毒傷與減速來源**。它需要看得見的孢子傳播，但不宜畫成可閃躲、逐顆命中的單體子彈。
+- 現有展示緩衝只有 **2 tick＝0.1 秒**；弓箭則在命中事件後才建立 0.28 秒飛行效果。這是需要修正的時間關係。
+
+---
+
+**A．主畫面：五顆主按鈕，固定位置**
+
+建議五顆：**開始對戰、冒險挑戰、棋子與收藏、戰績與重播、選項**。
+
+退出保留底部小型文字按鈕；版本號、製作名單、更新紀錄放頁尾。它們不和主要遊玩入口競爭。
+
+```text
+主畫面
+├─ 1. 開始對戰
+│  ├─ 快速對 AI
+│  ├─ 同機雙人
+│  ├─ 自訂對戰
+│  │  ├─ 對戰規則
+│  │  ├─ 我的規則預設
+│  │  └─ 陣型庫
+│  └─ 遊戲間
+│     ├─ 輪抽
+│     ├─ 車輪戰
+│     ├─ 雙封蠟
+│     └─ 觀戰競猜
+├─ 2. 冒險挑戰
+│  ├─ 繼續遠征／開始遠征
+│  ├─ 殘局
+│  │  ├─ 章節
+│  │  ├─ 接力殘局
+│  │  └─ 最小成本紀錄
+│  ├─ 主題試煉
+│  ├─ 每日挑戰
+│  ├─ 每週棋盒
+│  ├─ 幽靈軍團
+│  └─ 教學
+├─ 3. 棋子與收藏
+│  ├─ 兵種圖鑑
+│  ├─ 塗裝室
+│  ├─ 成就與解鎖
+│  └─ 我的陣型
+├─ 4. 戰績與重播
+│  ├─ 最近對戰
+│  ├─ 已收藏重播
+│  ├─ 宿敵戰記
+│  ├─ 統計
+│  └─ 匯入代碼
+├─ 5. 選項
+│  └─ 個人設定、無障礙、資料管理
+└─ 頁尾
+   ├─ 更新紀錄／版本
+   ├─ 製作名單
+   └─ 離開遊戲
+```
+
+**入口歸屬原則**
+
+- 每個功能有一個正式歸屬；其他位置可放捷徑，開啟同一份資料。
+- 「我的陣型」可從收藏與大廳進入，避免出現兩套存檔。
+- 「匯入代碼」也可出現在對戰、殘局頁；先辨認代碼類型，再開啟正確預覽。
+- 每日、每週移出遊戲間，集中到挑戰，顯示日期及完成狀態。
+- 宿敵、塗裝不再藏在戰績的次入口裡。
+
+**主畫面構圖**
+
+- 左側固定五顆按鈕。
+- 右側保留沙盤示範，下方棋子展示可直接進圖鑑。
+- 右側只放一張情境卡：新玩家是教學；有續局是繼續遠征；其他情況是最近玩法。
+- 情境卡不搶初始焦點、不自動彈出，也不使用輪播廣告式切換。
+- 示範戰鬥可關閉，或改成靜態棋桌。
+
+**第一次與老玩家**
+
+| 情況 | 預設行為 |
+|---|---|
+| 第一次啟動 | 先顯示可略過的語言、字級、無障礙快速設定，再到主畫面 |
+| 尚未完成教學 | 右側顯示「學會擺第一場」，可直接進正常對戰 |
+| 已完成教學 | 初始焦點停在「開始對戰」；右側顯示最近玩法 |
+| 有遠征續局 | 顯示站數、軍隊摘要與「繼續遠征」 |
+| 升級至 V1.5 | 保留原設定、續局與預設，只顯示一次可關閉的入口搬遷說明 |
+
+不依玩家身分重排五顆按鈕，讓操作位置可以記住。
+
+**手把動線**
+
+- 十字鍵／左搖桿上下選主按鈕，確認進入，返回退一層。
+- 肩鍵切換子分頁；返回後恢復原焦點與捲動位置。
+- 焦點框同時使用外框、亮度及小指標，不能只有顏色差異。
+- 子頁第一焦點放主要動作；續局與新局有不同標籤，避免誤覆蓋。
+- 開始對戰 → 快速對 AI → 擺陣，最多兩次確認抵達擺陣頁。
+
+**觸控動線**
+
+- 以 1280×800 為驗收基準，主要觸控目標至少約 48×48 邏輯像素。
+- 重要功能都有可見按鈕，長按只是替代操作。
+- 擺陣提供「選棋子→點位置→確認」，拖曳可選。
+- 雙人交接使用整頁遮罩與「已交給對方」確認，遮罩期間禁止長按穿透。
+- 捏合縮放之外，提供縮放＋／－與重置鏡頭。
+
+---
+
+**B．客製化：先建立分類、作用範圍與資料契約**
+
+**設定頁新結構**
+
+左側分類、中央選項、右側說明與即時預覽；小畫面改成「分類頁→選項頁」，不硬塞三欄。
+
+分頁：
+
+1. 常用
+2. 畫面
+3. 介面
+4. 聲音
+5. 操作
+6. 觀戰與鏡頭
+7. 無障礙
+8. 遊玩偏好
+9. 外觀與收藏
+10. 資料與系統
+
+另放明確入口 **「對戰規則：影響本局」**，開啟大廳規則編輯器。
+
+**設定頁本身必備**
+
+- 搜尋名稱、說明與同義詞，例如「晃動」能找到鏡頭震動。
+- 常用頁是原選項的捷徑，不另外儲存一份。
+- 顯示「已修改」、預設值、是否立即生效。
+- 每項、每分頁、全部三種重設範圍。
+- 搜尋結果顯示所在分類，手把可直接跳到該列。
+- 布林值使用開關；枚舉使用分段選擇／清單；音量使用滑桿，改掉所有值都靠左右箭頭輪轉的做法。
+- 顯示設定修改後即時預覽；解析度／視窗模式使用限時復原。
+- 規則修改在開戰前確認，戰鬥中不能改已凍結的本局規則。
+- 所有預設組套用前列出差異，允許撤回。
+
+**作用標記**
+
+| 標記 | 意義 |
+|---|---|
+| **顯** | 顯示、聲音、輸入方式或資料管理；相同陣型、規則與軍令紀錄下，不改模擬結果 |
+| **局** | 影響組局、部署合法性、AI 或系列流程；寫入規則碼／對局中繼資料 |
+| **戰** | 改戰鬥計算；寫入規則碼、重播資料及適用的模擬指紋 |
+
+輸入方式、觀戰速度可能改變真人下軍令的時機；**真正執行的軍令 tick 必須記錄在重播**，不能只存玩家的操作偏好。
+
+以下是新安裝預設；升級玩家保留既有值。
+
+**B1．畫面分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 顯示器 | 系統偵測清單；目前螢幕 | 多螢幕使用 | 顯 |
+| 視窗模式 | 視窗／無邊框／全螢幕；視窗 | 取代單一全螢幕開關 | 顯 |
+| 視窗尺寸 | 1280×800、其他適用尺寸、自訂；1280×800，超出桌面則縮小 | 小螢幕與桌面配置 | 顯 |
+| 垂直同步 | 開／關；開 | 減少撕裂 | 顯 |
+| 幀率上限 | 30／60／120／不限；60 | 功耗與流暢度取捨 | 顯 |
+| 背景幀率 | 5／15／30；15 | 切出遊戲時節電 | 顯 |
+| 畫質預設 | 省電／標準／完整／自訂；標準 | 快速套用繪製設定 | 顯 |
+| 裝飾特效密度 | 低／中／高；中 | 控制煙塵、碎片數量，保留攻擊路徑 | 顯 |
+| 地景動態 | 關／低／完整；低 | 降低背景干擾 | 顯 |
+| 沙盤亮度 | 80～120%；100% | 改善暗部辨識 | 顯 |
+| 主畫面背景 | 動態戰鬥／靜態棋桌；動態戰鬥 | 減少動作或功耗 | 顯 |
+
+「低畫質」不得隱藏炸彈、箭、毒區與機關預警。
+
+**B2．介面分頁**
+
+文字大小、字型與提示也要套用到錯誤訊息、浮動說明及彈窗，這與 [XAG 101](https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/101) 的文字可讀性方向一致。
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 語言 | 繁中／簡中／英文／日文；繁中 | 延續現有支援 | 顯 |
+| 文字大小 | 100／125／150／175%；100% | 175% 使用重排版面，列為該做 | 顯 |
+| 介面尺寸 | 標準／加大；標準 | 放大按鈕、列高與間距 | 顯 |
+| 標題字型 | 裝飾／一般；裝飾 | 改善標題辨識 | 顯 |
+| 介面密度 | 精簡／標準／詳細；標準 | 控制摘要與進階資訊 | 顯 |
+| 說明顯示延遲 | 立即／0.3／0.6 秒；0.3 秒 | 避免提示擋住操作 | 顯 |
+| 說明固定 | 關／開；關 | 讓長說明可以慢慢讀 | 顯 |
+| 提示停留時間 | 3／6 秒／手動關閉；6 秒 | 避免訊息讀不完 | 顯 |
+| 數值呈現 | 數字／數字＋量表；數字＋量表 | 圖鑑與戰報維持精確資訊 | 顯 |
+| 新手提示 | 完整／重要／關；完整 | 老玩家可減少重複提示 | 顯 |
+| 按鍵提示圖示 | 自動／鍵鼠／Xbox／PlayStation；自動 | 對應使用裝置 | 顯 |
+| 介面安全邊界 | 0～8%；0% | 避免電視或特殊畫面邊緣被切 | 顯 |
+
+圖鑑的排行條、數值與說明分開顯示，不能讓量表取代精確數字。
+
+**B3．聲音分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 總音量 | 0～100%；100% | 統一控制輸出 | 顯 |
+| 音樂音量 | 0～100%；70% | 延續既有預設 | 顯 |
+| 戰鬥音效音量 | 0～100%；80% | 延續既有預設 | 顯 |
+| 介面音量 | 0～100%；80% | 延續既有預設 | 顯 |
+| 環境音量 | 0～100%；80% | 延續既有預設 | 顯 |
+| 動態範圍 | 標準／夜間；標準 | 降低爆炸與細小提示的音量落差 | 顯 |
+| 單聲道 | 關／開；關 | 不依賴左右聲道辨識 | 顯 |
+| 切出遊戲音訊 | 保持／降低／靜音；降低 | 避免背景持續吵雜 | 顯 |
+| 同類音效密度 | 精簡／標準／完整；標準 | 大混戰不重疊播放數十次相同聲音 | 顯 |
+| 重要事件提示音 | 關／開；開 | 保留軍令、機關、結算提示 | 顯 |
+
+音量旁提供試聽；靜音後仍有完整視覺提示。
+
+**B4．操作分頁**
+
+完整動作重綁、單鍵操作與按住／切換替代，是 [XAG 107](https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/107) 提到的重要方向。
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 鍵鼠動作重綁 | 每動作主鍵＋副鍵；既有配置 | 包含選單、擺陣、鏡頭、軍令、重播 | 顯 |
+| 手把動作重綁 | 每動作自訂；既有配置 | 雙人可各用配置 | 顯 |
+| 操作預設組 | 標準／左手／右手／自訂；標準 | 提供單手起點 | 顯 |
+| 搖桿死區 | 5～40%；20% | 處理漂移 | 顯 |
+| 搖桿游標速度 | 25～200%；100% | 適應不同手把 | 顯 |
+| 方向鍵重複速度 | 慢／標準／快；標準 | 格子移動與清單選擇 | 顯 |
+| 擺放方式 | 點選／拖曳／兩者；兩者 | 不強迫精準拖曳 | 顯 |
+| 擺放確認 | 開／關；開 | 延續既有設定 | 顯 |
+| 連續擺放 | 單次／點擊連放／按住連放；單次 | 減少大量重複操作 | 顯 |
+| 觸控長按時間 | 0.3／0.5／0.8 秒；0.5 秒 | 配合手部控制能力 | 顯 |
+| 觸控右鍵替代 | 長按／明示選單／兩者；兩者 | 不把功能藏在手勢 | 顯 |
+| 觸控按鈕配置 | 標準／左手；標準 | 單手或左手使用 | 顯 |
+| 觸控放大定位窗 | 自動／開／關；自動 | 手指遮住落點時顯示放大區 | 顯 |
+| 手把震動強度 | 0～100%；50% | 可調整而非只有開關 | 顯 |
+| 危險操作確認 | 開／關；開 | 清空陣型、覆寫預設；刪進度另行確認 | 顯 |
+| 輸入裝置切換 | 自動／鎖定；自動 | 避免搖桿漂移不停切換提示 | 顯 |
+
+重綁介面顯示衝突，允許直接交換；確認、返回與重設必須留有可操作的復原路徑。
+
+**B5．觀戰與鏡頭分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 預設播放速度 | 0.25／0.5／1／2／4／8 倍；1 倍 | 延續現有速度範圍 | 顯 |
+| 開戰先暫停 | 關／開；關 | 先看清雙方陣型 | 顯 |
+| 鏡頭模式 | 全場固定／跟隨選取／自動事件；全場固定 | 提供穩定或聚焦觀看 | 顯 |
+| 預設縮放 | 全場／上次位置／自訂；全場 | 保留觀看習慣 | 顯 |
+| 鏡頭移動速度 | 25～200%；100% | 手把與觸控調整 | 顯 |
+| 邊緣捲動 | 關／開；關 | 避免滑鼠靠邊誤移動 | 顯 |
+| 自動慢動作 | 關／關鍵事件／完整；關鍵事件 | 控制戲劇演出 | 顯 |
+| 命中停頓 | 關／低／標準；低 | 降低頻繁頓格 | 顯 |
+| 血條 | 選取／受傷／全部／關；受傷 | 控制資訊密度 | 顯 |
+| 傷害與治療數字 | 關／逐次／合併；合併 | 大混戰減少飄字 | 顯 |
+| 狀態圖示 | 重要／全部／關；重要 | 讓暈眩、毒傷等可辨識 | 顯 |
+| 戰鬥事件列 | 關／重要／全部；重要 | 看清軍令、機關與召喚 | 顯 |
+| 被遮擋棋子提示 | 關／輪廓／輪廓＋標記；輪廓 | 避免前景蓋住關鍵單位 | 顯 |
+| 結算切換 | 自動／手動；自動 | 不想被自動帶離戰場的玩家可停留 | 顯 |
+
+8 倍速允許略掉裝飾影格，但不能重播已略過的命中特效，也不能讓事件順序倒置。
+
+**B6．無障礙分頁**
+
+提供「閱讀」「低動態」「低操作負擔」「聽覺提示」四組可疊加預設。套用後可逐項修改，與《The Last of Us Part II》使用預設組降低設定負擔的方式相近，但採用本作需要的項目。[官方說明](https://blog.playstation.com/2020/06/09/the-last-of-us-part-ii-accessibility-features-detailed/)
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 無障礙預設組 | 上述四組，可疊加；未套用 | 一次調整相關設定 | 顯 |
+| 隊伍配色 | 標準／既有色盲方案／其他經驗證方案；標準 | 改善敵我辨識 | 顯 |
+| 隊伍形狀標記 | 關／開；開 | 色彩以外的第二辨識管道 | 顯 |
+| 文字高對比 | 關／開；關 | 加深文字底板、提高可讀性 | 顯 |
+| 焦點框強度 | 標準／加強；標準 | 更容易追蹤選單位置 | 顯 |
+| 鏡頭震動 | 0～100%；25% | 減少晃動 | 顯 |
+| 受擊閃白 | 關／低／標準；低 | 避免大片閃白蓋住角色 | 顯 |
+| 全畫面閃光 | 關／開；關 | 保留局部效果即可傳達事件 | 顯 |
+| 減少動態 | 關／開；關 | 降低背景、轉場與自動旋轉 | 顯 |
+| 重要音效文字提示 | 關／開；開 | 顯示機關啟動、軍令施放等事件 | 顯 |
+| 提示自動消失 | 正常／延長／不自動；正常 | 與介面提示時間連動 | 顯 |
+| 按住操作替代 | 按住／切換；切換 | 避免長時間持續施力 | 顯 |
+| 選單文字朗讀 | 關／焦點／焦點＋說明；關 | 可做；需先驗證四語與平台支援 | 顯 |
+
+跨分頁重複出現的選項是捷徑，例如「減少動態」只存一個值。
+
+低動態模式下，圖鑑保留手動角度控制、暫停與逐格，不以關閉動畫阻斷角色檢查。
+
+**B7．遊玩偏好分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 主畫面情境卡 | 自動／續局／最近玩法／隱藏；自動 | 減少重複尋找入口 | 顯 |
+| 教學提示程度 | 完整／重要／關；完整 | 控制提示量 | 顯 |
+| 失敗後提示 | 詢問／顯示／隱藏；詢問 | 不主動洩漏殘局解法 | 顯 |
+| 開戰前檢查 | 完整／重要；完整 | 提醒剩餘預算、非法陣型與特殊條件 | 顯 |
+| 新對戰預設 | 標準／我的預設／上次使用；標準 | 自動填入候選規則，開戰前仍顯示摘要 | 局 |
+| AI 難度預設 | 現有合法級別；一般 | 新對戰使用 | 局 |
+| AI 性格預設 | 均衡／鐵壁／遠程／奇襲／召喚／亂數；均衡 | 方便練習特定對手 | 局 |
+| 雙人落子預設 | 蛇形／分批／暗封／自訂；既有蛇形規則 | 保留同機習慣 | 局 |
+
+不設隱藏的自適應難度。若提供降低難度建議，需明示改了哪些條件；殘局、每日、每週使用各自固定規則。
+
+**B8．外觀與收藏分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 藍軍底漆 | 既有 4 種、依解鎖；原色 | 延續收藏 | 顯 |
+| 紅軍底漆 | 既有 4 種、依解鎖；原色 | 延續收藏 | 顯 |
+| 漬洗 | 既有 3 段；中 | 控制陰影 | 顯 |
+| 乾掃 | 既有 3 段；中 | 控制亮邊 | 顯 |
+| 木座 | 既有 4 種、依解鎖；原木 | 延續收藏 | 顯 |
+| 棋盤框 | 既有 4 種、依解鎖；標準 | 延續收藏 | 顯 |
+| 外觀套組 | 官方／自訂／隨機已解鎖；官方標準 | 一次切換整套 | 顯 |
+| 棋盤時段 | 白天／黃昏／夜晚；白天 | 集中既有純外觀設定 | 顯 |
+| 外觀隨機範圍 | 關／每次啟動／每場；關 | 增加變化但不逐幀變動 | 顯 |
+| 收藏通知 | 全部／重要／關；全部 | 控制解鎖通知 | 顯 |
+| 圖鑑自動旋轉 | 關／開；關 | 預設穩定構圖，玩家主動檢查 | 顯 |
+| 圖鑑底板 | 棋桌／素色／格線；棋桌 | 看輪廓、持物與比例 | 顯 |
+| 戰報署名 | 空白／自訂文字；空白 | 匯出分享卡使用 | 顯 |
+
+維持 V1.4 的同色系塗裝限制。配色優先順序是：**無障礙隊伍辨識 → 隊伍形狀 → 塗裝**。不得因外觀改變攻擊範圍、輪廓辨識或敵我關係。
+
+**B9．規則與對戰預設**
+
+「都能在選項找到」不代表全部變成全域開關。這一區從選項可進，但編輯的是**下一局／目前大廳的規則**。
+
+| 所在分頁 | 選項名稱 | 可選值；預設 | 用途／作用 |
+|---|---|---|---|
+| 軍勢 | 雙方預算 | 30～200 金；各 100 | 讓子與規模；局 |
+| 軍勢 | 兵數上限 | 4～40；24 | 控制軍隊規模；局 |
+| 軍勢 | 單兵種上限 | 不限或合法數量；不限，兵種硬上限仍有效 | 避免單一兵種堆疊；局 |
+| 部署 | 部署方式 | 格子／自由；格子 | 部署合法性；局，必要時戰 |
+| 部署 | 自由部署間距 | 0.6～1 格；1 格 | 控制密度；局 |
+| 部署 | 部署縱深 | 沿用合法範圍；標準半場 | 控制可放區域；局 |
+| 部署 | 全場部署 | 關／雙人／對 AI；關 | 特殊部署玩法；局 |
+| 卡池 | 雙方可用兵種 | 20 種合法集合；標準 10 種 | 每方出戰名單最多 10 種；局 |
+| 卡池 | 雙方共用卡池 | 開／關；開 | 對稱或非對稱對戰；局 |
+| 卡池 | 雙人禁用兵種數 | 沿用合法範圍；0 | 戰前禁選；局 |
+| 對戰 | 局數 | 1／3／5／7；3 | 系列流程；局 |
+| 對戰 | 落子方式 | 蛇形／分批／暗封／自訂；蛇形 | 系列流程；局 |
+| 對戰 | 自訂手數 | 1～10；5 | 自訂落子節奏；局 |
+| 對戰 | 剩餘金累積 | 開／關；關 | 系列經濟；局 |
+| 對戰 | 保留陣型 | 開／關；開 | 系列便利性；局 |
+| 戰場 | 地圖 | 現有地圖清單；平原 | 地形會影響戰鬥；戰 |
+| 戰場 | 地圖大小 | 小／中／大；中 | 戰場尺寸；戰 |
+| 戰場 | 換圖方式 | 固定／輪替／隨機；固定 | 選圖流程；局；實際地圖入戰碼 |
+| 戰場 | 機關 | 依地圖合法選項；標準 | 改變戰鬥；戰 |
+| AI | 難度 | 現有級別；一般 | 影響組軍；局 |
+| AI | 性格 | 現有 6 種；均衡 | 影響組軍；局 |
+| 實驗室 | 血量倍率 | 50～200%；100% | 沙盒平衡；戰 |
+| 實驗室 | 攻擊倍率 | 50～200%；100% | 沙盒平衡；戰 |
+| 實驗室 | 移速倍率 | 50～200%；100% | 沙盒平衡；戰 |
+| 實驗室 | 最長戰鬥時間 | 60／90／120／150 秒；90 秒 | 結束條件；戰 |
+| 技能 | 兵種技能開關 | 各技能開／關；全開 | 改變兵種能力；戰 |
+| 技能 | 手動軍令組 | 無／現有合法組合；無 | 改變戰鬥；戰 |
+| 技能 | 軍令次數、冷卻、強度 | 沿用合法範圍；1 次／20 秒／100% | 改變戰鬥；戰 |
+
+規則預設增加：
+
+- 命名、複製、收藏、排序、與標準比較。
+- 從目前 5 格擴為可管理清單，建議上限 50 組。
+- 陣型存檔另設清單，不和規則預設混存。
+- 模式不支援的選項顯示原因，不能悄悄忽略。
+- 規則碼攜帶組局條件；只有影響模擬的欄位進戰鬥指紋，維持既有分層。
+- 指揮官仍按 V1.4 裁決作為軍令套組與讓子；若要新增被動，另立新規則。
+
+**B10．資料與系統分頁**
+
+| 選項名稱 | 可選值；預設 | 用途 | 作用 |
+|---|---|---|---|
+| 最近對戰保留量 | 20／50／100；50 場 | 控制儲存空間；收藏不自動清除 | 顯 |
+| 自動備份 | 關／最近 3／10 份；3 份 | 更新與損毀復原 | 顯 |
+| 設定匯出／匯入 | 預覽後執行；手動 | 搬移個人設定 | 顯 |
+| 進度備份／還原 | 預覽後執行；手動 | 顯示版本、時間、會覆蓋的內容 | 顯 |
+| 重播收藏 | 手動收藏／取消；未收藏 | 保護重要對局 | 顯 |
+| 圖片匯出尺寸 | 標準／高解析；標準 | 分享與保存 | 顯 |
+| GIF 匯出品質 | 省空間／標準／清晰；標準 | 控制畫質與編碼時間 | 顯 |
+| 匯出位置 | 預設資料夾／自訂；預設資料夾 | 容易找到成果 | 顯 |
+| Steam 排行榜提交 | 詢問／自動／關閉；詢問 | 控制外部上傳 | 顯 |
+| 分享玩家名稱 | 隱藏／顯示；隱藏 | 戰報與匯出資料使用 | 顯 |
+| 診斷資料匯出 | 手動；不自動傳送 | 供使用者附上錯誤報告 | 顯 |
+| 試玩紀錄 | 關／開；關 | 延續現有功能，說明記錄欄位與位置 | 顯 |
+| 清除資料 | 分類選擇後確認；手動 | 分別清除快取、重播、紀錄或全部進度 | 顯 |
+
+Steam Cloud 顯示同步範圍與狀態；若由平台控制，提供說明與入口，不做無法真正控制的平台開關。現有「進度同步、裝置設定留本機」原則可延續。
+
+**設定資料設計**
+
+每個設定定義統一登記：
+
+```text
+穩定 ID／分類／資料型別／合法值／預設值
+作用範圍／生效時機／搜尋詞／說明
+相依條件／預設組歸屬／版本遷移方式
+```
+
+- 裝置設定：解析度、效能、輸入、音量，留本機。
+- 個人偏好：字級、提示、收藏，可匯出。
+- 規則預設：獨立版本與規則碼。
+- 進行中對局：凍結規則，不跟著全域偏好改動。
+- 舊版 `reduce_fx` 等複合開關遷移成新值時，保留原本降低動態的效果。
+
+---
+
+**C．角色：投射物、握持、轉身、圖鑑與共同驗收**
+
+**C1．遠程演出：統一從發射到命中的時間關係**
+
+每次攻擊建立可辨識的演出紀錄：
+
+```text
+攻擊識別
+→ 前搖
+→ 離手／離弦
+→ 飛行或連結
+→ 命中
+→ 血條、狀態、受擊、聲音
+→ 收招
+```
+
+飛行物不能再由「扣血事件發生後」才啟動。角色手上的物件與飛行物必須共用發射錨點，交接時只存在一份。
+
+| 兵種／效果 | 形狀與發射準備 | 飛行與軌跡建議 | 命中表現 |
+|---|---|---|---|
+| 弓箭手 | 木桿、金屬箭頭、羽尾；前搖先搭箭，箭尾跟弦移動 | 淺拋物線；被動觀戰約 0.15～0.30 秒 | 箭尖抵達才扣血；盾面短火花、肉身短停留，材質音不同 |
+| 投彈兵 | 清楚的火罐／黑色彈體、短引信；甩手時離手 | 高拋物線約 0.25～0.40 秒；以距離調整弧高 | 落點爆裂，主目標與波及共用一次爆炸，避免每個受害者再炸一顆 |
+| 骷髏法師普攻 | 書頁紫火聚成帶尾焰的火種 | 低弧／近直線約 0.15～0.30 秒 | 紫色小爆散與骨屑；避免整片白閃 |
+| 孢子菇 | 傘緣吐出淡綠孢子，有來源與擴散方向 | 孢子向毒圈內飄散，單粒壽命約 0.3～0.6 秒；不代表單粒傷害 | 實際毒傷 tick 時目標出現小毒標與短促反應 |
+| 醫者 | 杖頂十字聚光 | 保留治療弧線，約 0.10～0.20 秒 | 抵達時增加血量、出現十字；不能像攻擊爆炸 |
+| 巫毒娃娃 | 扎針動作、針頭與線端可辨識 | 保留綁定線，傷害時約 0.10 秒脈衝沿線傳遞 | 目標同步抽動；不是可躲避的飛針 |
+| 鼓手 | 鼓槌接觸鼓面 | 短距離聲波圈約 0.2 秒 | 表示鼓舞，不畫成傷害彈 |
+| 吸塵貓 | 吸口與目標間有氣流方向 | 流線朝吸口移動，跟既有拉動期間一致 | 不額外創造撞擊或飛行傷害 |
+| 沙漏精靈 | 沙粒向沙漏聚集、施法前兆 | 效果範圍內沙粒／刻度波紋 | 對齊既有時停事件，不偽裝成單體彈 |
+| 法師召喚 | 書頁符號連到合法屍體位置 | 短暫符線、骨片由地面組起 | 和普攻紫火明確區別 |
+
+爆爆羊是本體接觸／死亡爆炸，小石魔是拍地效果，皆不新增憑空飛出的遠程武器。
+
+**時間同步的實作選擇**
+
+上述較長飛行時間**超過目前 0.1 秒展示緩衝**，不能只改特效長度。
+
+建議分兩條：
+
+- **純自動對決、重播、圖鑑真模擬**：展示緩衝擴至約 8～10 tick，容納前搖與飛行；血條、死亡、音效、戰報事件一起使用展示時間。
+- **有即時手動軍令的對局**：先維持短緩衝，使用約 0.05～0.10 秒快速飛行。不能直接把長緩衝套上去，增加操作延遲。
+- 若要求手動軍令也有完整長飛行，應另設真正的發射／命中模擬事件，明確決定追蹤、失去目標、飛行中死亡等規則；這屬於**新戰鬥規則版本**，列為可做。
+
+共同限制：
+
+- 使用展示 tick 與插值，不用彼此獨立的牆鐘計時器。
+- 飛行終點取實際命中時的目標位置；保留足夠快照，不能只查目前畫面位置。
+- 暫停時飛行停住，倍速時同步加速，跳轉後清除並重建。
+- 第一擊缺少完整前置時間時縮短演出，不在開戰前憑空飛彈。
+- 同一發炸彈的波及事件不能生成多顆彈。
+- 減少特效仍保留物件本體、路徑方向及必要命中提示。
+
+**C2．手持物：建立共同握持畫法**
+
+現在的「像被裁掉」至少有三個不同來源：物件本身沒畫完整、手部遮擋順序不對、圖鑑構圖越界。應分別修。
+
+**共同部件**
+
+- 武器局部座標包含：握點、柄尾、護手、刃根／工具根、尖端、發射點。
+- 手分成掌後片與手指前片。
+- 一般順序：遠手／掌後 → 握柄 → 掌前與手指 → 護手、刃身；實際順序由角度調整。
+- 手指以少量弧線與指節塊面包住柄，不需要寫實五指。
+- 握柄被手蓋住的部分合理隱藏，但柄尾、護手與刃根要讓人能判讀連接。
+
+**逐類修正**
+
+- 劍士：補柄尾、握柄、護手，避免刀刃直接插進掌心。
+- 刺客：兩把短刀分別有握點；遠手與近手不能共用固定最前層。
+- 騎兵／長槍兵：槍桿在握點分前後段，手指覆在桿前；刺擊時手與槍一起移動。
+- 弓箭手：弓把、握弓手、拉弦手、箭與弦各自有錨點，拉弦時不能脫離。
+- 投彈兵：火罐在離手前跟手，離手後從手部層移除。
+- 醫者：手包住杖身，十字與杖頂不隨轉身穿頭。
+- 鼓手：鼓槌有短柄尾；敲擊終點落在鼓面。
+- 狂戰士：兩柄斧的斧頭、柄與手分離，側身時遠斧可被身體遮住。
+- 法師：手托住書脊／底邊，書頁朝向與胸部朝向一致。
+- 巫毒娃娃與骷髏：針、骨製工具也走同一握持規則。
+
+驗收包括待機、前搖、命中、收招與各方向，不能只修正面待機圖。
+
+**C3．轉身：用程式部件做有厚度的多角度角色**
+
+建議採用 **8 個主要方向＋角度間部件插值**。保留程式繪製，完成後可烘焙圖集。
+
+不再使用整隻角色水平壓縮至 0.3 的方式。
+
+**角色分層**
+
+```text
+底座與接地陰影
+遠側腳／遠側手／遠側持物
+後腦、頭盔後片、披風、背部配件
+軀幹與頭部主體
+臉部
+近側腳／近側手／近側持物
+必要前景裝飾
+```
+
+**轉向規則**
+
+- 頭部保持體積，只允許少量輪廓變化。
+- 臉部中心隨角度沿頭部橢圓移動；遠眼逐漸變窄、被輪廓遮住。
+- 側面加入鼻部／口部小輪廓，背面不畫眼睛。
+- 帽沿、頭盔護頰、盾邊、書厚度有側面專屬幾何。
+- 肩、手、腳及持物依近遠側錯開，轉過側面時交換前後層。
+- 軀幹先轉、頭略提早看向目標，武器稍後跟上；差距保持短，避免像零件散開。
+- 步行轉向保留步相與腳底位置，不能在換角度時滑動。
+- 裝備左右手歸屬固定；完整旋轉不等於整張鏡像翻面。
+
+**不同輪廓族群**
+
+| 類型 | 需要專屬處理 |
+|---|---|
+| 人形兵 | 共用頭、肩、手腳的角度骨架，各自加帽與武器 |
+| 騎兵 | 人、馬、長槍分開轉；馬頭與身體有側面長度 |
+| 蘑菇／史萊姆 | 外形保持體積，臉、斑點、冠飾繞體移動 |
+| 寶箱怪 | 蓋板、箱體、鉸鏈、牙與舌頭有前後厚度 |
+| 幽靈 | 臉跟著轉，尾部與雙手錯動 |
+| 娃娃 | 球頭、鈕扣眼、縫線與針方向一致 |
+| 沙漏精靈 | 框架、玻璃、翅片分層，側面仍有框厚 |
+| 吸塵貓 | 耳、背包、吸管與口部不可一起壓扁 |
+| 石魔 | 肩甲、拳、軀幹有側面面積與遮擋 |
+
+先以**劍士、弓箭手、騎兵、寶箱怪、史萊姆、法師**六種驗證方法，再展開其餘兵種。
+
+Godot 的自訂繪製與繪製變換可支援這種部件式方案；無須先改用外部角色工具。[Godot 4.6 文件](https://docs.godotengine.org/en/4.6/tutorials/2d/custom_drawing_in_2d.html)
+
+容量先不設否決門檻，但要量測：
+
+- 各方向圖集佔用、冷啟動、首次進圖鑑及換塗裝時間。
+- 圖鑑高解析預覽與戰場快取分開。
+- 分頁／按需產生，避免所有兵種、方向、塗裝全部同步常駐。
+- 快取與直接繪製必須有同角度比較表，不能兩套畫法越改越不同。
+
+**C4．圖鑑大圖：固定名稱區，角色使用完整動作包絡**
+
+建議卡片分區：
+
+```text
+┌──────────────────────────────┐
+│ 名稱、定位、費用              │ 固定標題區
+├──────────────────────────────┤
+│                              │
+│     棋子完整展示區            │ 角色與持物都在此區
+│                              │
+│ 旋轉／動作／播放／逐格         │
+├──────────────────────────────┤
+│ 數值、技能、克制與被克制       │
+└──────────────────────────────┘
+```
+
+- 對每兵種計算所有方向、待機與攻擊姿勢的聯集邊界。
+- 以聯集邊界選定固定縮放，不在每一幀忽大忽小。
+- 長槍、旗、火罐前搖也計入邊界，不能只算身體。
+- 預留約 10% 安全邊；需要時加大展示區，不把整隻縮到難辨識。
+- 底座位置穩定；標題區與角色區不能互相侵入。
+- 「完整棋子」與「近看細節」兩種視圖；近看可平移，完整視圖一鍵復原。
+- 攻擊展示預留目標假人與飛行區，不讓箭飛進名稱或說明。
+- 法師普攻、召喚，投彈兵投彈、貼身敲擊等，要能分別選擇。
+- 小劇場保留真模擬，不能只靠擺姿勢驗收攻擊。
+
+**C5．共同驗收：每種兵都有可逐格核對的證據**
+
+每次檢查包標明版本、兵種 ID、角度、狀態、規則碼與種子，輸出：
+
+1. **360 度影片／GIF**
+   - 每兵種 4～6 秒，完整一圈。
+   - 正常速度與慢速各一份。
+   - 附 16 個角度的靜態拼表，用來檢查側面與遮擋。
+
+2. **持物細節表**
+   - 握點、護手、柄尾放大。
+   - 前後左右與攻擊關鍵姿勢。
+   - 同時提供原尺寸，確認縮小後仍看得懂。
+
+3. **攻擊逐格表**
+   - 前搖、離手、飛行中點、命中前、命中、收招。
+   - 標出展示 tick、傷害 tick、HP 前後值與音效時點。
+   - 不以 GIF 作為唯一精確驗收資料，另附影片與逐格圖。
+
+4. **圖鑑版面表**
+   - 四語、三個既有字級。
+   - 完整動作包絡與名稱區疊圖。
+   - 若新增 175%，獨立增加一組。
+
+5. **真戰鬥案例**
+   - 遠程近距離與最遠距離、移動目標、盾兵。
+   - 施放者同 tick 死亡、目標死亡、多發同點爆炸。
+   - 暫停、倍速、倒回、跳轉、減少特效與色盲模式。
+
+共同確認表：
+
+| 兵種 | 轉身 | 握持／部件 | 攻擊同步 | 圖鑑構圖 | 結論 |
+|---|---|---|---|---|---|
+| 每種一列 | 通過／問題編號 | 通過／不適用／問題編號 | 通過／問題編號 | 通過／問題編號 | 待修／待複核／通過 |
+
+使用者可以回覆「騎兵 135° 槍桿穿手」，我們能直接重現，不必重新描述整段動畫。
+
+---
+
+**D．V1.4 基礎上需要完成的大項**
+
+**D1．大廳重整：先選玩法，再看條件，再擺陣｜必做**
+
+承接 V1.4 裁決 B23、B25：
+
+- 頂部只顯示模式、雙方、規則摘要與續局狀態。
+- 左側顯示本戰條件，中央棋盤，底部兵種卡，右側選取兵種說明。
+- `Beats／Fears` 改成完整本地化的克制／被克制區，不擠在擺陣頂欄。
+- 進階七類規則收進抽屜式編輯器，主畫面只顯示與標準不同之處。
+- 契約、貼紙、巨獸、宿敵的效果先摘要；選取可展開詳細條件。
+- 非法陣型直接標出哪隻兵、哪個條件，提供定位。
+- 開戰是唯一主要動作；清空、載入、匯入降低視覺權重。
+- 設定頁開關與規則編輯器使用同一套控件行為。
+
+**D2．結果頁重整：讓玩家知道下一步與發生原因｜必做**
+
+承接 V1.4 裁決 B25：
+
+- 第一層：勝負、耗時、剩餘戰力、關卡／契約達成狀態。
+- 主要按鈕依模式變成下一站、下一局或再試一次。
+- 第二層：重播、時光機、統計。
+- 分享卡、GIF、出題、接力收到「分享與工坊」。
+- 損失原因使用可查證事件，例如「第 24 秒右路失守」，點擊跳到重播。
+- 不把相關性寫成因果；無法證明時顯示事件描述。
+- 競猜明示原先選擇、實際勝負、差距與得分公式。
+- 車輪戰明示留下哪些殘兵；雙封蠟顯示三封總結果。
+
+**D3．大量混戰：整理地面、棋子、飛行物與事件層級｜必做**
+
+- 地面先畫範圍與機關；角色依腳點排序；空中飛行物按高度及必要遮擋處理。
+- 機關預警、時停、衝鋒／破陣等關鍵訊息高於普攻裝飾。
+- 飄字在短時間窗合併，治療與傷害分流，重要狀態不合併掉。
+- 同類爆炸保留各自實際位置，減少的是煙塵與殘片。
+- 選取單位顯示目標、狀態及受遮擋輪廓。
+- 事件列可篩選隊伍與事件類型，點擊定位／跳重播。
+- 簡化模式保留敵我、傷害來源與危險區域。
+
+這符合 Riot 對特效層級、輪廓與減少雜訊的設計原則；此處是對本作的具體套用。[Riot 原文](https://www.leagueoflegends.com/en-us/news/dev/clarity-in-league/)
+
+**D4．新玩法平衡與流程補完｜該做**
+
+不再只看隨機陣型總勝率。
+
+- 巨獸：近戰斷臂路線、純遠程、混編、廉價大量兵分開驗證。
+- 車輪戰：殘兵累積是否滾雪球、支援兵是否過強、最低預算補正是否可利用。
+- 輪抽：先後手、卡池組合、AI 選卡與實際可部署性。
+- 雙封蠟：先封／後封、平手、交接資訊是否洩漏。
+- 遠征：契約永久加成、貼紙、事件獎勵的疊加上限與強勢組合。
+- 每週棋盒：題目種子、卡池、對手與規則摘要固定保存。
+- 幽靈軍團：保留既有 ID；修改內容另開版本，不能讓已通關 ID 指向另一陣型。
+- 測試使用鏡像換邊、固定代表陣、隨機陣與刻意尋找漏洞的陣型。
+- 先建立基準，再決定調數值；任何改戰鬥的調整都走版本與規則碼。
+
+**D5．資料、代碼與重播生命週期｜必做**
+
+- 匯入先預覽類型、版本、模式、規則差異與合法性。
+- 對損毀、過長、未知欄位、不合法兵種、越界位置提供明確錯誤。
+- 舊重播支援時使用對應規則；不支援時明示，不能用新版偷偷重算。
+- 分享檔標示遊戲版本、規則版本、數值摘要。
+- 設定、規則、進度各自遷移與備份。
+- 匯出中切頁、退出、磁碟滿與失敗都能恢復，不留下無限等待。
+- 模式切換繼續驗證每日、每週、車輪戰、封蠟與遠征狀態互不污染。
+- 舊金標準與對戰指紋列為回歸門檻。
+
+**D6．四語與大字級收尾｜該做**
+
+- 簡中、日文優先校對玩法、勝敗、資料刪除、契約與規則用語。
+- 統一兵種名、數量詞、時間單位與技能名。
+- 所有新設定說明、動作名稱、規則差異都進翻譯流程。
+- 驗證文字換行、焦點捲動、長名稱與數值變動。
+- 未校對語言繼續明示狀態；程式版面檢查不能取代語意校對。
+
+**D7．Steam 與 Deck 前置｜該做；外部實測獨立列管**
+
+- Steam 排行榜後台建置、測試資料隔離、上傳／下載與離線補送實測。
+- 成績攜帶題目版本、規則摘要與必要驗證資料。
+- Cloud 做兩裝置衝突、舊檔、新檔與中斷復原測試。
+- 手把全流程、重綁、熱插拔、文字輸入與按鍵圖示。
+- Deck 驗證字級、效能、功耗、休眠喚醒、觸控與匯入輸入法。
+- Steam 缺席時核心玩法正常運作；排行榜入口顯示實際狀態。
+- 不把「程式已接」寫成「後台／實機已驗證」。
+
+Steam 相容性判定依平台審查與實際裝置結果，提案中的測試不能自行視為認證。[Steamworks 文件](https://partner.steamgames.com/doc/steamdeck/compat)
+
+**D8．可新增玩法：戰術試驗桌｜可做**
+
+優先於再增加一個獨立大型模式：
+
+- 任選雙方兵種、數量、位置與既有規則。
+- 一鍵鏡像、重置、連跑固定種子組。
+- 指定觀察兵種、顯示狀態、慢速與逐格。
+- 保存試驗碼，從圖鑑直接進入。
+- 使用同一模擬器，不做另一套假戰鬥。
+- 自訂試驗與正式紀錄、成就、排行榜分開標示。
+
+用途同時涵蓋玩家學習、角色檢查、平衡重現與問題回報。
+
+---
+
+**E．優先序、工時、風險與相依**
+
+工時為初估人時，包含實作、必要自動化、畫面檢查與修正；不把等待使用者或平台審核算成工時。設定選項以 B 區為候選全集，「可做」項目不納入必要發版範圍。
+
+| 工作包 | 優先序 | 人時 | 主要風險 | 相依 |
+|---|---|---:|---|---|
+| A 五入口、情境卡、導航與入口搬遷 | 必做 | 32～48 | 只是把按鈕藏深、續局入口不清楚 | 共用焦點／返回規則 |
+| B 設定定義、儲存與遷移基礎 | 必做 | 28～44 | 舊設定遺失、同設定存兩份 | 先盤點既有欄位 |
+| B 設定頁、搜尋、預設組與常用頁 | 必做 | 36～56 | 手把搜尋、大字級版面 | 設定基礎 |
+| B 基本畫面、介面、聲音、操作、觀戰選項 | 必做 | 64～104 | 控件與功能不同步、組合過多 | 設定頁 |
+| B 無障礙及觸控完整流程 | 必做 | 40～64 | 只改外觀，實際仍有操作障礙 | 設定基礎、焦點系統 |
+| B 外觀、收藏與規則預設管理 | 該做 | 32～52 | 快取重建競態、預設與本局混淆 | 設定基礎、規則資料 |
+| C1 遠程演出與時間同步 | 必做 | 28～44 | 軍令延遲、飛行晚於扣血 | 展示緩衝、事件識別 |
+| C2 全兵種握持與部件修正 | 必做 | 28～44 | 只修某角度、攻擊時再穿模 | 共同握點規格 |
+| C3 多角度轉身與圖集整合 | 必做 | 64～96 | 工作量擴張、圖集與直接繪製不一致 | 六種試點先驗收 |
+| C4 圖鑑構圖與動畫檢查控制 | 必做 | 16～24 | 武器包絡漏算、角色過小 | 握持與多角度資料 |
+| C5 自動輸出檢查包及逐種修正 | 必做 | 24～36 | 拼表與真戰鬥結果不一致 | C1～C4 |
+| D1 大廳整理 | 必做 | 28～44 | 條件藏太深、模式狀態殘留 | 規則編輯器、入口架構 |
+| D2 結果頁整理 | 必做 | 16～24 | 主動作依模式判斷錯誤 | 各模式結算資料 |
+| D3 大混戰層級整理 | 必做 | 24～40 | 簡化時刪掉必要資訊 | 投射物與事件分類 |
+| D4 平衡與模式流程 | 該做 | 24～40 | 測試樣本失真、調數值破壞舊局 | 固定基準與版本策略 |
+| D5 資料、代碼與重播 | 必做 | 24～36 | 舊碼與存檔回歸 | 設定遷移、規則版本 |
+| D6 四語校對與版面 | 該做 | 16～28 | 缺母語校對 | 新文案大致凍結 |
+| D7 Steam／Deck 前置 | 該做 | 24～40 | 後台權限與實機不可得 | 穩定候選版本 |
+| 發版整合與完整流程驗收 | 必做 | 24～40 | 各頁單獨通過，串接仍失敗 | 上述工作包 |
+
+**上述完整建議範圍合計約 672～1,060 人時。**  
+另留約 20% 預備，主要用於多角度角色修正、輸入流程與存檔回歸。三方審查可以縮短日曆時間，但不應直接把總人時除以三。
+
+另列可做項目：
+
+| 工作包 | 人時 | 風險／相依 |
+|---|---:|---|
+| 選單文字朗讀 | 24～48 | 四語、平台與焦點語意支援 |
+| 175% 大字級與完整重排 | 16～28 | 所有畫面需追加驗收 |
+| 戰術試驗桌 | 32～56 | 依賴規則、圖鑑與重播控制 |
+| 真正有飛行時間的戰鬥規則 | 56～96 | 新模擬事件、規則版本、AI 與平衡重驗 |
+
+**建議執行順序**
+
+1. 凍結相容性基準、設定分類與攻擊時間契約。
+2. 六種角色試點，同時建立檢查包。
+3. 設定基礎、主畫面、大廳與結果頁。
+4. 全 22 種角色、投射物與圖鑑整合。
+5. 大混戰、資料回歸、四語與各模式流程。
+6. 平衡驗證、Steam／Deck、發版候選驗收。
+
+**V1.5.0 發版門檻**
+
+- 22 種角色逐種有轉身、持物／部件、攻擊與圖鑑驗收紀錄。
+- 遠程不再先扣血再飛行；孢子、連結與範圍效果符合真實機制。
+- 名稱區、角色區、飛行區不互相侵入。
+- 鍵鼠、手把、觸控都能完成主要遊玩與設定流程。
+- 舊存檔、陣型、規則碼及支援中的重播通過回歸。
+- Steam 後台、Deck 實機、母語校對分別標記完成狀態。
+
+**第 2 輪應優先裁決五件事：五入口的歸屬、設定必做清單、多角度角色標準、手動軍令的飛行時間策略，以及本版是否納入任何新戰鬥規則。**
