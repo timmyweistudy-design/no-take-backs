@@ -371,7 +371,7 @@ func _draw_map_events() -> void:
 							draw_circle(sp, 5.0 + (k % 3) * 2.0, Color(0.42, 0.35, 0.28), true, -1.0, true)
 							draw_circle(sp - Vector2(1.5, 1.5), 2.0, Color(0.6, 0.52, 0.42, 0.7), true, -1.0, true)
 					else:
-						_ev_warn(R, t0, tk, Color("#8a5a2b"))
+						_ev_warn(R, t0, tk, Color("#e0a030"))   # 機關預警統一琥珀色
 				"fire":
 					var t1 := t0 + int(e["d"])
 					if tk >= t0 and tk <= t1:
@@ -381,7 +381,7 @@ func _draw_map_events() -> void:
 							var fp := R.position + Vector2(R.size.x * (0.2 + 0.6 * fposmod(k * 0.37, 1.0)), 10.0 + k * 18.0)
 							draw_colored_polygon(PackedVector2Array([fp + Vector2(-6, 6), fp + Vector2(0, -10 - 4 * sin(time * 9.0 + k)), fp + Vector2(6, 6)]), Color(1.0, 0.7, 0.2, 0.75))
 					elif tk < t1:
-						_ev_warn(R, t0, tk, Color("#c0392b"))
+						_ev_warn(R, t0, tk, Color("#e0a030"))
 				"push":
 					var hot := tk >= t0 and tk < t0 + 12
 					draw_rect(R.grow(-4), Color(0.55, 0.4, 0.24, 0.55 if not hot else 0.85))

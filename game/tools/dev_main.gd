@@ -1444,6 +1444,8 @@ func _shots_v13() -> void:
 	# V1.4 #10 沙盤機關：崩塌礦坑擺陣頁（倒數牌）＋戰鬥到崩塌之後；#9 貼紙、#12 巨獸
 	rules = RuleSet.standard()
 	rules.map_id = MapDefs.QUARRY
+	rules.deploy = "free"   # 地圖（含機關）只在自由排兵出現
+	toast_t = 0.0
 	challenge_army = null
 	_start_mode(Mode.VS_AI)
 	var qa: Dictionary = AI.build(0, 100, _shot_rng(41), -1, -1, rules)
@@ -1451,10 +1453,12 @@ func _shots_v13() -> void:
 	for k in mini(3, armies[0].units.size()):
 		armies[0].units[k]["st"] = [1, 3, 5][k]
 	_build_ai()
+	toast_t = 0.0
 	await _snap("87b_quarry_place.png")
 	_begin_battle(armies[0].copy(), armies[1].copy())
 	while view.tick < 430 and not sim.finished:
 		_sim_step(true)
+	toast_t = 0.0
 	await _snap("87c_quarry_battle.png")
 	rules = RuleSet.standard()
 	var be = AI.build(1, 108, _shot_rng(42))["army"]
@@ -1467,6 +1471,7 @@ func _shots_v13() -> void:
 	_begin_battle(armies[0].copy(), armies[1].copy())
 	for i in 260:
 		_sim_step(true)
+	toast_t = 0.0
 	await _snap("87d_boss_battle.png")
 	challenge_army = null
 	rules = RuleSet.standard()

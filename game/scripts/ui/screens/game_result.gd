@@ -646,7 +646,9 @@ func _draw_postcard() -> void:
 	_hand_ring(Vector2.ZERO, 40.0, Color("#8e1b14", 0.95), 5.0)
 	_hand_ring(Vector2.ZERO, 33.0, Color("#8e1b14", 0.8), 2.0, false, 2)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
-	_text(sp - Vector2(0, tz("B") * 0.62), L.t("pc_stamp"), tz("B"), Color("#8e1b14"), true, true, 70)
+	var pst := L.t("pc_stamp")
+	var psz: int = tz("B") if _width(pst, tz("B"), true) <= 64.0 else tz("C")
+	_text(sp - Vector2(0, psz * 0.62), pst, psz, Color("#8e1b14"), true, true, 70)
 	if pc_saving:
 		return   # 存圖這一格不畫按鈕
 	_btn(Rect2(300, 670, 220, 46), L.t("pc_save"), func(): _pc_save(), true, true)

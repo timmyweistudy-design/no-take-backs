@@ -421,9 +421,10 @@ func _draw_relay() -> void:
 	var bs := 24.0
 	var bg := Vector2(196, 186 + (9 * 40 - 9 * bs) / 2.0)
 	_text(Vector2(bg.x, bg.y - tz("C") * 1.5), L.t("rl_yours"), tz("C"), Charts.team_col(0, cbm()), false, true, 160)
+	_tex_box(Rect2(bg - Vector2(6, 6), Vector2(6 * bs + 10, 9 * bs + 10)), "paper")   # 收尾第 2 輪：深色科技網格改羊皮紙
 	for r0 in 9:
 		for c0 in 6:
-			draw_rect(Rect2(bg + Vector2(c0, r0) * bs, Vector2(bs - 2, bs - 2)), Color(0.2, 0.3, 0.45, 0.25))
+			draw_rect(Rect2(bg + Vector2(c0, r0) * bs, Vector2(bs - 2, bs - 2)), Color(0.45, 0.35, 0.22, 0.12))
 	if last_armies.size() >= 1:
 		for u in last_armies[0].units:
 			if not u.has("col"):
@@ -795,7 +796,7 @@ func _draw_route(R: Rect2, next_stage: int) -> void:
 		if done:
 			draw_polyline(PackedVector2Array([c + Vector2(-rad * 0.5, 0), c + Vector2(-rad * 0.1, rad * 0.4), c + Vector2(rad * 0.55, -rad * 0.45)]), Color.WHITE, 3.0, true)
 		elif kind != "fight" and kind != "outpost":
-			_icon("star" if kind == "elite" else "swords", c, rad * 1.2, Color.WHITE)
+			_icon("star" if kind == "elite" else ("tower" if kind == "boss" else "swords"), c, rad * 1.2, Color.WHITE)   # 終點畫城塔，不再像紅叉（收尾第 2 輪）
 		if i + 1 == next_stage:
 			draw_arc(c, rad + 7.0, 0, TAU, 28, Color(ACCENT, 0.6 + 0.4 * sin(time * 4.0)), 3.0, true)
 
@@ -1197,7 +1198,9 @@ func _draw_nemeses() -> void:
 			_hand_ring(Vector2.ZERO, 25.0, Color("#8e1b14", 0.75), 1.4, false, 1)
 			draw_set_transform_matrix(Transform2D.IDENTITY)
 			_ink_mode = true
-			_text(sp - Vector2(0, tz("S") * 0.62), L.t("nem_done"), tz("S"), Color("#7a140e"), true, true, 56)
+			var nd := L.t("nem_done")
+			var nsz: int = tz("S") if _width(nd, tz("S"), true) <= 52.0 else tz("C")   # 英文印章字放得進圓圈（收尾第 2 輪）
+			_text(sp - Vector2(0, nsz * 0.62), nd, nsz, Color("#7a140e"), true, true, 56)
 			_ink_mode = false
 		else:
 			_ink_mode = true
@@ -1225,7 +1228,7 @@ func _draw_playroom() -> void:
 	_panel(P)
 	_h1(Vector2(640, 122), L.t("menu_playroom"))
 	var eye: Dictionary = Save.data.get("eye", {})
-	var cards := [["pr_wager", "pr_wager_d", "dice", func(): _wager_new()], ["pr_draft", "pr_draft_d", "flag", func(): _draft_new()], ["pr_waves", "pr_waves_d", "swords", func(): _wave_start()], ["pr_sealed", "pr_sealed_d", "lock", func(): _sealed_start()]]
+	var cards := [["pr_wager", "pr_wager_d", "dice", func(): _wager_new()], ["pr_draft", "pr_draft_d", "cards", func(): _draft_new()], ["pr_waves", "pr_waves_d", "swords", func(): _wave_start()], ["pr_sealed", "pr_sealed_d", "book", func(): _sealed_start()]]
 	# 四張卡 230 寬（Codex／Antigravity v140-i3：186 寬在英文大字級塞不下說明）
 	for i in 4:
 		var r := Rect2(156 + i * 246, 186, 230, 346)
@@ -1382,8 +1385,10 @@ func _draw_draft() -> void:
 		btn_paper = not mine and not ai
 		_btn(r, "", _draft_take.bind(t), not mine and not ai and df_mine.size() < 4)
 		btn_paper = false
+		if (mine or ai) and not bool(Save.s("plain_ui")):
+			_tex_box(r.grow(-2), "paper")   # 抽走的卡也留紙底（只用隊伍色框標歸屬；收尾第 2 輪：深色像停用）
 		Art.unit(self, r.position + Vector2(100, 98), t, 0 if not ai else 1, 1.0, 0.0, 0.0, 0.0, 1.0 if not (mine or ai) else 0.55, time, 0.9, cbm())
-		var paper_on: bool = bool(_btns[_btns.size() - 1]["en"]) and not mine and not ai and not bool(Save.s("plain_ui"))
+		var paper_on: bool = (bool(_btns[_btns.size() - 1]["en"]) or mine or ai) and not bool(Save.s("plain_ui"))
 		_ink_mode = paper_on   # 停用或簡化介面時卡片是深色木牌：字用淺色（V1.4 版面檢查：對比不足）
 		_text(r.position + Vector2(100, 106), L.t("unit_%d" % t), tz("S"), INK if _ink_mode else Color.WHITE, true, true, 190)
 		_text(r.position + Vector2(100, 106 + tz("S") * 1.3), L.t("gold", [D.cost(t)]), tz("C"), Color("#7a4a10") if _ink_mode else ACCENT, true, false, 190)
@@ -1735,7 +1740,7 @@ func _draw_ghosts() -> void:
 	var beat: Array = Save.data.get("ghost_beat", [])
 	_text(Vector2(640, 72 + tz("H1") * 1.4), L.t("gh_help", [beat.size(), gs.size()]), tz("S"), TXT_DIM, true, false, 900)
 	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
-	var per := 12
+	var per := 9   # 一頁 3×3（英文大字級名牌會折兩行，卡片要高一點；收尾第 2 輪截圖）
 	var pages := maxi(1, int(ceil(gs.size() / float(per))))
 	gh_page = clampi(gh_page, 0, pages - 1)
 	for k in per:
@@ -1743,19 +1748,20 @@ func _draw_ghosts() -> void:
 		if i >= gs.size():
 			break
 		var g: Dictionary = gs[i]
-		var r := Rect2(160 + (k % 3) * 324, 150 + (k / 3) * 116, 312, 104)
+		var r := Rect2(160 + (k % 3) * 324, 150 + (k / 3) * 152, 312, 140)
 		var gi := i
 		btn_paper = true
 		_btn(r, "", func(): _ghost_start(gi))
 		btn_paper = false
 		_ink_mode = not bool(Save.s("plain_ui"))
-		_text(r.position + Vector2(16, 12), L.field(g, ""), tz("B"), INK if _ink_mode else Color.WHITE, false, true, 220)
-		_text(r.position + Vector2(16, 12 + tz("B") * 1.45), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
+		var gname := L.field(g, "")
+		_text(r.position + Vector2(16, 12), gname, tz("B"), INK if _ink_mode else Color.WHITE, false, true, 220)
+		_text(r.position + Vector2(16, 18 + text_h(gname, tz("B"), 220, true)), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
 		_ink_mode = false
 		# 右側：迷你陣型（紅點）
 		var mx := r.end.x - 64
 		for u in g.get("units", []):
-			draw_circle(Vector2(mx + (int(u["col"]) - 10) * 8.0, r.position.y + 16 + int(u["row"]) * 8.0), 3.0, Color("#b3261e"), true, -1.0, true)
+			draw_circle(Vector2(mx + (int(u["col"]) - 10) * 8.0, r.position.y + 16 + int(u["row"]) * 8.0), 3.0, Color("#9c4a3c", 0.85), true, -1.0, true)
 		if str(g["id"]) in beat:
 			var sp := r.position + Vector2(r.size.x - 38, r.size.y - 30)
 			_hand_ring(sp, 18.0, Color("#8e1b14", 0.9), 2.6)
@@ -1800,9 +1806,9 @@ func _draw_weekly() -> void:
 	var best := int(rec.get("best", 0))
 	_text(Vector2(330, y), L.t("wk_best", [best]) if best > 0 else L.t("wk_none"), tz("S"), Color("#8e1b14") if best > 0 else Color("#5a4630"), false, true, 620)
 	_ink_mode = false
-	_text(Vector2(640, paper.end.y + 14), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
-	_btn(Rect2(460, 594, 160, 44), L.t("back"), func(): overlay = "playroom")
-	_btn(Rect2(660, 594, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
+	_text(Vector2(640, paper.end.y + 10), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
+	_btn(Rect2(460, 604, 160, 44), L.t("back"), func(): overlay = "playroom")
+	_btn(Rect2(660, 604, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
 
 
 ## ── V1.4 #12 巨獸：遠征終點的敵陣中央放一隻（不佔預算、隻數）。格子被佔了就把那隻換掉。──
