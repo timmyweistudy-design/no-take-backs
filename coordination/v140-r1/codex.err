@@ -1,0 +1,1274 @@
+OpenAI Codex v0.163.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1b9b7-791f-7e50-ad5d-8a02f877049d
+--------
+user
+你是資深遊戲設計師兼 Godot 4.6 技術負責人，可上網查資料。唯讀：不要改檔、不要跑 Godot。
+《落子無悔》（game/；docs/STATE.md、docs/MODULES.md）。V1.4.0 方向發想第 1 輪：Claude 底稿 coordination/v140-r1/seed.md。
+請（繁中、1800 字內）：
+1. 上網查 2024～2026 自走棋／戰棋／非同步 PvP／桌遊數位化的成功做法與趨勢（引用來源），提出你自己的至少 10 個方向（創新、有趣、有大作感，也要有中小型），每條：名稱、一句話、為什麼好玩（參考作品）、規模（人時區間）、技術風險（引用程式現況，例如確定性模擬、規則碼、FINGERPRINT、Steam API 可行性）。
+2. 對 seed 14 條逐條給「可行度／好玩度／與現有架構的契合度」1～5 分。
+3. 推薦的組合（例如一個大方向＋兩個中型＋兩個小型）。
+最後一行「結論：…」。
+
+codex
+我會先讀企劃底稿與架構文件，再核對關鍵程式和近年案例，整理方向、評分與推薦組合；全程唯讀，不啟動 Godot。
+exec
+/bin/bash -lc "pwd && rg --files -g 'AGENTS.md' -g 'STATE.md' -g 'MODULES.md' -g 'seed.md' -g '*steam*' -g '*fingerprint*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 81ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+docs/STATE.md
+docs/MODULES.md
+coordination/v140-r1/seed.md
+docs/release/steam-setup.md
+coordination/v140-r1/agy/seed.md
+coordination/v121-r1/seed.md
+coordination/v121-r1/agy/seed.md
+coordination/v130-r1/seed.md
+coordination/v130-r1/agy/seed.md
+coordination/v131-r1/seed.md
+coordination/v131-r1/agy/seed.md
+game/scripts/game/steam.gd
+game/scripts/game/steam.gd.uid
+game/addons/godotsteam/godotsteam.gdextension.uid
+game/addons/godotsteam/godotsteam.gdextension
+game/addons/godotsteam/win64/libgodotsteam.windows.template_release.x86_64.dll
+game/addons/godotsteam/win64/libgodotsteam.windows.template_debug.x86_64.dll
+game/addons/godotsteam/win64/steam_api64.dll
+game/addons/godotsteam/linux64/libgodotsteam.linux.template_release.x86_64.so
+game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so
+game/addons/godotsteam/linux64/libsteam_api.so
+
+web search: 
+exec
+/bin/bash -lc 'cat docs/STATE.md docs/MODULES.md coordination/v140-r1/seed.md' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+# 落子無悔：現在的真相
+
+> 第七輪 J3 建立，V1.3.1 更新。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
+> 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/history/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/history/2026-11-04-fantasy-units-plan-v8.md` §12、第九輪 `docs/2026-11-04-v1-release-plan-v9.md` §14、第十輪 `docs/2026-11-05-v1-polish-plan-v10.md` §14，第十一、十二輪追加在同一份 §15；第十三輪 `docs/2026-11-06-puzzle-expansion-plan-v13.md` §14、裁決 `coordination/v13-ledger.md`。
+
+## 版本
+| 項目 | 值 | 位置 |
+|---|---|---|
+| App | 1.3.1（單一來源 `project.godot`，匯出設定同步；標題頁顯示） | `project.godot` |
+| 引擎 | Godot 4.6.2-stable（本機、CI、匯出模板要一致，`check_all.sh` 會擋） | `tools/check_all.sh`、`.github/workflows/ci.yml` |
+| 規則版本 | `D.RULES_VERSION`（1.3.0）；用到新兵的場次顯示 1.4.1 | `scripts/core/unit_defs.gd` |
+| 存檔格式 | `SAVE_VERSION` | `scripts/game/save.gd` |
+| GodotSteam | 4.23.2 | `addons/godotsteam/` |
+
+## 規則
+- 標準：自由排兵，最小間距 0.8 格、縱深 6 格；100 金、24 隻、90 秒。平衡認證只給「格子標準」和這一組。
+- 兵種 20 種，一局每方最多帶 10 種（出戰名單）。舊 10 種數值在 `unit_defs.gd`，編號 0 劍士、1 盾兵、2 弓箭手、3 騎兵、4 刺客、5 長槍兵、6 投彈兵、7 醫者、8 鼓手、9 狂戰士。
+- 奇幻 10 種數值在 `fantasy_defs.gd`（表下）；召喚物 20 小史萊姆、21 骷髏不能購買。孢子菇、爆爆羊、寶箱怪是奇襲兵，不算戰鬥兵，要另帶主力。
+- 標準規則與平衡認證仍只含舊 10 種；奇幻軍是獨立預設，徽章「娛樂」。
+- 開放：不靠場數解鎖（第十一輪拿掉）。正式版一開始 20 種兵、全部殘局與教學、圖鑑老兵筆記都能用；第一次開遊戲仍主推教學，預設「標準」是王國軍 10 種。試玩版是版本內容差異（`roster.gd`）。`unlock_games` 只是累計場數，判斷新玩家用。
+- 選卡簡介：大廳卡池、雙人禁牌下方有兵種簡介卡，滑鼠或手把指到哪張講哪隻：頭像、金幣、定位、一句話、剋與怕、血量／攻擊／射程／速度比較條（以全部兵種最大值為滿）。
+- 地圖（V9）：6 張（青草平原、雙橋河谷、林間小徑、冰湖雪原、熔岩裂谷、古道峽谷）× 3 大小（12×7、16×9、18×10），只配自由排兵。地形 3 種：擋路（只有幽靈能穿，不能停牆內）、慢 ×70%、快 ×120%（有減速就不吃加速）。全部左右鏡像，資料在 `map_defs.gd`、查詢與整數尋路在 `terrain.gd`。平原＋16×9 走舊路徑；其他是娛樂徽章。規則碼 NTBR4。
+- 模式（V9）：主題試煉 30 關（見下）；挑戰碼 NTC1（陣型傳給朋友打，全場規則不適用）；遠征每戰後三選一；雙人輪流禁牌（0～2 張）；AI 性格 6 種；每局地圖固定／輪替／隨機；牌組 3 組；戰績頁。AI 性格、每局地圖、禁牌不進規則碼。
+- 試玩版（V10）：教學 3 關、殘局前 5 關、對 AI 簡單與普通、雙人、試煉第 1、3 關；舊 7 種＋爆爆羊；地圖平原、雙橋河谷、冰湖雪原；不開遠征、困難。定義在 `presets.gd`（`DEMO_*`）與 `_demo_ok`，匯入碼、重播、貼上規則都走這裡。
+- 遠征（V10）：每戰之間自動存點（`gauntlet_run`），開遠征時問要不要接著打；三戰兩勝不存，離開時跳確認。
+- 遠征路線（V1.1）：7 戰是節點（前哨、遭遇、菁英、首領；菁英敵方 +10 金且 AI 高一級、首領 +20 金），每戰後從 6 種事件用種子抽 3 種：多 10 金、多 2 隻、多換 2 隻、募兵（卡池一進一出，離隊的不能是剛打完那一戰的兵）、斥候劫掠（下一戰敵方 −10 金）、截斷援軍（下一戰敵方 −2 隻）。只改戰前配置，每場仍是一般對戰、舊代碼可重播；續局存檔多 `foe_gold`／`foe_cap`（沒有＝0）。
+- 每日挑戰（V1.1）：標題頁一顆鈕。UTC 日數決定地圖、AI 性格與種子，每 7 天換一種突變（8 種，只用現有規則參數：預算、隻數、每種上限、卡池、地圖、縱深、局長、雙方手動技能）；敵陣是普通 AI＋固定種子組好的固定陣（`scripts/game/daily.gd`）。最佳紀錄存 `daily_best`（鍵＝「日數-v版本」，留最近 10 天，先比剩餘戰力再比花費）。改到 AI 或產生器要升 `Daily.VER`（`test_daily_v11` 釘住兩天的敵陣）。試玩版不開。
+- 雙方名單可以不同；有新兵的對戰代碼用 NTB6（軍隊）、NTB4（對戰）、NTBR3（規則），沒用新兵照舊格式；開手動技能用 NTB7、NTBR5。
+
+| # | 兵種 | 金 | 血 | 攻 | 冷卻 | 射程 | 移速 | 上限 |
+|---|---|---|---|---|---|---|---|---|
+| 10 | 孢子菇 | 5 | 360 | 9 | 20 | 2200 | 0 | 6 |
+| 11 | 爆爆羊 | 3 | 110 | 50 | 20 | 500 | 110 | 8 |
+| 12 | 寶箱怪 | 5 | 340 | 15 | 22 | 700 | 45 | 6 |
+| 13 | 史萊姆 | 5 | 240 | 9 | 24 | 700 | 45 | 8 |
+| 14 | 幽靈 | 6 | 200 | 15 | 20 | 700 | 85 | 8 |
+| 15 | 巫毒娃娃 | 5 | 250 | 6 | 24 | 700 | 40 | 4 |
+| 16 | 沙漏精靈 | 5 | 180 | 3 | 24 | 700 | 50 | 3 |
+| 17 | 骷髏法師 | 6 | 170 | 8 | 24 | 4000 | 45 | 3 |
+| 18 | 吸塵貓 | 5 | 260 | 12 | 22 | 700 | 50 | 3 |
+| 19 | 小石魔 | 8 | 820 | 24 | 36 | 800 | 30 | 2 |
+- 爆爆羊：爆炸半徑 1.5 格，只傷敵（半路被打死的爆炸友敵都傷，對友軍減半）。吸塵貓：每 5 秒把 4.5 格內的敵人往貓身上拉，每隻最多 2 格，拉到 0.9 格停。小石魔：每 4 秒拍地，半徑 1.5 格內敵人受 3 傷、擊退 0.8 格，留碎石區。常數在 `fantasy_defs.gd`。
+- 手動技能（V1.0.4，大廳「技能」分頁，預設關）：護盾、戰吼、治療、隕石、凍結 5 種可選，每場最多帶 3 種，次數、冷卻、威力可調。程式 `cmd_defs.gd`；名稱和說明在 `data/strings.csv`（`cmd_0`～`cmd_4`、`cmd_d_*`），改名後要重建字型。施放記成 `[tick, 隊伍, 技能]`，重播照紀錄；AI 用確定性規則施放。開啟後徽章一律「娛樂」，規則碼 NTBR5、對戰代碼 NTB7（帶 `c`）；沒開走舊路徑，舊雜湊不變。
+- 殘局（V1.0.5）：100 關、10 章各 10 關（王國基礎、王國新兵、魔物報到、跨界連鎖、連鎖大作戰、護送・死守・斬首、地利、限制與借力、時序、宗師），章名與開場小故事在 `data/puzzles.json` 的 `chapters`；舊 25 關在第 1～3 章（位置與存檔不變），新 75 關在 `extra`。目標 4 種：打贏、護送（指定我方兵要活著）、撐住（局長 N tick 結束時沒被打光）、斬首（指定敵兵要死），都用戰後狀態判定，判定只有一份（`puzzles.gd` 的 `outcome／play`，遊戲、工具、測試共用）。第 7 章是 16×9 地形圖上的格子部署；第 8 章有每關隻數上限；第 9 章戰前寫好技能施放秒數（受開場時間與冷卻限制），敵方技能照腳本。自帶規則的殘局不給複製對戰代碼。列表可切章、只看未滿三星，顯示總星數。
+- 殘局第 11 章（V1.1）「完美主義」10 關：目標 flawless（獲勝且 `goal_type` 那種兵一隻都不倒）、margin（獲勝且剩餘 ≥ `goal_rem`%），一樣只看戰後狀態、判定在 `puzzles.gd outcome`。`CHAPTERS` = 11；資料由 `tools/gen/chapter11_merge.py` 附加，`puzzle_merge.py` 重跑會保留第 11 章。
+- 殘局工坊碼（V1.1）：打贏的格子對戰（平原、沒開技能、非試煉／每日）結果頁有「做成殘局碼」（`NTP1.`，`scripts/game/workshop.gd`）；「代碼」→「解殘局碼」先驗格式、兵種、座標、重複格、預算 ≤200，再用 `PZ.play` 重跑作者解，過關才收。門檻＝作者成績（剩餘 ≥ 作者、花費 ≤ 作者）。這關 id 是 `ws`，不進清單、不存星數、不記嘗試次數。
+- 三層提示（V1.0.5）：第一層講條件與主題、第二層顯示三星解的兵種（要先打過一次）、第三層確認後把三星解擺上去（不影響星數）。手把 L3 提示、R3 時間設定。
+- 主題試煉（V1.0.5）：30 關，分 3 頁。第 1～10 關照舊；第 11～30 關資料在 `data/trials.json`：限定卡池、單主題與混搭頭目、規則變形（預算、縱深、每種兵上限、雙方技能），敵陣由 AI 用固定種子組好後凍結成資料，剩餘與花費門檻各關不同。存檔以索引為鍵，只能往後加。
+- 看得懂（V1.1）：擺放時選中的兵對看得到的敵兵頭上畫 ▲（剋它）／▼（被剋，只讀剋制表）；輸的時候結果頁標題下一行改成「多半傷害來自 X（N%）→ 可以試試 Y」（逐 tick 累計受傷來源，快轉與播放共用 `_collect_mark`）。
+- 三星：殘局條件是勝利、剩餘戰力、花費，以和畫面相同的四捨五入百分比判定，結果頁逐條顯示 ✓／× 和本場數值。試煉：過關 1 星，剩餘戰力達標（普通 30%、困難 20%）加 1 星，花費不超過 80% 加 1 星，兩項分開算。
+- 雙人：輪流落子 5 手為預設，另有每手 10 金、同時暗擺、自訂手數。
+- 模式與部署：對戰、遠征可自由；殘局、教學是格子（教學多一關自由排兵入門是例外）。
+
+## 存檔
+- 位置 `user://`：`save.json`（進度，Steam Auto-Cloud 同步）、`settings.json`（本機）；試玩版前綴 `demo_`，進度不帶進正式版。
+- 主檔壞掉：移成 `.corruptN` 留證據 → 讀 `.bak`。只有驗證過的主檔才會輪替成備份。
+- 比目前新的存檔：不碰原檔，這次不寫，標題頁提示。
+- 寫入失敗：記為未存，回標題時重試，標題頁提示。
+
+## 版本契約（S5）：什麼改動影響什麼
+| 改動 | 重播／對戰代碼 | 金標準 | 要做什麼 |
+|---|---|---|---|
+| 模擬規則、`unit_defs`／`fantasy_defs` 數值 | **預設不做**（鐵則：舊 FINGERPRINT／digest 不變）。新機制走新規則欄位＋新代碼前綴，缺欄位走舊路徑。真的要改既有數值時：舊代碼顯示警告、用新規則重算（不留舊模擬） | 舊基準不覆蓋；只新增新版基準檔（例 `golden_v8` 之後另開新檔），commit 說明 | 升 `RULES_VERSION`；重跑平衡驗收、反制庫、殘局 |
+| 只有部署規則（間距、縱深、全場） | 代碼帶部署欄位，舊代碼照舊規則驗合法性 | `golden_free` 看案例 | 不升 `RULES_VERSION`；更新 `presets.gd` 認證 |
+| 畫面、特效、文字 | 不影響 | 不影響 | 版面檢查、改中文要重建字型 |
+| 存檔欄位 | 不影響 | 不影響 | 升 `SAVE_VERSION`、寫遷移、測未來版鎖定 |
+| 代碼格式（NTB*／NTBR*） | 舊格式要能解 | `seal_codes`、`golden_free` 會紅 | 加新前綴，舊的不能拿掉 |
+
+## 畫面（V1.1）
+- 攻擊動作是三段式（前搖／命中／收招）：`art.gd` 的 `POSE_PROFILE` 給全部 22 種（含召喚物）專屬形狀與收招停頓；命中時間點 `ATK_WINDUP` 全兵種相同。
+- 密陣：被正下方的兵蓋到臉時，在最上層補畫 35% 透明的自己（`_draw_xray`）。倒下：骷髏散骨、寶箱怪吐金幣、史萊姆濺開、幽靈化煙、小石魔碎石；勝利：鼓手音符、狂戰士火花、醫者綠十字。殘局斬首目標倒下有頓格＋「斬首成功！」。
+- 受擊：閃白＋壓扁＋後退；盾兵火花、小石魔石屑、史萊姆綠滴。大招前搖：小石魔、吸塵貓、沙漏精靈畫實際作用半徑的地面預警圈；手動技能在受影響那隊腳下畫法陣。
+- 第 1 層技能字（反騎、反擊、破陣）不出字，頭上閃小菱形；字只進底部戰報。
+- 冰湖雪原底色降 15%，亮色地圖腳底加深色影子（`BIOME.shadow`）。
+
+## 畫面與聲音（V1.2 質感）
+- 字型：`fonts/NTBRounded-{R,B}-sub.otf`（源泉圓體 TW，中文）＋`fonts/NTBLatin-{M,B}-sub.ttf`（Fredoka，英數主字型，中文落到後備；0～9 等寬置中）；ThenKhung 只給粗體 ≥H2 標題。來源字型在 `build/fontsrc`，`tools/gen/build_font.py` 重建。
+- 文字：深焦茶描邊（3／4／5px 依字級）＋下方陰影；深色字（含紙上墨色字）不描邊、改淺浮雕。`_ink_mode` 時淺色字自動轉墨色、彩色字壓暗，`_btn` 內固定白字。
+- 材質：`art/ui/` 木紋、凹槽、羊皮紙、銅釘木框、暈影、游標由 `tools/gen/gen_ui_tex.py` 生成（雜訊非決定性，重跑會變檔）。`_box` 對夠大夠實的方塊畫染色木紋；面板、戰場、大廳預覽有木框；大廳左欄、圖鑑左欄是羊皮紙頁；結果頁勝負字墊隊色緞帶。
+- 兵：圖集烘焙後跑 `shaders/unit_bake.gdshader`（隊伍墨色外輪廓、頂亮底暗）；縮放 >1.4 倍改向量直畫＋木底座。換色重烘有世代保護。
+- 設定 `plain_ui`（預設 false）：關掉材質、緞帶、紙頁、外輪廓烘焙、暈影等，回到 V1.1 平面介面。
+- 大廳是攤開的雙頁筆記（木書殼、兩頁羊皮紙、書脊、紅書籤）；戰報條是深木槽＋隊色小章（藍圓、紅菱）；圖示 Q 版厚塗（`Icons.force` 畫剪影）。
+- 地塊烘焙（`map_art.gd`）含手繪筆觸、邊緣裝飾、紙紋 5% 與調色（`shaders/grade_bake.gdshader`）；快取分簡化介面與否兩份。亮的特效墊放射柔光。
+- 商店圖：`tools/gen/gen_capsules.py <zh_TW_100 截圖夾>` → `docs/release/capsules/`（Steam 全尺寸＋8 張截圖）。
+- 聲音匯流排 Music／SFX／UI／Ambience（都送 Master，最後時刻低通掛 Master）；換曲 0.6 秒交叉淡入淡出。
+- 聲音：OpenGameArt CC0 配樂 3 首（`music_title`／`music_place`／`music_battle`，Ogg，執行時設循環）、音效 47 個（`名稱__2` 變體隨機、不連抽）；`tools/gen/import_audio.py`（`build/venv-audio`）。戰鬥曲是錄音單軌，狂熱同曲 1.08 倍音高（舊合成三分軌已移除）。
+
+## 介面細節（V1.2.1）
+- 文字：次要字用不透明暖灰 `TXT_DIM`；彩色小字在 `_text` 自動提亮（對描邊 5:1）；紙上墨字至少 85% 不透明。
+- 按鈕：懸停與手把焦點同一樣式（深邊＋金亮邊）、按下內陰影；`btn_paper` 畫紙面，`last_btn_paper`／`last_btn_enabled` 給呼叫端決定卡片內文字。
+- 版面檢查（`tools/dev_main.gd`）：文字對比用截圖取樣（反鋸齒排除、透明度合成、描邊三種比法取最好、背景未知必敗、停用另報）；九宮格依材質登記的斜邊內距（木紋上 3／下 4／左右 3、紙 5、凹槽 3）檢查字形框；缺圖算違規；狀態 `--shot-state=plain,cb,pad,dis`。
+- 聲音：四條音量（音樂、音效、介面、環境，設定裡有試聽）；`data/audio_trim.json`（`tools/gen/audio_trim.py` 產生）逐檔修響度。
+- 本地化前置：`L.field(資料, 後綴)`、`L.pick`、`LANGS`／`SUFFIX`；加語言看 `docs/localization.md`。
+- 商店圖：小膠囊不放副標（120×45 可讀）；`tools/gen/gen_capsules.py`。
+
+## 活起來、像手作（V1.3.0）
+- 轉身：沒有中間影格的兵，窄位最少 0.45（`battle_state.gd` `TURN_MIN_W`）＋腳下揚塵＋展開回彈 1.04。劍士、盾兵、騎兵、長槍兵、史萊姆、小石魔（`sprite_cache.gd` `TURN_TYPES`）另烘 3 張中間姿勢（cos 0.8／0.55／0.3）：`kit.gd` 的 `turn_c`、`_part(z, fwd)` 讓頭與史萊姆不壓扁、武器透視縮短並留在臉前、大盾不縮、臉往中間移。轉身頁約 7 MiB。逐格條：`tools/anim_sheet.gd` 產 `turn.png`。
+- 錯開：呼吸 `Art.idle_bob(t, 腳點)` 依 x、y 錯相位與頻率 ±10%（烘焙時 `bake_no_bob`）；眨眼依位置錯開。停步慣性 0.3 秒（`stop_t`）。
+- 腳下三層：厚木座 → 接觸影子（跳起來縮）→ 隊伍圈；站地上時貼一次預烘合成格（`ring_tex` 第 6～9 格），跳起 >0.15 才分層。
+- 倒棋：一般兵（`battle_units.gd` `TOPPLE`）死亡側倒 90° 躺在木座上，1.7 秒淡出（`death_life`）；化煙、化開、碎裂等專屬死法不變。
+- 手作線條：整圈 → `_hand_ring`（三版預算、焦點圈每秒換 6 次、簡化特效固定）；虛線 → `_chalk_line`（粉筆，花紋只看段號）；格線 `_wob_line`；牆邊 `_wob_edge` 烘進地塊（不改可走範圍）；松樹手繪；介面材質低頻削角（`tools/gen/gen_ui_tex.py` `rough_mask`）。
+- 降噪：頭頂符號上限（`OVERHEAD_CAP`，滿了丟最舊）、戰場跳字上限 `FX_TEXT_CAP`；選中（跟拍）的兵滿血也顯示血條；走勢圖整場差距小時縱軸放大（最多 3 倍，標「縱軸放大 ×N」）。
+- 特效：受擊整隻剪影變白；箭命中後釘住抖 0.18 秒；碎屑不規則翻滾；跳字從上方 8px 壓下；戰報事件地上墨圈（`inkring`）；每場第一次破陣的關鍵時刻（四周壓暗＋墨圈，不改播放速度，簡化特效關）；金幣條改木槽木珠。
+- 擺陣：拖曳抬高 12px＋地上影子；自由模式放下 0.18 秒沉降＋落子聲（落點立即提交）。結果頁有筆聲（`ui_quill.wav`，程式合成）。
+
+## 角色做完整（V1.3.1）
+- 轉身：22 種兵都有 3 張中間姿勢（`sprite_cache.gd` `TURN_TYPES`）；部件標註在 `kingdom.gd`／`fantasy.gd`（`_part(z, fwd)`、圓件 `_part_at(x0)`，武器最多縮一半）。走路中轉身另一頁：1 角度 × 4 步相（`WT_*`）。出手時每一擊鎖朝向（`atk_face`）。
+- 待機小動作：每種兵 4 格（`FIDGET`：前搖幅度＋回頭看），30～60 秒一次、1.2 秒；受擊那一下帽子彈起 5px（`hat_pop`，只在待機）。
+- 表情：`M_HAPPY`（勝利 ^^）、`M_SURPRISE`（擺陣抓起）、`M_GRIM`（存活 <25% 且對方 >2 倍）；最後一隻站定 1.5 秒後左右張望。羊、幽靈、骷髏法師、骷髏也吃得到表情（`FEATURE_EYES`）。
+- 剪影：投彈兵肩桶、骷髏法師書前探＋兜帽尖、大史萊姆王冠、刺客雙燕尾、狂戰士待機 V 斧。史萊姆高光不烘進圖集，貼圖後畫在世界左上。
+- 圖鑑大圖：點角色轉一圈＋小動作（`codex_view.gd` `_cx_portrait`）。
+- 工具：`tools/anim_sheet.gd` 產 `turn.png`、`fidget.png`、`walkturn0.png`，並檢查武器穿眼（`ANCHOR`）、出格（`CLIP`）。
+- 收尾效果：每種兵出手／倒下音高不同（`sfx.gd` `UNIT_PITCH`，0.82～1.25＋±5%）；最後一擊定格 0.2 秒後勝方從中線往後排波浪歡呼（每格 0.06 秒）；巫毒娃娃的針、骷髏頭骨、寶箱金幣倒下時落地（`_draw_relic`，同畫面最多 4 組）；孢子菇、投彈兵火罐、沙漏玻璃的高光在正上方。擊倒者用「目標最後被誰打」推算（模擬的死亡事件不帶擊倒者）。
+- 資源：轉身＋小動作＋走路轉身圖集比 V1.3.0 多約 93 MiB 貼圖記憶體（上限 104）；效能模式 json 多 `mem_static_*`、`tex_mem_mib`。
+
+## 已知限制
+- V1.1：無快取統一檢查同機約 958 秒（目標 750 沒達到；新增的每日挑戰測試多 1174 項）；同機量測繪圖 p95 約 9 ms、整幀 p95 約 18 ms（新舊版相同，沒退步，但沒達 6／16.7 ms 目標；歷史量過 4.6 ms，機器狀態差異大）。
+- V1.1：模擬快 12.7%（選目標改掃每隊可選敵人表、碰撞依 x 排序掃描，位元相同）；統一檢查全部重跑 748～774 秒（750 秒目標落在機器波動內，沒有穩定低於）；模擬比 v1.0.5 快 13.4%；正式啟動約 1.85～1.98 秒。
+- 遠征路線、每日挑戰、第 11 章、工坊碼沒有真人試玩；第 11 章難度只有求解器指標（w8 隨機擺法過關率 0%，最難）。
+- 對戰代碼不帶輪序紀錄：只證明最後陣型合法，帶 `cmds` 一律拒絕。
+- 自由模式的困難 AI 不用離線反制庫，走模擬候選陣型。
+- 0.8 格密陣時，上排的臉會被下排的頭蓋到一點。
+- 最壞規則（40＋40、一半支援兵、150 秒）一場重算約 7.5 秒；同一台機器有時整體慢約 3 倍（11/04 晚上量到 22 秒，舊程式同樣慢），數字要同次比較。
+- Windows 視窗最小化時 `frame_post_draw` 不會觸發，遊戲內已降到 10 fps；WSL 的 `timeout` 只砍外層，Windows 程序可能留下。
+- 10 兵種雙人先手勝率 AI 代理量不出公平性，大廳標「未驗證」。
+- 地形圖上奇幻軍對王國軍只有 30～41%（平原 51%）；AI 擺法沒有針對地形最佳化。娛樂徽章，數值未調；大廳會提示沒有平衡認證。
+- V1.2：介面、戰鬥音與配樂換成 OpenGameArt CC0 錄音，沒有真人試聽；環境音仍是程式合成。
+- V1.2：沒有真人看過新質感；圖示、地塊、商店圖都是程式繪製版（零預算），正式美術版之後可替換；英文 150% 結果頁摘要會在緞帶內換兩行。
+- V1.2：`build/dl` 只留授權頁 html（原始音檔已轉進 `game/audio`）；要重跑 `tools/gen/import_audio.py` 得重新下載來源。
+- V1.2.1：響度只靠量測修正，沒有真人盲聽；版面狀態矩陣只在 150% 跑（狀態 × 100／125% 沒跑）；手把模式重播時不畫底部戰報。
+- V1.3.1：走路中轉身只有 1 個中間角度；4 步相取中點，偶數步和一般 8 步相差 1/8 步（轉身那 0.1 秒腳可能小跳）。最窄轉身格不畫表情。巫毒娃娃、寶箱、沙漏沒有通用表情（臉是自己畫的）。待機小動作是前搖姿勢加回頭看的組合，不是逐種手繪的專屬動作。沒有真人看過 V1.3.1。
+- V1.3（V1.3.1 已補齊 22 種）：轉身中間姿勢原本只有 6 種兵（其他 16 種用最窄 0.45 的厚木牌翻面）；中間姿勢是用部件轉換推算，不是畫師畫的。轉身中出手仍用最窄 0.45。轉身中更窄的兩格不畫表情疊加（約 0.1 秒）。
+- V1.3：效能 p95 和 V1.2.1 同機交錯量測持平（10.15 對 10.2 ms，這天機器較慢），p50 多約 0.2 ms；絕對值高於 9.79 的舊參考線（同一台機器 V1.2.1 也是 10.2）。
+- V1.3：沒有真人看過去紙片、手作感的效果；方案 D 的連環畫、預判、新挑戰型別、慢放選項不做（理由見 `coordination/v130-ledger.md`）。
+- PS、Switch 手把提示只測過字串，沒接過實體手把；PS 的 ○ 用字母 O、△ 用 ▲（字型子集沒有，且本機沒有原始字型檔）。
+- 小地圖最上排的兵，帽尖可能壓到場地框或頂列一點（畫面問題，模擬不動）。
+- 奇幻 10 種和手動技能沒有真人試玩資料；平衡只有 AI 對戰數字，技能強度只有每種 24 場。
+- 小石魔替換實驗勝率 57.9%，是 20 種裡最高，高於第十二輪定的 45～48% 目標；傷害 0 也有 50%，要再降就得動使用者選的冷卻、半徑或金額。
+- 三星搜尋只證明「拿得到」，不代表難度合理；舊 25 關與試煉前 10 關解法在 `tests/golden/star_solutions.json`，新關的三星解存在關卡資料的 `best`。
+- 新 75 殘局、20 試煉的難度只有求解器指標（隨機擺法過關率、容錯、兵種數），沒有真人校準；章內依隨機過關率排序。時序章有幾關三星解在開場就放，時機不算關鍵。有些關不帶主角也能過（只記錄 `hero_free_ok`，不擋）。
+- 新成就 3 個（PUZZLE_100、PUZZLE_ALL3、TRIAL_ALL3，共 24 個）要在 Steamworks 後台建立才會解鎖。
+- 拿掉循序解鎖後，新手第一場就面對 10 種兵（選奇幻是另外 10 種）：靠教學、預設、簡介卡引導，有沒有資訊過量要看真人試玩。
+
+## 驗證入口
+- `GODOT=<4.6.2> tools/check_all.sh`：統一檢查，CI 也用。
+- `tools/layout_check.sh <win exe> <新資料夾>`：版面（會被擋的項目見腳本）；另外要人工看英文 150%。
+- `GODOT=<win exe> tools/export_check.sh <空資料夾>`：匯出成品自我檢查。
+- `SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
+- 統一檢查在 Windows 版要 40～50 分鐘，外層 timeout 至少開 90 分鐘。
+
+## 最後一次驗收（2026-11-08，V1.3.1 收尾）
+- 統一檢查 48 步全部重跑（最終版）：測試 4024 項全過，868 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。最終版快速版面 400 張 0 違規、匯出正常、繪圖 p95 10.1 ms、貼圖記憶體 227.9 MiB。
+- 版面 14 組 1400 張 0 違規；匯出 EXPORT OK；標題顯示 v1.3.1。
+- 同機交錯：p95 中位數新 9.90／舊 10.21 ms；開機 2.75／2.76 秒；貼圖記憶體 +93 MiB、靜態記憶體峰值 +6.3 MiB。
+- 三方：方案三輪；實作 Codex、Antigravity 各審兩輪，必修全修（`coordination/v131-*`）。沒有真人玩過 V1.3.1。
+# 模組索引（自動產生，勿手改：`python3 tools/gen/module_index.py`）
+
+找程式先看這裡，再用 grep 加行號範圍讀；大檔不要整檔讀。
+
+## game/scripts/core
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `ai_army.gd` | 183 | AI 陣型（原型＝企劃 §7 的「普通」：從原型陣型挑一套再隨機微調）。 |
+| `ai_turns.gd` | 192 | 會「讀對方」的落子 AI（優化方案 A2、C）。用在：輪流落子模式、平衡工具的先後手測試、AI 難度。 |
+| `army.gd` | 563 | 一方的陣型：預算、人數上限、部署區、格子佔用。純資料，不碰畫面。 |
+| `battle_sim.gd` | 2030 | 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3；優化方案 B1、L1。 |
+| `cmd_defs.gd` | 64 | 手動技能（第十二輪）：玩家戰鬥中按下的全隊技能。純資料、全整數。 |
+| `events.gd` | 56 | 事件名稱表（第三輪 A4）：模擬送出的事件種類（kind）與效果標籤（tags）只能用這裡的常數。 |
+| `fantasy_defs.gd` | 91 | 第八輪奇幻兵團的數值與常數。獨立成一個檔案：unit_defs.gd 的常數決定舊場次的數值摘要，一個都不能動。 |
+| `formations.gd` | 246 | 陣型產生器（平衡工具 2.0 的訓練池／保留池，優化方案 B2）。全部由種子決定。 |
+| `hard_ai.gd` | 97 | 困難 AI（第四輪）：真的「讀你上一局」。 |
+| `imath.gd` | 25 | 確定性整數數學。GDScript 的 int/int 是「往 0 截斷」，左右鏡像時結果對稱，所以全部沿用。 |
+| `map_defs.gd` | 80 | V9 地圖資料（純資料＋整數）：左半邊的矩形清單，右半邊自動鏡像，所以公平性由建構保證。 |
+| `mirror_check.gd` | 155 | 左右交換逐 tick 比對（優化方案 B1／L1）：原本 (隊,列,欄) ↔ 鏡像 (1-隊,列,15-欄)，每 tick 比位置、血、面向、存活。 |
+| `ruleset.gd` | 573 | 自訂規則（第五輪 §3）。純資料，不碰畫面。三層： |
+| `terrain.gd` | 269 | V9 地形格（0.5 格一點）。所有查詢都用「隊伍視角」換算，左右鏡像才會逐位元一致： |
+| `turn_placement.gd` | 209 | 輪流落子（企劃 §4.1、優化方案 A2）。公開輪流擺，擺下不能移動或收回；買得起就不能跳過。 |
+| `unit_defs.gd` | 237 | ════════════════════════════════════════════════════════════════════ |
+
+## game/scripts/game
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `battle_code.gd` | 114 | 對戰代碼（第三輪 F3）：把雙方陣型、規則版本、數值摘要編成一串，貼給朋友就能看同一場。 |
+| `codex.gd` | 183 | 兵種圖鑑（第二輪方案 R3）：讀 data/codex.json，驗證 ID 與示範，技能說明裡的 {常數名} 換成 unit_defs 的數值。 |
+| `daily.gd` | 116 | V1.1 D2：每日挑戰＋每週突變。純函式，不碰畫面（遊戲、測試共用）。 |
+| `keymap.gd` | 106 | 按鍵重設（第七輪 K1、F9）。程式裡的按鍵判斷都用預設按鍵常數，這裡在入口把實際按下的鍵換回預設， |
+| `presets.gd` | 130 | 第十輪 R1：試玩版開放的地圖（平原、雙橋河谷、冰湖雪原）與試煉（第 1、3 關）、殘局前 5 關。 |
+| `puzzles.gd` | 287 | 教學與殘局關卡資料（data/puzzles.json）。 |
+| `roster.gd` | 23 | 兵種開放（第十一輪）：不靠場數解鎖，正式版一開始 20 種全部能用。 |
+| `save.gd` | 366 | 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。 |
+| `sfx.gd` | 286 | 音效與音樂（優化方案 H）：同類音效 80ms 內最多 2 個、音高 ±10% 隨機；音樂與音效分軌。 |
+| `steam.gd` | 132 | Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。 |
+| `strings.gd` | 65 | 字串表（優化方案 I）：data/strings.csv，欄位 key,zh_TW,en。所有畫面文字都從這裡來，不寫死在程式裡。 |
+| `trial_data.gd` | 10 | 第十三輪：新增試煉（索引 ≥10）的資料快取，讀 data/trials.json。 |
+| `workshop.gd` | 101 | V1.1 D3：殘局工坊碼 NTP1。打贏一場格子對戰 → 把敵陣＋自己的解做成殘局碼傳給朋友解。 |
+
+## game/scripts/ui
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `art.gd` | 259 | 其他層在同資料夾（V9 P1 拆檔） |
+| `battle_view.gd` | 771 | 其他層在同資料夾（V9 P1 拆檔） |
+| `charts.gd` | 251 | 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。 |
+| `codex_view.gd` | 546 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
+| `free_place.gd` | 891 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
+| `game_screens.gd` | 669 | 其他層在同資料夾（V9 P1 拆檔） |
+| `icons.gd` | 172 | V9 P5 圖示：全部向量自繪，不靠字型（思源黑體沒有這些符號）。一律 24×24 概念，c＝中心、s＝邊長。 |
+| `lobby_view.gd` | 1087 | 規則大廳（第五輪 §3.5、§3.6）。兩段式： |
+| `main.gd` | 23 | 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。 |
+| `map_art.gd` | 386 | V9 地圖美術：每種 地圖＋大小 烘一張地面貼圖（全程式繪製，一張圖只畫一次，不佔每幀繪製）。 |
+| `replay_view.gd` | 683 | 回味（第三輪 S5）：重播控制、對戰代碼、覆盤。 |
+| `sprite_cache.gd` | 535 | 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps）， |
+| `ui_base.gd` | 1051 | 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。 |
+| `unit_brief.gd` | 116 | V1.1 E3：由 lobby_view.gd 拆出（行為不變）。選卡時的兵種簡介卡：大廳卡池、雙人禁牌共用。 |
+| `view_buffer.gd` | 130 | 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。 |
+
+## game/scripts/ui/battle
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `battle_fx.gd` | 734 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_state.gd` | 466 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_units.gd` | 866 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+
+## game/scripts/ui/screens
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `game_core.gd` | 812 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_menus.gd` | 559 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_modes.gd` | 772 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
+| `game_place.gd` | 792 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_result.gd` | 540 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+
+## game/scripts/ui/units
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `fantasy.gd` | 370 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `gait.gd` | 114 | 步態（V9 P2）：Q 版微跳步。相位由真實位移決定（battle_state._gait_tick），腳踩地時不滑。 |
+| `kingdom.gd` | 347 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `kit.gd` | 223 | 由 art.gd 拆出（V9 P1，行為不變） |
+
+## game/tests
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `run_tests.gd` | 96 | 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測 |
+| `test_base.gd` | 239 | 測試共用（第七輪 I1）：斷言、常數、輔助函式。各主題的測試在 tests/suites/。 |
+
+## game/tests/suites
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `anim.gd` | 117 | 角色動畫（V9 P2）：腳踩地不滑、被推與被吸的姿勢正確。 |
+| `content.gd` | 116 | 殘局標準解回歸（第二輪方案 §1.4）：每關存的標準解都必須打贏；改戰鬥規則後有任何一關變不能過就會紅。 |
+| `core.gd` | 420 |  |
+| `fantasy.gd` | 498 | 擺一隊：spec＝[[type, x（自己視角）, y]]，team 0／1。座標單位 1000＝1 格。 |
+| `free.gd` | 347 |  |
+| `harness.gd` | 25 | 第七輪 R2：測試框架自己的契約。 |
+| `maps.gd` | 105 | 地圖（V9 P3）：鏡像、可達、舊路徑不變、代碼、尋路不卡死。 |
+| `modes.gd` | 1248 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
+| `rules.gd` | 584 |  |
+| `save.gd` | 198 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
+| `ui.gd` | 905 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
+| `units.gd` | 394 |  |
+
+## game/tools
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `anim_sheet.gd` | 112 | 角色全影格拼圖（V9 P2）：要真的繪圖，不能 headless。 |
+| `atlas_check.gd` | 130 | 角色圖集檢查（第七輪 C0）：要真的繪圖，不能 headless。 |
+| `compat.gd` | 143 | 舊兵種相容檢查（第四輪方案 §3.1～3.2）。 |
+| `dev_main.gd` | 1424 | 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。 |
+| `golden.gd` | 113 | 確定性金標準（第三輪 T2）。 |
+| `golden_free.gd` | 158 | 自由模式跨版本金標準（第七輪 S1）。舊金標準 golden.gd 只鎖格子舊路徑，自由模式原本只有同版自比。 |
+| `golden_map.gd` | 130 | V9 金標準：鎖住有地圖或非標準大小的戰鬥。舊金標準不會走這些分支。 |
+| `golden_v8.gd` | 163 | 第八輪金標準：鎖住有奇幻兵的戰鬥（舊金標準不會碰到 v8 分支）。案例存成對戰代碼 NTB4，所以同時鎖住代碼格式。 |
+| `load_all.gd` | 26 | 載入檢查（第三輪 T1）：res://scripts、res://tools、res://tests 底下每一個 .gd 都要能載入、能編譯。 |
+| `mirror_100.gd` | 21 | 100 組隨機陣型的左右交換逐 tick 比對（N1 驗收）。godot --headless --path game --script res://tools/mirror_10 |
+| `orbit_detect.gd` | 84 | 騎兵打轉偵測（第二輪方案 §1.4）：訓練池 120 場，40 tick 內走了 >3 格但淨位移 <0.8 格就算一次。 |
+| `perf_probe.gd` | 137 | 第五輪 P0：效能探測。人數上限、一局時間要依這裡的數字定，不憑感覺。 |
+| `seal_codes.gd` | 63 | 第五輪 P0：封存舊格式對戰代碼（NTB2）＋預期結果。 |
+| `validate_puzzles.gd` | 112 | 殘局／教學驗證（優化方案 D、附錄 A）：每關隨機抽樣擺法，檢查 |
+
+## game/tools/balance
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `balance.gd` | 111 | 平衡報表（原型版）：godot --headless --path game --script res://tools/balance/balance.gd |
+| `balance2.gd` | 253 | 平衡工具 2.0（優化方案 B2、A2、L2）。由 tools/balance/balance.sh 多行程分片呼叫，每場一行 JSON（前綴 "R "）。 |
+| `cmd_eval.gd` | 52 | 手動技能強度（第十二輪）：同一對陣型左右各打一次，只有一邊會放這招（AI 判斷時機），看勝率。 |
+| `design_new_puzzles.gd` | 131 | 新兵試玩殘局的設計輔助（第四輪 §4.8）。每關： |
+| `fantasy_eval.gd` | 241 | 第八輪奇幻軍平衡驗收。godot --headless --path game --script res://tools/balance/fantasy_eval.gd -- -- |
+| `make_counter_lib.gd` | 95 | 困難 AI 的離線反制庫（第三輪 A3）。 |
+| `puzzle_forge.gd` | 277 | 第十三輪：殘局量產。讀草稿（敵陣、固定兵、預算、可用兵種、目標），自動： |
+| `solve_fantasy.gd` | 102 | 奇幻軍試玩關的標準解搜尋（第八輪）。每關爬山找含主角兵種的解，印成 JSON；python 把解、星級寫回 puzzles.json。 |
+| `star_check.gd` | 102 | 每一關的三星到底拿不拿得到（第十二輪）：先看標準解，沒有就爬山搜尋。印出最好的解。 |
+| `trial_check.gd` | 113 | 主題試煉 10 關的星數拿不拿得到（第十二輪）：走遊戲同一條路開關（同一支對手），爬山找陣型。 |
+| `trial_forge.gd` | 169 | 第十三輪：主題試煉第 11～30 關量產。依規格（tools/gen/trial_specs.py）： |
+| `unit_eval.gd` | 281 | 新兵種驗收工具（第四輪方案 §2.6、§3.4）。由 tools/balance/unit_eval.sh 分片執行，tools/balance/unit_eval_report. |
+# V1.4.0 方向發想底稿（Claude）——「下一個大版本可以往哪裡走」
+
+使用者：擬定 V1.4.0 優化方向，三方討論，至少 10 種，創新、有趣、大作方向；使用者會多選；先不實作。
+現況（V1.3.1）：確定性自動對戰戰棋（擺陣後自動打），20 種兵＋召喚物、6 地圖×3 大小、對 AI／雙人輪流／遠征 7 戰／每日挑戰／殘局 110 關／試煉 30 關／挑戰碼與殘局工坊碼／重播；畫面 V1.2～1.3 做了桌上戰棋沙盤質感與角色動畫。零預算、單人開發＋AI；Steam 上架準備中（還沒真人試玩）。硬限制：舊對戰碼／重播的 FINGERPRINT 不能變（新玩法走新規則碼）。
+
+Claude 的候選（每條：一句話、為什麼好玩、大約規模）：
+1. 幽靈軍團非同步對戰：上傳自己的陣到 Steam（排行榜附檔／UGC），系統配對別人的陣來打（Backpack Battles、Super Auto Pets 的非同步 PvP）。大。
+2. 戰役劇情模式：一張大地圖、章節、角色與對白、頭目戰，把殘局與試煉串成故事。大。
+3. 指揮官：開戰前選一位將軍（被動＋一次主動），改變打法。中。
+4. 第三支軍隊：10 種新兵的新陣營（例如機械／不死／海盜）。大。
+5. 兵種升階：同種兵合成升星（自走棋經典），要新規則碼。中。
+6. 地圖與殘局編輯器＋Steam 工坊分享。大。
+7. 合作模式：兩人各擺半邊對抗 AI 頭目。中。
+8. 錦標賽／季節賽：每週固定規則、排行榜、季節獎勵外觀。中。
+9. AI 教練：戰後分析陣型弱點、建議換哪隻（用現有模擬跑反事實）。中。
+10. 外觀收藏：兵種配色、木座材質、桌布、棋盒，靠成就與挑戰解鎖。小～中。
+11. 精彩回放分享：自動剪 10 秒高光、匯出 GIF／影片、分享碼。中。
+12. 天氣與晝夜規則：雨天弓箭射程短、夜晚視野等（新規則碼）。中。
+13. 簡中、日文本地化（前置已做）。中。
+14. 觸控／Steam Deck 最佳化、手機版評估。中～大。
+
+exec
+/bin/bash -lc 'rg --files -g AGENTS.md /mnt/c/Users/timmy/projects /home/timmy 2>/dev/null | head -60' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 221ms:
+/home/timmy/st-linux-tw4/frontend/node_modules/next/AGENTS.md
+/home/timmy/st-linux/frontend/node_modules/next/AGENTS.md
+
+web search: site.store.steampowered.com/news Mechabellum 2024 1.0 ...
+exec
+/bin/bash -lc 'cat coordination/v140-r1/seed.md docs/MODULES.md' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+# V1.4.0 方向發想底稿（Claude）——「下一個大版本可以往哪裡走」
+
+使用者：擬定 V1.4.0 優化方向，三方討論，至少 10 種，創新、有趣、大作方向；使用者會多選；先不實作。
+現況（V1.3.1）：確定性自動對戰戰棋（擺陣後自動打），20 種兵＋召喚物、6 地圖×3 大小、對 AI／雙人輪流／遠征 7 戰／每日挑戰／殘局 110 關／試煉 30 關／挑戰碼與殘局工坊碼／重播；畫面 V1.2～1.3 做了桌上戰棋沙盤質感與角色動畫。零預算、單人開發＋AI；Steam 上架準備中（還沒真人試玩）。硬限制：舊對戰碼／重播的 FINGERPRINT 不能變（新玩法走新規則碼）。
+
+Claude 的候選（每條：一句話、為什麼好玩、大約規模）：
+1. 幽靈軍團非同步對戰：上傳自己的陣到 Steam（排行榜附檔／UGC），系統配對別人的陣來打（Backpack Battles、Super Auto Pets 的非同步 PvP）。大。
+2. 戰役劇情模式：一張大地圖、章節、角色與對白、頭目戰，把殘局與試煉串成故事。大。
+3. 指揮官：開戰前選一位將軍（被動＋一次主動），改變打法。中。
+4. 第三支軍隊：10 種新兵的新陣營（例如機械／不死／海盜）。大。
+5. 兵種升階：同種兵合成升星（自走棋經典），要新規則碼。中。
+6. 地圖與殘局編輯器＋Steam 工坊分享。大。
+7. 合作模式：兩人各擺半邊對抗 AI 頭目。中。
+8. 錦標賽／季節賽：每週固定規則、排行榜、季節獎勵外觀。中。
+9. AI 教練：戰後分析陣型弱點、建議換哪隻（用現有模擬跑反事實）。中。
+10. 外觀收藏：兵種配色、木座材質、桌布、棋盒，靠成就與挑戰解鎖。小～中。
+11. 精彩回放分享：自動剪 10 秒高光、匯出 GIF／影片、分享碼。中。
+12. 天氣與晝夜規則：雨天弓箭射程短、夜晚視野等（新規則碼）。中。
+13. 簡中、日文本地化（前置已做）。中。
+14. 觸控／Steam Deck 最佳化、手機版評估。中～大。
+# 模組索引（自動產生，勿手改：`python3 tools/gen/module_index.py`）
+
+找程式先看這裡，再用 grep 加行號範圍讀；大檔不要整檔讀。
+
+## game/scripts/core
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `ai_army.gd` | 183 | AI 陣型（原型＝企劃 §7 的「普通」：從原型陣型挑一套再隨機微調）。 |
+| `ai_turns.gd` | 192 | 會「讀對方」的落子 AI（優化方案 A2、C）。用在：輪流落子模式、平衡工具的先後手測試、AI 難度。 |
+| `army.gd` | 563 | 一方的陣型：預算、人數上限、部署區、格子佔用。純資料，不碰畫面。 |
+| `battle_sim.gd` | 2030 | 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3；優化方案 B1、L1。 |
+| `cmd_defs.gd` | 64 | 手動技能（第十二輪）：玩家戰鬥中按下的全隊技能。純資料、全整數。 |
+| `events.gd` | 56 | 事件名稱表（第三輪 A4）：模擬送出的事件種類（kind）與效果標籤（tags）只能用這裡的常數。 |
+| `fantasy_defs.gd` | 91 | 第八輪奇幻兵團的數值與常數。獨立成一個檔案：unit_defs.gd 的常數決定舊場次的數值摘要，一個都不能動。 |
+| `formations.gd` | 246 | 陣型產生器（平衡工具 2.0 的訓練池／保留池，優化方案 B2）。全部由種子決定。 |
+| `hard_ai.gd` | 97 | 困難 AI（第四輪）：真的「讀你上一局」。 |
+| `imath.gd` | 25 | 確定性整數數學。GDScript 的 int/int 是「往 0 截斷」，左右鏡像時結果對稱，所以全部沿用。 |
+| `map_defs.gd` | 80 | V9 地圖資料（純資料＋整數）：左半邊的矩形清單，右半邊自動鏡像，所以公平性由建構保證。 |
+| `mirror_check.gd` | 155 | 左右交換逐 tick 比對（優化方案 B1／L1）：原本 (隊,列,欄) ↔ 鏡像 (1-隊,列,15-欄)，每 tick 比位置、血、面向、存活。 |
+| `ruleset.gd` | 573 | 自訂規則（第五輪 §3）。純資料，不碰畫面。三層： |
+| `terrain.gd` | 269 | V9 地形格（0.5 格一點）。所有查詢都用「隊伍視角」換算，左右鏡像才會逐位元一致： |
+| `turn_placement.gd` | 209 | 輪流落子（企劃 §4.1、優化方案 A2）。公開輪流擺，擺下不能移動或收回；買得起就不能跳過。 |
+| `unit_defs.gd` | 237 | ════════════════════════════════════════════════════════════════════ |
+
+## game/scripts/game
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `battle_code.gd` | 114 | 對戰代碼（第三輪 F3）：把雙方陣型、規則版本、數值摘要編成一串，貼給朋友就能看同一場。 |
+| `codex.gd` | 183 | 兵種圖鑑（第二輪方案 R3）：讀 data/codex.json，驗證 ID 與示範，技能說明裡的 {常數名} 換成 unit_defs 的數值。 |
+| `daily.gd` | 116 | V1.1 D2：每日挑戰＋每週突變。純函式，不碰畫面（遊戲、測試共用）。 |
+| `keymap.gd` | 106 | 按鍵重設（第七輪 K1、F9）。程式裡的按鍵判斷都用預設按鍵常數，這裡在入口把實際按下的鍵換回預設， |
+| `presets.gd` | 130 | 第十輪 R1：試玩版開放的地圖（平原、雙橋河谷、冰湖雪原）與試煉（第 1、3 關）、殘局前 5 關。 |
+| `puzzles.gd` | 287 | 教學與殘局關卡資料（data/puzzles.json）。 |
+| `roster.gd` | 23 | 兵種開放（第十一輪）：不靠場數解鎖，正式版一開始 20 種全部能用。 |
+| `save.gd` | 366 | 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。 |
+| `sfx.gd` | 286 | 音效與音樂（優化方案 H）：同類音效 80ms 內最多 2 個、音高 ±10% 隨機；音樂與音效分軌。 |
+| `steam.gd` | 132 | Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。 |
+| `strings.gd` | 65 | 字串表（優化方案 I）：data/strings.csv，欄位 key,zh_TW,en。所有畫面文字都從這裡來，不寫死在程式裡。 |
+| `trial_data.gd` | 10 | 第十三輪：新增試煉（索引 ≥10）的資料快取，讀 data/trials.json。 |
+| `workshop.gd` | 101 | V1.1 D3：殘局工坊碼 NTP1。打贏一場格子對戰 → 把敵陣＋自己的解做成殘局碼傳給朋友解。 |
+
+## game/scripts/ui
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `art.gd` | 259 | 其他層在同資料夾（V9 P1 拆檔） |
+| `battle_view.gd` | 771 | 其他層在同資料夾（V9 P1 拆檔） |
+| `charts.gd` | 251 | 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。 |
+| `codex_view.gd` | 546 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
+| `free_place.gd` | 891 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
+| `game_screens.gd` | 669 | 其他層在同資料夾（V9 P1 拆檔） |
+| `icons.gd` | 172 | V9 P5 圖示：全部向量自繪，不靠字型（思源黑體沒有這些符號）。一律 24×24 概念，c＝中心、s＝邊長。 |
+| `lobby_view.gd` | 1087 | 規則大廳（第五輪 §3.5、§3.6）。兩段式： |
+| `main.gd` | 23 | 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。 |
+| `map_art.gd` | 386 | V9 地圖美術：每種 地圖＋大小 烘一張地面貼圖（全程式繪製，一張圖只畫一次，不佔每幀繪製）。 |
+| `replay_view.gd` | 683 | 回味（第三輪 S5）：重播控制、對戰代碼、覆盤。 |
+| `sprite_cache.gd` | 535 | 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps）， |
+| `ui_base.gd` | 1051 | 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。 |
+| `unit_brief.gd` | 116 | V1.1 E3：由 lobby_view.gd 拆出（行為不變）。選卡時的兵種簡介卡：大廳卡池、雙人禁牌共用。 |
+| `view_buffer.gd` | 130 | 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。 |
+
+## game/scripts/ui/battle
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `battle_fx.gd` | 734 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_state.gd` | 466 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_units.gd` | 866 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+
+## game/scripts/ui/screens
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `game_core.gd` | 812 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_menus.gd` | 559 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_modes.gd` | 772 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
+| `game_place.gd` | 792 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_result.gd` | 540 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+
+## game/scripts/ui/units
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `fantasy.gd` | 370 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `gait.gd` | 114 | 步態（V9 P2）：Q 版微跳步。相位由真實位移決定（battle_state._gait_tick），腳踩地時不滑。 |
+| `kingdom.gd` | 347 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `kit.gd` | 223 | 由 art.gd 拆出（V9 P1，行為不變） |
+
+## game/tests
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `run_tests.gd` | 96 | 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測 |
+| `test_base.gd` | 239 | 測試共用（第七輪 I1）：斷言、常數、輔助函式。各主題的測試在 tests/suites/。 |
+
+## game/tests/suites
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `anim.gd` | 117 | 角色動畫（V9 P2）：腳踩地不滑、被推與被吸的姿勢正確。 |
+| `content.gd` | 116 | 殘局標準解回歸（第二輪方案 §1.4）：每關存的標準解都必須打贏；改戰鬥規則後有任何一關變不能過就會紅。 |
+| `core.gd` | 420 |  |
+| `fantasy.gd` | 498 | 擺一隊：spec＝[[type, x（自己視角）, y]]，team 0／1。座標單位 1000＝1 格。 |
+| `free.gd` | 347 |  |
+| `harness.gd` | 25 | 第七輪 R2：測試框架自己的契約。 |
+| `maps.gd` | 105 | 地圖（V9 P3）：鏡像、可達、舊路徑不變、代碼、尋路不卡死。 |
+| `modes.gd` | 1248 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
+| `rules.gd` | 584 |  |
+| `save.gd` | 198 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
+| `ui.gd` | 905 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
+| `units.gd` | 394 |  |
+
+## game/tools
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `anim_sheet.gd` | 112 | 角色全影格拼圖（V9 P2）：要真的繪圖，不能 headless。 |
+| `atlas_check.gd` | 130 | 角色圖集檢查（第七輪 C0）：要真的繪圖，不能 headless。 |
+| `compat.gd` | 143 | 舊兵種相容檢查（第四輪方案 §3.1～3.2）。 |
+| `dev_main.gd` | 1424 | 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。 |
+| `golden.gd` | 113 | 確定性金標準（第三輪 T2）。 |
+| `golden_free.gd` | 158 | 自由模式跨版本金標準（第七輪 S1）。舊金標準 golden.gd 只鎖格子舊路徑，自由模式原本只有同版自比。 |
+| `golden_map.gd` | 130 | V9 金標準：鎖住有地圖或非標準大小的戰鬥。舊金標準不會走這些分支。 |
+| `golden_v8.gd` | 163 | 第八輪金標準：鎖住有奇幻兵的戰鬥（舊金標準不會碰到 v8 分支）。案例存成對戰代碼 NTB4，所以同時鎖住代碼格式。 |
+| `load_all.gd` | 26 | 載入檢查（第三輪 T1）：res://scripts、res://tools、res://tests 底下每一個 .gd 都要能載入、能編譯。 |
+| `mirror_100.gd` | 21 | 100 組隨機陣型的左右交換逐 tick 比對（N1 驗收）。godot --headless --path game --script res://tools/mirror_10 |
+| `orbit_detect.gd` | 84 | 騎兵打轉偵測（第二輪方案 §1.4）：訓練池 120 場，40 tick 內走了 >3 格但淨位移 <0.8 格就算一次。 |
+| `perf_probe.gd` | 137 | 第五輪 P0：效能探測。人數上限、一局時間要依這裡的數字定，不憑感覺。 |
+| `seal_codes.gd` | 63 | 第五輪 P0：封存舊格式對戰代碼（NTB2）＋預期結果。 |
+| `validate_puzzles.gd` | 112 | 殘局／教學驗證（優化方案 D、附錄 A）：每關隨機抽樣擺法，檢查 |
+
+## game/tools/balance
+
+| 檔案 | 行數 | 說明 |
+|---|---|---|
+| `balance.gd` | 111 | 平衡報表（原型版）：godot --headless --path game --script res://tools/balance/balance.gd |
+| `balance2.gd` | 253 | 平衡工具 2.0（優化方案 B2、A2、L2）。由 tools/balance/balance.sh 多行程分片呼叫，每場一行 JSON（前綴 "R "）。 |
+| `cmd_eval.gd` | 52 | 手動技能強度（第十二輪）：同一對陣型左右各打一次，只有一邊會放這招（AI 判斷時機），看勝率。 |
+| `design_new_puzzles.gd` | 131 | 新兵試玩殘局的設計輔助（第四輪 §4.8）。每關： |
+| `fantasy_eval.gd` | 241 | 第八輪奇幻軍平衡驗收。godot --headless --path game --script res://tools/balance/fantasy_eval.gd -- -- |
+| `make_counter_lib.gd` | 95 | 困難 AI 的離線反制庫（第三輪 A3）。 |
+| `puzzle_forge.gd` | 277 | 第十三輪：殘局量產。讀草稿（敵陣、固定兵、預算、可用兵種、目標），自動： |
+| `solve_fantasy.gd` | 102 | 奇幻軍試玩關的標準解搜尋（第八輪）。每關爬山找含主角兵種的解，印成 JSON；python 把解、星級寫回 puzzles.json。 |
+| `star_check.gd` | 102 | 每一關的三星到底拿不拿得到（第十二輪）：先看標準解，沒有就爬山搜尋。印出最好的解。 |
+| `trial_check.gd` | 113 | 主題試煉 10 關的星數拿不拿得到（第十二輪）：走遊戲同一條路開關（同一支對手），爬山找陣型。 |
+| `trial_forge.gd` | 169 | 第十三輪：主題試煉第 11～30 關量產。依規格（tools/gen/trial_specs.py）： |
+| `unit_eval.gd` | 281 | 新兵種驗收工具（第四輪方案 §2.6、§3.4）。由 tools/balance/unit_eval.sh 分片執行，tools/balance/unit_eval_report. |
+
+exec
+/bin/bash -lc "rg -n 'FINGERPRINT|determin|確定|Steam|排行榜|網路|Workshop|workshop|sim.gd' docs/STATE.md game/scripts/core game/scripts/game/steam.gd docs/release/steam-setup.md | head -130" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 50ms:
+docs/STATE.md:13:| GodotSteam | 4.23.2 | `addons/godotsteam/` |
+docs/STATE.md:43:- 手動技能（V1.0.4，大廳「技能」分頁，預設關）：護盾、戰吼、治療、隕石、凍結 5 種可選，每場最多帶 3 種，次數、冷卻、威力可調。程式 `cmd_defs.gd`；名稱和說明在 `data/strings.csv`（`cmd_0`～`cmd_4`、`cmd_d_*`），改名後要重建字型。施放記成 `[tick, 隊伍, 技能]`，重播照紀錄；AI 用確定性規則施放。開啟後徽章一律「娛樂」，規則碼 NTBR5、對戰代碼 NTB7（帶 `c`）；沒開走舊路徑，舊雜湊不變。
+docs/STATE.md:46:- 殘局工坊碼（V1.1）：打贏的格子對戰（平原、沒開技能、非試煉／每日）結果頁有「做成殘局碼」（`NTP1.`，`scripts/game/workshop.gd`）；「代碼」→「解殘局碼」先驗格式、兵種、座標、重複格、預算 ≤200，再用 `PZ.play` 重跑作者解，過關才收。門檻＝作者成績（剩餘 ≥ 作者、花費 ≤ 作者）。這關 id 是 `ws`，不進清單、不存星數、不記嘗試次數。
+docs/STATE.md:55:- 位置 `user://`：`save.json`（進度，Steam Auto-Cloud 同步）、`settings.json`（本機）；試玩版前綴 `demo_`，進度不帶進正式版。
+docs/STATE.md:63:| 模擬規則、`unit_defs`／`fantasy_defs` 數值 | **預設不做**（鐵則：舊 FINGERPRINT／digest 不變）。新機制走新規則欄位＋新代碼前綴，缺欄位走舊路徑。真的要改既有數值時：舊代碼顯示警告、用新規則重算（不留舊模擬） | 舊基準不覆蓋；只新增新版基準檔（例 `golden_v8` 之後另開新檔），commit 說明 | 升 `RULES_VERSION`；重跑平衡驗收、反制庫、殘局 |
+docs/STATE.md:84:- 商店圖：`tools/gen/gen_capsules.py <zh_TW_100 截圖夾>` → `docs/release/capsules/`（Steam 全尺寸＋8 張截圖）。
+docs/STATE.md:141:- 新成就 3 個（PUZZLE_100、PUZZLE_ALL3、TRIAL_ALL3，共 24 個）要在 Steamworks 後台建立才會解鎖。
+docs/STATE.md:152:- 統一檢查 48 步全部重跑（最終版）：測試 4024 項全過，868 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。最終版快速版面 400 張 0 違規、匯出正常、繪圖 p95 10.1 ms、貼圖記憶體 227.9 MiB。
+game/scripts/game/steam.gd:2:## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+game/scripts/game/steam.gd:45:## app_id：0＝由 Steam 啟動時決定（正式上架）；開發測試可給 480（Valve 公開測試 App「Spacewar」）。
+game/scripts/game/steam.gd:46:## sync_local：初始化後把本機成就補送到 Steam。自我檢查一定傳 false（不寫入任何東西）。
+game/scripts/game/steam.gd:47:## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
+game/scripts/game/steam.gd:49:	if Engine.has_singleton("Steam"):
+game/scripts/game/steam.gd:50:		_steam = Engine.get_singleton("Steam")
+game/scripts/game/steam.gd:56:		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam（沒有就不呼叫 storeStats）
+game/scripts/game/steam.gd:86:	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available(), "ok": false}
+game/scripts/game/steam.gd:88:		out["why"] = "沒有 GodotSteam 或初始化失敗"
+game/scripts/game/steam.gd:92:	out["running"] = _steam.isSteamRunning()
+game/scripts/game/steam.gd:113:## 手把貼不了剪貼簿（第七輪 N4）：Steam 的大字幕鍵盤。回傳 false＝沒有 Steam 或不支援，呼叫端要自己提示。
+game/scripts/game/steam.gd:114:## 這段只有接上 Steam 才跑得到，還沒實機驗（ClassDB 查過簽章：input_mode、line_input_mode、description、max_text、preset_text）。
+docs/release/steam-setup.md:1:# Steam 上架與整合步驟（優化方案 N、N6～N9）
+docs/release/steam-setup.md:3:> 遊戲端已經準備好：`scripts/game/steam.gd` 封裝了成就與雲端。沒有 Steam 時只記在本機；接上 Steam 後，離線解鎖的成就會自動補送。
+docs/release/steam-setup.md:7:1. 註冊 Steamworks：https://partner.steamgames.com/。要填稅務資料（台灣個人或公司）和銀行帳戶。
+docs/release/steam-setup.md:8:2. 付 Steam Direct 上架費 US$100。營收達 US$1,000 後回收；之後要等 30 天才能發售。
+docs/release/steam-setup.md:12:1. ✔ 已安裝 GodotSteam GDExtension 4.23.2（https://codeberg.org/godotsteam/godotsteam）到 `game/addons/godotsteam/`。
+docs/release/steam-setup.md:14:   - 匯出的 Windows build 會自動帶上 `steam_api64.dll` 與 GodotSteam 的 DLL，已實跑 0 錯誤。
+docs/release/steam-setup.md:15:   - 沒有 Steam 時自動退回「只記在本機」。
+docs/release/steam-setup.md:16:   - **Spacewar（AppID 480）實測還沒跑**：會讓你的 Steam 狀態顯示「正在玩 Spacewar」，自動權限擋下。你想測的話，在 Claude Code 輸入：
+docs/release/steam-setup.md:25:     - 另外建議在**沒開 Steam** 時跑一次，確認會回報失敗（`exit 1`）。
+docs/release/steam-setup.md:26:2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
+docs/release/steam-setup.md:27:3. **成就**：在 Steamworks 後台建立以下 24 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
+docs/release/steam-setup.md:56:4. **雲端**：後台 Steam Cloud → Auto-Cloud。
+docs/release/steam-setup.md:59:5. **Remote Play Together**：本機多人遊戲官方會自動支援。商店頁勾選「Shared/Split Screen PvP」與「Remote Play Together」。要實測輪流操作（**【你】**找一位有 Steam 的朋友）。
+docs/release/steam-setup.md:60:6. **Steam Input／手把**：遊戲已支援手把，用 Godot 的 Joypad。Deck 驗收要求圖示對應輸入裝置；目前提示文字寫「A／B／X」，接 Steam Input 後改成依裝置顯示。
+docs/release/steam-setup.md:64:2. **【你】**：安裝 SteamCMD，用 `app_build.vdf` 上傳。範本：
+docs/release/steam-setup.md:71:3. 設定啟動選項：`NoTakeBacks.exe`。**不要加 Steam DRM 包裝**（〔X〕：保持乾淨，日後若用到 CC-BY-SA 素材也比較單純）。
+docs/release/steam-setup.md:73:## D. Steam Deck 自我檢查（提交驗證前）
+docs/release/steam-setup.md:77:- [ ] 圖示對應輸入裝置（接 Steam Input 後）
+docs/release/steam-setup.md:78:- [ ] 不需要鍵盤輸入文字（陣型代碼用剪貼簿，Deck 上要用 Steam 的鍵盤，或不提供這個功能）
+game/scripts/core/hard_ai.gd:11:const Sim = preload("res://scripts/core/battle_sim.gd")
+game/scripts/core/mirror_check.gd:5:const Sim = preload("res://scripts/core/battle_sim.gd")
+game/scripts/core/battle_sim.gd:2:## 戰鬥核心（純邏輯、全整數、確定性）。企劃 §2.3、§2.4、§3.3；優化方案 B1、L1。
+game/scripts/core/battle_sim.gd:555:	# ④ 產生攻擊（讀這一 tick 已確定的位置與面向）
+game/scripts/core/imath.gd:2:## 確定性整數數學。GDScript 的 int/int 是「往 0 截斷」，左右鏡像時結果對稱，所以全部沿用。
+
+codex
+現有全整數模擬與代碼重播很適合做離線挑戰、反事實教練及幽靈對戰；但 Steam 封裝目前沒有排行榜、UGC 或配對，雲端存檔也不能充當共享陣型池。我會把這些連線工作的成本算進規模，並優先考慮能保住舊 FINGERPRINT 的設計。
+web search: 
+web search: 
+exec
+/bin/bash -lc "sed -n '1,140p' game/scripts/game/steam.gd; sed -n '1,130p' game/scripts/game/battle_code.gd; sed -n '1,75p' game/scripts/core/ruleset.gd; sed -n '1,75p' game/scripts/game/workshop.gd; rg -n 'FINGERPRINT|func digest|func run|func step|cmd_log' game/scripts/core/battle_sim.gd game/scripts/core/unit_defs.gd game/scripts/ui/replay_view.gd; ls -a /mnt/c/Users/timmy/projects/no-take-backs/AGENTS.md /mnt/c/Users/timmy/projects/AGENTS.md /mnt/c/Users/timmy/AGENTS.md /mnt/c/Users/AGENTS.md /mnt/c/AGENTS.md /mnt/AGENTS.md /AGENTS.md 2>/dev/null" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 19ms:
+extends RefCounted
+## Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。
+## 遊戲其他地方只呼叫這裡，換 SDK 版本只要改這個檔。
+
+const Save = preload("res://scripts/game/save.gd")
+
+const ACHIEVEMENTS := {
+	"FIRST_WIN": ["初陣告捷", "First Victory"],
+	"LONE_HERO": ["孤勇者", "Lone Hero"],
+	"COMEBACK": ["絕地翻盤", "Comeback"],
+	"CLOSE_CALL": ["一線之隔", "By a Hair"],
+	"NO_TAKEBACKS": ["落子無悔", "No Take-Backs"],
+	"HARD_WIN": ["勝過困難 AI", "Beat Hard AI"],
+	"SWEEP": ["二比零", "Clean Sweep"],
+	"TUTORIAL": ["學會了", "Graduated"],
+	"PUZZLE_ALL": ["殘局全破", "Puzzle Master"],
+	"PUZZLE_3STAR": ["完美解", "Perfect Solution"],
+	"GAUNTLET": ["七連勝", "Seven Straight"],
+	"FRENZY_WIN": ["狂熱中取勝", "Won in the Frenzy"],
+	"ALL_TYPES": ["五兵齊出", "Combined Arms"],
+	"CHARGE_5": ["鐵騎突擊", "Cavalry Storm"],
+	"BACKSTAB_3": ["暗影三連", "Shadow Trio"],
+	# 第五輪：自訂規則專屬（標準成就只看平衡認證的規則）
+	"CUSTOM_LOWGOLD": ["精打細算", "Shoestring Army"],
+	"CUSTOM_UNDERDOG": ["以寡擊眾", "Underdog"],
+	"CUSTOM_BIG": ["大軍壓境", "Grand Army"],
+	# 第八輪：奇幻兵團
+	"FANTASY_WIN": ["傭兵公會開張", "Monster Mercenaries"],
+	"BOOM_5": ["羊到爆炸", "Sheep Go Boom"],
+	"RAISE_3": ["大家起來", "Rise and Shine"],
+	# 第十三輪：百關殘局、30 關試煉
+	"PUZZLE_100": ["百局通關", "Hundred Puzzles"],
+	"PUZZLE_ALL3": ["百局三星", "Hundred Perfect"],
+	"TRIAL_ALL3": ["試煉滿星", "Trial Perfectionist"],
+}
+
+static var _steam = null
+static var init_result = null
+static var store_ok := true
+static var _retry_tick := 0
+
+## 商店頁網址（第三輪 F5：試玩版結尾的願望清單按鈕用）。拿到 AppID 後填進來；空字串時按鈕顯示「上架後開放」。
+const STORE_URL := ""
+
+## app_id：0＝由 Steam 啟動時決定（正式上架）；開發測試可給 480（Valve 公開測試 App「Spacewar」）。
+## sync_local：初始化後把本機成就補送到 Steam。自我檢查一定傳 false（不寫入任何東西）。
+## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
+static func init(app_id := 0, sync_local := true) -> void:
+	if Engine.has_singleton("Steam"):
+		_steam = Engine.get_singleton("Steam")
+		var r = _steam.steamInitEx(app_id) if app_id > 0 else _steam.steamInitEx()
+		init_result = r
+		if typeof(r) == TYPE_DICTIONARY and int(r.get("status", 1)) != 0:
+			_steam = null
+	if _steam != null and sync_local:
+		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam（沒有就不呼叫 storeStats）
+		var got: Array = Save.data.get("achievements", [])
+		if not got.is_empty():
+			for id in got:
+				_steam.setAchievement(id)
+			_steam.storeStats()
+
+static func available() -> bool:
+	return _steam != null
+
+static func name_of(id: String, lang: String) -> String:
+	var n: Array = ACHIEVEMENTS.get(id, [id, id])
+	return n[0] if lang == "zh_TW" else n[1]
+
+## 解鎖成就；回傳 true 表示這次是新解鎖（畫面要跳提示）。
+static func unlock(id: String) -> bool:
+	var got: Array = Save.data.get("achievements", [])
+	if id in got:
+		return false
+	got.append(id)
+	Save.data["achievements"] = got
+	Save.save_data()
+	if _steam != null:
+		_steam.setAchievement(id)
+		store_ok = bool(_steam.storeStats())   # 第七輪 R7：送不出去就記著，run_callbacks 定期重試
+	return true
+
+## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
+## 回傳每一項結果與總判定 ok（任何一項不符就是 false，呼叫端用它決定結束碼）。
+static func self_test(expect_app_id: int) -> Dictionary:
+	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available(), "ok": false}
+	if _steam == null:
+		out["why"] = "沒有 GodotSteam 或初始化失敗"
+		return out
+	out["logged_on"] = _steam.loggedOn()
+	out["app_id"] = _steam.getAppID()
+	out["running"] = _steam.isSteamRunning()
+	# 第七輪 S4：Spacewar 和正式 App 分開驗
+	if expect_app_id == 480:
+		var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
+		var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
+		out["known_read_ok"] = typeof(known) == TYPE_DICTIONARY and bool(known.get("ret", false))
+		out["our_id_missing"] = typeof(ours) == TYPE_DICTIONARY and not bool(ours.get("ret", true))
+		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and out["known_read_ok"] and out["our_id_missing"]
+	else:
+		# 正式 App：後台的成就清單要和程式一字不差
+		var missing: Array = []
+		for id in ACHIEVEMENTS:
+			var r = _steam.getAchievement(id)
+			if typeof(r) != TYPE_DICTIONARY or not bool(r.get("ret", false)):
+				missing.append(id)
+		out["missing_achievements"] = missing
+		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and missing.is_empty()
+	if not out["ok"]:
+		out["why"] = "有檢查項不符"
+	return out
+
+## 手把貼不了剪貼簿（第七輪 N4）：Steam 的大字幕鍵盤。回傳 false＝沒有 Steam 或不支援，呼叫端要自己提示。
+## 這段只有接上 Steam 才跑得到，還沒實機驗（ClassDB 查過簽章：input_mode、line_input_mode、description、max_text、preset_text）。
+static func text_input(description: String, max_len: int, done: Callable) -> bool:
+	if _steam == null or not _steam.has_method("showGamepadTextInput"):
+		return false
+	if not _steam.is_connected("gamepad_text_input_dismissed", done):
+		_steam.connect("gamepad_text_input_dismissed", done, CONNECT_ONE_SHOT)
+	var ok := bool(_steam.showGamepadTextInput(0, 0, description, max_len, ""))
+	if not ok and _steam.is_connected("gamepad_text_input_dismissed", done):
+		_steam.disconnect("gamepad_text_input_dismissed", done)   # V1.2.1 F3：鍵盤沒開成要解除，不然下次關閉會觸發舊動作
+	return ok
+
+static func run_callbacks() -> void:
+	if _steam != null:
+		_steam.run_callbacks()
+		if not store_ok:
+			_retry_tick += 1
+			if _retry_tick >= 600:
+				_retry_tick = 0
+				store_ok = bool(_steam.storeStats())
+extends RefCounted
+## 對戰代碼（第三輪 F3）：把雙方陣型、規則版本、數值摘要編成一串，貼給朋友就能看同一場。
+## 格式：NTB2.<base64url(JSON)>.<校驗 6 碼>。JSON：{a/b: 雙方陣型代碼, ba/bb: 雙方預算, r: 規則版本, d: 數值摘要}
+## 規則或數值不同時仍可以播，但結果可能不同，所以解碼會回報 mismatch 讓畫面提示。
+
+const Army = preload("res://scripts/core/army.gd")
+const D = preload("res://scripts/core/unit_defs.gd")
+const RSET = preload("res://scripts/core/ruleset.gd")
+## 第五輪：自訂規則的對戰代碼用 NTB3（多一欄 rules＝規則代碼）。標準規則仍輸出 NTB2，位元組和 1.3.0 相同。
+
+## 這組規則能不能用舊格式 NTB2 重播（模擬走舊路徑、陣型在舊的人數上限內）。
+static func needs_v3(rules) -> bool:
+	# Codex 實作第 1 輪：卡池、人數、單種上限有任何不標準就用 NTB3，分享後規則不會遺失
+	return rules != null and (not rules.sim_is_legacy() or not load("res://scripts/game/presets.gd").deploy_standard(rules))
+
+static func encode(a0, a1, rules = null, cmds: Array = []) -> String:
+	if rules != null and rules.cmd_on():
+		# 第十二輪 NTB7：手動技能要連施放紀錄一起存，才播得出同一場
+		var j7 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code(), "c": cmds})
+		var body7 := Marshalls.utf8_to_base64(j7).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB7.%s.%s" % [body7, body7.sha256_text().substr(0, 6)]
+	if D.uses_new([a0, a1]):
+		# 第八輪：用到新兵走 NTB4（新版 NTB2／3／4 都讀；舊版讀到會回報格式不對）
+		var j4 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code() if rules != null else ""})
+		var body4 := Marshalls.utf8_to_base64(j4).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB4.%s.%s" % [body4, body4.sha256_text().substr(0, 6)]
+	if needs_v3(rules):
+		var j3 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest(), "rules": rules.to_code()})
+		var body3 := Marshalls.utf8_to_base64(j3).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB3.%s.%s" % [body3, body3.sha256_text().substr(0, 6)]
+	var j := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest()})
+	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	return "NTB2.%s.%s" % [body, body.sha256_text().substr(0, 6)]
+
+## 回傳 {ok, why, a0, a1, mismatch, rules}（NTB2 的 rules＝null＝用 1.3.0 舊判定重播）
+static func decode(code: String) -> Dictionary:
+	var c := code.strip_edges()
+	if c.length() > 8000:
+		return {"ok": false, "why": "format"}
+	var parts := c.split(".")
+	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3" and parts[0] != "NTB4" and parts[0] != "NTB7"):
+		return {"ok": false, "why": "format"}
+	if parts[1].sha256_text().substr(0, 6) != parts[2]:
+		return {"ok": false, "why": "checksum"}
+	var b64 := parts[1].replace("-", "+").replace("_", "/")
+	while b64.length() % 4 != 0:
+		b64 += "="
+	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
+	if not j is Dictionary or not j.has("a") or not j.has("b"):
+		return {"ok": false, "why": "body"}
+	# 預算也編進去（Codex S5 #1：遠征敵軍超過 100 金、殘局低預算時，原本會被當成 100）
+	# 第七輪 N2：外部資料先驗型，int([]) 會讓整個解碼中斷，不會回報「代碼錯誤」
+	for bk in ["ba", "bb"]:
+		var bv = j.get(bk, 100)
+		if not (bv is int or bv is float) or float(bv) != floorf(float(bv)) or absf(float(bv)) > 1000:
+			return {"ok": false, "why": "budget"}
+	if not j["a"] is String or not j["b"] is String or not j.get("rules", "") is String:
+		return {"ok": false, "why": "body"}
+	var ba := int(j.get("ba", 100))
+	var bb := int(j.get("bb", 100))
+	if ba < 1 or ba > 400 or bb < 1 or bb > 400:
+		return {"ok": false, "why": "budget"}
+	var a0 := Army.new(0, ba)
+	var a1 := Army.new(1, bb)
+	var rules = null
+	var cmds: Array = []
+	if parts[0] == "NTB7":
+		var raw_c = j.get("c", [])
+		if not raw_c is Array or raw_c.size() > 200 or str(j.get("rules", "")) == "":
+			return {"ok": false, "why": "body"}
+		for e in raw_c:
+			if not e is Array or e.size() != 3:
+				return {"ok": false, "why": "body"}
+			for v0 in e:
+				if not (v0 is int or v0 is float) or float(v0) != floorf(float(v0)) or float(v0) < 0 or float(v0) > 100000:
+					return {"ok": false, "why": "body"}
+			if int(e[1]) > 1 or int(e[2]) >= 5:
+				return {"ok": false, "why": "body"}
+			cmds.append([int(e[0]), int(e[1]), int(e[2])])
+	if parts[0] == "NTB4" or parts[0] == "NTB7":
+		a0.pool = RSET.full_pool()
+		a1.pool = RSET.full_pool()
+	if parts[0] == "NTB3" or parts[0] == "NTB7" or (parts[0] == "NTB4" and str(j.get("rules", "")) != ""):
+		var rd: Dictionary = RSET.from_code(str(j.get("rules", "")))
+		if not rd["ok"]:
+			return {"ok": false, "why": "rules"}
+		rules = rd["rules"]
+		if rules.budget_of(0) != ba or rules.budget_of(1) != bb:
+			return {"ok": false, "why": "budget"}
+		for pair in [[a0, 0], [a1, 1]]:
+			pair[0].apply_rules(rules, pair[1])
+	if a0.load_code(str(j["a"])) != "" or a1.load_code(str(j["b"])) != "":
+		return {"ok": false, "why": "army"}
+	var full_duel: bool = rules != null and rules.is_free() and rules.fullfield == RSET.FULL_DUEL
+	if rules != null and not full_duel and (not a0.has_combat() or not a1.has_combat()):
+		return {"ok": false, "why": "army"}   # NTB3（第五輪新格式）：雙方各至少 1 隻戰鬥兵；舊 NTB2 不加這條（相容）
+	if rules != null and rules.is_free() and rules.fullfield != RSET.FULL_NONE:
+		# 第六輪（Codex 實作第 1 輪 #3）：全場的跨隊條件——兩軍任兩隻至少隔 ENEMY_GAP；明牌全場的 AI（紅）只在自己半場
+		var g2: int = RSET.ENEMY_GAP * RSET.ENEMY_GAP
+		for u in a0.units:
+			var p := Army.pos_of(u)
+			for v in a1.units:
+				var q := Army.pos_of(v)
+				if (p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y) < g2:
+					return {"ok": false, "why": "army"}
+		if rules.fullfield == RSET.FULL_AI:
+			for v in a1.units:
+				if a1.own_x(Army.pos_of(v).x) > rules.half_depth():
+					return {"ok": false, "why": "army"}
+	# 輪流落子的指令紀錄（cmds）目前不支援：代碼只證明「最後陣型合法」，不證明輪序（Codex 實作第 1 輪 #10，見方案 §11 已知限制）
+	if j.has("cmds"):
+		return {"ok": false, "why": "body"}
+	var mismatch: bool = str(j.get("r", "")) != D.version_of([a0, a1]) or str(j.get("d", "")) != D.digest_of([a0, a1])
+	return {"ok": true, "why": "", "a0": a0, "a1": a1, "mismatch": mismatch, "rules": rules, "cmds": cmds}
+extends RefCounted
+## 自訂規則（第五輪 §3）。純資料，不碰畫面。三層：
+##   模擬規則：兩邊預算、一局 tick 數、判定版本、（沙盒）數值倍率與技能開關 → 進模擬雜湊與對戰代碼
+##   部署規則：人數上限、單種上限、雙方卡池 → 進對戰代碼（重播要驗陣型合法）
+##   系列規則：局數、落子方式、手數、累積、保留陣型、AI 難度 → 只在大廳與系列流程用
+## 標準規則下模擬器走原本的路徑（雜湊表頭位元組不變），所以這個檔案**不能**把常數放進 unit_defs.gd（會改數值摘要）。
+## 開戰時用 copy() 凍結一份，之後大廳再怎麼改都不影響這一局。
+
+const D = preload("res://scripts/core/unit_defs.gd")
+const F8 = preload("res://scripts/core/fantasy_defs.gd")
+const MapDefs = preload("res://scripts/core/map_defs.gd")
+
+const AI_STYLES := 6
+const ROSTER_MAX := 10         # 第八輪：一局每邊最多幾種兵
+const CODE_PREFIX := "NTBR1"
+const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
+const CODE_PREFIX5 := "NTBR5"   # 第十二輪：有手動技能（NTBR4 的欄位再加 5 欄）
+const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
+const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
+# 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
+const DEPLOYS := ["grid", "free"]
+const SPACING_MIN := 600
+const SPACING_MAX := 1000
+const DEPTH_GRID := 6000        # 格子部署：自己視角 x 上限（第 6 欄的右緣）
+const DEPTH_MIN := 6000
+const DEPTH_MAX := 7500
+const DEPTH_FULL := 15800       # 全場：到對面邊界（中心離邊 0.2 格）
+const FULL_NONE := 0
+const FULL_DUEL := 1            # 雙人輪流落子・全場
+const FULL_AI := 2              # 對 AI 明牌全場
+const ENEMY_GAP := 1500         # 全場時離任何敵兵至少 1.5 格
+const STD_BUDGET := 100
+const STD_TICKS := 1800
+const STD_UNIT_CAP := 24
+const TICK_CHOICES := [1200, 1800, 2400, 3000]     # 60／90／120／150 秒
+const BUDGET_MIN := 30
+const BUDGET_MAX := 200
+const UNIT_CAP_MIN := 4
+const UNIT_CAP_MAX := 40       # 效能探測（docs/perf/v5-probe.json）：40＋40 每 tick 約 1.3 ms，支援兵密集 2.6 ms
+const TYPE_CAP_MAX := 10
+const ROUND_CHOICES := [1, 3, 5, 7]
+const PLACE_RULES := ["snake5", "cap10", "blind", "custom"]
+const TURNS_MIN := 1
+const TURNS_MAX := 10
+const PCT_MIN := 50            # 沙盒倍率
+const PCT_MAX := 200
+const SKILLS := ["charge", "taunt", "backstab", "counter", "stealth", "brace", "splash", "heal", "drum", "breach", "frenzy", "rally"]
+
+# ── 模擬 ──
+var budget := [STD_BUDGET, STD_BUDGET]   # 讓子關閉時兩邊相同
+var handicap := false
+var ticks := STD_TICKS
+# ── 部署 ──
+var unit_cap := STD_UNIT_CAP
+var type_cap := 0              # 0＝不限
+var pool := [0, 0]             # 玩家（藍）／對手（紅）卡池遮罩；0 會被 validate 擋
+var ai_pool_same := true       # 對手卡池跟藍方一樣
+# ── V9 地圖（進模擬）──
+var map_id := 0                # MapDefs.MAPS 的索引；0＝平原
+var map_size := 1              # 0 小、1 中（標準）、2 大
+var vents := false             # 熔岩噴口（只有熔岩裂谷有；V1.0 不做，欄位保留）
+var map_mode := 0              # 系列：0 固定、1 每局輪替、2 每局隨機（不進模擬，每局定下來才算）
+var time_of := 0               # 外觀：0 白天、1 黃昏、2 夜晚（只有畫面）
+var bans := 0                  # 雙人每人禁幾種（不進模擬，開打前就從卡池拿掉了）
+var ai_style := 0              # AI 性格：0 均衡、1 鐵壁、2 遠程、3 奇襲、4 召喚、5 亂數（不進模擬）
+# ── 第十二輪手動技能（進模擬）──
+var cmd_mask := [0, 0]         # 雙方帶哪幾種；都 0＝關閉
+var cmd_uses := 1              # 每種可用次數
+var cmd_cd := 400              # 同一種的冷卻（tick）
+var cmd_power := 100           # 效果強度 %
+# ── 系列 ──
+var rounds := 3
+var place_rule := "snake5"
+var turns := 5                 # place_rule＝custom 時每人幾手
+var carry := false             # 沒花完的錢累積到下一手
+extends RefCounted
+## V1.1 D3：殘局工坊碼 NTP1。打贏一場格子對戰 → 把敵陣＋自己的解做成殘局碼傳給朋友解。
+## 作者的解就是「可解」的證明：匯入時先驗格式與合法性，再用殘局同一套判定（PZ.play）重跑作者解，要過關才收。
+## 星數門檻＝作者的成績：剩餘戰力 ≥ 作者（2 星）、花費 ≤ 作者（3 星）。不寫進存檔、不算殘局進度。
+## 格式：NTP1.<base64url(JSON {"v":1,"e":敵陣,"s":作者解,"a":可用兵種})>.<sha256 前 6 碼>；敵陣欄 10～15、解欄 0～5、列 0～8。
+
+const PZ = preload("res://scripts/game/puzzles.gd")
+const D = preload("res://scripts/core/unit_defs.gd")
+const PREFIX := "NTP1"
+const MAX_UNITS := 40
+const MAX_LEN := 6000
+const ID := "ws"
+
+## 是整數（JSON 讀回是浮點）而且在 [lo, hi] 內。
+static func _is_int(v, lo: int, hi: int) -> bool:
+	if not (v is int or v is float):
+		return false
+	var f := float(v)
+	return f == floorf(f) and f >= lo and f <= hi
+
+static func _clean(list, c0: int, c1: int) -> Array:
+	if not list is Array or list.is_empty() or list.size() > MAX_UNITS:
+		return []
+	var out: Array = []
+	var seen := {}
+	for e in list:
+		if not e is Array or e.size() != 3:
+			return []
+		for v in e:
+			if not (v is int or v is float) or float(v) != floorf(float(v)):
+				return []
+		var t := int(e[0])
+		var c := int(e[1])
+		var r := int(e[2])
+		if t < 0 or t >= D.total() or c < c0 or c > c1 or r < 0 or r >= 9:
+			return []
+		var key := c * 16 + r
+		if seen.has(key):
+			return []
+		seen[key] = true
+		out.append([t, c, r])
+	return out
+
+## 把一場打贏的格子對戰做成殘局碼。enemy／sol＝[[兵種, 欄, 列], ...]（敵陣用絕對欄 10～15）。
+## 先用殘局規則重跑一次，作者解在殘局規則下也要贏才給碼（對戰可能用了不同局長等規則）。不合格回 ""。
+static func encode(enemy: Array, sol: Array) -> String:
+	var e := _clean(enemy, 10, 15)
+	var s := _clean(sol, 0, 5)
+	if e.is_empty() or s.is_empty():
+		return ""
+	var allowed: Array = []
+	for u in s:
+		if not int(u[0]) in allowed:
+			allowed.append(int(u[0]))
+	allowed.sort()
+	var j := JSON.stringify({"v": 1, "e": e, "s": s, "a": allowed})
+	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	var code := "%s.%s.%s" % [PREFIX, b, b.sha256_text().substr(0, 6)]
+	return code if bool(decode(code)["ok"]) else ""
+
+## 解碼＋驗證＋重跑作者解。回傳 {ok, pz, sol, why}。
+static func decode(code: String) -> Dictionary:
+	var bad := {"ok": false, "why": "ws_bad"}
+	code = code.strip_edges()
+	var parts := code.split(".")
+	if code.length() > MAX_LEN or parts.size() != 3 or parts[0] != PREFIX or parts[1].sha256_text().substr(0, 6) != parts[2]:
+		return bad
+	var b64 := parts[1].replace("-", "+").replace("_", "/")
+	while b64.length() % 4 != 0:
+		b64 += "="
+	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
+	if not j is Dictionary or not _is_int(j.get("v"), 1, 1):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
+		return bad
+	var e := _clean(j.get("e"), 10, 15)
+	var s := _clean(j.get("s"), 0, 5)
+game/scripts/core/unit_defs.gd:185:static func digest_v8() -> String:
+game/scripts/core/unit_defs.gd:208:static func digest_of(armies: Array) -> String:
+game/scripts/core/battle_sim.gd:138:var cmd_log: Array = []          # 實際施放：[tick, 隊, 技能]；重播靠它
+game/scripts/core/battle_sim.gd:284:func run_to_end() -> void:
+game/scripts/core/battle_sim.gd:289:func step() -> void:
+game/scripts/core/battle_sim.gd:1473:	cmd_log.append([tick, team, s])
+game/scripts/core/battle_sim.gd:1562:	for e in cmd_log:
+
+web search: Backpack Battles 2024 one million copies developer asynchronous Steam ...
+web search: https://partner.steamgames.com/doc/features/leaderboards
+web search: 
+web search: https://store.steampowered.com/app/1043810/Tactical_Breach_Wizards/
+exec
+/bin/bash -lc "sed -n '45,135p' game/scripts/game/steam.gd; sed -n '1,50p' game/scripts/game/battle_code.gd; sed -n '1,45p' game/scripts/core/hard_ai.gd; rg -n 'FINGERPRINT' game/tools game/tests | head -20" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 330ms:
+## app_id：0＝由 Steam 啟動時決定（正式上架）；開發測試可給 480（Valve 公開測試 App「Spacewar」）。
+## sync_local：初始化後把本機成就補送到 Steam。自我檢查一定傳 false（不寫入任何東西）。
+## GodotSteam 4.23.2 的簽章是 steamInitEx(app_id: int = 0, embed_callbacks: bool = false)（用 ClassDB 查過）。
+static func init(app_id := 0, sync_local := true) -> void:
+	if Engine.has_singleton("Steam"):
+		_steam = Engine.get_singleton("Steam")
+		var r = _steam.steamInitEx(app_id) if app_id > 0 else _steam.steamInitEx()
+		init_result = r
+		if typeof(r) == TYPE_DICTIONARY and int(r.get("status", 1)) != 0:
+			_steam = null
+	if _steam != null and sync_local:
+		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam（沒有就不呼叫 storeStats）
+		var got: Array = Save.data.get("achievements", [])
+		if not got.is_empty():
+			for id in got:
+				_steam.setAchievement(id)
+			_steam.storeStats()
+
+static func available() -> bool:
+	return _steam != null
+
+static func name_of(id: String, lang: String) -> String:
+	var n: Array = ACHIEVEMENTS.get(id, [id, id])
+	return n[0] if lang == "zh_TW" else n[1]
+
+## 解鎖成就；回傳 true 表示這次是新解鎖（畫面要跳提示）。
+static func unlock(id: String) -> bool:
+	var got: Array = Save.data.get("achievements", [])
+	if id in got:
+		return false
+	got.append(id)
+	Save.data["achievements"] = got
+	Save.save_data()
+	if _steam != null:
+		_steam.setAchievement(id)
+		store_ok = bool(_steam.storeStats())   # 第七輪 R7：送不出去就記著，run_callbacks 定期重試
+	return true
+
+## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
+## 回傳每一項結果與總判定 ok（任何一項不符就是 false，呼叫端用它決定結束碼）。
+static func self_test(expect_app_id: int) -> Dictionary:
+	var out := {"has_singleton": Engine.has_singleton("Steam"), "init": str(init_result), "available": available(), "ok": false}
+	if _steam == null:
+		out["why"] = "沒有 GodotSteam 或初始化失敗"
+		return out
+	out["logged_on"] = _steam.loggedOn()
+	out["app_id"] = _steam.getAppID()
+	out["running"] = _steam.isSteamRunning()
+	# 第七輪 S4：Spacewar 和正式 App 分開驗
+	if expect_app_id == 480:
+		var known = _steam.getAchievement("ACH_WIN_ONE_GAME")    # Spacewar 真的有的成就：讀取應該成功
+		var ours = _steam.getAchievement("FIRST_WIN")            # 我們的 ID 在 480 不存在：讀取應該失敗
+		out["known_read_ok"] = typeof(known) == TYPE_DICTIONARY and bool(known.get("ret", false))
+		out["our_id_missing"] = typeof(ours) == TYPE_DICTIONARY and not bool(ours.get("ret", true))
+		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and out["known_read_ok"] and out["our_id_missing"]
+	else:
+		# 正式 App：後台的成就清單要和程式一字不差
+		var missing: Array = []
+		for id in ACHIEVEMENTS:
+			var r = _steam.getAchievement(id)
+			if typeof(r) != TYPE_DICTIONARY or not bool(r.get("ret", false)):
+				missing.append(id)
+		out["missing_achievements"] = missing
+		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and missing.is_empty()
+	if not out["ok"]:
+		out["why"] = "有檢查項不符"
+	return out
+
+## 手把貼不了剪貼簿（第七輪 N4）：Steam 的大字幕鍵盤。回傳 false＝沒有 Steam 或不支援，呼叫端要自己提示。
+## 這段只有接上 Steam 才跑得到，還沒實機驗（ClassDB 查過簽章：input_mode、line_input_mode、description、max_text、preset_text）。
+static func text_input(description: String, max_len: int, done: Callable) -> bool:
+	if _steam == null or not _steam.has_method("showGamepadTextInput"):
+		return false
+	if not _steam.is_connected("gamepad_text_input_dismissed", done):
+		_steam.connect("gamepad_text_input_dismissed", done, CONNECT_ONE_SHOT)
+	var ok := bool(_steam.showGamepadTextInput(0, 0, description, max_len, ""))
+	if not ok and _steam.is_connected("gamepad_text_input_dismissed", done):
+		_steam.disconnect("gamepad_text_input_dismissed", done)   # V1.2.1 F3：鍵盤沒開成要解除，不然下次關閉會觸發舊動作
+	return ok
+
+static func run_callbacks() -> void:
+	if _steam != null:
+		_steam.run_callbacks()
+		if not store_ok:
+			_retry_tick += 1
+			if _retry_tick >= 600:
+				_retry_tick = 0
+				store_ok = bool(_steam.storeStats())
+extends RefCounted
+## 對戰代碼（第三輪 F3）：把雙方陣型、規則版本、數值摘要編成一串，貼給朋友就能看同一場。
+## 格式：NTB2.<base64url(JSON)>.<校驗 6 碼>。JSON：{a/b: 雙方陣型代碼, ba/bb: 雙方預算, r: 規則版本, d: 數值摘要}
+## 規則或數值不同時仍可以播，但結果可能不同，所以解碼會回報 mismatch 讓畫面提示。
+
+const Army = preload("res://scripts/core/army.gd")
+const D = preload("res://scripts/core/unit_defs.gd")
+const RSET = preload("res://scripts/core/ruleset.gd")
+## 第五輪：自訂規則的對戰代碼用 NTB3（多一欄 rules＝規則代碼）。標準規則仍輸出 NTB2，位元組和 1.3.0 相同。
+
+## 這組規則能不能用舊格式 NTB2 重播（模擬走舊路徑、陣型在舊的人數上限內）。
+static func needs_v3(rules) -> bool:
+	# Codex 實作第 1 輪：卡池、人數、單種上限有任何不標準就用 NTB3，分享後規則不會遺失
+	return rules != null and (not rules.sim_is_legacy() or not load("res://scripts/game/presets.gd").deploy_standard(rules))
+
+static func encode(a0, a1, rules = null, cmds: Array = []) -> String:
+	if rules != null and rules.cmd_on():
+		# 第十二輪 NTB7：手動技能要連施放紀錄一起存，才播得出同一場
+		var j7 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code(), "c": cmds})
+		var body7 := Marshalls.utf8_to_base64(j7).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB7.%s.%s" % [body7, body7.sha256_text().substr(0, 6)]
+	if D.uses_new([a0, a1]):
+		# 第八輪：用到新兵走 NTB4（新版 NTB2／3／4 都讀；舊版讀到會回報格式不對）
+		var j4 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code() if rules != null else ""})
+		var body4 := Marshalls.utf8_to_base64(j4).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB4.%s.%s" % [body4, body4.sha256_text().substr(0, 6)]
+	if needs_v3(rules):
+		var j3 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest(), "rules": rules.to_code()})
+		var body3 := Marshalls.utf8_to_base64(j3).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTB3.%s.%s" % [body3, body3.sha256_text().substr(0, 6)]
+	var j := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.RULES_VERSION, "d": D.data_digest()})
+	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	return "NTB2.%s.%s" % [body, body.sha256_text().substr(0, 6)]
+
+## 回傳 {ok, why, a0, a1, mismatch, rules}（NTB2 的 rules＝null＝用 1.3.0 舊判定重播）
+static func decode(code: String) -> Dictionary:
+	var c := code.strip_edges()
+	if c.length() > 8000:
+		return {"ok": false, "why": "format"}
+	var parts := c.split(".")
+	if parts.size() != 3 or (parts[0] != "NTB2" and parts[0] != "NTB3" and parts[0] != "NTB4" and parts[0] != "NTB7"):
+		return {"ok": false, "why": "format"}
+	if parts[1].sha256_text().substr(0, 6) != parts[2]:
+		return {"ok": false, "why": "checksum"}
+	var b64 := parts[1].replace("-", "+").replace("_", "/")
+	while b64.length() % 4 != 0:
+		b64 += "="
+	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
+	if not j is Dictionary or not j.has("a") or not j.has("b"):
+		return {"ok": false, "why": "body"}
+extends RefCounted
+## 困難 AI（第四輪）：真的「讀你上一局」。
+## 第 1 局沒有資訊 → 用原型模板組（和普通 AI 同一套，不會比普通弱）。
+## 第 2 局起 → 準備幾個候選陣型（反制庫裡最接近的那筆、兩套模板陣、會讀對方的落子 AI 陣），
+## 各拿去和你上一局的陣型模擬一場，挑打得最好的。只看你「上一局」公開過的陣型，不偷看這一局。
+## 遊戲（game_screens._hard_ai）和反制庫驗證（tools/balance/make_counter_lib.gd）共用這一個函式。
+## 第三輪的做法（查不到反制就退回落子 AI）在第四輪新模板加入後，對驗證池反而比普通 AI 弱（73.0% vs 74.0%），所以改成這樣。
+
+const D = preload("res://scripts/core/unit_defs.gd")
+const Army = preload("res://scripts/core/army.gd")
+const Sim = preload("res://scripts/core/battle_sim.gd")
+const AI = preload("res://scripts/core/ai_army.gd")
+const AIT = preload("res://scripts/core/ai_turns.gd")
+const F = preload("res://scripts/core/formations.gd")
+const RS = preload("res://scripts/core/ruleset.gd")
+
+## known：玩家上一局的兵（藍方座標）；entries：反制庫；回傳紅方陣型。
+## pool：紅方卡池遮罩（-1＝全部）；rules：第五輪 Ruleset（null＝標準）。
+## 反制庫只在「規則和標準一樣」時用（第五輪 §3.2）；大軍或長局時少一個候選（效能探測：40＋40、150 秒一場可達數秒）。
+static func build(known: Array, entries: Array, rng: RandomNumberGenerator, pool := -1, rules = null) -> Army:
+	if pool < 0:
+		pool = RS.all_pool()
+	var bud: int = 100 if rules == null else rules.budget_of(1)
+	var cands: Array = []
+	cands.append(AI.build(1, bud, rng, -1, pool, rules)["army"])
+	if known.is_empty():
+		return cands[0]
+	var heavy: bool = rules != null and (rules.unit_cap > 24 or rules.ticks > 1800)
+	if not heavy:
+		cands.append(AI.build(1, bud, rng, -1, pool, rules)["army"])
+	var full := AIT.build_full(1, rng, 2, known, pool, rules)
+	cands.append(full)
+	if rules == null or _standard_like(rules):
+		var lib := pick_counter(entries, known, pool)
+		if lib != null:
+			cands.append(lib)
+	var me := Army.new(0, 100 if rules == null else rules.budget_of(0))
+	if rules != null and rules.is_free():
+		me.deploy = "free"   # 第六輪：上一局是自由陣型，照原座標模擬
+	for u in known:
+		if u.has("x"):
+			me.units.append({"type": int(u["type"]), "x": int(u["x"]), "y": int(u["y"])})
+		elif me.deploy == "free":
+			me.units.append({"type": int(u["type"]), "x": int(u["col"]) * 1000 + 500, "y": int(u["row"]) * 1000 + 500})
+		else:
+game/tools/check.py:269:            m2 = re.search(r"^FINGERPRINT .*$", txt, re.M)
+game/tests/suites/core.gd:80:	print("FINGERPRINT ", "".join(prints).sha256_text().substr(0, 16), "  數值摘要 ", D.data_digest())
+
+codex
+建議 V1.4 主打「玩家寫下戰爭故事」：以跨局決策、宿敵與覆盤建立大作感。以下為靜態審查，未改檔、未跑 Godot。
+
+**近年證據與判讀**
+
+- 非同步＋組合構築：[Backpack Battles](https://game.shochiku.co.jp/news/achieved-1-million-units-sales-worldwide/)於2024搶先體驗、2025突破百萬套；證明「不等人也能對抗真人陣型」有市場。
+- 賽季＋流派：[Mechabellum 2024公告](https://www.paradoxinteractive.com/media/press-releases/paradox-arc/mechabellum-launches-on-september-26th)列出84%好評、專家與外觀獎勵；值得借鏡的是持續變化的決策。
+- 戰術試錯：[Tactical Breach Wizards](https://store.steampowered.com/app/1043810/Tactical_Breach_Wizards/)結合技能連鎖、重試與編輯器；[2026報導](https://www.pcgamer.com/games/strategy/tactical-breach-wizards-sold-twice-as-well-as-suspicious-developments-previous-games-but-more-importantly-it-failed-catastrophically-to-lose-an-igf-award-all-we-can-say-is-were-sorry-and-well-try-to-do-worse/)引述其營收為過往作品兩倍。
+- 桌遊數位化：[BGA於2024達千萬註冊帳號](https://corporate.asmodee.com/news/asmodee-and-board-game-arena-celebrate-10-million-users-milestone-cementing-the-online-board-gaming-platform-as-the-industrys-1/)，強調跨裝置易玩。
+
+我的推論：降低對局摩擦、讓組合可探索、讓成果可分享，比單純加兵更值得優先驗證；上述成績不能證明單一功能的因果。
+
+**技術基準**
+
+A：[battle_sim.gd](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/core/battle_sim.gd:2)全整數確定性；新增戰中機制須新規則欄位／碼，缺欄位走舊路，保住 FINGERPRINT。
+
+B：[hard_ai.gd](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/core/hard_ai.gd:20)已有候選陣模擬，但大局可能耗秒。
+
+C：[workshop.gd](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/workshop.gd:2)已有作者解驗證，目前限格子殘局。
+
+D：[steam.gd](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/game/steam.gd:48)未接排行榜／UGC；[Valve允許榜單附幽靈資料](https://partner.steamgames.com/doc/api/ISteamUserStats#AttachLeaderboardUGC)，仍須實測封裝、版本分池、配對與防作弊。
+
+以下人時含設計、介面、內容與回歸；不含長期營運。
+
+1. **宿敵戰記**：七戰追捕會記住你陣型的將領；如 Mechabellum，反制與復仇有戲。大180–300h；風險B、遠征續存遷移。
+2. **雙封蠟戰書**：雙方先鎖三陣，再揭示交鋒；如 Backpack Battles，猜拳升級成讀心。大220–380h；風險D，公開附檔無法保密，需可信承諾機制。
+3. **戰利品契約**：每戰選增援或苛刻條件換高報酬；如 Backpack Battles，貪心塑造流派。中60–100h；沿用遠征戰前參數，須驗證可通關。
+4. **一子之差**：敗後只准換一兵，再看勝負如何翻轉；如 Wizards，立即產生頓悟。中40–70h；風險B，限制搜尋量。
+5. **軍令連鎖**：開戰前排三道定時技能，解連鎖謎題；如 Wizards，享受精準配合。中55–95h；已有技能紀錄，新增觸發條件走A。
+6. **不對稱委託**：一方求勝、一方保住指定兵；如桌遊秘密任務，勝負有雙重懸念。中65–110h；現有殘局目標可借用，多人結算須新增。
+7. **每週密封棋盒**：固定卡池與預算，全員解同題；如 Mechabellum賽季，持續換環境。中45–80h；沿用daily，線上排名另算D。
+8. **接力殘局**：朋友破題後只能改兩兵再傳回；如BGA回合制，低壓互相刁難。中70–120h；風險C，需新碼保存修改鏈。
+9. **敗因透鏡**：點傷害來源並排比較替代方案；如 Wizards，看懂就想再試。小20–35h；已有傷害統計，反事實須B。
+10. **戰役明信片**：把翻盤瞬間、陣型與重播碼印成戰報卡；如BGA戰績，成就能展示。小16–28h；沿用重播，存圖與文字溢位需驗證。
+
+**seed逐項評分**
+
+順序為可行／好玩／契合；5最高，按原案完整範圍估。
+
+| #／方向 | 分數 |
+|---|---|
+|1 幽靈軍團|3／5／4|
+|2 劇情戰役|3／4／4|
+|3 指揮官|4／5／3|
+|4 第三軍隊|2／4／3|
+|5 合成升階|3／4／2|
+|6 編輯器＋工坊|3／5／3|
+|7 合作|3／4／3|
+|8 季節賽|3／4／4|
+|9 AI教練|4／5／5|
+|10 外觀收藏|4／3／4|
+|11 影片高光|3／4／3|
+|12 天氣規則|3／3／2|
+|13 本地化|4／3／5|
+|14 觸控／Deck／手機|2／3／3|
+
+14分數受手機移植拉低；若只做Deck可行度4。11若縮為戰報卡也更可控。
+
+**推薦組合**
+
+大：宿敵戰記；中：戰利品契約＋一子之差；小：敗因透鏡＋戰役明信片。合計約316–533h，另留25%整合緩衝。先用一名宿敵、三戰小樣真人試玩，驗證玩家是否想復仇再擴寫。
+
+結論：V1.4先讓既有20兵產生值得記住的對局，再把驗證成功的陣型故事帶上線。
+tokens used
+52,304
