@@ -459,6 +459,8 @@ func _draw_cmd_bar() -> void:
 
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var k: String = ev["kind"]
+	if ev.has("src") and ev.has("tgt"):
+		last_hitter[int(ev["tgt"])] = int(ev["src"])   # V1.3.1：死亡事件不帶擊倒者，記住每個目標最後被誰打（Codex v131-impl3）
 	if k == EV.CMD or k == EV.CMD_HIT:
 		_cmd_event(ev, with_fx)
 		return
@@ -466,9 +468,11 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		return
 	if k == EV.DEATH:
 		var u = view.unit_by_id(ev["id"])
+		if with_fx:
+			last_kill = [int(last_hitter.get(int(ev["id"]), -1)), time]   # V1.3.1 P2：最後一擊定格用（誰、什麼時候）
 		dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
 		if with_fx:
-			sfx.play("death", 0.7)
+			sfx.play_unit("death", 0.7, u.type)   # V1.3.1：倒下的聲音依兵種音高
 			_death_extra(u)
 			# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
 			if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):
@@ -533,10 +537,10 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）
 	elif s.type == D.ARCHER:
 		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.28, "dur": 0.46, "tc": Art.team_color(s.team, cbm())})   # V1.3：飛 0.28 秒＋釘住抖 0.18 秒
-		sfx.play("arrow", 0.35)
+		sfx.play_unit("arrow", 0.35, s.type)
 	else:
 		_add_fx({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
-		sfx.play("hit" if k == EV.HIT else "slash", 0.4)
+		sfx.play_unit("hit" if k == EV.HIT else "slash", 0.4, s.type)   # V1.3.1：出手聲依兵種音高
 		_hit_material(int(ev.get("tgt", -1)))
 	var col := Color.WHITE
 	var label := ""
@@ -743,6 +747,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	final_used = false
 	key_used = false
 	key_t = -10.0
+	last_kill = [-1, -10.0]
+	last_hitter.clear()
 	final_left = 0.0
 	slow_left = 0.0
 	hitstop = 0.0

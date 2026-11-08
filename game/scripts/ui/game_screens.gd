@@ -383,7 +383,9 @@ func _process_inner(delta: float) -> void:
 	_process_cmds()
 	time += delta
 	if paused and key_t > 0.0:
-		key_t += delta   # V1.3 C4：暫停時關鍵時刻的演出凍結（Codex v130-impl2）
+		key_t += delta
+	if paused and float(last_kill[1]) > 0.0:
+		last_kill[1] = float(last_kill[1]) + delta   # 暫停時定格與歡呼波浪也凍結   # V1.3 C4：暫停時關鍵時刻的演出凍結（Codex v130-impl2）
 	SteamApi.run_callbacks()
 	if toast_t > 0:
 		toast_t -= delta

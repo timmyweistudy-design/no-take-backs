@@ -896,3 +896,10 @@ func test_characters_v131() -> void:
 	var v130: float = mib.call(6 * 2 * 3)
 	ok(total - v130 <= 104.0, "§0：轉身／小動作／走路轉身圖集增量 ≤104 MiB", "%.1f MiB" % (total - v130))
 	ok(cells_wt > 0 and SC.WT_TYPES_PER_PAGE * 2 * SC.WT_C.size() * SC.WT_PH / SC.COLS * SC.CELL <= 4096, "走路轉身每頁不超過 4096px")
+	# P2：每種兵的音高、最後一擊定格、遺物
+	var SX = load("res://scripts/game/sfx.gd")
+	ok(SX.UNIT_PITCH.size() == 22, "P2：22 種兵都有自己的音高", str(SX.UNIT_PITCH.size()))
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	ok(int(g.last_kill[0]) == -1 and g.has_method("_draw_relic"), "P2：最後一擊紀錄預設為空、遺物落地函式存在")
+	g.free()

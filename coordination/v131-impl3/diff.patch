@@ -1,0 +1,217 @@
+diff --git a/game/scripts/game/sfx.gd b/game/scripts/game/sfx.gd
+index dd30ff5..73f9fdb 100644
+--- a/game/scripts/game/sfx.gd
++++ b/game/scripts/game/sfx.gd
+@@ -125,7 +125,15 @@ func set_volumes(sfx_pct: int, music_pct: int, ui_pct := -1, amb_pct := -1) -> v
+ 	if amb != null:
+ 		amb.volume_db = linear_to_db(maxf(0.0001, amb_vol * 0.22))   # V1.2.1：環境音有自己的音量
+ 
+-func play(name: String, vol := 1.0) -> void:
++## V1.3.1 P2：每種兵自己的「聲音」：同一個音效，依兵種換音高（小隻高、大隻低），出手、倒下聽得出是誰。
++const UNIT_PITCH := [1.0, 0.9, 1.08, 0.88, 1.14, 0.95, 1.05, 1.1, 1.0, 0.86, 1.22, 1.18, 0.92, 1.25, 1.15, 1.2, 1.3, 0.97, 1.12, 0.75, 1.4, 1.06]
++func play_unit(name: String, vol: float, type: int) -> void:
++	play(name, vol, float(UNIT_PITCH[type]) if type >= 0 and type < UNIT_PITCH.size() else 1.0)
++
++func play_pitched(name: String, vol: float, pitch: float) -> void:
++	play(name, vol, pitch)
++
++func play(name: String, vol := 1.0, pitch := 1.0) -> void:
+ 	var gain := gain_for(name)
+ 	if not streams.has(name) or gain <= 0.0:
+ 		return
+@@ -153,7 +161,7 @@ func play(name: String, vol := 1.0) -> void:
+ 	p.stop()
+ 	p.bus = BUS_UI if is_ui(name) else BUS_SFX
+ 	p.stream = _pick_variant(name)
+-	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
++	p.pitch_scale = pitch * (1.0 + rng.randf_range(-0.1, 0.1))
+ 	p.volume_db = linear_to_db(maxf(0.0001, gain * vol)) + trim_db(p.stream)   # V1.2.1 E2：個別音檔響度修正
+ 	p.play()
+ 	_prio_of[ch] = pr
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index b55f51c..cd0d78b 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -579,8 +579,16 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			mood |= Art.M_BRACE
+ 		# 勝利：存活的勝方每 0.45 秒原地跳 10px、武器高舉
+ 		var hop := 0.0
+-		if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
+-			hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
++		var won: bool = live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished))
++		if won and u.id == int(last_kill[0]) and time - float(last_kill[1]) < 0.4 and not bool(Save.s("reduce_fx")):
++			# V1.3.1 P2：最後一擊定格：擊倒最後一隻的那隻停在揮擊到底的姿勢 0.4 秒，再一起歡呼
++			won = false
++			at = Art.ATK_STRIKE
++			lean = 0.0
++		if won:
++			# V1.3.1 P2：歡呼像波浪一樣從靠中線那一側傳到後排（依 x 位置錯開，不是依編號）
++			var wave := absf(p.x - 640.0) / 900.0
++			hop = absf(sin((time - wave) * PI / 0.45)) * 10.0
+ 			mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
+ 			at = Art.ATK_WINDUP
+ 			lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
+@@ -821,4 +829,31 @@ func _draw_death(g: Dictionary, k: float) -> void:
+ 				var r3 := 10.0 + e * 34.0
+ 				draw_circle(p + Vector2(cos(a3) * r3, -14.0 + sin(a3) * r3 * 0.45 + k * k * 24.0), 5.0 * (1.0 - k * 0.5), Color(Color("#8d8a80"), 1.0 - k), true, -1.0, true)
+ 	_unit(p, t, g["team"], face, 0.0, 0.0, hurt, al, time, UNIT_SCALE, 1 if k < 0.4 else 0, lean, maxf(crouch, 0.15))
++	_draw_relic(t, p, face, k, g["team"])
++
++## V1.3.1 P2：奇幻兵倒下時的「遺物」掉到地上彈一下（純畫面）：娃娃的針、骷髏的頭骨滾半圈、寶箱噴出兩枚金幣。
++func _draw_relic(t: int, p: Vector2, face: float, k: float, team: int) -> void:
++	if bool(Save.s("reduce_fx")) or k >= 1.0:
++		return
++	var a := 1.0 - maxf(0.0, (k - 0.7) / 0.3)
++	var bounce := absf(sin(k * PI * 2.0)) * (1.0 - k) * 14.0
++	match t:
++		15:   # 巫毒娃娃：大頭針從頭上掉下來，落地彈兩下
++			var fall := minf(k / 0.3, 1.0)
++			var q := p + Vector2(-8.0 * face, lerpf(-54.0, -3.0, fall * fall) - (bounce if k > 0.3 else 0.0)) * UNIT_SCALE
++			draw_line(q, q + Vector2(10.0 * face, 4.0) * UNIT_SCALE, Color(Art.STEEL, a), 1.8, true)
++			draw_circle(q, 3.2 * UNIT_SCALE, Color(1.0, 0.3, 0.43, a), true, -1.0, true)
++		17, 21:   # 骷髏：頭骨滾出去半圈才停
++			var roll := minf(k / 0.6, 1.0)
++			var q2 := p + Vector2(face * (6.0 + 16.0 * roll), -6.0 - bounce * 0.6) * UNIT_SCALE
++			draw_circle(q2, 6.5 * UNIT_SCALE, Color(Art.OUT, a), true, -1.0, true)
++			draw_circle(q2, 5.2 * UNIT_SCALE, Color(0.96, 0.94, 0.88, a), true, -1.0, true)
++			var ang := roll * PI * face
++			for s in [-1.0, 1.0]:
++				draw_circle(q2 + Vector2(cos(ang + s * 0.6), sin(ang + s * 0.6)) * 2.4 * UNIT_SCALE, 1.2 * UNIT_SCALE, Color(Art.OUT, a), true, -1.0, true)
++		12:   # 寶箱怪：噴出兩枚金幣，拋物線落地
++			for c in 2:
++				var dx := (-1.0 if c == 0 else 1.0) * (10.0 + k * 22.0)
++				var up := sin(minf(k / 0.7, 1.0) * PI) * 26.0
++				draw_circle(p + Vector2(dx, -18.0 - up + k * 14.0) * UNIT_SCALE, 3.2 * UNIT_SCALE, Color(Art.GOLD, a), true, -1.0, true)
+ 
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index 4834552..44937b6 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -466,9 +466,11 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 		return
+ 	if k == EV.DEATH:
+ 		var u = view.unit_by_id(ev["id"])
++		if with_fx:
++			last_kill = [int(ev.get("src", -1)), time]   # V1.3.1 P2：最後一擊定格用（誰、什麼時候）
+ 		dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
+ 		if with_fx:
+-			sfx.play("death", 0.7)
++			sfx.play_unit("death", 0.7, u.type)   # V1.3.1：倒下的聲音依兵種音高
+ 			_death_extra(u)
+ 			# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
+ 			if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):
+@@ -533,10 +535,10 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）
+ 	elif s.type == D.ARCHER:
+ 		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.28, "dur": 0.46, "tc": Art.team_color(s.team, cbm())})   # V1.3：飛 0.28 秒＋釘住抖 0.18 秒
+-		sfx.play("arrow", 0.35)
++		sfx.play_unit("arrow", 0.35, s.type)
+ 	else:
+ 		_add_fx({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
+-		sfx.play("hit" if k == EV.HIT else "slash", 0.4)
++		sfx.play_unit("hit" if k == EV.HIT else "slash", 0.4, s.type)   # V1.3.1：出手聲依兵種音高
+ 		_hit_material(int(ev.get("tgt", -1)))
+ 	var col := Color.WHITE
+ 	var label := ""
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 3e7eb48..9da4538 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -261,6 +261,7 @@ var accum := 0.0
+ var speed := 1.0
+ var slow_used := false
+ var final_used := false   # 第十輪 F1
++var last_kill := [-1, -10.0]   # V1.3.1 P2：最近一次擊倒 [擊倒者 id, 時間]
+ var key_used := false     # V1.3 C4：這場的關鍵時刻（第一次破陣）用過了
+ var key_t := -10.0
+ var key_p := Vector2.ZERO
+@@ -935,6 +936,7 @@ var ring_shadow := 0.0   # V1.1 C6：亮色地圖（冰原）額外加深腳底
+ ## V1.3 B1：手繪圈（取代整圈的 draw_arc）。半徑有 ±3.5% 的起伏、尾端多畫 5% 疊過起點，像筆畫的圈。
+ ## 三個版本預先算好（單位圓），只換縮放，不比 draw_arc 貴。boil＝焦點裝飾每秒換 6 次版本（線條微動），簡化特效時固定第一版。
+ static var _hr_pts: Array = []
++var _hr_buf := PackedVector2Array()
+ static func _hr_build() -> void:
+ 	for v in 3:
+ 		var pts := PackedVector2Array()
+@@ -1005,11 +1007,12 @@ func _hand_ring(c: Vector2, r: float, col: Color, w: float, boil := false, seed
+ 	if boil and not bool(Save.s("reduce_fx")):
+ 		v = (v + int(time * 6.0)) % 3
+ 	var src: PackedVector2Array = _hr_pts[v]
+-	var pts := PackedVector2Array()
+-	pts.resize(src.size())
++	# V1.3.1 P2：重用同一個緩衝區（每次只覆寫數值，不重新配置）
++	if _hr_buf.size() != src.size():
++		_hr_buf.resize(src.size())
+ 	for i in src.size():
+-		pts[i] = c + src[i] * r
+-	draw_polyline(pts, col, w, true)
++		_hr_buf[i] = c + src[i] * r
++	draw_polyline(_hr_buf, col, w, true)
+ 
+ func _ring(p: Vector2, team: int, type: int, scale := 1.0, air := 0.0) -> void:
+ 	if ring_shadow > 0.0:
+diff --git a/game/scripts/ui/units/fantasy.gd b/game/scripts/ui/units/fantasy.gd
+index e0f0ffe..db499ec 100644
+--- a/game/scripts/ui/units/fantasy.gd
++++ b/game/scripts/ui/units/fantasy.gd
+@@ -35,7 +35,7 @@ static func _f_spore(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	var cap := _ell(Vector2(0, cy), 22.0 * sq, 19.0 * low, PI, TAU, 16)
+ 	cap.append(Vector2(15 * sq, cy + 5)); cap.append(Vector2(-15 * sq, cy + 5))
+ 	_poly(ci, cap, tc, a)
+-	ci.draw_arc(Vector2(0, cy), 16.0 * sq, PI * 1.15, PI * 1.5, 8, Color(1, 1, 1, 0.4 * a), 2.6, true)
++	ci.draw_arc(Vector2(0, cy), 16.0 * sq, PI * 1.33, PI * 1.67, 8, Color(1, 1, 1, 0.4 * a), 2.6, true)   # V1.3.1：高光改在正上方，翻面不跳邊
+ 	for d in [[-11, -8, 3.6], [3, -14, 4.4], [13, -6, 3.0], [-3, -4, 2.6]]:
+ 		_c(ci, Vector2(d[0] * sq, cy + d[1] * low), d[2], Color("#fff7e6"), a, false)
+ 	if w > 0.0:
+@@ -230,7 +230,7 @@ static func _f_sprite(ci: CanvasItem, tc: Color, walk: float, w: float, a: float
+ 	var flow := fmod(t * 2.0 + wk / TAU, 1.0)
+ 	for k in 3:
+ 		ci.draw_circle(Vector2(0, -28 + fmod(flow + k * 0.33, 1.0) * 8.0), 1.1, Color(tc, a), true, -1.0, true)
+-	ci.draw_line(Vector2(-8, -44), Vector2(-4, -36), Color(1, 1, 1, 0.8 * a), 1.6, true)
++	ci.draw_line(Vector2(-2, -45), Vector2(2, -37), Color(1, 1, 1, 0.8 * a), 1.6, true)   # V1.3.1：玻璃反光移到中間，翻面不跳邊
+ 	for fy in [-50.0, -7.0]:
+ 		_line(ci, Vector2(-16, fy), Vector2(16, fy), GOLD, 4.0, a)
+ 	# 臉畫在上半部玻璃裡（放頂框上面像多擺一顆頭，也會頂到圓框）
+diff --git a/game/scripts/ui/units/kingdom.gd b/game/scripts/ui/units/kingdom.gd
+index abea086..c92daae 100644
+--- a/game/scripts/ui/units/kingdom.gd
++++ b/game/scripts/ui/units/kingdom.gd
+@@ -208,7 +208,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			elif w == 0.0:   # V1.3.1：前搖一開始火罐就離手飛出（飛行在 battle_units 畫），手上不再同時拿著一顆
+ 				var bp := Vector2(17 + w * 9.0, -24 + (-w) * 4.0 + sway * 12.0)   # 第七輪 C1-7：火罐托在身前、和頭拉開（縮小後不再像髮髻）
+ 				_c(ci, bp, 7.5, Color("#2a2533"), a)
+-				ci.draw_circle(bp + Vector2(-2.5, -2.5), 2.0, Color(1, 1, 1, 0.35 * a), true, -1.0, true)
++				ci.draw_circle(bp + Vector2(0.0, -3.2), 2.0, Color(1, 1, 1, 0.35 * a), true, -1.0, true)   # V1.3.1：高光在正上方
+ 				_line(ci, bp + Vector2(2, -7), bp + Vector2(5, -11), Color("#c9a26b"), 1.3, a)
+ 				var sp := 0.6 + 0.4 * sin(t * 22.0)
+ 				_star(ci, bp + Vector2(5.5, -12), 3.2 * sp + 1.0, Color(1, 0.85, 0.3, a))
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index b49aeb9..e9ef9fa 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -896,3 +896,10 @@ func test_characters_v131() -> void:
+ 	var v130: float = mib.call(6 * 2 * 3)
+ 	ok(total - v130 <= 104.0, "§0：轉身／小動作／走路轉身圖集增量 ≤104 MiB", "%.1f MiB" % (total - v130))
+ 	ok(cells_wt > 0 and SC.WT_TYPES_PER_PAGE * 2 * SC.WT_C.size() * SC.WT_PH / SC.COLS * SC.CELL <= 4096, "走路轉身每頁不超過 4096px")
++	# P2：每種兵的音高、最後一擊定格、遺物
++	var SX = load("res://scripts/game/sfx.gd")
++	ok(SX.UNIT_PITCH.size() == 22, "P2：22 種兵都有自己的音高", str(SX.UNIT_PITCH.size()))
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	ok(int(g.last_kill[0]) == -1 and g.has_method("_draw_relic"), "P2：最後一擊紀錄預設為空、遺物落地函式存在")
++	g.free()
+diff --git a/game/tests/test_base.gd b/game/tests/test_base.gd
+index 8fa06de..8183f6e 100644
+--- a/game/tests/test_base.gd
++++ b/game/tests/test_base.gd
+@@ -56,7 +56,9 @@ class FakeSfx:
+ 	func duck(_s: float) -> void:
+ 		pass
+ 	var played: Array = []
+-	func play(n: String, _v := 1.0) -> void:
++	func play_unit(n: String, v: float, _t: int) -> void:   # V1.3.1：依兵種音高的音效，紀錄照名稱
++		play(n, v)
++	func play(n: String, _v := 1.0, _p := 1.0) -> void:
+ 		played.append(n)
+ 	func play_music(_n: String) -> void:
+ 		pass

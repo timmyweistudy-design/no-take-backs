@@ -150,6 +150,8 @@ func _seek_finish() -> void:
 	final_used = false
 	key_used = false
 	key_t = -10.0
+	last_kill = [-1, -10.0]
+	last_hitter.clear()
 	hitstop = 0.0
 	# 演出狀態依目標時間重建（Codex S5 #5）：最後時刻是否已發生、是否已進狂熱、音樂
 	slow_used = had_clutch

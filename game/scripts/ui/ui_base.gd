@@ -261,6 +261,8 @@ var accum := 0.0
 var speed := 1.0
 var slow_used := false
 var final_used := false   # 第十輪 F1
+var last_kill := [-1, -10.0]   # V1.3.1 P2：最近一次擊倒 [擊倒者 id, 時間]
+var last_hitter := {}          # 目標 id → 最後打到它的 id
 var key_used := false     # V1.3 C4：這場的關鍵時刻（第一次破陣）用過了
 var key_t := -10.0
 var key_p := Vector2.ZERO
@@ -935,6 +937,7 @@ var ring_shadow := 0.0   # V1.1 C6：亮色地圖（冰原）額外加深腳底�
 ## V1.3 B1：手繪圈（取代整圈的 draw_arc）。半徑有 ±3.5% 的起伏、尾端多畫 5% 疊過起點，像筆畫的圈。
 ## 三個版本預先算好（單位圓），只換縮放，不比 draw_arc 貴。boil＝焦點裝飾每秒換 6 次版本（線條微動），簡化特效時固定第一版。
 static var _hr_pts: Array = []
+var _hr_buf := PackedVector2Array()
 static func _hr_build() -> void:
 	for v in 3:
 		var pts := PackedVector2Array()
@@ -1005,11 +1008,12 @@ func _hand_ring(c: Vector2, r: float, col: Color, w: float, boil := false, seed 
 	if boil and not bool(Save.s("reduce_fx")):
 		v = (v + int(time * 6.0)) % 3
 	var src: PackedVector2Array = _hr_pts[v]
-	var pts := PackedVector2Array()
-	pts.resize(src.size())
+	# V1.3.1 P2：重用同一個緩衝區（每次只覆寫數值，不重新配置）
+	if _hr_buf.size() != src.size():
+		_hr_buf.resize(src.size())
 	for i in src.size():
-		pts[i] = c + src[i] * r
-	draw_polyline(pts, col, w, true)
+		_hr_buf[i] = c + src[i] * r
+	draw_polyline(_hr_buf, col, w, true)
 
 func _ring(p: Vector2, team: int, type: int, scale := 1.0, air := 0.0) -> void:
 	if ring_shadow > 0.0:

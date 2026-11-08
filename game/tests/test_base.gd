@@ -56,7 +56,9 @@ class FakeSfx:
 	func duck(_s: float) -> void:
 		pass
 	var played: Array = []
-	func play(n: String, _v := 1.0) -> void:
+	func play_unit(n: String, v: float, _t: int) -> void:   # V1.3.1：依兵種音高的音效，紀錄照名稱
+		play(n, v)
+	func play(n: String, _v := 1.0, _p := 1.0) -> void:
 		played.append(n)
 	func play_music(_n: String) -> void:
 		pass

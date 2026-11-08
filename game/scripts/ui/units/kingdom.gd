@@ -208,7 +208,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			elif w == 0.0:   # V1.3.1：前搖一開始火罐就離手飛出（飛行在 battle_units 畫），手上不再同時拿著一顆
 				var bp := Vector2(17 + w * 9.0, -24 + (-w) * 4.0 + sway * 12.0)   # 第七輪 C1-7：火罐托在身前、和頭拉開（縮小後不再像髮髻）
 				_c(ci, bp, 7.5, Color("#2a2533"), a)
-				ci.draw_circle(bp + Vector2(-2.5, -2.5), 2.0, Color(1, 1, 1, 0.35 * a), true, -1.0, true)
+				ci.draw_circle(bp + Vector2(0.0, -3.2), 2.0, Color(1, 1, 1, 0.35 * a), true, -1.0, true)   # V1.3.1：高光在正上方
 				_line(ci, bp + Vector2(2, -7), bp + Vector2(5, -11), Color("#c9a26b"), 1.3, a)
 				var sp := 0.6 + 0.4 * sin(t * 22.0)
 				_star(ci, bp + Vector2(5.5, -12), 3.2 * sp + 1.0, Color(1, 0.85, 0.3, a))

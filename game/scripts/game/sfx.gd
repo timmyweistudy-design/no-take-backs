@@ -125,7 +125,15 @@ func set_volumes(sfx_pct: int, music_pct: int, ui_pct := -1, amb_pct := -1) -> v
 	if amb != null:
 		amb.volume_db = linear_to_db(maxf(0.0001, amb_vol * 0.22))   # V1.2.1：環境音有自己的音量
 
-func play(name: String, vol := 1.0) -> void:
+## V1.3.1 P2：每種兵自己的「聲音」：同一個音效，依兵種換音高（小隻高、大隻低），出手、倒下聽得出是誰。
+const UNIT_PITCH := [1.0, 0.9, 1.08, 0.88, 1.12, 0.95, 1.05, 1.1, 1.0, 0.86, 1.18, 1.15, 0.92, 1.2, 1.12, 1.16, 1.22, 0.97, 1.1, 0.82, 1.25, 1.06]   # 收斂在 0.82～1.25（Antigravity v131-impl3：1.4 太尖）
+func play_unit(name: String, vol: float, type: int) -> void:
+	play(name, vol, float(UNIT_PITCH[type]) if type >= 0 and type < UNIT_PITCH.size() else 1.0)
+
+func play_pitched(name: String, vol: float, pitch: float) -> void:
+	play(name, vol, pitch)
+
+func play(name: String, vol := 1.0, pitch := 1.0) -> void:
 	var gain := gain_for(name)
 	if not streams.has(name) or gain <= 0.0:
 		return
@@ -153,7 +161,7 @@ func play(name: String, vol := 1.0) -> void:
 	p.stop()
 	p.bus = BUS_UI if is_ui(name) else BUS_SFX
 	p.stream = _pick_variant(name)
-	p.pitch_scale = 1.0 + rng.randf_range(-0.1, 0.1)
+	p.pitch_scale = pitch * (1.0 + rng.randf_range(-0.05, 0.05) if pitch != 1.0 else 1.0 + rng.randf_range(-0.1, 0.1))   # 兵種音高再加 ±5% 微擾，同音高齊發不會共鳴
 	p.volume_db = linear_to_db(maxf(0.0001, gain * vol)) + trim_db(p.stream)   # V1.2.1 E2：個別音檔響度修正
 	p.play()
 	_prio_of[ch] = pr

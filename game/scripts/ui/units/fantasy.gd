@@ -35,7 +35,7 @@ static func _f_spore(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	var cap := _ell(Vector2(0, cy), 22.0 * sq, 19.0 * low, PI, TAU, 16)
 	cap.append(Vector2(15 * sq, cy + 5)); cap.append(Vector2(-15 * sq, cy + 5))
 	_poly(ci, cap, tc, a)
-	ci.draw_arc(Vector2(0, cy), 16.0 * sq, PI * 1.15, PI * 1.5, 8, Color(1, 1, 1, 0.4 * a), 2.6, true)
+	ci.draw_arc(Vector2(0, cy), 16.0 * sq, PI * 1.33, PI * 1.67, 8, Color(1, 1, 1, 0.4 * a), 2.6, true)   # V1.3.1：高光改在正上方，翻面不跳邊
 	for d in [[-11, -8, 3.6], [3, -14, 4.4], [13, -6, 3.0], [-3, -4, 2.6]]:
 		_c(ci, Vector2(d[0] * sq, cy + d[1] * low), d[2], Color("#fff7e6"), a, false)
 	if w > 0.0:
@@ -230,7 +230,7 @@ static func _f_sprite(ci: CanvasItem, tc: Color, walk: float, w: float, a: float
 	var flow := fmod(t * 2.0 + wk / TAU, 1.0)
 	for k in 3:
 		ci.draw_circle(Vector2(0, -28 + fmod(flow + k * 0.33, 1.0) * 8.0), 1.1, Color(tc, a), true, -1.0, true)
-	ci.draw_line(Vector2(-8, -44), Vector2(-4, -36), Color(1, 1, 1, 0.8 * a), 1.6, true)
+	ci.draw_line(Vector2(-2, -45), Vector2(2, -37), Color(1, 1, 1, 0.8 * a), 1.6, true)   # V1.3.1：玻璃反光移到中間，翻面不跳邊
 	for fy in [-50.0, -7.0]:
 		_line(ci, Vector2(-16, fy), Vector2(16, fy), GOLD, 4.0, a)
 	# 臉畫在上半部玻璃裡（放頂框上面像多擺一顆頭，也會頂到圓框）

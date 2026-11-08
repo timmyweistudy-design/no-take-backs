@@ -579,8 +579,19 @@ func _draw_units_of(s, dim: bool) -> void:
 			mood |= Art.M_BRACE
 		# 勝利：存活的勝方每 0.45 秒原地跳 10px、武器高舉
 		var hop := 0.0
-		if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
-			hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
+		var won: bool = live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished))
+		var frz := 0.2   # 定格 0.2 秒（Antigravity v131-impl3：0.4 像卡住）
+		if won and u.id == int(last_kill[0]) and time - float(last_kill[1]) < frz and not bool(Save.s("reduce_fx")):
+			# V1.3.1 P2：最後一擊定格：擊倒最後一隻的那隻停在揮擊到底的姿勢 0.4 秒，再一起歡呼
+			won = false
+			at = Art.ATK_STRIKE
+			lean = 0.0
+		if won:
+			# V1.3.1 P2：歡呼像波浪：定格結束後從中線往後排，每格延遲 0.06 秒才起跳
+			var w0: float = float(last_kill[1]) + frz
+			var dly := absf(p.x - (ORIGIN.x + fld_size.x * 0.5)) / CS * 0.06
+			var tw := time - w0 - dly
+			hop = absf(sin(tw * PI / 0.45)) * 10.0 if tw > 0.0 else 0.0
 			mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
 			at = Art.ATK_WINDUP
 			lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
@@ -735,9 +746,13 @@ func _draw_units_of(s, dim: bool) -> void:
 					draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -4.5), mk + Vector2(4.5, 0), mk + Vector2(0, 4.5), mk + Vector2(-4.5, 0)]), Art.team_color(1, true))
 	if not live:
 		return
+	var relics := 0
 	for g in dying:
 		var k: float = g["t"] / 1.0
 		_draw_death(g, k)
+		if RELIC.has(int(g["type"])) and relics < 4:   # 遺物獨立於屍體透明度，同畫面最多 4 組（Antigravity v131-impl3）
+			_draw_relic(int(g["type"]), g["pos"], float(g["face"]), k, int(g["team"]))
+			relics += 1
 		if k >= 1.0:
 			continue   # 倒棋躺著的那段：靈魂、塵土都已經結束
 		if k < 0.3:
@@ -748,9 +763,10 @@ func _draw_units_of(s, dim: bool) -> void:
 
 ## V1.3 A5：倒棋的兵種與倒的方向（＋往前、−往後，弧度）。其他兵種保留專屬死法（化煙、化開、碎裂…）。
 const TOPPLE := {D.CAVALRY: 1.5, D.SWORD: 1.5, D.SHIELD: 1.5, D.DRUMMER: 1.5, D.BERSERKER: -1.5, D.PIKE: -1.5, D.ARCHER: -1.5, D.BOMBER: -1.5, D.MEDIC: -1.5, 18: -1.5}
-## 這一筆死亡演出要留多久（秒）：倒棋 1.7、其他 1.0。
+## 這一筆死亡演出要留多久（秒）：倒棋 1.7、有遺物的 1.1、其他 1.0。
+const RELIC := {12: true, 15: true, 17: true, 21: true}
 static func death_life(t: int) -> float:
-	return 1.7 if TOPPLE.has(t) else 1.0
+	return 1.7 if TOPPLE.has(t) else (1.1 if RELIC.has(t) else 1.0)
 
 ## V9 P2：每種兵的死法。k＝0～1（1 秒）。只用轉換與粒子，不多烘影格。
 func _draw_death(g: Dictionary, k: float) -> void:
@@ -821,4 +837,30 @@ func _draw_death(g: Dictionary, k: float) -> void:
 				var r3 := 10.0 + e * 34.0
 				draw_circle(p + Vector2(cos(a3) * r3, -14.0 + sin(a3) * r3 * 0.45 + k * k * 24.0), 5.0 * (1.0 - k * 0.5), Color(Color("#8d8a80"), 1.0 - k), true, -1.0, true)
 	_unit(p, t, g["team"], face, 0.0, 0.0, hurt, al, time, UNIT_SCALE, 1 if k < 0.4 else 0, lean, maxf(crouch, 0.15))
+
+## V1.3.1 P2：奇幻兵倒下時的「遺物」掉到地上彈一下（純畫面）：娃娃的針、骷髏的頭骨滾半圈、寶箱噴出兩枚金幣。
+func _draw_relic(t: int, p: Vector2, face: float, k: float, team: int) -> void:
+	if bool(Save.s("reduce_fx")) or k >= 1.1:
+		return
+	var a := 1.0 - clampf((k - 0.6) / 0.5, 0.0, 1.0)   # 前 0.6 秒落地停穩（不透明），0.6～1.1 秒淡出
+	var bounce := absf(sin(k * PI * 2.0)) * (1.0 - k) * 14.0
+	match t:
+		15:   # 巫毒娃娃：大頭針從頭上掉下來，落地彈兩下
+			var fall := minf(k / 0.3, 1.0)
+			var q := p + Vector2(-8.0 * face, lerpf(-54.0, -3.0, fall * fall) - (bounce if k > 0.3 else 0.0)) * UNIT_SCALE
+			draw_line(q, q + Vector2(10.0 * face, 4.0) * UNIT_SCALE, Color(Art.STEEL, a), 1.8, true)
+			draw_circle(q, 3.2 * UNIT_SCALE, Color(1.0, 0.3, 0.43, a), true, -1.0, true)
+		17, 21:   # 骷髏：頭骨滾出去半圈才停
+			var roll := minf(k / 0.6, 1.0)
+			var q2 := p + Vector2(face * (6.0 + 16.0 * roll), -6.0 - bounce * 0.6) * UNIT_SCALE
+			draw_circle(q2, 6.5 * UNIT_SCALE, Color(Art.OUT, a), true, -1.0, true)
+			draw_circle(q2, 5.2 * UNIT_SCALE, Color(0.96, 0.94, 0.88, a), true, -1.0, true)
+			var ang := roll * PI * face
+			for s in [-1.0, 1.0]:
+				draw_circle(q2 + Vector2(cos(ang + s * 0.6), sin(ang + s * 0.6)) * 2.4 * UNIT_SCALE, 1.2 * UNIT_SCALE, Color(Art.OUT, a), true, -1.0, true)
+		12:   # 寶箱怪：噴出兩枚金幣，拋物線落地
+			for c in 2:
+				var dx := (-1.0 if c == 0 else 1.0) * (10.0 + k * 22.0)
+				var up := sin(minf(k / 0.7, 1.0) * PI) * 26.0
+				draw_circle(p + Vector2(dx, -18.0 - up + k * 14.0) * UNIT_SCALE, 3.2 * UNIT_SCALE, Color(Art.GOLD, a), true, -1.0, true)
 
