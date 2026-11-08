@@ -21,7 +21,7 @@ kill_win() { if [[ "$EXE" == *.exe ]]; then powershell.exe -NoProfile -Command "
 # V1.2.1：第三欄是狀態（plain＝簡化介面、cb＝色盲、pad＝手把焦點），固定在這組全部截圖
 # 完整：兩語 × 三字級，加上四種狀態（簡化、色盲、手把、停用）各在兩語的 150%（最容易擠）各跑一次＝14 組
 # V1.4 #17：加簡中、日文各 100％／150％（共 18 組）；快速版多跑日文 150％
-COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:150:plain zh_TW:150:cb en:150:cb zh_TW:150:pad en:150:pad zh_TW:150:dis en:150:dis zh_CN:100 zh_CN:150 ja:100 ja:150"
+COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:150:plain zh_TW:150:cb en:150:cb zh_TW:150:pad en:150:pad zh_TW:150:dis en:150:dis zh_CN:100 zh_CN:150 ja:100 ja:150 ja:150:plain,cb,pad"
 [ "${LAYOUT_QUICK:-0}" = "1" ] && COMBOS="zh_TW:100 en:150 en:150:plain,cb,pad zh_TW:150:dis ja:150"
 [ -n "${LAYOUT_COMBOS:-}" ] && COMBOS="$LAYOUT_COMBOS"   # 只重跑指定組（修版面時用）
 export LAYOUT_N=$(echo $COMBOS | wc -w)

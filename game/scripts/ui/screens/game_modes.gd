@@ -1753,7 +1753,8 @@ func _draw_ghosts() -> void:
 		btn_paper = true
 		_btn(r, "", func(): _ghost_start(gi))
 		btn_paper = false
-		_ink_mode = not bool(Save.s("plain_ui"))
+		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
+		_ink_mode = on_paper   # 停用／簡化時卡片是深色：字用淺色
 		var gname := L.field(g, "")
 		_text(r.position + Vector2(16, 12), gname, tz("B"), INK if _ink_mode else Color.WHITE, false, true, 220)
 		_text(r.position + Vector2(16, 18 + text_h(gname, tz("B"), 220, true)), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
@@ -1765,7 +1766,7 @@ func _draw_ghosts() -> void:
 		if str(g["id"]) in beat:
 			var sp := r.position + Vector2(r.size.x - 38, r.size.y - 30)
 			_hand_ring(sp, 18.0, Color("#8e1b14", 0.9), 2.6)
-			_text(sp - Vector2(0, tz("C") * 0.68), L.t("gh_stamp"), tz("C"), Color("#8e1b14"), true, true, 40)
+			_text(sp - Vector2(0, tz("C") * 0.68), L.t("gh_stamp"), tz("C"), Color("#8e1b14") if on_paper else Color("#ff8a7a"), true, true, 40)
 	if pages > 1:
 		_btn(Rect2(470, 626, 56, 44), "◀", func(): gh_page = posmod(gh_page - 1, pages))
 		_text(Vector2(640, 636), "%d／%d" % [gh_page + 1, pages], tz("S"), Color.WHITE, true, true, 100)

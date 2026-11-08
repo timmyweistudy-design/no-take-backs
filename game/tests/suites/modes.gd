@@ -1490,3 +1490,72 @@ func test_ga_info_v140() -> void:
 	ok(txt.contains(g.L.t("boss_here")) and txt.contains(g.L.t("st_3")) and txt.contains(g.L.t(str(g.CONTRACTS[0][0]))), "本戰條件列出契約、巨獸、貼紙", txt)
 	g.free()
 
+
+## V1.4 收尾第 3 輪（Codex）：整段流程——領貼紙＋簽「窮兵」契約→存檔→重開續局，貼紙兵還在、契約與預算一致。
+func test_sticker_contract_resume_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var Army0 = load("res://scripts/core/army.gd")
+	var SV = load("res://scripts/game/save.gd")
+	SV.data_locked = true
+	var keep_run = SV.data.get("gauntlet_run", {})
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g._start_mode(g.Mode.GAUNTLET)
+	g.gauntlet_seed = 777
+	g.gauntlet_stage = 2
+	var a = Army0.new(0, 100)
+	a.units = [{"type": 0, "col": 5, "row": 2}, {"type": 1, "col": 5, "row": 4}, {"type": 2, "col": 4, "row": 4}, {"type": 0, "col": 5, "row": 6}]
+	g.last_armies = [a, a.copy()]
+	g.gauntlet_prev = a.units.duplicate(true)
+	var sp: Array = g._sticker_pick()
+	g.ct_pick = 5
+	g._take_reward(6)
+	var st_cell := Vector2i(int(sp[1]), int(sp[2]))
+	var has_st := false
+	for u in g.armies[0].units:
+		if int(u["col"]) == st_cell.x and int(u["row"]) == st_cell.y and int(u.get("st", 0)) == int(sp[0]):
+			has_st = true
+	ok(has_st and g.gauntlet_contract == 5, "領貼紙＋簽契約後，貼紙兵還在擺陣上", str(g.armies[0].units))
+	var budget_now: int = g.armies[0].budget
+	g._gauntlet_save()
+	var run: Dictionary = SV.sanitize_run(SV.data.get("gauntlet_run", {}))
+	SV.data["gauntlet_run"] = run
+	var g2 = GS.new()
+	g2.sfx = FakeSfx.new()
+	g2.time = 1.0
+	g2._gauntlet_resume()
+	var st2 := false
+	for u in g2.gauntlet_prev:
+		if int(u["col"]) == st_cell.x and int(u["row"]) == st_cell.y and int(u.get("st", 0)) == int(sp[0]):
+			st2 = true
+	ok(st2 and g2.gauntlet_contract == 5 and g2.armies[0].budget == budget_now, "重開續局：貼紙、契約、預算一致", "%s %d/%d" % [str(st2), g2.armies[0].budget, budget_now])
+	SV.data["gauntlet_run"] = keep_run
+	g.free()
+	g2.free()
+
+
+## V1.4 收尾第 3 輪（Codex）：模式切換鏈——指揮官對戰→車輪戰→幽靈→每週棋盒→一般對戰，每一站的狀態都乾淨。
+func test_mode_chain_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g.lobby_r = RS0.standard()
+	g._cmdr_pick(0, 5)
+	g.rules = g.lobby_r
+	g._start_mode(g.Mode.VS_AI)
+	ok(int(g.rules.cmd_mask[0]) != 0, "指揮官對戰帶軍令")
+	g._wave_start()
+	ok(g.wv_active and int(g.rules.cmd_mask[0]) == 0 and g.rules.budget_of(0) == 100 and g.ghost_id == "", "車輪戰不帶指揮官軍令與加成")
+	g._ghost_start(3)
+	ok(g.ghost_id != "" and not g.wv_active and not g.wv_mode and g.challenge_army != null and int(g.rules.cmd_mask[0]) == 0, "幽靈戰：車輪戰清掉、對手是幽靈")
+	g._weekly_start()
+	ok(g.wk_active and g.ghost_id == "" and g.rules.budget_of(0) == int(g.wk_spec["budget"]), "每週棋盒：幽靈清掉、預算照題目")
+	g.rules = RS0.standard()
+	g.challenge_army = null
+	g._start_mode(g.Mode.VS_AI)
+	ok(not g.wk_active and g.ghost_id == "" and not g.wv_active and not g.sealed_on and g.daily_spec.is_empty(), "回一般對戰：全部特殊狀態都清掉")
+	g.free()
+

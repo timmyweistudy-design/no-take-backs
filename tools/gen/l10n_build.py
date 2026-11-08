@@ -49,6 +49,15 @@ def sc(s):
     return t
 
 
+def load_src(d):
+    """每批送翻時的中文原文：原文改過的譯稿不能再用（收尾第 3 輪：巨獸說明改了卻沿用舊日文）。"""
+    src = {}
+    for f in sorted(Path(d).glob("batch_*.json")):
+        for it in json.load(open(f, encoding="utf-8")):
+            src[it["id"]] = it["zh"]
+    return src
+
+
 def load_ja(d):
     ja = {}
     for f in sorted(Path(d).glob("ja_*.json")):
@@ -63,10 +72,14 @@ def load_ja(d):
 
 def main():
     ja = load_ja(sys.argv[1])
+    src = load_src(sys.argv[1])
     bad = []
 
     def jp(item):
         v = ja.get(item["id"], "")
+        if item["id"] in src and src[item["id"]] != item["zh"]:
+            bad.append((item["id"], "原文改過、要重翻"))
+            return item["en"] or item["zh"]
         if not isinstance(v, str) or not v.strip():
             bad.append((item["id"], "沒翻"))
             return item["en"] or item["zh"]
