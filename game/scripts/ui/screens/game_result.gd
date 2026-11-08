@@ -20,6 +20,9 @@ func _start_mode(m: int) -> void:
 		set("daily_spec", {})   # V1.1 D2：每日挑戰按「再來一次」時保留（敵陣在 challenge_army）
 	if m != Mode.VS_AI:
 		set("challenge_army", null)
+	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+	set("wv_mode", false)   # V1.4 #11：開別的模式就不是車輪戰（_wave_setup 會在 _start_mode 之後再設回來）
+	set("wv_active", false)
 	if m == Mode.GAUNTLET:
 		set("gauntlet_gold", 0)
 		set("gauntlet_cap", 0)
@@ -56,8 +59,14 @@ func _finish_battle() -> void:
 		if w >= 0:
 			wins[w] += 1
 		series_over = series_done(wins, round_no, rules)
+		if bool(get("sealed_on")) and mode == Mode.DUEL and round_no >= 3:
+			series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+		set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
 	_build_report()
 	call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
+	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
+		call("_wave_end", w == 0)   # V1.4 #11：車輪戰結束（輸了或三波打完）
 	if mode == Mode.DUEL:
 		sfx.play("win" if w >= 0 else "lose")
 	elif mode == Mode.PUZZLE and report.has("goal_ok"):
@@ -281,7 +290,7 @@ func _draw_result() -> void:
 					_go_title()
 					_open("trials")])
 			else:
-				bs.append([L.t("new_match") if series_over else L.t("next_round"), func(): _next_round()])
+				bs.append([(L.t("sealed_again") if bool(get("sealed_on")) else L.t("new_match")) if series_over else L.t("next_round"), func(): _next_round()])
 		Mode.TUTORIAL, Mode.PUZZLE:
 			bs.append([L.t("retry"), func(): _start_mode(mode)])
 			if ((w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false))) and puzzle_id != "ws":
@@ -293,6 +302,14 @@ func _draw_result() -> void:
 				bs.append([L.t("continue"), func(): call("_gauntlet_reward")])
 			else:
 				bs.append([L.t("menu_gauntlet"), func(): _start_mode(Mode.GAUNTLET)])
+	if bool(get("wv_mode")) and mode == Mode.VS_AI:
+		# V1.4 #11 車輪戰：贏了接下一波（殘兵帶著走），輸了或打完三波就結束（結算在戰鬥結束時做一次）
+		bs.clear()
+		if bool(get("wv_active")) and w == 0 and int(get("wv_no")) < 3:
+			bs.append([L.t("wv_next", [int(get("wv_no")) + 1]), func(): call("_wave_next")])
+		else:
+			bs.append([L.t("wv_again"), func(): call("_wave_start")])
+		bs.append([L.t("replay"), func(): _replay()])
 	if watch_mode:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 
@@ -500,6 +517,9 @@ func _apply_map_mode() -> void:
 	rules.vents = false
 
 func _next_round() -> void:
+	if series_over and bool(get("sealed_on")) and mode == Mode.DUEL:
+		call("_sealed_start")   # V1.4 #13：三戰打完再來＝重新封三陣（不是重打同一組，Antigravity v140-i3）
+		return
 	if series_over:
 		wins = [0, 0]
 		round_no = 1
@@ -510,6 +530,11 @@ func _next_round() -> void:
 	round_no += 1
 	_apply_map_mode()
 	_reset_place(mode == Mode.VS_AI)
+	if bool(get("sealed_on")) and mode == Mode.DUEL:
+		# V1.4 #13：下一局直接用封好的陣，不再擺
+		var k := clampi(round_no - 1, 0, 2)
+		call("_sealed_reveal", k)
+		_toast(L.t("sealed_open", [k + 1]))
 
 
 

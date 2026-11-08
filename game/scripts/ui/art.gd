@@ -206,9 +206,10 @@ static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, 
 ## 厚木座：下緣 2.5px 深色厚度、頂面木色、上緣 1px 亮倒角（深色地面也看得出邊）。
 static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
 	# 比隊伍圈寬一圈（rx 21），外露的木邊看得出是棋子底座（Antigravity v130-impl1：原本被隊伍圈蓋住）
-	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale), Color(0.30, 0.20, 0.12, 0.85 * a))
-	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(0.56, 0.41, 0.26, 0.92 * a))
-	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(0.62, 0.47, 0.30, 0.6 * a))
+	var wd: Array = WOODS[clampi(int(paint[4]), 0, 3)]   # V1.4 #15：木座木料
+	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale), Color(wd[0], 0.85 * a))
+	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(wd[1], 0.92 * a))
+	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(wd[2], 0.6 * a))
 	ci.draw_arc(p + Vector2(0, -0.2) * scale, 20.4 * scale, PI * 1.08, PI * 1.92, 14, Color(1.0, 0.9, 0.7, 0.5 * a), 1.1 * scale, true)
 
 ## 接觸影子（角色腳下）。

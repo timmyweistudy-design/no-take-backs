@@ -26,6 +26,10 @@ func _leave_confirm() -> void:
 	_go_title()
 
 func _go_title() -> void:
+	set("wv_active", false)   # V1.4 #11：離開就結束車輪戰
+	set("wv_mode", false)
+	set("sealed_on", false)   # V1.4 #13
+	set("sealed", [[], []])
 	set("wg_active", false)   # V1.4 #16：離開就取消押注，不能拿下一場來結算（Codex v140-i2）
 	call("_pre_drop")
 	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
@@ -100,6 +104,23 @@ func _on_start() -> void:
 		if rules != null and not _cur_army().has_combat():
 			_toast(L.t("err_need_combat"), true)
 			return
+		if bool(get("sealed_on")):
+			# V1.4 #13 雙封蠟戰書：每人封三個陣，封好一個就清空再擺下一個；三個都封好才換人
+			var tm: int = blind_phase
+			var sl: Array = get("sealed")[tm]
+			sl.append(_cur_army().units.duplicate(true))
+			sfx.play("turn")
+			_cur_army().units = []
+			if sl.size() < 3:
+				_toast(L.t("sealed_done", [sl.size()]))
+				return
+			blind_phase += 1
+			if blind_phase == 2:
+				call("_sealed_reveal", 0)
+				_toast(L.t("sealed_ready"))
+			else:
+				_toast(L.t("sealed_swap"))   # Antigravity v140-i3：第三封封完要說換人
+			return
 		blind_phase += 1
 		sfx.play("turn")
 		return
@@ -115,6 +136,9 @@ func _on_start() -> void:
 			return
 	if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() > gauntlet_changes:
 		_toast(L.t("err_changes"), true)
+		return
+	if mode == Mode.VS_AI and bool(get("wv_active")) and not bool(call("wave_has_lock", armies[0].units, get("wv_lock"))):
+		_toast(L.t("wv_missing"), true)   # V1.4 #11：載入陣型等方式把殘兵換掉了
 		return
 	if mode == Mode.VS_AI and not ai_prebuilt:
 		if _build_ai_async():
@@ -208,6 +232,9 @@ func _try_remove(c: Vector2i) -> void:
 		return
 	if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) and PZ.is_fixed(PZ.get_puzzle(puzzle_id), c.x, c.y):
 		_toast(L.t("err_locked"), true)
+		return
+	if mode == Mode.VS_AI and bool(call("wave_is_locked", c)):
+		_toast(L.t("wv_locked"), true)   # V1.4 #11：殘兵不能撤（Antigravity v140-i3）
 		return
 	if _cur_army().remove_at(c.x, c.y):
 		sfx.play("k_click", 0.7)
@@ -322,6 +349,8 @@ func _draw_place_units() -> void:
 			_counter_mark(p, selected, int(it[2]))   # V1.1 B3
 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
 			_lock_icon(p + Vector2(17, -60))   # 14px 鎖頭（第三輪 U4）
+		elif it[3] == 0 and mode == Mode.VS_AI and bool(call("wave_is_locked", Vector2i(it[1], it[0]))):
+			_lock_icon(p + Vector2(17, -60))   # V1.4 #11：車輪戰殘兵
 		if not pz.is_empty() and PZ.goal(pz) == "flawless" and it[3] == 0 and int(it[2]) == int(pz["goal_type"]):
 			_goal_marker(ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS, "protect")   # V1.1：不能倒的那種兵每隻都標
 		if not pz.is_empty() and pz.has("goal_unit") and int(pz["goal_unit"][0]) == it[1] and int(pz["goal_unit"][1]) == it[0] and it[3] == (0 if PZ.goal(pz) == "protect" else 1):
@@ -536,6 +565,10 @@ func _draw_place_hud() -> void:
 				head = L.t("turn_big", [L.t("blue") if tp.current == 0 else L.t("red"), hand, tp.turn_left()])
 		else:
 			head = L.t("both_done") if blind_phase == 2 else L.t("blind_turn", [L.t("blue") if blind_phase == 0 else L.t("red"), L.t("red") if blind_phase == 0 else L.t("blue")])
+			if bool(get("sealed_on")) and blind_phase < 2:
+				head = L.t("sealed_turn", [L.t("blue") if blind_phase == 0 else L.t("red"), get("sealed")[blind_phase].size() + 1])   # V1.4 #13
+	elif mode == Mode.VS_AI and bool(get("wv_active")):
+		head = L.t("wv_head", [int(get("wv_no")), int(rules.budget_of(1)) if rules != null else 0])   # Antigravity v140-i3：常駐波數
 	elif mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
 		var pz := PZ.get_puzzle(puzzle_id)
 		head = L.field(pz, "")
@@ -730,6 +763,8 @@ func _clear_mine() -> void:
 		a.units = a.units.filter(func(u): return PZ.is_fixed(pz, u["col"], u["row"]))
 	elif mode == Mode.GAUNTLET and gauntlet_stage > 1:
 		a.units = gauntlet_prev.duplicate(true)
+	elif mode == Mode.VS_AI and bool(get("wv_active")):
+		a.units = get("wv_lock").duplicate(true)   # 車輪戰：清空只清新補的兵
 	else:
 		if _is_free():
 			_fp_push_undo()   # 自由模式：清空可以 Ctrl＋Z 復原

@@ -6,6 +6,8 @@
 |---|---|---|---|---|---|
 | Godot Engine 4.6 | 引擎 | https://godotengine.org | MIT | 無 | 遊戲內製作名單＋`game/licenses/GODOT_LICENSE.txt` |
 | 源泉圓體 GenSenRounded2 TW Regular/Bold（ButTaiwan，衍生自 Adobe Source Han Sans，保留名稱 Source） | 介面中文字型（V1.2） | https://github.com/ButTaiwan/gensen-font v2.100 | SIL OFL 1.1 | 子集化並改內部名稱為 NTB Rounded（`tools/gen/build_font.py`） | 製作名單；`game/licenses/GenSenRounded-OFL.txt` 隨遊戲附上 |
+| 源泉圓體 GenSenRounded2 JP Regular/Bold（ButTaiwan，衍生自 Adobe Source Han Sans，保留名稱 Source） | 日文介面字型（V1.4 #17） | https://github.com/ButTaiwan/gensen-font v2.100 | SIL OFL 1.1 | 子集化並改內部名稱為 NTB Rounded JP（`tools/gen/build_font.py`） | 製作名單；`game/licenses/GenSenRounded-OFL.txt` |
+| Resource Han Rounded CN Regular/Bold（Cyano Hao，衍生自 Adobe Source Han Sans，保留名稱 Source） | 簡體中文介面字型（V1.4 #17） | https://github.com/CyanoHao/Resource-Han-Rounded v0.990 | SIL OFL 1.1 | 子集化並改內部名稱為 NTB Rounded SC | 製作名單；`game/licenses/ResourceHanRounded-OFL.txt` |
 | Fredoka（The Fredoka Project Authors） | 介面英數字型（V1.2） | https://github.com/google/fonts/tree/main/ofl/fredoka | SIL OFL 1.1 | 可變字型實例化 wght 500／650、子集化為拉丁字、0～9 字寬統一並置中、內部名稱改 NTB Latin | 製作名單；`game/licenses/Fredoka-OFL.txt` 隨遊戲附上 |
 | UoqMunThenKhung Regular | 標題字型（≥22px 粗體標題） | https://github.com/MoonlitOwen/ThenKhung | SIL OFL 1.1 | 子集化（`tools/gen/build_font.py`），字形未修改；本專案從 timmy-project 取得原檔 | 製作名單；`game/fonts/OFL-ThenKhung.txt` 隨遊戲附上 |
 | Cainos「Pixel Art Top Down - Basic」草地 tileset、樹叢 | 戰場地面、兩側裝飾 | https://cainos.itch.io/pixel-art-top-down-basic | 作者條款：可商用、可修改、不得轉賣素材本身；署名非必要 | 樹叢自動裁切成單張 | 製作名單（作者表示「感謝但非必要」） |

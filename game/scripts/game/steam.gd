@@ -3,6 +3,7 @@ extends RefCounted
 ## 遊戲其他地方只呼叫這裡，換 SDK 版本只要改這個檔。
 
 const Save = preload("res://scripts/game/save.gd")
+const L = preload("res://scripts/game/strings.gd")
 
 const ACHIEVEMENTS := {
 	"FIRST_WIN": ["初陣告捷", "First Victory"],
@@ -65,7 +66,7 @@ static func available() -> bool:
 
 static func name_of(id: String, lang: String) -> String:
 	var n: Array = ACHIEVEMENTS.get(id, [id, id])
-	return n[0] if lang == "zh_TW" else n[1]
+	return str(L.pick_for(n[0], n[1], lang))
 
 ## 解鎖成就；回傳 true 表示這次是新解鎖（畫面要跳提示）。
 static func unlock(id: String) -> bool:

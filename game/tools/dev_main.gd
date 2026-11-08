@@ -729,6 +729,16 @@ func _shots_v9() -> void:
 	overlay = "nemeses"
 	await _snap("59b_nemeses.png")
 	Save.data["nemeses"] = nem_keep
+	var pt_keep: Array = Art.paint.duplicate()   # V1.4 #15 塗裝室（藍改靛青、紅改赭橙、胡桃木座、朱漆框）
+	Art.paint[0] = 1
+	Art.paint[1] = 2
+	Art.paint[4] = 1
+	Art.paint[5] = 3
+	overlay = "paint"
+	await _snap("59h_paint.png")
+	for i in 6:
+		Art.paint[i] = pt_keep[i]
+	overlay = ""
 	# V1.4 #5 接力殘局：拿第一個能做成工坊碼的關卡當素材
 	for p0 in PZ.all_puzzles():
 		if PZ.goal(p0) == "win" and p0.get("fixed", []).is_empty() and not p0.has("map") and not p0.has("cmd") and p0.has("best"):
@@ -750,6 +760,12 @@ func _shots_v9() -> void:
 	_draft_new()
 	_draft_take(int(df_pool[0]))
 	await _snap("59f_draft.png")
+	overlay = ""
+	_sealed_start()   # V1.4 #13：雙封蠟擺陣頁（藍軍第 2 封）
+	sealed[0].append([])
+	await _snap("59g_sealed.png")
+	toast_t = 0.0
+	_start_mode(Mode.VS_AI)
 	overlay = ""
 	_open("reward")
 	await _snap("60_reward.png")
@@ -1407,6 +1423,7 @@ func _shots_v13() -> void:
 	while not sim.finished:
 		_sim_step(true)
 	_finish_battle()
+	toast_t = 0.0   # 「已擺上三星解」是擺陣頁的提示，截圖瞬間打完不會留到結果頁
 	await _snap("88_result_survive.png")
 	_go_title()
 	toast = ""      # 前面「已擺上三星解」的提示泡泡不要帶進後面的截圖

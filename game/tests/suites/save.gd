@@ -210,3 +210,24 @@ func test_records_v140() -> void:
 	SV.sanitize_data(d)
 	ok(d["pz_best"].size() == 1 and d["pz_best"]["a1"] == [10, 3, 400], "紀錄：格式不對的丟掉", str(d["pz_best"]))
 	ok(d["nemeses"].size() == 1 and d["nemeses"][0]["revenged"] == true, "宿敵：欄位不在敵方區、空陣、亂資料都丟掉", str(d["nemeses"]))
+
+
+## V1.4 #15 塗裝：存檔清洗（長度、範圍）、鎖定條件、底漆換色（色盲時不換）。
+func test_paint_v140() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var Art0 = load("res://scripts/ui/art.gd")
+	var d := {"paint": [9, -2, 1, 2, 3.0, "x"]}
+	SV.sanitize_data(d)
+	ok(d["paint"] == [3, 0, 1, 2, 3, 0], "塗裝存檔夾在範圍內", str(d["paint"]))
+	var d2 := {"paint": [1, 1]}
+	SV.sanitize_data(d2)
+	ok(d2["paint"] == [0, 0, 1, 1, 0, 0], "長度不對就用預設")
+	ok(not GM.paint_locked(true, 1, 2) and GM.paint_locked(true, 3, 8) and not GM.paint_locked(false, 2, 0), "解鎖看成就數；漬洗乾掃不鎖")
+	var keep: Array = Art0.paint.duplicate()
+	Art0.paint[0] = 2
+	ok(Art0.team_color(0) == Art0.PAINTS[0][2] and Art0.team_color(0, true) == Art0.TEAM[1][0], "換底漆；色盲配色維持原色")
+	ok(Art0.paint_sig() != "001100", "換底漆後圖集要重烘（簽章不同）")
+	for i in 6:
+		Art0.paint[i] = keep[i]
+

@@ -643,7 +643,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	for i in 3:
 		var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
 		var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
-		if L.lang == "zh_TW":
+		if L.cjk():
 			sz_txt = L.t("map_size_%d" % i) + "  " + sz_txt
 		_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
 	y += rowh

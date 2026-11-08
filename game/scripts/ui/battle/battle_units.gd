@@ -233,7 +233,8 @@ func _draw_field() -> void:
 	ring_shadow = float(fbi.get("shadow", 0.0))
 	if fld_map != 0:
 		MapArt.draw_outfield(self, Rect2(ORIGIN, FIELD), str(MapDefs.MAPS[fld_map]["biome"]))
-	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632")))
+	var fr_i := clampi(int(Art.paint[5]), 0, 3)   # V1.4 #15 棋盤框
+	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632") if fr_i == 0 else Art.FRAMES[fr_i]))
 	if fld_map != 0:
 		var mt := _map_tex()
 		if mt != null:

@@ -20,8 +20,10 @@ kill_win() { if [[ "$EXE" == *.exe ]]; then powershell.exe -NoProfile -Command "
 # 第九輪 P0：LAYOUT_QUICK=1 只跑中文 100%＋英文 150%（最容易出事的兩組）＋一組狀態；里程碑跑 8 組
 # V1.2.1：第三欄是狀態（plain＝簡化介面、cb＝色盲、pad＝手把焦點），固定在這組全部截圖
 # 完整：兩語 × 三字級，加上四種狀態（簡化、色盲、手把、停用）各在兩語的 150%（最容易擠）各跑一次＝14 組
-COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:150:plain zh_TW:150:cb en:150:cb zh_TW:150:pad en:150:pad zh_TW:150:dis en:150:dis"
-[ "${LAYOUT_QUICK:-0}" = "1" ] && COMBOS="zh_TW:100 en:150 en:150:plain,cb,pad zh_TW:150:dis"
+# V1.4 #17：加簡中、日文各 100％／150％（共 18 組）；快速版多跑日文 150％
+COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:150:plain zh_TW:150:cb en:150:cb zh_TW:150:pad en:150:pad zh_TW:150:dis en:150:dis zh_CN:100 zh_CN:150 ja:100 ja:150"
+[ "${LAYOUT_QUICK:-0}" = "1" ] && COMBOS="zh_TW:100 en:150 en:150:plain,cb,pad zh_TW:150:dis ja:150"
+export LAYOUT_N=$(echo $COMBOS | wc -w)
 for combo in $COMBOS; do
   IFS=: read -r lang sc st <<< "$combo"
   {
@@ -51,13 +53,13 @@ for d in rows: by.setdefault((d['lang'],d['scale']),[]).append(d['median_size'])
 print('LAYOUT 截圖 %d 張、違規 %d' % (len(rows), total))
 for d in rows:
     for v in d['violations']: print('  %s %s %d%%：%s' % (d['shot'], d['lang'], d['scale'], v))
-for lang in ['zh_TW','en']:
+for lang in ['zh_TW','en','zh_CN','ja']:
     if (lang,100) in by and (lang,150) in by:
         a=sorted(by[(lang,100)]); b=sorted(by[(lang,150)])
         print('  %s 中位字級 100%%=%s 150%%=%s' % (lang, a[len(a)//2], b[len(b)//2]))
 runs=glob.glob(os.path.join(out,'*','layout.jsonl'))
-want=len(runs) if os.environ.get('LAYOUT_QUICK')=='1' else 14
+want=int(os.environ.get('LAYOUT_N','14'))
 if len(runs)!=want or len(rows)!=want*expect:
-    print('LAYOUT FAIL：應有 14 組 × %d 張，實得 %d 組、%d 張（截圖沒跑完也算失敗）' % (expect, len(runs), len(rows))); sys.exit(1)
+    print('LAYOUT FAIL：應有 %d 組 × %d 張，實得 %d 組、%d 張（截圖沒跑完也算失敗）' % (want, expect, len(runs), len(rows))); sys.exit(1)
 sys.exit(1 if total else 0)
 PY

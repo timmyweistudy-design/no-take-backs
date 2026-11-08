@@ -5,6 +5,7 @@ extends RefCounted
 const D = preload("res://scripts/core/unit_defs.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const Army = preload("res://scripts/core/army.gd")
+const L = preload("res://scripts/game/strings.gd")
 
 
 static var _data := {}
@@ -30,9 +31,10 @@ static func skill(id: String) -> Dictionary:
 
 ## 取一個欄位的當前語言版本（xxx_zh／xxx_en；技能名稱是 zh／en）。
 static func text(d: Dictionary, field: String, lang: String) -> String:
-	var suf := "zh" if lang == "zh_TW" else "en"
+	var suf: String = L.SUFFIX.get(lang, "en")
 	var k := suf if field == "" else "%s_%s" % [field, suf]
-	return str(d.get(k, d.get("zh" if field == "" else field + "_zh", "")))
+	var en_k := "en" if field == "" else field + "_en"
+	return str(d.get(k, d.get(en_k, d.get("zh" if field == "" else field + "_zh", ""))))
 
 ## 技能說明：把 {常數名} 換成 unit_defs 的值。找不到的常數原樣保留（validate 會抓出來）。
 static func skill_desc(id: String, lang: String) -> String:

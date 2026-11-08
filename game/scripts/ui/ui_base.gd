@@ -355,13 +355,25 @@ func _tnum(f: Font) -> Font:
 func _load_fonts() -> void:
 	var reg := _load_font("res://fonts/NTBRounded-R-sub.otf")
 	var bold := _load_font("res://fonts/NTBRounded-B-sub.otf")
+	# V1.4 #17：簡中用 Resource Han Rounded CN、日文用源泉圓體 JP（都是 OFL 子集）；缺字再落到繁中字型
+	var alt: String = {"zh_CN": "SC", "ja": "JP"}.get(L.lang, "")
+	if alt != "" and ResourceLoader.exists("res://fonts/NTBRounded%s-R-sub.otf" % alt):
+		var r2 = load("res://fonts/NTBRounded%s-R-sub.otf" % alt)
+		var b2 = load("res://fonts/NTBRounded%s-B-sub.otf" % alt)
+		if r2 is FontFile and b2 is FontFile:
+			r2 = r2.duplicate()
+			b2 = b2.duplicate()
+			r2.fallbacks = [reg]
+			b2.fallbacks = [bold]
+			reg = r2
+			bold = b2
 	font = _latin_over("res://fonts/NTBLatin-M-sub.ttf", reg)
 	font_bold = _latin_over("res://fonts/NTBLatin-B-sub.ttf", bold)
 	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
 		var tk = load("res://fonts/ThenKhung-sub.ttf")
 		if tk is FontFile:
 			tk.fallbacks = [bold]
-			font_title = tk
+			font_title = tk if alt == "" else bold   # 標題字只有繁中字形，簡中、日文的標題用圓體粗體（字形才一致）
 
 
 func _apply_fullscreen() -> void:
@@ -463,6 +475,8 @@ func _width(s: String, size: int, bold := false) -> float:
 	return w
 
 ## 換行（第五輪）：中日韓逐字斷、英文逐詞斷；保留原本的 \n。回傳行陣列。
+const NO_LINE_HEAD := "。，、）」』！？；：%”’ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶーゝゞヽヾ・"
+
 func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStringArray:
 	var out := PackedStringArray()
 	for para in s.split("\n"):
@@ -484,7 +498,8 @@ func wrap_lines(s: String, size: int, maxw: float, bold := false) -> PackedStrin
 				i += 1
 			if cur != "" and _width(cur + tok, size, bold) > maxw:
 				# 避頭點（第六輪截圖）：句號、逗號、右括號不放行首——把上一行最後一個字一起帶到下一行（不掛出框外）
-				if tok.length() == 1 and "。，、）」』！？；：%".contains(tok) and cur.length() > 1 and cur.unicode_at(cur.length() - 1) >= 0x2E80:
+				# V1.4 #17：日文另加小假名、長音、中黑點不放行首；簡中的右引號也算
+				if tok.length() == 1 and NO_LINE_HEAD.contains(tok) and cur.length() > 1 and cur.unicode_at(cur.length() - 1) >= 0x2E80:
 					out.append(cur.substr(0, cur.length() - 1).strip_edges(false, true))
 					cur = cur.substr(cur.length() - 1) + tok
 				else:

@@ -49,6 +49,7 @@ var wt_pages: Array = []         # V1.3.1：走路轉身頁
 var wt_loc := {}                 # 兵種 → [頁, 起始格]
 var fid_tex: Texture2D = null    # V1.3.1：待機小動作＋受擊帽子
 var fid_loc := {}
+var ready_paint := ""     # V1.4 #15：這份快取是用哪套塗裝烘的
 var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
 var _busy := false
 var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
@@ -56,7 +57,7 @@ var _queue: Array = []
 var _baking: Array = []
 
 func is_ready(cb: bool) -> bool:
-	return ring_tex != null and ready_cb == (1 if cb else 0)
+	return ring_tex != null and ready_cb == (1 if cb else 0) and ready_paint == Art.paint_sig()
 
 func has_type(t: int) -> bool:
 	return loc.has(t)
@@ -86,6 +87,7 @@ func build(cb: bool) -> void:
 	fid_tex = null
 	fid_loc.clear()
 	ready_cb = 1 if cb else 0
+	ready_paint = Art.paint_sig()
 	var base: Array = []
 	for t in D.COUNT:
 		base.append(t)
@@ -226,6 +228,8 @@ func _post(img: Image, per := FRAMES_PER) -> Image:
 	mat.set_shader_parameter("cell", float(CELL))
 	mat.set_shader_parameter("per", float(per))
 	mat.set_shader_parameter("cols", float(COLS))
+	mat.set_shader_parameter("sh_amt", float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]))   # V1.4 #15 漬洗
+	mat.set_shader_parameter("hi_amt", float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))    # 乾掃
 	tr.material = mat
 	var vp := _viewport(Vector2i(img.get_width(), img.get_height()), tr)
 	await RenderingServer.frame_post_draw

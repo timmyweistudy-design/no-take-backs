@@ -252,8 +252,10 @@ const CX_TAG_W := 196.0
 
 ## 中文口號差一點放不下時拿掉引號，不要讓結尾引號自己掉到下一行（Antigravity 第 2 輪；不縮字，字級表是底線）。
 func _tag_text(raw: String, lang: String) -> String:
-	if lang != "zh_TW":
+	if lang == "en":
 		return "\"%s\"" % raw
+	if lang == "zh_CN":
+		return "“%s”" % raw
 	var q := "「%s」" % raw
 	return raw if _width(q, ts(15)) > CX_TAG_W and _width(raw, ts(15)) <= CX_TAG_W else q
 

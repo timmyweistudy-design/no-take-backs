@@ -25,9 +25,11 @@ for i, r in enumerate(rows, 2):
         errs.append(f"第 {i} 行 {k} 英文用了用語表禁用的詞：{r[2][:50]}")
     if "單位" in r[1]:
         errs.append(f"第 {i} 行 {k} 中文用了「單位」：{r[1][:30]}")
-    a, b = sorted(ph.findall(r[1])), sorted(ph.findall(r[2]))
-    if a != b:
-        errs.append(f"第 {i} 行 {k} 兩語言參數不同：{a} vs {b}")
+    a = sorted(ph.findall(r[1]))
+    for lang, v in zip(head[2:], r[2:]):   # V1.4 #17：每一種語言的參數都要和中文一樣
+        b = sorted(ph.findall(v))
+        if a != b:
+            errs.append(f"第 {i} 行 {k} 的 {lang} 參數和中文不同：{a} vs {b}")
 use = re.compile(r'L\.t\("([A-Za-z0-9_]*[A-Za-z0-9])"[,)]')
 for f in glob.glob(os.path.join(root, "scripts/**/*.gd"), recursive=True):
     for m in use.finditer(open(f, encoding="utf-8").read()):

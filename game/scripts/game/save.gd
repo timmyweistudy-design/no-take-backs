@@ -237,6 +237,16 @@ static func sanitize_data(out: Dictionary) -> void:
 			var v = ey.get(k, 0)
 			ey2[k] = clampi(int(v), 0, 1000000) if (v is int or v is float) else 0
 	out["eye"] = ey2   # V1.4 #16 競猜眼力
+	var wb = out.get("wave_best", 0)
+	out["wave_best"] = clampi(int(wb), 0, 3) if (wb is int or wb is float) else 0   # V1.4 #11 車輪戰最佳波數
+	var pt = out.get("paint", [])
+	var pt2 := [0, 0, 1, 1, 0, 0]   # V1.4 #15 塗裝：藍底漆、紅底漆、漬洗、乾掃、木座、棋盤框
+	var hi := [3, 3, 2, 2, 3, 3]
+	if pt is Array and pt.size() == 6:
+		for i in 6:
+			if pt[i] is int or pt[i] is float:
+				pt2[i] = clampi(int(pt[i]), 0, hi[i])
+	out["paint"] = pt2
 
 ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
 static func sanitize_run(g) -> Dictionary:

@@ -61,6 +61,7 @@ func _ready() -> void:
 	sfx = SfxScript.new()
 	add_child(sfx)
 	boot_parts["sfx"] = Time.get_ticks_msec()
+	call("_paint_apply")   # V1.4 #15：塗裝要在第一次烘圖集之前套上
 	sprites = SpriteCache.new()
 	add_child(sprites)
 	if capsule_path == "":

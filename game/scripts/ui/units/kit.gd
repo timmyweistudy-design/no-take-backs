@@ -111,8 +111,25 @@ const FEATURE_EYES := {10: Vector2(1.5, -13), 13: Vector2(3, -17), 18: Vector2(3
 	11: Vector2(16.5, -23), 14: Vector2(2.0, -40), 17: Vector2(5.5, -36), 21: Vector2(0.5, -33)}   # V1.3.1：羊、幽靈、骷髏法師、骷髏也吃得到表情（Codex v131-impl1）
 
 
+## V1.4 #15 塗裝室：每隊 4 種底漆（第 0 種＝原色；同色系，敵我一眼還分得開）、漬洗／乾掃深淺、木座 4 種木料、棋盤框 4 種。
+## 色盲配色時一律用原本的色盲色（塗裝不能蓋掉無障礙）。
+const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]
+const WASH := [0.12, 0.20, 0.32]     # 烘焙後處理的底部陰影（shaders/unit_bake.gdshader 的 sh_amt）
+const DRY := [0.04, 0.09, 0.16]      # 頂部亮邊（hi_amt）
+const WOODS := [[Color(0.30, 0.20, 0.12), Color(0.56, 0.41, 0.26), Color(0.62, 0.47, 0.30)],   # 橡木（原本）
+	[Color(0.20, 0.12, 0.07), Color(0.38, 0.24, 0.14), Color(0.45, 0.30, 0.18)],   # 胡桃
+	[Color(0.09, 0.08, 0.08), Color(0.20, 0.18, 0.17), Color(0.27, 0.24, 0.22)],   # 烏木
+	[Color(0.42, 0.30, 0.10), Color(0.74, 0.58, 0.26), Color(0.84, 0.69, 0.36)]]   # 黃銅
+const FRAMES := ["", "#3b2618", "#5d5a55", "#7a2620"]   # 棋盤框：地圖原色、胡桃、石、朱漆
+static var paint := [0, 0, 1, 1, 0, 0]   # 藍底漆、紅底漆、漬洗、乾掃、木座、棋盤框
+
 static func team_color(team: int, cb := false) -> Color:
+	if not cb and int(paint[team]) > 0:
+		return PAINTS[team][int(paint[team])]
 	return TEAM[1 if cb else 0][team]
+
+static func paint_sig() -> String:
+	return str(paint[0], paint[1], paint[2], paint[3], paint[4])
 
 
 static func _smooth(u: float) -> float:

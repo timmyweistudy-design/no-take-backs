@@ -425,6 +425,8 @@ func _draw_relay() -> void:
 			draw_rect(Rect2(bg + Vector2(c0, r0) * bs, Vector2(bs - 2, bs - 2)), Color(0.2, 0.3, 0.45, 0.25))
 	if last_armies.size() >= 1:
 		for u in last_armies[0].units:
+			if not u.has("col"):
+				continue   # 自由排兵的兵（x、y）不在格子上，不畫
 			Art.unit(self, bg + Vector2(int(u["col"]) * bs + bs / 2, int(u["row"]) * bs + bs - 3), int(u["type"]), 0, 1.0, 0.0, 0.0, 0.0, 0.6, time, 0.3, cbm())
 	var cs := 40.0
 	var g0 := Vector2(372, 186)
@@ -895,8 +897,9 @@ func _draw_profile() -> void:
 	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
 	var cw2 := 640.0
 	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
-	_btn(Rect2(470, 722, 160, 44), L.t("back"), func(): overlay = "")
-	_btn(Rect2(650, 722, 200, 44), L.t("nem_open"), func(): overlay = "nemeses")   # V1.4 #2 宿敵戰記
+	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): overlay = "nemeses")   # V1.4 #2 宿敵戰記
+	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): _paint_open())   # V1.4 #15 塗裝室
 
 ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
 func _puzzle_hint() -> void:
@@ -1154,23 +1157,29 @@ var df_ai: Array = []
 
 func _draw_playroom() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(240, 140, 800, 500)
+	var P := Rect2(130, 110, 1020, 580)
 	_panel(P)
-	_h1(Vector2(640, 152), L.t("menu_playroom"))
+	_h1(Vector2(640, 122), L.t("menu_playroom"))
 	var eye: Dictionary = Save.data.get("eye", {})
-	var cards := [["pr_wager", "pr_wager_d", "dice", func(): _wager_new()], ["pr_draft", "pr_draft_d", "flag", func(): _draft_new()]]
-	for i in 2:
-		var r := Rect2(280 + i * 370, 230, 350, 300)
+	var cards := [["pr_wager", "pr_wager_d", "dice", func(): _wager_new()], ["pr_draft", "pr_draft_d", "flag", func(): _draft_new()], ["pr_waves", "pr_waves_d", "swords", func(): _wave_start()], ["pr_sealed", "pr_sealed_d", "lock", func(): _sealed_start()]]
+	# 四張卡 230 寬（Codex／Antigravity v140-i3：186 寬在英文大字級塞不下說明）
+	for i in 4:
+		var r := Rect2(156 + i * 246, 186, 230, 346)
 		_tex_box(r, "paper")
 		_ink_mode = true
-		_icon(str(cards[i][2]), r.position + Vector2(175, 56), 44.0, Color("#7a4a10"))
-		_text(r.position + Vector2(175, 96), L.t(str(cards[i][0])), tz("B"), INK, true, true, 320)
-		_text(r.position + Vector2(24, 140), L.t(str(cards[i][1])), tz("S"), INK, false, false, 302)
+		_icon(str(cards[i][2]), r.position + Vector2(r.size.x / 2, 50), 44.0, Color("#7a4a10"))
+		_text(r.position + Vector2(r.size.x / 2, 86), L.t(str(cards[i][0])), tz("B"), INK, true, true, r.size.x - 20)
+		_text(r.position + Vector2(18, 86 + tz("B") * 1.7), L.t(str(cards[i][1])), tz("C"), INK, false, false, r.size.x - 36)
 		_ink_mode = false
-		_btn(Rect2(r.position.x + 95, r.end.y - 62, 160, 46), L.t("pr_go"), cards[i][3], true, i == 0)
+		_btn(Rect2(r.position.x + r.size.x / 2 - 80, r.end.y - 60, 160, 46), L.t("pr_go"), cards[i][3], true, i == 0)
+	var rec: Array = []
 	if not eye.is_empty():
-		_text(Vector2(640, 546), L.t("pr_eye", [int(eye.get("pts", 0)), int(eye.get("n", 0)), int(eye.get("best", 0))]), tz("S"), ACCENT, true, true, 720)
-	_btn(Rect2(560, 584, 160, 44), L.t("back"), func(): overlay = "")
+		rec.append(L.t("pr_eye", [int(eye.get("pts", 0)), int(eye.get("n", 0)), int(eye.get("best", 0))]))
+	if int(Save.data.get("wave_best", 0)) > 0:
+		rec.append(L.t("pr_wave_best", [int(Save.data.get("wave_best", 0))]))   # Antigravity v140-i3：車輪戰紀錄要看得到
+	if not rec.is_empty():
+		_text(Vector2(640, 548), "　・　".join(rec), tz("S"), ACCENT, true, true, 960)
+	_btn(Rect2(560, 626, 160, 44), L.t("back"), func(): overlay = "")
 
 ## 競猜：用 AI 組兩支軍隊（同樣 100 金），先看陣型再押注。
 func _wager_new() -> void:
@@ -1306,10 +1315,10 @@ func _draw_draft() -> void:
 		btn_paper = not mine and not ai
 		_btn(r, "", _draft_take.bind(t), not mine and not ai and df_mine.size() < 4)
 		btn_paper = false
-		Art.unit(self, r.position + Vector2(100, 110), t, 0 if not ai else 1, 1.0, 0.0, 0.0, 0.0, 1.0 if not (mine or ai) else 0.55, time, 0.9, cbm())
-		_ink_mode = not mine and not ai
-		_text(r.position + Vector2(100, 120), L.t("unit_%d" % t), tz("S"), INK if _ink_mode else Color.WHITE, true, true, 190)
-		_text(r.position + Vector2(100, 120 + tz("S") * 1.3), L.t("gold", [D.cost(t)]), tz("C"), Color("#7a4a10") if _ink_mode else ACCENT, true, false, 190)
+		Art.unit(self, r.position + Vector2(100, 98), t, 0 if not ai else 1, 1.0, 0.0, 0.0, 0.0, 1.0 if not (mine or ai) else 0.55, time, 0.9, cbm())
+		_ink_mode = not mine and not ai and not bool(Save.s("plain_ui"))   # 簡化介面沒有紙卡：字用淺色（V1.4 版面檢查：對比不足）
+		_text(r.position + Vector2(100, 106), L.t("unit_%d" % t), tz("S"), INK if _ink_mode else Color.WHITE, true, true, 190)
+		_text(r.position + Vector2(100, 106 + tz("S") * 1.3), L.t("gold", [D.cost(t)]), tz("C"), Color("#7a4a10") if _ink_mode else ACCENT, true, false, 190)
 		_ink_mode = false
 		if mine or ai:
 			# 抽走的卡：隊伍色邊框＋火漆印（Antigravity v140-i2）
@@ -1322,3 +1331,209 @@ func _draw_draft() -> void:
 	_text(Vector2(640, 582), L.t("df_count", [df_mine.size(), df_ai.size()]), tz("S"), Color.WHITE, true, true, 700)
 	_btn(Rect2(420, 640, 220, 50), L.t("df_go"), func(): _draft_go(), df_mine.size() == 4, true)
 	_btn(Rect2(660, 640, 200, 50), L.t("back"), func(): overlay = "playroom")
+
+
+## ── V1.4 #11 車輪戰：擺一次陣迎三波；贏了只帶活下來的兵（站在原本的格子），多 15 金重新整備，下一波敵人更多錢 ──
+const WAVE_FOE := [70, 90, 110]
+var wv_active := false   # 這一輪車輪戰還在打
+var wv_mode := false     # 結果頁要顯示車輪戰的按鈕（離開才清）
+var wv_no := 0
+
+var wv_lock: Array = []   # 這一波帶進來的殘兵（不能撤、不能移）
+var wv_surv: Array = []   # 上一波戰鬥結束當下的殘兵
+
+static func wave_has_lock(units: Array, lock: Array) -> bool:
+	for u in lock:
+		var hit := false
+		for v in units:
+			if v.has("col") and int(v["col"]) == int(u["col"]) and int(v["row"]) == int(u["row"]) and int(v["type"]) == int(u["type"]):
+				hit = true
+				break
+		if not hit:
+			return false
+	return true
+
+func wave_is_locked(c: Vector2i) -> bool:
+	if not wv_active:
+		return false
+	for u in wv_lock:
+		if int(u["col"]) == c.x and int(u["row"]) == c.y:
+			return true
+	return false
+
+func _wave_start() -> void:
+	wv_active = true
+	wv_no = 1
+	_wave_setup([], 100)
+
+func _wave_setup(surv: Array, budget: int) -> void:
+	var r = RuleSet.standard()
+	r.rounds = 1
+	r.handicap = true
+	r.budget = [clampi(budget, RuleSet.BUDGET_MIN, RuleSet.BUDGET_MAX), WAVE_FOE[clampi(wv_no - 1, 0, 2)]]
+	rules = r
+	challenge_army = null
+	overlay = ""
+	set("daily_spec", {})   # 從每日挑戰過來不能帶著每日的敵陣（Antigravity v140-i3）
+	_start_mode(Mode.VS_AI)
+	set("daily_spec", {})
+	wv_active = true
+	wv_mode = true
+	wv_lock = surv.duplicate(true)
+	if not surv.is_empty():
+		armies[0].units = surv.duplicate(true)
+	_toast(L.t("wv_toast", [wv_no, WAVE_FOE[clampi(wv_no - 1, 0, 2)]]))
+
+## 這一波活下來的我方兵（原本的格子）與它們值多少錢。
+static func wave_survivors(army, sim0) -> Array:
+	var out: Array = []
+	for u in army.units:
+		if PZ.unit_alive(sim0, 0, [int(u["col"]), int(u["row"])]):
+			out.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+	return out
+
+func _wave_next() -> void:
+	var surv: Array = wv_surv.duplicate(true)   # 戰鬥結束當下就算好（看完重播、時光機都不影響，Antigravity v140-i3）
+	var cost := 0
+	for u in surv:
+		cost += D.cost(int(u["type"]))
+	wv_no += 1
+	_wave_setup(surv, cost + 15)
+
+func _wave_end(won: bool) -> void:
+	if not wv_active:
+		return
+	var reached := wv_no if won else wv_no - 1
+	Save.data["wave_best"] = maxi(int(Save.data.get("wave_best", 0)), reached)
+	Save.save_data()
+	_toast(L.t("wv_all") if won else L.t("wv_over", [reached]))
+	wv_active = false
+
+
+## ── V1.4 #13 雙封蠟戰書：雙人，每人先封三個陣（暗擺），再依序兩兩揭曉交鋒，三戰兩勝 ──
+var sealed_on := false
+var sealed := [[], []]
+
+func _sealed_start() -> void:
+	var r = RuleSet.standard()
+	r.place_rule = "blind"
+	r.rounds = 3
+	rules = r
+	challenge_army = null
+	overlay = ""
+	_start_mode(Mode.DUEL)
+	sealed_on = true
+	sealed = [[], []]
+	_toast(L.t("sealed_intro"))
+
+## 揭封：第 k 封放回兩邊（鎖定，不能改），之後照一般「開戰」。
+func _sealed_reveal(k: int) -> void:
+	armies[0].units = sealed[0][k].duplicate(true)
+	armies[1].units = sealed[1][k].duplicate(true)
+	blind_phase = 2
+
+
+## ── V1.4 #15 塗裝室：替兩軍的棋子上底漆、漬洗、乾掃，換木座木料與棋盤框。只改外觀，存檔記住。 ──
+## 解鎖：每一列的第 2～4 個選項要成就數 PAINT_UNLOCK[k]（漬洗、乾掃不鎖）。
+const PAINT_UNLOCK := [0, 2, 5, 9]
+const PAINT_ROWS := [["paint_blue", 4, true], ["paint_red", 4, true], ["paint_wash", 3, false], ["paint_dry", 3, false], ["paint_wood", 4, true], ["paint_frame", 4, true]]
+var pt_before := ""
+
+func _paint_apply() -> void:
+	var p = Save.data.get("paint", [0, 0, 1, 1, 0, 0])
+	if p is Array and p.size() == 6:
+		for i in 6:
+			Art.paint[i] = int(p[i])
+
+static func paint_locked(row_locks: bool, k: int, ach_n: int) -> bool:
+	return row_locks and ach_n < int(PAINT_UNLOCK[clampi(k, 0, 3)])
+
+func _paint_open() -> void:
+	pt_before = str(Art.paint)
+	overlay = "paint"
+
+func _paint_close() -> void:
+	overlay = "profile"
+	if str(Art.paint) != pt_before:
+		Save.data["paint"] = Art.paint.duplicate()
+		Save.save_data()
+		_rebuild_sprites()   # 底漆、漬洗、乾掃、木座烘在圖集裡，要重烘
+
+func _paint_pick(row: int, k: int) -> void:
+	Art.paint[row] = k
+	sfx.play("place")
+
+func _draw_paint() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(150, 60, 980, 680)
+	_panel(P)
+	_h1(Vector2(640, 72), L.t("paint_head"))
+	var ach_n: int = Save.data.get("achievements", []).size()
+	# 左：試塗棋盤（棋盤框＋氈布＋兩軍各三隻）。向量直接畫，改了馬上看得到
+	var B := Rect2(184, 150, 320, 430)
+	var fr_i := clampi(int(Art.paint[5]), 0, 3)
+	draw_rect(B.grow(10), Color("#5b4632") if fr_i == 0 else Color(Art.FRAMES[fr_i]))
+	draw_rect(B, Color("#6f9a4a"))
+	for i in 4:
+		draw_line(B.position + Vector2(0, 86 * (i + 1)), B.position + Vector2(B.size.x, 86 * (i + 1)), Color(0, 0, 0, 0.06), 1.0)
+	var types := [0, 1, 2]
+	for t in 2:
+		for j in 3:
+			var p := B.position + Vector2(80 + t * 160, 110 + j * 118)
+			Art.ring(self, p, t, types[j], cbm(), 1.5)
+			Art.unit(self, p, types[j], t, 1.0 if t == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.5, cbm())
+	_text(Vector2(B.get_center().x, B.end.y + 20), L.t("paint_note") if not cbm() else L.t("paint_cb"), tz("C"), TXT_DIM, true, false, 340)
+	# 右：六列，每列「名稱｜四個色票」排一橫（V1.4 版面檢查：150% 時上下排會壓到完成鈕）
+	var x0 := 540.0
+	var lw := 186.0
+	var rh := maxf(tz("B") * 1.5, 44.0) + 14.0
+	var y := 150.0
+	for row in PAINT_ROWS.size():
+		var spec: Array = PAINT_ROWS[row]
+		var by := y + (rh - 14.0 - 40.0) / 2.0
+		_text(Vector2(x0, y + (rh - 14.0) / 2.0 - tz("B") * 0.68), L.t(spec[0]), tz("B"), Color.WHITE, false, true, lw)
+		for k in int(spec[1]):
+			var r := Rect2(x0 + lw + 10 + k * 98, by, 90, 40)
+			var lock := paint_locked(bool(spec[2]), k, ach_n)
+			var on := int(Art.paint[row]) == k
+			var rr := row
+			var kk := k
+			_btn(r, "", func(): _paint_pick(rr, kk), not lock, on)
+			_paint_swatch(row, k, r, lock, on)
+		y += rh
+	if ach_n < int(PAINT_UNLOCK[3]):
+		_text(Vector2(x0, y + 4), L.t("paint_unlock", [ach_n]), tz("C"), TXT_DIM, false, false, 570)
+	_btn(Rect2(560, 672, 160, 44), L.t("paint_done"), func(): _paint_close(), true, true)
+
+## 色票：底漆＝色塊；漬洗／乾掃＝三格深淺；木座＝木料橢圓；棋盤框＝框色條。鎖住的畫鎖頭。
+func _paint_swatch(row: int, k: int, r: Rect2, lock: bool, on: bool) -> void:
+	var c := r.get_center()
+	if lock:
+		_icon("lock", c, 18.0, Color(1, 1, 1, 0.5))
+		return
+	match row:
+		0, 1:
+			draw_circle(c, 13.0, Art.OUT, true, -1.0, true)
+			draw_circle(c, 11.0, Art.PAINTS[row][k], true, -1.0, true)
+		2, 3:
+			for i in 3:
+				var a := 0.25 + 0.5 * float(i <= k)
+				var col := Color(0.12, 0.08, 0.05, a) if row == 2 else Color(1.0, 0.95, 0.8, a)
+				draw_rect(Rect2(c + Vector2(-27 + i * 19, -8), Vector2(16, 16)), col)
+		4:
+			var wd: Array = Art.WOODS[k]
+			draw_colored_polygon(_ellipse_pts(c + Vector2(0, 3), 26.0, 9.0), wd[0])
+			draw_colored_polygon(_ellipse_pts(c, 26.0, 9.0), wd[1])
+		5:
+			draw_rect(Rect2(c - Vector2(30, 10), Vector2(60, 20)), Color("#5b4632") if k == 0 else Color(Art.FRAMES[k]))
+			draw_rect(Rect2(c - Vector2(22, 5), Vector2(44, 10)), Color("#6f9a4a"))
+	if on:
+		_hand_ring(c + Vector2(35, -10), 5.0, Color("#e8c46a"), 2.0)
+
+func _ellipse_pts(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in 20:
+		var an := i * TAU / 20.0
+		pts.append(c + Vector2(cos(an) * rx, sin(an) * ry))
+	return pts
+

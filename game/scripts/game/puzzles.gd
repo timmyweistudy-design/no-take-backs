@@ -8,7 +8,7 @@ const RS = preload("res://scripts/core/ruleset.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const CMD = preload("res://scripts/core/cmd_defs.gd")
 ## 第十三輪：10 章，每章 10 關（V1.1 加第 11 章）。1＝經典 p、2＝新兵 n＋extra、3＝奇幻 f，其他都在 extra（"ch" 欄）。
-const CHAPTERS := 11   # V1.1：第 11 章完美主義
+const CHAPTERS := 12   # V1.1：第 11 章完美主義
 const GOALS := ["win", "protect", "survive", "kill", "flawless", "margin"]   # V1.1 D5：後兩種只看戰後狀態
 const MAP_SIZE := 1             # 地形殘局只用中尺寸（16×9＝格子殘局的場地）
 

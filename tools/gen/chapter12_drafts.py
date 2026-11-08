@@ -49,7 +49,7 @@ pz("c7", "三道軍令", "Three Orders",
    col(BS, 10, [3, 5]) + col(SW, 10, [2, 4, 6]) + col(AR, 14, [3, 5]), [SW, SH, AR, MD], 26, {"skills": [AEGIS, WAR, HEAL], "uses": 1})
 pz("c8", "等他吼完", "Outlast the Roar",
    "對方先戰吼、再開護盾。等護盾過了，凍住它再戰吼。", "They roar, then shield. When the shield fades, freeze and roar back.",
-   col(SW, 10, [2, 3, 4, 5, 6]) + col(AR, 13, [2, 6]), [SW, AR, SH], 24, {"skills": [FREEZE, WAR], "uses": 1, "enemy": [[100, WAR], [220, AEGIS]]})
+   col(SW, 10, [2, 3, 4, 5, 6]) + col(AR, 13, [2, 6]), [SW, AR, SH], 30, {"skills": [FREEZE, WAR], "uses": 1, "enemy": [[100, WAR], [220, AEGIS]]})
 pz("c9", "吸、凍、砸", "Pull, Freeze, Drop",
    "貓把敵人吸成一團，冰封讓他們散不開，隕石一次收掉。", "The cat pulls them together, freeze holds them, the meteor finishes it.",
    [[SW, 10, 0], [SW, 10, 8], [AR, 13, 1], [AR, 13, 7], [SW, 11, 3], [SW, 11, 5], [AR, 14, 4]], [CAT, SH, SW], 20,

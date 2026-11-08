@@ -227,7 +227,9 @@ func _draw_title() -> void:
 	_btn(dr, "", func(): call("_start_daily"), not _demo())
 	_icon("dice", dr.position + Vector2(22, 22), 22.0, ACCENT if not _demo() else Color(1, 1, 1, 0.35))
 	_text(dr.position + Vector2(40, 22 - tz("S") * 0.68), L.t("menu_daily"), tz("S"), Color.WHITE, false, true, 86)
-	_text(dr.position + Vector2(162, 22 - tz("C") * 0.68), str(call("_daily_caption")), tz("C"), ACCENT, true, false, 84)
+	var dcap := str(call("_daily_caption"))
+	if _width(dcap, tz("C")) <= 84.0:   # 放不下一行就不放（今日名稱在每日挑戰頁看得到；V1.4 版面檢查：英文 150% 會折兩行壓到下一排）
+		_text(dr.position + Vector2(162, 22 - tz("C") * 0.68), dcap, tz("C"), ACCENT, true, false, 84)
 	# V1.4 #16：遊戲間（觀戰競猜、輪抽）
 	_btn(Rect2(282, y1, 118, 44), L.t("menu_playroom"), func(): overlay = "playroom", not _demo())
 	var y2 := y1 + 54
@@ -265,6 +267,8 @@ func _draw_overlay() -> void:
 			_draw_profile()
 		"nemeses":
 			_draw_nemeses()
+		"paint":
+			_draw_paint()
 		"relay":
 			_draw_relay()
 		"postcard":
@@ -425,7 +429,7 @@ func _apply_volumes(sample: String) -> void:
 func _settings_rows() -> Array:
 	var groups := {
 		# V1.2.1 G3：語言在 L.LANGS 裡循環（單一來源）
-		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang")],
+		0: [["set_lang", L.t("lang_name") + ("（%s）" % L.t("lang_unproofed") if L.lang in L.UNPROOFED else ""), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
 			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
 			["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
 			["set_fullscreen", _onoff("fullscreen"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()]],

@@ -3,10 +3,16 @@ extends RefCounted
 
 static var _table := {}
 static var lang := "zh_TW"
-const LANGS := ["zh_TW", "en"]
+const LANGS := ["zh_TW", "en", "zh_CN", "ja"]   # V1.4 #17：簡中、日文（AI 翻譯，未經母語校對）
 ## V1.2.1 G3：資料檔（殘局、章節、試煉、圖鑑）的語言欄位後綴。之後加簡中、日文：這裡加 "zh_CN": "sc"、"ja": "ja"，
 ## strings.csv 加一欄、資料檔加 *_sc／*_ja 欄位、字型子集加字，程式不用再到處改。
-const SUFFIX := {"zh_TW": "zh", "en": "en"}
+const SUFFIX := {"zh_TW": "zh", "en": "en", "zh_CN": "sc", "ja": "ja"}
+const UNPROOFED := ["zh_CN", "ja"]   # 設定頁標「未校對」
+static var _extra := {}   # data/l10n_extra.csv：程式裡的二元陣列（成就名、條件、AI 陣型名）其他語言的譯文，以中文原文為鍵
+
+## 中文系（漢字、不用空白分詞、用全形標點）：版面、引號、斷行用。
+static func cjk(l := "") -> bool:
+	return (lang if l == "" else l) != "en"
 
 ## 依目前語言取資料欄位：field(pz, "") → pz["zh"]／pz["en"]；field(pz, "hint") → pz["hint_zh"]／pz["hint_en"]。缺的退回英文、再退回中文。
 static func field(d: Dictionary, base: String) -> String:
@@ -18,7 +24,33 @@ static func field(d: Dictionary, base: String) -> String:
 
 ## 二選一的舊資料（[中文, 英文]）：之後加語言時改成字典。
 static func pick(zh, en):
-	return zh if lang == "zh_TW" else en
+	return pick_for(zh, en, lang)
+
+static func pick_for(zh, en, l: String):
+	if l == "zh_TW":
+		return zh
+	if l == "en":
+		return en
+	_load_extra()
+	var s: String = str(_extra.get(str(zh), {}).get(l, ""))
+	return s if s != "" else en
+
+static func _load_extra() -> void:
+	if not _extra.is_empty():
+		return
+	_extra["_"] = {}
+	var f := FileAccess.open("res://data/l10n_extra.csv", FileAccess.READ)
+	if f == null:
+		return
+	var header := f.get_csv_line()
+	while not f.eof_reached():
+		var row := f.get_csv_line()
+		if row.size() < header.size() or row[0] == "":
+			continue
+		var d := {}
+		for i in range(1, header.size()):
+			d[header[i]] = row[i]
+		_extra[row[0]] = d
 
 static func load_table() -> void:
 	if not _table.is_empty():
@@ -40,7 +72,9 @@ static func load_table() -> void:
 static func t(key: String, args: Array = []) -> String:
 	load_table()
 	var d: Dictionary = _table.get(key, {})
-	var s: String = d.get(lang, d.get("zh_TW", key))
+	var s: String = d.get(lang, "")
+	if s == "":
+		s = d.get("en", d.get("zh_TW", key))   # 沒翻到的退回英文
 	if s == "":
 		s = key
 	if args.is_empty():

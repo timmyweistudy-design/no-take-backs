@@ -5,13 +5,9 @@
 import os, glob, re, sys
 from fontTools.ttLib import TTFont
 root = os.path.join(os.path.dirname(__file__), "..")
-chars = set()
-for pat in ["data/*.csv", "data/*.json", "data/*.txt", "scripts/**/*.gd"]:
-    for f in glob.glob(os.path.join(root, pat), recursive=True):
-        txt = open(f, encoding="utf-8").read()
-        # V9：程式碼只算字串常值，註解的字不必進字型
-        chars.update("".join(re.findall(r'"(?:[^"\\\n]|\\.)*"', txt)) if f.endswith(".gd") else txt)
-need = sorted(c for c in chars if c.isprintable() and not c.isspace() and ord(c) >= 0x20)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "gen"))
+import fontchars
+need = sorted(c for c in fontchars.base_text(root, False) if not c.isspace())
 bad = []
 for w in ["R", "B"]:   # V1.2：介面中文字型＝源泉圓體（NTB Rounded）
     cmap = TTFont(os.path.join(root, "fonts", f"NTBRounded-{w}-sub.otf")).getBestCmap()
@@ -26,5 +22,16 @@ if os.path.exists(tk):
     miss = [c for c in need if ord(c) not in tcm and c not in allowed]
     if miss:
         bad.append(f"標題字缺 {len(miss)} 字（不是原字型沒有的）：{''.join(miss[:40])}")
+# V1.4 #17：簡中、日文：自己的字型＋繁中字型（後備）合起來要涵蓋
+for tag, col in [("SC", "zh_CN"), ("JP", "ja")]:
+    for w in ["R", "B"]:
+        fp = os.path.join(root, "fonts", f"NTBRounded{tag}-{w}-sub.otf")
+        if not os.path.exists(fp):
+            bad.append(f"少了 {os.path.basename(fp)}")
+            continue
+        cm = set(TTFont(fp).getBestCmap()) | set(TTFont(os.path.join(root, "fonts", f"NTBRounded-{w}-sub.otf")).getBestCmap())
+        miss = [c for c in fontchars.lang_text(root, col, False) if not c.isspace() and ord(c) not in cm]
+        if miss:
+            bad.append(f"{col} {w} 缺 {len(miss)} 字：{''.join(miss[:40])}")
 print("FONTCOVER", "OK" if not bad else "；".join(bad), f"（{len(need)} 字）")
 sys.exit(1 if bad else 0)

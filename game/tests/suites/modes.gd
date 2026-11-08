@@ -1300,3 +1300,81 @@ func test_commanders_v140() -> void:
 	ok(g.lobby_r.budget_of(0) == 105 and g.lobby_r.budget_of(1) == 110, "藍改隕星：105／110（不累加）")
 	ok(g.cmdr_of(0) == 2 and int(g.lobby_r.cmd_mask[0]) == 8, "藍的軍令＝隕石")
 	g.free()
+
+
+## V1.4 #11 車輪戰：活下來的兵＝原陣型裡模擬結束時還活著的（原本的格子）。
+func test_waves_v140() -> void:
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var Sim0 = load("res://scripts/core/battle_sim.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1411
+	var a0 = AI0.build(0, 100, rng)["army"]
+	var a1 = AI0.build(1, 70, rng)["army"]
+	var s = Sim0.new(a0.copy(), a1.copy())
+	s.fast = true
+	s.run_to_end()
+	var surv: Array = GM.wave_survivors(a0, s)
+	var alive := 0
+	for u in s.units:
+		if u.team == 0 and u.alive and not u.summon:
+			alive += 1
+	ok(surv.size() == alive and surv.size() <= a0.units.size(), "殘兵數＝模擬結束時我方還活著的（不含召喚物）", "%d/%d" % [surv.size(), alive])
+	ok(GM.WAVE_FOE.size() == 3 and GM.WAVE_FOE[2] > GM.WAVE_FOE[0], "三波，敵方預算遞增")
+
+
+## V1.4 #13 雙封蠟戰書：每人封三陣（封一個清空一次），兩人都封好後第 1 戰用第 1 封；下一局直接換第 2 封。
+func test_sealed_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g._sealed_start()
+	ok(g.mode == g.Mode.DUEL and g.sealed_on and g.rules.rounds == 3 and g.blind_phase == 0, "開雙封蠟：雙人暗擺三戰兩勝")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1413
+	var forms := [[], []]
+	for t in 2:
+		for k in 3:
+			var a = AI0.build(t, g.rules.budget_of(t), rng)["army"]
+			forms[t].append(a.units.duplicate(true))
+			g.armies[t].units = a.units.duplicate(true)
+			g._on_start()
+			if k < 2:
+				ok(g.blind_phase == t and g.armies[t].units.is_empty() and g.sealed[t].size() == k + 1, "第 %d 方封了 %d 陣、清空、還沒換人" % [t, k + 1])
+	ok(g.blind_phase == 2, "兩人都封好三陣")
+	ok(g.armies[0].units == forms[0][0] and g.armies[1].units == forms[1][0], "第 1 戰用第 1 封")
+	g.round_no = 1
+	g._next_round()
+	ok(g.round_no == 2 and g.blind_phase == 2 and g.armies[0].units == forms[0][1] and g.armies[1].units == forms[1][1], "下一局直接揭第 2 封", str(g.round_no))
+	g.round_no = 3
+	g.series_over = true
+	g._next_round()
+	ok(g.sealed_on and g.sealed[0].is_empty() and g.blind_phase == 0 and g.round_no == 1, "三戰打完再來＝重新封三陣（不會重打同一組）")
+	g._start_mode(g.Mode.DUEL)
+	ok(not g.sealed_on, "從大廳開一般雙人就不是封蠟")
+	g.free()
+
+
+## V1.4 #11 車輪戰：殘兵鎖在原位（不能撤、清空會放回、被換掉不能開戰）。
+func test_waves_lock_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g.wv_no = 2
+	var surv := [{"type": 0, "col": 2, "row": 3}, {"type": 2, "col": 0, "row": 5}]
+	g._wave_setup(surv, 40)
+	ok(g.wv_active and g.armies[0].units.size() == 2 and g.wave_is_locked(Vector2i(2, 3)), "第 2 波：殘兵放回原位並鎖住")
+	g._try_remove(Vector2i(2, 3))
+	ok(g.armies[0].units.size() == 2, "殘兵不能撤")
+	g.armies[0].units.append({"type": 1, "col": 3, "row": 1})
+	g._clear_mine()
+	ok(g.armies[0].units == surv, "清空只清新補的兵", str(g.armies[0].units))
+	ok(not g.wave_has_lock([surv[0]], surv) and g.wave_has_lock(surv + [{"type": 1, "col": 3, "row": 1}], surv), "缺殘兵就不算完整")
+	g.daily_spec = {"seed": 1}
+	g._wave_start()
+	ok(g.daily_spec.is_empty() and g.wv_lock.is_empty(), "開車輪戰會清掉每日挑戰與舊殘兵")
+	g.free()
+

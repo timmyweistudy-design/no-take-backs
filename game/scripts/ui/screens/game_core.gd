@@ -853,4 +853,4 @@ const AI_TPL_EN := {"均衡軍": "Balanced Host", "鐵壁弓陣": "Shield & Bow 
 	"吸塵爆破": "Vacuum Blast", "石魔要塞": "Golem Fortress", "混編傭兵": "Mixed Mercs", "陷阱弓陣": "Trap & Bow", "羊群衝鋒": "Sheep Stampede"}
 
 static func ai_tpl_name(zh: String) -> String:
-	return zh if L.lang == "zh_TW" else str(AI_TPL_EN.get(zh, zh))
+	return str(L.pick(zh, AI_TPL_EN.get(zh, zh)))

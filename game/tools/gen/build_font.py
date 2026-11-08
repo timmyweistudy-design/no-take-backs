@@ -8,15 +8,10 @@ from fontTools import subset
 
 src = sys.argv[1]
 root = os.path.join(os.path.dirname(__file__), "..", "..")
-chars = set()
-for pat in ["data/*.csv", "data/*.json", "data/*.txt", "scripts/**/*.gd"]:
-    for f in glob.glob(os.path.join(root, pat), recursive=True):
-        txt = open(f, encoding="utf-8").read()
-        # V9：程式碼只算字串常值，註解的字不必進字型
-        chars.update("".join(re.findall(r'"(?:[^"\\\n]|\\.)*"', txt)) if f.endswith(".gd") else txt)
-chars.update(chr(c) for c in range(0x20, 0x7F))
-chars.update("★☆✓✗✦●◆■□｜・…×％（）：，。！？「」、")
-text = "".join(sorted(c for c in chars if c.isprintable()))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fontchars
+# V1.4 #17：繁中字型只收繁中＋英文用到的字；簡中、日文各有自己的子集（下面）
+text = fontchars.base_text(root)
 os.makedirs(os.path.join(root, "fonts"), exist_ok=True)
 # V1.2 A1：介面字型換成「Fredoka（英數，主字型）＋源泉圓體 TW（中文，後備）」。都是 SIL OFL 1.1。
 # 子集化屬於修改，內部名稱改成 NTB Rounded／NTB Latin（源泉的保留名稱是 'Source'，Fredoka 沒有保留名稱，仍一併改名）。
@@ -50,6 +45,26 @@ for w, src_name in [("R", "GenSenRounded2TW-R.otf"), ("B", "GenSenRounded2TW-B.o
     _rename(font, "NTB Rounded", "Bold" if w == "B" else "Regular")
     subset.save_font(font, out, opts)
     print("NTBRounded", w, os.path.getsize(out) // 1024, "KB")
+
+for tag, col, suf, files in [("SC", "zh_CN", "sc", [("R", "ResourceHanRoundedCN-Regular.ttf"), ("B", "ResourceHanRoundedCN-Bold.ttf")]),
+                             ("JP", "ja", "ja", [("R", "GenSenRounded2JP-R.otf"), ("B", "GenSenRounded2JP-B.otf")])]:
+    lt = fontchars.lang_text(root, col)
+    for w, src_name in files:
+        fp = os.path.join(src, src_name)
+        if not os.path.exists(fp):
+            print("（沒有", src_name, "，略過）")
+            continue
+        out = os.path.join(root, "fonts", f"NTBRounded{tag}-{w}-sub.otf")
+        opts = subset.Options()
+        opts.layout_features = ["*"]
+        opts.name_IDs = ["*"]
+        sub = subset.Subsetter(opts)
+        font = subset.load_font(fp, opts)
+        sub.populate(text=lt)
+        sub.subset(font)
+        _rename(font, "NTB Rounded " + tag, "Bold" if w == "B" else "Regular")
+        subset.save_font(font, out, opts)
+        print("NTBRounded" + tag, w, len(lt), "字", os.path.getsize(out) // 1024, "KB")
 
 fr = os.path.join(src, "Fredoka.ttf")
 if os.path.exists(fr):

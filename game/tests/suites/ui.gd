@@ -976,3 +976,27 @@ func test_nemesis_v140() -> void:
 	ok(na.units.size() == 3 and int(na.units[2]["type"]) == 5, "宿敵多帶一隻最貴的兵（長槍兵）", str(na.units))
 	SV.data["nemeses"] = keep
 	g.free()
+
+
+## V1.4 #17 簡中、日文：每個鍵都有字、參數一致；資料欄位、成就名、AI 陣型名都走得到；日文禁則。
+func test_l10n_v140() -> void:
+	var L0 = load("res://scripts/game/strings.gd")
+	var ST = load("res://scripts/game/steam.gd")
+	var CX = load("res://scripts/game/codex.gd")
+	var keep: String = L0.lang
+	ok(L0.LANGS.has("zh_CN") and L0.LANGS.has("ja"), "語言清單有簡中、日文")
+	var empty: Array = []
+	for l in ["zh_CN", "ja"]:
+		L0.lang = l
+		for k in L0.keys():
+			if str(L0._table[k].get(l, "")) == "":
+				empty.append(l + ":" + k)
+	ok(empty.is_empty(), "簡中、日文每個鍵都有字", str(empty.slice(0, 5)))
+	L0.lang = "zh_CN"
+	ok(L0.t("menu_playroom") == "游戏间", "簡中是簡體字", L0.t("menu_playroom"))
+	L0.lang = "ja"
+	ok(ST.name_of("FIRST_WIN", "ja") != ST.ACHIEVEMENTS["FIRST_WIN"][1], "成就名有日文", ST.name_of("FIRST_WIN", "ja"))
+	ok(L0.field({"zh": "甲", "en": "A", "ja": "あ"}, "") == "あ" and L0.field({"zh": "甲", "en": "A"}, "") == "A", "資料欄位：有日文用日文，沒有退回英文")
+	ok(CX.text({"role_zh": "前排", "role_en": "Front", "role_ja": "前衛"}, "role", "ja") == "前衛", "圖鑑文字走語言後綴")
+	L0.lang = keep
+
