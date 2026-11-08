@@ -257,9 +257,17 @@ static func sanitize_data(out: Dictionary) -> void:
 	var wr = out.get("weekly", {})
 	var wr2 := {}
 	if wr is Dictionary:
-		for k in ["wk", "best", "tries"]:
+		for k in ["wk", "best", "tries", "pend"]:
 			var v = wr.get(k, 0)
 			wr2[k] = clampi(int(v), -1, 100000000) if (v is int or v is float) else 0
+		var det = wr.get("det", [])
+		var det2: Array = []
+		if det is Array and det.size() <= 62:
+			for v2 in det:
+				if v2 is int or v2 is float:
+					det2.append(int(v2))
+		wr2["det"] = det2   # 每週最佳的陣型（補送排行榜用）
+		wr2["pend"] = 1 if int(wr2["pend"]) == 1 else 0
 	out["weekly"] = wr2
 
 ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
@@ -303,6 +311,7 @@ static func sanitize_run(g) -> Dictionary:
 			o[str(k2)] = int(v2)
 		if o.has("st") and (int(o["st"]) < 1 or int(o["st"]) > 6):
 			o.erase("st")   # V1.4 #9 貼紙只收 1～6
+		o.erase("boss")   # V1.4 #12：玩家陣型不會有巨獸（Codex v140-i5）
 		prev.append(o)
 	out["prev"] = prev
 	# V1.1 D1：遠征路線的「下一戰敵方」事件。可有可無（舊續局沒有＝0），超出範圍歸 0

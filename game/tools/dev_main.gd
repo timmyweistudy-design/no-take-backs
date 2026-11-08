@@ -1429,6 +1429,35 @@ func _shots_v13() -> void:
 	for i in 140:
 		_sim_step(true)
 	await _snap("87_battle_terrain.png")
+	# V1.4 #10 沙盤機關：崩塌礦坑擺陣頁（倒數牌）＋戰鬥到崩塌之後；#9 貼紙、#12 巨獸
+	rules = RuleSet.standard()
+	rules.map_id = MapDefs.QUARRY
+	challenge_army = null
+	_start_mode(Mode.VS_AI)
+	var qa: Dictionary = AI.build(0, 100, _shot_rng(41), -1, -1, rules)
+	armies[0].units = qa["army"].units.duplicate(true)
+	for k in mini(3, armies[0].units.size()):
+		armies[0].units[k]["st"] = [1, 3, 5][k]
+	_build_ai()
+	await _snap("87b_quarry_place.png")
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	while view.tick < 430 and not sim.finished:
+		_sim_step(true)
+	await _snap("87c_quarry_battle.png")
+	rules = RuleSet.standard()
+	var be = AI.build(1, 108, _shot_rng(42))["army"]
+	add_boss(be)
+	challenge_army = be
+	_start_mode(Mode.VS_AI)
+	challenge_army = be
+	armies[0].units = AI.build(0, 100, _shot_rng(43))["army"].units.duplicate(true)
+	_build_ai()
+	_begin_battle(armies[0].copy(), armies[1].copy())
+	for i in 260:
+		_sim_step(true)
+	await _snap("87d_boss_battle.png")
+	challenge_army = null
+	rules = RuleSet.standard()
 	puzzle_id = "g4"
 	_start_mode(Mode.PUZZLE)
 	_apply_best()
@@ -1495,3 +1524,10 @@ func _shots_v13() -> void:
 	await _snap("97_place_flawless.png")
 	_go_title()
 	Save.data["puzzle_stars"] = {}
+
+
+func _shot_rng(sd: int) -> RandomNumberGenerator:
+	var r := RandomNumberGenerator.new()
+	r.seed = sd
+	return r
+

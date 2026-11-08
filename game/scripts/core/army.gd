@@ -26,6 +26,7 @@ var units: Array = []    # 每筆 {"type", "col", "row"}
 var pool := (1 << D.COUNT) - 1   # 可用兵種遮罩
 var unit_cap := MAX_UNITS
 var type_cap := 0                # 單種上限，0＝不限
+var allow_boss := false          # V1.4 #12：只有看重播的對戰碼（紅方）可以帶巨獸；一般陣型碼、挑戰碼不行（Codex、Antigravity v140-i5）
 var guard_combat := false        # 防卡死：還沒擺戰鬥兵時，不准擺到買不起戰鬥兵（只有玩家擺放與 AI 用，載入舊代碼不開）
 # 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
 # 自由部署的 units 每筆是 {"type", "x", "y"}（世界座標、量化到 50）；格子部署照舊 {"type", "col", "row"}。
@@ -384,6 +385,7 @@ func has_stickers() -> bool:
 
 func copy():
 	var a = get_script().new(team, budget)
+	a.allow_boss = allow_boss
 	a.units = units.duplicate(true)
 	_copy_limits(a)
 	return a
@@ -397,7 +399,11 @@ func mirrored():
 		a.enemy_pos.append(Vector2i(fw - e.x, e.y))
 	for u in units:
 		if u.has("x"):
-			a.units.append({"type": u["type"], "x": fw - int(u["x"]), "y": u["y"]})
+			var fu := {"type": u["type"], "x": fw - int(u["x"]), "y": u["y"]}
+			for k in ["st", "boss"]:
+				if u.has(k):
+					fu[k] = u[k]   # V1.4：貼紙、巨獸跟著鏡像（Codex v140-i5）
+			a.units.append(fu)
 		else:
 			var mu := {"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]}
 			if u.has("st"):
@@ -563,8 +569,11 @@ func load_code6(code: String) -> String:
 				return "內容不合法"
 			var cc: int = b[o + 1] if team == 0 else COLS - 1 - b[o + 1]
 			if bossb:
-				# V1.4 #12 巨獸不佔預算與隻數（遠征終點加送的），只檢查格子
-				if b[o + 2] > 8 or tmp.index_at(cc, b[o + 2]) != -1:
+				# V1.4 #12 巨獸不佔預算與隻數（遠征終點加送的），只檢查格子；只收一隻、只在允許的情境
+				var nb := 0
+				for uu in tmp.units:
+					nb += int(uu.get("boss", 0))
+				if not allow_boss or team != 1 or nb > 0 or b[o + 2] > 8 or not in_zone(cc, b[o + 2]) or tmp.index_at(cc, b[o + 2]) != -1:
 					return "內容不合法"
 				tmp.units.append({"type": t, "col": cc, "row": int(b[o + 2])})
 			elif not tmp.place(t, cc, b[o + 2]):

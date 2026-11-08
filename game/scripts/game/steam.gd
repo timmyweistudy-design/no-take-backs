@@ -148,61 +148,84 @@ static func pack_army(units: Array) -> PackedInt32Array:
 	return out
 
 static func unpack_army(d: PackedInt32Array) -> Array:
+	# 網路上來的資料不可信：版本、長度、兵種、格子範圍、重複格都要對（Codex、Antigravity v140-i5）
 	var out: Array = []
-	if d.size() < 2 or d[0] != LB_VER or d[1] != d.size() - 2:
+	if d.size() < 3 or d.size() > 62 or d[0] != LB_VER or d[1] != d.size() - 2:
 		return out
+	var seen := {}
 	for i in range(2, d.size()):
 		var v := int(d[i])
+		if v < 0:
+			return []
 		var t := v / 10000
 		var c := (v / 100) % 100
 		var r := v % 100
-		if t < 0 or t >= 40 or c < 0 or c >= 32 or r < 0 or r >= 16:
-			return []
+		if t >= 20 or c < 10 or c > 15 or r > 8 or seen.has(c * 100 + r):
+			return []   # 幽靈陣一律是紅方（欄 10～15）
+		seen[c * 100 + r] = true
 		out.append({"type": t, "col": c, "row": r})
 	return out
 
-static var _lb_pending := {}   # 排行榜名稱 → 等找到 handle 後要送的 [分數, details]
+## ── 請求管理：同一時間可能同時有「上傳每週成績」與「抓幽靈陣」，用排行榜名稱與 handle 對回自己的請求 ──
+static var _lb_up := {}      # 名稱 → [分數, details]
+static var _lb_get := {}     # 名稱 → done
+static var _lb_dl := {}      # handle → done
+static var _lb_wired := false
 
-static func weekly_upload(wk: int, score: int, army) -> void:
-	if _steam == null or not _steam.has_method("findOrCreateLeaderboard"):
+static func _wire() -> void:
+	if _lb_wired or _steam == null:
 		return
-	var det := pack_army(army.units)
+	_lb_wired = true
+	_steam.connect("leaderboard_find_result", _on_lb_found)
+	_steam.connect("leaderboard_scores_downloaded", _on_lb_downloaded)
+	_steam.connect("leaderboard_score_uploaded", _on_lb_uploaded)
+
+static func weekly_upload(wk: int, score: int, det: PackedInt32Array) -> void:
+	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
+		return   # 沒有陣型資料（自由排兵）就不送，免得蓋掉原本帶陣型的紀錄
+	_wire()
 	var name := "weekly_%d" % wk
-	_lb_pending[name] = [score, det]
-	if not _steam.is_connected("leaderboard_find_result", _on_lb_found):
-		_steam.connect("leaderboard_find_result", _on_lb_found)
+	_lb_up[name] = [score, det]
 	_steam.findOrCreateLeaderboard(name, 1, 1)   # 1＝分數越小越前面、1＝顯示數字
 
-static func _on_lb_found(handle: int, found: int) -> void:
-	if found == 0 or _steam == null:
-		return
-	var name := str(_steam.getLeaderboardName(handle)) if _steam.has_method("getLeaderboardName") else ""
-	if not _lb_pending.has(name):
-		return
-	var p: Array = _lb_pending[name]
-	_lb_pending.erase(name)
-	_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
-
-## 抓這週排行榜前 20 名的陣（給遊戲間的「玩家幽靈」用）。done(armies: Array)；沒有 Steam 直接回空陣列。
 static func ghost_fetch(wk: int, done: Callable) -> void:
 	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
 		done.call([])
 		return
-	_steam.setLeaderboardDetailsMax(64)
+	_wire()
+	if _steam.has_method("set_leaderboard_details_max"):
+		_steam.set_leaderboard_details_max(64)   # 隨附的 GodotSteam 是這個名字（Codex v140-i5 對過 .so）
 	var name := "weekly_%d" % wk
-	var on_found := func(handle: int, found: int) -> void:
-		if found == 0:
-			done.call([])
-			return
-		var on_dl := func(_msg, _h, result: Array) -> void:
-			var out: Array = []
-			for e in result:
-				var units := unpack_army(PackedInt32Array(e.get("details", [])))
-				if not units.is_empty():
-					out.append({"name": str(e.get("steam_id", "")), "units": units})
-			done.call(out)
-		_steam.connect("leaderboard_scores_downloaded", on_dl, CONNECT_ONE_SHOT)
-		_steam.downloadLeaderboardEntries(0, 19, 0, handle)
-	_steam.connect("leaderboard_find_result", on_found, CONNECT_ONE_SHOT)
+	_lb_get[name] = done
 	_steam.findLeaderboard(name)
+
+static func _on_lb_found(handle: int, found: int) -> void:
+	if _steam == null:
+		return
+	var name := str(_steam.getLeaderboardName(handle)) if found != 0 else ""
+	if _lb_up.has(name):
+		var p: Array = _lb_up[name]
+		_lb_up.erase(name)
+		_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
+	if _lb_get.has(name):
+		_lb_dl[handle] = _lb_get[name]
+		_lb_get.erase(name)
+		_steam.downloadLeaderboardEntries(1, 20, 0, handle)   # 全球前 20 名（名次從 1 開始）
+
+static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
+	if not _lb_dl.has(handle):
+		return
+	var done: Callable = _lb_dl[handle]
+	_lb_dl.erase(handle)
+	var out: Array = []
+	for e in result:
+		var units := unpack_army(PackedInt32Array(e.get("details", [])))
+		if not units.is_empty():
+			out.append({"name": str(e.get("steam_id", "")), "units": units})
+	done.call(out)
+
+static func _on_lb_uploaded(success: bool, _handle: int, _this_score: Dictionary) -> void:
+	if success and Save.data.has("weekly"):
+		Save.data["weekly"]["pend"] = 0   # 送上去了：不用補送
+		Save.save_data()
 

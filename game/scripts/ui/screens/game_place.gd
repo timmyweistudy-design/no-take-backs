@@ -540,6 +540,8 @@ func _load_checked(code: String) -> String:
 	for u in tmp.units:
 		if not _allowed(int(u["type"])):
 			return "locked"
+		u.erase("st")     # V1.4 #9 #12：貼紙只在遠征裡貼，貼上陣型碼不帶進來（Codex v140-i5）
+		u.erase("boss")
 	armies[0].units = tmp.units
 	fp_sel = []
 	return ""
@@ -818,7 +820,7 @@ func _draw_plan_timeline(R: Rect2) -> void:
 		var x: float = x_of.call(sec * 20)
 		var big := sec % 5 == 0
 		draw_line(Vector2(x, ruler.end.y - (14 if big else 7)), Vector2(x, ruler.end.y), Color(INK, 0.75 if big else 0.4), 1.6 if big else 1.0, true)
-		if big:
+		if big and sec > 0 and sec * 20 < goal:   # 兩端的 0s、最後一秒不寫（會壓到紙邊；版面檢查）
 			_text(Vector2(x, ruler.end.y + 4), "%ds" % sec, tz("C"), INK, true, false, 60)
 	_ink_mode = false
 	# 冷卻淡帶

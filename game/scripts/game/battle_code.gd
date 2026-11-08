@@ -89,6 +89,7 @@ static func decode(code: String) -> Dictionary:
 			return {"ok": false, "why": "budget"}
 		for pair in [[a0, 0], [a1, 1]]:
 			pair[0].apply_rules(rules, pair[1])
+	a1.allow_boss = true   # V1.4 #12：重播遠征終點要能帶巨獸（只看不算，不進戰績）
 	if a0.load_code(str(j["a"])) != "" or a1.load_code(str(j["b"])) != "":
 		return {"ok": false, "why": "army"}
 	var full_duel: bool = rules != null and rules.is_free() and rules.fullfield == RSET.FULL_DUEL

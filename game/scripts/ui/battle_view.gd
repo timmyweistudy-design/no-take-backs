@@ -182,8 +182,8 @@ func _sim_step(with_fx: bool) -> void:
 	var deaths := 0
 	for ev in view.events:
 		var k: String = ev["kind"]
-		if ev.has("src"):
-			var s = view.unit_by_id(ev["src"])
+		var s = view.unit_by_id(ev["src"]) if ev.has("src") else null
+		if s != null:   # V1.4 #10：沙盤機關的事件沒有來源單位（src＝-1）
 			var key := "%s%d" % [k, s.team]
 			ev_count[key] = int(ev_count.get(key, 0)) + 1
 			if k == EV.BLAST and not ev.has("dmg"):   # 第八輪：爆炸演出一筆一次；逐目標傷害不算次數（BOOM_5）

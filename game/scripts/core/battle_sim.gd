@@ -275,18 +275,18 @@ func _init(army0, army1, p_rules = null) -> void:
 	_hash.update((D.digest_v8() if v8 else D.data_digest()).to_utf8_buffer())
 	if not legacy:
 		_hash.update(rules.sim_digest().to_utf8_buffer())
+	elif free:
+		_hash.update("free".to_utf8_buffer())   # 自由陣型但沒給規則（工具）：仍和格子陣型區分
+	# V1.4 #9 #12：有貼紙或巨獸才多這兩段（獨立分支，不能接在上面的 elif 鏈裡：Codex v140-i5 抓到會改到舊自由陣型的雜湊）
 	if has_boss:
-		_hash.update("boss".to_utf8_buffer())   # V1.4 #12：有巨獸才多這段
+		_hash.update("boss".to_utf8_buffer())
 	if has_st:
-		# V1.4 #9：有貼紙才多這段（沒貼紙的對局雜湊位元組和以前一樣）
 		var sb := PackedInt64Array()
 		for u in units:
 			sb.append(u.id)
 			sb.append(u.st)
 		_hash.update("st".to_utf8_buffer())
 		_hash.update(sb.to_byte_array())
-	elif free:
-		_hash.update("free".to_utf8_buffer())   # 自由陣型但沒給規則（工具）：仍和格子陣型區分
 	var cmb := [0, 0]
 	for u in units:
 		if u.alive and D.is_combat(u.type):
@@ -801,8 +801,6 @@ func step() -> void:
 	last_hit.resize(n)
 	last_hit.fill(-1)
 	var per_pair := {}   # (目標, 攻擊者) → 這一 tick 的傷害
-	if has_boss:
-		_boss_parts(hits)   # V1.4 #12：打在巨獸身上的先分給背甲、前臂
 	for h in hits:
 		dmg_in[h[1]] += h[2]
 		units[h[0]].dmg_dealt += h[2]
@@ -810,6 +808,8 @@ func step() -> void:
 		var key: int = h[1] * 4096 + h[0]
 		per_pair[key] = int(per_pair.get(key, 0)) + h[2]
 		events.append({"src": units[h[0]].id, "tgt": units[h[1]].id, "dmg": h[2], "kind": h[3], "tags": h[4]})
+	if has_boss:
+		_boss_parts(n, hits, dmg_in)   # V1.4 #12：用這一 tick 打在巨獸身上的總量分給背甲、前臂（和 hits 順序無關）
 	# 擊殺歸屬：傷害最高者；同傷害比列小、再比離自己底線近（只用鏡像不變的鍵）
 	var best_d := PackedInt64Array()
 	best_d.resize(n)
@@ -920,6 +920,8 @@ func step() -> void:
 		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
 			u.charge = 0
 	_apply_heals(heals)
+	if not fire_until.is_empty():
+		_ev_fire(n)   # V1.4 #10：火牆在倒下判定前扣，燒到 0 的這一 tick 就倒（不會帶著 0 血再出手）
 	var st_blasts: Array = []
 	for i in n:
 		var u := units[i]
@@ -933,17 +935,35 @@ func step() -> void:
 				_v8_on_death(i, last_hit[i])
 			if u.st == STK.BLAST:
 				st_blasts.append(i)
-	# V1.4 #9 倒下自爆：全部倒下判定完才一起炸（不受索引順序影響，左右鏡像一致）；炸到的人下一 tick 才判定倒下
-	for bi in st_blasts:
-		var b: Unit = units[bi]
-		events.append({"kind": EV.BLAST, "src": b.id, "tgt": b.id, "tags": [EV.BLAST], "small": true})
-		for j in n:
-			var e := units[j]
-			if not e.alive or e.team == b.team or M.dist2(b.x, b.y, e.x, e.y) > STK.BLAST_R * STK.BLAST_R:
-				continue
-			e.hp -= STK.BLAST_DMG
-			e.dmg_taken += STK.BLAST_DMG
-			b.dmg_dealt += STK.BLAST_DMG
+	# V1.4 #9 倒下自爆：一輪倒下的全部一起炸（不受索引順序影響，左右鏡像一致），炸死的同一 tick 再判定一輪（連鎖最多 4 輪）
+	var rounds := 0
+	while not st_blasts.is_empty() and rounds < 4:
+		rounds += 1
+		for bi in st_blasts:
+			var b: Unit = units[bi]
+			events.append({"kind": EV.BLAST, "src": b.id, "tgt": b.id, "tags": [EV.BLAST], "small": true})
+			for j in n:
+				var e := units[j]
+				if not e.alive or e.team == b.team or M.dist2(b.x, b.y, e.x, e.y) > STK.BLAST_R * STK.BLAST_R:
+					continue
+				if e.ward:
+					e.ward = false   # 護符擋下這次（Codex v140-i5：新傷害也照護符規則）
+					continue
+				e.hp -= STK.BLAST_DMG
+				e.dmg_taken += STK.BLAST_DMG
+				b.dmg_dealt += STK.BLAST_DMG
+		var nxt: Array = []
+		for i in n:
+			var u := units[i]
+			if u.alive and u.hp <= 0:
+				u.alive = false
+				u.hp = 0
+				events.append({"kind": EV.DEATH, "id": u.id})
+				if v8:
+					_v8_on_death(i, -1)
+				if u.st == STK.BLAST:
+					nxt.append(i)
+		st_blasts = nxt
 	if v8:
 		_v8_post_tick(raises)
 
@@ -2130,10 +2150,10 @@ func _ev_tick(n: int) -> void:
 						var p: Vector2i = terrain.free_near(u.x, u.y, u.team)
 						u.x = p.x
 						u.y = p.y
-				events.append({"kind": "collapse", "src": -1, "tgt": -1, "tags": ["collapse"], "rect": rc})
+				events.append({"kind": "collapse", "tags": ["collapse"], "rect": rc})
 			"fire":
 				fire_until.append([rc, tick + int(e["d"])])
-				events.append({"kind": "fire", "src": -1, "tgt": -1, "tags": ["fire"], "rect": rc})
+				events.append({"kind": "fire", "tags": ["fire"], "rect": rc})
 			"push":
 				for i in n:
 					var u := units[i]
@@ -2143,9 +2163,11 @@ func _ev_tick(n: int) -> void:
 					var nx: int = clampi(u.x + dirx * MapDefs.PUSH, EDGE, fw - EDGE)
 					if not terrain.blocked(nx, u.y, u.team):
 						u.x = nx
-				events.append({"kind": "push", "src": -1, "tgt": -1, "tags": ["push"], "rect": rc})
-	if fire_until.is_empty():
-		return
+				events.append({"kind": "push", "tags": ["push"], "rect": rc})
+
+
+## 火牆扣血（在倒下判定前呼叫）。
+func _ev_fire(n: int) -> void:
 	var keep: Array = []
 	for f in fire_until:
 		if tick > int(f[1]):
@@ -2156,30 +2178,40 @@ func _ev_tick(n: int) -> void:
 		for i in n:
 			var u := units[i]
 			if u.alive and not u.dormant and terrain.in_rect(u.x, u.y, f[0]):
+				if u.ward:
+					u.ward = false
+					continue
 				u.hp -= MapDefs.FIRE_DMG
 				u.dmg_taken += MapDefs.FIRE_DMG
 	fire_until = keep
 
 
-## V1.4 #12：打在巨獸身上的傷害先分給部位。背甲還在：每筆 40% 打在背甲；前臂還在：近戰打來的剩下一半打在前臂。
-## 部位扣光時發事件（畫面喊「前臂斷了」「背甲碎了」）。照 hits 的順序處理（hits 本身順序確定，左右鏡像時巨獸只會在一邊）。
-func _boss_parts(hits: Array) -> void:
+## V1.4 #12：巨獸部位分傷。只看這一 tick 的總傷害與其中近戰的總量（整數），所以和 hits 的順序無關、左右鏡像一致（Codex v140-i5）。
+## 背甲還在：總量的 PLATE_ABSORB% 打在背甲；前臂還在：剩下的傷害裡，近戰那一份的 ARM_SHARE% 打在前臂。部位扣光發事件。
+func _boss_parts(n: int, hits: Array, dmg_in: PackedInt64Array) -> void:
+	var melee := PackedInt64Array()
+	melee.resize(n)
 	for h in hits:
-		var tg: Unit = units[h[1]]
-		if not tg.boss or int(h[2]) <= 0:
+		if units[h[1]].boss and D.is_melee(units[h[0]].type):
+			melee[h[1]] += int(h[2])
+	for i in n:
+		var tg := units[i]
+		if not tg.boss or dmg_in[i] <= 0:
 			continue
-		var d: int = h[2]
+		var total: int = dmg_in[i]
+		var d := total
 		if tg.plate_hp > 0:
-			var a: int = mini(tg.plate_hp, d * BOSS.PLATE_ABSORB / 100)
+			var a: int = mini(tg.plate_hp, total * BOSS.PLATE_ABSORB / 100)
 			tg.plate_hp -= a
 			d -= a
 			if tg.plate_hp == 0:
 				events.append({"kind": "boss_plate", "src": tg.id, "tgt": tg.id, "tags": ["boss_plate"]})
-		if tg.arm_hp > 0 and D.is_melee(units[h[0]].type):
-			var b: int = mini(tg.arm_hp, d * BOSS.ARM_SHARE / 100)
+		if tg.arm_hp > 0 and melee[i] > 0:
+			var b: int = mini(tg.arm_hp, melee[i] * d / total * BOSS.ARM_SHARE / 100)
 			tg.arm_hp -= b
 			d -= b
 			if tg.arm_hp == 0:
 				events.append({"kind": "boss_arm", "src": tg.id, "tgt": tg.id, "tags": ["boss_arm"]})
-		h[2] = d
+		tg.dmg_taken -= total - d   # 部位擋下的不算本體承傷
+		dmg_in[i] = d
 

@@ -480,9 +480,14 @@ func test_boss_v140() -> void:
 		nb += int(u.get("boss", 0))
 	ok(nb == 1, "敵陣多一隻巨獸")
 	var code: String = e.to_code()
-	var e2 = e.copy()
-	e2.units = []
-	ok(e2.load_code(code) == "" and e2.units == e.units, "巨獸陣型代碼往返", code)
+	var Army0 = load("res://scripts/core/army.gd")
+	var e2 = Army0.new(1, e.budget)
+	ok(e2.load_code(code) != "", "一般陣型碼不能帶巨獸（不是重播）")
+	e2.allow_boss = true
+	ok(e2.load_code(code) == "" and e2.units == e.units, "重播用的對戰碼可以帶一隻巨獸、往返一致", code)
+	var BC = load("res://scripts/game/battle_code.gd")
+	var bc: String = BC.encode(AI0.build(0, 100, rng)["army"], e, null)
+	ok(bool(BC.decode(bc)["ok"]), "遠征終點的對戰碼解得開（看重播）")
 	var wins := 0
 	var arm_broke := 0
 	var plate_broke := 0
@@ -513,4 +518,35 @@ func test_boss_v140() -> void:
 	var sm = Sim0.new(e.mirrored(), a.mirrored())
 	sm.run_to_end()
 	ok(sm.tick == s1.tick and (sm.winner == -1 if s1.winner == -1 else sm.winner == 1 - s1.winner), "巨獸左右鏡像", "%d/%d %d/%d" % [s1.winner, sm.winner, s1.tick, sm.tick])
+
+
+## V1.4 審查（Codex v140-i5）：舊版就有的幾種對局（自由排兵＋規則、地形、手動技能、奇幻軍）指紋和加貼紙／機關／巨獸之前一模一樣。
+func test_golden_v140() -> void:
+	var g = JSON.parse_string(FileAccess.get_file_as_string("res://tests/golden/v140_cases.json"))
+	var Sim0 = load("res://scripts/core/battle_sim.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var bad: Array = []
+	for c in g["cases"]:
+		var k: int = int(c[0])
+		var r = RS0.standard()
+		match k % 4:
+			0:
+				r.deploy = "free"
+			1:
+				r.map_id = 1 + (k / 4) % 5
+			2:
+				r.cmd_mask = [15, 15]
+			3:
+				r.pool = [RS0.full_pool(), RS0.full_pool()]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 31000 + k
+		var p0: int = RS0.full_pool() if k % 4 == 3 else -1
+		var a0 = AI0.build(0, 100, rng, -1, p0, r)["army"]
+		var a1 = AI0.build(1, 100, rng, -1, p0, r)["army"]
+		var s = Sim0.new(a0, a1, r)
+		s.run_to_end()
+		if s.fingerprint != str(c[3]) or s.winner != int(c[1]) or s.tick != int(c[2]):
+			bad.append(k)
+	ok(bad.is_empty() and g["cases"].size() == 16, "舊版對局（自由＋規則、地形、技能、奇幻）指紋不變", str(bad))
 

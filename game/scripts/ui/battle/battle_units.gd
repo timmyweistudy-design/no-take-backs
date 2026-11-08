@@ -367,7 +367,7 @@ func _draw_map_events() -> void:
 						# 碎石：深色底＋幾顆石頭（位置只看格子編號，固定）
 						draw_rect(R, Color(0.24, 0.19, 0.15, 0.92))
 						for k in 7:
-							var sp := R.position + Vector2(fposmod(k * 37.0 + side * 11.0, R.size.x - 12.0) + 6.0, fposmod(k * 23.0 + 5.0, R.size.y - 12.0) + 6.0)
+							var sp := R.position + Vector2(fposmod(k * 37.0 + side * 11.0, maxf(1.0, R.size.x - 12.0)) + 6.0, fposmod(k * 23.0 + 5.0, maxf(1.0, R.size.y - 12.0)) + 6.0)
 							draw_circle(sp, 5.0 + (k % 3) * 2.0, Color(0.42, 0.35, 0.28), true, -1.0, true)
 							draw_circle(sp - Vector2(1.5, 1.5), 2.0, Color(0.6, 0.52, 0.42, 0.7), true, -1.0, true)
 					else:

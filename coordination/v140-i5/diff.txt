@@ -1,0 +1,1657 @@
+diff --git a/game/scripts/core/army.gd b/game/scripts/core/army.gd
+index dba0f5d..7e0277f 100644
+--- a/game/scripts/core/army.gd
++++ b/game/scripts/core/army.gd
+@@ -12,6 +12,7 @@ const E_NEAR_ENEMY := "離敵兵太近"
+ const E_CAP_PREFIX := "最多"
+ const E_TYPE_CAP_PREFIX := "這種兵最多"
+ const D = preload("res://scripts/core/unit_defs.gd")
++const STK = preload("res://scripts/core/sticker_defs.gd")
+ 
+ const COLS := 16
+ const ROWS := 9
+@@ -375,6 +376,12 @@ func can_afford_any() -> bool:
+ 		return left() >= cheapest_combat()
+ 	return left() >= cheapest_in_pool()
+ 
++func has_stickers() -> bool:
++	for u in units:
++		if int(u.get("st", 0)) != 0 or int(u.get("boss", 0)) == 1:
++			return true   # 貼紙或巨獸：都要 NTB6 才存得下
++	return false
++
+ func copy():
+ 	var a = get_script().new(team, budget)
+ 	a.units = units.duplicate(true)
+@@ -392,7 +399,12 @@ func mirrored():
+ 		if u.has("x"):
+ 			a.units.append({"type": u["type"], "x": fw - int(u["x"]), "y": u["y"]})
+ 		else:
+-			a.units.append({"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]})
++			var mu := {"type": u["type"], "col": COLS - 1 - u["col"], "row": u["row"]}
++			if u.has("st"):
++				mu["st"] = u["st"]   # V1.4 #9 貼紙跟著鏡像
++			if u.has("boss"):
++				mu["boss"] = u["boss"]
++			a.units.append(mu)
+ 	return a
+ 
+ ## 陣型代碼（優化方案 E3）：NTB1.<base64url>.<校驗 4 碼>。
+@@ -400,8 +412,8 @@ func mirrored():
+ const CODE_VERSION := 1
+ 
+ func to_code() -> String:
+-	if D.uses_new([self]):
+-		return to_code6()   # 第八輪：用到新兵才用新格式；只有舊兵時輸出不變，舊版還讀得懂
++	if D.uses_new([self]) or has_stickers():
++		return to_code6()   # V1.4 #9：有貼紙也走 NTB6（貼紙在每隻的第 4 個位元組）   # 第八輪：用到新兵才用新格式；只有舊兵時輸出不變，舊版還讀得懂
+ 	if deploy == "free":
+ 		return to_code5()
+ 	var b := PackedByteArray([CODE_VERSION, units.size()])
+@@ -511,7 +523,7 @@ func to_code6() -> String:
+ 		else:
+ 			b.append(int(u["col"]) if team == 0 else COLS - 1 - int(u["col"]))
+ 			b.append(int(u["row"]))
+-			b.append(0)
++			b.append((clampi(int(u.get("st", 0)), 0, 127)) | (128 if int(u.get("boss", 0)) == 1 else 0))   # V1.4 #12：最高位元＝巨獸
+ 	var body := Marshalls.raw_to_base64(b).replace("+", "-").replace("/", "_").replace("=", "")
+ 	return "NTB6.%s.%s" % [body, body.sha256_text().substr(0, 4)]
+ 
+@@ -545,10 +557,22 @@ func load_code6(code: String) -> String:
+ 			if not tmp.place_xy(t, own_x(((v >> 11) & 511) * QUANT), ((v >> 3) & 255) * QUANT):
+ 				return "超過預算、人數、部署區或離太近"
+ 		else:
+-			if b[o + 1] > 5 or b[o + 3] != 0:
++			var stb: int = b[o + 3] & 127
++			var bossb: bool = (b[o + 3] & 128) != 0
++			if b[o + 1] > 5 or (stb != 0 and not STK.valid(stb)) or (bossb and t != 19):
+ 				return "內容不合法"
+-			if not tmp.place(t, b[o + 1] if team == 0 else COLS - 1 - b[o + 1], b[o + 2]):
++			var cc: int = b[o + 1] if team == 0 else COLS - 1 - b[o + 1]
++			if bossb:
++				# V1.4 #12 巨獸不佔預算與隻數（遠征終點加送的），只檢查格子
++				if b[o + 2] > 8 or tmp.index_at(cc, b[o + 2]) != -1:
++					return "內容不合法"
++				tmp.units.append({"type": t, "col": cc, "row": int(b[o + 2])})
++			elif not tmp.place(t, cc, b[o + 2]):
+ 				return "超過預算、人數或格子重複"
++			if stb != 0:
++				tmp.units[tmp.units.size() - 1]["st"] = stb   # V1.4 #9 貼紙
++			if bossb:
++				tmp.units[tmp.units.size() - 1]["boss"] = 1   # V1.4 #12 巨獸
+ 	units = tmp.units
+ 	return ""
+ 
+diff --git a/game/scripts/core/battle_sim.gd b/game/scripts/core/battle_sim.gd
+index 312f4f3..3b600c3 100644
+--- a/game/scripts/core/battle_sim.gd
++++ b/game/scripts/core/battle_sim.gd
+@@ -11,6 +11,9 @@ const EV = preload("res://scripts/core/events.gd")
+ const F8 = preload("res://scripts/core/fantasy_defs.gd")
+ const M = preload("res://scripts/core/imath.gd")
+ const CMD = preload("res://scripts/core/cmd_defs.gd")
++const STK = preload("res://scripts/core/sticker_defs.gd")
++const MapDefs = preload("res://scripts/core/map_defs.gd")
++const BOSS = preload("res://scripts/core/boss_defs.gd")
+ 
+ const TPS := 20
+ const MAX_TICKS := D.MATCH_TICKS
+@@ -90,6 +93,12 @@ class Unit:
+ 	var pull_x := 0            # 被吸塵貓拉的每 tick 位移
+ 	var pull_y := 0
+ 	var pull_t := 0
++	var st := 0                # V1.4 #9 木座貼紙（0＝沒有）
++	var st_t := 0              # 開局衝鋒剩幾 tick
++	var ward := false          # 護符還在
++	var boss := false          # V1.4 #12 巨獸
++	var arm_hp := 0            # 前臂部位血量（0＝斷了，不再橫掃）
++	var plate_hp := 0          # 背甲部位血量（0＝碎了，不再分攤傷害）
+ 
+ var units: Array[Unit] = []    # 依 id 排序
+ var tick := 0
+@@ -118,9 +127,13 @@ var _last_rank := 99          # 上一次 _choose_target 選中目標的優先
+ var _was_stealth := {}         # 刺客上一 tick 是否潛行（現形事件用）
+ var _was_rally := [false, false]          # 上一 tick 哪一隊在背水（背水開／關事件用）
+ var v8 := false                # 這一場用到第八輪新兵
++var has_st := false            # V1.4 #9：有沒有任何一隻貼了貼紙
++var has_boss := false          # V1.4 #12：場上有巨獸
+ var fw := W                    # V9：場地大小（標準＝舊常數，舊場次完全相同）
+ var fh := H
+ var terrain = null             # V9：地形（null＝平原，舊路徑不碰）
++var map_ev: Array = []           # V1.4 #10：這張圖的定時機關（空＝沒有，舊路徑不碰）
++var fire_until: Array = []       # 正在燒的火牆：[矩形, 燒到第幾 tick]
+ var _nav_wp := {}              # V9：單位索引 → 導航途經點（每 4 tick 重算）
+ var zones: Array = []          # 碎石區：[x, y, 到期 tick]
+ var _pending_blast: Array = [] # 半路被打死、下一 tick 才炸的爆爆羊（索引）
+@@ -159,6 +172,9 @@ func _init(army0, army1, p_rules = null) -> void:
+ 		fw = rules.field_w()
+ 		fh = rules.field_h()
+ 		terrain = rules.terrain()
++		map_ev = MapDefs.events(rules.map_id) if not rules.map_is_default() else []
++		if not map_ev.is_empty() and terrain != null:
++			terrain = terrain.clone()   # 會崩塌：這一場自己一份地形，不改到共用快取
+ 		if rules.cmd_on():
+ 			cmd_on = true
+ 			cmd_mask = rules.cmd_mask.duplicate()
+@@ -217,6 +233,30 @@ func _init(army0, army1, p_rules = null) -> void:
+ 			n.max_hp = n.hp
+ 			n.atk = maxi(1, n.atk * int(pc[1]) / 100)
+ 			n.speed = maxi(1, n.speed * int(pc[2]) / 100)
++		var stv: int = int(u.get("st", 0))
++		if STK.valid(stv):
++			n.st = stv
++			has_st = true
++			match stv:
++				STK.CHARGE:
++					n.st_t = STK.CHARGE_TICKS
++				STK.WARD:
++					n.ward = true
++				STK.TOUGH:
++					n.hp = n.hp * STK.TOUGH_PCT / 100
++					n.max_hp = n.hp
++				STK.SWIFT:
++					n.cd_base = maxi(1, n.cd_base * STK.SWIFT_PCT / 100)
++		if int(u.get("boss", 0)) == 1 and n.type == F8.GOLEM:
++			n.boss = true
++			has_boss = true
++			n.hp *= BOSS.HP_MUL
++			n.max_hp = n.hp
++			n.atk *= BOSS.ATK_MUL
++			n.reach += BOSS.REACH_ADD
++			n.speed = n.speed * BOSS.SPEED_PCT / 100
++			n.arm_hp = n.max_hp * BOSS.ARM_PCT / 100
++			n.plate_hp = n.max_hp * BOSS.PART_PCT / 100
+ 		n.fx = 1000 if n.team == 0 else -1000
+ 		if n.type == D.ASSASSIN and not skill_off.has("stealth"):
+ 			n.stealth = D.STEALTH_TICKS
+@@ -235,6 +275,16 @@ func _init(army0, army1, p_rules = null) -> void:
+ 	_hash.update((D.digest_v8() if v8 else D.data_digest()).to_utf8_buffer())
+ 	if not legacy:
+ 		_hash.update(rules.sim_digest().to_utf8_buffer())
++	if has_boss:
++		_hash.update("boss".to_utf8_buffer())   # V1.4 #12：有巨獸才多這段
++	if has_st:
++		# V1.4 #9：有貼紙才多這段（沒貼紙的對局雜湊位元組和以前一樣）
++		var sb := PackedInt64Array()
++		for u in units:
++			sb.append(u.id)
++			sb.append(u.st)
++		_hash.update("st".to_utf8_buffer())
++		_hash.update(sb.to_byte_array())
+ 	elif free:
+ 		_hash.update("free".to_utf8_buffer())   # 自由陣型但沒給規則（工具）：仍和格子陣型區分
+ 	var cmb := [0, 0]
+@@ -295,6 +345,8 @@ func step() -> void:
+ 	var n := units.size()
+ 	if cmd_on:
+ 		_cmd_tick(n)
++	if not map_ev.is_empty():
++		_ev_tick(n)   # V1.4 #10 沙盤機關（在快照之前，這一 tick 大家看到的是同一個場面）
+ 
+ 	# ① 快照（之後的選目標、碰撞都只讀這些陣列）
+ 	var sx := PackedInt64Array()
+@@ -445,6 +497,8 @@ func step() -> void:
+ 			var dy := dest_y - u.y
+ 			var l := M.isqrt(dx * dx + dy * dy)
+ 			var spd := u.speed
++			if u.st_t > 0:
++				spd = spd * STK.CHARGE_PCT / 100   # V1.4 #9 開局衝鋒
+ 			if u.slow > 0:
+ 				spd = spd * D.SLOW_NUM / D.SLOW_DEN
+ 			spd = spd * u.zone / 100
+@@ -485,6 +539,7 @@ func step() -> void:
+ 		py.resize(n)
+ 		# V1.1 E4：依 x 排序後掃描，x 差 ≥ MIN_SEP 就停（原本這些配對一律跳過）。每對只算一次，而且仍以「索引小的當 i」
+ 		# 計算（零距離時的分開方向看 i、j 順序）；推力是整數加總、與配對順序無關，所以結果位元相同。
++		var scan := MIN_SEP + (BOSS.SEP_EXTRA * 2 if has_boss else 0)
+ 		var keys := PackedInt64Array()
+ 		keys.resize(na)
+ 		for a0 in na:
+@@ -496,17 +551,20 @@ func step() -> void:
+ 			var ia: int = ka & 4095
+ 			for b in range(a + 1, na):
+ 				var kb: int = keys[b]
+-				if (kb >> 12) - 1048576 - xa >= MIN_SEP:
++				if (kb >> 12) - 1048576 - xa >= scan:
+ 					break
+ 				var ib: int = kb & 4095
+ 				var i: int = mini(ia, ib)
+ 				var j: int = maxi(ia, ib)
++				var sep := MIN_SEP
++				if has_boss:
++					sep += (BOSS.SEP_EXTRA if units[i].boss else 0) + (BOSS.SEP_EXTRA if units[j].boss else 0)   # V1.4 #12 巨獸比較大
+ 				var dx := nx[j] - nx[i]
+ 				var dy := ny[j] - ny[i]
+-				if dx >= MIN_SEP or dx <= -MIN_SEP or dy >= MIN_SEP or dy <= -MIN_SEP:
++				if dx >= sep or dx <= -sep or dy >= sep or dy <= -sep:
+ 					continue
+ 				var d2 := dx * dx + dy * dy
+-				if d2 >= MIN_SEP * MIN_SEP:
++				if d2 >= sep * sep:
+ 					continue
+ 				var d := M.isqrt(d2)
+ 				var ux := 0
+@@ -520,7 +578,7 @@ func step() -> void:
+ 				else:
+ 					ux = dx * 1000 / d
+ 					uy = dy * 1000 / d
+-				var half := (MIN_SEP - d) / 2 + 1
++				var half := (sep - d) / 2 + 1
+ 				px[i] -= ux * half / 1000
+ 				py[i] -= uy * half / 1000
+ 				px[j] += ux * half / 1000
+@@ -719,6 +777,8 @@ func step() -> void:
+ 				dmg = dmg * F8.GHOST_MELEE_NUM / F8.GHOST_MELEE_DEN
+ 		if tags.is_empty():
+ 			tags.append(EV.HIT)
++		if u.st == STK.FROST:
++			slow_set[u.target] = true   # V1.4 #9 寒霜
+ 		hits.append([i, u.target, _vuln(tg, dmg), kind, tags])
+ 		attacked[i] = 1
+ 		u.cd += u.cd_base * 4
+@@ -741,6 +801,8 @@ func step() -> void:
+ 	last_hit.resize(n)
+ 	last_hit.fill(-1)
+ 	var per_pair := {}   # (目標, 攻擊者) → 這一 tick 的傷害
++	if has_boss:
++		_boss_parts(hits)   # V1.4 #12：打在巨獸身上的先分給背甲、前臂
+ 	for h in hits:
+ 		dmg_in[h[1]] += h[2]
+ 		units[h[0]].dmg_dealt += h[2]
+@@ -817,6 +879,12 @@ func step() -> void:
+ 		var u := units[i]
+ 		if not u.alive:
+ 			continue
++		if u.ward and dmg_in[i] > 0:
++			u.dmg_taken -= dmg_in[i]   # V1.4 #9 護符：第一次受傷整筆擋掉
++			dmg_in[i] = 0
++			u.ward = false
++		if u.st_t > 0:
++			u.st_t -= 1
+ 		if u.shield > 0:
+ 			var absorbed: int = mini(u.shield, dmg_in[i])
+ 			u.shield -= absorbed
+@@ -852,6 +920,7 @@ func step() -> void:
+ 		if u.type == D.CAVALRY and u.mx == 0 and u.my == 0 and attacked[i] == 0:
+ 			u.charge = 0
+ 	_apply_heals(heals)
++	var st_blasts: Array = []
+ 	for i in n:
+ 		var u := units[i]
+ 		if u.alive and u.hp <= 0:
+@@ -862,6 +931,19 @@ func step() -> void:
+ 			events.append({"kind": EV.DEATH, "id": u.id})
+ 			if v8:
+ 				_v8_on_death(i, last_hit[i])
++			if u.st == STK.BLAST:
++				st_blasts.append(i)
++	# V1.4 #9 倒下自爆：全部倒下判定完才一起炸（不受索引順序影響，左右鏡像一致）；炸到的人下一 tick 才判定倒下
++	for bi in st_blasts:
++		var b: Unit = units[bi]
++		events.append({"kind": EV.BLAST, "src": b.id, "tgt": b.id, "tags": [EV.BLAST], "small": true})
++		for j in n:
++			var e := units[j]
++			if not e.alive or e.team == b.team or M.dist2(b.x, b.y, e.x, e.y) > STK.BLAST_R * STK.BLAST_R:
++				continue
++			e.hp -= STK.BLAST_DMG
++			e.dmg_taken += STK.BLAST_DMG
++			b.dmg_dealt += STK.BLAST_DMG
+ 	if v8:
+ 		_v8_post_tick(raises)
+ 
+@@ -1180,7 +1262,9 @@ func _v8_skills(n: int, hits: Array, heals: Array, long_stun: Dictionary, knock2
+ 					u.skill_cd = F8.CAT_CD
+ 					_v8_cast(u, EV.VACUUM)
+ 			F8.GOLEM:
+-				if u.skill_cd == 0 and not skill_off.has("stomp") and _v8_enemy_in(i, n, F8.GOLEM_R):
++				if u.boss and u.arm_hp <= 0:
++					pass   # 前臂斷了：巨獸不能橫掃
++				elif u.skill_cd == 0 and not skill_off.has("stomp") and _v8_enemy_in(i, n, BOSS.SWEEP_R if u.boss else F8.GOLEM_R):
+ 					u.skill_cd = F8.GOLEM_CD
+ 					_v8_cast(u, EV.STOMP)
+ 	if not cats.is_empty():
+@@ -1242,9 +1326,10 @@ func _v8_fire(i: int, n: int, long_stun: Dictionary, knock2: Array, raises: Arra
+ 		F8.GOLEM:
+ 			for j in n:
+ 				var e2 := units[j]
+-				if not e2.alive or e2.team == u.team or e2.hidden or M.dist2(u.x, u.y, e2.x, e2.y) > F8.GOLEM_R * F8.GOLEM_R:
++				var gr: int = BOSS.SWEEP_R if u.boss else F8.GOLEM_R
++				if not e2.alive or e2.team == u.team or e2.hidden or M.dist2(u.x, u.y, e2.x, e2.y) > gr * gr:
+ 					continue
+-				hits.append([i, j, F8.GOLEM_STOMP * atk_pct[F8.GOLEM] / 100, EV.SPLASH, [EV.SPLASH]])   # 第十二輪：拍地有傷害
++				hits.append([i, j, F8.GOLEM_STOMP * atk_pct[F8.GOLEM] / 100 * (BOSS.SWEEP_MUL if u.boss else 1), EV.SPLASH, [EV.SPLASH]])   # 第十二輪：拍地有傷害；V1.4 巨獸橫掃
+ 				if e2.type != F8.GOLEM and e2.type != F8.SPORE:
+ 					knock2.append([j, e2.x - u.x, e2.y - u.y])
+ 			events.append({"kind": EV.STOMP, "src": u.id, "tags": [EV.STOMP]})
+@@ -2028,3 +2113,73 @@ func _t_pre_tick(n: int) -> void:
+ 			u.zone = mini(u.zone, pct)
+ 		elif pct > 100 and u.zone == 100:
+ 			u.zone = pct
++
++
++## ── V1.4 #10 沙盤機關（只有帶 events 的新地圖會走到）。全部用整數、左右鏡像（矩形本來就鏡像），依地圖資料順序處理。──
++func _ev_tick(n: int) -> void:
++	for e in map_ev:
++		if int(e["t"]) != tick:
++			continue
++		var rc: Array = e["r"]
++		match str(e["k"]):
++			"collapse":
++				terrain.apply_rects([[MapDefs.BLOCK, rc[0], rc[1], rc[2], rc[3]]])
++				for i in n:
++					var u := units[i]
++					if u.alive and terrain.blocked(u.x, u.y, u.team):
++						var p: Vector2i = terrain.free_near(u.x, u.y, u.team)
++						u.x = p.x
++						u.y = p.y
++				events.append({"kind": "collapse", "src": -1, "tgt": -1, "tags": ["collapse"], "rect": rc})
++			"fire":
++				fire_until.append([rc, tick + int(e["d"])])
++				events.append({"kind": "fire", "src": -1, "tgt": -1, "tags": ["fire"], "rect": rc})
++			"push":
++				for i in n:
++					var u := units[i]
++					if not u.alive or u.dormant or u.x * 2 == fw or not terrain.in_rect(u.x, u.y, rc):
++						continue
++					var dirx: int = 1 if u.x < fw / 2 else -1   # 往中線推（鏡像）
++					var nx: int = clampi(u.x + dirx * MapDefs.PUSH, EDGE, fw - EDGE)
++					if not terrain.blocked(nx, u.y, u.team):
++						u.x = nx
++				events.append({"kind": "push", "src": -1, "tgt": -1, "tags": ["push"], "rect": rc})
++	if fire_until.is_empty():
++		return
++	var keep: Array = []
++	for f in fire_until:
++		if tick > int(f[1]):
++			continue
++		keep.append(f)
++		if (tick - int(f[1])) % MapDefs.FIRE_EVERY != 0:
++			continue
++		for i in n:
++			var u := units[i]
++			if u.alive and not u.dormant and terrain.in_rect(u.x, u.y, f[0]):
++				u.hp -= MapDefs.FIRE_DMG
++				u.dmg_taken += MapDefs.FIRE_DMG
++	fire_until = keep
++
++
++## V1.4 #12：打在巨獸身上的傷害先分給部位。背甲還在：每筆 40% 打在背甲；前臂還在：近戰打來的剩下一半打在前臂。
++## 部位扣光時發事件（畫面喊「前臂斷了」「背甲碎了」）。照 hits 的順序處理（hits 本身順序確定，左右鏡像時巨獸只會在一邊）。
++func _boss_parts(hits: Array) -> void:
++	for h in hits:
++		var tg: Unit = units[h[1]]
++		if not tg.boss or int(h[2]) <= 0:
++			continue
++		var d: int = h[2]
++		if tg.plate_hp > 0:
++			var a: int = mini(tg.plate_hp, d * BOSS.PLATE_ABSORB / 100)
++			tg.plate_hp -= a
++			d -= a
++			if tg.plate_hp == 0:
++				events.append({"kind": "boss_plate", "src": tg.id, "tgt": tg.id, "tags": ["boss_plate"]})
++		if tg.arm_hp > 0 and D.is_melee(units[h[0]].type):
++			var b: int = mini(tg.arm_hp, d * BOSS.ARM_SHARE / 100)
++			tg.arm_hp -= b
++			d -= b
++			if tg.arm_hp == 0:
++				events.append({"kind": "boss_arm", "src": tg.id, "tgt": tg.id, "tags": ["boss_arm"]})
++		h[2] = d
++
+diff --git a/game/scripts/core/boss_defs.gd b/game/scripts/core/boss_defs.gd
+new file mode 100644
+index 0000000..87c6b1b
+--- /dev/null
++++ b/game/scripts/core/boss_defs.gd
+@@ -0,0 +1,16 @@
++extends RefCounted
++## V1.4 #12 多格巨型頭目「巨獸」：只在遠征終點出現。用石魔（F8.GOLEM）當底子，陣型資料 u["boss"]＝1 就變巨獸
++## （不新增兵種，所以兵種數值表、奇幻軍的數值摘要都不變）。陣型代碼：NTB6 每隻第 4 個位元組的最高位元。
++const HP_MUL := 2          # 生命 ×2（石魔本來就 820）
++const ATK_MUL := 1         # 攻擊不加（靠橫掃）
++const REACH_ADD := 300
++const SPEED_PCT := 80
++const SEP_EXTRA := 700     # 碰撞半徑多 0.7 格（以大半徑近似 2×2）
++const PART_PCT := 20       # 背甲部位血量＝最大生命 20%
++const ARM_PCT := 8         # 前臂部位血量＝最大生命 8%（只有近戰打得到，給小一點才看得到斷臂）
++const PLATE_ABSORB := 35   # 背甲還在：每次受傷有 35% 打在背甲上
++const ARM_SHARE := 50      # 前臂還在：近戰打來的一半打在前臂上
++const SWEEP_R := 2100      # 橫掃半徑（石魔拍地 1.5 格 → 巨獸 2.1 格）
++const SWEEP_MUL := 2       # 橫掃傷害 ×2
++const DRAW_SCALE := 1.75   # 畫面放大倍率
++const BUDGET_CUT := 42     # 有巨獸的那一站敵方少 42 金（取代首領 +20，再扣 22）：試算 16 場隨機陣勝 4（沒巨獸、150 金時勝 7）
+diff --git a/game/scripts/core/map_defs.gd b/game/scripts/core/map_defs.gd
+index 9ea01a8..501c208 100644
+--- a/game/scripts/core/map_defs.gd
++++ b/game/scripts/core/map_defs.gd
+@@ -18,6 +18,15 @@ const FOREST := 2
+ const ICE := 3
+ const LAVA := 4
+ const CANYON := 5
++const QUARRY := 6     # V1.4 #10 沙盤機關：崩塌礦坑
++const BEACON := 7     # 烽火關
++const PLATES := 8     # 推進板
++
++## V1.4 #10 定時機關：{"t": 第幾 tick, "k": 種類, "r": 左半千分比矩形 [x0, y0, x1, y1]（右半鏡像）, "d": 持續 tick}
++## collapse＝崩成擋路（之後一直在）；fire＝火牆燒 d tick（每 FIRE_EVERY tick 扣 FIRE_DMG）；push＝推進板把上面的兵往前推 PUSH 距離。
++const FIRE_EVERY := 10
++const FIRE_DMG := 6
++const PUSH := 1000
+ 
+ ## 後面的矩形蓋掉前面。名稱鍵在 strings.csv：map_<key>。biome 給畫面用。
+ const MAPS := [
+@@ -54,8 +63,26 @@ const MAPS := [
+ 		[SLOW, 620, 380, 1000, 620],
+ 		[BLOCK, 720, 260, 1000, 380], [BLOCK, 720, 620, 1000, 740],
+ 	]},
++	# V1.4 #10 崩塌礦坑：開局三條路；第 20 秒中路礦坑崩塌變成擋路，只剩上下兩路
++	{"key": "quarry", "biome": "canyon", "rects": [
++		[BLOCK, 760, 0, 860, 180], [BLOCK, 760, 820, 860, 1000],
++	], "events": [{"t": 400, "k": "collapse", "r": [800, 400, 920, 600], "d": 0}]},
++	# 烽火關：中線附近兩道火牆在第 15、35 秒各燒 3 秒，站在上面會被燒
++	{"key": "beacon", "biome": "lava", "rects": [
++		[SLOW, 900, 0, 1000, 160], [SLOW, 900, 840, 1000, 1000],
++	], "events": [{"t": 300, "k": "fire", "r": [880, 240, 1000, 760], "d": 60}, {"t": 700, "k": "fire", "r": [880, 240, 1000, 760], "d": 60}]},
++	# 推進板：上下兩塊木板在第 8、28 秒把上面的兵往前推一格（衝上去搶位置，也可能被推進敵陣）
++	{"key": "plates", "biome": "forest", "rects": [
++		[BLOCK, 880, 430, 1000, 570],
++	], "events": [{"t": 160, "k": "push", "r": [560, 120, 760, 340], "d": 0}, {"t": 160, "k": "push", "r": [560, 660, 760, 880], "d": 0},
++		{"t": 560, "k": "push", "r": [560, 120, 760, 340], "d": 0}, {"t": 560, "k": "push", "r": [560, 660, 760, 880], "d": 0}]},
+ ]
+ 
++static func events(map_id: int) -> Array:
++	if map_id < 0 or map_id >= MAPS.size():
++		return []
++	return MAPS[map_id].get("events", [])
++
+ static var _cache := {}
+ 
+ static func width(size: int) -> int:
+@@ -77,4 +104,7 @@ static func terrain(map_id: int, size: int):
+ ## 進規則摘要：地形內容一變，舊代碼就會回報不一致。
+ static func digest(map_id: int, size: int) -> String:
+ 	var t = terrain(map_id, size)
+-	return "plain" if t == null else t.digest()
++	var base: String = "plain" if t == null else t.digest()
++	if not events(map_id).is_empty():
++		base += "|ev" + JSON.stringify(events(map_id)).sha256_text().substr(0, 12)   # V1.4 #10：機關內容一變，舊代碼就不一致
++	return base
+diff --git a/game/scripts/core/sticker_defs.gd b/game/scripts/core/sticker_defs.gd
+new file mode 100644
+index 0000000..af1430d
+--- /dev/null
++++ b/game/scripts/core/sticker_defs.gd
+@@ -0,0 +1,24 @@
++extends RefCounted
++## V1.4 #9 木座貼紙：貼在單隻兵木座底下的小能力。存在陣型資料 u["st"]（1～6），陣型代碼走 NTB6 每隻的第 4 個位元組。
++## 沒貼紙的陣型完全照舊（舊對戰碼、重播、FINGERPRINT 不變）；有貼紙時模擬雜湊多一段 "st"。
++const NONE := 0
++const CHARGE := 1   # 開局衝鋒：開戰前 3 秒移速 +50%
++const BLAST := 2    # 倒下自爆：倒下時對 1.3 格內的敵人造成傷害
++const WARD := 3     # 護符：第一次受到的傷害無效
++const FROST := 4    # 寒霜：攻擊會讓目標減速
++const TOUGH := 5    # 鐵皮：生命 +20%
++const SWIFT := 6    # 迅捷：攻擊間隔 −15%
++const COUNT := 6
++
++const CHARGE_TICKS := 60
++const CHARGE_PCT := 150
++const BLAST_R := 1300
++const BLAST_DMG := 30
++const TOUGH_PCT := 120
++const SWIFT_PCT := 85
++
++const ICONS := ["", "fast", "skull", "shield", "slow", "heart", "speed"]
++const COLORS := ["#000000", "#e07a2c", "#b3261e", "#d4a017", "#4f9fd8", "#6a8f3a", "#8a5cc4"]
++
++static func valid(st: int) -> bool:
++	return st >= 1 and st <= COUNT
+diff --git a/game/scripts/core/terrain.gd b/game/scripts/core/terrain.gd
+index b654b9f..8eec118 100644
+--- a/game/scripts/core/terrain.gd
++++ b/game/scripts/core/terrain.gd
+@@ -26,20 +26,50 @@ func _init(rects: Array, p_w: int, p_h: int) -> void:
+ 	n = w / Q
+ 	m = h / Q
+ 	grid.resize(n * m)
++	_paint(rects, true)
++	_build_nav()
++
++## 依左半邊千分比矩形塗格子（右半邊鏡像）。all＝true 時沒蓋到的格子設回空地（建構時用）。
++func _paint(rects: Array, all: bool) -> void:
+ 	var half := n / 2
+ 	for c in half:
+ 		var nx: int = (c * Q + Q / 2) * 1000 / (w / 2)
+ 		for r in m:
+ 			var ny: int = (r * Q + Q / 2) * 1000 / h
+-			var v := FREE
++			var v := FREE if all else -1
+ 			for rc in rects:
+ 				if nx >= int(rc[1]) and nx < int(rc[3]) and ny >= int(rc[2]) and ny < int(rc[4]):
+ 					v = int(rc[0])
++			if v < 0:
++				continue
+ 			grid[c + r * n] = v
+ 			grid[n - 1 - c + r * n] = v
+ 			if v == BLOCK:
+ 				has_block = true
++
++## V1.4 #10 沙盤機關：戰鬥中途改地形（崩塌成擋路）。重算導航、清掉距離場快取。只能用在 clone() 出來的那份。
++func apply_rects(rects: Array) -> void:
++	_paint(rects, false)
++	_build_nav()
++	_fields.clear()
++
++func clone():
++	var t = get_script().new([], w, h)
++	t.grid = grid.duplicate()
++	t.has_block = has_block
++	t._build_nav()
++	return t
++
++## 這一點是不是落在（左半千分比、右半鏡像的）矩形裡。給火牆、推撞板判定用。
++func in_rect(x: int, y: int, rc: Array) -> bool:
++	var ox: int = x if x < w / 2 else w - x
++	var nx: int = ox * 1000 / (w / 2)
++	var ny: int = y * 1000 / h
++	return nx >= int(rc[0]) and nx < int(rc[2]) and ny >= int(rc[1]) and ny < int(rc[3])
++
++func _build_nav() -> void:
+ 	nav.resize(n * m)
++	nav.fill(0)
+ 	for r2 in m:
+ 		for c2 in n:
+ 			if grid[c2 + r2 * n] == BLOCK:
+diff --git a/game/scripts/game/ghost_data.gd b/game/scripts/game/ghost_data.gd
+new file mode 100644
+index 0000000..9689a46
+--- /dev/null
++++ b/game/scripts/game/ghost_data.gd
+@@ -0,0 +1,12 @@
++extends RefCounted
++## V1.4 #7 幽靈陣資料（data/ghosts.json）的快取。放在獨立檔：UI 繼承鏈上的 static var 會讓結束時資源洩漏（記憶：Godot 匯出陷阱）。
++static var _list: Array = []
++
++static func all() -> Array:
++	if _list.is_empty():
++		var f := FileAccess.open("res://data/ghosts.json", FileAccess.READ)
++		if f != null:
++			var d = JSON.parse_string(f.get_as_text())
++			if d is Array:
++				_list = d
++	return _list
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index 08bae13..89ebc28 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -247,6 +247,20 @@ static func sanitize_data(out: Dictionary) -> void:
+ 			if pt[i] is int or pt[i] is float:
+ 				pt2[i] = clampi(int(pt[i]), 0, hi[i])
+ 	out["paint"] = pt2
++	var gb = out.get("ghost_beat", [])   # V1.4 #7：打贏的幽靈（id 字串）
++	var gb2: Array = []
++	if gb is Array:
++		for x in gb:
++			if x is String and x.length() <= 8 and not x in gb2:
++				gb2.append(x)
++	out["ghost_beat"] = gb2
++	var wr = out.get("weekly", {})
++	var wr2 := {}
++	if wr is Dictionary:
++		for k in ["wk", "best", "tries"]:
++			var v = wr.get(k, 0)
++			wr2[k] = clampi(int(v), -1, 100000000) if (v is int or v is float) else 0
++	out["weekly"] = wr2
+ 
+ ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
+ static func sanitize_run(g) -> Dictionary:
+@@ -287,6 +301,8 @@ static func sanitize_run(g) -> Dictionary:
+ 			if not (v2 is int or v2 is float):
+ 				return {}
+ 			o[str(k2)] = int(v2)
++		if o.has("st") and (int(o["st"]) < 1 or int(o["st"]) > 6):
++			o.erase("st")   # V1.4 #9 貼紙只收 1～6
+ 		prev.append(o)
+ 	out["prev"] = prev
+ 	# V1.1 D1：遠征路線的「下一戰敵方」事件。可有可無（舊續局沒有＝0），超出範圍歸 0
+diff --git a/game/scripts/game/steam.gd b/game/scripts/game/steam.gd
+index 9925b4a..08cb7d6 100644
+--- a/game/scripts/game/steam.gd
++++ b/game/scripts/game/steam.gd
+@@ -131,3 +131,78 @@ static func run_callbacks() -> void:
+ 			if _retry_tick >= 600:
+ 				_retry_tick = 0
+ 				store_ok = bool(_steam.storeStats())
++
++
++## ── V1.4 #7 排行榜（每週棋盒＋幽靈陣）。沒有 Steam 時全部安靜略過。未在 Steam 後台建排行榜、未實測（不跑 --steam-test）。──
++## 排行榜名稱 weekly_<週數>，分數＝花費（越少越好），附加資料（details，最多 64 個 int）放陣型：
++## [版本 1, 兵數 n, 每隻 type*10000+col*100+row ...]。下載前幾名的 details 就能還原成「玩家幽靈陣」。
++const LB_VER := 1
++
++static func pack_army(units: Array) -> PackedInt32Array:
++	var out := PackedInt32Array([LB_VER, mini(units.size(), 60)])
++	for i in mini(units.size(), 60):
++		var u: Dictionary = units[i]
++		if not u.has("col"):
++			return PackedInt32Array()   # 自由排兵的陣不上傳
++		out.append(int(u["type"]) * 10000 + int(u["col"]) * 100 + int(u["row"]))
++	return out
++
++static func unpack_army(d: PackedInt32Array) -> Array:
++	var out: Array = []
++	if d.size() < 2 or d[0] != LB_VER or d[1] != d.size() - 2:
++		return out
++	for i in range(2, d.size()):
++		var v := int(d[i])
++		var t := v / 10000
++		var c := (v / 100) % 100
++		var r := v % 100
++		if t < 0 or t >= 40 or c < 0 or c >= 32 or r < 0 or r >= 16:
++			return []
++		out.append({"type": t, "col": c, "row": r})
++	return out
++
++static var _lb_pending := {}   # 排行榜名稱 → 等找到 handle 後要送的 [分數, details]
++
++static func weekly_upload(wk: int, score: int, army) -> void:
++	if _steam == null or not _steam.has_method("findOrCreateLeaderboard"):
++		return
++	var det := pack_army(army.units)
++	var name := "weekly_%d" % wk
++	_lb_pending[name] = [score, det]
++	if not _steam.is_connected("leaderboard_find_result", _on_lb_found):
++		_steam.connect("leaderboard_find_result", _on_lb_found)
++	_steam.findOrCreateLeaderboard(name, 1, 1)   # 1＝分數越小越前面、1＝顯示數字
++
++static func _on_lb_found(handle: int, found: int) -> void:
++	if found == 0 or _steam == null:
++		return
++	var name := str(_steam.getLeaderboardName(handle)) if _steam.has_method("getLeaderboardName") else ""
++	if not _lb_pending.has(name):
++		return
++	var p: Array = _lb_pending[name]
++	_lb_pending.erase(name)
++	_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
++
++## 抓這週排行榜前 20 名的陣（給遊戲間的「玩家幽靈」用）。done(armies: Array)；沒有 Steam 直接回空陣列。
++static func ghost_fetch(wk: int, done: Callable) -> void:
++	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
++		done.call([])
++		return
++	_steam.setLeaderboardDetailsMax(64)
++	var name := "weekly_%d" % wk
++	var on_found := func(handle: int, found: int) -> void:
++		if found == 0:
++			done.call([])
++			return
++		var on_dl := func(_msg, _h, result: Array) -> void:
++			var out: Array = []
++			for e in result:
++				var units := unpack_army(PackedInt32Array(e.get("details", [])))
++				if not units.is_empty():
++					out.append({"name": str(e.get("steam_id", "")), "units": units})
++			done.call(out)
++		_steam.connect("leaderboard_scores_downloaded", on_dl, CONNECT_ONE_SHOT)
++		_steam.downloadLeaderboardEntries(0, 19, 0, handle)
++	_steam.connect("leaderboard_find_result", on_found, CONNECT_ONE_SHOT)
++	_steam.findLeaderboard(name)
++
+diff --git a/game/scripts/game/strings.gd b/game/scripts/game/strings.gd
+index eaa7905..2252069 100644
+--- a/game/scripts/game/strings.gd
++++ b/game/scripts/game/strings.gd
+@@ -61,10 +61,10 @@ static func load_table() -> void:
+ 	var header := f.get_csv_line()
+ 	while not f.eof_reached():
+ 		var row := f.get_csv_line()
+-		if row.size() < header.size() or row[0] == "":
++		if row.size() < 3 or row[0] == "":
+ 			continue
+ 		var d := {}
+-		for i in range(1, header.size()):
++		for i in range(1, mini(header.size(), row.size())):   # 少了後面的語言欄（剛加、還沒跑翻譯）：那幾種語言退回英文
+ 			d[header[i]] = row[i].replace("\\n", "\n")
+ 		_table[row[0]] = d
+ 
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 37a8233..a0f9423 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -342,7 +342,74 @@ func _draw_field_frame() -> void:
+ 		draw_rect(Rect2(ORIGIN + Vector2(ii, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
+ 		draw_rect(Rect2(ORIGIN + Vector2(fld_size.x - ii - 3.0, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
+ 		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
++	_draw_map_events()
+ 
++## V1.4 #10 沙盤機關：畫在沙盤上。還沒發動＝虛線框＋倒數秒數；崩塌後＝碎石；火牆燒時＝火焰；推進板＝木板＋往中線的箭頭。
++func _draw_map_events() -> void:
++	var ev: Array = MapDefs.events(fld_map)
++	if ev.is_empty():
++		return
++	var tk: float = _disp_tick() if (state == St.BATTLE or state == St.RESULT) else 0.0
++	for e in ev:
++		var rc: Array = e["r"]
++		var t0 := int(e["t"])
++		for side in 2:
++			var x0: float = float(rc[0]) * fld_size.x / 2.0 / 1000.0
++			var x1: float = float(rc[2]) * fld_size.x / 2.0 / 1000.0
++			if side == 1:
++				var a := fld_size.x - x1
++				x1 = fld_size.x - x0
++				x0 = a
++			var R := Rect2(ORIGIN + Vector2(x0, float(rc[1]) * fld_size.y / 1000.0), Vector2(x1 - x0, float(rc[3] - rc[1]) * fld_size.y / 1000.0))
++			match str(e["k"]):
++				"collapse":
++					if tk >= t0:
++						# 碎石：深色底＋幾顆石頭（位置只看格子編號，固定）
++						draw_rect(R, Color(0.24, 0.19, 0.15, 0.92))
++						for k in 7:
++							var sp := R.position + Vector2(fposmod(k * 37.0 + side * 11.0, R.size.x - 12.0) + 6.0, fposmod(k * 23.0 + 5.0, R.size.y - 12.0) + 6.0)
++							draw_circle(sp, 5.0 + (k % 3) * 2.0, Color(0.42, 0.35, 0.28), true, -1.0, true)
++							draw_circle(sp - Vector2(1.5, 1.5), 2.0, Color(0.6, 0.52, 0.42, 0.7), true, -1.0, true)
++					else:
++						_ev_warn(R, t0, tk, Color("#8a5a2b"))
++				"fire":
++					var t1 := t0 + int(e["d"])
++					if tk >= t0 and tk <= t1:
++						var fl := 0.55 + 0.25 * sin(time * 14.0 + side)
++						draw_rect(R, Color(0.95, 0.42, 0.12, 0.38 * fl))
++						for k in int(R.size.y / 18.0):
++							var fp := R.position + Vector2(R.size.x * (0.2 + 0.6 * fposmod(k * 0.37, 1.0)), 10.0 + k * 18.0)
++							draw_colored_polygon(PackedVector2Array([fp + Vector2(-6, 6), fp + Vector2(0, -10 - 4 * sin(time * 9.0 + k)), fp + Vector2(6, 6)]), Color(1.0, 0.7, 0.2, 0.75))
++					elif tk < t1:
++						_ev_warn(R, t0, tk, Color("#c0392b"))
++				"push":
++					var hot := tk >= t0 and tk < t0 + 12
++					draw_rect(R.grow(-4), Color(0.55, 0.4, 0.24, 0.55 if not hot else 0.85))
++					for k in 3:
++						var ay := R.position.y + R.size.y * (0.25 + k * 0.25)
++						var ax := R.get_center().x
++						var d := 1.0 if side == 0 else -1.0
++						draw_colored_polygon(PackedVector2Array([Vector2(ax - 8 * d, ay - 7), Vector2(ax + 8 * d, ay), Vector2(ax - 8 * d, ay + 7)]), Color(0.98, 0.9, 0.7, 0.8))
++					if tk < t0:
++						_ev_warn(R, t0, tk, Color("#6b4a2b"), false)
++
++## 機關還沒發動：虛線框＋「第 N 秒」小牌（戰鬥中改成倒數）。
++func _ev_warn(R: Rect2, t0: int, tk: float, col: Color, outline := true) -> void:
++	if outline:
++		var pts := [R.position, Vector2(R.end.x, R.position.y), R.end, Vector2(R.position.x, R.end.y), R.position]
++		for k in 4:
++			var a: Vector2 = pts[k]
++			var b: Vector2 = pts[k + 1]
++			var segs := int(a.distance_to(b) / 10.0)
++			for s2 in segs:
++				if s2 % 2 == 0:
++					draw_line(a.lerp(b, float(s2) / segs), a.lerp(b, float(s2 + 1) / segs), Color(col, 0.85), 2.0, true)
++	var left := (t0 - tk) / 20.0
++	var lab := ("%ds" % int(ceil(left))) if tk > 0.0 else ("%ds" % (t0 / 20))
++	var c := R.get_center()
++	draw_circle(c, 15.0, Color(0.98, 0.94, 0.84, 0.92), true, -1.0, true)
++	draw_arc(c, 15.0, 0, TAU, 24, col, 2.0, true)
++	_text(c - Vector2(0, tz("C") * 0.68), lab, tz("C"), Color(0.25, 0.15, 0.08), true, true, 40)
+ ## V1.2 F3：環境動態（確定性：只看時間與編號，不進模擬）。草地／林間落葉、冰原落雪、熔岩火星；簡化特效時不畫。
+ func _draw_ambient() -> void:
+ 	if bool(Save.s("reduce_fx")) or bool(Save.s("plain_ui")):
+@@ -443,7 +510,10 @@ func _draw_units_of(s, dim: bool) -> void:
+ 		var p0: Vector2 = pc[u.id] if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+ 		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
+ 		var ar0 := clampf(air0 * 0.05, 0.0, 1.0)
+-		_ring(p0, u.team, u.type, UNIT_SCALE, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層（效能：合成格一次貼完）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
++		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0)   # V1.4 #12 巨獸畫大
++		_ring(p0, u.team, u.type, bsc, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層（效能：合成格一次貼完）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
++		if u.st > 0:
++			_sticker_badge(p0, u.st, UNIT_SCALE, u.ward or u.st != 3)   # V1.4 #9：護符用掉就淡掉
+ 		if u.shield > 0:       # 第十二輪：手動技能的護盾、戰吼
+ 			_hand_ring(p0 + Vector2(0, -24) * UNIT_SCALE, 28.0 * UNIT_SCALE, Color(0.55, 0.85, 1.0, 0.75), 2.5)
+ 		if u.haste_t > 0:
+@@ -673,7 +743,7 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			var tm := fmod(time + u.id * 3.7, per)
+ 			if tm < 1.2:
+ 				fid = mini(3, int(tm / 1.2 * 4.0))
+-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant, fid)
++		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0), mood, lean, crouch, variant, fid)
+ 		if live and not u.hidden:
+ 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
+ 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+@@ -742,6 +812,9 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			_hand_ring(p, D.DRUM_RANGE * CS / 1000.0, Color(1, 0.85, 0.35, 0.35), 2.0)
+ 		if s.frenzy:
+ 			draw_circle(p + Vector2(8, -58 - sin(time * 12 + u.id) * 2), 3.0, Color(1, 0.5, 0.1, 0.9), true, -1.0, true)
++		if u.boss:
++			_boss_bars(p, u)   # V1.4 #12：巨獸一直顯示大血條＋前臂、背甲兩條部位血條
++			continue
+ 		# 第七輪 D1：血條只在需要看時才畫（受傷 3 秒內、跟拍、低血量）
+ 		var hurt_recent: bool = hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 3.0
+ 		# V1.3 C：選中（跟拍）的那隻就算滿血也畫，不然點了會以為血條壞了
+@@ -879,3 +952,22 @@ func _draw_relic(t: int, p: Vector2, face: float, k: float, team: int) -> void:
+ 				var up := sin(minf(k / 0.7, 1.0) * PI) * 26.0
+ 				draw_circle(p + Vector2(dx, -18.0 - up + k * 14.0) * UNIT_SCALE, 3.2 * UNIT_SCALE, Color(Art.GOLD, a), true, -1.0, true)
+ 
++
++## V1.4 #12 巨獸血條：上面一條大的（本體），下面兩條小的（前臂、背甲），部位斷了畫成灰色斷條。
++func _boss_bars(p: Vector2, u) -> void:
++	var w := 84.0
++	var top := p + Vector2(-w / 2.0, -76.0 * BossD.DRAW_SCALE)
++	draw_rect(Rect2(top - Vector2(2, 2), Vector2(w + 4, 9)), Art.OUT)
++	draw_rect(Rect2(top, Vector2(w * maxf(0.0, float(u.hp)) / maxf(1.0, float(u.max_hp)), 5)), Color("#e05a3a"))
++	var rows := [["sword", u.arm_hp, float(u.max_hp) * BossD.ARM_PCT / 100.0], ["shield", u.plate_hp, float(u.max_hp) * BossD.PART_PCT / 100.0]]
++	for k in 2:
++		var y := top.y + 10.0 + k * 9.0
++		var x0 := top.x + 14.0
++		_icon(str(rows[k][0]), Vector2(top.x + 5.0, y + 2.5), 9.0, Color(1, 1, 1, 0.9))
++		draw_rect(Rect2(Vector2(x0 - 1, y - 1), Vector2(w - 13.0, 5)), Art.OUT)
++		var hp_k := float(rows[k][1])
++		if hp_k > 0.0:
++			draw_rect(Rect2(Vector2(x0, y), Vector2((w - 15.0) * hp_k / maxf(1.0, float(rows[k][2])), 3)), Color("#d4a017"))
++		else:
++			draw_line(Vector2(x0, y + 1.5), Vector2(x0 + w - 15.0, y + 1.5), Color(0.5, 0.5, 0.5, 0.8), 1.5, true)
++
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index dd100d0..e118ee6 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -472,6 +472,21 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 	if k == EV.CMD or k == EV.CMD_HIT:
+ 		_cmd_event(ev, with_fx)
+ 		return
++	if k in ["boss_arm", "boss_plate"]:
++		if with_fx:
++			_fx_text(Vector2(640, 150), L.t("ev_" + k), ACCENT, 1.2, tz("H2"), true)   # V1.4 #12 巨獸部位破壞
++			sfx.play("bell", 0.8)
++			if _fx_on("shake"):
++				shake = maxf(shake, 0.25)
++		return
++	if k in ["collapse", "fire", "push"]:
++		# V1.4 #10 沙盤機關發動：中間一句大字＋音效（不進模擬）
++		if with_fx:
++			_fx_text(Vector2(640, 150), L.t("ev_" + k), Color("#ffb347") if k != "push" else Color("#f3e3c0"), 1.0, tz("H2"), true)
++			sfx.play("bell" if k == "collapse" else ("poison" if k == "fire" else "turn"), 0.6)
++			if k == "collapse" and _fx_on("shake"):
++				shake = maxf(shake, 0.2)
++		return
+ 	if _on_event_v8(ev, k, with_fx):
+ 		return
+ 	if k == EV.DEATH:
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index a7b4c65..afb59ae 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -689,8 +689,9 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 			lx += 40 + tw + 12
+ 		ly += 34
+ 	# 地圖是什麼樣的玩法（第一眼就要懂）
+-	_text(Vector2(pv.position.x, ly), L.t("map_d_" + mk), tz("S"), Color(1, 1, 1, 0.88), false, false, pv.size.x)
+-	ly += text_h(L.t("map_d_" + mk), tz("S"), pv.size.x) + 8
++	var md := map_desc(r.map_id)
++	_text(Vector2(pv.position.x, ly), md, tz("S"), Color(1, 1, 1, 0.88), false, false, pv.size.x)
++	ly += text_h(md, tz("S"), pv.size.x) + 8
+ 	if lobby_r.map_id != 0 and RuleSet.has_new(lobby_r.pool_of(0)):   # 第十輪 R7：講清楚沒認證，不動 AI 也不動數值
+ 		_text(Vector2(pv.position.x, ly), L.t("lb_map_fantasy_note"), tz("C"), ACCENT, false, false, pv.size.x)
+ 		ly += text_h(L.t("lb_map_fantasy_note"), tz("C"), pv.size.x) + 8
+@@ -1132,3 +1133,25 @@ func _draw_bookmark() -> void:
+ 	draw_colored_polygon(PackedVector2Array([Vector2(bx, by0), Vector2(bx + 20, by0), Vector2(bx + 20, by0 + bl), Vector2(bx + 10, by0 + bl - 7), Vector2(bx, by0 + bl)]), Color("#b5441f"))
+ 	draw_rect(Rect2(bx, by0, 20, 3), Color(0, 0, 0, 0.25))
+ 	draw_line(Vector2(bx + 4, by0 + 3), Vector2(bx + 4, by0 + bl - 3), Color(1, 0.85, 0.6, 0.4), 1.5)
++
++
++## V1.4 #10：地圖說明（有機關的地圖把秒數從地圖資料帶進去，不寫死）。
++static func map_desc(map_id: int) -> String:
++	var mk: String = str(MapDefs.MAPS[map_id]["key"])
++	var ev: Array = MapDefs.events(map_id)
++	if ev.is_empty():
++		return L.t("map_d_" + mk)
++	var secs: Array = []
++	for e in ev:
++		var sec := int(e["t"]) / 20
++		if not secs.has(sec):
++			secs.append(sec)
++	match mk:
++		"quarry":
++			return L.t("map_d_quarry", [secs[0]])
++		"beacon":
++			return L.t("map_d_beacon", [secs[0], secs[1], int(ev[0]["d"]) / 20])
++		"plates":
++			return L.t("map_d_plates", [secs[0], secs[1]])
++	return L.t("map_d_" + mk)
++
+diff --git a/game/scripts/ui/screens/game_core.gd b/game/scripts/ui/screens/game_core.gd
+index 5eb72a0..a32103d 100644
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -88,6 +88,8 @@ func _reset_place(keep_blue := false) -> void:
+ 			set("gauntlet_nemesis", call("_nemesis_for_stage"))   # V1.4 #2：菁英站可能遇到宿敵
+ 			# V1.1 D1：菁英 +10、首領 +20；斥候劫掠／截斷補給只影響這一戰
+ 			e.budget = 100 + 5 * (gauntlet_stage - 1) + int(get("GA_NODE_GOLD")[node]) + int(get("gauntlet_foe_gold"))
++			if node == "boss" and not _demo():
++				e.budget -= BossD.BUDGET_CUT   # V1.4 #12：巨獸是送的，敵方其他兵少一點錢
+ 			e.unit_cap = maxi(4, e.unit_cap + int(get("gauntlet_foe_cap")))
+ 			# Codex v110-impl #2：先組好的陣可能超出調低後的預算／隻數，從最後放的往回拿掉（至少留一隻戰鬥兵）
+ 			while e.units.size() > 1 and (e.spent() > e.budget or e.units.size() > e.unit_cap):
+@@ -102,6 +104,9 @@ func _reset_place(keep_blue := false) -> void:
+ 				if c.x < 0 or not e.place(t, c.x, c.y):
+ 					break
+ 			armies[1] = e
++			if node == "boss" and not _demo():
++				call("add_boss", armies[1])   # V1.4 #12：遠征終點多一隻巨獸
++				_toast(L.t("boss_here"))
+ 			if int(get("gauntlet_nemesis")) >= 0:
+ 				armies[1] = call("_nemesis_army", int(get("gauntlet_nemesis")))
+ 				var nt: String = call("nemesis_title", Save.data["nemeses"][int(get("gauntlet_nemesis"))])
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 62e1a35..9b60991 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -269,6 +269,10 @@ func _draw_overlay() -> void:
+ 			_draw_nemeses()
+ 		"paint":
+ 			_draw_paint()
++		"ghosts":
++			_draw_ghosts()
++		"weekly":
++			_draw_weekly()
+ 		"relay":
+ 			_draw_relay()
+ 		"postcard":
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index 1fb21db..018fbe2 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -26,8 +26,9 @@ var gauntlet_cap := 0
+ ## V1.1 D1：遠征路線。7 戰的節點類型與戰間事件（只改戰前配置：預算、隻數、可換隻數、卡池、下一戰敵方預算／隻數）。
+ const GA_NODES := ["outpost", "fight", "fight", "elite", "fight", "elite", "boss"]
+ const GA_NODE_GOLD := {"outpost": 0, "fight": 0, "elite": 10, "boss": 20}
+-const GA_EVENTS := ["rw_gold", "rw_cap", "rw_change", "rw_recruit", "rw_scout", "rw_ambush"]
+-const GA_EVENT_ICONS := ["coin", "people", "swap", "flag", "map", "ban"]
++const GA_EVENTS := ["rw_gold", "rw_cap", "rw_change", "rw_recruit", "rw_scout", "rw_ambush", "rw_sticker"]
++const STK = preload("res://scripts/core/sticker_defs.gd")
++const GA_EVENT_ICONS := ["coin", "people", "swap", "flag", "map", "ban", "star"]
+ ## V1.4 #3 戰利品契約：每一站抽 2 份可簽（或不簽）。判定只看戰前陣型與戰後狀態，模擬不動。
+ ## [字串鍵, 獎勵金, 獎勵隻數, 本戰預算變動, 本戰隻數變動]
+ const CONTRACTS := [["ct_noranged", 10, 0, 0, 0], ["ct_three", 0, 2, 0, 0], ["ct_fast", 10, 0, 0, 0],
+@@ -587,9 +588,11 @@ static func ga_node(stage: int) -> String:
+ func _gauntlet_offers() -> Array:
+ 	var r := RandomNumberGenerator.new()
+ 	r.seed = gauntlet_seed * 31 + gauntlet_stage * 977 + 5
+-	var ids: Array = [0, 1, 2, 3, 4, 5]
++	var ids: Array = [0, 1, 2, 3, 4, 5, 6]
+ 	if _recruit_pick().is_empty():
+ 		ids.erase(3)
++	if _sticker_pick().is_empty():
++		ids.erase(6)
+ 	var out: Array = []
+ 	while out.size() < 3 and not ids.is_empty():
+ 		var k: int = ids[r.randi() % ids.size()]
+@@ -628,7 +631,44 @@ func _recruit_pick() -> Array:
+ 			return [a, b]
+ 	return []
+ 
++## V1.4 #9 木座貼紙：[貼紙, 欄, 列]——這一站固定抽一種貼紙、貼在下一戰沿用陣型裡還沒貼的一隻（同一趟同一站永遠一樣）。
++func _sticker_pick() -> Array:
++	var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
++	var cand: Array = []
++	for u in cur:
++		if u.has("col") and int(u.get("st", 0)) == 0:
++			cand.append(u)
++	if cand.is_empty():
++		return []
++	var r := RandomNumberGenerator.new()
++	r.seed = gauntlet_seed * 71 + gauntlet_stage * 293 + 9
++	var st: int = 1 + r.randi() % STK.COUNT
++	var u: Dictionary = cand[r.randi() % cand.size()]
++	return [st, int(u["col"]), int(u["row"])]
++
++## 貼紙說明（數值從常數換進去，不寫死）。英文語序不同，參數順序跟著語言。
++static func sticker_desc(st: int) -> String:
++	var en := L.lang == "en"
++	match st:
++		STK.CHARGE:
++			return L.t("st_1_d", [STK.CHARGE_PCT - 100, STK.CHARGE_TICKS / 20] if en else [STK.CHARGE_TICKS / 20, STK.CHARGE_PCT - 100])
++		STK.BLAST:
++			var r := "%.1f" % (STK.BLAST_R / 1000.0)
++			return L.t("st_2_d", [STK.BLAST_DMG, r] if en else [r, STK.BLAST_DMG])
++		STK.TOUGH:
++			return L.t("st_5_d", [STK.TOUGH_PCT - 100])
++		STK.SWIFT:
++			return L.t("st_6_d", [100 - STK.SWIFT_PCT])
++	return L.t("st_%d_d" % st)
++
++func _apply_sticker(sp: Array) -> void:
++	for lst in [gauntlet_prev, armies[0].units]:
++		for u in lst:
++			if u.has("col") and int(u["col"]) == int(sp[1]) and int(u["row"]) == int(sp[2]):
++				u["st"] = int(sp[0])
++
+ func _take_reward(k: int) -> void:
++	var sp := _sticker_pick() if k == 6 else []
+ 	overlay = ""
+ 	gauntlet_foe_gold = 0
+ 	gauntlet_foe_cap = 0
+@@ -648,12 +688,24 @@ func _take_reward(k: int) -> void:
+ 			gauntlet_foe_cap = -2
+ 	gauntlet_contract = ct_pick   # V1.4 #3：選完事件才生效
+ 	call("_gauntlet_next")
++	if not sp.is_empty():
++		_apply_sticker(sp)
+ 	_apply_contract_cost()
+ 	if k == 2:
+ 		gauntlet_changes += 2
+ 	call("_gauntlet_save")
+ 
+ func _ga_event_desc(k: int) -> String:
++	if k == 6:
++		var sp := _sticker_pick()
++		if sp.is_empty():
++			return ""
++		var ty := -1
++		var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
++		for u in cur:
++			if u.has("col") and int(u["col"]) == int(sp[1]) and int(u["row"]) == int(sp[2]):
++				ty = int(u["type"])
++		return L.t("rw_sticker_d", [L.t("st_%d" % int(sp[0])), L.t("unit_%d" % ty), sticker_desc(int(sp[0]))])
+ 	if k == 3:
+ 		var rp := _recruit_pick()
+ 		return L.t("rw_recruit_d", [L.t("unit_%d" % int(rp[0])), L.t("unit_%d" % int(rp[1]))]) if not rp.is_empty() else ""
+@@ -1179,7 +1231,10 @@ func _draw_playroom() -> void:
+ 		rec.append(L.t("pr_wave_best", [int(Save.data.get("wave_best", 0))]))   # Antigravity v140-i3：車輪戰紀錄要看得到
+ 	if not rec.is_empty():
+ 		_text(Vector2(640, 548), "　・　".join(rec), tz("S"), ACCENT, true, true, 960)
+-	_btn(Rect2(560, 626, 160, 44), L.t("back"), func(): overlay = "")
++	# 第二排：幽靈軍團、每週棋盒（V1.4 #7）
++	_btn(Rect2(330, 626, 200, 44), L.t("gh_open"), func(): overlay = "ghosts")
++	_btn(Rect2(540, 626, 200, 44), L.t("wk_open"), func(): overlay = "weekly")
++	_btn(Rect2(750, 626, 200, 44), L.t("back"), func(): overlay = "")
+ 
+ ## 競猜：用 AI 組兩支軍隊（同樣 100 金），先看陣型再押注。
+ func _wager_new() -> void:
+@@ -1547,3 +1602,194 @@ func _ellipse_pts(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
+ 		pts.append(c + Vector2(cos(an) * rx, sin(an) * ry))
+ 	return pts
+ 
++
++## ── V1.4 #7 幽靈軍團＋每週棋盒 ──
++## 幽靈：30 個凍結的「名人陣」（data/ghosts.json，tools/balance/ghost_forge.gd 鍛造：每個 AI 模板對 40 支隨機軍的勝率挑最強）。
++## 打贏記在 Save.data.ghost_beat。接上 Steam 後可以從排行榜抓玩家上傳的陣（SteamApi.ghost_*，未實測）。
++## 每週棋盒：依週數固定 6 種兵的卡池、預算、對手（其中一個幽靈）；本地記最少花費破關，Steam 上同一題比排行榜。
++var ghost_id := ""
++var wk_active := false
++var gh_page := 0
++static func ghosts() -> Array:
++	return load("res://scripts/game/ghost_data.gd").all()
++
++static func ghost_army(g: Dictionary):
++	var a = Army.new(1, 100)
++	for u in g.get("units", []):
++		a.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
++	return a
++
++## 週數：從 1970-01-05（週一）起算，每週一換題。
++static func week_no(unix: int) -> int:
++	return int(floor((unix / 86400.0 - 4.0) / 7.0))
++
++## 這週的題目：卡池（舊 10 種裡抽 6 種，一定有戰鬥兵）、預算、對手幽靈。同一週大家一樣。
++static func weekly_spec(wk: int) -> Dictionary:
++	var r := RandomNumberGenerator.new()
++	r.seed = 1400000 + wk
++	var mask := 0
++	for _try in 50:
++		var types := range(D.COUNT)
++		mask = 0
++		for k in 6:
++			var j := r.randi_range(0, types.size() - 1)
++			mask |= 1 << int(types[j])
++			types.remove_at(j)
++		if RuleSet.has_combat(mask):
++			break
++	var gs := ghosts()
++	return {"wk": wk, "pool": mask, "budget": [80, 90, 100, 110, 120][posmod(wk, 5)], "ghost": posmod(wk * 7, maxi(1, gs.size()))}
++
++func _ghost_start(i: int) -> void:
++	var gs := ghosts()
++	if i < 0 or i >= gs.size():
++		return
++	var r = RuleSet.standard()
++	r.rounds = 1
++	rules = r
++	challenge_army = ghost_army(gs[i])
++	overlay = ""
++	_start_mode(Mode.VS_AI)
++	challenge_army = ghost_army(gs[i])
++	ghost_id = str(gs[i]["id"])
++	_toast(L.t("gh_toast", [L.field(gs[i], "")]))
++
++func _weekly_start() -> void:
++	var sp := weekly_spec(week_no(int(Time.get_unix_time_from_system())))
++	var gs := ghosts()
++	if gs.is_empty():
++		return
++	var r = RuleSet.standard()
++	r.rounds = 1
++	r.pool = [int(sp["pool"]), RuleSet.all_pool()]
++	r.ai_pool_same = false
++	r.handicap = true
++	r.budget = [int(sp["budget"]), 100]
++	rules = r
++	challenge_army = ghost_army(gs[int(sp["ghost"])])
++	overlay = ""
++	_start_mode(Mode.VS_AI)
++	challenge_army = ghost_army(gs[int(sp["ghost"])])
++	wk_active = true
++	_toast(L.t("wk_toast", [int(sp["budget"])]))
++
++## 戰鬥結束（正式局）呼叫一次：記幽靈戰果、每週最少花費。
++func _ghost_settle(w: int) -> void:
++	if mode != Mode.VS_AI or play_kind != "official":
++		return
++	if ghost_id != "" and w == 0:
++		var beat: Array = Save.data.get("ghost_beat", [])
++		if not ghost_id in beat:
++			beat.append(ghost_id)
++			Save.data["ghost_beat"] = beat
++			Save.save_data()
++			report["gh_line"] = L.t("gh_beat_new", [beat.size(), ghosts().size()])
++	if wk_active:
++		var wk := week_no(int(Time.get_unix_time_from_system()))
++		var rec: Dictionary = Save.data.get("weekly", {})
++		if int(rec.get("wk", -1)) != wk:
++			rec = {"wk": wk, "best": 0, "tries": 0}
++		rec["tries"] = int(rec.get("tries", 0)) + 1
++		if w == 0:
++			var spent: int = last_armies[0].spent()
++			if int(rec["best"]) <= 0 or spent < int(rec["best"]):
++				rec["best"] = spent
++				report["gh_line"] = L.t("wk_best_new", [spent])
++				SteamApi.weekly_upload(wk, spent, last_armies[0])   # 有 Steam 才會送（未實測）
++		Save.data["weekly"] = rec
++		Save.save_data()
++
++func _draw_ghosts() -> void:
++	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
++	var P := Rect2(130, 60, 1020, 680)
++	_panel(P)
++	_h1(Vector2(640, 72), L.t("gh_head"))
++	var gs := ghosts()
++	var beat: Array = Save.data.get("ghost_beat", [])
++	_text(Vector2(640, 72 + tz("H1") * 1.4), L.t("gh_help", [beat.size(), gs.size()]), tz("S"), TXT_DIM, true, false, 900)
++	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
++	var per := 12
++	var pages := maxi(1, int(ceil(gs.size() / float(per))))
++	gh_page = clampi(gh_page, 0, pages - 1)
++	for k in per:
++		var i := gh_page * per + k
++		if i >= gs.size():
++			break
++		var g: Dictionary = gs[i]
++		var r := Rect2(160 + (k % 3) * 324, 150 + (k / 3) * 116, 312, 104)
++		var gi := i
++		btn_paper = true
++		_btn(r, "", func(): _ghost_start(gi))
++		btn_paper = false
++		_ink_mode = not bool(Save.s("plain_ui"))
++		_text(r.position + Vector2(16, 12), L.field(g, ""), tz("B"), INK if _ink_mode else Color.WHITE, false, true, 220)
++		_text(r.position + Vector2(16, 12 + tz("B") * 1.45), L.t("gh_line", [ai_tpl_name(str(g.get("tpl", ""))), int(g.get("wr", 0))]), tz("C"), Color("#5a4630") if _ink_mode else TXT_DIM, false, false, 220)
++		_ink_mode = false
++		# 右側：迷你陣型（紅點）
++		var mx := r.end.x - 64
++		for u in g.get("units", []):
++			draw_circle(Vector2(mx + (int(u["col"]) - 10) * 8.0, r.position.y + 16 + int(u["row"]) * 8.0), 3.0, Color("#b3261e"), true, -1.0, true)
++		if str(g["id"]) in beat:
++			var sp := r.position + Vector2(r.size.x - 38, r.size.y - 30)
++			_hand_ring(sp, 18.0, Color("#8e1b14", 0.9), 2.6)
++			_text(sp - Vector2(0, tz("C") * 0.68), L.t("gh_stamp"), tz("C"), Color("#8e1b14"), true, true, 40)
++	if pages > 1:
++		_btn(Rect2(470, 626, 56, 44), "◀", func(): gh_page = posmod(gh_page - 1, pages))
++		_text(Vector2(640, 636), "%d／%d" % [gh_page + 1, pages], tz("S"), Color.WHITE, true, true, 100)
++		_btn(Rect2(754, 626, 56, 44), "▶", func(): gh_page = posmod(gh_page + 1, pages))
++	_btn(Rect2(560, 680, 160, 44), L.t("back"), func(): overlay = "playroom")
++
++func _draw_weekly() -> void:
++	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
++	var P := Rect2(260, 120, 760, 540)
++	_panel(P)
++	_h1(Vector2(640, 132), L.t("wk_head"))
++	var wk := week_no(int(Time.get_unix_time_from_system()))
++	var sp := weekly_spec(wk)
++	var gs := ghosts()
++	var rec: Dictionary = Save.data.get("weekly", {})
++	if int(rec.get("wk", -1)) != wk:
++		rec = {}
++	var paper := Rect2(300, 200, 680, 330)
++	_tex_box(paper, "paper")
++	_ink_mode = true
++	var y := paper.position.y + 18
++	_text(Vector2(640, y), L.t("wk_sub", [wk]), tz("B"), INK, true, true, 640)
++	y += tz("B") * 1.8
++	_text(Vector2(330, y), L.t("wk_pool"), tz("S"), INK, false, true, 200)
++	var n := 0
++	for t in D.COUNT:
++		if int(sp["pool"]) & (1 << t):
++			Art.unit(self, Vector2(520 + n * 74, y + 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.9, cbm())
++			n += 1
++	y += 74
++	_text(Vector2(330, y), L.t("wk_budget", [int(sp["budget"])]), tz("S"), INK, false, true, 600)
++	y += tz("S") * 1.7
++	if not gs.is_empty():
++		_text(Vector2(330, y), L.t("wk_foe", [L.field(gs[int(sp["ghost"])], "")]), tz("S"), INK, false, true, 620)
++	y += tz("S") * 1.7
++	var best := int(rec.get("best", 0))
++	_text(Vector2(330, y), L.t("wk_best", [best]) if best > 0 else L.t("wk_none"), tz("S"), Color("#8e1b14") if best > 0 else Color("#5a4630"), false, true, 620)
++	_ink_mode = false
++	_text(Vector2(640, paper.end.y + 14), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
++	_btn(Rect2(460, 594, 160, 44), L.t("back"), func(): overlay = "playroom")
++	_btn(Rect2(660, 594, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
++
++
++## ── V1.4 #12 巨獸：遠征終點的敵陣中央放一隻（不佔預算、隻數）。格子被佔了就把那隻換掉。──
++const BOSS_CELLS := [[12, 4], [11, 4], [12, 3], [12, 5], [13, 4], [11, 3], [11, 5]]
++
++static func add_boss(a) -> void:
++	for u in a.units:
++		if int(u.get("boss", 0)) == 1:
++			return
++	var cell: Array = BOSS_CELLS[0]
++	for c in BOSS_CELLS:
++		if a.index_at(int(c[0]), int(c[1])) == -1:
++			cell = c
++			break
++	var i: int = a.index_at(int(cell[0]), int(cell[1]))
++	if i != -1:
++		a.units.remove_at(i)
++	a.units.append({"type": 19, "col": int(cell[0]), "row": int(cell[1]), "boss": 1})
++
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index af223f2..020f0dc 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -30,6 +30,8 @@ func _go_title() -> void:
+ 	set("wv_mode", false)
+ 	set("sealed_on", false)   # V1.4 #13
+ 	set("sealed", [[], []])
++	set("ghost_id", "")
++	set("wk_active", false)
+ 	set("wg_active", false)   # V1.4 #16：離開就取消押注，不能拿下一場來結算（Codex v140-i2）
+ 	call("_pre_drop")
+ 	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
+@@ -338,13 +340,18 @@ func _draw_place_units() -> void:
+ 		for u in a.units:
+ 			if drag_from.x >= 0 and a == _cur_army() and u["col"] == drag_from.x and u["row"] == drag_from.y:
+ 				continue
+-			list.append([u["row"], u["col"], u["type"], a.team])
++			list.append([u["row"], u["col"], u["type"], a.team, int(u.get("st", 0)), int(u.get("boss", 0))])
+ 	list.sort()
+ 	var pz := PZ.get_puzzle(puzzle_id) if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) else {}
+ 	for it in list:
+ 		var p := ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS
+-		_ring(p, it[3], it[2])
+-		_unit(p + Vector2(0, _settle_dy(Vector2i(it[1], it[0]))), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
++		var bsc := BossD.DRAW_SCALE if int(it[5]) == 1 else 1.0   # V1.4 #12 巨獸
++		_ring(p, it[3], it[2], bsc)
++		if int(it[4]) > 0:
++			_sticker_badge(p, int(it[4]), 1.0)
++		_unit(p + Vector2(0, _settle_dy(Vector2i(it[1], it[0]))), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], bsc)
++		if int(it[5]) == 1:
++			_text(p + Vector2(0, -84.0 * bsc), L.t("boss_name"), tz("C"), Color("#ffb4a8"), true, true, 120)
+ 		if it[3] == 1 and selected >= 0 and _cur_army().team == 0:
+ 			_counter_mark(p, selected, int(it[2]))   # V1.1 B3
+ 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index f7bbe4c..b44566a 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -21,6 +21,8 @@ func _start_mode(m: int) -> void:
+ 	if m != Mode.VS_AI:
+ 		set("challenge_army", null)
+ 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
++	set("ghost_id", "")       # V1.4 #7：幽靈、每週棋盒也是在 _start_mode 之後才設
++	set("wk_active", false)
+ 	set("wv_mode", false)   # V1.4 #11：開別的模式就不是車輪戰（_wave_setup 會在 _start_mode 之後再設回來）
+ 	set("wv_active", false)
+ 	if m == Mode.GAUNTLET:
+@@ -64,6 +66,7 @@ func _finish_battle() -> void:
+ 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+ 		set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
+ 	_build_report()
++	call("_ghost_settle", w)   # V1.4 #7
+ 	call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
+ 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
+ 		call("_wave_end", w == 0)   # V1.4 #11：車輪戰結束（輸了或三波打完）
+@@ -228,6 +231,8 @@ func _draw_result() -> void:
+ 			if str(report.get("rec_new", "")) != "":
+ 				facts.insert(0, str(report["rec_new"]))
+ 			facts.append(str(report["rec_line"]))
++		if str(report.get("gh_line", "")) != "":
++			facts.insert(0, str(report["gh_line"]))   # V1.4 #7：擊破幽靈／每週新紀錄
+ 		for fi in facts.size():
+ 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
+ 			y += text_h(facts[fi], tz("S"), 780) + 2
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 0ec5b37..c3cac1b 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -54,6 +54,7 @@ const CS := 64.0
+ const FIELD := Vector2(16 * 64, 9 * 64)
+ const MapArt = preload("res://scripts/ui/map_art.gd")
+ const MapDefs = preload("res://scripts/core/map_defs.gd")
++const BossD = preload("res://scripts/core/boss_defs.gd")
+ # V9：這一場的場地（世界 px）。標準大小時 fld_size＝FIELD、_fld_xf＝單位矩陣，舊畫面完全不變
+ var fld_size := FIELD
+ var fld_w := 16000
+@@ -845,6 +846,18 @@ func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
+ 		return
+ 	Icons.draw(self, name, c, s, col)
+ 
++## V1.4 #9 木座貼紙：木座右前方一枚小圓貼（隊伍無關的顏色＋白圖示）。on＝false 時淡掉（護符用掉了）。
++func _sticker_badge(p: Vector2, st: int, scale := 1.0, on := true) -> void:
++	var STK = preload("res://scripts/core/sticker_defs.gd")
++	if st < 1 or st > STK.COUNT:
++		return
++	var c := p + Vector2(15, 5) * scale
++	var a := 1.0 if on else 0.35
++	draw_circle(c + Vector2(0, 1.2) * scale, 7.5 * scale, Color(0.1, 0.06, 0.03, 0.5 * a), true, -1.0, true)
++	draw_circle(c, 7.0 * scale, Color(0.98, 0.94, 0.84, a), true, -1.0, true)
++	draw_circle(c, 5.6 * scale, Color(Color(STK.COLORS[st]), a), true, -1.0, true)
++	Icons.draw(self, STK.ICONS[st], c, 8.0 * scale, Color(1, 1, 1, a))
++
+ ## 羊皮紙標題緞帶：畫面標題統一用它。
+ func _h1(center: Vector2, s: String, maxw := 0.0) -> void:
+ 	var sz := tz("H1")
+diff --git a/game/scripts/ui/view_buffer.gd b/game/scripts/ui/view_buffer.gd
+index 18123a1..4593642 100644
+--- a/game/scripts/ui/view_buffer.gd
++++ b/game/scripts/ui/view_buffer.gd
+@@ -34,6 +34,11 @@ class VUnit:
+ 	var breach: int            # 第四輪：被破陣剩幾 tick
+ 	var aura: int              # 第四輪：在鼓手光環內
+ 	var bmode: int             # 第四輪：投彈兵模式
++	var st := 0                # V1.4 #9 貼紙
++	var ward := false
++	var boss := false          # V1.4 #12 巨獸與部位
++	var arm_hp := 0
++	var plate_hp := 0
+ 
+ var units: Array = []          # 跟 sim.units 同順序
+ var tick := 0
+@@ -57,7 +62,7 @@ var queue: Array = []          # 還沒播的快照（模擬已經跑到、畫
+ static func capture(sim) -> Dictionary:
+ 	var us: Array = []
+ 	for u in sim.units:
+-		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon, u.shield, u.haste_t])
++		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon, u.st, 1 if u.ward else 0, 1 if u.boss else 0, u.arm_hp, u.plate_hp, u.shield, u.haste_t])
+ 	return {"tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
+ 		"frenzy": sim.frenzy, "finished": sim.finished, "power": [sim.power(0), sim.power(1)],
+ 		"alive": [sim.alive_count(0), sim.alive_count(1)], "zones": sim.zones.duplicate()}
+@@ -93,6 +98,8 @@ func apply(fr: Dictionary) -> void:
+ 		v.windup = a[21] if a.size() > 21 else 0
+ 		v.guard = a[22] if a.size() > 22 else 0
+ 		v.summon = a[23] if a.size() > 23 else false
++		if a.size() > 30:
++			v.st = a[24]; v.ward = a[25] == 1; v.boss = a[26] == 1; v.arm_hp = a[27]; v.plate_hp = a[28]
+ 		_by_id[v.id] = v
+ 	tick = fr["tick"]
+ 	events = fr["events"]
+diff --git a/game/tests/suites/core.gd b/game/tests/suites/core.gd
+index fe2b840..4aba56f 100644
+--- a/game/tests/suites/core.gd
++++ b/game/tests/suites/core.gd
+@@ -418,3 +418,99 @@ func test_golden() -> void:
+ 		if sa.fingerprint != sb.fingerprint:
+ 			order_bad += 1
+ 	ok(order_bad == 0, "陣型清單順序打亂，指紋不變（20 場）", "不同 %d 場" % order_bad)
++
++
++## V1.4 #9 木座貼紙：代碼往返、效果（鐵皮、迅捷、開局衝鋒、護符）、確定性、左右鏡像對稱；沒貼紙的陣不受影響。
++func test_stickers_v140() -> void:
++	var Sim0 = load("res://scripts/core/battle_sim.gd")
++	var AI0 = load("res://scripts/core/ai_army.gd")
++	var STK = load("res://scripts/core/sticker_defs.gd")
++	var rng := RandomNumberGenerator.new()
++	rng.seed = 909
++	var a0 = AI0.build(0, 100, rng)["army"]
++	var a1 = AI0.build(1, 100, rng)["army"]
++	var plain = Sim0.new(a0.copy(), a1.copy())
++	plain.run_to_end()
++	for k in a0.units.size():
++		a0.units[k]["st"] = 1 + k % STK.COUNT
++	var code: String = a0.to_code()
++	var b0 = a0.copy()
++	b0.units = []
++	ok(code.begins_with("NTB6.") and b0.load_code(code) == "" and b0.units == a0.units, "有貼紙的陣型代碼往返一致", code)
++	var s1 = Sim0.new(a0.copy(), a1.copy())
++	var s2 = Sim0.new(a0.copy(), a1.copy())
++	s1.run_to_end()
++	s2.run_to_end()
++	ok(s1.winner == s2.winner and s1.tick == s2.tick and s1.fingerprint == s2.fingerprint, "有貼紙一樣是確定性")
++	ok(s1.fingerprint != plain.fingerprint, "有貼紙的對局雜湊和沒貼紙的不同")
++	var t0 = Sim0.new(a0.copy(), a1.copy())
++	var bad: Array = []
++	for u in t0.units:
++		var base: Dictionary = load("res://scripts/core/unit_defs.gd").stat(u.type)
++		if u.st == STK.TOUGH and u.max_hp != int(base["hp"]) * STK.TOUGH_PCT / 100:
++			bad.append("鐵皮")
++		if u.st == STK.SWIFT and u.cd_base >= int(base["cd"]):
++			bad.append("迅捷")
++		if u.st == STK.CHARGE and u.st_t != STK.CHARGE_TICKS:
++			bad.append("衝鋒")
++		if u.st == STK.WARD and not u.ward:
++			bad.append("護符")
++	ok(bad.is_empty(), "開場時貼紙效果都套上", str(bad))
++	# 鏡像：把有貼紙的藍軍鏡像成紅軍，對手也鏡像 → 勝方互換、時間一樣
++	var m0 = a1.mirrored()
++	var m1 = a0.mirrored()
++	var sm = Sim0.new(m0, m1)
++	sm.run_to_end()
++	ok(sm.tick == s1.tick and (sm.winner == -1 if s1.winner == -1 else sm.winner == 1 - s1.winner), "貼紙左右鏡像對稱", "%d/%d %d/%d" % [s1.winner, sm.winner, s1.tick, sm.tick])
++	ok(plain.winner >= -1, "沒貼紙的對局照常（雜湊由 test_golden 守）")
++
++
++## V1.4 #12 巨獸：代碼往返、確定性、左右鏡像、部位會被打掉、勝率不是一面倒（遠征終點仍打得贏）。
++func test_boss_v140() -> void:
++	var Sim0 = load("res://scripts/core/battle_sim.gd")
++	var AI0 = load("res://scripts/core/ai_army.gd")
++	var GM = load("res://scripts/ui/screens/game_modes.gd")
++	var rng := RandomNumberGenerator.new()
++	rng.seed = 1212
++	var BD = load("res://scripts/core/boss_defs.gd")
++	var e = AI0.build(1, 150 - BD.BUDGET_CUT, rng)["army"]
++	GM.add_boss(e)
++	var nb := 0
++	for u in e.units:
++		nb += int(u.get("boss", 0))
++	ok(nb == 1, "敵陣多一隻巨獸")
++	var code: String = e.to_code()
++	var e2 = e.copy()
++	e2.units = []
++	ok(e2.load_code(code) == "" and e2.units == e.units, "巨獸陣型代碼往返", code)
++	var wins := 0
++	var arm_broke := 0
++	var plate_broke := 0
++	for k in 12:
++		var r := RandomNumberGenerator.new()
++		r.seed = 5000 + k
++		var p = AI0.build(0, 135, r)["army"]
++		var s = Sim0.new(p.copy(), e.copy())
++		s.fast = true
++		while not s.finished:
++			s.step()
++			for ev in s.events:
++				if ev["kind"] == "boss_arm":
++					arm_broke += 1
++				elif ev["kind"] == "boss_plate":
++					plate_broke += 1
++		if s.winner == 0:
++			wins += 1
++	print("BOSS 玩家勝 %d／12、前臂斷 %d、背甲碎 %d" % [wins, arm_broke, plate_broke])
++	ok(wins >= 1 and wins <= 9, "遠征終點打得贏但不輕鬆（12 場隨機陣勝 1～9）", str(wins))
++	ok(arm_broke + plate_broke > 0, "部位會被打掉")
++	var a = AI0.build(0, 130, rng)["army"]
++	var s1 = Sim0.new(a.copy(), e.copy())
++	var s2 = Sim0.new(a.copy(), e.copy())
++	s1.run_to_end()
++	s2.run_to_end()
++	ok(s1.fingerprint == s2.fingerprint, "巨獸對局確定性")
++	var sm = Sim0.new(e.mirrored(), a.mirrored())
++	sm.run_to_end()
++	ok(sm.tick == s1.tick and (sm.winner == -1 if s1.winner == -1 else sm.winner == 1 - s1.winner), "巨獸左右鏡像", "%d/%d %d/%d" % [s1.winner, sm.winner, s1.tick, sm.tick])
++
+diff --git a/game/tests/suites/maps.gd b/game/tests/suites/maps.gd
+index c982d08..4af961d 100644
+--- a/game/tests/suites/maps.gd
++++ b/game/tests/suites/maps.gd
+@@ -103,3 +103,47 @@ func test_maps_mirror_v9() -> void:
+ 				stuck.append("%s %d 打不起來" % [MD.MAPS[id]["key"], sz])
+ 	ok(bad.is_empty(), "所有地圖逐 tick 左右鏡像", str(bad))
+ 	ok(stuck.is_empty(), "所有地圖沒有單位站進牆裡、都打得起來", str(stuck))
++
++
++## V1.4 #10 沙盤機關：崩塌後那幾格變擋路、站在上面的兵被挪開；火牆會扣血；推進板往中線推；確定性、左右鏡像；舊地圖沒有機關。
++func test_map_events_v140() -> void:
++	var Sim0 = load("res://scripts/core/battle_sim.gd")
++	var AI0 = load("res://scripts/core/ai_army.gd")
++	var RS0 = load("res://scripts/core/ruleset.gd")
++	var MD = load("res://scripts/core/map_defs.gd")
++	ok(MD.events(0).is_empty() and MD.events(5).is_empty() and not MD.events(MD.QUARRY).is_empty(), "只有新地圖帶機關")
++	for mid in [MD.QUARRY, MD.BEACON, MD.PLATES]:
++		var r = RS0.standard()
++		r.map_id = mid
++		var rng := RandomNumberGenerator.new()
++		rng.seed = 1000 + mid
++		var a0 = AI0.build(0, 100, rng, -1, -1, r)["army"]
++		var a1 = AI0.build(1, 100, rng, -1, -1, r)["army"]
++		var s1 = Sim0.new(a0.copy(), a1.copy(), r)
++		var s2 = Sim0.new(a0.copy(), a1.copy(), r)
++		s1.run_to_end()
++		s2.run_to_end()
++		ok(s1.fingerprint == s2.fingerprint, "機關地圖 %d 確定性" % mid)
++		var sm = Sim0.new(a1.mirrored(), a0.mirrored(), r)
++		sm.run_to_end()
++		ok(sm.tick == s1.tick and (sm.winner == -1 if s1.winner == -1 else sm.winner == 1 - s1.winner), "機關地圖 %d 左右鏡像" % mid, "%d/%d %d/%d" % [s1.winner, sm.winner, s1.tick, sm.tick])
++	# 崩塌：第 400 tick 之後中路變擋路，共用快取的地形不受影響
++	var rq = RS0.standard()
++	rq.map_id = MD.QUARRY
++	var tq = MD.terrain(MD.QUARRY, 1)
++	var mid_y: int = tq.h / 2
++	var mx: int = tq.w / 2 - 800
++	ok(not tq.blocked(mx, mid_y, 0), "崩塌前中路可走")
++	var rng2 := RandomNumberGenerator.new()
++	rng2.seed = 3
++	var sq = Sim0.new(AI0.build(0, 100, rng2, -1, -1, rq)["army"], AI0.build(1, 100, rng2, -1, -1, rq)["army"], rq)
++	while sq.tick < 401 and not sq.finished:
++		sq.step()
++	if not sq.finished:
++		ok(sq.terrain.blocked(mx, mid_y, 0) and not tq.blocked(mx, mid_y, 0), "崩塌後這一場中路擋住、共用地形不變")
++		var stuck := 0
++		for u in sq.units:
++			if u.alive and sq.terrain.blocked(u.x, u.y, u.team):
++				stuck += 1
++		ok(stuck == 0, "沒有兵卡在崩塌的格子裡")
++
+diff --git a/game/tools/balance/ghost_forge.gd b/game/tools/balance/ghost_forge.gd
+index c8c37ae..153e31c 100644
+--- a/game/tools/balance/ghost_forge.gd
++++ b/game/tools/balance/ghost_forge.gd
+@@ -5,19 +5,26 @@ extends SceneTree
+ 
+ const AI = preload("res://scripts/core/ai_army.gd")
+ const Sim = preload("res://scripts/core/battle_sim.gd")
++const RS = preload("res://scripts/core/ruleset.gd")
++
++func _arg(k: String, d: String) -> String:
++	for a in OS.get_cmdline_user_args():
++		if a.begins_with("--%s=" % k):
++			return a.split("=")[1]
++	return d
+ 
+ func _init() -> void:
+ 	var foes: Array = []
+ 	var fr := RandomNumberGenerator.new()
+ 	fr.seed = 7001
+-	for i in 40:
++	for i in int(_arg("foes", "40")):
+ 		foes.append(AI.build(0, 100, fr)["army"])
+ 	var cands: Array = []
+-	for ti in AI.TEMPLATES.size():
+-		for s in 8:
++	for ti in range(int(_arg("t0", "0")), mini(AI.TEMPLATES.size(), int(_arg("t1", "99")))):
++		for s in int(_arg("seeds", "8")):
+ 			var r := RandomNumberGenerator.new()
+ 			r.seed = 9000 + ti * 101 + s * 7
+-			var b: Dictionary = AI.build(1, 100, r, ti)
++			var b: Dictionary = AI.build(1, 100, r, ti, RS.full_pool() if "--full" in OS.get_cmdline_user_args() else -1)
+ 			var a = b["army"]
+ 			if a.units.is_empty():
+ 				continue
+@@ -28,7 +35,9 @@ func _init() -> void:
+ 				sim.run_to_end()
+ 				if sim.winner == 1:
+ 					wins += 1
+-			cands.append({"t": ti, "tpl": str(b["name"]), "units": a.units.duplicate(true), "wr": wins * 100 / foes.size(), "cost": a.spent()})
++			var cd := {"t": ti, "tpl": str(b["name"]), "units": a.units.duplicate(true), "wr": wins * 100 / foes.size(), "cost": a.spent()}
++			cands.append(cd)
++			print("CAND ", JSON.stringify(cd))   # 邊算邊印：中途被砍也留得下結果
+ 	cands.sort_custom(func(x, y): return int(x["wr"]) > int(y["wr"]))
+ 	var per := {}
+ 	var out := 0
+diff --git a/tools/gen/ghost_merge.py b/tools/gen/ghost_merge.py
+new file mode 100644
+index 0000000..b11eead
+--- /dev/null
++++ b/tools/gen/ghost_merge.py
+@@ -0,0 +1,59 @@
++#!/usr/bin/env python3
++"""V1.4 #7：把 ghost_forge.gd 的 30 個幽靈陣寫成 game/data/ghosts.json，依 AI 模板取名（每個模板兩個名號）。
++用法：python3 tools/gen/ghost_merge.py <forge 輸出>"""
++import json, sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[2]
++NAMES = {
++    "均衡軍": [("北境老將", "The Northern Veteran"), ("無名棋手", "The Nameless Player")],
++    "鐵壁弓陣": [("霧谷弓手會", "Mistvale Archers' Guild"), ("雙橋守將", "Warden of Twin Bridges")],
++    "鐵騎突擊": [("黃沙遊騎", "The Dune Riders"), ("石橋騎士", "Knights of the Stone Bridge")],
++    "暗影刺殺": [("夜梟", "The Night Owls"), ("無聲的客人", "The Silent Guests")],
++    "劍海": [("紅鬍子傭兵團", "Redbeard Company"), ("千劍廣場", "Square of a Thousand Swords")],
++    "騎射混編": [("邊境巡林隊", "The Border Rangers"), ("冬營獵團", "Winter Camp Hunters")],
++    "槍盾方陣": [("長槍老兵團", "The Old Pike Brigade"), ("銀盾騎士團", "Order of the Silver Shield")],
++    "砲擊陣": [("煙火匠公會", "The Fireworks Guild"), ("東風砲台", "East Wind Battery")],
++    "醫療鐵壁": [("修道院醫護隊", "The Abbey Infirmary"), ("不倒的牆", "The Wall That Won't Fall")],
++    "戰鼓衝陣": [("雷鼓樂隊", "The Thunder Drums"), ("凱旋遊行", "The Victory Parade")],
++    "破陣突擊": [("王室近衛", "The Royal Guard"), ("破城錘", "The Battering Ram")],
++    "黏黏大軍": [("沼澤黏黏會", "The Bog Slime Society"), ("果凍節", "Jelly Festival")],
++    "幽靈奇襲": [("幽靈船員", "The Phantom Crew"), ("午夜鐘聲", "The Midnight Bell")],
++    "亡靈法陣": [("骨匠工坊", "The Bonewright Workshop"), ("灰塔法團", "The Grey Tower Circle")],
++    "吸塵爆破": [("貓神信徒", "Cult of the Cat"), ("大掃除", "Spring Cleaning")],
++    "石魔要塞": [("巨石守衛", "The Boulder Watch"), ("山中之城", "City in the Mountain")],
++    "混編傭兵": [("老兵酒館", "The Veterans' Tavern"), ("流浪劇團", "The Wandering Troupe")],
++    "陷阱弓陣": [("陷阱大師", "The Trapmasters"), ("寶箱商隊", "The Mimic Caravan")],
++    "羊群衝鋒": [("牧羊人起義", "The Shepherds' Uprising"), ("羊毛大逃亡", "The Great Wool Escape")],
++}
++
++
++def main():
++    cands = []
++    for line in open(sys.argv[1], encoding="utf-8", errors="ignore"):
++        if line.startswith("CAND "):
++            cands.append(json.loads(line[5:]))
++    # 勝率高的在前（同分照模板、成本），每個模板最多 2 個，取 30 個
++    cands.sort(key=lambda c: (-c["wr"], c["t"], c["cost"]))
++    per, rows = {}, []
++    for c in cands:
++        if len(rows) >= 30:
++            break
++        if per.get(c["tpl"], 0) >= 2 or any(c["units"] == r["units"] for r in rows):
++            continue
++        per[c["tpl"]] = per.get(c["tpl"], 0) + 1
++        rows.append(c)
++    used = {}
++    out = []
++    for i, r in enumerate(rows):
++        k = used.get(r["tpl"], 0)
++        used[r["tpl"]] = k + 1
++        zh, en = NAMES.get(r["tpl"], [("無名陣", "Nameless Host")] * 2)[min(k, 1)]
++        out.append({"id": "g%02d" % (i + 1), "zh": zh, "en": en, "tpl": r["tpl"], "wr": r["wr"], "cost": r["cost"],
++                    "units": [{"type": u["type"], "col": u["col"], "row": u["row"]} for u in r["units"]]})
++    json.dump(out, open(ROOT / "game/data/ghosts.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
++    print("幽靈", len(out), "個；勝率", [g["wr"] for g in out][:10], "…")
++
++
++if __name__ == "__main__":
++    main()

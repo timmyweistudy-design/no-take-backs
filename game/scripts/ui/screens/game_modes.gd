@@ -1649,13 +1649,18 @@ func _ghost_start(i: int) -> void:
 	rules = r
 	challenge_army = ghost_army(gs[i])
 	overlay = ""
+	set("daily_spec", {})   # Codex v140-i5：不能沿用每日挑戰的狀態
 	_start_mode(Mode.VS_AI)
+	set("daily_spec", {})
 	challenge_army = ghost_army(gs[i])
 	ghost_id = str(gs[i]["id"])
 	_toast(L.t("gh_toast", [L.field(gs[i], "")]))
 
+var wk_spec := {}   # 開題當下的題目（跨週一才打完也算開題那一週，Codex、Antigravity v140-i5）
+
 func _weekly_start() -> void:
 	var sp := weekly_spec(week_no(int(Time.get_unix_time_from_system())))
+	wk_spec = sp
 	var gs := ghosts()
 	if gs.is_empty():
 		return
@@ -1668,7 +1673,9 @@ func _weekly_start() -> void:
 	rules = r
 	challenge_army = ghost_army(gs[int(sp["ghost"])])
 	overlay = ""
+	set("daily_spec", {})
 	_start_mode(Mode.VS_AI)
+	set("daily_spec", {})
 	challenge_army = ghost_army(gs[int(sp["ghost"])])
 	wk_active = true
 	_toast(L.t("wk_toast", [int(sp["budget"])]))
@@ -1685,7 +1692,7 @@ func _ghost_settle(w: int) -> void:
 			Save.save_data()
 			report["gh_line"] = L.t("gh_beat_new", [beat.size(), ghosts().size()])
 	if wk_active:
-		var wk := week_no(int(Time.get_unix_time_from_system()))
+		var wk: int = int(wk_spec.get("wk", week_no(int(Time.get_unix_time_from_system()))))
 		var rec: Dictionary = Save.data.get("weekly", {})
 		if int(rec.get("wk", -1)) != wk:
 			rec = {"wk": wk, "best": 0, "tries": 0}
@@ -1695,9 +1702,17 @@ func _ghost_settle(w: int) -> void:
 			if int(rec["best"]) <= 0 or spent < int(rec["best"]):
 				rec["best"] = spent
 				report["gh_line"] = L.t("wk_best_new", [spent])
-				SteamApi.weekly_upload(wk, spent, last_armies[0])   # 有 Steam 才會送（未實測）
+				rec["det"] = Array(SteamApi.pack_army(last_armies[0].units))
+				rec["pend"] = 1   # 還沒送上排行榜（沒 Steam、或送失敗）：之後有 Steam 時補送（Codex v140-i5）
 		Save.data["weekly"] = rec
 		Save.save_data()
+		_weekly_sync()
+
+## 每週最佳還沒送上排行榜就送（有 Steam 才會真的送；成功的回呼會把 pend 清掉）。
+func _weekly_sync() -> void:
+	var rec: Dictionary = Save.data.get("weekly", {})
+	if int(rec.get("pend", 0)) == 1 and SteamApi.available() and int(rec.get("best", 0)) > 0:
+		SteamApi.weekly_upload(int(rec["wk"]), int(rec["best"]), PackedInt32Array(rec.get("det", [])))
 
 func _draw_ghosts() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
