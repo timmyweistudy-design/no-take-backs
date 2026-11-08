@@ -29,7 +29,32 @@ static var turn_s := 0.0     # sin θ
 static var _xf0 := Transform2D.IDENTITY   # 轉身時沒縮過的角色轉換
 static var _b_now := Transform2D.IDENTITY # 目前的上半身轉換（_push_body 設）
 static var _cur_xf := Transform2D.IDENTITY # 目前畫布轉換（部件之間切換用；_eyes 畫完要還原成這個）
-const TURN_FWD := {3: 0.6, 13: 0.0, 19: 0.3}   # 騎兵的馬最窄約 0.58（Antigravity v130-impl1：太窄像插在木棍上）   # 身體跟著縮的比例（沒列＝0.4）：騎兵的馬是長的、史萊姆是圓的
+const TURN_FWD := {3: 0.45, 13: 0.0, 19: 0.3, 10: 0.0, 11: 0.3, 12: 0.45, 14: 0.2, 16: 0.0, 18: 0.3, 20: 0.0, 21: 0.3}   # 騎兵的馬最窄約 0.58；V1.3.1：羊長身、寶箱方體會縮，孢子菇、沙漏、小史萊姆不縮
+static var baking := false
+# V1.3.1 P1：待機小動作（眼睛往後看）、小動作中不擺怒臉、受擊帽子彈起
+static var look := 0.0
+static var calm := false
+static var hat_pop := 0.0
+static func _hat_on(ci: CanvasItem) -> void:
+	if hat_pop > 0.0:
+		ci.draw_set_transform_matrix(_cur_xf * Transform2D(0.0, Vector2.ONE, 0.0, Vector2(0.0, -5.0 * hat_pop)))   # 帽子騰空 5px（7px 會像禿頭高額頭，Antigravity v131-impl2）
+static func _hat_off(ci: CanvasItem) -> void:
+	if hat_pop > 0.0:
+		ci.draw_set_transform_matrix(_cur_xf)
+# V1.3.1 P0-6：錨點紀錄（只有工具 anim_sheet 打開）。烘轉身頁時記下臉中心與武器線段（格子像素座標），檢查武器有沒有穿過臉。
+static var anchor_on := false
+static var anchor_key := ""
+static var anchor_log := {}
+static var _cur_weapon := false
+static func _anchor(kind: String, pts: Array) -> void:
+	if anchor_key == "":
+		return   # 只記轉身頁（其他頁不設鍵）
+	if not anchor_log.has(anchor_key):
+		anchor_log[anchor_key] = {"face": [], "weapon": []}
+	var out: Array = []
+	for q in pts:
+		out.append(_cur_xf * q)
+	anchor_log[anchor_key][kind].append(out)   # V1.3.1：烘焙中（史萊姆高光改在貼圖後依世界方向畫）   # 身體跟著縮的比例（沒列＝0.4）：騎兵的馬是長的、史萊姆是圓的
 
 static func turn_body_w(type: int) -> float:
 	return lerpf(1.0, turn_c, float(TURN_FWD.get(type, 0.4)))
@@ -38,7 +63,20 @@ static func turn_body_w(type: int) -> float:
 static func _part(ci: CanvasItem, z: float, fwd: float) -> void:
 	if turn_c >= 1.0:
 		return
-	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(lerpf(1.0, turn_c, fwd), 1.0), 0.0, Vector2(-z * turn_s, 0.0))
+	# 往前伸的武器最多縮到一半（Antigravity v131-impl1：cos 0.3 時刀、吸嘴、手臂短到看不見）
+	var sxp := lerpf(1.0, turn_c, fwd)
+	if fwd >= 0.5:
+		sxp = maxf(sxp, 0.5)
+	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(sxp, 1.0), 0.0, Vector2(-z * turn_s, 0.0))
+	_cur_weapon = anchor_on and fwd >= 0.5 and z != 0.0
+	ci.draw_set_transform_matrix(_cur_xf)
+
+## V1.3.1：圓的部件（羊頭、幽靈臉、骷髏頭）只移到轉過去的位置，不壓扁。x0＝部件中心的 x。
+static func _part_at(ci: CanvasItem, x0: float) -> void:
+	if turn_c >= 1.0:
+		return
+	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2.ONE, 0.0, Vector2(x0 * (turn_c - 1.0), 0.0))
+	_cur_weapon = false
 	ci.draw_set_transform_matrix(_cur_xf)
 
 ## 回到身體的轉換。
@@ -46,6 +84,7 @@ static func _part_end(ci: CanvasItem) -> void:
 	if turn_c >= 1.0:
 		return
 	_cur_xf = _xf * _b_now
+	_cur_weapon = false
 	ci.draw_set_transform_matrix(_cur_xf)
 
 const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]   # 第七輪：紅壓暗，灰階下敵我也分得開（小樣通過條件 ②）
@@ -63,9 +102,13 @@ const M_SPARKLE := 2          # 騎兵衝鋒蓄滿：亮晶晶眼＋槍尖金光
 const M_BROWS := 4            # 狂熱：眉毛內傾
 const M_HOOD := 8             # 刺客潛行：帽簷壓低、黃眼每 0.4 秒眨一次
 const M_BRACE := 16           # 盾兵頂住：盾放大 1.35 倍
+const M_HAPPY := 32           # V1.3.1：勝利歡呼 ^ ^ 眼
+const M_SURPRISE := 64        # V1.3.1：擺陣被抓起來，圓眼＋小 o 嘴
+const M_GRIM := 128           # V1.3.1：大落後，眉頭下壓、嘴角往下（不抖、不畫汗，避免像暈眩）
 
 # 第八輪：通用表情疊加用的眼睛位置（其他新兵的臉不適合疊）
-const FEATURE_EYES := {10: Vector2(1.5, -13), 13: Vector2(3, -17), 18: Vector2(3, -33), 19: Vector2(1, -31), 20: Vector2(2, -11)}
+const FEATURE_EYES := {10: Vector2(1.5, -13), 13: Vector2(3, -17), 18: Vector2(3, -33), 19: Vector2(1, -31), 20: Vector2(2, -11),
+	11: Vector2(16.5, -23), 14: Vector2(2.0, -40), 17: Vector2(5.5, -36), 21: Vector2(0.5, -33)}   # V1.3.1：羊、幽靈、骷髏法師、骷髏也吃得到表情（Codex v131-impl1）
 
 
 static func team_color(team: int, cb := false) -> Color:
@@ -88,6 +131,12 @@ static func _c(ci: CanvasItem, c: Vector2, r: float, col: Color, a: float, outli
 
 
 static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float, outline := true) -> void:
+	if _cur_weapon:
+		var ar: Array = []
+		for k in pts.size():
+			ar.append(pts[k])
+		ar.append(pts[0])
+		_anchor("weapon", ar)
 	if outline:
 		var closed := pts.duplicate()
 		closed.append(pts[0])
@@ -96,16 +145,25 @@ static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float,
 
 
 static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, al: float) -> void:
+	if _cur_weapon:
+		_anchor("weapon", [a, b])
 	ci.draw_line(a, b, Color(OUT, al), w + INNER_W * 1.9, true)
 	ci.draw_line(a, b, Color(col, col.a * al), w, true)
 
 
 static func _eyes(ci: CanvasItem, c: Vector2, a: float, t: float, angry := false) -> void:
 	var blink := 1.0 if fmod(t + c.x * 0.13, 3.7) > 0.12 else 0.15
+	if look != 0.0:
+		c.x -= look * 3.0   # V1.3.1：待機小動作回頭看
 	if turn_c < 1.0:
 		# V1.3 A1b：轉向鏡頭時臉往中間移，眼睛不跟著身體壓扁（保持圓的）
 		ci.draw_set_transform_matrix(_xf0 * _b_now)
 		c = Vector2(c.x * turn_c, c.y)
+		if anchor_on:
+			var keep := _cur_xf
+			_cur_xf = _xf0 * _b_now
+			_anchor("face", [c])
+			_cur_xf = keep
 		_eyes_draw(ci, c, a, blink, angry)
 		ci.draw_set_transform_matrix(_cur_xf)   # 還原成呼叫前的部件轉換（頭盔接著畫，Codex v130-impl1）
 		return

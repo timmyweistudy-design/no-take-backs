@@ -13,6 +13,7 @@ const CX_LEFT := Rect2(204, 204, 376, 388)     # 左欄可捲動區
 const CX_DESC := Rect2(596, 256, 474, 58)      # 技能說明可捲動區                          # 一段示範結束後停多久再重播（秒）
 
 var cx_unit := 0
+var cx_spin_t := -10.0   # V1.3.1 P1：圖鑑角色播放器（點角色：轉身一圈＋待機小動作）
 var cx_skill := 0
 var cx_sim = null
 var cx_acc := 0.0
@@ -46,6 +47,7 @@ func _cx_skills() -> Array:
 
 func _cx_pick_unit(t: int) -> void:
 	cx_unit = t
+	cx_spin_t = time   # 換角色先轉一圈給你看
 	cx_scroll["left"] = 0.0
 	cx_scroll["note"] = 0.0
 	_cx_pick_skill(0)
@@ -350,7 +352,8 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 				if inside.call(y, h):
 					draw_circle(pc + Vector2(0, -30), 62, Color(1, 1, 1, 0.05), true, -1.0, true)
 					_ring(pc, 0, cx_unit, 2.0)
-					_unit(pc, cx_unit, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0)
+					_cx_portrait(pc)
+					_btns.append({"r": Rect2(pc - Vector2(56, 112), Vector2(112, 124)), "cb": func(): cx_spin_t = time, "en": true})
 				var ty := y + 4.0
 				for tx in it["texts"]:
 					var wt := _wrap(tx["s"], tx["size"], r.size.x - 168)
@@ -516,3 +519,28 @@ func _draw_codex_demo() -> void:
 		draw_rect(b, TH_WOOD_D, false, 3.0)
 		draw_line(b.position + Vector2(0, b.size.y + 1.5), b.end + Vector2(0, 1.5), Color(1, 0.9, 0.7, 0.18), 1.0)
 	_text(b.position + Vector2(8, 4), L.t("codex_demo"), ts(13), TXT_DIM)
+
+
+## V1.3.1 P1：圖鑑大圖播放器。0～1.2 秒左右轉一圈（用轉身姿勢，不是 360°），1.2～2.2 秒做這種兵的待機小動作。
+## 簡化特效時只畫靜止的正側面。
+func _cx_portrait(pc: Vector2) -> void:
+	var u := (time - cx_spin_t) if not bool(Save.s("reduce_fx")) and not layout_probe else 99.0   # 截圖／版面檢查時固定正側面
+	var face := 1.0
+	var atk := 0.0
+	if u >= 0.0 and u < 1.2:
+		var cf := cos(u / 1.2 * TAU)
+		face = 1.0 if cf >= 0.0 else -1.0
+		if absf(cf) < 0.95:
+			Art.turn_c = maxf(absf(cf), 0.3)
+			Art.turn_s = sqrt(1.0 - Art.turn_c * Art.turn_c)
+	elif u >= 1.2 and u < 2.2:
+		var spec: Array = preload("res://scripts/ui/sprite_cache.gd").FIDGET.get(cx_unit, [0.2, 0.0])
+		var wgt := sin((u - 1.2) / 1.0 * PI)
+		atk = Art.ATK_WINDUP * float(spec[0]) * wgt
+		Art.calm = true
+		Art.look = float(spec[1]) * wgt
+	_unit(pc, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, 2.0)
+	Art.turn_c = 1.0
+	Art.turn_s = 0.0
+	Art.calm = false
+	Art.look = 0.0

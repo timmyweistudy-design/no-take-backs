@@ -388,6 +388,22 @@ func _draw_units_of(s, dim: bool) -> void:
 			list.append(u)
 	var live: bool = s == view
 	var rfx := bool(Save.s("reduce_fx"))
+	# V1.3.1 P2：大落後（戰力 <25%）的那一方，沒事做的兵表情沉下來（每幀每隊只算一次）
+	var grim := [false, false]
+	if live and not s.finished:
+		# 展示快照沒有戰力函式（Codex v131-impl1）：用存活比例，而且要對方明顯比較多才算落後
+		var cnt := [0, 0]
+		var liv := [0, 0]
+		for su in s.units:
+			if su.summon:
+				continue
+			cnt[su.team] += 1
+			if su.alive:
+				liv[su.team] += 1
+		for gt in 2:
+			var mine := float(liv[gt]) / maxf(1.0, cnt[gt])
+			var theirs := float(liv[1 - gt]) / maxf(1.0, cnt[1 - gt])
+			grim[gt] = mine < 0.25 and theirs > mine * 2.0
 	# V1.3 P0-1：這一幀的畫面位置只算一次（排序比較器原本每次比較都重算 _upos）
 	var pc := {}
 	if live:
@@ -471,9 +487,11 @@ func _draw_units_of(s, dim: bool) -> void:
 		var moving: bool = walk > 0.0
 		var at := 0.0
 		var variant := 0
+		var hit_now := -1
 		if live and atk_hit.has(u.id):
 			var dt0 := _disp_tick()
 			var h := pick_hit(atk_hit[u.id], dt0, u.type)
+			hit_now = h
 			if h >= 0:
 				at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
 				# 火罐飛行（第四輪 §4.4）：前搖期間從手上飛向目標，命中那一刻落地（模擬不受影響）
@@ -481,7 +499,8 @@ func _draw_units_of(s, dim: bool) -> void:
 					var bt = view.unit_by_id(bomb_tgt[u.id][h])
 					if bt != null:
 						var fk := at / Art.ATK_WINDUP
-						var src_p: Vector2 = _upos(u) + Vector2(0, -50)
+						var fsg: float = float(atk_face[u.id][1]) if atk_face.has(u.id) and int(atk_face[u.id][0]) == h else signf(u.fx) if u.fx != 0 else (signf(_upos(bt).x - _upos(u).x) if _upos(bt).x != _upos(u).x else 1.0)
+						var src_p: Vector2 = _upos(u) + Vector2(fsg * 17.0, -24.0) * UNIT_SCALE   # V1.3.1：從手上的火罐位置起飛（原本是頭頂固定點）
 						var dst_p: Vector2 = _upos(bt) + Vector2(0, -10)
 						var pp := src_p.lerp(dst_p, fk) + Vector2(0, -sin(fk * PI) * minf(70.0, src_p.distance_to(dst_p) * 0.3))
 						pot_draw.append(pp)
@@ -514,6 +533,8 @@ func _draw_units_of(s, dim: bool) -> void:
 		var crouch := 1.0
 		if hurt > 0.3 or u.stun > 0:
 			mood |= Art.M_HURT
+		elif grim[u.team] and at == 0.0:
+			mood |= Art.M_GRIM
 		if hurt > 0.0:
 			crouch *= 1.0 - 0.12 * hurt                 # V1.1 A2：受擊壓扁（縱 0.88），配合後退與閃白
 			lean -= 0.06 * hurt * float(hurt_dir.get(u.id, 0.0)) * face
@@ -560,6 +581,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		var hop := 0.0
 		if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
 			hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
+			mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
 			at = Art.ATK_WINDUP
 			lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
 			crouch = 1.06
@@ -592,6 +614,15 @@ func _draw_units_of(s, dim: bool) -> void:
 				crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
 		if live:
 			face = _face_of(u)
+			# V1.3.1 P0-2：出手前先轉完。前搖一開始就面向目標（不改命中時間），出手中途目標換邊也維持到收招
+			if at > 0.0:
+				# 鎖定的是「這一擊」：連擊換到下一擊時重新取方向（Codex v131-impl1）
+				if not atk_face.has(u.id) or int(atk_face[u.id][0]) != hit_now:
+					atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0)]
+				face = float(atk_face[u.id][1])
+				face_now[u.id] = face
+			elif atk_face.has(u.id):
+				atk_face.erase(u.id)
 			var tdk := _turn_dust_k(u)
 			if tdk > 0.0 and not rfx:
 				# V1.3 A1a：翻面時腳下踩出一小團塵土（畫在身體下面）
@@ -609,7 +640,14 @@ func _draw_units_of(s, dim: bool) -> void:
 			for sk0 in 3:
 				var sa0 := time * 5.0 + sk0 * TAU / 3.0
 				_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
+		# V1.3.1 P1：待機小動作。站著沒事（沒走、沒出手、沒暈、還在打）時，每隻約 30～60 秒做一次、1.2 秒，依 id 錯開
+		var fid := -1
+		if live and not moving and at == 0.0 and u.stun <= 0 and not s.finished and mood == 0 and not bool(Save.s("reduce_fx")):
+			var per := 30.0 + float((u.id * 7919) % 30)
+			var tm := fmod(time + u.id * 3.7, per)
+			if tm < 1.2:
+				fid = mini(3, int(tm / 1.2 * 4.0))
+		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant, fid)
 		if live and not u.hidden:
 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）

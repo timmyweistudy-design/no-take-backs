@@ -1,0 +1,1245 @@
+diff --git a/game/scripts/ui/art.gd b/game/scripts/ui/art.gd
+index 9caec02..07c70b9 100644
+--- a/game/scripts/ui/art.gd
++++ b/game/scripts/ui/art.gd
+@@ -22,8 +22,8 @@ const POSE_PROFILE := {
+ 	4: [1.10, 0.82, 0.15, -1.0, 0.85, 1.20, 0.55, 6.0, 0.10],    # 刺客：伏低 → 竄出直刺
+ 	5: [1.06, 0.94, 0.25, -3.0, 0.90, 1.10, 0.30, 7.0, 0.20],    # 長槍兵：後拉 → 長刺定住
+ 	9: [1.16, 0.84, 0.55, -2.0, 0.84, 1.18, 0.55, 4.0, 0.20],    # 狂戰士：雙斧高舉大後仰 → 全身劈下
+-	2: [1.06, 0.94, 0.18, -2.0, 0.96, 1.05, 0.10, 1.0, 0.30],    # 弓箭手：拉弓 → 放箭、手停在弦上（跟隨動作）
+-	7: [1.08, 0.92, 0.25, -2.0, 0.93, 1.08, 0.30, 2.0, 0.20],    # 醫者：舉杖 → 點地
++	2: [1.08, 0.92, 0.32, -3.0, 0.94, 1.08, 0.18, 1.5, 0.30],    # 弓箭手：拉弓 → 放箭、手停在弦上（V1.3.1：滿弓後仰加大）
++	7: [1.10, 0.90, 0.36, -2.0, 0.92, 1.10, 0.34, 2.5, 0.20],    # 醫者：舉杖 → 點地（V1.3.1：高舉施法更明顯）
+ 	8: [1.12, 0.88, 0.35, -2.0, 0.88, 1.14, 0.38, 2.0, 0.15],    # 鼓手：高舉鼓槌 → 重敲
+ 	10: [1.15, 0.85, 0.00, 0.0, 0.88, 1.15, 0.00, 0.0, 0.20],    # 孢子菇：縮傘 → 噴孢子（不前撲，定點）
+ 	11: [1.10, 0.90, 0.10, -2.0, 0.90, 1.10, 0.30, 4.0, 0.10],   # 爆爆羊：後蹲 → 衝撞
+@@ -32,7 +32,7 @@ const POSE_PROFILE := {
+ 	14: [1.00, 1.00, 0.20, -2.0, 0.92, 1.10, 0.40, 6.0, 0.10],   # 幽靈：後飄 → 穿刺
+ 	15: [1.05, 0.95, 0.20, -1.0, 0.95, 1.06, 0.25, 2.0, 0.25],   # 巫毒娃娃：舉針 → 扎下
+ 	16: [1.00, 1.05, 0.15, 0.0, 0.95, 1.08, 0.20, 2.0, 0.20],    # 沙漏精靈：上浮 → 點擊
+-	17: [1.00, 1.08, 0.20, 0.0, 0.95, 1.08, 0.25, 2.0, 0.25],    # 骷髏法師：舉杖聚光 → 施放
++	17: [0.98, 1.12, 0.32, 0.0, 0.94, 1.10, 0.30, 2.5, 0.25],    # 骷髏法師：舉書聚光 → 施放（V1.3.1：後仰拉高）
+ 	18: [1.12, 0.88, 0.15, -2.0, 0.90, 1.12, 0.40, 5.0, 0.15],   # 吸塵貓：弓背 → 撲抓
+ 	20: [1.20, 0.80, 0.00, 0.0, 0.85, 1.20, 0.20, 3.0, 0.20],    # 小史萊姆
+ 	21: [1.14, 0.86, 0.30, -2.0, 0.86, 1.16, 0.40, 4.0, 0.20],   # 骷髏：舉骨刀 → 劈
+@@ -102,11 +102,11 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float,
+ 	ci.draw_set_transform_matrix(_xf)
+ 	# 以 face＝+1 畫（水平鏡像由 transform 處理）
+ 	if type == D.CAVALRY:
+-		_cavalry(ci, tc, walk, w, alpha, t, atk > 0.0)
++		_cavalry(ci, tc, walk, w, alpha, t, atk > 0.0 and not calm)
+ 	elif type >= D.COUNT:
+-		_fantasy(ci, type, tc, walk, w, alpha, t, atk > 0.0, variant)
++		_fantasy(ci, type, tc, walk, w, alpha, t, atk > 0.0 and not calm, variant)
+ 	else:
+-		_infantry(ci, type, tc, walk, w, alpha, t, atk > 0.0, variant)
++		_infantry(ci, type, tc, walk, w, alpha, t, atk > 0.0 and not calm, variant)
+ 	if hurt > 0.0:
+ 		# 受擊閃白：在身體位置疊一層白
+ 		ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, true)
+@@ -117,6 +117,8 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float,
+ 
+ ## 表情與狀態疊加：呼叫前畫布轉換要已經是這隻角色的局部座標（face＝+1 空間）。
+ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t: float, cb := false) -> void:
++	if mood & M_HAPPY:
++		mood &= ~M_HURT   # V1.3.1：歡呼優先於受擊眼
+ 	var ec := Vector2(2.0, -43.0) if type == D.CAVALRY else (Vector2(5.5, -33.5) if type == D.ASSASSIN else Vector2(3.5, -32.0))
+ 	if type >= D.COUNT:
+ 		if not FEATURE_EYES.has(type):
+@@ -124,6 +126,22 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
+ 		ec = FEATURE_EYES[type]
+ 	var eyes := [ec + Vector2(-3.0 if type != D.ASSASSIN else -2.5, 0), ec + Vector2(4.0 if type != D.ASSASSIN else 2.5, 0)]
+ 	var skin := Color("#2b2140") if type == D.ASSASSIN else SKIN
++	if mood & (M_HAPPY | M_SURPRISE | M_GRIM):
++		for e in eyes:
++			ci.draw_circle(e, 3.4, Color(skin, a), true, -1.0, true)   # 先蓋掉原本的眼睛
++			if mood & M_HAPPY:
++				ci.draw_arc(e + Vector2(0, 1.2), 2.6, PI * 1.15, PI * 1.85, 6, Color(OUT, a), 1.7, true)
++			elif mood & M_SURPRISE:
++				ci.draw_circle(e, 3.0, Color(OUT, a), true, -1.0, true)
++				ci.draw_circle(e + Vector2(0.6, -0.7), 1.2, Color(1, 1, 1, a), true, -1.0, true)
++			else:
++				ci.draw_circle(e + Vector2(0, 0.6), 2.2, Color(OUT, a), true, -1.0, true)
++				ci.draw_line(e + Vector2(-2.6, -3.4), e + Vector2(2.6, -2.2), Color(OUT, a), 1.4, true)
++		var mc: Vector2 = (eyes[0] + eyes[1]) * 0.5 + Vector2(0, 6.0)
++		if mood & M_SURPRISE:
++			ci.draw_circle(mc, 1.6, Color(OUT, a), true, -1.0, true)
++		elif mood & M_GRIM:
++			ci.draw_arc(mc + Vector2(0, 2.0), 2.4, PI * 1.2, PI * 1.8, 6, Color(OUT, a), 1.3, true)
+ 	if mood & M_HOOD:
+ 		# 帽簷壓低：一條兜帽色的帽簷蓋到眼睛上緣；每 0.4 秒整個蓋住一下（眨眼）
+ 		var shut := fmod(t, 0.4) < 0.07
+diff --git a/game/scripts/ui/battle/battle_state.gd b/game/scripts/ui/battle/battle_state.gd
+index fe08d1e..9e95b67 100644
+--- a/game/scripts/ui/battle/battle_state.gd
++++ b/game/scripts/ui/battle/battle_state.gd
+@@ -300,6 +300,8 @@ var drag_t := {}       # id → 被擊退、吸走的拖行姿勢還剩幾秒
+ var face_now := {}     # id → 目前朝向（轉身有過場）
+ var turn_t := {}       # id → 上次翻面的時間（V1.3 A1a）
+ var stop_t := {}       # id → 停步的時間（V1.3 A4）
++var atk_face := {}     # id → 這一擊鎖定的朝向（V1.3.1 P0-2）
++var idle_since := {}   # id → 開始站定的時間（V1.3.1：最後一隻張望）
+ var walking := {}      # id → 上一幀在走
+ 
+ func _gait_reset() -> void:
+@@ -310,6 +312,8 @@ func _gait_reset() -> void:
+ 	face_now.clear()
+ 	turn_t.clear()
+ 	stop_t.clear()
++	atk_face.clear()
++	idle_since.clear()
+ 	walking.clear()
+ 
+ ## 每個畫面 tick 呼叫一次（prev_pos 是上一 tick、u 是這一 tick）。
+@@ -402,8 +406,17 @@ func _gait_frame(delta: float) -> void:
+ 		drag_t[id] -= delta
+ 		if drag_t[id] <= 0.0:
+ 			drag_t.erase(id)
++	# V1.3.1 P1：全場只剩最後一隻、而且沒在出手也沒在走時，左右張望（用轉身影格）
++	var alive := [0, 0]
++	for u0 in view.units:
++		if u0.alive:
++			alive[u0.team] += 1
+ 	for u in view.units:
+ 		var tgt: float = signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
++		if u.mx != 0 or u.my != 0 or u.stun > 0 or atk_face.has(u.id) or not idle_since.has(u.id):   # 出手、暈眩也不算站定
++			idle_since[u.id] = time
++		if u.alive and alive[u.team] == 1 and not view.finished and time - float(idle_since[u.id]) > 1.5 and not atk_face.has(u.id):
++			tgt = 1.0 if sin(time * PI / 1.1 + u.id) >= 0.0 else -1.0   # 站定 1.5 秒後才開始張望
+ 		var f0: float = float(face_now.get(u.id, tgt))
+ 		var f1: float = move_toward(f0, tgt, delta * 11.0)
+ 		face_now[u.id] = f1
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 67ce4fc..9eb5782 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -388,6 +388,22 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			list.append(u)
+ 	var live: bool = s == view
+ 	var rfx := bool(Save.s("reduce_fx"))
++	# V1.3.1 P2：大落後（戰力 <25%）的那一方，沒事做的兵表情沉下來（每幀每隊只算一次）
++	var grim := [false, false]
++	if live and not s.finished:
++		# 展示快照沒有戰力函式（Codex v131-impl1）：用存活比例，而且要對方明顯比較多才算落後
++		var cnt := [0, 0]
++		var liv := [0, 0]
++		for su in s.units:
++			if su.summon:
++				continue
++			cnt[su.team] += 1
++			if su.alive:
++				liv[su.team] += 1
++		for gt in 2:
++			var mine := float(liv[gt]) / maxf(1.0, cnt[gt])
++			var theirs := float(liv[1 - gt]) / maxf(1.0, cnt[1 - gt])
++			grim[gt] = mine < 0.25 and theirs > mine * 2.0
+ 	# V1.3 P0-1：這一幀的畫面位置只算一次（排序比較器原本每次比較都重算 _upos）
+ 	var pc := {}
+ 	if live:
+@@ -471,9 +487,11 @@ func _draw_units_of(s, dim: bool) -> void:
+ 		var moving: bool = walk > 0.0
+ 		var at := 0.0
+ 		var variant := 0
++		var hit_now := -1
+ 		if live and atk_hit.has(u.id):
+ 			var dt0 := _disp_tick()
+ 			var h := pick_hit(atk_hit[u.id], dt0, u.type)
++			hit_now = h
+ 			if h >= 0:
+ 				at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
+ 				# 火罐飛行（第四輪 §4.4）：前搖期間從手上飛向目標，命中那一刻落地（模擬不受影響）
+@@ -481,7 +499,8 @@ func _draw_units_of(s, dim: bool) -> void:
+ 					var bt = view.unit_by_id(bomb_tgt[u.id][h])
+ 					if bt != null:
+ 						var fk := at / Art.ATK_WINDUP
+-						var src_p: Vector2 = _upos(u) + Vector2(0, -50)
++						var fsg: float = float(atk_face[u.id][1]) if atk_face.has(u.id) else (signf(_upos(bt).x - _upos(u).x) if _upos(bt).x != _upos(u).x else 1.0)
++						var src_p: Vector2 = _upos(u) + Vector2(fsg * 17.0, -24.0) * UNIT_SCALE   # V1.3.1：從手上的火罐位置起飛（原本是頭頂固定點）
+ 						var dst_p: Vector2 = _upos(bt) + Vector2(0, -10)
+ 						var pp := src_p.lerp(dst_p, fk) + Vector2(0, -sin(fk * PI) * minf(70.0, src_p.distance_to(dst_p) * 0.3))
+ 						pot_draw.append(pp)
+@@ -514,6 +533,8 @@ func _draw_units_of(s, dim: bool) -> void:
+ 		var crouch := 1.0
+ 		if hurt > 0.3 or u.stun > 0:
+ 			mood |= Art.M_HURT
++		elif grim[u.team] and at == 0.0:
++			mood |= Art.M_GRIM
+ 		if hurt > 0.0:
+ 			crouch *= 1.0 - 0.12 * hurt                 # V1.1 A2：受擊壓扁（縱 0.88），配合後退與閃白
+ 			lean -= 0.06 * hurt * float(hurt_dir.get(u.id, 0.0)) * face
+@@ -560,6 +581,7 @@ func _draw_units_of(s, dim: bool) -> void:
+ 		var hop := 0.0
+ 		if live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished)):
+ 			hop = absf(sin((time + u.id * 0.05) * PI / 0.45)) * 10.0
++			mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
+ 			at = Art.ATK_WINDUP
+ 			lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
+ 			crouch = 1.06
+@@ -592,6 +614,15 @@ func _draw_units_of(s, dim: bool) -> void:
+ 				crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
+ 		if live:
+ 			face = _face_of(u)
++			# V1.3.1 P0-2：出手前先轉完。前搖一開始就面向目標（不改命中時間），出手中途目標換邊也維持到收招
++			if at > 0.0:
++				# 鎖定的是「這一擊」：連擊換到下一擊時重新取方向（Codex v131-impl1）
++				if not atk_face.has(u.id) or int(atk_face[u.id][0]) != hit_now:
++					atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0)]
++				face = float(atk_face[u.id][1])
++				face_now[u.id] = face
++			elif atk_face.has(u.id):
++				atk_face.erase(u.id)
+ 			var tdk := _turn_dust_k(u)
+ 			if tdk > 0.0 and not rfx:
+ 				# V1.3 A1a：翻面時腳下踩出一小團塵土（畫在身體下面）
+@@ -609,7 +640,14 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			for sk0 in 3:
+ 				var sa0 := time * 5.0 + sk0 * TAU / 3.0
+ 				_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
+-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant)
++		# V1.3.1 P1：待機小動作。站著沒事（沒走、沒出手、沒暈、還在打）時，每隻約 30～60 秒做一次、1.2 秒，依 id 錯開
++		var fid := -1
++		if live and not moving and at == 0.0 and u.stun <= 0 and not s.finished and mood == 0 and not bool(Save.s("reduce_fx")):
++			var per := 30.0 + float((u.id * 7919) % 30)
++			var tm := fmod(time + u.id * 3.7, per)
++			if tm < 1.2:
++				fid = mini(3, int(tm / 1.2 * 4.0))
++		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE, mood, lean, crouch, variant, fid)
+ 		if live and not u.hidden:
+ 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
+ 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+diff --git a/game/scripts/ui/codex_view.gd b/game/scripts/ui/codex_view.gd
+index 8f0d079..a3ae39e 100644
+--- a/game/scripts/ui/codex_view.gd
++++ b/game/scripts/ui/codex_view.gd
+@@ -13,6 +13,7 @@ const CX_LEFT := Rect2(204, 204, 376, 388)     # 左欄可捲動區
+ const CX_DESC := Rect2(596, 256, 474, 58)      # 技能說明可捲動區                          # 一段示範結束後停多久再重播（秒）
+ 
+ var cx_unit := 0
++var cx_spin_t := -10.0   # V1.3.1 P1：圖鑑角色播放器（點角色：轉身一圈＋待機小動作）
+ var cx_skill := 0
+ var cx_sim = null
+ var cx_acc := 0.0
+@@ -46,6 +47,7 @@ func _cx_skills() -> Array:
+ 
+ func _cx_pick_unit(t: int) -> void:
+ 	cx_unit = t
++	cx_spin_t = time   # 換角色先轉一圈給你看
+ 	cx_scroll["left"] = 0.0
+ 	cx_scroll["note"] = 0.0
+ 	_cx_pick_skill(0)
+@@ -350,7 +352,8 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
+ 				if inside.call(y, h):
+ 					draw_circle(pc + Vector2(0, -30), 62, Color(1, 1, 1, 0.05), true, -1.0, true)
+ 					_ring(pc, 0, cx_unit, 2.0)
+-					_unit(pc, cx_unit, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0)
++					_cx_portrait(pc)
++					_btns.append({"r": Rect2(pc - Vector2(56, 112), Vector2(112, 124)), "cb": func(): cx_spin_t = time, "en": true})
+ 				var ty := y + 4.0
+ 				for tx in it["texts"]:
+ 					var wt := _wrap(tx["s"], tx["size"], r.size.x - 168)
+@@ -516,3 +519,28 @@ func _draw_codex_demo() -> void:
+ 		draw_rect(b, TH_WOOD_D, false, 3.0)
+ 		draw_line(b.position + Vector2(0, b.size.y + 1.5), b.end + Vector2(0, 1.5), Color(1, 0.9, 0.7, 0.18), 1.0)
+ 	_text(b.position + Vector2(8, 4), L.t("codex_demo"), ts(13), TXT_DIM)
++
++
++## V1.3.1 P1：圖鑑大圖播放器。0～1.2 秒左右轉一圈（用轉身姿勢，不是 360°），1.2～2.2 秒做這種兵的待機小動作。
++## 簡化特效時只畫靜止的正側面。
++func _cx_portrait(pc: Vector2) -> void:
++	var u := (time - cx_spin_t) if not bool(Save.s("reduce_fx")) and not layout_probe else 99.0   # 截圖／版面檢查時固定正側面
++	var face := 1.0
++	var atk := 0.0
++	if u >= 0.0 and u < 1.2:
++		var cf := cos(u / 1.2 * TAU)
++		face = 1.0 if cf >= 0.0 else -1.0
++		if absf(cf) < 0.95:
++			Art.turn_c = maxf(absf(cf), 0.3)
++			Art.turn_s = sqrt(1.0 - Art.turn_c * Art.turn_c)
++	elif u >= 1.2 and u < 2.2:
++		var spec: Array = preload("res://scripts/ui/sprite_cache.gd").FIDGET.get(cx_unit, [0.2, 0.0])
++		var wgt := sin((u - 1.2) / 1.0 * PI)
++		atk = Art.ATK_WINDUP * float(spec[0]) * wgt
++		Art.calm = true
++		Art.look = float(spec[1]) * wgt
++	_unit(pc, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, 2.0)
++	Art.turn_c = 1.0
++	Art.turn_s = 0.0
++	Art.calm = false
++	Art.look = 0.0
+diff --git a/game/scripts/ui/free_place.gd b/game/scripts/ui/free_place.gd
+index 151c024..eb23c66 100644
+--- a/game/scripts/ui/free_place.gd
++++ b/game/scripts/ui/free_place.gd
+@@ -654,11 +654,11 @@ func _fp_draw() -> void:
+ 			for i in fp_sel:
+ 				var np: Vector2i = a.pos_of(a.units[i]) + dv
+ 				_lift_shadow(_s_of(np))
+-				_unit(_s_of(np) - Vector2(0, LIFT_PX), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0)
++				_unit(_s_of(np) - Vector2(0, LIFT_PX), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0, Art.M_SURPRISE)
+ 		else:
+ 			var ok_m: bool = a.check_place_xy(int(a.units[fp_drag]["type"]), tgt.x, tgt.y, fp_drag) == ""
+ 			_lift_shadow(_s_of(tgt))
+-			_unit(_s_of(tgt) - Vector2(0, LIFT_PX), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0)
++			_unit(_s_of(tgt) - Vector2(0, LIFT_PX), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0, Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
+ 	# 畫筆預覽：腳底亮點＋半透明小人＋費用泡泡
+ 	if fp_stroking:
+ 		var cost := 0
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index 595c6e5..8ab74b3 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -192,6 +192,7 @@ func _try_place(c: Vector2i) -> void:
+ 		else:
+ 			_cur_army().place(selected, c.x, c.y)
+ 		show_place_help = false
++		settle_t[Vector2i(c.x, c.y)] = time   # V1.3.1 P2：格子模式也有放下沉降
+ 		sfx.play(["place_mid", "place_heavy", "place_light", "place_heavy", "place_light", "place_heavy", "place_light", "place_light", "place_light", "place_heavy"][selected])
+ 	elif why != L.t("err_taken"):
+ 		_toast(why, true)
+@@ -313,7 +314,7 @@ func _draw_place_units() -> void:
+ 	for it in list:
+ 		var p := ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS
+ 		_ring(p, it[3], it[2])
+-		_unit(p, it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
++		_unit(p + Vector2(0, _settle_dy(Vector2i(it[1], it[0]))), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
+ 		if it[3] == 1 and selected >= 0 and _cur_army().team == 0:
+ 			_counter_mark(p, selected, int(it[2]))   # V1.1 B3
+ 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
+@@ -345,7 +346,7 @@ func _draw_place_units() -> void:
+ 			dragging_type = _cur_army().units[idx]["type"]
+ 	if dragging_type >= 0:
+ 		_lift_shadow(mouse + Vector2(0, 24 + LIFT_PX))   # V1.3 B3：拿起來的棋子在地上留影子
+-		Art.unit(self, mouse + Vector2(0, 24), dragging_type, _cur_army().team, 1.0, 0.0, 0.0, 0.0, 0.75, time)
++		Art.unit(self, mouse + Vector2(0, 24), dragging_type, _cur_army().team, 1.0, 0.0, 0.0, 0.0, 0.75, time, 1.0, cbm(), Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
+ 	var c := cursor if pad_mode else _cell_at(mouse)
+ 	if c.x >= 0:
+ 		var okp := _check_place(selected, c) == ""
+diff --git a/game/scripts/ui/sprite_cache.gd b/game/scripts/ui/sprite_cache.gd
+index 62b9c22..0105a17 100644
+--- a/game/scripts/ui/sprite_cache.gd
++++ b/game/scripts/ui/sprite_cache.gd
+@@ -27,14 +27,28 @@ const FRAMES_PER := 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * 2
+ const COLS := 16
+ const TYPES_PER_PAGE := 6  # 6×2×28＝336 格＝21 列×192＝4032px，不超過 4096
+ const MAX_PAGES := 5
+-const TURN_TYPES := [0, 1, 3, 5, 13, 19]   # V1.3 A1b 試點：劍士、盾兵、騎兵、長槍兵、史萊姆、小石魔
++const TURN_TYPES := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]   # V1.3.1：全部 22 種（V1.3.0 只有 6 種試點）
+ const TURN_C := [0.8, 0.55, 0.3]
++# V1.3.1 P1：走路中轉身（2 個角度 × 4 個步相，保留步相；每頁 11 種兵）、待機小動作 4 格＋受擊帽子彈起 1 格
++const WT_C := [0.7, 0.4]
++const WT_PH := 4
++const WT_TYPES_PER_PAGE := 11
++const FID_PER := 5
++## 每種兵的待機小動作：[前搖姿勢的幅度 0～1（舉武器、掀蓋、抬杖）, 回頭看 0～1]
++# V1.3.1 審查後：幅度加大（Antigravity：1～2px 看不出來）；投彈兵借前搖會讓火罐離手，改成回頭看；羊、幽靈的臉不讀 look，改用前搖
++const FIDGET := {0: [0.35, 0.0], 1: [0.8, 0.0], 2: [0.4, 0.0], 3: [0.35, 1.0], 4: [0.8, 0.0], 5: [0.35, 1.0], 6: [0.0, 1.0],
++	7: [0.8, 0.0], 8: [0.3, 1.0], 9: [0.35, 0.0], 10: [0.9, 0.0], 11: [0.5, 0.0], 12: [0.9, 0.0], 13: [0.35, 0.0],
++	14: [0.5, 0.0], 15: [0.8, 1.0], 16: [0.35, 0.0], 17: [0.35, 1.0], 18: [0.8, 0.0], 19: [0.3, 1.0], 20: [0.35, 0.0], 21: [0.35, 1.0]}
+ 
+ var pages: Array = []      # 每頁 {tex, types}
+ var loc := {}              # 兵種 → [頁, 這一種在頁裡的起始格]
+ var ring_tex: Texture2D = null
+ var turn_tex: Texture2D = null   # V1.3 A1b：轉身頁（6 種 × 2 隊 × 3 張）
+ var turn_loc := {}               # 兵種 → 轉身頁起始格
++var wt_pages: Array = []         # V1.3.1：走路轉身頁
++var wt_loc := {}                 # 兵種 → [頁, 起始格]
++var fid_tex: Texture2D = null    # V1.3.1：待機小動作＋受擊帽子
++var fid_loc := {}
+ var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
+ var _busy := false
+ var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
+@@ -67,6 +81,10 @@ func build(cb: bool) -> void:
+ 	ring_tex = null
+ 	turn_tex = null
+ 	turn_loc.clear()
++	wt_pages.clear()
++	wt_loc.clear()
++	fid_tex = null
++	fid_loc.clear()
+ 	ready_cb = 1 if cb else 0
+ 	var base: Array = []
+ 	for t in D.COUNT:
+@@ -96,6 +114,44 @@ func _bake_turn(cb: bool) -> void:
+ 	turn_tex = ImageTexture.create_from_image(img)
+ 	for k in TURN_TYPES.size():
+ 		turn_loc[TURN_TYPES[k]] = k * 2 * TURN_C.size()
++	# V1.3.1：待機小動作頁、走路轉身頁（各自世代檢查）
++	var pf := _ExtraPainter.new()
++	pf.cb = cb
++	pf.mode = 1
++	pf.types = TURN_TYPES
++	var nf := TURN_TYPES.size() * 2 * FID_PER
++	var vpf := _viewport(Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL), pf)
++	await RenderingServer.frame_post_draw
++	await RenderingServer.frame_post_draw
++	var imf := vpf.get_texture().get_image()
++	vpf.queue_free()
++	imf = await _post(imf, FID_PER)
++	if g0 != _gen or (1 if cb else 0) != ready_cb:
++		return
++	fid_tex = ImageTexture.create_from_image(imf)
++	for k in TURN_TYPES.size():
++		fid_loc[TURN_TYPES[k]] = k * 2 * FID_PER
++	var per_w := WT_C.size() * WT_PH
++	var pg := 0
++	while pg * WT_TYPES_PER_PAGE < TURN_TYPES.size():
++		var chunk: Array = TURN_TYPES.slice(pg * WT_TYPES_PER_PAGE, (pg + 1) * WT_TYPES_PER_PAGE)
++		var pw := _ExtraPainter.new()
++		pw.cb = cb
++		pw.mode = 2
++		pw.types = chunk
++		var nw := chunk.size() * 2 * per_w
++		var vpw := _viewport(Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL), pw)
++		await RenderingServer.frame_post_draw
++		await RenderingServer.frame_post_draw
++		var imw := vpw.get_texture().get_image()
++		vpw.queue_free()
++		imw = await _post(imw, per_w)
++		if g0 != _gen or (1 if cb else 0) != ready_cb:
++			return
++		wt_pages.append(ImageTexture.create_from_image(imw))
++		for k in chunk.size():
++			wt_loc[chunk[k]] = [pg, k * 2 * per_w]
++		pg += 1
+ 
+ ## 這場要用到的兵種。缺的才烘；烘的時候呼叫端先直接畫。
+ func ensure(types: Array) -> void:
+@@ -222,6 +278,32 @@ func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0, a
+ 	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(idx * CELL, 0, CELL, CELL))
+ 	ci.draw_set_transform_matrix(Art.base)
+ 
++## V1.3.1：史萊姆高光不烘進圖集，貼圖後固定畫在世界的左上（翻面不跳邊）。
++static func slime_shine(ci: CanvasItem, p: Vector2, type: int, scale: float, alpha: float, bob: float) -> void:
++	if type != 13 and type != 20:
++		return
++	var k := 1.0 if type == 13 else 0.66
++	var q := p + Vector2(0, bob * scale)
++	ci.draw_set_transform_matrix(Art.base)
++	ci.draw_circle(q + Vector2(-9.0 * k, -23.8 * k - 1.0) * scale, 3.8 * k * scale, Color(1, 1, 1, 0.6 * alpha), true, -1.0, true)
++	ci.draw_circle(q + Vector2(-3.6 * k, -31.5 * k - 1.0) * scale, 1.8 * k * scale, Color(1, 1, 1, 0.6 * alpha), true, -1.0, true)
++
++## V1.3.1：貼額外頁的一格（小動作、受擊帽子、走路轉身）。bob＝要不要加待機呼吸。
++func _draw_cell(ci: CanvasItem, tex: Texture2D, idx: int, p: Vector2, type: int, team: int, face: float, hurt: float, alpha: float, t: float, scale: float, lean: float, crouch: float, bob: bool, mood := 0, cb := false, oc := 1.0) -> void:
++	var sg := -1.0 if face < 0.0 else 1.0
++	var by := Art.idle_bob(t, p) if bob else 0.0
++	ci.draw_set_transform_matrix(Art.base * Transform2D(lean * sg, Vector2(scale * sg / RS, scale * crouch / RS), 0.0, p + Vector2(0, by * scale)))
++	ci.draw_texture_rect_region(tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
++	if hurt > 0.0:
++		ci.draw_texture_rect_region(tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(4, 4, 4, hurt * 0.55 * alpha))
++	if mood != 0:
++		# 表情疊加（Codex v131-impl1：走路轉身、小動作原本漏畫）；轉身格的臉依 oc 往中間移
++		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, sg * oc, 0.0, 0.0, t, scale, lean, crouch, type))
++		Art.overlay(ci, type, team, mood, alpha, t, cb)
++	ci.draw_set_transform_matrix(Art.base)
++	if bob:
++		slime_shine(ci, p, type, scale, alpha, by)   # 只在待機（跳起、壓扁時高光會對不上，不畫）
++
+ ## 倒棋用：只貼木座（帶透明度）。
+ func draw_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
+ 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+@@ -246,7 +328,21 @@ func quant_atk(atk: float) -> float:
+ 
+ ## 貼一隻角色。參數與 Art.unit 相同；待機的呼吸位移在這裡加（烘焙時是 0）。
+ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
+-		hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, cb := false, variant := 0) -> void:
++		hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, cb := false, variant := 0, fid := -1) -> void:
++	if hurt > 0.5 and atk <= 0.0 and walk == 0.0 and absf(face) >= 0.9 and fid_loc.has(type):
++		# 受擊那一下帽子彈起（只在待機：帽子格是待機腿，走路、拖行、暈眩不能被蓋掉；受擊優先於小動作）
++		_draw_cell(ci, fid_tex, int(fid_loc[type]) + team * FID_PER + FID_PER - 1, p, type, team, face, hurt, alpha, t, scale, lean, crouch, true, mood, cb)
++		return
++	if fid >= 0 and hurt <= 0.0 and atk <= 0.0 and walk == 0.0 and absf(face) >= 0.9 and fid_loc.has(type):
++		_draw_cell(ci, fid_tex, int(fid_loc[type]) + team * FID_PER + clampi(fid, 0, FID_PER - 2), p, type, team, face, hurt, alpha, t, scale, lean, crouch, true, mood, cb)
++		return
++	if absf(face) < 0.9 and atk <= 0.0 and walk > 0.0 and wt_loc.has(type):
++		# 走路中轉身：依步相取格（不重設腳步）
++		var wl: Array = wt_loc[type]
++		var ai := 0 if absf(face) >= 0.55 else 1
++		var ph := int(fposmod(walk, TAU) / TAU * WT_PH) % WT_PH
++		_draw_cell(ci, wt_pages[wl[0]], int(wl[1]) + team * WT_C.size() * WT_PH + ai * WT_PH + ph, p, type, team, face, hurt, alpha, t, scale, lean, crouch, false, mood, cb, float(WT_C[ai]))
++		return
+ 	if absf(face) < 0.9 and has_turn(type):
+ 		if atk <= 0.0:
+ 			_draw_turn(ci, p, type, team, face, hurt, alpha, t, scale, lean, crouch, mood, cb)
+@@ -270,6 +366,8 @@ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, wa
+ 		if mood != 0:
+ 			Art.overlay(ci, type, team, mood, alpha, t, cb)
+ 	ci.draw_set_transform_matrix(Art.base)
++	if walk == 0.0 and atk <= 0.0:
++		slime_shine(ci, p, type, scale, alpha, Art.idle_bob(t, p))   # 跳起、出手壓扁時不畫（位置對不上，Codex v131-impl1）
+ 
+ ## V1.3 A1b：轉身中（|face|＜0.9）貼轉身頁：影格本身已經是轉到一半的姿勢，貼圖只翻正負、不再等比夾扁。
+ func _draw_turn(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, hurt: float, alpha: float, t: float, scale: float, lean: float, crouch: float, mood := 0, cb := false) -> void:
+@@ -282,12 +380,14 @@ func _draw_turn(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, h
+ 	ci.draw_texture_rect_region(turn_tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
+ 	if hurt > 0.0:
+ 		ci.draw_texture_rect_region(turn_tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(4, 4, 4, hurt * 0.55 * alpha))
+-	if mood != 0 and j == 0:
++	if mood != 0 and j <= 1:
+ 		# 表情疊加（受擊、狂熱…）：轉身中也要有（Codex v130-impl1）；只在接近側面那一格畫，
+ 		# 更窄的兩格臉已經往中間移，正側面的表情位置對不上（Codex v130-impl2），那 0.1 秒不畫
+-		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, sg, 0.0, 0.0, t, scale, lean, crouch, type))
++		# V1.3.1 P0-3：表情跟著轉過去的臉走（x 依這一格的 cos 縮）；最窄那格臉太窄（<3px），只保留貼圖、不硬塞表情
++		ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, sg * float(TURN_C[j]), 0.0, 0.0, t, scale, lean, crouch, type))
+ 		Art.overlay(ci, type, team, mood, alpha, t, cb)
+ 	ci.draw_set_transform_matrix(Art.base)
++	slime_shine(ci, p, type, scale, alpha, Art.idle_bob(t, p))
+ 
+ ## 烘焙用的畫家：一格一格呼叫 Art.unit（face＝+1，翻面由貼圖時處理）。
+ class _Painter extends Node2D:
+@@ -329,8 +429,10 @@ class _Painter extends Node2D:
+ 					var tt: float = (3.7 - ex * 0.13 + 0.05) if f == 1 else 1.0
+ 					# 沒走路的格子（待機、眨眼、攻擊）Art.unit 會加呼吸位移；這裡反向抵銷，貼圖時再依當下時間加
+ 					Art2.bake_no_bob = true   # V1.3：烘焙時不加呼吸（原本是反向抵銷），貼圖時再依當下時間與位置加
++					Art2.baking = true
+ 					Art2.unit(self, p, type, team, 1.0, walk, atk, 0.0, 1.0, tt, RS2, cb, 0, 0.0, 1.0, vr)
+ 					Art2.bake_no_bob = false
++					Art2.baking = false
+ 		Art2.base = saved
+ 
+ ## V1.3 A1b：轉身頁。每種兵 × 兩隊 × 3 張中間姿勢（cos θ＝0.8、0.55、0.3），待機姿勢、face＝+1。
+@@ -342,6 +444,7 @@ class _TurnPainter extends Node2D:
+ 		var saved: Transform2D = Art2.base
+ 		Art2.base = Transform2D.IDENTITY
+ 		Art2.bake_no_bob = true
++		Art2.baking = true
+ 		for k in SC.TURN_TYPES.size():
+ 			var type: int = SC.TURN_TYPES[k]
+ 			for team in 2:
+@@ -351,10 +454,13 @@ class _TurnPainter extends Node2D:
+ 					var c: float = SC.TURN_C[j]
+ 					Art2.turn_c = c
+ 					Art2.turn_s = sqrt(1.0 - c * c)
++					Art2.anchor_key = "%d/%d/%d" % [type, team, j]
+ 					Art2.unit(self, p, type, team, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, SC.RS, cb)
++		Art2.anchor_key = ""
+ 		Art2.turn_c = 1.0
+ 		Art2.turn_s = 0.0
+ 		Art2.bake_no_bob = false
++		Art2.baking = false
+ 		Art2.base = saved
+ 
+ class _RingPainter extends Node2D:
+@@ -375,3 +481,51 @@ class _RingPainter extends Node2D:
+ 				var o2 := Vector2((6 + team * 2 + heavy) * 192, 0) + Vector2(96, 140)
+ 				Art2.ring(self, o2, team, D2.SHIELD if heavy == 1 else D2.SWORD, cb, 1.6)
+ 		Art2.base = saved
++
++## V1.3.1：額外頁的畫家。mode 1＝待機小動作 4 格＋受擊帽子 1 格；mode 2＝走路轉身（2 角度 × 4 步相）。
++class _ExtraPainter extends Node2D:
++	var cb := false
++	var mode := 1
++	var types: Array = []
++	func _draw() -> void:
++		var Art2 = preload("res://scripts/ui/art.gd")
++		var SC = preload("res://scripts/ui/sprite_cache.gd")
++		var saved: Transform2D = Art2.base
++		Art2.base = Transform2D.IDENTITY
++		Art2.bake_no_bob = true
++		Art2.baking = true
++		for k in types.size():
++			var type: int = types[k]
++			for team in 2:
++				if mode == 1:
++					var spec: Array = SC.FIDGET.get(type, [0.2, 0.0])
++					for f in SC.FID_PER:
++						var idx: int = (k * 2 + team) * SC.FID_PER + f
++						var p := Vector2((idx % SC.COLS) * SC.CELL, (idx / SC.COLS) * SC.CELL) + SC.origin_of(type)
++						if f < SC.FID_PER - 1:
++							var wgt := sin(PI * (f + 0.5) / float(SC.FID_PER - 1))
++							# 小動作＝前搖的一部分（舉起武器、掀蓋、抬杖），幅度依兵種；不擺怒臉
++							var atk: float = Art2.ATK_WINDUP * float(spec[0]) * wgt
++							Art2.calm = true
++							Art2.look = float(spec[1]) * wgt
++							Art2.unit(self, p, type, team, 1.0, 0.0, atk, 0.0, 1.0, 1.0, SC.RS, cb)
++							Art2.calm = false
++							Art2.look = 0.0
++						else:
++							Art2.hat_pop = 1.0
++							Art2.unit(self, p, type, team, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, SC.RS, cb, Art2.M_HURT)
++							Art2.hat_pop = 0.0
++				else:
++					for ai in SC.WT_C.size():
++						for ph in SC.WT_PH:
++							var idx2: int = (k * 2 + team) * SC.WT_C.size() * SC.WT_PH + ai * SC.WT_PH + ph
++							var p2 := Vector2((idx2 % SC.COLS) * SC.CELL, (idx2 / SC.COLS) * SC.CELL) + SC.origin_of(type)
++							var c: float = SC.WT_C[ai]
++							Art2.turn_c = c
++							Art2.turn_s = sqrt(1.0 - c * c)
++							Art2.unit(self, p2, type, team, 1.0, 0.0001 + (ph + 0.5) * TAU / SC.WT_PH, 0.0, 0.0, 1.0, 1.0, SC.RS, cb)
++							Art2.turn_c = 1.0
++							Art2.turn_s = 0.0
++		Art2.bake_no_bob = false
++		Art2.baking = false
++		Art2.base = saved
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 4c0d10d..3e7eb48 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -906,7 +906,7 @@ func _cycle_setting(k: String, opts: Array) -> void:
+ 
+ ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
+ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
+-		mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
++		mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1) -> void:
+ 	if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
+ 		# V1.2 D2：大圖（圖鑑、MVP）站在木製圓底座上，像桌上的棋偶公仔
+ 		var bw := 30.0 * scale
+@@ -918,7 +918,7 @@ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: floa
+ 		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
+ 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+ 	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊
+-		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant)
++		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
+ 	else:
+ 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
+ 
+diff --git a/game/scripts/ui/units/fantasy.gd b/game/scripts/ui/units/fantasy.gd
+index cc86398..acb6970 100644
+--- a/game/scripts/ui/units/fantasy.gd
++++ b/game/scripts/ui/units/fantasy.gd
+@@ -64,12 +64,14 @@ static func _f_sheep(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	for h in [[-5, -28, 3.6], [6, -25, 2.8], [-9, -18, 2.4]]:
+ 		ci.draw_circle(Vector2(h[0], h[1]), h[2], Color(1, 1, 1, 0.4 * a), true, -1.0, true)
+ 	# 臉
++	_part_at(ci, 16.0)   # V1.3.1：羊頭是圓的，轉身時移到中間、不壓扁
+ 	_c(ci, Vector2(16, -22), 8.5, Color("#3a3346"), a)
+ 	_poly(ci, PackedVector2Array([Vector2(9, -27), Vector2(4, -30), Vector2(7, -24)]), Color("#3a3346"), a)   # 耳朵
+ 	for ex in [13.0, 19.0]:
+ 		ci.draw_circle(Vector2(ex, -23), 2.9, Color(1, 1, 1, a), true, -1.0, true)
+ 		ci.draw_circle(Vector2(ex + 0.7, -23), 1.4, Color(OUT, a), true, -1.0, true)
+ 	ci.draw_arc(Vector2(16, -18), 2.6, 0.3, PI - 0.3, 6, Color(1, 1, 1, 0.8 * a), 1.2, true)
++	_part_end(ci)
+ 	# 頭上的引線（招牌）：越接近爆炸火花越大
+ 	_line(ci, Vector2(-1, -37), Vector2(4, -47), Color("#c9a26b"), 1.8, a)
+ 	var sp := 0.7 + 0.3 * sin(t * 18.0 + wk * 3.0) + maxf(0.0, w)
+@@ -91,6 +93,13 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	# 舌頭與牙
+ 	var mouth := by - 15.0
+ 	_poly(ci, PackedVector2Array([Vector2(-13, mouth), Vector2(13, mouth), Vector2(13, mouth - 4 - open * 10), Vector2(-13, mouth - 4 - open * 10)]), Color("#3b0f1e"), a, false)
++	if turn_c < 1.0:
++		# V1.3.1：寶箱轉向鏡頭時露出側面（較暗的木板），方體才有厚度
++		var sx := 16.0 * turn_body_w(12)
++		var sdw := (1.0 - turn_c) * 13.0
++		ci.draw_set_transform_matrix(_xf0 * _b_now)
++		_poly(ci, PackedVector2Array([Vector2(sx, by), Vector2(sx, by - 15), Vector2(sx + sdw, by - 17), Vector2(sx + sdw, by - 2)]), Color("#6e4a2b"), a)
++		ci.draw_set_transform_matrix(_cur_xf)
+ 	var lick := maxf(0.0, w) * 8.0
+ 	if open > 0.2:
+ 		_poly(ci, PackedVector2Array([Vector2(2, mouth), Vector2(19 + lick, mouth + 2), Vector2(23 + lick, mouth - 3), Vector2(19 + lick, mouth - 7), Vector2(4, mouth - 5)]), Color("#ff6b81"), a)
+@@ -130,11 +139,16 @@ static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	pts.append(Vector2(rx * 0.9, cy - ry * 0.5))
+ 	_poly(ci, pts, tc.lightened(0.05), a)
+ 	ci.draw_arc(Vector2(0, cy - ry * 0.1), rx * 0.82, 0.55, PI - 0.55, 10, Color(tc.darkened(0.25), 0.55 * a), 2.6 * k, true)
+-	ci.draw_circle(Vector2(-rx * 0.45, cy - ry * 0.4), 3.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
+-	ci.draw_circle(Vector2(-rx * 0.18, cy - ry * 0.85), 1.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
++	if not baking:   # V1.3.1：烘焙時不畫高光，貼圖後依世界方向（左上）補畫，翻面不跳邊
++		ci.draw_circle(Vector2(-rx * 0.45, cy - ry * 0.4), 3.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
++		ci.draw_circle(Vector2(-rx * 0.18, cy - ry * 0.85), 1.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
+ 	for b in [[0.5, 0.45, 2.2], [-0.25, 0.65, 1.6], [0.62, -0.1, 1.5]]:
+ 		ci.draw_arc(Vector2(rx * b[0], cy + ry * b[1]), b[2] * k, 0, TAU, 8, Color(1, 1, 1, 0.35 * a), 1.0, true)
+ 	_eyes(ci, Vector2(3.0 * k, cy + 1.0), a, t, angry)
++	if k >= 1.0:
++		# V1.3.1 剪影：大史萊姆頭頂小王冠（會分裂的那種），和小史萊姆一眼分開
++		var cr := Vector2(0.5, cy - ry * 1.42)
++		_poly(ci, PackedVector2Array([cr + Vector2(-6, 2), cr + Vector2(-6, -5), cr + Vector2(-3, -1.5), cr + Vector2(0, -7), cr + Vector2(3, -1.5), cr + Vector2(6, -5), cr + Vector2(6, 2)]), GOLD, a)
+ 
+ 
+ static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+@@ -152,6 +166,7 @@ static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	_poly(ci, PackedVector2Array([Vector2(-16 + lean, -33), Vector2(16 + lean, -33), Vector2(17 + lean * 0.7, -24), Vector2(4 + lean * 0.5, -21), Vector2(-16 + lean * 0.7, -24)]), tc, a, false)
+ 	ci.draw_line(Vector2(-16 + lean, -33), Vector2(16 + lean, -33), Color(tc.darkened(0.25), a), 1.6, true)
+ 	var ey := -40.0
++	_part_at(ci, 2.5 + lean)   # V1.3.1：臉轉向鏡頭時移到中間
+ 	for ex in [-2.0 + lean, 7.0 + lean]:
+ 		ci.draw_circle(Vector2(ex, ey), 3.3, Color(OUT, a), true, -1.0, true)
+ 		ci.draw_circle(Vector2(ex + 0.9, ey - 1.0), 1.1, Color(1, 1, 1, a), true, -1.0, true)
+@@ -161,8 +176,11 @@ static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	else:
+ 		ci.draw_arc(Vector2(2.5 + lean, ey + 5), 2.2, 0.3, PI - 0.3, 6, Color(OUT, a), 1.3, true)
+ 	var hd := sin(wk + 0.9) * 2.0 if wk != 0.0 else 0.0   # 手延遲
++	_part(ci, 4.0, 0.5)   # 遠側的手
+ 	_c(ci, Vector2(-15 + lean + w * 5.0 - hd, -25 + hd), 3.6, body, a)
++	_part(ci, -4.0, 0.5)  # 近側的手
+ 	_c(ci, Vector2(16 + lean + maxf(0.0, w) * 10.0 - hd, -26 - hd), 3.6, body, a)
++	_part_end(ci)
+ 
+ 
+ static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+@@ -179,9 +197,12 @@ static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 		var y := -21.0 + k * 5.0
+ 		ci.draw_line(Vector2(-3, y), Vector2(3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
+ 		ci.draw_line(Vector2(3, y), Vector2(-3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
++	_part(ci, 4.0, 0.6)   # V1.3.1：遠側手
+ 	_line(ci, Vector2(-12, -21), Vector2(-17 - sway * 12.0, -15 - w * 5.0 + sway * 6.0), tc.darkened(0.15), 3.2, a)
++	_part(ci, -4.0, 0.6)  # 近側手
+ 	_line(ci, Vector2(12, -21), Vector2(18 + sway * 12.0, -15 + w * -5.0 + sway * 6.0), tc.darkened(0.15), 3.2, a)
+ 	# 麻布頭、一邊大鈕扣、一邊 X
++	_part(ci, 0.0, 0.0)   # 圓頭不壓扁
+ 	_c(ci, Vector2(0, -35), 12.5, Color("#e8d3a8"), a)
+ 	_c(ci, Vector2(6, -35), 4.6, tc.lightened(0.3), a)
+ 	ci.draw_circle(Vector2(5, -36), 1.1, Color(OUT, a), true, -1.0, true)
+@@ -191,8 +212,10 @@ static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	ci.draw_line(Vector2(-4, -28), Vector2(5, -28), Color(OUT, a), 1.5, true)
+ 	# 頭上插一根大針（招牌）
+ 	var nd := sway * 14.0
++	_part(ci, 3.0, 0.8)   # 頭上的針往後斜（遠側）
+ 	_line(ci, Vector2(-3, -40), Vector2(-11 - nd, -54), STEEL, 1.8, a)
+ 	_c(ci, Vector2(-12 - nd, -56), 3.4, Color("#ff4d6d"), a)
++	_part_end(ci)
+ 
+ 
+ static func _f_sprite(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
+@@ -201,10 +224,12 @@ static func _f_sprite(ci: CanvasItem, tc: Color, walk: float, w: float, a: float
+ 	# 飄浮的大沙漏，不畫人形（免得和鼓手、醫者撞）；弧形翅膀、沙子往下流
+ 	var flap := sin(t * 9.0 + wk * 3.0) * 4.5 - minf(w, 0.0) * 6.0
+ 	for s in [-1.0, 1.0]:
++		_part(ci, -4.0 * s, 0.6)   # V1.3.1：翅膀一遠一近，轉身時翼展壓窄
+ 		var wing := PackedVector2Array([Vector2(s * 8, -32), Vector2(s * 18, -47 + flap), Vector2(s * 29, -48 + flap), Vector2(s * 33, -37 + flap), Vector2(s * 28, -26 + flap * 0.6), Vector2(s * 19, -19), Vector2(s * 9, -22)])
+ 		_poly(ci, wing, Color(tc.lightened(0.42), 0.97), a)
+ 		ci.draw_line(Vector2(s * 11, -30), Vector2(s * 27, -41 + flap), Color(tc, 0.7 * a), 1.6, true)
+ 		ci.draw_line(Vector2(s * 11, -26), Vector2(s * 26, -31 + flap * 0.8), Color(tc, 0.7 * a), 1.6, true)
++	_part_end(ci)
+ 	var glass := Color("#e8f4ff")
+ 	_poly(ci, PackedVector2Array([Vector2(-13, -47), Vector2(13, -47), Vector2(2, -27), Vector2(13, -8), Vector2(-13, -8), Vector2(-2, -27)]), glass, a)
+ 	_poly(ci, PackedVector2Array([Vector2(-9, -41), Vector2(9, -41), Vector2(1, -29), Vector2(-1, -29)]), tc, a, false)
+@@ -233,7 +258,9 @@ static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	for x0 in [-14.0, -3.0]:
+ 		ci.draw_line(Vector2(x0, -24), Vector2(x0 + 1, -9), Color(tc.darkened(0.25), a), 1.6, true)
+ 	# 兜帽＋骷髏臉，頭往前探
++	_poly(ci, PackedVector2Array([Vector2(-9, -50), Vector2(-21, -46), Vector2(-11, -40)]), tc.darkened(0.15), a)   # V1.3.1 剪影：兜帽尖往後翹
+ 	_poly(ci, _ell(Vector2(2, -39), 15.0, 14.0, PI * 0.72, PI * 2.05, 14), tc.darkened(0.15), a)
++	_part_at(ci, 6.0)   # V1.3.1：骷髏頭移到中間、不壓扁
+ 	_c(ci, Vector2(6, -35), 10.5, Color("#f5f0e0"), a)
+ 	for ex in [2.0, 10.0]:
+ 		ci.draw_circle(Vector2(ex, -36), 3.2, Color(OUT, a), true, -1.0, true)
+@@ -242,14 +269,17 @@ static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	for k in 4:
+ 		ci.draw_line(Vector2(2.0 + k * 2.6, -28), Vector2(2.0 + k * 2.6, -25), Color(OUT, a), 1.2, true)
+ 	# 高舉的書與紫火：專屬動作舉更高
++	_part_end(ci)   # 臉到這裡
+ 	var lift: float = 6.0 + maxf(0.0, -w) * 8.0 + maxf(0.0, w) * 3.0 + (10.0 if variant == 2 else 0.0) + Gait.swing(17, walk) * 12.0
+-	var bk := Vector2(20, -22 - lift)
++	_part(ci, -5.0, 0.5)   # 書與紫火在近側、留在臉前
++	var bk := Vector2(24, -22 - lift)   # V1.3.1 剪影：書與紫火往前探 4px
+ 	_line(ci, Vector2(9, -20), bk + Vector2(-2, 4), Color("#ece6d6"), 2.4, a)
+ 	_poly(ci, PackedVector2Array([bk + Vector2(-10, -2), bk + Vector2(0, 0), bk + Vector2(10, -2), bk + Vector2(10, 4), bk + Vector2(0, 6), bk + Vector2(-10, 4)]), Color("#6b4a2b"), a)
+ 	ci.draw_line(bk + Vector2(0, 0), bk + Vector2(0, 6), Color(OUT, a), 1.2, true)
+ 	var fl := 8.0 + absf(w) * 7.0 + sin(t * 12.0 + wk * 3.0) * 1.8
+ 	_poly(ci, PackedVector2Array([bk + Vector2(-6, -1), bk + Vector2(6, -1), bk + Vector2(3, -2 - fl), bk + Vector2(0, -6 - fl), bk + Vector2(-3, -2 - fl)]), Color("#b14dff"), a)
+ 	ci.draw_circle(bk + Vector2(0, -4 - fl * 0.3), 2.4, Color(1, 0.85, 1, 0.9 * a), true, -1.0, true)
++	_part_end(ci)
+ 
+ 
+ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
+@@ -262,11 +292,14 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
+ 	_push_body(ci, _atk_xf(Gait.body_xf(18, walk), w, 0.14, 5.0))
+ 	# 尾巴、背上的吸塵器桶
+ 	_line(ci, Vector2(-11, -8), Vector2(-20 - leg * 0.4, -18 + leg), tc.darkened(0.1), 3.0, a)
++	_part(ci, 4.0, 0.6)   # V1.3.1：背上的集塵桶在遠側
+ 	_poly(ci, PackedVector2Array([Vector2(-20, -32), Vector2(-7, -32), Vector2(-7, -8), Vector2(-20, -8)]), Color("#b7bfcc"), a)
+ 	_poly(ci, PackedVector2Array([Vector2(-20, -24), Vector2(-7, -24), Vector2(-7, -17), Vector2(-20, -17)]), tc, a, false)
++	_part_end(ci)
+ 	_poly(ci, _ell(Vector2(0, -14), 11.0, 10.0, 0.0, TAU, 16), tc.lightened(0.15), a)
+ 	# 大頭＋貓耳
+ 	var hy := -33.0
++	_part(ci, 0.0, 0.0)   # 頭與耳朵不壓扁
+ 	for s in [-1.0, 1.0]:
+ 		_poly(ci, PackedVector2Array([Vector2(s * 3.5, hy - 11), Vector2(s * 13, hy - 8), Vector2(s * 11, hy - 21)]), tc, a)
+ 	_c(ci, Vector2(0, hy), 12.0, tc.lightened(0.3), a)
+@@ -276,9 +309,11 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
+ 	# 吸管與吸頭
+ 	var aim: float = -0.1 - w * 0.25 - (0.5 if variant == 2 else 0.0) + Gait.swing(18, walk)
+ 	var nz := Vector2(10, -14) + Vector2(cos(aim), sin(aim)) * 13.0
++	_part(ci, -4.0, 1.0)   # 吸嘴在近側，轉正時透視縮短
+ 	_line(ci, Vector2(-6, -18), Vector2(8, -13), Color("#55606f"), 2.6, a)
+ 	_line(ci, Vector2(8, -13), nz, Color("#9aa4b4"), 3.0, a)
+ 	_poly(ci, PackedVector2Array([nz + Vector2(0, -3), nz + Vector2(9, -7), nz + Vector2(9, 7), nz + Vector2(0, 3)]), STEEL, a)
++	_part_end(ci)
+ 
+ 
+ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
+@@ -295,17 +330,22 @@ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 	_part(ci, -6.0, 0.3)
+ 	_line(ci, Vector2(-20, -34), Vector2(-23, -22 - lift), rock.darkened(0.15), 7.0, a)
+ 	_c(ci, Vector2(-23, -19 - lift), 8.0, rock.darkened(0.1), a)
++	_part_end(ci)
++	_poly(ci, PackedVector2Array([Vector2(-21, -10), Vector2(-24, -36), Vector2(-11, -47), Vector2(11, -47), Vector2(24, -36), Vector2(21, -10)]), rock, a)
++	# V1.3.1：近側手臂畫在軀幹前面（Codex v131-impl1：原本被軀幹蓋住）
+ 	_part(ci, 6.0, 0.3)
+ 	_line(ci, Vector2(20, -34), Vector2(23, -22 - lift), rock.darkened(0.15), 7.0, a)
+ 	_c(ci, Vector2(23, -19 - lift), 8.0, rock.darkened(0.1), a)
+ 	_part_end(ci)
+-	_poly(ci, PackedVector2Array([Vector2(-21, -10), Vector2(-24, -36), Vector2(-11, -47), Vector2(11, -47), Vector2(24, -36), Vector2(21, -10)]), rock, a)
+ 	# 岩石裂紋
+ 	ci.draw_polyline(PackedVector2Array([Vector2(-19, -28), Vector2(-14, -24), Vector2(-17, -18)]), Color(0.2, 0.18, 0.15, 0.7 * a), 1.6, true)
+ 	ci.draw_polyline(PackedVector2Array([Vector2(17, -14), Vector2(13, -18), Vector2(17, -22)]), Color(0.2, 0.18, 0.15, 0.7 * a), 1.6, true)
+ 	# 隊伍色肩甲（面積要大）與胸前帶子
++	_part(ci, 6.0, 0.3)   # V1.3.1：遠側肩甲往後（原本兩片一起往內夾住臉）
+ 	_poly(ci, PackedVector2Array([Vector2(-27, -28), Vector2(-26, -46), Vector2(-8, -52), Vector2(-4, -40), Vector2(-13, -28)]), tc, a)
++	_part(ci, -6.0, 0.3)  # 近側肩甲往前
+ 	_poly(ci, PackedVector2Array([Vector2(27, -28), Vector2(26, -46), Vector2(8, -52), Vector2(4, -40), Vector2(13, -28)]), tc, a)
++	_part_end(ci)
+ 	_poly(ci, PackedVector2Array([Vector2(-20, -18), Vector2(20, -18), Vector2(20, -11), Vector2(-20, -11)]), tc, a, false)
+ 	for sx in [-20.0, 20.0]:
+ 		ci.draw_circle(Vector2(sx * 0.82, -41), 2.2, Color(tc.lightened(0.5), a), true, -1.0, true)
+@@ -324,11 +364,14 @@ static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: flo
+ 	_poly(ci, PackedVector2Array([Vector2(-8, -24), Vector2(8, -24), Vector2(7, -11), Vector2(-7, -11)]), tc, a)
+ 	for k in 2:
+ 		ci.draw_line(Vector2(-5, -21 + k * 4.0), Vector2(5, -21 + k * 4.0), Color(bone, a), 1.6, true)
++	_part_at(ci, 1.0)   # V1.3.1：頭骨不壓扁
+ 	_c(ci, Vector2(1, -33), 9.5, Color("#f5f0e0"), a)
+ 	for ex in [-2.5, 5.0]:
+ 		ci.draw_circle(Vector2(ex, -33), 2.6, Color(OUT, a), true, -1.0, true)
+ 	ci.draw_line(Vector2(-1, -27), Vector2(5, -27), Color(OUT, a), 1.2, true)
+ 	var ang: float = -1.0 + (w * 0.5 if w < 0.0 else w * 1.4) + Gait.swing(21, walk) * 1.6
+ 	var hand := Vector2(8, -18)
++	_part(ci, -4.0, 1.0)   # 骨刀在近側
+ 	_line(ci, hand, hand + Vector2(cos(ang), sin(ang)) * 16.0, bone, 2.6, a)
+ 	_c(ci, hand + Vector2(cos(ang), sin(ang)) * 17.0, 3.0, bone, a)
++	_part_end(ci)
+diff --git a/game/scripts/ui/units/kingdom.gd b/game/scripts/ui/units/kingdom.gd
+index 965c410..e178f25 100644
+--- a/game/scripts/ui/units/kingdom.gd
++++ b/game/scripts/ui/units/kingdom.gd
+@@ -30,6 +30,11 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			_line(ci, fx0, fx0 + Vector2(-3 - fl * 0.5, -7), Color.WHITE, 1.8, a)
+ 	# 背後的東西（投彈兵的備用火罐包）
+ 	if type == D.BOMBER:
++		# V1.3.1 剪影：肩後多一個木火藥桶，頂端高出肩膀（和盾兵、劍士的圓輪廓分開）
++		var bb := Vector2(-13, -30 + fl * 0.8)
++		_poly(ci, PackedVector2Array([bb + Vector2(-5, -9), bb + Vector2(5, -9), bb + Vector2(6, 7), bb + Vector2(-6, 7)]), Color("#8a5a32"), a)
++		_line(ci, bb + Vector2(-5.5, -3), bb + Vector2(5.5, -3), Color("#5b3a1e"), 1.4, a)
++		_line(ci, bb + Vector2(0, -9), bb + Vector2(2, -15), Color("#c9a26b"), 1.3, a)
+ 		_c(ci, Vector2(-10, -20 + fl * 0.8), 7.5, Color("#3a3346"), a)   # 第七輪 C1-7：火罐包放大（V9：跟著跑步彈）
+ 		_line(ci, Vector2(-11, -27 + fl * 0.8), Vector2(-14, -31 + fl * 0.8), Color("#c9a26b"), 1.3, a)
+ 	# 身體（圓胖的上衣，隊伍色；狂戰士赤膊，隊伍色只留在獸皮披肩與褲頭；醫者白袍）
+@@ -63,20 +68,23 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 	match type:
+ 		D.SWORD:
+ 			# 頭盔＋羽飾
++			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.05, PI * 1.95, 18, Color(OUT, a), 6.5, true)
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.05, PI * 1.95, 18, Color(STEEL, a), 4.0, true)
+ 			_poly(ci, PackedVector2Array([Vector2(-2, hy - 12), Vector2(4, hy - 21), Vector2(7, hy - 19), Vector2(3, hy - 11)]), tc.lightened(0.2), a)
++			_hat_off(ci)
+ 			_part_end(ci)
+ 			# 劍：斜舉的亮刃（攻擊時往前揮）
+ 			# 前搖往後拉 35°、揮擊揮到 +60° 以上
+-			var ang := -1.15 + (w * 0.9 if w < 0.0 else w * 1.95) + sway   # 第十輪 F3：揮幅加大
++			# V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
++			var ang := -1.15 + (w * 0.4 if w < 0.0 else w * 1.95) + sway   # 第十輪 F3：揮幅加大
+ 			if variant == 1:
+ 				# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
+ 				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
+ 			# 第七輪 C1-1：隊伍色短領巾；劍身加寬、十字護手
+ 			_poly(ci, PackedVector2Array([Vector2(-9, -24), Vector2(8, -24), Vector2(6, -20), Vector2(-3, -19), Vector2(-5, -14), Vector2(-9, -17)]), tc.lightened(0.15), a, true)
+-			_part(ci, -4.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（不橫切五官，Antigravity v130-impl1）
+-			var hand := Vector2(9, -17 + sway * 8.0)
++			_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
++			var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
+ 			var dir := Vector2(cos(ang), sin(ang))
+ 			var tip := hand + dir * 24.0
+ 			var side := dir.orthogonal() * 3.6
+@@ -86,9 +94,11 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			_part_end(ci)
+ 		D.SHIELD:
+ 			# 圓頭盔＋面罩
++			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.95, PI * 2.05, 20, Color(OUT, a), 7.0, true)
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.95, PI * 2.05, 20, Color(STEEL_D, a), 4.5, true)
+ 			_line(ci, Vector2(-9, hy - 3), Vector2(11, hy - 3), STEEL_D, 2.0, a)
++			_hat_off(ci)
+ 			_part(ci, -3.0, 0.0)   # V1.3 A1b：大盾朝前，轉向鏡頭時不跟著變窄（Antigravity v130-impl1）
+ 			# 大方盾（佔身體一半寬，正面）
+ 			var push := (w * 12.0 if w > 0.0 else w * 5.0) + sway * 14.0 + 3.0   # V1.3：盾往外 3px，剪影不再是圓膠囊（Antigravity v130-impl1）   # 盾擊：揮擊時整面盾往前推（第三輪 R4）；走路時盾微晃
+@@ -101,11 +111,14 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			_part_end(ci)
+ 		D.ARCHER:
+ 			# 綠兜帽＋羽毛
++			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.9, PI * 2.1, 20, Color(OUT, a), 7.0, true)
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 0.9, PI * 2.1, 20, Color(Color("#5aa364"), a), 4.5, true)
+ 			_poly(ci, PackedVector2Array([Vector2(-6, hy - 10), Vector2(-14, hy - 22), Vector2(-9, hy - 10)]), tc.lightened(0.3), a)
++			_hat_off(ci)
+ 			# 長弓
+-			var pull := 2.0 + 7.0 * -w if w <= 0.0 else 2.0 * (1.0 - w)   # 前搖拉弦、揮擊放箭
++			_part(ci, -5.0, 0.0)   # V1.3.1：弓在近側、留在臉前，弓面轉正不壓扁
++			var pull := 2.0 + 10.0 * -w if w <= 0.0 else 2.0 * (1.0 - w)   # 前搖拉弦（V1.3.1：拉到滿弓）、揮擊放箭
+ 			# 第七輪 C1-3：弓放大、淺樺木色，草地上看得到
+ 			var bc := Vector2(12, -22 + sway * 18.0)
+ 			ci.draw_arc(bc, 18.0, -1.3, 1.3, 18, Color(OUT, a), 6.0, true)
+@@ -120,11 +133,12 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 				_line(ci, mid, Vector2(bc.x + 16, bc.y), WOOD, 1.6, a)
+ 				_poly(ci, PackedVector2Array([Vector2(bc.x + 20, bc.y), Vector2(bc.x + 15, bc.y - 2.5), Vector2(bc.x + 15, bc.y + 2.5)]), STEEL, a, false)
+ 			_c(ci, Vector2(bc.x + 12, bc.y), 3.0, SKIN, a)
++			_part_end(ci)
+ 		D.ASSASSIN:
+ 			# 尖兜帽＋面罩，只露發光的眼睛
+ 			# 第七輪 C1-5：不再戴紫色尖帽（蓋掉隊伍色、又高又像法師）。貼頭的深色頭巾＋隊伍色長圍巾往後飄
+ 			var flow := sin(t * 5.0 + walk) * 2.0
+-			_poly(ci, PackedVector2Array([Vector2(-8, hy + 7), Vector2(-24, hy + 3 + flow), Vector2(-29, hy + 9 + flow), Vector2(-21, hy + 12 + flow * 0.5), Vector2(-7, hy + 13)]), tc, a)
++			_poly(ci, PackedVector2Array([Vector2(-8, hy + 7), Vector2(-23, hy - 2 + flow), Vector2(-30, hy - 8 + flow), Vector2(-24, hy + 4 + flow * 0.7), Vector2(-30, hy + 10 + flow * 0.5), Vector2(-20, hy + 11 + flow * 0.5), Vector2(-7, hy + 13)]), tc, a)   # V1.3.1 剪影：圍巾尾端改上翹的雙燕尾
+ 			var hood := PackedVector2Array([Vector2(-12, hy + 5), Vector2(-13, hy - 6), Vector2(-5, hy - 13), Vector2(6, hy - 13), Vector2(12, hy - 5), Vector2(12, hy + 5)])
+ 			_poly(ci, hood, Color("#33304a"), a)
+ 			_poly(ci, PackedVector2Array([Vector2(-12, hy - 7), Vector2(-5, hy - 12), Vector2(6, hy - 12), Vector2(11, hy - 7), Vector2(11, hy - 4), Vector2(-12, hy - 4)]), tc, a, false)
+@@ -137,16 +151,22 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 				ci.draw_line(Vector2(10.0, hy - 3.6), Vector2(6.0, hy - 2.4), Color("#ffe066", a), 1.3, true)
+ 			# 雙短刃
+ 			var sw := w * 6.0 + sway * 10.0
++			_part(ci, -4.0, 0.9)   # V1.3.1：前手短刃在近側
+ 			_line(ci, Vector2(10, -18 - sw), Vector2(21, -8 + sw), Color("#f0f0ff"), 2.8, a)   # 反手短刃：刃往前下，剪影露得出刀尖
+ 			# 後手的刀：揮擊時往前交叉斬（第三輪 R4）
+ 			var bw := maxf(0.0, w)
++			_part(ci, 4.0, 0.9)   # 後手短刃在遠側
+ 			_line(ci, Vector2(-8 + bw * 18, -16 - bw * 6), Vector2(-15 + bw * 44, -21 + bw * 16), Color("#f0f0ff"), 2.8, a)   # 加長加粗，看得出交叉
++			_part(ci, -4.0, 0.9)
+ 			_c(ci, Vector2(10, -18 - sw), 2.8, Color("#2b2140"), a)
++			_part_end(ci)
+ 		D.PIKE:
+ 			# 暖銅色扁鍋盔（寬帽簷，避開劍士的銀盔）
+ 			# 第七輪 C1-6：尖角錐笠，輪廓和圓頭盔分得開
++			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+ 			_poly(ci, PackedVector2Array([Vector2(-16, hy - 5), Vector2(0, hy - 18), Vector2(16, hy - 5)]), Color("#c7834a"), a)
+ 			ci.draw_line(Vector2(-8, hy - 7), Vector2(0, hy - 15), Color(1.0, 0.86, 0.55, 0.9 * a), 1.8, true)
++			_hat_off(ci)
+ 			_part(ci, -9.0, 1.0)   # V1.3 A1b：長槍透視縮短、整支移到臉的前方（Antigravity v130-impl2：cos 0.3 時貫穿雙眼）
+ 			# 長槍：平常斜前上方 45° 伸出頭頂；前搖收槍、揮擊放平直刺（第四輪）；專屬＝拒騎：槍幾乎直立、槍尾頓地
+ 			var pang := -0.8 + (w * -0.25 if w < 0.0 else w * 0.75) + sway * 0.8
+@@ -167,6 +187,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			_part_end(ci)
+ 		D.BOMBER:
+ 			# 橘紅頭巾＋黃銅護目鏡（推在額頭上）
++			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.5, true)
+ 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.0, PI * 2.0, 18, Color("#ff7a3d", a), 4.0, true)
+ 			_poly(ci, PackedVector2Array([Vector2(-11, hy - 2), Vector2(-17, hy + 4), Vector2(-12, hy + 5)]), Color("#ff7a3d"), a)
+@@ -174,7 +195,9 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			_c(ci, Vector2(8.5, hy - 7.5), 3.4, Color("#d9a441"), a)
+ 			ci.draw_circle(Vector2(1.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
+ 			ci.draw_circle(Vector2(8.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
++			_hat_off(ci)
+ 			# 肩上托一顆帶引線的黑色大圓火罐：前搖往後拉、揮擊時丟出去（手上就空了）；專屬＝被貼身：火罐收到背後、拿點火棒往前敲
++			_part(ci, -5.0, 0.0)   # V1.3.1：火罐手在近側，圓罐不縮
+ 			if variant == 2:
+ 				var sa := -0.9 + maxf(0.0, w) * 1.6
+ 				var sh0 := Vector2(10, -18)
+@@ -182,7 +205,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 				_line(ci, sh0, sh0 + sd * 14.0, Color("#6b4a2b"), 2.4, a)
+ 				_star(ci, sh0 + sd * 16.0, 3.6, Color(1, 0.7, 0.2, a))
+ 				_c(ci, sh0, 3.0, SKIN, a)
+-			elif w <= 0.25:
++			elif w == 0.0:   # V1.3.1：前搖一開始火罐就離手飛出（飛行在 battle_units 畫），手上不再同時拿著一顆
+ 				var bp := Vector2(17 + w * 9.0, -24 + (-w) * 4.0 + sway * 12.0)   # 第七輪 C1-7：火罐托在身前、和頭拉開（縮小後不再像髮髻）
+ 				_c(ci, bp, 7.5, Color("#2a2533"), a)
+ 				ci.draw_circle(bp + Vector2(-2.5, -2.5), 2.0, Color(1, 1, 1, 0.35 * a), true, -1.0, true)
+@@ -194,15 +217,19 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 				# 甩臂：火罐出手後手臂往前下甩（Antigravity P2 #6）
+ 				_line(ci, Vector2(7, -20), Vector2(12 + w * 12.0, -24 + w * 14.0), SKIN, 2.6, a)
+ 				_c(ci, Vector2(12 + w * 12.0, -24 + w * 14.0), 3.0, SKIN, a)
++			_part_end(ci)
+ 		D.MEDIC:
+ 			# 白色高方帽＋綠十字
++			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+ 			_poly(ci, PackedVector2Array([Vector2(-9, hy - 7), Vector2(-8, hy - 24), Vector2(8, hy - 24), Vector2(9, hy - 7)]), Color("#fbfbf7"), a)
+ 			ci.draw_rect(Rect2(Vector2(-1.6, hy - 21), Vector2(3.2, 10)), Color("#2fbf71", a))
+ 			ci.draw_rect(Rect2(Vector2(-5, hy - 17.6), Vector2(10, 3.2)), Color("#2fbf71", a))
++			_hat_off(ci)
+ 			# 頂端發綠光的長杖：補血時舉高（w 往前＝舉杖）
+ 			var lift := maxf(0.0, w) * 16.0 + (-w * 4.0 if w < 0.0 else 0.0) + sway * 14.0
+ 			if variant == 2:
+ 				lift = 18.0   # 專屬＝施法：雙手把杖高舉過頭
++			_part(ci, -4.0, 0.6)   # V1.3.1：法杖在近側
+ 			var sbase := Vector2(15, -4 - lift)
+ 			var stop := Vector2(21, -48 - lift)   # 第七輪：杖往外斜，剪影和方帽分開
+ 			_line(ci, sbase, stop, WOOD, 2.2, a)
+@@ -213,14 +240,18 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			if variant == 2:
+ 				_c(ci, Vector2(9.0, -24 - lift), 2.8, SKIN, a)   # 第二隻手也扶著杖
+ 			_c(ci, Vector2(17.0, -20 - lift), 3.0, SKIN, a)
++			_part_end(ci)
+ 		D.DRUMMER:
+ 			# 紅白羽毛高帽（全兵種最高）
+ 			var hatc := tc.darkened(0.12)   # 第七輪 C1-9：帽子用隊伍色（原本藍方戴紅帽，一眼像紅軍）
++			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+ 			_poly(ci, PackedVector2Array([Vector2(-8, hy - 8), Vector2(-7, hy - 20), Vector2(7, hy - 20), Vector2(8, hy - 8)]), hatc, a)
+ 			_line(ci, Vector2(-8, hy - 10), Vector2(8, hy - 10), GOLD, 1.8, a)
+ 			_poly(ci, PackedVector2Array([Vector2(-2, hy - 20), Vector2(-6 - fl, hy - 36), Vector2(1 - fl * 0.6, hy - 30), Vector2(3, hy - 20)]), Color("#ffffff"), a)
+ 			_poly(ci, PackedVector2Array([Vector2(1, hy - 20), Vector2(4, hy - 33), Vector2(6, hy - 20)]), tc.lightened(0.35), a, false)
++			_hat_off(ci)
+ 			# 胸前大圓鼓
++			_part(ci, -3.0, 0.8)   # V1.3.1：鼓與鼓槌在近側；轉正時鼓面變成直立的窄橢圓
+ 			var dc := Vector2(9, -15)   # 第七輪 C1-9：鼓放大、往前凸
+ 			_c(ci, dc, 11.5, Color("#e9d8a6"), a)
+ 			ci.draw_arc(dc, 11.5, 0.0, TAU, 28, Color(tc, a), 3.2, true)
+@@ -232,8 +263,9 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 				raise = 18.0   # 專屬＝大力連敲：鼓棒舉高
+ 			for k in 2:
+ 				var hx := 2.0 + k * 9.0
+-				_line(ci, Vector2(hx, -20 - raise), Vector2(hx + 5, -26 - raise - k * 2), Color("#f4e3c1"), 1.8, a)
+-				_c(ci, Vector2(hx + 5, -26 - raise - k * 2), 2.0, Color("#f4e3c1"), a)
++				_line(ci, Vector2(hx, -20 - raise), Vector2(hx + 5, -24 - raise - k * 2), Color("#f4e3c1"), 1.8, a)   # V1.3.1：鼓槌頭低 2px，不碰下巴
++				_c(ci, Vector2(hx + 5, -24 - raise - k * 2), 2.0, Color("#f4e3c1"), a)
++			_part_end(ci)
+ 		D.BERSERKER:
+ 			# 火紅刺蝟頭
+ 			var hair := PackedVector2Array([Vector2(-12, hy - 1), Vector2(-15, hy - 10), Vector2(-9, hy - 9), Vector2(-10, hy - 19), Vector2(-3, hy - 13),
+@@ -241,11 +273,12 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 			_poly(ci, hair, Color("#ff5a2a"), a)
+ 			# 左右手各一把闊斧：揮擊時雙斧往下劈（交叉）
+ 			# 待機時雙斧垂在身體兩側往外（不擋臉）；前搖舉過頭、揮擊往前下劈
+-			var aang := -0.35 + (w * 1.3 if w < 0.0 else w * 1.4) + sway
++			var aang := -0.35 - (0.42 if w == 0.0 else 0.0) + (w * 1.3 if w < 0.0 else w * 1.4) + sway   # V1.3.1 剪影：待機雙斧外開成 V（低於攻擊時舉斧）
+ 			if variant == 2:
+ 				aang = -1.75   # 專屬＝破陣：雙斧高舉過頭
+ 			for k2 in 2:
+ 				var ah := Vector2(9, -15) if k2 == 0 else Vector2(-8, -16)
++				_part(ci, -8.0 if k2 == 0 else 4.0, 0.9)   # V1.3.1：前斧近側（再往前，刃角不碰右眼）、後斧遠側
+ 				var aa := aang if k2 == 0 else (PI - aang if w <= 0.0 else aang - 0.4)
+ 				var adir := Vector2(cos(aa), sin(aa))
+ 				var atip := ah + adir * 20.0
+@@ -255,6 +288,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 				_poly(ci, blade, STEEL, a)
+ 				ci.draw_line(blade[1], blade[2], Color(1, 1, 1, a), 1.6, true)   # 亮銀刃口
+ 				_c(ci, ah, 3.0, SKIN, a)
++			_part_end(ci)
++	_part_end(ci)   # V1.3.1：頭部轉換到此結束（後手跟身體）
+ 	if type != D.ASSASSIN and type != D.ARCHER and type != D.SWORD and type != D.PIKE and type != D.BOMBER and type != D.MEDIC and type != D.BERSERKER:
+ 		_c(ci, Vector2(-9, -17 - sway * 8.0), 3.0, SKIN, a)
+ 
+diff --git a/game/scripts/ui/units/kit.gd b/game/scripts/ui/units/kit.gd
+index ada3f90..26dd5dc 100644
+--- a/game/scripts/ui/units/kit.gd
++++ b/game/scripts/ui/units/kit.gd
+@@ -29,7 +29,32 @@ static var turn_s := 0.0     # sin θ
+ static var _xf0 := Transform2D.IDENTITY   # 轉身時沒縮過的角色轉換
+ static var _b_now := Transform2D.IDENTITY # 目前的上半身轉換（_push_body 設）
+ static var _cur_xf := Transform2D.IDENTITY # 目前畫布轉換（部件之間切換用；_eyes 畫完要還原成這個）
+-const TURN_FWD := {3: 0.6, 13: 0.0, 19: 0.3}   # 騎兵的馬最窄約 0.58（Antigravity v130-impl1：太窄像插在木棍上）   # 身體跟著縮的比例（沒列＝0.4）：騎兵的馬是長的、史萊姆是圓的
++const TURN_FWD := {3: 0.6, 13: 0.0, 19: 0.3, 10: 0.0, 11: 0.3, 12: 0.45, 14: 0.2, 16: 0.0, 18: 0.3, 20: 0.0, 21: 0.3}   # 騎兵的馬最窄約 0.58；V1.3.1：羊長身、寶箱方體會縮，孢子菇、沙漏、小史萊姆不縮
++static var baking := false
++# V1.3.1 P1：待機小動作（眼睛往後看）、小動作中不擺怒臉、受擊帽子彈起
++static var look := 0.0
++static var calm := false
++static var hat_pop := 0.0
++static func _hat_on(ci: CanvasItem) -> void:
++	if hat_pop > 0.0:
++		ci.draw_set_transform_matrix(_cur_xf * Transform2D(0.0, Vector2.ONE, 0.0, Vector2(0.0, -7.0 * hat_pop)))   # 和頭頂拉開 3～4px 的空隙
++static func _hat_off(ci: CanvasItem) -> void:
++	if hat_pop > 0.0:
++		ci.draw_set_transform_matrix(_cur_xf)
++# V1.3.1 P0-6：錨點紀錄（只有工具 anim_sheet 打開）。烘轉身頁時記下臉中心與武器線段（格子像素座標），檢查武器有沒有穿過臉。
++static var anchor_on := false
++static var anchor_key := ""
++static var anchor_log := {}
++static var _cur_weapon := false
++static func _anchor(kind: String, pts: Array) -> void:
++	if anchor_key == "":
++		return   # 只記轉身頁（其他頁不設鍵）
++	if not anchor_log.has(anchor_key):
++		anchor_log[anchor_key] = {"face": [], "weapon": []}
++	var out: Array = []
++	for q in pts:
++		out.append(_cur_xf * q)
++	anchor_log[anchor_key][kind].append(out)   # V1.3.1：烘焙中（史萊姆高光改在貼圖後依世界方向畫）   # 身體跟著縮的比例（沒列＝0.4）：騎兵的馬是長的、史萊姆是圓的
+ 
+ static func turn_body_w(type: int) -> float:
+ 	return lerpf(1.0, turn_c, float(TURN_FWD.get(type, 0.4)))
+@@ -38,7 +63,20 @@ static func turn_body_w(type: int) -> float:
+ static func _part(ci: CanvasItem, z: float, fwd: float) -> void:
+ 	if turn_c >= 1.0:
+ 		return
+-	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(lerpf(1.0, turn_c, fwd), 1.0), 0.0, Vector2(-z * turn_s, 0.0))
++	# 往前伸的武器最多縮到一半（Antigravity v131-impl1：cos 0.3 時刀、吸嘴、手臂短到看不見）
++	var sxp := lerpf(1.0, turn_c, fwd)
++	if fwd >= 0.5:
++		sxp = maxf(sxp, 0.5)
++	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(sxp, 1.0), 0.0, Vector2(-z * turn_s, 0.0))
++	_cur_weapon = anchor_on and fwd >= 0.5 and z != 0.0
++	ci.draw_set_transform_matrix(_cur_xf)
++
++## V1.3.1：圓的部件（羊頭、幽靈臉、骷髏頭）只移到轉過去的位置，不壓扁。x0＝部件中心的 x。
++static func _part_at(ci: CanvasItem, x0: float) -> void:
++	if turn_c >= 1.0:
++		return
++	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2.ONE, 0.0, Vector2(x0 * (turn_c - 1.0), 0.0))
++	_cur_weapon = false
+ 	ci.draw_set_transform_matrix(_cur_xf)
+ 
+ ## 回到身體的轉換。
+@@ -46,6 +84,7 @@ static func _part_end(ci: CanvasItem) -> void:
+ 	if turn_c >= 1.0:
+ 		return
+ 	_cur_xf = _xf * _b_now
++	_cur_weapon = false
+ 	ci.draw_set_transform_matrix(_cur_xf)
+ 
+ const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]   # 第七輪：紅壓暗，灰階下敵我也分得開（小樣通過條件 ②）
+@@ -63,9 +102,13 @@ const M_SPARKLE := 2          # 騎兵衝鋒蓄滿：亮晶晶眼＋槍尖金光
+ const M_BROWS := 4            # 狂熱：眉毛內傾
+ const M_HOOD := 8             # 刺客潛行：帽簷壓低、黃眼每 0.4 秒眨一次
+ const M_BRACE := 16           # 盾兵頂住：盾放大 1.35 倍
++const M_HAPPY := 32           # V1.3.1：勝利歡呼 ^ ^ 眼
++const M_SURPRISE := 64        # V1.3.1：擺陣被抓起來，圓眼＋小 o 嘴
++const M_GRIM := 128           # V1.3.1：大落後，眉頭下壓、嘴角往下（不抖、不畫汗，避免像暈眩）
+ 
+ # 第八輪：通用表情疊加用的眼睛位置（其他新兵的臉不適合疊）
+-const FEATURE_EYES := {10: Vector2(1.5, -13), 13: Vector2(3, -17), 18: Vector2(3, -33), 19: Vector2(1, -31), 20: Vector2(2, -11)}
++const FEATURE_EYES := {10: Vector2(1.5, -13), 13: Vector2(3, -17), 18: Vector2(3, -33), 19: Vector2(1, -31), 20: Vector2(2, -11),
++	11: Vector2(16.5, -23), 14: Vector2(2.0, -40), 17: Vector2(5.5, -36), 21: Vector2(0.5, -33)}   # V1.3.1：羊、幽靈、骷髏法師、骷髏也吃得到表情（Codex v131-impl1）
+ 
+ 
+ static func team_color(team: int, cb := false) -> Color:
+@@ -88,6 +131,12 @@ static func _c(ci: CanvasItem, c: Vector2, r: float, col: Color, a: float, outli
+ 
+ 
+ static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float, outline := true) -> void:
++	if _cur_weapon:
++		var ar: Array = []
++		for k in pts.size():
++			ar.append(pts[k])
++		ar.append(pts[0])
++		_anchor("weapon", ar)
+ 	if outline:
+ 		var closed := pts.duplicate()
+ 		closed.append(pts[0])
+@@ -96,16 +145,25 @@ static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float,
+ 
+ 
+ static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, al: float) -> void:
++	if _cur_weapon:
++		_anchor("weapon", [a, b])
+ 	ci.draw_line(a, b, Color(OUT, al), w + INNER_W * 1.9, true)
+ 	ci.draw_line(a, b, Color(col, col.a * al), w, true)
+ 
+ 
+ static func _eyes(ci: CanvasItem, c: Vector2, a: float, t: float, angry := false) -> void:
+ 	var blink := 1.0 if fmod(t + c.x * 0.13, 3.7) > 0.12 else 0.15
++	if look != 0.0:
++		c.x -= look * 3.0   # V1.3.1：待機小動作回頭看
+ 	if turn_c < 1.0:
+ 		# V1.3 A1b：轉向鏡頭時臉往中間移，眼睛不跟著身體壓扁（保持圓的）
+ 		ci.draw_set_transform_matrix(_xf0 * _b_now)
+ 		c = Vector2(c.x * turn_c, c.y)
++		if anchor_on:
++			var keep := _cur_xf
++			_cur_xf = _xf0 * _b_now
++			_anchor("face", [c])
++			_cur_xf = keep
+ 		_eyes_draw(ci, c, a, blink, angry)
+ 		ci.draw_set_transform_matrix(_cur_xf)   # 還原成呼叫前的部件轉換（頭盔接著畫，Codex v130-impl1）
+ 		return
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 4c67c57..c1f2549 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11"], "maps": ["test_maps_v9", "test_maps_mirror_v9"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11"], "maps": ["test_maps_v9", "test_maps_mirror_v9"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index 820f4de..b49aeb9 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -865,3 +865,34 @@ func test_feel_v130() -> void:
+ 	g.time = 5.5
+ 	ok(g._settle_dy(Vector2i(1000, 2000)) == 0.0 and not g.settle_t.has(Vector2i(1000, 2000)), "B3：沉降結束歸位並清掉")
+ 	g.free()
++
++
++## V1.3.1：角色做完整（22 種轉身、待機小動作、表情），全是畫面，不碰模擬。
++func test_characters_v131() -> void:
++	var SC = load("res://scripts/ui/sprite_cache.gd")
++	var Art = load("res://scripts/ui/art.gd")
++	ok(SC.TURN_TYPES.size() == 22, "P0-1：22 種兵都有轉身影格", str(SC.TURN_TYPES.size()))
++	var miss: Array = []
++	for t in 22:
++		if not SC.FIDGET.has(t):
++			miss.append(t)
++	ok(miss.is_empty(), "P1：22 種兵都有待機小動作設定", str(miss))
++	ok(Art.turn_c == 1.0 and not Art.calm and Art.look == 0.0 and Art.hat_pop == 0.0 and not Art.baking and Art.anchor_key == "", "平常沒有殘留的烘焙狀態（轉身、小動作、帽子、錨點）")
++	var ms := [Art.M_HURT, Art.M_SPARKLE, Art.M_BROWS, Art.M_HOOD, Art.M_BRACE, Art.M_HAPPY, Art.M_SURPRISE, Art.M_GRIM]
++	var acc := 0
++	var dup := false
++	for m in ms:
++		if acc & m:
++			dup = true
++		acc |= m
++	ok(not dup, "表情位元不重疊")
++	# 記憶體預算（方案 §0：常駐圖集增量 ≤104 MiB，相對 V1.3.0 的 6 種轉身頁）
++	var cells_turn: int = 22 * 2 * SC.TURN_C.size()
++	var cells_fid: int = 22 * 2 * SC.FID_PER
++	var cells_wt: int = 22 * 2 * SC.WT_C.size() * SC.WT_PH
++	var mib := func(cells: int) -> float: return ceilf(float(cells) / SC.COLS) * SC.CELL * SC.COLS * SC.CELL * 4.0 / 1048576.0
++	var wt_pages := ceili(22.0 / SC.WT_TYPES_PER_PAGE)
++	var total: float = mib.call(cells_turn) + mib.call(cells_fid) + wt_pages * mib.call(SC.WT_TYPES_PER_PAGE * 2 * SC.WT_C.size() * SC.WT_PH)
++	var v130: float = mib.call(6 * 2 * 3)
++	ok(total - v130 <= 104.0, "§0：轉身／小動作／走路轉身圖集增量 ≤104 MiB", "%.1f MiB" % (total - v130))
++	ok(cells_wt > 0 and SC.WT_TYPES_PER_PAGE * 2 * SC.WT_C.size() * SC.WT_PH / SC.COLS * SC.CELL <= 4096, "走路轉身每頁不超過 4096px")
+diff --git a/game/tools/anim_sheet.gd b/game/tools/anim_sheet.gd
+index 6941f8c..d770d9d 100644
+--- a/game/tools/anim_sheet.gd
++++ b/game/tools/anim_sheet.gd
+@@ -10,6 +10,7 @@ func _initialize() -> void:
+ 	for a in OS.get_cmdline_user_args():
+ 		if a.begins_with("--out="):
+ 			out = a.substr(6)
++	preload("res://scripts/ui/art.gd").anchor_on = true   # V1.3.1：烘轉身頁時記錄臉與武器
+ 	cache = SC.new()
+ 	root.add_child(cache)
+ 	_run.call_deferred()
+@@ -62,4 +63,50 @@ func _run() -> void:
+ 			strip.blend_rect(ms, Rect2i(0, 0, SC.CELL, SC.CELL), Vector2i((1 + nc * 2) * SC.CELL, k * SC.CELL))
+ 		strip.save_png(out + "/turn.png")
+ 		print("TURN ok ", nt)
++		# 武器線段不能進眼睛區（臉中心 ±6×±5 單位 × 烘焙倍率：兩眼外緣），用線段與方框相交判斷
++		var Art3 = preload("res://scripts/ui/art.gd")
++		var bad: Array = []
++		for key in Art3.anchor_log.keys():
++			var rec: Dictionary = Art3.anchor_log[key]
++			for fc in rec["face"]:
++				var box := Rect2(fc[0] - Vector2(6, 5) * SC.RS, Vector2(12, 10) * SC.RS)
++				for wl in rec["weapon"]:
++					for i in range(wl.size() - 1):
++						if _seg_hits(wl[i], wl[i + 1], box):
++							bad.append(key)
++							break
++		if OS.get_environment("ANCHOR_DEBUG") != "":
++			for dk in ["0/0/0", "8/0/1", "9/0/0"]:
++				if Art3.anchor_log.has(dk):
++					print("DBG ", dk, " face=", Art3.anchor_log[dk]["face"], " weapon0=", Art3.anchor_log[dk]["weapon"].slice(0, 3))
++		var uniq := {}
++		for b in bad:
++			uniq[b] = true
++		print("ANCHOR 檢查 %d 格有臉，武器穿臉 %d：%s" % [Art3.anchor_log.size(), uniq.size(), str(uniq.keys())])
++		# 出格檢查：轉身頁每一格最外 1px 不能有不透明像素（被格子切掉）
++		var clip: Array = []
++		for k3 in nt * 2 * nc:
++			var r3: Rect2 = cache._rect(k3)
++			var hit := false
++			for e in int(r3.size.x):
++				for yy in [0, int(r3.size.y) - 1]:
++					if tim.get_pixel(int(r3.position.x) + e, int(r3.position.y) + yy).a > 0.1:
++						hit = true
++				for xx in [int(r3.position.x), int(r3.position.x) + int(r3.size.x) - 1]:
++					if tim.get_pixel(xx, int(r3.position.y) + e).a > 0.1:
++						hit = true
++			if hit:
++				clip.append(k3)
++		print("CLIP 轉身頁出格 %d 格：%s" % [clip.size(), str(clip)])
++	if cache.fid_tex != null:
++		cache.fid_tex.get_image().save_png(out + "/fidget.png")   # V1.3.1：每種兵兩隊 × 小動作 4 格＋受擊帽子 1 格
++	for wi in cache.wt_pages.size():
++		cache.wt_pages[wi].get_image().save_png(out + "/walkturn%d.png" % wi)
++	print("EXTRA fidget=%s walkturn=%d" % [str(cache.fid_tex != null), cache.wt_pages.size()])
+ 	quit()
++
++static func _seg_hits(a: Vector2, b: Vector2, r: Rect2) -> bool:
++	for k in 13:
++		if r.has_point(a.lerp(b, k / 12.0)):
++			return true
++	return false

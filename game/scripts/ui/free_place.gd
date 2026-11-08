@@ -654,11 +654,11 @@ func _fp_draw() -> void:
 			for i in fp_sel:
 				var np: Vector2i = a.pos_of(a.units[i]) + dv
 				_lift_shadow(_s_of(np))
-				_unit(_s_of(np) - Vector2(0, LIFT_PX), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0)
+				_unit(_s_of(np) - Vector2(0, LIFT_PX), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0, Art.M_SURPRISE)
 		else:
 			var ok_m: bool = a.check_place_xy(int(a.units[fp_drag]["type"]), tgt.x, tgt.y, fp_drag) == ""
 			_lift_shadow(_s_of(tgt))
-			_unit(_s_of(tgt) - Vector2(0, LIFT_PX), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0)
+			_unit(_s_of(tgt) - Vector2(0, LIFT_PX), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0, Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
 	# 畫筆預覽：腳底亮點＋半透明小人＋費用泡泡
 	if fp_stroking:
 		var cost := 0

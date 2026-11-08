@@ -64,12 +64,14 @@ static func _f_sheep(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	for h in [[-5, -28, 3.6], [6, -25, 2.8], [-9, -18, 2.4]]:
 		ci.draw_circle(Vector2(h[0], h[1]), h[2], Color(1, 1, 1, 0.4 * a), true, -1.0, true)
 	# 臉
+	_part_at(ci, 16.0)   # V1.3.1：羊頭是圓的，轉身時移到中間、不壓扁
 	_c(ci, Vector2(16, -22), 8.5, Color("#3a3346"), a)
 	_poly(ci, PackedVector2Array([Vector2(9, -27), Vector2(4, -30), Vector2(7, -24)]), Color("#3a3346"), a)   # 耳朵
 	for ex in [13.0, 19.0]:
 		ci.draw_circle(Vector2(ex, -23), 2.9, Color(1, 1, 1, a), true, -1.0, true)
 		ci.draw_circle(Vector2(ex + 0.7, -23), 1.4, Color(OUT, a), true, -1.0, true)
 	ci.draw_arc(Vector2(16, -18), 2.6, 0.3, PI - 0.3, 6, Color(1, 1, 1, 0.8 * a), 1.2, true)
+	_part_end(ci)
 	# 頭上的引線（招牌）：越接近爆炸火花越大
 	_line(ci, Vector2(-1, -37), Vector2(4, -47), Color("#c9a26b"), 1.8, a)
 	var sp := 0.7 + 0.3 * sin(t * 18.0 + wk * 3.0) + maxf(0.0, w)
@@ -130,11 +132,16 @@ static func _f_slime(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	pts.append(Vector2(rx * 0.9, cy - ry * 0.5))
 	_poly(ci, pts, tc.lightened(0.05), a)
 	ci.draw_arc(Vector2(0, cy - ry * 0.1), rx * 0.82, 0.55, PI - 0.55, 10, Color(tc.darkened(0.25), 0.55 * a), 2.6 * k, true)
-	ci.draw_circle(Vector2(-rx * 0.45, cy - ry * 0.4), 3.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
-	ci.draw_circle(Vector2(-rx * 0.18, cy - ry * 0.85), 1.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
+	if not baking:   # V1.3.1：烘焙時不畫高光，貼圖後依世界方向（左上）補畫，翻面不跳邊
+		ci.draw_circle(Vector2(-rx * 0.45, cy - ry * 0.4), 3.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
+		ci.draw_circle(Vector2(-rx * 0.18, cy - ry * 0.85), 1.8 * k, Color(1, 1, 1, 0.6 * a), true, -1.0, true)
 	for b in [[0.5, 0.45, 2.2], [-0.25, 0.65, 1.6], [0.62, -0.1, 1.5]]:
 		ci.draw_arc(Vector2(rx * b[0], cy + ry * b[1]), b[2] * k, 0, TAU, 8, Color(1, 1, 1, 0.35 * a), 1.0, true)
 	_eyes(ci, Vector2(3.0 * k, cy + 1.0), a, t, angry)
+	if k >= 1.0:
+		# V1.3.1 剪影：大史萊姆頭頂小王冠（會分裂的那種），和小史萊姆一眼分開
+		var cr := Vector2(0.5, cy - ry * 1.42)
+		_poly(ci, PackedVector2Array([cr + Vector2(-6, 2), cr + Vector2(-6, -5), cr + Vector2(-3, -1.5), cr + Vector2(0, -7), cr + Vector2(3, -1.5), cr + Vector2(6, -5), cr + Vector2(6, 2)]), GOLD, a)
 
 
 static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
@@ -152,6 +159,7 @@ static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	_poly(ci, PackedVector2Array([Vector2(-16 + lean, -33), Vector2(16 + lean, -33), Vector2(17 + lean * 0.7, -24), Vector2(4 + lean * 0.5, -21), Vector2(-16 + lean * 0.7, -24)]), tc, a, false)
 	ci.draw_line(Vector2(-16 + lean, -33), Vector2(16 + lean, -33), Color(tc.darkened(0.25), a), 1.6, true)
 	var ey := -40.0
+	_part_at(ci, 2.5 + lean)   # V1.3.1：臉轉向鏡頭時移到中間
 	for ex in [-2.0 + lean, 7.0 + lean]:
 		ci.draw_circle(Vector2(ex, ey), 3.3, Color(OUT, a), true, -1.0, true)
 		ci.draw_circle(Vector2(ex + 0.9, ey - 1.0), 1.1, Color(1, 1, 1, a), true, -1.0, true)
@@ -161,8 +169,11 @@ static func _f_ghost(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	else:
 		ci.draw_arc(Vector2(2.5 + lean, ey + 5), 2.2, 0.3, PI - 0.3, 6, Color(OUT, a), 1.3, true)
 	var hd := sin(wk + 0.9) * 2.0 if wk != 0.0 else 0.0   # 手延遲
+	_part(ci, 4.0, 0.5)   # 遠側的手
 	_c(ci, Vector2(-15 + lean + w * 5.0 - hd, -25 + hd), 3.6, body, a)
+	_part(ci, -4.0, 0.5)  # 近側的手
 	_c(ci, Vector2(16 + lean + maxf(0.0, w) * 10.0 - hd, -26 - hd), 3.6, body, a)
+	_part_end(ci)
 
 
 static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
@@ -179,9 +190,12 @@ static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 		var y := -21.0 + k * 5.0
 		ci.draw_line(Vector2(-3, y), Vector2(3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
 		ci.draw_line(Vector2(3, y), Vector2(-3, y + 2.2), Color(OUT, 0.8 * a), 1.5, true)
+	_part(ci, 4.0, 0.6)   # V1.3.1：遠側手
 	_line(ci, Vector2(-12, -21), Vector2(-17 - sway * 12.0, -15 - w * 5.0 + sway * 6.0), tc.darkened(0.15), 3.2, a)
+	_part(ci, -4.0, 0.6)  # 近側手
 	_line(ci, Vector2(12, -21), Vector2(18 + sway * 12.0, -15 + w * -5.0 + sway * 6.0), tc.darkened(0.15), 3.2, a)
 	# 麻布頭、一邊大鈕扣、一邊 X
+	_part(ci, 0.0, 0.0)   # 圓頭不壓扁
 	_c(ci, Vector2(0, -35), 12.5, Color("#e8d3a8"), a)
 	_c(ci, Vector2(6, -35), 4.6, tc.lightened(0.3), a)
 	ci.draw_circle(Vector2(5, -36), 1.1, Color(OUT, a), true, -1.0, true)
@@ -191,8 +205,10 @@ static func _f_doll(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 	ci.draw_line(Vector2(-4, -28), Vector2(5, -28), Color(OUT, a), 1.5, true)
 	# 頭上插一根大針（招牌）
 	var nd := sway * 14.0
+	_part(ci, 3.0, 0.8)   # 頭上的針往後斜（遠側）
 	_line(ci, Vector2(-3, -40), Vector2(-11 - nd, -54), STEEL, 1.8, a)
 	_c(ci, Vector2(-12 - nd, -56), 3.4, Color("#ff4d6d"), a)
+	_part_end(ci)
 
 
 static func _f_sprite(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool) -> void:
@@ -201,10 +217,12 @@ static func _f_sprite(ci: CanvasItem, tc: Color, walk: float, w: float, a: float
 	# 飄浮的大沙漏，不畫人形（免得和鼓手、醫者撞）；弧形翅膀、沙子往下流
 	var flap := sin(t * 9.0 + wk * 3.0) * 4.5 - minf(w, 0.0) * 6.0
 	for s in [-1.0, 1.0]:
+		_part(ci, -4.0 * s, 0.6)   # V1.3.1：翅膀一遠一近，轉身時翼展壓窄
 		var wing := PackedVector2Array([Vector2(s * 8, -32), Vector2(s * 18, -47 + flap), Vector2(s * 29, -48 + flap), Vector2(s * 33, -37 + flap), Vector2(s * 28, -26 + flap * 0.6), Vector2(s * 19, -19), Vector2(s * 9, -22)])
 		_poly(ci, wing, Color(tc.lightened(0.42), 0.97), a)
 		ci.draw_line(Vector2(s * 11, -30), Vector2(s * 27, -41 + flap), Color(tc, 0.7 * a), 1.6, true)
 		ci.draw_line(Vector2(s * 11, -26), Vector2(s * 26, -31 + flap * 0.8), Color(tc, 0.7 * a), 1.6, true)
+	_part_end(ci)
 	var glass := Color("#e8f4ff")
 	_poly(ci, PackedVector2Array([Vector2(-13, -47), Vector2(13, -47), Vector2(2, -27), Vector2(13, -8), Vector2(-13, -8), Vector2(-2, -27)]), glass, a)
 	_poly(ci, PackedVector2Array([Vector2(-9, -41), Vector2(9, -41), Vector2(1, -29), Vector2(-1, -29)]), tc, a, false)
@@ -233,7 +251,9 @@ static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 	for x0 in [-14.0, -3.0]:
 		ci.draw_line(Vector2(x0, -24), Vector2(x0 + 1, -9), Color(tc.darkened(0.25), a), 1.6, true)
 	# 兜帽＋骷髏臉，頭往前探
+	_poly(ci, PackedVector2Array([Vector2(-9, -50), Vector2(-21, -46), Vector2(-11, -40)]), tc.darkened(0.15), a)   # V1.3.1 剪影：兜帽尖往後翹
 	_poly(ci, _ell(Vector2(2, -39), 15.0, 14.0, PI * 0.72, PI * 2.05, 14), tc.darkened(0.15), a)
+	_part_at(ci, 6.0)   # V1.3.1：骷髏頭移到中間、不壓扁
 	_c(ci, Vector2(6, -35), 10.5, Color("#f5f0e0"), a)
 	for ex in [2.0, 10.0]:
 		ci.draw_circle(Vector2(ex, -36), 3.2, Color(OUT, a), true, -1.0, true)
@@ -242,14 +262,17 @@ static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 	for k in 4:
 		ci.draw_line(Vector2(2.0 + k * 2.6, -28), Vector2(2.0 + k * 2.6, -25), Color(OUT, a), 1.2, true)
 	# 高舉的書與紫火：專屬動作舉更高
+	_part_end(ci)   # 臉到這裡
 	var lift: float = 6.0 + maxf(0.0, -w) * 8.0 + maxf(0.0, w) * 3.0 + (10.0 if variant == 2 else 0.0) + Gait.swing(17, walk) * 12.0
-	var bk := Vector2(20, -22 - lift)
+	_part(ci, -5.0, 0.5)   # 書與紫火在近側、留在臉前
+	var bk := Vector2(24, -22 - lift)   # V1.3.1 剪影：書與紫火往前探 4px
 	_line(ci, Vector2(9, -20), bk + Vector2(-2, 4), Color("#ece6d6"), 2.4, a)
 	_poly(ci, PackedVector2Array([bk + Vector2(-10, -2), bk + Vector2(0, 0), bk + Vector2(10, -2), bk + Vector2(10, 4), bk + Vector2(0, 6), bk + Vector2(-10, 4)]), Color("#6b4a2b"), a)
 	ci.draw_line(bk + Vector2(0, 0), bk + Vector2(0, 6), Color(OUT, a), 1.2, true)
 	var fl := 8.0 + absf(w) * 7.0 + sin(t * 12.0 + wk * 3.0) * 1.8
 	_poly(ci, PackedVector2Array([bk + Vector2(-6, -1), bk + Vector2(6, -1), bk + Vector2(3, -2 - fl), bk + Vector2(0, -6 - fl), bk + Vector2(-3, -2 - fl)]), Color("#b14dff"), a)
 	ci.draw_circle(bk + Vector2(0, -4 - fl * 0.3), 2.4, Color(1, 0.85, 1, 0.9 * a), true, -1.0, true)
+	_part_end(ci)
 
 
 static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
@@ -262,11 +285,14 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
 	_push_body(ci, _atk_xf(Gait.body_xf(18, walk), w, 0.14, 5.0))
 	# 尾巴、背上的吸塵器桶
 	_line(ci, Vector2(-11, -8), Vector2(-20 - leg * 0.4, -18 + leg), tc.darkened(0.1), 3.0, a)
+	_part(ci, 4.0, 0.6)   # V1.3.1：背上的集塵桶在遠側
 	_poly(ci, PackedVector2Array([Vector2(-20, -32), Vector2(-7, -32), Vector2(-7, -8), Vector2(-20, -8)]), Color("#b7bfcc"), a)
 	_poly(ci, PackedVector2Array([Vector2(-20, -24), Vector2(-7, -24), Vector2(-7, -17), Vector2(-20, -17)]), tc, a, false)
+	_part_end(ci)
 	_poly(ci, _ell(Vector2(0, -14), 11.0, 10.0, 0.0, TAU, 16), tc.lightened(0.15), a)
 	# 大頭＋貓耳
 	var hy := -33.0
+	_part(ci, 0.0, 0.0)   # 頭與耳朵不壓扁
 	for s in [-1.0, 1.0]:
 		_poly(ci, PackedVector2Array([Vector2(s * 3.5, hy - 11), Vector2(s * 13, hy - 8), Vector2(s * 11, hy - 21)]), tc, a)
 	_c(ci, Vector2(0, hy), 12.0, tc.lightened(0.3), a)
@@ -276,9 +302,11 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
 	# 吸管與吸頭
 	var aim: float = -0.1 - w * 0.25 - (0.5 if variant == 2 else 0.0) + Gait.swing(18, walk)
 	var nz := Vector2(10, -14) + Vector2(cos(aim), sin(aim)) * 13.0
+	_part(ci, -4.0, 1.0)   # 吸嘴在近側，轉正時透視縮短
 	_line(ci, Vector2(-6, -18), Vector2(8, -13), Color("#55606f"), 2.6, a)
 	_line(ci, Vector2(8, -13), nz, Color("#9aa4b4"), 3.0, a)
 	_poly(ci, PackedVector2Array([nz + Vector2(0, -3), nz + Vector2(9, -7), nz + Vector2(9, 7), nz + Vector2(0, 3)]), STEEL, a)
+	_part_end(ci)
 
 
 static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry: bool, variant: int) -> void:
@@ -292,20 +320,25 @@ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	_push_body(ci, Gait.body_xf(19, walk))
 	var lift: float = maxf(0.0, -w) * 24.0 - maxf(0.0, w) * 8.0 + (20.0 if variant == 2 else 0.0) - absf(Gait.swing(19, walk)) * 25.0   # 走路雙臂下沉
 	# V1.3 A1b：轉身時遠側手臂往前、近側往後（左右手的位置交錯，才看得出是轉身）
-	_part(ci, -6.0, 0.3)
+	_part(ci, 6.0, 0.3)   # 遠側（左）手臂，和遠側肩甲同方向（Codex v131-impl2）
 	_line(ci, Vector2(-20, -34), Vector2(-23, -22 - lift), rock.darkened(0.15), 7.0, a)
 	_c(ci, Vector2(-23, -19 - lift), 8.0, rock.darkened(0.1), a)
-	_part(ci, 6.0, 0.3)
+	_part_end(ci)
+	_poly(ci, PackedVector2Array([Vector2(-21, -10), Vector2(-24, -36), Vector2(-11, -47), Vector2(11, -47), Vector2(24, -36), Vector2(21, -10)]), rock, a)
+	# V1.3.1：近側手臂畫在軀幹前面（Codex v131-impl1：原本被軀幹蓋住）
+	_part(ci, -6.0, 0.3)   # 近側（右）手臂
 	_line(ci, Vector2(20, -34), Vector2(23, -22 - lift), rock.darkened(0.15), 7.0, a)
 	_c(ci, Vector2(23, -19 - lift), 8.0, rock.darkened(0.1), a)
 	_part_end(ci)
-	_poly(ci, PackedVector2Array([Vector2(-21, -10), Vector2(-24, -36), Vector2(-11, -47), Vector2(11, -47), Vector2(24, -36), Vector2(21, -10)]), rock, a)
 	# 岩石裂紋
 	ci.draw_polyline(PackedVector2Array([Vector2(-19, -28), Vector2(-14, -24), Vector2(-17, -18)]), Color(0.2, 0.18, 0.15, 0.7 * a), 1.6, true)
 	ci.draw_polyline(PackedVector2Array([Vector2(17, -14), Vector2(13, -18), Vector2(17, -22)]), Color(0.2, 0.18, 0.15, 0.7 * a), 1.6, true)
 	# 隊伍色肩甲（面積要大）與胸前帶子
+	_part(ci, 6.0, 0.3)   # V1.3.1：遠側肩甲往後（原本兩片一起往內夾住臉）
 	_poly(ci, PackedVector2Array([Vector2(-27, -28), Vector2(-26, -46), Vector2(-8, -52), Vector2(-4, -40), Vector2(-13, -28)]), tc, a)
+	_part(ci, -6.0, 0.3)  # 近側肩甲往前
 	_poly(ci, PackedVector2Array([Vector2(27, -28), Vector2(26, -46), Vector2(8, -52), Vector2(4, -40), Vector2(13, -28)]), tc, a)
+	_part_end(ci)
 	_poly(ci, PackedVector2Array([Vector2(-20, -18), Vector2(20, -18), Vector2(20, -11), Vector2(-20, -11)]), tc, a, false)
 	for sx in [-20.0, 20.0]:
 		ci.draw_circle(Vector2(sx * 0.82, -41), 2.2, Color(tc.lightened(0.5), a), true, -1.0, true)
@@ -324,11 +357,14 @@ static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: flo
 	_poly(ci, PackedVector2Array([Vector2(-8, -24), Vector2(8, -24), Vector2(7, -11), Vector2(-7, -11)]), tc, a)
 	for k in 2:
 		ci.draw_line(Vector2(-5, -21 + k * 4.0), Vector2(5, -21 + k * 4.0), Color(bone, a), 1.6, true)
+	_part_at(ci, 1.0)   # V1.3.1：頭骨不壓扁
 	_c(ci, Vector2(1, -33), 9.5, Color("#f5f0e0"), a)
 	for ex in [-2.5, 5.0]:
 		ci.draw_circle(Vector2(ex, -33), 2.6, Color(OUT, a), true, -1.0, true)
 	ci.draw_line(Vector2(-1, -27), Vector2(5, -27), Color(OUT, a), 1.2, true)
 	var ang: float = -1.0 + (w * 0.5 if w < 0.0 else w * 1.4) + Gait.swing(21, walk) * 1.6
 	var hand := Vector2(8, -18)
+	_part(ci, -4.0, 1.0)   # 骨刀在近側
 	_line(ci, hand, hand + Vector2(cos(ang), sin(ang)) * 16.0, bone, 2.6, a)
 	_c(ci, hand + Vector2(cos(ang), sin(ang)) * 17.0, 3.0, bone, a)
+	_part_end(ci)

@@ -300,6 +300,8 @@ var drag_t := {}       # id → 被擊退、吸走的拖行姿勢還剩幾秒
 var face_now := {}     # id → 目前朝向（轉身有過場）
 var turn_t := {}       # id → 上次翻面的時間（V1.3 A1a）
 var stop_t := {}       # id → 停步的時間（V1.3 A4）
+var atk_face := {}     # id → 這一擊鎖定的朝向（V1.3.1 P0-2）
+var idle_since := {}   # id → 開始站定的時間（V1.3.1：最後一隻張望）
 var walking := {}      # id → 上一幀在走
 
 func _gait_reset() -> void:
@@ -310,6 +312,8 @@ func _gait_reset() -> void:
 	face_now.clear()
 	turn_t.clear()
 	stop_t.clear()
+	atk_face.clear()
+	idle_since.clear()
 	walking.clear()
 
 ## 每個畫面 tick 呼叫一次（prev_pos 是上一 tick、u 是這一 tick）。
@@ -402,8 +406,17 @@ func _gait_frame(delta: float) -> void:
 		drag_t[id] -= delta
 		if drag_t[id] <= 0.0:
 			drag_t.erase(id)
+	# V1.3.1 P1：全場只剩最後一隻、而且沒在出手也沒在走時，左右張望（用轉身影格）
+	var alive := [0, 0]
+	for u0 in view.units:
+		if u0.alive:
+			alive[u0.team] += 1
 	for u in view.units:
 		var tgt: float = signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
+		if u.mx != 0 or u.my != 0 or u.stun > 0 or atk_face.has(u.id) or drag_t.has(u.id) or not idle_since.has(u.id):   # 出手、暈眩也不算站定
+			idle_since[u.id] = time
+		if u.alive and alive[u.team] == 1 and not view.finished and time - float(idle_since[u.id]) > 1.5 and not atk_face.has(u.id):
+			tgt = 1.0 if sin(time * PI / 1.1 + u.id) >= 0.0 else -1.0   # 站定 1.5 秒後才開始張望
 		var f0: float = float(face_now.get(u.id, tgt))
 		var f1: float = move_toward(f0, tgt, delta * 11.0)
 		face_now[u.id] = f1

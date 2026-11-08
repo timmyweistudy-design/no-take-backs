@@ -192,6 +192,7 @@ func _try_place(c: Vector2i) -> void:
 		else:
 			_cur_army().place(selected, c.x, c.y)
 		show_place_help = false
+		settle_t[Vector2i(c.x, c.y)] = time   # V1.3.1 P2：格子模式也有放下沉降
 		sfx.play(["place_mid", "place_heavy", "place_light", "place_heavy", "place_light", "place_heavy", "place_light", "place_light", "place_light", "place_heavy"][selected])
 	elif why != L.t("err_taken"):
 		_toast(why, true)
@@ -313,7 +314,7 @@ func _draw_place_units() -> void:
 	for it in list:
 		var p := ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS
 		_ring(p, it[3], it[2])
-		_unit(p, it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
+		_unit(p + Vector2(0, _settle_dy(Vector2i(it[1], it[0]))), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], 1.0)
 		if it[3] == 1 and selected >= 0 and _cur_army().team == 0:
 			_counter_mark(p, selected, int(it[2]))   # V1.1 B3
 		if not pz.is_empty() and it[3] == 0 and PZ.is_fixed(pz, it[1], it[0]):
@@ -345,7 +346,7 @@ func _draw_place_units() -> void:
 			dragging_type = _cur_army().units[idx]["type"]
 	if dragging_type >= 0:
 		_lift_shadow(mouse + Vector2(0, 24 + LIFT_PX))   # V1.3 B3：拿起來的棋子在地上留影子
-		Art.unit(self, mouse + Vector2(0, 24), dragging_type, _cur_army().team, 1.0, 0.0, 0.0, 0.0, 0.75, time)
+		Art.unit(self, mouse + Vector2(0, 24), dragging_type, _cur_army().team, 1.0, 0.0, 0.0, 0.0, 0.75, time, 1.0, cbm(), Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
 	var c := cursor if pad_mode else _cell_at(mouse)
 	if c.x >= 0:
 		var okp := _check_place(selected, c) == ""

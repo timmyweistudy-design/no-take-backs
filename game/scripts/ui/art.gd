@@ -22,8 +22,8 @@ const POSE_PROFILE := {
 	4: [1.10, 0.82, 0.15, -1.0, 0.85, 1.20, 0.55, 6.0, 0.10],    # 刺客：伏低 → 竄出直刺
 	5: [1.06, 0.94, 0.25, -3.0, 0.90, 1.10, 0.30, 7.0, 0.20],    # 長槍兵：後拉 → 長刺定住
 	9: [1.16, 0.84, 0.55, -2.0, 0.84, 1.18, 0.55, 4.0, 0.20],    # 狂戰士：雙斧高舉大後仰 → 全身劈下
-	2: [1.06, 0.94, 0.18, -2.0, 0.96, 1.05, 0.10, 1.0, 0.30],    # 弓箭手：拉弓 → 放箭、手停在弦上（跟隨動作）
-	7: [1.08, 0.92, 0.25, -2.0, 0.93, 1.08, 0.30, 2.0, 0.20],    # 醫者：舉杖 → 點地
+	2: [1.08, 0.92, 0.32, -3.0, 0.94, 1.08, 0.18, 1.5, 0.30],    # 弓箭手：拉弓 → 放箭、手停在弦上（V1.3.1：滿弓後仰加大）
+	7: [1.10, 0.90, 0.36, -2.0, 0.92, 1.10, 0.34, 2.5, 0.20],    # 醫者：舉杖 → 點地（V1.3.1：高舉施法更明顯）
 	8: [1.12, 0.88, 0.35, -2.0, 0.88, 1.14, 0.38, 2.0, 0.15],    # 鼓手：高舉鼓槌 → 重敲
 	10: [1.15, 0.85, 0.00, 0.0, 0.88, 1.15, 0.00, 0.0, 0.20],    # 孢子菇：縮傘 → 噴孢子（不前撲，定點）
 	11: [1.10, 0.90, 0.10, -2.0, 0.90, 1.10, 0.30, 4.0, 0.10],   # 爆爆羊：後蹲 → 衝撞
@@ -32,7 +32,7 @@ const POSE_PROFILE := {
 	14: [1.00, 1.00, 0.20, -2.0, 0.92, 1.10, 0.40, 6.0, 0.10],   # 幽靈：後飄 → 穿刺
 	15: [1.05, 0.95, 0.20, -1.0, 0.95, 1.06, 0.25, 2.0, 0.25],   # 巫毒娃娃：舉針 → 扎下
 	16: [1.00, 1.05, 0.15, 0.0, 0.95, 1.08, 0.20, 2.0, 0.20],    # 沙漏精靈：上浮 → 點擊
-	17: [1.00, 1.08, 0.20, 0.0, 0.95, 1.08, 0.25, 2.0, 0.25],    # 骷髏法師：舉杖聚光 → 施放
+	17: [0.98, 1.12, 0.32, 0.0, 0.94, 1.10, 0.30, 2.5, 0.25],    # 骷髏法師：舉書聚光 → 施放（V1.3.1：後仰拉高）
 	18: [1.12, 0.88, 0.15, -2.0, 0.90, 1.12, 0.40, 5.0, 0.15],   # 吸塵貓：弓背 → 撲抓
 	20: [1.20, 0.80, 0.00, 0.0, 0.85, 1.20, 0.20, 3.0, 0.20],    # 小史萊姆
 	21: [1.14, 0.86, 0.30, -2.0, 0.86, 1.16, 0.40, 4.0, 0.20],   # 骷髏：舉骨刀 → 劈
@@ -102,11 +102,11 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 	ci.draw_set_transform_matrix(_xf)
 	# 以 face＝+1 畫（水平鏡像由 transform 處理）
 	if type == D.CAVALRY:
-		_cavalry(ci, tc, walk, w, alpha, t, atk > 0.0)
+		_cavalry(ci, tc, walk, w, alpha, t, atk > 0.0 and not calm)
 	elif type >= D.COUNT:
-		_fantasy(ci, type, tc, walk, w, alpha, t, atk > 0.0, variant)
+		_fantasy(ci, type, tc, walk, w, alpha, t, atk > 0.0 and not calm, variant)
 	else:
-		_infantry(ci, type, tc, walk, w, alpha, t, atk > 0.0, variant)
+		_infantry(ci, type, tc, walk, w, alpha, t, atk > 0.0 and not calm, variant)
 	if hurt > 0.0:
 		# 受擊閃白：在身體位置疊一層白
 		ci.draw_circle(Vector2(0, -26), 14.0, Color(1, 1, 1, hurt * 0.55 * alpha), true, -1.0, true)
@@ -117,6 +117,8 @@ static func unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, 
 
 ## 表情與狀態疊加：呼叫前畫布轉換要已經是這隻角色的局部座標（face＝+1 空間）。
 static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t: float, cb := false) -> void:
+	if mood & M_HAPPY:
+		mood &= ~M_HURT   # V1.3.1：歡呼優先於受擊眼
 	var ec := Vector2(2.0, -43.0) if type == D.CAVALRY else (Vector2(5.5, -33.5) if type == D.ASSASSIN else Vector2(3.5, -32.0))
 	if type >= D.COUNT:
 		if not FEATURE_EYES.has(type):
@@ -124,6 +126,29 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 		ec = FEATURE_EYES[type]
 	var eyes := [ec + Vector2(-3.0 if type != D.ASSASSIN else -2.5, 0), ec + Vector2(4.0 if type != D.ASSASSIN else 2.5, 0)]
 	var skin := Color("#2b2140") if type == D.ASSASSIN else SKIN
+	match type:   # V1.3.1：新加表情的兵種，蓋眼睛用自己臉的顏色（Codex v131-impl2：通用膚色會變異色圓斑）
+		11:
+			skin = Color("#3a3346")
+		14:
+			skin = team_color(team, cb).lightened(0.3)
+		17, 21:
+			skin = Color("#f5f0e0")
+	if mood & (M_HAPPY | M_SURPRISE | M_GRIM):
+		for e in eyes:
+			ci.draw_circle(e, 3.4, Color(skin, a), true, -1.0, true)   # 先蓋掉原本的眼睛
+			if mood & M_HAPPY:
+				ci.draw_arc(e + Vector2(0, 1.2), 2.6, PI * 1.15, PI * 1.85, 6, Color(OUT, a), 1.7, true)
+			elif mood & M_SURPRISE:
+				ci.draw_circle(e, 3.0, Color(OUT, a), true, -1.0, true)
+				ci.draw_circle(e + Vector2(0.6, -0.7), 1.2, Color(1, 1, 1, a), true, -1.0, true)
+			else:
+				ci.draw_circle(e + Vector2(0, 0.6), 2.2, Color(OUT, a), true, -1.0, true)
+				ci.draw_line(e + Vector2(-2.6, -3.4), e + Vector2(2.6, -2.2), Color(OUT, a), 1.4, true)
+		var mc: Vector2 = (eyes[0] + eyes[1]) * 0.5 + Vector2(0, 6.0)
+		if mood & M_SURPRISE:
+			ci.draw_circle(mc, 1.6, Color(OUT, a), true, -1.0, true)
+		elif mood & M_GRIM:
+			ci.draw_arc(mc + Vector2(0, 2.0), 2.4, PI * 1.2, PI * 1.8, 6, Color(OUT, a), 1.3, true)
 	if mood & M_HOOD:
 		# 帽簷壓低：一條兜帽色的帽簷蓋到眼睛上緣；每 0.4 秒整個蓋住一下（眨眼）
 		var shut := fmod(t, 0.4) < 0.07

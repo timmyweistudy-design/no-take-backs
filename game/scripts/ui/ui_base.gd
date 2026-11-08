@@ -906,7 +906,7 @@ func _cycle_setting(k: String, opts: Array) -> void:
 
 ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
 func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
-		mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
+		mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1) -> void:
 	if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
 		# V1.2 D2：大圖（圖鑑、MVP）站在木製圓底座上，像桌上的棋偶公仔
 		var bw := 30.0 * scale
@@ -918,7 +918,7 @@ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: floa
 		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊
-		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant)
+		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
 	else:
 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
 

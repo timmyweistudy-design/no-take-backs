@@ -865,3 +865,34 @@ func test_feel_v130() -> void:
 	g.time = 5.5
 	ok(g._settle_dy(Vector2i(1000, 2000)) == 0.0 and not g.settle_t.has(Vector2i(1000, 2000)), "B3：沉降結束歸位並清掉")
 	g.free()
+
+
+## V1.3.1：角色做完整（22 種轉身、待機小動作、表情），全是畫面，不碰模擬。
+func test_characters_v131() -> void:
+	var SC = load("res://scripts/ui/sprite_cache.gd")
+	var Art = load("res://scripts/ui/art.gd")
+	ok(SC.TURN_TYPES.size() == 22, "P0-1：22 種兵都有轉身影格", str(SC.TURN_TYPES.size()))
+	var miss: Array = []
+	for t in 22:
+		if not SC.FIDGET.has(t):
+			miss.append(t)
+	ok(miss.is_empty(), "P1：22 種兵都有待機小動作設定", str(miss))
+	ok(Art.turn_c == 1.0 and not Art.calm and Art.look == 0.0 and Art.hat_pop == 0.0 and not Art.baking and Art.anchor_key == "", "平常沒有殘留的烘焙狀態（轉身、小動作、帽子、錨點）")
+	var ms := [Art.M_HURT, Art.M_SPARKLE, Art.M_BROWS, Art.M_HOOD, Art.M_BRACE, Art.M_HAPPY, Art.M_SURPRISE, Art.M_GRIM]
+	var acc := 0
+	var dup := false
+	for m in ms:
+		if acc & m:
+			dup = true
+		acc |= m
+	ok(not dup, "表情位元不重疊")
+	# 記憶體預算（方案 §0：常駐圖集增量 ≤104 MiB，相對 V1.3.0 的 6 種轉身頁）
+	var cells_turn: int = 22 * 2 * SC.TURN_C.size()
+	var cells_fid: int = 22 * 2 * SC.FID_PER
+	var cells_wt: int = 22 * 2 * SC.WT_C.size() * SC.WT_PH
+	var mib := func(cells: int) -> float: return ceilf(float(cells) / SC.COLS) * SC.CELL * SC.COLS * SC.CELL * 4.0 / 1048576.0
+	var wt_pages := ceili(22.0 / SC.WT_TYPES_PER_PAGE)
+	var total: float = mib.call(cells_turn) + mib.call(cells_fid) + wt_pages * mib.call(SC.WT_TYPES_PER_PAGE * 2 * SC.WT_C.size() * SC.WT_PH)
+	var v130: float = mib.call(6 * 2 * 3)
+	ok(total - v130 <= 104.0, "§0：轉身／小動作／走路轉身圖集增量 ≤104 MiB", "%.1f MiB" % (total - v130))
+	ok(cells_wt > 0 and SC.WT_TYPES_PER_PAGE * 2 * SC.WT_C.size() * SC.WT_PH / SC.COLS * SC.CELL <= 4096, "走路轉身每頁不超過 4096px")

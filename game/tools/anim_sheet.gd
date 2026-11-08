@@ -10,6 +10,7 @@ func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			out = a.substr(6)
+	preload("res://scripts/ui/art.gd").anchor_on = true   # V1.3.1：烘轉身頁時記錄臉與武器
 	cache = SC.new()
 	root.add_child(cache)
 	_run.call_deferred()
@@ -62,4 +63,50 @@ func _run() -> void:
 			strip.blend_rect(ms, Rect2i(0, 0, SC.CELL, SC.CELL), Vector2i((1 + nc * 2) * SC.CELL, k * SC.CELL))
 		strip.save_png(out + "/turn.png")
 		print("TURN ok ", nt)
+		# 武器線段不能進眼睛區（臉中心 ±6×±5 單位 × 烘焙倍率：兩眼外緣），用線段與方框相交判斷
+		var Art3 = preload("res://scripts/ui/art.gd")
+		var bad: Array = []
+		for key in Art3.anchor_log.keys():
+			var rec: Dictionary = Art3.anchor_log[key]
+			for fc in rec["face"]:
+				var box := Rect2(fc[0] - Vector2(6, 5) * SC.RS, Vector2(12, 10) * SC.RS)
+				for wl in rec["weapon"]:
+					for i in range(wl.size() - 1):
+						if _seg_hits(wl[i], wl[i + 1], box):
+							bad.append(key)
+							break
+		if OS.get_environment("ANCHOR_DEBUG") != "":
+			for dk in ["0/0/0", "8/0/1", "9/0/0"]:
+				if Art3.anchor_log.has(dk):
+					print("DBG ", dk, " face=", Art3.anchor_log[dk]["face"], " weapon0=", Art3.anchor_log[dk]["weapon"].slice(0, 3))
+		var uniq := {}
+		for b in bad:
+			uniq[b] = true
+		print("ANCHOR 檢查 %d 格有臉，武器穿臉 %d：%s" % [Art3.anchor_log.size(), uniq.size(), str(uniq.keys())])
+		# 出格檢查：轉身頁每一格最外 1px 不能有不透明像素（被格子切掉）
+		var clip: Array = []
+		for k3 in nt * 2 * nc:
+			var r3: Rect2 = cache._rect(k3)
+			var hit := false
+			for e in int(r3.size.x):
+				for yy in [0, int(r3.size.y) - 1]:
+					if tim.get_pixel(int(r3.position.x) + e, int(r3.position.y) + yy).a > 0.1:
+						hit = true
+				for xx in [int(r3.position.x), int(r3.position.x) + int(r3.size.x) - 1]:
+					if tim.get_pixel(xx, int(r3.position.y) + e).a > 0.1:
+						hit = true
+			if hit:
+				clip.append(k3)
+		print("CLIP 轉身頁出格 %d 格：%s" % [clip.size(), str(clip)])
+	if cache.fid_tex != null:
+		cache.fid_tex.get_image().save_png(out + "/fidget.png")   # V1.3.1：每種兵兩隊 × 小動作 4 格＋受擊帽子 1 格
+	for wi in cache.wt_pages.size():
+		cache.wt_pages[wi].get_image().save_png(out + "/walkturn%d.png" % wi)
+	print("EXTRA fidget=%s walkturn=%d" % [str(cache.fid_tex != null), cache.wt_pages.size()])
 	quit()
+
+static func _seg_hits(a: Vector2, b: Vector2, r: Rect2) -> bool:
+	for k in 13:
+		if r.has_point(a.lerp(b, k / 12.0)):
+			return true
+	return false
