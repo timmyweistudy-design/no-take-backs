@@ -1300,6 +1300,12 @@ func _draw_wager() -> void:
 
 func _wager_go() -> void:
 	wg_active = true
+	# 先把連中歸零存起來：觀戰中途離開＝這場沒押中，不能靠逃跑保連勝（Antigravity v150-i2 #7）
+	var eye0: Dictionary = Save.data.get("eye", {})
+	eye0["pend"] = int(eye0.get("streak", 0))
+	eye0["streak"] = 0
+	Save.data["eye"] = eye0
+	Save.save_data()
 	call("watch_code", wg_armies[0], wg_armies[1], null)
 
 ## 剩餘戰力落在哪一區：0 險勝（<34%）、1 普通、2 大勝（≥67%）。
@@ -1323,7 +1329,8 @@ func _wager_settle() -> void:
 	var eye: Dictionary = Save.data.get("eye", {})
 	eye["n"] = int(eye.get("n", 0)) + 1
 	eye["pts"] = int(eye.get("pts", 0)) + pts
-	eye["streak"] = int(eye.get("streak", 0)) + 1 if pts > 0 else 0
+	eye["streak"] = int(eye.get("pend", eye.get("streak", 0))) + 1 if pts > 0 else 0
+	eye.erase("pend")
 	eye["best"] = maxi(int(eye.get("best", 0)), int(eye["streak"]))
 	if int(eye["streak"]) >= 5:
 		call("_ach", "SHARP_EYE")
@@ -1724,8 +1731,8 @@ func _ghost_settle(w: int) -> void:
 			Save.data["ghost_beat"] = beat
 			Save.save_data()
 			report["gh_line"] = L.t("gh_beat_new", [beat.size(), ghosts().size()])
-			if beat.size() >= ghosts().size():
-				call("_ach", "GHOST_ALL")
+		if beat.size() >= ghosts().size():
+			call("_ach", "GHOST_ALL")   # 放在「第一次打敗」外面：更新前就全破的老玩家再贏一場也拿得到（Codex v150-i2 #4）
 	if wk_active:
 		var wk: int = int(wk_spec.get("wk", week_no(int(Time.get_unix_time_from_system()))))
 		var rec: Dictionary = Save.data.get("weekly", {})

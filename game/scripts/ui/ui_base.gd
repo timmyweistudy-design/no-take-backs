@@ -197,6 +197,12 @@ var cursor := Vector2i(4, 4)
 var pad_mode := false
 var toast := ""
 var toast_t := 0.0
+var toast_born := 0.0   # V1.5：提示出現的時間（手動關：剛出現 0.3 秒內的點擊不算關掉）
+
+## 提示設成「手動關」時，點滑鼠或按任何鍵收起（剛出現的不算，免得觸發它的那一下就把它關掉）
+func _toast_dismiss() -> void:
+	if toast_t > 1.0 and int(Save.s("toast_mult")) == 0 and time - toast_born > 0.3:
+		toast_t = 0.4
 var ach_queue: Array = []
 var ach_t := 0.0
 var wins := [0, 0]
@@ -437,6 +443,7 @@ func _toast(s: String, deny := false) -> void:
 	toast = s
 	var tm := int(Save.s("toast_mult"))
 	toast_t = 2.0 * tm if tm > 0 else 600.0   # V1.5：提示停留 標準／加長／很長／手動關（點一下才收）
+	toast_born = time
 	if deny:
 		sfx.play("ui_deny")
 

@@ -15,6 +15,7 @@ class Painter extends Node2D:
 	var face := 1.0
 	var tc := 1.0
 	var atk := 0.0
+	var bk := false
 	var t := 0.0
 	var label := ""
 	func _draw() -> void:
@@ -22,11 +23,13 @@ class Painter extends Node2D:
 		draw_rect(Rect2(0, 150, W, 70), Color("#7d9a58"))
 		Art.turn_c = tc
 		Art.turn_s = sqrt(maxf(0.0, 1.0 - tc * tc))
+		Art.back = bk and ty in Art.BACK_OK
 		var p := Vector2(W / 2, 190)
 		Art.ring(self, p, 0, ty, false, 2.0)
 		Art.unit(self, p, ty, 0, face, 0.0, atk, 0.0, 1.0, t, 2.0)
 		Art.turn_c = 1.0
 		Art.turn_s = 0.0
+		Art.back = false
 
 func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
@@ -42,11 +45,11 @@ func _frames() -> Array:
 	var fr: Array = []
 	for i in 16:
 		var cf := cos(i / 16.0 * TAU)
-		fr.append([1.0 if cf >= 0.0 else -1.0, maxf(absf(cf), 0.3), 0.0, 0.5])
+		fr.append([1.0 if cf >= 0.0 else -1.0, maxf(absf(cf), 0.3) if absf(cf) < 0.95 else 1.0, 0.0, 0.5, sin(i / 16.0 * TAU) < -0.01])   # 後半圈看背面（人形兵）
 	for i in 14:
-		fr.append([1.0, 1.0, 0.001 + i / 13.0 * 0.999, 0.5])
+		fr.append([1.0, 1.0, 0.001 + i / 13.0 * 0.999, 0.5, false])
 	for i in 6:
-		fr.append([1.0, 1.0, 0.0, 0.5 + i * 0.4])
+		fr.append([1.0, 1.0, 0.0, 0.5 + i * 0.4, false])
 	return fr
 
 func _snap(vp: SubViewport, pn: Painter, f: Array) -> Image:
@@ -54,6 +57,7 @@ func _snap(vp: SubViewport, pn: Painter, f: Array) -> Image:
 	pn.tc = f[1]
 	pn.atk = f[2]
 	pn.t = f[3]
+	pn.bk = f[4]
 	pn.queue_redraw()
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw

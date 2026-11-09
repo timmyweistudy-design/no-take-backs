@@ -535,6 +535,10 @@ func _draw_lobby_menu(o: Vector2) -> void:
 	var cols := 2 if ps.size() > 5 else 1
 	o.x -= 240.0 * (cols - 1) + 30.0
 	var r := Rect2(o, Vector2(12 + cols * 240, 12 + rows * 50))
+	# 下拉選單蓋住的底層按鈕不能被點到（Antigravity v150-i2 #6）
+	for bi in range(_btns.size() - 1, -1, -1):
+		if r.intersects(_btns[bi]["r"]):
+			_btns.remove_at(bi)
 	draw_rect(r, PANEL)
 	draw_rect(r, Color(1, 1, 1, 0.3), false, 1.5)
 	if ps.is_empty():

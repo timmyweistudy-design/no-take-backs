@@ -272,3 +272,12 @@ func test_presets_ten_v150() -> void:
 		ps.append({"name": "p%d" % i, "code": "NTBR1.x"})
 	var m: Dictionary = SV.migrate({"schema_version": 3, "rule_presets": ps})
 	ok(SV.MAX_PRESETS == 10 and m["rule_presets"].size() == 10, "我的預設最多 10 格", str(m["rule_presets"].size()))
+
+
+## V1.5 還原驗證：只有版本欄的 JSON、版本是字串、未來版都不能拿來還原；正常存檔可以（Codex v150-i2 #2）。
+func test_restorable_v150() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	ok(not SV.restorable({"version": 1}), "只有版本欄不算")
+	ok(not SV.restorable({"schema_version": "錯誤", "stats": {}, "achievements": []}), "版本是字串不算")
+	ok(not SV.restorable({"schema_version": SV.SAVE_VERSION + 1, "stats": {}, "achievements": []}), "未來版不算")
+	ok(SV.restorable(SV.DEFAULT_SAVE.duplicate(true)), "正常存檔可以還原")

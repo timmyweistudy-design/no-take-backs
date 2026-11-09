@@ -40,6 +40,7 @@ func _go_title() -> void:
 	clutch_t = 0.0
 	state = St.TITLE
 	overlay = ""
+	set("settings_ret", "")
 	sim = null
 	view = null
 	zoom = 1.0

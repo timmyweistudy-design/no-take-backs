@@ -449,7 +449,13 @@ static func set_settings(d: Dictionary) -> void:
 
 ## V1.5：備份檔能不能拿來還原：要是進度存檔（有版本欄），而且不是比這版新的格式。
 static func restorable(d) -> bool:
-	return d is Dictionary and (d.has("schema_version") or d.has("version")) and schema_of(d) <= SAVE_VERSION
+	if not d is Dictionary:
+		return false
+	var v = d.get("schema_version", d.get("version"))
+	if not (v is int or v is float) or int(v) < 1 or int(v) > SAVE_VERSION:
+		return false
+	# 要有進度存檔一定有的欄位（只有版本欄的 JSON 不算，Codex v150-i2 #2）
+	return d.get("stats") is Dictionary and d.get("achievements") is Array
 
 
 ## V1.1 F2：本機遊玩紀錄（不上傳、不升存檔版本）。kind＝"puzzle"／"trial"：每打一次 +1；

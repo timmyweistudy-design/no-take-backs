@@ -295,6 +295,7 @@ func _mb_cmd(d: Dictionary) -> void:
 
 
 func _key(k: int) -> void:
+	_toast_dismiss()
 	if state == St.PLACE and _fp_key(k):
 		return
 	if state == St.BATTLE and overlay == "" and _cmd_key(k):
@@ -333,6 +334,9 @@ func _key(k: int) -> void:
 					call("_settings_close")
 				elif overlay == "confirm":
 					overlay = str(get("confirm_ret"))
+				elif overlay in ["keys", "restore", "clear_data"]:
+					set("keys_capture", "")
+					overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
 				elif overlay != "":
 					overlay = ""
 				elif state == St.BATTLE:
@@ -742,8 +746,7 @@ func _process_cmds() -> int:
 
 ## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
 func _do_click(p: Vector2) -> int:
-	if toast_t > 1.0 and int(Save.s("toast_mult")) == 0:
-		toast_t = 0.4   # V1.5：提示設成「手動關」時，點一下就收起
+	_toast_dismiss()
 	if _btns_gen != _gen:
 		return 0
 	for i in _btns.size():

@@ -26,6 +26,8 @@ static var _team_now := 0   # 目前在畫哪一隊（分隊小披風用）
 # 近側（z＞0，畫在身體前面）的武器／盾往後移、遠側的往前移，前後遮擋關係就會改變，看起來是轉身不是紙片翻面。
 static var turn_c := 1.0     # cos θ：1＝正側面，越小越轉向鏡頭
 static var turn_s := 0.0     # sin θ
+static var back := false     # V1.5：看背面（只有人形兵支援；部件深度左右互換、不畫五官、披風箭筒蓋在身上）
+const BACK_OK := [0, 1, 2, 4, 5, 6, 7, 8, 9]   # 走 _infantry 的王國兵
 static var _xf0 := Transform2D.IDENTITY   # 轉身時沒縮過的角色轉換
 static var _b_now := Transform2D.IDENTITY # 目前的上半身轉換（_push_body 設）
 static var _cur_xf := Transform2D.IDENTITY # 目前畫布轉換（部件之間切換用；_eyes 畫完要還原成這個）
@@ -87,7 +89,7 @@ static func _part(ci: CanvasItem, z: float, fwd: float) -> void:
 	var sxp := lerpf(1.0, turn_c, fwd)
 	if fwd >= 0.5:
 		sxp = maxf(sxp, 0.5)
-	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(sxp, 1.0), 0.0, Vector2(-z * turn_s, 0.0))
+	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(sxp, 1.0), 0.0, Vector2((z if back else -z) * turn_s, 0.0))   # 背面：近遠側互換
 	_cur_weapon = anchor_on and fwd >= 0.5 and z != 0.0
 	ci.draw_set_transform_matrix(_cur_xf)
 
@@ -190,6 +192,8 @@ static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, 
 
 
 static func _eyes(ci: CanvasItem, c: Vector2, a: float, t: float, angry := false) -> void:
+	if back:
+		return   # 背面不畫五官
 	var blink := 1.0 if fmod(t + c.x * 0.13, 3.7) > 0.12 else 0.15
 	if look != 0.0:
 		c.x -= look * 3.0   # V1.3.1：待機小動作回頭看

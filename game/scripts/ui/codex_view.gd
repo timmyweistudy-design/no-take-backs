@@ -18,7 +18,11 @@ var cx_slow := false        # V1.5：慢動作 0.25 倍
 var cx_atk_t := -10.0       # V1.5：按「出手」的時間（cx_clock 的時間軸）
 var cx_clock := 0.0         # V1.5：圖鑑播放時鐘（慢動作時走 0.25 倍；切換慢動作不跳幀，Codex v150-i1 #8）
 var cx_last := 0.0
-const CX_ANGLES := 9        # 右側面 → 正面 → 左側面，每格 22.5°（背面要另畫，這版不做）
+const CX_ANGLES := 9        # 沒有背面的兵：右側面 → 正面 → 左側面，每格 22.5°
+
+## 這種兵的角度盤有幾格：人形王國兵有背面（16 格一整圈），其他只轉正面半圈（9 格）
+func cx_angles() -> int:
+	return 16 if cx_unit in Art.BACK_OK else CX_ANGLES
 var cx_spin_t := -10.0   # V1.3.1 P1：圖鑑角色播放器（點角色：轉身一圈＋待機小動作）
 var cx_skill := 0
 var cx_sim = null
@@ -550,7 +554,7 @@ static func cx_fit(type: int) -> float:
 	return float(CX_FIT.get(type, 2.0))
 
 func _cx_turn(d: int) -> void:
-	cx_angle = posmod((cx_angle if cx_angle >= 0 else 0) + d, CX_ANGLES)
+	cx_angle = posmod((cx_angle if cx_angle >= 0 else 0) + d, cx_angles())
 	cx_spin_t = -10.0
 	cx_atk_t = -10.0
 
@@ -562,8 +566,10 @@ func _cx_portrait(pc: Vector2) -> void:
 	var face := 1.0
 	var atk := 0.0
 	if cx_angle >= 0:
-		# 手動角度：0＝朝右側面、4＝正面、8＝朝左（半圈 180°）
-		var cf := cos(cx_angle / float(CX_ANGLES - 1) * PI)
+		# 手動角度：0＝朝右側面、4＝正面、8＝朝左、12＝背面（每格 22.5°）
+		var th := cx_angle * PI / 8.0
+		var cf := cos(th)
+		Art.back = sin(th) < -0.01
 		face = 1.0 if cf >= 0.0 else -1.0
 		if absf(cf) < 0.95:
 			Art.turn_c = maxf(absf(cf), 0.3)
@@ -574,6 +580,7 @@ func _cx_portrait(pc: Vector2) -> void:
 	elif cx_angle < 0 and u >= 0.0 and u < 1.2:
 		var cf2 := cos(u / 1.2 * TAU)
 		face = 1.0 if cf2 >= 0.0 else -1.0
+		Art.back = cx_unit in Art.BACK_OK and sin(u / 1.2 * TAU) < -0.01   # 人形兵自動轉一整圈（後半圈看背面）
 		if absf(cf2) < 0.95:
 			Art.turn_c = maxf(absf(cf2), 0.3)
 			Art.turn_s = sqrt(1.0 - Art.turn_c * Art.turn_c)
@@ -591,5 +598,6 @@ func _cx_portrait(pc: Vector2) -> void:
 		_draw_projectile(cx_unit, 0, pc + proj_launch(cx_unit, face) * s, pc + Vector2(face * 150.0, -30.0), pk)
 	Art.turn_c = 1.0
 	Art.turn_s = 0.0
+	Art.back = false
 	Art.calm = false
 	Art.look = 0.0

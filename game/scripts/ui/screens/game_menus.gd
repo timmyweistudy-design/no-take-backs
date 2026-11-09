@@ -209,7 +209,10 @@ func _draw_title() -> void:
 	var ph := 60.0
 	for pq0 in plaques:
 		ph = maxf(ph, 8.0 + tz("B") * 1.3 + text_h(L.t(str(pq0[1])), tz("C"), sw) + 8.0)
-	var room := 712.0 - 48.0 - y0
+	var room := 724.0 - 48.0 - y0
+	var show_sub := ph * 5.0 + 20.0 <= room   # 放不下（150% 字級＋長副標）就只放名稱，不縮字
+	if not show_sub:
+		ph = maxf(48.0, 12.0 + tz("B") * 1.3)
 	var gap := clampf((room - ph * 5.0) / 5.0, 4.0, 8.0)
 	for i in plaques.size():
 		var pq: Array = plaques[i]
@@ -222,11 +225,12 @@ func _draw_title() -> void:
 		var tag := home_tag(i)
 		var tw2 := (_width(tag, tz("C"), true) + 16.0) if tag != "" else 0.0
 		var nw := minf(_width(L.t(str(pq[0])), tz("B"), true), sw - tw2 - 8.0)
-		_text(mr2.position + Vector2(66, 6), L.t(str(pq[0])), tz("B"), tcol, false, true, sw - tw2 - 8.0)
-		_text(mr2.position + Vector2(66, 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), TXT_DIM, false, false, sw)
+		_text(mr2.position + Vector2(66, 6 if show_sub else (ph - tz("B") * 1.2) * 0.5), L.t(str(pq[0])), tz("B"), tcol, false, true, sw - tw2 - 8.0)
+		if show_sub:
+			_text(mr2.position + Vector2(66, 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), TXT_DIM, false, false, sw)
 		if tag != "":
 			# 狀態小牌：緊跟在名稱右邊（不蓋字），羊皮紙底＋墨字（不只靠顏色）
-			var tr := Rect2(mr2.position.x + 66 + nw + 8, mr2.position.y + 6 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5, tw2, tz("C") * 1.5)
+			var tr := Rect2(mr2.position.x + 66 + nw + 8, (mr2.position.y + 6 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (ph - tz("C") * 1.5) * 0.5), tw2, tz("C") * 1.5)
 			_tex_box(tr, "paper")
 			_ink_mode = true
 			_text(tr.position + Vector2(8, tz("C") * 0.2), tag, tz("C"), INK, false, true, tw2)
@@ -324,7 +328,7 @@ func _draw_overlay() -> void:
 			_panel(Rect2(340, 270, 600, 260))
 			_text(Vector2(640, 294), L.t("leave_title"), tz("H2"), Color.WHITE, true, true, 540)
 			_text(Vector2(640, 354), L.t("leave_body_gauntlet") if mode == Mode.GAUNTLET else L.t("leave_body_series"), tz("B"), Color(1, 1, 1, 0.85), true, false, 540)
-			_btn(Rect2(380, 450, 250, 52), L.t("leave_stay"), func(): overlay = "", true, true)
+			_btn(Rect2(380, 450, 250, 52), L.t("leave_stay"), func(): overlay = "pause_menu" if (state == St.BATTLE and paused) else "", true, true)
 			_btn(Rect2(650, 450, 250, 52), L.t("leave_go"), func(): _leave_confirm())
 		"tutorial", "puzzles":
 			var tut := overlay == "tutorial"
@@ -535,15 +539,16 @@ func _settings_close() -> void:
 	settings_ret = ""
 
 func _draw_pause_menu() -> void:
-	var P := Rect2(440, 200, 400, 400)
+	var items: Array = [[L.t("pm_resume"), func(): _pause_resume(), true]]
+	if play_kind == "official":
+		items.append([L.t("skip"), func(): overlay = ""; call("_on_skip"), false])
+	items.append([L.t("pm_settings"), func(): settings_ret = "pause_menu"; overlay = "settings", false])
+	items.append([L.t("pm_leave"), func(): overlay = ""; _request_leave(), false])   # 確認框開著時戰鬥維持暫停（Antigravity v150-i2 #3）
+	var ph := 96.0 + items.size() * 66.0 + 24.0   # 面板高度照項目數
+	var P := Rect2(440, 400 - ph * 0.5, 400, ph)
 	_panel(P)
 	_text(Vector2(640, P.position.y + 26), L.t("pm_title"), tz("H2"), Color.WHITE, true, true, 340)
 	var y := P.position.y + 96
-	var items: Array = [[L.t("pm_resume"), func(): _pause_resume(), true]]
-	if play_kind == "official":
-		items.append([L.t("skip"), func(): overlay = ""; call("_on_skip"), true])
-	items.append([L.t("pm_settings"), func(): settings_ret = "pause_menu"; overlay = "settings", false])
-	items.append([L.t("pm_leave"), func(): overlay = ""; paused = false; _request_leave(), false])
 	for it in items:
 		_btn(Rect2(P.position.x + 50, y, 300, 52), it[0], it[1], true, it[2])
 		y += 66
@@ -711,7 +716,12 @@ static func backup_list() -> Array:
 func _progress_backup() -> bool:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://backup"))
 	var dt := Time.get_datetime_dict_from_system()
-	var name := "progress_%04d%02d%02d_%02d%02d%02d.json" % [dt["year"], dt["month"], dt["day"], dt["hour"], dt["minute"], dt["second"]]
+	var base := "progress_%04d%02d%02d_%02d%02d%02d" % [dt["year"], dt["month"], dt["day"], dt["hour"], dt["minute"], dt["second"]]
+	var name := base + ".json"
+	var k := 2
+	while FileAccess.file_exists("user://backup/" + name):
+		name = "%s_%d.json" % [base, k]   # 同一秒連按：不蓋掉前一份（Codex v150-i2 #3）
+		k += 1
 	var f := FileAccess.open("user://backup/" + name, FileAccess.WRITE)
 	if f == null:
 		_toast(L.t("backup_fail"), true)
@@ -737,14 +747,25 @@ func _progress_restore(name: String) -> void:
 	if not Save.restorable(d):
 		_toast(L.t("restore_bad"), true)   # 不是進度存檔、或是比這版新的格式：不還原
 		return
+	if Save.data_locked:
+		_toast(L.t("restore_bad"), true)   # 目前讀到的是未來版存檔（唯讀）：還原了也存不進去
+		return
 	if not _progress_backup():   # 還原前先把現在的進度備份一份；備份失敗就不動現在的進度
 		return
 	var data: Dictionary = Save.migrate(d)
 	Save.sanitize_data(data)
 	Save.data = data
-	Save.save_data()
+	_after_data_swap()
 	overlay = ""
+	if not Save.save_data():
+		_toast(L.t("save_failed"), true)   # 沒寫進去就不說成功（Codex v150-i2 #1）
+		return
 	_toast(L.t("restore_done"))
+
+## 整份進度換掉（還原、全部清除）之後：塗裝重新套用、圖集重烘（Codex v150-i2 #6）
+func _after_data_swap() -> void:
+	call("_paint_apply")
+	_rebuild_sprites()
 
 func _draw_restore() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
@@ -760,7 +781,7 @@ func _draw_restore() -> void:
 		_btn(Rect2(380, 250 + i * 54, 520, 46), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = "settings")
 
-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "unit_games", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
@@ -783,7 +804,6 @@ func _clear_data() -> void:
 	if not _progress_backup():   # 清之前自動備份一份；備份失敗就不清
 		return
 	if bool(clear_pick.get(3, false)):
-		var keep_lang = Save.settings.duplicate(true)
 		Save.data = Save.DEFAULT_SAVE.duplicate(true)
 		Save.sanitize_data(Save.data)
 	else:
@@ -795,9 +815,12 @@ func _clear_data() -> void:
 					else:
 						Save.data.erase(k)
 		Save.sanitize_data(Save.data)
-	Save.save_data()
+	_after_data_swap()
 	clear_pick = {}
 	overlay = "settings"
+	if not Save.save_data():
+		_toast(L.t("save_failed"), true)
+		return
 	_toast(L.t("clear_done"))
 
 

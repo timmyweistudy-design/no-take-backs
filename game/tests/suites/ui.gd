@@ -1081,10 +1081,13 @@ func test_codex_controls_v150() -> void:
 	g._open_codex(2)
 	ok(g.cx_angle == -1, "預設自動")
 	g._cx_turn(-1)
-	ok(g.cx_angle == g.CX_ANGLES - 1, "往左一格從 0 繞到最左側面")
+	ok(g.cx_angles() == 16 and g.cx_angle == 15, "弓箭手有背面：往左一格從 0 繞到 15")
 	for i in 5:
 		g._cx_turn(1)
 	ok(g.cx_angle == 4, "再往右五格到正面（4）")
+	g._open_codex(12)
+	ok(g.cx_angles() == g.CX_ANGLES, "沒有背面的兵只轉正面半圈")
+	g._open_codex(2)
 	# 慢動作：時鐘照 0.25 倍走；中途切換不倒退
 	g.cx_clock = 0.0; g.cx_last = 0.0; g.time = 0.0
 	g.cx_slow = true
@@ -1114,4 +1117,32 @@ func test_pause_menu_v150() -> void:
 	ok(g.overlay == "pause_menu" and g.paused, "設定關掉回暫停選單", g.overlay)
 	g._settings_close()
 	ok(g.overlay == "", "沒有來處的設定關掉就回原畫面")
+	g.free()
+
+
+## V1.5 第二輪：設定子頁 Esc 回設定；暫停選單按離開時戰鬥維持暫停；手動關提示剛出現不會被同一下關掉。
+func test_overlay_returns_v150() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.overlay = "restore"
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "settings", "還原子頁 Esc 回設定", g.overlay)
+	g.mode = g.Mode.VS_AI
+	g.difficulty = 1
+	g._begin_battle(army_from(0, [[D.SWORD, 5, 4]]), army_from(1, [[D.SWORD, 5, 4]]))
+	g.state = g.St.BATTLE
+	g._open_pause_menu()
+	g.wins = [1, 0]   # 系列賽打到一半：離開要確認
+	g._request_leave()
+	ok(g.overlay == "leave" and g.paused, "離開確認框開著時戰鬥維持暫停", str([g.overlay, g.paused]))
+	var SV = load("res://scripts/game/save.gd")
+	var old = SV.s("toast_mult")
+	SV.settings["toast_mult"] = 0
+	g._toast("x")
+	g._toast_dismiss()
+	ok(g.toast_t > 1.0, "手動關提示：剛出現不被同一下關掉")
+	g.time += 1.0
+	g._toast_dismiss()
+	ok(g.toast_t < 1.0, "手動關提示：之後點一下就收起")
+	SV.settings["toast_mult"] = old
 	g.free()

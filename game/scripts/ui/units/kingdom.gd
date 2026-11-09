@@ -18,29 +18,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 	var sway: float = Gait.swing(type, walk)
 	var fl := sin(wk + 1.0) * 2.5 if wk != 0.0 else 0.0   # 披風延遲擺動
 	# 第七輪 C2：小披風分隊，藍方圓角、紅方燕尾（除了圍巾已經很明顯的刺客與騎兵）
-	_back(ci, -11.0)   # V1.5：披風、箭筒、火罐包轉正時收到身體後面
-	if type != D.ASSASSIN:
-		var cape := PackedVector2Array([Vector2(-6, -23), Vector2(-14 - fl * 0.4, -18), Vector2(-16 - fl, -8 + fl * 0.3), Vector2(-12 - fl, -6), Vector2(-7, -9)]) if _team_now == 0 else PackedVector2Array([Vector2(-6, -23), Vector2(-15 - fl * 0.4, -18), Vector2(-18 - fl, -6 + fl * 0.3), Vector2(-13 - fl * 0.8, -10), Vector2(-11 - fl, -5), Vector2(-7, -9)])
-		_poly(ci, cape, tc.darkened(0.08), a)
-	if type == D.BERSERKER:
-		_berserk_axe(ci, 1, w, sway, variant, a)   # 遠側斧：先畫，身體蓋在上面
-	# 背後的東西（箭筒）
-	if type == D.ARCHER:
-		# 第七輪 C1-3：箭筒放大、露白羽
-		_poly(ci, PackedVector2Array([Vector2(-14, -30), Vector2(-7, -33), Vector2(-3, -11), Vector2(-9, -9)]), WOOD, a)
-		for fi in 3:
-			var fx0 := Vector2(-12.0 + fi * 3.0, -32.0 - fi * 0.8)
-			_line(ci, fx0, fx0 + Vector2(-3 - fl * 0.5, -7), Color.WHITE, 1.8, a)
-	# 背後的東西（投彈兵的備用火罐包）
-	if type == D.BOMBER:
-		# V1.3.1 剪影：肩後多一個木火藥桶，頂端高出肩膀（和盾兵、劍士的圓輪廓分開）
-		var bb := Vector2(-13, -30 + fl * 0.8)
-		_poly(ci, PackedVector2Array([bb + Vector2(-5, -9), bb + Vector2(5, -9), bb + Vector2(6, 7), bb + Vector2(-6, 7)]), Color("#8a5a32"), a)
-		_line(ci, bb + Vector2(-5.5, -3), bb + Vector2(5.5, -3), Color("#5b3a1e"), 1.4, a)
-		_line(ci, bb + Vector2(0, -9), bb + Vector2(2, -15), Color("#c9a26b"), 1.3, a)
-		_c(ci, Vector2(-10, -20 + fl * 0.8), 7.5, Color("#3a3346"), a)   # 第七輪 C1-7：火罐包放大（V9：跟著跑步彈）
-		_line(ci, Vector2(-11, -27 + fl * 0.8), Vector2(-14, -31 + fl * 0.8), Color("#c9a26b"), 1.3, a)
-	_part_end(ci)
+	if not back:
+		_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # 背後的東西先畫（被身體擋住）
 	# 身體（圓胖的上衣，隊伍色；狂戰士赤膊，隊伍色只留在獸皮披肩與褲頭；醫者白袍）
 	var bw0 := 13.0 if type == D.SHIELD else 10.5   # 第七輪 C1-2：盾兵身體加寬
 	var body := PackedVector2Array()
@@ -61,10 +40,16 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 		_poly(ci, PackedVector2Array([Vector2(-12, -11), Vector2(12, -11), Vector2(13, -5), Vector2(-13, -5)]), tc, a, false)   # 白袍下擺露出隊伍色
 		_poly(ci, PackedVector2Array([Vector2(-10, -24), Vector2(-3, -26), Vector2(8, -22), Vector2(10, -16), Vector2(0, -19), Vector2(-11, -15)]), tc, a)   # 第七輪 C1-8：大面積隊伍色披肩
 	ci.draw_line(Vector2(-9, -11), Vector2(9, -11), Color(OUT, 0.35 * a), 2.0, true)   # 腰帶
+	if back:
+		_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # V1.5 背面：披風、箭筒、火罐包、遠側斧都在身上看得到
 	# 頭（V1.3 A1b：轉身時頭不壓扁）
 	var hy := -33.0
 	_part(ci, 0.0, 0.0)
 	_c(ci, Vector2(0, hy), 11.5, SKIN, a)
+	if back and type != D.ASSASSIN:
+		# V1.5 背面：後腦勺是頭髮（帽子、頭盔之後照樣蓋上去），兩側露一點耳朵
+		_c(ci, Vector2(0, hy - 1.0), 11.0, Color("#6b4a2e"), a)
+		_c(ci, Vector2(-11.0 * turn_c, hy + 2.0), 2.2, SKIN.darkened(0.08), a)
 	# 臉（朝右）
 	if type != D.ASSASSIN:
 		_eyes(ci, Vector2(3.5, hy + 1), a, t, angry)
@@ -158,9 +143,12 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_poly(ci, PackedVector2Array([Vector2(-12, hy - 7), Vector2(-5, hy - 12), Vector2(6, hy - 12), Vector2(11, hy - 7), Vector2(11, hy - 4), Vector2(-12, hy - 4)]), tc, a, false)
 			_poly(ci, PackedVector2Array([Vector2(-5, hy - 3), Vector2(11, hy - 3), Vector2(11, hy + 6), Vector2(-5, hy + 6)]), Color("#2b2140"), a, false)
 			_poly(ci, PackedVector2Array([Vector2(-11, hy + 5), Vector2(12, hy + 5), Vector2(12, hy + 11), Vector2(-11, hy + 11)]), tc, a)
-			_c(ci, Vector2(3.0, hy - 0.5), 1.8, Color("#ffe066"), a, false)
-			_c(ci, Vector2(8.0, hy - 0.5), 1.8, Color("#ffe066"), a, false)
-			if angry:
+			if back:
+				_poly(ci, PackedVector2Array([Vector2(-5, hy - 3), Vector2(11, hy - 3), Vector2(11, hy + 6), Vector2(-5, hy + 6)]), Color("#33304a"), a, false)   # 背面：只看到頭巾後面
+			else:
+				_c(ci, Vector2(3.0, hy - 0.5), 1.8, Color("#ffe066"), a, false)
+				_c(ci, Vector2(8.0, hy - 0.5), 1.8, Color("#ffe066"), a, false)
+			if angry and not back:
 				ci.draw_line(Vector2(1.0, hy - 3.6), Vector2(5.0, hy - 2.4), Color("#ffe066", a), 1.3, true)
 				ci.draw_line(Vector2(10.0, hy - 3.6), Vector2(6.0, hy - 2.4), Color("#ffe066", a), 1.3, true)
 			# 雙短刃
@@ -293,6 +281,33 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 	if type != D.ASSASSIN and type != D.ARCHER and type != D.SWORD and type != D.PIKE and type != D.BOMBER and type != D.MEDIC and type != D.BERSERKER:
 		_c(ci, Vector2(-9, -17 - sway * 8.0), 3.0, SKIN, a)
 
+
+
+## 人形兵背後的東西（披風、遠側斧、箭筒、火罐包）。正面、側面時先畫（被身體擋住）；背面時畫在身體上。
+static func _inf_back_items(ci: CanvasItem, type: int, tc: Color, fl: float, w: float, sway: float, variant: int, a: float) -> void:
+	_back(ci, -11.0)   # V1.5：披風、箭筒、火罐包轉正時收到身體後面
+	if type != D.ASSASSIN:
+		var cape := PackedVector2Array([Vector2(-6, -23), Vector2(-14 - fl * 0.4, -18), Vector2(-16 - fl, -8 + fl * 0.3), Vector2(-12 - fl, -6), Vector2(-7, -9)]) if _team_now == 0 else PackedVector2Array([Vector2(-6, -23), Vector2(-15 - fl * 0.4, -18), Vector2(-18 - fl, -6 + fl * 0.3), Vector2(-13 - fl * 0.8, -10), Vector2(-11 - fl, -5), Vector2(-7, -9)])
+		_poly(ci, cape, tc.darkened(0.08), a)
+	if type == D.BERSERKER:
+		_berserk_axe(ci, 1, w, sway, variant, a)   # 遠側斧：先畫，身體蓋在上面
+	# 背後的東西（箭筒）
+	if type == D.ARCHER:
+		# 第七輪 C1-3：箭筒放大、露白羽
+		_poly(ci, PackedVector2Array([Vector2(-14, -30), Vector2(-7, -33), Vector2(-3, -11), Vector2(-9, -9)]), WOOD, a)
+		for fi in 3:
+			var fx0 := Vector2(-12.0 + fi * 3.0, -32.0 - fi * 0.8)
+			_line(ci, fx0, fx0 + Vector2(-3 - fl * 0.5, -7), Color.WHITE, 1.8, a)
+	# 背後的東西（投彈兵的備用火罐包）
+	if type == D.BOMBER:
+		# V1.3.1 剪影：肩後多一個木火藥桶，頂端高出肩膀（和盾兵、劍士的圓輪廓分開）
+		var bb := Vector2(-13, -30 + fl * 0.8)
+		_poly(ci, PackedVector2Array([bb + Vector2(-5, -9), bb + Vector2(5, -9), bb + Vector2(6, 7), bb + Vector2(-6, 7)]), Color("#8a5a32"), a)
+		_line(ci, bb + Vector2(-5.5, -3), bb + Vector2(5.5, -3), Color("#5b3a1e"), 1.4, a)
+		_line(ci, bb + Vector2(0, -9), bb + Vector2(2, -15), Color("#c9a26b"), 1.3, a)
+		_c(ci, Vector2(-10, -20 + fl * 0.8), 7.5, Color("#3a3346"), a)   # 第七輪 C1-7：火罐包放大（V9：跟著跑步彈）
+		_line(ci, Vector2(-11, -27 + fl * 0.8), Vector2(-14, -31 + fl * 0.8), Color("#c9a26b"), 1.3, a)
+	_part_end(ci)
 
 ## 狂戰士的一把斧：k2＝0 近側（頭之後畫）、1 遠側（身體之前畫，被身體擋住）。
 static func _berserk_axe(ci: CanvasItem, k2: int, w: float, sway: float, variant: int, a: float) -> void:
