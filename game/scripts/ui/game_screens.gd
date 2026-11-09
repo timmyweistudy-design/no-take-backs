@@ -337,6 +337,8 @@ func _key(k: int) -> void:
 				elif overlay in ["keys", "restore", "clear_data"]:
 					set("keys_capture", "")
 					overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
+				elif overlay == "codex" and bool(get("cx_zoom")) and int(get("cx_unit")) < D.total():
+					set("cx_zoom", false)   # V1.5.1：近看模式先收合
 				elif overlay != "":
 					call("_nav_back")   # V1.5.1：Esc／手把 B 和返回鈕同一套目的地
 				elif state == St.BATTLE:

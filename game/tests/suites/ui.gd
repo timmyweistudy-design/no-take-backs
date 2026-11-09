@@ -1086,7 +1086,7 @@ func test_codex_controls_v150() -> void:
 		g._cx_turn(1)
 	ok(g.cx_angle == 4, "再往右五格到正面（4）")
 	g._open_codex(12)
-	ok(g.cx_angles() == g.CX_ANGLES, "沒有背面的兵只轉正面半圈")
+	ok(g.cx_angles() == 16, "V1.5.1：22 種都有背面，奇幻兵也轉一整圈")
 	g._open_codex(2)
 	# 慢動作：時鐘照 0.25 倍走；中途切換不倒退
 	g.cx_clock = 0.0; g.cx_last = 0.0; g.time = 0.0

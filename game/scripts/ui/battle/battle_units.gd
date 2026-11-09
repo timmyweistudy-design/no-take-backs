@@ -715,8 +715,12 @@ func _draw_units_of(s, dim: bool) -> void:
 			if at > 0.0:
 				# 鎖定的是「這一擊」：連擊換到下一擊時重新取方向（Codex v131-impl1）
 				if not atk_face.has(u.id) or int(atk_face[u.id][0]) != hit_now:
-					atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0)]
-				face = float(atk_face[u.id][1])
+					atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0), float(face_now.get(u.id, face)), time]
+				# V1.5.1 A3：前搖時從原本朝向轉過去（0.12 秒），轉身途中出手用轉身攻擊格，不再瞬間跳回側面
+				var tgt_f: float = float(atk_face[u.id][1])
+				var f0: float = float(atk_face[u.id][2]) if atk_face[u.id].size() > 2 else tgt_f
+				var kf := clampf((time - float(atk_face[u.id][3] if atk_face[u.id].size() > 3 else time)) / 0.12, 0.0, 1.0)
+				face = tgt_f if (signf(f0) == tgt_f and absf(f0) >= 0.9) else lerpf(f0, tgt_f, kf)
 				face_now[u.id] = face
 			elif atk_face.has(u.id):
 				atk_face.erase(u.id)

@@ -48,6 +48,13 @@ var turn_loc := {}               # 兵種 → 轉身頁起始格
 var wt_pages: Array = []         # V1.3.1：走路轉身頁
 var wt_loc := {}                 # 兵種 → [頁, 起始格]
 var fid_tex: Texture2D = null    # V1.3.1：待機小動作＋受擊帽子
+## V1.5.1 A3：轉身途中出手（1 個中繼角 × 一般攻擊 8 格 × 兩隊＝每種 16 格、約 2.25 MiB），只烘這場出場的兵種，最多留 TA_MAX 種（最久沒用的先丟）
+const TA_C := 0.55
+const TA_MAX := 12
+var ta_tex := {}       # 兵種 → Texture2D（16 欄 × 1 列）
+var ta_order: Array = []   # 最近用到的在後面
+var _ta_busy := false
+var _ta_queue: Array = []
 var fid_loc := {}
 var ready_paint := ""     # V1.4 #15：這份快取是用哪套塗裝烘的
 var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
@@ -86,6 +93,10 @@ func build(cb: bool) -> void:
 	wt_loc.clear()
 	fid_tex = null
 	fid_loc.clear()
+	ta_tex.clear()
+	ta_order.clear()
+	_ta_queue.clear()
+	_ta_busy = false
 	ready_cb = 1 if cb else 0
 	ready_paint = Art.paint_sig()
 	var base: Array = []
@@ -154,6 +165,40 @@ func _bake_turn(cb: bool) -> void:
 		for k in chunk.size():
 			wt_loc[chunk[k]] = [pg, k * 2 * per_w]
 		pg += 1
+
+## V1.5.1：這場出場的兵種補烘轉身出手格（背景烘；還沒好之前照舊轉正出手）。
+func ensure_turn_atk(types: Array) -> void:
+	if DisplayServer.get_name() == "headless" or ready_cb < 0:
+		return
+	for t in types:
+		if ta_tex.has(t):
+			ta_order.erase(t)
+			ta_order.append(t)
+		elif not t in _ta_queue:
+			_ta_queue.append(t)
+	if _ta_busy or _ta_queue.is_empty():
+		return
+	_ta_busy = true
+	var g0 := _gen
+	while not _ta_queue.is_empty():
+		var t: int = _ta_queue.pop_front()
+		var pt := _ExtraPainter.new()
+		pt.cb = ready_cb == 1
+		pt.mode = 3
+		pt.types = [t]
+		var vp := _viewport(Vector2i(COLS * CELL, CELL), pt)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var img := vp.get_texture().get_image()
+		vp.queue_free()
+		img = await _post(img, ATK_FRAMES)
+		if g0 != _gen:
+			return
+		ta_tex[t] = ImageTexture.create_from_image(img)
+		ta_order.append(t)
+		while ta_order.size() > TA_MAX:
+			ta_tex.erase(ta_order.pop_front())   # 超過上限：丟最久沒用的
+	_ta_busy = false
 
 ## 這場要用到的兵種。缺的才烘；烘的時候呼叫端先直接畫。
 func ensure(types: Array) -> void:
@@ -351,7 +396,17 @@ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, wa
 		if atk <= 0.0:
 			_draw_turn(ci, p, type, team, face, hurt, alpha, t, scale, lean, crouch, mood, cb)
 			return
-		face = 1.0 if face >= 0.0 else -1.0   # V1.5：轉到一半就出手時直接轉正出手（原本夾成 0.45 的扁圖，像紙片）
+		if variant == 0 and ta_tex.has(type):
+			# V1.5.1 A3：轉身途中出手用轉身攻擊格，不再跳回側面
+			var sg := -1.0 if face < 0.0 else 1.0
+			var fi := team * ATK_FRAMES + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+			ci.draw_set_transform_matrix(Art.base * Transform2D(lean * sg, Vector2(scale * sg / RS, scale * crouch / RS), 0.0, p + Vector2(0, Art.idle_bob(t, p) * scale)))
+			ci.draw_texture_rect_region(ta_tex[type], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(fi), Color(1, 1, 1, alpha))
+			if hurt > 0.0:
+				ci.draw_texture_rect_region(ta_tex[type], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(fi), Color(4, 4, 4, hurt * 0.55 * alpha))
+			ci.draw_set_transform_matrix(Art.base)
+			return
+		face = 1.0 if face >= 0.0 else -1.0   # V1.5：轉身出手格還沒烘好（或交替招式）時直接轉正出手
 	var idx := frame_index(type, team, walk, atk, t, p.x, variant)
 	if atk > 0.0:
 		walk = 0.0   # 攻擊影格烘焙時沒有走路相位：貼圖與疊加都當成沒在走（Codex 收尾輪 #4）
@@ -524,6 +579,17 @@ class _ExtraPainter extends Node2D:
 							Art2.unit(self, p, type, team, 1.0, 0.0, hk, 0.0, 1.0, 1.0, SC.RS, cb, Art2.M_HURT)
 							Art2.calm = false
 							Art2.hat_pop = 0.0
+				elif mode == 3:
+					# V1.5.1：轉身途中出手（一般攻擊 8 格）
+					for f in SC.ATK_FRAMES:
+						var idx3: int = team * SC.ATK_FRAMES + f
+						var p3 := Vector2((idx3 % SC.COLS) * SC.CELL, (idx3 / SC.COLS) * SC.CELL) + SC.origin_of(type)
+						Art2.turn_c = SC.TA_C
+						Art2.turn_s = sqrt(1.0 - SC.TA_C * SC.TA_C)
+						Art2.back = false
+						Art2.unit(self, p3, type, team, 1.0, 0.0, (f + 0.5) / SC.ATK_FRAMES, 0.0, 1.0, 1.0, SC.RS, cb)
+						Art2.turn_c = 1.0
+						Art2.turn_s = 0.0
 				else:
 					for ai in SC.WT_C.size():
 						for ph in SC.WT_PH:

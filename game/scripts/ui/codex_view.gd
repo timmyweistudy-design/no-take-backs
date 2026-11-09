@@ -16,7 +16,17 @@ var cx_unit := 0
 var cx_angle := -1          # V1.5：手動角度（0～15，每格 22.5°；-1＝自動）
 var cx_slow := false        # V1.5：慢動作 0.25 倍
 var cx_atk_t := -10.0       # V1.5：按「出手」的時間（cx_clock 的時間軸）
-var cx_clock := 0.0         # V1.5：圖鑑播放時鐘（慢動作時走 0.25 倍；切換慢動作不跳幀，Codex v150-i1 #8）
+var cx_clock := 0.0
+## V1.5.1 A5 近看模式：整塊取代左右欄，角色對假人靶出手，可暫停、逐格、放大
+var cx_zoom := false
+var cx_zt := 0.0            # 出手循環裡的時間（秒，0～CXZ_CYCLE）
+var cx_zplay := true
+var cx_zalt := false        # 特殊／交替招式
+var cx_zally := false       # 友軍靶（醫者補血）
+var cx_zbig := false
+const CXZ_ATK := 0.7        # 一次出手的長度（和大頭照的「出手」一樣）
+const CXZ_CYCLE := 1.3      # 出手＋停一下
+const CXZ_STEP := 0.05         # V1.5：圖鑑播放時鐘（慢動作時走 0.25 倍；切換慢動作不跳幀，Codex v150-i1 #8）
 var cx_last := 0.0
 const CX_ANGLES := 9        # 沒有背面的兵：右側面 → 正面 → 左側面，每格 22.5°
 
@@ -61,6 +71,10 @@ func _cx_pick_unit(t: int) -> void:
 	cx_unit = t
 	cx_angle = -1   # 換兵種回到自動（人形轉到背面後換成沒有背面的兵，不能留著背面角度）
 	cx_spin_t = cx_clock   # 換角色先轉一圈給你看
+	cx_zt = 0.0
+	if t >= D.total():
+		cx_zoom = true   # V1.5.1：召喚物（小史萊姆、小骷髏）沒有排名與數值條，只有近看頁
+		return
 	cx_scroll["left"] = 0.0
 	cx_scroll["note"] = 0.0
 	_cx_pick_skill(0)
@@ -87,6 +101,8 @@ func _cx_restart() -> void:
 
 ## 每幀推進小劇場（20 tick／秒，跟正式戰鬥同速）。
 func _codex_tick(delta: float) -> void:
+	if cx_zoom and cx_zplay:
+		cx_zt = fposmod(cx_zt + delta * (0.25 if cx_slow else 1.0), CXZ_CYCLE)
 	for p in cx_pops:
 		p["t"] += delta
 	cx_pops = cx_pops.filter(func(p): return p["t"] < 1.1)
@@ -186,12 +202,14 @@ func _draw_codex() -> void:
 	# 兵種分頁
 	# 第四輪 §4.7：一排 10 個「頭像＋數字」頁籤；兵種全名在下面左欄的大標題
 	# 第八輪：頁籤分兩頁（王國軍／奇幻軍），各 10 種
-	var page_new: bool = cx_unit >= D.COUNT
-	_btn(Rect2(204, 104, 110, 38), L.t("lb_army_kingdom"), func(): _cx_pick_unit(0), true, false, TH_ACTIVE if not page_new else Color(0, 0, 0, 0))
-	_btn(Rect2(320, 104, 110, 38), L.t("lb_army_fantasy"), func(): _cx_pick_unit(D.COUNT), true, false, TH_ACTIVE if page_new else Color(0, 0, 0, 0))
+	var page_new: bool = cx_unit >= D.COUNT and cx_unit < D.total()
+	var page_sum: bool = cx_unit >= D.total()
+	_btn(Rect2(204, 104, 110, 38), L.t("lb_army_kingdom"), func(): _cx_pick_unit(0); cx_zoom = false, true, false, TH_ACTIVE if not page_new and not page_sum else Color(0, 0, 0, 0))
+	_btn(Rect2(320, 104, 110, 38), L.t("lb_army_fantasy"), func(): _cx_pick_unit(D.COUNT); cx_zoom = false, true, false, TH_ACTIVE if page_new else Color(0, 0, 0, 0))
 	var tw := (866.0 - (D.COUNT - 1) * 6.0) / D.COUNT
-	for t0 in D.COUNT:
-		var t: int = t0 + (D.COUNT if page_new else 0)
+	var tab_types: Array = range(D.total(), D.total() + 2) if page_sum else range(D.COUNT if page_new else 0, (D.COUNT if page_new else 0) + D.COUNT)
+	for t0 in tab_types.size():
+		var t: int = tab_types[t0]
 		var r := Rect2(204 + t0 * (tw + 6.0), 150, tw, 50)
 		_btn(r, "", _cx_pick_unit.bind(t), true, false, TH_ACTIVE if t == cx_unit else Color(0, 0, 0, 0))
 		if t == cx_unit:
@@ -200,6 +218,11 @@ func _draw_codex() -> void:
 		_probe_glyph = true   # V1.2.1：頁籤角落的快捷鍵數字是符號
 		_text(r.position + Vector2(4, 2), str((t0 + 1) % 10), tcap(tz("C"), 14), TXT_DIM, false, true)
 		_probe_glyph = false
+	_btn(Rect2(436, 104, 110, 38), L.t("cxz_summons"), func(): _cx_pick_unit(D.COUNT * 2), true, false, TH_ACTIVE if cx_unit >= D.COUNT * 2 else Color(0, 0, 0, 0))
+	if cx_zoom or cx_unit >= D.total():
+		_draw_cx_zoom()
+		_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): _nav_back())
+		return
 	# 左欄（第三輪 U1）：可捲動區，字級＝基準×設定（150% 時正文 24px），不再縮字
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
 	var items := _cx_left_items(u, lang)
@@ -378,6 +401,9 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 					_icon("slow", Vector2(cx0 + 104, cy0 + 19), 20.0, Color.WHITE)
 					_btn(Rect2(cx0 + 126, cy0, 40, 38), "", func(): cx_atk_t = cx_clock; cx_spin_t = -10.0)
 					_icon("swords", Vector2(cx0 + 146, cy0 + 19), 20.0, Color.WHITE)
+					# V1.5.1：近看（大頭照右上角）
+					_btn(Rect2(pc.x + 46, y + 8, 40, 38), "", func(): cx_zoom = true; cx_zt = 0.0; cx_zplay = true)
+					_icon("size", Vector2(pc.x + 66, y + 27), 20.0, Color.WHITE)
 				var ty := y + 4.0
 				for tx in it["texts"]:
 					var wt := _wrap(tx["s"], tx["size"], r.size.x - 168)
@@ -592,7 +618,7 @@ func _cx_portrait(pc: Vector2) -> void:
 		atk = Art.ATK_WINDUP * float(spec[0]) * wgt
 		Art.calm = true
 		Art.look = float(spec[1]) * wgt
-	_unit(pc, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, cx_fit(cx_unit))
+	_cx_draw_unit(pc, face, atk, cx_fit(cx_unit), 0)
 	# 出手的遠程：箭／炸彈／法球／補血從手上飛出去（圖鑑也看得到「射出東西」，Antigravity v150-i1 #9）
 	if proj_fly(cx_unit) > 0 and ua >= 0.0 and ua < 0.7 and atk >= 0.3125:
 		var pk := clampf((atk - 0.3125) / 0.4, 0.0, 1.0)
@@ -603,3 +629,113 @@ func _cx_portrait(pc: Vector2) -> void:
 	Art.back = false
 	Art.calm = false
 	Art.look = 0.0
+
+
+## V1.5.1 A6：圖鑑大圖用烘焙後處理版（外框、漬洗、乾掃和戰場一致）；簡化介面、無視窗時照舊直接畫
+var cx_bake = null
+func _cx_draw_unit(p: Vector2, face: float, atk: float, sc: float, variant: int) -> void:
+	if bool(Save.s("plain_ui")) or DisplayServer.get_name() == "headless":
+		_unit(p, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, sc, 0, 0.0, 1.0, variant)
+		return
+	if cx_bake == null:
+		cx_bake = load("res://scripts/ui/codex_bake.gd").new()
+		add_child(cx_bake)
+	_unit_base(p, sc)
+	cx_bake.set_params({"type": cx_unit, "face": face, "atk": atk, "hurt": 0.0, "t": time, "scale": sc, "cb": cbm(), "variant": variant,
+		"turn_c": Art.turn_c, "turn_s": Art.turn_s, "back": Art.back, "calm": Art.calm, "look": Art.look},
+		float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]), float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))
+	draw_set_transform_matrix(Art.base)
+	draw_texture(cx_bake.texture(), p - Vector2(190, 300))
+
+## ── V1.5.1 A5 近看模式 ──
+## 示意播放器（不是真模擬）：角色對假人靶出手一次再停一下，循環；可暫停、逐格、轉角度、放大。
+func cxz_phase(t: float) -> Array:
+	# 回傳 [階段 0 前搖／1 揮擊／2 後搖／3 停, atk 0～1]
+	if t >= CXZ_ATK:
+		return [3, 0.0]
+	var atk := 0.001 + t / CXZ_ATK * 0.999
+	return [0 if atk < 0.3125 else (1 if atk < 0.53125 else 2), atk]
+
+func _draw_cx_zoom() -> void:
+	var R := Rect2(204, 204, 866, 462)
+	if not bool(Save.s("plain_ui")):
+		_tex_box(R.grow(4), "paper")
+		_ink_mode = true
+	var nm := L.t("unit_%d" % cx_unit)
+	_text(R.position + Vector2(16, 10), nm, tz("H2"), Color.WHITE, false, true, 360)
+	_text(R.position + Vector2(390, 10 + (tz("H2") - tz("C")) * 0.5), L.t("cxz_demo"), tz("C"), TXT_DIM, false, false, 330)
+	if cx_unit < D.total():
+		_btn(Rect2(R.end.x - 140, R.position.y + 6, 128, 38), L.t("cxz_close"), func(): cx_zoom = false)
+	_ink_mode = false
+	# 畫布
+	var cv := Rect2(220, 258, 834, 266)
+	draw_rect(cv, Color("#7d9a58"))
+	draw_rect(Rect2(cv.position, Vector2(cv.size.x, cv.size.y * 0.45)), Color("#c9b48a"))
+	draw_rect(cv, Color(0, 0, 0, 0.35), false, 2.0)
+	var face := 1.0
+	if cx_angle >= 0:
+		var th := cx_angle * PI / 8.0
+		face = 1.0 if cos(th) >= 0.0 else -1.0
+		if absf(cos(th)) < 0.95:
+			Art.turn_c = maxf(absf(cos(th)), 0.3)
+			Art.turn_s = sqrt(1.0 - Art.turn_c * Art.turn_c)
+		Art.back = cx_unit in Art.BACK_OK and sin(th) < -0.01
+	var sc := (3.4 if cx_zbig else 2.5)
+	var me := Vector2(cv.position.x + (180.0 if face > 0.0 else cv.size.x - 180.0), cv.end.y - 22)
+	var dm := Vector2(cv.position.x + (cv.size.x - 180.0 if face > 0.0 else 180.0), cv.end.y - 22)
+	var ph := cxz_phase(cx_zt)
+	var atk: float = ph[1]
+	# 命中時間：近戰在揮擊開始；遠程在飛行結束
+	var fly := proj_fly(cx_unit) > 0 or cx_unit == 10 or cx_unit == 15
+	var hit_at := 0.3125 if not fly else 0.62
+	var hurt := clampf(1.0 - absf(atk - hit_at) / 0.06, 0.0, 1.0) if atk > 0.0 else 0.0
+	_cx_dummy(dm, -face, hurt, cx_zally)
+	Art.calm = false
+	_cx_draw_unit(me, face, atk, sc, 2 if cx_zalt else 0)
+	if fly and atk >= 0.3125 and atk <= hit_at:
+		var k := (atk - 0.3125) / (hit_at - 0.3125)
+		var a0 := me + proj_launch(cx_unit, face) * sc
+		var b0 := dm + Vector2(0, -26.0 * 2.2)
+		if cx_unit == 10:
+			draw_circle(a0.lerp(b0, k), 10.0 + 12.0 * k, Color(0.55, 0.85, 0.35, 0.55 * (1.0 - k * 0.4)))   # 孢子菇毒霧
+		elif cx_unit == 15:
+			draw_line(a0, a0.lerp(b0, k), Color(0.7, 0.35, 1.0, 0.85), 3.0, true)   # 巫毒娃娃紫線
+		else:
+			_draw_projectile(cx_unit, 0, a0, b0, k)
+	Art.turn_c = 1.0
+	Art.turn_s = 0.0
+	Art.back = false
+	# 階段與時間
+	var lab := L.t("cxz_ph_%d" % int(ph[0])) + "  %.2f s" % minf(cx_zt, CXZ_ATK)
+	_text(Vector2(cv.position.x + 12, cv.position.y + 8), lab, tz("B"), Color(0.15, 0.1, 0.05), false, true, 400)
+	# 控制列（兩列）
+	var y1 := cv.end.y + 8
+	var bw := 64.0
+	var row1: Array = [["◀", func(): _cx_turn(-1)], ["▶", func(): _cx_turn(1)], ["−", func(): cx_zplay = false; cx_zt = maxf(0.0, cx_zt - CXZ_STEP)],
+		["", func(): cx_zplay = not cx_zplay], ["+", func(): cx_zplay = false; cx_zt = minf(CXZ_CYCLE - 0.001, cx_zt + CXZ_STEP)], ["", func(): cx_slow = not cx_slow]]
+	for i in row1.size():
+		var rr := Rect2(220 + i * (bw + 8), y1, bw, 40)
+		var tint := TH_ACTIVE if (i == 5 and cx_slow) else Color(0, 0, 0, 0)
+		_btn(rr, row1[i][0], row1[i][1], true, false, tint)
+		if i == 3:
+			_icon("pause" if cx_zplay else "play", rr.get_center(), 20.0, Color.WHITE)
+		elif i == 5:
+			_icon("slow", rr.get_center(), 20.0, Color.WHITE)
+	var x2 := 220 + 6 * (bw + 8) + 16
+	var row2: Array = [[L.t("cxz_atk"), func(): cx_zalt = false; cx_zt = 0.0; cx_zplay = true, not cx_zalt], [L.t("cxz_alt"), func(): cx_zalt = true; cx_zt = 0.0; cx_zplay = true, cx_zalt],
+		[L.t("cxz_ally") if cx_zally else L.t("cxz_foe"), func(): cx_zally = not cx_zally, false], [L.t("cxz_big") if not cx_zbig else L.t("cxz_small"), func(): cx_zbig = not cx_zbig, false]]
+	var bw2 := (1054.0 - x2 - 3 * 8) / 4.0
+	for i in row2.size():
+		_btn(Rect2(x2 + i * (bw2 + 8), y1, bw2, 40), row2[i][0], row2[i][1], true, false, TH_ACTIVE if row2[i][2] else Color(0, 0, 0, 0))
+
+## 假人靶：木樁＋草袋；受擊時閃白往後晃。ally＝友軍靶（藍色布條，給醫者補血看）
+func _cx_dummy(p: Vector2, face: float, hurt: float, ally: bool) -> void:
+	var sway := -face * hurt * 6.0
+	draw_line(p, p + Vector2(sway, -110), Color("#6b4a2e"), 8.0, true)
+	draw_line(p + Vector2(sway * 0.6 - 26, -70), p + Vector2(sway * 0.6 + 26, -70), Color("#6b4a2e"), 6.0, true)
+	var hc := p + Vector2(sway, -112)
+	draw_circle(hc + Vector2(0, 36), 30.0, Color("#d8c08a").lerp(Color.WHITE, hurt * 0.7), true, -1.0, true)
+	draw_circle(hc, 20.0, Color("#d8c08a").lerp(Color.WHITE, hurt * 0.7), true, -1.0, true)
+	draw_rect(Rect2(hc + Vector2(-26, 30), Vector2(52, 8)), Art.team_color(0 if ally else 1, cbm()))
+	if hurt > 0.3:
+		_text(hc + Vector2(0, -50), L.t("cxz_hit") if not ally else "+", tz("B"), Color("#ffe066"), true, true, 120)

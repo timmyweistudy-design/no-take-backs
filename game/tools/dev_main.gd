@@ -620,6 +620,18 @@ func _run_screenshots() -> void:
 	await _snap("10_codex.png")
 	_scroll_by("left", 9999.0)   # 捲到底（第三輪 U1）
 	await _snap("10b_codex_scrolled.png")
+	# V1.5.1 近看模式：弓箭手箭飛到一半、召喚物頁
+	_open_codex(D.ARCHER)
+	cx_zoom = true
+	cx_zplay = false
+	cx_zt = 0.33
+	await _snap("10c_codex_zoom.png")
+	_cx_pick_unit(D.total())
+	cx_zplay = false
+	cx_zt = 0.2
+	await _snap("10d_codex_summon.png")
+	cx_zoom = false
+	cx_zplay = true
 	_open_codex(D.ASSASSIN)
 	_cx_pick_skill(1)
 	for i in 70:

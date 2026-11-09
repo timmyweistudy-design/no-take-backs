@@ -309,9 +309,15 @@ func _ensure_sprites(armies_: Array) -> void:
 	if sprites == null:
 		return
 	var need := {}
+	var all_t := {}   # V1.5.1：這場出場的兵種（轉身出手格只烘這些）
 	for a in armies_:
 		for u in a.units:
 			var t: int = int(u["type"])
+			all_t[t] = true
+			if t == F8.SLIME:
+				all_t[F8.MINI_SLIME] = true
+			if t == F8.BONE:
+				all_t[F8.SKELETON] = true
 			if t >= D.COUNT:
 				need[t] = true
 				if t == F8.SLIME:
@@ -320,6 +326,7 @@ func _ensure_sprites(armies_: Array) -> void:
 					need[F8.SKELETON] = true
 	if not need.is_empty():
 		sprites.ensure(need.keys())
+	sprites.ensure_turn_atk(all_t.keys())
 
 # ── V9 P2 步態驅動：相位由真實位移算，只影響畫面 ──
 const Gait = preload("res://scripts/ui/units/gait.gd")

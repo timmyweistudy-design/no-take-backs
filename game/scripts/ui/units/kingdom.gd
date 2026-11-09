@@ -197,10 +197,13 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.5, true)
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.0, PI * 2.0, 18, Color("#ff7a3d", a), 4.0, true)
 			_poly(ci, PackedVector2Array([Vector2(-11, hy - 2), Vector2(-17, hy + 4), Vector2(-12, hy + 5)]), Color("#ff7a3d"), a)
-			_c(ci, Vector2(1.5, hy - 7.5), 3.4, Color("#d9a441"), a)
-			_c(ci, Vector2(8.5, hy - 7.5), 3.4, Color("#d9a441"), a)
-			ci.draw_circle(Vector2(1.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
-			ci.draw_circle(Vector2(8.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
+			if back:
+				_line(ci, Vector2(-11, hy - 6), Vector2(11, hy - 6), Color("#5b3a1e"), 2.2, a)   # V1.5.1 背面：只看到護目鏡綁帶
+			else:
+				_c(ci, Vector2(1.5, hy - 7.5), 3.4, Color("#d9a441"), a)
+				_c(ci, Vector2(8.5, hy - 7.5), 3.4, Color("#d9a441"), a)
+				ci.draw_circle(Vector2(1.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
+				ci.draw_circle(Vector2(8.5, hy - 7.5), 1.8, Color("#9fe3ff", a), true, -1.0, true)
 			_hat_off(ci)
 			# 肩上托一顆帶引線的黑色大圓火罐：前搖往後拉、揮擊時丟出去（手上就空了）；專屬＝被貼身：火罐收到背後、拿點火棒往前敲
 			_part(ci, -5.0, 0.0)   # V1.3.1：火罐手在近側，圓罐不縮
@@ -228,8 +231,9 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			# 白色高方帽＋綠十字
 			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
 			_poly(ci, PackedVector2Array([Vector2(-9, hy - 7), Vector2(-8, hy - 24), Vector2(8, hy - 24), Vector2(9, hy - 7)]), Color("#fbfbf7"), a)
-			ci.draw_rect(Rect2(Vector2(-1.6, hy - 21), Vector2(3.2, 10)), Color("#2fbf71", a))
-			ci.draw_rect(Rect2(Vector2(-5, hy - 17.6), Vector2(10, 3.2)), Color("#2fbf71", a))
+			if not back:   # V1.5.1：綠十字在帽子正面
+				ci.draw_rect(Rect2(Vector2(-1.6, hy - 21), Vector2(3.2, 10)), Color("#2fbf71", a))
+				ci.draw_rect(Rect2(Vector2(-5, hy - 17.6), Vector2(10, 3.2)), Color("#2fbf71", a))
 			_hat_off(ci)
 			# 頂端發綠光的長杖：補血時舉高（w 往前＝舉杖）
 			var lift := maxf(0.0, w) * 16.0 + (-w * 4.0 if w < 0.0 else 0.0) + sway * 14.0
@@ -333,6 +337,14 @@ static func _berserk_axe(ci: CanvasItem, k2: int, w: float, sway: float, variant
 	_fist(ci, ah, (atip - ah).normalized(), a)   # V1.5：手指包住斧柄
 	_part_end(ci)
 
+## 馬頭與鬃毛（eye＝畫不畫眼睛；背面時頭在身後看不到眼）
+static func _horse_head(ci: CanvasItem, tc: Color, pony: Color, a: float, eye: bool) -> void:
+	_poly(ci, PackedVector2Array([Vector2(10, -22), Vector2(17, -36), Vector2(27, -33), Vector2(28, -26), Vector2(17, -19)]), pony, a)
+	_poly(ci, PackedVector2Array([Vector2(10, -24), Vector2(14, -37), Vector2(18, -36), Vector2(14, -23)]), tc, a, false)
+	if eye:
+		_c(ci, Vector2(23, -31), 1.8, OUT, a, false)
+		ci.draw_circle(Vector2(23.6, -31.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
+
 static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry := false) -> void:
 	var wk := Gait.ph(walk)
 	var gallop := sin(wk) * 3.5 if wk != 0.0 else 0.0
@@ -354,14 +366,14 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	for i in 20:
 		var ang := i * TAU / 20.0
 		body.append(Vector2(cos(ang) * 16.0, -17 + sin(ang) * 8.5))
+	# V1.5.1 背面：馬頭在身體後面（先畫、不畫眼睛），尾巴在前面（後畫）
+	if back:
+		_horse_head(ci, tc, pony, a, false)
 	_poly(ci, body, pony, a)
 	# 尾巴（隊伍色）
 	_poly(ci, PackedVector2Array([Vector2(-15, -20), Vector2(-24, -24 + gallop), Vector2(-22, -14), Vector2(-15, -15)]), tc, a)
-	# 頭與鬃毛
-	_poly(ci, PackedVector2Array([Vector2(10, -22), Vector2(17, -36), Vector2(27, -33), Vector2(28, -26), Vector2(17, -19)]), pony, a)
-	_poly(ci, PackedVector2Array([Vector2(10, -24), Vector2(14, -37), Vector2(18, -36), Vector2(14, -23)]), tc, a, false)
-	_c(ci, Vector2(23, -31), 1.8, OUT, a, false)
-	ci.draw_circle(Vector2(23.6, -31.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
+	if not back:
+		_horse_head(ci, tc, pony, a, true)
 	# 鞍布
 	_poly(ci, PackedVector2Array([Vector2(-7, -25), Vector2(6, -25), Vector2(7, -15), Vector2(-8, -15)]), tc, a)
 	# 騎士（小一號；V1.3 A1b：轉身時騎士不跟著馬壓扁）
