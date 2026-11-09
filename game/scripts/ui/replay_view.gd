@@ -571,10 +571,10 @@ func _rv_play() -> void:
 
 func _draw_review() -> void:
 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
-	_panel(Rect2(100, 60, 1080, 680))
+	_panel(Rect2(100, 40, 1080, 720))   # V1.5.2：面板上緣提到 40、底列移到 704，英文／日文 150% 走勢說明不壓到「重播」鈕
 	# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時左右兩欄一起往下（dy），不壓到「你的部署」與兵種鈕
 	var hint := L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint")
-	var hy := _h1(Vector2(640, 62), L.t("rv_title")) + GAP_L
+	var hy := _h1(Vector2(640, 40), L.t("rv_title")) + GAP_L
 	_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
 	var hend := hy + text_h(hint, tz("S"), 960)
 	var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
@@ -602,7 +602,7 @@ func _draw_review() -> void:
 	var cs2 := 26.0
 	var g1 := Vector2(g0.x + 6 * cs + 18, g0.y + (9 * cs - 9 * cs2) / 2)
 	if rv_orig.deploy != "free":
-		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true)
+		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true, 572.0 - g1.x)   # V1.5.2：不伸進右欄兵種鈕上方
 	for r in (0 if rv_orig.deploy == "free" else 9):
 		for c in 6:
 			draw_rect(Rect2(g1 + Vector2(c, r) * cs2, Vector2(cs2 - 2, cs2 - 2)), Color(0.35, 0.2, 0.2, 0.45))
@@ -647,8 +647,8 @@ func _draw_review() -> void:
 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
 			y += tz("S") * 1.5
 		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)
-		_btn(Rect2(650, 684, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
-	_btn(Rect2(330 if not rv_result.is_empty() else 560, 684, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
 
 ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
 func _tm_new_ghost() -> void:
@@ -730,7 +730,7 @@ func _rv_free_board(g0: Vector2) -> void:
 		# 紅方部署區（小、只看）
 		var s2 := 0.018
 		var g1 := Vector2(g0.x + wpx + 14, g0.y + (r.size.y - rv_orig.fh * s2) / 2)
-		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true)
+		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true, 572.0 - g1.x)   # V1.5.2：不伸進右欄兵種鈕上方
 		var x0: int = rv_orig.fw - rv_orig.depth - Army.EDGE
 		draw_rect(Rect2(g1, Vector2((rv_orig.fw - x0) * s2, rv_orig.fh * s2)), Color(0.35, 0.2, 0.2, 0.45))
 		for u in rv_enemy.units:

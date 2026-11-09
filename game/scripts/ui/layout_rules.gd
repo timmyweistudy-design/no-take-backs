@@ -226,7 +226,9 @@ static func check(d: Dictionary) -> Dictionary:
 				if t2 != first and r2.position.y > fr.position.y and r2.position.y - fr.end.y < 60.0 and absf(r2.position.x - fr.position.x) <= 1.0:
 					section = true
 					break
-			if not section and fr.position.y - float(rb["bottom"]) < 48.0 and fr.size.x < (host["r"] as Rect2).size.x * 0.7 and absf(fr.get_center().x - float(rb["cx"])) > 2.0:
+			# 只抓「看起來想置中卻偏了」：中心偏 2～60px；靠左的欄位標籤、分頁字離中線很遠，不算副標
+			var off := absf(fr.get_center().x - float(rb["cx"]))
+			if not section and fr.position.y - float(rb["bottom"]) < 48.0 and fr.size.x < (host["r"] as Rect2).size.x * 0.7 and off > 2.0 and off < 60.0:
 				_add(out, "warn", "R7", rb["id"], "緞帶下的短字「%s」沒置中" % str(first["s"]))
 	return out
 

@@ -1463,7 +1463,9 @@ func test_layout_rules_v152() -> void:
 	var res6b: Dictionary = LR.check({"panels": [P.call(340.0, 100.0, 600.0, 300.0)], "texts": [{"r": Rect2(560, 120, 160, 20), "s": "a"}], "btns": [Rect2(560, 240, 160, 48), Rect2(560, 336, 160, 48)]})
 	ok(not "R6" in codes.call(res6b, "warn"), "R6 內容填滿面板不報")
 	# R7：緞帶下短字沒置中只警告
-	ok("R7" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(380, 180, 160, 20), "s": "短"}]}), "warn"), "R7 緞帶下短字靠左警告")
+	ok("R7" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(565, 180, 160, 20), "s": "短"}]}), "warn"), "R7 緞帶下短字偏 5px 警告")
+	ok(not "R7" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(560, 180, 160, 20), "s": "短"}]}), "warn"), "R7 緞帶下短字置中不報")
+	ok(not "R7" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(352, 180, 160, 20), "s": "欄位"}]}), "warn"), "R7 靠左的欄位標籤不算副標")
 	# G 守衛：重複 ID、漏登記（零書籤）、覆蓋層沒面板、宣告的例外覆蓋層
 	ok("G" in codes.call(LR.check({"panels": [P.call(340.0), P.call(340.0)]}), "fail"), "G 重複 ID 被抓")
 	ok("G" in codes.call(LR.check({"need": {"bookmark": 1}}), "fail"), "G 大廳少了書籤（零登記）被抓")

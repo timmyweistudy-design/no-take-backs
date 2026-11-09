@@ -244,7 +244,7 @@ func _draw_codex() -> void:
 	_panel(CX_PANEL)
 	var u := CX.unit(cx_unit)
 	var lang := L.lang
-	_h1(Vector2(640, 96), L.t("codex_title"), 600)
+	_h1(Vector2(640, 82), L.t("codex_title"), 600)   # V1.5.2 L3：緞帶上移，完整下緣到兵種分頁列 ≥16
 	# 兵種分頁
 	# 第四輪 §4.7：一排 10 個「頭像＋數字」頁籤；兵種全名在下面左欄的大標題
 	# 第八輪：頁籤分兩頁（王國軍／奇幻軍），各 10 種

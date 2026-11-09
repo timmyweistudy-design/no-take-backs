@@ -412,9 +412,9 @@ func _relay_make() -> void:
 
 func _draw_relay() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(170, 60, 940, 680)
+	var P := Rect2(170, 40, 940, 700)   # V1.5.2：面板上緣提到 40、緞帶跨上緣，日文 150% 說明三行時不壓到右欄「已改 n／2 格」
 	_panel(P)
-	_h1_help(Vector2(640, 72), L.t("rl_title", [int(PZ.get_puzzle("ws").get("relay", 0)) + 1]), L.t("rl_help"), tz("S"), 860)   # V1.5.2 L3
+	_h1_help(Vector2(640, 40), L.t("rl_title", [int(PZ.get_puzzle("ws").get("relay", 0)) + 1]), L.t("rl_help"), tz("S"), 860)   # V1.5.2 L3
 	# 左：敵方部署區（羊皮紙棋盤，6 欄 × 9 列）；改過的格子淡金底
 	# 左：你剛才過關的藍軍（半透明、鎖定），看著對位改（Antigravity v140-i2）
 	var bs := 24.0
@@ -1026,6 +1026,7 @@ func _draw_puzzle_hint() -> void:
 	# V1.5.2 L3／L7：內容從緞帶下緣＋16 起；面板照三層內容的實高算（未解鎖時不留一大片空白）
 	var R := modal_rect(700, 6.0 + h1_bottom(0.0) + GAP_L + _hint_body_h(pz, w) + GAP_L)
 	_panel(R)
+	probe_skip("R4", "提示框底列跟內文同一條左線：揭曉／套用在左，返回靠右對齊內文右緣（不是置中按鈕群組）")
 	var y := _h1(Vector2(640, R.position.y + 6), L.t("menu_hint")) + GAP_L
 	# 第一層：這關的提示句＋對手主力
 	_text(Vector2(x, y), L.t("ph_l1"), tz("S"), ACCENT, false, true, w)

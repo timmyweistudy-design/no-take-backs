@@ -18,7 +18,7 @@ Godot 4.6.2 確定性自動對決。**下一步：V1.5.2 排版品質（方案�
 - 改數值（預設不改；要改先升 `RULES_VERSION`，見 STATE 版本契約）：跑平衡、新增新版金標準基準（舊基準不覆蓋，commit 說明）、重驗三星（`tools/balance/star_check.gd`、`trial_check.gd`，測試 `star_solutions` 會擋）。
 - 手寫文字不寫死數值；技能說明用常數換值。
 - 新測試登記在 `tests/run_tests.gd` 的 `FILES`（V1.1 起單一登錄；漏登記會直接失敗）。
-- 字級只用字級表，不縮字；版面檢查不看圖、也不查置中／貼齊／對稱（V1.5.2 前），收尾要看截圖（拼接觸表畫中線、用找錯的眼光）。
+- 字級只用字級表，不縮字。排版規則看 `docs/ui-layout-rules.md`（V1.5.2）：模態面板用 `modal_rect` 置中、標題下內容用 `_h1`／`_h1_help` 的回傳值起排（下緣＋16）、依附裝飾用 `btn_deco`＋`probe_deco`、多欄畫面 `probe_columns`、刻意例外 `probe_skip(規則, 理由)` 並寫進 `docs/ui-layout-exceptions.md`。版面檢查現在會查置中／貼齊／間距（R1～R10），但不看美感、不管 R5 卡片基準線；收尾仍要看接觸表（`tools/layout_sheet.py` 畫中線、用找錯的眼光），回報寫清楚檢查器管什麼、不管什麼。
 - 暫存放 `build/tmp/`；東西不放專案外。
 - 不跑 `--steam-test`；長時間可見視窗先問。
 - commit 用 `git -c user.name=timmy -c user.email=pweihome@gmail.com`，做完推 `origin main`。
