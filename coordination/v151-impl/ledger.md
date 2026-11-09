@@ -35,3 +35,6 @@
 ## M3
 - D1：車輪戰代碼 NTW1（包每一波的對戰代碼，1～3 波；只收對戰代碼）；車輪戰結束的結果頁可複製；「代碼」一鍵貼上會開「看第幾波」。`test_wave_code_v151`。
 - D3：遠征結果頁「本場觀察」：契約達成與否、宿敵擋路的勝負、巨獸剩幾成血（最多 2 句，只寫事件與數字）。
+- E1：設定「資料」頁「匯出試玩回報」：只留白名單欄位（版本、模式、勝負、時間、評分、對戰代碼），先確認筆數再寫成 user://playtest_report.json。`test_playtest_report_v151`。資料頁變 8 列（最後一列底在 634，放得下）。
+- E2：`tools/gen/l10n_review.py`：export 產生 `docs/l10n-review/review_ja.csv`、`review_zh_CN.csv`（含原文指紋）；import 回填（日文 ja_zz_review.json、簡中 zhcn_review.json，原文改過或變數不符的列跳過）；`l10n_build.py` 讀簡中校對檔。
+- E3：`test_place_mode_v151`（只點選擺一隻、點選＋拖曳連續擺）；觸控長按、捏合沿用 `test_touch_v140`。Deck 實機仍要使用者。

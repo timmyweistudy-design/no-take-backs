@@ -257,9 +257,9 @@ func test_settings_v150() -> void:
 	for t in g.SET_TABS:
 		g.settings_tab = t
 		var rows: Array = g._settings_rows()
-		if rows.is_empty() or rows.size() > 7:
+		if rows.is_empty() or rows.size() > 8:
 			bad.append(t)
-	ok(bad.is_empty(), "七頁每頁 1～7 列（放得下不用捲）", str(bad))
+	ok(bad.is_empty(), "七頁每頁 1～8 列（第 8 列底在 634，放得下不用捲）", str(bad))
 	g.free()
 
 
@@ -281,3 +281,18 @@ func test_restorable_v150() -> void:
 	ok(not SV.restorable({"schema_version": "錯誤", "stats": {}, "achievements": []}), "版本是字串不算")
 	ok(not SV.restorable({"schema_version": SV.SAVE_VERSION + 1, "stats": {}, "achievements": []}), "未來版不算")
 	ok(SV.restorable(SV.DEFAULT_SAVE.duplicate(true)), "正常存檔可以還原")
+
+
+## V1.5.1 E1：試玩回報只留白名單欄位（不含陣型以外的存檔、設定）。
+func test_playtest_report_v151() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var old_prefix: String = SV.prefix
+	SV.prefix = "test_ptr_"
+	var path := "user://test_ptr_playtest_log.jsonl"
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_line(JSON.stringify({"v": 2, "mode": "ai", "winner": 0, "secret": "x", "blue": "NTB1.a.b"}))
+	f.close()
+	var r: Dictionary = SV.playtest_report("1.5.1")
+	ok(int(r["n"]) == 1 and not str(r["text"]).contains("secret") and str(r["text"]).contains('"mode"'), "只留白名單欄位", str(r["text"]).substr(0, 120))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	SV.prefix = old_prefix

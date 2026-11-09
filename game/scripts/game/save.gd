@@ -471,6 +471,30 @@ static func note_try(kind: String, id: String, cleared: bool, cost: int) -> void
 	data[kind + "_first"] = first
 
 
+## V1.5.1 E1：試玩回報只匯出這些欄位（白名單；沒有存檔、設定、帳號等任何個人資料）
+const PT_FIELDS := ["v", "session", "game", "event", "mode", "round", "winner", "ticks", "reason", "power", "rating", "rules", "time", "code"]
+
+## 把本機試玩紀錄整理成一份回報（只留白名單欄位）。回傳 {"n": 筆數, "text": 內容}
+static func playtest_report(app_version: String) -> Dictionary:
+	var path := "user://%splaytest_log.jsonl" % file_prefix()
+	var rows: Array = []
+	if FileAccess.file_exists(path):
+		var f := FileAccess.open(path, FileAccess.READ)
+		while f != null and not f.eof_reached():
+			var ln := f.get_line().strip_edges()
+			if ln == "":
+				continue
+			var d = JSON.parse_string(ln)
+			if not d is Dictionary:
+				continue
+			var keep := {}
+			for k in PT_FIELDS:
+				if d.has(k):
+					keep[k] = d[k]
+			rows.append(keep)
+	var head := {"app": app_version, "os": OS.get_name(), "entries": rows.size()}
+	return {"n": rows.size(), "text": JSON.stringify({"report": head, "rows": rows}, " ")}
+
 ## 試玩紀錄（優化方案 F5、N3）：只在設定開啟時寫在本機 user://playtest_log.jsonl，不上傳。
 static func playtest_log(entry: Dictionary) -> void:
 	if not bool(s("playtest")):

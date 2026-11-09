@@ -70,8 +70,15 @@ def load_ja(d):
     return ja
 
 
+def load_zhcn_review(d):
+    """V1.5.1 E2：母語校對回填的簡中（l10n_review.py import 寫的 zhcn_review.json，鍵＝字串 key）。"""
+    f = Path(d) / "zhcn_review.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+
 def main():
     ja = load_ja(sys.argv[1])
+    zr = load_zhcn_review(sys.argv[1])
     src = load_src(sys.argv[1])
     bad = []
 
@@ -103,7 +110,7 @@ def main():
         if k == "lang_name":
             out.append([k, zh, en, LANG_NAME["zh_CN"], LANG_NAME["ja"]])
             continue
-        out.append([k, zh, en, OVERRIDE.get(("zh_CN", k), sc(zh)), OVERRIDE.get(("ja", k)) or jp({"id": "s:" + k, "zh": zh, "en": en})])
+        out.append([k, zh, en, zr.get(k) or OVERRIDE.get(("zh_CN", k), sc(zh)), OVERRIDE.get(("ja", k)) or jp({"id": "s:" + k, "zh": zh, "en": en})])
     buf = io.StringIO()
     csv.writer(buf, lineterminator="\n").writerows(out)
     p.write_text(buf.getvalue(), encoding="utf-8")

@@ -1255,3 +1255,39 @@ func test_code_kind_speed_v151() -> void:
 	ok(GM.code_kind("NTB7.x.y") == "battle" and GM.code_kind(" NTBR5.a.b ") == "rules" and GM.code_kind("NTC1.a.b") == "challenge", "對戰、規則、挑戰")
 	ok(GM.code_kind("NTP2.a.b") == "workshop" and GM.code_kind("NTS1.abc") == "settings" and GM.code_kind("NTB6.a.b") == "army" and GM.code_kind("hello") == "", "殘局、設定、陣型、認不得")
 	ok(UB.speed_step(1.0, 1) == 2.0 and UB.speed_step(8.0, 1) == 8.0 and UB.speed_step(0.25, -1) == 0.25 and UB.speed_step(3.0, -1) == 1.0, "速度表一格一格走")
+
+
+## V1.5.1 C3／E3：「只點選」擺兵：按下擺一隻，拖過旁邊的格子不會多擺；「點選＋拖曳」會連續擺。
+func test_place_mode_v151() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var keep = SV.s("place_mode")
+	var counts: Array = []
+	for pm in ["tap", "both"]:
+		SV.settings["place_mode"] = pm
+		var g = GS.new()
+		g.sfx = FakeSfx.new()
+		g.time = 1.0
+		g._start_mode(g.Mode.VS_AI)
+		if g._is_free():
+			g.free()
+			continue
+		g.armies[0].units = []
+		g.selected = 0
+		var cells: Array = []
+		for y in range(0, 800, 4):
+			for x in range(0, 1280, 4):
+				var c: Vector2i = g._cell_at(Vector2(x, y))
+				if c.y == 4 and (c.x == 1 or c.x == 2 or c.x == 3) and cells.size() < 3 and not cells.any(func(q): return g._cell_at(q) == c):
+					cells.append(Vector2(x, y))
+		g._mb_cmd({"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": cells[0]})
+		g._paint_cmd(cells[1])
+		g._paint_cmd(cells[2])
+		g._mb_cmd({"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": cells[2]})
+		counts.append(g.armies[0].units.size())
+		g.free()
+	SV.settings["place_mode"] = keep
+	if counts.size() == 2:
+		ok(counts[0] == 1 and counts[1] > 1, "只點選擺一隻、點選＋拖曳連續擺", str(counts))
+	else:
+		ok(true, "這個預設是自由排兵（只測格子模式）")

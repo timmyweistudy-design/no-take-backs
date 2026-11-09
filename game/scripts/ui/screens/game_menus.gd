@@ -467,6 +467,22 @@ func _apply_volumes(sample: String) -> void:
 ## V1.5：設定七頁（畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料）。每列 [名稱鍵, 顯示值, 切換函式(d)]；
 ## 顯示值是 "@" 開頭的列＝按鈕（打開或執行），不是左右切換。docs/2026-11-09-v1.5.0-plan.md §2。
 const SET_TABS := 7
+## V1.5.1 E1：試玩回報匯出：先告訴玩家有幾筆、只含哪些欄位，確認後寫成 user://playtest_report.json 並打開資料夾
+func _playtest_export() -> void:
+	var r: Dictionary = Save.playtest_report(str(ProjectSettings.get_setting("application/config/version")))
+	if int(r["n"]) == 0:
+		_toast(L.t("pt_export_none"), true)
+		return
+	_ask_confirm(L.t("pt_export_q", [int(r["n"])]), func():
+		var f := FileAccess.open("user://playtest_report.json", FileAccess.WRITE)
+		if f == null:
+			_toast(L.t("save_failed"), true)
+			return
+		f.store_string(str(r["text"]))
+		f.close()
+		OS.shell_open(ProjectSettings.globalize_path("user://"))
+		_toast(L.t("pt_export_done")), "settings")
+
 ## V1.5.1 C6：切換全螢幕後 10 秒內沒按「保留」就自動換回來（螢幕黑掉、看不到按鈕時不會卡住）
 var fs_prev = null
 var fs_deadline := 0.0
@@ -590,6 +606,7 @@ func _settings_rows() -> Array:
 		6:
 			return [["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],
 				["set_export", "@" + L.t("do_copy"), func(d): _settings_export()],
+				["set_pt_export", "@" + L.t("do_export"), func(d): _playtest_export()],
 				["set_import", "@" + L.t("do_paste"), func(d): _settings_import()],
 				["set_backup", "@" + L.t("do_backup"), func(d): _progress_backup()],
 				["set_restore", "@" + L.t("do_restore"), func(d): _data_swap_open("restore")],
