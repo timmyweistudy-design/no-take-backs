@@ -312,6 +312,10 @@ func _layout_report(name: String, img: Image = null) -> void:
 	for hr in probe_hits:
 		if hr.size.y < 44.0:   # V1.5.2：擴過點擊區的小鈕，點擊區要 ≥44
 			bad.append({"type": "點擊區不足 44", "r": str(hr)})
+		for b2 in _btns:   # 擴大的點擊區不能蓋到別顆按鈕的點擊區（先登記的會攔走點擊，Codex 實作第 2 輪）
+			var r2: Rect2 = b2["r"]
+			if r2 != hr and hr.intersection(r2).get_area() > 1.0 and not hr.encloses(r2) and not r2.encloses(hr):
+				bad.append({"type": "點擊區互撞", "a": str(hr), "b": str(r2)})
 	for r in probe_btns:
 		if r.size.x < 36.0 or r.size.y < 36.0:   # 方案 §5.3：點擊框 ≥36px
 			bad.append({"type": "點擊框太小", "r": str(r)})
@@ -353,7 +357,7 @@ func _layout_report(name: String, img: Image = null) -> void:
 	elif overlay in OVERLAY_PANEL:
 		need["panel"] = maxi(1, int(need.get("panel", 0)))
 	var geo := LayoutRules.check({"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
-		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 8.0 if bool(Save.s("focus_strong")) else 3.0, "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
+		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 8.0, "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
 		"panelless_ok": overlay in PANELLESS_OVERLAYS})
 	for v in geo["fail"]:
 		bad.append({"type": "排版" + str(v["type"]), "id": v["id"], "s": v["s"]})

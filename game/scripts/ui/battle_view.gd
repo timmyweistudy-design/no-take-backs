@@ -716,14 +716,14 @@ func _draw_battle_hud() -> void:
 		_text(Vector2(bx + bw - _width(ai_lb, tz("C")), 69.0), ai_lb, tz("C"), Color(1, 1, 1, 0.9))   # V1.2.1：大字級也在木條內
 	if state == St.BATTLE and bool(Save.s("playtest")):
 		if pt_call_tick < 0:
-			_btn(Rect2(780, 6, 162, 38), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
+			_btn(Rect2(780, 8, 162, 38), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
 	if state == St.BATTLE:
 		if play_kind != "official":
-			_btn(Rect2(1010, 6, 120, 38), L.t("back"), func(): call("_replay_back"))   # 第七輪 A9：立刻回上一個畫面
+			_btn(Rect2(1010, 8, 120, 38), L.t("back"), func(): call("_replay_back"))   # 第七輪 A9：立刻回上一個畫面
 		else:   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
-			_btn(Rect2(950, 6, 52, 38), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6；V1.5.2：和同列按鈕對齊 y=6（原本 y=2，焦點框伸出畫面上緣）
-			_btn(Rect2(1010, 6, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = speed_step(speed, 1) if speed < float(SPEEDS[SPEEDS.size() - 1]) else float(SPEEDS[0]))   # V1.5.1：照共用表往上一格、到頂回最慢
-		_btn(Rect2(1138, 6, 132, 38), L.t("skip"), func(): _on_skip())
+			_btn(Rect2(950, 8, 52, 38), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6；V1.5.2：頂列一律 y=8、右緣留 14（加強焦點框外擴 8px 也在畫面內；原本暫停鈕 y=2 還和同列不齊）
+			_btn(Rect2(1010, 8, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = speed_step(speed, 1) if speed < float(SPEEDS[SPEEDS.size() - 1]) else float(SPEEDS[0]))   # V1.5.1：照共用表往上一格、到頂回最慢
+		_btn(Rect2(1134, 8, 132, 38), L.t("skip"), func(): _on_skip())
 
 
 

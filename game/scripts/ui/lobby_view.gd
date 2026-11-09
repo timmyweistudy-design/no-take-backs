@@ -524,15 +524,18 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		btn_deco = Callable()
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
-		# 文字留出書籤槽（六格一律，切換時文字不跳）：可用區 [6, w−BM_SLOT]。名稱在槽內要換行時（英文、日文 150%：
-		# Monster Crew、クラシック5種）從上緣 5 起排、色條下移到 h−11，第二行不壓色條
+		# 只有選中的分頁讓出書籤槽（可用區 [6, w−BM_SLOT]）；沒選中的照整格置中（實作審查第 2 輪看圖：六格一律讓槽時
+		# 沒書籤的分頁字明顯偏左）。要換兩行時中日文從中間斷（不留「決」「種」單字一行），從上緣 5 起排，色條在 h−9
 		var lab := L.t("lb_p_" + id)
-		var tw := w - 6.0 - BM_SLOT
+		var tw := (w - 6.0 - BM_SLOT) if on else (w - 12.0)
+		var tx := (6.0 + tw / 2) if on else w / 2
 		var two := wrap_lines(lab, fit(lab, tz("B"), tw, true), tw, true).size() > 1
-		_text(r.position + Vector2(6.0 + tw / 2, 5 if two else 8), lab, tz("B"), Color.WHITE, true, true, tw)
+		if two:
+			lab = balance_two_lines(lab)
+		_text(r.position + Vector2(tx, 5 if two else 8), lab, tz("B"), Color.WHITE, true, true, tw)
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
-		_box(Rect2(r.position + Vector2(8, h - 11), Vector2(w - 16, 5)), bc, Color(0, 0, 0, 0), 2.0)
+		_box(Rect2(r.position + Vector2(8, h - 9), Vector2(w - 16, 4)), bc, Color(0, 0, 0, 0), 2.0)
 	if layout_probe and Presets.IDS.has(lobby_r.preset):
 		probe_need["bookmark"] = 1   # 漏登記守衛：選了內建預設就一定要畫出紅書籤
 	var mr := Rect2(o + Vector2(6 * (w + 10), 0), Vector2(1120 - 6 * (w + 10), h))

@@ -972,6 +972,13 @@ func _h1_help(center: Vector2, title: String, help: String, sz: int, maxw: float
 func h1_help_h(help: String, sz: int, maxw: float) -> float:
 	return h1_bottom(0.0) + GAP_L + ((text_h(help, fit(help, sz, maxw), maxw) + GAP_L) if help != "" else 0.0)
 
+## V1.5.2：短標籤要換兩行時，中日文從中間斷開（避免第二行只剩一個字）；含空白的英文照詞斷，不動
+static func balance_two_lines(s: String) -> String:
+	if " " in s or "\n" in s or s.length() < 4:
+		return s
+	var k := ceili(s.length() / 2.0)
+	return s.substr(0, k) + "\n" + s.substr(k)
+
 ## V1.5.2 R9：一行置中小標題（字級 sz）下方的控制項起點：字形下緣（約 1.03 字高）＋GAP_M
 func below_head(sz: int) -> float:
 	return ceilf(sz * 1.05) + GAP_M

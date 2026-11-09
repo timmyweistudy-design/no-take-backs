@@ -297,7 +297,7 @@ static func _is_grid_row(row: Array, pr: Rect2, btns: Array) -> bool:
 		return false
 	var above: Array = []
 	for b in btns:
-		if absf(b.position.y - above_y) <= 1.0 and absf(b.size.x - b0.size.x) <= 0.5 and absf(b.size.y - b0.size.y) <= 0.5:
+		if absf(b.position.y - above_y) <= 1.0 and pr.grow(1.0).encloses(b) and absf(b.size.x - b0.size.x) <= 0.5 and absf(b.size.y - b0.size.y) <= 0.5:
 			above.append(b)
 	if above.size() <= row.size():
 		return false
