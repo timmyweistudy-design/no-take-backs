@@ -30,6 +30,12 @@ enum St { TITLE, PLACE, BATTLE, RESULT }
 enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
 
 const ORIGIN := Vector2(128, 100)
+# V1.5.2 間距階（docs/ui-layout-rules.md）：4／8／12／16／24／32／48
+const GAP_XS := 4.0
+const GAP_S := 8.0
+const GAP_M := 12.0
+const GAP_L := 16.0
+const GAP_XL := 24.0
 const BATTLE_DY := 36.0   # 第十輪 B9：戰鬥鏡頭下移，貼上緣的兵頭不被頂列蓋住（只改畫面）
 var force_demo := false   # 測試用：不必匯出就能走試玩版流程
 func _demo() -> bool:
@@ -150,6 +156,7 @@ var _sb_cache := {}
 var last_btn_enabled := true   # 上一顆 _btn 實際是否可按（版面檢查的停用狀態會強制停用；卡片內文字要跟著變暗）
 var last_btn_paper := false   # 上一顆 _btn 實際有沒有畫成紙面（呼叫端決定裡面的字要不要墨色）
 var btn_paper := false   # V1.2.1 R1：下一顆 _btn 畫紙面（呼叫端設、用完還原）
+var btn_deco := Callable()   # V1.5.2 L2：下一顆 _btn 在底面之後、焦點框之前呼叫 btn_deco.call(面框)（書籤這類依附裝飾；呼叫端設、用完還原）
 var _probe_glyph := false
 var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對比）
 var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
@@ -314,6 +321,42 @@ var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
 var probe_texts: Array = []
 var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
 var probe_ctrls: Array = []
+# V1.5.2 排版幾何探針（scripts/ui/layout_rules.gd 檢查）：_panel、_h1 自動登記；依附裝飾、同欄對齊、例外由畫面宣告
+var probe_panels: Array = []
+var probe_ribbons: Array = []
+var probe_decos: Array = []
+var probe_aligns: Array = []
+var probe_need := {}   # 這一幀畫面宣告「至少要登記到幾個」的角色（漏登記守衛），例如大廳選了預設就要有 1 條書籤
+
+func probe_reset_geom() -> void:
+	probe_need = {}
+	probe_panels.clear()
+	probe_ribbons.clear()
+	probe_decos.clear()
+	probe_aligns.clear()
+
+## 依附裝飾（書籤、徽章…）：r＝裝飾本體、host＝它依附的元件框、edge＝貼齊的邊
+func probe_deco(kind: String, r: Rect2, host: Rect2, edge := "top") -> void:
+	probe_decos.append({"id": "%s#%d" % [kind, probe_decos.size()], "kind": kind, "r": r, "host_r": host, "edge": edge})
+
+## 同一欄的元件共用中線（R10）
+func probe_align(id: String, rects: Array, tol := 1.0) -> void:
+	if layout_probe:
+		probe_aligns.append({"id": id, "rects": rects, "tol": tol})
+
+## 最近登記的面板：宣告例外（寫理由，報告會列出）或改用欄中線（三欄畫面的操作列）
+func probe_skip(rule: String, why: String) -> void:
+	if layout_probe and not probe_panels.is_empty():
+		probe_panels[-1]["skip"][rule] = why
+
+## 多欄畫面：宣告各欄內容區；按鈕不能跨進別欄（同層互蓋，例如設定頁撤回鈕被說明欄蓋）
+func probe_columns(id: String, cols: Array) -> void:
+	if layout_probe:
+		probe_aligns.append({"id": id, "cols": cols})
+
+func probe_axis(x: float) -> void:
+	if layout_probe and not probe_panels.is_empty():
+		probe_panels[-1]["axis"] = x
 var _probe_btn_label := false
 var _probe_btn_rect := Rect2()     # 第五輪：其他控制項（兵卡）的外框；裡面的字不算段數     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
@@ -677,6 +720,8 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 			draw_rect(Rect2(rd.position + Vector2(3, 2 + k * 2.0), Vector2(rd.size.x - 6, 2.0)), Color(0, 0, 0, 0.22 - k * 0.07))
 	if primary and enabled:
 		_btn_shine(rd)
+	if btn_deco.is_valid():
+		btn_deco.call(rd)
 	if (focus or hover) and enabled and not plain_ui_now():
 		# V1.2.1 R2：滑鼠懸停與手把焦點同一種樣式：深邊＋金亮邊（深邊讓金框在紙上也看得到，Codex v121-r2）
 		_box(rd.grow(2.5), Color(0, 0, 0, 0), Color(INK, 0.7), 9.0, 1.5)
@@ -880,8 +925,8 @@ func _sticker_badge(p: Vector2, st: int, scale := 1.0, on := true) -> void:
 	draw_circle(c, 5.6 * scale, Color(Color(STK.COLORS[st]), a), true, -1.0, true)
 	Icons.draw(self, STK.ICONS[st], c, 8.0 * scale, Color(1, 1, 1, a))
 
-## 羊皮紙標題緞帶：畫面標題統一用它。
-func _h1(center: Vector2, s: String, maxw := 0.0) -> void:
+## 羊皮紙標題緞帶：畫面標題統一用它。回傳緞帶含尾的完整下緣（V1.5.2 L3：下方內容從「下緣＋GAP_L」起排）。
+func _h1(center: Vector2, s: String, maxw := 0.0) -> float:
 	var sz := tz("H1")
 	var w := minf(_width(s, sz, true) + 72.0, maxw if maxw > 0.0 else 900.0)
 	var r := Rect2(center.x - w / 2, center.y - 2, w, sz * 1.45)
@@ -891,6 +936,39 @@ func _h1(center: Vector2, s: String, maxw := 0.0) -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(ex - sgn * 4, r.position.y + 6), Vector2(ex + sgn * 20, r.position.y + 6), Vector2(ex + sgn * (20 - notch), r.get_center().y + 3), Vector2(ex + sgn * 20, r.end.y + 2), Vector2(ex - sgn * 4, r.end.y + 2)]), TH_PARCH.darkened(0.28))
 	_box(r, TH_PARCH, TH_PARCH.darkened(0.45), 4.0, 2.0)
 	_text(center + Vector2(0, sz * 0.07), s, sz, TH_INK, true, true, maxf(w - 20.0, 100.0))
+	if layout_probe:
+		var host := ""
+		for k in range(probe_panels.size() - 1, -1, -1):
+			if (probe_panels[k]["r"] as Rect2).grow(2.0).has_point(center + Vector2(0, 2)):
+				host = probe_panels[k]["id"]
+				break
+		probe_ribbons.append({"id": "H%d" % probe_ribbons.size(), "r": Rect2(r.position.x - 20, r.position.y, r.size.x + 40, r.size.y + 2), "body": r, "cx": center.x, "bottom": r.end.y + 2.0, "host": host})
+	return r.end.y + 2.0
+
+## 標題緞帶完整下緣（不畫，給排版先算位置用）
+func h1_bottom(center_y: float) -> float:
+	return center_y - 2.0 + tz("H1") * 1.45 + 2.0
+
+## V1.5.2：緞帶＋下方置中說明。回傳下一個內容的起點（說明下緣＋GAP_L；沒說明時＝緞帶下緣＋GAP_L）。
+func _h1_help(center: Vector2, title: String, help: String, sz: int, maxw: float) -> float:
+	var y := _h1(center, title) + GAP_L
+	if help == "":
+		return y
+	_text(Vector2(center.x, y), help, sz, TXT_DIM, true, false, maxw)
+	return y + text_h(help, fit(help, sz, maxw), maxw) + GAP_L
+
+## 同上的高度（不畫）：從緞帶中心 y 到下一個內容起點的距離，給面板先算高度
+func h1_help_h(help: String, sz: int, maxw: float) -> float:
+	return h1_bottom(0.0) + GAP_L + ((text_h(help, fit(help, sz, maxw), maxw) + GAP_L) if help != "" else 0.0)
+
+## V1.5.2 R9：一行置中小標題（字級 sz）下方的控制項起點：字形下緣（約 1.03 字高）＋GAP_M
+func below_head(sz: int) -> float:
+	return ceilf(sz * 1.05) + GAP_M
+
+## V1.5.2 R1／L7：模態面板水平置中、高度照內容（垂直置中，距畫面邊 ≥16）
+func modal_rect(w: float, h: float) -> Rect2:
+	var hh := minf(h, 800.0 - 32.0)
+	return Rect2(roundf((1280.0 - w) * 0.5), roundf(maxf(16.0, (800.0 - hh) * 0.5)), w, hh)
 
 ## 安靜的小按鈕（第七輪 N6）：點擊框維持可點的大小，平常只畫一個小記號，滑過才亮。
 func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
@@ -923,7 +1001,13 @@ func _update_gen() -> void:
 		_gen += 1
 
 
+## 自己畫框、不走 _panel 的模態面板也要登記（R1、漏登記守衛）
+func probe_panel(r: Rect2) -> void:
+	if layout_probe:
+		probe_panels.append({"id": "P%d" % probe_panels.size(), "r": r, "skip": {}})
+
 func _panel(r: Rect2) -> void:
+	probe_panel(r)
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.62))
 	_box(r.grow(6), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)      # 陰影
 	_box(r, PANEL, Color(0, 0, 0, 0), 10.0)

@@ -264,7 +264,7 @@ func _draw_codex() -> void:
 		_probe_glyph = true   # V1.2.1：頁籤角落的快捷鍵數字是符號
 		_text(r.position + Vector2(4, 2), str((t0 + 1) % 10), tcap(tz("C"), 14), TXT_DIM, false, true)
 		_probe_glyph = false
-	_btn(Rect2(436, 104, 110, 38), L.t("cxz_summons"), func(): _cx_pick_unit(D.COUNT * 2), true, false, TH_ACTIVE if cx_unit >= D.COUNT * 2 else Color(0, 0, 0, 0))
+	_btn(Rect2(960, 104, 110, 38), L.t("cxz_summons"), func(): _cx_pick_unit(D.COUNT * 2), true, false, TH_ACTIVE if cx_unit >= D.COUNT * 2 else Color(0, 0, 0, 0))
 	if cx_zoom or cx_unit >= D.total():
 		_draw_cx_zoom()
 		_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): _nav_back())

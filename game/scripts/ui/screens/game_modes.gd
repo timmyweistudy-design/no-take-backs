@@ -170,10 +170,10 @@ func _trial_finish(w: int) -> void:
 var trial_page := 0
 
 func _draw_trials() -> void:
-	var P := Rect2(90, 40, 1100, 720)
+	# V1.5.2 L3：面板上緣提到 24、緞帶跨在上緣（和圖鑑、大廳同款），說明從緞帶下緣＋16 起；卡片照說明實高往下
+	var P := Rect2(90, 24, 1100, 736)
 	_panel(P)
-	_h1(Vector2(640, 50), L.t("trial_title"))
-	_text(Vector2(640, 104), L.t("trial_rule"), tz("S"), TXT_DIM, true, false, 1000)
+	var tdy := maxf(0.0, _h1_help(Vector2(640, 24), L.t("trial_title"), L.t("trial_rule"), tz("S"), 1000) - 164.0)
 	var stars: Dictionary = Save.data.get("trial_stars", {})
 	var pages: int = ceili(TRIALS.size() / float(TRIAL_PAGE))
 	trial_page = clampi(trial_page, 0, pages - 1)
@@ -190,7 +190,7 @@ func _draw_trials() -> void:
 			break
 		var t: Array = TRIALS[i]
 		var x := trial_x(i)
-		var r := Rect2(116 + (k % 2) * (cw + 8), 164 + (k / 2) * (ch + 7), cw, ch)
+		var r := Rect2(116 + (k % 2) * (cw + 8), 164 + tdy + (k / 2) * (ch + 7), cw, ch)
 		var got := int(stars.get(str(i), 0))
 		btn_paper = got > 0   # V1.2.1 R1：過關的試煉卡是紙面
 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
@@ -414,8 +414,7 @@ func _draw_relay() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
 	var P := Rect2(170, 60, 940, 680)
 	_panel(P)
-	_h1(Vector2(640, 72), L.t("rl_title", [int(PZ.get_puzzle("ws").get("relay", 0)) + 1]))
-	_text(Vector2(640, 72 + tz("H1") * 1.4), L.t("rl_help"), tz("S"), TXT_DIM, true, false, 860)
+	_h1_help(Vector2(640, 72), L.t("rl_title", [int(PZ.get_puzzle("ws").get("relay", 0)) + 1]), L.t("rl_help"), tz("S"), 860)   # V1.5.2 L3
 	# 左：敵方部署區（羊皮紙棋盤，6 欄 × 9 列）；改過的格子淡金底
 	# 左：你剛才過關的藍軍（半透明、鎖定），看著對位改（Antigravity v140-i2）
 	var bs := 24.0
@@ -741,7 +740,7 @@ func _draw_reward() -> void:
 	# V1.4 #3 戰利品契約：羊皮紙小卡，可簽一份或不簽（選完上面的事件才生效）
 	var cy := 452.0
 	_text(Vector2(640, cy), L.t("ct_title"), tz("B"), Color.WHITE, true, true, 740)
-	cy += tz("B") * 1.45
+	cy += below_head(tz("B"))   # V1.5.2 R9：標題字到契約卡 ≥12
 	var cts := _contract_offers()
 	for i in 3:
 		var cr := Rect2(268 + i * 252, cy, 240, 100)
@@ -850,9 +849,9 @@ func _draw_ban() -> void:
 	var P: Rect2 = _ban_panel(ts0.size())
 	_panel(P)
 	_box(P.grow(-3), Color(0, 0, 0, 0), Color("#b8393f"), 8.0, 3.0)   # 紅框：這裡是拿掉牌，不是選牌
-	_h1(Vector2(640, 70), L.t("ban_title"))
+	var bhb := _h1(Vector2(640, 70), L.t("ban_title"))
 	var who := L.t("blue") if ban_turn == 0 else L.t("red")
-	_text(Vector2(640, 134), L.t("ban_turn", [who, ban_left[ban_turn]]), tz("H2"), Art.team_color(ban_turn, cbm()).lightened(0.2), true, true, 860)
+	_text(Vector2(640, bhb + GAP_L), L.t("ban_turn", [who, ban_left[ban_turn]]), tz("H2"), Art.team_color(ban_turn, cbm()).lightened(0.2), true, true, 860)
 	var ban_hot := -1
 	for i in ts0.size():
 		var t: int = ts0[i]
@@ -1022,12 +1021,12 @@ func _puzzle_hint_text() -> String:
 func _draw_puzzle_hint() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.75))   # V1.1 C4：底下的兵與格線不干擾閱讀
 	var pz := PZ.get_puzzle(puzzle_id)
-	var R := Rect2(290, 150, 700, 500)
-	_panel(R)
-	_h1(Vector2(640, 156), L.t("menu_hint"))
-	var y := 220.0
 	var w := 620.0
 	var x := 330.0
+	# V1.5.2 L3／L7：內容從緞帶下緣＋16 起；面板照三層內容的實高算（未解鎖時不留一大片空白）
+	var R := modal_rect(700, 6.0 + h1_bottom(0.0) + GAP_L + _hint_body_h(pz, w) + GAP_L)
+	_panel(R)
+	var y := _h1(Vector2(640, R.position.y + 6), L.t("menu_hint")) + GAP_L
 	# 第一層：這關的提示句＋對手主力
 	_text(Vector2(x, y), L.t("ph_l1"), tz("S"), ACCENT, false, true, w)
 	y += tz("S") * 1.5
@@ -1063,6 +1062,19 @@ func _draw_puzzle_hint() -> void:
 		_btn(Rect2(x + 236, y, 160, 44), L.t("ph_cancel"), func(): puzzle_reveal = false)
 	# 返回和第三層按鈕同一列、靠右：大字級時內文變長也不會撞（版面檢查 86_hint_open en 150%）
 	_btn(Rect2(x + w - 160, y, 160, 44), L.t("back"), func(): overlay = "")
+
+## 提示框三層內容的高度（和 _draw_puzzle_hint 同一套遞增；面板照它算高）
+func _hint_body_h(pz: Dictionary, w: float) -> float:
+	var h := tz("S") * 1.5 + text_h(L.field(pz, "hint") + "　" + _puzzle_hint_text(), tz("S"), w) + 16
+	h += tz("S") * 1.5
+	if int(Save.data.get("puzzle_stars", {}).get(puzzle_id, 0)) >= 1:
+		h += 66 + text_h(L.t("ph_cond", [int(pz["star3"]), int(pz["star2"])]), tz("S"), w) + 16
+	else:
+		h += tz("S") * 1.6 + 16
+	h += tz("S") * 1.5
+	if puzzle_reveal:
+		h += text_h(L.t("ph_reveal_q"), tz("S"), w) + 6
+	return h + 44.0
 
 ## 把三星解直接擺上去（固定兵留著），技能關連施放時間一起帶。
 func _apply_best() -> void:
@@ -1206,14 +1218,16 @@ func _nemesis_army(i: int):
 
 func _draw_nemeses() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(190, 60, 900, 680)
-	_panel(P)
-	_h1(Vector2(640, 72), L.t("nem_head"))
+	# V1.5.2 L3／L7：清單從緞帶下緣＋16 起；面板照筆數算高（空時不留 500px 空白；滿 6 筆時長高到不碰返回鈕）
 	var list: Array = Save.data.get("nemeses", [])
-	var y := 72.0 + tz("H1") * 1.6
+	var n_rows := mini(list.size(), NEM_MAX)
+	var body := (n_rows * 98.0 - 10.0) if n_rows > 0 else text_h(L.t("nem_empty"), tz("S"), 760)
+	var P := modal_rect(900, 12.0 + h1_help_h("", tz("S"), 760) + body + GAP_XL + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("nem_head")) + GAP_L
 	if list.is_empty():
-		_text(Vector2(640, y + 40), L.t("nem_empty"), tz("S"), TXT_DIM, true, false, 760)
-	for i in list.size():
+		_text(Vector2(640, y), L.t("nem_empty"), tz("S"), TXT_DIM, true, false, 760)
+	for i in n_rows:
 		var n: Dictionary = list[i]
 		var r := Rect2(220, y, 840, 88)
 		_tex_box(r, "paper")
@@ -1243,7 +1257,7 @@ func _draw_nemeses() -> void:
 		for k in mini(12, us.size()):
 			Art.unit(self, r.position + Vector2(530 + k * 18, 74), int(us[k]["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.9, time, 0.36, cbm())
 		y += 98
-	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): _nav_back("profile"))
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back("profile"))
 
 
 ## ── V1.4 #16 遊戲間：觀戰競猜、輪抽 ──
@@ -1292,12 +1306,12 @@ func _draw_wager() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
 	var P := Rect2(160, 70, 960, 660)
 	_panel(P)
-	_h1(Vector2(640, 82), L.t("pr_wager"))
-	_text(Vector2(640, 82 + tz("H1") * 1.4), L.t("wg_help"), tz("S"), TXT_DIM, true, false, 880)
+	# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時下面整塊一起往下（dy）
+	var dy := maxf(0.0, _h1_help(Vector2(640, 82), L.t("pr_wager"), L.t("wg_help"), tz("S"), 880) - 180.0)
 	# 兩支軍隊的陣型縮影（羊皮紙棋盤），藍左紅右
 	for side in 2:
 		var a = wg_armies[side]
-		var g := Rect2(200 + side * 450, 180, 430, 250)
+		var g := Rect2(200 + side * 450, 180 + dy, 430, 250)
 		_tex_box(g, "paper")
 		# 標題放在木條上（不是白底橫條，Antigravity v140-i2）
 		var hb := Rect2(g.position + Vector2(8, 8), Vector2(g.size.x - 16, tz("B") * 1.5))
@@ -1308,9 +1322,9 @@ func _draw_wager() -> void:
 			var c: int = int(u["col"]) if side == 0 else int(u["col"]) - 10
 			var q := g.position + Vector2(40 + c * 60, 64 + int(u["row"]) * 20)
 			Art.unit(self, q, int(u["type"]), side, 1.0 if side == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
-	_text(Vector2(640, 290), "VS", tz("H1"), Color("#ffd166"), true, true, 60)
+	_text(Vector2(640, 290 + dy), "VS", tz("H1"), Color("#ffd166"), true, true, 60)
 	# 押注：哪一隊贏、贏多少
-	var y := 452.0
+	var y := 452.0 + dy
 	_text(Vector2(200, y), L.t("wg_who"), tz("S"), Color.WHITE, false, true, 300)
 	for side in 2:
 		_btn(Rect2(480 + side * 220, y - 6, 200, 44), L.t("blue") if side == 0 else L.t("red"), func(): wg_pick[0] = side, true, false, Charts.team_col(side, cbm()).darkened(0.25) if wg_pick[0] == side else Color(0, 0, 0, 0))
@@ -1320,8 +1334,10 @@ func _draw_wager() -> void:
 		_btn(Rect2(480 + b * 150, y - 6, 140, 44), L.t("wg_band_%d" % b), func(): wg_pick[1] = b, true, false, TH_ACTIVE if wg_pick[1] == b else Color(0, 0, 0, 0))
 	# V1.5：「贏多少」看的是勝方剩下的戰力比例，區間門檻跟 wager_band 用同一組常數
 	_text(Vector2(640, y + 48), L.t("wg_band_help", [WG_NARROW, WG_NARROW, WG_CRUSH - 1, WG_CRUSH]), tz("C"), TXT_DIM, true, false, 880)
-	_btn(Rect2(420, 640, 220, 50), L.t("wg_go"), func(): _wager_go(), wg_pick[0] >= 0 and wg_pick[1] >= 0, true)
-	_btn(Rect2(660, 640, 200, 50), L.t("back"), func(): overlay = "playroom")
+	var by := maxf(640.0, y + 48 + text_h(L.t("wg_band_help", [WG_NARROW, WG_NARROW, WG_CRUSH - 1, WG_CRUSH]), tz("C"), 880) + GAP_M)
+	# V1.5.2 L8：雙按鈕同寬、群組置中
+	_btn(Rect2(425, by, 210, 50), L.t("wg_go"), func(): _wager_go(), wg_pick[0] >= 0 and wg_pick[1] >= 0, true)
+	_btn(Rect2(645, by, 210, 50), L.t("back"), func(): overlay = "playroom")
 
 func _wager_go() -> void:
 	wg_active = true
@@ -1417,11 +1433,10 @@ func _draw_draft() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
 	var P := Rect2(160, 80, 960, 640)
 	_panel(P)
-	_h1(Vector2(640, 92), L.t("pr_draft"))
-	_text(Vector2(640, 92 + tz("H1") * 1.4), L.t("df_help"), tz("S"), TXT_DIM, true, false, 880)
+	var dy := maxf(0.0, _h1_help(Vector2(640, 92), L.t("pr_draft"), L.t("df_help"), tz("S"), 880) - 190.0)   # V1.5.2 L3
 	for i in df_pool.size():
 		var t: int = df_pool[i]
-		var r := Rect2(210 + (i % 4) * 220, 190 + (i / 4) * 190, 200, 172)
+		var r := Rect2(210 + (i % 4) * 220, 190 + dy + (i / 4) * 190, 200, 172)
 		var mine: bool = t in df_mine
 		var ai: bool = t in df_ai
 		btn_paper = not mine and not ai
@@ -1443,9 +1458,11 @@ func _draw_draft() -> void:
 			draw_circle(sc, 17.0, tcol.darkened(0.35), true, -1.0, true)
 			draw_circle(sc, 13.0, tcol, true, -1.0, true)
 			_text(r.position + Vector2(100, 12), L.t("df_mine") if mine else L.t("df_ai"), tz("S"), Color.WHITE, true, true, 150)
-	_text(Vector2(640, 582), L.t("df_count", [df_mine.size(), df_ai.size()]), tz("S"), Color.WHITE, true, true, 700)
-	_btn(Rect2(420, 640, 220, 50), L.t("df_go"), func(): _draft_go(), df_mine.size() == 4, true)
-	_btn(Rect2(660, 640, 200, 50), L.t("back"), func(): overlay = "playroom")
+	_text(Vector2(640, 582 + dy), L.t("df_count", [df_mine.size(), df_ai.size()]), tz("S"), Color.WHITE, true, true, 700)
+	# V1.5.2 L8：雙按鈕同寬、群組置中
+	var by := maxf(640.0, 582 + dy + tz("S") * 1.3 + GAP_M)
+	_btn(Rect2(425, by, 210, 50), L.t("df_go"), func(): _draft_go(), df_mine.size() == 4, true)
+	_btn(Rect2(645, by, 210, 50), L.t("back"), func(): overlay = "playroom")
 
 
 ## ── V1.4 #11 車輪戰：擺一次陣迎三波；贏了只帶活下來的兵（站在原本的格子），多 15 金重新整備，下一波敵人更多錢 ──
@@ -1808,14 +1825,15 @@ func _weekly_sync() -> void:
 
 func _draw_ghosts() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(130, 60, 1020, 680)
-	_panel(P)
-	_h1(Vector2(640, 72), L.t("gh_head"))
 	var gs := ghosts()
 	var beat: Array = Save.data.get("ghost_beat", [])
-	_text(Vector2(640, 72 + tz("H1") * 1.4), L.t("gh_help", [beat.size(), gs.size()]), tz("S"), TXT_DIM, true, false, 900)
-	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
+	var help := L.t("gh_help", [beat.size(), gs.size()])
+	# V1.5.2 L3：說明從緞帶下緣＋16、卡片從說明下緣＋16 起；面板照內容算高（說明換行時整頁一起長高，不壓翻頁鈕）
 	var per := 9   # 一頁 3×3（英文大字級名牌會折兩行，卡片要高一點；收尾第 2 輪截圖）
+	var P := modal_rect(1020, 12.0 + h1_help_h(help, tz("S"), 900) + 3 * 152.0 - 12.0 + GAP_M + 44.0 + GAP_S + 44.0 + GAP_L)
+	_panel(P)
+	var gy := _h1_help(Vector2(640, P.position.y + 12), L.t("gh_head"), help, tz("S"), 900)
+	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
 	var pages := maxi(1, int(ceil(gs.size() / float(per))))
 	gh_page = clampi(gh_page, 0, pages - 1)
 	for k in per:
@@ -1823,7 +1841,7 @@ func _draw_ghosts() -> void:
 		if i >= gs.size():
 			break
 		var g: Dictionary = gs[i]
-		var r := Rect2(160 + (k % 3) * 324, 150 + (k / 3) * 152, 312, 140)
+		var r := Rect2(160 + (k % 3) * 324, gy + (k / 3) * 152, 312, 140)
 		var gi := i
 		btn_paper = true
 		_btn(r, "", func(): _ghost_start(gi))
@@ -1846,11 +1864,12 @@ func _draw_ghosts() -> void:
 			var sp := Vector2(r.end.x - 44, r.position.y + 48)   # 「破」蓋在陣型上
 			_hand_ring(sp, 18.0, Color("#8e1b14", 0.9), 2.6)
 			_text(sp - Vector2(0, tz("C") * 0.68), L.t("gh_stamp"), tz("C"), Color("#8e1b14") if on_paper else Color("#ff8a7a"), true, true, 40)
+	var py := P.end.y - GAP_L - 44.0 - GAP_S - 44.0
 	if pages > 1:
-		_btn(Rect2(470, 626, 56, 44), "◀", func(): gh_page = posmod(gh_page - 1, pages))
-		_text(Vector2(640, 636), "%d／%d" % [gh_page + 1, pages], tz("S"), Color.WHITE, true, true, 100)
-		_btn(Rect2(754, 626, 56, 44), "▶", func(): gh_page = posmod(gh_page + 1, pages))
-	_btn(Rect2(560, 680, 160, 44), L.t("back"), func(): overlay = "hub_challenge")
+		_btn(Rect2(470, py, 56, 44), "◀", func(): gh_page = posmod(gh_page - 1, pages))
+		_text(Vector2(640, py + 10), "%d／%d" % [gh_page + 1, pages], tz("S"), Color.WHITE, true, true, 100)
+		_btn(Rect2(754, py, 56, 44), "▶", func(): gh_page = posmod(gh_page + 1, pages))
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "hub_challenge")
 
 func _draw_weekly() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))

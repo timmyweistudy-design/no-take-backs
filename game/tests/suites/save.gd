@@ -296,3 +296,15 @@ func test_playtest_report_v151() -> void:
 	ok(int(r["n"]) == 1 and not str(r["text"]).contains("secret") and str(r["text"]).contains('"mode"'), "只留白名單欄位", str(r["text"]).substr(0, 120))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	SV.prefix = old_prefix
+
+
+## V1.5.2：備份資料夾跟著存檔前綴（截圖模式不碰玩家真正的備份）；正式遊戲仍是 user://backup（舊備份相容）。
+func test_backup_dir_prefix_v152() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var GM = load("res://scripts/ui/screens/game_menus.gd")
+	var old: String = SV.prefix
+	SV.prefix = ""
+	ok(GM.backup_dir() == "user://backup", "正式遊戲：備份仍在 user://backup", GM.backup_dir())
+	SV.prefix = "shot_"
+	ok(GM.backup_dir() == "user://shot_backup", "截圖模式：備份在 user://shot_backup", GM.backup_dir())
+	SV.prefix = old

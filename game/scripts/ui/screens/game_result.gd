@@ -655,6 +655,7 @@ func _pc_capture() -> void:
 func _draw_postcard() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.03, 0.02, 0.9))   # 底下的結果頁按鈕不能透出來（Antigravity v140-i2）
 	var P := Rect2(150, 90, 980, 560)
+	probe_panel(P)   # 明信片自己畫紙卡，不走 _panel：照樣登記成模態面板（R1 置中、漏登記守衛）
 	_tex_box(P, "paper")
 	draw_rect(P.grow(-14), Color("#9a7b3c", 0.85), false, 2.0)   # 暗金內框
 	draw_rect(P.grow(-19), Color("#9a7b3c", 0.45), false, 1.0)
@@ -702,10 +703,15 @@ func _draw_postcard() -> void:
 	_text(sp - Vector2(0, psz * 0.62), pst, psz, Color("#8e1b14"), true, true, 70)
 	if pc_saving:
 		return   # 存圖這一格不畫按鈕
-	_btn(Rect2(300, 670, 220, 46), L.t("pc_save"), func(): _pc_save(), true, true)
+	# V1.5.2 L8：明信片下方按鈕同寬、整組置中（原本 300～960 中心 630）
+	var nb := 3 if code != "" else 2
+	var bx := 640.0 - (nb * 210.0 + (nb - 1) * 10.0) / 2.0
+	_btn(Rect2(bx, 670, 210, 46), L.t("pc_save"), func(): _pc_save(), true, true)
 	if code != "":
-		_btn(Rect2(530, 670, 220, 46), L.t("pc_copy"), func(): DisplayServer.clipboard_set(code); _toast(L.t("ws_copied")))
-	_btn(Rect2(760, 670, 200, 46), L.t("back"), func(): overlay = "")
+		bx += 220.0
+		_btn(Rect2(bx, 670, 210, 46), L.t("pc_copy"), func(): DisplayServer.clipboard_set(code); _toast(L.t("ws_copied")))
+	_btn(Rect2(bx + 220.0, 670, 210, 46), L.t("back"), func(): overlay = "")
+	probe_align("postcard_btns", [P, Rect2(640.0 - (nb * 210.0 + (nb - 1) * 10.0) / 2.0, 670, nb * 210.0 + (nb - 1) * 10.0, 46)])
 
 func _pc_save() -> void:
 	pc_saving = true

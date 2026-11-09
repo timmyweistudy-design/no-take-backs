@@ -482,8 +482,9 @@ func _badge_pill(p: Vector2, b: String) -> float:
 func _draw_lobby() -> void:
 	var P := Rect2(50, 30, 1180, 740)
 	_panel(P)
+	probe_skip("R4", "大廳底列：左側操作組（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右，刻意分兩組")
 	var title := L.t("menu_vs_ai") if lobby_kind == "ai" else L.t("menu_duel")
-	_h1(Vector2(640, 40), title)
+	_h1(Vector2(640, 28), title)   # V1.5.2 L3：緞帶跨在面板上緣（和圖鑑同款），完整下緣到預設分頁 ≥16
 	_draw_lobby_presets(Vector2(80, 96))
 	if lobby_open:
 		_draw_lobby_detail(Rect2(80, 176, 1120, 508))
@@ -516,16 +517,21 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		Presets.clamp_pool(p, lobby_kind, _lobby_unlocked(), _demo())
 		var r := Rect2(o + Vector2(i * (w + 10), 0), Vector2(w, h))
 		var on: bool = lobby_r.preset == id
+		# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
+		if on:
+			btn_deco = _draw_bookmark
 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+		btn_deco = Callable()
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
-		_text(r.position + Vector2(w / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, w - 12)
-		var sub_y := 8 + text_h(L.t("lb_p_" + id), tz("B"), w - 12, true) + 2
-		if false and sub_y + text_h(L.t("lb_pd_" + id), tz("C"), w - 12) <= h - 14:
-			_text(r.position + Vector2(w / 2, sub_y), L.t("lb_pd_" + id), tz("C"), TXT_DIM, true, false, w - 12)   # 放不下（大字）就不畫副標，不壓到色條
+		# 文字留出書籤槽（六格一律，切換時文字不跳）：可用區 [6, w−BM_SLOT]
+		var tw := w - 6.0 - BM_SLOT
+		_text(r.position + Vector2(6.0 + tw / 2, 8), L.t("lb_p_" + id), tz("B"), Color.WHITE, true, true, tw)
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
 		_box(Rect2(r.position + Vector2(8, h - 13), Vector2(w - 16, 5)), bc, Color(0, 0, 0, 0), 2.0)
+	if layout_probe and Presets.IDS.has(lobby_r.preset):
+		probe_need["bookmark"] = 1   # 漏登記守衛：選了內建預設就一定要畫出紅書籤
 	var mr := Rect2(o + Vector2(6 * (w + 10), 0), Vector2(1120 - 6 * (w + 10), h))
 	_btn(mr, L.t("lb_mine"), func(): lobby_menu = not lobby_menu, true, false, TH_ACTIVE if lobby_r.preset == "custom" else TH_WOOD)
 
@@ -639,16 +645,18 @@ func _draw_lobby_main(R: Rect2) -> void:
 			var a := 0.22 - k * 0.035
 			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
 			draw_rect(Rect2(x + lw + 9 + k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
-		_draw_bookmark()
 		_ink_mode = true
-	var label := func(ic: String, s: String, yy: float) -> void:
-		_box(Rect2(x, yy, lw, rowh - 8.0), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
-		_icon(ic, Vector2(x + 26, yy + 24), 26.0, ACCENT)
-		_text(Vector2(x + 44, yy + 12), s, tz("B"), Color(1, 1, 1, 0.92), false, true, 112)
+	# V1.5.2 L6：列底色高度照內容（hh）；左欄圖示與標籤和右邊主控制項共用列中線（原本標籤靠上、控制項置中）
+	var label := func(ic: String, s: String, yy: float, hh: float) -> void:
+		_box(Rect2(x, yy, lw, hh), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+		var mid := yy + minf(hh, rowh - 8.0) * 0.5
+		_icon(ic, Vector2(x + 26, mid), 26.0, ACCENT)
+		var lsz := fit(s, tz("B"), 112, true)
+		_text(Vector2(x + 44, mid - text_h(s, lsz, 112, true) * 0.5), s, lsz, Color(1, 1, 1, 0.92), false, true, 112)
 	var cx := x + 160
 	var cw := lw - 170
 	# 地圖
-	label.call("map", L.t("lb_map"), y)
+	label.call("map", L.t("lb_map"), y, rowh - 8.0)
 	_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
 	var mk: String = MapDefs.MAPS[r.map_id]["key"]
 	_text(Vector2(cx + 134, y + 26), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
@@ -656,7 +664,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
 	y += rowh
 	# 大小
-	label.call("size", L.t("lb_size"), y)
+	label.call("size", L.t("lb_size"), y, rowh - 8.0)
 	for i in 3:
 		var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
 		var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
@@ -665,7 +673,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 		_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
 	y += rowh
 	# 卡牌
-	label.call("cards", L.t("lb_cards"), y)
+	label.call("cards", L.t("lb_cards"), y, rowh - 8.0)
 	var p0: int = r.pool_of(0)
 	_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
 	_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
@@ -675,18 +683,21 @@ func _draw_lobby_main(R: Rect2) -> void:
 	y += rowh
 	# 對手
 	if lobby_kind == "ai":
-		label.call("robot", L.t("lb_opponent"), y)
+		label.call("robot", L.t("lb_opponent"), y, rowh - 8.0)
 		var w1 := (cw - 8) / 2.0
 		_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level", 36.0)
 		_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style", 36.0)
 	else:
-		label.call("swords", L.t("lb_place_rule"), y)
+		label.call("swords", L.t("lb_place_rule"), y, rowh - 8.0)
 		_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
 	y += rowh
 	# 規則
-	label.call("gear", L.t("lb_rules"), y)
-	_text(Vector2(cx, y + 8), _summary(r), tz("S"), Color.WHITE, false, false, cw)
-	var by0: float = y + 12 + text_h(_summary(r), tz("S"), cw)
+	var sm := _summary(r)
+	var smz := fit(sm, tz("S"), cw)
+	var rules_h := maxf(rowh - 8.0, 12.0 + text_h(sm, smz, cw) + 4.0 + 36.0 + 8.0)   # 英文 150% 規則摘要換行：列底色跟著長高，認證牌與技能鈕留在列內
+	label.call("gear", L.t("lb_rules"), y, minf(rules_h, R.end.y - y))
+	_text(Vector2(cx, y + 8), sm, smz, Color.WHITE, false, false, cw)
+	var by0: float = y + 12 + text_h(sm, smz, cw) + 4.0
 	_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
 	_btn(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
 	_ink_mode = false
@@ -1131,26 +1142,20 @@ func _draw_lobby_desc(R: Rect2) -> void:
 
 
 ## V1.2 C1：選中的預設像夾在筆記本上的書籤，從分頁底下垂進紙頁（紙頁畫完才畫，才不會被蓋住）。
-func _draw_bookmark() -> void:
-	var i := Presets.IDS.find(lobby_r.preset)
-	# V1.2.1 B7：沒選中的預設也有一小段書籤耳（較短、較暗），選中的那條長而亮
-	for j in Presets.IDS.size():
-		if j == i:
-			continue
-		var rj := Rect2(Vector2(80, 96) + Vector2(j * (154.0 + 10.0), 0), Vector2(154, 68))
-		var ex := rj.end.x - 30.0
-		draw_colored_polygon(PackedVector2Array([Vector2(ex, rj.end.y - 4), Vector2(ex + 14, rj.end.y - 4), Vector2(ex + 14, rj.end.y + 9), Vector2(ex + 7, rj.end.y + 5), Vector2(ex, rj.end.y + 9)]), Color("#6e3b25"))
-	if i < 0:
-		return
-	var r := Rect2(Vector2(80, 96) + Vector2(i * (154.0 + 10.0), 0), Vector2(154, 68))   # 和 _draw_lobby_presets 同一套位置
+## V1.5.2 L2（A 案）：選中分頁的紅書籤。宿主＝分頁面框 r：本體左 x＝右緣−34、寬 20、上緣貼分頁上緣、
+## 下尖端在上緣＋30、中央凹口在上緣＋23。未選分頁不畫（舊的褐色小耳拿掉）。
+const BM_SLOT := 38.0   # 分頁文字右側讓給書籤的寬度（書籤 34＋間隔 4）
+
+func _draw_bookmark(r: Rect2) -> void:
 	var bx := r.end.x - 34.0
-	var by0 := r.end.y - 4.0
+	var by0 := r.position.y
 	var bl := 30.0
-	draw_colored_polygon(PackedVector2Array([Vector2(bx + 2, by0 + 3), Vector2(bx + 22, by0 + 3), Vector2(bx + 22, by0 + bl + 3), Vector2(bx + 12, by0 + bl - 4), Vector2(bx + 2, by0 + bl + 3)]), Color(0, 0, 0, 0.3))
+	draw_colored_polygon(PackedVector2Array([Vector2(bx + 2, by0 + 2), Vector2(bx + 22, by0 + 2), Vector2(bx + 22, by0 + bl + 3), Vector2(bx + 12, by0 + bl - 4), Vector2(bx + 2, by0 + bl + 3)]), Color(0, 0, 0, 0.3))
 	draw_colored_polygon(PackedVector2Array([Vector2(bx, by0), Vector2(bx + 20, by0), Vector2(bx + 20, by0 + bl), Vector2(bx + 10, by0 + bl - 7), Vector2(bx, by0 + bl)]), Color("#b5441f"))
 	draw_rect(Rect2(bx, by0, 20, 3), Color(0, 0, 0, 0.25))
 	draw_line(Vector2(bx + 4, by0 + 3), Vector2(bx + 4, by0 + bl - 3), Color(1, 0.85, 0.6, 0.4), 1.5)
-
+	if layout_probe:
+		probe_deco("bookmark", Rect2(bx, by0, 20, bl), r, "top")
 
 ## V1.4 #10：地圖說明（有機關的地圖把秒數從地圖資料帶進去，不寫死）。
 static func map_desc(map_id: int) -> String:

@@ -21,7 +21,7 @@ kill_win() { if [[ "$EXE" == *.exe ]]; then powershell.exe -NoProfile -Command "
 # V1.2.1：第三欄是狀態（plain＝簡化介面、cb＝色盲、pad＝手把焦點），固定在這組全部截圖
 # 完整：兩語 × 三字級，加上四種狀態（簡化、色盲、手把、停用）各在兩語的 150%（最容易擠）各跑一次＝14 組
 # V1.4 #17：加簡中、日文各 100％／150％（共 18 組）；快速版多跑日文 150％
-COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:150:plain zh_TW:150:cb en:150:cb zh_TW:150:pad en:150:pad zh_TW:150:dis en:150:dis zh_CN:100 zh_CN:150 ja:100 ja:150 ja:150:plain,cb,pad"
+COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:150:plain zh_TW:150:cb en:150:cb zh_TW:150:pad en:150:pad zh_TW:150:dis en:150:dis zh_CN:100 zh_CN:125 zh_CN:150 ja:100 ja:125 ja:150 ja:150:plain,cb,pad"
 [ "${LAYOUT_QUICK:-0}" = "1" ] && COMBOS="zh_TW:100 en:150 en:150:plain,cb,pad zh_TW:150:dis ja:150"
 [ -n "${LAYOUT_COMBOS:-}" ] && COMBOS="$LAYOUT_COMBOS"   # 只重跑指定組（修版面時用）
 export LAYOUT_N=$(echo $COMBOS | wc -w)
@@ -58,9 +58,18 @@ for lang in ['zh_TW','en','zh_CN','ja']:
     if (lang,100) in by and (lang,150) in by:
         a=sorted(by[(lang,100)]); b=sorted(by[(lang,150)])
         print('  %s 中位字級 100%%=%s 150%%=%s' % (lang, a[len(a)//2], b[len(b)//2]))
+# V1.5.2：排版幾何警告逐條列出（不再只算數）；宣告的例外也列出理由。LAYOUT_STRICT_WARN=1（收尾驗收）時未豁免的排版警告也算失敗
+gw=0
+for d in rows:
+    for v in d.get('geo_warn',[]):
+        gw+=1; print('  警告 %s %s %d%%：%s %s' % (d['shot'], d['lang'], d['scale'], v['type'], v['s']))
+exs=set()
+for d in rows:
+    for e in d.get('geo_exempt',[]): exs.add((d['shot'], e['rule'], e['why']))
+print('LAYOUT 排版警告 %d、宣告例外 %d（明細：python3 tools/layout_table.py %s）' % (gw, len(exs), out))
 runs=glob.glob(os.path.join(out,'*','layout.jsonl'))
 want=int(os.environ.get('LAYOUT_N','14'))
 if len(runs)!=want or len(rows)!=want*expect:
     print('LAYOUT FAIL：應有 %d 組 × %d 張，實得 %d 組、%d 張（截圖沒跑完也算失敗）' % (want, expect, len(runs), len(rows))); sys.exit(1)
-sys.exit(1 if total else 0)
+sys.exit(1 if total or (gw and os.environ.get('LAYOUT_STRICT_WARN')=='1') else 0)
 PY

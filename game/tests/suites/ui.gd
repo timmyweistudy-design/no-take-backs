@@ -1387,3 +1387,95 @@ func test_codex_demo_projectile_v151() -> void:
 	info = "ptgt=%d hits=%d" % [g.cx_ptgt.size(), g.cx_hits.size()]
 	ok(saw_fly, "小劇場弓箭手的箭有飛行段", info)
 	g.free()
+
+
+## V1.5.2 排版幾何規則反例（純矩形）：每條規則各有一個違規案例、一個合法邊界與一個合法例外，
+## 避免「全部報錯也算成功」或「全部放過也算成功」。實際繪圖有沒有送資料，由版面檢查的漏登記守衛（G）擋。
+func test_layout_rules_v152() -> void:
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	var codes := func(res: Dictionary, lvl: String) -> Array:
+		var a: Array = []
+		for v in res[lvl]:
+			a.append(str(v["type"]))
+		return a
+	var P := func(x: float, y := 100.0, w := 600.0, h := 500.0) -> Dictionary:
+		return {"id": "P0", "r": Rect2(x, y, w, h), "skip": {}}
+	# R1：偏心 2px 失敗、置中通過、宣告例外不報但列出
+	ok("R1" in codes.call(LR.check({"panels": [P.call(342.0)]}), "fail"), "R1 面板偏 2px 被抓")
+	ok(codes.call(LR.check({"panels": [P.call(340.0)]}), "fail").is_empty(), "R1 置中面板通過")
+	ok(codes.call(LR.check({"panels": [P.call(341.0)]}), "fail").is_empty(), "R1 偏 1px 在容差內")
+	var px: Dictionary = P.call(430.0)
+	px["skip"]["R1"] = "側欄"
+	var rx: Dictionary = LR.check({"panels": [px]})
+	ok(not "R1" in codes.call(rx, "fail") and rx["exempt"].size() == 1 and rx["exempt"][0]["why"] == "側欄", "R1 宣告例外：不報、列出理由")
+	# R1 實例：V1.5.1 卡片面板 Rect2(430,…,800) 偏 190px
+	ok("R1" in codes.call(LR.check({"panels": [{"id": "hub", "r": Rect2(430, 60, 800, 600), "skip": {}}]}), "fail"), "R1 抓得到使用者回報的卡片面板偏心")
+	# R2：緞帶下距 11 失敗、14 警告、16 通過；緞帶不置中失敗
+	var rib := {"id": "H0", "r": Rect2(500, 112, 280, 46), "cx": 640.0, "bottom": 158.0, "host": "P0"}
+	for c in [[11.0, "fail"], [14.0, "warn"], [16.0, ""]]:
+		var t := {"r": Rect2(560, 158.0 + c[0], 160, 20), "s": "說明"}
+		var res: Dictionary = LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [t]})
+		var fails: Array = codes.call(res, "fail")
+		var warns: Array = codes.call(res, "warn")
+		if c[1] == "fail":
+			ok("R2" in fails, "R2 緞帶下距 11px 失敗")
+		elif c[1] == "warn":
+			ok(not "R2" in fails and "R2" in warns, "R2 緞帶下距 14px 只警告")
+		else:
+			ok(not "R2" in fails and not "R2" in warns, "R2 緞帶下距 16px 通過")
+	var rib2 := rib.duplicate()
+	rib2["cx"] = 650.0
+	ok("R2" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib2]}), "fail"), "R2 緞帶偏離面板中線被抓")
+	ok(not "R2" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(560, 120, 160, 30), "s": "標題"}]}), "fail"), "R2 緞帶自己的標題字不算內容")
+	# R3：書籤接縫 2px 失敗、貼齊通過、水平超出失敗
+	var tab := Rect2(80, 96, 154, 68)
+	ok("R3" in codes.call(LR.check({"decos": [{"id": "b", "kind": "bookmark", "r": Rect2(200, 98, 20, 30), "host_r": tab, "edge": "top"}]}), "fail"), "R3 書籤離上緣 2px 被抓")
+	ok(codes.call(LR.check({"decos": [{"id": "b", "kind": "bookmark", "r": Rect2(200, 96, 20, 30), "host_r": tab, "edge": "top"}]}), "fail").is_empty(), "R3 A 案幾何通過")
+	ok("R3" in codes.call(LR.check({"decos": [{"id": "b", "kind": "bookmark", "r": Rect2(200, 160, 20, 30), "host_r": tab, "edge": "top"}]}), "fail"), "R3 抓得到使用者回報的書籤懸空（y=160）")
+	ok("R3" in codes.call(LR.check({"decos": [{"id": "b", "kind": "bookmark", "r": Rect2(225, 96, 20, 30), "host_r": tab, "edge": "top"}]}), "fail"), "R3 書籤超出分頁右緣被抓")
+	# R4：群組偏心、間距差 3、雙按鈕不同寬
+	var row := func(xs: Array, ws: Array) -> Array:
+		var a: Array = []
+		for i in xs.size():
+			a.append(Rect2(xs[i], 540, ws[i], 48))
+		return a
+	ok(codes.call(LR.check({"panels": [P.call(340.0)], "btns": row.call([480.0, 650.0], [150.0, 150.0])}), "fail").is_empty(), "R4 雙按鈕置中同寬通過")
+	ok("R4" in codes.call(LR.check({"panels": [P.call(340.0)], "btns": row.call([483.0, 653.0], [150.0, 150.0])}), "fail"), "R4 群組偏 3px 被抓")
+	ok("R4" in codes.call(LR.check({"panels": [P.call(340.0)], "btns": row.call([480.0, 650.0], [150.0, 160.0])}), "fail"), "R4 雙按鈕不同寬被抓")
+	ok("R4" in codes.call(LR.check({"panels": [P.call(340.0)], "btns": row.call([400.0, 560.0, 723.0], [150.0, 150.0, 150.0])}), "fail"), "R4 三按鈕間距差 3 被抓")
+	ok(not "R4" in codes.call(LR.check({"panels": [P.call(340.0)], "btns": row.call([404.0, 564.0, 726.0], [150.0, 150.0, 150.0])}), "fail"), "R4 三按鈕間距差 2 在容差內")
+	var pa: Dictionary = P.call(340.0)
+	pa["axis"] = 620.0
+	ok(codes.call(LR.check({"panels": [pa], "btns": row.call([460.0, 630.0], [150.0, 150.0])}), "fail").is_empty(), "R4 宣告欄中線時照欄中線算")
+	# R8：面板距畫面邊 <16、按鈕超出面板
+	ok("R8" in codes.call(LR.check({"panels": [{"id": "P0", "r": Rect2(10, 100, 1260, 500), "skip": {}}]}), "fail"), "R8 面板貼邊被抓")
+	ok("R8" in codes.call(LR.check({"panels": [P.call(340.0)], "btns": [Rect2(880, 300, 100, 48)]}), "fail"), "R8 按鈕凸出面板被抓")
+	# R9：換行壓鈕 9px 失敗、12px 通過、文字在按鈕旁不算
+	ok("R9" in codes.call(LR.check({"panels": [P.call(340.0)], "texts": [{"r": Rect2(500, 300, 280, 20), "s": "說明"}], "btns": [Rect2(540, 329, 200, 48)]}), "fail"), "R9 說明壓鈕被抓")
+	ok(not "R9" in codes.call(LR.check({"panels": [P.call(340.0)], "texts": [{"r": Rect2(500, 300, 280, 20), "s": "說明"}], "btns": [Rect2(540, 332, 200, 48)]}), "fail"), "R9 間距 12 通過")
+	ok(not "R9" in codes.call(LR.check({"panels": [P.call(340.0)], "texts": [{"r": Rect2(360, 330, 100, 20), "s": "標籤"}], "btns": [Rect2(540, 320, 200, 48)]}), "fail"), "R9 按鈕左邊的標籤不算")
+	# R10：同欄中線差 20 失敗、0 通過
+	ok("R10" in codes.call(LR.check({"aligns": [{"id": "home", "rects": [Rect2(70, 60, 330, 80), Rect2(90, 200, 330, 60)]}]}), "fail"), "R10 主畫面左欄中線差 20 被抓")
+	ok(codes.call(LR.check({"aligns": [{"id": "home", "rects": [Rect2(80, 60, 330, 80), Rect2(80, 200, 330, 60)]}]}), "fail").is_empty(), "R10 共用中線通過")
+	# R6：留白過多只警告
+	var res6: Dictionary = LR.check({"panels": [P.call(340.0, 100.0, 600.0, 600.0)], "texts": [{"r": Rect2(560, 130, 160, 20), "s": "空"}], "btns": [Rect2(560, 200, 160, 48)]})
+	ok("R6" in codes.call(res6, "warn") and not "R6" in codes.call(res6, "fail"), "R6 內容只佔兩成：警告不失敗")
+	var res6b: Dictionary = LR.check({"panels": [P.call(340.0, 100.0, 600.0, 300.0)], "texts": [{"r": Rect2(560, 120, 160, 20), "s": "a"}], "btns": [Rect2(560, 240, 160, 48), Rect2(560, 336, 160, 48)]})
+	ok(not "R6" in codes.call(res6b, "warn"), "R6 內容填滿面板不報")
+	# R7：緞帶下短字沒置中只警告
+	ok("R7" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(380, 180, 160, 20), "s": "短"}]}), "warn"), "R7 緞帶下短字靠左警告")
+	# G 守衛：重複 ID、漏登記（零書籤）、覆蓋層沒面板、宣告的例外覆蓋層
+	ok("G" in codes.call(LR.check({"panels": [P.call(340.0), P.call(340.0)]}), "fail"), "G 重複 ID 被抓")
+	ok("G" in codes.call(LR.check({"need": {"bookmark": 1}}), "fail"), "G 大廳少了書籤（零登記）被抓")
+	ok(not "G" in codes.call(LR.check({"need": {"bookmark": 1}, "decos": [{"id": "b", "kind": "bookmark", "r": Rect2(200, 96, 20, 30), "host_r": tab, "edge": "top"}]}), "fail"), "G 有書籤就通過")
+	ok("G" in codes.call(LR.check({"overlay": "settings"}), "fail"), "G 覆蓋層沒登記面板被抓")
+	ok(not "G" in codes.call(LR.check({"overlay": "pause", "panelless_ok": true}), "fail"), "G 宣告過的無面板覆蓋層不報")
+	# R8 多欄：設定頁撤回鈕（880～990）跨進說明欄（910 起）被抓；移進中欄就通過
+	var cols := [Rect2(340, 150, 560, 560), Rect2(910, 166, 236, 470)]
+	ok("R8" in codes.call(LR.check({"aligns": [{"id": "settings", "cols": cols}], "btns": [Rect2(880, 166, 110, 46)]}), "fail"), "R8 撤回鈕跨進說明欄被抓")
+	ok(not "R8" in codes.call(LR.check({"aligns": [{"id": "settings", "cols": cols}], "btns": [Rect2(790, 166, 110, 46)]}), "fail"), "R8 撤回鈕在中欄內通過")
+	# R4 格狀排列：最後一排靠左不算群組偏心（禁用牌 20 格）；單獨一排偏心照抓
+	var grid: Array = []
+	for i in 20:
+		grid.append(Rect2(76 + (i % 7) * 162, 192 + (i / 7) * 136, 156, 130))
+	ok(not "R4" in codes.call(LR.check({"panels": [{"id": "P0", "r": Rect2(60, 66, 1160, 700), "skip": {}}], "btns": grid}), "fail"), "R4 格狀最後一排靠左不報")

@@ -1,4 +1,7 @@
 extends "res://scripts/ui/game_screens.gd"
+const LayoutRules = preload("res://scripts/ui/layout_rules.gd")
+## V1.5.2：自己畫框、不用 _panel 的覆蓋層（漏登記守衛的已知例外）
+const PANELLESS_OVERLAYS := []
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
 
@@ -335,12 +338,21 @@ func _layout_report(name: String, img: Image = null) -> void:
 			if x2.has_area() and x2.get_area() > tr.get_area() * 0.10:
 				bad.append({"type": "文字壓到按鈕", "s": t["s"], "btn": str(br)})
 				break
+	# V1.5.2 排版幾何（置中、貼齊、間距；規則代碼見 docs/ui-layout-rules.md）
+	var geo := LayoutRules.check({"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
+		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": probe_need,
+		"panelless_ok": overlay in PANELLESS_OVERLAYS})
+	for v in geo["fail"]:
+		bad.append({"type": "排版" + str(v["type"]), "id": v["id"], "s": v["s"]})
+	var geo_warn: Array = []
+	for v in geo["warn"]:
+		geo_warn.append({"type": "排版" + str(v["type"]), "id": v["id"], "s": v["s"]})
 	if TEXT_BUDGET.has(name) and int(Save.s("text_scale")) == 100 and free_n > int(TEXT_BUDGET[name]):
 		bad.append({"type": "文字段數超過上限", "n": free_n, "max": TEXT_BUDGET[name]})
 	sizes.sort()
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
-		"violations": bad, "warnings": cres["warn"]})
+		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"]})
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()
 	f.store_line(line)
@@ -594,6 +606,9 @@ func _run_screenshots() -> void:
 	await _snap("08g_settings_battle.png")
 	settings_tab = 5   # 無障礙（三個一鍵預設）
 	await _snap("08c_settings_visual.png")
+	preset_undo = {"reduce_motion": false}   # V1.5.2 L9：套用預設後「撤回」鈕出現（原本被右側說明欄蓋住）
+	await _snap("08l_settings_undo.png")
+	preset_undo = {}
 	settings_tab = 6   # 資料
 	await _snap("08h_settings_data.png")
 	settings_tab = 0
@@ -602,7 +617,23 @@ func _run_screenshots() -> void:
 	await _snap("08i_clear_data.png")
 	clear_pick = {}
 	overlay = "restore"
-	await _snap("08j_restore.png")
+	await _snap("08j_restore.png")   # V1.5.2：截圖前綴的備份資料夾＝空資料
+	# V1.5.2 滿資料：備份 10 份（假檔寫在截圖前綴的備份資料夾，截完刪掉；不碰玩家真正的備份）
+	assert(Save.prefix != "")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(backup_dir()))
+	for k in 10:
+		var bf := FileAccess.open(backup_dir() + "/progress_202611%02d_120000.json" % (k + 1), FileAccess.WRITE)
+		bf.store_string("{}")
+		bf.close()
+	await _snap("08j_restore@full.png")
+	for k in 10:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(backup_dir() + "/progress_202611%02d_120000.json" % (k + 1)))
+	# V1.5.2 確認框最長文字：一鍵預設改很多項（清單放不下時截前幾項＋「…等另外 M 項」）
+	var long_items: Array = []
+	for k in 16:
+		long_items.append("%s：%s → %s" % [L.t("set_text"), "100%", "150%"])
+	_ask_confirm(L.t("preset_q", [long_items.size()]), Callable(), "settings", long_items)
+	await _snap("08m_confirm@long.png")
 	overlay = "first_run"
 	await _snap("08k_first_run.png")
 	overlay = ""
@@ -736,6 +767,18 @@ func _shots_v4() -> void:
 	_open_lobby("ai")
 	mouse = Vector2(-100, -100)
 	await _snap("22_lobby.png")
+	# V1.5.2 空／滿資料：「我的預設」下拉 0 筆、10 筆（上限）
+	var rp_keep = Save.data.get("rule_presets", [])
+	Save.data["rule_presets"] = []
+	lobby_menu = true
+	await _snap("22c_lobby_menu@empty.png")
+	var rp10: Array = []
+	for k in Save.MAX_PRESETS:
+		rp10.append({"name": L.t("lb_my_n", [k + 1]), "code": lobby_r.to_code()})
+	Save.data["rule_presets"] = rp10
+	await _snap("22c_lobby_menu@full.png")
+	lobby_menu = false
+	Save.data["rule_presets"] = rp_keep
 	lobby_open = true
 	lobby_tab = 2
 	lobby_r.ai_pool_same = false
@@ -811,6 +854,13 @@ func _shots_v9() -> void:
 		{"units": [{"type": 3, "col": 11, "row": 1}, {"type": 9, "col": 10, "row": 4}, {"type": 7, "col": 13, "row": 4}], "losses": 1, "revenged": true, "stage": 5}]
 	overlay = "nemeses"
 	await _snap("59b_nemeses.png")
+	Save.data["nemeses"] = []   # V1.5.2 空資料：面板照內容縮高、不留 500px 空白
+	await _snap("59b_nemeses@empty.png")
+	var nem6: Array = []   # V1.5.2 滿資料：6 筆（上限）不碰返回鈕
+	for k in 6:
+		nem6.append({"units": [{"type": k, "col": 10, "row": 2}, {"type": 5, "col": 11, "row": 3}], "losses": k + 1, "revenged": k % 2 == 0, "stage": k + 1})
+	Save.data["nemeses"] = nem6
+	await _snap("59b_nemeses@full.png")
 	Save.data["nemeses"] = nem_keep
 	var pt_keep: Array = Art.paint.duplicate()   # V1.4 #15 塗裝室（藍改靛青、紅改赭橙、胡桃木座、朱漆框）
 	Art.paint[0] = 1

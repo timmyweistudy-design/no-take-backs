@@ -572,10 +572,14 @@ func _rv_play() -> void:
 func _draw_review() -> void:
 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
 	_panel(Rect2(100, 60, 1080, 680))
-	_h1(Vector2(640, 62), L.t("rv_title"))
-	_text(Vector2(640, 70 + tz("H1") * 1.3), L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint"), tz("S"), TXT_DIM, true, false, 960)
+	# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時左右兩欄一起往下（dy），不壓到「你的部署」與兵種鈕
+	var hint := L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint")
+	var hy := _h1(Vector2(640, 62), L.t("rv_title")) + GAP_L
+	_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
+	var hend := hy + text_h(hint, tz("S"), 960)
+	var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
 	var cs := 40.0
-	var g0 := Vector2(130, 168)
+	var g0 := Vector2(130, 168 + dy)
 	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
 	if rv_orig.deploy == "free":
 		_rv_free_board(g0)
@@ -615,16 +619,16 @@ func _draw_review() -> void:
 	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
 	for t in D.COUNT:
 		var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
-		var br := Rect2(bx + t * 56, 160, 52, 66)
+		var br := Rect2(bx + t * 56, 160 + dy, 52, 66)
 		_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
 		var py := br.size.y - tz("C") * 1.15 - 7   # V1.2.1：按鈕下緣有 3px 厚度，價錢要在面板內
 		Art.unit(self, br.position + Vector2(26, py - 2), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
 		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
-	_btn(Rect2(bx, 234, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
-	_btn(Rect2(bx + 282, 234, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
-	_btn(Rect2(bx, 284, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null, true)
+	_btn(Rect2(bx, 234 + dy, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
+	_btn(Rect2(bx + 282, 234 + dy, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+	_btn(Rect2(bx, 284 + dy, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null, true)
 	# 兩條戰力走勢上下對齊（同一個時間軸長度）
-	var y := 350.0
+	var y := 350.0 + dy
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
 	var b0: Array = rv_base.get("b", [100, 100])
 	_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
@@ -643,8 +647,8 @@ func _draw_review() -> void:
 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
 			y += tz("S") * 1.5
 		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)
-		_btn(Rect2(650, 684, 320, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）
-	_btn(Rect2(470 if not rv_result.is_empty() else 560, 684, 160, 44), L.t("back"), func(): overlay = "")
+		_btn(Rect2(650, 684, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+	_btn(Rect2(330 if not rv_result.is_empty() else 560, 684, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
 
 ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
 func _tm_new_ghost() -> void:

@@ -554,6 +554,7 @@ func _draw_inner() -> void:
 	probe_btns.clear()
 	probe_ctrls.clear()
 	probe_boxes.clear()
+	probe_reset_geom()
 	_probe_ui = false
 	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
 	_sync_field()

@@ -930,9 +930,11 @@ func _plan_nudge(i: int, d: int) -> void:
 ## 手把：L3 開提示、R3 開時間設定（格子部署時方向鍵是游標，進不了畫面按鈕，Codex v13-r1 #3）。
 func _draw_plan_overlay() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
-	var R := Rect2(170, 170, 940, 470)
+	# V1.5.2 L3：說明從緞帶下緣＋16、時間軸從說明下緣＋12 起；面板照內容高（約 490）、完成鈕跟面板底
+	var help := L.t("plan_help")
+	var R := modal_rect(940, 12.0 + h1_bottom(0.0) + GAP_L + text_h(help, tz("C"), 860) + GAP_M + 300.0 + GAP_XL + 44.0 + GAP_L)
 	_panel(R)
-	_h1(Vector2(640, 182), L.t("plan_title"))
-	_text(Vector2(640, 182 + tz("H1") * 1.4), L.t("plan_help"), tz("C"), TXT_DIM, true, false, 860)
-	_draw_plan_timeline(Rect2(R.position.x + 20, R.position.y + 90, R.size.x - 40, 300))
-	_btn(Rect2(560, R.end.y - 60, 160, 44), L.t("plan_done"), func(): overlay = "", true, true)
+	var ty := _h1(Vector2(640, R.position.y + 12), L.t("plan_title")) + GAP_L
+	_text(Vector2(640, ty), help, tz("C"), TXT_DIM, true, false, 860)
+	_draw_plan_timeline(Rect2(R.position.x + 20, ty + text_h(help, tz("C"), 860) + GAP_M, R.size.x - 40, 300))
+	_btn(Rect2(560, R.end.y - GAP_L - 44.0, 160, 44), L.t("plan_done"), func(): overlay = "", true, true)

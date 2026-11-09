@@ -38,17 +38,17 @@ func _draw_gauntlet_pick() -> void:
 	var last: int = _gauntlet_last_pool()
 	if last > 0 and last != opts[0][1] and last != opts[1][1]:
 		opts.append([L.t("gp_last"), last])
-	var pick_h := 160.0 + opts.size() * 128.0 + 60.0     # 第十輪 V7：面板依內容高度
-	_panel(Rect2(240, 120, 800, pick_h))
-	_h1(Vector2(640, 124), L.t("gp_title"))
-	_text(Vector2(640, 182), L.t("gp_note"), tz("S"), TXT_DIM, true)
+	# 第十輪 V7：面板依內容高度；V1.5.2 L3：說明從緞帶下緣＋16、選項從說明下緣＋16 起，面板置中
+	var GP := modal_rect(800, 4.0 + h1_help_h(L.t("gp_note"), tz("S"), 700) + opts.size() * 128.0 - 12.0 + GAP_XL + 40.0 + GAP_L)
+	_panel(GP)
+	var oy := _h1_help(Vector2(640, GP.position.y + 4), L.t("gp_title"), L.t("gp_note"), tz("S"), 700)
 	for i in opts.size():
-		var r := Rect2(280, 226 + i * 128, 720, 116)
+		var r := Rect2(280, oy + i * 128, 720, 116)
 		var pool: int = opts[i][1]
 		_btn(r, "", _start_gauntlet_with.bind(pool), true, false, TH_WOOD)
 		_text(r.position + Vector2(16, 6), opts[i][0], tz("B"), ACCENT, false, true)
 		_draw_pool_heads(r.position + Vector2(16, 44), pool, 58.0)
-	_btn(Rect2(560, 120 + pick_h - 54, 160, 40), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, GP.end.y - GAP_L - 40.0, 160, 40), L.t("back"), func(): overlay = "")
 
 
 
@@ -147,6 +147,8 @@ func _draw_save_notice() -> void:
 
 
 
+const HOME_CX := 255.0   # V1.5.2 L5：主畫面左欄中線（木牌 70～440 的中線）
+
 func _draw_title() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.06, 0.1, 0.18))
 	if overlay != "":
@@ -177,13 +179,15 @@ func _draw_title() -> void:
 	var tt: String = L.t("title")
 	var tf: Font = font_title if (font_title != null and not bool(Save.s("plain_titles"))) else font_bold
 	var tw := tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
-	if tw > 430.0:
-		tsz = int(tsz * 430.0 / tw)   # 第七輪：英文 150% 標題原本超出畫面左邊
+	# V1.5.2 L5：標題、木牌列、系統鈕共用左欄中線 HOME_CX；標題限寬算完整包絡（字寬＋木牌左右 34＋雙劍光圈 26×2），左緣距畫面邊 ≥16
+	var tmax := 2.0 * (HOME_CX - 16.0) - 68.0 - 52.0
+	if tw > tmax:
+		tsz = int(tsz * tmax / tw)   # 第七輪：英文 150% 標題原本超出畫面左邊
 		tw = tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
-	var tp := Vector2(235 - tw / 2, 40 + bob + tsz * 0.85)
+	var tp := Vector2(HOME_CX - tw / 2, 40 + bob + tsz * 0.85)
 	# V1.2 G：標題墊一塊木牌（木紋、銅釘框）＋兩側交叉雙劍，像掛在營帳前的招牌
 	if not bool(Save.s("plain_ui")):
-		var plq := Rect2(235 - tw / 2 - 34, tp.y - tsz * 0.92, tw + 68, tsz * 1.16)
+		var plq := Rect2(HOME_CX - tw / 2 - 34, tp.y - tsz * 0.92, tw + 68, tsz * 1.16)
 		if _tex_box(plq, "wood", Color(0.62, 0.42, 0.26)):
 			_wood_frame(plq, 6.0, "title_frame")
 			for sx in [plq.position.x - 4, plq.end.x + 4]:
@@ -195,9 +199,9 @@ func _draw_title() -> void:
 	draw_string_outline(tf, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, 5, Color("#b8860b"))
 	draw_string(tf, tp, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, Color("#ffe8a3"))
 	var ty := 40.0 + tsz * 1.2
-	_text(Vector2(235, ty), L.t("title_alt"), tz("B"), Color(1, 1, 1, 0.85), true, false, 420)
+	_text(Vector2(HOME_CX, ty), L.t("title_alt"), tz("B"), Color(1, 1, 1, 0.85), true, false, 420)
 	ty += tz("B") * 1.4
-	_text(Vector2(235, ty), L.t("subtitle"), tz("S"), TXT_DIM, true, false, 420)
+	_text(Vector2(HOME_CX, ty), L.t("subtitle"), tz("S"), TXT_DIM, true, false, 420)
 	ty += text_h(L.t("subtitle"), tz("S"), 420) + 18
 	var y0 := maxf(230.0, ty)
 	# V1.5：主畫面整理成五塊大木牌（對戰、遠征、挑戰、遊戲間、收藏）＋一排系統小鈕；點木牌在右邊攤開第二層卡片
@@ -220,7 +224,9 @@ func _draw_title() -> void:
 		var on := not _demo() or bool(pq[4])
 		_btn(mr2, "", pq[3], on, i == 0 and fresh)
 		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else Color(1, 1, 1, 0.35))
-		Art.unit(self, mr2.position + Vector2(34, 54), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72, cbm())
+		# V1.5.2 L5：小人照木牌內容區定位（150% 只放名稱時木牌變矮，腳點不再寫死 y+54 而掉出木牌）
+		var foot := minf(54.0, ph - 6.0)
+		Art.unit(self, mr2.position + Vector2(34, foot), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72 * minf(1.0, foot / 54.0), cbm())
 		var tcol: Color = Color.WHITE if on else TXT_DIM
 		var tag := home_tag(i)
 		var tw2 := (_width(tag, tz("C"), true) + 24.0) if tag != "" else 0.0
@@ -242,6 +248,7 @@ func _draw_title() -> void:
 	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): get_tree().quit()]]
 	for i in sys.size():
 		_btn(Rect2(70 + i * 126, y2, 118, 40), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
+	probe_align("home_col", [Rect2(HOME_CX - tw / 2 - 60, 40, tw + 120, tsz), Rect2(70, y0, PW, 5 * (ph + gap)), Rect2(70, y2, 2 * 126 + 118, 40)])
 	# 底部：最佳紀錄、版本
 	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), TXT_DIM, false, false, 380)
 
@@ -260,6 +267,7 @@ func _draw_overlay() -> void:
 		probe_texts.clear()   # 第五輪：底下畫面的字被遮罩蓋住，版面檢查只量覆蓋層本身
 		probe_btns.clear()
 		probe_ctrls.clear()
+		probe_reset_geom()
 		if state == St.TITLE:
 			draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.72))   # 第七輪：標題的示範戰場不透出來
 	match overlay:
@@ -306,22 +314,27 @@ func _draw_overlay() -> void:
 		"ai_busy":
 			_draw_busy(-1)
 		"codes":
-			_panel(Rect2(340, 210, 600, 400))
-			_h1(Vector2(640, 214), L.t("menu_codes"))
-			_text(Vector2(640, 276), L.t("codes_hint"), tz("S"), TXT_DIM, true, false, 540)
+			# V1.5.2 L11：說明從緞帶下緣＋16、按鈕從說明實高＋16 起；面板照內容高
+			var ch_h := h1_help_h(L.t("codes_hint"), tz("S"), 540)
+			var CP := modal_rect(600, 4.0 + ch_h + 56.0 + GAP_M + 50.0 + GAP_S + 44.0 + GAP_XL + 44.0 + GAP_L)
+			_panel(CP)
+			var cy := _h1_help(Vector2(640, CP.position.y + 4), L.t("menu_codes"), L.t("codes_hint"), tz("S"), 540)
 			# V1.5.1：一鍵貼上自動辨識（對戰、規則、挑戰、殘局、設定碼）；原本三顆分開的鈕留著
-			_btn(Rect2(380, 330, 520, 56), L.t("code_auto"), func(): _auto_code(), true, true)
-			_btn(Rect2(380, 398, 250, 50), L.t("bc_watch"), func(): overlay = ""; _watch_battle_code())
-			_btn(Rect2(650, 398, 250, 50), L.t("ch_accept"), func(): overlay = ""; _accept_challenge())
-			_btn(Rect2(380, 456, 520, 44), L.t("ws_accept"), func(): overlay = ""; call("_accept_workshop"))   # V1.1 D3
-			_btn(Rect2(560, 546, 160, 44), L.t("back"), func(): overlay = "")
+			_btn(Rect2(380, cy, 520, 56), L.t("code_auto"), func(): _auto_code(), true, true)
+			_btn(Rect2(380, cy + 68, 250, 50), L.t("bc_watch"), func(): overlay = ""; _watch_battle_code())
+			_btn(Rect2(650, cy + 68, 250, 50), L.t("ch_accept"), func(): overlay = ""; _accept_challenge())
+			_btn(Rect2(380, cy + 126, 520, 44), L.t("ws_accept"), func(): overlay = ""; call("_accept_workshop"))   # V1.1 D3
+			_btn(Rect2(560, CP.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 		"gauntlet_resume":
-			_panel(Rect2(340, 250, 600, 300))
-			_h1(Vector2(640, 254), L.t("menu_gauntlet"))
-			_text(Vector2(640, 320), L.t("gr_body", [int(Save.data["gauntlet_run"]["stage"])]), tz("B"), Color.WHITE, true, true, 540)
-			_btn(Rect2(380, 380, 520, 52), L.t("gr_go"), func(): call("_gauntlet_resume"), true, true)
-			_btn(Rect2(380, 442, 250, 44), L.t("gr_new"), func(): _enter_gauntlet_new())
-			_btn(Rect2(650, 442, 250, 44), L.t("back"), func(): overlay = "")
+			var gb := L.t("gr_body", [int(Save.data["gauntlet_run"]["stage"])])
+			var GP := modal_rect(600, 4.0 + h1_bottom(0.0) + GAP_L + text_h(gb, tz("B"), 540, true) + GAP_L + 52.0 + 10.0 + 44.0 + GAP_L)
+			_panel(GP)
+			var gy := _h1(Vector2(640, GP.position.y + 4), L.t("menu_gauntlet")) + GAP_L   # V1.5.2 L3
+			_text(Vector2(640, gy), gb, tz("B"), Color.WHITE, true, true, 540)
+			gy += text_h(gb, tz("B"), 540, true) + GAP_L
+			_btn(Rect2(380, gy, 520, 52), L.t("gr_go"), func(): call("_gauntlet_resume"), true, true)
+			_btn(Rect2(380, gy + 62, 250, 44), L.t("gr_new"), func(): _enter_gauntlet_new())
+			_btn(Rect2(650, gy + 62, 250, 44), L.t("back"), func(): overlay = "")
 		"pause_menu":
 			_draw_pause_menu()
 		"confirm":
@@ -331,12 +344,13 @@ func _draw_overlay() -> void:
 		"wave_codes":
 			# V1.5.1 D1：車輪戰代碼：選看第幾波
 			var wl: Array = get("wv_view")
-			_panel(Rect2(390, 250, 500, 160 + wl.size() * 60))
-			_h1(Vector2(640, 254), L.t("wv_pick"))
+			var WP := modal_rect(500, 4.0 + h1_bottom(0.0) + GAP_L + wl.size() * 60.0 - 10.0 + GAP_XL + 44.0 + GAP_L)
+			_panel(WP)
+			var wy := _h1(Vector2(640, WP.position.y + 4), L.t("wv_pick")) + GAP_L   # V1.5.2 L3
 			for i in wl.size():
 				var cw: String = wl[i]
-				_btn(Rect2(440, 320 + i * 60, 400, 50), L.t("wv_wave_n", [i + 1]), func(): overlay = ""; call("_watch_code_str", cw), true, i == 0)
-			_btn(Rect2(560, 330 + wl.size() * 60, 160, 44), L.t("back"), func(): overlay = "codes")
+				_btn(Rect2(440, wy + i * 60, 400, 50), L.t("wv_wave_n", [i + 1]), func(): overlay = ""; call("_watch_code_str", cw), true, i == 0)
+			_btn(Rect2(560, WP.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "codes")
 		"leave":
 			_panel(Rect2(340, 270, 600, 260))
 			_text(Vector2(640, 294), L.t("leave_title"), tz("H2"), Color.WHITE, true, true, 540)
@@ -349,9 +363,12 @@ func _draw_overlay() -> void:
 			var chap: Array = PZ.chapter(puzzle_tab + 1)
 			var list: Array = PZ.tutorials() if tut else chap
 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
-			_panel(Rect2(240, 110, 800, 580))
-			_h1(Vector2(640, 110), L.t("menu_tutorial") if tut else L.t("puzzle_title"), 600)   # V1.2：和圖鑑、大廳同款標題緞帶（Antigravity impl3）
+			# V1.5.2 L10：面板上移 20（底不變），章節切換列從緞帶完整下緣＋16 起排（150% 原本緞帶尾壓到切換鈕）
+			_panel(Rect2(240, 90, 800, 600))
+			probe_skip("R4", "三段式底列：左＝總星數文字、中＝返回（置中）、右＝只看未滿星開關")
+			var hb := _h1(Vector2(640, 90), L.t("menu_tutorial") if tut else L.t("puzzle_title"), 600)   # V1.2：和圖鑑、大廳同款標題緞帶（Antigravity impl3）
 			var y0 := 210.0
+			var cy := hb + GAP_L
 			var idx: Array = []
 			for i0 in list.size():
 				idx.append(i0)
@@ -365,12 +382,12 @@ func _draw_overlay() -> void:
 					all_total += int(stars.get(pz1["id"], 0))
 				var info := PZ.chapter_info(puzzle_tab + 1)
 				var cname: String = L.field(info, "")
-				_btn(Rect2(280, 158, 48, 40), "◀", func(): puzzle_tab = wrapi(puzzle_tab - 1, 0, PZ.CHAPTERS), puzzle_tab > 0 and not _demo())
-				_btn(Rect2(952, 158, 48, 40), "▶", func(): puzzle_tab = wrapi(puzzle_tab + 1, 0, PZ.CHAPTERS), puzzle_tab < PZ.CHAPTERS - 1 and not _demo())
-				_text(Vector2(640, 162), L.t("chapter_head", [puzzle_tab + 1, cname, total, chap.size() * 3]), tz("B"), ACCENT, true, true, 600)
+				_btn(Rect2(280, cy, 48, 40), "◀", func(): puzzle_tab = wrapi(puzzle_tab - 1, 0, PZ.CHAPTERS), puzzle_tab > 0 and not _demo())
+				_btn(Rect2(952, cy, 48, 40), "▶", func(): puzzle_tab = wrapi(puzzle_tab + 1, 0, PZ.CHAPTERS), puzzle_tab < PZ.CHAPTERS - 1 and not _demo())
+				_text(Vector2(640, cy + 4), L.t("chapter_head", [puzzle_tab + 1, cname, total, chap.size() * 3]), tz("B"), ACCENT, true, true, 600)
 				var story: String = L.field(info, "story")
-				_text(Vector2(640, 162 + tz("B") * 1.5), story, tz("C"), TXT_DIM, true, false, 700)
-				y0 = 162 + tz("B") * 1.5 + text_h(story, tz("C"), 700) + 10
+				_text(Vector2(640, cy + 4 + tz("B") * 1.5), story, tz("C"), TXT_DIM, true, false, 700)
+				y0 = cy + 4 + tz("B") * 1.5 + text_h(story, tz("C"), 700) + GAP_M
 				_text(Vector2(280, 648), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), TXT_DIM, false, false, 260)
 				_btn(Rect2(800, 640, 200, 36), ("✓ " if puzzle_only_open else "") + L.t("puzzle_only_open"), func(): puzzle_only_open = not puzzle_only_open)
 				if puzzle_only_open:
@@ -660,9 +677,16 @@ func _draw_pause_menu() -> void:
 		_btn(Rect2(P.position.x + 50, y, 300, 52), it[0], it[1], true, it[2])
 		y += 66
 
+const SET_COL := Rect2(340, 150, 560, 560)    # 設定頁中央操作欄
+const SET_DESC := Rect2(910, 166, 236, 470)   # 設定頁右側說明欄
+
 func _draw_settings() -> void:
 	_panel(Rect2(110, 96, 1060, 628))
-	_h1(Vector2(640, 100), L.t("settings_title"))
+	# V1.5.2 L8／L9：三欄畫面。左＝分頁、中＝操作欄（340～900，中線 620）、右＝說明欄；底部按鈕以中欄中線置中，
+	# 預設三鈕＋撤回整組放在中欄內（撤回原本 880～990 被說明欄蓋住 80px）
+	probe_axis(SET_COL.get_center().x)
+	probe_columns("settings", [Rect2(110, 150, 230, 560), SET_COL, SET_DESC])
+	_h1(Vector2(640, 96), L.t("settings_title"))
 	for i in SET_TABS:
 		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
@@ -678,10 +702,11 @@ func _draw_settings() -> void:
 	if settings_tab == 5:
 		# 一鍵預設（可疊加；套用後可撤回）
 		var pk := ["preset_vis", "preset_motion", "preset_load"]
+		var pw := (SET_COL.size.x - 3 * 8.0 - 110.0) / 3.0
 		for k in 3:
-			_btn(Rect2(346 + k * 178, y0, 170, 46), L.t(pk[k]), _apply_preset.bind(k), true, false, Color(0.2, 0.36, 0.5))
+			_btn(Rect2(SET_COL.position.x + k * (pw + 8.0), y0, pw, 46), L.t(pk[k]), _apply_preset.bind(k), true, false, Color(0.2, 0.36, 0.5))
 		if not preset_undo.is_empty():
-			_btn(Rect2(346 + 3 * 178, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
 		y0 += 60.0
 	var rows: Array = _settings_rows()
 	for i in rows.size():
@@ -704,7 +729,7 @@ func _draw_settings() -> void:
 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
 			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
 	# 說明欄
-	var D0 := Rect2(910, 166, 236, 470)
+	var D0 := SET_DESC
 	draw_rect(D0, Color(0, 0, 0, 0.25))
 	var key: String = settings_item if settings_item != "" else (rows[0][0] if not rows.is_empty() else "")
 	if key != "":
@@ -718,8 +743,9 @@ func _draw_settings() -> void:
 			# V1.5.1：戰鬥中打開設定，標出這一項什麼時候生效
 			var nxt: bool = key in NEXT_GAME_KEYS
 			_text(D0.position + Vector2(14, dy + text_h(L.t("sd_" + key), tz("S"), D0.size.x - 28) + 10), L.t("set_when_next") if nxt else L.t("set_when_now"), tz("S"), ACCENT if nxt else Color("#7dff8a"), false, true, D0.size.x - 28)
-	_btn(Rect2(560, 662, 160, 44), L.t("back"), func(): _settings_close())
-	_btn(Rect2(380, 662, 160, 44), L.t("menu_credits"), func(): _nav_push("settings"); _open("credits"))
+	var cxm := SET_COL.get_center().x
+	_btn(Rect2(cxm - 170, 662, 160, 44), L.t("menu_credits"), func(): _nav_push("settings"); _open("credits"))
+	_btn(Rect2(cxm + 10, 662, 160, 44), L.t("back"), func(): _settings_close())
 
 
 ## ── V1.5 一鍵無障礙預設：直接改原本的設定（可疊加），存一份改之前的值讓「撤回」用 ──
@@ -742,7 +768,7 @@ func _apply_preset(k: int) -> void:
 	if names.is_empty():
 		_toast(L.t("preset_done", [0]))
 		return
-	_ask_confirm(L.t("preset_q", [names.size()]) + "\n" + "\n".join(names.slice(0, 6)), func(): _apply_preset_now(k), overlay if overlay != "" else "settings")   # 第一次啟動頁按的預設，確認後回第一次啟動頁（Antigravity v151-i2 #3）
+	_ask_confirm(L.t("preset_q", [names.size()]), func(): _apply_preset_now(k), overlay if overlay != "" else "settings", names)   # V1.5.2 L4：傳完整清單，確認框依實高截   # 第一次啟動頁按的預設，確認後回第一次啟動頁（Antigravity v151-i2 #3）
 
 static func _val_str(v) -> String:
 	if v is bool:
@@ -818,41 +844,69 @@ func _settings_import() -> void:
 	# 先預覽：會改幾項、哪幾項，確認才套用
 	var names: Array = []
 	for k in ch:
-		if names.size() < 6 and L.has("set_" + k):
+		if L.has("set_" + k):
 			names.append(L.t("set_" + k))
-	_ask_confirm(L.t("import_q", [ch.size()]) + ("\n" + "、".join(names) if not names.is_empty() else ""), func():
+	_ask_confirm(L.t("import_q", [ch.size()]), func():
 		var fp0 = Save.s("fullscreen")
 		Save.set_settings(ch)
 		_apply_all_settings()
 		_toast(L.t("set_imported", [ch.size()]))
-		_guard_fs(fp0), overlay if overlay != "" else "settings")   # 從「代碼」頁貼的設定碼，確認後回代碼頁
+		_guard_fs(fp0), overlay if overlay != "" else "settings", names, "、")   # 從「代碼」頁貼的設定碼，確認後回代碼頁
 
 ## V1.5 通用確認框：覆蓋存檔、匯入設定這類動作先問一次。
+## V1.5.2 L4：msg＝動作、對象、風險（一定完整顯示）；items＝附加清單（放不下時截前 N 項＋「…等另外 M 項」）。
+## 面板高＝文字實高＋間距＋按鈕＋內距，最高到畫面可用高；水平置中。
 var confirm_msg := ""
+var confirm_items: Array = []
+var confirm_sep := "\n"
 var confirm_cb := Callable()
 var confirm_ret := ""
+const CONFIRM_MAX_H := 600.0
 
-func _ask_confirm(msg: String, cb: Callable, ret: String) -> void:
+func _ask_confirm(msg: String, cb: Callable, ret: String, items: Array = [], sep := "\n") -> void:
 	confirm_msg = msg
+	confirm_items = items.duplicate()
+	confirm_sep = sep
 	confirm_cb = cb
 	confirm_ret = ret
 	overlay = "confirm"
 	_focus = 1
 
+## 確認框實際要畫的字：清單從全部開始，放不下就一項一項減，最後補「…等另外 M 項」（純排版，測試用）
+func confirm_text() -> String:
+	var n := confirm_items.size()
+	while true:
+		var t := confirm_msg
+		if n > 0:
+			t += "\n" + confirm_sep.join(confirm_items.slice(0, n))
+		if n < confirm_items.size():
+			t += ("\n" if confirm_sep == "\n" else confirm_sep) + L.t("confirm_more", [confirm_items.size() - n])
+		if n == 0 or 40.0 + text_h(t, fit(t, tz("B"), 540), 540) + GAP_XL + 50.0 + 22.0 <= CONFIRM_MAX_H:
+			return t
+		n -= 1
+	return confirm_msg
+
 func _draw_confirm() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(340, 250, 600, 300)
+	var t := confirm_text()
+	var sz := fit(t, tz("B"), 540)   # _text 會先在字級表內縮到放得下最長一行，高度要用縮完的字級算
+	var P := modal_rect(600, maxf(220.0, 40.0 + text_h(t, sz, 540) + GAP_XL + 50.0 + 22.0))
 	_panel(P)
-	_text(Vector2(640, P.position.y + 40), confirm_msg, tz("B"), Color.WHITE, true, false, 540)
+	_text(Vector2(640, P.position.y + 40), t, sz, Color.WHITE, true, false, 540)
 	_btn(Rect2(380, P.end.y - 72, 250, 50), L.t("ok_go"), func():
 		overlay = confirm_ret
 		if confirm_cb.is_valid():
 			confirm_cb.call(), true, false, Color(0.55, 0.16, 0.12))
 	_btn(Rect2(650, P.end.y - 72, 250, 50), L.t("cancel"), func(): overlay = confirm_ret, true, true)
 
+## V1.5.2：備份資料夾跟著存檔前綴（截圖、測試模式用 shot_／smoke_，不碰玩家真正的備份）。
+## 正式遊戲前綴是空的＝仍是 user://backup，舊備份照樣讀得到；不用 file_prefix()（含 demo_，試玩版舊備份會找不到）。
+static func backup_dir() -> String:
+	return "user://%sbackup" % Save.prefix
+
 static func backup_list() -> Array:
 	var out: Array = []
-	var dir := DirAccess.open("user://backup")
+	var dir := DirAccess.open(backup_dir())
 	if dir == null:
 		return out
 	for f in dir.get_files():
@@ -863,15 +917,15 @@ static func backup_list() -> Array:
 	return out
 
 func _progress_backup() -> bool:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://backup"))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(backup_dir()))
 	var dt := Time.get_datetime_dict_from_system()
 	var base := "progress_%04d%02d%02d_%02d%02d%02d" % [dt["year"], dt["month"], dt["day"], dt["hour"], dt["minute"], dt["second"]]
 	var name := base + ".json"
 	var k := 2
-	while FileAccess.file_exists("user://backup/" + name):
+	while FileAccess.file_exists(backup_dir() + "/" + name):
 		name = "%s_%02d.json" % [base, k]   # 兩位數流水號：字串排序＝時間順序（Codex v150-f3 #3）   # 同一秒連按：不蓋掉前一份（Codex v150-i2 #3）
 		k += 1
-	var f := FileAccess.open("user://backup/" + name, FileAccess.WRITE)
+	var f := FileAccess.open(backup_dir() + "/" + name, FileAccess.WRITE)
 	if f == null:
 		_toast(L.t("backup_fail"), true)
 		return false
@@ -883,12 +937,12 @@ func _progress_backup() -> bool:
 		return false
 	var lst := backup_list()
 	while lst.size() > 10:   # 最多留 10 份
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://backup/" + str(lst.pop_back())))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(backup_dir() + "/" + str(lst.pop_back())))
 	_toast(L.t("backup_done", [name]))
 	return true
 
 func _progress_restore(name: String) -> void:
-	var f := FileAccess.open("user://backup/" + name, FileAccess.READ)
+	var f := FileAccess.open(backup_dir() + "/" + name, FileAccess.READ)
 	if f == null:
 		_toast(L.t("backup_fail"), true)
 		return
@@ -937,28 +991,28 @@ func _after_data_swap() -> void:
 
 func _draw_restore() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(330, 60, 620, 690)
-	_panel(P)
-	_h1(Vector2(640, 72), L.t("set_restore"))
-	_text(Vector2(640, 72 + tz("H1") * 1.5), L.t("restore_help"), tz("S"), TXT_DIM, true, false, 560)
-	var ry := maxf(150.0, 72 + tz("H1") * 1.5 + text_h(L.t("restore_help"), tz("S"), 560) + 12.0)
+	# V1.5.2 L3／L7：說明從緞帶下緣＋16 起、面板高度照內容（沒有備份時不留 500px 空白）、水平置中
 	var lst := backup_list()
+	var n := mini(10, lst.size())   # 留的 10 份都選得到
+	var body := (n * 48.0 - 4.0) if n > 0 else text_h(L.t("restore_none"), tz("B"), 560)
+	var P := modal_rect(620, 12.0 + h1_help_h(L.t("restore_help"), tz("S"), 560) + body + GAP_XL + 44.0 + GAP_L)
+	_panel(P)
+	var ry := _h1_help(Vector2(640, P.position.y + 12), L.t("set_restore"), L.t("restore_help"), tz("S"), 560)
 	if lst.is_empty():
-		_text(Vector2(640, 330), L.t("restore_none"), tz("B"), TXT_DIM, true, false, 560)
-	for i in mini(10, lst.size()):   # 留的 10 份都選得到
+		_text(Vector2(640, ry), L.t("restore_none"), tz("B"), TXT_DIM, true, false, 560)
+	for i in n:
 		var nm: String = lst[i]
 		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
-	_btn(Rect2(560, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = "settings")
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
 
 const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(330, 150, 620, 500)
+	# V1.5.2 L3／L7／L8：說明從緞帶下緣＋16 起、面板照內容高、底部雙按鈕同寬置中
+	var P := modal_rect(620, 12.0 + h1_help_h(L.t("clear_help"), tz("S"), 560) + CLEAR_KEYS.size() * 58.0 - 8.0 + GAP_XL + 44.0 + GAP_L)
 	_panel(P)
-	_h1(Vector2(640, 162), L.t("set_clear"))
-	_text(Vector2(640, 162 + tz("H1") * 1.5), L.t("clear_help"), tz("S"), TXT_DIM, true, false, 560)
-	var cy := maxf(250.0, 162 + tz("H1") * 1.5 + text_h(L.t("clear_help"), tz("S"), 560) + 14.0)   # 說明換兩行時按鈕往下
+	var cy := _h1_help(Vector2(640, P.position.y + 12), L.t("set_clear"), L.t("clear_help"), tz("S"), 560)
 	for i in CLEAR_KEYS.size():
 		var on := bool(clear_pick.get(i, false))
 		var ii := i
@@ -966,8 +1020,9 @@ func _draw_clear_data() -> void:
 	var any := false
 	for k in clear_pick:
 		any = any or bool(clear_pick[k])
-	_btn(Rect2(380, P.end.y - 60, 250, 44), L.t("clear_go"), func(): _clear_data(), any, false, Color(0.55, 0.16, 0.12))
-	_btn(Rect2(650, P.end.y - 60, 250, 44), L.t("back"), func(): overlay = "settings")
+	var by := P.end.y - GAP_L - 44.0
+	_btn(Rect2(380, by, 250, 44), L.t("clear_go"), func(): _clear_data(), any, false, Color(0.55, 0.16, 0.12))
+	_btn(Rect2(650, by, 250, 44), L.t("back"), func(): overlay = "settings")
 
 func _clear_data() -> void:
 	if Save.data_locked or state != St.TITLE:
@@ -1191,13 +1246,18 @@ func _draw_hub(kind: String) -> void:
 	for it0 in items:
 		ch = maxf(ch, 82.0 + tz("B") * 1.6 + text_h(L.t(str(it0[1])), tz("C"), cw - 32) + 14.0)
 	var rows := ceili(items.size() / float(cols))
-	var ph := 80.0 + rows * (ch + 14.0) + 70.0
-	var P := Rect2(430, clampf((800.0 - ph) * 0.5, 16.0, 120.0), 800, maxf(ph, 300.0))
+	# V1.5.2 L1：模態面板水平置中；卡片群在面板內置中；卡片從緞帶完整下緣＋GAP_L 起排
+	var head := ceilf(h1_bottom(12.0) + GAP_L)
+	var ph := head + rows * (ch + 14.0) - 14.0 + GAP_L + 44.0 + GAP_L
+	var pw := 800.0
+	var P := Rect2((1280.0 - pw) * 0.5, clampf((800.0 - ph) * 0.5, 16.0, 120.0), pw, maxf(ph, 300.0))
 	_panel(P)
 	_h1(Vector2(P.get_center().x, P.position.y + 12), L.t({"hub_play": "home_play", "hub_challenge": "home_challenge", "hub_collect": "home_collect"}.get(kind, "home_play")))
+	var ncol := mini(cols, items.size())
+	var gx := P.position.x + (P.size.x - (ncol * cw + (ncol - 1) * 14.0)) * 0.5
 	for i in items.size():
 		var it: Array = items[i]
-		var r := Rect2(P.position.x + 30 + (i % cols) * (cw + 14), P.position.y + 80 + (i / cols) * (ch + 14), cw, ch)
+		var r := Rect2(gx + (i % cols) * (cw + 14), P.position.y + head + (i / cols) * (ch + 14), cw, ch)
 		btn_paper = true
 		var cb: Callable = it[3]
 		_btn(r, "", func(): _nav_push(kind); nav_hub = kind; cb.call(), bool(it[4]), i == 0)
@@ -1209,7 +1269,7 @@ func _draw_hub(kind: String) -> void:
 		_text(r.position + Vector2(cw / 2, 78), L.t(str(it[0])), tz("B"), tc2, true, true, cw - 20)
 		_text(r.position + Vector2(16, 82 + tz("B") * 1.6), L.t(str(it[1])), tz("C"), tc2, false, false, cw - 32)
 		_ink_mode = false
-	_btn(Rect2(P.get_center().x - 80, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
+	_btn(Rect2(P.get_center().x - 80, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
 
 
 ## ── V1.5 設定套用：總音量、夜間模式（壓縮器）、單聲道（立體聲收成中間）；幀率、垂直同步 ──
@@ -1240,29 +1300,29 @@ func _apply_display() -> void:
 ## ── V1.5 第一次啟動：主選單前先問語言、字級、無障礙預設（可跳過；XAG：先讓玩家能讀得懂再進遊戲）──
 func _draw_first_run() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.06, 0.04, 0.03, 0.92))
-	var P := Rect2(240, 90, 800, 620)
+	# V1.5.2 L3／L7：內容從緞帶下緣＋16 起；面板照內容高（說明到開始鈕不再空 190px）；三排按鈕各自置中
+	var P := modal_rect(800, 12.0 + h1_bottom(0.0) + GAP_L + 3.0 * below_head(tz("B")) + 200.0 + text_h(L.t("fr_later"), tz("S"), 700) + GAP_XL + 48.0 + GAP_L)
 	_panel(P)
-	_h1(Vector2(640, 102), L.t("fr_title"))
-	var y := 102.0 + tz("H1") * 1.8
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("fr_title")) + GAP_L
 	_text(Vector2(640, y), L.t("fr_lang"), tz("B"), Color.WHITE, true, true, 700)
-	y += tz("B") * 1.6
+	y += below_head(tz("B"))
 	for i in L.LANGS.size():
 		var lg: String = L.LANGS[i]
-		_btn(Rect2(290 + i * 178, y, 168, 48), L.lang_name_of(lg), func(): Save.set_setting("lang", lg); L.lang = lg; _load_fonts(), true, false, TH_ACTIVE if L.lang == lg else Color(0, 0, 0, 0))
+		_btn(Rect2(640.0 - (L.LANGS.size() * 178.0 - 10.0) / 2.0 + i * 178, y, 168, 48), L.lang_name_of(lg), func(): Save.set_setting("lang", lg); L.lang = lg; _load_fonts(), true, false, TH_ACTIVE if L.lang == lg else Color(0, 0, 0, 0))
 	y += 70.0
 	_text(Vector2(640, y), L.t("fr_text"), tz("B"), Color.WHITE, true, true, 700)
-	y += tz("B") * 1.6
+	y += below_head(tz("B"))
 	for i in 3:
 		var ts0: int = [100, 125, 150][i]
-		_btn(Rect2(340 + i * 206, y, 190, 48), "%d%%" % ts0, func(): Save.set_setting("text_scale", ts0), true, false, TH_ACTIVE if int(Save.s("text_scale")) == ts0 else Color(0, 0, 0, 0))
+		_btn(Rect2(339 + i * 206, y, 190, 48), "%d%%" % ts0, func(): Save.set_setting("text_scale", ts0), true, false, TH_ACTIVE if int(Save.s("text_scale")) == ts0 else Color(0, 0, 0, 0))
 	y += 70.0
 	_text(Vector2(640, y), L.t("fr_access"), tz("B"), Color.WHITE, true, true, 700)
-	y += tz("B") * 1.6
+	y += below_head(tz("B"))
 	var pk := ["preset_vis", "preset_motion", "preset_load"]
 	for k in 3:
 		var kk := k
-		_btn(Rect2(290 + k * 238, y, 226, 48), L.t(pk[k]), func(): _apply_preset(kk), true, false, Color(0.2, 0.36, 0.5))
+		_btn(Rect2(289 + k * 238, y, 226, 48), L.t(pk[k]), func(): _apply_preset(kk), true, false, Color(0.2, 0.36, 0.5))
 	y += 60.0
 	_text(Vector2(640, y), L.t("fr_later"), tz("S"), TXT_DIM, true, false, 700)
-	_btn(Rect2(560, P.end.y - 64, 160, 48), L.t("fr_go"), func(): Save.set_setting("first_done", true); overlay = "", true, true)
+	_btn(Rect2(560, P.end.y - GAP_L - 48.0, 160, 48), L.t("fr_go"), func(): Save.set_setting("first_done", true); overlay = "", true, true)
 
