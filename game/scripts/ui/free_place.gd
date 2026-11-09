@@ -15,6 +15,7 @@ var fp_stroke: Array = []      # 預覽中的點 [type, x, y]
 var fp_stroking := false
 var fp_line := false           # 這一筆是直線
 var fp_press_p := Vector2.ZERO  # V1.5.1：按下的畫面位置（分辨點一下和拖曳）
+var fp_moved := false            # 這次按下之後拖出去過（拖回原點也不算點一下）
 var fp_start := Vector2i.ZERO  # 直線起點（世界座標）
 var fp_last := Vector2i.ZERO   # 畫筆上一個取樣點
 var fp_full := false           # 錢／人數／這一手用完（後面的點截斷）
@@ -332,6 +333,7 @@ func _fp_press(p: Vector2, w: Vector2i, box: bool) -> void:
 		fp_drag = hit
 		fp_drag_from = a.pos_of(a.units[hit])
 		fp_press_p = p
+		fp_moved = false
 		if not hit in fp_sel:
 			fp_sel = []
 		return
@@ -366,7 +368,7 @@ func _fp_release(p: Vector2, w: Vector2i) -> bool:
 			a.units.remove_at(i)
 			fp_sel = []
 			return true
-		if not group and Save.s("place_mode") == "tap" and p.distance_to(fp_press_p) < 10.0:
+		if not group and Save.s("place_mode") == "tap" and not fp_moved and p.distance_to(fp_press_p) < 10.0:
 			# V1.5.1 C4：只點選模式點一下自己的兵＝拿掉（可以復原；Codex v151-i2 #3）
 			_fp_push_undo()
 			a.units.remove_at(i)
@@ -414,6 +416,8 @@ func _fp_scr(w: Vector2i) -> Vector2:
 func _fp_motion(p: Vector2) -> void:
 	if not _is_free():
 		return
+	if fp_drag >= 0 and p.distance_to(fp_press_p) >= 10.0:
+		fp_moved = true
 	var w := _w_of(p)
 	if fp_stroking:
 		_fs_extend(w)

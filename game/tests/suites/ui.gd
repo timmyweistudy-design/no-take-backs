@@ -1350,6 +1350,15 @@ func test_free_tap_remove_v151() -> void:
 	var n1: int = a.units.size()
 	var info := "hit=%d drag=%d n1=%d infield=%s" % [hit0, drag0, n1, str(g._fp_in_field(p + Vector2(30, 0)))]
 	if n1 == 1:
+		# 拖遠再拖回按下的位置放開：不算點一下，兵還在
+		var p1: Vector2 = g._fld_xf() * g._s_of(a.pos_of(a.units[0])) + Vector2(0, -20)
+		g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": p1})
+		g._paint_cmd(p1 + Vector2(80, 0))
+		g._paint_cmd(p1)
+		g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": p1})
+		info += " 往返後=%d" % a.units.size()
+		n1 = a.units.size()
+	if n1 == 1:
 		var p2: Vector2 = g._fld_xf() * g._s_of(a.pos_of(a.units[0])) + Vector2(0, -20)
 		g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": p2})
 		g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": p2})

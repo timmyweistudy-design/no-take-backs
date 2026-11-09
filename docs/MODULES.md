@@ -38,7 +38,7 @@
 | `presets.gd` | 130 | 第十輪 R1：試玩版開放的地圖（平原、雙橋河谷、冰湖雪原）與試煉（第 1、3 關）、殘局前 5 關。 |
 | `puzzles.gd` | 347 | 教學與殘局關卡資料（data/puzzles.json）。 |
 | `roster.gd` | 23 | 兵種開放（第十一輪）：不靠場數解鎖，正式版一開始 20 種全部能用。 |
-| `save.gd` | 484 | 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。 |
+| `save.gd` | 508 | 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。 |
 | `sfx.gd` | 286 | 音效與音樂（優化方案 H）：同類音效 80ms 內最多 2 個、音高 ±10% 隨機；音樂與音效分軌。 |
 | `steam.gd` | 239 | Steam 介面封裝（優化方案 N）：有 GodotSteam（Engine 單例 "Steam"）就用，沒有就只記在本機存檔。 |
 | `strings.gd` | 105 | 字串表（優化方案 I）：data/strings.csv，欄位 key,zh_TW,en。所有畫面文字都從這裡來，不寫死在程式裡。 |
@@ -50,46 +50,47 @@
 | 檔案 | 行數 | 說明 |
 |---|---|---|
 | `art.gd` | 260 | 其他層在同資料夾（V9 P1 拆檔） |
-| `battle_view.gd` | 806 | 其他層在同資料夾（V9 P1 拆檔） |
+| `battle_view.gd` | 816 | 其他層在同資料夾（V9 P1 拆檔） |
 | `charts.gd` | 251 | 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。 |
-| `codex_view.gd` | 603 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
-| `free_place.gd` | 891 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
-| `game_screens.gd` | 762 | 其他層在同資料夾（V9 P1 拆檔） |
+| `codex_bake.gd` | 85 | V1.5.1 A6：圖鑑大圖也套戰場圖集的烘焙後處理（外框、漬洗、乾掃），轉身、背面、出手時畫風不突變。 |
+| `codex_view.gd` | 808 | 兵種圖鑑（第二輪方案 R3）：五個兵種的故事、擅長／怕什麼、技能說明（數值取自 unit_defs）， |
+| `free_place.gd` | 901 | 第六輪：自由排兵的操作與畫面（docs/2026-11-03-free-placement-plan-v6.md §4）。格子模式完全不經過這裡。 |
+| `game_screens.gd` | 774 | 其他層在同資料夾（V9 P1 拆檔） |
 | `icons.gd` | 172 | V9 P5 圖示：全部向量自繪，不靠字型（思源黑體沒有這些符號）。一律 24×24 概念，c＝中心、s＝邊長。 |
 | `lobby_view.gd` | 1174 | 規則大廳（第五輪 §3.5、§3.6）。兩段式： |
 | `main.gd` | 23 | 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。 |
 | `map_art.gd` | 386 | V9 地圖美術：每種 地圖＋大小 烘一張地面貼圖（全程式繪製，一張圖只畫一次，不佔每幀繪製）。 |
-| `replay_view.gd` | 799 | 回味（第三輪 S5）：重播控制、對戰代碼、覆盤。 |
-| `sprite_cache.gd` | 539 | 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps）， |
-| `ui_base.gd` | 1100 | 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。 |
+| `replay_view.gd` | 816 | 回味（第三輪 S5）：重播控制、對戰代碼、覆盤。 |
+| `sprite_cache.gd` | 620 | 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps）， |
+| `ui_base.gd` | 1129 | 《落子無悔》UI 基底：共用常數、狀態、按鈕、文字、焦點、提示（第二輪方案 R2 從 main.gd 拆出）。 |
 | `unit_brief.gd` | 116 | V1.1 E3：由 lobby_view.gd 拆出（行為不變）。選卡時的兵種簡介卡：大廳卡池、雙人禁牌共用。 |
-| `view_buffer.gd` | 140 | 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。 |
+| `view_buffer.gd` | 146 | 展示緩衝（第二輪方案 R5、§3）：戰鬥畫面固定比模擬晚 DELAY 個 tick。 |
 
 ## game/scripts/ui/battle
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
 | `battle_fx.gd` | 749 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
-| `battle_state.gd` | 496 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
-| `battle_units.gd` | 1049 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_state.gd` | 519 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
+| `battle_units.gd` | 1059 | 由 battle_view.gd 拆出（V9 P1，行為不變） |
 
 ## game/scripts/ui/screens
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
 | `game_core.gd` | 862 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_menus.gd` | 1047 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_modes.gd` | 1911 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
-| `game_place.gd` | 935 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
-| `game_result.gd` | 687 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_menus.gd` | 1268 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_modes.gd` | 1960 | V9 P6 模式：主題試煉、挑戰碼、遠征獎勵、雙人禁選、戰績頁、牌組。 |
+| `game_place.gd` | 938 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
+| `game_result.gd` | 724 | 由 game_screens.gd 拆出（V9 P1，行為不變） |
 
 ## game/scripts/ui/units
 
 | 檔案 | 行數 | 說明 |
 |---|---|---|
-| `fantasy.gd` | 386 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `fantasy.gd` | 427 | 由 art.gd 拆出（V9 P1，行為不變） |
 | `gait.gd` | 114 | 步態（V9 P2）：Q 版微跳步。相位由真實位移決定（battle_state._gait_tick），腳踩地時不滑。 |
-| `kingdom.gd` | 397 | 由 art.gd 拆出（V9 P1，行為不變） |
+| `kingdom.gd` | 419 | 由 art.gd 拆出（V9 P1，行為不變） |
 | `kit.gd` | 268 | 由 art.gd 拆出（V9 P1，行為不變） |
 
 ## game/tests
@@ -97,7 +98,7 @@
 | 檔案 | 行數 | 說明 |
 |---|---|---|
 | `run_tests.gd` | 96 | 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測 |
-| `test_base.gd` | 239 | 測試共用（第七輪 I1）：斷言、常數、輔助函式。各主題的測試在 tests/suites/。 |
+| `test_base.gd` | 243 | 測試共用（第七輪 I1）：斷言、常數、輔助函式。各主題的測試在 tests/suites/。 |
 
 ## game/tests/suites
 
@@ -110,10 +111,10 @@
 | `free.gd` | 347 |  |
 | `harness.gd` | 25 | 第七輪 R2：測試框架自己的契約。 |
 | `maps.gd` | 149 | 地圖（V9 P3）：鏡像、可達、舊路徑不變、代碼、尋路不卡死。 |
-| `modes.gd` | 1561 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
+| `modes.gd` | 1600 | V9 P6：試煉、挑戰碼、AI 性格、遠征獎勵、禁牌、戰績、牌組的核心邏輯。 |
 | `rules.gd` | 584 |  |
-| `save.gd` | 283 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
-| `ui.gd` | 1148 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
+| `save.gd` | 298 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
+| `ui.gd` | 1358 | 戰鬥畫面的事件分流（Codex R3 審查 #1）：真實戰鬥出現的每一種事件都要分到合法的路線，攻擊一定帶 src／tgt／dmg， |
 | `units.gd` | 394 |  |
 
 ## game/tools
@@ -124,7 +125,7 @@
 | `atlas_check.gd` | 130 | 角色圖集檢查（第七輪 C0）：要真的繪圖，不能 headless。 |
 | `codex_audit.gd` | 53 | V1.5 規劃用的角色檢查表（不改遊戲）：每種兵放大 2 倍（圖鑑同倍率），一列 8 格： |
 | `compat.gd` | 143 | 舊兵種相容檢查（第四輪方案 §3.1～3.2）。 |
-| `dev_main.gd` | 1607 | 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。 |
+| `dev_main.gd` | 1639 | 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。 |
 | `golden.gd` | 113 | 確定性金標準（第三輪 T2）。 |
 | `golden_free.gd` | 158 | 自由模式跨版本金標準（第七輪 S1）。舊金標準 golden.gd 只鎖格子舊路徑，自由模式原本只有同版自比。 |
 | `golden_map.gd` | 130 | V9 金標準：鎖住有地圖或非標準大小的戰鬥。舊金標準不會走這些分支。 |
