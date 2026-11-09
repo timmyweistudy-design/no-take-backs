@@ -225,7 +225,7 @@ func _draw_trials() -> void:
 	# 翻頁鈕放在關卡卡片後面：手把焦點先落在第一關（版面檢查 PADWALK）
 	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
 	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
-	_btn(Rect2(560, 700, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, 700, 160, 44), L.t("back"), func(): _nav_back())
 
 ## ── 挑戰碼：把自己的陣型傳給朋友打（不需要伺服器）──
 func _challenge_encode() -> String:
@@ -889,6 +889,20 @@ func _record_match(w: int) -> void:
 	for k in seen:
 		ug[k] = int(ug.get(k, 0)) + 1
 	Save.data["unit_games"] = ug
+	# V1.5.1：戰績頁的兵種勝率用同一組模式記場數與勝場（原本勝場在殘局、教學、試煉也加，勝率偏高；使用者回報）
+	var gr: Dictionary = Save.data.get("unit_games_rec", {})
+	var wr: Dictionary = Save.data.get("unit_wins_rec", {})
+	for k in seen:
+		gr[k] = int(gr.get(k, 0)) + 1
+	if w >= 0 and (w == 0 or mode == Mode.DUEL):
+		var won := {}
+		var wa = armies[w] if w < armies.size() and armies[w] != null else armies[0]
+		for u in wa.units:
+			won[str(int(u["type"]))] = true
+		for k in won:
+			wr[k] = int(wr.get(k, 0)) + 1
+	Save.data["unit_games_rec"] = gr
+	Save.data["unit_wins_rec"] = wr
 	if mode == Mode.DUEL:
 		return    # 連勝只算單人
 	if w == 0:
@@ -919,8 +933,16 @@ func _draw_profile() -> void:
 		_text(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true, tw - 62)
 	# 兵種勝率
 	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
-	var ug: Dictionary = Save.data.get("unit_games", {})
-	var uw: Dictionary = Save.data.get("unit_wins", {})
+	var ug: Dictionary = Save.data.get("unit_games_rec", {})   # V1.5.1：場數、勝場同口徑（對 AI、遠征、雙人）
+	var uw: Dictionary = Save.data.get("unit_wins_rec", {})
+	var old_n := 0
+	for v in Save.data.get("unit_games", {}).values():
+		old_n += int(v)
+	var rec_n := 0
+	for v in ug.values():
+		rec_n += int(v)
+	if old_n > rec_n:
+		_text(Vector2(80 + _width(L.t("pf_units"), tz("B"), true) + 16, 184 + (tz("B") - tz("C")) * 0.5), L.t("pf_units_since"), tz("C"), TXT_DIM, false, false, 600)   # 舊存檔：從這版起算
 	var um := RS.mask(_demo())
 	var cw := 108.0
 	for t in D.total():
@@ -945,7 +967,7 @@ func _draw_profile() -> void:
 		var k: String = keys[i2]
 		var on: bool = k in earned
 		var pos := Vector2(84 + (i2 % 4) * 279, 480 + (i2 / 4) * 30)   # V1.5：31 個成就排四欄（三欄會超出畫面）
-		var ar := Rect2(pos - Vector2(4, 1), Vector2(271, 26))
+		var ar := Rect2(pos - Vector2(4, 1), Vector2(271, 28))
 		if on:
 			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
 		else:
@@ -956,14 +978,14 @@ func _draw_profile() -> void:
 		if (ar.has_point(mouse) and not pad_mode) or (pad_mode and fi == _focus):
 			hover_k = k
 			_box(ar.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.7), 5.0, 1.5)
-		_icon("star" if on else "lock", pos + Vector2(10, 12), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
-		_text(pos + Vector2(26, 0), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 242)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
+		_icon("star" if on else "lock", Vector2(pos.x + 10, ar.get_center().y), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
+		_text(Vector2(pos.x + 26, ar.get_center().y - text_h("Ag", tz("C"), 0.0) * 0.5), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 242)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
 	# V1.2.1：滑過成就，標題列右邊顯示解鎖條件（未解鎖的也看得到怎麼拿）
 	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
 	var cw2 := 640.0
 	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
-	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): overlay = "")
-	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): overlay = "nemeses")   # V1.4 #2 宿敵戰記
+	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): _nav_back())
+	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
 	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): _paint_open())   # V1.4 #15 塗裝室
 
 ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
@@ -1218,7 +1240,7 @@ func _draw_nemeses() -> void:
 		for k in mini(12, us.size()):
 			Art.unit(self, r.position + Vector2(530 + k * 18, 74), int(us[k]["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.9, time, 0.36, cbm())
 		y += 98
-	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): overlay = "profile")
+	_btn(Rect2(560, 684, 160, 44), L.t("back"), func(): _nav_back("profile"))
 
 
 ## ── V1.4 #16 遊戲間：觀戰競猜、輪抽 ──

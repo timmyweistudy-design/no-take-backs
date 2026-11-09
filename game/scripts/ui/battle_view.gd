@@ -720,6 +720,7 @@ func _draw_battle_hud() -> void:
 
 ## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）
 func _begin_battle(a0, a1, kind := "official") -> void:
+	nav_stack.clear()   # V1.5.1：開戰後，之前的返回堆疊作廢
 	_pre_drop()
 	play_kind = kind
 	tm_ghost = null   # V1.4 #1：時光機的原本時間線只在「如果」播放時存在（_rv_play 之後會再設）

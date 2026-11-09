@@ -173,7 +173,7 @@ static func sanitize_data(out: Dictionary) -> void:
 			uw[str(k)] = _count(raw_uw[k])
 	out["unit_wins"] = uw
 	# V9：新欄位都是可有可無的統計，型別不對就歸零（不用升存檔版本：舊存檔沒有就用預設）
-	for dk in ["trial_stars", "unit_games", "puzzle_tries", "puzzle_first", "trial_tries", "trial_first"]:
+	for dk in ["trial_stars", "unit_games", "unit_games_rec", "unit_wins_rec", "puzzle_tries", "puzzle_first", "trial_tries", "trial_first"]:
 		var dv = out.get(dk, {})
 		var clean := {}
 		if dv is Dictionary:

@@ -41,6 +41,9 @@ func _go_title() -> void:
 	state = St.TITLE
 	overlay = ""
 	set("settings_ret", "")
+	nav_stack.clear()
+	if nav_hub != "" and not _demo():
+		overlay = nav_hub   # V1.5.1：從卡片面板進去打完，回來時回到那個面板
 	sim = null
 	view = null
 	zoom = 1.0

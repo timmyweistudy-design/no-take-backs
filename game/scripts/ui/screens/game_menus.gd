@@ -411,7 +411,7 @@ func _draw_overlay() -> void:
 				var fr := Rect2(280 + (list.size() % 2) * 370, 210 + (list.size() / 2) * 82, 350, 68)
 				_btn(fr, ("✓ " if bool(Save.data.get("free_intro_done", false)) else "") + L.t("intro_btn"), func(): _start_free_intro(), true, false,
 					Color(0.15, 0.32, 0.22) if bool(Save.data.get("free_intro_done", false)) else Color(0, 0, 0, 0))
-			_btn(Rect2(560, 640, 160, 36), L.t("back"), func(): overlay = "")
+			_btn(Rect2(560, 640, 160, 36), L.t("back"), func(): _nav_back())
 		"lobby":
 			_draw_lobby()
 		"settings":
@@ -422,7 +422,7 @@ func _draw_overlay() -> void:
 			_panel(Rect2(200, 70, 880, 660))
 			_h1(Vector2(640, 76), L.t("credits_title"))
 			_text(Vector2(240, 140), FileAccess.get_file_as_string("res://data/credits.txt"), ts(13), Color(1, 1, 1, 0.88))
-			_btn(Rect2(560, 680, 160, 36), L.t("back"), func(): overlay = "")
+			_btn(Rect2(560, 680, 160, 36), L.t("back"), func(): _nav_back())
 		"slots":
 			_draw_slots()
 		"gauntlet_pick":
@@ -594,7 +594,7 @@ func _draw_settings() -> void:
 		_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
 		_text(D0.position + Vector2(14, 18 + text_h(L.t(key), tz("B"), D0.size.x - 28, true)), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)   # 標題換行時說明往下排
 	_btn(Rect2(560, 662, 160, 44), L.t("back"), func(): _settings_close())
-	_btn(Rect2(380, 662, 160, 44), L.t("menu_credits"), func(): _open("credits"))
+	_btn(Rect2(380, 662, 160, 44), L.t("menu_credits"), func(): _nav_push("settings"); _open("credits"))
 
 
 ## ── V1.5 一鍵無障礙預設：直接改原本的設定（可疊加），存一份改之前的值讓「撤回」用 ──
@@ -793,7 +793,7 @@ func _draw_restore() -> void:
 		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = "settings")
 
-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "unit_games", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
@@ -977,6 +977,7 @@ func hub_items(kind: String) -> Array:
 
 func _draw_hub(kind: String) -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
+	nav_stack.clear()   # 回到卡片面板＝堆疊重來
 	var items := hub_items(kind)
 	var cols := 3
 	var cw := 236.0
@@ -993,7 +994,8 @@ func _draw_hub(kind: String) -> void:
 		var it: Array = items[i]
 		var r := Rect2(P.position.x + 30 + (i % cols) * (cw + 14), P.position.y + 80 + (i / cols) * (ch + 14), cw, ch)
 		btn_paper = true
-		_btn(r, "", it[3], bool(it[4]), i == 0)
+		var cb: Callable = it[3]
+		_btn(r, "", func(): _nav_push(kind); nav_hub = kind; cb.call(), bool(it[4]), i == 0)
 		btn_paper = false
 		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
 		_ink_mode = on_paper
@@ -1002,7 +1004,7 @@ func _draw_hub(kind: String) -> void:
 		_text(r.position + Vector2(cw / 2, 78), L.t(str(it[0])), tz("B"), tc2, true, true, cw - 20)
 		_text(r.position + Vector2(16, 82 + tz("B") * 1.6), L.t(str(it[1])), tz("C"), tc2, false, false, cw - 32)
 		_ink_mode = false
-	_btn(Rect2(P.get_center().x - 80, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(P.get_center().x - 80, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
 
 
 ## ── V1.5 設定套用：總音量、夜間模式（壓縮器）、單聲道（立體聲收成中間）；幀率、垂直同步 ──

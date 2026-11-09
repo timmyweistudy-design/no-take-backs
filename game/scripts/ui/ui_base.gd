@@ -935,7 +935,23 @@ func _panel(r: Rect2) -> void:
 
 
 func _open(name: String) -> void:
+	if overlay.begins_with("hub_"):
+		nav_stack.append(overlay)   # 卡片面板開著時直接開下一頁（例如結果頁「試煉」）：記得回面板
 	overlay = name
+	_focus = 0
+
+## V1.5.1 返回目的地：打開下一層之前記下「從哪來」，返回鈕、Esc、手把 B 都走 _nav_back（使用者回報：返回都跳回主畫面）。
+## 卡片面板（hub）畫出來時清空堆疊；開戰也清空。nav_hub＝最後經過的卡片面板，打完回標題時重新打開它。
+var nav_stack: Array = []
+var nav_hub := ""
+
+func _nav_push(from: String) -> void:
+	nav_stack.append(from)
+
+func _nav_back(fallback := "") -> void:
+	if overlay.begins_with("hub_"):
+		nav_hub = ""   # 關掉卡片面板：之後打完不再自動打開它
+	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
 	_focus = 0
 
 

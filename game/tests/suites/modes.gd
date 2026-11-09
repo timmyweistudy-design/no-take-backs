@@ -1559,3 +1559,28 @@ func test_mode_chain_v140() -> void:
 	ok(not g.wk_active and g.ghost_id == "" and not g.wv_active and not g.sealed_on and g.daily_spec.is_empty(), "回一般對戰：全部特殊狀態都清掉")
 	g.free()
 
+
+
+## V1.5.1 戰績兵種勝率同口徑（使用者回報戰績怪）：只有記場數的模式才記勝場；雙人記勝方。
+func test_unit_rec_v151() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var SaveS = load("res://scripts/game/save.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	var a = army_from(0, [[D.SWORD, 5, 4], [D.ARCHER, 3, 4]])
+	var b = army_from(1, [[D.SHIELD, 5, 4]])
+	g.armies = [a, b]
+	g.mode = g.Mode.VS_AI
+	SaveS.data["unit_games_rec"] = {}
+	SaveS.data["unit_wins_rec"] = {}
+	g._record_match(0)
+	g._record_match(1)
+	var gr: Dictionary = SaveS.data["unit_games_rec"]
+	var wr: Dictionary = SaveS.data["unit_wins_rec"]
+	ok(int(gr[str(D.SWORD)]) == 2 and int(wr[str(D.SWORD)]) == 1, "對 AI：兩場一勝", str([gr, wr]))
+	for k in wr:
+		ok(int(wr[k]) <= int(gr.get(k, 0)), "勝場不會超過場數 " + str(k))
+	g.mode = g.Mode.DUEL
+	g._record_match(1)
+	ok(int(SaveS.data["unit_wins_rec"].get(str(D.SHIELD), 0)) == 1, "雙人：記勝方（紅）的兵")
+	g.free()

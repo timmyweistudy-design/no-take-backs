@@ -242,7 +242,7 @@ func _draw_codex() -> void:
 	_scroll_draw("note", Rect2(nr.position + Vector2(12, 4 + ts(14) * 1.4), Vector2(nr.size.x - 20, nr.size.y - 8 - ts(14) * 1.4)),
 		[{"type": "text", "s": note, "size": ts(14), "c": Color(1, 1, 1, 0.9), "x": 0.0, "w": nr.size.x - 40}])
 	_ink_mode = false
-	_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, 676, 160, 38), L.t("back"), func(): _nav_back())
 
 
 ## ── 捲動區（第三輪 U1）──

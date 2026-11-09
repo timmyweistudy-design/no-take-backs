@@ -1164,3 +1164,46 @@ func test_data_swap_title_only_v150() -> void:
 	ok(g.cx_angle == -1, "換兵種回到自動角度")
 	ok(("progress_x_02.json" > "progress_x.json") and ("progress_x_10.json" > "progress_x_02.json"), "備份流水號字串排序＝時間順序")
 	g.free()
+
+
+## V1.5.1 返回目的地（使用者回報：返回都跳回主畫面）：每張卡片打開的頁，返回回到原卡片；收藏→戰績→宿敵→返回→返回；設定→製作名單→返回；開戰後打完回原卡片。
+func test_nav_back_v151() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.state = g.St.TITLE
+	var bad: Array = []
+	for kind in ["hub_play", "hub_challenge", "hub_collect"]:
+		var items: Array = g.hub_items(kind)
+		for it in items:
+			if not bool(it[4]):
+				continue
+			g.overlay = kind
+			g.nav_stack.clear()
+			g._nav_push(kind)
+			g.nav_hub = kind
+			it[3].call()
+			var opened: String = g.overlay
+			if g.state != g.St.TITLE or opened == "" or opened == "paint":
+				g.state = g.St.TITLE
+				continue   # 直接開戰（每日）或塗裝室（自己的返回）另外測
+			g._nav_back()
+			if g.overlay != kind:
+				bad.append("%s→%s 返回到 %s" % [kind, opened, g.overlay])
+	ok(bad.is_empty(), "卡片打開的頁返回回到原卡片", str(bad))
+	g.overlay = "hub_collect"; g.nav_stack.clear()
+	g._nav_push("hub_collect"); g._open("profile")
+	g._nav_push("profile"); g.overlay = "nemeses"
+	g._nav_back("profile")
+	ok(g.overlay == "profile", "宿敵返回戰績", g.overlay)
+	g._nav_back()
+	ok(g.overlay == "hub_collect", "戰績返回收藏", g.overlay)
+	g.overlay = "settings"; g.nav_stack.clear()
+	g._nav_push("settings"); g._open("credits")
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "settings", "製作名單 Esc 回設定", g.overlay)
+	g.nav_hub = "hub_challenge"
+	g._go_title()
+	ok(g.overlay == "hub_challenge", "打完回到原卡片面板", g.overlay)
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "" and g.nav_hub == "", "關掉面板後不再自動打開")
+	g.free()

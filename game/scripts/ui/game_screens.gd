@@ -338,7 +338,7 @@ func _key(k: int) -> void:
 					set("keys_capture", "")
 					overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
 				elif overlay != "":
-					overlay = ""
+					call("_nav_back")   # V1.5.1：Esc／手把 B 和返回鈕同一套目的地
 				elif state == St.BATTLE:
 					if play_kind != "official":
 						_replay_back()   # 第七輪 A9：重播時 Esc＝返回

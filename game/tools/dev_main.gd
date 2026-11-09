@@ -771,6 +771,12 @@ func _shots_v9() -> void:
 	for k3 in 12:
 		await get_tree().process_frame
 	await _snap("58_trials.png")
+	# V1.5.1：截圖存檔會累積場數，戰績頁用固定樣本（場數、勝場同口徑）
+	Save.data["stats"] = {"wins": 18, "games": 40}
+	Save.data["unit_games"] = {"0": 12, "2": 10, "3": 8, "13": 4}
+	Save.data["unit_games_rec"] = {"0": 12, "2": 10, "3": 8, "13": 4}
+	Save.data["unit_wins_rec"] = {"0": 7, "2": 4, "3": 5, "13": 1}
+	overlay = ""
 	_open("profile")
 	await _snap("59_profile.png")
 	# V1.4 #2 宿敵戰記（範例資料，截完還原）

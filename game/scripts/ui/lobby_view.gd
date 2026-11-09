@@ -492,7 +492,7 @@ func _draw_lobby() -> void:
 		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
 	# 底列
 	var by := 700.0
-	_btn(Rect2(80, by, 150, 48), L.t("back"), func(): overlay = "")
+	_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
 	_btn(Rect2(244, by, 200, 48), L.t("lb_collapse") if lobby_open else L.t("lb_expand"), func(): lobby_open = not lobby_open)
 	if lobby_open:
 		_btn(Rect2(458, by, 150, 48), L.t("lb_copy"), _lobby_copy_code)
