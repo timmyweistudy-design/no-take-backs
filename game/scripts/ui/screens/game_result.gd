@@ -339,12 +339,24 @@ func _draw_result() -> void:
 	for i in bs.size():
 		wsum += 1.3 if i < n_main else 1.0
 	var unit_w: float = minf(200.0, (848.0 - (bs.size() - 1) * gap) / maxf(1.0, wsum))
-	var x := 640.0 - (wsum * unit_w + (bs.size() - 1) * gap) / 2.0
+	# 每顆至少放得下自己的字（日文 150% 次入口曾被切）；放不下時回到平均寬
+	var ws: Array = []
+	var tot := 0.0
+	for i in bs.size():
+		var w0: float = maxf(unit_w * (1.3 if i < n_main else 1.0), _width(str(bs[i][0]), ts(18), true) + 24.0)
+		ws.append(w0)
+		tot += w0
+	if tot + (bs.size() - 1) * gap > 848.0:
+		var avg := (848.0 - (bs.size() - 1) * gap) / maxf(1.0, bs.size())
+		for i in bs.size():
+			ws[i] = avg
+		tot = avg * bs.size()
+	var x := 640.0 - (tot + (bs.size() - 1) * gap) / 2.0
 	if mode == Mode.VS_AI and not watch_mode and _near_miss():
 		_text(Vector2(640, 618), L.t("review_near_d", [roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))]), tz("S"), ACCENT, true, true, 820)
 	for i in bs.size():
 		var main := i < n_main
-		var bw2: float = unit_w * (1.3 if main else 1.0)
+		var bw2: float = ws[i]
 		if main:
 			_btn(Rect2(x, 646, bw2, 50), bs[i][0], bs[i][1], true, i == 0)
 		else:

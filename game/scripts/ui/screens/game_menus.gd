@@ -223,17 +223,17 @@ func _draw_title() -> void:
 		Art.unit(self, mr2.position + Vector2(34, 54), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72, cbm())
 		var tcol: Color = Color.WHITE if on else TXT_DIM
 		var tag := home_tag(i)
-		var tw2 := (_width(tag, tz("C"), true) + 16.0) if tag != "" else 0.0
+		var tw2 := (_width(tag, tz("C"), true) + 24.0) if tag != "" else 0.0
 		var nw := minf(_width(L.t(str(pq[0])), tz("B"), true), sw - tw2 - 8.0)
 		_text(mr2.position + Vector2(66, 6 if show_sub else (ph - tz("B") * 1.2) * 0.5), L.t(str(pq[0])), tz("B"), tcol, false, true, sw - tw2 - 8.0)
 		if show_sub:
 			_text(mr2.position + Vector2(66, 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), TXT_DIM, false, false, sw)
 		if tag != "":
 			# 狀態小牌：緊跟在名稱右邊（不蓋字），羊皮紙底＋墨字（不只靠顏色）
-			var tr := Rect2(mr2.position.x + 66 + nw + 8, (mr2.position.y + 6 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (ph - tz("C") * 1.5) * 0.5), tw2, tz("C") * 1.5)
+			var tr := Rect2(mr2.position.x + 66 + nw + 8, (mr2.position.y + 3 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (ph - tz("C") * 1.5) * 0.5 - 3), tw2, tz("C") * 1.5 + 6)   # 九宮格四邊留內距
 			_tex_box(tr, "paper")
 			_ink_mode = true
-			_text(tr.position + Vector2(8, tz("C") * 0.2), tag, tz("C"), INK, false, true, tw2)
+			_text(tr.position + Vector2(12, 3 + tz("C") * 0.2), tag, tz("C"), INK, false, true, tw2)
 			_ink_mode = false
 	if fresh:
 		var pulse := 0.5 + 0.5 * sin(time * 3.0)

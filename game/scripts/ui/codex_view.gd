@@ -204,11 +204,11 @@ func _draw_codex() -> void:
 	# 大頭照＋名字固定在上面，只有下面的屬性與文字捲動（Antigravity S3：捲動時大頭照整張消失像破圖）
 	var items := _cx_left_items(u, lang)
 	# 固定區的高度依名字、定位、口號實際換行後的高度決定（Antigravity S3 第 2 輪：英文 150% 口號被切）
-	var head_h := 160.0
+	var head_min: float = float(items[0]["h"])   # V1.5：大頭照＋檢視控制鈕要整塊放得下，不然整個大頭照不畫（收尾截圖抓到）
 	var ty := 4.0
 	for tx in items[0]["texts"]:
 		ty += (_wrap(tx["s"], tx["size"], CX_LEFT.size.x - 168).count("\n") + 1) * tx["size"] * 1.3 + 3.0
-	head_h = clampf(maxf(head_h, ty + 8.0), 160.0, 260.0)
+	var head_h := clampf(maxf(head_min, ty + 8.0), head_min, 260.0)
 	# V1.2 C2：左欄是一張羊皮紙卡，字用墨色
 	if not bool(Save.s("plain_ui")):
 		_tex_box(CX_LEFT.grow_individual(8, 0, 8, 8), "paper")   # 上緣和頁籤留空（Antigravity impl3）
@@ -370,13 +370,14 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 					_cx_portrait(pc)
 					_btns.append({"r": Rect2(pc - Vector2(56, 112), Vector2(112, 124)), "cb": func(): cx_spin_t = cx_clock; cx_angle = -1, "en": true})
 					# V1.5：檢視控制：左右轉 22.5°、慢動作 0.25 倍、出手一次（手把也按得到）
-					var cy0 := pc.y + 18.0
-					_btn(Rect2(pc.x - 74, cy0, 34, 32), "◀", func(): _cx_turn(-1))
-					_btn(Rect2(pc.x - 36, cy0, 34, 32), "▶", func(): _cx_turn(1))
-					_btn(Rect2(pc.x + 2, cy0, 34, 32), "", func(): cx_slow = not cx_slow, true, false, TH_ACTIVE if cx_slow else Color(0, 0, 0, 0))
-					_icon("slow", Vector2(pc.x + 19, cy0 + 16), 18.0, Color.WHITE)
-					_btn(Rect2(pc.x + 40, cy0, 34, 32), "", func(): cx_atk_t = cx_clock; cx_spin_t = -10.0)
-					_icon("swords", Vector2(pc.x + 57, cy0 + 16), 18.0, Color.WHITE)
+					var cy0 := pc.y + 15.0
+					var cx0 := r.position.x + 4.0   # 四顆 40×38（點擊框至少 36）
+					_btn(Rect2(cx0, cy0, 40, 38), "◀", func(): _cx_turn(-1))
+					_btn(Rect2(cx0 + 42, cy0, 40, 38), "▶", func(): _cx_turn(1))
+					_btn(Rect2(cx0 + 84, cy0, 40, 38), "", func(): cx_slow = not cx_slow, true, false, TH_ACTIVE if cx_slow else Color(0, 0, 0, 0))
+					_icon("slow", Vector2(cx0 + 104, cy0 + 19), 20.0, Color.WHITE)
+					_btn(Rect2(cx0 + 126, cy0, 40, 38), "", func(): cx_atk_t = cx_clock; cx_spin_t = -10.0)
+					_icon("swords", Vector2(cx0 + 146, cy0 + 19), 20.0, Color.WHITE)
 				var ty := y + 4.0
 				for tx in it["texts"]:
 					var wt := _wrap(tx["s"], tx["size"], r.size.x - 168)
