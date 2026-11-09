@@ -1365,3 +1365,25 @@ func test_free_tap_remove_v151() -> void:
 	ok(n1 == 1 and a.units.size() == 0, "拖曳搬移不拿掉、點一下拿掉", info + " n2=%d" % a.units.size())
 	SV.settings["place_mode"] = keep
 	g.free()
+
+
+## V1.5.1 A7：圖鑑小劇場的弓箭手：命中前有一段飛行（飛行進度 0～1 之間的畫面 tick 存在），受擊在命中那格之後才出。
+func test_codex_demo_projectile_v151() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g._open_codex(2)
+	var saw_fly := false
+	var info := ""
+	for i in 200:
+		g._codex_tick(0.05)
+		if g.cx_view == null:
+			continue
+		for uid in g.cx_ptgt:
+			if g.cx_hits.has(uid):
+				var ph: Array = g.proj_phase(g.cx_hits[uid], g.cx_view.tick + 0.5, 2, g.cx_view.delay, g.cx_ptgt[uid])
+				if float(ph[2]) > 0.0 and float(ph[2]) < 1.0:
+					saw_fly = true
+		if saw_fly:
+			break
+	info = "ptgt=%d hits=%d" % [g.cx_ptgt.size(), g.cx_hits.size()]
+	ok(saw_fly, "小劇場弓箭手的箭有飛行段", info)
+	g.free()
