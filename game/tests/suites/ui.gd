@@ -1073,3 +1073,45 @@ func test_projectile_timing_v150() -> void:
 	var pshort: Array = BS.proj_phase([h], float(h), 2, VB.DELAY)
 	ok(int(pshort[0]) == h, "手動軍令局：沒有餘裕就直接命中（不憑空飛彈）")
 
+
+
+## V1.5 圖鑑檢視控制：左右轉 16 格循環、手動角度時正面有轉身寬度、慢動作 0.25 倍、出手一次在 0.7 秒內演完。
+func test_codex_controls_v150() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g._open_codex(2)
+	ok(g.cx_angle == -1, "預設自動")
+	g._cx_turn(-1)
+	ok(g.cx_angle == g.CX_ANGLES - 1, "往左一格從 0 繞到最左側面")
+	for i in 5:
+		g._cx_turn(1)
+	ok(g.cx_angle == 4, "再往右五格到正面（4）")
+	# 慢動作：時鐘照 0.25 倍走；中途切換不倒退
+	g.cx_clock = 0.0; g.cx_last = 0.0; g.time = 0.0
+	g.cx_slow = true
+	g.time = 1.0; g.cx_clock += clampf(g.time - g.cx_last, 0.0, 0.1) * 0.25; g.cx_last = g.time
+	var c1: float = g.cx_clock
+	g.cx_slow = false
+	g.time = 1.05; g.cx_clock += clampf(g.time - g.cx_last, 0.0, 0.1) * 1.0; g.cx_last = g.time
+	ok(c1 <= 0.026 and g.cx_clock > c1, "慢動作時鐘走得慢、切回正常不倒退", str([c1, g.cx_clock]))
+	g.free()
+
+
+## V1.5 暫停選單：正式對局 Esc 開選單並暫停；Esc 再按＝繼續；從選單進設定，設定關掉回選單；重播的 Esc 仍是返回。
+func test_pause_menu_v150() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.mode = g.Mode.VS_AI
+	g.difficulty = 1
+	g._begin_battle(army_from(0, [[D.SWORD, 5, 4]]), army_from(1, [[D.SWORD, 5, 4]]))
+	g.state = g.St.BATTLE
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "pause_menu" and g.paused, "Esc 開暫停選單並暫停", g.overlay)
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "" and not g.paused, "再按 Esc 繼續")
+	g._open_pause_menu()
+	g.settings_ret = "pause_menu"; g.overlay = "settings"
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "pause_menu" and g.paused, "設定關掉回暫停選單", g.overlay)
+	g._settings_close()
+	ok(g.overlay == "", "沒有來處的設定關掉就回原畫面")
+	g.free()

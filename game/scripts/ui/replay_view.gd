@@ -155,6 +155,8 @@ func _seek_finish() -> void:
 	graves.clear()
 	atk_hit.clear()
 	atk_seq.clear()
+	alt_hit.clear()
+	proj_tgt.clear()   # V1.5：跳轉不能留舊的飛行目標（Antigravity v150-i1 #1）
 	atk_t.clear()
 	hurt_t.clear()
 	hurt_dir.clear()

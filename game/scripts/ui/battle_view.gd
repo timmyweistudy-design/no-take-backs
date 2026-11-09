@@ -216,7 +216,7 @@ func _pump_view() -> void:
 				hs.append(int(fr["tick"]))
 				var su = view.unit_by_id(e["src"]) if not view.units.is_empty() else null
 				var st_ty: int = int(su.type) if su != null else -1
-				if e["kind"] == EV.BOMB or e["kind"] == EV.HEAL or (proj_fly(st_ty) > 0 and event_route(e) == "attack" and e["kind"] != EV.SPLASH):
+				if e["kind"] == EV.BOMB or e["kind"] == EV.HEAL or (proj_fly(st_ty) > 0 and event_route(e) == "attack" and e["kind"] != EV.SPLASH and e["kind"] != EV.BONK):
 					# V1.5：遠程記下命中 tick → 目標；畫面在命中前把飛行物從手上飛到目標，命中那一刻剛好到（第四輪的火罐延伸到全部遠程）
 					var bt: Dictionary = proj_tgt.get(e["src"], {})
 					bt[int(fr["tick"])] = e["tgt"]
@@ -227,8 +227,8 @@ func _pump_view() -> void:
 				var sq: Dictionary = atk_seq.get(e["src"], {})
 				sq[int(fr["tick"])] = sq.size()
 				atk_seq[e["src"]] = sq   # 存序列，不覆蓋還沒播到的命中（Codex R5 #2：連續反擊）
-				if hs.size() > 4:
-					hs.pop_front()
+				if hs.size() > 8:
+					hs.pop_front()   # V1.5：緩衝拉長到 8 tick，留 8 筆才不會把還在飛的那發擠掉
 				atk_hit[e["src"]] = hs
 
 

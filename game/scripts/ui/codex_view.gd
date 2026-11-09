@@ -13,6 +13,12 @@ const CX_LEFT := Rect2(204, 204, 376, 388)     # 左欄可捲動區
 const CX_DESC := Rect2(596, 256, 474, 58)      # 技能說明可捲動區                          # 一段示範結束後停多久再重播（秒）
 
 var cx_unit := 0
+var cx_angle := -1          # V1.5：手動角度（0～15，每格 22.5°；-1＝自動）
+var cx_slow := false        # V1.5：慢動作 0.25 倍
+var cx_atk_t := -10.0       # V1.5：按「出手」的時間（cx_clock 的時間軸）
+var cx_clock := 0.0         # V1.5：圖鑑播放時鐘（慢動作時走 0.25 倍；切換慢動作不跳幀，Codex v150-i1 #8）
+var cx_last := 0.0
+const CX_ANGLES := 9        # 右側面 → 正面 → 左側面，每格 22.5°（背面要另畫，這版不做）
 var cx_spin_t := -10.0   # V1.3.1 P1：圖鑑角色播放器（點角色：轉身一圈＋待機小動作）
 var cx_skill := 0
 var cx_sim = null
@@ -35,6 +41,8 @@ func _open_codex(t: int) -> void:
 	drag_new = false
 	drag_from = Vector2i(-1, -1)
 	cx_unit = clampi(t, 0, D.total() - 1)
+	cx_angle = -1
+	cx_atk_t = -10.0
 	cx_scroll["left"] = 0.0   # 每次打開都從頂端開始（Antigravity：沿用上次捲到底的位置，看起來像數值條不見了）
 	cx_scroll["note"] = 0.0
 	_cx_pick_skill(0)
@@ -47,7 +55,7 @@ func _cx_skills() -> Array:
 
 func _cx_pick_unit(t: int) -> void:
 	cx_unit = t
-	cx_spin_t = time   # 換角色先轉一圈給你看
+	cx_spin_t = cx_clock   # 換角色先轉一圈給你看
 	cx_scroll["left"] = 0.0
 	cx_scroll["note"] = 0.0
 	_cx_pick_skill(0)
@@ -264,7 +272,7 @@ func _tag_text(raw: String, lang: String) -> String:
 func _cx_left_items(u: Dictionary, lang: String) -> Array:
 	var tag := _tag_text(CX.text(u, "tagline", lang), lang)
 	var items: Array = [
-		{"type": "portrait", "h": 150.0, "texts": [
+		{"type": "portrait", "h": 188.0, "texts": [
 			{"s": L.t("unit_%d" % cx_unit), "size": ts(26), "c": Color.WHITE, "bold": true},
 			{"s": CX.text(u, "role", lang), "size": ts(15), "c": TXT_DIM},
 			{"s": tag if _scale_key() == 100 else "", "size": ts(15), "c": ACCENT}]},   # 大字時省略口號，讓剋／怕不用捲動
@@ -355,7 +363,15 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 					draw_circle(pc + Vector2(0, -30), 62, Color(1, 1, 1, 0.05), true, -1.0, true)
 					_ring(pc, 0, cx_unit, cx_fit(cx_unit))
 					_cx_portrait(pc)
-					_btns.append({"r": Rect2(pc - Vector2(56, 112), Vector2(112, 124)), "cb": func(): cx_spin_t = time, "en": true})
+					_btns.append({"r": Rect2(pc - Vector2(56, 112), Vector2(112, 124)), "cb": func(): cx_spin_t = cx_clock; cx_angle = -1, "en": true})
+					# V1.5：檢視控制：左右轉 22.5°、慢動作 0.25 倍、出手一次（手把也按得到）
+					var cy0 := pc.y + 18.0
+					_btn(Rect2(pc.x - 74, cy0, 34, 32), "◀", func(): _cx_turn(-1))
+					_btn(Rect2(pc.x - 36, cy0, 34, 32), "▶", func(): _cx_turn(1))
+					_btn(Rect2(pc.x + 2, cy0, 34, 32), "", func(): cx_slow = not cx_slow, true, false, TH_ACTIVE if cx_slow else Color(0, 0, 0, 0))
+					_icon("slow", Vector2(pc.x + 19, cy0 + 16), 18.0, Color.WHITE)
+					_btn(Rect2(pc.x + 40, cy0, 34, 32), "", func(): cx_atk_t = cx_clock; cx_spin_t = -10.0)
+					_icon("swords", Vector2(pc.x + 57, cy0 + 16), 18.0, Color.WHITE)
 				var ty := y + 4.0
 				for tx in it["texts"]:
 					var wt := _wrap(tx["s"], tx["size"], r.size.x - 168)
@@ -533,23 +549,46 @@ const CX_FIT := {0: 2.0, 1: 2.0, 2: 1.93, 3: 1.61, 4: 1.72, 5: 1.41, 6: 2.0, 7: 
 static func cx_fit(type: int) -> float:
 	return float(CX_FIT.get(type, 2.0))
 
+func _cx_turn(d: int) -> void:
+	cx_angle = posmod((cx_angle if cx_angle >= 0 else 0) + d, CX_ANGLES)
+	cx_spin_t = -10.0
+	cx_atk_t = -10.0
+
 func _cx_portrait(pc: Vector2) -> void:
-	var u := (time - cx_spin_t) if not bool(Save.s("reduce_fx")) and not layout_probe else 99.0   # 截圖／版面檢查時固定正側面
+	var sp := 0.25 if cx_slow else 1.0
+	cx_clock += clampf(time - cx_last, 0.0, 0.1) * sp
+	cx_last = time
+	var u := (cx_clock - cx_spin_t) if not bool(Save.s("reduce_fx")) and not bool(Save.s("reduce_motion")) and not layout_probe else 99.0   # 截圖／版面檢查時固定正側面
 	var face := 1.0
 	var atk := 0.0
-	if u >= 0.0 and u < 1.2:
-		var cf := cos(u / 1.2 * TAU)
+	if cx_angle >= 0:
+		# 手動角度：0＝朝右側面、4＝正面、8＝朝左（半圈 180°）
+		var cf := cos(cx_angle / float(CX_ANGLES - 1) * PI)
 		face = 1.0 if cf >= 0.0 else -1.0
 		if absf(cf) < 0.95:
 			Art.turn_c = maxf(absf(cf), 0.3)
 			Art.turn_s = sqrt(1.0 - Art.turn_c * Art.turn_c)
-	elif u >= 1.2 and u < 2.2:
+	var ua := cx_clock - cx_atk_t
+	if ua >= 0.0 and ua < 0.7:
+		atk = 0.001 + ua / 0.7 * 0.999   # 出手一次：前搖→揮擊→後搖
+	elif cx_angle < 0 and u >= 0.0 and u < 1.2:
+		var cf2 := cos(u / 1.2 * TAU)
+		face = 1.0 if cf2 >= 0.0 else -1.0
+		if absf(cf2) < 0.95:
+			Art.turn_c = maxf(absf(cf2), 0.3)
+			Art.turn_s = sqrt(1.0 - Art.turn_c * Art.turn_c)
+	elif cx_angle < 0 and u >= 1.2 and u < 2.2:
 		var spec: Array = preload("res://scripts/ui/sprite_cache.gd").FIDGET.get(cx_unit, [0.2, 0.0])
 		var wgt := sin((u - 1.2) / 1.0 * PI)
 		atk = Art.ATK_WINDUP * float(spec[0]) * wgt
 		Art.calm = true
 		Art.look = float(spec[1]) * wgt
 	_unit(pc, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, cx_fit(cx_unit))
+	# 出手的遠程：箭／炸彈／法球／補血從手上飛出去（圖鑑也看得到「射出東西」，Antigravity v150-i1 #9）
+	if proj_fly(cx_unit) > 0 and ua >= 0.0 and ua < 0.7 and atk >= 0.3125:
+		var pk := clampf((atk - 0.3125) / 0.4, 0.0, 1.0)
+		var s := cx_fit(cx_unit)
+		_draw_projectile(cx_unit, 0, pc + proj_launch(cx_unit, face) * s, pc + Vector2(face * 150.0, -30.0), pk)
 	Art.turn_c = 1.0
 	Art.turn_s = 0.0
 	Art.calm = false

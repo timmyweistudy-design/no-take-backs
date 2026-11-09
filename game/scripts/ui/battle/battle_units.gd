@@ -576,7 +576,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		if live and atk_hit.has(u.id):
 			var dt0 := _disp_tick()
 			# V1.5：遠程的「出手」提早 fly 個 tick（飛行物離手），命中 tick 不變；動作照出手時間演
-			var ph := proj_phase(atk_hit[u.id], dt0, u.type, view.delay)
+			var ph := proj_phase(atk_hit[u.id], dt0, u.type, view.delay, proj_tgt.get(u.id, {}))
 			var hr: int = ph[0]
 			var h: int = ph[1]
 			var fly: int = h - hr if hr >= 0 else 0
@@ -767,6 +767,18 @@ func _draw_units_of(s, dim: bool) -> void:
 		draw_circle(pp, 5.0, Color("#2a2533"), true, -1.0, true)
 		draw_circle(pp + Vector2(3, -5), 2.0, Color(1, 0.8, 0.3), true, -1.0, true)
 	pot_draw.clear()
+	# 施放者在飛行途中陣亡：已經離手的箭／炸彈照樣飛到（Antigravity v150-i1 #1）
+	if live:
+		var dtd := _disp_tick()
+		for u in s.units:
+			if u.alive or not proj_tgt.has(u.id) or not atk_hit.has(u.id):
+				continue
+			var phd := proj_phase(atk_hit[u.id], dtd, u.type, view.delay, proj_tgt[u.id])
+			if float(phd[2]) >= 0.0 and proj_tgt[u.id].has(int(phd[1])):
+				var ptd = view.unit_by_id(proj_tgt[u.id][int(phd[1])])
+				if ptd != null:
+					var sgd: float = signf(_upos(ptd).x - _upos(u).x) if _upos(ptd).x != _upos(u).x else 1.0
+					proj_draw.append([u.type, u.team, _upos(u) + proj_launch(u.type, sgd) * UNIT_SCALE, _upos(ptd) + Vector2(0, -22 if u.type != D.BOMBER else -10), float(phd[2])])
 	for pj in proj_draw:
 		_draw_projectile(int(pj[0]), int(pj[1]), pj[2], pj[3], float(pj[4]))
 	proj_draw.clear()

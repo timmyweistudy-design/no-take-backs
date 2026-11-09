@@ -3,7 +3,7 @@ extends RefCounted
 ## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
 
 const SAVE_VERSION := 3   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則
-const MAX_PRESETS := 5
+const MAX_PRESETS := 10   # V1.5：5 → 10 格
 static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
 
 const DEFAULT_SETTINGS := {
@@ -11,11 +11,11 @@ const DEFAULT_SETTINGS := {
 	"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
 	# V1.5 設定七頁：畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料（docs/2026-11-09-v1.5.0-plan.md §2）
 	"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
-	"long_press": 0.5, "rumble": 50, "deadzone": 35, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
+	"long_press": 0.5, "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
 	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 100, "flash_pct": 100, "first_done": false,
 }
 const ENUMS := {"title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
-	"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3], "rumble": [0, 25, 50, 100], "deadzone": [20, 35, 50], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
+	"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3, 0], "rumble": [0, 25, 50, 100], "deadzone": [5, 10, 15, 20, 25, 30, 35, 40], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
 const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
 	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
@@ -132,10 +132,11 @@ static func sanitize_settings(d: Dictionary) -> Dictionary:
 	if not d.has("first_done") and d.size() > 0:
 		out["first_done"] = true
 	# V1.5：列舉值不在清單裡就回預設；舊存檔的震動、閃白開關轉成強度（關＝0）
+	# 新安裝（沒有設定檔）照方案：震動 25%、閃白柔和（50%）；老玩家照原本開關（開＝100）不改手感
 	if not d.has("shake_pct"):
-		out["shake_pct"] = 100 if bool(out["shake"]) else 0
+		out["shake_pct"] = (100 if bool(out["shake"]) else 0) if d.size() > 0 else 25
 	if not d.has("flash_pct"):
-		out["flash_pct"] = 100 if bool(out["flash"]) else 0
+		out["flash_pct"] = (100 if bool(out["flash"]) else 0) if d.size() > 0 else 50
 	for ek in ENUMS:
 		if not out[ek] in ENUMS[ek]:
 			out[ek] = DEFAULT_SETTINGS[ek]
@@ -439,6 +440,16 @@ static func s(key: String):
 static func set_setting(key: String, v) -> void:
 	settings[key] = v
 	save_settings()
+
+## V1.5：一次改很多項（預設組合、匯入設定碼）只寫一次檔。
+static func set_settings(d: Dictionary) -> void:
+	for k in d:
+		settings[k] = d[k]
+	save_settings()
+
+## V1.5：備份檔能不能拿來還原：要是進度存檔（有版本欄），而且不是比這版新的格式。
+static func restorable(d) -> bool:
+	return d is Dictionary and (d.has("schema_version") or d.has("version")) and schema_of(d) <= SAVE_VERSION
 
 
 ## V1.1 F2：本機遊玩紀錄（不上傳、不升存檔版本）。kind＝"puzzle"／"trial"：每打一次 +1；

@@ -378,6 +378,9 @@ static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: flo
 	var ang: float = -1.0 + (w * 0.5 if w < 0.0 else w * 1.4) + Gait.swing(21, walk) * 1.6
 	var hand := Vector2(8, -18)
 	_part(ci, -4.0, 1.0)   # 骨刀在近側
-	_line(ci, hand, hand + Vector2(cos(ang), sin(ang)) * 16.0, bone, 2.6, a)
-	_c(ci, hand + Vector2(cos(ang), sin(ang)) * 17.0, 3.0, bone, a)
+	var bdir := Vector2(cos(ang), sin(ang))
+	_line(ci, hand - bdir * 3.5, hand + bdir * 16.0, bone, 2.6, a)   # V1.5：骨棒尾端露在手後
+	_c(ci, hand - bdir * 4.2, 1.8, bone, a)
+	_c(ci, hand + bdir * 17.0, 3.0, bone, a)
+	_fist(ci, hand, bdir, a, Color("#d8d0bc"), 2.8)   # V1.5：骨手握住（原本骨棒浮在半空，Antigravity v150-i1 #10）
 	_part_end(ci)

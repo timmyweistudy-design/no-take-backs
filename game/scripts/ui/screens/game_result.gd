@@ -317,9 +317,11 @@ func _draw_result() -> void:
 	if watch_mode:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 
+	var n_main := bs.size()   # V1.5：前面這幾顆是主動作（繼續、重試、下一題），後面是次入口
 	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
 		if _near_miss():
 			bs.insert(0, [L.t("review_near"), func(): _open_review()])   # 第十輪 F4：輸得很近，主推覆盤
+			n_main += 1
 		else:
 			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	if _ws_ok(w):
@@ -330,12 +332,22 @@ func _draw_result() -> void:
 	bs.append([L.t("menu"), func(): _request_leave()])
 	# 按鈕寬依結果框內寬分（框 880、左右各留 16）：試煉贏了最多 6 顆，舊的固定 176 會凸出框外（使用者截圖）
 	var gap := 8.0
-	var bw2: float = minf(200.0, (848.0 - (bs.size() - 1) * gap) / maxf(1.0, bs.size()))
-	var x := 640.0 - (bs.size() * (bw2 + gap) - gap) / 2.0
+	# V1.5：主動作比次入口寬 1.3 倍、比較高；次入口用木色、矮一點，一眼分得出先按哪顆
+	var wsum := 0.0
+	for i in bs.size():
+		wsum += 1.3 if i < n_main else 1.0
+	var unit_w: float = minf(200.0, (848.0 - (bs.size() - 1) * gap) / maxf(1.0, wsum))
+	var x := 640.0 - (wsum * unit_w + (bs.size() - 1) * gap) / 2.0
 	if mode == Mode.VS_AI and not watch_mode and _near_miss():
 		_text(Vector2(640, 618), L.t("review_near_d", [roundi(sim.power(1) * 100.0 / (sim.budget_of(1) * 1000))]), tz("S"), ACCENT, true, true, 820)
 	for i in bs.size():
-		_btn(Rect2(x + i * (bw2 + gap), 648, bw2, 46), bs[i][0], bs[i][1], true, i == 0)
+		var main := i < n_main
+		var bw2: float = unit_w * (1.3 if main else 1.0)
+		if main:
+			_btn(Rect2(x, 646, bw2, 50), bs[i][0], bs[i][1], true, i == 0)
+		else:
+			_btn(Rect2(x, 649, bw2, 44), bs[i][0], bs[i][1], true, false, TH_WOOD)
+		x += bw2 + gap
 
 
 

@@ -262,3 +262,13 @@ func test_settings_v150() -> void:
 	ok(bad.is_empty(), "七頁每頁 1～7 列（放得下不用捲）", str(bad))
 	g.free()
 
+
+
+## V1.5 我的預設 10 格：舊存檔 10 筆都保留、第 11 筆丟掉。
+func test_presets_ten_v150() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var ps: Array = []
+	for i in 12:
+		ps.append({"name": "p%d" % i, "code": "NTBR1.x"})
+	var m: Dictionary = SV.migrate({"schema_version": 3, "rule_presets": ps})
+	ok(SV.MAX_PRESETS == 10 and m["rule_presets"].size() == 10, "我的預設最多 10 格", str(m["rule_presets"].size()))

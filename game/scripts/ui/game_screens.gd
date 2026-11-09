@@ -190,7 +190,7 @@ func _input(ev: InputEvent) -> void:
 		if map.has(ev.button_index):
 			_enqueue("key", map[ev.button_index])
 		return
-	if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > 0.3:
+	if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > maxf(0.1, int(Save.s("deadzone")) / 100.0):   # V1.5：死區照設定
 		pad_mode = true
 		_scroll_by("left", ev.axis_value * 24.0)   # 右搖桿捲圖鑑左欄
 		return
@@ -327,13 +327,19 @@ func _key(k: int) -> void:
 					overlay = ""
 				elif overlay == "paint":
 					call("_paint_close")   # V1.4 #15：Esc／手把 B 也要存塗裝（Codex、Antigravity v140-i4）
+				elif overlay == "pause_menu":
+					call("_pause_resume")
+				elif overlay == "settings":
+					call("_settings_close")
+				elif overlay == "confirm":
+					overlay = str(get("confirm_ret"))
 				elif overlay != "":
 					overlay = ""
 				elif state == St.BATTLE:
 					if play_kind != "official":
 						_replay_back()   # 第七輪 A9：重播時 Esc＝返回
 					else:
-						_on_skip()
+						call("_open_pause_menu")   # V1.5：Esc 開暫停選單（原本直接看結果，移進選單第二項）
 				elif state != St.TITLE:
 					_request_leave()
 		return
@@ -382,7 +388,10 @@ func _throttle_when_minimized() -> void:
 	var mini: bool = DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED
 	if mini != _was_minimized:
 		_was_minimized = mini
-		Engine.max_fps = 10 if mini else 0
+		if mini:
+			Engine.max_fps = 10
+		else:
+			call("_apply_display")   # V1.5：還原時回到玩家設定的幀率上限，不是無上限（Antigravity v150-i1 #4）
 
 
 
@@ -680,13 +689,18 @@ func _settings_hover() -> void:
 		return
 	var rows := _settings_rows()
 	for i in rows.size():
-		if Rect2(370, _settings_row_y(i), 520, 52).has_point(mouse):
+		if Rect2(340, _settings_row_y(i) - 5, 560, 56).has_point(mouse):
 			settings_item = rows[i][0]
+	# 手把／鍵盤移焦點時，說明欄跟著焦點那一列（Antigravity v150-i1 #3）
+	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+		var fy: float = _btns[_focus]["r"].position.y
+		for i in rows.size():
+			if absf(fy - _settings_row_y(i)) < 2.0:
+				settings_item = rows[i][0]
 
 
 
-func _settings_row_y(i: int) -> float:
-	return 196.0 + i * 66.0
+
 
 
 
@@ -728,6 +742,8 @@ func _process_cmds() -> int:
 
 ## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
 func _do_click(p: Vector2) -> int:
+	if toast_t > 1.0 and int(Save.s("toast_mult")) == 0:
+		toast_t = 0.4   # V1.5：提示設成「手動關」時，點一下就收起
 	if _btns_gen != _gen:
 		return 0
 	for i in _btns.size():

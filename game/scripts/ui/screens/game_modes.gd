@@ -1286,6 +1286,8 @@ func _draw_wager() -> void:
 	_text(Vector2(200, y), L.t("wg_how"), tz("S"), Color.WHITE, false, true, 300)
 	for b in 3:
 		_btn(Rect2(480 + b * 150, y - 6, 140, 44), L.t("wg_band_%d" % b), func(): wg_pick[1] = b, true, false, TH_ACTIVE if wg_pick[1] == b else Color(0, 0, 0, 0))
+	# V1.5：「贏多少」看的是勝方剩下的戰力比例，區間門檻跟 wager_band 用同一組常數
+	_text(Vector2(640, y + 48), L.t("wg_band_help", [WG_NARROW, WG_NARROW, WG_CRUSH - 1, WG_CRUSH]), tz("C"), TXT_DIM, true, false, 880)
 	_btn(Rect2(420, 640, 220, 50), L.t("wg_go"), func(): _wager_go(), wg_pick[0] >= 0 and wg_pick[1] >= 0, true)
 	_btn(Rect2(660, 640, 200, 50), L.t("back"), func(): overlay = "playroom")
 
@@ -1294,8 +1296,10 @@ func _wager_go() -> void:
 	call("watch_code", wg_armies[0], wg_armies[1], null)
 
 ## 剩餘戰力落在哪一區：0 險勝（<34%）、1 普通、2 大勝（≥67%）。
+const WG_NARROW := 34
+const WG_CRUSH := 67
 static func wager_band(rem: int) -> int:
-	return 0 if rem < 34 else (1 if rem < 67 else 2)
+	return 0 if rem < WG_NARROW else (1 if rem < WG_CRUSH else 2)
 
 ## 結算：押對勝方 1 分、連區間也對再 1 分。存「眼力」：總分、場數、最高連對。
 func _wager_settle() -> void:

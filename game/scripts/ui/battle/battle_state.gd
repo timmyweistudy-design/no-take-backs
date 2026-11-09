@@ -93,18 +93,25 @@ static func proj_fly(type: int) -> int:
 
 ## V1.5：這一刻該演哪一次攻擊。回傳 [出手 tick, 命中 tick, 飛行進度 -1／0～1]；沒有就 [-1, -1, -1]。
 ## 遠程的出手比命中早 fly 個 tick（fly＝飛行時間，受緩衝長度限制）；飛行進度在出手～命中之間由 0 走到 1。
-static func proj_phase(hits: Array, disp: float, type: int, delay: int) -> Array:
-	var fly: int = mini(proj_fly(type), delay - ViewBuffer.DELAY)
-	var hs: Array = hits
-	if fly > 0:
-		hs = hits.map(func(x): return int(x) - fly)
-	var hr := pick_hit(hs, disp, type)
+## only：哪些命中 tick 是飛行物（null＝全部）。投彈兵貼身敲人這種近身命中不提早出手、不畫炸彈（Codex v150-i1 #3）。
+static func proj_phase(hits: Array, disp: float, type: int, delay: int, only = null) -> Array:
+	var fly: int = maxi(0, mini(proj_fly(type), delay - ViewBuffer.DELAY))
+	var pairs: Array = []   # [出手 tick, 命中 tick]
+	for x in hits:
+		var shift: bool = fly > 0 and (only == null or (only as Dictionary).has(int(x)))
+		pairs.append([int(x) - fly if shift else int(x), int(x)])
+	pairs.sort_custom(func(a, b): return a[0] < b[0])
+	var hr := pick_hit(pairs.map(func(p): return p[0]), disp, type)
 	if hr < 0:
 		return [-1, -1, -1.0]
-	var h := hr + fly
+	var h := hr
+	for p in pairs:
+		if p[0] == hr:
+			h = p[1]
+			break
 	var k := -1.0
-	if fly > 0 and disp >= float(hr) and disp <= float(h):
-		k = clampf((disp - float(hr)) / float(fly), 0.0, 1.0)
+	if h > hr and disp >= float(hr) and disp <= float(h):
+		k = clampf((disp - float(hr)) / float(h - hr), 0.0, 1.0)
 	return [hr, h, k]
 
 static func atk_timing(type: int) -> Array:

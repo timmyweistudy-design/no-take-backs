@@ -450,7 +450,7 @@ func _fp_key(k: int) -> bool:
 func _fp_pad_process(delta: float, stick: Vector2) -> void:
 	if not _is_free() or not pad_mode:
 		return
-	if stick.length() > 0.2:
+	if stick.length() > maxf(0.05, int(Save.s("deadzone")) / 100.0):   # V1.5：死區照設定（預設 20%）
 		# 平滑游標＋輕推時減速（微調）
 		var sp := 5200.0 * pow(stick.length(), 2.0)
 		fp_cur += stick.normalized() * sp * delta

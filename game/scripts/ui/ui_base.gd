@@ -435,7 +435,8 @@ func cbm() -> bool:
 
 func _toast(s: String, deny := false) -> void:
 	toast = s
-	toast_t = 2.0 * float(Save.s("toast_mult"))   # V1.5：提示停留 標準／加長／很長
+	var tm := int(Save.s("toast_mult"))
+	toast_t = 2.0 * tm if tm > 0 else 600.0   # V1.5：提示停留 標準／加長／很長／手動關（點一下才收）
 	if deny:
 		sfx.play("ui_deny")
 

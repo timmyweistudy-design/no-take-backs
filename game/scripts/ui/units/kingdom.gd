@@ -22,6 +22,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 	if type != D.ASSASSIN:
 		var cape := PackedVector2Array([Vector2(-6, -23), Vector2(-14 - fl * 0.4, -18), Vector2(-16 - fl, -8 + fl * 0.3), Vector2(-12 - fl, -6), Vector2(-7, -9)]) if _team_now == 0 else PackedVector2Array([Vector2(-6, -23), Vector2(-15 - fl * 0.4, -18), Vector2(-18 - fl, -6 + fl * 0.3), Vector2(-13 - fl * 0.8, -10), Vector2(-11 - fl, -5), Vector2(-7, -9)])
 		_poly(ci, cape, tc.darkened(0.08), a)
+	if type == D.BERSERKER:
+		_berserk_axe(ci, 1, w, sway, variant, a)   # 遠側斧：先畫，身體蓋在上面
 	# 背後的東西（箭筒）
 	if type == D.ARCHER:
 		# 第七輪 C1-3：箭筒放大、露白羽
@@ -144,7 +146,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 				_line(ci, mid + Vector2(1.5, 0), mid + Vector2(-2.5, -3.0), Color.WHITE, 1.6, a)
 				_line(ci, mid + Vector2(1.5, 0), mid + Vector2(-2.5, 3.0), Color.WHITE, 1.6, a)
 				_c(ci, mid, 2.8, SKIN, a)   # 拉弦的手捏在弦上
-			_fist(ci, Vector2(bc.x + 12, bc.y), Vector2(0, -1), a)
+			_fist(ci, Vector2(bc.x + 17.5, bc.y), Vector2(0, -1), a, SKIN, 3.2)   # V1.5：握在弓身中段（原本懸在弓肚內側，Antigravity v150-i1 #10）
 			_part_end(ci)
 		D.ASSASSIN:
 			# 尖兜帽＋面罩，只露發光的眼睛
@@ -275,6 +277,7 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 				var hx := 2.0 + k * 9.0
 				_line(ci, Vector2(hx, -20 - raise), Vector2(hx + 5, -24 - raise - k * 2), Color("#f4e3c1"), 1.8, a)   # V1.3.1：鼓槌頭低 2px，不碰下巴
 				_c(ci, Vector2(hx + 5, -24 - raise - k * 2), 2.0, Color("#f4e3c1"), a)
+				_fist(ci, Vector2(hx + 0.8, -20.5 - raise), Vector2(5, -4 - k * 2).normalized(), a, SKIN, 2.6)   # V1.5：手握鼓槌尾端（原本槌子浮在鼓前，Codex v150-i1 #11）
 			_part_end(ci)
 		D.BERSERKER:
 			# 火紅刺蝟頭
@@ -283,26 +286,31 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_poly(ci, hair, Color("#ff5a2a"), a)
 			# 左右手各一把闊斧：揮擊時雙斧往下劈（交叉）
 			# 待機時雙斧垂在身體兩側往外（不擋臉）；前搖舉過頭、揮擊往前下劈
-			var aang := -0.35 - (0.42 if w == 0.0 else 0.0) + (w * 1.3 if w < 0.0 else w * 1.4) + sway   # V1.3.1 剪影：待機雙斧外開成 V（低於攻擊時舉斧）
-			if variant == 2:
-				aang = -1.75   # 專屬＝破陣：雙斧高舉過頭
-			for k2 in 2:
-				var ah := Vector2(9, -15) if k2 == 0 else Vector2(-8, -16)
-				_part(ci, -8.0 if k2 == 0 else 4.0, 0.9)   # V1.3.1：前斧近側（再往前，刃角不碰右眼）、後斧遠側
-				var aa := aang if k2 == 0 else (PI - aang if w <= 0.0 else aang - 0.4)
-				var adir := Vector2(cos(aa), sin(aa))
-				var atip := ah + adir * 20.0
-				_line(ci, ah, atip, WOOD, 2.4, a)
-				var ao := adir.orthogonal()
-				var blade := PackedVector2Array([atip - adir * 3.0 + ao * 1.5, atip - adir * 12.0 + ao * 11.0, atip + adir * 5.0 + ao * 10.5])   # 第七輪 C1-10：斧刃放大
-				_poly(ci, blade, STEEL, a)
-				ci.draw_line(blade[1], blade[2], Color(1, 1, 1, a), 1.6, true)   # 亮銀刃口
-				_fist(ci, ah, (atip - ah).normalized(), a)   # V1.5：手指包住斧柄
+			# V1.5：遠側那把斧在畫身體之前就畫了（被身體擋住，不再疊在胸口，Codex／Antigravity v150-i1）；這裡只畫近側
+			_berserk_axe(ci, 0, w, sway, variant, a)
 			_part_end(ci)
 	_part_end(ci)   # V1.3.1：頭部轉換到此結束（後手跟身體）
 	if type != D.ASSASSIN and type != D.ARCHER and type != D.SWORD and type != D.PIKE and type != D.BOMBER and type != D.MEDIC and type != D.BERSERKER:
 		_c(ci, Vector2(-9, -17 - sway * 8.0), 3.0, SKIN, a)
 
+
+## 狂戰士的一把斧：k2＝0 近側（頭之後畫）、1 遠側（身體之前畫，被身體擋住）。
+static func _berserk_axe(ci: CanvasItem, k2: int, w: float, sway: float, variant: int, a: float) -> void:
+	var aang := -0.35 - (0.42 if w == 0.0 else 0.0) + (w * 1.3 if w < 0.0 else w * 1.4) + sway   # V1.3.1 剪影：待機雙斧外開成 V（低於攻擊時舉斧）
+	if variant == 2:
+		aang = -1.75   # 專屬＝破陣：雙斧高舉過頭
+	var ah := Vector2(9, -15) if k2 == 0 else Vector2(-8, -16)
+	_part(ci, -8.0 if k2 == 0 else 4.0, 0.9)   # V1.3.1：前斧近側（再往前，刃角不碰右眼）、後斧遠側
+	var aa := aang if k2 == 0 else (PI - aang if w <= 0.0 else aang - 0.4)
+	var adir := Vector2(cos(aa), sin(aa))
+	var atip := ah + adir * 20.0
+	_line(ci, ah, atip, WOOD, 2.4, a)
+	var ao := adir.orthogonal()
+	var blade := PackedVector2Array([atip - adir * 3.0 + ao * 1.5, atip - adir * 12.0 + ao * 11.0, atip + adir * 5.0 + ao * 10.5])   # 第七輪 C1-10：斧刃放大
+	_poly(ci, blade, STEEL, a)
+	ci.draw_line(blade[1], blade[2], Color(1, 1, 1, a), 1.6, true)   # 亮銀刃口
+	_fist(ci, ah, (atip - ah).normalized(), a)   # V1.5：手指包住斧柄
+	_part_end(ci)
 
 static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry := false) -> void:
 	var wk := Gait.ph(walk)

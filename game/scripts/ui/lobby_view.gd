@@ -155,8 +155,16 @@ func _lobby_paste_code(text := "") -> void:
 func _lobby_save_preset() -> void:
 	var ps: Array = Save.data.get("rule_presets", [])
 	if ps.size() >= Save.MAX_PRESETS:
-		ps.pop_front()
-	var nm := L.t("lb_my_n", [ps.size() + 1])
+		_toast(L.t("lb_full", [Save.MAX_PRESETS]), true)   # V1.5：滿了不偷偷蓋掉最舊的，請玩家先刪
+		lobby_menu = true
+		return
+	var used := {}
+	for e in ps:
+		used[str(e["name"])] = true
+	var k := 1
+	while used.has(L.t("lb_my_n", [k])):
+		k += 1   # 刪過中間那格也不會撞名
+	var nm := L.t("lb_my_n", [k])
 	ps.append({"name": nm, "code": lobby_r.to_code()})
 	Save.data["rule_presets"] = ps
 	Save.save_data()
@@ -523,16 +531,21 @@ func _draw_lobby_presets(o: Vector2) -> void:
 
 func _draw_lobby_menu(o: Vector2) -> void:
 	var ps: Array = Save.data.get("rule_presets", [])
-	var n: int = maxi(1, ps.size())
-	var r := Rect2(o, Vector2(220, 12 + n * 50))
+	var rows: int = clampi(ps.size(), 1, 5)
+	var cols := 2 if ps.size() > 5 else 1
+	o.x -= 240.0 * (cols - 1) + 30.0
+	var r := Rect2(o, Vector2(12 + cols * 240, 12 + rows * 50))
 	draw_rect(r, PANEL)
 	draw_rect(r, Color(1, 1, 1, 0.3), false, 1.5)
 	if ps.is_empty():
 		_text(r.position + Vector2(110, 18), L.t("lb_mine_empty"), tz("S"), TXT_DIM, true, false, 200)
 		return
 	for i in ps.size():
-		_btn(Rect2(r.position + Vector2(6, 6 + i * 50), Vector2(160, 44)), str(ps[i]["name"]), _lobby_load_preset.bind(i))
-		_btn(Rect2(r.position + Vector2(170, 6 + i * 50), Vector2(44, 44)), "×", _lobby_delete_preset.bind(i))
+		var cp := r.position + Vector2(6 + (i / 5) * 240, 6 + (i % 5) * 50)
+		_btn(Rect2(cp, Vector2(144, 44)), str(ps[i]["name"]), _lobby_load_preset.bind(i))
+		_btn(Rect2(cp + Vector2(148, 0), Vector2(44, 44)), "", func(): DisplayServer.clipboard_set(str(ps[i]["code"])); _toast(L.t("lb_copied")))
+		_icon("copy", cp + Vector2(170, 22), 18.0, Color.WHITE)
+		_btn(Rect2(cp + Vector2(196, 0), Vector2(40, 44)), "×", _lobby_delete_preset.bind(i))
 
 func _filter_hit(t: int) -> bool:
 	match lobby_filter:
