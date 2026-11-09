@@ -1,6 +1,6 @@
 # 落子無悔 No Take-Backs
 
-Godot 4.6.2 確定性自動對決。V1.5.1（返回目的地、戰績同口徑、22 種背面、轉身出手、圖鑑近看與小劇場遠程、設定收尾）已實作：方案與進度 `docs/2026-11-09-v1.5.1-plan.md` §I、紀錄與裁決 `coordination/v151-impl/ledger.md`。V1.5.0（客製化七頁、主畫面五塊木牌、角色握持與背面、遠程時間同步）已實作：方案與進度 `docs/2026-11-09-v1.5.0-plan.md` §8、裁決 `coordination/v150-impl/ledger.md`；角色驗收圖 `tools/unit_review.gd`（不能 headless）。V1.4.0（18 個新方向全做）已實作：方案與進度 `docs/2026-11-08-v1.4.0-plan.md` §3、裁決 `coordination/v140-ledger.md`；翻譯流程與新模組見 STATE。V1.3.1（角色做完整）已實作：方案與進度 `docs/2026-11-08-v1.3.1-plan.md` §8、裁決 `coordination/v131-ledger.md`。V1.3.0（去紙片感、手作感、好懂）已實作：方案與進度 `docs/2026-11-08-v1.3.0-plan.md` §10、裁決 `coordination/v130-ledger.md`。V1.2.1（細節優化）已實作：方案與進度 `docs/2026-11-07-v1.2.1-plan.md` §10、裁決 `coordination/v121-ledger.md`。V1.2.0（質感升級，零預算）已實作：方案與進度 `docs/2026-11-07-v1.2.0-plan.md` §11、裁決 `coordination/v120-ledger.md`。現況只看 `docs/STATE.md`；最新一輪 V1.1.0（動作、遠征路線、每日挑戰）方案與進度看 `docs/2026-11-06-v1.1.0-plan.md`（§11 進度）、裁決看 `coordination/v110-ledger.md`；上一輪（殘局 100、試煉 30）看 `docs/2026-11-06-puzzle-expansion-plan-v13.md`、`coordination/v13-ledger.md`。舊輪次不用讀。
+Godot 4.6.2 確定性自動對決。**下一步：V1.5.2 排版品質（方案定稿、未實作，交接 `docs/HANDOFF-v152.md`，紅書籤選 A；使用者說「開始」才做）。**V1.5.1（返回目的地、戰績同口徑、22 種背面、轉身出手、圖鑑近看與小劇場遠程、設定收尾）已實作：方案與進度 `docs/2026-11-09-v1.5.1-plan.md` §I、紀錄與裁決 `coordination/v151-impl/ledger.md`。V1.5.0（客製化七頁、主畫面五塊木牌、角色握持與背面、遠程時間同步）已實作：方案與進度 `docs/2026-11-09-v1.5.0-plan.md` §8、裁決 `coordination/v150-impl/ledger.md`；角色驗收圖 `tools/unit_review.gd`（不能 headless）。V1.4.0（18 個新方向全做）已實作：方案與進度 `docs/2026-11-08-v1.4.0-plan.md` §3、裁決 `coordination/v140-ledger.md`；翻譯流程與新模組見 STATE。V1.3.1（角色做完整）已實作：方案與進度 `docs/2026-11-08-v1.3.1-plan.md` §8、裁決 `coordination/v131-ledger.md`。V1.3.0（去紙片感、手作感、好懂）已實作：方案與進度 `docs/2026-11-08-v1.3.0-plan.md` §10、裁決 `coordination/v130-ledger.md`。V1.2.1（細節優化）已實作：方案與進度 `docs/2026-11-07-v1.2.1-plan.md` §10、裁決 `coordination/v121-ledger.md`。V1.2.0（質感升級，零預算）已實作：方案與進度 `docs/2026-11-07-v1.2.0-plan.md` §11、裁決 `coordination/v120-ledger.md`。現況只看 `docs/STATE.md`；最新一輪 V1.1.0（動作、遠征路線、每日挑戰）方案與進度看 `docs/2026-11-06-v1.1.0-plan.md`（§11 進度）、裁決看 `coordination/v110-ledger.md`；上一輪（殘局 100、試煉 30）看 `docs/2026-11-06-puzzle-expansion-plan-v13.md`、`coordination/v13-ledger.md`。舊輪次不用讀。
 
 ## 指令（在 game/ 下，GODOT 指向 Windows 版 4.6.2）
 - 改動時：`python3 tools/check.py`（有快取，只跑受影響的）；更快：`--quick`。
@@ -18,7 +18,7 @@ Godot 4.6.2 確定性自動對決。V1.5.1（返回目的地、戰績同口徑�
 - 改數值（預設不改；要改先升 `RULES_VERSION`，見 STATE 版本契約）：跑平衡、新增新版金標準基準（舊基準不覆蓋，commit 說明）、重驗三星（`tools/balance/star_check.gd`、`trial_check.gd`，測試 `star_solutions` 會擋）。
 - 手寫文字不寫死數值；技能說明用常數換值。
 - 新測試登記在 `tests/run_tests.gd` 的 `FILES`（V1.1 起單一登錄；漏登記會直接失敗）。
-- 字級只用字級表，不縮字；版面檢查不看圖，收尾要看截圖。
+- 字級只用字級表，不縮字；版面檢查不看圖、也不查置中／貼齊／對稱（V1.5.2 前），收尾要看截圖（拼接觸表畫中線、用找錯的眼光）。
 - 暫存放 `build/tmp/`；東西不放專案外。
 - 不跑 `--steam-test`；長時間可見視窗先問。
 - commit 用 `git -c user.name=timmy -c user.email=pweihome@gmail.com`，做完推 `origin main`。
