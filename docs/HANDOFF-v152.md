@@ -1,5 +1,9 @@
 # 交接方案：V1.5.2 排版品質（2026-11-09）
 
+> **狀態：已實作完成（版號 1.5.2，2026-11-09）。** 這份保留當紀錄；現況看 `docs/STATE.md`，規則看 `docs/ui-layout-rules.md`，例外看 `docs/ui-layout-exceptions.md`，實作審查與裁決看 `coordination/v152-impl/ledger.md`，交接優化三方三輪看 `coordination/v152h/`。
+> 實作照交接優化定案（`coordination/v152h/r3-final.md`）的順序：修前基準（`build/tmp/v152/before`，623d8f4，19 組 2508 張）→ 先修 L1、L2 → 偵測器 → L3～L11 → 三輪實作審查 → 21 組嚴格模式驗收。
+> 和本文不同的定案：偵測器不做 `with_container` 容器堆疊，改 `_panel`／`_h1` 自動登記＋多欄 `probe_columns` 顯式宣告＋覆蓋層必要角色守衛（`OVERLAY_RIBBON`／`OVERLAY_PANEL`）；R5 改人工看圖；R6 改「最大垂直空白」；紅書籤文字槽只有選中的分頁讓（看圖撤回「六格一律」）；確認框只截斷不捲動；§8 卡住的 Godot 程序已不在（開工時查過 0 個）。
+
 給接手的人（或下一個工作階段）。讀完這份就能開工；細節依據在 `docs/2026-11-09-v1.5.2-plan.md`（定稿）與 `coordination/v152-*`（三方三輪紀錄）。
 
 ## 0. 現況一句話

@@ -1,12 +1,12 @@
 # 落子無悔：現在的真相
 
-> 第七輪 J3 建立，V1.5.1 更新。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
+> 第七輪 J3 建立，V1.5.2 更新。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
 > 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/history/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/history/2026-11-04-fantasy-units-plan-v8.md` §12、第九輪 `docs/2026-11-04-v1-release-plan-v9.md` §14、第十輪 `docs/2026-11-05-v1-polish-plan-v10.md` §14，第十一、十二輪追加在同一份 §15；第十三輪 `docs/2026-11-06-puzzle-expansion-plan-v13.md` §14、裁決 `coordination/v13-ledger.md`。
 
 ## 版本
 | 項目 | 值 | 位置 |
 |---|---|---|
-| App | 1.5.1（單一來源 `project.godot`，匯出設定同步；標題頁顯示） | `project.godot` |
+| App | 1.5.2（單一來源 `project.godot`，匯出設定同步；標題頁顯示） | `project.godot` |
 | 引擎 | Godot 4.6.2-stable（本機、CI、匯出模板要一致，`check_all.sh` 會擋） | `tools/check_all.sh`、`.github/workflows/ci.yml` |
 | 規則版本 | `D.RULES_VERSION`（1.3.0）；用到新兵的場次顯示 1.4.1 | `scripts/core/unit_defs.gd` |
 | 存檔格式 | `SAVE_VERSION` | `scripts/game/save.gd` |
@@ -145,10 +145,14 @@
 - 代碼：「代碼」頁一鍵貼上自動辨識（`code_kind`）；車輪戰代碼 NTW1（`wave_code`／`wave_decode`）。
 - 工具：試玩回報白名單匯出（`Save.playtest_report`）；校對包 `tools/gen/l10n_review.py`（export → `docs/l10n-review/`；import 回填 `ja_zz_review.json`、`zhcn_review.json`，校對優先於程式內 OVERRIDE）。
 
-## 下一版（V1.5.2，方案定稿、未實作）
-- 排版品質版：面板置中、依附裝飾貼齊、緞帶下方間距、彈窗高度、對齊偵測器（容器宣告＋反例＋漏登記守衛）。方案 `docs/2026-11-09-v1.5.2-plan.md`、**交接與施工步驟 `docs/HANDOFF-v152.md`**。
-- 使用者已選：大廳紅書籤 A 案（上緣貼分頁上緣、分頁右側垂下）。使用者說「開始」才實作。
-- 已知排版錯誤（未修）：主畫面卡片面板偏右 190px、大廳紅書籤懸空咬框、多個畫面標題緞帶貼字、確認框與代碼頁 150% 文字壓按鈕、設定頁撤回鈕被說明欄蓋住等（清單見交接方案 §3）。**版面檢查器目前不查置中、貼齊、對稱、留白**。
+## 排版品質（V1.5.2）
+- 規則：`docs/ui-layout-rules.md`（間距階 4／8／12／16／24／32／48＝`GAP_XS`～`GAP_XL`；R1 模態面板置中、R2 緞帶下距 ≥16、R3 依附裝飾貼齊、R4 底部按鈕群組、R6 留白、R7 副標置中、R8 不出面板／不跨欄／焦點框在畫面內、R9 文字到按鈕、R10 同欄中線、G 漏登記守衛）。例外：`docs/ui-layout-exceptions.md`（4 條）。
+- 偵測器：`scripts/ui/layout_rules.gd`（純矩形）；`_panel`／`probe_panel`、`_h1` 自動登記，`probe_deco`、`probe_columns`、`probe_align`、`probe_axis`、`probe_skip` 由畫面宣告；`tools/dev_main.gd` 的 `layout_geom_input()` 交給規則，`OVERLAY_RIBBON`／`OVERLAY_PANEL` 是每個覆蓋層的必要角色（新覆蓋層要加）。
+- 排版工具：`modal_rect(寬, 高)`（置中、照內容高）、`_h1` 回傳緞帶完整下緣、`_h1_help`／`h1_help_h`、`below_head`、`btn_deco`（按鈕底面之後、焦點框之前畫依附裝飾）、`_btn_small`（可見面不變、點擊區 44）、`btn_ring_clip`（加強焦點外圈的可畫範圍）、`balance_two_lines`。
+- 大廳紅書籤（A 案）：選中預設分頁右側（右緣−34、寬 20），上緣貼分頁上緣、長 30；只有選中的分頁讓書籤槽（`BM_SLOT` 42），未選中的不畫書籤、字整格置中。
+- 確認框：`_ask_confirm(msg, cb, ret, items, sep)`，面板照實高，清單放不下截前幾項加「…等另外 M 項」（`confirm_more`）。
+- 備份資料夾跟存檔前綴（`backup_dir()`；正式遊戲仍是 `user://backup`）。
+- 版面檢查 21 組（四語 × 三字級＋狀態；補了簡中、日文 125%）；空／滿資料截圖名帶 `@`；`LAYOUT_STRICT_WARN=1` 時排版警告也算失敗；違規全表 `tools/layout_table.py`、接觸表 `tools/layout_sheet.py`（畫中線、修前修後並排、標 commit）。
 
 ## 已知限制
 - V1.1：無快取統一檢查同機約 958 秒（目標 750 沒達到；新增的每日挑戰測試多 1174 項）；同機量測繪圖 p95 約 9 ms、整幀 p95 約 18 ms（新舊版相同，沒退步，但沒達 6／16.7 ms 目標；歷史量過 4.6 ms，機器狀態差異大）。
@@ -187,15 +191,23 @@
 - V1.5.1：手動軍令局遠程飛行只有 1 tick（50 毫秒），低幀率或高倍速時看不太清楚。
 - V1.5.1：設定沒有重播自動保存、進階收合（刻意不做）；軍令時間軸沒有「選軍令再點時間」（觸控要拖曳）。還原與清除只能在標題畫面做。
 - V1.5：7 個新成就未在 Steam 後台建立。沒有真人玩過 V1.5。
+- V1.5.2：偵測器只看 `_panel`／`_h1`／`_btn`／`_text` 畫的東西；字壓到非按鈕的色條或圖、美感、R5 卡片基準線仍要看接觸表（分頁字壓色條就是看圖抓到的）。大廳「卡牌」列的「選牌」鈕刻意和張數說明同一條中線，不和左欄標籤同中線（裁決見 `coordination/v152-impl/ledger.md`）。效能這版沒有重量（只動畫面排版）。
 
 ## 驗證入口
 - `GODOT=<4.6.2> tools/check_all.sh`：統一檢查，CI 也用。
-- `tools/layout_check.sh <win exe> <新資料夾>`：版面（會被擋的項目見腳本）；另外要人工看英文 150%。
+- `tools/layout_check.sh <win exe> <新資料夾>`：版面（21 組；會被擋的項目見腳本與 `docs/ui-layout-rules.md`）；收尾加 `LAYOUT_STRICT_WARN=1`；另外要用 `tools/layout_sheet.py` 拼接觸表人工找錯，英文 150% 一定看。
 - `GODOT=<win exe> tools/export_check.sh <空資料夾>`：匯出成品自我檢查。
 - `SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
 - 統一檢查在 Windows 版要 40～50 分鐘，外層 timeout 至少開 90 分鐘。
 
-## 最後一次驗收（2026-11-09，V1.5.1 收尾）
+## 最後一次驗收（2026-11-09，V1.5.2 收尾）
+- 統一檢查 48 步：測試 4445 項全過（之後再加的測試在快速檢查全過）；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變；V1.4 跨版本金標準照守。
+- 版面：21 組 2919 張，嚴格模式（排版警告也算失敗）違規 0、排版警告 0、宣告例外 4 條（26 張次）；修前基準 623d8f4 19 組 2508 張留在 `build/tmp/v152/before`。首次違規全表（3 組）358 條 → 0。
+- 匯出 EXPORT OK（Linux 本機無模板，略過不算通過）。
+- 三方：交接優化三輪（`coordination/v152h/`），實作審查三輪（`coordination/v152-impl/r1～r3`、`ledger.md`）；第 3 輪 Antigravity 同意收尾，Codex 的 2 條必修（守衛被註解吃掉、頂列焦點外圈）已修，**第 3 輪後的修正未經第 4 輪複查**（但已過 21 組嚴格版面與統一檢查）。
+- 截圖：`docs/review/v152/`（`before_after_l1l2.png` 修前修後、`after_en150.png`、`tabs_final.png`）。沒有真人玩過 V1.5.2。
+
+## 前一次驗收（2026-11-09，V1.5.1 收尾）
 - 統一檢查 48 步：測試 4377 項全過（之後收尾再加的測試在快速檢查全過）；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變；V1.4 跨版本金標準照守。
 - 版面：19 組 2508 張 0 違規（含手把流程）；匯出 EXPORT OK（Linux 本機無模板，略過不算通過）。
 - 效能（同機 i7-12700H／RTX 3060，1280×800，4 倍速 24 對 24）：繪圖 p50 7.65、p95 10.46 ms（V1.5.0 10.42），GPU p95 2.76 ms，貼圖記憶體 252.4 MiB（V1.5.0 222.4；多的是本局兵種的轉身出手格），開機 3.75 秒；`docs/perf/v151-draw.json`。
