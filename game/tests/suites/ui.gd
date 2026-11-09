@@ -1482,3 +1482,13 @@ func test_layout_rules_v152() -> void:
 		grid.append(Rect2(76 + (i % 7) * 162, 192 + (i / 7) * 136, 156, 130))
 	ok(not "R4" in codes.call(LR.check({"panels": [{"id": "P0", "r": Rect2(60, 66, 1160, 700), "skip": {}}], "btns": grid}), "fail"), "R4 格狀最後一排靠左不報")
 	ok(not "R7" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(565, 180, 160, 20), "s": "分頁字"}], "btns": [Rect2(540, 172, 200, 60)]}), "warn"), "R7 按鈕裡的字不算副標")
+	# Codex 實作第 1 輪：格線豁免不能太寬——上面只有一顆同尺寸的按鈕時，底部雙按鈕偏心照抓
+	var pr4: Dictionary = {"id": "P0", "r": Rect2(340, 100, 600, 500), "skip": {}}
+	ok("R4" in codes.call(LR.check({"panels": [pr4], "btns": [Rect2(483, 400, 150, 48), Rect2(483, 540, 150, 48), Rect2(653, 540, 150, 48)]}), "fail"), "R4 上面只有一顆同尺寸鈕：不是格線，偏心照抓")
+	# G：緞帶宿主無效
+	ok("G" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [{"id": "H0", "r": Rect2(500, 112, 280, 46), "cx": 640.0, "bottom": 158.0, "host": ""}]}), "fail"), "G 緞帶沒有宿主被抓")
+	ok("G" in codes.call(LR.check({"panels": [P.call(340.0)], "need": {"ribbon": 1}}), "fail"), "G 該有緞帶的畫面少了緞帶被抓")
+	# R8：文字超出面板、焦點框超出畫面
+	ok("R8" in codes.call(LR.check({"panels": [P.call(340.0)], "texts": [{"r": Rect2(880, 300, 100, 20), "s": "溢出"}]}), "fail"), "R8 文字超出面板被抓")
+	ok("R8" in codes.call(LR.check({"btns": [Rect2(4, 300, 100, 44)], "focus_out": 8.0}), "fail"), "R8 加強焦點框超出畫面被抓")
+	ok(not "R8" in codes.call(LR.check({"btns": [Rect2(8, 300, 100, 44)], "focus_out": 8.0}), "fail"), "R8 焦點框剛好在畫面內通過")

@@ -156,6 +156,8 @@ var _sb_cache := {}
 var last_btn_enabled := true   # 上一顆 _btn 實際是否可按（版面檢查的停用狀態會強制停用；卡片內文字要跟著變暗）
 var last_btn_paper := false   # 上一顆 _btn 實際有沒有畫成紙面（呼叫端決定裡面的字要不要墨色）
 var btn_paper := false   # V1.2.1 R1：下一顆 _btn 畫紙面（呼叫端設、用完還原）
+var btn_hit_min := 0.0   # V1.5.2：下一顆 _btn 的點擊區至少這麼高（可見面不變；大廳 36～40 高的小鈕擴到 44）
+var probe_hits: Array = []   # V1.5.2：有擴點擊區的按鈕（版面檢查驗 ≥44）
 var btn_deco := Callable()   # V1.5.2 L2：下一顆 _btn 在底面之後、焦點框之前呼叫 btn_deco.call(面框)（書籤這類依附裝飾；呼叫端設、用完還原）
 var _probe_glyph := false
 var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對比）
@@ -330,6 +332,7 @@ var probe_need := {}   # 這一幀畫面宣告「至少要登記到幾個」的�
 
 func probe_reset_geom() -> void:
 	probe_need = {}
+	probe_hits.clear()
 	probe_panels.clear()
 	probe_ribbons.clear()
 	probe_decos.clear()
@@ -683,8 +686,14 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	if layout_probe and get("shot_dir") != "" and (get("shot_state") as Dictionary).has("dis"):
 		enabled = false   # V1.2.1：版面檢查的「停用」狀態：全部按鈕畫成停用，檢查停用樣式（手把流程不受影響）
 	var idx := _btns.size()
-	_btns.append({"r": r, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
-	var hover := r.has_point(mouse) and not pad_mode
+	var hit := r
+	if btn_hit_min > r.size.y:
+		var dh := (btn_hit_min - r.size.y) * 0.5
+		hit = r.grow_individual(0.0, dh, 0.0, dh)
+		if layout_probe:
+			probe_hits.append(hit)
+	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
+	var hover := hit.has_point(mouse) and not pad_mode
 	var focus := pad_mode and idx == _focus
 	var bg := TH_WOOD_L if not primary else TH_PRIMARY
 	if tint.a > 0:
@@ -969,6 +978,12 @@ func below_head(sz: int) -> float:
 func modal_rect(w: float, h: float) -> Rect2:
 	var hh := minf(h, 800.0 - 32.0)
 	return Rect2(roundf((1280.0 - w) * 0.5), roundf(maxf(16.0, (800.0 - hh) * 0.5)), w, hh)
+
+## V1.5.2：可見面小於 44 的按鈕（大廳選牌、技能、篩選、陣營、沙盤技能）：點擊區擴到 44 高，可見面不變
+func _btn_small(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+	btn_hit_min = 44.0
+	_btn(r, label, action, enabled, primary, tint)
+	btn_hit_min = 0.0
 
 ## 安靜的小按鈕（第七輪 N6）：點擊框維持可點的大小，平常只畫一個小記號，滑過才亮。
 func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:

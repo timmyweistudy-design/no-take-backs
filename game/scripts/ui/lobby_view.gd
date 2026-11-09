@@ -249,7 +249,7 @@ func _draw_cmd_tab(R: Rect2) -> void:
 		return
 	for ti in 2:
 		var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
-		_btn(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
+		_btn_small(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
 	y += 44
 	var tm: int = clampi(lobby_pool_team, 0, 1)
 	# V1.4 #8 指揮官：一排羊皮紙名牌，點一位就套用他的軍令與開局金
@@ -524,15 +524,12 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		btn_deco = Callable()
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
-		# 文字留出書籤槽：可用區 [6, w−BM_SLOT]。沒選中的分頁若名稱在槽內要換行（英文、日文 150%），改用整格寬，
-		# 不讓第二行壓到下面的色條（看圖抓到：Monster Crew、クラシック5種）；選中的分頁一定讓開書籤，兩行時從上緣 5 起排
+		# 文字留出書籤槽（六格一律，切換時文字不跳）：可用區 [6, w−BM_SLOT]。名稱在槽內要換行時（英文、日文 150%：
+		# Monster Crew、クラシック5種）從上緣 5 起排、色條下移到 h−11，第二行不壓色條
 		var lab := L.t("lb_p_" + id)
 		var tw := w - 6.0 - BM_SLOT
 		var two := wrap_lines(lab, fit(lab, tz("B"), tw, true), tw, true).size() > 1
-		if two and not on:
-			_text(r.position + Vector2(w / 2, 8), lab, tz("B"), Color.WHITE, true, true, w - 12)
-		else:
-			_text(r.position + Vector2(6.0 + tw / 2, 5 if two else 8), lab, tz("B"), Color.WHITE, true, true, tw)
+		_text(r.position + Vector2(6.0 + tw / 2, 5 if two else 8), lab, tz("B"), Color.WHITE, true, true, tw)
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
 		_box(Rect2(r.position + Vector2(8, h - 11), Vector2(w - 16, 5)), bc, Color(0, 0, 0, 0), 2.0)
@@ -683,7 +680,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var p0: int = r.pool_of(0)
 	_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
 	_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
-	_btn(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
+	_btn_small(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
 		lobby_open = true
 		lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
 	y += rowh
@@ -705,7 +702,7 @@ func _draw_lobby_main(R: Rect2) -> void:
 	_text(Vector2(cx, y + 8), sm, smz, Color.WHITE, false, false, cw)
 	var by0: float = y + 12 + text_h(sm, smz, cw) + 4.0
 	_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
-	_btn(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
+	_btn_small(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
 	_ink_mode = false
 	# 右：預覽
 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
@@ -1014,7 +1011,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 	if two:
 		for ti in 2:
 			var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
-			_btn(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
+			_btn_small(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
 		y += 44
 	var teams := [lobby_pool_team]
 	for tm in teams:
@@ -1031,7 +1028,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 			fw = maxf(fw, _width(L.t("lb_filter_%d" % fi0), ts(15)) + 14.0)
 		fw = minf(fw, (R.size.x - fx0) / 5.0 - 4.0)
 		for fi in 5:
-			_btn(Rect2(R.position.x + fx0 + fi * (fw + 4.0), y - 4, fw, 36), L.t("lb_filter_%d" % fi), func(): lobby_filter = fi, true, false, TH_ACTIVE if lobby_filter == fi else TH_WOOD)
+			_btn_small(Rect2(R.position.x + fx0 + fi * (fw + 4.0), y - 4, fw, 36), L.t("lb_filter_%d" % fi), func(): lobby_filter = fi, true, false, TH_ACTIVE if lobby_filter == fi else TH_WOOD)
 		y += 38.0
 		var groups := [[L.t("lb_army_kingdom"), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]
 		if has_new_row:
@@ -1107,7 +1104,7 @@ func _draw_lab_tab(R: Rect2) -> void:
 	for i in skill_list.size():
 		var s: String = skill_list[i]
 		var off: bool = s in lobby_r.skills_off
-		_btn(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("× " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
+		_btn_small(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("× " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
 			Color(0.35, 0.18, 0.2) if off else Color(0.16, 0.26, 0.2))
 	if mouse.y > R.position.y and mouse.y < R.end.y and mouse.x > R.position.x and mouse.x < R.end.x:
 		lobby_item = "lab"

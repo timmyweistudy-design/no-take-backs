@@ -40,6 +40,9 @@ static func check(d: Dictionary) -> Dictionary:
 	for role in need:
 		if int(have.get(role, 0)) < int(need[role]):
 			_add(out, "fail", "G", role, "漏登記：%s 需要 ≥%d，實得 %d" % [role, int(need[role]), int(have.get(role, 0))])
+	for rb in ribbons:
+		if not panels.is_empty() and _panel_by_id(panels, str(rb.get("host", ""))) == null:
+			_add(out, "fail", "G", rb["id"], "緞帶沒有有效的宿主面板（host=%s）" % str(rb.get("host", "")))
 	if str(d.get("overlay", "")) != "" and panels.is_empty() and not bool(d.get("panelless_ok", false)):
 		_add(out, "fail", "G", str(d["overlay"]), "漏登記：覆蓋層沒有面板")
 	# ── R1 面板（_panel 一律有全螢幕遮罩＝模態）水平置中；R8 面板距畫面邊 ──
@@ -117,7 +120,7 @@ static func check(d: Dictionary) -> Dictionary:
 				_add(out, "fail", "R4", p["id"], "底部按鈕間距不等：%s" % str(gs))
 		if row.size() == 2 and absf(row[0].size.x - row[1].size.x) > TOL_CENTER:
 			_add(out, "fail", "R4", p["id"], "雙按鈕不同寬：%.0f／%.0f" % [row[0].size.x, row[1].size.x])
-	# ── R8 面板內的按鈕不能超出面板 ──
+	# ── R8 面板內的按鈕、文字不能超出面板；按鈕連焦點框外擴都要在畫面內 ──
 	for p in panels:
 		if _skip(out, p, "R8"):
 			continue
@@ -125,6 +128,15 @@ static func check(d: Dictionary) -> Dictionary:
 		for b in btns:
 			if pr.has_point(b.get_center()) and not pr.grow(1.0).encloses(b):
 				_add(out, "fail", "R8", p["id"], "按鈕超出面板：%s" % str(b))
+		for t in texts:
+			var tr: Rect2 = t.get("gr", t["r"])
+			if pr.has_point(tr.get_center()) and not pr.grow(1.0).encloses(tr):
+				_add(out, "fail", "R8", p["id"], "「%s」超出面板" % str(t["s"]))
+	var fo: float = float(d.get("focus_out", 0.0))
+	if fo > 0.0:
+		for b in btns:
+			if not SCREEN.encloses((b as Rect2).grow(fo)):
+				_add(out, "fail", "R8", "screen", "按鈕的焦點框（外擴 %dpx）超出畫面：%s" % [int(fo), str(b)])
 	# ── R9 面板內：按鈕上方的文字最下緣到按鈕 ≥12（文字多就要長高，不能壓鈕）──
 	for p in panels:
 		var pr: Rect2 = p["r"]
@@ -268,13 +280,30 @@ static func _bottom_row(pr: Rect2, btns: Array) -> Array:
 	return row
 
 
-## 這一排的第一顆和上面某一排的按鈕同 x、同寬＝格狀排列的最後一排
+## 格狀排列的最後一排：正上方那一排（同尺寸按鈕）比這排多，而且這排每一顆都對得到上一排同 x、同尺寸的一格
 static func _is_grid_row(row: Array, pr: Rect2, btns: Array) -> bool:
 	var b0: Rect2 = row[0]
+	var above_y := -INF
 	for b in btns:
-		if b.position.y < b0.position.y - 1.0 and pr.grow(1.0).encloses(b) and absf(b.position.x - b0.position.x) <= 0.5 and absf(b.size.x - b0.size.x) <= 0.5 and absf(b.size.y - b0.size.y) <= 0.5:
-			return true
-	return false
+		if b.position.y < b0.position.y - 1.0 and pr.grow(1.0).encloses(b) and absf(b.size.x - b0.size.x) <= 0.5 and absf(b.size.y - b0.size.y) <= 0.5:
+			above_y = maxf(above_y, b.position.y)
+	if above_y == -INF:
+		return false
+	var above: Array = []
+	for b in btns:
+		if absf(b.position.y - above_y) <= 1.0 and absf(b.size.x - b0.size.x) <= 0.5 and absf(b.size.y - b0.size.y) <= 0.5:
+			above.append(b)
+	if above.size() <= row.size():
+		return false
+	for r in row:
+		var hit := false
+		for a in above:
+			if absf(a.position.x - r.position.x) <= 0.5 and absf(a.size.x - r.size.x) <= 0.5:
+				hit = true
+				break
+		if not hit:
+			return false
+	return true
 
 
 static func _panel_by_id(panels: Array, id: String):

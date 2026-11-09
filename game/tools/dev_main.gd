@@ -1,7 +1,11 @@
 extends "res://scripts/ui/game_screens.gd"
 const LayoutRules = preload("res://scripts/ui/layout_rules.gd")
-## V1.5.2：自己畫框、不用 _panel 的覆蓋層（漏登記守衛的已知例外）
-const PANELLESS_OVERLAYS := []
+## V1.5.2：自己畫框、不用 _panel 的覆蓋層（漏登記守衛的已知例外）：AI 思考中只畫轉圈
+const PANELLESS_OVERLAYS := ["ai_busy"]
+## V1.5.2 漏登記守衛：每個覆蓋層必須登記到的角色（有標題緞帶的要有 1 條緞帶＋1 個面板；彈窗至少 1 個面板）。
+## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
+const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review"]
+const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
 
@@ -305,6 +309,9 @@ func _layout_report(name: String, img: Image = null) -> void:
 			var inter := r1.intersection(r2)
 			if inter.get_area() > 6.0 and not r1.encloses(r2) and not r2.encloses(r1):
 				bad.append({"type": "按鈕互撞", "a": str(r1), "b": str(r2)})
+	for hr in probe_hits:
+		if hr.size.y < 44.0:   # V1.5.2：擴過點擊區的小鈕，點擊區要 ≥44
+			bad.append({"type": "點擊區不足 44", "r": str(hr)})
 	for r in probe_btns:
 		if r.size.x < 36.0 or r.size.y < 36.0:   # 方案 §5.3：點擊框 ≥36px
 			bad.append({"type": "點擊框太小", "r": str(r)})
@@ -339,8 +346,14 @@ func _layout_report(name: String, img: Image = null) -> void:
 				bad.append({"type": "文字壓到按鈕", "s": t["s"], "btn": str(br)})
 				break
 	# V1.5.2 排版幾何（置中、貼齊、間距；規則代碼見 docs/ui-layout-rules.md）
+	var need: Dictionary = probe_need.duplicate()
+	if overlay in OVERLAY_RIBBON:
+		need["ribbon"] = maxi(1, int(need.get("ribbon", 0)))
+		need["panel"] = maxi(1, int(need.get("panel", 0)))
+	elif overlay in OVERLAY_PANEL:
+		need["panel"] = maxi(1, int(need.get("panel", 0)))
 	var geo := LayoutRules.check({"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
-		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": probe_need,
+		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 8.0 if bool(Save.s("focus_strong")) else 3.0, "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
 		"panelless_ok": overlay in PANELLESS_OVERLAYS})
 	for v in geo["fail"]:
 		bad.append({"type": "排版" + str(v["type"]), "id": v["id"], "s": v["s"]})
