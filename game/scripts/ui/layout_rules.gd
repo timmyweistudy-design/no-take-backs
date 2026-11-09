@@ -130,6 +130,12 @@ static func check(d: Dictionary) -> Dictionary:
 				_add(out, "fail", "R8", p["id"], "按鈕超出面板：%s" % str(b))
 		for t in texts:
 			var tr: Rect2 = t.get("gr", t["r"])
+			var on_ribbon := false   # 緞帶上的標題字跟著緞帶（緞帶可跨面板上緣）
+			for rb in ribbons:
+				if (rb["r"] as Rect2).grow(1.0).encloses(tr):
+					on_ribbon = true
+			if on_ribbon:
+				continue
 			if pr.has_point(tr.get_center()) and not pr.grow(1.0).encloses(tr):
 				_add(out, "fail", "R8", p["id"], "「%s」超出面板" % str(t["s"]))
 	var fo: float = float(d.get("focus_out", 0.0))

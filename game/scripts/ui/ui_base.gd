@@ -948,7 +948,9 @@ func _h1(center: Vector2, s: String, maxw := 0.0) -> float:
 	if layout_probe:
 		var host := ""
 		for k in range(probe_panels.size() - 1, -1, -1):
-			if (probe_panels[k]["r"] as Rect2).grow(2.0).has_point(center + Vector2(0, 2)):
+			var pk: Rect2 = probe_panels[k]["r"]
+			# 緞帶可以跨在面板上緣（圖鑑、大廳、試煉）：中心 x 在面板內、緞帶本體碰到面板就算它的宿主
+			if pk.grow(2.0).has_point(center + Vector2(0, 2)) or (center.x > pk.position.x and center.x < pk.end.x and r.intersects(pk.grow(2.0))):
 				host = probe_panels[k]["id"]
 				break
 		probe_ribbons.append({"id": "H%d" % probe_ribbons.size(), "r": Rect2(r.position.x - 20, r.position.y, r.size.x + 40, r.size.y + 2), "body": r, "cx": center.x, "bottom": r.end.y + 2.0, "host": host})

@@ -712,8 +712,8 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 	var blurb: String = L.t("blurb_%d" % i)
 	# 第八輪：放不下一行就換行並墊底色，免得掉進戰場讀不到（不縮字：字級表是無障礙底線）
 	var bsz: int = tz("S")
-	# V1.5.2：只超出一點點（例如日文 125% 只多一個「す」）就放寬到 510 不換行；第二行單獨一個字會掉到左側工具列框上
-	var bw := 510.0 if _width(blurb, bsz) <= 510.0 else 470.0
+	# V1.5.2：只超出一點點（例如日文 125% 只多一個「す」）就放寬到 600 不換行；第二行單獨一個字會掉到左側工具列框上
+	var bw := 600.0 if _width(blurb, bsz) <= 600.0 else 470.0
 	if _width(blurb, bsz) > bw:
 		var bh: float = font.get_multiline_string_size(blurb, HORIZONTAL_ALIGNMENT_LEFT, bw, bsz).y
 		draw_rect(Rect2(x - 4, y - 2, bw + 8, bh + 6), Color(0.07, 0.08, 0.11, 0.9))
