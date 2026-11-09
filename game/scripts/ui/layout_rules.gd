@@ -213,6 +213,13 @@ static func check(d: Dictionary) -> Dictionary:
 			var tr: Rect2 = t.get("gr", t["r"])
 			if bool(t.get("btn", false)) or tr.position.y < float(rb["bottom"]) or not (host["r"] as Rect2).has_point(tr.get_center()):
 				continue
+			var in_ctrl := false   # 按鈕、分頁裡的字不是副標
+			for b in btns:
+				if b.grow(1.0).encloses(tr):
+					in_ctrl = true
+					break
+			if in_ctrl:
+				continue
 			var body: Rect2 = rb.get("body", rb["r"])
 			if tr.end.x <= body.position.x or tr.position.x >= body.end.x:
 				continue   # 多欄畫面左欄的標籤不在緞帶正下方，不算「緞帶下的副標」

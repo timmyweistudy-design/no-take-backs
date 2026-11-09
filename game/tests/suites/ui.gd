@@ -1481,3 +1481,4 @@ func test_layout_rules_v152() -> void:
 	for i in 20:
 		grid.append(Rect2(76 + (i % 7) * 162, 192 + (i / 7) * 136, 156, 130))
 	ok(not "R4" in codes.call(LR.check({"panels": [{"id": "P0", "r": Rect2(60, 66, 1160, 700), "skip": {}}], "btns": grid}), "fail"), "R4 格狀最後一排靠左不報")
+	ok(not "R7" in codes.call(LR.check({"panels": [P.call(340.0)], "ribbons": [rib], "texts": [{"r": Rect2(565, 180, 160, 20), "s": "分頁字"}], "btns": [Rect2(540, 172, 200, 60)]}), "warn"), "R7 按鈕裡的字不算副標")

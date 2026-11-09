@@ -242,6 +242,8 @@ func _fit_block(texts: Array, size: int, width: float, max_h: float, gap: float)
 
 func _draw_codex() -> void:
 	_panel(CX_PANEL)
+	if cx_zoom:
+		probe_skip("R6", "圖鑑近看：中間是大圖（角色圖不經版面探針），不是空白")
 	var u := CX.unit(cx_unit)
 	var lang := L.lang
 	_h1(Vector2(640, 82), L.t("codex_title"), 600)   # V1.5.2 L3：緞帶上移，完整下緣到兵種分頁列 ≥16
