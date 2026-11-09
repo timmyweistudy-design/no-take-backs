@@ -310,7 +310,7 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
 		_poly(ci, PackedVector2Array([Vector2(s * 3.5, hy - 11), Vector2(s * 13, hy - 8), Vector2(s * 11, hy - 21)]), tc, a)
 	_c(ci, Vector2(0, hy), 12.0, tc.lightened(0.3), a)
 	_eyes(ci, Vector2(3.0, hy), a, t, angry)
-	for s2 in [-1.0, 1.0]:
+	for s2 in ([] if back else [-1.0, 1.0]):   # V1.5 背面不畫鬍鬚
 		ci.draw_line(Vector2(s2 * 9 + 2, hy + 4), Vector2(s2 * 16 + 2, hy + 3), Color(OUT, 0.7 * a), 1.0, true)
 	# 吸管與吸頭
 	var aim: float = -0.1 - w * 0.25 - (0.5 if variant == 2 else 0.0) + Gait.swing(18, walk)
@@ -356,7 +356,11 @@ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	for sx in [-20.0, 20.0]:
 		ci.draw_circle(Vector2(sx * 0.82, -41), 2.2, Color(tc.lightened(0.5), a), true, -1.0, true)
 	# 胸口的臉
-	_poly(ci, PackedVector2Array([Vector2(-10, -38), Vector2(11, -38), Vector2(10, -21), Vector2(-9, -21)]), rock.darkened(0.3), a, false)
+	if not back:   # V1.5 背面：沒有臉的凹槽，只看到石背
+		_poly(ci, PackedVector2Array([Vector2(-10, -38), Vector2(11, -38), Vector2(10, -21), Vector2(-9, -21)]), rock.darkened(0.3), a, false)
+	else:
+		for k3 in 3:
+			ci.draw_line(Vector2(-8, -35 + k3 * 6), Vector2(8, -34 + k3 * 6), Color(rock.darkened(0.35), a), 1.4, true)   # 背上的石縫
 	_eyes(ci, Vector2(1.0, -31.0), a, t, angry)
 
 

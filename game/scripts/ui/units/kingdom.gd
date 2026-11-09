@@ -100,8 +100,14 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			var sh := PackedVector2Array([Vector2(1 + push, -43), Vector2(21 + push, -41), Vector2(21 + push, -14), Vector2(11 + push, -2), Vector2(1 + push, -14)])
 			_poly(ci, sh, Color("#4a5468"), a)
 			var shi := PackedVector2Array([Vector2(4 + push, -39), Vector2(18 + push, -38), Vector2(18 + push, -15), Vector2(11 + push, -6), Vector2(4 + push, -15)])
-			_poly(ci, shi, STEEL, a, false)
-			_poly(ci, PackedVector2Array([Vector2(7 + push, -33), Vector2(15 + push, -32), Vector2(15 + push, -17), Vector2(11 + push, -11), Vector2(7 + push, -17)]), tc, a, false)
+			if back:
+				# V1.5 背面：看到的是盾背：木板＋兩條皮帶（隊伍色徽章在另一面）
+				_poly(ci, shi, WOOD, a, false)
+				for sy in [-32.0, -21.0]:
+					_line(ci, Vector2(4 + push, sy), Vector2(18 + push, sy + 1.0), Color("#5b3a1e"), 2.4, a)
+			else:
+				_poly(ci, shi, STEEL, a, false)
+				_poly(ci, PackedVector2Array([Vector2(7 + push, -33), Vector2(15 + push, -32), Vector2(15 + push, -17), Vector2(11 + push, -11), Vector2(7 + push, -17)]), tc, a, false)
 			_part_end(ci)
 		D.ARCHER:
 			# 綠兜帽＋羽毛
@@ -364,6 +370,8 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	_c(ci, Vector2(-1, -30), 6.5, tc.darkened(0.15), a)
 	_part(ci, 0.0, 0.0)
 	_c(ci, Vector2(-1, hy), 9.0, SKIN, a)
+	if back:
+		_c(ci, Vector2(-1, hy - 0.8), 8.6, Color("#e2b04a"), a)   # V1.5 背面：騎士的金髮後腦勺
 	_eyes(ci, Vector2(2.0, hy + 1), a, t, angry)
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.0, true)
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(GOLD, a), 3.5, true)
