@@ -357,7 +357,7 @@ func _layout_report(name: String, img: Image = null) -> void:
 	elif overlay in OVERLAY_PANEL:
 		need["panel"] = maxi(1, int(need.get("panel", 0)))
 	var geo := LayoutRules.check({"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
-		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 8.0, "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
+		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 3.0,   # 一般焦點框外擴 2.5；加強焦點框在 _btn 夾在畫面內 "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
 		"panelless_ok": overlay in PANELLESS_OVERLAYS})
 	for v in geo["fail"]:
 		bad.append({"type": "排版" + str(v["type"]), "id": v["id"], "s": v["s"]})

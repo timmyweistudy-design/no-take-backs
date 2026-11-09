@@ -1492,3 +1492,7 @@ func test_layout_rules_v152() -> void:
 	ok("R8" in codes.call(LR.check({"panels": [P.call(340.0)], "texts": [{"r": Rect2(880, 300, 100, 20), "s": "溢出"}]}), "fail"), "R8 文字超出面板被抓")
 	ok("R8" in codes.call(LR.check({"btns": [Rect2(4, 300, 100, 44)], "focus_out": 8.0}), "fail"), "R8 加強焦點框超出畫面被抓")
 	ok(not "R8" in codes.call(LR.check({"btns": [Rect2(8, 300, 100, 44)], "focus_out": 8.0}), "fail"), "R8 焦點框剛好在畫面內通過")
+	# 分頁名稱兩行：中日文從中間斷，不留單字一行；英文照詞斷不動
+	var UB = load("res://scripts/ui/ui_base.gd")
+	ok(UB.balance_two_lines("単一兵種対決") == "単一兵\n種対決", "中日文兩行從中間斷", UB.balance_two_lines("単一兵種対決"))
+	ok(UB.balance_two_lines("Monster Crew") == "Monster Crew", "英文照詞斷不動")

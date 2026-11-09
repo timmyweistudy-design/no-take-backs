@@ -738,8 +738,10 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	elif focus:
 		_box(rd.grow(1), Color(0, 0, 0, 0), ACCENT, 8.0, 3.0)
 	if focus and enabled and bool(Save.s("focus_strong")):
-		_box(rd.grow(5), Color(0, 0, 0, 0), Color("#ffffff"), 10.0, 3.0)   # V1.5：加強焦點框（白色外圈）
-		_box(rd.grow(8), Color(0, 0, 0, 0), Color(INK, 0.9), 12.0, 2.0)
+		# V1.5.2：貼畫面邊的按鈕（戰場頂列）外圈往內收，整圈都看得到（不被畫面邊切掉）
+		var scr := Rect2(1, 1, 1278, 798)
+		_box(rd.grow(5).intersection(scr), Color(0, 0, 0, 0), Color("#ffffff"), 10.0, 3.0)   # V1.5：加強焦點框（白色外圈）
+		_box(rd.grow(8).intersection(scr), Color(0, 0, 0, 0), Color(INK, 0.9), 12.0, 2.0)
 	if layout_probe:
 		probe_btns.append(r)
 		if label == "":

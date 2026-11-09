@@ -1015,7 +1015,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 		for ti in 2:
 			var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
 			_btn_small(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
-		y += 44
+		y += 50   # V1.5.2：兩排小鈕的點擊區都擴到 44，間距要夠（原本 44 時陣營鈕和篩選膠囊的點擊區重疊）
 	var teams := [lobby_pool_team]
 	for tm in teams:
 		# 戰鬥兵、支援兵分框（第五輪 §3.6）
