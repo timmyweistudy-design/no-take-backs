@@ -37,7 +37,8 @@ def export(out_dir):
 
 
 def var_set(s):
-    return sorted(re.findall(r"%[ds%]", s))
+    # 所有格式碼都要對得上：%d %s %% 和 %.1f 這類（Codex v151-i1 #10）
+    return sorted(re.findall(r"%[-+ 0#]*\d*(?:\.\d+)?[dsfx%]", s))
 
 
 def do_import(csv_path, l10n_dir):

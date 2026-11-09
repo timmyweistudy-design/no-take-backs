@@ -1211,6 +1211,16 @@ func test_nav_back_v151() -> void:
 	ok(g.overlay == "hub_challenge", "打完回到原卡片面板", g.overlay)
 	g._key(KEY_ESCAPE)
 	ok(g.overlay == "" and g.nav_hub == "", "關掉面板後不再自動打開")
+	# Codex v151-i1 #1：卡片面板→大廳→開戰進擺陣→F1 圖鑑→返回＝回擺陣（不是彈出卡片面板）
+	g.nav_stack = ["hub_play"]
+	g._start_mode(g.Mode.VS_AI)
+	g._open_codex(0)
+	g._nav_back()
+	ok(g.overlay == "" and g.state == g.St.PLACE, "擺陣開的圖鑑返回回擺陣", g.overlay)
+	g.overlay = "wave_codes"
+	g.state = g.St.TITLE
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "codes", "選波頁 Esc 回代碼頁", g.overlay)
 	g.free()
 
 
@@ -1231,6 +1241,11 @@ func test_cmd_delay_v151() -> void:
 	var v2 = VB.new(s2)
 	ok(v2.delay == VB.DELAY_LONG, "照紀錄施放：長緩衝")
 	ok(v2.cmd_snap.size() == 2, "快照帶軍令剩餘次數與冷卻")
+	var BS = load("res://scripts/ui/battle/battle_state.gd")
+	var pb: Array = BS.proj_phase([100], 98.0, 6, VB.DELAY, {})
+	ok(int(pb[1]) == 100 and int(pb[3]) == 98 and int(pb[4]) == VB.DELAY and float(pb[2]) < 0.0, "手動軍令局投彈兵貼身敲擊：前搖照舊從命中前 2 tick 開始、沒有炸彈", str(pb))
+	var pa: Array = BS.proj_phase([100], 98.0, 2, VB.DELAY)
+	ok(int(pa[3]) == 98 and int(pa[4]) == 1 and int(pa[0]) == 99, "手動軍令局弓箭手：前搖 1 tick、99 離手", str(pa))
 
 
 ## V1.5.1 圖鑑召喚物頁：選小史萊姆、骷髏不會越界（沒有技能小劇場），近看模式自動打開。
@@ -1285,6 +1300,11 @@ func test_place_mode_v151() -> void:
 		g._paint_cmd(cells[2])
 		g._mb_cmd({"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": cells[2]})
 		counts.append(g.armies[0].units.size())
+		if pm == "tap":
+			# 點一下自己的兵＝拿掉
+			g._mb_cmd({"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": cells[0]})
+			g._mb_cmd({"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": cells[0]})
+			ok(g.armies[0].units.size() == counts[0] - 1, "只點選：點一下自己的兵就拿掉", str(g.armies[0].units.size()))
 		g.free()
 	SV.settings["place_mode"] = keep
 	if counts.size() == 2:

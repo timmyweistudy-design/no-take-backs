@@ -55,6 +55,7 @@ func _open_codex(t: int) -> void:
 	drag_new = false
 	drag_from = Vector2i(-1, -1)
 	cx_unit = clampi(t, 0, D.total() - 1)
+	cx_zoom = false   # V1.5.1：從擺陣開圖鑑一律回一般頁（召喚物頁的近看狀態不留，Antigravity v151-i1 #6）
 	cx_angle = -1
 	cx_atk_t = -10.0
 	cx_scroll["left"] = 0.0   # 每次打開都從頂端開始（Antigravity：沿用上次捲到底的位置，看起來像數值條不見了）
@@ -645,7 +646,7 @@ func _cx_draw_unit(p: Vector2, face: float, atk: float, sc: float, variant: int)
 		"turn_c": Art.turn_c, "turn_s": Art.turn_s, "back": Art.back, "calm": Art.calm, "look": Art.look},
 		float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]), float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))
 	draw_set_transform_matrix(Art.base)
-	draw_texture(cx_bake.texture(), p - Vector2(190, 300))
+	draw_texture(cx_bake.texture(), p - cx_bake.FEET)
 
 ## ── V1.5.1 A5 近看模式 ──
 ## 示意播放器（不是真模擬）：角色對假人靶出手一次再停一下，循環；可暫停、逐格、轉角度、放大。
@@ -691,7 +692,7 @@ func _draw_cx_zoom() -> void:
 	var hurt := clampf(1.0 - absf(atk - hit_at) / 0.06, 0.0, 1.0) if atk > 0.0 else 0.0
 	_cx_dummy(dm, -face, hurt, cx_zally)
 	Art.calm = false
-	_cx_draw_unit(me, face, atk, sc, 2 if cx_zalt else 0)
+	_cx_draw_unit(me, face, atk, sc, (1 if cx_unit < D.CLASSIC else 2) if cx_zalt else 0)   # 舊兵的交替招式是 variant 1、新兵的專屬動作是 2（和圖集一樣）
 	if fly and atk >= 0.3125 and atk <= hit_at:
 		var k := (atk - 0.3125) / (hit_at - 0.3125)
 		var a0 := me + proj_launch(cx_unit, face) * sc

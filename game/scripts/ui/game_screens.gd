@@ -279,6 +279,8 @@ func _mb_cmd(d: Dictionary) -> void:
 		elif drag_from.x >= 0:
 			if c.x < 0:
 				_try_remove(drag_from)
+			elif c == drag_from and Save.s("place_mode") == "tap":
+				_try_remove(drag_from)   # V1.5.1 C4：只點選模式點一下自己的兵＝拿掉（觸控不用長按）
 			elif c != drag_from:
 				if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() >= gauntlet_changes:
 					_toast(L.t("err_changes"), true)
@@ -341,8 +343,11 @@ func _key(k: int) -> void:
 					overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
 				elif overlay == "codex" and bool(get("cx_zoom")) and int(get("cx_unit")) < D.total():
 					set("cx_zoom", false)   # V1.5.1：近看模式先收合
+				elif overlay == "leave" and state == St.BATTLE and paused:
+					overlay = "pause_menu"   # 和「留下」一樣回暫停選單（Codex v151-i1 #3）
 				elif overlay != "":
-					call("_nav_back")   # V1.5.1：Esc／手把 B 和返回鈕同一套目的地
+					# V1.5.1：Esc／手把 B 和返回鈕同一套目的地；沒登記來處的子頁用它返回鈕的目的地
+					call("_nav_back", {"wager": "playroom", "draft": "playroom", "wave_codes": "codes", "ghosts": "hub_challenge", "weekly": "hub_challenge"}.get(overlay, ""))
 				elif state == St.BATTLE:
 					if play_kind != "official":
 						_replay_back()   # 第七輪 A9：重播時 Esc＝返回

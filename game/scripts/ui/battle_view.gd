@@ -417,10 +417,10 @@ func _cmd_event(ev: Dictionary, with_fx: bool) -> void:
 	var sk := int(ev["skill"])
 	var dup := false
 	for m in battle_marks:
-		if m["kind"] == "cmd" and int(m["tick"]) == view.tick and int(m["team"]) == tm:
-			dup = true   # 跳轉時快轉已經收過這一筆
+		if m["kind"] == "cmd" and int(m["tick"]) == view.tick and int(m["team"]) == tm and int(m.get("skill", -1)) == sk:
+			dup = true   # 跳轉時快轉已經收過這一筆（同 tick 同隊兩招各算一筆）
 	if not dup:
-		battle_marks.append({"tick": view.tick, "kind": "cmd", "team": tm})
+		battle_marks.append({"tick": view.tick, "kind": "cmd", "team": tm, "skill": sk})
 	if not with_fx:
 		return
 	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
@@ -474,7 +474,7 @@ func _draw_cmd_bar() -> void:
 			_probe_btn_label = false
 			var wait: int = c_ready - c_tick
 			if wait > 0 and c_left > 0:
-				var frac: float = clampf(float(wait) / maxf(1.0, float(sim.cmd_cd)), 0.0, 1.0)
+				var frac: float = clampf(float(wait) / maxf(1.0, maxf(float(sim.cmd_cd), float(wait))), 0.0, 1.0)   # 開戰前準備期比冷卻長時也是滿格開始倒數（Antigravity v151-i1 #12）
 				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
 
 func _on_event(ev: Dictionary, with_fx: bool) -> void:

@@ -532,6 +532,14 @@ static func set_changed(row: String) -> bool:
 			return true
 	return false
 
+## V1.5.1：一次改很多項（匯入、恢復預設、預設組合）時，全螢幕有變也要走 10 秒確認（Codex v151-i1 #2）
+func _guard_fs(prev) -> void:
+	if str(prev) != str(Save.s("fullscreen")):
+		fs_prev = prev
+		fs_deadline = time + 10.0
+		overlay = "fs_confirm"
+		_focus = 0
+
 func _reset_rows(rows: Array) -> void:
 	var d := {}
 	for row in rows:
@@ -540,9 +548,11 @@ func _reset_rows(rows: Array) -> void:
 			d[k] = v.duplicate(true) if v is Dictionary or v is Array else v
 	if d.is_empty():
 		return
+	var fp0 = Save.s("fullscreen")
 	Save.set_settings(d)
 	_apply_all_settings()
 	_toast(L.t("set_reset_done"))
+	_guard_fs(fp0)
 
 ## V1.5.1：戰鬥中改了要下一局才生效的設定（其餘立即生效）
 const NEXT_GAME_KEYS := ["set_place_mode", "set_speed", "set_title_bg", "set_hints", "set_confirm", "set_long_press", "set_playtest"]
@@ -698,9 +708,9 @@ func _draw_settings() -> void:
 		_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
 		var dy := 18 + text_h(L.t(key), tz("B"), D0.size.x - 28, true)
 		_text(D0.position + Vector2(14, dy), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)   # 標題換行時說明往下排
-		if SET_KEYS.has(key):
-			var kk: String = key
-			_btn(Rect2(D0.position.x + 10, D0.end.y - 52, D0.size.x - 20, 44), L.t("set_reset_one"), func(): _reset_rows([kk]), set_changed(kk))
+		var kk: String = key
+		# 一律畫出來（不適用就停用）：焦點換列時按鈕數不變，手把焦點才走得到每一顆
+		_btn(Rect2(D0.position.x + 10, D0.end.y - 52, D0.size.x - 20, 44), L.t("set_reset_one"), func(): _reset_rows([kk]), SET_KEYS.has(kk) and set_changed(kk))
 		if state == St.BATTLE and not key in ["set_keys", "set_paint", "set_export", "set_import", "set_backup", "set_restore", "set_clear", "set_folder"]:
 			# V1.5.1：戰鬥中打開設定，標出這一項什麼時候生效
 			var nxt: bool = key in NEXT_GAME_KEYS
@@ -720,17 +730,25 @@ const PRESETS := [
 func _apply_preset(k: int) -> void:
 	var p: Dictionary = PRESETS[k]
 	var names: Array = []
+	var seen := {}
 	for row in SET_KEYS:
 		for kk in SET_KEYS[row]:
-			if p.has(kk) and str(Save.s(kk)) != str(p[kk]) and not L.t(row) in names:
-				names.append(L.t(row))
+			if p.has(kk) and str(Save.s(kk)) != str(p[kk]) and not seen.has(row):
+				seen[row] = true
+				names.append("%s：%s → %s" % [L.t(row), _val_str(Save.s(kk)), _val_str(p[kk])])   # 舊值 → 新值（Codex v151-i1 #12）
 	if names.is_empty():
 		_toast(L.t("preset_done", [0]))
 		return
-	_ask_confirm(L.t("preset_q", [names.size()]) + "\n" + "、".join(names.slice(0, 6)), func(): _apply_preset_now(k), "settings")
+	_ask_confirm(L.t("preset_q", [names.size()]) + "\n" + "\n".join(names.slice(0, 6)), func(): _apply_preset_now(k), "settings")
+
+static func _val_str(v) -> String:
+	if v is bool:
+		return L.t("on") if v else L.t("off")
+	return str(v)
 
 func _apply_preset_now(k: int) -> void:
 	var p: Dictionary = PRESETS[k]
+	var fp0 = Save.s("fullscreen")
 	var n := 0
 	for key in p:
 		if not preset_undo.has(key):
@@ -740,6 +758,7 @@ func _apply_preset_now(k: int) -> void:
 	Save.set_settings(p)   # 一次寫檔
 	_apply_all_settings()
 	_toast(L.t("preset_done", [n]))
+	_guard_fs(fp0)
 
 func _undo_preset() -> void:
 	Save.set_settings(preset_undo)
@@ -799,9 +818,11 @@ func _settings_import() -> void:
 		if names.size() < 6 and L.has("set_" + k):
 			names.append(L.t("set_" + k))
 	_ask_confirm(L.t("import_q", [ch.size()]) + ("\n" + "、".join(names) if not names.is_empty() else ""), func():
+		var fp0 = Save.s("fullscreen")
 		Save.set_settings(ch)
 		_apply_all_settings()
-		_toast(L.t("set_imported", [ch.size()])), "settings")
+		_toast(L.t("set_imported", [ch.size()]))
+		_guard_fs(fp0), "settings")
 
 ## V1.5 通用確認框：覆蓋存檔、匯入設定這類動作先問一次。
 var confirm_msg := ""

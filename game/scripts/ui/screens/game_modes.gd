@@ -890,6 +890,9 @@ func _record_match(w: int) -> void:
 		ug[k] = int(ug.get(k, 0)) + 1
 	Save.data["unit_games"] = ug
 	# V1.5.1：戰績頁的兵種勝率用同一組模式記場數與勝場（原本勝場在殘局、教學、試煉也加，勝率偏高；使用者回報）
+	# 實驗室徽章（沙盒調數值）不記（Codex／Antigravity v151-i1）
+	if rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB:
+		return
 	var gr: Dictionary = Save.data.get("unit_games_rec", {})
 	var wr: Dictionary = Save.data.get("unit_wins_rec", {})
 	for k in seen:

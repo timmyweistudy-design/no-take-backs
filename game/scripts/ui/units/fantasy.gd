@@ -95,6 +95,8 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	var open := 0.45 + maxf(0.0, w) * 0.55 - minf(0.0, w) * 0.2
 	if wk != 0.0 and w == 0.0:
 		open = 0.04 + absf(sin(wk)) * 0.26   # 跳到最高才張嘴露一點舌（Antigravity P2 #1）
+	if back:
+		open = 0.04   # V1.5.1 背面：從後面看箱蓋貼著箱身（看不到嘴，也不留空洞，Antigravity v151-i1 #11）
 	var by := -3.0
 	# V1.5：轉身時看得到箱子的側面（深色木板、斜上一點），是個有厚度的箱子，不是一張紙
 	var dpt := 14.0 * turn_s

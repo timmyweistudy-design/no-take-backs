@@ -2,6 +2,7 @@ extends "res://scripts/ui/screens/game_place.gd"
 ## 由 game_screens.gd 拆出（V9 P1，行為不變）
 
 func _start_mode(m: int) -> void:
+	nav_stack.clear()   # V1.5.1：進擺陣後，從擺陣開的圖鑑返回要回擺陣，不能彈出主畫面的卡片面板（Codex v151-i1 #1）
 	free_intro = false
 	watch_mode = false
 	mode = m

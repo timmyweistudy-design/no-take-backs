@@ -48,11 +48,12 @@ var turn_loc := {}               # 兵種 → 轉身頁起始格
 var wt_pages: Array = []         # V1.3.1：走路轉身頁
 var wt_loc := {}                 # 兵種 → [頁, 起始格]
 var fid_tex: Texture2D = null    # V1.3.1：待機小動作＋受擊帽子
-## V1.5.1 A3：轉身途中出手（1 個中繼角 × 一般攻擊 8 格 × 兩隊＝每種 16 格、約 2.25 MiB），只烘這場出場的兵種，最多留 TA_MAX 種（最久沒用的先丟）
+## V1.5.1 A3：轉身途中出手（1 個中繼角 ×（一般＋交替／專屬）攻擊各 8 格 × 兩隊＝每種 32 格、約 4.5 MiB），只烘這場出場的兵種，最多留 TA_MAX 種（最久沒用的先丟）
 const TA_C := 0.55
-const TA_MAX := 12
+const TA_MAX := 10
 var ta_tex := {}       # 兵種 → Texture2D（16 欄 × 1 列）
 var ta_order: Array = []   # 最近用到的在後面
+var ta_wanted: Array = []  # 最近要求過的兵種（換色、換塗裝重烘之後自動補回，Codex v151-i1 #6）
 var _ta_busy := false
 var _ta_queue: Array = []
 var fid_loc := {}
@@ -110,6 +111,8 @@ func build(cb: bool) -> void:
 	if g0 != _gen:
 		return
 	await _bake_turn(cb)
+	if g0 == _gen and not ta_wanted.is_empty():
+		ensure_turn_atk(ta_wanted.duplicate())
 
 func _bake_turn(cb: bool) -> void:
 	var g0 := _gen
@@ -168,6 +171,11 @@ func _bake_turn(cb: bool) -> void:
 
 ## V1.5.1：這場出場的兵種補烘轉身出手格（背景烘；還沒好之前照舊轉正出手）。
 func ensure_turn_atk(types: Array) -> void:
+	for t in types:
+		ta_wanted.erase(t)
+		ta_wanted.append(t)
+	while ta_wanted.size() > TA_MAX:
+		ta_wanted.pop_front()
 	if DisplayServer.get_name() == "headless" or ready_cb < 0:
 		return
 	for t in types:
@@ -186,12 +194,12 @@ func ensure_turn_atk(types: Array) -> void:
 		pt.cb = ready_cb == 1
 		pt.mode = 3
 		pt.types = [t]
-		var vp := _viewport(Vector2i(COLS * CELL, CELL), pt)
+		var vp := _viewport(Vector2i(COLS * CELL, 2 * CELL), pt)
 		await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		var img := vp.get_texture().get_image()
 		vp.queue_free()
-		img = await _post(img, ATK_FRAMES)
+		img = await _post(img, ATK_FRAMES * 2)
 		if g0 != _gen:
 			return
 		ta_tex[t] = ImageTexture.create_from_image(img)
@@ -396,14 +404,18 @@ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, wa
 		if atk <= 0.0:
 			_draw_turn(ci, p, type, team, face, hurt, alpha, t, scale, lean, crouch, mood, cb)
 			return
-		if variant == 0 and ta_tex.has(type):
-			# V1.5.1 A3：轉身途中出手用轉身攻擊格，不再跳回側面
+		if ta_tex.has(type):
+			# V1.5.1 A3：轉身途中出手用轉身攻擊格（一般與交替／專屬都有），不再跳回側面
 			var sg := -1.0 if face < 0.0 else 1.0
-			var fi := team * ATK_FRAMES + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+			var fi := team * ATK_FRAMES * 2 + (ATK_FRAMES if variant > 0 else 0) + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
 			ci.draw_set_transform_matrix(Art.base * Transform2D(lean * sg, Vector2(scale * sg / RS, scale * crouch / RS), 0.0, p + Vector2(0, Art.idle_bob(t, p) * scale)))
 			ci.draw_texture_rect_region(ta_tex[type], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(fi), Color(1, 1, 1, alpha))
 			if hurt > 0.0:
 				ci.draw_texture_rect_region(ta_tex[type], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(fi), Color(4, 4, 4, hurt * 0.55 * alpha))
+			if mood != 0:
+				# 表情疊加跟著這一格的轉身角度走（和 _draw_turn 一樣）
+				ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, sg * TA_C, 0.0, quant_atk(atk), t, scale, lean, crouch, type))
+				Art.overlay(ci, type, team, mood, alpha, t, cb)
 			ci.draw_set_transform_matrix(Art.base)
 			return
 		face = 1.0 if face >= 0.0 else -1.0   # V1.5：轉身出手格還沒烘好（或交替招式）時直接轉正出手
@@ -580,14 +592,15 @@ class _ExtraPainter extends Node2D:
 							Art2.calm = false
 							Art2.hat_pop = 0.0
 				elif mode == 3:
-					# V1.5.1：轉身途中出手（一般攻擊 8 格）
-					for f in SC.ATK_FRAMES:
-						var idx3: int = team * SC.ATK_FRAMES + f
+					# V1.5.1：轉身途中出手（一般 8 格＋交替／專屬 8 格）
+					for f in SC.ATK_FRAMES * 2:
+						var idx3: int = team * SC.ATK_FRAMES * 2 + f
 						var p3 := Vector2((idx3 % SC.COLS) * SC.CELL, (idx3 / SC.COLS) * SC.CELL) + SC.origin_of(type)
+						var vr3 := 0 if f < SC.ATK_FRAMES else (1 if type < 5 else 2)
 						Art2.turn_c = SC.TA_C
 						Art2.turn_s = sqrt(1.0 - SC.TA_C * SC.TA_C)
 						Art2.back = false
-						Art2.unit(self, p3, type, team, 1.0, 0.0, (f + 0.5) / SC.ATK_FRAMES, 0.0, 1.0, 1.0, SC.RS, cb)
+						Art2.unit(self, p3, type, team, 1.0, 0.0, (f % SC.ATK_FRAMES + 0.5) / SC.ATK_FRAMES, 0.0, 1.0, 1.0, SC.RS, cb, 0, 0.0, 1.0, vr3)
 						Art2.turn_c = 1.0
 						Art2.turn_s = 0.0
 				else:

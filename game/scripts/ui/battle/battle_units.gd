@@ -582,8 +582,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			var fly: int = h - hr if hr >= 0 else 0
 			hit_now = h
 			if h >= 0:
-				var wd := float(proj_wind(u.type, view.delay)) if h > hr else float(ViewBuffer.DELAY)   # V1.5.1 B1：有飛行物的那一發用局內前搖
-				at = atk_progress(dt0 - (hr - wd), u.type, wd)
+				at = atk_progress(dt0 - float(ph[3]), u.type, float(ph[4]))   # V1.5.1：這一發自己的動作起點與前搖
 				if float(ph[2]) >= 0.0 and proj_tgt.get(u.id, {}).has(h):
 					var pt = view.unit_by_id(proj_tgt[u.id][h])
 					if pt != null:
@@ -716,12 +715,17 @@ func _draw_units_of(s, dim: bool) -> void:
 			if at > 0.0:
 				# 鎖定的是「這一擊」：連擊換到下一擊時重新取方向（Codex v131-impl1）
 				if not atk_face.has(u.id) or int(atk_face[u.id][0]) != hit_now:
-					atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0), float(face_now.get(u.id, face)), time]
-				# V1.5.1 A3：前搖時從原本朝向轉過去（0.12 秒），轉身途中出手用轉身攻擊格，不再瞬間跳回側面
+					atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0), float(face_now.get(u.id, face)), _disp_tick()]
+				# V1.5.1 A3：前搖時從原本朝向轉過去（2 個畫面 tick，跟著暫停與倍速走），轉身途中出手用轉身攻擊格，不再瞬間跳回側面
 				var tgt_f: float = float(atk_face[u.id][1])
 				var f0: float = float(atk_face[u.id][2]) if atk_face[u.id].size() > 2 else tgt_f
-				var kf := clampf((time - float(atk_face[u.id][3] if atk_face[u.id].size() > 3 else time)) / 0.12, 0.0, 1.0)
-				face = tgt_f if (signf(f0) == tgt_f and absf(f0) >= 0.9) else lerpf(f0, tgt_f, kf)
+				var kf := clampf((_disp_tick() - float(atk_face[u.id][3] if atk_face[u.id].size() > 3 else _disp_tick())) / 2.0, 0.0, 1.0)
+				if signf(f0) == tgt_f and absf(f0) >= 0.9:
+					face = tgt_f
+				else:
+					# 經過正面轉過去：寬度不低於 0.45（不壓成一條線），過半就朝向目標（不背對目標揮空，Antigravity v151-i1 #4）
+					var lf := lerpf(f0, tgt_f, kf)
+					face = (tgt_f if kf >= 0.5 else signf(f0) if f0 != 0.0 else tgt_f) * maxf(absf(lf), 0.45)
 				face_now[u.id] = face
 			elif atk_face.has(u.id):
 				atk_face.erase(u.id)

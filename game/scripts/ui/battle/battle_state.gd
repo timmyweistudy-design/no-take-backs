@@ -95,25 +95,34 @@ static func proj_fly(type: int) -> int:
 ## 遠程的出手比命中早 fly 個 tick（fly＝飛行時間，受緩衝長度限制）；飛行進度在出手～命中之間由 0 走到 1。
 ## only：哪些命中 tick 是飛行物（null＝全部）。投彈兵貼身敲人這種近身命中不提早出手、不畫炸彈（Codex v150-i1 #3）。
 static func proj_phase(hits: Array, disp: float, type: int, delay: int, only = null) -> Array:
+	# 回傳 [出手 tick, 命中 tick, 飛行進度, 動作起點 tick, 前搖長度]
+	# V1.5.1：每一發各自決定前搖——有飛行物的那發用局內前搖（手動軍令局 1 tick），近身的（投彈兵敲擊）照舊 2 tick（Codex v151-i1 #7）
 	var wd := proj_wind(type, delay)
 	var fly: int = maxi(0, mini(proj_fly(type), delay - wd))
-	var pairs: Array = []   # [出手 tick, 命中 tick]
+	var tm := atk_timing(type)
+	var st: float = tm[2]
+	var es: Array = []   # [動作起點, 出手, 命中, 前搖]
 	for x in hits:
 		var shift: bool = fly > 0 and (only == null or (only as Dictionary).has(int(x)))
-		pairs.append([int(x) - fly if shift else int(x), int(x)])
-	pairs.sort_custom(func(a, b): return a[0] < b[0])
-	var hr := pick_hit(pairs.map(func(p): return p[0]), disp, type, float(wd))
-	if hr < 0:
-		return [-1, -1, -1.0]
-	var h := hr
-	for p in pairs:
-		if p[0] == hr:
-			h = p[1]
-			break
+		if shift:
+			es.append([int(x) - fly - wd, int(x) - fly, int(x), wd])
+		else:
+			es.append([int(x) - ViewBuffer.DELAY, int(x), int(x), ViewBuffer.DELAY])
+	es.sort_custom(func(a, b): return a[0] < b[0])
+	var cur: Array = []
+	for e in es:
+		if float(e[0]) <= disp:
+			if not cur.is_empty() and disp - float(cur[0]) < float(cur[3]) + st:
+				break   # 前一次還在揮擊，不換
+			cur = e
+	if cur.is_empty():
+		return [-1, -1, -1.0, -1, ViewBuffer.DELAY]
+	var hr: int = cur[1]
+	var h: int = cur[2]
 	var k := -1.0
 	if h > hr and disp >= float(hr) and disp <= float(h):
 		k = clampf((disp - float(hr)) / float(h - hr), 0.0, 1.0)
-	return [hr, h, k]
+	return [hr, h, k, cur[0], cur[3]]
 
 static func atk_timing(type: int, wind := -1.0) -> Array:
 	var period := float(D.stat(type)["cd"])   # cd 的單位是 tick（模擬每次出手加 cd×4、每 tick 扣 4）

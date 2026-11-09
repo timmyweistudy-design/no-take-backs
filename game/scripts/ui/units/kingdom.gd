@@ -368,7 +368,9 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 		body.append(Vector2(cos(ang) * 16.0, -17 + sin(ang) * 8.5))
 	# V1.5.1 背面：馬頭在身體後面（先畫、不畫眼睛），尾巴在前面（後畫）
 	if back:
-		_horse_head(ci, tc, pony, a, false)
+		# 從後面看馬頭被身體擋住，只露出兩隻耳朵尖（Antigravity v151-i1 #11）
+		for ex in [5.0, 10.0]:
+			_poly(ci, PackedVector2Array([Vector2(ex - 2.5, -24), Vector2(ex, -31), Vector2(ex + 2.5, -24)]), pony, a)
 	_poly(ci, body, pony, a)
 	# 尾巴（隊伍色）
 	_poly(ci, PackedVector2Array([Vector2(-15, -20), Vector2(-24, -24 + gallop), Vector2(-22, -14), Vector2(-15, -15)]), tc, a)

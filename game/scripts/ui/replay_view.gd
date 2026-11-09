@@ -115,11 +115,14 @@ func _seek_begin(target: int) -> void:
 	ev_count = {}
 	set("last_blast_tick", -99)
 	_seek_ct = -1
+	_seek_deaths = {}
 	battle_marks.clear()
-	_seek_stop = maxi(0, target - (view.delay if view != null else ViewBuffer.DELAY))
+	var dl: int = ViewBuffer.DELAY if (bool(sim.get("cmd_on")) and not bool(sim.get("cmd_scripted"))) else ViewBuffer.DELAY_LONG   # 和 ViewBuffer 的選法一樣
+	_seek_stop = maxi(0, target - (view.delay if view != null else dl))
 	_seek_target_now = target
 
 var _seek_target_now := 0
+var _seek_deaths := {}   # V1.5.1 B2：快轉時誰在哪個 tick 倒下（跳轉後重建陣亡小旗）
 
 ## 算到時間用完或到達目標；到達回傳 true。
 func _seek_tick(budget_ms: int) -> bool:
@@ -136,8 +139,10 @@ func _seek_tick(budget_ms: int) -> bool:
 				if ev["kind"] == EV.BLAST and not ev.has("dmg"):
 					ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
 			_collect_mark(ev, sim, sim.tick)
+			if ev["kind"] == EV.DEATH:
+				_seek_deaths[int(ev["id"])] = sim.tick
 			if ev["kind"] == EV.CMD:
-				battle_marks.append({"tick": sim.tick, "kind": "cmd", "team": int(ev["team"])})   # V1.5.1：快轉也收軍令標記（原本跳轉後會漏）
+				battle_marks.append({"tick": sim.tick, "kind": "cmd", "team": int(ev["team"]), "skill": int(ev["skill"])})   # V1.5.1：快轉也收軍令標記（原本跳轉後會漏）
 		if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
 			_seek_ct = sim.tick
 	return true
@@ -155,6 +160,12 @@ func _seek_finish() -> void:
 	fx.clear()
 	dying.clear()
 	graves.clear()
+	# V1.5.1 B2：跳轉前 1～4 秒倒下的兵，陣亡小旗照時間補回（倒地 1 秒後插旗、旗子留 3 秒）
+	for did in _seek_deaths:
+		var age: float = float(target - int(_seek_deaths[did])) / 20.0
+		var dv = view.unit_by_id(int(did))
+		if dv != null and age >= 1.0 and age < 4.0:
+			graves.append({"pos": _upos(dv), "team": dv.team, "t": age - 1.0})
 	atk_hit.clear()
 	atk_seq.clear()
 	alt_hit.clear()
