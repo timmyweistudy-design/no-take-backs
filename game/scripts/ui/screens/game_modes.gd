@@ -1246,10 +1246,7 @@ func _draw_playroom() -> void:
 		rec.append(L.t("pr_wave_best", [int(Save.data.get("wave_best", 0))]))   # Antigravity v140-i3：車輪戰紀錄要看得到
 	if not rec.is_empty():
 		_text(Vector2(640, 548), "　・　".join(rec), tz("S"), ACCENT, true, true, 960)
-	# 第二排：幽靈軍團、每週棋盒（V1.4 #7）
-	_btn(Rect2(330, 626, 200, 44), L.t("gh_open"), func(): overlay = "ghosts")
-	_btn(Rect2(540, 626, 200, 44), L.t("wk_open"), func(): overlay = "weekly")
-	_btn(Rect2(750, 626, 200, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, 626, 160, 44), L.t("back"), func(): overlay = "")   # V1.5：幽靈、每週棋盒搬到主畫面「挑戰」
 
 ## 競猜：用 AI 組兩支軍隊（同樣 100 金），先看陣型再押注。
 func _wager_new() -> void:
@@ -1527,12 +1524,15 @@ func _paint_apply() -> void:
 static func paint_locked(row_locks: bool, k: int, ach_n: int) -> bool:
 	return row_locks and ach_n < int(PAINT_UNLOCK[clampi(k, 0, 3)])
 
+var pt_back := "profile"   # V1.5：從哪裡打開塗裝室就回哪裡（戰績頁或主畫面「收藏」）
+
 func _paint_open() -> void:
 	pt_before = str(Art.paint)
+	pt_back = overlay if overlay != "" and overlay != "paint" else "profile"
 	overlay = "paint"
 
 func _paint_close() -> void:
-	overlay = "profile"
+	overlay = pt_back
 	if str(Art.paint) != pt_before:
 		Save.data["paint"] = Art.paint.duplicate()
 		Save.save_data()
@@ -1775,7 +1775,7 @@ func _draw_ghosts() -> void:
 		_btn(Rect2(470, 626, 56, 44), "◀", func(): gh_page = posmod(gh_page - 1, pages))
 		_text(Vector2(640, 636), "%d／%d" % [gh_page + 1, pages], tz("S"), Color.WHITE, true, true, 100)
 		_btn(Rect2(754, 626, 56, 44), "▶", func(): gh_page = posmod(gh_page + 1, pages))
-	_btn(Rect2(560, 680, 160, 44), L.t("back"), func(): overlay = "playroom")
+	_btn(Rect2(560, 680, 160, 44), L.t("back"), func(): overlay = "hub_challenge")
 
 func _draw_weekly() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
@@ -1812,7 +1812,7 @@ func _draw_weekly() -> void:
 	_text(Vector2(330, y), L.t("wk_best", [best]) if best > 0 else L.t("wk_none"), tz("S"), Color("#8e1b14") if best > 0 else Color("#5a4630"), false, true, 620)
 	_ink_mode = false
 	_text(Vector2(640, paper.end.y + 10), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
-	_btn(Rect2(460, 604, 160, 44), L.t("back"), func(): overlay = "playroom")
+	_btn(Rect2(460, 604, 160, 44), L.t("back"), func(): overlay = "hub_challenge")
 	_btn(Rect2(660, 604, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
 
 

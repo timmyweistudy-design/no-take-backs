@@ -86,6 +86,11 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	if wk != 0.0 and w == 0.0:
 		open = 0.04 + absf(sin(wk)) * 0.26   # 跳到最高才張嘴露一點舌（Antigravity P2 #1）
 	var by := -3.0
+	# V1.5：轉身時看得到箱子的側面（深色木板、斜上一點），是個有厚度的箱子，不是一張紙
+	var dpt := 14.0 * turn_s
+	if dpt > 0.5:
+		_poly(ci, PackedVector2Array([Vector2(-16, by), Vector2(-16 - dpt, by - 3), Vector2(-16 - dpt, by - 18), Vector2(-16, by - 15)]), Color("#7a512c"), a)
+		ci.draw_line(Vector2(-16, by - 7), Vector2(-16 - dpt, by - 10), Color(OUT, 0.45 * a), 1.4, true)
 	_poly(ci, PackedVector2Array([Vector2(-16, by), Vector2(-16, by - 15), Vector2(16, by - 15), Vector2(16, by)]), Color("#9c6b3c"), a)
 	ci.draw_line(Vector2(-16, by - 7), Vector2(16, by - 7), Color(OUT, 0.5 * a), 1.6, true)
 	for rv in [[-14, by - 2], [14, by - 2], [-14, by - 13], [14, by - 13]]:
@@ -101,6 +106,8 @@ static func _f_mimic(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 		ci.draw_colored_polygon(PackedVector2Array([Vector2(tx, mouth), Vector2(tx + 5, mouth), Vector2(tx + 2.5, mouth - 5)]), Color(1, 1, 1, a))
 	# 箱蓋（隊伍色，面積最大）
 	var ly := mouth - 4 - open * 12
+	if dpt > 0.5:
+		_poly(ci, PackedVector2Array([Vector2(-19, ly), Vector2(-19 - dpt, ly - 3), Vector2(-17 - dpt, ly - 20), Vector2(-17, ly - 17)]), tc.darkened(0.3), a)   # 箱蓋側面
 	_poly(ci, PackedVector2Array([Vector2(-19, ly), Vector2(-17, ly - 17), Vector2(17, ly - 19), Vector2(19, ly)]), tc, a)
 	_line(ci, Vector2(-17, ly - 1), Vector2(17, ly - 1), GOLD, 2.0, a)
 	_poly(ci, PackedVector2Array([Vector2(-16, by - 15), Vector2(-9, by - 15), Vector2(-9, by), Vector2(-16, by)]), tc.darkened(0.1), a, false)
@@ -269,9 +276,15 @@ static func _f_bone(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, 
 	_line(ci, Vector2(9, -20), bk + Vector2(-2, 4), Color("#ece6d6"), 2.4, a)
 	_poly(ci, PackedVector2Array([bk + Vector2(-10, -2), bk + Vector2(0, 0), bk + Vector2(10, -2), bk + Vector2(10, 4), bk + Vector2(0, 6), bk + Vector2(-10, 4)]), Color("#6b4a2b"), a)
 	ci.draw_line(bk + Vector2(0, 0), bk + Vector2(0, 6), Color(OUT, a), 1.2, true)
-	var fl := 8.0 + absf(w) * 7.0 + sin(t * 12.0 + wk * 3.0) * 1.8
+	# V1.5：前搖時紫火聚成火球（越來越大、越亮），出手那一刻火球離開書（飛行物在 battle_units 畫），書上只剩小火苗再慢慢長回來
+	var gather := maxf(0.0, -w)
+	var spent := maxf(0.0, w)
+	var fl := 8.0 + gather * 9.0 - spent * 4.0 + sin(t * 12.0 + wk * 3.0) * 1.8
 	_poly(ci, PackedVector2Array([bk + Vector2(-6, -1), bk + Vector2(6, -1), bk + Vector2(3, -2 - fl), bk + Vector2(0, -6 - fl), bk + Vector2(-3, -2 - fl)]), Color("#b14dff"), a)
-	ci.draw_circle(bk + Vector2(0, -4 - fl * 0.3), 2.4, Color(1, 0.85, 1, 0.9 * a), true, -1.0, true)
+	ci.draw_circle(bk + Vector2(0, -4 - fl * 0.3), 2.4 + gather * 2.6, Color(1, 0.85, 1, (0.9 + gather * 0.1) * a), true, -1.0, true)
+	if gather > 0.3:
+		ci.draw_arc(bk + Vector2(0, -4 - fl * 0.3), 6.0 + gather * 4.0, 0.0, TAU, 18, Color(0.8, 0.5, 1.0, 0.5 * gather * a), 1.6, true)
+	_c(ci, bk + Vector2(-3, 5), 2.6, Color("#ece6d6"), a)   # V1.5：骨手托住書底
 	_part_end(ci)
 
 

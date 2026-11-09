@@ -1044,3 +1044,32 @@ func test_touch_v140() -> void:
 	ok(is_equal_approx(g.pinch_zoom, 1.0), "縮小回全景為止")
 	g.free()
 
+
+## V1.5 遠程時間同步：沒有手動軍令的對局緩衝 8 tick；弓箭手出手比命中早、飛行物在命中 tick 剛好到；近戰不受影響；手動軍令局維持 2 tick。
+func test_projectile_timing_v150() -> void:
+	var VB = load("res://scripts/ui/view_buffer.gd")
+	var BS = load("res://scripts/ui/battle/battle_state.gd")
+	var Sim0 = load("res://scripts/core/battle_sim.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 150
+	var s = Sim0.new(AI0.build(0, 100, rng)["army"], AI0.build(1, 100, rng)["army"])
+	ok(VB.new(s).delay == VB.DELAY_LONG, "沒有手動軍令：緩衝 8 tick")
+	var r = RS0.standard()
+	r.cmd_mask = [1, 1]
+	var s2 = Sim0.new(AI0.build(0, 100, rng)["army"], AI0.build(1, 100, rng)["army"], r)
+	ok(VB.new(s2).delay == VB.DELAY, "有手動軍令：維持 2 tick")
+	var fly: int = BS.proj_fly(2)
+	var h := 100
+	var p0: Array = BS.proj_phase([h], float(h - fly), 2, VB.DELAY_LONG)
+	var p1: Array = BS.proj_phase([h], float(h), 2, VB.DELAY_LONG)
+	var pm: Array = BS.proj_phase([h], float(h - fly) - 1.0, 2, VB.DELAY_LONG)
+	ok(int(p0[0]) == h - fly and int(p0[1]) == h and is_equal_approx(float(p0[2]), 0.0) and is_equal_approx(float(p1[2]), 1.0), "弓箭手：出手 tick 離手、命中 tick 剛好到", str([p0, p1]))
+	ok(float(pm[2]) < 0.0 and int(pm[1]) == h, "離手前在前搖、還沒有飛行物")
+	ok(fly + VB.DELAY <= VB.DELAY_LONG and BS.proj_fly(6) + VB.DELAY <= VB.DELAY_LONG, "前搖＋飛行放得進緩衝")
+	var pmelee: Array = BS.proj_phase([h], float(h - 1), 0, VB.DELAY_LONG)
+	ok(int(pmelee[0]) == h and float(pmelee[2]) < 0.0, "近戰不提早出手、沒有飛行物")
+	var pshort: Array = BS.proj_phase([h], float(h), 2, VB.DELAY)
+	ok(int(pshort[0]) == h, "手動軍令局：沒有餘裕就直接命中（不憑空飛彈）")
+

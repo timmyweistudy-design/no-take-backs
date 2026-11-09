@@ -80,6 +80,13 @@ static func t(key: String, args: Array = []) -> String:
 		return s
 	return s % args
 
+## V1.5：某個語言自己的名稱（第一次啟動的語言按鈕要用該語言寫，例如「日本語」）。
+static func lang_name_of(l: String) -> String:
+	load_table()
+	var d: Dictionary = _table.get("lang_name", {})
+	var s: String = str(d.get(l, ""))
+	return s if s != "" else l
+
 static func has(key: String) -> bool:
 	load_table()
 	return _table.has(key)

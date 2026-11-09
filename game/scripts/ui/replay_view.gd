@@ -116,7 +116,7 @@ func _seek_begin(target: int) -> void:
 	set("last_blast_tick", -99)
 	_seek_ct = -1
 	battle_marks.clear()
-	_seek_stop = maxi(0, target - ViewBuffer.DELAY)
+	_seek_stop = maxi(0, target - (view.delay if view != null else ViewBuffer.DELAY))
 	_seek_target_now = target
 
 var _seek_target_now := 0

@@ -117,10 +117,13 @@ func _draw_battle_report() -> void:
 
 
 func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, col: Color) -> void:
+	var dn: String = str(Save.s("dmg_nums"))
+	if dn == "off" and int(TEXT_TIER.get(kind, 1)) < 2:
+		return   # V1.5：傷害與治療數字關掉（關鍵事件的字照樣出）
 	if int(TEXT_TIER.get(kind, 1)) >= 2:
 		text_key_in += 1
 	var cell := Vector2i(floori(p.x / TEXT_CELL.x), floori(p.y / TEXT_CELL.y))
-	for f in fx:
+	for f in ([] if dn == "each" else fx):   # V1.5：「逐次」不合併
 		if f["kind"] == "text" and not f.get("screen", false) and f.get("ek", "") == kind and f.get("cell", Vector2i(-99, -99)) == cell and f["t"] < 0.35:
 			f["n"] += 1
 			f["sum"] += dmg
@@ -425,6 +428,15 @@ func _draw_fx(f: Dictionary) -> void:
 				var bk := (k - 0.3) / 0.7
 				draw_circle(mp, mr * (0.4 + bk * 0.6), Color(1, 0.5, 0.15, 0.45 * (1.0 - bk)))
 				draw_arc(mp, mr * (0.4 + bk * 0.6), 0, TAU, 40, Color(1, 0.9, 0.6, 1.0 - bk), 4.0, true)
+		"spark":
+			# V1.5：法術命中的碎光（8 道放射短線＋中心光點）
+			var sk: float = f["t"] / f["dur"]
+			var sc: Color = f.get("c", Color.WHITE)
+			var sp0: Vector2 = f["p"]
+			for i in 8:
+				var dv := Vector2.from_angle(i * TAU / 8.0 + 0.3)
+				draw_line(sp0 + dv * (4.0 + sk * 10.0), sp0 + dv * (8.0 + sk * 16.0), Color(sc, 1.0 - sk), 2.4, true)
+			draw_circle(sp0, 6.0 * (1.0 - sk), Color(sc.lightened(0.5), 0.9 * (1.0 - sk)), true, -1.0, true)
 		"arrow":
 			var a: Vector2 = f["a"]
 			var b: Vector2 = f["b"]
@@ -715,6 +727,9 @@ func _draw_fx(f: Dictionary) -> void:
 			var col: Color = f["c"]
 			col.a = 1.0 - k * k
 			if f.get("screen", false):
+				if bool(Save.s("text_plate")):
+					var tw4 := _width(str(f["s"]), ts(f["size"]), true) + 28.0
+					draw_rect(Rect2(f["p"] + Vector2(-tw4 / 2, -k * 26 - 4), Vector2(tw4, ts(f["size"]) * 1.35)), Color(0, 0, 0, 0.7 * col.a))   # V1.5：高對比文字底板
 				_text(f["p"] + Vector2(0, -k * 26), f["s"], ts(f["size"]), col, true, true)
 			else:
 				var p3: Vector2 = f.get("rp", f["p"] + Vector2(0, -k * 26))

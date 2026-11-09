@@ -89,9 +89,9 @@ func _stick_repeat(delta: float) -> void:
 		var v: float = stick[ax]
 		var cur: int = d.x if ax == JOY_AXIS_LEFT_X else d.y
 		var nv := cur
-		if absf(v) > 0.6:
+		if absf(v) > maxf(0.6, int(Save.s("deadzone")) / 100.0 + 0.2):   # V1.5：搖桿死區可調
 			nv = 1 if v > 0 else -1
-		elif absf(v) < 0.35:
+		elif absf(v) < int(Save.s("deadzone")) / 100.0:
 			nv = 0
 		if ax == JOY_AXIS_LEFT_X:
 			d.x = nv
@@ -200,39 +200,32 @@ func _draw_title() -> void:
 	_text(Vector2(235, ty), L.t("subtitle"), tz("S"), TXT_DIM, true, false, 420)
 	ty += text_h(L.t("subtitle"), tz("S"), 420) + 18
 	var y0 := maxf(250.0, ty)
-	# 第七輪 E7：四顆主玩法有兵種圖示與亮邊；其餘縮小。新手第一次進來，主推教學（A4）
-	var fresh := _is_new_player()
-	var main := [["menu_tutorial" if fresh else "menu_vs_ai", (func(): _open("tutorial")) if fresh else (func(): _open_lobby("ai")), 0],
-		["menu_vs_ai" if fresh else "menu_duel", (func(): _open_lobby("ai")) if fresh else (func(): _open_lobby("duel")), 3],
-		["menu_duel" if fresh else "menu_gauntlet", (func(): _open_lobby("duel")) if fresh else (func(): _enter_gauntlet()), 1],
-		["menu_gauntlet" if fresh else "menu_tutorial", (func(): _enter_gauntlet()) if fresh else (func(): _open("tutorial")), 4 if fresh else 2]]
-	for i in main.size():
-		var mr2 := Rect2(70, y0 + i * 60, 330, 52)
-		_btn(mr2, "　　" + L.t(main[i][0]), main[i][1], not (_demo() and main[i][0] == "menu_gauntlet"), i == 0)
-		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if i == 0 else Color(1, 1, 1, 0.35))
-		Art.unit(self, mr2.position + Vector2(32, 48), int(main[i][2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.72, cbm())
+	# V1.5：主畫面整理成五塊大木牌（對戰、遠征、挑戰、遊戲間、收藏）＋一排系統小鈕；點木牌在右邊攤開第二層卡片
+	var fresh: bool = _is_new_player() and Save.s("hints") == "full"   # 教學提示「完整」才閃框
+	var plaques := home_plaques()
+	for i in plaques.size():
+		var pq: Array = plaques[i]
+		var mr2 := Rect2(70, y0 + i * 68, 330, 60)
+		var on := not _demo() or bool(pq[4])
+		_btn(mr2, "", pq[3], on, i == 0 and fresh)
+		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else Color(1, 1, 1, 0.35))
+		Art.unit(self, mr2.position + Vector2(34, 54), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72, cbm())
+		var tcol: Color = Color.WHITE if on else TXT_DIM
+		_text(mr2.position + Vector2(66, 7), L.t(str(pq[0])), tz("B"), tcol, false, true, 180)
+		_text(mr2.position + Vector2(66, 9 + tz("B") * 1.15), L.t(str(pq[1])), tz("C"), TXT_DIM, false, false, 250)
+		var tag := home_tag(i)
+		if tag != "":
+			# 狀態小牌：木牌右上，羊皮紙底＋墨字（不只靠顏色）
+			var tw2 := _width(tag, tz("C"), true) + 16.0
+			var tr := Rect2(mr2.end.x - tw2 - 8, mr2.position.y + 6, tw2, tz("C") * 1.5)
+			_tex_box(tr, "paper")
+			_ink_mode = true
+			_text(tr.position + Vector2(8, tz("C") * 0.2), tag, tz("C"), INK, false, true, tw2)
+			_ink_mode = false
 	if fresh:
 		var pulse := 0.5 + 0.5 * sin(time * 3.0)
-		draw_rect(Rect2(68, y0 - 2, 334, 56), Color(ACCENT, 0.5 + 0.5 * pulse), false, 3.0)
-	var y1 := y0 + 4 * 60 + 8
-	# 第十輪 V3：4 主＋4 次＋一列系統鈕；製作名單進設定，代碼類合成一顆
-	_btn(Rect2(70, y1, 162, 44), L.t("menu_puzzle"), func(): _open("puzzles"))
-	_btn(Rect2(238, y1, 162, 44), L.t("menu_codex"), func(): _open_codex(0))
-	y1 += 50
-	_btn(Rect2(70, y1, 162, 44), L.t("menu_trials"), func(): _open("trials"))
-	_btn(Rect2(238, y1, 162, 44), L.t("menu_profile"), func(): _open("profile"))
-	y1 += 50
-	# V1.1 D2：每日挑戰（一顆寬鈕，右邊小字是這週突變與今天最佳）
-	var dr := Rect2(70, y1, 206, 44)
-	_btn(dr, "", func(): call("_start_daily"), not _demo())
-	_icon("dice", dr.position + Vector2(22, 22), 22.0, ACCENT if not _demo() else Color(1, 1, 1, 0.35))
-	_text(dr.position + Vector2(40, 22 - tz("S") * 0.68), L.t("menu_daily"), tz("S"), Color.WHITE, false, true, 86)
-	var dcap := str(call("_daily_caption"))
-	if _width(dcap, tz("C")) <= 84.0:   # 放不下一行就不放（今日名稱在每日挑戰頁看得到；V1.4 版面檢查：英文 150% 會折兩行壓到下一排）
-		_text(dr.position + Vector2(162, 22 - tz("C") * 0.68), dcap, tz("C"), ACCENT, true, false, 84)
-	# V1.4 #16：遊戲間（觀戰競猜、輪抽）
-	_btn(Rect2(282, y1, 118, 44), L.t("menu_playroom"), func(): overlay = "playroom", not _demo())
-	var y2 := y1 + 54
+		draw_rect(Rect2(68, y0 - 2, 334, 64), Color(ACCENT, 0.5 + 0.5 * pulse), false, 3.0)
+	var y2 := y0 + 5 * 68 + 10
 	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): get_tree().quit()]]
 	for i in sys.size():
 		_btn(Rect2(70 + i * 112, y2, 106, 38), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
@@ -269,6 +262,14 @@ func _draw_overlay() -> void:
 			_draw_nemeses()
 		"paint":
 			_draw_paint()
+		"hub_play", "hub_challenge", "hub_collect":
+			_draw_hub(overlay)
+		"first_run":
+			_draw_first_run()
+		"restore":
+			_draw_restore()
+		"clear_data":
+			_draw_clear_data()
 		"ghosts":
 			_draw_ghosts()
 		"ga_info":
@@ -418,6 +419,7 @@ func _draw_overlay() -> void:
 
 ## V1.2.1 E1：四條音量套用並試聽那一軌（sample＝""不試聽、"amb"＝放 1.5 秒森林環境音）。
 func _apply_volumes(sample: String) -> void:
+	_apply_master()
 	if sfx == null:
 		return
 	sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")), int(Save.s("ui_vol")), int(Save.s("amb_vol")))
@@ -432,64 +434,277 @@ func _apply_volumes(sample: String) -> void:
 		sfx.play(sample)
 
 ## 設定（第五輪 §4.4）：四組分頁＋右側說明欄；多選項用 ◀ ▶；遊戲規則已經搬到規則大廳。
+## V1.5：設定七頁（畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料）。每列 [名稱鍵, 顯示值, 切換函式(d)]；
+## 顯示值是 "@" 開頭的列＝按鈕（打開或執行），不是左右切換。docs/2026-11-09-v1.5.0-plan.md §2。
+const SET_TABS := 7
+
+func _optv(k: String, vals: Array, keys: Array) -> String:
+	var i := vals.find(Save.s(k))
+	return L.t(keys[maxi(0, i)])
+
+func _pct(k: String) -> String:
+	return "%d%%" % int(Save.s(k))
+
 func _settings_rows() -> Array:
-	var groups := {
-		# V1.2.1 G3：語言在 L.LANGS 裡循環（單一來源）
-		0: [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
-			["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
-			["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
-			["set_fullscreen", _onoff("fullscreen"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()]],
-		1: [["set_music", "%d%%" % int(Save.s("music")), func(d): _step_setting("music", [0, 30, 50, 70, 100], d); _apply_volumes("")],
-			["set_sfx", "%d%%" % int(Save.s("sfx")), func(d): _step_setting("sfx", [0, 30, 50, 80, 100], d); _apply_volumes("hit")],
-			["set_ui_vol", "%d%%" % int(Save.s("ui_vol")), func(d): _step_setting("ui_vol", [0, 30, 50, 80, 100], d); _apply_volumes("k_confirm")],
-			["set_amb_vol", "%d%%" % int(Save.s("amb_vol")), func(d): _step_setting("amb_vol", [0, 30, 50, 80, 100], d); _apply_volumes("amb")]],
-		2: [["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(d): _step_setting("speed", [0.5, 1.0, 2.0], d)],
-			["set_confirm", _onoff("confirm_place"), func(d): _cycle_setting("confirm_place", [true, false])],
-			["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],
-			["set_keys", L.t("open_it"), func(d): _open("keys")]],
-		3: [["set_cb", _onoff("colorblind"), func(d): _cycle_setting("colorblind", [false, true]); _rebuild_sprites()],
-			["set_shake", _onoff("shake"), func(d): _cycle_setting("shake", [true, false])],
-			["set_slowmo", _onoff("slowmo"), func(d): _cycle_setting("slowmo", [true, false])],
-			["set_flash", _onoff("flash"), func(d): _cycle_setting("flash", [true, false])],
-			["set_reduce_fx", _onoff("reduce_fx"), func(d): _cycle_setting("reduce_fx", [false, true])],
-			["set_plain_ui", _onoff("plain_ui"), func(d): _cycle_setting("plain_ui", [false, true]); _rebuild_sprites()]],   # V1.2：外框烘在圖集裡，切換要重烘
-	}
-	return groups[settings_tab]
+	match settings_tab:
+		0:
+			return [["set_fullscreen", L.t("v_borderless") if bool(Save.s("fullscreen")) else L.t("v_windowed"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()],
+				["set_title_bg", _optv("title_bg", ["demo", "static"], ["v_demo", "v_static"]), func(d): _cycle_setting("title_bg", ["demo", "static"])],
+				["set_fps", L.t("v_unlimited") if int(Save.s("fps_cap")) == 0 else str(int(Save.s("fps_cap"))), func(d): _step_setting("fps_cap", [30, 60, 120, 0], d); _apply_display()],
+				["set_vsync", _onoff("vsync"), func(d): _cycle_setting("vsync", [true, false]); _apply_display()],
+				["set_paint", "@" + L.t("open_it"), func(d): call("_paint_open")]]
+		1:
+			return [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
+				["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
+				["set_hints", _optv("hints", ["full", "key", "off"], ["v_full", "v_key", "v_off"]), func(d): _step_setting("hints", ["full", "key", "off"], d)],
+				["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
+				["set_plain_ui", L.t("v_simple") if bool(Save.s("plain_ui")) else L.t("v_standard"), func(d): _cycle_setting("plain_ui", [false, true]); _rebuild_sprites()],
+				["set_toast", _optv("toast_mult", [1, 2, 3], ["v_std", "v_long", "v_xlong"]), func(d): _step_setting("toast_mult", [1, 2, 3], d)]]
+		2:
+			return [["set_master", _pct("master"), func(d): _step_setting("master", [0, 25, 50, 75, 100], d); _apply_volumes("hit")],
+				["set_music", _pct("music"), func(d): _step_setting("music", [0, 30, 50, 70, 100], d); _apply_volumes("")],
+				["set_sfx", _pct("sfx"), func(d): _step_setting("sfx", [0, 30, 50, 80, 100], d); _apply_volumes("hit")],
+				["set_ui_vol", _pct("ui_vol"), func(d): _step_setting("ui_vol", [0, 30, 50, 80, 100], d); _apply_volumes("k_confirm")],
+				["set_amb_vol", _pct("amb_vol"), func(d): _step_setting("amb_vol", [0, 30, 50, 80, 100], d); _apply_volumes("amb")],
+				["set_night", _onoff("night"), func(d): _cycle_setting("night", [false, true]); _apply_master()],
+				["set_mono", _onoff("mono"), func(d): _cycle_setting("mono", [false, true]); _apply_master()]]
+		3:
+			return [["set_keys", "@" + L.t("open_it"), func(d): _open("keys")],
+				["set_confirm", _onoff("confirm_place"), func(d): _cycle_setting("confirm_place", [true, false])],
+				["set_long_press", L.t("sec_f", [_fmt_num(float(Save.s("long_press")))]), func(d): _step_setting("long_press", [0.3, 0.5, 0.8, 1.0], d)],
+				["set_rumble", _pct("rumble"), func(d): _step_setting("rumble", [0, 25, 50, 100], d)],
+				["set_deadzone", _pct("deadzone"), func(d): _step_setting("deadzone", [20, 35, 50], d)]]
+		4:
+			return [["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(d): _step_setting("speed", [0.5, 1.0, 2.0], d)],
+				["set_hp_bars", _optv("hp_bars", ["hurt", "all", "sel", "off"], ["v_hurt", "v_all", "v_sel", "v_off"]), func(d): _step_setting("hp_bars", ["hurt", "all", "sel", "off"], d)],
+				["set_dmg_nums", _optv("dmg_nums", ["merge", "each", "off"], ["v_merge", "v_each", "v_off"]), func(d): _step_setting("dmg_nums", ["merge", "each", "off"], d)],
+				["set_reduce_fx", L.t("v_min") if bool(Save.s("reduce_fx")) else L.t("v_full"), func(d): _cycle_setting("reduce_fx", [false, true])],
+				["set_clutch_zoom", _onoff("clutch_zoom"), func(d): _cycle_setting("clutch_zoom", [true, false])],
+				["set_slowmo", _onoff("slowmo"), func(d): _cycle_setting("slowmo", [true, false])]]
+		5:
+			return [["set_cb", L.t("v_cb") if bool(Save.s("colorblind")) else L.t("v_standard"), func(d): _cycle_setting("colorblind", [false, true]); _rebuild_sprites()],
+				["set_reduce_motion", _onoff("reduce_motion"), func(d): _cycle_setting("reduce_motion", [false, true])],
+				["set_text_plate", L.t("v_high") if bool(Save.s("text_plate")) else L.t("v_standard"), func(d): _cycle_setting("text_plate", [false, true])],
+				["set_focus", L.t("v_strong") if bool(Save.s("focus_strong")) else L.t("v_standard"), func(d): _cycle_setting("focus_strong", [false, true])],
+				["set_shake", _pct("shake_pct"), func(d): _step_setting("shake_pct", [0, 25, 50, 100], d); Save.set_setting("shake", int(Save.s("shake_pct")) > 0)],
+				["set_flash", _pct("flash_pct"), func(d): _step_setting("flash_pct", [0, 50, 100], d); Save.set_setting("flash", int(Save.s("flash_pct")) > 0)]]
+		6:
+			return [["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],
+				["set_export", "@" + L.t("do_copy"), func(d): _settings_export()],
+				["set_import", "@" + L.t("do_paste"), func(d): _settings_import()],
+				["set_backup", "@" + L.t("do_backup"), func(d): _progress_backup()],
+				["set_restore", "@" + L.t("do_restore"), func(d): overlay = "restore"; _focus = 0],
+				["set_clear", "@" + L.t("do_choose"), func(d): clear_pick = {}; overlay = "clear_data"; _focus = 0],
+				["set_folder", "@" + L.t("open_it"), func(d): OS.shell_open(ProjectSettings.globalize_path("user://"))]]
+	return []
 
 
 
 func _draw_settings() -> void:
-	_panel(Rect2(140, 130, 1000, 540))     # 第十輪 V7：最多 5 列，面板縮到內容
-	_h1(Vector2(640, 134), L.t("settings_title"))
-	for i in 4:
-		_btn(Rect2(170, 196 + i * 60, 180, 50), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
+	_panel(Rect2(110, 96, 1060, 628))
+	_h1(Vector2(640, 100), L.t("settings_title"))
+	for i in SET_TABS:
+		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
+	var y0 := 166.0
+	if settings_tab == 5:
+		# 一鍵預設（可疊加；套用後可撤回）
+		var pk := ["preset_vis", "preset_motion", "preset_load"]
+		for k in 3:
+			_btn(Rect2(346 + k * 178, y0, 170, 46), L.t(pk[k]), _apply_preset.bind(k), true, false, Color(0.2, 0.36, 0.5))
+		if not preset_undo.is_empty():
+			_btn(Rect2(346 + 3 * 178, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+		y0 += 60.0
 	var rows: Array = _settings_rows()
 	for i in rows.size():
-		var y := 196 + i * 66
+		var y := y0 + i * 60
 		if i % 2 == 0:
-			draw_rect(Rect2(370, y - 6, 524, 64), Color(1, 1, 1, 0.04))   # 第七輪 E11：斑馬底色
-		_text(Vector2(380, y + 13), L.t(rows[i][0]), tz("B"), Color.WHITE, false, false, 240)
+			draw_rect(Rect2(340, y - 5, 560, 56), Color(1, 1, 1, 0.04))   # 第七輪 E11：斑馬底色
+		_text(Vector2(352, y + 12), L.t(rows[i][0]), tz("B"), Color.WHITE, false, false, 270)
 		var val: String = rows[i][1]
 		var cb: Callable = rows[i][2]
-		var r := Rect2(620, y, 260, 52)
-		_btn(Rect2(r.position, Vector2(48, r.size.y)), "◀", cb.bind(-1))
-		var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else TH_WOOD_D
-		_btn(Rect2(r.position + Vector2(54, 0), Vector2(r.size.x - 108, r.size.y)), val, cb.bind(1), true, false, tint)
-		_btn(Rect2(r.end.x - 48, r.position.y, 48, r.size.y), "▶", cb.bind(1))
-		if val.ends_with("%") and rows[i][0] in ["set_music", "set_sfx"]:
-			draw_rect(Rect2(r.position.x + 60, y + 44, (r.size.x - 120) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
+		var r := Rect2(632, y, 260, 48)
+		if val.begins_with("@"):
+			_btn(r, val.substr(1), cb.bind(1))
+		else:
+			_btn(Rect2(r.position, Vector2(46, r.size.y)), "◀", cb.bind(-1))
+			var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else TH_WOOD_D
+			_btn(Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y)), val, cb.bind(1), true, false, tint)
+			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
+		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
+			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
 	# 說明欄
-	var D0 := Rect2(900, 196, 220, 400)
+	var D0 := Rect2(910, 166, 236, 470)
 	draw_rect(D0, Color(0, 0, 0, 0.25))
-	var key: String = settings_item if settings_item != "" else rows[0][0]
-	_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
-	_text(D0.position + Vector2(14, 12 + tz("B") * 1.6), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)
-	if bool(Save.s("playtest")) and settings_tab == 2:
-		_btn(Rect2(380, 196 + rows.size() * 66, 240, 44), L.t("pt_folder"), func(): OS.shell_open(ProjectSettings.globalize_path("user://")))
-	_btn(Rect2(560, 612, 160, 44), L.t("back"), func(): overlay = "")
-	_btn(Rect2(380, 612, 160, 44), L.t("menu_credits"), func(): _open("credits"))
+	var key: String = settings_item if settings_item != "" else (rows[0][0] if not rows.is_empty() else "")
+	if key != "":
+		_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
+		_text(D0.position + Vector2(14, 12 + tz("B") * 1.6), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)
+	_btn(Rect2(560, 662, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(380, 662, 160, 44), L.t("menu_credits"), func(): _open("credits"))
 
+
+## ── V1.5 一鍵無障礙預設：直接改原本的設定（可疊加），存一份改之前的值讓「撤回」用 ──
+var preset_undo := {}
+const PRESETS := [
+	{"text_scale": 150, "plain_titles": true, "text_plate": true, "focus_strong": true},
+	{"reduce_motion": true, "shake_pct": 0, "shake": false, "flash_pct": 0, "flash": false, "slowmo": false, "title_bg": "static", "clutch_zoom": false},
+	{"confirm_place": true, "toast_mult": 3, "long_press": 0.8, "hints": "full"}]
+
+func _apply_preset(k: int) -> void:
+	var p: Dictionary = PRESETS[k]
+	var n := 0
+	for key in p:
+		if not preset_undo.has(key):
+			preset_undo[key] = Save.s(key)
+		if Save.s(key) != p[key]:
+			n += 1
+		Save.set_setting(key, p[key])
+	_toast(L.t("preset_done", [n]))
+
+func _undo_preset() -> void:
+	for key in preset_undo:
+		Save.set_setting(key, preset_undo[key])
+	preset_undo = {}
+	_toast(L.t("preset_undone"))
+
+
+## ── V1.5 資料：設定匯出／匯入（剪貼簿代碼 NTS1.）、進度備份／還原（user://backup/）、分項清除 ──
+var clear_pick := {}
+
+static func settings_code(d: Dictionary) -> String:
+	var keep := d.duplicate(true)
+	return "NTS1." + Marshalls.utf8_to_base64(JSON.stringify(keep))
+
+static func settings_decode(code: String):
+	var c := code.strip_edges()
+	if not c.begins_with("NTS1."):
+		return null
+	var raw := Marshalls.base64_to_utf8(c.substr(5))
+	var d = JSON.parse_string(raw)
+	if not d is Dictionary:
+		return null
+	return Save.sanitize_settings(d)
+
+func _settings_export() -> void:
+	DisplayServer.clipboard_set(settings_code(Save.settings))
+	_toast(L.t("set_exported"))
+
+func _settings_import() -> void:
+	var d = settings_decode(DisplayServer.clipboard_get())
+	if d == null:
+		_toast(L.t("set_import_bad"), true)
+		return
+	var n := 0
+	for k in d:
+		if k in ["first_done"]:
+			continue
+		if str(Save.s(k)) != str(d[k]):
+			n += 1
+		Save.set_setting(k, d[k])
+	L.lang = Save.s("lang")
+	_load_fonts()
+	_apply_volumes("")
+	_apply_display()
+	_apply_fullscreen()
+	_rebuild_sprites()
+	_toast(L.t("set_imported", [n]))
+
+static func backup_list() -> Array:
+	var out: Array = []
+	var dir := DirAccess.open("user://backup")
+	if dir == null:
+		return out
+	for f in dir.get_files():
+		if f.ends_with(".json"):
+			out.append(f)
+	out.sort()
+	out.reverse()
+	return out
+
+func _progress_backup() -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://backup"))
+	var dt := Time.get_datetime_dict_from_system()
+	var name := "progress_%04d%02d%02d_%02d%02d%02d.json" % [dt["year"], dt["month"], dt["day"], dt["hour"], dt["minute"], dt["second"]]
+	var f := FileAccess.open("user://backup/" + name, FileAccess.WRITE)
+	if f == null:
+		_toast(L.t("backup_fail"), true)
+		return
+	f.store_string(JSON.stringify(Save.data))
+	f.close()
+	var lst := backup_list()
+	while lst.size() > 10:   # 最多留 10 份
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://backup/" + str(lst.pop_back())))
+	_toast(L.t("backup_done", [name]))
+
+func _progress_restore(name: String) -> void:
+	var f := FileAccess.open("user://backup/" + name, FileAccess.READ)
+	if f == null:
+		_toast(L.t("backup_fail"), true)
+		return
+	var d = JSON.parse_string(f.get_as_text())
+	if not d is Dictionary:
+		_toast(L.t("restore_bad"), true)
+		return
+	_progress_backup()   # 還原前先把現在的進度備份一份（還原錯了還能回來）
+	var data: Dictionary = Save.migrate(d)
+	Save.sanitize_data(data)
+	Save.data = data
+	Save.save_data()
+	overlay = ""
+	_toast(L.t("restore_done"))
+
+func _draw_restore() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(330, 150, 620, 500)
+	_panel(P)
+	_h1(Vector2(640, 162), L.t("set_restore"))
+	_text(Vector2(640, 162 + tz("H1") * 1.5), L.t("restore_help"), tz("S"), TXT_DIM, true, false, 560)
+	var lst := backup_list()
+	if lst.is_empty():
+		_text(Vector2(640, 330), L.t("restore_none"), tz("B"), TXT_DIM, true, false, 560)
+	for i in mini(6, lst.size()):
+		var nm: String = lst[i]
+		_btn(Rect2(380, 250 + i * 54, 520, 46), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _progress_restore(nm))
+	_btn(Rect2(560, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = "settings")
+
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
+
+func _draw_clear_data() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(330, 150, 620, 500)
+	_panel(P)
+	_h1(Vector2(640, 162), L.t("set_clear"))
+	_text(Vector2(640, 162 + tz("H1") * 1.5), L.t("clear_help"), tz("S"), TXT_DIM, true, false, 560)
+	for i in CLEAR_KEYS.size():
+		var on := bool(clear_pick.get(i, false))
+		var ii := i
+		_btn(Rect2(380, 250 + i * 58, 520, 50), ("✓ " if on else "　") + L.t(CLEAR_KEYS[i][0]), func(): clear_pick[ii] = not bool(clear_pick.get(ii, false)), true, false, Color(0.5, 0.18, 0.15) if on else Color(0, 0, 0, 0))
+	var any := false
+	for k in clear_pick:
+		any = any or bool(clear_pick[k])
+	_btn(Rect2(380, P.end.y - 60, 250, 44), L.t("clear_go"), func(): _clear_data(), any, false, Color(0.55, 0.16, 0.12))
+	_btn(Rect2(650, P.end.y - 60, 250, 44), L.t("back"), func(): overlay = "settings")
+
+func _clear_data() -> void:
+	_progress_backup()   # 清之前自動備份一份
+	if bool(clear_pick.get(3, false)):
+		var keep_lang = Save.settings.duplicate(true)
+		Save.data = Save.DEFAULT_SAVE.duplicate(true)
+		Save.sanitize_data(Save.data)
+	else:
+		for i in 3:
+			if bool(clear_pick.get(i, false)):
+				for k in CLEAR_KEYS[i][1]:
+					if Save.DEFAULT_SAVE.has(k):
+						Save.data[k] = Save.DEFAULT_SAVE[k].duplicate(true) if Save.DEFAULT_SAVE[k] is Dictionary or Save.DEFAULT_SAVE[k] is Array else Save.DEFAULT_SAVE[k]
+					else:
+						Save.data.erase(k)
+		Save.sanitize_data(Save.data)
+	Save.save_data()
+	clear_pick = {}
+	overlay = "settings"
+	_toast(L.t("clear_done"))
 
 
 ## ◀ ▶ 往前／往後切換設定值（第五輪）。
@@ -584,3 +799,127 @@ func _paste_code() -> void:
 	_toast(L.t("code_loaded") if why == "" else (L.t("code_locked") if why == "locked" else L.t("code_bad")), why != "")
 	if why == "":
 		overlay = ""
+
+
+## ── V1.5 主畫面五塊木牌：[名稱, 副標, 代表兵種, 動作, 試玩版也開] ──
+func home_plaques() -> Array:
+	return [["home_play", "home_play_d", 3, func(): overlay = "hub_play"; _focus = 0, true],
+		["menu_gauntlet", "home_gauntlet_d", 1, func(): _enter_gauntlet(), false],
+		["home_challenge", "home_challenge_d", 2, func(): overlay = "hub_challenge"; _focus = 0, true],
+		["menu_playroom", "home_playroom_d", 8, func(): overlay = "playroom"; _focus = 0, false],
+		["home_collect", "home_collect_d", 13, func(): overlay = "hub_collect"; _focus = 0, true]]
+
+## 木牌右上的狀態小字：新玩家「先從教學開始」、遠征續局「第 N 站」、每日挑戰今天還沒打。
+func home_tag(i: int) -> String:
+	match i:
+		0:
+			return L.t("home_st_tut") if _is_new_player() and Save.s("hints") != "off" else ""
+		1:
+			var g: Dictionary = Save.data.get("gauntlet_run", {})
+			return L.t("home_st_run", [int(g.get("stage", 1))]) if not g.is_empty() and not _demo() else ""
+		2:
+			if _demo():
+				return ""
+			var sp: Dictionary = Daily.spec(Daily.today())
+			return L.t("home_st_daily") if Save.data.get("daily_best", {}).get(sp["key"], []).is_empty() else ""
+	return ""
+
+## 第二層卡片：[名稱, 說明, 圖示, 動作, 能不能用]
+func hub_items(kind: String) -> Array:
+	match kind:
+		"hub_play":
+			return [["menu_tutorial", "hc_tutorial_d", "book", func(): overlay = ""; _open("tutorial"), true],
+				["menu_vs_ai", "hc_vs_ai_d", "robot", func(): overlay = ""; _open_lobby("ai"), true],
+				["menu_duel", "hc_duel_d", "people", func(): overlay = ""; _open_lobby("duel"), true]]
+		"hub_challenge":
+			return [["menu_puzzle", "hc_puzzle_d", "puzzle", func(): overlay = ""; _open("puzzles"), true],
+				["menu_trials", "hc_trials_d", "trophy", func(): overlay = ""; _open("trials"), true],
+				["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_start_daily"), not _demo()],
+				["wk_open", "hc_weekly_d", "cards", func(): overlay = "weekly", not _demo()],
+				["gh_open", "hc_ghosts_d", "skull", func(): overlay = "ghosts", not _demo()]]
+		"hub_collect":
+			return [["menu_codex", "hc_codex_d", "book", func(): overlay = ""; _open_codex(0), true],
+				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
+				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
+				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()]]
+	return []
+
+func _draw_hub(kind: String) -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
+	var items := hub_items(kind)
+	var P := Rect2(430, 120, 800, 560)
+	_panel(P)
+	_h1(Vector2(P.get_center().x, 132), L.t({"hub_play": "home_play", "hub_challenge": "home_challenge", "hub_collect": "home_collect"}.get(kind, "home_play")))
+	var cols := 3
+	var cw := 236.0
+	var ch := 196.0
+	for i in items.size():
+		var it: Array = items[i]
+		var r := Rect2(P.position.x + 30 + (i % cols) * (cw + 14), P.position.y + 80 + (i / cols) * (ch + 14), cw, ch)
+		btn_paper = true
+		_btn(r, "", it[3], bool(it[4]), i == 0)
+		btn_paper = false
+		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
+		_ink_mode = on_paper
+		var tc2: Color = INK if on_paper else (Color.WHITE if bool(it[4]) else TXT_DIM)
+		_icon(str(it[2]), r.position + Vector2(cw / 2, 44), 40.0, Color("#7a4a10") if on_paper else ACCENT)
+		_text(r.position + Vector2(cw / 2, 78), L.t(str(it[0])), tz("B"), tc2, true, true, cw - 20)
+		_text(r.position + Vector2(16, 82 + tz("B") * 1.6), L.t(str(it[1])), tz("C"), tc2, false, false, cw - 32)
+		_ink_mode = false
+	_btn(Rect2(P.get_center().x - 80, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = "")
+
+
+## ── V1.5 設定套用：總音量、夜間模式（壓縮器）、單聲道（立體聲收成中間）；幀率、垂直同步 ──
+func _apply_master() -> void:
+	var bus := 0
+	AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.0001, int(Save.s("master")) / 100.0)))
+	for i in range(AudioServer.get_bus_effect_count(bus) - 1, -1, -1):
+		var ef = AudioServer.get_bus_effect(bus, i)
+		if ef is AudioEffectCompressor or ef is AudioEffectStereoEnhance:
+			AudioServer.remove_bus_effect(bus, i)
+	if bool(Save.s("night")):
+		var cp := AudioEffectCompressor.new()
+		cp.threshold = -18.0
+		cp.ratio = 6.0
+		cp.gain = 4.0
+		AudioServer.add_bus_effect(bus, cp)
+	if bool(Save.s("mono")):
+		var st := AudioEffectStereoEnhance.new()
+		st.pan_pullout = 0.0   # 0＝左右聲道合成中間（單聲道）
+		AudioServer.add_bus_effect(bus, st)
+
+func _apply_display() -> void:
+	Engine.max_fps = int(Save.s("fps_cap"))
+	if shot_dir == "" and DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if bool(Save.s("vsync")) else DisplayServer.VSYNC_DISABLED)
+
+
+## ── V1.5 第一次啟動：主選單前先問語言、字級、無障礙預設（可跳過；XAG：先讓玩家能讀得懂再進遊戲）──
+func _draw_first_run() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0.06, 0.04, 0.03, 0.92))
+	var P := Rect2(240, 90, 800, 620)
+	_panel(P)
+	_h1(Vector2(640, 102), L.t("fr_title"))
+	var y := 102.0 + tz("H1") * 1.8
+	_text(Vector2(640, y), L.t("fr_lang"), tz("B"), Color.WHITE, true, true, 700)
+	y += tz("B") * 1.6
+	for i in L.LANGS.size():
+		var lg: String = L.LANGS[i]
+		_btn(Rect2(290 + i * 178, y, 168, 48), L.lang_name_of(lg), func(): Save.set_setting("lang", lg); L.lang = lg; _load_fonts(), true, false, TH_ACTIVE if L.lang == lg else Color(0, 0, 0, 0))
+	y += 70.0
+	_text(Vector2(640, y), L.t("fr_text"), tz("B"), Color.WHITE, true, true, 700)
+	y += tz("B") * 1.6
+	for i in 3:
+		var ts0: int = [100, 125, 150][i]
+		_btn(Rect2(340 + i * 206, y, 190, 48), "%d%%" % ts0, func(): Save.set_setting("text_scale", ts0), true, false, TH_ACTIVE if int(Save.s("text_scale")) == ts0 else Color(0, 0, 0, 0))
+	y += 70.0
+	_text(Vector2(640, y), L.t("fr_access"), tz("B"), Color.WHITE, true, true, 700)
+	y += tz("B") * 1.6
+	var pk := ["preset_vis", "preset_motion", "preset_load"]
+	for k in 3:
+		var kk := k
+		_btn(Rect2(290 + k * 238, y, 226, 48), L.t(pk[k]), func(): _apply_preset(kk), true, false, Color(0.2, 0.36, 0.5))
+	y += 60.0
+	_text(Vector2(640, y), L.t("fr_later"), tz("S"), TXT_DIM, true, false, 700)
+	_btn(Rect2(560, P.end.y - 64, 160, 48), L.t("fr_go"), func(): Save.set_setting("first_done", true); overlay = "", true, true)
+

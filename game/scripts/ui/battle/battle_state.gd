@@ -84,6 +84,29 @@ static func pick_hit(hits: Array, disp: float, type: int) -> int:
 ## 三段式攻擊進度（R5）：前搖固定是命中前 DELAY 個 tick，揮擊與後搖依攻擊間隔壓縮（攻速快的兵動作也快，不會疊在一起）。
 ## 回傳 Art.unit 的 atk 參數：0＝沒在攻擊；0～0.3125 前搖、0.3125～0.53125 揮擊（命中在 0.3125）、之後後搖到 1。
 ## 一次攻擊動作的時長（tick）：前搖固定 DELAY，揮擊 0.22×總長；atk_progress 與 pick_hit 共用（Codex S4 #1）。
+## V1.5：遠程的飛行時間（tick）。0＝近戰或不畫飛行物（孢子菇是毒圈、巫毒是連線，各自另外演）。
+## 實際飛行還會被緩衝長度限制：飛行＋前搖不能超過展示緩衝（手動軍令局緩衝只有 2，就幾乎直接命中）。
+const PROJ_FLY := {2: 5, 6: 6, 17: 5, 7: 3}   # 弓箭手、投彈兵、骷髏法師、醫者（補血）
+
+static func proj_fly(type: int) -> int:
+	return int(PROJ_FLY.get(type, 0))
+
+## V1.5：這一刻該演哪一次攻擊。回傳 [出手 tick, 命中 tick, 飛行進度 -1／0～1]；沒有就 [-1, -1, -1]。
+## 遠程的出手比命中早 fly 個 tick（fly＝飛行時間，受緩衝長度限制）；飛行進度在出手～命中之間由 0 走到 1。
+static func proj_phase(hits: Array, disp: float, type: int, delay: int) -> Array:
+	var fly: int = mini(proj_fly(type), delay - ViewBuffer.DELAY)
+	var hs: Array = hits
+	if fly > 0:
+		hs = hits.map(func(x): return int(x) - fly)
+	var hr := pick_hit(hs, disp, type)
+	if hr < 0:
+		return [-1, -1, -1.0]
+	var h := hr + fly
+	var k := -1.0
+	if fly > 0 and disp >= float(hr) and disp <= float(h):
+		k = clampf((disp - float(hr)) / float(fly), 0.0, 1.0)
+	return [hr, h, k]
+
 static func atk_timing(type: int) -> Array:
 	var period := float(D.stat(type)["cd"])   # cd 的單位是 tick（模擬每次出手加 cd×4、每 tick 扣 4）
 	var tot := clampf(period, 4.0, 6.4)

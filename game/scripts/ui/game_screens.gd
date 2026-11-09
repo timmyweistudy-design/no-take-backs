@@ -89,11 +89,15 @@ func _ready() -> void:
 		get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
 		return   # 膠囊圖由 main 接手
 	_apply_fullscreen()
+	call("_apply_display")   # V1.5：幀率、垂直同步
+	call("_apply_master")
 	rng.seed = Time.get_ticks_usec() if (shot_dir == "" and not video_mode) else 12345
 	if video_mode:
 		Save.prefix = "shot_"
 		Save.load_all()
 	_go_title()   # 截圖、影片、效能量測由 main 接手（S8）
+	if not bool(Save.s("first_done")) and shot_dir == "" and not video_mode and DisplayServer.get_name() != "headless":
+		overlay = "first_run"   # V1.5：第一次啟動先問語言、字級、無障礙
 	boot_parts["title"] = Time.get_ticks_msec()
 
 
@@ -318,6 +322,9 @@ func _key(k: int) -> void:
 			KEY_ESCAPE:
 				if overlay == "ai_busy":
 					pass      # 第十輪 I4：AI 計算中不能取消
+				elif overlay == "first_run":
+					Save.set_setting("first_done", true)   # V1.5：跳過第一次啟動的問題
+					overlay = ""
 				elif overlay == "paint":
 					call("_paint_close")   # V1.4 #15：Esc／手把 B 也要存塗裝（Codex、Antigravity v140-i4）
 				elif overlay != "":
@@ -388,6 +395,8 @@ func _process(delta: float) -> void:
 	perf_proc_us = Time.get_ticks_usec() - _t0
 
 
+var rumble_seen := 0.0
+
 ## ── V1.4 #18 觸控：點＝左鍵（引擎把觸控模擬成滑鼠）、長按 0.5 秒＝右鍵（拿掉兵）、雙指捏合＝縮放戰場 ──
 const LONG_PRESS := 0.5
 var touches := {}            # 手指編號 → 位置
@@ -424,7 +433,7 @@ func _touch_tick(delta: float) -> void:
 	if lp_t < 0.0:
 		return
 	lp_t += delta
-	if lp_t >= LONG_PRESS:
+	if lp_t >= float(Save.s("long_press")):
 		lp_t = -1.0
 		# 長按：取消左鍵的拖曳，改送一次右鍵（擺陣時拿掉兵；其他畫面右鍵本來就是返回／取消）
 		drag_new = false
@@ -449,6 +458,11 @@ func _process_inner(delta: float) -> void:
 	SteamApi.run_callbacks()
 	if toast_t > 0:
 		toast_t -= delta
+	# V1.5：手把震動跟著鏡頭震動（強度可調、0 關掉；只在用手把時）
+	if shake > rumble_seen + 0.05 and pad_mode and int(Save.s("rumble")) > 0:
+		var rk: float = clampf(shake * 4.0, 0.2, 1.0) * int(Save.s("rumble")) / 100.0
+		Input.start_joy_vibration(last_joy, 0.3 * rk, 0.6 * rk, 0.18)
+	rumble_seen = shake
 	if removed_banner_t > 0.0:
 		removed_banner_t -= delta
 	if ach_t > 0:
@@ -480,7 +494,7 @@ func _process_inner(delta: float) -> void:
 		_ai_poll()
 	if not pre_old.is_empty():
 		_pre_reap()
-	if state == St.TITLE and demo != null and shot_dir == "":
+	if state == St.TITLE and demo != null and shot_dir == "" and Save.s("title_bg") == "demo" and not bool(Save.s("reduce_motion")):   # V1.5：主畫面背景可改靜態
 		demo_acc += delta
 		while demo_acc >= 0.05:
 			demo_acc -= 0.05
@@ -519,7 +533,7 @@ func _draw_inner() -> void:
 	if state == St.BATTLE or state == St.RESULT:
 		var off := Vector2.ZERO
 		if shake > 0 and _fx_on("shake"):
-			off = Vector2(sin(time * 90) * 2, cos(time * 77) * 2)
+			off = Vector2(sin(time * 90) * 2, cos(time * 77) * 2) * int(Save.s("shake_pct")) / 100.0   # V1.5：鏡頭震動強度
 		var w := clampf((zoom - 1.0) / 0.5, 0.0, 1.0)
 		var c := (ORIGIN + FIELD / 2).lerp(fxf * zoom_center, w)
 		var half := Vector2(640, 388) / zoom
@@ -611,7 +625,7 @@ func _draw_inner() -> void:
 		var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
 		if overlay == "" and _is_free():
 			ty = 50.0   # 第六輪：自由擺放整個戰場都可能有兵，提示改蓋在上方的兵種說明條（Codex 實作第 3 輪 #2）
-		draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, 0.72 * a))
+		draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, (0.94 if bool(Save.s("text_plate")) else 0.72) * a))   # V1.5：高對比文字底板
 		_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
 	if _focus >= _btns.size():
 		_focus = 0

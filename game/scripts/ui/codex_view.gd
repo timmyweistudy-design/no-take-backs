@@ -353,7 +353,7 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 				var pc := Vector2(r.position.x + 70, y + 132)
 				if inside.call(y, h):
 					draw_circle(pc + Vector2(0, -30), 62, Color(1, 1, 1, 0.05), true, -1.0, true)
-					_ring(pc, 0, cx_unit, 2.0)
+					_ring(pc, 0, cx_unit, cx_fit(cx_unit))
 					_cx_portrait(pc)
 					_btns.append({"r": Rect2(pc - Vector2(56, 112), Vector2(112, 124)), "cb": func(): cx_spin_t = time, "en": true})
 				var ty := y + 4.0
@@ -525,6 +525,14 @@ func _draw_codex_demo() -> void:
 
 ## V1.3.1 P1：圖鑑大圖播放器。0～1.2 秒左右轉一圈（用轉身姿勢，不是 360°），1.2～2.2 秒做這種兵的待機小動作。
 ## 簡化特效時只畫靜止的正側面。
+## V1.5：圖鑑大圖每種兵固定一個縮放（用 tools/codex_audit.gd 的檢查表量：正側面、轉身、前搖、朝左的聯集外框，
+## 左右 74px、往上 116px 內），播放中不縮放；長武器（長槍、騎槍）不會再伸進名稱區。最小 1.41 倍（1.4 以下會改走圖集、外框畫法不同），最大 2 倍。
+const CX_FIT := {0: 2.0, 1: 2.0, 2: 1.93, 3: 1.61, 4: 1.72, 5: 1.41, 6: 2.0, 7: 1.93, 8: 1.57, 9: 1.85, 10: 2.0, 11: 2.0,
+	12: 2.0, 13: 2.0, 14: 2.0, 15: 1.9, 16: 1.85, 17: 1.73, 18: 1.95, 19: 1.81, 20: 2.0, 21: 2.0}
+
+static func cx_fit(type: int) -> float:
+	return float(CX_FIT.get(type, 2.0))
+
 func _cx_portrait(pc: Vector2) -> void:
 	var u := (time - cx_spin_t) if not bool(Save.s("reduce_fx")) and not layout_probe else 99.0   # 截圖／版面檢查時固定正側面
 	var face := 1.0
@@ -541,7 +549,7 @@ func _cx_portrait(pc: Vector2) -> void:
 		atk = Art.ATK_WINDUP * float(spec[0]) * wgt
 		Art.calm = true
 		Art.look = float(spec[1]) * wgt
-	_unit(pc, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, 2.0)
+	_unit(pc, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, cx_fit(cx_unit))
 	Art.turn_c = 1.0
 	Art.turn_s = 0.0
 	Art.calm = false

@@ -101,7 +101,7 @@ func _battle_process(delta: float) -> void:
 	# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
 	if follow_id >= 0:
 		pass   # 由 _follow_update 決定
-	elif slow_left > 0 and not view.finished:
+	elif slow_left > 0 and not view.finished and bool(Save.s("clutch_zoom")) and not bool(Save.s("reduce_motion")):   # V1.5：最後時刻自動放大可關
 		_frame_alive(delta)
 	elif pinch_zoom > 1.01:
 		zoom_target = pinch_zoom   # V1.4 #18：玩家用雙指放大，就停在那裡
@@ -214,13 +214,15 @@ func _pump_view() -> void:
 			if event_route(e) == "attack" or e["kind"] == EV.HEAL or e["kind"] == EV.DRUM:
 				var hs: Array = atk_hit.get(e["src"], [])
 				hs.append(int(fr["tick"]))
-				if e["kind"] == EV.BOMB:
-					# 投彈兵（第四輪 §4.4）：記下命中 tick → 目標，前搖期間畫火罐飛過去，命中那一刻剛好落地
-					var bt: Dictionary = bomb_tgt.get(e["src"], {})
+				var su = view.unit_by_id(e["src"]) if not view.units.is_empty() else null
+				var st_ty: int = int(su.type) if su != null else -1
+				if e["kind"] == EV.BOMB or e["kind"] == EV.HEAL or (proj_fly(st_ty) > 0 and event_route(e) == "attack" and e["kind"] != EV.SPLASH):
+					# V1.5：遠程記下命中 tick → 目標；畫面在命中前把飛行物從手上飛到目標，命中那一刻剛好到（第四輪的火罐延伸到全部遠程）
+					var bt: Dictionary = proj_tgt.get(e["src"], {})
 					bt[int(fr["tick"])] = e["tgt"]
 					if bt.size() > 6:
 						bt.erase(bt.keys().min())
-					bomb_tgt[e["src"]] = bt
+					proj_tgt[e["src"]] = bt
 				# 每隻單位的第幾次出手（交替招式用，Codex S4 #2：原本用 tick 奇偶，連續反擊會同招）
 				var sq: Dictionary = atk_seq.get(e["src"], {})
 				sq[int(fr["tick"])] = sq.size()
@@ -511,7 +513,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		var hs0 = view.unit_by_id(ev["src"])
 		var ht0 = view.unit_by_id(ev["tgt"])
 		if hs0 != null and ht0 != null:
-			_add_fx({"kind": "healarc", "a": _upos(hs0) + Vector2(0, -40), "b": _upos(ht0) + Vector2(0, -26), "t": 0.0, "dur": 0.25})
+			if view.delay <= ViewBuffer.DELAY:   # V1.5：長緩衝時十字光已經在命中前飛到，不再補一條弧線
+				_add_fx({"kind": "healarc", "a": _upos(hs0) + Vector2(0, -40), "b": _upos(ht0) + Vector2(0, -26), "t": 0.0, "dur": 0.25})
 			_merge_text(ht0.id, EV.HEAL, "+", int(ev["amt"]), _upos(ht0) + Vector2(0, -70), Color("#7dff8a"))
 			sfx.play("heal", 0.35)
 		return
@@ -559,8 +562,15 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	elif k == EV.SPLASH:
 		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）
 	elif s.type == D.ARCHER:
-		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.28, "dur": 0.46, "tc": Art.team_color(s.team, cbm())})   # V1.3：飛 0.28 秒＋釘住抖 0.18 秒
+		# V1.5：長緩衝時箭已經在命中前飛到（battle_units 的飛行物），這裡只留「釘住抖一下」；短緩衝（手動軍令）照舊快飛
+		var lf: bool = view.delay > ViewBuffer.DELAY
+		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.001 if lf else 0.28, "dur": 0.2 if lf else 0.46, "tc": Art.team_color(s.team, cbm())})
 		sfx.play_unit("arrow", 0.35, s.type)
+	elif s.type == 17:
+		# V1.5：骷髏法師的紫火打中目標（原本在法師自己身上揮擊）
+		_add_fx({"src": s.id, "kind": "spark", "p": tpos + Vector2(0, -22), "c": Color(0.7, 0.4, 1.0), "t": 0.0, "dur": 0.3})
+		sfx.play_unit("hit", 0.35, s.type)
+		_hit_material(int(ev.get("tgt", -1)))
 	else:
 		_add_fx({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
 		sfx.play_unit("hit" if k == EV.HIT else "slash", 0.4, s.type)   # V1.3.1：出手聲依兵種音高
@@ -758,7 +768,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	clutch_t = 0.0
 	atk_hit.clear()
 	alt_hit.clear()
-	bomb_tgt.clear()
+	proj_tgt.clear()
 	brace_t.clear()
 	state = St.BATTLE
 	prev_pos.clear()

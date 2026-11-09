@@ -57,7 +57,27 @@ static func _anchor(kind: String, pts: Array) -> void:
 	anchor_log[anchor_key][kind].append(out)   # V1.3.1：烘焙中（史萊姆高光改在貼圖後依世界方向畫）   # 身體跟著縮的比例（沒列＝0.4）：騎兵的馬是長的、史萊姆是圓的
 
 static func turn_body_w(type: int) -> float:
-	return lerpf(1.0, turn_c, float(TURN_FWD.get(type, 0.4)))
+	# V1.5：人形身體像圓柱，轉向鏡頭時寬度幾乎不變（原本預設縮 40%，看起來像紙片翻面）；長身的馬、羊另外列
+	return lerpf(1.0, turn_c, float(TURN_FWD.get(type, 0.12)))
+
+## V1.5 手持物：握柄（在手後面）＋柄頭。hand＝握點、dir＝刃的方向（單位向量）、ln＝握柄長。先畫這個，再畫刃、護手，最後 _fist 蓋上。
+static func _grip(ci: CanvasItem, hand: Vector2, dir: Vector2, ln: float, a: float, col := Color("#6b4423"), pommel := Color("#d9a441")) -> void:
+	_line(ci, hand + dir * 1.5, hand - dir * ln, col, 3.0, a)
+	_c(ci, hand - dir * (ln + 1.2), 2.2, pommel, a)
+
+## V1.5：握住的手：拳頭＋一條指縫線橫過握柄（看得出手指包住，不是刀刃插在圓點上）。
+static func _fist(ci: CanvasItem, hand: Vector2, dir: Vector2, a: float, col := SKIN, r := 3.0) -> void:
+	_c(ci, hand, r, col, a)
+	var o := dir.orthogonal()
+	ci.draw_line(hand + dir * 0.9 - o * r * 0.75, hand + dir * 0.9 + o * r * 0.75, Color(col.darkened(0.35), 0.9 * a), 1.0, true)
+
+## V1.5：背後的東西（披風、箭筒、火罐包）轉向鏡頭時往身體中間收、躲到身體後面（x0＝部件中心 x，負的在背後）。
+static func _back(ci: CanvasItem, x0: float) -> void:
+	if turn_c >= 1.0:
+		return
+	_cur_xf = _xf0 * _b_now * Transform2D(0.0, Vector2(lerpf(1.0, turn_c, 0.5), 1.0), 0.0, Vector2(x0 * (turn_c - 1.0) * 0.9, 0.0))
+	_cur_weapon = false
+	ci.draw_set_transform_matrix(_cur_xf)
 
 ## 接下來畫的部件：z＝側向深度（＋近側），fwd＝沿前後方向的長度比例（1＝整個跟著透視縮短，0＝不縮）。
 static func _part(ci: CanvasItem, z: float, fwd: float) -> void:
@@ -188,9 +208,12 @@ static func _eyes(ci: CanvasItem, c: Vector2, a: float, t: float, angry := false
 	_eyes_draw(ci, c, a, blink, angry)
 
 static func _eyes_draw(ci: CanvasItem, c: Vector2, a: float, blink: float, angry: bool) -> void:
+	# V1.5：轉向鏡頭時兩眼拉開成正面的間距、遠側眼從略小變成一樣大（側面時遠眼小一點，有立體感）
+	var fr := clampf((1.0 - turn_c) / 0.7, 0.0, 1.0)
 	for dx in [-3.0, 4.0]:
-		var e := c + Vector2(dx, 0)
-		ci.draw_circle(e, 2.6, Color(OUT, a), true, -1.0, true)
+		var e := c + Vector2(dx * lerpf(1.0, 1.25, fr), 0)
+		var er := 2.6 if dx > 0.0 else lerpf(2.6, 2.6, fr) if turn_c >= 1.0 else lerpf(2.25, 2.6, fr)
+		ci.draw_circle(e, er, Color(OUT, a), true, -1.0, true)
 		if blink > 0.5:
 			ci.draw_circle(e + Vector2(0.7, -0.8), 0.9, Color(1, 1, 1, a), true, -1.0, true)
 		else:

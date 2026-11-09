@@ -575,27 +575,28 @@ func _draw_units_of(s, dim: bool) -> void:
 		var hit_now := -1
 		if live and atk_hit.has(u.id):
 			var dt0 := _disp_tick()
-			var h := pick_hit(atk_hit[u.id], dt0, u.type)
+			# V1.5：遠程的「出手」提早 fly 個 tick（飛行物離手），命中 tick 不變；動作照出手時間演
+			var ph := proj_phase(atk_hit[u.id], dt0, u.type, view.delay)
+			var hr: int = ph[0]
+			var h: int = ph[1]
+			var fly: int = h - hr if hr >= 0 else 0
 			hit_now = h
 			if h >= 0:
-				at = atk_progress(dt0 - (h - ViewBuffer.DELAY), u.type)
-				# 火罐飛行（第四輪 §4.4）：前搖期間從手上飛向目標，命中那一刻落地（模擬不受影響）
-				if u.type == D.BOMBER and at > 0.0 and at < Art.ATK_WINDUP and bomb_tgt.get(u.id, {}).has(h):
-					var bt = view.unit_by_id(bomb_tgt[u.id][h])
-					if bt != null:
-						var fk := at / Art.ATK_WINDUP
-						var fsg: float = float(atk_face[u.id][1]) if atk_face.has(u.id) and int(atk_face[u.id][0]) == h else signf(u.fx) if u.fx != 0 else (signf(_upos(bt).x - _upos(u).x) if _upos(bt).x != _upos(u).x else 1.0)
-						var src_p: Vector2 = _upos(u) + Vector2(fsg * 17.0, -24.0) * UNIT_SCALE   # V1.3.1：從手上的火罐位置起飛（原本是頭頂固定點）
-						var dst_p: Vector2 = _upos(bt) + Vector2(0, -10)
-						var pp := src_p.lerp(dst_p, fk) + Vector2(0, -sin(fk * PI) * minf(70.0, src_p.distance_to(dst_p) * 0.3))
-						pot_draw.append(pp)
+				at = atk_progress(dt0 - (hr - ViewBuffer.DELAY), u.type)
+				if float(ph[2]) >= 0.0 and proj_tgt.get(u.id, {}).has(h):
+					var pt = view.unit_by_id(proj_tgt[u.id][h])
+					if pt != null:
+						var pk: float = ph[2]
+						var psg: float = signf(_upos(pt).x - _upos(u).x) if _upos(pt).x != _upos(u).x else (signf(u.fx) if u.fx != 0 else 1.0)
+						proj_draw.append([u.type, u.team, _upos(u) + proj_launch(u.type, psg) * UNIT_SCALE, _upos(pt) + Vector2(0, -22 if u.type != D.BOMBER else -10), pk])
+				# V1.5：舊的「前搖 2 tick 火罐飛行」拿掉：火罐前搖時在手上，出手後由上面的飛行物畫（手動軍令局沒有餘裕就直接落點爆炸）
 				if u.type == D.SWORD:
 					variant = int(atk_seq.get(u.id, {}).get(h, 0)) % 2   # 劍士橫斬與上挑逐擊交替（第三輪 R4）
 				elif u.type >= D.CLASSIC and alt_hit.get(u.id, {}).has(h):
 					variant = 2
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and _fx_on("flash"):
-			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1)
+			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1) * int(Save.s("flash_pct")) / 100.0   # V1.5：受擊閃白強度
 		var alpha := 0.45 if u.stealth > 0 else 1.0
 		if dim:
 			alpha *= 0.6
@@ -766,6 +767,9 @@ func _draw_units_of(s, dim: bool) -> void:
 		draw_circle(pp, 5.0, Color("#2a2533"), true, -1.0, true)
 		draw_circle(pp + Vector2(3, -5), 2.0, Color(1, 0.8, 0.3), true, -1.0, true)
 	pot_draw.clear()
+	for pj in proj_draw:
+		_draw_projectile(int(pj[0]), int(pj[1]), pj[2], pj[3], float(pj[4]))
+	proj_draw.clear()
 	if dim:
 		return
 	# 第三層：小旗、血條、狀態（永遠畫在最上面）
@@ -818,7 +822,9 @@ func _draw_units_of(s, dim: bool) -> void:
 		# 第七輪 D1：血條只在需要看時才畫（受傷 3 秒內、跟拍、低血量）
 		var hurt_recent: bool = hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 3.0
 		# V1.3 C：選中（跟拍）的那隻就算滿血也畫，不然點了會以為血條壞了
-		if (u.hp < u.max_hp and (not live or hurt_recent or u.hp * 100 <= u.max_hp * 35)) or (live and u.id == follow_id):
+		var hb: String = str(Save.s("hp_bars"))   # V1.5：血條 受傷時／一直／只看選取的／關
+		var show_hb: bool = (u.hp < u.max_hp and (not live or hurt_recent or u.hp * 100 <= u.max_hp * 35)) if hb == "hurt" else (hb == "all")
+		if (show_hb and hb != "sel" and hb != "off") or (live and u.id == follow_id and hb != "off"):
 			var w := 28.0
 			var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58))
 			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
@@ -970,4 +976,62 @@ func _boss_bars(p: Vector2, u) -> void:
 			draw_rect(Rect2(Vector2(x0, y), Vector2((w - 15.0) * hp_k / maxf(1.0, float(rows[k][2])), 3)), Color("#d4a017"))
 		else:
 			draw_line(Vector2(x0, y + 1.5), Vector2(x0 + w - 15.0, y + 1.5), Color(0.5, 0.5, 0.5, 0.8), 1.5, true)
+
+
+## ── V1.5 遠程飛行物（只動畫面）：從手上（出手點）飛到目標，命中 tick 剛好到 ──
+var proj_draw: Array = []   # [兵種, 隊伍, 起點, 終點, 進度 0～1]
+
+## 出手點（相對腳底，UNIT_SCALE 前）：弓弦、手上的火罐、書上的紫火、杖頂十字。
+static func proj_launch(type: int, sg: float) -> Vector2:
+	match type:
+		D.ARCHER:
+			return Vector2(sg * 14.0, -30.0)
+		D.BOMBER:
+			return Vector2(sg * 17.0, -24.0)
+		17:
+			return Vector2(sg * 20.0, -34.0)
+		D.MEDIC:
+			return Vector2(sg * 14.0, -52.0)
+	return Vector2(0, -28)
+
+func _draw_projectile(type: int, team: int, a: Vector2, b: Vector2, k: float) -> void:
+	var d := b - a
+	var len := maxf(1.0, d.length())
+	match type:
+		D.ARCHER:
+			# 淺拋物線；箭身沿切線方向
+			var arc := minf(26.0, len * 0.12)
+			var p := a.lerp(b, k) + Vector2(0, -sin(k * PI) * arc)
+			var tan := (d + Vector2(0, -cos(k * PI) * PI * arc)).normalized()
+			var tail := p - tan * 16.0
+			draw_line(tail, p, Art.OUT, 3.4, true)
+			draw_line(tail, p, Color("#b98a52"), 2.0, true)
+			var nrm := Vector2(-tan.y, tan.x)
+			draw_colored_polygon(PackedVector2Array([p + tan * 5.0, p + nrm * 2.6, p - nrm * 2.6]), Color("#cfd6dc"))
+			draw_line(tail, tail - tan * 3.0 + nrm * 3.0, Color(Art.team_color(team, cbm()), 0.95), 2.0, true)
+			draw_line(tail, tail - tan * 3.0 - nrm * 3.0, Color(Art.team_color(team, cbm()), 0.95), 2.0, true)
+		D.BOMBER:
+			# 高拋物線＋旋轉＋引信火花
+			var arc2 := minf(80.0, len * 0.35)
+			var p2 := a.lerp(b, k) + Vector2(0, -sin(k * PI) * arc2)
+			draw_circle(p2, 6.5, Art.OUT, true, -1.0, true)
+			draw_circle(p2, 5.0, Color("#2a2533"), true, -1.0, true)
+			var fz := p2 + Vector2.from_angle(time * 14.0) * 6.0
+			draw_line(p2, fz, Color("#c9a26a"), 1.6, true)
+			draw_circle(fz, 2.2, Color(1, 0.8, 0.3), true, -1.0, true)
+		17:
+			# 紫火球：低弧、拖尾
+			var arc3 := minf(18.0, len * 0.08)
+			for t in 4:
+				var kk := clampf(k - t * 0.07, 0.0, 1.0)
+				var q := a.lerp(b, kk) + Vector2(0, -sin(kk * PI) * arc3)
+				draw_circle(q, 5.5 - t * 1.1, Color(0.66, 0.36, 0.95, 0.85 - t * 0.2), true, -1.0, true)
+			var q0 := a.lerp(b, k) + Vector2(0, -sin(k * PI) * arc3)
+			draw_circle(q0, 2.6, Color(1.0, 0.85, 1.0), true, -1.0, true)
+		D.MEDIC:
+			# 綠十字小光沿弧線飛到友軍
+			var arc4 := minf(40.0, len * 0.25)
+			var p4 := a.lerp(b, k) + Vector2(0, -sin(k * PI) * arc4)
+			draw_circle(p4, 7.0, Color(0.5, 1.0, 0.6, 0.35), true, -1.0, true)
+			_cross(p4, 4.5, Color("#7dff8a"))
 

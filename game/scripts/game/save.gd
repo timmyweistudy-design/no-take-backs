@@ -9,7 +9,13 @@ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真�
 const DEFAULT_SETTINGS := {
 	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
 	"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
+	# V1.5 設定七頁：畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料（docs/2026-11-09-v1.5.0-plan.md §2）
+	"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
+	"long_press": 0.5, "rumble": 50, "deadzone": 35, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
+	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 100, "flash_pct": 100, "first_done": false,
 }
+const ENUMS := {"title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
+	"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3], "rumble": [0, 25, 50, 100], "deadzone": [20, 35, 50], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
 const DEFAULT_SAVE := {
 	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
 	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
@@ -122,6 +128,21 @@ static func sanitize_settings(d: Dictionary) -> Dictionary:
 	out["pad"] = KM.sanitize(KM.PAD_ACTIONS, out.get("pad"))
 	if not str(out["roster"]) in ["all", "classic"]:
 		out["roster"] = DEFAULT_SETTINGS["roster"]
+	# V1.5：已經有設定檔的老玩家不問第一次啟動的三個問題
+	if not d.has("first_done") and d.size() > 0:
+		out["first_done"] = true
+	# V1.5：列舉值不在清單裡就回預設；舊存檔的震動、閃白開關轉成強度（關＝0）
+	if not d.has("shake_pct"):
+		out["shake_pct"] = 100 if bool(out["shake"]) else 0
+	if not d.has("flash_pct"):
+		out["flash_pct"] = 100 if bool(out["flash"]) else 0
+	for ek in ENUMS:
+		if not out[ek] in ENUMS[ek]:
+			out[ek] = DEFAULT_SETTINGS[ek]
+	out["master"] = clampi(int(out["master"]), 0, 100)
+	out["long_press"] = clampf(float(out["long_press"]), 0.3, 1.0)
+	out["shake"] = int(out["shake_pct"]) > 0
+	out["flash"] = int(out["flash_pct"]) > 0
 	return out
 
 ## 進度逐欄驗型（R4）：語法對但型別錯的欄位不能讓遊戲當掉；壞欄位改預設，其他進度保留。

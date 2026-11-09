@@ -231,3 +231,34 @@ func test_paint_v140() -> void:
 	for i in 6:
 		Art0.paint[i] = keep[i]
 
+
+## V1.5 設定七頁：列舉值清洗、舊開關轉強度、老玩家不問第一次啟動、設定代碼往返、預設可疊加可撤回。
+func test_settings_v150() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var GM = load("res://scripts/ui/screens/game_menus.gd")
+	var d: Dictionary = SV.sanitize_settings({"hp_bars": "zzz", "fps_cap": 77, "shake": false, "flash": true, "master": 300, "long_press": 9.0})
+	ok(d["hp_bars"] == "hurt" and d["fps_cap"] == 60 and d["master"] == 100 and is_equal_approx(float(d["long_press"]), 1.0), "列舉值與範圍清洗", str([d["hp_bars"], d["fps_cap"], d["master"], d["long_press"]]))
+	ok(d["shake_pct"] == 0 and d["flash_pct"] == 100 and d["shake"] == false, "舊的震動／閃白開關轉成強度")
+	ok(d["first_done"] == true and SV.sanitize_settings({})["first_done"] == false, "有設定檔的老玩家不問第一次啟動；全新安裝要問")
+	var code: String = GM.settings_code(d)
+	var back = GM.settings_decode(code)
+	ok(back is Dictionary and back["hp_bars"] == d["hp_bars"] and back["master"] == d["master"] and GM.settings_decode("亂碼") == null, "設定代碼往返、壞碼回 null", code.substr(0, 20))
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	var keep_ts = SV.s("text_scale")
+	var keep_rm = SV.s("reduce_motion")
+	g._apply_preset(0)
+	g._apply_preset(1)
+	ok(int(SV.s("text_scale")) == 150 and bool(SV.s("reduce_motion")), "兩組預設可以疊加")
+	g._undo_preset()
+	ok(SV.s("text_scale") == keep_ts and SV.s("reduce_motion") == keep_rm, "撤回回到套用前")
+	var bad: Array = []
+	for t in g.SET_TABS:
+		g.settings_tab = t
+		var rows: Array = g._settings_rows()
+		if rows.is_empty() or rows.size() > 7:
+			bad.append(t)
+	ok(bad.is_empty(), "七頁每頁 1～7 列（放得下不用捲）", str(bad))
+	g.free()
+

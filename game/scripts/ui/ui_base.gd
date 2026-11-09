@@ -236,6 +236,8 @@ var watch_mode := false   # 正在看對戰代碼（結果頁不提供「下一�
 var replay_total := 0     # 重播這一場總共幾 tick（時間軸比例用）
 ## 第七輪 K3：一鍵簡化特效。單項開關＋總開關都要開才算開。
 func _fx_on(k: String) -> bool:
+	if bool(Save.s("reduce_motion")) and k in ["shake", "slowmo"]:
+		return false   # V1.5：減少動態＝不震、不自動慢動作
 	return bool(Save.s(k)) and not bool(Save.s("reduce_fx"))
 
 var seek_target := -1      # 第七輪 M3：時間軸分批跳轉的目標
@@ -255,7 +257,7 @@ var puzzle_plan_id := ""      # puzzle_plan 是哪一關的（換關就重設，
 var puzzle_only_open := false   # 第十三輪：殘局清單只看沒滿三星的
 var puzzle_reveal := false      # 第十三輪：提示視窗裡「揭曉解答」的確認狀態
 var alt_hit := {}        # 第四輪：單位 id → {命中 tick: true}，這一擊用專屬動作
-var bomb_tgt := {}       # 第四輪：投彈兵 id → {命中 tick: 目標 id}（畫火罐飛行）
+var proj_tgt := {}       # V1.5：遠程（弓箭手、投彈兵、骷髏法師、醫者）id → {命中 tick: 目標 id}，畫面在命中前把飛行物飛完
 var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 筆）； 單位 id → 下一次（或最近一次）命中的模擬 tick，前搖從命中前 2 tick 開始
 var prev_pos := {}
 var accum := 0.0
@@ -433,7 +435,7 @@ func cbm() -> bool:
 
 func _toast(s: String, deny := false) -> void:
 	toast = s
-	toast_t = 2.0
+	toast_t = 2.0 * float(Save.s("toast_mult"))   # V1.5：提示停留 標準／加長／很長
 	if deny:
 		sfx.play("ui_deny")
 
@@ -664,6 +666,9 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		_box(rd.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.95 if focus else 0.75), 8.0, 2.5)
 	elif focus:
 		_box(rd.grow(1), Color(0, 0, 0, 0), ACCENT, 8.0, 3.0)
+	if focus and enabled and bool(Save.s("focus_strong")):
+		_box(rd.grow(5), Color(0, 0, 0, 0), Color("#ffffff"), 10.0, 3.0)   # V1.5：加強焦點框（白色外圈）
+		_box(rd.grow(8), Color(0, 0, 0, 0), Color(INK, 0.9), 12.0, 2.0)
 	if layout_probe:
 		probe_btns.append(r)
 		if label == "":

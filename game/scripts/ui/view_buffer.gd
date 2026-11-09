@@ -5,7 +5,9 @@ extends RefCounted
 ## 血量、死亡、音效、HUD、跳字全部讀同一個延後的快照，所以一起延後，不會只有動作延後。
 ## 純演出：模擬本身的計算、結果、指紋完全不受影響。
 
-const DELAY := 2
+const DELAY := 2            # 前搖長度（tick）；也是有手動軍令時的緩衝長度
+const DELAY_LONG := 8       # V1.5：沒有手動軍令的對局緩衝 8 tick，讓遠程「出手→飛行→命中」都在命中前演完
+var delay := DELAY
 
 class VUnit:
 	var hidden := false
@@ -70,6 +72,7 @@ static func capture(sim) -> Dictionary:
 func _init(sim = null) -> void:
 	if sim != null:
 		budget = sim.budget
+		delay = DELAY if bool(sim.get("cmd_on")) else DELAY_LONG   # 手動軍令要即時：維持短緩衝
 		budgets = sim.budgets.duplicate()
 		max_ticks = sim.max_ticks
 		apply(capture(sim))
@@ -122,7 +125,7 @@ func unit_by_id(id: int):
 ## 模擬往前跑，直到緩衝裡有 DELAY 份還沒播的快照（或模擬結束）。回傳這次新加的快照，給前搖預告用。
 func pump(sim) -> Array:
 	var added: Array = []
-	while queue.size() < DELAY and not sim.finished:
+	while queue.size() < delay and not sim.finished:
 		sim.step()
 		var fr := capture(sim)
 		queue.append(fr)

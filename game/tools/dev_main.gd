@@ -423,6 +423,13 @@ func _run_screenshots() -> void:
 	for i in 160:
 		demo.step()
 	await _snap("01_title.png")
+	overlay = "hub_play"   # V1.5 主畫面第二層卡片
+	await _snap("01b_hub_play.png")
+	overlay = "hub_challenge"
+	await _snap("01c_hub_challenge.png")
+	overlay = "hub_collect"
+	await _snap("01d_hub_collect.png")
+	overlay = ""
 	difficulty = 1
 	_start_mode(Mode.VS_AI)
 	for s in [[D.SHIELD, 5, 3], [D.SHIELD, 5, 5], [D.SWORD, 4, 2], [D.SWORD, 4, 6], [D.SWORD, 4, 4],
@@ -452,6 +459,30 @@ func _run_screenshots() -> void:
 	for f in fx:
 		f["t"] = 0.0
 	await _snap("03_battle.png")
+	# V1.5：遠程飛行物（弓箭手、投彈兵、骷髏法師的紫火、醫者的十字光）在命中前飛在半空
+	var pa := Army.new(0, 200)
+	pa.units = [{"type": 2, "col": 3, "row": 2}, {"type": 2, "col": 3, "row": 4}, {"type": 6, "col": 2, "row": 3}, {"type": 6, "col": 2, "row": 6}, {"type": 17, "col": 1, "row": 4}, {"type": 7, "col": 3, "row": 5}, {"type": 1, "col": 5, "row": 3}, {"type": 1, "col": 5, "row": 5}]
+	var pe := Army.new(1, 200)
+	pe.units = [{"type": 0, "col": 10, "row": 2}, {"type": 0, "col": 10, "row": 4}, {"type": 0, "col": 10, "row": 6}, {"type": 9, "col": 11, "row": 3}, {"type": 9, "col": 11, "row": 5}]
+	rules = null
+	_start_mode(Mode.VS_AI)
+	_begin_battle(pa, pe)
+	# 一直跑到有兩個以上飛行物在半空（進度 0.25～0.75）才拍
+	for i in 300:
+		_sim_step(true)
+		var mid := 0
+		for u in view.units:
+			if u.alive and atk_hit.has(u.id):
+				var ph: Array = proj_phase(atk_hit[u.id], float(view.tick) + 0.5, u.type, view.delay)
+				if float(ph[2]) > 0.25 and float(ph[2]) < 0.75:
+					mid += 1
+		if mid >= 2:
+			break
+	accum = 0.025
+	await _snap("03c_projectiles.png")
+	clutch_t = 0.0   # 這一場的「最後時刻」橫幅不要留到後面的截圖
+	slow_left = 0.0
+	fx.clear()
 	# 技能特效樣品（第二輪方案 R4）：在戰場上方一排，每種特效停在 35% 的時刻
 	var saved_fx := fx.duplicate()
 	fx.clear()
@@ -550,11 +581,28 @@ func _run_screenshots() -> void:
 	_go_title()
 	overlay = "settings"
 	await _snap("08_settings.png")
-	settings_tab = 1   # V1.2.1 E1：聲音分頁四條音量
+	settings_tab = 1   # V1.5 設定七頁：介面
+	await _snap("08e_settings_ui.png")
+	settings_tab = 2   # 聲音（總音量、四條、夜間、單聲道）
 	await _snap("08d_settings_sound.png")
-	settings_tab = 3   # V1.2：畫面分頁多了「簡化介面」一列
+	settings_tab = 3   # 操作
+	await _snap("08f_settings_controls.png")
+	settings_tab = 4   # 戰場與觀戰
+	await _snap("08g_settings_battle.png")
+	settings_tab = 5   # 無障礙（三個一鍵預設）
 	await _snap("08c_settings_visual.png")
+	settings_tab = 6   # 資料
+	await _snap("08h_settings_data.png")
 	settings_tab = 0
+	overlay = "clear_data"
+	clear_pick = {1: true}
+	await _snap("08i_clear_data.png")
+	clear_pick = {}
+	overlay = "restore"
+	await _snap("08j_restore.png")
+	overlay = "first_run"
+	await _snap("08k_first_run.png")
+	overlay = ""
 	overlay = "keys"
 	await _snap("08b_keys.png")
 	overlay = "puzzles"
@@ -1279,7 +1327,7 @@ func _pad_walk() -> void:
 	_go_title()
 	await _pw_frames(3)
 	await _pw_cycle("標題")
-	for step in [[6, "trials"], [7, "profile"], [9, "playroom"], [10, "settings"], [11, "codes"]]:   # V1.1：第 8 顆是每日挑戰；V1.4：第 9 顆是遊戲間
+	for step in [[0, "hub_play"], [2, "hub_challenge"], [3, "playroom"], [4, "hub_collect"], [5, "settings"], [6, "codes"]]:   # V1.5：五塊木牌（0～4）＋系統列（5 設定、6 代碼、7 離開）
 		_go_title()
 		await _pw_pick(step[0], "標題→" + str(step[1]))
 		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])
@@ -1287,7 +1335,8 @@ func _pad_walk() -> void:
 		await _pw_btn(JOY_BUTTON_B)
 		_pw_check(overlay == "", "%s：B 關不掉" % step[1])
 	_go_title()
-	await _pw_pick(0, "標題→大廳")
+	await _pw_pick(0, "標題→對戰")
+	await _pw_pick(1, "對戰→對 AI 大廳")
 	await _pw_cycle("大廳")
 	_go_title()
 	overlay = "reward"

@@ -351,7 +351,7 @@ func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, wa
 		if atk <= 0.0:
 			_draw_turn(ci, p, type, team, face, hurt, alpha, t, scale, lean, crouch, mood, cb)
 			return
-		face = (1.0 if face >= 0.0 else -1.0) * maxf(absf(face), 0.45)   # 轉到一半就出手：像厚木牌，不夾成 0.18（Codex v130-impl1）
+		face = 1.0 if face >= 0.0 else -1.0   # V1.5：轉到一半就出手時直接轉正出手（原本夾成 0.45 的扁圖，像紙片）
 	var idx := frame_index(type, team, walk, atk, t, p.x, variant)
 	if atk > 0.0:
 		walk = 0.0   # 攻擊影格烘焙時沒有走路相位：貼圖與疊加都當成沒在走（Codex 收尾輪 #4）
