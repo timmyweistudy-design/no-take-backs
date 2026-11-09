@@ -53,6 +53,10 @@ func army_from(team: int, spec: Array):
 class FakeSfx:
 	func play_ambience(_n: String) -> void:
 		pass
+	var amb_name := ""
+	var amb_owner := 0
+	func set_volumes(_s: int, _m: int, _u: int, _a: int) -> void:   # V1.5：設定一次套用會呼叫
+		pass
 	func duck(_s: float) -> void:
 		pass
 	var played: Array = []
