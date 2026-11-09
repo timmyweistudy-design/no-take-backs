@@ -1492,7 +1492,24 @@ func test_layout_rules_v152() -> void:
 	ok("R8" in codes.call(LR.check({"panels": [P.call(340.0)], "texts": [{"r": Rect2(880, 300, 100, 20), "s": "溢出"}]}), "fail"), "R8 文字超出面板被抓")
 	ok("R8" in codes.call(LR.check({"btns": [Rect2(4, 300, 100, 44)], "focus_out": 8.0}), "fail"), "R8 加強焦點框超出畫面被抓")
 	ok(not "R8" in codes.call(LR.check({"btns": [Rect2(8, 300, 100, 44)], "focus_out": 8.0}), "fail"), "R8 焦點框剛好在畫面內通過")
-	# 分頁名稱兩行：中日文從中間斷，不留單字一行；英文照詞斷不動
+	# 分頁名稱兩行：中日文從中間斷，不留單字一行；英文換在最靠近中間的空白
 	var UB = load("res://scripts/ui/ui_base.gd")
 	ok(UB.balance_two_lines("単一兵種対決") == "単一兵\n種対決", "中日文兩行從中間斷", UB.balance_two_lines("単一兵種対決"))
-	ok(UB.balance_two_lines("Monster Crew") == "Monster Crew", "英文照詞斷不動")
+	ok(UB.balance_two_lines("Monster Crew") == "Monster\nCrew", "英文換在最靠近中間的空白", UB.balance_two_lines("Monster Crew"))
+
+
+## V1.5.2：版面檢查真的把 overlay、必要角色、九宮格交給排版規則（曾被行中間的 # 註解吃掉、守衛靜靜失效）。
+## 空畫面（什麼都沒登記）開著「設定」覆蓋層，一定要被漏登記守衛擋下；宣告過的無面板覆蓋層不擋。
+func test_layout_guard_wired_v152() -> void:
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	var g = load("res://tools/dev_main.gd").new()
+	g.sfx = FakeSfx.new()
+	g.overlay = "settings"
+	var d: Dictionary = g.layout_geom_input()
+	ok(d.has("boxes") and d.has("overlay") and d.has("need") and d.has("panelless_ok"), "排版規則拿到 boxes／overlay／need", str(d.keys()))
+	ok(int(d["need"].get("ribbon", 0)) == 1 and int(d["need"].get("panel", 0)) == 1, "設定頁必要角色：緞帶 1、面板 1", str(d["need"]))
+	var fails: Array = LR.check(d)["fail"].map(func(v): return str(v["type"]))
+	ok("G" in fails, "空的設定覆蓋層被漏登記守衛擋下", str(fails))
+	g.overlay = "ai_busy"
+	ok(not "G" in LR.check(g.layout_geom_input())["fail"].map(func(v): return str(v["type"])), "AI 思考中（宣告過的無面板覆蓋層）不擋")
+	g.free()

@@ -234,6 +234,22 @@ func _contrast_issues(img: Image) -> Dictionary:
 			bad.append(item)
 	return {"bad": bad, "warn": warn}
 
+## V1.5.2：這一幀交給排版規則的資料（獨立成函式，測試直接驗守衛有拿到 overlay／need／boxes；
+## 曾經因為行中間的 # 註解把後面三個參數吃掉，守衛靜靜失效，Codex 實作第 3 輪抓到）。
+## focus_out＝一般焦點框外擴（2.5，取 3）；加強焦點框在 _btn 裡夾在可用區內。
+func layout_geom_input() -> Dictionary:
+	var need: Dictionary = probe_need.duplicate()
+	if overlay in OVERLAY_RIBBON:
+		need["ribbon"] = maxi(1, int(need.get("ribbon", 0)))
+		need["panel"] = maxi(1, int(need.get("panel", 0)))
+	elif overlay in OVERLAY_PANEL:
+		need["panel"] = maxi(1, int(need.get("panel", 0)))
+	return {"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
+		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 3.0,
+		"boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
+		"panelless_ok": overlay in PANELLESS_OVERLAYS}
+
+
 func _layout_report(name: String, img: Image = null) -> void:
 	var bad: Array = []
 	var cres := _contrast_issues(img)
@@ -350,15 +366,7 @@ func _layout_report(name: String, img: Image = null) -> void:
 				bad.append({"type": "文字壓到按鈕", "s": t["s"], "btn": str(br)})
 				break
 	# V1.5.2 排版幾何（置中、貼齊、間距；規則代碼見 docs/ui-layout-rules.md）
-	var need: Dictionary = probe_need.duplicate()
-	if overlay in OVERLAY_RIBBON:
-		need["ribbon"] = maxi(1, int(need.get("ribbon", 0)))
-		need["panel"] = maxi(1, int(need.get("panel", 0)))
-	elif overlay in OVERLAY_PANEL:
-		need["panel"] = maxi(1, int(need.get("panel", 0)))
-	var geo := LayoutRules.check({"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
-		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 3.0,   # 一般焦點框外擴 2.5；加強焦點框在 _btn 夾在畫面內 "boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
-		"panelless_ok": overlay in PANELLESS_OVERLAYS})
+	var geo := LayoutRules.check(layout_geom_input())
 	for v in geo["fail"]:
 		bad.append({"type": "排版" + str(v["type"]), "id": v["id"], "s": v["s"]})
 	var geo_warn: Array = []

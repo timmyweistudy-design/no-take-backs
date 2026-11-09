@@ -717,6 +717,7 @@ func _draw_battle_hud() -> void:
 	if state == St.BATTLE and bool(Save.s("playtest")):
 		if pt_call_tick < 0:
 			_btn(Rect2(780, 4, 162, 36), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
+	btn_ring_clip = Rect2(1, 1, 1278, 40)   # V1.5.2：頂列的加強焦點外圈不往下蓋到 y=42 的剩餘隻數
 	if state == St.BATTLE:
 		if play_kind != "official":
 			_btn(Rect2(1010, 4, 120, 36), L.t("back"), func(): call("_replay_back"))   # 第七輪 A9：立刻回上一個畫面
@@ -724,6 +725,7 @@ func _draw_battle_hud() -> void:
 			_btn(Rect2(950, 4, 52, 36), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6；V1.5.2：頂列一律 y=4、高 36、右緣留 14（原本暫停鈕 y=2 和同列不齊；下緣 40 不碰 y=42 的剩餘隻數；加強焦點框在 _btn 裡夾在畫面內）
 			_btn(Rect2(1010, 4, 120, 36), L.t("speed", [_fmt_num(speed)]), func(): speed = speed_step(speed, 1) if speed < float(SPEEDS[SPEEDS.size() - 1]) else float(SPEEDS[0]))   # V1.5.1：照共用表往上一格、到頂回最慢
 		_btn(Rect2(1134, 4, 132, 36), L.t("skip"), func(): _on_skip())
+	btn_ring_clip = Rect2(1, 1, 1278, 798)
 
 
 

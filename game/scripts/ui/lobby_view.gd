@@ -530,9 +530,16 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		var tw := (w - 6.0 - BM_SLOT) if on else (w - 12.0)
 		var tx := (6.0 + tw / 2) if on else w / 2
 		var two := wrap_lines(lab, fit(lab, tz("B"), tw, true), tw, true).size() > 1
+		var lsz: int = tz("B")
 		if two:
 			lab = balance_two_lines(lab)
-		_text(r.position + Vector2(tx, 5 if two else 8), lab, tz("B"), Color.WHITE, true, true, tw)
+			# 兩行時字級取字級表裡第二行字形下緣（5＋2.53×字級）還在色條上方 2px 的最大一級（Antigravity 實作第 3 輪：平衡後一行變短，fit 不會縮）
+			lsz = tz("C")
+			for c in [tz("B"), tz("S"), tz("C")]:
+				if 5.0 + 2.53 * c <= h - 11.0 and _width(lab, c, true) <= tw:
+					lsz = c
+					break
+		_text(r.position + Vector2(tx, 5 if two else 8), lab, lsz, Color.WHITE, true, true, tw)
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
 		_box(Rect2(r.position + Vector2(8, h - 9), Vector2(w - 16, 4)), bc, Color(0, 0, 0, 0), 2.0)
@@ -1150,7 +1157,7 @@ func _draw_lobby_desc(R: Rect2) -> void:
 ## V1.2 C1：選中的預設像夾在筆記本上的書籤，從分頁底下垂進紙頁（紙頁畫完才畫，才不會被蓋住）。
 ## V1.5.2 L2（A 案）：選中分頁的紅書籤。宿主＝分頁面框 r：本體左 x＝右緣−34、寬 20、上緣貼分頁上緣、
 ## 下尖端在上緣＋30、中央凹口在上緣＋23。未選分頁不畫（舊的褐色小耳拿掉）。
-const BM_SLOT := 38.0   # 分頁文字右側讓給書籤的寬度（書籤 34＋間隔 4）
+const BM_SLOT := 42.0   # 分頁文字右側讓給書籤的寬度（書籤 34＋間隔 8；粗體描邊外擴後仍留 6px）
 
 func _draw_bookmark(r: Rect2) -> void:
 	var bx := r.end.x - 34.0

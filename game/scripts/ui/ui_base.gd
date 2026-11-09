@@ -156,6 +156,7 @@ var _sb_cache := {}
 var last_btn_enabled := true   # 上一顆 _btn 實際是否可按（版面檢查的停用狀態會強制停用；卡片內文字要跟著變暗）
 var last_btn_paper := false   # 上一顆 _btn 實際有沒有畫成紙面（呼叫端決定裡面的字要不要墨色）
 var btn_paper := false   # V1.2.1 R1：下一顆 _btn 畫紙面（呼叫端設、用完還原）
+var btn_ring_clip := Rect2(1, 1, 1278, 798)   # V1.5.2：加強焦點外圈只畫在這個範圍內（戰場頂列設成頂列那一條，不蓋到下面的剩餘隻數）
 var btn_hit_min := 0.0   # V1.5.2：下一顆 _btn 的點擊區至少這麼高（可見面不變；大廳 36～40 高的小鈕擴到 44）
 var probe_hits: Array = []   # V1.5.2：有擴點擊區的按鈕（版面檢查驗 ≥44）
 var btn_deco := Callable()   # V1.5.2 L2：下一顆 _btn 在底面之後、焦點框之前呼叫 btn_deco.call(面框)（書籤這類依附裝飾；呼叫端設、用完還原）
@@ -739,7 +740,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		_box(rd.grow(1), Color(0, 0, 0, 0), ACCENT, 8.0, 3.0)
 	if focus and enabled and bool(Save.s("focus_strong")):
 		# V1.5.2：貼畫面邊的按鈕（戰場頂列）外圈往內收，整圈都看得到（不被畫面邊切掉）
-		var scr := Rect2(1, 1, 1278, 798)
+		var scr := btn_ring_clip
 		_box(rd.grow(5).intersection(scr), Color(0, 0, 0, 0), Color("#ffffff"), 10.0, 3.0)   # V1.5：加強焦點框（白色外圈）
 		_box(rd.grow(8).intersection(scr), Color(0, 0, 0, 0), Color(INK, 0.9), 12.0, 2.0)
 	if layout_probe:
@@ -976,8 +977,14 @@ func h1_help_h(help: String, sz: int, maxw: float) -> float:
 
 ## V1.5.2：短標籤要換兩行時，中日文從中間斷開（避免第二行只剩一個字）；含空白的英文照詞斷，不動
 static func balance_two_lines(s: String) -> String:
-	if " " in s or "\n" in s or s.length() < 4:
+	if "\n" in s or s.length() < 4:
 		return s
+	if " " in s:   # 英文：換在最靠近中間的空白
+		var best := -1
+		for i in s.length():
+			if s[i] == " " and (best < 0 or absi(i - s.length() / 2) < absi(best - s.length() / 2)):
+				best = i
+		return s.substr(0, best) + "\n" + s.substr(best + 1)
 	var k := ceili(s.length() / 2.0)
 	return s.substr(0, k) + "\n" + s.substr(k)
 
