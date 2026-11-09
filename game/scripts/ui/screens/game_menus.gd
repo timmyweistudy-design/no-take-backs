@@ -515,8 +515,8 @@ func _settings_rows() -> Array:
 				["set_export", "@" + L.t("do_copy"), func(d): _settings_export()],
 				["set_import", "@" + L.t("do_paste"), func(d): _settings_import()],
 				["set_backup", "@" + L.t("do_backup"), func(d): _progress_backup()],
-				["set_restore", "@" + L.t("do_restore"), func(d): overlay = "restore"; _focus = 0],
-				["set_clear", "@" + L.t("do_choose"), func(d): clear_pick = {}; overlay = "clear_data"; _focus = 0],
+				["set_restore", "@" + L.t("do_restore"), func(d): _data_swap_open("restore")],
+				["set_clear", "@" + L.t("do_choose"), func(d): clear_pick = {}; _data_swap_open("clear_data")],
 				["set_folder", "@" + L.t("open_it"), func(d): OS.shell_open(ProjectSettings.globalize_path("user://"))]]
 	return []
 
@@ -720,7 +720,7 @@ func _progress_backup() -> bool:
 	var name := base + ".json"
 	var k := 2
 	while FileAccess.file_exists("user://backup/" + name):
-		name = "%s_%d.json" % [base, k]   # 同一秒連按：不蓋掉前一份（Codex v150-i2 #3）
+		name = "%s_%02d.json" % [base, k]   # 兩位數流水號：字串排序＝時間順序（Codex v150-f3 #3）   # 同一秒連按：不蓋掉前一份（Codex v150-i2 #3）
 		k += 1
 	var f := FileAccess.open("user://backup/" + name, FileAccess.WRITE)
 	if f == null:
@@ -762,6 +762,17 @@ func _progress_restore(name: String) -> void:
 		return
 	_toast(L.t("restore_done"))
 
+## 還原、清除只能在標題畫面做：對局中換掉進度，舊對局結算會寫進新進度（Codex v150-f3 #1）；唯讀（未來版）存檔不能動（#2）
+func _data_swap_open(ov: String) -> void:
+	if Save.data_locked:
+		_toast(L.t("restore_bad"), true)
+		return
+	if state != St.TITLE:
+		_toast(L.t("data_title_only"), true)
+		return
+	overlay = ov
+	_focus = 0
+
 ## 整份進度換掉（還原、全部清除）之後：塗裝重新套用、圖集重烘（Codex v150-i2 #6）
 func _after_data_swap() -> void:
 	call("_paint_apply")
@@ -769,16 +780,17 @@ func _after_data_swap() -> void:
 
 func _draw_restore() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(330, 150, 620, 500)
+	var P := Rect2(330, 60, 620, 690)
 	_panel(P)
-	_h1(Vector2(640, 162), L.t("set_restore"))
-	_text(Vector2(640, 162 + tz("H1") * 1.5), L.t("restore_help"), tz("S"), TXT_DIM, true, false, 560)
+	_h1(Vector2(640, 72), L.t("set_restore"))
+	_text(Vector2(640, 72 + tz("H1") * 1.5), L.t("restore_help"), tz("S"), TXT_DIM, true, false, 560)
+	var ry := maxf(150.0, 72 + tz("H1") * 1.5 + text_h(L.t("restore_help"), tz("S"), 560) + 12.0)
 	var lst := backup_list()
 	if lst.is_empty():
 		_text(Vector2(640, 330), L.t("restore_none"), tz("B"), TXT_DIM, true, false, 560)
-	for i in mini(6, lst.size()):
+	for i in mini(10, lst.size()):   # 留的 10 份都選得到
 		var nm: String = lst[i]
-		_btn(Rect2(380, 250 + i * 54, 520, 46), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
+		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - 60, 160, 44), L.t("back"), func(): overlay = "settings")
 
 const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "unit_games", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
@@ -801,6 +813,8 @@ func _draw_clear_data() -> void:
 	_btn(Rect2(650, P.end.y - 60, 250, 44), L.t("back"), func(): overlay = "settings")
 
 func _clear_data() -> void:
+	if Save.data_locked or state != St.TITLE:
+		return
 	if not _progress_backup():   # 清之前自動備份一份；備份失敗就不清
 		return
 	if bool(clear_pick.get(3, false)):

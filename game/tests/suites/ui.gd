@@ -1146,3 +1146,21 @@ func test_overlay_returns_v150() -> void:
 	ok(g.toast_t < 1.0, "手動關提示：之後點一下就收起")
 	SV.settings["toast_mult"] = old
 	g.free()
+
+
+## V1.5 收尾：還原、清除只能在標題畫面開（對局中換掉進度，舊局會寫進新進度）；圖鑑換兵種回到自動角度。
+func test_data_swap_title_only_v150() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.state = g.St.BATTLE
+	g._data_swap_open("restore")
+	ok(g.overlay != "restore", "對局中不能開還原")
+	g.state = g.St.TITLE
+	g._data_swap_open("clear_data")
+	ok(g.overlay == "clear_data", "標題畫面可以開清除")
+	g._open_codex(2)
+	g.cx_angle = 12
+	g._cx_pick_unit(12)
+	ok(g.cx_angle == -1, "換兵種回到自動角度")
+	ok(("progress_x_02.json" > "progress_x.json") and ("progress_x_10.json" > "progress_x_02.json"), "備份流水號字串排序＝時間順序")
+	g.free()

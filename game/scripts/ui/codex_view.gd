@@ -59,6 +59,7 @@ func _cx_skills() -> Array:
 
 func _cx_pick_unit(t: int) -> void:
 	cx_unit = t
+	cx_angle = -1   # 換兵種回到自動（人形轉到背面後換成沒有背面的兵，不能留著背面角度）
 	cx_spin_t = cx_clock   # 換角色先轉一圈給你看
 	cx_scroll["left"] = 0.0
 	cx_scroll["note"] = 0.0
@@ -569,7 +570,7 @@ func _cx_portrait(pc: Vector2) -> void:
 		# 手動角度：0＝朝右側面、4＝正面、8＝朝左、12＝背面（每格 22.5°）
 		var th := cx_angle * PI / 8.0
 		var cf := cos(th)
-		Art.back = sin(th) < -0.01
+		Art.back = cx_unit in Art.BACK_OK and sin(th) < -0.01
 		face = 1.0 if cf >= 0.0 else -1.0
 		if absf(cf) < 0.95:
 			Art.turn_c = maxf(absf(cf), 0.3)

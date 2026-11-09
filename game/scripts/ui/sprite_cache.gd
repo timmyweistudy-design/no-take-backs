@@ -458,6 +458,7 @@ class _TurnPainter extends Node2D:
 					var c: float = SC.TURN_C[j]
 					Art2.turn_c = c
 					Art2.turn_s = sqrt(1.0 - c * c)
+					Art2.back = false   # V1.5：戰場圖集一律是正面那半圈
 					Art2.anchor_key = "%d/%d/%d" % [type, team, j]
 					Art2.unit(self, p, type, team, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, SC.RS, cb)
 		Art2.anchor_key = ""
@@ -531,6 +532,7 @@ class _ExtraPainter extends Node2D:
 							var c: float = SC.WT_C[ai]
 							Art2.turn_c = c
 							Art2.turn_s = sqrt(1.0 - c * c)
+							Art2.back = false
 							Art2.unit(self, p2, type, team, 1.0, 0.0001 + (ph + 0.5) * TAU / SC.WT_PH, 0.0, 0.0, 1.0, 1.0, SC.RS, cb)
 							Art2.turn_c = 1.0
 							Art2.turn_s = 0.0
