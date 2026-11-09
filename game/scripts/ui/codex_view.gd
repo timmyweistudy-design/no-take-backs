@@ -43,6 +43,11 @@ var cx_prev := {}
 var cx_atk := {}
 var cx_hurt := {}
 var cx_pops: Array = []        # 技能觸發時跳出的字：{p, s, t}
+## V1.5.1 A7：小劇場也走展示緩衝（和正式戰場同一套）：模擬領先 8 tick，遠程在命中前出手、飛行物命中那一刻剛好到
+var cx_view = null
+var cx_hits := {}       # id → 命中 tick 陣列
+var cx_ptgt := {}       # id → {命中 tick: 目標 id}
+var cx_pend_pops := {}  # 畫面 tick → [[位置, 字]]（跳字等畫面播到才出）
 var cx_seen := false
 var cx_scroll := {"left": 0.0, "desc": 0.0, "note": 0.0}   # 各捲動區的位移
 var cx_content := {"left": 0.0, "desc": 0.0, "note": 0.0}  # 各捲動區的內容高度（上一幀量到的）
@@ -90,6 +95,15 @@ func _cx_pick_skill(i: int) -> void:
 func _cx_restart() -> void:
 	var sks := _cx_skills()
 	cx_sim = CX.demo_sim(sks[cx_skill]) if not sks.is_empty() else null
+	cx_view = null
+	cx_hits.clear()
+	cx_ptgt.clear()
+	cx_pend_pops.clear()
+	if cx_sim != null:
+		cx_view = ViewBuffer.new(cx_sim)
+		cx_view.delay = ViewBuffer.DELAY_LONG
+		for i in cx_view.delay:
+			_cx_sim_step()
 	cx_acc = 0.0
 	cx_ticks = 0
 	cx_wait = 0.0
@@ -112,33 +126,64 @@ func _codex_tick(delta: float) -> void:
 	var sk: String = _cx_skills()[cx_skill]
 	var dm: Dictionary = CX.skill(sk).get("demo", {})
 	var limit := int(dm.get("ticks", 120))
-	if cx_sim.finished or cx_ticks >= limit:
+	if cx_view == null or cx_view.finished or cx_ticks >= limit:
 		cx_wait += delta
 		if cx_wait >= CX_PAUSE:
 			_cx_restart()
 		return
 	cx_acc += delta
-	while cx_acc >= 0.05 and not cx_sim.finished and cx_ticks < limit:
+	while cx_acc >= 0.05 and not cx_view.finished and cx_ticks < limit:
 		cx_acc -= 0.05
-		for u in cx_sim.units:
+		if not cx_sim.finished:
+			_cx_sim_step()
+		for u in cx_view.units:
 			cx_prev[u.id] = Vector2(u.x, u.y)
-		cx_sim.step()
+		if not cx_view.advance():
+			break
 		cx_ticks += 1
-		for e in cx_sim.events:
-			if e.has("dmg"):
-				cx_atk[e["src"]] = time
-				cx_hurt[e["tgt"]] = time
-		for hp in CX.expect_hits(cx_sim, str(dm.get("expect", ""))):
+		for e in cx_view.events:
+			if e.has("dmg") and e.has("tgt"):
+				cx_hurt[e["tgt"]] = time   # 受擊閃白在畫面播到命中那一格才出
+		for pp in cx_pend_pops.get(cx_view.tick, []):
 			cx_seen = true
-			var txt: String = CX.text(CX.skill(sk), "", L.lang) + "！"
+			var txt: String = pp[1]
 			var dup := false
 			for q in cx_pops:
 				if q["s"] == txt and float(q["t"]) < 0.5:
 					dup = true   # 同一個技能字 0.5 秒內只跳一次（第五輪版面檢查：同字重疊）
 			if not dup:
-				cx_pops.append({"p": hp, "s": txt, "t": 0.0})
+				cx_pops.append({"p": pp[0], "s": txt, "t": 0.0})
 			if cx_pops.size() > 4:
 				cx_pops.pop_front()
+		cx_pend_pops.erase(cx_view.tick)
+
+## 小劇場的模擬往前一格：快照進緩衝、記下命中（遠程記目標）、技能字等畫面播到才跳
+func _cx_sim_step() -> void:
+	var sk: String = _cx_skills()[cx_skill]
+	var dm: Dictionary = CX.skill(sk).get("demo", {})
+	cx_sim.step()
+	var fr: Dictionary = ViewBuffer.capture(cx_sim)
+	cx_view.queue.append(fr)
+	for e in cx_sim.events:
+		if e.has("dmg") and e.has("src") and e.has("tgt") and event_route(e) == "attack" or e.get("kind", "") == EV.HEAL:
+			var src: int = int(e["src"])
+			var hs: Array = cx_hits.get(src, [])
+			hs.append(cx_sim.tick)
+			if hs.size() > 8:
+				hs.pop_front()
+			cx_hits[src] = hs
+			var su = cx_sim.unit_by_id(src)
+			if su != null and (e["kind"] == EV.BOMB or e["kind"] == EV.HEAL or (proj_fly(su.type) > 0 and su.type != D.MEDIC and e["kind"] != EV.SPLASH and e["kind"] != EV.BONK)):
+				var bt: Dictionary = cx_ptgt.get(src, {})
+				bt[cx_sim.tick] = int(e["tgt"])
+				cx_ptgt[src] = bt
+	var hits: Array = CX.expect_hits(cx_sim, str(dm.get("expect", "")))
+	if not hits.is_empty():
+		var txt: String = CX.text(CX.skill(sk), "", L.lang) + "！"
+		var arr: Array = cx_pend_pops.get(cx_sim.tick, [])
+		for hp in hits:
+			arr.append([hp, txt])
+		cx_pend_pops[cx_sim.tick] = arr
 
 
 func _cx_pos(u) -> Vector2:
@@ -519,11 +564,13 @@ func _draw_codex_demo() -> void:
 	for c in [6, 10]:
 		var x: float = b.position.x + (c * 1000.0 - CX_VIEW.position.x) * k
 		draw_dashed_line(Vector2(x, b.position.y), Vector2(x, b.end.y), Color(Art.team_color(0 if c == 6 else 1, cbm()), 0.6), 2.0, 6.0)
-	if cx_sim != null:
+	if cx_view != null:
 		var list: Array = []
-		for u in cx_sim.units:
+		for u in cx_view.units:
 			if u.alive:
 				list.append(u)
+		var disp: float = cx_view.tick + clampf(cx_acc / 0.05, 0.0, 1.0)
+		var pdraw: Array = []
 		list.sort_custom(func(a, c): return a.y < c.y)
 		var sc := 0.72
 		for u in list:
@@ -532,10 +579,16 @@ func _draw_codex_demo() -> void:
 			var p := _cx_pos(u)
 			var moving: bool = u.mx != 0 or u.my != 0
 			var at := 0.0
-			if cx_atk.has(u.id):
-				at = clampf((time - cx_atk[u.id]) / 0.25, 0, 1)
-				if at >= 1:
-					at = 0
+			if cx_hits.has(u.id):
+				# V1.5.1 A7：和戰場一樣，前搖在命中前開始，遠程出手後飛行物飛到目標
+				var ph := proj_phase(cx_hits[u.id], disp, u.type, cx_view.delay, cx_ptgt.get(u.id, {}))
+				if int(ph[1]) >= 0:
+					at = atk_progress(disp - float(ph[3]), u.type, float(ph[4]))
+					if float(ph[2]) >= 0.0 and cx_ptgt.get(u.id, {}).has(int(ph[1])):
+						var tu = cx_view.unit_by_id(int(cx_ptgt[u.id][int(ph[1])]))
+						if tu != null:
+							var sgp: float = signf(_cx_pos(tu).x - p.x) if _cx_pos(tu).x != p.x else 1.0
+							pdraw.append([u.type, u.team, p, _cx_pos(tu), float(ph[2]), sgp])
 			var hurt := 0.0
 			if cx_hurt.has(u.id) and _fx_on("flash"):
 				hurt = clampf(1.0 - (time - cx_hurt[u.id]) / 0.15, 0, 1)
@@ -548,6 +601,14 @@ func _draw_codex_demo() -> void:
 				var top := p + Vector2(-w / 2, -52 if u.type == D.CAVALRY else -46)
 				draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 5)), Art.OUT)
 				draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 3)), Art.team_color(u.team, cbm()).lightened(0.25))
+		# 飛行物（縮到小劇場的比例：角色 0.72 倍，戰場是 UNIT_SCALE）
+		var ps := sc / UNIT_SCALE
+		for pj in pdraw:
+			var a0: Vector2 = pj[2] + proj_launch(int(pj[0]), float(pj[5])) * sc
+			var b0: Vector2 = pj[3] + Vector2(0, -16.0 * ps)
+			draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(ps, ps), 0.0, a0))
+			_draw_projectile(int(pj[0]), int(pj[1]), Vector2.ZERO, (b0 - a0) / ps, float(pj[4]))
+			draw_set_transform_matrix(Art.base)
 	var drawn: Array = []
 	for pp in cx_pops:
 		var kk: float = pp["t"] / 1.1

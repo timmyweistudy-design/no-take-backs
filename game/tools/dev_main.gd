@@ -632,6 +632,20 @@ func _run_screenshots() -> void:
 	await _snap("10d_codex_summon.png")
 	cx_zoom = false
 	cx_zplay = true
+	# V1.5.1 A7：小劇場弓箭手：找一個箭在半空的時刻
+	_open_codex(D.ARCHER)
+	for i in 160:
+		_codex_tick(0.05)
+		var flying := false
+		for uid in cx_ptgt:
+			if cx_hits.has(uid):
+				var phx := proj_phase(cx_hits[uid], cx_view.tick + 0.5, D.ARCHER, cx_view.delay, cx_ptgt[uid])
+				if float(phx[2]) > 0.25 and float(phx[2]) < 0.75:
+					flying = true
+		if flying:
+			cx_acc = 0.025
+			break
+	await _snap("10e_codex_archer_demo.png")
 	_open_codex(D.ASSASSIN)
 	_cx_pick_skill(1)
 	for i in 70:
