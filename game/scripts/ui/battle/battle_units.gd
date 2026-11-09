@@ -582,7 +582,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			var fly: int = h - hr if hr >= 0 else 0
 			hit_now = h
 			if h >= 0:
-				at = atk_progress(dt0 - (hr - ViewBuffer.DELAY), u.type)
+				var wd := float(proj_wind(u.type, view.delay)) if h > hr else float(ViewBuffer.DELAY)   # V1.5.1 B1：有飛行物的那一發用局內前搖
+				at = atk_progress(dt0 - (hr - wd), u.type, wd)
 				if float(ph[2]) >= 0.0 and proj_tgt.get(u.id, {}).has(h):
 					var pt = view.unit_by_id(proj_tgt[u.id][h])
 					if pt != null:

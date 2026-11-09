@@ -29,10 +29,10 @@ func _draw_replay_controls() -> void:
 		return
 	draw_rect(Rect2(0, 696, 1280, 52), Color(TH_WOOD_D, 0.94))
 	_btn(Rect2(20, 704, 70, 36), "▶" if paused else "Ⅱ", func(): paused = not paused)
-	var sp := [0.5, 1.0, 2.0]
-	for i in 3:
-		_btn(Rect2(98 + i * 74, 704, 68, 36), "%s×" % _fmt_num(sp[i]), func(): speed = sp[i], true, false,
-			Color(0.45, 0.3, 0.12) if is_equal_approx(speed, sp[i]) else Color(0, 0, 0, 0))
+	# V1.5.1：速度 −／目前／＋，走 0.25～8 倍的共用表（點中間回 1 倍）
+	_btn(Rect2(98, 704, 68, 36), "−", func(): speed = speed_step(speed, -1), speed > float(SPEEDS[0]))
+	_btn(Rect2(172, 704, 68, 36), "%s×" % _fmt_num(speed), func(): speed = 1.0, true, false, Color(0.45, 0.3, 0.12))
+	_btn(Rect2(246, 704, 68, 36), "+", func(): speed = speed_step(speed, 1), speed < float(SPEEDS[SPEEDS.size() - 1]))
 	# 時間軸：拉鋸色帶（模擬已跑到的部分）＋目前位置
 	var total := float(maxi(1, replay_total if replay_total > 0 else view.max_ticks))   # 以這一場實際長度為滿
 	draw_rect(RC_BAR, Color(0, 0, 0, 0.5))
@@ -136,6 +136,8 @@ func _seek_tick(budget_ms: int) -> bool:
 				if ev["kind"] == EV.BLAST and not ev.has("dmg"):
 					ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
 			_collect_mark(ev, sim, sim.tick)
+			if ev["kind"] == EV.CMD:
+				battle_marks.append({"tick": sim.tick, "kind": "cmd", "team": int(ev["team"])})   # V1.5.1：快轉也收軍令標記（原本跳轉後會漏）
 		if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
 			_seek_ct = sim.tick
 	return true

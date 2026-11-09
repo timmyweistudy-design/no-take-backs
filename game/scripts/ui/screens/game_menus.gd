@@ -89,7 +89,7 @@ func _stick_repeat(delta: float) -> void:
 		var v: float = stick[ax]
 		var cur: int = d.x if ax == JOY_AXIS_LEFT_X else d.y
 		var nv := cur
-		if absf(v) > maxf(0.6, int(Save.s("deadzone")) / 100.0 + 0.2):   # V1.5：搖桿死區可調
+		if absf(v) > int(Save.s("deadzone")) / 100.0 + 0.25:   # V1.5.1：觸發門檻＝死區＋25%（原本 maxf(0.6, …) 讓 5～40% 的設定都被 0.6 吃掉）
 			nv = 1 if v > 0 else -1
 		elif absf(v) < int(Save.s("deadzone")) / 100.0:
 			nv = 0
@@ -306,13 +306,15 @@ func _draw_overlay() -> void:
 		"ai_busy":
 			_draw_busy(-1)
 		"codes":
-			_panel(Rect2(340, 250, 600, 300))
-			_h1(Vector2(640, 254), L.t("menu_codes"))
-			_text(Vector2(640, 316), L.t("codes_hint"), tz("S"), TXT_DIM, true, false, 540)
-			_btn(Rect2(380, 370, 250, 52), L.t("bc_watch"), func(): overlay = ""; _watch_battle_code())
-			_btn(Rect2(650, 370, 250, 52), L.t("ch_accept"), func(): overlay = ""; _accept_challenge())
-			_btn(Rect2(380, 428, 520, 44), L.t("ws_accept"), func(): overlay = ""; call("_accept_workshop"))   # V1.1 D3
-			_btn(Rect2(560, 486, 160, 44), L.t("back"), func(): overlay = "")
+			_panel(Rect2(340, 210, 600, 400))
+			_h1(Vector2(640, 214), L.t("menu_codes"))
+			_text(Vector2(640, 276), L.t("codes_hint"), tz("S"), TXT_DIM, true, false, 540)
+			# V1.5.1：一鍵貼上自動辨識（對戰、規則、挑戰、殘局、設定碼）；原本三顆分開的鈕留著
+			_btn(Rect2(380, 330, 520, 56), L.t("code_auto"), func(): _auto_code(), true, true)
+			_btn(Rect2(380, 398, 250, 50), L.t("bc_watch"), func(): overlay = ""; _watch_battle_code())
+			_btn(Rect2(650, 398, 250, 50), L.t("ch_accept"), func(): overlay = ""; _accept_challenge())
+			_btn(Rect2(380, 456, 520, 44), L.t("ws_accept"), func(): overlay = ""; call("_accept_workshop"))   # V1.1 D3
+			_btn(Rect2(560, 546, 160, 44), L.t("back"), func(): overlay = "")
 		"gauntlet_resume":
 			_panel(Rect2(340, 250, 600, 300))
 			_h1(Vector2(640, 254), L.t("menu_gauntlet"))
@@ -454,6 +456,35 @@ func _apply_volumes(sample: String) -> void:
 ## V1.5：設定七頁（畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料）。每列 [名稱鍵, 顯示值, 切換函式(d)]；
 ## 顯示值是 "@" 開頭的列＝按鈕（打開或執行），不是左右切換。docs/2026-11-09-v1.5.0-plan.md §2。
 const SET_TABS := 7
+## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
+const SET_KEYS := {"set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
+	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
+	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
+	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
+	"set_speed": ["speed"], "set_hp_bars": ["hp_bars"], "set_dmg_nums": ["dmg_nums"], "set_reduce_fx": ["reduce_fx"], "set_clutch_zoom": ["clutch_zoom"], "set_slowmo": ["slowmo"],
+	"set_cb": ["colorblind"], "set_reduce_motion": ["reduce_motion"], "set_text_plate": ["text_plate"], "set_focus": ["focus_strong"],
+	"set_shake": ["shake_pct", "shake"], "set_flash": ["flash_pct", "flash"], "set_playtest": ["playtest"]}
+
+static func set_changed(row: String) -> bool:
+	for k in SET_KEYS.get(row, []):
+		if str(Save.s(k)) != str(Save.DEFAULT_SETTINGS.get(k)):
+			return true
+	return false
+
+func _reset_rows(rows: Array) -> void:
+	var d := {}
+	for row in rows:
+		for k in SET_KEYS.get(row, []):
+			var v = Save.DEFAULT_SETTINGS.get(k)
+			d[k] = v.duplicate(true) if v is Dictionary or v is Array else v
+	if d.is_empty():
+		return
+	Save.set_settings(d)
+	_apply_all_settings()
+	_toast(L.t("set_reset_done"))
+
+## V1.5.1：戰鬥中改了要下一局才生效的設定（其餘立即生效）
+const NEXT_GAME_KEYS := ["set_speed", "set_title_bg", "set_hints", "set_confirm", "set_long_press", "set_playtest"]
 const VOL_STEPS := [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]   # 音量每格 5%
 
 func _optv(k: String, vals: Array, keys: Array) -> String:
@@ -497,7 +528,7 @@ func _settings_rows() -> Array:
 				["set_rumble", _pct("rumble"), func(d): _step_setting("rumble", [0, 25, 50, 100], d)],
 				["set_deadzone", _pct("deadzone"), func(d): _step_setting("deadzone", Save.ENUMS["deadzone"], d)]]
 		4:
-			return [["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(d): _step_setting("speed", [0.5, 1.0, 2.0], d)],
+			return [["set_speed", "%s×" % _fmt_num(float(Save.s("speed"))), func(d): _step_setting("speed", SPEEDS, d)],
 				["set_hp_bars", _optv("hp_bars", ["hurt", "all", "sel", "off"], ["v_hurt", "v_all", "v_sel", "v_off"]), func(d): _step_setting("hp_bars", ["hurt", "all", "sel", "off"], d)],
 				["set_dmg_nums", _optv("dmg_nums", ["merge", "each", "off"], ["v_merge", "v_each", "v_off"]), func(d): _step_setting("dmg_nums", ["merge", "each", "off"], d)],
 				["set_reduce_fx", L.t("v_min") if bool(Save.s("reduce_fx")) else L.t("v_full"), func(d): _cycle_setting("reduce_fx", [false, true])],
@@ -559,6 +590,14 @@ func _draw_settings() -> void:
 	for i in SET_TABS:
 		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
+	# V1.5.1 C1：這一頁恢復預設（先確認）
+	var page_keys: Array = []
+	for rw in _settings_rows():
+		page_keys.append(rw[0])
+	var any_changed := false
+	for pk0 in page_keys:
+		any_changed = any_changed or set_changed(pk0)
+	_btn(Rect2(136, 166 + SET_TABS * 56 + 8, 190, 44), L.t("set_reset_page"), func(): _ask_confirm(L.t("set_reset_page_q"), func(): _reset_rows(page_keys), "settings"), any_changed)
 	var y0 := 166.0
 	if settings_tab == 5:
 		# 一鍵預設（可疊加；套用後可撤回）
@@ -573,6 +612,8 @@ func _draw_settings() -> void:
 		var y := _settings_row_y(i)
 		if i % 2 == 0:
 			draw_rect(Rect2(340, y - 5, 560, 56), Color(1, 1, 1, 0.04))   # 第七輪 E11：斑馬底色
+		if set_changed(rows[i][0]):
+			draw_circle(Vector2(345, y + 22), 3.5, ACCENT, true, -1.0, true)   # V1.5.1 C1：和預設不同的列
 		_text(Vector2(352, y + 12), L.t(rows[i][0]), tz("B"), Color.WHITE, false, false, 270)
 		var val: String = rows[i][1]
 		var cb: Callable = rows[i][2]
@@ -592,7 +633,15 @@ func _draw_settings() -> void:
 	var key: String = settings_item if settings_item != "" else (rows[0][0] if not rows.is_empty() else "")
 	if key != "":
 		_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
-		_text(D0.position + Vector2(14, 18 + text_h(L.t(key), tz("B"), D0.size.x - 28, true)), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)   # 標題換行時說明往下排
+		var dy := 18 + text_h(L.t(key), tz("B"), D0.size.x - 28, true)
+		_text(D0.position + Vector2(14, dy), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)   # 標題換行時說明往下排
+		if SET_KEYS.has(key):
+			var kk: String = key
+			_btn(Rect2(D0.position.x + 10, D0.end.y - 52, D0.size.x - 20, 44), L.t("set_reset_one"), func(): _reset_rows([kk]), set_changed(kk))
+		if state == St.BATTLE and not key in ["set_keys", "set_paint", "set_export", "set_import", "set_backup", "set_restore", "set_clear", "set_folder"]:
+			# V1.5.1：戰鬥中打開設定，標出這一項什麼時候生效
+			var nxt: bool = key in NEXT_GAME_KEYS
+			_text(D0.position + Vector2(14, dy + text_h(L.t("sd_" + key), tz("S"), D0.size.x - 28) + 10), L.t("set_when_next") if nxt else L.t("set_when_now"), tz("S"), ACCENT if nxt else Color("#7dff8a"), false, true, D0.size.x - 28)
 	_btn(Rect2(560, 662, 160, 44), L.t("back"), func(): _settings_close())
 	_btn(Rect2(380, 662, 160, 44), L.t("menu_credits"), func(): _nav_push("settings"); _open("credits"))
 
@@ -604,7 +653,20 @@ const PRESETS := [
 	{"reduce_motion": true, "shake_pct": 0, "shake": false, "flash_pct": 0, "flash": false, "slowmo": false, "title_bg": "static", "clutch_zoom": false},
 	{"confirm_place": true, "toast_mult": 0, "long_press": 0.8, "hints": "full"}]   # 低操作負擔：提示改成手動關
 
+## V1.5.1 C2：套用前先列出會改的項目（確認才套用；零差異直接提示）
 func _apply_preset(k: int) -> void:
+	var p: Dictionary = PRESETS[k]
+	var names: Array = []
+	for row in SET_KEYS:
+		for kk in SET_KEYS[row]:
+			if p.has(kk) and str(Save.s(kk)) != str(p[kk]) and not L.t(row) in names:
+				names.append(L.t(row))
+	if names.is_empty():
+		_toast(L.t("preset_done", [0]))
+		return
+	_ask_confirm(L.t("preset_q", [names.size()]) + "\n" + "、".join(names.slice(0, 6)), func(): _apply_preset_now(k), "settings")
+
+func _apply_preset_now(k: int) -> void:
 	var p: Dictionary = PRESETS[k]
 	var n := 0
 	for key in p:
@@ -754,13 +816,21 @@ func _progress_restore(name: String) -> void:
 		return
 	var data: Dictionary = Save.migrate(d)
 	Save.sanitize_data(data)
-	Save.data = data
-	_after_data_swap()
-	overlay = ""
-	if not Save.save_data():
-		_toast(L.t("save_failed"), true)   # 沒寫進去就不說成功（Codex v150-i2 #1）
+	if not _commit_data(data):
 		return
+	overlay = ""
 	_toast(L.t("restore_done"))
+
+## V1.5.1：換整份進度時先寫檔，寫成功才換畫面狀態；寫不進去就還原記憶體裡的舊進度（記憶體與磁碟不會不一致）
+func _commit_data(data: Dictionary) -> bool:
+	var old: Dictionary = Save.data
+	Save.data = data
+	if not Save.save_data():
+		Save.data = old
+		_toast(L.t("save_failed"), true)
+		return false
+	_after_data_swap()
+	return true
 
 ## 還原、清除只能在標題畫面做：對局中換掉進度，舊對局結算會寫進新進度（Codex v150-f3 #1）；唯讀（未來版）存檔不能動（#2）
 func _data_swap_open(ov: String) -> void:
@@ -817,24 +887,23 @@ func _clear_data() -> void:
 		return
 	if not _progress_backup():   # 清之前自動備份一份；備份失敗就不清
 		return
+	var nd: Dictionary
 	if bool(clear_pick.get(3, false)):
-		Save.data = Save.DEFAULT_SAVE.duplicate(true)
-		Save.sanitize_data(Save.data)
+		nd = Save.DEFAULT_SAVE.duplicate(true)
 	else:
+		nd = Save.data.duplicate(true)   # 先在複本上清，寫檔成功才換（V1.5.1）
 		for i in 3:
 			if bool(clear_pick.get(i, false)):
 				for k in CLEAR_KEYS[i][1]:
 					if Save.DEFAULT_SAVE.has(k):
-						Save.data[k] = Save.DEFAULT_SAVE[k].duplicate(true) if Save.DEFAULT_SAVE[k] is Dictionary or Save.DEFAULT_SAVE[k] is Array else Save.DEFAULT_SAVE[k]
+						nd[k] = Save.DEFAULT_SAVE[k].duplicate(true) if Save.DEFAULT_SAVE[k] is Dictionary or Save.DEFAULT_SAVE[k] is Array else Save.DEFAULT_SAVE[k]
 					else:
-						Save.data.erase(k)
-		Save.sanitize_data(Save.data)
-	_after_data_swap()
+						nd.erase(k)
+	Save.sanitize_data(nd)
+	if not _commit_data(nd):
+		return
 	clear_pick = {}
 	overlay = "settings"
-	if not Save.save_data():
-		_toast(L.t("save_failed"), true)
-		return
 	_toast(L.t("clear_done"))
 
 
@@ -924,6 +993,46 @@ func _slot_load(i: int) -> void:
 	overlay = ""
 
 
+
+## V1.5.1：代碼種類（看前綴）："battle" 對戰、"rules" 規則、"challenge" 挑戰、"workshop" 殘局、"settings" 設定、"army" 陣型、"" 認不得
+static func code_kind(c: String) -> String:
+	var p := c.strip_edges().get_slice(".", 0)
+	if p.begins_with("NTBR"):
+		return "rules"
+	if p in ["NTB2", "NTB3", "NTB4", "NTB7"]:
+		return "battle"
+	if p in ["NTB1", "NTB5", "NTB6"]:
+		return "army"
+	if p == "NTC1":
+		return "challenge"
+	if p == "NTP1" or p == "NTP2":
+		return "workshop"
+	if p == "NTS1":
+		return "settings"
+	return ""
+
+func _auto_code() -> void:
+	var c := DisplayServer.clipboard_get().strip_edges()
+	match code_kind(c):
+		"battle":
+			overlay = ""
+			call("_watch_code_str", c)
+		"rules":
+			overlay = ""
+			call("_open_lobby", "ai")
+			call("_lobby_paste_code", c)
+		"challenge":
+			overlay = ""
+			call("_accept_challenge", c)
+		"workshop":
+			overlay = ""
+			call("_accept_workshop", c)
+		"settings":
+			_settings_import()
+		"army":
+			_toast(L.t("code_army_here"), true)   # 陣型碼要在擺陣畫面貼
+		_:
+			_toast(L.t("code_bad"), true)
 
 func _paste_code() -> void:
 	var why := _load_checked(DisplayServer.clipboard_get())

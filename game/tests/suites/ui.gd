@@ -1070,8 +1070,13 @@ func test_projectile_timing_v150() -> void:
 	ok(fly + VB.DELAY <= VB.DELAY_LONG and BS.proj_fly(6) + VB.DELAY <= VB.DELAY_LONG, "前搖＋飛行放得進緩衝")
 	var pmelee: Array = BS.proj_phase([h], float(h - 1), 0, VB.DELAY_LONG)
 	ok(int(pmelee[0]) == h and float(pmelee[2]) < 0.0, "近戰不提早出手、沒有飛行物")
-	var pshort: Array = BS.proj_phase([h], float(h), 2, VB.DELAY)
-	ok(int(pshort[0]) == h, "手動軍令局：沒有餘裕就直接命中（不憑空飛彈）")
+	# V1.5.1 B1：手動軍令局（緩衝 2）遠程前搖 1 tick＋飛行 1 tick，命中 tick 不變；近戰照舊前搖 2 tick
+	var ps0: Array = BS.proj_phase([h], float(h - 1), 2, VB.DELAY)
+	var ps1: Array = BS.proj_phase([h], float(h), 2, VB.DELAY)
+	ok(int(ps0[0]) == h - 1 and int(ps0[1]) == h and is_equal_approx(float(ps0[2]), 0.0) and is_equal_approx(float(ps1[2]), 1.0), "手動軍令局：出手 h-1 離手、h 剛好到", str([ps0, ps1]))
+	ok(BS.proj_wind(2, VB.DELAY) == 1 and BS.proj_wind(0, VB.DELAY) == VB.DELAY and BS.proj_wind(2, VB.DELAY_LONG) == VB.DELAY, "前搖：只有手動軍令局的遠程縮成 1 tick")
+	var pm2: Array = BS.proj_phase([h], float(h - 2), 2, VB.DELAY)
+	ok(float(pm2[2]) < 0.0, "手動軍令局：h-2 在前搖、還沒有飛行物")
 
 
 
@@ -1207,3 +1212,46 @@ func test_nav_back_v151() -> void:
 	g._key(KEY_ESCAPE)
 	ok(g.overlay == "" and g.nav_hub == "", "關掉面板後不再自動打開")
 	g.free()
+
+
+## V1.5.1 B1b：照紀錄施放的軍令局用長緩衝；手動軍令局維持短緩衝；快照帶軍令欄狀態。
+func test_cmd_delay_v151() -> void:
+	var VB = load("res://scripts/ui/view_buffer.gd")
+	var Sim0 = load("res://scripts/core/battle_sim.gd")
+	var AI0 = load("res://scripts/core/ai_army.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 151
+	var r = RS0.standard()
+	r.cmd_mask = [1, 1]
+	var s = Sim0.new(AI0.build(0, 100, rng)["army"], AI0.build(1, 100, rng)["army"], r)
+	ok(VB.new(s).delay == VB.DELAY, "手動軍令局：短緩衝")
+	var s2 = Sim0.new(AI0.build(0, 100, rng)["army"], AI0.build(1, 100, rng)["army"], r)
+	s2.cmd_play([])
+	var v2 = VB.new(s2)
+	ok(v2.delay == VB.DELAY_LONG, "照紀錄施放：長緩衝")
+	ok(v2.cmd_snap.size() == 2, "快照帶軍令剩餘次數與冷卻")
+
+
+## V1.5.1 圖鑑召喚物頁：選小史萊姆、骷髏不會越界（沒有技能小劇場），近看模式自動打開。
+func test_codex_summons_v151() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g._open_codex(0)
+	g._cx_pick_unit(20)
+	for i in 10:
+		g._codex_tick(0.05)
+	ok(g.cx_unit == 20 and g.cx_zoom, "召喚物頁直接是近看模式")
+	g._cx_pick_unit(0)
+	g.cx_zoom = false
+	ok(g.cx_unit == 0 and not g.cx_zoom, "回王國軍收合近看")
+	ok(g.cxz_phase(0.1)[0] == 0 and g.cxz_phase(0.3)[0] == 1 and g.cxz_phase(0.6)[0] == 2 and g.cxz_phase(1.0)[0] == 3, "近看的階段：前搖、揮擊、後搖、停")
+	g.free()
+
+
+## V1.5.1：代碼一鍵辨識看前綴；速度共用表往上往下一格。
+func test_code_kind_speed_v151() -> void:
+	var GM = load("res://scripts/ui/screens/game_menus.gd")
+	var UB = load("res://scripts/ui/ui_base.gd")
+	ok(GM.code_kind("NTB7.x.y") == "battle" and GM.code_kind(" NTBR5.a.b ") == "rules" and GM.code_kind("NTC1.a.b") == "challenge", "對戰、規則、挑戰")
+	ok(GM.code_kind("NTP2.a.b") == "workshop" and GM.code_kind("NTS1.abc") == "settings" and GM.code_kind("NTB6.a.b") == "army" and GM.code_kind("hello") == "", "殘局、設定、陣型、認不得")
+	ok(UB.speed_step(1.0, 1) == 2.0 and UB.speed_step(8.0, 1) == 8.0 and UB.speed_step(0.25, -1) == 0.25 and UB.speed_step(3.0, -1) == 1.0, "速度表一格一格走")

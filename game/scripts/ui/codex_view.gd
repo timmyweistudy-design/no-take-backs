@@ -106,8 +106,8 @@ func _codex_tick(delta: float) -> void:
 	for p in cx_pops:
 		p["t"] += delta
 	cx_pops = cx_pops.filter(func(p): return p["t"] < 1.1)
-	if cx_sim == null:
-		return
+	if cx_sim == null or cx_unit >= D.total() or _cx_skills().is_empty():
+		return   # V1.5.1：召喚物沒有技能小劇場
 	var sk: String = _cx_skills()[cx_skill]
 	var dm: Dictionary = CX.skill(sk).get("demo", {})
 	var limit := int(dm.get("ticks", 120))
@@ -701,7 +701,11 @@ func _draw_cx_zoom() -> void:
 		elif cx_unit == 15:
 			draw_line(a0, a0.lerp(b0, k), Color(0.7, 0.35, 1.0, 0.85), 3.0, true)   # 巫毒娃娃紫線
 		else:
-			_draw_projectile(cx_unit, 0, a0, b0, k)
+			# 飛行物跟著角色放大（在 a0 為原點、放大 sc/1.6 的座標系裡畫）
+			var ps := sc / 1.6
+			draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(ps, ps), 0.0, a0))
+			_draw_projectile(cx_unit, 0, Vector2.ZERO, (b0 - a0) / ps, k)
+			draw_set_transform_matrix(Art.base)
 	Art.turn_c = 1.0
 	Art.turn_s = 0.0
 	Art.back = false

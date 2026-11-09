@@ -196,6 +196,15 @@ var mouse := Vector2.ZERO
 var cursor := Vector2i(4, 4)
 var pad_mode := false
 var toast := ""
+const SPEEDS := [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]   # V1.5.1：設定、戰鬥中速度鈕、重播速度列共用一張表
+
+## 速度表上往快（d＝+1）或往慢（-1）一格；不在表上的值先對到最接近的那格
+static func speed_step(cur: float, d: int) -> float:
+	var i := 0
+	for k in SPEEDS.size():
+		if absf(float(SPEEDS[k]) - cur) < absf(float(SPEEDS[i]) - cur):
+			i = k
+	return float(SPEEDS[clampi(i + d, 0, SPEEDS.size() - 1)])
 var toast_t := 0.0
 var toast_born := 0.0   # V1.5：提示出現的時間（手動關：剛出現 0.3 秒內的點擊不算關掉）
 

@@ -415,7 +415,12 @@ func _cmd_event(ev: Dictionary, with_fx: bool) -> void:
 		return
 	var tm := int(ev["team"])
 	var sk := int(ev["skill"])
-	battle_marks.append({"tick": view.tick, "kind": "cmd", "team": tm})
+	var dup := false
+	for m in battle_marks:
+		if m["kind"] == "cmd" and int(m["tick"]) == view.tick and int(m["team"]) == tm:
+			dup = true   # 跳轉時快轉已經收過這一筆
+	if not dup:
+		battle_marks.append({"tick": view.tick, "kind": "cmd", "team": tm})
 	if not with_fx:
 		return
 	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
@@ -445,7 +450,12 @@ func _draw_cmd_bar() -> void:
 		for i in list.size():
 			var s: int = list[i]
 			var r := Rect2(8.0 if tm == 0 else 1168.0, 190.0 + i * 112.0, 104.0, 104.0)
-			var ready: bool = sim.cmd_can(tm, s)
+			# V1.5.1 B1b：照紀錄施放的局讀畫面快照（長緩衝下 sim 領先 0.4 秒，不能提早跳）；手動局要即時可按，讀 sim
+			var snap: bool = bool(sim.cmd_scripted) and not view.cmd_snap.is_empty()
+			var c_left: int = int(view.cmd_snap[0][tm][s]) if snap else int(sim.cmd_left[tm][s])
+			var c_ready: int = int(view.cmd_snap[1][tm][s]) if snap else int(sim.cmd_ready[tm][s])
+			var c_tick: int = view.tick if snap else sim.tick
+			var ready: bool = (c_left > 0 and c_tick >= c_ready and not view.finished) if snap else sim.cmd_can(tm, s)
 			if mine:
 				_btn(r, "", _cmd_press.bind(tm, i), ready, false, TH_WOOD if ready else TH_WOOD_D)
 			else:
@@ -454,7 +464,7 @@ func _draw_cmd_bar() -> void:
 			_probe_btn_rect = r
 			_icon(CmdD.ICONS[s], r.position + Vector2(52, 26), 30.0, ACCENT if ready else Color(1, 1, 1, 0.35))
 			_text(r.position + Vector2(52, 46), L.t("cmd_%d" % s), tz("C"), Color.WHITE if ready else TXT_DIM, true, false, 98)
-			var left_s := "×%d" % int(sim.cmd_left[tm][s])
+			var left_s := "×%d" % c_left
 			_text(Vector2(r.end.x - _width(left_s, tz("C")) - 6, r.position.y + 4), left_s, tz("C"), Color.WHITE)
 			if mine:
 				var hk: String = ["1", "2", "3"][i] if tm == 0 else ["8", "9", "0"][i]
@@ -462,8 +472,8 @@ func _draw_cmd_bar() -> void:
 					hk = _pk("prev" if i == 0 else "next")
 				_text(r.position + Vector2(6, 4), hk, tz("C"), TXT_DIM)
 			_probe_btn_label = false
-			var wait: int = int(sim.cmd_ready[tm][s]) - sim.tick
-			if wait > 0 and int(sim.cmd_left[tm][s]) > 0:
+			var wait: int = c_ready - c_tick
+			if wait > 0 and c_left > 0:
 				var frac: float = clampf(float(wait) / maxf(1.0, float(sim.cmd_cd)), 0.0, 1.0)
 				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
 
@@ -513,8 +523,6 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		var hs0 = view.unit_by_id(ev["src"])
 		var ht0 = view.unit_by_id(ev["tgt"])
 		if hs0 != null and ht0 != null:
-			if view.delay <= ViewBuffer.DELAY:   # V1.5：長緩衝時十字光已經在命中前飛到，不再補一條弧線
-				_add_fx({"kind": "healarc", "a": _upos(hs0) + Vector2(0, -40), "b": _upos(ht0) + Vector2(0, -26), "t": 0.0, "dur": 0.25})
 			_merge_text(ht0.id, EV.HEAL, "+", int(ev["amt"]), _upos(ht0) + Vector2(0, -70), Color("#7dff8a"))
 			sfx.play("heal", 0.35)
 		return
@@ -563,8 +571,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）
 	elif s.type == D.ARCHER:
 		# V1.5：長緩衝時箭已經在命中前飛到（battle_units 的飛行物），這裡只留「釘住抖一下」；短緩衝（手動軍令）照舊快飛
-		var lf: bool = view.delay > ViewBuffer.DELAY
-		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.001 if lf else 0.28, "dur": 0.2 if lf else 0.46, "tc": Art.team_color(s.team, cbm())})
+		# V1.5.1 B1：手動軍令局也有 1 tick 飛行段，箭在命中前就飛到；這裡一律只留「釘住抖一下」，不再命中後才補飛
+		_add_fx({"src": s.id, "kind": "arrow", "a": sp + Vector2(10 * signf(tpos.x - sp.x), -24), "b": tpos + Vector2(0, -22), "t": 0.0, "fly": 0.001, "dur": 0.2, "tc": Art.team_color(s.team, cbm())})
 		sfx.play_unit("arrow", 0.35, s.type)
 	elif s.type == 17:
 		# V1.5：骷髏法師的紫火打中目標（原本在法師自己身上揮擊）
@@ -713,7 +721,7 @@ func _draw_battle_hud() -> void:
 			_btn(Rect2(1010, 6, 120, 38), L.t("back"), func(): call("_replay_back"))   # 第七輪 A9：立刻回上一個畫面
 		else:   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
 			_btn(Rect2(950, 2, 52, 36), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6
-			_btn(Rect2(1010, 6, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = 2.0 if speed == 1.0 else (4.0 if speed == 2.0 else (0.5 if speed == 4.0 else 1.0)))
+			_btn(Rect2(1010, 6, 120, 38), L.t("speed", [_fmt_num(speed)]), func(): speed = speed_step(speed, 1) if speed < float(SPEEDS[SPEEDS.size() - 1]) else float(SPEEDS[0]))   # V1.5.1：照共用表往上一格、到頂回最慢
 		_btn(Rect2(1138, 6, 132, 38), L.t("skip"), func(): _on_skip())
 
 

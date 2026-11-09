@@ -67,8 +67,8 @@ func _disp_tick() -> float:
 
 
 ## 這一刻要演哪一次命中（Codex R5 #2）：取前搖已開始的最近一次；但前一次的揮擊還沒做完就先讓它做完（揮擊優先、後搖可被截斷）。
-static func pick_hit(hits: Array, disp: float, type: int) -> int:
-	var tm := atk_timing(type)
+static func pick_hit(hits: Array, disp: float, type: int, wind := -1.0) -> int:
+	var tm := atk_timing(type, wind)
 	var w: float = tm[1]
 	var strike_end: float = w + tm[2]
 	var cur := -1
@@ -95,13 +95,14 @@ static func proj_fly(type: int) -> int:
 ## 遠程的出手比命中早 fly 個 tick（fly＝飛行時間，受緩衝長度限制）；飛行進度在出手～命中之間由 0 走到 1。
 ## only：哪些命中 tick 是飛行物（null＝全部）。投彈兵貼身敲人這種近身命中不提早出手、不畫炸彈（Codex v150-i1 #3）。
 static func proj_phase(hits: Array, disp: float, type: int, delay: int, only = null) -> Array:
-	var fly: int = maxi(0, mini(proj_fly(type), delay - ViewBuffer.DELAY))
+	var wd := proj_wind(type, delay)
+	var fly: int = maxi(0, mini(proj_fly(type), delay - wd))
 	var pairs: Array = []   # [出手 tick, 命中 tick]
 	for x in hits:
 		var shift: bool = fly > 0 and (only == null or (only as Dictionary).has(int(x)))
 		pairs.append([int(x) - fly if shift else int(x), int(x)])
 	pairs.sort_custom(func(a, b): return a[0] < b[0])
-	var hr := pick_hit(pairs.map(func(p): return p[0]), disp, type)
+	var hr := pick_hit(pairs.map(func(p): return p[0]), disp, type, float(wd))
 	if hr < 0:
 		return [-1, -1, -1.0]
 	var h := hr
@@ -114,14 +115,20 @@ static func proj_phase(hits: Array, disp: float, type: int, delay: int, only = n
 		k = clampf((disp - float(hr)) / float(h - hr), 0.0, 1.0)
 	return [hr, h, k]
 
-static func atk_timing(type: int) -> Array:
+static func atk_timing(type: int, wind := -1.0) -> Array:
 	var period := float(D.stat(type)["cd"])   # cd 的單位是 tick（模擬每次出手加 cd×4、每 tick 扣 4）
 	var tot := clampf(period, 4.0, 6.4)
-	return [tot, float(ViewBuffer.DELAY), 0.22 * tot]
+	return [tot, float(ViewBuffer.DELAY) if wind < 0.0 else wind, 0.22 * tot]
+
+## V1.5.1 B1：這一局遠程的前搖 tick。手動軍令局緩衝只有 2 tick：有飛行物的遠程前搖縮成 1 tick、讓出 1 tick 給飛行（命中 tick 不變）。
+static func proj_wind(type: int, delay: int) -> int:
+	if proj_fly(type) > 0 and delay <= ViewBuffer.DELAY:
+		return 1
+	return ViewBuffer.DELAY
 
 
-static func atk_progress(dt: float, type: int) -> float:
-	var tm := atk_timing(type)
+static func atk_progress(dt: float, type: int, wind := -1.0) -> float:
+	var tm := atk_timing(type, wind)
 	var tot: float = tm[0]
 	var w: float = tm[1]
 	var st: float = tm[2]
