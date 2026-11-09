@@ -63,6 +63,8 @@ func _finish_battle() -> void:
 		series_over = series_done(wins, round_no, rules)
 		if bool(get("sealed_on")) and mode == Mode.DUEL and round_no >= 3:
 			series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+		if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
+			call("_ach", "SEALED_DONE")   # V1.5
 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
 		set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
 	_build_report()

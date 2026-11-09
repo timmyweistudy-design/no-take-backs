@@ -480,6 +480,9 @@ func _run_screenshots() -> void:
 			break
 	accum = 0.025
 	await _snap("03c_projectiles.png")
+	call("_open_pause_menu")   # V1.5 暫停選單
+	await _snap("03d_pause_menu.png")
+	call("_pause_resume")
 	clutch_t = 0.0   # 這一場的「最後時刻」橫幅不要留到後面的截圖
 	slow_left = 0.0
 	fx.clear()
@@ -1372,7 +1375,12 @@ func _pad_walk() -> void:
 	await _pw_btn(JOY_BUTTON_START)
 	await _pw_frames(5)
 	_pw_check(state == St.BATTLE, "Start 沒有開戰，現在 %d" % state)
-	await _pw_btn(JOY_BUTTON_B)
+	await _pw_btn(JOY_BUTTON_B)   # V1.5：B 打開暫停選單（第二項＝直接看結果）
+	await _pw_frames(3)
+	_pw_check(overlay == "pause_menu" and paused, "B 沒有打開暫停選單，現在 %s" % overlay)
+	await _pw_btn(JOY_BUTTON_DPAD_DOWN)
+	await _pw_frames(2)
+	await _pw_btn(JOY_BUTTON_A)
 	var wait := 0
 	while state != St.RESULT and wait < 900:
 		wait += 1

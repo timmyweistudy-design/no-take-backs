@@ -390,6 +390,7 @@ func _progress_and_achievements() -> void:
 			var ni := int(get("gauntlet_nemesis"))
 			if ni < nl.size():
 				nl[ni]["revenged"] = true
+				_ach("REVENGE")
 				_toast(L.t("nem_revenge", [call("nemesis_title", nl[ni])]))
 	if mode == Mode.GAUNTLET:
 		if w == 0:

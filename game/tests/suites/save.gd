@@ -142,7 +142,7 @@ func test_steam_v7() -> void:
 	r = ST.self_test(12345)
 	ok(not r["ok"] and r["missing_achievements"] == ["BACKSTAB_3"], "S4：後台少一個成就要抓得到", str(r))
 	ST._steam = null
-	ok(ST.ACHIEVEMENTS.size() == 24, "S4：程式 24 個成就（docs/release/steam-setup.md 要同步）")
+	ok(ST.ACHIEVEMENTS.size() == 31, "S4：程式 31 個成就（V1.5 加 7 個；docs/release/steam-setup.md 要同步）")
 	# V1.2.1 F3：大字幕鍵盤開不起來時要解除訊號（不然下次關閉會觸發舊動作）
 	var fk = FakeSteamKb.new()
 	ST._steam = fk

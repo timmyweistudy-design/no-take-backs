@@ -24,7 +24,7 @@
      - 輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次：正式 App 會逐一核對這 24 個成就都建好了（少一個就 exit 1，會列出缺哪些）。
      - 另外建議在**沒開 Steam** 時跑一次，確認會回報失敗（`exit 1`）。
 2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
-3. **成就**：在 Steamworks 後台建立以下 24 個，API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
+3. **成就**：在 Steamworks 後台建立以下 31 個（V1.5 新增 7 個，在表格最後），API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
 
 | API 名稱 | 中文 | English | 條件 |
 |---|---|---|---|
@@ -52,6 +52,13 @@
 | PUZZLE_100 | 百局通關 | Hundred Puzzles | 100 關殘局全部過關（第十三輪） |
 | PUZZLE_ALL3 | 百局三星 | Hundred Perfect | 100 關殘局全部三星 |
 | TRIAL_ALL3 | 試煉滿星 | Trial Perfectionist | 30 關主題試煉全部三星 |
+| GHOST_ALL | 名將皆敗 | Ghostbuster | 打敗全部幽靈名將的陣型（V1.5） |
+| WEEKLY_WIN | 本週破盒 | Box Breaker | 打贏一次每週棋盒（V1.5） |
+| WAVE_3 | 車輪不倒 | Last One Standing | 車輪戰連贏三波（V1.5） |
+| REVENGE | 雪恥 | Sweet Revenge | 在遠征裡打敗宿敵（V1.5） |
+| PAINTER | 自己的顏色 | True Colors | 在塗裝室換一次顏色（V1.5） |
+| SHARP_EYE | 好眼力 | Sharp Eye | 競猜連續押中 5 場（V1.5） |
+| SEALED_DONE | 封蠟三戰 | Sealed Fate | 打完一組雙封蠟三戰（V1.5） |
 
 4. **雲端**：後台 Steam Cloud → Auto-Cloud。
    - 路徑：Windows `%APPDATA%/Godot/app_userdata/落子無悔 No Take-Backs/`，檔案 `save.json`（加上 `save.json.bak`）。

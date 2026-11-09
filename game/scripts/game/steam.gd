@@ -33,6 +33,14 @@ const ACHIEVEMENTS := {
 	"PUZZLE_100": ["百局通關", "Hundred Puzzles"],
 	"PUZZLE_ALL3": ["百局三星", "Hundred Perfect"],
 	"TRIAL_ALL3": ["試煉滿星", "Trial Perfectionist"],
+	# V1.5：只用既有事件與統計
+	"GHOST_ALL": ["名將皆敗", "Ghostbuster"],
+	"WEEKLY_WIN": ["本週破盒", "Box Breaker"],
+	"WAVE_3": ["車輪不倒", "Last One Standing"],
+	"REVENGE": ["雪恥", "Sweet Revenge"],
+	"PAINTER": ["自己的顏色", "True Colors"],
+	"SHARP_EYE": ["好眼力", "Sharp Eye"],
+	"SEALED_DONE": ["封蠟三戰", "Sealed Fate"],
 }
 
 static var _steam = null

@@ -944,8 +944,8 @@ func _draw_profile() -> void:
 	for i2 in keys.size():
 		var k: String = keys[i2]
 		var on: bool = k in earned
-		var pos := Vector2(84 + (i2 % 3) * 372, 480 + (i2 / 3) * 30)
-		var ar := Rect2(pos - Vector2(4, 1), Vector2(364, 26))
+		var pos := Vector2(84 + (i2 % 4) * 279, 480 + (i2 / 4) * 30)   # V1.5：31 個成就排四欄（三欄會超出畫面）
+		var ar := Rect2(pos - Vector2(4, 1), Vector2(271, 26))
 		if on:
 			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
 		else:
@@ -957,7 +957,7 @@ func _draw_profile() -> void:
 			hover_k = k
 			_box(ar.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.7), 5.0, 1.5)
 		_icon("star" if on else "lock", pos + Vector2(10, 12), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
-		_text(pos + Vector2(26, 0), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 340)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
+		_text(pos + Vector2(26, 0), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 242)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
 	# V1.2.1：滑過成就，標題列右邊顯示解鎖條件（未解鎖的也看得到怎麼拿）
 	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
 	var cw2 := 640.0
@@ -1079,6 +1079,13 @@ const ACH_DESC := {
 	"PUZZLE_100": ["100 關殘局全部過關", "Clear all 100 puzzles"],
 	"PUZZLE_ALL3": ["100 關殘局全部三星", "Get 3 stars on all 100 puzzles"],
 	"TRIAL_ALL3": ["30 關主題試煉全部三星", "Get 3 stars on all 30 trials"],
+	"GHOST_ALL": ["打敗全部幽靈名將的陣型", "Defeat every ghost formation"],
+	"WEEKLY_WIN": ["打贏一次每週棋盒", "Win a Weekly Box"],
+	"WAVE_3": ["車輪戰連贏三波", "Win all three waves in Waves"],
+	"REVENGE": ["在遠征裡打敗宿敵", "Defeat a nemesis in the Gauntlet"],
+	"PAINTER": ["在塗裝室換一次顏色", "Change your colors in the paint room"],
+	"SHARP_EYE": ["競猜連續押中 5 場", "Call 5 Bets in a row"],
+	"SEALED_DONE": ["打完一組雙封蠟三戰", "Finish a Sealed Orders match"],
 }
 
 
@@ -1318,6 +1325,8 @@ func _wager_settle() -> void:
 	eye["pts"] = int(eye.get("pts", 0)) + pts
 	eye["streak"] = int(eye.get("streak", 0)) + 1 if pts > 0 else 0
 	eye["best"] = maxi(int(eye.get("best", 0)), int(eye["streak"]))
+	if int(eye["streak"]) >= 5:
+		call("_ach", "SHARP_EYE")
 	Save.data["eye"] = eye
 	Save.save_data()
 	report["wager_line"] = L.t("wg_res_%d" % pts, [rem])
@@ -1481,6 +1490,8 @@ func _wave_end(won: bool) -> void:
 	Save.data["wave_best"] = maxi(int(Save.data.get("wave_best", 0)), reached)
 	Save.save_data()
 	_toast(L.t("wv_all") if won else L.t("wv_over", [reached]))
+	if won and reached >= 3:
+		call("_ach", "WAVE_3")
 	wv_active = false
 
 
@@ -1540,6 +1551,7 @@ func _paint_close() -> void:
 	if str(Art.paint) != pt_before:
 		Save.data["paint"] = Art.paint.duplicate()
 		Save.save_data()
+		call("_ach", "PAINTER")
 
 ## 每點一次就在背景重烘圖集（舊的那次會作廢），左邊預覽用圖集畫，漬洗、乾掃當下就看得到（Codex v140-i4）。
 func _paint_pick(row: int, k: int) -> void:
@@ -1712,6 +1724,8 @@ func _ghost_settle(w: int) -> void:
 			Save.data["ghost_beat"] = beat
 			Save.save_data()
 			report["gh_line"] = L.t("gh_beat_new", [beat.size(), ghosts().size()])
+			if beat.size() >= ghosts().size():
+				call("_ach", "GHOST_ALL")
 	if wk_active:
 		var wk: int = int(wk_spec.get("wk", week_no(int(Time.get_unix_time_from_system()))))
 		var rec: Dictionary = Save.data.get("weekly", {})
@@ -1719,6 +1733,7 @@ func _ghost_settle(w: int) -> void:
 			rec = {"wk": wk, "best": 0, "tries": 0}
 		rec["tries"] = int(rec.get("tries", 0)) + 1
 		if w == 0:
+			call("_ach", "WEEKLY_WIN")
 			var spent: int = last_armies[0].spent()
 			if int(rec["best"]) <= 0 or spent < int(rec["best"]):
 				rec["best"] = spent
