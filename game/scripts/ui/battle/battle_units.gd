@@ -725,7 +725,8 @@ func _draw_units_of(s, dim: bool) -> void:
 				else:
 					# 經過正面轉過去：寬度不低於 0.45（不壓成一條線），過半就朝向目標（不背對目標揮空，Antigravity v151-i1 #4）
 					var lf := lerpf(f0, tgt_f, kf)
-					face = (tgt_f if kf >= 0.5 else signf(f0) if f0 != 0.0 else tgt_f) * maxf(absf(lf), 0.45)
+					# 從第一格就朝目標（轉身格的方向），寬度從轉到一半慢慢回到側面（Codex v151-i2：前半不再朝舊方向蓄力）
+					face = tgt_f * (maxf(absf(lf), 0.45) if (kf >= 0.5 or signf(f0) == tgt_f) else 0.45)   # 同方向只是轉完剩下的角度
 				face_now[u.id] = face
 			elif atk_face.has(u.id):
 				atk_face.erase(u.id)

@@ -486,7 +486,9 @@ func _playtest_export() -> void:
 ## V1.5.1 C6：切換全螢幕後 10 秒內沒按「保留」就自動換回來（螢幕黑掉、看不到按鈕時不會卡住）
 var fs_prev = null
 var fs_deadline := 0.0
+var fs_ret := "settings"   # 確認框關掉回哪一頁（設定、代碼、第一次啟動…）
 func _fs_change() -> void:
+	fs_ret = overlay if overlay != "" else "settings"
 	fs_prev = Save.s("fullscreen")
 	_cycle_setting("fullscreen", [false, true])
 	_apply_fullscreen()
@@ -496,14 +498,14 @@ func _fs_change() -> void:
 
 func _fs_keep() -> void:
 	fs_prev = null
-	overlay = "settings"
+	overlay = fs_ret
 
 func _fs_revert() -> void:
 	if fs_prev != null:
 		Save.set_setting("fullscreen", fs_prev)
 		_apply_fullscreen()
 	fs_prev = null
-	overlay = "settings"
+	overlay = fs_ret
 
 func _draw_fs_confirm() -> void:
 	var left := fs_deadline - time
@@ -535,6 +537,7 @@ static func set_changed(row: String) -> bool:
 ## V1.5.1：一次改很多項（匯入、恢復預設、預設組合）時，全螢幕有變也要走 10 秒確認（Codex v151-i1 #2）
 func _guard_fs(prev) -> void:
 	if str(prev) != str(Save.s("fullscreen")):
+		fs_ret = overlay if overlay != "" and overlay != "fs_confirm" else "settings"
 		fs_prev = prev
 		fs_deadline = time + 10.0
 		overlay = "fs_confirm"
@@ -739,7 +742,7 @@ func _apply_preset(k: int) -> void:
 	if names.is_empty():
 		_toast(L.t("preset_done", [0]))
 		return
-	_ask_confirm(L.t("preset_q", [names.size()]) + "\n" + "\n".join(names.slice(0, 6)), func(): _apply_preset_now(k), "settings")
+	_ask_confirm(L.t("preset_q", [names.size()]) + "\n" + "\n".join(names.slice(0, 6)), func(): _apply_preset_now(k), overlay if overlay != "" else "settings")   # 第一次啟動頁按的預設，確認後回第一次啟動頁（Antigravity v151-i2 #3）
 
 static func _val_str(v) -> String:
 	if v is bool:
@@ -822,7 +825,7 @@ func _settings_import() -> void:
 		Save.set_settings(ch)
 		_apply_all_settings()
 		_toast(L.t("set_imported", [ch.size()]))
-		_guard_fs(fp0), "settings")
+		_guard_fs(fp0), overlay if overlay != "" else "settings")   # 從「代碼」頁貼的設定碼，確認後回代碼頁
 
 ## V1.5 通用確認框：覆蓋存檔、匯入設定這類動作先問一次。
 var confirm_msg := ""
@@ -902,7 +905,7 @@ func _progress_restore(name: String) -> void:
 	Save.sanitize_data(data)
 	if not _commit_data(data):
 		return
-	overlay = ""
+	overlay = "settings"   # 還原後留在設定頁（Codex v151-i2）
 	_toast(L.t("restore_done"))
 
 ## V1.5.1：換整份進度時先寫檔，寫成功才換畫面狀態；寫不進去就還原記憶體裡的舊進度（記憶體與磁碟不會不一致）

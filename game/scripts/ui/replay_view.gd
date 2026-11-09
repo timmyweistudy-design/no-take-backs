@@ -166,6 +166,9 @@ func _seek_finish() -> void:
 		var dv = view.unit_by_id(int(did))
 		if dv != null and age >= 1.0 and age < 4.0:
 			graves.append({"pos": _upos(dv), "team": dv.team, "t": age - 1.0})
+		elif dv != null and age >= 0.0 and age < 1.0:
+			# 不到一秒前倒下：倒地演出接著播完，跨過 1 秒照常插旗（Codex v151-i2 #1）
+			dying.append({"pos": _upos(dv), "type": dv.type, "team": dv.team, "face": signf(dv.fx) if dv.fx != 0 else 1.0, "t": age})
 	atk_hit.clear()
 	atk_seq.clear()
 	alt_hit.clear()
@@ -317,6 +320,7 @@ func _watch_code_str(code: String) -> void:
 
 ## 看一場對戰代碼：當成全新的一局初始化（Codex S5 #2：原本沿用舊的陣型、比分、局數）
 func watch_code(a0, a1, p_rules = null) -> void:
+	replay_marks = []   # V1.5.1：看別人的代碼不能留上一局的時間軸刻度（Codex v151-i2）
 	mode = Mode.VS_AI
 	rules = p_rules
 	battle_rules = p_rules

@@ -10,6 +10,7 @@ uniform float cols = 16.0;
 uniform float radius = 3.0;
 uniform float hi_amt = 0.09;
 uniform float sh_amt = 0.20;
+uniform float y_off = -1.0;   // V1.5.1：圖鑑大圖用：格子頂端在 y_off（≥0 時只算一格、不循環）；圖集用預設 -1
 
 void fragment() {
 	vec2 px = UV / TEXTURE_PIXEL_SIZE;
@@ -26,7 +27,7 @@ void fragment() {
 		}
 	}
 	vec3 col = c.rgb;
-	float ly = mod(px.y, cell) / cell;
+	float ly = y_off >= 0.0 ? clamp((px.y - y_off) / cell, 0.0, 1.0) : mod(px.y, cell) / cell;
 	float hi = clamp((0.50 - ly) / 0.28, 0.0, 1.0) * hi_amt;
 	float sh = clamp((ly - 0.62) / 0.20, 0.0, 1.0) * sh_amt;
 	col = mix(col, vec3(1.0, 0.953, 0.839), hi);

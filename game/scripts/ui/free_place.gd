@@ -14,6 +14,7 @@ var fp_dense := true           # 畫筆間距：true＝最小間距、false＝1.
 var fp_stroke: Array = []      # 預覽中的點 [type, x, y]
 var fp_stroking := false
 var fp_line := false           # 這一筆是直線
+var fp_press_p := Vector2.ZERO  # V1.5.1：按下的畫面位置（分辨點一下和拖曳）
 var fp_start := Vector2i.ZERO  # 直線起點（世界座標）
 var fp_last := Vector2i.ZERO   # 畫筆上一個取樣點
 var fp_full := false           # 錢／人數／這一手用完（後面的點截斷）
@@ -330,6 +331,7 @@ func _fp_press(p: Vector2, w: Vector2i, box: bool) -> void:
 	if hit >= 0 and not _fp_duel_turns() and _fp_can_edit():
 		fp_drag = hit
 		fp_drag_from = a.pos_of(a.units[hit])
+		fp_press_p = p
 		if not hit in fp_sel:
 			fp_sel = []
 		return
@@ -360,6 +362,12 @@ func _fp_release(p: Vector2, w: Vector2i) -> bool:
 		if not _fp_in_field(p):
 			if group:
 				return true   # 整群拖出戰場＝取消，不刪單隻（Antigravity 實作第 1 輪 #2）
+			_fp_push_undo()
+			a.units.remove_at(i)
+			fp_sel = []
+			return true
+		if not group and Save.s("place_mode") == "tap" and p.distance_to(fp_press_p) < 10.0:
+			# V1.5.1 C4：只點選模式點一下自己的兵＝拿掉（可以復原；Codex v151-i2 #3）
 			_fp_push_undo()
 			a.units.remove_at(i)
 			fp_sel = []

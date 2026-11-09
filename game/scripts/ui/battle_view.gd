@@ -474,7 +474,8 @@ func _draw_cmd_bar() -> void:
 			_probe_btn_label = false
 			var wait: int = c_ready - c_tick
 			if wait > 0 and c_left > 0:
-				var frac: float = clampf(float(wait) / maxf(1.0, maxf(float(sim.cmd_cd), float(wait))), 0.0, 1.0)   # 開戰前準備期比冷卻長時也是滿格開始倒數（Antigravity v151-i1 #12）
+				var phase_len: float = float(CmdD.START_TICKS) if c_ready <= CmdD.START_TICKS else float(sim.cmd_cd)   # 開戰準備期的總長是 START_TICKS，之後是冷卻（Codex v151-i2）
+				var frac: float = clampf(float(wait) / maxf(1.0, phase_len), 0.0, 1.0)
 				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
 
 func _on_event(ev: Dictionary, with_fx: bool) -> void:

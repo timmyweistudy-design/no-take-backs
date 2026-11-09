@@ -219,6 +219,8 @@ func _paint_cmd(p: Vector2) -> void:
 
 
 
+var drag_press_p := Vector2.ZERO
+
 func _mb_release_cleanup() -> void:
 	_fp_abort_drag()
 	drag_new = false
@@ -269,6 +271,7 @@ func _mb_cmd(d: Dictionary) -> void:
 				_toast(L.t("wv_locked"), true)   # V1.4 #11：車輪戰殘兵不能搬
 				return
 			drag_from = c
+			drag_press_p = mouse   # V1.5.1：記下按下的位置，放開時分辨「點一下」和「拖出去又拖回來」（Codex v151-i2 #2）
 		else:
 			painting = Save.s("place_mode") != "tap"   # V1.5.1 C3：點選擺放不連續塗
 			paint_team = _cur_army().team
@@ -279,7 +282,7 @@ func _mb_cmd(d: Dictionary) -> void:
 		elif drag_from.x >= 0:
 			if c.x < 0:
 				_try_remove(drag_from)
-			elif c == drag_from and Save.s("place_mode") == "tap":
+			elif c == drag_from and Save.s("place_mode") == "tap" and mouse.distance_to(drag_press_p) < 10.0:
 				_try_remove(drag_from)   # V1.5.1 C4：只點選模式點一下自己的兵＝拿掉（觸控不用長按）
 			elif c != drag_from:
 				if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() >= gauntlet_changes:

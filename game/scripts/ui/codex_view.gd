@@ -787,7 +787,8 @@ func _draw_cx_zoom() -> void:
 			_icon("pause" if cx_zplay else "play", rr.get_center(), 20.0, Color.WHITE)
 		elif i == 5:
 			_icon("slow", rr.get_center(), 20.0, Color.WHITE)
-	var x2 := 220 + 6 * (bw + 8) + 16
+	var x2 := 220.0
+	y1 += 48.0   # V1.5.1：文字鈕放第二列整排（英文 150% 一列放不下，版面檢查）
 	var row2: Array = [[L.t("cxz_atk"), func(): cx_zalt = false; cx_zt = 0.0; cx_zplay = true, not cx_zalt], [L.t("cxz_alt"), func(): cx_zalt = true; cx_zt = 0.0; cx_zplay = true, cx_zalt],
 		[L.t("cxz_ally") if cx_zally else L.t("cxz_foe"), func(): cx_zally = not cx_zally, false], [L.t("cxz_big") if not cx_zbig else L.t("cxz_small"), func(): cx_zbig = not cx_zbig, false]]
 	var bw2 := (1054.0 - x2 - 3 * 8) / 4.0

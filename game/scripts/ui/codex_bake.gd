@@ -51,8 +51,7 @@ func _ready() -> void:
 	_rect.texture = _vp1.get_texture()
 	_mat = ShaderMaterial.new()
 	_mat.shader = load("res://shaders/unit_bake.gdshader")
-	# 腳底在格子高度的 0.83（和圖集 160／192 一樣），頂亮底暗的漸層位置才一致；per 很大＝整張都算隊伍 0（藍方墨色）
-	_mat.set_shader_parameter("cell", FEET.y / (160.0 / 192.0))
+	# per 很大＝整張都算隊伍 0（藍方墨色）；格子大小與位置每次照縮放算（set_params），頂亮底暗落在和戰場一樣的身體高度
 	_mat.set_shader_parameter("per", 100000.0)
 	_mat.set_shader_parameter("cols", 1.0)
 	_rect.material = _mat
@@ -77,6 +76,10 @@ func set_params(p: Dictionary, wash: float, dry: float) -> void:
 	_mat.set_shader_parameter("hi_amt", dry)
 	# 外框粗細跟著縮放（圖集是 RS 1.6 倍烘、半徑 3）
 	_mat.set_shader_parameter("radius", 3.0 * float(p.get("scale", 1.6)) / 1.6)
+	# 圖集：RS 1.6 倍畫在 192 的格子、腳底在 160；這裡同比例放大：格子 192×k、頂端在腳底上方 160×k（Codex v151-i2 #4）
+	var k := float(p.get("scale", 1.6)) / 1.6
+	_mat.set_shader_parameter("cell", 192.0 * k)
+	_mat.set_shader_parameter("y_off", FEET.y - 160.0 * k)
 
 func texture() -> Texture2D:
 	return _vp2.get_texture()

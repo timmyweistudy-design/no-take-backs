@@ -1311,3 +1311,48 @@ func test_place_mode_v151() -> void:
 		ok(counts[0] == 1 and counts[1] > 1, "只點選擺一隻、點選＋拖曳連續擺", str(counts))
 	else:
 		ok(true, "這個預設是自由排兵（只測格子模式）")
+
+
+## V1.5.1 C4（自由排兵）：「只點選」點一下自己的兵＝拿掉；拖出去又拖回來不拿掉。
+func test_free_tap_remove_v151() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var keep = SV.s("place_mode")
+	SV.settings["place_mode"] = "tap"
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g._start_mode(g.Mode.VS_AI)
+	if g.rules == null:
+		g.rules = RS0.standard()
+	g.rules.deploy = "free"
+	g.state = g.St.PLACE
+	if not g._is_free():
+		ok(true, "這個環境進不了自由排兵（略過）")
+		SV.settings["place_mode"] = keep
+		g.free()
+		return
+	var a = g._fp_army()
+	a.units = []
+	a.deploy = "free"
+	var w := Vector2i(-1, -1)
+	for xx in range(500, 9000, 250):
+		if a.check_place_xy(0, xx, 4000) == "":
+			w = Vector2i(xx, 4000)
+			break
+	a.place_xy(0, w.x, w.y)
+	var p: Vector2 = g._fld_xf() * g._s_of(a.pos_of(a.units[0])) + Vector2(0, -20) if not a.units.is_empty() else Vector2.ZERO
+	var hit0: int = a.index_near(g._w_of(p).x, g._w_of(p).y, g.PICK_R)
+	g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": p})
+	var drag0: int = g.fp_drag
+	g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": p + Vector2(30, 0)})
+	var n1: int = a.units.size()
+	var info := "hit=%d drag=%d n1=%d infield=%s" % [hit0, drag0, n1, str(g._fp_in_field(p + Vector2(30, 0)))]
+	if n1 == 1:
+		var p2: Vector2 = g._fld_xf() * g._s_of(a.pos_of(a.units[0])) + Vector2(0, -20)
+		g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": p2})
+		g._fp_mb({"i": MOUSE_BUTTON_LEFT, "pressed": false, "pos": p2})
+	ok(n1 == 1 and a.units.size() == 0, "拖曳搬移不拿掉、點一下拿掉", info + " n2=%d" % a.units.size())
+	SV.settings["place_mode"] = keep
+	g.free()
