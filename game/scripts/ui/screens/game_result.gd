@@ -67,6 +67,8 @@ func _finish_battle() -> void:
 			call("_ach", "SEALED_DONE")   # V1.5
 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
 		set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
+		var wc: Array = get("wv_codes")
+		wc.append(BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds))   # V1.5.1 D1
 	_build_report()
 	call("_ghost_settle", w)   # V1.4 #7
 	call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
@@ -235,6 +237,9 @@ func _draw_result() -> void:
 			facts.append(str(report["rec_line"]))
 		if str(report.get("gh_line", "")) != "":
 			facts.insert(0, str(report["gh_line"]))   # V1.4 #7：擊破幽靈／每週新紀錄
+		var obs := _result_obs()
+		for oi in range(obs.size() - 1, -1, -1):
+			facts.insert(0, obs[oi])   # V1.5.1 D3：本場觀察放最前面
 		for fi in facts.size():
 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
 			y += text_h(facts[fi], tz("S"), 780) + 2
@@ -316,6 +321,8 @@ func _draw_result() -> void:
 			bs.append([L.t("wv_next", [int(get("wv_no")) + 1]), func(): call("_wave_next")])
 		else:
 			bs.append([L.t("wv_again"), func(): call("_wave_start")])
+			if not (get("wv_codes") as Array).is_empty():
+				bs.append([L.t("wv_copy"), func(): DisplayServer.clipboard_set(call("wave_code", get("wv_codes"))); _toast(L.t("bc_copied"))])
 	if watch_mode:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 
@@ -364,6 +371,23 @@ func _draw_result() -> void:
 		x += bw2 + gap
 
 
+
+## V1.5.1 D3「本場觀察」：遠征的契約、宿敵、巨獸各一句；只寫事件與數字，不寫因果。最多 2 句。
+func _result_obs() -> Array:
+	var out: Array = []
+	if mode != Mode.GAUNTLET or play_kind != "official" or sim == null:
+		return out
+	var ct: String = str(get("ct_last"))
+	if ct != "":
+		out.append(ct)
+	if int(get("gauntlet_nemesis")) >= 0:
+		out.append(L.t("obs_nem_win") if sim.winner == 0 else L.t("obs_nem_lose"))
+	for u in sim.units:
+		if u.team == 1 and u.boss:
+			var hp_pct: int = 0 if not u.alive else int(u.hp * 100 / maxi(1, u.max_hp))
+			out.append(L.t("obs_boss", [hp_pct]))   # 巨獸剩多少血（倒下＝0%）
+			break
+	return out.slice(0, 2)
 
 ## 第十輪 F4：輸了、對手剩不到 15% 戰力。
 func _near_miss() -> bool:

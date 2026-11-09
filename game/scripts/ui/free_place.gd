@@ -144,6 +144,8 @@ func _fs_try(w: Vector2i) -> bool:
 func _fs_extend(w: Vector2i) -> void:
 	if not fp_stroking:
 		return
+	if Save.s("place_mode") == "tap" and not fp_line:
+		return   # V1.5.1 C3：點選擺放：一下一隻，拖過去不連續擺（觸控友善）
 	if fp_stroke_key != _fp_key_now():
 		_fs_cancel()   # 拖曳中換手了：整筆作廢
 		return

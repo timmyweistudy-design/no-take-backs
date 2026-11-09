@@ -326,6 +326,17 @@ func _draw_overlay() -> void:
 			_draw_pause_menu()
 		"confirm":
 			_draw_confirm()
+		"fs_confirm":
+			_draw_fs_confirm()
+		"wave_codes":
+			# V1.5.1 D1：車輪戰代碼：選看第幾波
+			var wl: Array = get("wv_view")
+			_panel(Rect2(390, 250, 500, 160 + wl.size() * 60))
+			_h1(Vector2(640, 254), L.t("wv_pick"))
+			for i in wl.size():
+				var cw: String = wl[i]
+				_btn(Rect2(440, 320 + i * 60, 400, 50), L.t("wv_wave_n", [i + 1]), func(): overlay = ""; call("_watch_code_str", cw), true, i == 0)
+			_btn(Rect2(560, 330 + wl.size() * 60, 160, 44), L.t("back"), func(): overlay = "codes")
 		"leave":
 			_panel(Rect2(340, 270, 600, 260))
 			_text(Vector2(640, 294), L.t("leave_title"), tz("H2"), Color.WHITE, true, true, 540)
@@ -456,11 +467,45 @@ func _apply_volumes(sample: String) -> void:
 ## V1.5：設定七頁（畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料）。每列 [名稱鍵, 顯示值, 切換函式(d)]；
 ## 顯示值是 "@" 開頭的列＝按鈕（打開或執行），不是左右切換。docs/2026-11-09-v1.5.0-plan.md §2。
 const SET_TABS := 7
+## V1.5.1 C6：切換全螢幕後 10 秒內沒按「保留」就自動換回來（螢幕黑掉、看不到按鈕時不會卡住）
+var fs_prev = null
+var fs_deadline := 0.0
+func _fs_change() -> void:
+	fs_prev = Save.s("fullscreen")
+	_cycle_setting("fullscreen", [false, true])
+	_apply_fullscreen()
+	fs_deadline = time + 10.0
+	overlay = "fs_confirm"
+	_focus = 0
+
+func _fs_keep() -> void:
+	fs_prev = null
+	overlay = "settings"
+
+func _fs_revert() -> void:
+	if fs_prev != null:
+		Save.set_setting("fullscreen", fs_prev)
+		_apply_fullscreen()
+	fs_prev = null
+	overlay = "settings"
+
+func _draw_fs_confirm() -> void:
+	var left := fs_deadline - time
+	if left <= 0.0:
+		_fs_revert()
+		return
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var P := Rect2(390, 280, 500, 240)
+	_panel(P)
+	_text(Vector2(640, P.position.y + 40), L.t("fs_keep_q", [ceili(left)]), tz("B"), Color.WHITE, true, false, 440)
+	_btn(Rect2(420, P.end.y - 72, 210, 50), L.t("fs_keep"), func(): _fs_keep(), true, true)
+	_btn(Rect2(650, P.end.y - 72, 210, 50), L.t("fs_revert"), func(): _fs_revert())
+
 ## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
 const SET_KEYS := {"set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
 	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
-	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
+	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
 	"set_speed": ["speed"], "set_hp_bars": ["hp_bars"], "set_dmg_nums": ["dmg_nums"], "set_reduce_fx": ["reduce_fx"], "set_clutch_zoom": ["clutch_zoom"], "set_slowmo": ["slowmo"],
 	"set_cb": ["colorblind"], "set_reduce_motion": ["reduce_motion"], "set_text_plate": ["text_plate"], "set_focus": ["focus_strong"],
 	"set_shake": ["shake_pct", "shake"], "set_flash": ["flash_pct", "flash"], "set_playtest": ["playtest"]}
@@ -484,7 +529,7 @@ func _reset_rows(rows: Array) -> void:
 	_toast(L.t("set_reset_done"))
 
 ## V1.5.1：戰鬥中改了要下一局才生效的設定（其餘立即生效）
-const NEXT_GAME_KEYS := ["set_speed", "set_title_bg", "set_hints", "set_confirm", "set_long_press", "set_playtest"]
+const NEXT_GAME_KEYS := ["set_place_mode", "set_speed", "set_title_bg", "set_hints", "set_confirm", "set_long_press", "set_playtest"]
 const VOL_STEPS := [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]   # 音量每格 5%
 
 func _optv(k: String, vals: Array, keys: Array) -> String:
@@ -501,7 +546,7 @@ func _settings_row_y(i: int) -> float:
 func _settings_rows() -> Array:
 	match settings_tab:
 		0:
-			return [["set_fullscreen", L.t("v_borderless") if bool(Save.s("fullscreen")) else L.t("v_windowed"), func(d): _cycle_setting("fullscreen", [false, true]); _apply_fullscreen()],
+			return [["set_fullscreen", L.t("v_borderless") if bool(Save.s("fullscreen")) else L.t("v_windowed"), func(d): _fs_change()],
 				["set_title_bg", _optv("title_bg", ["demo", "static"], ["v_demo", "v_static"]), func(d): _cycle_setting("title_bg", ["demo", "static"])],
 				["set_fps", L.t("v_unlimited") if int(Save.s("fps_cap")) == 0 else str(int(Save.s("fps_cap"))), func(d): _step_setting("fps_cap", [30, 60, 120, 0], d); _apply_display()],
 				["set_vsync", _onoff("vsync"), func(d): _cycle_setting("vsync", [true, false]); _apply_display()],
@@ -524,6 +569,7 @@ func _settings_rows() -> Array:
 		3:
 			return [["set_keys", "@" + L.t("open_it"), func(d): _open("keys")],
 				["set_confirm", _onoff("confirm_place"), func(d): _cycle_setting("confirm_place", [true, false])],
+				["set_place_mode", _optv("place_mode", ["both", "tap"], ["v_place_both", "v_place_tap"]), func(d): _step_setting("place_mode", ["both", "tap"], d)],
 				["set_long_press", L.t("sec_f", [_fmt_num(float(Save.s("long_press")))]), func(d): _step_setting("long_press", [0.3, 0.5, 0.8, 1.0], d)],
 				["set_rumble", _pct("rumble"), func(d): _step_setting("rumble", [0, 25, 50, 100], d)],
 				["set_deadzone", _pct("deadzone"), func(d): _step_setting("deadzone", Save.ENUMS["deadzone"], d)]]
@@ -1009,6 +1055,8 @@ static func code_kind(c: String) -> String:
 		return "workshop"
 	if p == "NTS1":
 		return "settings"
+	if p == "NTW1":
+		return "waves"
 	return ""
 
 func _auto_code() -> void:
@@ -1029,6 +1077,13 @@ func _auto_code() -> void:
 			call("_accept_workshop", c)
 		"settings":
 			_settings_import()
+		"waves":
+			var w: Array = call("wave_decode", c)
+			if w.is_empty():
+				_toast(L.t("code_bad"), true)
+			else:
+				set("wv_view", w)
+				overlay = "wave_codes"
 		"army":
 			_toast(L.t("code_army_here"), true)   # 陣型碼要在擺陣畫面貼
 		_:

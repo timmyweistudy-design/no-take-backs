@@ -1453,6 +1453,29 @@ var wv_no := 0
 
 var wv_lock: Array = []   # 這一波帶進來的殘兵（不能撤、不能移）
 var wv_surv: Array = []   # 上一波戰鬥結束當下的殘兵
+var wv_codes: Array = []  # V1.5.1 D1：這一輪每一波的對戰代碼（整場三波一起分享）
+var wv_view: Array = []   # 貼上車輪戰代碼後，等著選看第幾波
+
+## V1.5.1 D1 車輪戰代碼 NTW1：包起每一波的既有對戰代碼（不重做模擬格式）。缺波＝提早輸掉，只有打過的那幾波。
+static func wave_code(codes: Array) -> String:
+	var b := Marshalls.utf8_to_base64(JSON.stringify({"v": 1, "w": codes}))
+	return "NTW1.%s.%s" % [b, b.sha256_text().substr(0, 6)]
+
+## 解開車輪戰代碼：回傳每一波的對戰代碼（1～3 筆，每筆都要是對戰代碼）；壞碼回傳空陣列
+static func wave_decode(c: String) -> Array:
+	var parts := c.strip_edges().split(".")
+	if c.length() > 60000 or parts.size() != 3 or parts[0] != "NTW1" or parts[1].sha256_text().substr(0, 6) != parts[2]:
+		return []
+	var d = JSON.parse_string(Marshalls.base64_to_utf8(parts[1]))
+	if not d is Dictionary or not d.get("w") is Array:
+		return []
+	var w: Array = d["w"]
+	if w.is_empty() or w.size() > 3:
+		return []
+	for x in w:
+		if not x is String or not str(x).get_slice(".", 0) in ["NTB2", "NTB3", "NTB4", "NTB7"]:
+			return []
+	return w
 
 static func wave_has_lock(units: Array, lock: Array) -> bool:
 	for u in lock:
@@ -1476,6 +1499,7 @@ func wave_is_locked(c: Vector2i) -> bool:
 func _wave_start() -> void:
 	wv_active = true
 	wv_no = 1
+	wv_codes = []
 	_wave_setup([], 100)
 
 func _wave_setup(surv: Array, budget: int) -> void:

@@ -1584,3 +1584,17 @@ func test_unit_rec_v151() -> void:
 	g._record_match(1)
 	ok(int(SaveS.data["unit_wins_rec"].get(str(D.SHIELD), 0)) == 1, "雙人：記勝方（紅）的兵")
 	g.free()
+
+
+## V1.5.1 D1 車輪戰代碼：每一波的對戰代碼包在一起；壞碼、非對戰代碼、超過三波都拒絕；一鍵辨識認得。
+func test_wave_code_v151() -> void:
+	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var BC = load("res://scripts/game/battle_code.gd")
+	var a = army_from(0, [[D.SWORD, 5, 4]])
+	var b = army_from(1, [[D.SHIELD, 5, 4]])
+	var c1: String = BC.encode(a, b, null)
+	var code: String = GM.wave_code([c1, c1])
+	ok(GM.wave_decode(code) == [c1, c1], "兩波往返")
+	ok(GM.wave_decode(code + "x").is_empty() and GM.wave_decode(GM.wave_code(["NTS1.abc"])).is_empty() and GM.wave_decode(GM.wave_code([c1, c1, c1, c1])).is_empty(), "壞碼、非對戰代碼、四波都拒絕")
+	var GMenu = load("res://scripts/ui/screens/game_menus.gd")
+	ok(GMenu.code_kind(code) == "waves", "一鍵辨識認得車輪戰代碼")

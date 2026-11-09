@@ -270,7 +270,7 @@ func _mb_cmd(d: Dictionary) -> void:
 				return
 			drag_from = c
 		else:
-			painting = true
+			painting = Save.s("place_mode") != "tap"   # V1.5.1 C3：點選擺放不連續塗
 			paint_team = _cur_army().team
 			_try_place(c)
 	elif mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
@@ -332,6 +332,8 @@ func _key(k: int) -> void:
 					call("_pause_resume")
 				elif overlay == "settings":
 					call("_settings_close")
+				elif overlay == "fs_confirm":
+					call("_fs_revert")
 				elif overlay == "confirm":
 					overlay = str(get("confirm_ret"))
 				elif overlay in ["keys", "restore", "clear_data"]:
