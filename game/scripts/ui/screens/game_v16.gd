@@ -74,8 +74,8 @@ func _finish_battle() -> void:
 		Funnel.mark("first_win" if won else "first_loss")
 		if mode == Mode.TUTORIAL and won:
 			Funnel.mark("tutorial_done")
-		if mode == Mode.PUZZLE and (won or bool(report.get("goal_ok", false))):
-			Funnel.mark("puzzle_clear")
+		if mode == Mode.PUZZLE and puzzle_id != "ws" and (won or bool(report.get("goal_ok", false))):
+			Funnel.mark("puzzle_clear")   # 工坊、一陣三考不算（三考只打了第一場，Antigravity v160-i2 #4）
 	if Guide.demo_end_due(Save.data, _demo(), demo_end_shown):
 		demo_end_shown = true
 		Funnel.mark("demo_end")
@@ -167,7 +167,8 @@ func _draw_v16_overlay(name: String) -> void:
 var tv_range := false
 var tv_mark_mode := false
 var tv_marks: Array = []      # 標記的兵：世界座標（Vector2i，開戰時對到模擬的兵）
-var tv_ids: Array = []        # 這一場對到的模擬 id（順序＝標記號碼）
+var tv_ids: Array = []
+var tv_mode_key := ""        # 這一場對到的模擬 id（順序＝標記號碼）
 const TV_MAX := 3
 
 func _tv_pos_list(a) -> Array:
@@ -654,7 +655,8 @@ func _draw_coach() -> void:
 ## ── #10 裂隙模式 ──
 const Rift = preload("res://scripts/game/v16_rift.gd")
 var rift_on := false
-var rift_wk := 0   # 開局那一週（跨週才打完也記在那一週，Codex v160-i2 #1）
+var rift_wk := 0
+var rift_code := ""   # 這一場裂隙的規則碼：「再來一局」要同一組規則才算裂隙（Antigravity v160-i2 #2）   # 開局那一週（跨週才打完也記在那一週，Codex v160-i2 #1）
 
 func _rift_picks() -> Array:
 	return Rift.picks(Rift.week(), RS.mask(_demo()))
@@ -663,6 +665,7 @@ func _rift_start() -> void:
 	var wk := Rift.week()
 	rift_wk = wk
 	var r = Rift.make_rules(_rift_picks(), RS.mask(_demo()), wk)
+	rift_code = r.to_code()
 	rules = r
 	set("challenge_army", Rift.enemy(r, wk))
 	_start_mode(Mode.VS_AI)
@@ -702,7 +705,11 @@ func _draw_rift() -> void:
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 func _start_mode(m: int) -> void:
-	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.preset == "custom"   # 裂隙「再來一局」照舊
+	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.to_code() == rift_code   # 裂隙「再來一局」照舊（同一組規則才算）
+	var mk := "%d:%s:%d" % [m, puzzle_id, int(get("trial_id"))]
+	if mk != tv_mode_key:
+		tv_marks = []   # 換題、換模式：舊標記不帶過去（同一題重打保留）
+	tv_mode_key = mk
 	fog_on = false
 	tv_mark_mode = false
 	var keep_trio: bool = trio_on and m == Mode.PUZZLE and puzzle_id == "ws" and PZ.get_puzzle("ws").has("trio")   # 一陣三考「重試」照舊

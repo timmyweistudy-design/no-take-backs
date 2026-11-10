@@ -323,9 +323,9 @@ static func sanitize_v16(out: Dictionary) -> void:
 		out.erase("seen")   # null 或型別錯：當作沒有（下次開遊戲補舊入口），Antigravity v160-i1 #4
 	elif sn != null:
 		var s2: Array = []
-		if sn is Array and sn.size() <= 200:
+		if sn is Array:
 			for x in sn:
-				if x is String and str(x).length() <= 32:
+				if x is String and str(x).length() <= 32 and s2.size() < 200:
 					s2.append(x)
 		out["seen"] = s2
 	var ms = out.get("mastery", {})
@@ -337,8 +337,10 @@ static func sanitize_v16(out: Dictionary) -> void:
 	out["mastery"] = m2
 	var nb = out.get("notebook", {})
 	var nb2 := {}
-	if nb is Dictionary and nb.size() <= 400:
+	if nb is Dictionary:
 		for pid in nb:
+			if nb2.size() >= 400:
+				break   # 超量就截斷，不整批清空（Antigravity v160-i2 #1）
 			var lst = nb[pid]
 			if not lst is Array or lst.size() > 5 or str(pid).length() > 24:
 				continue
@@ -376,8 +378,10 @@ static func sanitize_v16(out: Dictionary) -> void:
 	for k2 in ["rift_best", "trio_clear"]:
 		var d = out.get(k2, {})
 		var d2 := {}
-		if d is Dictionary and d.size() <= 50:
+		if d is Dictionary:
 			for kk2 in d:
+				if d2.size() >= 50:
+					break
 				var v = d[kk2]
 				if k2 == "rift_best":
 					var iv := _int_list(v, 2)

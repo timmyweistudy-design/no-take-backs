@@ -434,3 +434,15 @@ func test_workbench_r2_v160() -> void:
 	var WS = load("res://scripts/game/workshop.gd")
 	var c: String = WS.encode3([[0, 12, 4]], [[3, 4, 4]], "protect")
 	ok(c != "" and bool(WS.decode(c)["ok"]), "護送：作者只有被護送的那一隻也能出碼")
+
+func test_sanitize_truncate_v160() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var seen: Array = []
+	for i in 250:
+		seen.append("k%d" % i)
+	var rb := {}
+	for i in 60:
+		rb["w%d" % i] = [1, 2]
+	var d := {"seen": seen, "rift_best": rb}
+	SV.sanitize_v16(d)
+	ok(d["seen"].size() == 200 and d["rift_best"].size() == 50, "超量截斷，不整批清空")
