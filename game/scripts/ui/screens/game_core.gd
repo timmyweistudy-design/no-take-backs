@@ -353,6 +353,8 @@ func _progress_and_achievements() -> void:
 		if stars > int(ps.get(puzzle_id, 0)):
 			ps[puzzle_id] = stars
 		Save.data["puzzle_stars"] = ps
+		if stars >= 1 and has_method("_coach_after_clear"):
+			call("_coach_after_clear", stars)   # V1.6.1 A4：自力最佳另記
 		if mode == Mode.PUZZLE:
 			Save.note_try("puzzle", puzzle_id, stars >= 1, armies[0].spent())   # V1.1 F2
 			if stars >= 1:

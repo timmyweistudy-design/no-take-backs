@@ -420,6 +420,9 @@ func _draw_overlay() -> void:
 				if en:
 					for ks in 3:   # 星數在右下角（和下方說明同一列，說明讓出寬度）
 						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.end.y - tz("C") * 0.75), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
+					var cde = Save.data.get("coached", {}).get(str(pz["id"]))
+					if not tut and cde is Dictionary and int(cde.get("lv", 0)) >= 2 and int(cde.get("self", 0)) < st:
+						_icon("hint", Vector2(r.end.x - 74, r.end.y - tz("C") * 0.75), 15.0, Color("#7fd6c2"))   # V1.6.1 A4：教練協力（自力最佳比目前星數少）
 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
 				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
 				var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
@@ -1021,7 +1024,7 @@ func _draw_restore() -> void:
 		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
 
-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars", "coached"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))

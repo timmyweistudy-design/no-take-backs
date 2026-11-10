@@ -364,6 +364,16 @@ static func sanitize_v16(out: Dictionary) -> void:
 					l2.append(e2)
 			nb2[str(pid)] = l2
 	out["notebook"] = nb2
+	var cd = out.get("coached", {})
+	var cd2 := {}
+	if cd is Dictionary:
+		for k in cd:
+			if cd2.size() >= 400:
+				break
+			var e = cd[k]
+			if str(k).length() <= 24 and e is Dictionary and _is_num(e.get("lv")) and _is_num(e.get("ap", 0)) and _is_num(e.get("self", 0)):
+				cd2[str(k)] = {"lv": clampi(int(e["lv"]), 0, 3), "ap": 1 if int(e.get("ap", 0)) == 1 else 0, "self": clampi(int(e.get("self", 0)), 0, 3)}   # V1.6.1 A4
+	out["coached"] = cd2
 	for k in ["daily_streak"]:
 		var st = out.get(k, {})
 		var st2 := {}

@@ -557,6 +557,7 @@ var co_thread: Thread = null
 var co_res := {}       # 搜尋結果
 var co_layer := 0      # 0 還沒看、1 哪一隻、2 往哪、3 直接擺
 var co_key := ""       # 這一場的識別（換場就重算）
+var co_ctl := {}       # V1.6.1 F5：和背景搜尋共用的 {"stop", "until", "done"}（取消、期限、進度）
 
 func _coach_pz() -> Dictionary:
 	return PZ.get_puzzle(puzzle_id) if mode == Mode.PUZZLE else {}
@@ -566,6 +567,8 @@ func coach_ok() -> bool:
 		return false
 	if bool(rush.get("on", false)) or not (mode == Mode.PUZZLE or mode == Mode.VS_AI):
 		return false
+	if not (get("daily_spec") as Dictionary).is_empty():
+		return false   # V1.6.1 A4：每日挑戰不給教練（大家同一題、上排行榜）
 	if mode == Mode.PUZZLE and bool(report.get("goal_ok", false)):
 		return false
 	return Coach.supported(last_armies[0], battle_rules, _coach_pz())
@@ -588,12 +591,14 @@ func _coach_open() -> void:
 		var a1 = last_armies[1].copy()
 		var rr = battle_rules.copy() if battle_rules != null else null
 		var pz := _coach_pz()
+		var ctl := {"stop": false, "until": Time.get_ticks_msec() + Coach.TIME_MS, "done": 0}
+		co_ctl = ctl
 		if DisplayServer.get_name() == "headless" or shot_dir != "":
-			co_res = Coach.search(a0, a1, rr, pz)
+			co_res = Coach.search(a0, a1, rr, pz, Coach.LIMIT, ctl)
 		else:
 			co_thread = Thread.new()
 			co_thread_key = key
-			co_thread.start(func(): return Coach.search(a0, a1, rr, pz))
+			co_thread.start(func(): return Coach.search(a0, a1, rr, pz, Coach.LIMIT, ctl))
 	overlay = "coach"
 	_focus = 0
 
@@ -602,7 +607,10 @@ func _v16_jobs(_delta: float) -> void:
 	if co_thread != null and not co_thread.is_alive():
 		var res = co_thread.wait_to_finish()
 		co_thread = null
-		if co_thread_key == co_key:
+		if co_thread_key == co_key and str((res as Dictionary).get("status", "")) == "cancel" and overlay == "coach":
+			co_key = ""
+			_coach_open()   # 取消後又打開同一場：重算（不顯示「已取消」）
+		elif co_thread_key == co_key:
 			co_res = res   # 過期的結果（換場了）不收
 		else:
 			var want := co_key
@@ -612,13 +620,54 @@ func _v16_jobs(_delta: float) -> void:
 
 func _exit_tree() -> void:
 	if co_thread != null:
+		co_ctl["stop"] = true   # V1.6.1 F5：先叫它停（64 tick 內會停），不用等整場跑完
 		co_thread.wait_to_finish()   # 結束時收掉教練的背景工作（Codex v160-i1 #3）
 		co_thread = null
 	super._exit_tree()
 
+## V1.6.1 F5：推演中按「取消」：叫背景停下、關面板；下次打開這一場會重算
+func _coach_cancel() -> void:
+	co_ctl["stop"] = true
+	co_key = ""
+	overlay = ""
+
+## V1.6.1 A4：教練紀錄分層。鍵＝實驗簿同一套（殘局 id、試煉 t＋編號、工坊／三考依內容）；一般對 AI 不記。
+## coached[鍵] = {"lv": 看過的最高提示層級 1～3, "ap": 有沒有套用, "self": 自力最佳星數（沒用教練過關時才更新）}
+var co_assist := ""   # 這一題這次有用到第 2 層以上或套用：之後過關算「教練協力」
+func _coach_note(lv: int, applied := false) -> void:
+	var k := _nb_key()
+	if k == "":
+		return
+	var cd: Dictionary = Save.data.get("coached", {})
+	var e: Dictionary = cd.get(k, {"lv": 0, "ap": 0, "self": int(Save.data.get("puzzle_stars", {}).get(k, 0))})
+	e["lv"] = maxi(int(e.get("lv", 0)), lv)
+	if applied:
+		e["ap"] = 1
+	cd[k] = e
+	Save.data["coached"] = cd
+	if lv >= 2 or applied:
+		co_assist = k
+
+## 過關時（game_core 存星數之後呼叫）：沒用教練的成績才進「自力最佳」
+func _coach_after_clear(stars: int) -> void:
+	var k := _nb_key()
+	if k == "":
+		return
+	var cd: Dictionary = Save.data.get("coached", {})
+	if not cd.has(k):
+		return
+	if co_assist != k:
+		cd[k]["self"] = maxi(int(cd[k].get("self", 0)), stars)
+	Save.data["coached"] = cd
+
+static func coach_badge(data: Dictionary, pid: String) -> bool:
+	var e = data.get("coached", {}).get(pid)
+	return e is Dictionary and int(e.get("lv", 0)) >= 2 and int(e.get("self", 0)) < int(data.get("puzzle_stars", {}).get(pid, 0))
+
 func _coach_apply() -> void:
 	if not bool(co_res.get("found", false)):
 		return
+	_coach_note(3, true)
 	if mode == Mode.PUZZLE:
 		var b = co_res["army"]
 		armies[0] = b.copy()
@@ -635,38 +684,98 @@ func _coach_apply() -> void:
 		call("_rv_recalc")
 
 func _dir_name(f: Vector2i, t: Vector2i) -> String:
-	if t.x > f.x:
-		return L.t("co_fwd")
-	if t.x < f.x:
-		return L.t("co_back")
-	return L.t("co_up") if t.y < f.y else L.t("co_down")
+	var parts: Array = []
+	var dx := t.x - f.x
+	if last_armies.size() > 0 and last_armies[0].team == 1:
+		dx = -dx
+	if dx > 0:
+		parts.append(L.t("co_fwd"))
+	elif dx < 0:
+		parts.append(L.t("co_back"))
+	if t.y < f.y:
+		parts.append(L.t("co_up"))
+	elif t.y > f.y:
+		parts.append(L.t("co_down"))
+	return L.t("co_and", parts) if parts.size() == 2 else (str(parts[0]) if parts.size() == 1 else "")
+
+func _coach_hint2() -> String:
+	if str(co_res.get("kind", "move")) == "swap":
+		return L.t("co_l2s", [L.t("unit_%d" % int(co_res["to_type"]))])
+	if bool(co_res.get("grid", true)):
+		return L.t("co_l2", [_dir_name(co_res["from"], co_res["to"])])
+	return L.t("co_l2h", [_dir_name(co_res["from"], co_res["to"])])
+
+func _coach_status_line() -> String:
+	var tr := int(co_res.get("tries", 0))
+	match str(co_res.get("status", "exhausted")):
+		"budget":
+			return L.t("co_budget", [tr, int(co_res.get("total", 0)) - tr])
+		"timeout":
+			return L.t("co_timeout", [tr])
+		"cancel":
+			return L.t("co_cancelled")
+	return L.t("co_none", [tr])
+
+## 第 2 層殘影：小棋盤上原本的兵（實）→ 建議的位置或兵種（半透明）
+func _coach_ghost(c: Vector2) -> void:
+	var t0 := int(co_res["type"])
+	var t1 := int(co_res.get("to_type", t0))
+	var cs := 44.0
+	var tm: int = last_armies[0].team
+	var off := Vector2.ZERO
+	if str(co_res.get("kind", "move")) == "swap":
+		off = Vector2(cs * 1.6, 0)
+	else:
+		var f: Vector2i = co_res["from"]
+		var t: Vector2i = co_res["to"]
+		var k := 1.0 if bool(co_res.get("grid", true)) else 1.0 / Coach.FREE_STEP
+		off = Vector2((t.x - f.x) * k, (t.y - f.y) * k).normalized() * cs * 1.6
+	var a := c - off / 2.0
+	var b := c + off / 2.0
+	for gx in range(-2, 3):
+		for gy in range(-1, 2):
+			draw_rect(Rect2(c + Vector2(gx, gy) * cs - Vector2(cs, cs) / 2.0, Vector2(cs, cs)), Color(1, 1, 1, 0.05 if (gx + gy) % 2 == 0 else 0.02))
+	Art.unit(self, a + Vector2(0, 14), t0, tm, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.62, cbm())
+	_chalk_arrow(a + off.normalized() * 20.0, b - off.normalized() * 20.0)
+	Art.unit(self, b + Vector2(0, 14), t1, tm, 1.0, 0.0, 0.0, 0.0, 0.42 + 0.12 * sin(time * 4.0), time, 0.62, cbm())
 
 func _draw_coach() -> void:
 	var busy := co_thread != null
 	var found: bool = bool(co_res.get("found", false))
 	var lines: Array = []
 	if busy:
-		lines.append(L.t("co_busy"))
+		lines.append(L.t("co_busy_n", [int(co_ctl.get("done", 0)), Coach.LIMIT]))
 	elif not found:
-		lines.append(L.t("co_none", [int(co_res.get("tries", 0))]))
+		lines.append(_coach_status_line())
 	else:
 		var tn := L.t("unit_%d" % int(co_res["type"]))
 		lines.append(L.t("co_l1", [tn]))
 		if co_layer >= 2:
-			lines.append(L.t("co_l2", [_dir_name(co_res["from"], co_res["to"])]))
+			lines.append(_coach_hint2())
 	var body := "\n".join(lines)
-	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help"), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + GAP_XL + 50.0 + GAP_M + 44.0 + GAP_L)
+	var gh := 150.0 if found and co_layer >= 2 else 0.0
+	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + gh + GAP_XL + 50.0 + GAP_M + 44.0 + GAP_L)
 	_panel(P)
-	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("co_title"), L.t("co_help"), tz("S"), 540)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("co_title"), L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540)
 	_text(Vector2(640, y), body, tz("B"), Color.WHITE, true, true, 540)
-	y += text_h(body, tz("B"), 540) + GAP_XL
-	if found and co_layer < 2:
-		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_more"), func(): co_layer = 2, true, true)
+	y += text_h(body, tz("B"), 540)
+	if gh > 0.0:
+		_coach_ghost(Vector2(640, y + gh / 2.0))
+		y += gh
+	y += GAP_XL
+	if busy:
+		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_cancel"), func(): _coach_cancel(), true, true)   # 推演中：明顯的取消（手把 A；B＝返回也會取消）
+	elif found and co_layer < 2:
+		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_more"), func(): co_layer = 2; _coach_note(2), true, true)
 	elif found:
 		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_apply") if mode == Mode.PUZZLE else L.t("co_review"), func(): _coach_apply(), true, true)
-	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _coach_cancel() if co_thread != null else _close_overlay_plain())
 	if found and co_layer < 1:
 		co_layer = 1
+		_coach_note(1)
+
+func _close_overlay_plain() -> void:
+	overlay = ""
 
 ## ── #10 裂隙模式 ──
 const Rift = preload("res://scripts/game/v16_rift.gd")

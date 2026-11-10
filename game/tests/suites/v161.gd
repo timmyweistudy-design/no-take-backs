@@ -129,3 +129,42 @@ func test_hold_rebind_v161() -> void:
 	Input.flush_buffered_events()
 	Input.use_accumulated_input = true
 	ok(not G.hold_keys_down({"place": KEY_K}, {}), "放開就停")
+
+func test_coach_search_v161() -> void:
+	var CO = load("res://scripts/game/v16_coach.gd")
+	var Army = load("res://scripts/core/army.gd")
+	var weak = Army.new(0, 100)
+	weak.place(0, 0, 4)
+	var strong = Army.new(1, 100)
+	for r in [1, 3, 5, 7]:
+		strong.place(3, 10, r)
+	var res: Dictionary = CO.search(weak, strong, null, {}, 32)
+	ok(not bool(res["found"]) and str(res["status"]) in ["exhausted", "budget"], "沒找到要分清楚是全試過還是預算用完", str(res))
+	var pl: Dictionary = CO.plan(weak, {}, 32)
+	ok((pl["list"] as Array).size() <= 32 and int(pl["total"]) >= (pl["list"] as Array).size(), "候選不超過 32")
+	var sw: Array = CO.swap_cands(weak)
+	var D = load("res://scripts/core/unit_defs.gd")
+	ok(not sw.is_empty() and sw.all(func(c): return D.cost(int(c[2])) == D.cost(0) and int(c[2]) != 0), "換兵只換同價、不同種（A5）")
+	var ctl := {"stop": true}
+	var r2: Dictionary = CO.search(weak, strong, null, {}, 32, ctl)
+	ok(str(r2["status"]) == "cancel" and int(r2["tries"]) == 0, "取消立刻停（F5）")
+	var r3: Dictionary = CO.search(weak, strong, null, {}, 32, {"until": 1})
+	ok(str(r3["status"]) == "timeout", "期限過了算時間到，不說無解")
+	# 自由部署
+	var fa = Army.new(0, 100)
+	fa.deploy = "free"
+	fa.place_xy(3, 4000, 4500)
+	var fm: Array = CO.move_cands(fa)
+	ok(not fm.is_empty() and fm.all(func(c): return c[0] == "x" and (int(c[2]) - 4000) % 500 == 0), "自由部署也有移位候選（半格）")
+	ok(CO.supported(fa, null, {}), "自由部署可以用教練")
+
+func test_coach_record_v161() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var d := {"puzzle_stars": {"p5": 3}, "coached": {"p5": {"lv": 2, "ap": 0, "self": 1}}}
+	ok(G.coach_badge(d, "p5"), "用過第 2 層、自力只有 1 星：顯示教練協力")
+	d["coached"]["p5"]["self"] = 3
+	ok(not G.coach_badge(d, "p5"), "自力也拿到 3 星：不顯示")
+	var S = load("res://scripts/game/save.gd")
+	var bad := {"coached": {"p1": {"lv": 9, "ap": 3, "self": -2}, "p2": "x"}}
+	S.sanitize_v16(bad)
+	ok(bad["coached"] == {"p1": {"lv": 3, "ap": 0, "self": 0}}, "教練紀錄驗型", str(bad["coached"]))
