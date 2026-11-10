@@ -121,31 +121,41 @@ func test_board_double_v161() -> void:
 	ST.lb_tick()
 	ok(g3.size() == 1 and (g3[0] as Array).is_empty(), "逾時：下載回空清單")
 	var g4 := []
-	ST.daily_fetch(100, func(l): g4.append(l), 1)
 	var nf2 := fk.finds.size()
+	ST.daily_fetch(100, func(l): g4.append(l), 1)
 	ST.now_ms += 5000
 	ST.lb_tick()
-	ok(fk.finds.size() == nf2, "逾時那筆的回呼還沒回來：通道不放")
+	ok(fk.finds.size() == nf2 and g4.size() == 1, "逾時那筆的回呼還沒回來：通道不放，新的下載直接回空")
 	fk.emit_signal("leaderboard_scores_downloaded", "", 3, [])   # 別的 handle
-	ok(fk.finds.size() == nf2, "對不上的回呼不算")
+	var g5b := []
+	ST.daily_fetch(100, func(l): g5b.append(l), 1)
+	ok(fk.finds.size() == nf2, "對不上的回呼不算（還在隔離）")
 	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])   # 遲到的那個
-	ok(fk.finds.size() == nf2 + 1 and g4.is_empty(), "遲到回呼被吃掉，才送下一筆（不會配給新的那筆）")
+	var g4b := []
+	ST.daily_fetch(100, func(l): g4b.append(l), 1)
+	ok(fk.finds.size() == nf2 + 1 and g4b.is_empty(), "遲到回呼被吃掉，才送新的請求")
 	fk.emit_signal("leaderboard_find_result", 7, 1)
 	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])
-	ok(g4.size() == 1, "對得上才回")
-	# 遲到回呼一直不來：LB_STALE_MS 後放開
+	ok(g4b.size() == 1, "對得上才回")
+	# 遲到回呼一直不來：通道不放；這段時間新的下載直接回空（畫面不卡），上傳留在佇列（Codex v100-i2 #1）
 	var g6 := []
 	ST.daily_fetch(100, func(l): g6.append(l), 1)
 	ST.now_ms += ST.LB_TIMEOUT_MS + 1
 	ST.lb_tick()
+	ok(g6.size() == 1, "逾時回空")
 	var g7 := []
-	ST.daily_fetch(100, func(l): g7.append(l), 1)
 	var nf3 := fk.finds.size()
-	ST.now_ms += ST.LB_STALE_MS + 1
+	SV.data["weekly"] = {"wk": 5, "best": 30, "pend": 1, "det": [1, 1, 100510]}
+	ST.weekly_upload(5, 30, PackedInt32Array([1, 1, 100510]))
+	ST.daily_fetch(100, func(l): g7.append(l), 1)
+	ST.now_ms += 600000
 	ST.lb_tick()
-	ok(g6.size() == 1 and fk.finds.size() == nf3 + 1, "保險期過了才放開")
-	fk.emit_signal("leaderboard_find_result", 0, 0)
-	ok(g7.size() == 1, "下一筆照常結束")
+	ok(g7.size() == 1 and (g7[0] as Array).is_empty() and fk.finds.size() == nf3, "隔離中：下載直接回空、不送新請求，時間過再久也不放")
+	fk.emit_signal("leaderboard_find_result", 0, 0)   # 遲到的那個（找榜階段）終於回來
+	ok(fk.finds.size() == nf3 + 1 and fk.finds[-1] == "weekly_5", "遲到回呼回來才放：排著的上傳接著送")
+	fk.emit_signal("leaderboard_find_result", 11, 1)
+	fk.emit_signal("leaderboard_score_uploaded", true, 11, {})
+	ok(int(SV.data["weekly"]["pend"]) == 0, "上傳成功清待送")
 	# W2：上傳限額 10 分鐘 10 次（下載不受限）
 	ST.lb_reset()
 	ST._steam = fk
@@ -206,7 +216,9 @@ func test_ach_store_result_v100() -> void:
 	for i in ST.ACH_RETRY_TICKS:
 		ST.run_callbacks()
 	fk.emit_signal("user_stats_stored", 0, 1)
-	ok(ST.store_ok and not ST.ach_dirty, "回呼 OK 才算確認")
+	ok(not ST.store_ok, "逾時那批的遲到 OK 不能確認新的一批（Codex v100-i2 #2）")
+	fk.emit_signal("user_stats_stored", 0, 1)
+	ok(ST.store_ok and not ST.ach_dirty, "新的一批自己的回呼 OK 才算確認")
 	ST.now_ms = -1
 	fk.fail_set = true
 	ST.unlock("COMEBACK")
@@ -214,6 +226,7 @@ func test_ach_store_result_v100() -> void:
 	ST._steam = null
 	ST._stats_wired = false
 	ST._ach_inflight = false
+	ST._ach_stale = false
 	ST.ach_dirty = false
 	ST.store_ok = true
 	fk.free()

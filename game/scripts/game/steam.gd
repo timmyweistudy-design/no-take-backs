@@ -107,6 +107,7 @@ static var ach_dirty := false
 static var _ach_inflight := false
 static var _ach_sent_at := 0
 static var _ach_resend_after := false
+static var _ach_stale := false   # 有一批確認逾時、回呼可能還會遲到（Codex v100-i2 #2）
 static var _stats_wired := false
 static func _store() -> void:
 	if _steam == null:
@@ -138,6 +139,9 @@ static func _store() -> void:
 		store_ok = true
 
 static func _on_stats_stored(_game, result) -> void:
+	if _ach_stale:
+		_ach_stale = false   # 這個回呼當成逾時那一批的：吃掉，不拿來確認新的一批（新的一批之後會逾時重送，最多多送一次）
+		return
 	if not _ach_inflight:
 		return
 	_ach_inflight = false
@@ -154,6 +158,7 @@ static func _on_stats_stored(_game, result) -> void:
 static func ach_tick() -> void:
 	if _ach_inflight and _now() - _ach_sent_at > ACH_CONFIRM_MS:
 		_ach_inflight = false
+		_ach_stale = true
 		store_ok = false
 	if not store_ok and not _ach_inflight:
 		_retry_tick += 1
@@ -312,11 +317,10 @@ static func ghost_fetch(wk: int, done: Callable) -> void:
 ## 回呼一律對「現在在途的那一筆」：找榜用榜名對、上傳／下載用 handle 對，對不上的是逾時後才到的舊回呼，丟掉。
 ## 找榜失敗只結束在途那一筆：下載回空清單（畫面不會卡在讀取中），上傳的待送留在存檔、下次開模式補送。
 ## 逾時（LB_TIMEOUT_MS）一樣當失敗（下載回空），但通道不放：記成 _lb_stale，等那個遲到的回呼真的回來（找榜階段＝下一個找榜結果，
-## 上傳／下載階段＝同一個 handle 的回呼）吃掉它，才送下一筆；LB_STALE_MS 內都沒來才放（Codex v100-i1 #1：固定冷卻會讓遲到回呼配錯人）。
+## 上傳／下載階段＝同一個 handle 的回呼）吃掉它，才送下一筆；一直沒來就一直不放（這段時間下載直接回空、上傳留著）。
 ## 上傳限額：任意 10 分鐘最多 10 次（Valve UploadLeaderboardScore 的限制），超過就留在佇列等。
 ## 同一個榜在佇列裡只留最新一筆上傳。
 const LB_TIMEOUT_MS := 15000
-const LB_STALE_MS := 60000
 const LB_WINDOW_MS := 600000
 const LB_WINDOW_MAX := 10
 static var _lb_q: Array = []        # 等著送的請求 {k:"up"/"get", name, p | done, free}
@@ -350,9 +354,16 @@ static func _lb_pump() -> void:
 	if _steam == null or not _lb_cur.is_empty():
 		return
 	if not _lb_stale.is_empty():
-		if _now() < int(_lb_stale["until"]):
-			return
-		_lb_stale = {}
+		# V1.0.0（Codex v100-i2 #1）：遲到回呼沒回來前通道一直不放（沒有請求身分，定時放行會配錯）。
+		# 這段時間新的下載直接回空（畫面不卡在讀取中）；上傳留在佇列（待送本來就存在存檔，下次開遊戲也會補送）。
+		var keep: Array = []
+		for r0 in _lb_q:
+			if r0["k"] == "get":
+				(r0["done"] as Callable).call([])
+			else:
+				keep.append(r0)
+		_lb_q = keep
+		return
 	var win := _lb_window_ok()
 	for i in _lb_q.size():
 		var r: Dictionary = _lb_q[i]
@@ -386,7 +397,7 @@ static func lb_tick() -> void:
 		return
 	if _now() - int(_lb_cur["t0"]) > LB_TIMEOUT_MS:
 		_lb_stale = {"stage": _lb_cur["stage"], "handle": int(_lb_cur.get("handle", -1)), "name": _lb_cur["name"],
-			"score": int(_lb_cur["p"][0]) if _lb_cur["k"] == "up" else -1, "until": _now() + LB_STALE_MS}
+			"score": int(_lb_cur["p"][0]) if _lb_cur["k"] == "up" else -1}
 		_lb_finish(false)
 
 ## 遲到回呼（逾時那一筆的）：吃掉它、放開通道。上傳成功照樣清待送。回傳 true＝這個回呼是遲到的那個。

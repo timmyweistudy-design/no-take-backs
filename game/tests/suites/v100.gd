@@ -179,3 +179,33 @@ func test_quarantine_fail_keeps_v100() -> void:
 			DirAccess.remove_absolute("user://" + f)
 	SV.prefix = old_prefix
 	SV.data = keep
+
+## R1（Codex v100-i2）：試煉（自由部署）重打保留擺法；殘局固定兵不重複。
+func test_retry_trial_free_v100() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	var PZ = load("res://scripts/game/puzzles.gd")
+	var pz: Dictionary = PZ.puzzles()[0]
+	ok(not (pz.get("fixed", []) as Array).is_empty(), "第一關有固定兵")
+	g._pick_puzzle(str(pz["id"]), false)
+	var nfix: int = g.armies[0].units.size()
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	g._mark_retry()
+	g._start_mode(g.Mode.PUZZLE)
+	ok(g.armies[0].units.size() == nfix, "只有固定兵時重打不會多出一份", str(g.armies[0].units.size()))
+	g._start_trial(0)
+	var a = g.armies[0]
+	ok(a.deploy == "free", "試煉是自由部署")
+	var placed := 0
+	for p in [[0, 3000, 3000], [1, 3000, 5000], [2, 1500, 4000]]:
+		if a.place_xy(p[0], p[1], p[2]):
+			placed += 1
+	ok(placed >= 2, "擺得上去", str(placed))
+	var n1: int = a.units.size()
+	g.last_armies = [a.copy(), g.armies[1].copy()]
+	g._mark_retry()
+	ok(g.retry_key == "tr:0", "試煉的重打鍵", g.retry_key)
+	g._start_trial(0)
+	g._apply_retry()
+	ok(g.armies[0].units.size() == n1, "試煉重打：擺法還在", "%d/%d" % [g.armies[0].units.size(), n1])
+	g.free()

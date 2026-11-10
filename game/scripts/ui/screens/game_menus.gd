@@ -1310,7 +1310,8 @@ func _draw_hub(kind: String) -> void:
 		btn_paper = true
 		var cb: Callable = it[3]
 		var ek := str(it[0])
-		_btn(r, "", func(): _nav_push(kind); nav_hub = kind; Guide.see(Save.data, ek); cb.call(), bool(it[4]), i == 0)
+		var ci := i
+		_btn(r, "", func(): _nav_push(kind); nav_focus[kind] = ci; nav_hub = kind; Guide.see(Save.data, ek); cb.call(), bool(it[4]), i == 0)
 		btn_paper = false
 		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
 		_ink_mode = on_paper

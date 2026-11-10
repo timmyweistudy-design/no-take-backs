@@ -1111,6 +1111,7 @@ func _open(name: String) -> void:
 var nav_stack: Array = []
 var nav_hub := ""
 
+var nav_focus := {}   # V1.0.0：卡片面板 → 上次點的那張卡（返回時焦點回原卡）
 func _nav_push(from: String) -> void:
 	nav_stack.append(from)
 
@@ -1118,7 +1119,7 @@ func _nav_back(fallback := "") -> void:
 	if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
 		nav_hub = ""   # 關掉卡片面板：之後打完不再自動打開它
 	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
-	_focus = 0
+	_focus = int(nav_focus.get(overlay, 0))   # V1.0.0（Codex v100-i1 #8）：回到卡片面板時焦點回原卡
 
 
 func _fmt_num(v: float) -> String:

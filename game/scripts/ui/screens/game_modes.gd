@@ -340,7 +340,7 @@ func _accept_workshop(c := "") -> void:
 		return
 	ws_ctl = ctl
 	ws_thread = t
-	ws_pending = {"from_clip": from_clip}
+	ws_pending = {"from_clip": from_clip, "overlay": overlay}
 	_toast(L.t("ws_checking"))
 
 func _ws_cancel() -> void:
@@ -356,8 +356,8 @@ func _ws_jobs() -> void:
 			ws_old.erase(t)
 	if ws_thread == null:
 		return
-	if state != St.TITLE:
-		_ws_cancel()   # 驗證中開了別的：不接著做
+	if state != St.TITLE or overlay != str(ws_pending.get("overlay", "")):
+		_ws_cancel()   # 驗證中開了別的（換頁、開模式）：不接著做（Codex v100-i2 #3）
 		return
 	if not ws_thread.is_alive():
 		var d: Dictionary = ws_thread.wait_to_finish()
