@@ -300,7 +300,7 @@ func test_fog_v160() -> void:
 	var G = load("res://scripts/ui/screens/game_v16.gd")
 	var us := [{"type": 0, "col": 10, "row": 1}, {"type": 1, "col": 11, "row": 2}, {"type": 2, "col": 14, "row": 3}, {"type": 2, "col": 12, "row": 3}]
 	var seen: Array = G.fog_seen(us)
-	ok(seen.size() == 2 and int(seen[0]["col"]) == 10 and int(seen[1]["col"]) == 11, "迷霧推演只露前兩排（10、11 欄）")
+	ok(seen.size() == 2 and int(seen[0]["col"]) == 10 and int(seen[1]["col"]) == 14, "迷霧推演：依欄列排序每 3 隻露 1 隻（4 隻露第 1、4 隻）")
 
 func test_coop_v160() -> void:
 	var G = load("res://scripts/ui/screens/game_v16.gd")

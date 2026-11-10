@@ -1026,9 +1026,10 @@ func _draw_trio_result() -> void:
 	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start(trio_i), true, true)
 	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
 
-## ── #20 迷霧推演：對 AI（普通）；開戰前斥候看得到敵方前兩排（10、11 欄），後排要猜。只動畫面，不動模擬 ──
+## ── #20 迷霧推演：對 AI（普通）；開戰前斥候回報約三分之一的敵兵（依欄、列排序後每 3 隻露 1 隻，固定不隨機），其他要猜。
+## 只動畫面，不動模擬。原本做「前兩排」：AI 多半把兵擺在前兩排，21 隻露 16 隻，等於沒藏（版面截圖看到）。
 var fog_on := false
-const FOG_COLS := 2
+const FOG_EVERY := 3
 
 func _fog_start() -> void:
 	rules = null
@@ -1040,7 +1041,13 @@ func _fog_start() -> void:
 	ai_prebuilt = true
 
 static func fog_seen(units: Array) -> Array:
-	return units.filter(func(u): return u.has("col") and int(u["col"]) < 10 + FOG_COLS)
+	var lst: Array = units.filter(func(u): return u.has("col"))
+	lst.sort_custom(func(a, b): return int(a["col"]) * 16 + int(a["row"]) < int(b["col"]) * 16 + int(b["row"]))
+	var out: Array = []
+	for i in lst.size():
+		if i % FOG_EVERY == 0:
+			out.append(lst[i])
+	return out
 
 func _fog_draw() -> void:
 	if not fog_on or state != St.PLACE or mode != Mode.VS_AI or armies.size() < 2 or armies[1] == null:
