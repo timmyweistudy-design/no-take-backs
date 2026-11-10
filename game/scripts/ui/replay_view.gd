@@ -505,12 +505,21 @@ func review_desc() -> String:
 	return ""
 
 ## 重算「如果」：同一個對手、改過的陣型，用確定性模擬直接跑到結束。
-static func review_run(a0, a1, p_rules = null, cmds: Array = []) -> Dictionary:
+## ctl（1.1.0 H1）：背景用 {"stop", "until"}；每 64 tick 看一次，停了回 {"cancel": true}。沒給就照舊一次跑完。
+static func review_run(a0, a1, p_rules = null, cmds: Array = [], ctl := {}) -> Dictionary:
 	var s = Sim.new(a0.copy(), a1.copy(), p_rules)
 	if s.cmd_on:
 		s.cmd_play(cmds)
 	s.fast = true
-	s.run_to_end()
+	if ctl.is_empty():
+		s.run_to_end()
+	else:
+		while not s.finished:
+			s.step()
+			if s.tick & 63 == 0 and PZ._stopped(ctl):
+				return {"cancel": true}
+		if PZ._stopped(ctl):
+			return {"cancel": true}
 	var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else 0
 	return {"winner": s.winner, "rem": rem, "log": s.power_log, "log2": s.power_log2, "b": [s.budget_of(0), s.budget_of(1)], "ticks": s.tick}
 
@@ -536,6 +545,11 @@ func _rv_dirty() -> void:
 	rv_div = -1
 	rv_gen += 1
 
+## 1.1.0 H1：可取消、有期限（RV_LIMIT_MS）；改了陣型或離開覆盤就叫停，停了的執行緒放 rv_old 背景回收（不在主執行緒等）。
+## 開不了執行緒就提示、可以再按。
+const RV_LIMIT_MS := 20000
+var rv_ctl := {}
+var rv_old: Array = []
 func _rv_recalc() -> void:
 	if rv_thread != null:
 		return
@@ -545,17 +559,46 @@ func _rv_recalc() -> void:
 	var a: Variant = rv_army.copy()
 	var e: Variant = rv_enemy.copy()
 	var r: Variant = battle_rules.copy() if battle_rules != null else null
-	rv_thread_gen = rv_gen
-	rv_thread = Thread.new()
 	var lg: Array = last_cmds.duplicate(true)
-	rv_thread.start(func(): return review_run(a, e, r, lg))
+	var ctl := {"stop": false, "until": Time.get_ticks_msec() + RV_LIMIT_MS}
+	var t := Thread.new()
+	if t.start(func(): return review_run(a, e, r, lg, ctl)) != OK:
+		_toast(L.t("rv_fail"), true)
+		return
+	rv_ctl = ctl
+	rv_thread_gen = rv_gen
+	rv_thread = t
+
+func _rv_cancel() -> void:
+	if rv_thread != null:
+		rv_ctl["stop"] = true
+		rv_old.append(rv_thread)
+		rv_thread = null
 
 func _rv_poll() -> void:
+	for t in rv_old.duplicate():
+		if not (t as Thread).is_alive():
+			(t as Thread).wait_to_finish()
+			rv_old.erase(t)
+	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
+		_rv_cancel()   # 離開覆盤或改了陣型：舊的不用算完
+		return
 	if rv_thread != null and not rv_thread.is_alive():
 		var res: Dictionary = rv_thread.wait_to_finish()
 		rv_thread = null
+		if bool(res.get("cancel", false)):
+			_toast(L.t("rv_slow"), true)   # 只有逾時會走到這（離開、改陣型在上面就收掉了）
+			return
 		if rv_thread_gen == rv_gen:
 			_rv_set_result(res)
+
+## 結束時：叫停再等（64 tick 內會停）；GIF 也叫停。
+func _rv_exit() -> void:
+	_rv_cancel()
+	for t in rv_old:
+		(t as Thread).wait_to_finish()
+	rv_old = []
+	gif_ctl["stop"] = true
 
 func _rv_play() -> void:
 	rv_last = [rv_army.copy(), rv_enemy.copy()]
@@ -781,6 +824,7 @@ var gif_on := false
 var gif_frames: Array = []
 var gif_acc := 0.0
 var gif_thread: Thread = null
+var gif_ctl := {}
 
 func _gif_tick(delta: float) -> void:
 	if gif_thread != null and not gif_thread.is_alive():
@@ -809,12 +853,20 @@ func _gif_tick(delta: float) -> void:
 		var frames := gif_frames.duplicate()
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://gifs"))
 		var fn := "user://gifs/battle_%s.gif" % Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "_")
-		gif_thread = Thread.new()
-		gif_thread.start(func():
-			var b: PackedByteArray = GIFENC.encode(frames, 10)
+		var gctl := {"stop": false}
+		gif_ctl = gctl
+		var gt := Thread.new()
+		var ok := gt.start(func():
+			var b: PackedByteArray = GIFENC.encode(frames, 10, gctl)
+			if b.is_empty():
+				return ""   # 1.1.0 H1：被叫停（遊戲結束）就不寫出半個檔
 			var fa := FileAccess.open(fn, FileAccess.WRITE)
 			if fa == null:
 				return ""
 			fa.store_buffer(b)
 			fa.close()
 			return ProjectSettings.globalize_path(fn))
+		if ok != OK:
+			_toast(L.t("gif_fail"), true)   # 1.1.0 H1：開不了執行緒就說，不卡在「正在存」
+		else:
+			gif_thread = gt

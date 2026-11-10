@@ -180,10 +180,17 @@ def run_step(s, godot, out, timeout, marker):
     return {"name": s["name"], "ok": not why, "why": why, "sec": time.time() - t0}
 
 
-def serial(godot, out, name, args, ok_re=None):
+def serial(godot, out, name, args, ok_re=None, marker=""):
+    # 1.1.0 H2：串行步驟（匯入）也帶程序標記；逾時或例外時用標記砍掉 Windows 端殘留的 Godot（WSL 的 timeout 只砍外層）
     log = out / f"{name}.log"
-    with open(log, "wb") as f:
-        rc = subprocess.run([godot] + args, cwd=GAME, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=900).returncode
+    cmd = godot_cmd(godot, args, marker) if marker else [godot] + args
+    try:
+        with open(log, "wb") as f:
+            rc = subprocess.run(cmd, cwd=GAME, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=900).returncode
+    except (subprocess.TimeoutExpired, OSError):
+        if marker:
+            kill_marker(godot, marker)
+        return False
     txt = log.read_text(encoding="utf-8", errors="ignore")
     if rc != 0 or ERR.search(txt) or (ok_re and not re.search(ok_re, txt, re.M)):
         return False
@@ -219,12 +226,12 @@ def main() -> int:
         print(f"警告：Godot 版本 {ver} 不是 {EXPECT}，這次結果不能當驗收")
     marker = uuid.uuid4().hex[:10]
     if not (GAME / ".godot").is_dir() or a.no_cache:
-        if not serial(godot, out, "import", ["--headless", "--path", ".", "--import"]):
+        if not serial(godot, out, "import", ["--headless", "--path", ".", "--import"], marker=marker):
             return fail("匯入失敗")
     # V1.1 E1：載入與啟動檢查改成和其他步驟一起平行跑（結果一樣要過，只是不再先排隊等）
     gate = cf.ThreadPoolExecutor(2)
-    f_load = gate.submit(serial, godot, out, "load", ["--headless", "--path", ".", "--script", "res://tools/load_all.gd"], r"^LOADALL .*失敗 0：")
-    f_boot = gate.submit(serial, godot, out, "boot", ["--headless", "--path", ".", "--", "--boot-check"], r"^BOOTOK")
+    f_load = gate.submit(serial, godot, out, "load", ["--headless", "--path", ".", "--script", "res://tools/load_all.gd"], r"^LOADALL .*失敗 0：", marker)
+    f_boot = gate.submit(serial, godot, out, "boot", ["--headless", "--path", ".", "--", "--boot-check"], r"^BOOTOK", marker)
     steps = plan(a)
     if a.only:
         want = a.only.split(",")

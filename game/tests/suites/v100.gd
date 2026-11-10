@@ -224,3 +224,20 @@ func test_ai_count_migrate_v100() -> void:
 	if not m.is_empty():
 		ok(int(m["ai_games"]) == 12 and int(m["ai_wins"]) == 7, "舊存檔用舊統計估", str(m.get("ai_games")))
 		ok(G.next_step(m, true, false) != "ai", "老玩家不再推薦打第一場 AI")
+
+## 1.1.0 H1：覆盤重算、GIF 編碼可叫停。
+func test_review_gif_cancel_v110() -> void:
+	var RV = load("res://scripts/ui/replay_view.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var a = Armyx.new(0, 100)
+	a.place(0, 4, 4)
+	var e = Armyx.new(1, 100)
+	e.place(0, 11, 4)
+	var full: Dictionary = RV.review_run(a, e)
+	ok(int(full["ticks"]) > 0, "照常跑完")
+	ok(bool(RV.review_run(a, e, null, [], {"stop": true}).get("cancel", false)), "叫停回 cancel")
+	var r2: Dictionary = RV.review_run(a, e, null, [], {"stop": false, "until": Time.get_ticks_msec() + 600000})
+	ok(int(r2["ticks"]) == int(full["ticks"]) and int(r2["winner"]) == int(full["winner"]), "帶 ctl 結果一樣")
+	var G = load("res://scripts/game/gif.gd")
+	var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
+	ok(G.encode([img], 10).size() > 0 and G.encode([img], 10, {"stop": true}).is_empty(), "GIF 叫停回空")

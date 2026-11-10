@@ -3,7 +3,7 @@ base_text：繁中＋英文（strings.csv 的 zh_TW／en、資料檔不是 _sc�
 lang_text：某一語言（zh_CN／ja）自己的字。"""
 import csv, glob, json, os, re
 
-EXTRA = "★☆✓✗✦●◆■□｜・…×％（）：，。！？「」、‘’—"
+EXTRA = "★☆✓✗✦●◆■□○△▲｜・…×％（）：，。！？「」、‘’—"   # 1.1.0 H4：PS 手把 ○△（三種中文字型都要有）
 ALT = {"zh_CN": "sc", "ja": "ja"}
 
 

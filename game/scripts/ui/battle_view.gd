@@ -43,6 +43,8 @@ func _pre_reap() -> void:
 			pre_old.remove_at(i)
 
 func _exit_tree() -> void:
+	if has_method("_rv_exit"):
+		call("_rv_exit")   # 1.1.0 H1：覆盤重算、GIF 先叫停再等
 	var gt = get("gif_thread")
 	if gt != null:
 		gt.wait_to_finish()   # V1.4 #14：GIF 還在寫就等它寫完（Codex v140-i2）

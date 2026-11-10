@@ -29,7 +29,8 @@ static func _u16(out: PackedByteArray, v: int) -> void:
 	out.append((v >> 8) & 0xff)
 
 ## frames：同尺寸的 Image 陣列；delay_cs：每格停留（百分之一秒）。回傳整個 GIF 檔的位元組。
-static func encode(frames: Array, delay_cs := 10) -> PackedByteArray:
+## ctl（1.1.0 H1）：{"stop": true} 時每一格之間停下、回空陣列（呼叫端就不寫檔）。
+static func encode(frames: Array, delay_cs := 10, ctl := {}) -> PackedByteArray:
 	var out := PackedByteArray()
 	if frames.is_empty():
 		return out
@@ -47,6 +48,8 @@ static func encode(frames: Array, delay_cs := 10) -> PackedByteArray:
 	out.append_array("NETSCAPE2.0".to_ascii_buffer())
 	out.append_array(PackedByteArray([3, 1, 0, 0, 0]))
 	for img in frames:
+		if bool(ctl.get("stop", false)):
+			return PackedByteArray()
 		var im: Image = img
 		if im.get_format() != Image.FORMAT_RGBA8:
 			im = im.duplicate()

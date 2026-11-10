@@ -119,7 +119,15 @@ func _fld_xf() -> Transform2D:
 	if fld_sz == MapDefs.STD_SIZE:
 		return Transform2D.IDENTITY
 	var k: float = minf(FIELD.x / fld_size.x, FIELD.y / fld_size.y)
-	return Transform2D(0.0, Vector2(k, k), 0.0, ORIGIN + (FIELD - fld_size * k) / 2.0 - ORIGIN * k)
+	var top := 0.0
+	if k > 1.0:
+		# 1.1.0 H5：小地圖（12×7）放大後，第一排的兵頭頂會超出場地上緣壓到框。放大時上方留一點頭頂空間（只改畫面；
+		# 點擊用同一個轉換的反矩陣，自動對齊）
+		k = minf(FIELD.x / fld_size.x, (FIELD.y - HEAD_ROOM) / fld_size.y)
+		top = HEAD_ROOM * 0.5
+	return Transform2D(0.0, Vector2(k, k), 0.0, ORIGIN + (FIELD - fld_size * k) / 2.0 + Vector2(0, top) - ORIGIN * k)
+
+const HEAD_ROOM := 36.0
 
 func _map_tex() -> Texture2D:
 	if map_art == null:

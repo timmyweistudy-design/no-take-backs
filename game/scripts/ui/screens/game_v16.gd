@@ -1798,7 +1798,15 @@ func _draw_trio_result() -> void:
 		_icon("star", Vector2(640 - 30 + ks * 30, y + 13), 24.0, Color("#ffd166") if ks < trio_st else Color(1, 1, 1, 0.2))
 	y += 26.0 + GAP_L
 	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start_custom(trio_custom) if not trio_custom.is_empty() else _trio_start(trio_i), not trio_busy, true)
-	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
+	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): _trio_back())
+
+## 1.1.0 H3：結算頁「返回」回到三考題組清單（朋友出的題回標題），不露出底下第一場的結果頁
+func _trio_back() -> void:
+	var custom := not trio_custom.is_empty()
+	_go_title()
+	if not custom:
+		overlay = "trio"
+		_focus = 0
 
 ## ── #20 迷霧推演：對 AI（普通）；開戰前斥候回報約三分之一的敵兵（依欄、列排序後每 3 隻露 1 隻，固定不隨機），其他要猜。
 ## 只動畫面，不動模擬。原本做「前兩排」：AI 多半把兵擺在前兩排，21 隻露 16 隻，等於沒藏（版面截圖看到）。

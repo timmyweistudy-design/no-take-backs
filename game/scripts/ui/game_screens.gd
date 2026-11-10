@@ -360,6 +360,8 @@ func _key(k: int) -> void:
 					overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
 				elif overlay == "codex" and bool(get("cx_zoom")) and int(get("cx_unit")) < D.total():
 					set("cx_zoom", false)   # V1.5.1：近看模式先收合
+				elif overlay == "trio_result":
+					call("_trio_back")   # 1.1.0 H3：和結算頁返回鈕同一條路
 				elif overlay == "leave" and state == St.BATTLE and paused:
 					overlay = "pause_menu"   # 和「留下」一樣回暫停選單（Codex v151-i1 #3）
 				elif overlay != "":

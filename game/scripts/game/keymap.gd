@@ -45,7 +45,7 @@ static func pad_name(table: Dictionary, action: String) -> String:
 	return PAD_NAMES.get(c, "B%d" % c)
 
 ## 第十輪 I1：提示依手把種類與重綁設定顯示。Steam Deck、Xbox＝A／B／X／Y。
-const GLYPH_PS := {JOY_BUTTON_A: "×", JOY_BUTTON_B: "O", JOY_BUTTON_X: "□", JOY_BUTTON_Y: "▲", JOY_BUTTON_START: "Options", JOY_BUTTON_BACK: "Share", JOY_BUTTON_LEFT_SHOULDER: "L1", JOY_BUTTON_RIGHT_SHOULDER: "R1"}
+const GLYPH_PS := {JOY_BUTTON_A: "×", JOY_BUTTON_B: "○", JOY_BUTTON_X: "□", JOY_BUTTON_Y: "△", JOY_BUTTON_START: "Options", JOY_BUTTON_BACK: "Share", JOY_BUTTON_LEFT_SHOULDER: "L1", JOY_BUTTON_RIGHT_SHOULDER: "R1"}
 const GLYPH_NIN := {JOY_BUTTON_A: "B", JOY_BUTTON_B: "A", JOY_BUTTON_X: "Y", JOY_BUTTON_Y: "X", JOY_BUTTON_START: "+", JOY_BUTTON_BACK: "-", JOY_BUTTON_LEFT_SHOULDER: "L", JOY_BUTTON_RIGHT_SHOULDER: "R"}
 
 static func pad_family(joy_name: String) -> String:
