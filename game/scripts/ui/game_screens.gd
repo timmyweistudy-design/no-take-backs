@@ -551,8 +551,11 @@ func _process_inner(delta: float) -> void:
 
 # ───────────────────────── 繪圖 ─────────────────────────
 func _draw() -> void:
+	mag_on = bool(Save.s("magnify")) and not pad_mode   # V1.6 #7
+	mag_hit = []
 	var _t0 := Time.get_ticks_usec()
 	_draw_inner()
+	_draw_magnifier()   # V1.6 #7：最上層
 	perf_draw_us = Time.get_ticks_usec() - _t0
 
 

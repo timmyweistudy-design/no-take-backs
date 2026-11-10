@@ -546,7 +546,7 @@ const SET_KEYS := {"set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"
 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
 	"set_speed": ["speed"], "set_hp_bars": ["hp_bars"], "set_dmg_nums": ["dmg_nums"], "set_reduce_fx": ["reduce_fx"], "set_clutch_zoom": ["clutch_zoom"], "set_slowmo": ["slowmo"],
-	"set_cb": ["colorblind"], "set_reduce_motion": ["reduce_motion"], "set_text_plate": ["text_plate"], "set_focus": ["focus_strong"],
+	"set_hold": ["hold_confirm"], "set_magnify": ["magnify"], "set_cb": ["colorblind"], "set_reduce_motion": ["reduce_motion"], "set_text_plate": ["text_plate"], "set_focus": ["focus_strong"],
 	"set_shake": ["shake_pct", "shake"], "set_flash": ["flash_pct", "flash"], "set_playtest": ["playtest"]}
 
 static func set_changed(row: String) -> bool:
@@ -607,7 +607,8 @@ func _settings_rows() -> Array:
 				["set_hints", _optv("hints", ["full", "key", "off"], ["v_full", "v_key", "v_off"]), func(d): _step_setting("hints", ["full", "key", "off"], d)],
 				["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
 				["set_plain_ui", L.t("v_simple") if bool(Save.s("plain_ui")) else L.t("v_standard"), func(d): _cycle_setting("plain_ui", [false, true]); _rebuild_sprites()],
-				["set_toast", _optv("toast_mult", [1, 2, 3, 0], ["v_std", "v_long", "v_xlong", "v_manual"]), func(d): _step_setting("toast_mult", [1, 2, 3, 0], d)]]
+				["set_toast", _optv("toast_mult", [1, 2, 3, 0], ["v_std", "v_long", "v_xlong", "v_manual"]), func(d): _step_setting("toast_mult", [1, 2, 3, 0], d)],
+				["set_magnify", _onoff("magnify"), func(d): _cycle_setting("magnify", [false, true])]]   # V1.6 #7
 		2:
 			return [["set_master", _pct("master"), func(d): _step_setting("master", VOL_STEPS, d); _apply_volumes("hit")],
 				["set_music", _pct("music"), func(d): _step_setting("music", VOL_STEPS, d); _apply_volumes("")],
@@ -619,6 +620,7 @@ func _settings_rows() -> Array:
 		3:
 			return [["set_keys", "@" + L.t("open_it"), func(d): _open("keys")],
 				["set_confirm", _onoff("confirm_place"), func(d): _cycle_setting("confirm_place", [true, false])],
+				["set_hold", _onoff("hold_confirm"), func(d): _cycle_setting("hold_confirm", [false, true])],   # V1.6 #7
 				["set_place_mode", _optv("place_mode", ["both", "tap"], ["v_place_both", "v_place_tap"]), func(d): _step_setting("place_mode", ["both", "tap"], d)],
 				["set_long_press", L.t("sec_f", [_fmt_num(float(Save.s("long_press")))]), func(d): _step_setting("long_press", [0.3, 0.5, 0.8, 1.0], d)],
 				["set_rumble", _pct("rumble"), func(d): _step_setting("rumble", [0, 25, 50, 100], d)],
@@ -898,11 +900,20 @@ func _draw_confirm() -> void:
 	var P := modal_rect(600, maxf(220.0, 40.0 + text_h(t, sz, 540) + GAP_XL + 50.0 + 22.0))
 	_panel(P)
 	_text(Vector2(640, P.position.y + 40), t, sz, Color.WHITE, true, false, 540)
-	_btn(Rect2(380, P.end.y - 72, 250, 50), L.t("ok_go"), func():
-		overlay = confirm_ret
-		if confirm_cb.is_valid():
-			confirm_cb.call(), true, false, Color(0.55, 0.16, 0.12))
+	var okr := Rect2(380, P.end.y - 72, 250, 50)
+	set("confirm_ok_r", okr)
+	if bool(Save.s("hold_confirm")):
+		# V1.6 #7 按住確認：點一下不算，按住 0.6 秒（滑鼠或手把 A）才執行；按鈕底色由左往右填滿
+		_btn(okr, L.t("hold_go"), func(): pass, true, false, Color(0.55, 0.16, 0.12))
+		draw_rect(Rect2(okr.position, Vector2(okr.size.x * clampf(float(get("hold_t")) / 0.6, 0.0, 1.0), 6)), ACCENT)
+	else:
+		_btn(okr, L.t("ok_go"), func(): _confirm_go(), true, false, Color(0.55, 0.16, 0.12))
 	_btn(Rect2(650, P.end.y - 72, 250, 50), L.t("cancel"), func(): overlay = confirm_ret, true, true)
+
+func _confirm_go() -> void:
+	overlay = confirm_ret
+	if confirm_cb.is_valid():
+		confirm_cb.call()
 
 ## V1.5.2：備份資料夾跟著存檔前綴（截圖、測試模式用 shot_／smoke_，不碰玩家真正的備份）。
 ## 正式遊戲前綴是空的＝仍是 user://backup，舊備份照樣讀得到；不用 file_prefix()（含 demo_，試玩版舊備份會找不到）。

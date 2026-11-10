@@ -600,6 +600,8 @@ func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
 	return n * size * line_h(n)
 
 
+var mag_on := false      # V1.6 #7 文字放大鏡：這一幀游標指到的介面字
+var mag_hit: Array = []
 func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
 	if _ink_mode:
 		c = _ink(c)
@@ -612,6 +614,10 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		var fnt := _font_for(lines[i], size, bold)
 		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
 		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
+		if mag_on and _probe_ui and size < 26 and c.a > 0.3:
+			var mw := w if center else fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).has_point(get("mouse")):
+				mag_hit = [lines[i], size, bold]
 		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
 		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
 		var emboss := outline.a < 0.0 and (_ink_mode or (c.get_luminance() < 0.35 and c.s < 0.8))

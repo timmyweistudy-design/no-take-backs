@@ -66,3 +66,45 @@ func test_tactical_marks_v160() -> void:
 	g.tv_toggle_at(a, Vector2i(3500, 4500))
 	ok(g.tv_marks.size() == 2, "再點一次取消")
 	g.free()
+
+func test_terrain_ai_v160() -> void:
+	var PRE = load("res://scripts/game/presets.gd")
+	var RSx = load("res://scripts/core/ruleset.gd")
+	var AIx = load("res://scripts/core/ai_army.gd")
+	var Fx = load("res://scripts/core/formations.gd")
+	var bad := 0
+	var moved := 0
+	for m in [1, 2, 3, 4, 5]:
+		var R = PRE.make("standard", "ai", RSx.all_pool())
+		R.map_id = m
+		R.map_size = 1
+		for sd in 6:
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 900 + sd
+			var base = AIx.build(1, 100, rng, -1, RSx.all_pool(), R)["army"]
+			var before: Array = base.units.duplicate(true)
+			var x = Fx.terrain_smart(base.copy())
+			var y = Fx.terrain_smart(base.copy())
+			var tb: Array = []
+			var tx: Array = []
+			for u in before:
+				tb.append(int(u["type"]))
+			for u in x.units:
+				tx.append(int(u["type"]))
+				if x.terrain.blocked(int(u["x"]), int(u["y"]), x.team):
+					bad += 1
+			tb.sort()
+			tx.sort()
+			if tb != tx or JSON.stringify(x.units) != JSON.stringify(y.units):
+				bad += 1
+			if JSON.stringify(x.units) != JSON.stringify(before):
+				moved += 1
+	ok(bad == 0, "地形 AI：不少兵、不換兵種、不站牆內、結果固定（壞 %d）" % bad)
+	ok(moved > 0, "地形 AI 在地形圖上真的有調整（%d 組）" % moved)
+
+func test_access_settings_v160() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var d: Dictionary = SV.sanitize_settings({})
+	ok(d.has("hold_confirm") and d["hold_confirm"] == false and d.has("magnify") and d["magnify"] == false, "新設定預設關")
+	var e: Dictionary = SV.sanitize_settings({"hold_confirm": "x", "magnify": true})
+	ok(e["hold_confirm"] == false and e["magnify"] == true, "型別不對退回預設、合法值保留")

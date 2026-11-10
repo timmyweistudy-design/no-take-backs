@@ -44,6 +44,7 @@ func _v16_tick(_delta: float) -> void:
 				Mode.VS_AI:
 					if not (get("daily_spec") as Dictionary).is_empty():
 						Funnel.mark("daily_open")
+	_hold_tick(_delta)
 	_v16_jobs(_delta)
 
 func _v16_jobs(_delta: float) -> void:
@@ -268,3 +269,35 @@ func _v16_battle_draw() -> void:
 		var p := _upos(u)
 		if u.alive:
 			_tv_badge(p - Vector2(0, 1.15 * CS), k + 1)
+
+## ── #7 操作與無障礙：按住確認、文字放大鏡、軍令點選放置 ──
+var hold_t := 0.0
+var confirm_ok_r := Rect2()
+const HOLD_SEC := 0.6
+
+func _hold_tick(delta: float) -> void:
+	if overlay != "confirm" or not bool(Save.s("hold_confirm")):
+		hold_t = 0.0
+		return
+	var down: bool = (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and confirm_ok_r.has_point(mouse)) \
+		or (_focus == 0 and (Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A)))
+	hold_t = hold_t + delta if down else 0.0
+	if hold_t >= HOLD_SEC:
+		hold_t = 0.0
+		call("_confirm_go")
+
+## 放大鏡：游標指到的介面字，在游標旁邊放大 1.8 倍畫一份（不改版面）
+func _draw_magnifier() -> void:
+	if mag_hit.is_empty():
+		return
+	var s: String = mag_hit[0]
+	var sz := mini(44, int(int(mag_hit[1]) * 1.8))
+	var w := minf(_width(s, sz, bool(mag_hit[2])), 1180.0) + 28.0
+	var h := sz * 1.5
+	var at := Vector2(clampf(mouse.x - w / 2, 8, 1272 - w), mouse.y + 28 if mouse.y < 600 else mouse.y - 28 - h)
+	draw_rect(Rect2(at, Vector2(w, h)), Color(0.04, 0.05, 0.08, 0.96))
+	draw_rect(Rect2(at, Vector2(w, h)), ACCENT, false, 2.0)
+	var keep := mag_on
+	mag_on = false
+	_text(at + Vector2(14, sz * 0.2), s, sz, Color.WHITE, false, bool(mag_hit[2]), 1180.0)
+	mag_on = keep

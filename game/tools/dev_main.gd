@@ -1742,3 +1742,15 @@ func _shots_v16() -> void:
 	tv_range = false
 	tv_marks = []
 	_go_title()
+	# #7 按住確認（進度條一半）、文字放大鏡（指著主畫面木牌副標）
+	Save.settings["hold_confirm"] = true
+	_ask_confirm(L.t("set_reset_page_q"), func(): pass, "")
+	hold_t = 0.3
+	await _snap("v16_05_hold_confirm.png")
+	overlay = ""
+	hold_t = 0.0
+	Save.settings["hold_confirm"] = false
+	Save.settings["magnify"] = true
+	mouse = Vector2(200, 268)
+	await _snap("v16_06_magnifier.png")
+	Save.settings["magnify"] = false
