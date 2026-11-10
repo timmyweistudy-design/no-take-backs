@@ -8,13 +8,15 @@ const FILES := ["arrow", "backstab", "block", "brace", "charge", "clutch", "deat
 	"shatter", "bell", "bugle", "aircut", "alert", "snap", "taunt", "reveal", "boom", "heal",
 	"poison", "baa", "chomp", "squish", "charge_up", "timestop", "raise", "vacuum", "stomp",
 	"k_hover", "k_click", "k_back", "k_confirm", "k_tab", "k_toggle", "k_error", "k_open", "k_close", "k_unlock", "k_star", "k_place",
-	"step_grass", "step_snow", "step_wood", "step_stone", "step_heavy", "hit_metal", "hit_wood", "hit_soft", "horn", "ui_quill"]
+	"step_grass", "step_snow", "step_wood", "step_stone", "step_heavy", "hit_metal", "hit_wood", "hit_soft", "horn", "ui_quill",
+	"wood_light", "wood_heavy", "wood_hollow", "wood_metal", "wood_topple"]   # V1.6 #14 擬音（tools/gen/gen_audio_v16.py）
 # 0 普通命中、1 防禦、2 技能／死亡、3 全場事件與介面
 const PRIO := {"hit": 0, "slash": 0, "arrow": 0, "block": 1, "brace": 1, "alert": 1, "taunt": 1, "reveal": 1,
 	"shatter": 2, "bell": 2, "bugle": 2, "aircut": 2, "snap": 2, "charge": 2, "backstab": 2, "death": 2,
 	"step_grass": 0, "step_snow": 0, "step_wood": 0, "step_stone": 0, "step_heavy": 1, "hit_metal": 0, "hit_wood": 0, "hit_soft": 0, "horn": 3,
 	"k_hover": 3, "k_click": 3, "k_back": 3, "k_confirm": 3, "k_tab": 3, "k_toggle": 3, "k_error": 3, "k_open": 3, "k_close": 3, "k_unlock": 3, "k_star": 3, "k_place": 3,
-	"poison": 0, "squish": 1, "charge_up": 1, "baa": 1, "chomp": 2, "timestop": 2, "raise": 2, "vacuum": 2, "stomp": 2, "clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3, "ui_quill": 3}
+	"poison": 0, "squish": 1, "charge_up": 1, "baa": 1, "chomp": 2, "timestop": 2, "raise": 2, "vacuum": 2, "stomp": 2, "clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3, "ui_quill": 3,
+	"wood_light": 1, "wood_heavy": 1, "wood_hollow": 1, "wood_metal": 1, "wood_topple": 2}
 var _prio_of := {}       # 聲道 → 正在播的優先權
 var _started := {}       # 聲道 → 開始時間
 var _lowpass_idx := -1
@@ -93,6 +95,13 @@ func _ready() -> void:
 	amb.bus = BUS_AMB
 	add_child(amb)
 	amb.finished.connect(func(): amb.play())
+	var ts = load_audio("tension")
+	if ts != null:
+		tension = AudioStreamPlayer.new()
+		tension.bus = BUS_SFX
+		tension.stream = ts
+		add_child(tension)
+		tension.finished.connect(func(): tension.play())   # 循環（wav 匯入沒設 loop，播完接著播）
 	var lp := AudioEffectLowPassFilter.new()
 	lp.cutoff_hz = 900.0
 	AudioServer.add_bus_effect(0, lp)
@@ -209,11 +218,43 @@ func set_layer_targets(g: Array) -> void:
 	layer_gain = g
 	# 單軌：差距小時全音量、拉開時略小聲、最後時刻壓低（心跳另外播）
 	single_gain = 0.55 if float(g[2]) <= 0.0 else (1.0 if float(g[1]) >= 1.0 else 0.8)
+	tension_target = 1.0 if float(g[1]) >= 1.0 or float(g[2]) <= 0.0 else 0.0   # V1.6 #14：膠著或最後時刻鼓聲進來
+	tension_hold = 0.3
 
 var single_gain := 1.0
 var single_cur := 1.0
 
+## ── V1.6 #14 擬音：每種兵的木雕材質（倒下、落子時敲一下），緊張時的低鼓層 ──
+## 0 輕木、1 重木（實心大棋）、2 空心（鼓、骷髏、菇）、3 包鐵（劍、槍、斧）
+const UNIT_MAT := [3, 1, 0, 1, 0, 3, 0, 0, 2, 3, 2, 0, 1, 0, 0, 0, 0, 2, 0, 1, 0, 2]
+const MAT_NAMES := ["wood_light", "wood_heavy", "wood_hollow", "wood_metal"]
+static func mat_of(type: int) -> String:
+	return MAT_NAMES[int(UNIT_MAT[type]) if type >= 0 and type < UNIT_MAT.size() else 0]
+
+func play_wood(type: int, vol := 0.5) -> void:
+	play_unit(mat_of(type), vol, type)
+
+var tension: AudioStreamPlayer
+var tension_target := 0.0
+var tension_cur := 0.0
+var tension_hold := 0.0   # 戰鬥中每幀刷新；沒人刷新就淡出（結果頁、標題不會一直敲）
+
+func _tension_tick(delta: float) -> void:
+	if tension == null:
+		return
+	tension_hold -= delta
+	var tgt := tension_target if tension_hold > 0.0 else 0.0
+	tension_cur = move_toward(tension_cur, tgt, delta * 0.8)
+	if tension_cur <= 0.001:
+		if tension.playing:
+			tension.stop()
+		return
+	if not tension.playing:
+		tension.play()
+	tension.volume_db = linear_to_db(maxf(0.0001, sfx_vol * 0.55 * tension_cur * (0.45 if duck_t > 0.0 else 1.0)))
+
 func _process(delta: float) -> void:
+	_tension_tick(delta)
 	if duck_t > 0.0:
 		duck_t -= delta
 	# V1.2：單軌戰鬥曲用「緊張程度」調音量（分軌時的鼓聲進出改成整首大小聲），並套用大招壓低

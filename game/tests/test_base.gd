@@ -62,6 +62,8 @@ class FakeSfx:
 	var played: Array = []
 	func play_unit(n: String, v: float, _t: int) -> void:   # V1.3.1：依兵種音高的音效，紀錄照名稱
 		play(n, v)
+	func play_wood(_t: int, _v := 0.5) -> void:   # V1.6 #14 擬音（不記：舊測試數音效次數）
+		pass
 	func play(n: String, _v := 1.0, _p := 1.0) -> void:
 		played.append(n)
 	func play_music(_n: String) -> void:

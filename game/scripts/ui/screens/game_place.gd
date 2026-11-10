@@ -228,7 +228,8 @@ func _try_place(c: Vector2i) -> void:
 			_cur_army().place(selected, c.x, c.y)
 		show_place_help = false
 		settle_t[Vector2i(c.x, c.y)] = time   # V1.3.1 P2：格子模式也有放下沉降
-		sfx.play(["place_mid", "place_heavy", "place_light", "place_heavy", "place_light", "place_heavy", "place_light", "place_light", "place_light", "place_heavy"][selected])
+		sfx.play(["place_mid", "place_heavy", "place_light", "place_heavy", "place_light", "place_heavy", "place_light", "place_light", "place_light", "place_heavy"][selected] if selected < 10 else "place_mid")
+		sfx.play_wood(selected, 0.4)   # V1.6 #14：每種兵的木雕材質
 	elif why != L.t("err_taken"):
 		_toast(why, true)
 

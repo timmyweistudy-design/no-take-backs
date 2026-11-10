@@ -509,6 +509,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		dying.append({"pos": _upos(u), "type": u.type, "team": u.team, "face": signf(u.fx) if u.fx != 0 else 1.0, "t": 0.0})
 		if with_fx:
 			sfx.play_unit("death", 0.7, u.type)   # V1.3.1：倒下的聲音依兵種音高
+			sfx.play_unit("wood_topple", 0.45, u.type)   # V1.6 #14：木座倒地彈兩下
 			_death_extra(u)
 			# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
 			if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):

@@ -246,3 +246,14 @@ func test_daily_board_v160() -> void:
 	ok(ST.unpack_free(dup, 16000, 9000).is_empty(), "重疊不收")
 	ok(ST.pack_free([{"type": 0, "col": 1, "row": 1}], 16000).is_empty(), "格子陣不走這條")
 	ok(ST.daily_score(72, 84) > ST.daily_score(72, 90) and ST.daily_score(73, 120) > ST.daily_score(72, 0), "分數：剩餘優先、再比花費")
+
+func test_foley_v160() -> void:
+	var SX = load("res://scripts/game/sfx.gd")
+	var bad := 0
+	for t in 22:
+		var n: String = SX.mat_of(t)
+		if not n.begins_with("wood_") or SX.load_audio(n) == null:
+			bad += 1
+	ok(bad == 0, "22 種兵都有木雕材質音")
+	ok(SX.load_audio("wood_topple") != null and SX.load_audio("tension") != null, "倒下聲、緊張鼓聲載得到")
+	ok(SX.mat_of(1) == "wood_heavy" and SX.mat_of(0) == "wood_metal" and SX.mat_of(99) == "wood_light", "材質對應與越界")

@@ -217,6 +217,7 @@ func _fp_sound(n: int) -> void:
 		sfx.play_pitched("place_mid", 0.6, 1.0 + minf(0.25, n * 0.025))
 	elif sfx != null:
 		sfx.play("place_mid", 0.6)
+		sfx.play_wood(selected, 0.35)   # V1.6 #14
 
 # ───────── 搬移、框選、刪除、復原 ─────────
 func _fp_push_undo() -> void:
