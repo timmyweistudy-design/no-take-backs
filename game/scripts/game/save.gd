@@ -308,6 +308,8 @@ static func sanitize_run(g) -> Dictionary:
 		return {}
 	var ctr = g.get("contract", -1)
 	out["contract"] = clampi(int(ctr), -1, 5) if (ctr is int or ctr is float) else -1
+	var cp = g.get("coop", 0)
+	out["coop"] = 1 if (cp is int or cp is float) and int(cp) == 1 else 0   # V1.6 #21 雙人接力遠征
 	var raw = g.get("prev")
 	if not raw is Array or raw.size() > 80:
 		return {}

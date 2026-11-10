@@ -295,3 +295,14 @@ func test_fog_v160() -> void:
 	var us := [{"type": 0, "col": 10, "row": 1}, {"type": 1, "col": 11, "row": 2}, {"type": 2, "col": 14, "row": 3}, {"type": 2, "col": 12, "row": 3}]
 	var seen: Array = G.fog_seen(us)
 	ok(seen.size() == 2 and int(seen[0]["col"]) == 10 and int(seen[1]["col"]) == 11, "迷霧推演只露前兩排（10、11 欄）")
+
+func test_coop_v160() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	ok(G.coop_player(1) == 1 and G.coop_player(2) == 2 and G.coop_player(7) == 1, "奇數站玩家 1、偶數站玩家 2")
+	var SV = load("res://scripts/game/save.gd")
+	var run := {"stage": 3, "seed": 1, "gold": 0, "cap": 0, "changes": 99, "pool": 1023, "prev": [], "coop": 1}
+	ok(int(SV.sanitize_run(run)["coop"]) == 1, "續局記得是雙人")
+	run.erase("coop")
+	ok(int(SV.sanitize_run(run)["coop"]) == 0, "舊續局沒有這欄＝單人")
+	run["coop"] = "x"
+	ok(int(SV.sanitize_run(run)["coop"]) == 0, "型別不對＝單人")

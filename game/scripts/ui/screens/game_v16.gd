@@ -46,6 +46,7 @@ func _v16_tick(_delta: float) -> void:
 						Funnel.mark("daily_open")
 	_hold_tick(_delta)
 	_rush_tick(_delta)
+	_coop_tick()
 	if fog_on and state == St.PLACE and mode == Mode.VS_AI and not ai_prebuilt:
 		call("_build_ai")   # 迷霧推演的下一局：一樣先組好
 		ai_prebuilt = true
@@ -159,6 +160,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_trio()
 		"trio_result":
 			_draw_trio_result()
+		"coop_hand":
+			_draw_coop_hand()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -482,6 +485,7 @@ func _rush_settle() -> void:
 		_rush_load()
 
 func _v16_place_hud() -> void:
+	_coop_hud()
 	if bool(rush.get("on", false)):
 		var s := L.t("rush_hud", [ceili(maxf(0.0, float(rush["left"]))), int(rush["solved"])])
 		var w := _width(s, tz("B"), true) + 32.0
@@ -972,3 +976,49 @@ func _fog_draw() -> void:
 		Art.unit(self, p, int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.0, cbm())
 	var lbl := L.t("fog_scout", [fog_seen(armies[1].units).size(), armies[1].units.size()])
 	_text(ORIGIN + Vector2(13 * CS, 18), lbl, ts(15), Color(1, 0.9, 0.6), true, true, 5.5 * CS)
+
+## ── #21 雙人接力遠征：同一台電腦，兩人輪流負責一站（奇數站玩家 1、偶數站玩家 2），事件也由剛打完的人選 ──
+var ga_coop := false
+var coop_seen := 0   # 已經出過交接畫面的站
+
+static func coop_player(stage: int) -> int:
+	return 1 + (stage - 1) % 2
+
+func _enter_gauntlet() -> void:
+	ga_coop = false
+	super._enter_gauntlet()
+
+func _coop_start() -> void:
+	if not Save.data.get("gauntlet_run", {}).is_empty():
+		_ask_confirm(L.t("coop_replace_q"), func(): _coop_go(), "")
+		return
+	_coop_go()
+
+func _coop_go() -> void:
+	call("_enter_gauntlet_new")
+	ga_coop = true
+	coop_seen = 0
+
+func _coop_tick() -> void:
+	if ga_coop and mode == Mode.GAUNTLET and state == St.PLACE and overlay == "" and coop_seen != gauntlet_stage:
+		coop_seen = gauntlet_stage
+		overlay = "coop_hand"
+		_focus = 0
+
+func _draw_coop_hand() -> void:
+	var p := coop_player(gauntlet_stage)
+	var body := L.t("coop_hand_body", [gauntlet_stage, p])
+	var P := modal_rect(560, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("B"), 480, true) + GAP_XL + 52.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("coop_hand", [p])) + GAP_L
+	_text(Vector2(640, y), body, tz("B"), Color.WHITE, true, true, 480)
+	y += text_h(body, tz("B"), 480, true) + GAP_XL
+	_btn(Rect2(640 - 140, y, 280, 52), L.t("coop_ready", [p]), func(): overlay = "", true, true)
+
+func _coop_hud() -> void:
+	if ga_coop and mode == Mode.GAUNTLET:
+		var s := L.t("coop_turn", [coop_player(gauntlet_stage)])
+		var w := _width(s, tz("S"), true) + 24.0
+		var r := Rect2(16, 96, w, tz("S") * 1.6)
+		_tex_box(r, "wood", Color(0.2, 0.32, 0.5) if coop_player(gauntlet_stage) == 1 else Color(0.45, 0.22, 0.2))
+		_text(r.position + Vector2(12, tz("S") * 0.25), s, tz("S"), Color.WHITE, false, true, w)

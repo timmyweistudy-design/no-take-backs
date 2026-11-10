@@ -774,7 +774,7 @@ func _gauntlet_save() -> void:
 		prev.append(o)
 	Save.data["gauntlet_run"] = {"stage": gauntlet_stage, "seed": gauntlet_seed, "gold": int(get("gauntlet_gold")), "cap": int(get("gauntlet_cap")),
 		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev,
-		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap")), "contract": int(get("gauntlet_contract"))}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
+		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap")), "contract": int(get("gauntlet_contract")), "coop": 1 if bool(get("ga_coop")) else 0}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
 	Save.save_data()
 
 func _gauntlet_clear() -> void:
@@ -794,6 +794,7 @@ func _gauntlet_resume() -> void:
 	set("gauntlet_foe_gold", int(g.get("foe_gold", 0)))
 	set("gauntlet_foe_cap", int(g.get("foe_cap", 0)))
 	set("gauntlet_contract", int(g.get("contract", -1)))   # V1.4 #3：舊存檔沒有＝沒簽
+	set("ga_coop", int(g.get("coop", 0)) == 1)   # V1.6 #21：雙人接力（舊存檔沒有＝單人）
 	_reset_place(false)
 	armies[0].budget += int(g["gold"])
 	armies[0].unit_cap += int(g["cap"])
