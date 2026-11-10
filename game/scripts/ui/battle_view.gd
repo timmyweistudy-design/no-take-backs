@@ -578,6 +578,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		_add_fx({"kind": "trip", "p": tpos + Vector2(0, -4), "t": 0.0, "dur": 0.5})
 	if s.type == D.BOMBER and k == EV.BOMB:
 		_add_fx({"src": s.id, "kind": "boom", "p": tpos + Vector2(0, -6), "t": 0.0, "dur": 0.45})   # 帶攻擊者：同點多顆炸彈不被去重吃掉
+		_add_fx({"kind": "scorch", "p": tpos + Vector2(0, 2), "t": 0.0, "dur": 0.25})   # V1.0.0 角色：落點焦痕
 		sfx.play("boom", 0.55)
 	elif k == EV.SPLASH:
 		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）

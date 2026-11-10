@@ -708,6 +708,11 @@ func _draw_units_of(s, dim: bool) -> void:
 		if u.type == F8.GHOST:
 			alpha *= 0.9
 			p.y -= 3.0 + 2.5 * sin(time * 2.2 + u.id * 0.9)   # V1.1 A4：幽靈上下漂
+			if moving and live and not bool(Save.s("reduce_fx")):
+				# V1.0.0 角色（剪影辨識）：移動時身後一串淡煙（貼著身體，0.3 格內），和史萊姆、盾兵的剪影分開
+				for k5 in 3:
+					var ph5 := fmod(time * 2.5 + k5 * 0.33 + u.id * 0.17, 1.0)
+					draw_circle(p + Vector2(-face * (10.0 + ph5 * 12.0), -14.0 + ph5 * 4.0), 5.0 * (1.0 - ph5) * UNIT_SCALE, Color(0.85, 0.9, 1.0, 0.35 * (1.0 - ph5) * alpha), true, -1.0, true)
 		# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
 		if live and walk == 0.0 and at == 0.0:
 			lean += sin(time * 1.1 + u.id * 1.7) * 0.018

@@ -298,10 +298,10 @@ func _draw_vignette(strength: float) -> void:
 
 ## V1.0.0 P7：4 倍速以上的降噪（Gemini v100 r5：爆爆羊爆炸、史萊姆分裂、小石魔拍地不能省）
 const FAST_SPEED := 4.0
-const FAST_SKIP := ["inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
+const FAST_SKIP := ["scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	if speed >= FAST_SPEED and d["kind"] in FAST_SKIP:
 		return   # V1.0.0 P7：高倍速只略過裝飾碎屑；預警圈（tell）、爆炸、分裂、拍地這類決定戰局的照畫
@@ -610,7 +610,14 @@ func _draw_fx(f: Dictionary) -> void:
 			if k < 0.25:
 				draw_circle(c5, 5.0 * (1.0 - k * 4.0), Color(1, 1, 1, 0.9), true, -1.0, true)   # 繃斷的閃白
 		"spore":
-			draw_circle(f["p"] + Vector2(0, -k * 14.0), 3.0 + k * 3.0, Color(0.6, 1.0, 0.4, 0.75 * (1.0 - k)), true, -1.0, true)
+			# V1.0.0 角色：毒改濁紫（綠色留給補血），兩顆錯開的斑點
+			draw_circle(f["p"] + Vector2(-3.0, -k * 14.0), 3.0 + k * 3.0, Color(0.62, 0.42, 0.78, 0.75 * (1.0 - k)), true, -1.0, true)
+			draw_circle(f["p"] + Vector2(4.0, -k * 10.0 - 4.0), 2.0 + k * 2.0, Color(0.5, 0.32, 0.62, 0.6 * (1.0 - k)), true, -1.0, true)
+		"scorch":
+			# V1.0.0 角色：投彈兵火罐落點焦痕（0.25 秒、扁橢圓、貼地），讓投彈兵和弓手、醫者在混戰裡分得開
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.45), 0, f["p"]))
+			draw_circle(Vector2.ZERO, 16.0, Color(0.16, 0.1, 0.06, 0.35 * (1.0 - k)), true, -1.0, true)
+			draw_set_transform_matrix(_cam)
 		"pin":
 			draw_line(f["a"], f["b"], Color(1.0, 0.42, 0.7, 0.85 * (1.0 - k)), 3.0, true)
 		"wool":

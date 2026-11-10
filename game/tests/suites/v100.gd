@@ -87,3 +87,25 @@ func test_retry_keep_v100() -> void:
 	g._pick_puzzle(str(PZ.puzzles()[1]["id"]), false)
 	ok(g.retry_key == "" and g.retry_units.is_empty(), "換關不帶上一關的擺法")
 	g.free()
+
+## M16：docs/codes.md 的前綴表和 code_kind 一致；亂碼不辨識。
+func test_code_table_v100() -> void:
+	var G = load("res://scripts/ui/screens/game_menus.gd")
+	var want := {"NTB1": "army", "NTB5": "army", "NTB6": "army", "NTB2": "battle", "NTB3": "battle", "NTB4": "battle", "NTB7": "battle",
+		"NTBR1": "rules", "NTBR6": "rules", "NTC1": "challenge", "NTP1": "workshop", "NTP2": "workshop", "NTP3": "workshop", "NTP4": "workshop",
+		"NTS1": "settings", "NTW1": "waves"}
+	var bad: Array = []
+	for p in want:
+		if G.code_kind(p + ".abc.123456") != want[p]:
+			bad.append(p)
+	ok(bad.is_empty(), "每個前綴都認得", str(bad))
+	for junk in ["", "hello", "NTX1.a.b", "ntb1.a.b", "NTB8.a.b"]:
+		ok(G.code_kind(junk) == "", "不認得的不辨識：" + junk)
+	var md := FileAccess.get_file_as_string(ProjectSettings.globalize_path("res://").path_join("../docs/codes.md"))
+	ok(md != "", "讀得到 docs/codes.md")
+	if md != "":
+		for p in want:
+			ok(md.find(p) >= 0, "docs/codes.md 有寫 " + p)
+	var WS = load("res://scripts/game/workshop.gd")
+	for junk in ["NTP3.%%%.000000", "NTP4." + "A".repeat(7000) + ".x"]:
+		ok(not bool(WS.decode(junk)["ok"]), "壞的出題碼不收")

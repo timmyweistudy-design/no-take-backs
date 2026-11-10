@@ -1286,6 +1286,36 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--mem-check="):
 			_run_mem_check.call_deferred(a.substr(12))
+		elif a.begins_with("--sil="):
+			_run_sil.call_deferred(a.substr(6))
+
+
+## V1.0.0 角色：剪影辨識表。22 種兵（含召喚物）站成兩排：上排原尺寸、下排 50%；平塗背景，tools/gen/sil_report.py 轉灰階、
+## 算輪廓相似度找出最難分的兵。用法：<exe> --path game --resolution 1280x800 -- --sil=<輸出 png 絕對路徑>
+var sil_mode := false
+func _run_sil(out_path: String) -> void:
+	Save.prefix = "shot_"
+	sil_mode = true
+	for i in 6:
+		await get_tree().process_frame
+	queue_redraw()
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(out_path)
+	print("SIL ", out_path)
+	get_tree().quit(0)
+
+func _draw() -> void:
+	if not sil_mode:
+		super._draw()
+		return
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0.5, 0.5, 0.5))
+	for t in 22:
+		var col := t % 11
+		var row := t / 11
+		var x := 58.0 + col * 116.0
+		Art.unit(self, Vector2(x, 150.0 + row * 210.0), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.6, false)
+		Art.unit(self, Vector2(x, 560.0 + row * 110.0), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.8, false)
 
 
 ## 記憶體檢查（第三輪 P2）：連打 20 場（直接看結果）＋切 20 次色盲（每次重建角色圖集），

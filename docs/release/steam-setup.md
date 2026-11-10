@@ -107,3 +107,19 @@
 - [ ] 真人試玩兩輪的數據達標（`docs/playtest/protocol.md`）
 - [ ] 商店頁審核通過、build 審核通過
 - [ ] **【你】**決定發售日與價格
+
+## F. V1.0.0 上架清單（方案 W4～W6；**【你】**＝只有你能做）
+**程式這邊已做（不用 AppID 可驗，V1.0.0）**：排行榜單一通道（找榜失敗下載回空、逾時、同時一筆、10 分鐘 10 次上傳限額）、成就儲存結果回呼與重送、匯出自檢（標題頁、焦點、1280×800、版本號、Linux 試玩版也啟動）、發版凍結紀錄（`export_check.sh` 輸出 `manifest.txt`：commit 與各成品 sha256）。
+
+**拿到 AppID 之後（順序）**
+1. **【你】** Coming Soon 頁：至少上線 2 週才能發售（官方門檻，建議數月）。商店文字見 `store-page.md`「V1.0.0 四語」、`CHANGELOG.md`。
+2. **【你】** 成就 37 個：圖示在 `docs/release/achievements/<ID>.png`（256×256，`python3 tools/gen/gen_ach_icons.py` 重產；ID 對 `steam.gd`）；灰階未解鎖版讓後台自動產生。名稱用 `steam.gd` 的中英文。
+3. **【你】** 排行榜：允許遊戲建立（`findOrCreateLeaderboard`），名稱見 B2。
+4. **【你】** Steam Cloud：Auto-Cloud 根目錄 `user://`（Windows `%APPDATA%/Godot/app_userdata/落子無悔 No Take-Backs/`、Linux `~/.local/share/godot/app_userdata/落子無悔 No Take-Backs/`），檔案 `save.json`、`save.json.bak`；**不同步** `settings.json`（本機設定）、`demo_*`（試玩版）、`backup/`、`report_*.json`、`*.corrupt*`。設 Root Overrides 讓 Windows／Linux 指到同一份。
+5. Claude：填 `steam.gd` 的 `STORE_URL`；跑 `--steam-test=<AppID>`（**要你同意才跑**，會開 Steam 視窗）逐一核對成就 ID。
+6. **【你】** Next Fest（每款一次）：要公開可玩的試玩版，報名截止前約 3 週準備好。試玩版內容見 STATE「試玩版」。
+7. **【你】** Deck 驗證：照 D 節與 `deck-checklist.md` 實機走一遍；版面檢查已擋「字形實高 < 9px」，實機看字與手把圖示。
+8. **【你】** 真人試玩：`docs/playtest/protocol.md`「V1.0.0 發版門檻」至少 5 人。
+9. **【你】** 簡中母語校對（`docs/l10n-review/`），日文至少校兵種名、模式名、殘局目標詞。
+10. **【你】** 價格與發售日（見 `store-page.md` 價格列）。
+11. Claude：用 `tools/export_check.sh` 出最終成品，`EXPECT_VERSION=1.0.0`；`manifest.txt` 的 commit 和 sha256 就是上傳的那一版。
