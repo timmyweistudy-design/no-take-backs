@@ -215,8 +215,12 @@ func test_ach_store_result_v100() -> void:
 	ok(not ST._ach_inflight and not ST.store_ok, "確認逾時：當失敗、之後重送")
 	for i in ST.ACH_RETRY_TICKS:
 		ST.run_callbacks()
+	ok(fk.stores == 3, "逾時那批的回呼還沒回來：不送新批（Codex v100-i3）", str(fk.stores))
 	fk.emit_signal("user_stats_stored", 0, 1)
-	ok(not ST.store_ok, "逾時那批的遲到 OK 不能確認新的一批（Codex v100-i2 #2）")
+	ok(not ST.store_ok, "逾時那批的遲到 OK 被吃掉，不算確認")
+	for i in ST.ACH_RETRY_TICKS:
+		ST.run_callbacks()
+	ok(fk.stores == 4, "之後才送新批", str(fk.stores))
 	fk.emit_signal("user_stats_stored", 0, 1)
 	ok(ST.store_ok and not ST.ach_dirty, "新的一批自己的回呼 OK 才算確認")
 	ST.now_ms = -1

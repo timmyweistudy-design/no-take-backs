@@ -115,6 +115,9 @@ static func _store() -> void:
 	if _ach_inflight:
 		_ach_resend_after = true   # 在途：等回呼後再送
 		return
+	if _ach_stale:
+		store_ok = false   # 有逾時那批的回呼還沒回來：不送新批（不然遲到的 OK 會確認新批）；等它回來，或下次開遊戲 init 補送（Codex v100-i3）
+		return
 	if not _stats_wired and _steam.has_signal("user_stats_stored"):
 		_stats_wired = true
 		_steam.connect("user_stats_stored", _on_stats_stored)
@@ -140,7 +143,7 @@ static func _store() -> void:
 
 static func _on_stats_stored(_game, result) -> void:
 	if _ach_stale:
-		_ach_stale = false   # 這個回呼當成逾時那一批的：吃掉，不拿來確認新的一批（新的一批之後會逾時重送，最多多送一次）
+		_ach_stale = false   # 逾時那一批的遲到回呼：吃掉（逾時後不送新批，所以這時不會有別批在途）
 		return
 	if not _ach_inflight:
 		return

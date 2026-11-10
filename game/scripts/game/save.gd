@@ -523,6 +523,11 @@ static func migrate(d: Dictionary) -> Dictionary:
 			if e is Dictionary and e.get("name") is String and e.get("code") is String and str(e["code"]).length() <= 2000 and ps.size() < MAX_PRESETS:
 				ps.append({"name": str(e["name"]).substr(0, 24), "code": str(e["code"])})
 	out["rule_presets"] = ps
+	# V1.0.0（Codex v100-i3）：舊存檔沒有對 AI 場數／勝場：用舊統計估（老玩家不要又被推薦入門）；全新進度本來就有 0
+	if not out.has("ai_games"):
+		var st0 = out.get("stats", {})
+		out["ai_games"] = int(st0.get("games", 0)) if st0 is Dictionary and _is_num(st0.get("games", 0)) else 0
+		out["ai_wins"] = int(st0.get("wins", 0)) if st0 is Dictionary and _is_num(st0.get("wins", 0)) else 0
 	for k in DEFAULT_SAVE:
 		if not out.has(k):
 			out[k] = DEFAULT_SAVE[k].duplicate(true) if DEFAULT_SAVE[k] is Dictionary or DEFAULT_SAVE[k] is Array else DEFAULT_SAVE[k]

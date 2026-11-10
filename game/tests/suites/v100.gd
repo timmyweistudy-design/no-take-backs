@@ -209,3 +209,14 @@ func test_retry_trial_free_v100() -> void:
 	g._apply_retry()
 	ok(g.armies[0].units.size() == n1, "試煉重打：擺法還在", "%d/%d" % [g.armies[0].units.size(), n1])
 	g.free()
+
+## Codex v100-i3：舊存檔沒有 ai_games／ai_wins 時用舊統計估；全新進度是 0。
+func test_ai_count_migrate_v100() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var G = load("res://scripts/game/v16_guide.gd")
+	ok(int(SV.DEFAULT_SAVE["ai_games"]) == 0, "全新進度 0")
+	var raw := {"schema_version": SV.SAVE_VERSION, "stats": {"games": 12, "wins": 7}, "tutorial": 3}
+	var m: Dictionary = SV.migrate(raw) if SV.has_method("migrate") else {}
+	if not m.is_empty():
+		ok(int(m["ai_games"]) == 12 and int(m["ai_wins"]) == 7, "舊存檔用舊統計估", str(m.get("ai_games")))
+		ok(G.next_step(m, true, false) != "ai", "老玩家不再推薦打第一場 AI")

@@ -57,7 +57,7 @@ func _go_title() -> void:
 	sim = null
 	view = null
 	zoom = 1.0
-	_focus = 0
+	_focus = int(nav_focus.get(overlay, 0)) if overlay != "" else 0   # V1.0.0（Codex v100-i3）：打完回卡片面板，焦點回原卡
 	_new_demo()
 	sfx.play_music("music_title")
 	sfx.play_ambience("")
