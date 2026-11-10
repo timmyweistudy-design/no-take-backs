@@ -83,3 +83,12 @@ static func enemy(r, wk: int):
 
 static func key(wk: int) -> String:
 	return "%d-v%d" % [wk, VER]
+
+## V1.6.1 A12：紀錄留最近 n 週（鍵＝「週-v版本」，依週數排序留最大的 n 個）
+static func keep_recent(best: Dictionary, n: int) -> Dictionary:
+	var ks: Array = best.keys()
+	ks.sort_custom(func(a, b): return int(str(a).get_slice("-", 0)) > int(str(b).get_slice("-", 0)))
+	var out := {}
+	for i in mini(n, ks.size()):
+		out[ks[i]] = best[ks[i]]
+	return out

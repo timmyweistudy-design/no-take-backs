@@ -395,6 +395,11 @@ static func sanitize_v16(out: Dictionary) -> void:
 		out.erase("daily_pend")
 	else:
 		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62), "ver": clampi(int(dp["ver"]), 1, 999) if _is_num(dp.get("ver")) else 1}
+	var rdy = out.get("rush_day", {})
+	if rdy is Dictionary and _is_num(rdy.get("day")) and _is_num(rdy.get("best")):
+		out["rush_day"] = {"day": int(rdy["day"]), "best": clampi(int(rdy["best"]), 0, 100000)}   # V1.6.1 D1
+	else:
+		out.erase("rush_day")
 	out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
 	for k2 in ["rift_best", "trio_clear", "trio_stars"]:
 		var d = out.get(k2, {})
@@ -429,6 +434,8 @@ static func sanitize_run(g) -> Dictionary:
 	out["contract"] = clampi(int(ctr), -1, 5) if (ctr is int or ctr is float) else -1
 	var cp = g.get("coop", 0)
 	out["coop"] = 1 if (cp is int or cp is float) and int(cp) == 1 else 0   # V1.6 #21 雙人接力遠征
+	var cl := _int_list(g.get("clog", []), 28)   # V1.6.1 D4：[站, 玩家, 勝, MVP 兵種] × 最多 7 站
+	out["clog"] = cl if cl.size() % 4 == 0 else []
 	var raw = g.get("prev")
 	if not raw is Array or raw.size() > 80:
 		return {}

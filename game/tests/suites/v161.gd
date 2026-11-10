@@ -255,3 +255,31 @@ func test_signature_v161() -> void:
 	for st in PS.SIG.size():
 		for t in PS.SIG[st]:
 			ok(int(t) < AI.TEMPLATES.size(), "招牌陣編號有效")
+
+func test_rift_history_v161() -> void:
+	var RF = load("res://scripts/game/v16_rift.gd")
+	var b := {}
+	for w in range(100, 112):
+		b["%d-v1" % w] = [w, 50]
+	var k: Dictionary = RF.keep_recent(b, 8)
+	ok(k.size() == 8 and k.has("111-v1") and not k.has("103-v1"), "裂隙紀錄留最近 8 週（A12）")
+
+func test_rush_daily_v161() -> void:
+	var RU = load("res://scripts/game/v16_rush.gd")
+	var L = load("res://scripts/game/strings.gd")
+	ok(RU.pool(RU.day_seed(20000)) == RU.pool(RU.day_seed(20000)) and RU.pool(RU.day_seed(20000)) != RU.pool(RU.day_seed(20001)), "今日題組：同一天同一套、隔天換（D1）")
+	var t: String = RU.share_text(L, "2026-11-10", 3, 5)
+	ok(t.contains("■■■□□") and t.contains("2026-11-10"), "分享格：解開幾題、不劇透")
+	var pool: Array = RU.pool(1)
+	var PZ = load("res://scripts/game/puzzles.gd")
+	ok(pool.size() >= 40 and pool.all(func(id): var m = PZ.get_puzzle(id).get("_m"); return not m is Dictionary or (int(m["ticks"]) <= RU.MAX_TICKS and int(m["rand_pct"]) >= RU.MIN_RAND)), "題庫篩掉太長、太難的（N5）", str(pool.size()))
+
+func test_coop_log_v161() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var rows: Array = G.coop_rows([1, 1, 1, 0, 2, 2, 0, -1])
+	ok(rows == [[1, 1, true, 0], [2, 2, false, -1]], "接力紀錄：每站 4 欄（D4）")
+	var S = load("res://scripts/game/save.gd")
+	var run := {"stage": 3, "seed": 1, "gold": 0, "cap": 0, "changes": 3, "pool": 1023, "prev": [], "coop": 1, "clog": [1, 1, 1, 0, 2, 2, 1]}
+	ok(S.sanitize_run(run)["clog"] == [], "長度不是 4 的倍數就丟")
+	run["clog"] = [1, 1, 1, 0]
+	ok(S.sanitize_run(run)["clog"] == [1, 1, 1, 0], "正常的留下")

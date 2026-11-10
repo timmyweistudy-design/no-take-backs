@@ -65,6 +65,7 @@ func _finish_battle() -> void:
 		return
 	if trio_on and mode == Mode.PUZZLE:
 		_trio_settle()
+	_coop_settle()
 	_rift_settle()
 	_persona_result()
 	_career_settle()
@@ -180,6 +181,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_share()
 		"rush_end":
 			_draw_rush_end()
+		"rush_menu":
+			_draw_rush_menu()
 		"coach":
 			_draw_coach()
 		"rift":
@@ -198,6 +201,10 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_tour()
 		"nb_cmp":
 			_draw_nb_cmp()
+		"rift_lab":
+			_draw_rift_lab()
+		"coop_sum":
+			_draw_coop_sum()
 		"coop_hand":
 			_draw_coop_hand()
 
@@ -564,10 +571,30 @@ func _ghost_settle(w: int) -> void:
 const Rush = preload("res://scripts/game/v16_rush.gd")
 var rush := {}   # {"on", "left", "ids", "i", "solved", "tried"}
 
+## V1.6.1 D1：入口先開選單——「今日題組」（UTC 日數當種子，大家同一天同一套題，可分享）或「隨機練習」
 func _rush_start() -> void:
-	var sd := int(Time.get_unix_time_from_system())
-	rush = {"on": true, "left": Rush.START_SEC, "ids": Rush.pool(sd), "i": 0, "solved": 0, "tried": 0}
+	overlay = "rush_menu"
+	_focus = 0
+
+func _rush_go(daily: bool) -> void:
+	var day: int = int(Daily.today())
+	var sd := Rush.day_seed(day) if daily else int(Time.get_unix_time_from_system())
+	rush = {"on": true, "left": Rush.START_SEC, "ids": Rush.pool(sd), "i": 0, "solved": 0, "tried": 0, "daily": daily, "day": day}
 	_rush_load()
+
+func _draw_rush_menu() -> void:
+	var rd: Dictionary = Save.data.get("rush_day", {})
+	var today := int(Daily.today())
+	var tb := int(rd.get("best", 0)) if int(rd.get("day", -1)) == today else -1
+	var info := L.t("rush_menu_best", [int(Save.data.get("rush_best", 0))]) + "\n" + (L.t("rush_today_best", [tb]) if tb >= 0 else L.t("rush_today_none"))
+	var P := modal_rect(640, 12.0 + h1_help_h(L.t("rush_help", [int(Rush.START_SEC), int(Rush.BONUS_SEC), int(Rush.PENALTY_SEC)]), tz("S"), 560) + GAP_L + text_h(info, tz("S"), 560) + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rush_open"), L.t("rush_help", [int(Rush.START_SEC), int(Rush.BONUS_SEC), int(Rush.PENALTY_SEC)]), tz("S"), 560)
+	_text(Vector2(640, y), info, tz("S"), ACCENT, true, false, 560)
+	y += text_h(info, tz("S"), 560) + GAP_XL
+	_btn(Rect2(640 - 290, y, 280, 52), L.t("rush_daily"), func(): overlay = ""; _rush_go(true), true, true)
+	_btn(Rect2(650, y, 280 - GAP_S, 52), L.t("rush_free"), func(): overlay = ""; _rush_go(false))
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 func _rush_load() -> void:
 	var ids: Array = rush["ids"]
@@ -583,7 +610,12 @@ func _rush_end() -> void:
 	rush["new_best"] = int(rush["solved"]) > best
 	if int(rush["solved"]) > best:
 		Save.data["rush_best"] = int(rush["solved"])
-		Save.save_data()
+	if bool(rush.get("daily", false)):
+		var rd: Dictionary = Save.data.get("rush_day", {})
+		if int(rd.get("day", -1)) != int(rush["day"]) or int(rush["solved"]) > int(rd.get("best", 0)):
+			Save.data["rush_day"] = {"day": int(rush["day"]), "best": int(rush["solved"])}   # 今日題組只留今天的最佳
+		rush["share"] = Rush.share_text(L, Time.get_date_string_from_unix_time(int(rush["day"]) * 86400), int(rush["solved"]), int(rush["tried"]))
+	Save.save_data()
 	_go_title()
 	overlay = "rush_end"
 	_focus = 0
@@ -626,8 +658,10 @@ func _draw_rush_end() -> void:
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("rush_title")) + GAP_L
 	_text(Vector2(640, y), body, tz("B"), ACCENT if bool(rush.get("new_best", false)) else Color.WHITE, true, true, 480)
 	y += text_h(body, tz("B"), 480, true) + GAP_XL
-	_btn(Rect2(640 - 230, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_start(), true, true)
-	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
+	_btn(Rect2(640 - 345, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_go(bool(rush.get("daily", false))), true, true)
+	var sh := str(rush.get("share", ""))
+	_btn(Rect2(640 - 110, y, 220, 50), L.t("sh_copy"), func(): DisplayServer.clipboard_set(sh); _toast(L.t("sh_copied")), sh != "")   # V1.6.1 D1：今日題組可以分享
+	_btn(Rect2(640 + 125, y, 220, 50), L.t("back"), func(): overlay = "")
 
 ## ── #9 差一子教練 ──
 const Coach = preload("res://scripts/game/v16_coach.gd")
@@ -888,10 +922,49 @@ func _rift_settle() -> void:
 		return   # 上一週的題：本週紀錄只留本週，跨週打完的不記
 	var rec := [PZ.rem_pct(sim.power(0), sim.budget_of(0)), armies[0].spent()]
 	if Daily.better(rec, best.get(k, [])):
-		best = {k: rec}   # 只留這一週
-		Save.data["rift_best"] = best
+		best[k] = rec
+		Save.data["rift_best"] = Rift.keep_recent(best, RIFT_KEEP)   # V1.6.1 A12：留最近 8 週
 		Save.save_data()
 		_toast(L.t("rf_new", [int(rec[0])]))
+
+const RIFT_KEEP := 8
+
+## ── V1.6.1 A12：異變練習場（自己挑異變；不記週紀錄，不算裂隙成績） ──
+var rift_lab: Array = []   # 選了哪些異變（ANOMS 索引）
+func rift_lab_toggle(k: int) -> void:
+	if k in rift_lab:
+		rift_lab.erase(k)
+		return
+	var tg: String = Rift.ANOMS[k][1]
+	rift_lab = rift_lab.filter(func(j): return Rift.ANOMS[j][1] != tg)   # 同類別換掉
+	var trial: Array = rift_lab + [k]
+	if Rift.make_rules(trial, RS.mask(_demo()), Rift.week()).validate().is_empty():
+		rift_lab = trial
+	else:
+		_toast(L.t("rf_lab_bad"), true)
+
+func _rift_lab_start() -> void:
+	var wk := Rift.week()
+	var r = Rift.make_rules(rift_lab, RS.mask(_demo()), wk)
+	rules = r
+	set("challenge_army", Rift.enemy(r, wk))
+	_start_mode(Mode.VS_AI)
+	daily_spec = {}
+	rift_on = false   # 練習：不記紀錄
+
+func _draw_rift_lab() -> void:
+	var n := Rift.ANOMS.size()
+	var rows := ceili(n / 2.0)
+	var P := modal_rect(820, 12.0 + h1_help_h(L.t("rf_lab_help"), tz("S"), 740) + GAP_L + rows * 52.0 + GAP_L + 52.0 + GAP_M + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rf_lab"), L.t("rf_lab_help"), tz("S"), 740)
+	for k in n:
+		var kk := k
+		var on: bool = k in rift_lab
+		_btn(Rect2(640 - 370 + (k % 2) * 375, y + (k / 2) * 52.0, 365, 46), ("✓ " if on else "") + L.t(str(Rift.ANOMS[k][0])), func(): rift_lab_toggle(kk), true, k == 0, TH_ACTIVE if on else Color(0, 0, 0, 0))
+	y += rows * 52.0 + GAP_L
+	_btn(Rect2(640 - 160, y, 320, 52), L.t("rf_lab_go"), func(): overlay = ""; _rift_lab_start(), not rift_lab.is_empty(), true)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "rift")
 
 func _draw_rift() -> void:
 	var ps := _rift_picks()
@@ -901,14 +974,18 @@ func _draw_rift() -> void:
 	var body := "\n".join(lines)
 	var b: Array = Save.data.get("rift_best", {}).get(Rift.key(Rift.week()), [])
 	var best := L.t("rf_best", [int(b[0]), int(b[1])]) if not b.is_empty() else L.t("rf_best_none")
-	var P := modal_rect(680, 12.0 + h1_help_h(L.t("rf_help"), tz("S"), 600) + GAP_L + text_h(body, tz("B"), 560) + GAP_M + tz("S") * 1.6 + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
+	var hist: Dictionary = Save.data.get("rift_best", {})
+	if hist.size() > 1 or (hist.size() == 1 and b.is_empty()):
+		best += "\n" + L.t("rf_hist", [hist.size(), RIFT_KEEP])   # V1.6.1 A12：近 8 週打過幾週
+	var P := modal_rect(720, 12.0 + h1_help_h(L.t("rf_help"), tz("S"), 600) + GAP_L + text_h(body, tz("B"), 560) + GAP_M + text_h(best, tz("S"), 560) + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rift_open"), L.t("rf_help"), tz("S"), 600)
 	_text(Vector2(360, y), body, tz("B"), Color.WHITE, false, true, 560)
 	y += text_h(body, tz("B"), 560) + GAP_M
 	_text(Vector2(640, y), best, tz("S"), ACCENT, true, false, 560)
-	y += tz("S") * 1.6 + GAP_XL
-	_btn(Rect2(640 - 160, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
+	y += text_h(best, tz("S"), 560) + GAP_XL
+	_btn(Rect2(640 - 330, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
+	_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 func _start_mode(m: int) -> void:
@@ -1550,6 +1627,46 @@ func _coop_go() -> void:
 	call("_enter_gauntlet_new")
 	ga_coop = true
 	coop_seen = 0
+	coop_log = []
+
+## V1.6.1 D4：每站結束記 [站, 玩家, 勝?, MVP 兵種]；最後一站贏或中途輸了出總結
+var coop_log: Array = []
+func _coop_settle() -> void:
+	if not ga_coop or mode != Mode.GAUNTLET or sim == null or watch_mode:
+		return
+	var mvp = report.get("mvp")
+	var won: bool = sim.winner == 0
+	coop_log.append_array([gauntlet_stage, coop_player(gauntlet_stage), 1 if won else 0, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1])
+	if not won or gauntlet_stage >= 7:
+		overlay = "coop_sum"
+		_focus = 0
+
+static func coop_rows(log: Array) -> Array:
+	var out: Array = []
+	for i in range(0, log.size() - 3, 4):
+		out.append([int(log[i]), int(log[i + 1]), int(log[i + 2]) == 1, int(log[i + 3])])
+	return out
+
+func _draw_coop_sum() -> void:
+	var rows := coop_rows(coop_log)
+	var wins := [0, 0]
+	for r in rows:
+		if bool(r[2]):
+			wins[int(r[1]) - 1] += 1
+	var foot := L.t("coop_sum_foot", [wins[0], wins[1]])
+	var P := modal_rect(720, 12.0 + h1_bottom(0.0) + GAP_L + rows.size() * 44.0 + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("coop_sum")) + GAP_L
+	for r in rows:
+		var line := L.t("coop_sum_row", [int(r[0]), int(r[1]), L.t("coop_w") if bool(r[2]) else L.t("coop_l")])
+		_text(Vector2(P.position.x + 40, y + 8), line, tz("S"), Color(0.75, 0.88, 1.0) if int(r[1]) == 1 else Color(1, 0.8, 0.75), false, true, 420)
+		if int(r[3]) >= 0:
+			Art.unit(self, Vector2(P.end.x - 190, y + 40), int(r[3]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+			_text(Vector2(P.end.x - 165, y + 10), L.t("coop_mvp", [L.t("unit_%d" % int(r[3]))]), tz("C"), ACCENT, false, false, 140)
+		y += 44.0
+	y += GAP_M
+	_text(Vector2(640, y), foot, tz("S"), Color.WHITE, true, false, 640)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 func _coop_tick() -> void:
 	if ga_coop and mode == Mode.GAUNTLET and state == St.PLACE and overlay == "" and coop_seen != gauntlet_stage:

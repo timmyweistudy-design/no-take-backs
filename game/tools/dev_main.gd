@@ -4,7 +4,7 @@ const LayoutRules = preload("res://scripts/ui/layout_rules.gd")
 const PANELLESS_OVERLAYS := ["ai_busy"]
 ## V1.5.2 漏登記守衛：每個覆蓋層必須登記到的角色（有標題緞帶的要有 1 條緞帶＋1 個面板；彈窗至少 1 個面板）。
 ## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
-const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand"]
+const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum"]
 const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
@@ -1775,7 +1775,8 @@ func _shots_v16() -> void:
 	await _snap("v16_14_trio.png")
 	_trio_start(0)
 	await _snap("v16_15_trio_place.png")
-	trio_res = [true, false, true]
+	trio_res = [{"ok": true, "rem": 52, "spent": 60}, {"ok": false, "rem": 0, "spent": 60}, {"ok": true, "rem": 31, "spent": 60}]   # V1.6.1：三場各自的結果
+	trio_st = 0
 	overlay = "trio_result"
 	await _snap("v16_16_trio_result.png")
 	overlay = ""
@@ -1814,11 +1815,75 @@ func _shots_v16() -> void:
 	mouse = Vector2(200, 268)
 	await _snap("v16_06_magnifier.png")
 	Save.settings["magnify"] = false
-	# #8 極速賽：擺陣頂部計時、結束面板
+	# #8 極速賽：選單（V1.6.1 今日題組）、擺陣頂部計時、結束面板（含分享）
 	_rush_start()
+	await _snap("v161_01_rush_menu.png")
+	overlay = ""
+	_rush_go(true)
 	await _snap("v16_07_rush_place.png")
 	rush["solved"] = 7
 	rush["tried"] = 9
 	_rush_end()
 	await _snap("v16_08_rush_end.png")
 	overlay = ""
+	await _shots_v161()
+
+## V1.6.1 新畫面（docs/2026-11-10-v1.6.1-plan.md）
+func _shots_v161() -> void:
+	_go_title()
+	var keep: Dictionary = Save.data.duplicate(true)
+	# N2 新玩法導覽
+	overlay = "tour"
+	await _snap("v161_02_tour.png")
+	# A3 三考：三張卡片＋星數（全勝）
+	_trio_start(0)
+	trio_extra = Trio.sets()[0]["sol"]
+	trio_res = [{"ok": true, "rem": 52, "spent": 60}, {"ok": true, "rem": 48, "spent": 60}, {"ok": true, "rem": 41, "spent": 60}]
+	trio_st = 2
+	overlay = "trio_result"
+	await _snap("v161_03_trio_cards.png")
+	overlay = ""
+	_go_title()
+	# A12 異變練習場
+	rift_lab = [0, 2]
+	overlay = "rift_lab"
+	await _snap("v161_04_rift_lab.png")
+	rift_lab = []
+	# A2 出題台：斬首指定目標
+	ed_cells = {Vector2i(2, 3): D.CAVALRY, Vector2i(2, 5): D.CAVALRY, Vector2i(4, 4): D.SWORD, Vector2i(12, 4): D.SWORD, Vector2i(13, 2): D.ARCHER}
+	ed_goal = 1
+	ed_target = Vector2i(12, 4)
+	overlay = "editor"
+	await _snap("v161_05_editor_target.png")
+	ed_cells = {}
+	ed_target = Vector2i(-1, -1)
+	overlay = ""
+	# N3 實驗簿：改名中＋比較
+	puzzle_id = "p1"
+	_start_mode(Mode.PUZZLE)
+	Save.data["notebook"] = {"p1": [{"n": "速攻", "u": [[0, 4, 4], [2, 1, 3]], "r": [2, 40, 30]}, {"n": "堅守", "u": [[1, 5, 3], [2, 1, 5]], "r": [3, 55, 25]}]}
+	overlay = "notebook"
+	nb_edit = 0
+	nb_buf = "A 案"
+	await _snap("v161_06_notebook_rename.png")
+	_nb_edit_end()
+	nb_cmp_a = 0
+	nb_cmp_b = 1
+	overlay = "nb_cmp"
+	await _snap("v161_07_notebook_compare.png")
+	nb_cmp_a = -1
+	overlay = ""
+	# A9 開場鎖定弧線
+	for sp in [[D.SHIELD, 5, 3], [D.ARCHER, 1, 3], [D.ARCHER, 1, 5], [D.SWORD, 4, 4]]:
+		armies[0].place(sp[0], sp[1], sp[2])
+	tv_range = true
+	await _snap("v161_08_lock_arcs.png")
+	tv_range = false
+	# D4 接力遠征總結
+	coop_log = [1, 1, 1, 0, 2, 2, 1, 2, 3, 1, 0, 3]
+	overlay = "coop_sum"
+	await _snap("v161_09_coop_sum.png")
+	overlay = ""
+	coop_log = []
+	Save.data = keep
+	_go_title()

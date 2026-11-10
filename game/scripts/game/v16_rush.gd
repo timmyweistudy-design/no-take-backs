@@ -47,3 +47,12 @@ static func pool(seed: int) -> Array:
 
 static func after(left: float, solved: bool) -> float:
 	return left + (BONUS_SEC if solved else -PENALTY_SEC)
+
+## V1.6.1 D1：今日題組的種子（UTC 日數；同一版本同一天大家同一套題）
+static func day_seed(day: int) -> int:
+	return day * 7919 + 13
+
+## 分享格（不劇透題目）：日期、解開幾題、每題一格
+static func share_text(L, date: String, solved: int, tried: int) -> String:
+	var cells := "■".repeat(clampi(solved, 0, 30)) + "□".repeat(clampi(tried - solved, 0, 30))
+	return "\n".join([L.t("sh_rush_head", [date]), cells, L.t("sh_rush_line", [solved, tried]), L.t("sh_tag")])

@@ -12,7 +12,7 @@ for fn in sys.argv[1:]:
             continue
         r = json.loads(ln)
         s = by[r['id']]
-        s['sol3'] = r['sol3']
+        s['sol3'] = [[int(v) for v in u] for u in r['sol3']]
         for k in ('s2', 's3'):
             s.pop(k, None)
             if r.get(k) is not None:
