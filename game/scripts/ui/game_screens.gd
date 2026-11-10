@@ -246,6 +246,8 @@ func _mb_cmd(d: Dictionary) -> void:
 		if _do_click(mouse) > 0:
 			_mb_release_cleanup()
 			return
+	if state == St.PLACE and overlay == "" and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and _v16_place_click(mouse):
+		return   # V1.6 #6：標記模式
 	if state == St.PLACE and overlay == "" and _fp_mb(d):
 		return   # 第六輪：自由排兵處理掉了
 	if overlay != "" or state != St.PLACE:
@@ -308,6 +310,8 @@ func _mb_cmd(d: Dictionary) -> void:
 
 func _key(k: int) -> void:
 	_toast_dismiss()
+	if state == St.PLACE and overlay == "" and _v16_place_key(k):
+		return
 	if state == St.PLACE and _fp_key(k):
 		return
 	if state == St.BATTLE and overlay == "" and _cmd_key(k):
@@ -595,8 +599,11 @@ func _draw_inner() -> void:
 		else:
 			_draw_place_units()
 			_draw_tactical()
+		_v16_place_draw()   # V1.6 #6
 	else:
 		_draw_units_of(view, false)
+		if state == St.BATTLE:
+			_v16_battle_draw()
 	perf_parts["units"] = Time.get_ticks_usec() - _t
 	_t = Time.get_ticks_usec()
 	for f in fx:   # 先畫特效，跳字最後畫（Antigravity S2 #1：特效不能蓋住跳字）

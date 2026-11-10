@@ -131,3 +131,140 @@ func _draw_v16_overlay(name: String) -> void:
 	match name:
 		"demo_end":
 			_draw_demo_end()
+
+## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
+var tv_range := false
+var tv_mark_mode := false
+var tv_marks: Array = []      # 標記的兵：世界座標（Vector2i，開戰時對到模擬的兵）
+var tv_ids: Array = []        # 這一場對到的模擬 id（順序＝標記號碼）
+const TV_MAX := 3
+
+func _tv_pos_list(a) -> Array:
+	var out: Array = []
+	for u in a.units:
+		out.append(a.pos_of(u))
+	return out
+
+## 標記：world 附近的我方兵（沒有就不動）；已標記就取消；滿 3 隻擠掉最早的
+func tv_toggle_at(a, w: Vector2i) -> bool:
+	var i: int = a.index_near(w.x, w.y, 600)
+	if i < 0:
+		return false
+	var p: Vector2i = a.pos_of(a.units[i])
+	var k := tv_marks.find(p)
+	if k >= 0:
+		tv_marks.remove_at(k)
+	else:
+		if tv_marks.size() >= TV_MAX:
+			tv_marks.remove_at(0)
+		tv_marks.append(p)
+	return true
+
+func _tv_world_at(p: Vector2) -> Vector2i:
+	if _is_free():
+		return _w_of(p)
+	var c := _cell_at(p)
+	return Vector2i(c.x * 1000 + 500, c.y * 1000 + 500)
+
+func _v16_place_click(p: Vector2) -> bool:
+	if not tv_mark_mode or not Rect2(ORIGIN, fld_size).has_point(p):
+		return false
+	tv_toggle_at(_cur_army(), _tv_world_at(p))
+	sfx.play("k_click", 0.7)
+	return true
+
+func _v16_place_key(k: int) -> bool:
+	match k:
+		KEY_V:
+			tv_range = not tv_range
+			return true
+		KEY_T:
+			if tv_toggle_at(_cur_army(), _tv_world_at(_fp_scr(Vector2i(fp_cur)) if pad_mode else mouse)):
+				sfx.play("k_click", 0.7)
+			return true
+	return false
+
+## 資訊帶右邊（「?」左邊）兩顆小鈕
+func _tv_buttons(help: Rect2) -> void:
+	var b1 := Rect2(help.position.x - 88, help.position.y, 40, 36)
+	var b2 := Rect2(help.position.x - 44, help.position.y, 40, 36)
+	_btn(b1, "", func(): tv_range = not tv_range, true, false, TH_ACTIVE if tv_range else Color(0, 0, 0, 0))
+	_icon("range", b1.get_center(), 22.0, Color.WHITE)
+	_btn(b2, "", func(): tv_mark_mode = not tv_mark_mode, true, false, TH_ACTIVE if tv_mark_mode else Color(0, 0, 0, 0))
+	_icon("flag", b2.get_center(), 22.0, Color.WHITE)
+	if b1.has_point(mouse) or b2.has_point(mouse):
+		var tip := L.t("tv_range_tip") if b1.has_point(mouse) else L.t("tv_mark_tip")
+		var tw := _width(tip, tz("S")) + 20.0
+		var tr := Rect2(clampf(mouse.x - tw / 2, 8, 1272 - tw), help.end.y + 6, tw, tz("S") * 1.6)
+		draw_rect(tr, Color(0.06, 0.07, 0.1, 0.92))
+		_text(tr.position + Vector2(10, tz("S") * 0.25), tip, tz("S"), Color.WHITE, false, false, tw)
+
+func _foot_of(w: Vector2i) -> Vector2:
+	return ORIGIN + Vector2(w.x / 1000.0, w.y / 1000.0 + 0.32) * CS
+
+## 擺陣畫面疊層：射程覆蓋（我方每隻有射程的兵畫淡圈；看得到敵兵時，每隻兵朝最近敵兵畫短箭頭）＋標記號碼
+func _v16_place_draw() -> void:
+	var a = _cur_army()
+	if tv_range:
+		var foes: Array = []
+		if _enemy_visible() and armies.size() > 1 and mode != Mode.DUEL:
+			foes = _tv_pos_list(armies[1])
+		for u in a.units:
+			var p: Vector2i = a.pos_of(u)
+			var sp := _foot_of(p) - Vector2(0, 0.32 * CS)
+			var rr: float = _fp_range_of(int(u["type"]))
+			if rr > 0.0:
+				draw_circle(sp, rr * CS, Color(1, 0.9, 0.5, 0.05))
+				call("_arc_clipped", sp, rr * CS, 0, TAU, Color(1, 0.9, 0.5, 0.3), 1.2)
+			if not foes.is_empty():
+				var best: Vector2i = foes[0]
+				var bd := INF
+				for f in foes:
+					var d := Vector2(f - p).length()
+					if d < bd:
+						bd = d
+						best = f
+				var dir := Vector2(best - p).normalized()
+				_chalk_arrow(sp, sp + dir * 0.7 * CS)
+	_tv_draw_marks_place(a)
+
+func _chalk_arrow(a: Vector2, b: Vector2) -> void:
+	draw_line(a, b, Color(1, 1, 1, 0.55), 2.0, true)
+	var d := (b - a).normalized()
+	draw_line(b, b - d.rotated(0.5) * 8.0, Color(1, 1, 1, 0.55), 2.0, true)
+	draw_line(b, b - d.rotated(-0.5) * 8.0, Color(1, 1, 1, 0.55), 2.0, true)
+
+func _tv_badge(at: Vector2, n: int, dead := false) -> void:
+	var r := Rect2(at - Vector2(11, 11), Vector2(22, 22))
+	draw_rect(r, Color(0.1, 0.1, 0.12, 0.9) if not dead else Color(0.3, 0.3, 0.3, 0.8))
+	draw_rect(r, ACCENT if not dead else Color(0.7, 0.7, 0.7), false, 2.0)
+	_text(r.position + Vector2(11, 1), str(n) if not dead else "×", tz("C"), Color.WHITE, true, true)
+
+func _tv_draw_marks_place(a) -> void:
+	var have := _tv_pos_list(a)
+	tv_marks = tv_marks.filter(func(m): return have.has(m))   # 被拿掉的兵自動取消標記
+	for i in tv_marks.size():
+		_tv_badge(_foot_of(tv_marks[i]) - Vector2(0, 1.05 * CS), i + 1)
+
+func _begin_battle(a0, a1, kind := "official") -> void:
+	super._begin_battle(a0, a1, kind)
+	tv_ids = []
+	if sim == null or tv_marks.is_empty():
+		return
+	for m in tv_marks:
+		for u in sim.units:
+			if u.team == 0 and u.x == m.x and u.y == m.y:
+				tv_ids.append(u.id)
+				break
+
+## 戰鬥中：標記的兵頭上號碼；倒下就在最後位置畫灰色 ×
+func _v16_battle_draw() -> void:
+	if tv_ids.is_empty() or view == null:
+		return
+	for u in view.units:
+		var k := tv_ids.find(u.id)
+		if k < 0:
+			continue
+		var p := _upos(u)
+		if u.alive:
+			_tv_badge(p - Vector2(0, 1.15 * CS), k + 1)

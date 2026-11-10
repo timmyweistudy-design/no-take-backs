@@ -1727,3 +1727,18 @@ func _shots_v16() -> void:
 	await _snap("v16_02_demo_end.png")
 	overlay = ""
 	Save.data = keep
+	# #6 射程覆蓋＋標記（殘局：看得到敵兵，畫最近敵兵方向）
+	puzzle_id = "p1"
+	_start_mode(Mode.PUZZLE)
+	for s in [[D.SHIELD, 5, 3], [D.ARCHER, 1, 3], [D.ARCHER, 1, 5], [D.SWORD, 4, 4]]:
+		armies[0].place(s[0], s[1], s[2])
+	tv_range = true
+	tv_marks = [Vector2i(1500, 3500), Vector2i(5500, 3500)]
+	await _snap("v16_03_place_range.png")
+	_begin_battle(armies[0].copy(), armies[1].copy(), "official")
+	for i in 60:
+		_sim_step(true)
+	await _snap("v16_04_battle_marks.png")
+	tv_range = false
+	tv_marks = []
+	_go_title()
