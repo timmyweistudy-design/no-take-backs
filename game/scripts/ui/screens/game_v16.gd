@@ -139,7 +139,7 @@ func _draw_tour() -> void:
 		var r := Rect2(P.position.x + 40, y, P.size.x - 80, rh)   # V1.6.1：列高照說明行數（英文長說明會換行）
 		y += rh + 8.0
 		var en: bool = not _demo() or str(it[0]) == "fog_open"
-		_btn(r, "", _entry_action(str(it[0])), en, i == 0)
+		_btn(r, "", _entry_action(str(it[0])), en, false)   # 不用主按鈕的橘底：說明字在橘底上對比不夠（接觸表看到）
 		_icon(str(it[2]), r.position + Vector2(30, rh / 2.0), 26.0, ACCENT if en else TXT_DIM)
 		_text(r.position + Vector2(60, 6), L.t(str(it[0])), tz("S"), Color.WHITE if en else TXT_DIM, false, true, 220)
 		_text(r.position + Vector2(290, 8), L.t(str(it[1])), tz("C"), TXT_DIM, false, false, r.size.x - 300)
@@ -1647,14 +1647,14 @@ func _draw_trio() -> void:
 	var pages := ceili(ss.size() / float(TRIO_PAGE))
 	trio_page = clampi(trio_page, 0, pages - 1)
 	var rows := ceili(mini(TRIO_PAGE, ss.size()) / 2.0)
-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tr_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_S + tz("C") * 1.3 + GAP_S + 44.0 + GAP_L)
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tr_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_S + tz("C") * 1.3 + GAP_M + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("trio_open"), L.t("tr_help"), tz("S"), 680)
 	if pages > 1:
 		# 換頁鈕和返回鈕同一列、左右對稱（R4）；頁數寫在返回鈕上方
 		_btn_small(Rect2(560 - GAP_M - 60, P.end.y - GAP_L - 44.0, 60, 44), "◀", func(): trio_page -= 1, trio_page > 0)
 		_btn_small(Rect2(720 + GAP_M, P.end.y - GAP_L - 44.0, 60, 44), "▶", func(): trio_page += 1, trio_page < pages - 1)
-		_text(Vector2(640, P.end.y - GAP_L - 44.0 - GAP_S - tz("C") * 1.3), L.t("lb_page", [trio_page + 1, pages]), tz("C"), TXT_DIM, true, false, 200)
+		_text(Vector2(640, P.end.y - GAP_L - 44.0 - GAP_M - tz("C") * 1.3), L.t("lb_page", [trio_page + 1, pages]), tz("C"), TXT_DIM, true, false, 200)
 	for i in range(trio_page * TRIO_PAGE, mini(ss.size(), trio_page * TRIO_PAGE + TRIO_PAGE)):
 		var s: Dictionary = ss[i]
 		var id := str(s["id"])
