@@ -726,6 +726,10 @@ func _draw_fx(f: Dictionary) -> void:
 		"text":
 			var col: Color = f["c"]
 			col.a = 1.0 - k * k
+			# V1.6.1 A10：有標記兵時，其他兵的一般跳字淡化（擊倒、致命、剋制等關鍵字 tier ≥2 照舊不透明）
+			var tvi = get("tv_ids")
+			if tvi is Array and not (tvi as Array).is_empty() and int(f.get("tier", 2)) < 2 and not int(f.get("tid", -1)) in tvi:
+				col.a *= 0.4
 			if f.get("screen", false):
 				if bool(Save.s("text_plate")):
 					var tw4 := _width(str(f["s"]), ts(f["size"]), true) + 28.0

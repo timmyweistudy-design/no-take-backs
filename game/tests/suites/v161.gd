@@ -210,3 +210,14 @@ func test_lock_targets_v161() -> void:
 	e.place(1, 12, 8)
 	var lk: Array = G.lock_targets(a, e, null)
 	ok(lk.size() == 2 and lk.all(func(p): return p[1].x > 8000), "每隻我方兵都鎖定一隻敵兵（A9）", str(lk))
+
+func test_new_after_v161() -> void:
+	var G = load("res://scripts/game/v16_guide.gd")
+	var d := {"stats": {"games": 2}}
+	G.seed_seen(d)
+	ok(not G.is_new(d, "rush_open"), "前 2 場不標新玩法（N1）")
+	ok(not G.tour_due(d, false), "新手不跳導覽")
+	d["stats"]["games"] = 3
+	ok(G.is_new(d, "rush_open") and G.tour_due(d, false) and not G.tour_due(d, true), "玩滿 3 場：標新、跳一次導覽（試玩版不跳）")
+	G.see(d, "tour161")
+	ok(not G.tour_due(d, false), "導覽只跳一次")

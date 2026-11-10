@@ -949,9 +949,16 @@ func _draw_lobby_detail(R: Rect2) -> void:
 	var tabs: Array = LOBBY_TABS.duplicate()
 	if lobby_kind == "duel":
 		tabs.erase("lb_tab_ai")
+	# V1.6.1 A10：常用（前面）與進階（實驗、軍令）中間隔一段、標「進階」
+	var adv_gap := tz("C") * 1.6 + 8.0
+	var adv_at: int = tabs.find("lb_tab_lab")
 	for i in tabs.size():
 		var idx: int = LOBBY_TABS.find(tabs[i])
-		_btn(Rect2(R.position + Vector2(0, i * 58), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx; lobby_rpage = 0, true, false,
+		var gy := adv_gap if adv_at >= 0 and i >= adv_at else 0.0
+		if i == adv_at:
+			draw_line(R.position + Vector2(8, i * 58 + 2), R.position + Vector2(142, i * 58 + 2), Color(1, 1, 1, 0.25), 1.0)
+			_text(R.position + Vector2(75, i * 58 + 4), L.t("lb_adv"), tz("C"), TXT_DIM, true, false, 140)
+		_btn(Rect2(R.position + Vector2(0, i * 58 + gy), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx; lobby_rpage = 0, true, false,
 			TH_ACTIVE if idx == lobby_tab else Color(0, 0, 0, 0))
 	var L0 := Rect2(R.position + Vector2(170, 0), Vector2(600, R.size.y))
 	var D0 := Rect2(Vector2(L0.end.x + 20, R.position.y), Vector2(R.end.x - L0.end.x - 20, R.size.y))

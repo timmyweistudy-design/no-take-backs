@@ -40,8 +40,10 @@ func test_guide_v160() -> void:
 	d["gauntlet_best"] = 2
 	d["funnel"] = {"playroom_open": 1}
 	d["trial_stars"] = {"0": 1}
-	ok(G.next_step(d, true, false) == "", "全部做過就不顯示")
-	var e := {}
+	ok(G.next_step(d, true, false) == "v16:rush_open", "舊的都做過：推 V1.6 新玩法（V1.6.1 N1；原本是不顯示）")
+	d["seen"] = G.V16_ENTRIES.duplicate()
+	ok(G.next_step(d, true, false) == "", "全部做過、新玩法也開過就不顯示")
+	var e := {"stats": {"games": 3}}   # V1.6.1 N1：玩滿 3 場才標新
 	G.seed_seen(e)
 	ok(not G.is_new(e, "menu_vs_ai") and G.is_new(e, "rush_open"), "舊入口算看過、V1.6 新入口標新")
 	G.see(e, "rush_open")

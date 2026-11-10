@@ -104,9 +104,43 @@ func _next_action(k: String) -> Callable:
 			return func(): overlay = "playroom"; _focus = 0
 		"trials":
 			return func(): _open("trials")
+	if k.begins_with("v16:"):
+		return _entry_action(k.substr(4))
 	return func(): pass
 
+## V1.6.1 N1／N2：照卡片定義找某個入口的動作（建議下一步、新玩法導覽共用；點了算看過）
+func _entry_action(key: String) -> Callable:
+	for kind in ["hub_play", "hub_challenge", "hub_collect"]:
+		for it in hub_items(kind):
+			if str(it[0]) == key:
+				var cb: Callable = it[3]
+				return func(): Guide.see(Save.data, key); cb.call()
+	return func(): pass
+
+const TOUR := [["rush_open", "hc_rush_d", "clock"], ["trio_open", "hc_trio_d", "people"], ["rift_open", "hc_rift_d", "swap"],
+	["fog_open", "hc_fog_d", "map"], ["ed_open", "hc_ed_d", "puzzle"], ["coop_open", "hc_coop_d", "people"]]
+func _draw_tour() -> void:
+	var rows := TOUR.size()
+	var P := modal_rect(820, 12.0 + h1_help_h(L.t("tour_help"), tz("S"), 740) + GAP_L + rows * 64.0 + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tour_title"), L.t("tour_help"), tz("S"), 740)
+	for i in rows:
+		var it: Array = TOUR[i]
+		var r := Rect2(P.position.x + 40, y + i * 64.0, P.size.x - 80, 56)
+		var en: bool = not _demo() or str(it[0]) == "fog_open"
+		_btn(r, "", _entry_action(str(it[0])), en, i == 0)
+		_icon(str(it[2]), r.position + Vector2(30, 28), 26.0, ACCENT if en else TXT_DIM)
+		_text(r.position + Vector2(60, 6), L.t(str(it[0])), tz("S"), Color.WHITE if en else TXT_DIM, false, true, 220)
+		_text(r.position + Vector2(290, 8), L.t(str(it[1])), tz("C"), TXT_DIM, false, false, r.size.x - 300)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
 func _draw_next_step() -> void:
+	if overlay == "" and Guide.tour_due(Save.data, _demo()):
+		Guide.see(Save.data, "tour161")   # V1.6.1 N2：老玩家第一次開跳一次（之後在收藏卡片裡隨時可看）
+		Save.save_data()
+		overlay = "tour"
+		_focus = 0
+		return
 	if Save.s("hints") == "off" or overlay != "":
 		return
 	var k := Guide.next_step(Save.data, _daily_done_today(), _demo())
@@ -117,7 +151,7 @@ func _draw_next_step() -> void:
 	_btn(NS_RECT, "", _next_action(k), true, false, Color(0.16, 0.3, 0.42, 0.95))
 	_icon("flag", NS_RECT.position + Vector2(30, NS_RECT.size.y / 2), 26.0, ACCENT)
 	_text(NS_RECT.position + Vector2(56, 6), L.t("ns_head"), tz("C"), TXT_DIM, false, false, NS_RECT.size.x - 70)
-	_text(NS_RECT.position + Vector2(56, 6 + tz("C") * 1.25), L.t("ns_" + k), tz("S"), Color.WHITE, false, true, NS_RECT.size.x - 70)
+	_text(NS_RECT.position + Vector2(56, 6 + tz("C") * 1.25), L.t("ns_new", [L.t(k.substr(4))]) if k.begins_with("v16:") else L.t("ns_" + k), tz("S"), Color.WHITE, false, true, NS_RECT.size.x - 70)
 
 ## 「新」小牌：貼在卡片右上角內側（九宮格羊皮紙＋墨字，不只靠顏色）
 func _new_tag(r: Rect2) -> void:
@@ -160,6 +194,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_trio()
 		"trio_result":
 			_draw_trio_result()
+		"tour":
+			_draw_tour()
 		"coop_hand":
 			_draw_coop_hand()
 
