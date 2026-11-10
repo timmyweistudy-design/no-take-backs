@@ -259,8 +259,40 @@ func _draw_fb_cat() -> void:
 		_btn(Rect2(640 - 230 + (i % 2) * 240, y + (i / 2) * (50.0 + GAP_M), 220, 50), L.t("fb_c_" + c), func(): _feedback_save(c), true, i == 0)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("fb_c_skip"), func(): _feedback_save(""))
 
+## 1.1.0 N4：最近 7 天的每日題（今天照常計紀錄；過去的是練習）
+const DAILY_PAST := 7
+func _daily_entry() -> void:
+	if _daily_done_today():
+		overlay = "daily_past"
+		_focus = 0
+	else:
+		call("_start_daily")
+
+func _draw_daily_past() -> void:
+	var rowh := 52.0
+	var help := L.t("dp_help")
+	var P := modal_rect(760, 12.0 + h1_help_h(help, tz("S"), 680) + GAP_L + DAILY_PAST * (rowh + GAP_S) + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("menu_daily"), help, tz("S"), 680) + GAP_L
+	var today: int = Daily.today()
+	var best: Dictionary = Save.data.get("daily_best", {})
+	for i in DAILY_PAST:
+		var day := today - i
+		var sp: Dictionary = Daily.spec(day)
+		var b: Array = best.get(sp["key"], [])
+		var date := Time.get_date_string_from_unix_time(day * 86400)
+		var line := "%s　%s" % [date, L.t("daily_mut_%d" % int(sp["mut"]))] + (("　・%d%%" % int(b[0])) if not b.is_empty() else "")
+		_text(Vector2(P.position.x + 40, y + 12), line, tz("S"), Color.WHITE if i == 0 else TXT_DIM, false, false, 460)
+		var dd := day
+		var prac := i > 0
+		_btn(Rect2(P.end.x - 220, y + 4, 180, 44), L.t("dp_today") if i == 0 else L.t("dp_practice"), func(): overlay = ""; call("_start_daily_day", dd, prac), true, i == 0)
+		y += rowh + GAP_S
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())
+
 func _draw_v16_overlay(name: String) -> void:
 	match name:
+		"daily_past":
+			_draw_daily_past()
 		"nb_words":
 			_draw_nb_words()
 		"fb_cat":
@@ -614,8 +646,8 @@ func _share_ready() -> bool:
 func _daily_finish(w: int) -> void:
 	super._daily_finish(w)
 	sh_text = ""
-	if (daily_spec as Dictionary).is_empty() or w != 0:
-		return
+	if (daily_spec as Dictionary).is_empty() or w != 0 or daily_practice:
+		return   # 1.1.0 N4：練習不算連勝、不送排行榜、不產分享格
 	var day := int(daily_spec.get("day", Daily.today()))   # 跨 UTC 午夜才打完：照開局那天的題（Codex v160-i1 #6）
 	var st: Dictionary = Share.streak_after(Save.data.get("daily_streak", {}), day)
 	Save.data["daily_streak"] = st
@@ -645,7 +677,8 @@ func _hl_go(t: int) -> void:
 func _draw_share() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
 	var hl := _highlights()
-	var rows := 1 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0)
+	var sol_ok := mode == Mode.PUZZLE and puzzle_id != "ws" and (Save.data.get("pz_sol", {}) as Dictionary).has(puzzle_id)   # 1.1.0 N5
+	var rows := 1 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0)
 	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("sh_title")) + GAP_L
@@ -669,6 +702,11 @@ func _draw_share() -> void:
 		y += 56.0
 	if sh_text != "":
 		_btn(Rect2(400, y, 480, 48), L.t("sh_copy"), func(): DisplayServer.clipboard_set(sh_text); _toast(L.t("sh_copied")))
+		y += 56.0
+	if sol_ok:
+		var sol: Dictionary = Save.data["pz_sol"][puzzle_id]
+		var code: String = load("res://scripts/game/solution_code.gd").encode(puzzle_id, sol["u"])
+		_btn(Rect2(400, y, 480, 48), L.t("sol_copy", [int(sol["r"][0])]), func(): DisplayServer.clipboard_set(code); _toast(L.t("sol_copied")))
 		y += 56.0
 	if not (daily_spec as Dictionary).is_empty():
 		_btn(Rect2(400, y, 480, 48), L.t("dt_title"), func(): _daily_top_open())

@@ -93,7 +93,7 @@ func test_code_table_v100() -> void:
 	var G = load("res://scripts/ui/screens/game_menus.gd")
 	var want := {"NTB1": "army", "NTB5": "army", "NTB6": "army", "NTB2": "battle", "NTB3": "battle", "NTB4": "battle", "NTB7": "battle",
 		"NTBR1": "rules", "NTBR6": "rules", "NTC1": "challenge", "NTP1": "workshop", "NTP2": "workshop", "NTP3": "workshop", "NTP4": "workshop",
-		"NTS1": "settings", "NTW1": "waves"}
+		"NTS1": "settings", "NTW1": "waves", "NTQ1": "solution"}
 	var bad: Array = []
 	for p in want:
 		if G.code_kind(p + ".abc.123456") != want[p]:
@@ -359,3 +359,28 @@ func test_ach_cat_v110() -> void:
 		if not ST.ACH_CAT.has(k) or not ST.ACH_CAT_COL.has(ST.ACH_CAT[k]):
 			miss.append(k)
 	ok(miss.is_empty() and ST.ACH_CAT.size() == ST.ACHIEVEMENTS.size(), "37 個成就都有類別", str(miss))
+
+## 1.1.0 N5：最佳解碼來回、壞碼不收、最佳排序同實驗簿、存檔驗證。
+func test_solution_code_v110() -> void:
+	var SC = load("res://scripts/game/solution_code.gd")
+	var PZ = load("res://scripts/game/puzzles.gd")
+	var pz: Dictionary = PZ.puzzles()[0]
+	var sol: Array = pz.get("best", {}).get("u", [])
+	ok(not sol.is_empty(), "第一關有三星解")
+	var code: String = SC.encode(str(pz["id"]), sol)
+	var d: Dictionary = SC.decode(code)
+	ok(bool(d["ok"]) and d["pid"] == str(pz["id"]) and (d["u"] as Array).size() == sol.size(), "來回")
+	ok(not bool(SC.decode(code + "x")["ok"]) and not bool(SC.decode("NTQ1.abc.123456")["ok"]), "壞碼不收")
+	ok(not bool(SC.decode(SC.encode("ws", sol))["ok"]) and not bool(SC.decode(SC.encode("no_such", sol))["ok"]), "工坊、不存在的關不收")
+	var best := {}
+	SC.merge(best, "p1", 2, 40, 30, [[0, 1, 2]])
+	SC.merge(best, "p1", 2, 40, 35, [[0, 1, 3]])
+	ok(best["p1"]["u"] == [[0, 1, 2]], "花費多的不換")
+	SC.merge(best, "p1", 3, 10, 50, [[0, 1, 4]])
+	ok(best["p1"]["u"] == [[0, 1, 4]] and best["p1"]["r"] == [3, 10, 50], "星數多優先")
+	var S = load("res://scripts/game/save.gd")
+	var dd := {"pz_sol": {"p1": {"r": [3, 10, 50], "u": [[0, 1, 4]]}, "bad": {"r": [1], "u": []}, "bad2": {"r": [1, 2, 3], "u": [["x", 1, 2]]}}}
+	S.sanitize_extras(dd)
+	ok(dd["pz_sol"].size() == 1 and dd["pz_sol"].has("p1"), "存檔驗證丟掉壞的", str(dd["pz_sol"]))
+	var G = load("res://scripts/ui/screens/game_menus.gd")
+	ok(G.code_kind(code) == "solution", "代碼頁認得 NTQ1")

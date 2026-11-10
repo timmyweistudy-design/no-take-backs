@@ -395,7 +395,7 @@ func _key(k: int) -> void:
 					overlay = "pause_menu"   # 和「留下」一樣回暫停選單（Codex v151-i1 #3）
 				elif overlay != "":
 					# V1.5.1：Esc／手把 B 和返回鈕同一套目的地；沒登記來處的子頁用它返回鈕的目的地
-					call("_nav_back", {"wager": "playroom", "draft": "playroom", "wave_codes": "codes", "ghosts": "playroom", "weekly": "playroom", "rift": "playroom", "nb_words": "notebook"}.get(overlay, ""))
+					call("_nav_back", {"wager": "playroom", "draft": "playroom", "wave_codes": "codes", "ghosts": "playroom", "weekly": "playroom", "rift": "playroom", "nb_words": "notebook", "daily_past": "playroom"}.get(overlay, ""))
 				elif state == St.BATTLE:
 					if play_kind != "official":
 						_replay_back()   # 第七輪 A9：重播時 Esc＝返回

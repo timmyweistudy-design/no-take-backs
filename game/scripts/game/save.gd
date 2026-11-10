@@ -325,6 +325,20 @@ static func _int_list(v, max_n: int) -> Array:
 	return o
 
 ## V1.6 新欄位逐欄驗型（Codex v160-i1 #1）：壞的回預設（拿掉），其他照留
+static func sol_entry_ok(e) -> bool:
+	if not (e is Dictionary and e.get("r") is Array and (e["r"] as Array).size() == 3 and e.get("u") is Array and (e["u"] as Array).size() <= 40):
+		return false
+	for x in e["r"]:
+		if not _is_num(x):
+			return false
+	for v in e["u"]:
+		if not (v is Array and (v as Array).size() == 3):
+			return false
+		for x in v:
+			if not _is_num(x):
+				return false
+	return true
+
 static func sanitize_extras(out: Dictionary) -> void:
 	var f = out.get("funnel", {})
 	var f2 := {}
@@ -420,6 +434,20 @@ static func sanitize_extras(out: Dictionary) -> void:
 		out.erase("rush_day")
 	if out.has("eff_games"):
 		out["eff_games"] = clampi(int(out["eff_games"]), 0, 100000000) if _is_num(out["eff_games"]) else 0   # V1.6.1 N1
+	# 1.1.0 N5：殘局最佳解 {關卡 id: {"r": [星, 剩餘, 花費], "u": [[兵種, 欄, 列]…]}}；壞的那筆丟掉
+	if out.has("pz_sol"):
+		var ps0 = out["pz_sol"]
+		var ps1 := {}
+		if ps0 is Dictionary:
+			for k0 in ps0:
+				var good := sol_entry_ok(ps0[k0]) and str(k0).length() <= 24
+				if good:
+					var e0: Dictionary = ps0[k0]
+					var uu: Array = []
+					for v in e0["u"]:
+						uu.append([int(v[0]), int(v[1]), int(v[2])])
+					ps1[str(k0)] = {"r": [int(e0["r"][0]), int(e0["r"][1]), int(e0["r"][2])], "u": uu}
+		out["pz_sol"] = ps1
 	for k in ["ai_games", "ai_wins"]:   # V1.0.0：對 AI 場數、勝場（建議下一步用）
 		if out.has(k):
 			out[k] = clampi(int(out[k]), 0, 100000000) if _is_num(out[k]) else 0

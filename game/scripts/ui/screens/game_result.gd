@@ -19,6 +19,7 @@ func _start_mode(m: int) -> void:
 	set("trial_id", -1)
 	if m != Mode.VS_AI or get("challenge_army") == null:
 		set("daily_spec", {})   # V1.1 D2：每日挑戰按「再來一次」時保留（敵陣在 challenge_army）
+		set("daily_practice", false)   # 1.1.0 N4：練習旗標跟每日題同進退
 	if m != Mode.VS_AI:
 		set("challenge_army", null)
 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來

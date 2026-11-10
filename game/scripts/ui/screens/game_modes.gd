@@ -524,10 +524,15 @@ func _draw_relay() -> void:
 
 ## ── V1.1 D2：每日挑戰 ──
 func _start_daily() -> void:
+	_start_daily_day(Daily.today(), false)
+
+## 1.1.0 N4：任一天的每日題；practice＝練習（過去的題：不存最佳、不算連勝、不送排行榜）
+var daily_practice := false
+func _start_daily_day(day: int, practice: bool) -> void:
 	if _demo():
 		_toast(L.t("demo_locked"), true)
 		return
-	var sp: Dictionary = Daily.spec(Daily.today())
+	var sp: Dictionary = Daily.spec(day)
 	var r = Daily.make_rules(sp, RS.mask(false))
 	if not r.validate().is_empty():
 		_toast(L.t("ch_bad"), true)
@@ -536,6 +541,7 @@ func _start_daily() -> void:
 	challenge_army = Daily.enemy(sp, r)   # 同一天同一支敵軍（固定陣，走挑戰碼那條路）
 	_start_mode(Mode.VS_AI)
 	daily_spec = sp   # 突變說明畫在敵方迷霧區（Antigravity v110-impl：開場提示會壓住兵種說明列）
+	daily_practice = practice
 
 ## 突變說明：數值一律從這組規則讀（不寫死在字串裡）。
 func _daily_desc(sp: Dictionary, r) -> String:
@@ -550,6 +556,9 @@ func _daily_desc(sp: Dictionary, r) -> String:
 
 func _daily_finish(w: int) -> void:
 	if daily_spec.is_empty() or w != 0:
+		return
+	if daily_practice:
+		_toast(L.t("daily_practice_done", [PZ.rem_pct(sim.power(0), sim.budget_of(0)), armies[0].spent()]))   # 1.1.0 N4：練習不存紀錄
 		return
 	var rem: int = PZ.rem_pct(sim.power(0), sim.budget_of(0))
 	var spent: int = armies[0].spent()

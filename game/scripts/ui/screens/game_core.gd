@@ -397,6 +397,7 @@ func _progress_and_achievements() -> void:
 			Save.note_try("puzzle", puzzle_id, stars >= 1, armies[0].spent())   # V1.1 F2
 			if stars >= 1:
 				_puzzle_record(puzzle_id, armies[0].spent(), armies[0].units.size(), sim.tick)
+				_best_sol_record(puzzle_id, stars)
 		if mode == Mode.TUTORIAL and w == 0:
 			var idx := 0
 			for i in PZ.tutorials().size():
@@ -778,6 +779,18 @@ static func record_merge(old: Array, spent: int, units: int, ticks: int) -> Arra
 	if old.size() != 3:
 		return [spent, units, ticks]
 	return [mini(int(old[0]), spent), mini(int(old[1]), units), mini(int(old[2]), ticks)]
+
+## 1.1.0 N5：存「最佳解」的部署（玩家擺的兵，不含固定兵），排序同實驗簿
+func _best_sol_record(pid: String, stars: int) -> void:
+	var pz := PZ.get_puzzle(pid)
+	var u: Array = []
+	for un in last_armies[0].units if not last_armies.is_empty() else []:
+		if un.has("col") and not PZ.is_fixed(pz, int(un["col"]), int(un["row"])):
+			u.append([int(un["type"]), int(un["col"]), int(un["row"])])
+	if u.is_empty():
+		return
+	var SC = load("res://scripts/game/solution_code.gd")
+	Save.data["pz_sol"] = SC.merge(Save.data.get("pz_sol", {}), pid, stars, PZ.rem_pct(sim.power(0), sim.budget_of(0)), last_armies[0].spent(), u)
 
 func _puzzle_record(pid: String, spent: int, units: int, ticks: int) -> void:
 	var all: Dictionary = Save.data.get("pz_best", {})

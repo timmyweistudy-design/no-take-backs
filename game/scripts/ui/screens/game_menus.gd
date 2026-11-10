@@ -1087,7 +1087,7 @@ func _draw_restore() -> void:
 		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
 
-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins"]], ["clr_all", []]]
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
@@ -1235,6 +1235,8 @@ static func code_kind(c: String) -> String:
 		return "settings"
 	if p == "NTW1":
 		return "waves"
+	if p == "NTQ1":
+		return "solution"   # 1.1.0 N5 殘局最佳解碼
 	return ""
 
 func _auto_code() -> void:
@@ -1262,10 +1264,35 @@ func _auto_code() -> void:
 			else:
 				set("wv_view", w)
 				overlay = "wave_codes"
+		"solution":
+			_accept_solution(c)
 		"army":
 			_toast(L.t("code_army_here"), true)   # 陣型碼要在擺陣畫面貼
 		_:
 			_toast(L.t("code_bad"), true)
+
+## 1.1.0 N5：打開那一關，把朋友的解擺上去（照「重打保留擺法」那一套，固定兵不重複）
+func _accept_solution(c: String) -> void:
+	var d: Dictionary = load("res://scripts/game/solution_code.gd").decode(c)
+	if not bool(d.get("ok", false)):
+		_toast(L.t("code_bad"), true)
+		return
+	var all := PZ.all_puzzles()
+	var idx := -1
+	for i in all.size():
+		if str(all[i]["id"]) == str(d["pid"]):
+			idx = i
+	if _demo() and (idx < 0 or idx >= Presets.DEMO_PUZZLES):
+		_toast(L.t("demo_locked"), true)
+		return
+	overlay = ""
+	set("retry_key", "pz:" + str(d["pid"]))
+	var us: Array = []
+	for e in d["u"]:
+		us.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
+	set("retry_units", us)
+	_pick_puzzle(str(d["pid"]), false)
+	_toast(L.t("sol_loaded"))
 
 func _paste_code() -> void:
 	var why := _load_checked(DisplayServer.clipboard_get())
@@ -1314,7 +1341,7 @@ func hub_items(kind: String) -> Array:
 				["rush_open", "hc_rush_d", "clock", func(): overlay = ""; call("_rush_start"), not _demo()],   # V1.6 #8（題庫是全部殘局：試玩版不開，Codex v160-i1 #7）
 				["trio_open", "hc_trio_d", "people", func(): overlay = "trio"; _focus = 0, not _demo()]]   # V1.6 #17
 		"playroom":   # V1.0.0 H1：遊戲間＝定期回來的（每日、每週、幽靈、裂隙）＋派對玩法（競猜、輪抽、車輪、雙封蠟）
-			return [["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_start_daily"), not _demo()],
+			return [["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_daily_entry"), not _demo()],   # 1.1.0 N4：今天打過了就開最近 7 天
 				["wk_open", "hc_weekly_d", "cards", func(): overlay = "weekly", not _demo()],
 				["gh_open", "hc_ghosts_d", "skull", func(): overlay = "ghosts", not _demo()],
 				["rift_open", "hc_rift_d", "swap", func(): overlay = "rift"; _focus = 0, not _demo()],   # V1.6 #10
