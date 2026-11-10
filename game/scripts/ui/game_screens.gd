@@ -17,6 +17,8 @@ func _ready() -> void:
 		elif a == "--self-check":
 			Save.prefix = "smoke_"
 	Save.load_all()
+	if Save.prefix == "":
+		Funnel.boot()   # V1.6 #2（截圖、自我檢查不算）
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--steam-test="):
 			var aid := int(a.substr(13))
@@ -419,6 +421,7 @@ func _process(delta: float) -> void:
 	_throttle_when_minimized()
 	_rv_poll()
 	_settings_hover()
+	_v16_tick(delta)   # V1.6：漏斗里程碑、背景工作
 	var _t0 := Time.get_ticks_usec()
 	_process_inner(delta)
 	perf_proc_us = Time.get_ticks_usec() - _t0

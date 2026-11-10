@@ -245,7 +245,7 @@ func _draw_title() -> void:
 		var pulse := 0.5 + 0.5 * sin(time * 3.0)
 		draw_rect(Rect2(68, y0 - 2, PW + 4, ph + 4), Color(ACCENT, 0.5 + 0.5 * pulse), false, 3.0)
 	var y2 := y0 + 5 * (ph + gap) + 4
-	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): get_tree().quit()]]
+	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): call("_quit_mark"); get_tree().quit()]]
 	for i in sys.size():
 		_btn(Rect2(70 + i * 126, y2, 118, 40), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
 	probe_align("home_col", [Rect2(HOME_CX - tw / 2 - 60, 40, tw + 120, tsz), Rect2(70, y0, PW, 5 * (ph + gap)), Rect2(70, y2, 2 * 126 + 118, 40)])
@@ -637,6 +637,7 @@ func _settings_rows() -> Array:
 			return [["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],
 				["set_export", "@" + L.t("do_copy"), func(d): _settings_export()],
 				["set_pt_export", "@" + L.t("do_export"), func(d): _playtest_export()],
+				["fb_btn", "@" + L.t("do_copy"), func(d): call("_feedback")],
 				["set_import", "@" + L.t("do_paste"), func(d): _settings_import()],
 				["set_backup", "@" + L.t("do_backup"), func(d): _progress_backup()],
 				["set_restore", "@" + L.t("do_restore"), func(d): _data_swap_open("restore")],
@@ -667,6 +668,7 @@ func _draw_pause_menu() -> void:
 	if play_kind == "official":
 		items.append([L.t("skip"), func(): overlay = ""; call("_on_skip"), false])
 	items.append([L.t("pm_settings"), func(): settings_ret = "pause_menu"; overlay = "settings", false])
+	items.append([L.t("fb_btn"), func(): call("_feedback"), false])   # V1.6 #2
 	items.append([L.t("pm_leave"), func(): overlay = ""; _request_leave(), false])   # 確認框開著時戰鬥維持暫停（Antigravity v150-i2 #3）
 	var ph := 96.0 + items.size() * 66.0 + 24.0   # 面板高度照項目數
 	var P := Rect2(440, 400 - ph * 0.5, 400, ph)
