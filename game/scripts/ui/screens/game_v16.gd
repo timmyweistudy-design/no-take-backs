@@ -45,6 +45,7 @@ func _v16_tick(_delta: float) -> void:
 					if not (get("daily_spec") as Dictionary).is_empty():
 						Funnel.mark("daily_open")
 	_hold_tick(_delta)
+	_rush_tick(_delta)
 	_v16_jobs(_delta)
 
 func _v16_jobs(_delta: float) -> void:
@@ -57,6 +58,9 @@ func _open_codex(t: int) -> void:
 func _finish_battle() -> void:
 	super._finish_battle()
 	if play_kind != "official" or sim == null:
+		return
+	if bool(rush.get("on", false)) and mode == Mode.PUZZLE:
+		_rush_settle()
 		return
 	Funnel.mark("first_battle")
 	if mode != Mode.DUEL:
@@ -134,6 +138,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_demo_end()
 		"share":
 			_draw_share()
+		"rush_end":
+			_draw_rush_end()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -251,6 +257,8 @@ func _tv_draw_marks_place(a) -> void:
 
 func _begin_battle(a0, a1, kind := "official") -> void:
 	super._begin_battle(a0, a1, kind)
+	if bool(rush.get("on", false)) and kind == "official":
+		call("_on_skip")   # 極速賽：不看戰鬥，直接算結果
 	tv_ids = []
 	if sim == null or tv_marks.is_empty():
 		return
@@ -369,3 +377,71 @@ func _ghost_settle(w: int) -> void:
 	if bool(get("wk_active")):
 		var rec: Dictionary = Save.data.get("weekly", {})
 		sh_text = Share.weekly_text(L, int(rec.get("wk", 0)), w == 0, last_armies[0].spent() if last_armies.size() > 0 else 0, int(rec.get("best", 0)), int(rec.get("tries", 0)))
+
+## ── #8 殘局極速賽 ──
+const Rush = preload("res://scripts/game/v16_rush.gd")
+var rush := {}   # {"on", "left", "ids", "i", "solved", "tried"}
+
+func _rush_start() -> void:
+	var sd := int(Time.get_unix_time_from_system())
+	rush = {"on": true, "left": Rush.START_SEC, "ids": Rush.pool(sd), "i": 0, "solved": 0, "tried": 0}
+	_rush_load()
+
+func _rush_load() -> void:
+	var ids: Array = rush["ids"]
+	if int(rush["i"]) >= ids.size():
+		_rush_end()
+		return
+	puzzle_id = str(ids[int(rush["i"])])
+	_start_mode(Mode.PUZZLE)
+
+func _rush_end() -> void:
+	rush["on"] = false
+	var best := int(Save.data.get("rush_best", 0))
+	rush["new_best"] = int(rush["solved"]) > best
+	if int(rush["solved"]) > best:
+		Save.data["rush_best"] = int(rush["solved"])
+		Save.save_data()
+	_go_title()
+	overlay = "rush_end"
+	_focus = 0
+
+func _rush_tick(delta: float) -> void:
+	if not bool(rush.get("on", false)):
+		return
+	if state == St.PLACE and overlay == "":
+		rush["left"] = float(rush["left"]) - delta
+		if float(rush["left"]) <= 0.0:
+			_rush_end()
+
+## 結算：解開 +20 秒、沒解開 −15 秒，直接換下一題（不進結果頁）
+func _rush_settle() -> void:
+	var solved: bool = sim.winner == 0 and bool(report.get("goal_ok", true))
+	rush["tried"] = int(rush["tried"]) + 1
+	if solved:
+		rush["solved"] = int(rush["solved"]) + 1
+	rush["left"] = Rush.after(float(rush["left"]), solved)
+	_toast(L.t("rush_ok" if solved else "rush_bad", [int(Rush.BONUS_SEC if solved else Rush.PENALTY_SEC)]), not solved)
+	rush["i"] = int(rush["i"]) + 1
+	if float(rush["left"]) <= 0.0:
+		_rush_end()
+	else:
+		_rush_load()
+
+func _v16_place_hud() -> void:
+	if bool(rush.get("on", false)):
+		var s := L.t("rush_hud", [ceili(maxf(0.0, float(rush["left"]))), int(rush["solved"])])
+		var w := _width(s, tz("B"), true) + 32.0
+		var r := Rect2(640 - w / 2, 96, w, tz("B") * 1.6)
+		_tex_box(r, "wood", Color("#7a2a18") if float(rush["left"]) < 20.0 else Color(0.35, 0.24, 0.12))
+		_text(Vector2(640, r.position.y + tz("B") * 0.25), s, tz("B"), Color.WHITE, true, true, w)
+
+func _draw_rush_end() -> void:
+	var body := L.t("rush_end_body", [int(rush.get("solved", 0)), int(rush.get("tried", 0)), int(Save.data.get("rush_best", 0))])
+	var P := modal_rect(560, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("B"), 480, true) + GAP_XL + 50.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("rush_title")) + GAP_L
+	_text(Vector2(640, y), body, tz("B"), ACCENT if bool(rush.get("new_best", false)) else Color.WHITE, true, true, 480)
+	y += text_h(body, tz("B"), 480, true) + GAP_XL
+	_btn(Rect2(640 - 230, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_start(), true, true)
+	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")

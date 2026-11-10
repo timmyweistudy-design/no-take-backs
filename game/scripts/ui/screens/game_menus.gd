@@ -1243,7 +1243,8 @@ func hub_items(kind: String) -> Array:
 				["menu_trials", "hc_trials_d", "trophy", func(): overlay = ""; _open("trials"), true],
 				["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_start_daily"), not _demo()],
 				["wk_open", "hc_weekly_d", "cards", func(): overlay = "weekly", not _demo()],
-				["gh_open", "hc_ghosts_d", "skull", func(): overlay = "ghosts", not _demo()]]
+				["gh_open", "hc_ghosts_d", "skull", func(): overlay = "ghosts", not _demo()],
+				["rush_open", "hc_rush_d", "clock", func(): overlay = ""; call("_rush_start"), true]]   # V1.6 #8
 		"hub_collect":
 			return [["menu_codex", "hc_codex_d", "book", func(): overlay = ""; _open_codex(0), true],
 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
@@ -1255,7 +1256,7 @@ func _draw_hub(kind: String) -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
 	nav_stack.clear()   # 回到卡片面板＝堆疊重來
 	var items := hub_items(kind)
-	var cols := 3
+	var cols := 4 if items.size() > 6 else 3   # V1.6：挑戰卡片 7 張以上排成兩列四欄（三列在 150% 放不下）
 	var cw := 236.0
 	# 卡片高度照最長的說明算（不再固定 196，日文／英文 150% 說明會被切掉）
 	var ch := 160.0
@@ -1265,7 +1266,7 @@ func _draw_hub(kind: String) -> void:
 	# V1.5.2 L1：模態面板水平置中；卡片群在面板內置中；卡片從緞帶完整下緣＋GAP_L 起排
 	var head := ceilf(h1_bottom(12.0) + GAP_L)
 	var ph := head + rows * (ch + 14.0) - 14.0 + GAP_L + 44.0 + GAP_L
-	var pw := 800.0
+	var pw := 800.0 if cols == 3 else 1040.0
 	var P := Rect2((1280.0 - pw) * 0.5, clampf((800.0 - ph) * 0.5, 16.0, 120.0), pw, maxf(ph, 300.0))
 	_panel(P)
 	_h1(Vector2(P.get_center().x, P.position.y + 12), L.t({"hub_play": "home_play", "hub_challenge": "home_challenge", "hub_collect": "home_collect"}.get(kind, "home_play")))

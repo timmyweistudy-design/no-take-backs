@@ -4,7 +4,7 @@ const LayoutRules = preload("res://scripts/ui/layout_rules.gd")
 const PANELLESS_OVERLAYS := ["ai_busy"]
 ## V1.5.2 漏登記守衛：每個覆蓋層必須登記到的角色（有標題緞帶的要有 1 條緞帶＋1 個面板；彈窗至少 1 個面板）。
 ## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
-const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share"]
+const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end"]
 const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
@@ -1757,3 +1757,11 @@ func _shots_v16() -> void:
 	mouse = Vector2(200, 268)
 	await _snap("v16_06_magnifier.png")
 	Save.settings["magnify"] = false
+	# #8 極速賽：擺陣頂部計時、結束面板
+	_rush_start()
+	await _snap("v16_07_rush_place.png")
+	rush["solved"] = 7
+	rush["tried"] = 9
+	_rush_end()
+	await _snap("v16_08_rush_end.png")
+	overlay = ""

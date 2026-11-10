@@ -26,6 +26,9 @@ func _leave_confirm() -> void:
 	_go_title()
 
 func _go_title() -> void:
+	var rs = get("rush")
+	if rs is Dictionary and bool(rs.get("on", false)):
+		rs["on"] = false   # V1.6 #8：離開就結束極速賽（不記紀錄）
 	set("wv_active", false)   # V1.4 #11：離開就結束車輪戰
 	set("wv_mode", false)
 	set("sealed_on", false)   # V1.4 #13

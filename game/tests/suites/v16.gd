@@ -122,3 +122,22 @@ func test_share_v160() -> void:
 	var t: String = SH.daily_text(Lx, "2026-11-10", "X", 72, 84, 100, 38, 3)
 	ok(t.contains("■■■■■■■□□□") and t.contains("84") and t.split("\n").size() == 5, "每日分享格：條、花費、連續天數、標籤")
 	ok(not t.contains("unit_") and not t.contains("NTB"), "分享格不含陣型或代碼（不劇透）")
+
+func test_rush_v160() -> void:
+	var RU = load("res://scripts/game/v16_rush.gd")
+	var PZx = load("res://scripts/game/puzzles.gd")
+	var a: Array = RU.pool(7)
+	var b: Array = RU.pool(7)
+	ok(a.size() >= 30 and a == b, "題庫夠多（%d）、同種子同順序" % a.size())
+	var bad := 0
+	var last_ch := -1
+	for id in a:
+		var pz: Dictionary = PZx.get_puzzle(id)
+		if not RU.eligible(pz):
+			bad += 1
+		var c: int = PZx.chapter_of(id)
+		if c < last_ch:
+			bad += 1
+		last_ch = c
+	ok(bad == 0, "只收打贏型、沒有地圖／軍令／上限；章節由淺到深")
+	ok(RU.after(10.0, true) == 30.0 and RU.after(10.0, false) == -5.0, "解開 +20、失敗 −15")

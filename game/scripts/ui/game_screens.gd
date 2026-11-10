@@ -633,7 +633,9 @@ func _draw_inner() -> void:
 				_draw_fx(f)
 	match state:
 		St.TITLE: _draw_title()
-		St.PLACE: _draw_place_hud()
+		St.PLACE:
+			_draw_place_hud()
+			_v16_place_hud()   # V1.6
 		St.BATTLE:
 			_draw_battle_hud()
 			_draw_replay_controls()
