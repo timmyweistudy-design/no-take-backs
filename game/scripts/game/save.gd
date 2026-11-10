@@ -355,7 +355,8 @@ static func sanitize_v16(out: Dictionary) -> void:
 						break
 					us.append(iu)
 				if okk:
-					l2.append({"n": str(e["n"]).substr(0, 24), "u": us, "r": _int_list(e.get("r", []), 3)})
+					var rr := _int_list(e.get("r", []), 3)
+					l2.append({"n": str(e["n"]).substr(0, 24), "u": us, "r": rr if rr.size() == 3 else []})   # 成績要剛好 3 個數（Codex v160-i2 C1）
 			nb2[str(pid)] = l2
 	out["notebook"] = nb2
 	for k in ["daily_streak"]:

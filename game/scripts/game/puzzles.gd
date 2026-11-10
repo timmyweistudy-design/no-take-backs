@@ -237,6 +237,14 @@ static func unit_alive(sim, team: int, cell: Array) -> bool:
 			return u.alive
 	return false
 
+## 我方擺了幾隻某兵種（召喚物不算）。
+static func count_of_type(sim, t: int) -> int:
+	var n := 0
+	for u in sim.units:
+		if u.team == 0 and u.type == t and not u.summon:
+			n += 1
+	return n
+
 ## 我方某兵種倒了幾隻（召喚物不算我方擺的兵）。
 static func lost_of_type(sim, t: int) -> int:
 	var n := 0
@@ -259,6 +267,8 @@ static func outcome(pz: Dictionary, sim, spent_extra: int) -> Dictionary:
 			ok = sim.alive_count(0) > 0
 		"flawless":
 			ok = won and lost_of_type(sim, int(pz["goal_type"])) == 0   # V1.1 D5：這種兵一隻都不能倒
+			if ok and bool(pz.get("need_type", false)):
+				ok = count_of_type(sim, int(pz["goal_type"])) > 0   # V1.6 #16 出題台：一定要帶這種兵（不能完全不帶來閃避，Codex v160-i2 #3）
 		"margin":
 			ok = won and rem_pct(sim.power(0), sim.budget) >= int(pz["goal_rem"])   # V1.1 D5：贏得夠漂亮
 		"draw":

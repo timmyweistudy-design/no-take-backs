@@ -423,3 +423,14 @@ func test_state_reset_v160() -> void:
 	ok(not d.has("seen"), "seen 是 null 就當沒有")
 	g.free()
 	SaveS.data_locked = was
+
+func test_workbench_r2_v160() -> void:
+	var PZx = load("res://scripts/game/puzzles.gd")
+	var pz := {"id": "t", "enemy": [[0, 12, 4]], "fixed": [], "budget": 20, "allowed": [0, 3], "star2": 0, "star3": 20, "goal": "flawless", "goal_type": 3, "need_type": true}
+	var r: Dictionary = PZx.play(pz, [[0, 4, 4], [0, 4, 3]])
+	ok(not bool(r["ok"]), "完美（出題台）：完全不帶指定兵種不算過")
+	var r2: Dictionary = PZx.play(pz, [[3, 4, 4], [3, 4, 3]])
+	ok(bool(r2["ok"]), "完美（出題台）：帶了而且沒倒＝過")
+	var WS = load("res://scripts/game/workshop.gd")
+	var c: String = WS.encode3([[0, 12, 4]], [[3, 4, 4]], "protect")
+	ok(c != "" and bool(WS.decode(c)["ok"]), "護送：作者只有被護送的那一隻也能出碼")

@@ -98,7 +98,7 @@ static func goal_fields(goal: String, e: Array, s: Array = []) -> Dictionary:
 			for t in cnt:
 				if int(cnt[t]) > int(cnt[bt]) or (int(cnt[t]) == int(cnt[bt]) and int(t) < bt):
 					bt = int(t)
-			return {"goal": "flawless", "goal_type": bt}
+			return {"goal": "flawless", "goal_type": bt, "need_type": true}
 		"kill":
 			var best: Array = e[0]
 			for u in e:
@@ -167,8 +167,6 @@ static func decode(code: String) -> Dictionary:
 			s = s.filter(func(u): return not (int(u[1]) == int(fx[1]) and int(u[2]) == int(fx[2])))
 			pz["budget"] = int(pz["budget"]) - D.cost(int(fx[0]))
 			pz["star3"] = int(pz["budget"])
-			if s.is_empty():
-				return bad
 		pz["zh"] = "出題台殘局"
 		pz["en"] = "Workbench Puzzle"
 		pz["hint_zh"] = "朋友出的題，作者的解證明它解得開。"

@@ -554,9 +554,13 @@ func coach_ok() -> bool:
 	return Coach.supported(last_armies[0], battle_rules, _coach_pz())
 
 func _coach_open() -> void:
-	var key := "%d:%s:%d:%d:%s" % [mode, puzzle_id, last_armies[0].units.hash(), last_armies[1].units.hash(), battle_rules.to_code() if battle_rules != null else ""]
+	var key := "%d:%s:%d:%d:%s:%d" % [mode, puzzle_id, last_armies[0].units.hash(), last_armies[1].units.hash(), battle_rules.to_code() if battle_rules != null else "", _coach_pz().hash()]
 	if co_thread != null:
-		overlay = "coach"   # 上一次還在算：等它（算完會照鍵決定收不收）
+		if key != co_key:
+			co_key = key   # 換場了：舊的答案算完不收（_v16_jobs 比對 co_thread_key），算完再重開會重算
+			co_res = {}
+			co_layer = 0
+		overlay = "coach"
 		_focus = 0
 		return
 	if key != co_key:
@@ -584,7 +588,10 @@ func _v16_jobs(_delta: float) -> void:
 		if co_thread_key == co_key:
 			co_res = res   # 過期的結果（換場了）不收
 		else:
-			co_key = ""    # 下次打開重算
+			var want := co_key
+			co_key = ""
+			if overlay == "coach" and want != "":
+				_coach_open()   # 面板開著、等的是新的這一場：接著算新的
 
 func _exit_tree() -> void:
 	if co_thread != null:
@@ -647,12 +654,14 @@ func _draw_coach() -> void:
 ## ── #10 裂隙模式 ──
 const Rift = preload("res://scripts/game/v16_rift.gd")
 var rift_on := false
+var rift_wk := 0   # 開局那一週（跨週才打完也記在那一週，Codex v160-i2 #1）
 
 func _rift_picks() -> Array:
 	return Rift.picks(Rift.week(), RS.mask(_demo()))
 
 func _rift_start() -> void:
 	var wk := Rift.week()
+	rift_wk = wk
 	var r = Rift.make_rules(_rift_picks(), RS.mask(_demo()), wk)
 	rules = r
 	set("challenge_army", Rift.enemy(r, wk))
@@ -664,7 +673,9 @@ func _rift_settle() -> void:
 	if not rift_on or sim == null or sim.winner != 0:
 		return
 	var best: Dictionary = Save.data.get("rift_best", {})
-	var k := Rift.key(Rift.week())
+	var k := Rift.key(rift_wk)
+	if rift_wk != Rift.week():
+		return   # 上一週的題：本週紀錄只留本週，跨週打完的不記
 	var rec := [PZ.rem_pct(sim.power(0), sim.budget_of(0)), armies[0].spent()]
 	if Daily.better(rec, best.get(k, [])):
 		best = {k: rec}   # 只留這一週
@@ -767,7 +778,7 @@ func _draw_notebook() -> void:
 	for i in lst.size():
 		var e: Dictionary = lst[i]
 		var r: Array = e["r"]
-		var res := L.t("nb_res", [int(r[0]), int(r[1]), int(r[2])]) if not r.is_empty() else L.t("nb_untried")
+		var res := L.t("nb_res", [int(r[0]), int(r[1]), int(r[2])]) if r.size() == 3 else L.t("nb_untried")
 		_text(Vector2(P.position.x + 40, y + 10), "%s　%s" % [str(e["n"]), res], tz("S"), Color.WHITE, false, true, 420)
 		var ii := i
 		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load"), func(): _nb_load(ii))
@@ -843,12 +854,12 @@ func _daily_top_go(units: Array) -> void:
 		if not e.place_xy(int(u["type"]), int(u["x"]), int(u["y"])):
 			_toast(L.t("dt_bad"), true)
 			return
+	if not e.has_combat():
+		_toast(L.t("dt_bad"), true)
+		return   # 先驗完才動規則與挑戰陣（Codex v160-i2 A7：拒收後重試不能沿用被拒的陣）
 	rules = r
 	set("challenge_army", e)
 	overlay = ""
-	if not e.has_combat():
-		_toast(L.t("dt_bad"), true)
-		return
 	_start_mode(Mode.VS_AI)
 	daily_spec = {}   # 打高手陣不算今天的每日成績（_start_mode 有挑戰陣時不清，要自己清：Codex v160-i1 #2）
 	rift_on = false   # 規則也是 custom：不能被當成裂隙「再來一局」（Antigravity v160-i1 #5）
