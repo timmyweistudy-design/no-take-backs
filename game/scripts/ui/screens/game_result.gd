@@ -337,7 +337,8 @@ func _draw_result() -> void:
 	# V1.6 #5／B25：出題碼、戰報明信片、分享格、精華時刻收進一顆「分享」（按鈕列不再擠）
 	if play_kind == "official" and not watch_mode:
 		bs.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])
-	bs.append([L.t("replay"), func(): _replay()])
+	if bs.size() <= 4 or not (play_kind == "official" and not watch_mode):
+		bs.append([L.t("replay"), func(): _replay()])   # 按鈕太多時（試煉贏了 7 顆）重播收進「分享」面板（V1.6 #5）
 	bs.append([L.t("menu"), func(): _request_leave()])
 	# 按鈕寬依結果框內寬分（框 880、左右各留 16）：試煉贏了最多 6 顆，舊的固定 176 會凸出框外（使用者截圖）
 	var gap := 8.0

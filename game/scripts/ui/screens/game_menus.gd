@@ -1291,8 +1291,9 @@ func _draw_hub(kind: String) -> void:
 		_ink_mode = false
 		if bool(it[4]) and Guide.is_new(Save.data, ek):
 			call("_new_tag", r)   # V1.6 #1：沒開過的新入口
-	for row in r5:
-		probe_cards("hub_cards", row)
+	for ri in r5.size():
+		if (r5[ri] as Array).size() >= 2:
+			probe_cards("hub_cards_%d" % ri, r5[ri])
 	_btn(Rect2(P.get_center().x - 80, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
 
 

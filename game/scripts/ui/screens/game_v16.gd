@@ -308,9 +308,12 @@ func _draw_magnifier() -> void:
 	draw_rect(Rect2(at, Vector2(w, h)), Color(0.04, 0.05, 0.08, 0.96))
 	draw_rect(Rect2(at, Vector2(w, h)), ACCENT, false, 2.0)
 	var keep := mag_on
+	var kp := layout_probe
 	mag_on = false
+	layout_probe = false   # 放大的那一份是暫時的疊圖，不算版面
 	_text(at + Vector2(14, sz * 0.2), s, sz, Color.WHITE, false, bool(mag_hit[2]), 1180.0)
 	mag_on = keep
+	layout_probe = kp
 
 ## ── #5 社群分享包＋B25 結果頁收合：明信片、出題碼、分享格、精華時刻收進一個「分享」面板 ──
 const Share = preload("res://scripts/game/v16_share.gd")
@@ -346,7 +349,7 @@ func _hl_go(t: int) -> void:
 func _draw_share() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
 	var hl := _highlights()
-	var rows := 1 + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0)
+	var rows := 1 + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0)
 	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("sh_title")) + GAP_L
@@ -360,6 +363,8 @@ func _draw_share() -> void:
 		_btn(Rect2(400, y, 480, 44), str(m["label"]), func(): _hl_go(t))
 		y += 52.0
 	y += GAP_L
+	_btn(Rect2(400, y, 480, 48), L.t("replay"), func(): overlay = ""; call("_replay"))
+	y += 56.0
 	if pc_shot != null:
 		_btn(Rect2(400, y, 480, 48), L.t("pc_btn"), func(): overlay = "postcard", true, true)
 		y += 56.0

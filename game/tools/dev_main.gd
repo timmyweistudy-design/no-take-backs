@@ -1741,6 +1741,7 @@ func _shots_v16() -> void:
 	_begin_battle(armies[0].copy(), armies[1].copy(), "official")
 	for i in 60:
 		_sim_step(true)
+	print("V16TV marks=", tv_marks, " ids=", tv_ids, " state=", state)
 	await _snap("v16_04_battle_marks.png")
 	tv_range = false
 	tv_marks = []
