@@ -59,6 +59,8 @@ func _finish_battle() -> void:
 	if bool(rush.get("on", false)) and mode == Mode.PUZZLE:
 		_rush_settle()
 		return
+	if trio_on and mode == Mode.PUZZLE:
+		_trio_settle()
 	_rift_settle()
 	_persona_result()
 	_career_settle()
@@ -150,6 +152,10 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_daily_top()
 		"editor":
 			_draw_editor()
+		"trio":
+			_draw_trio()
+		"trio_result":
+			_draw_trio_result()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -630,9 +636,12 @@ func _draw_rift() -> void:
 
 func _start_mode(m: int) -> void:
 	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.preset == "custom"   # 裂隙「再來一局」照舊
+	var keep_trio: bool = trio_on and m == Mode.PUZZLE and puzzle_id == "ws" and PZ.get_puzzle("ws").has("trio")   # 一陣三考「重試」照舊
 	rift_on = false
+	trio_on = false
 	super._start_mode(m)
 	rift_on = keep_rift
+	trio_on = keep_trio
 
 ## ── #11 AI 對手人設 ──
 const Persona = preload("res://scripts/game/v16_persona.gd")
@@ -873,3 +882,62 @@ func _draw_editor() -> void:
 	_btn(Rect2(P.position.x + 920, y, 140, 48), L.t("back"), func(): overlay = "")
 	if ed_msg != "":
 		_text(Vector2(640, y + 56), ed_msg, tz("S"), ACCENT, true, true, 1000)
+
+## ── #17 一陣三考 ──
+const Trio = preload("res://scripts/game/v16_trio.gd")
+var trio_on := false
+var trio_i := 0
+var trio_res: Array = []
+
+func _trio_start(i: int) -> void:
+	trio_i = i
+	PZ.set_custom(Trio.make_pz(Trio.sets()[i], 0))
+	puzzle_id = "ws"
+	overlay = ""
+	_start_mode(Mode.PUZZLE)
+	trio_on = true
+
+func _trio_settle() -> void:
+	var extra: Array = []
+	for u in last_armies[0].units:
+		extra.append([int(u["type"]), int(u["col"]), int(u["row"])])
+	trio_res = Trio.check(Trio.sets()[trio_i], extra)
+	if not false in trio_res:
+		var cl: Dictionary = Save.data.get("trio_clear", {})
+		var id := str(Trio.sets()[trio_i]["id"])
+		var sp: int = last_armies[0].spent()
+		if not cl.has(id) or sp < int(cl[id]):
+			cl[id] = sp
+			Save.data["trio_clear"] = cl
+			Save.save_data()
+	overlay = "trio_result"
+	_focus = 0
+
+func _draw_trio() -> void:
+	var ss := Trio.sets()
+	var cl: Dictionary = Save.data.get("trio_clear", {})
+	var rows := ceili(ss.size() / 2.0)
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tr_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("trio_open"), L.t("tr_help"), tz("S"), 680)
+	for i in ss.size():
+		var s: Dictionary = ss[i]
+		var id := str(s["id"])
+		var lbl := L.t("tr_row", [i + 1, int(s["budget"])]) + ("　✓ %dg" % int(cl[id]) if cl.has(id) else "")
+		var ii := i
+		_btn(Rect2(640 - 350 + (i % 2) * 360, y + (i / 2) * 56.0, 340, 48), lbl, func(): _trio_start(ii), true, i == 0)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+func _draw_trio_result() -> void:
+	var lines: Array = []
+	for k in trio_res.size():
+		lines.append(L.t("tr_line", [k + 1, "✓" if trio_res[k] else "×"]))
+	var all_ok := not false in trio_res
+	var body := "\n".join(lines) + "\n" + (L.t("tr_pass") if all_ok else L.t("tr_fail"))
+	var P := modal_rect(560, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("B"), 480, true) + GAP_XL + 50.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("trio_open")) + GAP_L
+	_text(Vector2(640, y), body, tz("B"), ACCENT if all_ok else Color.WHITE, true, true, 480)
+	y += text_h(body, tz("B"), 480, true) + GAP_XL
+	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start(trio_i), true, true)
+	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")

@@ -308,7 +308,7 @@ func _draw_result() -> void:
 			bs.append([L.t("retry"), func(): _start_mode(mode)])
 			if ((w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false))) and puzzle_id != "ws":
 				bs.append([L.t("next_puzzle"), func(): _next_puzzle()])
-			if puzzle_id == "ws" and bool(report.get("goal_ok", false)) and play_kind == "official":
+			if puzzle_id == "ws" and bool(report.get("goal_ok", false)) and play_kind == "official" and not bool(get("trio_on")):
 				bs.append([L.t("rl_btn"), func(): call("_open_relay")])   # V1.4 #5 接力：改兩隻敵兵傳回去
 		Mode.GAUNTLET:
 			if w == 0 and gauntlet_stage < 7:

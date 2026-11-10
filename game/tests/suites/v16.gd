@@ -277,3 +277,15 @@ func test_workbench_v160() -> void:
 	var r: Dictionary = PZx.play(dz, [[1, 0, 4]])
 	ok(bool(r["ok"]) and int(r["stars"]) >= 1, "求和：兩隻盾兵遠遠站著，200 tick 後都在＝過關")
 	ok(WS.decode(WS.encode3(enemy, sol, "win"))["pz"]["en"] == "Workbench Puzzle", "出題台題目名")
+
+func test_trio_v160() -> void:
+	var TR = load("res://scripts/game/v16_trio.gd")
+	var ss: Array = TR.sets()
+	ok(ss.size() == 10, "一陣三考 10 組")
+	var bad := 0
+	for s in ss:
+		var res: Array = TR.check(s, s["sol"])
+		if res != [true, true, true]:
+			bad += 1
+	ok(bad == 0, "每組的作者解三場都贏（保證有解）")
+	ok(TR.check(ss[0], [[0, 0, 0]]) != [true, true, true], "一隻劍士過不了")
