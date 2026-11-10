@@ -833,8 +833,13 @@ func _self_check() -> void:
 	out["unit_cap"] = RuleSet.pool_count(RS.mask(demo)) == (RS.DEMO_MAX + 1 if demo else D.total())
 	# 出貨包不能帶測試與工具；編輯器跑時略過
 	out["no_tools"] = not OS.has_feature("template") or (not ResourceLoader.exists("res://tools/golden.gd") and not ResourceLoader.exists("res://tests/run_tests.gd"))
+	# V1.0.0 T2：開起來是標題頁、有可按的按鈕且焦點落在其中一顆、預設視窗 1280×800、版本號已是正式版
+	out["title"] = state == St.TITLE and overlay == ""
+	out["focus"] = not _btns.is_empty() and _focus >= 0 and _focus < _btns.size()
+	out["size"] = int(ProjectSettings.get_setting("display/window/size/viewport_width")) == 1280 and int(ProjectSettings.get_setting("display/window/size/viewport_height")) == 800
+	out["version"] = str(ProjectSettings.get_setting("application/config/version"))
 	var good := true
-	for k in ["strings", "data", "fonts", "audio", "art", "save_roundtrip", "battle_code", "unit_cap", "no_tools"]:
+	for k in ["strings", "data", "fonts", "audio", "art", "save_roundtrip", "battle_code", "unit_cap", "no_tools", "title", "focus", "size"]:
 		good = good and bool(out[k])
 	out["ok"] = good
 	for suf in ["settings.json", "save.json"]:

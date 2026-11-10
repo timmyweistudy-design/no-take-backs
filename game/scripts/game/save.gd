@@ -63,11 +63,24 @@ static func _parse(path: String):
 	return j.data if typeof(j.data) == TYPE_DICTIONARY else null
 
 ## 壞掉的主檔移到旁邊留證據，主檔位置空出來，下一次寫入才不會拿它蓋掉好備份（R6）。
-static func _quarantine(path: String) -> void:
-	var n := 1
-	while FileAccess.file_exists("%s.corrupt%d" % [path, n]) and n < 20:
-		n += 1
-	DirAccess.rename_absolute(path, "%s.corrupt%d" % [path, n])
+## V1.0.0 D3：20 個編號都用過時改用時間戳記名（不覆蓋舊證據）；改名失敗就複製再刪；都失敗回 false
+## （主檔留在原地；save_data 只輪替驗證過的主檔，所以壞主檔不會蓋掉備份）。
+static var quarantine_failed := false
+static func _quarantine(path: String) -> bool:
+	var dst := ""
+	for n in range(1, 21):
+		if not FileAccess.file_exists("%s.corrupt%d" % [path, n]):
+			dst = "%s.corrupt%d" % [path, n]
+			break
+	if dst == "":
+		dst = "%s.corrupt_%d_%d" % [path, int(Time.get_unix_time_from_system()), Time.get_ticks_msec()]
+	if DirAccess.rename_absolute(path, dst) == OK:
+		return true
+	if DirAccess.copy_absolute(path, dst) == OK and DirAccess.remove_absolute(path) == OK:
+		return true
+	quarantine_failed = true
+	push_warning("save: 壞檔隔離失敗 " + path)
+	return false
 
 ## 回傳 {value, source}。主檔壞 → 隔離 → 讀備份。
 static func _read(path: String, defaults: Dictionary) -> Dictionary:

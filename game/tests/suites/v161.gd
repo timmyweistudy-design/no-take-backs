@@ -48,7 +48,8 @@ func test_pz_names_l10n_v161() -> void:
 	L.fill(pz2, "", "rl_title", [3])
 	ok(str(pz2.get("ja", "")).find("3") >= 0 and str(pz2.get("sc", "")).find("3") >= 0, "接力題名帶參數")
 
-## V1.6.1 F2／N6：每日、每週榜的假 Steam 替身：分版榜名、上傳失敗、送出後又換成更好的成績（亂序）、重送。
+## V1.6.1 F2／N6、V1.0.0 W1／W2：每日、每週榜的假 Steam 替身：分版榜名、上傳失敗、送出後又換成更好的成績、
+## 單一通道串行、找榜失敗（下載要回空清單）、逾時、遲到的舊回呼、上傳限額。
 func test_board_double_v161() -> void:
 	var SV = load("res://scripts/game/save.gd")
 	var ST = load("res://scripts/game/steam.gd")
@@ -56,8 +57,9 @@ func test_board_double_v161() -> void:
 	var old_prefix: String = SV.prefix
 	SV.prefix = "t161lb_"
 	var fk := FakeLB.new()
+	ST.lb_reset()
 	ST._steam = fk
-	ST._lb_wired = false
+	ST.now_ms = 1000
 	SV.data = {"daily_pend": {"day": 100, "score": 50000, "det": [2, 1, 5], "ver": 1}}
 	ST.daily_upload(100, 50000, PackedInt32Array([2, 1, 5]), 1)
 	ok(fk.finds == ["daily_100_v1"], "榜名帶題目版本", str(fk.finds))
@@ -75,52 +77,129 @@ func test_board_double_v161() -> void:
 	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
 	ok(not SV.data.has("daily_pend"), "重送成功才清")
 	ok(not ST.clear_pending({"daily_pend": {"day": 100, "score": 1, "ver": 2}}, "daily_100_v1", 1), "不同版本的榜不清")
-	# 同一個榜（同 handle）連送兩次：低分的回呼先到，不能清掉高分的待送（Codex v161-i1 #1）
+	# 在途時又要送：排隊、不重複找榜；佇列裡同一個榜只留最新一筆
 	SV.data["daily_pend"] = {"day": 100, "score": 70000, "det": [2, 1, 7], "ver": 1}
 	ST.daily_upload(100, 65000, PackedInt32Array([2, 1, 7]), 1)
-	fk.emit_signal("leaderboard_find_result", 9, 1)
+	ST.daily_upload(100, 68000, PackedInt32Array([2, 1, 7]), 1)
 	ST.daily_upload(100, 70000, PackedInt32Array([2, 1, 7]), 1)
-	ok(fk.finds.size() == 4, "在途時又要送：先排隊、不重複找榜（Codex v161-i2 #1）", str(fk.finds))
+	var nf := fk.finds.size()
+	fk.emit_signal("leaderboard_find_result", 9, 1)
+	ok(fk.finds.size() == nf, "在途時不同時找第二個榜")
 	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
-	ok(SV.data.has("daily_pend") and fk.finds.size() == 5, "低分那筆回來：不清，接著送排隊的高分")
+	ok(SV.data.has("daily_pend") and fk.finds.size() == nf + 1, "低分那筆回來：不清，接著送排隊的")
 	fk.emit_signal("leaderboard_find_result", 9, 1)
-	fk.emit_signal("leaderboard_score_uploaded", false, 9, {})
-	ok(SV.data.has("daily_pend"), "高分那筆失敗：留著")
-	ST.daily_upload(100, 70000, PackedInt32Array([2, 1, 7]), 1)
-	fk.emit_signal("leaderboard_find_result", 9, 1)
+	ok(int(fk.ups[-1][0]) == 70000, "佇列只留最新的高分", str(fk.ups[-1][0]))
 	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
 	ok(not SV.data.has("daily_pend"), "高分那筆成功才清")
-	# 別的榜找榜失敗，不能放開已經在途的上傳（Codex v161-i3）
-	SV.data["daily_pend"] = {"day": 100, "score": 80000, "det": [2, 1, 8], "ver": 1}
-	ST.daily_upload(100, 75000, PackedInt32Array([2, 1, 8]), 1)
-	fk.emit_signal("leaderboard_find_result", 9, 1)   # 低分已送出、等回呼
-	ST.weekly_upload(6, 30, PackedInt32Array([1, 1, 100510]))
-	fk.emit_signal("leaderboard_find_result", 0, 0)   # 每週榜找榜失敗
-	var n_find := fk.finds.size()
-	ST.daily_upload(100, 80000, PackedInt32Array([2, 1, 8]), 1)
-	ok(fk.finds.size() == n_find, "每日榜還在途：高分照樣排隊，不會同時兩筆在途")
-	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
-	ok(SV.data.has("daily_pend"), "低分回呼成功不清高分待送")
-	# 每週
+	# W1：下載的找榜失敗要回空清單（V1.6.1 會卡在讀取中），而且不影響排在後面的上傳
+	var got := []
+	ST.daily_fetch(100, func(l): got.append(l), 1)
 	SV.data["weekly"] = {"wk": 5, "best": 40, "pend": 1, "det": [1, 1, 100510]}
 	ST.weekly_upload(5, 40, PackedInt32Array([1, 1, 100510]))
+	fk.emit_signal("leaderboard_find_result", 0, 0)
+	ok(got.size() == 1 and (got[0] as Array).is_empty(), "找榜失敗：下載回空清單", str(got))
+	ok(fk.finds[-1] == "weekly_5", "接著送每週上傳", str(fk.finds))
 	fk.emit_signal("leaderboard_find_result", 11, 1)
 	SV.data["weekly"]["best"] = 35   # 送出後又刷新最佳
 	fk.emit_signal("leaderboard_score_uploaded", true, 11, {})
 	ok(int(SV.data["weekly"]["pend"]) == 1, "每週：舊那筆成功不清新的待送")
 	ok(ST.clear_pending(SV.data, "weekly_5", 35) and int(SV.data["weekly"]["pend"]) == 0, "每週：同一筆才清")
+	# 同一個榜連抓兩次：兩個回呼都要回
+	var g2 := []
+	ST.daily_fetch(100, func(l): g2.append(1), 1)
+	ST.daily_fetch(100, func(l): g2.append(2), 1)
+	fk.emit_signal("leaderboard_find_result", 7, 1)
+	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])
+	fk.emit_signal("leaderboard_find_result", 7, 1)
+	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])
+	ok(g2 == [1, 2], "同榜連抓兩次，兩個回呼都回、不互蓋", str(g2))
+	# 逾時：沒有回呼也要結束；遲到的舊回呼丟掉，不能被當成下一筆
+	var g3 := []
+	ST.daily_fetch(100, func(l): g3.append(l), 1)
+	fk.emit_signal("leaderboard_find_result", 7, 1)   # 下載送出、回呼不來
+	ST.now_ms += ST.LB_TIMEOUT_MS + 1
+	ST.lb_tick()
+	ok(g3.size() == 1 and (g3[0] as Array).is_empty(), "逾時：下載回空清單")
+	var g4 := []
+	ST.daily_fetch(100, func(l): g4.append(l), 1)
+	var nf2 := fk.finds.size()
+	ST.lb_tick()
+	ok(fk.finds.size() == nf2, "逾時後先暫停一下，讓遲到回呼過去")
+	ST.now_ms += ST.LB_HOLD_MS + 1
+	ST.lb_tick()
+	ok(fk.finds.size() == nf2 + 1, "暫停結束送下一筆")
+	fk.emit_signal("leaderboard_scores_downloaded", "", 3, [])   # 別的 handle（遲到）
+	ok(g4.is_empty(), "對不上的回呼不算")
+	fk.emit_signal("leaderboard_find_result", 7, 1)
+	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])
+	ok(g4.size() == 1, "對得上才回")
+	# W2：上傳限額 10 分鐘 10 次（下載不受限）
+	ST.lb_reset()
+	ST._steam = fk
+	ST.now_ms = 5000
+	for i in 10:
+		SV.data["weekly"] = {"wk": 20 + i, "best": 10, "pend": 1, "det": [1, 1, 100510]}
+		ST.weekly_upload(20 + i, 10, PackedInt32Array([1, 1, 100510]))
+		fk.names[30 + i] = "weekly_%d" % (20 + i)
+		fk.emit_signal("leaderboard_find_result", 30 + i, 1)
+		fk.emit_signal("leaderboard_score_uploaded", true, 30 + i, {})
+	var nup := fk.ups.size()
+	ST.weekly_upload(99, 10, PackedInt32Array([1, 1, 100510]))
+	var g5 := []
+	ST.daily_fetch(100, func(l): g5.append(l), 1)
+	ok(fk.finds[-1] == "daily_100_v1", "第 11 次上傳先等；下載照樣先送", str(fk.finds[-1]))
+	fk.emit_signal("leaderboard_find_result", 0, 0)
+	ok(fk.finds[-1] == "daily_100_v1" and fk.ups.size() == nup, "限額內不送上傳")
+	ST.now_ms += ST.LB_WINDOW_MS
+	ST.lb_tick()
+	ok(fk.finds[-1] == "weekly_99", "過了 10 分鐘就送", str(fk.finds[-1]))
 	ST._steam = null
-	ST._lb_wired = false
-	ST._lb_sent = {}
-	ST._lb_busy = {}
-	ST._lb_next = {}
-	ST._lb_finding = []
+	ST.lb_reset()
 	fk.free()
 	for f in DirAccess.get_files_at("user://"):
 		if f.begins_with("t161lb_"):
 			DirAccess.remove_absolute("user://" + f)
 	SV.prefix = old_prefix
 	SV.data = keep
+
+## V1.0.0 W3：storeStats 回傳 true 只代表送出；user_stats_stored 回呼失敗要重送。
+func test_ach_store_result_v100() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var ST = load("res://scripts/game/steam.gd")
+	var keep: Dictionary = SV.data.duplicate(true)
+	var old_prefix: String = SV.prefix
+	SV.prefix = "t100ach_"
+	var fk := FakeAch.new()
+	ST._steam = fk
+	ST._stats_wired = false
+	SV.data = {"achievements": []}
+	ST.unlock("FIRST_WIN")
+	ok(ST.store_ok and fk.stores == 1, "送出成功")
+	fk.emit_signal("user_stats_stored", 0, 2)   # 結果不是 OK
+	ok(not ST.store_ok, "儲存回呼失敗要記下")
+	for i in 600:
+		ST.run_callbacks()
+	ok(fk.stores == 2 and "FIRST_WIN" in fk.set_ids.slice(1), "之後把本機成就重設再送", str(fk.set_ids))
+	fk.emit_signal("user_stats_stored", 0, 1)
+	ok(ST.store_ok, "回呼 OK 就不再重送")
+	ST._steam = null
+	ST._stats_wired = false
+	ST.store_ok = true
+	fk.free()
+	for f in DirAccess.get_files_at("user://"):
+		if f.begins_with("t100ach_"):
+			DirAccess.remove_absolute("user://" + f)
+	SV.prefix = old_prefix
+	SV.data = keep
+
+
+class FakeAch extends Node:
+	signal user_stats_stored(game, result)
+	var stores := 0
+	var set_ids: Array = []
+	func setAchievement(id): set_ids.append(id); return true
+	func storeStats(): stores += 1; return true
+	func run_callbacks(): pass
 
 
 class FakeLB extends Node:
@@ -135,6 +214,7 @@ class FakeLB extends Node:
 	func getLeaderboardName(h): return names.get(h, "")
 	func uploadLeaderboardScore(sc, _keep, det, h): ups.append([sc, det, h])
 	func downloadLeaderboardEntries(_a, _b, _c, _h): pass
+	func run_callbacks(): pass
 
 func test_fog_free_v161() -> void:
 	var G = load("res://scripts/ui/screens/game_v16.gd")

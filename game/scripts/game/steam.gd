@@ -74,7 +74,7 @@ static func init(app_id := 0, sync_local := true) -> void:
 		if not got.is_empty():
 			for id in got:
 				_steam.setAchievement(id)
-			_steam.storeStats()
+			_store()
 
 static func available() -> bool:
 	return _steam != null
@@ -92,9 +92,32 @@ static func unlock(id: String) -> bool:
 	Save.data["achievements"] = got
 	Save.save_data()
 	if _steam != null:
-		_steam.setAchievement(id)
-		store_ok = bool(_steam.storeStats())   # 第七輪 R7：送不出去就記著，run_callbacks 定期重試
+		if _steam.setAchievement(id) == false:
+			store_ok = false   # 設不進去（統計還沒收到等）：等重試時整批補設
+		else:
+			_store()
 	return true
+
+## V1.0.0 W3：storeStats 回傳 true 只代表「送出了」，真的存進 Steam 要等 user_stats_stored 回呼。
+## 回呼結果不是 OK（1）或送不出去，就記 store_ok＝false，run_callbacks 約每 10 秒把本機全部成就重設一次再送。
+## 另外每次啟動 init 都會把本機成就補送一次（離線解鎖也不會漏）。
+static var _stats_wired := false
+static func _store() -> void:
+	if _steam == null:
+		return
+	if not _stats_wired and _steam.has_signal("user_stats_stored"):
+		_stats_wired = true
+		_steam.connect("user_stats_stored", _on_stats_stored)
+	store_ok = bool(_steam.storeStats())
+
+static func _on_stats_stored(_game, result) -> void:
+	if int(result) != 1:
+		store_ok = false
+
+static func _resend() -> void:
+	for id in Save.data.get("achievements", []):
+		_steam.setAchievement(id)
+	_store()
 
 ## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
 ## 回傳每一項結果與總判定 ok（任何一項不符就是 false，呼叫端用它決定結束碼）。
@@ -145,7 +168,8 @@ static func run_callbacks() -> void:
 			_retry_tick += 1
 			if _retry_tick >= 600:
 				_retry_tick = 0
-				store_ok = bool(_steam.storeStats())
+				_resend()
+		lb_tick()
 
 
 ## ── V1.4 #7 排行榜（每週棋盒＋幽靈陣）。沒有 Steam 時全部安靜略過。未在 Steam 後台建排行榜、未實測（不跑 --steam-test）。──
@@ -224,39 +248,103 @@ static func daily_upload(day: int, score: int, det: PackedInt32Array, ver := 1) 
 	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
 		return
 	_wire()
-	var name := daily_board(day, ver)
-	_lb_queue(name, [score, det, 2])   # 2＝分數越大越前面
+	_lb_put_up(daily_board(day, ver), [score, det, 2])   # 2＝分數越大越前面
 
 static func daily_fetch(day: int, done: Callable, ver := 1) -> void:
 	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
 		done.call([])
 		return
 	_wire()
-	if _steam.has_method("set_leaderboard_details_max"):
-		_steam.set_leaderboard_details_max(64)
-	var name := daily_board(day, ver)
-	_lb_get[name] = done
-	_steam.findLeaderboard(name)
+	_lb_put_get(daily_board(day, ver), done, true)
 
-## ── 請求管理：同一時間可能同時有「上傳每週成績」與「抓幽靈陣」，用排行榜名稱與 handle 對回自己的請求 ──
-static var _lb_up := {}      # 名稱 → [分數, details]
-static var _lb_get := {}     # 名稱 → done
-static var _lb_dl := {}      # handle → done
-## V1.6.1（Codex v161-i2 #1）：每個榜同一時間只有一筆在途；在途時又要送，只留最新的一筆，等回呼後再送。
-## 這樣回呼一定對得上送出的那一筆（不靠 Steam 回呼順序）。
-static var _lb_busy := {}    # 榜名 → true（在途）
-static var _lb_finding: Array = []   # 還在找榜的上傳（照送出順序）；找榜失敗時只放開最早的那一個（Codex v161-i3）
-static var _lb_next := {}    # 榜名 → [分數, details, 排序]（在途時排隊的最新一筆）
-static func _lb_queue(name: String, p: Array) -> void:
-	if _lb_busy.has(name):
-		_lb_next[name] = p
+static func weekly_upload(wk: int, score: int, det: PackedInt32Array) -> void:
+	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
+		return   # 沒有陣型資料（自由排兵）就不送，免得蓋掉原本帶陣型的紀錄
+	_wire()
+	_lb_put_up("weekly_%d" % wk, [score, det, 1])   # 1＝分數越小越前面
+
+static func ghost_fetch(wk: int, done: Callable) -> void:
+	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
+		done.call([])
 		return
-	_lb_busy[name] = true
-	_lb_up[name] = p
-	_lb_finding.append(name)
-	_steam.findOrCreateLeaderboard(name, int(p[2]), 1)
+	_wire()
+	_lb_put_get("weekly_%d" % wk, done, false)
 
-static var _lb_sent := {}    # V1.6.1 F2：handle → [[榜名, 送出的分數], …]（同一個榜可能連送兩次：照送出順序排隊，回呼一次取一筆；Codex v161-i1 #1）
+## ── 排行榜請求（V1.0.0 W1／W2）：全部請求走同一條通道，同一時間只有一筆在途（Valve：上傳同時只能一筆）。
+## 回呼一律對「現在在途的那一筆」：找榜用榜名對、上傳／下載用 handle 對，對不上的是逾時後才到的舊回呼，丟掉。
+## 找榜失敗只結束在途那一筆：下載回空清單（畫面不會卡在讀取中），上傳的待送留在存檔、下次開模式補送。
+## 逾時（LB_TIMEOUT_MS）一樣當失敗，之後暫停 LB_HOLD_MS 讓遲到的回呼先過去。
+## 上傳限額：任意 10 分鐘最多 10 次（Valve UploadLeaderboardScore 的限制），超過就留在佇列等。
+## 同一個榜在佇列裡只留最新一筆上傳。
+const LB_TIMEOUT_MS := 15000
+const LB_HOLD_MS := 3000
+const LB_WINDOW_MS := 600000
+const LB_WINDOW_MAX := 10
+static var _lb_q: Array = []        # 等著送的請求 {k:"up"/"get", name, p | done, free}
+static var _lb_cur := {}            # 在途的那一筆（多 stage："find"／"up"／"dl"、handle、t0）
+static var _lb_up_times: Array = [] # 真的送出上傳的時間（毫秒）
+static var _lb_hold_until := 0
+static var now_ms := -1             # 測試用：>= 0 時取代系統時間
+
+static func _now() -> int:
+	return now_ms if now_ms >= 0 else Time.get_ticks_msec()
+
+static func _lb_put_up(name: String, p: Array) -> void:
+	for r in _lb_q:
+		if r["k"] == "up" and r["name"] == name:
+			r["p"] = p   # 佇列裡同一個榜只留最新一筆
+			_lb_pump()
+			return
+	_lb_q.append({"k": "up", "name": name, "p": p})
+	_lb_pump()
+
+static func _lb_put_get(name: String, done: Callable, free: bool) -> void:
+	_lb_q.append({"k": "get", "name": name, "done": done, "free": free})
+	_lb_pump()
+
+static func _lb_window_ok() -> bool:
+	var now := _now()
+	_lb_up_times = _lb_up_times.filter(func(t): return now - int(t) < LB_WINDOW_MS)
+	return _lb_up_times.size() < LB_WINDOW_MAX
+
+static func _lb_pump() -> void:
+	if _steam == null or not _lb_cur.is_empty() or _now() < _lb_hold_until:
+		return
+	var win := _lb_window_ok()
+	for i in _lb_q.size():
+		var r: Dictionary = _lb_q[i]
+		if r["k"] == "up" and not win:
+			continue   # 上傳超過限額：先送後面的下載
+		_lb_q.remove_at(i)
+		r["stage"] = "find"
+		r["t0"] = _now()
+		_lb_cur = r
+		if r["k"] == "up":
+			_steam.findOrCreateLeaderboard(r["name"], int(r["p"][2]), 1)
+		else:
+			if _steam.has_method("set_leaderboard_details_max"):
+				_steam.set_leaderboard_details_max(64)   # 隨附的 GodotSteam 是這個名字（Codex v140-i5 對過 .so）
+			_steam.findLeaderboard(r["name"])
+		return
+
+## 在途那一筆結束（ok＝false 時下載回空清單）。之後送下一筆。
+static func _lb_finish(ok: bool) -> void:
+	var r := _lb_cur
+	_lb_cur = {}
+	if not ok and r.get("k", "") == "get":
+		(r["done"] as Callable).call([])
+	_lb_pump()
+
+## 每幀呼叫（run_callbacks 裡）：在途太久當失敗。
+static func lb_tick() -> void:
+	if _lb_cur.is_empty():
+		if not _lb_q.is_empty():
+			_lb_pump()   # 等限額或暫停結束
+		return
+	if _now() - int(_lb_cur["t0"]) > LB_TIMEOUT_MS:
+		_lb_hold_until = _now() + LB_HOLD_MS
+		_lb_finish(false)
+
 static var _lb_wired := false
 
 static func _wire() -> void:
@@ -267,78 +355,54 @@ static func _wire() -> void:
 	_steam.connect("leaderboard_scores_downloaded", _on_lb_downloaded)
 	_steam.connect("leaderboard_score_uploaded", _on_lb_uploaded)
 
-static func weekly_upload(wk: int, score: int, det: PackedInt32Array) -> void:
-	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
-		return   # 沒有陣型資料（自由排兵）就不送，免得蓋掉原本帶陣型的紀錄
-	_wire()
-	var name := "weekly_%d" % wk
-	_lb_queue(name, [score, det, 1])   # 1＝分數越小越前面、1＝顯示數字
-
-static func ghost_fetch(wk: int, done: Callable) -> void:
-	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
-		done.call([])
-		return
-	_wire()
-	if _steam.has_method("set_leaderboard_details_max"):
-		_steam.set_leaderboard_details_max(64)   # 隨附的 GodotSteam 是這個名字（Codex v140-i5 對過 .so）
-	var name := "weekly_%d" % wk
-	_lb_get[name] = done
-	_steam.findLeaderboard(name)
-
 static func _on_lb_found(handle: int, found: int) -> void:
-	if _steam == null:
+	if _steam == null or _lb_cur.is_empty() or _lb_cur["stage"] != "find":
 		return
-	var name := str(_steam.getLeaderboardName(handle)) if found != 0 else ""
 	if found == 0:
-		# 找不到榜（離線等）：只放開最早那個「還在找榜」的上傳；已經送出、在等上傳回呼的不動（串行保證不破）
-		if not _lb_finding.is_empty():
-			var nf: String = _lb_finding.pop_front()
-			_lb_busy.erase(nf)
-			_lb_up.erase(nf)
-			_lb_next.erase(nf)   # 待送還在存檔裡，下次開模式時補送
+		_lb_finish(false)
 		return
-	_lb_finding.erase(name)
-	if _lb_up.has(name):
-		var p: Array = _lb_up[name]
-		_lb_up.erase(name)
-		var q: Array = _lb_sent.get(handle, [])
-		q.append([name, int(p[0])])
-		_lb_sent[handle] = q
-		_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
-	if _lb_get.has(name):
-		_lb_dl[handle] = [_lb_get[name], name.begins_with("daily_")]
-		_lb_get.erase(name)
+	if str(_steam.getLeaderboardName(handle)) != _lb_cur["name"]:
+		return   # 逾時後才到的舊找榜結果
+	_lb_cur["handle"] = handle
+	_lb_cur["t0"] = _now()
+	if _lb_cur["k"] == "up":
+		_lb_cur["stage"] = "up"
+		_lb_up_times.append(_now())
+		_steam.uploadLeaderboardScore(int(_lb_cur["p"][0]), true, _lb_cur["p"][1], handle)
+	else:
+		_lb_cur["stage"] = "dl"
 		_steam.downloadLeaderboardEntries(1, 20, 0, handle)   # 全球前 20 名（名次從 1 開始）
 
 static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
-	if not _lb_dl.has(handle):
+	if _lb_cur.is_empty() or _lb_cur["stage"] != "dl" or int(_lb_cur["handle"]) != handle:
 		return
-	var done: Callable = _lb_dl[handle][0]
-	var free: bool = _lb_dl[handle][1]
-	_lb_dl.erase(handle)
+	var free: bool = _lb_cur["free"]
 	var out: Array = []
 	for e in result:
 		var det := PackedInt32Array(e.get("details", []))
 		var units := unpack_free(det, 16000, 9000) if free else unpack_army(det)
 		if not units.is_empty():
 			out.append({"name": str(e.get("steam_id", "")), "units": units, "score": int(e.get("score", 0)), "rank": int(e.get("global_rank", 0))})
+	var done: Callable = _lb_cur["done"]
+	_lb_cur = {}
 	done.call(out)
+	_lb_pump()
 
 static func _on_lb_uploaded(success: bool, handle: int, _this_score: Dictionary) -> void:
-	var q: Array = _lb_sent.get(handle, [])
-	if q.is_empty():
+	if _lb_cur.is_empty() or _lb_cur["stage"] != "up" or int(_lb_cur["handle"]) != handle:
 		return
-	var sent: Array = q.pop_front()
-	if q.is_empty():
-		_lb_sent.erase(handle)
-	var nm := str(sent[0])
-	_lb_busy.erase(nm)
-	if success and clear_pending(Save.data, nm, int(sent[1])):
+	if success and clear_pending(Save.data, _lb_cur["name"], int(_lb_cur["p"][0])):
 		Save.save_data()
-	if _lb_next.has(nm):
-		var nx: Array = _lb_next[nm]
-		_lb_next.erase(nm)
-		_lb_queue(nm, nx)   # 在途時排隊的那一筆，現在送
+	_lb_finish(true)
+
+## 測試用：清掉排行榜狀態。
+static func lb_reset() -> void:
+	_lb_q = []
+	_lb_cur = {}
+	_lb_up_times = []
+	_lb_hold_until = 0
+	_lb_wired = false
+	now_ms = -1
 
 ## V1.6.1 F2（Codex v161d r2）：送出到回呼之間可能又打出更好的成績（待送被換掉）。
 ## 只有待送的榜名與分數都和送出的那一筆相同才清；回傳有沒有清。純函式（測試用）。

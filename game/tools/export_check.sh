@@ -24,6 +24,8 @@ sc() {  # 執行檔 期望 demo 標記
   echo "$line" | grep -q "\"demo\":$2" || { echo "EXPORT FAIL：$3 試玩版標記不對"; exit 1; }
   echo "$line" | grep -q '"exported":true' || { echo "EXPORT FAIL：$3 不是匯出版"; exit 1; }
   echo "$line" | grep -q '"engine":"4.6.2' || { echo "EXPORT FAIL：$3 引擎版本不對"; exit 1; }
+  echo "$line" | grep -q '"ok":true' || { echo "EXPORT FAIL：$3 自我檢查 ok 不是 true"; exit 1; }   # V1.0.0 T2
+  [ -n "${EXPECT_VERSION:-}" ] && { echo "$line" | grep -q "\"version\":\"$EXPECT_VERSION\"" || { echo "EXPORT FAIL：$3 版本不是 $EXPECT_VERSION"; exit 1; }; }
   grep -aE "SCRIPT ERROR" "$log" && { echo "EXPORT FAIL：$3 有腳本錯誤"; exit 1; }
 }
 ex "Windows Desktop" "$OUT/win/NoTakeBacks.exe" win
@@ -36,11 +38,15 @@ if [ "$MODE" != "--smoke" ]; then
     ex "Linux" "$OUT/linux/NoTakeBacks.x86_64" linux
     mkdir -p "$OUT/linux-demo"
     ex "Linux Demo" "$OUT/linux-demo/NoTakeBacksDemo.x86_64" linux-demo
-    chmod +x "$OUT/linux/NoTakeBacks.x86_64"
+    chmod +x "$OUT/linux/NoTakeBacks.x86_64" "$OUT/linux-demo/NoTakeBacksDemo.x86_64"
     sc "$OUT/linux/NoTakeBacks.x86_64" false linux
+    sc "$OUT/linux-demo/NoTakeBacksDemo.x86_64" true linux-demo   # V1.0.0 T2：Linux 試玩版也要實際啟動
   else
     echo "LINUX SKIPPED：本機沒有 Linux 匯出模板（未驗證，不是通過）"
   fi
 fi
 du -sh "$OUT"/*/ | sed 's/^/size /'
+# V1.0.0 R0：發版凍結紀錄（commit、各成品雜湊）
+{ echo "commit $(git rev-parse HEAD 2>/dev/null)"; echo "dirty $(git status --porcelain 2>/dev/null | wc -l)"; for f in "$OUT"/*/*.exe "$OUT"/*/*.x86_64 "$OUT"/*/*.pck; do [ -f "$f" ] && sha256sum "$f"; done; } > "$OUT/manifest.txt"
+echo "MANIFEST $OUT/manifest.txt"
 echo "EXPORT OK"

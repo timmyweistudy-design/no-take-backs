@@ -13,12 +13,33 @@ func screen_id() -> String:
 func _feedback() -> void:
 	var txt := Funnel.report(str(ProjectSettings.get_setting("application/config/version")), screen_id())
 	var name := "user://%sreport_%d.json" % [Save.file_prefix(), int(Time.get_unix_time_from_system())]
-	var f := FileAccess.open(name, FileAccess.WRITE)
-	if f != null:
-		f.store_string(txt)
-		f.close()
+	var k := feedback_key(_write_text(name, txt), _clip_set(txt))
+	_toast(L.t(k), k == "fb_fail")
+
+## V1.0.0 D4：寫檔、剪貼簿各自確認，提示照實講（寫檔失敗不能說「也存了一份」）。
+static func feedback_key(saved: bool, copied: bool) -> String:
+	if saved and copied:
+		return "fb_done"
+	if saved:
+		return "fb_saved_only"
+	if copied:
+		return "fb_copied_only"
+	return "fb_fail"
+
+static func _write_text(path: String, txt: String) -> bool:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(txt)
+	var ok := f.get_error() == OK
+	f.close()
+	return ok and FileAccess.file_exists(path)
+
+static func _clip_set(txt: String) -> bool:
+	if DisplayServer.get_name() == "headless" or not DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD):
+		return false
 	DisplayServer.clipboard_set(txt)
-	_toast(L.t("fb_done"))
+	return DisplayServer.clipboard_get() == txt
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
@@ -746,9 +767,11 @@ func _v16_jobs(_delta: float) -> void:
 				_coach_open()   # 面板開著、等的是新的這一場：接著算新的
 
 func _exit_tree() -> void:
-	if trio_thread != null:
-		trio_thread.wait_to_finish()
-		trio_thread = null
+	_trio_cancel()
+	for t in trio_old + ([trio_thread] if trio_thread != null else []):
+		(t as Thread).wait_to_finish()   # 已叫停：64 tick 內會停
+	trio_old = []
+	trio_thread = null
 	if co_thread != null:
 		co_ctl["stop"] = true   # V1.6.1 F5：先叫它停（64 tick 內會停），不用等整場跑完
 		co_thread.wait_to_finish()   # 結束時收掉教練的背景工作（Codex v160-i1 #3）
@@ -1037,6 +1060,7 @@ func _start_mode(m: int) -> void:
 		co_assist = ""   # V1.6.1 A4：換題就是新的嘗試（同一題重打照舊算教練協力）
 	if mk != tv_mode_key or m != Mode.PUZZLE:
 		trio_job += 1   # 換題、換模式：還在算的三考結果作廢
+		_trio_cancel()
 	tv_mode_key = mk
 	fog_on = false
 	tv_mark_mode = false
@@ -1056,6 +1080,7 @@ func _ai_style() -> int:
 ## V1.6.1（Codex v161-i2 #2）：回標題時，還在算的三考結果作廢（不再寫紀錄）
 func _go_title() -> void:
 	trio_job += 1
+	_trio_cancel()
 	super._go_title()
 
 ## V1.6.1 A4：從清單點進來＝全新的嘗試（Codex v161-i1 #4）
@@ -1327,7 +1352,8 @@ func _nb_del(i: int) -> void:
 
 ## ── #13 每日全球榜＋挑戰高手陣 ──
 var dt_list: Array = []
-var dt_state := ""   # ""、"loading"、"done"、"off"
+var dt_state := ""   # ""、"loading"、"done"、"off"、"fail"（V1.0.0：抓不到或逾時）
+var dt_gen := 0
 
 func _daily_sync() -> void:
 	var p: Dictionary = Save.data.get("daily_pend", {})
@@ -1342,9 +1368,13 @@ func _daily_top_open() -> void:
 		dt_state = "off"
 		return
 	dt_state = "loading"
+	dt_gen += 1
+	var gen := dt_gen
 	SteamApi.daily_fetch(int(Daily.today()), func(lst: Array):
+		if gen != dt_gen or overlay != "daily_top":
+			return   # V1.0.0 W1：離開或重開過，舊的下載結果作廢
 		dt_list = lst.slice(0, 5)
-		dt_state = "done", Daily.VER)
+		dt_state = "done" if not lst.is_empty() else "fail", Daily.VER)
 
 func _daily_top_go(units: Array) -> void:
 	var sp: Dictionary = Daily.spec(Daily.today())
@@ -1595,19 +1625,49 @@ func _trio_settle() -> void:
 		trio_res += Trio.results(s, extra, 1)
 		_trio_done()
 		return
-	if trio_thread != null:
-		trio_thread.wait_to_finish()   # 上一組還在算（極少見）：先收掉
+	_trio_cancel()   # 上一組還在算（極少見）：叫它停，背景收（不在主執行緒等）
 	trio_busy = true
-	trio_thread = Thread.new()
+	trio_err = false
+	var ctl := {"stop": false, "until": Time.get_ticks_msec() + TRIO_LIMIT_MS}
+	trio_ctl = ctl
+	var t := Thread.new()
 	var job := trio_job
-	trio_thread.start(func(): return [job, Trio.results(s, extra, 1)])
+	var inp: Dictionary = s.duplicate(true)   # 背景只用自己的副本（V1.0.0 M13）
+	var ex: Array = extra.duplicate(true)
+	if t.start(func(): return [job, Trio.results(inp, ex, 1, ctl)]) != OK:
+		# 開不了執行緒：在主執行緒照算（兩場，最壞約幾秒）
+		trio_busy = false
+		var r2 := Trio.results(inp, ex, 1)
+		trio_res += r2
+		_trio_done()
+		return
+	trio_thread = t
+
+## V1.0.0 M13：三考背景運算可取消、有期限（TRIO_LIMIT_MS），被取消的執行緒放 trio_old，停了再回收，不阻塞畫面。
+const TRIO_LIMIT_MS := 20000
+var trio_ctl := {}
+var trio_old: Array = []
+var trio_err := false   # 逾時：不寫星數，結算頁顯示「算太久」
+func _trio_cancel() -> void:
+	if trio_thread != null:
+		trio_ctl["stop"] = true
+		trio_old.append(trio_thread)
+		trio_thread = null
+		trio_busy = false
 
 func _trio_jobs() -> void:
+	for t in trio_old.duplicate():
+		if not (t as Thread).is_alive():
+			(t as Thread).wait_to_finish()
+			trio_old.erase(t)
 	if trio_thread != null and not trio_thread.is_alive():
 		var got: Array = trio_thread.wait_to_finish()
 		trio_thread = null
 		trio_busy = false
 		if int(got[0]) == trio_job and trio_res.size() == 1:
+			if (got[1] as Array).is_empty():
+				trio_err = true   # 逾時被停：不寫紀錄
+				return
 			trio_res += got[1]
 			_trio_done()
 
@@ -1671,7 +1731,7 @@ func _draw_trio_result() -> void:
 	var s: Dictionary = _trio_set()
 	var done := trio_res.size() == 3
 	var all_ok := done and trio_st >= 1
-	var foot: String = L.t("tr_busy") if not done else (L.t("tr_pass_st", [Trio.rem_avg(trio_res), Trio.spent_pct(s, trio_res), Trio.s2_of(s), Trio.s3_of(s)]) if all_ok else L.t("tr_fail"))
+	var foot: String = L.t("tr_timeout") if trio_err else L.t("tr_busy") if not done else (L.t("tr_pass_st", [Trio.rem_avg(trio_res), Trio.spent_pct(s, trio_res), Trio.s2_of(s), Trio.s3_of(s)]) if all_ok else L.t("tr_fail"))
 	var cw := 220.0
 	var ch := 196.0
 	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + ch + GAP_L + text_h(foot, tz("S"), 680) + GAP_L + 26.0 + GAP_L + 50.0 + GAP_L)
@@ -1687,7 +1747,7 @@ func _draw_trio_result() -> void:
 		r5.append([Rect2(r.position + Vector2(cw / 2.0 - 40, 10), Vector2(80, 84)), Rect2(r.position + Vector2(8, 102), Vector2(cw - 16, tz("S")))])
 		var head := L.t("tr_card", [k + 1])
 		_text(Vector2(r.get_center().x, r.position.y + 102), head, tz("S"), Color.WHITE, true, true, cw - 16)
-		var st_line := L.t("tr_calc") if not has else ((L.t("tr_won", [int(trio_res[k]["rem"])])) if bool(trio_res[k]["ok"]) else L.t("tr_lost"))
+		var st_line := ("—" if trio_err else L.t("tr_calc")) if not has else ((L.t("tr_won", [int(trio_res[k]["rem"])])) if bool(trio_res[k]["ok"]) else L.t("tr_lost"))
 		_text(Vector2(r.get_center().x, r.position.y + 102 + tz("S") * 1.5), st_line, tz("S"), (ACCENT if has and bool(trio_res[k]["ok"]) else Color(1, 0.75, 0.7)) if has else TXT_DIM, true, false, cw - 16)
 		if has:
 			_text(Vector2(r.get_center().x, r.end.y - tz("C") * 1.6), L.t("tr_watch"), tz("C"), TXT_DIM, true, false, cw - 16)

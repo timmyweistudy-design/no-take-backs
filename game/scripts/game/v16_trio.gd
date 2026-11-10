@@ -32,14 +32,20 @@ static func check(s: Dictionary, extra: Array) -> Array:
 const S2 := 45
 const S3 := 88
 
-static func play_one(s: Dictionary, k: int, extra: Array) -> Dictionary:
-	var r: Dictionary = PZ.play(make_pz(s, k), extra)
+static func play_one(s: Dictionary, k: int, extra: Array, ctl := {}) -> Dictionary:
+	var r: Dictionary = PZ.play(make_pz(s, k), extra, [], true, ctl)
+	if bool(r.get("cancel", false)):
+		return {"cancel": true}
 	return {"ok": bool(r.get("ok", false)), "rem": int(r.get("rem", 0)), "spent": int(r.get("spent", 0))}
 
-static func results(s: Dictionary, extra: Array, from := 0) -> Array:
+## ctl：見 PZ.play。被取消或逾時回 []（呼叫端不寫紀錄）。
+static func results(s: Dictionary, extra: Array, from := 0, ctl := {}) -> Array:
 	var out: Array = []
 	for k in range(from, 3):
-		out.append(play_one(s, k, extra))
+		var r := play_one(s, k, extra, ctl)
+		if r.has("cancel"):
+			return []
+		out.append(r)
 	return out
 
 static func s2_of(s: Dictionary) -> int:

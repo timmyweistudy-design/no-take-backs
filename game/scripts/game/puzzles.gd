@@ -294,7 +294,9 @@ static func check_extra(pz: Dictionary, extra: Array) -> String:
 	return ""
 
 ## 直接打一場（工具、測試用；遊戲裡是畫面上的模擬，最後一樣呼叫 outcome）。不合法回 {"ok": false, "illegal": 原因}。
-static func play(pz: Dictionary, extra: Array, plan: Array = [], check := true) -> Dictionary:
+## ctl（V1.0.0 M13）：背景執行緒用的取消／期限 {"stop": bool, "until": 毫秒}；每 64 tick 看一次，停了回 {"cancel": true}。
+## 主執行緒只改既有的 "stop" 鍵的值（建立時就放好，不新增鍵），背景只讀。
+static func play(pz: Dictionary, extra: Array, plan: Array = [], check := true, ctl := {}) -> Dictionary:
 	if check:
 		var why := check_extra(pz, extra)
 		if why != "":
@@ -307,7 +309,13 @@ static func play(pz: Dictionary, extra: Array, plan: Array = [], check := true) 
 	if s.cmd_on:
 		s.cmd_play(cmd_log(pz, plan if not plan.is_empty() else default_plan(pz)))
 	s.fast = true
-	s.run_to_end()
+	if ctl.is_empty():
+		s.run_to_end()
+	else:
+		while not s.finished:
+			s.step()
+			if s.tick & 63 == 0 and (bool(ctl.get("stop", false)) or Time.get_ticks_msec() > int(ctl.get("until", 1 << 60))):
+				return {"ok": false, "cancel": true, "stars": 0, "rem": 0, "spent": 0}
 	var out := outcome(pz, s, a0.spent() - fixed_budget)
 	out["ticks"] = s.tick
 	return out

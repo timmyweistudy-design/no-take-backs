@@ -194,6 +194,8 @@ static func goal_fields(goal: String, e: Array, s: Array = []) -> Dictionary:
 	return {}
 
 ## 解碼＋驗證＋重跑作者解。回傳 {ok, pz, sol, why}。
+## V1.0.0 M15：重跑作者解有期限（SOLVE_MS，三考三場合計 3 倍），超過回 ws_slow。
+const SOLVE_MS := 8000
 static func decode(code: String) -> Dictionary:
 	var bad := {"ok": false, "why": "ws_bad"}
 	code = code.strip_edges()
@@ -242,7 +244,10 @@ static func decode(code: String) -> Dictionary:
 		var ts := trio_set_of(j, s, allowed)
 		if ts.is_empty():
 			return bad
-		if Trio.stars(ts, Trio.results(ts, s)) < 1:
+		var tr := Trio.results(ts, s, 0, {"stop": false, "until": Time.get_ticks_msec() + SOLVE_MS * 3})
+		if tr.is_empty():
+			return {"ok": false, "why": "ws_slow"}
+		if Trio.stars(ts, tr) < 1:
 			return {"ok": false, "why": "ws_unsolved"}
 		return {"ok": true, "pz": Trio.make_pz(ts, 0), "sol": s, "trio": ts, "why": ""}
 	if vv >= 3:
@@ -261,7 +266,9 @@ static func decode(code: String) -> Dictionary:
 			pz["star3"] = int(pz["budget"])
 		L.fill(pz, "", "wb_pz_name")
 		L.fill(pz, "hint", "wb_pz_hint")
-	var r: Dictionary = PZ.play(pz, s)
+	var r: Dictionary = PZ.play(pz, s, [], true, {"stop": false, "until": Time.get_ticks_msec() + SOLVE_MS})
+	if bool(r.get("cancel", false)):
+		return {"ok": false, "why": "ws_slow"}   # V1.0.0 M15：作者解跑太久（壞碼或刻意卡住）就不收
 	if not bool(r.get("ok", false)):
 		return {"ok": false, "why": "ws_unsolved"}
 	pz["star2"] = int(r["rem"])
