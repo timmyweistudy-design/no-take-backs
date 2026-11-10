@@ -401,7 +401,7 @@ func sim_digest() -> String:
 	return JSON.stringify(base).sha256_text().substr(0, 16)
 
 func equals(o) -> bool:
-	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields()) and cmd_mask == o.cmd_mask and (not cmd_on() or (cmd_uses == o.cmd_uses and cmd_cd == o.cmd_cd and cmd_power == o.cmd_power))
+	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields()) and cmd_mask == o.cmd_mask and (not cmd_on() or (cmd_uses == o.cmd_uses and cmd_cd == o.cmd_cd and cmd_power == o.cmd_power)) and adj == o.adj   # V1.6 #22
 
 ## 和標準規則（同一個卡池基準）不同的項目：[[鍵, 標準值, 現在值], …]
 func diff(std) -> Array:

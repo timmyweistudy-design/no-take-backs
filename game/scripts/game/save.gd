@@ -319,7 +319,9 @@ static func sanitize_v16(out: Dictionary) -> void:
 				f2[str(k)] = maxi(0, int(f[k]))
 	out["funnel"] = f2
 	var sn = out.get("seen", null)
-	if sn != null:
+	if out.has("seen") and not sn is Array:
+		out.erase("seen")   # null 或型別錯：當作沒有（下次開遊戲補舊入口），Antigravity v160-i1 #4
+	elif sn != null:
 		var s2: Array = []
 		if sn is Array and sn.size() <= 200:
 			for x in sn:

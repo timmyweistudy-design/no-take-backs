@@ -693,6 +693,7 @@ func _draw_rift() -> void:
 func _start_mode(m: int) -> void:
 	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.preset == "custom"   # 裂隙「再來一局」照舊
 	fog_on = false
+	tv_mark_mode = false
 	var keep_trio: bool = trio_on and m == Mode.PUZZLE and puzzle_id == "ws" and PZ.get_puzzle("ws").has("trio")   # 一陣三考「重試」照舊
 	rift_on = false
 	trio_on = false
@@ -847,8 +848,12 @@ func _daily_top_go(units: Array) -> void:
 	rules = r
 	set("challenge_army", e)
 	overlay = ""
+	if not e.has_combat():
+		_toast(L.t("dt_bad"), true)
+		return
 	_start_mode(Mode.VS_AI)
 	daily_spec = {}   # 打高手陣不算今天的每日成績（_start_mode 有挑戰陣時不清，要自己清：Codex v160-i1 #2）
+	rift_on = false   # 規則也是 custom：不能被當成裂隙「再來一局」（Antigravity v160-i1 #5）
 
 func _draw_daily_top() -> void:
 	var body := ""

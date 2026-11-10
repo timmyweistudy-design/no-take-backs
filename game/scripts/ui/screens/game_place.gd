@@ -32,6 +32,10 @@ func _go_title() -> void:
 	set("rift_on", false)   # V1.6 #10
 	set("trio_on", false)   # V1.6 #17
 	set("fog_on", false)   # V1.6 #20
+	set("tv_mark_mode", false)   # V1.6 #6：標記模式不能帶到別的畫面（Antigravity v160-i1 #1）
+	set("tv_marks", [])
+	set("ga_coop", false)   # V1.6 #21：續局時從存檔讀回
+	set("challenge_army", null)   # 每日高手陣、裂隙的敵陣不能留到一般對 AI（Antigravity v160-i1 #2）
 	set("wv_active", false)   # V1.4 #11：離開就結束車輪戰
 	set("wv_mode", false)
 	set("sealed_on", false)   # V1.4 #13

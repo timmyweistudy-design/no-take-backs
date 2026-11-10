@@ -399,3 +399,27 @@ func test_mark_ids_v160() -> void:
 			if u.team == 0 and u.x == m.x and u.y == m.y:
 				want.append(u.id)
 	ok(ids == want and ids.size() == 2, "標記對到模擬的兵（格子）")
+
+func test_state_reset_v160() -> void:
+	var SaveS = load("res://scripts/game/save.gd")
+	var was: bool = SaveS.data_locked
+	SaveS.data_locked = true
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.time = 1.0
+	g.tv_mark_mode = true
+	g.tv_marks = [Vector2i(1500, 1500)]
+	g.ga_coop = true
+	g.challenge_army = load("res://scripts/core/army.gd").new(1, 100)
+	g._go_title()
+	ok(not g.tv_mark_mode and g.tv_marks.is_empty() and not g.ga_coop and g.challenge_army == null, "回標題：標記模式、標記、接力、挑戰陣都清掉")
+	var RSx = load("res://scripts/core/ruleset.gd")
+	var a = RSx.standard()
+	var b = RSx.standard()
+	b.adj = true
+	ok(not a.equals(b), "規則比較會看相鄰陣法")
+	var d := {"seen": null}
+	SaveS.sanitize_v16(d)
+	ok(not d.has("seen"), "seen 是 null 就當沒有")
+	g.free()
+	SaveS.data_locked = was
