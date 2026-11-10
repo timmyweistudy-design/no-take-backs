@@ -298,10 +298,10 @@ func _draw_vignette(strength: float) -> void:
 
 ## V1.0.0 P7：4 倍速以上的降噪（Gemini v100 r5：爆爆羊爆炸、史萊姆分裂、小石魔拍地不能省）
 const FAST_SPEED := 4.0
-const FAST_SKIP := ["scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
+const FAST_SKIP := ["healring", "scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["healring", "scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	if speed >= FAST_SPEED and d["kind"] in FAST_SKIP:
 		return   # V1.0.0 P7：高倍速只略過裝飾碎屑；預警圈（tell）、爆炸、分裂、拍地這類決定戰局的照畫
@@ -619,7 +619,12 @@ func _draw_fx(f: Dictionary) -> void:
 			draw_circle(Vector2.ZERO, 16.0, Color(0.16, 0.1, 0.06, 0.35 * (1.0 - k)), true, -1.0, true)
 			draw_set_transform_matrix(_cam)
 		"pin":
-			draw_line(f["a"], f["b"], Color(1.0, 0.42, 0.7, 0.85 * (1.0 - k)), 3.0, true)
+			draw_line(f["a"], f["b"], Color(0.62, 0.12, 0.12, 0.85 * (1.0 - k)), 3.0, true)   # 1.1.0 A7：分傷＝受傷，暗紅（原本粉紫，和毒的紫撞）
+		"healring":
+			# 1.1.0 A7：醫者補血，被補的友軍腳下淡綠扁環（貼地，≤0.3 格）
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.45), 0, f["p"]))
+			draw_arc(Vector2.ZERO, 10.0 + k * 9.0, 0.0, TAU, 24, Color(0.45, 0.9, 0.5, 0.7 * (1.0 - k)), 2.5, true)
+			draw_set_transform_matrix(_cam)
 		"wool":
 			for i8 in 9:
 				var an8 := i8 * TAU / 9.0

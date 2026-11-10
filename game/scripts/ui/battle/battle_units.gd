@@ -179,6 +179,10 @@ func _draw_xray(items: Array) -> void:
 		if hid:
 			var a: Array = items[i][1]
 			_unit(pa, int(a[0]), int(a[1]), float(a[2]), float(a[3]), float(a[4]), 0.0, float(a[5]) * 0.35, time, UNIT_SCALE, 0, float(a[6]), float(a[7]), int(a[8]))
+			# 1.1.0 B4／A18：被蓋住的兵，只有游標停在它身上時才描一圈淡粉筆輪廓（常駐會在 800p 糊成雜訊；不移錨點、不改點擊判定）
+			var mp: Vector2 = _cam.affine_inverse() * mouse   # 游標換成場地座標（和兵同一個座標系）
+			if not bool(Save.s("reduce_fx")) and mp.distance_to(pa + Vector2(0, -22.0 * UNIT_SCALE)) < 18.0 * UNIT_SCALE:
+				_hand_ring(pa + Vector2(0, -22.0 * UNIT_SCALE), 16.0 * UNIT_SCALE, Color(1.0, 0.97, 0.88, 0.75), 1.5)
 
 ## 這隻兵附近（60px 內）有幾隻活著的兵，不算自己。
 func _crowd_at(u) -> int:
@@ -1029,6 +1033,9 @@ static func proj_launch(type: int, sg: float) -> Vector2:
 func _draw_projectile(type: int, team: int, a: Vector2, b: Vector2, k: float) -> void:
 	var d := b - a
 	var len := maxf(1.0, d.length())
+	if speed >= 4.0 and not bool(Save.s("reduce_fx")):
+		# 1.1.0 B8：高倍速時飛行物一閃就過：落點畫一個小粉筆圈（只是畫面，傷害時機不動）
+		draw_arc(b, 7.0 + 3.0 * k, 0.0, TAU, 16, Color(Art.team_color(team, cbm()), 0.55 * (1.0 - k * 0.5)), 1.6, true)
 	match type:
 		D.ARCHER:
 			# 淺拋物線；箭身沿切線方向

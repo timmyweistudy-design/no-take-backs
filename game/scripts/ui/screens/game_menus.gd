@@ -402,6 +402,8 @@ func _draw_overlay() -> void:
 				_text(Vector2(640, cy + 4 + tz("B") * 1.5), story, tz("C"), TXT_DIM, true, false, 700)
 				y0 = cy + 4 + tz("B") * 1.5 + text_h(story, tz("C"), 700) + GAP_M
 				_text(Vector2(280, 648), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), TXT_DIM, false, false, 260)
+				if chapter_sealed(chap, stars):
+					_wax_seal(Vector2(760, 658), 17.0)   # 1.1.0 A10：這章全部三星＝火漆印（只是裝飾，不改任何紀錄）
 				_btn(Rect2(800, 640, 200, 36), ("✓ " if puzzle_only_open else "") + L.t("puzzle_only_open"), func(): puzzle_only_open = not puzzle_only_open)
 				if puzzle_only_open:
 					idx = idx.filter(func(k): return int(stars.get(list[k]["id"], 0)) < 3)
@@ -661,8 +663,50 @@ func _settings_rows() -> Array:
 				["set_backup", "@" + L.t("do_backup"), func(d): _progress_backup()],
 				["set_restore", "@" + L.t("do_restore"), func(d): _data_swap_open("restore")],
 				["set_clear", "@" + L.t("do_choose"), func(d): clear_pick = {}; _data_swap_open("clear_data")],
-				["set_folder", "@" + L.t("open_it"), func(d): OS.shell_open(ProjectSettings.globalize_path("user://"))]]
+				["set_folder", "@" + L.t("open_it"), func(d): OS.shell_open(ProjectSettings.globalize_path("user://"))]] + _ws_archive_row()
 	return []
+
+## 1.1.0 A10：章節全三星
+static func chapter_sealed(chap: Array, stars: Dictionary) -> bool:
+	if chap.is_empty():
+		return false
+	for pz in chap:
+		if int(stars.get(pz["id"], 0)) < 3:
+			return false
+	return true
+
+func _wax_seal(c: Vector2, r: float) -> void:
+	draw_circle(c + Vector2(0, 2), r + 1.0, Color(0, 0, 0, 0.35), true, -1.0, true)
+	draw_circle(c, r, Color("#a8231c"), true, -1.0, true)
+	_hand_ring(c, r * 0.72, Color(1.0, 0.75, 0.62, 0.8), 1.6)
+	var pts := PackedVector2Array()
+	for i in 10:
+		var a := -PI / 2.0 + i * PI / 5.0
+		pts.append(c + Vector2(cos(a), sin(a)) * (r * (0.46 if i % 2 == 0 else 0.2)))
+	draw_colored_polygon(pts, Color(1.0, 0.82, 0.62, 0.95))
+
+## 1.1.0 A23：V1.6.1 之前存在舊 `ws` 鍵底下的實驗簿方案（認不出是哪一題，不顯示也不刪）：只有存檔裡真的有時才給「匯出」。
+func _ws_archive_row() -> Array:
+	var nb = Save.data.get("notebook", {})
+	if not (nb is Dictionary and nb.has("ws") and nb["ws"] is Array and not (nb["ws"] as Array).is_empty()):
+		return []
+	return [["set_ws_archive", "@" + L.t("do_copy"), func(d): _ws_archive_export()]]
+
+static func ws_archive_text(data: Dictionary) -> String:
+	var nb = data.get("notebook", {})
+	return JSON.stringify({"ws_archive": nb.get("ws", []) if nb is Dictionary else [], "note": "V1.6.1 以前的工坊／出題台實驗簿；原鍵與內容照存，未刪除"}, " ")
+
+func _ws_archive_export() -> void:
+	var txt := ws_archive_text(Save.data)
+	var name := "user://%snotebook_ws_archive.json" % Save.file_prefix()
+	var f := FileAccess.open(name, FileAccess.WRITE)
+	var saved := false
+	if f != null:
+		f.store_string(txt)
+		f.close()
+		saved = FileAccess.get_file_as_string(name) == txt
+	DisplayServer.clipboard_set(txt)
+	_toast(L.t("ws_archive_done") if saved else L.t("fb_copied_only"), not saved)
 
 
 

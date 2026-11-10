@@ -261,6 +261,8 @@ func _draw_fb_cat() -> void:
 
 func _draw_v16_overlay(name: String) -> void:
 	match name:
+		"nb_words":
+			_draw_nb_words()
 		"fb_cat":
 			_draw_fb_cat()
 		"demo_end":
@@ -410,8 +412,13 @@ func _v16_place_draw() -> void:
 				call("_arc_clipped", sp, rr * CS, 0, TAU, Color(1, 0.9, 0.5, 0.3), 1.2)
 		if not foes.is_empty():
 			# V1.6.1 A9：開場鎖定（用模擬跑 1 tick 的選目標結果，不是「最近的敵兵」）；虛線弧，白黑雙邊。不保證第一下打到它（之後會換目標）。
-			for pr in _lock_pairs(a, armies[1]):
+			# 1.1.0 A13：同一個目標第 4 條起不再各畫一條，目標旁標「×N」（N＝總條數；資訊不丟，也不在目標點疊成光團）
+			var per := lock_groups(_lock_pairs(a, armies[1]), LOCK_MAX)
+			for pr in per["draw"]:
 				_lock_arc(_foot_of(pr[0]) - Vector2(0, 0.32 * CS), _foot_of(pr[1]) - Vector2(0, 0.32 * CS))
+			for tg in per["count"]:
+				var tp := _foot_of(tg) - Vector2(0, 0.32 * CS) + Vector2(10, -18)
+				_text(tp, "×%d" % int(per["count"][tg]), tz("C"), Color(1, 0.95, 0.8), false, true, 60)
 	_tv_draw_marks_place(a)
 	_fog_draw()
 	_adj_draw(a)
@@ -429,6 +436,24 @@ func _lock_pairs(a0, a1) -> Array:
 	lock_key = key
 	lock_cache = lock_targets(a0, a1, rr)
 	return lock_cache
+
+const LOCK_MAX := 3
+## 依目標分組：每個目標最多畫 n 條；超過的目標記總條數（畫「×N」）。純函式（測試用）。
+static func lock_groups(pairs: Array, n: int) -> Dictionary:
+	var by := {}
+	for pr in pairs:
+		var k: Vector2i = pr[1]
+		if not by.has(k):
+			by[k] = []
+		by[k].append(pr)
+	var draw: Array = []
+	var count := {}
+	for k in by:
+		var lst: Array = by[k]
+		draw += lst.slice(0, n)
+		if lst.size() > n:
+			count[k] = lst.size()
+	return {"draw": draw, "count": count}
 
 static func lock_targets(a0, a1, rr) -> Array:
 	var s = Sim.new(a0.copy(), a1.copy(), rr)
@@ -834,6 +859,7 @@ func _v16_jobs(_delta: float) -> void:
 				_coach_open()   # 面板開著、等的是新的這一場：接著算新的
 
 func _exit_tree() -> void:
+	SteamApi.lb_drop()   # 1.1.0 A21
 	_ws_exit()
 	_trio_cancel()
 	for t in trio_old + ([trio_thread] if trio_thread != null else []):
@@ -1180,6 +1206,7 @@ func _persona_result() -> void:
 		return
 	var st := _ai_style()
 	report["ps_line"] = L.t("ps_say", [L.t("ps_name_%d" % st), L.t(Persona.line_key(st, "lose" if sim.winner == 0 else "win"))])
+	report["ps_hab"] = L.t("ps_hab", [L.t("ps_name_%d" % st), L.t("ps_hab_%d" % clampi(st, 0, 5))])   # 1.1.0 A8：這位對手的習慣（有空位才顯示）
 
 ## ── #12 生涯：熟練度＋實驗簿 ──
 const Career = preload("res://scripts/game/v16_career.gd")
@@ -1285,10 +1312,10 @@ func _nb_rename(i: int) -> void:
 				it["n"] = str(txt).strip_edges().substr(0, NB_NAME_MAX)
 				Save.save_data()):
 			return
-		_nb_cycle_name(it)   # 沒有 Steam 螢幕鍵盤：輪替預設名
+		_nb_words_open(it)   # 1.1.0 B13：沒有 Steam 螢幕鍵盤：詞彙格（原本只能輪替預設名）
 		return
 	if fp_touch and not DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
-		_nb_cycle_name(items[i])   # 觸控又沒有螢幕鍵盤（Windows 平板／Deck 桌面模式）：輪替預設名（Codex v161-i1 #8）
+		_nb_words_open(items[i])   # 觸控又沒有螢幕鍵盤（Windows 平板／Deck 桌面模式）：詞彙格（Codex v161-i1 #8）
 		return
 	nb_edit = i
 	nb_edit_obj = items[i]
@@ -1296,6 +1323,47 @@ func _nb_rename(i: int) -> void:
 	DisplayServer.window_set_ime_active(true)   # 中文、日文輸入法
 	if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
 		DisplayServer.virtual_keyboard_show(nb_buf, Rect2(), DisplayServer.KEYBOARD_TYPE_DEFAULT, NB_NAME_MAX)
+
+## 1.1.0 B13：詞彙格改名（觸控、手把都按得到）：常用戰術詞＋數字拼成名字（最多 16 字），刪一個字、確定、取消。
+const NB_WORDS := ["nb_w_0", "nb_w_1", "nb_w_2", "nb_w_3", "nb_w_4", "nb_w_5", "nb_w_6", "nb_w_7", "nb_w_8", "nb_w_9", "nb_w_10", "nb_w_11"]
+var nb_words_obj = null
+func _nb_words_open(it: Dictionary) -> void:
+	nb_words_obj = it
+	nb_buf = ""
+	overlay = "nb_words"
+	_focus = 0
+
+func _nb_words_done(ok: bool) -> void:
+	if ok and nb_words_obj is Dictionary and nb_buf.strip_edges() != "" and _nb_items().has(nb_words_obj):
+		nb_words_obj["n"] = nb_buf.strip_edges().substr(0, NB_NAME_MAX)
+		Save.save_data()
+	nb_words_obj = null
+	nb_buf = ""
+	overlay = "notebook"
+
+static func nb_words_add(buf: String, w: String) -> String:
+	return (buf + w).substr(0, NB_NAME_MAX)
+
+func _draw_nb_words() -> void:
+	var cw := 160.0
+	var P := modal_rect(4 * cw + 3 * GAP_M + 64, 12.0 + h1_bottom(0.0) + GAP_L + 48.0 + GAP_L + 3 * (48.0 + GAP_M) + 44.0 + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("nb_rename")) + GAP_L
+	var ir := Rect2(640 - 2 * cw - 1.5 * GAP_M, y, 4 * cw + 3 * GAP_M, 48)
+	draw_rect(ir, Color(0.05, 0.06, 0.09, 0.95))
+	draw_rect(ir, ACCENT, false, 2.0)
+	_text(ir.position + Vector2(12, 10), nb_buf if nb_buf != "" else L.t("nb_words_hint"), tz("S"), Color.WHITE if nb_buf != "" else TXT_DIM, false, true, ir.size.x - 24)
+	y += 48.0 + GAP_L
+	for i in NB_WORDS.size():
+		var w := L.t(NB_WORDS[i])
+		_btn(Rect2(ir.position.x + (i % 4) * (cw + GAP_M), y + (i / 4) * (48.0 + GAP_M), cw, 48), w, func(): nb_buf = nb_words_add(nb_buf, w), nb_buf.length() < NB_NAME_MAX, i == 0)
+	y += 3 * (48.0 + GAP_M)
+	for d in 5:
+		var ds := str(d + 1)
+		_btn(Rect2(ir.position.x + d * 64.0, y, 56, 44), ds, func(): nb_buf = nb_words_add(nb_buf, ds), nb_buf.length() < NB_NAME_MAX)
+	_btn(Rect2(ir.end.x - 120, y, 120, 44), L.t("nb_words_del"), func(): nb_buf = nb_buf.substr(0, maxi(0, nb_buf.length() - 1)), nb_buf != "")
+	_btn(Rect2(640 - 170, P.end.y - GAP_L - 44.0, 160, 44), L.t("nb_ok"), func(): _nb_words_done(true), nb_buf.strip_edges() != "")
+	_btn(Rect2(650, P.end.y - GAP_L - 44.0, 160, 44), L.t("cancel"), func(): _nb_words_done(false))
 
 func _nb_cycle_name(it: Dictionary) -> void:
 	var cur := str(it["n"])

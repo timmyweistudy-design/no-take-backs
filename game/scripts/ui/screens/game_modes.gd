@@ -1044,6 +1044,7 @@ func _draw_profile() -> void:
 		if (ar.has_point(mouse) and not pad_mode) or (pad_mode and fi == _focus):
 			hover_k = k
 			_box(ar.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.7), 5.0, 1.5)
+		draw_rect(Rect2(ar.position + Vector2(1, 3), Vector2(3, ar.size.y - 6)), SteamApi.ACH_CAT_COL.get(SteamApi.ACH_CAT.get(k, ""), Color(1, 1, 1, 0.2)))   # 1.1.0 A15：類別色條
 		_icon("star" if on else "lock", Vector2(pos.x + 10, ar.get_center().y), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
 		_text(Vector2(pos.x + 26, ar.get_center().y - text_h("Ag", tz("C"), 0.0) * 0.5), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 242)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
 	# V1.2.1：滑過成就，標題列右邊顯示解鎖條件（未解鎖的也看得到怎麼拿）

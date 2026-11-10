@@ -8,6 +8,19 @@ var _ov_t := -9.0
 
 var shot_state := {}   # V1.2.1：版面檢查這一組的固定狀態（截圖程式切換後要還原成這裡的值）
 
+## 1.1.0 A12：拖著兵移動時，每移動約 70px 輕輕一聲木塊摩擦（低音量、至少隔 0.14 秒；簡化特效不影響聲音、音量跟介面音量）
+var scrape_acc := 0.0
+var scrape_t := -9.0
+func _drag_scrape(d: float) -> void:
+	if state != St.PLACE or sfx == null or not (int(get("fp_drag")) >= 0 or drag_from.x >= 0):
+		scrape_acc = 0.0
+		return
+	scrape_acc += d
+	if scrape_acc >= 70.0 and time - scrape_t >= 0.14:
+		scrape_acc = 0.0
+		scrape_t = time
+		sfx.play_pitched("place_light", 0.18, 0.8)
+
 func _ready() -> void:
 	boot_parts["ready_in"] = Time.get_ticks_msec()
 	on_battle_finished = _finish_battle
@@ -159,6 +172,7 @@ func _input(ev: InputEvent) -> void:
 			fp_touch = false
 		hover_card = _card_at(mouse)
 		_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
+		_drag_scrape(ev.relative.length())
 		return
 	if ev is InputEventMouseButton:
 		mouse = ev.position
@@ -366,7 +380,7 @@ func _key(k: int) -> void:
 					overlay = "pause_menu"   # 和「留下」一樣回暫停選單（Codex v151-i1 #3）
 				elif overlay != "":
 					# V1.5.1：Esc／手把 B 和返回鈕同一套目的地；沒登記來處的子頁用它返回鈕的目的地
-					call("_nav_back", {"wager": "playroom", "draft": "playroom", "wave_codes": "codes", "ghosts": "playroom", "weekly": "playroom", "rift": "playroom"}.get(overlay, ""))
+					call("_nav_back", {"wager": "playroom", "draft": "playroom", "wave_codes": "codes", "ghosts": "playroom", "weekly": "playroom", "rift": "playroom", "nb_words": "notebook"}.get(overlay, ""))
 				elif state == St.BATTLE:
 					if play_kind != "official":
 						_replay_back()   # 第七輪 A9：重播時 Esc＝返回

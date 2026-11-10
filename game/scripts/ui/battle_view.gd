@@ -538,6 +538,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		var ht0 = view.unit_by_id(ev["tgt"])
 		if hs0 != null and ht0 != null:
 			_merge_text(ht0.id, EV.HEAL, "+", int(ev["amt"]), _upos(ht0) + Vector2(0, -70), Color("#7dff8a"))
+			_add_fx({"kind": "healring", "p": _upos(ht0) + Vector2(0, 2), "t": 0.0, "dur": 0.35})   # 1.1.0 A7：被補的友軍腳下淡綠藥膏環（≤0.3 格）
 			sfx.play("heal", 0.35)
 		return
 	if k == EV.DRUM and with_fx:
@@ -632,6 +633,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		EV.COUNTER:
 			label = L.t("ev_counter")
 			col = Color("#80ffdb")
+			_add_fx({"kind": "chips", "p": sp + Vector2(10 * signf(tpos.x - sp.x), -26), "t": 0.0, "dur": 0.3})   # 1.1.0 A7：劍士反擊時劍身迸出木屑
 		EV.PIKE_BRACE:
 			label = L.t("ev_pike_brace")
 			col = Color("#ffd166")

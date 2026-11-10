@@ -278,3 +278,84 @@ class FakePlat:
 	func getFileCount(): return 3
 	func getFileNameAndSize(i): return {"name": ["save.json", "save.json.bak", "settings.json"][i], "size": 10}
 	func getCurrentBetaName(): return {"ret": true, "name": "beta"}
+
+## 1.1.0 A11：裂隙遍歷 520 週（約 10 年）× 正式／試玩卡池：三個異變、類別不重複、沒有排除組合、規則合法、敵陣有戰鬥兵。
+func test_rift_seeds_v110() -> void:
+	var RF = load("res://scripts/game/v16_rift.gd")
+	var RO = load("res://scripts/game/roster.gd")
+	var bad: Array = []
+	var seen := {}
+	for demo in [false, true]:
+		var mask: int = RO.mask(demo)
+		for wk in range(2900, 3420):
+			var ps: Array = RF.picks(wk, mask)
+			var tags := {}
+			var why := ""
+			if ps.size() != RF.PICK:
+				why = "數量"
+			for k in ps:
+				if tags.has(RF.ANOMS[k][1]):
+					why = "同類"
+				tags[RF.ANOMS[k][1]] = true
+				seen[k] = true
+			for i in ps.size():
+				if RF.clash(ps.slice(0, i), ps[i]):
+					why = "排除組合"
+			var r = RF.make_rules(ps, mask, wk)
+			if not r.validate().is_empty():
+				why = "規則不合法"
+			elif wk % 13 == 0:
+				var e = RF.enemy(r, wk)
+				if e == null or not e.has_combat():
+					why = "敵陣沒有戰鬥兵"
+			if why != "" and bad.size() < 5:
+				bad.append("%s 週 %d：%s" % ["試玩" if demo else "正式", wk, why])
+	ok(bad.is_empty(), "520 週 × 2 種卡池都合法", str(bad))
+	ok(seen.size() == RF.ANOMS.size(), "每一種異變都抽得到", "%d/%d" % [seen.size(), RF.ANOMS.size()])
+
+## 1.1.0 B13：詞彙格改名最多 16 字。
+func test_nb_words_v110() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	ok(G.nb_words_add("速攻", "側翼") == "速攻側翼", "接起來")
+	ok(G.nb_words_add("一二三四五六七八九十一二三四", "側翼包夾") .length() == 16, "超過 16 字截斷")
+	var L = load("res://scripts/game/strings.gd")
+	for k in G.NB_WORDS + ["nb_words_hint", "nb_words_del"]:
+		ok(L.has(k), "字串 " + k)
+
+## 1.1.0 A23：舊 ws 實驗簿封存匯出（原內容照存）。
+func test_ws_archive_v110() -> void:
+	var G = load("res://scripts/ui/screens/game_menus.gd")
+	var d := {"notebook": {"ws": [{"n": "A", "u": [[0, 1, 2]], "r": []}], "p1": []}}
+	var j = JSON.parse_string(G.ws_archive_text(d))
+	ok(j is Dictionary and (j["ws_archive"] as Array).size() == 1 and str(j["ws_archive"][0]["n"]) == "A", "舊方案原樣匯出")
+	ok(d["notebook"].has("ws"), "不刪原資料")
+
+## 1.1.0 A10：章節全三星才蓋印。
+func test_chapter_seal_v110() -> void:
+	var G = load("res://scripts/ui/screens/game_menus.gd")
+	var chap := [{"id": "a"}, {"id": "b"}]
+	ok(not G.chapter_sealed(chap, {"a": 3, "b": 2}), "差一顆星不蓋")
+	ok(G.chapter_sealed(chap, {"a": 3, "b": 3}), "全三星蓋印")
+	ok(not G.chapter_sealed([], {}), "空章節不蓋")
+
+## 1.1.0 A13：同目標超過 3 條只畫 3 條、標總數。
+func test_lock_groups_v110() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var t := Vector2i(12000, 4000)
+	var t2 := Vector2i(13000, 2000)
+	var prs: Array = []
+	for i in 5:
+		prs.append([Vector2i(1000 * i, 1000), t])
+	prs.append([Vector2i(500, 500), t2])
+	var g: Dictionary = G.lock_groups(prs, 3)
+	ok((g["draw"] as Array).size() == 4, "目標 1 畫 3 條、目標 2 畫 1 條")
+	ok(int(g["count"].get(t, 0)) == 5 and not g["count"].has(t2), "超過的標總數 5")
+
+## 1.1.0 A15：每個成就都有類別。
+func test_ach_cat_v110() -> void:
+	var ST = load("res://scripts/game/steam.gd")
+	var miss: Array = []
+	for k in ST.ACHIEVEMENTS:
+		if not ST.ACH_CAT.has(k) or not ST.ACH_CAT_COL.has(ST.ACH_CAT[k]):
+			miss.append(k)
+	ok(miss.is_empty() and ST.ACH_CAT.size() == ST.ACHIEVEMENTS.size(), "37 個成就都有類別", str(miss))

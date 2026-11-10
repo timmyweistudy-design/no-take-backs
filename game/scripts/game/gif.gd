@@ -47,9 +47,13 @@ static func encode(frames: Array, delay_cs := 10, ctl := {}) -> PackedByteArray:
 	out.append_array(PackedByteArray([0x21, 0xFF, 0x0B]))
 	out.append_array("NETSCAPE2.0".to_ascii_buffer())
 	out.append_array(PackedByteArray([3, 1, 0, 0, 0]))
+	var fi := 0
 	for img in frames:
 		if bool(ctl.get("stop", false)):
 			return PackedByteArray()
+		if ctl.has("done"):
+			ctl["done"] = fi   # 1.1.0 A14：已編好的格數（主執行緒讀來畫進度；鍵事先建好，只改值）
+		fi += 1
 		var im: Image = img
 		if im.get_format() != Image.FORMAT_RGBA8:
 			im = im.duplicate()

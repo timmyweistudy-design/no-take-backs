@@ -50,6 +50,10 @@ const ACHIEVEMENTS := {
 	"COOP_CLEAR": ["接力到底", "Relay to the End"],
 }
 
+## 1.1.0 A15：成就分類（征戰 war、兵法 tac、收藏 col、遊戲間 room），和 docs/release/achievements 圖示的類別色一致（tools/gen/gen_ach_icons.py）
+const ACH_CAT := {"FIRST_WIN": "war", "LONE_HERO": "tac", "COMEBACK": "war", "CLOSE_CALL": "war", "NO_TAKEBACKS": "tac", "HARD_WIN": "war", "SWEEP": "war", "TUTORIAL": "col", "PUZZLE_ALL": "col", "PUZZLE_3STAR": "col", "GAUNTLET": "war", "FRENZY_WIN": "war", "ALL_TYPES": "tac", "CHARGE_5": "tac", "BACKSTAB_3": "tac", "CUSTOM_LOWGOLD": "tac", "CUSTOM_UNDERDOG": "tac", "CUSTOM_BIG": "tac", "FANTASY_WIN": "war", "BOOM_5": "tac", "RAISE_3": "tac", "PUZZLE_100": "col", "PUZZLE_ALL3": "col", "TRIAL_ALL3": "col", "GHOST_ALL": "room", "WEEKLY_WIN": "room", "WAVE_3": "room", "REVENGE": "war", "PAINTER": "col", "SHARP_EYE": "room", "SEALED_DONE": "room", "RUSH_10": "room", "TRIO_STAR3": "room", "RIFT_WIN": "room", "WORKBENCH": "col", "MASTER_5": "col", "COOP_CLEAR": "room"}
+const ACH_CAT_COL := {"war": Color(0.70, 0.23, 0.16), "tac": Color(0.17, 0.41, 0.66), "col": Color(0.20, 0.50, 0.28), "room": Color(0.47, 0.28, 0.63)}
+
 static var _steam = null
 static var init_result = null
 static var store_ok := true
@@ -494,6 +498,11 @@ static func _on_lb_uploaded(success: bool, handle: int, _this_score: Dictionary)
 	if success and clear_pending(Save.data, _lb_cur["name"], int(_lb_cur["p"][0])):
 		Save.save_data()
 	_lb_finish(true)
+
+## 1.1.0 A21：遊戲結束時丟掉還在排隊／在途的請求（回呼會抓住畫面物件，留在 static 會變成結束時的洩漏）。不呼叫回呼。
+static func lb_drop() -> void:
+	_lb_q = []
+	_lb_cur = {}
 
 ## 測試用：清掉排行榜狀態。
 static func lb_reset() -> void:

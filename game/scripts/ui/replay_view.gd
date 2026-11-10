@@ -67,7 +67,7 @@ func _draw_replay_controls() -> void:
 		if gif_frames.is_empty() and gif_thread == null:
 			_btn(Rect2(350, 650, 220, 40), L.t("gif_btn"), func(): gif_on = true; paused = false)
 		else:
-			_text(Vector2(360, 658), L.t("gif_rec", [gif_frames.size(), GIF_N]) if gif_thread == null else L.t("gif_busy"), tz("S"), Color("#ff8a8a"), false, true, 260)
+			_text(Vector2(360, 658), L.t("gif_rec", [gif_frames.size(), GIF_N]) if gif_thread == null else L.t("gif_busy_n", [int(gif_ctl.get("done", 0)), GIF_N]), tz("S"), Color("#ff8a8a"), false, true, 260)
 	if play_kind == "review":
 		pass
 	elif paused and play_kind == "replay" and mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
@@ -853,7 +853,7 @@ func _gif_tick(delta: float) -> void:
 		var frames := gif_frames.duplicate()
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://gifs"))
 		var fn := "user://gifs/battle_%s.gif" % Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "_")
-		var gctl := {"stop": false}
+		var gctl := {"stop": false, "done": 0}
 		gif_ctl = gctl
 		var gt := Thread.new()
 		var ok := gt.start(func():

@@ -66,11 +66,26 @@ func _init() -> void:
 				var rng := RandomNumberGenerator.new()
 				rng.seed = 4242
 				var allw := 0
+				var st_n := [0, 0, 0, 0]   # 1.1.0 B12：隨機合法陣拿到 0～3 星的個數
+				var rems: Array = []
+				var spents: Array = []
 				for i in n:
 					var ex := rand_extra(s, rng)
-					if Trio.stars(s, Trio.results(s, ex)) >= 1:
+					var res := Trio.results(s, ex)
+					var st := Trio.stars(s, res)
+					st_n[st] += 1
+					if st >= 1:
 						allw += 1
+						rems.append(Trio.rem_avg(res))
+						spents.append(Trio.spent_pct(s, res))
 				rec["rand_pct"] = allw * 100 / n
+				rec["rand_stars"] = st_n
+				rems.sort()
+				spents.sort()
+				rec["win_rem_med"] = rems[rems.size() / 2] if not rems.is_empty() else -1
+				rec["win_spent_med"] = spents[spents.size() / 2] if not spents.is_empty() else -1
+				rec["s2"] = Trio.s2_of(s)
+				rec["s3"] = Trio.s3_of(s)
 				lines.append(JSON.stringify(rec))
 				print("M trio ", s["id"], " rand ", rec["rand_pct"])
 		"rift":
