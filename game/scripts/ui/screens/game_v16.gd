@@ -220,7 +220,7 @@ func _v16_place_key(k: int) -> bool:
 			tv_range = not tv_range
 			return true
 		KEY_N:
-			if mode == Mode.PUZZLE:
+			if _nb_key() != "":
 				overlay = "notebook"
 				_focus = 0
 				return true
@@ -379,7 +379,7 @@ func _daily_finish(w: int) -> void:
 	sh_text = ""
 	if (daily_spec as Dictionary).is_empty() or w != 0:
 		return
-	var day := int(Daily.today())
+	var day := int(daily_spec.get("day", Daily.today()))   # 跨 UTC 午夜才打完：照開局那天的題（Codex v160-i1 #6）
 	var st: Dictionary = Share.streak_after(Save.data.get("daily_streak", {}), day)
 	Save.data["daily_streak"] = st
 	Save.save_data()
@@ -534,7 +534,11 @@ func coach_ok() -> bool:
 	return Coach.supported(last_armies[0], battle_rules, _coach_pz())
 
 func _coach_open() -> void:
-	var key := "%d:%s:%d" % [mode, puzzle_id, last_armies[0].units.hash()]
+	var key := "%d:%s:%d:%d:%s" % [mode, puzzle_id, last_armies[0].units.hash(), last_armies[1].units.hash(), battle_rules.to_code() if battle_rules != null else ""]
+	if co_thread != null:
+		overlay = "coach"   # 上一次還在算：等它（算完會照鍵決定收不收）
+		_focus = 0
+		return
 	if key != co_key:
 		co_key = key
 		co_res = {}
@@ -547,14 +551,26 @@ func _coach_open() -> void:
 			co_res = Coach.search(a0, a1, rr, pz)
 		else:
 			co_thread = Thread.new()
+			co_thread_key = key
 			co_thread.start(func(): return Coach.search(a0, a1, rr, pz))
 	overlay = "coach"
 	_focus = 0
 
+var co_thread_key := ""
 func _v16_jobs(_delta: float) -> void:
 	if co_thread != null and not co_thread.is_alive():
-		co_res = co_thread.wait_to_finish()
+		var res = co_thread.wait_to_finish()
 		co_thread = null
+		if co_thread_key == co_key:
+			co_res = res   # 過期的結果（換場了）不收
+		else:
+			co_key = ""    # 下次打開重算
+
+func _exit_tree() -> void:
+	if co_thread != null:
+		co_thread.wait_to_finish()   # 結束時收掉教練的背景工作（Codex v160-i1 #3）
+		co_thread = null
+	super._exit_tree()
 
 func _coach_apply() -> void:
 	if not bool(co_res.get("found", false)):
@@ -621,6 +637,7 @@ func _rift_start() -> void:
 	rules = r
 	set("challenge_army", Rift.enemy(r, wk))
 	_start_mode(Mode.VS_AI)
+	daily_spec = {}   # 不是每日挑戰
 	rift_on = true
 
 func _rift_settle() -> void:
@@ -701,9 +718,10 @@ func _career_settle() -> void:
 	if not ups.is_empty():
 		var t: int = ups[0]
 		_toast(L.t("ms_up", [L.t("unit_%d" % t), Career.level(int(m[str(t)]))]))
-	if mode == Mode.PUZZLE and last_armies.size() == 2:
+	if _nb_key() != "" and last_armies.size() == 2:
 		var nb: Dictionary = Save.data.get("notebook", {})
-		Career.nb_result(nb, puzzle_id, Career.units_of(last_armies[0]), int(report.get("stars", 0)), PZ.rem_pct(sim.power(0), sim.budget_of(0)) if sim.winner == 0 else 0, last_armies[0].spent())
+		var stv: int = int(report.get("stars", 0)) if mode == Mode.PUZZLE else (1 if sim.winner == 0 else 0)
+		Career.nb_result(nb, _nb_key(), Career.units_of(last_armies[0]), stv, PZ.rem_pct(sim.power(0), sim.budget_of(0)) if sim.winner == 0 else 0, last_armies[0].spent())
 		Save.data["notebook"] = nb
 
 func mastery_line(t: int) -> String:
@@ -711,8 +729,16 @@ func mastery_line(t: int) -> String:
 	var nx := Career.next_at(xp)
 	return L.t("ms_line", [Career.level(xp), xp, nx]) if nx > 0 else L.t("ms_max", [Career.level(xp)])
 
+## 實驗簿的鍵：殘局＝關卡 id、試煉＝t＋編號（Codex v160-i1 #9：方案是殘局與試煉）
+func _nb_key() -> String:
+	if mode == Mode.PUZZLE:
+		return puzzle_id
+	if mode == Mode.VS_AI and int(get("trial_id")) >= 0:
+		return "t%d" % int(get("trial_id"))
+	return ""
+
 func _draw_notebook() -> void:
-	var lst: Array = Save.data.get("notebook", {}).get(puzzle_id, [])
+	var lst: Array = Save.data.get("notebook", {}).get(_nb_key(), [])
 	var rows := maxi(1, lst.size())
 	var P := modal_rect(760, 12.0 + h1_help_h(L.t("nb_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 48.0 + GAP_M + 44.0 + GAP_L)
 	_panel(P)
@@ -734,8 +760,8 @@ func _draw_notebook() -> void:
 
 func _nb_save() -> void:
 	var nb: Dictionary = Save.data.get("notebook", {})
-	var n := (nb.get(puzzle_id, []) as Array).size() + 1
-	if Career.nb_save(nb, puzzle_id, L.t("nb_name", [n]), Career.units_of(armies[0])):
+	var n := (nb.get(_nb_key(), []) as Array).size() + 1
+	if Career.nb_save(nb, _nb_key(), L.t("nb_name", [n]), Career.units_of(armies[0])):
 		Save.data["notebook"] = nb
 		Save.save_data()
 		_toast(L.t("nb_saved"))
@@ -743,20 +769,28 @@ func _nb_save() -> void:
 		_toast(L.t("nb_dup"), true)
 
 func _nb_load(i: int) -> void:
-	var e: Dictionary = Save.data.get("notebook", {}).get(puzzle_id, [])[i]
-	armies[0] = PZ.player_army(PZ.get_puzzle(puzzle_id))
-	var pz := PZ.get_puzzle(puzzle_id)
-	for u in e["u"]:
-		if not PZ.is_fixed(pz, int(u[1]), int(u[2])):
-			armies[0].place(int(u[0]), int(u[1]), int(u[2]))
+	var e: Dictionary = Save.data.get("notebook", {}).get(_nb_key(), [])[i]
+	if mode == Mode.PUZZLE:
+		armies[0] = PZ.player_army(PZ.get_puzzle(puzzle_id))
+		var pz := PZ.get_puzzle(puzzle_id)
+		for u in e["u"]:
+			if (u as Array).size() == 3 and not PZ.is_fixed(pz, int(u[1]), int(u[2])):
+				armies[0].place(int(u[0]), int(u[1]), int(u[2]))
+	else:
+		armies[0].units = []
+		for u in e["u"]:
+			if (u as Array).size() == 4:
+				armies[0].place_xy(int(u[0]), int(u[1]), int(u[2]))
+			else:
+				armies[0].place(int(u[0]), int(u[1]), int(u[2]))
 	overlay = ""
 
 func _nb_del(i: int) -> void:
 	var nb: Dictionary = Save.data.get("notebook", {})
-	var lst: Array = nb.get(puzzle_id, [])
+	var lst: Array = nb.get(_nb_key(), [])
 	if i < lst.size():
 		lst.remove_at(i)
-		nb[puzzle_id] = lst
+		nb[_nb_key()] = lst
 		Save.data["notebook"] = nb
 		Save.save_data()
 
@@ -786,11 +820,15 @@ func _daily_top_go(units: Array) -> void:
 	var r = Daily.make_rules(sp, RS.mask(false))
 	var e = Army.new(1, r.budget_of(1))
 	e.apply_rules(r, 1)
-	e.units = units.duplicate(true)
+	for u in units:   # 網路來的陣：照今天的規則一隻一隻擺，有一隻不合法整陣不收（Codex v160-i1 #4）
+		if not e.place_xy(int(u["type"]), int(u["x"]), int(u["y"])):
+			_toast(L.t("dt_bad"), true)
+			return
 	rules = r
 	set("challenge_army", e)
 	overlay = ""
-	_start_mode(Mode.VS_AI)   # 不設 daily_spec：打高手陣不算今天的每日成績
+	_start_mode(Mode.VS_AI)
+	daily_spec = {}   # 打高手陣不算今天的每日成績（_start_mode 有挑戰陣時不清，要自己清：Codex v160-i1 #2）
 
 func _draw_daily_top() -> void:
 	var body := ""

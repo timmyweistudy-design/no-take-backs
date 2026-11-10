@@ -338,7 +338,7 @@ func test_adjacency_v160() -> void:
 				arch_near = u
 			else:
 				arch_far = u
-	ok(arch_near.atk > arch_far.atk, "盾旁的弓箭手攻擊較高、遠的沒有")
+	ok(arch_near.cd_base < arch_far.cd_base and arch_near.atk == arch_far.atk, "盾旁的弓箭手射速較快（間隔較短）、遠的沒有")
 	# 舊路徑不變：關的時候和沒有這個欄位一樣
 	r.adj = false
 	ok(r.sim_is_legacy() and RSx.standard().sim_digest() == r.sim_digest(), "關閉時走舊路徑、摘要不變")
@@ -367,3 +367,17 @@ func test_adjacency_code_v160() -> void:
 	var c: String = BC.encode(a, e, r)
 	var d: Dictionary = BC.decode(c)
 	ok(bool(d.get("ok", false)) and d["rules"] != null and d["rules"].adj, "對戰代碼帶著相鄰陣法")
+
+func test_save_v16_sanitize_v160() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var d := {"funnel": [], "mastery": {"2": 5, "x": 3, "99": 1, "4": "a"}, "notebook": {"p1": [{"n": "A", "u": [[0, 1, 2], [2, 1500, 3500, 1]], "r": [1, 2, 3]}, {"n": 3, "u": []}], "p2": "bad"},
+		"daily_streak": {"last": 1}, "daily_pend": {"day": 1}, "rush_best": "x", "rift_best": {"k": [1, 2], "j": [1]}, "trio_clear": {"trio1": 50, "trio2": "x"}, "seen": [1, "a"]}
+	SV.sanitize_v16(d)
+	ok(d["funnel"] is Dictionary and d["funnel"].is_empty(), "funnel 型別錯→空")
+	ok(d["mastery"] == {"2": 5}, "熟練度只留合法兵種與整數")
+	ok(d["notebook"].size() == 1 and d["notebook"]["p1"].size() == 1 and d["notebook"]["p1"][0]["u"][1] == [2, 1500, 3500, 1], "實驗簿：壞的方案丟掉、自由兵保留")
+	ok(d["daily_streak"].is_empty() and not d.has("daily_pend") and d["rush_best"] == 0, "缺欄位的連續天數、待送榜、極速賽紀錄回預設")
+	ok(d["rift_best"] == {"k": [1, 2]} and d["trio_clear"] == {"trio1": 50} and d["seen"] == ["a"], "裂隙、三考、看過的入口逐項驗")
+	var e := {}
+	SV.sanitize_v16(e)
+	ok(not e.has("seen"), "沒有 seen 就不建（老玩家第一次開 V1.6 才會補舊入口）")

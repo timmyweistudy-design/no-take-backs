@@ -292,6 +292,97 @@ static func sanitize_data(out: Dictionary) -> void:
 		wr2["det"] = det2   # 每週最佳的陣型（補送排行榜用）
 		wr2["pend"] = 1 if int(wr2["pend"]) == 1 else 0
 	out["weekly"] = wr2
+	sanitize_v16(out)
+
+static func _is_num(v) -> bool:
+	return v is int or v is float
+
+static func _int_list(v, max_n: int) -> Array:
+	var o: Array = []
+	if v is Array and v.size() <= max_n:
+		for x in v:
+			if not _is_num(x):
+				return []
+			o.append(int(x))
+	return o
+
+## V1.6 新欄位逐欄驗型（Codex v160-i1 #1）：壞的回預設（拿掉），其他照留
+static func sanitize_v16(out: Dictionary) -> void:
+	var f = out.get("funnel", {})
+	var f2 := {}
+	if f is Dictionary:
+		for k in f:
+			if str(k) == "last_screen":
+				if f[k] is String and str(f[k]).length() <= 40:
+					f2["last_screen"] = f[k]
+			elif str(k).length() <= 24 and _is_num(f[k]):
+				f2[str(k)] = maxi(0, int(f[k]))
+	out["funnel"] = f2
+	var sn = out.get("seen", null)
+	if sn != null:
+		var s2: Array = []
+		if sn is Array and sn.size() <= 200:
+			for x in sn:
+				if x is String and str(x).length() <= 32:
+					s2.append(x)
+		out["seen"] = s2
+	var ms = out.get("mastery", {})
+	var m2 := {}
+	if ms is Dictionary:
+		for k in ms:
+			if str(k).is_valid_int() and int(str(k)) >= 0 and int(str(k)) < 22 and _is_num(ms[k]):
+				m2[str(int(str(k)))] = clampi(int(ms[k]), 0, 100000000)
+	out["mastery"] = m2
+	var nb = out.get("notebook", {})
+	var nb2 := {}
+	if nb is Dictionary and nb.size() <= 400:
+		for pid in nb:
+			var lst = nb[pid]
+			if not lst is Array or lst.size() > 5 or str(pid).length() > 24:
+				continue
+			var l2: Array = []
+			for e in lst:
+				if not e is Dictionary or not e.get("n") is String or not e.get("u") is Array or (e["u"] as Array).size() > 60:
+					continue
+				var us: Array = []
+				var okk := true
+				for u in e["u"]:
+					var iu := _int_list(u, 4)
+					if iu.size() < 3 or iu[0] < 0 or iu[0] >= 20:
+						okk = false
+						break
+					us.append(iu)
+				if okk:
+					l2.append({"n": str(e["n"]).substr(0, 24), "u": us, "r": _int_list(e.get("r", []), 3)})
+			nb2[str(pid)] = l2
+	out["notebook"] = nb2
+	for k in ["daily_streak"]:
+		var st = out.get(k, {})
+		var st2 := {}
+		if st is Dictionary:
+			for kk in ["last", "n", "best"]:
+				if _is_num(st.get(kk)):
+					st2[kk] = int(st[kk])
+		out[k] = st2 if st2.size() == 3 else {}
+	var dp = out.get("daily_pend", {})
+	if not (dp is Dictionary and _is_num(dp.get("day")) and _is_num(dp.get("score")) and dp.get("det") is Array):
+		out.erase("daily_pend")
+	else:
+		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62)}
+	out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
+	for k2 in ["rift_best", "trio_clear"]:
+		var d = out.get(k2, {})
+		var d2 := {}
+		if d is Dictionary and d.size() <= 50:
+			for kk2 in d:
+				var v = d[kk2]
+				if k2 == "rift_best":
+					var iv := _int_list(v, 2)
+					if iv.size() == 2:
+						d2[str(kk2)] = iv
+				elif _is_num(v):
+					d2[str(kk2)] = maxi(0, int(v))
+		out[k2] = d2
 
 ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
 static func sanitize_run(g) -> Dictionary:

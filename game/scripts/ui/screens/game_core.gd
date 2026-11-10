@@ -190,8 +190,8 @@ func _build_ai() -> void:
 			1:
 				var res = AI.build(1, rules.budget_of(1) if rules != null else 100, r, -1, p1, rules)
 				armies[1] = res["army"]
-				if rules != null and rules.is_free() and armies[1].terrain != null and (get("daily_spec") as Dictionary).is_empty():
-					armies[1] = load("res://scripts/core/formations.gd").terrain_smart(armies[1])   # V1.6 #15 地形 AI（每日挑戰的敵陣照舊，不升 Daily.VER）
+				if rules != null and rules.is_free() and armies[1].terrain != null and (get("daily_spec") as Dictionary).is_empty() and int(get("trial_id")) < 0:   # 試煉第 1～10 關的敵陣也是即時組的：照舊（三星解釘住，t_star 抓到）
+					armies[1] = load("res://scripts/core/formations.gd").terrain_smart(armies[1])   # V1.6 #15 地形 AI（每日挑戰、試煉的敵陣照舊，不升 Daily.VER）
 				ai_name = L.t("name_sep_fmt", [L.t("diff_normal"), ai_tpl_name(str(res["name"]))])
 			_:
 				armies[1] = _hard_ai(r, p1)

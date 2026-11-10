@@ -708,7 +708,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 80)
 		_draw_place_help()
 		return
-	call("_tv_buttons", help)   # V1.6 #6：射程覆蓋、標記
+	call("_tv_buttons", help, int(get("trial_id")) >= 0 and mode == Mode.VS_AI)   # V1.6 #6：射程覆蓋、標記；試煉多實驗簿
 	if mode == Mode.GAUNTLET and gauntlet_stage > 1:
 		var gt := L.t("gauntlet_changes", [maxi(0, gauntlet_changes - _gauntlet_diff())])
 		_text(Vector2(R.end.x - 150 - _width(gt, tz("S")), y), gt, tz("S"), ACCENT)

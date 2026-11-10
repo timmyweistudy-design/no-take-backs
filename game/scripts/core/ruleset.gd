@@ -497,7 +497,7 @@ static func from_code(code: String) -> Dictionary:
 	if not j is Array or j.size() != (30 if v6 else (29 if v5 else (24 if v4 else (21 if v2 else 17)))):
 		return {"ok": false, "why": "rr_code_body"}
 	if v6:
-		if not (j[29] is float or j[29] is int) or int(j[29]) != 1:
+		if not (j[29] is float or j[29] is int) or float(j[29]) != 1.0:
 			return {"ok": false, "why": "rr_code_body"}   # NTBR6 一定是相鄰陣法開著
 		j = j.slice(0, 29)
 	var cmd_f: Array = []

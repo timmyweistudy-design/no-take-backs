@@ -3,9 +3,10 @@ extends RefCounted
 ## 前者拿小加成（整數百分比）。只看開戰位置，之後走位不影響；左右鏡像一樣。關的時候完全不跑（舊場次位元組不變）。
 const D = preload("res://scripts/core/unit_defs.gd")
 const RANGE := 1050
-## [拿加成的兵種, 要相鄰的兵種, "atk"／"hp", 百分比]
+## [拿加成的兵種, 要相鄰的兵種, "atk"／"hp"／"cd", 百分比]（cd＝攻擊間隔縮短，即射速 +8%）
+## 取整：加成量＝原值 ×8／100 無條件捨去，至少 1（攻擊、血量加；間隔減，間隔至少 1 tick）
 const PAIRS := [
-	[D.ARCHER, D.SHIELD, "atk", 108],    # 盾後弓手：安心瞄準
+	[D.ARCHER, D.SHIELD, "cd", 108],     # 盾後弓手：射速 +8%（Codex v160-i1 #10：方案寫射速）
 	[D.CAVALRY, D.PIKE, "atk", 108],     # 槍騎並進
 	[D.SWORD, D.SHIELD, "hp", 108],      # 盾劍互護
 	[D.BERSERKER, D.DRUMMER, "atk", 108],  # 鼓聲催狂
@@ -30,6 +31,8 @@ static func apply(units: Array) -> int:
 			# 至少 +1（攻擊力小的兵 ×108% 取整會等於沒加）
 			if str(p[2]) == "atk":
 				u.atk += maxi(1, u.atk * (int(p[3]) - 100) / 100)
+			elif str(p[2]) == "cd":
+				u.cd_base = maxi(1, u.cd_base - maxi(1, u.cd_base * (int(p[3]) - 100) / 100))
 			else:
 				u.hp += maxi(1, u.hp * (int(p[3]) - 100) / 100)
 				u.max_hp = u.hp

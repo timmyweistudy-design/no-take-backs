@@ -38,10 +38,14 @@ static func next_at(xp: int) -> int:
 ## 實驗簿：每關最多 NB_MAX 份 {"n": 名稱, "u": [[兵種, 欄, 列]…], "r": [星, 剩%, 花費] 或 []}
 const NB_MAX := 5
 
+## 格子兵＝[兵種, 欄, 列]；自由兵（試煉）＝[兵種, x, y, 1]
 static func units_of(a) -> Array:
 	var out: Array = []
 	for u in a.units:
-		out.append([int(u["type"]), int(u["col"]), int(u["row"])])
+		if u.has("x"):
+			out.append([int(u["type"]), int(u["x"]), int(u["y"]), 1])
+		else:
+			out.append([int(u["type"]), int(u["col"]), int(u["row"])])
 	out.sort()
 	return out
 
