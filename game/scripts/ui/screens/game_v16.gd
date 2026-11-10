@@ -204,7 +204,17 @@ func _v16_place_click(p: Vector2) -> bool:
 	sfx.play("k_click", 0.7)
 	return true
 
+## 手把：游標所在的世界座標（格子用 cursor，自由用 fp_cur）
+func _tv_pad_world() -> Vector2i:
+	if _is_free():
+		return Vector2i(fp_cur)
+	return Vector2i(cursor.x * 1000 + 500, cursor.y * 1000 + 500)
+
 func _v16_place_key(k: int) -> bool:
+	if tv_mark_mode and pad_mode and k == KEY_ENTER:
+		if tv_toggle_at(_cur_army(), _tv_pad_world()):
+			sfx.play("k_click", 0.7)
+		return true   # 標記模式：手把 A＝標記（不擺兵）
 	match k:
 		KEY_V:
 			tv_range = not tv_range
@@ -216,7 +226,7 @@ func _v16_place_key(k: int) -> bool:
 				return true
 			return false
 		KEY_T:
-			if tv_toggle_at(_cur_army(), _tv_world_at(_fp_scr(Vector2i(fp_cur)) if pad_mode else mouse)):
+			if tv_toggle_at(_cur_army(), _tv_pad_world() if pad_mode else _tv_world_at(mouse)):
 				sfx.play("k_click", 0.7)
 			return true
 	return false
