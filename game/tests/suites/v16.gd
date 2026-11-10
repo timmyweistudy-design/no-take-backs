@@ -381,3 +381,21 @@ func test_save_v16_sanitize_v160() -> void:
 	var e := {}
 	SV.sanitize_v16(e)
 	ok(not e.has("seen"), "沒有 seen 就不建（老玩家第一次開 V1.6 才會補舊入口）")
+
+func test_mark_ids_v160() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var a = Armyx.new(0, 100)
+	a.place(0, 5, 4)
+	a.place(2, 1, 3)
+	var e = Armyx.new(1, 100)
+	e.place(0, 10, 4)
+	var ids: Array = G.tv_ids_for(a, [Vector2i(1500, 3500), Vector2i(5500, 4500)])
+	var s = Simx.new(a.copy(), e.copy())
+	var want: Array = []
+	for m in [Vector2i(1500, 3500), Vector2i(5500, 4500)]:
+		for u in s.units:
+			if u.team == 0 and u.x == m.x and u.y == m.y:
+				want.append(u.id)
+	ok(ids == want and ids.size() == 2, "標記對到模擬的兵（格子）")

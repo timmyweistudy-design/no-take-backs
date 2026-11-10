@@ -313,11 +313,31 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	tv_ids = []
 	if sim == null or tv_marks.is_empty():
 		return
-	for m in tv_marks:
-		for u in sim.units:
-			if u.team == 0 and u.x == m.x and u.y == m.y:
-				tv_ids.append(u.id)
-				break
+	tv_ids = tv_ids_for(a0, tv_marks)
+
+## 標記的位置 → 模擬的兵 id。開戰時展示緩衝已經讓模擬先跑幾格（位置變了），所以照模擬的編號規則從陣型算：
+## 格子＝隊伍×1000＋列×16＋欄；自由＝同隊依 (y, 自己視角 x) 排序的第 k 隻（battle_sim.gd 開頭）。
+static func tv_ids_for(a0, marks: Array) -> Array:
+	var out: Array = []
+	var free: bool = str(a0.deploy) == "free"
+	var order: Array = []
+	if free:
+		for u in a0.units:
+			var pp: Vector2i = a0.pos_of(u)
+			order.append([pp.y * 100000 + pp.x, pp])
+		order.sort_custom(func(p, q): return p[0] < q[0])
+	for m in marks:
+		if free:
+			for k in order.size():
+				if order[k][1] == m:
+					out.append(k)
+					break
+		else:
+			for u in a0.units:
+				if a0.pos_of(u) == m:
+					out.append(int(u["row"]) * 16 + int(u["col"]))
+					break
+	return out
 
 ## 戰鬥中：標記的兵頭上號碼；倒下就在最後位置畫灰色 ×
 func _v16_battle_draw() -> void:

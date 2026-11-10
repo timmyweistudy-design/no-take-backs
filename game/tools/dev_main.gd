@@ -1741,7 +1741,6 @@ func _shots_v16() -> void:
 	_begin_battle(armies[0].copy(), armies[1].copy(), "official")
 	for i in 60:
 		_sim_step(true)
-	print("V16TV marks=", tv_marks, " ids=", tv_ids, " state=", state)
 	await _snap("v16_04_battle_marks.png")
 	# #9 教練：殘局輸了（只擺一隻弓箭手）→ 結果頁 → 教練面板
 	_start_mode(Mode.PUZZLE)
