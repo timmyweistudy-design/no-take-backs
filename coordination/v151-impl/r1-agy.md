@@ -1,4 +1,4 @@
-以下為《落子無悔》V1.5.1 第 1 輪實作審查報告（比對方案 [2026-11-09-v1.5.1-plan.md](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/2026-11-09-v1.5.1-plan.md)、裁決紀錄 [ledger.md](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v151-impl/ledger.md) 與 `game/`、`tools/` 實作）。
+以下為《落子無悔》V1.5.1 第 1 輪實作審查報告（比對方案 [2026-11-09-v1.5.1-plan.md](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/history/2026-11-09-v1.5.1-plan.md)、裁決紀錄 [ledger.md](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v151-impl/ledger.md) 與 `game/`、`tools/` 實作）。
 
 ---
 

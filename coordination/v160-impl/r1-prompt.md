@@ -1,5 +1,5 @@
 《落子無悔》V1.6.0 實作審查第 1 輪。只讀檔、不改檔、不執行會改東西的指令。
-方案：docs/2026-11-10-v1.6.0-plan.md（§2 各項範圍）、裁決 coordination/v160-impl/ledger.md。
+方案：docs/history/2026-11-10-v1.6.0-plan.md（§2 各項範圍）、裁決 coordination/v160-impl/ledger.md。
 變更：`git diff fa4707e HEAD -- game`（主要在 game/scripts/ui/screens/game_v16.gd、game/scripts/game/v16_*.gd、game/scripts/core/adj_defs.gd、ruleset.gd、battle_sim.gd、puzzles.gd、workshop.gd、steam.gd、sfx.gd、game_menus.gd、game_result.gd、game_place.gd、game_core.gd；測試 game/tests/suites/v16.gd）。
 請找真正的錯（最多 10 條，依嚴重度排序），每條附 檔案:行號、怎麼觸發、建議修法。重點：
 1. 鐵則：舊場次位元組不能變（FINGERPRINT b8fe741bcbfcf800）；#22 相鄰陣法（rules.adj、NTBR6）關掉時是否完全走舊路徑；代碼「一組規則只有一種寫法」。

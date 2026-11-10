@@ -9,7 +9,7 @@ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真�
 const DEFAULT_SETTINGS := {
 	"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
 	"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
-	# V1.5 設定七頁：畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料（docs/2026-11-09-v1.5.0-plan.md §2）
+	# V1.5 設定七頁：畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料（docs/history/2026-11-09-v1.5.0-plan.md §2）
 	"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
 	"long_press": 0.5, "place_mode": "both", "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
 	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
@@ -67,6 +67,10 @@ static func _parse(path: String):
 ## （主檔留在原地；save_data 只輪替驗證過的主檔，所以壞主檔不會蓋掉備份）。
 static var quarantine_failed := false
 static func _quarantine(path: String) -> bool:
+	if int(fail_inject.get("quarantine", 0)) > 0:
+		fail_inject["quarantine"] -= 1   # 測試用：模擬隔離失敗
+		quarantine_failed = true
+		return false
 	var dst := ""
 	for n in range(1, 21):
 		if not FileAccess.file_exists("%s.corrupt%d" % [path, n]):
@@ -415,6 +419,9 @@ static func sanitize_v16(out: Dictionary) -> void:
 		out.erase("rush_day")
 	if out.has("eff_games"):
 		out["eff_games"] = clampi(int(out["eff_games"]), 0, 100000000) if _is_num(out["eff_games"]) else 0   # V1.6.1 N1
+	for k in ["ai_games", "ai_wins"]:   # V1.0.0：對 AI 場數、勝場（建議下一步用）
+		if out.has(k):
+			out[k] = clampi(int(out[k]), 0, 100000000) if _is_num(out[k]) else 0
 	out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
 	for k2 in ["rift_best", "trio_clear", "trio_stars"]:
 		var d = out.get(k2, {})
@@ -540,7 +547,9 @@ static func _write(path: String, d: Dictionary) -> bool:
 		return false
 	if FileAccess.file_exists(path):
 		if _parse(path) == null:
-			_quarantine(path)   # 遊戲開著時主檔被弄壞：不能拿它蓋備份
+			if not _quarantine(path):   # 遊戲開著時主檔被弄壞：不能拿它蓋備份
+				DirAccess.remove_absolute(tmp)
+				return false   # V1.0.0（Codex v100-i1 #7）：隔離失敗就不覆蓋壞檔（證據留著），這次記為未存，之後重試
 		else:
 			var rotated := false
 			if fail_inject.get("rotate", 0) > 0:

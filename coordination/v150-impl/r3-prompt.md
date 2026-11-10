@@ -1,5 +1,5 @@
 你是《落子無悔》V1.5.0 收尾（第三輪）審查者。只讀檔。
-背景：方案 docs/2026-11-09-v1.5.0-plan.md（§8 是實作進度）、裁決 coordination/v150-impl/ledger.md（第 1、2 輪＋背面追加）、現況 docs/STATE.md「介面與角色（V1.5.0）」與「已知限制」。
+背景：方案 docs/history/2026-11-09-v1.5.0-plan.md（§8 是實作進度）、裁決 coordination/v150-impl/ledger.md（第 1、2 輪＋背面追加）、現況 docs/STATE.md「介面與角色（V1.5.0）」與「已知限制」。
 請做三件事：
 1. 驗證第 2 輪修正（ledger「第 2 輪」各條）在程式裡確實存在且正確；新加的背面（scripts/ui/units/kit.gd back、BACK_OK、kingdom.gd _inf_back_items、codex_view.gd cx_angles）有沒有漏洞，特別是 Art.back 會不會殘留到戰場或圖集烘焙（靜態變數）。
 2. 檢查 §8 進度表與 STATE 是否誠實：有沒有寫「完成」但其實沒做、或漏寫的限制。

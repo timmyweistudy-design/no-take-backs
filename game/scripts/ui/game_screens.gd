@@ -12,7 +12,7 @@ func _ready() -> void:
 	boot_parts["ready_in"] = Time.get_ticks_msec()
 	on_battle_finished = _finish_battle
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check="):
+		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check=") or a.begins_with("--sil="):
 			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
 		elif a == "--self-check":
 			Save.prefix = "smoke_"

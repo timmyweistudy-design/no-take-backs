@@ -70,10 +70,8 @@ static func init(app_id := 0, sync_local := true) -> void:
 			_steam = null
 	if _steam != null and sync_local:
 		# 離線時解鎖、只記在本機的成就，這裡補送到 Steam（沒有就不呼叫 storeStats）
-		var got: Array = Save.data.get("achievements", [])
-		if not got.is_empty():
-			for id in got:
-				_steam.setAchievement(id)
+		if not (Save.data.get("achievements", []) as Array).is_empty():
+			ach_dirty = true
 			_store()
 
 static func available() -> bool:
@@ -92,32 +90,76 @@ static func unlock(id: String) -> bool:
 	Save.data["achievements"] = got
 	Save.save_data()
 	if _steam != null:
-		if _steam.setAchievement(id) == false:
-			store_ok = false   # 設不進去（統計還沒收到等）：等重試時整批補設
-		else:
-			_store()
+		ach_dirty = true
+		_store()
 	return true
 
-## V1.0.0 W3：storeStats 回傳 true 只代表「送出了」，真的存進 Steam 要等 user_stats_stored 回呼。
-## 回呼結果不是 OK（1）或送不出去，就記 store_ok＝false，run_callbacks 約每 10 秒把本機全部成就重設一次再送。
-## 另外每次啟動 init 都會把本機成就補送一次（離線解鎖也不會漏）。
+## V1.0.0 W3（Codex v100-i1 #2）：成就同步用「待送／在途／已確認」：
+## - ach_dirty：本機有成就還沒確認存進 Steam（解鎖、啟動補送都會設）。
+## - 送的時候把本機全部成就逐一 setAchievement（有一個回 false 就這次不送，等重試），再 storeStats → 在途。
+## - 在途時又解鎖：只記 dirty，等這次回呼後再送一批。
+## - user_stats_stored 結果 1（OK）且送出後沒有新的待送 → 確認（dirty 清掉）；不是 OK、或 ACH_CONFIRM_MS 內沒回呼 → 視為失敗，之後重送。
+## - 沒有這個訊號的 SDK（測試替身）：storeStats 回 true 就當確認。
+## store_ok＝目前沒有未確認的成就（給畫面與舊測試用）。
+const ACH_CONFIRM_MS := 30000
+const ACH_RETRY_TICKS := 600
+static var ach_dirty := false
+static var _ach_inflight := false
+static var _ach_sent_at := 0
+static var _ach_resend_after := false
 static var _stats_wired := false
 static func _store() -> void:
 	if _steam == null:
 		return
+	if _ach_inflight:
+		_ach_resend_after = true   # 在途：等回呼後再送
+		return
 	if not _stats_wired and _steam.has_signal("user_stats_stored"):
 		_stats_wired = true
 		_steam.connect("user_stats_stored", _on_stats_stored)
-	store_ok = bool(_steam.storeStats())
+	var all_set := true
+	for id in Save.data.get("achievements", []):
+		if _steam.setAchievement(id) == false:
+			all_set = false
+	if not all_set:
+		store_ok = false   # 設不進去（例如統計還沒收到）：整批等重試
+		return
+	var sent := bool(_steam.storeStats())
+	if not sent:
+		store_ok = false
+		return
+	if _stats_wired:
+		_ach_inflight = true
+		_ach_sent_at = _now()
+		_ach_resend_after = false
+		store_ok = false   # 等回呼確認
+	else:
+		ach_dirty = false
+		store_ok = true
 
 static func _on_stats_stored(_game, result) -> void:
-	if int(result) != 1:
+	if not _ach_inflight:
+		return
+	_ach_inflight = false
+	if int(result) == 1 and not _ach_resend_after:
+		ach_dirty = false
+		store_ok = true
+	else:
 		store_ok = false
+		if _ach_resend_after:
+			_ach_resend_after = false
+			_store()
 
-static func _resend() -> void:
-	for id in Save.data.get("achievements", []):
-		_steam.setAchievement(id)
-	_store()
+## 每幀：在途太久當失敗；有未確認的成就約每 10 秒重送一次。
+static func ach_tick() -> void:
+	if _ach_inflight and _now() - _ach_sent_at > ACH_CONFIRM_MS:
+		_ach_inflight = false
+		store_ok = false
+	if not store_ok and not _ach_inflight:
+		_retry_tick += 1
+		if _retry_tick >= ACH_RETRY_TICKS:
+			_retry_tick = 0
+			_store()
 
 ## 唯讀自我檢查（N8）：init 時不補送、只用讀取函式；不解鎖、不寫統計、不初始化輸入。
 ## 回傳每一項結果與總判定 ok（任何一項不符就是 false，呼叫端用它決定結束碼）。
@@ -164,11 +206,7 @@ static func text_input(description: String, max_len: int, done: Callable) -> boo
 static func run_callbacks() -> void:
 	if _steam != null:
 		_steam.run_callbacks()
-		if not store_ok:
-			_retry_tick += 1
-			if _retry_tick >= 600:
-				_retry_tick = 0
-				_resend()
+		ach_tick()
 		lb_tick()
 
 
@@ -273,17 +311,18 @@ static func ghost_fetch(wk: int, done: Callable) -> void:
 ## ── 排行榜請求（V1.0.0 W1／W2）：全部請求走同一條通道，同一時間只有一筆在途（Valve：上傳同時只能一筆）。
 ## 回呼一律對「現在在途的那一筆」：找榜用榜名對、上傳／下載用 handle 對，對不上的是逾時後才到的舊回呼，丟掉。
 ## 找榜失敗只結束在途那一筆：下載回空清單（畫面不會卡在讀取中），上傳的待送留在存檔、下次開模式補送。
-## 逾時（LB_TIMEOUT_MS）一樣當失敗，之後暫停 LB_HOLD_MS 讓遲到的回呼先過去。
+## 逾時（LB_TIMEOUT_MS）一樣當失敗（下載回空），但通道不放：記成 _lb_stale，等那個遲到的回呼真的回來（找榜階段＝下一個找榜結果，
+## 上傳／下載階段＝同一個 handle 的回呼）吃掉它，才送下一筆；LB_STALE_MS 內都沒來才放（Codex v100-i1 #1：固定冷卻會讓遲到回呼配錯人）。
 ## 上傳限額：任意 10 分鐘最多 10 次（Valve UploadLeaderboardScore 的限制），超過就留在佇列等。
 ## 同一個榜在佇列裡只留最新一筆上傳。
 const LB_TIMEOUT_MS := 15000
-const LB_HOLD_MS := 3000
+const LB_STALE_MS := 60000
 const LB_WINDOW_MS := 600000
 const LB_WINDOW_MAX := 10
 static var _lb_q: Array = []        # 等著送的請求 {k:"up"/"get", name, p | done, free}
 static var _lb_cur := {}            # 在途的那一筆（多 stage："find"／"up"／"dl"、handle、t0）
 static var _lb_up_times: Array = [] # 真的送出上傳的時間（毫秒）
-static var _lb_hold_until := 0
+static var _lb_stale := {}         # 逾時的那一筆（stage、handle、name、score、until）
 static var now_ms := -1             # 測試用：>= 0 時取代系統時間
 
 static func _now() -> int:
@@ -308,8 +347,12 @@ static func _lb_window_ok() -> bool:
 	return _lb_up_times.size() < LB_WINDOW_MAX
 
 static func _lb_pump() -> void:
-	if _steam == null or not _lb_cur.is_empty() or _now() < _lb_hold_until:
+	if _steam == null or not _lb_cur.is_empty():
 		return
+	if not _lb_stale.is_empty():
+		if _now() < int(_lb_stale["until"]):
+			return
+		_lb_stale = {}
 	var win := _lb_window_ok()
 	for i in _lb_q.size():
 		var r: Dictionary = _lb_q[i]
@@ -342,8 +385,19 @@ static func lb_tick() -> void:
 			_lb_pump()   # 等限額或暫停結束
 		return
 	if _now() - int(_lb_cur["t0"]) > LB_TIMEOUT_MS:
-		_lb_hold_until = _now() + LB_HOLD_MS
+		_lb_stale = {"stage": _lb_cur["stage"], "handle": int(_lb_cur.get("handle", -1)), "name": _lb_cur["name"],
+			"score": int(_lb_cur["p"][0]) if _lb_cur["k"] == "up" else -1, "until": _now() + LB_STALE_MS}
 		_lb_finish(false)
+
+## 遲到回呼（逾時那一筆的）：吃掉它、放開通道。上傳成功照樣清待送。回傳 true＝這個回呼是遲到的那個。
+static func _lb_eat_stale(stage: String, handle: int, success := false) -> bool:
+	if _lb_stale.is_empty() or _lb_stale["stage"] != stage or (stage != "find" and int(_lb_stale["handle"]) != handle):
+		return false
+	if stage == "up" and success and clear_pending(Save.data, _lb_stale["name"], int(_lb_stale["score"])):
+		Save.save_data()
+	_lb_stale = {}
+	_lb_pump()
+	return true
 
 static var _lb_wired := false
 
@@ -356,7 +410,9 @@ static func _wire() -> void:
 	_steam.connect("leaderboard_score_uploaded", _on_lb_uploaded)
 
 static func _on_lb_found(handle: int, found: int) -> void:
-	if _steam == null or _lb_cur.is_empty() or _lb_cur["stage"] != "find":
+	if _steam == null or _lb_eat_stale("find", handle):
+		return
+	if _lb_cur.is_empty() or _lb_cur["stage"] != "find":
 		return
 	if found == 0:
 		_lb_finish(false)
@@ -374,6 +430,8 @@ static func _on_lb_found(handle: int, found: int) -> void:
 		_steam.downloadLeaderboardEntries(1, 20, 0, handle)   # 全球前 20 名（名次從 1 開始）
 
 static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
+	if _lb_eat_stale("dl", handle):
+		return
 	if _lb_cur.is_empty() or _lb_cur["stage"] != "dl" or int(_lb_cur["handle"]) != handle:
 		return
 	var free: bool = _lb_cur["free"]
@@ -389,6 +447,8 @@ static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
 	_lb_pump()
 
 static func _on_lb_uploaded(success: bool, handle: int, _this_score: Dictionary) -> void:
+	if _lb_eat_stale("up", handle, success):
+		return
 	if _lb_cur.is_empty() or _lb_cur["stage"] != "up" or int(_lb_cur["handle"]) != handle:
 		return
 	if success and clear_pending(Save.data, _lb_cur["name"], int(_lb_cur["p"][0])):
@@ -400,7 +460,7 @@ static func lb_reset() -> void:
 	_lb_q = []
 	_lb_cur = {}
 	_lb_up_times = []
-	_lb_hold_until = 0
+	_lb_stale = {}
 	_lb_wired = false
 	now_ms = -1
 

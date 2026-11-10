@@ -3,7 +3,7 @@
 定位：小版號＝把 V1.4.0（18 個新方向）與 V1.5.0（客製化、主畫面、角色）留下的尾巴收乾淨、補驗收、打磨手感。
 鐵則不變：FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變；預設不改數值（要改先升 RULES_VERSION，另列）。
 
-依據：`docs/STATE.md` 已知限制、`coordination/v140-ledger.md`、`coordination/v150-impl/ledger.md`、`docs/2026-11-09-v1.5.0-plan.md` §8。
+依據：`docs/STATE.md` 已知限制、`coordination/v140-ledger.md`、`coordination/v150-impl/ledger.md`、`docs/history/2026-11-09-v1.5.0-plan.md` §8。
 已先做（05dabc6，未驗收）：騎兵、孢子菇、史萊姆、小史萊姆、沙漏精靈、吸塵貓、小石魔背面；盾背木板皮帶。
 
 ## A. 角色（V1.5 未完成的部分）

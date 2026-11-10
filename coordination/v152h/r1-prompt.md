@@ -1,5 +1,5 @@
 《落子無悔》V1.5.2 **交接方案優化** 第 1 輪（共三輪）。只讀檔、不改檔、不執行會改東西的指令。
-要優化的對象：docs/HANDOFF-v152.md（給下一個工作階段照著實作的交接文件），依據 docs/2026-11-09-v1.5.2-plan.md。程式在 game/scripts/ui/（ui_base.gd 的 _h1、_tex_box、_panel；screens/game_menus.gd；lobby_view.gd）、game/tools/dev_main.gd（_layout_report）、game/tools/layout_check.sh。
+要優化的對象：docs/history/HANDOFF-v152.md（給下一個工作階段照著實作的交接文件），依據 docs/history/2026-11-09-v1.5.2-plan.md。程式在 game/scripts/ui/（ui_base.gd 的 _h1、_tex_box、_panel；screens/game_menus.gd；lobby_view.gd）、game/tools/dev_main.gd（_layout_report）、game/tools/layout_check.sh。
 Claude 的初稿：coordination/v152h/r0-claude.md。
 請：
 1. 交接文件裡的事實錯誤、過期資訊、前後矛盾、接手者會卡住的模糊處（最多 6 條，附 檔案:行號，要對照程式確認）。

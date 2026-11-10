@@ -1,5 +1,5 @@
 你是資深 Godot 4.6 工程師兼 2D 技術美術。唯讀：不要改檔、不要跑 Godot。
-《落子無悔》（game/）V1.3.1 實作審查第 1 輪。方案 docs/2026-11-08-v1.3.1-plan.md、裁決 coordination/v131-ledger.md。未提交 diff：coordination/v131-impl1/diff.patch（也可讀 game/ 現檔）。
+《落子無悔》（game/）V1.3.1 實作審查第 1 輪。方案 docs/history/2026-11-08-v1.3.1-plan.md、裁決 coordination/v131-ledger.md。未提交 diff：coordination/v131-impl1/diff.patch（也可讀 game/ 現檔）。
 注意：方案的「兩趟畫序」沒照做——理由：轉身影格只烘 0～90°，另一半是鏡像，配件近遠歸屬不用對調；請判斷這個理由是否成立。
 請找真的 bug（引用 檔案:行，繁中、1500 字內）：
 1. kit.gd 的 _part／_part_at／_part_end／_hat_on／_hat_off／look／calm／hat_pop／baking／anchor_* 狀態有沒有漏重設、在一般影格或直接繪製（圖鑑 _cx_portrait、MVP）污染；各兵種 _part 與 _part_end 配對（kingdom.gd 頭部轉換結束、fantasy.gd 每種）。

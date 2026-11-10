@@ -1,6 +1,6 @@
 《落子無悔 No Take-Backs》V1.6.1 方案討論，第 1 輪（共三輪）。只讀檔、不改檔、不執行會改東西的指令。
 使用者要的：「基於 V1.6.0 的東西完整做完；要加什麼都能加；細節要補充的可以討論；可以查資料；先不實作。」
-現況：docs/STATE.md（特別是「已知限制」V1.6 段）、CLAUDE.md、docs/2026-11-10-v1.6.0-directions.md（定稿範圍）、docs/2026-11-10-v1.6.0-plan.md、coordination/v160-impl/ledger.md（實作時縮掉的與代價）。V1.6 程式：game/scripts/ui/screens/game_v16.gd、game/scripts/game/v16_*.gd、workshop.gd、adj_defs.gd。
+現況：docs/STATE.md（特別是「已知限制」V1.6 段）、CLAUDE.md、docs/history/2026-11-10-v1.6.0-directions.md（定稿範圍）、docs/history/2026-11-10-v1.6.0-plan.md、coordination/v160-impl/ledger.md（實作時縮掉的與代價）。V1.6 程式：game/scripts/ui/screens/game_v16.gd、game/scripts/game/v16_*.gd、workshop.gd、adj_defs.gd。
 Claude 初稿：coordination/v161d/r0-claude.md（A1～A13 補完、B1～B4 已知限制、C1～C4 驗收欠帳、D1～D7 可加、E 外部）。
 請：
 1. 對初稿逐條：保留／改／刪，一句理由；要對照程式確認（例如某功能其實已做、或做法在程式上不可行），附檔名:行號。

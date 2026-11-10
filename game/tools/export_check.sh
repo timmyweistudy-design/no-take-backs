@@ -8,7 +8,8 @@ GODOT="${GODOT:?要設 GODOT}"; OUT="${1:?要給輸出資料夾}"; MODE="${2:-}"
 [ -d "$OUT" ] && [ -n "$(ls -A "$OUT" 2>/dev/null)" ] && { echo "EXPORT FAIL：$OUT 不是空的"; exit 2; }
 mkdir -p "$OUT/win" "$OUT/demo" "$OUT/linux"
 rm -rf .godot/exported   # 第七輪：舊的匯出快取會帶到搬走的腳本，匯出成品開不起來（實際踩過：main.gd 拆出 dev_main.gd 之後）
-wp() { if [[ "$GODOT" == *.exe ]]; then wslpath -w "$1"; else printf '%s' "$1"; fi; }
+# 路徑給 Windows 版 Godot：WSL 用 wslpath、Git Bash（CI 的 Windows 執行器）用 cygpath，其他原樣（V1.0.0 T2）
+wp() { if [[ "$GODOT" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then wslpath -w "$1"; elif [[ "$GODOT" == *.exe ]] && command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 ex() {  # 預設名稱 路徑
   timeout 300 "$GODOT" --headless --path "$(wp .)" --export-release "$1" "$(wp "$2")" > "$OUT/export-$3.log" 2>&1 || { echo "EXPORT FAIL：$1 匯出 exit 非 0"; exit 1; }
   grep -E "SCRIPT ERROR|Parse Error" "$OUT/export-$3.log" && { echo "EXPORT FAIL：$1 匯出有腳本錯誤"; exit 1; }
@@ -34,7 +35,11 @@ if [ "$MODE" != "--smoke" ]; then
   ex "Windows Demo" "$OUT/demo/NoTakeBacksDemo.exe" demo
   sc "$OUT/demo/NoTakeBacksDemo.exe" true demo
   # Linux 匯出要 linux_release.x86_64 模板。本機只裝了 Windows 模板時明講略過（不是通過）；CI 的 export job 會實跑。
-  if [ -n "${LINUX_TEMPLATE_OK:-}" ] || [[ "$GODOT" != *.exe ]] || ls "$(wslpath -u "$(cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')")/Godot/export_templates/4.6.2.stable/linux_release.x86_64" >/dev/null 2>&1; then
+  linux_tpl() {   # Windows 版 Godot 的模板資料夾裡有沒有 Linux 模板（WSL 與 Git Bash 都要能查）
+    if command -v wslpath >/dev/null 2>&1; then ls "$(wslpath -u "$(cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')")/Godot/export_templates/4.6.2.stable/linux_release.x86_64" >/dev/null 2>&1
+    else ls "${APPDATA:-/nonexistent}/Godot/export_templates/4.6.2.stable/linux_release.x86_64" >/dev/null 2>&1; fi
+  }
+  if [ -n "${LINUX_TEMPLATE_OK:-}" ] || [[ "$GODOT" != *.exe ]] || linux_tpl; then
     ex "Linux" "$OUT/linux/NoTakeBacks.x86_64" linux
     mkdir -p "$OUT/linux-demo"
     ex "Linux Demo" "$OUT/linux-demo/NoTakeBacksDemo.x86_64" linux-demo

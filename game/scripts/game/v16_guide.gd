@@ -8,13 +8,13 @@ static func next_step(data: Dictionary, daily_done: bool, demo: bool) -> String:
 	var f: Dictionary = data.get("funnel", {})
 	if int(data.get("tutorial", 0)) == 0 and not f.has("tutorial_done"):
 		return "tut"
-	if int(data.get("stats", {}).get("games", 0)) == 0:
+	if ai_count(data, "games") == 0:
 		return "ai"
 	if not demo and not (data.get("gauntlet_run", {}) as Dictionary).is_empty():
 		return "gauntlet_cont"   # V1.0.0 N6：有沒打完的遠征，先接著打
 	if (data.get("puzzle_stars", {}) as Dictionary).is_empty():
 		return "puzzle"
-	if (data.get("puzzle_stars", {}) as Dictionary).size() < PUZZLE_FIRST and int(data.get("stats", {}).get("wins", 0)) == 0:
+	if (data.get("puzzle_stars", {}) as Dictionary).size() < PUZZLE_FIRST and ai_count(data, "wins") == 0:
 		return "puzzle_more"   # V1.0.0 N6：第一小時先把殘局第 1 章打熟（5 關或贏一場 AI 後才推別的）
 	if demo:
 		return ""
@@ -33,6 +33,12 @@ static func next_step(data: Dictionary, daily_done: bool, demo: bool) -> String:
 	return ""
 
 const PUZZLE_FIRST := 5
+
+## 對 AI 的場數／勝場（V1.0.0 起另記 ai_games、ai_wins；老存檔沒有就用舊的 stats，估多了只是少推一步）
+static func ai_count(data: Dictionary, k: String) -> int:
+	if data.has("ai_" + k):
+		return int(data["ai_" + k])
+	return int(data.get("stats", {}).get(k, 0))
 
 ## 「繼續殘局」：照章節順序第一個還沒過的殘局 id（全過了回 ""）。
 static func next_puzzle_id(data: Dictionary, all: Array) -> String:
@@ -75,7 +81,11 @@ static func seed_seen(data: Dictionary) -> void:
 	if not data.has("seen"):
 		data["seen"] = OLD_ENTRIES.duplicate()
 
+## V1.0.0：入口換位置後新出現的卡片鍵，但玩法是老的（單人遠征原本是主畫面木牌）：不標「新」
+const NEVER_NEW := ["menu_gauntlet"]
 static func is_new(data: Dictionary, key: String) -> bool:
+	if key in NEVER_NEW:
+		return false
 	if key in V16_ENTRIES and games_of(data) < NEW_AFTER:
 		return false   # 新手前幾場先不標（資訊量），玩滿門檻才標
 	return not (data.get("seen", OLD_ENTRIES) as Array).has(key)

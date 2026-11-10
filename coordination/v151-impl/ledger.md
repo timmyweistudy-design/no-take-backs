@@ -1,4 +1,4 @@
-# V1.5.1 實作紀錄（方案 docs/2026-11-09-v1.5.1-plan.md）
+# V1.5.1 實作紀錄（方案 docs/history/2026-11-09-v1.5.1-plan.md）
 
 ## M0 返回目的地、戰績（使用者回報）
 - 共用返回堆疊 `nav_stack`／`_nav_push`／`_nav_back`（ui_base.gd）；卡片面板畫出時清空、開戰清空；`nav_hub` 記最後經過的卡片面板，`_go_title` 時重新打開，Esc 關面板就忘掉。

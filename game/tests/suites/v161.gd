@@ -1,5 +1,5 @@
 extends "res://tests/test_base.gd"
-## V1.6.1 測試（docs/2026-11-10-v1.6.1-plan.md）。會碰存檔的測試自己換前綴、結束還原。
+## V1.6.1 測試（docs/history/2026-11-10-v1.6.1-plan.md）。會碰存檔的測試自己換前綴、結束還原。
 
 func test_nb_key_v161() -> void:
 	var CA = load("res://scripts/game/v16_career.gd")
@@ -113,7 +113,7 @@ func test_board_double_v161() -> void:
 	fk.emit_signal("leaderboard_find_result", 7, 1)
 	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])
 	ok(g2 == [1, 2], "同榜連抓兩次，兩個回呼都回、不互蓋", str(g2))
-	# 逾時：沒有回呼也要結束；遲到的舊回呼丟掉，不能被當成下一筆
+	# 逾時：沒有回呼也要結束；之後等那個遲到回呼真的回來才送下一筆（Codex v100-i1 #1）
 	var g3 := []
 	ST.daily_fetch(100, func(l): g3.append(l), 1)
 	fk.emit_signal("leaderboard_find_result", 7, 1)   # 下載送出、回呼不來
@@ -123,16 +123,29 @@ func test_board_double_v161() -> void:
 	var g4 := []
 	ST.daily_fetch(100, func(l): g4.append(l), 1)
 	var nf2 := fk.finds.size()
+	ST.now_ms += 5000
 	ST.lb_tick()
-	ok(fk.finds.size() == nf2, "逾時後先暫停一下，讓遲到回呼過去")
-	ST.now_ms += ST.LB_HOLD_MS + 1
-	ST.lb_tick()
-	ok(fk.finds.size() == nf2 + 1, "暫停結束送下一筆")
-	fk.emit_signal("leaderboard_scores_downloaded", "", 3, [])   # 別的 handle（遲到）
-	ok(g4.is_empty(), "對不上的回呼不算")
+	ok(fk.finds.size() == nf2, "逾時那筆的回呼還沒回來：通道不放")
+	fk.emit_signal("leaderboard_scores_downloaded", "", 3, [])   # 別的 handle
+	ok(fk.finds.size() == nf2, "對不上的回呼不算")
+	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])   # 遲到的那個
+	ok(fk.finds.size() == nf2 + 1 and g4.is_empty(), "遲到回呼被吃掉，才送下一筆（不會配給新的那筆）")
 	fk.emit_signal("leaderboard_find_result", 7, 1)
 	fk.emit_signal("leaderboard_scores_downloaded", "", 7, [])
 	ok(g4.size() == 1, "對得上才回")
+	# 遲到回呼一直不來：LB_STALE_MS 後放開
+	var g6 := []
+	ST.daily_fetch(100, func(l): g6.append(l), 1)
+	ST.now_ms += ST.LB_TIMEOUT_MS + 1
+	ST.lb_tick()
+	var g7 := []
+	ST.daily_fetch(100, func(l): g7.append(l), 1)
+	var nf3 := fk.finds.size()
+	ST.now_ms += ST.LB_STALE_MS + 1
+	ST.lb_tick()
+	ok(g6.size() == 1 and fk.finds.size() == nf3 + 1, "保險期過了才放開")
+	fk.emit_signal("leaderboard_find_result", 0, 0)
+	ok(g7.size() == 1, "下一筆照常結束")
 	# W2：上傳限額 10 分鐘 10 次（下載不受限）
 	ST.lb_reset()
 	ST._steam = fk
@@ -174,16 +187,34 @@ func test_ach_store_result_v100() -> void:
 	ST._stats_wired = false
 	SV.data = {"achievements": []}
 	ST.unlock("FIRST_WIN")
-	ok(ST.store_ok and fk.stores == 1, "送出成功")
-	fk.emit_signal("user_stats_stored", 0, 2)   # 結果不是 OK
-	ok(not ST.store_ok, "儲存回呼失敗要記下")
-	for i in 600:
-		ST.run_callbacks()
-	ok(fk.stores == 2 and "FIRST_WIN" in fk.set_ids.slice(1), "之後把本機成就重設再送", str(fk.set_ids))
+	ok(fk.stores == 1 and not ST.store_ok and ST._ach_inflight, "送出：在途、還沒確認")
+	ST.unlock("LONE_HERO")
+	ok(fk.stores == 1, "在途時又解鎖：先不送")
 	fk.emit_signal("user_stats_stored", 0, 1)
-	ok(ST.store_ok, "回呼 OK 就不再重送")
+	ok(fk.stores == 2 and ST._ach_inflight, "回呼回來（但送出後又有新解鎖）：立刻再送一批", str(fk.stores))
+	ok("LONE_HERO" in fk.set_ids, "新解鎖的也在這一批")
+	fk.emit_signal("user_stats_stored", 0, 2)   # 結果不是 OK
+	ok(not ST.store_ok and not ST._ach_inflight, "儲存回呼失敗要記下")
+	for i in ST.ACH_RETRY_TICKS:
+		ST.run_callbacks()
+	ok(fk.stores == 3, "之後把本機成就重設再送", str(fk.stores))
+	ST.now_ms = 100
+	ST._ach_sent_at = 0
+	ST.now_ms = ST.ACH_CONFIRM_MS + 10
+	ST.run_callbacks()
+	ok(not ST._ach_inflight and not ST.store_ok, "確認逾時：當失敗、之後重送")
+	for i in ST.ACH_RETRY_TICKS:
+		ST.run_callbacks()
+	fk.emit_signal("user_stats_stored", 0, 1)
+	ok(ST.store_ok and not ST.ach_dirty, "回呼 OK 才算確認")
+	ST.now_ms = -1
+	fk.fail_set = true
+	ST.unlock("COMEBACK")
+	ok(not ST.store_ok and fk.stores == 4, "setAchievement 失敗：這批不送", str(fk.stores))
 	ST._steam = null
 	ST._stats_wired = false
+	ST._ach_inflight = false
+	ST.ach_dirty = false
 	ST.store_ok = true
 	fk.free()
 	for f in DirAccess.get_files_at("user://"):
@@ -197,7 +228,8 @@ class FakeAch extends Node:
 	signal user_stats_stored(game, result)
 	var stores := 0
 	var set_ids: Array = []
-	func setAchievement(id): set_ids.append(id); return true
+	var fail_set := false
+	func setAchievement(id): set_ids.append(id); return not fail_set
 	func storeStats(): stores += 1; return true
 	func run_callbacks(): pass
 

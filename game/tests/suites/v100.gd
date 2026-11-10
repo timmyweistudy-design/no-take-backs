@@ -158,3 +158,24 @@ func test_adj_pairs_mirror_v100() -> void:
 		var mirrored: bool = (w1 == 0 and w2 == 1) or (w1 == 1 and w2 == 0) or (w1 == w2 and w1 != 0 and w1 != 1)
 		ok(s1.adj_n == s2.adj_n and s1.adj_n >= 1, "相鄰 %d+%d：兩邊加成筆數相同（%d／%d）" % [p[0], p[1], s1.adj_n, s2.adj_n])
 		ok(mirrored and s1.tick == s2.tick, "相鄰 %d+%d：交換左右結果鏡像" % [p[0], p[1]], "%d/%d %d/%d" % [w1, w2, s1.tick, s2.tick])
+
+## D3（Codex v100-i1 #7）：執行中主檔壞了又隔離失敗：不覆蓋壞檔，這次記為未存。
+func test_quarantine_fail_keeps_v100() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var keep: Dictionary = SV.data.duplicate(true)
+	var old_prefix: String = SV.prefix
+	SV.prefix = "t100qf_"
+	SV.data = SV.DEFAULT_SAVE.duplicate(true)
+	ok(SV.save_data(), "先存一次")
+	var P := "user://t100qf_save.json"
+	_put(P, "壞")
+	SV.fail_inject = {"quarantine": 1}
+	ok(not SV.save_data(), "隔離失敗：這次不存")
+	ok(FileAccess.get_file_as_string(P) == "壞", "壞檔還在（證據沒被蓋掉）")
+	SV.fail_inject = {}
+	ok(SV.retry_pending(), "之後重試會成功")
+	for f in DirAccess.get_files_at("user://"):
+		if f.begins_with("t100qf_"):
+			DirAccess.remove_absolute("user://" + f)
+	SV.prefix = old_prefix
+	SV.data = keep

@@ -1,5 +1,5 @@
 《落子無悔》V1.6.1 實作審查，第 1 輪（共三輪）。只讀檔、不改檔、不執行會改東西的指令。
-方案：docs/2026-11-10-v1.6.1-plan.md。實作裁決（含不照方案的理由）：coordination/v161-impl/ledger.md。
+方案：docs/history/2026-11-10-v1.6.1-plan.md。實作裁決（含不照方案的理由）：coordination/v161-impl/ledger.md。
 本版改動：git diff 694446c..HEAD（已存成 coordination/v161-impl/r1-diff.patch；主要在 game/scripts/ui/screens/game_v16.gd、game/scripts/game/v16_*.gd、workshop.gd、steam.gd、save.gd、battle/*.gd、lobby_view.gd、tests/suites/v161.gd）。
 鐵則：FINGERPRINT b8fe741bcbfcf800 與舊代碼位元組不能變；模擬只用整數、畫面狀態不能進模擬；新存檔欄位可選且要驗型；新字串進 strings.csv。
 請找「會壞掉、存檔出錯、和方案不符、測不到」的問題：

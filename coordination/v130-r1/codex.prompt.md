@@ -1,5 +1,5 @@
 你是資深 Godot 4.6 遊戲工程師兼 2D 動畫技術美術、遊戲設計顧問，可上網查資料。唯讀：不要改檔、不要跑 Godot。
-專案《落子無悔》（game/，Godot 4.6.2 Compatibility、立即模式 _draw UI；現況 docs/STATE.md、模組索引 docs/MODULES.md、V1.2.1 方案 docs/2026-11-07-v1.2.1-plan.md、裁決 coordination/v121-ledger.md）。Claude 底稿：coordination/v130-r1/seed.md。
+專案《落子無悔》（game/，Godot 4.6.2 Compatibility、立即模式 _draw UI；現況 docs/STATE.md、模組索引 docs/MODULES.md、V1.2.1 方案 docs/history/2026-11-07-v1.2.1-plan.md、裁決 coordination/v121-ledger.md）。Claude 底稿：coordination/v130-r1/seed.md。
 任務：V1.3.0 第 1 輪獨立提案。使用者要：去除角色紙片感（如轉身）、畫面不要機器感／電腦感、簡潔清晰好懂、好玩的新想法（不限）。硬限制：模擬與 FINGERPRINT 不能變（新玩法只能走新規則碼）；繪圖 p95 預算緊（已 9.61 ms，上限約 9.8）。
 請：
 1. 讀程式確認紙片感與機器感的技術成因（引用 檔案:行）：scripts/ui/art.gd、sprite_cache.gd（烘焙影格、face 翻面）、battle/battle_units.gd（face、死亡、受擊）、units/gait.gd、map_art.gd、ui_base.gd。

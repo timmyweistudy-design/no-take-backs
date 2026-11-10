@@ -14,9 +14,9 @@
 
 1. **換兵種重設角度，手動背面判定也加 `BACK_OK`。** [codex_view.gd:60](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/codex_view.gd:60) 保留 `cx_angle`；在人形轉到第 12 格後切換騎兵／奇幻兵，[第 572 行](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/codex_view.gd:572) 仍設 `Art.back = true`，讓不支援背面的兵缺五官。這是圖鑑局部畫面錯誤，沒有戰場污染證據。
 
-2. **§8「設定完成」應縮小宣稱。** [方案:244](/mnt/c/Users/timmy/projects/no-take-backs/docs/2026-11-09-v1.5.0-plan.md:244) 除既列延後項目，還漏列：進階收合、即時預覽、每頁恢復預設、修改標記、預設套用前差異預覽、戰鬥設定生效標示。`_apply_preset()` 是直接套用，並未先預覽；STATE 也應補列。
+2. **§8「設定完成」應縮小宣稱。** [方案:244](/mnt/c/Users/timmy/projects/no-take-backs/docs/history/2026-11-09-v1.5.0-plan.md:244) 除既列延後項目，還漏列：進階收合、即時預覽、每頁恢復預設、修改標記、預設套用前差異預覽、戰鬥設定生效標示。`_apply_preset()` 是直接套用，並未先預覽；STATE 也應補列。
 
-3. **驗收狀態要獨立列出。** [方案:253](/mnt/c/Users/timmy/projects/no-take-backs/docs/2026-11-09-v1.5.0-plan.md:253) 寫「指紋見收尾驗收」，但 [STATE:183](/mnt/c/Users/timmy/projects/no-take-backs/docs/STATE.md:183) 最新紀錄仍是 V1.4；本版效能重測、四語三字級與輸入方式驗收也未交代。不能把程式完成等同驗收完成。
+3. **驗收狀態要獨立列出。** [方案:253](/mnt/c/Users/timmy/projects/no-take-backs/docs/history/2026-11-09-v1.5.0-plan.md:253) 寫「指紋見收尾驗收」，但 [STATE:183](/mnt/c/Users/timmy/projects/no-take-backs/docs/STATE.md:183) 最新紀錄仍是 V1.4；本版效能重測、四語三字級與輸入方式驗收也未交代。不能把程式完成等同驗收完成。
 
 4. **十份備份應都能在介面選取。** [game_menus.gd:779](/mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/screens/game_menus.gd:779) 只顯示六份且無捲動，其餘四份需要玩家自行管理檔案；應補操作方式或列為限制。
 

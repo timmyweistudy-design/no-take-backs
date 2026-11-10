@@ -294,6 +294,9 @@ static func check_extra(pz: Dictionary, extra: Array) -> String:
 	return ""
 
 ## 直接打一場（工具、測試用；遊戲裡是畫面上的模擬，最後一樣呼叫 outcome）。不合法回 {"ok": false, "illegal": 原因}。
+static func _stopped(ctl: Dictionary) -> bool:
+	return bool(ctl.get("stop", false)) or Time.get_ticks_msec() > int(ctl.get("until", 1 << 60))
+
 ## ctl（V1.0.0 M13）：背景執行緒用的取消／期限 {"stop": bool, "until": 毫秒}；每 64 tick 看一次，停了回 {"cancel": true}。
 ## 主執行緒只改既有的 "stop" 鍵的值（建立時就放好，不新增鍵），背景只讀。
 static func play(pz: Dictionary, extra: Array, plan: Array = [], check := true, ctl := {}) -> Dictionary:
@@ -312,10 +315,14 @@ static func play(pz: Dictionary, extra: Array, plan: Array = [], check := true, 
 	if ctl.is_empty():
 		s.run_to_end()
 	else:
+		if _stopped(ctl):
+			return {"ok": false, "cancel": true, "stars": 0, "rem": 0, "spent": 0}
 		while not s.finished:
 			s.step()
-			if s.tick & 63 == 0 and (bool(ctl.get("stop", false)) or Time.get_ticks_msec() > int(ctl.get("until", 1 << 60))):
+			if s.tick & 63 == 0 and _stopped(ctl):
 				return {"ok": false, "cancel": true, "stars": 0, "rem": 0, "spent": 0}
+		if _stopped(ctl):
+			return {"ok": false, "cancel": true, "stars": 0, "rem": 0, "spent": 0}   # 不到 64 tick 就打完的也要看（Codex v100-i1 #3）
 	var out := outcome(pz, s, a0.spent() - fixed_budget)
 	out["ticks"] = s.tick
 	return out

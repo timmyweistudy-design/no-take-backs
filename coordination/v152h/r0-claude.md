@@ -1,5 +1,5 @@
 # V1.5.2 交接方案優化——Claude 初稿（第 0 輪）
-對象：docs/HANDOFF-v152.md（定稿 docs/2026-11-09-v1.5.2-plan.md）。目的：讓接手者照著做不會走偏、不會再犯同類錯；不改方案本身的範圍。
+對象：docs/history/HANDOFF-v152.md（定稿 docs/history/2026-11-09-v1.5.2-plan.md）。目的：讓接手者照著做不會走偏、不會再犯同類錯；不改方案本身的範圍。
 
 ## A. 事實錯誤或過期（查過程式）
 - A1 §8 「14 個卡住的 Godot 程序」：今天 tasklist 查無 Godot 程序 → 過期，刪掉，改成「開工前先 tasklist 確認」。

@@ -1,5 +1,5 @@
 extends "res://scripts/ui/screens/game_menus.gd"
-## V1.6.0 介面層（docs/2026-11-10-v1.6.0-plan.md）：新手下一步、試玩回報、分享、教練、極速賽、裂隙、人設、熟練度、實驗簿、出題台、一陣三考、迷霧、接力遠征。
+## V1.6.0 介面層（docs/history/2026-11-10-v1.6.0-plan.md）：新手下一步、試玩回報、分享、教練、極速賽、裂隙、人設、熟練度、實驗簿、出題台、一陣三考、迷霧、接力遠征。
 ## 純邏輯放 scripts/game/v16_*.gd（可測），這裡只管畫面與流程。
 
 const Funnel = preload("res://scripts/game/v16_funnel.gd")
@@ -31,9 +31,10 @@ static func _write_text(path: String, txt: String) -> bool:
 	if f == null:
 		return false
 	f.store_string(txt)
+	f.flush()
 	var ok := f.get_error() == OK
 	f.close()
-	return ok and FileAccess.file_exists(path)
+	return ok and FileAccess.get_file_as_string(path) == txt   # 讀回比對（Codex v100-i1）
 
 static func _clip_set(txt: String) -> bool:
 	if DisplayServer.get_name() == "headless" or not DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD):
@@ -87,6 +88,11 @@ func _finish_battle() -> void:
 	if trio_on and mode == Mode.PUZZLE:
 		_trio_settle()
 	_coop_settle()
+	if mode == Mode.VS_AI and not watch_mode:
+		# V1.0.0（Codex v100-i1）：對 AI 的場數與勝場另記（stats 連教學、殘局都算，建議下一步不能用它判斷「打過 AI」）
+		Save.data["ai_games"] = int(Save.data.get("ai_games", 0)) + 1
+		if sim.winner == 0:
+			Save.data["ai_wins"] = int(Save.data.get("ai_wins", 0)) + 1
 	if mode != Mode.TUTORIAL and not watch_mode and not (rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB):
 		Save.data["eff_games"] = int(Save.data.get("eff_games", 0)) + 1   # V1.6.1 N1：有效對局
 	_rift_settle()
@@ -167,7 +173,7 @@ func _draw_tour() -> void:
 		_icon(str(it[2]), r.position + Vector2(30, rh / 2.0), 26.0, ACCENT if en else TXT_DIM)
 		_text(r.position + Vector2(60, 6), L.t(str(it[0])), tz("S"), Color.WHITE if en else TXT_DIM, false, true, 220)
 		_text(r.position + Vector2(290, 8), L.t(str(it[1])), tz("C"), TXT_DIM, false, false, r.size.x - 300)
-	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 func _draw_next_step() -> void:
 	if overlay == "" and Guide.tour_due(Save.data, _demo()):
@@ -652,7 +658,7 @@ func _draw_rush_menu() -> void:
 	y += text_h(info, tz("S"), 560) + GAP_XL
 	_btn(Rect2(640 - 290, y, 280, 52), L.t("rush_daily"), func(): overlay = ""; _rush_go(true), true, true)
 	_btn(Rect2(650, y, 280 - GAP_S, 52), L.t("rush_free"), func(): overlay = ""; _rush_go(false))
-	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 func _rush_load() -> void:
 	var ids: Array = rush["ids"]
@@ -778,6 +784,10 @@ var co_thread_key := ""
 ## V1.0.0 A1：標題頁開著圖鑑、大廳、收藏這類「慢慢看」的頁面時換成慢板（play_music 同一首不會重播）
 const CALM_OVERLAYS := ["codex", "lobby", "hub_collect", "profile", "paint", "nemeses"]
 func _v16_jobs(_delta: float) -> void:
+	_ws_jobs()
+	if trio_thread != null and overlay != "trio_result":
+		trio_job += 1
+		_trio_cancel()   # V1.0.0（Codex v100-i1 #5）：離開三考結算頁（返回、Esc、開別的）就取消背景計算，結果不寫
 	if state == St.TITLE and sfx != null and sfx.has_method("play_music") and shot_dir == "":
 		sfx.play_music("music_codex" if overlay in CALM_OVERLAYS else "music_title")
 	_trio_jobs()
@@ -798,6 +808,7 @@ func _v16_jobs(_delta: float) -> void:
 				_coach_open()   # 面板開著、等的是新的這一場：接著算新的
 
 func _exit_tree() -> void:
+	_ws_exit()
 	_trio_cancel()
 	for t in trio_old + ([trio_thread] if trio_thread != null else []):
 		(t as Thread).wait_to_finish()   # 已叫停：64 tick 內會停
@@ -1603,7 +1614,7 @@ func _draw_editor() -> void:
 	var by := P.end.y - GAP_L - 48.0
 	_btn(Rect2(640 - 3 * 150 - 20, by, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
 	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
-	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): overlay = "")
+	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 ## ── #17 一陣三考 ──
 const Trio = preload("res://scripts/game/v16_trio.gd")
@@ -1666,11 +1677,8 @@ func _trio_settle() -> void:
 	var inp: Dictionary = s.duplicate(true)   # 背景只用自己的副本（V1.0.0 M13）
 	var ex: Array = extra.duplicate(true)
 	if t.start(func(): return [job, Trio.results(inp, ex, 1, ctl)]) != OK:
-		# 開不了執行緒：在主執行緒照算（兩場，最壞約幾秒）
 		trio_busy = false
-		var r2 := Trio.results(inp, ex, 1)
-		trio_res += r2
-		_trio_done()
+		trio_err = true   # 開不了執行緒：顯示失敗、可以重試（Codex v100-i1 #4：不退回主執行緒無期限重算）
 		return
 	trio_thread = t
 
@@ -1756,7 +1764,7 @@ func _draw_trio() -> void:
 		var tst := int(Save.data.get("trio_stars", {}).get(id, 1 if cl.has(id) else 0))   # V1.6.1 A3：整組星數（舊紀錄只有過關＝1 星）
 		for ks in 3:
 			_icon("star", Vector2(br.end.x - 50 + ks * 16, br.end.y - 10), 13.0, Color("#ffd166") if ks < tst else Color(1, 1, 1, 0.18))
-	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 func _draw_trio_result() -> void:
 	var s: Dictionary = _trio_set()

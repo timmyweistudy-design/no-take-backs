@@ -28,7 +28,7 @@ var unit_cap := MAX_UNITS
 var type_cap := 0                # 單種上限，0＝不限
 var allow_boss := false          # V1.4 #12：只有看重播的對戰碼（紅方）可以帶巨獸；一般陣型碼、挑戰碼不行（Codex、Antigravity v140-i5）
 var guard_combat := false        # 防卡死：還沒擺戰鬥兵時，不准擺到買不起戰鬥兵（只有玩家擺放與 AI 用，載入舊代碼不開）
-# 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
+# 第六輪：自由排兵（docs/history/2026-11-03-free-placement-plan-v6.md §3）
 # 自由部署的 units 每筆是 {"type", "x", "y"}（世界座標、量化到 50）；格子部署照舊 {"type", "col", "row"}。
 const W := COLS * 1000
 const H := ROWS * 1000

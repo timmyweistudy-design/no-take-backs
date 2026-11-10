@@ -1,7 +1,7 @@
 # V1.6.1 初稿（Claude，r0）：把 V1.6.0 完整做完
 
 > 2026-11-10。使用者：「列出 V1.6.1 完整方案，基於 V1.6.0 的東西完整做完；要加什麼都能加；細節要補充的可以討論；可以查資料；先不做；三方討論三輪。」
-> 來源：`docs/2026-11-10-v1.6.0-directions.md`（定稿 22 條的原始範圍）、`docs/2026-11-10-v1.6.0-plan.md` §2／§3、`coordination/v160-impl/ledger.md`（實作時縮掉的、代價）、`docs/STATE.md`「已知限制」V1.6 段。
+> 來源：`docs/history/2026-11-10-v1.6.0-directions.md`（定稿 22 條的原始範圍）、`docs/history/2026-11-10-v1.6.0-plan.md` §2／§3、`coordination/v160-impl/ledger.md`（實作時縮掉的、代價）、`docs/STATE.md`「已知限制」V1.6 段。
 > 原則照舊：不碰模擬就不升 `RULES_VERSION`、FINGERPRINT `b8fe741bcbfcf800` 不變；新欄位可選；整版最多升一次 `SAVE_VERSION`。
 
 ## A. V1.6.0 定稿有、實作時縮掉或沒做到的（補完）

@@ -318,11 +318,59 @@ func _make_workshop() -> void:
 	DisplayServer.clipboard_set(code)
 	_toast(L.t("ws_copied"))
 
+## V1.0.0（Codex v100-i1 #6）：重跑作者解放背景執行緒（可取消、有期限），畫面不卡；驗完在 _ws_jobs 接著做。
+## 開別的模式、離開標題頁就取消；被取消的執行緒放 ws_old，停了再回收。headless／截圖時同步做。
+var ws_thread: Thread = null
+var ws_ctl := {}
+var ws_old: Array = []
+var ws_pending := {}
 func _accept_workshop(c := "") -> void:
 	var from_clip := c == ""
 	if from_clip:
 		c = DisplayServer.clipboard_get().strip_edges()
-	var d: Dictionary = WS.decode(c)
+	if not _async_ok():
+		_accept_workshop_done(WS.decode(c), from_clip)
+		return
+	_ws_cancel()
+	var ctl := {"stop": false, "until": Time.get_ticks_msec() + WS.SOLVE_MS * 3}
+	var t := Thread.new()
+	var code := c
+	if t.start(func(): return WS.decode(code, ctl)) != OK:
+		_toast(L.t("ws_slow"), true)
+		return
+	ws_ctl = ctl
+	ws_thread = t
+	ws_pending = {"from_clip": from_clip}
+	_toast(L.t("ws_checking"))
+
+func _ws_cancel() -> void:
+	if ws_thread != null:
+		ws_ctl["stop"] = true
+		ws_old.append(ws_thread)
+		ws_thread = null
+
+func _ws_jobs() -> void:
+	for t in ws_old.duplicate():
+		if not (t as Thread).is_alive():
+			(t as Thread).wait_to_finish()
+			ws_old.erase(t)
+	if ws_thread == null:
+		return
+	if state != St.TITLE:
+		_ws_cancel()   # 驗證中開了別的：不接著做
+		return
+	if not ws_thread.is_alive():
+		var d: Dictionary = ws_thread.wait_to_finish()
+		ws_thread = null
+		_accept_workshop_done(d, bool(ws_pending.get("from_clip", false)))
+
+func _ws_exit() -> void:
+	_ws_cancel()
+	for t in ws_old:
+		(t as Thread).wait_to_finish()
+	ws_old = []
+
+func _accept_workshop_done(d: Dictionary, from_clip: bool) -> void:
 	if not bool(d["ok"]):
 		if not (from_clip and _ask_code(L.t("ws_accept"), _accept_workshop)):
 			_toast(L.t(str(d["why"])), true)

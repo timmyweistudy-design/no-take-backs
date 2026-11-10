@@ -1,5 +1,5 @@
 extends "res://tests/test_base.gd"
-## V1.6.0 測試（docs/2026-11-10-v1.6.0-plan.md）。會碰存檔的測試自己換前綴、結束還原。
+## V1.6.0 測試（docs/history/2026-11-10-v1.6.0-plan.md）。會碰存檔的測試自己換前綴、結束還原。
 
 func test_layout_r5_v160() -> void:
 	var LR = load("res://scripts/ui/layout_rules.gd")
@@ -39,6 +39,9 @@ func test_guide_v160() -> void:
 	d["puzzle_stars"] = {"p1": 1}
 	ok(G.next_step(d, false, false) == "puzzle_more", "V1.0.0 N6：前 5 關、還沒贏過 AI：繼續殘局")
 	d["stats"] = {"games": 3, "wins": 1}
+	d["ai_wins"] = 0
+	ok(G.next_step(d, false, false) == "puzzle_more", "V1.0.0：stats 的勝場可能是教學、殘局；看的是對 AI 勝場")
+	d["ai_wins"] = 1
 	ok(G.next_step(d, false, false) == "daily" and G.next_step(d, false, true) == "", "完整版接每日；試玩版不推沒開的模式")
 	d["gauntlet_run"] = {"stage": 3}
 	ok(G.next_step(d, false, false) == "gauntlet_cont" and G.next_step(d, false, true) != "gauntlet_cont", "有沒打完的遠征：先接著打（試玩版不推）")

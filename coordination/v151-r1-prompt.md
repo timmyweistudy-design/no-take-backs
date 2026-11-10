@@ -1,5 +1,5 @@
 你是《落子無悔》（Godot 4.6.2 確定性自動對決）V1.5.1 方案的審查者，第 1 輪（共 3 輪）。只讀檔、不要改任何檔案。
-初稿：coordination/v151-r0-draft.md。背景：docs/STATE.md（特別是「已知限制」與「介面與角色（V1.5.0）」）、docs/2026-11-09-v1.5.0-plan.md §8、coordination/v150-impl/ledger.md、coordination/v140-ledger.md。程式在 game/。
+初稿：coordination/v151-r0-draft.md。背景：docs/STATE.md（特別是「已知限制」與「介面與角色（V1.5.0）」）、docs/history/2026-11-09-v1.5.0-plan.md §8、coordination/v150-impl/ledger.md、coordination/v140-ledger.md。程式在 game/。
 使用者要求：「基於前面兩個大版本（V1.4.0、V1.5.0）的東西，給完整方案、優化細節」。使用者最在意角色（轉身不像紙片、手拿東西完整、遠程有射出東西），常在圖鑑看小人動畫確認。
 請：
 1. 逐項評估 A～F：該不該做、優先度（必做／應做／可延後）、技術風險（對照程式實際結構，給檔案:行號）、漏掉的細節。

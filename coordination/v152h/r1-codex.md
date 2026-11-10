@@ -1,4 +1,4 @@
-已只讀對照，未改檔、未執行檢查器。以下 H＝`docs/HANDOFF-v152.md`；U＝`game/scripts/ui/ui_base.gd`。
+已只讀對照，未改檔、未執行檢查器。以下 H＝`docs/history/HANDOFF-v152.md`；U＝`game/scripts/ui/ui_base.gd`。
 
 一、交接缺口
 

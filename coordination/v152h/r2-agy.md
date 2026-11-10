@@ -12,7 +12,7 @@
    - 存檔前綴隔離在 `game_screens.gd:15`（比對 `--shot=`、`--perf=` 等）。若接手者除錯時單獨帶 `--shot-data`，`Save.prefix` 仍為空字串，注入假資料後若觸發存檔，**會直接覆寫並破壞使用者真實存檔 `user://save.json`**！
    - **指紋部分**：[`run_case`](file:///mnt/c/Users/timmy/projects/no-take-backs/game/tools/golden.gd#L27-L40) 純讀獨立資料檔案，**不會污染戰鬥指紋**；但真實存檔被污染會導致後續 `STATEFUL` 單元測試失敗。必須在 [game_screens.gd:15](file:///mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/game_screens.gd#L15) 同步加入 `--shot-data=` 設定 `Save.prefix = "shot_"`。
 
-4. **L1 目標座標未標明模態覆蓋層屬性**（[HANDOFF-v152.md:25](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/HANDOFF-v152.md#L25) 對照 [game_menus.gd:1184-1196](file:///mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/screens/game_menus.gd#L1184)）：
+4. **L1 目標座標未標明模態覆蓋層屬性**（[HANDOFF-v152.md:25](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/history/HANDOFF-v152.md#L25) 對照 [game_menus.gd:1184-1196](file:///mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/screens/game_menus.gd#L1184)）：
    - 卡片面板在 [game_menus.gd:1195](file:///mnt/c/Users/timmy/projects/no-take-backs/game/scripts/ui/screens/game_menus.gd#L1195) 為 `Rect2(430, ..., 800, ...)`，且自帶全螢幕暗色遮罩（1184 行）。修訂稿改 `x=(1280-800)/2=240`，交接文件若未註明其為「全螢幕模態遮罩覆蓋層」，接手者會誤認其與主畫面左欄（x: 70～440）處於同層並列而不敢改置中。
 
 5. **`layout_check.sh` 警告與例外清單未定義退出碼**（[r1-plan.md:24](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v152h/r1-plan.md#L24) 對照 [layout_check.sh:46, 65](file:///mnt/c/Users/timmy/projects/no-take-backs/game/tools/layout_check.sh#L46)）：

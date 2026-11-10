@@ -1,5 +1,5 @@
 你是資深 Godot 4.6 工程師兼 2D 技術美術。唯讀：不要改檔、不要跑 Godot。
-專案《落子無悔》（game/；docs/STATE.md、docs/MODULES.md）。V1.3.0 方案 docs/2026-11-08-v1.3.0-plan.md、裁決 coordination/v130-ledger.md。
+專案《落子無悔》（game/；docs/STATE.md、docs/MODULES.md）。V1.3.0 方案 docs/history/2026-11-08-v1.3.0-plan.md、裁決 coordination/v130-ledger.md。
 未提交的實作 diff：coordination/v130-impl1/diff.patch（也可直接讀 game/ 現檔）。
 請做實作審查第 1 輪（繁中、1500 字內），找真的 bug（引用 檔案:行），重點：
 1. 轉身影格：kit.gd 的 turn_c／_part／_part_end／_eyes 狀態會不會漏重設而污染一般影格烘焙或直接繪製（Art.unit 遞迴、圖鑑大圖、MVP）；_TurnPainter 與 _post(per) 的隊伍墨色索引；draw_unit 分支（atk、mood、hurt、lean、潛行 alpha）；_face_of 對 has_turn 的回傳；世代檢查。

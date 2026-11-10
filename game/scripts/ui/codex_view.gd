@@ -370,11 +370,11 @@ func cx_ranges(t: int) -> Array:
 	var FD = load("res://scripts/core/fantasy_defs.gd")
 	var out: Array = []
 	if D.is_support(t):
-		var sr := float(D.HEAL_RANGE if t == D.MEDIC else (2500 if t == 16 else D.DRUM_RANGE)) / 1000.0
+		var sr := float(D.HEAL_RANGE if t == D.MEDIC else (FD.SPRITE_R if t == 16 else D.DRUM_RANGE)) / 1000.0
 		out.append([L.t("bar_support_range"), sr, Color("#2f9e44")])
 	else:
 		out.append([L.t("bar_range"), float(D.stat(t)["reach"]) / 1000.0, Color("#c2410c")])
-	var sk := {11: FD.BLAST_R, 18: FD.CAT_R, 19: FD.GOLEM_R}
+	var sk := {D.BOMBER: D.SPLASH_R, 11: FD.BLAST_R, 18: FD.CAT_R, 19: FD.GOLEM_R}   # 投彈兵＝落點波及半徑
 	if sk.has(t):
 		out.append([L.t("cx_skill_r"), float(sk[t]) / 1000.0, Color("#7c3aed")])
 	return out

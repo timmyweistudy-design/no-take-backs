@@ -28,7 +28,7 @@
 
 ### 二、§8 進度表與 `docs/STATE.md` 誠實度檢查
 
-- **[`docs/2026-11-09-v1.5.0-plan.md` §8](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/2026-11-09-v1.5.0-plan.md#L218-L253)**：**誠實**。已將未做完的項目如實標為「部分」（圖集僅做側面與轉身、圖鑑僅 9 人形兵有背面、僅 5 種兵有獨立小動作、結果頁階層化保留舊按鈕但做寬高主次區分）與「延後」（材質與陰影統一、奇幻兵剪影重繪、五語字型與超長翻譯巡檢、Steam Rich Presence 實機驗證），沒有虛報「完成」。
+- **[`docs/history/2026-11-09-v1.5.0-plan.md` §8](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/history/2026-11-09-v1.5.0-plan.md#L218-L253)**：**誠實**。已將未做完的項目如實標為「部分」（圖集僅做側面與轉身、圖鑑僅 9 人形兵有背面、僅 5 種兵有獨立小動作、結果頁階層化保留舊按鈕但做寬高主次區分）與「延後」（材質與陰影統一、奇幻兵剪影重繪、五語字型與超長翻譯巡檢、Steam Rich Presence 實機驗證），沒有虛報「完成」。
 - **[`docs/STATE.md`](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/STATE.md)**：
   - 「介面與角色（V1.5.0）」與「已知限制」對 9 種人形兵背面、轉身圖集快取、Steam 未實機測試等限制描述誠實。
   - 唯獨 [`docs/STATE.md:44`](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/STATE.md#L44) 舊段落仍寫「27 成就」，與 [`docs/STATE.md:102`](file:///mnt/c/Users/timmy/projects/no-take-backs/docs/STATE.md#L102) 的「新增 7 個 Steam 成就（總計 34）」前後數字不一致。

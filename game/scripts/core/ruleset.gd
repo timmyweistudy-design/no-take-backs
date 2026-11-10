@@ -18,7 +18,7 @@ const CODE_PREFIX5 := "NTBR5"   # 第十二輪：有手動技能（NTBR4 的欄�
 const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
 const CODE_PREFIX6 := "NTBR6"   # V1.6 #22：相鄰陣法（NTBR5 的 29 欄＋1 欄 adj；技能可以是關的）
 const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
-# 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
+# 第六輪：自由排兵（docs/history/2026-11-03-free-placement-plan-v6.md §3）
 const DEPLOYS := ["grid", "free"]
 const SPACING_MIN := 600
 const SPACING_MAX := 1000

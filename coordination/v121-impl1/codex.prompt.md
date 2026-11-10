@@ -1,5 +1,5 @@
 你是資深 Godot 4.6 工程審查者。唯讀：不要改檔、不要跑 Godot。
-審查 coordination/v121-impl1/diff.patch（《落子無悔》V1.2.1 實作，方案 docs/2026-11-07-v1.2.1-plan.md、裁決 coordination/v121-ledger.md）。遊戲在 game/。
+審查 coordination/v121-impl1/diff.patch（《落子無悔》V1.2.1 實作，方案 docs/history/2026-11-07-v1.2.1-plan.md、裁決 coordination/v121-ledger.md）。遊戲在 game/。
 重點：
 - save.gd 音量遷移與 sfx.gd 四軌（gain_for、trim_db 依 resource_path、play_ambience 試聽計時器在離開設定後的行為）。
 - ui_base.gd：qcol／_sb_room 快取、_legible 自動提亮（會不會改到不該改的字：浮雕、緞帶、色盲字）、_ink 透明度規則、_btn 的 btn_paper／懸停金邊／按下內陰影（狀態洩漏、plain_ui）、_probe_glyph。

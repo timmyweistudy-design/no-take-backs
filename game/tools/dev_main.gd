@@ -1301,9 +1301,9 @@ func _run_sil(out_path: String) -> void:
 	queue_redraw()
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out_path)
-	print("SIL ", out_path)
-	get_tree().quit(0)
+	var err := get_viewport().get_texture().get_image().save_png(out_path)
+	print("SIL ", out_path, " ", err)
+	get_tree().quit(0 if err == OK else 1)
 
 func _draw() -> void:
 	if not sil_mode:
@@ -1755,7 +1755,7 @@ func _shot_rng(sd: int) -> RandomNumberGenerator:
 
 
 
-## V1.6.0 新畫面（docs/2026-11-10-v1.6.0-plan.md）
+## V1.6.0 新畫面（docs/history/2026-11-10-v1.6.0-plan.md）
 func _shots_v16() -> void:
 	_go_title()
 	overlay = ""
@@ -1865,7 +1865,7 @@ func _shots_v16() -> void:
 	overlay = ""
 	await _shots_v161()
 
-## V1.6.1 新畫面（docs/2026-11-10-v1.6.1-plan.md）
+## V1.6.1 新畫面（docs/history/2026-11-10-v1.6.1-plan.md）
 func _shots_v161() -> void:
 	_go_title()
 	var keep: Dictionary = Save.data.duplicate(true)
