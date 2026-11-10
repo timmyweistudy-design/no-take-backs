@@ -775,7 +775,11 @@ func _coach_open() -> void:
 	_focus = 0
 
 var co_thread_key := ""
+## V1.0.0 A1：標題頁開著圖鑑、大廳、收藏這類「慢慢看」的頁面時換成慢板（play_music 同一首不會重播）
+const CALM_OVERLAYS := ["codex", "lobby", "hub_collect", "profile", "paint", "nemeses"]
 func _v16_jobs(_delta: float) -> void:
+	if state == St.TITLE and sfx != null and sfx.has_method("play_music") and shot_dir == "":
+		sfx.play_music("music_codex" if overlay in CALM_OVERLAYS else "music_title")
 	_trio_jobs()
 	if co_thread != null and overlay != "coach" and not bool(co_ctl.get("stop", false)):
 		_coach_cancel_quiet()   # Esc／手把 B／任何離開教練面板的路徑都取消推演（Codex v161-i1 #3）
@@ -1857,13 +1861,16 @@ func _coop_go() -> void:
 
 ## V1.6.1 D4：每站結束記 [站, 玩家, 勝?, MVP 兵種]；最後一站贏或中途輸了出總結
 var coop_log: Array = []
+## V1.0.0 M4：單人遠征也記每站（玩家欄＝0），最後一站贏或中途輸了一樣出總結（共用這個頁面）
 func _coop_settle() -> void:
-	if not ga_coop or mode != Mode.GAUNTLET or sim == null or watch_mode:
+	if mode != Mode.GAUNTLET or sim == null or watch_mode:
 		return
+	if gauntlet_stage <= 1:
+		coop_log = []   # 第 1 站＝新的一趟（續局會從存檔的 clog 還原）
 	var mvp = report.get("mvp")
 	var won: bool = sim.winner == 0
-	coop_log.append_array([gauntlet_stage, coop_player(gauntlet_stage), 1 if won else 0, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1])
-	if won and gauntlet_stage >= 7:
+	coop_log.append_array([gauntlet_stage, coop_player(gauntlet_stage) if ga_coop else 0, 1 if won else 0, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1])
+	if won and gauntlet_stage >= 7 and ga_coop:
 		call("_ach", "COOP_CLEAR")   # V1.6.1 D7
 	if not won or gauntlet_stage >= 7:
 		overlay = "coop_sum"
@@ -1878,17 +1885,19 @@ static func coop_rows(log: Array) -> Array:
 func _draw_coop_sum() -> void:
 	var rows := coop_rows(coop_log)
 	var wins := [0, 0]
+	var solo := not ga_coop
 	for r in rows:
 		if bool(r[2]):
-			wins[int(r[1]) - 1] += 1
-	var foot := L.t("coop_sum_foot", [wins[0], wins[1]])
+			wins[maxi(0, int(r[1]) - 1)] += 1
+	var foot := L.t("ga_sum_foot", [wins[0], rows.size()]) if solo else L.t("coop_sum_foot", [wins[0], wins[1]])
 	var rowh := maxf(44.0, text_h(L.t("coop_mvp", [L.t("unit_19")]), tz("C"), 200.0) + 12.0)   # MVP 字在英文 150% 會換行：列高照它
 	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + rows.size() * rowh + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
 	_panel(P)
-	var y := _h1(Vector2(640, P.position.y + 12), L.t("coop_sum")) + GAP_L
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("ga_sum") if solo else L.t("coop_sum")) + GAP_L
 	for r in rows:
-		var line := L.t("coop_sum_row", [int(r[0]), int(r[1]), L.t("coop_w") if bool(r[2]) else L.t("coop_l")])
-		_text(Vector2(P.position.x + 40, y + 8), line, tz("S"), Color(0.75, 0.88, 1.0) if int(r[1]) == 1 else Color(1, 0.8, 0.75), false, true, 380)
+		var wl := L.t("coop_w") if bool(r[2]) else L.t("coop_l")
+		var line := L.t("ga_sum_row", [int(r[0]), wl]) if solo else L.t("coop_sum_row", [int(r[0]), int(r[1]), wl])
+		_text(Vector2(P.position.x + 40, y + 8), line, tz("S"), Color(0.75, 0.88, 1.0) if int(r[1]) <= 1 else Color(1, 0.8, 0.75), false, true, 380)
 		if int(r[3]) >= 0:
 			Art.unit(self, Vector2(P.end.x - 250, y + 40), int(r[3]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
 			_text(Vector2(P.end.x - 225, y + 8), L.t("coop_mvp", [L.t("unit_%d" % int(r[3]))]), tz("C"), ACCENT, false, false, 200)

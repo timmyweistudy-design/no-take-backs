@@ -1,8 +1,13 @@
 # 優化方案 M／第三輪 T1：每次 push 跑統一檢查 tools/check_all.sh；Windows 與 Linux 跑同一組測試，比對指紋一致（跨平台確定性）。
 # 只改 docs/ 或 coordination/ 不跑（省 Actions 額度）。平衡完整報表約 10 分鐘，只在手動觸發時跑。
 name: ci
+# V1.0.0 T1：分層。push／PR 只跑快速檢查（Linux）；夜間排程、發版標籤（v*）、手動觸發才跑完整統一檢查（雙平台＋指紋比對、無快取）。
 on:
+  schedule:
+    - cron: "17 18 * * *"   # 每天台北時間 02:17
   push:
+    branches: ["**"]
+    tags: ["v*"]
     paths-ignore: ["docs/**", "coordination/**", "*.md"]
   pull_request:
     paths-ignore: ["docs/**", "coordination/**", "*.md"]
@@ -31,7 +36,11 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r game/tools/requirements.txt
+      - name: 快速檢查（push／PR）
+        if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request' }}
+        run: cd game && GODOT="$PWD/../godot" python3 tools/check.py --quick
       - name: 統一檢查（匯入、載入、正式入口啟動、測試、鏡像、打轉、素材；任一步失敗就紅）
+        if: ${{ !(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request') }}
         run: GOLDEN_N=200 COMPAT_N=200 GODOT="$PWD/godot" bash game/tools/check_all.sh "$PWD/check"
       - name: 平衡報表（手動）
         if: ${{ inputs.balance }}
@@ -40,9 +49,12 @@ jobs:
         if: always()
         with: { name: logs-linux, path: check/, if-no-files-found: warn }
       - run: cp check/fingerprint.txt fp-linux.txt
+        if: ${{ !(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request') }}
       - uses: actions/upload-artifact@v4
+        if: ${{ !(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request') }}
         with: { name: fp-linux, path: fp-linux.txt }
   windows:
+    if: ${{ !(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request') }}
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -64,6 +76,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: fp-windows, path: fp-windows.txt }
   compare:
+    if: ${{ !(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request') }}
     needs: [linux, windows]
     runs-on: ubuntu-latest
     steps:

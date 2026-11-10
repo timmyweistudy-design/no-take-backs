@@ -114,7 +114,7 @@ func _reset_place(keep_blue := false) -> void:
 				_toast(L.t("nem_back", [nt, int(Save.data["nemeses"][int(get("gauntlet_nemesis"))].get("losses", 1))]) + "\n" + L.t("ps_nemesis", [nt]))   # V1.6 #11
 	if not retry_key.begins_with("tr:"):
 		_apply_retry()   # 試煉的 trial_id 在 _start_mode 之後才設：由「重打」自己在 _start_trial 後套用
-	sfx.play_music("music_place")
+	sfx.play_music("music_puzzle" if mode == Mode.PUZZLE or mode == Mode.TUTORIAL else "music_place")   # V1.0.0 A1：殘局、教學用比較靜的思考曲
 	sfx.play_ambience(str(MapArt.BIOME.get(MapDefs.MAPS[rules.map_id if rules != null and rules.is_free() else 0]["biome"], {}).get("sound", "")))
 
 ## V1.0.0 R1：殘局、試煉按「重打」保留上次的擺法（現在會重設成關卡初始）；擺不回去的（規則變了）就略過。

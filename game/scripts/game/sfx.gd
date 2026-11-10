@@ -156,6 +156,8 @@ func play(name: String, vol := 1.0, pitch := 1.0) -> void:
 	r.append(now)
 	recent[name] = r
 	var pr: int = PRIO.get(name, 1)
+	if same_playing(players.map(func(q): return q.playing), _name_of, name) >= SAME_MAX:
+		return   # V1.0.0 A2：同一個音效同時最多 SAME_MAX 路（混戰時同一種聲音疊太多會爆音）
 	var busy: Array = []
 	var prios: Array = []
 	var starts: Array = []
@@ -175,6 +177,17 @@ func play(name: String, vol := 1.0, pitch := 1.0) -> void:
 	p.play()
 	_prio_of[ch] = pr
 	_started[ch] = now
+	_name_of[ch] = name
+
+const SAME_MAX := 3
+var _name_of := {}
+## 純函式（測試用）：正在播這個名字的聲道數
+static func same_playing(playing: Array, names: Dictionary, name: String) -> int:
+	var n := 0
+	for i in playing.size():
+		if playing[i] and str(names.get(i, "")) == name:
+			n += 1
+	return n
 
 ## V1.2.1 E2：tools/gen/audio_trim.py 量出的個別音檔修正（dB），依檔名查。
 static var _trim := {}

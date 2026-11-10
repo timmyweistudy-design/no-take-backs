@@ -452,7 +452,8 @@ static func sanitize_run(g) -> Dictionary:
 	var cl := _int_list(g.get("clog", []), 28)   # V1.6.1 D4：[站, 玩家, 勝, MVP 兵種] × 最多 7 站
 	var cl_ok: bool = cl.size() % 4 == 0 and cl.size() / 4 < int(out["stage"])   # 紀錄只到上一站（Codex v161-i1 #5：每欄都驗範圍）
 	for i in range(0, cl.size() - 3, 4):
-		if cl[i] != i / 4 + 1 or cl[i + 1] != 1 + (cl[i] - 1) % 2 or cl[i + 2] < 0 or cl[i + 2] > 1 or cl[i + 3] < -1 or cl[i + 3] >= 22:
+		var who: int = (1 + (cl[i] - 1) % 2) if out["coop"] == 1 else 0   # V1.0.0 M4：單人遠征玩家欄＝0
+		if cl[i] != i / 4 + 1 or cl[i + 1] != who or cl[i + 2] < 0 or cl[i + 2] > 1 or cl[i + 3] < -1 or cl[i + 3] >= 22:
 			cl_ok = false
 	out["clog"] = cl if cl_ok else []
 	var raw = g.get("prev")

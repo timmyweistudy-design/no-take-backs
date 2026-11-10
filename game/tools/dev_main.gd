@@ -1918,8 +1918,12 @@ func _shots_v161() -> void:
 	tv_range = false
 	# D4 接力遠征總結
 	coop_log = [1, 1, 1, 0, 2, 2, 1, 2, 3, 1, 0, 3]
+	ga_coop = true
 	overlay = "coop_sum"
 	await _snap("v161_09_coop_sum.png")
+	ga_coop = false   # V1.0.0 M4：單人遠征總結
+	coop_log = [1, 0, 1, 0, 2, 0, 1, 2, 3, 0, 1, 5, 4, 0, 0, 3]
+	await _snap("v100_01_ga_sum.png")
 	overlay = ""
 	coop_log = []
 	Save.data = keep

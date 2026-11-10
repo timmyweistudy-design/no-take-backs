@@ -109,3 +109,19 @@ func test_code_table_v100() -> void:
 	var WS = load("res://scripts/game/workshop.gd")
 	for junk in ["NTP3.%%%.000000", "NTP4." + "A".repeat(7000) + ".x"]:
 		ok(not bool(WS.decode(junk)["ok"]), "壞的出題碼不收")
+
+## A2：同一音效同時最多 3 路。
+func test_sfx_same_cap_v100() -> void:
+	var S = load("res://scripts/game/sfx.gd")
+	ok(S.same_playing([true, true, false, true], {0: "hit", 1: "hit", 2: "hit", 3: "boom"}, "hit") == 2, "只數正在播的同名聲道")
+	ok(S.SAME_MAX == 3, "上限 3")
+
+## M4：單人遠征的每站紀錄（玩家欄 0）存檔驗得過；接力的規則不變。
+func test_solo_clog_v100() -> void:
+	var S = load("res://scripts/game/save.gd")
+	var run := {"stage": 3, "seed": 1, "gold": 0, "cap": 0, "changes": 3, "pool": 1023, "prev": [], "coop": 0, "clog": [1, 0, 1, 0, 2, 0, 1, 3]}
+	ok(S.sanitize_run(run)["clog"] == [1, 0, 1, 0, 2, 0, 1, 3], "單人：玩家欄 0 留下")
+	run["clog"] = [1, 1, 1, 0]
+	ok(S.sanitize_run(run)["clog"] == [], "單人卻寫玩家 1：丟掉")
+	run["coop"] = 1
+	ok(S.sanitize_run(run)["clog"] == [1, 1, 1, 0], "接力照舊")

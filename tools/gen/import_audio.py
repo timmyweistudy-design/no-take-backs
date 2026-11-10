@@ -44,6 +44,8 @@ MUSIC = [
     ("music_title", "medieval-the-bards-tale/Loop_The_Bards_Tale.wav"),
     ("music_place", "medieval-the-old-tower-inn/Loop_The_Old_Tower_Inn.wav"),
     ("music_battle", "medieval-minstrel-dance/Loop_Minstrel_Dance_0.wav"),
+    ("music_codex", "medieval-exploration/Exploration.wav"),          # V1.0.0 A1：圖鑑、大廳、收藏
+    ("music_puzzle", "medieval-kings-feast/Loop_Kings_Feast.wav"),    # V1.0.0 A1：殘局、教學擺陣
 ]
 
 
