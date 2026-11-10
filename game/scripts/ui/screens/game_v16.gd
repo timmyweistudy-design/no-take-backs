@@ -706,7 +706,7 @@ func _draw_rift() -> void:
 
 func _start_mode(m: int) -> void:
 	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.to_code() == rift_code   # 裂隙「再來一局」照舊（同一組規則才算）
-	var mk := "%d:%s:%d" % [m, puzzle_id, int(get("trial_id"))]
+	var mk := "%d:%s:%d:%d" % [m, puzzle_id, int(get("trial_id")), PZ.get_puzzle("ws").hash() if puzzle_id == "ws" else 0]   # 工坊、三考都叫 ws：再比題目內容（Codex v160-i3）
 	if mk != tv_mode_key:
 		tv_marks = []   # 換題、換模式：舊標記不帶過去（同一題重打保留）
 	tv_mode_key = mk
