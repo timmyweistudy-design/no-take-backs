@@ -24,7 +24,7 @@
      - 輸出是一行 `STEAMTEST {...}`。拿到你自己的 AppID 後，把 480 換掉再跑一次：正式 App 會逐一核對這 24 個成就都建好了（少一個就 exit 1，會列出缺哪些）。
      - 另外建議在**沒開 Steam** 時跑一次，確認會回報失敗（`exit 1`）。
 2. `steam.gd` 已經寫好：`Engine.has_singleton("Steam")` → `steamInitEx` → 解鎖時呼叫 `setAchievement` 與 `storeStats`。初始化時會補送本機的成就。
-3. **成就**：在 Steamworks 後台建立以下 31 個（V1.5 新增 7 個，在表格最後），API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
+3. **成就**：在 Steamworks 後台建立以下 37 個（V1.5 新增 7 個、V1.6.1 新增 6 個，在表格最後），API 名稱要一模一樣（**【你】**在後台建立，或給 Claude 後台權限）：
 
 | API 名稱 | 中文 | English | 條件 |
 |---|---|---|---|
@@ -59,6 +59,12 @@
 | PAINTER | 自己的顏色 | True Colors | 在塗裝室換一次顏色（V1.5） |
 | SHARP_EYE | 好眼力 | Sharp Eye | 競猜連續押中 5 場（V1.5） |
 | SEALED_DONE | 封蠟三戰 | Sealed Fate | 打完一組雙封蠟三戰（V1.5） |
+| RUSH_10 | 極速十連 | Rush Ten | 極速賽一次解開 10 題（V1.6.1） |
+| TRIO_STAR3 | 三考滿分 | Triple Threat | 一陣三考任一組拿到三星（V1.6.1） |
+| RIFT_WIN | 裂隙行者 | Rift Walker | 打贏一次本週裂隙（V1.6.1） |
+| WORKBENCH | 出題人 | Puzzle Setter | 用出題台做出一個殘局碼（V1.6.1） |
+| MASTER_5 | 熟能生巧 | Master Hand | 任一種兵熟練度到 5 級（V1.6.1） |
+| COOP_CLEAR | 接力到底 | Relay to the End | 雙人接力遠征打完 7 站（V1.6.1） |
 
 4. **雲端**：後台 Steam Cloud → Auto-Cloud。
    - 路徑：Windows `%APPDATA%/Godot/app_userdata/落子無悔 No Take-Backs/`，檔案 `save.json`（加上 `save.json.bak`）。
@@ -67,7 +73,7 @@
 6. **Steam Input／手把**：遊戲已支援手把，用 Godot 的 Joypad。Deck 驗收要求圖示對應輸入裝置；目前提示文字寫「A／B／X」，接 Steam Input 後改成依裝置顯示。
 
 ## B2. V1.6.0 要你在後台做的事（**【你】**，Claude 不能代做）
-1. **成就 31 個**：照上面 B-3 的表在後台建立（還沒有正式 AppID，所以一個都還沒建）。建好後跑一次 `--steam-test=<你的 AppID>`，它會逐一核對、缺哪個會列出來。
+1. **成就 37 個**：照上面 B-3 的表在後台建立（還沒有正式 AppID，所以一個都還沒建）。建好後跑一次 `--steam-test=<你的 AppID>`，它會逐一核對、缺哪個會列出來。
 2. **排行榜**：遊戲用 `findOrCreateLeaderboard` 自動建，不用手動建；但後台要允許「由遊戲建立排行榜」。名稱與規則：
    - `weekly_<週數>`：每週棋盒，分數＝花費（**越小越前面**），附加資料＝格子陣（版本 1）。
    - `daily_<UTC 日數>_v<Daily.VER>`（V1.6.1 起帶題目版本，目前 v1）：V1.6 每日挑戰，分數＝剩餘%×1000＋(999−花費)（**越大越前面**），附加資料＝自由座標陣（版本 2，紅方視角）。
