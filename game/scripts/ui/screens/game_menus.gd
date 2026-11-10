@@ -1237,7 +1237,8 @@ func hub_items(kind: String) -> Array:
 		"hub_play":
 			return [["menu_tutorial", "hc_tutorial_d", "book", func(): overlay = ""; _open("tutorial"), true],
 				["menu_vs_ai", "hc_vs_ai_d", "robot", func(): overlay = ""; _open_lobby("ai"), true],
-				["menu_duel", "hc_duel_d", "people", func(): overlay = ""; _open_lobby("duel"), true]]
+				["menu_duel", "hc_duel_d", "people", func(): overlay = ""; _open_lobby("duel"), true],
+				["fog_open", "hc_fog_d", "map", func(): overlay = ""; call("_fog_start"), true]]   # V1.6 #20
 		"hub_challenge":
 			return [["menu_puzzle", "hc_puzzle_d", "puzzle", func(): overlay = ""; _open("puzzles"), true],
 				["menu_trials", "hc_trials_d", "trophy", func(): overlay = ""; _open("trials"), true],

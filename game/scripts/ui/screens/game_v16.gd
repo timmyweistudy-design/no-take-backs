@@ -46,6 +46,9 @@ func _v16_tick(_delta: float) -> void:
 						Funnel.mark("daily_open")
 	_hold_tick(_delta)
 	_rush_tick(_delta)
+	if fog_on and state == St.PLACE and mode == Mode.VS_AI and not ai_prebuilt:
+		call("_build_ai")   # 迷霧推演的下一局：一樣先組好
+		ai_prebuilt = true
 	_v16_jobs(_delta)
 
 func _open_codex(t: int) -> void:
@@ -269,6 +272,7 @@ func _v16_place_draw() -> void:
 				var dir := Vector2(best - p).normalized()
 				_chalk_arrow(sp, sp + dir * 0.7 * CS)
 	_tv_draw_marks_place(a)
+	_fog_draw()
 
 func _chalk_arrow(a: Vector2, b: Vector2) -> void:
 	draw_line(a, b, Color(1, 1, 1, 0.55), 2.0, true)
@@ -636,6 +640,7 @@ func _draw_rift() -> void:
 
 func _start_mode(m: int) -> void:
 	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.preset == "custom"   # 裂隙「再來一局」照舊
+	fog_on = false
 	var keep_trio: bool = trio_on and m == Mode.PUZZLE and puzzle_id == "ws" and PZ.get_puzzle("ws").has("trio")   # 一陣三考「重試」照舊
 	rift_on = false
 	trio_on = false
@@ -941,3 +946,29 @@ func _draw_trio_result() -> void:
 	y += text_h(body, tz("B"), 480, true) + GAP_XL
 	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start(trio_i), true, true)
 	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
+
+## ── #20 迷霧推演：對 AI（普通）；開戰前斥候看得到敵方前兩排（10、11 欄），後排要猜。只動畫面，不動模擬 ──
+var fog_on := false
+const FOG_COLS := 2
+
+func _fog_start() -> void:
+	rules = null
+	difficulty = 1
+	set("challenge_army", null)
+	_start_mode(Mode.VS_AI)
+	fog_on = true
+	call("_build_ai")   # 先組好（平常是開戰才組），前排才看得到
+	ai_prebuilt = true
+
+static func fog_seen(units: Array) -> Array:
+	return units.filter(func(u): return u.has("col") and int(u["col"]) < 10 + FOG_COLS)
+
+func _fog_draw() -> void:
+	if not fog_on or state != St.PLACE or mode != Mode.VS_AI or armies.size() < 2 or armies[1] == null:
+		return
+	for u in fog_seen(armies[1].units):
+		var p := ORIGIN + Vector2(int(u["col"]) + 0.5, int(u["row"]) + 0.82) * CS
+		Art.ring(self, p, 1, int(u["type"]), cbm(), 1.0)
+		Art.unit(self, p, int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.0, cbm())
+	var lbl := L.t("fog_scout", [fog_seen(armies[1].units).size(), armies[1].units.size()])
+	_text(ORIGIN + Vector2(13 * CS, 18), lbl, ts(15), Color(1, 0.9, 0.6), true, true, 5.5 * CS)

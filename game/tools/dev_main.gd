@@ -1781,6 +1781,13 @@ func _shots_v16() -> void:
 	await _snap("v16_16_trio_result.png")
 	overlay = ""
 	_go_title()
+	# #20 迷霧推演
+	_fog_start()
+	await _snap("v16_17_fog_place.png")
+	_go_title()
+	overlay = "hub_play"
+	await _snap("v16_18_hub_play.png")
+	overlay = ""
 	tv_range = false
 	tv_marks = []
 	_go_title()

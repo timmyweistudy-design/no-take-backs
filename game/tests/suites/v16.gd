@@ -289,3 +289,9 @@ func test_trio_v160() -> void:
 			bad += 1
 	ok(bad == 0, "每組的作者解三場都贏（保證有解）")
 	ok(TR.check(ss[0], [[0, 0, 0]]) != [true, true, true], "一隻劍士過不了")
+
+func test_fog_v160() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var us := [{"type": 0, "col": 10, "row": 1}, {"type": 1, "col": 11, "row": 2}, {"type": 2, "col": 14, "row": 3}, {"type": 2, "col": 12, "row": 3}]
+	var seen: Array = G.fog_seen(us)
+	ok(seen.size() == 2 and int(seen[0]["col"]) == 10 and int(seen[1]["col"]) == 11, "迷霧推演只露前兩排（10、11 欄）")

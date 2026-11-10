@@ -31,6 +31,7 @@ func _go_title() -> void:
 		rs["on"] = false   # V1.6 #8：離開就結束極速賽（不記紀錄）
 	set("rift_on", false)   # V1.6 #10
 	set("trio_on", false)   # V1.6 #17
+	set("fog_on", false)   # V1.6 #20
 	set("wv_active", false)   # V1.4 #11：離開就結束車輪戰
 	set("wv_mode", false)
 	set("sealed_on", false)   # V1.4 #13
