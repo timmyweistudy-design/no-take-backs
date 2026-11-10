@@ -125,3 +125,36 @@ func test_solo_clog_v100() -> void:
 	ok(S.sanitize_run(run)["clog"] == [], "單人卻寫玩家 1：丟掉")
 	run["coop"] = 1
 	ok(S.sanitize_run(run)["clog"] == [1, 1, 1, 0], "接力照舊")
+
+## M18：相鄰陣法四組（含「槍＋騎」「鼓＋狂戰士」這兩組 AI 很少帶的）左右交換後結果鏡像、加成筆數相同。
+func test_adj_pairs_mirror_v100() -> void:
+	var RSx = load("res://scripts/core/ruleset.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var AD = load("res://scripts/core/adj_defs.gd")
+	var foe := [[0, 11, 3], [0, 11, 5], [2, 13, 4], [1, 10, 4]]
+	for p in AD.PAIRS:
+		var mine := [[int(p[0]), 4, 4], [int(p[1]), 4, 5], [0, 5, 3], [2, 2, 4]]
+		var r = RSx.standard()
+		r.adj = true
+		var a = Armyx.new(0, 100)
+		var e = Armyx.new(1, 100)
+		for u in mine:
+			a.place(u[0], u[1], u[2])
+		for u in foe:
+			e.place(u[0], u[1], u[2])
+		var a2 = Armyx.new(0, 100)
+		var e2 = Armyx.new(1, 100)
+		for u in foe:
+			a2.place(u[0], 15 - u[1], u[2])
+		for u in mine:
+			e2.place(u[0], 15 - u[1], u[2])
+		var s1 = Simx.new(a, e, r)
+		var s2 = Simx.new(a2, e2, r)
+		s1.run_to_end()
+		s2.run_to_end()
+		var w1: int = s1.winner
+		var w2: int = s2.winner
+		var mirrored: bool = (w1 == 0 and w2 == 1) or (w1 == 1 and w2 == 0) or (w1 == w2 and w1 != 0 and w1 != 1)
+		ok(s1.adj_n == s2.adj_n and s1.adj_n >= 1, "相鄰 %d+%d：兩邊加成筆數相同（%d／%d）" % [p[0], p[1], s1.adj_n, s2.adj_n])
+		ok(mirrored and s1.tick == s2.tick, "相鄰 %d+%d：交換左右結果鏡像" % [p[0], p[1]], "%d/%d %d/%d" % [w1, w2, s1.tick, s2.tick])
