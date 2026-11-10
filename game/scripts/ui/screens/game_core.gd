@@ -106,12 +106,12 @@ func _reset_place(keep_blue := false) -> void:
 			armies[1] = e
 			if node == "boss" and not _demo():
 				call("add_boss", armies[1])   # V1.4 #12：遠征終點多一隻巨獸
-				_toast(L.t("boss_here"))
+				_toast(L.t("boss_here") + "\n" + L.t("ps_boss"))   # V1.6 #11 首領嗆聲
 			if int(get("gauntlet_nemesis")) >= 0:
 				armies[1] = call("_nemesis_army", int(get("gauntlet_nemesis")))
 				var nt: String = call("nemesis_title", Save.data["nemeses"][int(get("gauntlet_nemesis"))])
 				ai_name = nt
-				_toast(L.t("nem_back", [nt, int(Save.data["nemeses"][int(get("gauntlet_nemesis"))].get("losses", 1))]))
+				_toast(L.t("nem_back", [nt, int(Save.data["nemeses"][int(get("gauntlet_nemesis"))].get("losses", 1))]) + "\n" + L.t("ps_nemesis", [nt]))   # V1.6 #11
 	sfx.play_music("music_place")
 	sfx.play_ambience(str(MapArt.BIOME.get(MapDefs.MAPS[rules.map_id if rules != null and rules.is_free() else 0]["biome"], {}).get("sound", "")))
 

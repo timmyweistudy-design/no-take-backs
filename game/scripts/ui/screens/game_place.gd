@@ -29,6 +29,7 @@ func _go_title() -> void:
 	var rs = get("rush")
 	if rs is Dictionary and bool(rs.get("on", false)):
 		rs["on"] = false   # V1.6 #8：離開就結束極速賽（不記紀錄）
+	set("rift_on", false)   # V1.6 #10
 	set("wv_active", false)   # V1.4 #11：離開就結束車輪戰
 	set("wv_mode", false)
 	set("sealed_on", false)   # V1.4 #13
@@ -317,6 +318,7 @@ func _draw_hide_fog(hide_side: int) -> void:
 	elif mode == Mode.VS_AI:
 		# AI 的難度與性格（第三輪 U3）：不洩漏陣型
 		_text(ORIGIN + Vector2((x0 + cols / 2.0) * CS, fld_size.y / 2 + 70), L.t("ai_trait_%d" % difficulty), ts(15), Color(1, 0.85, 0.6, 0.8), true, false, cols * CS - 30)
+		call("_persona_fog", ORIGIN + Vector2((x0 + cols / 2.0) * CS, fld_size.y / 2 + 70 + text_h(L.t("ai_trait_%d" % difficulty), ts(15), cols * CS - 30) + 18), cols * CS - 40)   # V1.6 #11
 
 
 
@@ -695,8 +697,9 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 				st = "　" + L.t("goal_prefix") + _goal_text(pz) + st   # 第十三輪：護送、撐住、斬首（V1.1：前面加「過關：」，和星數條件分開）
 			if pz.has("cap"):
 				st = "　" + L.t("cap_note", [int(pz["cap"])]) + st
-			_text(Vector2(R.end.x - 60 - _width(st, tz("S"), true), y), st, tz("S"), ACCENT, false, true)
-			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 120 - _width(st, tz("S"), true))
+			call("_tv_buttons", help, true)   # V1.6 #6／#12：射程、標記、實驗簿
+			_text(Vector2(R.end.x - 192 - _width(st, tz("S"), true), y), st, tz("S"), ACCENT, false, true)
+			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 252 - _width(st, tz("S"), true))
 		else:
 			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 80)
 		_draw_place_help()

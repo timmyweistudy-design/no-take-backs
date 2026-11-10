@@ -169,3 +169,66 @@ func test_coach_v160() -> void:
 		var u: Dictionary = pa.units[int(c[0])]
 		ok(not load("res://scripts/game/puzzles.gd").is_fixed(pz, int(u["col"]), int(u["row"])), "殘局固定兵不動")
 		break
+
+func test_rift_v160() -> void:
+	var RF = load("res://scripts/game/v16_rift.gd")
+	var RO = load("res://scripts/game/roster.gd")
+	var mask: int = RO.mask(false)
+	var bad := 0
+	for wk in range(2900, 2960):
+		var ps: Array = RF.picks(wk, mask)
+		var tags := {}
+		for k in ps:
+			if tags.has(RF.ANOMS[k][1]):
+				bad += 1
+			tags[RF.ANOMS[k][1]] = true
+		var r = RF.make_rules(ps, mask, wk)
+		if ps.size() != 3 or not r.validate().is_empty():
+			bad += 1
+		if wk < 2904:
+			var e = RF.enemy(r, wk)
+			if e.units.is_empty() or JSON.stringify(e.units) != JSON.stringify(RF.enemy(r, wk).units):
+				bad += 1
+	ok(bad == 0, "60 週：每週 3 種、同類不重複、規則合法、敵陣固定")
+	ok(RF.picks(2950, mask) == RF.picks(2950, mask) and RF.picks(2950, mask) != RF.picks(2951, mask), "同週同題、換週換題")
+
+func test_persona_v160() -> void:
+	var PS = load("res://scripts/game/v16_persona.gd")
+	var Lx = load("res://scripts/game/strings.gd")
+	var miss := 0
+	for st in 6:
+		for m in ["open", "win", "lose"]:
+			var k: String = PS.line_key(st, m)
+			if Lx.t(k) == k or Lx.t(k) == "":
+				miss += 1
+		if Lx.t("ps_name_%d" % st) == "ps_name_%d" % st:
+			miss += 1
+	ok(miss == 0, "6 種性格都有名號與三句台詞")
+	ok(PS.face(9) == PS.face(5) and PS.face(-1) == PS.face(0), "超出範圍的性格夾到合法值")
+
+class FakeU:
+	var team := 0
+	var type := 0
+	var kills := 0
+	var summon := false
+	func _init(t, ty, k, s := false):
+		team = t
+		type = ty
+		kills = k
+		summon = s
+
+func test_career_v160() -> void:
+	var CA = load("res://scripts/game/v16_career.gd")
+	var g: Dictionary = CA.gain([FakeU.new(0, 2, 3), FakeU.new(0, 2, 1), FakeU.new(1, 2, 5), FakeU.new(0, 20, 9, true), FakeU.new(0, 0, 0)])
+	ok(g == {"2": 5, "0": 1}, "出場 +1、擊倒加點；敵方、召喚物不算")
+	var m := {"2": 3}
+	var ups: Array = CA.add(m, g)
+	ok(int(m["2"]) == 8 and ups == [2] and CA.level(8) == 1 and CA.level(120) == 5 and CA.next_at(120) == -1, "累積、升級、滿級")
+	var nb := {}
+	ok(CA.nb_save(nb, "p1", "A", [[0, 1, 2]]) and not CA.nb_save(nb, "p1", "B", [[0, 1, 2]]), "同樣的擺法不重複存")
+	for i in 4:
+		CA.nb_save(nb, "p1", "x", [[0, 1, i + 3]])
+	ok(not CA.nb_save(nb, "p1", "y", [[1, 1, 1]]) and nb["p1"].size() == 5, "每關最多 5 份")
+	CA.nb_result(nb, "p1", [[0, 1, 2]], 2, 40, 30)
+	CA.nb_result(nb, "p1", [[0, 1, 2]], 1, 90, 10)
+	ok(nb["p1"][0]["r"] == [2, 40, 30], "成績留最好的（星數優先）")

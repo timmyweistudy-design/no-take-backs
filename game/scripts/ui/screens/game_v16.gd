@@ -59,6 +59,9 @@ func _finish_battle() -> void:
 	if bool(rush.get("on", false)) and mode == Mode.PUZZLE:
 		_rush_settle()
 		return
+	_rift_settle()
+	_persona_result()
+	_career_settle()
 	Funnel.mark("first_battle")
 	if mode != Mode.DUEL:
 		var won: bool = sim.winner == 0
@@ -139,6 +142,10 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_rush_end()
 		"coach":
 			_draw_coach()
+		"rift":
+			_draw_rift()
+		"notebook":
+			_draw_notebook()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -186,6 +193,12 @@ func _v16_place_key(k: int) -> bool:
 		KEY_V:
 			tv_range = not tv_range
 			return true
+		KEY_N:
+			if mode == Mode.PUZZLE:
+				overlay = "notebook"
+				_focus = 0
+				return true
+			return false
 		KEY_T:
 			if tv_toggle_at(_cur_army(), _tv_world_at(_fp_scr(Vector2i(fp_cur)) if pad_mode else mouse)):
 				sfx.play("k_click", 0.7)
@@ -193,15 +206,26 @@ func _v16_place_key(k: int) -> bool:
 	return false
 
 ## 資訊帶右邊（「?」左邊）兩顆小鈕
-func _tv_buttons(help: Rect2) -> void:
+func _tv_buttons(help: Rect2, notebook := false) -> void:
 	var b1 := Rect2(help.position.x - 88, help.position.y, 40, 36)
 	var b2 := Rect2(help.position.x - 44, help.position.y, 40, 36)
+	if notebook:
+		b1.position.x -= 44
+		b2.position.x -= 44
+		var b3 := Rect2(help.position.x - 44, help.position.y, 40, 36)
+		_btn(b3, "", func(): overlay = "notebook"; _focus = 0)
+		_icon("book", b3.get_center(), 22.0, Color.WHITE)
+		if b3.has_point(mouse):
+			_tv_tip(L.t("nb_tip"), help)
 	_btn(b1, "", func(): tv_range = not tv_range, true, false, TH_ACTIVE if tv_range else Color(0, 0, 0, 0))
 	_icon("range", b1.get_center(), 22.0, Color.WHITE)
 	_btn(b2, "", func(): tv_mark_mode = not tv_mark_mode, true, false, TH_ACTIVE if tv_mark_mode else Color(0, 0, 0, 0))
 	_icon("flag", b2.get_center(), 22.0, Color.WHITE)
 	if b1.has_point(mouse) or b2.has_point(mouse):
-		var tip := L.t("tv_range_tip") if b1.has_point(mouse) else L.t("tv_mark_tip")
+		_tv_tip(L.t("tv_range_tip") if b1.has_point(mouse) else L.t("tv_mark_tip"), help)
+
+func _tv_tip(tip: String, help: Rect2) -> void:
+	if true:
 		var tw := _width(tip, tz("S")) + 20.0
 		var tr := Rect2(clampf(mouse.x - tw / 2, 8, 1272 - tw), help.end.y + 6, tw, tz("S") * 1.6)
 		draw_rect(tr, Color(0.06, 0.07, 0.1, 0.92))
@@ -543,3 +567,151 @@ func _draw_coach() -> void:
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 	if found and co_layer < 1:
 		co_layer = 1
+
+## ── #10 裂隙模式 ──
+const Rift = preload("res://scripts/game/v16_rift.gd")
+var rift_on := false
+
+func _rift_picks() -> Array:
+	return Rift.picks(Rift.week(), RS.mask(_demo()))
+
+func _rift_start() -> void:
+	var wk := Rift.week()
+	var r = Rift.make_rules(_rift_picks(), RS.mask(_demo()), wk)
+	rules = r
+	set("challenge_army", Rift.enemy(r, wk))
+	_start_mode(Mode.VS_AI)
+	rift_on = true
+
+func _rift_settle() -> void:
+	if not rift_on or sim == null or sim.winner != 0:
+		return
+	var best: Dictionary = Save.data.get("rift_best", {})
+	var k := Rift.key(Rift.week())
+	var rec := [PZ.rem_pct(sim.power(0), sim.budget_of(0)), armies[0].spent()]
+	if Daily.better(rec, best.get(k, [])):
+		best = {k: rec}   # 只留這一週
+		Save.data["rift_best"] = best
+		Save.save_data()
+		_toast(L.t("rf_new", [int(rec[0])]))
+
+func _draw_rift() -> void:
+	var ps := _rift_picks()
+	var lines: Array = []
+	for k in ps:
+		lines.append("・" + L.t(str(Rift.ANOMS[k][0])))
+	var body := "\n".join(lines)
+	var b: Array = Save.data.get("rift_best", {}).get(Rift.key(Rift.week()), [])
+	var best := L.t("rf_best", [int(b[0]), int(b[1])]) if not b.is_empty() else L.t("rf_best_none")
+	var P := modal_rect(680, 12.0 + h1_help_h(L.t("rf_help"), tz("S"), 600) + GAP_L + text_h(body, tz("B"), 560) + GAP_M + tz("S") * 1.6 + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rift_open"), L.t("rf_help"), tz("S"), 600)
+	_text(Vector2(360, y), body, tz("B"), Color.WHITE, false, true, 560)
+	y += text_h(body, tz("B"), 560) + GAP_M
+	_text(Vector2(640, y), best, tz("S"), ACCENT, true, false, 560)
+	y += tz("S") * 1.6 + GAP_XL
+	_btn(Rect2(640 - 160, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+func _start_mode(m: int) -> void:
+	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.preset == "custom"   # 裂隙「再來一局」照舊
+	rift_on = false
+	super._start_mode(m)
+	rift_on = keep_rift
+
+## ── #11 AI 對手人設 ──
+const Persona = preload("res://scripts/game/v16_persona.gd")
+
+func _ai_style() -> int:
+	return int(rules.ai_style) if rules != null else 0
+
+## 擺陣時敵方屏風上：頭像＋名號＋開場白（不洩漏陣型）
+func _persona_fog(c: Vector2, w: float) -> void:
+	if bool(get("ghost_id") != "") or bool(get("wk_active")) or rift_on:
+		return
+	var st := _ai_style()
+	Art.unit(self, c + Vector2(0, 46), Persona.face(st), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.0, cbm())
+	_text(c + Vector2(0, 56), L.t("ps_name_%d" % st), ts(16), Color.WHITE, true, true, w)
+	var q := "「" + L.t(Persona.line_key(st, "open")) + "」" if L.lang.begins_with("zh") or L.lang == "ja" else "\"" + L.t(Persona.line_key(st, "open")) + "\""
+	_text(c + Vector2(0, 56 + ts(16) * 1.4), q, ts(15), Color(1, 0.9, 0.7, 0.9), true, false, w)
+
+func _persona_result() -> void:
+	if mode != Mode.VS_AI or sim == null or sim.winner < 0 or not (get("daily_spec") as Dictionary).is_empty() or rift_on or str(get("ghost_id")) != "" or bool(get("wk_active")) or watch_mode:
+		return
+	if str(report.get("gh_line", "")) != "":
+		return
+	var st := _ai_style()
+	report["gh_line"] = L.t("ps_say", [L.t("ps_name_%d" % st), L.t(Persona.line_key(st, "lose" if sim.winner == 0 else "win"))])
+
+## ── #12 生涯：熟練度＋實驗簿 ──
+const Career = preload("res://scripts/game/v16_career.gd")
+
+func _career_settle() -> void:
+	if sim == null or mode == Mode.DUEL or watch_mode:
+		return
+	if rules != null and Presets.badge(rules, "ai") == Presets.BADGE_LAB:
+		return
+	var m: Dictionary = Save.data.get("mastery", {})
+	var ups := Career.add(m, Career.gain(sim.units))
+	Save.data["mastery"] = m
+	if not ups.is_empty():
+		var t: int = ups[0]
+		_toast(L.t("ms_up", [L.t("unit_%d" % t), Career.level(int(m[str(t)]))]))
+	if mode == Mode.PUZZLE and last_armies.size() == 2:
+		var nb: Dictionary = Save.data.get("notebook", {})
+		Career.nb_result(nb, puzzle_id, Career.units_of(last_armies[0]), int(report.get("stars", 0)), PZ.rem_pct(sim.power(0), sim.budget_of(0)) if sim.winner == 0 else 0, last_armies[0].spent())
+		Save.data["notebook"] = nb
+
+func mastery_line(t: int) -> String:
+	var xp := int(Save.data.get("mastery", {}).get(str(t), 0))
+	var nx := Career.next_at(xp)
+	return L.t("ms_line", [Career.level(xp), xp, nx]) if nx > 0 else L.t("ms_max", [Career.level(xp)])
+
+func _draw_notebook() -> void:
+	var lst: Array = Save.data.get("notebook", {}).get(puzzle_id, [])
+	var rows := maxi(1, lst.size())
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("nb_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 48.0 + GAP_M + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("nb_title"), L.t("nb_help"), tz("S"), 680)
+	if lst.is_empty():
+		_text(Vector2(640, y + 12), L.t("nb_empty"), tz("S"), TXT_DIM, true, false, 680)
+	for i in lst.size():
+		var e: Dictionary = lst[i]
+		var r: Array = e["r"]
+		var res := L.t("nb_res", [int(r[0]), int(r[1]), int(r[2])]) if not r.is_empty() else L.t("nb_untried")
+		_text(Vector2(P.position.x + 40, y + 10), "%s　%s" % [str(e["n"]), res], tz("S"), Color.WHITE, false, true, 420)
+		var ii := i
+		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load"), func(): _nb_load(ii))
+		_btn_small(Rect2(P.end.x - 130, y + 4, 90, 40), L.t("nb_del"), func(): _nb_del(ii))
+		y += 56.0
+	y += GAP_L
+	_btn(Rect2(640 - 160, y, 320, 48), L.t("nb_save"), func(): _nb_save(), lst.size() < Career.NB_MAX, true)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+func _nb_save() -> void:
+	var nb: Dictionary = Save.data.get("notebook", {})
+	var n := (nb.get(puzzle_id, []) as Array).size() + 1
+	if Career.nb_save(nb, puzzle_id, L.t("nb_name", [n]), Career.units_of(armies[0])):
+		Save.data["notebook"] = nb
+		Save.save_data()
+		_toast(L.t("nb_saved"))
+	else:
+		_toast(L.t("nb_dup"), true)
+
+func _nb_load(i: int) -> void:
+	var e: Dictionary = Save.data.get("notebook", {}).get(puzzle_id, [])[i]
+	armies[0] = PZ.player_army(PZ.get_puzzle(puzzle_id))
+	var pz := PZ.get_puzzle(puzzle_id)
+	for u in e["u"]:
+		if not PZ.is_fixed(pz, int(u[1]), int(u[2])):
+			armies[0].place(int(u[0]), int(u[1]), int(u[2]))
+	overlay = ""
+
+func _nb_del(i: int) -> void:
+	var nb: Dictionary = Save.data.get("notebook", {})
+	var lst: Array = nb.get(puzzle_id, [])
+	if i < lst.size():
+		lst.remove_at(i)
+		nb[puzzle_id] = lst
+		Save.data["notebook"] = nb
+		Save.save_data()

@@ -1244,7 +1244,8 @@ func hub_items(kind: String) -> Array:
 				["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_start_daily"), not _demo()],
 				["wk_open", "hc_weekly_d", "cards", func(): overlay = "weekly", not _demo()],
 				["gh_open", "hc_ghosts_d", "skull", func(): overlay = "ghosts", not _demo()],
-				["rush_open", "hc_rush_d", "clock", func(): overlay = ""; call("_rush_start"), true]]   # V1.6 #8
+				["rush_open", "hc_rush_d", "clock", func(): overlay = ""; call("_rush_start"), true],   # V1.6 #8
+				["rift_open", "hc_rift_d", "swap", func(): overlay = "rift"; _focus = 0, not _demo()]]   # V1.6 #10
 		"hub_collect":
 			return [["menu_codex", "hc_codex_d", "book", func(): overlay = ""; _open_codex(0), true],
 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
