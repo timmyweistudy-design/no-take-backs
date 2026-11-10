@@ -35,6 +35,31 @@ static func next_at(xp: int) -> int:
 	var lv := level(xp)
 	return int(LV[lv + 1]) if lv + 1 < LV.size() else -1
 
+## V1.6.1 A1 戰功章：每種兵 3 個（出場 MEDAL[0] 場、擊倒 MEDAL[1] 隻、MVP MEDAL[2] 次）。只看、不改數值。
+## medals[兵種] = [出場, 擊倒, MVP]
+const MEDAL := [20, 50, 5]
+static func medal_add(md: Dictionary, units: Array, mvp_type: int) -> void:
+	var seen := {}
+	for u in units:
+		if u.team != 0 or u.summon:
+			continue
+		var k := str(int(u.type))
+		var e: Array = md.get(k, [0, 0, 0])
+		if not seen.has(k):
+			e[0] = int(e[0]) + 1
+			seen[k] = true
+		e[1] = int(e[1]) + int(u.kills)
+		md[k] = e
+	if mvp_type >= 0 and md.has(str(mvp_type)):
+		md[str(mvp_type)][2] = int(md[str(mvp_type)][2]) + 1
+
+static func medals_of(md: Dictionary, t: int) -> Array:
+	var e: Array = md.get(str(t), [0, 0, 0])
+	var out: Array = []
+	for i in 3:
+		out.append(int(e[i]) >= int(MEDAL[i]))
+	return out
+
 ## 實驗簿：每關最多 NB_MAX 份 {"n": 名稱, "u": [[兵種, 欄, 列]…], "r": [星, 剩%, 花費] 或 []}
 const NB_MAX := 5
 

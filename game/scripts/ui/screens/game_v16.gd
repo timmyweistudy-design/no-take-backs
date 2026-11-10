@@ -196,6 +196,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_trio_result()
 		"tour":
 			_draw_tour()
+		"nb_cmp":
+			_draw_nb_cmp()
 		"coop_hand":
 			_draw_coop_hand()
 
@@ -424,6 +426,9 @@ func _v16_battle_draw() -> void:
 		var p := _upos(u)
 		if u.alive:
 			_tv_badge(p - Vector2(0, 1.15 * CS), k + 1)
+			var mlv := mastery_lv(int(u.type)) if u.team == 0 else 0
+			if mlv >= 3:
+				_icon("star", p + Vector2(0, 6), 12.0, Color("#ffd166") if mlv >= 5 else Color("#d8dde6"))   # V1.6.1 A1：只有標記的兵在戰場上顯示熟練度（不常駐，不擋戰場）
 
 ## ── #7 操作與無障礙：按住確認、文字放大鏡、軍令點選放置 ──
 var hold_t := 0.0
@@ -954,6 +959,10 @@ func _career_settle() -> void:
 	var m: Dictionary = Save.data.get("mastery", {})
 	var ups := Career.add(m, Career.gain(sim.units))
 	Save.data["mastery"] = m
+	var md: Dictionary = Save.data.get("medals", {})
+	var mvp = report.get("mvp")
+	Career.medal_add(md, sim.units, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1)
+	Save.data["medals"] = md
 	if not ups.is_empty():
 		var t: int = ups[0]
 		report["ms_line"] = L.t("ms_up", [L.t("unit_%d" % t), Career.level(int(m[str(t)]))])   # 結果頁有空位才顯示（跳提示會壓到別的畫面）
@@ -994,14 +1003,134 @@ func _draw_notebook() -> void:
 		var e: Dictionary = lst[i]
 		var r: Array = e["r"]
 		var res := L.t("nb_res", [int(r[0]), int(r[1]), int(r[2])]) if r.size() == 3 else L.t("nb_untried")
-		_text(Vector2(P.position.x + 40, y + 10), "%s　%s" % [str(e["n"]), res], tz("S"), Color.WHITE, false, true, 420)
 		var ii := i
-		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load"), func(): _nb_load(ii))
-		_btn_small(Rect2(P.end.x - 130, y + 4, 90, 40), L.t("nb_del"), func(): _nb_del(ii))
+		if nb_edit == i:
+			# 改名中：輸入框＋游標（Enter 確定、Esc 取消）
+			var ir := Rect2(P.position.x + 32, y + 4, 300, 40)
+			draw_rect(ir, Color(0.05, 0.06, 0.09, 0.95))
+			draw_rect(ir, ACCENT, false, 2.0)
+			_text(ir.position + Vector2(10, 6), nb_buf + ("|" if fmod(time, 1.0) < 0.55 else " "), tz("S"), Color.WHITE, false, true, 280)
+		else:
+			_text(Vector2(P.position.x + 40, y + 10), "%s　%s" % [str(e["n"]), res], tz("S"), Color.WHITE if nb_cmp_a != i else ACCENT, false, true, 300)
+		_btn_small(Rect2(P.end.x - 370, y + 4, 110, 40), L.t("nb_ok") if nb_edit == i else L.t("nb_rename"), func(): _nb_rename(ii))
+		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load") if nb_cmp_a < 0 else (L.t("nb_pick") if nb_cmp_a != i else L.t("nb_picked")), func(): _nb_load(ii) if nb_cmp_a < 0 else _nb_cmp_pick(ii), nb_cmp_a != i)
+		_btn_small(Rect2(P.end.x - 130, y + 4, 90, 40), L.t("nb_del"), func(): _nb_del(ii), nb_cmp_a < 0)
 		y += 56.0
 	y += GAP_L
-	_btn(Rect2(640 - 160, y, 320, 48), L.t("nb_save"), func(): _nb_save(), lst.size() < Career.NB_MAX, true)
+	if nb_cmp_a >= 0:
+		_btn(Rect2(640 - 160, y, 320, 48), L.t("nb_cmp_cancel"), func(): nb_cmp_a = -1, true, true)
+	else:
+		_btn(Rect2(640 - 330, y, 320, 48), L.t("nb_save"), func(): _nb_save(), lst.size() < Career.NB_MAX, true)
+		_btn(Rect2(650, y, 320 - GAP_S, 48), L.t("nb_cmp"), func(): nb_cmp_a = 0 if lst.size() >= 2 else -1, lst.size() >= 2)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+## ── V1.6.1 N3：實驗簿改名（鍵盤直接打；Steam 手把開 Steam 螢幕鍵盤；都沒有就輪替預設名）＋兩份方案並排比較 ──
+var nb_edit := -1
+var nb_buf := ""
+var nb_cmp_a := -1    # 比較：先選的那一份（-1＝不在比較）
+var nb_cmp_b := -1
+const NB_NAME_MAX := 16
+const NB_PRESETS := ["nb_n_rush", "nb_n_wall", "nb_n_range", "nb_n_cheap", "nb_n_try"]
+
+func _nb_rename(i: int) -> void:
+	if nb_edit == i:
+		_nb_commit()
+		return
+	var items := _nb_items()
+	if i >= items.size():
+		return
+	if pad_mode:
+		var it: Dictionary = items[i]
+		if SteamApi.text_input(L.t("nb_rename"), NB_NAME_MAX, func(sub, txt = ""):
+			if bool(sub) and str(txt).strip_edges() != "":
+				it["n"] = str(txt).strip_edges().substr(0, NB_NAME_MAX)
+				Save.save_data()):
+			return
+		# 沒有 Steam 螢幕鍵盤：輪替預設名
+		var cur := str(it["n"])
+		var k := 0
+		for j in NB_PRESETS.size():
+			if L.t(NB_PRESETS[j]) == cur:
+				k = j + 1
+		it["n"] = L.t(NB_PRESETS[k % NB_PRESETS.size()])
+		Save.save_data()
+		return
+	nb_edit = i
+	nb_buf = str(items[i]["n"])
+	DisplayServer.window_set_ime_active(true)   # 中文、日文輸入法
+
+func _nb_commit() -> void:
+	var items := _nb_items()
+	if nb_edit >= 0 and nb_edit < items.size() and nb_buf.strip_edges() != "":
+		items[nb_edit]["n"] = nb_buf.strip_edges().substr(0, NB_NAME_MAX)
+		Save.save_data()
+	_nb_edit_end()
+
+func _nb_edit_end() -> void:
+	nb_edit = -1
+	nb_buf = ""
+	DisplayServer.window_set_ime_active(false)
+
+func _nb_edit_input(ev: InputEvent) -> bool:
+	if overlay != "notebook":
+		_nb_edit_end()
+		return false
+	if ev is InputEventKey and ev.pressed:
+		match ev.keycode:
+			KEY_ESCAPE:
+				_nb_edit_end()
+			KEY_ENTER, KEY_KP_ENTER:
+				_nb_commit()
+			KEY_BACKSPACE:
+				nb_buf = nb_buf.substr(0, maxi(0, nb_buf.length() - 1))
+			_:
+				nb_buf = nb_edit_append(nb_buf, int(ev.unicode))
+		return true
+	return ev is InputEventKey
+
+static func nb_edit_append(buf: String, uc: int) -> String:
+	if uc < 32 or uc == 127 or buf.length() >= NB_NAME_MAX:
+		return buf
+	return buf + String.chr(uc)
+
+func _nb_cmp_pick(i: int) -> void:
+	nb_cmp_b = i
+	overlay = "nb_cmp"
+	_focus = 0
+
+## 兩份方案並排：成績、兵種組成（各幾隻）、花費
+func _draw_nb_cmp() -> void:
+	var items := _nb_items()
+	if nb_cmp_a < 0 or nb_cmp_a >= items.size() or nb_cmp_b < 0 or nb_cmp_b >= items.size():
+		overlay = "notebook"
+		nb_cmp_a = -1
+		return
+	var pair: Array = [items[nb_cmp_a], items[nb_cmp_b]]
+	var line_h := tz("S") * 1.5
+	var P := modal_rect(900, 12.0 + h1_bottom(0.0) + GAP_L + line_h * 3 + 120.0 + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("nb_cmp_title")) + GAP_L
+	for c in 2:
+		var e: Dictionary = pair[c]
+		var cx := 640.0 + (c * 2 - 1) * 220.0
+		var r: Array = e["r"]
+		_text(Vector2(cx, y), str(e["n"]), tz("S"), ACCENT, true, true, 400)
+		_text(Vector2(cx, y + line_h), L.t("nb_res", [int(r[0]), int(r[1]), int(r[2])]) if r.size() == 3 else L.t("nb_untried"), tz("S"), Color.WHITE, true, false, 400)
+		var cnt := {}
+		var gold := 0
+		for u in e["u"]:
+			cnt[int(u[0])] = int(cnt.get(int(u[0]), 0)) + 1
+			gold += D.cost(int(u[0]))
+		_text(Vector2(cx, y + line_h * 2), L.t("nb_cmp_gold", [(e["u"] as Array).size(), gold]), tz("S"), TXT_DIM, true, false, 400)
+		var ks: Array = cnt.keys()
+		ks.sort()
+		var x0 := cx - ks.size() * 22.0
+		for j in ks.size():
+			var px := x0 + j * 44.0 + 22.0
+			Art.unit(self, Vector2(px, y + line_h * 3 + 64), int(ks[j]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
+			_text(Vector2(px, y + line_h * 3 + 74), "×%d" % int(cnt[ks[j]]), tz("C"), Color.WHITE, true, true, 40)
+	draw_line(Vector2(640, y), Vector2(640, y + line_h * 3 + 110), Color(1, 1, 1, 0.2), 1.0)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "notebook"; nb_cmp_a = -1)
 
 func _nb_save() -> void:
 	var nb: Dictionary = Save.data.get("notebook", {})
@@ -1462,7 +1591,28 @@ func _adj_draw(a) -> void:
 
 ## 熟練度外觀小物：3 級起在兵卡上畫星章（3、4 級銀、5 級金），圖鑑也看得到等級
 func _mastery_badge(r: Rect2, t: int) -> void:
-	var lv := Career.level(int(Save.data.get("mastery", {}).get(str(t), 0)))
+	var lv := mastery_lv(t)
 	if lv < 3:
 		return
 	_icon("star", r.position + Vector2(r.size.x / 2, 30), 16.0, Color("#ffd166") if lv >= 5 else Color("#d8dde6"))
+	# V1.6.1 A1：兵卡外框（3、4 級銀、5 級金；深邊＋亮邊，紙上木上都看得到）
+	var fc := Color("#ffd166") if lv >= 5 else Color("#c9d1dc")
+	draw_rect(r.grow(-2), Color(0, 0, 0, 0.5), false, 3.0)
+	draw_rect(r.grow(-2), fc, false, 1.6)
+
+func mastery_lv(t: int) -> int:
+	return Career.level(int(Save.data.get("mastery", {}).get(str(t), 0)))
+
+## 圖鑑大圖腳下的木牌：刻熟練度等級＋戰功章（三顆，拿到的亮）
+func codex_plaque(p: Vector2, t: int) -> void:
+	if t >= D.total():
+		return
+	var lv := mastery_lv(t)
+	var md := Career.medals_of(Save.data.get("medals", {}), t)
+	var txt := L.t("ms_plaque", [lv])
+	var w := _width(txt, tz("C"), true) + 20.0 + 3 * 18.0
+	var r := Rect2(p.x - w / 2, p.y, w, tz("C") * 1.5 + 6)
+	_tex_box(r, "wood", Color("#8a5a2b"))
+	_text(r.position + Vector2(10, 3 + tz("C") * 0.1), txt, tz("C"), Color("#fff1d6"), false, true, w)
+	for i in 3:
+		_icon("star", Vector2(r.end.x - 54 + i * 18 + 9, r.get_center().y), 13.0, Color("#ffd166") if md[i] else Color(0, 0, 0, 0.35))

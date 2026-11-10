@@ -221,3 +221,21 @@ func test_new_after_v161() -> void:
 	ok(G.is_new(d, "rush_open") and G.tour_due(d, false) and not G.tour_due(d, true), "玩滿 3 場：標新、跳一次導覽（試玩版不跳）")
 	G.see(d, "tour161")
 	ok(not G.tour_due(d, false), "導覽只跳一次")
+
+func test_medals_v161() -> void:
+	var CA = load("res://scripts/game/v16_career.gd")
+	var FU = load("res://tests/suites/v16.gd").FakeU
+	var md := {}
+	for i in 20:
+		CA.medal_add(md, [FU.new(0, 2, 3), FU.new(0, 2, 0), FU.new(1, 2, 9), FU.new(0, 20, 9, true)], 2 if i < 5 else -1)
+	ok(md["2"] == [20, 60, 5] and not md.has("20"), "出場一場算一次、擊倒累加、MVP；敵方與召喚物不算", str(md))
+	ok(CA.medals_of(md, 2) == [true, true, true] and CA.medals_of(md, 3) == [false, false, false], "三個戰功章")
+	var S = load("res://scripts/game/save.gd")
+	var bad := {"medals": {"2": [1, 2, 3], "x": [1, 1, 1], "3": [1, "a", 2]}}
+	S.sanitize_v16(bad)
+	ok(bad["medals"] == {"2": [1, 2, 3]}, "戰功驗型")
+
+func test_nb_name_input_v161() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	ok(G.nb_edit_append("ab", 0x99AC) == "ab馬" and G.nb_edit_append("ab", 9) == "ab", "改名：收一般字（含中文），控制字元不收（N3）")
+	ok(G.nb_edit_append("0123456789abcdef", 65).length() == 16, "最多 16 字")

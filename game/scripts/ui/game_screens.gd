@@ -142,6 +142,8 @@ func _keys_input(ev: InputEvent) -> bool:
 func _input(ev: InputEvent) -> void:
 	if _keys_input(ev):
 		return
+	if nb_edit >= 0 and _nb_edit_input(ev):
+		return   # V1.6.1 N3：實驗簿改名時，鍵盤輸入給名稱框
 	if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
 		fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
 		_touch_input(ev)   # V1.4 #18：長按＝右鍵、雙指縮放

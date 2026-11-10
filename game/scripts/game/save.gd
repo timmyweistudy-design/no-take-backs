@@ -335,6 +335,14 @@ static func sanitize_v16(out: Dictionary) -> void:
 			if str(k).is_valid_int() and int(str(k)) >= 0 and int(str(k)) < 22 and _is_num(ms[k]):
 				m2[str(int(str(k)))] = clampi(int(ms[k]), 0, 100000000)
 	out["mastery"] = m2
+	var md = out.get("medals", {})
+	var md2 := {}
+	if md is Dictionary:
+		for k in md:
+			var iv := _int_list(md[k], 3)
+			if str(k).is_valid_int() and int(str(k)) >= 0 and int(str(k)) < 22 and iv.size() == 3:
+				md2[str(int(str(k)))] = [clampi(iv[0], 0, 100000000), clampi(iv[1], 0, 100000000), clampi(iv[2], 0, 100000000)]   # V1.6.1 A1
+	out["medals"] = md2
 	var nb = out.get("notebook", {})
 	var nb2 := {}
 	if nb is Dictionary:

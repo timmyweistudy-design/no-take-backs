@@ -1,12 +1,15 @@
 extends SceneTree
 ## V1.6.1 A3：一陣三考三星解求解器。從作者解出發爬山（移兵、換兵、拿掉、加兵），找「三場都贏、剩餘平均 ≥ S2、花費 ≤ S3%」的陣，
 ## 存進 trio.json 的 "sol3"（可重現的三星解，測試會重跑驗證）。找不到就用找到的最好那套當三星門檻（單組覆寫 s2／s3，記在輸出）。
-## 用法（game/ 下）：godot --headless --path . --script res://tools/gen/trio_star_forge.gd [-- --iters=1500]
+## 用法（game/ 下）：godot --headless --path . --script res://tools/gen/trio_star_forge.gd -- --set=<0..9> --iters=600 --out=<檔>
+## 一組一個行程（可平行），結果寫成一行 JSON 到 --out；再用 tools/gen/trio_star_merge.py 併回 trio.json。
 const Trio = preload("res://scripts/game/v16_trio.gd")
 const PZ = preload("res://scripts/game/puzzles.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 
-var iters := 1500
+var iters := 600
+var only := -1
+var out_path := ""
 
 func evalu(s: Dictionary, ex: Array) -> Array:
 	# [分數, 星, 剩餘平均, 花費%]
@@ -47,8 +50,16 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--iters="):
 			iters = int(a.substr(8))
+		elif a.begins_with("--set="):
+			only = int(a.substr(6))
+		elif a.begins_with("--out="):
+			out_path = a.substr(6)
 	var d = JSON.parse_string(FileAccess.get_file_as_string("res://data/trio.json"))
-	for s in d["sets"]:
+	var res_lines: Array = []
+	for si in d["sets"].size():
+		if only >= 0 and si != only:
+			continue
+		var s: Dictionary = d["sets"][si]
 		s.erase("s2")
 		s.erase("s3")
 		var rng := RandomNumberGenerator.new()
@@ -79,8 +90,10 @@ func _init() -> void:
 			if int(bv[3]) > Trio.S3:
 				s["s3"] = int(bv[3])
 		print("TRIO3 %s stars=%d rem=%d spent=%d units=%d %s" % [s["id"], int(bv[1]), int(bv[2]), int(bv[3]), best.size(), "" if int(bv[1]) == 3 else "OVERRIDE"])
-	var f := FileAccess.open("res://data/trio.json", FileAccess.WRITE)
-	f.store_string(JSON.stringify(d, "\t", false))
-	f.close()
+		res_lines.append(JSON.stringify({"id": s["id"], "sol3": s["sol3"], "s2": s.get("s2", null), "s3": s.get("s3", null), "stars": int(bv[1]), "rem": int(bv[2]), "spent": int(bv[3])}))
+	if out_path != "":
+		var f := FileAccess.open(out_path, FileAccess.WRITE)
+		f.store_string("\n".join(res_lines) + "\n")
+		f.close()
 	print("TRIO3 done")
 	quit(0)

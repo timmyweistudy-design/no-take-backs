@@ -686,6 +686,8 @@ func _cx_portrait(pc: Vector2) -> void:
 		Art.calm = true
 		Art.look = float(spec[1]) * wgt
 	_cx_draw_unit(pc, face, atk, cx_fit(cx_unit), 0)
+	if has_method("codex_plaque") and not layout_probe:
+		call("codex_plaque", pc + Vector2(0, 10), cx_unit)   # V1.6.1 A1：腳下木牌刻熟練度＋戰功章
 	# 出手的遠程：箭／炸彈／法球／補血從手上飛出去（圖鑑也看得到「射出東西」，Antigravity v150-i1 #9）
 	if proj_fly(cx_unit) > 0 and ua >= 0.0 and ua < 0.7 and atk >= 0.3125:
 		var pk := clampf((atk - 0.3125) / 0.4, 0.0, 1.0)
