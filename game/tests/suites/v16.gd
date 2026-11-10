@@ -232,3 +232,17 @@ func test_career_v160() -> void:
 	CA.nb_result(nb, "p1", [[0, 1, 2]], 2, 40, 30)
 	CA.nb_result(nb, "p1", [[0, 1, 2]], 1, 90, 10)
 	ok(nb["p1"][0]["r"] == [2, 40, 30], "成績留最好的（星數優先）")
+
+func test_daily_board_v160() -> void:
+	var ST = load("res://scripts/game/steam.gd")
+	var us := [{"type": 2, "x": 1500, "y": 3500}, {"type": 13, "x": 5950, "y": 8500}]
+	var d: PackedInt32Array = ST.pack_free(us, 16000)
+	var back: Array = ST.unpack_free(d, 16000, 9000)
+	ok(back.size() == 2 and back[0] == {"type": 2, "x": 14500, "y": 3500} and back[1]["x"] == 10050, "自由座標打包後是紅方鏡像")
+	var bad := d.duplicate()
+	bad[2] = (25 << 22) | (300 << 11) | 70
+	ok(ST.unpack_free(bad, 16000, 9000).is_empty(), "兵種不合法整份不收")
+	var dup := PackedInt32Array([2, 2, d[2], d[2]])
+	ok(ST.unpack_free(dup, 16000, 9000).is_empty(), "重疊不收")
+	ok(ST.pack_free([{"type": 0, "col": 1, "row": 1}], 16000).is_empty(), "格子陣不走這條")
+	ok(ST.daily_score(72, 84) > ST.daily_score(72, 90) and ST.daily_score(73, 120) > ST.daily_score(72, 0), "分數：剩餘優先、再比花費")

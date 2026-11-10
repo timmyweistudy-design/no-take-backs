@@ -66,6 +66,16 @@
 5. **Remote Play Together**：本機多人遊戲官方會自動支援。商店頁勾選「Shared/Split Screen PvP」與「Remote Play Together」。要實測輪流操作（**【你】**找一位有 Steam 的朋友）。
 6. **Steam Input／手把**：遊戲已支援手把，用 Godot 的 Joypad。Deck 驗收要求圖示對應輸入裝置；目前提示文字寫「A／B／X」，接 Steam Input 後改成依裝置顯示。
 
+## B2. V1.6.0 要你在後台做的事（**【你】**，Claude 不能代做）
+1. **成就 31 個**：照上面 B-3 的表在後台建立（還沒有正式 AppID，所以一個都還沒建）。建好後跑一次 `--steam-test=<你的 AppID>`，它會逐一核對、缺哪個會列出來。
+2. **排行榜**：遊戲用 `findOrCreateLeaderboard` 自動建，不用手動建；但後台要允許「由遊戲建立排行榜」。名稱與規則：
+   - `weekly_<週數>`：每週棋盒，分數＝花費（**越小越前面**），附加資料＝格子陣（版本 1）。
+   - `daily_<UTC 日數>`：V1.6 每日挑戰，分數＝剩餘%×1000＋(999−花費)（**越大越前面**），附加資料＝自由座標陣（版本 2，紅方視角）。
+   - 附加資料最多 64 個 int（`set_leaderboard_details_max(64)`）。
+3. **商店頁網址**：拿到 AppID 後把 `game/scripts/game/steam.gd` 的 `STORE_URL` 填成 `https://store.steampowered.com/app/<AppID>/`。試玩版結尾畫面（V1.6 #1）與結果頁的「加入願望單」才會從「上架後開放」變成可按。
+4. **雲端存檔**：Auto-Cloud 規則照 B 節（`save.json`）；V1.6 新增的存檔欄位（`funnel`、`seen`、`mastery`、`notebook`、`daily_streak`、`daily_pend`、`rush_best`、`rift_best`）都在同一個 `save.json` 裡，不用改規則。
+5. 以上做完後，請 Claude 用 `--steam-test` 驗一次（不解鎖、不寫存檔）。
+
 ## C. 打包與上傳
 1. Claude：`godot --headless --path game --export-release "Windows Desktop" ../build/windows/NoTakeBacks.exe`。Linux 同理，匯出設定已寫在 `game/export_presets.cfg`。
 2. **【你】**：安裝 SteamCMD，用 `app_build.vdf` 上傳。範本：

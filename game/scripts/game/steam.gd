@@ -174,6 +174,60 @@ static func unpack_army(d: PackedInt32Array) -> Array:
 		out.append({"type": t, "col": c, "row": r})
 	return out
 
+## ── V1.6 #13 每日全球榜：每日挑戰是自由座標，另一種打包。紅方視角（上傳前就鏡像好），
+## 每隻＝type<<22 | (x/50)<<11 | (y/50)；版本 2。分數＝剩餘%×1000＋(999−花費)，越大越前面。
+const LB_FREE_VER := 2
+const FREE_MAX := 60
+
+static func pack_free(units: Array, fw: int) -> PackedInt32Array:
+	var out := PackedInt32Array([LB_FREE_VER, mini(units.size(), FREE_MAX)])
+	for i in mini(units.size(), FREE_MAX):
+		var u: Dictionary = units[i]
+		if not u.has("x"):
+			return PackedInt32Array()
+		out.append((int(u["type"]) << 22) | (((fw - int(u["x"])) / 50) << 11) | (int(u["y"]) / 50))
+	return out
+
+static func unpack_free(d: PackedInt32Array, fw: int, fh: int) -> Array:
+	var out: Array = []
+	if d.size() < 3 or d.size() > FREE_MAX + 2 or d[0] != LB_FREE_VER or d[1] != d.size() - 2:
+		return out
+	var seen := {}
+	for i in range(2, d.size()):
+		var v := int(d[i])
+		if v < 0:
+			return []
+		var t := v >> 22
+		var x := ((v >> 11) & 2047) * 50
+		var y := (v & 2047) * 50
+		if t >= 20 or x <= fw / 2 or x >= fw or y <= 0 or y >= fh or seen.has(x * 100000 + y):
+			return []   # 一律紅方半場、場內、不重疊
+		seen[x * 100000 + y] = true
+		out.append({"type": t, "x": x, "y": y})
+	return out
+
+static func daily_score(rem: int, spent: int) -> int:
+	return clampi(rem, 0, 100) * 1000 + (999 - clampi(spent, 0, 999))
+
+static func daily_upload(day: int, score: int, det: PackedInt32Array) -> void:
+	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
+		return
+	_wire()
+	var name := "daily_%d" % day
+	_lb_up[name] = [score, det]
+	_steam.findOrCreateLeaderboard(name, 2, 1)   # 2＝分數越大越前面
+
+static func daily_fetch(day: int, done: Callable) -> void:
+	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
+		done.call([])
+		return
+	_wire()
+	if _steam.has_method("set_leaderboard_details_max"):
+		_steam.set_leaderboard_details_max(64)
+	var name := "daily_%d" % day
+	_lb_get[name] = done
+	_steam.findLeaderboard(name)
+
 ## ── 請求管理：同一時間可能同時有「上傳每週成績」與「抓幽靈陣」，用排行榜名稱與 handle 對回自己的請求 ──
 static var _lb_up := {}      # 名稱 → [分數, details]
 static var _lb_get := {}     # 名稱 → done
@@ -216,23 +270,29 @@ static func _on_lb_found(handle: int, found: int) -> void:
 		_lb_up.erase(name)
 		_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
 	if _lb_get.has(name):
-		_lb_dl[handle] = _lb_get[name]
+		_lb_dl[handle] = [_lb_get[name], name.begins_with("daily_")]
 		_lb_get.erase(name)
 		_steam.downloadLeaderboardEntries(1, 20, 0, handle)   # 全球前 20 名（名次從 1 開始）
 
 static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
 	if not _lb_dl.has(handle):
 		return
-	var done: Callable = _lb_dl[handle]
+	var done: Callable = _lb_dl[handle][0]
+	var free: bool = _lb_dl[handle][1]
 	_lb_dl.erase(handle)
 	var out: Array = []
 	for e in result:
-		var units := unpack_army(PackedInt32Array(e.get("details", [])))
+		var det := PackedInt32Array(e.get("details", []))
+		var units := unpack_free(det, 16000, 9000) if free else unpack_army(det)
 		if not units.is_empty():
-			out.append({"name": str(e.get("steam_id", "")), "units": units})
+			out.append({"name": str(e.get("steam_id", "")), "units": units, "score": int(e.get("score", 0)), "rank": int(e.get("global_rank", 0))})
 	done.call(out)
 
 static func _on_lb_uploaded(success: bool, _handle: int, _this_score: Dictionary) -> void:
+	if success and _steam != null and str(_steam.getLeaderboardName(_handle)).begins_with("daily_"):
+		Save.data.erase("daily_pend")   # V1.6 #13
+		Save.save_data()
+		return
 	if success and Save.data.has("weekly"):
 		Save.data["weekly"]["pend"] = 0   # 送上去了：不用補送
 		Save.save_data()

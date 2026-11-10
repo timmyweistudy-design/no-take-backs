@@ -146,6 +146,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_rift()
 		"notebook":
 			_draw_notebook()
+		"daily_top":
+			_draw_daily_top()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -356,6 +358,14 @@ func _daily_finish(w: int) -> void:
 	Save.data["daily_streak"] = st
 	Save.save_data()
 	var rem: int = PZ.rem_pct(sim.power(0), sim.budget_of(0))
+	# #13 每日全球榜：贏了就準備上傳（有 Steam 才真的送；沒送成功留著，下次開每日時補送）
+	var det: PackedInt32Array = SteamApi.pack_free(last_armies[0].units, 16000)
+	if not det.is_empty():
+		var prev: Dictionary = Save.data.get("daily_pend", {})
+		var sc := SteamApi.daily_score(rem, armies[0].spent())
+		if int(prev.get("day", -1)) != day or sc > int(prev.get("score", 0)):
+			Save.data["daily_pend"] = {"day": day, "score": sc, "det": Array(det)}
+		_daily_sync()
 	sh_text = Share.daily_text(L, Time.get_date_string_from_unix_time(day * 86400), L.t("daily_mut_%d" % int(daily_spec["mut"])), rem, armies[0].spent(), armies[0].budget, int(sim.tick / 20), int(st["n"]))
 
 func _highlights() -> Array:
@@ -372,7 +382,7 @@ func _hl_go(t: int) -> void:
 func _draw_share() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
 	var hl := _highlights()
-	var rows := 1 + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0)
+	var rows := 1 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0)
 	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("sh_title")) + GAP_L
@@ -396,6 +406,9 @@ func _draw_share() -> void:
 		y += 56.0
 	if sh_text != "":
 		_btn(Rect2(400, y, 480, 48), L.t("sh_copy"), func(): DisplayServer.clipboard_set(sh_text); _toast(L.t("sh_copied")))
+		y += 56.0
+	if not (daily_spec as Dictionary).is_empty():
+		_btn(Rect2(400, y, 480, 48), L.t("dt_title"), func(): _daily_top_open())
 		y += 56.0
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
@@ -715,3 +728,59 @@ func _nb_del(i: int) -> void:
 		nb[puzzle_id] = lst
 		Save.data["notebook"] = nb
 		Save.save_data()
+
+## ── #13 每日全球榜＋挑戰高手陣 ──
+var dt_list: Array = []
+var dt_state := ""   # ""、"loading"、"done"、"off"
+
+func _daily_sync() -> void:
+	var p: Dictionary = Save.data.get("daily_pend", {})
+	if not p.is_empty() and SteamApi.available():
+		SteamApi.daily_upload(int(p["day"]), int(p["score"]), PackedInt32Array(p.get("det", [])))
+
+func _daily_top_open() -> void:
+	overlay = "daily_top"
+	_focus = 0
+	dt_list = []
+	if not SteamApi.available():
+		dt_state = "off"
+		return
+	dt_state = "loading"
+	SteamApi.daily_fetch(int(Daily.today()), func(lst: Array):
+		dt_list = lst.slice(0, 5)
+		dt_state = "done")
+
+func _daily_top_go(units: Array) -> void:
+	var sp: Dictionary = Daily.spec(Daily.today())
+	var r = Daily.make_rules(sp, RS.mask(false))
+	var e = Army.new(1, r.budget_of(1))
+	e.apply_rules(r, 1)
+	e.units = units.duplicate(true)
+	rules = r
+	set("challenge_army", e)
+	overlay = ""
+	_start_mode(Mode.VS_AI)   # 不設 daily_spec：打高手陣不算今天的每日成績
+
+func _draw_daily_top() -> void:
+	var body := ""
+	match dt_state:
+		"off":
+			body = L.t("dt_off")
+		"loading":
+			body = L.t("dt_loading")
+		_:
+			body = L.t("dt_none") if dt_list.is_empty() else ""
+	var rows := dt_list.size()
+	var P := modal_rect(640, 12.0 + h1_help_h(L.t("dt_help"), tz("S"), 560) + GAP_L + (text_h(body, tz("S"), 560) + GAP_L if body != "" else 0.0) + rows * 56.0 + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("dt_title"), L.t("dt_help"), tz("S"), 560)
+	if body != "":
+		_text(Vector2(640, y), body, tz("S"), TXT_DIM, true, false, 560)
+		y += text_h(body, tz("S"), 560) + GAP_L
+	for e in dt_list:
+		var sc := int(e.get("score", 0))
+		var lbl := L.t("dt_row", [int(e.get("rank", 0)), sc / 1000, 999 - sc % 1000])
+		var us: Array = e["units"]
+		_btn(Rect2(400, y, 480, 48), lbl, func(): _daily_top_go(us))
+		y += 56.0
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
