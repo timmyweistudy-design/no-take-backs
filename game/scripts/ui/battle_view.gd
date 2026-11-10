@@ -425,7 +425,7 @@ func _cmd_event(ev: Dictionary, with_fx: bool) -> void:
 		return
 	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
 	fx = fx.filter(func(f): return f.get("cmd_tm", -1) != tm)     # 一隊同時只留最新一條，不疊字
-	_fx_text(Vector2(400.0 if tm == 0 else 880.0, 128), "%s　%s" % [L.t("blue") if tm == 0 else L.t("red"), L.t("cmd_%d" % sk)], Art.team_color(tm, cbm()).lightened(0.25), 1.3, tz("H2"), true)
+	_fx_text(Vector2(400.0 if tm == 0 else 880.0, 128), "%s　%s" % [L.t("blue") if tm == 0 else L.t("red"), L.t("cmd_%d" % sk)], Art.team_color(tm, cbm()).lightened(0.45), 1.3, tz("H2"), true)   # V1.0.0：0.25 時紅方在動態戰場上對比偶爾 < 3
 	fx[-1]["cmd_tm"] = tm
 	if _fx_on("flash"):
 		_add_fx({"kind": "cmd_flash", "t": 0.0, "dur": 0.35, "screen": true, "c": Color("#7fd3ff") if sk == CmdD.FREEZE else (Color("#fff0b0") if sk != CmdD.METEOR else Color("#ff8a3c"))})
