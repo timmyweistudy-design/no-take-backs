@@ -80,9 +80,14 @@ func test_board_double_v161() -> void:
 	ST.daily_upload(100, 65000, PackedInt32Array([2, 1, 7]), 1)
 	fk.emit_signal("leaderboard_find_result", 9, 1)
 	ST.daily_upload(100, 70000, PackedInt32Array([2, 1, 7]), 1)
-	fk.emit_signal("leaderboard_find_result", 9, 1)
+	ok(fk.finds.size() == 4, "在途時又要送：先排隊、不重複找榜（Codex v161-i2 #1）", str(fk.finds))
 	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
-	ok(SV.data.has("daily_pend"), "同榜排隊：先到的是低分那筆，不清")
+	ok(SV.data.has("daily_pend") and fk.finds.size() == 5, "低分那筆回來：不清，接著送排隊的高分")
+	fk.emit_signal("leaderboard_find_result", 9, 1)
+	fk.emit_signal("leaderboard_score_uploaded", false, 9, {})
+	ok(SV.data.has("daily_pend"), "高分那筆失敗：留著")
+	ST.daily_upload(100, 70000, PackedInt32Array([2, 1, 7]), 1)
+	fk.emit_signal("leaderboard_find_result", 9, 1)
 	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
 	ok(not SV.data.has("daily_pend"), "高分那筆成功才清")
 	# 每週
@@ -96,6 +101,8 @@ func test_board_double_v161() -> void:
 	ST._steam = null
 	ST._lb_wired = false
 	ST._lb_sent = {}
+	ST._lb_busy = {}
+	ST._lb_next = {}
 	fk.free()
 	for f in DirAccess.get_files_at("user://"):
 		if f.begins_with("t161lb_"):
@@ -273,6 +280,9 @@ func test_rift_history_v161() -> void:
 		b["%d-v1" % w] = [w, 50]
 	var k: Dictionary = RF.keep_recent(b, 8)
 	ok(k.size() == 8 and k.has("111-v1") and not k.has("103-v1"), "裂隙紀錄留最近 8 週（A12）")
+	b["111-v2"] = [1, 1]
+	var k2: Dictionary = RF.keep_recent(b, 8)
+	ok(RF.weeks_of(k2).size() == 8 and k2.has("111-v1") and k2.has("111-v2") and k2.has("104-v1"), "同一週不同版本算同一週（Codex v161-i2 #4）")
 
 func test_rush_daily_v161() -> void:
 	var RU = load("res://scripts/game/v16_rush.gd")
@@ -319,7 +329,7 @@ func test_eff_games_seed_v161() -> void:
 	var G = load("res://scripts/game/v16_guide.gd")
 	var d := {"stats": {"games": 3}, "custom_stats": {"games": 2}, "tutorial": 3}
 	G.seed_eff(d)
-	ok(int(d["eff_games"]) == 2, "老玩家起點＝標準＋自訂−教學（Codex v161-i1 #11）")
+	ok(int(d["eff_games"]) == 5, "老玩家起點＝標準＋自訂（估計，見 ledger）")
 	d["eff_games"] = 9
 	G.seed_eff(d)
 	ok(int(d["eff_games"]) == 9, "已經有就不動")

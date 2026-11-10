@@ -98,9 +98,20 @@ static func key(wk: int) -> String:
 
 ## V1.6.1 A12：紀錄留最近 n 週（鍵＝「週-v版本」，依週數排序留最大的 n 個）
 static func keep_recent(best: Dictionary, n: int) -> Dictionary:
-	var ks: Array = best.keys()
-	ks.sort_custom(func(a, b): return int(str(a).get_slice("-", 0)) > int(str(b).get_slice("-", 0)))
+	var wks := weeks_of(best)
+	var keep: Array = wks.slice(0, n)
 	var out := {}
-	for i in mini(n, ks.size()):
-		out[ks[i]] = best[ks[i]]
+	for k in best:
+		if int(str(k).get_slice("-", 0)) in keep:
+			out[k] = best[k]   # 同一週不同版本（v1／v2）一起留（Codex v161-i2 #4：依週數保留）
+	return out
+
+## 紀錄裡有哪些週（不同版本算同一週），新的在前
+static func weeks_of(best: Dictionary) -> Array:
+	var w := {}
+	for k in best:
+		w[int(str(k).get_slice("-", 0))] = true
+	var out: Array = w.keys()
+	out.sort()
+	out.reverse()
 	return out

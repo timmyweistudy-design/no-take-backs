@@ -976,6 +976,7 @@ func _progress_restore(name: String) -> void:
 		return
 	var data: Dictionary = Save.migrate(d)
 	Save.sanitize_data(data)
+	Guide.seed_eff(data)   # V1.6.1：還原的舊備份沒有有效場數，照升級的規則補
 	if not _commit_data(data):
 		return
 	overlay = "settings"   # 還原後留在設定頁（Codex v151-i2）

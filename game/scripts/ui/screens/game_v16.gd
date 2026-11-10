@@ -986,8 +986,9 @@ func _draw_rift() -> void:
 	var b: Array = Save.data.get("rift_best", {}).get(Rift.key(Rift.week()), [])
 	var best := L.t("rf_best", [int(b[0]), int(b[1])]) if not b.is_empty() else L.t("rf_best_none")
 	var hist: Dictionary = Save.data.get("rift_best", {})
-	if hist.size() > 1 or (hist.size() == 1 and b.is_empty()):
-		best += "\n" + L.t("rf_hist", [hist.size(), RIFT_KEEP])   # V1.6.1 A12：近 8 週打過幾週
+	var nwk := Rift.weeks_of(hist).size()
+	if nwk > 1 or (nwk == 1 and b.is_empty()):
+		best += "\n" + L.t("rf_hist", [nwk, RIFT_KEEP])   # V1.6.1 A12：近 8 週打過幾週
 	var P := modal_rect(720, 12.0 + h1_help_h(L.t("rf_help"), tz("S"), 600) + GAP_L + text_h(body, tz("B"), 560) + GAP_M + text_h(best, tz("S"), 560) + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rift_open"), L.t("rf_help"), tz("S"), 600)
@@ -1022,6 +1023,11 @@ const Persona = preload("res://scripts/game/v16_persona.gd")
 
 func _ai_style() -> int:
 	return int(rules.ai_style) if rules != null else 0
+
+## V1.6.1（Codex v161-i2 #2）：回標題時，還在算的三考結果作廢（不再寫紀錄）
+func _go_title() -> void:
+	trio_job += 1
+	super._go_title()
 
 ## V1.6.1 A4：從清單點進來＝全新的嘗試（Codex v161-i1 #4）
 func _pick_puzzle(id: String, tut: bool) -> void:

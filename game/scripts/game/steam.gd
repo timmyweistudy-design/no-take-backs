@@ -225,8 +225,7 @@ static func daily_upload(day: int, score: int, det: PackedInt32Array, ver := 1) 
 		return
 	_wire()
 	var name := daily_board(day, ver)
-	_lb_up[name] = [score, det]
-	_steam.findOrCreateLeaderboard(name, 2, 1)   # 2＝分數越大越前面
+	_lb_queue(name, [score, det, 2])   # 2＝分數越大越前面
 
 static func daily_fetch(day: int, done: Callable, ver := 1) -> void:
 	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
@@ -243,6 +242,18 @@ static func daily_fetch(day: int, done: Callable, ver := 1) -> void:
 static var _lb_up := {}      # 名稱 → [分數, details]
 static var _lb_get := {}     # 名稱 → done
 static var _lb_dl := {}      # handle → done
+## V1.6.1（Codex v161-i2 #1）：每個榜同一時間只有一筆在途；在途時又要送，只留最新的一筆，等回呼後再送。
+## 這樣回呼一定對得上送出的那一筆（不靠 Steam 回呼順序）。
+static var _lb_busy := {}    # 榜名 → true（在途）
+static var _lb_next := {}    # 榜名 → [分數, details, 排序]（在途時排隊的最新一筆）
+static func _lb_queue(name: String, p: Array) -> void:
+	if _lb_busy.has(name):
+		_lb_next[name] = p
+		return
+	_lb_busy[name] = true
+	_lb_up[name] = p
+	_steam.findOrCreateLeaderboard(name, int(p[2]), 1)
+
 static var _lb_sent := {}    # V1.6.1 F2：handle → [[榜名, 送出的分數], …]（同一個榜可能連送兩次：照送出順序排隊，回呼一次取一筆；Codex v161-i1 #1）
 static var _lb_wired := false
 
@@ -259,8 +270,7 @@ static func weekly_upload(wk: int, score: int, det: PackedInt32Array) -> void:
 		return   # 沒有陣型資料（自由排兵）就不送，免得蓋掉原本帶陣型的紀錄
 	_wire()
 	var name := "weekly_%d" % wk
-	_lb_up[name] = [score, det]
-	_steam.findOrCreateLeaderboard(name, 1, 1)   # 1＝分數越小越前面、1＝顯示數字
+	_lb_queue(name, [score, det, 1])   # 1＝分數越小越前面、1＝顯示數字
 
 static func ghost_fetch(wk: int, done: Callable) -> void:
 	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
@@ -277,6 +287,10 @@ static func _on_lb_found(handle: int, found: int) -> void:
 	if _steam == null:
 		return
 	var name := str(_steam.getLeaderboardName(handle)) if found != 0 else ""
+	if found == 0:
+		_lb_busy.clear()   # 找不到榜（離線等）：在途全部作廢，下次開模式時照待送補送
+		_lb_next.clear()
+		_lb_up.clear()
 	if _lb_up.has(name):
 		var p: Array = _lb_up[name]
 		_lb_up.erase(name)
@@ -310,10 +324,14 @@ static func _on_lb_uploaded(success: bool, handle: int, _this_score: Dictionary)
 	var sent: Array = q.pop_front()
 	if q.is_empty():
 		_lb_sent.erase(handle)
-	if not success:
-		return
-	if clear_pending(Save.data, str(sent[0]), int(sent[1])):
+	var nm := str(sent[0])
+	_lb_busy.erase(nm)
+	if success and clear_pending(Save.data, nm, int(sent[1])):
 		Save.save_data()
+	if _lb_next.has(nm):
+		var nx: Array = _lb_next[nm]
+		_lb_next.erase(nm)
+		_lb_queue(nm, nx)   # 在途時排隊的那一筆，現在送
 
 ## V1.6.1 F2（Codex v161d r2）：送出到回呼之間可能又打出更好的成績（待送被換掉）。
 ## 只有待送的榜名與分數都和送出的那一筆相同才清；回傳有沒有清。純函式（測試用）。

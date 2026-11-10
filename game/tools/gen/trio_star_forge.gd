@@ -87,8 +87,9 @@ func _init() -> void:
 		if int(bv[1]) < 3:
 			if int(bv[2]) < Trio.S2:
 				s["s2"] = int(bv[2])
-			if int(bv[3]) > Trio.S3:
-				s["s3"] = int(bv[3])
+			var sp_raw: int = int(Trio.results(s, best)[0]["spent"])
+			if sp_raw * 100 > Trio.S3 * int(s["budget"]):
+				s["s3"] = ceili(sp_raw * 100.0 / int(s["budget"]))   # Codex v161-i2 #5：往上取整（和 stars() 的交叉相乘一致）；最後再跑 trio_stars.gd 驗證
 		print("TRIO3 %s stars=%d rem=%d spent=%d units=%d %s" % [s["id"], int(bv[1]), int(bv[2]), int(bv[3]), best.size(), "" if int(bv[1]) == 3 else "OVERRIDE"])
 		res_lines.append(JSON.stringify({"id": s["id"], "sol3": s["sol3"], "s2": s.get("s2", null), "s3": s.get("s3", null), "stars": int(bv[1]), "rem": int(bv[2]), "spent": int(bv[3])}))
 	if out_path != "":
