@@ -80,8 +80,8 @@ static func is_prefix(p: int) -> bool:
 static func badge(r, kind: String) -> String:
 	if r.is_sandbox():
 		return BADGE_LAB
-	if r.cmd_on():
-		return BADGE_FUN    # 第十二輪：手動技能沒有平衡認證
+	if r.cmd_on() or r.adj:
+		return BADGE_FUN    # 第十二輪：手動技能沒有平衡認證；V1.6 #22 相鄰陣法也是
 	var base: bool = r.budget_of(0) == 100 and r.budget_of(1) == 100 and r.unit_cap == 24 and r.type_cap == 0 and r.ticks == 1800
 	# 第六輪：部署也要是驗過的——格子，或自由＋預設的間距與縱深；全場一律算娛樂變體
 	base = base and deploy_certified(r)

@@ -276,6 +276,7 @@ func _v16_place_draw() -> void:
 				_chalk_arrow(sp, sp + dir * 0.7 * CS)
 	_tv_draw_marks_place(a)
 	_fog_draw()
+	_adj_draw(a)
 
 func _chalk_arrow(a: Vector2, b: Vector2) -> void:
 	draw_line(a, b, Color(1, 1, 1, 0.55), 2.0, true)
@@ -1022,3 +1023,26 @@ func _coop_hud() -> void:
 		var r := Rect2(16, 96, w, tz("S") * 1.6)
 		_tex_box(r, "wood", Color(0.2, 0.32, 0.5) if coop_player(gauntlet_stage) == 1 else Color(0.45, 0.22, 0.2))
 		_text(r.position + Vector2(12, tz("S") * 0.25), s, tz("S"), Color.WHITE, false, true, w)
+
+## ── #22 相鄰陣法：擺陣時把會拿到加成的相鄰組合用粉筆線連起來 ──
+const Adj = preload("res://scripts/core/adj_defs.gd")
+
+static func adj_links(units: Array, pos_of: Callable) -> Array:
+	var out: Array = []
+	for i in units.size():
+		for p in Adj.PAIRS:
+			if int(units[i]["type"]) != int(p[0]):
+				continue
+			var a: Vector2i = pos_of.call(units[i])
+			for j in units.size():
+				if i != j and int(units[j]["type"]) == int(p[1]):
+					var b: Vector2i = pos_of.call(units[j])
+					if (b - a).length_squared() <= Adj.RANGE * Adj.RANGE:
+						out.append([a, b])
+	return out
+
+func _adj_draw(a) -> void:
+	if rules == null or not rules.adj:
+		return
+	for l in adj_links(a.units, func(u): return a.pos_of(u)):
+		_chalk_line(_foot_of(l[0]) - Vector2(0, 0.3 * CS), _foot_of(l[1]) - Vector2(0, 0.3 * CS), Color(1, 0.85, 0.3, 0.8), 2.5)

@@ -16,6 +16,7 @@ const CODE_PREFIX := "NTBR1"
 const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
 const CODE_PREFIX5 := "NTBR5"   # 第十二輪：有手動技能（NTBR4 的欄位再加 5 欄）
 const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
+const CODE_PREFIX6 := "NTBR6"   # V1.6 #22：相鄰陣法（NTBR5 的 29 欄＋1 欄 adj；技能可以是關的）
 const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
 # 第六輪：自由排兵（docs/2026-11-03-free-placement-plan-v6.md §3）
 const DEPLOYS := ["grid", "free"]
@@ -68,6 +69,7 @@ var cmd_mask := [0, 0]         # 雙方帶哪幾種；都 0＝關閉
 var cmd_uses := 1              # 每種可用次數
 var cmd_cd := 400              # 同一種的冷卻（tick）
 var cmd_power := 100           # 效果強度 %
+var adj := false               # V1.6 #22 相鄰陣法（娛樂）：開戰時相鄰的指定組合拿小加成；關＝舊路徑
 # ── 系列 ──
 var rounds := 3
 var place_rule := "snake5"
@@ -178,6 +180,7 @@ func copy():
 	r.cmd_uses = cmd_uses
 	r.cmd_cd = cmd_cd
 	r.cmd_power = cmd_power
+	r.adj = adj
 	r.preset = preset
 	return r
 
@@ -202,7 +205,7 @@ func judge() -> int:
 
 ## 模擬是否走舊路徑（雜湊位元組和 1.3.0 相同）。
 func sim_is_legacy() -> bool:
-	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid" and map_is_default() and not cmd_on()
+	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid" and map_is_default() and not cmd_on() and not adj
 
 func cmd_on() -> bool:
 	return int(cmd_mask[0]) != 0 or int(cmd_mask[1]) != 0
@@ -393,6 +396,8 @@ func sim_digest() -> String:
 		base.append_array(["cmd", cmd_mask[0], cmd_mask[1], cmd_uses, cmd_cd, cmd_power])
 	if deploy == "free":
 		base.append_array(["free", spacing, depth, fullfield])   # 第六輪：自由部署進模擬摘要（格子部署時摘要不變）
+	if adj:
+		base.append_array(["adj", 1])   # V1.6 #22（關的時候摘要不變）
 	return JSON.stringify(base).sha256_text().substr(0, 16)
 
 func equals(o) -> bool:
@@ -433,6 +438,8 @@ func diff(std) -> Array:
 		out.append(["rr_full", std.fullfield, fullfield])
 	if cmd_on():
 		out.append(["rr_cmd", 0, 1])
+	if adj:
+		out.append(["rr_adj", 0, 1])
 	return out
 
 # ───────── 代碼 ─────────
@@ -440,6 +447,10 @@ func diff(std) -> Array:
 func to_code() -> String:
 	var j := JSON.stringify(key_fields())
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	if adj:
+		var j6 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power, 1])
+		var b6 := Marshalls.utf8_to_base64(j6).replace("+", "-").replace("/", "_").replace("=", "")
+		return "%s.%s.%s" % [CODE_PREFIX6, b6, b6.sha256_text().substr(0, 6)]
 	if cmd_on():
 		var j5 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power])
 		var b5 := Marshalls.utf8_to_base64(j5).replace("+", "-").replace("/", "_").replace("=", "")
@@ -470,9 +481,10 @@ static func from_code(code: String) -> Dictionary:
 	if c.length() > 2000:
 		return {"ok": false, "why": "rr_code_long"}
 	var parts := c.split(".")
-	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX5 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4):
+	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX5 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4 and parts[0] != CODE_PREFIX6):
 		return {"ok": false, "why": "rr_code_format"}
-	var v5: bool = parts[0] == CODE_PREFIX5
+	var v6: bool = parts[0] == CODE_PREFIX6
+	var v5: bool = parts[0] == CODE_PREFIX5 or v6
 	var v4: bool = parts[0] == CODE_PREFIX4 or v5
 	var v3: bool = parts[0] == CODE_PREFIX3 or v4
 	var v2: bool = parts[0] == CODE_PREFIX2 or v3
@@ -482,8 +494,12 @@ static func from_code(code: String) -> Dictionary:
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Array or j.size() != (29 if v5 else (24 if v4 else (21 if v2 else 17))):
+	if not j is Array or j.size() != (30 if v6 else (29 if v5 else (24 if v4 else (21 if v2 else 17)))):
 		return {"ok": false, "why": "rr_code_body"}
+	if v6:
+		if not (j[29] is float or j[29] is int) or int(j[29]) != 1:
+			return {"ok": false, "why": "rr_code_body"}   # NTBR6 一定是相鄰陣法開著
+		j = j.slice(0, 29)
 	var cmd_f: Array = []
 	if v5:
 		cmd_f = j.slice(24)
@@ -564,8 +580,9 @@ static func from_code(code: String) -> Dictionary:
 		r.cmd_uses = int(cmd_f[2])
 		r.cmd_cd = int(cmd_f[3])
 		r.cmd_power = int(cmd_f[4])
-		if not r.cmd_on():
+		if not r.cmd_on() and not v6:
 			return {"ok": false, "why": "rr_code_body"}   # 沒開技能不能用 NTBR5（一組規則只有一種寫法）
+	r.adj = v6
 	r.preset = "custom"
 	var bad: Array = r.validate()
 	if not bad.is_empty():

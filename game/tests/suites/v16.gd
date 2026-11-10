@@ -306,3 +306,58 @@ func test_coop_v160() -> void:
 	ok(int(SV.sanitize_run(run)["coop"]) == 0, "舊續局沒有這欄＝單人")
 	run["coop"] = "x"
 	ok(int(SV.sanitize_run(run)["coop"]) == 0, "型別不對＝單人")
+
+func test_adjacency_v160() -> void:
+	var RSx = load("res://scripts/core/ruleset.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var a = Armyx.new(0, 100)
+	a.place(1, 5, 4)
+	a.place(2, 4, 4)
+	a.place(0, 5, 5)
+	a.place(2, 1, 0)
+	var e = Armyx.new(1, 100)
+	e.place(1, 10, 4)
+	e.place(2, 11, 4)
+	var r = RSx.standard()
+	var s0 = Simx.new(a.copy(), e.copy(), r)
+	r.adj = true
+	var s1 = Simx.new(a.copy(), e.copy(), r)
+	ok(s0.adj_n == 0 and s1.adj_n == 3, "相鄰加成：藍弓、藍劍、紅弓共 3 筆（實得 %d）" % s1.adj_n)
+	var arch_far = null
+	var arch_near = null
+	for u in s1.units:
+		if u.team == 0 and u.type == 2:
+			if u.x == 4500:
+				arch_near = u
+			else:
+				arch_far = u
+	ok(arch_near.atk > arch_far.atk, "盾旁的弓箭手攻擊較高、遠的沒有")
+	# 舊路徑不變：關的時候和沒有這個欄位一樣
+	r.adj = false
+	ok(r.sim_is_legacy() and RSx.standard().sim_digest() == r.sim_digest(), "關閉時走舊路徑、摘要不變")
+	# 代碼：NTBR6 來回
+	r.adj = true
+	var c: String = r.to_code()
+	var back: Dictionary = RSx.from_code(c)
+	ok(c.begins_with("NTBR6.") and bool(back["ok"]) and back["rules"].adj and back["rules"].to_code() == c, "NTBR6 來回一致")
+	r.adj = false
+	ok(not r.to_code().begins_with("NTBR6"), "關的時候不用 NTBR6")
+	# 鏡像：交換兩邊得到同樣的加成筆數
+	var s2 = Simx.new(e.mirrored(), a.mirrored(), RSx.from_code(c)["rules"])
+	ok(s2.adj_n == s1.adj_n, "左右交換加成一樣")
+
+func test_adjacency_code_v160() -> void:
+	var RSx = load("res://scripts/core/ruleset.gd")
+	var BC = load("res://scripts/game/battle_code.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var r = RSx.standard()
+	r.adj = true
+	var a = Armyx.new(0, 100)
+	a.place(1, 5, 4)
+	a.place(2, 4, 4)
+	var e = Armyx.new(1, 100)
+	e.place(0, 10, 4)
+	var c: String = BC.encode(a, e, r)
+	var d: Dictionary = BC.decode(c)
+	ok(bool(d.get("ok", false)) and d["rules"] != null and d["rules"].adj, "對戰代碼帶著相鄰陣法")

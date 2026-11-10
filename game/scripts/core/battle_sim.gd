@@ -100,6 +100,7 @@ class Unit:
 	var arm_hp := 0            # 前臂部位血量（0＝斷了，不再橫掃）
 	var plate_hp := 0          # 背甲部位血量（0＝碎了，不再分攤傷害）
 
+var adj_n := 0   # V1.6 #22：這場有幾筆相鄰加成（畫面提示用）
 var units: Array[Unit] = []    # 依 id 排序
 var tick := 0
 var budget := 100
@@ -264,6 +265,8 @@ func _init(army0, army1, p_rules = null) -> void:
 			n.hcd = D.HEAL_FIRST
 		n.slot = int(r[4]) if free else int(u["row"]) * COLS + (int(u["col"]) if n.team == 0 else COLS - 1 - int(u["col"]))
 		units.append(n)
+	if rules != null and rules.adj:
+		adj_n = load("res://scripts/core/adj_defs.gd").apply(units)   # V1.6 #22 相鄰陣法（關的時候不跑）
 	for u0 in units:
 		if u0.type >= D.COUNT:
 			v8 = true

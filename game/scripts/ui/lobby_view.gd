@@ -364,6 +364,8 @@ func _lobby_adj(id: String, d: int) -> void:
 			r.ai_level = clampi(r.ai_level + d, 0, 1 if _demo() else 2)
 		"keep":
 			r.keep_formation = not r.keep_formation
+		"adj":
+			r.adj = not r.adj   # V1.6 #22 相鄰陣法
 		"deploy":
 			# 第六輪：格子／自由；切到格子時部署欄位回到舊值（NTBR1）
 			if r.deploy == "grid":
@@ -904,7 +906,7 @@ func _diff_text(d: Array) -> String:
 			return "%s %s→%s" % [L.t(k), L.t("lb_deploy_short_" + str(d[1])), L.t("lb_deploy_short_" + str(d[2]))]
 		"rr_spacing", "rr_depth":
 			return "%s %.2f→%.2f" % [L.t(k), int(d[1]) / 1000.0, int(d[2]) / 1000.0]
-		"rr_full", "rr_cmd":
+		"rr_full", "rr_cmd", "rr_adj":
 			return "%s %s" % [L.t(k), L.t("on") if int(d[2]) != 0 else L.t("off")]
 		"rr_pool", "rr_ai_pool":
 			# 第八輪：奇幻軍和標準一樣 10 種，寫「10→10」看不出差別
@@ -991,6 +993,8 @@ func _draw_lobby_detail(R: Rect2) -> void:
 			if lobby_r.deploy == "free":
 				rows2.append(["map_mode", L.t("lb_map_mode"), L.t("map_mode_%d" % lobby_r.map_mode)])
 			rows2.append(["time_of", L.t("lb_time_of"), L.t("time_of_%d" % lobby_r.time_of)])
+			if rows2.size() < 8:
+				rows2.append(["adj", L.t("lb_adj"), L.t("on") if lobby_r.adj else L.t("off")])   # V1.6 #22（娛樂）
 			_rows(L0, rows2)
 		4:
 			_rows(L0, [["ai_level", L.t("lb_ai_level"), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])],
