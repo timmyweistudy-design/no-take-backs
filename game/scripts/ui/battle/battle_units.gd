@@ -522,7 +522,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			_goal_marker(p0, "protect" if int(gm[0]) == -2 else str(gm[1]))   # 第十三輪：要護送／斬首的那一隻；V1.1：不能倒的那種兵每隻都標
 			if u.team == 0 and u.hp * 100 <= u.max_hp * 30 and not rfx:
 				# V1.6.1 A2：要保住的兵殘血時框閃紅（白黑雙邊，色盲也看得出）
-				var fl := 0.5 + 0.5 * sin(time * 12.0)
+				var fl := 0.55 + 0.45 * sin(time * 6.0)   # 約 1 Hz 呼吸（Antigravity v161-i1：原本約 2 Hz 太累）
 				_hand_ring(p0 + Vector2(0, -20) * UNIT_SCALE, 31.0 * UNIT_SCALE, Color(0, 0, 0, 0.5 * fl), 4.0)
 				_hand_ring(p0 + Vector2(0, -20) * UNIT_SCALE, 30.0 * UNIT_SCALE, Color(1.0, 0.25, 0.2, fl), 2.5)
 		if live and s.rally[u.team] and not s.finished:

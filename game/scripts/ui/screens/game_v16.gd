@@ -376,8 +376,8 @@ func _lock_arc(a: Vector2, b: Vector2) -> void:
 		var t1 := float(k + 1) / n
 		var p0 := a.lerp(mid, t0).lerp(mid.lerp(b, t0), t0)
 		var p1 := a.lerp(mid, t1).lerp(mid.lerp(b, t1), t1)
-		draw_line(p0, p1, Color(0, 0, 0, 0.55), 4.0 if cb else 3.0, true)
-		draw_line(p0, p1, Color(1, 0.95, 0.8, 0.85 if cb else 0.6), 2.0 if cb else 1.4, true)
+		draw_line(p0, p1, Color(0, 0, 0, 0.45), 4.0 if cb else 3.0, true)
+		draw_line(p0, p1, Color(1, 0.95, 0.8, 0.8 if cb else 0.5), 2.0 if cb else 1.4, true)   # 兵多時不搶戲（Antigravity v161-i1 #5）
 	draw_circle(b, 4.0, Color(0, 0, 0, 0.6))
 	draw_circle(b, 2.6, Color(1, 0.95, 0.8, 0.9))
 
