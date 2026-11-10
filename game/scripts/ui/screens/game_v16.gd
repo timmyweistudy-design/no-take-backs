@@ -362,11 +362,26 @@ func _hold_tick(delta: float) -> void:
 		hold_t = 0.0
 		return
 	var down: bool = (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and confirm_ok_r.has_point(mouse)) \
-		or (_focus == 0 and (Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A)))
+		or (_focus == 0 and hold_keys_down(Save.s("keys"), Save.s("pad")))
 	hold_t = hold_t + delta if down else 0.0
 	if hold_t >= HOLD_SEC:
 		hold_t = 0.0
+		if pad_mode and int(Save.s("rumble")) > 0:
+			Input.start_joy_vibration(last_joy, 0.2, 0.5 * int(Save.s("rumble")) / 100.0, 0.12)   # 確定的那一下輕震
 		call("_confirm_go")
+
+## V1.6.1 F4：按住確認看「改鍵後」的放置／開始鍵，任何一支手把的放置鈕（原本寫死 Enter、Space、0 號手把 A）
+static func hold_keys_down(keys, pad) -> bool:
+	var kt: Dictionary = keys if keys is Dictionary else {}
+	var pt: Dictionary = pad if pad is Dictionary else {}
+	for act in ["place", "start"]:
+		if Input.is_key_pressed(Keymap.key_of(kt, act)):
+			return true
+	var pb := int(pt.get("place", JOY_BUTTON_A))
+	for dev in Input.get_connected_joypads():
+		if Input.is_joy_button_pressed(dev, pb):
+			return true
+	return false
 
 ## 放大鏡：游標指到的介面字，在游標旁邊放大 1.8 倍畫一份（不改版面）
 func _draw_magnifier() -> void:
@@ -376,7 +391,8 @@ func _draw_magnifier() -> void:
 	var sz := mini(44, int(int(mag_hit[1]) * 1.8))
 	var w := minf(_width(s, sz, bool(mag_hit[2])), 1180.0) + 28.0
 	var h := sz * 1.5
-	var at := Vector2(clampf(mouse.x - w / 2, 8, 1272 - w), mouse.y + 28 if mouse.y < 600 else mouse.y - 28 - h)
+	var mp := mag_point()
+	var at := Vector2(clampf(mp.x - w / 2, 8, 1272 - w), mp.y + 28 if mp.y < 600 else mp.y - 28 - h)
 	draw_rect(Rect2(at, Vector2(w, h)), Color(0.04, 0.05, 0.08, 0.96))
 	draw_rect(Rect2(at, Vector2(w, h)), ACCENT, false, 2.0)
 	var keep := mag_on
@@ -1068,22 +1084,33 @@ func _fog_start() -> void:
 	ai_prebuilt = true
 
 static func fog_seen(units: Array) -> Array:
-	var lst: Array = units.filter(func(u): return u.has("col"))
-	lst.sort_custom(func(a, b): return int(a["col"]) * 16 + int(a["row"]) < int(b["col"]) * 16 + int(b["row"]))
+	# V1.6.1 F3：自由座標（每日、自由排兵）也要露：依 x、再依 y 排序後同樣每 3 隻露 1 隻（不是探測半徑，畫面不畫範圍圈）
+	var lst: Array = units.filter(func(u): return u.has("col") or u.has("x"))
+	lst.sort_custom(func(a, b): return _fog_key(a) < _fog_key(b))
 	var out: Array = []
 	for i in lst.size():
 		if i % FOG_EVERY == 0:
 			out.append(lst[i])
 	return out
 
+static func _fog_key(u: Dictionary) -> int:
+	if u.has("col"):
+		return (int(u["col"]) * 1000 + 500) * 100000 + int(u["row"]) * 1000 + 500
+	return int(u["x"]) * 100000 + int(u["y"])
+
 func _fog_draw() -> void:
 	if not fog_on or state != St.PLACE or mode != Mode.VS_AI or armies.size() < 2 or armies[1] == null:
 		return
-	for u in fog_seen(armies[1].units):
-		var p := ORIGIN + Vector2(int(u["col"]) + 0.5, int(u["row"]) + 0.82) * CS
+	var seen := fog_seen(armies[1].units)
+	for u in seen:
+		var p := ORIGIN + Vector2(int(u["col"]) + 0.5, int(u["row"]) + 0.82) * CS if u.has("col") else _foot_of(Vector2i(int(u["x"]), int(u["y"])))
+		# 斥候照亮：腳下一圈暖光＋白黑雙色細框（色盲、高對比也分得出是「看到的」）
+		draw_circle(p - Vector2(0, 0.2 * CS), 0.55 * CS, Color(1, 0.92, 0.6, 0.16))
+		draw_arc(p - Vector2(0, 0.2 * CS), 0.55 * CS + 1.5, 0, TAU, 32, Color(0, 0, 0, 0.55), 2.5)
+		draw_arc(p - Vector2(0, 0.2 * CS), 0.55 * CS, 0, TAU, 32, Color(1, 1, 1, 0.8 if bool(Save.s("colorblind")) else 0.55), 1.2)
 		Art.ring(self, p, 1, int(u["type"]), cbm(), 1.0)
 		Art.unit(self, p, int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.0, cbm())
-	var lbl := L.t("fog_scout", [fog_seen(armies[1].units).size(), armies[1].units.size()])
+	var lbl := L.t("fog_scout", [seen.size(), armies[1].units.size()])
 	_text(ORIGIN + Vector2(13 * CS, 18), lbl, ts(15), Color(1, 0.9, 0.6), true, true, 5.5 * CS)
 
 ## ── #21 雙人接力遠征：同一台電腦，兩人輪流負責一站（奇數站玩家 1、偶數站玩家 2），事件也由剛打完的人選 ──

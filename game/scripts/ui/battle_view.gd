@@ -478,6 +478,15 @@ func _draw_cmd_bar() -> void:
 				var frac: float = clampf(float(wait) / maxf(1.0, phase_len), 0.0, 1.0)
 				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
 
+## V1.6.1 F4（Antigravity v161d r3）：擊倒時手把短震（只在用手把、震動設定開著；0.25 秒內只震一次，大混戰不會一直震）
+var kill_rumble_t := -9.0
+func _kill_rumble() -> void:
+	if not pad_mode or int(Save.s("rumble")) <= 0 or time - kill_rumble_t < 0.25:
+		return
+	kill_rumble_t = time
+	var rk := int(Save.s("rumble")) / 100.0
+	Input.start_joy_vibration(last_joy, 0.12 * rk, 0.22 * rk, 0.06)
+
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var k: String = ev["kind"]
 	if ev.has("src") and ev.has("tgt"):
@@ -510,6 +519,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		if with_fx:
 			sfx.play_unit("death", 0.7, u.type)   # V1.3.1：倒下的聲音依兵種音高
 			sfx.play_unit("wood_topple", 0.45, u.type)   # V1.6 #14：木座倒地彈兩下
+			_kill_rumble()
 			_death_extra(u)
 			# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
 			if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):

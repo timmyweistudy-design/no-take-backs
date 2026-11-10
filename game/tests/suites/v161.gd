@@ -106,3 +106,26 @@ class FakeLB extends Node:
 	func getLeaderboardName(h): return names.get(h, "")
 	func uploadLeaderboardScore(sc, _keep, det, h): ups.append([sc, det, h])
 	func downloadLeaderboardEntries(_a, _b, _c, _h): pass
+
+func test_fog_free_v161() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var us := [{"type": 0, "x": 10500, "y": 1500}, {"type": 1, "x": 11500, "y": 2500}, {"type": 2, "x": 14500, "y": 3500}, {"type": 2, "x": 12500, "y": 3500}]
+	var seen: Array = G.fog_seen(us)
+	ok(seen.size() == 2 and int(seen[0]["x"]) == 10500 and int(seen[1]["x"]) == 14500, "自由座標也露（F3），和格子同樣的順序規則")
+
+func test_hold_rebind_v161() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var ev := InputEventKey.new()
+	ev.keycode = KEY_K
+	ev.physical_keycode = KEY_K
+	ev.pressed = true
+	Input.use_accumulated_input = false
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
+	ok(G.hold_keys_down({"place": KEY_K}, {}), "按住確認認得改過的放置鍵（F4）")
+	ok(not G.hold_keys_down({}, {}), "沒改鍵時 K 不算")
+	ev.pressed = false
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
+	Input.use_accumulated_input = true
+	ok(not G.hold_keys_down({"place": KEY_K}, {}), "放開就停")

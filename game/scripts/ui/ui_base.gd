@@ -600,6 +600,32 @@ func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
 	return n * size * line_h(n)
 
 
+## V1.6.1 A8：焦點框平滑移動
+const FOCUS_GLIDE := 0.08
+var fg_from := Rect2()
+var fg_to := Rect2()
+var fg_at := -9.0
+func _focus_glide(rd: Rect2) -> Rect2:
+	if layout_probe or not bool(get("pad_mode")) or bool(Save.s("reduce_motion")):
+		fg_to = rd
+		fg_at = -9.0
+		return rd
+	if not rd.is_equal_approx(fg_to):
+		var quick := time - fg_at < 0.15   # 連續撥動：直接跳，不黏
+		fg_from = rd if (quick or fg_to.size == Vector2.ZERO) else _glide_now()
+		fg_to = rd
+		fg_at = time
+	return _glide_now()
+
+func _glide_now() -> Rect2:
+	var k := clampf((time - fg_at) / FOCUS_GLIDE, 0.0, 1.0)
+	k = 1.0 - (1.0 - k) * (1.0 - k)
+	return Rect2(fg_from.position.lerp(fg_to.position, k), fg_from.size.lerp(fg_to.size, k))
+
+var mag_focus := Vector2(-1, -1)   # V1.6.1 F4：手把模式時放大鏡跟著焦點按鈕（不用另外的鍵，不和 L3 提示衝突）
+func mag_point() -> Vector2:
+	return mag_focus if bool(get("pad_mode")) else get("mouse")
+
 var mag_on := false      # V1.6 #7 文字放大鏡：這一幀游標指到的介面字
 var mag_hit: Array = []
 func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
@@ -616,7 +642,7 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
 		if mag_on and _probe_ui and size < 26 and c.a > 0.3:
 			var mw := w if center else fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).has_point(get("mouse")):
+			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).grow(4.0 if bool(get("pad_mode")) else 0.0).has_point(mag_point()):
 				mag_hit = [lines[i], size, bold]
 		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
 		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
@@ -743,6 +769,9 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		_btn_shine(rd)
 	if btn_deco.is_valid():
 		btn_deco.call(rd)
+	if focus:
+		rd = _focus_glide(rd)   # V1.6.1 A8：手把焦點框滑過去（0.08 秒；連續撥動、減少動態、版面檢查時直接跳）
+		mag_focus = r.get_center()
 	if (focus or hover) and enabled and not plain_ui_now():
 		# V1.2.1 R2：滑鼠懸停與手把焦點同一種樣式：深邊＋金亮邊（深邊讓金框在紙上也看得到，Codex v121-r2）
 		_box(rd.grow(2.5), Color(0, 0, 0, 0), Color(INK, 0.7), 9.0, 1.5)
