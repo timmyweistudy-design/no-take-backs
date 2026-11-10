@@ -358,7 +358,10 @@ static func sanitize_v16(out: Dictionary) -> void:
 					us.append(iu)
 				if okk:
 					var rr := _int_list(e.get("r", []), 3)
-					l2.append({"n": str(e["n"]).substr(0, 24), "u": us, "r": rr if rr.size() == 3 else []})   # 成績要剛好 3 個數（Codex v160-i2 C1）
+					var e2 := {"n": str(e["n"]).substr(0, 24), "u": us, "r": rr if rr.size() == 3 else []}   # 成績要剛好 3 個數（Codex v160-i2 C1）
+					if e.get("h") is String and str(e["h"]).length() <= 32:
+						e2["h"] = str(e["h"])   # V1.6.1 F1：工坊／三考的題目內容雜湊
+					l2.append(e2)
 			nb2[str(pid)] = l2
 	out["notebook"] = nb2
 	for k in ["daily_streak"]:
@@ -373,7 +376,7 @@ static func sanitize_v16(out: Dictionary) -> void:
 	if not (dp is Dictionary and _is_num(dp.get("day")) and _is_num(dp.get("score")) and dp.get("det") is Array):
 		out.erase("daily_pend")
 	else:
-		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62)}
+		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62), "ver": clampi(int(dp["ver"]), 1, 999) if _is_num(dp.get("ver")) else 1}
 	out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
 	for k2 in ["rift_best", "trio_clear"]:
 		var d = out.get(k2, {})

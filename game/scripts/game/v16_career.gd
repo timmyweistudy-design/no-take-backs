@@ -49,21 +49,61 @@ static func units_of(a) -> Array:
 	out.sort()
 	return out
 
-static func nb_save(nb: Dictionary, pid: String, name: String, units: Array) -> bool:
+## V1.6.1 F1：工坊、出題台、一陣三考的 puzzle_id 都是 "ws"，實驗簿要用題目內容當鍵。
+## 回傳 [短鍵（存檔鍵長上限 24）, 完整雜湊（方案旁另存，讀取時比對，撞鍵就當不同題）]。一陣三考的題組是固定資料，用題組 id。
+const TEXT_KEYS := ["id", "ch", "zh", "en", "sc", "ja", "hint_zh", "hint_en", "hint_sc", "hint_ja", "best", "star2", "star3"]
+static func ws_key(pz: Dictionary) -> Array:
+	if pz.has("trio"):
+		var tk := "q" + str(pz["trio"]).substr(0, 20)
+		return [tk, tk]
+	var c := {}
+	for k in pz:
+		if str(k) in TEXT_KEYS:
+			continue
+		var v = pz[k]
+		if v is Array:
+			var a: Array = v.duplicate(true)
+			a.sort()   # 同一題、兵的順序不同也算同一題
+			v = a
+		c[str(k)] = v
+	var full := JSON.stringify(c, "", true).md5_text()
+	return ["w" + full.substr(0, 12), full]
+
+## 某題的方案清單（有 h 的要和這題的完整雜湊相同）
+static func nb_list(nb: Dictionary, pid: String, h := "") -> Array:
+	var out: Array = []
+	for e in nb.get(pid, []):
+		if h == "" or str(e.get("h", h)) == h:
+			out.append(e)
+	return out
+
+static func nb_save(nb: Dictionary, pid: String, name: String, units: Array, h := "") -> bool:
 	var lst: Array = nb.get(pid, [])
-	for e in lst:
+	for e in nb_list(nb, pid, h):
 		if e["u"] == units:
 			return false   # 一模一樣的已經存過
 	if lst.size() >= NB_MAX:
 		return false
-	lst.append({"n": name, "u": units, "r": []})
+	var e := {"n": name, "u": units, "r": []}
+	if h != "":
+		e["h"] = h
+	lst.append(e)
 	nb[pid] = lst
 	return true
 
+## V1.6.1 F8：成績比較：星多 → 剩餘多 → 花費少
+static func better(a: Array, b: Array) -> bool:
+	if b.size() != 3:
+		return true
+	if int(a[0]) != int(b[0]):
+		return int(a[0]) > int(b[0])
+	if int(a[1]) != int(b[1]):
+		return int(a[1]) > int(b[1])
+	return int(a[2]) < int(b[2])
+
 ## 打完一場：和存過的方案一樣就把成績寫進去（留最好的）
-static func nb_result(nb: Dictionary, pid: String, units: Array, stars: int, rem: int, spent: int) -> void:
-	for e in nb.get(pid, []):
+static func nb_result(nb: Dictionary, pid: String, units: Array, stars: int, rem: int, spent: int, h := "") -> void:
+	for e in nb_list(nb, pid, h):
 		if e["u"] == units:
-			var r: Array = e["r"]
-			if r.is_empty() or stars > int(r[0]) or (stars == int(r[0]) and rem > int(r[1])):
+			if better([stars, rem, spent], e["r"]):
 				e["r"] = [stars, rem, spent]

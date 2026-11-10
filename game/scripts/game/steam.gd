@@ -209,22 +209,26 @@ static func unpack_free(d: PackedInt32Array, fw: int, fh: int) -> Array:
 static func daily_score(rem: int, spent: int) -> int:
 	return clampi(rem, 0, 100) * 1000 + (999 - clampi(spent, 0, 999))
 
-static func daily_upload(day: int, score: int, det: PackedInt32Array) -> void:
+## V1.6.1 F2：榜名帶每日題目版本（`Daily.VER`）：AI 或題目產生器一改，新舊成績不混在同一個榜。
+static func daily_board(day: int, ver: int) -> String:
+	return "daily_%d_v%d" % [day, ver]
+
+static func daily_upload(day: int, score: int, det: PackedInt32Array, ver := 1) -> void:
 	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
 		return
 	_wire()
-	var name := "daily_%d" % day
+	var name := daily_board(day, ver)
 	_lb_up[name] = [score, det]
 	_steam.findOrCreateLeaderboard(name, 2, 1)   # 2＝分數越大越前面
 
-static func daily_fetch(day: int, done: Callable) -> void:
+static func daily_fetch(day: int, done: Callable, ver := 1) -> void:
 	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
 		done.call([])
 		return
 	_wire()
 	if _steam.has_method("set_leaderboard_details_max"):
 		_steam.set_leaderboard_details_max(64)
-	var name := "daily_%d" % day
+	var name := daily_board(day, ver)
 	_lb_get[name] = done
 	_steam.findLeaderboard(name)
 
@@ -232,6 +236,7 @@ static func daily_fetch(day: int, done: Callable) -> void:
 static var _lb_up := {}      # 名稱 → [分數, details]
 static var _lb_get := {}     # 名稱 → done
 static var _lb_dl := {}      # handle → done
+static var _lb_sent := {}    # V1.6.1 F2：handle → [榜名, 送出的分數]（上傳成功時只清掉「就是這一筆」的待送）
 static var _lb_wired := false
 
 static func _wire() -> void:
@@ -268,6 +273,7 @@ static func _on_lb_found(handle: int, found: int) -> void:
 	if _lb_up.has(name):
 		var p: Array = _lb_up[name]
 		_lb_up.erase(name)
+		_lb_sent[handle] = [name, int(p[0])]
 		_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
 	if _lb_get.has(name):
 		_lb_dl[handle] = [_lb_get[name], name.begins_with("daily_")]
@@ -288,12 +294,27 @@ static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
 			out.append({"name": str(e.get("steam_id", "")), "units": units, "score": int(e.get("score", 0)), "rank": int(e.get("global_rank", 0))})
 	done.call(out)
 
-static func _on_lb_uploaded(success: bool, _handle: int, _this_score: Dictionary) -> void:
-	if success and _steam != null and str(_steam.getLeaderboardName(_handle)).begins_with("daily_"):
-		Save.data.erase("daily_pend")   # V1.6 #13
-		Save.save_data()
+static func _on_lb_uploaded(success: bool, handle: int, _this_score: Dictionary) -> void:
+	var sent: Array = _lb_sent.get(handle, [])
+	_lb_sent.erase(handle)
+	if not success or sent.size() != 2:
 		return
-	if success and Save.data.has("weekly"):
-		Save.data["weekly"]["pend"] = 0   # 送上去了：不用補送
+	if clear_pending(Save.data, str(sent[0]), int(sent[1])):
 		Save.save_data()
+
+## V1.6.1 F2（Codex v161d r2）：送出到回呼之間可能又打出更好的成績（待送被換掉）。
+## 只有待送的榜名與分數都和送出的那一筆相同才清；回傳有沒有清。純函式（測試用）。
+static func clear_pending(data: Dictionary, name: String, score: int) -> bool:
+	if name.begins_with("daily_"):
+		var p: Dictionary = data.get("daily_pend", {})
+		if not p.is_empty() and daily_board(int(p.get("day", -1)), int(p.get("ver", 1))) == name and int(p.get("score", -1)) == score:
+			data.erase("daily_pend")
+			return true
+		return false
+	if name.begins_with("weekly_") and data.get("weekly") is Dictionary:
+		var w: Dictionary = data["weekly"]
+		if int(w.get("pend", 0)) == 1 and "weekly_%d" % int(w.get("wk", -1)) == name and int(w.get("best", -1)) == score:
+			w["pend"] = 0   # 送上去了：不用補送
+			return true
+	return false
 

@@ -70,7 +70,7 @@
 1. **成就 31 個**：照上面 B-3 的表在後台建立（還沒有正式 AppID，所以一個都還沒建）。建好後跑一次 `--steam-test=<你的 AppID>`，它會逐一核對、缺哪個會列出來。
 2. **排行榜**：遊戲用 `findOrCreateLeaderboard` 自動建，不用手動建；但後台要允許「由遊戲建立排行榜」。名稱與規則：
    - `weekly_<週數>`：每週棋盒，分數＝花費（**越小越前面**），附加資料＝格子陣（版本 1）。
-   - `daily_<UTC 日數>`：V1.6 每日挑戰，分數＝剩餘%×1000＋(999−花費)（**越大越前面**），附加資料＝自由座標陣（版本 2，紅方視角）。
+   - `daily_<UTC 日數>_v<Daily.VER>`（V1.6.1 起帶題目版本，目前 v1）：V1.6 每日挑戰，分數＝剩餘%×1000＋(999−花費)（**越大越前面**），附加資料＝自由座標陣（版本 2，紅方視角）。
    - 附加資料最多 64 個 int（`set_leaderboard_details_max(64)`）。
 3. **商店頁網址**：拿到 AppID 後把 `game/scripts/game/steam.gd` 的 `STORE_URL` 填成 `https://store.steampowered.com/app/<AppID>/`。試玩版結尾畫面（V1.6 #1）與結果頁的「加入願望單」才會從「上架後開放」變成可按。
 4. **雲端存檔**：Auto-Cloud 規則照 B 節（`save.json`）；V1.6 新增的存檔欄位（`funnel`、`seen`、`mastery`、`notebook`、`daily_streak`、`daily_pend`、`rush_best`、`rift_best`）都在同一個 `save.json` 裡，不用改規則。

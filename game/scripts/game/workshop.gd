@@ -5,6 +5,7 @@ extends RefCounted
 ## 格式：NTP1.<base64url(JSON {"v":1,"e":敵陣,"s":作者解,"a":可用兵種})>.<sha256 前 6 碼>；敵陣欄 10～15、解欄 0～5、列 0～8。
 
 const PZ = preload("res://scripts/game/puzzles.gd")
+const L = preload("res://scripts/game/strings.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const PREFIX := "NTP1"
 const PREFIX2 := "NTP2"   # V1.4 #5 接力殘局：多一欄「第幾棒」n（1～99）；NTP1 照舊能用（n＝0）
@@ -151,10 +152,13 @@ static func decode(code: String) -> Dictionary:
 		spent += D.cost(int(u[0]))
 	if spent > 200:
 		return bad
-	var pz := {"id": ID, "ch": 0, "zh": "工坊殘局" if relay == 0 else "接力殘局・第 %d 棒" % relay, "en": "Workshop Puzzle" if relay == 0 else "Relay Puzzle · Leg %d" % relay, "relay": relay,
-		"hint_zh": "朋友打贏過這一關。用一樣的兵種、一樣多的錢，打得比他漂亮就是三星。",
-		"hint_en": "A friend beat this one. Same units, same gold: beat their result for 3 stars.",
+	var pz := {"id": ID, "ch": 0, "relay": relay,
 		"enemy": e, "fixed": [], "budget": spent, "allowed": allowed, "star2": 0, "star3": spent}
+	if relay == 0:
+		L.fill(pz, "", "ws_pz_name")
+	else:
+		L.fill(pz, "", "rl_title", [relay])
+	L.fill(pz, "hint", "ws_pz_hint")   # V1.6.1 F6：四種語言都從字串表來
 	if vv == 3:
 		var g = j.get("g")
 		if not g is String or not g in GOALS3:
@@ -167,10 +171,8 @@ static func decode(code: String) -> Dictionary:
 			s = s.filter(func(u): return not (int(u[1]) == int(fx[1]) and int(u[2]) == int(fx[2])))
 			pz["budget"] = int(pz["budget"]) - D.cost(int(fx[0]))
 			pz["star3"] = int(pz["budget"])
-		pz["zh"] = "出題台殘局"
-		pz["en"] = "Workbench Puzzle"
-		pz["hint_zh"] = "朋友出的題，作者的解證明它解得開。"
-		pz["hint_en"] = "A friend's puzzle — their own solution proves it can be solved."
+		L.fill(pz, "", "wb_pz_name")
+		L.fill(pz, "hint", "wb_pz_hint")
 	var r: Dictionary = PZ.play(pz, s)
 	if not bool(r.get("ok", false)):
 		return {"ok": false, "why": "ws_unsolved"}

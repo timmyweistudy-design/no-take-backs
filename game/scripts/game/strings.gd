@@ -21,6 +21,17 @@ static func field(d: Dictionary, base: String) -> String:
 			return str(d[pre + suf])
 	return ""
 
+## V1.6.1 F6：程式組出來的題目（工坊、出題台、一陣三考）把字串表的四種語言寫進資料欄位，簡中、日文不再退回英文。
+static func fill(d: Dictionary, base: String, key: String, args: Array = []) -> void:
+	load_table()
+	var row: Dictionary = _table.get(key, {})
+	var pre := base + "_" if base != "" else ""
+	for l in LANGS:
+		var s: String = str(row.get(l, ""))
+		if s == "":
+			s = str(row.get("en", key))
+		d[pre + str(SUFFIX[l])] = s % args if not args.is_empty() else s
+
 ## 二選一的舊資料（[中文, 英文]）：之後加語言時改成字典。
 static func pick(zh, en):
 	return pick_for(zh, en, lang)

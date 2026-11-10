@@ -410,8 +410,8 @@ func _daily_finish(w: int) -> void:
 	if not det.is_empty():
 		var prev: Dictionary = Save.data.get("daily_pend", {})
 		var sc := SteamApi.daily_score(rem, armies[0].spent())
-		if int(prev.get("day", -1)) != day or sc > int(prev.get("score", 0)):
-			Save.data["daily_pend"] = {"day": day, "score": sc, "det": Array(det)}
+		if int(prev.get("day", -1)) != day or int(prev.get("ver", 1)) != Daily.VER or sc > int(prev.get("score", 0)):
+			Save.data["daily_pend"] = {"day": day, "score": sc, "det": Array(det), "ver": Daily.VER}
 		_daily_sync()
 	sh_text = Share.daily_text(L, Time.get_date_string_from_unix_time(day * 86400), L.t("daily_mut_%d" % int(daily_spec["mut"])), rem, armies[0].spent(), armies[0].budget, int(sim.tick / 20), int(st["n"]))
 
@@ -758,7 +758,7 @@ func _career_settle() -> void:
 	if _nb_key() != "" and last_armies.size() == 2:
 		var nb: Dictionary = Save.data.get("notebook", {})
 		var stv: int = int(report.get("stars", 0)) if mode == Mode.PUZZLE else (1 if sim.winner == 0 else 0)
-		Career.nb_result(nb, _nb_key(), Career.units_of(last_armies[0]), stv, PZ.rem_pct(sim.power(0), sim.budget_of(0)) if sim.winner == 0 else 0, last_armies[0].spent())
+		Career.nb_result(nb, _nb_key(), Career.units_of(last_armies[0]), stv, PZ.rem_pct(sim.power(0), sim.budget_of(0)) if sim.winner == 0 else 0, last_armies[0].spent(), _nb_hash())
 		Save.data["notebook"] = nb
 
 func mastery_line(t: int) -> String:
@@ -769,13 +769,19 @@ func mastery_line(t: int) -> String:
 ## 實驗簿的鍵：殘局＝關卡 id、試煉＝t＋編號（Codex v160-i1 #9：方案是殘局與試煉）
 func _nb_key() -> String:
 	if mode == Mode.PUZZLE:
-		return puzzle_id
+		return Career.ws_key(PZ.get_puzzle("ws"))[0] if puzzle_id == "ws" else puzzle_id   # V1.6.1 F1：工坊／三考依題目內容
 	if mode == Mode.VS_AI and int(get("trial_id")) >= 0:
 		return "t%d" % int(get("trial_id"))
 	return ""
 
+func _nb_hash() -> String:
+	return Career.ws_key(PZ.get_puzzle("ws"))[1] if mode == Mode.PUZZLE and puzzle_id == "ws" else ""
+
+func _nb_items() -> Array:
+	return Career.nb_list(Save.data.get("notebook", {}), _nb_key(), _nb_hash())
+
 func _draw_notebook() -> void:
-	var lst: Array = Save.data.get("notebook", {}).get(_nb_key(), [])
+	var lst: Array = _nb_items()
 	var rows := maxi(1, lst.size())
 	var P := modal_rect(760, 12.0 + h1_help_h(L.t("nb_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 48.0 + GAP_M + 44.0 + GAP_L)
 	_panel(P)
@@ -797,8 +803,8 @@ func _draw_notebook() -> void:
 
 func _nb_save() -> void:
 	var nb: Dictionary = Save.data.get("notebook", {})
-	var n := (nb.get(_nb_key(), []) as Array).size() + 1
-	if Career.nb_save(nb, _nb_key(), L.t("nb_name", [n]), Career.units_of(armies[0])):
+	var n := _nb_items().size() + 1
+	if Career.nb_save(nb, _nb_key(), L.t("nb_name", [n]), Career.units_of(armies[0]), _nb_hash()):
 		Save.data["notebook"] = nb
 		Save.save_data()
 		_toast(L.t("nb_saved"))
@@ -806,7 +812,7 @@ func _nb_save() -> void:
 		_toast(L.t("nb_dup"), true)
 
 func _nb_load(i: int) -> void:
-	var e: Dictionary = Save.data.get("notebook", {}).get(_nb_key(), [])[i]
+	var e: Dictionary = _nb_items()[i]
 	if mode == Mode.PUZZLE:
 		armies[0] = PZ.player_army(PZ.get_puzzle(puzzle_id))
 		var pz := PZ.get_puzzle(puzzle_id)
@@ -825,8 +831,9 @@ func _nb_load(i: int) -> void:
 func _nb_del(i: int) -> void:
 	var nb: Dictionary = Save.data.get("notebook", {})
 	var lst: Array = nb.get(_nb_key(), [])
-	if i < lst.size():
-		lst.remove_at(i)
+	var items := _nb_items()
+	if i < items.size():
+		lst.erase(items[i])   # 清單只顯示同一題的方案（F1）：照物件刪
 		nb[_nb_key()] = lst
 		Save.data["notebook"] = nb
 		Save.save_data()
@@ -838,7 +845,7 @@ var dt_state := ""   # ""、"loading"、"done"、"off"
 func _daily_sync() -> void:
 	var p: Dictionary = Save.data.get("daily_pend", {})
 	if not p.is_empty() and SteamApi.available():
-		SteamApi.daily_upload(int(p["day"]), int(p["score"]), PackedInt32Array(p.get("det", [])))
+		SteamApi.daily_upload(int(p["day"]), int(p["score"]), PackedInt32Array(p.get("det", [])), int(p.get("ver", 1)))
 
 func _daily_top_open() -> void:
 	overlay = "daily_top"
@@ -850,7 +857,7 @@ func _daily_top_open() -> void:
 	dt_state = "loading"
 	SteamApi.daily_fetch(int(Daily.today()), func(lst: Array):
 		dt_list = lst.slice(0, 5)
-		dt_state = "done")
+		dt_state = "done", Daily.VER)
 
 func _daily_top_go(units: Array) -> void:
 	var sp: Dictionary = Daily.spec(Daily.today())
