@@ -214,7 +214,7 @@ func test_ai_names_v121() -> void:
 			miss.append(tp["name"])
 	ok(miss.is_empty(), "AI 陣型名都有英文", str(miss))
 	# V1.2.1：每個成就都有解鎖條件（中英）
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var ST = load("res://scripts/game/steam.gd")
 	var miss2: Array = []
 	for k in ST.ACHIEVEMENTS:
@@ -936,7 +936,7 @@ func test_time_machine_v140() -> void:
 
 ## V1.4 #3 戰利品契約：判定只看陣型與戰後狀態。
 func test_contracts_v140() -> void:
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var Army = load("res://scripts/core/army.gd")
 	var a = Army.new(0, 100)
 	a.units = [{"type": 0, "col": 0, "row": 0}, {"type": 1, "col": 1, "row": 0}, {"type": 0, "col": 2, "row": 0}]

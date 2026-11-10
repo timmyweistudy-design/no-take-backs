@@ -1,4 +1,4 @@
-extends "res://scripts/ui/screens/game_menus.gd"
+extends "res://scripts/ui/screens/game_v16.gd"
 ## 其他層在同資料夾（V9 P1 拆檔）
 
 var boot_parts := {}   # V1.1 E6：啟動各階段的時間點（毫秒，從程式啟動算），--boot-check 印出來

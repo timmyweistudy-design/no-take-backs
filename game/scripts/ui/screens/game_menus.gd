@@ -1,4 +1,4 @@
-extends "res://scripts/ui/screens/game_modes.gd"
+extends "res://scripts/ui/screens/game_playroom.gd"
 ## 由 game_screens.gd 拆出（V9 P1，行為不變）
 
 ## 第八輪成就：贏的那隊。沙盒不算（改過數值）。
@@ -1255,9 +1255,11 @@ func _draw_hub(kind: String) -> void:
 	_h1(Vector2(P.get_center().x, P.position.y + 12), L.t({"hub_play": "home_play", "hub_challenge": "home_challenge", "hub_collect": "home_collect"}.get(kind, "home_play")))
 	var ncol := mini(cols, items.size())
 	var gx := P.position.x + (P.size.x - (ncol * cw + (ncol - 1) * 14.0)) * 0.5
+	var r5: Array = [[], []]   # V1.6 #4：R5 每一列卡片的圖示、標題、說明起點
 	for i in items.size():
 		var it: Array = items[i]
 		var r := Rect2(gx + (i % cols) * (cw + 14), P.position.y + head + (i / cols) * (ch + 14), cw, ch)
+		r5[mini(i / cols, 1)].append([Rect2(r.position + Vector2(cw / 2 - 20, 24), Vector2(40, 40)), Rect2(r.position + Vector2(10, 78), Vector2(cw - 20, tz("B"))), Rect2(r.position + Vector2(16, 82 + tz("B") * 1.6), Vector2(cw - 32, tz("C")))])
 		btn_paper = true
 		var cb: Callable = it[3]
 		_btn(r, "", func(): _nav_push(kind); nav_hub = kind; cb.call(), bool(it[4]), i == 0)
@@ -1269,6 +1271,8 @@ func _draw_hub(kind: String) -> void:
 		_text(r.position + Vector2(cw / 2, 78), L.t(str(it[0])), tz("B"), tc2, true, true, cw - 20)
 		_text(r.position + Vector2(16, 82 + tz("B") * 1.6), L.t(str(it[1])), tz("C"), tc2, false, false, cw - 32)
 		_ink_mode = false
+	for row in r5:
+		probe_cards("hub_cards", row)
 	_btn(Rect2(P.get_center().x - 80, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
 
 

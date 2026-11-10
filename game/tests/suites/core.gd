@@ -469,7 +469,7 @@ func test_stickers_v140() -> void:
 func test_boss_v140() -> void:
 	var Sim0 = load("res://scripts/core/battle_sim.gd")
 	var AI0 = load("res://scripts/core/ai_army.gd")
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1212
 	var BD = load("res://scripts/core/boss_defs.gd")

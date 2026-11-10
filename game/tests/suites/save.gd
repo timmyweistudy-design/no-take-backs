@@ -215,7 +215,7 @@ func test_records_v140() -> void:
 ## V1.4 #15 塗裝：存檔清洗（長度、範圍）、鎖定條件、底漆換色（色盲時不換）。
 func test_paint_v140() -> void:
 	var SV = load("res://scripts/game/save.gd")
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var Art0 = load("res://scripts/ui/art.gd")
 	var d := {"paint": [9, -2, 1, 2, 3.0, "x"]}
 	SV.sanitize_data(d)

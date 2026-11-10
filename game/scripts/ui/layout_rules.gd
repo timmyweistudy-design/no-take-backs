@@ -181,6 +181,19 @@ static func check(d: Dictionary) -> Dictionary:
 			for ci in a["cols"].size():
 				if ci != home and (a["cols"][ci] as Rect2).intersection(b).get_area() > 4.0:
 					_add(out, "fail", "R8", a["id"], "按鈕 %s 跨進別欄 %s" % [str(b), str(a["cols"][ci])])
+	# ── R5（V1.6 #4）宣告的同列卡片：每張卡的同一部件（圖示、標題、正文起點）上緣在同一條基準線 ──
+	for a in d.get("aligns", []):
+		if not a.has("cards"):
+			continue
+		var cs: Array = a["cards"]
+		if cs.size() < 2:
+			continue
+		for k in (cs[0] as Array).size():
+			var y0: float = ((cs[0] as Array)[k] as Rect2).position.y
+			for c in cs:
+				if k < (c as Array).size() and absf(((c as Array)[k] as Rect2).position.y - y0) > float(a.get("tol", TOL_CENTER)):
+					_add(out, "fail", "R5", a["id"], "同列卡片第 %d 部件基準線不一致：%.1f／%.1f" % [k, y0, ((c as Array)[k] as Rect2).position.y])
+					break
 	# ── R10 宣告同一欄的元件共用中線 ──
 	for a in d.get("aligns", []):
 		if not a.has("rects"):

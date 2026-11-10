@@ -16,7 +16,7 @@ ERR = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|Failed to load script"
 PRE = re.compile(r'(?:preload|load)\(\s*"res://([^"]+\.(?:gd|json|csv))"|^extends\s+"res://([^"]+\.gd)"', re.M)   # V1.1（Codex v110-impl #3）：也追繼承鏈
 TEST_DONE = re.compile(r"^—— ([1-9]\d*) 通過 / 0 失敗", re.M)
 # 這些組會碰存檔（固定檔名、靜態狀態），放同一個行程
-STATEFUL = ["fantasy", "rules", "save", "ui", "modes"]
+STATEFUL = ["fantasy", "rules", "save", "ui", "modes", "v16"]
 
 
 def sha(p: Path) -> str:
@@ -102,6 +102,7 @@ def plan(a) -> list:
     if a.quick:
         test("t_harness", "harness,anim")
         test("t_ui", "ui")
+        test("t_v16", "v16")
         gd("golden", "tools/golden.gd", ["--n=30"], r'^GOLDEN \{.*"ok":true')
     else:
         for s in ["maps", "anim", "units", "free", "content", "harness"]:
@@ -114,7 +115,10 @@ def plan(a) -> list:
         # V1.1 E1：t_stateful 是關鍵路徑（845 秒）。不寫存檔的慢測試拆成各自的行程（三星解有鎖存檔、另兩個不碰存檔）
         for nm, fn in [("t_star", "test_star_solutions"), ("t_fmirror", "test_fantasy_mirror_v8"), ("t_events", "test_event_routes")]:
             test(nm, fn)
-        test("t_stateful", ",".join(STATEFUL) + ",-test_sandbox_v5,-test_star_solutions,-test_fantasy_mirror_v8,-test_event_routes")
+        # V1.6 #4：存檔組再拆兩個行程，各用自己的存檔前綴（rules、save 內部自訂的前綴互不重疊）
+        skip = ",-test_sandbox_v5,-test_star_solutions,-test_fantasy_mirror_v8,-test_event_routes"
+        gd("t_stateful", "tests/run_tests.gd", ["--only=rules,save" + skip, "--prefix=ta_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+        gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui,modes,v16" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
         # V1.1 E1：最慢的兩組各切 8 片（每片太長，最後幾分鐘只剩少數工作在跑）
         global FULL_GOLDEN

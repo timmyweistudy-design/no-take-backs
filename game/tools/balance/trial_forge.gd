@@ -8,7 +8,7 @@ const D = preload("res://scripts/core/unit_defs.gd")
 const P = preload("res://scripts/game/puzzles.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 const RS = preload("res://scripts/core/ruleset.gd")
-const GM = preload("res://scripts/ui/screens/game_modes.gd")
+const GM = preload("res://scripts/ui/screens/game_playroom.gd")
 const FAKE = preload("res://tests/test_base.gd")
 
 func judge(g, spec: Array, e) -> Dictionary:

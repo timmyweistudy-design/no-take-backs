@@ -1251,7 +1251,7 @@ func _ws_code(j: Dictionary) -> String:
 ## V1.4 #5 接力殘局：NTP2 帶第幾棒；NTP1 照舊；改格數計算；打不贏不給碼。
 func test_relay_v140() -> void:
 	var WSx = preload("res://scripts/game/workshop.gd")
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var src := {}
 	for p in PZ.all_puzzles():
 		if PZ.goal(p) == "win" and p.get("fixed", []).is_empty() and not p.has("map") and not p.has("cmd") and p.has("best"):
@@ -1281,7 +1281,7 @@ func test_relay_v140() -> void:
 
 ## V1.4 #16 遊戲間：競猜區間、輪抽卡池遮罩。
 func test_playroom_v140() -> void:
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	ok(GM.wager_band(10) == 0 and GM.wager_band(34) == 1 and GM.wager_band(67) == 2, "剩餘戰力分三區（險勝／普通／大勝）")
 	ok(GM.draft_mask([0, 2, 5]) == (1 | 4 | 32), "輪抽卡池遮罩")
 
@@ -1304,7 +1304,7 @@ func test_commanders_v140() -> void:
 
 ## V1.4 #11 車輪戰：活下來的兵＝原陣型裡模擬結束時還活著的（原本的格子）。
 func test_waves_v140() -> void:
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var Sim0 = load("res://scripts/core/battle_sim.gd")
 	var AI0 = load("res://scripts/core/ai_army.gd")
 	var rng := RandomNumberGenerator.new()
@@ -1401,7 +1401,7 @@ func test_plan_fix_v140() -> void:
 
 ## V1.4 #7 幽靈軍團＋每週棋盒：30 個幽靈、每週題目固定且合法、陣型打包解包、打贏記錄。
 func test_ghosts_v140() -> void:
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var ST = load("res://scripts/game/steam.gd")
 	var GS = load("res://scripts/ui/game_screens.gd")
 	var RS0 = load("res://scripts/core/ruleset.gd")
@@ -1588,7 +1588,7 @@ func test_unit_rec_v151() -> void:
 
 ## V1.5.1 D1 車輪戰代碼：每一波的對戰代碼包在一起；壞碼、非對戰代碼、超過三波都拒絕；一鍵辨識認得。
 func test_wave_code_v151() -> void:
-	var GM = load("res://scripts/ui/screens/game_modes.gd")
+	var GM = load("res://scripts/ui/screens/game_playroom.gd")
 	var BC = load("res://scripts/game/battle_code.gd")
 	var a = army_from(0, [[D.SWORD, 5, 4]])
 	var b = army_from(1, [[D.SHIELD, 5, 4]])

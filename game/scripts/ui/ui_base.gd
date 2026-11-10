@@ -348,6 +348,11 @@ func probe_align(id: String, rects: Array, tol := 1.0) -> void:
 	if layout_probe:
 		probe_aligns.append({"id": id, "rects": rects, "tol": tol})
 
+## V1.6 #4 R5：同列卡片，cards＝[[圖示框, 標題框, 正文框], …]，同一部件的上緣要對齊
+func probe_cards(id: String, cards: Array, tol := 1.0) -> void:
+	if layout_probe:
+		probe_aligns.append({"id": id, "cards": cards, "tol": tol})
+
 ## 最近登記的面板：宣告例外（寫理由，報告會列出）或改用欄中線（三欄畫面的操作列）
 func probe_skip(rule: String, why: String) -> void:
 	if layout_probe and not probe_panels.is_empty():

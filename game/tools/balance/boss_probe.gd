@@ -3,7 +3,7 @@ extends SceneTree
 ## 改 boss_defs 的值只在這次執行有效（用 set 蓋 const 不行，所以這裡直接改模擬單位）。
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
-const GM = preload("res://scripts/ui/screens/game_modes.gd")
+const GM = preload("res://scripts/ui/screens/game_playroom.gd")
 
 func _init() -> void:
 	var foe_b := 130
