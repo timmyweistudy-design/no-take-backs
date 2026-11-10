@@ -241,6 +241,10 @@ func _draw_result() -> void:
 		var obs := _result_obs()
 		for oi in range(obs.size() - 1, -1, -1):
 			facts.insert(0, obs[oi])   # V1.5.1 D3：本場觀察放最前面
+		# V1.6 #11／#12：AI 台詞、熟練度升級只在還有空位時放（多一行會把系列結果擠到按鈕上：版面檢查 05_result en 150%）
+		for xk in ["ms_line", "ps_line"]:
+			if str(report.get(xk, "")) != "" and facts.size() < 2:
+				facts.append(str(report[xk]))
 		for fi in facts.size():
 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
 			y += text_h(facts[fi], tz("S"), 780) + 2

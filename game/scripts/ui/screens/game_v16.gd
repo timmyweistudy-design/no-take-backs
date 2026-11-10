@@ -720,10 +720,8 @@ func _persona_fog(c: Vector2, w: float) -> void:
 func _persona_result() -> void:
 	if mode != Mode.VS_AI or sim == null or sim.winner < 0 or not (get("daily_spec") as Dictionary).is_empty() or rift_on or str(get("ghost_id")) != "" or bool(get("wk_active")) or watch_mode:
 		return
-	if str(report.get("gh_line", "")) != "":
-		return
 	var st := _ai_style()
-	report["gh_line"] = L.t("ps_say", [L.t("ps_name_%d" % st), L.t(Persona.line_key(st, "lose" if sim.winner == 0 else "win"))])
+	report["ps_line"] = L.t("ps_say", [L.t("ps_name_%d" % st), L.t(Persona.line_key(st, "lose" if sim.winner == 0 else "win"))])
 
 ## ── #12 生涯：熟練度＋實驗簿 ──
 const Career = preload("res://scripts/game/v16_career.gd")
@@ -738,7 +736,7 @@ func _career_settle() -> void:
 	Save.data["mastery"] = m
 	if not ups.is_empty():
 		var t: int = ups[0]
-		_toast(L.t("ms_up", [L.t("unit_%d" % t), Career.level(int(m[str(t)]))]))
+		report["ms_line"] = L.t("ms_up", [L.t("unit_%d" % t), Career.level(int(m[str(t)]))])   # 結果頁有空位才顯示（跳提示會壓到別的畫面）
 	if _nb_key() != "" and last_armies.size() == 2:
 		var nb: Dictionary = Save.data.get("notebook", {})
 		var stv: int = int(report.get("stars", 0)) if mode == Mode.PUZZLE else (1 if sim.winner == 0 else 0)
@@ -885,7 +883,7 @@ var ed_cells := {}      # Vector2i(欄, 列) → 兵種
 var ed_type := 0
 var ed_goal := 0
 var ed_msg := ""
-const ED_CS := 36.0
+const ED_CS := 32.0
 
 func _ed_rect() -> Rect2:
 	return Rect2(640 - 8 * ED_CS, 150, 16 * ED_CS, 9 * ED_CS)
@@ -958,13 +956,16 @@ func _draw_editor() -> void:
 			gold[i] += D.cost(int(u[0]))
 	var info := L.t("ed_info", [l[1].size(), gold[1], l[0].size(), gold[0]])
 	_text(Vector2(640, y), info, tz("S"), Color.WHITE, true, false, 1000)
-	y += tz("S") * 1.6
-	_btn(Rect2(P.position.x + 60, y, 360, 48), L.t("ed_goal", [L.t("ed_g_" + WS3.GOALS3[ed_goal])]), func(): ed_goal = (ed_goal + 1) % WS3.GOALS3.size(); ed_msg = "")
-	_btn(Rect2(P.position.x + 440, y, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
-	_btn(Rect2(P.position.x + 760, y, 140, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = "")
-	_btn(Rect2(P.position.x + 920, y, 140, 48), L.t("back"), func(): overlay = "")
+	y += tz("S") * 1.4 + GAP_M
+	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
+	_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + WS3.GOALS3[ed_goal])]), func(): ed_goal = (ed_goal + 1) % WS3.GOALS3.size(); ed_msg = "")
+	y += 44 + GAP_S
 	if ed_msg != "":
-		_text(Vector2(640, y + 56), ed_msg, tz("S"), ACCENT, true, true, 1000)
+		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
+	var by := P.end.y - GAP_L - 48.0
+	_btn(Rect2(640 - 3 * 150 - 20, by, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
+	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = "")
+	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): overlay = "")
 
 ## ── #17 一陣三考 ──
 const Trio = preload("res://scripts/game/v16_trio.gd")
