@@ -7,6 +7,7 @@
 | 規則大廳（`22_lobby` 等） | R4 | 底列刻意分兩組：左側操作（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右 | `lobby_view.gd` `_draw_lobby` |
 | 圖鑑近看（`10c_codex_zoom`） | R6 | 中間是角色大圖，角色圖不經版面探針，不是空白 | `codex_view.gd` `_draw_codex` |
 | 殘局提示框 | R4 | 底列跟內文同一條左線：揭曉／套用在左，返回靠右對齊內文右緣 | `game_modes.gd` `_draw_puzzle_hint` |
+| 殘局出題台（`v16_13_editor`） | R6 | 中間是 16×9 小棋盤，格子直接畫、不經版面探針，不是空白 | `game_v16.gd` `_draw_editor` |
 | 殘局／教學選關 | R4 | 三段式底列：左＝總星數文字、中＝返回（本身置中）、右＝「只看未滿星」開關 | `game_menus.gd` "tutorial"／"puzzles" |
 
 不算例外、而是規則本身的判斷：

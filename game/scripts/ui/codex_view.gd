@@ -308,10 +308,10 @@ func _draw_codex() -> void:
 	else:
 		draw_rect(nr, Color(0.2, 0.17, 0.1, 0.85))
 		draw_rect(nr, Color(ACCENT, 0.35), false, 1.5)
-	_text(nr.position + Vector2(12, 4), L.t("codex_note"), ts(14), ACCENT, false, true, 400)
+	var head: String = L.t("codex_note")
 	if cx_unit < D.total() and has_method("mastery_line"):
-		var ml: String = call("mastery_line", cx_unit)   # V1.6 #12 熟練度
-		_text(Vector2(nr.end.x - 12 - minf(420.0, _width(ml, ts(14), true)), nr.position.y + 4), ml, ts(14), ACCENT, false, true, 420)
+		head += "　・　" + str(call("mastery_line", cx_unit))   # V1.6 #12 熟練度：和標題同一段（日文 100% 圖鑑段數到上限）
+	_text(nr.position + Vector2(12, 4), head, ts(14), ACCENT, false, true, nr.size.x - 24)
 	var note := CX.text(u, "veteran", lang)   # 第十一輪：筆記直接看得到
 	_scroll_draw("note", Rect2(nr.position + Vector2(12, 4 + ts(14) * 1.4), Vector2(nr.size.x - 20, nr.size.y - 8 - ts(14) * 1.4)),
 		[{"type": "text", "s": note, "size": ts(14), "c": Color(1, 1, 1, 0.9), "x": 0.0, "w": nr.size.x - 40}])

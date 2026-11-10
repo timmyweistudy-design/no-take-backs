@@ -942,7 +942,9 @@ func _draw_editor() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.7))
 	var P := Rect2(80, 40, 1120, 720)
 	_panel(P)
+	probe_skip("R6", "小棋盤是直接畫的格子（不經版面探針），看起來的空白其實是棋盤")
 	var y := _h1_help(Vector2(640, P.position.y + 8), L.t("ed_title"), L.t("ed_help"), tz("S"), 1000)
+	y += tz("C") * 1.5   # 棋盤上方的「你的解／敵陣」欄標（原本壓到說明，版面檢查 en 125%）
 	var G := _ed_rect()
 	G.position.y = y
 	draw_rect(G, Color(0.42, 0.5, 0.28))
