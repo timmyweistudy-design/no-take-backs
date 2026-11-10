@@ -32,9 +32,20 @@ static func next_step(data: Dictionary, daily_done: bool, demo: bool) -> String:
 ## 才標「新」、才進建議清單；入口照舊全開。
 const V16_ENTRIES := ["rush_open", "trio_open", "rift_open", "fog_open", "ed_open", "coop_open"]
 const NEW_AFTER := 3
+## 有效對局：V1.6.1 起另外計 eff_games（正式對局，不含教學、觀戰、重播、沙盒，標準與自訂規則都算；Codex v161-i1 #11）。
+## 升級的老玩家第一次開：用舊統計（標準＋自訂）當起點（seed_eff）。
 static func games_of(data: Dictionary) -> int:
-	var st = data.get("stats", {})
-	return int(st.get("games", 0)) if st is Dictionary else 0
+	return int(data.get("eff_games", 0))
+
+static func seed_eff(data: Dictionary) -> void:
+	if data.has("eff_games"):
+		return
+	var n := 0
+	for k in ["stats", "custom_stats"]:
+		var st = data.get(k, {})
+		if st is Dictionary:
+			n += int(st.get("games", 0))
+	data["eff_games"] = maxi(0, n - int(data.get("tutorial", 0)))
 
 ## V1.6.1 N2：老玩家（V1.6.1 之前就玩過）第一次開，跳一次新玩法導覽
 static func tour_due(data: Dictionary, demo: bool) -> bool:

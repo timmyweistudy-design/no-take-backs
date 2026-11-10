@@ -1,0 +1,3352 @@
+diff --git a/game/scripts/core/ruleset.gd b/game/scripts/core/ruleset.gd
+index 84953ac..2e81e75 100644
+--- a/game/scripts/core/ruleset.gd
++++ b/game/scripts/core/ruleset.gd
+@@ -401,7 +401,8 @@ func sim_digest() -> String:
+ 	return JSON.stringify(base).sha256_text().substr(0, 16)
+ 
+ func equals(o) -> bool:
+-	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields()) and cmd_mask == o.cmd_mask and (not cmd_on() or (cmd_uses == o.cmd_uses and cmd_cd == o.cmd_cd and cmd_power == o.cmd_power)) and adj == o.adj   # V1.6 #22
++	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields()) and cmd_mask == o.cmd_mask and (not cmd_on() or (cmd_uses == o.cmd_uses and cmd_cd == o.cmd_cd and cmd_power == o.cmd_power)) and adj == o.adj \
++		and map_id == o.map_id and map_size == o.map_size and vents == o.vents   # V1.6 #22；V1.6.1 B1：地圖也比（大廳預設比對另外把地圖帶過去，見 lobby_view._lobby_touch）
+ 
+ ## 和標準規則（同一個卡池基準）不同的項目：[[鍵, 標準值, 現在值], …]
+ func diff(std) -> Array:
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index 85a60f6..074880f 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -335,6 +335,14 @@ static func sanitize_v16(out: Dictionary) -> void:
+ 			if str(k).is_valid_int() and int(str(k)) >= 0 and int(str(k)) < 22 and _is_num(ms[k]):
+ 				m2[str(int(str(k)))] = clampi(int(ms[k]), 0, 100000000)
+ 	out["mastery"] = m2
++	var md = out.get("medals", {})
++	var md2 := {}
++	if md is Dictionary:
++		for k in md:
++			var iv := _int_list(md[k], 3)
++			if str(k).is_valid_int() and int(str(k)) >= 0 and int(str(k)) < 22 and iv.size() == 3:
++				md2[str(int(str(k)))] = [clampi(iv[0], 0, 100000000), clampi(iv[1], 0, 100000000), clampi(iv[2], 0, 100000000)]   # V1.6.1 A1
++	out["medals"] = md2
+ 	var nb = out.get("notebook", {})
+ 	var nb2 := {}
+ 	if nb is Dictionary:
+@@ -358,9 +366,22 @@ static func sanitize_v16(out: Dictionary) -> void:
+ 					us.append(iu)
+ 				if okk:
+ 					var rr := _int_list(e.get("r", []), 3)
+-					l2.append({"n": str(e["n"]).substr(0, 24), "u": us, "r": rr if rr.size() == 3 else []})   # 成績要剛好 3 個數（Codex v160-i2 C1）
++					var e2 := {"n": str(e["n"]).substr(0, 24), "u": us, "r": rr if rr.size() == 3 else []}   # 成績要剛好 3 個數（Codex v160-i2 C1）
++					if e.get("h") is String and str(e["h"]).length() <= 32:
++						e2["h"] = str(e["h"])   # V1.6.1 F1：工坊／三考的題目內容雜湊
++					l2.append(e2)
+ 			nb2[str(pid)] = l2
+ 	out["notebook"] = nb2
++	var cd = out.get("coached", {})
++	var cd2 := {}
++	if cd is Dictionary:
++		for k in cd:
++			if cd2.size() >= 400:
++				break
++			var e = cd[k]
++			if str(k).length() <= 24 and e is Dictionary and _is_num(e.get("lv")) and _is_num(e.get("ap", 0)) and _is_num(e.get("self", 0)):
++				cd2[str(k)] = {"lv": clampi(int(e["lv"]), 0, 3), "ap": 1 if int(e.get("ap", 0)) == 1 else 0, "self": clampi(int(e.get("self", 0)), 0, 3)}   # V1.6.1 A4
++	out["coached"] = cd2
+ 	for k in ["daily_streak"]:
+ 		var st = out.get(k, {})
+ 		var st2 := {}
+@@ -373,9 +394,14 @@ static func sanitize_v16(out: Dictionary) -> void:
+ 	if not (dp is Dictionary and _is_num(dp.get("day")) and _is_num(dp.get("score")) and dp.get("det") is Array):
+ 		out.erase("daily_pend")
+ 	else:
+-		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62)}
++		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62), "ver": clampi(int(dp["ver"]), 1, 999) if _is_num(dp.get("ver")) else 1}
++	var rdy = out.get("rush_day", {})
++	if rdy is Dictionary and _is_num(rdy.get("day")) and _is_num(rdy.get("best")):
++		out["rush_day"] = {"day": int(rdy["day"]), "best": clampi(int(rdy["best"]), 0, 100000)}   # V1.6.1 D1
++	else:
++		out.erase("rush_day")
+ 	out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
+-	for k2 in ["rift_best", "trio_clear"]:
++	for k2 in ["rift_best", "trio_clear", "trio_stars"]:
+ 		var d = out.get(k2, {})
+ 		var d2 := {}
+ 		if d is Dictionary:
+@@ -388,7 +414,7 @@ static func sanitize_v16(out: Dictionary) -> void:
+ 					if iv.size() == 2:
+ 						d2[str(kk2)] = iv
+ 				elif _is_num(v):
+-					d2[str(kk2)] = maxi(0, int(v))
++					d2[str(kk2)] = clampi(int(v), 0, 3) if k2 == "trio_stars" else maxi(0, int(v))
+ 		out[k2] = d2
+ 
+ ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
+@@ -408,6 +434,8 @@ static func sanitize_run(g) -> Dictionary:
+ 	out["contract"] = clampi(int(ctr), -1, 5) if (ctr is int or ctr is float) else -1
+ 	var cp = g.get("coop", 0)
+ 	out["coop"] = 1 if (cp is int or cp is float) and int(cp) == 1 else 0   # V1.6 #21 雙人接力遠征
++	var cl := _int_list(g.get("clog", []), 28)   # V1.6.1 D4：[站, 玩家, 勝, MVP 兵種] × 最多 7 站
++	out["clog"] = cl if cl.size() % 4 == 0 else []
+ 	var raw = g.get("prev")
+ 	if not raw is Array or raw.size() > 80:
+ 		return {}
+diff --git a/game/scripts/game/steam.gd b/game/scripts/game/steam.gd
+index c6414b1..1f91b67 100644
+--- a/game/scripts/game/steam.gd
++++ b/game/scripts/game/steam.gd
+@@ -41,6 +41,13 @@ const ACHIEVEMENTS := {
+ 	"PAINTER": ["自己的顏色", "True Colors"],
+ 	"SHARP_EYE": ["好眼力", "Sharp Eye"],
+ 	"SEALED_DONE": ["封蠟三戰", "Sealed Fate"],
++	# V1.6.1 D7：V1.6 玩法（極速賽、三考、裂隙、出題台、熟練度、接力遠征）
++	"RUSH_10": ["極速十連", "Rush Ten"],
++	"TRIO_STAR3": ["三考滿分", "Triple Threat"],
++	"RIFT_WIN": ["裂隙行者", "Rift Walker"],
++	"WORKBENCH": ["出題人", "Puzzle Setter"],
++	"MASTER_5": ["熟能生巧", "Master Hand"],
++	"COOP_CLEAR": ["接力到底", "Relay to the End"],
+ }
+ 
+ static var _steam = null
+@@ -209,22 +216,26 @@ static func unpack_free(d: PackedInt32Array, fw: int, fh: int) -> Array:
+ static func daily_score(rem: int, spent: int) -> int:
+ 	return clampi(rem, 0, 100) * 1000 + (999 - clampi(spent, 0, 999))
+ 
+-static func daily_upload(day: int, score: int, det: PackedInt32Array) -> void:
++## V1.6.1 F2：榜名帶每日題目版本（`Daily.VER`）：AI 或題目產生器一改，新舊成績不混在同一個榜。
++static func daily_board(day: int, ver: int) -> String:
++	return "daily_%d_v%d" % [day, ver]
++
++static func daily_upload(day: int, score: int, det: PackedInt32Array, ver := 1) -> void:
+ 	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
+ 		return
+ 	_wire()
+-	var name := "daily_%d" % day
++	var name := daily_board(day, ver)
+ 	_lb_up[name] = [score, det]
+ 	_steam.findOrCreateLeaderboard(name, 2, 1)   # 2＝分數越大越前面
+ 
+-static func daily_fetch(day: int, done: Callable) -> void:
++static func daily_fetch(day: int, done: Callable, ver := 1) -> void:
+ 	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
+ 		done.call([])
+ 		return
+ 	_wire()
+ 	if _steam.has_method("set_leaderboard_details_max"):
+ 		_steam.set_leaderboard_details_max(64)
+-	var name := "daily_%d" % day
++	var name := daily_board(day, ver)
+ 	_lb_get[name] = done
+ 	_steam.findLeaderboard(name)
+ 
+@@ -232,6 +243,7 @@ static func daily_fetch(day: int, done: Callable) -> void:
+ static var _lb_up := {}      # 名稱 → [分數, details]
+ static var _lb_get := {}     # 名稱 → done
+ static var _lb_dl := {}      # handle → done
++static var _lb_sent := {}    # V1.6.1 F2：handle → [榜名, 送出的分數]（上傳成功時只清掉「就是這一筆」的待送）
+ static var _lb_wired := false
+ 
+ static func _wire() -> void:
+@@ -268,6 +280,7 @@ static func _on_lb_found(handle: int, found: int) -> void:
+ 	if _lb_up.has(name):
+ 		var p: Array = _lb_up[name]
+ 		_lb_up.erase(name)
++		_lb_sent[handle] = [name, int(p[0])]
+ 		_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
+ 	if _lb_get.has(name):
+ 		_lb_dl[handle] = [_lb_get[name], name.begins_with("daily_")]
+@@ -288,12 +301,27 @@ static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
+ 			out.append({"name": str(e.get("steam_id", "")), "units": units, "score": int(e.get("score", 0)), "rank": int(e.get("global_rank", 0))})
+ 	done.call(out)
+ 
+-static func _on_lb_uploaded(success: bool, _handle: int, _this_score: Dictionary) -> void:
+-	if success and _steam != null and str(_steam.getLeaderboardName(_handle)).begins_with("daily_"):
+-		Save.data.erase("daily_pend")   # V1.6 #13
+-		Save.save_data()
++static func _on_lb_uploaded(success: bool, handle: int, _this_score: Dictionary) -> void:
++	var sent: Array = _lb_sent.get(handle, [])
++	_lb_sent.erase(handle)
++	if not success or sent.size() != 2:
+ 		return
+-	if success and Save.data.has("weekly"):
+-		Save.data["weekly"]["pend"] = 0   # 送上去了：不用補送
++	if clear_pending(Save.data, str(sent[0]), int(sent[1])):
+ 		Save.save_data()
+ 
++## V1.6.1 F2（Codex v161d r2）：送出到回呼之間可能又打出更好的成績（待送被換掉）。
++## 只有待送的榜名與分數都和送出的那一筆相同才清；回傳有沒有清。純函式（測試用）。
++static func clear_pending(data: Dictionary, name: String, score: int) -> bool:
++	if name.begins_with("daily_"):
++		var p: Dictionary = data.get("daily_pend", {})
++		if not p.is_empty() and daily_board(int(p.get("day", -1)), int(p.get("ver", 1))) == name and int(p.get("score", -1)) == score:
++			data.erase("daily_pend")
++			return true
++		return false
++	if name.begins_with("weekly_") and data.get("weekly") is Dictionary:
++		var w: Dictionary = data["weekly"]
++		if int(w.get("pend", 0)) == 1 and "weekly_%d" % int(w.get("wk", -1)) == name and int(w.get("best", -1)) == score:
++			w["pend"] = 0   # 送上去了：不用補送
++			return true
++	return false
++
+diff --git a/game/scripts/game/strings.gd b/game/scripts/game/strings.gd
+index e96d51f..89c9b59 100644
+--- a/game/scripts/game/strings.gd
++++ b/game/scripts/game/strings.gd
+@@ -21,6 +21,17 @@ static func field(d: Dictionary, base: String) -> String:
+ 			return str(d[pre + suf])
+ 	return ""
+ 
++## V1.6.1 F6：程式組出來的題目（工坊、出題台、一陣三考）把字串表的四種語言寫進資料欄位，簡中、日文不再退回英文。
++static func fill(d: Dictionary, base: String, key: String, args: Array = []) -> void:
++	load_table()
++	var row: Dictionary = _table.get(key, {})
++	var pre := base + "_" if base != "" else ""
++	for l in LANGS:
++		var s: String = str(row.get(l, ""))
++		if s == "":
++			s = str(row.get("en", key))
++		d[pre + str(SUFFIX[l])] = s % args if not args.is_empty() else s
++
+ ## 二選一的舊資料（[中文, 英文]）：之後加語言時改成字典。
+ static func pick(zh, en):
+ 	return pick_for(zh, en, lang)
+diff --git a/game/scripts/game/v16_career.gd b/game/scripts/game/v16_career.gd
+index f077877..0dfd2d2 100644
+--- a/game/scripts/game/v16_career.gd
++++ b/game/scripts/game/v16_career.gd
+@@ -35,6 +35,31 @@ static func next_at(xp: int) -> int:
+ 	var lv := level(xp)
+ 	return int(LV[lv + 1]) if lv + 1 < LV.size() else -1
+ 
++## V1.6.1 A1 戰功章：每種兵 3 個（出場 MEDAL[0] 場、擊倒 MEDAL[1] 隻、MVP MEDAL[2] 次）。只看、不改數值。
++## medals[兵種] = [出場, 擊倒, MVP]
++const MEDAL := [20, 50, 5]
++static func medal_add(md: Dictionary, units: Array, mvp_type: int) -> void:
++	var seen := {}
++	for u in units:
++		if u.team != 0 or u.summon:
++			continue
++		var k := str(int(u.type))
++		var e: Array = md.get(k, [0, 0, 0])
++		if not seen.has(k):
++			e[0] = int(e[0]) + 1
++			seen[k] = true
++		e[1] = int(e[1]) + int(u.kills)
++		md[k] = e
++	if mvp_type >= 0 and md.has(str(mvp_type)):
++		md[str(mvp_type)][2] = int(md[str(mvp_type)][2]) + 1
++
++static func medals_of(md: Dictionary, t: int) -> Array:
++	var e: Array = md.get(str(t), [0, 0, 0])
++	var out: Array = []
++	for i in 3:
++		out.append(int(e[i]) >= int(MEDAL[i]))
++	return out
++
+ ## 實驗簿：每關最多 NB_MAX 份 {"n": 名稱, "u": [[兵種, 欄, 列]…], "r": [星, 剩%, 花費] 或 []}
+ const NB_MAX := 5
+ 
+@@ -49,21 +74,61 @@ static func units_of(a) -> Array:
+ 	out.sort()
+ 	return out
+ 
+-static func nb_save(nb: Dictionary, pid: String, name: String, units: Array) -> bool:
++## V1.6.1 F1：工坊、出題台、一陣三考的 puzzle_id 都是 "ws"，實驗簿要用題目內容當鍵。
++## 回傳 [短鍵（存檔鍵長上限 24）, 完整雜湊（方案旁另存，讀取時比對，撞鍵就當不同題）]。一陣三考的題組是固定資料，用題組 id。
++const TEXT_KEYS := ["id", "ch", "zh", "en", "sc", "ja", "hint_zh", "hint_en", "hint_sc", "hint_ja", "best", "star2", "star3"]
++static func ws_key(pz: Dictionary) -> Array:
++	if pz.has("trio"):
++		var tk := "q" + str(pz["trio"]).substr(0, 20)
++		return [tk, tk]
++	var c := {}
++	for k in pz:
++		if str(k) in TEXT_KEYS:
++			continue
++		var v = pz[k]
++		if v is Array:
++			var a: Array = v.duplicate(true)
++			a.sort()   # 同一題、兵的順序不同也算同一題
++			v = a
++		c[str(k)] = v
++	var full := JSON.stringify(c, "", true).md5_text()
++	return ["w" + full.substr(0, 12), full]
++
++## 某題的方案清單（有 h 的要和這題的完整雜湊相同）
++static func nb_list(nb: Dictionary, pid: String, h := "") -> Array:
++	var out: Array = []
++	for e in nb.get(pid, []):
++		if h == "" or str(e.get("h", h)) == h:
++			out.append(e)
++	return out
++
++static func nb_save(nb: Dictionary, pid: String, name: String, units: Array, h := "") -> bool:
+ 	var lst: Array = nb.get(pid, [])
+-	for e in lst:
++	for e in nb_list(nb, pid, h):
+ 		if e["u"] == units:
+ 			return false   # 一模一樣的已經存過
+ 	if lst.size() >= NB_MAX:
+ 		return false
+-	lst.append({"n": name, "u": units, "r": []})
++	var e := {"n": name, "u": units, "r": []}
++	if h != "":
++		e["h"] = h
++	lst.append(e)
+ 	nb[pid] = lst
+ 	return true
+ 
++## V1.6.1 F8：成績比較：星多 → 剩餘多 → 花費少
++static func better(a: Array, b: Array) -> bool:
++	if b.size() != 3:
++		return true
++	if int(a[0]) != int(b[0]):
++		return int(a[0]) > int(b[0])
++	if int(a[1]) != int(b[1]):
++		return int(a[1]) > int(b[1])
++	return int(a[2]) < int(b[2])
++
+ ## 打完一場：和存過的方案一樣就把成績寫進去（留最好的）
+-static func nb_result(nb: Dictionary, pid: String, units: Array, stars: int, rem: int, spent: int) -> void:
+-	for e in nb.get(pid, []):
++static func nb_result(nb: Dictionary, pid: String, units: Array, stars: int, rem: int, spent: int, h := "") -> void:
++	for e in nb_list(nb, pid, h):
+ 		if e["u"] == units:
+-			var r: Array = e["r"]
+-			if r.is_empty() or stars > int(r[0]) or (stars == int(r[0]) and rem > int(r[1])):
++			if better([stars, rem, spent], e["r"]):
+ 				e["r"] = [stars, rem, spent]
+diff --git a/game/scripts/game/v16_coach.gd b/game/scripts/game/v16_coach.gd
+index 4c1cac3..8a36f03 100644
+--- a/game/scripts/game/v16_coach.gd
++++ b/game/scripts/game/v16_coach.gd
+@@ -1,72 +1,163 @@
+ extends RefCounted
+-## V1.6 #9 差一子教練：輸了之後，只動一隻兵（往前、後、上、下一格）有沒有能翻盤的擺法。
+-## 有限候選（最多 LIMIT 次模擬），格子部署才做；殘局用同一個判定（puzzles.gd outcome）。純函式（可在背景執行緒跑）。
++## V1.6 #9 差一子教練：輸了之後，只改一隻兵有沒有能翻盤的擺法。純函式（可在背景執行緒跑）；殘局用同一個判定（puzzles.gd outcome）。
++## V1.6.1 A5／F5（三方 v161d §0-4）：
++##  - 候選：移位最多 MOVES 個（格子＝前後上下一格；自由部署＝8 方向半格）＋同價換兵最多 SWAPS 個；移位不夠時換兵補滿 LIMIT。
++##  - 每 64 tick 看一次「取消／期限」（ctl），總上限 TIME_MS；取消回應在一場模擬的 64 tick 內。
++##  - 結果分清楚：found（找到）、exhausted（這一類改法全試過都不行）、budget（候選用完，還有沒試的）、timeout（時間到）、cancel。不說「無解」。
+ const Army = preload("res://scripts/core/army.gd")
+ const Sim = preload("res://scripts/core/battle_sim.gd")
+ const PZ = preload("res://scripts/game/puzzles.gd")
++const D = preload("res://scripts/core/unit_defs.gd")
+ 
+-const LIMIT := 15
++const LIMIT := 32
++const MOVES := 20
++const SWAPS := 12
++const TIME_MS := 6000
++const FREE_STEP := 500   # 自由部署移半格
+ const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(0, 1)]   # 自己視角：前、後、上、下
++const DIRS8 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(0, 1), Vector2i(1, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(-1, 1)]
+ 
+-## 候選：[第幾隻, 新欄, 新列]；不動殘局的固定兵；照「往前優先、前排先」的固定順序
+-static func candidates(a: Army, pz := {}) -> Array:
++## 前排先（往敵方的方向排），同排照原本順序
++static func _order(a: Army) -> Array:
+ 	var idx: Array = range(a.units.size())
+ 	var fwd := 1 if a.team == 0 else -1
+ 	idx.sort_custom(func(p, q):
+-		var cp: int = int(a.units[p]["col"]) * fwd
+-		var cq: int = int(a.units[q]["col"]) * fwd
++		var cp: int = Army.pos_of(a.units[p]).x * fwd
++		var cq: int = Army.pos_of(a.units[q]).x * fwd
+ 		return cp > cq if cp != cq else p < q)
++	return idx
++
++static func _fixed(pz: Dictionary, u: Dictionary) -> bool:
++	return not pz.is_empty() and u.has("col") and PZ.is_fixed(pz, int(u["col"]), int(u["row"]))
++
++## 移位候選：["m", 第幾隻, 新欄, 新列]（格子）／["x", 第幾隻, 新 x, 新 y]（自由）。照「方向優先、前排先」的固定順序。
++static func move_cands(a: Army, pz := {}) -> Array:
++	var idx := _order(a)
++	var fwd := 1 if a.team == 0 else -1
++	var free := a.deploy == "free"
+ 	var out: Array = []
+-	for d in DIRS:
++	for d in (DIRS8 if free else DIRS):
+ 		for i in idx:
+ 			var u: Dictionary = a.units[i]
+-			var c := int(u["col"])
+-			var r := int(u["row"])
+-			if not pz.is_empty() and PZ.is_fixed(pz, c, r):
++			if _fixed(pz, u):
++				continue
++			if free:
++				var nx: int = int(u["x"]) + int(d.x) * fwd * FREE_STEP
++				var ny: int = int(u["y"]) + int(d.y) * FREE_STEP
++				if a.check_place_xy(int(u["type"]), nx, ny, i) == "":
++					out.append(["x", i, nx, ny])
++			else:
++				var nc: int = int(u["col"]) + int(d.x) * fwd
++				var nr: int = int(u["row"]) + int(d.y)
++				var b: Army = a.copy()
++				b.units.remove_at(i)
++				if b.check_place(int(u["type"]), nc, nr) == "":
++					out.append(["m", i, nc, nr])
++	return out
++
++## 同價換兵候選：["s", 第幾隻, 新兵種]。殘局只換這關允許的兵種；照前排先、兵種編號小的先。
++static func swap_cands(a: Army, pz := {}) -> Array:
++	var allowed: Array = []
++	for v in pz.get("allowed", []):
++		allowed.append(int(v))
++	var out: Array = []
++	for i in _order(a):
++		var u: Dictionary = a.units[i]
++		if _fixed(pz, u):
++			continue
++		var t := int(u["type"])
++		for t2 in D.total():
++			if t2 == t or D.cost(t2) != D.cost(t) or (not allowed.is_empty() and not t2 in allowed):
+ 				continue
+-			var nc: int = c + int(d.x) * fwd
+-			var nr: int = r + int(d.y)
+ 			var b: Army = a.copy()
+ 			b.units.remove_at(i)
+-			if b.check_place(int(u["type"]), nc, nr) == "":
+-				out.append([i, nc, nr])
++			var p := Army.pos_of(u)
++			var why: String = b.check_place_xy(t2, p.x, p.y) if a.deploy == "free" else b.check_place(t2, int(u["col"]), int(u["row"]))
++			if why == "":
++				out.append(["s", i, t2])
+ 	return out
+ 
++## 這次要試的候選（移位最多 MOVES、換兵最多 SWAPS，移位不夠時換兵補到 LIMIT）＋全部合法候選有幾個
++static func plan(a: Army, pz := {}, limit := LIMIT) -> Dictionary:
++	var mv := move_cands(a, pz)
++	var sw := swap_cands(a, pz)
++	var nm := mini(mv.size(), mini(MOVES, limit))
++	var ns := mini(sw.size(), limit - nm)
++	return {"list": mv.slice(0, nm) + sw.slice(0, ns), "total": mv.size() + sw.size()}
++
++## 舊介面（V1.6 測試用）：格子移位候選照舊回 [第幾隻, 新欄, 新列]
++static func candidates(a: Army, pz := {}) -> Array:
++	return move_cands(a, pz).map(func(c): return [c[1], c[2], c[3]] if c[0] == "m" else c)
++
+ static func moved(a: Army, cand: Array) -> Army:
+ 	var b: Army = a.copy()
+-	var u: Dictionary = b.units[int(cand[0])].duplicate()
+-	b.units.remove_at(int(cand[0]))
+-	u["col"] = int(cand[1])
+-	u["row"] = int(cand[2])
++	var i := int(cand[1]) if cand[0] is String else int(cand[0])
++	var u: Dictionary = b.units[i].duplicate()
++	b.units.remove_at(i)
++	if not cand[0] is String or cand[0] == "m":
++		var o := 1 if cand[0] is String else 0
++		u["col"] = int(cand[o + 1])
++		u["row"] = int(cand[o + 2])
++	elif cand[0] == "x":
++		u["x"] = int(cand[2])
++		u["y"] = int(cand[3])
++	else:
++		u["type"] = int(cand[2])
+ 	b.units.append(u)
+ 	return b
+ 
+-static func wins(a0: Army, a1: Army, rules, pz: Dictionary) -> bool:
++static func _stop(ctl: Dictionary) -> bool:
++	return bool(ctl.get("stop", false)) or (int(ctl.get("until", 0)) > 0 and Time.get_ticks_msec() > int(ctl["until"]))
++
++## 1＝贏、0＝沒贏、-1＝中途被取消或時間到
++static func play(a0: Army, a1: Army, rules, pz: Dictionary, ctl := {}) -> int:
+ 	var s = Sim.new(a0.copy(), a1.copy(), rules)
+ 	s.fast = true
+-	s.run_to_end()
++	while not s.finished:
++		s.step()
++		if s.tick & 63 == 0 and _stop(ctl):
++			return -1
+ 	if pz.is_empty():
+-		return s.winner == 0
+-	return bool(PZ.outcome(pz, s, 0)["ok"])
++		return 1 if s.winner == 0 else 0
++	return 1 if bool(PZ.outcome(pz, s, 0)["ok"]) else 0
+ 
+-## 能不能給教練：格子部署、沒有軍令（殘局的定時技能、手動技能局都不做）
++static func wins(a0: Army, a1: Army, rules, pz: Dictionary) -> bool:
++	return play(a0, a1, rules, pz) == 1
++
++## 能不能給教練：沒有軍令（殘局的定時技能、手動技能局都不做）。V1.6.1 起自由部署也做。
+ static func supported(a0: Army, rules, pz: Dictionary) -> bool:
+-	if a0.deploy == "free" or a0.units.is_empty():
++	if a0.units.is_empty():
+ 		return false
+ 	if not pz.is_empty() and pz.has("cmd"):
+ 		return false
+ 	return rules == null or int(rules.cmd_mask[0]) == 0
+ 
+-## 回傳 {"found": bool, "tries": n, "i", "type", "from": Vector2i, "to": Vector2i, "army": 改好的陣}
+-static func search(a0: Army, a1: Army, rules, pz := {}, limit := LIMIT) -> Dictionary:
++## 回傳 {"found", "status", "tries", "total", "kind"("move"/"swap"), "i", "type", "to_type", "from", "to", "army"}
++## ctl：{"stop": bool, "until": 毫秒期限, "done": 已試幾個}（背景執行緒共用；主執行緒只寫 stop）
++static func search(a0: Army, a1: Army, rules, pz := {}, limit := LIMIT, ctl := {}) -> Dictionary:
++	if not ctl.has("until"):
++		ctl["until"] = Time.get_ticks_msec() + TIME_MS
++	var pl := plan(a0, pz, limit)
++	var lst: Array = pl["list"]
+ 	var tries := 0
+-	for cand in candidates(a0, pz):
+-		if tries >= limit:
+-			break
+-		tries += 1
++	for cand in lst:
++		if _stop(ctl):
++			return {"found": false, "status": "cancel" if bool(ctl.get("stop", false)) else "timeout", "tries": tries, "total": int(pl["total"])}
+ 		var b := moved(a0, cand)
+-		if wins(b, a1, rules, pz):
+-			var u: Dictionary = a0.units[int(cand[0])]
+-			return {"found": true, "tries": tries, "i": int(cand[0]), "type": int(u["type"]),
+-				"from": Vector2i(int(u["col"]), int(u["row"])), "to": Vector2i(int(cand[1]), int(cand[2])), "army": b}
+-	return {"found": false, "tries": tries}
++		var r := play(b, a1, rules, pz, ctl)
++		if r < 0:
++			return {"found": false, "status": "cancel" if bool(ctl.get("stop", false)) else "timeout", "tries": tries, "total": int(pl["total"])}
++		tries += 1
++		ctl["done"] = tries
++		if r == 1:
++			var i := int(cand[1])
++			var u: Dictionary = a0.units[i]
++			var p0 := Army.pos_of(u)
++			var p1 := Army.pos_of(b.units[b.units.size() - 1])
++			var grid := u.has("col")
++			return {"found": true, "status": "found", "tries": tries, "total": int(pl["total"]), "kind": "swap" if cand[0] == "s" else "move",
++				"i": i, "type": int(u["type"]), "to_type": int(cand[2]) if cand[0] == "s" else int(u["type"]),
++				"from": Vector2i(int(u["col"]), int(u["row"])) if grid else p0,
++				"to": Vector2i(int(cand[2]), int(cand[3])) if cand[0] == "m" else (p1 if not grid else Vector2i(int(u["col"]), int(u["row"]))),
++				"grid": grid, "army": b}
++	return {"found": false, "status": "exhausted" if lst.size() >= int(pl["total"]) else "budget", "tries": tries, "total": int(pl["total"])}
+diff --git a/game/scripts/game/v16_guide.gd b/game/scripts/game/v16_guide.gd
+index 4de0cca..6165692 100644
+--- a/game/scripts/game/v16_guide.gd
++++ b/game/scripts/game/v16_guide.gd
+@@ -22,8 +22,24 @@ static func next_step(data: Dictionary, daily_done: bool, demo: bool) -> String:
+ 		return "playroom"
+ 	if (data.get("trial_stars", {}) as Dictionary).is_empty():
+ 		return "trials"
++	if games_of(data) >= NEW_AFTER:
++		for k in V16_ENTRIES:
++			if is_new(data, k):
++				return "v16:" + k   # V1.6.1 N1：玩滿門檻後才推新玩法（一次一個）
+ 	return ""
+ 
++## V1.6.1 N1（三方 v161d §0-2）：V1.6 新玩法要先完成 NEW_AFTER 場有效對局（stats.games：正式對局，不含教學、觀戰、重播）
++## 才標「新」、才進建議清單；入口照舊全開。
++const V16_ENTRIES := ["rush_open", "trio_open", "rift_open", "fog_open", "ed_open", "coop_open"]
++const NEW_AFTER := 3
++static func games_of(data: Dictionary) -> int:
++	var st = data.get("stats", {})
++	return int(st.get("games", 0)) if st is Dictionary else 0
++
++## V1.6.1 N2：老玩家（V1.6.1 之前就玩過）第一次開，跳一次新玩法導覽
++static func tour_due(data: Dictionary, demo: bool) -> bool:
++	return not demo and games_of(data) >= NEW_AFTER and not (data.get("seen", []) as Array).has("tour161")
++
+ ## V1.6 之前就有的入口（老玩家升級時直接算看過；V1.6 新入口對每個人都標「新」）
+ const OLD_ENTRIES := ["menu_tutorial", "menu_vs_ai", "menu_duel", "menu_puzzle", "menu_trials", "menu_daily", "wk_open", "gh_open",
+ 	"menu_codex", "paint_open", "menu_profile", "nem_open", "pr_wager", "pr_draft", "pr_waves", "pr_sealed"]
+@@ -34,6 +50,8 @@ static func seed_seen(data: Dictionary) -> void:
+ 		data["seen"] = OLD_ENTRIES.duplicate()
+ 
+ static func is_new(data: Dictionary, key: String) -> bool:
++	if key in V16_ENTRIES and games_of(data) < NEW_AFTER:
++		return false   # 新手前幾場先不標（資訊量），玩滿門檻才標
+ 	return not (data.get("seen", OLD_ENTRIES) as Array).has(key)
+ 
+ static func see(data: Dictionary, key: String) -> void:
+diff --git a/game/scripts/game/v16_persona.gd b/game/scripts/game/v16_persona.gd
+index 970a0d6..0ae6969 100644
+--- a/game/scripts/game/v16_persona.gd
++++ b/game/scripts/game/v16_persona.gd
+@@ -1,6 +1,8 @@
+ extends RefCounted
+ ## V1.6 #11 AI 對手人設：6 種性格（ai_style 0～5）各有名號、代表兵種（頭像）、開場／AI 贏／AI 輸三句台詞。
+-## 只是畫面文字，不影響 AI 怎麼擺。字串鍵：ps_name_N、ps_open_N、ps_win_N、ps_lose_N。
++## 字串鍵：ps_name_N、ps_open_N、ps_win_N、ps_lose_N。
++## V1.6.1 A11：招牌陣——普通難度的一般對 AI，每種性格有兩套愛用的 AI 模板，SIG_PCT% 的機率用（用另一顆亂數，不動原本的抽籤順序）。
++## 每日、試煉、裂隙、挑戰碼、困難、簡單都不套。卡池用不了那套就照舊。
+ const FACE := [0, 1, 2, 4, 13, 11]   # 劍士、盾兵、弓箭手、刺客、史萊姆、爆爆羊
+ 
+ static func face(style: int) -> int:
+@@ -9,3 +11,19 @@ static func face(style: int) -> int:
+ ## 台詞鍵。moment：open＝開場、win＝AI 贏了、lose＝AI 輸了
+ static func line_key(style: int, moment: String) -> String:
+ 	return "ps_%s_%d" % [moment, clampi(style, 0, FACE.size() - 1)]
++
++const SIG := [[4, 0], [6, 8], [1, 5], [3, 10], [11, 13], [14, 7]]   # 劍海／均衡、槍盾方陣／醫療鐵壁、鐵壁弓陣／騎射、暗影刺殺／破陣、黏黏／亡靈、吸塵爆破／砲擊
++const SIG_PCT := 40
++
++## 這一場要不要用招牌陣：回傳模板編號或 -1。seed＝這場 AI 用的種子（決定性，可重現）。
++static func signature(style: int, seed: int, ok_fn: Callable) -> int:
++	var g := RandomNumberGenerator.new()
++	g.seed = seed ^ 0x5151
++	if g.randi_range(0, 99) >= SIG_PCT:
++		return -1
++	var lst: Array = SIG[clampi(style, 0, SIG.size() - 1)]
++	var t := int(lst[g.randi_range(0, lst.size() - 1)])
++	return t if ok_fn.call(t) else -1
++
++static func fav(style: int) -> int:
++	return int(SIG[clampi(style, 0, SIG.size() - 1)][0])
+diff --git a/game/scripts/game/v16_rift.gd b/game/scripts/game/v16_rift.gd
+index aa8f5a7..89fb104 100644
+--- a/game/scripts/game/v16_rift.gd
++++ b/game/scripts/game/v16_rift.gd
+@@ -83,3 +83,12 @@ static func enemy(r, wk: int):
+ 
+ static func key(wk: int) -> String:
+ 	return "%d-v%d" % [wk, VER]
++
++## V1.6.1 A12：紀錄留最近 n 週（鍵＝「週-v版本」，依週數排序留最大的 n 個）
++static func keep_recent(best: Dictionary, n: int) -> Dictionary:
++	var ks: Array = best.keys()
++	ks.sort_custom(func(a, b): return int(str(a).get_slice("-", 0)) > int(str(b).get_slice("-", 0)))
++	var out := {}
++	for i in mini(n, ks.size()):
++		out[ks[i]] = best[ks[i]]
++	return out
+diff --git a/game/scripts/game/v16_rush.gd b/game/scripts/game/v16_rush.gd
+index e05d077..e4bf947 100644
+--- a/game/scripts/game/v16_rush.gd
++++ b/game/scripts/game/v16_rush.gd
+@@ -7,8 +7,18 @@ const START_SEC := 180.0
+ const BONUS_SEC := 20.0     # 解開 +20 秒
+ const PENALTY_SEC := 15.0   # 失敗 −15 秒（直接換下一題，不卡關）
+ 
++## V1.6.1 N5：有求解器指標（_m）的關再篩：模擬太長（> MAX_TICKS）或太難（隨機擺法過關率 < MIN_RAND%）的不進題庫。
++## 舊 25 關沒有 _m（都是短的入門題）照收。
++const MAX_TICKS := 1400
++const MIN_RAND := 3
++
+ static func eligible(pz: Dictionary) -> bool:
+-	return PZ.goal(pz) == "win" and not pz.has("map") and not pz.has("cmd") and not pz.has("cap") and not pz.has("rules")
++	if not (PZ.goal(pz) == "win" and not pz.has("map") and not pz.has("cmd") and not pz.has("cap") and not pz.has("rules")):
++		return false
++	var m = pz.get("_m")
++	if m is Dictionary:
++		return int(m.get("ticks", 0)) <= MAX_TICKS and int(m.get("rand_pct", 100)) >= MIN_RAND
++	return true
+ 
+ static func pool(seed: int) -> Array:
+ 	var by_ch := {}
+@@ -37,3 +47,12 @@ static func pool(seed: int) -> Array:
+ 
+ static func after(left: float, solved: bool) -> float:
+ 	return left + (BONUS_SEC if solved else -PENALTY_SEC)
++
++## V1.6.1 D1：今日題組的種子（UTC 日數；同一版本同一天大家同一套題）
++static func day_seed(day: int) -> int:
++	return day * 7919 + 13
++
++## 分享格（不劇透題目）：日期、解開幾題、每題一格
++static func share_text(L, date: String, solved: int, tried: int) -> String:
++	var cells := "■".repeat(clampi(solved, 0, 30)) + "□".repeat(clampi(tried - solved, 0, 30))
++	return "\n".join([L.t("sh_rush_head", [date]), cells, L.t("sh_rush_line", [solved, tried]), L.t("sh_tag")])
+diff --git a/game/scripts/game/v16_trio.gd b/game/scripts/game/v16_trio.gd
+index a5cb77f..e8b086f 100644
+--- a/game/scripts/game/v16_trio.gd
++++ b/game/scripts/game/v16_trio.gd
+@@ -1,6 +1,7 @@
+ extends RefCounted
+ ## V1.6 #17 一陣三考：同一套格子陣分別迎戰三支敵陣（每場都滿血），三場都贏才過。題組 data/trio.json（tools/gen/trio_forge.gd）。
+ const PZ = preload("res://scripts/game/puzzles.gd")
++const L = preload("res://scripts/game/strings.gd")
+ static var _sets: Array = []
+ 
+ static func sets() -> Array:
+@@ -12,9 +13,11 @@ static func sets() -> Array:
+ 
+ ## 第 k 支敵陣做成一題（工坊殘局的格式：puzzle_id "ws"，不存殘局星數）
+ static func make_pz(s: Dictionary, k: int) -> Dictionary:
+-	return {"id": "ws", "ch": 0, "trio": str(s["id"]), "zh": "一陣三考", "en": "One Army, Three Tests", "relay": 0,
+-		"hint_zh": "同一套陣要連打三支敵軍，三場都贏才過關。", "hint_en": "Your one setup must beat all three enemy armies.",
++	var pz := {"id": "ws", "ch": 0, "trio": str(s["id"]), "relay": 0,
+ 		"enemy": s["foes"][k], "fixed": [], "budget": int(s["budget"]), "allowed": s["allowed"], "star2": 0, "star3": int(s["budget"])}
++	L.fill(pz, "", "trio_pz_name")   # V1.6.1 F6
++	L.fill(pz, "hint", "trio_pz_hint")
++	return pz
+ 
+ ## 三場的結果：[過關?, …]（不合法的擺法全部算 false）
+ static func check(s: Dictionary, extra: Array) -> Array:
+@@ -22,3 +25,44 @@ static func check(s: Dictionary, extra: Array) -> Array:
+ 	for k in 3:
+ 		out.append(bool(PZ.play(make_pz(s, k), extra).get("ok", false)))
+ 	return out
++
++## ── V1.6.1 A3／F7：三場的完整結果與整組星數（三方 v161d §0-3） ──
++## 三勝＝1 星；三場剩餘戰力平均（同一支陣、起始戰力相同，平均＝總和÷總和）≥ S2＝2 星；再加花費÷預算 ≤ S3%＝3 星。
++## 題組可在 trio.json 單組覆寫（"s2"、"s3"），條件是作者解 sol 要同時達到（tools/gen/trio_stars.gd 驗證、測試釘住）。
++const S2 := 45
++const S3 := 88
++
++static func play_one(s: Dictionary, k: int, extra: Array) -> Dictionary:
++	var r: Dictionary = PZ.play(make_pz(s, k), extra)
++	return {"ok": bool(r.get("ok", false)), "rem": int(r.get("rem", 0)), "spent": int(r.get("spent", 0))}
++
++static func results(s: Dictionary, extra: Array, from := 0) -> Array:
++	var out: Array = []
++	for k in range(from, 3):
++		out.append(play_one(s, k, extra))
++	return out
++
++static func s2_of(s: Dictionary) -> int:
++	return int(s.get("s2", S2))
++
++static func s3_of(s: Dictionary) -> int:
++	return int(s.get("s3", S3))
++
++static func rem_avg(res: Array) -> int:
++	var t := 0
++	for r in res:
++		t += int(r["rem"])
++	return t / maxi(1, res.size())
++
++static func spent_pct(s: Dictionary, res: Array) -> int:
++	return int(res[0]["spent"]) * 100 / maxi(1, int(s["budget"])) if not res.is_empty() else 100
++
++static func stars(s: Dictionary, res: Array) -> int:
++	if res.size() != 3 or res.any(func(r): return not bool(r["ok"])):
++		return 0
++	var st := 1
++	if rem_avg(res) >= s2_of(s):
++		st = 2
++		if spent_pct(s, res) <= s3_of(s):
++			st = 3
++	return st
+diff --git a/game/scripts/game/workshop.gd b/game/scripts/game/workshop.gd
+index 226cb64..38c0f8f 100644
+--- a/game/scripts/game/workshop.gd
++++ b/game/scripts/game/workshop.gd
+@@ -5,11 +5,16 @@ extends RefCounted
+ ## 格式：NTP1.<base64url(JSON {"v":1,"e":敵陣,"s":作者解,"a":可用兵種})>.<sha256 前 6 碼>；敵陣欄 10～15、解欄 0～5、列 0～8。
+ 
+ const PZ = preload("res://scripts/game/puzzles.gd")
++const L = preload("res://scripts/game/strings.gd")
+ const D = preload("res://scripts/core/unit_defs.gd")
+ const PREFIX := "NTP1"
+ const PREFIX2 := "NTP2"   # V1.4 #5 接力殘局：多一欄「第幾棒」n（1～99）；NTP1 照舊能用（n＝0）
+ const PREFIX3 := "NTP3"   # V1.6 #16 出題台：多一欄目標 g（win／kill／survive／draw／margin）與參數；NTP1、NTP2 照舊
+ const GOALS3 := ["win", "kill", "survive", "draw", "margin", "protect", "flawless"]
++const PREFIX4 := "NTP4"   # V1.6.1 A2：出題台作者自己指定目標（多一欄 t＝[欄, 列]：斬首＝敵兵、護送＝己兵、完美＝那隻兵的兵種）；NTP1～3 照舊
++const PICK_GOALS := ["kill", "protect", "flawless"]
++const ED_GOALS := ["win", "kill", "survive", "draw", "margin", "protect", "flawless", "trio"]   # 出題台的目標（V1.6.1 D2 多一種：一陣三考）
++const Trio = preload("res://scripts/game/v16_trio.gd")
+ const MAX_UNITS := 40
+ const MAX_LEN := 6000
+ const ID := "ws"
+@@ -80,6 +85,79 @@ static func encode3(enemy: Array, sol: Array, goal: String) -> String:
+ 	var code := "%s.%s.%s" % [PREFIX3, b, b.sha256_text().substr(0, 6)]
+ 	return code if bool(decode(code)["ok"]) else ""
+ 
++## V1.6.1 A2：作者點了目標（t＝[欄, 列]）就出 NTP4；沒點照舊出 NTP3（自動選）。
++static func encode4(enemy: Array, sol: Array, goal: String, t: Vector2i) -> String:
++	if not goal in PICK_GOALS or t.x < 0:
++		return encode3(enemy, sol, goal)
++	var e := _clean(enemy, 10, 15)
++	var s := _clean(sol, 0, 5)
++	if e.is_empty() or s.is_empty() or pick_fields(goal, e, s, [t.x, t.y]).is_empty():
++		return ""
++	var allowed: Array = []
++	for u in s:
++		if not int(u[0]) in allowed:
++			allowed.append(int(u[0]))
++	allowed.sort()
++	var j := JSON.stringify({"v": 4, "e": e, "s": s, "a": allowed, "g": goal, "t": [t.x, t.y]})
++	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
++	var code := "%s.%s.%s" % [PREFIX4, b, b.sha256_text().substr(0, 6)]
++	return code if bool(decode(code)["ok"]) else ""
++
++## V1.6.1 D2：出題台出「一陣三考」題：三支敵陣＋作者解（要三場都贏才給碼）。NTP4，g＝"trio"、e3＝三支敵陣。
++static func encode_trio(foes: Array, sol: Array) -> String:
++	if foes.size() != 3:
++		return ""
++	var e3: Array = []
++	for f in foes:
++		var e := _clean(f, 10, 15)
++		if e.is_empty():
++			return ""
++		e3.append(e)
++	var s := _clean(sol, 0, 5)
++	if s.is_empty():
++		return ""
++	var allowed: Array = []
++	for u in s:
++		if not int(u[0]) in allowed:
++			allowed.append(int(u[0]))
++	allowed.sort()
++	var j := JSON.stringify({"v": 4, "e": e3[0], "e3": e3, "s": s, "a": allowed, "g": "trio"})
++	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
++	var code := "%s.%s.%s" % [PREFIX4, b, b.sha256_text().substr(0, 6)]
++	return code if bool(decode(code)["ok"]) else ""
++
++## 三考碼解出來的題組（和 data/trio.json 同格式；id＝碼的雜湊）
++static func trio_set_of(j: Dictionary, s: Array, allowed: Array) -> Dictionary:
++	var e3 = j.get("e3")
++	if not e3 is Array or e3.size() != 3:
++		return {}
++	var foes: Array = []
++	for f in e3:
++		var e := _clean(f, 10, 15)
++		if e.is_empty():
++			return {}
++		foes.append(e)
++	var spent := 0
++	for u in s:
++		spent += D.cost(int(u[0]))
++	return {"id": "c" + JSON.stringify(foes).md5_text().substr(0, 8), "budget": spent, "allowed": allowed, "foes": foes, "sol": s}
++
++## 指定的目標要真的有那隻兵（斬首在敵陣、護送與完美在作者解）；不對回 {}。
++static func pick_fields(goal: String, e: Array, s: Array, t) -> Dictionary:
++	if not t is Array or t.size() != 2 or not _is_int(t[0], 0, 15) or not _is_int(t[1], 0, 8):
++		return {}
++	var lst: Array = e if goal == "kill" else s
++	for u in lst:
++		if int(u[1]) == int(t[0]) and int(u[2]) == int(t[1]):
++			match goal:
++				"kill":
++					return {"goal": "kill", "goal_unit": [int(u[1]), int(u[2])]}
++				"protect":
++					return {"goal": "protect", "goal_unit": [int(u[1]), int(u[2])], "fixed": [[int(u[0]), int(u[1]), int(u[2])]]}
++				"flawless":
++					return {"goal": "flawless", "goal_type": int(u[0]), "need_type": true}
++	return {}
++
+ ## 目標的細節（解碼時從敵陣、作者解算，不吃碼裡的數字：少一個能被竄改的欄位）
+ ## protect：作者解裡最貴的兵（同價取欄、列最小）變成固定兵，要活到最後；flawless：作者解裡最多的兵種一隻都不能倒
+ static func goal_fields(goal: String, e: Array, s: Array = []) -> Dictionary:
+@@ -118,14 +196,14 @@ static func decode(code: String) -> Dictionary:
+ 	var bad := {"ok": false, "why": "ws_bad"}
+ 	code = code.strip_edges()
+ 	var parts := code.split(".")
+-	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] in [PREFIX, PREFIX2, PREFIX3]) or parts[1].sha256_text().substr(0, 6) != parts[2]:
++	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] in [PREFIX, PREFIX2, PREFIX3, PREFIX4]) or parts[1].sha256_text().substr(0, 6) != parts[2]:
+ 		return bad
+ 	var b64 := parts[1].replace("-", "+").replace("_", "/")
+ 	while b64.length() % 4 != 0:
+ 		b64 += "="
+ 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
+ 	var v2 := parts[0] == PREFIX2
+-	var vv := 3 if parts[0] == PREFIX3 else (2 if v2 else 1)
++	var vv := 4 if parts[0] == PREFIX4 else (3 if parts[0] == PREFIX3 else (2 if v2 else 1))
+ 	if not j is Dictionary or not _is_int(j.get("v"), vv, vv):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
+ 		return bad
+ 	var relay := 0
+@@ -151,15 +229,27 @@ static func decode(code: String) -> Dictionary:
+ 		spent += D.cost(int(u[0]))
+ 	if spent > 200:
+ 		return bad
+-	var pz := {"id": ID, "ch": 0, "zh": "工坊殘局" if relay == 0 else "接力殘局・第 %d 棒" % relay, "en": "Workshop Puzzle" if relay == 0 else "Relay Puzzle · Leg %d" % relay, "relay": relay,
+-		"hint_zh": "朋友打贏過這一關。用一樣的兵種、一樣多的錢，打得比他漂亮就是三星。",
+-		"hint_en": "A friend beat this one. Same units, same gold: beat their result for 3 stars.",
++	var pz := {"id": ID, "ch": 0, "relay": relay,
+ 		"enemy": e, "fixed": [], "budget": spent, "allowed": allowed, "star2": 0, "star3": spent}
+-	if vv == 3:
++	if relay == 0:
++		L.fill(pz, "", "ws_pz_name")
++	else:
++		L.fill(pz, "", "rl_title", [relay])
++	L.fill(pz, "hint", "ws_pz_hint")   # V1.6.1 F6：四種語言都從字串表來
++	if vv == 4 and j.get("g") == "trio":
++		var ts := trio_set_of(j, s, allowed)
++		if ts.is_empty():
++			return bad
++		if Trio.stars(ts, Trio.results(ts, s)) < 1:
++			return {"ok": false, "why": "ws_unsolved"}
++		return {"ok": true, "pz": Trio.make_pz(ts, 0), "sol": s, "trio": ts, "why": ""}
++	if vv >= 3:
+ 		var g = j.get("g")
+-		if not g is String or not g in GOALS3:
++		if not g is String or not g in GOALS3 or (vv == 4 and not g in PICK_GOALS):
+ 			return bad
+-		var gf := goal_fields(g, e, s)
++		var gf := goal_fields(g, e, s) if vv == 3 else pick_fields(g, e, s, j.get("t"))
++		if vv == 4 and gf.is_empty():
++			return bad   # 指定的目標不存在（「打贏」的 NTP3 本來就沒有目標欄位）
+ 		pz.merge(gf, true)
+ 		if gf.has("fixed"):
+ 			# 護送：被護送的兵是固定兵，解題的人擺其他的；作者解扣掉它、預算也扣掉它的錢
+@@ -167,10 +257,8 @@ static func decode(code: String) -> Dictionary:
+ 			s = s.filter(func(u): return not (int(u[1]) == int(fx[1]) and int(u[2]) == int(fx[2])))
+ 			pz["budget"] = int(pz["budget"]) - D.cost(int(fx[0]))
+ 			pz["star3"] = int(pz["budget"])
+-		pz["zh"] = "出題台殘局"
+-		pz["en"] = "Workbench Puzzle"
+-		pz["hint_zh"] = "朋友出的題，作者的解證明它解得開。"
+-		pz["hint_en"] = "A friend's puzzle — their own solution proves it can be solved."
++		L.fill(pz, "", "wb_pz_name")
++		L.fill(pz, "hint", "wb_pz_hint")
+ 	var r: Dictionary = PZ.play(pz, s)
+ 	if not bool(r.get("ok", false)):
+ 		return {"ok": false, "why": "ws_unsolved"}
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index 8588a95..77e6647 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -726,6 +726,10 @@ func _draw_fx(f: Dictionary) -> void:
+ 		"text":
+ 			var col: Color = f["c"]
+ 			col.a = 1.0 - k * k
++			# V1.6.1 A10：有標記兵時，其他兵的一般跳字淡化（擊倒、致命、剋制等關鍵字 tier ≥2 照舊不透明）
++			var tvi = get("tv_ids")
++			if tvi is Array and not (tvi as Array).is_empty() and int(f.get("tier", 2)) < 2 and not int(f.get("tid", -1)) in tvi:
++				col.a *= 0.4
+ 			if f.get("screen", false):
+ 				if bool(Save.s("text_plate")):
+ 					var tw4 := _width(str(f["s"]), ts(f["size"]), true) + 28.0
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index cd5cb8b..f2a7809 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -520,6 +520,11 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			_hand_ring(p0, 19.0 * UNIT_SCALE, Color(1.0, 0.75, 0.25, 0.85), 2.5)
+ 		if u.id == int(gm[0]) or (int(gm[0]) == -2 and u.team == 0 and u.type == int(gm[2]) and not u.summon):
+ 			_goal_marker(p0, "protect" if int(gm[0]) == -2 else str(gm[1]))   # 第十三輪：要護送／斬首的那一隻；V1.1：不能倒的那種兵每隻都標
++			if u.team == 0 and u.hp * 100 <= u.max_hp * 30 and not rfx:
++				# V1.6.1 A2：要保住的兵殘血時框閃紅（白黑雙邊，色盲也看得出）
++				var fl := 0.5 + 0.5 * sin(time * 12.0)
++				_hand_ring(p0 + Vector2(0, -20) * UNIT_SCALE, 31.0 * UNIT_SCALE, Color(0, 0, 0, 0.5 * fl), 4.0)
++				_hand_ring(p0 + Vector2(0, -20) * UNIT_SCALE, 30.0 * UNIT_SCALE, Color(1.0, 0.25, 0.2, fl), 2.5)
+ 		if live and s.rally[u.team] and not s.finished:
+ 			for k in 2:
+ 				var ph := fmod(time * 1.6 + k * 0.5, 1.0)
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index f95875f..3cfb6dd 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -478,6 +478,15 @@ func _draw_cmd_bar() -> void:
+ 				var frac: float = clampf(float(wait) / maxf(1.0, phase_len), 0.0, 1.0)
+ 				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
+ 
++## V1.6.1 F4（Antigravity v161d r3）：擊倒時手把短震（只在用手把、震動設定開著；0.25 秒內只震一次，大混戰不會一直震）
++var kill_rumble_t := -9.0
++func _kill_rumble() -> void:
++	if not pad_mode or int(Save.s("rumble")) <= 0 or time - kill_rumble_t < 0.25:
++		return
++	kill_rumble_t = time
++	var rk := int(Save.s("rumble")) / 100.0
++	Input.start_joy_vibration(last_joy, 0.12 * rk, 0.22 * rk, 0.06)
++
+ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 	var k: String = ev["kind"]
+ 	if ev.has("src") and ev.has("tgt"):
+@@ -510,6 +519,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 		if with_fx:
+ 			sfx.play_unit("death", 0.7, u.type)   # V1.3.1：倒下的聲音依兵種音高
+ 			sfx.play_unit("wood_topple", 0.45, u.type)   # V1.6 #14：木座倒地彈兩下
++			_kill_rumble()
+ 			_death_extra(u)
+ 			# V1.1 B2：殘局「斬首」的目標倒下：頓格＋微震＋大字（只動播放，不進模擬）
+ 			if mode == Mode.PUZZLE and _goal_target_id() == int(ev["id"]):
+diff --git a/game/scripts/ui/codex_view.gd b/game/scripts/ui/codex_view.gd
+index 15b0b01..62a68c9 100644
+--- a/game/scripts/ui/codex_view.gd
++++ b/game/scripts/ui/codex_view.gd
+@@ -686,6 +686,8 @@ func _cx_portrait(pc: Vector2) -> void:
+ 		Art.calm = true
+ 		Art.look = float(spec[1]) * wgt
+ 	_cx_draw_unit(pc, face, atk, cx_fit(cx_unit), 0)
++	if has_method("codex_plaque") and not layout_probe:
++		call("codex_plaque", pc + Vector2(0, 10), cx_unit)   # V1.6.1 A1：腳下木牌刻熟練度＋戰功章
+ 	# 出手的遠程：箭／炸彈／法球／補血從手上飛出去（圖鑑也看得到「射出東西」，Antigravity v150-i1 #9）
+ 	if proj_fly(cx_unit) > 0 and ua >= 0.0 and ua < 0.7 and atk >= 0.3125:
+ 		var pk := clampf((atk - 0.3125) / 0.4, 0.0, 1.0)
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 2e526e1..b19db3f 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -142,6 +142,8 @@ func _keys_input(ev: InputEvent) -> bool:
+ func _input(ev: InputEvent) -> void:
+ 	if _keys_input(ev):
+ 		return
++	if nb_edit >= 0 and _nb_edit_input(ev):
++		return   # V1.6.1 N3：實驗簿改名時，鍵盤輸入給名稱框
+ 	if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
+ 		fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
+ 		_touch_input(ev)   # V1.4 #18：長按＝右鍵、雙指縮放
+@@ -551,7 +553,7 @@ func _process_inner(delta: float) -> void:
+ 
+ # ───────────────────────── 繪圖 ─────────────────────────
+ func _draw() -> void:
+-	mag_on = bool(Save.s("magnify")) and not pad_mode   # V1.6 #7
++	mag_on = bool(Save.s("magnify"))   # V1.6 #7；V1.6.1 F4：手把也能用（指焦點按鈕上的字）
+ 	mag_hit = []
+ 	var _t0 := Time.get_ticks_usec()
+ 	_draw_inner()
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index d96e269..45b5cfa 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -83,6 +83,9 @@ func _lobby_touch() -> void:
+ 	if lobby_r.preset in Presets.IDS:
+ 		var p = Presets.make(lobby_r.preset, lobby_kind, _lobby_unlocked())
+ 		p.ai_level = lobby_r.ai_level
++		p.map_id = lobby_r.map_id   # V1.6.1 B1：地圖是另外選的（不屬於玩法預設），比對前帶過去，預設名稱不會因為換地圖變「自訂」
++		p.map_size = lobby_r.map_size
++		p.vents = lobby_r.vents
+ 		if not p.equals(lobby_r):
+ 			lobby_r.preset = "custom"
+ 
+@@ -946,9 +949,16 @@ func _draw_lobby_detail(R: Rect2) -> void:
+ 	var tabs: Array = LOBBY_TABS.duplicate()
+ 	if lobby_kind == "duel":
+ 		tabs.erase("lb_tab_ai")
++	# V1.6.1 A10：常用（前面）與進階（實驗、軍令）中間隔一段、標「進階」
++	var adv_gap := tz("C") * 1.6 + 8.0
++	var adv_at: int = tabs.find("lb_tab_lab")
+ 	for i in tabs.size():
+ 		var idx: int = LOBBY_TABS.find(tabs[i])
+-		_btn(Rect2(R.position + Vector2(0, i * 58), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx, true, false,
++		var gy := adv_gap if adv_at >= 0 and i >= adv_at else 0.0
++		if i == adv_at:
++			draw_line(R.position + Vector2(8, i * 58 + 2), R.position + Vector2(142, i * 58 + 2), Color(1, 1, 1, 0.25), 1.0)
++			_text(R.position + Vector2(75, i * 58 + 4), L.t("lb_adv"), tz("C"), TXT_DIM, true, false, 140)
++		_btn(Rect2(R.position + Vector2(0, i * 58 + gy), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx; lobby_rpage = 0, true, false,
+ 			TH_ACTIVE if idx == lobby_tab else Color(0, 0, 0, 0))
+ 	var L0 := Rect2(R.position + Vector2(170, 0), Vector2(600, R.size.y))
+ 	var D0 := Rect2(Vector2(L0.end.x + 20, R.position.y), Vector2(R.end.x - L0.end.x - 20, R.size.y))
+@@ -993,9 +1003,8 @@ func _draw_lobby_detail(R: Rect2) -> void:
+ 			if lobby_r.deploy == "free":
+ 				rows2.append(["map_mode", L.t("lb_map_mode"), L.t("map_mode_%d" % lobby_r.map_mode)])
+ 			rows2.append(["time_of", L.t("lb_time_of"), L.t("time_of_%d" % lobby_r.time_of)])
+-			if rows2.size() < 8:
+-				rows2.append(["adj", L.t("lb_adj"), L.t("on") if lobby_r.adj else L.t("off")])   # V1.6 #22（娛樂）
+-			_rows(L0, rows2)
++			rows2.append(["adj", L.t("lb_adj"), L.t("on") if lobby_r.adj else L.t("off")])   # V1.6 #22（娛樂）；V1.6.1 A7：一律列出，放不下就分頁
++			_rows_paged(L0, rows2)
+ 		4:
+ 			_rows(L0, [["ai_level", L.t("lb_ai_level"), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])],
+ 				["ai_pool_same", L.t("lb_ai_pool_same"), L.t("on") if lobby_r.ai_pool_same else L.t("off")]])
+@@ -1005,6 +1014,23 @@ func _draw_lobby_detail(R: Rect2) -> void:
+ 			_draw_cmd_tab(L0)
+ 	_draw_lobby_desc(D0)
+ 
++## V1.6.1 A7：列數超過這一欄放得下的就分頁（底下一列「◀ 1／2 ▶」），每個開關都找得到。
++var lobby_rpage := 0
++func _rows_paged(R: Rect2, rows: Array) -> void:
++	var cap := int(R.size.y / 66.0)
++	if rows.size() <= cap:
++		lobby_rpage = 0
++		_rows(R, rows)
++		return
++	var per := cap - 1
++	var pages := ceili(rows.size() / float(per))
++	lobby_rpage = clampi(lobby_rpage, 0, pages - 1)
++	_rows(R, rows.slice(lobby_rpage * per, lobby_rpage * per + per))
++	var y := R.position.y + per * 66
++	_btn_small(Rect2(R.position.x + 230, y, 60, 44), "◀", func(): lobby_rpage -= 1, lobby_rpage > 0)
++	_text(Vector2(R.position.x + 230 + 180, y + 10), L.t("lb_page", [lobby_rpage + 1, pages]), tz("S"), Color.WHITE, true, false, 200)
++	_btn_small(Rect2(R.position.x + 230 + 300, y, 60, 44), "▶", func(): lobby_rpage += 1, lobby_rpage < pages - 1)
++
+ func _rows(R: Rect2, rows: Array) -> void:
+ 	for i in rows.size():
+ 		var y := R.position.y + i * 66
+diff --git a/game/scripts/ui/screens/game_core.gd b/game/scripts/ui/screens/game_core.gd
+index 0da816f..fc9c20a 100644
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -188,7 +188,10 @@ func _build_ai() -> void:
+ 				armies[1] = AIT.build_full(1, r, 0, [], p1, rules)
+ 				ai_name = L.t("diff_easy")
+ 			1:
+-				var res = AI.build(1, rules.budget_of(1) if rules != null else 100, r, -1, p1, rules)
++				var tpl := -1
++				if has_method("_signature_tpl"):
++					tpl = int(call("_signature_tpl", r.seed, p1))   # V1.6.1 A11：AI 人設招牌陣（一般對 AI 才有）
++				var res = AI.build(1, rules.budget_of(1) if rules != null else 100, r, tpl, p1, rules)
+ 				armies[1] = res["army"]
+ 				if rules != null and rules.is_free() and armies[1].terrain != null and (get("daily_spec") as Dictionary).is_empty() and int(get("trial_id")) < 0:   # 試煉第 1～10 關的敵陣也是即時組的：照舊（三星解釘住，t_star 抓到）
+ 					armies[1] = load("res://scripts/core/formations.gd").terrain_smart(armies[1])   # V1.6 #15 地形 AI（每日挑戰、試煉的敵陣照舊，不升 Daily.VER）
+@@ -353,6 +356,8 @@ func _progress_and_achievements() -> void:
+ 		if stars > int(ps.get(puzzle_id, 0)):
+ 			ps[puzzle_id] = stars
+ 		Save.data["puzzle_stars"] = ps
++		if stars >= 1 and has_method("_coach_after_clear"):
++			call("_coach_after_clear", stars)   # V1.6.1 A4：自力最佳另記
+ 		if mode == Mode.PUZZLE:
+ 			Save.note_try("puzzle", puzzle_id, stars >= 1, armies[0].spent())   # V1.1 F2
+ 			if stars >= 1:
+@@ -774,7 +779,7 @@ func _gauntlet_save() -> void:
+ 		prev.append(o)
+ 	Save.data["gauntlet_run"] = {"stage": gauntlet_stage, "seed": gauntlet_seed, "gold": int(get("gauntlet_gold")), "cap": int(get("gauntlet_cap")),
+ 		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev,
+-		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap")), "contract": int(get("gauntlet_contract")), "coop": 1 if bool(get("ga_coop")) else 0}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
++		"foe_gold": int(get("gauntlet_foe_gold")), "foe_cap": int(get("gauntlet_foe_cap")), "contract": int(get("gauntlet_contract")), "coop": 1 if bool(get("ga_coop")) else 0, "clog": get("coop_log").duplicate() if get("coop_log") is Array else []}   # V1.1 D1：舊存檔沒有這兩欄＝0   # 存實際卡池：之後改大廳不會影響這次遠征（Codex v10-r1 #2）
+ 	Save.save_data()
+ 
+ func _gauntlet_clear() -> void:
+@@ -795,6 +800,7 @@ func _gauntlet_resume() -> void:
+ 	set("gauntlet_foe_cap", int(g.get("foe_cap", 0)))
+ 	set("gauntlet_contract", int(g.get("contract", -1)))   # V1.4 #3：舊存檔沒有＝沒簽
+ 	set("ga_coop", int(g.get("coop", 0)) == 1)   # V1.6 #21：雙人接力（舊存檔沒有＝單人）
++	set("coop_log", (g.get("clog", []) as Array).duplicate())   # V1.6.1 D4：每站誰擺、勝負、MVP
+ 	_reset_place(false)
+ 	armies[0].budget += int(g["gold"])
+ 	armies[0].unit_cap += int(g["cap"])
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 594b498..c1362d3 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -420,6 +420,9 @@ func _draw_overlay() -> void:
+ 				if en:
+ 					for ks in 3:   # 星數在右下角（和下方說明同一列，說明讓出寬度）
+ 						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.end.y - tz("C") * 0.75), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
++					var cde = Save.data.get("coached", {}).get(str(pz["id"]))
++					if not tut and cde is Dictionary and int(cde.get("lv", 0)) >= 2 and int(cde.get("self", 0)) < st:
++						_icon("hint", Vector2(r.end.x - 74, r.end.y - tz("C") * 0.75), 15.0, Color("#7fd6c2"))   # V1.6.1 A4：教練協力（自力最佳比目前星數少）
+ 				# 第七輪 E12：關卡鈕直接看得到預算、可用兵種、星級條件
+ 				# 關卡名稱換行時（英文大字）就不再放預覽，避免互壓
+ 				var note: String = L.t("puzzle_note", [int(pz["budget"]), int(pz["star3"])])
+@@ -1021,7 +1024,7 @@ func _draw_restore() -> void:
+ 		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
+ 
+-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best"]], ["clr_all", []]]
++const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "trial_stars", "coached"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals"]], ["clr_all", []]]
+ 
+ func _draw_clear_data() -> void:
+ 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+@@ -1163,7 +1166,7 @@ static func code_kind(c: String) -> String:
+ 		return "army"
+ 	if p == "NTC1":
+ 		return "challenge"
+-	if p == "NTP1" or p == "NTP2" or p == "NTP3":   # V1.6 #16 出題台碼
++	if p == "NTP1" or p == "NTP2" or p == "NTP3" or p == "NTP4":   # V1.6 #16 出題台碼；V1.6.1 A2 NTP4
+ 		return "workshop"
+ 	if p == "NTS1":
+ 		return "settings"
+@@ -1254,7 +1257,8 @@ func hub_items(kind: String) -> Array:
+ 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
+ 				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
+ 				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
+-				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()]]   # V1.6 #16 出題台
++				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
++				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true]]   # V1.6.1 N2 新玩法導覽（常駐）
+ 	return []
+ 
+ func _draw_hub(kind: String) -> void:
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index ef990ca..c6c9d95 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -331,12 +331,19 @@ func _accept_workshop(c := "") -> void:
+ 	if _demo():
+ 		var dm: int = RS.mask(true)
+ 		var ts: Array = pz["allowed"].duplicate()   # Codex v110-impl2：可用兵種表也要在試玩版範圍內
+-		for e in pz["enemy"] + d["sol"]:
++		var all_e: Array = pz["enemy"] + d["sol"]
++		if d.has("trio"):
++			for f in d["trio"]["foes"]:
++				all_e += f   # V1.6.1 D2：三考碼三支敵陣都要在試玩版範圍內
++		for e in all_e:
+ 			ts.append(int(e[0]))
+ 		for t0 in ts:
+ 			if not RuleSet.has(dm, int(t0)):
+ 				_toast(L.t("demo_locked"), true)
+ 				return
++	if d.has("trio"):
++		call("_trio_start_custom", d["trio"])   # V1.6.1 D2：朋友出的一陣三考
++		return
+ 	PZ.set_custom(pz)
+ 	puzzle_id = "ws"
+ 	_start_mode(Mode.PUZZLE)
+@@ -1124,6 +1131,12 @@ const ACH_DESC := {
+ 	"PAINTER": ["在塗裝室換一次顏色", "Change your colors in the paint room"],
+ 	"SHARP_EYE": ["競猜連續押中 5 場", "Call 5 Bets in a row"],
+ 	"SEALED_DONE": ["打完一組雙封蠟三戰", "Finish a Sealed Orders match"],
++	"RUSH_10": ["極速賽一次解開 10 題", "Solve 10 puzzles in one Puzzle Rush"],
++	"TRIO_STAR3": ["一陣三考任一組拿到三星", "Get 3 stars on any One Army, Three Tests set"],
++	"RIFT_WIN": ["打贏一次本週裂隙", "Win a weekly Rift"],
++	"WORKBENCH": ["用出題台做出一個殘局碼", "Make a code in the Puzzle Workbench"],
++	"MASTER_5": ["任一種兵熟練度到 5 級", "Reach mastery 5 with any unit"],
++	"COOP_CLEAR": ["雙人接力遠征打完 7 站", "Clear all 7 stages of a Relay Expedition"],
+ }
+ 
+ 
+diff --git a/game/scripts/ui/screens/game_v16.gd b/game/scripts/ui/screens/game_v16.gd
+index 3694b2a..055efb3 100644
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -65,6 +65,7 @@ func _finish_battle() -> void:
+ 		return
+ 	if trio_on and mode == Mode.PUZZLE:
+ 		_trio_settle()
++	_coop_settle()
+ 	_rift_settle()
+ 	_persona_result()
+ 	_career_settle()
+@@ -104,9 +105,43 @@ func _next_action(k: String) -> Callable:
+ 			return func(): overlay = "playroom"; _focus = 0
+ 		"trials":
+ 			return func(): _open("trials")
++	if k.begins_with("v16:"):
++		return _entry_action(k.substr(4))
+ 	return func(): pass
+ 
++## V1.6.1 N1／N2：照卡片定義找某個入口的動作（建議下一步、新玩法導覽共用；點了算看過）
++func _entry_action(key: String) -> Callable:
++	for kind in ["hub_play", "hub_challenge", "hub_collect"]:
++		for it in hub_items(kind):
++			if str(it[0]) == key:
++				var cb: Callable = it[3]
++				return func(): Guide.see(Save.data, key); cb.call()
++	return func(): pass
++
++const TOUR := [["rush_open", "hc_rush_d", "clock"], ["trio_open", "hc_trio_d", "people"], ["rift_open", "hc_rift_d", "swap"],
++	["fog_open", "hc_fog_d", "map"], ["ed_open", "hc_ed_d", "puzzle"], ["coop_open", "hc_coop_d", "people"]]
++func _draw_tour() -> void:
++	var rows := TOUR.size()
++	var P := modal_rect(820, 12.0 + h1_help_h(L.t("tour_help"), tz("S"), 740) + GAP_L + rows * 64.0 + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tour_title"), L.t("tour_help"), tz("S"), 740)
++	for i in rows:
++		var it: Array = TOUR[i]
++		var r := Rect2(P.position.x + 40, y + i * 64.0, P.size.x - 80, 56)
++		var en: bool = not _demo() or str(it[0]) == "fog_open"
++		_btn(r, "", _entry_action(str(it[0])), en, i == 0)
++		_icon(str(it[2]), r.position + Vector2(30, 28), 26.0, ACCENT if en else TXT_DIM)
++		_text(r.position + Vector2(60, 6), L.t(str(it[0])), tz("S"), Color.WHITE if en else TXT_DIM, false, true, 220)
++		_text(r.position + Vector2(290, 8), L.t(str(it[1])), tz("C"), TXT_DIM, false, false, r.size.x - 300)
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++
+ func _draw_next_step() -> void:
++	if overlay == "" and Guide.tour_due(Save.data, _demo()):
++		Guide.see(Save.data, "tour161")   # V1.6.1 N2：老玩家第一次開跳一次（之後在收藏卡片裡隨時可看）
++		Save.save_data()
++		overlay = "tour"
++		_focus = 0
++		return
+ 	if Save.s("hints") == "off" or overlay != "":
+ 		return
+ 	var k := Guide.next_step(Save.data, _daily_done_today(), _demo())
+@@ -117,7 +152,7 @@ func _draw_next_step() -> void:
+ 	_btn(NS_RECT, "", _next_action(k), true, false, Color(0.16, 0.3, 0.42, 0.95))
+ 	_icon("flag", NS_RECT.position + Vector2(30, NS_RECT.size.y / 2), 26.0, ACCENT)
+ 	_text(NS_RECT.position + Vector2(56, 6), L.t("ns_head"), tz("C"), TXT_DIM, false, false, NS_RECT.size.x - 70)
+-	_text(NS_RECT.position + Vector2(56, 6 + tz("C") * 1.25), L.t("ns_" + k), tz("S"), Color.WHITE, false, true, NS_RECT.size.x - 70)
++	_text(NS_RECT.position + Vector2(56, 6 + tz("C") * 1.25), L.t("ns_new", [L.t(k.substr(4))]) if k.begins_with("v16:") else L.t("ns_" + k), tz("S"), Color.WHITE, false, true, NS_RECT.size.x - 70)
+ 
+ ## 「新」小牌：貼在卡片右上角內側（九宮格羊皮紙＋墨字，不只靠顏色）
+ func _new_tag(r: Rect2) -> void:
+@@ -146,6 +181,8 @@ func _draw_v16_overlay(name: String) -> void:
+ 			_draw_share()
+ 		"rush_end":
+ 			_draw_rush_end()
++		"rush_menu":
++			_draw_rush_menu()
+ 		"coach":
+ 			_draw_coach()
+ 		"rift":
+@@ -160,6 +197,14 @@ func _draw_v16_overlay(name: String) -> void:
+ 			_draw_trio()
+ 		"trio_result":
+ 			_draw_trio_result()
++		"tour":
++			_draw_tour()
++		"nb_cmp":
++			_draw_nb_cmp()
++		"rift_lab":
++			_draw_rift_lab()
++		"coop_sum":
++			_draw_coop_sum()
+ 		"coop_hand":
+ 			_draw_coop_hand()
+ 
+@@ -275,20 +320,57 @@ func _v16_place_draw() -> void:
+ 			if rr > 0.0:
+ 				draw_circle(sp, rr * CS, Color(1, 0.9, 0.5, 0.05))
+ 				call("_arc_clipped", sp, rr * CS, 0, TAU, Color(1, 0.9, 0.5, 0.3), 1.2)
+-			if not foes.is_empty():
+-				var best: Vector2i = foes[0]
+-				var bd := INF
+-				for f in foes:
+-					var d := Vector2(f - p).length()
+-					if d < bd:
+-						bd = d
+-						best = f
+-				var dir := Vector2(best - p).normalized()
+-				_chalk_arrow(sp, sp + dir * 0.7 * CS)
++		if not foes.is_empty():
++			# V1.6.1 A9：開場鎖定（用模擬跑 1 tick 的選目標結果，不是「最近的敵兵」）；虛線弧，白黑雙邊。不保證第一下打到它（之後會換目標）。
++			for pr in _lock_pairs(a, armies[1]):
++				_lock_arc(_foot_of(pr[0]) - Vector2(0, 0.32 * CS), _foot_of(pr[1]) - Vector2(0, 0.32 * CS))
+ 	_tv_draw_marks_place(a)
+ 	_fog_draw()
+ 	_adj_draw(a)
+ 
++## [[我方位置, 鎖定的敵兵位置], …]（雙方陣型沒變就用快取，不每幀重算）
++var lock_key := 0
++var lock_cache: Array = []
++func _lock_pairs(a0, a1) -> Array:
++	if a0 == null or a1 == null or a0.units.is_empty() or a1.units.is_empty():
++		return []
++	var rr = PZ.rules_of(PZ.get_puzzle(puzzle_id)) if mode == Mode.PUZZLE else rules
++	var key := hash([a0.units, a1.units, rr.to_code() if rr != null else ""])
++	if key == lock_key:
++		return lock_cache
++	lock_key = key
++	lock_cache = lock_targets(a0, a1, rr)
++	return lock_cache
++
++static func lock_targets(a0, a1, rr) -> Array:
++	var s = Sim.new(a0.copy(), a1.copy(), rr)
++	var start: Array = []
++	for u in s.units:
++		start.append(Vector2i(u.x, u.y))
++	s.step()
++	var out: Array = []
++	for i in s.units.size():
++		var u = s.units[i]
++		if u.team == 0 and u.target >= 0 and u.target < start.size() and s.units[u.target].team == 1:
++			out.append([start[i], start[u.target]])
++	return out
++
++func _lock_arc(a: Vector2, b: Vector2) -> void:
++	var mid := (a + b) / 2.0 + (b - a).orthogonal().normalized() * minf(40.0, a.distance_to(b) * 0.18)
++	var cb := bool(Save.s("colorblind"))
++	var n := 14
++	for k in n:
++		if k % 2 == 1:
++			continue   # 虛線
++		var t0 := float(k) / n
++		var t1 := float(k + 1) / n
++		var p0 := a.lerp(mid, t0).lerp(mid.lerp(b, t0), t0)
++		var p1 := a.lerp(mid, t1).lerp(mid.lerp(b, t1), t1)
++		draw_line(p0, p1, Color(0, 0, 0, 0.55), 4.0 if cb else 3.0, true)
++		draw_line(p0, p1, Color(1, 0.95, 0.8, 0.85 if cb else 0.6), 2.0 if cb else 1.4, true)
++	draw_circle(b, 4.0, Color(0, 0, 0, 0.6))
++	draw_circle(b, 2.6, Color(1, 0.95, 0.8, 0.9))
++
+ func _chalk_arrow(a: Vector2, b: Vector2) -> void:
+ 	draw_line(a, b, Color(1, 1, 1, 0.55), 2.0, true)
+ 	var d := (b - a).normalized()
+@@ -351,6 +433,9 @@ func _v16_battle_draw() -> void:
+ 		var p := _upos(u)
+ 		if u.alive:
+ 			_tv_badge(p - Vector2(0, 1.15 * CS), k + 1)
++			var mlv := mastery_lv(int(u.type)) if u.team == 0 else 0
++			if mlv >= 3:
++				_icon("star", p + Vector2(0, 6), 12.0, Color("#ffd166") if mlv >= 5 else Color("#d8dde6"))   # V1.6.1 A1：只有標記的兵在戰場上顯示熟練度（不常駐，不擋戰場）
+ 
+ ## ── #7 操作與無障礙：按住確認、文字放大鏡、軍令點選放置 ──
+ var hold_t := 0.0
+@@ -362,12 +447,27 @@ func _hold_tick(delta: float) -> void:
+ 		hold_t = 0.0
+ 		return
+ 	var down: bool = (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and confirm_ok_r.has_point(mouse)) \
+-		or (_focus == 0 and (Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A)))
++		or (_focus == 0 and hold_keys_down(Save.s("keys"), Save.s("pad")))
+ 	hold_t = hold_t + delta if down else 0.0
+ 	if hold_t >= HOLD_SEC:
+ 		hold_t = 0.0
++		if pad_mode and int(Save.s("rumble")) > 0:
++			Input.start_joy_vibration(last_joy, 0.2, 0.5 * int(Save.s("rumble")) / 100.0, 0.12)   # 確定的那一下輕震
+ 		call("_confirm_go")
+ 
++## V1.6.1 F4：按住確認看「改鍵後」的放置／開始鍵，任何一支手把的放置鈕（原本寫死 Enter、Space、0 號手把 A）
++static func hold_keys_down(keys, pad) -> bool:
++	var kt: Dictionary = keys if keys is Dictionary else {}
++	var pt: Dictionary = pad if pad is Dictionary else {}
++	for act in ["place", "start"]:
++		if Input.is_key_pressed(Keymap.key_of(kt, act)):
++			return true
++	var pb := int(pt.get("place", JOY_BUTTON_A))
++	for dev in Input.get_connected_joypads():
++		if Input.is_joy_button_pressed(dev, pb):
++			return true
++	return false
++
+ ## 放大鏡：游標指到的介面字，在游標旁邊放大 1.8 倍畫一份（不改版面）
+ func _draw_magnifier() -> void:
+ 	if mag_hit.is_empty():
+@@ -376,7 +476,8 @@ func _draw_magnifier() -> void:
+ 	var sz := mini(44, int(int(mag_hit[1]) * 1.8))
+ 	var w := minf(_width(s, sz, bool(mag_hit[2])), 1180.0) + 28.0
+ 	var h := sz * 1.5
+-	var at := Vector2(clampf(mouse.x - w / 2, 8, 1272 - w), mouse.y + 28 if mouse.y < 600 else mouse.y - 28 - h)
++	var mp := mag_point()
++	var at := Vector2(clampf(mp.x - w / 2, 8, 1272 - w), mp.y + 28 if mp.y < 600 else mp.y - 28 - h)
+ 	draw_rect(Rect2(at, Vector2(w, h)), Color(0.04, 0.05, 0.08, 0.96))
+ 	draw_rect(Rect2(at, Vector2(w, h)), ACCENT, false, 2.0)
+ 	var keep := mag_on
+@@ -410,8 +511,8 @@ func _daily_finish(w: int) -> void:
+ 	if not det.is_empty():
+ 		var prev: Dictionary = Save.data.get("daily_pend", {})
+ 		var sc := SteamApi.daily_score(rem, armies[0].spent())
+-		if int(prev.get("day", -1)) != day or sc > int(prev.get("score", 0)):
+-			Save.data["daily_pend"] = {"day": day, "score": sc, "det": Array(det)}
++		if int(prev.get("day", -1)) != day or int(prev.get("ver", 1)) != Daily.VER or sc > int(prev.get("score", 0)):
++			Save.data["daily_pend"] = {"day": day, "score": sc, "det": Array(det), "ver": Daily.VER}
+ 		_daily_sync()
+ 	sh_text = Share.daily_text(L, Time.get_date_string_from_unix_time(day * 86400), L.t("daily_mut_%d" % int(daily_spec["mut"])), rem, armies[0].spent(), armies[0].budget, int(sim.tick / 20), int(st["n"]))
+ 
+@@ -470,11 +571,31 @@ func _ghost_settle(w: int) -> void:
+ const Rush = preload("res://scripts/game/v16_rush.gd")
+ var rush := {}   # {"on", "left", "ids", "i", "solved", "tried"}
+ 
++## V1.6.1 D1：入口先開選單——「今日題組」（UTC 日數當種子，大家同一天同一套題，可分享）或「隨機練習」
+ func _rush_start() -> void:
+-	var sd := int(Time.get_unix_time_from_system())
+-	rush = {"on": true, "left": Rush.START_SEC, "ids": Rush.pool(sd), "i": 0, "solved": 0, "tried": 0}
++	overlay = "rush_menu"
++	_focus = 0
++
++func _rush_go(daily: bool) -> void:
++	var day: int = int(Daily.today())
++	var sd := Rush.day_seed(day) if daily else int(Time.get_unix_time_from_system())
++	rush = {"on": true, "left": Rush.START_SEC, "ids": Rush.pool(sd), "i": 0, "solved": 0, "tried": 0, "daily": daily, "day": day}
+ 	_rush_load()
+ 
++func _draw_rush_menu() -> void:
++	var rd: Dictionary = Save.data.get("rush_day", {})
++	var today := int(Daily.today())
++	var tb := int(rd.get("best", 0)) if int(rd.get("day", -1)) == today else -1
++	var info := L.t("rush_menu_best", [int(Save.data.get("rush_best", 0))]) + "\n" + (L.t("rush_today_best", [tb]) if tb >= 0 else L.t("rush_today_none"))
++	var P := modal_rect(640, 12.0 + h1_help_h(L.t("rush_help", [int(Rush.START_SEC), int(Rush.BONUS_SEC), int(Rush.PENALTY_SEC)]), tz("S"), 560) + GAP_L + text_h(info, tz("S"), 560) + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rush_open"), L.t("rush_help", [int(Rush.START_SEC), int(Rush.BONUS_SEC), int(Rush.PENALTY_SEC)]), tz("S"), 560)
++	_text(Vector2(640, y), info, tz("S"), ACCENT, true, false, 560)
++	y += text_h(info, tz("S"), 560) + GAP_XL
++	_btn(Rect2(640 - 290, y, 280, 52), L.t("rush_daily"), func(): overlay = ""; _rush_go(true), true, true)
++	_btn(Rect2(650, y, 280 - GAP_S, 52), L.t("rush_free"), func(): overlay = ""; _rush_go(false))
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++
+ func _rush_load() -> void:
+ 	var ids: Array = rush["ids"]
+ 	if int(rush["i"]) >= ids.size():
+@@ -489,7 +610,14 @@ func _rush_end() -> void:
+ 	rush["new_best"] = int(rush["solved"]) > best
+ 	if int(rush["solved"]) > best:
+ 		Save.data["rush_best"] = int(rush["solved"])
+-		Save.save_data()
++	if int(rush["solved"]) >= 10:
++		call("_ach", "RUSH_10")   # V1.6.1 D7
++	if bool(rush.get("daily", false)):
++		var rd: Dictionary = Save.data.get("rush_day", {})
++		if int(rd.get("day", -1)) != int(rush["day"]) or int(rush["solved"]) > int(rd.get("best", 0)):
++			Save.data["rush_day"] = {"day": int(rush["day"]), "best": int(rush["solved"])}   # 今日題組只留今天的最佳
++		rush["share"] = Rush.share_text(L, Time.get_date_string_from_unix_time(int(rush["day"]) * 86400), int(rush["solved"]), int(rush["tried"]))
++	Save.save_data()
+ 	_go_title()
+ 	overlay = "rush_end"
+ 	_focus = 0
+@@ -532,8 +660,10 @@ func _draw_rush_end() -> void:
+ 	var y := _h1(Vector2(640, P.position.y + 12), L.t("rush_title")) + GAP_L
+ 	_text(Vector2(640, y), body, tz("B"), ACCENT if bool(rush.get("new_best", false)) else Color.WHITE, true, true, 480)
+ 	y += text_h(body, tz("B"), 480, true) + GAP_XL
+-	_btn(Rect2(640 - 230, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_start(), true, true)
+-	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
++	_btn(Rect2(640 - 345, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_go(bool(rush.get("daily", false))), true, true)
++	var sh := str(rush.get("share", ""))
++	_btn(Rect2(640 - 110, y, 220, 50), L.t("sh_copy"), func(): DisplayServer.clipboard_set(sh); _toast(L.t("sh_copied")), sh != "")   # V1.6.1 D1：今日題組可以分享
++	_btn(Rect2(640 + 125, y, 220, 50), L.t("back"), func(): overlay = "")
+ 
+ ## ── #9 差一子教練 ──
+ const Coach = preload("res://scripts/game/v16_coach.gd")
+@@ -541,6 +671,7 @@ var co_thread: Thread = null
+ var co_res := {}       # 搜尋結果
+ var co_layer := 0      # 0 還沒看、1 哪一隻、2 往哪、3 直接擺
+ var co_key := ""       # 這一場的識別（換場就重算）
++var co_ctl := {}       # V1.6.1 F5：和背景搜尋共用的 {"stop", "until", "done"}（取消、期限、進度）
+ 
+ func _coach_pz() -> Dictionary:
+ 	return PZ.get_puzzle(puzzle_id) if mode == Mode.PUZZLE else {}
+@@ -550,6 +681,8 @@ func coach_ok() -> bool:
+ 		return false
+ 	if bool(rush.get("on", false)) or not (mode == Mode.PUZZLE or mode == Mode.VS_AI):
+ 		return false
++	if not (get("daily_spec") as Dictionary).is_empty():
++		return false   # V1.6.1 A4：每日挑戰不給教練（大家同一題、上排行榜）
+ 	if mode == Mode.PUZZLE and bool(report.get("goal_ok", false)):
+ 		return false
+ 	return Coach.supported(last_armies[0], battle_rules, _coach_pz())
+@@ -572,21 +705,27 @@ func _coach_open() -> void:
+ 		var a1 = last_armies[1].copy()
+ 		var rr = battle_rules.copy() if battle_rules != null else null
+ 		var pz := _coach_pz()
++		var ctl := {"stop": false, "until": Time.get_ticks_msec() + Coach.TIME_MS, "done": 0}
++		co_ctl = ctl
+ 		if DisplayServer.get_name() == "headless" or shot_dir != "":
+-			co_res = Coach.search(a0, a1, rr, pz)
++			co_res = Coach.search(a0, a1, rr, pz, Coach.LIMIT, ctl)
+ 		else:
+ 			co_thread = Thread.new()
+ 			co_thread_key = key
+-			co_thread.start(func(): return Coach.search(a0, a1, rr, pz))
++			co_thread.start(func(): return Coach.search(a0, a1, rr, pz, Coach.LIMIT, ctl))
+ 	overlay = "coach"
+ 	_focus = 0
+ 
+ var co_thread_key := ""
+ func _v16_jobs(_delta: float) -> void:
++	_trio_jobs()
+ 	if co_thread != null and not co_thread.is_alive():
+ 		var res = co_thread.wait_to_finish()
+ 		co_thread = null
+-		if co_thread_key == co_key:
++		if co_thread_key == co_key and str((res as Dictionary).get("status", "")) == "cancel" and overlay == "coach":
++			co_key = ""
++			_coach_open()   # 取消後又打開同一場：重算（不顯示「已取消」）
++		elif co_thread_key == co_key:
+ 			co_res = res   # 過期的結果（換場了）不收
+ 		else:
+ 			var want := co_key
+@@ -595,14 +734,58 @@ func _v16_jobs(_delta: float) -> void:
+ 				_coach_open()   # 面板開著、等的是新的這一場：接著算新的
+ 
+ func _exit_tree() -> void:
++	if trio_thread != null:
++		trio_thread.wait_to_finish()
++		trio_thread = null
+ 	if co_thread != null:
++		co_ctl["stop"] = true   # V1.6.1 F5：先叫它停（64 tick 內會停），不用等整場跑完
+ 		co_thread.wait_to_finish()   # 結束時收掉教練的背景工作（Codex v160-i1 #3）
+ 		co_thread = null
+ 	super._exit_tree()
+ 
++## V1.6.1 F5：推演中按「取消」：叫背景停下、關面板；下次打開這一場會重算
++func _coach_cancel() -> void:
++	co_ctl["stop"] = true
++	co_key = ""
++	overlay = ""
++
++## V1.6.1 A4：教練紀錄分層。鍵＝實驗簿同一套（殘局 id、試煉 t＋編號、工坊／三考依內容）；一般對 AI 不記。
++## coached[鍵] = {"lv": 看過的最高提示層級 1～3, "ap": 有沒有套用, "self": 自力最佳星數（沒用教練過關時才更新）}
++var co_assist := ""   # 這一題這次有用到第 2 層以上或套用：之後過關算「教練協力」
++func _coach_note(lv: int, applied := false) -> void:
++	var k := _nb_key()
++	if k == "":
++		return
++	var cd: Dictionary = Save.data.get("coached", {})
++	var e: Dictionary = cd.get(k, {"lv": 0, "ap": 0, "self": int(Save.data.get("puzzle_stars", {}).get(k, 0))})
++	e["lv"] = maxi(int(e.get("lv", 0)), lv)
++	if applied:
++		e["ap"] = 1
++	cd[k] = e
++	Save.data["coached"] = cd
++	if lv >= 2 or applied:
++		co_assist = k
++
++## 過關時（game_core 存星數之後呼叫）：沒用教練的成績才進「自力最佳」
++func _coach_after_clear(stars: int) -> void:
++	var k := _nb_key()
++	if k == "":
++		return
++	var cd: Dictionary = Save.data.get("coached", {})
++	if not cd.has(k):
++		return
++	if co_assist != k:
++		cd[k]["self"] = maxi(int(cd[k].get("self", 0)), stars)
++	Save.data["coached"] = cd
++
++static func coach_badge(data: Dictionary, pid: String) -> bool:
++	var e = data.get("coached", {}).get(pid)
++	return e is Dictionary and int(e.get("lv", 0)) >= 2 and int(e.get("self", 0)) < int(data.get("puzzle_stars", {}).get(pid, 0))
++
+ func _coach_apply() -> void:
+ 	if not bool(co_res.get("found", false)):
+ 		return
++	_coach_note(3, true)
+ 	if mode == Mode.PUZZLE:
+ 		var b = co_res["army"]
+ 		armies[0] = b.copy()
+@@ -619,38 +802,98 @@ func _coach_apply() -> void:
+ 		call("_rv_recalc")
+ 
+ func _dir_name(f: Vector2i, t: Vector2i) -> String:
+-	if t.x > f.x:
+-		return L.t("co_fwd")
+-	if t.x < f.x:
+-		return L.t("co_back")
+-	return L.t("co_up") if t.y < f.y else L.t("co_down")
++	var parts: Array = []
++	var dx := t.x - f.x
++	if last_armies.size() > 0 and last_armies[0].team == 1:
++		dx = -dx
++	if dx > 0:
++		parts.append(L.t("co_fwd"))
++	elif dx < 0:
++		parts.append(L.t("co_back"))
++	if t.y < f.y:
++		parts.append(L.t("co_up"))
++	elif t.y > f.y:
++		parts.append(L.t("co_down"))
++	return L.t("co_and", parts) if parts.size() == 2 else (str(parts[0]) if parts.size() == 1 else "")
++
++func _coach_hint2() -> String:
++	if str(co_res.get("kind", "move")) == "swap":
++		return L.t("co_l2s", [L.t("unit_%d" % int(co_res["to_type"]))])
++	if bool(co_res.get("grid", true)):
++		return L.t("co_l2", [_dir_name(co_res["from"], co_res["to"])])
++	return L.t("co_l2h", [_dir_name(co_res["from"], co_res["to"])])
++
++func _coach_status_line() -> String:
++	var tr := int(co_res.get("tries", 0))
++	match str(co_res.get("status", "exhausted")):
++		"budget":
++			return L.t("co_budget", [tr, int(co_res.get("total", 0)) - tr])
++		"timeout":
++			return L.t("co_timeout", [tr])
++		"cancel":
++			return L.t("co_cancelled")
++	return L.t("co_none", [tr])
++
++## 第 2 層殘影：小棋盤上原本的兵（實）→ 建議的位置或兵種（半透明）
++func _coach_ghost(c: Vector2) -> void:
++	var t0 := int(co_res["type"])
++	var t1 := int(co_res.get("to_type", t0))
++	var cs := 44.0
++	var tm: int = last_armies[0].team
++	var off := Vector2.ZERO
++	if str(co_res.get("kind", "move")) == "swap":
++		off = Vector2(cs * 1.6, 0)
++	else:
++		var f: Vector2i = co_res["from"]
++		var t: Vector2i = co_res["to"]
++		var k := 1.0 if bool(co_res.get("grid", true)) else 1.0 / Coach.FREE_STEP
++		off = Vector2((t.x - f.x) * k, (t.y - f.y) * k).normalized() * cs * 1.6
++	var a := c - off / 2.0
++	var b := c + off / 2.0
++	for gx in range(-2, 3):
++		for gy in range(-1, 2):
++			draw_rect(Rect2(c + Vector2(gx, gy) * cs - Vector2(cs, cs) / 2.0, Vector2(cs, cs)), Color(1, 1, 1, 0.05 if (gx + gy) % 2 == 0 else 0.02))
++	Art.unit(self, a + Vector2(0, 14), t0, tm, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.62, cbm())
++	_chalk_arrow(a + off.normalized() * 20.0, b - off.normalized() * 20.0)
++	Art.unit(self, b + Vector2(0, 14), t1, tm, 1.0, 0.0, 0.0, 0.0, 0.42 + 0.12 * sin(time * 4.0), time, 0.62, cbm())
+ 
+ func _draw_coach() -> void:
+ 	var busy := co_thread != null
+ 	var found: bool = bool(co_res.get("found", false))
+ 	var lines: Array = []
+ 	if busy:
+-		lines.append(L.t("co_busy"))
++		lines.append(L.t("co_busy_n", [int(co_ctl.get("done", 0)), Coach.LIMIT]))
+ 	elif not found:
+-		lines.append(L.t("co_none", [int(co_res.get("tries", 0))]))
++		lines.append(_coach_status_line())
+ 	else:
+ 		var tn := L.t("unit_%d" % int(co_res["type"]))
+ 		lines.append(L.t("co_l1", [tn]))
+ 		if co_layer >= 2:
+-			lines.append(L.t("co_l2", [_dir_name(co_res["from"], co_res["to"])]))
++			lines.append(_coach_hint2())
+ 	var body := "\n".join(lines)
+-	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help"), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + GAP_XL + 50.0 + GAP_M + 44.0 + GAP_L)
++	var gh := 150.0 if found and co_layer >= 2 else 0.0
++	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + gh + GAP_XL + 50.0 + GAP_M + 44.0 + GAP_L)
+ 	_panel(P)
+-	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("co_title"), L.t("co_help"), tz("S"), 540)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("co_title"), L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540)
+ 	_text(Vector2(640, y), body, tz("B"), Color.WHITE, true, true, 540)
+-	y += text_h(body, tz("B"), 540) + GAP_XL
+-	if found and co_layer < 2:
+-		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_more"), func(): co_layer = 2, true, true)
++	y += text_h(body, tz("B"), 540)
++	if gh > 0.0:
++		_coach_ghost(Vector2(640, y + gh / 2.0))
++		y += gh
++	y += GAP_XL
++	if busy:
++		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_cancel"), func(): _coach_cancel(), true, true)   # 推演中：明顯的取消（手把 A；B＝返回也會取消）
++	elif found and co_layer < 2:
++		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_more"), func(): co_layer = 2; _coach_note(2), true, true)
+ 	elif found:
+ 		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_apply") if mode == Mode.PUZZLE else L.t("co_review"), func(): _coach_apply(), true, true)
+-	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _coach_cancel() if co_thread != null else _close_overlay_plain())
+ 	if found and co_layer < 1:
+ 		co_layer = 1
++		_coach_note(1)
++
++func _close_overlay_plain() -> void:
++	overlay = ""
+ 
+ ## ── #10 裂隙模式 ──
+ const Rift = preload("res://scripts/game/v16_rift.gd")
+@@ -679,13 +922,53 @@ func _rift_settle() -> void:
+ 	var k := Rift.key(rift_wk)
+ 	if rift_wk != Rift.week():
+ 		return   # 上一週的題：本週紀錄只留本週，跨週打完的不記
++	call("_ach", "RIFT_WIN")   # V1.6.1 D7
+ 	var rec := [PZ.rem_pct(sim.power(0), sim.budget_of(0)), armies[0].spent()]
+ 	if Daily.better(rec, best.get(k, [])):
+-		best = {k: rec}   # 只留這一週
+-		Save.data["rift_best"] = best
++		best[k] = rec
++		Save.data["rift_best"] = Rift.keep_recent(best, RIFT_KEEP)   # V1.6.1 A12：留最近 8 週
+ 		Save.save_data()
+ 		_toast(L.t("rf_new", [int(rec[0])]))
+ 
++const RIFT_KEEP := 8
++
++## ── V1.6.1 A12：異變練習場（自己挑異變；不記週紀錄，不算裂隙成績） ──
++var rift_lab: Array = []   # 選了哪些異變（ANOMS 索引）
++func rift_lab_toggle(k: int) -> void:
++	if k in rift_lab:
++		rift_lab.erase(k)
++		return
++	var tg: String = Rift.ANOMS[k][1]
++	rift_lab = rift_lab.filter(func(j): return Rift.ANOMS[j][1] != tg)   # 同類別換掉
++	var trial: Array = rift_lab + [k]
++	if Rift.make_rules(trial, RS.mask(_demo()), Rift.week()).validate().is_empty():
++		rift_lab = trial
++	else:
++		_toast(L.t("rf_lab_bad"), true)
++
++func _rift_lab_start() -> void:
++	var wk := Rift.week()
++	var r = Rift.make_rules(rift_lab, RS.mask(_demo()), wk)
++	rules = r
++	set("challenge_army", Rift.enemy(r, wk))
++	_start_mode(Mode.VS_AI)
++	daily_spec = {}
++	rift_on = false   # 練習：不記紀錄
++
++func _draw_rift_lab() -> void:
++	var n := Rift.ANOMS.size()
++	var rows := ceili(n / 2.0)
++	var P := modal_rect(820, 12.0 + h1_help_h(L.t("rf_lab_help"), tz("S"), 740) + GAP_L + rows * 52.0 + GAP_L + 52.0 + GAP_M + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rf_lab"), L.t("rf_lab_help"), tz("S"), 740)
++	for k in n:
++		var kk := k
++		var on: bool = k in rift_lab
++		_btn(Rect2(640 - 370 + (k % 2) * 375, y + (k / 2) * 52.0, 365, 46), ("✓ " if on else "") + L.t(str(Rift.ANOMS[k][0])), func(): rift_lab_toggle(kk), true, k == 0, TH_ACTIVE if on else Color(0, 0, 0, 0))
++	y += rows * 52.0 + GAP_L
++	_btn(Rect2(640 - 160, y, 320, 52), L.t("rf_lab_go"), func(): overlay = ""; _rift_lab_start(), not rift_lab.is_empty(), true)
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "rift")
++
+ func _draw_rift() -> void:
+ 	var ps := _rift_picks()
+ 	var lines: Array = []
+@@ -694,14 +977,18 @@ func _draw_rift() -> void:
+ 	var body := "\n".join(lines)
+ 	var b: Array = Save.data.get("rift_best", {}).get(Rift.key(Rift.week()), [])
+ 	var best := L.t("rf_best", [int(b[0]), int(b[1])]) if not b.is_empty() else L.t("rf_best_none")
+-	var P := modal_rect(680, 12.0 + h1_help_h(L.t("rf_help"), tz("S"), 600) + GAP_L + text_h(body, tz("B"), 560) + GAP_M + tz("S") * 1.6 + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
++	var hist: Dictionary = Save.data.get("rift_best", {})
++	if hist.size() > 1 or (hist.size() == 1 and b.is_empty()):
++		best += "\n" + L.t("rf_hist", [hist.size(), RIFT_KEEP])   # V1.6.1 A12：近 8 週打過幾週
++	var P := modal_rect(720, 12.0 + h1_help_h(L.t("rf_help"), tz("S"), 600) + GAP_L + text_h(body, tz("B"), 560) + GAP_M + text_h(best, tz("S"), 560) + GAP_XL + 52.0 + GAP_M + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rift_open"), L.t("rf_help"), tz("S"), 600)
+ 	_text(Vector2(360, y), body, tz("B"), Color.WHITE, false, true, 560)
+ 	y += text_h(body, tz("B"), 560) + GAP_M
+ 	_text(Vector2(640, y), best, tz("S"), ACCENT, true, false, 560)
+-	y += tz("S") * 1.6 + GAP_XL
+-	_btn(Rect2(640 - 160, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
++	y += text_h(best, tz("S"), 560) + GAP_XL
++	_btn(Rect2(640 - 330, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
++	_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
+ func _start_mode(m: int) -> void:
+@@ -725,6 +1012,12 @@ const Persona = preload("res://scripts/game/v16_persona.gd")
+ func _ai_style() -> int:
+ 	return int(rules.ai_style) if rules != null else 0
+ 
++## V1.6.1 A11：一般對 AI（普通）才用招牌陣
++func _signature_tpl(seed: int, pool: int) -> int:
++	if mode != Mode.VS_AI or not (get("daily_spec") as Dictionary).is_empty() or rift_on or int(get("trial_id")) >= 0 or get("challenge_army") != null or fog_on:
++		return -1
++	return Persona.signature(_ai_style(), seed, func(t): return AI.template_ok(t, pool))
++
+ ## 擺陣時敵方屏風上：頭像＋名號＋開場白（不洩漏陣型）
+ func _persona_fog(c: Vector2, w: float) -> void:
+ 	if bool(get("ghost_id") != "") or bool(get("wk_active")) or rift_on:
+@@ -734,6 +1027,9 @@ func _persona_fog(c: Vector2, w: float) -> void:
+ 	_text(c + Vector2(0, 56), L.t("ps_name_%d" % st), ts(16), Color.WHITE, true, true, w)
+ 	var q := "「" + L.t(Persona.line_key(st, "open")) + "」" if L.lang.begins_with("zh") or L.lang == "ja" else "\"" + L.t(Persona.line_key(st, "open")) + "\""
+ 	_text(c + Vector2(0, 56 + ts(16) * 1.4), q, ts(15), Color(1, 0.9, 0.7, 0.9), true, false, w)
++	if difficulty == 1:
++		var fv: String = ai_tpl_name(str(AI.TEMPLATES[Persona.fav(st)]["name"]))
++		_text(c + Vector2(0, 56 + ts(16) * 1.4 + ts(15) * 1.5 + text_h(q, ts(15), w) - ts(15) * 1.3), L.t("ps_fav", [fv]), ts(14), Color(0.85, 0.9, 1.0, 0.8), true, false, w)   # 「最近愛用」：只說愛用哪套，不保證這場就是
+ 
+ func _persona_result() -> void:
+ 	if mode != Mode.VS_AI or sim == null or sim.winner < 0 or not (get("daily_spec") as Dictionary).is_empty() or rift_on or str(get("ghost_id")) != "" or bool(get("wk_active")) or watch_mode:
+@@ -752,13 +1048,21 @@ func _career_settle() -> void:
+ 	var m: Dictionary = Save.data.get("mastery", {})
+ 	var ups := Career.add(m, Career.gain(sim.units))
+ 	Save.data["mastery"] = m
++	var md: Dictionary = Save.data.get("medals", {})
++	var mvp = report.get("mvp")
++	Career.medal_add(md, sim.units, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1)
++	Save.data["medals"] = md
++	for k5 in m:
++		if Career.level(int(m[k5])) >= 5:
++			call("_ach", "MASTER_5")   # V1.6.1 D7
++			break
+ 	if not ups.is_empty():
+ 		var t: int = ups[0]
+ 		report["ms_line"] = L.t("ms_up", [L.t("unit_%d" % t), Career.level(int(m[str(t)]))])   # 結果頁有空位才顯示（跳提示會壓到別的畫面）
+ 	if _nb_key() != "" and last_armies.size() == 2:
+ 		var nb: Dictionary = Save.data.get("notebook", {})
+ 		var stv: int = int(report.get("stars", 0)) if mode == Mode.PUZZLE else (1 if sim.winner == 0 else 0)
+-		Career.nb_result(nb, _nb_key(), Career.units_of(last_armies[0]), stv, PZ.rem_pct(sim.power(0), sim.budget_of(0)) if sim.winner == 0 else 0, last_armies[0].spent())
++		Career.nb_result(nb, _nb_key(), Career.units_of(last_armies[0]), stv, PZ.rem_pct(sim.power(0), sim.budget_of(0)) if sim.winner == 0 else 0, last_armies[0].spent(), _nb_hash())
+ 		Save.data["notebook"] = nb
+ 
+ func mastery_line(t: int) -> String:
+@@ -769,13 +1073,19 @@ func mastery_line(t: int) -> String:
+ ## 實驗簿的鍵：殘局＝關卡 id、試煉＝t＋編號（Codex v160-i1 #9：方案是殘局與試煉）
+ func _nb_key() -> String:
+ 	if mode == Mode.PUZZLE:
+-		return puzzle_id
++		return Career.ws_key(PZ.get_puzzle("ws"))[0] if puzzle_id == "ws" else puzzle_id   # V1.6.1 F1：工坊／三考依題目內容
+ 	if mode == Mode.VS_AI and int(get("trial_id")) >= 0:
+ 		return "t%d" % int(get("trial_id"))
+ 	return ""
+ 
++func _nb_hash() -> String:
++	return Career.ws_key(PZ.get_puzzle("ws"))[1] if mode == Mode.PUZZLE and puzzle_id == "ws" else ""
++
++func _nb_items() -> Array:
++	return Career.nb_list(Save.data.get("notebook", {}), _nb_key(), _nb_hash())
++
+ func _draw_notebook() -> void:
+-	var lst: Array = Save.data.get("notebook", {}).get(_nb_key(), [])
++	var lst: Array = _nb_items()
+ 	var rows := maxi(1, lst.size())
+ 	var P := modal_rect(760, 12.0 + h1_help_h(L.t("nb_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 48.0 + GAP_M + 44.0 + GAP_L)
+ 	_panel(P)
+@@ -786,19 +1096,139 @@ func _draw_notebook() -> void:
+ 		var e: Dictionary = lst[i]
+ 		var r: Array = e["r"]
+ 		var res := L.t("nb_res", [int(r[0]), int(r[1]), int(r[2])]) if r.size() == 3 else L.t("nb_untried")
+-		_text(Vector2(P.position.x + 40, y + 10), "%s　%s" % [str(e["n"]), res], tz("S"), Color.WHITE, false, true, 420)
+ 		var ii := i
+-		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load"), func(): _nb_load(ii))
+-		_btn_small(Rect2(P.end.x - 130, y + 4, 90, 40), L.t("nb_del"), func(): _nb_del(ii))
++		if nb_edit == i:
++			# 改名中：輸入框＋游標（Enter 確定、Esc 取消）
++			var ir := Rect2(P.position.x + 32, y + 4, 300, 40)
++			draw_rect(ir, Color(0.05, 0.06, 0.09, 0.95))
++			draw_rect(ir, ACCENT, false, 2.0)
++			_text(ir.position + Vector2(10, 6), nb_buf + ("|" if fmod(time, 1.0) < 0.55 else " "), tz("S"), Color.WHITE, false, true, 280)
++		else:
++			_text(Vector2(P.position.x + 40, y + 10), "%s　%s" % [str(e["n"]), res], tz("S"), Color.WHITE if nb_cmp_a != i else ACCENT, false, true, 300)
++		_btn_small(Rect2(P.end.x - 370, y + 4, 110, 40), L.t("nb_ok") if nb_edit == i else L.t("nb_rename"), func(): _nb_rename(ii))
++		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load") if nb_cmp_a < 0 else (L.t("nb_pick") if nb_cmp_a != i else L.t("nb_picked")), func(): _nb_load(ii) if nb_cmp_a < 0 else _nb_cmp_pick(ii), nb_cmp_a != i)
++		_btn_small(Rect2(P.end.x - 130, y + 4, 90, 40), L.t("nb_del"), func(): _nb_del(ii), nb_cmp_a < 0)
+ 		y += 56.0
+ 	y += GAP_L
+-	_btn(Rect2(640 - 160, y, 320, 48), L.t("nb_save"), func(): _nb_save(), lst.size() < Career.NB_MAX, true)
++	if nb_cmp_a >= 0:
++		_btn(Rect2(640 - 160, y, 320, 48), L.t("nb_cmp_cancel"), func(): nb_cmp_a = -1, true, true)
++	else:
++		_btn(Rect2(640 - 330, y, 320, 48), L.t("nb_save"), func(): _nb_save(), lst.size() < Career.NB_MAX, true)
++		_btn(Rect2(650, y, 320 - GAP_S, 48), L.t("nb_cmp"), func(): nb_cmp_a = 0 if lst.size() >= 2 else -1, lst.size() >= 2)
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
++## ── V1.6.1 N3：實驗簿改名（鍵盤直接打；Steam 手把開 Steam 螢幕鍵盤；都沒有就輪替預設名）＋兩份方案並排比較 ──
++var nb_edit := -1
++var nb_buf := ""
++var nb_cmp_a := -1    # 比較：先選的那一份（-1＝不在比較）
++var nb_cmp_b := -1
++const NB_NAME_MAX := 16
++const NB_PRESETS := ["nb_n_rush", "nb_n_wall", "nb_n_range", "nb_n_cheap", "nb_n_try"]
++
++func _nb_rename(i: int) -> void:
++	if nb_edit == i:
++		_nb_commit()
++		return
++	var items := _nb_items()
++	if i >= items.size():
++		return
++	if pad_mode:
++		var it: Dictionary = items[i]
++		if SteamApi.text_input(L.t("nb_rename"), NB_NAME_MAX, func(sub, txt = ""):
++			if bool(sub) and str(txt).strip_edges() != "":
++				it["n"] = str(txt).strip_edges().substr(0, NB_NAME_MAX)
++				Save.save_data()):
++			return
++		# 沒有 Steam 螢幕鍵盤：輪替預設名
++		var cur := str(it["n"])
++		var k := 0
++		for j in NB_PRESETS.size():
++			if L.t(NB_PRESETS[j]) == cur:
++				k = j + 1
++		it["n"] = L.t(NB_PRESETS[k % NB_PRESETS.size()])
++		Save.save_data()
++		return
++	nb_edit = i
++	nb_buf = str(items[i]["n"])
++	DisplayServer.window_set_ime_active(true)   # 中文、日文輸入法
++
++func _nb_commit() -> void:
++	var items := _nb_items()
++	if nb_edit >= 0 and nb_edit < items.size() and nb_buf.strip_edges() != "":
++		items[nb_edit]["n"] = nb_buf.strip_edges().substr(0, NB_NAME_MAX)
++		Save.save_data()
++	_nb_edit_end()
++
++func _nb_edit_end() -> void:
++	nb_edit = -1
++	nb_buf = ""
++	DisplayServer.window_set_ime_active(false)
++
++func _nb_edit_input(ev: InputEvent) -> bool:
++	if overlay != "notebook":
++		_nb_edit_end()
++		return false
++	if ev is InputEventKey and ev.pressed:
++		match ev.keycode:
++			KEY_ESCAPE:
++				_nb_edit_end()
++			KEY_ENTER, KEY_KP_ENTER:
++				_nb_commit()
++			KEY_BACKSPACE:
++				nb_buf = nb_buf.substr(0, maxi(0, nb_buf.length() - 1))
++			_:
++				nb_buf = nb_edit_append(nb_buf, int(ev.unicode))
++		return true
++	return ev is InputEventKey
++
++static func nb_edit_append(buf: String, uc: int) -> String:
++	if uc < 32 or uc == 127 or buf.length() >= NB_NAME_MAX:
++		return buf
++	return buf + String.chr(uc)
++
++func _nb_cmp_pick(i: int) -> void:
++	nb_cmp_b = i
++	overlay = "nb_cmp"
++	_focus = 0
++
++## 兩份方案並排：成績、兵種組成（各幾隻）、花費
++func _draw_nb_cmp() -> void:
++	var items := _nb_items()
++	if nb_cmp_a < 0 or nb_cmp_a >= items.size() or nb_cmp_b < 0 or nb_cmp_b >= items.size():
++		overlay = "notebook"
++		nb_cmp_a = -1
++		return
++	var pair: Array = [items[nb_cmp_a], items[nb_cmp_b]]
++	var line_h := tz("S") * 1.5
++	var P := modal_rect(900, 12.0 + h1_bottom(0.0) + GAP_L + line_h * 3 + 120.0 + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1(Vector2(640, P.position.y + 12), L.t("nb_cmp_title")) + GAP_L
++	for c in 2:
++		var e: Dictionary = pair[c]
++		var cx := 640.0 + (c * 2 - 1) * 220.0
++		var r: Array = e["r"]
++		_text(Vector2(cx, y), str(e["n"]), tz("S"), ACCENT, true, true, 400)
++		_text(Vector2(cx, y + line_h), L.t("nb_res", [int(r[0]), int(r[1]), int(r[2])]) if r.size() == 3 else L.t("nb_untried"), tz("S"), Color.WHITE, true, false, 400)
++		var cnt := {}
++		var gold := 0
++		for u in e["u"]:
++			cnt[int(u[0])] = int(cnt.get(int(u[0]), 0)) + 1
++			gold += D.cost(int(u[0]))
++		_text(Vector2(cx, y + line_h * 2), L.t("nb_cmp_gold", [(e["u"] as Array).size(), gold]), tz("S"), TXT_DIM, true, false, 400)
++		var ks: Array = cnt.keys()
++		ks.sort()
++		var x0 := cx - ks.size() * 22.0
++		for j in ks.size():
++			var px := x0 + j * 44.0 + 22.0
++			Art.unit(self, Vector2(px, y + line_h * 3 + 64), int(ks[j]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
++			_text(Vector2(px, y + line_h * 3 + 74), "×%d" % int(cnt[ks[j]]), tz("C"), Color.WHITE, true, true, 40)
++	draw_line(Vector2(640, y), Vector2(640, y + line_h * 3 + 110), Color(1, 1, 1, 0.2), 1.0)
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "notebook"; nb_cmp_a = -1)
++
+ func _nb_save() -> void:
+ 	var nb: Dictionary = Save.data.get("notebook", {})
+-	var n := (nb.get(_nb_key(), []) as Array).size() + 1
+-	if Career.nb_save(nb, _nb_key(), L.t("nb_name", [n]), Career.units_of(armies[0])):
++	var n := _nb_items().size() + 1
++	if Career.nb_save(nb, _nb_key(), L.t("nb_name", [n]), Career.units_of(armies[0]), _nb_hash()):
+ 		Save.data["notebook"] = nb
+ 		Save.save_data()
+ 		_toast(L.t("nb_saved"))
+@@ -806,7 +1236,7 @@ func _nb_save() -> void:
+ 		_toast(L.t("nb_dup"), true)
+ 
+ func _nb_load(i: int) -> void:
+-	var e: Dictionary = Save.data.get("notebook", {}).get(_nb_key(), [])[i]
++	var e: Dictionary = _nb_items()[i]
+ 	if mode == Mode.PUZZLE:
+ 		armies[0] = PZ.player_army(PZ.get_puzzle(puzzle_id))
+ 		var pz := PZ.get_puzzle(puzzle_id)
+@@ -825,8 +1255,9 @@ func _nb_load(i: int) -> void:
+ func _nb_del(i: int) -> void:
+ 	var nb: Dictionary = Save.data.get("notebook", {})
+ 	var lst: Array = nb.get(_nb_key(), [])
+-	if i < lst.size():
+-		lst.remove_at(i)
++	var items := _nb_items()
++	if i < items.size():
++		lst.erase(items[i])   # 清單只顯示同一題的方案（F1）：照物件刪
+ 		nb[_nb_key()] = lst
+ 		Save.data["notebook"] = nb
+ 		Save.save_data()
+@@ -838,7 +1269,7 @@ var dt_state := ""   # ""、"loading"、"done"、"off"
+ func _daily_sync() -> void:
+ 	var p: Dictionary = Save.data.get("daily_pend", {})
+ 	if not p.is_empty() and SteamApi.available():
+-		SteamApi.daily_upload(int(p["day"]), int(p["score"]), PackedInt32Array(p.get("det", [])))
++		SteamApi.daily_upload(int(p["day"]), int(p["score"]), PackedInt32Array(p.get("det", [])), int(p.get("ver", 1)))
+ 
+ func _daily_top_open() -> void:
+ 	overlay = "daily_top"
+@@ -850,7 +1281,7 @@ func _daily_top_open() -> void:
+ 	dt_state = "loading"
+ 	SteamApi.daily_fetch(int(Daily.today()), func(lst: Array):
+ 		dt_list = lst.slice(0, 5)
+-		dt_state = "done")
++		dt_state = "done", Daily.VER)
+ 
+ func _daily_top_go(units: Array) -> void:
+ 	var sp: Dictionary = Daily.spec(Daily.today())
+@@ -901,6 +1332,10 @@ var ed_cells := {}      # Vector2i(欄, 列) → 兵種
+ var ed_type := 0
+ var ed_goal := 0
+ var ed_msg := ""
++var ed_target := Vector2i(-1, -1)   # V1.6.1 A2：作者指定的目標（斬首＝敵兵、護送／完美＝自己的兵）；-1＝自動
++var ed_pick := false               # 正在點選目標
++var ed_foe_i := 0                  # V1.6.1 D2：三考題正在編第幾支敵陣
++var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
+ const ED_CS := 32.0
+ 
+ func _ed_rect() -> Rect2:
+@@ -922,6 +1357,17 @@ func ed_lists() -> Array:
+ func ed_toggle(c: Vector2i) -> void:
+ 	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
+ 		return
++	if ed_pick:
++		var want_foe: bool = WS3.ED_GOALS[ed_goal] == "kill"
++		if ed_cells.has(c) and (c.x >= 10) == want_foe:
++			ed_target = c
++			ed_pick = false
++			ed_msg = ""
++		else:
++			ed_msg = L.t("ed_pick_foe" if want_foe else "ed_pick_own")
++		return
++	if c == ed_target:
++		ed_target = Vector2i(-1, -1)   # 目標那隻被換掉或拿掉：回到自動
+ 	if ed_cells.get(c, -1) == ed_type:
+ 		ed_cells.erase(c)
+ 	else:
+@@ -930,14 +1376,45 @@ func ed_toggle(c: Vector2i) -> void:
+ 
+ func _ed_make() -> void:
+ 	var l := ed_lists()
+-	var code := WS3.encode3(l[0], l[1], WS3.GOALS3[ed_goal])
++	var code := ""
++	if WS3.ED_GOALS[ed_goal] == "trio":
++		_ed_sync_foe()
++		var fl: Array = []
++		for f in ed_foes:
++			var e: Array = []
++			for k in f:
++				e.append([int(f[k]), k.x, k.y])
++			e.sort()
++			fl.append(e)
++		code = WS3.encode_trio(fl, l[1])
++	else:
++		code = WS3.encode4(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target)
+ 	if code == "":
+ 		ed_msg = L.t("ed_fail")
+ 		return
+ 	DisplayServer.clipboard_set(code)
++	call("_ach", "WORKBENCH")   # V1.6.1 D7
+ 	ed_msg = L.t("ed_ok")
+ 	_toast(L.t("ws_copied"))
+ 
++## 三考題：右半邊的格子存回目前這一支敵陣
++func _ed_sync_foe() -> void:
++	var f := {}
++	for k in ed_cells:
++		if k.x >= 10:
++			f[k] = ed_cells[k]
++	ed_foes[ed_foe_i] = f
++
++func _ed_switch_foe(i: int) -> void:
++	_ed_sync_foe()
++	for k in ed_cells.keys():
++		if k.x >= 10:
++			ed_cells.erase(k)
++	ed_foe_i = i
++	for k in ed_foes[i]:
++		ed_cells[k] = ed_foes[i][k]
++	ed_msg = ""
++
+ func _draw_editor() -> void:
+ 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.7))
+ 	var P := Rect2(80, 40, 1120, 720)
+@@ -957,10 +1434,19 @@ func _draw_editor() -> void:
+ 			var k := Vector2i(cx, cy)
+ 			if ed_cells.has(k):
+ 				Art.unit(self, r.position + Vector2(ED_CS / 2, ED_CS * 0.82), int(ed_cells[k]), 0 if cx <= 5 else 1, 1.0 if cx <= 5 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
++				if k == ed_target:
++					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
++					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
+ 			if cx <= 5 or cx >= 10:
+ 				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true})
+ 	_text(G.position + Vector2(3 * ED_CS, -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ED_CS)
+-	_text(G.position + Vector2(13 * ED_CS, -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ED_CS)
++	if WS3.ED_GOALS[ed_goal] == "trio":
++		# 三考：敵陣 1／2／3 分頁（欄標的位置）
++		for fi in 3:
++			var ffi := fi
++			_btn_small(Rect2(G.position + Vector2(10 * ED_CS + fi * 2 * ED_CS, -tz("C") * 1.6 - 6), Vector2(2 * ED_CS - 4, tz("C") * 1.5 + 4)), L.t("ed_foe_n", [fi + 1]), func(): _ed_switch_foe(ffi), true, false, TH_ACTIVE if ed_foe_i == fi else Color(0, 0, 0, 0))
++	else:
++		_text(G.position + Vector2(13 * ED_CS, -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ED_CS)
+ 	y = G.end.y + GAP_M
+ 	# 兵種調色盤（20 種，兩排）
+ 	for t in 20:
+@@ -978,13 +1464,21 @@ func _draw_editor() -> void:
+ 	_text(Vector2(640, y), info, tz("S"), Color.WHITE, true, false, 1000)
+ 	y += tz("S") * 1.4 + GAP_M
+ 	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
+-	_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + WS3.GOALS3[ed_goal])]), func(): ed_goal = (ed_goal + 1) % WS3.GOALS3.size(); ed_msg = "")
++	var gname: String = WS3.ED_GOALS[ed_goal]
++	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false
++	if gname in WS3.PICK_GOALS:
++		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
++		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
++		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
++		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", true, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
++	else:
++		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
+ 	y += 44 + GAP_S
+ 	if ed_msg != "":
+ 		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
+ 	var by := P.end.y - GAP_L - 48.0
+ 	_btn(Rect2(640 - 3 * 150 - 20, by, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
+-	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = "")
++	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+ 	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): overlay = "")
+ 
+ ## ── #17 一陣三考 ──
+@@ -993,7 +1487,20 @@ var trio_on := false
+ var trio_i := 0
+ var trio_res: Array = []
+ 
++var trio_custom := {}   # V1.6.1 D2：朋友用出題台出的三考題（不存紀錄）
++func _trio_set() -> Dictionary:
++	return trio_custom if not trio_custom.is_empty() else Trio.sets()[trio_i]
++
++func _trio_start_custom(ts: Dictionary) -> void:
++	trio_custom = ts
++	PZ.set_custom(Trio.make_pz(ts, 0))
++	puzzle_id = "ws"
++	overlay = ""
++	_start_mode(Mode.PUZZLE)
++	trio_on = true
++
+ func _trio_start(i: int) -> void:
++	trio_custom = {}
+ 	trio_i = i
+ 	PZ.set_custom(Trio.make_pz(Trio.sets()[i], 0))
+ 	puzzle_id = "ws"
+@@ -1001,49 +1508,127 @@ func _trio_start(i: int) -> void:
+ 	_start_mode(Mode.PUZZLE)
+ 	trio_on = true
+ 
++## V1.6.1 F7：第一場就是剛打完的這場（不重算）；第 2、3 場在背景算（顯示「計算中」），算完才寫紀錄、開結算。
++var trio_thread: Thread = null
++var trio_extra: Array = []
++var trio_busy := false
++var trio_st := 0
+ func _trio_settle() -> void:
+ 	var extra: Array = []
+ 	for u in last_armies[0].units:
+ 		extra.append([int(u["type"]), int(u["col"]), int(u["row"])])
+-	trio_res = Trio.check(Trio.sets()[trio_i], extra)
+-	if not false in trio_res:
++	trio_extra = extra
++	var s: Dictionary = _trio_set()
++	var oc: Dictionary = PZ.outcome(PZ.get_puzzle("ws"), sim, last_armies[0].spent())
++	trio_res = [{"ok": bool(oc["ok"]), "rem": int(oc["rem"]), "spent": int(oc["spent"])}]
++	trio_st = 0
++	overlay = "trio_result"
++	_focus = 0
++	if DisplayServer.get_name() == "headless" or shot_dir != "":
++		trio_res += Trio.results(s, extra, 1)
++		_trio_done()
++		return
++	if trio_thread != null:
++		trio_thread.wait_to_finish()   # 上一組還在算（極少見）：先收掉
++	trio_busy = true
++	trio_thread = Thread.new()
++	trio_thread.start(func(): return Trio.results(s, extra, 1))
++
++func _trio_jobs() -> void:
++	if trio_thread != null and not trio_thread.is_alive():
++		var rest: Array = trio_thread.wait_to_finish()
++		trio_thread = null
++		trio_busy = false
++		if trio_res.size() == 1:
++			trio_res += rest
++			_trio_done()
++
++func _trio_done() -> void:
++	var s: Dictionary = _trio_set()
++	trio_st = Trio.stars(s, trio_res)
++	if trio_st == 3 and trio_custom.is_empty():
++		call("_ach", "TRIO_STAR3")   # V1.6.1 D7
++	if trio_st >= 1 and trio_custom.is_empty():   # 朋友出的三考題不存紀錄
+ 		var cl: Dictionary = Save.data.get("trio_clear", {})
+-		var id := str(Trio.sets()[trio_i]["id"])
++		var id := str(s["id"])
+ 		var sp: int = last_armies[0].spent()
+ 		if not cl.has(id) or sp < int(cl[id]):
+ 			cl[id] = sp
+ 			Save.data["trio_clear"] = cl
+-			Save.save_data()
+-	overlay = "trio_result"
+-	_focus = 0
++		var ts: Dictionary = Save.data.get("trio_stars", {})
++		if trio_st > int(ts.get(id, 0)):
++			ts[id] = trio_st
++			Save.data["trio_stars"] = ts
++		Save.save_data()
+ 
++## 看第 k 場（同一套陣對第 k 支敵軍；當成觀戰，不算紀錄）
++func _trio_watch(k: int) -> void:
++	var pz: Dictionary = Trio.make_pz(_trio_set(), k)
++	var a0 = PZ.player_army(pz)
++	for e in trio_extra:
++		a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
++	trio_on = false
++	call("watch_code", a0, PZ.enemy_army(pz), PZ.rules_of(pz))
++
++const TRIO_PAGE := 10   # V1.6.1 D2：題組 20 組，一頁 10 組
++var trio_page := 0
+ func _draw_trio() -> void:
+ 	var ss := Trio.sets()
+ 	var cl: Dictionary = Save.data.get("trio_clear", {})
+-	var rows := ceili(ss.size() / 2.0)
++	var pages := ceili(ss.size() / float(TRIO_PAGE))
++	trio_page = clampi(trio_page, 0, pages - 1)
++	var rows := ceili(mini(TRIO_PAGE, ss.size()) / 2.0)
+ 	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tr_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("trio_open"), L.t("tr_help"), tz("S"), 680)
+-	for i in ss.size():
++	if pages > 1:
++		_btn_small(Rect2(P.position.x + 24, P.end.y - GAP_L - 44.0, 60, 44), "◀", func(): trio_page -= 1, trio_page > 0)
++		_text(Vector2(P.position.x + 134, P.end.y - GAP_L - 34.0), L.t("lb_page", [trio_page + 1, pages]), tz("S"), Color.WHITE, true, false, 90)
++		_btn_small(Rect2(P.position.x + 184, P.end.y - GAP_L - 44.0, 60, 44), "▶", func(): trio_page += 1, trio_page < pages - 1)
++	for i in range(trio_page * TRIO_PAGE, mini(ss.size(), trio_page * TRIO_PAGE + TRIO_PAGE)):
+ 		var s: Dictionary = ss[i]
+ 		var id := str(s["id"])
+ 		var lbl := L.t("tr_row", [i + 1, int(s["budget"])]) + ("　✓ %dg" % int(cl[id]) if cl.has(id) else "")
+ 		var ii := i
+-		_btn(Rect2(640 - 350 + (i % 2) * 360, y + (i / 2) * 56.0, 340, 48), lbl, func(): _trio_start(ii), true, i == 0)
++		var br := Rect2(640 - 350 + (i % 2) * 360, y + ((i % TRIO_PAGE) / 2) * 56.0, 340, 48)
++		_btn(br, lbl, func(): _trio_start(ii), true, i == 0)
++		var tst := int(Save.data.get("trio_stars", {}).get(id, 1 if cl.has(id) else 0))   # V1.6.1 A3：整組星數（舊紀錄只有過關＝1 星）
++		for ks in 3:
++			_icon("star", Vector2(br.end.x - 50 + ks * 16, br.end.y - 10), 13.0, Color("#ffd166") if ks < tst else Color(1, 1, 1, 0.18))
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
+ func _draw_trio_result() -> void:
+-	var lines: Array = []
+-	for k in trio_res.size():
+-		lines.append(L.t("tr_line", [k + 1, "✓" if trio_res[k] else "×"]))
+-	var all_ok := not false in trio_res
+-	var body := "\n".join(lines) + "\n" + (L.t("tr_pass") if all_ok else L.t("tr_fail"))
+-	var P := modal_rect(560, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("B"), 480, true) + GAP_XL + 50.0 + GAP_L)
++	var s: Dictionary = _trio_set()
++	var done := trio_res.size() == 3
++	var all_ok := done and trio_st >= 1
++	var foot: String = L.t("tr_busy") if not done else (L.t("tr_pass_st", [Trio.rem_avg(trio_res), Trio.spent_pct(s, trio_res), Trio.s2_of(s), Trio.s3_of(s)]) if all_ok else L.t("tr_fail"))
++	var cw := 220.0
++	var ch := 196.0
++	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + ch + GAP_L + text_h(foot, tz("S"), 680) + GAP_L + 26.0 + GAP_L + 50.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1(Vector2(640, P.position.y + 12), L.t("trio_open")) + GAP_L
+-	_text(Vector2(640, y), body, tz("B"), ACCENT if all_ok else Color.WHITE, true, true, 480)
+-	y += text_h(body, tz("B"), 480, true) + GAP_XL
+-	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start(trio_i), true, true)
++	var r5: Array = []   # 三張同列卡片（R5 基準線：縮圖、標題）
++	for k in 3:
++		var r := Rect2(640 - (cw * 3 + 2 * GAP_L) / 2.0 + k * (cw + GAP_L), y, cw, ch)
++		var has := k < trio_res.size()
++		var kk := k
++		_btn(r, "", func(): _trio_watch(kk), has, false)
++		_mini_formation(Rect2(r.position + Vector2(cw / 2.0 - 40, 10), Vector2(80, 84)), Trio.make_pz(s, k), true)
++		r5.append([Rect2(r.position + Vector2(cw / 2.0 - 40, 10), Vector2(80, 84)), Rect2(r.position + Vector2(8, 102), Vector2(cw - 16, tz("S")))])
++		var head := L.t("tr_card", [k + 1])
++		_text(Vector2(r.get_center().x, r.position.y + 102), head, tz("S"), Color.WHITE, true, true, cw - 16)
++		var st_line := L.t("tr_calc") if not has else ((L.t("tr_won", [int(trio_res[k]["rem"])])) if bool(trio_res[k]["ok"]) else L.t("tr_lost"))
++		_text(Vector2(r.get_center().x, r.position.y + 102 + tz("S") * 1.5), st_line, tz("S"), (ACCENT if has and bool(trio_res[k]["ok"]) else Color(1, 0.75, 0.7)) if has else TXT_DIM, true, false, cw - 16)
++		if has:
++			_text(Vector2(r.get_center().x, r.end.y - tz("C") * 1.6), L.t("tr_watch"), tz("C"), TXT_DIM, true, false, cw - 16)
++	probe_cards("trio_cards", r5)
++	y += ch + GAP_L
++	_text(Vector2(640, y), foot, tz("S"), ACCENT if all_ok else Color.WHITE, true, false, 680)
++	y += text_h(foot, tz("S"), 680) + GAP_L
++	for ks in 3:
++		_icon("star", Vector2(640 - 30 + ks * 30, y + 13), 24.0, Color("#ffd166") if ks < trio_st else Color(1, 1, 1, 0.2))
++	y += 26.0 + GAP_L
++	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start_custom(trio_custom) if not trio_custom.is_empty() else _trio_start(trio_i), not trio_busy, true)
+ 	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
+ 
+ ## ── #20 迷霧推演：對 AI（普通）；開戰前斥候回報約三分之一的敵兵（依欄、列排序後每 3 隻露 1 隻，固定不隨機），其他要猜。
+@@ -1061,22 +1646,33 @@ func _fog_start() -> void:
+ 	ai_prebuilt = true
+ 
+ static func fog_seen(units: Array) -> Array:
+-	var lst: Array = units.filter(func(u): return u.has("col"))
+-	lst.sort_custom(func(a, b): return int(a["col"]) * 16 + int(a["row"]) < int(b["col"]) * 16 + int(b["row"]))
++	# V1.6.1 F3：自由座標（每日、自由排兵）也要露：依 x、再依 y 排序後同樣每 3 隻露 1 隻（不是探測半徑，畫面不畫範圍圈）
++	var lst: Array = units.filter(func(u): return u.has("col") or u.has("x"))
++	lst.sort_custom(func(a, b): return _fog_key(a) < _fog_key(b))
+ 	var out: Array = []
+ 	for i in lst.size():
+ 		if i % FOG_EVERY == 0:
+ 			out.append(lst[i])
+ 	return out
+ 
++static func _fog_key(u: Dictionary) -> int:
++	if u.has("col"):
++		return (int(u["col"]) * 1000 + 500) * 100000 + int(u["row"]) * 1000 + 500
++	return int(u["x"]) * 100000 + int(u["y"])
++
+ func _fog_draw() -> void:
+ 	if not fog_on or state != St.PLACE or mode != Mode.VS_AI or armies.size() < 2 or armies[1] == null:
+ 		return
+-	for u in fog_seen(armies[1].units):
+-		var p := ORIGIN + Vector2(int(u["col"]) + 0.5, int(u["row"]) + 0.82) * CS
++	var seen := fog_seen(armies[1].units)
++	for u in seen:
++		var p := ORIGIN + Vector2(int(u["col"]) + 0.5, int(u["row"]) + 0.82) * CS if u.has("col") else _foot_of(Vector2i(int(u["x"]), int(u["y"])))
++		# 斥候照亮：腳下一圈暖光＋白黑雙色細框（色盲、高對比也分得出是「看到的」）
++		draw_circle(p - Vector2(0, 0.2 * CS), 0.55 * CS, Color(1, 0.92, 0.6, 0.16))
++		draw_arc(p - Vector2(0, 0.2 * CS), 0.55 * CS + 1.5, 0, TAU, 32, Color(0, 0, 0, 0.55), 2.5)
++		draw_arc(p - Vector2(0, 0.2 * CS), 0.55 * CS, 0, TAU, 32, Color(1, 1, 1, 0.8 if bool(Save.s("colorblind")) else 0.55), 1.2)
+ 		Art.ring(self, p, 1, int(u["type"]), cbm(), 1.0)
+ 		Art.unit(self, p, int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.0, cbm())
+-	var lbl := L.t("fog_scout", [fog_seen(armies[1].units).size(), armies[1].units.size()])
++	var lbl := L.t("fog_scout", [seen.size(), armies[1].units.size()])
+ 	_text(ORIGIN + Vector2(13 * CS, 18), lbl, ts(15), Color(1, 0.9, 0.6), true, true, 5.5 * CS)
+ 
+ ## ── #21 雙人接力遠征：同一台電腦，兩人輪流負責一站（奇數站玩家 1、偶數站玩家 2），事件也由剛打完的人選 ──
+@@ -1100,6 +1696,48 @@ func _coop_go() -> void:
+ 	call("_enter_gauntlet_new")
+ 	ga_coop = true
+ 	coop_seen = 0
++	coop_log = []
++
++## V1.6.1 D4：每站結束記 [站, 玩家, 勝?, MVP 兵種]；最後一站贏或中途輸了出總結
++var coop_log: Array = []
++func _coop_settle() -> void:
++	if not ga_coop or mode != Mode.GAUNTLET or sim == null or watch_mode:
++		return
++	var mvp = report.get("mvp")
++	var won: bool = sim.winner == 0
++	coop_log.append_array([gauntlet_stage, coop_player(gauntlet_stage), 1 if won else 0, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1])
++	if won and gauntlet_stage >= 7:
++		call("_ach", "COOP_CLEAR")   # V1.6.1 D7
++	if not won or gauntlet_stage >= 7:
++		overlay = "coop_sum"
++		_focus = 0
++
++static func coop_rows(log: Array) -> Array:
++	var out: Array = []
++	for i in range(0, log.size() - 3, 4):
++		out.append([int(log[i]), int(log[i + 1]), int(log[i + 2]) == 1, int(log[i + 3])])
++	return out
++
++func _draw_coop_sum() -> void:
++	var rows := coop_rows(coop_log)
++	var wins := [0, 0]
++	for r in rows:
++		if bool(r[2]):
++			wins[int(r[1]) - 1] += 1
++	var foot := L.t("coop_sum_foot", [wins[0], wins[1]])
++	var P := modal_rect(720, 12.0 + h1_bottom(0.0) + GAP_L + rows.size() * 44.0 + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1(Vector2(640, P.position.y + 12), L.t("coop_sum")) + GAP_L
++	for r in rows:
++		var line := L.t("coop_sum_row", [int(r[0]), int(r[1]), L.t("coop_w") if bool(r[2]) else L.t("coop_l")])
++		_text(Vector2(P.position.x + 40, y + 8), line, tz("S"), Color(0.75, 0.88, 1.0) if int(r[1]) == 1 else Color(1, 0.8, 0.75), false, true, 420)
++		if int(r[3]) >= 0:
++			Art.unit(self, Vector2(P.end.x - 190, y + 40), int(r[3]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
++			_text(Vector2(P.end.x - 165, y + 10), L.t("coop_mvp", [L.t("unit_%d" % int(r[3]))]), tz("C"), ACCENT, false, false, 140)
++		y += 44.0
++	y += GAP_M
++	_text(Vector2(640, y), foot, tz("S"), Color.WHITE, true, false, 640)
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
+ func _coop_tick() -> void:
+ 	if ga_coop and mode == Mode.GAUNTLET and state == St.PLACE and overlay == "" and coop_seen != gauntlet_stage:
+@@ -1150,7 +1788,28 @@ func _adj_draw(a) -> void:
+ 
+ ## 熟練度外觀小物：3 級起在兵卡上畫星章（3、4 級銀、5 級金），圖鑑也看得到等級
+ func _mastery_badge(r: Rect2, t: int) -> void:
+-	var lv := Career.level(int(Save.data.get("mastery", {}).get(str(t), 0)))
++	var lv := mastery_lv(t)
+ 	if lv < 3:
+ 		return
+ 	_icon("star", r.position + Vector2(r.size.x / 2, 30), 16.0, Color("#ffd166") if lv >= 5 else Color("#d8dde6"))
++	# V1.6.1 A1：兵卡外框（3、4 級銀、5 級金；深邊＋亮邊，紙上木上都看得到）
++	var fc := Color("#ffd166") if lv >= 5 else Color("#c9d1dc")
++	draw_rect(r.grow(-2), Color(0, 0, 0, 0.5), false, 3.0)
++	draw_rect(r.grow(-2), fc, false, 1.6)
++
++func mastery_lv(t: int) -> int:
++	return Career.level(int(Save.data.get("mastery", {}).get(str(t), 0)))
++
++## 圖鑑大圖腳下的木牌：刻熟練度等級＋戰功章（三顆，拿到的亮）
++func codex_plaque(p: Vector2, t: int) -> void:
++	if t >= D.total():
++		return
++	var lv := mastery_lv(t)
++	var md := Career.medals_of(Save.data.get("medals", {}), t)
++	var txt := L.t("ms_plaque", [lv])
++	var w := _width(txt, tz("C"), true) + 20.0 + 3 * 18.0
++	var r := Rect2(p.x - w / 2, p.y, w, tz("C") * 1.5 + 6)
++	_tex_box(r, "wood", Color("#8a5a2b"))
++	_text(r.position + Vector2(10, 3 + tz("C") * 0.1), txt, tz("C"), Color("#fff1d6"), false, true, w)
++	for i in 3:
++		_icon("star", Vector2(r.end.x - 54 + i * 18 + 9, r.get_center().y), 13.0, Color("#ffd166") if md[i] else Color(0, 0, 0, 0.35))
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 1d15241..df15d0b 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -600,6 +600,32 @@ func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
+ 	return n * size * line_h(n)
+ 
+ 
++## V1.6.1 A8：焦點框平滑移動
++const FOCUS_GLIDE := 0.08
++var fg_from := Rect2()
++var fg_to := Rect2()
++var fg_at := -9.0
++func _focus_glide(rd: Rect2) -> Rect2:
++	if layout_probe or not bool(get("pad_mode")) or bool(Save.s("reduce_motion")):
++		fg_to = rd
++		fg_at = -9.0
++		return rd
++	if not rd.is_equal_approx(fg_to):
++		var quick := time - fg_at < 0.15   # 連續撥動：直接跳，不黏
++		fg_from = rd if (quick or fg_to.size == Vector2.ZERO) else _glide_now()
++		fg_to = rd
++		fg_at = time
++	return _glide_now()
++
++func _glide_now() -> Rect2:
++	var k := clampf((time - fg_at) / FOCUS_GLIDE, 0.0, 1.0)
++	k = 1.0 - (1.0 - k) * (1.0 - k)
++	return Rect2(fg_from.position.lerp(fg_to.position, k), fg_from.size.lerp(fg_to.size, k))
++
++var mag_focus := Vector2(-1, -1)   # V1.6.1 F4：手把模式時放大鏡跟著焦點按鈕（不用另外的鍵，不和 L3 提示衝突）
++func mag_point() -> Vector2:
++	return mag_focus if bool(get("pad_mode")) else get("mouse")
++
+ var mag_on := false      # V1.6 #7 文字放大鏡：這一幀游標指到的介面字
+ var mag_hit: Array = []
+ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+@@ -616,7 +642,7 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold :=
+ 		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
+ 		if mag_on and _probe_ui and size < 26 and c.a > 0.3:
+ 			var mw := w if center else fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+-			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).has_point(get("mouse")):
++			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).grow(4.0 if bool(get("pad_mode")) else 0.0).has_point(mag_point()):
+ 				mag_hit = [lines[i], size, bold]
+ 		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
+ 		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
+@@ -743,6 +769,9 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 		_btn_shine(rd)
+ 	if btn_deco.is_valid():
+ 		btn_deco.call(rd)
++	if focus:
++		rd = _focus_glide(rd)   # V1.6.1 A8：手把焦點框滑過去（0.08 秒；連續撥動、減少動態、版面檢查時直接跳）
++		mag_focus = r.get_center()
+ 	if (focus or hover) and enabled and not plain_ui_now():
+ 		# V1.2.1 R2：滑鼠懸停與手把焦點同一種樣式：深邊＋金亮邊（深邊讓金框在紙上也看得到，Codex v121-r2）
+ 		_box(rd.grow(2.5), Color(0, 0, 0, 0), Color(INK, 0.7), 9.0, 1.5)
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index e7d82fb..001fbc5 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"v16": ["test_layout_r5_v160", "test_funnel_v160", "test_guide_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_share_v160", "test_rush_v160", "test_coach_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_foley_v160", "test_workbench_v160", "test_trio_v160", "test_fog_v160", "test_coop_v160", "test_adjacency_v160", "test_adjacency_code_v160", "test_save_v16_sanitize_v160", "test_mark_ids_v160", "test_state_reset_v160", "test_workbench_r2_v160", "test_sanitize_truncate_v160"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"v161": ["test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_pz_names_l10n_v161", "test_board_double_v161", "test_fog_free_v161", "test_hold_rebind_v161", "test_coach_search_v161", "test_coach_record_v161", "test_ntp4_v161", "test_rules_equals_map_v161", "test_lock_targets_v161", "test_new_after_v161", "test_medals_v161", "test_nb_name_input_v161", "test_signature_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_trio_code_v161", "test_trio_sol3_v161"], "v16": ["test_layout_r5_v160", "test_funnel_v160", "test_guide_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_share_v160", "test_rush_v160", "test_coach_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_foley_v160", "test_workbench_v160", "test_trio_v160", "test_fog_v160", "test_coop_v160", "test_adjacency_v160", "test_adjacency_code_v160", "test_save_v16_sanitize_v160", "test_mark_ids_v160", "test_state_reset_v160", "test_workbench_r2_v160", "test_sanitize_truncate_v160"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/save.gd b/game/tests/suites/save.gd
+index 6842e94..7df2e9b 100644
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -142,7 +142,7 @@ func test_steam_v7() -> void:
+ 	r = ST.self_test(12345)
+ 	ok(not r["ok"] and r["missing_achievements"] == ["BACKSTAB_3"], "S4：後台少一個成就要抓得到", str(r))
+ 	ST._steam = null
+-	ok(ST.ACHIEVEMENTS.size() == 31, "S4：程式 31 個成就（V1.5 加 7 個；docs/release/steam-setup.md 要同步）")
++	ok(ST.ACHIEVEMENTS.size() == 37, "S4：程式 37 個成就（V1.5 加 7 個、V1.6.1 加 6 個；docs/release/steam-setup.md 要同步）")
+ 	# V1.2.1 F3：大字幕鍵盤開不起來時要解除訊號（不然下次關閉會觸發舊動作）
+ 	var fk = FakeSteamKb.new()
+ 	ST._steam = fk
+diff --git a/game/tests/suites/v16.gd b/game/tests/suites/v16.gd
+index 9400ea6..ee64c4a 100644
+--- a/game/tests/suites/v16.gd
++++ b/game/tests/suites/v16.gd
+@@ -40,8 +40,10 @@ func test_guide_v160() -> void:
+ 	d["gauntlet_best"] = 2
+ 	d["funnel"] = {"playroom_open": 1}
+ 	d["trial_stars"] = {"0": 1}
+-	ok(G.next_step(d, true, false) == "", "全部做過就不顯示")
+-	var e := {}
++	ok(G.next_step(d, true, false) == "v16:rush_open", "舊的都做過：推 V1.6 新玩法（V1.6.1 N1；原本是不顯示）")
++	d["seen"] = G.V16_ENTRIES.duplicate()
++	ok(G.next_step(d, true, false) == "", "全部做過、新玩法也開過就不顯示")
++	var e := {"stats": {"games": 3}}   # V1.6.1 N1：玩滿 3 場才標新
+ 	G.seed_seen(e)
+ 	ok(not G.is_new(e, "menu_vs_ai") and G.is_new(e, "rush_open"), "舊入口算看過、V1.6 新入口標新")
+ 	G.see(e, "rush_open")
+@@ -287,7 +289,7 @@ func test_workbench_v160() -> void:
+ func test_trio_v160() -> void:
+ 	var TR = load("res://scripts/game/v16_trio.gd")
+ 	var ss: Array = TR.sets()
+-	ok(ss.size() == 10, "一陣三考 10 組")
++	ok(ss.size() == 20, "一陣三考 20 組（V1.6.1 D2 從 10 組擴充，前 10 組不變）")
+ 	var bad := 0
+ 	for s in ss:
+ 		var res: Array = TR.check(s, s["sol"])
+diff --git a/game/tests/suites/v161.gd b/game/tests/suites/v161.gd
+new file mode 100644
+index 0000000..3d2f861
+--- /dev/null
++++ b/game/tests/suites/v161.gd
+@@ -0,0 +1,302 @@
++extends "res://tests/test_base.gd"
++## V1.6.1 測試（docs/2026-11-10-v1.6.1-plan.md）。會碰存檔的測試自己換前綴、結束還原。
++
++func test_nb_key_v161() -> void:
++	var CA = load("res://scripts/game/v16_career.gd")
++	var pz1 := {"id": "ws", "zh": "工坊殘局", "en": "W", "enemy": [[0, 12, 3], [1, 11, 2]], "fixed": [], "budget": 10, "allowed": [0, 1], "star2": 40, "star3": 10}
++	var pz2 := pz1.duplicate(true)
++	pz2["enemy"] = [[1, 11, 2], [0, 12, 3]]   # 兵的順序不同
++	pz2["ja"] = "x"
++	var pz3 := pz1.duplicate(true)
++	pz3["enemy"] = [[0, 12, 4], [1, 11, 2]]
++	var k1: Array = CA.ws_key(pz1)
++	ok(k1 == CA.ws_key(pz2), "同一題（順序、文字不同）同鍵")
++	ok(k1[0] != CA.ws_key(pz3)[0], "不同題不同鍵")
++	ok(str(k1[0]).length() <= 24 and str(k1[1]).length() <= 32, "鍵長合存檔驗型")
++	ok(CA.ws_key({"trio": "t3"})[0] == "qt3", "一陣三考用題組 id")
++	var nb := {}
++	CA.nb_save(nb, "wabc", "A", [[0, 1, 2]], "h1")
++	CA.nb_save(nb, "wabc", "B", [[0, 1, 3]], "h2")   # 撞短鍵的另一題
++	ok(CA.nb_list(nb, "wabc", "h1").size() == 1 and CA.nb_list(nb, "wabc", "h2").size() == 1, "撞短鍵時用完整雜湊分開")
++	ok(CA.nb_save(nb, "wabc", "C", [[0, 1, 3]], "h1"), "別題存過的擺法，這題還能存")
++
++func test_nb_better_v161() -> void:
++	var CA = load("res://scripts/game/v16_career.gd")
++	var nb := {}
++	CA.nb_save(nb, "p1", "A", [[0, 1, 2]])
++	CA.nb_result(nb, "p1", [[0, 1, 2]], 2, 40, 30)
++	CA.nb_result(nb, "p1", [[0, 1, 2]], 2, 40, 25)
++	ok(nb["p1"][0]["r"] == [2, 40, 25], "同星同剩餘、花費更低要更新（F8）")
++	CA.nb_result(nb, "p1", [[0, 1, 2]], 2, 40, 28)
++	ok(nb["p1"][0]["r"] == [2, 40, 25], "花費較高不覆蓋")
++
++func test_nb_sanitize_hash_v161() -> void:
++	var S = load("res://scripts/game/save.gd")
++	var d := {"notebook": {"wabc": [{"n": "A", "u": [[0, 1, 2]], "r": [], "h": "0123456789abcdef0123456789abcdef"}, {"n": "B", "u": [[0, 1, 3]], "r": [], "h": 5}]}}
++	S.sanitize_v16(d)
++	var l: Array = d["notebook"]["wabc"]
++	ok(l.size() == 2 and str(l[0].get("h", "")) == "0123456789abcdef0123456789abcdef" and not l[1].has("h"), "雜湊欄保留、型別錯丟掉")
++
++func test_pz_names_l10n_v161() -> void:
++	var TR = load("res://scripts/game/v16_trio.gd")
++	var L = load("res://scripts/game/strings.gd")
++	var s: Dictionary = TR.sets()[0]
++	var pz: Dictionary = TR.make_pz(s, 0)
++	ok(pz.has("sc") and pz.has("ja") and pz.has("hint_ja") and str(pz["ja"]) != str(pz["en"]), "三考題名有簡中、日文（F6）")
++	var WS = load("res://scripts/game/workshop.gd")
++	var pz2 := {}
++	L.fill(pz2, "", "rl_title", [3])
++	ok(str(pz2.get("ja", "")).find("3") >= 0 and str(pz2.get("sc", "")).find("3") >= 0, "接力題名帶參數")
++
++## V1.6.1 F2／N6：每日、每週榜的假 Steam 替身：分版榜名、上傳失敗、送出後又換成更好的成績（亂序）、重送。
++func test_board_double_v161() -> void:
++	var SV = load("res://scripts/game/save.gd")
++	var ST = load("res://scripts/game/steam.gd")
++	var keep: Dictionary = SV.data.duplicate(true)
++	var old_prefix: String = SV.prefix
++	SV.prefix = "t161lb_"
++	var fk := FakeLB.new()
++	ST._steam = fk
++	ST._lb_wired = false
++	SV.data = {"daily_pend": {"day": 100, "score": 50000, "det": [2, 1, 5], "ver": 1}}
++	ST.daily_upload(100, 50000, PackedInt32Array([2, 1, 5]), 1)
++	ok(fk.finds == ["daily_100_v1"], "榜名帶題目版本", str(fk.finds))
++	fk.emit_signal("leaderboard_find_result", 7, 1)
++	ok(fk.ups.size() == 1 and int(fk.ups[0][0]) == 50000, "找到榜就上傳")
++	SV.data["daily_pend"] = {"day": 100, "score": 60000, "det": [2, 1, 6], "ver": 1}   # 回呼前又打出更好的
++	fk.emit_signal("leaderboard_score_uploaded", true, 7, {})
++	ok(int(SV.data.get("daily_pend", {}).get("score", 0)) == 60000, "舊那筆成功不會清掉新的待送")
++	ST.daily_upload(100, 60000, PackedInt32Array([2, 1, 6]), 1)
++	fk.emit_signal("leaderboard_find_result", 8, 1)
++	fk.emit_signal("leaderboard_score_uploaded", false, 8, {})
++	ok(SV.data.has("daily_pend"), "上傳失敗留著待送")
++	ST.daily_upload(100, 60000, PackedInt32Array([2, 1, 6]), 1)
++	fk.emit_signal("leaderboard_find_result", 9, 1)
++	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
++	ok(not SV.data.has("daily_pend"), "重送成功才清")
++	ok(not ST.clear_pending({"daily_pend": {"day": 100, "score": 1, "ver": 2}}, "daily_100_v1", 1), "不同版本的榜不清")
++	# 每週
++	SV.data["weekly"] = {"wk": 5, "best": 40, "pend": 1, "det": [1, 1, 100510]}
++	ST.weekly_upload(5, 40, PackedInt32Array([1, 1, 100510]))
++	fk.emit_signal("leaderboard_find_result", 11, 1)
++	SV.data["weekly"]["best"] = 35   # 送出後又刷新最佳
++	fk.emit_signal("leaderboard_score_uploaded", true, 11, {})
++	ok(int(SV.data["weekly"]["pend"]) == 1, "每週：舊那筆成功不清新的待送")
++	ok(ST.clear_pending(SV.data, "weekly_5", 35) and int(SV.data["weekly"]["pend"]) == 0, "每週：同一筆才清")
++	ST._steam = null
++	ST._lb_wired = false
++	ST._lb_sent = {}
++	fk.free()
++	for f in DirAccess.get_files_at("user://"):
++		if f.begins_with("t161lb_"):
++			DirAccess.remove_absolute("user://" + f)
++	SV.prefix = old_prefix
++	SV.data = keep
++
++
++class FakeLB extends Node:
++	signal leaderboard_find_result(handle, found)
++	signal leaderboard_scores_downloaded(msg, handle, result)
++	signal leaderboard_score_uploaded(success, handle, this_score)
++	var finds: Array = []
++	var ups: Array = []
++	var names := {7: "daily_100_v1", 8: "daily_100_v1", 9: "daily_100_v1", 11: "weekly_5"}
++	func findOrCreateLeaderboard(n, _a, _b): finds.append(n)
++	func findLeaderboard(n): finds.append(n)
++	func getLeaderboardName(h): return names.get(h, "")
++	func uploadLeaderboardScore(sc, _keep, det, h): ups.append([sc, det, h])
++	func downloadLeaderboardEntries(_a, _b, _c, _h): pass
++
++func test_fog_free_v161() -> void:
++	var G = load("res://scripts/ui/screens/game_v16.gd")
++	var us := [{"type": 0, "x": 10500, "y": 1500}, {"type": 1, "x": 11500, "y": 2500}, {"type": 2, "x": 14500, "y": 3500}, {"type": 2, "x": 12500, "y": 3500}]
++	var seen: Array = G.fog_seen(us)
++	ok(seen.size() == 2 and int(seen[0]["x"]) == 10500 and int(seen[1]["x"]) == 14500, "自由座標也露（F3），和格子同樣的順序規則")
++
++func test_hold_rebind_v161() -> void:
++	var G = load("res://scripts/ui/screens/game_v16.gd")
++	var ev := InputEventKey.new()
++	ev.keycode = KEY_K
++	ev.physical_keycode = KEY_K
++	ev.pressed = true
++	Input.use_accumulated_input = false
++	Input.parse_input_event(ev)
++	Input.flush_buffered_events()
++	ok(G.hold_keys_down({"place": KEY_K}, {}), "按住確認認得改過的放置鍵（F4）")
++	ok(not G.hold_keys_down({}, {}), "沒改鍵時 K 不算")
++	ev.pressed = false
++	Input.parse_input_event(ev)
++	Input.flush_buffered_events()
++	Input.use_accumulated_input = true
++	ok(not G.hold_keys_down({"place": KEY_K}, {}), "放開就停")
++
++func test_coach_search_v161() -> void:
++	var CO = load("res://scripts/game/v16_coach.gd")
++	var Army = load("res://scripts/core/army.gd")
++	var weak = Army.new(0, 100)
++	weak.place(0, 0, 4)
++	var strong = Army.new(1, 100)
++	for r in [1, 3, 5, 7]:
++		strong.place(3, 10, r)
++	var res: Dictionary = CO.search(weak, strong, null, {}, 32)
++	ok(not bool(res["found"]) and str(res["status"]) in ["exhausted", "budget"], "沒找到要分清楚是全試過還是預算用完", str(res))
++	var pl: Dictionary = CO.plan(weak, {}, 32)
++	ok((pl["list"] as Array).size() <= 32 and int(pl["total"]) >= (pl["list"] as Array).size(), "候選不超過 32")
++	var sw: Array = CO.swap_cands(weak)
++	var D = load("res://scripts/core/unit_defs.gd")
++	ok(not sw.is_empty() and sw.all(func(c): return D.cost(int(c[2])) == D.cost(0) and int(c[2]) != 0), "換兵只換同價、不同種（A5）")
++	var ctl := {"stop": true}
++	var r2: Dictionary = CO.search(weak, strong, null, {}, 32, ctl)
++	ok(str(r2["status"]) == "cancel" and int(r2["tries"]) == 0, "取消立刻停（F5）")
++	var r3: Dictionary = CO.search(weak, strong, null, {}, 32, {"until": 1})
++	ok(str(r3["status"]) == "timeout", "期限過了算時間到，不說無解")
++	# 自由部署
++	var fa = Army.new(0, 100)
++	fa.deploy = "free"
++	fa.place_xy(3, 4000, 4500)
++	var fm: Array = CO.move_cands(fa)
++	ok(not fm.is_empty() and fm.all(func(c): return c[0] == "x" and (int(c[2]) - 4000) % 500 == 0), "自由部署也有移位候選（半格）")
++	ok(CO.supported(fa, null, {}), "自由部署可以用教練")
++
++func test_coach_record_v161() -> void:
++	var G = load("res://scripts/ui/screens/game_v16.gd")
++	var d := {"puzzle_stars": {"p5": 3}, "coached": {"p5": {"lv": 2, "ap": 0, "self": 1}}}
++	ok(G.coach_badge(d, "p5"), "用過第 2 層、自力只有 1 星：顯示教練協力")
++	d["coached"]["p5"]["self"] = 3
++	ok(not G.coach_badge(d, "p5"), "自力也拿到 3 星：不顯示")
++	var S = load("res://scripts/game/save.gd")
++	var bad := {"coached": {"p1": {"lv": 9, "ap": 3, "self": -2}, "p2": "x"}}
++	S.sanitize_v16(bad)
++	ok(bad["coached"] == {"p1": {"lv": 3, "ap": 0, "self": 0}}, "教練紀錄驗型", str(bad["coached"]))
++
++func test_ntp4_v161() -> void:
++	var WS = load("res://scripts/game/workshop.gd")
++	var e := [[0, 10, 4], [3, 11, 4], [1, 12, 2]]
++	var s := [[3, 4, 3], [3, 4, 5], [0, 5, 4], [2, 2, 4]]
++	var c3: String = WS.encode4(e, s, "kill", Vector2i(-1, -1))
++	ok(c3.begins_with("NTP3."), "沒指定目標照舊出 NTP3")
++	var c4: String = WS.encode4(e, s, "kill", Vector2i(10, 4))
++	if c4 != "":
++		var d: Dictionary = WS.decode(c4)
++		ok(c4.begins_with("NTP4.") and bool(d["ok"]) and d["pz"]["goal_unit"] == [10, 4], "指定斬首目標（不是最貴的那隻）", str(d.get("why")))
++	ok(WS.encode4(e, s, "kill", Vector2i(4, 3)) == "", "斬首點到自己的兵不給碼")
++	ok(WS.pick_fields("flawless", e, s, [2, 4]) == {"goal": "flawless", "goal_type": 2, "need_type": true}, "完美：點到哪隻就是那種兵")
++	ok(WS.pick_fields("protect", e, s, [9, 9]).is_empty() and WS.pick_fields("protect", e, s, "x").is_empty(), "壞的目標欄位擋掉")
++	# 竄改：NTP4 帶不在作者解的目標
++	var j := JSON.stringify({"v": 4, "e": e, "s": s, "a": [0, 2, 3], "g": "protect", "t": [15, 8]})
++	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
++	ok(not bool(WS.decode("NTP4.%s.%s" % [b, b.sha256_text().substr(0, 6)])["ok"]), "目標不存在的 NTP4 拒收")
++	ok(WS.decode("NTP3.x.y")["ok"] == false, "NTP3 舊路徑照舊驗")
++
++func test_rules_equals_map_v161() -> void:
++	var RS = load("res://scripts/core/ruleset.gd")
++	var a = RS.standard()
++	var b = RS.standard()
++	ok(a.equals(b), "同樣規則相等")
++	b.map_id = 3
++	ok(not a.equals(b), "地圖不同就不相等（B1）")
++	b.map_id = 0
++	b.map_size = 2
++	ok(not a.equals(b), "大小不同就不相等")
++
++func test_lock_targets_v161() -> void:
++	var G = load("res://scripts/ui/screens/game_v16.gd")
++	var Army = load("res://scripts/core/army.gd")
++	var a = Army.new(0, 100)
++	a.place(0, 4, 4)
++	a.place(2, 2, 1)
++	var e = Army.new(1, 100)
++	e.place(0, 11, 4)
++	e.place(1, 12, 8)
++	var lk: Array = G.lock_targets(a, e, null)
++	ok(lk.size() == 2 and lk.all(func(p): return p[1].x > 8000), "每隻我方兵都鎖定一隻敵兵（A9）", str(lk))
++
++func test_new_after_v161() -> void:
++	var G = load("res://scripts/game/v16_guide.gd")
++	var d := {"stats": {"games": 2}}
++	G.seed_seen(d)
++	ok(not G.is_new(d, "rush_open"), "前 2 場不標新玩法（N1）")
++	ok(not G.tour_due(d, false), "新手不跳導覽")
++	d["stats"]["games"] = 3
++	ok(G.is_new(d, "rush_open") and G.tour_due(d, false) and not G.tour_due(d, true), "玩滿 3 場：標新、跳一次導覽（試玩版不跳）")
++	G.see(d, "tour161")
++	ok(not G.tour_due(d, false), "導覽只跳一次")
++
++func test_medals_v161() -> void:
++	var CA = load("res://scripts/game/v16_career.gd")
++	var FU = load("res://tests/suites/v16.gd").FakeU
++	var md := {}
++	for i in 20:
++		CA.medal_add(md, [FU.new(0, 2, 3), FU.new(0, 2, 0), FU.new(1, 2, 9), FU.new(0, 20, 9, true)], 2 if i < 5 else -1)
++	ok(md["2"] == [20, 60, 5] and not md.has("20"), "出場一場算一次、擊倒累加、MVP；敵方與召喚物不算", str(md))
++	ok(CA.medals_of(md, 2) == [true, true, true] and CA.medals_of(md, 3) == [false, false, false], "三個戰功章")
++	var S = load("res://scripts/game/save.gd")
++	var bad := {"medals": {"2": [1, 2, 3], "x": [1, 1, 1], "3": [1, "a", 2]}}
++	S.sanitize_v16(bad)
++	ok(bad["medals"] == {"2": [1, 2, 3]}, "戰功驗型")
++
++func test_nb_name_input_v161() -> void:
++	var G = load("res://scripts/ui/screens/game_v16.gd")
++	ok(G.nb_edit_append("ab", 0x99AC) == "ab馬" and G.nb_edit_append("ab", 9) == "ab", "改名：收一般字（含中文），控制字元不收（N3）")
++	ok(G.nb_edit_append("0123456789abcdef", 65).length() == 16, "最多 16 字")
++
++func test_signature_v161() -> void:
++	var PS = load("res://scripts/game/v16_persona.gd")
++	var AI = load("res://scripts/core/ai_army.gd")
++	var hits := 0
++	for sd in 200:
++		var t: int = PS.signature(2, sd, func(x): return true)
++		if t >= 0:
++			hits += 1
++			ok(t in PS.SIG[2], "招牌陣只會是這個性格的兩套")
++	ok(hits > 50 and hits < 110, "約 40% 用招牌陣（A11）", str(hits))
++	ok(PS.signature(4, 3, func(x): return false) == -1, "卡池用不了就照舊")
++	ok(PS.signature(1, 77, func(x): return true) == PS.signature(1, 77, func(x): return true), "同種子同結果（可重現）")
++	for st in PS.SIG.size():
++		for t in PS.SIG[st]:
++			ok(int(t) < AI.TEMPLATES.size(), "招牌陣編號有效")
++
++func test_rift_history_v161() -> void:
++	var RF = load("res://scripts/game/v16_rift.gd")
++	var b := {}
++	for w in range(100, 112):
++		b["%d-v1" % w] = [w, 50]
++	var k: Dictionary = RF.keep_recent(b, 8)
++	ok(k.size() == 8 and k.has("111-v1") and not k.has("103-v1"), "裂隙紀錄留最近 8 週（A12）")
++
++func test_rush_daily_v161() -> void:
++	var RU = load("res://scripts/game/v16_rush.gd")
++	var L = load("res://scripts/game/strings.gd")
++	ok(RU.pool(RU.day_seed(20000)) == RU.pool(RU.day_seed(20000)) and RU.pool(RU.day_seed(20000)) != RU.pool(RU.day_seed(20001)), "今日題組：同一天同一套、隔天換（D1）")
++	var t: String = RU.share_text(L, "2026-11-10", 3, 5)
++	ok(t.contains("■■■□□") and t.contains("2026-11-10"), "分享格：解開幾題、不劇透")
++	var pool: Array = RU.pool(1)
++	var PZ = load("res://scripts/game/puzzles.gd")
++	ok(pool.size() >= 40 and pool.all(func(id): var m = PZ.get_puzzle(id).get("_m"); return not m is Dictionary or (int(m["ticks"]) <= RU.MAX_TICKS and int(m["rand_pct"]) >= RU.MIN_RAND)), "題庫篩掉太長、太難的（N5）", str(pool.size()))
++
++func test_coop_log_v161() -> void:
++	var G = load("res://scripts/ui/screens/game_v16.gd")
++	var rows: Array = G.coop_rows([1, 1, 1, 0, 2, 2, 0, -1])
++	ok(rows == [[1, 1, true, 0], [2, 2, false, -1]], "接力紀錄：每站 4 欄（D4）")
++	var S = load("res://scripts/game/save.gd")
++	var run := {"stage": 3, "seed": 1, "gold": 0, "cap": 0, "changes": 3, "pool": 1023, "prev": [], "coop": 1, "clog": [1, 1, 1, 0, 2, 2, 1]}
++	ok(S.sanitize_run(run)["clog"] == [], "長度不是 4 的倍數就丟")
++	run["clog"] = [1, 1, 1, 0]
++	ok(S.sanitize_run(run)["clog"] == [1, 1, 1, 0], "正常的留下")
++
++func test_trio_code_v161() -> void:
++	var WS = load("res://scripts/game/workshop.gd")
++	var TR = load("res://scripts/game/v16_trio.gd")
++	var s: Dictionary = TR.sets()[0]
++	var code: String = WS.encode_trio(s["foes"], s["sol"])
++	ok(code.begins_with("NTP4."), "出題台出三考題（D2）")
++	var d: Dictionary = WS.decode(code)
++	ok(bool(d["ok"]) and d.has("trio") and (d["trio"]["foes"] as Array).size() == 3, "三考碼解得回來")
++	ok(WS.encode_trio([s["foes"][0], s["foes"][1]], s["sol"]) == "", "少一支敵陣不給碼")
++	ok(TR.sets().size() == 20, "題組 20 組")
++
++func test_trio_sol3_v161() -> void:
++	var TR = load("res://scripts/game/v16_trio.gd")
++	for s in TR.sets():
++		ok(s.has("sol3") and TR.stars(s, TR.results(s, s["sol3"])) == 3, "每組都有可重現的三星解（A3）：" + str(s["id"]))
++		ok(TR.stars(s, TR.results(s, s["sol"])) >= 1, "作者解三場都贏：" + str(s["id"]))
+diff --git a/game/tools/balance/adj_eval.gd b/game/tools/balance/adj_eval.gd
+new file mode 100644
+index 0000000..d44fa4c
+--- /dev/null
++++ b/game/tools/balance/adj_eval.gd
+@@ -0,0 +1,67 @@
++extends SceneTree
++## V1.6.1 A6：相鄰陣法 4 組加成各自量（AI 代理，不是真人）。
++## 每組 k：我方卡池＝這組兩種兵＋醫者、投彈兵（不在任何一組裡）；對方卡池＝王國軍拿掉所有「拿加成」的兵種（對方不會拿到加成）。
++## 同一批陣型各打「相鄰陣法開」與「關」，差＝開的勝率 − 關的勝率；只算我方真的有排出相鄰的場次另列。
++## 用法（game/ 下）：godot --headless --path . --script res://tools/balance/adj_eval.gd -- --n=120 --out=res://adj.jsonl
++const ADJ = preload("res://scripts/core/adj_defs.gd")
++const Sim = preload("res://scripts/core/battle_sim.gd")
++const AI = preload("res://scripts/core/ai_army.gd")
++const RS = preload("res://scripts/core/ruleset.gd")
++const D = preload("res://scripts/core/unit_defs.gd")
++
++func run(a0, a1, r) -> int:
++	var s = Sim.new(a0.copy(), a1.copy(), r)
++	s.fast = true
++	s.run_to_end()
++	return s.winner
++
++func _init() -> void:
++	var n := 120
++	var out_path := ""
++	for a in OS.get_cmdline_user_args():
++		if a.begins_with("--n="): n = int(a.substr(4))
++		elif a.begins_with("--out="): out_path = a.substr(6)
++	var recv := 0
++	for p in ADJ.PAIRS:
++		recv |= 1 << int(p[0])
++	var kingdom := (1 << 10) - 1
++	var lines: Array = []
++	for k in ADJ.PAIRS.size():
++		var p: Array = ADJ.PAIRS[k]
++		var pool0 := (1 << int(p[0])) | (1 << int(p[1])) | (1 << D.MEDIC) | (1 << D.BOMBER)
++		var pool1 := kingdom & ~recv
++		var r_on = RS.standard()
++		r_on.adj = true
++		r_on.pool = [pool0, pool1]
++		var r_off = r_on.copy()
++		r_off.adj = false
++		var rng := RandomNumberGenerator.new()
++		rng.seed = 6100 + k
++		var won := [0, 0]
++		var linked := 0
++		var won_l := [0, 0]
++		for i in n:
++			var a0 = AI.build(0, 100, rng, -1, pool0, r_on)["army"]
++			var a1 = AI.build(1, 100, rng, -1, pool1, r_on)["army"]
++			if a0.units.is_empty() or a1.units.is_empty():
++				continue
++			var s_probe = Sim.new(a0.copy(), a1.copy(), r_on)
++			var has_link: bool = int(s_probe.adj_n) > 0
++			var w_on := run(a0, a1, r_on)
++			var w_off := run(a0, a1, r_off)
++			won[0] += 1 if w_on == 0 else 0
++			won[1] += 1 if w_off == 0 else 0
++			if has_link:
++				linked += 1
++				won_l[0] += 1 if w_on == 0 else 0
++				won_l[1] += 1 if w_off == 0 else 0
++		var rec := {"pair": k, "recv": int(p[0]), "near": int(p[1]), "kind": p[2], "n": n, "on_pct": won[0] * 100.0 / n, "off_pct": won[1] * 100.0 / n,
++			"linked": linked, "on_l": won_l[0] * 100.0 / maxi(1, linked), "off_l": won_l[1] * 100.0 / maxi(1, linked)}
++		lines.append(JSON.stringify(rec))
++		print("ADJ ", rec)
++	if out_path != "":
++		var f := FileAccess.open(out_path, FileAccess.WRITE)
++		f.store_string("\n".join(lines) + "\n")
++		f.close()
++	print("ADJ done")
++	quit(0)
+diff --git a/game/tools/balance/v161_metrics.gd b/game/tools/balance/v161_metrics.gd
+new file mode 100644
+index 0000000..acf969a
+--- /dev/null
++++ b/game/tools/balance/v161_metrics.gd
+@@ -0,0 +1,114 @@
++extends SceneTree
++## V1.6.1 N5／B4：V1.6 新模式的難度與節奏指標（求解器／AI 代理，不是真人）。
++##  --what=trio：每組三支敵陣對作者解、三星解：首波交戰 tick、局長；隨機合法陣三場全勝率（--n 個）。
++##  --what=rift：未來 --weeks 週的異變組合：AI 對 AI（我方用同一套 AI 擺法）勝率、平均局長、時間到比例。
++##  --what=rush：極速賽題庫：每題三星解的首波交戰與局長。
++## 輸出一行一筆 JSON 到 --out。用法（game/ 下）：godot --headless --path . --script res://tools/balance/v161_metrics.gd -- --what=trio --out=res://m_trio.jsonl
++const Trio = preload("res://scripts/game/v16_trio.gd")
++const Rift = preload("res://scripts/game/v16_rift.gd")
++const Rush = preload("res://scripts/game/v16_rush.gd")
++const PZ = preload("res://scripts/game/puzzles.gd")
++const Sim = preload("res://scripts/core/battle_sim.gd")
++const AI = preload("res://scripts/core/ai_army.gd")
++const RS = preload("res://scripts/core/ruleset.gd")
++
++func pace(a0, a1, rr) -> Dictionary:
++	var s = Sim.new(a0.copy(), a1.copy(), rr)
++	var first := -1
++	while not s.finished:
++		s.step()
++		if first < 0:
++			for e in s.events:
++				if e.has("dmg"):
++					first = s.tick
++					break
++	return {"first": first, "ticks": s.tick, "winner": s.winner, "reason": s.reason}
++
++func pz_pace(pz: Dictionary, extra: Array) -> Dictionary:
++	var a0 = PZ.player_army(pz)
++	for e in extra:
++		a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
++	return pace(a0, PZ.enemy_army(pz), PZ.rules_of(pz))
++
++func rand_extra(s: Dictionary, rng: RandomNumberGenerator) -> Array:
++	var al: Array = s["allowed"]
++	var pz := Trio.make_pz(s, 0)
++	var a0 = PZ.player_army(pz)
++	var out: Array = []
++	for k in 40:
++		var t := int(al[rng.randi_range(0, al.size() - 1)])
++		var c := rng.randi_range(0, 5)
++		var r := rng.randi_range(0, 8)
++		if a0.check_place(t, c, r) == "":
++			a0.place(t, c, r)
++			out.append([t, c, r])
++	return out
++
++func _init() -> void:
++	var what := "trio"
++	var out_path := ""
++	var n := 60
++	var weeks := 26
++	for a in OS.get_cmdline_user_args():
++		if a.begins_with("--what="): what = a.substr(7)
++		elif a.begins_with("--out="): out_path = a.substr(6)
++		elif a.begins_with("--n="): n = int(a.substr(4))
++		elif a.begins_with("--weeks="): weeks = int(a.substr(8))
++	var lines: Array = []
++	match what:
++		"trio":
++			for s in Trio.sets():
++				var rec := {"id": s["id"], "sol": [], "sol3": []}
++				for k in 3:
++					rec["sol"].append(pz_pace(Trio.make_pz(s, k), s["sol"]))
++					if s.has("sol3"):
++						rec["sol3"].append(pz_pace(Trio.make_pz(s, k), s["sol3"]))
++				var rng := RandomNumberGenerator.new()
++				rng.seed = 4242
++				var allw := 0
++				for i in n:
++					var ex := rand_extra(s, rng)
++					if Trio.stars(s, Trio.results(s, ex)) >= 1:
++						allw += 1
++				rec["rand_pct"] = allw * 100 / n
++				lines.append(JSON.stringify(rec))
++				print("M trio ", s["id"], " rand ", rec["rand_pct"])
++		"rift":
++			var wk0 := Rift.week()
++			for w in weeks:
++				var wk := wk0 + w
++				var ps: Array = Rift.picks(wk, (1 << 20) - 1)
++				var r = Rift.make_rules(ps, (1 << 20) - 1, wk)
++				var e = Rift.enemy(r, wk)
++				var wins := 0
++				var tsum := 0
++				var tout := 0
++				var fsum := 0
++				var rng := RandomNumberGenerator.new()
++				rng.seed = wk * 31 + 7
++				for i in n:
++					var a0 = AI.build(0, r.budget_of(0), rng, -1, r.pool_of(0), r)["army"]
++					var pc := pace(a0, e, r)
++					wins += 1 if int(pc["winner"]) == 0 else 0
++					tsum += int(pc["ticks"])
++					fsum += maxi(0, int(pc["first"]))
++					tout += 1 if str(pc["reason"]).contains("時間到") else 0
++				var names: Array = []
++				for k in ps:
++					names.append(Rift.ANOMS[k][0])
++				lines.append(JSON.stringify({"wk": wk, "anoms": names, "ai_win_pct": wins * 100 / n, "avg_ticks": tsum / n, "avg_first": fsum / n, "timeout_pct": tout * 100 / n}))
++				print("M rift ", wk, " ", names, " win ", wins * 100 / n)
++		"rush":
++			for pid in Rush.pool(1):
++				var pz := PZ.get_puzzle(pid)
++				var best: Array = pz.get("best", {}).get("u", [])
++				if best.is_empty() and not pz.get("solutions", []).is_empty():
++					best = pz["solutions"][0]
++				var pc := pz_pace(pz, best)
++				lines.append(JSON.stringify({"id": pid, "first": pc["first"], "ticks": pc["ticks"]}))
++	if out_path != "":
++		var f := FileAccess.open(out_path, FileAccess.WRITE)
++		f.store_string("\n".join(lines) + "\n")
++		f.close()
++	print("METRICS done ", what, " ", lines.size())
++	quit(0)
+diff --git a/game/tools/check.py b/game/tools/check.py
+index 686996d..b89baed 100644
+--- a/game/tools/check.py
++++ b/game/tools/check.py
+@@ -16,7 +16,7 @@ ERR = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|Failed to load script"
+ PRE = re.compile(r'(?:preload|load)\(\s*"res://([^"]+\.(?:gd|json|csv))"|^extends\s+"res://([^"]+\.gd)"', re.M)   # V1.1（Codex v110-impl #3）：也追繼承鏈
+ TEST_DONE = re.compile(r"^—— ([1-9]\d*) 通過 / 0 失敗", re.M)
+ # 這些組會碰存檔（固定檔名、靜態狀態），放同一個行程
+-STATEFUL = ["fantasy", "rules", "save", "ui", "modes", "v16"]
++STATEFUL = ["fantasy", "rules", "save", "ui", "modes", "v16", "v161"]
+ 
+ 
+ def sha(p: Path) -> str:
+@@ -103,6 +103,7 @@ def plan(a) -> list:
+         test("t_harness", "harness,anim")
+         test("t_ui", "ui")
+         test("t_v16", "v16")
++        test("t_v161", "v161")
+         gd("golden", "tools/golden.gd", ["--n=30"], r'^GOLDEN \{.*"ok":true')
+     else:
+         for s in ["maps", "anim", "units", "free", "content", "harness"]:
+@@ -118,7 +119,7 @@ def plan(a) -> list:
+         # V1.6 #4：存檔組再拆兩個行程，各用自己的存檔前綴（rules、save 內部自訂的前綴互不重疊）
+         skip = ",-test_sandbox_v5,-test_star_solutions,-test_fantasy_mirror_v8,-test_event_routes"
+         gd("t_stateful", "tests/run_tests.gd", ["--only=rules,save" + skip, "--prefix=ta_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+-        gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui,modes,v16" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
++        gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui,modes,v16,v161" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
+         # V1.1 E1：最慢的兩組各切 8 片（每片太長，最後幾分鐘只剩少數工作在跑）
+         global FULL_GOLDEN
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index 93de90d..cb42d73 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -4,7 +4,7 @@ const LayoutRules = preload("res://scripts/ui/layout_rules.gd")
+ const PANELLESS_OVERLAYS := ["ai_busy"]
+ ## V1.5.2 漏登記守衛：每個覆蓋層必須登記到的角色（有標題緞帶的要有 1 條緞帶＋1 個面板；彈窗至少 1 個面板）。
+ ## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
+-const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand"]
++const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum"]
+ const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
+ ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
+ ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
+@@ -1775,7 +1775,8 @@ func _shots_v16() -> void:
+ 	await _snap("v16_14_trio.png")
+ 	_trio_start(0)
+ 	await _snap("v16_15_trio_place.png")
+-	trio_res = [true, false, true]
++	trio_res = [{"ok": true, "rem": 52, "spent": 60}, {"ok": false, "rem": 0, "spent": 60}, {"ok": true, "rem": 31, "spent": 60}]   # V1.6.1：三場各自的結果
++	trio_st = 0
+ 	overlay = "trio_result"
+ 	await _snap("v16_16_trio_result.png")
+ 	overlay = ""
+@@ -1814,11 +1815,75 @@ func _shots_v16() -> void:
+ 	mouse = Vector2(200, 268)
+ 	await _snap("v16_06_magnifier.png")
+ 	Save.settings["magnify"] = false
+-	# #8 極速賽：擺陣頂部計時、結束面板
++	# #8 極速賽：選單（V1.6.1 今日題組）、擺陣頂部計時、結束面板（含分享）
+ 	_rush_start()
++	await _snap("v161_01_rush_menu.png")
++	overlay = ""
++	_rush_go(true)
+ 	await _snap("v16_07_rush_place.png")
+ 	rush["solved"] = 7
+ 	rush["tried"] = 9
+ 	_rush_end()
+ 	await _snap("v16_08_rush_end.png")
+ 	overlay = ""
++	await _shots_v161()
++
++## V1.6.1 新畫面（docs/2026-11-10-v1.6.1-plan.md）
++func _shots_v161() -> void:
++	_go_title()
++	var keep: Dictionary = Save.data.duplicate(true)
++	# N2 新玩法導覽
++	overlay = "tour"
++	await _snap("v161_02_tour.png")
++	# A3 三考：三張卡片＋星數（全勝）
++	_trio_start(0)
++	trio_extra = Trio.sets()[0]["sol"]
++	trio_res = [{"ok": true, "rem": 52, "spent": 60}, {"ok": true, "rem": 48, "spent": 60}, {"ok": true, "rem": 41, "spent": 60}]
++	trio_st = 2
++	overlay = "trio_result"
++	await _snap("v161_03_trio_cards.png")
++	overlay = ""
++	_go_title()
++	# A12 異變練習場
++	rift_lab = [0, 2]
++	overlay = "rift_lab"
++	await _snap("v161_04_rift_lab.png")
++	rift_lab = []
++	# A2 出題台：斬首指定目標
++	ed_cells = {Vector2i(2, 3): D.CAVALRY, Vector2i(2, 5): D.CAVALRY, Vector2i(4, 4): D.SWORD, Vector2i(12, 4): D.SWORD, Vector2i(13, 2): D.ARCHER}
++	ed_goal = 1
++	ed_target = Vector2i(12, 4)
++	overlay = "editor"
++	await _snap("v161_05_editor_target.png")
++	ed_cells = {}
++	ed_target = Vector2i(-1, -1)
++	overlay = ""
++	# N3 實驗簿：改名中＋比較
++	puzzle_id = "p1"
++	_start_mode(Mode.PUZZLE)
++	Save.data["notebook"] = {"p1": [{"n": "速攻", "u": [[0, 4, 4], [2, 1, 3]], "r": [2, 40, 30]}, {"n": "堅守", "u": [[1, 5, 3], [2, 1, 5]], "r": [3, 55, 25]}]}
++	overlay = "notebook"
++	nb_edit = 0
++	nb_buf = "A 案"
++	await _snap("v161_06_notebook_rename.png")
++	_nb_edit_end()
++	nb_cmp_a = 0
++	nb_cmp_b = 1
++	overlay = "nb_cmp"
++	await _snap("v161_07_notebook_compare.png")
++	nb_cmp_a = -1
++	overlay = ""
++	# A9 開場鎖定弧線
++	for sp in [[D.SHIELD, 5, 3], [D.ARCHER, 1, 3], [D.ARCHER, 1, 5], [D.SWORD, 4, 4]]:
++		armies[0].place(sp[0], sp[1], sp[2])
++	tv_range = true
++	await _snap("v161_08_lock_arcs.png")
++	tv_range = false
++	# D4 接力遠征總結
++	coop_log = [1, 1, 1, 0, 2, 2, 1, 2, 3, 1, 0, 3]
++	overlay = "coop_sum"
++	await _snap("v161_09_coop_sum.png")
++	overlay = ""
++	coop_log = []
++	Save.data = keep
++	_go_title()
+diff --git a/game/tools/gen/make_listen_sheet.py b/game/tools/gen/make_listen_sheet.py
+index a18e5a4..4f537d0 100644
+--- a/game/tools/gen/make_listen_sheet.py
++++ b/game/tools/gen/make_listen_sheet.py
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python3
+ """音效試聽表（第十輪）：掃 game/audio/*.wav，輸出 docs/playtest/listen.html。
+ 用法：python3 tools/gen/make_listen_sheet.py（新增或刪除音效後重跑）"""
+-import glob, os
++import glob, json, os
+ 
+ root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+ files = sorted(os.path.basename(f) for f in glob.glob(os.path.join(root, "audio", "*.wav")) + glob.glob(os.path.join(root, "audio", "*.ogg")))   # V1.2：含 CC0 錄音 ogg
+@@ -10,7 +10,11 @@ groups = {
+     "音樂": [f for f in files if f.startswith("music")],
+     "環境": [f for f in files if f.startswith("amb")],
+     "腳步": [f for f in files if f.startswith("step")],
++    "V1.6 木頭擬音": [f for f in files if f.startswith(("wood_", "tension"))],   # V1.6.1 N4
+ }
++# V1.6.1 N4：有自動量測結果（tools/gen/audio_measure.py）就標上 RMS 與「要聽」
++mj = os.path.join(root, "..", "build", "tmp", "audio_measure.json")
++meas = json.load(open(mj, encoding="utf-8")) if os.path.exists(mj) else {"files": {}, "flags": {}}
+ used = set(sum(groups.values(), []))
+ groups["戰鬥與其他"] = [f for f in files if f not in used]
+ rows = ""
+@@ -18,13 +22,17 @@ for g, fs in groups.items():
+     rows += f"<h2>{g}（{len(fs)}）</h2>\n"
+     for f in fs:
+         n = f[:-4]
+-        rows += f'<div class=r><code>{n}</code><audio controls preload=none src="../../game/audio/{f}"></audio>'
++        m = meas["files"].get(f)
++        tag = f'<small>{m["rms_db"]} dB</small>' if m else ""
++        if f in meas["flags"]:
++            tag += f'<b title="{meas["flags"][f]}">★要聽</b>'
++        rows += f'<div class=r><code>{n}</code><audio controls preload=none src="../../game/audio/{f}"></audio>{tag}'
+         for v, t in (("ok", "好"), ("loud", "太大聲"), ("quiet", "太小聲"), ("bad", "難聽")):
+             rows += f'<label><input type=radio name="{n}" value={v}>{t}</label>'
+         rows += "</div>\n"
+ page = """<!doctype html><html lang=zh-Hant><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>音效試聽表</title>
+ <style>body{font:16px system-ui;max-width:860px;margin:auto;padding:16px;background:#fafafa;color:#222}.r{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid #ddd}code{width:170px}audio{height:32px}button{font-size:16px;padding:8px 14px}textarea{width:100%;height:90px}</style>
+-<h1>音效試聽表</h1><p>只有想改的項目要勾；音樂與環境音聽前 10 秒就好。勾完按最下面的按鈕，把文字貼給 Claude。</p>
++<h1>音效試聽表</h1><p>只有想改的項目要勾；音樂與環境音聽前 10 秒就好。勾完按最下面的按鈕，把文字貼給 Claude。標「★要聽」的是自動量測覺得同組裡太大或太小聲的（滑鼠移上去看原因，全表在 loudness.md）。</p>
+ """ + rows + """<p><button onclick="var o=[];document.querySelectorAll('input:checked').forEach(function(e){if(e.value!='ok')o.push(e.name+': '+e.value)});document.getElementById('o').value=o.join('\\n')||'全部沒問題'">產生結果</button></p><textarea id=o></textarea></html>
+ """
+ out = os.path.join(root, "..", "docs", "playtest", "listen.html")
+diff --git a/game/tools/gen/trio_forge.gd b/game/tools/gen/trio_forge.gd
+index 4fe79b5..61ed49f 100644
+--- a/game/tools/gen/trio_forge.gd
++++ b/game/tools/gen/trio_forge.gd
+@@ -7,7 +7,7 @@ const Army = preload("res://scripts/core/army.gd")
+ const Sim = preload("res://scripts/core/battle_sim.gd")
+ const AI = preload("res://scripts/core/ai_army.gd")
+ 
+-const SETS := 10
++var SETS := 10   # V1.6.1 D2：-- --sets=20 擴到 20 組（前 10 組照舊：同一串種子依序產生）
+ 
+ func wins(a, e) -> bool:
+ 	var s = Sim.new(a.copy(), e.copy())
+@@ -23,6 +23,9 @@ func cells(a) -> Array:
+ 	return out
+ 
+ func _init() -> void:
++	for a in OS.get_cmdline_user_args():
++		if a.begins_with("--sets="):
++			SETS = int(a.substr(7))
+ 	var out: Array = []
+ 	var seed := 5100
+ 	while out.size() < SETS and seed < 9000:
+diff --git a/game/tools/gen/trio_star_forge.gd b/game/tools/gen/trio_star_forge.gd
+new file mode 100644
+index 0000000..5c63acd
+--- /dev/null
++++ b/game/tools/gen/trio_star_forge.gd
+@@ -0,0 +1,99 @@
++extends SceneTree
++## V1.6.1 A3：一陣三考三星解求解器。從作者解出發爬山（移兵、換兵、拿掉、加兵），找「三場都贏、剩餘平均 ≥ S2、花費 ≤ S3%」的陣，
++## 存進 trio.json 的 "sol3"（可重現的三星解，測試會重跑驗證）。找不到就用找到的最好那套當三星門檻（單組覆寫 s2／s3，記在輸出）。
++## 用法（game/ 下）：godot --headless --path . --script res://tools/gen/trio_star_forge.gd -- --set=<0..9> --iters=600 --out=<檔>
++## 一組一個行程（可平行），結果寫成一行 JSON 到 --out；再用 tools/gen/trio_star_merge.py 併回 trio.json。
++const Trio = preload("res://scripts/game/v16_trio.gd")
++const PZ = preload("res://scripts/game/puzzles.gd")
++const D = preload("res://scripts/core/unit_defs.gd")
++
++var iters := 600
++var only := -1
++var out_path := ""
++
++func evalu(s: Dictionary, ex: Array) -> Array:
++	# [分數, 星, 剩餘平均, 花費%]
++	if PZ.check_extra(Trio.make_pz(s, 0), ex) != "":
++		return [-1e9, 0, 0, 0]
++	var res: Array = Trio.results(s, ex)
++	var won := 0
++	for r in res:
++		if bool(r["ok"]):
++			won += 1
++	var ra := Trio.rem_avg(res)
++	var sp := Trio.spent_pct(s, res)
++	var sc := won * 1000.0
++	if won == 3:
++		sc += minf(ra, Trio.S2) * 8.0 + ra * 0.5 - maxf(0.0, sp - Trio.S3) * 10.0 - sp * 0.2
++	return [sc, Trio.stars(s, res), ra, sp]
++
++func mutate(s: Dictionary, ex: Array, rng: RandomNumberGenerator) -> Array:
++	var b: Array = ex.duplicate(true)
++	var al: Array = s["allowed"]
++	match rng.randi_range(0, 4):
++		0:
++			if b.size() > 1:
++				b.remove_at(rng.randi_range(0, b.size() - 1))
++		1, 2:
++			if not b.is_empty():
++				var i := rng.randi_range(0, b.size() - 1)
++				b[i] = [int(b[i][0]), rng.randi_range(0, 5), rng.randi_range(0, 8)]
++		3:
++			if not b.is_empty():
++				var j := rng.randi_range(0, b.size() - 1)
++				b[j] = [int(al[rng.randi_range(0, al.size() - 1)]), int(b[j][1]), int(b[j][2])]
++		4:
++			b.append([int(al[rng.randi_range(0, al.size() - 1)]), rng.randi_range(0, 5), rng.randi_range(0, 8)])
++	return b
++
++func _init() -> void:
++	for a in OS.get_cmdline_user_args():
++		if a.begins_with("--iters="):
++			iters = int(a.substr(8))
++		elif a.begins_with("--set="):
++			only = int(a.substr(6))
++		elif a.begins_with("--out="):
++			out_path = a.substr(6)
++	var d = JSON.parse_string(FileAccess.get_file_as_string("res://data/trio.json"))
++	var res_lines: Array = []
++	for si in d["sets"].size():
++		if only >= 0 and si != only:
++			continue
++		var s: Dictionary = d["sets"][si]
++		s.erase("s2")
++		s.erase("s3")
++		var rng := RandomNumberGenerator.new()
++		rng.seed = hash(str(s["id"])) & 0x7fffffff
++		var best: Array = s["sol"].duplicate(true)
++		var bv := evalu(s, best)
++		var cur := best.duplicate(true)
++		var cv := bv
++		for it in iters:
++			if int(bv[1]) == 3 and it > iters / 3:
++				break
++			var cand := mutate(s, cur, rng)
++			var v := evalu(s, cand)
++			if float(v[0]) >= float(cv[0]):
++				cur = cand
++				cv = v
++				if float(v[0]) > float(bv[0]) or (int(v[1]) == 3 and int(bv[1]) < 3):
++					best = cand.duplicate(true)
++					bv = v
++			if it % 300 == 299:
++				cur = best.duplicate(true)   # 回到最好的再走
++				cv = bv
++		best.sort()
++		s["sol3"] = best
++		if int(bv[1]) < 3:
++			if int(bv[2]) < Trio.S2:
++				s["s2"] = int(bv[2])
++			if int(bv[3]) > Trio.S3:
++				s["s3"] = int(bv[3])
++		print("TRIO3 %s stars=%d rem=%d spent=%d units=%d %s" % [s["id"], int(bv[1]), int(bv[2]), int(bv[3]), best.size(), "" if int(bv[1]) == 3 else "OVERRIDE"])
++		res_lines.append(JSON.stringify({"id": s["id"], "sol3": s["sol3"], "s2": s.get("s2", null), "s3": s.get("s3", null), "stars": int(bv[1]), "rem": int(bv[2]), "spent": int(bv[3])}))
++	if out_path != "":
++		var f := FileAccess.open(out_path, FileAccess.WRITE)
++		f.store_string("\n".join(res_lines) + "\n")
++		f.close()
++	print("TRIO3 done")
++	quit(0)
+diff --git a/game/tools/gen/trio_stars.gd b/game/tools/gen/trio_stars.gd
+new file mode 100644
+index 0000000..220d1e1
+--- /dev/null
++++ b/game/tools/gen/trio_stars.gd
+@@ -0,0 +1,29 @@
++extends SceneTree
++## V1.6.1 A3：一陣三考每組的作者解 sol 在預設門檻下拿幾星；拿不到三星就印出要覆寫的 s2／s3（寫回 trio.json 由 --write）。
++## 用法（game/ 下）：godot --headless --path . --script res://tools/gen/trio_stars.gd [-- --write]
++const Trio = preload("res://scripts/game/v16_trio.gd")
++
++func _init() -> void:
++	var write := "--write" in OS.get_cmdline_user_args()
++	var d = JSON.parse_string(FileAccess.get_file_as_string("res://data/trio.json"))
++	var changed := false
++	for s in d["sets"]:
++		s.erase("s2")
++		s.erase("s3")
++		var res: Array = Trio.results(s, s["sol"])
++		var st: int = Trio.stars(s, res)
++		var ra: int = Trio.rem_avg(res)
++		var sp: int = Trio.spent_pct(s, res)
++		print("TRIO %s stars=%d rem_avg=%d spent_pct=%d" % [s["id"], st, ra, sp])
++		if st < 3 and st >= 1:
++			if ra < Trio.S2:
++				s["s2"] = ra
++			if sp > Trio.S3:
++				s["s3"] = sp
++			changed = true
++	if write and changed:
++		var f := FileAccess.open("res://data/trio.json", FileAccess.WRITE)
++		f.store_string(JSON.stringify(d, "\t", false))
++		print("TRIOSTARS wrote")
++	print("TRIOSTARS done")
++	quit(0)

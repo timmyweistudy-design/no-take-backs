@@ -61,8 +61,11 @@ static func stars(s: Dictionary, res: Array) -> int:
 	if res.size() != 3 or res.any(func(r): return not bool(r["ok"])):
 		return 0
 	var st := 1
-	if rem_avg(res) >= s2_of(s):
+	var rsum := 0
+	for r in res:
+		rsum += int(r["rem"])
+	if rsum >= s2_of(s) * res.size():   # 平均 ≥ 門檻，用總和比，不先取整（Codex v161-i1 #10）
 		st = 2
-		if spent_pct(s, res) <= s3_of(s):
+		if int(res[0]["spent"]) * 100 <= s3_of(s) * maxi(1, int(s["budget"])):   # 花費 ≤ 門檻%：交叉相乘，不截斷
 			st = 3
 	return st

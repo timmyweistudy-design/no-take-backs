@@ -66,6 +66,8 @@ func _finish_battle() -> void:
 	if trio_on and mode == Mode.PUZZLE:
 		_trio_settle()
 	_coop_settle()
+	if mode != Mode.TUTORIAL and not watch_mode and not (rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB):
+		Save.data["eff_games"] = int(Save.data.get("eff_games", 0)) + 1   # V1.6.1 N1：有效對局
 	_rift_settle()
 	_persona_result()
 	_career_settle()
@@ -655,7 +657,7 @@ func _v16_place_hud() -> void:
 
 func _draw_rush_end() -> void:
 	var body := L.t("rush_end_body", [int(rush.get("solved", 0)), int(rush.get("tried", 0)), int(Save.data.get("rush_best", 0))])
-	var P := modal_rect(560, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("B"), 480, true) + GAP_XL + 50.0 + GAP_L)
+	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("B"), 480, true) + GAP_XL + 50.0 + GAP_L)   # 三顆按鈕 690 寬（Codex v161-i1 #12）
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("rush_title")) + GAP_L
 	_text(Vector2(640, y), body, tz("B"), ACCENT if bool(rush.get("new_best", false)) else Color.WHITE, true, true, 480)
@@ -719,6 +721,8 @@ func _coach_open() -> void:
 var co_thread_key := ""
 func _v16_jobs(_delta: float) -> void:
 	_trio_jobs()
+	if co_thread != null and overlay != "coach" and not bool(co_ctl.get("stop", false)):
+		_coach_cancel_quiet()   # Esc／手把 B／任何離開教練面板的路徑都取消推演（Codex v161-i1 #3）
 	if co_thread != null and not co_thread.is_alive():
 		var res = co_thread.wait_to_finish()
 		co_thread = null
@@ -745,9 +749,12 @@ func _exit_tree() -> void:
 
 ## V1.6.1 F5：推演中按「取消」：叫背景停下、關面板；下次打開這一場會重算
 func _coach_cancel() -> void:
+	_coach_cancel_quiet()
+	overlay = ""
+
+func _coach_cancel_quiet() -> void:
 	co_ctl["stop"] = true
 	co_key = ""
-	overlay = ""
 
 ## V1.6.1 A4：教練紀錄分層。鍵＝實驗簿同一套（殘局 id、試煉 t＋編號、工坊／三考依內容）；一般對 AI 不記。
 ## coached[鍵] = {"lv": 看過的最高提示層級 1～3, "ap": 有沒有套用, "self": 自力最佳星數（沒用教練過關時才更新）}
@@ -996,6 +1003,9 @@ func _start_mode(m: int) -> void:
 	var mk := "%d:%s:%d:%d" % [m, puzzle_id, int(get("trial_id")), PZ.get_puzzle("ws").hash() if puzzle_id == "ws" else 0]   # 工坊、三考都叫 ws：再比題目內容（Codex v160-i3）
 	if mk != tv_mode_key:
 		tv_marks = []   # 換題、換模式：舊標記不帶過去（同一題重打保留）
+		co_assist = ""   # V1.6.1 A4：換題就是新的嘗試（同一題重打照舊算教練協力）
+	if mk != tv_mode_key or m != Mode.PUZZLE:
+		trio_job += 1   # 換題、換模式：還在算的三考結果作廢
 	tv_mode_key = mk
 	fog_on = false
 	tv_mark_mode = false
@@ -1011,6 +1021,11 @@ const Persona = preload("res://scripts/game/v16_persona.gd")
 
 func _ai_style() -> int:
 	return int(rules.ai_style) if rules != null else 0
+
+## V1.6.1 A4：從清單點進來＝全新的嘗試（Codex v161-i1 #4）
+func _pick_puzzle(id: String, tut: bool) -> void:
+	co_assist = ""
+	super._pick_puzzle(id, tut)
 
 ## V1.6.1 A11：一般對 AI（普通）才用招牌陣
 func _signature_tpl(seed: int, pool: int) -> int:
@@ -1105,9 +1120,10 @@ func _draw_notebook() -> void:
 			_text(ir.position + Vector2(10, 6), nb_buf + ("|" if fmod(time, 1.0) < 0.55 else " "), tz("S"), Color.WHITE, false, true, 280)
 		else:
 			_text(Vector2(P.position.x + 40, y + 10), "%s　%s" % [str(e["n"]), res], tz("S"), Color.WHITE if nb_cmp_a != i else ACCENT, false, true, 300)
-		_btn_small(Rect2(P.end.x - 370, y + 4, 110, 40), L.t("nb_ok") if nb_edit == i else L.t("nb_rename"), func(): _nb_rename(ii))
-		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load") if nb_cmp_a < 0 else (L.t("nb_pick") if nb_cmp_a != i else L.t("nb_picked")), func(): _nb_load(ii) if nb_cmp_a < 0 else _nb_cmp_pick(ii), nb_cmp_a != i)
-		_btn_small(Rect2(P.end.x - 130, y + 4, 90, 40), L.t("nb_del"), func(): _nb_del(ii), nb_cmp_a < 0)
+		var free_row: bool = nb_edit < 0   # 改名中鎖住其他操作
+		_btn_small(Rect2(P.end.x - 370, y + 4, 110, 40), L.t("nb_ok") if nb_edit == i else L.t("nb_rename"), func(): _nb_rename(ii), free_row or nb_edit == i)
+		_btn_small(Rect2(P.end.x - 250, y + 4, 110, 40), L.t("nb_load") if nb_cmp_a < 0 else (L.t("nb_pick") if nb_cmp_a != i else L.t("nb_picked")), func(): _nb_load(ii) if nb_cmp_a < 0 else _nb_cmp_pick(ii), nb_cmp_a != i and free_row)
+		_btn_small(Rect2(P.end.x - 130, y + 4, 90, 40), L.t("nb_del"), func(): _nb_del(ii), nb_cmp_a < 0 and free_row)
 		y += 56.0
 	y += GAP_L
 	if nb_cmp_a >= 0:
@@ -1120,6 +1136,7 @@ func _draw_notebook() -> void:
 ## ── V1.6.1 N3：實驗簿改名（鍵盤直接打；Steam 手把開 Steam 螢幕鍵盤；都沒有就輪替預設名）＋兩份方案並排比較 ──
 var nb_edit := -1
 var nb_buf := ""
+var nb_edit_obj = null   # 改名的那一份（照物件寫回，不靠索引；Codex v161-i1 #9）
 var nb_cmp_a := -1    # 比較：先選的那一份（-1＝不在比較）
 var nb_cmp_b := -1
 const NB_NAME_MAX := 16
@@ -1139,30 +1156,40 @@ func _nb_rename(i: int) -> void:
 				it["n"] = str(txt).strip_edges().substr(0, NB_NAME_MAX)
 				Save.save_data()):
 			return
-		# 沒有 Steam 螢幕鍵盤：輪替預設名
-		var cur := str(it["n"])
-		var k := 0
-		for j in NB_PRESETS.size():
-			if L.t(NB_PRESETS[j]) == cur:
-				k = j + 1
-		it["n"] = L.t(NB_PRESETS[k % NB_PRESETS.size()])
-		Save.save_data()
+		_nb_cycle_name(it)   # 沒有 Steam 螢幕鍵盤：輪替預設名
+		return
+	if fp_touch and not DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+		_nb_cycle_name(items[i])   # 觸控又沒有螢幕鍵盤（Windows 平板／Deck 桌面模式）：輪替預設名（Codex v161-i1 #8）
 		return
 	nb_edit = i
+	nb_edit_obj = items[i]
 	nb_buf = str(items[i]["n"])
 	DisplayServer.window_set_ime_active(true)   # 中文、日文輸入法
+	if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+		DisplayServer.virtual_keyboard_show(nb_buf, Rect2(), DisplayServer.KEYBOARD_TYPE_DEFAULT, NB_NAME_MAX)
+
+func _nb_cycle_name(it: Dictionary) -> void:
+	var cur := str(it["n"])
+	var k := 0
+	for j in NB_PRESETS.size():
+		if L.t(NB_PRESETS[j]) == cur:
+			k = j + 1
+	it["n"] = L.t(NB_PRESETS[k % NB_PRESETS.size()])
+	Save.save_data()
 
 func _nb_commit() -> void:
-	var items := _nb_items()
-	if nb_edit >= 0 and nb_edit < items.size() and nb_buf.strip_edges() != "":
-		items[nb_edit]["n"] = nb_buf.strip_edges().substr(0, NB_NAME_MAX)
+	if nb_edit_obj is Dictionary and nb_buf.strip_edges() != "" and _nb_items().has(nb_edit_obj):
+		nb_edit_obj["n"] = nb_buf.strip_edges().substr(0, NB_NAME_MAX)
 		Save.save_data()
 	_nb_edit_end()
 
 func _nb_edit_end() -> void:
 	nb_edit = -1
+	nb_edit_obj = null
 	nb_buf = ""
 	DisplayServer.window_set_ime_active(false)
+	if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+		DisplayServer.virtual_keyboard_hide()
 
 func _nb_edit_input(ev: InputEvent) -> bool:
 	if overlay != "notebook":
@@ -1513,12 +1540,16 @@ var trio_thread: Thread = null
 var trio_extra: Array = []
 var trio_busy := false
 var trio_st := 0
+var trio_job := 0          # 每次結算 +1；換題、離開也 +1，舊的背景結果就作廢（Codex v161-i1 #2）
+var trio_snap := {}        # 結算當下的題組與花費（背景算完用它，不用當下的狀態）
 func _trio_settle() -> void:
 	var extra: Array = []
 	for u in last_armies[0].units:
 		extra.append([int(u["type"]), int(u["col"]), int(u["row"])])
 	trio_extra = extra
 	var s: Dictionary = _trio_set()
+	trio_job += 1
+	trio_snap = {"set": s, "spent": last_armies[0].spent(), "custom": not trio_custom.is_empty(), "job": trio_job}
 	var oc: Dictionary = PZ.outcome(PZ.get_puzzle("ws"), sim, last_armies[0].spent())
 	trio_res = [{"ok": bool(oc["ok"]), "rem": int(oc["rem"]), "spent": int(oc["spent"])}]
 	trio_st = 0
@@ -1532,26 +1563,28 @@ func _trio_settle() -> void:
 		trio_thread.wait_to_finish()   # 上一組還在算（極少見）：先收掉
 	trio_busy = true
 	trio_thread = Thread.new()
-	trio_thread.start(func(): return Trio.results(s, extra, 1))
+	var job := trio_job
+	trio_thread.start(func(): return [job, Trio.results(s, extra, 1)])
 
 func _trio_jobs() -> void:
 	if trio_thread != null and not trio_thread.is_alive():
-		var rest: Array = trio_thread.wait_to_finish()
+		var got: Array = trio_thread.wait_to_finish()
 		trio_thread = null
 		trio_busy = false
-		if trio_res.size() == 1:
-			trio_res += rest
+		if int(got[0]) == trio_job and trio_res.size() == 1:
+			trio_res += got[1]
 			_trio_done()
 
 func _trio_done() -> void:
-	var s: Dictionary = _trio_set()
+	var s: Dictionary = trio_snap.get("set", _trio_set())
 	trio_st = Trio.stars(s, trio_res)
-	if trio_st == 3 and trio_custom.is_empty():
+	var custom: bool = bool(trio_snap.get("custom", not trio_custom.is_empty()))
+	if trio_st == 3 and not custom:
 		call("_ach", "TRIO_STAR3")   # V1.6.1 D7
-	if trio_st >= 1 and trio_custom.is_empty():   # 朋友出的三考題不存紀錄
+	if trio_st >= 1 and not custom:   # 朋友出的三考題不存紀錄
 		var cl: Dictionary = Save.data.get("trio_clear", {})
 		var id := str(s["id"])
-		var sp: int = last_armies[0].spent()
+		var sp: int = int(trio_snap.get("spent", last_armies[0].spent()))
 		if not cl.has(id) or sp < int(cl[id]):
 			cl[id] = sp
 			Save.data["trio_clear"] = cl

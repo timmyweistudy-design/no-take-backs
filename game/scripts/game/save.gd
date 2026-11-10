@@ -400,6 +400,8 @@ static func sanitize_v16(out: Dictionary) -> void:
 		out["rush_day"] = {"day": int(rdy["day"]), "best": clampi(int(rdy["best"]), 0, 100000)}   # V1.6.1 D1
 	else:
 		out.erase("rush_day")
+	if out.has("eff_games"):
+		out["eff_games"] = clampi(int(out["eff_games"]), 0, 100000000) if _is_num(out["eff_games"]) else 0   # V1.6.1 N1
 	out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
 	for k2 in ["rift_best", "trio_clear", "trio_stars"]:
 		var d = out.get(k2, {})
@@ -435,7 +437,11 @@ static func sanitize_run(g) -> Dictionary:
 	var cp = g.get("coop", 0)
 	out["coop"] = 1 if (cp is int or cp is float) and int(cp) == 1 else 0   # V1.6 #21 雙人接力遠征
 	var cl := _int_list(g.get("clog", []), 28)   # V1.6.1 D4：[站, 玩家, 勝, MVP 兵種] × 最多 7 站
-	out["clog"] = cl if cl.size() % 4 == 0 else []
+	var cl_ok: bool = cl.size() % 4 == 0 and cl.size() / 4 < int(out["stage"])   # 紀錄只到上一站（Codex v161-i1 #5：每欄都驗範圍）
+	for i in range(0, cl.size() - 3, 4):
+		if cl[i] != i / 4 + 1 or cl[i + 1] != 1 + (cl[i] - 1) % 2 or cl[i + 2] < 0 or cl[i + 2] > 1 or cl[i + 3] < -1 or cl[i + 3] >= 22:
+			cl_ok = false
+	out["clog"] = cl if cl_ok else []
 	var raw = g.get("prev")
 	if not raw is Array or raw.size() > 80:
 		return {}

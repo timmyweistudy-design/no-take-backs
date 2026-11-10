@@ -140,7 +140,9 @@ static func trio_set_of(j: Dictionary, s: Array, allowed: Array) -> Dictionary:
 	var spent := 0
 	for u in s:
 		spent += D.cost(int(u[0]))
-	return {"id": "c" + JSON.stringify(foes).md5_text().substr(0, 8), "budget": spent, "allowed": allowed, "foes": foes, "sol": s}
+	var al2: Array = allowed.duplicate()
+	al2.sort()
+	return {"id": "c" + JSON.stringify([foes, spent, al2]).md5_text().substr(0, 12), "budget": spent, "allowed": allowed, "foes": foes, "sol": s}   # 身分含預算與可用兵種（Codex v161-i1 #7）
 
 ## 指定的目標要真的有那隻兵（斬首在敵陣、護送與完美在作者解）；不對回 {}。
 static func pick_fields(goal: String, e: Array, s: Array, t) -> Dictionary:

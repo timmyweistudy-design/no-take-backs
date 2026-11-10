@@ -243,7 +243,7 @@ static func daily_fetch(day: int, done: Callable, ver := 1) -> void:
 static var _lb_up := {}      # 名稱 → [分數, details]
 static var _lb_get := {}     # 名稱 → done
 static var _lb_dl := {}      # handle → done
-static var _lb_sent := {}    # V1.6.1 F2：handle → [榜名, 送出的分數]（上傳成功時只清掉「就是這一筆」的待送）
+static var _lb_sent := {}    # V1.6.1 F2：handle → [[榜名, 送出的分數], …]（同一個榜可能連送兩次：照送出順序排隊，回呼一次取一筆；Codex v161-i1 #1）
 static var _lb_wired := false
 
 static func _wire() -> void:
@@ -280,7 +280,9 @@ static func _on_lb_found(handle: int, found: int) -> void:
 	if _lb_up.has(name):
 		var p: Array = _lb_up[name]
 		_lb_up.erase(name)
-		_lb_sent[handle] = [name, int(p[0])]
+		var q: Array = _lb_sent.get(handle, [])
+		q.append([name, int(p[0])])
+		_lb_sent[handle] = q
 		_steam.uploadLeaderboardScore(int(p[0]), true, p[1], handle)
 	if _lb_get.has(name):
 		_lb_dl[handle] = [_lb_get[name], name.begins_with("daily_")]
@@ -302,9 +304,13 @@ static func _on_lb_downloaded(_msg, handle: int, result: Array) -> void:
 	done.call(out)
 
 static func _on_lb_uploaded(success: bool, handle: int, _this_score: Dictionary) -> void:
-	var sent: Array = _lb_sent.get(handle, [])
-	_lb_sent.erase(handle)
-	if not success or sent.size() != 2:
+	var q: Array = _lb_sent.get(handle, [])
+	if q.is_empty():
+		return
+	var sent: Array = q.pop_front()
+	if q.is_empty():
+		_lb_sent.erase(handle)
+	if not success:
 		return
 	if clear_pending(Save.data, str(sent[0]), int(sent[1])):
 		Save.save_data()

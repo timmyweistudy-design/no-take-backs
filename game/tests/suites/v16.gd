@@ -29,11 +29,12 @@ func test_funnel_v160() -> void:
 
 func test_guide_v160() -> void:
 	var G = load("res://scripts/game/v16_guide.gd")
-	var d := {"tutorial": 0, "stats": {"games": 0}}
+	var d := {"tutorial": 0, "stats": {"games": 0}, "eff_games": 0}
 	ok(G.next_step(d, false, false) == "tut", "新玩家先教學")
 	d["tutorial"] = 1
 	ok(G.next_step(d, false, false) == "ai", "教學過了：打第一場")
 	d["stats"] = {"games": 3}
+	d["eff_games"] = 3
 	ok(G.next_step(d, false, false) == "puzzle", "打過了：殘局")
 	d["puzzle_stars"] = {"p1": 1}
 	ok(G.next_step(d, false, false) == "daily" and G.next_step(d, false, true) == "", "完整版接每日；試玩版不推沒開的模式")
@@ -43,7 +44,7 @@ func test_guide_v160() -> void:
 	ok(G.next_step(d, true, false) == "v16:rush_open", "舊的都做過：推 V1.6 新玩法（V1.6.1 N1；原本是不顯示）")
 	d["seen"] = G.V16_ENTRIES.duplicate()
 	ok(G.next_step(d, true, false) == "", "全部做過、新玩法也開過就不顯示")
-	var e := {"stats": {"games": 3}}   # V1.6.1 N1：玩滿 3 場才標新
+	var e := {"eff_games": 3}   # V1.6.1 N1：玩滿 3 場有效對局才標新
 	G.seed_seen(e)
 	ok(not G.is_new(e, "menu_vs_ai") and G.is_new(e, "rush_open"), "舊入口算看過、V1.6 新入口標新")
 	G.see(e, "rush_open")

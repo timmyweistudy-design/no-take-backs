@@ -75,6 +75,16 @@ func test_board_double_v161() -> void:
 	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
 	ok(not SV.data.has("daily_pend"), "重送成功才清")
 	ok(not ST.clear_pending({"daily_pend": {"day": 100, "score": 1, "ver": 2}}, "daily_100_v1", 1), "不同版本的榜不清")
+	# 同一個榜（同 handle）連送兩次：低分的回呼先到，不能清掉高分的待送（Codex v161-i1 #1）
+	SV.data["daily_pend"] = {"day": 100, "score": 70000, "det": [2, 1, 7], "ver": 1}
+	ST.daily_upload(100, 65000, PackedInt32Array([2, 1, 7]), 1)
+	fk.emit_signal("leaderboard_find_result", 9, 1)
+	ST.daily_upload(100, 70000, PackedInt32Array([2, 1, 7]), 1)
+	fk.emit_signal("leaderboard_find_result", 9, 1)
+	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
+	ok(SV.data.has("daily_pend"), "同榜排隊：先到的是低分那筆，不清")
+	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
+	ok(not SV.data.has("daily_pend"), "高分那筆成功才清")
 	# 每週
 	SV.data["weekly"] = {"wk": 5, "best": 40, "pend": 1, "det": [1, 1, 100510]}
 	ST.weekly_upload(5, 40, PackedInt32Array([1, 1, 100510]))
@@ -213,11 +223,11 @@ func test_lock_targets_v161() -> void:
 
 func test_new_after_v161() -> void:
 	var G = load("res://scripts/game/v16_guide.gd")
-	var d := {"stats": {"games": 2}}
+	var d := {"eff_games": 2}
 	G.seed_seen(d)
 	ok(not G.is_new(d, "rush_open"), "前 2 場不標新玩法（N1）")
 	ok(not G.tour_due(d, false), "新手不跳導覽")
-	d["stats"]["games"] = 3
+	d["eff_games"] = 3
 	ok(G.is_new(d, "rush_open") and G.tour_due(d, false) and not G.tour_due(d, true), "玩滿 3 場：標新、跳一次導覽（試玩版不跳）")
 	G.see(d, "tour161")
 	ok(not G.tour_due(d, false), "導覽只跳一次")
@@ -283,6 +293,10 @@ func test_coop_log_v161() -> void:
 	ok(S.sanitize_run(run)["clog"] == [], "長度不是 4 的倍數就丟")
 	run["clog"] = [1, 1, 1, 0]
 	ok(S.sanitize_run(run)["clog"] == [1, 1, 1, 0], "正常的留下")
+	run["clog"] = [1, 99, 1, 0]
+	ok(S.sanitize_run(run)["clog"] == [], "玩家欄超出範圍丟掉（Codex v161-i1 #5）")
+	run["clog"] = [1, 1, 1, 0, 2, 2, 0, 3, 3, 1, 1, 2]
+	ok(S.sanitize_run(run)["clog"] == [], "紀錄站數不能超過目前站")
 
 func test_trio_code_v161() -> void:
 	var WS = load("res://scripts/game/workshop.gd")
@@ -300,3 +314,18 @@ func test_trio_sol3_v161() -> void:
 	for s in TR.sets():
 		ok(s.has("sol3") and TR.stars(s, TR.results(s, s["sol3"])) == 3, "每組都有可重現的三星解（A3）：" + str(s["id"]))
 		ok(TR.stars(s, TR.results(s, s["sol"])) >= 1, "作者解三場都贏：" + str(s["id"]))
+
+func test_eff_games_seed_v161() -> void:
+	var G = load("res://scripts/game/v16_guide.gd")
+	var d := {"stats": {"games": 3}, "custom_stats": {"games": 2}, "tutorial": 3}
+	G.seed_eff(d)
+	ok(int(d["eff_games"]) == 2, "老玩家起點＝標準＋自訂−教學（Codex v161-i1 #11）")
+	d["eff_games"] = 9
+	G.seed_eff(d)
+	ok(int(d["eff_games"]) == 9, "已經有就不動")
+	var TR = load("res://scripts/game/v16_trio.gd")
+	var s := {"budget": 99}
+	var res := [{"ok": true, "rem": 45, "spent": 88}, {"ok": true, "rem": 45, "spent": 88}, {"ok": true, "rem": 44, "spent": 88}]
+	ok(TR.stars(s, res) == 1, "剩餘平均 44.67% 不到 45%：不截斷（Codex v161-i1 #10）")
+	res[2]["rem"] = 45
+	ok(TR.stars(s, res) == 2, "88/99＝88.9% 超過 88%：沒有第三顆星")
