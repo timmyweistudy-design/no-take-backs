@@ -384,14 +384,14 @@ func test_save_v16_sanitize_v160() -> void:
 	var SV = load("res://scripts/game/save.gd")
 	var d := {"funnel": [], "mastery": {"2": 5, "x": 3, "99": 1, "4": "a"}, "notebook": {"p1": [{"n": "A", "u": [[0, 1, 2], [2, 1500, 3500, 1]], "r": [1, 2, 3]}, {"n": 3, "u": []}], "p2": "bad"},
 		"daily_streak": {"last": 1}, "daily_pend": {"day": 1}, "rush_best": "x", "rift_best": {"k": [1, 2], "j": [1]}, "trio_clear": {"trio1": 50, "trio2": "x"}, "seen": [1, "a"]}
-	SV.sanitize_v16(d)
+	SV.sanitize_extras(d)
 	ok(d["funnel"] is Dictionary and d["funnel"].is_empty(), "funnel 型別錯→空")
 	ok(d["mastery"] == {"2": 5}, "熟練度只留合法兵種與整數")
 	ok(d["notebook"].size() == 1 and d["notebook"]["p1"].size() == 1 and d["notebook"]["p1"][0]["u"][1] == [2, 1500, 3500, 1], "實驗簿：壞的方案丟掉、自由兵保留")
 	ok(d["daily_streak"].is_empty() and not d.has("daily_pend") and d["rush_best"] == 0, "缺欄位的連續天數、待送榜、極速賽紀錄回預設")
 	ok(d["rift_best"] == {"k": [1, 2]} and d["trio_clear"] == {"trio1": 50} and d["seen"] == ["a"], "裂隙、三考、看過的入口逐項驗")
 	var e := {}
-	SV.sanitize_v16(e)
+	SV.sanitize_extras(e)
 	ok(not e.has("seen"), "沒有 seen 就不建（老玩家第一次開 V1.6 才會補舊入口）")
 
 func test_mark_ids_v160() -> void:
@@ -431,7 +431,7 @@ func test_state_reset_v160() -> void:
 	b.adj = true
 	ok(not a.equals(b), "規則比較會看相鄰陣法")
 	var d := {"seen": null}
-	SaveS.sanitize_v16(d)
+	SaveS.sanitize_extras(d)
 	ok(not d.has("seen"), "seen 是 null 就當沒有")
 	g.free()
 	SaveS.data_locked = was
@@ -456,5 +456,5 @@ func test_sanitize_truncate_v160() -> void:
 	for i in 60:
 		rb["w%d" % i] = [1, 2]
 	var d := {"seen": seen, "rift_best": rb}
-	SV.sanitize_v16(d)
+	SV.sanitize_extras(d)
 	ok(d["seen"].size() == 200 and d["rift_best"].size() == 50, "超量截斷，不整批清空")

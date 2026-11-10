@@ -310,7 +310,7 @@ static func sanitize_data(out: Dictionary) -> void:
 		wr2["det"] = det2   # 每週最佳的陣型（補送排行榜用）
 		wr2["pend"] = 1 if int(wr2["pend"]) == 1 else 0
 	out["weekly"] = wr2
-	sanitize_v16(out)
+	sanitize_extras(out)
 
 static func _is_num(v) -> bool:
 	return v is int or v is float
@@ -325,7 +325,7 @@ static func _int_list(v, max_n: int) -> Array:
 	return o
 
 ## V1.6 新欄位逐欄驗型（Codex v160-i1 #1）：壞的回預設（拿掉），其他照留
-static func sanitize_v16(out: Dictionary) -> void:
+static func sanitize_extras(out: Dictionary) -> void:
 	var f = out.get("funnel", {})
 	var f2 := {}
 	if f is Dictionary:

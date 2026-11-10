@@ -33,7 +33,7 @@ func test_nb_better_v161() -> void:
 func test_nb_sanitize_hash_v161() -> void:
 	var S = load("res://scripts/game/save.gd")
 	var d := {"notebook": {"wabc": [{"n": "A", "u": [[0, 1, 2]], "r": [], "h": "0123456789abcdef0123456789abcdef"}, {"n": "B", "u": [[0, 1, 3]], "r": [], "h": 5}]}}
-	S.sanitize_v16(d)
+	S.sanitize_extras(d)
 	var l: Array = d["notebook"]["wabc"]
 	ok(l.size() == 2 and str(l[0].get("h", "")) == "0123456789abcdef0123456789abcdef" and not l[1].has("h"), "雜湊欄保留、型別錯丟掉")
 
@@ -324,7 +324,7 @@ func test_coach_record_v161() -> void:
 	ok(not G.coach_badge(d, "p5"), "自力也拿到 3 星：不顯示")
 	var S = load("res://scripts/game/save.gd")
 	var bad := {"coached": {"p1": {"lv": 9, "ap": 3, "self": -2}, "p2": "x"}}
-	S.sanitize_v16(bad)
+	S.sanitize_extras(bad)
 	ok(bad["coached"] == {"p1": {"lv": 3, "ap": 0, "self": 0}}, "教練紀錄驗型", str(bad["coached"]))
 
 func test_ntp4_v161() -> void:
@@ -390,7 +390,7 @@ func test_medals_v161() -> void:
 	ok(CA.medals_of(md, 2) == [true, true, true] and CA.medals_of(md, 3) == [false, false, false], "三個戰功章")
 	var S = load("res://scripts/game/save.gd")
 	var bad := {"medals": {"2": [1, 2, 3], "x": [1, 1, 1], "3": [1, "a", 2]}}
-	S.sanitize_v16(bad)
+	S.sanitize_extras(bad)
 	ok(bad["medals"] == {"2": [1, 2, 3]}, "戰功驗型")
 
 func test_nb_name_input_v161() -> void:

@@ -8,6 +8,19 @@ var _ov_t := -9.0
 
 var shot_state := {}   # V1.2.1：版面檢查這一組的固定狀態（截圖程式切換後要還原成這裡的值）
 
+## 1.1.0 Q1：手把長按「拿掉」鍵（預設 X）PAD_CLEAR_SEC 秒＝清空自己這邊的擺法（殘局失敗後重擺少按幾下）。只在擺陣、沒有覆蓋層時。
+const PAD_CLEAR_SEC := 0.8
+var pad_x_t := -1.0
+func _pad_x_hold(pressed: bool) -> void:
+	pad_x_t = time if pressed and state == St.PLACE and overlay == "" else -1.0
+
+func _pad_clear_tick() -> void:
+	if pad_x_t >= 0.0 and time - pad_x_t >= PAD_CLEAR_SEC:
+		pad_x_t = -1.0
+		if state == St.PLACE and overlay == "" and has_method("_clear_mine"):
+			call("_clear_mine")
+			_toast(L.t("pad_cleared"))
+
 ## 1.1.0 A12：拖著兵移動時，每移動約 70px 輕輕一聲木塊摩擦（低音量、至少隔 0.14 秒；簡化特效不影響聲音、音量跟介面音量）
 var scrape_acc := 0.0
 var scrape_t := -9.0
@@ -195,6 +208,8 @@ func _input(ev: InputEvent) -> void:
 		ev.button_index = db
 	if ev is InputEventJoypadButton:
 		last_joy = ev.device     # 所有分流之前記（Codex v10-r1 #6）
+		if ev.button_index == JOY_BUTTON_X:
+			_pad_x_hold(ev.pressed)   # 1.1.0 Q1：長按拿掉鍵＝清空自己的陣
 	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
 		_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
 	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
@@ -503,6 +518,7 @@ func _touch_tick(delta: float) -> void:
 
 func _process_inner(delta: float) -> void:
 	_touch_tick(delta)
+	_pad_clear_tick()
 	_stick_repeat(delta)
 	_process_cmds()
 	time += delta
