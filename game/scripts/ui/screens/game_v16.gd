@@ -947,6 +947,7 @@ func rift_lab_toggle(k: int) -> void:
 		return
 	var tg: String = Rift.ANOMS[k][1]
 	rift_lab = rift_lab.filter(func(j): return Rift.ANOMS[j][1] != tg)   # 同類別換掉
+	rift_lab = rift_lab.filter(func(j): return not Rift.clash([j], k))   # 容易磨到時間到的組合也換掉（練習場同一套規則）
 	var trial: Array = rift_lab + [k]
 	if Rift.make_rules(trial, RS.mask(_demo()), Rift.week()).validate().is_empty():
 		rift_lab = trial

@@ -5,7 +5,19 @@ const Daily = preload("res://scripts/game/daily.gd")
 const CMD = preload("res://scripts/core/cmd_defs.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 
-const VER := 1
+const VER := 2   # V1.6.1 N5：加了「不同時出現」的組合，同一週抽到的可能不同 → 升版（紀錄鍵分開）
+## V1.6.1 N5：AI 代理量測（tools/balance/v161_metrics.gd --what=rift，26 週×24 場）時間到比例 40～70% 的組合，不同時出現。
+## 「每種一隻」配上「大軍」「窮」「地形」，或「奇幻」配「地形」「大軍」：雙方磨到時間到。
+const BAD := [["rf_solo", "rf_horde"], ["rf_solo", "rf_poor"], ["rf_solo", "rf_terrain"], ["rf_fantasy", "rf_terrain"], ["rf_fantasy", "rf_horde"]]
+
+static func clash(ps: Array, k: int) -> bool:
+	var a: String = ANOMS[k][0]
+	for j in ps:
+		var b: String = ANOMS[j][0]
+		for bp in BAD:
+			if (bp[0] == a and bp[1] == b) or (bp[0] == b and bp[1] == a):
+				return true
+	return false
 ## [字串鍵, 類別]
 const ANOMS := [["rf_deep", "depth"], ["rf_short", "ticks"], ["rf_rich", "budget"], ["rf_poor", "budget"],
 	["rf_elite", "cap"], ["rf_horde", "cap"], ["rf_solo", "type"], ["rf_skills", "cmd"], ["rf_fantasy", "pool"],
@@ -31,7 +43,7 @@ static func picks(wk: int, mask: int) -> Array:
 		if out.size() >= PICK:
 			break
 		var tg: String = ANOMS[k][1]
-		if tags.has(tg):
+		if tags.has(tg) or clash(out, k):
 			continue
 		var trial: Array = out + [k]
 		if not make_rules(trial, mask, wk).validate().is_empty():
