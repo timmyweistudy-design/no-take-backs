@@ -241,3 +241,40 @@ func test_review_gif_cancel_v110() -> void:
 	var G = load("res://scripts/game/gif.gd")
 	var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
 	ok(G.encode([img], 10).size() > 0 and G.encode([img], 10, {"stop": true}).is_empty(), "GIF 叫停回空")
+
+## 1.1.0 N1／A24：回報帶類別與格式版本；第一次開戰秒數只在第一次開遊戲那次記。
+func test_report_cat_firstbattle_v110() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var F = load("res://scripts/game/v16_funnel.gd")
+	var keep: Dictionary = SV.data.duplicate(true)
+	SV.data = {"funnel": {"boots": 1, "boot": 1000}}
+	F.first_battle_time(95000)
+	ok(int(SV.data["funnel"]["first_battle_sec"]) == 95, "第一次開遊戲：記 95 秒")
+	F.first_battle_time(200000)
+	ok(int(SV.data["funnel"]["first_battle_sec"]) == 95, "只記第一次")
+	SV.data = {"funnel": {"boots": 2, "boot": 1000}}
+	F.first_battle_time(5000)
+	ok(not SV.data["funnel"].has("first_battle_sec"), "第二次開遊戲才第一次開戰：不記")
+	SV.data = {"funnel": {"boots": 1, "boot": 1000, "first_battle_sec": 42}}
+	var d = JSON.parse_string(F.report("1.1.0", "title", "stuck"))
+	var fb: Dictionary = d["feedback"]
+	ok(int(fb["fmt"]) == 2 and fb["cat"] == "stuck" and int(fb["first_battle_sec"]) == 42 and int(fb["first_boot"]) == 1000, "回報帶類別、格式版本、秒數", str(fb))
+	SV.data = keep
+
+## 1.1.0 E2：Steam 平台唯讀報告（雲端檔案多了不該同步的要列出來）。
+func test_platform_report_v110() -> void:
+	var ST = load("res://scripts/game/steam.gd")
+	var fk := FakePlat.new()
+	var r: Dictionary = ST.platform_report(fk)
+	ok(r["cloud_account"] and r["cloud_app"] and r["cloud_files"].size() == 3, "雲端開關與檔案清單", str(r))
+	ok(r["cloud_unexpected"] == ["settings.json"], "多同步了設定檔要列出來", str(r["cloud_unexpected"]))
+	ok(r["beta"] == "beta" and r["leaderboard_api"] == false, "分支名稱、排行榜 API 偵測")
+	ok(ST.platform_report(null).is_empty(), "沒有 Steam 回空")
+
+
+class FakePlat:
+	func isCloudEnabledForAccount(): return true
+	func isCloudEnabledForApp(): return true
+	func getFileCount(): return 3
+	func getFileNameAndSize(i): return {"name": ["save.json", "save.json.bak", "settings.json"][i], "size": 10}
+	func getCurrentBetaName(): return {"ret": true, "name": "beta"}

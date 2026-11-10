@@ -12,3 +12,13 @@
 | 18–22 | 狂熱暈影、拉鋸的戰力條 | 只能看著它們打到最後一秒 | 鼓聲加速 |
 | 22–27 | 最後時刻慢動作，1 打 2 反殺，「★ 孤勇者 ★」 | | 心跳 |
 | 27–30 | 標題＋願望清單 | Wishlist on Steam | 落子聲收尾 |
+
+## 錄製指令（1.1.0 E6：全程固定種子，可重錄出同一段）
+在專案根目錄（Windows Godot；錄影會開視窗約 1 分鐘，**要你同意才錄**）：
+```
+<Godot.exe> --path game --resolution 1280x800 --write-movie <輸出絕對路徑>/kingdom.avi --fixed-fps 30 -- --video
+<Godot.exe> --path game --resolution 1280x800 --write-movie <輸出絕對路徑>/fantasy.avi --fixed-fps 30 -- --video --video-scene=fantasy
+```
+- `kingdom`：分鏡 0–15、18–27 秒（擺陣、接戰、最後時刻）。對手從種子 777 起找「會打到最後時刻」的陣。
+- `fantasy`：分鏡 15–18 秒（爆爆羊、史萊姆、吸塵貓、投彈兵）。
+- 字幕、標題、願望單畫面在剪輯時加（四語字幕照 `store-page.md`「V1.0.0 四語」的一句話改短）。

@@ -5,7 +5,7 @@ Godot 4.6.2 確定性自動對決。**下一版 1.1.0 只有方案、還沒實�
 ## 指令（在 game/ 下，GODOT 指向 Windows 版 4.6.2）
 - 改動時：`python3 tools/check.py`（有快取，只跑受影響的）；更快：`--quick`。
 - 驗收：`tools/check_all.sh`（全部重跑）。只取最後一行結論，細節在 `build/tmp/check/summary.json`。
-- 版面：`tools/layout_check.sh <exe> <新資料夾>`（21 組：繁中、英文、簡中、日文 × 三字級＋簡化／色盲／手把／停用＋日文狀態組；也查 R1～R10 排版規則）；`LAYOUT_QUICK=1` 跑 5 組；`LAYOUT_COMBOS="ja:150 …"` 只重跑指定組。會檢查文字對比（截圖取樣）、九宮格內距、缺圖，也走一次手把流程（`PADWALK`）。
+- 版面：`tools/layout_check.sh <exe> <新資料夾>`（24 組：繁中、英文、簡中、日文 × 三字級＋簡化／色盲／手把／停用（150%，1.1.0 起 100／125% 也各有一組）＋日文狀態組；也查 R1～R10 排版規則）；`LAYOUT_QUICK=1` 跑 5 組；`LAYOUT_COMBOS="ja:150 …"` 只重跑指定組。會檢查文字對比（截圖取樣）、九宮格內距、缺圖，也走一次手把流程（`PADWALK`）。
 - 試玩版流程用 `g.force_demo = true` 測，背景計算用 `g.force_async = true`，不必匯出。
 - 匯出：`tools/export_check.sh <空資料夾>`。圖集：`tools/atlas_check.gd`（不能 headless）。
 - 殘局量產（`tools/gen/*.py` 在專案根目錄、`.gd` 在 game/ 下）：草稿 `tools/gen/puzzle_drafts.py` → `tools/balance/puzzle_forge.gd`（爬山求解、訂星）→ `tools/gen/puzzle_tune.py`（自動調預算）→ `tools/gen/puzzle_merge.py`（併進 `data/puzzles.json`）。試煉：`tools/gen/trial_specs.py` → `tools/balance/trial_forge.gd` → `tools/gen/trial_merge.py`（寫 `data/trials.json`）。量產在 `build/cg/game` 快照跑。

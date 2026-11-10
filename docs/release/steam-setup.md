@@ -123,3 +123,15 @@
 9. **【你】** 簡中母語校對（`docs/l10n-review/`），日文至少校兵種名、模式名、殘局目標詞。
 10. **【你】** 價格與發售日（見 `store-page.md` 價格列）。
 11. Claude：用 `tools/export_check.sh` 出最終成品，`EXPECT_VERSION=1.0.0`；`manifest.txt` 的 commit 和 sha256 就是上傳的那一版。
+
+## G. 1.1.0 起：熱修與 beta 分支流程（方案 `docs/2026-11-11-v1.1.0-plan.md` §0、§1、E2）
+- **兩條線**：熱修（1.0.x）只收「已重現、可隔離」的缺陷與真人／Steam 回報；新功能一律進下一個內容版。
+- **排優先**：影響（多少人、卡不卡關、會不會丟進度）× 能不能驗證 × 能不能安全修；三項都高才進最近的熱修。
+- **beta 分支**：**【你】**在 Steamworks「SteamPipe → 分支」建 `beta`（可設密碼），新版先推到 beta；Claude 用 `--steam-test=<AppID>`（要你同意才跑）確認 `beta` 欄位、雲端檔案清單（`cloud_unexpected` 應是空的：只同步 `save.json`、`save.json.bak`）、成就逐一存在；沒問題再設為預設分支。
+- **每次發版**：`EXPECT_VERSION=<版本> tools/export_check.sh <空資料夾>` → `manifest.txt` 的 commit 與 sha256 就是上傳的那一版；更新說明照 `CHANGELOG.md` 格式（四語），先寫「修了什麼、對玩家有什麼差別」，不寫內部編號。
+- **更新說明範本**：
+  ```
+  ## 1.0.x（日期）
+  - 修正：<玩家看得到的現象>（例：覆盤裡改陣型後重算可能卡住）
+  - 調整：<玩家感受得到的變化>
+  ```

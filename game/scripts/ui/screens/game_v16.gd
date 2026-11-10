@@ -10,8 +10,19 @@ func screen_id() -> String:
 		return overlay
 	return ["title", "place", "battle", "result"][state] + ("" if state == St.TITLE else ":" + ["ai", "duel", "tutorial", "puzzle", "gauntlet"][mode])
 
+## 1.1.0 N1：按「回報問題」先選類別（卡關、看不懂、壞掉、建議；可略過），再存檔＋複製。回到原本的畫面。
+const FB_CATS := ["stuck", "confusing", "broken", "idea"]
+var fb_ret := ""
+var fb_screen := ""
 func _feedback() -> void:
-	var txt := Funnel.report(str(ProjectSettings.get_setting("application/config/version")), screen_id())
+	fb_screen = screen_id()
+	fb_ret = overlay
+	overlay = "fb_cat"
+	_focus = 0
+
+func _feedback_save(cat: String) -> void:
+	overlay = fb_ret
+	var txt := Funnel.report(str(ProjectSettings.get_setting("application/config/version")), fb_screen, cat)
 	var name := "user://%sreport_%d.json" % [Save.file_prefix(), int(Time.get_unix_time_from_system())]
 	var k := feedback_key(_write_text(name, txt), _clip_set(txt))
 	_toast(L.t(k), k == "fb_fail")
@@ -237,8 +248,21 @@ func _draw_demo_end() -> void:
 	_btn(Rect2(640 - 200, y, 400, 52), L.t("demo_wish_btn") if url != "" else L.t("demo_wish_soon"), func(): OS.shell_open(url), url != "", true)
 	_btn(Rect2(640 - 120, y + 52 + GAP_M, 240, 44), L.t("de_keep"), func(): overlay = "")
 
+func _draw_fb_cat() -> void:
+	var w := 560.0
+	var help := L.t("fb_cat_help")
+	var P := modal_rect(w, 12.0 + h1_help_h(help, tz("S"), w - 80) + GAP_L + 2 * (50.0 + GAP_M) + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("fb_btn"), help, tz("S"), w - 80) + GAP_L
+	for i in FB_CATS.size():
+		var c: String = FB_CATS[i]
+		_btn(Rect2(640 - 230 + (i % 2) * 240, y + (i / 2) * (50.0 + GAP_M), 220, 50), L.t("fb_c_" + c), func(): _feedback_save(c), true, i == 0)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("fb_c_skip"), func(): _feedback_save(""))
+
 func _draw_v16_overlay(name: String) -> void:
 	match name:
+		"fb_cat":
+			_draw_fb_cat()
 		"demo_end":
 			_draw_demo_end()
 		"share":
@@ -455,6 +479,8 @@ func _tv_draw_marks_place(a) -> void:
 
 func _begin_battle(a0, a1, kind := "official") -> void:
 	super._begin_battle(a0, a1, kind)
+	if kind == "official":
+		Funnel.first_battle_time()   # 1.1.0 A24
 	if bool(rush.get("on", false)) and kind == "official":
 		call("_on_skip")   # 極速賽：不看戰鬥，直接算結果
 	tv_ids = []

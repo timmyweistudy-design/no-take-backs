@@ -605,7 +605,7 @@ func _pct(k: String) -> String:
 
 ## V1.5：要跟 _draw_settings 的列位置一致（無障礙分頁上面多一排預設組合）
 func _settings_row_y(i: int) -> float:
-	return 166.0 + (60.0 if settings_tab == 5 else 0.0) + i * 60.0
+	return 166.0 + (60.0 if settings_tab == 5 or settings_tab == 3 else 0.0) + i * 60.0
 
 func _settings_rows() -> Array:
 	match settings_tab:
@@ -729,6 +729,12 @@ func _draw_settings() -> void:
 		if not preset_undo.is_empty():
 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
 		y0 += 60.0
+	elif settings_tab == 3:
+		# 1.1.0 E3：掌機建議（一鍵、先預覽、可撤回）
+		_btn(Rect2(SET_COL.position.x, y0, SET_COL.size.x - 118.0, 46), L.t("preset_handheld"), _apply_preset.bind(3), true, false, Color(0.2, 0.36, 0.5))
+		if not preset_undo.is_empty():
+			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+		y0 += 60.0
 	var rows: Array = _settings_rows()
 	for i in rows.size():
 		var y := _settings_row_y(i)
@@ -774,7 +780,8 @@ var preset_undo := {}
 const PRESETS := [
 	{"text_scale": 150, "plain_titles": true, "text_plate": true, "focus_strong": true},
 	{"reduce_motion": true, "shake_pct": 0, "shake": false, "flash_pct": 0, "flash": false, "slowmo": false, "title_bg": "static", "clutch_zoom": false},
-	{"confirm_place": true, "toast_mult": 0, "long_press": 0.8, "hints": "full"}]   # 低操作負擔：提示改成手動關
+	{"confirm_place": true, "toast_mult": 0, "long_press": 0.8, "hints": "full"},   # 低操作負擔：提示改成手動關
+	{"fps_cap": 30, "text_scale": 125, "place_mode": "tap"}]   # 1.1.0 E3 掌機建議（Steam Deck 等 7 吋 800p）：只組合現有設定，可撤回；未經實機驗證，不宣稱 Deck 認證
 
 ## V1.5.1 C2：套用前先列出會改的項目（確認才套用；零差異直接提示）
 func _apply_preset(k: int) -> void:

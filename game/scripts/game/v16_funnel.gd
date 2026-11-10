@@ -15,6 +15,18 @@ static func mark(key: String, now := -1) -> bool:
 	Save.data["funnel"] = f
 	return true
 
+## 1.1.0 A24：開遊戲到第一次開戰的秒數。只在「第一次開遊戲那一次」量（同一次執行用單調時鐘，不受系統校時影響）；
+## 跨啟動才第一次開戰就不記（不補造）。
+static func first_battle_time(now_ms := -1) -> void:
+	var f: Dictionary = Save.data.get("funnel", {})
+	if f.has("first_battle_sec") or f.has("first_battle_x") or int(f.get("boots", 0)) == 0:
+		return
+	if int(f.get("boots", 0)) == 1:
+		f["first_battle_sec"] = int((now_ms if now_ms >= 0 else Time.get_ticks_msec()) / 1000)
+	else:
+		f["first_battle_x"] = 1   # 第一次開戰時已經不是第一次開遊戲：不記秒數
+	Save.data["funnel"] = f
+
 static func boot() -> void:
 	var f: Dictionary = Save.data.get("funnel", {})
 	f["boots"] = int(f.get("boots", 0)) + 1
@@ -37,11 +49,14 @@ static func steps() -> Array:
 	return out
 
 ## 一份完整回報（純文字 JSON）：版本、系統、語言、字級、所在畫面、漏斗、白名單試玩紀錄
-static func report(app: String, screen: String) -> String:
+## 1.1.0：fmt 2 多 cat（回報類別）、first_boot（第一次開遊戲的 Unix 秒，分析時去重用）、first_battle_sec（見下）。
+static func report(app: String, screen: String, cat := "") -> String:
 	var pt: Dictionary = Save.playtest_report(app)
 	var rows = JSON.parse_string(str(pt["text"]))
 	var f: Dictionary = Save.data.get("funnel", {})
-	var d := {"app": app, "os": OS.get_name(), "lang": str(Save.s("lang")), "text_scale": int(Save.s("text_scale")),
-		"screen": screen, "boots": int(f.get("boots", 0)), "last_screen": str(f.get("last_screen", "")),
-		"funnel": steps(), "rows": (rows["rows"] if rows is Dictionary else [])}
+	var d := {"fmt": 2, "app": app, "os": OS.get_name(), "lang": str(Save.s("lang")), "text_scale": int(Save.s("text_scale")),
+		"screen": screen, "boots": int(f.get("boots", 0)), "last_screen": str(f.get("last_screen", "")), "cat": cat,
+		"first_boot": int(f.get("boot", 0)), "funnel": steps(), "rows": (rows["rows"] if rows is Dictionary else [])}
+	if f.has("first_battle_sec"):
+		d["first_battle_sec"] = int(f["first_battle_sec"])
 	return JSON.stringify({"feedback": d}, " ")

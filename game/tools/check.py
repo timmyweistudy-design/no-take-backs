@@ -120,7 +120,9 @@ def plan(a) -> list:
         # V1.6 #4：存檔組再拆兩個行程，各用自己的存檔前綴（rules、save 內部自訂的前綴互不重疊）
         skip = ",-test_sandbox_v5,-test_star_solutions,-test_fantasy_mirror_v8,-test_event_routes"
         gd("t_stateful", "tests/run_tests.gd", ["--only=rules,save" + skip, "--prefix=ta_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
-        gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui,modes,v16,v161,v100" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+        # 1.1.0 B1：t_stateful2 是最長的單步（626 秒），拆成兩個行程、各用自己的存檔前綴（總工作量不變，關鍵路徑變短）
+        gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+        gd("t_stateful3", "tests/run_tests.gd", ["--only=modes,v16,v161,v100" + skip, "--prefix=tc_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
         # V1.1 E1：最慢的兩組各切 8 片（每片太長，最後幾分鐘只剩少數工作在跑）
         global FULL_GOLDEN

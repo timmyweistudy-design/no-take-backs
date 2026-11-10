@@ -7,6 +7,8 @@
   日文寫成 ja_zz_review.json（排在最後，蓋過機器翻譯）；簡中寫成 zhcn_review.json。
   原文指紋對不上（校對期間原文又改了）的列會跳過並列出，要重新送校。
   之後照常跑 l10n_build.py、build_font.py。
+進度：python3 tools/gen/l10n_review.py status <l10n 譯稿資料夾>（1.1.0 E4）
+  每種語言：已校（回填過且原文沒改）／原文改過要重校／待校。回填時會把原文指紋記在 review_fp.json。
 """
 import csv, hashlib, json, re, sys
 from pathlib import Path
@@ -69,12 +71,40 @@ def do_import(csv_path, l10n_dir):
         old = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
         old.update(got)
     f.write_text(json.dumps(old, ensure_ascii=False, indent=1), encoding="utf-8")
+    fpf = d / "review_fp.json"   # 1.1.0 E4：記下校對當時的原文指紋，原文之後改了就算「要重校」
+    fps = json.loads(fpf.read_text(encoding="utf-8")) if fpf.exists() else {}
+    fps.setdefault(lang, {}).update({k: fp(cur[k][1], cur[k][2]) for k in got})
+    fpf.write_text(json.dumps(fps, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"回填 {len(got)} 筆到 {f.name}；跳過 {len(skip)} 筆")
     for k, why in skip:
         print("  跳過", k, why)
 
 
+def status(l10n_dir):
+    rows = list(csv.reader(open(STR, encoding="utf-8", newline="")))
+    keys = {r[0]: fp(r[1], r[2]) for r in rows[1:] if r and r[0] != "lang_name"}
+    fpf = Path(l10n_dir) / "review_fp.json"
+    fps = json.loads(fpf.read_text(encoding="utf-8")) if fpf.exists() else {}
+    out = {}
+    for lang in ("zh_CN", "ja"):
+        done = stale = 0
+        for k, h in keys.items():
+            r = fps.get(lang, {}).get(k)
+            if r is None:
+                continue
+            if r == h:
+                done += 1
+            else:
+                stale += 1
+        out[lang] = {"done": done, "stale": stale, "todo": len(keys) - done - stale, "total": len(keys)}
+        print(f"{lang}：已校 {done}、原文改過要重校 {stale}、待校 {len(keys) - done - stale}（共 {len(keys)}）")
+    return out
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "status":
+        status(sys.argv[2])
+        sys.exit(0)
     if len(sys.argv) >= 3 and sys.argv[1] == "export":
         export(sys.argv[2])
     elif len(sys.argv) >= 4 and sys.argv[1] == "import":

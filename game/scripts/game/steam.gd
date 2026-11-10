@@ -195,8 +195,34 @@ static func self_test(expect_app_id: int) -> Dictionary:
 				missing.append(id)
 		out["missing_achievements"] = missing
 		out["ok"] = out["logged_on"] and int(out["app_id"]) == expect_app_id and missing.is_empty()
+	if expect_app_id != 480:
+		out.merge(platform_report(_steam), true)   # 1.1.0 E2：雲端、分支、排行榜能力（唯讀，不影響 ok）
 	if not out["ok"]:
 		out["why"] = "有檢查項不符"
+	return out
+
+## 1.1.0 E2：上架後的唯讀證據（給 --steam-test 用）：雲端開關、雲端檔案清單（應只有 save.json、save.json.bak）、
+## 目前分支（beta 測試時應是 beta 名稱）、排行榜 API 在不在。不寫入、不建榜。純函式吃 steam 物件（測試可給替身）。
+const CLOUD_EXPECT := ["save.json", "save.json.bak"]
+static func platform_report(st) -> Dictionary:
+	var out := {}
+	if st == null:
+		return out
+	if st.has_method("isCloudEnabledForAccount"):
+		out["cloud_account"] = bool(st.isCloudEnabledForAccount())
+	if st.has_method("isCloudEnabledForApp"):
+		out["cloud_app"] = bool(st.isCloudEnabledForApp())
+	if st.has_method("getFileCount") and st.has_method("getFileNameAndSize"):
+		var files: Array = []
+		for i in int(st.getFileCount()):
+			var r = st.getFileNameAndSize(i)
+			files.append(str(r.get("name", "")) if r is Dictionary else str(r))
+		out["cloud_files"] = files
+		out["cloud_unexpected"] = files.filter(func(n): return not str(n).get_file() in CLOUD_EXPECT)
+	if st.has_method("getCurrentBetaName"):
+		var b = st.getCurrentBetaName()
+		out["beta"] = str(b.get("name", "")) if b is Dictionary else str(b)
+	out["leaderboard_api"] = st.has_method("findOrCreateLeaderboard") and st.has_method("uploadLeaderboardScore") and st.has_method("downloadLeaderboardEntries")
 	return out
 
 ## 手把貼不了剪貼簿（第七輪 N4）：Steam 的大字幕鍵盤。回傳 false＝沒有 Steam 或不支援，呼叫端要自己提示。

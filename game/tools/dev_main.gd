@@ -6,7 +6,7 @@ const PANELLESS_OVERLAYS := ["ai_busy"]
 ## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
 const DECK_CAP := 0.7
 const DECK_MIN_PX := 9.0
-const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum"]
+const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat"]
 const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
@@ -410,9 +410,20 @@ func _run_video() -> void:
 	await get_tree().create_timer(2.5).timeout
 	difficulty = 1
 	_start_mode(Mode.VS_AI)
+	# 1.1.0 E6：分鏡場景（--video-scene=kingdom／fantasy），全程固定種子，同一個指令錄出同一段（trailer-30s.md）
+	var scene := "kingdom"
+	for a0 in OS.get_cmdline_user_args():
+		if a0.begins_with("--video-scene="):
+			scene = a0.substr(14)
 	var plan := [[D.SHIELD, 5, 3], [D.SHIELD, 5, 5], [D.SWORD, 4, 2], [D.SWORD, 4, 6], [D.SWORD, 4, 4],
 		[D.ARCHER, 1, 3], [D.ARCHER, 1, 5], [D.ARCHER, 0, 4], [D.CAVALRY, 3, 0], [D.CAVALRY, 3, 8], [D.ASSASSIN, 2, 4],
 			[D.ARCHER, 1, 2], [D.ARCHER, 1, 6], [D.SWORD, 4, 3], [D.SWORD, 4, 5], [D.CAVALRY, 3, 4], [D.ASSASSIN, 2, 2], [D.SHIELD, 5, 4]]
+	if scene == "fantasy":
+		# 分鏡 15–18 秒：爆爆羊連環炸、史萊姆分裂、吸塵貓吸成一團
+		plan = [[13, 5, 3], [13, 5, 5], [11, 5, 2], [11, 5, 6], [11, 4, 4], [18, 3, 4], [19, 2, 4], [13, 4, 2], [13, 4, 6]]
+		rules = Presets.make("fantasy", "ai", RS.mask(false))
+		rules.deploy = "grid"   # 錄影照格子擺（和王國場景同一套擺法）
+		_start_mode(Mode.VS_AI)
 	for s2 in plan:
 		selected = s2[0]
 		mouse = ORIGIN + Vector2(s2[1] + 0.5, s2[2] + 0.5) * CS
@@ -429,7 +440,9 @@ func _run_video() -> void:
 			break
 	last_player_formation = armies[0].units.duplicate(true)
 	ai_name = L.t("diff_normal")
-	_begin_battle(armies[0].copy(), (red_pick if red_pick != null else AI.build(1, 100, rng)["army"]).copy())
+	var r_fallback := RandomNumberGenerator.new()
+	r_fallback.seed = 777   # 找不到接近的對手時也用固定種子（不然每次錄出不同的仗）
+	_begin_battle(armies[0].copy(), (red_pick if red_pick != null else AI.build(1, 100, r_fallback)["army"]).copy())
 	while state != St.RESULT:
 		await get_tree().process_frame
 	await get_tree().create_timer(4.0).timeout
@@ -1924,6 +1937,8 @@ func _shots_v161() -> void:
 	ga_coop = false   # V1.0.0 M4：單人遠征總結
 	coop_log = [1, 0, 1, 0, 2, 0, 1, 2, 3, 0, 1, 5, 4, 0, 0, 3]
 	await _snap("v100_01_ga_sum.png")
+	overlay = "fb_cat"   # 1.1.0 N1 回報分類
+	await _snap("v110_01_fb_cat.png")
 	overlay = ""
 	coop_log = []
 	Save.data = keep
