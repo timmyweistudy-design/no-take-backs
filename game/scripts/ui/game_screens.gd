@@ -17,6 +17,7 @@ func _ready() -> void:
 		elif a == "--self-check":
 			Save.prefix = "smoke_"
 	Save.load_all()
+	Guide.seed_seen(Save.data)   # V1.6 #1
 	if Save.prefix == "":
 		Funnel.boot()   # V1.6 #2（截圖、自我檢查不算）
 	for a in OS.get_cmdline_user_args():

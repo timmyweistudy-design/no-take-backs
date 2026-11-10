@@ -1,4 +1,5 @@
 extends "res://scripts/ui/screens/game_playroom.gd"
+const Guide = preload("res://scripts/game/v16_guide.gd")
 ## 由 game_screens.gd 拆出（V9 P1，行為不變）
 
 ## 第八輪成就：贏的那隊。沙盒不算（改過數值）。
@@ -249,6 +250,7 @@ func _draw_title() -> void:
 	for i in sys.size():
 		_btn(Rect2(70 + i * 126, y2, 118, 40), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
 	probe_align("home_col", [Rect2(HOME_CX - tw / 2 - 60, 40, tw + 120, tsz), Rect2(70, y0, PW, 5 * (ph + gap)), Rect2(70, y2, 2 * 126 + 118, 40)])
+	call("_draw_next_step")   # V1.6 #1
 	# 底部：最佳紀錄、版本
 	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), TXT_DIM, false, false, 380)
 
@@ -461,6 +463,8 @@ func _draw_overlay() -> void:
 			_draw_codex()
 		"review":
 			_draw_review()
+		_:
+			call("_draw_v16_overlay", overlay)   # V1.6 新覆蓋層（game_v16.gd）
 
 
 
@@ -1264,7 +1268,8 @@ func _draw_hub(kind: String) -> void:
 		r5[mini(i / cols, 1)].append([Rect2(r.position + Vector2(cw / 2 - 20, 24), Vector2(40, 40)), Rect2(r.position + Vector2(10, 78), Vector2(cw - 20, tz("B"))), Rect2(r.position + Vector2(16, 82 + tz("B") * 1.6), Vector2(cw - 32, tz("C")))])
 		btn_paper = true
 		var cb: Callable = it[3]
-		_btn(r, "", func(): _nav_push(kind); nav_hub = kind; cb.call(), bool(it[4]), i == 0)
+		var ek := str(it[0])
+		_btn(r, "", func(): _nav_push(kind); nav_hub = kind; Guide.see(Save.data, ek); cb.call(), bool(it[4]), i == 0)
 		btn_paper = false
 		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
 		_ink_mode = on_paper
@@ -1273,6 +1278,8 @@ func _draw_hub(kind: String) -> void:
 		_text(r.position + Vector2(cw / 2, 78), L.t(str(it[0])), tz("B"), tc2, true, true, cw - 20)
 		_text(r.position + Vector2(16, 82 + tz("B") * 1.6), L.t(str(it[1])), tz("C"), tc2, false, false, cw - 32)
 		_ink_mode = false
+		if bool(it[4]) and Guide.is_new(Save.data, ek):
+			call("_new_tag", r)   # V1.6 #1：沒開過的新入口
 	for row in r5:
 		probe_cards("hub_cards", row)
 	_btn(Rect2(P.get_center().x - 80, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
