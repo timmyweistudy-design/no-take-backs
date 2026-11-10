@@ -8,6 +8,8 @@ const PZ = preload("res://scripts/game/puzzles.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const PREFIX := "NTP1"
 const PREFIX2 := "NTP2"   # V1.4 #5 接力殘局：多一欄「第幾棒」n（1～99）；NTP1 照舊能用（n＝0）
+const PREFIX3 := "NTP3"   # V1.6 #16 出題台：多一欄目標 g（win／kill／survive／draw／margin）與參數；NTP1、NTP2 照舊
+const GOALS3 := ["win", "kill", "survive", "draw", "margin"]
 const MAX_UNITS := 40
 const MAX_LEN := 6000
 const ID := "ws"
@@ -62,19 +64,53 @@ static func encode(enemy: Array, sol: Array, n := 0) -> String:
 	var code := "%s.%s.%s" % [PREFIX2 if n > 0 else PREFIX, b, b.sha256_text().substr(0, 6)]
 	return code if bool(decode(code)["ok"]) else ""
 
+## V1.6 #16：出題台的碼。goal＝GOALS3 之一；kill 的目標＝最貴的敵兵（同價取欄、列最小），survive 30 秒、draw 60 秒、margin 剩 50%。
+static func encode3(enemy: Array, sol: Array, goal: String) -> String:
+	var e := _clean(enemy, 10, 15)
+	var s := _clean(sol, 0, 5)
+	if e.is_empty() or s.is_empty() or not goal in GOALS3:
+		return ""
+	var allowed: Array = []
+	for u in s:
+		if not int(u[0]) in allowed:
+			allowed.append(int(u[0]))
+	allowed.sort()
+	var j := JSON.stringify({"v": 3, "e": e, "s": s, "a": allowed, "g": goal})
+	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	var code := "%s.%s.%s" % [PREFIX3, b, b.sha256_text().substr(0, 6)]
+	return code if bool(decode(code)["ok"]) else ""
+
+## 目標的細節（解碼時從敵陣算，不吃碼裡的數字：少一個能被竄改的欄位）
+static func goal_fields(goal: String, e: Array) -> Dictionary:
+	match goal:
+		"kill":
+			var best: Array = e[0]
+			for u in e:
+				if D.cost(int(u[0])) > D.cost(int(best[0])) or (D.cost(int(u[0])) == D.cost(int(best[0])) and (int(u[1]) * 16 + int(u[2])) < (int(best[1]) * 16 + int(best[2]))):
+					best = u
+			return {"goal": "kill", "goal_unit": [int(best[1]), int(best[2])]}
+		"survive":
+			return {"goal": "survive", "goal_ticks": 600}
+		"draw":
+			return {"goal": "draw", "goal_ticks": 1200}
+		"margin":
+			return {"goal": "margin", "goal_rem": 50}
+	return {}
+
 ## 解碼＋驗證＋重跑作者解。回傳 {ok, pz, sol, why}。
 static func decode(code: String) -> Dictionary:
 	var bad := {"ok": false, "why": "ws_bad"}
 	code = code.strip_edges()
 	var parts := code.split(".")
-	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] == PREFIX or parts[0] == PREFIX2) or parts[1].sha256_text().substr(0, 6) != parts[2]:
+	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] in [PREFIX, PREFIX2, PREFIX3]) or parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return bad
 	var b64 := parts[1].replace("-", "+").replace("_", "/")
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
 	var v2 := parts[0] == PREFIX2
-	if not j is Dictionary or not _is_int(j.get("v"), 2 if v2 else 1, 2 if v2 else 1):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
+	var vv := 3 if parts[0] == PREFIX3 else (2 if v2 else 1)
+	if not j is Dictionary or not _is_int(j.get("v"), vv, vv):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
 		return bad
 	var relay := 0
 	if v2:
@@ -103,6 +139,15 @@ static func decode(code: String) -> Dictionary:
 		"hint_zh": "朋友打贏過這一關。用一樣的兵種、一樣多的錢，打得比他漂亮就是三星。",
 		"hint_en": "A friend beat this one. Same units, same gold: beat their result for 3 stars.",
 		"enemy": e, "fixed": [], "budget": spent, "allowed": allowed, "star2": 0, "star3": spent}
+	if vv == 3:
+		var g = j.get("g")
+		if not g is String or not g in GOALS3:
+			return bad
+		pz.merge(goal_fields(g, e), true)
+		pz["zh"] = "出題台殘局"
+		pz["en"] = "Workbench Puzzle"
+		pz["hint_zh"] = "朋友出的題，作者的解證明它解得開。"
+		pz["hint_en"] = "A friend's puzzle — their own solution proves it can be solved."
 	var r: Dictionary = PZ.play(pz, s)
 	if not bool(r.get("ok", false)):
 		return {"ok": false, "why": "ws_unsolved"}

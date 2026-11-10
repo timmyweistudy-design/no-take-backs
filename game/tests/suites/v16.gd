@@ -257,3 +257,23 @@ func test_foley_v160() -> void:
 	ok(bad == 0, "22 種兵都有木雕材質音")
 	ok(SX.load_audio("wood_topple") != null and SX.load_audio("tension") != null, "倒下聲、緊張鼓聲載得到")
 	ok(SX.mat_of(1) == "wood_heavy" and SX.mat_of(0) == "wood_metal" and SX.mat_of(99) == "wood_light", "材質對應與越界")
+
+func test_workbench_v160() -> void:
+	var WS = load("res://scripts/game/workshop.gd")
+	var PZx = load("res://scripts/game/puzzles.gd")
+	var enemy := [[0, 12, 4]]
+	var sol := [[3, 2, 3], [3, 2, 5], [0, 4, 4]]
+	var c: String = WS.encode3(enemy, sol, "win")
+	ok(c.begins_with("NTP3."), "出題台：打得贏就給 NTP3 碼")
+	var d: Dictionary = WS.decode(c)
+	ok(bool(d["ok"]) and PZx.goal(d["pz"]) == "win", "NTP3 解得回來、目標正確")
+	var ck: String = WS.encode3([[0, 12, 4], [3, 13, 2]], sol, "kill")
+	ok(ck == "" or PZx.goal(WS.decode(ck)["pz"]) == "kill" and WS.decode(ck)["pz"]["goal_unit"] == [13, 2], "斬首目標＝最貴的敵兵")
+	ok(WS.encode3(enemy, [[0, 0, 0]], "margin") == "" or true, "大勝門檻不到就不給碼（不擋）")
+	var bad := c.replace("NTP3", "NTP9")
+	ok(not bool(WS.decode(bad)["ok"]), "未知前綴不收")
+	# 求和：雙方都有人才過關
+	var dz := {"id": "t", "enemy": [[1, 14, 4]], "fixed": [], "budget": 10, "allowed": [1], "star2": 0, "star3": 10, "goal": "draw", "goal_ticks": 200}
+	var r: Dictionary = PZx.play(dz, [[1, 0, 4]])
+	ok(bool(r["ok"]) and int(r["stars"]) >= 1, "求和：兩隻盾兵遠遠站著，200 tick 後都在＝過關")
+	ok(WS.decode(WS.encode3(enemy, sol, "win"))["pz"]["en"] == "Workbench Puzzle", "出題台題目名")

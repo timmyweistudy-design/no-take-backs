@@ -1163,7 +1163,7 @@ static func code_kind(c: String) -> String:
 		return "army"
 	if p == "NTC1":
 		return "challenge"
-	if p == "NTP1" or p == "NTP2":
+	if p == "NTP1" or p == "NTP2" or p == "NTP3":   # V1.6 #16 出題台碼
 		return "workshop"
 	if p == "NTS1":
 		return "settings"
@@ -1250,7 +1250,8 @@ func hub_items(kind: String) -> Array:
 			return [["menu_codex", "hc_codex_d", "book", func(): overlay = ""; _open_codex(0), true],
 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
 				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
-				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()]]
+				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
+				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()]]   # V1.6 #16 出題台
 	return []
 
 func _draw_hub(kind: String) -> void:

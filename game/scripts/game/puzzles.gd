@@ -128,14 +128,14 @@ static func goal(pz: Dictionary) -> String:
 
 ## 這關要不要用規則（地形、撐住秒數、技能）。不用就回 null，走舊模擬路徑。
 static func rules_of(pz: Dictionary):
-	if not pz.has("map") and goal(pz) != "survive" and not pz.has("cmd"):
+	if not pz.has("map") and goal(pz) != "survive" and goal(pz) != "draw" and not pz.has("cmd"):
 		return null
 	var r = RS.standard()
 	r.preset = "custom"
 	r.map_id = int(pz.get("map", 0))
 	r.map_size = MAP_SIZE
-	if goal(pz) == "survive":
-		r.ticks = int(pz["goal_ticks"])
+	if goal(pz) == "survive" or goal(pz) == "draw":
+		r.ticks = int(pz["goal_ticks"])   # V1.6 #16：求和也是「時限到」
 	if pz.has("cmd"):
 		var c: Dictionary = pz["cmd"]
 		var em := 0
@@ -261,7 +261,11 @@ static func outcome(pz: Dictionary, sim, spent_extra: int) -> Dictionary:
 			ok = won and lost_of_type(sim, int(pz["goal_type"])) == 0   # V1.1 D5：這種兵一隻都不能倒
 		"margin":
 			ok = won and rem_pct(sim.power(0), sim.budget) >= int(pz["goal_rem"])   # V1.1 D5：贏得夠漂亮
+		"draw":
+			ok = sim.alive_count(0) > 0 and sim.alive_count(1) > 0   # V1.6 #16 求和：時限到時雙方都還有人（控火力、續航）
 	var rem: int = rem_pct(sim.power(0), sim.budget) if ok else 0
+	if g == "draw":
+		won = ok   # 求和沒有勝方：過關就算「達成」，星數照剩餘、花費算
 	return {"ok": ok, "won": won, "goal": g, "rem": rem, "spent": spent_extra, "stars": stars(pz, ok, rem, spent_extra)}
 
 ## 擺法合不合法（extra＝[[兵種, 欄, 列], ...]；還會檢查可用兵種）。合法回 ""。

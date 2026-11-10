@@ -698,6 +698,8 @@ func _goal_text(pz: Dictionary) -> String:
 			return L.t("star_c_flawless", [L.t("unit_%d" % int(pz["goal_type"]))])
 		"margin":
 			return L.t("star_c_margin", [int(pz["goal_rem"])])
+		"draw":
+			return L.t("star_c_draw", [int(pz["goal_ticks"]) / 20])   # V1.6 #16
 	return L.t("star_c_win")
 
 func _star_lines(won: bool, rem: int, need_rem: int, spent: int, need_spent: int, goal := "") -> String:

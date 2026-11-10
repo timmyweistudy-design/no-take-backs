@@ -148,6 +148,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_notebook()
 		"daily_top":
 			_draw_daily_top()
+		"editor":
+			_draw_editor()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -784,3 +786,90 @@ func _draw_daily_top() -> void:
 		_btn(Rect2(400, y, 480, 48), lbl, func(): _daily_top_go(us))
 		y += 56.0
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+## ── #16 殘局出題台：小棋盤擺雙方（左 0～5 欄＝你的解、右 10～15 欄＝敵陣），選目標，作者解要過關才給碼 ──
+const WS3 = preload("res://scripts/game/workshop.gd")
+var ed_cells := {}      # Vector2i(欄, 列) → 兵種
+var ed_type := 0
+var ed_goal := 0
+var ed_msg := ""
+const ED_CS := 36.0
+
+func _ed_rect() -> Rect2:
+	return Rect2(640 - 8 * ED_CS, 150, 16 * ED_CS, 9 * ED_CS)
+
+func ed_lists() -> Array:
+	var e: Array = []
+	var s: Array = []
+	for k in ed_cells:
+		var v := [int(ed_cells[k]), k.x, k.y]
+		if k.x >= 10:
+			e.append(v)
+		elif k.x <= 5:
+			s.append(v)
+	e.sort()
+	s.sort()
+	return [e, s]
+
+func ed_toggle(c: Vector2i) -> void:
+	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
+		return
+	if ed_cells.get(c, -1) == ed_type:
+		ed_cells.erase(c)
+	else:
+		ed_cells[c] = ed_type
+	ed_msg = ""
+
+func _ed_make() -> void:
+	var l := ed_lists()
+	var code := WS3.encode3(l[0], l[1], WS3.GOALS3[ed_goal])
+	if code == "":
+		ed_msg = L.t("ed_fail")
+		return
+	DisplayServer.clipboard_set(code)
+	ed_msg = L.t("ed_ok")
+	_toast(L.t("ws_copied"))
+
+func _draw_editor() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.7))
+	var P := Rect2(80, 40, 1120, 720)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 8), L.t("ed_title"), L.t("ed_help"), tz("S"), 1000)
+	var G := _ed_rect()
+	G.position.y = y
+	draw_rect(G, Color(0.42, 0.5, 0.28))
+	for cx in 16:
+		for cy in 9:
+			var r := Rect2(G.position + Vector2(cx, cy) * ED_CS, Vector2(ED_CS, ED_CS))
+			if cx > 5 and cx < 10:
+				draw_rect(r, Color(0, 0, 0, 0.35))
+			draw_rect(r, Color(0, 0, 0, 0.2), false, 1.0)
+			var k := Vector2i(cx, cy)
+			if ed_cells.has(k):
+				Art.unit(self, r.position + Vector2(ED_CS / 2, ED_CS * 0.82), int(ed_cells[k]), 0 if cx <= 5 else 1, 1.0 if cx <= 5 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+			if cx <= 5 or cx >= 10:
+				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true})
+	_text(G.position + Vector2(3 * ED_CS, -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ED_CS)
+	_text(G.position + Vector2(13 * ED_CS, -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ED_CS)
+	y = G.end.y + GAP_M
+	# 兵種調色盤（20 種，兩排）
+	for t in 20:
+		var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 52.0, 92, 48)
+		_btn(pr, "", func(): ed_type = t, true, false, TH_ACTIVE if ed_type == t else Color(0, 0, 0, 0))
+		Art.unit(self, pr.position + Vector2(24, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+		_text(pr.position + Vector2(46, 14), "%dg" % D.cost(t), tz("C"), Color.WHITE, false, true, 44)
+	y += 2 * 52.0 + GAP_S
+	var l := ed_lists()
+	var gold := [0, 0]
+	for i in 2:
+		for u in l[i]:
+			gold[i] += D.cost(int(u[0]))
+	var info := L.t("ed_info", [l[1].size(), gold[1], l[0].size(), gold[0]])
+	_text(Vector2(640, y), info, tz("S"), Color.WHITE, true, false, 1000)
+	y += tz("S") * 1.6
+	_btn(Rect2(P.position.x + 60, y, 360, 48), L.t("ed_goal", [L.t("ed_g_" + WS3.GOALS3[ed_goal])]), func(): ed_goal = (ed_goal + 1) % WS3.GOALS3.size(); ed_msg = "")
+	_btn(Rect2(P.position.x + 440, y, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
+	_btn(Rect2(P.position.x + 760, y, 140, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = "")
+	_btn(Rect2(P.position.x + 920, y, 140, 48), L.t("back"), func(): overlay = "")
+	if ed_msg != "":
+		_text(Vector2(640, y + 56), ed_msg, tz("S"), ACCENT, true, true, 1000)
