@@ -1166,7 +1166,7 @@ static func code_kind(c: String) -> String:
 		return "army"
 	if p == "NTC1":
 		return "challenge"
-	if p == "NTP1" or p == "NTP2" or p == "NTP3":   # V1.6 #16 出題台碼
+	if p == "NTP1" or p == "NTP2" or p == "NTP3" or p == "NTP4":   # V1.6 #16 出題台碼；V1.6.1 A2 NTP4
 		return "workshop"
 	if p == "NTS1":
 		return "settings"

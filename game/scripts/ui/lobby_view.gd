@@ -83,6 +83,9 @@ func _lobby_touch() -> void:
 	if lobby_r.preset in Presets.IDS:
 		var p = Presets.make(lobby_r.preset, lobby_kind, _lobby_unlocked())
 		p.ai_level = lobby_r.ai_level
+		p.map_id = lobby_r.map_id   # V1.6.1 B1：地圖是另外選的（不屬於玩法預設），比對前帶過去，預設名稱不會因為換地圖變「自訂」
+		p.map_size = lobby_r.map_size
+		p.vents = lobby_r.vents
 		if not p.equals(lobby_r):
 			lobby_r.preset = "custom"
 
@@ -948,7 +951,7 @@ func _draw_lobby_detail(R: Rect2) -> void:
 		tabs.erase("lb_tab_ai")
 	for i in tabs.size():
 		var idx: int = LOBBY_TABS.find(tabs[i])
-		_btn(Rect2(R.position + Vector2(0, i * 58), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx, true, false,
+		_btn(Rect2(R.position + Vector2(0, i * 58), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx; lobby_rpage = 0, true, false,
 			TH_ACTIVE if idx == lobby_tab else Color(0, 0, 0, 0))
 	var L0 := Rect2(R.position + Vector2(170, 0), Vector2(600, R.size.y))
 	var D0 := Rect2(Vector2(L0.end.x + 20, R.position.y), Vector2(R.end.x - L0.end.x - 20, R.size.y))
@@ -993,9 +996,8 @@ func _draw_lobby_detail(R: Rect2) -> void:
 			if lobby_r.deploy == "free":
 				rows2.append(["map_mode", L.t("lb_map_mode"), L.t("map_mode_%d" % lobby_r.map_mode)])
 			rows2.append(["time_of", L.t("lb_time_of"), L.t("time_of_%d" % lobby_r.time_of)])
-			if rows2.size() < 8:
-				rows2.append(["adj", L.t("lb_adj"), L.t("on") if lobby_r.adj else L.t("off")])   # V1.6 #22（娛樂）
-			_rows(L0, rows2)
+			rows2.append(["adj", L.t("lb_adj"), L.t("on") if lobby_r.adj else L.t("off")])   # V1.6 #22（娛樂）；V1.6.1 A7：一律列出，放不下就分頁
+			_rows_paged(L0, rows2)
 		4:
 			_rows(L0, [["ai_level", L.t("lb_ai_level"), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])],
 				["ai_pool_same", L.t("lb_ai_pool_same"), L.t("on") if lobby_r.ai_pool_same else L.t("off")]])
@@ -1004,6 +1006,23 @@ func _draw_lobby_detail(R: Rect2) -> void:
 		6:
 			_draw_cmd_tab(L0)
 	_draw_lobby_desc(D0)
+
+## V1.6.1 A7：列數超過這一欄放得下的就分頁（底下一列「◀ 1／2 ▶」），每個開關都找得到。
+var lobby_rpage := 0
+func _rows_paged(R: Rect2, rows: Array) -> void:
+	var cap := int(R.size.y / 66.0)
+	if rows.size() <= cap:
+		lobby_rpage = 0
+		_rows(R, rows)
+		return
+	var per := cap - 1
+	var pages := ceili(rows.size() / float(per))
+	lobby_rpage = clampi(lobby_rpage, 0, pages - 1)
+	_rows(R, rows.slice(lobby_rpage * per, lobby_rpage * per + per))
+	var y := R.position.y + per * 66
+	_btn_small(Rect2(R.position.x + 230, y, 60, 44), "◀", func(): lobby_rpage -= 1, lobby_rpage > 0)
+	_text(Vector2(R.position.x + 230 + 180, y + 10), L.t("lb_page", [lobby_rpage + 1, pages]), tz("S"), Color.WHITE, true, false, 200)
+	_btn_small(Rect2(R.position.x + 230 + 300, y, 60, 44), "▶", func(): lobby_rpage += 1, lobby_rpage < pages - 1)
 
 func _rows(R: Rect2, rows: Array) -> void:
 	for i in rows.size():

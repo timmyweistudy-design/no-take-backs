@@ -11,6 +11,8 @@ const PREFIX := "NTP1"
 const PREFIX2 := "NTP2"   # V1.4 #5 接力殘局：多一欄「第幾棒」n（1～99）；NTP1 照舊能用（n＝0）
 const PREFIX3 := "NTP3"   # V1.6 #16 出題台：多一欄目標 g（win／kill／survive／draw／margin）與參數；NTP1、NTP2 照舊
 const GOALS3 := ["win", "kill", "survive", "draw", "margin", "protect", "flawless"]
+const PREFIX4 := "NTP4"   # V1.6.1 A2：出題台作者自己指定目標（多一欄 t＝[欄, 列]：斬首＝敵兵、護送＝己兵、完美＝那隻兵的兵種）；NTP1～3 照舊
+const PICK_GOALS := ["kill", "protect", "flawless"]
 const MAX_UNITS := 40
 const MAX_LEN := 6000
 const ID := "ws"
@@ -81,6 +83,40 @@ static func encode3(enemy: Array, sol: Array, goal: String) -> String:
 	var code := "%s.%s.%s" % [PREFIX3, b, b.sha256_text().substr(0, 6)]
 	return code if bool(decode(code)["ok"]) else ""
 
+## V1.6.1 A2：作者點了目標（t＝[欄, 列]）就出 NTP4；沒點照舊出 NTP3（自動選）。
+static func encode4(enemy: Array, sol: Array, goal: String, t: Vector2i) -> String:
+	if not goal in PICK_GOALS or t.x < 0:
+		return encode3(enemy, sol, goal)
+	var e := _clean(enemy, 10, 15)
+	var s := _clean(sol, 0, 5)
+	if e.is_empty() or s.is_empty() or pick_fields(goal, e, s, [t.x, t.y]).is_empty():
+		return ""
+	var allowed: Array = []
+	for u in s:
+		if not int(u[0]) in allowed:
+			allowed.append(int(u[0]))
+	allowed.sort()
+	var j := JSON.stringify({"v": 4, "e": e, "s": s, "a": allowed, "g": goal, "t": [t.x, t.y]})
+	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	var code := "%s.%s.%s" % [PREFIX4, b, b.sha256_text().substr(0, 6)]
+	return code if bool(decode(code)["ok"]) else ""
+
+## 指定的目標要真的有那隻兵（斬首在敵陣、護送與完美在作者解）；不對回 {}。
+static func pick_fields(goal: String, e: Array, s: Array, t) -> Dictionary:
+	if not t is Array or t.size() != 2 or not _is_int(t[0], 0, 15) or not _is_int(t[1], 0, 8):
+		return {}
+	var lst: Array = e if goal == "kill" else s
+	for u in lst:
+		if int(u[1]) == int(t[0]) and int(u[2]) == int(t[1]):
+			match goal:
+				"kill":
+					return {"goal": "kill", "goal_unit": [int(u[1]), int(u[2])]}
+				"protect":
+					return {"goal": "protect", "goal_unit": [int(u[1]), int(u[2])], "fixed": [[int(u[0]), int(u[1]), int(u[2])]]}
+				"flawless":
+					return {"goal": "flawless", "goal_type": int(u[0]), "need_type": true}
+	return {}
+
 ## 目標的細節（解碼時從敵陣、作者解算，不吃碼裡的數字：少一個能被竄改的欄位）
 ## protect：作者解裡最貴的兵（同價取欄、列最小）變成固定兵，要活到最後；flawless：作者解裡最多的兵種一隻都不能倒
 static func goal_fields(goal: String, e: Array, s: Array = []) -> Dictionary:
@@ -119,14 +155,14 @@ static func decode(code: String) -> Dictionary:
 	var bad := {"ok": false, "why": "ws_bad"}
 	code = code.strip_edges()
 	var parts := code.split(".")
-	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] in [PREFIX, PREFIX2, PREFIX3]) or parts[1].sha256_text().substr(0, 6) != parts[2]:
+	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] in [PREFIX, PREFIX2, PREFIX3, PREFIX4]) or parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return bad
 	var b64 := parts[1].replace("-", "+").replace("_", "/")
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
 	var v2 := parts[0] == PREFIX2
-	var vv := 3 if parts[0] == PREFIX3 else (2 if v2 else 1)
+	var vv := 4 if parts[0] == PREFIX4 else (3 if parts[0] == PREFIX3 else (2 if v2 else 1))
 	if not j is Dictionary or not _is_int(j.get("v"), vv, vv):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
 		return bad
 	var relay := 0
@@ -159,11 +195,13 @@ static func decode(code: String) -> Dictionary:
 	else:
 		L.fill(pz, "", "rl_title", [relay])
 	L.fill(pz, "hint", "ws_pz_hint")   # V1.6.1 F6：四種語言都從字串表來
-	if vv == 3:
+	if vv >= 3:
 		var g = j.get("g")
-		if not g is String or not g in GOALS3:
+		if not g is String or not g in GOALS3 or (vv == 4 and not g in PICK_GOALS):
 			return bad
-		var gf := goal_fields(g, e, s)
+		var gf := goal_fields(g, e, s) if vv == 3 else pick_fields(g, e, s, j.get("t"))
+		if vv == 4 and gf.is_empty():
+			return bad   # 指定的目標不存在（「打贏」的 NTP3 本來就沒有目標欄位）
 		pz.merge(gf, true)
 		if gf.has("fixed"):
 			# 護送：被護送的兵是固定兵，解題的人擺其他的；作者解扣掉它、預算也扣掉它的錢

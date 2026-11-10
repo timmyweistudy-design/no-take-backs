@@ -168,3 +168,45 @@ func test_coach_record_v161() -> void:
 	var bad := {"coached": {"p1": {"lv": 9, "ap": 3, "self": -2}, "p2": "x"}}
 	S.sanitize_v16(bad)
 	ok(bad["coached"] == {"p1": {"lv": 3, "ap": 0, "self": 0}}, "教練紀錄驗型", str(bad["coached"]))
+
+func test_ntp4_v161() -> void:
+	var WS = load("res://scripts/game/workshop.gd")
+	var e := [[0, 10, 4], [3, 11, 4], [1, 12, 2]]
+	var s := [[3, 4, 3], [3, 4, 5], [0, 5, 4], [2, 2, 4]]
+	var c3: String = WS.encode4(e, s, "kill", Vector2i(-1, -1))
+	ok(c3.begins_with("NTP3."), "沒指定目標照舊出 NTP3")
+	var c4: String = WS.encode4(e, s, "kill", Vector2i(10, 4))
+	if c4 != "":
+		var d: Dictionary = WS.decode(c4)
+		ok(c4.begins_with("NTP4.") and bool(d["ok"]) and d["pz"]["goal_unit"] == [10, 4], "指定斬首目標（不是最貴的那隻）", str(d.get("why")))
+	ok(WS.encode4(e, s, "kill", Vector2i(4, 3)) == "", "斬首點到自己的兵不給碼")
+	ok(WS.pick_fields("flawless", e, s, [2, 4]) == {"goal": "flawless", "goal_type": 2, "need_type": true}, "完美：點到哪隻就是那種兵")
+	ok(WS.pick_fields("protect", e, s, [9, 9]).is_empty() and WS.pick_fields("protect", e, s, "x").is_empty(), "壞的目標欄位擋掉")
+	# 竄改：NTP4 帶不在作者解的目標
+	var j := JSON.stringify({"v": 4, "e": e, "s": s, "a": [0, 2, 3], "g": "protect", "t": [15, 8]})
+	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	ok(not bool(WS.decode("NTP4.%s.%s" % [b, b.sha256_text().substr(0, 6)])["ok"]), "目標不存在的 NTP4 拒收")
+	ok(WS.decode("NTP3.x.y")["ok"] == false, "NTP3 舊路徑照舊驗")
+
+func test_rules_equals_map_v161() -> void:
+	var RS = load("res://scripts/core/ruleset.gd")
+	var a = RS.standard()
+	var b = RS.standard()
+	ok(a.equals(b), "同樣規則相等")
+	b.map_id = 3
+	ok(not a.equals(b), "地圖不同就不相等（B1）")
+	b.map_id = 0
+	b.map_size = 2
+	ok(not a.equals(b), "大小不同就不相等")
+
+func test_lock_targets_v161() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var Army = load("res://scripts/core/army.gd")
+	var a = Army.new(0, 100)
+	a.place(0, 4, 4)
+	a.place(2, 2, 1)
+	var e = Army.new(1, 100)
+	e.place(0, 11, 4)
+	e.place(1, 12, 8)
+	var lk: Array = G.lock_targets(a, e, null)
+	ok(lk.size() == 2 and lk.all(func(p): return p[1].x > 8000), "每隻我方兵都鎖定一隻敵兵（A9）", str(lk))

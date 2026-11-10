@@ -388,7 +388,7 @@ static func sanitize_v16(out: Dictionary) -> void:
 	else:
 		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62), "ver": clampi(int(dp["ver"]), 1, 999) if _is_num(dp.get("ver")) else 1}
 	out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
-	for k2 in ["rift_best", "trio_clear"]:
+	for k2 in ["rift_best", "trio_clear", "trio_stars"]:
 		var d = out.get(k2, {})
 		var d2 := {}
 		if d is Dictionary:
@@ -401,7 +401,7 @@ static func sanitize_v16(out: Dictionary) -> void:
 					if iv.size() == 2:
 						d2[str(kk2)] = iv
 				elif _is_num(v):
-					d2[str(kk2)] = maxi(0, int(v))
+					d2[str(kk2)] = clampi(int(v), 0, 3) if k2 == "trio_stars" else maxi(0, int(v))
 		out[k2] = d2
 
 ## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。

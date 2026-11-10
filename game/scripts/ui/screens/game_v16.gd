@@ -275,19 +275,56 @@ func _v16_place_draw() -> void:
 			if rr > 0.0:
 				draw_circle(sp, rr * CS, Color(1, 0.9, 0.5, 0.05))
 				call("_arc_clipped", sp, rr * CS, 0, TAU, Color(1, 0.9, 0.5, 0.3), 1.2)
-			if not foes.is_empty():
-				var best: Vector2i = foes[0]
-				var bd := INF
-				for f in foes:
-					var d := Vector2(f - p).length()
-					if d < bd:
-						bd = d
-						best = f
-				var dir := Vector2(best - p).normalized()
-				_chalk_arrow(sp, sp + dir * 0.7 * CS)
+		if not foes.is_empty():
+			# V1.6.1 A9：開場鎖定（用模擬跑 1 tick 的選目標結果，不是「最近的敵兵」）；虛線弧，白黑雙邊。不保證第一下打到它（之後會換目標）。
+			for pr in _lock_pairs(a, armies[1]):
+				_lock_arc(_foot_of(pr[0]) - Vector2(0, 0.32 * CS), _foot_of(pr[1]) - Vector2(0, 0.32 * CS))
 	_tv_draw_marks_place(a)
 	_fog_draw()
 	_adj_draw(a)
+
+## [[我方位置, 鎖定的敵兵位置], …]（雙方陣型沒變就用快取，不每幀重算）
+var lock_key := 0
+var lock_cache: Array = []
+func _lock_pairs(a0, a1) -> Array:
+	if a0 == null or a1 == null or a0.units.is_empty() or a1.units.is_empty():
+		return []
+	var rr = PZ.rules_of(PZ.get_puzzle(puzzle_id)) if mode == Mode.PUZZLE else rules
+	var key := hash([a0.units, a1.units, rr.to_code() if rr != null else ""])
+	if key == lock_key:
+		return lock_cache
+	lock_key = key
+	lock_cache = lock_targets(a0, a1, rr)
+	return lock_cache
+
+static func lock_targets(a0, a1, rr) -> Array:
+	var s = Sim.new(a0.copy(), a1.copy(), rr)
+	var start: Array = []
+	for u in s.units:
+		start.append(Vector2i(u.x, u.y))
+	s.step()
+	var out: Array = []
+	for i in s.units.size():
+		var u = s.units[i]
+		if u.team == 0 and u.target >= 0 and u.target < start.size() and s.units[u.target].team == 1:
+			out.append([start[i], start[u.target]])
+	return out
+
+func _lock_arc(a: Vector2, b: Vector2) -> void:
+	var mid := (a + b) / 2.0 + (b - a).orthogonal().normalized() * minf(40.0, a.distance_to(b) * 0.18)
+	var cb := bool(Save.s("colorblind"))
+	var n := 14
+	for k in n:
+		if k % 2 == 1:
+			continue   # 虛線
+		var t0 := float(k) / n
+		var t1 := float(k + 1) / n
+		var p0 := a.lerp(mid, t0).lerp(mid.lerp(b, t0), t0)
+		var p1 := a.lerp(mid, t1).lerp(mid.lerp(b, t1), t1)
+		draw_line(p0, p1, Color(0, 0, 0, 0.55), 4.0 if cb else 3.0, true)
+		draw_line(p0, p1, Color(1, 0.95, 0.8, 0.85 if cb else 0.6), 2.0 if cb else 1.4, true)
+	draw_circle(b, 4.0, Color(0, 0, 0, 0.6))
+	draw_circle(b, 2.6, Color(1, 0.95, 0.8, 0.9))
 
 func _chalk_arrow(a: Vector2, b: Vector2) -> void:
 	draw_line(a, b, Color(1, 1, 1, 0.55), 2.0, true)
@@ -604,6 +641,7 @@ func _coach_open() -> void:
 
 var co_thread_key := ""
 func _v16_jobs(_delta: float) -> void:
+	_trio_jobs()
 	if co_thread != null and not co_thread.is_alive():
 		var res = co_thread.wait_to_finish()
 		co_thread = null
@@ -619,6 +657,9 @@ func _v16_jobs(_delta: float) -> void:
 				_coach_open()   # 面板開著、等的是新的這一場：接著算新的
 
 func _exit_tree() -> void:
+	if trio_thread != null:
+		trio_thread.wait_to_finish()
+		trio_thread = null
 	if co_thread != null:
 		co_ctl["stop"] = true   # V1.6.1 F5：先叫它停（64 tick 內會停），不用等整場跑完
 		co_thread.wait_to_finish()   # 結束時收掉教練的背景工作（Codex v160-i1 #3）
@@ -1033,6 +1074,8 @@ var ed_cells := {}      # Vector2i(欄, 列) → 兵種
 var ed_type := 0
 var ed_goal := 0
 var ed_msg := ""
+var ed_target := Vector2i(-1, -1)   # V1.6.1 A2：作者指定的目標（斬首＝敵兵、護送／完美＝自己的兵）；-1＝自動
+var ed_pick := false               # 正在點選目標
 const ED_CS := 32.0
 
 func _ed_rect() -> Rect2:
@@ -1054,6 +1097,17 @@ func ed_lists() -> Array:
 func ed_toggle(c: Vector2i) -> void:
 	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
 		return
+	if ed_pick:
+		var want_foe: bool = WS3.GOALS3[ed_goal] == "kill"
+		if ed_cells.has(c) and (c.x >= 10) == want_foe:
+			ed_target = c
+			ed_pick = false
+			ed_msg = ""
+		else:
+			ed_msg = L.t("ed_pick_foe" if want_foe else "ed_pick_own")
+		return
+	if c == ed_target:
+		ed_target = Vector2i(-1, -1)   # 目標那隻被換掉或拿掉：回到自動
 	if ed_cells.get(c, -1) == ed_type:
 		ed_cells.erase(c)
 	else:
@@ -1062,7 +1116,7 @@ func ed_toggle(c: Vector2i) -> void:
 
 func _ed_make() -> void:
 	var l := ed_lists()
-	var code := WS3.encode3(l[0], l[1], WS3.GOALS3[ed_goal])
+	var code := WS3.encode4(l[0], l[1], WS3.GOALS3[ed_goal], ed_target)
 	if code == "":
 		ed_msg = L.t("ed_fail")
 		return
@@ -1089,6 +1143,9 @@ func _draw_editor() -> void:
 			var k := Vector2i(cx, cy)
 			if ed_cells.has(k):
 				Art.unit(self, r.position + Vector2(ED_CS / 2, ED_CS * 0.82), int(ed_cells[k]), 0 if cx <= 5 else 1, 1.0 if cx <= 5 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+				if k == ed_target:
+					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
+					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.GOALS3[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
 			if cx <= 5 or cx >= 10:
 				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true})
 	_text(G.position + Vector2(3 * ED_CS, -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ED_CS)
@@ -1110,13 +1167,21 @@ func _draw_editor() -> void:
 	_text(Vector2(640, y), info, tz("S"), Color.WHITE, true, false, 1000)
 	y += tz("S") * 1.4 + GAP_M
 	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
-	_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + WS3.GOALS3[ed_goal])]), func(): ed_goal = (ed_goal + 1) % WS3.GOALS3.size(); ed_msg = "")
+	var gname: String = WS3.GOALS3[ed_goal]
+	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.GOALS3.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false
+	if gname in WS3.PICK_GOALS:
+		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
+		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
+		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", true, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
+	else:
+		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
 	y += 44 + GAP_S
 	if ed_msg != "":
 		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
 	var by := P.end.y - GAP_L - 48.0
 	_btn(Rect2(640 - 3 * 150 - 20, by, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
-	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = "")
+	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false)
 	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): overlay = "")
 
 ## ── #17 一陣三考 ──
@@ -1133,21 +1198,65 @@ func _trio_start(i: int) -> void:
 	_start_mode(Mode.PUZZLE)
 	trio_on = true
 
+## V1.6.1 F7：第一場就是剛打完的這場（不重算）；第 2、3 場在背景算（顯示「計算中」），算完才寫紀錄、開結算。
+var trio_thread: Thread = null
+var trio_extra: Array = []
+var trio_busy := false
+var trio_st := 0
 func _trio_settle() -> void:
 	var extra: Array = []
 	for u in last_armies[0].units:
 		extra.append([int(u["type"]), int(u["col"]), int(u["row"])])
-	trio_res = Trio.check(Trio.sets()[trio_i], extra)
-	if not false in trio_res:
+	trio_extra = extra
+	var s: Dictionary = Trio.sets()[trio_i]
+	var oc: Dictionary = PZ.outcome(PZ.get_puzzle("ws"), sim, last_armies[0].spent())
+	trio_res = [{"ok": bool(oc["ok"]), "rem": int(oc["rem"]), "spent": int(oc["spent"])}]
+	trio_st = 0
+	overlay = "trio_result"
+	_focus = 0
+	if DisplayServer.get_name() == "headless" or shot_dir != "":
+		trio_res += Trio.results(s, extra, 1)
+		_trio_done()
+		return
+	if trio_thread != null:
+		trio_thread.wait_to_finish()   # 上一組還在算（極少見）：先收掉
+	trio_busy = true
+	trio_thread = Thread.new()
+	trio_thread.start(func(): return Trio.results(s, extra, 1))
+
+func _trio_jobs() -> void:
+	if trio_thread != null and not trio_thread.is_alive():
+		var rest: Array = trio_thread.wait_to_finish()
+		trio_thread = null
+		trio_busy = false
+		if trio_res.size() == 1:
+			trio_res += rest
+			_trio_done()
+
+func _trio_done() -> void:
+	var s: Dictionary = Trio.sets()[trio_i]
+	trio_st = Trio.stars(s, trio_res)
+	if trio_st >= 1:
 		var cl: Dictionary = Save.data.get("trio_clear", {})
-		var id := str(Trio.sets()[trio_i]["id"])
+		var id := str(s["id"])
 		var sp: int = last_armies[0].spent()
 		if not cl.has(id) or sp < int(cl[id]):
 			cl[id] = sp
 			Save.data["trio_clear"] = cl
-			Save.save_data()
-	overlay = "trio_result"
-	_focus = 0
+		var ts: Dictionary = Save.data.get("trio_stars", {})
+		if trio_st > int(ts.get(id, 0)):
+			ts[id] = trio_st
+			Save.data["trio_stars"] = ts
+		Save.save_data()
+
+## 看第 k 場（同一套陣對第 k 支敵軍；當成觀戰，不算紀錄）
+func _trio_watch(k: int) -> void:
+	var pz: Dictionary = Trio.make_pz(Trio.sets()[trio_i], k)
+	var a0 = PZ.player_army(pz)
+	for e in trio_extra:
+		a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
+	trio_on = false
+	call("watch_code", a0, PZ.enemy_army(pz), PZ.rules_of(pz))
 
 func _draw_trio() -> void:
 	var ss := Trio.sets()
@@ -1161,21 +1270,45 @@ func _draw_trio() -> void:
 		var id := str(s["id"])
 		var lbl := L.t("tr_row", [i + 1, int(s["budget"])]) + ("　✓ %dg" % int(cl[id]) if cl.has(id) else "")
 		var ii := i
-		_btn(Rect2(640 - 350 + (i % 2) * 360, y + (i / 2) * 56.0, 340, 48), lbl, func(): _trio_start(ii), true, i == 0)
+		var br := Rect2(640 - 350 + (i % 2) * 360, y + (i / 2) * 56.0, 340, 48)
+		_btn(br, lbl, func(): _trio_start(ii), true, i == 0)
+		var tst := int(Save.data.get("trio_stars", {}).get(id, 1 if cl.has(id) else 0))   # V1.6.1 A3：整組星數（舊紀錄只有過關＝1 星）
+		for ks in 3:
+			_icon("star", Vector2(br.end.x - 50 + ks * 16, br.end.y - 10), 13.0, Color("#ffd166") if ks < tst else Color(1, 1, 1, 0.18))
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 func _draw_trio_result() -> void:
-	var lines: Array = []
-	for k in trio_res.size():
-		lines.append(L.t("tr_line", [k + 1, "✓" if trio_res[k] else "×"]))
-	var all_ok := not false in trio_res
-	var body := "\n".join(lines) + "\n" + (L.t("tr_pass") if all_ok else L.t("tr_fail"))
-	var P := modal_rect(560, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("B"), 480, true) + GAP_XL + 50.0 + GAP_L)
+	var s: Dictionary = Trio.sets()[trio_i]
+	var done := trio_res.size() == 3
+	var all_ok := done and trio_st >= 1
+	var foot: String = L.t("tr_busy") if not done else (L.t("tr_pass_st", [Trio.rem_avg(trio_res), Trio.spent_pct(s, trio_res), Trio.s2_of(s), Trio.s3_of(s)]) if all_ok else L.t("tr_fail"))
+	var cw := 220.0
+	var ch := 196.0
+	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + ch + GAP_L + text_h(foot, tz("S"), 680) + GAP_L + 26.0 + GAP_L + 50.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("trio_open")) + GAP_L
-	_text(Vector2(640, y), body, tz("B"), ACCENT if all_ok else Color.WHITE, true, true, 480)
-	y += text_h(body, tz("B"), 480, true) + GAP_XL
-	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start(trio_i), true, true)
+	var r5: Array = []   # 三張同列卡片（R5 基準線：縮圖、標題）
+	for k in 3:
+		var r := Rect2(640 - (cw * 3 + 2 * GAP_L) / 2.0 + k * (cw + GAP_L), y, cw, ch)
+		var has := k < trio_res.size()
+		var kk := k
+		_btn(r, "", func(): _trio_watch(kk), has, false)
+		_mini_formation(Rect2(r.position + Vector2(cw / 2.0 - 40, 10), Vector2(80, 84)), Trio.make_pz(s, k), true)
+		r5.append([Rect2(r.position + Vector2(cw / 2.0 - 40, 10), Vector2(80, 84)), Rect2(r.position + Vector2(8, 102), Vector2(cw - 16, tz("S")))])
+		var head := L.t("tr_card", [k + 1])
+		_text(Vector2(r.get_center().x, r.position.y + 102), head, tz("S"), Color.WHITE, true, true, cw - 16)
+		var st_line := L.t("tr_calc") if not has else ((L.t("tr_won", [int(trio_res[k]["rem"])])) if bool(trio_res[k]["ok"]) else L.t("tr_lost"))
+		_text(Vector2(r.get_center().x, r.position.y + 102 + tz("S") * 1.5), st_line, tz("S"), (ACCENT if has and bool(trio_res[k]["ok"]) else Color(1, 0.75, 0.7)) if has else TXT_DIM, true, false, cw - 16)
+		if has:
+			_text(Vector2(r.get_center().x, r.end.y - tz("C") * 1.6), L.t("tr_watch"), tz("C"), TXT_DIM, true, false, cw - 16)
+	probe_cards("trio_cards", r5)
+	y += ch + GAP_L
+	_text(Vector2(640, y), foot, tz("S"), ACCENT if all_ok else Color.WHITE, true, false, 680)
+	y += text_h(foot, tz("S"), 680) + GAP_L
+	for ks in 3:
+		_icon("star", Vector2(640 - 30 + ks * 30, y + 13), 24.0, Color("#ffd166") if ks < trio_st else Color(1, 1, 1, 0.2))
+	y += 26.0 + GAP_L
+	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start(trio_i), not trio_busy, true)
 	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
 
 ## ── #20 迷霧推演：對 AI（普通）；開戰前斥候回報約三分之一的敵兵（依欄、列排序後每 3 隻露 1 隻，固定不隨機），其他要猜。

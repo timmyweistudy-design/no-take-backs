@@ -25,3 +25,44 @@ static func check(s: Dictionary, extra: Array) -> Array:
 	for k in 3:
 		out.append(bool(PZ.play(make_pz(s, k), extra).get("ok", false)))
 	return out
+
+## ── V1.6.1 A3／F7：三場的完整結果與整組星數（三方 v161d §0-3） ──
+## 三勝＝1 星；三場剩餘戰力平均（同一支陣、起始戰力相同，平均＝總和÷總和）≥ S2＝2 星；再加花費÷預算 ≤ S3%＝3 星。
+## 題組可在 trio.json 單組覆寫（"s2"、"s3"），條件是作者解 sol 要同時達到（tools/gen/trio_stars.gd 驗證、測試釘住）。
+const S2 := 45
+const S3 := 88
+
+static func play_one(s: Dictionary, k: int, extra: Array) -> Dictionary:
+	var r: Dictionary = PZ.play(make_pz(s, k), extra)
+	return {"ok": bool(r.get("ok", false)), "rem": int(r.get("rem", 0)), "spent": int(r.get("spent", 0))}
+
+static func results(s: Dictionary, extra: Array, from := 0) -> Array:
+	var out: Array = []
+	for k in range(from, 3):
+		out.append(play_one(s, k, extra))
+	return out
+
+static func s2_of(s: Dictionary) -> int:
+	return int(s.get("s2", S2))
+
+static func s3_of(s: Dictionary) -> int:
+	return int(s.get("s3", S3))
+
+static func rem_avg(res: Array) -> int:
+	var t := 0
+	for r in res:
+		t += int(r["rem"])
+	return t / maxi(1, res.size())
+
+static func spent_pct(s: Dictionary, res: Array) -> int:
+	return int(res[0]["spent"]) * 100 / maxi(1, int(s["budget"])) if not res.is_empty() else 100
+
+static func stars(s: Dictionary, res: Array) -> int:
+	if res.size() != 3 or res.any(func(r): return not bool(r["ok"])):
+		return 0
+	var st := 1
+	if rem_avg(res) >= s2_of(s):
+		st = 2
+		if spent_pct(s, res) <= s3_of(s):
+			st = 3
+	return st
