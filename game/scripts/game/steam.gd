@@ -245,6 +245,7 @@ static var _lb_dl := {}      # handle → done
 ## V1.6.1（Codex v161-i2 #1）：每個榜同一時間只有一筆在途；在途時又要送，只留最新的一筆，等回呼後再送。
 ## 這樣回呼一定對得上送出的那一筆（不靠 Steam 回呼順序）。
 static var _lb_busy := {}    # 榜名 → true（在途）
+static var _lb_finding: Array = []   # 還在找榜的上傳（照送出順序）；找榜失敗時只放開最早的那一個（Codex v161-i3）
 static var _lb_next := {}    # 榜名 → [分數, details, 排序]（在途時排隊的最新一筆）
 static func _lb_queue(name: String, p: Array) -> void:
 	if _lb_busy.has(name):
@@ -252,6 +253,7 @@ static func _lb_queue(name: String, p: Array) -> void:
 		return
 	_lb_busy[name] = true
 	_lb_up[name] = p
+	_lb_finding.append(name)
 	_steam.findOrCreateLeaderboard(name, int(p[2]), 1)
 
 static var _lb_sent := {}    # V1.6.1 F2：handle → [[榜名, 送出的分數], …]（同一個榜可能連送兩次：照送出順序排隊，回呼一次取一筆；Codex v161-i1 #1）
@@ -288,9 +290,14 @@ static func _on_lb_found(handle: int, found: int) -> void:
 		return
 	var name := str(_steam.getLeaderboardName(handle)) if found != 0 else ""
 	if found == 0:
-		_lb_busy.clear()   # 找不到榜（離線等）：在途全部作廢，下次開模式時照待送補送
-		_lb_next.clear()
-		_lb_up.clear()
+		# 找不到榜（離線等）：只放開最早那個「還在找榜」的上傳；已經送出、在等上傳回呼的不動（串行保證不破）
+		if not _lb_finding.is_empty():
+			var nf: String = _lb_finding.pop_front()
+			_lb_busy.erase(nf)
+			_lb_up.erase(nf)
+			_lb_next.erase(nf)   # 待送還在存檔裡，下次開模式時補送
+		return
+	_lb_finding.erase(name)
 	if _lb_up.has(name):
 		var p: Array = _lb_up[name]
 		_lb_up.erase(name)

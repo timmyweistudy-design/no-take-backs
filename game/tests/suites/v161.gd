@@ -90,6 +90,17 @@ func test_board_double_v161() -> void:
 	fk.emit_signal("leaderboard_find_result", 9, 1)
 	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
 	ok(not SV.data.has("daily_pend"), "高分那筆成功才清")
+	# 別的榜找榜失敗，不能放開已經在途的上傳（Codex v161-i3）
+	SV.data["daily_pend"] = {"day": 100, "score": 80000, "det": [2, 1, 8], "ver": 1}
+	ST.daily_upload(100, 75000, PackedInt32Array([2, 1, 8]), 1)
+	fk.emit_signal("leaderboard_find_result", 9, 1)   # 低分已送出、等回呼
+	ST.weekly_upload(6, 30, PackedInt32Array([1, 1, 100510]))
+	fk.emit_signal("leaderboard_find_result", 0, 0)   # 每週榜找榜失敗
+	var n_find := fk.finds.size()
+	ST.daily_upload(100, 80000, PackedInt32Array([2, 1, 8]), 1)
+	ok(fk.finds.size() == n_find, "每日榜還在途：高分照樣排隊，不會同時兩筆在途")
+	fk.emit_signal("leaderboard_score_uploaded", true, 9, {})
+	ok(SV.data.has("daily_pend"), "低分回呼成功不清高分待送")
 	# 每週
 	SV.data["weekly"] = {"wk": 5, "best": 40, "pend": 1, "det": [1, 1, 100510]}
 	ST.weekly_upload(5, 40, PackedInt32Array([1, 1, 100510]))
@@ -103,6 +114,7 @@ func test_board_double_v161() -> void:
 	ST._lb_sent = {}
 	ST._lb_busy = {}
 	ST._lb_next = {}
+	ST._lb_finding = []
 	fk.free()
 	for f in DirAccess.get_files_at("user://"):
 		if f.begins_with("t161lb_"):
