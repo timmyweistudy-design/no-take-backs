@@ -122,17 +122,25 @@ func _entry_action(key: String) -> Callable:
 
 const TOUR := [["rush_open", "hc_rush_d", "clock"], ["trio_open", "hc_trio_d", "people"], ["rift_open", "hc_rift_d", "swap"],
 	["fog_open", "hc_fog_d", "map"], ["ed_open", "hc_ed_d", "puzzle"], ["coop_open", "hc_coop_d", "people"]]
+func _tour_row_h(it: Array) -> float:
+	return maxf(56.0, maxf(text_h(L.t(str(it[1])), tz("C"), 900.0 - 80.0 - 300.0), text_h(L.t(str(it[0])), tz("S"), 220.0, true)) + 18.0)
+
 func _draw_tour() -> void:
 	var rows := TOUR.size()
-	var P := modal_rect(820, 12.0 + h1_help_h(L.t("tour_help"), tz("S"), 740) + GAP_L + rows * 64.0 + GAP_L + 44.0 + GAP_L)
+	var hsum := 0.0
+	for it0 in TOUR:
+		hsum += _tour_row_h(it0) + 8.0
+	var P := modal_rect(900, 12.0 + h1_help_h(L.t("tour_help"), tz("S"), 740) + GAP_L + hsum + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tour_title"), L.t("tour_help"), tz("S"), 740)
 	for i in rows:
 		var it: Array = TOUR[i]
-		var r := Rect2(P.position.x + 40, y + i * 64.0, P.size.x - 80, 56)
+		var rh := _tour_row_h(it)
+		var r := Rect2(P.position.x + 40, y, P.size.x - 80, rh)   # V1.6.1：列高照說明行數（英文長說明會換行）
+		y += rh + 8.0
 		var en: bool = not _demo() or str(it[0]) == "fog_open"
 		_btn(r, "", _entry_action(str(it[0])), en, i == 0)
-		_icon(str(it[2]), r.position + Vector2(30, 28), 26.0, ACCENT if en else TXT_DIM)
+		_icon(str(it[2]), r.position + Vector2(30, rh / 2.0), 26.0, ACCENT if en else TXT_DIM)
 		_text(r.position + Vector2(60, 6), L.t(str(it[0])), tz("S"), Color.WHITE if en else TXT_DIM, false, true, 220)
 		_text(r.position + Vector2(290, 8), L.t(str(it[1])), tz("C"), TXT_DIM, false, false, r.size.x - 300)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
@@ -664,7 +672,7 @@ func _draw_rush_end() -> void:
 	y += text_h(body, tz("B"), 480, true) + GAP_XL
 	_btn(Rect2(640 - 345, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_go(bool(rush.get("daily", false))), true, true)
 	var sh := str(rush.get("share", ""))
-	_btn(Rect2(640 - 110, y, 220, 50), L.t("sh_copy"), func(): DisplayServer.clipboard_set(sh); _toast(L.t("sh_copied")), sh != "")   # V1.6.1 D1：今日題組可以分享
+	_btn(Rect2(640 - 110, y, 220, 50), L.t("sh_copy_short"), func(): DisplayServer.clipboard_set(sh); _toast(L.t("sh_copied")), sh != "")   # V1.6.1 D1：今日題組可以分享
 	_btn(Rect2(640 + 125, y, 220, 50), L.t("back"), func(): overlay = "")
 
 ## ── #9 差一子教練 ──
@@ -966,14 +974,35 @@ func _rift_lab_start() -> void:
 func _draw_rift_lab() -> void:
 	var n := Rift.ANOMS.size()
 	var rows := ceili(n / 2.0)
-	var P := modal_rect(820, 12.0 + h1_help_h(L.t("rf_lab_help"), tz("S"), 740) + GAP_L + rows * 52.0 + GAP_L + 52.0 + GAP_M + 44.0 + GAP_L)
+	# V1.6.1：異變說明在英文會換兩、三行：每列高度照兩欄裡最長的那個（文字在按鈕裡自己排，不用按鈕標籤）
+	var rh: Array = []
+	var tot := 0.0
+	for ri in rows:
+		var h := 46.0
+		for c in 2:
+			var k0: int = ri * 2 + c
+			if k0 < n:
+				h = maxf(h, text_h("✓ " + L.t(str(Rift.ANOMS[k0][0])), tz("C"), 335.0) + 14.0)
+		rh.append(h)
+		tot += h + 6.0
+	var P := modal_rect(820, 12.0 + h1_help_h(L.t("rf_lab_help"), tz("S"), 740) + GAP_L + tot + GAP_L + 52.0 + GAP_M + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rf_lab"), L.t("rf_lab_help"), tz("S"), 740)
-	for k in n:
-		var kk := k
-		var on: bool = k in rift_lab
-		_btn(Rect2(640 - 370 + (k % 2) * 375, y + (k / 2) * 52.0, 365, 46), ("✓ " if on else "") + L.t(str(Rift.ANOMS[k][0])), func(): rift_lab_toggle(kk), true, k == 0, TH_ACTIVE if on else Color(0, 0, 0, 0))
-	y += rows * 52.0 + GAP_L
+	for ri in rows:
+		for c in 2:
+			var k: int = ri * 2 + c
+			if k >= n:
+				continue
+			var kk := k
+			var on: bool = k in rift_lab
+			var br := Rect2(640 - 370 + c * 375, y, 365, float(rh[ri]))
+			_btn(br, "", func(): rift_lab_toggle(kk), true, k == 0, TH_ACTIVE if on else Color(0, 0, 0, 0))
+			_probe_btn_label = true
+			_probe_btn_rect = br
+			_text(br.position + Vector2(15, 7), ("✓ " if on else "") + L.t(str(Rift.ANOMS[k][0])), tz("C"), Color.WHITE, false, on, 335.0)
+			_probe_btn_label = false
+		y += float(rh[ri]) + 6.0
+	y += GAP_L - 6.0
 	_btn(Rect2(640 - 160, y, 320, 52), L.t("rf_lab_go"), func(): overlay = ""; _rift_lab_start(), not rift_lab.is_empty(), true)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "rift")
 
@@ -1074,9 +1103,9 @@ func _career_settle() -> void:
 	var mvp = report.get("mvp")
 	Career.medal_add(md, sim.units, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1)
 	Save.data["medals"] = md
-	for k5 in m:
-		if Career.level(int(m[k5])) >= 5:
-			call("_ach", "MASTER_5")   # V1.6.1 D7
+	for t5 in ups:
+		if Career.level(int(m[str(t5)])) >= 5:
+			call("_ach", "MASTER_5")   # V1.6.1 D7：升到 5 級那一場才解（不是每場都檢查，避免截圖、老存檔每場跳）
 			break
 	if not ups.is_empty():
 		var t: int = ups[0]
@@ -1618,13 +1647,14 @@ func _draw_trio() -> void:
 	var pages := ceili(ss.size() / float(TRIO_PAGE))
 	trio_page = clampi(trio_page, 0, pages - 1)
 	var rows := ceili(mini(TRIO_PAGE, ss.size()) / 2.0)
-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tr_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tr_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_S + tz("C") * 1.3 + GAP_S + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("trio_open"), L.t("tr_help"), tz("S"), 680)
 	if pages > 1:
-		_btn_small(Rect2(P.position.x + 24, P.end.y - GAP_L - 44.0, 60, 44), "◀", func(): trio_page -= 1, trio_page > 0)
-		_text(Vector2(P.position.x + 134, P.end.y - GAP_L - 34.0), L.t("lb_page", [trio_page + 1, pages]), tz("S"), Color.WHITE, true, false, 90)
-		_btn_small(Rect2(P.position.x + 184, P.end.y - GAP_L - 44.0, 60, 44), "▶", func(): trio_page += 1, trio_page < pages - 1)
+		# 換頁鈕和返回鈕同一列、左右對稱（R4）；頁數寫在返回鈕上方
+		_btn_small(Rect2(560 - GAP_M - 60, P.end.y - GAP_L - 44.0, 60, 44), "◀", func(): trio_page -= 1, trio_page > 0)
+		_btn_small(Rect2(720 + GAP_M, P.end.y - GAP_L - 44.0, 60, 44), "▶", func(): trio_page += 1, trio_page < pages - 1)
+		_text(Vector2(640, P.end.y - GAP_L - 44.0 - GAP_S - tz("C") * 1.3), L.t("lb_page", [trio_page + 1, pages]), tz("C"), TXT_DIM, true, false, 200)
 	for i in range(trio_page * TRIO_PAGE, mini(ss.size(), trio_page * TRIO_PAGE + TRIO_PAGE)):
 		var s: Dictionary = ss[i]
 		var id := str(s["id"])
@@ -1765,16 +1795,17 @@ func _draw_coop_sum() -> void:
 		if bool(r[2]):
 			wins[int(r[1]) - 1] += 1
 	var foot := L.t("coop_sum_foot", [wins[0], wins[1]])
-	var P := modal_rect(720, 12.0 + h1_bottom(0.0) + GAP_L + rows.size() * 44.0 + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
+	var rowh := maxf(44.0, text_h(L.t("coop_mvp", [L.t("unit_19")]), tz("C"), 200.0) + 12.0)   # MVP 字在英文 150% 會換行：列高照它
+	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + rows.size() * rowh + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("coop_sum")) + GAP_L
 	for r in rows:
 		var line := L.t("coop_sum_row", [int(r[0]), int(r[1]), L.t("coop_w") if bool(r[2]) else L.t("coop_l")])
-		_text(Vector2(P.position.x + 40, y + 8), line, tz("S"), Color(0.75, 0.88, 1.0) if int(r[1]) == 1 else Color(1, 0.8, 0.75), false, true, 420)
+		_text(Vector2(P.position.x + 40, y + 8), line, tz("S"), Color(0.75, 0.88, 1.0) if int(r[1]) == 1 else Color(1, 0.8, 0.75), false, true, 380)
 		if int(r[3]) >= 0:
-			Art.unit(self, Vector2(P.end.x - 190, y + 40), int(r[3]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
-			_text(Vector2(P.end.x - 165, y + 10), L.t("coop_mvp", [L.t("unit_%d" % int(r[3]))]), tz("C"), ACCENT, false, false, 140)
-		y += 44.0
+			Art.unit(self, Vector2(P.end.x - 250, y + 40), int(r[3]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+			_text(Vector2(P.end.x - 225, y + 8), L.t("coop_mvp", [L.t("unit_%d" % int(r[3]))]), tz("C"), ACCENT, false, false, 200)
+		y += rowh
 	y += GAP_M
 	_text(Vector2(640, y), foot, tz("S"), Color.WHITE, true, false, 640)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")

@@ -970,13 +970,22 @@ func _draw_profile() -> void:
 	var earned: Array = Save.data.get("achievements", [])
 	var ach: Dictionary = SteamApi.ACHIEVEMENTS
 	var keys := ach.keys()
-	_text(Vector2(80, 448), L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), ACCENT, false, true, 600)
+	var ach_pages := ceili(keys.size() / float(ACH_PAGE))
+	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+	_text(Vector2(80, 448), L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), ACCENT, false, true, 330)
 	var hover_k := ""
-	for i2 in keys.size():
+	if ach_pages > 1:
+		# V1.6.1：37 個成就一頁放不下（四欄八列＝32），分頁；切換鈕在「成就」標題右邊
+		var px := 80.0 + minf(330.0, _width(L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), true)) + 16.0
+		_btn_small(Rect2(px, 440, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+		_text(Vector2(px + 84, 448 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 70)
+		_btn_small(Rect2(px + 124, 440, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
 		var k: String = keys[i2]
 		var on: bool = k in earned
-		var pos := Vector2(84 + (i2 % 4) * 279, 480 + (i2 / 4) * 30)   # V1.5：31 個成就排四欄（三欄會超出畫面）
-		var ar := Rect2(pos - Vector2(4, 1), Vector2(271, 28))
+		var j2 := i2 - pf_ach_page * ACH_PAGE
+		var pos := Vector2(84 + (j2 % 4) * 279, 488 + (j2 / 4) * 28)   # V1.5：四欄；V1.6.1：一頁八列
+		var ar := Rect2(pos - Vector2(4, 1), Vector2(271, 26))
 		if on:
 			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
 		else:
@@ -991,11 +1000,14 @@ func _draw_profile() -> void:
 		_text(Vector2(pos.x + 26, ar.get_center().y - text_h("Ag", tz("C"), 0.0) * 0.5), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 242)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
 	# V1.2.1：滑過成就，標題列右邊顯示解鎖條件（未解鎖的也看得到怎麼拿）
 	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
-	var cw2 := 640.0
+	var cw2 := 560.0
 	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
 	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): _nav_back())
 	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
 	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): call("_paint_open"))   # V1.4 #15 塗裝室
+
+const ACH_PAGE := 32
+var pf_ach_page := 0
 
 ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
 func _puzzle_hint() -> void:
