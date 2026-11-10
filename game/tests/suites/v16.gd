@@ -277,6 +277,12 @@ func test_workbench_v160() -> void:
 	var r: Dictionary = PZx.play(dz, [[1, 0, 4]])
 	ok(bool(r["ok"]) and int(r["stars"]) >= 1, "求和：兩隻盾兵遠遠站著，200 tick 後都在＝過關")
 	ok(WS.decode(WS.encode3(enemy, sol, "win"))["pz"]["en"] == "Workbench Puzzle", "出題台題目名")
+	var cp: String = WS.encode3(enemy, sol, "protect")
+	if cp != "":
+		var pp: Dictionary = WS.decode(cp)["pz"]
+		ok(pp["fixed"].size() == 1 and pp["goal_unit"] == [pp["fixed"][0][1], pp["fixed"][0][2]] and int(pp["fixed"][0][0]) == 3, "護送：最貴的兵（騎兵）變成固定兵")
+	var cf: String = WS.encode3(enemy, sol, "flawless")
+	ok(cf == "" or int(WS.decode(cf)["pz"]["goal_type"]) == 3, "完美：最多的兵種（騎兵 2 隻）")
 
 func test_trio_v160() -> void:
 	var TR = load("res://scripts/game/v16_trio.gd")

@@ -1056,3 +1056,10 @@ func _adj_draw(a) -> void:
 		return
 	for l in adj_links(a.units, func(u): return a.pos_of(u)):
 		_chalk_line(_foot_of(l[0]) - Vector2(0, 0.3 * CS), _foot_of(l[1]) - Vector2(0, 0.3 * CS), Color(1, 0.85, 0.3, 0.8), 2.5)
+
+## 熟練度外觀小物：3 級起在兵卡上畫星章（3、4 級銀、5 級金），圖鑑也看得到等級
+func _mastery_badge(r: Rect2, t: int) -> void:
+	var lv := Career.level(int(Save.data.get("mastery", {}).get(str(t), 0)))
+	if lv < 3:
+		return
+	_icon("star", r.position + Vector2(r.size.x / 2, 30), 16.0, Color("#ffd166") if lv >= 5 else Color("#d8dde6"))

@@ -9,7 +9,7 @@ const D = preload("res://scripts/core/unit_defs.gd")
 const PREFIX := "NTP1"
 const PREFIX2 := "NTP2"   # V1.4 #5 接力殘局：多一欄「第幾棒」n（1～99）；NTP1 照舊能用（n＝0）
 const PREFIX3 := "NTP3"   # V1.6 #16 出題台：多一欄目標 g（win／kill／survive／draw／margin）與參數；NTP1、NTP2 照舊
-const GOALS3 := ["win", "kill", "survive", "draw", "margin"]
+const GOALS3 := ["win", "kill", "survive", "draw", "margin", "protect", "flawless"]
 const MAX_UNITS := 40
 const MAX_LEN := 6000
 const ID := "ws"
@@ -80,9 +80,25 @@ static func encode3(enemy: Array, sol: Array, goal: String) -> String:
 	var code := "%s.%s.%s" % [PREFIX3, b, b.sha256_text().substr(0, 6)]
 	return code if bool(decode(code)["ok"]) else ""
 
-## 目標的細節（解碼時從敵陣算，不吃碼裡的數字：少一個能被竄改的欄位）
-static func goal_fields(goal: String, e: Array) -> Dictionary:
+## 目標的細節（解碼時從敵陣、作者解算，不吃碼裡的數字：少一個能被竄改的欄位）
+## protect：作者解裡最貴的兵（同價取欄、列最小）變成固定兵，要活到最後；flawless：作者解裡最多的兵種一隻都不能倒
+static func goal_fields(goal: String, e: Array, s: Array = []) -> Dictionary:
 	match goal:
+		"protect":
+			var pb: Array = s[0]
+			for u in s:
+				if D.cost(int(u[0])) > D.cost(int(pb[0])) or (D.cost(int(u[0])) == D.cost(int(pb[0])) and (int(u[1]) * 16 + int(u[2])) < (int(pb[1]) * 16 + int(pb[2]))):
+					pb = u
+			return {"goal": "protect", "goal_unit": [int(pb[1]), int(pb[2])], "fixed": [[int(pb[0]), int(pb[1]), int(pb[2])]]}
+		"flawless":
+			var cnt := {}
+			for u in s:
+				cnt[int(u[0])] = int(cnt.get(int(u[0]), 0)) + 1
+			var bt := int(s[0][0])
+			for t in cnt:
+				if int(cnt[t]) > int(cnt[bt]) or (int(cnt[t]) == int(cnt[bt]) and int(t) < bt):
+					bt = int(t)
+			return {"goal": "flawless", "goal_type": bt}
 		"kill":
 			var best: Array = e[0]
 			for u in e:
@@ -143,7 +159,16 @@ static func decode(code: String) -> Dictionary:
 		var g = j.get("g")
 		if not g is String or not g in GOALS3:
 			return bad
-		pz.merge(goal_fields(g, e), true)
+		var gf := goal_fields(g, e, s)
+		pz.merge(gf, true)
+		if gf.has("fixed"):
+			# 護送：被護送的兵是固定兵，解題的人擺其他的；作者解扣掉它、預算也扣掉它的錢
+			var fx: Array = gf["fixed"][0]
+			s = s.filter(func(u): return not (int(u[1]) == int(fx[1]) and int(u[2]) == int(fx[2])))
+			pz["budget"] = int(pz["budget"]) - D.cost(int(fx[0]))
+			pz["star3"] = int(pz["budget"])
+			if s.is_empty():
+				return bad
 		pz["zh"] = "出題台殘局"
 		pz["en"] = "Workbench Puzzle"
 		pz["hint_zh"] = "朋友出的題，作者的解證明它解得開。"

@@ -638,6 +638,7 @@ func _draw_place_hud() -> void:
 			probe_ctrls.append(r)   # 兵卡是控制項：卡上的小字不算「要讀的文字」段數
 		# 三層卡：上＝快捷鍵、價錢；中＝全身圖；下＝已擺數量、?
 		Art.unit(self, r.position + Vector2(r.size.x / 2, 74), i, a.team, 1.0, 0.0, 0.0, 0.0, (1.0 if afford else 0.45) if opened else 0.25, time, 0.78, cbm())
+		call("_mastery_badge", r, i)   # V1.6 #12：熟練度 3 級起，卡上兵的頭頂多一顆星章
 		var fz := tz("C")
 		_text(r.position + Vector2(5, 3), "%d" % ((_card_types().find(i) + 1) % 10), fz, TXT_DIM, false, false, 20)
 		if opened:
