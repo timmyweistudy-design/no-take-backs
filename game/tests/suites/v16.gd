@@ -141,3 +141,31 @@ func test_rush_v160() -> void:
 		last_ch = c
 	ok(bad == 0, "只收打贏型、沒有地圖／軍令／上限；章節由淺到深")
 	ok(RU.after(10.0, true) == 30.0 and RU.after(10.0, false) == -5.0, "解開 +20、失敗 −15")
+
+func test_coach_v160() -> void:
+	var CO = load("res://scripts/game/v16_coach.gd")
+	var Army = load("res://scripts/core/army.gd")
+	var a = Army.new(0, 100)
+	for r in [2, 4, 6]:
+		a.place(3, 4, r)
+	var e = Army.new(1, 100)
+	e.place(0, 10, 4)
+	var cs: Array = CO.candidates(a)
+	ok(cs.size() >= 6 and cs[0][1] == 5, "候選：往前優先（%d 個）" % cs.size())
+	var b = CO.moved(a, cs[0])
+	ok(b.units.size() == a.units.size(), "只動一隻，不少兵")
+	var res: Dictionary = CO.search(a, e, null, {}, 15)
+	ok(bool(res["found"]) and int(res["tries"]) == 1 and res["to"].x == res["from"].x + 1, "大優勢：第一個候選就贏")
+	var weak = Army.new(0, 100)
+	weak.place(0, 0, 4)
+	var strong = Army.new(1, 100)
+	for r in [1, 3, 5, 7]:
+		strong.place(3, 10, r)
+	var r2: Dictionary = CO.search(weak, strong, null, {}, 15)
+	ok(not bool(r2["found"]) and int(r2["tries"]) <= 15, "差太多：找不到、最多 15 次")
+	var pz: Dictionary = load("res://scripts/game/puzzles.gd").get_puzzle("p1")
+	var pa = load("res://scripts/game/puzzles.gd").player_army(pz)
+	for c in CO.candidates(pa, pz):
+		var u: Dictionary = pa.units[int(c[0])]
+		ok(not load("res://scripts/game/puzzles.gd").is_fixed(pz, int(u["col"]), int(u["row"])), "殘局固定兵不動")
+		break

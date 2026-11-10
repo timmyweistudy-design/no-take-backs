@@ -334,6 +334,8 @@ func _draw_result() -> void:
 			n_main += 1
 		else:
 			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
+	if bool(call("coach_ok")):
+		bs.append([L.t("co_btn"), func(): call("_coach_open")])   # V1.6 #9 差一子教練
 	# V1.6 #5／B25：出題碼、戰報明信片、分享格、精華時刻收進一顆「分享」（按鈕列不再擠）
 	if play_kind == "official" and not watch_mode:
 		bs.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])

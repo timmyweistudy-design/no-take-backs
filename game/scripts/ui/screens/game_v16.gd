@@ -48,9 +48,6 @@ func _v16_tick(_delta: float) -> void:
 	_rush_tick(_delta)
 	_v16_jobs(_delta)
 
-func _v16_jobs(_delta: float) -> void:
-	pass
-
 func _open_codex(t: int) -> void:
 	Funnel.mark("codex_open")
 	super._open_codex(t)
@@ -140,6 +137,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_share()
 		"rush_end":
 			_draw_rush_end()
+		"coach":
+			_draw_coach()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -450,3 +449,97 @@ func _draw_rush_end() -> void:
 	y += text_h(body, tz("B"), 480, true) + GAP_XL
 	_btn(Rect2(640 - 230, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_start(), true, true)
 	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
+
+## ── #9 差一子教練 ──
+const Coach = preload("res://scripts/game/v16_coach.gd")
+var co_thread: Thread = null
+var co_res := {}       # 搜尋結果
+var co_layer := 0      # 0 還沒看、1 哪一隻、2 往哪、3 直接擺
+var co_key := ""       # 這一場的識別（換場就重算）
+
+func _coach_pz() -> Dictionary:
+	return PZ.get_puzzle(puzzle_id) if mode == Mode.PUZZLE else {}
+
+func coach_ok() -> bool:
+	if play_kind != "official" or watch_mode or sim == null or sim.winner == 0 or last_armies.size() != 2:
+		return false
+	if bool(rush.get("on", false)) or not (mode == Mode.PUZZLE or mode == Mode.VS_AI):
+		return false
+	if mode == Mode.PUZZLE and bool(report.get("goal_ok", false)):
+		return false
+	return Coach.supported(last_armies[0], battle_rules, _coach_pz())
+
+func _coach_open() -> void:
+	var key := "%d:%s:%d" % [mode, puzzle_id, last_armies[0].units.hash()]
+	if key != co_key:
+		co_key = key
+		co_res = {}
+		co_layer = 0
+		var a0 = last_armies[0].copy()
+		var a1 = last_armies[1].copy()
+		var rr = battle_rules.copy() if battle_rules != null else null
+		var pz := _coach_pz()
+		if DisplayServer.get_name() == "headless" or shot_dir != "":
+			co_res = Coach.search(a0, a1, rr, pz)
+		else:
+			co_thread = Thread.new()
+			co_thread.start(func(): return Coach.search(a0, a1, rr, pz))
+	overlay = "coach"
+	_focus = 0
+
+func _v16_jobs(_delta: float) -> void:
+	if co_thread != null and not co_thread.is_alive():
+		co_res = co_thread.wait_to_finish()
+		co_thread = null
+
+func _coach_apply() -> void:
+	if not bool(co_res.get("found", false)):
+		return
+	if mode == Mode.PUZZLE:
+		var b = co_res["army"]
+		armies[0] = b.copy()
+		overlay = ""
+		state = St.PLACE
+		_start_mode(Mode.PUZZLE)
+		armies[0] = b.copy()   # _start_mode 會重設陣型：重設之後再擺回教練的陣
+		_toast(L.t("co_applied"))
+	else:
+		# 對 AI：敵陣會換，所以改在覆盤裡套用（同一支敵軍），直接看「如果」
+		call("_open_review")
+		set("rv_army", co_res["army"].copy())
+		call("_rv_dirty")
+		call("_rv_recalc")
+
+func _dir_name(f: Vector2i, t: Vector2i) -> String:
+	if t.x > f.x:
+		return L.t("co_fwd")
+	if t.x < f.x:
+		return L.t("co_back")
+	return L.t("co_up") if t.y < f.y else L.t("co_down")
+
+func _draw_coach() -> void:
+	var busy := co_thread != null
+	var found: bool = bool(co_res.get("found", false))
+	var lines: Array = []
+	if busy:
+		lines.append(L.t("co_busy"))
+	elif not found:
+		lines.append(L.t("co_none", [int(co_res.get("tries", 0))]))
+	else:
+		var tn := L.t("unit_%d" % int(co_res["type"]))
+		lines.append(L.t("co_l1", [tn]))
+		if co_layer >= 2:
+			lines.append(L.t("co_l2", [_dir_name(co_res["from"], co_res["to"])]))
+	var body := "\n".join(lines)
+	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help"), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + GAP_XL + 50.0 + GAP_M + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("co_title"), L.t("co_help"), tz("S"), 540)
+	_text(Vector2(640, y), body, tz("B"), Color.WHITE, true, true, 540)
+	y += text_h(body, tz("B"), 540) + GAP_XL
+	if found and co_layer < 2:
+		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_more"), func(): co_layer = 2, true, true)
+	elif found:
+		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_apply") if mode == Mode.PUZZLE else L.t("co_review"), func(): _coach_apply(), true, true)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+	if found and co_layer < 1:
+		co_layer = 1
