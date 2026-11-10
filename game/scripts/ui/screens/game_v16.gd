@@ -1327,6 +1327,8 @@ var ed_goal := 0
 var ed_msg := ""
 var ed_target := Vector2i(-1, -1)   # V1.6.1 A2：作者指定的目標（斬首＝敵兵、護送／完美＝自己的兵）；-1＝自動
 var ed_pick := false               # 正在點選目標
+var ed_foe_i := 0                  # V1.6.1 D2：三考題正在編第幾支敵陣
+var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
 const ED_CS := 32.0
 
 func _ed_rect() -> Rect2:
@@ -1349,7 +1351,7 @@ func ed_toggle(c: Vector2i) -> void:
 	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
 		return
 	if ed_pick:
-		var want_foe: bool = WS3.GOALS3[ed_goal] == "kill"
+		var want_foe: bool = WS3.ED_GOALS[ed_goal] == "kill"
 		if ed_cells.has(c) and (c.x >= 10) == want_foe:
 			ed_target = c
 			ed_pick = false
@@ -1367,13 +1369,43 @@ func ed_toggle(c: Vector2i) -> void:
 
 func _ed_make() -> void:
 	var l := ed_lists()
-	var code := WS3.encode4(l[0], l[1], WS3.GOALS3[ed_goal], ed_target)
+	var code := ""
+	if WS3.ED_GOALS[ed_goal] == "trio":
+		_ed_sync_foe()
+		var fl: Array = []
+		for f in ed_foes:
+			var e: Array = []
+			for k in f:
+				e.append([int(f[k]), k.x, k.y])
+			e.sort()
+			fl.append(e)
+		code = WS3.encode_trio(fl, l[1])
+	else:
+		code = WS3.encode4(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target)
 	if code == "":
 		ed_msg = L.t("ed_fail")
 		return
 	DisplayServer.clipboard_set(code)
 	ed_msg = L.t("ed_ok")
 	_toast(L.t("ws_copied"))
+
+## 三考題：右半邊的格子存回目前這一支敵陣
+func _ed_sync_foe() -> void:
+	var f := {}
+	for k in ed_cells:
+		if k.x >= 10:
+			f[k] = ed_cells[k]
+	ed_foes[ed_foe_i] = f
+
+func _ed_switch_foe(i: int) -> void:
+	_ed_sync_foe()
+	for k in ed_cells.keys():
+		if k.x >= 10:
+			ed_cells.erase(k)
+	ed_foe_i = i
+	for k in ed_foes[i]:
+		ed_cells[k] = ed_foes[i][k]
+	ed_msg = ""
 
 func _draw_editor() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.7))
@@ -1396,11 +1428,17 @@ func _draw_editor() -> void:
 				Art.unit(self, r.position + Vector2(ED_CS / 2, ED_CS * 0.82), int(ed_cells[k]), 0 if cx <= 5 else 1, 1.0 if cx <= 5 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
 				if k == ed_target:
 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
-					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.GOALS3[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
+					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
 			if cx <= 5 or cx >= 10:
 				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true})
 	_text(G.position + Vector2(3 * ED_CS, -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ED_CS)
-	_text(G.position + Vector2(13 * ED_CS, -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ED_CS)
+	if WS3.ED_GOALS[ed_goal] == "trio":
+		# 三考：敵陣 1／2／3 分頁（欄標的位置）
+		for fi in 3:
+			var ffi := fi
+			_btn_small(Rect2(G.position + Vector2(10 * ED_CS + fi * 2 * ED_CS, -tz("C") * 1.6 - 6), Vector2(2 * ED_CS - 4, tz("C") * 1.5 + 4)), L.t("ed_foe_n", [fi + 1]), func(): _ed_switch_foe(ffi), true, false, TH_ACTIVE if ed_foe_i == fi else Color(0, 0, 0, 0))
+	else:
+		_text(G.position + Vector2(13 * ED_CS, -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ED_CS)
 	y = G.end.y + GAP_M
 	# 兵種調色盤（20 種，兩排）
 	for t in 20:
@@ -1418,8 +1456,8 @@ func _draw_editor() -> void:
 	_text(Vector2(640, y), info, tz("S"), Color.WHITE, true, false, 1000)
 	y += tz("S") * 1.4 + GAP_M
 	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
-	var gname: String = WS3.GOALS3[ed_goal]
-	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.GOALS3.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false
+	var gname: String = WS3.ED_GOALS[ed_goal]
+	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false
 	if gname in WS3.PICK_GOALS:
 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
@@ -1432,7 +1470,7 @@ func _draw_editor() -> void:
 		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
 	var by := P.end.y - GAP_L - 48.0
 	_btn(Rect2(640 - 3 * 150 - 20, by, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
-	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false)
+	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
 	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): overlay = "")
 
 ## ── #17 一陣三考 ──
@@ -1441,7 +1479,20 @@ var trio_on := false
 var trio_i := 0
 var trio_res: Array = []
 
+var trio_custom := {}   # V1.6.1 D2：朋友用出題台出的三考題（不存紀錄）
+func _trio_set() -> Dictionary:
+	return trio_custom if not trio_custom.is_empty() else Trio.sets()[trio_i]
+
+func _trio_start_custom(ts: Dictionary) -> void:
+	trio_custom = ts
+	PZ.set_custom(Trio.make_pz(ts, 0))
+	puzzle_id = "ws"
+	overlay = ""
+	_start_mode(Mode.PUZZLE)
+	trio_on = true
+
 func _trio_start(i: int) -> void:
+	trio_custom = {}
 	trio_i = i
 	PZ.set_custom(Trio.make_pz(Trio.sets()[i], 0))
 	puzzle_id = "ws"
@@ -1459,7 +1510,7 @@ func _trio_settle() -> void:
 	for u in last_armies[0].units:
 		extra.append([int(u["type"]), int(u["col"]), int(u["row"])])
 	trio_extra = extra
-	var s: Dictionary = Trio.sets()[trio_i]
+	var s: Dictionary = _trio_set()
 	var oc: Dictionary = PZ.outcome(PZ.get_puzzle("ws"), sim, last_armies[0].spent())
 	trio_res = [{"ok": bool(oc["ok"]), "rem": int(oc["rem"]), "spent": int(oc["spent"])}]
 	trio_st = 0
@@ -1485,9 +1536,9 @@ func _trio_jobs() -> void:
 			_trio_done()
 
 func _trio_done() -> void:
-	var s: Dictionary = Trio.sets()[trio_i]
+	var s: Dictionary = _trio_set()
 	trio_st = Trio.stars(s, trio_res)
-	if trio_st >= 1:
+	if trio_st >= 1 and trio_custom.is_empty():   # 朋友出的三考題不存紀錄
 		var cl: Dictionary = Save.data.get("trio_clear", {})
 		var id := str(s["id"])
 		var sp: int = last_armies[0].spent()
@@ -1502,26 +1553,34 @@ func _trio_done() -> void:
 
 ## 看第 k 場（同一套陣對第 k 支敵軍；當成觀戰，不算紀錄）
 func _trio_watch(k: int) -> void:
-	var pz: Dictionary = Trio.make_pz(Trio.sets()[trio_i], k)
+	var pz: Dictionary = Trio.make_pz(_trio_set(), k)
 	var a0 = PZ.player_army(pz)
 	for e in trio_extra:
 		a0.units.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
 	trio_on = false
 	call("watch_code", a0, PZ.enemy_army(pz), PZ.rules_of(pz))
 
+const TRIO_PAGE := 10   # V1.6.1 D2：題組 20 組，一頁 10 組
+var trio_page := 0
 func _draw_trio() -> void:
 	var ss := Trio.sets()
 	var cl: Dictionary = Save.data.get("trio_clear", {})
-	var rows := ceili(ss.size() / 2.0)
+	var pages := ceili(ss.size() / float(TRIO_PAGE))
+	trio_page = clampi(trio_page, 0, pages - 1)
+	var rows := ceili(mini(TRIO_PAGE, ss.size()) / 2.0)
 	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tr_help"), tz("S"), 680) + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("trio_open"), L.t("tr_help"), tz("S"), 680)
-	for i in ss.size():
+	if pages > 1:
+		_btn_small(Rect2(P.position.x + 24, P.end.y - GAP_L - 44.0, 60, 44), "◀", func(): trio_page -= 1, trio_page > 0)
+		_text(Vector2(P.position.x + 134, P.end.y - GAP_L - 34.0), L.t("lb_page", [trio_page + 1, pages]), tz("S"), Color.WHITE, true, false, 90)
+		_btn_small(Rect2(P.position.x + 184, P.end.y - GAP_L - 44.0, 60, 44), "▶", func(): trio_page += 1, trio_page < pages - 1)
+	for i in range(trio_page * TRIO_PAGE, mini(ss.size(), trio_page * TRIO_PAGE + TRIO_PAGE)):
 		var s: Dictionary = ss[i]
 		var id := str(s["id"])
 		var lbl := L.t("tr_row", [i + 1, int(s["budget"])]) + ("　✓ %dg" % int(cl[id]) if cl.has(id) else "")
 		var ii := i
-		var br := Rect2(640 - 350 + (i % 2) * 360, y + (i / 2) * 56.0, 340, 48)
+		var br := Rect2(640 - 350 + (i % 2) * 360, y + ((i % TRIO_PAGE) / 2) * 56.0, 340, 48)
 		_btn(br, lbl, func(): _trio_start(ii), true, i == 0)
 		var tst := int(Save.data.get("trio_stars", {}).get(id, 1 if cl.has(id) else 0))   # V1.6.1 A3：整組星數（舊紀錄只有過關＝1 星）
 		for ks in 3:
@@ -1529,7 +1588,7 @@ func _draw_trio() -> void:
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 func _draw_trio_result() -> void:
-	var s: Dictionary = Trio.sets()[trio_i]
+	var s: Dictionary = _trio_set()
 	var done := trio_res.size() == 3
 	var all_ok := done and trio_st >= 1
 	var foot: String = L.t("tr_busy") if not done else (L.t("tr_pass_st", [Trio.rem_avg(trio_res), Trio.spent_pct(s, trio_res), Trio.s2_of(s), Trio.s3_of(s)]) if all_ok else L.t("tr_fail"))
@@ -1559,7 +1618,7 @@ func _draw_trio_result() -> void:
 	for ks in 3:
 		_icon("star", Vector2(640 - 30 + ks * 30, y + 13), 24.0, Color("#ffd166") if ks < trio_st else Color(1, 1, 1, 0.2))
 	y += 26.0 + GAP_L
-	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start(trio_i), not trio_busy, true)
+	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start_custom(trio_custom) if not trio_custom.is_empty() else _trio_start(trio_i), not trio_busy, true)
 	_btn(Rect2(650, y, 220, 50), L.t("back"), func(): overlay = "")
 
 ## ── #20 迷霧推演：對 AI（普通）；開戰前斥候回報約三分之一的敵兵（依欄、列排序後每 3 隻露 1 隻，固定不隨機），其他要猜。

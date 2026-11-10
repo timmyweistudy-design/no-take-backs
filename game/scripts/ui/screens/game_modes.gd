@@ -331,12 +331,19 @@ func _accept_workshop(c := "") -> void:
 	if _demo():
 		var dm: int = RS.mask(true)
 		var ts: Array = pz["allowed"].duplicate()   # Codex v110-impl2：可用兵種表也要在試玩版範圍內
-		for e in pz["enemy"] + d["sol"]:
+		var all_e: Array = pz["enemy"] + d["sol"]
+		if d.has("trio"):
+			for f in d["trio"]["foes"]:
+				all_e += f   # V1.6.1 D2：三考碼三支敵陣都要在試玩版範圍內
+		for e in all_e:
 			ts.append(int(e[0]))
 		for t0 in ts:
 			if not RuleSet.has(dm, int(t0)):
 				_toast(L.t("demo_locked"), true)
 				return
+	if d.has("trio"):
+		call("_trio_start_custom", d["trio"])   # V1.6.1 D2：朋友出的一陣三考
+		return
 	PZ.set_custom(pz)
 	puzzle_id = "ws"
 	_start_mode(Mode.PUZZLE)

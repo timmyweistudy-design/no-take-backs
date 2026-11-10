@@ -283,3 +283,20 @@ func test_coop_log_v161() -> void:
 	ok(S.sanitize_run(run)["clog"] == [], "長度不是 4 的倍數就丟")
 	run["clog"] = [1, 1, 1, 0]
 	ok(S.sanitize_run(run)["clog"] == [1, 1, 1, 0], "正常的留下")
+
+func test_trio_code_v161() -> void:
+	var WS = load("res://scripts/game/workshop.gd")
+	var TR = load("res://scripts/game/v16_trio.gd")
+	var s: Dictionary = TR.sets()[0]
+	var code: String = WS.encode_trio(s["foes"], s["sol"])
+	ok(code.begins_with("NTP4."), "出題台出三考題（D2）")
+	var d: Dictionary = WS.decode(code)
+	ok(bool(d["ok"]) and d.has("trio") and (d["trio"]["foes"] as Array).size() == 3, "三考碼解得回來")
+	ok(WS.encode_trio([s["foes"][0], s["foes"][1]], s["sol"]) == "", "少一支敵陣不給碼")
+	ok(TR.sets().size() == 20, "題組 20 組")
+
+func test_trio_sol3_v161() -> void:
+	var TR = load("res://scripts/game/v16_trio.gd")
+	for s in TR.sets():
+		ok(s.has("sol3") and TR.stars(s, TR.results(s, s["sol3"])) == 3, "每組都有可重現的三星解（A3）：" + str(s["id"]))
+		ok(TR.stars(s, TR.results(s, s["sol"])) >= 1, "作者解三場都贏：" + str(s["id"]))

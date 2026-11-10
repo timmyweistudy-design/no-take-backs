@@ -13,6 +13,8 @@ const PREFIX3 := "NTP3"   # V1.6 #16 出題台：多一欄目標 g（win／kill�
 const GOALS3 := ["win", "kill", "survive", "draw", "margin", "protect", "flawless"]
 const PREFIX4 := "NTP4"   # V1.6.1 A2：出題台作者自己指定目標（多一欄 t＝[欄, 列]：斬首＝敵兵、護送＝己兵、完美＝那隻兵的兵種）；NTP1～3 照舊
 const PICK_GOALS := ["kill", "protect", "flawless"]
+const ED_GOALS := ["win", "kill", "survive", "draw", "margin", "protect", "flawless", "trio"]   # 出題台的目標（V1.6.1 D2 多一種：一陣三考）
+const Trio = preload("res://scripts/game/v16_trio.gd")
 const MAX_UNITS := 40
 const MAX_LEN := 6000
 const ID := "ws"
@@ -100,6 +102,45 @@ static func encode4(enemy: Array, sol: Array, goal: String, t: Vector2i) -> Stri
 	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
 	var code := "%s.%s.%s" % [PREFIX4, b, b.sha256_text().substr(0, 6)]
 	return code if bool(decode(code)["ok"]) else ""
+
+## V1.6.1 D2：出題台出「一陣三考」題：三支敵陣＋作者解（要三場都贏才給碼）。NTP4，g＝"trio"、e3＝三支敵陣。
+static func encode_trio(foes: Array, sol: Array) -> String:
+	if foes.size() != 3:
+		return ""
+	var e3: Array = []
+	for f in foes:
+		var e := _clean(f, 10, 15)
+		if e.is_empty():
+			return ""
+		e3.append(e)
+	var s := _clean(sol, 0, 5)
+	if s.is_empty():
+		return ""
+	var allowed: Array = []
+	for u in s:
+		if not int(u[0]) in allowed:
+			allowed.append(int(u[0]))
+	allowed.sort()
+	var j := JSON.stringify({"v": 4, "e": e3[0], "e3": e3, "s": s, "a": allowed, "g": "trio"})
+	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	var code := "%s.%s.%s" % [PREFIX4, b, b.sha256_text().substr(0, 6)]
+	return code if bool(decode(code)["ok"]) else ""
+
+## 三考碼解出來的題組（和 data/trio.json 同格式；id＝碼的雜湊）
+static func trio_set_of(j: Dictionary, s: Array, allowed: Array) -> Dictionary:
+	var e3 = j.get("e3")
+	if not e3 is Array or e3.size() != 3:
+		return {}
+	var foes: Array = []
+	for f in e3:
+		var e := _clean(f, 10, 15)
+		if e.is_empty():
+			return {}
+		foes.append(e)
+	var spent := 0
+	for u in s:
+		spent += D.cost(int(u[0]))
+	return {"id": "c" + JSON.stringify(foes).md5_text().substr(0, 8), "budget": spent, "allowed": allowed, "foes": foes, "sol": s}
 
 ## 指定的目標要真的有那隻兵（斬首在敵陣、護送與完美在作者解）；不對回 {}。
 static func pick_fields(goal: String, e: Array, s: Array, t) -> Dictionary:
@@ -195,6 +236,13 @@ static func decode(code: String) -> Dictionary:
 	else:
 		L.fill(pz, "", "rl_title", [relay])
 	L.fill(pz, "hint", "ws_pz_hint")   # V1.6.1 F6：四種語言都從字串表來
+	if vv == 4 and j.get("g") == "trio":
+		var ts := trio_set_of(j, s, allowed)
+		if ts.is_empty():
+			return bad
+		if Trio.stars(ts, Trio.results(ts, s)) < 1:
+			return {"ok": false, "why": "ws_unsolved"}
+		return {"ok": true, "pz": Trio.make_pz(ts, 0), "sol": s, "trio": ts, "why": ""}
 	if vv >= 3:
 		var g = j.get("g")
 		if not g is String or not g in GOALS3 or (vv == 4 and not g in PICK_GOALS):

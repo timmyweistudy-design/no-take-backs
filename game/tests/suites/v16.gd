@@ -289,7 +289,7 @@ func test_workbench_v160() -> void:
 func test_trio_v160() -> void:
 	var TR = load("res://scripts/game/v16_trio.gd")
 	var ss: Array = TR.sets()
-	ok(ss.size() == 10, "一陣三考 10 組")
+	ok(ss.size() == 20, "一陣三考 20 組（V1.6.1 D2 從 10 組擴充，前 10 組不變）")
 	var bad := 0
 	for s in ss:
 		var res: Array = TR.check(s, s["sol"])

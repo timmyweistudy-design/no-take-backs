@@ -7,7 +7,7 @@ const Army = preload("res://scripts/core/army.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 
-const SETS := 10
+var SETS := 10   # V1.6.1 D2：-- --sets=20 擴到 20 組（前 10 組照舊：同一串種子依序產生）
 
 func wins(a, e) -> bool:
 	var s = Sim.new(a.copy(), e.copy())
@@ -23,6 +23,9 @@ func cells(a) -> Array:
 	return out
 
 func _init() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--sets="):
+			SETS = int(a.substr(7))
 	var out: Array = []
 	var seed := 5100
 	while out.size() < SETS and seed < 9000:
