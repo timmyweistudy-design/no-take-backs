@@ -220,7 +220,7 @@ func _draw_result() -> void:
 			_btns.append({"r": Rect2(mx - 18, ch.position.y, 36, ch.size.y), "cb": func(): _replay_from(tt), "en": true})
 		_text(Vector2(250, ch.end.y + 4), L.t("mom_caption"), tz("C"), TXT_DIM, false, false, 780)
 		y = ch.end.y + tz("C") * 1.6 + 6
-		if mvp != null:
+		if mvp != null and not (loss != "" and mvp.team == 1):   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
 			var mr := Rect2(250, y, 780, 76)
 			_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
 			_icon("trophy", mr.end - Vector2(34, 38), 34.0)
@@ -302,14 +302,14 @@ func _draw_result() -> void:
 				var tid: int = get("trial_id")
 				if w == 0 and tid + 1 < get("TRIALS").size():
 					bs.append([L.t("next_puzzle"), func(): call("_start_trial", tid + 1)])
-				bs.append([L.t("retry"), func(): call("_start_trial", tid)])
+				bs.append([L.t("retry"), func(): _mark_retry(); call("_start_trial", tid); _apply_retry()])
 				bs.append([L.t("trial_title"), func():
 					_go_title()
 					_open("trials")])
 			else:
 				bs.append([(L.t("sealed_again") if bool(get("sealed_on")) else L.t("new_match")) if series_over else L.t("next_round"), func(): _next_round()])
 		Mode.TUTORIAL, Mode.PUZZLE:
-			bs.append([L.t("retry"), func(): _start_mode(mode)])
+			bs.append([L.t("retry"), func(): _mark_retry(); _start_mode(mode)])
 			if ((w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false))) and puzzle_id != "ws":
 				bs.append([L.t("next_puzzle"), func(): _next_puzzle()])
 			if puzzle_id == "ws" and bool(report.get("goal_ok", false)) and play_kind == "official" and not bool(get("trio_on")):
@@ -500,7 +500,11 @@ func _loss_line(w: int, goal_mode: bool) -> String:
 	var lost: bool = (bool(report.get("goal_ok", true)) == false) if goal_mode else (w == 1)
 	if not lost:
 		return ""
-	return loss_summary(ev_count, _loss_pool())
+	var line := loss_summary(ev_count, _loss_pool())
+	var st: Dictionary = Save.data.get("stats", {})
+	if line != "" and int(st.get("wins", 0)) == 0 and int(st.get("games", 0)) <= 2 and (mode == Mode.VS_AI or mode == Mode.TUTORIAL):
+		line = L.t("loss_first", [line])   # V1.0.0 N6：前兩場還沒贏過：先講「輸很正常」再給建議
+	return line
 
 func _loss_pool() -> Array:
 	if mode == Mode.PUZZLE or mode == Mode.TUTORIAL:

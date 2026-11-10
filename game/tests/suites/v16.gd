@@ -37,7 +37,13 @@ func test_guide_v160() -> void:
 	d["eff_games"] = 3
 	ok(G.next_step(d, false, false) == "puzzle", "打過了：殘局")
 	d["puzzle_stars"] = {"p1": 1}
+	ok(G.next_step(d, false, false) == "puzzle_more", "V1.0.0 N6：前 5 關、還沒贏過 AI：繼續殘局")
+	d["stats"] = {"games": 3, "wins": 1}
 	ok(G.next_step(d, false, false) == "daily" and G.next_step(d, false, true) == "", "完整版接每日；試玩版不推沒開的模式")
+	d["gauntlet_run"] = {"stage": 3}
+	ok(G.next_step(d, false, false) == "gauntlet_cont" and G.next_step(d, false, true) != "gauntlet_cont", "有沒打完的遠征：先接著打（試玩版不推）")
+	d.erase("gauntlet_run")
+	ok(G.next_puzzle_id({"puzzle_stars": {"a": 1}}, [{"id": "a"}, {"id": "b"}]) == "b" and G.next_puzzle_id({"puzzle_stars": {"a": 1}}, [{"id": "a"}]) == "", "下一個沒過的殘局")
 	d["gauntlet_best"] = 2
 	d["funnel"] = {"playroom_open": 1}
 	d["trial_stars"] = {"0": 1}

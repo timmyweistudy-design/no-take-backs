@@ -112,8 +112,43 @@ func _reset_place(keep_blue := false) -> void:
 				var nt: String = call("nemesis_title", Save.data["nemeses"][int(get("gauntlet_nemesis"))])
 				ai_name = nt
 				_toast(L.t("nem_back", [nt, int(Save.data["nemeses"][int(get("gauntlet_nemesis"))].get("losses", 1))]) + "\n" + L.t("ps_nemesis", [nt]))   # V1.6 #11
+	if not retry_key.begins_with("tr:"):
+		_apply_retry()   # 試煉的 trial_id 在 _start_mode 之後才設：由「重打」自己在 _start_trial 後套用
 	sfx.play_music("music_place")
 	sfx.play_ambience(str(MapArt.BIOME.get(MapDefs.MAPS[rules.map_id if rules != null and rules.is_free() else 0]["biome"], {}).get("sound", "")))
+
+## V1.0.0 R1：殘局、試煉按「重打」保留上次的擺法（現在會重設成關卡初始）；擺不回去的（規則變了）就略過。
+## 結果頁的「重打」設 retry_key／retry_units；換關、換模式就不帶。擺陣畫面原本的「清空」照舊可以清掉。
+var retry_key := ""
+var retry_units: Array = []
+func retry_key_now() -> String:
+	if mode == Mode.PUZZLE or mode == Mode.TUTORIAL:
+		return "pz:" + puzzle_id
+	if mode == Mode.VS_AI and int(get("trial_id")) >= 0:
+		return "tr:%d" % int(get("trial_id"))
+	return ""
+
+func _mark_retry() -> void:
+	retry_key = retry_key_now()
+	retry_units = last_armies[0].units.duplicate(true) if not last_armies.is_empty() else []
+
+func _apply_retry() -> void:
+	var k := retry_key
+	var us := retry_units
+	retry_key = ""
+	retry_units = []
+	if k == "" or k != retry_key_now() or armies.is_empty():
+		return
+	var a = armies[0]
+	for u in us:
+		var p: Vector2i = Army.pos_of(u)
+		var here := false
+		for v in a.units:
+			if int(v["type"]) == int(u["type"]) and Army.pos_of(v) == p:
+				here = true   # 固定兵、已經在的
+				break
+		if not here:
+			call("_place_from", a, u)
 
 
 

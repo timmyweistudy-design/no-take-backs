@@ -62,3 +62,28 @@ func test_workshop_slow_v100() -> void:
 	ok(int(r2["rem"]) == int(r3["rem"]) and bool(r2["ok"]) == bool(r3["ok"]) and int(r2["ticks"]) == int(r3["ticks"]), "逐 tick 看期限不改結果")
 	var WS = load("res://scripts/game/workshop.gd")
 	ok(WS.SOLVE_MS > 0, "有期限常數")
+
+## R1：殘局「重打」保留上次擺法；換關不帶。
+func test_retry_keep_v100() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	var PZ = load("res://scripts/game/puzzles.gd")
+	var pz: Dictionary = PZ.puzzles()[0]
+	g._pick_puzzle(str(pz["id"]), false)
+	var n0: int = g.armies[0].units.size()
+	var sol: Array = pz.get("best", {}).get("u", [])
+	for e in sol:
+		g.armies[0].place(int(e[0]), int(e[1]), int(e[2]))
+	var n1: int = g.armies[0].units.size()
+	ok(n1 > n0, "擺上了解法", "%d %d" % [n0, n1])
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	g._mark_retry()
+	g._start_mode(g.Mode.PUZZLE)
+	ok(g.armies[0].units.size() == n1, "重打：擺法還在", str(g.armies[0].units.size()))
+	g._start_mode(g.Mode.PUZZLE)
+	ok(g.armies[0].units.size() == n0, "再開一次（不是重打）：回到初始")
+	g.last_armies = [g.armies[0].copy(), g.armies[1].copy()]
+	g._mark_retry()
+	g._pick_puzzle(str(PZ.puzzles()[1]["id"]), false)
+	ok(g.retry_key == "" and g.retry_units.is_empty(), "換關不帶上一關的擺法")
+	g.free()

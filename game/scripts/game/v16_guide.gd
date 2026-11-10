@@ -10,8 +10,12 @@ static func next_step(data: Dictionary, daily_done: bool, demo: bool) -> String:
 		return "tut"
 	if int(data.get("stats", {}).get("games", 0)) == 0:
 		return "ai"
+	if not demo and not (data.get("gauntlet_run", {}) as Dictionary).is_empty():
+		return "gauntlet_cont"   # V1.0.0 N6：有沒打完的遠征，先接著打
 	if (data.get("puzzle_stars", {}) as Dictionary).is_empty():
 		return "puzzle"
+	if (data.get("puzzle_stars", {}) as Dictionary).size() < PUZZLE_FIRST and int(data.get("stats", {}).get("wins", 0)) == 0:
+		return "puzzle_more"   # V1.0.0 N6：第一小時先把殘局第 1 章打熟（5 關或贏一場 AI 後才推別的）
 	if demo:
 		return ""
 	if not daily_done:
@@ -26,6 +30,16 @@ static func next_step(data: Dictionary, daily_done: bool, demo: bool) -> String:
 		for k in V16_ENTRIES:
 			if is_new(data, k):
 				return "v16:" + k   # V1.6.1 N1：玩滿門檻後才推新玩法（一次一個）
+	return ""
+
+const PUZZLE_FIRST := 5
+
+## 「繼續殘局」：照章節順序第一個還沒過的殘局 id（全過了回 ""）。
+static func next_puzzle_id(data: Dictionary, all: Array) -> String:
+	var st: Dictionary = data.get("puzzle_stars", {})
+	for p in all:
+		if not st.has(str(p["id"])):
+			return str(p["id"])
 	return ""
 
 ## V1.6.1 N1（三方 v161d §0-2）：V1.6 新玩法要先完成 NEW_AFTER 場有效對局（stats.games：正式對局，不含教學、觀戰、重播）

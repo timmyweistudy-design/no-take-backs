@@ -9,32 +9,6 @@ var df_pool: Array = []        # 輪抽：公池 8 張
 var df_mine: Array = []
 var df_ai: Array = []
 
-func _draw_playroom() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(130, 110, 1020, 580)
-	_panel(P)
-	_h1(Vector2(640, 122), L.t("menu_playroom"))
-	var eye: Dictionary = Save.data.get("eye", {})
-	var cards := [["pr_wager", "pr_wager_d", "dice", func(): _wager_new()], ["pr_draft", "pr_draft_d", "cards", func(): _draft_new()], ["pr_waves", "pr_waves_d", "swords", func(): _wave_start()], ["pr_sealed", "pr_sealed_d", "book", func(): _sealed_start()]]
-	# 四張卡 230 寬（Codex／Antigravity v140-i3：186 寬在英文大字級塞不下說明）
-	for i in 4:
-		var r := Rect2(156 + i * 246, 186, 230, 346)
-		_tex_box(r, "paper")
-		_ink_mode = true
-		_icon(str(cards[i][2]), r.position + Vector2(r.size.x / 2, 50), 44.0, Color("#7a4a10"))
-		_text(r.position + Vector2(r.size.x / 2, 86), L.t(str(cards[i][0])), tz("B"), INK, true, true, r.size.x - 20)
-		_text(r.position + Vector2(18, 86 + tz("B") * 1.7), L.t(str(cards[i][1])), tz("C"), INK, false, false, r.size.x - 36)
-		_ink_mode = false
-		_btn(Rect2(r.position.x + r.size.x / 2 - 80, r.end.y - 60, 160, 46), L.t("pr_go"), cards[i][3], true, i == 0)
-	var rec: Array = []
-	if not eye.is_empty():
-		rec.append(L.t("pr_eye", [int(eye.get("pts", 0)), int(eye.get("n", 0)), int(eye.get("best", 0))]))
-	if int(Save.data.get("wave_best", 0)) > 0:
-		rec.append(L.t("pr_wave_best", [int(Save.data.get("wave_best", 0))]))   # Antigravity v140-i3：車輪戰紀錄要看得到
-	if not rec.is_empty():
-		_text(Vector2(640, 548), "　・　".join(rec), tz("S"), ACCENT, true, true, 960)
-	_btn(Rect2(560, 626, 160, 44), L.t("back"), func(): overlay = "")   # V1.5：幽靈、每週棋盒搬到主畫面「挑戰」
-
 ## 競猜：用 AI 組兩支軍隊（同樣 100 金），先看陣型再押注。
 func _wager_new() -> void:
 	var r := RandomNumberGenerator.new()
@@ -610,7 +584,7 @@ func _draw_ghosts() -> void:
 		_btn(Rect2(470, py, 56, 44), "◀", func(): gh_page = posmod(gh_page - 1, pages))
 		_text(Vector2(640, py + 10), "%d／%d" % [gh_page + 1, pages], tz("S"), Color.WHITE, true, true, 100)
 		_btn(Rect2(754, py, 56, 44), "▶", func(): gh_page = posmod(gh_page + 1, pages))
-	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "hub_challenge")
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "playroom")
 
 func _draw_weekly() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
@@ -647,7 +621,7 @@ func _draw_weekly() -> void:
 	_text(Vector2(330, y), L.t("wk_best", [best]) if best > 0 else L.t("wk_none"), tz("S"), Color("#8e1b14") if best > 0 else Color("#5a4630"), false, true, 620)
 	_ink_mode = false
 	_text(Vector2(640, paper.end.y + 10), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
-	_btn(Rect2(460, 604, 160, 44), L.t("back"), func(): overlay = "hub_challenge")
+	_btn(Rect2(460, 604, 160, 44), L.t("back"), func(): overlay = "playroom")
 	_btn(Rect2(660, 604, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
 
 

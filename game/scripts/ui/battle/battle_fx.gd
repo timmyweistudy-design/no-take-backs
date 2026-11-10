@@ -118,8 +118,8 @@ func _draw_battle_report() -> void:
 
 func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, col: Color) -> void:
 	var dn: String = str(Save.s("dmg_nums"))
-	if dn == "off" and int(TEXT_TIER.get(kind, 1)) < 2:
-		return   # V1.5：傷害與治療數字關掉（關鍵事件的字照樣出）
+	if (dn == "off" or speed >= FAST_SPEED) and int(TEXT_TIER.get(kind, 1)) < 2:
+		return   # V1.5：傷害與治療數字關掉（關鍵事件的字照樣出）；V1.0.0 P7：4 倍速以上一般跳字也不出
 	if int(TEXT_TIER.get(kind, 1)) >= 2:
 		text_key_in += 1
 	var cell := Vector2i(floori(p.x / TEXT_CELL.x), floori(p.y / TEXT_CELL.y))
@@ -296,9 +296,15 @@ func _draw_vignette(strength: float) -> void:
 
 
 
+## V1.0.0 P7：4 倍速以上的降噪（Gemini v100 r5：爆爆羊爆炸、史萊姆分裂、小石魔拍地不能省）
+const FAST_SPEED := 4.0
+const FAST_SKIP := ["inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
+
 func _add_fx(d: Dictionary) -> void:
 	if bool(Save.s("reduce_fx")) and d["kind"] in ["inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
+	if speed >= FAST_SPEED and d["kind"] in FAST_SKIP:
+		return   # V1.0.0 P7：高倍速只略過裝飾碎屑；預警圈（tell）、爆炸、分裂、拍地這類決定戰局的照畫
 	var pr: int = FX_PRIO.get(d["kind"], 1)
 	# 同一處同種特效去重（Antigravity S2 #2）：24px 內、0.15 秒內最多 2 個
 	var dp = d.get("p", d.get("b", null))

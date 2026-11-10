@@ -259,6 +259,19 @@ func _draw_title() -> void:
 func _pick_puzzle(id: String, tut: bool) -> void:
 	puzzle_id = id
 	_start_mode(Mode.TUTORIAL if tut else Mode.PUZZLE)
+	if tut and id == "t1":
+		_toast(tut_remove_text())   # V1.0.0 N6：教學第一關就講「擺錯可以拿掉重擺」
+	elif tut and id == "t2":
+		_toast(L.t("tut_counter"))   # V1.0.0 M1：剋制記號 ▲▼ 的互動說明（選一隻兵看敵兵頭上）
+
+## 照現在的輸入方式講怎麼拿掉兵；並說清楚只有雙人輪流落子才不能收回（遊戲名叫落子無悔）。
+func tut_remove_text() -> String:
+	var how := L.t("tut_rm_mouse")
+	if pad_mode:
+		how = L.t("tut_rm_pad", [_pk("remove")])
+	elif Save.s("place_mode") == "tap":
+		how = L.t("tut_rm_tap")
+	return L.t("tut_remove", [how])
 
 
 
@@ -285,7 +298,7 @@ func _draw_overlay() -> void:
 			_draw_nemeses()
 		"paint":
 			_draw_paint()
-		"hub_play", "hub_challenge", "hub_collect":
+		"hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "playroom":
 			_draw_hub(overlay)
 		"first_run":
 			_draw_first_run()
@@ -303,8 +316,6 @@ func _draw_overlay() -> void:
 			_draw_relay()
 		"postcard":
 			_draw_postcard()
-		"playroom":
-			_draw_playroom()
 		"wager":
 			_draw_wager()
 		"draft":
@@ -1215,7 +1226,7 @@ func _paste_code() -> void:
 ## ── V1.5 主畫面五塊木牌：[名稱, 副標, 代表兵種, 動作, 試玩版也開] ──
 func home_plaques() -> Array:
 	return [["home_play", "home_play_d", 3, func(): overlay = "hub_play"; _focus = 0, true],
-		["menu_gauntlet", "home_gauntlet_d", 1, func(): _enter_gauntlet(), false],
+		["menu_gauntlet", "home_gauntlet_d", 1, func(): overlay = "hub_gauntlet"; _focus = 0, false],   # V1.0.0 H1：單人遠征＋雙人接力
 		["home_challenge", "home_challenge_d", 2, func(): overlay = "hub_challenge"; _focus = 0, true],
 		["menu_playroom", "home_playroom_d", 8, func(): overlay = "playroom"; _focus = 0, false],
 		["home_collect", "home_collect_d", 13, func(): overlay = "hub_collect"; _focus = 0, true]]
@@ -1228,7 +1239,7 @@ func home_tag(i: int) -> String:
 		1:
 			var g: Dictionary = Save.data.get("gauntlet_run", {})
 			return L.t("home_st_run", [int(g.get("stage", 1))]) if not g.is_empty() and not _demo() else ""
-		2:
+		3:   # V1.0.0 H1：每日挑戰搬到遊戲間
 			if _demo():
 				return ""
 			var sp: Dictionary = Daily.spec(Daily.today())
@@ -1242,17 +1253,24 @@ func hub_items(kind: String) -> Array:
 			return [["menu_tutorial", "hc_tutorial_d", "book", func(): overlay = ""; _open("tutorial"), true],
 				["menu_vs_ai", "hc_vs_ai_d", "robot", func(): overlay = ""; _open_lobby("ai"), true],
 				["menu_duel", "hc_duel_d", "people", func(): overlay = ""; _open_lobby("duel"), true],
-				["fog_open", "hc_fog_d", "map", func(): overlay = ""; call("_fog_start"), true],   # V1.6 #20
+				["fog_open", "hc_fog_d", "map", func(): overlay = ""; call("_fog_start"), true]]   # V1.6 #20
+		"hub_gauntlet":   # V1.0.0 H1／M5：遠征牌＝單人遠征＋雙人接力遠征
+			return [["menu_gauntlet", "hc_gauntlet_d", "flag", func(): overlay = ""; _enter_gauntlet(), not _demo()],
 				["coop_open", "hc_coop_d", "people", func(): overlay = ""; call("_coop_start"), not _demo()]]   # V1.6 #21
-		"hub_challenge":
+		"hub_challenge":   # V1.0.0 H1：「挑戰」拆掉，這張牌改成「殘局」：單人求解類
 			return [["menu_puzzle", "hc_puzzle_d", "puzzle", func(): overlay = ""; _open("puzzles"), true],
 				["menu_trials", "hc_trials_d", "trophy", func(): overlay = ""; _open("trials"), true],
-				["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_start_daily"), not _demo()],
+				["rush_open", "hc_rush_d", "clock", func(): overlay = ""; call("_rush_start"), not _demo()],   # V1.6 #8（題庫是全部殘局：試玩版不開，Codex v160-i1 #7）
+				["trio_open", "hc_trio_d", "people", func(): overlay = "trio"; _focus = 0, not _demo()]]   # V1.6 #17
+		"playroom":   # V1.0.0 H1：遊戲間＝定期回來的（每日、每週、幽靈、裂隙）＋派對玩法（競猜、輪抽、車輪、雙封蠟）
+			return [["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_start_daily"), not _demo()],
 				["wk_open", "hc_weekly_d", "cards", func(): overlay = "weekly", not _demo()],
 				["gh_open", "hc_ghosts_d", "skull", func(): overlay = "ghosts", not _demo()],
-				["rush_open", "hc_rush_d", "clock", func(): overlay = ""; call("_rush_start"), not _demo()],   # V1.6 #8（題庫是全部殘局：試玩版不開，Codex v160-i1 #7）
 				["rift_open", "hc_rift_d", "swap", func(): overlay = "rift"; _focus = 0, not _demo()],   # V1.6 #10
-				["trio_open", "hc_trio_d", "people", func(): overlay = "trio"; _focus = 0, not _demo()]]   # V1.6 #17
+				["pr_wager", "pr_wager_d", "dice", func(): call("_wager_new"), true],
+				["pr_draft", "pr_draft_d", "cards", func(): call("_draft_new"), true],
+				["pr_waves", "pr_waves_d", "swords", func(): call("_wave_start"), true],
+				["pr_sealed", "pr_sealed_d", "book", func(): call("_sealed_start"), true]]
 		"hub_collect":
 			return [["menu_codex", "hc_codex_d", "book", func(): overlay = ""; _open_codex(0), true],
 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
@@ -1266,7 +1284,7 @@ func _draw_hub(kind: String) -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
 	nav_stack.clear()   # 回到卡片面板＝堆疊重來
 	var items := hub_items(kind)
-	var cols := 4 if items.size() > 6 else 3   # V1.6：挑戰卡片 7 張以上排成兩列四欄（三列在 150% 放不下）
+	var cols := 4 if items.size() > 6 or items.size() == 4 else 3   # V1.6：7 張以上兩列四欄（三列在 150% 放不下）；V1.0.0：剛好 4 張排一列
 	var cw := 236.0
 	# 卡片高度照最長的說明算（不再固定 196，日文／英文 150% 說明會被切掉）
 	var ch := 160.0
@@ -1275,11 +1293,13 @@ func _draw_hub(kind: String) -> void:
 	var rows := ceili(items.size() / float(cols))
 	# V1.5.2 L1：模態面板水平置中；卡片群在面板內置中；卡片從緞帶完整下緣＋GAP_L 起排
 	var head := ceilf(h1_bottom(12.0) + GAP_L)
-	var ph := head + rows * (ch + 14.0) - 14.0 + GAP_L + 44.0 + GAP_L
+	var rec := hub_note(kind)   # V1.0.0：遊戲間底下的紀錄（眼力分、車輪戰最佳）
+	var rec_h := (text_h(rec, tz("S"), 960.0) + GAP_M) if rec != "" else 0.0
+	var ph := head + rows * (ch + 14.0) - 14.0 + GAP_L + rec_h + 44.0 + GAP_L
 	var pw := 800.0 if cols == 3 else 1040.0
 	var P := Rect2((1280.0 - pw) * 0.5, clampf((800.0 - ph) * 0.5, 16.0, 120.0), pw, maxf(ph, 300.0))
 	_panel(P)
-	_h1(Vector2(P.get_center().x, P.position.y + 12), L.t({"hub_play": "home_play", "hub_challenge": "home_challenge", "hub_collect": "home_collect"}.get(kind, "home_play")))
+	_h1(Vector2(P.get_center().x, P.position.y + 12), L.t({"hub_play": "home_play", "hub_gauntlet": "menu_gauntlet", "hub_challenge": "home_challenge", "hub_collect": "home_collect", "playroom": "menu_playroom"}.get(kind, "home_play")))
 	var ncol := mini(cols, items.size())
 	var gx := P.position.x + (P.size.x - (ncol * cw + (ncol - 1) * 14.0)) * 0.5
 	var r5: Array = [[], []]   # V1.6 #4：R5 每一列卡片的圖示、標題、說明起點
@@ -1304,7 +1324,22 @@ func _draw_hub(kind: String) -> void:
 	for ri in r5.size():
 		if (r5[ri] as Array).size() >= 2:
 			probe_cards("hub_cards_%d" % ri, r5[ri])
+	if rec != "":
+		_text(Vector2(P.get_center().x, P.end.y - GAP_L - 44.0 - rec_h), rec, tz("S"), ACCENT, true, true, 960.0)
 	_btn(Rect2(P.get_center().x - 80, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
+
+const HUBS := ["hub_play", "hub_gauntlet", "hub_challenge", "playroom", "hub_collect"]
+
+func hub_note(kind: String) -> String:
+	if kind != "playroom":
+		return ""
+	var rec: Array = []
+	var eye: Dictionary = Save.data.get("eye", {})
+	if not eye.is_empty():
+		rec.append(L.t("pr_eye", [int(eye.get("pts", 0)), int(eye.get("n", 0)), int(eye.get("best", 0))]))
+	if int(Save.data.get("wave_best", 0)) > 0:
+		rec.append(L.t("pr_wave_best", [int(Save.data.get("wave_best", 0))]))   # Antigravity v140-i3：車輪戰紀錄要看得到
+	return "　・　".join(rec)
 
 
 ## ── V1.5 設定套用：總音量、夜間模式（壓縮器）、單聲道（立體聲收成中間）；幀率、垂直同步 ──

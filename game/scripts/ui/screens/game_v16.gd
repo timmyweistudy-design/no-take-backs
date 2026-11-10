@@ -122,8 +122,11 @@ func _next_action(k: String) -> Callable:
 			return func(): _open("puzzles")
 		"daily":
 			return func(): call("_start_daily")
-		"gauntlet":
+		"gauntlet", "gauntlet_cont":
 			return func(): _enter_gauntlet()
+		"puzzle_more":
+			var pid := Guide.next_puzzle_id(Save.data, PZ.all_puzzles())
+			return func(): (_pick_puzzle(pid, false) if pid != "" else _open("puzzles"))
 		"playroom":
 			return func(): overlay = "playroom"; _focus = 0
 		"trials":
@@ -134,7 +137,7 @@ func _next_action(k: String) -> Callable:
 
 ## V1.6.1 N1／N2：照卡片定義找某個入口的動作（建議下一步、新玩法導覽共用；點了算看過）
 func _entry_action(key: String) -> Callable:
-	for kind in ["hub_play", "hub_challenge", "hub_collect"]:
+	for kind in HUBS:
 		for it in hub_items(kind):
 			if str(it[0]) == key:
 				var cb: Callable = it[3]
@@ -183,7 +186,31 @@ func _draw_next_step() -> void:
 	_btn(NS_RECT, "", _next_action(k), true, false, Color(0.16, 0.3, 0.42, 0.95))
 	_icon("flag", NS_RECT.position + Vector2(30, NS_RECT.size.y / 2), 26.0, ACCENT)
 	_text(NS_RECT.position + Vector2(56, 6), L.t("ns_head"), tz("C"), TXT_DIM, false, false, NS_RECT.size.x - 70)
-	_text(NS_RECT.position + Vector2(56, 6 + tz("C") * 1.25), L.t("ns_new", [L.t(k.substr(4))]) if k.begins_with("v16:") else L.t("ns_" + k), tz("S"), Color.WHITE, false, true, NS_RECT.size.x - 70)
+	_text(NS_RECT.position + Vector2(56, 6 + tz("C") * 1.25), _ns_text(k), tz("S"), Color.WHITE, false, true, NS_RECT.size.x - 70)
+
+func _ns_text(k: String) -> String:
+	if k.begins_with("v16:"):
+		return L.t("ns_new", [L.t(k.substr(4))])
+	if k == "gauntlet_cont":
+		return L.t("ns_gauntlet_cont", [int(Save.data.get("gauntlet_run", {}).get("stage", 1))])
+	if k == "puzzle_more":
+		var pid := Guide.next_puzzle_id(Save.data, PZ.all_puzzles())
+		var all := PZ.all_puzzles()
+		for i in all.size():
+			if str(all[i]["id"]) == pid:
+				return L.t("ns_puzzle_more", [_pz_label(i)])
+		return L.t("ns_puzzle")
+	return L.t("ns_" + k)
+
+## 殘局在全部清單的第 i 個 → 「章-關」
+func _pz_label(i: int) -> String:
+	var n := 0
+	for ch in range(1, PZ.CHAPTERS + 1):
+		var c := PZ.chapter(ch).size()
+		if i < n + c:
+			return "%d-%d" % [ch, i - n + 1]
+		n += c
+	return str(i + 1)
 
 ## 「新」小牌：貼在卡片右上角內側（九宮格羊皮紙＋墨字，不只靠顏色）
 func _new_tag(r: Rect2) -> void:
@@ -1050,7 +1077,7 @@ func _draw_rift() -> void:
 	y += text_h(best, tz("S"), 560) + GAP_XL
 	_btn(Rect2(640 - 330, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
 	_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
-	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())
 
 func _start_mode(m: int) -> void:
 	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.to_code() == rift_code   # 裂隙「再來一局」照舊（同一組規則才算）

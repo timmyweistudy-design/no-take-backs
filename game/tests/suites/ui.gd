@@ -1177,7 +1177,7 @@ func test_nav_back_v151() -> void:
 	g.sfx = FakeSfx.new()
 	g.state = g.St.TITLE
 	var bad: Array = []
-	for kind in ["hub_play", "hub_challenge", "hub_collect"]:
+	for kind in g.HUBS:
 		var items: Array = g.hub_items(kind)
 		for it in items:
 			if not bool(it[4]):

@@ -4,7 +4,9 @@ const LayoutRules = preload("res://scripts/ui/layout_rules.gd")
 const PANELLESS_OVERLAYS := ["ai_busy"]
 ## V1.5.2 漏登記守衛：每個覆蓋層必須登記到的角色（有標題緞帶的要有 1 條緞帶＋1 個面板；彈窗至少 1 個面板）。
 ## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
-const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum"]
+const DECK_CAP := 0.7
+const DECK_MIN_PX := 9.0
+const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum"]
 const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
@@ -266,6 +268,9 @@ func _layout_report(name: String, img: Image = null) -> void:
 	for t in probe_texts:
 		var r: Rect2 = t["r"]
 		var sz := int(t["size"])
+		# V1.0.0 S2：Steam Deck（1280×800）最小字形實高 9px：拉丁大寫字高約 0.7 字級，所以字級 < 13 就不夠（符號、快捷鍵數字也算）
+		if float(sz) * DECK_CAP < DECK_MIN_PX:
+			bad.append({"type": "字形實高小於 9px（Deck）", "s": t["s"], "size": sz})
 		if t.get("field", false):
 			if sz < 14:
 				bad.append({"type": "戰場字太小", "s": t["s"], "size": sz})
@@ -466,6 +471,8 @@ func _run_screenshots() -> void:
 	await _snap("01c_hub_challenge.png")
 	overlay = "hub_collect"
 	await _snap("01d_hub_collect.png")
+	overlay = "hub_gauntlet"   # V1.0.0 H1
+	await _snap("01e_hub_gauntlet.png")
 	overlay = ""
 	difficulty = 1
 	_start_mode(Mode.VS_AI)
@@ -1441,7 +1448,7 @@ func _pad_walk() -> void:
 	_go_title()
 	await _pw_frames(3)
 	await _pw_cycle("標題")
-	for step in [[0, "hub_play"], [2, "hub_challenge"], [3, "playroom"], [4, "hub_collect"], [5, "settings"], [6, "codes"]]:   # V1.5：五塊木牌（0～4）＋系統列（5 設定、6 代碼、7 離開）
+	for step in [[0, "hub_play"], [1, "hub_gauntlet"], [2, "hub_challenge"], [3, "playroom"], [4, "hub_collect"], [5, "settings"], [6, "codes"]]:   # V1.5：五塊木牌（0～4）＋系統列（5 設定、6 代碼、7 離開）
 		_go_title()
 		await _pw_pick(step[0], "標題→" + str(step[1]))
 		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])

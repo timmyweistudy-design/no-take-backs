@@ -356,6 +356,7 @@ func _cx_left_items(u: Dictionary, lang: String) -> Array:
 			{"s": CX.text(u, "role", lang), "size": ts(15), "c": TXT_DIM},
 			{"s": tag if _scale_key() == 100 else "", "size": ts(15), "c": ACCENT}]},   # 大字時省略口號，讓剋／怕不用捲動
 		{"type": "ranks"},
+		{"type": "rangegrid"},   # V1.0.0 H4：射程／技能範圍畫在小格網上
 		{"type": "counters"},
 		{"type": "text", "s": "✓ " + CX.text(u, "good", lang), "size": ts(15), "c": Color("#7dff8a"), "x": 0.0, "w": 356.0, "gap": 6.0},
 		{"type": "text", "s": "× " + CX.text(u, "bad", lang), "size": ts(15), "c": Color("#ff9b9b"), "x": 0.0, "w": 356.0, "gap": 12.0},
@@ -363,6 +364,20 @@ func _cx_left_items(u: Dictionary, lang: String) -> Array:
 		{"type": "text", "s": CX.text(u, "story", lang), "size": ts(16), "c": Color(1, 1, 1, 0.92), "x": 0.0, "w": 356.0, "gap": 12.0},
 	]
 	return items
+
+## V1.0.0 H4：圖鑑範圍示意 [標籤, 半徑（格）, 顏色]。數值都從兵種常數取。
+func cx_ranges(t: int) -> Array:
+	var FD = load("res://scripts/core/fantasy_defs.gd")
+	var out: Array = []
+	if D.is_support(t):
+		var sr := float(D.HEAL_RANGE if t == D.MEDIC else (2500 if t == 16 else D.DRUM_RANGE)) / 1000.0
+		out.append([L.t("bar_support_range"), sr, Color("#2f9e44")])
+	else:
+		out.append([L.t("bar_range"), float(D.stat(t)["reach"]) / 1000.0, Color("#c2410c")])
+	var sk := {11: FD.BLAST_R, 18: FD.CAT_R, 19: FD.GOLEM_R}
+	if sk.has(t):
+		out.append([L.t("cx_skill_r"), float(sk[t]) / 1000.0, Color("#7c3aed")])
+	return out
 
 ## 排名條（第五輪 §4.3）：只在可比的兵種之間排名。回傳 [標籤, {兵種: 值}, 數值文字]；值字典只有一筆＝不排名。
 ## 血量、速度：10 種一起比；每秒傷害：只比戰鬥兵；射程：戰鬥兵比射程、支援兵比支援範圍；醫者每秒補血、鼓手光環、價格不排名。
@@ -471,6 +486,33 @@ func _scroll_draw(name: String, r: Rect2, items: Array, scrollable := true) -> v
 						Charts.rank_bar(self, Rect2(r.position.x, y, r.size.x - 12, lh2), b[1], cx_unit, b[0], b[2])
 					y += lh2
 				y += 8.0
+			"rangegrid":
+				# V1.0.0 H4：以兵所在格為中心畫範圍圈（常數取自兵種表，不寫死），一格一個方格
+				var rs := cx_ranges(cx_unit)
+				var maxr := 0.0
+				for rr0 in rs:
+					maxr = maxf(maxr, float(rr0[1]))
+				var cell := clampf(34.0 / maxf(1.0, maxr), 7.0, 16.0)
+				var gh := ceilf(maxr) * 2.0 * cell + cell
+				var lh3 := float(tz("C")) * 1.35
+				var hh := maxf(gh, rs.size() * lh3) + 8.0
+				if inside.call(y, hh):
+					var c0 := Vector2(r.position.x + 8 + (ceilf(maxr) + 0.5) * cell, y + hh * 0.5)
+					var n := int(ceilf(maxr))
+					var gcol := Color(INK, 0.18) if _ink_mode else Color(1, 1, 1, 0.12)
+					for gx in range(-n, n + 1):
+						for gy in range(-n, n + 1):
+							draw_rect(Rect2(c0 + Vector2(gx - 0.5, gy - 0.5) * cell, Vector2(cell, cell)), gcol, false, 1.0)
+					var tx0 := c0.x + (n + 0.5) * cell + 10.0
+					var ly := y + (hh - rs.size() * lh3) * 0.5
+					for rr in rs:
+						var col: Color = rr[2]
+						draw_circle(c0, float(rr[1]) * cell, Color(col, 0.16), true, -1.0, true)
+						_hand_ring(c0, float(rr[1]) * cell, Color(col, 0.9), 2.0)
+						_text(Vector2(tx0, ly), "%s %s" % [rr[0], L.t("cells", [float(rr[1])])], tz("C"), col.darkened(0.35) if _ink_mode else col, false, true, r.position.x + r.size.x - tx0)
+						ly += lh3
+					draw_circle(c0, cell * 0.32, Color("#3b82f6"), true, -1.0, true)
+				y += hh + 4.0
 			"counters":
 				# 剋／怕（第五輪：圖鑑也查得到，頭像 28px＋短名）
 				var beats: Array = []
