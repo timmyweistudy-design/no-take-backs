@@ -95,13 +95,14 @@ func _next_action(k: String) -> Callable:
 			return func(): _open("trials")
 	return func(): pass
 
-const NS_RECT := Rect2(800, 676, 420, 56)
 func _draw_next_step() -> void:
 	if Save.s("hints") == "off" or overlay != "":
 		return
 	var k := Guide.next_step(Save.data, _daily_done_today(), _demo())
 	if k == "":
 		return
+	# 右上角（示範戰場上方的空白）；高度照字級算
+	var NS_RECT := Rect2(830, 104, 400, ceilf(14.0 + tz("C") * 1.25 + tz("S") * 1.35))
 	_btn(NS_RECT, "", _next_action(k), true, false, Color(0.16, 0.3, 0.42, 0.95))
 	_icon("flag", NS_RECT.position + Vector2(30, NS_RECT.size.y / 2), 26.0, ACCENT)
 	_text(NS_RECT.position + Vector2(56, 6), L.t("ns_head"), tz("C"), TXT_DIM, false, false, NS_RECT.size.x - 70)

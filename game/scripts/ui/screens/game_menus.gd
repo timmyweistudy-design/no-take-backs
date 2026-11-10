@@ -640,8 +640,7 @@ func _settings_rows() -> Array:
 		6:
 			return [["set_playtest", _onoff("playtest"), func(d): _cycle_setting("playtest", [false, true])],
 				["set_export", "@" + L.t("do_copy"), func(d): _settings_export()],
-				["set_pt_export", "@" + L.t("do_export"), func(d): _playtest_export()],
-				["fb_btn", "@" + L.t("do_copy"), func(d): call("_feedback")],
+				["set_pt_export", "@" + L.t("do_copy"), func(d): call("_feedback")],   # V1.6 #2：回報＝版本、畫面、漏斗＋試玩紀錄
 				["set_import", "@" + L.t("do_paste"), func(d): _settings_import()],
 				["set_backup", "@" + L.t("do_backup"), func(d): _progress_backup()],
 				["set_restore", "@" + L.t("do_restore"), func(d): _data_swap_open("restore")],

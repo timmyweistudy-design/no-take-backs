@@ -244,3 +244,62 @@ static func free_pool(team: int, count: int, seed_base: int, r, ntypes := D.COUN
 		rng.seed = seed_base * 7 + i
 		out.append(to_free(grid[i], r, rng, ["stretch", "jitter", "dense"][i % 3]))
 	return out
+
+## V1.6 #15 地形 AI：自由陣轉好之後（地形圖才做），
+## ①站在慢速地形上的兵挪到最近的非慢速點；②近戰兵如果往敵陣中央的路被擋（導航距離比直線多 30% 以上），
+## 往上下 ±3 格找繞路最短的列（通常是橋口、通道）。不少兵；放不下就留原位。全程固定順序，結果只看輸入。
+static func terrain_smart(a: Army) -> Army:
+	var T = a.terrain
+	if T == null or a.deploy != "free":
+		return a
+	var goal: int = T._nav_cell(T.n * 3 / 4, T.m / 2)   # 自己視角：敵方半場中央
+	var dist: PackedInt32Array = T._field(goal)
+	var cost_at := func(ox: int, y: int) -> int:
+		var c: int = clampi(ox / T.Q, 0, T.n - 1)
+		var r: int = clampi(y / T.Q, 0, T.m - 1)
+		var d: int = dist[c + r * T.n]
+		return d if d < T.INF else 1 << 20
+	var order: Array = range(a.units.size())
+	var src: Array = a.units.duplicate(true)
+	a.units = []
+	for i in order:
+		var u: Dictionary = src[i]
+		var t: int = int(u["type"])
+		var ox: int = a.own_x(int(u["x"]))
+		var y: int = int(u["y"])
+		var best := Vector2i(ox, y)
+		var slow: bool = T.kind_at(int(u["x"]), y, a.team) == T.SLOW
+		if D.is_melee(t):
+			var straight: int = maxi(1, (T.n * 3 / 4 - ox / T.Q) * 10)
+			var here: int = cost_at.call(ox, y)
+			if here * 10 > straight * 13 or slow:
+				var bc: int = here + (40 if slow else 0)
+				for dy in [-1, 1, -2, 2, -3, 3]:
+					var ny: int = Army.quant(y + dy * T.Q)
+					if ny < Army.EDGE or ny > a.fh - Army.EDGE:
+						continue
+					var wx: int = a.world_x(ox)
+					if T.blocked(wx, ny, a.team):
+						continue
+					var cc: int = cost_at.call(ox, ny) + (40 if T.kind_at(wx, ny, a.team) == T.SLOW else 0) + absi(dy) * 4
+					if cc < bc:
+						bc = cc
+						best = Vector2i(ox, ny)
+		elif slow:
+			for dy in [-1, 1, -2, 2]:
+				var ny2: int = Army.quant(y + dy * T.Q)
+				if ny2 >= Army.EDGE and ny2 <= a.fh - Army.EDGE and T.kind_at(a.world_x(ox), ny2, a.team) == T.FREE:
+					best = Vector2i(ox, ny2)
+					break
+		var n0 := a.units.size()
+		var placed := false
+		if best != Vector2i(ox, y):
+			placed = a.place_xy(t, a.world_x(best.x), best.y)   # 目標點被佔就退回原位
+		if not placed and not a.place_xy(t, int(u["x"]), y):
+			_place_near(a, t, ox, y)
+		if a.units.size() == n0:
+			continue
+		for k in u:
+			if k != "type" and k != "x" and k != "y":
+				a.units[a.units.size() - 1][k] = u[k]   # 貼紙、巨獸等欄位跟著走
+	return a

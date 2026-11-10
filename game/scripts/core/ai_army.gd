@@ -76,7 +76,15 @@ static func eligible_templates(pool: int) -> Array:
 
 ## pool：卡池遮罩（-1＝全部）；rules：第五輪 Ruleset（套人數／單種上限）。
 ## 標準卡池時亂數呼叫次數與順序和 1.3.0 相同（金標準靠這個）。
+## smart：V1.6 #15 地形 AI（遊戲的對 AI、每日挑戰才開；工具、金標準、凍結資料照舊路徑）
+static var smart_terrain := false
 static func build(team: int, budget: int, rng: RandomNumberGenerator, template := -1, pool := -1, rules = null):
+	var res = _build(team, budget, rng, template, pool, rules)
+	if smart_terrain and rules != null and rules.is_free() and res["army"].terrain != null:
+		res["army"] = load("res://scripts/core/formations.gd").terrain_smart(res["army"])
+	return res
+
+static func _build(team: int, budget: int, rng: RandomNumberGenerator, template := -1, pool := -1, rules = null):
 	if pool < 0:
 		pool = RS.all_pool()
 	var a = Army.new(team, budget)

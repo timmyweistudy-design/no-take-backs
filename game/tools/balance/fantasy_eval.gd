@@ -190,6 +190,12 @@ func army() -> void:
 		rng.seed = 55000 + i * 37
 		var x: Army = free_of(AI.build(0, 100, rng, -1, fant)["army"])
 		var y: Army = free_of(AI.build(0, 100, rng, -1, RS.all_pool())["army"])
+		# V1.6 #15：--smart=both（雙方都用地形 AI）／fant（只有奇幻軍）
+		var sm := str(a.get("smart", ""))
+		if sm == "both" or sm == "fant":
+			x = F.terrain_smart(x)
+		if sm == "both":
+			y = F.terrain_smart(y)
 		tot += duel(x, y)
 		cnt += 1
 	print("A ", JSON.stringify({"fantasy_wr": snappedf(tot / maxi(1, cnt), 0.001), "n": cnt}))
