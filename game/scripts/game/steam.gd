@@ -41,6 +41,13 @@ const ACHIEVEMENTS := {
 	"PAINTER": ["自己的顏色", "True Colors"],
 	"SHARP_EYE": ["好眼力", "Sharp Eye"],
 	"SEALED_DONE": ["封蠟三戰", "Sealed Fate"],
+	# V1.6.1 D7：V1.6 玩法（極速賽、三考、裂隙、出題台、熟練度、接力遠征）
+	"RUSH_10": ["極速十連", "Rush Ten"],
+	"TRIO_STAR3": ["三考滿分", "Triple Threat"],
+	"RIFT_WIN": ["裂隙行者", "Rift Walker"],
+	"WORKBENCH": ["出題人", "Puzzle Setter"],
+	"MASTER_5": ["熟能生巧", "Master Hand"],
+	"COOP_CLEAR": ["接力到底", "Relay to the End"],
 }
 
 static var _steam = null

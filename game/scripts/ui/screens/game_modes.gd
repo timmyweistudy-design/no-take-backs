@@ -1131,6 +1131,12 @@ const ACH_DESC := {
 	"PAINTER": ["在塗裝室換一次顏色", "Change your colors in the paint room"],
 	"SHARP_EYE": ["競猜連續押中 5 場", "Call 5 Bets in a row"],
 	"SEALED_DONE": ["打完一組雙封蠟三戰", "Finish a Sealed Orders match"],
+	"RUSH_10": ["極速賽一次解開 10 題", "Solve 10 puzzles in one Puzzle Rush"],
+	"TRIO_STAR3": ["一陣三考任一組拿到三星", "Get 3 stars on any One Army, Three Tests set"],
+	"RIFT_WIN": ["打贏一次本週裂隙", "Win a weekly Rift"],
+	"WORKBENCH": ["用出題台做出一個殘局碼", "Make a code in the Puzzle Workbench"],
+	"MASTER_5": ["任一種兵熟練度到 5 級", "Reach mastery 5 with any unit"],
+	"COOP_CLEAR": ["雙人接力遠征打完 7 站", "Clear all 7 stages of a Relay Expedition"],
 }
 
 

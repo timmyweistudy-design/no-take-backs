@@ -610,6 +610,8 @@ func _rush_end() -> void:
 	rush["new_best"] = int(rush["solved"]) > best
 	if int(rush["solved"]) > best:
 		Save.data["rush_best"] = int(rush["solved"])
+	if int(rush["solved"]) >= 10:
+		call("_ach", "RUSH_10")   # V1.6.1 D7
 	if bool(rush.get("daily", false)):
 		var rd: Dictionary = Save.data.get("rush_day", {})
 		if int(rd.get("day", -1)) != int(rush["day"]) or int(rush["solved"]) > int(rd.get("best", 0)):
@@ -920,6 +922,7 @@ func _rift_settle() -> void:
 	var k := Rift.key(rift_wk)
 	if rift_wk != Rift.week():
 		return   # 上一週的題：本週紀錄只留本週，跨週打完的不記
+	call("_ach", "RIFT_WIN")   # V1.6.1 D7
 	var rec := [PZ.rem_pct(sim.power(0), sim.budget_of(0)), armies[0].spent()]
 	if Daily.better(rec, best.get(k, [])):
 		best[k] = rec
@@ -1049,6 +1052,10 @@ func _career_settle() -> void:
 	var mvp = report.get("mvp")
 	Career.medal_add(md, sim.units, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1)
 	Save.data["medals"] = md
+	for k5 in m:
+		if Career.level(int(m[k5])) >= 5:
+			call("_ach", "MASTER_5")   # V1.6.1 D7
+			break
 	if not ups.is_empty():
 		var t: int = ups[0]
 		report["ms_line"] = L.t("ms_up", [L.t("unit_%d" % t), Career.level(int(m[str(t)]))])   # 結果頁有空位才顯示（跳提示會壓到別的畫面）
@@ -1386,6 +1393,7 @@ func _ed_make() -> void:
 		ed_msg = L.t("ed_fail")
 		return
 	DisplayServer.clipboard_set(code)
+	call("_ach", "WORKBENCH")   # V1.6.1 D7
 	ed_msg = L.t("ed_ok")
 	_toast(L.t("ws_copied"))
 
@@ -1538,6 +1546,8 @@ func _trio_jobs() -> void:
 func _trio_done() -> void:
 	var s: Dictionary = _trio_set()
 	trio_st = Trio.stars(s, trio_res)
+	if trio_st == 3 and trio_custom.is_empty():
+		call("_ach", "TRIO_STAR3")   # V1.6.1 D7
 	if trio_st >= 1 and trio_custom.is_empty():   # 朋友出的三考題不存紀錄
 		var cl: Dictionary = Save.data.get("trio_clear", {})
 		var id := str(s["id"])
@@ -1696,6 +1706,8 @@ func _coop_settle() -> void:
 	var mvp = report.get("mvp")
 	var won: bool = sim.winner == 0
 	coop_log.append_array([gauntlet_stage, coop_player(gauntlet_stage), 1 if won else 0, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1])
+	if won and gauntlet_stage >= 7:
+		call("_ach", "COOP_CLEAR")   # V1.6.1 D7
 	if not won or gauntlet_stage >= 7:
 		overlay = "coop_sum"
 		_focus = 0
