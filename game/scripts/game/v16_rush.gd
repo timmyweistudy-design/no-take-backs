@@ -7,8 +7,18 @@ const START_SEC := 180.0
 const BONUS_SEC := 20.0     # 解開 +20 秒
 const PENALTY_SEC := 15.0   # 失敗 −15 秒（直接換下一題，不卡關）
 
+## V1.6.1 N5：有求解器指標（_m）的關再篩：模擬太長（> MAX_TICKS）或太難（隨機擺法過關率 < MIN_RAND%）的不進題庫。
+## 舊 25 關沒有 _m（都是短的入門題）照收。
+const MAX_TICKS := 1400
+const MIN_RAND := 3
+
 static func eligible(pz: Dictionary) -> bool:
-	return PZ.goal(pz) == "win" and not pz.has("map") and not pz.has("cmd") and not pz.has("cap") and not pz.has("rules")
+	if not (PZ.goal(pz) == "win" and not pz.has("map") and not pz.has("cmd") and not pz.has("cap") and not pz.has("rules")):
+		return false
+	var m = pz.get("_m")
+	if m is Dictionary:
+		return int(m.get("ticks", 0)) <= MAX_TICKS and int(m.get("rand_pct", 100)) >= MIN_RAND
+	return true
 
 static func pool(seed: int) -> Array:
 	var by_ch := {}

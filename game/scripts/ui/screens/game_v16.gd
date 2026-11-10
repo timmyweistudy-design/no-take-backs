@@ -932,6 +932,12 @@ const Persona = preload("res://scripts/game/v16_persona.gd")
 func _ai_style() -> int:
 	return int(rules.ai_style) if rules != null else 0
 
+## V1.6.1 A11：一般對 AI（普通）才用招牌陣
+func _signature_tpl(seed: int, pool: int) -> int:
+	if mode != Mode.VS_AI or not (get("daily_spec") as Dictionary).is_empty() or rift_on or int(get("trial_id")) >= 0 or get("challenge_army") != null or fog_on:
+		return -1
+	return Persona.signature(_ai_style(), seed, func(t): return AI.template_ok(t, pool))
+
 ## 擺陣時敵方屏風上：頭像＋名號＋開場白（不洩漏陣型）
 func _persona_fog(c: Vector2, w: float) -> void:
 	if bool(get("ghost_id") != "") or bool(get("wk_active")) or rift_on:
@@ -941,6 +947,9 @@ func _persona_fog(c: Vector2, w: float) -> void:
 	_text(c + Vector2(0, 56), L.t("ps_name_%d" % st), ts(16), Color.WHITE, true, true, w)
 	var q := "「" + L.t(Persona.line_key(st, "open")) + "」" if L.lang.begins_with("zh") or L.lang == "ja" else "\"" + L.t(Persona.line_key(st, "open")) + "\""
 	_text(c + Vector2(0, 56 + ts(16) * 1.4), q, ts(15), Color(1, 0.9, 0.7, 0.9), true, false, w)
+	if difficulty == 1:
+		var fv: String = ai_tpl_name(str(AI.TEMPLATES[Persona.fav(st)]["name"]))
+		_text(c + Vector2(0, 56 + ts(16) * 1.4 + ts(15) * 1.5 + text_h(q, ts(15), w) - ts(15) * 1.3), L.t("ps_fav", [fv]), ts(14), Color(0.85, 0.9, 1.0, 0.8), true, false, w)   # 「最近愛用」：只說愛用哪套，不保證這場就是
 
 func _persona_result() -> void:
 	if mode != Mode.VS_AI or sim == null or sim.winner < 0 or not (get("daily_spec") as Dictionary).is_empty() or rift_on or str(get("ghost_id")) != "" or bool(get("wk_active")) or watch_mode:

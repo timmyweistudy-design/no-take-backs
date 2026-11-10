@@ -239,3 +239,19 @@ func test_nb_name_input_v161() -> void:
 	var G = load("res://scripts/ui/screens/game_v16.gd")
 	ok(G.nb_edit_append("ab", 0x99AC) == "ab馬" and G.nb_edit_append("ab", 9) == "ab", "改名：收一般字（含中文），控制字元不收（N3）")
 	ok(G.nb_edit_append("0123456789abcdef", 65).length() == 16, "最多 16 字")
+
+func test_signature_v161() -> void:
+	var PS = load("res://scripts/game/v16_persona.gd")
+	var AI = load("res://scripts/core/ai_army.gd")
+	var hits := 0
+	for sd in 200:
+		var t: int = PS.signature(2, sd, func(x): return true)
+		if t >= 0:
+			hits += 1
+			ok(t in PS.SIG[2], "招牌陣只會是這個性格的兩套")
+	ok(hits > 50 and hits < 110, "約 40% 用招牌陣（A11）", str(hits))
+	ok(PS.signature(4, 3, func(x): return false) == -1, "卡池用不了就照舊")
+	ok(PS.signature(1, 77, func(x): return true) == PS.signature(1, 77, func(x): return true), "同種子同結果（可重現）")
+	for st in PS.SIG.size():
+		for t in PS.SIG[st]:
+			ok(int(t) < AI.TEMPLATES.size(), "招牌陣編號有效")
