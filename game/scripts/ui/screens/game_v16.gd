@@ -132,6 +132,8 @@ func _draw_v16_overlay(name: String) -> void:
 	match name:
 		"demo_end":
 			_draw_demo_end()
+		"share":
+			_draw_share()
 
 ## ── #6 戰術可視化：擺陣時「射程覆蓋」（V 鍵或資訊帶按鈕），「標記」最多 3 隻（T 鍵或按鈕後點兵），觀戰時追蹤 ──
 var tv_range := false
@@ -301,3 +303,69 @@ func _draw_magnifier() -> void:
 	mag_on = false
 	_text(at + Vector2(14, sz * 0.2), s, sz, Color.WHITE, false, bool(mag_hit[2]), 1180.0)
 	mag_on = keep
+
+## ── #5 社群分享包＋B25 結果頁收合：明信片、出題碼、分享格、精華時刻收進一個「分享」面板 ──
+const Share = preload("res://scripts/game/v16_share.gd")
+var sh_text := ""   # 這一場的分享格（每日或每週才有）
+
+func _share_ready() -> bool:
+	return play_kind == "official" and not watch_mode and sim != null
+
+## 每日挑戰贏了：更新連續天數、產生分享格
+func _daily_finish(w: int) -> void:
+	super._daily_finish(w)
+	sh_text = ""
+	if (daily_spec as Dictionary).is_empty() or w != 0:
+		return
+	var day := int(Daily.today())
+	var st: Dictionary = Share.streak_after(Save.data.get("daily_streak", {}), day)
+	Save.data["daily_streak"] = st
+	Save.save_data()
+	var rem: int = PZ.rem_pct(sim.power(0), sim.budget_of(0))
+	sh_text = Share.daily_text(L, Time.get_date_string_from_unix_time(day * 86400), L.t("daily_mut_%d" % int(daily_spec["mut"])), rem, armies[0].spent(), armies[0].budget, int(sim.tick / 20), int(st["n"]))
+
+func _highlights() -> Array:
+	var out: Array = _key_marks() if not report.is_empty() else []
+	if sim != null and sim.winner >= 0:
+		out.append({"t": maxi(0, int(sim.tick) - 30), "label": "%s %ds" % [L.t("sh_final"), int(sim.tick) / 20]})
+	return out
+
+func _hl_go(t: int) -> void:
+	overlay = ""
+	call("_replay")
+	call("_seek_async", maxi(0, t - 20))
+
+func _draw_share() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var hl := _highlights()
+	var rows := 1 + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0)
+	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("sh_title")) + GAP_L
+	_text(Vector2(640, y), L.t("sh_hl"), tz("B"), ACCENT, true, true, 560)
+	y += below_head(tz("B"))
+	if hl.is_empty():
+		_text(Vector2(640, y + 10), L.t("sh_hl_none"), tz("S"), TXT_DIM, true, false, 560)
+		y += 52.0
+	for m in hl:
+		var t := int(m["t"])
+		_btn(Rect2(400, y, 480, 44), str(m["label"]), func(): _hl_go(t))
+		y += 52.0
+	y += GAP_L
+	if pc_shot != null:
+		_btn(Rect2(400, y, 480, 48), L.t("pc_btn"), func(): overlay = "postcard", true, true)
+		y += 56.0
+	if bool(call("_ws_ok", sim.winner)):
+		_btn(Rect2(400, y, 480, 48), L.t("ws_make"), func(): overlay = ""; call("_make_workshop"))
+		y += 56.0
+	if sh_text != "":
+		_btn(Rect2(400, y, 480, 48), L.t("sh_copy"), func(): DisplayServer.clipboard_set(sh_text); _toast(L.t("sh_copied")))
+		y += 56.0
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+func _ghost_settle(w: int) -> void:
+	sh_text = ""
+	super._ghost_settle(w)
+	if bool(get("wk_active")):
+		var rec: Dictionary = Save.data.get("weekly", {})
+		sh_text = Share.weekly_text(L, int(rec.get("wk", 0)), w == 0, last_armies[0].spent() if last_armies.size() > 0 else 0, int(rec.get("best", 0)), int(rec.get("tries", 0)))

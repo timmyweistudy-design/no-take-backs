@@ -108,3 +108,17 @@ func test_access_settings_v160() -> void:
 	ok(d.has("hold_confirm") and d["hold_confirm"] == false and d.has("magnify") and d["magnify"] == false, "新設定預設關")
 	var e: Dictionary = SV.sanitize_settings({"hold_confirm": "x", "magnify": true})
 	ok(e["hold_confirm"] == false and e["magnify"] == true, "型別不對退回預設、合法值保留")
+
+func test_share_v160() -> void:
+	var SH = load("res://scripts/game/v16_share.gd")
+	var Lx = load("res://scripts/game/strings.gd")
+	ok(SH.bar(72) == "■■■■■■■□□□" and SH.bar(0) == "□□□□□□□□□□" and SH.bar(100) == "■■■■■■■■■■", "剩餘戰力 10 格條")
+	var st: Dictionary = SH.streak_after({}, 100)
+	st = SH.streak_after(st, 101)
+	st = SH.streak_after(st, 101)
+	ok(int(st["n"]) == 2 and int(st["best"]) == 2, "連續兩天＝2，同一天不重複加")
+	st = SH.streak_after(st, 104)
+	ok(int(st["n"]) == 1 and int(st["best"]) == 2, "中斷重算，最佳保留")
+	var t: String = SH.daily_text(Lx, "2026-11-10", "X", 72, 84, 100, 38, 3)
+	ok(t.contains("■■■■■■■□□□") and t.contains("84") and t.split("\n").size() == 5, "每日分享格：條、花費、連續天數、標籤")
+	ok(not t.contains("unit_") and not t.contains("NTB"), "分享格不含陣型或代碼（不劇透）")

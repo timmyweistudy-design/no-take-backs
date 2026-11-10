@@ -334,10 +334,9 @@ func _draw_result() -> void:
 			n_main += 1
 		else:
 			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
-	if _ws_ok(w):
-		bs.append([L.t("ws_make"), func(): call("_make_workshop")])   # V1.1 D3：打贏的格子對戰可以出題
-	if play_kind == "official" and pc_shot != null and bs.size() <= 3:   # 按鈕列滿了就不放（英文 150% 會擠）
-		bs.append([L.t("pc_btn"), func(): overlay = "postcard"])   # V1.4 #14 戰報明信片
+	# V1.6 #5／B25：出題碼、戰報明信片、分享格、精華時刻收進一顆「分享」（按鈕列不再擠）
+	if play_kind == "official" and not watch_mode:
+		bs.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])
 	bs.append([L.t("replay"), func(): _replay()])
 	bs.append([L.t("menu"), func(): _request_leave()])
 	# 按鈕寬依結果框內寬分（框 880、左右各留 16）：試煉贏了最多 6 顆，舊的固定 176 會凸出框外（使用者截圖）
