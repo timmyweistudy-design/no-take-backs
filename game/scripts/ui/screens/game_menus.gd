@@ -1237,6 +1237,8 @@ static func code_kind(c: String) -> String:
 		return "waves"
 	if p == "NTQ1":
 		return "solution"   # 1.1.0 N5 殘局最佳解碼
+	if p == "NTD1":
+		return "duel"   # 1.1.0 B2 雙人輪序紀錄碼
 	return ""
 
 func _auto_code() -> void:
@@ -1266,10 +1268,31 @@ func _auto_code() -> void:
 				overlay = "wave_codes"
 		"solution":
 			_accept_solution(c)
+		"duel":
+			_accept_duel(c)
 		"army":
 			_toast(L.t("code_army_here"), true)   # 陣型碼要在擺陣畫面貼
 		_:
 			_toast(L.t("code_bad"), true)
+
+## 1.1.0 B2：輪序紀錄碼：逐手重放驗合法，過了就照對戰碼一樣播最後那兩軍
+func _accept_duel(c: String) -> void:
+	var d: Dictionary = load("res://scripts/game/duel_code.gd").decode(c)
+	if not bool(d.get("ok", false)):
+		_toast(L.t("dc_illegal", [int(d["at"]) + 1]) if str(d.get("why", "")) == "illegal" else L.t("code_bad"), true)
+		return
+	if _demo():
+		for a in [d["a0"], d["a1"]]:
+			for u in a.units:
+				if not RS.available(int(u["type"]), true):
+					_toast(L.t("bc_demo_locked"), true)
+					return
+	overlay = ""
+	if bool(d["mismatch"]):
+		_toast(L.t("bc_mismatch"))
+	else:
+		_toast(L.t("dc_ok", [int(d["moves"])]))
+	call("watch_code", d["a0"], d["a1"], d["rules"])
 
 ## 1.1.0 N5：打開那一關，把朋友的解擺上去（照「重打保留擺法」那一套，固定兵不重複）
 func _accept_solution(c: String) -> void:

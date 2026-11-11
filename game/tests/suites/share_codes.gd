@@ -99,3 +99,71 @@ func test_code_table_v100() -> void:
 	var WS = load("res://scripts/game/workshop.gd")
 	for junk in ["NTP3.%%%.000000", "NTP4." + "A".repeat(7000) + ".x"]:
 		ok(not bool(WS.decode(junk)["ok"]), "壞的出題碼不收")
+
+## 1.1.0 B2：雙人輪序紀錄碼 NTD1：真的打一局輪流落子（蛇行 5 手），編碼後逐手重放得到同樣兩軍；改一手、少一手、換先手都不收。
+func _dc_play(first: int) -> Array:
+	var Army = load("res://scripts/core/army.gd")
+	var TPs = load("res://scripts/core/turn_placement.gd")
+	var RSs = load("res://scripts/core/ruleset.gd")
+	var a0 = Army.new(0, 100)
+	var a1 = Army.new(1, 100)
+	var tp = TPs.new(a0, a1, first, "snake5", null)
+	var pool: int = RSs.prefix_pool(10)
+	tp.armies[0].pool = pool
+	tp.armies[1].pool = pool
+	var guard := 0
+	while not tp.done() and guard < 400:
+		guard += 1
+		var placed := false
+		for t in [0, 2, 1, 5]:
+			for col in 16:
+				for row in 9:
+					if not placed and tp.check_place(t, col, row) == "":
+						placed = tp.place(t, col, row)
+			if placed:
+				break
+		if not placed or tp.placed_this_turn >= 2:
+			tp.end_turn()
+	return [tp, pool]
+
+func test_duel_code_v110() -> void:
+	var DC = load("res://scripts/game/duel_code.gd")
+	var r: Array = _dc_play(1)
+	var tp = r[0]
+	ok(tp.done() and tp.commands.size() > 4, "打完一局輪流落子", str(tp.commands.size()))
+	var code: String = DC.encode(tp, null, [r[1], r[1]], [100, 100])
+	var d: Dictionary = DC.decode(code)
+	ok(bool(d["ok"]) and not bool(d["mismatch"]), "逐手重放合法", str(d))
+	if bool(d["ok"]):
+		ok(d["a0"].to_code() == tp.armies[0].to_code() and d["a1"].to_code() == tp.armies[1].to_code(), "重放出同樣兩軍")
+	# 竄改：先手換掉 → 第一筆的隊伍對不上
+	var body := code.split(".")[1].replace("-", "+").replace("_", "/")
+	while body.length() % 4 != 0:
+		body += "="
+	var j: Dictionary = JSON.parse_string(Marshalls.base64_to_utf8(body))
+	var mk := func(jj: Dictionary) -> String:
+		var b := Marshalls.utf8_to_base64(JSON.stringify(jj)).replace("+", "-").replace("/", "_").replace("=", "")
+		return "NTD1.%s.%s" % [b, b.sha256_text().substr(0, 6)]
+	var j1 := j.duplicate(true)
+	j1["f"] = 0
+	ok(not bool(DC.decode(mk.call(j1))["ok"]), "換先手不收")
+	var j2 := j.duplicate(true)
+	for mv in j2["m"]:
+		if mv[0] == "g" and int(mv[1]) == 0:
+			mv[3] = 15   # 藍方擺到紅方半場
+			break
+	ok(not bool(DC.decode(mk.call(j2))["ok"]), "擺到對方半場不收")
+	var j4 := j.duplicate(true)
+	j4["m"] = [j["m"][0]]
+	ok(not bool(DC.decode(mk.call(j4))["ok"]), "只有第一手（之後還買得起不能跳過）不收")
+	var j3 := j.duplicate(true)
+	for mv in j3["m"]:
+		if mv[0] == "g":
+			mv[2] = 99   # 不存在的兵種
+			break
+	ok(not bool(DC.decode(mk.call(j3))["ok"]), "改一手不收")
+	ok(not bool(DC.decode(code + "x")["ok"]) and not bool(DC.decode("NTD1.abc.123456")["ok"]), "壞碼不收")
+	var G = load("res://scripts/ui/screens/game_menus.gd")
+	ok(G.code_kind(code) == "duel", "代碼頁認得 NTD1")
+	var BC = load("res://scripts/game/battle_code.gd")
+	ok(not bool(BC.decode(code)["ok"]), "對戰碼照舊不收輪序")

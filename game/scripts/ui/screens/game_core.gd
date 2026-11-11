@@ -69,6 +69,8 @@ func _reset_place(keep_blue := false) -> void:
 				if rules == null:
 					tp.armies[0].pool = _pool()
 					tp.armies[1].pool = _pool()
+				# 1.1.0 B2：輪序紀錄碼要開局（禁牌後）的卡池與預算
+				duel_start = {"pools": [tp.armies[0].pool, tp.armies[1].pool], "budgets": [tp.armies[0].budget, tp.armies[1].budget], "rules": rules.copy() if rules != null else null}
 		Mode.TUTORIAL, Mode.PUZZLE:
 			var pz := PZ.get_puzzle(puzzle_id)
 			armies[0] = PZ.player_army(pz)
@@ -532,6 +534,15 @@ func _ntypes() -> int:
 
 
 ## 第五輪：這一場的卡池遮罩（R1 前＝前 N 種）。
+var duel_start := {}   # 1.1.0 B2
+
+## 1.1.0 B2：這一局能不能給輪序紀錄碼（雙人輪流落子、擺完了）
+func duel_code_ok() -> bool:
+	return mode == Mode.DUEL and tp != null and tp.done() and not duel_start.is_empty() and not tp.commands.is_empty()
+
+func duel_code_text() -> String:
+	return load("res://scripts/game/duel_code.gd").encode(tp, duel_start["rules"], duel_start["pools"], duel_start["budgets"])
+
 func _pool() -> int:
 	if rules != null:
 		return rules.pool_of(0)

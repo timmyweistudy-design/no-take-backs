@@ -729,7 +729,7 @@ func _draw_share() -> void:
 	var hl := _highlights()
 	var sol_ok: bool = mode == Mode.PUZZLE and puzzle_id != "ws" and (Save.data.get("pz_sol", {}) as Dictionary).has(puzzle_id) \
 		and load("res://scripts/game/solution_code.gd").entry_valid(puzzle_id, Save.data["pz_sol"][puzzle_id])   # 1.1.0 N5；不合法的舊紀錄不給分享（Codex v110-i3 #1）
-	var rows := 1 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0)
+	var rows := 1 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0) + (1 if duel_code_ok() else 0)
 	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("sh_title")) + GAP_L
@@ -758,6 +758,10 @@ func _draw_share() -> void:
 		var sol: Dictionary = Save.data["pz_sol"][puzzle_id]
 		var code: String = load("res://scripts/game/solution_code.gd").encode(puzzle_id, sol["u"], sol.get("c", []))
 		_btn(Rect2(400, y, 480, 48), L.t("sol_copy", [int(sol["r"][0])]), func(): DisplayServer.clipboard_set(code); _toast(L.t("sol_copied")))
+		y += 56.0
+	if duel_code_ok():
+		var dcode := duel_code_text()   # 1.1.0 B2：雙人輪序紀錄碼
+		_btn(Rect2(400, y, 480, 48), L.t("dc_copy"), func(): DisplayServer.clipboard_set(dcode); _toast(L.t("dc_copied")))
 		y += 56.0
 	if not (daily_spec as Dictionary).is_empty():
 		_btn(Rect2(400, y, 480, 48), L.t("dt_title"), func(): _daily_top_open())

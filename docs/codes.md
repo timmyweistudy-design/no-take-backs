@@ -19,6 +19,7 @@
 | NTP4 | workshop | 出題台指定目標（`t`）、一陣三考（`g=trio`、`e3`） | V1.6.1 | `game/workshop.gd` |
 | NTS1 | settings | 設定碼（匯入前先預覽） | V1.5 | `game_menus.gd` |
 | NTQ1 | solution | 殘局最佳解（關卡 id＋玩家擺的兵；排序同實驗簿：星→剩餘→花費） | 1.1.0（分享頁「複製我的最佳解碼」） | `game/solution_code.gd` |
+| NTD1 | duel | 雙人輪流落子紀錄（初始規則、先手、禁牌後卡池、每手落子；解碼逐手重放驗合法） | 1.1.0 | `game/duel_code.gd` |
 | NTW1 | waves | 車輪戰整場（三波的對戰碼） | V1.5.1 | `game_playroom.gd` |
 
 ## 匯入時的共同規則
