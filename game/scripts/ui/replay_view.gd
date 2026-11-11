@@ -866,8 +866,9 @@ func _gif_tick(delta: float) -> void:
 			if fa == null:
 				return ""
 			fa.store_buffer(b)
+			var werr := fa.get_error()
 			fa.close()
-			if bool(gctl.get("stop", false)) or DirAccess.rename_absolute(tmp, fn) != OK:
+			if werr != OK or bool(gctl.get("stop", false)) or DirAccess.rename_absolute(tmp, fn) != OK:
 				DirAccess.remove_absolute(tmp)
 				return ""
 			return ProjectSettings.globalize_path(fn))

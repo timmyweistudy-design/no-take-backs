@@ -423,3 +423,11 @@ func test_review_fixes_v110() -> void:
 	ok(not SC._int_like(1.9) and SC._int_like(2.0) and SC._int_like(3), "只收整數")
 	ok(not S.sol_entry_ok({"r": [3, 10.5, 10], "u": [[0, 1, 2]]}), "存檔小數不收")
 	ok(not S.sol_entry_ok({"r": [3, 10, 10], "u": [[0, 1.5, 2]]}), "存檔座標小數不收")
+	# Codex v110-i3 #1：存檔裡不合法的舊紀錄（重疊部署）不能擋住合法新紀錄
+	var p0: Dictionary = PZ.puzzles()[0]
+	var good_u: Array = p0["best"]["u"]
+	var dup: Array = [good_u[0], good_u[0]]
+	var bk := {str(p0["id"]): {"r": [3, 100, 0], "u": dup, "c": []}}
+	ok(not SC.entry_valid(str(p0["id"]), bk[str(p0["id"])]), "重疊部署判不合法")
+	SC.merge(bk, str(p0["id"]), 1, 5, 99, good_u)
+	ok(bk[str(p0["id"])]["u"] == good_u, "合法新紀錄換掉不合法舊紀錄")

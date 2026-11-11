@@ -74,9 +74,22 @@ static func plan_legal(pz: Dictionary, plan: Array) -> bool:
 			return false   # plan_fix 擠不下時會原樣退回，範圍要自己查
 	return PZ.plan_fix(pz, plan, -1, 0) == plan
 
+## 存檔裡的一筆最佳解對這一關合法嗎：關卡存在、兵合法（重疊、預算、格子都走 check_extra）、軍令合法
+static func entry_valid(pid: String, e: Dictionary) -> bool:
+	if pid == "ws":
+		return false
+	var pz := PZ.get_puzzle(pid)
+	if pz.is_empty() or bool(pz.get("tutorial", false)) or not (e.get("u") is Array) or (e["u"] as Array).is_empty():
+		return false
+	if PZ.check_extra(pz, e["u"]) != "":
+		return false
+	return not pz.has("cmd") or ((e.get("c") is Array) and plan_legal(pz, e["c"]))
+
 ## 這一場比存的好就換（純函式：回傳新的紀錄字典，沒變回原本的）
 static func merge(best: Dictionary, pid: String, stars: int, rem: int, spent: int, units: Array, plan: Array = []) -> Dictionary:
 	var old: Dictionary = best.get(pid, {})
+	if not old.is_empty() and not entry_valid(pid, old):
+		old = {}   # 存檔裡的舊紀錄對這關不合法（被改過、關卡改了）：不讓它擋住合法的新紀錄（Codex v110-i3 #1）
 	var Career = load("res://scripts/game/career.gd")
 	if not old.is_empty() and not Career.better([stars, rem, spent], old.get("r", [])):
 		return best

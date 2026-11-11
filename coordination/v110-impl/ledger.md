@@ -72,3 +72,8 @@
 4. GIF：先寫 `.part`，沒被叫停才改名；叫停或改名失敗就刪暫存。
 5. 回報檔名流水號不設上限。
 6. check.py：marker 結尾加「.」精確比對（t_stateful 不再命中 t_stateful2/3）；中斷時先 `kill_marker` 再 `shutdown(wait=False)`；匯入也包在 try 裡。
+
+## 第 3 輪 Codex（r3-codex.md，有條件，2 條）— 都修，**未經複查**（照慣例第 3 輪後不再送審）
+1. 存檔裡不合法的最佳解（重疊部署、非法軍令）會擋住合法新紀錄：新增 `SolCode.entry_valid`（關卡存在、`check_extra`、`plan_legal`）。`merge` 遇到不合法舊紀錄直接換掉；分享頁只對合法紀錄出碼。沒有改成讀檔時丟棄：存檔驗證不載入關卡資料，避免 save.gd 依賴殘局表；效果相同（不合法紀錄不會擋排名、不會分享出去）。測試 `test_review_fixes_v110` 補案例。
+2. GIF `.part` 寫入後查 `get_error()`，失敗就刪暫存、不改名。
+- 統一檢查（第 3 輪修正前，2d35b51）：50 步、5123 項全過、909 秒，FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。

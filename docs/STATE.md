@@ -251,7 +251,7 @@
 
 ## 驗證入口
 - `GODOT=<4.6.2> tools/check_all.sh`：統一檢查，CI 也用。
-- `tools/layout_check.sh <win exe> <新資料夾>`：版面（21 組；會被擋的項目見腳本與 `docs/ui-layout-rules.md`）；收尾加 `LAYOUT_STRICT_WARN=1`；另外要用 `tools/layout_sheet.py` 拼接觸表人工找錯，英文 150% 一定看。
+- `tools/layout_check.sh <win exe> <新資料夾>`：版面（24 組；會被擋的項目見腳本與 `docs/ui-layout-rules.md`）；收尾加 `LAYOUT_STRICT_WARN=1`；另外要用 `tools/layout_sheet.py` 拼接觸表人工找錯，英文 150% 一定看。
 - `GODOT=<win exe> tools/export_check.sh <空資料夾>`：匯出成品自我檢查。
 - `SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
 - 統一檢查在 Windows 版要 40～50 分鐘，外層 timeout 至少開 90 分鐘。

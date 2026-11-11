@@ -706,7 +706,8 @@ func _hl_go(t: int) -> void:
 func _draw_share() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
 	var hl := _highlights()
-	var sol_ok := mode == Mode.PUZZLE and puzzle_id != "ws" and (Save.data.get("pz_sol", {}) as Dictionary).has(puzzle_id)   # 1.1.0 N5
+	var sol_ok: bool = mode == Mode.PUZZLE and puzzle_id != "ws" and (Save.data.get("pz_sol", {}) as Dictionary).has(puzzle_id) \
+		and load("res://scripts/game/solution_code.gd").entry_valid(puzzle_id, Save.data["pz_sol"][puzzle_id])   # 1.1.0 N5；不合法的舊紀錄不給分享（Codex v110-i3 #1）
 	var rows := 1 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0)
 	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
