@@ -130,6 +130,7 @@
 - **1.1.0**：同一目標超過 3 條鎖定弧只畫 3 條，目標旁「×N」，其餘拉細線到 ×N（`lock_groups`）。被擋住的兵游標停上去描淡粉筆輪廓。4 倍速以上投射物落點畫小圈。拖兵每約 70px 一聲輕摩擦。小地圖（12×7）放大時上方留 36px 頭頂空間（`HEAD_ROOM`）。
 
 ## 角色
+- 1.1.0：刺客遠側短刃在身體後面（交叉斬才到前面）；木座族群部件層 `Art.base_trim`（王國鐵箍、奇幻樹皮），圖集不含、貼完再畫。新特效：翻書、骷髏拼裝、史萊姆彈出、鼓手木紋波、狂戰士斧弧（4 倍速與減少特效規則見 `battle_fx.gd`）。
 - 轉身：22 種兵都有 3 張中間姿勢（`sprite_cache.gd` `TURN_TYPES`）；部件標註在 `kingdom.gd`／`fantasy.gd`（`_part(z, fwd)`、圓件 `_part_at(x0)`，武器最多縮一半）。走路中轉身另一頁：1 角度 × 4 步相（`WT_*`）。出手時每一擊鎖朝向（`atk_face`）。
 - 待機小動作：每種兵 4 格（`FIDGET`：前搖幅度＋回頭看），30～60 秒一次、1.2 秒；受擊那一下帽子彈起 5px（`hat_pop`，只在待機）。
 - 表情：`M_HAPPY`（勝利 ^^）、`M_SURPRISE`（擺陣抓起）、`M_GRIM`（存活 <25% 且對方 >2 倍）；最後一隻站定 1.5 秒後左右張望。羊、幽靈、骷髏法師、骷髏也吃得到表情（`FEATURE_EYES`）。
@@ -184,6 +185,7 @@
 - **V1.0.0**：配樂 5 首：再加 RandomMind（CC0）〈Medieval: Exploration〉＝`music_codex`（標題頁開著圖鑑、大廳、收藏、生涯、塗裝、宿敵時，`CALM_OVERLAYS`）、〈Medieval Kings Feast〉＝`music_puzzle`（殘局、教學擺陣）。同一個音效同時最多 3 路（`sfx.gd` `SAME_MAX`）。
 
 ## 分享、代碼、回報、Steam
+- 雙人輪序紀錄碼 NTD1（1.1.0 B2，`game/duel_code.gd`）：規則、先手、禁牌後卡池、每手落子；解碼逐手重放驗合法才播。重播時手把 View／Select 開戰報面板（B10）。
 - 代碼：「代碼」頁一鍵貼上自動辨識（`code_kind`）；車輪戰代碼 NTW1（`wave_code`／`wave_decode`）。
 - 工具：試玩回報白名單匯出（`Save.playtest_report`）；校對包 `tools/gen/l10n_review.py`（export → `docs/l10n-review/`；import 回填 `ja_zz_review.json`、`zhcn_review.json`，校對優先於程式內 OVERRIDE）。
 - 試玩回報：本機漏斗（存檔 `funnel`：第一次開遊戲、教學、第一場、第一次輸贏、各模式第一次打開、最後離開的畫面）；暫停選單與設定「資料」頁的「回報問題」→ 複製到剪貼簿並存 `user://report_*.json`。
@@ -196,6 +198,7 @@
 - **1.1.0**：`platform_report`（唯讀：雲端開關與檔案、分支、排行榜 API）併進正式 App 的 `--steam-test`；遊戲結束清掉排行榜佇列的回呼（`lb_drop`）。熱修與 beta 分支流程：`docs/release/steam-setup.md` G 節。成就依類別上色（`ACH_CAT`）。
 
 ## 工具與素材
+- 1.1.0：背景工作共用 `scripts/game/bg_pool.gd`；純邏輯 `playroom_rules.gd`、`screen_rules.gd`；測試組依功能分（`coach_lab`、`share_codes`、`reports_platform`、`modes_live`、`battle_visual`）；效能模式多 `atlas_sweep`（圖集上限量測）。
 - 商店圖：`tools/gen/gen_capsules.py <zh_TW_100 截圖夾>` → `docs/release/capsules/`（Steam 全尺寸＋8 張截圖）。
 - 商店圖：小膠囊不放副標（120×45 可讀）；`tools/gen/gen_capsules.py`。
 - 工具：`tools/anim_sheet.gd` 產 `turn.png`、`fidget.png`、`walkturn0.png`，並檢查武器穿眼（`ANCHOR`）、出格（`CLIP`）。
