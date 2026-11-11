@@ -515,8 +515,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
 		var ar0 := clampf(air0 * 0.05, 0.0, 1.0)
 		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0)   # V1.4 #12 巨獸畫大
-		_ring(p0, u.team, u.type, bsc, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層
-		Art.base_trim(self, p0, u.type, bsc)   # 1.1.0 B14：族群底座部件（另一層；圖集的合成格不含，貼完再畫）（效能：合成格一次貼完）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
+		_ring(p0, u.team, u.type, bsc, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層（效能：合成格一次貼完；1.1.0 B14 族群底座部件也烘在合成格裡）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
 		if u.st > 0:
 			_sticker_badge(p0, u.st, UNIT_SCALE, u.ward or u.st != 3)   # V1.4 #9：護符用掉就淡掉
 		if u.shield > 0:       # 第十二輪：手動技能的護盾、戰吼

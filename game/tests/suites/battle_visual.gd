@@ -495,5 +495,5 @@ func test_b14_layers_v110() -> void:
 	ok(src.contains("if maxf(0.0, w) >= 0.5:\n\t\t\t\t_assassin_far(ci, w, a)"), "交叉斬時繞到前面")
 	var art := FileAccess.get_file_as_string("res://scripts/ui/art.gd")
 	ok(art.contains("static func base_trim") and art.contains("base_trim(ci, p, type, scale)"), "底座部件另一層")
-	var bu := FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
-	ok(bu.contains("Art.base_trim(self, p0, u.type, bsc)"), "戰場貼完木座後畫部件")
+	var sc := FileAccess.get_file_as_string("res://scripts/ui/sprite_cache.gd")
+	ok(sc.contains("Vector2i(14 * CELL, CELL)") and sc.contains("var fan := 4 if type >= D.COUNT else 0"), "部件烘進合成格（每隻還是一次貼圖），王國／奇幻各一組")

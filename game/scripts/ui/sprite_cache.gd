@@ -294,7 +294,7 @@ func _post(img: Image, per := FRAMES_PER) -> Image:
 func _bake_ring(cb: bool) -> void:
 	var painter := _RingPainter.new()
 	painter.cb = cb
-	var vp := _viewport(Vector2i(10 * CELL, CELL), painter)   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）
+	var vp := _viewport(Vector2i(14 * CELL, CELL), painter)   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
 	var g0 := _gen
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
@@ -322,10 +322,14 @@ func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0, a
 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
 	if air <= 0.0:
 		# 站在地上（絕大多數）：一次貼好預先合成的三層（效能：每隻 1 次貼圖，不是 3 次）
-		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((6 + idx) * CELL, 0, CELL, CELL))
+		var fan := 4 if type >= D.COUNT else 0   # 1.1.0 B14：奇幻兵用樹皮部件那一組合成格
+		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((6 + fan + idx) * CELL, 0, CELL, CELL))
 		ci.draw_set_transform_matrix(Art.base)
 		return
 	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(4 * CELL, 0, CELL, CELL))   # 木座
+	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale, scale), 0.0, p))
+	Art.base_trim(ci, Vector2.ZERO, type, 1.0)   # 1.1.0 B14：跳起來（少數）才分層畫部件
+	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
 	if air > 0.0:
 		var ss := scale * (1.0 - air * 0.35)
 		ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(ss / RS, ss / RS), 0.0, p))
@@ -552,6 +556,8 @@ class _RingPainter extends Node2D:
 			for heavy in 2:
 				var o2 := Vector2((6 + team * 2 + heavy) * 192, 0) + Vector2(96, 140)
 				Art2.ring(self, o2, team, D2.SHIELD if heavy == 1 else D2.SWORD, cb, 1.6)
+				var o3 := Vector2((10 + team * 2 + heavy) * 192, 0) + Vector2(96, 140)
+				Art2.ring(self, o3, team, 19 if heavy == 1 else 10, cb, 1.6)   # 1.1.0 B14：奇幻組（樹皮部件；重兵＝小石魔）
 		Art2.base = saved
 
 ## V1.3.1：額外頁的畫家。mode 1＝待機小動作 4 格＋受擊帽子 1 格；mode 2＝走路轉身（2 角度 × 4 步相）。
