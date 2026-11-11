@@ -319,10 +319,9 @@ func _make_workshop() -> void:
 	_toast(L.t("ws_copied"))
 
 ## V1.0.0（Codex v100-i1 #6）：重跑作者解放背景執行緒（可取消、有期限），畫面不卡；驗完在 _ws_jobs 接著做。
-## 開別的模式、離開標題頁就取消；被取消的執行緒放 ws_old，停了再回收。headless／截圖時同步做。
+## 開別的模式、離開標題頁就取消；被取消的交給 bg（BgPool）回收。headless／截圖時同步做。
 var ws_thread: Thread = null
 var ws_ctl := {}
-var ws_old: Array = []
 var ws_pending := {}
 func _accept_workshop(c := "") -> void:
 	var from_clip := c == ""
@@ -332,10 +331,10 @@ func _accept_workshop(c := "") -> void:
 		_accept_workshop_done(WS.decode(c), from_clip)
 		return
 	_ws_cancel()
-	var ctl := {"stop": false, "until": Time.get_ticks_msec() + WS.SOLVE_MS * 3}
-	var t := Thread.new()
+	var ctl: Dictionary = BgPool.make_ctl(WS.SOLVE_MS * 3)
 	var code := c
-	if t.start(func(): return WS.decode(code, ctl)) != OK:
+	var t: Thread = bg.start(func(): return WS.decode(code, ctl), ctl)
+	if t == null:
 		_toast(L.t("ws_slow"), true)
 		return
 	ws_ctl = ctl
@@ -345,30 +344,22 @@ func _accept_workshop(c := "") -> void:
 
 func _ws_cancel() -> void:
 	if ws_thread != null:
-		ws_ctl["stop"] = true
-		ws_old.append(ws_thread)
+		bg.retire(ws_thread)
 		ws_thread = null
 
 func _ws_jobs() -> void:
-	for t in ws_old.duplicate():
-		if not (t as Thread).is_alive():
-			(t as Thread).wait_to_finish()
-			ws_old.erase(t)
 	if ws_thread == null:
 		return
 	if state != St.TITLE or overlay != str(ws_pending.get("overlay", "")):
 		_ws_cancel()   # 驗證中開了別的（換頁、開模式）：不接著做（Codex v100-i2 #3）
 		return
 	if not ws_thread.is_alive():
-		var d: Dictionary = ws_thread.wait_to_finish()
+		var d: Dictionary = bg.take(ws_thread)
 		ws_thread = null
 		_accept_workshop_done(d, bool(ws_pending.get("from_clip", false)))
 
 func _ws_exit() -> void:
-	_ws_cancel()
-	for t in ws_old:
-		(t as Thread).wait_to_finish()
-	ws_old = []
+	_ws_cancel()   # 等待在 bg.drain()
 
 func _accept_workshop_done(d: Dictionary, from_clip: bool) -> void:
 	if not bool(d["ok"]):

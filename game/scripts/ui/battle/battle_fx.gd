@@ -298,10 +298,10 @@ func _draw_vignette(strength: float) -> void:
 
 ## V1.0.0 P7：4 倍速以上的降噪（Gemini v100 r5：爆爆羊爆炸、史萊姆分裂、小石魔拍地不能省）
 const FAST_SPEED := 4.0
-const FAST_SKIP := ["woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
+const FAST_SKIP := ["pages", "bonesup", "woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["slimehop", "pages", "bonesup", "woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	if speed >= FAST_SPEED and d["kind"] in FAST_SKIP:
 		return   # V1.0.0 P7：高倍速只略過裝飾碎屑；預警圈（tell）、爆炸、分裂、拍地這類決定戰局的照畫
@@ -620,6 +620,35 @@ func _draw_fx(f: Dictionary) -> void:
 			draw_set_transform_matrix(_cam)
 		"pin":
 			draw_line(f["a"], f["b"], Color(0.62, 0.12, 0.12, 0.85 * (1.0 - k)), 3.0, true)   # 1.1.0 A7：分傷＝受傷，暗紅（原本粉紫，和毒的紫撞）
+		"pages":
+			# 1.1.0 A7：骷髏法師翻書：兩頁米白紙以書脊為軸翻過去（≤0.3 格）
+			for pg in 2:
+				var kp := clampf(k * 1.6 - pg * 0.5, 0.0, 1.0)
+				var w := 9.0 * cos(kp * PI)
+				var q := PackedVector2Array([f["p"], f["p"] + Vector2(w, -2.0 - 3.0 * sin(kp * PI)), f["p"] + Vector2(w, 9.0 - 3.0 * sin(kp * PI)), f["p"] + Vector2(0, 9.0)])
+				draw_colored_polygon(q, Color(0.96, 0.92, 0.8, 0.9 * (1.0 - k * 0.6)))
+		"bonesup":
+			# 1.1.0 A7：骷髏拼裝：5 根骨頭從外圈收進來（0.15 秒），收完就是本體
+			for bi in 5:
+				var ab := bi * TAU / 5.0 + 0.4
+				var rr := 18.0 * (1.0 - k)
+				var c0: Vector2 = f["p"] + Vector2(cos(ab), sin(ab) * 0.8) * rr
+				var d0 := Vector2(cos(ab + 1.2), sin(ab + 1.2)) * 4.0
+				draw_line(c0 - d0, c0 + d0, Color(0.93, 0.9, 0.82, 1.0 - k * 0.5), 2.2, true)
+		"slimehop":
+			# 1.1.0 A7：小史萊姆從母體彈出半圈：沿半圓弧的殘影＋落地壓扁回彈（弧在 0.3 格內）
+			var dxh: float = f.get("dir", 1.0)
+			var start: Vector2 = f["p"] + Vector2(-14.0 * dxh, 0)
+			if k < 0.6:
+				var kh := k / 0.6
+				var pos := start.lerp(f["p"], kh) + Vector2(0, -14.0 * sin(kh * PI))
+				draw_circle(pos + Vector2(0, -6), 4.5, Color(0.45, 1.0, 0.55, 0.7), true, -1.0, true)
+			else:
+				var ks := (k - 0.6) / 0.4
+				var sq := 1.0 + 0.5 * sin(ks * PI)
+				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(sq, 1.0 / sq), 0, f["p"] + Vector2(0, -3)))
+				draw_circle(Vector2.ZERO, 5.0, Color(0.45, 1.0, 0.55, 0.6 * (1.0 - ks)), true, -1.0, true)
+				draw_set_transform_matrix(_cam)
 		"woodwave":
 			# 1.1.0 A7：鼓手敲擊，腳下兩圈淡木色同心波（貼地，外圈 ≤0.3 格）
 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.45), 0, f["p"]))

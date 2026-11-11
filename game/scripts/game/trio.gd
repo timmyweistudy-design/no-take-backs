@@ -46,6 +46,8 @@ static func results(s: Dictionary, extra: Array, from := 0, ctl := {}) -> Array:
 		if r.has("cancel"):
 			return []
 		out.append(r)
+		if ctl.has("total"):
+			ctl["done"] = out.size()   # 1.1.0 N6：進度（場數，上限已知）
 	return out
 
 static func s2_of(s: Dictionary) -> int:

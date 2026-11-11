@@ -893,9 +893,12 @@ func _coach_open() -> void:
 		if DisplayServer.get_name() == "headless" or shot_dir != "":
 			co_res = Coach.search(a0, a1, rr, pz, Coach.LIMIT, ctl)
 		else:
-			co_thread = Thread.new()
+			co_thread = bg.start(func(): return Coach.search(a0, a1, rr, pz, Coach.LIMIT, ctl), ctl)
 			co_thread_key = key
-			co_thread.start(func(): return Coach.search(a0, a1, rr, pz, Coach.LIMIT, ctl))
+			if co_thread == null:
+				co_key = ""
+				_toast(L.t("rv_fail"), true)   # 1.1.0 N6：開不了執行緒就說，可以再按（原本沒看 start 回傳）
+				return
 	overlay = "coach"
 	_focus = 0
 
@@ -913,7 +916,7 @@ func _v16_jobs(_delta: float) -> void:
 	if co_thread != null and overlay != "coach" and not bool(co_ctl.get("stop", false)):
 		_coach_cancel_quiet()   # Esc／手把 B／任何離開教練面板的路徑都取消推演（Codex v161-i1 #3）
 	if co_thread != null and not co_thread.is_alive():
-		var res = co_thread.wait_to_finish()
+		var res = bg.take(co_thread)
 		co_thread = null
 		if co_thread_key == co_key and str((res as Dictionary).get("status", "")) == "cancel" and overlay == "coach":
 			co_key = ""
@@ -930,15 +933,10 @@ func _exit_tree() -> void:
 	SteamApi.lb_drop()   # 1.1.0 A21
 	_ws_exit()
 	_trio_cancel()
-	for t in trio_old + ([trio_thread] if trio_thread != null else []):
-		(t as Thread).wait_to_finish()   # 已叫停：64 tick 內會停
-	trio_old = []
-	trio_thread = null
 	if co_thread != null:
-		co_ctl["stop"] = true   # V1.6.1 F5：先叫它停（64 tick 內會停），不用等整場跑完
-		co_thread.wait_to_finish()   # 結束時收掉教練的背景工作（Codex v160-i1 #3）
+		bg.retire(co_thread)   # V1.6.1 F5：叫停（64 tick 內會停），等待在 bg.drain()
 		co_thread = null
-	super._exit_tree()
+	super._exit_tree()   # battle_view._exit_tree → bg.drain()
 
 ## V1.6.1 F5：推演中按「取消」：叫背景停下、關面板；下次打開這一場會重算
 func _coach_cancel() -> void:
@@ -1832,37 +1830,31 @@ func _trio_settle() -> void:
 	_trio_cancel()   # 上一組還在算（極少見）：叫它停，背景收（不在主執行緒等）
 	trio_busy = true
 	trio_err = false
-	var ctl := {"stop": false, "until": Time.get_ticks_msec() + TRIO_LIMIT_MS}
+	var ctl: Dictionary = BgPool.make_ctl(TRIO_LIMIT_MS, {"total": 2})   # 背景算第 2、3 場
 	trio_ctl = ctl
-	var t := Thread.new()
 	var job := trio_job
 	var inp: Dictionary = s.duplicate(true)   # 背景只用自己的副本（V1.0.0 M13）
 	var ex: Array = extra.duplicate(true)
-	if t.start(func(): return [job, Trio.results(inp, ex, 1, ctl)]) != OK:
+	var t: Thread = bg.start(func(): return [job, Trio.results(inp, ex, 1, ctl)], ctl)
+	if t == null:
 		trio_busy = false
 		trio_err = true   # 開不了執行緒：顯示失敗、可以重試（Codex v100-i1 #4：不退回主執行緒無期限重算）
 		return
 	trio_thread = t
 
-## V1.0.0 M13：三考背景運算可取消、有期限（TRIO_LIMIT_MS），被取消的執行緒放 trio_old，停了再回收，不阻塞畫面。
+## V1.0.0 M13：三考背景運算可取消、有期限（TRIO_LIMIT_MS），被取消的交給 bg（BgPool）回收，不阻塞畫面。
 const TRIO_LIMIT_MS := 20000
 var trio_ctl := {}
-var trio_old: Array = []
 var trio_err := false   # 逾時：不寫星數，結算頁顯示「算太久」
 func _trio_cancel() -> void:
 	if trio_thread != null:
-		trio_ctl["stop"] = true
-		trio_old.append(trio_thread)
+		bg.retire(trio_thread)
 		trio_thread = null
 		trio_busy = false
 
 func _trio_jobs() -> void:
-	for t in trio_old.duplicate():
-		if not (t as Thread).is_alive():
-			(t as Thread).wait_to_finish()
-			trio_old.erase(t)
 	if trio_thread != null and not trio_thread.is_alive():
-		var got: Array = trio_thread.wait_to_finish()
+		var got: Array = bg.take(trio_thread)
 		trio_thread = null
 		trio_busy = false
 		if int(got[0]) == trio_job and trio_res.size() == 1:
@@ -1932,7 +1924,8 @@ func _draw_trio_result() -> void:
 	var s: Dictionary = _trio_set()
 	var done := trio_res.size() == 3
 	var all_ok := done and trio_st >= 1
-	var foot: String = L.t("tr_timeout") if trio_err else L.t("tr_busy") if not done else (L.t("tr_pass_st", [Trio.rem_avg(trio_res), Trio.spent_pct(s, trio_res), Trio.s2_of(s), Trio.s3_of(s)]) if all_ok else L.t("tr_fail"))
+	var busy_txt: String = L.t("tr_busy") + ("　%d／%d" % [int(trio_ctl.get("done", 0)), int(trio_ctl.get("total", 0))] if trio_busy and BgPool.progress(trio_ctl) >= 0.0 else "")   # 1.1.0 N6：已知上限才顯示
+	var foot: String = L.t("tr_timeout") if trio_err else busy_txt if not done else (L.t("tr_pass_st", [Trio.rem_avg(trio_res), Trio.spent_pct(s, trio_res), Trio.s2_of(s), Trio.s3_of(s)]) if all_ok else L.t("tr_fail"))
 	var cw := 220.0
 	var ch := 196.0
 	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + ch + GAP_L + text_h(foot, tz("S"), 680) + GAP_L + 26.0 + GAP_L + 50.0 + GAP_L)

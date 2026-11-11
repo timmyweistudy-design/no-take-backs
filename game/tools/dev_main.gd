@@ -1193,6 +1193,37 @@ func _shots_v6() -> void:
 	overlay = ""
 
 
+## 1.1.0 A19：圖集有界快取的量測。依序模擬「每場帶不同新兵」：每輪要求 3 種奇幻兵（含召喚物）＋轉身出手格，
+## 記每輪後的貼圖記憶體與烘焙期間最長一幀；全部 12 種奇幻兵輪過兩次（第二次會丟舊頁），看峰值有沒有被頁數上限壓住。
+func _perf_atlas_sweep() -> Dictionary:
+	if sprites == null:
+		return {}
+	var fan: Array = range(D.COUNT, 22)
+	var rounds: Array = []
+	var peak := 0.0
+	var worst_frame := 0.0
+	for rep in 2:
+		for i in range(0, fan.size(), 3):
+			var want: Array = fan.slice(i, i + 3)
+			var t0 := Time.get_ticks_msec()
+			sprites.ensure(want)
+			sprites.ensure_turn_atk(want)
+			var last := Time.get_ticks_usec()
+			var longest := 0.0
+			var guard := 0
+			while (sprites._busy or sprites._ta_busy) and guard < 600:
+				guard += 1
+				await RenderingServer.frame_post_draw
+				var now := Time.get_ticks_usec()
+				longest = maxf(longest, (now - last) / 1000.0)
+				last = now
+			var mem := Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0
+			peak = maxf(peak, mem)
+			worst_frame = maxf(worst_frame, longest)
+			rounds.append({"types": want, "ms": Time.get_ticks_msec() - t0, "tex_mib": snappedf(mem, 0.1), "longest_frame_ms": snappedf(longest, 0.1),
+				"pages": sprites.pages.filter(func(p): return p != null).size(), "ta": sprites.ta_tex.size()})
+	return {"peak_tex_mib": snappedf(peak, 0.1), "worst_bake_frame_ms": snappedf(worst_frame, 0.1), "max_pages": sprites.MAX_PAGES, "ta_max": sprites.TA_MAX, "rounds": rounds}
+
 ## 繪圖效能量測（第二輪 R2、第三輪 T3）：
 ## ・啟動時間（引擎啟動到量測開始）、色盲切換的圖集重建時間
 ## ・48 隻（每邊 24，量測專用的 160 金預算，五兵種混合）打完整場，展示速度 4 倍（約 25 秒內走到狂熱與結束）
@@ -1256,6 +1287,7 @@ func _run_perf() -> void:
 	var sect := func(which: int) -> Dictionary:
 		return {"frames": pick.call(0, which).size(), "draw_ms": _pstats(pick.call(0, which)), "process_ms": _pstats(pick.call(1, which)),
 			"gpu_ms": _pstats(pick.call(2, which)), "frame_ms": _pstats(pick.call(3, which))}
+	var atlas := await _perf_atlas_sweep()
 	var commit := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--perf-commit="):
@@ -1267,7 +1299,7 @@ func _run_perf() -> void:
 		"tex_mem_mib": snappedf(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0, 0.1),   # V1.3.1：資源驗收（方案 §0）
 		"commit": commit, "boot_ms": ready_ms, "boot_to_measure_ms": boot_ms, "colorblind_rebuild_ms": cb_ms,
 		"units_start": units_start, "display_speed": 4.0, "battle_ticks": sim.tick, "reached_frenzy": sim.tick >= Sim.FRENZY_TICK,
-		"all": sect.call(0), "normal": sect.call(1), "frenzy": sect.call(2),
+		"all": sect.call(0), "normal": sect.call(1), "frenzy": sect.call(2), "atlas_sweep": atlas,
 		"note": "frame_ms 受垂直同步限制（約 16.7）；實際成本看 draw＋process＋gpu。展示速度 4 倍時每幀處理的模擬 tick 比正常多，屬於偏嚴的量法"}
 	var f := FileAccess.open(perf_path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out, "  "))

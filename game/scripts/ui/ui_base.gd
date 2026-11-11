@@ -5,6 +5,8 @@ extends Node2D
 ## UI 是自繪的「即時模式按鈕」，同時支援滑鼠、鍵盤、手把（焦點導航）。
 
 const D = preload("res://scripts/core/unit_defs.gd")
+const BgPool = preload("res://scripts/game/bg_pool.gd")
+var bg = BgPool.new()   # 1.1.0 N6：背景工作共用生命週期（覆盤、GIF、教練、三考、出題碼）
 const Army = preload("res://scripts/core/army.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")

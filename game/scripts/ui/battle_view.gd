@@ -45,9 +45,7 @@ func _pre_reap() -> void:
 func _exit_tree() -> void:
 	if has_method("_rv_exit"):
 		call("_rv_exit")   # 1.1.0 H1：覆盤重算、GIF 先叫停再等
-	var gt = get("gif_thread")
-	if gt != null:
-		gt.wait_to_finish()   # V1.4 #14：GIF 還在寫就等它寫完（Codex v140-i2）
+	bg.drain()   # 1.1.0 N6：覆盤、GIF、教練、三考、出題碼的背景工作：全部叫停再等（各自 64 tick／每格內會停）
 	_pre_join()
 	_pre_drop()
 	for th in pre_old:
@@ -327,6 +325,7 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 		EV.SPLIT:
 			_add_fx({"kind": "puff", "p": sp + Vector2(0, -12), "t": 0.0, "dur": 0.3})
 			_add_fx({"kind": "chips", "p": sp + Vector2(0, -8), "t": 0.0, "dur": 0.35, "c": Color(0.45, 1.0, 0.55, 0.85), "drop": true})   # 1.1.0 A7：小史萊姆落地濺點
+			_add_fx({"kind": "slimehop", "p": sp, "dir": 1.0 if s.id % 2 == 0 else -1.0, "t": 0.0, "dur": 0.25})   # 1.1.0 A7：從母體彈出半圈、落地壓扁回彈（只畫殘影弧，出生座標照模擬）
 			sfx.play("squish", 0.5)
 			_report_add(s.team, 13, k, L.t("ev_split"), Color("#7dffa0"), s)
 		EV.CAST:
@@ -341,6 +340,7 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 					sfx.play("bell", 0.35)
 				EV.RAISE:
 					sfx.play("raise", 0.3)
+					_add_fx({"kind": "pages", "p": sp + Vector2(10 * (1.0 if s.team == 0 else -1.0), -34), "t": 0.0, "dur": 0.4})   # 1.1.0 A7：骷髏法師施法翻書兩頁
 		EV.TIMESTOP:
 			_add_fx({"kind": "timebell", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.8})
 			sfx.play("bell", 1.0)
@@ -348,6 +348,7 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 			_report_add(s.team, s.type, k, L.t("ev_timestop"), Color("#ffe08a"), s)
 		EV.RAISE:
 			_add_fx({"kind": "soulrise", "p": sp + Vector2(0, -16), "t": 0.0, "dur": 0.6})
+			_add_fx({"kind": "bonesup", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.15})   # 1.1.0 A7：骷髏出生 0.15 秒骨頭往中間拼起來（實體照模擬，不延後）
 			sfx.play("raise", 0.8)
 			_report_add(s.team, 17, k, L.t("ev_raise"), Color("#c77dff"), s)
 		EV.VACUUM:

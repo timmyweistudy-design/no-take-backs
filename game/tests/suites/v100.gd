@@ -435,8 +435,52 @@ func test_review_fixes_v110() -> void:
 ## 1.1.0 A7（P2）：新增的鼓手木紋波、狂戰士斧弧是裝飾：4 倍速以上不畫、減少特效時不出。
 func test_a7_p2_fx_v110() -> void:
 	var F = load("res://scripts/ui/battle/battle_fx.gd")
-	for kd in ["woodwave", "axearc"]:
+	for kd in ["woodwave", "axearc", "pages", "bonesup"]:
 		ok(kd in F.FAST_SKIP, "%s 高倍速略過" % kd)
+	ok(not "slimehop" in F.FAST_SKIP, "史萊姆分裂 4 倍速也要看得到（Gemini v100 r5）")
 	var src := FileAccess.get_file_as_string("res://scripts/ui/battle/battle_fx.gd")
-	ok(src.contains('d["kind"] in ["woodwave", "axearc",'), "減少特效時不出")
-	ok(src.contains('"woodwave":') and src.contains('"axearc":'), "有畫法")
+	ok(src.contains('d["kind"] in ["slimehop", "pages", "bonesup", "woodwave", "axearc",'), "減少特效時不出")
+	for kd2 in ["woodwave", "axearc", "pages", "bonesup", "slimehop"]:
+		ok(src.contains('"%s":' % kd2), "%s 有畫法" % kd2)
+
+## 1.1.0 N6：背景工作共用生命週期（BgPool）：開工、叫停回收、取結果、結束全收、進度只在知道上限時有值。
+func test_bg_pool_v110() -> void:
+	var P = load("res://scripts/game/bg_pool.gd")
+	var pool = P.new()
+	var ctl: Dictionary = P.make_ctl(5000, {"total": 4})
+	ok(P.progress(ctl) == 0.0 and P.progress(P.make_ctl(10)) == -1.0, "進度：有上限 0、沒上限 -1")
+	var t: Thread = pool.start(func():
+		var n := 0
+		while not bool(ctl["stop"]) and Time.get_ticks_msec() < int(ctl["until"]) and n < 4:
+			n += 1
+			ctl["done"] = n
+			OS.delay_msec(5)
+		return n, ctl)
+	ok(t != null and pool.busy() == 1, "開工")
+	while t.is_alive():
+		OS.delay_msec(2)
+	ok(int(pool.take(t)) == 4 and pool.busy() == 0, "取結果後不再持有")
+	var c2: Dictionary = P.make_ctl(60000)
+	var t2: Thread = pool.start(func():
+		while not bool(c2["stop"]):
+			OS.delay_msec(2)
+		return "stopped", c2)
+	pool.retire(t2)
+	ok(bool(c2["stop"]) and pool.old.size() == 1 and pool.live.is_empty(), "叫停後交給回收")
+	var guard := 0
+	while pool.old.size() > 0 and guard < 500:
+		pool.reap()
+		OS.delay_msec(2)
+		guard += 1
+	ok(pool.busy() == 0, "每幀回收收得掉")
+	var c3: Dictionary = P.make_ctl(60000)
+	pool.start(func():
+		while not bool(c3["stop"]):
+			OS.delay_msec(2)
+		return 0, c3)
+	pool.drain()
+	ok(pool.busy() == 0 and bool(c3["stop"]), "結束時全部叫停並等完")
+	var src := ""
+	for f in ["res://scripts/ui/replay_view.gd", "res://scripts/ui/screens/game_v16.gd", "res://scripts/ui/screens/game_modes.gd"]:
+		src += FileAccess.get_file_as_string(f)
+	ok(not src.contains("Thread.new()") or src.count("Thread.new()") == 0, "五種背景工作不再自己開執行緒")

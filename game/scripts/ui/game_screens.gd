@@ -458,6 +458,7 @@ func _throttle_when_minimized() -> void:
 
 func _process(delta: float) -> void:
 	_throttle_when_minimized()
+	bg.reap()   # 1.1.0 N6：收掉已叫停、已停下的背景工作
 	_rv_poll()
 	_settings_hover()
 	_v16_tick(delta)   # V1.6：漏斗里程碑、背景工作
