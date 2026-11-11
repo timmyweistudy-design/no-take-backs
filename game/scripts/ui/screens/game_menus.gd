@@ -1,5 +1,5 @@
 extends "res://scripts/ui/screens/game_playroom.gd"
-const Guide = preload("res://scripts/game/v16_guide.gd")
+const Guide = preload("res://scripts/game/guide.gd")
 ## 由 game_screens.gd 拆出（V9 P1，行為不變）
 
 ## 第八輪成就：贏的那隊。沙盒不算（改過數值）。

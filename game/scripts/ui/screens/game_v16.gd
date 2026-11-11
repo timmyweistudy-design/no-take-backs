@@ -2,7 +2,7 @@ extends "res://scripts/ui/screens/game_menus.gd"
 ## V1.6.0 介面層（docs/history/2026-11-10-v1.6.0-plan.md）：新手下一步、試玩回報、分享、教練、極速賽、裂隙、人設、熟練度、實驗簿、出題台、一陣三考、迷霧、接力遠征。
 ## 純邏輯放 scripts/game/v16_*.gd（可測），這裡只管畫面與流程。
 
-const Funnel = preload("res://scripts/game/v16_funnel.gd")
+const Funnel = preload("res://scripts/game/funnel.gd")
 
 ## ── #2 真人試玩：所在畫面名稱、回報（存檔＋複製到剪貼簿）、離開時記最後的畫面 ──
 func screen_id() -> String:
@@ -636,7 +636,7 @@ func _draw_magnifier() -> void:
 	layout_probe = kp
 
 ## ── #5 社群分享包＋B25 結果頁收合：明信片、出題碼、分享格、精華時刻收進一個「分享」面板 ──
-const Share = preload("res://scripts/game/v16_share.gd")
+const Share = preload("res://scripts/game/share.gd")
 var sh_text := ""   # 這一場的分享格（每日或每週才有）
 
 func _share_ready() -> bool:
@@ -721,7 +721,7 @@ func _ghost_settle(w: int) -> void:
 		sh_text = Share.weekly_text(L, int(rec.get("wk", 0)), w == 0, last_armies[0].spent() if last_armies.size() > 0 else 0, int(rec.get("best", 0)), int(rec.get("tries", 0)))
 
 ## ── #8 殘局極速賽 ──
-const Rush = preload("res://scripts/game/v16_rush.gd")
+const Rush = preload("res://scripts/game/rush.gd")
 var rush := {}   # {"on", "left", "ids", "i", "solved", "tried"}
 
 ## V1.6.1 D1：入口先開選單——「今日題組」（UTC 日數當種子，大家同一天同一套題，可分享）或「隨機練習」
@@ -819,7 +819,7 @@ func _draw_rush_end() -> void:
 	_btn(Rect2(640 + 125, y, 220, 50), L.t("back"), func(): overlay = "")
 
 ## ── #9 差一子教練 ──
-const Coach = preload("res://scripts/game/v16_coach.gd")
+const Coach = preload("res://scripts/game/coach.gd")
 var co_thread: Thread = null
 var co_res := {}       # 搜尋結果
 var co_layer := 0      # 0 還沒看、1 哪一隻、2 往哪、3 直接擺
@@ -1066,7 +1066,7 @@ func _close_overlay_plain() -> void:
 	overlay = ""
 
 ## ── #10 裂隙模式 ──
-const Rift = preload("res://scripts/game/v16_rift.gd")
+const Rift = preload("res://scripts/game/rift.gd")
 var rift_on := false
 var rift_wk := 0
 var rift_code := ""   # 這一場裂隙的規則碼：「再來一局」要同一組規則才算裂隙（Antigravity v160-i2 #2）   # 開局那一週（跨週才打完也記在那一週，Codex v160-i2 #1）
@@ -1204,7 +1204,7 @@ func _start_mode(m: int) -> void:
 	trio_on = keep_trio
 
 ## ── #11 AI 對手人設 ──
-const Persona = preload("res://scripts/game/v16_persona.gd")
+const Persona = preload("res://scripts/game/persona.gd")
 
 func _ai_style() -> int:
 	return int(rules.ai_style) if rules != null else 0
@@ -1247,7 +1247,7 @@ func _persona_result() -> void:
 	report["ps_hab"] = L.t("ps_hab", [L.t("ps_name_%d" % st), L.t("ps_hab_%d" % clampi(st, 0, 5))])   # 1.1.0 A8：這位對手的習慣（有空位才顯示）
 
 ## ── #12 生涯：熟練度＋實驗簿 ──
-const Career = preload("res://scripts/game/v16_career.gd")
+const Career = preload("res://scripts/game/career.gd")
 
 func _career_settle() -> void:
 	if sim == null or mode == Mode.DUEL or watch_mode:
@@ -1749,7 +1749,7 @@ func _draw_editor() -> void:
 	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 ## ── #17 一陣三考 ──
-const Trio = preload("res://scripts/game/v16_trio.gd")
+const Trio = preload("res://scripts/game/trio.gd")
 var trio_on := false
 var trio_i := 0
 var trio_res: Array = []

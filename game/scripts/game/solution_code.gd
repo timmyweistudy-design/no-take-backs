@@ -43,7 +43,7 @@ static func decode(code: String) -> Dictionary:
 ## 這一場比存的好就換（純函式：回傳新的紀錄字典，沒變回原本的）
 static func merge(best: Dictionary, pid: String, stars: int, rem: int, spent: int, units: Array) -> Dictionary:
 	var old: Dictionary = best.get(pid, {})
-	var Career = load("res://scripts/game/v16_career.gd")
+	var Career = load("res://scripts/game/career.gd")
 	if not old.is_empty() and not Career.better([stars, rem, spent], old.get("r", [])):
 		return best
 	best[pid] = {"r": [stars, rem, spent], "u": units.duplicate(true)}

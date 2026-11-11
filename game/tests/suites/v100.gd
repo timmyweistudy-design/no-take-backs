@@ -39,7 +39,7 @@ func test_feedback_honest_v100() -> void:
 
 ## M13：三考背景運算可取消、逾時回空。
 func test_trio_cancel_v100() -> void:
-	var TR = load("res://scripts/game/v16_trio.gd")
+	var TR = load("res://scripts/game/trio.gd")
 	var s: Dictionary = TR.sets()[0]
 	var sol: Array = s["sol"]
 	var full: Array = TR.results(s, sol, 1)
@@ -217,7 +217,7 @@ func test_retry_trial_free_v100() -> void:
 ## Codex v100-i3：舊存檔沒有 ai_games／ai_wins 時用舊統計估；全新進度是 0。
 func test_ai_count_migrate_v100() -> void:
 	var SV = load("res://scripts/game/save.gd")
-	var G = load("res://scripts/game/v16_guide.gd")
+	var G = load("res://scripts/game/guide.gd")
 	ok(int(SV.DEFAULT_SAVE["ai_games"]) == 0, "全新進度 0")
 	var raw := {"schema_version": SV.SAVE_VERSION, "stats": {"games": 12, "wins": 7}, "tutorial": 3}
 	var m: Dictionary = SV.migrate(raw) if SV.has_method("migrate") else {}
@@ -245,7 +245,7 @@ func test_review_gif_cancel_v110() -> void:
 ## 1.1.0 N1／A24：回報帶類別與格式版本；第一次開戰秒數只在第一次開遊戲那次記。
 func test_report_cat_firstbattle_v110() -> void:
 	var SV = load("res://scripts/game/save.gd")
-	var F = load("res://scripts/game/v16_funnel.gd")
+	var F = load("res://scripts/game/funnel.gd")
 	var keep: Dictionary = SV.data.duplicate(true)
 	SV.data = {"funnel": {"boots": 1, "boot": 1000}}
 	F.first_battle_time(95000)
@@ -281,7 +281,7 @@ class FakePlat:
 
 ## 1.1.0 A11：裂隙遍歷 520 週（約 10 年）× 正式／試玩卡池：三個異變、類別不重複、沒有排除組合、規則合法、敵陣有戰鬥兵。
 func test_rift_seeds_v110() -> void:
-	var RF = load("res://scripts/game/v16_rift.gd")
+	var RF = load("res://scripts/game/rift.gd")
 	var RO = load("res://scripts/game/roster.gd")
 	var bad: Array = []
 	var seen := {}

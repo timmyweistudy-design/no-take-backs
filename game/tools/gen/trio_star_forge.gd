@@ -3,7 +3,7 @@ extends SceneTree
 ## 存進 trio.json 的 "sol3"（可重現的三星解，測試會重跑驗證）。找不到就用找到的最好那套當三星門檻（單組覆寫 s2／s3，記在輸出）。
 ## 用法（game/ 下）：godot --headless --path . --script res://tools/gen/trio_star_forge.gd -- --set=<0..9> --iters=600 --out=<檔>
 ## 一組一個行程（可平行），結果寫成一行 JSON 到 --out；再用 tools/gen/trio_star_merge.py 併回 trio.json。
-const Trio = preload("res://scripts/game/v16_trio.gd")
+const Trio = preload("res://scripts/game/trio.gd")
 const PZ = preload("res://scripts/game/puzzles.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 

@@ -2,7 +2,7 @@ extends "res://tests/test_base.gd"
 ## V1.6.1 測試（docs/history/2026-11-10-v1.6.1-plan.md）。會碰存檔的測試自己換前綴、結束還原。
 
 func test_nb_key_v161() -> void:
-	var CA = load("res://scripts/game/v16_career.gd")
+	var CA = load("res://scripts/game/career.gd")
 	var pz1 := {"id": "ws", "zh": "工坊殘局", "en": "W", "enemy": [[0, 12, 3], [1, 11, 2]], "fixed": [], "budget": 10, "allowed": [0, 1], "star2": 40, "star3": 10}
 	var pz2 := pz1.duplicate(true)
 	pz2["enemy"] = [[1, 11, 2], [0, 12, 3]]   # 兵的順序不同
@@ -21,7 +21,7 @@ func test_nb_key_v161() -> void:
 	ok(CA.nb_save(nb, "wabc", "C", [[0, 1, 3]], "h1"), "別題存過的擺法，這題還能存")
 
 func test_nb_better_v161() -> void:
-	var CA = load("res://scripts/game/v16_career.gd")
+	var CA = load("res://scripts/game/career.gd")
 	var nb := {}
 	CA.nb_save(nb, "p1", "A", [[0, 1, 2]])
 	CA.nb_result(nb, "p1", [[0, 1, 2]], 2, 40, 30)
@@ -38,7 +38,7 @@ func test_nb_sanitize_hash_v161() -> void:
 	ok(l.size() == 2 and str(l[0].get("h", "")) == "0123456789abcdef0123456789abcdef" and not l[1].has("h"), "雜湊欄保留、型別錯丟掉")
 
 func test_pz_names_l10n_v161() -> void:
-	var TR = load("res://scripts/game/v16_trio.gd")
+	var TR = load("res://scripts/game/trio.gd")
 	var L = load("res://scripts/game/strings.gd")
 	var s: Dictionary = TR.sets()[0]
 	var pz: Dictionary = TR.make_pz(s, 0)
@@ -289,7 +289,7 @@ func test_hold_rebind_v161() -> void:
 	ok(not G.hold_keys_down({"place": KEY_K}, {}), "放開就停")
 
 func test_coach_search_v161() -> void:
-	var CO = load("res://scripts/game/v16_coach.gd")
+	var CO = load("res://scripts/game/coach.gd")
 	var Army = load("res://scripts/core/army.gd")
 	var weak = Army.new(0, 100)
 	weak.place(0, 0, 4)
@@ -370,7 +370,7 @@ func test_lock_targets_v161() -> void:
 	ok(lk.size() == 2 and lk.all(func(p): return p[1].x > 8000), "每隻我方兵都鎖定一隻敵兵（A9）", str(lk))
 
 func test_new_after_v161() -> void:
-	var G = load("res://scripts/game/v16_guide.gd")
+	var G = load("res://scripts/game/guide.gd")
 	var d := {"eff_games": 2}
 	G.seed_seen(d)
 	ok(not G.is_new(d, "rush_open"), "前 2 場不標新玩法（N1）")
@@ -381,7 +381,7 @@ func test_new_after_v161() -> void:
 	ok(not G.tour_due(d, false), "導覽只跳一次")
 
 func test_medals_v161() -> void:
-	var CA = load("res://scripts/game/v16_career.gd")
+	var CA = load("res://scripts/game/career.gd")
 	var FU = load("res://tests/suites/v16.gd").FakeU
 	var md := {}
 	for i in 20:
@@ -399,7 +399,7 @@ func test_nb_name_input_v161() -> void:
 	ok(G.nb_edit_append("0123456789abcdef", 65).length() == 16, "最多 16 字")
 
 func test_signature_v161() -> void:
-	var PS = load("res://scripts/game/v16_persona.gd")
+	var PS = load("res://scripts/game/persona.gd")
 	var AI = load("res://scripts/core/ai_army.gd")
 	var hits := 0
 	for sd in 200:
@@ -415,7 +415,7 @@ func test_signature_v161() -> void:
 			ok(int(t) < AI.TEMPLATES.size(), "招牌陣編號有效")
 
 func test_rift_history_v161() -> void:
-	var RF = load("res://scripts/game/v16_rift.gd")
+	var RF = load("res://scripts/game/rift.gd")
 	var b := {}
 	for w in range(100, 112):
 		b["%d-v1" % w] = [w, 50]
@@ -426,7 +426,7 @@ func test_rift_history_v161() -> void:
 	ok(RF.weeks_of(k2).size() == 8 and k2.has("111-v1") and k2.has("111-v2") and k2.has("104-v1"), "同一週不同版本算同一週（Codex v161-i2 #4）")
 
 func test_rush_daily_v161() -> void:
-	var RU = load("res://scripts/game/v16_rush.gd")
+	var RU = load("res://scripts/game/rush.gd")
 	var L = load("res://scripts/game/strings.gd")
 	ok(RU.pool(RU.day_seed(20000)) == RU.pool(RU.day_seed(20000)) and RU.pool(RU.day_seed(20000)) != RU.pool(RU.day_seed(20001)), "今日題組：同一天同一套、隔天換（D1）")
 	var t: String = RU.share_text(L, "2026-11-10", 3, 5)
@@ -451,7 +451,7 @@ func test_coop_log_v161() -> void:
 
 func test_trio_code_v161() -> void:
 	var WS = load("res://scripts/game/workshop.gd")
-	var TR = load("res://scripts/game/v16_trio.gd")
+	var TR = load("res://scripts/game/trio.gd")
 	var s: Dictionary = TR.sets()[0]
 	var code: String = WS.encode_trio(s["foes"], s["sol"])
 	ok(code.begins_with("NTP4."), "出題台出三考題（D2）")
@@ -461,20 +461,20 @@ func test_trio_code_v161() -> void:
 	ok(TR.sets().size() == 20, "題組 20 組")
 
 func test_trio_sol3_v161() -> void:
-	var TR = load("res://scripts/game/v16_trio.gd")
+	var TR = load("res://scripts/game/trio.gd")
 	for s in TR.sets():
 		ok(s.has("sol3") and TR.stars(s, TR.results(s, s["sol3"])) == 3, "每組都有可重現的三星解（A3）：" + str(s["id"]))
 		ok(TR.stars(s, TR.results(s, s["sol"])) >= 1, "作者解三場都贏：" + str(s["id"]))
 
 func test_eff_games_seed_v161() -> void:
-	var G = load("res://scripts/game/v16_guide.gd")
+	var G = load("res://scripts/game/guide.gd")
 	var d := {"stats": {"games": 3}, "custom_stats": {"games": 2}, "tutorial": 3}
 	G.seed_eff(d)
 	ok(int(d["eff_games"]) == 5, "老玩家起點＝標準＋自訂（估計，見 ledger）")
 	d["eff_games"] = 9
 	G.seed_eff(d)
 	ok(int(d["eff_games"]) == 9, "已經有就不動")
-	var TR = load("res://scripts/game/v16_trio.gd")
+	var TR = load("res://scripts/game/trio.gd")
 	var s := {"budget": 99}
 	var res := [{"ok": true, "rem": 45, "spent": 88}, {"ok": true, "rem": 45, "spent": 88}, {"ok": true, "rem": 44, "spent": 88}]
 	ok(TR.stars(s, res) == 1, "剩餘平均 44.67% 不到 45%：不截斷（Codex v161-i1 #10）")

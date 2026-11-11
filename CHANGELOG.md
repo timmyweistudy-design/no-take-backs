@@ -2,6 +2,40 @@
 
 > 玩家看的更新說明（商店頁「更新」與 Steam 公告用）。開發紀錄看 `docs/STATE.md` 與 `docs/history/`。
 
+# 1.1.0
+
+## 繁體中文
+**1.1.0：把 1.0 打磨完整。**
+- **新**：每日挑戰可以補打過去 7 天（練習，不計紀錄）；殘局可以複製「我的最佳解碼」給朋友（貼上就擺好）；回報問題可以選類別。
+- **更好上手**：手把長按拿掉鍵＝全部清空；沒有螢幕鍵盤也能用「詞彙格」幫實驗簿改名；設定「操作」頁有「掌機建議」一鍵（30 fps、字級 125%、只點選擺兵）。
+- **看得更清楚**：同一個目標被很多兵鎖定時，第 4 條起合併成「×N」；被擋住的兵游標停上去會描出輪廓；4 倍速以上投射物落點畫小圈；醫者補血、劍士反擊有新表現；巫毒娃娃的分傷線改成暗紅（不和毒的紫撞）；成就依類別上色；殘局整章三星會蓋火漆印；結果頁會說「這位對手的習慣」。
+- **修正**：覆盤重算、存 GIF 不會再卡住（可以取消、有時間上限）；三考結算頁返回不會露出第一場結果；PS 手把顯示正確的 ○△；小地圖第一排的兵不再壓到上框。
+- **雙人說明**：AI 實測輪流落子時，用超過 5 種兵先手明顯佔優（10 種約 61%），大廳會提醒；經典 5 種仍接近公平。
+
+## English
+**1.1.0 — polishing 1.0.**
+- **New**: replay the last 7 daily challenges as practice (not recorded); copy "my best solution code" for any puzzle (friends paste it to load your setup); pick a category when sending feedback.
+- **Easier to play**: hold the remove button on a gamepad to clear your setup; rename notebook plans with a word grid when there's no on-screen keyboard; a one-tap "Handheld" preset under Settings → Controls (30 fps, 125% text, tap-only placement).
+- **Clearer**: when many units lock onto one target, the 4th line onward merges into "×N"; hovering a hidden unit outlines it; at 4× speed and above projectiles mark where they land; new touches for healers and swordsman counters; voodoo damage links are dark red (no clash with poison purple); achievements are color-coded by category; a wax seal marks fully three-starred puzzle chapters; the result screen notes your opponent's habit.
+- **Fixes**: replay what-ifs and GIF saving can no longer hang (cancellable, with a time limit); leaving the three-tests summary no longer shows the first battle's results; PlayStation pads show the proper ○△; front-row units on small maps no longer poke over the top frame.
+- **Two-player note**: AI tests show a clear first-player edge in alternating placement with more than 5 unit types (about 61% with 10); the lobby now says so. The classic five remain close to even.
+
+## 简体中文
+**1.1.0：把 1.0 打磨完整。**
+- **新**：每日挑战可以补打过去 7 天（练习，不计纪录）；残局可以拷贝「我的最佳解码」给朋友（粘贴就摆好）；回报问题可以选类别。
+- **更好上手**：手把长按拿掉键＝全部清空；没有屏幕键盘也能用「词汇格」帮实验簿改名；设置「操作」页有「掌机建议」一键（30 fps、字级 125%、只点击摆兵）。
+- **看得更清楚**：同一个目标被很多兵锁定时，第 4 条起合并成「×N」；被挡住的兵光标停上去会描出轮廓；4 倍速以上投射物落点画小圈；医者补血、剑士反击有新表现；巫毒娃娃的分伤线改成暗红（不和毒的紫撞）；成就依类别上色；残局整章三星会盖火漆印；结果页会说「这位对手的习惯」。
+- **修正**：覆盘重算、存 GIF 不会再卡住（可以取消、有时间上限）；三考结算页返回不会露出第一场结果；PS 手把显示正确的 ○△；小地图第一排的兵不再压到上框。
+- **双人说明**：AI 实测轮流落子时，用超过 5 种兵先手明显占优（10 种约 61%），大厅会提醒；经典 5 种仍接近公平。
+
+## 日本語
+**1.1.0：1.0の仕上げ。**
+- **新機能**：デイリーの過去7日分を練習として遊べます（記録なし）。詰め戦の「ベスト解コード」をコピーして友達に渡せます。フィードバックに分類を付けられます。
+- **遊びやすく**：ゲームパッドの撤去ボタン長押しで全消去。画面キーボードがなくても「言葉パネル」で実験ノートの名前を変更できます。設定→操作に「携帯機向け」ワンタッチ（30fps・文字125%・タップのみ配置）。
+- **見やすく**：同じ目標を多くの兵が狙うと4本目から「×N」にまとめます。隠れた兵はカーソルを合わせると輪郭が出ます。4倍速以上では弾の着弾点に小さな円。医者の回復・剣士の反撃に新しい演出。ブードゥー人形の分担線は暗い赤に（毒の紫と区別）。実績は分類ごとに色分け。章を全部星3にすると封蝋が付きます。結果画面に「相手のクセ」を表示。
+- **修正**：リプレイの再計算とGIF保存が止まらなくなりました（キャンセル可・時間上限あり）。一陣三試の結果画面から戻っても1戦目の結果が出ません。PSパッドの○△を正しく表示。小マップ最前列の兵が上枠にかからなくなりました。
+- **二人対戦について**：AIによる測定で、6種類以上の交互配置は先手がはっきり有利（10種で約61%）とわかったため、ロビーで案内します。最初の5種はほぼ公平です。
+
 # 1.0.0
 
 ## 繁體中文

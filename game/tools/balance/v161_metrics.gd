@@ -4,9 +4,9 @@ extends SceneTree
 ##  --what=rift：未來 --weeks 週的異變組合：AI 對 AI（我方用同一套 AI 擺法）勝率、平均局長、時間到比例。
 ##  --what=rush：極速賽題庫：每題三星解的首波交戰與局長。
 ## 輸出一行一筆 JSON 到 --out。用法（game/ 下）：godot --headless --path . --script res://tools/balance/v161_metrics.gd -- --what=trio --out=res://m_trio.jsonl
-const Trio = preload("res://scripts/game/v16_trio.gd")
-const Rift = preload("res://scripts/game/v16_rift.gd")
-const Rush = preload("res://scripts/game/v16_rush.gd")
+const Trio = preload("res://scripts/game/trio.gd")
+const Rift = preload("res://scripts/game/rift.gd")
+const Rush = preload("res://scripts/game/rush.gd")
 const PZ = preload("res://scripts/game/puzzles.gd")
 const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")

@@ -12,7 +12,7 @@ func test_layout_r5_v160() -> void:
 
 func test_funnel_v160() -> void:
 	var SV = load("res://scripts/game/save.gd")
-	var FN = load("res://scripts/game/v16_funnel.gd")
+	var FN = load("res://scripts/game/funnel.gd")
 	var old: Dictionary = SV.data.duplicate(true)
 	SV.data.erase("funnel")
 	ok(FN.mark("boot", 1000), "第一次記里程碑")
@@ -28,7 +28,7 @@ func test_funnel_v160() -> void:
 	SV.data = old
 
 func test_guide_v160() -> void:
-	var G = load("res://scripts/game/v16_guide.gd")
+	var G = load("res://scripts/game/guide.gd")
 	var d := {"tutorial": 0, "stats": {"games": 0}, "eff_games": 0}
 	ok(G.next_step(d, false, false) == "tut", "新玩家先教學")
 	d["tutorial"] = 1
@@ -122,7 +122,7 @@ func test_access_settings_v160() -> void:
 	ok(e["hold_confirm"] == false and e["magnify"] == true, "型別不對退回預設、合法值保留")
 
 func test_share_v160() -> void:
-	var SH = load("res://scripts/game/v16_share.gd")
+	var SH = load("res://scripts/game/share.gd")
 	var Lx = load("res://scripts/game/strings.gd")
 	ok(SH.bar(72) == "■■■■■■■□□□" and SH.bar(0) == "□□□□□□□□□□" and SH.bar(100) == "■■■■■■■■■■", "剩餘戰力 10 格條")
 	var st: Dictionary = SH.streak_after({}, 100)
@@ -136,7 +136,7 @@ func test_share_v160() -> void:
 	ok(not t.contains("unit_") and not t.contains("NTB"), "分享格不含陣型或代碼（不劇透）")
 
 func test_rush_v160() -> void:
-	var RU = load("res://scripts/game/v16_rush.gd")
+	var RU = load("res://scripts/game/rush.gd")
 	var PZx = load("res://scripts/game/puzzles.gd")
 	var a: Array = RU.pool(7)
 	var b: Array = RU.pool(7)
@@ -155,7 +155,7 @@ func test_rush_v160() -> void:
 	ok(RU.after(10.0, true) == 30.0 and RU.after(10.0, false) == -5.0, "解開 +20、失敗 −15")
 
 func test_coach_v160() -> void:
-	var CO = load("res://scripts/game/v16_coach.gd")
+	var CO = load("res://scripts/game/coach.gd")
 	var Army = load("res://scripts/core/army.gd")
 	var a = Army.new(0, 100)
 	for r in [2, 4, 6]:
@@ -183,7 +183,7 @@ func test_coach_v160() -> void:
 		break
 
 func test_rift_v160() -> void:
-	var RF = load("res://scripts/game/v16_rift.gd")
+	var RF = load("res://scripts/game/rift.gd")
 	var RO = load("res://scripts/game/roster.gd")
 	var mask: int = RO.mask(false)
 	var bad := 0
@@ -205,7 +205,7 @@ func test_rift_v160() -> void:
 	ok(RF.picks(2950, mask) == RF.picks(2950, mask) and RF.picks(2950, mask) != RF.picks(2951, mask), "同週同題、換週換題")
 
 func test_persona_v160() -> void:
-	var PS = load("res://scripts/game/v16_persona.gd")
+	var PS = load("res://scripts/game/persona.gd")
 	var Lx = load("res://scripts/game/strings.gd")
 	var miss := 0
 	for st in 6:
@@ -230,7 +230,7 @@ class FakeU:
 		summon = s
 
 func test_career_v160() -> void:
-	var CA = load("res://scripts/game/v16_career.gd")
+	var CA = load("res://scripts/game/career.gd")
 	var g: Dictionary = CA.gain([FakeU.new(0, 2, 3), FakeU.new(0, 2, 1), FakeU.new(1, 2, 5), FakeU.new(0, 20, 9, true), FakeU.new(0, 0, 0)])
 	ok(g == {"2": 5, "0": 1}, "出場 +1、擊倒加點；敵方、召喚物不算")
 	var m := {"2": 3}
@@ -297,7 +297,7 @@ func test_workbench_v160() -> void:
 	ok(cf == "" or int(WS.decode(cf)["pz"]["goal_type"]) == 3, "完美：最多的兵種（騎兵 2 隻）")
 
 func test_trio_v160() -> void:
-	var TR = load("res://scripts/game/v16_trio.gd")
+	var TR = load("res://scripts/game/trio.gd")
 	var ss: Array = TR.sets()
 	ok(ss.size() == 20, "一陣三考 20 組（V1.6.1 D2 從 10 組擴充，前 10 組不變）")
 	var bad := 0
