@@ -200,6 +200,7 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 ## air＝離地程度 0～1（只縮影子）。
 static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, scale := 1.0, air := 0.0) -> void:
 	ring_base(ci, p, scale)
+	base_trim(ci, p, type, scale)   # 1.1.0 B14
 	ring_shadow(ci, p, scale * (1.0 - air * 0.35))
 	ring_mark(ci, p, team, type, cb, scale)
 
@@ -211,6 +212,25 @@ static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> voi
 	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(wd[1], 0.92 * a))
 	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(wd[2], 0.6 * a))
 	ci.draw_arc(p + Vector2(0, -0.2) * scale, 20.4 * scale, PI * 1.08, PI * 1.92, 14, Color(1.0, 0.9, 0.7, 0.5 * a), 1.1 * scale, true)
+
+## 1.1.0 B14：木座上的族群部件（另一層，畫在木座之後、隊伍圈之前）：王國兵＝木座前緣一道鐵箍＋兩顆鉚釘，
+## 奇幻兵＝前緣三道樹皮刻痕＋一小撮青苔。只在木座前緣厚度那一帶（≤0.3 格），不改木座本身、不蓋隊伍圈。
+static func base_trim(ci: CanvasItem, p: Vector2, type: int, scale := 1.0, a := 1.0) -> void:
+	var c0 := p + Vector2(0, 3.2) * scale
+	if type < D.COUNT:
+		var pts := PackedVector2Array()
+		for i in 13:
+			var ang := PI * (0.12 + 0.76 * i / 12.0)
+			pts.append(c0 + Vector2(cos(ang) * 20.2, sin(ang) * 9.9) * scale)
+		ci.draw_polyline(pts, Color(0.55, 0.6, 0.68, 0.85 * a), 1.6 * scale, true)
+		for ang2 in [PI * 0.3, PI * 0.7]:
+			ci.draw_circle(c0 + Vector2(cos(ang2) * 20.2, sin(ang2) * 9.9) * scale, 1.3 * scale, Color(0.82, 0.86, 0.92, 0.9 * a), true, -1.0, true)
+	else:
+		for k in 3:
+			var ang3 := PI * (0.32 + 0.18 * k)
+			var q := c0 + Vector2(cos(ang3) * 19.5, sin(ang3) * 9.6) * scale
+			ci.draw_line(q + Vector2(-1.2, -2.0) * scale, q + Vector2(0.8, 1.2) * scale, Color(0.25, 0.16, 0.09, 0.8 * a), 1.3 * scale, true)
+		ci.draw_circle(c0 + Vector2(cos(PI * 0.78) * 19.0, sin(PI * 0.78) * 9.3) * scale, 2.0 * scale, Color(0.42, 0.55, 0.3, 0.75 * a), true, -1.0, true)
 
 ## 接觸影子（角色腳下）。
 static func ring_shadow(ci: CanvasItem, p: Vector2, scale := 1.0) -> void:

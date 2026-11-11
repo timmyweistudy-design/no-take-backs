@@ -160,9 +160,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			# 雙短刃
 			var sw := w * 6.0 + sway * 10.0
 			# 後手的刀：揮擊時往前交叉斬（第三輪 R4）；V1.5：兩把都畫成「刃＋護手＋握柄＋柄頭＋手套」，先畫遠側那把
-			var bw := maxf(0.0, w)
-			_part(ci, 4.0, 0.9)   # 後手短刃在遠側
-			_dagger(ci, Vector2(-8 + bw * 18, -16 - bw * 6), Vector2(-15 + bw * 44, -21 + bw * 16), a)
+			if maxf(0.0, w) >= 0.5:
+				_assassin_far(ci, w, a)   # 1.1.0 B14：交叉斬時後手刀繞到身體前面
 			_part(ci, -8.0, 0.9)   # V1.3.1：前手短刃在近側、往前推，窄格不被身體蓋住
 			_dagger(ci, Vector2(10, -18 - sw), Vector2(21, -8 + sw), a)   # 反手短刃：刃往前下，剪影露得出刀尖
 			_part_end(ci)
@@ -301,6 +300,8 @@ static func _inf_back_items(ci: CanvasItem, type: int, tc: Color, fl: float, w: 
 		_poly(ci, cape, tc.darkened(0.08), a)
 	if type == D.BERSERKER:
 		_berserk_axe(ci, 1, w, sway, variant, a)   # 遠側斧：先畫，身體蓋在上面
+	if type == D.ASSASSIN and maxf(0.0, w) < 0.5:
+		_assassin_far(ci, w, a)   # 1.1.0 B14：遠側短刃平常在身體後面（原本畫在頭巾之後，會穿過身體）；交叉斬（w ≥ 0.5）才繞到前面
 	# 背後的東西（箭筒）
 	if type == D.ARCHER:
 		# 第七輪 C1-3：箭筒放大、露白羽
@@ -317,6 +318,13 @@ static func _inf_back_items(ci: CanvasItem, type: int, tc: Color, fl: float, w: 
 		_line(ci, bb + Vector2(0, -9), bb + Vector2(2, -15), Color("#c9a26b"), 1.3, a)
 		_c(ci, Vector2(-10, -20 + fl * 0.8), 7.5, Color("#3a3346"), a)   # 第七輪 C1-7：火罐包放大（V9：跟著跑步彈）
 		_line(ci, Vector2(-11, -27 + fl * 0.8), Vector2(-14, -31 + fl * 0.8), Color("#c9a26b"), 1.3, a)
+	_part_end(ci)
+
+## 1.1.0 B14：刺客遠側（後手）短刃。w < 0.5 時在身體前畫（被身體擋住），交叉斬時在頭之後畫。
+static func _assassin_far(ci: CanvasItem, w: float, a: float) -> void:
+	var bw := maxf(0.0, w)
+	_part(ci, 4.0, 0.9)   # 後手短刃在遠側
+	_dagger(ci, Vector2(-8 + bw * 18, -16 - bw * 6), Vector2(-15 + bw * 44, -21 + bw * 16), a)
 	_part_end(ci)
 
 ## 狂戰士的一把斧：k2＝0 近側（頭之後畫）、1 遠側（身體之前畫，被身體擋住）。

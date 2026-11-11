@@ -484,3 +484,16 @@ func test_pure_rules_v110() -> void:
 	for f in ["res://scripts/game/playroom_rules.gd", "res://scripts/game/screen_rules.gd"]:
 		var src := FileAccess.get_file_as_string(f)
 		ok(not src.contains("draw_") and not src.contains("Save.") and not src.contains("get_tree"), "%s 不碰畫面與存檔" % f)
+
+## 1.1.0 B14：刺客遠側短刃平常畫在身體之前（被擋住）、交叉斬才在頭之後；族群底座部件是另一層，王國／奇幻分開。
+func test_b14_layers_v110() -> void:
+	var src := FileAccess.get_file_as_string("res://scripts/ui/units/kingdom.gd")
+	var i_back := src.find("static func _inf_back_items")
+	var i_far := src.find("_assassin_far(ci, w, a)", i_back)
+	var i_body := src.find("# 身體（圓胖的上衣")
+	ok(i_back > 0 and i_far > i_back and src.find("_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # 背後的東西先畫") < i_body, "遠側短刃在背後物件那一層（身體之前）")
+	ok(src.contains("if maxf(0.0, w) >= 0.5:\n\t\t\t\t_assassin_far(ci, w, a)"), "交叉斬時繞到前面")
+	var art := FileAccess.get_file_as_string("res://scripts/ui/art.gd")
+	ok(art.contains("static func base_trim") and art.contains("base_trim(ci, p, type, scale)"), "底座部件另一層")
+	var bu := FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu.contains("Art.base_trim(self, p0, u.type, bsc)"), "戰場貼完木座後畫部件")
