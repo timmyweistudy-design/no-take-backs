@@ -31,8 +31,8 @@ func _feedback_save(cat: String) -> void:
 static func report_name(prefix: String, sec: int) -> String:
 	var n := 0
 	var name := "user://%sreport_%d.json" % [prefix, sec]
-	while FileAccess.file_exists(name) and n < 99:
-		n += 1
+	while FileAccess.file_exists(name):
+		n += 1   # 沒有上限（Codex v110-i2 #7）
 		name = "user://%sreport_%d_%d.json" % [prefix, sec, n]
 	return name
 
@@ -120,7 +120,7 @@ func _finish_battle() -> void:
 	if trio_on and mode == Mode.PUZZLE:
 		_trio_settle()
 	_coop_settle()
-	if mode == Mode.VS_AI and not watch_mode:
+	if mode == Mode.VS_AI and not watch_mode and not bool(get("daily_practice")):
 		# V1.0.0（Codex v100-i1）：對 AI 的場數與勝場另記（stats 連教學、殘局都算，建議下一步不能用它判斷「打過 AI」）
 		Save.data["ai_games"] = int(Save.data.get("ai_games", 0)) + 1
 		if sim.winner == 0:

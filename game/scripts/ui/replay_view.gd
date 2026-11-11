@@ -860,11 +860,16 @@ func _gif_tick(delta: float) -> void:
 			var b: PackedByteArray = GIFENC.encode(frames, 10, gctl)
 			if b.is_empty() or bool(gctl.get("stop", false)):
 				return ""   # 1.1.0 H1：被叫停（遊戲結束）就不寫出半個檔；最後一格編完才叫停也不寫（Codex v110-i1 #5）
-			var fa := FileAccess.open(fn, FileAccess.WRITE)
+			# 先寫暫存檔，確定沒被叫停才改名成正式檔；叫停就刪暫存（Codex v110-i2 #4）
+			var tmp := fn + ".part"
+			var fa := FileAccess.open(tmp, FileAccess.WRITE)
 			if fa == null:
 				return ""
 			fa.store_buffer(b)
 			fa.close()
+			if bool(gctl.get("stop", false)) or DirAccess.rename_absolute(tmp, fn) != OK:
+				DirAccess.remove_absolute(tmp)
+				return ""
 			return ProjectSettings.globalize_path(fn))
 		if ok != OK:
 			_toast(L.t("gif_fail"), true)   # 1.1.0 H1：開不了執行緒就說，不卡在「正在存」

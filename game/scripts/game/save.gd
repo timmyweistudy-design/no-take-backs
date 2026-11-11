@@ -333,7 +333,7 @@ static func sol_entry_ok(e) -> bool:
 	if u.is_empty() or u.size() > 40:
 		return false
 	for x in e["r"]:
-		if not _is_num(x):
+		if not _is_int_num(x):
 			return false
 	var r: Array = e["r"]
 	if int(r[0]) < 0 or int(r[0]) > 3 or int(r[1]) < 0 or int(r[1]) > 100 or int(r[2]) < 0 or int(r[2]) > 10000:
@@ -342,7 +342,7 @@ static func sol_entry_ok(e) -> bool:
 		if not (v is Array and (v as Array).size() == 3):
 			return false
 		for x in v:
-			if not _is_num(x):
+			if not _is_int_num(x):
 				return false
 		if int(v[0]) < 0 or int(v[0]) > 21 or int(v[1]) < 0 or int(v[1]) > 15 or int(v[2]) < 0 or int(v[2]) > 8:
 			return false
@@ -350,9 +350,12 @@ static func sol_entry_ok(e) -> bool:
 	if not (c is Array) or (c as Array).size() > 64:
 		return false
 	for x in c:
-		if not _is_num(x) or int(x) < 0 or int(x) > 100000:
+		if not _is_int_num(x) or int(x) < 0 or int(x) > 100000:
 			return false
 	return true
+
+static func _is_int_num(x) -> bool:
+	return _is_num(x) and float(x) == floorf(float(x))   # 整數（JSON 讀進來是 float，小數不收；Codex v110-i2 #8）
 
 static func sanitize_extras(out: Dictionary) -> void:
 	var f = out.get("funnel", {})

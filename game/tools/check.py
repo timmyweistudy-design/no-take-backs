@@ -163,12 +163,12 @@ def run_step(s, godot, out, timeout, marker):
     if s["kind"] == "py":
         cmd = [sys.executable, str(GAME / s["script"])]
     else:
-        cmd = godot_cmd(godot, ["--headless", "--path", ".", "--script", f"res://{s['script']}", "--"] + s["args"], f"{marker}-{s['name']}")
+        cmd = godot_cmd(godot, ["--headless", "--path", ".", "--script", f"res://{s['script']}", "--"] + s["args"], f"{marker}-{s['name']}.")
     try:
         with open(log, "wb") as f:
             rc = subprocess.run(cmd, cwd=GAME, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=timeout).returncode
     except subprocess.TimeoutExpired:
-        kill_marker(godot, f"{marker}-{s['name']}")   # 1.1.0（Codex v110-i1 #9）：只砍逾時的那一步，不砍同一輪其他工作
+        kill_marker(godot, f"{marker}-{s['name']}.")   # 1.1.0（Codex v110-i1 #9）：只砍逾時的那一步，不砍同一輪其他工作
         return {"name": s["name"], "ok": False, "why": f"逾時 {timeout}s", "sec": time.time() - t0}
     txt = log.read_text(encoding="utf-8", errors="ignore")
     why = ""
@@ -185,7 +185,7 @@ def run_step(s, godot, out, timeout, marker):
 def serial(godot, out, name, args, ok_re=None, marker=""):
     # 1.1.0 H2：串行步驟（匯入）也帶程序標記；逾時或例外時用標記砍掉 Windows 端殘留的 Godot（WSL 的 timeout 只砍外層）
     log = out / f"{name}.log"
-    mk = f"{marker}-{name}" if marker else ""
+    mk = f"{marker}-{name}." if marker else ""   # 結尾加「.」：t_stateful 不會比對到 t_stateful2（Codex v110-i2 #6）
     cmd = godot_cmd(godot, args, mk) if mk else [godot] + args
     try:
         with open(log, "wb") as f:
@@ -228,9 +228,13 @@ def main() -> int:
             return fail(f"Godot 版本是 {ver}，應該是 {EXPECT}")
         print(f"警告：Godot 版本 {ver} 不是 {EXPECT}，這次結果不能當驗收")
     marker = uuid.uuid4().hex[:10]
-    if not (GAME / ".godot").is_dir() or a.no_cache:
-        if not serial(godot, out, "import", ["--headless", "--path", ".", "--import"], marker=marker):
-            return fail("匯入失敗")
+    try:
+        if not (GAME / ".godot").is_dir() or a.no_cache:
+            if not serial(godot, out, "import", ["--headless", "--path", ".", "--import"], marker=marker):
+                return fail("匯入失敗")
+    except BaseException:
+        kill_marker(godot, marker)   # 匯入中被中斷也收掉（Codex v110-i2 #6）
+        raise
     # V1.1 E1：載入與啟動檢查改成和其他步驟一起平行跑（結果一樣要過，只是不再先排隊等）
     gate = cf.ThreadPoolExecutor(2)
     try:
@@ -267,7 +271,19 @@ def _run_all(a, godot, out, cache, ver, gate, marker, t0, fail):
         except (OSError, ValueError):
             pass
     todo.sort(key=lambda s: -prev.get(s["name"], 10 ** 6))
-    with cf.ThreadPoolExecutor(a.jobs) as ex:   # 載入／啟動檢查只佔前 20 秒，不另外扣名額
+    ex = cf.ThreadPoolExecutor(a.jobs)   # 載入／啟動檢查只佔前 20 秒，不另外扣名額
+    try:
+        res = _run_steps(ex, todo, godot, out, a, marker, res, cache)
+    except BaseException:
+        kill_marker(godot, marker)   # 中斷時先砍子程序，再不等工作直接關池（Codex v110-i2 #6）
+        ex.shutdown(wait=False, cancel_futures=True)
+        raise
+    ex.shutdown(wait=True)
+    return _finish(a, godot, out, steps, res, t0, fail, f_load, f_boot, gate)
+
+
+def _run_steps(ex, todo, godot, out, a, marker, res, cache):
+    if True:   # 保留原縮排
         futs = {ex.submit(run_step, s, godot, out, a.timeout, marker): s for s in todo}
         for fu in cf.as_completed(futs):
             r = fu.result()
@@ -277,6 +293,10 @@ def _run_all(a, godot, out, cache, ver, gate, marker, t0, fail):
                 for old in cache.glob(f"{s['name']}-*.log"):
                     old.unlink()
                 shutil.copy(out / f"{s['name']}.log", cache / f"{s['name']}-{s['key']}.log")
+    return res
+
+
+def _finish(a, godot, out, steps, res, t0, fail, f_load, f_boot, gate):
     if not f_load.result():
         return fail("有腳本載入失敗")
     if not f_boot.result():

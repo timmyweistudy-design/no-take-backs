@@ -21,7 +21,7 @@ static func decode(code: String) -> Dictionary:
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Dictionary or not (j.get("p") is String) or not (j.get("u") is Array) or not (j.get("v") is float or j.get("v") is int) or int(j["v"]) != 1:
+	if not j is Dictionary or not (j.get("p") is String) or not (j.get("u") is Array) or not _int_like(j.get("v")) or int(j["v"]) != 1:
 		return bad
 	var pid: String = j["p"]
 	if pid == "ws":
@@ -34,7 +34,7 @@ static func decode(code: String) -> Dictionary:
 		if not (e is Array) or e.size() != 3:
 			return bad
 		for x in e:
-			if not (x is int or x is float) or float(x) != floorf(float(x)):
+			if not _int_like(x):
 				return bad
 		u.append([int(e[0]), int(e[1]), int(e[2])])
 	if u.is_empty() or u.size() > 40 or PZ.check_extra(pz, u) != "":
@@ -45,12 +45,34 @@ static func decode(code: String) -> Dictionary:
 		if not (c is Array) or (c as Array).size() > 64:
 			return bad
 		for x in c:
-			if not (x is float or x is int):
+			if not _int_like(x) or int(x) < 0:
 				return bad
 			plan.append(int(x))
-		if plan.size() != PZ.default_plan(pz).size():
-			return bad   # 軍令數量要和這關一樣（每一道軍令一個時間）
+		if not plan_legal(pz, plan):
+			return bad
 	return {"ok": true, "pid": pid, "u": u, "plan": plan}
+
+static func _int_like(x) -> bool:
+	return (x is int) or (x is float and float(x) == floorf(float(x)))
+
+## 1.1.0（Codex v110-i2 #1）：軍令合法＝數量、每種技能的次數和這關預設一樣，而且套用遊戲面板的限制（開場、冷卻、局長）後不變
+static func plan_legal(pz: Dictionary, plan: Array) -> bool:
+	var dp := PZ.default_plan(pz)
+	if plan.size() != dp.size():
+		return false
+	var a: Array = plan.map(func(e): return PZ.plan_skill(pz, int(e)))
+	var b: Array = dp.map(func(e): return PZ.plan_skill(pz, int(e)))
+	a.sort()
+	b.sort()
+	if a != b:
+		return false
+	var lo0: int = maxi(PZ.CMD.START_TICKS, int(pz.get("plan_min", 0)))
+	var lim: int = int(pz.get("goal_ticks", 1800)) - 10
+	for e in plan:
+		var t := PZ.plan_tick(pz, int(e))
+		if t < lo0 or t > lim:
+			return false   # plan_fix 擠不下時會原樣退回，範圍要自己查
+	return PZ.plan_fix(pz, plan, -1, 0) == plan
 
 ## 這一場比存的好就換（純函式：回傳新的紀錄字典，沒變回原本的）
 static func merge(best: Dictionary, pid: String, stars: int, rem: int, spent: int, units: Array, plan: Array = []) -> Dictionary:

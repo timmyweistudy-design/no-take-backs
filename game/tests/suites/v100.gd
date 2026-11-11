@@ -412,3 +412,14 @@ func test_review_fixes_v110() -> void:
 		var d: Dictionary = SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], plan))
 		ok(bool(d["ok"]) and d["plan"] == plan, "時序關卡連軍令一起來回")
 		ok(not bool(SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], [1]))["ok"]) or plan.size() == 1, "軍令數量不對不收")
+		# Codex v110-i2 #1：軍令要合法（時間在開場～局長內、照冷卻），小數、負數不收
+		ok(SC.plan_legal(cmdpz, plan), "預設軍令合法")
+		var bad_t: Array = plan.duplicate()
+		bad_t[0] = PZ.plan_make(cmdpz, PZ.plan_skill(cmdpz, int(plan[0])), 999999)
+		ok(not SC.plan_legal(cmdpz, bad_t), "超過局長不收")
+		var bad_n: Array = plan.duplicate()
+		bad_n[0] = -1
+		ok(not bool(SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], bad_n))["ok"]), "負數軍令不收")
+	ok(not SC._int_like(1.9) and SC._int_like(2.0) and SC._int_like(3), "只收整數")
+	ok(not S.sol_entry_ok({"r": [3, 10.5, 10], "u": [[0, 1, 2]]}), "存檔小數不收")
+	ok(not S.sol_entry_ok({"r": [3, 10, 10], "u": [[0, 1.5, 2]]}), "存檔座標小數不收")
