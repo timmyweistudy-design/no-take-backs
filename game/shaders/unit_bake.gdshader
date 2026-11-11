@@ -10,7 +10,11 @@ uniform float cols = 16.0;
 uniform float radius = 3.0;
 uniform float hi_amt = 0.09;
 uniform float sh_amt = 0.20;
-uniform float y_off = -1.0;   // V1.5.1：圖鑑大圖用：格子頂端在 y_off（≥0 時只算一格、不循環）；圖集用預設 -1
+uniform float y_off = -1.0;
+// 1.2.0 §6.1 雕刻棋子質感：③ 上漆高光＝剪影上緣 1～2px 暖白 #FFF6E0 60%（只看正上方，左右翻面不穿幫）；
+// ④ 手澤磨損＝外輪廓凸角（周圍 8 向有 5 向以上是透明）1px 露出原木色 #5A3825。烘焙時一次，戰中不另畫。
+uniform float lacquer = 0.6;
+uniform float wear = 0.55;   // V1.5.1：圖鑑大圖用：格子頂端在 y_off（≥0 時只算一格、不循環）；圖集用預設 -1
 
 void fragment() {
 	vec2 px = UV / TEXTURE_PIXEL_SIZE;
@@ -32,6 +36,20 @@ void fragment() {
 	float sh = clamp((ly - 0.62) / 0.20, 0.0, 1.0) * sh_amt;
 	col = mix(col, vec3(1.0, 0.953, 0.839), hi);
 	col = mix(col, col * vec3(0.48, 0.42, 0.58), sh);
+	if (c.a > 0.6) {
+		float up1 = texture(TEXTURE, UV + vec2(0.0, -1.6) * TEXTURE_PIXEL_SIZE).a;
+		float up2 = texture(TEXTURE, UV + vec2(0.0, -3.2) * TEXTURE_PIXEL_SIZE).a;
+		float lac = up1 < 0.3 ? lacquer : (up2 < 0.3 ? lacquer * 0.55 : 0.0);
+		col = mix(col, vec3(1.0, 0.965, 0.878), lac);
+		float open = 0.0;
+		for (int k = 0; k < 8; k++) {
+			float ang2 = 6.2831853 * float(k) / 8.0;
+			open += texture(TEXTURE, UV + vec2(cos(ang2), sin(ang2)) * 1.5 * TEXTURE_PIXEL_SIZE).a < 0.3 ? 1.0 : 0.0;
+		}
+		if (open >= 5.0) {
+			col = mix(col, vec3(0.353, 0.220, 0.145), wear);
+		}
+	}
 	float oa = a * ink.a;
 	float outa = c.a + oa * (1.0 - c.a);
 	vec3 rgb = outa > 0.0 ? (col * c.a + ink.rgb * oa * (1.0 - c.a)) / outa : vec3(0.0);

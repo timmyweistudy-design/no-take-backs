@@ -41,6 +41,9 @@ for dp, dn, fn in os.walk(root):
 import json
 from PIL import Image
 man_p = os.path.join(root, "art/mat/manifest.json")
+# 預算範圍：只算 art/mat（1.2.0 元件庫材質）；角色圖集、地圖烘焙另有效能模式量測（Codex cat02 #6）
+if os.path.isdir(os.path.join(root, "art/mat")) and not os.path.isfile(man_p):
+    bad.append("art/mat 有檔案但沒有 manifest.json（素材契約不能略過）")
 if os.path.isfile(man_p):
     man = json.load(open(man_p, encoding="utf-8"))
     total = 0
@@ -52,9 +55,15 @@ if os.path.isfile(man_p):
         im = Image.open(fp)
         if list(im.size) != list(it["size"]):
             bad.append(f"{f} 尺寸 {im.size} ≠ manifest {it['size']}")
+        for req in ["use", "kind", "size", "source", "load"]:
+            if req not in it:
+                bad.append(f"{f} manifest 缺欄位 {req}")
         if it["kind"] == "nine":
-            if len(it.get("margin", [])) != 4:
-                bad.append(f"{f} 9 宮格沒寫四邊界")
+            mg = it.get("margin", [])
+            if len(mg) != 4 or not all(isinstance(m, int) and m > 0 for m in mg):
+                bad.append(f"{f} 9 宮格四邊界要是 4 個正整數")
+            elif mg[0] + mg[2] >= im.size[0] or mg[1] + mg[3] >= im.size[1]:
+                bad.append(f"{f} 9 宮格邊界加起來超過尺寸")
             a = im.convert("RGBA").getchannel("A")
             w, h = im.size
             edge = [a.getpixel((x, y)) for x in range(w) for y in (0, 1, h - 2, h - 1)] + [a.getpixel((x, y)) for y in range(h) for x in (0, 1, w - 2, w - 1)]

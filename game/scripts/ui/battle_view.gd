@@ -63,7 +63,12 @@ func _battle_process(delta: float) -> void:
 	if view != null:
 		_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
 	if start_hold > 0.0:
+		var ph0 := 1.0 - start_hold
 		start_hold -= delta
+		var ph1 := 1.0 - start_hold
+		for at in [0.25, 0.55, 0.85]:   # 1.2.0 §9.1：三段落子各一聲厚重落子聲（全場只有 3 聲）
+			if ph0 < at and ph1 >= at and sfx != null:
+				sfx.play("place_heavy", 0.75)
 		return
 	if call("_seek_pump"):
 		return
@@ -484,6 +489,8 @@ func _draw_cmd_bar() -> void:
 				var frac: float = clampf(float(wait) / maxf(1.0, phase_len), 0.0, 1.0)
 				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
 
+var hud_info_until := -1.0   # 1.2.0：手把 View 叫出情境資訊到這個時間
+
 ## V1.6.1 F4（Antigravity v161d r3）：擊倒時手把短震（只在用手把、震動設定開著；0.25 秒內只震一次，大混戰不會一直震）
 var kill_rumble_t := -9.0
 func _kill_rumble() -> void:
@@ -691,12 +698,28 @@ func _draw_battle_hud() -> void:
 	var bx := 330.0
 	var bw := 620.0
 	var split := bw * f0 / maxf(0.001, f0 + f1)
-	_box(Rect2(bx - 4, 36, bw + 8, 34), Art.OUT, TH_EDGE, 6.0, 2.0)
+	var craft_hud: bool = not bool(Save.s("plain_ui")) and _ui_tex(MAT["plaque"]) != null
+	if craft_hud:
+		# 1.2.0 §5.6：戰力條是一把山毛櫸木尺（刻度每 10%）＋黃銅滑塊；兩隊色條照舊（戰況資訊）
+		_mat_box(Rect2(bx - 10, 32, bw + 20, 42), "plaque", Color(0.9, 0.82, 0.7))
+		draw_rect(Rect2(bx - 2, 38, bw + 4, 30), Color("#2a1a10"))   # 尺上的凹槽
+	else:
+		_box(Rect2(bx - 4, 36, bw + 8, 34), Art.OUT, TH_EDGE, 6.0, 2.0)
 	draw_rect(Rect2(bx, 40, split, 26), Art.team_color(0, cbm()))
 	draw_rect(Rect2(bx + split, 40, bw - split, 26), Art.team_color(1, cbm()))
 	draw_rect(Rect2(bx, 40, bw, 7), Color(1, 1, 1, 0.14))      # 上緣高光
 	draw_line(Vector2(bx + split, 38), Vector2(bx + split, 68), Color.WHITE, 3.0)   # 交界線
 	draw_line(Vector2(bx + bw / 2, 32), Vector2(bx + bw / 2, 74), Color(1, 1, 1, 0.55), 2)
+	if craft_hud:
+		for tk in range(1, 10):   # 木尺刻度（每 10%）
+			var tx := bx + bw * tk / 10.0
+			draw_line(Vector2(tx, 33), Vector2(tx, 37 if tk != 5 else 39), Color("#4a3018"), 1.5)
+		# 黃銅滑塊：卡在交界線上，上下各露一截（左上高光）
+		var sk := Rect2(bx + split - 6, 30, 12, 46)
+		draw_rect(Rect2(sk.position + Vector2(2, 2), sk.size), Color(DIM_INK, 0.5))
+		draw_rect(sk, Color("#8a6a2a"))
+		draw_rect(sk.grow(-2), Color("#d4ae55"))
+		draw_rect(Rect2(sk.position + Vector2(3, 3), Vector2(3, sk.size.y - 6)), Color(1, 0.96, 0.8, 0.6))
 	# 戰力條狀態（第三輪 V6）：狂熱整條加橘框；背水那端加火焰圖示與脈衝框
 	if view.frenzy and not view.finished:
 		draw_rect(Rect2(bx - 4, 38, bw + 8, 30), Color(1, 0.45, 0.1, 0.7 + 0.3 * sin(time * 6)), false, 3)
@@ -733,8 +756,23 @@ func _draw_battle_hud() -> void:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
 			_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
 	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
-	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
-	if mode == Mode.VS_AI and ai_name != "":
+	var clock_s: String = L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else "")
+	if craft_hud and state == St.BATTLE:
+		# 1.2.0 §5.6 棋鐘：淺色木盒＋頂上黃銅按鈕，字用深墨（狂熱時深紅）。木盒是平塗＋邊線（不是九宮格：大字級時字會壓到九宮格邊）；
+		# 結果頁有暗幕，棋鐘回到原本的白字（深字在暗幕下看不清）
+		var cw0 := maxf(170.0, _width(clock_s, ts(22), true) + 40.0)
+		var cr := Rect2(640 - cw0 / 2, 1, cw0, maxf(32.0, ts(22) * 1.3))
+		draw_rect(Rect2(cr.position + Vector2(3, 3), cr.size), Color(DIM_INK, 0.5))
+		draw_rect(cr, Color("#e9d9b8"))
+		draw_rect(Rect2(cr.position, Vector2(cr.size.x, 3)), Color(1, 0.97, 0.88, 0.7))
+		draw_rect(cr, Color("#5a3a22"), false, 2.0)
+		draw_rect(Rect2(640 - 9, 0, 18, 3), Color("#c9a24a"))
+		_text(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true)
+	else:
+		_text(Vector2(640, 4), clock_s, ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
+	# 1.2.0 §5.6 情境資訊：AI 名稱只在開場 3 秒、滑鼠指到戰力尺、手把按 View 後 2 秒顯示（Codex／Antigravity：資訊都在，次要的不常駐）
+	var ai_show: bool = view.tick < 60 or Rect2(bx - 10, 32, bw + 20, 52).has_point(mouse) or time < hud_info_until or shot_dir != ""
+	if mode == Mode.VS_AI and ai_name != "" and ai_show:
 		var ai_lb := "AI：%s" % ai_name
 		_text(Vector2(bx + bw - _width(ai_lb, tz("C")), 69.0), ai_lb, tz("C"), Color(1, 1, 1, 0.9))   # V1.2.1：大字級也在木條內
 	if state == St.BATTLE and bool(Save.s("playtest")):

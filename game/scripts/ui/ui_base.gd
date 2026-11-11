@@ -176,6 +176,7 @@ var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按�
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
 var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
+var _hand_mode := false   # 1.2.0：畫老闆便條時用手寫字
 var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
 var _hover_key := -1
 var _trans_gen := -1
@@ -188,6 +189,8 @@ const INK_SHADOW := Color("#140B06")
 
 var font: Font
 var font_bold: Font
+var font_display: Font = null   # 1.2.0：工藝字型時的 D／DX 展示大字（ThenKhung）
+var font_craft := false          # 1.2.0：目前是不是工藝字型
 var font_title: Font          # 第五輪：標題字 UoqMunThenKhung（只用在 ≥H2 的粗體、沒有數字的字串）
 
 ## 第五輪字級表（§4.2）：基準 1280×800。只允許表內的值；125%／150% 非線性（大字少放大、內文多放大）。
@@ -437,6 +440,7 @@ func _tnum(f: Font) -> Font:
 ## V1.2 A1：介面字＝「NTB Latin（Fredoka，英數、數字等寬）為主字型＋NTB Rounded（源泉圓體 TW）為後備」：
 ## 主字型只有拉丁字，中文自動落到後備，所以同一行裡英數用 Fredoka、中文用源泉圓體，不用拆段。
 func _load_fonts() -> void:
+	font_craft = false
 	if str(Save.s("ui_font")) == "craft" and ResourceLoader.exists("res://fonts/NTBSans-R-sub.otf"):
 		_load_fonts_craft()
 		return
@@ -478,9 +482,26 @@ func _load_fonts_craft() -> void:
 			bold = bold.duplicate()
 			reg.fallbacks = [r0]
 			bold.fallbacks = [b0]
+	# 缺字（✗✦ 這類符號，Codex cat02 #5）再落到經典圓體（它的子集有這些符號）
+	var rr := _load_font("res://fonts/NTBRounded-R-sub.otf")
+	var rb := _load_font("res://fonts/NTBRounded-B-sub.otf")
+	if reg is FontFile:
+		reg = reg.duplicate()
+		reg.fallbacks = reg.fallbacks + [rr]
+	if bold is FontFile:
+		bold = bold.duplicate()
+		bold.fallbacks = bold.fallbacks + [rb]
 	font = _latin_over("res://fonts/NTBSansLatin-R-sub.ttf", reg)
 	font_bold = _latin_over("res://fonts/NTBSansLatin-B-sub.ttf", bold)
 	font_title = font_bold
+	font_craft = true
+	font_display = null
+	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
+		var tk2 = load("res://fonts/ThenKhung-sub.ttf")
+		if tk2 is FontFile:
+			tk2 = tk2.duplicate()
+			tk2.fallbacks = [bold]
+			font_display = tk2
 	if ResourceLoader.exists("res://fonts/NTBTitle-sub.ttf"):
 		var tt = load("res://fonts/NTBTitle-sub.ttf")
 		if tt is FontFile:
@@ -572,6 +593,16 @@ func fit(s: String, size: int, maxw: float, bold := false) -> int:
 	return sz
 
 func _font_for(s: String, size: int, bold: bool) -> Font:
+	if _hand_mode and font_title != null:
+		return font_title   # 1.2.0：老闆便條、印章用手寫字（憲法 6：只放建議，不承載數值）
+	if font_craft:
+		# 1.2.0（Codex cat02 #3）工藝字型的分工：D／DX 展示大字＝ThenKhung（logo 氣質不變）；H1、T＝手寫楷體；H2 以下＝正文黑體
+		if bold and not bool(Save.s("plain_titles")) and not _has_digit(s):
+			if font_display != null and size >= tz("D"):
+				return font_display
+			if font_title != null and size >= tz("H1"):
+				return font_title
+		return font_bold if bold else font
 	if bold and font_title != null and size >= tz("H2") and not bool(Save.s("plain_titles")) and not _has_digit(s):
 		return font_title
 	return font_bold if bold else font
@@ -804,6 +835,8 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		# 縫線：布標內緣一圈虛線（裝飾，不登記探針）
 		var sc := Color(1, 1, 1, 0.35) if btn_cloth != "tab_linen" else Color(0.35, 0.25, 0.15, 0.4)
 		var sr := rd.grow(-5)
+		if layout_probe:
+			probe_deco("stitch", sr, rd, "inside")   # 1.2.0 元件契約：縫線登記成宿主內的裝飾
 		var dash := 6.0
 		var xx := sr.position.x
 		while xx < sr.end.x - dash:
@@ -813,15 +846,23 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	elif plaque:
 		var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
 		if not enabled:
-			pt = Color(0.78, 0.75, 0.7, 0.55)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
+			pt = Color(0.78, 0.75, 0.7, 0.85)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
 		elif hover or focus:
 			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
 		_mat_box(rd, "plaque", pt)
 		if primary and enabled and rd.size.x >= 120.0:
 			var wx := _ui_tex(MAT["wax_red"])
-			if wx != null:
-				var ws := minf(rd.size.y + 8.0, 46.0)
-				draw_texture_rect(wx, Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws)), false)
+			var ws := minf(rd.size.y + 8.0, 46.0)
+			# 長標籤時讓位（Antigravity cat02 #1）：字寬＋蠟封露出的部分放不下就不畫蠟封
+			var lab_w := _width(label, ts(18), true)
+			if wx != null and lab_w + ws * 0.9 <= rd.size.x - 12.0:
+				var wr := Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws))
+				# 深赤火漆＋金邊：和朱漆底拉開明度（Antigravity cat02 #1：紅疊紅看不清）
+				draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
+				draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
+				draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
+				if layout_probe:
+					probe_deco("wax", wr, rd, "left")
 	elif paper_face:
 		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
 		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
@@ -899,6 +940,109 @@ const MAT := {"plaque": "res://art/mat/nine_plaque.png", "card1": "res://art/mat
 	"tab_madder": "res://art/mat/nine_tab_madder.png", "tab_linen": "res://art/mat/nine_tab_linen.png", "wax_red": "res://art/mat/wax_red.png"}
 const MAT_INSET := {"plaque": 3.0, "tab_indigo": 3.0, "tab_madder": 3.0, "tab_linen": 3.0, "card1": 6.0, "card2": 6.0, "card3": 7.0}   # 1.2.0：內容內距＝毛邊寬（不是 9 宮格邊界）
 const MAT_MARGIN := {"plaque": 14.0, "card1": 20.0, "card2": 20.0, "card3": 22.0, "tab_indigo": 13.0, "tab_madder": 13.0, "tab_linen": 13.0}
+## 1.2.0 §1.1 桌面世界：整個畫面底下是一張老胡桃木桌（螢幕座標，鏡頭之前畫）。
+## 光從左上來：左上一層暖光、右下一層暖暗；四角暖暗角；桌上固定 5 件低彩度小物（不搶焦點）。簡化介面時退回平塗。
+func _draw_desk() -> void:
+	if bool(Save.s("plain_ui")):
+		draw_rect(Rect2(0, 0, 1280, 800), Color("#3a281c"))
+		return
+	var wt := _ui_tex(MAT["walnut"])
+	if wt == null:
+		draw_rect(Rect2(0, 0, 1280, 800), Color("#3a281c"))
+		return
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	draw_texture_rect(wt, Rect2(0, 0, 1280, 800), true, Color(0.78, 0.74, 0.7))
+	# 主光（左上暖）與右下暗：兩個大三角形的頂點色漸層
+	draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(0, 800)]),
+		PackedColorArray([Color(1.0, 0.86, 0.6, 0.16), Color(1.0, 0.86, 0.6, 0.0), Color(1.0, 0.86, 0.6, 0.0)]))
+	draw_polygon(PackedVector2Array([Vector2(1280, 800), Vector2(1280, 0), Vector2(0, 800)]),
+		PackedColorArray([Color(DIM_INK, 0.42), Color(DIM_INK, 0.0), Color(DIM_INK, 0.0)]))
+	var vg := _ui_tex(TEX_VIGNETTE)
+	if vg != null:
+		draw_texture_rect(vg, Rect2(0, 0, 1280, 800), false, Color(0.11, 0.075, 0.05, 0.85))
+	_desk_props()
+
+## 桌上小物（固定位置、低彩度、一律在畫面邊角，UI 蓋在上面也沒關係）
+func _desk_props() -> void:
+	# 墨水瓶（左下）：深色玻璃＋左上高光＋軟木塞
+	var ink := Vector2(46, 742)
+	draw_circle(ink + Vector2(5, 7), 26.0, Color(DIM_INK, 0.45), true, -1.0, true)
+	draw_circle(ink, 24.0, Color("#1f2430"), true, -1.0, true)
+	draw_circle(ink - Vector2(8, 8), 6.0, Color(1, 1, 1, 0.18), true, -1.0, true)
+	draw_rect(Rect2(ink - Vector2(7, 34), Vector2(14, 12)), Color("#9c7a52"))
+	# 量尺（下緣，部分在畫面外）
+	var rr := Rect2(420, 786, 440, 28)
+	draw_rect(rr, Color("#c9a674"))
+	for i in 45:
+		draw_line(Vector2(rr.position.x + 6 + i * 9.6, rr.position.y), Vector2(rr.position.x + 6 + i * 9.6, rr.position.y + (8 if i % 5 == 0 else 4)), Color("#5a3f22", 0.8), 1.0)
+	# 棋罐（右上）：木碗＋碗口暗面
+	var bowl := Vector2(1244, 30)
+	draw_circle(bowl + Vector2(5, 7), 34.0, Color(DIM_INK, 0.45), true, -1.0, true)
+	draw_circle(bowl, 32.0, Color("#7a5434"), true, -1.0, true)
+	draw_circle(bowl, 22.0, Color("#3e2a1a"), true, -1.0, true)
+	draw_circle(bowl - Vector2(10, 10), 7.0, Color(1, 0.9, 0.7, 0.16), true, -1.0, true)
+	# 筆記本一角（左上）
+	var nb := PackedVector2Array([Vector2(-10, -10), Vector2(120, -10), Vector2(96, 54), Vector2(-10, 70)])
+	draw_colored_polygon(nb, Color("#d9c9a8"))
+	draw_line(Vector2(-10, 30), Vector2(104, 22), Color("#8b7355", 0.5), 1.0)
+	draw_line(Vector2(-10, 46), Vector2(100, 38), Color("#8b7355", 0.5), 1.0)
+	# 沙漏（右下）
+	var hg := Vector2(1240, 752)
+	draw_rect(Rect2(hg - Vector2(16, 32), Vector2(32, 5)), Color("#7a5434"))
+	draw_rect(Rect2(hg + Vector2(-16, 27), Vector2(32, 5)), Color("#7a5434"))
+	draw_colored_polygon(PackedVector2Array([hg + Vector2(-12, -27), hg + Vector2(12, -27), hg, hg + Vector2(12, 27), hg + Vector2(-12, 27), hg]), Color(0.85, 0.9, 0.95, 0.22))
+	draw_colored_polygon(PackedVector2Array([hg + Vector2(-8, 27), hg + Vector2(8, 27), hg + Vector2(0, 12)]), Color("#d9b874"))
+
+## 1.2.0 §12 老闆的便條：第一次進大廳、擺陣、結果時，跳一張紙卡（手寫字，只放建議、不放數值）；按「知道了」就不再出現。
+## 是一個小的模態疊層（overlay＝boss_note），不蓋在按鈕上；截圖、版面檢查平常不跳（乾淨存檔每張都會跳），另拍一張專拍。
+var note_key := ""
+var note_ret := ""   # 便條疊在哪個疊層上（大廳本身是疊層 "lobby"）；關掉時還原（Codex cat03 #2）
+func _boss_note(key: String, host := "") -> void:
+	if overlay != host or shot_dir != "" or layout_probe:
+		return
+	if not preload("res://scripts/game/guide.gd").is_new(Save.data, "note_" + key):
+		return
+	note_key = key
+	note_ret = host
+	overlay = "boss_note"
+	_focus = 0
+
+func _close_boss_note() -> void:
+	preload("res://scripts/game/guide.gd").see(Save.data, "note_" + note_key)
+	Save.save_data()
+	overlay = note_ret
+	note_ret = ""
+
+func _draw_boss_note() -> void:
+	var w := 600.0
+	var txt := L.t("bn_" + note_key)
+	var sign := "—— " + L.t("ps_name_0")
+	var sz := tz("H2")   # 手寫字在小字級會糊成黑體的樣子（Antigravity cat03 #4）→ 用 H2，自己斷行（不走 fit 縮字）
+	_hand_mode = true
+	var lines := wrap_lines(txt, sz, w - 72)
+	_hand_mode = false
+	var lh := sz * line_h(lines.size())
+	var bh := maxf(44.0, tz("B") * 1.9)
+	var P := modal_rect(w, 32.0 + lines.size() * lh + 8.0 + tz("B") * 1.4 + GAP_L + bh + 24.0)
+	probe_panel(P)
+	draw_rect(Rect2(P.position + Vector2(6, 9), P.size), Color(DIM_INK, 0.45))   # 落影（光源左上）
+	if bool(Save.s("plain_ui")) or not _mat_box(P, "card1"):
+		draw_rect(P, Color("#f5efe6"))
+	# 兩段斜貼的紙膠帶（左上、右上）
+	for tx in [P.position.x + 20, P.end.x - 92]:
+		draw_colored_polygon(PackedVector2Array([Vector2(tx, P.position.y - 6), Vector2(tx + 72, P.position.y - 12), Vector2(tx + 76, P.position.y + 8), Vector2(tx + 4, P.position.y + 14)]), Color(0.93, 0.88, 0.7, 0.82))
+	_ink_mode = true
+	_hand_mode = true
+	var y := P.position.y + 32.0
+	for ln in lines:
+		_text(Vector2(P.position.x + 36, y), ln, sz, INK)
+		y += lh
+	y += 8.0
+	_text(Vector2(P.end.x - 36 - _width(sign, tz("B")), y), sign, tz("B"), Color(INK, 0.85))
+	_hand_mode = false
+	_ink_mode = false
+	_btn(Rect2(640 - 80, P.end.y - 24 - bh, 160, bh), L.t("bn_ok"), _close_boss_note)   # 單顆底部按鈕置中（R4）；木牌（不是朱漆主按鈕，便條不該喧賓奪主）
+
 ## 憲法 3（禁純黑）：選單打開時的暗幕用暖暗墨色，不用 #000。
 const DIM_INK := Color("#1c130d")
 func _dim(a: float) -> void:
@@ -906,6 +1050,7 @@ func _dim(a: float) -> void:
 const TEX_FRAME := "res://art/ui/frame.png"
 const TEX_GROOVE := "res://art/ui/groove.png"
 const TEX_PAPER := "res://art/ui/paper.png"
+const TEX_VIGNETTE := "res://art/ui/vignette.png"
 var _tex_cache := {}
 
 func _ui_tex(path: String) -> Texture2D:
@@ -940,6 +1085,14 @@ func _wood_frame(r: Rect2, grow := 8.0, key := "frame") -> void:
 
 ## 材質方塊：kind＝wood（染色）／groove（染色）／paper（原色）。沒有貼圖時退回平塗。
 func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
+	if bool(Save.s("plain_ui")):
+		# 1.2.0（Codex cat02 #8）：簡化介面一律退回平塗（同位置、同內距探針），不貼材質
+		var flat: Color = {"wood": TH_WOOD, "groove": Color(0.12, 0.09, 0.07), "paper": Color("#efe4cc")}[kind]
+		draw_rect(r, Color(flat.r * tint.r, flat.g * tint.g, flat.b * tint.b, tint.a))
+		if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
+			var ins0: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
+			probe_boxes.append({"r": r, "inner": r.grow_individual(-ins0[0], -ins0[1], -ins0[2], -ins0[3])})
+		return true
 	var path: String = {"wood": TEX_WOOD, "groove": TEX_GROOVE, "paper": TEX_PAPER}[kind]
 	var tx := _ui_tex(path)
 	if tx == null:

@@ -94,6 +94,16 @@ static func check(d: Dictionary) -> Dictionary:
 			"bottom":
 				if absf(r.position.y - h.end.y) > TOL_ATTACH:
 					_add(out, "fail", "R3", dc["id"], "%s 上緣 %.1f 沒貼齊宿主下緣 %.1f" % [dc["kind"], r.position.y, h.end.y])
+			"left":
+				# 1.2.0：跨在宿主左緣的裝飾（主按鈕的蠟封）：中心在左緣 ±1/4 寬內、垂直中心在宿主內
+				if absf(r.get_center().x - h.position.x) > r.size.x * 0.25 or r.get_center().y < h.position.y or r.get_center().y > h.end.y:
+					_add(out, "fail", "R3", dc["id"], "%s 沒跨在宿主左緣" % dc["kind"])
+				continue
+			"inside":
+				# 1.2.0：宿主內的裝飾（布標縫線）：整個在宿主裡
+				if not h.grow(TOL_ATTACH).encloses(r):
+					_add(out, "fail", "R3", dc["id"], "%s 跑出宿主" % dc["kind"])
+				continue
 		if r.position.x < h.position.x - TOL_ATTACH or r.end.x > h.end.x + TOL_ATTACH:
 			_add(out, "fail", "R3", dc["id"], "%s 水平超出宿主" % dc["kind"])
 	# ── R4 面板最下面那排按鈕：群組置中於面板（或宣告的欄中線）、間距相等、雙按鈕同寬 ──

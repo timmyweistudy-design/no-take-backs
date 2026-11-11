@@ -274,7 +274,16 @@ class _Painter extends Node2D:
 				draw_rect(Rect2(o3, Vector2(Q, Q)), Color(biome["block"]))
 				match kind:
 					"river":
-						draw_arc(o3 + Vector2(Q / 2, (h3 % 20) + 6), 9.0, 0.3, 2.6, 8, Color(1, 1, 1, 0.3), 1.6, true)
+						# 1.2.0 §5 B4 藍染絹：底色加深一階（靛），細織紋（經緯各 4 條、低透明）＋一道斜向絹光；仍是整格實色，判讀不變
+						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(0.11, 0.2, 0.36, 0.28))
+						for kw in 4:
+							var wy := (kw + 0.5) * Q / 4.0 + float((h3 >> kw) % 3) - 1.0
+							draw_line(o3 + Vector2(0, wy), o3 + Vector2(Q, wy), Color(0.85, 0.92, 1.0, 0.09), 1.0)
+							var wx := (kw + 0.5) * Q / 4.0
+							draw_line(o3 + Vector2(wx, 0), o3 + Vector2(wx, Q), Color(0.05, 0.1, 0.22, 0.12), 1.0)
+						if h3 % 3 == 0:
+							draw_line(o3 + Vector2(2, Q * 0.75), o3 + Vector2(Q * 0.7, 3), Color(1, 1, 1, 0.16), 2.0, true)
+						draw_arc(o3 + Vector2(Q / 2, (h3 % 20) + 6), 9.0, 0.3, 2.6, 8, Color(1, 1, 1, 0.22), 1.4, true)
 					"lava":
 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(1, 0.6, 0.1, 0.25 + (h3 % 30) / 100.0))
 						# 硬殼與裂縫：暗塊之間透出亮岩漿
@@ -320,9 +329,19 @@ class _Painter extends Node2D:
 						above = above or _cell(c5, r5 - dy) == t.BLOCK or _cell(c5, r5 + dy) == t.BLOCK
 					if above and not left and not right:
 						var o5 := Vector2(c5, r5) * Q
-						draw_rect(Rect2(o5, Vector2(Q, Q)), Color("#8a6238"))
+						# 1.2.0 §5 B4 小木片橋：三片直鋪木片（深淺交錯、片縫、上緣受光、兩端釘點），下方投影（光源左上）
+						draw_rect(Rect2(o5 + Vector2(3, 3), Vector2(Q, Q)), Color(0.08, 0.05, 0.03, 0.3))
+						var pw := Q / 3.0
 						for k5 in 3:
-							draw_line(o5 + Vector2(k5 * 11.0, 0), o5 + Vector2(k5 * 11.0, Q), Color("#5b3f23"), 2.0, true)
+							var hh := _h(c5 * 7 + k5, r5)
+							var pc := Color("#9a6e40").darkened(float(hh % 4) * 0.05)
+							var pr := Rect2(o5 + Vector2(k5 * pw + 0.5, -1.0 + float(hh % 3) * 0.5), Vector2(pw - 1.5, Q + 1.0))
+							draw_rect(pr, pc)
+							draw_line(pr.position, pr.position + Vector2(0, pr.size.y), Color(1, 0.92, 0.75, 0.35), 1.0)   # 左緣受光
+							draw_line(pr.position + Vector2(pr.size.x, 0), pr.end, Color("#4a3018"), 1.5)   # 片縫
+							draw_line(pr.position + Vector2(pw * 0.45, 4 + hh % 5), pr.position + Vector2(pw * 0.5, Q - 6 - hh % 4), Color(0.3, 0.18, 0.08, 0.25), 1.0)   # 木紋
+							for ny in [4.0, Q - 4.0]:
+								draw_circle(pr.position + Vector2(pw * 0.5 - 0.5, ny), 1.3, Color("#3a2a1c"))
 		_decor(Q)
 
 	## V1.2 D3：手繪筆觸（草簇、碎石、冰紋、裂紋）、場地邊緣裝飾（木柵欄、冰柱、焦岩）、紙紋 5%，全部烘進地塊。

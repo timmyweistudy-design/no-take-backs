@@ -526,3 +526,97 @@ func test_review_base_async_v120() -> void:
 	ok(g.rv_base_thread == null, "離開覆盤就叫停交給回收")
 	g.bg.drain()
 	g.free()
+
+## 1.2.0 第 3 大類：宣紙戰報什麼時候演、開場三段落子的分段、老闆便條看過就不再出現
+func test_present_v120() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	var Sv = load("res://scripts/game/save.gd")
+	var Ls = load("res://scripts/game/strings.gd")
+	var keep_fx = Sv.settings.get("reduce_fx", false)
+	var keep_plain = Sv.settings.get("plain_ui", false)
+	Sv.settings["reduce_fx"] = false
+	Sv.settings["plain_ui"] = false
+	g.shot_dir = ""
+	g.play_kind = "official"
+	g.time = 10.0
+	g.result_t = 9.5
+	ok(g._ink_active(), "正式對戰剛結束 0.5 秒：演宣紙戰報")
+	g.result_t = 8.9
+	ok(not g._ink_active(), "超過 1 秒就結束")
+	g.result_t = 9.5
+	g.play_kind = "replay"
+	ok(not g._ink_active(), "重播不演")
+	g.play_kind = "official"
+	Sv.settings["reduce_fx"] = true
+	ok(not g._ink_active(), "減少特效不演")
+	Sv.settings["reduce_fx"] = false
+	Sv.settings["plain_ui"] = true
+	ok(not g._ink_active(), "簡化介面不演")
+	Sv.settings["plain_ui"] = false
+	g.shot_dir = "x"
+	ok(not g._ink_active(), "截圖平常不演")
+	g.ink_force = true
+	ok(g._ink_active(), "截圖專拍時強制演")
+	g.ink_force = false
+	g.shot_dir = ""
+	# 開場三段落子：離中線近的先落、遠的後落；沒有開場提示時不動
+	g.fld_w = 600
+	g.start_hold = 0.0
+	ok(g._open_drop({"x": 300.0}) == Vector2.ZERO, "沒有開場提示：不位移")
+	g.start_hold = 0.8   # 進度 0.2：第一段落到一半，二、三段還在上面
+	var near: Vector2 = g._open_drop({"x": 320.0})
+	var far: Vector2 = g._open_drop({"x": 20.0})
+	ok(near.y > far.y and far.y <= -21.9, "前排先落（%s／%s）" % [near.y, far.y])
+	g.start_hold = 0.05
+	ok(g._open_drop({"x": 20.0}).y > -0.5, "最後一段在 1 秒內落定")
+	g.play_kind = "replay"
+	g.start_hold = 0.8
+	ok(g._open_drop({"x": 20.0}) == Vector2.ZERO, "重播不演")
+	# 老闆便條：知道了＝記進 seen，之後不再畫
+	var G = load("res://scripts/game/guide.gd")
+	var d := {"seen": []}
+	ok(G.is_new(d, "note_lobby"), "第一次是新的")
+	G.see(d, "note_lobby")
+	ok(not G.is_new(d, "note_lobby") and "note_lobby" in d["seen"], "按知道了之後記住")
+	var keep_seen = Sv.data.get("seen", null)
+	Sv.data["seen"] = []
+	g.overlay = ""
+	g._boss_note("place")
+	ok(g.overlay == "boss_note" and g.note_key == "place", "第一次擺陣：跳便條疊層")
+	var keep_lock = Sv.data_locked
+	Sv.data_locked = true   # 不寫真的存檔
+	g._close_boss_note()
+	Sv.data_locked = keep_lock
+	ok(g.overlay == "" and "note_place" in Sv.data["seen"], "知道了：關掉並記住")
+	g._boss_note("place")
+	ok(g.overlay == "", "看過就不再跳")
+	g.overlay = "lobby"   # 大廳本身是疊層：便條疊上去，關掉回大廳（Codex cat03 #2）
+	g._boss_note("lobby", "lobby")
+	ok(g.overlay == "boss_note" and g.note_ret == "lobby", "大廳便條疊在大廳上")
+	Sv.data_locked = true
+	g._close_boss_note()
+	Sv.data_locked = keep_lock
+	ok(g.overlay == "lobby" and g.note_ret == "", "關掉回到大廳")
+	g.overlay = ""
+	g._boss_note("lobby")
+	ok(g.overlay == "", "大廳便條只在大廳疊層上跳")
+	Sv.data["seen"] = []
+	g._boss_note("result")
+	Sv.data_locked = true
+	g._key(KEY_ESCAPE)   # Esc／手把 B＝知道了（Codex cat03 #1）
+	Sv.data_locked = keep_lock
+	ok(g.overlay == "" and "note_result" in Sv.data["seen"], "Esc 關掉便條並記住")
+	g.shot_dir = "x"
+	g._boss_note("result")
+	ok(g.overlay == "", "截圖流程不跳")
+	g.shot_dir = ""
+	if keep_seen == null:
+		Sv.data.erase("seen")
+	else:
+		Sv.data["seen"] = keep_seen
+	for k in ["bn_lobby", "bn_place", "bn_result", "bn_ok"]:
+		ok(Ls.t(k) != k, "字串存在：" + k)
+	Sv.settings["reduce_fx"] = keep_fx
+	Sv.settings["plain_ui"] = keep_plain
+	g.free()

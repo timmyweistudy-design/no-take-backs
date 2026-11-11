@@ -45,12 +45,17 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot-prefix="):
 			# 1.2.0：版面檢查平行跑時每組用自己的存檔前綴、從乾淨的存檔開始（原本共用 shot_ 會互搶寫入、也會帶到前一組的資料）
-			Save.prefix = a.substr(14)
-			var d := DirAccess.open("user://")
-			if d != null:
-				for f in d.get_files():
-					if f.begins_with(Save.prefix):
-						d.remove(f)
+			# 防誤刪（Codex cat02 #1）：只在截圖模式、前綴一定是 shot_＋組合名（≥8 字、只有英數底線連字號），只刪這個前綴的存檔類檔名
+			var px := a.substr(14)
+			# 前綴一定以「__」結尾且只出現一次 → 各組前綴互不為前綴（shot_en_150__ 不會吃到 shot_en_150_plain__ 的檔，Codex cat03 #3）
+			var safe := Save.prefix == "shot_" and px.begins_with("shot_") and px.length() >= 9 and px == px.validate_filename() and px.ends_with("__") and px.count("__") == 1
+			if safe:
+				Save.prefix = px
+				var d := DirAccess.open("user://")
+				if d != null:
+					for f in d.get_files():
+						if f.begins_with(px) and (f.ends_with(".json") or f.ends_with(".bak") or f.contains(".corrupt") or f.ends_with(".jsonl") or f.ends_with(".tmp")):
+							d.remove(f)
 	Save.load_all()
 	Guide.seed_seen(Save.data)   # V1.6 #1
 	Guide.seed_eff(Save.data)   # V1.6.1 N1
@@ -353,6 +358,9 @@ func _mb_cmd(d: Dictionary) -> void:
 
 func _key(k: int) -> void:
 	_toast_dismiss()
+	if state == St.RESULT and _ink_active():
+		result_t -= INK_DUR   # 1.2.0 §9.4：任何按鍵跳過宣紙戰報演出
+		return
 	if state == St.PLACE and overlay == "" and _v16_place_key(k):
 		return
 	if state == St.PLACE and _fp_key(k):
@@ -373,6 +381,8 @@ func _key(k: int) -> void:
 			KEY_F1:
 				if state == St.BATTLE and overlay == "" and play_kind != "official":
 					call("_breport_open")   # 1.1.0 B10：手把 View／Select＝戰報面板
+				elif state == St.BATTLE and overlay == "":
+					set("hud_info_until", time + 2.0)   # 1.2.0 §5.6：正式對戰按 View＝叫出 AI 名稱與性格 2 秒
 			KEY_PAGEUP, KEY_PAGEDOWN:
 				if overlay == "codex":
 					_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
@@ -405,6 +415,8 @@ func _key(k: int) -> void:
 					set("cx_zoom", false)   # V1.5.1：近看模式先收合
 				elif overlay == "breport":
 					call("_breport_close")   # 1.1.0 B10：回到重播、焦點與暫停狀態還原
+				elif overlay == "boss_note":
+					call("_close_boss_note")   # 1.2.0：Esc／手把 B＝知道了（不然下一幀又跳出來，Codex cat03 #1）
 				elif overlay == "trio_result":
 					call("_trio_back")   # 1.1.0 H3：和結算頁返回鈕同一條路
 				elif overlay == "leave" and state == St.BATTLE and paused:
@@ -621,7 +633,7 @@ func _draw_inner() -> void:
 	probe_boxes.clear()
 	probe_reset_geom()
 	_probe_ui = false
-	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
+	_draw_desk()   # 1.2.0 §1.1 桌面世界：整個畫面是一張胡桃木桌（取代深綠底＋一圈樹）
 	_sync_field()
 	var fxf := _fld_xf()
 	var cam := fxf
@@ -670,6 +682,8 @@ func _draw_inner() -> void:
 		if not f.get("screen", false) and f["kind"] == "text":
 			_draw_fx(f)
 	perf_parts["fx"] = Time.get_ticks_usec() - _t
+	if state == St.RESULT and _ink_active():
+		_draw_ink_report_field()
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 	# V1.2 F2：畫面四周暈影（戰場與標題背景，壓在介面底下），讓視線集中在中間
 	var vg := _ui_tex("res://art/ui/vignette.png")
@@ -706,8 +720,12 @@ func _draw_inner() -> void:
 			elif seek_target >= 0:
 				_draw_busy(roundi(sim.tick * 100.0 / maxf(1.0, seek_target)))
 		St.RESULT:
-			_draw_battle_hud()
-			_draw_result()
+			if not _ink_active():
+				_draw_battle_hud()   # 宣紙戰報演出時頂部 HUD 退場（Antigravity cat03 #3）
+			if _ink_active():
+				_draw_ink_report_screen()   # 1.2.0 §9.4 宣紙戰報：勝負章蓋下之前不出結果面板
+			else:
+				_draw_result()
 	_draw_clutch_banner()
 	# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
 	if overlay != _ov_seen:
@@ -834,8 +852,93 @@ func _process_cmds() -> int:
 
 
 ## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
+## ── 1.2.0 §9.4 宣紙戰報（結果頁前 1.2 秒）──
+## 盤面 0.3 秒淡成宣紙 → 陣亡點蓋 8px 朱砂小印、擊倒者到被擊倒者一道淡墨線（40%、最底層）→ 0.55 秒勝負大章蓋下 → 1.0 秒後才出結果面板。
+## 點任意處／任何按鍵跳過；截圖、減少特效、重播與覆盤不播。
+const INK_DUR := 1.0
+func _ink_active() -> bool:
+	return _ink_k() < INK_DUR and (shot_dir == "" or ink_force) and not bool(Save.s("reduce_fx")) and play_kind == "official" and not bool(Save.s("plain_ui"))
+
+var ink_force := false   # 截圖流程專拍宣紙戰報時用
+func _ink_k() -> float:
+	return 0.8 if ink_force else time - result_t   # 截圖專拍時停在蓋章後的瞬間（截圖等幀的實際時間不固定）
+
+func _draw_ink_report_field() -> void:
+	var k := _ink_k()
+	var pa := clampf(k / 0.3, 0.0, 1.0) * 0.82
+	var pt := _ui_tex(MAT["card2"])
+	var fr := Rect2(ORIGIN, fld_size)
+	if pt != null:
+		draw_texture_rect(pt, fr, false, Color(1, 1, 1, pa))
+	else:
+		draw_rect(fr, Color(Color("#e8d8c3"), pa))
+	if k < 0.25 or view == null:
+		return
+	var a2 := clampf((k - 0.25) / 0.25, 0.0, 1.0)
+	for u in view.units:
+		if u.alive:
+			continue
+		var vp := _upos(u)
+		var kid: int = int(last_hitter.get(u.id, -1))
+		var ku = view.unit_by_id(kid) if kid >= 0 else null
+		if ku != null:
+			_brush_line(_upos(ku), vp, Color(Color("#261c14"), 0.4 * a2), int(u.id))   # 交戰墨線（最底層、40%）
+	for u2 in view.units:
+		if not u2.alive:
+			var c := _upos(u2)
+			# 朱砂小印：圓形印泥（直徑約 8px）＋偏一點的第二層＋中間留白一點（像沒壓滿的印），不是方塊（Antigravity cat03 #3）
+			var off := Vector2(float(int(u2.id) * 37 % 5) - 2.0, float(int(u2.id) * 53 % 5) - 2.0) * 0.4
+			draw_circle(c, 4.5, Color(Color("#9b281b"), 0.85 * a2), true, -1.0, true)
+			draw_circle(c + off, 3.6, Color(Color("#b5361f"), 0.6 * a2), true, -1.0, true)
+			draw_circle(c - off * 1.5, 1.2, Color(Color("#efe4cf"), 0.5 * a2), true, -1.0, true)
+
+## 毛筆墨線：起筆細、中段粗、收筆帶飛白（固定種子斷幾小段），取代 1px 幾何直線（Antigravity cat03 #3）
+func _brush_line(a: Vector2, b: Vector2, col: Color, seed_i: int) -> void:
+	var n := 10
+	var nrm := (b - a).orthogonal().normalized()
+	for i in n:
+		if i >= 6 and (seed_i * 7 + i * 13) % 5 == 0:
+			continue   # 飛白：收筆段偶爾斷開
+		var t0 := float(i) / n
+		var t1 := float(i + 1) / n
+		var wv := 1.2 + 3.6 * sin(PI * (t0 + t1) * 0.5) * (1.0 - 0.35 * t0)
+		var wob := nrm * sin(t0 * 7.0 + seed_i) * 0.8
+		draw_line(a.lerp(b, t0) + wob, a.lerp(b, t1) + wob, col, wv, true)
+
+func _draw_ink_report_screen() -> void:
+	var k := _ink_k()
+	if k < 0.55 or sim == null:
+		return
+	var win: bool = sim.winner == 0 or (mode == Mode.DUEL and sim.winner == 1)
+	var drop := clampf((k - 0.55) / 0.12, 0.0, 1.0)
+	var sc := lerpf(1.6, 1.0, drop)
+	var c := Vector2(640, 380)
+	var sz := 120.0
+	var col := Color("#9b281b") if sim.winner >= 0 else Color("#5a4630")
+	var txt: String = L.t("ink_draw") if sim.winner < 0 else (L.t("ink_win") if win else L.t("ink_lose"))
+	# 壓下動畫用繪圖變換縮放整個印章，字級固定 T（動畫中不產生表外字級、不換字型，Codex cat03 #4）；介面層本來就是單位變換，畫完還原
+	draw_set_transform(c * (1.0 - sc), 0.0, Vector2(sc, sc))   # 以印章中心縮放；座標仍是螢幕座標（版面探針記到的是落定後的位置）
+	draw_rect(Rect2(c - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), Color(col, 0.18 * drop))
+	draw_rect(Rect2(c - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), Color(col, 0.95 * drop), false, 6.0)
+	for kk in 14:   # 印泥沒壓滿的斑駁：框上幾處紙色小缺口（固定位置）
+		var side := kk % 4
+		var tt := float((kk * 37) % 100) / 100.0
+		var pp := c + (Vector2(lerpf(-sz, sz, tt) * 0.5, -sz * 0.5) if side == 0 else (Vector2(lerpf(-sz, sz, tt) * 0.5, sz * 0.5) if side == 1 else (Vector2(-sz * 0.5, lerpf(-sz, sz, tt) * 0.5) if side == 2 else Vector2(sz * 0.5, lerpf(-sz, sz, tt) * 0.5))))
+		draw_circle(pp, 1.5 + float(kk % 3), Color(Color("#efe4cf"), 0.7 * drop), true, -1.0, true)
+	_text(c - Vector2(0, tz("T") * 0.62), txt, tz("T"), Color(col, drop), true, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	if drop >= 1.0 and not ink_stamped:
+		ink_stamped = true
+		if sfx != null:
+			sfx.play("place_heavy", 1.0)   # 蓋章聲
+
+var ink_stamped := false
+
 func _do_click(p: Vector2) -> int:
 	_toast_dismiss()
+	if state == St.RESULT and _ink_active():
+		result_t -= INK_DUR   # 1.2.0 §9.4：點任意處跳過宣紙戰報演出
+		return 1
 	if _btns_gen != _gen:
 		return 0
 	for i in _btns.size():

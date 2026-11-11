@@ -219,12 +219,24 @@ func _draw_title() -> void:
 	if not show_sub:
 		ph = maxf(48.0, 12.0 + tz("B") * 1.3)
 	var gap := clampf((room - ph * 5.0) / 5.0, 4.0, 8.0)
+	# 1.2.0 §1.1 A3 多寶盒籤牌：五支木籤插在左邊一個小木盒的槽裡（盒在籤後面，籤頭露出右邊）
+	if not bool(Save.s("plain_ui")):
+		var bxr := Rect2(50, y0 - 10, 30, 5 * (ph + gap) - gap + 20)
+		draw_rect(Rect2(bxr.position + Vector2(4, 6), bxr.size), Color(DIM_INK, 0.5))
+		if not _mat_box(bxr, "plaque", Color(0.55, 0.36, 0.22)):
+			draw_rect(bxr, Color("#5a3a22"))
+		draw_rect(bxr, Color("#2a1a0e"), false, 2.0)
+		for kc in [bxr.position + Vector2(3, 3), Vector2(bxr.end.x - 3, bxr.position.y + 3), Vector2(bxr.position.x + 3, bxr.end.y - 3), bxr.end - Vector2(3, 3)]:
+			draw_circle(kc, 2.5, Color("#c9a24a"))   # 黃銅包角釘
+		for i in plaques.size():
+			var sy := y0 + i * (ph + gap)
+			draw_rect(Rect2(bxr.position.x + 6, sy + 4, 18, ph - 8), Color(0.1, 0.06, 0.03, 0.75))   # 籤槽
 	for i in plaques.size():
 		var pq: Array = plaques[i]
 		var mr2 := Rect2(70, y0 + i * (ph + gap), PW, ph)
 		var on := not _demo() or bool(pq[4])
 		_btn(mr2, "", pq[3], on, i == 0 and fresh)
-		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else Color(1, 1, 1, 0.35))
+		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else (Color(0.12, 0.07, 0.03, 0.55) if not bool(Save.s("plain_ui")) else Color(1, 1, 1, 0.35)))   # 1.2.0：籤插進盒的那一端壓暗
 		# V1.5.2 L5：小人照木牌內容區定位（150% 只放名稱時木牌變矮，腳點不再寫死 y+54 而掉出木牌）
 		var foot := minf(54.0, ph - 6.0)
 		Art.unit(self, mr2.position + Vector2(34, foot), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72 * minf(1.0, foot / 54.0), cbm())
@@ -312,6 +324,22 @@ func _draw_overlay() -> void:
 			_draw_ga_info()
 		"weekly":
 			_draw_weekly()
+		"kit_demo":
+			call("_draw_kit_demo")   # 1.2.0：開發用截圖（dev_main）
+		"boss_note":
+			if note_ret != "":   # 疊在大廳上：先畫大廳（按鈕隨後清掉，點不到），再壓暗畫便條
+				overlay = note_ret
+				_draw_overlay()
+				overlay = "boss_note"
+				_btns.clear()
+				probe_texts.clear()
+				probe_btns.clear()
+				probe_ctrls.clear()
+				probe_reset_geom()
+				_dim(0.55)
+			_draw_boss_note()   # 1.2.0 §12
+		"res_facts":
+			call("_draw_res_facts")   # 1.2.0
 		"wk_ghosts":
 			call("_draw_wk_ghosts")   # 1.2.0 §15.4
 		"relay":
@@ -808,7 +836,7 @@ func _draw_settings() -> void:
 			var vr := Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y))
 			_btn(vr, val, cb.bind(1), true, false, tint)
 			if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):
-				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
+				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"), bool(_btns[_btns.size() - 1]["en"]))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
 			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
@@ -833,16 +861,20 @@ func _draw_settings() -> void:
 
 
 ## 1.2.0 §1.3 黃銅撥片開關：開＝撥片朝上＋小綠點、關＝朝下（純裝飾，點擊照原本的值按鈕）
-func _brass_toggle(c: Vector2, on: bool) -> void:
-	var plate := Rect2(c - Vector2(9, 15), Vector2(18, 30))
-	draw_rect(plate, Color("#8a6a2a"))
-	draw_rect(plate.grow(-2), Color("#c9a24a"))
-	draw_circle(c, 4.0, Color("#5a4418"))
-	var tip := c + Vector2(0, -11 if on else 11)
-	draw_line(c, tip, Color("#e8d39a"), 4.0, true)
-	draw_circle(tip, 3.0, Color("#f3e3b0"))
-	if on:
-		draw_circle(c + Vector2(0, 11), 2.5, Color("#5fd16f"))
+func _brass_toggle(c: Vector2, on: bool, enabled := true) -> void:
+	# Antigravity cat02 #5：加大加厚、強化高光與開關明暗；停用時褪色（Codex cat02 #7：七種狀態）
+	var k := 1.0 if enabled else 0.55
+	var plate := Rect2(c - Vector2(11, 17), Vector2(22, 34))
+	draw_rect(plate, Color(Color("#6e5220"), k))
+	draw_rect(plate.grow(-2), Color(Color("#c9a24a"), k))
+	draw_rect(Rect2(plate.position + Vector2(3, 3), Vector2(4, plate.size.y - 6)), Color(1, 0.95, 0.75, 0.55 * k))   # 左上受光的金屬高光
+	draw_rect(Rect2(c - Vector2(3, 12), Vector2(6, 24)), Color(Color("#3a2a10"), k))   # 底槽（深）
+	var tip := c + Vector2(0, -10 if on else 10)
+	draw_line(c, tip, Color(Color("#f0dfa8"), k), 6.0, true)
+	draw_circle(tip, 4.0, Color(Color("#fff2c8"), k))
+	draw_circle(c, 2.5, Color(Color("#5a4418"), k))
+	if on and enabled:
+		draw_circle(c + Vector2(0, 12), 2.8, Color("#5fd16f"))
 
 ## ── V1.5 一鍵無障礙預設：直接改原本的設定（可疊加），存一份改之前的值讓「撤回」用 ──
 var preset_undo := {}

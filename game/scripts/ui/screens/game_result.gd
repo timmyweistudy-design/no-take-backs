@@ -51,6 +51,7 @@ func _finish_battle() -> void:
 	state = St.RESULT
 	tm_ghost = null
 	result_t = time
+	set("ink_stamped", false)   # 1.2.0 §9.4
 	if play_kind == "official" and sim != null:
 		last_cmds = sim.cmd_log.duplicate(true)
 	result_tab = 0
@@ -109,8 +110,16 @@ func _draw_result() -> void:
 	# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
 	_dim(0.7)   # 第七輪 E2：整個畫面（含 HUD）壓暗
 	var r := Rect2(200, 100, 880, 610)
-	_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
-	_box(r, PANEL, TH_EDGE, 10.0, 3.0)
+	# 1.2.0 §9.4 E3：結果面板是一張紙卡（宣紙戰報的延續）：落影在右下（光源左上）、紙上的字自動換墨色；簡化介面維持原本深色面板
+	var paper := not bool(Save.s("plain_ui"))
+	if paper:
+		draw_rect(Rect2(r.position + Vector2(6, 8), r.size), Color(DIM_INK, 0.45))
+		if not _mat_box(r, "card2"):
+			draw_rect(r, Color("#efe4cf"))
+		draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
+	else:
+		_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
+		_box(r, PANEL, TH_EDGE, 10.0, 3.0)
 	var w: int = sim.winner
 	var title := L.t("draw")
 	var col := Color.WHITE
@@ -196,6 +205,7 @@ func _draw_result() -> void:
 	var hw1 := rib_in if rib_in > 0.0 else hw
 	_text(Vector2(640, y), line1, tz("S"), TXT_DIM, true, false, hw1)
 	y += text_h(line1, fit(line1, tz("S"), hw1), hw1) + 6   # 和 _text 一樣先 fit 再量
+	_ink_mode = paper and rib_in > 0.0   # 緞帶以下才是紙面
 	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
 	var loss := _loss_line(w, goal_mode)
 	if loss != "":
@@ -251,16 +261,24 @@ func _draw_result() -> void:
 		# 1.2.0 字級表放大：事實放不下就從最後一條拿掉（系列比分那行一定要在按鈕之上，150% 原本會壓到按鈕）
 		var show_series: bool = (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official"
 		var room: float = 640.0 - 8.0 - y - (tz("B") * 1.6 + 4.0 if show_series else 0.0)
+		res_facts_all = facts.duplicate()
+		var more_h: float = maxf(40.0, tz("S") * 1.8)
+		var trimmed := false
 		while not facts.is_empty():
 			var need_h := 0.0
 			for f0 in facts:
 				need_h += text_h(f0, tz("S"), 780) + 2
-			if need_h <= room:
+			if need_h + (more_h if trimmed else 0.0) <= room:
 				break
 			facts.pop_back()
+			trimmed = true
 		for fi in facts.size():
 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
 			y += text_h(facts[fi], tz("S"), 780) + 2
+		if trimmed:
+			# Codex cat02 #2：放不下的事實不能就此消失 → 一顆「還有 N 條」開完整清單
+			_btn_small(Rect2(250, y, 260, more_h - 4.0), L.t("res_more_facts", [res_facts_all.size() - facts.size()]), func(): overlay = "res_facts")
+			y += more_h
 		if mode == Mode.VS_AI and sim.winner == 1 and play_kind == "official" and last_armies.size() == 2 and not watch_mode:
 			_btn(Rect2(800, y - tz("S") * 1.3 - 8, 230, 40), L.t("res_try_review"), func(): _open_review_on_first_loss())
 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
@@ -389,6 +407,9 @@ func _draw_result() -> void:
 		else:
 			_btn(Rect2(x, 649, bw2, 44), bs[i][0], bs[i][1], true, false, TH_WOOD)
 		x += bw2 + gap
+	_ink_mode = false
+	if mode == Mode.VS_AI and not watch_mode:
+		_boss_note("result")   # 1.2.0 §12：第一次看結果的便條
 
 
 
@@ -470,6 +491,21 @@ func _open_review_on_first_loss() -> void:
 
 
 ## 結果頁第二層：中線對比長條（輸出／承傷切換）＋技能徽章（只列有發生的）＋指紋。
+var res_facts_all: Array = []
+## 1.2.0：結果頁放不下時的完整事實清單（小面板）
+func _draw_res_facts() -> void:
+	var w := 820.0
+	var hh := 0.0
+	for f0 in res_facts_all:
+		hh += text_h("・" + str(f0), tz("S"), w - 80) + 6
+	var P := modal_rect(w, 12.0 + h1_bottom(0.0) + GAP_L + hh + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("res_facts_title")) + GAP_L
+	for f1 in res_facts_all:
+		_text(Vector2(P.position.x + 40, y), "・" + str(f1), tz("S"), Color.WHITE, false, false, w - 80)
+		y += text_h("・" + str(f1), tz("S"), w - 80) + 6
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "", true, true)
+
 func _draw_result_details(R: Rect2) -> void:
 	var dealt: Array = report["dealt"]
 	var taken: Array = report["taken"]
@@ -487,7 +523,7 @@ func _draw_result_details(R: Rect2) -> void:
 	for tm in 2:
 		var tcl := Art.team_color(tm, cbm())
 		var x := R.position.x + 20
-		_text(Vector2(x, y + 4), "●" if tm == 0 else "◆", tz("S"), tcl, false, true)
+		_text(Vector2(x, y + 4), "●" if tm == 0 else "◆", tz("S"), tcl.darkened(0.6) if _ink_mode else tcl, false, true)   # 1.2.0：紙上隊色記號壓深（對比 ≥4.5）
 		x += 26
 		for k in ek:
 			var n := int(ev_count.get("%s%d" % [k, tm], 0))

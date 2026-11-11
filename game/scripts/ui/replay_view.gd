@@ -653,6 +653,7 @@ func _draw_review() -> void:
 	# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時左右兩欄一起往下（dy），不壓到「你的部署」與兵種鈕
 	var hint := L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint")
 	var hy := _h1(Vector2(640, 40), L.t("rv_title")) + GAP_L
+	hint = hint + "　" + L.t("rv_note")   # 1.2.0（Codex cat02 #2）：「不一定是敗因」的限制說明放在上方說明裡，一定看得到（原本在底部，放不下就不畫）
 	_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
 	var hend := hy + text_h(hint, tz("S"), 960)
 	var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
@@ -731,8 +732,6 @@ func _draw_review() -> void:
 			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
 			y += tz("S") * 1.5
-		if y + text_h(L.t("rv_note"), tz("C"), 552) <= 704.0 - 6.0:
-			_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)   # 放得下才畫（不壓到底部按鈕）
 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
 	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
 

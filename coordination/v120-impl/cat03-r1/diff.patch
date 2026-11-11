@@ -1,0 +1,1120 @@
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index 53b8434..d5fddf8 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS := {
+ 	"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
+ 	"long_press": 0.5, "place_mode": "both", "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
+ 	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
+-	"hold_confirm": false, "magnify": false, "ui_font": "classic",   # 1.2.0 §3.2：介面字型 classic（圓體）／craft（黑體＋手寫標題）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
++	"hold_confirm": false, "magnify": false, "ui_font": "craft",   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
+ }
+ const ENUMS := {"ui_font": ["classic", "craft"], "place_mode": ["both", "tap"], "title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
+ 	"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3, 0], "rumble": [0, 25, 50, 100], "deadzone": [5, 10, 15, 20, 25, 30, 35, 40], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 8832bbe..1bde5da 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -235,8 +235,11 @@ func _draw_field() -> void:
+ 	var free_f: bool = rules != null and rules.is_free() and (mode == Mode.VS_AI or mode == Mode.DUEL)   # 第六輪：自由排兵不畫格子
+ 	var fbi: Dictionary = MapArt.BIOME.get(MapDefs.MAPS[fld_map]["biome"], {})
+ 	ring_shadow = float(fbi.get("shadow", 0.0))
+-	if fld_map != 0:
+-		MapArt.draw_outfield(self, Rect2(ORIGIN, FIELD), str(MapDefs.MAPS[fld_map]["biome"]))
++	# 1.2.0 §5.1：盤外是桌面（不再畫場外樹叢、岩石）
++	if not bool(Save.s("plain_ui")):
++		var so := Rect2(ORIGIN, fld_size).grow(18)
++		for k7 in 4:   # 1.2.0 §5.1：棋盤在桌上的落影（光源左上 → 影子往右下）
++			draw_rect(Rect2(so.position + Vector2(6 + k7 * 2, 8 + k7 * 2), so.size), Color(0.08, 0.05, 0.03, 0.12))
+ 	var fr_i := clampi(int(Art.paint[5]), 0, 3)   # V1.4 #15 棋盤框
+ 	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632") if fr_i == 0 else Art.FRAMES[fr_i]))
+ 	if fld_map != 0:
+@@ -297,10 +300,16 @@ func _draw_field() -> void:
+ 			draw_circle(fp + Vector2(cos(an), sin(an)) * 2.2, 1.8, Color(fc, 0.75), true, -1.0, true)
+ 		draw_circle(fp, 1.3, Color("#f4a300"), true, -1.0, true)
+ 	if not free_f:
++		# 1.2.0 §5.1：格線是刻刀刻出的淺凹槽：暗線＋右／下方 1px 亮線（不是印上去的虛線）
++		var carve := not bool(Save.s("plain_ui"))
+ 		for i in 17:
+-			_wob_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, fld_size.y), Color(0, 0, 0, 0.07), 1.0)
++			_wob_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, fld_size.y), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
++			if carve:
++				draw_line(ORIGIN + Vector2(i * CS + 1, 0), ORIGIN + Vector2(i * CS + 1, fld_size.y), Color(1, 0.95, 0.8, 0.07), 1.0)
+ 		for i in 10:
+-			_wob_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(fld_size.x, i * CS), Color(0, 0, 0, 0.07), 1.0)
++			_wob_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(fld_size.x, i * CS), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
++			if carve:
++				draw_line(ORIGIN + Vector2(0, i * CS + 1), ORIGIN + Vector2(fld_size.x, i * CS + 1), Color(1, 0.95, 0.8, 0.07), 1.0)
+ 		_chalk_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, fld_size.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
+ 		_chalk_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, fld_size.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
+ 	_draw_field_frame()
+@@ -308,7 +317,7 @@ func _draw_field() -> void:
+ 	var tone := _tone()
+ 	if tone.a > 0.0:
+ 		draw_rect(Rect2(ORIGIN, fld_size), tone)
+-	if plants.size() >= 9 and fld_sz == MapDefs.STD_SIZE:
++	if false and plants.size() >= 9 and fld_sz == MapDefs.STD_SIZE:   # 1.2.0 §5.1：棋盤兩側的一圈樹拿掉（盤外是桌面）
+ 		var deco := [[0, Vector2(52, 200)], [3, Vector2(70, 280)], [5, Vector2(30, 400)], [1, Vector2(60, 560)], [7, Vector2(90, 660)],
+ 			[2, Vector2(1220, 190)], [6, Vector2(1240, 300)], [0, Vector2(1215, 470)], [4, Vector2(1245, 600)], [8, Vector2(1200, 676)]]
+ 		for d in deco:
+@@ -329,6 +338,8 @@ func _draw_field_frame() -> void:
+ 	_draw_ambient()
+ 	# V1.2 C4：戰場外圍木製沙盤框（九宮格、四角銅釘），蓋在原本的平塗邊上
+ 	var fx := _ui_tex(TEX_FRAME)
++	if not bool(Save.s("plain_ui")) and _board_ring(Rect2(ORIGIN, fld_size)):
++		fx = null   # 1.2.0 §5.1：實木厚框取代舊框圖
+ 	if fx != null and not bool(Save.s("plain_ui")):
+ 		var sb: StyleBoxTexture = _sb_cache.get("field_frame")
+ 		if sb == null:
+@@ -348,6 +359,42 @@ func _draw_field_frame() -> void:
+ 		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
+ 	_draw_map_events()
+ 
++## 1.2.0 §9.1 開場三段落子（只改畫面）：開戰提示那 1 秒裡，前、中、後排（離中線由近到遠）分三段從上方落下，觸盤時壓扁回彈。
++## 重播、減少特效、截圖都沒有這 1 秒（start_hold＝0），所以不影響。
++const DROP_AT := [0.0, 0.3, 0.6]
++func _open_drop(u) -> Vector2:
++	if start_hold <= 0.0 or play_kind != "official":
++		return Vector2.ZERO
++	var mid := fld_w / 2.0
++	var d: float = absf(float(u.x) - mid) / maxf(1.0, mid)
++	var stage := 0 if d < 0.25 else (1 if d < 0.5 else 2)
++	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
++	var k := clampf((ph - DROP_AT[stage]) / 0.25, 0.0, 1.0)
++	return Vector2(0, -22.0 * (1.0 - k) * (1.0 - k))
++
++## 1.2.0 §5.1 拼花棋盤：橡木厚框（只畫一圈，不蓋盤面）＋內緣刻線＋外緣亮邊＋盤面上漆光（左上亮、右下暗）。回傳有沒有畫。
++func _board_ring(inner: Rect2) -> bool:
++	var oak := _ui_tex(MAT_OAK)
++	if oak == null:
++		return false
++	var outer := inner.grow(18)
++	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
++	for strip in [Rect2(outer.position, Vector2(outer.size.x, 18)), Rect2(Vector2(outer.position.x, inner.end.y), Vector2(outer.size.x, 18)),
++			Rect2(Vector2(outer.position.x, inner.position.y), Vector2(18, inner.size.y)), Rect2(Vector2(inner.end.x, inner.position.y), Vector2(18, inner.size.y))]:
++		draw_texture_rect(oak, strip, true, Color(0.95, 0.88, 0.8))
++	draw_rect(outer, Color("#2a1a10"), false, 2.0)                       # 外緣暗線
++	draw_rect(outer.grow(-2), Color(1, 0.9, 0.7, 0.28), false, 1.0)      # 外緣亮邊（倒角）
++	draw_rect(inner.grow(3), Color("#3a2414"), false, 3.0)               # 內緣刻線
++	draw_rect(inner.grow(1), Color(1, 0.92, 0.75, 0.22), false, 1.0)
++	# 盤面上漆光：左上亮、右下暗（大漸層，貼在盤面上）
++	draw_polygon(PackedVector2Array([inner.position, Vector2(inner.end.x, inner.position.y), Vector2(inner.position.x, inner.end.y)]),
++		PackedColorArray([Color(1, 0.95, 0.8, 0.10), Color(1, 0.95, 0.8, 0.0), Color(1, 0.95, 0.8, 0.0)]))
++	draw_polygon(PackedVector2Array([inner.end, Vector2(inner.end.x, inner.position.y), Vector2(inner.position.x, inner.end.y)]),
++		PackedColorArray([Color(0.1, 0.06, 0.03, 0.16), Color(0.1, 0.06, 0.03, 0.0), Color(0.1, 0.06, 0.03, 0.0)]))
++	return true
++
++const MAT_OAK := "res://art/mat/tile_oak.png"
++
+ ## V1.4 #10 沙盤機關：畫在沙盤上。還沒發動＝虛線框＋倒數秒數；崩塌後＝碎石；火牆燒時＝火焰；推進板＝木板＋往中線的箭頭。
+ func _draw_map_events() -> void:
+ 	var ev: Array = MapDefs.events(fld_map)
+@@ -480,7 +527,7 @@ func _draw_units_of(s, dim: bool) -> void:
+ 	var pc := {}
+ 	if live:
+ 		for u in list:
+-			pc[u.id] = _upos(u)
++			pc[u.id] = _upos(u) + _open_drop(u)
+ 		list.sort_custom(func(a, b): return pc[a.id].y < pc[b.id].y)
+ 	else:
+ 		list.sort_custom(func(a, b): return a.y < b.y)
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index cfaaa45..d3e0200 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -63,7 +63,12 @@ func _battle_process(delta: float) -> void:
+ 	if view != null:
+ 		_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
+ 	if start_hold > 0.0:
++		var ph0 := 1.0 - start_hold
+ 		start_hold -= delta
++		var ph1 := 1.0 - start_hold
++		for at in [0.25, 0.55, 0.85]:   # 1.2.0 §9.1：三段落子各一聲厚重落子聲（全場只有 3 聲）
++			if ph0 < at and ph1 >= at and sfx != null:
++				sfx.play("place_heavy", 0.75)
+ 		return
+ 	if call("_seek_pump"):
+ 		return
+@@ -484,6 +489,8 @@ func _draw_cmd_bar() -> void:
+ 				var frac: float = clampf(float(wait) / maxf(1.0, phase_len), 0.0, 1.0)
+ 				draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * frac)), Color(0, 0, 0, 0.5))
+ 
++var hud_info_until := -1.0   # 1.2.0：手把 View 叫出情境資訊到這個時間
++
+ ## V1.6.1 F4（Antigravity v161d r3）：擊倒時手把短震（只在用手把、震動設定開著；0.25 秒內只震一次，大混戰不會一直震）
+ var kill_rumble_t := -9.0
+ func _kill_rumble() -> void:
+@@ -691,12 +698,28 @@ func _draw_battle_hud() -> void:
+ 	var bx := 330.0
+ 	var bw := 620.0
+ 	var split := bw * f0 / maxf(0.001, f0 + f1)
+-	_box(Rect2(bx - 4, 36, bw + 8, 34), Art.OUT, TH_EDGE, 6.0, 2.0)
++	var craft_hud: bool = not bool(Save.s("plain_ui")) and _ui_tex(MAT["plaque"]) != null
++	if craft_hud:
++		# 1.2.0 §5.6：戰力條是一把山毛櫸木尺（刻度每 10%）＋黃銅滑塊；兩隊色條照舊（戰況資訊）
++		_mat_box(Rect2(bx - 10, 32, bw + 20, 42), "plaque", Color(0.9, 0.82, 0.7))
++		draw_rect(Rect2(bx - 2, 38, bw + 4, 30), Color("#2a1a10"))   # 尺上的凹槽
++	else:
++		_box(Rect2(bx - 4, 36, bw + 8, 34), Art.OUT, TH_EDGE, 6.0, 2.0)
+ 	draw_rect(Rect2(bx, 40, split, 26), Art.team_color(0, cbm()))
+ 	draw_rect(Rect2(bx + split, 40, bw - split, 26), Art.team_color(1, cbm()))
+ 	draw_rect(Rect2(bx, 40, bw, 7), Color(1, 1, 1, 0.14))      # 上緣高光
+ 	draw_line(Vector2(bx + split, 38), Vector2(bx + split, 68), Color.WHITE, 3.0)   # 交界線
+ 	draw_line(Vector2(bx + bw / 2, 32), Vector2(bx + bw / 2, 74), Color(1, 1, 1, 0.55), 2)
++	if craft_hud:
++		for tk in range(1, 10):   # 木尺刻度（每 10%）
++			var tx := bx + bw * tk / 10.0
++			draw_line(Vector2(tx, 33), Vector2(tx, 37 if tk != 5 else 39), Color("#4a3018"), 1.5)
++		# 黃銅滑塊：卡在交界線上，上下各露一截（左上高光）
++		var sk := Rect2(bx + split - 6, 30, 12, 46)
++		draw_rect(Rect2(sk.position + Vector2(2, 2), sk.size), Color(DIM_INK, 0.5))
++		draw_rect(sk, Color("#8a6a2a"))
++		draw_rect(sk.grow(-2), Color("#d4ae55"))
++		draw_rect(Rect2(sk.position + Vector2(3, 3), Vector2(3, sk.size.y - 6)), Color(1, 0.96, 0.8, 0.6))
+ 	# 戰力條狀態（第三輪 V6）：狂熱整條加橘框；背水那端加火焰圖示與脈衝框
+ 	if view.frenzy and not view.finished:
+ 		draw_rect(Rect2(bx - 4, 38, bw + 8, 30), Color(1, 0.45, 0.1, 0.7 + 0.3 * sin(time * 6)), false, 3)
+@@ -733,8 +756,23 @@ func _draw_battle_hud() -> void:
+ 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
+ 			_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
+ 	var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
+-	_text(Vector2(640, 4), L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else ""), ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
+-	if mode == Mode.VS_AI and ai_name != "":
++	var clock_s: String = L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else "")
++	if craft_hud and state == St.BATTLE:
++		# 1.2.0 §5.6 棋鐘：淺色木盒＋頂上黃銅按鈕，字用深墨（狂熱時深紅）。木盒是平塗＋邊線（不是九宮格：大字級時字會壓到九宮格邊）；
++		# 結果頁有暗幕，棋鐘回到原本的白字（深字在暗幕下看不清）
++		var cw0 := maxf(170.0, _width(clock_s, ts(22), true) + 40.0)
++		var cr := Rect2(640 - cw0 / 2, 1, cw0, maxf(32.0, ts(22) * 1.3))
++		draw_rect(Rect2(cr.position + Vector2(3, 3), cr.size), Color(DIM_INK, 0.5))
++		draw_rect(cr, Color("#e9d9b8"))
++		draw_rect(Rect2(cr.position, Vector2(cr.size.x, 3)), Color(1, 0.97, 0.88, 0.7))
++		draw_rect(cr, Color("#5a3a22"), false, 2.0)
++		draw_rect(Rect2(640 - 9, 0, 18, 3), Color("#c9a24a"))
++		_text(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true)
++	else:
++		_text(Vector2(640, 4), clock_s, ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
++	# 1.2.0 §5.6 情境資訊：AI 名稱只在開場 3 秒、滑鼠指到戰力尺、手把按 View 後 2 秒顯示（Codex／Antigravity：資訊都在，次要的不常駐）
++	var ai_show: bool = view.tick < 60 or Rect2(bx - 10, 32, bw + 20, 52).has_point(mouse) or time < hud_info_until or shot_dir != ""
++	if mode == Mode.VS_AI and ai_name != "" and ai_show:
+ 		var ai_lb := "AI：%s" % ai_name
+ 		_text(Vector2(bx + bw - _width(ai_lb, tz("C")), 69.0), ai_lb, tz("C"), Color(1, 1, 1, 0.9))   # V1.2.1：大字級也在木條內
+ 	if state == St.BATTLE and bool(Save.s("playtest")):
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index cf5e7fa..017362f 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -45,12 +45,16 @@ func _ready() -> void:
+ 	for a in OS.get_cmdline_user_args():
+ 		if a.begins_with("--shot-prefix="):
+ 			# 1.2.0：版面檢查平行跑時每組用自己的存檔前綴、從乾淨的存檔開始（原本共用 shot_ 會互搶寫入、也會帶到前一組的資料）
+-			Save.prefix = a.substr(14)
+-			var d := DirAccess.open("user://")
+-			if d != null:
+-				for f in d.get_files():
+-					if f.begins_with(Save.prefix):
+-						d.remove(f)
++			# 防誤刪（Codex cat02 #1）：只在截圖模式、前綴一定是 shot_＋組合名（≥8 字、只有英數底線連字號），只刪這個前綴的存檔類檔名
++			var px := a.substr(14)
++			var safe := Save.prefix == "shot_" and px.begins_with("shot_") and px.length() >= 8 and px == px.validate_filename()
++			if safe:
++				Save.prefix = px
++				var d := DirAccess.open("user://")
++				if d != null:
++					for f in d.get_files():
++						if f.begins_with(px) and (f.ends_with(".json") or f.ends_with(".bak") or f.contains(".corrupt") or f.ends_with(".jsonl") or f.ends_with(".tmp")):
++							d.remove(f)
+ 	Save.load_all()
+ 	Guide.seed_seen(Save.data)   # V1.6 #1
+ 	Guide.seed_eff(Save.data)   # V1.6.1 N1
+@@ -353,6 +357,9 @@ func _mb_cmd(d: Dictionary) -> void:
+ 
+ func _key(k: int) -> void:
+ 	_toast_dismiss()
++	if state == St.RESULT and _ink_active():
++		result_t -= INK_DUR   # 1.2.0 §9.4：任何按鍵跳過宣紙戰報演出
++		return
+ 	if state == St.PLACE and overlay == "" and _v16_place_key(k):
+ 		return
+ 	if state == St.PLACE and _fp_key(k):
+@@ -373,6 +380,8 @@ func _key(k: int) -> void:
+ 			KEY_F1:
+ 				if state == St.BATTLE and overlay == "" and play_kind != "official":
+ 					call("_breport_open")   # 1.1.0 B10：手把 View／Select＝戰報面板
++				elif state == St.BATTLE and overlay == "":
++					set("hud_info_until", time + 2.0)   # 1.2.0 §5.6：正式對戰按 View＝叫出 AI 名稱與性格 2 秒
+ 			KEY_PAGEUP, KEY_PAGEDOWN:
+ 				if overlay == "codex":
+ 					_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
+@@ -621,7 +630,7 @@ func _draw_inner() -> void:
+ 	probe_boxes.clear()
+ 	probe_reset_geom()
+ 	_probe_ui = false
+-	draw_rect(Rect2(0, 0, 1280, 800), Color("#1b2a1f"))
++	_draw_desk()   # 1.2.0 §1.1 桌面世界：整個畫面是一張胡桃木桌（取代深綠底＋一圈樹）
+ 	_sync_field()
+ 	var fxf := _fld_xf()
+ 	var cam := fxf
+@@ -670,6 +679,8 @@ func _draw_inner() -> void:
+ 		if not f.get("screen", false) and f["kind"] == "text":
+ 			_draw_fx(f)
+ 	perf_parts["fx"] = Time.get_ticks_usec() - _t
++	if state == St.RESULT and _ink_active():
++		_draw_ink_report_field()
+ 	draw_set_transform_matrix(Transform2D.IDENTITY)
+ 	# V1.2 F2：畫面四周暈影（戰場與標題背景，壓在介面底下），讓視線集中在中間
+ 	var vg := _ui_tex("res://art/ui/vignette.png")
+@@ -707,7 +718,10 @@ func _draw_inner() -> void:
+ 				_draw_busy(roundi(sim.tick * 100.0 / maxf(1.0, seek_target)))
+ 		St.RESULT:
+ 			_draw_battle_hud()
+-			_draw_result()
++			if _ink_active():
++				_draw_ink_report_screen()   # 1.2.0 §9.4 宣紙戰報：勝負章蓋下之前不出結果面板
++			else:
++				_draw_result()
+ 	_draw_clutch_banner()
+ 	# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
+ 	if overlay != _ov_seen:
+@@ -834,8 +848,68 @@ func _process_cmds() -> int:
+ 
+ 
+ ## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
++## ── 1.2.0 §9.4 宣紙戰報（結果頁前 1.2 秒）──
++## 盤面 0.3 秒淡成宣紙 → 陣亡點蓋 8px 朱砂小印、擊倒者到被擊倒者一道淡墨線（40%、最底層）→ 0.55 秒勝負大章蓋下 → 1.0 秒後才出結果面板。
++## 點任意處／任何按鍵跳過；截圖、減少特效、重播與覆盤不播。
++const INK_DUR := 1.0
++func _ink_active() -> bool:
++	return _ink_k() < INK_DUR and (shot_dir == "" or ink_force) and not bool(Save.s("reduce_fx")) and play_kind == "official" and not bool(Save.s("plain_ui"))
++
++var ink_force := false   # 截圖流程專拍宣紙戰報時用
++func _ink_k() -> float:
++	return 0.8 if ink_force else time - result_t   # 截圖專拍時停在蓋章後的瞬間（截圖等幀的實際時間不固定）
++
++func _draw_ink_report_field() -> void:
++	var k := _ink_k()
++	var pa := clampf(k / 0.3, 0.0, 1.0) * 0.82
++	var pt := _ui_tex(MAT["card2"])
++	var fr := Rect2(ORIGIN, fld_size)
++	if pt != null:
++		draw_texture_rect(pt, fr, false, Color(1, 1, 1, pa))
++	else:
++		draw_rect(fr, Color(Color("#e8d8c3"), pa))
++	if k < 0.25 or view == null:
++		return
++	var a2 := clampf((k - 0.25) / 0.25, 0.0, 1.0)
++	for u in view.units:
++		if u.alive:
++			continue
++		var vp := _upos(u)
++		var kid: int = int(last_hitter.get(u.id, -1))
++		var ku = view.unit_by_id(kid) if kid >= 0 else null
++		if ku != null:
++			draw_line(_upos(ku), vp, Color(Color("#261c14"), 0.4 * a2), 3.0, true)   # 交戰墨線（最底層、40%）
++	for u2 in view.units:
++		if not u2.alive:
++			var c := _upos(u2)
++			draw_rect(Rect2(c - Vector2(4, 4), Vector2(8, 8)), Color(Color("#9b281b"), 0.9 * a2))   # 朱砂小印
++
++func _draw_ink_report_screen() -> void:
++	var k := _ink_k()
++	if k < 0.55 or sim == null:
++		return
++	var win: bool = sim.winner == 0 or (mode == Mode.DUEL and sim.winner == 1)
++	var drop := clampf((k - 0.55) / 0.12, 0.0, 1.0)
++	var sc := lerpf(1.6, 1.0, drop)
++	var c := Vector2(640, 380)
++	var sz := 120.0 * sc
++	var col := Color("#9b281b") if sim.winner >= 0 else Color("#5a4630")
++	var txt: String = L.t("ink_draw") if sim.winner < 0 else (L.t("ink_win") if win else L.t("ink_lose"))
++	draw_rect(Rect2(c - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), Color(col, 0.18 * drop))
++	draw_rect(Rect2(c - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), Color(col, 0.95 * drop), false, 6.0 * sc)
++	_text(c - Vector2(0, tz("T") * sc * 0.62), txt, int(tz("T") * sc), Color(col, drop), true, true)
++	if drop >= 1.0 and not ink_stamped:
++		ink_stamped = true
++		if sfx != null:
++			sfx.play("place_heavy", 1.0)   # 蓋章聲
++
++var ink_stamped := false
++
+ func _do_click(p: Vector2) -> int:
+ 	_toast_dismiss()
++	if state == St.RESULT and _ink_active():
++		result_t -= INK_DUR   # 1.2.0 §9.4：點任意處跳過宣紙戰報演出
++		return 1
+ 	if _btns_gen != _gen:
+ 		return 0
+ 	for i in _btns.size():
+diff --git a/game/scripts/ui/layout_rules.gd b/game/scripts/ui/layout_rules.gd
+index ecc7445..d2f98a4 100644
+--- a/game/scripts/ui/layout_rules.gd
++++ b/game/scripts/ui/layout_rules.gd
+@@ -94,6 +94,16 @@ static func check(d: Dictionary) -> Dictionary:
+ 			"bottom":
+ 				if absf(r.position.y - h.end.y) > TOL_ATTACH:
+ 					_add(out, "fail", "R3", dc["id"], "%s 上緣 %.1f 沒貼齊宿主下緣 %.1f" % [dc["kind"], r.position.y, h.end.y])
++			"left":
++				# 1.2.0：跨在宿主左緣的裝飾（主按鈕的蠟封）：中心在左緣 ±1/4 寬內、垂直中心在宿主內
++				if absf(r.get_center().x - h.position.x) > r.size.x * 0.25 or r.get_center().y < h.position.y or r.get_center().y > h.end.y:
++					_add(out, "fail", "R3", dc["id"], "%s 沒跨在宿主左緣" % dc["kind"])
++				continue
++			"inside":
++				# 1.2.0：宿主內的裝飾（布標縫線）：整個在宿主裡
++				if not h.grow(TOL_ATTACH).encloses(r):
++					_add(out, "fail", "R3", dc["id"], "%s 跑出宿主" % dc["kind"])
++				continue
+ 		if r.position.x < h.position.x - TOL_ATTACH or r.end.x > h.end.x + TOL_ATTACH:
+ 			_add(out, "fail", "R3", dc["id"], "%s 水平超出宿主" % dc["kind"])
+ 	# ── R4 面板最下面那排按鈕：群組置中於面板（或宣告的欄中線）、間距相等、雙按鈕同寬 ──
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index ddf3198..25f1e54 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -512,6 +512,8 @@ func _draw_lobby() -> void:
+ 		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
+ 	if lobby_menu:
+ 		_draw_lobby_menu(Vector2(1000, 186))
++	elif not lobby_open:
++		_boss_note("lobby")   # 1.2.0 §12：第一次進大廳的便條
+ 
+ func _draw_lobby_presets(o: Vector2) -> void:
+ 	var w := 154.0
+@@ -663,6 +665,15 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 			var a := 0.22 - k * 0.035
+ 			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+ 			draw_rect(Rect2(x + lw + 9 + k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
++		# 1.2.0 §1.1 A4 線裝對局譜：書脊上五針線裝（穿孔＋跨脊的靛色線），上下兩針包角
++		var sx := x + lw + 8.0
++		for kn in 5:
++			var sy := top + 22.0 + kn * (bot - top - 44.0) / 4.0
++			draw_line(Vector2(sx - 9, sy), Vector2(sx + 9, sy), Color("#2b3f5c"), 2.0, true)
++			draw_line(Vector2(sx - 9, sy + 1.5), Vector2(sx + 9, sy + 1.5), Color(1, 1, 1, 0.12), 1.0)
++			for hx in [-9.0, 9.0]:
++				draw_circle(Vector2(sx + hx, sy), 2.2, Color(0.22, 0.14, 0.07, 0.75))
++		draw_line(Vector2(sx, top + 22.0), Vector2(sx, bot - 22.0), Color("#2b3f5c", 0.55), 1.5)
+ 		_ink_mode = true
+ 	# V1.5.2 L6：列底色高度照內容（hh）；左欄圖示與標籤和右邊主控制項共用列中線（原本標籤靠上、控制項置中）
+ 	var label := func(ic: String, s: String, yy: float, hh: float) -> void:
+diff --git a/game/scripts/ui/map_art.gd b/game/scripts/ui/map_art.gd
+index 2d7ef66..8234300 100644
+--- a/game/scripts/ui/map_art.gd
++++ b/game/scripts/ui/map_art.gd
+@@ -274,7 +274,16 @@ class _Painter extends Node2D:
+ 				draw_rect(Rect2(o3, Vector2(Q, Q)), Color(biome["block"]))
+ 				match kind:
+ 					"river":
+-						draw_arc(o3 + Vector2(Q / 2, (h3 % 20) + 6), 9.0, 0.3, 2.6, 8, Color(1, 1, 1, 0.3), 1.6, true)
++						# 1.2.0 §5 B4 藍染絹：底色加深一階（靛），細織紋（經緯各 4 條、低透明）＋一道斜向絹光；仍是整格實色，判讀不變
++						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(0.11, 0.2, 0.36, 0.28))
++						for kw in 4:
++							var wy := (kw + 0.5) * Q / 4.0 + float((h3 >> kw) % 3) - 1.0
++							draw_line(o3 + Vector2(0, wy), o3 + Vector2(Q, wy), Color(0.85, 0.92, 1.0, 0.09), 1.0)
++							var wx := (kw + 0.5) * Q / 4.0
++							draw_line(o3 + Vector2(wx, 0), o3 + Vector2(wx, Q), Color(0.05, 0.1, 0.22, 0.12), 1.0)
++						if h3 % 3 == 0:
++							draw_line(o3 + Vector2(2, Q * 0.75), o3 + Vector2(Q * 0.7, 3), Color(1, 1, 1, 0.16), 2.0, true)
++						draw_arc(o3 + Vector2(Q / 2, (h3 % 20) + 6), 9.0, 0.3, 2.6, 8, Color(1, 1, 1, 0.22), 1.4, true)
+ 					"lava":
+ 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(1, 0.6, 0.1, 0.25 + (h3 % 30) / 100.0))
+ 						# 硬殼與裂縫：暗塊之間透出亮岩漿
+@@ -320,9 +329,19 @@ class _Painter extends Node2D:
+ 						above = above or _cell(c5, r5 - dy) == t.BLOCK or _cell(c5, r5 + dy) == t.BLOCK
+ 					if above and not left and not right:
+ 						var o5 := Vector2(c5, r5) * Q
+-						draw_rect(Rect2(o5, Vector2(Q, Q)), Color("#8a6238"))
++						# 1.2.0 §5 B4 小木片橋：三片直鋪木片（深淺交錯、片縫、上緣受光、兩端釘點），下方投影（光源左上）
++						draw_rect(Rect2(o5 + Vector2(3, 3), Vector2(Q, Q)), Color(0.08, 0.05, 0.03, 0.3))
++						var pw := Q / 3.0
+ 						for k5 in 3:
+-							draw_line(o5 + Vector2(k5 * 11.0, 0), o5 + Vector2(k5 * 11.0, Q), Color("#5b3f23"), 2.0, true)
++							var hh := _h(c5 * 7 + k5, r5)
++							var pc := Color("#9a6e40").darkened(float(hh % 4) * 0.05)
++							var pr := Rect2(o5 + Vector2(k5 * pw + 0.5, -1.0 + float(hh % 3) * 0.5), Vector2(pw - 1.5, Q + 1.0))
++							draw_rect(pr, pc)
++							draw_line(pr.position, pr.position + Vector2(0, pr.size.y), Color(1, 0.92, 0.75, 0.35), 1.0)   # 左緣受光
++							draw_line(pr.position + Vector2(pr.size.x, 0), pr.end, Color("#4a3018"), 1.5)   # 片縫
++							draw_line(pr.position + Vector2(pw * 0.45, 4 + hh % 5), pr.position + Vector2(pw * 0.5, Q - 6 - hh % 4), Color(0.3, 0.18, 0.08, 0.25), 1.0)   # 木紋
++							for ny in [4.0, Q - 4.0]:
++								draw_circle(pr.position + Vector2(pw * 0.5 - 0.5, ny), 1.3, Color("#3a2a1c"))
+ 		_decor(Q)
+ 
+ 	## V1.2 D3：手繪筆觸（草簇、碎石、冰紋、裂紋）、場地邊緣裝飾（木柵欄、冰柱、焦岩）、紙紋 5%，全部烘進地塊。
+diff --git a/game/scripts/ui/replay_view.gd b/game/scripts/ui/replay_view.gd
+index 7400e65..9410964 100644
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -653,6 +653,7 @@ func _draw_review() -> void:
+ 	# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時左右兩欄一起往下（dy），不壓到「你的部署」與兵種鈕
+ 	var hint := L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint")
+ 	var hy := _h1(Vector2(640, 40), L.t("rv_title")) + GAP_L
++	hint = hint + "　" + L.t("rv_note")   # 1.2.0（Codex cat02 #2）：「不一定是敗因」的限制說明放在上方說明裡，一定看得到（原本在底部，放不下就不畫）
+ 	_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
+ 	var hend := hy + text_h(hint, tz("S"), 960)
+ 	var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
+@@ -731,8 +732,6 @@ func _draw_review() -> void:
+ 			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
+ 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+ 			y += tz("S") * 1.5
+-		if y + text_h(L.t("rv_note"), tz("C"), 552) <= 704.0 - 6.0:
+-			_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)   # 放得下才畫（不壓到底部按鈕）
+ 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+ 	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+ 
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 7c49913..d2b2aee 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -219,12 +219,24 @@ func _draw_title() -> void:
+ 	if not show_sub:
+ 		ph = maxf(48.0, 12.0 + tz("B") * 1.3)
+ 	var gap := clampf((room - ph * 5.0) / 5.0, 4.0, 8.0)
++	# 1.2.0 §1.1 A3 多寶盒籤牌：五支木籤插在左邊一個小木盒的槽裡（盒在籤後面，籤頭露出右邊）
++	if not bool(Save.s("plain_ui")):
++		var bxr := Rect2(50, y0 - 10, 30, 5 * (ph + gap) - gap + 20)
++		draw_rect(Rect2(bxr.position + Vector2(4, 6), bxr.size), Color(DIM_INK, 0.5))
++		if not _mat_box(bxr, "plaque", Color(0.55, 0.36, 0.22)):
++			draw_rect(bxr, Color("#5a3a22"))
++		draw_rect(bxr, Color("#2a1a0e"), false, 2.0)
++		for kc in [bxr.position + Vector2(3, 3), Vector2(bxr.end.x - 3, bxr.position.y + 3), Vector2(bxr.position.x + 3, bxr.end.y - 3), bxr.end - Vector2(3, 3)]:
++			draw_circle(kc, 2.5, Color("#c9a24a"))   # 黃銅包角釘
++		for i in plaques.size():
++			var sy := y0 + i * (ph + gap)
++			draw_rect(Rect2(bxr.position.x + 6, sy + 4, 18, ph - 8), Color(0.1, 0.06, 0.03, 0.75))   # 籤槽
+ 	for i in plaques.size():
+ 		var pq: Array = plaques[i]
+ 		var mr2 := Rect2(70, y0 + i * (ph + gap), PW, ph)
+ 		var on := not _demo() or bool(pq[4])
+ 		_btn(mr2, "", pq[3], on, i == 0 and fresh)
+-		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else Color(1, 1, 1, 0.35))
++		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else (Color(0.12, 0.07, 0.03, 0.55) if not bool(Save.s("plain_ui")) else Color(1, 1, 1, 0.35)))   # 1.2.0：籤插進盒的那一端壓暗
+ 		# V1.5.2 L5：小人照木牌內容區定位（150% 只放名稱時木牌變矮，腳點不再寫死 y+54 而掉出木牌）
+ 		var foot := minf(54.0, ph - 6.0)
+ 		Art.unit(self, mr2.position + Vector2(34, foot), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72 * minf(1.0, foot / 54.0), cbm())
+@@ -312,6 +324,12 @@ func _draw_overlay() -> void:
+ 			_draw_ga_info()
+ 		"weekly":
+ 			_draw_weekly()
++		"kit_demo":
++			call("_draw_kit_demo")   # 1.2.0：開發用截圖（dev_main）
++		"boss_note":
++			_draw_boss_note()   # 1.2.0 §12
++		"res_facts":
++			call("_draw_res_facts")   # 1.2.0
+ 		"wk_ghosts":
+ 			call("_draw_wk_ghosts")   # 1.2.0 §15.4
+ 		"relay":
+@@ -808,7 +826,7 @@ func _draw_settings() -> void:
+ 			var vr := Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y))
+ 			_btn(vr, val, cb.bind(1), true, false, tint)
+ 			if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):
+-				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
++				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"), bool(_btns[_btns.size() - 1]["en"]))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
+ 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
+ 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
+ 			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
+@@ -833,16 +851,20 @@ func _draw_settings() -> void:
+ 
+ 
+ ## 1.2.0 §1.3 黃銅撥片開關：開＝撥片朝上＋小綠點、關＝朝下（純裝飾，點擊照原本的值按鈕）
+-func _brass_toggle(c: Vector2, on: bool) -> void:
+-	var plate := Rect2(c - Vector2(9, 15), Vector2(18, 30))
+-	draw_rect(plate, Color("#8a6a2a"))
+-	draw_rect(plate.grow(-2), Color("#c9a24a"))
+-	draw_circle(c, 4.0, Color("#5a4418"))
+-	var tip := c + Vector2(0, -11 if on else 11)
+-	draw_line(c, tip, Color("#e8d39a"), 4.0, true)
+-	draw_circle(tip, 3.0, Color("#f3e3b0"))
+-	if on:
+-		draw_circle(c + Vector2(0, 11), 2.5, Color("#5fd16f"))
++func _brass_toggle(c: Vector2, on: bool, enabled := true) -> void:
++	# Antigravity cat02 #5：加大加厚、強化高光與開關明暗；停用時褪色（Codex cat02 #7：七種狀態）
++	var k := 1.0 if enabled else 0.55
++	var plate := Rect2(c - Vector2(11, 17), Vector2(22, 34))
++	draw_rect(plate, Color(Color("#6e5220"), k))
++	draw_rect(plate.grow(-2), Color(Color("#c9a24a"), k))
++	draw_rect(Rect2(plate.position + Vector2(3, 3), Vector2(4, plate.size.y - 6)), Color(1, 0.95, 0.75, 0.55 * k))   # 左上受光的金屬高光
++	draw_rect(Rect2(c - Vector2(3, 12), Vector2(6, 24)), Color(Color("#3a2a10"), k))   # 底槽（深）
++	var tip := c + Vector2(0, -10 if on else 10)
++	draw_line(c, tip, Color(Color("#f0dfa8"), k), 6.0, true)
++	draw_circle(tip, 4.0, Color(Color("#fff2c8"), k))
++	draw_circle(c, 2.5, Color(Color("#5a4418"), k))
++	if on and enabled:
++		draw_circle(c + Vector2(0, 12), 2.8, Color("#5fd16f"))
+ 
+ ## ── V1.5 一鍵無障礙預設：直接改原本的設定（可疊加），存一份改之前的值讓「撤回」用 ──
+ var preset_undo := {}
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index 75ff5fe..6b6bce8 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -685,6 +685,8 @@ func _draw_place_hud() -> void:
+ 		draw_rect(br, Color(0.45, 0.12, 0.12, 0.92))
+ 		draw_rect(br, Color("#ff8a8a"), false, 2.0)
+ 		_text(Vector2(640, br.position.y + tz("B") * 0.35), removed_banner, tz("B"), Color.WHITE, true, true)
++	if mode == Mode.VS_AI and not watch_mode:
++		_boss_note("place")   # 1.2.0 §12：第一次擺陣的便條
+ 
+ 
+ 
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index 587194d..5488002 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -51,6 +51,7 @@ func _finish_battle() -> void:
+ 	state = St.RESULT
+ 	tm_ghost = null
+ 	result_t = time
++	set("ink_stamped", false)   # 1.2.0 §9.4
+ 	if play_kind == "official" and sim != null:
+ 		last_cmds = sim.cmd_log.duplicate(true)
+ 	result_tab = 0
+@@ -109,8 +110,16 @@ func _draw_result() -> void:
+ 	# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
+ 	_dim(0.7)   # 第七輪 E2：整個畫面（含 HUD）壓暗
+ 	var r := Rect2(200, 100, 880, 610)
+-	_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
+-	_box(r, PANEL, TH_EDGE, 10.0, 3.0)
++	# 1.2.0 §9.4 E3：結果面板是一張紙卡（宣紙戰報的延續）：落影在右下（光源左上）、紙上的字自動換墨色；簡化介面維持原本深色面板
++	var paper := not bool(Save.s("plain_ui"))
++	if paper:
++		draw_rect(Rect2(r.position + Vector2(6, 8), r.size), Color(DIM_INK, 0.45))
++		if not _mat_box(r, "card2"):
++			draw_rect(r, Color("#efe4cf"))
++		draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
++	else:
++		_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
++		_box(r, PANEL, TH_EDGE, 10.0, 3.0)
+ 	var w: int = sim.winner
+ 	var title := L.t("draw")
+ 	var col := Color.WHITE
+@@ -196,6 +205,7 @@ func _draw_result() -> void:
+ 	var hw1 := rib_in if rib_in > 0.0 else hw
+ 	_text(Vector2(640, y), line1, tz("S"), TXT_DIM, true, false, hw1)
+ 	y += text_h(line1, fit(line1, tz("S"), hw1), hw1) + 6   # 和 _text 一樣先 fit 再量
++	_ink_mode = paper and rib_in > 0.0   # 緞帶以下才是紙面
+ 	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
+ 	var loss := _loss_line(w, goal_mode)
+ 	if loss != "":
+@@ -251,16 +261,24 @@ func _draw_result() -> void:
+ 		# 1.2.0 字級表放大：事實放不下就從最後一條拿掉（系列比分那行一定要在按鈕之上，150% 原本會壓到按鈕）
+ 		var show_series: bool = (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official"
+ 		var room: float = 640.0 - 8.0 - y - (tz("B") * 1.6 + 4.0 if show_series else 0.0)
++		res_facts_all = facts.duplicate()
++		var more_h: float = maxf(40.0, tz("S") * 1.8)
++		var trimmed := false
+ 		while not facts.is_empty():
+ 			var need_h := 0.0
+ 			for f0 in facts:
+ 				need_h += text_h(f0, tz("S"), 780) + 2
+-			if need_h <= room:
++			if need_h + (more_h if trimmed else 0.0) <= room:
+ 				break
+ 			facts.pop_back()
++			trimmed = true
+ 		for fi in facts.size():
+ 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
+ 			y += text_h(facts[fi], tz("S"), 780) + 2
++		if trimmed:
++			# Codex cat02 #2：放不下的事實不能就此消失 → 一顆「還有 N 條」開完整清單
++			_btn_small(Rect2(250, y, 260, more_h - 4.0), L.t("res_more_facts", [res_facts_all.size() - facts.size()]), func(): overlay = "res_facts")
++			y += more_h
+ 		if mode == Mode.VS_AI and sim.winner == 1 and play_kind == "official" and last_armies.size() == 2 and not watch_mode:
+ 			_btn(Rect2(800, y - tz("S") * 1.3 - 8, 230, 40), L.t("res_try_review"), func(): _open_review_on_first_loss())
+ 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
+@@ -389,6 +407,9 @@ func _draw_result() -> void:
+ 		else:
+ 			_btn(Rect2(x, 649, bw2, 44), bs[i][0], bs[i][1], true, false, TH_WOOD)
+ 		x += bw2 + gap
++	_ink_mode = false
++	if mode == Mode.VS_AI and not watch_mode:
++		_boss_note("result")   # 1.2.0 §12：第一次看結果的便條
+ 
+ 
+ 
+@@ -470,6 +491,21 @@ func _open_review_on_first_loss() -> void:
+ 
+ 
+ ## 結果頁第二層：中線對比長條（輸出／承傷切換）＋技能徽章（只列有發生的）＋指紋。
++var res_facts_all: Array = []
++## 1.2.0：結果頁放不下時的完整事實清單（小面板）
++func _draw_res_facts() -> void:
++	var w := 820.0
++	var hh := 0.0
++	for f0 in res_facts_all:
++		hh += text_h("・" + str(f0), tz("S"), w - 80) + 6
++	var P := modal_rect(w, 12.0 + h1_bottom(0.0) + GAP_L + hh + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1(Vector2(640, P.position.y + 12), L.t("res_facts_title")) + GAP_L
++	for f1 in res_facts_all:
++		_text(Vector2(P.position.x + 40, y), "・" + str(f1), tz("S"), Color.WHITE, false, false, w - 80)
++		y += text_h("・" + str(f1), tz("S"), w - 80) + 6
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "", true, true)
++
+ func _draw_result_details(R: Rect2) -> void:
+ 	var dealt: Array = report["dealt"]
+ 	var taken: Array = report["taken"]
+@@ -487,7 +523,7 @@ func _draw_result_details(R: Rect2) -> void:
+ 	for tm in 2:
+ 		var tcl := Art.team_color(tm, cbm())
+ 		var x := R.position.x + 20
+-		_text(Vector2(x, y + 4), "●" if tm == 0 else "◆", tz("S"), tcl, false, true)
++		_text(Vector2(x, y + 4), "●" if tm == 0 else "◆", tz("S"), tcl.darkened(0.4) if _ink_mode else tcl, false, true)   # 1.2.0：紙上隊色記號壓深一階（對比）
+ 		x += 26
+ 		for k in ek:
+ 			var n := int(ev_count.get("%s%d" % [k, tm], 0))
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 4adcf7d..3a5e54e 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -176,6 +176,7 @@ var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按
+ var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
+ var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
+ var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
++var _hand_mode := false   # 1.2.0：畫老闆便條時用手寫字
+ var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
+ var _hover_key := -1
+ var _trans_gen := -1
+@@ -188,6 +189,8 @@ const INK_SHADOW := Color("#140B06")
+ 
+ var font: Font
+ var font_bold: Font
++var font_display: Font = null   # 1.2.0：工藝字型時的 D／DX 展示大字（ThenKhung）
++var font_craft := false          # 1.2.0：目前是不是工藝字型
+ var font_title: Font          # 第五輪：標題字 UoqMunThenKhung（只用在 ≥H2 的粗體、沒有數字的字串）
+ 
+ ## 第五輪字級表（§4.2）：基準 1280×800。只允許表內的值；125%／150% 非線性（大字少放大、內文多放大）。
+@@ -437,6 +440,7 @@ func _tnum(f: Font) -> Font:
+ ## V1.2 A1：介面字＝「NTB Latin（Fredoka，英數、數字等寬）為主字型＋NTB Rounded（源泉圓體 TW）為後備」：
+ ## 主字型只有拉丁字，中文自動落到後備，所以同一行裡英數用 Fredoka、中文用源泉圓體，不用拆段。
+ func _load_fonts() -> void:
++	font_craft = false
+ 	if str(Save.s("ui_font")) == "craft" and ResourceLoader.exists("res://fonts/NTBSans-R-sub.otf"):
+ 		_load_fonts_craft()
+ 		return
+@@ -478,9 +482,26 @@ func _load_fonts_craft() -> void:
+ 			bold = bold.duplicate()
+ 			reg.fallbacks = [r0]
+ 			bold.fallbacks = [b0]
++	# 缺字（✗✦ 這類符號，Codex cat02 #5）再落到經典圓體（它的子集有這些符號）
++	var rr := _load_font("res://fonts/NTBRounded-R-sub.otf")
++	var rb := _load_font("res://fonts/NTBRounded-B-sub.otf")
++	if reg is FontFile:
++		reg = reg.duplicate()
++		reg.fallbacks = reg.fallbacks + [rr]
++	if bold is FontFile:
++		bold = bold.duplicate()
++		bold.fallbacks = bold.fallbacks + [rb]
+ 	font = _latin_over("res://fonts/NTBSansLatin-R-sub.ttf", reg)
+ 	font_bold = _latin_over("res://fonts/NTBSansLatin-B-sub.ttf", bold)
+ 	font_title = font_bold
++	font_craft = true
++	font_display = null
++	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
++		var tk2 = load("res://fonts/ThenKhung-sub.ttf")
++		if tk2 is FontFile:
++			tk2 = tk2.duplicate()
++			tk2.fallbacks = [bold]
++			font_display = tk2
+ 	if ResourceLoader.exists("res://fonts/NTBTitle-sub.ttf"):
+ 		var tt = load("res://fonts/NTBTitle-sub.ttf")
+ 		if tt is FontFile:
+@@ -572,6 +593,16 @@ func fit(s: String, size: int, maxw: float, bold := false) -> int:
+ 	return sz
+ 
+ func _font_for(s: String, size: int, bold: bool) -> Font:
++	if _hand_mode and font_title != null:
++		return font_title   # 1.2.0：老闆便條、印章用手寫字（憲法 6：只放建議，不承載數值）
++	if font_craft:
++		# 1.2.0（Codex cat02 #3）工藝字型的分工：D／DX 展示大字＝ThenKhung（logo 氣質不變）；H1、T＝手寫楷體；H2 以下＝正文黑體
++		if bold and not bool(Save.s("plain_titles")) and not _has_digit(s):
++			if font_display != null and size >= tz("D"):
++				return font_display
++			if font_title != null and size >= tz("H1"):
++				return font_title
++		return font_bold if bold else font
+ 	if bold and font_title != null and size >= tz("H2") and not bool(Save.s("plain_titles")) and not _has_digit(s):
+ 		return font_title
+ 	return font_bold if bold else font
+@@ -804,6 +835,8 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 		# 縫線：布標內緣一圈虛線（裝飾，不登記探針）
+ 		var sc := Color(1, 1, 1, 0.35) if btn_cloth != "tab_linen" else Color(0.35, 0.25, 0.15, 0.4)
+ 		var sr := rd.grow(-5)
++		if layout_probe:
++			probe_deco("stitch", sr, rd, "inside")   # 1.2.0 元件契約：縫線登記成宿主內的裝飾
+ 		var dash := 6.0
+ 		var xx := sr.position.x
+ 		while xx < sr.end.x - dash:
+@@ -813,15 +846,23 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 	elif plaque:
+ 		var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
+ 		if not enabled:
+-			pt = Color(0.78, 0.75, 0.7, 0.55)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
++			pt = Color(0.78, 0.75, 0.7, 0.85)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
+ 		elif hover or focus:
+ 			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
+ 		_mat_box(rd, "plaque", pt)
+ 		if primary and enabled and rd.size.x >= 120.0:
+ 			var wx := _ui_tex(MAT["wax_red"])
+-			if wx != null:
+-				var ws := minf(rd.size.y + 8.0, 46.0)
+-				draw_texture_rect(wx, Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws)), false)
++			var ws := minf(rd.size.y + 8.0, 46.0)
++			# 長標籤時讓位（Antigravity cat02 #1）：字寬＋蠟封露出的部分放不下就不畫蠟封
++			var lab_w := _width(label, ts(18), true)
++			if wx != null and lab_w + ws * 0.9 <= rd.size.x - 12.0:
++				var wr := Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws))
++				# 深赤火漆＋金邊：和朱漆底拉開明度（Antigravity cat02 #1：紅疊紅看不清）
++				draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
++				draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
++				draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
++				if layout_probe:
++					probe_deco("wax", wr, rd, "left")
+ 	elif paper_face:
+ 		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
+ 		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
+@@ -899,6 +940,96 @@ const MAT := {"plaque": "res://art/mat/nine_plaque.png", "card1": "res://art/mat
+ 	"tab_madder": "res://art/mat/nine_tab_madder.png", "tab_linen": "res://art/mat/nine_tab_linen.png", "wax_red": "res://art/mat/wax_red.png"}
+ const MAT_INSET := {"plaque": 3.0, "tab_indigo": 3.0, "tab_madder": 3.0, "tab_linen": 3.0, "card1": 6.0, "card2": 6.0, "card3": 7.0}   # 1.2.0：內容內距＝毛邊寬（不是 9 宮格邊界）
+ const MAT_MARGIN := {"plaque": 14.0, "card1": 20.0, "card2": 20.0, "card3": 22.0, "tab_indigo": 13.0, "tab_madder": 13.0, "tab_linen": 13.0}
++## 1.2.0 §1.1 桌面世界：整個畫面底下是一張老胡桃木桌（螢幕座標，鏡頭之前畫）。
++## 光從左上來：左上一層暖光、右下一層暖暗；四角暖暗角；桌上固定 5 件低彩度小物（不搶焦點）。簡化介面時退回平塗。
++func _draw_desk() -> void:
++	if bool(Save.s("plain_ui")):
++		draw_rect(Rect2(0, 0, 1280, 800), Color("#3a281c"))
++		return
++	var wt := _ui_tex(MAT["walnut"])
++	if wt == null:
++		draw_rect(Rect2(0, 0, 1280, 800), Color("#3a281c"))
++		return
++	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
++	draw_texture_rect(wt, Rect2(0, 0, 1280, 800), true, Color(0.78, 0.74, 0.7))
++	# 主光（左上暖）與右下暗：兩個大三角形的頂點色漸層
++	draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(0, 800)]),
++		PackedColorArray([Color(1.0, 0.86, 0.6, 0.16), Color(1.0, 0.86, 0.6, 0.0), Color(1.0, 0.86, 0.6, 0.0)]))
++	draw_polygon(PackedVector2Array([Vector2(1280, 800), Vector2(1280, 0), Vector2(0, 800)]),
++		PackedColorArray([Color(DIM_INK, 0.42), Color(DIM_INK, 0.0), Color(DIM_INK, 0.0)]))
++	var vg := _ui_tex(TEX_VIGNETTE)
++	if vg != null:
++		draw_texture_rect(vg, Rect2(0, 0, 1280, 800), false, Color(0.11, 0.075, 0.05, 0.85))
++	_desk_props()
++
++## 桌上小物（固定位置、低彩度、一律在畫面邊角，UI 蓋在上面也沒關係）
++func _desk_props() -> void:
++	# 墨水瓶（左下）：深色玻璃＋左上高光＋軟木塞
++	var ink := Vector2(46, 742)
++	draw_circle(ink + Vector2(5, 7), 26.0, Color(DIM_INK, 0.45), true, -1.0, true)
++	draw_circle(ink, 24.0, Color("#1f2430"), true, -1.0, true)
++	draw_circle(ink - Vector2(8, 8), 6.0, Color(1, 1, 1, 0.18), true, -1.0, true)
++	draw_rect(Rect2(ink - Vector2(7, 34), Vector2(14, 12)), Color("#9c7a52"))
++	# 量尺（下緣，部分在畫面外）
++	var rr := Rect2(420, 786, 440, 28)
++	draw_rect(rr, Color("#c9a674"))
++	for i in 45:
++		draw_line(Vector2(rr.position.x + 6 + i * 9.6, rr.position.y), Vector2(rr.position.x + 6 + i * 9.6, rr.position.y + (8 if i % 5 == 0 else 4)), Color("#5a3f22", 0.8), 1.0)
++	# 棋罐（右上）：木碗＋碗口暗面
++	var bowl := Vector2(1244, 30)
++	draw_circle(bowl + Vector2(5, 7), 34.0, Color(DIM_INK, 0.45), true, -1.0, true)
++	draw_circle(bowl, 32.0, Color("#7a5434"), true, -1.0, true)
++	draw_circle(bowl, 22.0, Color("#3e2a1a"), true, -1.0, true)
++	draw_circle(bowl - Vector2(10, 10), 7.0, Color(1, 0.9, 0.7, 0.16), true, -1.0, true)
++	# 筆記本一角（左上）
++	var nb := PackedVector2Array([Vector2(-10, -10), Vector2(120, -10), Vector2(96, 54), Vector2(-10, 70)])
++	draw_colored_polygon(nb, Color("#d9c9a8"))
++	draw_line(Vector2(-10, 30), Vector2(104, 22), Color("#8b7355", 0.5), 1.0)
++	draw_line(Vector2(-10, 46), Vector2(100, 38), Color("#8b7355", 0.5), 1.0)
++	# 沙漏（右下）
++	var hg := Vector2(1240, 752)
++	draw_rect(Rect2(hg - Vector2(16, 32), Vector2(32, 5)), Color("#7a5434"))
++	draw_rect(Rect2(hg + Vector2(-16, 27), Vector2(32, 5)), Color("#7a5434"))
++	draw_colored_polygon(PackedVector2Array([hg + Vector2(-12, -27), hg + Vector2(12, -27), hg, hg + Vector2(12, 27), hg + Vector2(-12, 27), hg]), Color(0.85, 0.9, 0.95, 0.22))
++	draw_colored_polygon(PackedVector2Array([hg + Vector2(-8, 27), hg + Vector2(8, 27), hg + Vector2(0, 12)]), Color("#d9b874"))
++
++## 1.2.0 §12 老闆的便條：第一次進大廳、擺陣、結果時，跳一張紙卡（手寫字，只放建議、不放數值）；按「知道了」就不再出現。
++## 是一個小的模態疊層（overlay＝boss_note），不蓋在按鈕上；截圖、版面檢查平常不跳（乾淨存檔每張都會跳），另拍一張專拍。
++var note_key := ""
++func _boss_note(key: String) -> void:
++	if overlay != "" or shot_dir != "" or layout_probe:
++		return
++	if not preload("res://scripts/game/guide.gd").is_new(Save.data, "note_" + key):
++		return
++	note_key = key
++	overlay = "boss_note"
++	_focus = 0
++
++func _close_boss_note() -> void:
++	preload("res://scripts/game/guide.gd").see(Save.data, "note_" + note_key)
++	Save.save_data()
++	overlay = ""
++
++func _draw_boss_note() -> void:
++	var w := 560.0
++	var txt := L.t("bn_" + note_key)
++	_hand_mode = true
++	var th := text_h(txt, tz("B"), w - 64)
++	_hand_mode = false
++	var bh := maxf(44.0, tz("B") * 1.9)
++	var P := modal_rect(w, 28.0 + th + GAP_L + bh + 24.0)
++	probe_panel(P)
++	draw_rect(Rect2(P.position + Vector2(6, 9), P.size), Color(DIM_INK, 0.45))   # 落影（光源左上）
++	if bool(Save.s("plain_ui")) or not _mat_box(P, "card1"):
++		draw_rect(P, Color("#f5efe6"))
++	draw_rect(Rect2(P.position + Vector2(w * 0.5 - 36, -9), Vector2(72, 18)), Color(0.93, 0.88, 0.7, 0.8))   # 一小段膠帶
++	_ink_mode = true
++	_hand_mode = true
++	_text(P.position + Vector2(32, 28), txt, tz("B"), INK, false, false, w - 64)
++	_hand_mode = false
++	_ink_mode = false
++	_btn(Rect2(P.end.x - 32 - 160, P.end.y - 24 - bh, 160, bh), L.t("bn_ok"), _close_boss_note, true, true)
++
+ ## 憲法 3（禁純黑）：選單打開時的暗幕用暖暗墨色，不用 #000。
+ const DIM_INK := Color("#1c130d")
+ func _dim(a: float) -> void:
+@@ -906,6 +1037,7 @@ func _dim(a: float) -> void:
+ const TEX_FRAME := "res://art/ui/frame.png"
+ const TEX_GROOVE := "res://art/ui/groove.png"
+ const TEX_PAPER := "res://art/ui/paper.png"
++const TEX_VIGNETTE := "res://art/ui/vignette.png"
+ var _tex_cache := {}
+ 
+ func _ui_tex(path: String) -> Texture2D:
+@@ -940,6 +1072,14 @@ func _wood_frame(r: Rect2, grow := 8.0, key := "frame") -> void:
+ 
+ ## 材質方塊：kind＝wood（染色）／groove（染色）／paper（原色）。沒有貼圖時退回平塗。
+ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
++	if bool(Save.s("plain_ui")):
++		# 1.2.0（Codex cat02 #8）：簡化介面一律退回平塗（同位置、同內距探針），不貼材質
++		var flat: Color = {"wood": TH_WOOD, "groove": Color(0.12, 0.09, 0.07), "paper": Color("#efe4cc")}[kind]
++		draw_rect(r, Color(flat.r * tint.r, flat.g * tint.g, flat.b * tint.b, tint.a))
++		if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
++			var ins0: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
++			probe_boxes.append({"r": r, "inner": r.grow_individual(-ins0[0], -ins0[1], -ins0[2], -ins0[3])})
++		return true
+ 	var path: String = {"wood": TEX_WOOD, "groove": TEX_GROOVE, "paper": TEX_PAPER}[kind]
+ 	var tx := _ui_tex(path)
+ 	if tx == null:
+diff --git a/game/shaders/unit_bake.gdshader b/game/shaders/unit_bake.gdshader
+index fe13ff8..b2ecfc4 100644
+--- a/game/shaders/unit_bake.gdshader
++++ b/game/shaders/unit_bake.gdshader
+@@ -10,7 +10,11 @@ uniform float cols = 16.0;
+ uniform float radius = 3.0;
+ uniform float hi_amt = 0.09;
+ uniform float sh_amt = 0.20;
+-uniform float y_off = -1.0;   // V1.5.1：圖鑑大圖用：格子頂端在 y_off（≥0 時只算一格、不循環）；圖集用預設 -1
++uniform float y_off = -1.0;
++// 1.2.0 §6.1 雕刻棋子質感：③ 上漆高光＝剪影上緣 1～2px 暖白 #FFF6E0 60%（只看正上方，左右翻面不穿幫）；
++// ④ 手澤磨損＝外輪廓凸角（周圍 8 向有 5 向以上是透明）1px 露出原木色 #5A3825。烘焙時一次，戰中不另畫。
++uniform float lacquer = 0.6;
++uniform float wear = 0.55;   // V1.5.1：圖鑑大圖用：格子頂端在 y_off（≥0 時只算一格、不循環）；圖集用預設 -1
+ 
+ void fragment() {
+ 	vec2 px = UV / TEXTURE_PIXEL_SIZE;
+@@ -32,6 +36,20 @@ void fragment() {
+ 	float sh = clamp((ly - 0.62) / 0.20, 0.0, 1.0) * sh_amt;
+ 	col = mix(col, vec3(1.0, 0.953, 0.839), hi);
+ 	col = mix(col, col * vec3(0.48, 0.42, 0.58), sh);
++	if (c.a > 0.6) {
++		float up1 = texture(TEXTURE, UV + vec2(0.0, -1.6) * TEXTURE_PIXEL_SIZE).a;
++		float up2 = texture(TEXTURE, UV + vec2(0.0, -3.2) * TEXTURE_PIXEL_SIZE).a;
++		float lac = up1 < 0.3 ? lacquer : (up2 < 0.3 ? lacquer * 0.55 : 0.0);
++		col = mix(col, vec3(1.0, 0.965, 0.878), lac);
++		float open = 0.0;
++		for (int k = 0; k < 8; k++) {
++			float ang2 = 6.2831853 * float(k) / 8.0;
++			open += texture(TEXTURE, UV + vec2(cos(ang2), sin(ang2)) * 1.5 * TEXTURE_PIXEL_SIZE).a < 0.3 ? 1.0 : 0.0;
++		}
++		if (open >= 5.0) {
++			col = mix(col, vec3(0.353, 0.220, 0.145), wear);
++		}
++	}
+ 	float oa = a * ink.a;
+ 	float outa = c.a + oa * (1.0 - c.a);
+ 	vec3 rgb = outa > 0.0 ? (col * c.a + ink.rgb * oa * (1.0 - c.a)) / outa : vec3(0.0);
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 2ef57d4..f324868 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index ebf956c..67833ab 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -526,3 +526,81 @@ func test_review_base_async_v120() -> void:
+ 	ok(g.rv_base_thread == null, "離開覆盤就叫停交給回收")
+ 	g.bg.drain()
+ 	g.free()
++
++## 1.2.0 第 3 大類：宣紙戰報什麼時候演、開場三段落子的分段、老闆便條看過就不再出現
++func test_present_v120() -> void:
++	var g = load("res://scripts/ui/game_screens.gd").new()
++	g.sfx = FakeSfx.new()
++	var Sv = load("res://scripts/game/save.gd")
++	var Ls = load("res://scripts/game/strings.gd")
++	var keep_fx = Sv.settings.get("reduce_fx", false)
++	var keep_plain = Sv.settings.get("plain_ui", false)
++	Sv.settings["reduce_fx"] = false
++	Sv.settings["plain_ui"] = false
++	g.shot_dir = ""
++	g.play_kind = "official"
++	g.time = 10.0
++	g.result_t = 9.5
++	ok(g._ink_active(), "正式對戰剛結束 0.5 秒：演宣紙戰報")
++	g.result_t = 8.9
++	ok(not g._ink_active(), "超過 1 秒就結束")
++	g.result_t = 9.5
++	g.play_kind = "replay"
++	ok(not g._ink_active(), "重播不演")
++	g.play_kind = "official"
++	Sv.settings["reduce_fx"] = true
++	ok(not g._ink_active(), "減少特效不演")
++	Sv.settings["reduce_fx"] = false
++	Sv.settings["plain_ui"] = true
++	ok(not g._ink_active(), "簡化介面不演")
++	Sv.settings["plain_ui"] = false
++	g.shot_dir = "x"
++	ok(not g._ink_active(), "截圖平常不演")
++	g.ink_force = true
++	ok(g._ink_active(), "截圖專拍時強制演")
++	g.ink_force = false
++	g.shot_dir = ""
++	# 開場三段落子：離中線近的先落、遠的後落；沒有開場提示時不動
++	g.fld_w = 600
++	g.start_hold = 0.0
++	ok(g._open_drop({"x": 300.0}) == Vector2.ZERO, "沒有開場提示：不位移")
++	g.start_hold = 0.8   # 進度 0.2：第一段落到一半，二、三段還在上面
++	var near: Vector2 = g._open_drop({"x": 320.0})
++	var far: Vector2 = g._open_drop({"x": 20.0})
++	ok(near.y > far.y and far.y <= -21.9, "前排先落（%s／%s）" % [near.y, far.y])
++	g.start_hold = 0.05
++	ok(g._open_drop({"x": 20.0}).y > -0.5, "最後一段在 1 秒內落定")
++	g.play_kind = "replay"
++	g.start_hold = 0.8
++	ok(g._open_drop({"x": 20.0}) == Vector2.ZERO, "重播不演")
++	# 老闆便條：知道了＝記進 seen，之後不再畫
++	var G = load("res://scripts/game/guide.gd")
++	var d := {"seen": []}
++	ok(G.is_new(d, "note_lobby"), "第一次是新的")
++	G.see(d, "note_lobby")
++	ok(not G.is_new(d, "note_lobby") and "note_lobby" in d["seen"], "按知道了之後記住")
++	var keep_seen = Sv.data.get("seen", null)
++	Sv.data["seen"] = []
++	g.overlay = ""
++	g._boss_note("place")
++	ok(g.overlay == "boss_note" and g.note_key == "place", "第一次擺陣：跳便條疊層")
++	var keep_lock = Sv.data_locked
++	Sv.data_locked = true   # 不寫真的存檔
++	g._close_boss_note()
++	Sv.data_locked = keep_lock
++	ok(g.overlay == "" and "note_place" in Sv.data["seen"], "知道了：關掉並記住")
++	g._boss_note("place")
++	ok(g.overlay == "", "看過就不再跳")
++	g.shot_dir = "x"
++	g._boss_note("result")
++	ok(g.overlay == "", "截圖流程不跳")
++	g.shot_dir = ""
++	if keep_seen == null:
++		Sv.data.erase("seen")
++	else:
++		Sv.data["seen"] = keep_seen
++	for k in ["bn_lobby", "bn_place", "bn_result", "bn_ok"]:
++		ok(Ls.t(k) != k, "字串存在：" + k)
++	Sv.settings["reduce_fx"] = keep_fx
++	Sv.settings["plain_ui"] = keep_plain
++	g.free()
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index efd409c..e28e2e3 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -529,7 +529,33 @@ func _would_clutch(a0, a1) -> bool:
+ ## 1.2.0：每組截圖從乾淨存檔開始後，流程裡第一次達成的成就會跳提示蓋到畫面（原本共用存檔時早就解鎖過）→ 截圖照樣解鎖、不排提示
+ func _ach(id: String) -> void:
+ 	super._ach(id)
+-	ach_queue.clear()
++	if shot_dir != "":
++		ach_queue.clear()   # 只在截圖模式（Codex cat02：不影響其他開發模式）
++
++## 1.2.0 元件庫展示（只在截圖流程用）
++func _draw_kit_demo() -> void:
++	var P := modal_rect(900, 520)
++	_panel(P)
++	var y := _h1(Vector2(640, P.position.y + 12), "Kit") + GAP_L
++	var x0 := P.position.x + 40
++	mouse = Vector2(x0 + 230 + 80, y + 22)   # 第二顆＝懸停
++	_btn(Rect2(x0, y, 200, 44), L.t("back"), func(): pass)
++	_btn(Rect2(x0 + 230, y, 200, 44), L.t("back"), func(): pass)
++	_btn(Rect2(x0 + 460, y, 200, 44), L.t("back"), func(): pass)   # 焦點（_focus=2，手把狀態才畫）
++	_btn(Rect2(x0 + 690, y, 160, 44), L.t("back"), func(): pass, false)
++	y += 64
++	_btn(Rect2(x0, y, 300, 50), L.t("start"), func(): pass, true, true)
++	_btn(Rect2(x0 + 330, y, 300, 50), L.t("start"), func(): pass, false, true)
++	y += 70
++	for i in 3:
++		btn_cloth = ["tab_indigo", "tab_linen", "tab_madder"][i]
++		_btn(Rect2(x0 + i * 220, y, 200, 48), L.t("set_tab_%d" % i), func(): pass)
++		btn_cloth = ""
++	y += 70
++	call("_brass_toggle", Vector2(x0 + 20, y + 20), true)
++	call("_brass_toggle", Vector2(x0 + 80, y + 20), false)
++	call("_brass_toggle", Vector2(x0 + 140, y + 20), true, false)
++	mouse = Vector2(-100, -100)
+ 
+ func _run_screenshots() -> void:
+ 	# 全套截圖要跑很久：視窗移到畫面外、不搶焦點，不打擾正在用電腦的人。
+@@ -684,6 +710,17 @@ func _run_screenshots() -> void:
+ 	zoom = 1.0
+ 	_finish_battle()
+ 	await _snap("05_result.png")
++	note_key = "result"   # 1.2.0 §12 老闆便條（截圖平常不跳，這張專拍）
++	overlay = "boss_note"
++	await _snap("v120_02_note.png")
++	overlay = ""
++	# 1.2.0 §9.4 宣紙戰報（截圖平常跳過演出；這一張強制拍蓋章後的瞬間）
++	ink_force = true
++	result_t = time - 0.8
++	ink_stamped = true
++	await _snap("v120_01_ink.png")
++	ink_force = false
++	result_t = time - 5.0
+ 	result_tab = 1
+ 	await _snap("05b_result_details.png")
+ 	if pc_shot != null:   # V1.4 #14 戰報明信片
+@@ -827,6 +864,11 @@ func _run_screenshots() -> void:
+ 	_breport_open()   # 1.1.0 B10：手把重播戰報面板
+ 	await _snap("v110_04_breport.png")
+ 	_breport_close()
++	# 1.2.0 §1.3 元件庫 2.0：七種狀態展示（正常、懸停、按下由實機看；焦點、停用、簡化／色盲由版面組合涵蓋）
++	overlay = "kit_demo"
++	_focus = 2
++	await _snap("v120_00_components.png")
++	overlay = ""
+ 	paused = false
+ 	await _shots_v4()
+ 	await _shots_cmd()
+@@ -1596,6 +1638,8 @@ func _pad_walk() -> void:
+ 	shot_dir = ""
+ 	rules = null
+ 	overlay = ""
++	for nk in ["lobby", "place", "result"]:   # 1.2.0：老闆便條是第一次才跳的疊層，手把流程先當看過（便條本身另有截圖與測試）
++		preload("res://scripts/game/guide.gd").see(Save.data, "note_" + nk)
+ 	_go_title()
+ 	await _pw_frames(3)
+ 	await _pw_cycle("標題")
+@@ -1655,6 +1699,10 @@ func _pad_walk() -> void:
+ 		wait += 1
+ 		await get_tree().process_frame
+ 	_pw_check(state == St.RESULT, "B 跳過後沒進結果頁")
++	wait = 0
++	while call("_ink_active") and wait < 300:   # 1.2.0：宣紙戰報演完（約 1 秒）才出結果面板
++		wait += 1
++		await get_tree().process_frame
+ 	await _pw_cycle("結果頁")
+ 	await _pw_btn(JOY_BUTTON_B)
+ 	await _pw_frames(3)

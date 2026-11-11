@@ -33,5 +33,26 @@ for tag, col in [("SC", "zh_CN"), ("JP", "ja")]:
         miss = [c for c in fontchars.lang_text(root, col, False) if not c.isspace() and ord(c) not in cm]
         if miss:
             bad.append(f"{col} {w} 缺 {len(miss)} 字：{''.join(miss[:40])}")
+# 1.2.0（Codex cat02 #5）：工藝字型的後備鏈（語言字型 → 繁中 Sans → 經典圓體）＋英數 Sans Latin 合起來要涵蓋；標題 NTB Title 缺的字由正文 Bold 補
+def _cm(name):
+    fp = os.path.join(root, "fonts", name)
+    return set(TTFont(fp).getBestCmap()) if os.path.exists(fp) else None
+for w in ["R", "B"]:
+    lat = _cm(f"NTBSansLatin-{w}-sub.ttf")
+    base = _cm(f"NTBSans-{w}-sub.otf")
+    rnd = _cm(f"NTBRounded-{w}-sub.otf") or set()
+    if lat is None or base is None:
+        bad.append(f"少了工藝字型 {w}")
+        continue
+    for tag, col in [("", None), ("SC", "zh_CN"), ("JP", "ja")]:
+        own = _cm(f"NTBSans{tag}-{w}-sub.otf") if tag else set()
+        if own is None:
+            bad.append(f"少了 NTBSans{tag}-{w}")
+            continue
+        cm = own | base | rnd | lat
+        chars = need if col is None else [c for c in fontchars.lang_text(root, col, False) if not c.isspace()]
+        miss = [c for c in chars if ord(c) not in cm]
+        if miss:
+            bad.append(f"工藝 {col or 'zh_TW/en'} {w} 缺 {len(miss)} 字：{''.join(miss[:40])}")
 print("FONTCOVER", "OK" if not bad else "；".join(bad), f"（{len(need)} 字）")
 sys.exit(1 if bad else 0)

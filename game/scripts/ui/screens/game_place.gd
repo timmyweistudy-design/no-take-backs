@@ -685,6 +685,8 @@ func _draw_place_hud() -> void:
 		draw_rect(br, Color(0.45, 0.12, 0.12, 0.92))
 		draw_rect(br, Color("#ff8a8a"), false, 2.0)
 		_text(Vector2(640, br.position.y + tz("B") * 0.35), removed_banner, tz("B"), Color.WHITE, true, true)
+	if mode == Mode.VS_AI and not watch_mode:
+		_boss_note("place")   # 1.2.0 §12：第一次擺陣的便條
 
 
 

@@ -235,8 +235,11 @@ func _draw_field() -> void:
 	var free_f: bool = rules != null and rules.is_free() and (mode == Mode.VS_AI or mode == Mode.DUEL)   # 第六輪：自由排兵不畫格子
 	var fbi: Dictionary = MapArt.BIOME.get(MapDefs.MAPS[fld_map]["biome"], {})
 	ring_shadow = float(fbi.get("shadow", 0.0))
-	if fld_map != 0:
-		MapArt.draw_outfield(self, Rect2(ORIGIN, FIELD), str(MapDefs.MAPS[fld_map]["biome"]))
+	# 1.2.0 §5.1：盤外是桌面（不再畫場外樹叢、岩石）
+	if not bool(Save.s("plain_ui")):
+		var so := Rect2(ORIGIN, fld_size).grow(18)
+		for k7 in 4:   # 1.2.0 §5.1：棋盤在桌上的落影（光源左上 → 影子往右下）
+			draw_rect(Rect2(so.position + Vector2(6 + k7 * 2, 8 + k7 * 2), so.size), Color(0.08, 0.05, 0.03, 0.12))
 	var fr_i := clampi(int(Art.paint[5]), 0, 3)   # V1.4 #15 棋盤框
 	draw_rect(Rect2(ORIGIN - Vector2(10, 10), fld_size + Vector2(20, 20)), Color(fbi.get("frame", "#5b4632") if fr_i == 0 else Art.FRAMES[fr_i]))
 	if fld_map != 0:
@@ -297,10 +300,16 @@ func _draw_field() -> void:
 			draw_circle(fp + Vector2(cos(an), sin(an)) * 2.2, 1.8, Color(fc, 0.75), true, -1.0, true)
 		draw_circle(fp, 1.3, Color("#f4a300"), true, -1.0, true)
 	if not free_f:
+		# 1.2.0 §5.1：格線是刻刀刻出的淺凹槽：暗線＋右／下方 1px 亮線（不是印上去的虛線）
+		var carve := not bool(Save.s("plain_ui"))
 		for i in 17:
-			_wob_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, fld_size.y), Color(0, 0, 0, 0.07), 1.0)
+			_wob_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, fld_size.y), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
+			if carve:
+				draw_line(ORIGIN + Vector2(i * CS + 1, 0), ORIGIN + Vector2(i * CS + 1, fld_size.y), Color(1, 0.95, 0.8, 0.07), 1.0)
 		for i in 10:
-			_wob_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(fld_size.x, i * CS), Color(0, 0, 0, 0.07), 1.0)
+			_wob_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(fld_size.x, i * CS), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
+			if carve:
+				draw_line(ORIGIN + Vector2(0, i * CS + 1), ORIGIN + Vector2(fld_size.x, i * CS + 1), Color(1, 0.95, 0.8, 0.07), 1.0)
 		_chalk_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, fld_size.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
 		_chalk_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, fld_size.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
 	_draw_field_frame()
@@ -308,7 +317,7 @@ func _draw_field() -> void:
 	var tone := _tone()
 	if tone.a > 0.0:
 		draw_rect(Rect2(ORIGIN, fld_size), tone)
-	if plants.size() >= 9 and fld_sz == MapDefs.STD_SIZE:
+	if false and plants.size() >= 9 and fld_sz == MapDefs.STD_SIZE:   # 1.2.0 §5.1：棋盤兩側的一圈樹拿掉（盤外是桌面）
 		var deco := [[0, Vector2(52, 200)], [3, Vector2(70, 280)], [5, Vector2(30, 400)], [1, Vector2(60, 560)], [7, Vector2(90, 660)],
 			[2, Vector2(1220, 190)], [6, Vector2(1240, 300)], [0, Vector2(1215, 470)], [4, Vector2(1245, 600)], [8, Vector2(1200, 676)]]
 		for d in deco:
@@ -329,6 +338,8 @@ func _draw_field_frame() -> void:
 	_draw_ambient()
 	# V1.2 C4：戰場外圍木製沙盤框（九宮格、四角銅釘），蓋在原本的平塗邊上
 	var fx := _ui_tex(TEX_FRAME)
+	if not bool(Save.s("plain_ui")) and _board_ring(Rect2(ORIGIN, fld_size)):
+		fx = null   # 1.2.0 §5.1：實木厚框取代舊框圖
 	if fx != null and not bool(Save.s("plain_ui")):
 		var sb: StyleBoxTexture = _sb_cache.get("field_frame")
 		if sb == null:
@@ -347,6 +358,42 @@ func _draw_field_frame() -> void:
 		draw_rect(Rect2(ORIGIN + Vector2(fld_size.x - ii - 3.0, ii), Vector2(3.0, fld_size.y - ii * 2.0)), sh)
 		draw_rect(Rect2(ORIGIN + Vector2(ii, fld_size.y - ii - 3.0), Vector2(fld_size.x - ii * 2.0, 3.0)), sh)
 	_draw_map_events()
+
+## 1.2.0 §9.1 開場三段落子（只改畫面）：開戰提示那 1 秒裡，前、中、後排（離中線由近到遠）分三段從上方落下，觸盤時壓扁回彈。
+## 重播、減少特效、截圖都沒有這 1 秒（start_hold＝0），所以不影響。
+const DROP_AT := [0.0, 0.3, 0.6]
+func _open_drop(u) -> Vector2:
+	if start_hold <= 0.0 or play_kind != "official":
+		return Vector2.ZERO
+	var mid := fld_w / 2.0
+	var d: float = absf(float(u.x) - mid) / maxf(1.0, mid)
+	var stage := 0 if d < 0.25 else (1 if d < 0.5 else 2)
+	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
+	var k := clampf((ph - DROP_AT[stage]) / 0.25, 0.0, 1.0)
+	return Vector2(0, -22.0 * (1.0 - k) * (1.0 - k))
+
+## 1.2.0 §5.1 拼花棋盤：橡木厚框（只畫一圈，不蓋盤面）＋內緣刻線＋外緣亮邊＋盤面上漆光（左上亮、右下暗）。回傳有沒有畫。
+func _board_ring(inner: Rect2) -> bool:
+	var oak := _ui_tex(MAT_OAK)
+	if oak == null:
+		return false
+	var outer := inner.grow(18)
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	for strip in [Rect2(outer.position, Vector2(outer.size.x, 18)), Rect2(Vector2(outer.position.x, inner.end.y), Vector2(outer.size.x, 18)),
+			Rect2(Vector2(outer.position.x, inner.position.y), Vector2(18, inner.size.y)), Rect2(Vector2(inner.end.x, inner.position.y), Vector2(18, inner.size.y))]:
+		draw_texture_rect(oak, strip, true, Color(0.95, 0.88, 0.8))
+	draw_rect(outer, Color("#2a1a10"), false, 2.0)                       # 外緣暗線
+	draw_rect(outer.grow(-2), Color(1, 0.9, 0.7, 0.28), false, 1.0)      # 外緣亮邊（倒角）
+	draw_rect(inner.grow(3), Color("#3a2414"), false, 3.0)               # 內緣刻線
+	draw_rect(inner.grow(1), Color(1, 0.92, 0.75, 0.22), false, 1.0)
+	# 盤面上漆光：左上亮、右下暗（大漸層，貼在盤面上）
+	draw_polygon(PackedVector2Array([inner.position, Vector2(inner.end.x, inner.position.y), Vector2(inner.position.x, inner.end.y)]),
+		PackedColorArray([Color(1, 0.95, 0.8, 0.10), Color(1, 0.95, 0.8, 0.0), Color(1, 0.95, 0.8, 0.0)]))
+	draw_polygon(PackedVector2Array([inner.end, Vector2(inner.end.x, inner.position.y), Vector2(inner.position.x, inner.end.y)]),
+		PackedColorArray([Color(0.1, 0.06, 0.03, 0.16), Color(0.1, 0.06, 0.03, 0.0), Color(0.1, 0.06, 0.03, 0.0)]))
+	return true
+
+const MAT_OAK := "res://art/mat/tile_oak.png"
 
 ## V1.4 #10 沙盤機關：畫在沙盤上。還沒發動＝虛線框＋倒數秒數；崩塌後＝碎石；火牆燒時＝火焰；推進板＝木板＋往中線的箭頭。
 func _draw_map_events() -> void:
@@ -480,7 +527,7 @@ func _draw_units_of(s, dim: bool) -> void:
 	var pc := {}
 	if live:
 		for u in list:
-			pc[u.id] = _upos(u)
+			pc[u.id] = _upos(u) + _open_drop(u)
 		list.sort_custom(func(a, b): return pc[a.id].y < pc[b.id].y)
 	else:
 		list.sort_custom(func(a, b): return a.y < b.y)

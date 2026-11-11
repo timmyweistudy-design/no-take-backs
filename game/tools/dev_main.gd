@@ -471,6 +471,11 @@ func _snap(name: String) -> void:
 
 ## 實機影片（N6 預告素材）：用 Godot 錄影模式跑（--write-movie 絕對路徑 --fixed-fps 30），全程自動。
 func _run_video() -> void:
+	if "--video-offscreen" in OS.get_cmdline_user_args():   # 1.2.0：驗收錄影不開可見視窗（和截圖一樣移到畫面外、不搶焦點）
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+		DisplayServer.window_set_position(Vector2i(-4000, -4000))
+	for nk in ["lobby", "place", "result"]:   # 1.2.0：老闆便條不入鏡（影片用 shot_ 存檔，等於新玩家）
+		preload("res://scripts/game/guide.gd").see(Save.data, "note_" + nk)
 	await get_tree().create_timer(2.5).timeout
 	difficulty = 1
 	_start_mode(Mode.VS_AI)
@@ -529,7 +534,33 @@ func _would_clutch(a0, a1) -> bool:
 ## 1.2.0：每組截圖從乾淨存檔開始後，流程裡第一次達成的成就會跳提示蓋到畫面（原本共用存檔時早就解鎖過）→ 截圖照樣解鎖、不排提示
 func _ach(id: String) -> void:
 	super._ach(id)
-	ach_queue.clear()
+	if shot_dir != "":
+		ach_queue.clear()   # 只在截圖模式（Codex cat02：不影響其他開發模式）
+
+## 1.2.0 元件庫展示（只在截圖流程用）
+func _draw_kit_demo() -> void:
+	var P := modal_rect(900, 520)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), "Kit") + GAP_L
+	var x0 := P.position.x + 40
+	mouse = Vector2(x0 + 230 + 80, y + 22)   # 第二顆＝懸停
+	_btn(Rect2(x0, y, 200, 44), L.t("back"), func(): pass)
+	_btn(Rect2(x0 + 230, y, 200, 44), L.t("back"), func(): pass)
+	_btn(Rect2(x0 + 460, y, 200, 44), L.t("back"), func(): pass)   # 焦點（_focus=2，手把狀態才畫）
+	_btn(Rect2(x0 + 690, y, 160, 44), L.t("back"), func(): pass, false)
+	y += 64
+	_btn(Rect2(x0, y, 300, 50), L.t("start"), func(): pass, true, true)
+	_btn(Rect2(x0 + 330, y, 300, 50), L.t("start"), func(): pass, false, true)
+	y += 70
+	for i in 3:
+		btn_cloth = ["tab_indigo", "tab_linen", "tab_madder"][i]
+		_btn(Rect2(x0 + i * 220, y, 200, 48), L.t("set_tab_%d" % i), func(): pass)
+		btn_cloth = ""
+	y += 70
+	call("_brass_toggle", Vector2(x0 + 20, y + 20), true)
+	call("_brass_toggle", Vector2(x0 + 80, y + 20), false)
+	call("_brass_toggle", Vector2(x0 + 140, y + 20), true, false)
+	mouse = Vector2(-100, -100)
 
 func _run_screenshots() -> void:
 	# 全套截圖要跑很久：視窗移到畫面外、不搶焦點，不打擾正在用電腦的人。
@@ -684,6 +715,17 @@ func _run_screenshots() -> void:
 	zoom = 1.0
 	_finish_battle()
 	await _snap("05_result.png")
+	note_key = "result"   # 1.2.0 §12 老闆便條（截圖平常不跳，這張專拍）
+	overlay = "boss_note"
+	await _snap("v120_02_note.png")
+	overlay = ""
+	# 1.2.0 §9.4 宣紙戰報（截圖平常跳過演出；這一張強制拍蓋章後的瞬間）
+	ink_force = true
+	result_t = time - 0.8
+	ink_stamped = true
+	await _snap("v120_01_ink.png")
+	ink_force = false
+	result_t = time - 5.0
 	result_tab = 1
 	await _snap("05b_result_details.png")
 	if pc_shot != null:   # V1.4 #14 戰報明信片
@@ -827,6 +869,11 @@ func _run_screenshots() -> void:
 	_breport_open()   # 1.1.0 B10：手把重播戰報面板
 	await _snap("v110_04_breport.png")
 	_breport_close()
+	# 1.2.0 §1.3 元件庫 2.0：七種狀態展示（正常、懸停、按下由實機看；焦點、停用、簡化／色盲由版面組合涵蓋）
+	overlay = "kit_demo"
+	_focus = 2
+	await _snap("v120_00_components.png")
+	overlay = ""
 	paused = false
 	await _shots_v4()
 	await _shots_cmd()
@@ -1596,6 +1643,8 @@ func _pad_walk() -> void:
 	shot_dir = ""
 	rules = null
 	overlay = ""
+	for nk in ["lobby", "place", "result"]:   # 1.2.0：老闆便條是第一次才跳的疊層，手把流程先當看過（便條本身另有截圖與測試）
+		preload("res://scripts/game/guide.gd").see(Save.data, "note_" + nk)
 	_go_title()
 	await _pw_frames(3)
 	await _pw_cycle("標題")
@@ -1655,6 +1704,10 @@ func _pad_walk() -> void:
 		wait += 1
 		await get_tree().process_frame
 	_pw_check(state == St.RESULT, "B 跳過後沒進結果頁")
+	wait = 0
+	while call("_ink_active") and wait < 300:   # 1.2.0：宣紙戰報演完（約 1 秒）才出結果面板
+		wait += 1
+		await get_tree().process_frame
 	await _pw_cycle("結果頁")
 	await _pw_btn(JOY_BUTTON_B)
 	await _pw_frames(3)

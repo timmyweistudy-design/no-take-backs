@@ -512,6 +512,8 @@ func _draw_lobby() -> void:
 		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
 	if lobby_menu:
 		_draw_lobby_menu(Vector2(1000, 186))
+	elif not lobby_open:
+		_boss_note("lobby", "lobby")   # 1.2.0 §12：第一次進大廳的便條
 
 func _draw_lobby_presets(o: Vector2) -> void:
 	var w := 154.0
@@ -663,6 +665,15 @@ func _draw_lobby_main(R: Rect2) -> void:
 			var a := 0.22 - k * 0.035
 			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
 			draw_rect(Rect2(x + lw + 9 + k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+		# 1.2.0 §1.1 A4 線裝對局譜：書脊上五針線裝（穿孔＋跨脊的靛色線），上下兩針包角
+		var sx := x + lw + 8.0
+		for kn in 5:
+			var sy := top + 22.0 + kn * (bot - top - 44.0) / 4.0
+			draw_line(Vector2(sx - 9, sy), Vector2(sx + 9, sy), Color("#2b3f5c"), 2.0, true)
+			draw_line(Vector2(sx - 9, sy + 1.5), Vector2(sx + 9, sy + 1.5), Color(1, 1, 1, 0.12), 1.0)
+			for hx in [-9.0, 9.0]:
+				draw_circle(Vector2(sx + hx, sy), 2.2, Color(0.22, 0.14, 0.07, 0.75))
+		draw_line(Vector2(sx, top + 22.0), Vector2(sx, bot - 22.0), Color("#2b3f5c", 0.55), 1.5)
 		_ink_mode = true
 	# V1.5.2 L6：列底色高度照內容（hh）；左欄圖示與標籤和右邊主控制項共用列中線（原本標籤靠上、控制項置中）
 	var label := func(ic: String, s: String, yy: float, hh: float) -> void:
