@@ -452,6 +452,8 @@ func _snap(name: String) -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)   # 真的被縮下去就還原，否則永遠等不到繪製
 	if shot_state.has("pad"):
 		pad_mode = true   # V1.2.1：手把焦點狀態（焦點框畫在目前的按鈕上）
+	if clutch_t > 0.0 and (clutch_t < 0.3 or clutch_t > 1.45):
+		clutch_t = 0.8   # 1.2.0：截圖改固定幀時間後，暫停中的「最後時刻」橫幅停在剛觸發（1.6 倒數起點、透明度 0）；截圖一律拍完全顯示的穩定狀態
 	queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame

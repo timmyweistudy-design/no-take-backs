@@ -26,7 +26,7 @@ COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:15
 [ -n "${LAYOUT_COMBOS:-}" ] && COMBOS="$LAYOUT_COMBOS"   # 只重跑指定組（修版面時用）
 export LAYOUT_N=$(echo $COMBOS | wc -w)
 # 1.2.0 §14.5：LAYOUT_JOBS=N 平行跑 N 組（各組本來就是獨立行程）；預設 1（量過一致才調高，見 coordination/v120-impl）
-JOBS=${LAYOUT_JOBS:-1}
+JOBS=${LAYOUT_JOBS:-2}   # 1.2.0：同一 commit 1 工 vs 2 工 350 張畫面 ID 與違規完全一致、399→223 秒
 FAILS="$OUT/.fails"; : > "$FAILS"
 run_combo() {
   local combo=$1 lang sc st d
