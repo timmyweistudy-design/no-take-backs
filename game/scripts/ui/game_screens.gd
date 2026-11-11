@@ -634,6 +634,8 @@ func _draw_inner() -> void:
 	probe_reset_geom()
 	_probe_ui = false
 	_draw_desk()   # 1.2.0 §1.1 桌面世界：整個畫面是一張胡桃木桌（取代深綠底＋一圈樹）
+	if (state == St.BATTLE or state == St.PLACE) and not bool(Save.s("plain_ui")):
+		draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, 0.15))   # 1.2.0 第 6 大類 F §5.5 景深：對局時桌面退後（盤面不受影響，盤在之後畫）
 	_sync_field()
 	var fxf := _fld_xf()
 	var cam := fxf

@@ -270,7 +270,8 @@ func _art_checks(img: Image) -> Dictionary:
 			if c.r8 <= 8 and c.g8 <= 8 and c.b8 <= 8:
 				blk += 1
 	out["black_pct"] = snappedf(100.0 * blk / maxi(1, n), 0.01)
-	if state == St.BATTLE and view != null:
+	# 1.2.0 第 6 大類 G：疊層、暫停、慢動作壓暗時不量（那時盤面被壓暗是刻意的，原本把暫停選單、元件展示頁都算進低對比）
+	if state == St.BATTLE and view != null and overlay == "" and not paused and clutch_t <= 0.0 and float(get("slow_left")) <= 0.0:
 		# 1.2.0 第 4 大類 B2：改量「輪廓」：框內最暗 10% 與最亮 10% 的像素（棋子的描邊與高光）各自和外圈平均算 WCAG 對比，取大者；
 		# < 3:1 才算看不清（Antigravity cat01：邊緣對比 ≥3:1）。原本比框內平均 vs 外圈平均，棋子色塊和草地平均明度接近就全判低。
 		var rl := func(c: Color) -> float:

@@ -290,7 +290,7 @@ class _Painter extends Node2D:
 						for kl in 2:
 							draw_circle(o3 + Vector2((h3 >> kl) % 30, (h3 >> (kl + 2)) % 30), 7.0 + kl * 2.0, Color("#3a2320"), true, -1.0, true)
 						if h3 % 3 == 0:   # 第十輪 V6：裂縫不要每格一條，才不會像條紋
-							draw_line(o3 + Vector2(h3 % 12, 4 + h3 % 8), o3 + Vector2(6 + h3 % 22, 18 + h3 % 12), Color("#ffb347"), 1.8, true)
+							draw_line(o3 + Vector2(h3 % 12, 4 + h3 % 8), o3 + Vector2(6 + h3 % 22, 18 + h3 % 12), Color("#d4a843"), 1.6, true)   # 1.2.0 §5.2 金繼：金泥細線，不發光
 					"canyon":
 						# 山崖：上面亮、岩層橫紋不對齊，不要像磚牆
 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color("#6d3a26"))
@@ -342,7 +342,62 @@ class _Painter extends Node2D:
 							draw_line(pr.position + Vector2(pw * 0.45, 4 + hh % 5), pr.position + Vector2(pw * 0.5, Q - 6 - hh % 4), Color(0.3, 0.18, 0.08, 0.25), 1.0)   # 木紋
 							for ny in [4.0, Q - 4.0]:
 								draw_circle(pr.position + Vector2(pw * 0.5 - 0.5, ny), 1.3, Color("#3a2a1c"))
+		_personality(Q)
 		_decor(Q)
+
+	## 1.2.0 §5.2 地圖個性（第 6 大類 B，只改畫面、烘進地塊、固定種子）：只畫在可走格上，不改地形判讀。
+	func _personality(Q: float) -> void:
+		if plain:
+			return
+		for r in t.m:
+			for c in t.n:
+				var v := _cell(c, r)
+				var o := Vector2(c, r) * Q
+				var h := _h(c * 11 + 5, r * 7 + 3)
+				if v == t.BLOCK:
+					if kind == "canyon":   # 古道峽谷：懸崖是疊起的木片（三層、每層錯位）
+						for k in 3:
+							var yy := o.y + Q * (0.42 + k * 0.19)
+							var dx := float((h >> (k * 2)) % 7) - 3.0
+							draw_line(Vector2(o.x, yy), Vector2(o.x + Q, yy), Color(0.18, 0.08, 0.03, 0.35), 1.5)
+							draw_line(Vector2(o.x + Q * 0.5 + dx, yy), Vector2(o.x + Q * 0.5 + dx, yy + Q * 0.19), Color(0.18, 0.08, 0.03, 0.25), 1.0)
+					continue
+				if v != t.FREE and not (kind == "ice" and v == t.FAST):   # 冰湖的冰面是快地形格，也要有冰裂紋（Codex cat06 #7）
+					continue
+				match kind:
+					"river":   # （平原沒有烘焙地塊，走 battle_units 的草地；Codex cat06 #6）   # 青草平原／河谷草地：方向一致的短筆觸（左上光 → 往右下傾）＋稀疏野花
+						for k in 3:
+							var hk := (h >> (k * 3)) % 97
+							var p0 := o + Vector2(4 + hk % 24, 4 + (hk / 3) % 24)
+							draw_line(p0, p0 + Vector2(3.0, 4.5), Color(0.2, 0.3, 0.1, 0.22), 1.2, true)
+						if h % 17 == 0:
+							var fp := o + Vector2(6 + h % 20, 6 + (h / 5) % 20)
+							draw_circle(fp, 1.6, Color("#fff4d6") if h % 2 == 0 else Color("#f2d15a"), true, -1.0, true)
+					"forest":   # 林間小徑：苔蘚斑＋偶見小菇
+						if h % 3 == 0:
+							for k in 3:
+								var mp := o + Vector2(6 + (h >> k) % 20, 6 + (h >> (k + 3)) % 20)
+								draw_circle(mp, 2.5 + k, Color(0.16, 0.32, 0.14, 0.35), true, -1.0, true)
+						if h % 9 == 0:
+							var sp := o + Vector2(10 + h % 12, 12 + (h / 7) % 10)
+							draw_rect(Rect2(sp + Vector2(-0.8, 0), Vector2(1.6, 3)), Color("#efe6d2"))
+							draw_circle(sp, 2.6, Color("#b2322a"), true, -1.0, true)
+							draw_circle(sp + Vector2(-0.8, -0.8), 0.6, Color(1, 1, 1, 0.9), true, -1.0, true)
+					"ice":   # 冰湖雪原：白瓷冰裂紋＋磨砂細點
+						if h % 4 == 0:
+							var a := o + Vector2(h % 30, (h / 3) % 30)
+							var b := a + Vector2(8 - (h >> 4) % 16, 6 + (h >> 6) % 6)
+							draw_polyline(PackedVector2Array([a, b, b + Vector2(5, -3)]), Color(1, 1, 1, 0.35), 1.0, true)
+						for k in 2:
+							draw_rect(Rect2(o + Vector2((h >> (k * 4)) % 30, (h >> (k * 4 + 2)) % 30), Vector2(1, 1)), Color(1, 1, 1, 0.3))
+					"lava":   # 熔岩裂谷：燒杉板（橫向木紋）
+						for k in 2:
+							var yy := o.y + 8 + k * 14 + float((h >> k) % 5)
+							draw_line(Vector2(o.x, yy), Vector2(o.x + Q, yy + float((h >> 5) % 3) - 1.0), Color(0.06, 0.04, 0.05, 0.4), 1.2)
+					"canyon":   # 古道峽谷：砂紙顆粒
+						for k in 6:
+							var gp := o + Vector2((h >> k) % 31, (h >> (k + 4)) % 31)
+							draw_rect(Rect2(gp, Vector2(1, 1)), Color(0.45, 0.3, 0.15, 0.35) if k % 2 == 0 else Color(1, 0.95, 0.85, 0.3))
 
 	## V1.2 D3：手繪筆觸（草簇、碎石、冰紋、裂紋）、場地邊緣裝飾（木柵欄、冰柱、焦岩）、紙紋 5%，全部烘進地塊。
 	## 邊緣裝飾只在最外 7px 內，不擋到站在邊上的兵；只畫在可走的格子上，不改變地形判讀。

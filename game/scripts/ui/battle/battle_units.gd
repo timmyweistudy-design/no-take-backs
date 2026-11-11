@@ -327,6 +327,21 @@ func _draw_field() -> void:
 
 
 
+## 1.2.0 第 6 大類 E §5.4：雙橋河谷的雨（盤上 20 顆水珠反光，畫在單位之下，不遮單位）。只改畫面。
+## 晨昏色調用原本的戰場色調（R6：一般晨曦、殘局黃昏、遠征月夜，`_tone()`），雪與落葉用原本的 `_draw_ambient()`，這裡不重複（Codex cat06 #1 #2）。
+## 位置只由地圖決定（重播、跳轉一致，Codex cat06 #3）；閃爍用畫面時間。截圖、減少特效、簡化介面、色盲、4 倍速以上不畫。
+func _draw_tod_weather() -> void:
+	if shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("plain_ui")) or cbm() or speed >= 4.0:
+		return
+	if MapDefs.MAPS.size() <= fld_map or str(MapDefs.MAPS[fld_map]["biome"]) != "river":
+		return
+	var fr := Rect2(ORIGIN, fld_size)
+	for i in 20:
+		var qx := fr.position.x + fr.size.x * float((i * 6151 + 17) % 1000) / 1000.0
+		var qy := fr.position.y + fr.size.y * float((i * 3571 + 91) % 1000) / 1000.0
+		var gl := 0.5 + 0.5 * sin(time * 2.0 + i * 1.7)
+		draw_circle(Vector2(qx, qy), 1.6, Color(0.85, 0.95, 1.0, 0.25 + 0.35 * gl), true, -1.0, true)
+
 ## 木框內側陰影（第七輪 D2）。
 func _draw_field_frame() -> void:
 	# V1.2 D3：場地底紋（亞麻布紋，約 6%），跟著場地（在鏡頭座標裡畫），不是貼在螢幕上
@@ -336,6 +351,7 @@ func _draw_field_frame() -> void:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		draw_texture_rect(gr, Rect2(ORIGIN, fld_size), true, Color(0.5, 0.42, 0.32, 0.07))
 	_draw_ambient()
+	_draw_tod_weather()   # 1.2.0 第 6 大類：晨昏色調與天氣（盤面上、單位之下）
 	# V1.2 C4：戰場外圍木製沙盤框（九宮格、四角銅釘），蓋在原本的平塗邊上
 	var fx := _ui_tex(TEX_FRAME)
 	if not bool(Save.s("plain_ui")) and _board_ring(Rect2(ORIGIN, fld_size)):
@@ -415,6 +431,15 @@ func _board_ring(inner: Rect2) -> bool:
 		PackedColorArray([Color(1, 0.95, 0.8, 0.10), Color(1, 0.95, 0.8, 0.0), Color(1, 0.95, 0.8, 0.0)]))
 	draw_polygon(PackedVector2Array([inner.end, Vector2(inner.end.x, inner.position.y), Vector2(inner.position.x, inner.end.y)]),
 		PackedColorArray([Color(0.1, 0.06, 0.03, 0.16), Color(0.1, 0.06, 0.03, 0.0), Color(0.1, 0.06, 0.03, 0.0)]))
+	# 1.2.0 §5.1 盤緣刻字：下緣中央凹刻地圖名（暗字＋下方 1px 亮線）。純裝飾、不經探針（地圖名在大廳與 HUD 另有）；
+	# 字級用表裡的 C，放不進 18px 木框（125%／150%）就不刻
+	var fs := tz("C")
+	if fs <= 16 and MapDefs.MAPS.size() > fld_map:
+		var nm := L.t("map_" + str(MapDefs.MAPS[fld_map]["key"]))
+		var fw := font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var bp := Vector2(inner.get_center().x - fw / 2.0, inner.end.y + 9 + fs * 0.36)
+		draw_string(font, bp + Vector2(0, -1), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.1, 0.05, 0.02, 0.85))   # 凹槽上緣內陰影
+		draw_string(font, bp, nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("#d4a843"))   # 填金（Antigravity cat06：原本暗字看不清）
 	return true
 
 const MAT_OAK := "res://art/mat/tile_oak.png"

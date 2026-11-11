@@ -1,0 +1,182 @@
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 264f160..85fe5d5 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -327,6 +327,49 @@ func _draw_field() -> void:
+ 
+ 
+ 
++## 1.2.0 第 6 大類 D／E §5.4：晨昏色調＋天氣，只改畫面、畫在盤面上單位之下（不遮單位、不改隊色）。
++## 晨 5～10 點冷藍、昏 17～20 點橘、夜加深；午不加。天氣：冰湖＝雪（刨屑）、河谷／林間偶爾雨（水珠反光）、平原＝風（草葉）。
++## 截圖、減少特效、簡化介面、4 倍速以上不畫；色盲模式色調減半、不下天氣。全部解析式（時間＋格位雜湊），不存狀態。
++func tod_now() -> int:   # 0 晨、1 午、2 昏、3 夜
++	var hr := int(Time.get_datetime_dict_from_system()["hour"])
++	return 0 if hr >= 5 and hr < 10 else (1 if hr < 17 else (2 if hr < 20 else 3))
++
++func _draw_tod_weather() -> void:
++	if shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("plain_ui")):
++		return
++	var fr := Rect2(ORIGIN, fld_size)
++	var cb := cbm()
++	var k := 0.5 if cb else 1.0
++	match tod_now():
++		0:
++			draw_rect(fr, Color(0.55, 0.7, 1.0, 0.06 * k))
++		2:
++			draw_rect(fr, Color(1.0, 0.6, 0.25, 0.08 * k))
++		3:
++			draw_rect(fr, Color(0.2, 0.22, 0.4, 0.12 * k))
++	if cb or speed >= 4.0 or MapDefs.MAPS.size() <= fld_map:
++		return
++	var biome := str(MapDefs.MAPS[fld_map]["biome"])
++	var wseed := fld_map * 7 + round_no * 13
++	if biome == "ice":   # 雪：細刨屑緩降（最多 60 顆）
++		for i in 60:
++			var hx := float((i * 7919 + wseed * 31) % 1000) / 1000.0
++			var ph := fmod(time * 0.06 + float((i * 104729) % 997) / 997.0, 1.0)
++			var px := fr.position.x + fr.size.x * fmod(hx + 0.03 * sin(time * 0.8 + i), 1.0)
++			draw_rect(Rect2(px, fr.position.y + fr.size.y * ph, 2.0, 1.2), Color(1, 1, 1, 0.55))
++	elif (biome == "river" or biome == "forest") and wseed % 3 == 0:   # 雨：盤上 20 顆水珠反光（一閃一閃）
++		for i in 20:
++			var qx := fr.position.x + fr.size.x * float((i * 6151 + wseed) % 1000) / 1000.0
++			var qy := fr.position.y + fr.size.y * float((i * 3571 + wseed * 7) % 1000) / 1000.0
++			var gl := 0.5 + 0.5 * sin(time * 2.0 + i * 1.7)
++			draw_circle(Vector2(qx, qy), 1.6, Color(0.85, 0.95, 1.0, 0.25 + 0.35 * gl), true, -1.0, true)
++	elif biome == "grass":   # 風：30 片小草葉往右下飄
++		for i in 30:
++			var ph2 := fmod(time * 0.08 + float((i * 7907) % 991) / 991.0, 1.0)
++			var y0 := fr.position.y + fr.size.y * float((i * 4441 + wseed) % 1000) / 1000.0
++			var lp := Vector2(fr.position.x + fr.size.x * ph2, y0 + 20.0 * ph2 + 4.0 * sin(time * 3.0 + i))
++			draw_line(lp, lp + Vector2(4, 1.5), Color(0.35, 0.5, 0.2, 0.45), 1.5, true)
++
+ ## 木框內側陰影（第七輪 D2）。
+ func _draw_field_frame() -> void:
+ 	# V1.2 D3：場地底紋（亞麻布紋，約 6%），跟著場地（在鏡頭座標裡畫），不是貼在螢幕上
+@@ -336,6 +379,7 @@ func _draw_field_frame() -> void:
+ 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+ 		draw_texture_rect(gr, Rect2(ORIGIN, fld_size), true, Color(0.5, 0.42, 0.32, 0.07))
+ 	_draw_ambient()
++	_draw_tod_weather()   # 1.2.0 第 6 大類：晨昏色調與天氣（盤面上、單位之下）
+ 	# V1.2 C4：戰場外圍木製沙盤框（九宮格、四角銅釘），蓋在原本的平塗邊上
+ 	var fx := _ui_tex(TEX_FRAME)
+ 	if not bool(Save.s("plain_ui")) and _board_ring(Rect2(ORIGIN, fld_size)):
+@@ -415,6 +459,15 @@ func _board_ring(inner: Rect2) -> bool:
+ 		PackedColorArray([Color(1, 0.95, 0.8, 0.10), Color(1, 0.95, 0.8, 0.0), Color(1, 0.95, 0.8, 0.0)]))
+ 	draw_polygon(PackedVector2Array([inner.end, Vector2(inner.end.x, inner.position.y), Vector2(inner.position.x, inner.end.y)]),
+ 		PackedColorArray([Color(0.1, 0.06, 0.03, 0.16), Color(0.1, 0.06, 0.03, 0.0), Color(0.1, 0.06, 0.03, 0.0)]))
++	# 1.2.0 §5.1 盤緣刻字：下緣中央凹刻地圖名（暗字＋下方 1px 亮線）。純裝飾、不經探針（地圖名在大廳與 HUD 另有）；
++	# 字級用表裡的 C，放不進 18px 木框（125%／150%）就不刻
++	var fs := tz("C")
++	if fs <= 16 and MapDefs.MAPS.size() > fld_map:
++		var nm := L.t("map_" + str(MapDefs.MAPS[fld_map]["key"]))
++		var fw := font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
++		var bp := Vector2(inner.get_center().x - fw / 2.0, inner.end.y + 9 + fs * 0.36)
++		draw_string(font, bp + Vector2(0, 1), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 0.9, 0.7, 0.3))
++		draw_string(font, bp, nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.16, 0.09, 0.04, 0.8))
+ 	return true
+ 
+ const MAT_OAK := "res://art/mat/tile_oak.png"
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index afd8c00..f6fefcd 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -634,6 +634,8 @@ func _draw_inner() -> void:
+ 	probe_reset_geom()
+ 	_probe_ui = false
+ 	_draw_desk()   # 1.2.0 §1.1 桌面世界：整個畫面是一張胡桃木桌（取代深綠底＋一圈樹）
++	if (state == St.BATTLE or state == St.PLACE) and not bool(Save.s("plain_ui")):
++		draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, 0.15))   # 1.2.0 第 6 大類 F §5.5 景深：對局時桌面退後（盤面不受影響，盤在之後畫）
+ 	_sync_field()
+ 	var fxf := _fld_xf()
+ 	var cam := fxf
+diff --git a/game/scripts/ui/map_art.gd b/game/scripts/ui/map_art.gd
+index 8234300..66b0aa7 100644
+--- a/game/scripts/ui/map_art.gd
++++ b/game/scripts/ui/map_art.gd
+@@ -290,7 +290,7 @@ class _Painter extends Node2D:
+ 						for kl in 2:
+ 							draw_circle(o3 + Vector2((h3 >> kl) % 30, (h3 >> (kl + 2)) % 30), 7.0 + kl * 2.0, Color("#3a2320"), true, -1.0, true)
+ 						if h3 % 3 == 0:   # 第十輪 V6：裂縫不要每格一條，才不會像條紋
+-							draw_line(o3 + Vector2(h3 % 12, 4 + h3 % 8), o3 + Vector2(6 + h3 % 22, 18 + h3 % 12), Color("#ffb347"), 1.8, true)
++							draw_line(o3 + Vector2(h3 % 12, 4 + h3 % 8), o3 + Vector2(6 + h3 % 22, 18 + h3 % 12), Color("#d4a843"), 1.6, true)   # 1.2.0 §5.2 金繼：金泥細線，不發光
+ 					"canyon":
+ 						# 山崖：上面亮、岩層橫紋不對齊，不要像磚牆
+ 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color("#6d3a26"))
+@@ -342,8 +342,63 @@ class _Painter extends Node2D:
+ 							draw_line(pr.position + Vector2(pw * 0.45, 4 + hh % 5), pr.position + Vector2(pw * 0.5, Q - 6 - hh % 4), Color(0.3, 0.18, 0.08, 0.25), 1.0)   # 木紋
+ 							for ny in [4.0, Q - 4.0]:
+ 								draw_circle(pr.position + Vector2(pw * 0.5 - 0.5, ny), 1.3, Color("#3a2a1c"))
++		_personality(Q)
+ 		_decor(Q)
+ 
++	## 1.2.0 §5.2 地圖個性（第 6 大類 B，只改畫面、烘進地塊、固定種子）：只畫在可走格上，不改地形判讀。
++	func _personality(Q: float) -> void:
++		if plain:
++			return
++		for r in t.m:
++			for c in t.n:
++				var v := _cell(c, r)
++				var o := Vector2(c, r) * Q
++				var h := _h(c * 11 + 5, r * 7 + 3)
++				if v == t.BLOCK:
++					if kind == "canyon":   # 古道峽谷：懸崖是疊起的木片（三層、每層錯位）
++						for k in 3:
++							var yy := o.y + Q * (0.42 + k * 0.19)
++							var dx := float((h >> (k * 2)) % 7) - 3.0
++							draw_line(Vector2(o.x, yy), Vector2(o.x + Q, yy), Color(0.18, 0.08, 0.03, 0.35), 1.5)
++							draw_line(Vector2(o.x + Q * 0.5 + dx, yy), Vector2(o.x + Q * 0.5 + dx, yy + Q * 0.19), Color(0.18, 0.08, 0.03, 0.25), 1.0)
++					continue
++				if v != t.FREE:
++					continue
++				match kind:
++					"grass", "river":   # 青草平原／河谷草地：方向一致的短筆觸（左上光 → 往右下傾）＋稀疏野花
++						for k in 3:
++							var hk := (h >> (k * 3)) % 97
++							var p0 := o + Vector2(4 + hk % 24, 4 + (hk / 3) % 24)
++							draw_line(p0, p0 + Vector2(3.0, 4.5), Color(0.2, 0.3, 0.1, 0.22), 1.2, true)
++						if h % 17 == 0:
++							var fp := o + Vector2(6 + h % 20, 6 + (h / 5) % 20)
++							draw_circle(fp, 1.6, Color("#fff4d6") if h % 2 == 0 else Color("#f2d15a"), true, -1.0, true)
++					"forest":   # 林間小徑：苔蘚斑＋偶見小菇
++						if h % 3 == 0:
++							for k in 3:
++								var mp := o + Vector2(6 + (h >> k) % 20, 6 + (h >> (k + 3)) % 20)
++								draw_circle(mp, 2.5 + k, Color(0.16, 0.32, 0.14, 0.35), true, -1.0, true)
++						if h % 9 == 0:
++							var sp := o + Vector2(10 + h % 12, 12 + (h / 7) % 10)
++							draw_rect(Rect2(sp + Vector2(-0.8, 0), Vector2(1.6, 3)), Color("#efe6d2"))
++							draw_circle(sp, 2.6, Color("#b2322a"), true, -1.0, true)
++							draw_circle(sp + Vector2(-0.8, -0.8), 0.6, Color(1, 1, 1, 0.9), true, -1.0, true)
++					"ice":   # 冰湖雪原：白瓷冰裂紋＋磨砂細點
++						if h % 4 == 0:
++							var a := o + Vector2(h % 30, (h / 3) % 30)
++							var b := a + Vector2(8 - (h >> 4) % 16, 6 + (h >> 6) % 6)
++							draw_polyline(PackedVector2Array([a, b, b + Vector2(5, -3)]), Color(1, 1, 1, 0.35), 1.0, true)
++						for k in 2:
++							draw_rect(Rect2(o + Vector2((h >> (k * 4)) % 30, (h >> (k * 4 + 2)) % 30), Vector2(1, 1)), Color(1, 1, 1, 0.3))
++					"lava":   # 熔岩裂谷：燒杉板（橫向木紋）
++						for k in 2:
++							var yy := o.y + 8 + k * 14 + float((h >> k) % 5)
++							draw_line(Vector2(o.x, yy), Vector2(o.x + Q, yy + float((h >> 5) % 3) - 1.0), Color(0.06, 0.04, 0.05, 0.4), 1.2)
++					"canyon":   # 古道峽谷：砂紙顆粒
++						for k in 6:
++							var gp := o + Vector2((h >> k) % 31, (h >> (k + 4)) % 31)
++							draw_rect(Rect2(gp, Vector2(1, 1)), Color(0.45, 0.3, 0.15, 0.35) if k % 2 == 0 else Color(1, 0.95, 0.85, 0.3))
++
+ 	## V1.2 D3：手繪筆觸（草簇、碎石、冰紋、裂紋）、場地邊緣裝飾（木柵欄、冰柱、焦岩）、紙紋 5%，全部烘進地塊。
+ 	## 邊緣裝飾只在最外 7px 內，不擋到站在邊上的兵；只畫在可走的格子上，不改變地形判讀。
+ 	func _decor(Q: float) -> void:
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index f963452..f7b108a 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -270,7 +270,8 @@ func _art_checks(img: Image) -> Dictionary:
+ 			if c.r8 <= 8 and c.g8 <= 8 and c.b8 <= 8:
+ 				blk += 1
+ 	out["black_pct"] = snappedf(100.0 * blk / maxi(1, n), 0.01)
+-	if state == St.BATTLE and view != null:
++	# 1.2.0 第 6 大類 G：疊層、暫停、慢動作壓暗時不量（那時盤面被壓暗是刻意的，原本把暫停選單、元件展示頁都算進低對比）
++	if state == St.BATTLE and view != null and overlay == "" and not paused and clutch_t <= 0.0:
+ 		# 1.2.0 第 4 大類 B2：改量「輪廓」：框內最暗 10% 與最亮 10% 的像素（棋子的描邊與高光）各自和外圈平均算 WCAG 對比，取大者；
+ 		# < 3:1 才算看不清（Antigravity cat01：邊緣對比 ≥3:1）。原本比框內平均 vs 外圈平均，棋子色塊和草地平均明度接近就全判低。
+ 		var rl := func(c: Color) -> float:
