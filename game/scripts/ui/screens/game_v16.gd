@@ -1,4 +1,5 @@
 extends "res://scripts/ui/screens/game_menus.gd"
+const ScreenRules = preload("res://scripts/game/screen_rules.gd")
 ## V1.6.0 介面層（docs/history/2026-11-10-v1.6.0-plan.md）：新手下一步、試玩回報、分享、教練、極速賽、裂隙、人設、熟練度、實驗簿、出題台、一陣三考、迷霧、接力遠征。
 ## 純邏輯放 scripts/game/v16_*.gd（可測），這裡只管畫面與流程。
 
@@ -534,22 +535,7 @@ func _lock_pairs(a0, a1) -> Array:
 const LOCK_MAX := 3
 ## 依目標分組：每個目標最多畫 n 條；超過的目標記總條數（畫「×N」）。純函式（測試用）。
 static func lock_groups(pairs: Array, n: int) -> Dictionary:
-	var by := {}
-	for pr in pairs:
-		var k: Vector2i = pr[1]
-		if not by.has(k):
-			by[k] = []
-		by[k].append(pr)
-	var draw: Array = []
-	var rest: Array = []
-	var count := {}
-	for k in by:
-		var lst: Array = by[k]
-		draw += lst.slice(0, n)
-		if lst.size() > n:
-			count[k] = lst.size()
-			rest += lst.slice(n)
-	return {"draw": draw, "count": count, "rest": rest}
+	return ScreenRules.lock_groups(pairs, n)   # 1.1.0 A22：純邏輯搬到 scripts/game/screen_rules.gd
 
 static func lock_targets(a0, a1, rr) -> Array:
 	var s = Sim.new(a0.copy(), a1.copy(), rr)
@@ -1396,7 +1382,7 @@ var nb_buf := ""
 var nb_edit_obj = null   # 改名的那一份（照物件寫回，不靠索引；Codex v161-i1 #9）
 var nb_cmp_a := -1    # 比較：先選的那一份（-1＝不在比較）
 var nb_cmp_b := -1
-const NB_NAME_MAX := 16
+const NB_NAME_MAX := ScreenRules.NB_NAME_MAX   # 1.1.0 A22：單一來源
 const NB_PRESETS := ["nb_n_rush", "nb_n_wall", "nb_n_range", "nb_n_cheap", "nb_n_try"]
 
 func _nb_rename(i: int) -> void:
@@ -1443,7 +1429,7 @@ func _nb_words_done(ok: bool) -> void:
 	overlay = "notebook"
 
 static func nb_words_add(buf: String, w: String) -> String:
-	return (buf + w).substr(0, NB_NAME_MAX)
+	return ScreenRules.nb_words_add(buf, w)   # 1.1.0 A22：純邏輯搬到 scripts/game/screen_rules.gd
 
 func _draw_nb_words() -> void:
 	var cw := 160.0
@@ -1507,9 +1493,7 @@ func _nb_edit_input(ev: InputEvent) -> bool:
 	return ev is InputEventKey
 
 static func nb_edit_append(buf: String, uc: int) -> String:
-	if uc < 32 or uc == 127 or buf.length() >= NB_NAME_MAX:
-		return buf
-	return buf + String.chr(uc)
+	return ScreenRules.nb_edit_append(buf, uc)   # 1.1.0 A22：純邏輯搬到 scripts/game/screen_rules.gd
 
 func _nb_cmp_pick(i: int) -> void:
 	nb_cmp_b = i
@@ -2047,7 +2031,7 @@ var ga_coop := false
 var coop_seen := 0   # 已經出過交接畫面的站
 
 static func coop_player(stage: int) -> int:
-	return 1 + (stage - 1) % 2
+	return ScreenRules.coop_player(stage)   # 1.1.0 A22：純邏輯搬到 scripts/game/screen_rules.gd
 
 func _enter_gauntlet() -> void:
 	ga_coop = false
@@ -2083,10 +2067,7 @@ func _coop_settle() -> void:
 		_focus = 0
 
 static func coop_rows(log: Array) -> Array:
-	var out: Array = []
-	for i in range(0, log.size() - 3, 4):
-		out.append([int(log[i]), int(log[i + 1]), int(log[i + 2]) == 1, int(log[i + 3])])
-	return out
+	return ScreenRules.coop_rows(log)   # 1.1.0 A22：純邏輯搬到 scripts/game/screen_rules.gd
 
 func _draw_coop_sum() -> void:
 	var rows := coop_rows(coop_log)

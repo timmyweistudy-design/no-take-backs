@@ -16,7 +16,7 @@ ERR = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|Failed to load script"
 PRE = re.compile(r'(?:preload|load)\(\s*"res://([^"]+\.(?:gd|json|csv))"|^extends\s+"res://([^"]+\.gd)"', re.M)   # V1.1（Codex v110-impl #3）：也追繼承鏈
 TEST_DONE = re.compile(r"^—— ([1-9]\d*) 通過 / 0 失敗", re.M)
 # 這些組會碰存檔（固定檔名、靜態狀態），放同一個行程
-STATEFUL = ["fantasy", "rules", "save", "ui", "modes", "v16", "v161", "v100"]
+STATEFUL = ["fantasy", "rules", "save", "ui", "modes"] + ["coach_lab", "share_codes", "reports_platform", "modes_live", "battle_visual"]   # 1.1.0 A4：v16／v161／v100 拆成功能組
 
 
 def sha(p: Path) -> str:
@@ -102,9 +102,9 @@ def plan(a) -> list:
     if a.quick:
         test("t_harness", "harness,anim")
         test("t_ui", "ui")
-        test("t_v16", "v16")
-        test("t_v161", "v161")
-        test("t_v100", "v100")
+        test("t_lab", "coach_lab")   # 1.1.0 A4：原 t_v16／t_v161／t_v100，改依功能組；教練／三考最慢，自己一個行程
+        test("t_live", "modes_live,reports_platform,share_codes")
+        test("t_visual", "battle_visual")
         gd("golden", "tools/golden.gd", ["--n=30"], r'^GOLDEN \{.*"ok":true')
     else:
         for s in ["maps", "anim", "units", "free", "content", "harness"]:
@@ -122,7 +122,7 @@ def plan(a) -> list:
         gd("t_stateful", "tests/run_tests.gd", ["--only=rules,save" + skip, "--prefix=ta_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
         # 1.1.0 B1：t_stateful2 是最長的單步（626 秒），拆成兩個行程、各用自己的存檔前綴（總工作量不變，關鍵路徑變短）
         gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
-        gd("t_stateful3", "tests/run_tests.gd", ["--only=modes,v16,v161,v100" + skip, "--prefix=tc_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+        gd("t_stateful3", "tests/run_tests.gd", ["--only=modes,coach_lab,share_codes,reports_platform,modes_live,battle_visual" + skip, "--prefix=tc_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
         # V1.1 E1：最慢的兩組各切 8 片（每片太長，最後幾分鐘只剩少數工作在跑）
         global FULL_GOLDEN

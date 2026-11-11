@@ -243,3 +243,50 @@ class FakeSteam:
 	func storeStats() -> bool:
 		stores += 1
 		return stores > 1
+
+## 1.1.0 A4：原本在 v16／v161／v100 測試組裡的共用替身，拆成功能組後放這裡。
+class FakeU:
+	var team := 0
+	var type := 0
+	var kills := 0
+	var summon := false
+	func _init(t, ty, k, s := false):
+		team = t
+		type = ty
+		kills = k
+		summon = s
+
+class FakeAch extends Node:
+	signal user_stats_stored(game, result)
+	var stores := 0
+	var set_ids: Array = []
+	var fail_set := false
+	func setAchievement(id): set_ids.append(id); return not fail_set
+	func storeStats(): stores += 1; return true
+	func run_callbacks(): pass
+
+class FakeLB extends Node:
+	signal leaderboard_find_result(handle, found)
+	signal leaderboard_scores_downloaded(msg, handle, result)
+	signal leaderboard_score_uploaded(success, handle, this_score)
+	var finds: Array = []
+	var ups: Array = []
+	var names := {7: "daily_100_v1", 8: "daily_100_v1", 9: "daily_100_v1", 11: "weekly_5"}
+	func findOrCreateLeaderboard(n, _a, _b): finds.append(n)
+	func findLeaderboard(n): finds.append(n)
+	func getLeaderboardName(h): return names.get(h, "")
+	func uploadLeaderboardScore(sc, _keep, det, h): ups.append([sc, det, h])
+	func downloadLeaderboardEntries(_a, _b, _c, _h): pass
+	func run_callbacks(): pass
+
+func _put(path: String, txt: String) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(txt)
+	f.close()
+
+class FakePlat:
+	func isCloudEnabledForAccount(): return true
+	func isCloudEnabledForApp(): return true
+	func getFileCount(): return 3
+	func getFileNameAndSize(i): return {"name": ["save.json", "save.json.bak", "settings.json"][i], "size": 10}
+	func getCurrentBetaName(): return {"ret": true, "name": "beta"}

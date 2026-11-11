@@ -1,4 +1,5 @@
 extends "res://scripts/ui/screens/game_modes.gd"
+const PlayroomRules = preload("res://scripts/game/playroom_rules.gd")
 ## V1.6 #4：由 game_modes.gd 拆出（行為不變）：遊戲間（競猜、輪抽、車輪戰、雙封蠟）、塗裝室、幽靈軍團與每週棋盒。
 
 ## ── V1.4 #16 遊戲間：觀戰競猜、輪抽 ──
@@ -65,10 +66,10 @@ func _wager_go() -> void:
 	call("watch_code", wg_armies[0], wg_armies[1], null)
 
 ## 剩餘戰力落在哪一區：0 險勝（<34%）、1 普通、2 大勝（≥67%）。
-const WG_NARROW := 34
-const WG_CRUSH := 67
+const WG_NARROW := PlayroomRules.WG_NARROW
+const WG_CRUSH := PlayroomRules.WG_CRUSH
 static func wager_band(rem: int) -> int:
-	return 0 if rem < WG_NARROW else (1 if rem < WG_CRUSH else 2)
+	return PlayroomRules.wager_band(rem)   # 1.1.0 A22：純邏輯搬到 scripts/game/playroom_rules.gd
 
 ## 結算：押對勝方 1 分、連區間也對再 1 分。存「眼力」：總分、場數、最高連對。
 func _wager_settle() -> void:
@@ -124,10 +125,7 @@ func _draft_take(t: int) -> void:
 		df_ai.append(best)
 
 static func draft_mask(list: Array) -> int:
-	var m := 0
-	for t in list:
-		m |= 1 << int(t)
-	return m
+	return PlayroomRules.draft_mask(list)   # 1.1.0 A22：純邏輯搬到 scripts/game/playroom_rules.gd
 
 func _draft_go() -> void:
 	var r = RuleSet.standard()
@@ -193,35 +191,14 @@ var wv_view: Array = []   # 貼上車輪戰代碼後，等著選看第幾波
 
 ## V1.5.1 D1 車輪戰代碼 NTW1：包起每一波的既有對戰代碼（不重做模擬格式）。缺波＝提早輸掉，只有打過的那幾波。
 static func wave_code(codes: Array) -> String:
-	var b := Marshalls.utf8_to_base64(JSON.stringify({"v": 1, "w": codes}))
-	return "NTW1.%s.%s" % [b, b.sha256_text().substr(0, 6)]
+	return PlayroomRules.wave_code(codes)   # 1.1.0 A22：純邏輯搬到 scripts/game/playroom_rules.gd
 
 ## 解開車輪戰代碼：回傳每一波的對戰代碼（1～3 筆，每筆都要是對戰代碼）；壞碼回傳空陣列
 static func wave_decode(c: String) -> Array:
-	var parts := c.strip_edges().split(".")
-	if c.length() > 60000 or parts.size() != 3 or parts[0] != "NTW1" or parts[1].sha256_text().substr(0, 6) != parts[2]:
-		return []
-	var d = JSON.parse_string(Marshalls.base64_to_utf8(parts[1]))
-	if not d is Dictionary or not d.get("w") is Array:
-		return []
-	var w: Array = d["w"]
-	if w.is_empty() or w.size() > 3:
-		return []
-	for x in w:
-		if not x is String or not str(x).get_slice(".", 0) in ["NTB2", "NTB3", "NTB4", "NTB7"]:
-			return []
-	return w
+	return PlayroomRules.wave_decode(c)   # 1.1.0 A22：純邏輯搬到 scripts/game/playroom_rules.gd
 
 static func wave_has_lock(units: Array, lock: Array) -> bool:
-	for u in lock:
-		var hit := false
-		for v in units:
-			if v.has("col") and int(v["col"]) == int(u["col"]) and int(v["row"]) == int(u["row"]) and int(v["type"]) == int(u["type"]):
-				hit = true
-				break
-		if not hit:
-			return false
-	return true
+	return PlayroomRules.wave_has_lock(units, lock)   # 1.1.0 A22：純邏輯搬到 scripts/game/playroom_rules.gd
 
 func wave_is_locked(c: Vector2i) -> bool:
 	if not wv_active:
@@ -442,7 +419,7 @@ static func ghost_army(g: Dictionary):
 
 ## 週數：從 1970-01-05（週一）起算，每週一換題。
 static func week_no(unix: int) -> int:
-	return int(floor((unix / 86400.0 - 4.0) / 7.0))
+	return PlayroomRules.week_no(unix)   # 1.1.0 A22：純邏輯搬到 scripts/game/playroom_rules.gd
 
 ## 這週的題目：卡池（舊 10 種裡抽 6 種，一定有戰鬥兵）、預算、對手幽靈。同一週大家一樣。
 static func weekly_spec(wk: int) -> Dictionary:
