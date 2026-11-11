@@ -534,11 +534,13 @@ static func diverge_tick(a: PackedInt64Array, b: PackedInt64Array) -> int:
 ## 1.2.0 §15.1：打開覆盤時「原本那一場」的基準重算也放背景（原本在主執行緒同步跑一整場，最壞約 7.5 秒畫面卡住）。
 ## 基準算好之前：原本那條顯示「計算中」、重算鈕不能按（分岔 tick 要和基準比）。headless／截圖照舊同步（確定性）。
 var rv_base_thread: Thread = null
+var rv_base_err := ""   # 1.2.0（Codex cat01 #1）：""／"slow"（逾時）／"fail"（開不了執行緒）→ 顯示原因＋「重算原本」鈕
 func _rv_base_start() -> void:
 	if rv_base_thread != null:
 		bg.retire(rv_base_thread)
 		rv_base_thread = null
 	rv_base = {}
+	rv_base_err = ""
 	if not _async_ok():
 		rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)
 		return
@@ -549,8 +551,7 @@ func _rv_base_start() -> void:
 	var ctl: Dictionary = BgPool.make_ctl(RV_LIMIT_MS)
 	rv_base_thread = bg.start(func(): return review_run(a, e, r, lg, ctl), ctl)
 	if rv_base_thread == null:
-		_toast(L.t("rv_fail"), true)
-		rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)   # 開不了執行緒：退回同步（基準只算一次，不會反覆卡）
+		rv_base_err = "fail"   # 開不了執行緒：不退回主執行緒無期限重算（Codex cat01 #1），顯示失敗、可以再按
 
 func _rv_base_poll() -> void:
 	if rv_base_thread == null:
@@ -563,7 +564,7 @@ func _rv_base_poll() -> void:
 		var res: Dictionary = bg.take(rv_base_thread)
 		rv_base_thread = null
 		if bool(res.get("cancel", false)):
-			_toast(L.t("rv_slow"), true)
+			rv_base_err = "slow"   # 逾時：顯示「算太久」＋重算鈕（不是永遠停在計算中）
 			return
 		rv_base = res
 		if not rv_result.is_empty():
@@ -708,7 +709,10 @@ func _draw_review() -> void:
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
 	var b0: Array = rv_base.get("b", [100, 100])
 	var c0 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
-	if rv_base.is_empty():
+	if rv_base.is_empty() and rv_base_err != "":
+		_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
+		_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
+	elif rv_base.is_empty():
 		_text(Vector2(bx, y), L.t("busy_review"), tz("S"), TXT_DIM, false, true, 552)   # 1.2.0 §15.1：基準還在背景算
 	else:
 		_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)

@@ -14,8 +14,8 @@ var df_ai: Array = []
 func _wager_new() -> void:
 	var r := RandomNumberGenerator.new()
 	r.randomize()
-	if shot_dir != "":
-		r.seed = 20261111   # 1.2.0 §14.6：截圖模式固定（視覺回歸要可重現）
+	if shot_dir != "" and bool(get("shot_fixed")):
+		r.seed = 20261111   # 1.2.0 §14.6：視覺回歸模式固定（同一份程式重拍要一致）
 	wg_armies = [AI.build(0, 100, r)["army"], AI.build(1, 100, r)["army"]]
 	wg_pick = [-1, -1]
 	overlay = "wager"
@@ -101,8 +101,8 @@ func _wager_settle() -> void:
 func _draft_new() -> void:
 	var r := RandomNumberGenerator.new()
 	r.randomize()
-	if shot_dir != "":
-		r.seed = 20261111   # 1.2.0 §14.6：截圖模式固定（視覺回歸要可重現）
+	if shot_dir != "" and bool(get("shot_fixed")):
+		r.seed = 20261111   # 1.2.0 §14.6：視覺回歸模式固定（同一份程式重拍要一致）
 	var ids: Array = range(10)
 	df_pool = []
 	while df_pool.size() < 8:
@@ -507,7 +507,7 @@ func _ghost_settle(w: int) -> void:
 			if int(rec["best"]) <= 0 or spent < int(rec["best"]):
 				rec["best"] = spent
 				report["gh_line"] = L.t("wk_best_new", [spent])
-				rec["det"] = Array(SteamApi.pack_army(last_armies[0].units))
+				rec["det"] = Array(SteamApi.pack_army(last_armies[0].mirrored().units))   # 1.2.0：幽靈陣一律存紅方視角（解包只收欄 10～15；原本存藍方，下載下來全被當壞資料丟掉）
 				rec["pend"] = 1   # 還沒送上排行榜（沒 Steam、或送失敗）：之後有 Steam 時補送（Codex v140-i5）
 		Save.data["weekly"] = rec
 		Save.save_data()
@@ -632,18 +632,16 @@ func _wk_dl_done(g0: int, list: Array) -> void:
 func _wk_dl_play(i: int) -> void:
 	if i < 0 or i >= wk_dl_list.size():
 		return
-	var a = Army.new(0, 100)
-	for u in wk_dl_list[i]["units"]:
-		a.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+	var g := {"units": wk_dl_list[i]["units"]}   # 下載的已經是紅方視角（上傳前鏡像好）
 	var r = RuleSet.standard()
 	r.rounds = 1
 	rules = r
-	challenge_army = a.mirrored()   # 上傳的是玩家自己（藍方）的擺法：鏡像成對手
+	challenge_army = ghost_army(g)
 	overlay = ""
 	set("daily_spec", {})
 	_start_mode(Mode.VS_AI)
 	set("daily_spec", {})
-	challenge_army = a.mirrored()
+	challenge_army = ghost_army(g)
 	_toast(L.t("wk_dl_go", [int(wk_dl_list[i]["rank"])]))
 
 func _draw_wk_ghosts() -> void:
@@ -657,7 +655,15 @@ func _draw_wk_ghosts() -> void:
 		_text(Vector2(640, y + 12), L.t("wk_dl_" + wk_dl_state), tz("B"), TXT_DIM, true, false, 560)
 	for i in wk_dl_list.size():
 		var e: Dictionary = wk_dl_list[i]
-		_text(Vector2(P.position.x + 40, y + 12), L.t("wk_dl_row", [int(e["rank"]), int(e["score"]), (e["units"] as Array).size()]), tz("S"), Color.WHITE, false, false, 360)
+		_text(Vector2(P.position.x + 40, y + 12), L.t("wk_dl_row", [int(e["rank"]), int(e["score"]), (e["units"] as Array).size()]), tz("S"), Color.WHITE, false, false, 300)
+		# Antigravity cat01 #3：只看金幣與隻數像抽盲盒 → 畫這個陣型最多的 3 種兵（頭像）
+		var cnt := {}
+		for u in e["units"]:
+			cnt[int(u["type"])] = int(cnt.get(int(u["type"]), 0)) + 1
+		var top: Array = cnt.keys()
+		top.sort_custom(func(p1, p2): return cnt[p1] > cnt[p2] or (cnt[p1] == cnt[p2] and p1 < p2))
+		for k in mini(3, top.size()):
+			_unit(Vector2(P.position.x + 360 + k * 40, y + 44), int(top[k]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.55)
 		var ii := i
 		_btn(Rect2(P.end.x - 200, y + 4, 160, 44), L.t("wk_dl_fight"), func(): _wk_dl_play(ii), true, i == 0)
 		y += rowh + GAP_S

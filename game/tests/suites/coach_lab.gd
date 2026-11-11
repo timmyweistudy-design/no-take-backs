@@ -172,9 +172,13 @@ func test_trio_code_v161() -> void:
 
 func test_trio_sol3_v161() -> void:
 	var TR = load("res://scripts/game/trio.gd")
+	var SC = load("res://tests/sim_cache.gd")   # 1.2.0 §14.3：重算作者解走模擬快取（命中時隨機 5% 重算比對）
 	for s in TR.sets():
-		ok(s.has("sol3") and TR.stars(s, TR.results(s, s["sol3"])) == 3, "每組都有可重現的三星解（A3）：" + str(s["id"]))
-		ok(TR.stars(s, TR.results(s, s["sol"])) >= 1, "作者解三場都贏：" + str(s["id"]))
+		var r3: Dictionary = SC.cached("trio", [s, s.get("sol3", [])], func(): return {"r": TR.results(s, s.get("sol3", []))}) if s.has("sol3") else {}
+		var r1: Dictionary = SC.cached("trio", [s, s["sol"]], func(): return {"r": TR.results(s, s["sol"])})
+		ok(not r3.has("cache_mismatch") and not r1.has("cache_mismatch"), "模擬快取抽樣重算一致：" + str(s["id"]))
+		ok(s.has("sol3") and TR.stars(s, r3.get("r", [])) == 3, "每組都有可重現的三星解（A3）：" + str(s["id"]))
+		ok(TR.stars(s, r1.get("r", [])) >= 1, "作者解三場都贏：" + str(s["id"]))
 
 func test_eff_games_seed_v161() -> void:
 	var G = load("res://scripts/game/guide.gd")

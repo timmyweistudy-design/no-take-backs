@@ -32,9 +32,10 @@ run_combo() {
   local combo=$1 lang sc st d
   IFS=: read -r lang sc st <<< "$combo"
   d="$OUT/${lang}_${sc}${st:+_${st//,/-}}"; mkdir -p "$d"
-  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} --layout-check > "$d/run.log" 2>&1 \
+  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} ${LAYOUT_FIXED:+--shot-fixed} --layout-check > "$d/run.log" 2>&1 \
     || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0" >> "$FAILS"; kill_win "$d"; return; }
   grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤" >> "$FAILS"; return; }
+  grep -q "^SHOTFAIL" "$d/run.log" && { echo "LAYOUT FAIL：$lang $sc% 截圖存檔失敗：$(grep SHOTFAIL "$d/run.log" | head -3 | tr '\n' ' ')" >> "$FAILS"; return; }
   grep -q "PADWALK OK" "$d/run.log" || echo "LAYOUT FAIL：$lang $sc% 手把流程：$(grep PADWALK "$d/run.log" | cut -c1-400)" >> "$FAILS"
 }
 for combo in $COMBOS; do
@@ -71,6 +72,9 @@ for f2 in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
     got=[json.loads(l)['shot'] for l in open(f2,encoding='utf-8')]
     if sorted(got)!=sorted(names) or len(set(got))!=len(got):
         print('LAYOUT FAIL：%s 的畫面集合不對（少了 %s、多了 %s）' % (f2, sorted(names-set(got)), sorted(set(got)-names))); sys.exit(1)
+    pngs={p for p in os.listdir(os.path.dirname(f2)) if p.endswith('.png')}
+    if not names <= pngs:
+        print('LAYOUT FAIL：%s 缺圖檔 %s（JSONL 有、PNG 沒存出來）' % (os.path.dirname(f2), sorted(names-pngs)[:10])); sys.exit(1)
 by={}
 for d in rows: by.setdefault((d['lang'],d['scale']),[]).append(d['median_size'])
 print('LAYOUT 截圖 %d 張、違規 %d' % (len(rows), total))

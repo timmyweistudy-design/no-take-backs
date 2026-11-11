@@ -14,6 +14,7 @@ GAME = Path(__file__).resolve().parent.parent
 EXPECT = "4.6.2.stable"
 ERR = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|Failed to load script")
 PRE = re.compile(r'(?:preload|load)\(\s*"res://([^"]+\.(?:gd|json|csv))"|^extends\s+"res://([^"]+\.gd)"', re.M)   # V1.1（Codex v110-impl #3）：也追繼承鏈
+RES = re.compile(r'"res://([^"*%]+\.[A-Za-z0-9]+)"')   # 1.2.0：所有 res:// 字面路徑
 TEST_DONE = re.compile(r"^—— ([1-9]\d*) 通過 / 0 失敗", re.M)
 # 這些組會碰存檔（固定檔名、靜態狀態），放同一個行程
 STATEFUL = ["fantasy", "rules", "save", "ui", "modes"] + ["coach_lab", "share_codes", "reports_platform", "modes_live", "battle_visual"]   # 1.1.0 A4：v16／v161／v100 拆成功能組
@@ -28,9 +29,13 @@ def deps(entry: str, seen=None) -> set:
     if entry in seen or not (GAME / entry).is_file():
         return seen
     seen.add(entry)
-    if entry.endswith(".gd"):
-        for m in PRE.findall((GAME / entry).read_text(encoding="utf-8", errors="ignore")):
+    if entry.endswith(".gd") or entry.endswith(".gdshader"):
+        txt = (GAME / entry).read_text(encoding="utf-8", errors="ignore")
+        for m in PRE.findall(txt):
             deps(m[0] or m[1], seen)
+        # 1.2.0（Codex cat01 #2）：任何 res:// 字串常數（shader、字型、貼圖、音效、const 路徑）都算依賴
+        for m in RES.findall(txt):
+            deps(m, seen)
     return seen
 
 
@@ -356,10 +361,13 @@ def _finish(a, godot, out, steps, res, t0, fail, f_load, f_boot, gate):
                 for n in re.findall(r"^TIME (\S+) \d+", lg.read_text(encoding="utf-8", errors="ignore"), re.M):
                     seen.setdefault(n, []).append(s["name"])
         want = {fn for fns in suite_map().values() for fn in fns}
+        if not want:
+            return fail("讀不到 run_tests.gd 的 FILES（測試 ID 核對不能跳過）")
         missing = sorted(want - set(seen))
+        extra = sorted(set(seen) - want)
         dup = sorted(n for n, v in seen.items() if len(v) > 1)
-        if missing or dup:
-            return fail("測試 ID 聯集不對：漏跑 %s；重複 %s" % (missing[:10], [(n, seen[n]) for n in dup[:10]]))
+        if missing or dup or extra:
+            return fail("測試 ID 聯集不對：漏跑 %s；重複 %s；多出 %s" % (missing[:10], [(n, seen[n]) for n in dup[:10]], extra[:10]))
     if fp:
         (out / "fingerprint.txt").write_text(fp + "\n", encoding="utf-8", newline="\n")   # Windows 預設 CRLF，跨平台比對會假失敗
     wall = time.time() - t0

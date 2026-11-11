@@ -268,10 +268,18 @@ func test_wk_ghosts_v120() -> void:
 	g.wk_dl_state = "busy"
 	g._wk_dl_done(g0 - 1, [{"rank": 1, "score": 50, "units": [{"type": 0, "col": 2, "row": 4}]}])
 	ok(g.wk_dl_state == "busy", "過期回呼不改畫面")
-	g._wk_dl_done(g0, [{"rank": 1, "score": 50, "units": [{"type": 0, "col": 2, "row": 4}, {"type": 2, "col": 1, "row": 3}]}])
+	g._wk_dl_done(g0, [{"rank": 1, "score": 50, "units": [{"type": 0, "col": 13, "row": 4}, {"type": 2, "col": 14, "row": 3}]}])
 	ok(g.wk_dl_state == "ok" and g.wk_dl_list.size() == 1, "有資料：列出")
 	g._wk_dl_play(0)
-	ok(g.mode == g.Mode.VS_AI and g.challenge_army != null and g.challenge_army.team == 1 and g.challenge_army.units.size() == 2, "挑一個對戰：對手是鏡像後的玩家陣")
+	ok(g.mode == g.Mode.VS_AI and g.challenge_army != null and g.challenge_army.team == 1 and g.challenge_army.units.size() == 2 and int(g.challenge_army.units[0]["col"]) == 13, "挑一個對戰：對手是紅方視角的玩家陣")
+	# 上傳端：存的是紅方視角，解包收得下（V1.4 起存藍方、解包只收紅方，下載永遠是空的）
+	var ST = load("res://scripts/game/steam.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var mine = Armyx.new(0, 100)
+	mine.place(0, 2, 4)
+	mine.place(2, 1, 3)
+	var packed: PackedInt32Array = ST.pack_army(mine.mirrored().units)
+	ok(ST.unpack_army(packed).size() == 2, "自己的陣鏡像後打包，解包收得下")
 	g.free()
 
 ## 1.2.0 §15.3：掌機建議 30／60fps 兩版只差 fps_cap。
@@ -285,3 +293,34 @@ func test_handheld_presets_v120() -> void:
 	a.erase("fps_cap")
 	b.erase("fps_cap")
 	ok(a == b, "其他設定一樣")
+
+## 1.2.0 §15.4（Codex cat01）：走真的排行榜通道（假 Steam）：找榜 → 下載 3 筆 → 面板列出；另一次逾時 → 當空結果。
+func test_wk_ghosts_steam_v120() -> void:
+	var ST = load("res://scripts/game/steam.gd")
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	var fk := FakeLB.new()
+	ST.lb_reset()
+	ST._steam = fk
+	ST.now_ms = 1000
+	var wk: int = g.week_no(int(Time.get_unix_time_from_system()))
+	fk.names[11] = "weekly_%d" % wk
+	g._wk_dl_open()
+	ok(g.wk_dl_state == "busy" and fk.finds == ["weekly_%d" % wk], "有 Steam：找本週的榜、顯示下載中", str(fk.finds))
+	fk.emit_signal("leaderboard_find_result", 11, 1)
+	var det := func(t: int) -> Array: return [1, 2, t * 10000 + 13 * 100 + 4, 2 * 10000 + 14 * 100 + 3]   # 紅方視角（欄 10～15）
+	fk.emit_signal("leaderboard_scores_downloaded", "", 11, [
+		{"steam_id": 1, "score": 40, "global_rank": 1, "details": det.call(0)},
+		{"steam_id": 2, "score": 45, "global_rank": 2, "details": det.call(3)},
+		{"steam_id": 3, "score": 50, "global_rank": 3, "details": det.call(5)}])
+	ok(g.wk_dl_state == "ok" and g.wk_dl_list.size() == 3, "下載 3 筆就列 3 筆", "%s %d" % [g.wk_dl_state, g.wk_dl_list.size()])
+	# 逾時：當成空結果
+	g.overlay = "weekly"
+	g._wk_dl_open()
+	fk.emit_signal("leaderboard_find_result", 11, 1)
+	ST.now_ms = 1000 + ST.LB_TIMEOUT_MS + 10
+	ST.lb_tick()
+	ok(g.wk_dl_state == "empty", "下載逾時：顯示沒有資料（不會卡在下載中）", g.wk_dl_state)
+	ST._steam = null
+	ST.lb_reset()
+	g.free()

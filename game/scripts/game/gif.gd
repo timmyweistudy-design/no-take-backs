@@ -49,7 +49,7 @@ static func encode(frames: Array, delay_cs := 10, ctl := {}) -> PackedByteArray:
 	out.append_array(PackedByteArray([3, 1, 0, 0, 0]))
 	var fi := 0
 	for img in frames:
-		if bool(ctl.get("stop", false)):
+		if bool(ctl.get("stop", false)) or (ctl.has("until") and Time.get_ticks_msec() > int(ctl["until"])):   # 1.2.0（Codex cat01 #8）：期限也要生效
 			return PackedByteArray()
 		if ctl.has("done"):
 			ctl["done"] = fi   # 1.1.0 A14：已編好的格數（主執行緒讀來畫進度；鍵事先建好，只改值）

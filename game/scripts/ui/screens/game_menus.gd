@@ -777,9 +777,12 @@ func _draw_settings() -> void:
 		y0 += 60.0
 	elif settings_tab == 3:
 		# 1.1.0 E3：掌機建議（一鍵、先預覽、可撤回）
-		var hw := (SET_COL.size.x - 118.0 - 8.0) / 2.0
-		_btn(Rect2(SET_COL.position.x, y0, hw, 46), L.t("preset_hh30"), _apply_preset.bind(3), true, false, Color(0.2, 0.36, 0.5))   # 1.2.0 §15.3：30 省電／60 流暢兩顆
-		_btn(Rect2(SET_COL.position.x + hw + 8.0, y0, hw, 46), L.t("preset_hh60"), _apply_preset.bind(4), true, false, Color(0.2, 0.36, 0.5))
+		# 1.2.0 §15.3（Antigravity cat01 #4）：一顆「套用掌機配置」＋旁邊 30／60 二選一（不是兩顆一樣長的鈕）
+		var sw := 104.0
+		var aw := SET_COL.size.x - 118.0 - 2.0 * (sw + 8.0)
+		_btn(Rect2(SET_COL.position.x, y0, aw, 46), L.t("preset_hh"), func(): _apply_preset(4 if hh_fps == 60 else 3), true, false, Color(0.2, 0.36, 0.5))
+		_btn_small(Rect2(SET_COL.position.x + aw + 8.0, y0 + 4, sw, 38), L.t("preset_hh_30"), func(): hh_fps = 30, true, hh_fps == 30)
+		_btn_small(Rect2(SET_COL.position.x + aw + 16.0 + sw, y0 + 4, sw, 38), L.t("preset_hh_60"), func(): hh_fps = 60, true, hh_fps == 60)
 		if not preset_undo.is_empty():
 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
 		y0 += 60.0
@@ -825,6 +828,7 @@ func _draw_settings() -> void:
 
 ## ── V1.5 一鍵無障礙預設：直接改原本的設定（可疊加），存一份改之前的值讓「撤回」用 ──
 var preset_undo := {}
+var hh_fps := 30   # 1.2.0 §15.3：掌機配置要套 30 還是 60fps（二選一，預設省電）
 const PRESETS := [
 	{"text_scale": 150, "plain_titles": true, "text_plate": true, "focus_strong": true},
 	{"reduce_motion": true, "shake_pct": 0, "shake": false, "flash_pct": 0, "flash": false, "slowmo": false, "title_bg": "static", "clutch_zoom": false},

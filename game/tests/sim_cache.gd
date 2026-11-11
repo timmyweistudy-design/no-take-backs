@@ -3,7 +3,7 @@ extends RefCounted
 ## 鍵＝check.py 算好的核心雜湊（NTB_SIM_KEY：scripts/core/**、puzzles.gd、引擎版本）＋這一場的完整輸入（關卡資料、擺法、軍令）。
 ## 值＝結果摘要。防漏：
 ##  ・確定性與金標準測試不用這個（永遠實算）；
-##  ・每次命中，鍵雜湊落在 1/20 的固定抽樣就重算比對，不一致 → 回傳 {"cache_mismatch": true}，呼叫端要判失敗；
+##  ・每次命中隨機 5% 重算比對（每次跑抽到的不同，累積起來每個鍵都會被驗到），不一致 → 回傳 {"cache_mismatch": true}，呼叫端要判失敗；
 ##  ・沒設 NTB_SIM_CACHE_DIR、或 NTB_SIM_CACHE=0（check.py --no-cache／發版）就完全不用快取。
 
 static func _dir() -> String:
@@ -12,7 +12,10 @@ static func _dir() -> String:
 	return OS.get_environment("NTB_SIM_CACHE_DIR")
 
 static func _key(kind: String, payload: Variant) -> String:
-	return (OS.get_environment("NTB_SIM_KEY") + "|" + kind + "|" + JSON.stringify(payload)).sha256_text()
+	return (OS.get_environment("NTB_SIM_KEY") + "|v" + str(FORMAT) + "|" + kind + "|" + JSON.stringify(payload)).sha256_text()
+
+const FORMAT := 1   # 快取內容格式版本（改了值的內容就加一，舊檔自動失效；Codex cat01 #4）
+static var _rng: RandomNumberGenerator = null
 
 static var hits := 0
 static var misses := 0
@@ -29,7 +32,10 @@ static func cached(kind: String, payload: Variant, fn: Callable) -> Dictionary:
 		var got = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if got is Dictionary:
 			hits += 1
-			if k.hex_decode()[0] % 20 == 0:
+			if _rng == null:
+				_rng = RandomNumberGenerator.new()
+				_rng.randomize()   # 每次命中隨機抽 5%（不是固定的那 1/20 個鍵；Codex cat01 #4）
+			if _rng.randf() < 0.05:
 				verified += 1
 				var fresh: Dictionary = fn.call()
 				if JSON.stringify(JSON.parse_string(JSON.stringify(fresh))) != JSON.stringify(got):   # 走一次 JSON 再比（整數讀回來是 float）

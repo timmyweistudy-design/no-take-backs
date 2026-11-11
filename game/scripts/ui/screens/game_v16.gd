@@ -1255,6 +1255,33 @@ func _start_mode(m: int) -> void:
 	super._start_mode(m)
 	rift_on = keep_rift
 	trio_on = keep_trio
+	_prewarm_sprites()
+
+## 1.2.0（Antigravity cat01 #1）：圖集烘焙原本在開戰那一刻才觸發，分段後最長一幀 78 ms 會出現在戰鬥開頭。
+## 改成進擺陣就依兩邊卡池（含召喚物）預烘：擺陣時玩家在思考，分段烘焙藏在這段時間裡；開戰時 _ensure_sprites 只是確認（烘過的不重烘）。
+func _prewarm_sprites() -> void:
+	if sprites == null or armies.size() < 2:
+		return
+	var want := {}
+	for a in armies:
+		for t in D.total():
+			if int(a.pool) & (1 << t):
+				want[t] = true
+		for u in a.units:
+			want[int(u["type"])] = true
+	if want.has(F8.SLIME):
+		want[F8.MINI_SLIME] = true
+	if want.has(F8.BONE):
+		want[F8.SKELETON] = true
+	var need: Array = want.keys().filter(func(t): return int(t) >= D.COUNT)
+	if not need.is_empty():
+		sprites.ensure(need)   # 兵種頁：卡池裡的都烘（最多 5 頁，上限照舊）
+	var placed := {}
+	for a in armies:
+		for u in a.units:
+			placed[int(u["type"])] = true
+	if not placed.is_empty():
+		sprites.ensure_turn_atk(placed.keys())   # 轉身出手頁只烘已經在場上的（上限 10 種，不拿整個卡池去洗）
 
 ## ── #11 AI 對手人設 ──
 const Persona = preload("res://scripts/game/persona.gd")

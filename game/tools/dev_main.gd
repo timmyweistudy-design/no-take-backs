@@ -437,7 +437,8 @@ func _layout_report(name: String, img: Image = null) -> void:
 	f.close()
 
 
-var shot_only: Array = []   # 1.2.0 §14.4：--shot-only=a.png,b.png 只存這些（流程照跑）
+var shot_only: Array = []
+var shot_fixed := false   # 1.2.0：--shot-fixed＝視覺回歸模式（固定幀時間、固定亂數、橫幅拍穩定狀態）；一般版面檢查照真實時間跑（Codex cat01 #6）   # 1.2.0 §14.4：--shot-only=a.png,b.png 只存這些（流程照跑）
 func _snap(name: String) -> void:
 	if shot_only.is_empty():
 		for a0 in OS.get_cmdline_user_args():
@@ -446,20 +447,23 @@ func _snap(name: String) -> void:
 				break
 		if shot_only.is_empty():
 			shot_only = ["*"]
-	if not ("*" in shot_only) and not (name in shot_only):
-		return
+	var skip_save: bool = not ("*" in shot_only) and not (name in shot_only)   # 跳過的畫面照樣等待（不改變後面畫面的時序；Codex cat01 #6）
 	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)   # 真的被縮下去就還原，否則永遠等不到繪製
 	if shot_state.has("pad"):
 		pad_mode = true   # V1.2.1：手把焦點狀態（焦點框畫在目前的按鈕上）
-	if clutch_t > 0.0 and (clutch_t < 0.3 or clutch_t > 1.45):
+	if shot_fixed and clutch_t > 0.0 and (clutch_t < 0.3 or clutch_t > 1.45):
 		clutch_t = 0.8   # 1.2.0：截圖改固定幀時間後，暫停中的「最後時刻」橫幅停在剛觸發（1.6 倒數起點、透明度 0）；截圖一律拍完全顯示的穩定狀態
 	queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
+	if skip_save:
+		return
 	var img := get_viewport().get_texture().get_image()
-	img.save_png(shot_dir.path_join(name))
+	var serr := img.save_png(shot_dir.path_join(name))
+	if serr != OK:
+		print("SHOTFAIL ", name, " ", serr)   # 1.2.0（Codex cat01 #5）：存檔失敗不能默默通過
 	print("SHOT ", name)
 	if layout_probe:
 		_layout_report(name, img)
@@ -1387,7 +1391,9 @@ func _ready() -> void:
 	if capsule_path != "":
 		_capture_capsule.call_deferred()
 	elif shot_dir != "":
-		seed(20261111)   # 1.2.0 §14.6：截圖模式固定全域亂數（特效、待機錯開），視覺回歸要可重現
+		shot_fixed = "--shot-fixed" in OS.get_cmdline_user_args()
+		if shot_fixed:
+			seed(20261111)   # 1.2.0 §14.6：視覺回歸模式固定全域亂數（特效、待機錯開），同一份程式重拍要一致
 		_run_screenshots.call_deferred()
 	elif video_mode:
 		_run_video.call_deferred()

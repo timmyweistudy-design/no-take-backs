@@ -523,8 +523,8 @@ func _touch_tick(delta: float) -> void:
 		Input.vibrate_handheld(30)
 
 func _process_inner(delta: float) -> void:
-	if shot_dir != "":
-		delta = 1.0 / 60.0   # 1.2.0 §14.6：截圖模式用固定幀時間（視覺回歸要可重現，否則同一份程式每次截圖都有 0.3～4% 像素差）
+	if shot_dir != "" and bool(get("shot_fixed")):
+		delta = 1.0 / 60.0   # 1.2.0 §14.6：視覺回歸模式（--shot-fixed）用固定幀時間；一般版面檢查照真實時間（Codex cat01 #6）
 	_touch_tick(delta)
 	_pad_clear_tick()
 	_stick_repeat(delta)

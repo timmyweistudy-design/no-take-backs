@@ -67,8 +67,8 @@ static func decode(code: String) -> Dictionary:
 	var a0 := Army.new(0, int(j["ba"]))
 	var a1 := Army.new(1, int(j["bb"]))
 	var rules = null
-	if str(j["rules"]) != "":
-		var rd: Dictionary = RSET.from_code(str(j["rules"]))
+	if str(j.get("rules", "")) != "":   # 缺 rules 欄＝沒有自訂規則（不能越界取值；Codex cat01 #8）
+		var rd: Dictionary = RSET.from_code(str(j.get("rules", "")))
 		if not rd["ok"]:
 			return {"ok": false, "why": "rules"}
 		rules = rd["rules"]
@@ -84,9 +84,10 @@ static func decode(code: String) -> Dictionary:
 	if rules == null:
 		tp.armies[0].pool = int(j["p"][0])
 		tp.armies[1].pool = int(j["p"][1])
+	var used := {}   # 已經對到的「跳過」紀錄（每筆只能用一次；Codex cat01 #8）
 	for i in moves.size():
 		var mv = moves[i]
-		if not _apply(tp, mv):
+		if not _apply(tp, mv, used):
 			return {"ok": false, "why": "illegal", "at": i}
 	# 最後一手：玩家按「結束這一手」不會記成指令，補按到結束；按不下去（還買得起又沒擺）就是紀錄不完整
 	for _k in 24:
@@ -100,7 +101,7 @@ static func decode(code: String) -> Dictionary:
 	return {"ok": true, "why": "", "a0": tp.armies[0], "a1": tp.armies[1], "rules": rules, "moves": moves.size(), "mismatch": mismatch}
 
 ## 套用一筆紀錄；先把輪序推到紀錄寫的那一手（中間的「結束這一手」不記），推不過去或隊伍不對就不合法。
-static func _apply(tp, mv) -> bool:
+static func _apply(tp, mv, used: Dictionary = {}) -> bool:
 	if not mv is Array or mv.is_empty() or not mv[0] is String:
 		return false
 	var kind: String = mv[0]
@@ -113,8 +114,10 @@ static func _apply(tp, mv) -> bool:
 		return false
 	if kind == "s":
 		# 被跳過是 turn_placement 自己記的（沒位置或買不起）：重放時它會自己發生，這裡只核對確實記過
-		for c in tp.commands:
-			if c.get("skip", false) and int(c["team"]) == int(team) and int(c["turn"]) == int(turn):
+		for ci in tp.commands.size():
+			var c: Dictionary = tp.commands[ci]
+			if c.get("skip", false) and not used.has(ci) and int(c["team"]) == int(team) and int(c["turn"]) == int(turn):
+				used[ci] = true   # 逐筆消耗：同一筆跳過紀錄不能被兩筆輸入重複對上
 				return true
 		return false
 	for _k in 24:

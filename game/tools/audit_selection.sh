@@ -6,8 +6,10 @@
 set -u
 OUT=$(realpath -m "${1:-../build/tmp/audit}")
 rm -rf "$OUT"; mkdir -p "$OUT"
-python3 tools/check.py --out "$OUT/cached" </dev/null > "$OUT/cached.txt" 2>&1
-python3 tools/check.py --no-cache --out "$OUT/full" </dev/null > "$OUT/full.txt" 2>&1
+python3 tools/check.py --out "$OUT/cached" </dev/null > "$OUT/cached.txt" 2>&1; RC1=$?
+python3 tools/check.py --no-cache --out "$OUT/full" </dev/null > "$OUT/full.txt" 2>&1; RC2=$?
+# 1.2.0（Codex cat01 #2）：兩次都要成功；同樣失敗不能算「一致」
+if [ $RC1 -ne 0 ] || [ $RC2 -ne 0 ]; then echo "AUDIT FAIL：有快取 exit $RC1、全量 exit $RC2（兩次都要通過）"; tail -1 "$OUT/cached.txt"; tail -1 "$OUT/full.txt"; exit 1; fi
 python3 - "$OUT" <<'PY'
 import json, re, sys, os
 out = sys.argv[1]
@@ -22,6 +24,8 @@ def load(side):
     return res, d.get("fingerprint", "")
 c, fc = load("cached"); f, ff = load("full")
 bad = []
+if set(c) != set(f):
+    bad.append(f"步驟集合不同：只在有快取 {sorted(set(c)-set(f))}、只在全量 {sorted(set(f)-set(c))}")
 for n, v in f.items():
     if n not in c:
         bad.append(f"{n}：有快取那次沒有這一步")

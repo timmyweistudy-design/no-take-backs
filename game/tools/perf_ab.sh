@@ -4,7 +4,7 @@
 # 每輪跑 A B B A；兩邊都要先 --import 過（快照資料夾自己先匯入）。輸出每次的 json 與 summary.json／結論。
 set -u
 A=$(realpath "$1"); B=$(realpath "$2"); N=${3:-2}; OUT=$(realpath -m "$4")
-mkdir -p "$OUT"
+mkdir -p "$OUT"; rm -f "$OUT"/run_*.json "$OUT"/run_*.log "$OUT"/summary.json   # 1.2.0（Codex cat01 #7）：不能混到上一次的殘留輸出
 winpath() { if command -v wslpath >/dev/null 2>&1 && [[ "$GODOT" == *.exe ]]; then wslpath -w "$1"; else printf '%s' "$1"; fi; }
 i=0
 for r in $(seq 1 "$N"); do
