@@ -190,10 +190,11 @@ var font_bold: Font
 var font_title: Font          # 第五輪：標題字 UoqMunThenKhung（只用在 ≥H2 的粗體、沒有數字的字串）
 
 ## 第五輪字級表（§4.2）：基準 1280×800。只允許表內的值；125%／150% 非線性（大字少放大、內文多放大）。
+## 1.2.0 §3.1 字級表 2.0：整表放大一級（不縮字），新增 T「書名大字」（畫面主標，手寫字型）；D／DX 不變。
 const TYPE_SCALE := {
-	100: {"D": 64, "DX": 84, "H1": 32, "H2": 22, "B": 17, "S": 15, "C": 14},
-	125: {"D": 70, "DX": 92, "H1": 35, "H2": 26, "B": 21, "S": 18, "C": 17},
-	150: {"D": 70, "DX": 92, "H1": 35, "H2": 28, "B": 24, "S": 21, "C": 20},
+	100: {"D": 64, "DX": 84, "T": 44, "H1": 34, "H2": 24, "B": 18, "S": 16, "C": 15},
+	125: {"D": 70, "DX": 92, "T": 48, "H1": 38, "H2": 28, "B": 22, "S": 19, "C": 18},
+	150: {"D": 70, "DX": 92, "T": 48, "H1": 38, "H2": 30, "B": 25, "S": 22, "C": 21},
 }
 var sfx
 var state := St.TITLE
@@ -435,6 +436,9 @@ func _tnum(f: Font) -> Font:
 ## V1.2 A1：介面字＝「NTB Latin（Fredoka，英數、數字等寬）為主字型＋NTB Rounded（源泉圓體 TW）為後備」：
 ## 主字型只有拉丁字，中文自動落到後備，所以同一行裡英數用 Fredoka、中文用源泉圓體，不用拆段。
 func _load_fonts() -> void:
+	if str(Save.s("ui_font")) == "craft" and ResourceLoader.exists("res://fonts/NTBSans-R-sub.otf"):
+		_load_fonts_craft()
+		return
 	var reg := _load_font("res://fonts/NTBRounded-R-sub.otf")
 	var bold := _load_font("res://fonts/NTBRounded-B-sub.otf")
 	# V1.4 #17：簡中用 Resource Han Rounded CN、日文用源泉圓體 JP（都是 OFL 子集）；缺字再落到繁中字型
@@ -457,6 +461,31 @@ func _load_fonts() -> void:
 			tk = tk.duplicate()   # 切語言時不要改到共用的資源（Antigravity v140-i4）
 			tk.fallbacks = [bold]
 			font_title = tk if alt == "" else bold   # 標題字只有繁中字形，簡中、日文的標題用圓體粗體（字形才一致）
+
+
+## 1.2.0 §3.2：工藝風字型：正文 NTB Sans（思源黑體系，依語言 TC／SC／JP）＋英數 NTB Sans Latin（Source Sans 3），
+## 標題（H1 以上、印章、老闆便條）NTB Title（霞鶩文楷，四語都有字形）；缺字照舊落到正文 Bold。
+func _load_fonts_craft() -> void:
+	var alt: String = {"zh_CN": "SC", "ja": "JP"}.get(L.lang, "")
+	var reg := _load_font("res://fonts/NTBSans%s-R-sub.otf" % alt)
+	var bold := _load_font("res://fonts/NTBSans%s-B-sub.otf" % alt)
+	if alt != "":
+		var r0 := _load_font("res://fonts/NTBSans-R-sub.otf")
+		var b0 := _load_font("res://fonts/NTBSans-B-sub.otf")
+		if reg is FontFile and bold is FontFile:
+			reg = reg.duplicate()
+			bold = bold.duplicate()
+			reg.fallbacks = [r0]
+			bold.fallbacks = [b0]
+	font = _latin_over("res://fonts/NTBSansLatin-R-sub.ttf", reg)
+	font_bold = _latin_over("res://fonts/NTBSansLatin-B-sub.ttf", bold)
+	font_title = font_bold
+	if ResourceLoader.exists("res://fonts/NTBTitle-sub.ttf"):
+		var tt = load("res://fonts/NTBTitle-sub.ttf")
+		if tt is FontFile:
+			tt = tt.duplicate()
+			tt.fallbacks = [bold]
+			font_title = tt
 
 
 func _apply_fullscreen() -> void:
@@ -761,15 +790,29 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		_box(Rect2(rd.position, rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
 		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
 	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
-	last_btn_paper = paper_face
+	# 1.2.0 §1.3：沒有自訂色的一般按鈕＝山毛櫸木牌（墨色字）；主要按鈕＝朱漆木牌＋左側紅蠟封；停用＝褪色木牌
+	var plaque: bool = not paper_face and tint.a <= 0.0 and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+	last_btn_paper = paper_face or (plaque and not primary and enabled)
 	last_btn_enabled = enabled
-	if paper_face:
+	if plaque:
+		var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
+		if not enabled:
+			pt = Color(0.55, 0.5, 0.45, 0.8)
+		elif hover or focus:
+			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
+		_mat_box(rd, "plaque", pt)
+		if primary and enabled and rd.size.x >= 120.0:
+			var wx := _ui_tex(MAT["wax_red"])
+			if wx != null:
+				var ws := minf(rd.size.y + 8.0, 46.0)
+				draw_texture_rect(wx, Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws)), false)
+	elif paper_face:
 		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
 		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
 		_box(rd, Color(0, 0, 0, 0), TH_EDGE.darkened(0.25), 7.0, 1.5)
 	else:
 		_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
-	if (tint.a <= 0.0 or tint.a > 0.6) and not paper_face:
+	if (tint.a <= 0.0 or tint.a > 0.6) and not paper_face and not plaque:
 		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
 		draw_line(rd.position + Vector2(6, rd.size.y - 1.5), rd.end - Vector2(6, 1.5), Color(0, 0, 0, 0.3), 2.0)
 	if pressed:
@@ -804,8 +847,8 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	_probe_btn_rect = r
 	_probe_dis = not enabled
 	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色（紙面按鈕用墨色）
-	_ink_mode = paper_face
-	_text(rd.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else Color(1, 1, 1, 0.4), true, primary)   # V1.2.1：對按鈕面置中（扣掉下緣厚度），按下時字跟著下沉
+	_ink_mode = paper_face or (plaque and not primary and enabled)   # 1.2.0：淺色木牌用墨色字
+	_text(rd.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else (Color(0.2, 0.15, 0.1, 0.75) if plaque else Color(1, 1, 1, 0.4)), true, primary)   # V1.2.1：對按鈕面置中（扣掉下緣厚度），按下時字跟著下沉
 	_ink_mode = ink0
 	_probe_btn_label = false
 	_probe_dis = false
@@ -832,6 +875,16 @@ func _btn_shine(r: Rect2) -> void:
 
 ## V1.2 B3：材質貼圖（tools/gen/gen_ui_tex.py 生成）。木紋是灰階，用原本的底色染，配色不變、多了木紋與上亮下暗的斜角。
 const TEX_WOOD := "res://art/ui/wood.png"
+## 1.2.0 §1.3 元件庫 2.0 的材質（tools/gen/materials.py 產生，manifest：art/mat/manifest.json）
+const MAT := {"plaque": "res://art/mat/nine_plaque.png", "card1": "res://art/mat/nine_card1.png", "card2": "res://art/mat/nine_card2.png",
+	"card3": "res://art/mat/nine_card3.png", "walnut": "res://art/mat/tile_walnut.png", "tab_indigo": "res://art/mat/nine_tab_indigo.png",
+	"tab_madder": "res://art/mat/nine_tab_madder.png", "tab_linen": "res://art/mat/nine_tab_linen.png", "wax_red": "res://art/mat/wax_red.png"}
+const MAT_INSET := {"plaque": 3.0, "tab_indigo": 3.0, "tab_madder": 3.0, "tab_linen": 3.0, "card1": 6.0, "card2": 6.0, "card3": 7.0}   # 1.2.0：內容內距＝毛邊寬（不是 9 宮格邊界）
+const MAT_MARGIN := {"plaque": 14.0, "card1": 20.0, "card2": 20.0, "card3": 22.0, "tab_indigo": 13.0, "tab_madder": 13.0, "tab_linen": 13.0}
+## 憲法 3（禁純黑）：選單打開時的暗幕用暖暗墨色，不用 #000。
+const DIM_INK := Color("#1c130d")
+func _dim(a: float) -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, a))
 const TEX_FRAME := "res://art/ui/frame.png"
 const TEX_GROOVE := "res://art/ui/groove.png"
 const TEX_PAPER := "res://art/ui/paper.png"
@@ -896,6 +949,32 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 		# V1.2.1 F1：登記材質的內容內距（gen_ui_tex.py 的實際斜邊：木紋上 3／下 4／左右 3，紙 5，凹槽 3），字不能壓進去
 		var ins: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
 		probe_boxes.append({"r": r, "inner": r.grow_individual(-ins[0], -ins[1], -ins[2], -ins[3])})
+	return true
+
+## 1.2.0 §1.3：元件庫 2.0 的材質框（9 宮格或平鋪）。kind 見 MAT；回傳有沒有畫（缺圖就退回呼叫端的平塗）。
+func _mat_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
+	var tx := _ui_tex(MAT[kind])
+	if tx == null:
+		return false
+	tint = qcol(tint)
+	var k := "m|%s|%s" % [kind, tint.to_html()]
+	var sb: StyleBoxTexture = _sb_cache.get(k)
+	if sb == null:
+		_sb_room()
+		sb = StyleBoxTexture.new()
+		sb.texture = tx
+		var m: float = MAT_MARGIN.get(kind, 0.0)
+		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+			sb.set_texture_margin(side, m)
+		var tile: bool = not MAT_MARGIN.has(kind)
+		sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE if tile else StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		sb.axis_stretch_vertical = sb.axis_stretch_horizontal
+		sb.modulate_color = tint
+		_sb_cache[k] = sb
+	draw_style_box(sb, r)
+	if layout_probe and MAT_MARGIN.has(kind) and minf(r.size.x, r.size.y) >= 20.0:
+		var ins: float = MAT_INSET.get(kind, 4.0)   # 毛邊實際寬度（materials.py 的 edge 減 2px 透明）：字不能壓進去
+		probe_boxes.append({"r": r, "inner": r.grow(-ins)})
 	return true
 
 ## V1.2.1 F1：樣式快取的顏色量化（透明度 16 級、RGB 8 位元），鍵和實際樣式用同一個值。
@@ -1091,9 +1170,11 @@ func probe_panel(r: Rect2) -> void:
 
 func _panel(r: Rect2) -> void:
 	probe_panel(r)
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.62))
-	_box(r.grow(6), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)      # 陰影
+	_dim(0.62)
+	_box(Rect2(r.position + Vector2(5, 7), r.size).grow(4), Color(DIM_INK, 0.45), Color(0, 0, 0, 0), 14.0)      # 陰影（1.2.0：光源左上 → 影子往右下）
 	_box(r, PANEL, Color(0, 0, 0, 0), 10.0)
+	if not bool(Save.s("plain_ui")):
+		_mat_box(r.grow(-6), "walnut", Color(0.62, 0.6, 0.58))   # 1.2.0 §2：面板底是胡桃木紋（壓暗，字照樣看得清）
 	# V1.2 B3：深木外框＋四角銅釘（九宮格貼圖）；沒有貼圖時退回舊的細框
 	var fx := _ui_tex(TEX_FRAME)
 	if fx != null and not bool(Save.s("plain_ui")):

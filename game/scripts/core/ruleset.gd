@@ -151,6 +151,8 @@ static func standard(p: int = -1):
 func copy():
 	var r = load("res://scripts/core/ruleset.gd").new()
 	r.budget = budget.duplicate()
+	r.ext_skills = ext_skills   # 1.2.0 §8
+	r.synergy = synergy
 	r.handicap = handicap
 	r.ticks = ticks
 	r.unit_cap = unit_cap
@@ -445,6 +447,15 @@ func diff(std) -> Array:
 
 # ───────── 代碼 ─────────
 ## NTBR1.<base64url(JSON 陣列)>.<校驗 6 碼>；固定欄序、整數型別。
+## 1.2.0 §8：擴充規則 v1 的欄位（契約 docs/rules-ext-v1.md）。預設值時不寫進任何代碼（舊代碼位元組不變）；
+## 不是預設時的編碼（NTBR7／NTB8）在第 7 大類實作。
+const EXT_VERSION := 1
+var ext_skills := 0       # 位元：0 架盾、1 接拍、2 急救契約、3 火矢、4 迴馬
+var synergy := false      # 協同技（和相鄰陣法互斥）
+
+func ext_on() -> bool:
+	return ext_skills != 0 or synergy
+
 func to_code() -> String:
 	var j := JSON.stringify(key_fields())
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")

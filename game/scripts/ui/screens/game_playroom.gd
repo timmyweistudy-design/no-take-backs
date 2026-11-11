@@ -21,7 +21,7 @@ func _wager_new() -> void:
 	overlay = "wager"
 
 func _draw_wager() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var P := Rect2(160, 70, 960, 660)
 	_panel(P)
 	# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時下面整塊一起往下（dy）
@@ -147,7 +147,7 @@ func _draft_go() -> void:
 	_start_mode(Mode.VS_AI)
 
 func _draw_draft() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var P := Rect2(160, 80, 960, 640)
 	_panel(P)
 	var dy := maxf(0.0, _h1_help(Vector2(640, 92), L.t("pr_draft"), L.t("df_help"), tz("S"), 880) - 190.0)   # V1.5.2 L3
@@ -331,7 +331,7 @@ func _paint_pick(row: int, k: int) -> void:
 	_rebuild_sprites()
 
 func _draw_paint() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var P := Rect2(150, 60, 980, 680)
 	_panel(P)
 	_h1(Vector2(640, 72), L.t("paint_head"))
@@ -520,7 +520,7 @@ func _weekly_sync() -> void:
 		SteamApi.weekly_upload(int(rec["wk"]), int(rec["best"]), PackedInt32Array(rec.get("det", [])))
 
 func _draw_ghosts() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var gs := ghosts()
 	var beat: Array = Save.data.get("ghost_beat", [])
 	var help := L.t("gh_help", [beat.size(), gs.size()])
@@ -568,8 +568,11 @@ func _draw_ghosts() -> void:
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "playroom")
 
 func _draw_weekly() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
-	var P := Rect2(260, 120, 760, 540)
+	_dim(0.6)
+	# 1.2.0 字級表放大：底下說明在 150% 會換好幾行 → 按鈕列跟著說明實高往下、面板高度一起算（原本固定 540 會壓到按鈕）
+	var note_h := text_h(L.t("wk_note"), tz("C"), 680)
+	var by := maxf(604.0, 530.0 + 10.0 + note_h + GAP_M)
+	var P := Rect2(260, 120, 760, by + 44.0 + GAP_L - 120.0)
 	_panel(P)
 	_h1(Vector2(640, 132), L.t("wk_head"))
 	var wk := week_no(int(Time.get_unix_time_from_system()))
@@ -602,9 +605,9 @@ func _draw_weekly() -> void:
 	_text(Vector2(330, y), L.t("wk_best", [best]) if best > 0 else L.t("wk_none"), tz("S"), Color("#8e1b14") if best > 0 else Color("#5a4630"), false, true, 620)
 	_ink_mode = false
 	_text(Vector2(640, paper.end.y + 10), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
-	_btn(Rect2(360, 604, 160, 44), L.t("back"), func(): overlay = "playroom")
-	_btn(Rect2(560, 604, 160, 44), L.t("wk_dl"), func(): _wk_dl_open())   # 1.2.0 §15.4：玩家幽靈入口
-	_btn(Rect2(760, 604, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
+	_btn(Rect2(360, by, 160, 44), L.t("back"), func(): overlay = "playroom")
+	_btn(Rect2(560, by, 160, 44), L.t("wk_dl"), func(): _wk_dl_open())   # 1.2.0 §15.4：玩家幽靈入口
+	_btn(Rect2(760, by, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
 
 ## 1.2.0 §15.4：下載本週玩家幽靈（排行榜前 20 名的陣型，SteamApi.ghost_fetch）。原本只有程式、沒有畫面入口。
 ## 狀態：offline（沒有 Steam）／busy（下載中）／empty（本週沒人上傳）／ok（列前幾名，可挑一個對戰）。回呼可能在離開後才到：只在頁面還開著時更新。
@@ -645,7 +648,7 @@ func _wk_dl_play(i: int) -> void:
 	_toast(L.t("wk_dl_go", [int(wk_dl_list[i]["rank"])]))
 
 func _draw_wk_ghosts() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var rowh := 52.0
 	var n := maxi(1, wk_dl_list.size())
 	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + n * (rowh + GAP_S) + GAP_L + 44.0 + GAP_L)
@@ -717,7 +720,7 @@ func _ga_info_lines() -> Array:
 	return out
 
 func _draw_ga_info() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var P := Rect2(220, 110, 840, 560)
 	_panel(P)
 	_h1(Vector2(640, 122), L.t("ga_info"))

@@ -284,7 +284,7 @@ func _draw_overlay() -> void:
 		probe_ctrls.clear()
 		probe_reset_geom()
 		if state == St.TITLE:
-			draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.72))   # 第七輪：標題的示範戰場不透出來
+			_dim(0.72)   # 第七輪：標題的示範戰場不透出來
 	match overlay:
 		"trials":
 			_draw_trials()
@@ -379,9 +379,9 @@ func _draw_overlay() -> void:
 			var list: Array = PZ.tutorials() if tut else chap
 			var stars: Dictionary = Save.data.get("puzzle_stars", {})
 			# V1.5.2 L10：面板上移 20（底不變），章節切換列從緞帶完整下緣＋16 起排（150% 原本緞帶尾壓到切換鈕）
-			_panel(Rect2(240, 90, 800, 600))
+			_panel(Rect2(240, 56, 800, 672))   # 1.2.0 字級表放大：面板上移加高（英文 150% 兩行關名放得下）
 			probe_skip("R4", "三段式底列：左＝總星數文字、中＝返回（置中）、右＝只看未滿星開關")
-			var hb := _h1(Vector2(640, 90), L.t("menu_tutorial") if tut else L.t("puzzle_title"), 600)   # V1.2：和圖鑑、大廳同款標題緞帶（Antigravity impl3）
+			var hb := _h1(Vector2(640, 56), L.t("menu_tutorial") if tut else L.t("puzzle_title"), 600)   # V1.2：和圖鑑、大廳同款標題緞帶（Antigravity impl3）
 			var y0 := 210.0
 			var cy := hb + GAP_L
 			var idx: Array = []
@@ -403,13 +403,13 @@ func _draw_overlay() -> void:
 				var story: String = L.field(info, "story")
 				_text(Vector2(640, cy + 4 + tz("B") * 1.5), story, tz("C"), TXT_DIM, true, false, 700)
 				y0 = cy + 4 + tz("B") * 1.5 + text_h(story, tz("C"), 700) + GAP_M
-				_text(Vector2(280, 648), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), TXT_DIM, false, false, 260)
+				_text(Vector2(280, 690), L.t("puzzle_all_stars", [all_total, PZ.all_puzzles().size() * 3]), tz("C"), TXT_DIM, false, false, 260)
 				if chapter_sealed(chap, stars):
-					_wax_seal(Vector2(760, 658), 17.0)   # 1.1.0 A10：這章全部三星＝火漆印（只是裝飾，不改任何紀錄）
-				_btn(Rect2(800, 640, 200, 36), ("✓ " if puzzle_only_open else "") + L.t("puzzle_only_open"), func(): puzzle_only_open = not puzzle_only_open)
+					_wax_seal(Vector2(760, 700), 17.0)   # 1.1.0 A10：這章全部三星＝火漆印（只是裝飾，不改任何紀錄）
+				_btn(Rect2(800, 682, 200, 36), ("✓ " if puzzle_only_open else "") + L.t("puzzle_only_open"), func(): puzzle_only_open = not puzzle_only_open)
 				if puzzle_only_open:
 					idx = idx.filter(func(k): return int(stars.get(list[k]["id"], 0)) < 3)
-			var step: float = minf(82.0, (632.0 - y0) / 5.0)
+			var step: float = minf(82.0, (674.0 - y0) / 5.0)
 			for k in idx.size():
 				var i: int = idx[k]
 				var pz: Dictionary = list[i]
@@ -450,7 +450,7 @@ func _draw_overlay() -> void:
 						and note_y >= 8.0 + tz("S") * 1.25:   # 標題下面放得下才畫（英文 150% 卡片矮，不畫備註）
 					_probe_btn_label = true
 					_probe_btn_rect = r
-					_text(r.position + Vector2(62, note_y), note, tz("C"), Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)
+					_text(r.position + Vector2(62, note_y), note, tz("C"), Color("#6b3a12") if last_btn_paper else Color(1, 0.9, 0.6, 0.85), false, false, r.size.x - 132)   # 1.2.0：淺色木牌／紙面上用深棕
 					_probe_btn_label = false
 				# 主角兵種小頭像（R6）：這關第一個可用的兵種
 				_mini_formation(Rect2(r.position + Vector2(6, 6), Vector2(52, 56)), pz, en)   # 迷你敵陣縮圖（第三輪 U4）
@@ -461,7 +461,7 @@ func _draw_overlay() -> void:
 				var fr := Rect2(280 + (list.size() % 2) * 370, 210 + (list.size() / 2) * 82, 350, 68)
 				_btn(fr, ("✓ " if bool(Save.data.get("free_intro_done", false)) else "") + L.t("intro_btn"), func(): _start_free_intro(), true, false,
 					Color(0.15, 0.32, 0.22) if bool(Save.data.get("free_intro_done", false)) else Color(0, 0, 0, 0))
-			_btn(Rect2(560, 640, 160, 36), L.t("back"), func(): _nav_back())
+			_btn(Rect2(560, 682, 160, 36), L.t("back"), func(): _nav_back())
 		"lobby":
 			_draw_lobby()
 		"settings":
@@ -551,7 +551,7 @@ func _draw_fs_confirm() -> void:
 	if left <= 0.0:
 		_fs_revert()
 		return
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var P := Rect2(390, 280, 500, 240)
 	_panel(P)
 	_text(Vector2(640, P.position.y + 40), L.t("fs_keep_q", [ceili(left)]), tz("B"), Color.WHITE, true, false, 440)
@@ -560,7 +560,7 @@ func _draw_fs_confirm() -> void:
 
 ## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
 const SET_KEYS := {"set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
-	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
+	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
 	"set_speed": ["speed"], "set_hp_bars": ["hp_bars"], "set_dmg_nums": ["dmg_nums"], "set_reduce_fx": ["reduce_fx"], "set_clutch_zoom": ["clutch_zoom"], "set_slowmo": ["slowmo"],
@@ -621,6 +621,7 @@ func _settings_rows() -> Array:
 				["set_paint", "@" + L.t("open_it"), func(d): call("_paint_open")]]
 		1:
 			return [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
+				["set_ui_font", _optv("ui_font", ["classic", "craft"], ["v_font_classic", "v_font_craft"]), func(d): _cycle_setting("ui_font", ["classic", "craft"]); _load_fonts()],   # 1.2.0 §3.2
 				["set_text", "%d%%" % int(Save.s("text_scale")), func(d): _step_setting("text_scale", [100, 125, 150], d)],
 				["set_hints", _optv("hints", ["full", "key", "off"], ["v_full", "v_key", "v_off"]), func(d): _step_setting("hints", ["full", "key", "off"], d)],
 				["set_plain_titles", _onoff("plain_titles"), func(d): _cycle_setting("plain_titles", [false, true])],
@@ -753,7 +754,7 @@ func _draw_settings() -> void:
 	# 預設三鈕＋撤回整組放在中欄內（撤回原本 880～990 被說明欄蓋住 80px）
 	probe_axis(SET_COL.get_center().x)
 	probe_columns("settings", [Rect2(110, 150, 230, 560), SET_COL, SET_DESC])
-	_h1(Vector2(640, 96), L.t("settings_title"))
+	_h1(Vector2(640, 92), L.t("settings_title"))   # 1.2.0：H1 字級放大 3px，緞帶上移保持和第一列的間距（R2）
 	for i in SET_TABS:
 		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
@@ -968,7 +969,7 @@ func confirm_text() -> String:
 	return confirm_msg
 
 func _draw_confirm() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var t := confirm_text()
 	var sz := fit(t, tz("B"), 540)   # _text 會先在字級表內縮到放得下最長一行，高度要用縮完的字級算
 	var P := modal_rect(600, maxf(220.0, 40.0 + text_h(t, sz, 540) + GAP_XL + 50.0 + 22.0))
@@ -1081,7 +1082,7 @@ func _after_data_swap() -> void:
 	_rebuild_sprites()
 
 func _draw_restore() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	# V1.5.2 L3／L7：說明從緞帶下緣＋16 起、面板高度照內容（沒有備份時不留 500px 空白）、水平置中
 	var lst := backup_list()
 	var n := mini(10, lst.size())   # 留的 10 份都選得到
@@ -1099,7 +1100,7 @@ func _draw_restore() -> void:
 const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	# V1.5.2 L3／L7／L8：說明從緞帶下緣＋16 起、面板照內容高、底部雙按鈕同寬置中
 	var P := modal_rect(620, 12.0 + h1_help_h(L.t("clear_help"), tz("S"), 560) + CLEAR_KEYS.size() * 58.0 - 8.0 + GAP_XL + 44.0 + GAP_L)
 	_panel(P)
@@ -1396,22 +1397,29 @@ func hub_items(kind: String) -> Array:
 	return []
 
 func _draw_hub(kind: String) -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.55))
+	_dim(0.55)
 	nav_stack.clear()   # 回到卡片面板＝堆疊重來
 	var items := hub_items(kind)
 	var cols := 4 if items.size() > 6 or items.size() == 4 else 3   # V1.6：7 張以上兩列四欄（三列在 150% 放不下）；V1.0.0：剛好 4 張排一列
-	var cw := 236.0
-	# 卡片高度照最長的說明算（不再固定 196，日文／英文 150% 說明會被切掉）
-	var ch := 160.0
-	for it0 in items:
-		ch = maxf(ch, 82.0 + tz("B") * 1.6 + text_h(L.t(str(it0[1])), tz("C"), cw - 32) + 14.0)
 	var rows := ceili(items.size() / float(cols))
 	# V1.5.2 L1：模態面板水平置中；卡片群在面板內置中；卡片從緞帶完整下緣＋GAP_L 起排
 	var head := ceilf(h1_bottom(12.0) + GAP_L)
 	var rec := hub_note(kind)   # V1.0.0：遊戲間底下的紀錄（眼力分、車輪戰最佳）
 	var rec_h := (text_h(rec, tz("S"), 960.0) + GAP_M) if rec != "" else 0.0
-	var ph := head + rows * (ch + 14.0) - 14.0 + GAP_L + rec_h + 44.0 + GAP_L
+	var cw := 236.0
 	var pw := 800.0 if cols == 3 else 1040.0
+	var ch := 160.0
+	var ph := 0.0
+	# 卡片高度照最長的說明算；1.2.0 字級表放大後兩列在 150% 會超出畫面 → 先試加寬卡片（說明換行變少）再算高度
+	for cw_try in [236.0, 278.0]:
+		cw = cw_try
+		ch = 160.0
+		for it0 in items:
+			ch = maxf(ch, 82.0 + tz("B") * 1.6 + text_h(L.t(str(it0[1])), tz("C"), cw - 32) + 14.0)
+		ph = head + rows * (ch + 14.0) - 14.0 + GAP_L + rec_h + 44.0 + GAP_L
+		pw = (800.0 if cols == 3 else 1040.0) + (cw - 236.0) * cols
+		if ph <= 768.0:
+			break
 	var P := Rect2((1280.0 - pw) * 0.5, clampf((800.0 - ph) * 0.5, 16.0, 120.0), pw, maxf(ph, 300.0))
 	_panel(P)
 	_h1(Vector2(P.get_center().x, P.position.y + 12), L.t({"hub_play": "home_play", "hub_gauntlet": "menu_gauntlet", "hub_challenge": "home_challenge", "hub_collect": "home_collect", "playroom": "menu_playroom"}.get(kind, "home_play")))

@@ -204,13 +204,20 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 		var lab := str(m["label"])
 		var w: float = ui._width(lab, fs) + 8
 		var lx := clampf(x - w / 2, rect.position.x, rect.end.x - w)
+		# 1.2.0：用兩段區間比重疊（原本只用目前這段的寬度，前一段比較長時會漏判 → 字級放大後疊字）；每排各自記
 		var row := 0
-		for u in used:
-			if absf(u - lx) < w + 6:
-				row += 1
+		while row < 2:
+			var hit := false
+			for u in used:
+				if int(u[2]) == row and lx < float(u[0]) + float(u[1]) + 6.0 and float(u[0]) < lx + w + 6.0:
+					hit = true
+					break
+			if not hit:
+				break
+			row += 1
 		if row > 1:
 			continue   # 最多兩排標籤（上方只留了兩排空間）
-		used.append(lx)
+		used.append([lx, w, row])
 		ui.draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y), Color("#ffd166"), 1.5)
 		ui._text(Vector2(lx, rect.position.y - fs * 1.5 * (row + 1)), lab, fs, Color("#ffd166"))   # V1.2.1 B4：兩排拉開（原 1.35 只差 2px）
 		shown += 1

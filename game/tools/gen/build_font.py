@@ -124,3 +124,33 @@ if os.path.exists(tk_src):
     print("ThenKhung", len(text) - len(missing), "字（原字型沒有 %d 字，由介面字型補）" % len(missing), os.path.getsize(out) // 1024, "KB")
 else:
     print("（沒有 ThenKhung-Regular.ttf，略過標題字）")
+
+# ── 1.2.0 §3.2：工藝風字型（設定「介面字型＝工藝」時用；經典＝上面的圓體＋Fredoka＋ThenKhung，保留可切換）──
+# 正文：思源黑體系 Noto Sans TC／SC／JP（OFL）→ 改名 NTB Sans；英數：Source Sans 3（OFL）→ NTB Sans Latin；
+# 標題與印章、老闆便條：霞鶩文楷 LXGW WenKai Medium（OFL，有保留字型名稱 → 子集化後一定要改名 NTB Title）。
+def _sub(src_path, out_path, chars, family, style):
+    if not os.path.exists(src_path):
+        print("（沒有", os.path.basename(src_path), "，略過）")
+        return
+    opts = subset.Options()
+    opts.layout_features = ["*"]
+    opts.name_IDs = ["*"]
+    sub = subset.Subsetter(opts)
+    f = subset.load_font(src_path, opts)
+    sub.populate(text=chars)
+    sub.subset(f)
+    _rename(f, family, style)
+    subset.save_font(f, out_path, opts)
+    print(family, style, os.path.getsize(out_path) // 1024, "KB")
+
+for tag, col, srcs in [("", None, ("NotoSansTC-Regular.otf", "NotoSansTC-Bold.otf")),
+                       ("SC", "zh_CN", ("NotoSansSC-Regular.otf", "NotoSansSC-Bold.otf")),
+                       ("JP", "ja", ("NotoSansJP-Regular.otf", "NotoSansJP-Bold.otf"))]:
+    chars = text if col is None else fontchars.lang_text(root, col)
+    for w, sn in zip(("R", "B"), srcs):
+        _sub(os.path.join(src, sn), os.path.join(root, "fonts", f"NTBSans{tag}-{w}-sub.otf"), chars, ("NTB Sans " + tag).strip(), "Bold" if w == "B" else "Regular")
+latin2 = "".join(chr(c) for c in range(0x20, 0x7F)) + "×÷±%‰°•·…–—‘’“”"
+for w, sn in [("R", "SourceSans3-Regular.ttf"), ("B", "SourceSans3-Semibold.ttf")]:
+    _sub(os.path.join(src, sn), os.path.join(root, "fonts", f"NTBSansLatin-{w}-sub.ttf"), latin2, "NTB Sans Latin", "Bold" if w == "B" else "Regular")
+_all = text + fontchars.lang_text(root, "zh_CN") + fontchars.lang_text(root, "ja")
+_sub(os.path.join(src, "LXGWWenKai-Medium.ttf"), os.path.join(root, "fonts", "NTBTitle-sub.ttf"), "".join(sorted(set(_all))), "NTB Title", "Medium")

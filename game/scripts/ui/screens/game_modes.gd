@@ -183,7 +183,7 @@ func _draw_trials() -> void:
 		tot += int(stars.get(str(k0), 0))
 	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
 	var cw := 524.0
-	var ch := 98.0
+	var ch := 98.0   # 1.2.0 §3.1 字級表放大後：卡片高度不能再加（5 列塞滿面板），改收行距（1.4→1.25、1.35→1.2）
 	for k in TRIAL_PAGE:
 		var i: int = trial_page * TRIAL_PAGE + k
 		if i >= TRIALS.size():
@@ -207,10 +207,10 @@ func _draw_trials() -> void:
 		var line2: String = "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), diff]
 		if x.has("tag_zh"):
 			line2 = L.t("name_sep_fmt", [L.field(x, "tag"), diff])
-		_text(r.position + Vector2(154, 8 + tz("B") * 1.4), line2, tz("C"), TXT_DIM if last_btn_enabled else Color(TXT_DIM, 0.4), false, false, cw - 160)
+		_text(r.position + Vector2(154, 8 + tz("B") * 1.25), line2, tz("C"), TXT_DIM if last_btn_enabled else Color(TXT_DIM, 0.4), false, false, cw - 160)
 		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
 		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
-		var cy0: float = r.position.y + 8 + tz("B") * 1.4 + tz("C") * 1.35
+		var cy0: float = r.position.y + 8 + tz("B") * 1.25 + tz("C") * 1.2
 		var cx0: float = r.position.x + 154
 		_icon("heart", Vector2(cx0 + 9, cy0 + tz("C") * 0.62), 16.0, acol)
 		var c1s := "≥%d%%" % trial_rem(i)
@@ -457,7 +457,7 @@ func _relay_make() -> void:
 	_toast(L.t("ws_copied"))
 
 func _draw_relay() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var P := Rect2(170, 40, 940, 700)   # V1.5.2：面板上緣提到 40、緞帶跨上緣，日文 150% 說明三行時不壓到右欄「已改 n／2 格」
 	_panel(P)
 	_h1_help(Vector2(640, 40), L.t("rl_title", [int(PZ.get_puzzle("ws").get("relay", 0)) + 1]), L.t("rl_help"), tz("S"), 860)   # V1.5.2 L3
@@ -776,7 +776,7 @@ func _ga_event_desc(k: int) -> String:
 	return L.t(GA_EVENTS[k] + "_d")
 
 func _draw_reward() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var P := Rect2(240, 96, 800, 624)
 	_panel(P)
 	_h1(Vector2(640, 108), L.t("rw_title"))
@@ -1087,7 +1087,7 @@ func _puzzle_hint_text() -> String:
 	return L.t("hint_main", [L.t("unit_%d" % top)]) if who == "" else L.t("hint_counter", [L.t("unit_%d" % top), who])
 
 func _draw_puzzle_hint() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.75))   # V1.1 C4：底下的兵與格線不干擾閱讀
+	_dim(0.75)   # V1.1 C4：底下的兵與格線不干擾閱讀
 	var pz := PZ.get_puzzle(puzzle_id)
 	var w := 620.0
 	var x := 330.0
@@ -1292,7 +1292,7 @@ func _nemesis_army(i: int):
 	return e
 
 func _draw_nemeses() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	# V1.5.2 L3／L7：清單從緞帶下緣＋16 起；面板照筆數算高（空時不留 500px 空白；滿 6 筆時長高到不碰返回鈕）
 	var list: Array = Save.data.get("nemeses", [])
 	var n_rows := mini(list.size(), NEM_MAX)

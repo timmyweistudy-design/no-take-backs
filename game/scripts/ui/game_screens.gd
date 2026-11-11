@@ -69,6 +69,8 @@ func _ready() -> void:
 				Save.settings["plain_ui"] = true
 			if shot_state.has("cb"):
 				Save.settings["colorblind"] = true
+			if shot_state.has("craft"):
+				Save.settings["ui_font"] = "craft"   # 1.2.0 §3.2：工藝字型的 A／B 截圖
 	L.lang = Save.s("lang")
 	duel_rule = Save.s("duel_rule")
 	speed = float(Save.s("speed"))

@@ -725,7 +725,7 @@ func _hl_go(t: int) -> void:
 	call("_seek_async", maxi(0, t - 20))
 
 func _draw_share() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	_dim(0.6)
 	var hl := _highlights()
 	var sol_ok: bool = mode == Mode.PUZZLE and puzzle_id != "ws" and (Save.data.get("pz_sol", {}) as Dictionary).has(puzzle_id) \
 		and load("res://scripts/game/solution_code.gd").entry_valid(puzzle_id, Save.data["pz_sol"][puzzle_id])   # 1.1.0 N5；不合法的舊紀錄不給分享（Codex v110-i3 #1）
@@ -1681,10 +1681,13 @@ var ed_target := Vector2i(-1, -1)   # V1.6.1 A2：作者指定的目標（斬首
 var ed_pick := false               # 正在點選目標
 var ed_foe_i := 0                  # V1.6.1 D2：三考題正在編第幾支敵陣
 var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
-const ED_CS := 32.0
+const ED_CS0 := 32.0
+## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
+func ed_cs() -> float:
+	return {100: 32.0, 125: 28.0, 150: 26.0}.get(int(Save.s("text_scale")), ED_CS0)
 
 func _ed_rect() -> Rect2:
-	return Rect2(640 - 8 * ED_CS, 150, 16 * ED_CS, 9 * ED_CS)
+	return Rect2(640 - 8 * ed_cs(), 150, 16 * ed_cs(), 9 * ed_cs())
 
 func ed_lists() -> Array:
 	var e: Array = []
@@ -1761,7 +1764,7 @@ func _ed_switch_foe(i: int) -> void:
 	ed_msg = ""
 
 func _draw_editor() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.7))
+	_dim(0.7)
 	var P := Rect2(80, 40, 1120, 720)
 	_panel(P)
 	probe_skip("R6", "小棋盤是直接畫的格子（不經版面探針），看起來的空白其實是棋盤")
@@ -1772,34 +1775,34 @@ func _draw_editor() -> void:
 	draw_rect(G, Color(0.42, 0.5, 0.28))
 	for cx in 16:
 		for cy in 9:
-			var r := Rect2(G.position + Vector2(cx, cy) * ED_CS, Vector2(ED_CS, ED_CS))
+			var r := Rect2(G.position + Vector2(cx, cy) * ed_cs(), Vector2(ed_cs(), ed_cs()))
 			if cx > 5 and cx < 10:
 				draw_rect(r, Color(0, 0, 0, 0.35))
 			draw_rect(r, Color(0, 0, 0, 0.2), false, 1.0)
 			var k := Vector2i(cx, cy)
 			if ed_cells.has(k):
-				Art.unit(self, r.position + Vector2(ED_CS / 2, ED_CS * 0.82), int(ed_cells[k]), 0 if cx <= 5 else 1, 1.0 if cx <= 5 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+				Art.unit(self, r.position + Vector2(ed_cs() / 2, ed_cs() * 0.82), int(ed_cells[k]), 0 if cx <= 5 else 1, 1.0 if cx <= 5 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
 				if k == ed_target:
 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
 					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
 			if cx <= 5 or cx >= 10:
 				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true})
-	_text(G.position + Vector2(3 * ED_CS, -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ED_CS)
+	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
 	if WS3.ED_GOALS[ed_goal] == "trio":
 		# 三考：敵陣 1／2／3 分頁（欄標的位置）
 		for fi in 3:
 			var ffi := fi
-			_btn_small(Rect2(G.position + Vector2(10 * ED_CS + fi * 2 * ED_CS, -tz("C") * 1.6 - 6), Vector2(2 * ED_CS - 4, tz("C") * 1.5 + 4)), L.t("ed_foe_n", [fi + 1]), func(): _ed_switch_foe(ffi), true, false, TH_ACTIVE if ed_foe_i == fi else Color(0, 0, 0, 0))
+			_btn_small(Rect2(G.position + Vector2(10 * ed_cs() + fi * 2 * ed_cs(), -tz("C") * 1.6 - 6), Vector2(2 * ed_cs() - 4, tz("C") * 1.5 + 4)), L.t("ed_foe_n", [fi + 1]), func(): _ed_switch_foe(ffi), true, false, TH_ACTIVE if ed_foe_i == fi else Color(0, 0, 0, 0))
 	else:
-		_text(G.position + Vector2(13 * ED_CS, -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ED_CS)
+		_text(G.position + Vector2(13 * ed_cs(), -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ed_cs())
 	y = G.end.y + GAP_M
 	# 兵種調色盤（20 種，兩排）
 	for t in 20:
-		var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 52.0, 92, 48)
+		var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 48.0, 92, 44)   # 1.2.0：列高 52→48（150% 放得下）
 		_btn(pr, "", func(): ed_type = t, true, false, TH_ACTIVE if ed_type == t else Color(0, 0, 0, 0))
 		Art.unit(self, pr.position + Vector2(24, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
 		_text(pr.position + Vector2(46, 14), "%dg" % D.cost(t), tz("C"), Color.WHITE, false, true, 44)
-	y += 2 * 52.0 + GAP_S
+	y += 2 * 48.0 + GAP_S
 	var l := ed_lists()
 	var gold := [0, 0]
 	for i in 2:

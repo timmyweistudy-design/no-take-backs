@@ -10,7 +10,11 @@
 | Resource Han Rounded CN Regular/Bold（Cyano Hao，衍生自 Adobe Source Han Sans，保留名稱 Source） | 簡體中文介面字型（V1.4 #17） | https://github.com/CyanoHao/Resource-Han-Rounded v0.990 | SIL OFL 1.1 | 子集化並改內部名稱為 NTB Rounded SC | 製作名單；`game/licenses/ResourceHanRounded-OFL.txt` |
 | Fredoka（The Fredoka Project Authors） | 介面英數字型（V1.2） | https://github.com/google/fonts/tree/main/ofl/fredoka | SIL OFL 1.1 | 可變字型實例化 wght 500／650、子集化為拉丁字、0～9 字寬統一並置中、內部名稱改 NTB Latin | 製作名單；`game/licenses/Fredoka-OFL.txt` 隨遊戲附上 |
 | UoqMunThenKhung Regular | 標題字型（≥22px 粗體標題） | https://github.com/MoonlitOwen/ThenKhung | SIL OFL 1.1 | 子集化（`tools/gen/build_font.py`），字形未修改；本專案從 timmy-project 取得原檔 | 製作名單；`game/fonts/OFL-ThenKhung.txt` 隨遊戲附上 |
+| Noto Sans CJK（Noto Sans TC／SC／JP Regular、Bold；Google、Adobe） | 介面字型「工藝」的中日文正文（1.2.0） | https://github.com/notofonts/noto-cjk | SIL OFL 1.1（`game/licenses/OFL-NotoCJK.txt`） | 子集化、改名 NTB Sans | 製作名單 |
+| Source Sans 3（Adobe） | 介面字型「工藝」的英數（1.2.0） | https://github.com/adobe-fonts/source-sans | SIL OFL 1.1（`game/licenses/OFL-SourceSans3.txt`） | 子集化、改名 NTB Sans Latin | 製作名單 |
+| 霞鶩文楷 LXGW WenKai Medium（LXGW；衍生自 Klee One） | 介面字型「工藝」的標題、印章、老闆便條（1.2.0） | https://github.com/lxgw/LxgwWenKai | SIL OFL 1.1，保留字型名稱「霞鶩／LXGW」等（`game/licenses/OFL-LXGWWenKai.txt`） | 子集化、改名 NTB Title（不使用保留名稱） | 製作名單 |
 | Cainos「Pixel Art Top Down - Basic」草地 tileset、樹叢 | 戰場地面、兩側裝飾 | https://cainos.itch.io/pixel-art-top-down-basic | 作者條款：可商用、可修改、不得轉賣素材本身；署名非必要 | 樹叢自動裁切成單張 | 製作名單（作者表示「感謝但非必要」） |
+| ambientCG 材質原稿：Paper001、Paper006、Wood051、Wood066、Wood092、Wood094、Fabric036（1K-JPG Color） | 介面紙卡、木牌、布標、桌面、棋盤的材質（`game/art/mat/tile_*`、`nine_*`） | https://ambientcg.com | CC0 1.0（公眾領域，可商用、可修改、不需署名） | `tools/gen/materials.py` 調色到色票、縮放、加毛邊遮罩；原稿不隨遊戲散布 | 製作名單（自願致謝） |
 | GodotSteam GDExtension 4.23.2 | Steam 成就、雲端、Remote Play（`game/addons/godotsteam/`，只放 win64、linux64） | https://codeberg.org/godotsteam/godotsteam | MIT | 刪掉用不到的平台與編輯器更新器、精簡 `.gdextension` | `game/licenses/GODOTSTEAM_LICENSE.md` |
 | Steamworks API（`steam_api64.dll`、`libsteam_api.so`） | 隨 GodotSteam | Valve Steamworks SDK | Steamworks SDK 授權：上架 Steam 的遊戲可以附帶 | 無 | 不需要 |
 | 角色、特效 | 全部單位 | 本作程式繪製（`game/scripts/ui/art.gd`） | 本作原創 | — | — |

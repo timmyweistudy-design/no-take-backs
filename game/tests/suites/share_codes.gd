@@ -167,3 +167,14 @@ func test_duel_code_v110() -> void:
 	ok(G.code_kind(code) == "duel", "代碼頁認得 NTD1")
 	var BC = load("res://scripts/game/battle_code.gd")
 	ok(not bool(BC.decode(code)["ok"]), "對戰碼照舊不收輪序")
+
+## 1.2.0 §8：擴充規則 v1 欄位預設關，預設值時規則碼與對戰碼的位元組不變（契約 docs/rules-ext-v1.md）。
+func test_ext_rules_frozen_v120() -> void:
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var r = RS0.standard()
+	ok(r.ext_skills == 0 and not r.synergy and not r.ext_on() and RS0.EXT_VERSION == 1, "預設關")
+	var c0: String = r.to_code()
+	var r2 = r.copy()
+	ok(r2.to_code() == c0 and r2.ext_skills == 0, "複製後一樣")
+	var rd: Dictionary = RS0.from_code(c0)
+	ok(bool(rd["ok"]) and rd["rules"].to_code() == c0 and not rd["rules"].ext_on(), "來回不變、不會冒出擴充")

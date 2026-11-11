@@ -107,7 +107,7 @@ func _pt_rate(v: int) -> void:
 
 func _draw_result() -> void:
 	# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.7))   # 第七輪 E2：整個畫面（含 HUD）壓暗
+	_dim(0.7)   # 第七輪 E2：整個畫面（含 HUD）壓暗
 	var r := Rect2(200, 100, 880, 610)
 	_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
 	_box(r, PANEL, TH_EDGE, 10.0, 3.0)
@@ -248,6 +248,16 @@ func _draw_result() -> void:
 		for xk in ["ms_line", "ps_line", "ps_hab"]:
 			if str(report.get(xk, "")) != "" and facts.size() < 2:
 				facts.append(str(report[xk]))
+		# 1.2.0 字級表放大：事實放不下就從最後一條拿掉（系列比分那行一定要在按鈕之上，150% 原本會壓到按鈕）
+		var show_series: bool = (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official"
+		var room: float = 640.0 - 8.0 - y - (tz("B") * 1.6 + 4.0 if show_series else 0.0)
+		while not facts.is_empty():
+			var need_h := 0.0
+			for f0 in facts:
+				need_h += text_h(f0, tz("S"), 780) + 2
+			if need_h <= room:
+				break
+			facts.pop_back()
 		for fi in facts.size():
 			_text(Vector2(250, y), "・" + facts[fi], tz("S"), Color(1, 1, 1, 0.85), false, false, 780)
 			y += text_h(facts[fi], tz("S"), 780) + 2
