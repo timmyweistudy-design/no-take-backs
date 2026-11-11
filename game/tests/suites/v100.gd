@@ -350,6 +350,7 @@ func test_lock_groups_v110() -> void:
 	var g: Dictionary = G.lock_groups(prs, 3)
 	ok((g["draw"] as Array).size() == 4, "目標 1 畫 3 條、目標 2 畫 1 條")
 	ok(int(g["count"].get(t, 0)) == 5 and not g["count"].has(t2), "超過的標總數 5")
+	ok((g["rest"] as Array).size() == 2, "第 4、5 條另外記（畫細線到 ×N）")
 
 ## 1.1.0 A15：每個成就都有類別。
 func test_ach_cat_v110() -> void:
@@ -384,3 +385,30 @@ func test_solution_code_v110() -> void:
 	ok(dd["pz_sol"].size() == 1 and dd["pz_sol"].has("p1"), "存檔驗證丟掉壞的", str(dd["pz_sol"]))
 	var G = load("res://scripts/ui/screens/game_menus.gd")
 	ok(G.code_kind(code) == "solution", "代碼頁認得 NTQ1")
+
+## 1.1.0（Codex v110-i1）：回報檔名不撞、最佳解存檔驗證範圍、帶軍令的最佳解碼。
+func test_review_fixes_v110() -> void:
+	var G = load("res://scripts/ui/screens/game_v16.gd")
+	var f0: String = G.report_name("t110r_", 123)
+	var fa := FileAccess.open(f0, FileAccess.WRITE)
+	fa.store_string("x")
+	fa.close()
+	ok(G.report_name("t110r_", 123) != f0, "同一秒第二份換檔名")
+	DirAccess.remove_absolute(f0)
+	var S = load("res://scripts/game/save.gd")
+	ok(not S.sol_entry_ok({"r": [999, 10, 10], "u": [[0, 1, 2]]}), "星數 999 不收")
+	ok(not S.sol_entry_ok({"r": [3, 10, 10], "u": []}), "空部署不收")
+	ok(not S.sol_entry_ok({"r": [3, 10, 10], "u": [[0, 99, 2]]}), "座標出界不收")
+	ok(S.sol_entry_ok({"r": [3, 10, 10], "u": [[0, 1, 2]], "c": [40, 80]}), "正常的收")
+	var SC = load("res://scripts/game/solution_code.gd")
+	var PZ = load("res://scripts/game/puzzles.gd")
+	var cmdpz: Dictionary = {}
+	for p in PZ.all_puzzles():
+		if p.has("cmd") and not p.get("best", {}).get("u", []).is_empty():
+			cmdpz = p
+			break
+	if not cmdpz.is_empty():
+		var plan: Array = PZ.default_plan(cmdpz)
+		var d: Dictionary = SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], plan))
+		ok(bool(d["ok"]) and d["plan"] == plan, "時序關卡連軍令一起來回")
+		ok(not bool(SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], [1]))["ok"]) or plan.size() == 1, "軍令數量不對不收")

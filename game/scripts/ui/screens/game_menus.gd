@@ -1292,6 +1292,11 @@ func _accept_solution(c: String) -> void:
 		us.append({"type": int(e[0]), "col": int(e[1]), "row": int(e[2])})
 	set("retry_units", us)
 	_pick_puzzle(str(d["pid"]), false)
+	var pz := PZ.get_puzzle(str(d["pid"]))
+	if pz.has("cmd") and not (d["plan"] as Array).is_empty():
+		set("puzzle_plan", (d["plan"] as Array).duplicate())   # 時序關卡：連軍令時間一起擺好
+		set("puzzle_plan_id", str(d["pid"]))
+	call("mark_friend_assist")
 	_toast(L.t("sol_loaded"))
 
 func _paste_code() -> void:

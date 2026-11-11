@@ -6,8 +6,9 @@ const PZ = preload("res://scripts/game/puzzles.gd")
 const PREFIX := "NTQ1"
 const MAX_LEN := 4000
 
-static func encode(pid: String, units: Array) -> String:
-	var b := Marshalls.utf8_to_base64(JSON.stringify({"v": 1, "p": pid, "u": units})).replace("+", "-").replace("/", "_").replace("=", "")
+## plan：時序關卡（有軍令）的軍令計畫（PZ.default_plan 的格式）；沒有軍令的關給 []。
+static func encode(pid: String, units: Array, plan: Array = []) -> String:
+	var b := Marshalls.utf8_to_base64(JSON.stringify({"v": 1, "p": pid, "u": units, "c": plan})).replace("+", "-").replace("/", "_").replace("=", "")
 	return "%s.%s.%s" % [PREFIX, b, b.sha256_text().substr(0, 6)]
 
 static func decode(code: String) -> Dictionary:
@@ -20,7 +21,7 @@ static func decode(code: String) -> Dictionary:
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Dictionary or not (j.get("p") is String) or not (j.get("u") is Array):
+	if not j is Dictionary or not (j.get("p") is String) or not (j.get("u") is Array) or not (j.get("v") is float or j.get("v") is int) or int(j["v"]) != 1:
 		return bad
 	var pid: String = j["p"]
 	if pid == "ws":
@@ -38,13 +39,24 @@ static func decode(code: String) -> Dictionary:
 		u.append([int(e[0]), int(e[1]), int(e[2])])
 	if u.is_empty() or u.size() > 40 or PZ.check_extra(pz, u) != "":
 		return bad
-	return {"ok": true, "pid": pid, "u": u}
+	var plan: Array = []
+	var c = j.get("c", [])
+	if pz.has("cmd"):
+		if not (c is Array) or (c as Array).size() > 64:
+			return bad
+		for x in c:
+			if not (x is float or x is int):
+				return bad
+			plan.append(int(x))
+		if plan.size() != PZ.default_plan(pz).size():
+			return bad   # 軍令數量要和這關一樣（每一道軍令一個時間）
+	return {"ok": true, "pid": pid, "u": u, "plan": plan}
 
 ## 這一場比存的好就換（純函式：回傳新的紀錄字典，沒變回原本的）
-static func merge(best: Dictionary, pid: String, stars: int, rem: int, spent: int, units: Array) -> Dictionary:
+static func merge(best: Dictionary, pid: String, stars: int, rem: int, spent: int, units: Array, plan: Array = []) -> Dictionary:
 	var old: Dictionary = best.get(pid, {})
 	var Career = load("res://scripts/game/career.gd")
 	if not old.is_empty() and not Career.better([stars, rem, spent], old.get("r", [])):
 		return best
-	best[pid] = {"r": [stars, rem, spent], "u": units.duplicate(true)}
+	best[pid] = {"r": [stars, rem, spent], "u": units.duplicate(true), "c": plan.duplicate()}
 	return best

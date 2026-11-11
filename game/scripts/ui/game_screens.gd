@@ -12,12 +12,12 @@ var shot_state := {}   # V1.2.1：版面檢查這一組的固定狀態（截圖�
 const PAD_CLEAR_SEC := 0.8
 var pad_x_t := -1.0
 func _pad_x_hold(pressed: bool) -> void:
-	pad_x_t = time if pressed and state == St.PLACE and overlay == "" else -1.0
+	pad_x_t = time if pressed and state == St.PLACE and overlay == "" and bool(call("_can_edit_existing")) else -1.0
 
 func _pad_clear_tick() -> void:
 	if pad_x_t >= 0.0 and time - pad_x_t >= PAD_CLEAR_SEC:
 		pad_x_t = -1.0
-		if state == St.PLACE and overlay == "" and has_method("_clear_mine"):
+		if state == St.PLACE and overlay == "" and has_method("_clear_mine") and bool(call("_can_edit_existing")):   # 雙人輪流落子：已落子不能清（Codex v110-i1 #1）
 			call("_clear_mine")
 			_toast(L.t("pad_cleared"))
 

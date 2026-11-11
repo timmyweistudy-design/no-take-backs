@@ -790,7 +790,8 @@ func _best_sol_record(pid: String, stars: int) -> void:
 	if u.is_empty():
 		return
 	var SC = load("res://scripts/game/solution_code.gd")
-	Save.data["pz_sol"] = SC.merge(Save.data.get("pz_sol", {}), pid, stars, PZ.rem_pct(sim.power(0), sim.budget_of(0)), last_armies[0].spent(), u)
+	var plan: Array = (get("puzzle_plan") as Array).duplicate() if pz.has("cmd") and get("puzzle_plan") is Array else []   # 時序關卡要連軍令一起存（Codex v110-i1 #2）
+	Save.data["pz_sol"] = SC.merge(Save.data.get("pz_sol", {}), pid, stars, PZ.rem_pct(sim.power(0), sim.budget_of(0)), last_armies[0].spent(), u, plan)
 
 func _puzzle_record(pid: String, spent: int, units: int, ticks: int) -> void:
 	var all: Dictionary = Save.data.get("pz_best", {})

@@ -23,9 +23,30 @@ func _feedback() -> void:
 func _feedback_save(cat: String) -> void:
 	overlay = fb_ret
 	var txt := Funnel.report(str(ProjectSettings.get_setting("application/config/version")), fb_screen, cat)
-	var name := "user://%sreport_%d.json" % [Save.file_prefix(), int(Time.get_unix_time_from_system())]
+	var name := report_name(Save.file_prefix(), int(Time.get_unix_time_from_system()))
 	var k := feedback_key(_write_text(name, txt), _clip_set(txt))
 	_toast(L.t(k), k == "fb_fail")
+
+## 1.1.0（Codex v110-i1 #7）：同一秒回報兩次不能覆蓋：檔名加流水號，已經有就往後找
+static func report_name(prefix: String, sec: int) -> String:
+	var n := 0
+	var name := "user://%sreport_%d.json" % [prefix, sec]
+	while FileAccess.file_exists(name) and n < 99:
+		n += 1
+		name = "user://%sreport_%d_%d.json" % [prefix, sec, n]
+	return name
+
+## 1.1.0 N5（Codex v110-i1 #3）：用朋友的最佳解碼打開的這一題，之後過關算「協力」（不進自力最佳），同一題重打照舊算
+func mark_friend_assist() -> void:
+	var k := _nb_key()
+	if k == "":
+		return
+	var cd: Dictionary = Save.data.get("coached", {})
+	var e: Dictionary = cd.get(k, {"lv": 0, "ap": 0, "self": int(Save.data.get("puzzle_stars", {}).get(k, 0))})
+	e["ap"] = 1
+	cd[k] = e
+	Save.data["coached"] = cd
+	co_assist = k
 
 ## V1.0.0 D4：寫檔、剪貼簿各自確認，提示照實講（寫檔失敗不能說「也存了一份」）。
 static func feedback_key(saved: bool, copied: bool) -> String:
@@ -104,11 +125,12 @@ func _finish_battle() -> void:
 		Save.data["ai_games"] = int(Save.data.get("ai_games", 0)) + 1
 		if sim.winner == 0:
 			Save.data["ai_wins"] = int(Save.data.get("ai_wins", 0)) + 1
-	if mode != Mode.TUTORIAL and not watch_mode and not (rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB):
-		Save.data["eff_games"] = int(Save.data.get("eff_games", 0)) + 1   # V1.6.1 N1：有效對局
+	if mode != Mode.TUTORIAL and not watch_mode and not bool(get("daily_practice")) and not (rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB):
+		Save.data["eff_games"] = int(Save.data.get("eff_games", 0)) + 1   # V1.6.1 N1：有效對局（1.1.0：每日練習不算）
 	_rift_settle()
 	_persona_result()
-	_career_settle()
+	if not bool(get("daily_practice")):
+		_career_settle()   # 1.1.0（Codex v110-i1 #4）：每日練習不累積熟練度、戰功章
 	Funnel.mark("first_battle")
 	if mode != Mode.DUEL:
 		var won: bool = sim.winner == 0
@@ -451,6 +473,11 @@ func _v16_place_draw() -> void:
 			for tg in per["count"]:
 				var tp := _foot_of(tg) - Vector2(0, 0.32 * CS) + Vector2(10, -18)
 				_text(tp, "×%d" % int(per["count"][tg]), tz("C"), Color(1, 0.95, 0.8), false, true, 60)
+			for pr in per["rest"]:
+				# 第 4 條起：從自己拉一條細淡線到目標旁的「×N」（看得出是哪幾隻鎖它，Codex v110-i1 #6）
+				var src := _foot_of(pr[0]) - Vector2(0, 0.32 * CS)
+				var dst := _foot_of(pr[1]) - Vector2(0, 0.32 * CS) + Vector2(8, -10)
+				draw_line(src, src.lerp(dst, 0.85), Color(1, 0.95, 0.8, 0.28), 1.0, true)
 	_tv_draw_marks_place(a)
 	_fog_draw()
 	_adj_draw(a)
@@ -479,13 +506,15 @@ static func lock_groups(pairs: Array, n: int) -> Dictionary:
 			by[k] = []
 		by[k].append(pr)
 	var draw: Array = []
+	var rest: Array = []
 	var count := {}
 	for k in by:
 		var lst: Array = by[k]
 		draw += lst.slice(0, n)
 		if lst.size() > n:
 			count[k] = lst.size()
-	return {"draw": draw, "count": count}
+			rest += lst.slice(n)
+	return {"draw": draw, "count": count, "rest": rest}
 
 static func lock_targets(a0, a1, rr) -> Array:
 	var s = Sim.new(a0.copy(), a1.copy(), rr)
@@ -705,7 +734,7 @@ func _draw_share() -> void:
 		y += 56.0
 	if sol_ok:
 		var sol: Dictionary = Save.data["pz_sol"][puzzle_id]
-		var code: String = load("res://scripts/game/solution_code.gd").encode(puzzle_id, sol["u"])
+		var code: String = load("res://scripts/game/solution_code.gd").encode(puzzle_id, sol["u"], sol.get("c", []))
 		_btn(Rect2(400, y, 480, 48), L.t("sol_copy", [int(sol["r"][0])]), func(): DisplayServer.clipboard_set(code); _toast(L.t("sol_copied")))
 		y += 56.0
 	if not (daily_spec as Dictionary).is_empty():

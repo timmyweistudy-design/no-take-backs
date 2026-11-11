@@ -163,12 +163,12 @@ def run_step(s, godot, out, timeout, marker):
     if s["kind"] == "py":
         cmd = [sys.executable, str(GAME / s["script"])]
     else:
-        cmd = godot_cmd(godot, ["--headless", "--path", ".", "--script", f"res://{s['script']}", "--"] + s["args"], marker)
+        cmd = godot_cmd(godot, ["--headless", "--path", ".", "--script", f"res://{s['script']}", "--"] + s["args"], f"{marker}-{s['name']}")
     try:
         with open(log, "wb") as f:
             rc = subprocess.run(cmd, cwd=GAME, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=timeout).returncode
     except subprocess.TimeoutExpired:
-        kill_marker(godot, marker)
+        kill_marker(godot, f"{marker}-{s['name']}")   # 1.1.0（Codex v110-i1 #9）：只砍逾時的那一步，不砍同一輪其他工作
         return {"name": s["name"], "ok": False, "why": f"逾時 {timeout}s", "sec": time.time() - t0}
     txt = log.read_text(encoding="utf-8", errors="ignore")
     why = ""
@@ -185,13 +185,14 @@ def run_step(s, godot, out, timeout, marker):
 def serial(godot, out, name, args, ok_re=None, marker=""):
     # 1.1.0 H2：串行步驟（匯入）也帶程序標記；逾時或例外時用標記砍掉 Windows 端殘留的 Godot（WSL 的 timeout 只砍外層）
     log = out / f"{name}.log"
-    cmd = godot_cmd(godot, args, marker) if marker else [godot] + args
+    mk = f"{marker}-{name}" if marker else ""
+    cmd = godot_cmd(godot, args, mk) if mk else [godot] + args
     try:
         with open(log, "wb") as f:
             rc = subprocess.run(cmd, cwd=GAME, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=900).returncode
     except (subprocess.TimeoutExpired, OSError):
-        if marker:
-            kill_marker(godot, marker)
+        if mk:
+            kill_marker(godot, mk)
         return False
     txt = log.read_text(encoding="utf-8", errors="ignore")
     if rc != 0 or ERR.search(txt) or (ok_re and not re.search(ok_re, txt, re.M)):
@@ -232,6 +233,15 @@ def main() -> int:
             return fail("匯入失敗")
     # V1.1 E1：載入與啟動檢查改成和其他步驟一起平行跑（結果一樣要過，只是不再先排隊等）
     gate = cf.ThreadPoolExecutor(2)
+    try:
+        return _run_all(a, godot, out, cache, ver, gate, marker, t0, fail)
+    finally:
+        # 1.1.0（Codex v110-i1 #9）：提前返回、例外、Ctrl+C 都要收尾：關執行緒池、用本輪記號收掉殘留的 Godot
+        gate.shutdown(wait=False, cancel_futures=True)
+        kill_marker(godot, marker)
+
+
+def _run_all(a, godot, out, cache, ver, gate, marker, t0, fail):
     f_load = gate.submit(serial, godot, out, "load", ["--headless", "--path", ".", "--script", "res://tools/load_all.gd"], r"^LOADALL .*失敗 0：", marker)
     f_boot = gate.submit(serial, godot, out, "boot", ["--headless", "--path", ".", "--", "--boot-check"], r"^BOOTOK", marker)
     steps = plan(a)

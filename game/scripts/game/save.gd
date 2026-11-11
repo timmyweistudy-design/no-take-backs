@@ -325,18 +325,33 @@ static func _int_list(v, max_n: int) -> Array:
 	return o
 
 ## V1.6 新欄位逐欄驗型（Codex v160-i1 #1）：壞的回預設（拿掉），其他照留
+## 1.1.0 N5（Codex v110-i1 #8）：星 0～3、剩餘 0～100、花費 0～10000、部署非空且座標在格子內、兵種 0～21；軍令每項是 0～100000 的整數
 static func sol_entry_ok(e) -> bool:
-	if not (e is Dictionary and e.get("r") is Array and (e["r"] as Array).size() == 3 and e.get("u") is Array and (e["u"] as Array).size() <= 40):
+	if not (e is Dictionary and e.get("r") is Array and (e["r"] as Array).size() == 3 and e.get("u") is Array):
+		return false
+	var u: Array = e["u"]
+	if u.is_empty() or u.size() > 40:
 		return false
 	for x in e["r"]:
 		if not _is_num(x):
 			return false
-	for v in e["u"]:
+	var r: Array = e["r"]
+	if int(r[0]) < 0 or int(r[0]) > 3 or int(r[1]) < 0 or int(r[1]) > 100 or int(r[2]) < 0 or int(r[2]) > 10000:
+		return false
+	for v in u:
 		if not (v is Array and (v as Array).size() == 3):
 			return false
 		for x in v:
 			if not _is_num(x):
 				return false
+		if int(v[0]) < 0 or int(v[0]) > 21 or int(v[1]) < 0 or int(v[1]) > 15 or int(v[2]) < 0 or int(v[2]) > 8:
+			return false
+	var c = e.get("c", [])
+	if not (c is Array) or (c as Array).size() > 64:
+		return false
+	for x in c:
+		if not _is_num(x) or int(x) < 0 or int(x) > 100000:
+			return false
 	return true
 
 static func sanitize_extras(out: Dictionary) -> void:
@@ -446,7 +461,7 @@ static func sanitize_extras(out: Dictionary) -> void:
 					var uu: Array = []
 					for v in e0["u"]:
 						uu.append([int(v[0]), int(v[1]), int(v[2])])
-					ps1[str(k0)] = {"r": [int(e0["r"][0]), int(e0["r"][1]), int(e0["r"][2])], "u": uu}
+					ps1[str(k0)] = {"r": [int(e0["r"][0]), int(e0["r"][1]), int(e0["r"][2])], "u": uu, "c": (e0.get("c", []) as Array).map(func(v): return int(v))}
 		out["pz_sol"] = ps1
 	for k in ["ai_games", "ai_wins"]:   # V1.0.0：對 AI 場數、勝場（建議下一步用）
 		if out.has(k):

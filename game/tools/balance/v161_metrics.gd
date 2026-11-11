@@ -12,6 +12,13 @@ const Sim = preload("res://scripts/core/battle_sim.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 const RS = preload("res://scripts/core/ruleset.gd")
 
+## 中位數：偶數個取中間兩個平均（Codex v110-i1）；空的回 -1
+static func med(v: Array) -> float:
+	if v.is_empty():
+		return -1.0
+	var n := v.size()
+	return float(v[n / 2]) if n % 2 == 1 else (float(v[n / 2 - 1]) + float(v[n / 2])) / 2.0
+
 func pace(a0, a1, rr) -> Dictionary:
 	var s = Sim.new(a0.copy(), a1.copy(), rr)
 	var first := -1
@@ -82,8 +89,8 @@ func _init() -> void:
 				rec["rand_stars"] = st_n
 				rems.sort()
 				spents.sort()
-				rec["win_rem_med"] = rems[rems.size() / 2] if not rems.is_empty() else -1
-				rec["win_spent_med"] = spents[spents.size() / 2] if not spents.is_empty() else -1
+				rec["win_rem_med"] = med(rems)
+				rec["win_spent_med"] = med(spents)
 				rec["s2"] = Trio.s2_of(s)
 				rec["s3"] = Trio.s3_of(s)
 				lines.append(JSON.stringify(rec))

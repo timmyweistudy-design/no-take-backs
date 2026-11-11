@@ -83,7 +83,7 @@ func _finish_battle() -> void:
 	else:
 		sfx.play("win" if w == 0 else "lose")
 	sfx.play("ui_quill", 0.45)   # V1.3 B4：戰報寫上羊皮紙的筆聲（各模式都有）
-	if eff["progress"]:
+	if eff["progress"] and not bool(get("daily_practice")):   # 1.1.0（Codex v110-i1 #4）：每日練習不記戰績、成就
 		_progress_and_achievements()
 		if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
 			call("_record_match", w)
