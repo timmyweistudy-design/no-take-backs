@@ -311,8 +311,43 @@ func _draw_daily_past() -> void:
 		y += rowh + GAP_S
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())
 
+## 1.1.0 B10：手把重播看戰報。重播時底部放不下戰報列（控制列＋按鍵提示），改成按 View／Select 開面板；
+## 開著時暫停，返回時還原原本的暫停狀態與按鈕焦點。
+var br_paused := false
+var br_focus := 0
+func _breport_open() -> void:
+	br_paused = paused
+	br_focus = _focus
+	paused = true
+	overlay = "breport"
+	_focus = 0
+
+func _breport_close() -> void:
+	overlay = ""
+	paused = br_paused
+	_focus = br_focus
+
+func _draw_breport() -> void:
+	var help := L.t("br_help")
+	var rowh := float(tz("B")) * 1.6
+	var n := maxi(1, report_log.size())
+	var P := modal_rect(720, 12.0 + h1_help_h(help, tz("S"), 640) + GAP_L + n * rowh + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("br_title"), help, tz("S"), 640) + GAP_L
+	if report_log.is_empty():
+		_text(Vector2(640, y), L.t("br_empty"), tz("B"), TXT_DIM, true, false, 600)
+	for e in report_log:
+		var line := "%s　%s　%s" % ["●" if int(e["team"]) == 0 else "◆", L.t("unit_%d" % int(e["type"])), e["label"]]
+		if int(e["n"]) > 1:
+			line += " ×%d" % int(e["n"])
+		_text(Vector2(P.position.x + 40, y), line, tz("B"), _legible_on(e["col"], TH_WOOD_D), false, false, 640)
+		y += rowh
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _breport_close(), true, true)
+
 func _draw_v16_overlay(name: String) -> void:
 	match name:
+		"breport":
+			_draw_breport()
 		"daily_past":
 			_draw_daily_past()
 		"nb_words":

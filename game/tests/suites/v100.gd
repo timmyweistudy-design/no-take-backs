@@ -484,3 +484,28 @@ func test_bg_pool_v110() -> void:
 	for f in ["res://scripts/ui/replay_view.gd", "res://scripts/ui/screens/game_v16.gd", "res://scripts/ui/screens/game_modes.gd"]:
 		src += FileAccess.get_file_as_string(f)
 	ok(not src.contains("Thread.new()") or src.count("Thread.new()") == 0, "五種背景工作不再自己開執行緒")
+
+## 1.1.0 B10：手把重播看戰報：View／Select 開面板（暫停），返回／B 關掉，焦點與暫停狀態還原；正式對戰不開。
+func test_breport_pad_v110() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.state = g.St.BATTLE
+	g.play_kind = "replay"
+	g.paused = false
+	g._focus = 2
+	g._key(KEY_F1)
+	ok(g.overlay == "breport" and g.paused, "重播按 View 開戰報、暫停")
+	g._key(KEY_ESCAPE)
+	ok(g.overlay == "" and not g.paused and g._focus == 2, "B 返回：暫停狀態與焦點還原")
+	g.paused = true
+	g._key(KEY_F1)
+	g._breport_close()
+	ok(g.paused, "原本就暫停的，關掉後仍暫停")
+	g.play_kind = "official"
+	g._key(KEY_F1)
+	ok(g.overlay == "", "正式對戰不開（底部本來就有戰報列）")
+	var items: Array = g._pad_footer_items()
+	g.play_kind = "replay"
+	g.pad_mode = true
+	ok(g._pad_footer_items().size() == items.size() + 1, "重播的按鍵提示多一個戰報")
+	g.free()

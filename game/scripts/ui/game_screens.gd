@@ -359,6 +359,9 @@ func _key(k: int) -> void:
 				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
 					sfx.play("k_click", 0.7)
 					_btns[_focus]["cb"].call()
+			KEY_F1:
+				if state == St.BATTLE and overlay == "" and play_kind != "official":
+					call("_breport_open")   # 1.1.0 B10：手把 View／Select＝戰報面板
 			KEY_PAGEUP, KEY_PAGEDOWN:
 				if overlay == "codex":
 					_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
@@ -389,6 +392,8 @@ func _key(k: int) -> void:
 					overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
 				elif overlay == "codex" and bool(get("cx_zoom")) and int(get("cx_unit")) < D.total():
 					set("cx_zoom", false)   # V1.5.1：近看模式先收合
+				elif overlay == "breport":
+					call("_breport_close")   # 1.1.0 B10：回到重播、焦點與暫停狀態還原
 				elif overlay == "trio_result":
 					call("_trio_back")   # 1.1.0 H3：和結算頁返回鈕同一條路
 				elif overlay == "leave" and state == St.BATTLE and paused:
@@ -736,6 +741,8 @@ func _pad_footer_items() -> Array:
 		St.TITLE:
 			return [["＋", L.t("pk_move")], [_pk("place"), L.t("pk_select")]]
 		St.BATTLE:
+			if play_kind != "official":
+				return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("back")], [_pk("codex"), L.t("br_title")]]   # 1.1.0 B10
 			return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("skip")]]
 		St.RESULT:
 			return [["＋", L.t("pk_move")], [_pk("place"), L.t("pk_select")], [_pk("back"), L.t("menu")]]

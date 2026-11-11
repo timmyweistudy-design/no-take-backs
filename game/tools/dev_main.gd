@@ -757,6 +757,9 @@ func _run_screenshots() -> void:
 		f["t"] = 0.0
 	paused = true
 	await _snap("15_replay.png")
+	_breport_open()   # 1.1.0 B10：手把重播戰報面板
+	await _snap("v110_04_breport.png")
+	_breport_close()
 	paused = false
 	await _shots_v4()
 	await _shots_cmd()
