@@ -527,7 +527,10 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
 		if on:
 			btn_deco = _draw_bookmark
+		btn_cloth = "tab_indigo" if on else "tab_linen"   # 1.2.0 第 4 大類：預設分頁是布標（和設定分頁同一套；選中靛藍、未選原胚布）
 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+		btn_cloth = ""
+		var on_paper := last_btn_paper   # 原胚布：字用墨色
 		btn_deco = Callable()
 		if on:
 			draw_rect(r, ACCENT, false, 3.0)
@@ -546,7 +549,9 @@ func _draw_lobby_presets(o: Vector2) -> void:
 				if 5.0 + 2.53 * c <= h - 11.0 and _width(lab, c, true) <= tw:
 					lsz = c
 					break
+		_ink_mode = on_paper
 		_text(r.position + Vector2(tx, 5 if two else 8), lab, lsz, Color.WHITE, true, true, tw)
+		_ink_mode = false
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
 		_box(Rect2(r.position + Vector2(8, h - 9), Vector2(w - 16, 4)), bc, Color(0, 0, 0, 0), 2.0)
@@ -677,7 +682,13 @@ func _draw_lobby_main(R: Rect2) -> void:
 		_ink_mode = true
 	# V1.5.2 L6：列底色高度照內容（hh）；左欄圖示與標籤和右邊主控制項共用列中線（原本標籤靠上、控制項置中）
 	var label := func(ic: String, s: String, yy: float, hh: float) -> void:
-		_box(Rect2(x, yy, lw, hh), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+		if _ink_mode:   # 1.2.0 A10：紙頁上的列＝一條紙籤（淡墨上下細線＋左上折角），不是深色圓角框
+			draw_rect(Rect2(x, yy, lw, hh), Color(0.36, 0.22, 0.1, 0.05))
+			draw_line(Vector2(x + 14, yy), Vector2(x + lw, yy), Color(0.26, 0.16, 0.08, 0.35), 1.0)
+			draw_line(Vector2(x, yy + hh), Vector2(x + lw, yy + hh), Color(0.26, 0.16, 0.08, 0.35), 1.0)
+			draw_colored_polygon(PackedVector2Array([Vector2(x, yy), Vector2(x + 14, yy), Vector2(x, yy + 14)]), Color(0.36, 0.22, 0.1, 0.22))
+		else:
+			_box(Rect2(x, yy, lw, hh), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
 		var mid := yy + minf(hh, rowh - 8.0) * 0.5
 		_icon(ic, Vector2(x + 26, mid), 26.0, ACCENT)
 		var lsz := fit(s, tz("B"), 112, true)

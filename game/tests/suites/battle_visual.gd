@@ -620,3 +620,42 @@ func test_present_v120() -> void:
 	Sv.settings["reduce_fx"] = keep_fx
 	Sv.settings["plain_ui"] = keep_plain
 	g.free()
+
+## 1.2.0 第 5 大類：姿勢資料化試點（劍士資料＝原公式、命中事件＝模擬命中點）、落子壓扁、不倒翁搖、定格量化
+func test_char2_v120() -> void:
+	var Art = load("res://scripts/ui/art.gd")
+	var PD = load("res://scripts/ui/pose_data.gd")
+	ok(PD.has(0), "劍士有姿勢資料")
+	ok(absf(PD.event_t(0, "hit") - Art.ATK_STRIKE) < 1e-6, "命中事件時間＝模擬命中點（演出不延後）")
+	var worst := 0.0
+	for i in 101:
+		var a := i / 100.0
+		var got: Array = Art.pose(a, 0)
+		var ref: Array = Art._pose_prof(a, Art.POSE_PROFILE[0]) if a > 0.0 else [0.0, 0.0, 1.0, 1.0, 0.0]   # 原本的劍士公式
+		for j in 5:
+			worst = maxf(worst, absf(float(got[j]) - float(ref[j])))
+	ok(worst < 1e-3, "資料版和原公式 101 點最大差 %.6f" % worst)
+	var BU = load("res://scripts/ui/battle/battle_units.gd")
+	ok(absf(BU._tumbler(0.0)) < 1e-9 and absf(BU._tumbler(1.0)) < 1e-9, "不倒翁搖：受擊開始與結束都是 0（不跳）")
+	var mx := 0.0
+	for i in 21:
+		mx = maxf(mx, absf(BU._tumbler(i / 20.0)))
+	ok(mx > 0.01 and mx <= 0.07, "不倒翁搖幅度 %.3f" % mx)
+	var Sv = load("res://scripts/game/save.gd")
+	var keep = Sv.settings.get("smooth_pose", false)
+	Sv.settings["smooth_pose"] = false
+	ok(absf(BU._pose_t(1.0 / 12.0 * 5.5) - 5.0 / 12.0) < 1e-6, "定格：姿勢時間量化到 1/12 秒")
+	Sv.settings["smooth_pose"] = true
+	ok(absf(BU._pose_t(0.4321) - 0.4321) < 1e-9, "平滑動作：不量化")
+	Sv.settings["smooth_pose"] = keep
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.play_kind = "official"
+	g.fld_w = 600
+	g.start_hold = 1.0 - 0.3   # 進度 0.3：第一段（近中線）剛落地 0.05 秒 → 壓扁中
+	var sq: float = g._open_squash({"x": 300.0})
+	ok(sq < 0.99 and sq >= 0.82, "落子觸盤壓扁 %.3f" % sq)
+	ok(g._open_squash({"x": 20.0}) == 1.0, "還沒落下的後排不壓扁")
+	g.start_hold = 0.0
+	ok(g._open_squash({"x": 300.0}) == 1.0, "開場提示結束後不壓扁")
+	g.free()

@@ -1095,7 +1095,8 @@ func _draw_coach() -> void:
 			lines.append(_coach_hint2())
 	var body := "\n".join(lines)
 	var gh := 150.0 if found and co_layer >= 2 else 0.0
-	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + gh + GAP_XL + 50.0 + GAP_M + 44.0 + GAP_L)
+	var has_act := busy or found   # 1.2.0：沒有動作鈕（找不到）時不留它的高度（英文 150% 空出 161px，排版 R6）
+	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + gh + (GAP_XL + 50.0 + GAP_M if has_act else GAP_XL) + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("co_title"), L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540)
 	_text(Vector2(640, y), body, tz("B"), Color.WHITE, true, true, 540)

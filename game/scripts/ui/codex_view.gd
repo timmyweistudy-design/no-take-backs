@@ -742,18 +742,29 @@ func _cx_portrait(pc: Vector2) -> void:
 	Art.look = 0.0
 
 
+## 1.2.0 第 5 大類 B：圖鑑大圖輪流示範 5 種表情（待機 → 專注 → 生氣 → 受驚 → 得意，各 1.6 秒）；出手中固定專注；截圖固定待機。
+## 戰場維持原本的少數表情（小尺寸看不清）。
+const CX_MOODS := [0, Art.M_GRIM, Art.M_BROWS, Art.M_SURPRISE, Art.M_HAPPY]
+func cx_mood(atk: float) -> int:
+	if shot_dir != "" or layout_probe or Art.back or absf(Art.turn_s) > 0.05:
+		return 0   # 背面、轉身途中不疊表情（表情層沒有背面／轉向定位，Codex cat05 #1）
+	if atk > 0.0:
+		return Art.M_GRIM
+	return int(CX_MOODS[int(time / 1.6) % CX_MOODS.size()])
+
 ## V1.5.1 A6：圖鑑大圖用烘焙後處理版（外框、漬洗、乾掃和戰場一致）；簡化介面、無視窗時照舊直接畫
 var cx_bake = null
 func _cx_draw_unit(p: Vector2, face: float, atk: float, sc: float, variant: int) -> void:
+	var mood := cx_mood(atk)
 	if bool(Save.s("plain_ui")) or DisplayServer.get_name() == "headless":
-		_unit(p, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, sc, 0, 0.0, 1.0, variant)
+		_unit(p, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, sc, mood, 0.0, 1.0, variant)
 		return
 	if cx_bake == null:
 		cx_bake = load("res://scripts/ui/codex_bake.gd").new()
 		add_child(cx_bake)
 	_unit_base(p, sc)
 	cx_bake.set_params({"type": cx_unit, "face": face, "atk": atk, "hurt": 0.0, "t": time, "scale": sc, "cb": cbm(), "variant": variant,
-		"turn_c": Art.turn_c, "turn_s": Art.turn_s, "back": Art.back, "calm": Art.calm, "look": Art.look},
+		"turn_c": Art.turn_c, "turn_s": Art.turn_s, "back": Art.back, "calm": Art.calm, "look": Art.look, "mood": mood},
 		float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]), float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))
 	draw_set_transform_matrix(Art.base)
 	draw_texture(cx_bake.texture(), p - cx_bake.FEET)

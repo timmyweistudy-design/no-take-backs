@@ -163,18 +163,30 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 	for k in ys.size():
 		var x := rect.position.x + k * dx
 		var y: float = yat.call(ys[k])
+		var wk := wash
+		if paper:
+			wk = 0.34 + 0.08 * sin(float(k) * 0.37) + 0.05 * sin(float(k) * 1.9)   # 1.2.0 §4 B5：淡水彩（透明度隨欄微幅起伏，像水彩不均）
 		if y < mid:
-			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, wash))
+			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, wk))
+			if paper:
+				ui.draw_rect(Rect2(x, y, dx + 0.5, minf(4.0, mid - y)), team_col(0, cb) * Color(1, 1, 1, 0.3))   # 水彩邊緣積色
 		else:
 			var rr := Rect2(x, mid, dx + 0.5, y - mid)
-			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, wash))
+			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, wk))
+			if paper:
+				ui.draw_rect(Rect2(x, maxf(mid, y - 4.0), dx + 0.5, minf(4.0, y - mid)), team_col(1, cb) * Color(1, 1, 1, 0.3))
 	if paper:
 		# 墨線描出戰力曲線（像手繪在紙上）
 		var ink := PackedVector2Array()
 		for k2 in ys.size():
 			ink.append(Vector2(rect.position.x + k2 * dx, yat.call(ys[k2])))
 		if ink.size() >= 2:
-			ui.draw_polyline(ink, Color(0.14, 0.08, 0.04, 0.85), 1.6, true)
+			# 1.2.0 §4 B5：乾刷墨線＝主線加粗＋下方一道淡的飛白副線
+			var dry := PackedVector2Array()
+			for q in ink:
+				dry.append(q + Vector2(0, 1.6))
+			ui.draw_polyline(dry, Color(0.14, 0.08, 0.04, 0.3), 1.0, true)
+			ui.draw_polyline(ink, Color(0.14, 0.08, 0.04, 0.88), 2.4, true)
 	if cb:
 		# 色盲：紅方（中線以下）的面積加斜線紋，不只靠顏色分辨（Codex 實作第 1 輪：原本是空的）
 		# 整個紅方面積都畫斜線：每條 45° 線從中線往下，只畫在該欄的紅色高度內
@@ -218,7 +230,7 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, 
 		if row > 1:
 			continue   # 最多兩排標籤（上方只留了兩排空間）
 		used.append([lx, w, row])
-		ui.draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y), Color("#ffd166"), 1.5)
+		ui.draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y), Color(Color("#9b281b"), 0.75) if paper else Color("#ffd166"), 1.5)   # 紙上用朱砂線
 		ui._text(Vector2(lx, rect.position.y - fs * 1.5 * (row + 1)), lab, fs, Color("#ffd166"))   # V1.2.1 B4：兩排拉開（原 1.35 只差 2px）
 		shown += 1
 	return ys

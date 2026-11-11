@@ -1,0 +1,450 @@
+diff --git a/game/export_presets.cfg b/game/export_presets.cfg
+index 44e74b1..14fb2c2 100644
+--- a/game/export_presets.cfg
++++ b/game/export_presets.cfg
+@@ -6,7 +6,7 @@ runnable=true
+ dedicated_server=false
+ custom_features=""
+ export_filter="all_resources"
+-include_filter="data/*.csv, data/*.json, data/*.txt, licenses/*"
++include_filter="data/*.csv, data/*.json, data/poses/*.json, data/*.txt, licenses/*"
+ exclude_filter="tests/*, tools/*"
+ export_path="../build/windows/NoTakeBacks.exe"
+ encryption_include_filters=""
+@@ -41,7 +41,7 @@ runnable=true
+ dedicated_server=false
+ custom_features=""
+ export_filter="all_resources"
+-include_filter="data/*.csv, data/*.json, data/*.txt, licenses/*"
++include_filter="data/*.csv, data/*.json, data/poses/*.json, data/*.txt, licenses/*"
+ exclude_filter="tests/*, tools/*"
+ export_path="../build/linux/NoTakeBacks.x86_64"
+ encryption_include_filters=""
+@@ -67,7 +67,7 @@ runnable=true
+ dedicated_server=false
+ custom_features="demo"
+ export_filter="all_resources"
+-include_filter="data/*.csv, data/*.json, data/*.txt, licenses/*"
++include_filter="data/*.csv, data/*.json, data/poses/*.json, data/*.txt, licenses/*"
+ exclude_filter="tests/*, tools/*"
+ export_path="../build/windows-demo/NoTakeBacksDemo.exe"
+ encryption_include_filters=""
+@@ -102,7 +102,7 @@ runnable=true
+ dedicated_server=false
+ custom_features="demo"
+ export_filter="all_resources"
+-include_filter="data/*.csv, data/*.json, data/*.txt, licenses/*"
++include_filter="data/*.csv, data/*.json, data/poses/*.json, data/*.txt, licenses/*"
+ exclude_filter="tests/*, tools/*"
+ export_path="../build/linux-demo/NoTakeBacksDemo.x86_64"
+ encryption_include_filters=""
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index d5fddf8..7febb96 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS := {
+ 	"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
+ 	"long_press": 0.5, "place_mode": "both", "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
+ 	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
+-	"hold_confirm": false, "magnify": false, "ui_font": "craft",   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
++	"hold_confirm": false, "magnify": false, "ui_font": "craft", "smooth_pose": false,   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
+ }
+ const ENUMS := {"ui_font": ["classic", "craft"], "place_mode": ["both", "tap"], "title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
+ 	"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3, 0], "rumble": [0, 25, 50, 100], "deadzone": [5, 10, 15, 20, 25, 30, 35, 40], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
+diff --git a/game/scripts/ui/art.gd b/game/scripts/ui/art.gd
+index 76519c1..504a95d 100644
+--- a/game/scripts/ui/art.gd
++++ b/game/scripts/ui/art.gd
+@@ -38,9 +38,12 @@ const POSE_PROFILE := {
+ 	21: [1.14, 0.86, 0.30, -2.0, 0.86, 1.16, 0.40, 4.0, 0.20],   # 骷髏：舉骨刀 → 劈
+ }
+ 
++const PoseData = preload("res://scripts/ui/pose_data.gd")
+ static func pose(atk: float, type := -1) -> Array:
+ 	if atk <= 0.0:
+ 		return [0.0, 0.0, 1.0, 1.0, 0.0]
++	if PoseData.has(type):
++		return PoseData.eval(type, atk)   # 1.2.0 §7.1 姿勢資料化試點（劍士）：資料版和原本的 POSE_PROFILE 公式等值（測試）
+ 	if POSE_PROFILE.has(type):
+ 		return _pose_prof(atk, POSE_PROFILE[type])
+ 	if atk < ATK_WINDUP:
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 1bde5da..cc1a1d2 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -372,6 +372,30 @@ func _open_drop(u) -> Vector2:
+ 	var k := clampf((ph - DROP_AT[stage]) / 0.25, 0.0, 1.0)
+ 	return Vector2(0, -22.0 * (1.0 - k) * (1.0 - k))
+ 
++## 1.2.0 第 5 大類 C §7.2 定格表演層：待機、歡呼的姿勢每 1/12 秒才換（24fps 一拍二）；移動、攻擊、命中照常 60Hz。
++## 設定「平滑動作」開了就不量化。
++static func _pose_t(t: float) -> float:
++	if bool(Save.s("smooth_pose")):
++		return t
++	return floorf(t * 12.0) / 12.0
++
++## 1.2.0 第 5 大類 A2：受擊後的不倒翁搖：hurt 從 1 掉到 0 的過程擺盪約 1.5 次、幅度隨 hurt 衰減；hurt＝0 時為 0（解析式，不存狀態）。
++static func _tumbler(hurt: float) -> float:
++	return 0.07 * sin((1.0 - hurt) * TAU * 1.5) * hurt
++
++## 1.2.0 第 5 大類 A1：落子觸盤後 0.15 秒縱向壓扁再彈回（和那一段的「咚」同步）；回傳 crouch 乘數。
++func _open_squash(u) -> float:
++	if start_hold <= 0.0 or play_kind != "official":
++		return 1.0
++	var mid := fld_w / 2.0
++	var d: float = absf(float(u.x) - mid) / maxf(1.0, mid)
++	var stage := 0 if d < 0.25 else (1 if d < 0.5 else 2)
++	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
++	var land: float = ph - float(DROP_AT[stage]) - 0.25
++	if land < 0.0 or land > 0.15:
++		return 1.0
++	return 1.0 - 0.18 * sin(land / 0.15 * PI)
++
+ ## 1.2.0 §5.1 拼花棋盤：橡木厚框（只畫一圈，不蓋盤面）＋內緣刻線＋外緣亮邊＋盤面上漆光（左上亮、右下暗）。回傳有沒有畫。
+ func _board_ring(inner: Rect2) -> bool:
+ 	var oak := _ui_tex(MAT_OAK)
+@@ -680,6 +704,8 @@ func _draw_units_of(s, dim: bool) -> void:
+ 		if hurt > 0.0:
+ 			crouch *= 1.0 - 0.12 * hurt                 # V1.1 A2：受擊壓扁（縱 0.88），配合後退與閃白
+ 			lean -= 0.06 * hurt * float(hurt_dir.get(u.id, 0.0)) * face
++			lean += _tumbler(hurt) * float(hurt_dir.get(u.id, 1.0)) * face   # 1.2.0 第 5 大類 A2：不倒翁搖（衰減擺盪）
++		crouch *= _open_squash(u)
+ 		if live:
+ 			# V1.3 A4：停步慣性。剛停下時身體往前多晃一下再回正（0.3 秒，解析式衰減，不存逐兵彈簧狀態）
+ 			if moving:
+@@ -732,7 +758,7 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			# V1.3.1 P2：歡呼像波浪：定格結束後從中線往後排，每格延遲 0.06 秒才起跳
+ 			var w0: float = float(last_kill[1]) + frz
+ 			var dly := absf(p.x - (ORIGIN.x + fld_size.x * 0.5)) / CS * 0.06
+-			var tw := time - w0 - dly
++			var tw := _pose_t(time) - w0 - dly   # 1.2.0 第 5 大類 C：歡呼走定格（12fps 姿勢）
+ 			hop = absf(sin(tw * PI / 0.45)) * 10.0 if tw > 0.0 else 0.0
+ 			mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
+ 			at = Art.ATK_WINDUP
+@@ -766,10 +792,18 @@ func _draw_units_of(s, dim: bool) -> void:
+ 					draw_circle(p + Vector2(-face * (10.0 + ph5 * 12.0), -14.0 + ph5 * 4.0), 5.0 * (1.0 - ph5) * UNIT_SCALE, Color(0.85, 0.9, 1.0, 0.35 * (1.0 - ph5) * alpha), true, -1.0, true)
+ 		# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
+ 		if live and walk == 0.0 and at == 0.0:
+-			lean += sin(time * 1.1 + u.id * 1.7) * 0.018
+-			var idle_k := fmod(time + u.id * 1.37, 7.3)
++			var tq := _pose_t(time)   # 1.2.0 第 5 大類 C：待機小動作走定格
++			lean += sin(tq * 1.1 + u.id * 1.7) * 0.018
++			var idle_k := fmod(tq + u.id * 1.37, 7.3)
+ 			if idle_k < 0.3:
+ 				crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
++			# 1.2.0 第 5 大類 D 個性動作：王國＝偶爾上發條（左右扭 0.4 秒）；奇幻＝呼吸膨縮（各兵相位不同）
++			if u.type < D.COUNT:
++				var wk := fmod(tq + u.id * 2.71, 9.7)
++				if wk < 0.4:
++					lean += sin(wk / 0.4 * TAU * 2.0) * 0.05
++			else:
++				crouch *= 1.0 + 0.03 * sin(tq * 2.0 + u.id * 1.3)
+ 		if live:
+ 			face = _face_of(u)
+ 			# V1.3.1 P0-2：出手前先轉完。前搖一開始就面向目標（不改命中時間），出手中途目標換邊也維持到收招
+@@ -967,7 +1001,8 @@ func _draw_death(g: Dictionary, k: float) -> void:
+ 		else:
+ 			Art.ring_base(self, p, UNIT_SCALE, 0.8 * lal)
+ 		# 往下 5px：倒下後身體貼著木座面，不是浮在上面（Antigravity v130-impl2）
+-		_unit(p + Vector2(0, 5.0 * fe) * UNIT_SCALE, t, g["team"], face, 0.0, 0.0, hurt, lal * (1.0 - 0.2 * ft), time, UNIT_SCALE, 1 if k < 0.4 else 0, float(TOPPLE[t]) * (fe - bounce * ft), 1.0 - 0.1 * ft)
++		var lift := 2.0 * sin(clampf(ft, 0.0, 1.0) * PI) if t < D.COUNT else 0.0   # 1.2.0 第 5 大類 A3：王國棋子翻倒時底座先離地一點（翻半圈的感覺）
++		_unit(p + Vector2(0, 5.0 * fe - lift) * UNIT_SCALE, t, g["team"], face, 0.0, 0.0, hurt, lal * (1.0 - 0.2 * ft), time, UNIT_SCALE, 1 if k < 0.4 else 0, float(TOPPLE[t]) * (fe - bounce * ft), 1.0 - 0.1 * ft)
+ 		return
+ 	if al <= 0.0:
+ 		return
+diff --git a/game/scripts/ui/codex_bake.gd b/game/scripts/ui/codex_bake.gd
+index 36a6a95..3ea11d7 100644
+--- a/game/scripts/ui/codex_bake.gd
++++ b/game/scripts/ui/codex_bake.gd
+@@ -25,7 +25,7 @@ class _P extends Node2D:
+ 		Art2.back = bool(prm["back"])
+ 		Art2.calm = bool(prm["calm"])
+ 		Art2.look = float(prm["look"])
+-		Art2.unit(self, FEET_P, int(prm["type"]), 0, float(prm["face"]), 0.0, float(prm["atk"]), float(prm["hurt"]), 1.0, float(prm["t"]), float(prm["scale"]), bool(prm["cb"]), 0, 0.0, 1.0, int(prm["variant"]))
++		Art2.unit(self, FEET_P, int(prm["type"]), 0, float(prm["face"]), 0.0, float(prm["atk"]), float(prm["hurt"]), 1.0, float(prm["t"]), float(prm["scale"]), bool(prm["cb"]), int(prm.get("mood", 0)), 0.0, 1.0, int(prm["variant"]))
+ 		Art2.turn_c = 1.0
+ 		Art2.turn_s = 0.0
+ 		Art2.back = false
+diff --git a/game/scripts/ui/codex_view.gd b/game/scripts/ui/codex_view.gd
+index a5efe77..0a19dc9 100644
+--- a/game/scripts/ui/codex_view.gd
++++ b/game/scripts/ui/codex_view.gd
+@@ -742,18 +742,29 @@ func _cx_portrait(pc: Vector2) -> void:
+ 	Art.look = 0.0
+ 
+ 
++## 1.2.0 第 5 大類 B：圖鑑大圖輪流示範 5 種表情（待機 → 專注 → 生氣 → 受驚 → 得意，各 1.6 秒）；出手中固定專注；截圖固定待機。
++## 戰場維持原本的少數表情（小尺寸看不清）。
++const CX_MOODS := [0, Art.M_GRIM, Art.M_BROWS, Art.M_SURPRISE, Art.M_HAPPY]
++func cx_mood(atk: float) -> int:
++	if shot_dir != "" or layout_probe:
++		return 0
++	if atk > 0.0:
++		return Art.M_GRIM
++	return int(CX_MOODS[int(time / 1.6) % CX_MOODS.size()])
++
+ ## V1.5.1 A6：圖鑑大圖用烘焙後處理版（外框、漬洗、乾掃和戰場一致）；簡化介面、無視窗時照舊直接畫
+ var cx_bake = null
+ func _cx_draw_unit(p: Vector2, face: float, atk: float, sc: float, variant: int) -> void:
++	var mood := cx_mood(atk)
+ 	if bool(Save.s("plain_ui")) or DisplayServer.get_name() == "headless":
+-		_unit(p, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, sc, 0, 0.0, 1.0, variant)
++		_unit(p, cx_unit, 0, face, 0.0, atk, 0.0, 1.0, time, sc, mood, 0.0, 1.0, variant)
+ 		return
+ 	if cx_bake == null:
+ 		cx_bake = load("res://scripts/ui/codex_bake.gd").new()
+ 		add_child(cx_bake)
+ 	_unit_base(p, sc)
+ 	cx_bake.set_params({"type": cx_unit, "face": face, "atk": atk, "hurt": 0.0, "t": time, "scale": sc, "cb": cbm(), "variant": variant,
+-		"turn_c": Art.turn_c, "turn_s": Art.turn_s, "back": Art.back, "calm": Art.calm, "look": Art.look},
++		"turn_c": Art.turn_c, "turn_s": Art.turn_s, "back": Art.back, "calm": Art.calm, "look": Art.look, "mood": mood},
+ 		float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]), float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))
+ 	draw_set_transform_matrix(Art.base)
+ 	draw_texture(cx_bake.texture(), p - cx_bake.FEET)
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index d696935..1548671 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -297,6 +297,7 @@ func _draw_overlay() -> void:
+ 		probe_reset_geom()
+ 		if state == St.TITLE:
+ 			_dim(0.72)   # 第七輪：標題的示範戰場不透出來
++	panel_obj = OBJ_OF.get(overlay, "")   # 1.2.0 §1.2：這個疊層的面板是桌上的哪一件實物（只換外框裝飾，內容版面不動）
+ 	match overlay:
+ 		"trials":
+ 			_draw_trials()
+@@ -511,6 +512,7 @@ func _draw_overlay() -> void:
+ 			_draw_review()
+ 		_:
+ 			call("_draw_v16_overlay", overlay)   # V1.6 新覆蓋層（game_v16.gd）
++	panel_obj = ""
+ 
+ 
+ 
+@@ -587,7 +589,7 @@ func _draw_fs_confirm() -> void:
+ 	_btn(Rect2(650, P.end.y - 72, 210, 50), L.t("fs_revert"), func(): _fs_revert())
+ 
+ ## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
+-const SET_KEYS := {"set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
++const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
+ 	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
+ 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
+ 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
+@@ -646,6 +648,7 @@ func _settings_rows() -> Array:
+ 				["set_title_bg", _optv("title_bg", ["demo", "static"], ["v_demo", "v_static"]), func(d): _cycle_setting("title_bg", ["demo", "static"])],
+ 				["set_fps", L.t("v_unlimited") if int(Save.s("fps_cap")) == 0 else str(int(Save.s("fps_cap"))), func(d): _step_setting("fps_cap", [30, 60, 120, 0], d); _apply_display()],
+ 				["set_vsync", _onoff("vsync"), func(d): _cycle_setting("vsync", [true, false]); _apply_display()],
++				["set_smooth_pose", _onoff("smooth_pose"), func(d): _cycle_setting("smooth_pose", [false, true])],   # 1.2.0 §7.2 定格表演層
+ 				["set_paint", "@" + L.t("open_it"), func(d): call("_paint_open")]]
+ 		1:
+ 			return [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
+@@ -839,7 +842,17 @@ func _draw_settings() -> void:
+ 				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"), bool(_btns[_btns.size() - 1]["en"]))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
+ 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
+ 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
+-			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
++			var rw := r.size.x - 116
++			var fr := int(val.trim_suffix("%")) / 100.0
++			if bool(Save.s("plain_ui")):
++				draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), ACCENT)
++			else:   # 1.2.0 §1.4 木軌滑塊：凹槽全長＋已填的黃銅段＋黃銅滑塊（只是顯示，操作照舊用 ◀ ▶）
++				draw_rect(Rect2(r.position.x + 58, y + 40, rw, 6), Color("#2a1a10"))
++				draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), Color("#b8913f"))
++				var kx := r.position.x + 58 + rw * fr
++				draw_rect(Rect2(kx - 4, y + 37, 8, 12), Color("#7a5a22"))
++				draw_rect(Rect2(kx - 3, y + 38, 6, 10), Color("#d4ae55"))
++				draw_rect(Rect2(kx - 2, y + 39, 2, 8), Color(1, 0.96, 0.8, 0.6))
+ 	# 說明欄
+ 	var D0 := SET_DESC
+ 	draw_rect(D0, Color(0, 0, 0, 0.25))
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index f324868..f182d39 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index c516cea..27532e6 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -620,3 +620,42 @@ func test_present_v120() -> void:
+ 	Sv.settings["reduce_fx"] = keep_fx
+ 	Sv.settings["plain_ui"] = keep_plain
+ 	g.free()
++
++## 1.2.0 第 5 大類：姿勢資料化試點（劍士資料＝原公式、命中事件＝模擬命中點）、落子壓扁、不倒翁搖、定格量化
++func test_char2_v120() -> void:
++	var Art = load("res://scripts/ui/art.gd")
++	var PD = load("res://scripts/ui/pose_data.gd")
++	ok(PD.has(0), "劍士有姿勢資料")
++	ok(absf(PD.event_t(0, "hit") - Art.ATK_STRIKE) < 1e-6, "命中事件時間＝模擬命中點（演出不延後）")
++	var worst := 0.0
++	for i in 101:
++		var a := i / 100.0
++		var got: Array = Art.pose(a, 0)
++		var ref: Array = Art._pose_prof(a, Art.POSE_PROFILE[0]) if a > 0.0 else [0.0, 0.0, 1.0, 1.0, 0.0]   # 原本的劍士公式
++		for j in 5:
++			worst = maxf(worst, absf(float(got[j]) - float(ref[j])))
++	ok(worst < 1e-3, "資料版和原公式 101 點最大差 %.6f" % worst)
++	var BU = load("res://scripts/ui/battle/battle_units.gd")
++	ok(absf(BU._tumbler(0.0)) < 1e-9 and absf(BU._tumbler(1.0)) < 1e-9, "不倒翁搖：受擊開始與結束都是 0（不跳）")
++	var mx := 0.0
++	for i in 21:
++		mx = maxf(mx, absf(BU._tumbler(i / 20.0)))
++	ok(mx > 0.01 and mx <= 0.07, "不倒翁搖幅度 %.3f" % mx)
++	var Sv = load("res://scripts/game/save.gd")
++	var keep = Sv.settings.get("smooth_pose", false)
++	Sv.settings["smooth_pose"] = false
++	ok(absf(BU._pose_t(1.0 / 12.0 * 5.5) - 5.0 / 12.0) < 1e-6, "定格：姿勢時間量化到 1/12 秒")
++	Sv.settings["smooth_pose"] = true
++	ok(absf(BU._pose_t(0.4321) - 0.4321) < 1e-9, "平滑動作：不量化")
++	Sv.settings["smooth_pose"] = keep
++	var g = load("res://scripts/ui/game_screens.gd").new()
++	g.sfx = FakeSfx.new()
++	g.play_kind = "official"
++	g.fld_w = 600
++	g.start_hold = 1.0 - 0.3   # 進度 0.3：第一段（近中線）剛落地 0.05 秒 → 壓扁中
++	var sq: float = g._open_squash({"x": 300.0})
++	ok(sq < 0.99 and sq >= 0.82, "落子觸盤壓扁 %.3f" % sq)
++	ok(g._open_squash({"x": 20.0}) == 1.0, "還沒落下的後排不壓扁")
++	g.start_hold = 0.0
++	ok(g._open_squash({"x": 300.0}) == 1.0, "開場提示結束後不壓扁")
++	g.free()
+diff --git a/game/scripts/ui/pose_data.gd b/game/scripts/ui/pose_data.gd
+new file mode 100755
+index 0000000..169e152
+--- /dev/null
++++ b/game/scripts/ui/pose_data.gd
+@@ -0,0 +1,55 @@
++extends RefCounted
++## 1.2.0 §7.1 姿勢資料化（試點：劍士）。讀 data/poses/<兵>.json 的關鍵幀，回傳和 Art.pose 一樣格式的 [w, rot, sx, sy, dx]。
++## 只是畫面：命中事件時間由資料的 events.hit 宣告，測試保證它等於 Art.ATK_STRIKE（模擬命中點），不能因為演出延後。
++
++const FILES := {0: "res://data/poses/sword.json"}   # 兵種 → 姿勢檔（D.SWORD＝0）
++static var _cache := {}
++
++static func has(type: int) -> bool:
++	return FILES.has(type) and not _keys(type).is_empty()
++
++static func _keys(type: int) -> Array:
++	if _cache.has(type):
++		return _cache[type]
++	var keys: Array = []
++	var f := FileAccess.open(str(FILES.get(type, "")), FileAccess.READ)
++	if f != null:
++		var d = JSON.parse_string(f.get_as_text())
++		if d is Dictionary and d.get("keys") is Array:
++			keys = d["keys"]
++	_cache[type] = keys
++	return keys
++
++static func event_t(type: int, ev: String) -> float:
++	var f := FileAccess.open(str(FILES.get(type, "")), FileAccess.READ)
++	if f == null:
++		return -1.0
++	var d = JSON.parse_string(f.get_as_text())
++	return float((d as Dictionary).get("events", {}).get(ev, -1.0)) if d is Dictionary else -1.0
++
++static func _ease(kind: String, u: float) -> float:
++	match kind:
++		"smooth":
++			return u * u * (3.0 - 2.0 * u)
++		"ease_out":
++			return 1.0 - (1.0 - u) * (1.0 - u)
++		"back":
++			var c := 1.70158
++			return 1.0 + (c + 1.0) * pow(u - 1.0, 3.0) + c * pow(u - 1.0, 2.0)
++		"step":
++			return 0.0 if u < 1.0 else 1.0
++	return u
++
++static func eval(type: int, atk: float) -> Array:
++	var keys := _keys(type)
++	for i in range(1, keys.size()):
++		var k1: Dictionary = keys[i]
++		if atk < float(k1["t"]) or i == keys.size() - 1:
++			var k0: Dictionary = keys[i - 1]
++			var u := clampf((atk - float(k0["t"])) / maxf(0.0001, float(k1["t"]) - float(k0["t"])), 0.0, 1.0)
++			var e := _ease(str(k1.get("ease", "linear")), u)
++			var out: Array = []
++			for j in 5:
++				out.append(lerpf(float(k0["pose"][j]), float(k1["pose"][j]), e))
++			return out
++	return [0.0, 0.0, 1.0, 1.0, 0.0]
+diff --git a/game/data/poses/sword.json b/game/data/poses/sword.json
+new file mode 100755
+index 0000000..e8b4463
+--- /dev/null
++++ b/game/data/poses/sword.json
+@@ -0,0 +1,63 @@
++{
++ "unit": "sword",
++ "about": "1.2.0 §7.1 姿勢資料化試點（劍士揮擊：後仰扭腰劍舉過頭 → 前撲大弧 → 劍尖點地停頓 → 收回）。每個關鍵幀：t＝攻擊進度 0～1；pose＝[擺臂 w, 軀幹轉角 rot（弧度，正＝前撲）, 橫縮放 sx, 縱縮放 sy, 前後位移 dx]；ease＝從上一幀到這一幀的曲線（linear／smooth／ease_out／back／step）。事件 hit 的時間必須等於模擬的命中點（ATK_STRIKE），演出不能延後。",
++ "keys": [
++  {
++   "t": 0.0,
++   "pose": [
++    0.0,
++    0.0,
++    1.0,
++    1.0,
++    0.0
++   ]
++  },
++  {
++   "t": 0.3125,
++   "pose": [
++    -1.0,
++    -0.36,
++    1.14,
++    0.86,
++    -2.0
++   ],
++   "ease": "smooth"
++  },
++  {
++   "t": 0.53125,
++   "pose": [
++    1.0,
++    0.5,
++    0.86,
++    1.16,
++    5.0
++   ],
++   "ease": "ease_out"
++  },
++  {
++   "t": 0.6484375,
++   "pose": [
++    1.0,
++    0.5,
++    0.86,
++    1.16,
++    5.0
++   ],
++   "ease": "step"
++  },
++  {
++   "t": 1.0,
++   "pose": [
++    0.0,
++    0.0,
++    1.0,
++    1.0,
++    0.0
++   ],
++   "ease": "smooth"
++  }
++ ],
++ "events": {
++  "hit": 0.53125
++ }
++}
+\ No newline at end of file

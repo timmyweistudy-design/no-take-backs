@@ -25,7 +25,7 @@ class _P extends Node2D:
 		Art2.back = bool(prm["back"])
 		Art2.calm = bool(prm["calm"])
 		Art2.look = float(prm["look"])
-		Art2.unit(self, FEET_P, int(prm["type"]), 0, float(prm["face"]), 0.0, float(prm["atk"]), float(prm["hurt"]), 1.0, float(prm["t"]), float(prm["scale"]), bool(prm["cb"]), 0, 0.0, 1.0, int(prm["variant"]))
+		Art2.unit(self, FEET_P, int(prm["type"]), 0, float(prm["face"]), 0.0, float(prm["atk"]), float(prm["hurt"]), 1.0, float(prm["t"]), float(prm["scale"]), bool(prm["cb"]), int(prm.get("mood", 0)), 0.0, 1.0, int(prm["variant"]))
 		Art2.turn_c = 1.0
 		Art2.turn_s = 0.0
 		Art2.back = false

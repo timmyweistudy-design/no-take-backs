@@ -1,0 +1,397 @@
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index 5f9d2ae..22b5599 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -364,8 +364,10 @@ func _add_fx(d: Dictionary) -> void:
+ ## V1.2 C6：對話泡。r＝文字外框；尖角朝下指向角色。透明度跟著字淡出。
+ func _bubble(r: Rect2, a: float) -> void:
+ 	var rr := r.grow_individual(4, 1, 4, 2)
+-	var fill := Color(0.10, 0.07, 0.05, 0.82 * a)
+-	var edge := Color(0.95, 0.86, 0.66, 0.55 * a)
++	# 1.2.0 第 4 大類 A11：跳字泡改成小紙條（米白紙底＋墨邊），字用墨色（保留色相）；簡化介面維持深色泡
++	var paper := not bool(Save.s("plain_ui"))
++	var fill := Color(0.96, 0.92, 0.83, 0.92 * a) if paper else Color(0.10, 0.07, 0.05, 0.82 * a)
++	var edge := Color(0.26, 0.16, 0.08, 0.7 * a) if paper else Color(0.95, 0.86, 0.66, 0.55 * a)
+ 	var mid := rr.position.x + rr.size.x * 0.5
+ 	var tail := PackedVector2Array([Vector2(mid - 5, rr.end.y - 1), Vector2(mid + 5, rr.end.y - 1), Vector2(mid - 1, rr.end.y + 7)])
+ 	_box(rr, fill, edge, minf(10.0, rr.size.y * 0.5), 1.5)
+@@ -810,4 +812,6 @@ func _draw_fx(f: Dictionary) -> void:
+ 				if f.get("plain", false):
+ 					_text(p3, f["s"], sz, col, true, true, 0.0, Color(0.05, 0.2, 0.08, col.a))   # 補血綠字加深墨綠描邊
+ 				else:
++					_ink_mode = not bool(Save.s("plain_ui"))   # 紙條上用墨色字（_ink 保留色相、壓深）
+ 					_text(p3, f["s"], sz, col, true, true)   # 外框與實際畫的字同一份幾何
++					_ink_mode = false
+diff --git a/game/scripts/ui/charts.gd b/game/scripts/ui/charts.gd
+index d7a7710..3f32d4b 100644
+--- a/game/scripts/ui/charts.gd
++++ b/game/scripts/ui/charts.gd
+@@ -163,18 +163,30 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int,
+ 	for k in ys.size():
+ 		var x := rect.position.x + k * dx
+ 		var y: float = yat.call(ys[k])
++		var wk := wash
++		if paper:
++			wk = 0.34 + 0.08 * sin(float(k) * 0.37) + 0.05 * sin(float(k) * 1.9)   # 1.2.0 §4 B5：淡水彩（透明度隨欄微幅起伏，像水彩不均）
+ 		if y < mid:
+-			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, wash))
++			ui.draw_rect(Rect2(x, y, dx + 0.5, mid - y), team_col(0, cb) * Color(1, 1, 1, wk))
++			if paper:
++				ui.draw_rect(Rect2(x, y, dx + 0.5, minf(4.0, mid - y)), team_col(0, cb) * Color(1, 1, 1, 0.3))   # 水彩邊緣積色
+ 		else:
+ 			var rr := Rect2(x, mid, dx + 0.5, y - mid)
+-			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, wash))
++			ui.draw_rect(rr, team_col(1, cb) * Color(1, 1, 1, wk))
++			if paper:
++				ui.draw_rect(Rect2(x, maxf(mid, y - 4.0), dx + 0.5, minf(4.0, y - mid)), team_col(1, cb) * Color(1, 1, 1, 0.3))
+ 	if paper:
+ 		# 墨線描出戰力曲線（像手繪在紙上）
+ 		var ink := PackedVector2Array()
+ 		for k2 in ys.size():
+ 			ink.append(Vector2(rect.position.x + k2 * dx, yat.call(ys[k2])))
+ 		if ink.size() >= 2:
+-			ui.draw_polyline(ink, Color(0.14, 0.08, 0.04, 0.85), 1.6, true)
++			# 1.2.0 §4 B5：乾刷墨線＝主線加粗＋下方一道淡的飛白副線
++			var dry := PackedVector2Array()
++			for q in ink:
++				dry.append(q + Vector2(0, 1.6))
++			ui.draw_polyline(dry, Color(0.14, 0.08, 0.04, 0.3), 1.0, true)
++			ui.draw_polyline(ink, Color(0.14, 0.08, 0.04, 0.88), 2.4, true)
+ 	if cb:
+ 		# 色盲：紅方（中線以下）的面積加斜線紋，不只靠顏色分辨（Codex 實作第 1 輪：原本是空的）
+ 		# 整個紅方面積都畫斜線：每條 45° 線從中線往下，只畫在該欄的紅色高度內
+@@ -218,7 +230,7 @@ static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int,
+ 		if row > 1:
+ 			continue   # 最多兩排標籤（上方只留了兩排空間）
+ 		used.append([lx, w, row])
+-		ui.draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y), Color("#ffd166"), 1.5)
++		ui.draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y), Color(Color("#9b281b"), 0.75) if paper else Color("#ffd166"), 1.5)   # 紙上用朱砂線
+ 		ui._text(Vector2(lx, rect.position.y - fs * 1.5 * (row + 1)), lab, fs, Color("#ffd166"))   # V1.2.1 B4：兩排拉開（原 1.35 只差 2px）
+ 		shown += 1
+ 	return ys
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index 32013b6..65c82c9 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -527,7 +527,10 @@ func _draw_lobby_presets(o: Vector2) -> void:
+ 		# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
+ 		if on:
+ 			btn_deco = _draw_bookmark
++		btn_cloth = "tab_indigo" if on else "tab_linen"   # 1.2.0 第 4 大類：預設分頁是布標（和設定分頁同一套；選中靛藍、未選原胚布）
+ 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
++		btn_cloth = ""
++		var on_paper := last_btn_paper   # 原胚布：字用墨色
+ 		btn_deco = Callable()
+ 		if on:
+ 			draw_rect(r, ACCENT, false, 3.0)
+@@ -546,7 +549,9 @@ func _draw_lobby_presets(o: Vector2) -> void:
+ 				if 5.0 + 2.53 * c <= h - 11.0 and _width(lab, c, true) <= tw:
+ 					lsz = c
+ 					break
++		_ink_mode = on_paper
+ 		_text(r.position + Vector2(tx, 5 if two else 8), lab, lsz, Color.WHITE, true, true, tw)
++		_ink_mode = false
+ 		var b := Presets.badge(p, lobby_kind)
+ 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
+ 		_box(Rect2(r.position + Vector2(8, h - 9), Vector2(w - 16, 4)), bc, Color(0, 0, 0, 0), 2.0)
+@@ -677,7 +682,13 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 		_ink_mode = true
+ 	# V1.5.2 L6：列底色高度照內容（hh）；左欄圖示與標籤和右邊主控制項共用列中線（原本標籤靠上、控制項置中）
+ 	var label := func(ic: String, s: String, yy: float, hh: float) -> void:
+-		_box(Rect2(x, yy, lw, hh), Color(0.36, 0.22, 0.1, 0.10) if _ink_mode else Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
++		if _ink_mode:   # 1.2.0 A10：紙頁上的列＝一條紙籤（淡墨上下細線＋左上折角），不是深色圓角框
++			draw_rect(Rect2(x, yy, lw, hh), Color(0.36, 0.22, 0.1, 0.05))
++			draw_line(Vector2(x + 14, yy), Vector2(x + lw, yy), Color(0.26, 0.16, 0.08, 0.35), 1.0)
++			draw_line(Vector2(x, yy + hh), Vector2(x + lw, yy + hh), Color(0.26, 0.16, 0.08, 0.35), 1.0)
++			draw_colored_polygon(PackedVector2Array([Vector2(x, yy), Vector2(x + 14, yy), Vector2(x, yy + 14)]), Color(0.36, 0.22, 0.1, 0.22))
++		else:
++			_box(Rect2(x, yy, lw, hh), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+ 		var mid := yy + minf(hh, rowh - 8.0) * 0.5
+ 		_icon(ic, Vector2(x + 26, mid), 26.0, ACCENT)
+ 		var lsz := fit(s, tz("B"), 112, true)
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index d696935..b8f529f 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -297,6 +297,7 @@ func _draw_overlay() -> void:
+ 		probe_reset_geom()
+ 		if state == St.TITLE:
+ 			_dim(0.72)   # 第七輪：標題的示範戰場不透出來
++	panel_obj = OBJ_OF.get(overlay, "")   # 1.2.0 §1.2：這個疊層的面板是桌上的哪一件實物（只換外框裝飾，內容版面不動）
+ 	match overlay:
+ 		"trials":
+ 			_draw_trials()
+@@ -511,6 +512,7 @@ func _draw_overlay() -> void:
+ 			_draw_review()
+ 		_:
+ 			call("_draw_v16_overlay", overlay)   # V1.6 新覆蓋層（game_v16.gd）
++	panel_obj = ""
+ 
+ 
+ 
+@@ -839,7 +841,17 @@ func _draw_settings() -> void:
+ 				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"), bool(_btns[_btns.size() - 1]["en"]))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
+ 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
+ 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
+-			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
++			var rw := r.size.x - 116
++			var fr := int(val.trim_suffix("%")) / 100.0
++			if bool(Save.s("plain_ui")):
++				draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), ACCENT)
++			else:   # 1.2.0 §1.4 木軌滑塊：凹槽全長＋已填的黃銅段＋黃銅滑塊（只是顯示，操作照舊用 ◀ ▶）
++				draw_rect(Rect2(r.position.x + 58, y + 40, rw, 6), Color("#2a1a10"))
++				draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), Color("#b8913f"))
++				var kx := r.position.x + 58 + rw * fr
++				draw_rect(Rect2(kx - 4, y + 37, 8, 12), Color("#7a5a22"))
++				draw_rect(Rect2(kx - 3, y + 38, 6, 10), Color("#d4ae55"))
++				draw_rect(Rect2(kx - 2, y + 39, 2, 8), Color(1, 0.96, 0.8, 0.6))
+ 	# 說明欄
+ 	var D0 := SET_DESC
+ 	draw_rect(D0, Color(0, 0, 0, 0.25))
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index e471d88..2d387c6 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -712,7 +712,7 @@ func _pc_capture() -> void:
+ 	pc_shot = ImageTexture.create_from_image(img)
+ 
+ func _draw_postcard() -> void:
+-	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.03, 0.02, 0.9))   # 底下的結果頁按鈕不能透出來（Antigravity v140-i2）
++	draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, 0.86))   # 底下的結果頁按鈕不能透出來（Antigravity v140-i2）；1.2.0 憲法 3：暖墨色、不壓到近純黑
+ 	var P := Rect2(150, 90, 980, 560)
+ 	probe_panel(P)   # 明信片自己畫紙卡，不走 _panel：照樣登記成模態面板（R1 置中、漏登記守衛）
+ 	_tex_box(P, "paper")
+diff --git a/game/scripts/ui/screens/game_v16.gd b/game/scripts/ui/screens/game_v16.gd
+index eace5ad..c037362 100644
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -1095,7 +1095,8 @@ func _draw_coach() -> void:
+ 			lines.append(_coach_hint2())
+ 	var body := "\n".join(lines)
+ 	var gh := 150.0 if found and co_layer >= 2 else 0.0
+-	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + gh + GAP_XL + 50.0 + GAP_M + 44.0 + GAP_L)
++	var has_act := busy or found   # 1.2.0：沒有動作鈕（找不到）時不留它的高度（英文 150% 空出 161px，排版 R6）
++	var P := modal_rect(620, 12.0 + h1_help_h(L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540) + GAP_L + text_h(body, tz("B"), 540) + gh + (GAP_XL + 50.0 + GAP_M if has_act else GAP_XL) + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("co_title"), L.t("co_help", [Coach.LIMIT, Coach.TIME_MS / 1000]), tz("S"), 540)
+ 	_text(Vector2(640, y), body, tz("B"), Color.WHITE, true, true, 540)
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 5fc1bb4..76da3e3 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -824,7 +824,10 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
+ 	# 1.2.0 §1.3：沒有自訂色的一般按鈕＝山毛櫸木牌（墨色字）；主要按鈕＝朱漆木牌＋左側紅蠟封；停用＝褪色木牌
+ 	var cloth: bool = btn_cloth != "" and not paper_face and not bool(Save.s("plain_ui")) and _ui_tex(MAT[btn_cloth]) != null   # 1.2.0 §1.3 布標分頁
+-	var plaque: bool = not cloth and not paper_face and tint.a <= 0.0 and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
++	# 1.2.0 第 4 大類 A10：「木色／選中」兩種標準色的按鈕也走木牌（原本是深色圓角塊，Antigravity cat03 #1）；選中＝暖一點的木牌＋朱砂框（不只靠顏色）。
++	# 木色但沒有自己標籤的按鈕（字由呼叫端另外畫白字：技能格、試煉卡、禁用卡）維持原本深色，避免白字落在淺木牌上
++	var sel_on: bool = tint == TH_ACTIVE
++	var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or sel_on or (tint == TH_WOOD and label != "")) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+ 	last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
+ 	last_btn_enabled = enabled
+ 	if cloth:
+@@ -847,9 +850,13 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 		var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
+ 		if not enabled:
+ 			pt = Color(0.78, 0.75, 0.7, 0.85)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
+-		elif hover or focus:
++		elif sel_on and not primary:
++			pt = Color(1.0, 0.84, 0.66)
++		if enabled and (hover or focus):
+ 			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
+ 		_mat_box(rd, "plaque", pt)
++		if sel_on and enabled:
++			draw_rect(rd.grow(-4), Color(Color("#9b281b"), 0.9), false, 2.5)   # 選中：朱砂框
+ 		if primary and enabled and rd.size.x >= 120.0:
+ 			var wx := _ui_tex(MAT["wax_red"])
+ 			var ws := minf(rd.size.y + 8.0, 46.0)
+@@ -1339,6 +1346,85 @@ func probe_panel(r: Rect2) -> void:
+ 	if layout_probe:
+ 		probe_panels.append({"id": "P%d" % probe_panels.size(), "r": r, "skip": {}})
+ 
++## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
++## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
++const OBJ_OF := {"puzzles": "fold", "trials": "tube", "codex": "case", "settings": "box", "keys": "box", "profile": "trunk", "nemeses": "ebony",
++	"codes": "letter", "wave_codes": "letter", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
++var panel_obj := ""
++
++func _obj_deco(r: Rect2, kind: String) -> void:
++	var brass := Color("#c9a24a")
++	var brass_d := Color("#7a5a22")
++	match kind:
++		"fold":   # 經摺帖：面板上下緣各一排摺痕（摺面寬 ~ 面板 1/5），中間不畫（字在中間）
++			var nf := 5
++			for i in range(1, nf):
++				var x := r.position.x + r.size.x * i / nf
++				for yy in [r.position.y - 8.0, r.end.y - 4.0]:
++					draw_rect(Rect2(x - 1.5, yy, 3, 12), Color(DIM_INK, 0.55))
++					draw_rect(Rect2(x + 1.5, yy, 1, 12), Color(1, 0.94, 0.8, 0.35))
++		"tube":   # 畫筒短箋：左上角框上一顆蠟封，下面垂兩條紅絲帶尾（往左下垂，不橫切面板）
++			var c0 := r.position + Vector2(34, 0)
++			for tl in [[Vector2(-4, 4), Vector2(-14, 40)], [Vector2(4, 4), Vector2(8, 44)]]:
++				var a0: Vector2 = c0 + tl[0]
++				var a1: Vector2 = c0 + tl[1]
++				draw_colored_polygon(PackedVector2Array([a0 + Vector2(-4, 0), a0 + Vector2(4, 0), a1 + Vector2(4, 0), a1 + Vector2(0, -6), a1 + Vector2(-4, 0)]), Color("#9e2a22"))
++				draw_line(a0 + Vector2(-1, 0), a1 + Vector2(-1, -4), Color(1, 0.7, 0.6, 0.25), 1.0)
++			draw_circle(c0, 12.0, Color("#6e1a14"), true, -1.0, true)
++			draw_circle(c0, 9.0, Color("#8e231b"), true, -1.0, true)
++			draw_arc(c0, 10.0, 0.0, TAU, 20, Color(brass, 0.8), 1.5, true)
++		"case":   # 雙開珍玩箱：左右兩側各兩個黃銅鉸鏈、上緣中央一個鎖扣
++			for sx in [r.position.x - 6.0, r.end.x - 6.0]:
++				for fy in [0.22, 0.78]:
++					var hr := Rect2(sx, r.position.y + r.size.y * fy - 16, 12, 32)
++					draw_rect(hr, brass_d)
++					draw_rect(hr.grow(-2), brass)
++					draw_line(hr.position + Vector2(6, 3), hr.position + Vector2(6, 29), brass_d, 1.0)
++			var lk := Rect2(r.get_center().x - 16, r.position.y - 9, 32, 16)
++			draw_rect(lk, brass_d)
++			draw_rect(lk.grow(-2), brass)
++			draw_circle(lk.get_center() + Vector2(0, 1), 2.5, brass_d)
++		"box":   # 木盒：四角黃銅護角（L 形）
++			for cc in [[r.position, Vector2(1, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 1)], [Vector2(r.position.x, r.end.y), Vector2(1, -1)], [r.end, Vector2(-1, -1)]]:
++				var o: Vector2 = cc[0] + Vector2(-6, -6) * cc[1]
++				var d: Vector2 = cc[1]
++				draw_colored_polygon(PackedVector2Array([o, o + Vector2(34 * d.x, 0), o + Vector2(34 * d.x, 10 * d.y), o + Vector2(10 * d.x, 10 * d.y), o + Vector2(10 * d.x, 34 * d.y), o + Vector2(0, 34 * d.y)]), brass)
++				draw_circle(o + Vector2(5, 5) * d, 2.0, brass_d)
++		"trunk":   # 牛皮箱：上緣兩條皮帶＋黃銅扣（只壓在框上）
++			for fx in [0.25, 0.75]:
++				var sx: float = r.position.x + r.size.x * fx
++				draw_rect(Rect2(sx - 14, r.position.y - 10, 28, 22), Color("#5a3218"))
++				draw_rect(Rect2(sx - 14, r.position.y - 10, 28, 2), Color(1, 0.85, 0.65, 0.25))
++				var bk := Rect2(sx - 10, r.position.y - 4, 20, 12)
++				draw_rect(bk, brass_d)
++				draw_rect(bk.grow(-2), Color(0, 0, 0, 0))
++				draw_rect(bk, brass, false, 2.0)
++		"ebony":   # 黑檀插牌座：框一圈壓深＋上緣一道細金線
++			draw_rect(r.grow(8), Color(0.05, 0.03, 0.02, 0.35), false, 8.0)
++			draw_line(r.position + Vector2(12, -2), Vector2(r.end.x - 12, r.position.y - 2), Color(brass, 0.7), 1.5)
++		"letter":   # 信封：上緣中央三角封口（在框外）＋蠟封
++			var cx := r.get_center().x
++			draw_colored_polygon(PackedVector2Array([Vector2(cx - 240, r.position.y - 6), Vector2(cx + 240, r.position.y - 6), Vector2(cx, r.position.y + 14)]), Color("#d8c7a6"))
++			draw_polyline(PackedVector2Array([Vector2(cx - 240, r.position.y - 6), Vector2(cx, r.position.y + 14), Vector2(cx + 240, r.position.y - 6)]), Color(DIM_INK, 0.5), 1.5, true)
++			draw_circle(Vector2(cx, r.position.y + 6), 9.0, Color("#8e231b"), true, -1.0, true)
++			draw_arc(Vector2(cx, r.position.y + 6), 7.5, 0.0, TAU, 18, Color(brass, 0.8), 1.2, true)
++		"tin":   # 老鐵盒：框外一圈鉚釘（藍灰金屬）
++			var col := Color("#8a96a0")
++			var n := int(r.size.x / 60.0)
++			for i in n + 1:
++				var x := r.position.x + r.size.x * i / maxf(1.0, n)
++				for yy in [r.position.y - 3.0, r.end.y + 3.0]:
++					draw_circle(Vector2(x, yy), 3.0, col, true, -1.0, true)
++					draw_circle(Vector2(x - 0.8, yy - 0.8), 1.0, Color(1, 1, 1, 0.5), true, -1.0, true)
++		"card":   # 立卡：底緣一道木腳架
++			draw_rect(Rect2(r.position.x + r.size.x * 0.3, r.end.y + 4, r.size.x * 0.4, 6), Color("#6b4a2e"))
++			draw_rect(Rect2(r.position.x + r.size.x * 0.3, r.end.y + 4, r.size.x * 0.4, 2), Color(1, 0.85, 0.6, 0.3))
++		"clock":   # 暫停＝棋鐘：上緣兩顆黃銅按鈕
++			for fx in [0.3, 0.7]:
++				var bc := Vector2(r.position.x + r.size.x * fx, r.position.y - 4)
++				draw_rect(Rect2(bc - Vector2(14, 6), Vector2(28, 10)), brass_d)
++				draw_rect(Rect2(bc - Vector2(12, 5), Vector2(24, 6)), brass)
++
+ func _panel(r: Rect2) -> void:
+ 	probe_panel(r)
+ 	_dim(0.62)
+@@ -1360,6 +1446,8 @@ func _panel(r: Rect2) -> void:
+ 		draw_style_box(sb, r.grow(8))
+ 	else:
+ 		_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
++	if panel_obj != "" and not bool(Save.s("plain_ui")):
++		_obj_deco(r, panel_obj)
+ 
+ 
+ func _open(name: String) -> void:
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index 48bb792..067f8a2 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -254,7 +254,7 @@ func layout_geom_input() -> Dictionary:
+ 
+ ## 1.2.0 §14.7 美感自動檢查（第一批，先當報表、不擋）：
+ ##  ・black_pct：近純黑像素（三通道都 ≤ 8）佔全畫面的百分比（憲法 3：禁純黑；桌面世界做完後改成違規）
+-##  ・units／low_units：戰鬥中每隻單位，框內（腳底往上 46px、寬 36px）與框外一圈 6px 的平均明度差 < 30%（＝0.3×255）的隻數（憲法 7）
++##  ・units／low_units：戰鬥中每隻單位，框內（腳底往上 46px、寬 36px）最暗／最亮 10% 像素和框外一圈 6px 平均的 WCAG 對比都 < 3:1 的隻數（第 4 大類 B2 改量法）
+ func _art_checks(img: Image) -> Dictionary:
+ 	var out := {"black_pct": 0.0, "units": 0, "low_units": 0}
+ 	if img == null:
+@@ -271,30 +271,45 @@ func _art_checks(img: Image) -> Dictionary:
+ 				blk += 1
+ 	out["black_pct"] = snappedf(100.0 * blk / maxi(1, n), 0.01)
+ 	if state == St.BATTLE and view != null:
+-		var lum := func(c: Color) -> float: return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+-		var mean := func(r: Rect2i) -> float:
+-			var s0 := 0.0
+-			var k := 0
+-			for yy in range(maxi(0, r.position.y), mini(h, r.end.y), 2):
+-				for xx in range(maxi(0, r.position.x), mini(w, r.end.x), 2):
+-					s0 += lum.call(img.get_pixel(xx, yy))
+-					k += 1
+-			return s0 / maxi(1, k)
++		# 1.2.0 第 4 大類 B2：改量「輪廓」：框內最暗 10% 與最亮 10% 的像素（棋子的描邊與高光）各自和外圈平均算 WCAG 對比，取大者；
++		# < 3:1 才算看不清（Antigravity cat01：邊緣對比 ≥3:1）。原本比框內平均 vs 外圈平均，棋子色塊和草地平均明度接近就全判低。
++		var rl := func(c: Color) -> float:
++			var lc := c.srgb_to_linear()
++			return 0.2126 * lc.r + 0.7152 * lc.g + 0.0722 * lc.b
+ 		for u in view.units:
+ 			if not u.alive:
+ 				continue
+ 			var sp: Vector2 = _cam * _upos(u)
+ 			var inner := Rect2i(int(sp.x) - 18, int(sp.y) - 46, 36, 46)
+ 			var outer := inner.grow(6)
+-			var li: float = mean.call(inner)
+-			# 外圈＝外框四條邊帶的平均（不含內框）
++			var vals: Array = []
++			for yy in range(maxi(0, inner.position.y), mini(h, inner.end.y), 2):
++				for xx in range(maxi(0, inner.position.x), mini(w, inner.end.x), 2):
++					vals.append(rl.call(img.get_pixel(xx, yy)))
++			if vals.is_empty():
++				continue
++			vals.sort()
++			var nv := vals.size()
++			var dark := 0.0
++			var lite := 0.0
++			var kq := maxi(1, nv / 10)
++			for i in kq:
++				dark += float(vals[i])
++				lite += float(vals[nv - 1 - i])
++			dark /= kq
++			lite /= kq
+ 			var ring := 0.0
++			var rk := 0
+ 			for r in [Rect2i(outer.position.x, outer.position.y, outer.size.x, 6), Rect2i(outer.position.x, outer.end.y - 6, outer.size.x, 6),
+ 					Rect2i(outer.position.x, inner.position.y, 6, inner.size.y), Rect2i(inner.end.x, inner.position.y, 6, inner.size.y)]:
+-				ring += mean.call(r)
+-			ring /= 4.0
++				for yy in range(maxi(0, r.position.y), mini(h, r.end.y), 2):
++					for xx in range(maxi(0, r.position.x), mini(w, r.end.x), 2):
++						ring += rl.call(img.get_pixel(xx, yy))
++						rk += 1
++			ring /= maxi(1, rk)
++			var cr := func(a: float, b: float) -> float: return (maxf(a, b) + 0.05) / (minf(a, b) + 0.05)
+ 			out["units"] += 1
+-			if absf(li - ring) < 0.3:
++			if maxf(cr.call(dark, ring), cr.call(lite, ring)) < 3.0:
+ 				out["low_units"] += 1
+ 	return out
+ 
+@@ -541,6 +556,7 @@ func _ach(id: String) -> void:
+ func _draw_kit_demo() -> void:
+ 	var P := modal_rect(900, 520)
+ 	_panel(P)
++	probe_skip("R6", "元件庫展示（開發用）：下半是材質樣本與黃銅開關，直接畫、不經版面探針，不是空白")
+ 	var y := _h1(Vector2(640, P.position.y + 12), "Kit") + GAP_L
+ 	var x0 := P.position.x + 40
+ 	mouse = Vector2(x0 + 230 + 80, y + 22)   # 第二顆＝懸停
+diff --git a/game/tools/layout_check.sh b/game/tools/layout_check.sh
+index 9f300b6..95318b0 100755
+--- a/game/tools/layout_check.sh
++++ b/game/tools/layout_check.sh
+@@ -98,7 +98,7 @@ arts=[d for d in rows if 'art' in d]
+ if arts:
+     blk=sorted(arts, key=lambda d:-d['art']['black_pct'])
+     u=sum(d['art']['units'] for d in arts); lu=sum(d['art']['low_units'] for d in arts)
+-    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子灰階對比 < 30%% 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
++    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子輪廓對比 < 3:1 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
+ runs=glob.glob(os.path.join(out,'*','layout.jsonl'))
+ want=int(os.environ.get('LAYOUT_N','14'))
+ if len(runs)!=want or len(rows)!=want*expect:

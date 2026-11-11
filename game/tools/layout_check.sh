@@ -98,7 +98,7 @@ arts=[d for d in rows if 'art' in d]
 if arts:
     blk=sorted(arts, key=lambda d:-d['art']['black_pct'])
     u=sum(d['art']['units'] for d in arts); lu=sum(d['art']['low_units'] for d in arts)
-    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子灰階對比 < 30%% 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
+    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子輪廓對比 < 3:1 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
 runs=glob.glob(os.path.join(out,'*','layout.jsonl'))
 want=int(os.environ.get('LAYOUT_N','14'))
 if len(runs)!=want or len(rows)!=want*expect:

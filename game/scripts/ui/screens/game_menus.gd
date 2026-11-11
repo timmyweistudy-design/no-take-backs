@@ -297,6 +297,7 @@ func _draw_overlay() -> void:
 		probe_reset_geom()
 		if state == St.TITLE:
 			_dim(0.72)   # 第七輪：標題的示範戰場不透出來
+	panel_obj = OBJ_OF.get(overlay, "")   # 1.2.0 §1.2：這個疊層的面板是桌上的哪一件實物（只換外框裝飾，內容版面不動）
 	match overlay:
 		"trials":
 			_draw_trials()
@@ -326,6 +327,8 @@ func _draw_overlay() -> void:
 			_draw_weekly()
 		"kit_demo":
 			call("_draw_kit_demo")   # 1.2.0：開發用截圖（dev_main）
+		"mood_demo":
+			call("_draw_mood_demo")   # 1.2.0 第 5 大類：開發用截圖（dev_main）
 		"boss_note":
 			if note_ret != "":   # 疊在大廳上：先畫大廳（按鈕隨後清掉，點不到），再壓暗畫便條
 				overlay = note_ret
@@ -511,6 +514,7 @@ func _draw_overlay() -> void:
 			_draw_review()
 		_:
 			call("_draw_v16_overlay", overlay)   # V1.6 新覆蓋層（game_v16.gd）
+	panel_obj = ""
 
 
 
@@ -587,7 +591,7 @@ func _draw_fs_confirm() -> void:
 	_btn(Rect2(650, P.end.y - 72, 210, 50), L.t("fs_revert"), func(): _fs_revert())
 
 ## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
-const SET_KEYS := {"set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
+const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
 	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
@@ -646,6 +650,7 @@ func _settings_rows() -> Array:
 				["set_title_bg", _optv("title_bg", ["demo", "static"], ["v_demo", "v_static"]), func(d): _cycle_setting("title_bg", ["demo", "static"])],
 				["set_fps", L.t("v_unlimited") if int(Save.s("fps_cap")) == 0 else str(int(Save.s("fps_cap"))), func(d): _step_setting("fps_cap", [30, 60, 120, 0], d); _apply_display()],
 				["set_vsync", _onoff("vsync"), func(d): _cycle_setting("vsync", [true, false]); _apply_display()],
+				["set_smooth_pose", _onoff("smooth_pose"), func(d): _cycle_setting("smooth_pose", [false, true])],   # 1.2.0 §7.2 定格表演層
 				["set_paint", "@" + L.t("open_it"), func(d): call("_paint_open")]]
 		1:
 			return [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
@@ -839,7 +844,17 @@ func _draw_settings() -> void:
 				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"), bool(_btns[_btns.size() - 1]["en"]))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
-			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
+			var rw := r.size.x - 116
+			var fr := int(val.trim_suffix("%")) / 100.0
+			if bool(Save.s("plain_ui")):
+				draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), ACCENT)
+			else:   # 1.2.0 §1.4 木軌滑塊：凹槽全長＋已填的黃銅段＋黃銅滑塊（只是顯示，操作照舊用 ◀ ▶）
+				draw_rect(Rect2(r.position.x + 58, y + 40, rw, 6), Color("#2a1a10"))
+				draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), Color("#b8913f"))
+				var kx := r.position.x + 58 + rw * fr
+				draw_rect(Rect2(kx - 4, y + 37, 8, 12), Color("#7a5a22"))
+				draw_rect(Rect2(kx - 3, y + 38, 6, 10), Color("#d4ae55"))
+				draw_rect(Rect2(kx - 2, y + 39, 2, 8), Color(1, 0.96, 0.8, 0.6))
 	# 說明欄
 	var D0 := SET_DESC
 	draw_rect(D0, Color(0, 0, 0, 0.25))

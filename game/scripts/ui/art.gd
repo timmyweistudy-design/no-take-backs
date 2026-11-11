@@ -38,9 +38,12 @@ const POSE_PROFILE := {
 	21: [1.14, 0.86, 0.30, -2.0, 0.86, 1.16, 0.40, 4.0, 0.20],   # 骷髏：舉骨刀 → 劈
 }
 
+const PoseData = preload("res://scripts/ui/pose_data.gd")
 static func pose(atk: float, type := -1) -> Array:
 	if atk <= 0.0:
 		return [0.0, 0.0, 1.0, 1.0, 0.0]
+	if PoseData.has(type):
+		return PoseData.eval(type, atk)   # 1.2.0 §7.1 姿勢資料化試點（劍士）：資料版和原本的 POSE_PROFILE 公式等值（測試）
 	if POSE_PROFILE.has(type):
 		return _pose_prof(atk, POSE_PROFILE[type])
 	if atk < ATK_WINDUP:
@@ -139,14 +142,20 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 			if mood & M_HAPPY:
 				ci.draw_arc(e + Vector2(0, 1.2), 2.6, PI * 1.15, PI * 1.85, 6, Color(OUT, a), 1.7, true)
 			elif mood & M_SURPRISE:
-				ci.draw_circle(e, 3.0, Color(OUT, a), true, -1.0, true)
-				ci.draw_circle(e + Vector2(0.6, -0.7), 1.2, Color(1, 1, 1, a), true, -1.0, true)
+				# 1.2.0 第 5 大類（Antigravity cat05 #1）：受驚＝眼白放大＋針尖小瞳孔（和待機的大黑瞳分得開）
+				ci.draw_circle(e, 3.3, Color(1, 1, 1, a), true, -1.0, true)
+				ci.draw_arc(e, 3.3, 0.0, TAU, 14, Color(OUT, a), 1.1, true)
+				ci.draw_circle(e, 0.9, Color(OUT, a), true, -1.0, true)
 			else:
 				ci.draw_circle(e + Vector2(0, 0.6), 2.2, Color(OUT, a), true, -1.0, true)
 				ci.draw_line(e + Vector2(-2.6, -3.4), e + Vector2(2.6, -2.2), Color(OUT, a), 1.4, true)
 		var mc: Vector2 = (eyes[0] + eyes[1]) * 0.5 + Vector2(0, 6.0)
 		if mood & M_SURPRISE:
-			ci.draw_circle(mc, 1.6, Color(OUT, a), true, -1.0, true)
+			var ov := PackedVector2Array()   # 縱向拉長的張大嘴
+			for k in 12:
+				var an := k * TAU / 12.0
+				ov.append(mc + Vector2(cos(an) * 1.6, 0.8 + sin(an) * 2.8))
+			ci.draw_colored_polygon(ov, Color(OUT, a))
 		elif mood & M_GRIM:
 			ci.draw_arc(mc + Vector2(0, 2.0), 2.4, PI * 1.2, PI * 1.8, 6, Color(OUT, a), 1.3, true)
 	if mood & M_HOOD:

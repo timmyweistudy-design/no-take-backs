@@ -176,6 +176,7 @@ var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按�
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
 var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
+var _ink_keep_a := false   # 1.2.0：戰場跳字轉墨色時保留原透明度（淡出要和紙條同步，Codex cat04 #2）
 var _hand_mode := false   # 1.2.0：畫老闆便條時用手寫字
 var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
 var _hover_key := -1
@@ -701,7 +702,7 @@ var mag_on := false      # V1.6 #7 文字放大鏡：這一幀游標指到的介
 var mag_hit: Array = []
 func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
 	if _ink_mode:
-		c = _ink(c)
+		c = Color(_ink(c), c.a) if _ink_keep_a else _ink(c)
 	elif outline.a < 0.0 and not (size >= 24 or (bold and size >= 19)) and c.s >= 0.25 and not (c.get_luminance() < 0.35 and c.s < 0.8):   # 深色低彩度的浮雕字不動
 		c = Color(_legible(Color(c, 1.0)), c.a)   # V1.2.1 F5：深描邊上的彩色小字自動提亮到 4.5:1
 	if maxw > 0.0:
@@ -824,7 +825,10 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
 	# 1.2.0 §1.3：沒有自訂色的一般按鈕＝山毛櫸木牌（墨色字）；主要按鈕＝朱漆木牌＋左側紅蠟封；停用＝褪色木牌
 	var cloth: bool = btn_cloth != "" and not paper_face and not bool(Save.s("plain_ui")) and _ui_tex(MAT[btn_cloth]) != null   # 1.2.0 §1.3 布標分頁
-	var plaque: bool = not cloth and not paper_face and tint.a <= 0.0 and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+	# 1.2.0 第 4 大類 A10：「木色／選中」兩種標準色的按鈕也走木牌（原本是深色圓角塊，Antigravity cat03 #1）；選中＝暖一點的木牌＋朱砂框（不只靠顏色）。
+	# 木色／選中但沒有自己標籤的按鈕（字由呼叫端另外畫白字：技能格、試煉卡、禁用卡、遠征獎勵卡）維持原本深色，避免白字落在淺木牌上（Codex cat04 #1）
+	var sel_on: bool = tint == TH_ACTIVE
+	var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or ((sel_on or tint == TH_WOOD) and label != "")) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
 	last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
 	last_btn_enabled = enabled
 	if cloth:
@@ -847,9 +851,13 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
 		if not enabled:
 			pt = Color(0.78, 0.75, 0.7, 0.85)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
-		elif hover or focus:
+		elif sel_on and not primary:
+			pt = Color(1.0, 0.84, 0.66)
+		if enabled and (hover or focus):
 			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
 		_mat_box(rd, "plaque", pt)
+		if sel_on and enabled and tint.a > 0.0:
+			draw_rect(rd.grow(-4), Color(Color("#9b281b"), 0.9), false, 2.5)   # 選中：朱砂框
 		if primary and enabled and rd.size.x >= 120.0:
 			var wx := _ui_tex(MAT["wax_red"])
 			var ws := minf(rd.size.y + 8.0, 46.0)
@@ -1339,6 +1347,125 @@ func probe_panel(r: Rect2) -> void:
 	if layout_probe:
 		probe_panels.append({"id": "P%d" % probe_panels.size(), "r": r, "skip": {}})
 
+## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
+## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
+const OBJ_OF := {"puzzles": "fold", "trials": "tube", "codex": "case", "settings": "box", "keys": "box", "profile": "trunk", "nemeses": "ebony",
+	"codes": "letter", "wave_codes": "letter", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
+var panel_obj := ""
+
+func _obj_deco(r: Rect2, kind: String) -> void:
+	var brass := Color("#c9a24a")
+	var brass_d := Color("#7a5a22")
+	match kind:
+		"fold":   # 經摺帖：整幅面板每 1/5 一道風琴摺（摺痕左暗右亮的窄漸層，低透明，不影響字的對比）＋上下緣摺口
+			var nf := 5
+			for i in range(1, nf):
+				var x := r.position.x + r.size.x * i / nf
+				for k in 6:
+					draw_rect(Rect2(x - 6 + k, r.position.y, 1, r.size.y), Color(DIM_INK, 0.03 * (k + 1)))
+				draw_rect(Rect2(x, r.position.y, 2, r.size.y), Color(1, 0.94, 0.8, 0.10))
+				for yy in [r.position.y - 8.0, r.end.y - 4.0]:
+					draw_rect(Rect2(x - 2, yy, 4, 12), Color(DIM_INK, 0.6))
+		"tube":   # 畫筒短箋：左上角框上一顆蠟封，下面垂兩條紅絲帶尾（往左下垂，不橫切面板）
+			var c0 := r.position + Vector2(34, 0)
+			for tl in [[Vector2(-4, 4), Vector2(-14, 40)], [Vector2(4, 4), Vector2(8, 44)]]:
+				var a0: Vector2 = c0 + tl[0]
+				var a1: Vector2 = c0 + tl[1]
+				draw_colored_polygon(PackedVector2Array([a0 + Vector2(-4, 0), a0 + Vector2(4, 0), a1 + Vector2(4, 0), a1 + Vector2(0, -6), a1 + Vector2(-4, 0)]), Color("#9e2a22"))
+				draw_line(a0 + Vector2(-1, 0), a1 + Vector2(-1, -4), Color(1, 0.7, 0.6, 0.25), 1.0)
+			draw_circle(c0, 12.0, Color("#6e1a14"), true, -1.0, true)
+			draw_circle(c0, 9.0, Color("#8e231b"), true, -1.0, true)
+			draw_arc(c0, 10.0, 0.0, TAU, 20, Color(brass, 0.8), 1.5, true)
+		"case":   # 雙開珍玩箱：兩側各兩片大黃銅合頁（帶鉚釘）、上緣中央鎖扣、框內側一道門扇厚度陰影
+			for side in [-1.0, 1.0]:
+				var ex: float = r.position.x if side < 0 else r.end.x
+				draw_rect(Rect2(ex - (10.0 if side < 0 else 0.0), r.position.y + 8, 10, r.size.y - 16), Color(DIM_INK, 0.35))
+				for fy in [0.2, 0.8]:
+					var hr := Rect2(ex - 10, r.position.y + r.size.y * fy - 24, 20, 48)
+					draw_rect(Rect2(hr.position + Vector2(2, 3), hr.size), Color(DIM_INK, 0.5))
+					draw_rect(hr, brass_d)
+					draw_rect(hr.grow(-2), brass)
+					draw_line(hr.position + Vector2(10, 3), hr.position + Vector2(10, 45), brass_d, 2.0)
+					for ry in [8.0, 24.0, 40.0]:
+						draw_circle(hr.position + Vector2(5, ry), 2.0, brass_d)
+						draw_circle(hr.position + Vector2(15, ry), 2.0, brass_d)
+			var lk := Rect2(r.get_center().x - 22, r.end.y - 6, 44, 22)
+			draw_rect(Rect2(lk.position + Vector2(2, 3), lk.size), Color(DIM_INK, 0.5))
+			draw_rect(lk, brass_d)
+			draw_rect(lk.grow(-2), brass)
+			draw_circle(lk.get_center(), 4.0, brass_d)
+			draw_rect(Rect2(lk.get_center() + Vector2(-1, 0), Vector2(2, 7)), brass_d)
+		"box":   # 木盒：四角大黃銅 L 形護角＋鉚釘
+			for cc in [[r.position, Vector2(1, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 1)], [Vector2(r.position.x, r.end.y), Vector2(1, -1)], [r.end, Vector2(-1, -1)]]:
+				var o: Vector2 = cc[0] + Vector2(-8, -8) * cc[1]
+				var d: Vector2 = cc[1]
+				var poly := PackedVector2Array([o, o + Vector2(52 * d.x, 0), o + Vector2(52 * d.x, 14 * d.y), o + Vector2(14 * d.x, 14 * d.y), o + Vector2(14 * d.x, 52 * d.y), o + Vector2(0, 52 * d.y)])
+				var sh := PackedVector2Array()
+				for q in poly:
+					sh.append(q + Vector2(2, 3))
+				draw_colored_polygon(sh, Color(DIM_INK, 0.5))
+				draw_colored_polygon(poly, brass)
+				draw_polyline(poly + PackedVector2Array([poly[0]]), brass_d, 1.5, true)
+				for rv in [Vector2(7, 7), Vector2(36, 7), Vector2(7, 36)]:
+					draw_circle(o + rv * d, 2.4, brass_d)
+					draw_circle(o + rv * d - Vector2(0.6, 0.6), 0.9, Color(1, 0.95, 0.75, 0.8))
+		"trunk":   # 牛皮箱：框內側一圈米白粗縫線＋上緣兩條寬皮帶＋大黃銅扣＋四角皮革包角
+			var st := r.grow(-5)
+			var dash := 10.0
+			var xx := st.position.x
+			while xx < st.end.x - dash:
+				draw_line(Vector2(xx, st.position.y), Vector2(xx + 6, st.position.y), Color(0.93, 0.86, 0.7, 0.55), 1.5)
+				draw_line(Vector2(xx, st.end.y), Vector2(xx + 6, st.end.y), Color(0.93, 0.86, 0.7, 0.55), 1.5)
+				xx += dash
+			var yy2 := st.position.y
+			while yy2 < st.end.y - dash:
+				draw_line(Vector2(st.position.x, yy2), Vector2(st.position.x, yy2 + 6), Color(0.93, 0.86, 0.7, 0.55), 1.5)
+				draw_line(Vector2(st.end.x, yy2), Vector2(st.end.x, yy2 + 6), Color(0.93, 0.86, 0.7, 0.55), 1.5)
+				yy2 += dash
+			for fx in [0.22, 0.78]:
+				var sx: float = r.position.x + r.size.x * fx
+				draw_rect(Rect2(sx - 20 + 2, r.position.y - 12 + 3, 40, 30), Color(DIM_INK, 0.5))
+				draw_rect(Rect2(sx - 20, r.position.y - 12, 40, 30), Color("#5a3218"))
+				draw_rect(Rect2(sx - 20, r.position.y - 12, 40, 3), Color(1, 0.85, 0.65, 0.25))
+				var bk := Rect2(sx - 14, r.position.y - 4, 28, 16)
+				draw_rect(bk, brass, false, 3.0)
+				draw_line(bk.get_center() - Vector2(0, 6), bk.get_center() + Vector2(0, 6), brass, 2.5)
+			for cc2 in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
+				var dd := Vector2(1 if cc2.x < r.get_center().x else -1, 1 if cc2.y < r.get_center().y else -1)
+				draw_colored_polygon(PackedVector2Array([cc2 - dd * 8, cc2 - dd * 8 + Vector2(40 * dd.x, 0), cc2 - dd * 8 + Vector2(0, 40 * dd.y)]), Color("#4a2a14"))
+		"ebony":   # 黑檀插牌座：框一圈壓深＋上緣一道細金線
+			draw_rect(r.grow(8), Color(0.05, 0.03, 0.02, 0.35), false, 8.0)
+			draw_line(r.position + Vector2(12, -2), Vector2(r.end.x - 12, r.position.y - 2), Color(brass, 0.7), 1.5)
+		"letter":   # 信封（背面）：四角往中心的摺線（框內 70px、淡墨）＋下緣三角封口線＋右下蠟封（標題緞帶在上緣中央，不畫在那）
+			var cx := r.get_center().x
+			for cc3 in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
+				var dv: Vector2 = (r.get_center() - cc3).normalized()
+				draw_line(cc3, cc3 + dv * 70.0, Color(0.85, 0.75, 0.55, 0.45), 2.0, true)
+				draw_line(cc3 + Vector2(0, 2), cc3 + dv * 70.0 + Vector2(0, 2), Color(DIM_INK, 0.4), 1.0, true)
+			draw_colored_polygon(PackedVector2Array([Vector2(r.position.x + 6, r.end.y + 6), Vector2(r.end.x - 6, r.end.y + 6), Vector2(cx, r.end.y + 22)]), Color("#d8c7a6"))
+			draw_polyline(PackedVector2Array([Vector2(r.position.x + 6, r.end.y + 6), Vector2(cx, r.end.y + 22), Vector2(r.end.x - 6, r.end.y + 6)]), Color(DIM_INK, 0.6), 1.5, true)
+			var sc := Vector2(r.end.x - 34, r.end.y - 30)
+			draw_circle(sc + Vector2(2, 3), 15.0, Color(DIM_INK, 0.45), true, -1.0, true)
+			draw_circle(sc, 15.0, Color("#7a1d16"), true, -1.0, true)
+			draw_circle(sc, 11.0, Color("#9b281b"), true, -1.0, true)
+			draw_arc(sc, 13.0, 0.0, TAU, 24, Color(brass, 0.85), 1.5, true)
+		"tin":   # 老鐵盒：框外一圈鉚釘（藍灰金屬）
+			var col := Color("#8a96a0")
+			var n := int(r.size.x / 60.0)
+			for i in n + 1:
+				var x := r.position.x + r.size.x * i / maxf(1.0, n)
+				for yy in [r.position.y - 3.0, r.end.y + 3.0]:
+					draw_circle(Vector2(x, yy), 3.0, col, true, -1.0, true)
+					draw_circle(Vector2(x - 0.8, yy - 0.8), 1.0, Color(1, 1, 1, 0.5), true, -1.0, true)
+		"card":   # 立卡：底緣一道木腳架
+			draw_rect(Rect2(r.position.x + r.size.x * 0.3, r.end.y + 4, r.size.x * 0.4, 6), Color("#6b4a2e"))
+			draw_rect(Rect2(r.position.x + r.size.x * 0.3, r.end.y + 4, r.size.x * 0.4, 2), Color(1, 0.85, 0.6, 0.3))
+		"clock":   # 暫停＝棋鐘：上緣兩顆黃銅按鈕
+			for fx in [0.3, 0.7]:
+				var bc := Vector2(r.position.x + r.size.x * fx, r.position.y - 4)
+				draw_rect(Rect2(bc - Vector2(14, 6), Vector2(28, 10)), brass_d)
+				draw_rect(Rect2(bc - Vector2(12, 5), Vector2(24, 6)), brass)
+
 func _panel(r: Rect2) -> void:
 	probe_panel(r)
 	_dim(0.62)
@@ -1360,6 +1487,8 @@ func _panel(r: Rect2) -> void:
 		draw_style_box(sb, r.grow(8))
 	else:
 		_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
+	if panel_obj != "" and not bool(Save.s("plain_ui")):
+		_obj_deco(r, panel_obj)
 
 
 func _open(name: String) -> void:

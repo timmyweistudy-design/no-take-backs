@@ -712,7 +712,7 @@ func _pc_capture() -> void:
 	pc_shot = ImageTexture.create_from_image(img)
 
 func _draw_postcard() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.03, 0.02, 0.9))   # 底下的結果頁按鈕不能透出來（Antigravity v140-i2）
+	draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, 0.86))   # 底下的結果頁按鈕不能透出來（Antigravity v140-i2）；1.2.0 憲法 3：暖墨色、不壓到近純黑
 	var P := Rect2(150, 90, 980, 560)
 	probe_panel(P)   # 明信片自己畫紙卡，不走 _panel：照樣登記成模態面板（R1 置中、漏登記守衛）
 	_tex_box(P, "paper")

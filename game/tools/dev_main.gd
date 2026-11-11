@@ -254,7 +254,7 @@ func layout_geom_input() -> Dictionary:
 
 ## 1.2.0 §14.7 美感自動檢查（第一批，先當報表、不擋）：
 ##  ・black_pct：近純黑像素（三通道都 ≤ 8）佔全畫面的百分比（憲法 3：禁純黑；桌面世界做完後改成違規）
-##  ・units／low_units：戰鬥中每隻單位，框內（腳底往上 46px、寬 36px）與框外一圈 6px 的平均明度差 < 30%（＝0.3×255）的隻數（憲法 7）
+##  ・units／low_units：戰鬥中每隻單位，框內（腳底往上 46px、寬 36px）最暗／最亮 10% 像素和框外一圈 6px 平均的 WCAG 對比都 < 3:1 的隻數（第 4 大類 B2 改量法）
 func _art_checks(img: Image) -> Dictionary:
 	var out := {"black_pct": 0.0, "units": 0, "low_units": 0}
 	if img == null:
@@ -271,30 +271,45 @@ func _art_checks(img: Image) -> Dictionary:
 				blk += 1
 	out["black_pct"] = snappedf(100.0 * blk / maxi(1, n), 0.01)
 	if state == St.BATTLE and view != null:
-		var lum := func(c: Color) -> float: return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
-		var mean := func(r: Rect2i) -> float:
-			var s0 := 0.0
-			var k := 0
-			for yy in range(maxi(0, r.position.y), mini(h, r.end.y), 2):
-				for xx in range(maxi(0, r.position.x), mini(w, r.end.x), 2):
-					s0 += lum.call(img.get_pixel(xx, yy))
-					k += 1
-			return s0 / maxi(1, k)
+		# 1.2.0 第 4 大類 B2：改量「輪廓」：框內最暗 10% 與最亮 10% 的像素（棋子的描邊與高光）各自和外圈平均算 WCAG 對比，取大者；
+		# < 3:1 才算看不清（Antigravity cat01：邊緣對比 ≥3:1）。原本比框內平均 vs 外圈平均，棋子色塊和草地平均明度接近就全判低。
+		var rl := func(c: Color) -> float:
+			var lc := c.srgb_to_linear()
+			return 0.2126 * lc.r + 0.7152 * lc.g + 0.0722 * lc.b
 		for u in view.units:
 			if not u.alive:
 				continue
 			var sp: Vector2 = _cam * _upos(u)
 			var inner := Rect2i(int(sp.x) - 18, int(sp.y) - 46, 36, 46)
 			var outer := inner.grow(6)
-			var li: float = mean.call(inner)
-			# 外圈＝外框四條邊帶的平均（不含內框）
+			var vals: Array = []
+			for yy in range(maxi(0, inner.position.y), mini(h, inner.end.y), 2):
+				for xx in range(maxi(0, inner.position.x), mini(w, inner.end.x), 2):
+					vals.append(rl.call(img.get_pixel(xx, yy)))
+			if vals.is_empty():
+				continue
+			vals.sort()
+			var nv := vals.size()
+			var dark := 0.0
+			var lite := 0.0
+			var kq := maxi(1, nv / 10)
+			for i in kq:
+				dark += float(vals[i])
+				lite += float(vals[nv - 1 - i])
+			dark /= kq
+			lite /= kq
 			var ring := 0.0
+			var rk := 0
 			for r in [Rect2i(outer.position.x, outer.position.y, outer.size.x, 6), Rect2i(outer.position.x, outer.end.y - 6, outer.size.x, 6),
 					Rect2i(outer.position.x, inner.position.y, 6, inner.size.y), Rect2i(inner.end.x, inner.position.y, 6, inner.size.y)]:
-				ring += mean.call(r)
-			ring /= 4.0
+				for yy in range(maxi(0, r.position.y), mini(h, r.end.y), 2):
+					for xx in range(maxi(0, r.position.x), mini(w, r.end.x), 2):
+						ring += rl.call(img.get_pixel(xx, yy))
+						rk += 1
+			ring /= maxi(1, rk)
+			var cr := func(a: float, b: float) -> float: return (maxf(a, b) + 0.05) / (minf(a, b) + 0.05)
 			out["units"] += 1
-			if absf(li - ring) < 0.3:
+			if maxf(cr.call(dark, ring), cr.call(lite, ring)) < 3.0:
 				out["low_units"] += 1
 	return out
 
@@ -538,9 +553,23 @@ func _ach(id: String) -> void:
 		ach_queue.clear()   # 只在截圖模式（Codex cat02：不影響其他開發模式）
 
 ## 1.2.0 元件庫展示（只在截圖流程用）
+## 1.2.0 第 5 大類：五種表情對照（待機、專注、生氣、受驚、得意）× 劍士、弓箭手、史萊姆，大尺寸（開發用截圖 v120_03_moods）
+func _draw_mood_demo() -> void:
+	var P := modal_rect(1000, 560)
+	_panel(P)
+	probe_skip("R6", "表情對照（開發用）：角色直接畫、不經版面探針，不是空白")
+	var y := _h1(Vector2(640, P.position.y + 12), "Moods") + GAP_L
+	var moods := [0, Art.M_GRIM, Art.M_BROWS, Art.M_SURPRISE, Art.M_HAPPY]
+	var types := [0, 2, 13]
+	for ri in types.size():
+		for ci in moods.size():
+			var fp := Vector2(P.position.x + 120 + ci * 190, y + 130 + ri * 140)
+			Art.unit(self, fp, int(types[ri]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.2, cbm(), int(moods[ci]))
+
 func _draw_kit_demo() -> void:
 	var P := modal_rect(900, 520)
 	_panel(P)
+	probe_skip("R6", "元件庫展示（開發用）：下半是材質樣本與黃銅開關，直接畫、不經版面探針，不是空白")
 	var y := _h1(Vector2(640, P.position.y + 12), "Kit") + GAP_L
 	var x0 := P.position.x + 40
 	mouse = Vector2(x0 + 230 + 80, y + 22)   # 第二顆＝懸停
@@ -718,6 +747,9 @@ func _run_screenshots() -> void:
 	note_key = "result"   # 1.2.0 §12 老闆便條（截圖平常不跳，這張專拍）
 	overlay = "boss_note"
 	await _snap("v120_02_note.png")
+	overlay = ""
+	overlay = "mood_demo"   # 1.2.0 第 5 大類：表情對照
+	await _snap("v120_03_moods.png")
 	overlay = ""
 	# 1.2.0 §9.4 宣紙戰報（截圖平常跳過演出；這一張強制拍蓋章後的瞬間）
 	ink_force = true

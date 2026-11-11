@@ -372,6 +372,30 @@ func _open_drop(u) -> Vector2:
 	var k := clampf((ph - DROP_AT[stage]) / 0.25, 0.0, 1.0)
 	return Vector2(0, -22.0 * (1.0 - k) * (1.0 - k))
 
+## 1.2.0 第 5 大類 C §7.2 定格表演層：待機、歡呼的姿勢每 1/12 秒才換（24fps 一拍二）；移動、攻擊、命中照常 60Hz。
+## 設定「平滑動作」開了就不量化。
+static func _pose_t(t: float) -> float:
+	if bool(Save.s("smooth_pose")):
+		return t
+	return floorf(t * 12.0) / 12.0
+
+## 1.2.0 第 5 大類 A2：受擊後的不倒翁搖：hurt 從 1 掉到 0 的過程擺盪約 1.5 次、幅度隨 hurt 衰減；hurt＝0 時為 0（解析式，不存狀態）。
+static func _tumbler(hurt: float) -> float:
+	return 0.07 * sin((1.0 - hurt) * TAU * 1.5) * hurt
+
+## 1.2.0 第 5 大類 A1：落子觸盤後 0.15 秒縱向壓扁再彈回（和那一段的「咚」同步）；回傳 crouch 乘數。
+func _open_squash(u) -> float:
+	if start_hold <= 0.0 or play_kind != "official":
+		return 1.0
+	var mid := fld_w / 2.0
+	var d: float = absf(float(u.x) - mid) / maxf(1.0, mid)
+	var stage := 0 if d < 0.25 else (1 if d < 0.5 else 2)
+	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
+	var land: float = ph - float(DROP_AT[stage]) - 0.25
+	if land < 0.0 or land > 0.15:
+		return 1.0
+	return 1.0 - 0.18 * sin(land / 0.15 * PI)
+
 ## 1.2.0 §5.1 拼花棋盤：橡木厚框（只畫一圈，不蓋盤面）＋內緣刻線＋外緣亮邊＋盤面上漆光（左上亮、右下暗）。回傳有沒有畫。
 func _board_ring(inner: Rect2) -> bool:
 	var oak := _ui_tex(MAT_OAK)
@@ -680,6 +704,12 @@ func _draw_units_of(s, dim: bool) -> void:
 		if hurt > 0.0:
 			crouch *= 1.0 - 0.12 * hurt                 # V1.1 A2：受擊壓扁（縱 0.88），配合後退與閃白
 			lean -= 0.06 * hurt * float(hurt_dir.get(u.id, 0.0)) * face
+		# 1.2.0 第 5 大類 A2：不倒翁搖（衰減擺盪）：相位用受擊後經過的時間（0.45 秒），和閃白強度無關（Codex cat05 #2）；減少動態時不搖
+		if live and hurt_t.has(u.id) and not bool(Save.s("reduce_motion")):
+			var hk := clampf(1.0 - (time - float(hurt_t[u.id])) / 0.45, 0.0, 1.0)
+			if hk > 0.0:
+				lean += _tumbler(hk) * float(hurt_dir.get(u.id, 1.0)) * face
+		crouch *= _open_squash(u)
 		if live:
 			# V1.3 A4：停步慣性。剛停下時身體往前多晃一下再回正（0.3 秒，解析式衰減，不存逐兵彈簧狀態）
 			if moving:
@@ -732,7 +762,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			# V1.3.1 P2：歡呼像波浪：定格結束後從中線往後排，每格延遲 0.06 秒才起跳
 			var w0: float = float(last_kill[1]) + frz
 			var dly := absf(p.x - (ORIGIN.x + fld_size.x * 0.5)) / CS * 0.06
-			var tw := time - w0 - dly
+			var tw := _pose_t(time) - w0 - dly   # 1.2.0 第 5 大類 C：歡呼走定格（12fps 姿勢）
 			hop = absf(sin(tw * PI / 0.45)) * 10.0 if tw > 0.0 else 0.0
 			mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
 			at = Art.ATK_WINDUP
@@ -766,10 +796,18 @@ func _draw_units_of(s, dim: bool) -> void:
 					draw_circle(p + Vector2(-face * (10.0 + ph5 * 12.0), -14.0 + ph5 * 4.0), 5.0 * (1.0 - ph5) * UNIT_SCALE, Color(0.85, 0.9, 1.0, 0.35 * (1.0 - ph5) * alpha), true, -1.0, true)
 		# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
 		if live and walk == 0.0 and at == 0.0:
-			lean += sin(time * 1.1 + u.id * 1.7) * 0.018
-			var idle_k := fmod(time + u.id * 1.37, 7.3)
+			var tq := _pose_t(time)   # 1.2.0 第 5 大類 C：待機小動作走定格
+			lean += sin(tq * 1.1 + u.id * 1.7) * 0.018
+			var idle_k := fmod(tq + u.id * 1.37, 7.3)
 			if idle_k < 0.3:
 				crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
+			# 1.2.0 第 5 大類 D 個性動作：王國＝偶爾上發條（左右扭 0.4 秒）；奇幻＝呼吸膨縮（各兵相位不同）
+			if u.type < D.COUNT:
+				var wk := fmod(tq + u.id * 2.71, 9.7)
+				if wk < 0.4:
+					lean += sin(wk / 0.4 * TAU * 2.0) * 0.05
+			else:
+				crouch *= 1.0 + 0.03 * sin(tq * 2.0 + u.id * 1.3)
 		if live:
 			face = _face_of(u)
 			# V1.3.1 P0-2：出手前先轉完。前搖一開始就面向目標（不改命中時間），出手中途目標換邊也維持到收招
@@ -815,7 +853,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			var tm := fmod(time + u.id * 3.7, per)
 			if tm < 1.2:
 				fid = mini(3, int(tm / 1.2 * 4.0))
-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, time, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0), mood, lean, crouch, variant, fid)
+		var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
+		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, ut, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0), mood, lean, crouch, variant, fid)
 		if live and not u.hidden:
 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
@@ -962,12 +1001,14 @@ func _draw_death(g: Dictionary, k: float) -> void:
 		var lal := 1.0 - clampf((k - 1.3) / 0.4, 0.0, 1.0)
 		if lal <= 0.0:
 			return
+		var lift := 2.0 * sin(clampf(ft, 0.0, 1.0) * PI) if t < D.COUNT else 0.0   # 1.2.0 第 5 大類 A3：王國棋子翻倒時底座和身體一起離地一點（翻半圈的感覺；Codex cat05 #4）
+		var bp := p - Vector2(0, lift) * UNIT_SCALE
 		if sprites != null and sprites.is_ready(cbm()):
-			sprites.draw_base(self, p, UNIT_SCALE, 0.8 * lal)
+			sprites.draw_base(self, bp, UNIT_SCALE, 0.8 * lal)
 		else:
-			Art.ring_base(self, p, UNIT_SCALE, 0.8 * lal)
+			Art.ring_base(self, bp, UNIT_SCALE, 0.8 * lal)
 		# 往下 5px：倒下後身體貼著木座面，不是浮在上面（Antigravity v130-impl2）
-		_unit(p + Vector2(0, 5.0 * fe) * UNIT_SCALE, t, g["team"], face, 0.0, 0.0, hurt, lal * (1.0 - 0.2 * ft), time, UNIT_SCALE, 1 if k < 0.4 else 0, float(TOPPLE[t]) * (fe - bounce * ft), 1.0 - 0.1 * ft)
+		_unit(p + Vector2(0, 5.0 * fe - lift) * UNIT_SCALE, t, g["team"], face, 0.0, 0.0, hurt, lal * (1.0 - 0.2 * ft), time, UNIT_SCALE, 1 if k < 0.4 else 0, float(TOPPLE[t]) * (fe - bounce * ft), 1.0 - 0.1 * ft)
 		return
 	if al <= 0.0:
 		return

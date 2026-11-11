@@ -364,8 +364,10 @@ func _add_fx(d: Dictionary) -> void:
 ## V1.2 C6：對話泡。r＝文字外框；尖角朝下指向角色。透明度跟著字淡出。
 func _bubble(r: Rect2, a: float) -> void:
 	var rr := r.grow_individual(4, 1, 4, 2)
-	var fill := Color(0.10, 0.07, 0.05, 0.82 * a)
-	var edge := Color(0.95, 0.86, 0.66, 0.55 * a)
+	# 1.2.0 第 4 大類 A11：跳字泡改成小紙條（米白紙底＋墨邊），字用墨色（保留色相）；簡化介面維持深色泡
+	var paper := not bool(Save.s("plain_ui"))
+	var fill := Color(0.96, 0.92, 0.83, 0.92 * a) if paper else Color(0.10, 0.07, 0.05, 0.82 * a)
+	var edge := Color(0.26, 0.16, 0.08, 0.7 * a) if paper else Color(0.95, 0.86, 0.66, 0.55 * a)
 	var mid := rr.position.x + rr.size.x * 0.5
 	var tail := PackedVector2Array([Vector2(mid - 5, rr.end.y - 1), Vector2(mid + 5, rr.end.y - 1), Vector2(mid - 1, rr.end.y + 7)])
 	_box(rr, fill, edge, minf(10.0, rr.size.y * 0.5), 1.5)
@@ -810,4 +812,9 @@ func _draw_fx(f: Dictionary) -> void:
 				if f.get("plain", false):
 					_text(p3, f["s"], sz, col, true, true, 0.0, Color(0.05, 0.2, 0.08, col.a))   # 補血綠字加深墨綠描邊
 				else:
+					var ink0 := _ink_mode
+					_ink_mode = not bool(Save.s("plain_ui"))   # 紙條上用墨色字（_ink 保留色相、壓深）
+					_ink_keep_a = true
 					_text(p3, f["s"], sz, col, true, true)   # 外框與實際畫的字同一份幾何
+					_ink_keep_a = false
+					_ink_mode = ink0
