@@ -756,8 +756,10 @@ func _draw_settings() -> void:
 	probe_columns("settings", [Rect2(110, 150, 230, 560), SET_COL, SET_DESC])
 	_h1(Vector2(640, 92), L.t("settings_title"))   # 1.2.0：H1 字級放大 3px，緞帶上移保持和第一列的間距（R2）
 	for i in SET_TABS:
+		btn_cloth = "tab_indigo" if i == settings_tab else "tab_linen"   # 1.2.0 §1.3：分頁是布標（選中靛藍、未選原胚布）
 		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
+		btn_cloth = ""
 	# V1.5.1 C1：這一頁恢復預設（先確認）
 	var page_keys: Array = []
 	for rw in _settings_rows():
@@ -803,7 +805,10 @@ func _draw_settings() -> void:
 		else:
 			_btn(Rect2(r.position, Vector2(46, r.size.y)), "◀", cb.bind(-1))
 			var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else TH_WOOD_D
-			_btn(Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y)), val, cb.bind(1), true, false, tint)
+			var vr := Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y))
+			_btn(vr, val, cb.bind(1), true, false, tint)
+			if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):
+				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
 			draw_rect(Rect2(r.position.x + 58, y + 41, (r.size.x - 116) * int(val.trim_suffix("%")) / 100.0, 4), ACCENT)
@@ -826,6 +831,18 @@ func _draw_settings() -> void:
 	_btn(Rect2(cxm - 170, 662, 160, 44), L.t("menu_credits"), func(): _nav_push("settings"); _open("credits"))
 	_btn(Rect2(cxm + 10, 662, 160, 44), L.t("back"), func(): _settings_close())
 
+
+## 1.2.0 §1.3 黃銅撥片開關：開＝撥片朝上＋小綠點、關＝朝下（純裝飾，點擊照原本的值按鈕）
+func _brass_toggle(c: Vector2, on: bool) -> void:
+	var plate := Rect2(c - Vector2(9, 15), Vector2(18, 30))
+	draw_rect(plate, Color("#8a6a2a"))
+	draw_rect(plate.grow(-2), Color("#c9a24a"))
+	draw_circle(c, 4.0, Color("#5a4418"))
+	var tip := c + Vector2(0, -11 if on else 11)
+	draw_line(c, tip, Color("#e8d39a"), 4.0, true)
+	draw_circle(tip, 3.0, Color("#f3e3b0"))
+	if on:
+		draw_circle(c + Vector2(0, 11), 2.5, Color("#5fd16f"))
 
 ## ── V1.5 一鍵無障礙預設：直接改原本的設定（可疊加），存一份改之前的值讓「撤回」用 ──
 var preset_undo := {}

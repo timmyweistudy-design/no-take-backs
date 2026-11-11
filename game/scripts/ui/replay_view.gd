@@ -49,7 +49,8 @@ func _draw_replay_controls() -> void:
 	draw_line(Vector2(cx, RC_BAR.position.y - 3), Vector2(cx, RC_BAR.end.y + 3), ACCENT, 3.0)
 	var hz := fit(L.t("rc_hint"), tz("C"), 560)   # V1.2.1 B2：走字級表
 	var hw := font.get_string_size(L.t("rc_hint"), HORIZONTAL_ALIGNMENT_LEFT, -1, hz).x
-	_text(Vector2(RC_BAR.end.x - hw, RC_BAR.position.y - hz * 1.5), L.t("rc_hint"), hz, TXT_DIM)
+	if hw <= RC_BAR.end.x - 590.0:   # 1.2.0：提示放不下（日文 150%）就不畫，不往左壓到「時光機」「GIF」鈕
+		_text(Vector2(RC_BAR.end.x - hw, RC_BAR.position.y - hz * 1.5), L.t("rc_hint"), hz, TXT_DIM)
 	# 第七輪 A7：時間軸上的關鍵時刻刻度
 	for m in replay_marks:
 		var mx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(m["t"]) / total, 0.0, 1.0)
@@ -708,7 +709,8 @@ func _draw_review() -> void:
 	var y := 350.0 + dy
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
 	var b0: Array = rv_base.get("b", [100, 100])
-	var c0 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
+	var chh := 70.0 if tz("S") <= 17 else 54.0   # 1.2.0 字級表放大：大字級時走勢圖矮一點（圖可以縮、字不縮），底下說明才不壓到按鈕
+	var c0 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
 	if rv_base.is_empty() and rv_base_err != "":
 		_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
 		_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
@@ -717,19 +719,20 @@ func _draw_review() -> void:
 	else:
 		_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
 		Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
-	y += tz("S") * 1.5 + 82
+	y += tz("S") * 1.5 + chh + 12.0
 	if not rv_result.is_empty():
 		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
 		var b1: Array = rv_result.get("b", [100, 100])
-		var c1 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
+		var c1 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
 		Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
 		_rv_div_mark(Rect2(c0.position, Vector2(c0.size.x, c1.end.y - c0.position.y)), span)   # 一條金色粉筆線貫穿兩張圖
-		y += tz("S") * 1.5 + 82
+		y += tz("S") * 1.5 + chh + 12.0
 		if rv_div >= 0:
 			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
 			y += tz("S") * 1.5
-		_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)
+		if y + text_h(L.t("rv_note"), tz("C"), 552) <= 704.0 - 6.0:
+			_text(Vector2(bx, y), L.t("rv_note"), tz("C"), TXT_DIM, false, false, 552)   # 放得下才畫（不壓到底部按鈕）
 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
 	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
 

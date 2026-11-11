@@ -272,14 +272,14 @@ func _draw_demo_end() -> void:
 	_btn(Rect2(640 - 120, y + 52 + GAP_M, 240, 44), L.t("de_keep"), func(): overlay = "")
 
 func _draw_fb_cat() -> void:
-	var w := 560.0
+	var w := 680.0   # 1.2.0：按鈕加寬到 280 後面板跟著加寬
 	var help := L.t("fb_cat_help")
 	var P := modal_rect(w, 12.0 + h1_help_h(help, tz("S"), w - 80) + GAP_L + 2 * (50.0 + GAP_M) + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("fb_btn"), help, tz("S"), w - 80) + GAP_L
 	for i in FB_CATS.size():
 		var c: String = FB_CATS[i]
-		_btn(Rect2(640 - 230 + (i % 2) * 240, y + (i / 2) * (50.0 + GAP_M), 220, 50), L.t("fb_c_" + c), func(): _feedback_save(c), true, i == 0)
+		_btn(Rect2(640 - 290 + (i % 2) * 300, y + (i / 2) * (50.0 + GAP_M), 280, 50), L.t("fb_c_" + c), func(): _feedback_save(c), true, i == 0)   # 1.2.0：字級放大，按鈕加寬（220→280）
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("fb_c_skip"), func(): _feedback_save(""))
 
 ## 1.1.0 N4：最近 7 天的每日題（今天照常計紀錄；過去的是練習）

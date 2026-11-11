@@ -489,7 +489,7 @@ func _draw_lobby() -> void:
 	_panel(P)
 	probe_skip("R4", "大廳底列：左側操作組（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右，刻意分兩組")
 	var title := L.t("menu_vs_ai") if lobby_kind == "ai" else L.t("menu_duel")
-	_h1(Vector2(640, 28), title)   # V1.5.2 L3：緞帶跨在面板上緣（和圖鑑同款），完整下緣到預設分頁 ≥16
+	_h1(Vector2(640, 24), title)   # 1.2.0：H1 放大，緞帶上移 4 保持和分頁的距離（R2）   # V1.5.2 L3：緞帶跨在面板上緣（和圖鑑同款），完整下緣到預設分頁 ≥16
 	_draw_lobby_presets(Vector2(80, 96))
 	if lobby_open:
 		_draw_lobby_detail(Rect2(80, 176, 1120, 508))

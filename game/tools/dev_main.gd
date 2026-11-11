@@ -452,8 +452,8 @@ func _snap(name: String) -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)   # 真的被縮下去就還原，否則永遠等不到繪製
 	if shot_state.has("pad"):
 		pad_mode = true   # V1.2.1：手把焦點狀態（焦點框畫在目前的按鈕上）
-	if shot_fixed and clutch_t > 0.0 and (clutch_t < 0.3 or clutch_t > 1.45):
-		clutch_t = 0.8   # 1.2.0：截圖改固定幀時間後，暫停中的「最後時刻」橫幅停在剛觸發（1.6 倒數起點、透明度 0）；截圖一律拍完全顯示的穩定狀態
+	if clutch_t > 0.0 and (clutch_t < 0.3 or clutch_t > 1.45):
+		clutch_t = 0.8   # 1.2.0：「最後時刻」橫幅在淡入淡出途中（透明度 <1）做對比檢查沒有意義 → 截圖一律拍完全顯示的穩定狀態（真實時間模式也一樣）
 	queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -525,6 +525,11 @@ func _would_clutch(a0, a1) -> bool:
 			return true
 	return false
 
+
+## 1.2.0：每組截圖從乾淨存檔開始後，流程裡第一次達成的成就會跳提示蓋到畫面（原本共用存檔時早就解鎖過）→ 截圖照樣解鎖、不排提示
+func _ach(id: String) -> void:
+	super._ach(id)
+	ach_queue.clear()
 
 func _run_screenshots() -> void:
 	# 全套截圖要跑很久：視窗移到畫面外、不搶焦點，不打擾正在用電腦的人。

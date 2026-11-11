@@ -207,6 +207,8 @@ func _draw_trials() -> void:
 		var line2: String = "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), diff]
 		if x.has("tag_zh"):
 			line2 = L.t("name_sep_fmt", [L.field(x, "tag"), diff])
+			if _width(line2, tz("C")) > cw - 160:
+				line2 = L.field(x, "tag")   # 1.2.0：放不下一行就只留主題（難度看星數條件與顏色），不換成兩行出框
 		_text(r.position + Vector2(154, 8 + tz("B") * 1.25), line2, tz("C"), TXT_DIM if last_btn_enabled else Color(TXT_DIM, 0.4), false, false, cw - 160)
 		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
 		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
@@ -798,12 +800,12 @@ func _draw_reward() -> void:
 	cy += below_head(tz("B"))   # V1.5.2 R9：標題字到契約卡 ≥12
 	var cts := _contract_offers()
 	for i in 3:
-		var cr := Rect2(268 + i * 252, cy, 240, 100)
+		var cr := Rect2(268 + i * 252, cy, 240, 110)   # 1.2.0：字級放大，契約卡加高 10
 		var kk: int = cts[i] if i < cts.size() else -1
 		var on := ct_pick == kk
 		# 契約是羊皮紙籤（不像上面的獎勵木牌）；「不簽」是次要的木色小鈕；選中的契約蓋紅色火漆章（Antigravity v140-i1）
 		btn_paper = kk >= 0
-		_btn(cr if kk >= 0 else Rect2(cr.position + Vector2(40, 18), Vector2(160, 48)), "", func(): ct_pick = kk, true, false, Color(0, 0, 0, 0) if kk >= 0 or not on else TH_ACTIVE)
+		_btn(cr if kk >= 0 else Rect2(cr.position + Vector2(40, (cr.size.y - 48.0) * 0.5), Vector2(160, 48)), "", func(): ct_pick = kk, true, false, Color(0, 0, 0, 0) if kk >= 0 or not on else TH_ACTIVE)   # 1.2.0：「不簽」鈕在加高的卡裡垂直置中
 		var paper := last_btn_paper
 		btn_paper = false
 		var en := last_btn_enabled
@@ -816,17 +818,17 @@ func _draw_reward() -> void:
 			draw_circle(sc, 11.0, Color("#9e2a2b"), true, -1.0, true)
 			_hand_ring(sc, 8.0, Color("#c9584f"), 1.6)
 		if kk < 0:
-			_text(cr.get_center() - Vector2(0, tz("S") * 0.6), L.t("ct_none"), tz("S"), tc, true, true, 220)
+			_text(cr.get_center() - Vector2(0, tz("S") * 0.62 + 1.5), L.t("ct_none"), tz("S"), tc, true, true, 150)   # 對按鈕面置中（扣下緣厚度）
 		else:
 			# 一行：名稱（左）＋報酬（右）；一行：條件（短）
 			var rw := _ct_reward(kk)
 			var rww := minf(96.0, _width(rw, tz("C"), true))
 			_text(cr.position + Vector2(12, 10), L.t(str(CONTRACTS[kk][0])), tz("S"), tc, false, true, cr.size.x - rww - 34)
 			_text(Vector2(cr.end.x - 12 - rww, cr.position.y + 10 + (tz("S") - tz("C")) * 0.5), rw, tz("C"), Color("#7a4a10") if paper else ACCENT, false, true, 96)
-			_text(cr.position + Vector2(12, 14 + tz("S") * 1.3), L.t(str(CONTRACTS[kk][0]) + "_d"), tz("C"), tc, false, false, 190)
+			_text(cr.position + Vector2(12, 12 + tz("S") * 1.25), L.t(str(CONTRACTS[kk][0]) + "_d"), tz("C"), tc, false, false, cr.size.x - 24)   # 1.2.0：說明用滿卡寬（字級放大後 190 寬會換成三行出框）
 		_ink_mode = false
 		_probe_dis = false
-	cy += 112
+	cy += 122   # 1.2.0：契約卡加高 10
 	if ct_last != "":
 		_text(Vector2(640, cy), ct_last, tz("S"), ACCENT, true, true, 740)
 		cy += tz("S") * 1.4

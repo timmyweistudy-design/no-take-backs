@@ -42,6 +42,15 @@ func _ready() -> void:
 			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
 		elif a == "--self-check":
 			Save.prefix = "smoke_"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shot-prefix="):
+			# 1.2.0：版面檢查平行跑時每組用自己的存檔前綴、從乾淨的存檔開始（原本共用 shot_ 會互搶寫入、也會帶到前一組的資料）
+			Save.prefix = a.substr(14)
+			var d := DirAccess.open("user://")
+			if d != null:
+				for f in d.get_files():
+					if f.begins_with(Save.prefix):
+						d.remove(f)
 	Save.load_all()
 	Guide.seed_seen(Save.data)   # V1.6 #1
 	Guide.seed_eff(Save.data)   # V1.6.1 N1

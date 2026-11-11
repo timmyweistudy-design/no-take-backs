@@ -175,6 +175,7 @@ var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對
 var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
+var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
 var _ink_mode := false   # V1.2 C1/C2：在羊皮紙頁上畫字時，淺色字自動換成墨色
 var _hover_key := -1
 var _trans_gen := -1
@@ -791,13 +792,28 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
 	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
 	# 1.2.0 §1.3：沒有自訂色的一般按鈕＝山毛櫸木牌（墨色字）；主要按鈕＝朱漆木牌＋左側紅蠟封；停用＝褪色木牌
-	var plaque: bool = not paper_face and tint.a <= 0.0 and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
-	last_btn_paper = paper_face or (plaque and not primary and enabled)
+	var cloth: bool = btn_cloth != "" and not paper_face and not bool(Save.s("plain_ui")) and _ui_tex(MAT[btn_cloth]) != null   # 1.2.0 §1.3 布標分頁
+	var plaque: bool = not cloth and not paper_face and tint.a <= 0.0 and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+	last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
 	last_btn_enabled = enabled
-	if plaque:
+	if cloth:
+		var ct := Color.WHITE if enabled else Color(0.6, 0.6, 0.6, 0.8)
+		if enabled and (hover or focus):
+			ct = Color(1.12, 1.12, 1.12)
+		_mat_box(rd, btn_cloth, ct)
+		# 縫線：布標內緣一圈虛線（裝飾，不登記探針）
+		var sc := Color(1, 1, 1, 0.35) if btn_cloth != "tab_linen" else Color(0.35, 0.25, 0.15, 0.4)
+		var sr := rd.grow(-5)
+		var dash := 6.0
+		var xx := sr.position.x
+		while xx < sr.end.x - dash:
+			draw_line(Vector2(xx, sr.position.y), Vector2(xx + dash * 0.6, sr.position.y), sc, 1.0)
+			draw_line(Vector2(xx, sr.end.y), Vector2(xx + dash * 0.6, sr.end.y), sc, 1.0)
+			xx += dash
+	elif plaque:
 		var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
 		if not enabled:
-			pt = Color(0.55, 0.5, 0.45, 0.8)
+			pt = Color(0.78, 0.75, 0.7, 0.55)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
 		elif hover or focus:
 			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
 		_mat_box(rd, "plaque", pt)
@@ -812,7 +828,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		_box(rd, Color(0, 0, 0, 0), TH_EDGE.darkened(0.25), 7.0, 1.5)
 	else:
 		_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
-	if (tint.a <= 0.0 or tint.a > 0.6) and not paper_face and not plaque:
+	if (tint.a <= 0.0 or tint.a > 0.6) and not paper_face and not plaque and not cloth:
 		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
 		draw_line(rd.position + Vector2(6, rd.size.y - 1.5), rd.end - Vector2(6, 1.5), Color(0, 0, 0, 0.3), 2.0)
 	if pressed:
@@ -840,15 +856,17 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		probe_btns.append(r)
 		if label == "":
 			probe_ctrls.append(r)   # 空白標籤的按鈕（卡片、頁籤）：裡面自己畫的字算按鈕內容
-	var sz := fit(label, ts(18) if r.size.y >= 40 else ts(15), r.size.x - 10, primary)
+	# 1.2.0：按鈕字級看實際面高（扣下緣厚度與木牌毛邊）：放得下正文字就用正文字，不然用小一級（都在字級表內，比 1.1.0 同層大）
+	var face_h: float = r.size.y - 3.0 - 6.0
+	var sz := fit(label, ts(18) if r.size.y >= 40 and face_h >= ts(18) * 1.3 else ts(15), r.size.x - 10, primary)
 	var lines := wrap_lines(label, sz, r.size.x - 10, primary)
 	var h := lines.size() * sz * line_h(lines.size())
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
 	_probe_btn_rect = r
 	_probe_dis = not enabled
 	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色（紙面按鈕用墨色）
-	_ink_mode = paper_face or (plaque and not primary and enabled)   # 1.2.0：淺色木牌用墨色字
-	_text(rd.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else (Color(0.2, 0.15, 0.1, 0.75) if plaque else Color(1, 1, 1, 0.4)), true, primary)   # V1.2.1：對按鈕面置中（扣掉下緣厚度），按下時字跟著下沉
+	_ink_mode = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)   # 1.2.0：淺色木牌、原胚布用墨色字
+	_text(rd.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else (Color(0.16, 0.11, 0.07, 0.62) if plaque else Color(1, 1, 1, 0.4)), true, primary)   # V1.2.1：對按鈕面置中（扣掉下緣厚度），按下時字跟著下沉
 	_ink_mode = ink0
 	_probe_btn_label = false
 	_probe_dis = false

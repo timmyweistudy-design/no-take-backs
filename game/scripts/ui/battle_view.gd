@@ -468,8 +468,8 @@ func _draw_cmd_bar() -> void:
 				_box(r, Color(TH_WOOD_D, 0.85), TH_EDGE, 6.0, 1.0)
 			_probe_btn_label = mine
 			_probe_btn_rect = r
-			_icon(CmdD.ICONS[s], r.position + Vector2(52, 26), 30.0, ACCENT if ready else Color(1, 1, 1, 0.35))
-			_text(r.position + Vector2(52, 46), L.t("cmd_%d" % s), tz("C"), Color.WHITE if ready else TXT_DIM, true, false, 98)
+			_icon(CmdD.ICONS[s], r.position + Vector2(52, 22), 26.0, ACCENT if ready else Color(1, 1, 1, 0.35))
+			_text(r.position + Vector2(52, 40), L.t("cmd_%d" % s), tz("C"), Color.WHITE if ready else TXT_DIM, true, false, 98)   # 1.2.0：字級放大後兩行技能名要放得下（圖示上移、縮一點）
 			var left_s := "×%d" % c_left
 			_text(Vector2(r.end.x - _width(left_s, tz("C")) - 6, r.position.y + 4), left_s, tz("C"), Color.WHITE)
 			if mine:
