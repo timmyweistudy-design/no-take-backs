@@ -298,10 +298,10 @@ func _draw_vignette(strength: float) -> void:
 
 ## V1.0.0 P7：4 倍速以上的降噪（Gemini v100 r5：爆爆羊爆炸、史萊姆分裂、小石魔拍地不能省）
 const FAST_SPEED := 4.0
-const FAST_SKIP := ["healring", "scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
+const FAST_SKIP := ["woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
 
 func _add_fx(d: Dictionary) -> void:
-	if bool(Save.s("reduce_fx")) and d["kind"] in ["healring", "scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+	if bool(Save.s("reduce_fx")) and d["kind"] in ["woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	if speed >= FAST_SPEED and d["kind"] in FAST_SKIP:
 		return   # V1.0.0 P7：高倍速只略過裝飾碎屑；預警圈（tell）、爆炸、分裂、拍地這類決定戰局的照畫
@@ -620,6 +620,19 @@ func _draw_fx(f: Dictionary) -> void:
 			draw_set_transform_matrix(_cam)
 		"pin":
 			draw_line(f["a"], f["b"], Color(0.62, 0.12, 0.12, 0.85 * (1.0 - k)), 3.0, true)   # 1.1.0 A7：分傷＝受傷，暗紅（原本粉紫，和毒的紫撞）
+		"woodwave":
+			# 1.1.0 A7：鼓手敲擊，腳下兩圈淡木色同心波（貼地，外圈 ≤0.3 格）
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.45), 0, f["p"]))
+			for w in 2:
+				var kw := clampf(k * 1.3 - w * 0.3, 0.0, 1.0)
+				if kw > 0.0:
+					draw_arc(Vector2.ZERO, 8.0 + kw * 14.0, 0.0, TAU, 24, Color(0.85, 0.72, 0.5, 0.55 * (1.0 - kw)), 2.0, true)
+			draw_set_transform_matrix(_cam)
+		"axearc":
+			# 1.1.0 A7：狂戰士破陣揮斧，赭橙短弧（避開受傷紅、毒紫）
+			var dx: float = f.get("dir", 1.0)
+			var a0 := -PI * 0.5 if dx >= 0.0 else PI * 0.5
+			draw_arc(f["p"], 16.0, a0 - 0.2 * dx, a0 + (1.6 * k + 0.2) * dx, 10, Color(0.85, 0.5, 0.18, 0.9 * (1.0 - k)), 3.0, true)
 		"healring":
 			# 1.1.0 A7：醫者補血，被補的友軍腳下淡綠扁環（貼地，≤0.3 格）
 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.45), 0, f["p"]))

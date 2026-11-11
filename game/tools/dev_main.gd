@@ -377,8 +377,10 @@ func _layout_report(name: String, img: Image = null) -> void:
 	var geo_warn: Array = []
 	for v in geo["warn"]:
 		geo_warn.append({"type": "排版" + str(v["type"]), "id": v["id"], "s": v["s"]})
-	if TEXT_BUDGET.has(name) and int(Save.s("text_scale")) == 100 and free_n > int(TEXT_BUDGET[name]):
-		bad.append({"type": "文字段數超過上限", "n": free_n, "max": TEXT_BUDGET[name]})
+	# 1.1.0 B9：手把模式底部多一列按鍵提示（鍵＋說明，最多 4 組＝8 段），不算畫面本身的字量
+	var tb_max: int = int(TEXT_BUDGET.get(name, 0)) + (8 if pad_mode else 0)
+	if TEXT_BUDGET.has(name) and int(Save.s("text_scale")) == 100 and free_n > tb_max:
+		bad.append({"type": "文字段數超過上限", "n": free_n, "max": tb_max})
 	sizes.sort()
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,

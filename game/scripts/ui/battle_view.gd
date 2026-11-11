@@ -322,9 +322,11 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 			_report_add(s.team, s.type, k, L.t("ev_bite"), Color("#ffd166"), s)
 		EV.MIMIC_OPEN:
 			_add_fx({"kind": "puff", "p": sp + Vector2(0, -20), "t": 0.0, "dur": 0.4})
+			_add_fx({"kind": "chips", "p": sp + Vector2(0, -14), "t": 0.0, "dur": 0.35, "c": Color("#ffd166"), "spark": true})   # 1.1.0 A7：開箱縫隙金光
 			sfx.play("reveal", 0.7)
 		EV.SPLIT:
 			_add_fx({"kind": "puff", "p": sp + Vector2(0, -12), "t": 0.0, "dur": 0.3})
+			_add_fx({"kind": "chips", "p": sp + Vector2(0, -8), "t": 0.0, "dur": 0.35, "c": Color(0.45, 1.0, 0.55, 0.85), "drop": true})   # 1.1.0 A7：小史萊姆落地濺點
 			sfx.play("squish", 0.5)
 			_report_add(s.team, 13, k, L.t("ev_split"), Color("#7dffa0"), s)
 		EV.CAST:
@@ -360,6 +362,7 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 			_report_add(s.team, s.type, k, L.t("ev_stomp"), Color("#d9c9a3"), s)
 		EV.ROCK:
 			sfx.play("shatter", 0.7)
+			_add_fx({"kind": "chips", "p": sp + Vector2(0, -10), "t": 0.0, "dur": 0.4, "c": Color("#8a8276")})   # 1.1.0 A7：碎石暗灰
 	return true
 
 
@@ -545,6 +548,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		var dr0 = view.unit_by_id(ev["src"])
 		if dr0 != null:
 			_add_fx({"kind": "note", "p": _upos(dr0) + Vector2(6, -78), "t": 0.0, "dur": 0.8})
+			_add_fx({"kind": "woodwave", "p": _upos(dr0) + Vector2(0, 2), "t": 0.0, "dur": 0.45})   # 1.1.0 A7：鼓手腳下木紋同心波（不幫友軍染色）
 		return
 	var route := event_route(ev)
 	if not with_fx and (k == EV.BREACH or ev.get("tags", []).has(EV.BREACH)):
@@ -650,6 +654,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 					key_t = time
 					key_p = tpos
 			col = Color("#ff7a3d")
+			if with_fx and s != null and s.type == D.BERSERKER:
+				_add_fx({"kind": "axearc", "p": sp + Vector2(12 * signf(tpos.x - sp.x), -30), "dir": signf(tpos.x - sp.x), "t": 0.0, "dur": 0.25})   # 1.1.0 A7：狂戰士破陣赭橙短弧
 			sfx.play("shatter", 0.6)
 			_add_fx({"kind": "shard", "p": tpos + Vector2(12, -26), "t": 0.0, "dur": 0.5})
 		EV.BREAKER:

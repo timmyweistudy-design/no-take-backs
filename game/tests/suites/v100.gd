@@ -431,3 +431,12 @@ func test_review_fixes_v110() -> void:
 	ok(not SC.entry_valid(str(p0["id"]), bk[str(p0["id"])]), "重疊部署判不合法")
 	SC.merge(bk, str(p0["id"]), 1, 5, 99, good_u)
 	ok(bk[str(p0["id"])]["u"] == good_u, "合法新紀錄換掉不合法舊紀錄")
+
+## 1.1.0 A7（P2）：新增的鼓手木紋波、狂戰士斧弧是裝飾：4 倍速以上不畫、減少特效時不出。
+func test_a7_p2_fx_v110() -> void:
+	var F = load("res://scripts/ui/battle/battle_fx.gd")
+	for kd in ["woodwave", "axearc"]:
+		ok(kd in F.FAST_SKIP, "%s 高倍速略過" % kd)
+	var src := FileAccess.get_file_as_string("res://scripts/ui/battle/battle_fx.gd")
+	ok(src.contains('d["kind"] in ["woodwave", "axearc",'), "減少特效時不出")
+	ok(src.contains('"woodwave":') and src.contains('"axearc":'), "有畫法")
