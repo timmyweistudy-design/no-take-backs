@@ -34,10 +34,17 @@ def deps(entry: str, seen=None) -> set:
     return seen
 
 
+DYN = re.compile(r"\bload\(\s*[A-Za-z_]")   # 1.2.0 §14.1：用變數動態 load（音效、字型、貼圖、shader 路徑）＝依賴表推不出來
+ASSET_DIRS = ["art", "audio", "fonts", "shaders"]
+
+
 def key_of(ver: str, entries: list, extra_dirs: list) -> str:
     files = set()
     for e in entries:
         deps(e, files)
+    # 1.2.0 §14.1：相依的腳本裡有動態 load → 這一步的鍵把素材資料夾整個算進去（未知依賴＝保守地當成都依賴）
+    if any(f.endswith(".gd") and DYN.search((GAME / f).read_text(encoding="utf-8", errors="ignore")) for f in files):
+        extra_dirs = list(extra_dirs) + [d for d in ASSET_DIRS if d not in extra_dirs]
     for d in extra_dirs:
         p = GAME / d
         if p.is_dir():
@@ -153,6 +160,32 @@ def godot_cmd(godot: str, args: list, marker: str) -> list:
     return [godot] + args + ([] if "--" in args else ["--"]) + [f"--ntb-run={marker}"]
 
 
+SIM_KEY = ""
+
+
+def sim_env(ver: str, no_cache: bool) -> None:
+    """1.2.0 §14.3：給「重算作者解」測試的模擬快取（tests/sim_cache.gd）：核心雜湊＋快取資料夾；--no-cache 時停用。"""
+    global SIM_KEY
+    files = set()
+    for p in sorted((GAME / "scripts/core").rglob("*.gd")):
+        deps(str(p.relative_to(GAME)).replace("\\", "/"), files)
+    deps("scripts/game/puzzles.gd", files)
+    h = hashlib.sha256(ver.encode())
+    for f in sorted(files):
+        h.update(f.encode())
+        h.update(sha(GAME / f).encode())
+    SIM_KEY = h.hexdigest()[:24]
+    cdir = GAME.parent / "build/check-cache/sim"
+    cdir.mkdir(parents=True, exist_ok=True)
+    win = subprocess.run(["wslpath", "-w", str(cdir)], capture_output=True, text=True).stdout.strip() if shutil.which("wslpath") else str(cdir)
+    os.environ["NTB_SIM_KEY"] = SIM_KEY
+    os.environ["NTB_SIM_CACHE_DIR"] = win
+    os.environ["NTB_SIM_CACHE"] = "0" if no_cache else "1"
+    for k in ["NTB_SIM_KEY", "NTB_SIM_CACHE_DIR", "NTB_SIM_CACHE"]:
+        if k not in os.environ.get("WSLENV", "").split(":"):
+            os.environ["WSLENV"] = (os.environ.get("WSLENV", "") + ":" + k).lstrip(":")
+
+
 def run_step(s, godot, out, timeout, marker):
     os.environ["PYTHONUTF8"] = "1"
     os.environ["NTB_FULL_GOLDEN"] = "1" if FULL_GOLDEN else "0"   # 這一輪有完整 golden 步驟時，測試裡的 20 場抽查就不重複跑
@@ -228,6 +261,7 @@ def main() -> int:
             return fail(f"Godot 版本是 {ver}，應該是 {EXPECT}")
         print(f"警告：Godot 版本 {ver} 不是 {EXPECT}，這次結果不能當驗收")
     marker = uuid.uuid4().hex[:10]
+    sim_env(ver, a.no_cache)
     try:
         if not (GAME / ".godot").is_dir() or a.no_cache:
             if not serial(godot, out, "import", ["--headless", "--path", ".", "--import"], marker=marker):
@@ -313,6 +347,19 @@ def _finish(a, godot, out, steps, res, t0, fail, f_load, f_boot, gate):
             times += [(n, int(ms)) for n, ms in re.findall(r"^TIME (\S+) (\d+)", txt, re.M)]
             m2 = re.search(r"^FINGERPRINT .*$", txt, re.M)
             fp = m2.group(0).strip() if m2 else fp
+    # 1.2.0 §14.2：完整模式核對測試 ID：所有 t_ 步驟跑過的測試（TIME 行）聯集＝FILES 全集，而且每個測試只在一個步驟出現
+    if not a.quick and not a.only:
+        seen = {}
+        for s in steps:
+            lg = out / f"{s['name']}.log"
+            if lg.is_file() and s["name"].startswith("t_"):
+                for n in re.findall(r"^TIME (\S+) \d+", lg.read_text(encoding="utf-8", errors="ignore"), re.M):
+                    seen.setdefault(n, []).append(s["name"])
+        want = {fn for fns in suite_map().values() for fn in fns}
+        missing = sorted(want - set(seen))
+        dup = sorted(n for n, v in seen.items() if len(v) > 1)
+        if missing or dup:
+            return fail("測試 ID 聯集不對：漏跑 %s；重複 %s" % (missing[:10], [(n, seen[n]) for n in dup[:10]]))
     if fp:
         (out / "fingerprint.txt").write_text(fp + "\n", encoding="utf-8", newline="\n")   # Windows 預設 CRLF，跨平台比對會假失敗
     wall = time.time() - t0

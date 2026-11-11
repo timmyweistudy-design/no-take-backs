@@ -312,6 +312,8 @@ func _draw_overlay() -> void:
 			_draw_ga_info()
 		"weekly":
 			_draw_weekly()
+		"wk_ghosts":
+			call("_draw_wk_ghosts")   # 1.2.0 §15.4
 		"relay":
 			_draw_relay()
 		"postcard":
@@ -775,7 +777,9 @@ func _draw_settings() -> void:
 		y0 += 60.0
 	elif settings_tab == 3:
 		# 1.1.0 E3：掌機建議（一鍵、先預覽、可撤回）
-		_btn(Rect2(SET_COL.position.x, y0, SET_COL.size.x - 118.0, 46), L.t("preset_handheld"), _apply_preset.bind(3), true, false, Color(0.2, 0.36, 0.5))
+		var hw := (SET_COL.size.x - 118.0 - 8.0) / 2.0
+		_btn(Rect2(SET_COL.position.x, y0, hw, 46), L.t("preset_hh30"), _apply_preset.bind(3), true, false, Color(0.2, 0.36, 0.5))   # 1.2.0 §15.3：30 省電／60 流暢兩顆
+		_btn(Rect2(SET_COL.position.x + hw + 8.0, y0, hw, 46), L.t("preset_hh60"), _apply_preset.bind(4), true, false, Color(0.2, 0.36, 0.5))
 		if not preset_undo.is_empty():
 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
 		y0 += 60.0
@@ -825,7 +829,8 @@ const PRESETS := [
 	{"text_scale": 150, "plain_titles": true, "text_plate": true, "focus_strong": true},
 	{"reduce_motion": true, "shake_pct": 0, "shake": false, "flash_pct": 0, "flash": false, "slowmo": false, "title_bg": "static", "clutch_zoom": false},
 	{"confirm_place": true, "toast_mult": 0, "long_press": 0.8, "hints": "full"},   # 低操作負擔：提示改成手動關
-	{"fps_cap": 30, "text_scale": 125, "place_mode": "tap"}]   # 1.1.0 E3 掌機建議（Steam Deck 等 7 吋 800p）：只組合現有設定，可撤回；未經實機驗證，不宣稱 Deck 認證
+	{"fps_cap": 30, "text_scale": 125, "place_mode": "tap"},
+	{"fps_cap": 60, "text_scale": 125, "place_mode": "tap"}]   # 1.2.0 §15.3：掌機建議 60fps 版（和 30fps 版只差 fps_cap；同樣未經實機驗證）   # 1.1.0 E3 掌機建議（Steam Deck 等 7 吋 800p）：只組合現有設定，可撤回；未經實機驗證，不宣稱 Deck 認證
 
 ## V1.5.1 C2：套用前先列出會改的項目（確認才套用；零差異直接提示）
 func _apply_preset(k: int) -> void:

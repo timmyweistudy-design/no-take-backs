@@ -1014,7 +1014,8 @@ func test_star_solutions() -> void:
 		ok(str(PZ.get_puzzle(pz["id"]).get("zh", "")) == str(pz["zh"]), "用 ID 開得到同一關（不和教學撞）", str(pz["id"]))
 		var best: Dictionary = pz.get("best", {})
 		ok(not best.is_empty(), "殘局有三星解紀錄", str(pz["id"]))
-		var r: Dictionary = PZ.play(pz, best.get("u", []), best.get("p", []))
+		var r: Dictionary = load("res://tests/sim_cache.gd").pz_play(PZ, pz, best.get("u", []), best.get("p", []))   # 1.2.0 §14.3：快取＋抽樣重算
+		ok(not r.has("cache_mismatch"), "模擬快取抽樣重算一致", str(pz["id"]))
 		ok(not r.has("illegal"), "三星解擺法合法", "%s %s" % [pz["id"], str(r.get("illegal", ""))])
 		ok(int(r["stars"]) == 3, "殘局三星拿得到", "%s 剩 %d 花 %d" % [pz["id"], int(r["rem"]), int(r["spent"])])
 		seen += 1

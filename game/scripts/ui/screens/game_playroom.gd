@@ -14,6 +14,8 @@ var df_ai: Array = []
 func _wager_new() -> void:
 	var r := RandomNumberGenerator.new()
 	r.randomize()
+	if shot_dir != "":
+		r.seed = 20261111   # 1.2.0 §14.6：截圖模式固定（視覺回歸要可重現）
 	wg_armies = [AI.build(0, 100, r)["army"], AI.build(1, 100, r)["army"]]
 	wg_pick = [-1, -1]
 	overlay = "wager"
@@ -99,6 +101,8 @@ func _wager_settle() -> void:
 func _draft_new() -> void:
 	var r := RandomNumberGenerator.new()
 	r.randomize()
+	if shot_dir != "":
+		r.seed = 20261111   # 1.2.0 §14.6：截圖模式固定（視覺回歸要可重現）
 	var ids: Array = range(10)
 	df_pool = []
 	while df_pool.size() < 8:
@@ -598,8 +602,66 @@ func _draw_weekly() -> void:
 	_text(Vector2(330, y), L.t("wk_best", [best]) if best > 0 else L.t("wk_none"), tz("S"), Color("#8e1b14") if best > 0 else Color("#5a4630"), false, true, 620)
 	_ink_mode = false
 	_text(Vector2(640, paper.end.y + 10), L.t("wk_note"), tz("C"), TXT_DIM, true, false, 680)
-	_btn(Rect2(460, 604, 160, 44), L.t("back"), func(): overlay = "playroom")
-	_btn(Rect2(660, 604, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
+	_btn(Rect2(360, 604, 160, 44), L.t("back"), func(): overlay = "playroom")
+	_btn(Rect2(560, 604, 160, 44), L.t("wk_dl"), func(): _wk_dl_open())   # 1.2.0 §15.4：玩家幽靈入口
+	_btn(Rect2(760, 604, 160, 44), L.t("pr_go"), func(): _weekly_start(), true, true)
+
+## 1.2.0 §15.4：下載本週玩家幽靈（排行榜前 20 名的陣型，SteamApi.ghost_fetch）。原本只有程式、沒有畫面入口。
+## 狀態：offline（沒有 Steam）／busy（下載中）／empty（本週沒人上傳）／ok（列前幾名，可挑一個對戰）。回呼可能在離開後才到：只在頁面還開著時更新。
+var wk_dl_state := ""
+var wk_dl_list: Array = []
+var wk_dl_gen := 0
+func _wk_dl_open() -> void:
+	overlay = "wk_ghosts"
+	_focus = 0
+	wk_dl_list = []
+	if not SteamApi.available():
+		wk_dl_state = "offline"
+		return
+	wk_dl_state = "busy"
+	wk_dl_gen += 1
+	var g0 := wk_dl_gen
+	SteamApi.ghost_fetch(week_no(int(Time.get_unix_time_from_system())), func(list: Array): _wk_dl_done(g0, list))
+
+func _wk_dl_done(g0: int, list: Array) -> void:
+	if g0 != wk_dl_gen or overlay != "wk_ghosts":
+		return   # 過期的回呼（已離開或重開過）
+	wk_dl_list = list.slice(0, 5)
+	wk_dl_state = "ok" if not wk_dl_list.is_empty() else "empty"
+
+func _wk_dl_play(i: int) -> void:
+	if i < 0 or i >= wk_dl_list.size():
+		return
+	var a = Army.new(0, 100)
+	for u in wk_dl_list[i]["units"]:
+		a.units.append({"type": int(u["type"]), "col": int(u["col"]), "row": int(u["row"])})
+	var r = RuleSet.standard()
+	r.rounds = 1
+	rules = r
+	challenge_army = a.mirrored()   # 上傳的是玩家自己（藍方）的擺法：鏡像成對手
+	overlay = ""
+	set("daily_spec", {})
+	_start_mode(Mode.VS_AI)
+	set("daily_spec", {})
+	challenge_army = a.mirrored()
+	_toast(L.t("wk_dl_go", [int(wk_dl_list[i]["rank"])]))
+
+func _draw_wk_ghosts() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0, 0, 0, 0.6))
+	var rowh := 52.0
+	var n := maxi(1, wk_dl_list.size())
+	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + n * (rowh + GAP_S) + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("wk_dl")) + GAP_L
+	if wk_dl_state != "ok":
+		_text(Vector2(640, y + 12), L.t("wk_dl_" + wk_dl_state), tz("B"), TXT_DIM, true, false, 560)
+	for i in wk_dl_list.size():
+		var e: Dictionary = wk_dl_list[i]
+		_text(Vector2(P.position.x + 40, y + 12), L.t("wk_dl_row", [int(e["rank"]), int(e["score"]), (e["units"] as Array).size()]), tz("S"), Color.WHITE, false, false, 360)
+		var ii := i
+		_btn(Rect2(P.end.x - 200, y + 4, 160, 44), L.t("wk_dl_fight"), func(): _wk_dl_play(ii), true, i == 0)
+		y += rowh + GAP_S
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): wk_dl_gen += 1; overlay = "weekly")
 
 
 ## ── V1.4 #12 巨獸：遠征終點的敵陣中央放一隻（不佔預算、隻數）。格子被佔了就把那隻換掉。──

@@ -252,6 +252,52 @@ func layout_geom_input() -> Dictionary:
 		"panelless_ok": overlay in PANELLESS_OVERLAYS}
 
 
+## 1.2.0 §14.7 美感自動檢查（第一批，先當報表、不擋）：
+##  ・black_pct：近純黑像素（三通道都 ≤ 8）佔全畫面的百分比（憲法 3：禁純黑；桌面世界做完後改成違規）
+##  ・units／low_units：戰鬥中每隻單位，框內（腳底往上 46px、寬 36px）與框外一圈 6px 的平均明度差 < 30%（＝0.3×255）的隻數（憲法 7）
+func _art_checks(img: Image) -> Dictionary:
+	var out := {"black_pct": 0.0, "units": 0, "low_units": 0}
+	if img == null:
+		return out
+	var w := img.get_width()
+	var h := img.get_height()
+	var n := 0
+	var blk := 0
+	for y in range(0, h, 4):
+		for x in range(0, w, 4):
+			var c := img.get_pixel(x, y)
+			n += 1
+			if c.r8 <= 8 and c.g8 <= 8 and c.b8 <= 8:
+				blk += 1
+	out["black_pct"] = snappedf(100.0 * blk / maxi(1, n), 0.01)
+	if state == St.BATTLE and view != null:
+		var lum := func(c: Color) -> float: return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+		var mean := func(r: Rect2i) -> float:
+			var s0 := 0.0
+			var k := 0
+			for yy in range(maxi(0, r.position.y), mini(h, r.end.y), 2):
+				for xx in range(maxi(0, r.position.x), mini(w, r.end.x), 2):
+					s0 += lum.call(img.get_pixel(xx, yy))
+					k += 1
+			return s0 / maxi(1, k)
+		for u in view.units:
+			if not u.alive:
+				continue
+			var sp: Vector2 = _cam * _upos(u)
+			var inner := Rect2i(int(sp.x) - 18, int(sp.y) - 46, 36, 46)
+			var outer := inner.grow(6)
+			var li: float = mean.call(inner)
+			# 外圈＝外框四條邊帶的平均（不含內框）
+			var ring := 0.0
+			for r in [Rect2i(outer.position.x, outer.position.y, outer.size.x, 6), Rect2i(outer.position.x, outer.end.y - 6, outer.size.x, 6),
+					Rect2i(outer.position.x, inner.position.y, 6, inner.size.y), Rect2i(inner.end.x, inner.position.y, 6, inner.size.y)]:
+				ring += mean.call(r)
+			ring /= 4.0
+			out["units"] += 1
+			if absf(li - ring) < 0.3:
+				out["low_units"] += 1
+	return out
+
 func _layout_report(name: String, img: Image = null) -> void:
 	var bad: Array = []
 	var cres := _contrast_issues(img)
@@ -384,14 +430,24 @@ func _layout_report(name: String, img: Image = null) -> void:
 	sizes.sort()
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
-		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"]})
+		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": _art_checks(img)})
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()
 	f.store_line(line)
 	f.close()
 
 
+var shot_only: Array = []   # 1.2.0 §14.4：--shot-only=a.png,b.png 只存這些（流程照跑）
 func _snap(name: String) -> void:
+	if shot_only.is_empty():
+		for a0 in OS.get_cmdline_user_args():
+			if a0.begins_with("--shot-only="):
+				shot_only = Array(a0.substr(12).split(",", false))
+				break
+		if shot_only.is_empty():
+			shot_only = ["*"]
+	if not ("*" in shot_only) and not (name in shot_only):
+		return
 	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)   # 真的被縮下去就還原，否則永遠等不到繪製
 	if shot_state.has("pad"):
@@ -1329,6 +1385,7 @@ func _ready() -> void:
 	if capsule_path != "":
 		_capture_capsule.call_deferred()
 	elif shot_dir != "":
+		seed(20261111)   # 1.2.0 §14.6：截圖模式固定全域亂數（特效、待機錯開），視覺回歸要可重現
 		_run_screenshots.call_deferred()
 	elif video_mode:
 		_run_video.call_deferred()

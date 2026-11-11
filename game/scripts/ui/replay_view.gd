@@ -359,7 +359,7 @@ func _open_review() -> void:
 			rv_orig.enemy_pos = ep.duplicate()
 	rv_sel = Vector2i(-1, -1)
 	_rv_dirty()
-	rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)
+	_rv_base_start()
 	_open("review")
 
 ## 跟原本比改了幾隻（換兵種、移位、拿掉、新增都算一隻）。
@@ -531,6 +531,44 @@ static func diverge_tick(a: PackedInt64Array, b: PackedInt64Array) -> int:
 			return i / 2 + 1   # 模擬先加 tick 才記戰力：第一筆是 tick 1（Codex v140-i1）
 	return -1 if a.size() == b.size() else n / 2 + 1
 
+## 1.2.0 §15.1：打開覆盤時「原本那一場」的基準重算也放背景（原本在主執行緒同步跑一整場，最壞約 7.5 秒畫面卡住）。
+## 基準算好之前：原本那條顯示「計算中」、重算鈕不能按（分岔 tick 要和基準比）。headless／截圖照舊同步（確定性）。
+var rv_base_thread: Thread = null
+func _rv_base_start() -> void:
+	if rv_base_thread != null:
+		bg.retire(rv_base_thread)
+		rv_base_thread = null
+	rv_base = {}
+	if not _async_ok():
+		rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)
+		return
+	var a: Variant = rv_orig.copy()
+	var e: Variant = rv_enemy.copy()
+	var r: Variant = battle_rules.copy() if battle_rules != null else null
+	var lg: Array = last_cmds.duplicate(true)
+	var ctl: Dictionary = BgPool.make_ctl(RV_LIMIT_MS)
+	rv_base_thread = bg.start(func(): return review_run(a, e, r, lg, ctl), ctl)
+	if rv_base_thread == null:
+		_toast(L.t("rv_fail"), true)
+		rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)   # 開不了執行緒：退回同步（基準只算一次，不會反覆卡）
+
+func _rv_base_poll() -> void:
+	if rv_base_thread == null:
+		return
+	if overlay != "review":
+		bg.retire(rv_base_thread)
+		rv_base_thread = null
+		return
+	if not rv_base_thread.is_alive():
+		var res: Dictionary = bg.take(rv_base_thread)
+		rv_base_thread = null
+		if bool(res.get("cancel", false)):
+			_toast(L.t("rv_slow"), true)
+			return
+		rv_base = res
+		if not rv_result.is_empty():
+			_rv_set_result(rv_result)   # 先算好的「如果」要重新和基準比分岔點
+
 func _rv_set_result(res: Dictionary) -> void:
 	rv_result = res
 	rv_div = diverge_tick(rv_base.get("log2", PackedInt64Array()), res.get("log2", PackedInt64Array())) if not res.is_empty() else -1
@@ -574,6 +612,7 @@ func _rv_cancel() -> void:
 		rv_thread = null
 
 func _rv_poll() -> void:
+	_rv_base_poll()
 	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
 		_rv_cancel()   # 離開覆盤或改了陣型：舊的不用算完
 		return
@@ -589,6 +628,9 @@ func _rv_poll() -> void:
 ## 結束時：叫停再等（64 tick 內會停）；GIF 也叫停。
 func _rv_exit() -> void:
 	_rv_cancel()
+	if rv_base_thread != null:
+		bg.retire(rv_base_thread)
+		rv_base_thread = null
 	gif_ctl["stop"] = true   # 真正的等待在 bg.drain()（battle_view._exit_tree）
 
 func _rv_play() -> void:
@@ -660,14 +702,17 @@ func _draw_review() -> void:
 		_text(br.position + Vector2(26, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
 	_btn(Rect2(bx, 234 + dy, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
 	_btn(Rect2(bx + 282, 234 + dy, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
-	_btn(Rect2(bx, 284 + dy, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null, true)
+	_btn(Rect2(bx, 284 + dy, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
 	# 兩條戰力走勢上下對齊（同一個時間軸長度）
 	var y := 350.0 + dy
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
 	var b0: Array = rv_base.get("b", [100, 100])
-	_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
 	var c0 := Rect2(bx, y + tz("S") * 1.5, 552, 70)
-	Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+	if rv_base.is_empty():
+		_text(Vector2(bx, y), L.t("busy_review"), tz("S"), TXT_DIM, false, true, 552)   # 1.2.0 §15.1：基準還在背景算
+	else:
+		_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
+		Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
 	y += tz("S") * 1.5 + 82
 	if not rv_result.is_empty():
 		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)

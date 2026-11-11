@@ -21,18 +21,25 @@ func test_puzzle_solutions() -> void:
 				if why != "":
 					bad.append("%s 標準解不合法：%s" % [pz["id"], why])
 				a0.place(int(e[0]), int(e[1]), int(e[2]))
-			var sm = Sim.new(a0, PZ.enemy_army(pz))
-			sm.fast = true
-			sm.run_to_end()
+			var a0c = a0
+			var res: Dictionary = load("res://tests/sim_cache.gd").cached("pz_sol", [pz, sol], func():
+				var sm = Sim.new(a0c, PZ.enemy_army(pz))
+				sm.fast = true
+				sm.run_to_end()
+				return {"winner": sm.winner})   # 1.2.0 §14.3：快取＋抽樣重算
 			total += 1
-			if sm.winner != 0:
+			if res.has("cache_mismatch"):
+				bad.append("%s 模擬快取抽樣重算不一致" % pz["id"])
+			if int(res.get("winner", -1)) != 0:
 				bad.append("%s 標準解輸了" % pz["id"])
 	# 第十三輪新增的關：可能有目標、技能、地形，一律用和遊戲同一套的 PZ.play（含合法性）判定
 	for pz in PZ.extra_puzzles():
 		var plans: Array = pz.get("sol_plans", [])
 		for si in pz.get("solutions", []).size():
-			var r: Dictionary = PZ.play(pz, pz["solutions"][si], plans[si] if si < plans.size() else [])
+			var r: Dictionary = load("res://tests/sim_cache.gd").pz_play(PZ, pz, pz["solutions"][si], plans[si] if si < plans.size() else [])   # 1.2.0 §14.3
 			total += 1
+			if r.has("cache_mismatch"):
+				bad.append("%s 模擬快取抽樣重算不一致" % pz["id"])
 			if r.has("illegal"):
 				bad.append("%s 標準解不合法：%s" % [pz["id"], r["illegal"]])
 			elif not bool(r["ok"]):

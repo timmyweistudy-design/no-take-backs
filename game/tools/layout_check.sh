@@ -25,18 +25,40 @@ COMBOS="zh_TW:100 zh_TW:125 zh_TW:150 en:100 en:125 en:150 zh_TW:150:plain en:15
 [ "${LAYOUT_QUICK:-0}" = "1" ] && COMBOS="zh_TW:100 en:150 en:150:plain,cb,pad zh_TW:150:dis ja:150"
 [ -n "${LAYOUT_COMBOS:-}" ] && COMBOS="$LAYOUT_COMBOS"   # 只重跑指定組（修版面時用）
 export LAYOUT_N=$(echo $COMBOS | wc -w)
-for combo in $COMBOS; do
+# 1.2.0 §14.5：LAYOUT_JOBS=N 平行跑 N 組（各組本來就是獨立行程）；預設 1（量過一致才調高，見 coordination/v120-impl）
+JOBS=${LAYOUT_JOBS:-1}
+FAILS="$OUT/.fails"; : > "$FAILS"
+run_combo() {
+  local combo=$1 lang sc st d
   IFS=: read -r lang sc st <<< "$combo"
-  {
-    d="$OUT/${lang}_${sc}${st:+_${st//,/-}}"; mkdir -p "$d"
-    timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} --layout-check > "$d/run.log" 2>&1 \
-      || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0"; kill_win "$d"; exit 1; }
-    grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤"; exit 1; }
-    grep -q "PADWALK OK" "$d/run.log" || { echo "LAYOUT FAIL：$lang $sc% 手把流程：$(grep PADWALK "$d/run.log" | cut -c1-400)"; exit 1; }
-  }
+  d="$OUT/${lang}_${sc}${st:+_${st//,/-}}"; mkdir -p "$d"
+  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} --layout-check > "$d/run.log" 2>&1 \
+    || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0" >> "$FAILS"; kill_win "$d"; return; }
+  grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤" >> "$FAILS"; return; }
+  grep -q "PADWALK OK" "$d/run.log" || echo "LAYOUT FAIL：$lang $sc% 手把流程：$(grep PADWALK "$d/run.log" | cut -c1-400)" >> "$FAILS"
+}
+for combo in $COMBOS; do
+  while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n; done
+  run_combo "$combo" &
 done
+wait
+if [ -s "$FAILS" ]; then cat "$FAILS"; exit 1; fi
 EXPECT=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | wc -l)
 NAMES=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')
+# 1.2.0 §14.4：LAYOUT_SHOTS=a.png,b.png 只存、只檢查這些畫面（流程照跑）；開發中快速看用，每日與發版一律全量
+if [ -n "${LAYOUT_SHOTS:-}" ]; then NAMES="$LAYOUT_SHOTS,"; EXPECT=$(echo "$LAYOUT_SHOTS" | tr ',' '\n' | grep -c .); fi
+# 1.2.0 §14.4：畫面狀態清冊（tools/screens.json）要和 dev_main 的截圖清單完全一致（新畫面一定要登記入口與狀態）
+python3 - "$(grep -o '_snap("[^"]*")' tools/dev_main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')" <<'PY' || exit 1
+import json, sys
+names = {x for x in sys.argv[1].split(',') if x}
+reg = json.load(open('tools/screens.json', encoding='utf-8'))
+miss = sorted(names - set(reg)); extra = sorted(set(reg) - names)
+if miss or extra:
+    print('LAYOUT FAIL：畫面清冊 tools/screens.json 和截圖清單不一致（沒登記 %s、多登記 %s）' % (miss, extra)); sys.exit(1)
+bad = [k for k, v in reg.items() if not v.get('entry') or not isinstance(v.get('states'), list)]
+if bad:
+    print('LAYOUT FAIL：清冊缺入口或狀態：%s' % bad[:10]); sys.exit(1)
+PY
 python3 - "$OUT" "$EXPECT" "$NAMES" <<'PY'
 import json,sys,glob,os
 out=sys.argv[1]; expect=int(sys.argv[2]); names=set(x for x in sys.argv[3].split(',') if x); total=0; rows=[]
@@ -67,6 +89,12 @@ exs=set()
 for d in rows:
     for e in d.get('geo_exempt',[]): exs.add((d['shot'], e['rule'], e['why']))
 print('LAYOUT 排版警告 %d、宣告例外 %d（明細：python3 tools/layout_table.py %s）' % (gw, len(exs), out))
+# 1.2.0 §14.7：美感報表（先不擋）：純黑像素、棋子灰階對比
+arts=[d for d in rows if 'art' in d]
+if arts:
+    blk=sorted(arts, key=lambda d:-d['art']['black_pct'])
+    u=sum(d['art']['units'] for d in arts); lu=sum(d['art']['low_units'] for d in arts)
+    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子灰階對比 < 30%% 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
 runs=glob.glob(os.path.join(out,'*','layout.jsonl'))
 want=int(os.environ.get('LAYOUT_N','14'))
 if len(runs)!=want or len(rows)!=want*expect:

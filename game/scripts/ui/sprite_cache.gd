@@ -136,9 +136,7 @@ func _bake_turn(cb: bool) -> void:
 	pf.mode = 1
 	pf.types = TURN_TYPES
 	var nf := TURN_TYPES.size() * 2 * FID_PER
-	var vpf := _viewport(Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL), pf)
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
+	var vpf: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL), pf, nf)
 	var imf := vpf.get_texture().get_image()
 	vpf.queue_free()
 	imf = await _post(imf, FID_PER)
@@ -156,9 +154,7 @@ func _bake_turn(cb: bool) -> void:
 		pw.mode = 2
 		pw.types = chunk
 		var nw := chunk.size() * 2 * per_w
-		var vpw := _viewport(Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL), pw)
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
+		var vpw: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL), pw, nw)
 		var imw := vpw.get_texture().get_image()
 		vpw.queue_free()
 		imw = await _post(imw, per_w)
@@ -194,9 +190,7 @@ func ensure_turn_atk(types: Array) -> void:
 		pt.cb = ready_cb == 1
 		pt.mode = 3
 		pt.types = [t]
-		var vp := _viewport(Vector2i(COLS * CELL, 2 * CELL), pt)
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
+		var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, 2 * CELL), pt, ATK_FRAMES * 2 * 2)
 		var img := vp.get_texture().get_image()
 		vp.queue_free()
 		img = await _post(img, ATK_FRAMES * 2)
@@ -238,6 +232,26 @@ func _viewport(size: Vector2i, painter: Node) -> SubViewport:
 	add_child(vp)
 	return vp
 
+const PAINT_CHUNK := 28   # 每幀最多畫幾格（一種兵一隊的一整組影格）
+
+## 1.2.0 §15.2：分段畫進同一個視窗（第一次清空、之後累積），每幀最多 PAINT_CHUNK 格；回傳畫好的視窗（呼叫端讀回後釋放）。
+func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
+	painter.cell_from = 0
+	painter.cell_to = PAINT_CHUNK
+	var vp := _viewport(size, painter)
+	vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
+	await RenderingServer.frame_post_draw
+	var c0 := PAINT_CHUNK
+	while c0 < total:
+		painter.cell_from = c0
+		painter.cell_to = c0 + PAINT_CHUNK
+		painter.queue_redraw()
+		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+		await RenderingServer.frame_post_draw
+		c0 += PAINT_CHUNK
+	await RenderingServer.frame_post_draw
+	return vp
+
 func _bake_page(types: Array) -> void:
 	var gen0 := _gen
 	var cb := ready_cb == 1
@@ -246,9 +260,9 @@ func _bake_page(types: Array) -> void:
 	var painter := _Painter.new()
 	painter.cb = cb
 	painter.types = types
-	var vp := _viewport(Vector2i(COLS * CELL, rows * CELL), painter)
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
+	# 1.2.0 §15.2：一整頁（6 種×2 隊×28 格＝336 個向量角色）在同一幀畫完就是開戰前的長幀（136～215 ms，ABBA 量過不是讀回造成）。
+	# 改成分段：每幀只畫 PAINT_CHUNK 格，視窗第一次清空、之後不清（累積），畫完整頁才讀回。
+	var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, rows * CELL), painter, total)
 	var img := vp.get_texture().get_image()
 	vp.queue_free()
 	img = await _post(img)
@@ -468,6 +482,8 @@ func _draw_turn(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, h
 class _Painter extends Node2D:
 	var cb := false
 	var types: Array = []
+	var cell_from := 0          # 1.2.0 §15.2：分段烘焙，這一幀只畫 [cell_from, cell_to) 的格子
+	var cell_to := 1 << 30
 	func _draw() -> void:
 		var Art2 = preload("res://scripts/ui/art.gd")
 		var D2 = preload("res://scripts/core/unit_defs.gd")
@@ -483,6 +499,8 @@ class _Painter extends Node2D:
 			for team in 2:
 				for f in per:
 					var idx: int = (k * 2 + team) * per + f
+					if idx < cell_from or idx >= cell_to:
+						continue
 					var cell_o := Vector2((idx % cols) * CELL2, (idx / cols) * CELL2)
 					var walk := 0.0
 					var atk := 0.0
@@ -562,6 +580,8 @@ class _RingPainter extends Node2D:
 
 ## V1.3.1：額外頁的畫家。mode 1＝待機小動作 4 格＋受擊帽子 1 格；mode 2＝走路轉身（2 角度 × 4 步相）。
 class _ExtraPainter extends Node2D:
+	var cell_from := 0          # 1.2.0 §15.2：分段烘焙
+	var cell_to := 1 << 30
 	var cb := false
 	var mode := 1
 	var types: Array = []
@@ -579,6 +599,8 @@ class _ExtraPainter extends Node2D:
 					var spec: Array = SC.FIDGET.get(type, [0.2, 0.0])
 					for f in SC.FID_PER:
 						var idx: int = (k * 2 + team) * SC.FID_PER + f
+						if idx < cell_from or idx >= cell_to:
+							continue
 						var p := Vector2((idx % SC.COLS) * SC.CELL, (idx / SC.COLS) * SC.CELL) + SC.origin_of(type)
 						if f < SC.FID_PER - 1:
 							var wgt := sin(PI * (f + 0.5) / float(SC.FID_PER - 1))
@@ -601,6 +623,8 @@ class _ExtraPainter extends Node2D:
 					# V1.5.1：轉身途中出手（一般 8 格＋交替／專屬 8 格）
 					for f in SC.ATK_FRAMES * 2:
 						var idx3: int = team * SC.ATK_FRAMES * 2 + f
+						if idx3 < cell_from or idx3 >= cell_to:
+							continue
 						var p3 := Vector2((idx3 % SC.COLS) * SC.CELL, (idx3 / SC.COLS) * SC.CELL) + SC.origin_of(type)
 						var vr3 := 0 if f < SC.ATK_FRAMES else (1 if type < 5 else 2)
 						Art2.turn_c = SC.TA_C
@@ -613,6 +637,8 @@ class _ExtraPainter extends Node2D:
 					for ai in SC.WT_C.size():
 						for ph in SC.WT_PH:
 							var idx2: int = (k * 2 + team) * SC.WT_C.size() * SC.WT_PH + ai * SC.WT_PH + ph
+							if idx2 < cell_from or idx2 >= cell_to:
+								continue
 							var p2 := Vector2((idx2 % SC.COLS) * SC.CELL, (idx2 / SC.COLS) * SC.CELL) + SC.origin_of(type)
 							var c: float = SC.WT_C[ai]
 							Art2.turn_c = c

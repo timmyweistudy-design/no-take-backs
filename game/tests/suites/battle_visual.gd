@@ -497,3 +497,32 @@ func test_b14_layers_v110() -> void:
 	ok(art.contains("static func base_trim") and art.contains("base_trim(ci, p, type, scale)"), "底座部件另一層")
 	var sc := FileAccess.get_file_as_string("res://scripts/ui/sprite_cache.gd")
 	ok(sc.contains("Vector2i(14 * CELL, CELL)") and sc.contains("var fan := 4 if type >= D.COUNT else 0"), "部件烘進合成格（每隻還是一次貼圖），王國／奇幻各一組")
+
+## 1.2.0 §15.1：開覆盤時「原本那一場」的基準在背景算：打開立刻回來、算完才填、離開就叫停。
+func test_review_base_async_v120() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.force_async = true
+	var Armyx = load("res://scripts/core/army.gd")
+	var a = Armyx.new(0, 100)
+	a.place(0, 4, 4)
+	a.place(2, 3, 2)
+	var e = Armyx.new(1, 100)
+	e.place(0, 11, 4)
+	g.last_armies = [a, e]
+	g.battle_rules = null
+	g.last_cmds = []
+	g._open_review()
+	ok(g.overlay == "review" and g.rv_base.is_empty() and g.rv_base_thread != null, "打開立刻回來，基準在背景算")
+	var guard := 0
+	while g.rv_base_thread != null and guard < 2000:
+		OS.delay_msec(5)
+		g._rv_poll()
+		guard += 1
+	ok(int(g.rv_base.get("ticks", 0)) > 0, "算完填入基準")
+	g._open_review()
+	g.overlay = ""
+	g._rv_poll()
+	ok(g.rv_base_thread == null, "離開覆盤就叫停交給回收")
+	g.bg.drain()
+	g.free()

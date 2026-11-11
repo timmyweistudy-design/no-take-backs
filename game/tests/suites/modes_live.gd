@@ -254,3 +254,34 @@ func test_chapter_seal_v110() -> void:
 	ok(not G.chapter_sealed(chap, {"a": 3, "b": 2}), "差一顆星不蓋")
 	ok(G.chapter_sealed(chap, {"a": 3, "b": 3}), "全三星蓋印")
 	ok(not G.chapter_sealed([], {}), "空章節不蓋")
+
+## 1.2.0 §15.4：每週棋盒的玩家幽靈入口：沒 Steam 顯示離線；回空顯示「沒人上傳」；有資料可挑一個對戰（鏡像成對手）；過期回呼不改畫面。
+func test_wk_ghosts_v120() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g._wk_dl_open()
+	ok(g.overlay == "wk_ghosts" and g.wk_dl_state == "offline", "沒有 Steam：離線提示")
+	g.wk_dl_state = "busy"
+	var g0: int = g.wk_dl_gen
+	g._wk_dl_done(g0, [])
+	ok(g.wk_dl_state == "empty", "回空：本週沒人上傳")
+	g.wk_dl_state = "busy"
+	g._wk_dl_done(g0 - 1, [{"rank": 1, "score": 50, "units": [{"type": 0, "col": 2, "row": 4}]}])
+	ok(g.wk_dl_state == "busy", "過期回呼不改畫面")
+	g._wk_dl_done(g0, [{"rank": 1, "score": 50, "units": [{"type": 0, "col": 2, "row": 4}, {"type": 2, "col": 1, "row": 3}]}])
+	ok(g.wk_dl_state == "ok" and g.wk_dl_list.size() == 1, "有資料：列出")
+	g._wk_dl_play(0)
+	ok(g.mode == g.Mode.VS_AI and g.challenge_army != null and g.challenge_army.team == 1 and g.challenge_army.units.size() == 2, "挑一個對戰：對手是鏡像後的玩家陣")
+	g.free()
+
+## 1.2.0 §15.3：掌機建議 30／60fps 兩版只差 fps_cap。
+func test_handheld_presets_v120() -> void:
+	var M = load("res://scripts/ui/screens/game_menus.gd")
+	var p30: Dictionary = M.PRESETS[3]
+	var p60: Dictionary = M.PRESETS[4]
+	ok(int(p30["fps_cap"]) == 30 and int(p60["fps_cap"]) == 60, "30／60")
+	var a := p30.duplicate()
+	var b := p60.duplicate()
+	a.erase("fps_cap")
+	b.erase("fps_cap")
+	ok(a == b, "其他設定一樣")
