@@ -255,7 +255,7 @@ func _key_hints(cx: float, y: float, items: Array, size := 15) -> void:
 	for i in items.size():
 		var kw: float = widths[i][0]
 		var key: String = items[i][0]
-		var kc: Color = {"×": Color("#42a5f5"), "O": Color("#ef5350"), "□": Color("#ec7fc1"), "▲": Color("#3ccf6e"), "A": Color("#3ccf6e"), "B": Color("#ef5350"), "X": Color("#42a5f5"), "Y": Color("#ffca28")}.get(key, Color(0.75, 0.78, 0.85))
+		var kc: Color = {"×": Color("#42a5f5"), "O": Color("#ef5350"), "□": Color("#ec7fc1"), "▲": Color("#3ccf6e"), "A": Color("#3ccf6e"), "B": Color("#ff8a80"), "X": Color("#42a5f5"), "Y": Color("#ffca28")}.get(key, Color(0.75, 0.78, 0.85))
 		var r := Rect2(x, y, kw, fs + 6)
 		if key.length() == 1 and pad_mode:
 			draw_circle(r.get_center(), r.size.y / 2, kc, true, -1.0, true)
