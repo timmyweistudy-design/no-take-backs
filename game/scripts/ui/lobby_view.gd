@@ -1069,7 +1069,7 @@ func _draw_pool_tab(R: Rect2) -> void:
 		fw = minf(fw, (R.size.x - fx0) / 5.0 - 4.0)
 		for fi in 5:
 			_btn_small(Rect2(R.position.x + fx0 + fi * (fw + 4.0), y - 4, fw, 36), L.t("lb_filter_%d" % fi), func(): lobby_filter = fi, true, false, TH_ACTIVE if lobby_filter == fi else TH_WOOD)
-		y += 38.0
+		y += maxf(38.0, text_h(title_r, tz("S"), 190) + 8.0)   # 1.2.0：標題在 150% 換行時下一段跟著往下（原本固定 38，第二行壓到「王國軍」）
 		var groups := [[L.t("lb_army_kingdom"), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]
 		if has_new_row:
 			groups.append([L.t("lb_army_fantasy"), [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]])

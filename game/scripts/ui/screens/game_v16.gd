@@ -1983,7 +1983,7 @@ func _draw_trio_result() -> void:
 	var ch := 196.0
 	var P := modal_rect(760, 12.0 + h1_bottom(0.0) + GAP_L + ch + GAP_L + text_h(foot, tz("S"), 680) + GAP_L + 26.0 + GAP_L + 50.0 + GAP_L)
 	_panel(P)
-	var y := _h1(Vector2(640, P.position.y + 12), L.t("trio_open")) + GAP_L
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("trio_open")) + GAP_L + 2.0   # 1.2.0：R2 要 >16（剛好 16 會落在警告區）
 	var r5: Array = []   # 三張同列卡片（R5 基準線：縮圖、標題）
 	for k in 3:
 		var r := Rect2(640 - (cw * 3 + 2 * GAP_L) / 2.0 + k * (cw + GAP_L), y, cw, ch)

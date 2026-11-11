@@ -973,7 +973,7 @@ func _record_match(w: int) -> void:
 func _draw_profile() -> void:
 	var P := Rect2(50, 24, 1180, 752)
 	_panel(P)
-	_h1(Vector2(640, 34), L.t("pf_title"))
+	_h1(Vector2(640, 30), L.t("pf_title"))   # 1.2.0：H1 放大，緞帶上移 4（R2）
 	var st: Dictionary = Save.data.get("stats", {})
 	var cs: Dictionary = Save.data.get("custom_stats", {})
 	var g: int = int(st.get("games", 0)) + int(cs.get("games", 0))
