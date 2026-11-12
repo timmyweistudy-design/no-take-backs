@@ -394,7 +394,7 @@ func _draw_campaign() -> void:
 		_text(r.position + Vector2(14, 10), nm, tz("B"), tc, false, true, cw - 140.0)
 		var sn := Campaign.stars_of(Save.data, st)
 		var stx := "★".repeat(sn) + "☆".repeat(3 - sn)
-		_text(Vector2(r.end.x - 14.0 - _width(stx, tz("B"), true), r.position.y + 10), stx, tz("B"), Color("#9a5a10") if on_paper else ACCENT, false, true, 120)
+		_text(Vector2(r.end.x - 14.0 - _width(stx, tz("B"), true), r.position.y + 10), stx, tz("B"), Color("#6a3a06") if on_paper else ACCENT, false, true, 120)   # 紙上星改深琥珀（#9a5a10 對比只有 3.6）
 		_text(r.position + Vector2(14, 10 + tz("B") * 1.3), _camp_goal_of(st), tz("S"), tc, false, false, cw - 28.0)
 		_ink_mode = false
 		cards[mini(ri2, 1)].append(r)
