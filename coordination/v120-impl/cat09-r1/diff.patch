@@ -1,0 +1,385 @@
+diff --git a/game/scripts/core/battle_sim.gd b/game/scripts/core/battle_sim.gd
+index 8af0f6a..81fa74c 100644
+--- a/game/scripts/core/battle_sim.gd
++++ b/game/scripts/core/battle_sim.gd
+@@ -1129,7 +1129,7 @@ func _ext_rescue(n: int) -> void:
+ 		m.heal_done += real
+ 		m.stun = maxi(m.stun, 40)
+ 		m.ext_cd = 340
+-		events.append({"kind": EV.HEAL, "src": m.id, "tgt": t.id, "amt": real, "tags": [EV.HEAL]})
++		events.append({"kind": EV.HEAL, "src": m.id, "tgt": t.id, "amt": real, "tags": [EV.HEAL, EV.RESCUE]})
+ 
+ ## 協同技（§8.4，候選第一組）：狂戰士旁邊 1 格內（含斜角）有同隊鼓手 → 狂戰士攻擊 +10%（開局一次，整數捨去）。和相鄰陣法互斥。
+ func _ext_synergy() -> void:
+diff --git a/game/scripts/core/events.gd b/game/scripts/core/events.gd
+index 4696d93..cebb065 100644
+--- a/game/scripts/core/events.gd
++++ b/game/scripts/core/events.gd
+@@ -50,9 +50,10 @@ const FLANK := "flank"
+ const DRUM := "drum"           # 鼓手一拍（src＝鼓手、n＝鼓舞到幾隻；每秒一次）
+ const BEAT := "beat"           # 1.2.0 擴充 v1「接拍」：這一擊吃到拍點加成（標籤）
+ const EXT_FIRE := "ext_fire"   # 1.2.0 擴充 v1「火矢」：小火的傷害（標籤）
++const RESCUE := "rescue"       # 1.2.0 擴充 v1「急救契約」：這筆補血是急救（標籤）
+ const HEAL := "heal"           # 醫者補血（src＝醫者、tgt＝被補的、amt＝實際補量；沒有 dmg）
+ 
+ const KINDS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER, BOMB, SPLASH, BONK, PIKE_BRACE, BREACH, HEAL, DRUM,
+ 	DEATH, ATTRITION, TAUNT, REVEAL, RALLY_ON, RALLY_OFF, FLANK]
+ const TAGS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER, BOMB, SPLASH, BONK, PIKE_BRACE, BREACH, HEAL, DRUM,
+-	ALERT, HIDE, TRIP, TAUNT, REVEAL, RALLY, FLANK, BEAT, EXT_FIRE]
++	ALERT, HIDE, TRIP, TAUNT, REVEAL, RALLY, FLANK, BEAT, EXT_FIRE, RESCUE]
+diff --git a/game/scripts/ui/battle/battle_state.gd b/game/scripts/ui/battle/battle_state.gd
+index f26bb01..3596366 100644
+--- a/game/scripts/ui/battle/battle_state.gd
++++ b/game/scripts/ui/battle/battle_state.gd
+@@ -507,6 +507,10 @@ func _hit_material(id: int) -> void:
+ 	if u == null:
+ 		return
+ 	var cp: Vector2 = _upos(u) + Vector2(0, -26)
++	if call("_frags_on") and u.type != D.SHIELD:
++		var fk: int = view.tick * 4096 + u.id
++		frags.spawn(_upos(u), "poison" if u.type in [13, 20] else ("ice" if u.type == 19 else "wood"), 2, fk, 26.0)   # 1.2.0 §8.2 命中＝木屑＋墨點（史萊姆＝水彩暈、石魔＝白瓷碎）
++		frags.spawn(_upos(u), "ink", 1, fk + 1, 26.0)
+ 	match u.type:
+ 		D.SHIELD:
+ 			sfx.play("hit_metal", 0.22)
+diff --git a/game/scripts/ui/battle/frags.gd b/game/scripts/ui/battle/frags.gd
+new file mode 100644
+index 0000000..6ee0eb4
+--- /dev/null
++++ b/game/scripts/ui/battle/frags.gd
+@@ -0,0 +1,117 @@
++extends RefCounted
++## 1.2.0 §8.2 材料碎片：命中、治療、火、冰掉在地上的小實物碎片（木屑、墨點、木刻火片、白瓷碎片、薄荷葉、紫水彩暈）。
++## 規格（方案 §8.2，Antigravity 第 4 輪／Codex 第 3 輪）：每片 3～6px；一次最多 4 片；落地有小影、停 0.25 秒、0.1 秒淡出；
++## 單一棋盤格（44px）內最多 2 片、滿了換掉該格最舊的；總數 ≤ 30、超額丟最舊的。和 FX_CAP（特效事件）分開計數，
++## 碎片純裝飾，被丟掉不影響任何預警、攻擊、跳字。位置與形狀只由（事件 tick、單位 id、第幾片）決定，截圖可重現。
++const CELL := 44.0
++const PER_CELL := 2
++const TOTAL := 30
++const PER_HIT := 4
++const STAY := 0.25
++const FADE := 0.1
++const GRAV := 900.0
++## 材料：顏色、邊色、形狀（0 木屑長方、1 墨點、2 火片三角、3 瓷片四邊、4 葉片、5 水彩暈）
++const MAT := {
++	"wood": [Color("#a8743f"), Color("#5a3a1e"), 0], "ink": [Color("#261c14"), Color("#261c14"), 1],
++	"fire": [Color("#d9532b"), Color("#7a2410"), 2], "ice": [Color("#f4f1ea"), Color("#8fb3c9"), 3],
++	"leaf": [Color("#8fd6a8"), Color("#3e7d55"), 4], "poison": [Color(0.55, 0.35, 0.75, 0.55), Color(0.4, 0.2, 0.6, 0.0), 5],
++}
++
++var list: Array = []   # {p: 地面位置, z: 離地高, vx, vz, mat, sz, rot, t: 落地後經過, land: bool, born: 序號}
++var _seq := 0
++
++func clear() -> void:
++	list.clear()
++
++## p＝地面位置（螢幕／世界繪製座標）；n 片（會夾到 PER_HIT）；key＝決定散射方向的種子（tick×4096＋id）
++func spawn(p: Vector2, mat: String, n: int, key: int, h := 18.0) -> void:
++	if not MAT.has(mat):
++		return
++	for k in mini(n, PER_HIT):
++		var r := _hash01(key * 7 + k)
++		var r2 := _hash01(key * 13 + k * 3 + 1)
++		var f := {"p": p + Vector2((r - 0.5) * 10.0, (r2 - 0.5) * 6.0), "z": h, "vx": (r - 0.5) * 140.0, "vz": 120.0 + r2 * 90.0,
++			"mat": mat, "sz": 3.0 + floorf(r2 * 4.0), "rot": r * TAU, "t": 0.0, "land": false, "born": _seq}
++		_seq += 1
++		_admit(f)
++
++func _admit(f: Dictionary) -> void:
++	var c := _cell(f["p"])
++	var same: Array = []
++	for i in list.size():
++		if _cell(list[i]["p"]) == c:
++			same.append(i)
++	if same.size() >= PER_CELL:
++		list.remove_at(_oldest(same))
++	if list.size() >= TOTAL:
++		var all: Array = []
++		for j in list.size():
++			all.append(j)
++		list.remove_at(_oldest(all))
++	list.append(f)
++
++func _oldest(idx: Array) -> int:
++	var best: int = idx[0]
++	for i in idx:
++		if int(list[i]["born"]) < int(list[best]["born"]):
++			best = i
++	return best
++
++func _cell(p: Vector2) -> Vector2i:
++	return Vector2i(int(floor(p.x / CELL)), int(floor(p.y / CELL)))
++
++static func _hash01(k: int) -> float:
++	var h := (k * 2654435761) & 0xffffffff
++	h = ((h >> 16) ^ h) * 0x45d9f3b & 0xffffffff
++	return float((h >> 8) & 0xffff) / 65535.0
++
++func step(dt: float) -> void:
++	var keep: Array = []
++	for f in list:
++		if not f["land"]:
++			f["vz"] = float(f["vz"]) - GRAV * dt
++			f["z"] = float(f["z"]) + float(f["vz"]) * dt
++			f["p"] = f["p"] + Vector2(float(f["vx"]) * dt, 0.0)
++			if float(f["z"]) <= 0.0:
++				f["z"] = 0.0
++				f["land"] = true
++		else:
++			f["t"] = float(f["t"]) + dt
++		if float(f["t"]) < STAY + FADE:
++			keep.append(f)
++	list = keep
++
++func draw(ci: CanvasItem) -> void:
++	for f in list:
++		var m: Array = MAT[f["mat"]]
++		var a := 1.0 if float(f["t"]) <= STAY else clampf(1.0 - (float(f["t"]) - STAY) / FADE, 0.0, 1.0)
++		var base: Vector2 = f["p"]
++		var c := Vector2(base.x, base.y - float(f["z"]))
++		var s: float = f["sz"]
++		if f["land"] and int(m[2]) != 5:
++			ci.draw_circle(base + Vector2(1.5, 1.5), s * 0.55, Color(0.1, 0.06, 0.03, 0.28 * a))   # 光從左上：影子落右下
++		var col: Color = m[0]
++		col.a *= a
++		var ec: Color = m[1]
++		ec.a *= a
++		var rot: float = f["rot"]
++		match int(m[2]):
++			0:
++				var d := Vector2(cos(rot), sin(rot))
++				ci.draw_line(c - d * s * 0.5, c + d * s * 0.5, col, 2.0)
++			1:
++				ci.draw_circle(c, s * 0.4, col)
++			2:
++				var pts := PackedVector2Array([c + Vector2(0, -s * 0.6).rotated(rot), c + Vector2(s * 0.45, s * 0.4).rotated(rot), c + Vector2(-s * 0.45, s * 0.4).rotated(rot)])
++				ci.draw_colored_polygon(pts, col)
++			3:
++				var q := PackedVector2Array([c + Vector2(-s * 0.5, 0).rotated(rot), c + Vector2(0, -s * 0.4).rotated(rot), c + Vector2(s * 0.5, 0).rotated(rot), c + Vector2(0, s * 0.35).rotated(rot)])
++				ci.draw_colored_polygon(q, col)
++				q.append(q[0])
++				ci.draw_polyline(q, ec, 1.0)
++			4:
++				var lf := PackedVector2Array([c + Vector2(-s * 0.55, 0).rotated(rot), c + Vector2(0, -s * 0.3).rotated(rot), c + Vector2(s * 0.55, 0).rotated(rot), c + Vector2(0, s * 0.3).rotated(rot)])
++				ci.draw_colored_polygon(lf, col)
++				ci.draw_line(c + Vector2(-s * 0.5, 0).rotated(rot), c + Vector2(s * 0.5, 0).rotated(rot), ec, 1.0)
++			5:
++				ci.draw_circle(c, s * 0.9, col)
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index d3e0200..14ca7bb 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -27,8 +27,9 @@ func _pre_join() -> void:
+ 	if pre_thread != null:
+ 		var v = pre_thread.wait_to_finish()
+ 		pre_thread = null
+-		if v != null:
+-			replay_total = int(v)
++		if v is Array:
++			replay_total = int(v[0])
++			replay_bm = v[1]
+ 
+ ## 不要等：還在算就留給 _pre_reap 收。
+ func _pre_drop() -> void:
+@@ -551,6 +552,13 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 			_merge_text(ht0.id, EV.HEAL, "+", int(ev["amt"]), _upos(ht0) + Vector2(0, -70), Color("#7dff8a"))
+ 			_add_fx({"kind": "healring", "p": _upos(ht0) + Vector2(0, 2), "t": 0.0, "dur": 0.35})   # 1.1.0 A7：被補的友軍腳下淡綠藥膏環（≤0.3 格）
+ 			sfx.play("heal", 0.35)
++			if _frags_on():
++				frags.spawn(_upos(ht0), "leaf", 2, view.tick * 4096 + ht0.id, 30.0)   # 1.2.0 §8.2 薄荷葉片
++			if (ev.get("tags", []) as Array).has(EV.RESCUE):
++				# 1.2.0 擴充「急救契約」：救起的人頭上一句、醫者停手的那 2 秒頭上有「停手」（觀戰時看得懂為什麼醫者不動）
++				_fx_text(_upos(ht0) + Vector2(0, -92), L.t("ev_rescue"), Color("#7dff8a"), 1.0, tz("S"))
++				_fx_text(_upos(hs0) + Vector2(0, -84), L.t("ev_rescue_rest"), Color(1, 1, 1, 0.8), 2.0, tz("C"))
++				sfx.play("bell", 0.4)
+ 		return
+ 	if k == EV.DRUM and with_fx:
+ 		var dr0 = view.unit_by_id(ev["src"])
+@@ -578,6 +586,16 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
+ 	var s = view.unit_by_id(ev["src"])
+ 	var t = view.unit_by_id(ev["tgt"])
+ 	var tags: Array = ev.get("tags", [])
++	if tags.has(EV.EXT_FIRE):
++		# 1.2.0 擴充「火矢」：地上的小火燒到（不是射手出手：不畫箭、不讓射手做攻擊動作）
++		hurt_t[t.id] = time
++		_merge_text(t.id, EV.HIT, "", int(ev["dmg"]), _upos(t) + Vector2(0, -62), Color("#ff9a5a"))
++		_add_fx({"kind": "scorch", "p": _upos(t) + Vector2(0, 2), "t": 0.0, "dur": 0.4})
++		if _frags_on():
++			frags.spawn(_upos(t), "fire", 3, view.tick * 4096 + t.id, 6.0)
++		return
++	if tags.has(EV.BEAT):
++		_add_fx({"kind": "note", "p": _upos(s) + Vector2(0, -78), "t": 0.0, "dur": 0.5})   # 1.2.0 擴充「接拍」：吃到拍點的這一擊，頭上一個音符
+ 	atk_t[s.id] = time
+ 	hurt_t[t.id] = time
+ 	var sp := _upos(s)
+@@ -812,18 +830,24 @@ func _begin_battle(a0, a1, kind := "official") -> void:
+ 		var pa1 = a1.copy()
+ 		var pr = battle_rules.copy() if battle_rules != null else null
+ 		var plog: Array = last_cmds.duplicate(true)
+-		var run_pre := func() -> int:
++		replay_bm = []
++		var run_pre := func() -> Array:
+ 			var pre = Sim.new(pa0, pa1, pr)
+ 			if pre.cmd_on:
+ 				pre.cmd_play(plog)
+ 			pre.fast = true
+-			pre.run_to_end()
+-			return pre.tick
++			var bm: Array = []
++			while not pre.finished:
++				pre.step()
++				BM.collect(pre, bm)   # 1.2.0 §11.2：預跑順手收書籤（不多跑一次模擬）
++			return [pre.tick, bm]
+ 		if _async_ok():
+ 			pre_thread = Thread.new()
+ 			pre_thread.start(run_pre)
+ 		else:
+-			replay_total = run_pre.call()
++			var pv: Array = run_pre.call()
++			replay_total = int(pv[0])
++			replay_bm = pv[1]
+ 	paused = false
+ 	follow_id = -1
+ 	battle_marks.clear()
+@@ -863,6 +887,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
+ 	zoom_target = 1.0
+ 	pinch_zoom = 1.0   # V1.4 #18：新的一場不沿用上一場的縮放
+ 	fx.clear()
++	frags.clear()   # 1.2.0 §8.2
+ 	dying.clear()
+ 	atk_t.clear()
+ 	hurt_t.clear()
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index f6fefcd..6937b51 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -356,6 +356,20 @@ func _mb_cmd(d: Dictionary) -> void:
+ 
+ 
+ 
++## 1.2.0 §11.1 部署工具的鍵（格子 M、Shift＋←→；自由 A；兩種 L）
++func _place_tool_key(k: int) -> bool:
++	match k:
++		KEY_M:
++			return call("_deploy_tool", "flip")
++		KEY_A:
++			return call("_deploy_tool", "align")
++		KEY_L:
++			return call("_deploy_tool", "last")
++		KEY_RIGHT, KEY_LEFT:
++			if Input.is_key_pressed(KEY_SHIFT):
++				return call("_deploy_tool", "fwd" if k == KEY_RIGHT else "back")
++	return false
++
+ func _key(k: int) -> void:
+ 	_toast_dismiss()
+ 	if state == St.RESULT and _ink_active():
+@@ -363,10 +377,18 @@ func _key(k: int) -> void:
+ 		return
+ 	if state == St.PLACE and overlay == "" and _v16_place_key(k):
+ 		return
++	if state == St.PLACE and overlay == "" and _place_tool_key(k):
++		return
+ 	if state == St.PLACE and _fp_key(k):
+ 		return
+ 	if state == St.BATTLE and overlay == "" and _cmd_key(k):
+ 		return
++	if state == St.BATTLE and overlay == "" and (k == KEY_BRACKETLEFT or k == KEY_BRACKETRIGHT) and _replay_controls_active():
++		_bm_jump(-1 if k == KEY_BRACKETLEFT else 1)   # 1.2.0 §11.2 書籤
++		return
++	if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
++		tm_ghost_on = not tm_ghost_on   # 1.2.0 §11.3
++		return
+ 	# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
+ 	if state != St.PLACE or overlay != "":
+ 		match k:
+@@ -581,6 +603,7 @@ func _process_inner(delta: float) -> void:
+ 			if f.has("pop"):
+ 				f["pop"] = maxf(0.0, f["pop"] - delta)
+ 		fx = fx.filter(func(f): return f["t"] < f["dur"])
++		frags.step(delta)
+ 		clutch_t = maxf(0.0, clutch_t - delta)
+ 	for g in dying:
+ 		var t0: float = g["t"]
+@@ -672,6 +695,8 @@ func _draw_inner() -> void:
+ 			_draw_tactical()
+ 		_v16_place_draw()   # V1.6 #6
+ 	else:
++		if state == St.BATTLE:
++			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
+ 		_draw_units_of(view, false)
+ 		if state == St.BATTLE:
+ 			_v16_battle_draw()
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index a166fe3..f56187a 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -284,6 +284,14 @@ func _fx_on(k: String) -> bool:
+ var seek_target := -1      # 第七輪 M3：時間軸分批跳轉的目標
+ var replay_snap := {}      # 第七輪 A9：進重播前的結算畫面，返回時原樣還原（不重算、不寫存檔）
+ var replay_marks: Array = []   # 第七輪 A7：重播時間軸的關鍵時刻
++var replay_bm: Array = []      # 1.2.0 §11.2 書籤：[{t, kind（death／break）, team}]（重播預跑時收）
++const BM = preload("res://scripts/game/bookmarks.gd")
++const TMC = preload("res://scripts/game/fork_compare.gd")
++const Frags = preload("res://scripts/ui/battle/frags.gd")
++var frags = Frags.new()   # 1.2.0 §8.2 材料碎片（和 FX_CAP 分開計數）
++## 碎片開不開：減少特效、簡化畫面、4 倍速以上都不掉碎片（純裝飾）
++func _frags_on() -> bool:
++	return not bool(Save.s("reduce_fx")) and not bool(Save.s("plain_ui")) and speed < 4.0
+ var paused := false        # 重播控制：暫停（第三輪 F2）
+ var follow_id := -1       # 重播控制：鏡頭跟著哪一隻
+ var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出
+@@ -307,6 +315,7 @@ var slow_used := false
+ var final_used := false   # 第十輪 F1
+ var pinch_zoom := 1.0             # V1.4 #18：雙指縮放戰場（1＝不縮；戰鬥中蓋過自動全景）
+ var pinch_center := Vector2.ZERO
++var tm_ghost_on := true       # 1.2.0 §11.3：G 切換原本時間線的白圈
+ var tm_ghost = null           # V1.4 #1 時光機：播放「如果」時，原本那條時間線同步跑的模擬（畫淡圈）
+ var last_kill := [-1, -10.0]   # V1.3.1 P2：最近一次擊倒 [擊倒者 id, 時間]
+ var last_hitter := {}          # 目標 id → 最後打到它的 id
+@@ -1350,7 +1359,7 @@ func probe_panel(r: Rect2) -> void:
+ ## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
+ ## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
+ const OBJ_OF := {"puzzles": "fold", "trials": "tube", "codex": "case", "settings": "box", "keys": "box", "profile": "trunk", "nemeses": "ebony",
+-	"codes": "letter", "wave_codes": "letter", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
++	"codes": "letter", "wave_codes": "letter", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
+ var panel_obj := ""
+ 
+ func _obj_deco(r: Rect2, kind: String) -> void:
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index 27532e6..423ae2b 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -659,3 +659,32 @@ func test_char2_v120() -> void:
+ 	g.start_hold = 0.0
+ 	ok(g._open_squash({"x": 300.0}) == 1.0, "開場提示結束後不壓扁")
+ 	g.free()
++
++## 1.2.0 第 9 大類 §8.2 材料碎片：一次最多 4 片、單格最多 2 片、總數 ≤ 30、落地停 0.25 秒＋0.1 秒淡出後消失、同種子同位置
++func test_frags_v120() -> void:
++	var FR = load("res://scripts/ui/battle/frags.gd")
++	var f = FR.new()
++	f.spawn(Vector2(100, 100), "wood", 9, 1)
++	ok(f.list.size() <= FR.PER_CELL, "同一格最多 %d 片（一次 9 片也只留 %d）" % [FR.PER_CELL, f.list.size()])
++	f.clear()
++	for k in 40:
++		f.spawn(Vector2(20 + k * 50, 200), "ink", 4, k)
++	ok(f.list.size() <= FR.TOTAL, "總數 ≤ %d（%d）" % [FR.TOTAL, f.list.size()])
++	var newest: int = f.list.map(func(e): return int(e["born"])).max()
++	ok(f.list.any(func(e): return int(e["born"]) == newest), "超額丟最舊的，最新的一定留著")
++	f.clear()
++	f.spawn(Vector2(300, 300), "fire", 2, 7)
++	var t := 0.0
++	var landed_at := -1.0
++	while not f.list.is_empty() and t < 5.0:
++		f.step(1.0 / 60.0)
++		t += 1.0 / 60.0
++		if landed_at < 0.0 and f.list.all(func(e): return bool(e["land"])):
++			landed_at = t
++	ok(f.list.is_empty() and landed_at > 0.0 and t - landed_at <= FR.STAY + FR.FADE + 0.05, "落地後 %.2f 秒內消失" % (FR.STAY + FR.FADE))
++	var g1 = FR.new()
++	var g2 = FR.new()
++	g1.spawn(Vector2(50, 50), "leaf", 2, 1234)
++	g2.spawn(Vector2(50, 50), "leaf", 2, 1234)
++	ok(str(g1.list) == str(g2.list), "同種子同位置（截圖可重現）")
++	ok(not FR.MAT.has("glow"), "材料表沒有數位光暈")

@@ -80,6 +80,25 @@ func step(dt: float) -> void:
 		if float(f["t"]) < STAY + FADE:
 			keep.append(f)
 	list = keep
+	_enforce_cells()
+
+## 碎片會水平飛：移動後重新分格，每格只留最新的 PER_CELL 片（Codex cat09 #2）
+func _enforce_cells() -> void:
+	var by := {}
+	for f in list:
+		var c := _cell(f["p"])
+		if not by.has(c):
+			by[c] = []
+		by[c].append(f)
+	var drop := {}
+	for c in by:
+		var arr: Array = by[c]
+		if arr.size() > PER_CELL:
+			arr.sort_custom(func(a, b): return int(a["born"]) > int(b["born"]))
+			for k in range(PER_CELL, arr.size()):
+				drop[int(arr[k]["born"])] = true
+	if not drop.is_empty():
+		list = list.filter(func(f): return not drop.has(int(f["born"])))
 
 func draw(ci: CanvasItem) -> void:
 	for f in list:

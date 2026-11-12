@@ -5,7 +5,8 @@ const Daily = preload("res://scripts/game/daily.gd")
 const CMD = preload("res://scripts/core/cmd_defs.gd")
 const AI = preload("res://scripts/core/ai_army.gd")
 
-const VER := 2   # V1.6.1 N5：加了「不同時出現」的組合，同一週抽到的可能不同 → 升版（紀錄鍵分開）
+const VER := 3   # 1.2.0 §11.9：週界改成 UTC 週一 00:00（天梯季），週數算法變了 → 升版，新舊紀錄與排行榜分開（Codex cat10 #6）
+# V1.6.1 N5：加了「不同時出現」的組合，同一週抽到的可能不同 → 升版（紀錄鍵分開）
 ## V1.6.1 N5：AI 代理量測（tools/balance/v161_metrics.gd --what=rift，26 週×24 場）時間到比例 40～70% 的組合，不同時出現。
 ## 「每種一隻」配上「大軍」「窮」「地形」，或「奇幻」配「地形」「大軍」：雙方磨到時間到。
 const BAD := [["rf_solo", "rf_horde"], ["rf_solo", "rf_poor"], ["rf_solo", "rf_terrain"], ["rf_fantasy", "rf_terrain"], ["rf_fantasy", "rf_horde"]]
@@ -25,7 +26,11 @@ const ANOMS := [["rf_deep", "depth"], ["rf_short", "ticks"], ["rf_rich", "budget
 const PICK := 3
 
 static func week() -> int:
-	return int(Time.get_unix_time_from_system()) / 86400 / 7
+	return week_of(int(Time.get_unix_time_from_system()))
+
+## 1970-01-01 是週四：日數＋3 再除 7，週界落在 UTC 週一 00:00（方案 §11 天梯季）
+static func week_of(unix: int) -> int:
+	return (unix / 86400 + 3) / 7
 
 ## 這一週的異變（固定種子；同類別不重複；套上去規則不合法的跳過）
 static func picks(wk: int, mask: int) -> Array:

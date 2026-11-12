@@ -1,11 +1,12 @@
 extends "res://tests/test_base.gd"
+const SV_NOW := 4   # 1.2.0：存檔格式 4
 
 ## 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。
 func test_save_migration() -> void:
 	var SV = load("res://scripts/game/save.gd")
 	var v1 := {"version": 1, "tutorial": 3, "puzzle_stars": {"p1": 3}, "slots": ["NTB1.x", "", "", "", ""], "stats": {"wins": 7, "games": 9}, "future_key": 5}
 	var m: Dictionary = SV.migrate(v1)
-	ok(int(m["schema_version"]) == 3 and not m.has("version") and m["unit_wins"] is Dictionary, "存檔遷移：v1→v3 改欄位名、補 unit_wins")
+	ok(int(m["schema_version"]) == SV_NOW and not m.has("version") and m["unit_wins"] is Dictionary, "存檔遷移：v1→最新 改欄位名、補 unit_wins")
 	ok(int(m["unlock_games"]) == 9 and m["rule_presets"] == [] and m["custom_stats"] is Dictionary, "存檔遷移 v3：解鎖累計場數＝舊的正式場數（已解鎖的兵不會被收回）")
 	var bad_ps := {"schema_version": 3, "rule_presets": [{"name": "a", "code": "NTBR1.x.y"}, {"name": 3, "code": "z"}, "junk", {"name": "b", "code": "x".repeat(3000)}] + [{"name": "c", "code": "q"}]}
 	var m3: Dictionary = SV.migrate(bad_ps)
@@ -22,7 +23,7 @@ func test_save_migration() -> void:
 	f.close()
 	SV.load_all()
 	var ld: Dictionary = SV.data
-	ok(int(ld["schema_version"]) == 3 and not ld.has("version") and ld["unit_wins"] is Dictionary and int(ld["tutorial"]) == 2 and ld.has("achievements"),
+	ok(int(ld["schema_version"]) == SV_NOW and not ld.has("version") and ld["unit_wins"] is Dictionary and int(ld["tutorial"]) == 2 and ld.has("achievements"),
 		"存檔遷移：正式 load_all 讀 v1 檔會遷移、壞掉的 unit_wins 修好、補預設", str(ld))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_save.json"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_settings.json"))
@@ -308,3 +309,12 @@ func test_backup_dir_prefix_v152() -> void:
 	SV.prefix = "shot_"
 	ok(GM.backup_dir() == "user://shot_backup", "截圖模式：備份在 user://shot_backup", GM.backup_dir())
 	SV.prefix = old
+
+
+## 1.2.0：存檔格式 3 → 4 補上戰役、棋譜本、最近玩的、上一陣；舊進度不動（Codex cat10 #4）
+func test_save_v4_migration_v120() -> void:
+	var SVx = load("res://scripts/game/save.gd")
+	var m: Dictionary = SVx.migrate({"schema_version": 3, "stats": {"games": 5, "wins": 2}, "tutorial": 2, "puzzle_stars": {"p1": 3}})
+	ok(int(m["schema_version"]) == 4 and m["campaign"] is Dictionary and m["songbook"] is Array and m["recent"] is Array and m["last_form"] == "" and int(m["puzzle_stars"]["p1"]) == 3 and int(m["tutorial"]) == 2, "3→4 補新欄位、舊進度保留", str(m))
+	var keep: Dictionary = SVx.migrate({"schema_version": 3, "campaign": {"c1_1": 2}})
+	ok(int(keep["campaign"]["c1_1"]) == 2, "已有的戰役進度不覆蓋")

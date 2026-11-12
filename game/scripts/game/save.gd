@@ -2,7 +2,7 @@ extends RefCounted
 ## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
 ## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
 
-const SAVE_VERSION := 3   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則
+const SAVE_VERSION := 4   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則；4：1.2.0 戰役 campaign、棋譜本、最近玩的、上一陣
 const MAX_PRESETS := 10   # V1.5：5 → 10 格
 static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
 
@@ -571,6 +571,12 @@ static func migrate(d: Dictionary) -> Dictionary:
 		var st = out.get("stats", {})
 		out["unlock_games"] = _count(st.get("games", 0)) if st is Dictionary else 0
 		v = 3
+	if v < 4:
+		# 3 → 4（1.2.0 §11）：補戰役進度、棋譜本、最近玩的、上一陣（舊進度全保留）
+		for kv in [["campaign", {}], ["songbook", []], ["recent", []], ["last_form", ""]]:
+			if not out.has(kv[0]):
+				out[kv[0]] = kv[1]
+		v = 4
 	# 我的預設：逐筆驗型、限長、最多 5 組（Codex 第一輪）
 	var ps: Array = []
 	var raw = out.get("rule_presets", [])

@@ -210,6 +210,8 @@ func _sim_step(with_fx: bool) -> void:
 func _pump_view() -> void:
 	for fr in view.pump(sim):
 		for e in fr["events"]:
+			if e.get("tags", []).has(EV.EXT_FIRE):
+				continue   # 1.2.0 火矢的小火：不是射手出手，不排拉弓、飛箭（Codex cat09 #1）
 			# 第四輪：補血、戰鼓也走出手動畫；被貼身敲人、破陣、補血、戰鼓用專屬動作（variant 2）
 			if e["kind"] == EV.HEAL or e["kind"] == EV.DRUM or e["kind"] == EV.BONK or e.get("tags", []).has(EV.BREACH):
 				var ah: Dictionary = alt_hit.get(e["src"], {})

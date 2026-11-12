@@ -380,6 +380,12 @@ func test_optional_modes_v120() -> void:
 	CM.record(sv, "c1_1", 2)
 	ok(CM.unlocked(sv, "c1_2") and not CM.record(sv, "c1_1", 1) and int(sv["campaign"]["c1_1"]) == 2, "只記更好的星數")
 	var keep_st := {"goal": "keep", "keep": 3}
+	ok(CM.grade(keep_st, true, 3, 400, 90, false) == 0, "保兵：最貴的那隻倒了就不算")
+	var sv2 := {"campaign": {"c1_1": 1, "c1_2": 1, "c1_3": 1, "c1_4": 1, "c1_5": 1, "c1_6": 1}, "puzzle_stars": {}}
+	ok(not CM.unlocked(sv2, "c2_1"), "前一章殘局沒過不能進下一章")
+	sv2["campaign"].erase("c1_3")
+	sv2["puzzle_stars"][CM.puzzle_id(CM.stage("c1_p"))] = 3
+	ok(not CM.unlocked(sv2, "c2_1"), "舊殘局星不能跳過沒打的戰鬥關")
 	ok(CM.grade(keep_st, true, 2, 400, 90) == 0 and CM.grade(keep_st, true, 3, 400, 90) == 3 and CM.grade({"goal": "time", "secs": 30}, true, 5, 601, 90) == 0 and CM.grade({"goal": "win"}, true, 1, 9, 39) == 1, "評星：保兵、限時、剩餘戰力")
 	ok(CM.sanitize({"c1_1": 9, "x": "a", 3: 1}).size() == 1 and int(CM.sanitize({"c1_1": 9})["c1_1"]) == 3, "戰役存檔驗型")
 	# §11.9 天梯待送

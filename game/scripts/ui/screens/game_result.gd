@@ -308,6 +308,8 @@ func _draw_result() -> void:
 	# 試煉只有一場，不顯示「三戰兩勝結束」（使用者截圖；大字級時還會壓到按鈕）
 	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL) and int(get("trial_id")) < 0:
 		var sw := L.t("series_draw") if wins[0] == wins[1] else L.t("series_win", [L.t("blue") if wins[0] > wins[1] else L.t("red"), wins[0], wins[1]])
+		if bool(get("swap_on")) and mode == Mode.DUEL:
+			sw = call("_swap_fact")   # 1.2.0 §11.5：換邊雙局照玩家總分，不照顏色勝場（Codex cat10 #1）
 		_text(Vector2(640, y), L.t("series_end", [sw]), tz("B"), ACCENT, true, true, 820)
 		y += tz("B") * 1.5
 	if mode == Mode.GAUNTLET:

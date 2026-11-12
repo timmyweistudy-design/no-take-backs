@@ -670,8 +670,19 @@ func test_frags_v120() -> void:
 	for k in 40:
 		f.spawn(Vector2(20 + k * 50, 200), "ink", 4, k)
 	ok(f.list.size() <= FR.TOTAL, "總數 ≤ %d（%d）" % [FR.TOTAL, f.list.size()])
-	var newest: int = f.list.map(func(e): return int(e["born"])).max()
-	ok(f.list.any(func(e): return int(e["born"]) == newest), "超額丟最舊的，最新的一定留著")
+	var newest: int = f._seq - 1   # 最後一片的序號（不是從留下來的裡面取最大值；Codex cat09 #4）
+	ok(f.list.any(func(e): return int(e["born"]) == newest), "超額丟最舊的，最後生成的一定留著")
+	# 跨格聚集：兩格各 2 片往同一格飛，移動後同一格仍 ≤ 2
+	var h = FR.new()
+	for k in 2:
+		h.list.append({"p": Vector2(10 + k, 10), "z": 0.0, "vx": 0.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": true, "born": k})
+		h.list.append({"p": Vector2(60 + k, 10), "z": 0.0, "vx": -2400.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": false, "born": 10 + k})
+	h.step(0.02)
+	var cnt := {}
+	for e in h.list:
+		var c: Vector2i = h._cell(e["p"])
+		cnt[c] = int(cnt.get(c, 0)) + 1
+	ok(cnt.values().all(func(v): return v <= FR.PER_CELL), "碎片飛進別格後仍守單格上限", str(cnt))
 	f.clear()
 	f.spawn(Vector2(300, 300), "fire", 2, 7)
 	var t := 0.0
@@ -688,3 +699,76 @@ func test_frags_v120() -> void:
 	g2.spawn(Vector2(50, 50), "leaf", 2, 1234)
 	ok(str(g1.list) == str(g2.list), "同種子同位置（截圖可重現）")
 	ok(not FR.MAT.has("glow"), "材料表沒有數位光暈")
+
+## 1.2.0 第 9 大類（Codex cat09 #4）：擴充規則的新事件標籤（急救、接拍、火矢）都已登記、分流合法；
+## 射手已經倒下時火矢照樣燒，而且畫面不替它排拉弓或飛箭。
+func test_ext_event_routes_v120() -> void:
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var EVS = load("res://scripts/core/events.gd")
+	var r = RS0.standard()
+	r.ext_skills = 2 | 4 | 8
+	var a0 = Armyx.new(0, 100)
+	a0.place(2, 0, 4)
+	a0.place(7, 3, 3)
+	a0.place(8, 3, 5)
+	a0.place(0, 5, 4)
+	var a1 = Armyx.new(1, 100)
+	a1.place(1, 15, 7)
+	a1.place(0, 11, 4)
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	var sm = Simx.new(a0.copy(), a1.copy(), r)
+	var arch = null
+	var foe = null
+	var sw = null
+	for u in sm.units:
+		if u.team == 0 and u.type == 2:
+			arch = u
+		if u.team == 1 and u.type == 1:
+			foe = u
+		if u.team == 0 and u.type == 0:
+			sw = u
+	foe.stun = 200
+	sm.ext_fires = [[foe.x, foe.y, 0, 0, sm.units.find(arch)]]
+	arch.alive = false   # 射手已倒：火照樣燒
+	arch.hp = 0
+	sw.hp = 0            # 致命傷：急救契約在死亡判定前救起
+	g.sim = sm
+	g.view = g.ViewBuffer.new(sm)
+	var tags := {}
+	var bad: Array = []
+	for _k in 60:
+		g._pump_view()
+	# 直接掃模擬事件（和畫面拿到的同一份）
+	var sm2 = Simx.new(a0.copy(), a1.copy(), r)
+	var f2 = null
+	var ar2 = null
+	var sw2 = null
+	for u in sm2.units:
+		if u.team == 1 and u.type == 1:
+			f2 = u
+		if u.team == 0 and u.type == 2:
+			ar2 = u
+		if u.team == 0 and u.type == 0:
+			sw2 = u
+	f2.stun = 200
+	sm2.ext_fires = [[f2.x, f2.y, 0, 0, sm2.units.find(ar2)]]
+	ar2.alive = false
+	ar2.hp = 0
+	sw2.hp = 0
+	for _k2 in 60:
+		sm2.step()
+		for e in sm2.events:
+			if not EVS.KINDS.has(e["kind"]):
+				bad.append("kind " + str(e["kind"]))
+			for tg in e.get("tags", []):
+				tags[tg] = true
+				if not EVS.TAGS.has(tg):
+					bad.append("tag " + str(tg))
+			if e.get("tags", []).has("ext_fire") and g.event_route(e) != "attack":
+				bad.append("fire route")
+	ok(tags.has("rescue") and tags.has("ext_fire") and bad.is_empty(), "急救、火矢標籤出現、都已登記、分流合法", "%s %s" % [tags.keys(), bad])
+	ok(not g.proj_tgt.has(arch.id) and not g.atk_hit.has(arch.id), "倒下射手的火矢不排拉弓／飛箭")
+	g.free()

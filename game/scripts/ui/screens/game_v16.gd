@@ -739,6 +739,7 @@ func _sb_add_current() -> void:
 	_focus = 0
 
 func _draw_songbook() -> void:
+	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	_dim(0.6)
 	var book: Array = Save.data.get("songbook", [])
 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
@@ -1135,6 +1136,7 @@ func _coach_ghost(c: Vector2) -> void:
 	Art.unit(self, b + Vector2(0, 14), t1, tm, 1.0, 0.0, 0.0, 0.0, 0.42 + 0.12 * sin(time * 4.0), time, 0.62, cbm())
 
 func _draw_coach() -> void:
+	_boss_note("coach", "coach")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	var busy := co_thread != null
 	var found: bool = bool(co_res.get("found", false))
 	var lines: Array = []
@@ -1234,6 +1236,7 @@ func _rift_sync() -> void:
 		return
 	if int(p.get("wk", -1)) != Rift.week() or int(p.get("ver", 0)) != Rift.VER:
 		Save.data.erase("rift_pend")
+		Save.save_data()   # 過期丟掉也要落盤（Codex cat10 #7）
 		return
 	if SteamApi.available():
 		SteamApi.rift_upload(int(p["wk"]), int(p["score"]), PackedInt32Array(p.get("det", [])), int(p["ver"]))
@@ -1767,6 +1770,11 @@ var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
 var ed_map := 0                    # 1.2.0 §11.10：地形圖（0＝平原；有地形就出 NTP5）
 var ed_block := {}                 # 這張地形圖上的牆格（Vector2i → true；換圖時重算）
 
+## 三考題不能帶地形：切到三考就回平原（不然牆格還擋著、輸出卻是沒地形的碼；Codex cat10 #8）
+func _ed_trio_map() -> void:
+	if WS3.ED_GOALS[ed_goal] == "trio" and ed_map != 0:
+		_ed_set_map(0)
+
 func _ed_set_map(m: int) -> void:
 	ed_map = m
 	ed_block = {}
@@ -1865,6 +1873,7 @@ func _ed_switch_foe(i: int) -> void:
 	ed_msg = ""
 
 func _draw_editor() -> void:
+	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	_dim(0.7)
 	var P := Rect2(80, 40, 1120, 720)
 	_panel(P)
@@ -1917,7 +1926,7 @@ func _draw_editor() -> void:
 	y += tz("S") * 1.4 + GAP_M
 	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
 	var gname: String = WS3.ED_GOALS[ed_goal]
-	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false
+	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; _ed_trio_map()
 	if gname in WS3.PICK_GOALS:
 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))

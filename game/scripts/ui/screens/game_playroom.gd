@@ -327,7 +327,8 @@ func _camp_settle() -> void:
 	for u in sim.units:
 		if u.team == 0 and u.alive and not u.summon:
 			alive0 += 1
-	var stars := Campaign.grade(st, sim.winner == 0, alive0, sim.tick, PZ.rem_pct(sim.power(0), sim.budget_of(0)))
+	var gu = Campaign.guard_of(sim.units, func(t): return D.cost(t))
+	var stars := Campaign.grade(st, sim.winner == 0, alive0, sim.tick, PZ.rem_pct(sim.power(0), sim.budget_of(0)), gu != null and gu.alive)
 	camp_last = stars
 	if Campaign.record(Save.data, camp_id, stars):
 		Save.save_data()
@@ -339,6 +340,7 @@ func _camp_fact() -> String:
 	return (L.t("cmp_done", [camp_last]) if camp_last > 0 else L.t("cmp_fail")) + "　" + _camp_goal(st)
 
 func _draw_campaign() -> void:
+	_boss_note("campaign", "campaign")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	_dim(0.6)
 	var chs: Array = Campaign.chapters()
 	var rowh := maxf(44.0, tz("B") * 1.9)
@@ -382,6 +384,8 @@ var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
 
 func _swap_start() -> void:
 	var r = RuleSet.standard()
+	var dm: int = RS.mask(_demo())
+	r.pool = [int(r.pool_of(0)) & dm, int(r.pool_of(1)) & dm]   # 標準卡池再扣掉試玩版沒有的兵（Codex cat10 #5）
 	r.rounds = 3   # 用三戰兩勝的局數上限，實際由換邊雙局在第 2 局結束
 	rules = r
 	challenge_army = null

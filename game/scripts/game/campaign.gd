@@ -33,14 +33,14 @@ static func stars_of(save: Dictionary, st: Dictionary) -> int:
 		return int(save.get("puzzle_stars", {}).get(puzzle_id(st), 0))
 	return int(save.get("campaign", {}).get(str(st["id"]), 0))
 
-## 照順序：前一關（含跨章的前一章最後一關）有星才開
+## 照順序：前面每一關（含前面各章的殘局）都有星才開（不能靠以前打過的殘局跳章；Codex cat10 #2）
 static func unlocked(save: Dictionary, id: String) -> bool:
-	var prev := {}
 	for ch in chapters():
 		for st in ch["stages"]:
 			if str(st["id"]) == id:
-				return prev.is_empty() or stars_of(save, prev) > 0
-			prev = st
+				return true
+			if stars_of(save, st) <= 0:
+				return false
 	return false
 
 static func chapter_cleared(save: Dictionary, ch: Dictionary) -> bool:
@@ -69,19 +69,29 @@ static func enemy_of(st: Dictionary, r):
 	g.seed = int(st["seed"])
 	return AI.build(1, r.budget_of(1), g, -1, r.pool_of(1), r)["army"]
 
-## 結算：目標達成給 1 星；剩餘戰力 ≥40% 再 1 星、≥70% 再 1 星。沒達成＝0。
-## keep：贏且我方（不含召喚）至少 N 隻活著；time：贏且 tick ≤ 秒×20。
-static func grade(st: Dictionary, won: bool, alive0: int, ticks: int, rem_pct: int) -> int:
+## 結算：目標達成給 1 星；剩餘戰力 ≥ star2% 再 1 星、≥ star3% 再 1 星（門檻在關卡資料）。沒達成＝0。
+## keep：贏、我方（不含召喚）至少 N 隻活著，而且「最貴的那隻」（護衛對象）要活著；time：贏且 tick ≤ 秒×20。
+static func grade(st: Dictionary, won: bool, alive0: int, ticks: int, rem_pct: int, guard_alive := true) -> int:
 	if not won:
 		return 0
 	match str(st.get("goal", "win")):
 		"keep":
-			if alive0 < int(st.get("keep", 1)):
+			if alive0 < int(st.get("keep", 1)) or not guard_alive:
 				return 0
 		"time":
 			if ticks > int(st.get("secs", 60)) * 20:
 				return 0
-	return 1 + (1 if rem_pct >= 40 else 0) + (1 if rem_pct >= 70 else 0)
+	return 1 + (1 if rem_pct >= int(st.get("star2", 40)) else 0) + (1 if rem_pct >= int(st.get("star3", 70)) else 0)
+
+## 護衛對象：我方（不含召喚）最貴的那隻，同價取 id 小的
+static func guard_of(units: Array, cost_of: Callable):
+	var best = null
+	for u in units:
+		if u.team != 0 or u.summon:
+			continue
+		if best == null or int(cost_of.call(u.type)) > int(cost_of.call(best.type)) or (int(cost_of.call(u.type)) == int(cost_of.call(best.type)) and u.id < best.id):
+			best = u
+	return best
 
 static func record(save: Dictionary, id: String, stars: int) -> bool:
 	var c: Dictionary = save.get("campaign", {})

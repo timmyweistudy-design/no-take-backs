@@ -1,0 +1,4 @@
+你是《落子無悔》(Godot 4.6.2，GDScript，確定性模擬) 的程式審查。只讀檔。專案根目錄是目前資料夾；遊戲在 game/。
+1.2.0 第 10 大類（§11 選配玩法）：方案 docs/2026-11-11-v1.2.0-plan.md §11（11.5～11.10 與「規則細節」段）；差異 coordination/v120-impl/cat10-r1/diff.patch（swap_duel.gd 換邊雙局、coop_place.gd 合作布陣與 game_place.gd 掛鉤、campaign.gd＋data/campaign.json 戰役與 game_playroom.gd 面板、steam.gd／game_v16.gd 裂隙天梯待送、workshop.gd NTP5 出題台地形與 game_v16.gd 出題台按鈕；測試 modes_live.gd test_optional_modes_v120）。差異裡也夾第 8 大類變更，只看第 10 大類。
+請檢查：①換邊雙局計分是否照方案（分數跟玩家、倒下數、和局）、第 2 局後真的結束、「再來」重置、重播／看結果不會重複記分；②合作布陣能不能繞過：撤別人的兵、清空、整軍工具、拖曳移位（格子模式拖動）、手把、自由部署（只做格子嗎？自由模式會怎樣）、下一局重置；③戰役：解鎖順序、殘局關的星從哪來、評星條件、存檔驗型、試玩版、敵陣確定性、mode 切換時 camp_id 是否會殘留到別的對 AI 場；④天梯：週期（Rift.week 是 UTC 週四切換，方案寫週一）、過期丟棄、clear_pending；⑤NTP5：牆格檢查、三考不能帶地形、舊碼相容、code_kind；⑥模擬／舊代碼沒動。
+附檔案與行號。最多 8 條必改（位置、問題、會怎樣、改法）。900 字內。最後一行「結論：可／有條件／不可」。

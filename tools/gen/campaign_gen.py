@@ -10,7 +10,8 @@ for c in range(1, 6):
     for i in range(6):
         n = (c - 1) * 6 + i
         goal = ["win", "keep", "win", "time", "win", "keep"][i]
-        st = {"id": "c%d_%d" % (c, i + 1), "enemy_budget": min(200, 80 + n * 4), "seed": 120000 + n * 7919, "ai": 0 if c == 1 else (1 if c <= 3 else 2), "goal": goal}
+        st = {"id": "c%d_%d" % (c, i + 1), "enemy_budget": min(200, 80 + n * 4), "seed": 120000 + n * 7919, "ai": 0 if c == 1 else (1 if c <= 3 else 2), "goal": goal,
+              "star2": 35 + c * 2, "star3": 65 + c * 2}   # 剩餘戰力 % 門檻（越後面越嚴）
         if goal == "keep":
             st["keep"] = 2 + c // 2
         if goal == "time":

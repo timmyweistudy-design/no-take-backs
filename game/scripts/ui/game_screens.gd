@@ -603,7 +603,10 @@ func _process_inner(delta: float) -> void:
 			if f.has("pop"):
 				f["pop"] = maxf(0.0, f["pop"] - delta)
 		fx = fx.filter(func(f): return f["t"] < f["dur"])
-		frags.step(delta)
+		if _frags_on():
+			frags.step(delta)
+		else:
+			frags.clear()   # 戰鬥中切減少特效／簡化／4 倍速：舊碎片也收掉（Codex cat09 #3）
 		clutch_t = maxf(0.0, clutch_t - delta)
 	for g in dying:
 		var t0: float = g["t"]
@@ -695,7 +698,7 @@ func _draw_inner() -> void:
 			_draw_tactical()
 		_v16_place_draw()   # V1.6 #6
 	else:
-		if state == St.BATTLE:
+		if state == St.BATTLE and _frags_on():
 			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
 		_draw_units_of(view, false)
 		if state == St.BATTLE:

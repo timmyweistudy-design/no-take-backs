@@ -26,6 +26,7 @@ func _leave_confirm() -> void:
 	_go_title()
 
 func _go_title() -> void:
+	call("_rift_sync")   # 1.2.0 §11.9：回主畫面時補送當週天梯成績（沒有連線事件可接，回主畫面是固定的重試點；Codex cat10 #7）
 	var rs = get("rush")
 	if rs is Dictionary and bool(rs.get("on", false)):
 		rs["on"] = false   # V1.6 #8：離開就結束極速賽（不記紀錄）
@@ -115,6 +116,8 @@ func _cp_on() -> bool:
 
 func _cp_start() -> void:
 	var r = RuleSet.standard()
+	var dm: int = RS.mask(_demo())
+	r.pool = [int(r.pool_of(0)) & dm, int(r.pool_of(1)) & dm]   # 標準卡池再扣掉試玩版沒有的兵（Codex cat10 #5）
 	rules = r
 	set("challenge_army", null)
 	overlay = ""
@@ -742,7 +745,11 @@ func _draw_place_hud() -> void:
 		draw_rect(br, Color(0.45, 0.12, 0.12, 0.92))
 		draw_rect(br, Color("#ff8a8a"), false, 2.0)
 		_text(Vector2(640, br.position.y + tz("B") * 0.35), removed_banner, tz("B"), Color.WHITE, true, true)
-	if mode == Mode.VS_AI and not watch_mode:
+	if _cp_on():
+		_boss_note("coop")   # 1.2.0 §12.2
+	elif mode == Mode.DUEL and bool(get("swap_on")):
+		_boss_note("swap")
+	elif mode == Mode.VS_AI and not watch_mode:
 		_boss_note("place")   # 1.2.0 §12：第一次擺陣的便條
 
 
