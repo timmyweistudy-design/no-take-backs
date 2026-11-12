@@ -11,7 +11,9 @@
 - **新玩法**：「老闆的棋館」戰役（5 章、每章 6 戰＋1 殘局）；換邊雙局（兩人各當一次藍紅，分數跟著人走）；合作布陣（兩人輪流擺同一支軍打 AI）；裂隙變成每週天梯（UTC 週一換題）。
 - **更好用**：整軍上下翻轉、前後平移、自由模式對齊列、複製上一陣；重播時間軸有書籤（倒下、破盾），[ ] 跳轉；時光機顯示兩條時間線同一秒的存活數；差一子教練附上改前改後的數字；棋譜本收藏好局；主畫面「最近玩的」。
 - **出題台**：可以選地形圖出題（新的 NTP5 碼）。
-- **擴充規則（只有代碼能開，還沒上大廳）**：鼓手接拍、醫者急救契約、弓箭手火矢、狂戰士＋鼓手協同。
+- **新技能（實驗）**：大廳「新技能」分頁可以開盾兵架盾、鼓手接拍、醫者急救契約、弓箭手火矢、騎兵迴馬、狂戰士＋鼓手協同；還在試，開了算沙盒局（不記戰績、不給成就）。
+- **手把**：擺陣時按住 RT＋Y 整軍翻轉、＋←／→ 平移、＋LB 複製上一陣。
+- 打開選單時，木盒會掀蓋、經摺帖會攤開、信封會翻開封口（減少特效時不演）。
 - 存檔格式升級到 4：舊存檔會自動補上新欄位；開過 1.2.0 的存檔不能再給 1.1.0 讀。
 
 ## English
@@ -21,7 +23,9 @@
 - **New modes**: "The Boss's Parlor" campaign (5 chapters, 6 battles + 1 puzzle each); Swap-Sides Pair; Co-op Deploy (two players build one army against the AI); the Rift is now a weekly ladder (new rules every Monday UTC).
 - **Quality of life**: flip or shift your whole army, snap to rows, copy your last formation; replay bookmarks for every fall and first shield break ([ ] to jump); the time machine shows survivors on both timelines; the coach shows before/after numbers; a Replay Book for favourite battles; "Recently played" on the title screen.
 - **Puzzle workbench**: pick a terrain map for your puzzle (new NTP5 codes).
-- **Extended rules (code-only for now)**: drummer beat, medic rescue, fire arrows, berserker + drummer synergy.
+- **New skills (experimental)**: a "New skills" lobby tab turns on Shield up, On the beat, First aid, Fire arrows, Wheel back and the Berserker + Drummer combo. Still being tested, so they count as sandbox (no records or achievements).
+- **Gamepad**: while deploying, hold RT and press Y to flip the army, ←/→ to shift it, LB to copy your last formation.
+- Menus now open like real objects: boxes lift their lids, folded books unfold, envelopes open their flaps (off with reduced effects).
 - Save format 4: older saves upgrade automatically; a save opened in 1.2.0 can't go back to 1.1.0.
 
 ## 简体中文
@@ -31,7 +35,9 @@
 - **新玩法**：「老板的棋馆」战役（5 章、每章 6 战＋1 残局）；换边双局；合作布阵；裂隙变成每周天梯（UTC 周一换题）。
 - **更好用**：整军翻转、平移、对齐、复制上一阵；重播书签（倒下、破盾），[ ] 跳转；时光机同一秒存活数；差一子教练附改前改后数字；棋谱本；主画面「最近玩的」。
 - **出题台**：可以选地形图出题（NTP5 码）。
-- **扩展规则（只有代码能开）**：鼓手接拍、医者急救契约、弓箭手火矢、狂战士＋鼓手协同。
+- **新技能（实验）**：大厅「新技能」分页可以开盾兵架盾、鼓手接拍、医者急救契约、弓箭手火矢、骑兵回马、狂战士＋鼓手协同；还在试，开了算沙盒局（不记战绩、不给成就）。
+- **手柄**：摆阵时按住 RT＋Y 整军翻转、＋←／→ 平移、＋LB 复制上一阵。
+- 打开菜单时，木盒会掀盖、经折帖会摊开、信封会翻开封口（减少特效时不演）。
 - 存档格式升级到 4：旧存档自动补新栏位；开过 1.2.0 的存档不能再给 1.1.0 读。
 
 ## 日本語
@@ -41,7 +47,9 @@
 - **新モード**：キャンペーン「店主の碁会所」（全5章・各6戦＋詰め1問）、入替え二番勝負、協力布陣、リフトが毎週のランキングに（UTC 月曜更新）。
 - **便利に**：全軍の反転・平行移動・列そろえ・前回の陣形コピー、リプレイのしおり（[ ] で移動）、タイムマシンの生存数比較、コーチの変更前後の数値、棋譜帳、タイトルの「最近遊んだもの」。
 - **パズル工房**：地形マップを選んで出題（NTP5 コード）。
-- **拡張ルール（コードのみ）**：鼓手の拍、医者の救護、火矢、狂戦士＋鼓手の連携。
+- **新スキル（実験）**：ロビーの「新スキル」タブで盾構え・拍子合わせ・応急契約・火矢・反転突撃・狂戦士＋鼓手の連携をオンにできます。試験中のためサンドボックス扱い（戦績・実績なし）。
+- **ゲームパッド**：配置中に RT を押しながら Y で全軍反転、←／→ で平行移動、LB で前回の陣を複製。
+- メニューが実物のように開きます（木箱のふた、折本、封筒の封）。エフェクト軽減時はなし。
 - セーブ形式 4：旧セーブは自動更新。1.2.0 で開いたセーブは 1.1.0 では読めません。
 
 # 1.1.0

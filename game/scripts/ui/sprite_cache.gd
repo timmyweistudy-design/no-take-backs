@@ -122,9 +122,7 @@ func _bake_turn(cb: bool) -> void:
 	var vp := _viewport(Vector2i(COLS * CELL, int(ceil(float(n) / COLS)) * CELL), painter)
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	var img := vp.get_texture().get_image()
-	vp.queue_free()
-	img = await _post(img, TURN_C.size())
+	var img: Image = await _post_vp(vp, TURN_C.size())   # 第 11 大類：省一次讀回＋上傳
 	if g0 != _gen or (1 if cb else 0) != ready_cb:
 		return
 	turn_tex = ImageTexture.create_from_image(img)
@@ -137,9 +135,7 @@ func _bake_turn(cb: bool) -> void:
 	pf.types = TURN_TYPES
 	var nf := TURN_TYPES.size() * 2 * FID_PER
 	var vpf: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL), pf, nf)
-	var imf := vpf.get_texture().get_image()
-	vpf.queue_free()
-	imf = await _post(imf, FID_PER)
+	var imf: Image = await _post_vp(vpf, FID_PER)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 	if g0 != _gen or (1 if cb else 0) != ready_cb:
 		return
 	fid_tex = ImageTexture.create_from_image(imf)
@@ -155,9 +151,7 @@ func _bake_turn(cb: bool) -> void:
 		pw.types = chunk
 		var nw := chunk.size() * 2 * per_w
 		var vpw: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL), pw, nw)
-		var imw := vpw.get_texture().get_image()
-		vpw.queue_free()
-		imw = await _post(imw, per_w)
+		var imw: Image = await _post_vp(vpw, per_w)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 		if g0 != _gen or (1 if cb else 0) != ready_cb:
 			return
 		wt_pages.append(ImageTexture.create_from_image(imw))
@@ -191,9 +185,7 @@ func ensure_turn_atk(types: Array) -> void:
 		pt.mode = 3
 		pt.types = [t]
 		var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, 2 * CELL), pt, ATK_FRAMES * 2 * 2)
-		var img := vp.get_texture().get_image()
-		vp.queue_free()
-		img = await _post(img, ATK_FRAMES * 2)
+		var img: Image = await _post_vp(vp, ATK_FRAMES * 2)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 		if g0 != _gen:
 			return
 		ta_tex[t] = ImageTexture.create_from_image(img)
@@ -263,9 +255,7 @@ func _bake_page(types: Array) -> void:
 	# 1.2.0 §15.2：一整頁（6 種×2 隊×28 格＝336 個向量角色）在同一幀畫完就是開戰前的長幀（136～215 ms，ABBA 量過不是讀回造成）。
 	# 改成分段：每幀只畫 PAINT_CHUNK 格，視窗第一次清空、之後不清（累積），畫完整頁才讀回。
 	var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, rows * CELL), painter, total)
-	var img := vp.get_texture().get_image()
-	vp.queue_free()
-	img = await _post(img)
+	var img: Image = await _post_vp(vp)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 	if (1 if cb else 0) != ready_cb or gen0 != _gen:
 		return   # 烘的時候換了配色（或重建了）：這一批作廢
 	# 新兵頁太多就丟最舊的（舊 10 種那兩頁不丟）
@@ -282,23 +272,32 @@ func _bake_page(types: Array) -> void:
 	for k in types.size():
 		loc[types[k]] = [pn, k * 2 * FRAMES_PER]
 
-## V1.2 D1：烘好的整頁再跑一次後處理 shader（外輪廓＋頂亮底暗）。沒有 shader 檔或 plain_ui 時原樣。
-func _post(img: Image, per := FRAMES_PER) -> Image:
+## 1.2.0 第 11 大類（§15.2 A2 後續）：畫好的視窗直接當後處理的輸入（ViewportTexture），只在最後讀回一次。
+## 原本是「讀回 → 建 ImageTexture 上傳 → 後處理 → 再讀回」，每頁多一次整頁讀回與上傳。讀完才釋放來源視窗。
+func _post_vp(src: SubViewport, per := FRAMES_PER) -> Image:
 	var sh_path := "res://shaders/unit_bake.gdshader"
 	if not ResourceLoader.exists(sh_path) or bool(Save.s("plain_ui")):
-		return img
+		var raw := src.get_texture().get_image()
+		src.queue_free()
+		return raw
+	var out := await _post_tex(src.get_texture(), src.size, per)
+	src.queue_free()
+	return out
+
+## V1.2 D1：烘好的整頁再跑一次後處理 shader（外輪廓＋頂亮底暗）。
+func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
 	var tr := TextureRect.new()
-	tr.texture = ImageTexture.create_from_image(img)
-	tr.size = Vector2(img.get_width(), img.get_height())
+	tr.texture = tex
+	tr.size = Vector2(size)
 	var mat := ShaderMaterial.new()
-	mat.shader = load(sh_path)
+	mat.shader = load("res://shaders/unit_bake.gdshader")
 	mat.set_shader_parameter("cell", float(CELL))
 	mat.set_shader_parameter("per", float(per))
 	mat.set_shader_parameter("cols", float(COLS))
 	mat.set_shader_parameter("sh_amt", float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]))   # V1.4 #15 漬洗
 	mat.set_shader_parameter("hi_amt", float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))    # 乾掃
 	tr.material = mat
-	var vp := _viewport(Vector2i(img.get_width(), img.get_height()), tr)
+	var vp := _viewport(size, tr)
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	var out := vp.get_texture().get_image()

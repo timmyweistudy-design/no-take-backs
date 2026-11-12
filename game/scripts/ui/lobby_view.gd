@@ -15,7 +15,7 @@ var lobby_pool_team := 0       # 第八輪：兩邊名單不同時正在看哪�
 var lobby_filter := 0          # V9 卡池篩選：0 全部、1 近戰、2 遠程、3 支援、4 奇襲
 var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
 
-const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab", "lb_tab_cmd"]
+const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab", "lb_tab_cmd", "lb_tab_ext"]   # 1.2.0 第 11 大類：新技能（實驗）
 
 func _lobby_unlocked() -> int:
 	return RS.mask(_demo())
@@ -311,6 +311,12 @@ func _lobby_adj(id: String, d: int) -> void:
 	var r = lobby_r
 	lobby_item = id
 	match id:
+		"xs_0", "xs_1", "xs_2", "xs_3", "xs_4":
+			r.ext_skills = int(r.ext_skills) ^ (1 << int(id.substr(3)))
+		"xs_syn":
+			r.synergy = not bool(r.synergy)
+			if r.synergy:
+				r.adj = false   # 協同技和相鄰陣法互斥（契約 §4）
 		"cmd_on":
 			r.cmd_mask = [0, 0] if r.cmd_on() else [CmdD.DEFAULT_MASK, CmdD.DEFAULT_MASK]
 		"cmd_uses":
@@ -1036,6 +1042,8 @@ func _draw_lobby_detail(R: Rect2) -> void:
 			_draw_lab_tab(L0)
 		6:
 			_draw_cmd_tab(L0)
+		7:
+			_rows_paged(L0, _ext_rows())
 	_draw_lobby_desc(D0)
 
 ## V1.6.1 A7：列數超過這一欄放得下的就分頁（底下一列「◀ 1／2 ▶」），每個開關都找得到。
@@ -1170,26 +1178,34 @@ func _draw_lab_tab(R: Rect2) -> void:
 		var off: bool = s in lobby_r.skills_off
 		_btn_small(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("× " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
 			Color(0.35, 0.18, 0.2) if off else Color(0.16, 0.26, 0.2))
-	# 1.2.0 第 11 大類：擴充規則 v1 的五個新技能＋協同技（契約 §5：AI／教練還沒支援 → 只能在沙盒開，開了就是沙盒、不記紀錄）
-	y += ((skill_list.size() + 3) / 4) * 44 + 8
-	_text(Vector2(R.position.x, y + 4), L.t("lb_ext"), tz("S"), TXT_DIM)
-	y += 30
-	for xi in 6:
-		var on: bool = bool(lobby_r.synergy) if xi == 5 else (int(lobby_r.ext_skills) & (1 << xi)) != 0
-		_btn_small(Rect2(R.position.x + (xi % 4) * 148, y + (xi / 4) * 44, 140, 38), ("✓ " if on else "× ") + L.t("xs_syn" if xi == 5 else "xs_%d" % xi), _lobby_ext_toggle.bind(xi), true, false,
-			Color(0.16, 0.26, 0.2) if on else Color(0.35, 0.18, 0.2))
 	if mouse.y > R.position.y and mouse.y < R.end.y and mouse.x > R.position.x and mouse.x < R.end.x:
 		lobby_item = "lab"
 
-func _lobby_ext_toggle(xi: int) -> void:
-	lobby_item = "lab"
-	if xi == 5:
-		lobby_r.synergy = not bool(lobby_r.synergy)
-		if lobby_r.synergy:
-			lobby_r.adj = false   # 協同技和相鄰陣法互斥（契約 §4）
-	else:
-		lobby_r.ext_skills = int(lobby_r.ext_skills) ^ (1 << xi)
-	_lobby_touch()
+## 1.2.0 第 11 大類：擴充規則 v1 的五個新技能＋協同技（契約 §5：AI／教練還沒支援 → 只能在沙盒開，開了就是沙盒、不記紀錄）
+func _ext_rows() -> Array:
+	var rows: Array = []
+	for xi in 5:
+		rows.append(["xs_%d" % xi, L.t("xs_%d" % xi), L.t("on") if (int(lobby_r.ext_skills) & (1 << xi)) != 0 else L.t("off")])
+	rows.append(["xs_syn", L.t("xs_syn"), L.t("on") if bool(lobby_r.synergy) else L.t("off")])
+	return rows
+
+## 說明欄的內文：擴充技能的數值從模擬常數帶入（手寫文字不寫死數值）
+func _ext_desc(id: String) -> String:
+	var S = preload("res://scripts/core/battle_sim.gd")
+	match id:
+		"xs_0":
+			return L.t("lbd_xs_0", [S.EXT_BRACE_RANGE / 1000, S.EXT_BRACE_T / 20, S.EXT_BRACE_CD / 20])
+		"xs_1":
+			return L.t("lbd_xs_1", [S.EXT_BEAT_EVERY / 20, S.EXT_BEAT_RANGE / 1000, S.EXT_BEAT_PCT])
+		"xs_2":
+			return L.t("lbd_xs_2", [S.EXT_AID_RANGE / 1000, S.EXT_AID_BELOW, S.EXT_AID_TO, S.EXT_AID_REST / 20, S.EXT_AID_CD / 20])
+		"xs_3":
+			return L.t("lbd_xs_3", [S.EXT_FIRE_EVERY, S.EXT_FIRE_T1 / 20, S.EXT_FIRE_T2 / 20, S.EXT_FIRE_DMG])
+		"xs_4":
+			return L.t("lbd_xs_4", [S.EXT_RIDE_T / 20])
+		"xs_syn":
+			return L.t("lbd_xs_syn", [S.EXT_SYN_RANGE / 1000, S.EXT_SYN_PCT])
+	return L.t("lbd_" + id)
 
 func _lab_skills(types: Array) -> Array:
 	var owner := {"charge": [3], "taunt": [1], "backstab": [4], "counter": [0], "stealth": [4], "brace": [1, 5], "splash": [6], "heal": [7], "drum": [8], "breach": [9],
@@ -1209,10 +1225,10 @@ func _draw_lobby_desc(R: Rect2) -> void:
 	var x := R.position.x + 16
 	var w := R.size.x - 32
 	var y := R.position.y + 14
-	var id: String = lobby_item if lobby_item != "" else ["budget", "deploy", "pool", "ticks", "ai_level", "lab", "cmd_on"][lobby_tab]
+	var id: String = lobby_item if lobby_item != "" else ["budget", "deploy", "pool", "ticks", "ai_level", "lab", "cmd_on", "ext"][lobby_tab]
 	_text(Vector2(x, y), L.t("lbd_t_" + id), tz("H2"), ACCENT, false, true, w)
 	y += tz("H2") * 1.6
-	var body := L.t("lbd_" + id)
+	var body := _ext_desc(id)
 	var bfs := tz("S") if _scale_key() == 100 else tz("C")   # 大字時說明改用註記字級，讓下面的差異清單放得下
 	# 先估警告＋差異清單要多高；說明＋清單放不下時省略說明，只留警告與差異（Antigravity 實作第 2 輪）
 	var need_h := tz("S") * 2.4 + _lobby_notes_h(w)

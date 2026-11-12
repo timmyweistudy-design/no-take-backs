@@ -1016,6 +1016,11 @@ func _shots_v4() -> void:
 	lobby_r.skills_off = ["charge"]
 	lobby_item = "lab"
 	await _snap("26_lobby_lab.png")
+	lobby_tab = 7   # 1.2.0 第 11 大類：新技能（實驗）分頁
+	lobby_r.ext_skills = 1 | 8
+	lobby_item = "xs_3"
+	await _snap("v120_08_lobby_ext.png")
+	lobby_r.ext_skills = 0
 	_open_lobby("duel")
 	await _snap("25_lobby_duel.png")
 	overlay = ""
@@ -2031,6 +2036,14 @@ func _shots_v16() -> void:
 	await _snap("v120_07_editor_map.png")
 	_ed_set_map(0)
 	overlay = ""
+	if "--shot-open" in OS.get_cmdline_user_args():
+		# 1.2.0 第 11 大類 開發用：實物開合動畫開到一半（不在版面清冊：蓋子蓋住字是設計，不做對比檢查；只在 --shot-open 時拍）
+		for ok in [["settings", "dev_open_box.png"], ["codes", "dev_open_letter.png"], ["puzzles", "dev_open_fold.png"], ["profile", "dev_open_trunk.png"]]:
+			overlay = ok[0]
+			set("obj_open_force", 0.45)
+			await _snap(ok[1])
+		set("obj_open_force", -1.0)
+		overlay = ""
 	# 1.2.0 §11.7 戰役面板（第 1 章：前兩關有星）
 	Save.data["campaign"] = {"c1_1": 3, "c1_2": 1}
 	camp_ch = 1

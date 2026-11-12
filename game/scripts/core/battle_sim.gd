@@ -368,7 +368,7 @@ func step() -> void:
 		_cmd_tick(n)
 	if not map_ev.is_empty():
 		_ev_tick(n)   # V1.4 #10 沙盤機關（在快照之前，這一 tick 大家看到的是同一個場面）
-	if ext_bits & 2 and tick % 40 == 0:
+	if ext_bits & 2 and tick % EXT_BEAT_EVERY == 0:
 		_ext_beat(n)   # 擴充 v1 階段①：節拍
 
 	# ① 快照（之後的選目標、碰撞都只讀這些陣列）
@@ -818,7 +818,7 @@ func step() -> void:
 			slow_set[u.target] = true   # V1.4 #9 寒霜
 		if ext_bits & 8 and u.type == D.ARCHER:
 			u.arrows += 1
-			if u.arrows % 3 == 0:
+			if u.arrows % EXT_FIRE_EVERY == 0:
 				ext_fires.append([tg.x, tg.y, u.team, tick, i])   # 擴充 v1「火矢」：每第 3 箭在命中點放小火（t+20、t+40 各傷一次）
 		hits.append([i, u.target, _vuln(tg, dmg), kind, tags])
 		if ext_bits & 2:
@@ -974,6 +974,9 @@ func step() -> void:
 				u.ext_cd = EXT_BRACE_CD   # 架了 60 tick 沒擋到：結束、進冷卻
 		if u.ride_t > 0:
 			u.ride_t -= 1
+		if ext_bits & 16 and u.stun > 0:
+			u.ride = 0     # 迴馬：任何來源的暈眩（衝鋒被擋、時停、冰封、吸引…）都取消撤退與再衝（Codex cat11 #1）
+			u.ride_t = 0
 		if slow_set.has(i):
 			u.slow = D.SLOW_TICKS
 		if u.type == D.ASSASSIN and u.stealth == 0 and _was_stealth.get(u.id, false):
@@ -1062,7 +1065,7 @@ func _ext_beat(n: int) -> void:
 				continue
 			var dx := a.x - d.x
 			var dy := a.y - d.y
-			if dx * dx + dy * dy <= 9000000:
+			if dx * dx + dy * dy <= EXT_BEAT_RANGE * EXT_BEAT_RANGE:
 				a.beat = true
 
 ## 接拍的加成：這次攻擊宣告產生的每一筆 hits（含投彈的濺射）+20%（整數捨去、在易傷之後），加成用掉。反擊不是攻擊宣告，不吃。
@@ -1071,7 +1074,7 @@ func _ext_beat_take(u: Unit, from: int, hits: Array) -> void:
 		return
 	u.beat = false
 	for k in range(from, hits.size()):
-		hits[k][2] = int(hits[k][2]) * 120 / 100
+		hits[k][2] = int(hits[k][2]) * (100 + EXT_BEAT_PCT) / 100
 		hits[k][4] = hits[k][4] + [EV.BEAT]
 
 ## 火矢：放置在 t 的小火，在 t+20、t+40 對同一格內（中心 ±500）的敵人各造成 5 點；t+40 先傷害再移除。
@@ -1080,14 +1083,14 @@ func _ext_fire_tick(n: int, hits: Array) -> void:
 	var keep: Array = []
 	for f in ext_fires:
 		var age: int = tick - int(f[3])
-		if age == 20 or age == 40:
+		if age == EXT_FIRE_T1 or age == EXT_FIRE_T2:
 			for j in n:
 				var e := units[j]
 				if not e.alive or e.team == int(f[2]):
 					continue
 				if absi(e.x - int(f[0])) <= 500 and absi(e.y - int(f[1])) <= 500:
-					hits.append([int(f[4]), j, 5, EV.HIT, [EV.EXT_FIRE]])
-		if age < 40:
+					hits.append([int(f[4]), j, EXT_FIRE_DMG, EV.HIT, [EV.EXT_FIRE]])
+		if age < EXT_FIRE_T2:
 			keep.append(f)
 	ext_fires = keep
 
@@ -1105,6 +1108,22 @@ func _hash_ext() -> void:
 ## 醫者停手 40 tick，冷卻 300 tick 從停手結束起算（ext_cd＝340）。順序用左右鏡像不變的鍵（列 y、離自己底線的深度），
 ## 不用陣列索引（鏡像場的索引順序不同，Codex／契約 §2）：醫者依（y、深度）先後；目標取血量比例最低，平手再比（y、深度）。
 ## a 比 b 先：列 y → 離自己底線的深度 → 部署格 slot（擊退夾邊重疊時，slot 讓順序仍不看陣列索引；Codex cat07 #2）。
+## 擴充 v1 的數值（契約 §3；改數值要升 EXT_VERSION）。大廳說明從這裡取值，不寫死在字串裡。
+const EXT_BEAT_EVERY := 40     # 接拍：每幾 tick 一拍
+const EXT_BEAT_RANGE := 3 * CELL
+const EXT_BEAT_PCT := 20
+const EXT_AID_BELOW := 25      # 急救契約：血量 ≤ 幾 %
+const EXT_AID_TO := 30         # 補到最大血幾 %
+const EXT_AID_REST := 40       # 醫者停手 tick
+const EXT_AID_CD := 300        # 停手結束後的冷卻 tick
+const EXT_AID_ONCE := 200      # 同一目標幾 tick 內只救一次
+const EXT_AID_RANGE := 3 * CELL
+const EXT_FIRE_EVERY := 3      # 火矢：每第幾箭
+const EXT_FIRE_T1 := 20
+const EXT_FIRE_T2 := 40
+const EXT_FIRE_DMG := 5
+const EXT_SYN_RANGE := CELL    # 協同：狂戰士旁邊幾格（含斜角）
+const EXT_SYN_PCT := 10
 ## 擴充 v1「架盾」「迴馬」（契約 docs/rules-ext-v1.md §3 位元 0、4；第 11 大類）
 const EXT_BRACE_T := 60
 const EXT_BRACE_CD := 120
@@ -1150,7 +1169,7 @@ func _ext_brace_block(hits: Array) -> void:
 		hk[3] = EV.BLOCKED
 		(hk[4] as Array).append(EV.EXT_GUARD)
 		units[si].brace_t = 0
-		units[si].ext_cd = EXT_BRACE_CD
+		units[si].ext_cd = EXT_BRACE_CD + 1   # 同一 tick 的階段⑦會減 1 → tick 結束時是 120，和「架滿 60 tick 沒擋到」那條路徑一致（Codex cat11 #2）
 
 ## 迴馬：上一 tick 衝鋒命中的騎兵往自己底線退 1 格（場內、地形可走、離其他單位新位置 ≥ MIN_SEP；兩隻要退到太近的位置就都不退），
 ## 退成功給 60 tick「再衝」。先算完全部候選再一起套用，和順序無關。
@@ -1207,11 +1226,11 @@ func _ext_rescue(n: int) -> void:
 			var a := units[j]
 			if j == i or not a.alive or a.team != m.team:
 				continue
-			if a.hp * 100 > a.max_hp * 25 or tick - a.saved_at < 200:
+			if a.hp * 100 > a.max_hp * EXT_AID_BELOW or tick - a.saved_at < EXT_AID_ONCE:
 				continue
 			var dx := a.x - m.x
 			var dy := a.y - m.y
-			if dx * dx + dy * dy > 9000000:
+			if dx * dx + dy * dy > EXT_AID_RANGE * EXT_AID_RANGE:
 				continue
 			if best < 0:
 				best = j
@@ -1224,13 +1243,13 @@ func _ext_rescue(n: int) -> void:
 		if best < 0:
 			continue
 		var t := units[best]
-		var to := t.max_hp * 30 / 100
+		var to := t.max_hp * EXT_AID_TO / 100
 		var real := maxi(0, to - t.hp)
 		t.hp = maxi(t.hp, to)
 		t.saved_at = tick
 		m.heal_done += real
-		m.stun = maxi(m.stun, 40)
-		m.ext_cd = 340
+		m.stun = maxi(m.stun, EXT_AID_REST)
+		m.ext_cd = EXT_AID_REST + EXT_AID_CD
 		events.append({"kind": EV.HEAL, "src": m.id, "tgt": t.id, "amt": real, "tags": [EV.HEAL, EV.RESCUE]})
 
 ## 協同技（§8.4，候選第一組）：狂戰士旁邊 1 格內（含斜角）有同隊鼓手 → 狂戰士攻擊 +10%（開局一次，整數捨去）。和相鄰陣法互斥。
@@ -1239,8 +1258,8 @@ func _ext_synergy() -> void:
 		if b.type != D.BERSERKER:
 			continue
 		for d in units:
-			if d.type == D.DRUMMER and d.team == b.team and absi(d.x - b.x) <= 1000 and absi(d.y - b.y) <= 1000:
-				b.atk = b.atk * 110 / 100
+			if d.type == D.DRUMMER and d.team == b.team and absi(d.x - b.x) <= EXT_SYN_RANGE and absi(d.y - b.y) <= EXT_SYN_RANGE:
+				b.atk = b.atk * (100 + EXT_SYN_PCT) / 100
 				syn_n += 1
 				break
 

@@ -227,6 +227,8 @@ func _input(ev: InputEvent) -> void:
 		last_joy = ev.device     # 所有分流之前記（Codex v10-r1 #6）
 		if ev.button_index == JOY_BUTTON_X:
 			_pad_x_hold(ev.pressed)   # 1.1.0 Q1：長按拿掉鍵＝清空自己的陣
+	if ev is InputEventJoypadButton and ev.pressed and _pad_tool(ev):
+		return
 	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
 		_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
 	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
@@ -356,6 +358,28 @@ func _mb_cmd(d: Dictionary) -> void:
 		_try_remove(c)
 
 
+
+## 1.2.0 第 11 大類：手把的部署工具＝按住 RT（右扳機，原本沒用到）＋Y 翻轉（自由：對齊）、＋十字 ←／→ 整軍後退／前進、＋LB 複製上一陣。
+## 這裡的 Y、LB 是改鍵換算後的預設鍵（_input 先做 pad_to_default）：改了「暫停」「上一種」的綁定就跟著換，提示也照綁定顯示。
+## 不能用的情況（工具不開放、不是擺陣）照原本的按鍵處理。
+func _pad_tool(ev: InputEventJoypadButton) -> bool:
+	if state != St.PLACE or overlay != "" or Input.get_joy_axis(ev.device, JOY_AXIS_TRIGGER_RIGHT) < 0.5:
+		return false
+	var id := ""
+	match ev.button_index:
+		JOY_BUTTON_Y:
+			id = "align" if _is_free() else "flip"
+		JOY_BUTTON_DPAD_RIGHT:
+			id = "" if _is_free() else "fwd"
+		JOY_BUTTON_DPAD_LEFT:
+			id = "" if _is_free() else "back"
+		JOY_BUTTON_LEFT_SHOULDER:
+			id = "last"
+	if id == "" or not bool(call("_deploy_tools_ok")):
+		return false
+	pad_mode = true
+	_enqueue("tool", id)   # 和落子、放開、開戰同一個佇列（不然會插到前面還沒處理的拖曳之前；Codex cat11 #3）
+	return true
 
 ## 1.2.0 §11.1 部署工具的鍵（格子 M、Shift＋←→；自由 A；兩種 L）
 func _place_tool_key(k: int) -> bool:
@@ -882,6 +906,10 @@ func _process_cmds() -> int:
 			done += 1
 		elif c["kind"] == "key":
 			_key(int(c["data"]))
+			done += 1
+		elif c["kind"] == "tool":
+			if state == St.PLACE and overlay == "":
+				call("_deploy_tool", str(c["data"]))
 			done += 1
 		_update_gen()
 	return done

@@ -1,0 +1,5 @@
+你是《落子無悔》(Godot 4.6.2，GDScript，確定性模擬) 的程式審查。只讀檔。專案根目錄是目前資料夾；遊戲在 game/。
+1.2.0 第 11 大類（補做）：規劃 coordination/v120-impl/cat11-plan.md；契約 docs/rules-ext-v1.md（§2 階段順序、§3 位元 0 架盾、位元 4 迴馬、§6 實作狀態）；差異 coordination/v120-impl/cat11-r1/diff.patch。
+內容：battle_sim.gd 架盾（_ext_brace_arm／_ext_brace_block）、迴馬（_ext_ride、衝鋒條件 ride_t）、擴充數值抽成 EXT_* 常數（不該改任何行為）、_hash_ext 只在位元 0/4 開時多雜湊；lobby_view.gd 新分頁「新技能」與 _lobby_adj、ruleset.is_sandbox 含擴充；姿勢資料 pose_data.gd／pose_files.gd（22 種）；sprite_cache.gd _post_vp（後處理直接吃 ViewportTexture）；game_screens.gd 手把 RT 組合鍵 _pad_tool 與實物開合 _obj_open_anim；battle_view.gd 棋鐘高度、架盾字、迴馬塵；測試 share_codes.gd（test_ext_guard_ride_v120、test_lobby_ext_v120）、coach_lab.gd test_pad_tools_v120、battle_visual.gd test_char2_v120；tests/golden/ext_v1.json 追加 12 場（原 17 場逐字不變）。
+請檢查：①架盾、迴馬是否照契約（觸發、±60°、只擋一發、冷卻起算、小火不算、撤退格判定、再衝只一次、暈眩清除）、左右鏡像與順序無關（迭代字典、hits 索引、同 tick 多盾多騎）；②常數抽取有沒有改到任何值或運算順序（整數捨去位置）；③沒開擴充時位元組完全不變；④is_sandbox 改動會不會影響其他地方（代碼、模擬路徑、預設存檔、排行榜、每日題）；⑤_post_vp：來源視窗釋放時機、plain_ui 分支、世代檢查前就 queue_free 有沒有洩漏或用到已釋放貼圖；⑥手把 RT 組合與既有 X 長按、自由部署的拖曳、改鍵（Keymap.pad_to_default）衝突；⑦實物開合只疊畫，截圖／版面／減少特效／簡化時不演。
+附檔案與行號。最多 8 條必改（位置、問題、會怎樣、改法）。900 字內。最後一行「結論：可／有條件／不可」。

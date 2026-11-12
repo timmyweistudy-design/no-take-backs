@@ -465,7 +465,7 @@ func test_ext_guard_ride_v120() -> void:
 		if int(h[2]) == 0 and (h[4] as Array).has("ext_guard"):
 			zeroed += 1
 	ok(zeroed == 1 and int(hits[1][2]) == 0, "兩發只擋一發，挑列小的來源 %s" % str(hits))
-	ok(sh.brace_t == 0 and sh.ext_cd == 120, "擋完結束、冷卻 120")
+	ok(sh.brace_t == 0 and sh.ext_cd == 121, "擋完結束、冷卻 120（同 tick 階段⑦再減 1）")
 	sh.brace_t = 40
 	sh.ext_cd = 0
 	var side: Array = [[_ext_idx(sg, a0), si, 30, "arrow", ["arrow"]]]
@@ -480,7 +480,7 @@ func test_ext_guard_ride_v120() -> void:
 	var rr = RS0.standard()
 	rr.ext_skills = 16
 	var c0 = Armyx.new(0, 100)
-	ok(c0.place(3, 6, 4) and c0.place(0, 5, 6) and c0.place(3, 6, 6), "迴馬場面：藍騎兵兩隻＋劍士")
+	ok(c0.place(3, 4, 4) and c0.place(0, 3, 6) and c0.place(3, 4, 6), "迴馬場面：藍騎兵兩隻＋劍士")
 	var c1 = Armyx.new(1, 100)
 	ok(c1.place(0, 12, 4), "迴馬場面：紅劍士")
 	var sc = Simx.new(c0.copy(), c1.copy(), rr)
@@ -491,7 +491,17 @@ func test_ext_guard_ride_v120() -> void:
 	cv2.ride = 1   # 後面一格有劍士 → 被佔
 	sc._ext_ride(sc.units.size())
 	ok(cv.x == x0 - 1000 and cv.ride_t == 60 and cv.ride == 0, "衝鋒命中後退 1 格、60 tick 再衝")
-	ok(cv2.x == 6500 and cv2.ride_t == 0 and cv2.ride == 0, "退路被佔不退 x=%d" % cv2.x)
+	ok(cv2.x == 4500 and cv2.ride_t == 0 and cv2.ride == 0, "退路被佔不退 x=%d" % cv2.x)
+	cv.stun = 5   # 任何來源的暈眩（這裡直接設）：tick 結束時取消再衝（Codex cat11 #1）
+	sc.step()
+	ok(cv.ride_t == 0 and cv.ride == 0, "被暈取消再衝")
+	# 架盾冷卻：擋中與架滿逾時兩條路徑在 tick 結束時都是 120（Codex cat11 #2）
+	var sg2 = Simx.new(g0.copy(), g1.copy(), rg)
+	var shA = _ext_unit(sg2, 0, 1)
+	shA.brace_t = 1
+	shA.ext_cd = 0
+	sg2.step()
+	ok(shA.ext_cd == 120 or shA.brace_t > 0, "架滿逾時：tick 結束冷卻 120（%d）" % shA.ext_cd)
 	# 整場：確定性、鏡像、兩個都有觸發
 	var both = RS0.standard()
 	both.ext_skills = 1 | 16
@@ -519,3 +529,29 @@ func test_ext_guard_ride_v120() -> void:
 			mir_bad += 1
 	ok(det_bad == 0 and mir_bad == 0, "架盾＋迴馬：確定性 %d、鏡像 %d 場不符" % [det_bad, mir_bad])
 	ok(int(got["guard"]) > 0 and int(got["ride"]) > 0, "整場有觸發 %s" % str(got))
+
+## 1.2.0 第 11 大類：大廳「新技能」分頁（開關、互斥、沙盒徽章、說明數值從常數帶入）
+func test_lobby_ext_v120() -> void:
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var Pre = load("res://scripts/game/presets.gd")
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.lobby_r = RS0.standard()
+	g.lobby_kind = "ai"
+	g._lobby_adj("xs_0", 1)
+	g._lobby_adj("xs_4", 1)
+	ok(int(g.lobby_r.ext_skills) == 17, "架盾、迴馬開關（位元 0、4）")
+	ok(Pre.badge(g.lobby_r, "ai") == Pre.BADGE_LAB, "開了新技能＝沙盒徽章")
+	g.lobby_r.adj = true
+	g._lobby_adj("xs_syn", 1)
+	ok(bool(g.lobby_r.synergy) and not bool(g.lobby_r.adj), "開協同技會關相鄰陣法")
+	ok(g.lobby_r.validate().is_empty(), "組合合法 %s" % str(g.lobby_r.validate()))
+	var bad: Array = []
+	for id in ["xs_0", "xs_1", "xs_2", "xs_3", "xs_4", "xs_syn", "ext"]:
+		var t: String = g._ext_desc(id)
+		if t == "" or t.contains("%d") or t.begins_with("lbd_"):
+			bad.append(id)
+	ok(bad.is_empty(), "七段說明都有字、數值已帶入 %s" % str(bad))
+	ok(g._ext_desc("xs_3").contains(str(load("res://scripts/core/battle_sim.gd").EXT_FIRE_DMG)), "火矢說明的傷害來自常數")
+	g._lobby_adj("xs_0", 1)
+	ok(int(g.lobby_r.ext_skills) == 16, "再按一次關掉")
+	g.free()

@@ -845,7 +845,12 @@ func _draw_place_help() -> void:
 	var kt: Dictionary = Save.s("keys")
 	lines.append(L.t("place_hint_keys", [Keymap.key_name(kt, "prev"), Keymap.key_name(kt, "next"), Keymap.key_name(kt, "start"), Keymap.key_name(kt, "codex")]))
 	if _deploy_tools_ok():
-		lines.append(L.t("place_hint_tools_fp") if _is_free() else L.t("place_hint_tools", [Keymap.key_name(kt, "flip")]))   # 1.2.0 §11.1
+		if pad_mode:
+			# 1.2.0 第 11 大類：手把按住 RT；Y＝「暫停」、LB＝「上一種」的綁定（改鍵後照實際按鍵顯示；Codex cat11 #5）
+			var rt: String = {"ps": "R2", "nintendo": "ZR"}.get(Keymap.pad_family(Input.get_joy_name(last_joy)), "RT")
+			lines.append(L.t("place_hint_tools_fp_pad" if _is_free() else "place_hint_tools_pad", [rt, _pk("pause"), _pk("prev")]))
+		else:
+			lines.append(L.t("place_hint_tools_fp") if _is_free() else L.t("place_hint_tools", [Keymap.key_name(kt, "flip")]))   # 1.2.0 §11.1
 	var body := "\n".join(lines)
 	var w := 520.0
 	var h := text_h(body, tz("S"), w - 28) + 24
@@ -864,6 +869,7 @@ func _deploy_tools_ok() -> bool:
 func _deploy_tool(id: String) -> bool:
 	if not _deploy_tools_ok():
 		return false
+	call("_mb_release_cleanup")   # 拖曳／框選／塗兵進行中用工具：先取消那個操作（不然放開時用舊起點再位移；Codex cat11 #4）
 	var a = _cur_army()
 	var ok := false
 	match id:

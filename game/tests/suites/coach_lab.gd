@@ -484,3 +484,48 @@ func test_play_tools_fixes_v120() -> void:
 	g._deploy_tool("align")
 	ok(g.fp_undo.size() == nu and g.fp_redo.size() == 1, "對齊失敗：復原／重做歷史不動")
 	g.free()
+
+## 1.2.0 第 11 大類：手把部署工具（按住 RT＋Y 翻轉、＋十字 ←→ 平移、＋LB 複製上一陣；沒按 RT 照原本按鍵）
+func test_pad_tools_v120() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var keep: Dictionary = SV.data.duplicate(true)
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g._start_mode(g.Mode.VS_AI)
+	var a = g.armies[0]
+	a.units.clear()
+	a.place(0, 5, 0)
+	g._update_gen()   # 遊戲裡每幀都會更新畫面世代；測試先更新，排進佇列的命令才不會被當成上一個畫面的
+	var rt := InputEventJoypadMotion.new()
+	rt.device = 0
+	rt.axis = JOY_AXIS_TRIGGER_RIGHT
+	rt.axis_value = 1.0
+	Input.use_accumulated_input = false
+	Input.parse_input_event(rt)
+	Input.flush_buffered_events()
+	var y := InputEventJoypadButton.new()
+	y.device = 0
+	y.button_index = JOY_BUTTON_Y
+	y.pressed = true
+	ok(g._pad_tool(y) and int(g.armies[0].units[0]["row"]) == 0, "RT＋Y 先排進佇列（不插隊）")
+	g._process_cmds()
+	ok(int(g.armies[0].units[0]["row"]) == 8, "佇列執行：整軍上下翻轉（列 0→8）", str(g.armies[0].units))
+	var lt := InputEventJoypadButton.new()
+	lt.device = 0
+	lt.button_index = JOY_BUTTON_DPAD_LEFT
+	lt.pressed = true
+	ok(g._pad_tool(lt), "RT＋← 排進佇列")
+	g._process_cmds()
+	ok(int(g.armies[0].units[0]["col"]) == 4, "RT＋←：整軍後退一欄")
+	var aa := InputEventJoypadButton.new()
+	aa.device = 0
+	aa.button_index = JOY_BUTTON_A
+	aa.pressed = true
+	ok(not g._pad_tool(aa), "RT＋A 不是工具（照原本落子）")
+	rt.axis_value = 0.0
+	Input.parse_input_event(rt)
+	Input.flush_buffered_events()
+	Input.use_accumulated_input = true
+	ok(not g._pad_tool(y) and int(g.armies[0].units[0]["row"]) == 8, "沒按 RT：Y 照原本（不翻轉）")
+	g.free()
+	SV.data = keep
