@@ -1,0 +1,180 @@
+diff --git a/game/scripts/ui/battle/frags.gd b/game/scripts/ui/battle/frags.gd
+index 26909a9..8b2b26e 100644
+--- a/game/scripts/ui/battle/frags.gd
++++ b/game/scripts/ui/battle/frags.gd
+@@ -1,9 +1,10 @@
+ extends RefCounted
+ ## 1.2.0 §8.2 材料碎片：命中、治療、火、冰掉在地上的小實物碎片（木屑、墨點、木刻火片、白瓷碎片、薄荷葉、紫水彩暈）。
+ ## 規格（方案 §8.2，Antigravity 第 4 輪／Codex 第 3 輪）：每片 3～6px；一次最多 4 片；落地有小影、停 0.25 秒、0.1 秒淡出；
+-## 單一棋盤格（44px）內最多 2 片、滿了換掉該格最舊的；總數 ≤ 30、超額丟最舊的。和 FX_CAP（特效事件）分開計數，
++## 單一棋盤格（64px，從棋盤原點起算）內最多 2 片、滿了換掉該格最舊的；總數 ≤ 30、超額丟最舊的。和 FX_CAP（特效事件）分開計數，
+ ## 碎片純裝飾，被丟掉不影響任何預警、攻擊、跳字。位置與形狀只由（事件 tick、單位 id、第幾片）決定，截圖可重現。
+-const CELL := 44.0
++const CELL := 64.0                       # 棋盤一格（ui_base.CS）；最終一輪 Codex：原本 44 對不上真格子
++const ORIGIN := Vector2(128, 100)        # 棋盤左上（ui_base.ORIGIN）
+ const PER_CELL := 2
+ const TOTAL := 30
+ const PER_HIT := 4
+@@ -58,7 +59,7 @@ func _oldest(idx: Array) -> int:
+ 	return best
+ 
+ func _cell(p: Vector2) -> Vector2i:
+-	return Vector2i(int(floor(p.x / CELL)), int(floor(p.y / CELL)))
++	return Vector2i(int(floor((p.x - ORIGIN.x) / CELL)), int(floor((p.y - ORIGIN.y) / CELL)))
+ 
+ static func _hash01(k: int) -> float:
+ 	var h := (k * 2654435761) & 0xffffffff
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index a3876da..67ede6e 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -80,8 +80,15 @@ func _battle_process(delta: float) -> void:
+ 		return
+ 	if hitstop > 0:
+ 		hitstop -= delta
++		present_debt += delta   # 1.2.0 §9.6 展示時鐘：停頓欠下的時間，之後 ≤1.5 倍追回
+ 		return
+ 	var rate := speed
++	if present_debt > 1.0:
++		accum += present_debt * speed   # 落後超過 1 秒：直接跳回（跳過的事件照常記戰報與書籤，只是不播演出）
++		present_debt = 0.0
++	elif present_debt > 0.0 and slow_left <= 0 and final_left <= 0:
++		rate *= 1.5
++		present_debt = maxf(0.0, present_debt - delta * 0.5)
+ 	if slow_left > 0:
+ 		rate *= 0.5
+ 		slow_left -= delta
+@@ -876,6 +883,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
+ 		prev_pos[u.id] = Vector2(u.x, u.y)
+ 	_pump_view()   # 開場先預填 DELAY 個 tick
+ 	accum = 0.0
++	present_debt = 0.0   # 1.2.0 §9.6
+ 	slow_used = false
+ 	final_used = false
+ 	key_used = false
+diff --git a/game/scripts/ui/screens/game_playroom.gd b/game/scripts/ui/screens/game_playroom.gd
+index e8d68b2..ca868ea 100644
+--- a/game/scripts/ui/screens/game_playroom.gd
++++ b/game/scripts/ui/screens/game_playroom.gd
+@@ -343,11 +343,28 @@ func _draw_campaign() -> void:
+ 	_boss_note("campaign", "campaign")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
+ 	var chs: Array = Campaign.chapters()
+-	var rowh := maxf(44.0, tz("B") * 1.9)
+-	var P := modal_rect(820, 12.0 + h1_help_h(L.t("cmp_note_%d" % camp_ch), tz("S"), 740) + GAP_L + 48.0 + GAP_M + 7.0 * (rowh + 6.0) + GAP_L + 44.0 + GAP_L)
++	var cur: Array = []
++	for ch0 in chs:
++		if int(ch0["n"]) == camp_ch:
++			cur = ch0["stages"]
++	# 關卡卡片兩欄；卡片高度照那一列最長的目標說明算（150% 說明會換行，版面檢查 cat10）
++	var pw := 1100.0
++	var cw := (pw - 80.0 - 16.0) / 2.0
++	var rows := ceili(cur.size() / 2.0)
++	var row_h: Array = []
++	for ri in rows:
++		var h := 0.0
++		for k in [ri * 2, ri * 2 + 1]:
++			if k < cur.size():
++				h = maxf(h, 10.0 + tz("B") * 1.3 + text_h(_camp_goal_of(cur[k]), tz("S"), cw - 28.0) + 12.0)
++		row_h.append(h)
++	var grid_h := 0.0
++	for h2 in row_h:
++		grid_h += h2 + 8.0
++	var P := modal_rect(pw, 12.0 + h1_help_h(L.t("cmp_note_%d" % camp_ch), tz("S"), pw - 80.0) + GAP_L + 48.0 + GAP_M + grid_h + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+-	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("cmp_title"), L.t("cmp_note_%d" % camp_ch), tz("S"), 740) + GAP_L
+-	var tw := 140.0
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("cmp_title"), L.t("cmp_note_%d" % camp_ch), tz("S"), pw - 80.0) + GAP_L
++	var tw := 150.0
+ 	var tx := 640.0 - (chs.size() * (tw + 8.0) - 8.0) / 2.0
+ 	for ch in chs:
+ 		var n := int(ch["n"])
+@@ -357,25 +374,35 @@ func _draw_campaign() -> void:
+ 		_btn(Rect2(tx, y, tw, 44), lab, func(): camp_ch = n, open, n == camp_ch)
+ 		tx += tw + 8.0
+ 	y += 48.0 + GAP_M
+-	for ch2 in chs:
+-		if int(ch2["n"]) != camp_ch:
+-			continue
+-		var k := 0
+-		for st in ch2["stages"]:
+-			k += 1
+-			var sid := str(st["id"])
+-			var open2 := Campaign.unlocked(Save.data, sid)
+-			var r := Rect2(P.position.x + 40, y, P.size.x - 80, rowh)
+-			draw_rect(r, Color(0, 0, 0, 0.18))
+-			var nm := L.t("cmp_stage", [camp_ch, k]) if str(st["goal"]) != "puzzle" else L.t("cmp_puzzle", [camp_ch])
+-			_text(r.position + Vector2(14, (rowh - tz("B") * 1.2) / 2.0), nm, tz("B"), Color.WHITE if open2 else TXT_DIM, false, true, 220)
+-			_text(r.position + Vector2(250, (rowh - tz("S") * 1.2) / 2.0), _camp_goal(st) if str(st["goal"]) != "puzzle" else L.t("cmp_g_puzzle"), tz("S"), TXT_DIM, false, false, r.size.x - 250 - 260)
+-			var sn := Campaign.stars_of(Save.data, st)
+-			_text(Vector2(r.end.x - 250, r.position.y + (rowh - tz("B") * 1.2) / 2.0), "★".repeat(sn) + "☆".repeat(3 - sn), tz("B"), ACCENT if sn > 0 else TXT_DIM, false, true, 100)
+-			_btn(Rect2(r.end.x - 136, r.position.y + (rowh - 40.0) / 2.0, 124, 40), L.t("cmp_go"), func(): _camp_play(sid), open2)
+-			y += rowh + 6.0
++	var cards: Array = [[], []]
++	for k2 in cur.size():
++		var st: Dictionary = cur[k2]
++		var sid := str(st["id"])
++		var open2 := Campaign.unlocked(Save.data, sid)
++		var ri2: int = k2 / 2
++		var ry := y
++		for q in ri2:
++			ry += float(row_h[q]) + 8.0
++		var r := Rect2(P.position.x + 40.0 + (k2 % 2) * (cw + 16.0), ry, cw, row_h[ri2])
++		btn_paper = true
++		_btn(r, "", func(): _camp_play(sid), open2)   # 整張卡片就是按鈕（和主畫面卡片同一套紙卡）
++		btn_paper = false
++		var on_paper: bool = open2 and not bool(Save.s("plain_ui"))
++		_ink_mode = on_paper
++		var tc: Color = INK if on_paper else (Color.WHITE if open2 else TXT_DIM)
++		var nm := L.t("cmp_stage", [camp_ch, k2 + 1]) if str(st["goal"]) != "puzzle" else L.t("cmp_puzzle", [camp_ch])
++		_text(r.position + Vector2(14, 10), nm, tz("B"), tc, false, true, cw - 140.0)
++		var sn := Campaign.stars_of(Save.data, st)
++		var stx := "★".repeat(sn) + "☆".repeat(3 - sn)
++		_text(Vector2(r.end.x - 14.0 - _width(stx, tz("B"), true), r.position.y + 10), stx, tz("B"), Color("#9a5a10") if on_paper else ACCENT, false, true, 120)
++		_text(r.position + Vector2(14, 10 + tz("B") * 1.3), _camp_goal_of(st), tz("S"), tc, false, false, cw - 28.0)
++		_ink_mode = false
++		cards[mini(ri2, 1)].append(r)
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
++func _camp_goal_of(st: Dictionary) -> String:
++	return _camp_goal(st) if str(st["goal"]) != "puzzle" else L.t("cmp_g_puzzle")
++
+ ## ── 1.2.0 §11.5 換邊雙局 ──
+ const SwapDuel = preload("res://scripts/game/swap_duel.gd")
+ var swap_on := false
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index f56187a..d065abc 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -289,6 +289,7 @@ const BM = preload("res://scripts/game/bookmarks.gd")
+ const TMC = preload("res://scripts/game/fork_compare.gd")
+ const Frags = preload("res://scripts/ui/battle/frags.gd")
+ var frags = Frags.new()   # 1.2.0 §8.2 材料碎片（和 FX_CAP 分開計數）
++var present_debt := 0.0   # 1.2.0 §9.6：命中停頓欠展示時鐘多少秒（之後追回）
+ ## 碎片開不開：減少特效、簡化畫面、4 倍速以上都不掉碎片（純裝飾）
+ func _frags_on() -> bool:
+ 	return not bool(Save.s("reduce_fx")) and not bool(Save.s("plain_ui")) and speed < 4.0
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index 9b5726c..2822dc9 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -664,7 +664,7 @@ func test_char2_v120() -> void:
+ func test_frags_v120() -> void:
+ 	var FR = load("res://scripts/ui/battle/frags.gd")
+ 	var f = FR.new()
+-	f.spawn(Vector2(100, 100), "wood", 9, 1)
++	f.spawn(Vector2(160, 130), "wood", 9, 1)
+ 	ok(f.list.size() <= FR.PER_CELL, "同一格最多 %d 片（一次 9 片也只留 %d）" % [FR.PER_CELL, f.list.size()])
+ 	f.clear()
+ 	for k in 40:
+@@ -675,8 +675,8 @@ func test_frags_v120() -> void:
+ 	# 跨格聚集：兩格各 2 片往同一格飛，移動後同一格仍 ≤ 2
+ 	var h = FR.new()
+ 	for k in 2:
+-		h.list.append({"p": Vector2(10 + k, 10), "z": 0.0, "vx": 0.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": true, "born": k})
+-		h.list.append({"p": Vector2(60 + k, 10), "z": 0.0, "vx": -2400.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": false, "born": 10 + k})
++		h.list.append({"p": Vector2(140 + k, 110), "z": 0.0, "vx": 0.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": true, "born": k})
++		h.list.append({"p": Vector2(200 + k, 110), "z": 0.0, "vx": -2400.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": false, "born": 10 + k})
+ 	h.step(0.02)
+ 	var cnt := {}
+ 	for e in h.list:
