@@ -1129,7 +1129,7 @@ func _ext_rescue(n: int) -> void:
 		m.heal_done += real
 		m.stun = maxi(m.stun, 40)
 		m.ext_cd = 340
-		events.append({"kind": EV.HEAL, "src": m.id, "tgt": t.id, "amt": real, "tags": [EV.HEAL]})
+		events.append({"kind": EV.HEAL, "src": m.id, "tgt": t.id, "amt": real, "tags": [EV.HEAL, EV.RESCUE]})
 
 ## 協同技（§8.4，候選第一組）：狂戰士旁邊 1 格內（含斜角）有同隊鼓手 → 狂戰士攻擊 +10%（開局一次，整數捨去）。和相鄰陣法互斥。
 func _ext_synergy() -> void:

@@ -71,6 +71,7 @@ static func pad_glyph(table: Dictionary, action: String, joy_name := "") -> Stri
 
 ## 不能拿來綁的鍵（Codex r1）：方向與確認導航、畫筆修飾鍵、選兵數字、固定快捷鍵。
 const RESERVED := [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ESCAPE, KEY_TAB, KEY_SHIFT, KEY_CTRL, KEY_ALT, KEY_META, KEY_G, KEY_Z, KEY_Y, KEY_DELETE,
+	KEY_A, KEY_L, KEY_BRACKETLEFT, KEY_BRACKETRIGHT,   # 1.2.0 §11.1／11.2 固定快捷鍵：對齊、複製上一陣、上／下一個書籤（Codex cat08 #3）
 	KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9]
 
 static func can_bind_key(code: int) -> bool:

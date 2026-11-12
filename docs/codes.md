@@ -12,11 +12,13 @@
 | NTB4 | battle | 對戰（新兵；可帶規則） | 用到新兵時 | `game/battle_code.gd` |
 | NTB7 | battle | 對戰＋手動技能施放紀錄（`c`） | 開手動技能時 | `game/battle_code.gd` |
 | NTBR1～NTBR6 | rules | 規則碼：1 基本、2 部署（間距、縱深、全場）、3 新兵卡池、4 地圖、5 手動技能、6 相鄰陣法 | 依用到的規則欄位選最舊能表達的版本 | `core/ruleset.gd` |
+| NTBR7 | rules | 擴充規則 v1：NTBR6 的 30 欄＋[EXT_VERSION, ext_skills, synergy]（`docs/rules-ext-v1.md`）；沒開擴充不能用 | 1.2.0 | `core/ruleset.gd` |
 | NTC1 | challenge | 挑戰碼（陣型丟給朋友打，全場規則不適用） | V9 | `game_menus.gd` |
 | NTP1 | workshop | 工坊殘局碼（作者解＋敵陣） | V1.1 | `game/workshop.gd` |
 | NTP2 | workshop | 接力殘局（改兩隻敵兵傳回去，帶棒次 `n`） | V1.4 | `game/workshop.gd` |
 | NTP3 | workshop | 出題台（目標：打贏／斬首／撐住／求和／大勝／護送／完美） | V1.6 | `game/workshop.gd` |
 | NTP4 | workshop | 出題台指定目標（`t`）、一陣三考（`g=trio`、`e3`） | V1.6.1 | `game/workshop.gd` |
+| NTP5 | workshop | 出題台地形（NTP3／NTP4 欄位＋`m`＝地形圖 1～8；兩軍不能壓牆；不收三考） | 1.2.0 | `game/workshop.gd` |
 | NTS1 | settings | 設定碼（匯入前先預覽） | V1.5 | `game_menus.gd` |
 | NTQ1 | solution | 殘局最佳解（關卡 id＋玩家擺的兵；排序同實驗簿：星→剩餘→花費） | 1.1.0（分享頁「複製我的最佳解碼」） | `game/solution_code.gd` |
 | NTD1 | duel | 雙人輪流落子紀錄（初始規則、先手、禁牌後卡池、每手落子；解碼逐手重放驗合法） | 1.1.0 | `game/duel_code.gd` |

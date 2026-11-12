@@ -121,6 +121,49 @@ static func play(a0: Army, a1: Army, rules, pz: Dictionary, ctl := {}) -> int:
 		return 1 if s.winner == 0 else 0
 	return 1 if bool(PZ.outcome(pz, s, 0)["ok"]) else 0
 
+## 1.2.0 §11.4 教練解釋證據：同一組敵陣，改之前與改之後各跑一場，回傳
+## {"dmg0": [前, 後], "dmg1": [前, 後], "alive0": [前, 後], "first": [前, 後]（第一隻倒下的 tick，-1＝沒人倒）, "top": [[兵種, 傷害], …]（改之後我方傷害前兩名）}。
+## 只描述「這一場這樣改的結果」，畫面不說因果。
+static func evidence(before: Army, after: Army, a1: Army, rules, ctl := {}) -> Dictionary:
+	var r0 := _ev_run(before, a1, rules, ctl)
+	if r0.is_empty():
+		return {}
+	var r1 := _ev_run(after, a1, rules, ctl)
+	if r1.is_empty() or _stop(ctl):
+		return {}
+	return {"dmg0": [r0["dmg0"], r1["dmg0"]], "dmg1": [r0["dmg1"], r1["dmg1"]], "alive0": [r0["alive0"], r1["alive0"]], "first": [r0["first"], r1["first"]], "top": r1["top"]}
+
+static func _ev_run(a0: Army, a1: Army, rules, ctl: Dictionary) -> Dictionary:
+	if _stop(ctl):
+		return {}   # 每場開始前就看取消／期限（短戰可能不到 64 tick；Codex cat08 #4）
+	var s = Sim.new(a0.copy(), a1.copy(), rules)
+	s.fast = true
+	var first := -1
+	while not s.finished:
+		s.step()
+		if first < 0:
+			for e in s.events:
+				if str(e.get("kind", "")) == "death":
+					first = s.tick
+					break
+		if s.tick & 63 == 0 and _stop(ctl):
+			return {}
+	var d := [0, 0]
+	var alive0 := 0
+	var per: Array = []
+	for u in s.units:
+		d[u.team] += u.dmg_dealt
+		if u.team == 0:
+			if u.alive and not u.summon:
+				alive0 += 1
+			if not u.summon:
+				per.append([u.type, u.dmg_dealt, u.id])
+	per.sort_custom(func(p, q): return p[1] > q[1] if p[1] != q[1] else p[2] < q[2])
+	var top: Array = []
+	for k in mini(2, per.size()):
+		top.append([per[k][0], per[k][1]])
+	return {"dmg0": d[0], "dmg1": d[1], "alive0": alive0, "first": first, "top": top}
+
 static func wins(a0: Army, a1: Army, rules, pz: Dictionary) -> bool:
 	return play(a0, a1, rules, pz) == 1
 
@@ -155,9 +198,12 @@ static func search(a0: Army, a1: Army, rules, pz := {}, limit := LIMIT, ctl := {
 			var p0 := Army.pos_of(u)
 			var p1 := Army.pos_of(b.units[b.units.size() - 1])
 			var grid := u.has("col")
+			var ev := evidence(a0, b, a1, rules, ctl)   # 1.2.0 §11.4
+			if ev.is_empty() and _stop(ctl):
+				return {"found": false, "status": "cancel" if bool(ctl.get("stop", false)) else "timeout", "tries": tries, "total": int(pl["total"])}   # 證據跑到一半被取消／逾時：不能當成找到（不快取；Codex cat08 #4）
 			return {"found": true, "status": "found", "tries": tries, "total": int(pl["total"]), "kind": "swap" if cand[0] == "s" else "move",
 				"i": i, "type": int(u["type"]), "to_type": int(cand[2]) if cand[0] == "s" else int(u["type"]),
 				"from": Vector2i(int(u["col"]), int(u["row"])) if grid else p0,
 				"to": Vector2i(int(cand[2]), int(cand[3])) if cand[0] == "m" else (p1 if not grid else Vector2i(int(u["col"]), int(u["row"]))),
-				"grid": grid, "army": b}
+				"grid": grid, "army": b, "ev": ev}
 	return {"found": false, "status": "exhausted" if lst.size() >= int(pl["total"]) else "budget", "tries": tries, "total": int(pl["total"])}

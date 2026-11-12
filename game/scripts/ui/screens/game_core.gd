@@ -23,6 +23,8 @@ const EV_DEATH := "death"
 
 func _reset_place(keep_blue := false) -> void:
 	state = St.PLACE
+	if bool(get("cp_on")):
+		call("_cp_reset")   # 1.2.0 §11.6：每一局重新輪手（藍軍保留時，已有的兵不算任何人這一手）
 	sim = null
 	view = null
 	pending_cell = Vector2i(-1, -1)
@@ -33,6 +35,7 @@ func _reset_place(keep_blue := false) -> void:
 		show_place_help = true
 		Save.data["seen_place_help"] = true
 	fx.clear()
+	frags.clear()   # 1.2.0 §8.2
 	dying.clear()
 	zoom = 1.0
 	tp = null

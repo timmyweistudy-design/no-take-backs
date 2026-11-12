@@ -349,3 +349,138 @@ func test_review_fixes_v110() -> void:
 	ok(not SC.entry_valid(str(p0["id"]), bk[str(p0["id"])]), "重疊部署判不合法")
 	SC.merge(bk, str(p0["id"]), 1, 5, 99, good_u)
 	ok(bk[str(p0["id"])]["u"] == good_u, "合法新紀錄換掉不合法舊紀錄")
+
+## 1.2.0 第 8 大類（§11.1／11.2／11.3／11.4／11.8／11.11）：部署工具、重播書籤、分岔比較、教練證據、棋譜本、最近玩的
+func test_play_tools_v120() -> void:
+	var Army = load("res://scripts/core/army.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	# §11.1 格子：整軍翻轉、平移，不合法整筆還原
+	var a = Army.new(0, 100)
+	a.place(0, 5, 0)
+	a.place(2, 3, 2)
+	ok(a.flip_all() and int(a.units[0]["row"]) == 8 and int(a.units[1]["row"]) == 6, "整軍上下翻轉（列 0→8、2→6）")
+	ok(a.shift_all(-1) and int(a.units[0]["col"]) == 4 and int(a.units[1]["col"]) == 2, "整軍後退一欄")
+	var before: Array = a.units.duplicate(true)
+	var z := 0
+	while a.shift_all(1):
+		z += 1
+	ok(z > 0 and int(a.units[0]["col"]) == Army.ZONE - 1 and int(a.units[1]["col"]) == Army.ZONE - 3, "前進到部署區邊就停（出界那一步整筆還原）", str(a.units))
+	var r = Army.new(1, 100)
+	r.place(0, 11, 4)
+	ok(r.shift_all(1) and int(r.units[0]["col"]) == 10, "紅方往前＝欄數變小")
+	# 自由：對齊列
+	var f = Army.new(0, 100)
+	f.deploy = "free"
+	f.place_xy(0, 2500, 3300)
+	f.place_xy(0, 4500, 5800)
+	ok(f.align_rows([]) and int(f.units[0]["y"]) == 3500 and int(f.units[1]["y"]) == 5500, "自由：全部對齊到列中心", str(f.units))
+	var g2 = Army.new(0, 100)
+	g2.deploy = "free"
+	ok(g2.place_xy(0, 2500, 3100) and g2.place_xy(0, 3300, 3900), "對齊測試：兩隻擺得下（相距 1.13 格）")
+	var keep: Array = g2.units.duplicate(true)
+	ok(not g2.align_rows([]) and g2.units == keep, "對齊後會撞在一起就整筆還原")
+	# 殘局、教學不能用部署工具
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	var PZ = load("res://scripts/game/puzzles.gd")
+	g._pick_puzzle(str(PZ.puzzles()[0]["id"]), false)
+	ok(not g._deploy_tools_ok() and not g._deploy_tool("flip"), "殘局不開部署工具（固定兵不能被翻走）")
+	g.free()
+	# §11.2 書籤
+	var BMx = load("res://scripts/game/bookmarks.gd")
+	var AIx = load("res://scripts/core/ai_army.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 777
+	var sm = Simx.new(AIx.build(0, 100, rng)["army"], AIx.build(1, 100, rng)["army"])
+	sm.fast = true
+	var bm: Array = []
+	var deaths := 0
+	while not sm.finished:
+		sm.step()
+		for e in sm.events:
+			if str(e.get("kind", "")) == "death":
+				deaths += 1
+		BMx.collect(sm, bm)
+	var nd := 0
+	var nb := {}
+	for m in bm:
+		if str(m["kind"]) == "death":
+			nd += 1
+		else:
+			nb[int(m["team"])] = int(nb.get(int(m["team"]), 0)) + 1
+	ok(nd == deaths and deaths > 0, "書籤：每一隻倒下都有（%d／%d）" % [nd, deaths])
+	ok(nb.values().all(func(v): return v == 1), "書籤：每隊只記第一次破盾", str(nb))
+	var pts: PackedInt32Array = BMx.jump_points([{"t": 100}, {"t": 110}, {"t": 300}], [{"t": 200}])
+	ok(pts == PackedInt32Array([100, 200, 300]), "跳點合併、1 秒內去重", str(pts))
+	ok(BMx.next_point(pts, 150, 1) == 200 and BMx.next_point(pts, 205, -1) == 100 and BMx.next_point(pts, 300, 1) == -1, "上／下一個書籤（往回不會卡在剛跳到的點）")
+	# §11.3 分岔比較
+	var TM = load("res://scripts/game/fork_compare.gd")
+	var cmp: Array = TM.alive_pair(sm, sm)
+	ok(cmp.size() == 4 and cmp[0] == cmp[2] and cmp[1] == cmp[3] and cmp[0] == sm.alive_count(0) - _summons_alive(sm, 0), "分岔比較：同一條時間線兩邊一樣", str(cmp))
+	# §11.4 教練證據
+	var CO = load("res://scripts/game/coach.gd")
+	var b0 = Army.new(0, 100)
+	for row in [2, 4, 6]:
+		b0.place(3, 4, row)
+	var e0 = Army.new(1, 100)
+	e0.place(0, 10, 4)
+	var b1 = b0.copy()
+	b1.units[0]["row"] = 3
+	var ev: Dictionary = CO.evidence(b0, b1, e0, null)
+	var s0 = Simx.new(b0.copy(), e0.copy())
+	s0.run_to_end()
+	var d0 := 0
+	for u in s0.units:
+		if u.team == 0:
+			d0 += u.dmg_dealt
+	ok(not ev.is_empty() and int(ev["dmg0"][0]) == d0 and (ev["top"] as Array).size() <= 2 and (ev["first"] as Array).size() == 2, "教練證據：改之前那一場的傷害和直接模擬一致", str(ev))
+	ok(CO.evidence(b0, b1, e0, null, {"stop": true}).is_empty(), "教練證據：取消就回空")
+	# §11.8 棋譜本
+	var SBx = load("res://scripts/game/songbook.gd")
+	var book: Array = []
+	for i in SBx.MAX + 2:
+		book = SBx.add(book, "C%d" % i, "t", "n", i)
+	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C%d" % (SBx.MAX + 1), "棋譜本：新的在前、滿了丟最舊")
+	book = SBx.add(book, "C3", "t", "n", 99)
+	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C3" and book.filter(func(e): return str(e["c"]) == "C3").size() == 1, "同一場再收一次只會移到最前面")
+	ok(SBx.sanitize([{"c": 5}, "x", {"c": "OK", "t": "bad"}]).size() == 1, "棋譜本存檔逐筆驗型")
+	# §11.11 最近玩的
+	var RCx = load("res://scripts/game/recent.gd")
+	var rl: Array = RCx.push([], "hub_play", "menu_vs_ai")
+	rl = RCx.push(rl, "hub_challenge", "menu_puzzle")
+	rl = RCx.push(rl, "hub_play", "menu_vs_ai")
+	ok(rl.size() == 2 and str(rl[0]["k"]) == "menu_vs_ai", "最近玩的：去重、新的在前")
+	ok(RCx.valid([{"h": "nope", "k": "x"}, {"h": "hub_play", "k": "menu_duel"}, 3], ["hub_play"]).size() == 1, "最近玩的：不認得的丟掉")
+
+func _summons_alive(sm, team: int) -> int:
+	var n := 0
+	for u in sm.units:
+		if u.alive and u.team == team and u.summon:
+			n += 1
+	return n
+
+## 1.2.0 第 8 大類 Codex 一輪：固定鍵不能被綁、教練證據逾時不算找到、工具失敗不動復原歷史
+func test_play_tools_fixes_v120() -> void:
+	var KM = load("res://scripts/game/keymap.gd")
+	ok(not KM.can_bind_key(KEY_A) and not KM.can_bind_key(KEY_L) and not KM.can_bind_key(KEY_BRACKETLEFT) and not KM.can_bind_key(KEY_BRACKETRIGHT), "A、L、[、] 是固定快捷鍵，不能綁")
+	var CO = load("res://scripts/game/coach.gd")
+	var Army = load("res://scripts/core/army.gd")
+	var b0 = Army.new(0, 100)
+	for row in [2, 4, 6]:
+		b0.place(3, 4, row)
+	var e0 = Army.new(1, 100)
+	e0.place(0, 10, 4)
+	var res: Dictionary = CO.search(b0, e0, null, {}, CO.LIMIT, {"until": 1})
+	ok(not bool(res.get("found", false)) and str(res.get("status", "")) == "timeout", "期限已過：不會回 found（含證據跑一半）", str(res))
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g._start_mode(g.Mode.VS_AI)
+	var a = g.armies[0]
+	a.deploy = "free"
+	a.place_xy(0, 2500, 3100)
+	a.place_xy(0, 3300, 3900)
+	g.fp_redo = [{"team": 0, "units": []}]
+	var nu: int = g.fp_undo.size()
+	g._deploy_tool("align")
+	ok(g.fp_undo.size() == nu and g.fp_redo.size() == 1, "對齊失敗：復原／重做歷史不動")
+	g.free()

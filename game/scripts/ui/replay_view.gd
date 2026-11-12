@@ -56,13 +56,23 @@ func _draw_replay_controls() -> void:
 		var mx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(m["t"]) / total, 0.0, 1.0)
 		draw_line(Vector2(mx, RC_BAR.position.y), Vector2(mx, RC_BAR.end.y), Color("#ffd166"), 2.0)
 		draw_colored_polygon(PackedVector2Array([Vector2(mx - 5, RC_BAR.position.y - 7), Vector2(mx + 5, RC_BAR.position.y - 7), Vector2(mx, RC_BAR.position.y)]), Color("#ffd166"))
+	# 1.2.0 §11.2 書籤：倒下＝時間軸下緣隊色短刻度、第一次破盾＝金色小菱形；[ ] 跳上／下一個
+	for b in replay_bm:
+		var bx := RC_BAR.position.x + RC_BAR.size.x * clampf(float(b["t"]) / total, 0.0, 1.0)
+		var bc := Art.team_color(int(b["team"]), cbm()) if int(b["team"]) >= 0 else Color.WHITE
+		if str(b["kind"]) == "death":
+			draw_line(Vector2(bx, RC_BAR.end.y - 7), Vector2(bx, RC_BAR.end.y), bc.lightened(0.25), 2.0)
+		else:
+			draw_colored_polygon(PackedVector2Array([Vector2(bx, RC_BAR.end.y - 9), Vector2(bx + 4, RC_BAR.end.y - 5), Vector2(bx, RC_BAR.end.y - 1), Vector2(bx - 4, RC_BAR.end.y - 5)]), Color("#e8c66a"))
 	# 整條是一個按鈕：點哪裡就跳到哪一秒
 	_btns.append({"r": RC_BAR, "cb": func(): _seek_async(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
 	_text(Vector2(RC_BAR.position.x, RC_BAR.end.y + 2), L.t("rc_time", [view.tick / 20.0, total / 20.0]), tz("C"), TXT_DIM)   # V1.2.1 B2／G3：字級表＋字串表
 	if play_kind == "review":
 		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
 		if tm_ghost != null:
-			_text(Vector2(640, 92 + ts(16) * 1.4), L.t("tm_ghost_hint"), tz("C"), TXT_DIM, true, false, 600)
+			# 1.2.0 §11.3 分岔同步比較：同一 tick 兩條時間線的存活數（只寫數字，不下因果）＋ G 切換白圈
+			var cmp: Array = TMC.alive_pair(tm_ghost, view)   # 畫面上的 tick（sim 會跑在前面）
+			_text(Vector2(640, 92 + ts(16) * 1.4), L.t("tm_cmp", [cmp[0], cmp[1], cmp[2], cmp[3]]) + "　" + L.t("tm_ghost_hint" if tm_ghost_on else "tm_ghost_off"), tz("C"), TXT_DIM, true, false, 760)
 	if play_kind == "replay" and DisplayServer.get_name() != "headless":
 		# V1.4 #14：錄 3 秒 GIF（從現在開始播 3 秒，320×172、10 fps）
 		if gif_frames.is_empty() and gif_thread == null:
@@ -78,6 +88,16 @@ func _draw_replay_controls() -> void:
 		btn_paper = false
 	if follow_id >= 0:
 		_text(Vector2(640, 92 + ts(16) * 1.4), L.t("rc_following"), ts(14), Color(1, 1, 1, 0.85), true, false, 600)
+
+## 1.2.0 §11.2：跳到上／下一個書籤或關鍵時刻（沒有就不動、回 false）
+func _bm_jump(dir: int) -> bool:
+	if not _replay_controls_active():
+		return false
+	var t := BM.next_point(BM.jump_points(replay_bm, replay_marks), int(view.tick), dir)
+	if t < 0:
+		return false
+	_seek_async(t)
+	return true
 
 ## 跳到某個 tick：同一組陣型從頭快轉（確定性模擬，結果一定一樣），畫面與音效狀態清空重建。
 func _seek(target: int) -> void:
@@ -159,6 +179,7 @@ func _seek_finish() -> void:
 	for u in view.units:
 		prev_pos[u.id] = Vector2(u.x, u.y)
 	fx.clear()
+	frags.clear()   # 1.2.0 §8.2
 	dying.clear()
 	graves.clear()
 	# V1.5.1 B2：跳轉前 1～4 秒倒下的兵，陣亡小旗照時間補回（倒地 1 秒後插旗、旗子留 3 秒）
@@ -246,6 +267,7 @@ func _replay_back() -> void:
 	zoom = 1.0
 	zoom_target = 1.0
 	fx.clear()
+	frags.clear()   # 1.2.0 §8.2
 	dying.clear()
 	report_log.clear()
 	sfx.set_muffled(false)

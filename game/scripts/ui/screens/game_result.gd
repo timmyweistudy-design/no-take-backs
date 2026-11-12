@@ -23,6 +23,9 @@ func _start_mode(m: int) -> void:
 	if m != Mode.VS_AI:
 		set("challenge_army", null)
 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+	set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
+	set("cp_on", false)       # 1.2.0 §11.6：_cp_start 會在 _start_mode 之後再設回來
+	set("camp_id", "")        # 1.2.0 §11.7：_camp_play 會在 _start_mode 之後再設回來
 	set("ghost_id", "")       # V1.4 #7：幽靈、每週棋盒也是在 _start_mode 之後才設
 	set("wk_active", false)
 	set("wv_mode", false)   # V1.4 #11：開別的模式就不是車輪戰（_wave_setup 會在 _start_mode 之後再設回來）
@@ -68,6 +71,8 @@ func _finish_battle() -> void:
 			series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
 		if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
 			call("_ach", "SEALED_DONE")   # V1.5
+		call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+	call("_camp_settle")   # 1.2.0 §11.7 戰役評星
 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
 		set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
 		var wc: Array = get("wv_codes")
@@ -438,6 +443,13 @@ func _near_miss() -> bool:
 
 ## 結果頁的事實列：來源都是 battle_marks（模擬事件），每條都有秒數、哪一方。最多 2 條（結果頁段數上限）。
 func _result_facts() -> Array:
+	if bool(get("swap_on")) and mode == Mode.DUEL and play_kind == "official":
+		return [call("_swap_fact")] + _result_facts_base()   # 1.2.0 §11.5：換邊雙局的分數放第一條
+	if str(get("camp_id")) != "" and mode == Mode.VS_AI and play_kind == "official":
+		return [call("_camp_fact")] + _result_facts_base()   # 1.2.0 §11.7：戰役目標達成沒有
+	return _result_facts_base()
+
+func _result_facts_base() -> Array:
 	var out: Array = []
 	var pri := [EV_DEATH, "charge", "backstab", "breach", "rally_on", "braced"]
 	for k in pri:
@@ -633,6 +645,9 @@ func _apply_map_mode() -> void:
 func _next_round() -> void:
 	if series_over and bool(get("sealed_on")) and mode == Mode.DUEL:
 		call("_sealed_start")   # V1.4 #13：三戰打完再來＝重新封三陣（不是重打同一組，Antigravity v140-i3）
+		return
+	if series_over and bool(get("swap_on")) and mode == Mode.DUEL:
+		call("_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）
 		return
 	if series_over:
 		wins = [0, 0]

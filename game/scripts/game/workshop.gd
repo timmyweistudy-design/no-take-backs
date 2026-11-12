@@ -5,12 +5,14 @@ extends RefCounted
 ## 格式：NTP1.<base64url(JSON {"v":1,"e":敵陣,"s":作者解,"a":可用兵種})>.<sha256 前 6 碼>；敵陣欄 10～15、解欄 0～5、列 0～8。
 
 const PZ = preload("res://scripts/game/puzzles.gd")
+const MapDefs = preload("res://scripts/core/map_defs.gd")
 const L = preload("res://scripts/game/strings.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const PREFIX := "NTP1"
 const PREFIX2 := "NTP2"   # V1.4 #5 接力殘局：多一欄「第幾棒」n（1～99）；NTP1 照舊能用（n＝0）
 const PREFIX3 := "NTP3"   # V1.6 #16 出題台：多一欄目標 g（win／kill／survive／draw／margin）與參數；NTP1、NTP2 照舊
 const GOALS3 := ["win", "kill", "survive", "draw", "margin", "protect", "flawless"]
+const PREFIX5 := "NTP5"   # 1.2.0 §11.10 出題台地形：NTP3／NTP4 的欄位＋m＝地形圖（1～8，殘局中尺寸）；兩軍都不能壓在牆上
 const PREFIX4 := "NTP4"   # V1.6.1 A2：出題台作者自己指定目標（多一欄 t＝[欄, 列]：斬首＝敵兵、護送＝己兵、完美＝那隻兵的兵種）；NTP1～3 照舊
 const PICK_GOALS := ["kill", "protect", "flawless"]
 const ED_GOALS := ["win", "kill", "survive", "draw", "margin", "protect", "flawless", "trio"]   # 出題台的目標（V1.6.1 D2 多一種：一陣三考）
@@ -102,6 +104,36 @@ static func encode4(enemy: Array, sol: Array, goal: String, t: Vector2i) -> Stri
 	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
 	var code := "%s.%s.%s" % [PREFIX4, b, b.sha256_text().substr(0, 6)]
 	return code if bool(decode(code)["ok"]) else ""
+
+## 1.2.0 §11.10：有地形就出 NTP5（目標指定或自動都可以）；沒地形照舊走 encode4。
+static func encode5(enemy: Array, sol: Array, goal: String, t: Vector2i, map_id: int) -> String:
+	if map_id <= 0:
+		return encode4(enemy, sol, goal, t)
+	var e := _clean(enemy, 10, 15)
+	var s := _clean(sol, 0, 5)
+	if e.is_empty() or s.is_empty() or not goal in GOALS3 or goal == "trio":
+		return ""
+	var allowed: Array = []
+	for u in s:
+		if not int(u[0]) in allowed:
+			allowed.append(int(u[0]))
+	allowed.sort()
+	var body := {"v": 5, "e": e, "s": s, "a": allowed, "g": goal, "m": map_id}
+	if goal in PICK_GOALS and t.x >= 0:
+		body["t"] = [t.x, t.y]
+	var b := Marshalls.utf8_to_base64(JSON.stringify(body)).replace("+", "-").replace("/", "_").replace("=", "")
+	var code := "%s.%s.%s" % [PREFIX5, b, b.sha256_text().substr(0, 6)]
+	return code if bool(decode(code)["ok"]) else ""
+
+## 1.2.0 §11.10：這張地形圖（殘局中尺寸）上，格子 (c, r) 對 team 是不是牆
+static func blocked_cell(map_id: int, c: int, r: int, team: int) -> bool:
+	if map_id <= 0:
+		return false
+	var rr = PZ.rules_of({"map": map_id, "enemy": [], "goal": "win"})
+	if rr == null:
+		return false
+	var tr = rr.terrain()
+	return tr != null and tr.blocked(c * 1000 + 500, r * 1000 + 500, team)
 
 ## V1.6.1 D2：出題台出「一陣三考」題：三支敵陣＋作者解（要三場都贏才給碼）。NTP4，g＝"trio"、e3＝三支敵陣。
 static func encode_trio(foes: Array, sol: Array) -> String:
@@ -201,14 +233,14 @@ static func decode(code: String, ctl := {}) -> Dictionary:
 	var bad := {"ok": false, "why": "ws_bad"}
 	code = code.strip_edges()
 	var parts := code.split(".")
-	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] in [PREFIX, PREFIX2, PREFIX3, PREFIX4]) or parts[1].sha256_text().substr(0, 6) != parts[2]:
+	if code.length() > MAX_LEN or parts.size() != 3 or not (parts[0] in [PREFIX, PREFIX2, PREFIX3, PREFIX4, PREFIX5]) or parts[1].sha256_text().substr(0, 6) != parts[2]:
 		return bad
 	var b64 := parts[1].replace("-", "+").replace("_", "/")
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
 	var v2 := parts[0] == PREFIX2
-	var vv := 4 if parts[0] == PREFIX4 else (3 if parts[0] == PREFIX3 else (2 if v2 else 1))
+	var vv := 5 if parts[0] == PREFIX5 else (4 if parts[0] == PREFIX4 else (3 if parts[0] == PREFIX3 else (2 if v2 else 1)))
 	if not j is Dictionary or not _is_int(j.get("v"), vv, vv):   # Codex v110-impl2：先驗型別再轉，不能讓 {}、1.9 混進來
 		return bad
 	var relay := 0
@@ -241,6 +273,18 @@ static func decode(code: String, ctl := {}) -> Dictionary:
 	else:
 		L.fill(pz, "", "rl_title", [relay])
 	L.fill(pz, "hint", "ws_pz_hint")   # V1.6.1 F6：四種語言都從字串表來
+	var map_id := 0
+	if vv == 5:
+		if not _is_int(j.get("m"), 1, MapDefs.MAPS.size() - 1) or j.get("g") == "trio":
+			return bad
+		map_id = int(j["m"])
+		for u in e:
+			if blocked_cell(map_id, int(u[1]), int(u[2]), 1):
+				return bad
+		for u in s:
+			if blocked_cell(map_id, int(u[1]), int(u[2]), 0):
+				return bad
+		pz["map"] = map_id
 	if vv == 4 and j.get("g") == "trio":
 		var ts := trio_set_of(j, s, allowed)
 		if ts.is_empty():
@@ -253,10 +297,11 @@ static func decode(code: String, ctl := {}) -> Dictionary:
 		return {"ok": true, "pz": Trio.make_pz(ts, 0), "sol": s, "trio": ts, "why": ""}
 	if vv >= 3:
 		var g = j.get("g")
-		if not g is String or not g in GOALS3 or (vv == 4 and not g in PICK_GOALS):
+		var picked: bool = vv == 4 or (vv == 5 and j.has("t"))
+		if not g is String or not g in GOALS3 or (picked and not g in PICK_GOALS):
 			return bad
-		var gf := goal_fields(g, e, s) if vv == 3 else pick_fields(g, e, s, j.get("t"))
-		if vv == 4 and gf.is_empty():
+		var gf := pick_fields(g, e, s, j.get("t")) if picked else goal_fields(g, e, s)
+		if picked and gf.is_empty():
 			return bad   # 指定的目標不存在（「打贏」的 NTP3 本來就沒有目標欄位）
 		pz.merge(gf, true)
 		if gf.has("fixed"):

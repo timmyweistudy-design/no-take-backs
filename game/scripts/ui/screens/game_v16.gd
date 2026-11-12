@@ -216,13 +216,14 @@ func _draw_next_step() -> void:
 		overlay = "tour"
 		_focus = 0
 		return
-	if Save.s("hints") == "off" or overlay != "":
+	if overlay != "":
 		return
-	var k := Guide.next_step(Save.data, _daily_done_today(), _demo())
-	if k == "":
-		return
+	var k := Guide.next_step(Save.data, _daily_done_today(), _demo()) if Save.s("hints") != "off" else ""
 	# 右上角（示範戰場上方的空白）；高度照字級算
 	var NS_RECT := Rect2(830, 104, 400, ceilf(14.0 + tz("C") * 1.25 + tz("S") * 1.35))
+	call("_draw_recent", (NS_RECT.end.y + 16.0) if k != "" else 104.0)   # 1.2.0 §11.11
+	if k == "":
+		return
 	_btn(NS_RECT, "", _next_action(k), true, false, Color(0.16, 0.3, 0.42, 0.95))
 	_icon("flag", NS_RECT.position + Vector2(30, NS_RECT.size.y / 2), 26.0, ACCENT)
 	_text(NS_RECT.position + Vector2(56, 6), L.t("ns_head"), tz("C"), TXT_DIM, false, false, NS_RECT.size.x - 70)
@@ -359,6 +360,10 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_demo_end()
 		"share":
 			_draw_share()
+		"songbook":
+			_draw_songbook()
+		"campaign":
+			call("_draw_campaign")
 		"rush_end":
 			_draw_rush_end()
 		"rush_menu":
@@ -713,6 +718,53 @@ func _daily_finish(w: int) -> void:
 		_daily_sync()
 	sh_text = Share.daily_text(L, Time.get_date_string_from_unix_time(day * 86400), L.t("daily_mut_%d" % int(daily_spec["mut"])), rem, armies[0].spent(), armies[0].budget, int(sim.tick / 20), int(st["n"]))
 
+## ── 1.2.0 §11.8 名局棋譜本 ──
+const SB = preload("res://scripts/game/songbook.gd")
+
+func _sb_add_current() -> void:
+	if last_armies.size() != 2:
+		return
+	var code := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
+	var w: int = sim.winner if sim != null else -1
+	var res := L.t("sb_win") if w == 0 else (L.t("sb_lose") if w == 1 else L.t("sb_draw"))
+	var title := "%s　%s" % [Time.get_date_string_from_system(), res]
+	var marks: Array = _key_marks() if not report.is_empty() else []
+	var note := L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
+	Save.data["songbook"] = SB.add(Save.data.get("songbook", []), code, title, note, int(Time.get_unix_time_from_system()))
+	if Save.save_data():
+		_toast(L.t("sb_added"))
+	else:
+		_toast(L.t("save_failed"), true)
+	overlay = "songbook"
+	_focus = 0
+
+func _draw_songbook() -> void:
+	_dim(0.6)
+	var book: Array = Save.data.get("songbook", [])
+	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
+	if book.is_empty():
+		_text(Vector2(640, y + 10), L.t("sb_empty"), tz("S"), Color(1, 1, 1, 0.88), true, false, 680)   # Antigravity cat08 #4：空狀態要讀得到
+	for i in book.size():
+		var e: Dictionary = book[i]
+		var r := Rect2(P.position.x + 30, y, P.size.x - 60, rowh)
+		# Antigravity cat08 #3：每筆是一張夾在冊子裡的紙頁（墨字），不是深色資料列
+		var paper_ok: bool = not bool(Save.s("plain_ui")) and _tex_box(r, "paper")
+		if not paper_ok:
+			draw_rect(r, Color(0, 0, 0, 0.18))
+		_ink_mode = paper_ok
+		_text(r.position + Vector2(14, 10), str(e["n"]), tz("B"), INK if paper_ok else Color.WHITE, false, true, r.size.x - 270)
+		_text(r.position + Vector2(14, 10 + tz("B") * 1.3), str(e["note"]), tz("S"), INK if paper_ok else TXT_DIM, false, false, r.size.x - 270)
+		_ink_mode = false
+		var c := str(e["c"])
+		var idx := i
+		_btn(Rect2(r.end.x - 244, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
+		_btn(Rect2(r.end.x - 116, r.position.y + (rowh - 44.0) / 2.0, 104, 44), L.t("sb_del"), func(): Save.data["songbook"] = SB.remove(Save.data.get("songbook", []), idx); Save.save_data())
+		y += rowh + 8.0
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
 func _highlights() -> Array:
 	var out: Array = _key_marks() if not report.is_empty() else []
 	if sim != null and sim.winner >= 0:
@@ -729,7 +781,7 @@ func _draw_share() -> void:
 	var hl := _highlights()
 	var sol_ok: bool = mode == Mode.PUZZLE and puzzle_id != "ws" and (Save.data.get("pz_sol", {}) as Dictionary).has(puzzle_id) \
 		and load("res://scripts/game/solution_code.gd").entry_valid(puzzle_id, Save.data["pz_sol"][puzzle_id])   # 1.1.0 N5；不合法的舊紀錄不給分享（Codex v110-i3 #1）
-	var rows := 1 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0) + (1 if duel_code_ok() else 0)
+	var rows := 2 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0) + (1 if duel_code_ok() else 0)
 	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("sh_title")) + GAP_L
@@ -744,6 +796,8 @@ func _draw_share() -> void:
 		y += 52.0
 	y += GAP_L
 	_btn(Rect2(400, y, 480, 48), L.t("replay"), func(): overlay = ""; call("_replay"))
+	y += 56.0
+	_btn(Rect2(400, y, 480, 48), L.t("sb_add"), func(): _sb_add_current())   # 1.2.0 §11.8
 	y += 56.0
 	if pc_shot != null:
 		_btn(Rect2(400, y, 480, 48), L.t("pc_btn"), func(): overlay = "postcard", true, true)
@@ -1093,6 +1147,9 @@ func _draw_coach() -> void:
 		lines.append(L.t("co_l1", [tn]))
 		if co_layer >= 2:
 			lines.append(_coach_hint2())
+			var ev: Dictionary = co_res.get("ev", {})
+			if not ev.is_empty():
+				lines.append(_coach_evidence(ev))   # 1.2.0 §11.4：這一場這樣改的結果（不說因果）
 	var body := "\n".join(lines)
 	var gh := 150.0 if found and co_layer >= 2 else 0.0
 	var has_act := busy or found   # 1.2.0：沒有動作鈕（找不到）時不留它的高度（英文 150% 空出 161px，排版 R6）
@@ -1116,6 +1173,15 @@ func _draw_coach() -> void:
 		co_layer = 1
 		_coach_note(1)
 
+func _coach_evidence(ev: Dictionary) -> String:
+	var f0 := int(ev["first"][0])
+	var f1 := int(ev["first"][1])
+	var tops: Array = []
+	for t in ev["top"]:
+		tops.append("%s %d" % [L.t("unit_%d" % int(t[0])), int(t[1])])
+	return L.t("co_ev", [int(ev["dmg0"][0]), int(ev["dmg0"][1]), int(ev["dmg1"][0]), int(ev["dmg1"][1]), int(ev["alive0"][0]), int(ev["alive0"][1]),
+		"—" if f0 < 0 else "%.1f" % (f0 / 20.0), "—" if f1 < 0 else "%.1f" % (f1 / 20.0), "、".join(tops)])
+
 func _close_overlay_plain() -> void:
 	overlay = ""
 
@@ -1129,6 +1195,7 @@ func _rift_picks() -> Array:
 	return Rift.picks(Rift.week(), RS.mask(_demo()))
 
 func _rift_start() -> void:
+	_rift_sync()   # 1.2.0 §11.9：上次沒送成的當週成績補送、過期的丟掉
 	var wk := Rift.week()
 	rift_wk = wk
 	var r = Rift.make_rules(_rift_picks(), RS.mask(_demo()), wk)
@@ -1151,10 +1218,25 @@ func _rift_settle() -> void:
 	if Daily.better(rec, best.get(k, [])):
 		best[k] = rec
 		Save.data["rift_best"] = Rift.keep_recent(best, RIFT_KEEP)   # V1.6.1 A12：留最近 8 週
+		var det: PackedInt32Array = SteamApi.pack_free(last_armies[0].units, 16000)
+		if not det.is_empty():
+			Save.data["rift_pend"] = {"wk": rift_wk, "score": SteamApi.daily_score(int(rec[0]), int(rec[1])), "det": Array(det), "ver": Rift.VER}   # 1.2.0 §11.9 天梯
 		Save.save_data()
+		_rift_sync()
 		_toast(L.t("rf_new", [int(rec[0])]))
 
 const RIFT_KEEP := 8
+
+## 1.2.0 §11.9 天梯季：只送「當週」的待送成績；過了那一週就丟掉（過期不補送，方案 §11 細節）
+func _rift_sync() -> void:
+	var p: Dictionary = Save.data.get("rift_pend", {})
+	if p.is_empty():
+		return
+	if int(p.get("wk", -1)) != Rift.week() or int(p.get("ver", 0)) != Rift.VER:
+		Save.data.erase("rift_pend")
+		return
+	if SteamApi.available():
+		SteamApi.rift_upload(int(p["wk"]), int(p["score"]), PackedInt32Array(p.get("det", [])), int(p["ver"]))
 
 ## ── V1.6.1 A12：異變練習場（自己挑異變；不記週紀錄，不算裂隙成績） ──
 var rift_lab: Array = []   # 選了哪些異變（ANOMS 索引）
@@ -1682,6 +1764,21 @@ var ed_target := Vector2i(-1, -1)   # V1.6.1 A2：作者指定的目標（斬首
 var ed_pick := false               # 正在點選目標
 var ed_foe_i := 0                  # V1.6.1 D2：三考題正在編第幾支敵陣
 var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
+var ed_map := 0                    # 1.2.0 §11.10：地形圖（0＝平原；有地形就出 NTP5）
+var ed_block := {}                 # 這張地形圖上的牆格（Vector2i → true；換圖時重算）
+
+func _ed_set_map(m: int) -> void:
+	ed_map = m
+	ed_block = {}
+	for cx in 16:
+		for cy in 9:
+			if (cx <= 5 or cx >= 10) and WS3.blocked_cell(m, cx, cy, 0 if cx <= 5 else 1):
+				ed_block[Vector2i(cx, cy)] = true
+	for k in ed_block:
+		ed_cells.erase(k)   # 換到這張圖，壓在牆上的兵拿掉
+	if ed_block.has(ed_target):
+		ed_target = Vector2i(-1, -1)
+	ed_msg = ""
 const ED_CS0 := 32.0
 ## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
 func ed_cs() -> float:
@@ -1705,6 +1802,9 @@ func ed_lists() -> Array:
 
 func ed_toggle(c: Vector2i) -> void:
 	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
+		return
+	if ed_block.has(c):
+		ed_msg = L.t("err_terrain")   # 1.2.0 §11.10：牆上不能放
 		return
 	if ed_pick:
 		var want_foe: bool = WS3.ED_GOALS[ed_goal] == "kill"
@@ -1737,7 +1837,7 @@ func _ed_make() -> void:
 			fl.append(e)
 		code = WS3.encode_trio(fl, l[1])
 	else:
-		code = WS3.encode4(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target)
+		code = WS3.encode5(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target, ed_map)   # 1.2.0 §11.10：沒地形時等於 encode4
 	if code == "":
 		ed_msg = L.t("ed_fail")
 		return
@@ -1779,6 +1879,9 @@ func _draw_editor() -> void:
 			var r := Rect2(G.position + Vector2(cx, cy) * ed_cs(), Vector2(ed_cs(), ed_cs()))
 			if cx > 5 and cx < 10:
 				draw_rect(r, Color(0, 0, 0, 0.35))
+			if ed_block.has(Vector2i(cx, cy)):
+				draw_rect(r.grow(-1), Color("#5a4632"))   # 1.2.0 §11.10 牆格（木刻色塊＋斜線）
+				draw_line(r.position + Vector2(3, 3), r.end - Vector2(3, 3), Color(0, 0, 0, 0.45), 2.0)
 			draw_rect(r, Color(0, 0, 0, 0.2), false, 1.0)
 			var k := Vector2i(cx, cy)
 			if ed_cells.has(k):
@@ -1826,9 +1929,14 @@ func _draw_editor() -> void:
 	if ed_msg != "":
 		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
 	var by := P.end.y - GAP_L - 48.0
-	_btn(Rect2(640 - 3 * 150 - 20, by, 300, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
-	_btn(Rect2(640 - 150, by, 300, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
-	_btn(Rect2(640 + 150 + 20, by, 300, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
+	# 1.2.0 §11.10：四顆同寬置中（出題、地形、清空、返回）；三考題不能加地形
+	var bw := 240.0
+	var bx := 640.0 - (4 * bw + 3 * 16.0) / 2.0
+	_btn(Rect2(bx, by, bw, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
+	var mk: String = MapDefs.MAPS[ed_map]["key"]
+	_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
+	_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+	_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 ## ── #17 一陣三考 ──
 const Trio = preload("res://scripts/game/trio.gd")

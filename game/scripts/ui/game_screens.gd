@@ -356,6 +356,20 @@ func _mb_cmd(d: Dictionary) -> void:
 
 
 
+## 1.2.0 §11.1 部署工具的鍵（格子 M、Shift＋←→；自由 A；兩種 L）
+func _place_tool_key(k: int) -> bool:
+	match k:
+		KEY_M:
+			return call("_deploy_tool", "flip")
+		KEY_A:
+			return call("_deploy_tool", "align")
+		KEY_L:
+			return call("_deploy_tool", "last")
+		KEY_RIGHT, KEY_LEFT:
+			if Input.is_key_pressed(KEY_SHIFT):
+				return call("_deploy_tool", "fwd" if k == KEY_RIGHT else "back")
+	return false
+
 func _key(k: int) -> void:
 	_toast_dismiss()
 	if state == St.RESULT and _ink_active():
@@ -363,9 +377,17 @@ func _key(k: int) -> void:
 		return
 	if state == St.PLACE and overlay == "" and _v16_place_key(k):
 		return
+	if state == St.PLACE and overlay == "" and _place_tool_key(k):
+		return
 	if state == St.PLACE and _fp_key(k):
 		return
 	if state == St.BATTLE and overlay == "" and _cmd_key(k):
+		return
+	if state == St.BATTLE and overlay == "" and (k == KEY_BRACKETLEFT or k == KEY_BRACKETRIGHT) and _replay_controls_active():
+		_bm_jump(-1 if k == KEY_BRACKETLEFT else 1)   # 1.2.0 §11.2 書籤
+		return
+	if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
+		tm_ghost_on = not tm_ghost_on   # 1.2.0 §11.3
 		return
 	# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
 	if state != St.PLACE or overlay != "":
@@ -581,6 +603,7 @@ func _process_inner(delta: float) -> void:
 			if f.has("pop"):
 				f["pop"] = maxf(0.0, f["pop"] - delta)
 		fx = fx.filter(func(f): return f["t"] < f["dur"])
+		frags.step(delta)
 		clutch_t = maxf(0.0, clutch_t - delta)
 	for g in dying:
 		var t0: float = g["t"]
@@ -672,6 +695,8 @@ func _draw_inner() -> void:
 			_draw_tactical()
 		_v16_place_draw()   # V1.6 #6
 	else:
+		if state == St.BATTLE:
+			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
 		_draw_units_of(view, false)
 		if state == St.BATTLE:
 			_v16_battle_draw()

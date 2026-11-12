@@ -6,7 +6,7 @@ const PANELLESS_OVERLAYS := ["ai_busy"]
 ## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
 const DECK_CAP := 0.7
 const DECK_MIN_PX := 9.0
-const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat", "nb_words", "daily_past"]
+const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat", "nb_words", "daily_past", "songbook", "campaign"]
 const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
@@ -616,6 +616,21 @@ func _run_screenshots() -> void:
 	await _snap("01d_hub_collect.png")
 	overlay = "hub_gauntlet"   # V1.0.0 H1
 	await _snap("01e_hub_gauntlet.png")
+	overlay = ""
+	# 1.2.0 §11.11 最近玩的（三顆）＋ §11.8 棋譜本（空、兩筆）
+	Save.data["recent"] = [{"h": "hub_play", "k": "menu_vs_ai"}, {"h": "hub_challenge", "k": "menu_puzzle"}, {"h": "playroom", "k": "rift_open"}]
+	await _snap("v120_04_recent.png")
+	Save.data["recent"] = []
+	Save.data["songbook"] = []
+	overlay = "songbook"
+	await _snap("v120_05_songbook@empty.png")
+	var ra := RandomNumberGenerator.new()
+	ra.seed = 4242
+	var sb_code := BattleCode.encode(AI.build(0, 100, ra)["army"], AI.build(1, 100, ra)["army"], null, [])
+	Save.data["songbook"] = [{"c": sb_code, "n": "2026-11-12　" + L.t("sb_win"), "note": L.t("sb_note", [L.t("tl_lead") + " 23s"]), "t": 0},
+		{"c": sb_code + "", "n": "2026-11-11　" + L.t("sb_lose"), "note": L.t("sb_note_none"), "t": 0}]
+	await _snap("v120_05_songbook.png")
+	Save.data["songbook"] = []
 	overlay = ""
 	difficulty = 1
 	_start_mode(Mode.VS_AI)
@@ -2012,6 +2027,16 @@ func _shots_v16() -> void:
 	ed_goal = 1
 	overlay = "editor"
 	await _snap("v16_13_editor.png")
+	_ed_set_map(1)   # 1.2.0 §11.10 出題台地形（雙橋河谷）
+	await _snap("v120_07_editor_map.png")
+	_ed_set_map(0)
+	overlay = ""
+	# 1.2.0 §11.7 戰役面板（第 1 章：前兩關有星）
+	Save.data["campaign"] = {"c1_1": 3, "c1_2": 1}
+	camp_ch = 1
+	overlay = "campaign"
+	await _snap("v120_06_campaign.png")
+	Save.data["campaign"] = {}
 	overlay = ""
 	ed_cells = {}
 	# #17 一陣三考：選題、打完的結果

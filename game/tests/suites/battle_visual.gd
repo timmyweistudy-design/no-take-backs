@@ -659,3 +659,32 @@ func test_char2_v120() -> void:
 	g.start_hold = 0.0
 	ok(g._open_squash({"x": 300.0}) == 1.0, "開場提示結束後不壓扁")
 	g.free()
+
+## 1.2.0 第 9 大類 §8.2 材料碎片：一次最多 4 片、單格最多 2 片、總數 ≤ 30、落地停 0.25 秒＋0.1 秒淡出後消失、同種子同位置
+func test_frags_v120() -> void:
+	var FR = load("res://scripts/ui/battle/frags.gd")
+	var f = FR.new()
+	f.spawn(Vector2(100, 100), "wood", 9, 1)
+	ok(f.list.size() <= FR.PER_CELL, "同一格最多 %d 片（一次 9 片也只留 %d）" % [FR.PER_CELL, f.list.size()])
+	f.clear()
+	for k in 40:
+		f.spawn(Vector2(20 + k * 50, 200), "ink", 4, k)
+	ok(f.list.size() <= FR.TOTAL, "總數 ≤ %d（%d）" % [FR.TOTAL, f.list.size()])
+	var newest: int = f.list.map(func(e): return int(e["born"])).max()
+	ok(f.list.any(func(e): return int(e["born"]) == newest), "超額丟最舊的，最新的一定留著")
+	f.clear()
+	f.spawn(Vector2(300, 300), "fire", 2, 7)
+	var t := 0.0
+	var landed_at := -1.0
+	while not f.list.is_empty() and t < 5.0:
+		f.step(1.0 / 60.0)
+		t += 1.0 / 60.0
+		if landed_at < 0.0 and f.list.all(func(e): return bool(e["land"])):
+			landed_at = t
+	ok(f.list.is_empty() and landed_at > 0.0 and t - landed_at <= FR.STAY + FR.FADE + 0.05, "落地後 %.2f 秒內消失" % (FR.STAY + FR.FADE))
+	var g1 = FR.new()
+	var g2 = FR.new()
+	g1.spawn(Vector2(50, 50), "leaf", 2, 1234)
+	g2.spawn(Vector2(50, 50), "leaf", 2, 1234)
+	ok(str(g1.list) == str(g2.list), "同種子同位置（截圖可重現）")
+	ok(not FR.MAT.has("glow"), "材料表沒有數位光暈")

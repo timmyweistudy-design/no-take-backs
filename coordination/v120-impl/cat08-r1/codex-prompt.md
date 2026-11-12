@@ -1,0 +1,4 @@
+你是《落子無悔》(Godot 4.6.2，GDScript) 的程式審查。只讀檔。專案根目錄是目前資料夾；遊戲在 game/。
+這一批是 1.2.0 第 8 大類「§11 玩法與功能」：規劃 coordination/v120-impl/cat08-plan.md、差異 coordination/v120-impl/cat08-r1/diff.patch（army.gd flip_all／shift_all／align_rows；game_place.gd _deploy_tool；game_screens.gd 鍵；battle_view.gd 重播預跑收書籤；replay_view.gd 書籤繪製與跳轉、分岔比較；coach.gd evidence；game_v16.gd 棋譜本、教練證據字串；game_menus.gd 最近玩的；save.gd 新欄位；新檔 scripts/game/bookmarks.gd、fork_compare.gd、songbook.gd、recent.gd；測試 coach_lab.gd test_play_tools_v120）。
+請特別檢查：①部署工具能不能繞過任何既有限制（雙人輪流落子已落的子、殘局固定兵、遠征限改、車輪戰殘兵、單種上限、地形、試玩版兵種）；②自由模式復原堆疊與框選索引在工具後是否一致；③重播預跑改成逐步後回傳值變成 Array，所有讀 replay_total 的地方、背景執行緒與取消／丟棄路徑是否都對；④書籤跳轉在 seek 進行中、覆盤、看代碼時是否安全；⑤教練 evidence 在背景執行緒、取消、逾時下是否正確，數值是否真的是「同一組敵陣改前改後」；⑥棋譜本與最近玩的：存檔驗型、試玩版、按鈕 lambda 捕捉索引、刪除後重畫；⑦鍵位衝突（M、A、L、[、]、G、Shift＋方向）與改鍵；⑧模擬／舊代碼有沒有被動到。
+附檔案與行號。最多 8 條必改（位置、問題、會怎樣、改法）。900 字內。最後一行「結論：可／有條件／不可」。

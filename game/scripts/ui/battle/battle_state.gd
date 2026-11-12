@@ -507,6 +507,10 @@ func _hit_material(id: int) -> void:
 	if u == null:
 		return
 	var cp: Vector2 = _upos(u) + Vector2(0, -26)
+	if call("_frags_on") and u.type != D.SHIELD:
+		var fk: int = view.tick * 4096 + u.id
+		frags.spawn(_upos(u), "poison" if u.type in [13, 20] else ("ice" if u.type == 19 else "wood"), 2, fk, 26.0)   # 1.2.0 §8.2 命中＝木屑＋墨點（史萊姆＝水彩暈、石魔＝白瓷碎）
+		frags.spawn(_upos(u), "ink", 1, fk + 1, 26.0)
 	match u.type:
 		D.SHIELD:
 			sfx.play("hit_metal", 0.22)

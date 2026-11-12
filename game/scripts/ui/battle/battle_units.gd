@@ -584,7 +584,7 @@ func _draw_units_of(s, dim: bool) -> void:
 	# 第一層：腳底標記與影子（全部先畫，不會被別人的身體整個蓋住時也看得到外圈）
 	var a_now := clampf(accum / 0.05, 0.0, 1.0) if state == St.BATTLE else 1.0
 	var gm: Array = _goal_mark()
-	if live and tm_ghost != null and play_kind == "review":
+	if live and tm_ghost != null and play_kind == "review" and tm_ghost_on:
 		# V1.4 #1 時光機：原本那條時間線的兵畫成地上的淡圈（隊伍色點＋白圈），看得出兩條時間線從哪裡分開
 		for gu in tm_ghost.units:
 			if not gu.alive:

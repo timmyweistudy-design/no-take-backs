@@ -174,6 +174,11 @@ static func sanitize_data(out: Dictionary) -> void:
 			if raw_sl[i] is String and str(raw_sl[i]).length() <= 8000:
 				sl[i] = raw_sl[i]
 	out["slots"] = sl
+	var lf = out.get("last_form", "")
+	out["last_form"] = lf if lf is String and str(lf).length() <= 8000 else ""   # 1.2.0 §11.1：上一陣（陣型碼）
+	out["songbook"] = load("res://scripts/game/songbook.gd").sanitize(out.get("songbook", []))   # 1.2.0 §11.8 棋譜本
+	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）
+	out["recent"] = load("res://scripts/game/recent.gd").valid(out.get("recent", []), ["hub_play", "hub_gauntlet", "hub_challenge", "playroom", "hub_collect"])   # 1.2.0 §11.11
 	for k in ["tutorial", "gauntlet_best", "unlock_games"]:
 		out[k] = _count(out.get(k, 0))
 	for k in ["stats", "custom_stats"]:
@@ -445,6 +450,11 @@ static func sanitize_extras(out: Dictionary) -> void:
 		out.erase("daily_pend")
 	else:
 		out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62), "ver": clampi(int(dp["ver"]), 1, 999) if _is_num(dp.get("ver")) else 1}
+	var rpd = out.get("rift_pend", {})   # 1.2.0 §11.9 天梯待送
+	if not (rpd is Dictionary and _is_num(rpd.get("wk")) and _is_num(rpd.get("score")) and _is_num(rpd.get("ver")) and rpd.get("det") is Array):
+		out.erase("rift_pend")
+	else:
+		out["rift_pend"] = {"wk": int(rpd["wk"]), "score": int(rpd["score"]), "det": _int_list(rpd["det"], 62), "ver": int(rpd["ver"])}
 	var rdy = out.get("rush_day", {})
 	if rdy is Dictionary and _is_num(rdy.get("day")) and _is_num(rdy.get("best")):
 		out["rush_day"] = {"day": int(rdy["day"]), "best": clampi(int(rdy["best"]), 0, 100000)}   # V1.6.1 D1

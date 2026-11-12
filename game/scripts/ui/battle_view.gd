@@ -27,8 +27,9 @@ func _pre_join() -> void:
 	if pre_thread != null:
 		var v = pre_thread.wait_to_finish()
 		pre_thread = null
-		if v != null:
-			replay_total = int(v)
+		if v is Array:
+			replay_total = int(v[0])
+			replay_bm = v[1]
 
 ## 不要等：還在算就留給 _pre_reap 收。
 func _pre_drop() -> void:
@@ -551,6 +552,13 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			_merge_text(ht0.id, EV.HEAL, "+", int(ev["amt"]), _upos(ht0) + Vector2(0, -70), Color("#7dff8a"))
 			_add_fx({"kind": "healring", "p": _upos(ht0) + Vector2(0, 2), "t": 0.0, "dur": 0.35})   # 1.1.0 A7：被補的友軍腳下淡綠藥膏環（≤0.3 格）
 			sfx.play("heal", 0.35)
+			if _frags_on():
+				frags.spawn(_upos(ht0), "leaf", 2, view.tick * 4096 + ht0.id, 30.0)   # 1.2.0 §8.2 薄荷葉片
+			if (ev.get("tags", []) as Array).has(EV.RESCUE):
+				# 1.2.0 擴充「急救契約」：救起的人頭上一句、醫者停手的那 2 秒頭上有「停手」（觀戰時看得懂為什麼醫者不動）
+				_fx_text(_upos(ht0) + Vector2(0, -92), L.t("ev_rescue"), Color("#7dff8a"), 1.0, tz("S"))
+				_fx_text(_upos(hs0) + Vector2(0, -84), L.t("ev_rescue_rest"), Color(1, 1, 1, 0.8), 2.0, tz("C"))
+				sfx.play("bell", 0.4)
 		return
 	if k == EV.DRUM and with_fx:
 		var dr0 = view.unit_by_id(ev["src"])
@@ -578,6 +586,16 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	var s = view.unit_by_id(ev["src"])
 	var t = view.unit_by_id(ev["tgt"])
 	var tags: Array = ev.get("tags", [])
+	if tags.has(EV.EXT_FIRE):
+		# 1.2.0 擴充「火矢」：地上的小火燒到（不是射手出手：不畫箭、不讓射手做攻擊動作）
+		hurt_t[t.id] = time
+		_merge_text(t.id, EV.HIT, "", int(ev["dmg"]), _upos(t) + Vector2(0, -62), Color("#ff9a5a"))
+		_add_fx({"kind": "scorch", "p": _upos(t) + Vector2(0, 2), "t": 0.0, "dur": 0.4})
+		if _frags_on():
+			frags.spawn(_upos(t), "fire", 3, view.tick * 4096 + t.id, 6.0)
+		return
+	if tags.has(EV.BEAT):
+		_add_fx({"kind": "note", "p": _upos(s) + Vector2(0, -78), "t": 0.0, "dur": 0.5})   # 1.2.0 擴充「接拍」：吃到拍點的這一擊，頭上一個音符
 	atk_t[s.id] = time
 	hurt_t[t.id] = time
 	var sp := _upos(s)
@@ -812,18 +830,24 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 		var pa1 = a1.copy()
 		var pr = battle_rules.copy() if battle_rules != null else null
 		var plog: Array = last_cmds.duplicate(true)
-		var run_pre := func() -> int:
+		replay_bm = []
+		var run_pre := func() -> Array:
 			var pre = Sim.new(pa0, pa1, pr)
 			if pre.cmd_on:
 				pre.cmd_play(plog)
 			pre.fast = true
-			pre.run_to_end()
-			return pre.tick
+			var bm: Array = []
+			while not pre.finished:
+				pre.step()
+				BM.collect(pre, bm)   # 1.2.0 §11.2：預跑順手收書籤（不多跑一次模擬）
+			return [pre.tick, bm]
 		if _async_ok():
 			pre_thread = Thread.new()
 			pre_thread.start(run_pre)
 		else:
-			replay_total = run_pre.call()
+			var pv: Array = run_pre.call()
+			replay_total = int(pv[0])
+			replay_bm = pv[1]
 	paused = false
 	follow_id = -1
 	battle_marks.clear()
@@ -863,6 +887,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	zoom_target = 1.0
 	pinch_zoom = 1.0   # V1.4 #18：新的一場不沿用上一場的縮放
 	fx.clear()
+	frags.clear()   # 1.2.0 §8.2
 	dying.clear()
 	atk_t.clear()
 	hurt_t.clear()

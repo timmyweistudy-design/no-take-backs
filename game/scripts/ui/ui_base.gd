@@ -284,6 +284,14 @@ func _fx_on(k: String) -> bool:
 var seek_target := -1      # 第七輪 M3：時間軸分批跳轉的目標
 var replay_snap := {}      # 第七輪 A9：進重播前的結算畫面，返回時原樣還原（不重算、不寫存檔）
 var replay_marks: Array = []   # 第七輪 A7：重播時間軸的關鍵時刻
+var replay_bm: Array = []      # 1.2.0 §11.2 書籤：[{t, kind（death／break）, team}]（重播預跑時收）
+const BM = preload("res://scripts/game/bookmarks.gd")
+const TMC = preload("res://scripts/game/fork_compare.gd")
+const Frags = preload("res://scripts/ui/battle/frags.gd")
+var frags = Frags.new()   # 1.2.0 §8.2 材料碎片（和 FX_CAP 分開計數）
+## 碎片開不開：減少特效、簡化畫面、4 倍速以上都不掉碎片（純裝飾）
+func _frags_on() -> bool:
+	return not bool(Save.s("reduce_fx")) and not bool(Save.s("plain_ui")) and speed < 4.0
 var paused := false        # 重播控制：暫停（第三輪 F2）
 var follow_id := -1       # 重播控制：鏡頭跟著哪一隻
 var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出
@@ -307,6 +315,7 @@ var slow_used := false
 var final_used := false   # 第十輪 F1
 var pinch_zoom := 1.0             # V1.4 #18：雙指縮放戰場（1＝不縮；戰鬥中蓋過自動全景）
 var pinch_center := Vector2.ZERO
+var tm_ghost_on := true       # 1.2.0 §11.3：G 切換原本時間線的白圈
 var tm_ghost = null           # V1.4 #1 時光機：播放「如果」時，原本那條時間線同步跑的模擬（畫淡圈）
 var last_kill := [-1, -10.0]   # V1.3.1 P2：最近一次擊倒 [擊倒者 id, 時間]
 var last_hitter := {}          # 目標 id → 最後打到它的 id
@@ -1350,7 +1359,7 @@ func probe_panel(r: Rect2) -> void:
 ## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
 ## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
 const OBJ_OF := {"puzzles": "fold", "trials": "tube", "codex": "case", "settings": "box", "keys": "box", "profile": "trunk", "nemeses": "ebony",
-	"codes": "letter", "wave_codes": "letter", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
+	"codes": "letter", "wave_codes": "letter", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
 var panel_obj := ""
 
 func _obj_deco(r: Rect2, kind: String) -> void:

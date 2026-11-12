@@ -309,6 +309,58 @@ func flip_group(idx: Array) -> bool:
 			return false
 	return true
 
+## 1.2.0 §11.1 部署工具（格子）：整軍上下翻轉、往前／往後平移一欄（d＝自己視角，+1＝往敵方）。
+## 任何一隻出界、撞格或壓到地形就整筆還原並回 false（兵種、錢、人數不變，所以只驗位置）。
+func flip_all() -> bool:
+	if deploy == "free":
+		var all: Array = []
+		for i in units.size():
+			all.append(i)
+		return flip_group(all)
+	var keep := units.duplicate(true)
+	for u in units:
+		u["row"] = ROWS - 1 - int(u["row"])
+	return _grid_keep_or_undo(keep)
+
+func shift_all(d: int) -> bool:
+	if deploy == "free" or units.is_empty():
+		return false
+	var keep := units.duplicate(true)
+	var dc := d if team == 0 else -d
+	for u in units:
+		u["col"] = int(u["col"]) + dc
+	return _grid_keep_or_undo(keep)
+
+func _grid_keep_or_undo(keep: Array) -> bool:
+	var seen := {}
+	for u in units:
+		var c := int(u["col"])
+		var r := int(u["row"])
+		var key := r * COLS + c
+		if not in_zone(c, r) or seen.has(key) or (terrain != null and terrain.blocked(c * 1000 + 500, r * 1000 + 500, team)):
+			units = keep
+			return false
+		seen[key] = true
+	return true
+
+## 1.2.0 §11.1 部署工具（自由）：把指定的兵（空＝全部）對齊到最近的列中心（y＝k×1000＋500）。不合法就整筆還原。
+func align_rows(idx: Array) -> bool:
+	if deploy != "free" or units.is_empty():
+		return false
+	var ids: Array = idx if not idx.is_empty() else range(units.size())
+	var keep := units.duplicate(true)
+	for i in ids:
+		var p := pos_of(units[i])
+		var ny := clampi(int(floor(p.y / 1000.0)) * 1000 + 500, EDGE, fh - EDGE)
+		units[i]["x"] = p.x
+		units[i]["y"] = ny
+	for i in ids:
+		var p2 := pos_of(units[i])
+		if check_place_xy(int(units[i]["type"]), p2.x, p2.y, i) != "":
+			units = keep
+			return false
+	return true
+
 ## 還有沒有任何合法位置能放卡池裡買得起的兵（§3.8「沒有合法位置」）。
 ## 完整搜尋 0.05 格點陣（Codex 實作第 1 輪：粗點陣會誤判「沒位置」）：先把每個障礙圓蓋到的點標掉，再找沒被蓋的點，最後用 check_place_xy 確認。
 func has_room() -> bool:

@@ -339,6 +339,16 @@ static func weekly_upload(wk: int, score: int, det: PackedInt32Array) -> void:
 	_wire()
 	_lb_put_up("weekly_%d" % wk, [score, det, 1])   # 1＝分數越小越前面
 
+## 1.2.0 §11.9 每週天梯季：裂隙每週一套規則，本機最佳照舊，有 Steam 才送；榜名帶裂隙版本（規則產生器改了新舊不混）。
+static func rift_board(wk: int, ver: int) -> String:
+	return "rift_%d_v%d" % [wk, ver]
+
+static func rift_upload(wk: int, score: int, det: PackedInt32Array, ver: int) -> void:
+	if _steam == null or not _steam.has_method("findOrCreateLeaderboard") or det.is_empty():
+		return
+	_wire()
+	_lb_put_up(rift_board(wk, ver), [score, det, 2])   # 2＝分數越大越前面
+
 static func ghost_fetch(wk: int, done: Callable) -> void:
 	if _steam == null or not _steam.has_method("downloadLeaderboardEntries"):
 		done.call([])
@@ -520,6 +530,12 @@ static func clear_pending(data: Dictionary, name: String, score: int) -> bool:
 		var p: Dictionary = data.get("daily_pend", {})
 		if not p.is_empty() and daily_board(int(p.get("day", -1)), int(p.get("ver", 1))) == name and int(p.get("score", -1)) == score:
 			data.erase("daily_pend")
+			return true
+		return false
+	if name.begins_with("rift_"):
+		var rp: Dictionary = data.get("rift_pend", {})
+		if not rp.is_empty() and rift_board(int(rp.get("wk", -1)), int(rp.get("ver", 0))) == name and int(rp.get("score", -1)) == score:
+			data.erase("rift_pend")
 			return true
 		return false
 	if name.begins_with("weekly_") and data.get("weekly") is Dictionary:

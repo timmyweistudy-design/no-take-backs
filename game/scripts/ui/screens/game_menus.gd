@@ -1303,7 +1303,7 @@ static func code_kind(c: String) -> String:
 		return "army"
 	if p == "NTC1":
 		return "challenge"
-	if p == "NTP1" or p == "NTP2" or p == "NTP3" or p == "NTP4":   # V1.6 #16 出題台碼；V1.6.1 A2 NTP4
+	if p == "NTP1" or p == "NTP2" or p == "NTP3" or p == "NTP4" or p == "NTP5":   # 1.2.0 §11.10 NTP5（地形）   # V1.6 #16 出題台碼；V1.6.1 A2 NTP4
 		return "workshop"
 	if p == "NTS1":
 		return "settings"
@@ -1433,9 +1433,12 @@ func hub_items(kind: String) -> Array:
 			return [["menu_tutorial", "hc_tutorial_d", "book", func(): overlay = ""; _open("tutorial"), true],
 				["menu_vs_ai", "hc_vs_ai_d", "robot", func(): overlay = ""; _open_lobby("ai"), true],
 				["menu_duel", "hc_duel_d", "people", func(): overlay = ""; _open_lobby("duel"), true],
-				["fog_open", "hc_fog_d", "map", func(): overlay = ""; call("_fog_start"), true]]   # V1.6 #20
+				["fog_open", "hc_fog_d", "map", func(): overlay = ""; call("_fog_start"), true],   # V1.6 #20
+				["sw_open", "hc_sw_d", "swap", func(): overlay = ""; call("_swap_start"), true],   # 1.2.0 §11.5 換邊雙局
+				["cp_open", "hc_cp_d", "people", func(): overlay = ""; call("_cp_start"), true]]   # 1.2.0 §11.6 合作布陣
 		"hub_gauntlet":   # V1.0.0 H1／M5：遠征牌＝單人遠征＋雙人接力遠征
 			return [["menu_gauntlet", "hc_gauntlet_d", "flag", func(): overlay = ""; _enter_gauntlet(), not _demo()],
+				["cmp_title", "hc_cmp_d", "book", func(): call("_camp_open"), not _demo()],   # 1.2.0 §11.7 戰役
 				["coop_open", "hc_coop_d", "people", func(): overlay = ""; call("_coop_start"), not _demo()]]   # V1.6 #21
 		"hub_challenge":   # V1.0.0 H1：「挑戰」拆掉，這張牌改成「殘局」：單人求解類
 			return [["menu_puzzle", "hc_puzzle_d", "puzzle", func(): overlay = ""; _open("puzzles"), true],
@@ -1457,7 +1460,8 @@ func hub_items(kind: String) -> Array:
 				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
 				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
 				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
-				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true]]   # V1.6.1 N2 新玩法導覽（常駐）
+				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true],   # V1.6.1 N2 新玩法導覽（常駐）
+				["sb_title", "hc_sb_d", "book", func(): overlay = "songbook"; _focus = 0, true]]   # 1.2.0 §11.8 棋譜本
 	return []
 
 func _draw_hub(kind: String) -> void:
@@ -1498,7 +1502,7 @@ func _draw_hub(kind: String) -> void:
 		var cb: Callable = it[3]
 		var ek := str(it[0])
 		var ci := i
-		_btn(r, "", func(): _nav_push(kind); nav_focus[kind] = ci; nav_hub = kind; Guide.see(Save.data, ek); cb.call(), bool(it[4]), i == 0)
+		_btn(r, "", func(): _nav_push(kind); nav_focus[kind] = ci; nav_hub = kind; Guide.see(Save.data, ek); Save.data["recent"] = Recent.push(Save.data.get("recent", []), kind, ek); cb.call(), bool(it[4]), i == 0)
 		btn_paper = false
 		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
 		_ink_mode = on_paper
@@ -1517,6 +1521,35 @@ func _draw_hub(kind: String) -> void:
 	_btn(Rect2(P.get_center().x - 80, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = ""; nav_hub = "")
 
 const HUBS := ["hub_play", "hub_gauntlet", "hub_challenge", "playroom", "hub_collect"]
+const Recent = preload("res://scripts/game/recent.gd")
+
+## 1.2.0 §11.11 最近玩的：主畫面右上（建議下一步下方）最多 3 顆，點了等於點那張卡片。
+func _draw_recent(y: float) -> void:
+	if overlay != "":
+		return
+	var list: Array = Recent.valid(Save.data.get("recent", []), HUBS)
+	var shown: Array = []
+	for e in list:
+		for it in hub_items(str(e["h"])):
+			if str(it[0]) == str(e["k"]) and bool(it[4]):
+				shown.append([str(e["h"]), it])
+	if shown.is_empty():
+		return
+	_text(Vector2(840, y), L.t("recent_head"), tz("C"), Color(1, 1, 1, 0.85), false, false, 380)
+	y += tz("C") * 1.4
+	for s in shown:
+		var kind: String = s[0]
+		var it: Array = s[1]
+		var ek := str(it[0])
+		var cb: Callable = it[3]
+		btn_paper = true   # Antigravity cat08 #1：紙籤（和主畫面卡片同一套），不是深色膠囊
+		_btn(Rect2(830, y, 400, 40), "", func(): nav_hub = kind; Guide.see(Save.data, ek); Save.data["recent"] = Recent.push(Save.data.get("recent", []), kind, ek); cb.call(), true, false)
+		btn_paper = false
+		_ink_mode = not bool(Save.s("plain_ui"))
+		_icon(str(it[2]), Vector2(852, y + 20), 22.0, Color("#7a4a10") if _ink_mode else ACCENT)
+		_text(Vector2(874, y + (40.0 - tz("S") * 1.2) / 2.0), L.t(ek), tz("S"), INK if _ink_mode else Color.WHITE, false, true, 340)
+		_ink_mode = false
+		y += 46.0
 
 func hub_note(kind: String) -> String:
 	if kind != "playroom":

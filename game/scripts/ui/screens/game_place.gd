@@ -105,8 +105,39 @@ func _start_block_reason() -> String:
 
 
 
+## ── 1.2.0 §11.6 合作布陣 ──
+const CoopPlace = preload("res://scripts/game/coop_place.gd")
+var cp_on := false
+var cp = null
+
+func _cp_on() -> bool:
+	return cp_on and cp != null and mode == Mode.VS_AI
+
+func _cp_start() -> void:
+	var r = RuleSet.standard()
+	rules = r
+	set("challenge_army", null)
+	overlay = ""
+	call("_start_mode", Mode.VS_AI)
+	cp_on = true
+	_cp_reset()
+	_toast(L.t("cp_intro"))
+
+func _cp_reset() -> void:
+	cp = CoopPlace.new(armies[0].budget, RuleSet.priciest_in(armies[0].pool))
+
+func _cp_head() -> String:
+	if cp.done():
+		return L.t("cp_ready")
+	return L.t("cp_turn", ["P1" if cp.player() == 0 else "P2", cp.hand / 2 + 1, cp.hands_each, cp.cap - cp.spent])
+
 func _on_start() -> void:
 	_fp_abort_drag()   # 第六輪：拖曳中按開戰／準備好，拖曳作廢（Codex 實作第 2 輪 #2）
+	if _cp_on() and not cp.done():
+		cp.end_hand()   # 「結束這一手」：換人；買不起就全部結束
+		cp.finish_if_stuck(_cur_army().can_afford_any())
+		sfx.play("turn")
+		return
 	if mode == Mode.DUEL and tp != null and not tp.done():
 		if not tp.end_turn():
 			_toast(L.t("err_cantskip"), true)
@@ -164,12 +195,14 @@ func _on_start() -> void:
 
 func _on_start_go() -> void:
 	last_player_formation = armies[0].units.duplicate(true)
+	if mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET:
+		Save.data["last_form"] = armies[0].to_code()   # 1.2.0 §11.1「複製上一陣」（下次擺陣按 L）
 	_begin_battle(armies[0].copy(), armies[1].copy())
 
 
 
 func _can_edit_existing() -> bool:
-	return not (mode == Mode.DUEL and (tp != null or blind_phase == 2))
+	return not (mode == Mode.DUEL and (tp != null or blind_phase == 2)) and not _cp_on()   # 1.2.0 §11.6：合作布陣不能清空／整軍工具（只能撤自己這一手）
 
 
 
@@ -188,6 +221,12 @@ func _check_place(t: int, c: Vector2i) -> String:
 		return _err_key(why)
 	if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() + 1 > gauntlet_changes:
 		return L.t("err_changes")
+	if _cp_on():
+		var cw: String = cp.check(D.cost(t))   # 1.2.0 §11.6 合作布陣：這一手的上限、手數
+		if cw == "done":
+			return L.t("cp_done")
+		if cw == "cap":
+			return L.t("err_hand", [cp.cap])
 	return _err_key(_cur_army().check_place(t, c.x, c.y))
 
 
@@ -232,6 +271,8 @@ func _try_place(c: Vector2i) -> void:
 			tp.place(selected, c.x, c.y)
 		else:
 			_cur_army().place(selected, c.x, c.y)
+			if _cp_on():
+				cp.placed(c, D.cost(selected))
 		show_place_help = false
 		settle_t[Vector2i(c.x, c.y)] = time   # V1.3.1 P2：格子模式也有放下沉降
 		sfx.play(["place_mid", "place_heavy", "place_light", "place_heavy", "place_light", "place_heavy", "place_light", "place_light", "place_light", "place_heavy"][selected] if selected < 10 else "place_mid")
@@ -250,10 +291,19 @@ func _try_remove(c: Vector2i) -> void:
 	if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) and PZ.is_fixed(PZ.get_puzzle(puzzle_id), c.x, c.y):
 		_toast(L.t("err_locked"), true)
 		return
+	if _cp_on() and not cp.can_remove(c):
+		_toast(L.t("cp_noundo"), true)   # 1.2.0 §11.6：只能撤自己這一手擺的
+		return
 	if mode == Mode.VS_AI and bool(call("wave_is_locked", c)):
 		_toast(L.t("wv_locked"), true)   # V1.4 #11：殘兵不能撤（Antigravity v140-i3）
 		return
+	var rt := -1
+	var ri: int = _cur_army().index_at(c.x, c.y)
+	if ri >= 0:
+		rt = int(_cur_army().units[ri]["type"])
 	if _cur_army().remove_at(c.x, c.y):
+		if _cp_on() and rt >= 0:
+			cp.removed(c, D.cost(rt))
 		sfx.play("k_click", 0.7)
 
 
@@ -592,6 +642,8 @@ func _draw_place_hud() -> void:
 			head = L.t("both_done") if blind_phase == 2 else L.t("blind_turn", [L.t("blue") if blind_phase == 0 else L.t("red"), L.t("red") if blind_phase == 0 else L.t("blue")])
 			if bool(get("sealed_on")) and blind_phase < 2:
 				head = L.t("sealed_turn", [L.t("blue") if blind_phase == 0 else L.t("red"), get("sealed")[blind_phase].size() + 1])   # V1.4 #13
+	elif _cp_on():
+		head = _cp_head()   # 1.2.0 §11.6
 	elif mode == Mode.VS_AI and bool(get("wv_active")):
 		head = L.t("wv_head", [int(get("wv_no")), int(rules.budget_of(1)) if rules != null else 0])   # Antigravity v140-i3：常駐波數
 	elif mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
@@ -615,6 +667,8 @@ func _draw_place_hud() -> void:
 	_text(Vector2(ux, gb.position.y - tz("S") * 0.45), L.t("units_of", [a.count(), a.unit_cap]), tz("S"), TXT_DIM, false, true)
 	if mode == Mode.DUEL and tp != null and rules != null and rules.handicap:
 		_text(Vector2(440, gb.end.y + 2), L.t("hc_both", [rules.budget_of(0), rules.budget_of(1)]), tz("C"), TXT_DIM)
+	elif mode == Mode.DUEL and bool(get("swap_on")):
+		_text(Vector2(440, gb.end.y + 2), call("_swap_who"), tz("C"), ACCENT, false, false, 420)   # 1.2.0 §11.5
 	# 右：規則徽章（非標準時）
 	if rules != null and (mode == Mode.VS_AI or mode == Mode.DUEL):
 		var b := Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai")
@@ -657,6 +711,9 @@ func _draw_place_hud() -> void:
 		_btn_quiet(_card_help_rect(i), "?", _open_codex.bind(i))   # 第七輪 N6：點擊框不變，外觀只留一個小問號，不切到角色
 	var start_label := L.t("start")
 	var start_en := _ready_to_fight()
+	if _cp_on() and not cp.done():
+		start_label = L.t("end_hand")
+		start_en = true
 	if mode == Mode.DUEL and tp != null and not tp.done():
 		start_label = L.t("end_hand")
 		start_en = tp.can_end_turn()
@@ -780,6 +837,8 @@ func _draw_place_help() -> void:
 		lines.append(L.t("place_hint_free"))
 	var kt: Dictionary = Save.s("keys")
 	lines.append(L.t("place_hint_keys", [Keymap.key_name(kt, "prev"), Keymap.key_name(kt, "next"), Keymap.key_name(kt, "start"), Keymap.key_name(kt, "codex")]))
+	if _deploy_tools_ok():
+		lines.append(L.t("place_hint_tools_fp") if _is_free() else L.t("place_hint_tools", [Keymap.key_name(kt, "flip")]))   # 1.2.0 §11.1
 	var body := "\n".join(lines)
 	var w := 520.0
 	var h := text_h(body, tz("S"), w - 28) + 24
@@ -789,6 +848,62 @@ func _draw_place_help() -> void:
 	_text(r.position + Vector2(14, 12), body, tz("S"), Color.WHITE, false, false, w - 28)
 
 
+
+## 1.2.0 §11.1 部署工具（格子：M 上下翻轉、Shift＋←／→ 整軍後退／前進一欄；自由：A 對齊列；兩種：L 複製上一陣）。
+## 只在可以改已擺的兵時能用（雙人輪流落子、殘局固定兵、遠征限改都照舊擋）；不合法整筆還原並提示。
+func _deploy_tools_ok() -> bool:
+	return _can_edit_existing() and not _cp_on() and mode != Mode.TUTORIAL and mode != Mode.PUZZLE and not (mode == Mode.GAUNTLET and gauntlet_stage > 1) and not (mode == Mode.VS_AI and bool(get("wv_active")))
+
+func _deploy_tool(id: String) -> bool:
+	if not _deploy_tools_ok():
+		return false
+	var a = _cur_army()
+	var ok := false
+	match id:
+		"flip":
+			if a.deploy == "free":
+				return false   # 自由模式的 M 是翻轉選取（free_place.gd）
+			ok = a.flip_all()
+		"fwd", "back":
+			if a.deploy == "free":
+				return false
+			ok = a.shift_all(1 if id == "fwd" else -1)
+		"align":
+			if a.deploy != "free":
+				return false
+			var snap: Array = a.units.duplicate(true)
+			ok = a.align_rows(fp_sel)
+			if ok:
+				_undo_commit(a, snap)   # 成功而且真的有變才記復原（失敗不動復原／重做歷史；Codex cat08 #2）
+		"last":
+			if a != armies[0]:
+				return false   # 上一陣是藍方（玩家）的陣；暗擺紅方、雙人紅方不給（_load_checked 只換藍方；Codex cat08 #1）
+			var code := str(Save.data.get("last_form", ""))
+			if code == "":
+				_toast(L.t("dt_no_last"), true)
+				return true
+			var snap2: Array = a.units.duplicate(true)
+			ok = _load_checked(code) == ""
+			if ok and a.deploy == "free":
+				_undo_commit(a, snap2)
+	if ok:
+		sfx.play("k_click", 0.7)
+		if id != "last":
+			_toast(L.t("dt_" + id))
+		else:
+			_toast(L.t("code_loaded"))
+	else:
+		_toast(L.t("dt_bad"), true)
+	return true
+
+## 工具成功後補一筆復原：把「改之前」的陣型推進復原堆疊（不改目前陣型）；沒變就不推。
+func _undo_commit(a, before: Array) -> void:
+	if a.deploy != "free" or a.units == before:
+		return
+	var after: Array = a.units.duplicate(true)
+	a.units = before
+	_fp_push_undo()
+	a.units = after
 
 func _clear_mine() -> void:
 	var a = _cur_army()

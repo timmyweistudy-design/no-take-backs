@@ -280,6 +280,138 @@ func _sealed_start() -> void:
 	sealed = [[], []]
 	_toast(L.t("sealed_intro"))
 
+## ── 1.2.0 §11.7 戰役「老闆的棋館」 ──
+const Campaign = preload("res://scripts/game/campaign.gd")
+var camp_id := ""      # 正在打的戰役關（""＝不是戰役）
+var camp_ch := 1       # 戰役面板目前看第幾章
+
+func _camp_open() -> void:
+	overlay = "campaign"
+	_focus = 0
+	for ch in Campaign.chapters():   # 打開時停在第一個還沒通的章
+		if not Campaign.chapter_cleared(Save.data, ch):
+			camp_ch = int(ch["n"])
+			break
+
+func _camp_play(id: String) -> void:
+	var st := Campaign.stage(id)
+	if st.is_empty() or not Campaign.unlocked(Save.data, id):
+		return
+	overlay = ""
+	if str(st["goal"]) == "puzzle":
+		var pid := Campaign.puzzle_id(st)
+		if pid != "":
+			call("_pick_puzzle", pid, false)
+		return
+	var r = Campaign.rules_of(st)
+	rules = r
+	challenge_army = Campaign.enemy_of(st, r)
+	_start_mode(Mode.VS_AI)
+	camp_id = id
+	_toast(_camp_goal(st))
+
+func _camp_goal(st: Dictionary) -> String:
+	match str(st["goal"]):
+		"keep":
+			return L.t("cmp_g_keep", [int(st["keep"])])
+		"time":
+			return L.t("cmp_g_time", [int(st["secs"])])
+	return L.t("cmp_g_win")
+
+## 正式打完（_finish_battle）：評星、存檔，結果頁第一條事實寫目標達成沒有
+func _camp_settle() -> void:
+	if camp_id == "" or mode != Mode.VS_AI or play_kind != "official" or sim == null:
+		return
+	var st := Campaign.stage(camp_id)
+	var alive0 := 0
+	for u in sim.units:
+		if u.team == 0 and u.alive and not u.summon:
+			alive0 += 1
+	var stars := Campaign.grade(st, sim.winner == 0, alive0, sim.tick, PZ.rem_pct(sim.power(0), sim.budget_of(0)))
+	camp_last = stars
+	if Campaign.record(Save.data, camp_id, stars):
+		Save.save_data()
+
+var camp_last := 0
+
+func _camp_fact() -> String:
+	var st := Campaign.stage(camp_id)
+	return (L.t("cmp_done", [camp_last]) if camp_last > 0 else L.t("cmp_fail")) + "　" + _camp_goal(st)
+
+func _draw_campaign() -> void:
+	_dim(0.6)
+	var chs: Array = Campaign.chapters()
+	var rowh := maxf(44.0, tz("B") * 1.9)
+	var P := modal_rect(820, 12.0 + h1_help_h(L.t("cmp_note_%d" % camp_ch), tz("S"), 740) + GAP_L + 48.0 + GAP_M + 7.0 * (rowh + 6.0) + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("cmp_title"), L.t("cmp_note_%d" % camp_ch), tz("S"), 740) + GAP_L
+	var tw := 140.0
+	var tx := 640.0 - (chs.size() * (tw + 8.0) - 8.0) / 2.0
+	for ch in chs:
+		var n := int(ch["n"])
+		var first: Dictionary = ch["stages"][0]
+		var open := Campaign.unlocked(Save.data, str(first["id"]))
+		var lab := L.t("cmp_ch", [n]) + ("　✓" if Campaign.chapter_cleared(Save.data, ch) else "")
+		_btn(Rect2(tx, y, tw, 44), lab, func(): camp_ch = n, open, n == camp_ch)
+		tx += tw + 8.0
+	y += 48.0 + GAP_M
+	for ch2 in chs:
+		if int(ch2["n"]) != camp_ch:
+			continue
+		var k := 0
+		for st in ch2["stages"]:
+			k += 1
+			var sid := str(st["id"])
+			var open2 := Campaign.unlocked(Save.data, sid)
+			var r := Rect2(P.position.x + 40, y, P.size.x - 80, rowh)
+			draw_rect(r, Color(0, 0, 0, 0.18))
+			var nm := L.t("cmp_stage", [camp_ch, k]) if str(st["goal"]) != "puzzle" else L.t("cmp_puzzle", [camp_ch])
+			_text(r.position + Vector2(14, (rowh - tz("B") * 1.2) / 2.0), nm, tz("B"), Color.WHITE if open2 else TXT_DIM, false, true, 220)
+			_text(r.position + Vector2(250, (rowh - tz("S") * 1.2) / 2.0), _camp_goal(st) if str(st["goal"]) != "puzzle" else L.t("cmp_g_puzzle"), tz("S"), TXT_DIM, false, false, r.size.x - 250 - 260)
+			var sn := Campaign.stars_of(Save.data, st)
+			_text(Vector2(r.end.x - 250, r.position.y + (rowh - tz("B") * 1.2) / 2.0), "★".repeat(sn) + "☆".repeat(3 - sn), tz("B"), ACCENT if sn > 0 else TXT_DIM, false, true, 100)
+			_btn(Rect2(r.end.x - 136, r.position.y + (rowh - 40.0) / 2.0, 124, 40), L.t("cmp_go"), func(): _camp_play(sid), open2)
+			y += rowh + 6.0
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+## ── 1.2.0 §11.5 換邊雙局 ──
+const SwapDuel = preload("res://scripts/game/swap_duel.gd")
+var swap_on := false
+var sw_pts := [0, 0]    # 玩家 A、B 的分數（剩餘戰力百分比合計）
+var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+
+func _swap_start() -> void:
+	var r = RuleSet.standard()
+	r.rounds = 3   # 用三戰兩勝的局數上限，實際由換邊雙局在第 2 局結束
+	rules = r
+	challenge_army = null
+	overlay = ""
+	_start_mode(Mode.DUEL)
+	swap_on = true
+	sw_pts = [0, 0]
+	sw_dead = [0, 0]
+	_toast(L.t("sw_intro"))
+
+## 每局正式打完（_finish_battle）：記分；第 2 局後系列結束
+func _swap_settle() -> void:
+	if not swap_on or mode != Mode.DUEL or play_kind != "official" or sim == null:
+		return
+	var r: Array = SwapDuel.settle(sw_pts, sw_dead, round_no, sim)
+	sw_pts = r[0]
+	sw_dead = r[1]
+	series_over = round_no >= SwapDuel.ROUNDS
+
+## 擺陣頂部：誰是哪一色（第 2 局換過來）
+func _swap_who() -> String:
+	return L.t("sw_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red"), L.t("red") if SwapDuel.owner(round_no, 0) == 0 else L.t("blue")])
+
+## 結果頁第一條事實
+func _swap_fact() -> String:
+	if not series_over:
+		return L.t("sw_round", [int(sw_pts[0]), int(sw_pts[1])])
+	var v := SwapDuel.verdict(sw_pts, sw_dead)
+	return L.t("sw_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_a") if v == 0 else (L.t("sw_b") if v == 1 else L.t("sw_tie"))])
+
 ## 揭封：第 k 封放回兩邊（鎖定，不能改），之後照一般「開戰」。
 func _sealed_reveal(k: int) -> void:
 	armies[0].units = sealed[0][k].duplicate(true)
@@ -297,7 +429,7 @@ const PAINT_HI := [3, 3, 2, 2, 3, 3]
 
 func _paint_apply() -> void:
 	var p = Save.data.get("paint", [0, 0, 1, 1, 0, 0])
-	var ach_n: int = Save.data.get("achievements", []).size()
+	var ach_n: int = Save.data.get("achievements", []).size() + Campaign.cleared(Save.data)   # 1.2.0 §11.7：每通一章戰役＋1
 	if p is Array and p.size() == 6:
 		for i in 6:
 			var v := clampi(int(p[i]), 0, int(PAINT_HI[i]))
@@ -335,7 +467,7 @@ func _draw_paint() -> void:
 	var P := Rect2(150, 60, 980, 680)
 	_panel(P)
 	_h1(Vector2(640, 72), L.t("paint_head"))
-	var ach_n: int = Save.data.get("achievements", []).size()
+	var ach_n: int = Save.data.get("achievements", []).size() + Campaign.cleared(Save.data)   # 1.2.0 §11.7：每通一章戰役＋1
 	# 左：試塗棋盤（棋盤框＋氈布＋兩軍各三隻）。向量直接畫，改了馬上看得到
 	var B := Rect2(184, 150, 320, 430)
 	var fr_i := clampi(int(Art.paint[5]), 0, 3)

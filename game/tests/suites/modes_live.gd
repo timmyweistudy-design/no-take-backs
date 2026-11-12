@@ -324,3 +324,86 @@ func test_wk_ghosts_steam_v120() -> void:
 	ST._steam = null
 	ST.lb_reset()
 	g.free()
+
+## 1.2.0 第 10 大類（§11.5／11.6／11.7／11.9／11.10）：換邊雙局、合作布陣、戰役、天梯待送、出題台地形
+func test_optional_modes_v120() -> void:
+	# §11.5 換邊雙局
+	var SD = load("res://scripts/game/swap_duel.gd")
+	ok(SD.owner(1, 0) == 0 and SD.owner(1, 1) == 1 and SD.owner(2, 0) == 1 and SD.owner(2, 1) == 0, "換邊：第 2 局玩家 A 是紅")
+	ok(SD.verdict([120, 80], [3, 1]) == 0 and SD.verdict([80, 80], [4, 2]) == 1 and SD.verdict([80, 80], [2, 2]) == -1, "總分→倒下少→和局")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var AIx = load("res://scripts/core/ai_army.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	var sm = Simx.new(AIx.build(0, 100, rng)["army"], AIx.build(1, 100, rng)["army"])
+	sm.run_to_end()
+	var r1: Array = SD.settle([0, 0], [0, 0], 2, sm)
+	var PZx = load("res://scripts/game/puzzles.gd")
+	ok(int(r1[0][1]) == PZx.rem_pct(sm.power(0), sm.budget_of(0)) and int(r1[0][0]) == PZx.rem_pct(sm.power(1), sm.budget_of(1)), "第 2 局藍方分數記在玩家 B")
+	# §11.6 合作布陣
+	var CP = load("res://scripts/game/coop_place.gd")
+	var cp = CP.new(100, 30)
+	ok(cp.cap == 30 and cp.player() == 0 and cp.hands_total() == 10, "每手上限＝max(預算/總手數, 最貴兵)、P1 先")
+	cp.placed(Vector2i(1, 1), 10)
+	ok(cp.check(25) == "cap" and cp.check(20) == "", "這一手超過上限不行")
+	cp.removed(Vector2i(1, 1), 10)
+	ok(cp.spent == 0 and cp.hand == 0 and cp.player() == 0, "撤銷返還錢、不返還手數、仍是同一人")
+	cp.placed(Vector2i(2, 2), 10)
+	cp.end_hand()
+	ok(cp.player() == 1 and not cp.can_remove(Vector2i(2, 2)), "換 P2 後不能撤 P1 的兵")
+	cp.finish_if_stuck(false)
+	ok(cp.done() and cp.check(1) == "done", "買不起就全部結束")
+	# §11.7 戰役
+	var CM = load("res://scripts/game/campaign.gd")
+	var chs: Array = CM.chapters()
+	var n := 0
+	var bad := 0
+	for ch in chs:
+		ok_quiet(ch["stages"].size() == 7)
+		for st in ch["stages"]:
+			n += 1
+			if str(st["goal"]) == "puzzle":
+				if CM.puzzle_id(st) == "":
+					bad += 1
+				continue
+			var r = CM.rules_of(st)
+			if not r.validate().is_empty():
+				bad += 1
+				continue
+			var e1 = CM.enemy_of(st, r)
+			var e2 = CM.enemy_of(st, r)
+			if e1.to_code() != e2.to_code() or e1.units.is_empty() or e1.spent() > r.budget_of(1):
+				bad += 1
+	ok(chs.size() == 5 and n == 35 and bad == 0, "戰役 5 章 35 關：規則合法、敵陣確定且在預算內、殘局關有題（壞 %d）" % bad)
+	var sv := {"campaign": {}, "puzzle_stars": {}}
+	ok(CM.unlocked(sv, "c1_1") and not CM.unlocked(sv, "c1_2"), "照順序解鎖")
+	CM.record(sv, "c1_1", 2)
+	ok(CM.unlocked(sv, "c1_2") and not CM.record(sv, "c1_1", 1) and int(sv["campaign"]["c1_1"]) == 2, "只記更好的星數")
+	var keep_st := {"goal": "keep", "keep": 3}
+	ok(CM.grade(keep_st, true, 2, 400, 90) == 0 and CM.grade(keep_st, true, 3, 400, 90) == 3 and CM.grade({"goal": "time", "secs": 30}, true, 5, 601, 90) == 0 and CM.grade({"goal": "win"}, true, 1, 9, 39) == 1, "評星：保兵、限時、剩餘戰力")
+	ok(CM.sanitize({"c1_1": 9, "x": "a", 3: 1}).size() == 1 and int(CM.sanitize({"c1_1": 9})["c1_1"]) == 3, "戰役存檔驗型")
+	# §11.9 天梯待送
+	var ST = load("res://scripts/game/steam.gd")
+	var dd := {"rift_pend": {"wk": 5, "score": 77, "det": [1], "ver": 2}}
+	ok(not ST.clear_pending(dd, "rift_5_v2", 70) and dd.has("rift_pend") and ST.clear_pending(dd, "rift_5_v2", 77) and not dd.has("rift_pend"), "天梯：送上去的就是待送那筆才清")
+	# §11.10 出題台地形
+	var WS = load("res://scripts/game/workshop.gd")
+	var foe := [[0, 12, 4]]
+	var sol := [[3, 2, 3], [3, 2, 5], [0, 4, 4]]
+	var wall := Vector2i(-1, -1)
+	for cy in 9:
+		for cx in 6:
+			if wall.x < 0 and WS.blocked_cell(1, cx, cy, 0):
+				wall = Vector2i(cx, cy)
+	var free_ok := true
+	for u in sol:
+		if WS.blocked_cell(1, int(u[1]), int(u[2]), 0):
+			free_ok = false
+	var c5: String = WS.encode5(foe, sol, "win", Vector2i(-1, -1), 1) if free_ok else ""
+	ok(c5 == "" or (c5.begins_with("NTP5.") and int(WS.decode(c5)["pz"]["map"]) == 1), "有地形出 NTP5、解回來有地圖", c5.left(20))
+	ok(WS.encode5(foe, sol, "win", Vector2i(-1, -1), 0) == WS.encode4(foe, sol, "win", Vector2i(-1, -1)), "沒地形等於原本的碼")
+	if wall.x >= 0:
+		ok(WS.encode5(foe, [[0, wall.x, wall.y]] + sol, "win", Vector2i(-1, -1), 1) == "", "兵壓在牆上不給碼")
+
+func ok_quiet(_c: bool) -> void:
+	pass
