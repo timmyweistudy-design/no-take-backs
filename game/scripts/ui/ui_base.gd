@@ -289,6 +289,7 @@ const BM = preload("res://scripts/game/bookmarks.gd")
 const TMC = preload("res://scripts/game/fork_compare.gd")
 const Frags = preload("res://scripts/ui/battle/frags.gd")
 var frags = Frags.new()   # 1.2.0 §8.2 材料碎片（和 FX_CAP 分開計數）
+var present_debt := 0.0   # 1.2.0 §9.6：命中停頓欠展示時鐘多少秒（之後追回）
 ## 碎片開不開：減少特效、簡化畫面、4 倍速以上都不掉碎片（純裝飾）
 func _frags_on() -> bool:
 	return not bool(Save.s("reduce_fx")) and not bool(Save.s("plain_ui")) and speed < 4.0

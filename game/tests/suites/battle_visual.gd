@@ -664,7 +664,7 @@ func test_char2_v120() -> void:
 func test_frags_v120() -> void:
 	var FR = load("res://scripts/ui/battle/frags.gd")
 	var f = FR.new()
-	f.spawn(Vector2(100, 100), "wood", 9, 1)
+	f.spawn(Vector2(160, 130), "wood", 9, 1)
 	ok(f.list.size() <= FR.PER_CELL, "同一格最多 %d 片（一次 9 片也只留 %d）" % [FR.PER_CELL, f.list.size()])
 	f.clear()
 	for k in 40:
@@ -675,8 +675,8 @@ func test_frags_v120() -> void:
 	# 跨格聚集：兩格各 2 片往同一格飛，移動後同一格仍 ≤ 2
 	var h = FR.new()
 	for k in 2:
-		h.list.append({"p": Vector2(10 + k, 10), "z": 0.0, "vx": 0.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": true, "born": k})
-		h.list.append({"p": Vector2(60 + k, 10), "z": 0.0, "vx": -2400.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": false, "born": 10 + k})
+		h.list.append({"p": Vector2(140 + k, 110), "z": 0.0, "vx": 0.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": true, "born": k})
+		h.list.append({"p": Vector2(200 + k, 110), "z": 0.0, "vx": -2400.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": false, "born": 10 + k})
 	h.step(0.02)
 	var cnt := {}
 	for e in h.list:

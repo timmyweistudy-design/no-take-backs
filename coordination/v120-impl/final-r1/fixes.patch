@@ -1,0 +1,499 @@
+diff --git a/game/scripts/game/campaign.gd b/game/scripts/game/campaign.gd
+index 65427e0..f76df82 100644
+--- a/game/scripts/game/campaign.gd
++++ b/game/scripts/game/campaign.gd
+@@ -33,14 +33,14 @@ static func stars_of(save: Dictionary, st: Dictionary) -> int:
+ 		return int(save.get("puzzle_stars", {}).get(puzzle_id(st), 0))
+ 	return int(save.get("campaign", {}).get(str(st["id"]), 0))
+ 
+-## 照順序：前一關（含跨章的前一章最後一關）有星才開
++## 照順序：前面每一關（含前面各章的殘局）都有星才開（不能靠以前打過的殘局跳章；Codex cat10 #2）
+ static func unlocked(save: Dictionary, id: String) -> bool:
+-	var prev := {}
+ 	for ch in chapters():
+ 		for st in ch["stages"]:
+ 			if str(st["id"]) == id:
+-				return prev.is_empty() or stars_of(save, prev) > 0
+-			prev = st
++				return true
++			if stars_of(save, st) <= 0:
++				return false
+ 	return false
+ 
+ static func chapter_cleared(save: Dictionary, ch: Dictionary) -> bool:
+@@ -69,19 +69,29 @@ static func enemy_of(st: Dictionary, r):
+ 	g.seed = int(st["seed"])
+ 	return AI.build(1, r.budget_of(1), g, -1, r.pool_of(1), r)["army"]
+ 
+-## 結算：目標達成給 1 星；剩餘戰力 ≥40% 再 1 星、≥70% 再 1 星。沒達成＝0。
+-## keep：贏且我方（不含召喚）至少 N 隻活著；time：贏且 tick ≤ 秒×20。
+-static func grade(st: Dictionary, won: bool, alive0: int, ticks: int, rem_pct: int) -> int:
++## 結算：目標達成給 1 星；剩餘戰力 ≥ star2% 再 1 星、≥ star3% 再 1 星（門檻在關卡資料）。沒達成＝0。
++## keep：贏、我方（不含召喚）至少 N 隻活著，而且「最貴的那隻」（護衛對象）要活著；time：贏且 tick ≤ 秒×20。
++static func grade(st: Dictionary, won: bool, alive0: int, ticks: int, rem_pct: int, guard_alive := true) -> int:
+ 	if not won:
+ 		return 0
+ 	match str(st.get("goal", "win")):
+ 		"keep":
+-			if alive0 < int(st.get("keep", 1)):
++			if alive0 < int(st.get("keep", 1)) or not guard_alive:
+ 				return 0
+ 		"time":
+ 			if ticks > int(st.get("secs", 60)) * 20:
+ 				return 0
+-	return 1 + (1 if rem_pct >= 40 else 0) + (1 if rem_pct >= 70 else 0)
++	return 1 + (1 if rem_pct >= int(st.get("star2", 40)) else 0) + (1 if rem_pct >= int(st.get("star3", 70)) else 0)
++
++## 護衛對象：我方（不含召喚）最貴的那隻，同價取 id 小的
++static func guard_of(units: Array, cost_of: Callable):
++	var best = null
++	for u in units:
++		if u.team != 0 or u.summon:
++			continue
++		if best == null or int(cost_of.call(u.type)) > int(cost_of.call(best.type)) or (int(cost_of.call(u.type)) == int(cost_of.call(best.type)) and u.id < best.id):
++			best = u
++	return best
+ 
+ static func record(save: Dictionary, id: String, stars: int) -> bool:
+ 	var c: Dictionary = save.get("campaign", {})
+diff --git a/game/scripts/game/rift.gd b/game/scripts/game/rift.gd
+index 4cd7f18..079defd 100644
+--- a/game/scripts/game/rift.gd
++++ b/game/scripts/game/rift.gd
+@@ -5,7 +5,8 @@ const Daily = preload("res://scripts/game/daily.gd")
+ const CMD = preload("res://scripts/core/cmd_defs.gd")
+ const AI = preload("res://scripts/core/ai_army.gd")
+ 
+-const VER := 2   # V1.6.1 N5：加了「不同時出現」的組合，同一週抽到的可能不同 → 升版（紀錄鍵分開）
++const VER := 3   # 1.2.0 §11.9：週界改成 UTC 週一 00:00（天梯季），週數算法變了 → 升版，新舊紀錄與排行榜分開（Codex cat10 #6）
++# V1.6.1 N5：加了「不同時出現」的組合，同一週抽到的可能不同 → 升版（紀錄鍵分開）
+ ## V1.6.1 N5：AI 代理量測（tools/balance/v161_metrics.gd --what=rift，26 週×24 場）時間到比例 40～70% 的組合，不同時出現。
+ ## 「每種一隻」配上「大軍」「窮」「地形」，或「奇幻」配「地形」「大軍」：雙方磨到時間到。
+ const BAD := [["rf_solo", "rf_horde"], ["rf_solo", "rf_poor"], ["rf_solo", "rf_terrain"], ["rf_fantasy", "rf_terrain"], ["rf_fantasy", "rf_horde"]]
+@@ -25,7 +26,11 @@ const ANOMS := [["rf_deep", "depth"], ["rf_short", "ticks"], ["rf_rich", "budget
+ const PICK := 3
+ 
+ static func week() -> int:
+-	return int(Time.get_unix_time_from_system()) / 86400 / 7
++	return week_of(int(Time.get_unix_time_from_system()))
++
++## 1970-01-01 是週四：日數＋3 再除 7，週界落在 UTC 週一 00:00（方案 §11 天梯季）
++static func week_of(unix: int) -> int:
++	return (unix / 86400 + 3) / 7
+ 
+ ## 這一週的異變（固定種子；同類別不重複；套上去規則不合法的跳過）
+ static func picks(wk: int, mask: int) -> Array:
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index bbad85b..d8dfae8 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -2,7 +2,7 @@ extends RefCounted
+ ## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
+ ## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
+ 
+-const SAVE_VERSION := 3   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則
++const SAVE_VERSION := 4   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則；4：1.2.0 戰役 campaign、棋譜本、最近玩的、上一陣
+ const MAX_PRESETS := 10   # V1.5：5 → 10 格
+ static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
+ 
+@@ -571,6 +571,12 @@ static func migrate(d: Dictionary) -> Dictionary:
+ 		var st = out.get("stats", {})
+ 		out["unlock_games"] = _count(st.get("games", 0)) if st is Dictionary else 0
+ 		v = 3
++	if v < 4:
++		# 3 → 4（1.2.0 §11）：補戰役進度、棋譜本、最近玩的、上一陣（舊進度全保留）
++		for kv in [["campaign", {}], ["songbook", []], ["recent", []], ["last_form", ""]]:
++			if not out.has(kv[0]):
++				out[kv[0]] = kv[1]
++		v = 4
+ 	# 我的預設：逐筆驗型、限長、最多 5 組（Codex 第一輪）
+ 	var ps: Array = []
+ 	var raw = out.get("rule_presets", [])
+diff --git a/game/scripts/ui/battle/frags.gd b/game/scripts/ui/battle/frags.gd
+index 6ee0eb4..26909a9 100644
+--- a/game/scripts/ui/battle/frags.gd
++++ b/game/scripts/ui/battle/frags.gd
+@@ -80,6 +80,25 @@ func step(dt: float) -> void:
+ 		if float(f["t"]) < STAY + FADE:
+ 			keep.append(f)
+ 	list = keep
++	_enforce_cells()
++
++## 碎片會水平飛：移動後重新分格，每格只留最新的 PER_CELL 片（Codex cat09 #2）
++func _enforce_cells() -> void:
++	var by := {}
++	for f in list:
++		var c := _cell(f["p"])
++		if not by.has(c):
++			by[c] = []
++		by[c].append(f)
++	var drop := {}
++	for c in by:
++		var arr: Array = by[c]
++		if arr.size() > PER_CELL:
++			arr.sort_custom(func(a, b): return int(a["born"]) > int(b["born"]))
++			for k in range(PER_CELL, arr.size()):
++				drop[int(arr[k]["born"])] = true
++	if not drop.is_empty():
++		list = list.filter(func(f): return not drop.has(int(f["born"])))
+ 
+ func draw(ci: CanvasItem) -> void:
+ 	for f in list:
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index 14ca7bb..a3876da 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -210,6 +210,8 @@ func _sim_step(with_fx: bool) -> void:
+ func _pump_view() -> void:
+ 	for fr in view.pump(sim):
+ 		for e in fr["events"]:
++			if e.get("tags", []).has(EV.EXT_FIRE):
++				continue   # 1.2.0 火矢的小火：不是射手出手，不排拉弓、飛箭（Codex cat09 #1）
+ 			# 第四輪：補血、戰鼓也走出手動畫；被貼身敲人、破陣、補血、戰鼓用專屬動作（variant 2）
+ 			if e["kind"] == EV.HEAL or e["kind"] == EV.DRUM or e["kind"] == EV.BONK or e.get("tags", []).has(EV.BREACH):
+ 				var ah: Dictionary = alt_hit.get(e["src"], {})
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 6937b51..3cb4415 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -603,7 +603,10 @@ func _process_inner(delta: float) -> void:
+ 			if f.has("pop"):
+ 				f["pop"] = maxf(0.0, f["pop"] - delta)
+ 		fx = fx.filter(func(f): return f["t"] < f["dur"])
+-		frags.step(delta)
++		if _frags_on():
++			frags.step(delta)
++		else:
++			frags.clear()   # 戰鬥中切減少特效／簡化／4 倍速：舊碎片也收掉（Codex cat09 #3）
+ 		clutch_t = maxf(0.0, clutch_t - delta)
+ 	for g in dying:
+ 		var t0: float = g["t"]
+@@ -695,7 +698,7 @@ func _draw_inner() -> void:
+ 			_draw_tactical()
+ 		_v16_place_draw()   # V1.6 #6
+ 	else:
+-		if state == St.BATTLE:
++		if state == St.BATTLE and _frags_on():
+ 			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
+ 		_draw_units_of(view, false)
+ 		if state == St.BATTLE:
+diff --git a/game/scripts/ui/replay_view.gd b/game/scripts/ui/replay_view.gd
+index 0e8cfc1..b3c0ae6 100644
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -670,6 +670,7 @@ func _rv_play() -> void:
+ 		_seek_async(rv_div - 40)
+ 
+ func _draw_review() -> void:
++	_boss_note("review", "review")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
+ 	_panel(Rect2(100, 40, 1080, 720))   # V1.5.2：面板上緣提到 40、底列移到 704，英文／日文 150% 走勢說明不壓到「重播」鈕
+ 	# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時左右兩欄一起往下（dy），不壓到「你的部署」與兵種鈕
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index eafcd54..fe07ad0 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -26,6 +26,7 @@ func _leave_confirm() -> void:
+ 	_go_title()
+ 
+ func _go_title() -> void:
++	call("_rift_sync")   # 1.2.0 §11.9：回主畫面時補送當週天梯成績（沒有連線事件可接，回主畫面是固定的重試點；Codex cat10 #7）
+ 	var rs = get("rush")
+ 	if rs is Dictionary and bool(rs.get("on", false)):
+ 		rs["on"] = false   # V1.6 #8：離開就結束極速賽（不記紀錄）
+@@ -115,6 +116,8 @@ func _cp_on() -> bool:
+ 
+ func _cp_start() -> void:
+ 	var r = RuleSet.standard()
++	var dm: int = RS.mask(_demo())
++	r.pool = [int(r.pool_of(0)) & dm, int(r.pool_of(1)) & dm]   # 標準卡池再扣掉試玩版沒有的兵（Codex cat10 #5）
+ 	rules = r
+ 	set("challenge_army", null)
+ 	overlay = ""
+@@ -742,7 +745,11 @@ func _draw_place_hud() -> void:
+ 		draw_rect(br, Color(0.45, 0.12, 0.12, 0.92))
+ 		draw_rect(br, Color("#ff8a8a"), false, 2.0)
+ 		_text(Vector2(640, br.position.y + tz("B") * 0.35), removed_banner, tz("B"), Color.WHITE, true, true)
+-	if mode == Mode.VS_AI and not watch_mode:
++	if _cp_on():
++		_boss_note("coop")   # 1.2.0 §12.2
++	elif mode == Mode.DUEL and bool(get("swap_on")):
++		_boss_note("swap")
++	elif mode == Mode.VS_AI and not watch_mode:
+ 		_boss_note("place")   # 1.2.0 §12：第一次擺陣的便條
+ 
+ 
+diff --git a/game/scripts/ui/screens/game_playroom.gd b/game/scripts/ui/screens/game_playroom.gd
+index 9188d0b..e8d68b2 100644
+--- a/game/scripts/ui/screens/game_playroom.gd
++++ b/game/scripts/ui/screens/game_playroom.gd
+@@ -327,7 +327,8 @@ func _camp_settle() -> void:
+ 	for u in sim.units:
+ 		if u.team == 0 and u.alive and not u.summon:
+ 			alive0 += 1
+-	var stars := Campaign.grade(st, sim.winner == 0, alive0, sim.tick, PZ.rem_pct(sim.power(0), sim.budget_of(0)))
++	var gu = Campaign.guard_of(sim.units, func(t): return D.cost(t))
++	var stars := Campaign.grade(st, sim.winner == 0, alive0, sim.tick, PZ.rem_pct(sim.power(0), sim.budget_of(0)), gu != null and gu.alive)
+ 	camp_last = stars
+ 	if Campaign.record(Save.data, camp_id, stars):
+ 		Save.save_data()
+@@ -339,6 +340,7 @@ func _camp_fact() -> String:
+ 	return (L.t("cmp_done", [camp_last]) if camp_last > 0 else L.t("cmp_fail")) + "　" + _camp_goal(st)
+ 
+ func _draw_campaign() -> void:
++	_boss_note("campaign", "campaign")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
+ 	var chs: Array = Campaign.chapters()
+ 	var rowh := maxf(44.0, tz("B") * 1.9)
+@@ -382,6 +384,8 @@ var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+ 
+ func _swap_start() -> void:
+ 	var r = RuleSet.standard()
++	var dm: int = RS.mask(_demo())
++	r.pool = [int(r.pool_of(0)) & dm, int(r.pool_of(1)) & dm]   # 標準卡池再扣掉試玩版沒有的兵（Codex cat10 #5）
+ 	r.rounds = 3   # 用三戰兩勝的局數上限，實際由換邊雙局在第 2 局結束
+ 	rules = r
+ 	challenge_army = null
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index b52a531..2e90452 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -308,6 +308,8 @@ func _draw_result() -> void:
+ 	# 試煉只有一場，不顯示「三戰兩勝結束」（使用者截圖；大字級時還會壓到按鈕）
+ 	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL) and int(get("trial_id")) < 0:
+ 		var sw := L.t("series_draw") if wins[0] == wins[1] else L.t("series_win", [L.t("blue") if wins[0] > wins[1] else L.t("red"), wins[0], wins[1]])
++		if bool(get("swap_on")) and mode == Mode.DUEL:
++			sw = call("_swap_fact")   # 1.2.0 §11.5：換邊雙局照玩家總分，不照顏色勝場（Codex cat10 #1）
+ 		_text(Vector2(640, y), L.t("series_end", [sw]), tz("B"), ACCENT, true, true, 820)
+ 		y += tz("B") * 1.5
+ 	if mode == Mode.GAUNTLET:
+diff --git a/game/scripts/ui/screens/game_v16.gd b/game/scripts/ui/screens/game_v16.gd
+index c2cbfa7..5092f07 100644
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -739,6 +739,7 @@ func _sb_add_current() -> void:
+ 	_focus = 0
+ 
+ func _draw_songbook() -> void:
++	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
+ 	var book: Array = Save.data.get("songbook", [])
+ 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+@@ -1135,6 +1136,7 @@ func _coach_ghost(c: Vector2) -> void:
+ 	Art.unit(self, b + Vector2(0, 14), t1, tm, 1.0, 0.0, 0.0, 0.0, 0.42 + 0.12 * sin(time * 4.0), time, 0.62, cbm())
+ 
+ func _draw_coach() -> void:
++	_boss_note("coach", "coach")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	var busy := co_thread != null
+ 	var found: bool = bool(co_res.get("found", false))
+ 	var lines: Array = []
+@@ -1234,6 +1236,7 @@ func _rift_sync() -> void:
+ 		return
+ 	if int(p.get("wk", -1)) != Rift.week() or int(p.get("ver", 0)) != Rift.VER:
+ 		Save.data.erase("rift_pend")
++		Save.save_data()   # 過期丟掉也要落盤（Codex cat10 #7）
+ 		return
+ 	if SteamApi.available():
+ 		SteamApi.rift_upload(int(p["wk"]), int(p["score"]), PackedInt32Array(p.get("det", [])), int(p["ver"]))
+@@ -1767,6 +1770,11 @@ var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
+ var ed_map := 0                    # 1.2.0 §11.10：地形圖（0＝平原；有地形就出 NTP5）
+ var ed_block := {}                 # 這張地形圖上的牆格（Vector2i → true；換圖時重算）
+ 
++## 三考題不能帶地形：切到三考就回平原（不然牆格還擋著、輸出卻是沒地形的碼；Codex cat10 #8）
++func _ed_trio_map() -> void:
++	if WS3.ED_GOALS[ed_goal] == "trio" and ed_map != 0:
++		_ed_set_map(0)
++
+ func _ed_set_map(m: int) -> void:
+ 	ed_map = m
+ 	ed_block = {}
+@@ -1865,6 +1873,7 @@ func _ed_switch_foe(i: int) -> void:
+ 	ed_msg = ""
+ 
+ func _draw_editor() -> void:
++	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.7)
+ 	var P := Rect2(80, 40, 1120, 720)
+ 	_panel(P)
+@@ -1917,7 +1926,7 @@ func _draw_editor() -> void:
+ 	y += tz("S") * 1.4 + GAP_M
+ 	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
+ 	var gname: String = WS3.ED_GOALS[ed_goal]
+-	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false
++	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; _ed_trio_map()
+ 	if gname in WS3.PICK_GOALS:
+ 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
+ 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index e85319b..ac93d43 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index 423ae2b..9b5726c 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -670,8 +670,19 @@ func test_frags_v120() -> void:
+ 	for k in 40:
+ 		f.spawn(Vector2(20 + k * 50, 200), "ink", 4, k)
+ 	ok(f.list.size() <= FR.TOTAL, "總數 ≤ %d（%d）" % [FR.TOTAL, f.list.size()])
+-	var newest: int = f.list.map(func(e): return int(e["born"])).max()
+-	ok(f.list.any(func(e): return int(e["born"]) == newest), "超額丟最舊的，最新的一定留著")
++	var newest: int = f._seq - 1   # 最後一片的序號（不是從留下來的裡面取最大值；Codex cat09 #4）
++	ok(f.list.any(func(e): return int(e["born"]) == newest), "超額丟最舊的，最後生成的一定留著")
++	# 跨格聚集：兩格各 2 片往同一格飛，移動後同一格仍 ≤ 2
++	var h = FR.new()
++	for k in 2:
++		h.list.append({"p": Vector2(10 + k, 10), "z": 0.0, "vx": 0.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": true, "born": k})
++		h.list.append({"p": Vector2(60 + k, 10), "z": 0.0, "vx": -2400.0, "vz": 0.0, "mat": "ink", "sz": 3.0, "rot": 0.0, "t": 0.0, "land": false, "born": 10 + k})
++	h.step(0.02)
++	var cnt := {}
++	for e in h.list:
++		var c: Vector2i = h._cell(e["p"])
++		cnt[c] = int(cnt.get(c, 0)) + 1
++	ok(cnt.values().all(func(v): return v <= FR.PER_CELL), "碎片飛進別格後仍守單格上限", str(cnt))
+ 	f.clear()
+ 	f.spawn(Vector2(300, 300), "fire", 2, 7)
+ 	var t := 0.0
+@@ -688,3 +699,76 @@ func test_frags_v120() -> void:
+ 	g2.spawn(Vector2(50, 50), "leaf", 2, 1234)
+ 	ok(str(g1.list) == str(g2.list), "同種子同位置（截圖可重現）")
+ 	ok(not FR.MAT.has("glow"), "材料表沒有數位光暈")
++
++## 1.2.0 第 9 大類（Codex cat09 #4）：擴充規則的新事件標籤（急救、接拍、火矢）都已登記、分流合法；
++## 射手已經倒下時火矢照樣燒，而且畫面不替它排拉弓或飛箭。
++func test_ext_event_routes_v120() -> void:
++	var RS0 = load("res://scripts/core/ruleset.gd")
++	var Simx = load("res://scripts/core/battle_sim.gd")
++	var Armyx = load("res://scripts/core/army.gd")
++	var EVS = load("res://scripts/core/events.gd")
++	var r = RS0.standard()
++	r.ext_skills = 2 | 4 | 8
++	var a0 = Armyx.new(0, 100)
++	a0.place(2, 0, 4)
++	a0.place(7, 3, 3)
++	a0.place(8, 3, 5)
++	a0.place(0, 5, 4)
++	var a1 = Armyx.new(1, 100)
++	a1.place(1, 15, 7)
++	a1.place(0, 11, 4)
++	var g = load("res://scripts/ui/game_screens.gd").new()
++	g.sfx = FakeSfx.new()
++	var sm = Simx.new(a0.copy(), a1.copy(), r)
++	var arch = null
++	var foe = null
++	var sw = null
++	for u in sm.units:
++		if u.team == 0 and u.type == 2:
++			arch = u
++		if u.team == 1 and u.type == 1:
++			foe = u
++		if u.team == 0 and u.type == 0:
++			sw = u
++	foe.stun = 200
++	sm.ext_fires = [[foe.x, foe.y, 0, 0, sm.units.find(arch)]]
++	arch.alive = false   # 射手已倒：火照樣燒
++	arch.hp = 0
++	sw.hp = 0            # 致命傷：急救契約在死亡判定前救起
++	g.sim = sm
++	g.view = g.ViewBuffer.new(sm)
++	var tags := {}
++	var bad: Array = []
++	for _k in 60:
++		g._pump_view()
++	# 直接掃模擬事件（和畫面拿到的同一份）
++	var sm2 = Simx.new(a0.copy(), a1.copy(), r)
++	var f2 = null
++	var ar2 = null
++	var sw2 = null
++	for u in sm2.units:
++		if u.team == 1 and u.type == 1:
++			f2 = u
++		if u.team == 0 and u.type == 2:
++			ar2 = u
++		if u.team == 0 and u.type == 0:
++			sw2 = u
++	f2.stun = 200
++	sm2.ext_fires = [[f2.x, f2.y, 0, 0, sm2.units.find(ar2)]]
++	ar2.alive = false
++	ar2.hp = 0
++	sw2.hp = 0
++	for _k2 in 60:
++		sm2.step()
++		for e in sm2.events:
++			if not EVS.KINDS.has(e["kind"]):
++				bad.append("kind " + str(e["kind"]))
++			for tg in e.get("tags", []):
++				tags[tg] = true
++				if not EVS.TAGS.has(tg):
++					bad.append("tag " + str(tg))
++			if e.get("tags", []).has("ext_fire") and g.event_route(e) != "attack":
++				bad.append("fire route")
++	ok(tags.has("rescue") and tags.has("ext_fire") and bad.is_empty(), "急救、火矢標籤出現、都已登記、分流合法", "%s %s" % [tags.keys(), bad])
++	ok(not g.proj_tgt.has(arch.id) and not g.atk_hit.has(arch.id), "倒下射手的火矢不排拉弓／飛箭")
++	g.free()
+diff --git a/game/tests/suites/modes_live.gd b/game/tests/suites/modes_live.gd
+index b0e9df2..ae019fb 100644
+--- a/game/tests/suites/modes_live.gd
++++ b/game/tests/suites/modes_live.gd
+@@ -380,6 +380,12 @@ func test_optional_modes_v120() -> void:
+ 	CM.record(sv, "c1_1", 2)
+ 	ok(CM.unlocked(sv, "c1_2") and not CM.record(sv, "c1_1", 1) and int(sv["campaign"]["c1_1"]) == 2, "只記更好的星數")
+ 	var keep_st := {"goal": "keep", "keep": 3}
++	ok(CM.grade(keep_st, true, 3, 400, 90, false) == 0, "保兵：最貴的那隻倒了就不算")
++	var sv2 := {"campaign": {"c1_1": 1, "c1_2": 1, "c1_3": 1, "c1_4": 1, "c1_5": 1, "c1_6": 1}, "puzzle_stars": {}}
++	ok(not CM.unlocked(sv2, "c2_1"), "前一章殘局沒過不能進下一章")
++	sv2["campaign"].erase("c1_3")
++	sv2["puzzle_stars"][CM.puzzle_id(CM.stage("c1_p"))] = 3
++	ok(not CM.unlocked(sv2, "c2_1"), "舊殘局星不能跳過沒打的戰鬥關")
+ 	ok(CM.grade(keep_st, true, 2, 400, 90) == 0 and CM.grade(keep_st, true, 3, 400, 90) == 3 and CM.grade({"goal": "time", "secs": 30}, true, 5, 601, 90) == 0 and CM.grade({"goal": "win"}, true, 1, 9, 39) == 1, "評星：保兵、限時、剩餘戰力")
+ 	ok(CM.sanitize({"c1_1": 9, "x": "a", 3: 1}).size() == 1 and int(CM.sanitize({"c1_1": 9})["c1_1"]) == 3, "戰役存檔驗型")
+ 	# §11.9 天梯待送
+diff --git a/game/tests/suites/save.gd b/game/tests/suites/save.gd
+index 7df2e9b..e7047bb 100644
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -1,11 +1,12 @@
+ extends "res://tests/test_base.gd"
++const SV_NOW := 4   # 1.2.0：存檔格式 4
+ 
+ ## 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。
+ func test_save_migration() -> void:
+ 	var SV = load("res://scripts/game/save.gd")
+ 	var v1 := {"version": 1, "tutorial": 3, "puzzle_stars": {"p1": 3}, "slots": ["NTB1.x", "", "", "", ""], "stats": {"wins": 7, "games": 9}, "future_key": 5}
+ 	var m: Dictionary = SV.migrate(v1)
+-	ok(int(m["schema_version"]) == 3 and not m.has("version") and m["unit_wins"] is Dictionary, "存檔遷移：v1→v3 改欄位名、補 unit_wins")
++	ok(int(m["schema_version"]) == SV_NOW and not m.has("version") and m["unit_wins"] is Dictionary, "存檔遷移：v1→最新 改欄位名、補 unit_wins")
+ 	ok(int(m["unlock_games"]) == 9 and m["rule_presets"] == [] and m["custom_stats"] is Dictionary, "存檔遷移 v3：解鎖累計場數＝舊的正式場數（已解鎖的兵不會被收回）")
+ 	var bad_ps := {"schema_version": 3, "rule_presets": [{"name": "a", "code": "NTBR1.x.y"}, {"name": 3, "code": "z"}, "junk", {"name": "b", "code": "x".repeat(3000)}] + [{"name": "c", "code": "q"}]}
+ 	var m3: Dictionary = SV.migrate(bad_ps)
+@@ -22,7 +23,7 @@ func test_save_migration() -> void:
+ 	f.close()
+ 	SV.load_all()
+ 	var ld: Dictionary = SV.data
+-	ok(int(ld["schema_version"]) == 3 and not ld.has("version") and ld["unit_wins"] is Dictionary and int(ld["tutorial"]) == 2 and ld.has("achievements"),
++	ok(int(ld["schema_version"]) == SV_NOW and not ld.has("version") and ld["unit_wins"] is Dictionary and int(ld["tutorial"]) == 2 and ld.has("achievements"),
+ 		"存檔遷移：正式 load_all 讀 v1 檔會遷移、壞掉的 unit_wins 修好、補預設", str(ld))
+ 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_save.json"))
+ 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_mig_settings.json"))
+@@ -308,3 +309,12 @@ func test_backup_dir_prefix_v152() -> void:
+ 	SV.prefix = "shot_"
+ 	ok(GM.backup_dir() == "user://shot_backup", "截圖模式：備份在 user://shot_backup", GM.backup_dir())
+ 	SV.prefix = old
++
++
++## 1.2.0：存檔格式 3 → 4 補上戰役、棋譜本、最近玩的、上一陣；舊進度不動（Codex cat10 #4）
++func test_save_v4_migration_v120() -> void:
++	var SVx = load("res://scripts/game/save.gd")
++	var m: Dictionary = SVx.migrate({"schema_version": 3, "stats": {"games": 5, "wins": 2}, "tutorial": 2, "puzzle_stars": {"p1": 3}})
++	ok(int(m["schema_version"]) == 4 and m["campaign"] is Dictionary and m["songbook"] is Array and m["recent"] is Array and m["last_form"] == "" and int(m["puzzle_stars"]["p1"]) == 3 and int(m["tutorial"]) == 2, "3→4 補新欄位、舊進度保留", str(m))
++	var keep: Dictionary = SVx.migrate({"schema_version": 3, "campaign": {"c1_1": 2}})
++	ok(int(keep["campaign"]["c1_1"]) == 2, "已有的戰役進度不覆蓋")

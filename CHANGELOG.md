@@ -2,6 +2,48 @@
 
 > 玩家看的更新說明（商店頁「更新」與 Steam 公告用）。開發紀錄看 `docs/STATE.md` 與 `docs/history/`。
 
+# 1.2.0
+
+## 繁體中文
+**1.2.0：一張桌上的戰爭。**
+- **看起來像桌上的實物**：胡桃木桌面與拼花棋盤、棋鐘＋黃銅滑尺、紙卡與木牌介面、手寫標題字；宣紙戰報（墨線、朱砂小印、勝負大章）；命中時木屑與墨點落在棋盤上。
+- **棋子更有個性**：落子壓扁回彈、受擊不倒翁搖、待機小習慣、圖鑑表情；地圖各有質感（草筆觸、苔蘚、白瓷冰裂、金繼熔岩）。
+- **新玩法**：「老闆的棋館」戰役（5 章、每章 6 戰＋1 殘局）；換邊雙局（兩人各當一次藍紅，分數跟著人走）；合作布陣（兩人輪流擺同一支軍打 AI）；裂隙變成每週天梯（UTC 週一換題）。
+- **更好用**：整軍上下翻轉、前後平移、自由模式對齊列、複製上一陣；重播時間軸有書籤（倒下、破盾），[ ] 跳轉；時光機顯示兩條時間線同一秒的存活數；差一子教練附上改前改後的數字；棋譜本收藏好局；主畫面「最近玩的」。
+- **出題台**：可以選地形圖出題（新的 NTP5 碼）。
+- **擴充規則（只有代碼能開，還沒上大廳）**：鼓手接拍、醫者急救契約、弓箭手火矢、狂戰士＋鼓手協同。
+- 存檔格式升級到 4：舊存檔會自動補上新欄位；開過 1.2.0 的存檔不能再給 1.1.0 讀。
+
+## English
+**1.2.0 — A War on the Tabletop.**
+- **Looks like real objects on a desk**: walnut table and parquet board, a chess clock and brass slide-rule HUD, paper cards and wooden plaques, hand-lettered titles; an ink-on-rice-paper battle report with vermilion seals; wood chips and ink drops land on the board when units hit.
+- **Livelier pieces**: squash-and-bounce placement, wobble when hit, idle habits, codex expressions; every map has its own texture.
+- **New modes**: "The Boss's Parlor" campaign (5 chapters, 6 battles + 1 puzzle each); Swap-Sides Pair; Co-op Deploy (two players build one army against the AI); the Rift is now a weekly ladder (new rules every Monday UTC).
+- **Quality of life**: flip or shift your whole army, snap to rows, copy your last formation; replay bookmarks for every fall and first shield break ([ ] to jump); the time machine shows survivors on both timelines; the coach shows before/after numbers; a Replay Book for favourite battles; "Recently played" on the title screen.
+- **Puzzle workbench**: pick a terrain map for your puzzle (new NTP5 codes).
+- **Extended rules (code-only for now)**: drummer beat, medic rescue, fire arrows, berserker + drummer synergy.
+- Save format 4: older saves upgrade automatically; a save opened in 1.2.0 can't go back to 1.1.0.
+
+## 简体中文
+**1.2.0：一张桌上的战争。**
+- **像桌上的实物**：胡桃木桌面与拼花棋盘、棋钟＋黄铜滑尺、纸卡与木牌界面、手写标题字；宣纸战报（墨线、朱砂小印、胜负大章）；命中时木屑与墨点落在棋盘上。
+- **棋子更有个性**：落子压扁回弹、受击不倒翁摇、待机小习惯、图鉴表情；每张地图都有自己的质感。
+- **新玩法**：「老板的棋馆」战役（5 章、每章 6 战＋1 残局）；换边双局；合作布阵；裂隙变成每周天梯（UTC 周一换题）。
+- **更好用**：整军翻转、平移、对齐、复制上一阵；重播书签（倒下、破盾），[ ] 跳转；时光机同一秒存活数；差一子教练附改前改后数字；棋谱本；主画面「最近玩的」。
+- **出题台**：可以选地形图出题（NTP5 码）。
+- **扩展规则（只有代码能开）**：鼓手接拍、医者急救契约、弓箭手火矢、狂战士＋鼓手协同。
+- 存档格式升级到 4：旧存档自动补新栏位；开过 1.2.0 的存档不能再给 1.1.0 读。
+
+## 日本語
+**1.2.0：卓上の戦争。**
+- **卓上の実物のような見た目**：クルミ材の机と寄木の盤、チェスクロック＋真鍮の目盛り、紙と木札の UI、手書きの見出し；和紙の戦報（墨線・朱印・勝敗の大判）；命中で木くずと墨が盤に落ちます。
+- **駒の個性**：置くとつぶれて弾む、被弾で起き上がりこぼしのように揺れる、待機のクセ、図鑑の表情；マップごとの質感。
+- **新モード**：キャンペーン「店主の碁会所」（全5章・各6戦＋詰め1問）、入替え二番勝負、協力布陣、リフトが毎週のランキングに（UTC 月曜更新）。
+- **便利に**：全軍の反転・平行移動・列そろえ・前回の陣形コピー、リプレイのしおり（[ ] で移動）、タイムマシンの生存数比較、コーチの変更前後の数値、棋譜帳、タイトルの「最近遊んだもの」。
+- **パズル工房**：地形マップを選んで出題（NTP5 コード）。
+- **拡張ルール（コードのみ）**：鼓手の拍、医者の救護、火矢、狂戦士＋鼓手の連携。
+- セーブ形式 4：旧セーブは自動更新。1.2.0 で開いたセーブは 1.1.0 では読めません。
+
 # 1.1.0
 
 ## 繁體中文

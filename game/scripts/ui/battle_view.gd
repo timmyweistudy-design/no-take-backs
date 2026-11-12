@@ -80,8 +80,15 @@ func _battle_process(delta: float) -> void:
 		return
 	if hitstop > 0:
 		hitstop -= delta
+		present_debt += delta   # 1.2.0 §9.6 展示時鐘：停頓欠下的時間，之後 ≤1.5 倍追回
 		return
 	var rate := speed
+	if present_debt > 1.0:
+		accum += present_debt * speed   # 落後超過 1 秒：直接跳回（跳過的事件照常記戰報與書籤，只是不播演出）
+		present_debt = 0.0
+	elif present_debt > 0.0 and slow_left <= 0 and final_left <= 0:
+		rate *= 1.5
+		present_debt = maxf(0.0, present_debt - delta * 0.5)
 	if slow_left > 0:
 		rate *= 0.5
 		slow_left -= delta
@@ -876,6 +883,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 		prev_pos[u.id] = Vector2(u.x, u.y)
 	_pump_view()   # 開場先預填 DELAY 個 tick
 	accum = 0.0
+	present_debt = 0.0   # 1.2.0 §9.6
 	slow_used = false
 	final_used = false
 	key_used = false

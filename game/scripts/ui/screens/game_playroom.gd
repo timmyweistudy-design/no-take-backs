@@ -343,11 +343,28 @@ func _draw_campaign() -> void:
 	_boss_note("campaign", "campaign")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	_dim(0.6)
 	var chs: Array = Campaign.chapters()
-	var rowh := maxf(44.0, tz("B") * 1.9)
-	var P := modal_rect(820, 12.0 + h1_help_h(L.t("cmp_note_%d" % camp_ch), tz("S"), 740) + GAP_L + 48.0 + GAP_M + 7.0 * (rowh + 6.0) + GAP_L + 44.0 + GAP_L)
+	var cur: Array = []
+	for ch0 in chs:
+		if int(ch0["n"]) == camp_ch:
+			cur = ch0["stages"]
+	# 關卡卡片兩欄；卡片高度照那一列最長的目標說明算（150% 說明會換行，版面檢查 cat10）
+	var pw := 1100.0
+	var cw := (pw - 80.0 - 16.0) / 2.0
+	var rows := ceili(cur.size() / 2.0)
+	var row_h: Array = []
+	for ri in rows:
+		var h := 0.0
+		for k in [ri * 2, ri * 2 + 1]:
+			if k < cur.size():
+				h = maxf(h, 10.0 + tz("B") * 1.3 + text_h(_camp_goal_of(cur[k]), tz("S"), cw - 28.0) + 12.0)
+		row_h.append(h)
+	var grid_h := 0.0
+	for h2 in row_h:
+		grid_h += h2 + 8.0
+	var P := modal_rect(pw, 12.0 + h1_help_h(L.t("cmp_note_%d" % camp_ch), tz("S"), pw - 80.0) + GAP_L + 48.0 + GAP_M + grid_h + GAP_L + 44.0 + GAP_L)
 	_panel(P)
-	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("cmp_title"), L.t("cmp_note_%d" % camp_ch), tz("S"), 740) + GAP_L
-	var tw := 140.0
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("cmp_title"), L.t("cmp_note_%d" % camp_ch), tz("S"), pw - 80.0) + GAP_L
+	var tw := 150.0
 	var tx := 640.0 - (chs.size() * (tw + 8.0) - 8.0) / 2.0
 	for ch in chs:
 		var n := int(ch["n"])
@@ -357,24 +374,34 @@ func _draw_campaign() -> void:
 		_btn(Rect2(tx, y, tw, 44), lab, func(): camp_ch = n, open, n == camp_ch)
 		tx += tw + 8.0
 	y += 48.0 + GAP_M
-	for ch2 in chs:
-		if int(ch2["n"]) != camp_ch:
-			continue
-		var k := 0
-		for st in ch2["stages"]:
-			k += 1
-			var sid := str(st["id"])
-			var open2 := Campaign.unlocked(Save.data, sid)
-			var r := Rect2(P.position.x + 40, y, P.size.x - 80, rowh)
-			draw_rect(r, Color(0, 0, 0, 0.18))
-			var nm := L.t("cmp_stage", [camp_ch, k]) if str(st["goal"]) != "puzzle" else L.t("cmp_puzzle", [camp_ch])
-			_text(r.position + Vector2(14, (rowh - tz("B") * 1.2) / 2.0), nm, tz("B"), Color.WHITE if open2 else TXT_DIM, false, true, 220)
-			_text(r.position + Vector2(250, (rowh - tz("S") * 1.2) / 2.0), _camp_goal(st) if str(st["goal"]) != "puzzle" else L.t("cmp_g_puzzle"), tz("S"), TXT_DIM, false, false, r.size.x - 250 - 260)
-			var sn := Campaign.stars_of(Save.data, st)
-			_text(Vector2(r.end.x - 250, r.position.y + (rowh - tz("B") * 1.2) / 2.0), "★".repeat(sn) + "☆".repeat(3 - sn), tz("B"), ACCENT if sn > 0 else TXT_DIM, false, true, 100)
-			_btn(Rect2(r.end.x - 136, r.position.y + (rowh - 40.0) / 2.0, 124, 40), L.t("cmp_go"), func(): _camp_play(sid), open2)
-			y += rowh + 6.0
+	var cards: Array = [[], []]
+	for k2 in cur.size():
+		var st: Dictionary = cur[k2]
+		var sid := str(st["id"])
+		var open2 := Campaign.unlocked(Save.data, sid)
+		var ri2: int = k2 / 2
+		var ry := y
+		for q in ri2:
+			ry += float(row_h[q]) + 8.0
+		var r := Rect2(P.position.x + 40.0 + (k2 % 2) * (cw + 16.0), ry, cw, row_h[ri2])
+		btn_paper = true
+		_btn(r, "", func(): _camp_play(sid), open2)   # 整張卡片就是按鈕（和主畫面卡片同一套紙卡）
+		btn_paper = false
+		var on_paper: bool = open2 and not bool(Save.s("plain_ui"))
+		_ink_mode = on_paper
+		var tc: Color = INK if on_paper else (Color.WHITE if open2 else TXT_DIM)
+		var nm := L.t("cmp_stage", [camp_ch, k2 + 1]) if str(st["goal"]) != "puzzle" else L.t("cmp_puzzle", [camp_ch])
+		_text(r.position + Vector2(14, 10), nm, tz("B"), tc, false, true, cw - 140.0)
+		var sn := Campaign.stars_of(Save.data, st)
+		var stx := "★".repeat(sn) + "☆".repeat(3 - sn)
+		_text(Vector2(r.end.x - 14.0 - _width(stx, tz("B"), true), r.position.y + 10), stx, tz("B"), Color("#9a5a10") if on_paper else ACCENT, false, true, 120)
+		_text(r.position + Vector2(14, 10 + tz("B") * 1.3), _camp_goal_of(st), tz("S"), tc, false, false, cw - 28.0)
+		_ink_mode = false
+		cards[mini(ri2, 1)].append(r)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+func _camp_goal_of(st: Dictionary) -> String:
+	return _camp_goal(st) if str(st["goal"]) != "puzzle" else L.t("cmp_g_puzzle")
 
 ## ── 1.2.0 §11.5 換邊雙局 ──
 const SwapDuel = preload("res://scripts/game/swap_duel.gd")

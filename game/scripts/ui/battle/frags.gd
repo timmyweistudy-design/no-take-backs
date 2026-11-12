@@ -1,9 +1,10 @@
 extends RefCounted
 ## 1.2.0 §8.2 材料碎片：命中、治療、火、冰掉在地上的小實物碎片（木屑、墨點、木刻火片、白瓷碎片、薄荷葉、紫水彩暈）。
 ## 規格（方案 §8.2，Antigravity 第 4 輪／Codex 第 3 輪）：每片 3～6px；一次最多 4 片；落地有小影、停 0.25 秒、0.1 秒淡出；
-## 單一棋盤格（44px）內最多 2 片、滿了換掉該格最舊的；總數 ≤ 30、超額丟最舊的。和 FX_CAP（特效事件）分開計數，
+## 單一棋盤格（64px，從棋盤原點起算）內最多 2 片、滿了換掉該格最舊的；總數 ≤ 30、超額丟最舊的。和 FX_CAP（特效事件）分開計數，
 ## 碎片純裝飾，被丟掉不影響任何預警、攻擊、跳字。位置與形狀只由（事件 tick、單位 id、第幾片）決定，截圖可重現。
-const CELL := 44.0
+const CELL := 64.0                       # 棋盤一格（ui_base.CS）；最終一輪 Codex：原本 44 對不上真格子
+const ORIGIN := Vector2(128, 100)        # 棋盤左上（ui_base.ORIGIN）
 const PER_CELL := 2
 const TOTAL := 30
 const PER_HIT := 4
@@ -58,7 +59,7 @@ func _oldest(idx: Array) -> int:
 	return best
 
 func _cell(p: Vector2) -> Vector2i:
-	return Vector2i(int(floor(p.x / CELL)), int(floor(p.y / CELL)))
+	return Vector2i(int(floor((p.x - ORIGIN.x) / CELL)), int(floor((p.y - ORIGIN.y) / CELL)))
 
 static func _hash01(k: int) -> float:
 	var h := (k * 2654435761) & 0xffffffff
