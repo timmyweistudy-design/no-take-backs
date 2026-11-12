@@ -200,6 +200,7 @@ func _seek_finish() -> void:
 	hurt_dir.clear()
 	brace_t.clear()
 	accum = 0.0
+	present_debt = 0.0   # 1.2.0 §9.6：跳轉後不能帶著舊的欠時加速（Codex final-r2 #3）
 	result_delay = 0.0
 	clutch_t = 0.0
 	slow_left = 0.0

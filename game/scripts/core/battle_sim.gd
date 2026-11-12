@@ -100,6 +100,9 @@ class Unit:
 	var arrows := 0            # 1.2.0 擴充 v1「火矢」：射出的箭數（每第 3 箭放火）
 	var ext_cd := 0            # 1.2.0 擴充 v1「急救契約」：醫者冷卻（含停手的 40 tick）
 	var saved_at := -100000    # 1.2.0 擴充 v1：上次被急救契約救起的 tick（200 tick 內不再救）
+	var brace_t := 0           # 1.2.0 擴充 v1「架盾」：架著的剩餘 tick（冷卻共用 ext_cd）
+	var ride := 0              # 1.2.0 擴充 v1「迴馬」：1＝衝鋒命中、下一個移動階段要撤一格
+	var ride_t := 0            # 1.2.0 擴充 v1「迴馬」：撤完之後「再衝」的剩餘 tick（下一擊照衝鋒算）
 	var boss := false          # V1.4 #12 巨獸
 	var arm_hp := 0            # 前臂部位血量（0＝斷了，不再橫掃）
 	var plate_hp := 0          # 背甲部位血量（0＝碎了，不再分攤傷害）
@@ -629,6 +632,8 @@ func step() -> void:
 		u.fx = new_fx[i]
 		u.fy = new_fy[i]
 		u.face_lock = new_lock[i]   # 只在第②步已經轉向目標之後才鎖定
+	if ext_bits & 16:
+		_ext_ride(n)   # 擴充 v1 階段②：迴馬撤一格（在一般移動套用之後，用大家的新位置判斷撤退格有沒有被佔）
 
 	# ④ 產生攻擊（讀這一 tick 已確定的位置與面向）
 	var hits: Array = []   # [來源, 目標, 傷害, 種類]
@@ -669,6 +674,8 @@ func step() -> void:
 		dr.drum_cover += cov
 		if cov > 0 and tick % 20 == 0:
 			events.append({"kind": EV.DRUM, "src": dr.id, "n": cov, "tags": [EV.DRUM]})   # 每秒一拍（只給畫面與圖鑑）
+	if ext_bits & 1:
+		_ext_brace_arm(n)   # 擴充 v1 階段③：架盾判定（攻擊宣告前，看這一 tick 已定的目標與位置）
 	var breach_set := {}
 	var heals: Array = []   # [醫者索引, 目標索引, 量]
 	var long_stun := {}     # 第八輪：時停（取較大值，不覆寫）
@@ -765,7 +772,8 @@ func step() -> void:
 			elif tg.type == D.BERSERKER:
 				dmg = dmg * D.BERSERK_ARROW_NUM / D.BERSERK_ARROW_DEN
 		elif u.type == D.CAVALRY:
-			if u.charge >= D.CHARGE_NEED and not skill_off.has("charge"):
+			var rc: bool = (ext_bits & 16) != 0 and u.ride_t > 0   # 擴充 v1「迴馬」撤完的再衝
+			if (u.charge >= D.CHARGE_NEED or rc) and not skill_off.has("charge"):
 				if tg.type == D.SHIELD and not _is_behind(u, tg):
 					stun_set[i] = true
 					kind = EV.BRACED
@@ -778,6 +786,8 @@ func step() -> void:
 					dmg = dmg * D.CHARGE_NUM / D.CHARGE_DEN
 					kind = EV.CHARGE
 					tags.append(EV.CHARGE)
+					if ext_bits & 16 and not rc:
+						u.ride = 1   # 擴充 v1「迴馬」：衝鋒命中 → 下一個移動階段撤一格（再衝那一擊不再觸發）
 					if tg.type != D.BERSERKER:   # 狂戰士不被擊退（第四輪 §2.4）
 						knock.append([u.target, tg.x - u.x, tg.y - u.y])
 		elif u.type == D.ASSASSIN:
@@ -817,6 +827,7 @@ func step() -> void:
 		u.cd += u.cd_base * 4
 		if u.type == D.CAVALRY:
 			u.charge = 0   # 任何一擊之後都要重新直行才能再衝
+			u.ride_t = 0
 	# 劍士反擊（優化方案 B1）：這一 tick 打中它的刺客裡，挑「最近→列小→離自己底線近」的那一隻，每 tick 最多一次
 	var swords := sword_hit_by.keys()
 	swords.sort()
@@ -826,6 +837,8 @@ func step() -> void:
 
 	if not ext_fires.is_empty():
 		_ext_fire_tick(n, hits)   # 擴充 v1 階段④後段：火矢的小火（當成射手的 hits，擊殺歸屬一起算；Codex cat07 #5）
+	if ext_bits & 1:
+		_ext_brace_block(hits)   # 擴充 v1：架盾擋下一發遠程（結算前）
 	# ⑤ 同時結算
 	var voodoo: Array = []
 	if v8:
@@ -946,6 +959,8 @@ func step() -> void:
 		if stun_set.has(i):
 			u.stun = D.STUN_TICKS
 			u.charge = 0
+			u.ride = 0
+			u.ride_t = 0
 		if long_stun.has(i):
 			u.stun = maxi(u.stun, F8.SPRITE_STUN)
 			u.charge = 0
@@ -953,6 +968,12 @@ func step() -> void:
 			u.guard -= 1
 		if u.ext_cd > 0:
 			u.ext_cd -= 1
+		if u.brace_t > 0:
+			u.brace_t -= 1
+			if u.brace_t == 0:
+				u.ext_cd = EXT_BRACE_CD   # 架了 60 tick 沒擋到：結束、進冷卻
+		if u.ride_t > 0:
+			u.ride_t -= 1
 		if slow_set.has(i):
 			u.slow = D.SLOW_TICKS
 		if u.type == D.ASSASSIN and u.stealth == 0 and _was_stealth.get(u.id, false):
@@ -1074,6 +1095,8 @@ func _hash_ext() -> void:
 	var a := PackedInt64Array()
 	for u in units:
 		a.append_array(PackedInt64Array([1 if u.beat else 0, u.arrows, u.ext_cd, u.saved_at, u.atk]))
+		if ext_bits & 17:
+			a.append_array(PackedInt64Array([u.brace_t, u.ride, u.ride_t]))   # 架盾／迴馬只在開了才雜湊（原本 17 場擴充金標準位元組不變）
 	for f in ext_fires:
 		a.append_array(PackedInt64Array([int(f[0]), int(f[1]), int(f[2]), int(f[3]), int(f[4])]))
 	_hash.update(a.to_byte_array())
@@ -1082,6 +1105,85 @@ func _hash_ext() -> void:
 ## 醫者停手 40 tick，冷卻 300 tick 從停手結束起算（ext_cd＝340）。順序用左右鏡像不變的鍵（列 y、離自己底線的深度），
 ## 不用陣列索引（鏡像場的索引順序不同，Codex／契約 §2）：醫者依（y、深度）先後；目標取血量比例最低，平手再比（y、深度）。
 ## a 比 b 先：列 y → 離自己底線的深度 → 部署格 slot（擊退夾邊重疊時，slot 讓順序仍不看陣列索引；Codex cat07 #2）。
+## 擴充 v1「架盾」「迴馬」（契約 docs/rules-ext-v1.md §3 位元 0、4；第 11 大類）
+const EXT_BRACE_T := 60
+const EXT_BRACE_CD := 120
+const EXT_BRACE_RANGE := 2 * CELL
+const EXT_RIDE_T := 60
+
+static func _ext_ranged(e: Unit) -> bool:
+	return e.type == D.ARCHER or (e.type == D.BOMBER and e.bmode == 1) or e.type == 17   # 17＝骷髏法師
+
+## 盾兵（活著、沒暈、沒在架、冷卻好）前方 2 格內有敵方遠程以它為目標 → 架盾 60 tick。每隻盾兵只看自己，和順序無關。
+func _ext_brace_arm(n: int) -> void:
+	for i in n:
+		var s := units[i]
+		if s.type != D.SHIELD or not s.alive or s.stun > 0 or s.brace_t > 0 or s.ext_cd > 0:
+			continue
+		for j in n:
+			var e := units[j]
+			if e.alive and e.team != s.team and e.target == i and _ext_ranged(e) \
+					and M.dist2(e.x, e.y, s.x, s.y) <= EXT_BRACE_RANGE * EXT_BRACE_RANGE and not _is_behind(e, s):
+				s.brace_t = EXT_BRACE_T
+				break
+
+## 打到架盾盾兵、來源是遠程（不含小火）、來向在盾面 ±60° 內的傷害：每隻盾兵擋一筆（多筆時用鏡像不變鍵挑來源），擋完結束、冷卻 120。
+func _ext_brace_block(hits: Array) -> void:
+	var pick := {}   # 盾兵索引 → hits 索引
+	for k in hits.size():
+		var h: Array = hits[k]
+		var s := units[int(h[1])]
+		var e := units[int(h[0])]
+		if s.brace_t <= 0 or not s.alive or e.team == s.team or not _ext_ranged(e) or (h[4] as Array).has(EV.EXT_FIRE):
+			continue
+		var dx := e.x - s.x
+		var dy := e.y - s.y
+		var dot := dx * s.fx + dy * s.fy
+		if dot <= 0 or 4 * dot * dot < (dx * dx + dy * dy) * (s.fx * s.fx + s.fy * s.fy):
+			continue   # 不在盾面 ±60° 內
+		var cur: int = pick.get(int(h[1]), -1)
+		if cur == -1 or (int(hits[cur][0]) != int(h[0]) and _ext_less(e, units[int(hits[cur][0])])):
+			pick[int(h[1])] = k
+	for si in pick:
+		var hk: Array = hits[pick[si]]
+		hk[2] = 0
+		hk[3] = EV.BLOCKED
+		(hk[4] as Array).append(EV.EXT_GUARD)
+		units[si].brace_t = 0
+		units[si].ext_cd = EXT_BRACE_CD
+
+## 迴馬：上一 tick 衝鋒命中的騎兵往自己底線退 1 格（場內、地形可走、離其他單位新位置 ≥ MIN_SEP；兩隻要退到太近的位置就都不退），
+## 退成功給 60 tick「再衝」。先算完全部候選再一起套用，和順序無關。
+func _ext_ride(n: int) -> void:
+	var cand := {}
+	for i in n:
+		var u := units[i]
+		if u.ride == 0:
+			continue
+		u.ride = 0
+		if not u.alive or u.stun > 0:
+			continue
+		var rx: int = u.x - CELL if u.team == 0 else u.x + CELL
+		if rx < EDGE or rx > fw - EDGE or (terrain != null and terrain.blocked(rx, u.y, u.team)):
+			continue
+		var free := true
+		for j in n:
+			if j != i and units[j].alive and not units[j].dormant and M.dist2(rx, u.y, units[j].x, units[j].y) < MIN_SEP * MIN_SEP:
+				free = false
+				break
+		if free:
+			cand[i] = rx
+	for i in cand:
+		var ok := true
+		for j in cand:
+			if j != i and M.dist2(int(cand[i]), units[i].y, int(cand[j]), units[j].y) < MIN_SEP * MIN_SEP:
+				ok = false
+		if ok:
+			var u := units[i]
+			u.x = int(cand[i])
+			u.ride_t = EXT_RIDE_T
+			events.append({"kind": EV.EXT_RIDE, "src": u.id, "tgt": u.id, "tags": [EV.EXT_RIDE]})
+
 func _ext_less(a: Unit, b: Unit) -> bool:
 	if a.y != b.y:
 		return a.y < b.y

@@ -1362,6 +1362,47 @@ func probe_panel(r: Rect2) -> void:
 const OBJ_OF := {"puzzles": "fold", "trials": "tube", "codex": "case", "settings": "box", "keys": "box", "profile": "trunk", "nemeses": "ebony",
 	"codes": "letter", "wave_codes": "letter", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
 var panel_obj := ""
+var obj_open_r := Rect2()     # 1.2.0 第 11 大類：這一幀畫的實物面板（開合動畫用）
+var obj_open_kind := ""
+
+## 1.2.0 第 11 大類 實物開合（第 4 大類記錄）：疊層打開的前 0.3 秒，在面板上蓋一層「還沒打開的那一面」再收走——
+## 木盒類掀蓋往上收、經摺帖／畫筒往右攤開、信封三角封口往上翻。只疊畫、不縮放不位移（按鈕位置與滑鼠一致，Codex v120-impl2）；
+## 截圖、版面檢查、減少特效、簡化介面不演（呼叫端判斷）。k＝0→1。
+func _obj_open_anim(r: Rect2, kind: String, k: float) -> void:
+	var e := 1.0 - (1.0 - k) * (1.0 - k) * (1.0 - k)   # ease out
+	var wood := Color("#7a5232")
+	var paper := Color("#efe3c8")
+	match kind:
+		"box", "case", "trunk", "tin", "clock", "ebony":
+			var h := r.size.y * (1.0 - e)
+			if h < 1.0:
+				return
+			var col := Color("#3a2416") if kind == "ebony" else (Color("#8a8f93") if kind == "tin" else (Color("#7a5a3a") if kind == "trunk" else wood))
+			var lid := Rect2(r.position - Vector2(10, 10), Vector2(r.size.x + 20, h + 10))
+			draw_rect(Rect2(lid.position + Vector2(0, lid.size.y), Vector2(lid.size.x, 14)), Color(DIM_INK, 0.35 * (1.0 - e)))   # 掀起的蓋子在下面落影
+			draw_rect(lid, col)
+			for i in int(lid.size.y / 18.0):
+				draw_rect(Rect2(lid.position.x, lid.position.y + 9 + i * 18, lid.size.x, 1), Color(0, 0, 0, 0.12))   # 木紋／鐵皮壓紋
+			draw_rect(Rect2(lid.position.x, lid.end.y - 4, lid.size.x, 4), Color(1, 0.9, 0.7, 0.25))   # 蓋緣受光
+			draw_rect(Rect2(r.get_center().x - 16, lid.end.y - 14, 32, 10), Color("#c9a24a"))   # 鎖扣
+		"fold", "tube":
+			var w := r.size.x * (1.0 - e)
+			if w < 1.0:
+				return
+			var pr := Rect2(Vector2(r.end.x - w, r.position.y - 6), Vector2(w + 6, r.size.y + 12))
+			draw_rect(pr, paper)
+			var nf := 5
+			for i in range(1, nf):
+				var x := pr.position.x + pr.size.x * i / nf
+				draw_rect(Rect2(x - 3, pr.position.y, 3, pr.size.y), Color(DIM_INK, 0.12))
+			draw_rect(Rect2(pr.position.x - 8, pr.position.y, 8, pr.size.y), Color(DIM_INK, 0.25 * (1.0 - e)))   # 還沒攤開那疊的厚度影
+		"letter":
+			var apex_y := r.position.y + r.size.y * 0.55 * (1.0 - e)
+			if apex_y - r.position.y < 2.0:
+				return
+			draw_colored_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), Vector2(r.get_center().x, apex_y)]), paper.darkened(0.06))
+			draw_polyline(PackedVector2Array([r.position, Vector2(r.get_center().x, apex_y), Vector2(r.end.x, r.position.y)]), Color(DIM_INK, 0.5), 2.0)
+			draw_circle(Vector2(r.get_center().x, apex_y - 14), 14, Color("#8e1b14"))   # 蠟封跟著封口走
 
 func _obj_deco(r: Rect2, kind: String) -> void:
 	var brass := Color("#c9a24a")
@@ -1499,6 +1540,8 @@ func _panel(r: Rect2) -> void:
 		_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
 	if panel_obj != "" and not bool(Save.s("plain_ui")):
 		_obj_deco(r, panel_obj)
+		obj_open_r = r
+		obj_open_kind = panel_obj
 
 
 func _open(name: String) -> void:

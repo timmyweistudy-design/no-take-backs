@@ -5,6 +5,7 @@ var boot_parts := {}   # V1.1 E6：啟動各階段的時間點（毫秒，從程
 
 var _ov_seen := ""   # V1.2 F1：覆蓋層動畫用
 var _ov_t := -9.0
+var obj_open_force := -1.0   # 開發用：固定實物開合的進度（<0＝照時間）
 
 var shot_state := {}   # V1.2.1：版面檢查這一組的固定狀態（截圖程式切換後要還原成這裡的值）
 
@@ -763,7 +764,13 @@ func _draw_inner() -> void:
 		_ov_t = time
 	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
 	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+	obj_open_kind = ""
 	_draw_overlay()
+	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) else 1.0
+	if obj_open_force >= 0.0:
+		open_k = obj_open_force   # 開發截圖：固定在開到一半
+	if open_k < 1.0 and obj_open_kind != "":
+		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫）
 	if ok_k < 1.0:
 		draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
 	_draw_pad_footer()

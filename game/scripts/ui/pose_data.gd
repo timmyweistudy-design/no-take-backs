@@ -1,8 +1,8 @@
 extends RefCounted
-## 1.2.0 §7.1 姿勢資料化（試點：劍士）。讀 data/poses/<兵>.json 的關鍵幀，回傳和 Art.pose 一樣格式的 [w, rot, sx, sy, dx]。
+## 1.2.0 §7.1 姿勢資料化（22 種兵；第 11 大類從劍士試點擴到全部）。讀 data/poses/<兵>.json 的關鍵幀，回傳和 Art.pose 一樣格式的 [w, rot, sx, sy, dx]。
 ## 只是畫面：命中事件時間由資料的 events.hit 宣告，測試保證它等於 Art.ATK_STRIKE（模擬命中點），不能因為演出延後。
 
-const FILES := {0: "res://data/poses/sword.json"}   # 兵種 → 姿勢檔（D.SWORD＝0）
+const FILES: Dictionary = preload("res://scripts/ui/pose_files.gd").FILES   # 兵種 → 姿勢檔（tools/gen/pose_gen.py 產生）
 static var _cache := {}
 
 static func has(type: int) -> bool:

@@ -625,16 +625,24 @@ func test_present_v120() -> void:
 func test_char2_v120() -> void:
 	var Art = load("res://scripts/ui/art.gd")
 	var PD = load("res://scripts/ui/pose_data.gd")
-	ok(PD.has(0), "劍士有姿勢資料")
-	ok(absf(PD.event_t(0, "hit") - Art.ATK_STRIKE) < 1e-6, "命中事件時間＝模擬命中點（演出不延後）")
 	var worst := 0.0
-	for i in 101:
-		var a := i / 100.0
-		var got: Array = Art.pose(a, 0)
-		var ref: Array = Art._pose_prof(a, Art.POSE_PROFILE[0]) if a > 0.0 else [0.0, 0.0, 1.0, 1.0, 0.0]   # 原本的劍士公式
-		for j in 5:
-			worst = maxf(worst, absf(float(got[j]) - float(ref[j])))
-	ok(worst < 1e-3, "資料版和原公式 101 點最大差 %.6f" % worst)
+	var missing: Array = []
+	var bad_hit: Array = []
+	for ty in Art.POSE_PROFILE.keys():   # 第 11 大類：22 種全部走資料
+		if not PD.has(ty):
+			missing.append(ty)
+			continue
+		if absf(PD.event_t(ty, "hit") - Art.ATK_STRIKE) >= 1e-6:
+			bad_hit.append(ty)
+		for i in 101:
+			var a := i / 100.0
+			var got: Array = Art.pose(a, ty)
+			var ref: Array = Art._pose_prof(a, Art.POSE_PROFILE[ty]) if a > 0.0 else [0.0, 0.0, 1.0, 1.0, 0.0]   # 原本的公式
+			for j in 5:
+				worst = maxf(worst, absf(float(got[j]) - float(ref[j])))
+	ok(Art.POSE_PROFILE.size() == 22 and missing.is_empty(), "22 種兵都有姿勢資料（缺 %s）" % str(missing))
+	ok(bad_hit.is_empty(), "命中事件時間＝模擬命中點（演出不延後；不符 %s）" % str(bad_hit))
+	ok(worst < 1e-3, "資料版和原公式 22 種 × 101 點最大差 %.6f" % worst)
 	var BU = load("res://scripts/ui/battle/battle_units.gd")
 	ok(absf(BU._tumbler(0.0)) < 1e-9 and absf(BU._tumbler(1.0)) < 1e-9, "不倒翁搖：受擊開始與結束都是 0（不跳）")
 	var mx := 0.0

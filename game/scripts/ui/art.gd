@@ -43,7 +43,7 @@ static func pose(atk: float, type := -1) -> Array:
 	if atk <= 0.0:
 		return [0.0, 0.0, 1.0, 1.0, 0.0]
 	if PoseData.has(type):
-		return PoseData.eval(type, atk)   # 1.2.0 §7.1 姿勢資料化試點（劍士）：資料版和原本的 POSE_PROFILE 公式等值（測試）
+		return PoseData.eval(type, atk)   # 1.2.0 §7.1 姿勢資料化（22 種）：資料版和原本的 POSE_PROFILE 公式等值（測試）；POSE_PROFILE 留著當產生器來源與 windup_lean
 	if POSE_PROFILE.has(type):
 		return _pose_prof(atk, POSE_PROFILE[type])
 	if atk < ATK_WINDUP:

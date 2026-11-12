@@ -277,7 +277,7 @@ func test_ext_golden_v120() -> void:
 			var s0 = Simx.new(AIx.build(0, 100, rng)["army"], AIx.build(1, 100, rng)["army"], r)
 			s0.run_to_end()
 			bad += 0 if str(s0.fingerprint) == str(c["fp"]) else 1
-	ok(g["cases"].size() == 17, "金標準 17 場")
+	ok(g["cases"].size() == 29, "金標準 29 場（第 11 大類追加架盾、迴馬、全開各 4 場）")
 	# 依產生時的順序重算（同一個 bits 共用一顆 rng 連續抽 4 場）
 	var by_bits := {}
 	for c2 in g["cases"]:
@@ -420,3 +420,102 @@ func test_ext_mechanics_v120() -> void:
 	var rd0 = RS0.standard()
 	rd0.ext_skills = 8
 	ok(rd0.sim_digest() != RS0.standard().sim_digest(), "模擬摘要含擴充規則")
+
+## 1.2.0 第 11 大類：擴充 v1 位元 0「架盾」、位元 4「迴馬」（契約 §3）
+func test_ext_guard_ride_v120() -> void:
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var AIx = load("res://scripts/core/ai_army.gd")
+	var MCx = load("res://scripts/core/mirror_check.gd")
+	var rg = RS0.standard()
+	rg.ext_skills = 1
+	ok(rg.is_sandbox(), "擴充規則只在沙盒（不記紀錄）")
+	var g0 = Armyx.new(0, 100)
+	ok(g0.place(1, 5, 4), "架盾場面：藍盾兵")
+	var g1 = Armyx.new(1, 100)
+	ok(g1.place(2, 10, 4) and g1.place(2, 10, 6), "架盾場面：紅弓箭手兩隻")
+	var sg = Simx.new(g0.copy(), g1.copy(), rg)
+	var sh = _ext_unit(sg, 0, 1)
+	var a0 = _ext_unit(sg, 1, 2, 0)
+	var a1 = _ext_unit(sg, 1, 2, 1)
+	var si := _ext_idx(sg, sh)
+	sh.fx = 1000
+	sh.fy = 0
+	# 觸發：前方 2 格內有遠程瞄準 → 架 60；3 格外不架
+	a0.x = sh.x + 1800; a0.y = sh.y; a0.target = si
+	a1.x = sh.x + 5000; a1.y = sh.y; a1.target = si
+	sg._ext_brace_arm(sg.units.size())
+	ok(sh.brace_t == 60, "前方 2 格內的弓箭手瞄準 → 架盾 60 tick")
+	sh.brace_t = 0
+	a0.x = sh.x + 3000
+	sg._ext_brace_arm(sg.units.size())
+	ok(sh.brace_t == 0, "3 格外不架")
+	a0.x = sh.x - 1800
+	sg._ext_brace_arm(sg.units.size())
+	ok(sh.brace_t == 0, "背後來的不架")
+	# 擋：盾面 ±60° 內兩筆只擋一筆（鏡像不變鍵挑來源），擋完結束、冷卻 120
+	a0.x = sh.x + 1800; a0.y = sh.y
+	a1.x = sh.x + 1800; a1.y = sh.y + 600
+	sh.brace_t = 40
+	var hits: Array = [[_ext_idx(sg, a1), si, 30, "arrow", ["arrow"]], [_ext_idx(sg, a0), si, 30, "arrow", ["arrow"]]]
+	sg._ext_brace_block(hits)
+	var zeroed := 0
+	for h in hits:
+		if int(h[2]) == 0 and (h[4] as Array).has("ext_guard"):
+			zeroed += 1
+	ok(zeroed == 1 and int(hits[1][2]) == 0, "兩發只擋一發，挑列小的來源 %s" % str(hits))
+	ok(sh.brace_t == 0 and sh.ext_cd == 120, "擋完結束、冷卻 120")
+	sh.brace_t = 40
+	sh.ext_cd = 0
+	var side: Array = [[_ext_idx(sg, a0), si, 30, "arrow", ["arrow"]]]
+	a0.x = sh.x + 300; a0.y = sh.y + 1800   # 側面約 80°
+	sg._ext_brace_block(side)
+	ok(int(side[0][2]) == 30 and sh.brace_t == 40, "盾面 ±60° 外不擋")
+	var fire: Array = [[_ext_idx(sg, a0), si, 5, "hit", ["ext_fire"]]]
+	a0.x = sh.x + 1800; a0.y = sh.y
+	sg._ext_brace_block(fire)
+	ok(int(fire[0][2]) == 5, "小火不算遠程一發")
+	# 迴馬：退一格、給再衝；退路被佔不退
+	var rr = RS0.standard()
+	rr.ext_skills = 16
+	var c0 = Armyx.new(0, 100)
+	ok(c0.place(3, 6, 4) and c0.place(0, 5, 6) and c0.place(3, 6, 6), "迴馬場面：藍騎兵兩隻＋劍士")
+	var c1 = Armyx.new(1, 100)
+	ok(c1.place(0, 12, 4), "迴馬場面：紅劍士")
+	var sc = Simx.new(c0.copy(), c1.copy(), rr)
+	var cv = _ext_unit(sc, 0, 3, 0)
+	var cv2 = _ext_unit(sc, 0, 3, 1)
+	var x0: int = cv.x
+	cv.ride = 1
+	cv2.ride = 1   # 後面一格有劍士 → 被佔
+	sc._ext_ride(sc.units.size())
+	ok(cv.x == x0 - 1000 and cv.ride_t == 60 and cv.ride == 0, "衝鋒命中後退 1 格、60 tick 再衝")
+	ok(cv2.x == 6500 and cv2.ride_t == 0 and cv2.ride == 0, "退路被佔不退 x=%d" % cv2.x)
+	# 整場：確定性、鏡像、兩個都有觸發
+	var both = RS0.standard()
+	both.ext_skills = 1 | 16
+	var rng := RandomNumberGenerator.new()
+	var got := {"guard": 0, "ride": 0}
+	var det_bad := 0
+	var mir_bad := 0
+	for sd in 16:
+		rng.seed = 7070 + sd * 7919
+		var b0 = AIx.build(0, 100, rng)["army"]
+		var b1 = AIx.build(1, 100, rng)["army"]
+		var s1 = Simx.new(b0.copy(), b1.copy(), both)
+		while not s1.finished:
+			s1.step()
+			for e in s1.events:
+				if EV_has(e, "ext_guard"):
+					got["guard"] += 1
+				if EV_has(e, "ext_ride"):
+					got["ride"] += 1
+		var s2 = Simx.new(b0.copy(), b1.copy(), both)
+		s2.run_to_end()
+		if s1.fingerprint != s2.fingerprint:
+			det_bad += 1
+		if MCx.check_free(b0, b1, both) != "":
+			mir_bad += 1
+	ok(det_bad == 0 and mir_bad == 0, "架盾＋迴馬：確定性 %d、鏡像 %d 場不符" % [det_bad, mir_bad])
+	ok(int(got["guard"]) > 0 and int(got["ride"]) > 0, "整場有觸發 %s" % str(got))

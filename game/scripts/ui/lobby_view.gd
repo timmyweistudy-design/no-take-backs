@@ -1170,8 +1170,26 @@ func _draw_lab_tab(R: Rect2) -> void:
 		var off: bool = s in lobby_r.skills_off
 		_btn_small(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("× " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
 			Color(0.35, 0.18, 0.2) if off else Color(0.16, 0.26, 0.2))
+	# 1.2.0 第 11 大類：擴充規則 v1 的五個新技能＋協同技（契約 §5：AI／教練還沒支援 → 只能在沙盒開，開了就是沙盒、不記紀錄）
+	y += ((skill_list.size() + 3) / 4) * 44 + 8
+	_text(Vector2(R.position.x, y + 4), L.t("lb_ext"), tz("S"), TXT_DIM)
+	y += 30
+	for xi in 6:
+		var on: bool = bool(lobby_r.synergy) if xi == 5 else (int(lobby_r.ext_skills) & (1 << xi)) != 0
+		_btn_small(Rect2(R.position.x + (xi % 4) * 148, y + (xi / 4) * 44, 140, 38), ("✓ " if on else "× ") + L.t("xs_syn" if xi == 5 else "xs_%d" % xi), _lobby_ext_toggle.bind(xi), true, false,
+			Color(0.16, 0.26, 0.2) if on else Color(0.35, 0.18, 0.2))
 	if mouse.y > R.position.y and mouse.y < R.end.y and mouse.x > R.position.x and mouse.x < R.end.x:
 		lobby_item = "lab"
+
+func _lobby_ext_toggle(xi: int) -> void:
+	lobby_item = "lab"
+	if xi == 5:
+		lobby_r.synergy = not bool(lobby_r.synergy)
+		if lobby_r.synergy:
+			lobby_r.adj = false   # 協同技和相鄰陣法互斥（契約 §4）
+	else:
+		lobby_r.ext_skills = int(lobby_r.ext_skills) ^ (1 << xi)
+	_lobby_touch()
 
 func _lab_skills(types: Array) -> Array:
 	var owner := {"charge": [3], "taunt": [1], "backstab": [4], "counter": [0], "stealth": [4], "brace": [1, 5], "splash": [6], "heal": [7], "drum": [8], "breach": [9],

@@ -79,16 +79,24 @@ func _battle_process(delta: float) -> void:
 	if paused:
 		return
 	if hitstop > 0:
+		# 1.2.0 §9.6 展示時鐘：停頓期間欠下的模擬 tick（只算真的停頓的那段、照停頓當下的倍速換算）
+		present_debt += minf(delta, hitstop) * speed / 0.05
 		hitstop -= delta
-		present_debt += delta   # 1.2.0 §9.6 展示時鐘：停頓欠下的時間，之後 ≤1.5 倍追回
 		return
 	var rate := speed
-	if present_debt > 1.0:
-		accum += present_debt * speed   # 落後超過 1 秒：直接跳回（跳過的事件照常記戰報與書籤，只是不播演出）
-		present_debt = 0.0
-	elif present_debt > 0.0 and slow_left <= 0 and final_left <= 0:
-		rate *= 1.5
-		present_debt = maxf(0.0, present_debt - delta * 0.5)
+	if present_debt > 0.0 and slow_left <= 0 and final_left <= 0:
+		if present_debt > 20.0:
+			# 落後超過 1 秒（20 tick）：不播演出直接追上（事件照常記進戰報與書籤；最後時刻只記狀態不演）
+			var nskip := int(present_debt)
+			for _i in nskip:
+				if view.finished:
+					break
+				_sim_step(false)
+			present_debt = 0.0
+		else:
+			var extra := minf(delta * speed * 0.5 / 0.05, present_debt)   # 追回：最多 1.5 倍速
+			accum += extra * 0.05
+			present_debt -= extra
 	if slow_left > 0:
 		rate *= 0.5
 		slow_left -= delta
@@ -575,6 +583,12 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			_add_fx({"kind": "note", "p": _upos(dr0) + Vector2(6, -78), "t": 0.0, "dur": 0.8})
 			_add_fx({"kind": "woodwave", "p": _upos(dr0) + Vector2(0, 2), "t": 0.0, "dur": 0.45})   # 1.1.0 A7：鼓手腳下木紋同心波（不幫友軍染色）
 		return
+	if k == EV.EXT_RIDE:
+		if with_fx:
+			var rd0 = view.unit_by_id(ev["src"])
+			if rd0 != null:
+				_add_fx({"kind": "puff", "p": _upos(rd0) + Vector2(0, -6), "t": 0.0, "dur": 0.4})   # 1.2.0 擴充「迴馬」：撤一格揚起的小塵
+		return
 	var route := event_route(ev)
 	if not with_fx and (k == EV.BREACH or ev.get("tags", []).has(EV.BREACH)):
 		key_used = true   # V1.3 C4：跳播／直接看結果也要記得第一次破陣已發生（Codex v130-impl2）
@@ -603,6 +617,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		if _frags_on():
 			frags.spawn(_upos(t), "fire", 3, view.tick * 4096 + t.id, 6.0)
 		return
+	if tags.has(EV.EXT_GUARD):
+		_fx_text(_upos(t) + Vector2(0, -92), L.t("ev_guard"), Color("#ffe08a"), 0.9, tz("S"))   # 1.2.0 擴充「架盾」：這一發被盾擋成 0
 	if tags.has(EV.BEAT):
 		_add_fx({"kind": "note", "p": _upos(s) + Vector2(0, -78), "t": 0.0, "dur": 0.5})   # 1.2.0 擴充「接拍」：吃到拍點的這一擊，頭上一個音符
 	atk_t[s.id] = time
@@ -788,7 +804,7 @@ func _draw_battle_hud() -> void:
 		# 1.2.0 §5.6 棋鐘：淺色木盒＋頂上黃銅按鈕，字用深墨（狂熱時深紅）。木盒是平塗＋邊線（不是九宮格：大字級時字會壓到九宮格邊）；
 		# 結果頁有暗幕，棋鐘回到原本的白字（深字在暗幕下看不清）
 		var cw0 := maxf(170.0, _width(clock_s, ts(22), true) + 40.0)
-		var cr := Rect2(640 - cw0 / 2, 1, cw0, maxf(32.0, ts(22) * 1.3))
+		var cr := Rect2(640 - cw0 / 2, 1, cw0, maxf(32.0, ts(22) * 1.12))   # 第 11 大類：150% 時原本 ×1.3 的盒子蓋到戰力尺中央刻度，收緊到字高
 		draw_rect(Rect2(cr.position + Vector2(3, 3), cr.size), Color(DIM_INK, 0.5))
 		draw_rect(cr, Color("#e9d9b8"))
 		draw_rect(Rect2(cr.position, Vector2(cr.size.x, 3)), Color(1, 0.97, 0.88, 0.7))

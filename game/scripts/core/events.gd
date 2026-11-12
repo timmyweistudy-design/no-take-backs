@@ -51,9 +51,11 @@ const DRUM := "drum"           # 鼓手一拍（src＝鼓手、n＝鼓舞到幾�
 const BEAT := "beat"           # 1.2.0 擴充 v1「接拍」：這一擊吃到拍點加成（標籤）
 const EXT_FIRE := "ext_fire"   # 1.2.0 擴充 v1「火矢」：小火的傷害（標籤）
 const RESCUE := "rescue"       # 1.2.0 擴充 v1「急救契約」：這筆補血是急救（標籤）
+const EXT_GUARD := "ext_guard" # 1.2.0 擴充 v1「架盾」：這一發遠程被盾擋成 0（標籤）
+const EXT_RIDE := "ext_ride"   # 1.2.0 擴充 v1「迴馬」：騎兵撤一格（事件）
 const HEAL := "heal"           # 醫者補血（src＝醫者、tgt＝被補的、amt＝實際補量；沒有 dmg）
 
 const KINDS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER, BOMB, SPLASH, BONK, PIKE_BRACE, BREACH, HEAL, DRUM,
 	DEATH, ATTRITION, TAUNT, REVEAL, RALLY_ON, RALLY_OFF, FLANK]
 const TAGS := [HIT, BREAKER, ANTICAV, ARROW, BLOCKED, BRACED, CHARGE, BACKSTAB, COUNTER, BOMB, SPLASH, BONK, PIKE_BRACE, BREACH, HEAL, DRUM,
-	ALERT, HIDE, TRIP, TAUNT, REVEAL, RALLY, FLANK, BEAT, EXT_FIRE, RESCUE]
+	ALERT, HIDE, TRIP, TAUNT, REVEAL, RALLY, FLANK, BEAT, EXT_FIRE, RESCUE, EXT_GUARD, EXT_RIDE]

@@ -194,7 +194,7 @@ func pool_of(team: int) -> int:
 	return int(pool[0]) if (team == 1 and ai_pool_same) else int(pool[team])
 
 func is_sandbox() -> bool:
-	if not skills_off.is_empty():
+	if not skills_off.is_empty() or ext_on():   # 1.2.0 第 11 大類：擴充規則只在沙盒開（契約 §5），不記紀錄、不給成就
 		return true
 	for t in stat_pct:
 		for v in stat_pct[t]:

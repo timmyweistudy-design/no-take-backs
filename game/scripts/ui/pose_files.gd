@@ -1,0 +1,26 @@
+extends RefCounted
+## 由 tools/gen/pose_gen.py 產生：兵種 → 姿勢資料檔（1.2.0 §7.1）。不要手改。
+const FILES := {
+	0: "res://data/poses/sword.json",
+	1: "res://data/poses/01_shield.json",
+	2: "res://data/poses/02_archer.json",
+	3: "res://data/poses/03_cavalry.json",
+	4: "res://data/poses/04_assassin.json",
+	5: "res://data/poses/05_pike.json",
+	6: "res://data/poses/06_bomber.json",
+	7: "res://data/poses/07_medic.json",
+	8: "res://data/poses/08_drummer.json",
+	9: "res://data/poses/09_berserker.json",
+	10: "res://data/poses/10_spore.json",
+	11: "res://data/poses/11_sheep.json",
+	12: "res://data/poses/12_mimic.json",
+	13: "res://data/poses/13_slime.json",
+	14: "res://data/poses/14_ghost.json",
+	15: "res://data/poses/15_voodoo.json",
+	16: "res://data/poses/16_hourglass.json",
+	17: "res://data/poses/17_skelmage.json",
+	18: "res://data/poses/18_vacat.json",
+	19: "res://data/poses/19_golem.json",
+	20: "res://data/poses/20_slimelet.json",
+	21: "res://data/poses/21_skeleton.json",
+}
