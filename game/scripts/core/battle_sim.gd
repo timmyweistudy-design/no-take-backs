@@ -96,11 +96,21 @@ class Unit:
 	var st := 0                # V1.4 #9 木座貼紙（0＝沒有）
 	var st_t := 0              # 開局衝鋒剩幾 tick
 	var ward := false          # 護符還在
+	var beat := false          # 1.2.0 擴充 v1「接拍」：下一次攻擊 +20%（不疊加；下一拍清掉重給）
+	var arrows := 0            # 1.2.0 擴充 v1「火矢」：射出的箭數（每第 3 箭放火）
+	var ext_cd := 0            # 1.2.0 擴充 v1「急救契約」：醫者冷卻（含停手的 40 tick）
+	var saved_at := -100000    # 1.2.0 擴充 v1：上次被急救契約救起的 tick（200 tick 內不再救）
 	var boss := false          # V1.4 #12 巨獸
 	var arm_hp := 0            # 前臂部位血量（0＝斷了，不再橫掃）
 	var plate_hp := 0          # 背甲部位血量（0＝碎了，不再分攤傷害）
 
 var adj_n := 0   # V1.6 #22：這場有幾筆相鄰加成（畫面提示用）
+## 1.2.0 擴充規則 v1（契約 docs/rules-ext-v1.md）：ext_bits＝rules.ext_skills；預設 0 時下面的分支全部不走，標準場次位元組不變。
+var ext_bits := 0
+var ext_fires: Array = []   # 火矢：[x, y, 隊伍, 放置 tick, 射手索引]
+var syn_n := 0              # 協同技筆數（畫面提示用）
+var ext_hash := false       # 擴充規則開著：每 tick 多雜湊擴充狀態
+var _ext_ready := PackedByteArray()   # 急救契約：這一 tick 可以救的醫者
 var units: Array[Unit] = []    # 依 id 排序
 var tick := 0
 var budget := 100
@@ -265,7 +275,12 @@ func _init(army0, army1, p_rules = null) -> void:
 			n.hcd = D.HEAL_FIRST
 		n.slot = int(r[4]) if free else int(u["row"]) * COLS + (int(u["col"]) if n.team == 0 else COLS - 1 - int(u["col"]))
 		units.append(n)
-	if rules != null and rules.adj:
+	if rules != null:
+		ext_bits = int(rules.ext_skills)
+		ext_hash = rules.ext_on()
+	if rules != null and rules.synergy:
+		_ext_synergy()   # 1.2.0 §8.4 協同技（和相鄰陣法互斥：開了協同就不跑相鄰陣法）
+	elif rules != null and rules.adj:
 		adj_n = load("res://scripts/core/adj_defs.gd").apply(units)   # V1.6 #22 相鄰陣法（關的時候不跑）
 	for u0 in units:
 		if u0.type >= D.COUNT:
@@ -350,6 +365,8 @@ func step() -> void:
 		_cmd_tick(n)
 	if not map_ev.is_empty():
 		_ev_tick(n)   # V1.4 #10 沙盤機關（在快照之前，這一 tick 大家看到的是同一個場面）
+	if ext_bits & 2 and tick % 40 == 0:
+		_ext_beat(n)   # 擴充 v1 階段①：節拍
 
 	# ① 快照（之後的選目標、碰撞都只讀這些陣列）
 	var sx := PackedInt64Array()
@@ -670,9 +687,12 @@ func step() -> void:
 		if u.stun > 0 or u.target == -1 or u.cd > 0:
 			continue
 		var tg := units[u.target]
+		var h0 := hits.size()   # 1.2.0 擴充「接拍」：這次攻擊宣告產生的 hits 從這裡開始
 		if v8 and u.type == F8.SHEEP:
 			if M.dist2(u.x, u.y, tg.x, tg.y) <= u.reach * u.reach and not u.exploded:
 				_v8_blast(i, false, hits)
+				if ext_bits & 2:
+					_ext_beat_take(u, h0, hits)
 			continue
 		if u.type == D.BOMBER and u.bmode == 1:
 			# 丟彈：④ 重新驗距離（③ 會移動位置），要在 1.5～4.5 格；不符合就取消，不臨時換模式
@@ -684,6 +704,8 @@ func step() -> void:
 				var sj := units[j]
 				var spd: int = D.SPLASH_DMG * atk_pct[D.BOMBER] / 100
 				hits.append([i, j, _vuln(sj, spd * D.BOMB_SHIELD_NUM / D.BOMB_SHIELD_DEN if sj.type == D.SHIELD else spd), EV.SPLASH, [EV.SPLASH]])
+			if ext_bits & 2:
+				_ext_beat_take(u, h0, hits)
 			attacked[i] = 1
 			u.cd += u.cd_base * 4
 			continue
@@ -691,6 +713,8 @@ func step() -> void:
 			if M.dist2(u.x, u.y, tg.x, tg.y) > D.BONK_REACH * D.BONK_REACH:
 				continue
 			hits.append([i, u.target, _vuln(tg, maxi(1, D.BONK_ATK * atk_pct[D.BOMBER] / 100)), EV.BONK, [EV.BONK]])
+			if ext_bits & 2:
+				_ext_beat_take(u, h0, hits)
 			attacked[i] = 1
 			u.cd += D.BONK_CD * 4
 			continue
@@ -782,7 +806,13 @@ func step() -> void:
 			tags.append(EV.HIT)
 		if u.st == STK.FROST:
 			slow_set[u.target] = true   # V1.4 #9 寒霜
+		if ext_bits & 8 and u.type == D.ARCHER:
+			u.arrows += 1
+			if u.arrows % 3 == 0:
+				ext_fires.append([tg.x, tg.y, u.team, tick, i])   # 擴充 v1「火矢」：每第 3 箭在命中點放小火（t+20、t+40 各傷一次）
 		hits.append([i, u.target, _vuln(tg, dmg), kind, tags])
+		if ext_bits & 2:
+			_ext_beat_take(u, h0, hits)
 		attacked[i] = 1
 		u.cd += u.cd_base * 4
 		if u.type == D.CAVALRY:
@@ -794,6 +824,8 @@ func step() -> void:
 		var sw := units[si]
 		hits.append([si, pick_counter(si, sword_hit_by[si]), sw.atk * D.COUNTER_PCT / 100, EV.COUNTER, [EV.COUNTER]])
 
+	if not ext_fires.is_empty():
+		_ext_fire_tick(n, hits)   # 擴充 v1 階段④後段：火矢的小火（當成射手的 hits，擊殺歸屬一起算；Codex cat07 #5）
 	# ⑤ 同時結算
 	var voodoo: Array = []
 	if v8:
@@ -878,10 +910,15 @@ func step() -> void:
 			var tp := _t_back(t, tx0, ty0, t.x, t.y)
 			t.x = tp.x
 			t.y = tp.y
+	if ext_bits & 4:
+		_ext_ready.resize(n)
+		_ext_ready.fill(0)
 	for i in n:
 		var u := units[i]
 		if not u.alive:
 			continue
+		if ext_bits & 4 and u.type == D.MEDIC and u.stun <= 0 and u.ext_cd <= 0:
+			_ext_ready[i] = 1   # 急救契約：用這一 tick 遞減前的暈眩／冷卻判斷（本 tick 不能行動就不能救；Codex cat07 #3）
 		if u.ward and dmg_in[i] > 0:
 			u.dmg_taken -= dmg_in[i]   # V1.4 #9 護符：第一次受傷整筆擋掉
 			dmg_in[i] = 0
@@ -914,6 +951,8 @@ func step() -> void:
 			u.charge = 0
 		if u.guard > 0:
 			u.guard -= 1
+		if u.ext_cd > 0:
+			u.ext_cd -= 1
 		if slow_set.has(i):
 			u.slow = D.SLOW_TICKS
 		if u.type == D.ASSASSIN and u.stealth == 0 and _was_stealth.get(u.id, false):
@@ -925,6 +964,8 @@ func step() -> void:
 	_apply_heals(heals)
 	if not fire_until.is_empty():
 		_ev_fire(n)   # V1.4 #10：火牆在倒下判定前扣，燒到 0 的這一 tick 就倒（不會帶著 0 血再出手）
+	if ext_bits & 4:
+		_ext_rescue(n)   # 擴充 v1 階段⑤：急救契約（死亡判定前，可以救本 tick 受到致命傷的友軍）
 	var st_blasts: Array = []
 	for i in n:
 		var u := units[i]
@@ -975,6 +1016,8 @@ func step() -> void:
 	power_log2.append(power(1))
 	if not fast:
 		_hash_state()
+		if ext_hash:
+			_hash_ext()   # 1.2.0 擴充規則：狀態另外雜湊（沒開時位元組不變；Codex cat07 #1）
 		if v8:
 			_hash_v8()
 		if cmd_on:
@@ -982,6 +1025,122 @@ func step() -> void:
 	_check_end()
 
 # ───────────────────────── 規則細節 ─────────────────────────
+
+## ───────── 1.2.0 擴充規則 v1（docs/rules-ext-v1.md）─────────
+## 接拍：每 40 tick 一拍，先清掉所有人的加成，再由鼓手（索引由小到大）給 3 格內友軍（含自己以外）下一次攻擊 +20%。
+func _ext_beat(n: int) -> void:
+	for i in n:
+		units[i].beat = false
+	for i in n:
+		var d := units[i]
+		if not d.alive or d.type != D.DRUMMER:
+			continue
+		for j in n:
+			var a := units[j]
+			if j == i or not a.alive or a.team != d.team:
+				continue
+			var dx := a.x - d.x
+			var dy := a.y - d.y
+			if dx * dx + dy * dy <= 9000000:
+				a.beat = true
+
+## 接拍的加成：這次攻擊宣告產生的每一筆 hits（含投彈的濺射）+20%（整數捨去、在易傷之後），加成用掉。反擊不是攻擊宣告，不吃。
+func _ext_beat_take(u: Unit, from: int, hits: Array) -> void:
+	if not u.beat or from >= hits.size():
+		return
+	u.beat = false
+	for k in range(from, hits.size()):
+		hits[k][2] = int(hits[k][2]) * 120 / 100
+		hits[k][4] = hits[k][4] + [EV.BEAT]
+
+## 火矢：放置在 t 的小火，在 t+20、t+40 對同一格內（中心 ±500）的敵人各造成 5 點；t+40 先傷害再移除。
+## 傷害當成射手（即使射手已倒）的 hits，和一般攻擊一起進擊殺歸屬。
+func _ext_fire_tick(n: int, hits: Array) -> void:
+	var keep: Array = []
+	for f in ext_fires:
+		var age: int = tick - int(f[3])
+		if age == 20 or age == 40:
+			for j in n:
+				var e := units[j]
+				if not e.alive or e.team == int(f[2]):
+					continue
+				if absi(e.x - int(f[0])) <= 500 and absi(e.y - int(f[1])) <= 500:
+					hits.append([int(f[4]), j, 5, EV.HIT, [EV.EXT_FIRE]])
+		if age < 40:
+			keep.append(f)
+	ext_fires = keep
+
+func _hash_ext() -> void:
+	var a := PackedInt64Array()
+	for u in units:
+		a.append_array(PackedInt64Array([1 if u.beat else 0, u.arrows, u.ext_cd, u.saved_at, u.atk]))
+	for f in ext_fires:
+		a.append_array(PackedInt64Array([int(f[0]), int(f[1]), int(f[2]), int(f[3]), int(f[4])]))
+	_hash.update(a.to_byte_array())
+
+## 急救契約：醫者（自己血 > 0、沒在暈、冷卻好）救 3 格內血 ≤ 25%（含 ≤ 0）的友軍，補到最大血 30%；被救的 200 tick 內不再救；
+## 醫者停手 40 tick，冷卻 300 tick 從停手結束起算（ext_cd＝340）。順序用左右鏡像不變的鍵（列 y、離自己底線的深度），
+## 不用陣列索引（鏡像場的索引順序不同，Codex／契約 §2）：醫者依（y、深度）先後；目標取血量比例最低，平手再比（y、深度）。
+## a 比 b 先：列 y → 離自己底線的深度 → 部署格 slot（擊退夾邊重疊時，slot 讓順序仍不看陣列索引；Codex cat07 #2）。
+func _ext_less(a: Unit, b: Unit) -> bool:
+	if a.y != b.y:
+		return a.y < b.y
+	var da := a.x if a.team == 0 else fw - a.x
+	var db := b.x if b.team == 0 else fw - b.x
+	if da != db:
+		return da < db
+	return a.slot < b.slot
+
+func _ext_rescue(n: int) -> void:
+	var meds: Array = []
+	for i in n:
+		var m := units[i]
+		if _ext_ready[i] == 1 and m.alive and m.hp > 0:
+			meds.append(i)
+	meds.sort_custom(func(a, b): return _ext_less(units[a], units[b]))
+	for i in meds:
+		var m := units[i]
+		var best := -1
+		for j in n:
+			var a := units[j]
+			if j == i or not a.alive or a.team != m.team:
+				continue
+			if a.hp * 100 > a.max_hp * 25 or tick - a.saved_at < 200:
+				continue
+			var dx := a.x - m.x
+			var dy := a.y - m.y
+			if dx * dx + dy * dy > 9000000:
+				continue
+			if best < 0:
+				best = j
+				continue
+			var b := units[best]
+			var ra := a.hp * 1000 / maxi(1, a.max_hp)
+			var rb := b.hp * 1000 / maxi(1, b.max_hp)
+			if ra < rb or (ra == rb and _ext_less(a, b)):
+				best = j
+		if best < 0:
+			continue
+		var t := units[best]
+		var to := t.max_hp * 30 / 100
+		var real := maxi(0, to - t.hp)
+		t.hp = maxi(t.hp, to)
+		t.saved_at = tick
+		m.heal_done += real
+		m.stun = maxi(m.stun, 40)
+		m.ext_cd = 340
+		events.append({"kind": EV.HEAL, "src": m.id, "tgt": t.id, "amt": real, "tags": [EV.HEAL]})
+
+## 協同技（§8.4，候選第一組）：狂戰士旁邊 1 格內（含斜角）有同隊鼓手 → 狂戰士攻擊 +10%（開局一次，整數捨去）。和相鄰陣法互斥。
+func _ext_synergy() -> void:
+	for b in units:
+		if b.type != D.BERSERKER:
+			continue
+		for d in units:
+			if d.type == D.DRUMMER and d.team == b.team and absi(d.x - b.x) <= 1000 and absi(d.y - b.y) <= 1000:
+				b.atk = b.atk * 110 / 100
+				syn_n += 1
+				break
 
 ## 選目標（企劃 §3.3）：排除潛行 → 弓手警覺 → 盾兵嘲諷（近戰）→ 兵種偏好 → 距離 → 剩血 → 列 → 深度 → 編號。
 ## 只讀快照陣列，比較全部用整數（不配置陣列）。

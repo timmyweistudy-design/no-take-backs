@@ -178,3 +178,245 @@ func test_ext_rules_frozen_v120() -> void:
 	ok(r2.to_code() == c0 and r2.ext_skills == 0, "複製後一樣")
 	var rd: Dictionary = RS0.from_code(c0)
 	ok(bool(rd["ok"]) and rd["rules"].to_code() == c0 and not rd["rules"].ext_on(), "來回不變、不會冒出擴充")
+
+## 1.2.0 第 7 大類：擴充規則 v1（接拍、急救契約、火矢、協同技）：NTBR7 來回、互斥與唯一寫法、確定性、左右鏡像、各技能真的觸發、預設不變
+func test_ext_skills_v120() -> void:
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var AIx = load("res://scripts/core/ai_army.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var MCx = load("res://scripts/core/mirror_check.gd")
+	var r = RS0.standard()
+	r.ext_skills = 2 | 4 | 8
+	var c: String = r.to_code()
+	ok(c.begins_with("NTBR7."), "擴充規則用 NTBR7")
+	var rd: Dictionary = RS0.from_code(c)
+	ok(bool(rd["ok"]) and int(rd["rules"].ext_skills) == 14 and rd["rules"].to_code() == c and rd["rules"].equals(r), "NTBR7 來回一致")
+	var rs = RS0.standard()
+	rs.synergy = true
+	rs.adj = true
+	var cs: String = rs.to_code()
+	ok(not bool(RS0.from_code(cs)["ok"]), "協同技和相鄰陣法同時開的代碼不收（互斥）")
+	ok(not r.equals(RS0.standard()), "擴充規則和標準規則不相等")
+	var rng := RandomNumberGenerator.new()
+	var fired := {"drum": 0, "heal": 0, "fire": 0}
+	var mirror_bad := 0
+	var det_bad := 0
+	var base_same := 0
+	for sd in 12:
+		rng.seed = 4242 + sd * 7919
+		var a0 = AIx.build(0, 100, rng)["army"]
+		var a1 = AIx.build(1, 100, rng)["army"]
+		var s1 = Simx.new(a0.copy(), a1.copy(), r)
+		var hp_drum := false
+		while not s1.finished:
+			s1.step()
+			for e in s1.events:
+				if EV_has(e, "beat"):
+					fired["drum"] += 1   # 接拍的專用標籤（不能被原本鼓手的 DRUM 事件滿足；Codex cat07 #7）
+				if str(e.get("kind", "")) == "heal" and int(e.get("amt", 0)) > 0 and s1.units.any(func(u): return u.id == int(e["src"]) and u.ext_cd > 300):
+					fired["heal"] += 1
+		for u in s1.units:
+			if u.arrows >= 3:
+				fired["fire"] += 1
+		var s2 = Simx.new(a0.copy(), a1.copy(), r)
+		s2.run_to_end()
+		if s1.fingerprint != s2.fingerprint or s1.winner != s2.winner:
+			det_bad += 1
+		if MCx.check_free(a0, a1, r) != "":
+			mirror_bad += 1
+		var s0 = Simx.new(a0.copy(), a1.copy())
+		s0.run_to_end()
+		var s0b = Simx.new(a0.copy(), a1.copy(), RS0.standard())
+		s0b.run_to_end()
+		if s0.fingerprint == s0b.fingerprint:
+			base_same += 1
+	ok(det_bad == 0, "擴充規則確定性（%d 場不一致）" % det_bad)
+	ok(mirror_bad == 0, "擴充規則左右鏡像（%d 場不對稱）" % mirror_bad)
+	ok(base_same == 12, "標準規則物件和 null 規則結果相同（擴充欄位預設不影響）")
+	# 急救契約：AI 隨機陣很少帶醫者，另擺一個固定場面（藍：3 劍士＋1 醫者；紅：6 劍士）
+	var Armyx = load("res://scripts/core/army.gd")
+	var b0 = Armyx.new(0, 100)
+	for rr in [3, 4, 5]:
+		b0.place(0, 5, rr)
+	b0.place(7, 3, 4)
+	var b1 = Armyx.new(1, 100)
+	for rr2 in [2, 3, 4, 5, 6, 7]:
+		b1.place(0, 10, rr2)
+	var sr = Simx.new(b0.copy(), b1.copy(), r)
+	var rescued := 0
+	while not sr.finished:
+		sr.step()
+		for u in sr.units:
+			if u.type == 7 and u.ext_cd == 340:
+				rescued += 1
+	fired["heal"] = rescued
+	ok(MCx.check_free(b0, b1, r) == "", "急救場面左右鏡像")
+	ok(fired["drum"] > 0 and fired["heal"] > 0 and fired["fire"] > 0, "接拍、急救契約、火矢都有觸發 %s" % str(fired))
+
+func EV_has(e: Dictionary, tag: String) -> bool:
+	return (e.get("tags", []) as Array).has(tag)
+
+## 1.2.0 第 7 大類：擴充規則 v1 金標準（tests/golden/ext_v1.json；舊金標準不動）
+func test_ext_golden_v120() -> void:
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var AIx = load("res://scripts/core/ai_army.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var f := FileAccess.open("res://tests/golden/ext_v1.json", FileAccess.READ)
+	ok(f != null, "擴充金標準檔存在")
+	if f == null:
+		return
+	var g: Dictionary = JSON.parse_string(f.get_as_text())
+	var bad := 0
+	for c in g["cases"]:
+		var r = RS0.standard()
+		r.ext_skills = int(c["bits"])
+		r.synergy = bool(c.get("synergy", false))
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(c["seed"])
+		if r.synergy:
+			var s0 = Simx.new(AIx.build(0, 100, rng)["army"], AIx.build(1, 100, rng)["army"], r)
+			s0.run_to_end()
+			bad += 0 if str(s0.fingerprint) == str(c["fp"]) else 1
+	ok(g["cases"].size() == 17, "金標準 17 場")
+	# 依產生時的順序重算（同一個 bits 共用一顆 rng 連續抽 4 場）
+	var by_bits := {}
+	for c2 in g["cases"]:
+		if bool(c2.get("synergy", false)):
+			continue
+		if not by_bits.has(int(c2["bits"])):
+			by_bits[int(c2["bits"])] = []
+		by_bits[int(c2["bits"])].append(c2)
+	for bits in by_bits:
+		var r2 = RS0.standard()
+		r2.ext_skills = int(bits)
+		var rng2 := RandomNumberGenerator.new()
+		for c3 in by_bits[bits]:
+			rng2.seed = int(c3["seed"])
+			var s = Simx.new(AIx.build(0, 100, rng2)["army"], AIx.build(1, 100, rng2)["army"], r2)
+			s.run_to_end()
+			if str(s.fingerprint) != str(c3["fp"]) or s.winner != int(c3["winner"]):
+				bad += 1
+	ok(bad == 0, "擴充規則重算和金標準一致（%d 場不同）" % bad)
+
+## 1.2.0 第 7 大類（Codex cat07 #7）：逐條驗機制本身——接拍增傷與消耗、雙鼓手不疊、火矢 t+20／t+40 扣血與擊殺歸屬、
+## 致命急救、暈眩一 tick 的醫者不能救、雙醫者分救、救過的 200 tick 內不再救、驗證入口擋互斥。
+func _ext_unit(sm, team: int, type: int, nth: int = 0):
+	var k := 0
+	for u in sm.units:
+		if u.team == team and u.type == type:
+			if k == nth:
+				return u
+			k += 1
+	return null
+
+func _ext_idx(sm, u) -> int:
+	return sm.units.find(u)
+
+func test_ext_mechanics_v120() -> void:
+	var RS0 = load("res://scripts/core/ruleset.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var Armyx = load("res://scripts/core/army.gd")
+	var MCx = load("res://scripts/core/mirror_check.gd")
+	# ── 接拍 ──
+	var rb = RS0.standard()
+	rb.ext_skills = 2
+	var a0 = Armyx.new(0, 100)
+	a0.place(8, 3, 4)
+	a0.place(8, 3, 6)
+	a0.place(0, 5, 5)
+	var a1 = Armyx.new(1, 100)
+	ok(a1.place(0, 10, 5), "接拍場面：紅方擺得下")
+	var sb = Simx.new(a0.copy(), a1.copy(), rb)
+	sb._ext_beat(sb.units.size())
+	var sw = _ext_unit(sb, 0, 0)
+	ok(sw != null and sw.beat, "兩個鼓手 3 格內的劍士拿到拍點加成")
+	var hits: Array = [[0, 1, 100, "hit", ["hit"]], [0, 2, 7, "splash", ["splash"]]]
+	sb._ext_beat_take(sw, 0, hits)
+	ok(int(hits[0][2]) == 120 and int(hits[1][2]) == 8 and not sw.beat and (hits[0][4] as Array).has("beat"), "接拍：這次宣告的每筆 +20%（捨去、含濺射）並用掉 %s" % str(hits))
+	sb._ext_beat_take(sw, 0, hits)
+	ok(int(hits[0][2]) == 120, "雙鼓手不疊：加成用掉後第二次不再加")
+	var far = _ext_unit(sb, 1, 0)
+	ok(far != null and not far.beat, "敵方不拿拍點")
+	# ── 火矢 ──
+	var rf = RS0.standard()
+	rf.ext_skills = 8
+	var f0 = Armyx.new(0, 100)
+	ok(f0.place(2, 0, 4) and f0.place(1, 0, 1), "火矢場面：藍方擺得下")
+	var f1 = Armyx.new(1, 100)
+	ok(f1.place(1, 15, 4) and f1.place(1, 15, 7), "火矢場面：紅方擺得下")
+	var sf = Simx.new(f0.copy(), f1.copy(), rf)
+	var ar = _ext_unit(sf, 0, 2)
+	var en = _ext_unit(sf, 1, 1, 1)
+	sf.ext_fires = [[en.x, en.y, 0, 0, _ext_idx(sf, ar)]]
+	en.stun = 100   # 釘住目標（不然 20 tick 內就走出那一格）
+	var fire_ticks: Array = []
+	var fire_dmg := 0
+	for _k in 60:
+		sf.step()
+		for e in sf.events:
+			if EV_has(e, "ext_fire") and int(e.get("tgt", -1)) == en.id:
+				fire_ticks.append(sf.tick)
+				fire_dmg += int(e["dmg"])
+	ok(fire_ticks.size() == 2 and int(fire_ticks[1]) - int(fire_ticks[0]) == 20 and fire_dmg == 10 and sf.ext_fires.is_empty(), "火矢：t+20、t+40 各 5 點，之後移除 %s" % str(fire_ticks))
+	var sk = Simx.new(f0.copy(), f1.copy(), rf)
+	var ar2 = _ext_unit(sk, 0, 2)
+	var en2 = _ext_unit(sk, 1, 1, 1)
+	sk.ext_fires = [[en2.x, en2.y, 0, 0, _ext_idx(sk, ar2)]]
+	en2.hp = 5
+	en2.stun = 100
+	for _k2 in 25:
+		sk.step()
+	ok(not en2.alive and ar2.kills == 1, "火矢燒倒的算射手的擊殺（kills %d）" % ar2.kills)
+	# ── 急救契約 ──
+	var rr = RS0.standard()
+	rr.ext_skills = 4
+	var m0 = Armyx.new(0, 100)
+	for row in [3, 4, 5]:
+		m0.place(0, 5, row)
+	m0.place(7, 3, 3)
+	m0.place(7, 3, 5)
+	var m1 = Armyx.new(1, 100)
+	ok(m1.place(0, 13, 4), "急救場面：紅方擺得下")
+	ok(MCx.check_free(m0, m1, rr) == "", "雙醫者場面左右鏡像")
+	var sr = Simx.new(m0.copy(), m1.copy(), rr)
+	var s_a = _ext_unit(sr, 0, 0, 0)
+	var med_a = _ext_unit(sr, 0, 7, 0)
+	var med_b = _ext_unit(sr, 0, 7, 1)
+	s_a.hp = 0   # 致命：死亡判定前救起
+	sr.step()
+	var fired_n := int(med_a.ext_cd == 340) + int(med_b.ext_cd == 340)
+	ok(s_a.alive and s_a.hp == s_a.max_hp * 30 / 100 and fired_n == 1, "致命傷被救回 30%，只有一個醫者出手（hp %d、出手 %d）" % [s_a.hp, fired_n])
+	var saver = med_a if med_a.ext_cd == 340 else med_b
+	ok(saver.stun == 40 or saver.stun == 39, "出手的醫者停手 40 tick（stun %d）" % saver.stun)
+	s_a.hp = 0
+	sr.step()
+	ok(not s_a.alive, "救過的 200 tick 內不再救（另一個醫者也不救）")
+	var sr2 = Simx.new(m0.copy(), m1.copy(), rr)
+	var x_a = _ext_unit(sr2, 0, 0, 0)
+	var x_b = _ext_unit(sr2, 0, 0, 2)
+	x_a.hp = 1
+	x_b.hp = 1
+	sr2.step()
+	var ma = _ext_unit(sr2, 0, 7, 0)
+	var mb = _ext_unit(sr2, 0, 7, 1)
+	ok(ma.ext_cd == 340 and mb.ext_cd == 340 and x_a.saved_at >= 0 and x_b.saved_at >= 0, "兩個醫者分別救兩個低血友軍")
+	var sr3 = Simx.new(m0.copy(), m1.copy(), rr)
+	var y_a = _ext_unit(sr3, 0, 0, 0)
+	for mm in [_ext_unit(sr3, 0, 7, 0), _ext_unit(sr3, 0, 7, 1)]:
+		mm.stun = 1
+	y_a.hp = 1
+	sr3.step()
+	var none_yet: bool = y_a.saved_at < 0
+	sr3.step()
+	ok(none_yet and y_a.saved_at >= 0, "暈眩 1 tick 的醫者這一 tick 不能救、下一 tick 才救")
+	# ── 驗證入口 ──
+	var rv = RS0.standard()
+	rv.synergy = true
+	rv.adj = true
+	ok(rv.validate().has("rr_code_body"), "validate 擋協同技＋相鄰陣法")
+	var rv2 = RS0.standard()
+	rv2.ext_skills = 32
+	ok(rv2.validate().has("rr_code_body"), "validate 擋擴充位元超出範圍")
+	var rd0 = RS0.standard()
+	rd0.ext_skills = 8
+	ok(rd0.sim_digest() != RS0.standard().sim_digest(), "模擬摘要含擴充規則")

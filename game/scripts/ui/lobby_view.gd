@@ -369,6 +369,8 @@ func _lobby_adj(id: String, d: int) -> void:
 			r.keep_formation = not r.keep_formation
 		"adj":
 			r.adj = not r.adj   # V1.6 #22 相鄰陣法
+			if r.adj:
+				r.synergy = false   # 1.2.0：協同技和相鄰陣法互斥，開相鄰就關協同（不然輸出讀不回的碼）
 		"deploy":
 			# 第六輪：格子／自由；切到格子時部署欄位回到舊值（NTBR1）
 			if r.deploy == "grid":

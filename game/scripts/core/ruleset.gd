@@ -16,6 +16,7 @@ const CODE_PREFIX := "NTBR1"
 const CODE_PREFIX3 := "NTBR3"   # 第八輪：卡池用到新兵（欄位和 NTBR2 相同，只差卡池遮罩放寬）
 const CODE_PREFIX5 := "NTBR5"   # 第十二輪：有手動技能（NTBR4 的欄位再加 5 欄）
 const CODE_PREFIX4 := "NTBR4"   # V9：有地圖或非標準大小（多 3 欄：地圖、大小、噴口）
+const CODE_PREFIX7 := "NTBR7"   # 1.2.0 擴充規則 v1：NTBR6 的 30 欄（第 30 欄 adj 可 0／1）＋[EXT_VERSION, ext_skills, synergy]（docs/rules-ext-v1.md）
 const CODE_PREFIX6 := "NTBR6"   # V1.6 #22：相鄰陣法（NTBR5 的 29 欄＋1 欄 adj；技能可以是關的）
 const CODE_PREFIX2 := "NTBR2"   # 第六輪：多 4 欄（部署版本、間距、縱深、全場模式）
 # 第六輪：自由排兵（docs/history/2026-11-03-free-placement-plan-v6.md §3）
@@ -207,7 +208,7 @@ func judge() -> int:
 
 ## 模擬是否走舊路徑（雜湊位元組和 1.3.0 相同）。
 func sim_is_legacy() -> bool:
-	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid" and map_is_default() and not cmd_on() and not adj
+	return ticks == STD_TICKS and judge() == 1 and not is_sandbox() and deploy == "grid" and map_is_default() and not cmd_on() and not adj and not ext_on()   # 1.2.0：擴充規則不走舊路徑
 
 func cmd_on() -> bool:
 	return int(cmd_mask[0]) != 0 or int(cmd_mask[1]) != 0
@@ -283,6 +284,8 @@ func validate() -> Array:
 				break
 		if not cmd_uses in CMD.USES or not cmd_cd in CMD.CD_TICKS or not cmd_power in CMD.POWERS:
 			bad.append("rr_bad_cmd")
+	if ext_skills < 0 or ext_skills > 31 or (adj and synergy):
+		bad.append("rr_code_body")   # 1.2.0 擴充規則：範圍、協同技和相鄰陣法互斥（只有代碼能開，所以沿用代碼錯誤的字；Codex cat07 #6）
 	if map_id < 0 or map_id >= MapDefs.MAPS.size() or map_size < 0 or map_size >= MapDefs.SIZES.size():
 		bad.append("rr_bad_map")
 	elif not map_is_default() and deploy != "free":
@@ -400,11 +403,14 @@ func sim_digest() -> String:
 		base.append_array(["free", spacing, depth, fullfield])   # 第六輪：自由部署進模擬摘要（格子部署時摘要不變）
 	if adj:
 		base.append_array(["adj", 1])   # V1.6 #22（關的時候摘要不變）
+	if ext_on():
+		base.append_array(["ext", EXT_VERSION, ext_skills, 1 if synergy else 0])   # 1.2.0 擴充規則 v1（沒開時摘要不變；Codex cat07 #1）
 	return JSON.stringify(base).sha256_text().substr(0, 16)
 
 func equals(o) -> bool:
 	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields()) and cmd_mask == o.cmd_mask and (not cmd_on() or (cmd_uses == o.cmd_uses and cmd_cd == o.cmd_cd and cmd_power == o.cmd_power)) and adj == o.adj \
-		and map_id == o.map_id and map_size == o.map_size and vents == o.vents   # V1.6 #22；V1.6.1 B1：地圖也比（大廳預設比對另外把地圖帶過去，見 lobby_view._lobby_touch）
+		and map_id == o.map_id and map_size == o.map_size and vents == o.vents \
+		and ext_skills == int(o.get("ext_skills")) and synergy == bool(o.get("synergy"))   # V1.6 #22；V1.6.1 B1：地圖也比；1.2.0 擴充規則也比
 
 ## 和標準規則（同一個卡池基準）不同的項目：[[鍵, 標準值, 現在值], …]
 func diff(std) -> Array:
@@ -459,6 +465,10 @@ func ext_on() -> bool:
 func to_code() -> String:
 	var j := JSON.stringify(key_fields())
 	var body := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	if ext_on():
+		var j7 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power, 1 if adj else 0, EXT_VERSION, ext_skills, 1 if synergy else 0])
+		var b7 := Marshalls.utf8_to_base64(j7).replace("+", "-").replace("/", "_").replace("=", "")
+		return "%s.%s.%s" % [CODE_PREFIX7, b7, b7.sha256_text().substr(0, 6)]
 	if adj:
 		var j6 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power, 1])
 		var b6 := Marshalls.utf8_to_base64(j6).replace("+", "-").replace("/", "_").replace("=", "")
@@ -493,9 +503,10 @@ static func from_code(code: String) -> Dictionary:
 	if c.length() > 2000:
 		return {"ok": false, "why": "rr_code_long"}
 	var parts := c.split(".")
-	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX5 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4 and parts[0] != CODE_PREFIX6):
+	if parts.size() != 3 or (parts[0] != CODE_PREFIX and parts[0] != CODE_PREFIX2 and parts[0] != CODE_PREFIX5 and parts[0] != CODE_PREFIX3 and parts[0] != CODE_PREFIX4 and parts[0] != CODE_PREFIX6 and parts[0] != CODE_PREFIX7):
 		return {"ok": false, "why": "rr_code_format"}
-	var v6: bool = parts[0] == CODE_PREFIX6
+	var v7: bool = parts[0] == CODE_PREFIX7
+	var v6: bool = parts[0] == CODE_PREFIX6 or v7
 	var v5: bool = parts[0] == CODE_PREFIX5 or v6
 	var v4: bool = parts[0] == CODE_PREFIX4 or v5
 	var v3: bool = parts[0] == CODE_PREFIX3 or v4
@@ -506,9 +517,24 @@ static func from_code(code: String) -> Dictionary:
 	while b64.length() % 4 != 0:
 		b64 += "="
 	var j = JSON.parse_string(Marshalls.base64_to_utf8(b64))
-	if not j is Array or j.size() != (30 if v6 else (29 if v5 else (24 if v4 else (21 if v2 else 17)))):
+	if not j is Array or j.size() != (33 if v7 else (30 if v6 else (29 if v5 else (24 if v4 else (21 if v2 else 17))))):
 		return {"ok": false, "why": "rr_code_body"}
-	if v6:
+	var ext_f: Array = []
+	var adj7 := false
+	if v7:
+		for e7 in j.slice(29):
+			if not (e7 is float or e7 is int) or float(e7) != floorf(float(e7)):
+				return {"ok": false, "why": "rr_code_body"}
+		ext_f = j.slice(30)
+		adj7 = int(j[29]) == 1
+		if int(j[29]) not in [0, 1] or int(ext_f[0]) != EXT_VERSION or int(ext_f[1]) < 0 or int(ext_f[1]) > 31 or int(ext_f[2]) not in [0, 1]:
+			return {"ok": false, "why": "rr_code_body"}
+		if int(ext_f[1]) == 0 and int(ext_f[2]) == 0:
+			return {"ok": false, "why": "rr_code_body"}   # 沒開擴充不能用 NTBR7（一組規則只有一種寫法）
+		if adj7 and int(ext_f[2]) == 1:
+			return {"ok": false, "why": "rr_code_body"}   # 協同技和相鄰陣法互斥
+		j = j.slice(0, 29)
+	elif v6:
 		if not (j[29] is float or j[29] is int) or float(j[29]) != 1.0:
 			return {"ok": false, "why": "rr_code_body"}   # NTBR6 一定是相鄰陣法開著
 		j = j.slice(0, 29)
@@ -594,7 +620,10 @@ static func from_code(code: String) -> Dictionary:
 		r.cmd_power = int(cmd_f[4])
 		if not r.cmd_on() and not v6:
 			return {"ok": false, "why": "rr_code_body"}   # 沒開技能不能用 NTBR5（一組規則只有一種寫法）
-	r.adj = v6
+	r.adj = adj7 if v7 else v6
+	if v7:
+		r.ext_skills = int(ext_f[1])
+		r.synergy = int(ext_f[2]) == 1
 	r.preset = "custom"
 	var bad: Array = r.validate()
 	if not bad.is_empty():
