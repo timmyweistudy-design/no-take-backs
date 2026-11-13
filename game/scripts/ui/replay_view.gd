@@ -130,6 +130,7 @@ func _seek_pump() -> bool:
 	return true
 
 func _seek_begin(target: int) -> void:
+	set("dir_hot_until", -1.0)   # 1.4.0：跳轉不帶舊的推近焦點（Codex cat05 #7）
 	cues.clear()       # 1.3.0 §7.1：跳轉清掉預告（不留舊時間線的未來事件；Codex cat06 #2）
 	stat_prev.clear()
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies

@@ -455,10 +455,10 @@ func _board_ring(inner: Rect2) -> bool:
 	var fs := tz("C")
 	if fs <= 16 and MapDefs.MAPS.size() > fld_map:
 		var nm := L.t("map_" + str(MapDefs.MAPS[fld_map]["key"]))
-		var fw := font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var bp := Vector2(inner.get_center().x - fw / 2.0, inner.end.y + 9 + fs * 0.36)
-		draw_string(font, bp + Vector2(0, -1), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.1, 0.05, 0.02, 0.85))   # 凹槽上緣內陰影
-		draw_string(font, bp, nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("#d4a843"))   # 填金（Antigravity cat06：原本暗字看不清）
+		# 1.4.0 §3.4：地圖名刻在盤框左上角（原本下緣中央，會被底部戰報條切到）
+		var bp := Vector2(inner.position.x + 18.0, inner.position.y - 9 + fs * 0.36)
+		draw_string_outline(font, bp, nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0.12, 0.06, 0.02, 0.9))   # 凹槽深色描邊（Antigravity cat05：金字貼橘木對比不夠）
+		draw_string(font, bp, nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, PAL.TRINKET_GOLD.lightened(0.25))   # 填亮金
 	return true
 
 const MAT_OAK := "res://art/mat/tile_oak.png"
@@ -1006,6 +1006,13 @@ func _draw_units_of(s, dim: bool) -> void:
 				fid = mini(3, int(tm / 1.2 * 4.0))
 		var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
 		# 1.3.0 §5.4 依移動方向選視角：走路且不出手時，往南＝3/4 正面走路格、往北＝3/4 背面走路格（沒烘好就照舊側面）
+		# 1.4.0 §5.3：整體壓縮蓄力（前搖）→ 出手時拉長，再回原形；只動畫面（命中 tick 不變，at 是展示時鐘算的）
+		if bool(Save.s("reduce_motion")):
+			pass   # 減少動態：不壓縮拉長（Codex cat05 #5）
+		elif live and at > 0.0 and at < Art.ATK_WINDUP:
+			crouch *= 1.0 - SQUASH * sin(at / Art.ATK_WINDUP * PI * 0.5)
+		elif live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.1:
+			crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
 		if u.id == follow_id:
 			mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
 		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
@@ -1022,6 +1029,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			var front_ok: bool = hd > 0 and cache_ok and sprites.wt_loc.has(u.type)
 			var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
 			_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+		if live and not u.hidden and hd == 0:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）
+			_spring_acc(p, u.type, u.team, face, usc, crouch, lean, walk, at, alpha, u.id, ut)   # 1.4.0 §5.2 即時配件（延遲回彈）
 		if live and not u.hidden and hd == 0:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], usc])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
@@ -1329,3 +1338,133 @@ func _draw_projectile(type: int, team: int, a: Vector2, b: Vector2, k: float) ->
 			draw_circle(p4, 7.0, Color(0.5, 1.0, 0.6, 0.35), true, -1.0, true)
 			_cross(p4, 4.5, Color("#7dff8a"))
 
+
+
+# ── 1.4.0 第 5 大類：戰場可讀（方案 §3）──
+## 接觸陰影：每隻兵腳下一圈淡淡的環境光遮蔽（底座壓暗貼地，放到桌上）。畫在單位之前；順便算好這一幀的位置給虛線底座用。
+var _ao_pos: Array = []      # [[單位, 盤面位置], …]（這一幀）
+var _occ_ids := {}           # 被擋住的單位 id（每 6 幀重算一次：O(n²)，切片 B 量測）
+var _occ_frame := -99
+var _occ_key := -1            # 上次重算時的「哪場、第幾 tick 段、幾隻活著」：換場／跳轉／有人倒下就立刻重算（Codex cat05 #6）
+func _draw_contact_ao(s) -> void:
+	_ao_pos.clear()
+	if s == null or bool(Save.s("plain_ui")):
+		return
+	# 全部的橢圓組成一個三角形陣列、一次送出（逐隻 draw_colored_polygon 在 48 兵時 p95 +4%，切片 B 量測）
+	var verts := PackedVector2Array()
+	var idx := PackedInt32Array()
+	var n := ELL16.size()
+	for u in s.units:
+		if not u.alive or u.hidden:
+			continue
+		var p := _upos(u)
+		_ao_pos.append([u, p])
+		var c := p + Vector2(2, 3)
+		var base := verts.size()
+		verts.append(c)
+		for k in n:
+			verts.append(c + ELL16[k] * (21.0 * HK))
+		for k in n:
+			idx.append(base)
+			idx.append(base + 1 + k)
+			idx.append(base + 1 + (k + 1) % n)
+	if not idx.is_empty():
+		var cols := PackedColorArray()
+		cols.resize(verts.size())
+		cols.fill(Color(DIM_INK, 0.16))
+		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, verts, cols)
+
+## 被前面的兵擋住的：在最上層補一圈虛線底座（找得到自己的兵；48 兵都能定位）。最多 24 隻。
+func _draw_occluded_bases(s) -> void:
+	if s == null or bool(Save.s("plain_ui")) or _ao_pos.is_empty():
+		return
+	var fr := Engine.get_frames_drawn()
+	var key: int = hash([s.get_instance_id(), int(s.tick) / 6, _ao_pos.size()])
+	if fr - _occ_frame >= 6 or fr < _occ_frame or key != _occ_key:
+		_occ_frame = fr
+		_occ_key = key
+		_occ_ids.clear()
+		var sy: Array = _ao_pos.duplicate()
+		sy.sort_custom(func(x, y): return (x[1] as Vector2).y < (y[1] as Vector2).y)   # 依 y 排好：只往後看 48px 內（不是 O(n²) 全掃）
+		for i in sy.size():
+			var pa: Vector2 = sy[i][1]
+			for j in range(i + 1, sy.size()):
+				var pb: Vector2 = sy[j][1]
+				if pb.y > pa.y + 48.0 * HK:
+					break
+				if pb.y > pa.y + 2.0 and absf(pb.x - pa.x) < 15.0 * HK:
+					_occ_ids[sy[i][0].id] = true
+					break
+			if _occ_ids.size() >= 24:
+				break
+	if _occ_ids.is_empty():
+		return
+	var segs := [PackedVector2Array(), PackedVector2Array()]   # 每隊一次 draw_multiline
+	for a in _ao_pos:
+		if not _occ_ids.has(a[0].id):
+			continue
+		var pa: Vector2 = a[1]
+		var tm: int = clampi(int(a[0].team), 0, 1)
+		for k in range(0, ELL16.size(), 2):   # 虛線＝每隔一段畫一段
+			segs[tm].append(pa + ELL16[k] * (17.0 * HK))
+			segs[tm].append(pa + ELL16[(k + 1) % ELL16.size()] * (17.0 * HK))
+	for tm in 2:
+		if not (segs[tm] as PackedVector2Array).is_empty():
+			draw_multiline(segs[tm], Color(Art.OUT, 0.75), 4.0)   # 深色襯底：草地上也看得到（Antigravity cat05 #2）
+			draw_multiline(segs[tm], Color(Art.team_color(tm, cbm()).lightened(0.15), 1.0), 2.5)
+
+## 單位橢圓（扁 0.42）16 點，接觸陰影與虛線底座共用（不每幀算 sin／cos）
+static var ELL16: PackedVector2Array = _ell16()
+static func _ell16() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for k in 16:
+		var a := k * TAU / 16.0
+		out.append(Vector2(cos(a), sin(a) * 0.42))
+	return out
+
+# ── 1.4.0 第 6 大類：角色動作切片 B（方案 §5.2、§5.3）──
+const SQUASH := 0.07    # 前搖整體壓縮
+const STRETCH := 0.05   # 出手拉長
+## 即時配件（只有少數：劍士盔羽、弓箭手披風、騎兵鞍穗）：角度是展示時間、走路相位、前傾、出手進度的純函式
+## （不積分、不存狀態 → 不同幀率同一時刻一樣、跳轉不用重建）；每兵種頻率與相位不同（不會整軍齊震）。
+## [錨點(單位座標), 長度, 粗細, 頻率, 靜止角(弧度, 0＝往下), 顏色鍵]
+const SPRING := {
+	0: [Vector2(-2, -45), 9.0, 2.6, 1.0, -2.3, "red"],      # 劍士：盔頂紅羽（往後上翹）
+	2: [Vector2(-8, -27), 14.0, 5.0, 0.8, 0.35, "team"],    # 弓箭手：肩後短披風
+	3: [Vector2(-17, -29), 10.0, 2.2, 1.25, 0.15, "gold"],  # 騎兵：鞍穗
+}
+
+static func spring_angle(type: int, t: float, walk: float, lean: float, at: float, id: int, still := false) -> float:
+	if not SPRING.has(type):
+		return 0.0
+	var sp: Array = SPRING[type]
+	var a: float = sp[4]
+	if still:
+		return a   # 減少動態：配件靜止在靜止角（不擺、不甩，Codex cat05 #5）
+	var f: float = sp[3]
+	a += 0.16 * sin(t * TAU * f * 0.9 + id * 1.7)            # 待機微擺（每隻相位不同）
+	if walk > 0.0:
+		a += 0.22 * sin(walk * 2.0 + id)                     # 走路晃：walk 是累積相位（弧度）→ 只取週期、幅度有界；負值是拖行／暈眩姿勢碼，不晃（Codex cat05 #3）
+	a += clampf(lean, -0.4, 0.4) * 1.6                       # 往前衝，配件往後拖（延遲）
+	if at > 0.0:
+		a += 0.35 * sin(clampf(at, 0.0, 1.0) * PI) * (1.0 if type != 0 else -1.0)   # 出手時甩一下再回彈
+	return a
+
+## 配件掛在「實際身體」上：和精靈圖同一條轉換（起伏、攻擊姿勢、步態、轉身寬度都跟著；Codex cat05 #4）
+func _spring_acc(p: Vector2, type: int, team: int, face: float, scale: float, crouch: float, lean: float, walk: float, at: float, alpha: float, id: int, t_body := 0.0) -> void:
+	if not SPRING.has(type) or bool(Save.s("plain_ui")) or alpha < 0.5:
+		return
+	var sp: Array = SPRING[type]
+	var still := bool(Save.s("reduce_motion"))
+	var qa: float = at if sprites == null else sprites.quant_atk(at)
+	var qw: float = 0.0 if qa > 0.0 else (walk if sprites == null else sprites.quant_walk(walk))
+	var ang := spring_angle(type, time - freeze_t, walk, lean, at, id, still)
+	var col: Color = PAL.TRINKET_RED if sp[5] == "red" else (PAL.TRINKET_GOLD if sp[5] == "gold" else Art.team_color(team, cbm()).darkened(0.25))
+	# 單位座標 → 盤面座標自己算（不切換矩陣，合批，切片 B 量測）
+	var xf: Transform2D = Art.unit_xf(p, face, qw, qa, t_body, scale, lean, crouch, type) * Gait.body_xf(type, qw)
+	var a0: Vector2 = sp[0]
+	var d := Vector2(sin(ang), cos(ang)) * float(sp[1])
+	var mid := a0 + d * 0.5 + Vector2(cos(ang), -sin(ang)) * 2.0
+	var pts := PackedVector2Array([xf * a0, xf * mid, xf * (a0 + d)])
+	draw_polyline(pts, Color(Art.OUT, alpha), (float(sp[2]) + 2.0) * scale, false)
+	draw_polyline(pts, Color(col, alpha), float(sp[2]) * scale, false)

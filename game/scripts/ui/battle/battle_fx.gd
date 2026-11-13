@@ -318,6 +318,15 @@ func _add_fx(d: Dictionary) -> void:
 		if same >= 2:
 			fx_deduped += 1
 			return
+	var cls: String = FX_CLASS.get(d["kind"], "")
+	if cls != "":
+		var same_cls: Array = []
+		for i0 in fx.size():
+			if FX_CLASS.get(fx[i0]["kind"], "") == cls:
+				same_cls.append(i0)
+		if same_cls.size() >= int(FX_CLASS_CAP[cls]):
+			fx.remove_at(same_cls[0])   # 1.4.0 §6.1：同類超額，丟最舊的那個（固定順序、可重現）；放在去重之後＝新的確定會收才淘汰（Codex cat05 #2）
+			fx_dropped += 1
 	# V1.3 C：混戰降噪（先過去重再淘汰，Codex v130-impl2）。頭頂符號（鼓舞音符、嘲諷驚嘆號）同時最多幾個，多的不畫（舊的先留著，讀得到）
 	if OVERHEAD_CAP.has(d["kind"]):
 		var on := 0
@@ -332,13 +341,13 @@ func _add_fx(d: Dictionary) -> void:
 			fx_dropped += 1
 	var n := 0
 	for f in fx:
-		if f["kind"] != "text":
+		if not f["kind"] in FX_CAP_EXEMPT:
 			n += 1
-	if n >= FX_CAP:
+	if n >= FX_CAP and d["kind"] != "stain":   # 跳字照舊走這條；茶漬範圍提示不被擋
 		var victim := -1
 		for k in fx.size():
 			var f2: Dictionary = fx[k]
-			if f2["kind"] == "text":
+			if f2["kind"] in FX_CAP_EXEMPT:
 				continue
 			var p2: int = FX_PRIO.get(f2["kind"], 1)
 			if p2 < 2 and (victim < 0 or p2 < FX_PRIO.get(fx[victim]["kind"], 1) or (p2 == FX_PRIO.get(fx[victim]["kind"], 1) and f2["t"] > fx[victim]["t"])):
@@ -353,7 +362,7 @@ func _add_fx(d: Dictionary) -> void:
 			# 全部都是關鍵特效：取代最舊的那個（硬上限，Codex S1 #5）
 			var oldest := -1
 			for k3 in fx.size():
-				if fx[k3]["kind"] != "text" and (oldest < 0 or fx[k3]["t"] > fx[oldest]["t"]):
+				if not fx[k3]["kind"] in FX_CAP_EXEMPT and (oldest < 0 or fx[k3]["t"] > fx[oldest]["t"]):
 					oldest = k3
 			fx.remove_at(oldest)
 			fx_dropped += 1
@@ -366,9 +375,19 @@ func _bubble(r: Rect2, a: float) -> void:
 	var rr := r.grow_individual(4, 1, 4, 2)
 	# 1.2.0 第 4 大類 A11：跳字泡改成小紙條（米白紙底＋墨邊），字用墨色（保留色相）；簡化介面維持深色泡
 	var paper := not bool(Save.s("plain_ui"))
-	var fill := Color(0.96, 0.92, 0.83, 0.92 * a) if paper else Color(0.10, 0.07, 0.05, 0.82 * a)
-	var edge := Color(0.26, 0.16, 0.08, 0.7 * a) if paper else Color(0.95, 0.86, 0.66, 0.55 * a)
 	var mid := rr.position.x + rr.size.x * 0.5
+	if paper:
+		# 1.4.0 §3.1：牛皮紙短標籤（方角、底緣深一階）＋細短引線指向觸發點（取代白底圓角泡＋三角尾）
+		var kraft := Color(PAL.KRAFT, 0.95 * a)
+		draw_rect(Rect2(rr.position + Vector2(1, 2), rr.size), Color(DIM_INK, 0.35 * a))
+		draw_rect(rr, kraft)
+		draw_rect(Rect2(rr.position.x, rr.end.y - 2.0, rr.size.x, 2.0), Color(PAL.KRAFT_D, 0.8 * a))
+		draw_rect(rr, Color(PAL.KRAFT_D, 0.9 * a), false, 1.0)
+		draw_line(Vector2(mid, rr.end.y), Vector2(mid, rr.end.y + 9.0), Color(PAL.KRAFT_D, 0.95 * a), 2.0, true)   # 引線加粗（Antigravity cat05 #3）
+		draw_circle(Vector2(mid, rr.end.y + 9.5), 1.6, Color(PAL.KRAFT_D, 0.85 * a), true, -1.0, true)
+		return
+	var fill := Color(0.10, 0.07, 0.05, 0.82 * a)
+	var edge := Color(0.95, 0.86, 0.66, 0.55 * a)
 	var tail := PackedVector2Array([Vector2(mid - 5, rr.end.y - 1), Vector2(mid + 5, rr.end.y - 1), Vector2(mid - 1, rr.end.y + 7)])
 	_box(rr, fill, edge, minf(10.0, rr.size.y * 0.5), 1.5)
 	draw_colored_polygon(tail, fill)
@@ -615,6 +634,36 @@ func _draw_fx(f: Dictionary) -> void:
 			# V1.0.0 角色：毒改濁紫（綠色留給補血），兩顆錯開的斑點
 			draw_circle(f["p"] + Vector2(-3.0, -k * 14.0), 3.0 + k * 3.0, Color(0.62, 0.42, 0.78, 0.75 * (1.0 - k)), true, -1.0, true)
 			draw_circle(f["p"] + Vector2(4.0, -k * 10.0 - 4.0), 2.0 + k * 2.0, Color(0.5, 0.32, 0.62, 0.6 * (1.0 - k)), true, -1.0, true)
+		"windtrail":
+			# 1.4.0 §6.2 騎兵衝鋒：身後地上三道刷毛風痕（往後拖、淡出）
+			var wd: float = f["dir"]
+			for k4 in 3:
+				var y4: float = -2.0 + (k4 - 1) * 6.0
+				var a4 := (1.0 - k) * (0.55 - k4 * 0.1)
+				var pts4 := PackedVector2Array()
+				for s4 in 6:
+					var xx := -wd * (10.0 + s4 * 9.0 + k * 20.0)
+					pts4.append(f["p"] + Vector2(xx, y4 + sin(s4 * 1.3 + k4) * 1.5))
+				draw_polyline(pts4, Color(0.92, 0.85, 0.66, a4), 2.0 - k4 * 0.4, true)
+		"leaves":
+			# 1.4.0 §6.2 醫者治療：三片草葉微粒旋升（綠色只給治療語意）
+			for k5 in 3:
+				var ang5: float = k * TAU * 0.8 + k5 * TAU / 3.0
+				var c5: Vector2 = f["p"] + Vector2(cos(ang5) * 10.0, -k * 26.0 - k5 * 4.0)
+				var lv := Vector2(cos(ang5 * 1.7), sin(ang5 * 1.7)) * 3.5
+				draw_line(c5 - lv, c5 + lv, Color(0.45, 0.82, 0.4, 0.85 * (1.0 - k)), 2.4, true)
+		"cmdseal":
+			# 1.4.0 §6.3 軍令＝桌面蓋下半透明朱印：一個方印從大縮到定位、留一圈波紋淡出
+			var sc6 := 1.0 + 0.6 * maxf(0.0, 1.0 - k / 0.2)
+			var r6 := 34.0 * sc6
+			var a6 := 0.55 * (1.0 - maxf(0.0, (k - 0.5) / 0.5))
+			var cc6: Color = f["c"]
+			draw_rect(Rect2(f["p"] - Vector2(r6, r6), Vector2(r6, r6) * 2.0), Color(cc6, a6 * 0.35))
+			draw_rect(Rect2(f["p"] - Vector2(r6, r6), Vector2(r6, r6) * 2.0), Color(cc6, a6), false, 3.0)
+			draw_rect(Rect2(f["p"] - Vector2(r6, r6) * 0.62, Vector2(r6, r6) * 1.24), Color(cc6, a6 * 0.8), false, 1.5)
+			if k > 0.2:
+				var rk := (k - 0.2) / 0.8
+				draw_arc(f["p"], 40.0 + rk * 60.0, 0, TAU, 48, Color(cc6, 0.3 * (1.0 - rk)), 2.0, true)
 		"stain":
 			# 1.3.0 §7.1 範圍指示：墨漬（爆炸）／茶漬（踩地）。前 0.15 秒擴散到真實半徑，最後 1.5 秒收縮到 6 成並淡出（被木盤吸乾）
 			var st0: float = f["t"]

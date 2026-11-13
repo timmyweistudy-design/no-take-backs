@@ -82,9 +82,14 @@ func _battle_process(delta: float) -> void:
 		return
 	if hitstop > 0:
 		# 1.2.0 §9.6 展示時鐘：停頓期間欠下的模擬 tick（只算真的停頓的那段、照停頓當下的倍速換算）
-		present_debt += minf(delta, hitstop) * speed / 0.05
+		var used := minf(delta, hitstop)
+		present_debt += used * speed / 0.05
+		freeze_t += used   # 1.4.0：配件等只看展示時間的動畫也一起停（Codex cat05 #8）
 		hitstop -= delta
-		return
+		if hitstop > 0:
+			return
+		hitstop = 0.0
+		delta -= used      # 停頓在這一幀中間結束：剩下的時間照常推進（不丟掉，Codex cat05 #8）
 	var rate := speed
 	if present_debt > 0.0 and slow_left <= 0 and final_left <= 0:
 		if present_debt > 20.0:
@@ -113,6 +118,8 @@ func _battle_process(delta: float) -> void:
 		_sim_step(true)
 		if (slow_left > 0 or final_left > 0) and not was_slow:
 			break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
+		if hitstop > 0:
+			break   # 1.4.0：這一 tick 觸發頓幀，剩下的累積等停完再消耗（Codex cat05 #8）
 	# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
 	# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
 	if slow_left > 0:
@@ -133,6 +140,8 @@ func _battle_process(delta: float) -> void:
 	elif pinch_zoom > 1.01:
 		zoom_target = pinch_zoom   # V1.4 #18：玩家用雙指放大，就停在那裡（1.3.0：手動優先於最後時刻框選，Codex cat06 #5）
 		zoom_center = zoom_center.lerp(pinch_center, minf(1.0, delta * 6))
+	elif _dir_on() and time < dir_hot_until and not view.finished:
+		_director_cam(delta)   # 1.4.0 §2.5 仲裁：技能推近（只重播）> 最後時刻框選（Codex cat05 #7）
 	elif slow_left > 0 and not view.finished and bool(Save.s("clutch_zoom")) and not bool(Save.s("reduce_motion")):   # V1.5：最後時刻自動放大可關
 		_frame_alive(delta)
 	elif _dir_on():
@@ -469,8 +478,10 @@ func _cmd_event(ev: Dictionary, with_fx: bool) -> void:
 		return
 	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
 	fx = fx.filter(func(f): return f.get("cmd_tm", -1) != tm)     # 一隊同時只留最新一條，不疊字
-	_fx_text(Vector2(400.0 if tm == 0 else 880.0, 128), "%s　%s" % [L.t("blue") if tm == 0 else L.t("red"), L.t("cmd_%d" % sk)], Art.team_color(tm, cbm()).lightened(0.45), 1.3, tz("H2"), true)   # V1.0.0：0.25 時紅方在動態戰場上對比偶爾 < 3
-	fx[-1]["cmd_tm"] = tm
+	_fx_text(Vector2(400.0 if tm == 0 else 880.0, 128), "%s　%s" % [L.t("blue") if tm == 0 else L.t("red"), L.t("cmd_%d" % sk)], Art.team_color(tm, cbm()).lightened(0.45), 1.3, tz("B"), true)   # V1.0.0：0.25 時紅方在動態戰場上對比偶爾 < 3；1.4.0 §6.3：大字橫幅降一級，主角是桌面朱印
+	fx[-1]["cmd_tm"] = tm   # 標在橫幅上（要在朱印加進來之前；版面 75_cmd_cd 抓到標錯對象、舊橫幅沒清）
+	if not bool(Save.s("plain_ui")):
+		_add_fx({"kind": "cmdseal", "p": ORIGIN + fld_size * Vector2(0.25 if tm == 0 else 0.75, 0.5), "t": 0.0, "dur": 0.9, "c": Art.team_color(tm, cbm()).darkened(0.15)})
 	if _fx_on("flash"):
 		_add_fx({"kind": "cmd_flash", "t": 0.0, "dur": 0.35, "screen": true, "c": Color("#7fd3ff") if sk == CmdD.FREEZE else (Color("#fff0b0") if sk != CmdD.METEOR else Color("#ff8a3c"))})
 	if sk != CmdD.METEOR:
@@ -583,6 +594,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		if hs0 != null and ht0 != null:
 			_merge_text(ht0.id, EV.HEAL, "+", int(ev["amt"]), _upos(ht0) + Vector2(0, -70), Color("#7dff8a"))
 			_add_fx({"kind": "healring", "p": _upos(ht0) + Vector2(0, 2), "t": 0.0, "dur": 0.35})   # 1.1.0 A7：被補的友軍腳下淡綠藥膏環（≤0.3 格）
+			_add_fx({"kind": "leaves", "p": _upos(ht0) + Vector2(0, -10), "t": 0.0, "dur": 0.6})   # 1.4.0 §6.2 草葉旋升
 			sfx.play("heal", 0.35)
 			if _frags_on():
 				frags.spawn(_upos(ht0), "leaf", 2, view.tick * 4096 + ht0.id, 30.0)   # 1.2.0 §8.2 薄荷葉片
@@ -678,6 +690,9 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		EV.CHARGE:
 			label = L.t("ev_charge")
 			col = ACCENT
+			_add_fx({"kind": "windtrail", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.5})   # 1.4.0 §6.2 地面風痕
+			_hitstop_weight(2)   # 1.4.0 §6.5 重擊頓一下
+			_dir_hot(tpos)       # 1.4.0 §6.4 重播導播推近
 			sfx.play("charge")
 			sfx.play("bugle", 0.6)
 			if _fx_on("shake"):
@@ -950,6 +965,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	final_left = 0.0
 	slow_left = 0.0
 	hitstop = 0.0
+	dir_hot_until = -1.0   # 1.4.0：推近不帶到下一場／下一段（Codex cat05 #7）
 	zoom = 1.0
 	zoom_target = 1.0
 	pinch_zoom = 1.0   # V1.4 #18：新的一場不沿用上一場的縮放
@@ -1029,6 +1045,10 @@ func _dir_on() -> bool:
 
 func _director_cam(delta: float) -> void:
 	var fc := ORIGIN + fld_size / 2
+	if time < dir_hot_until and not view.finished:
+		zoom_target = 1.35
+		zoom_center = zoom_center.lerp(dir_hot_p, minf(1.0, delta * 3.0))
+		return
 	var r: Array = DirR.director_target(view.tick, view.finished, spot_p, spot_n, fc, fld_size.x)
 	zoom_target = float(r[0])
 	zoom_center = zoom_center.lerp(r[1], minf(1.0, delta * (4.0 if view.tick < DirR.TOUR_TICKS else 1.5)))
@@ -1377,3 +1397,21 @@ func _draw_intro() -> void:
 # ── 1.4.0 第 2 大類：棋鐘木活字 ──
 var clock_last := -1
 var clock_flip_t := -10.0
+
+
+# ── 1.4.0 第 7 大類：技能演出 3.0（方案 §6）──
+## 頓幀依重量：固定呈現時間（輕 0、中 30ms、重 60ms），不是幀數；只停畫面時鐘（展示時鐘補回）。減少動態、截圖不頓。
+const HITSTOP_W := [0.0, 0.03, 0.06]
+func _hitstop_weight(w: int) -> void:
+	if bool(Save.s("reduce_motion")) or shot_dir != "" or w <= 0:
+		return
+	hitstop = maxf(hitstop, HITSTOP_W[clampi(w, 0, 2)])
+
+## 招牌推近：只在重播／觀戰的自動導播（實戰、玩家操作中的觀戰都不推）；0.6 秒。
+var dir_hot_p := Vector2.ZERO
+var dir_hot_until := -1.0
+func _dir_hot(p: Vector2) -> void:
+	if not _dir_on():
+		return
+	dir_hot_p = p
+	dir_hot_until = time + 0.6

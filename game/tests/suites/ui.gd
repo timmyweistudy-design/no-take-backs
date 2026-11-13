@@ -467,7 +467,7 @@ func test_crowd_readability() -> void:
 			max_txt = maxi(max_txt, st["visible"] + st["fading"])
 			var nfx := 0
 			for f in g.fx:
-				if f["kind"] != "text":
+				if not f["kind"] in g.FX_CAP_EXEMPT:   # 1.4.0：茶漬範圍提示另有 STAIN_MAX（Codex cat05 #1）
 					nfx += 1
 			max_fx = maxi(max_fx, nfx)
 	ok(unplaced == 0, "跳字：每一個要畫的跳字都已排版（沒排版的 %d 個）" % unplaced)

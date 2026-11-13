@@ -784,8 +784,11 @@ func _draw_inner() -> void:
 	else:
 		if state == St.BATTLE and _frags_on():
 			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
+		if state == St.BATTLE:
+			_draw_contact_ao(view)   # 1.4.0 §3.2 接觸陰影
 		_draw_units_of(view, false)
 		if state == St.BATTLE:
+			_draw_occluded_bases(view)   # 1.4.0 §3.1 被擋住的兵補虛線底座
 			_draw_cues()   # 1.3.0 §7.1 技能預告（命中前）
 			_v16_battle_draw()
 	perf_parts["units"] = Time.get_ticks_usec() - _t

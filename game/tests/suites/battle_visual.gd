@@ -980,3 +980,57 @@ func test_skill_cues_v130() -> void:
 	var csv: String = FileAccess.get_file_as_string("res://data/strings.csv")
 	ok(csv.find("\ntag_stun,") >= 0 and csv.find("\ntag_breach,") >= 0, "竹籤字有四語")
 	g.free()
+
+## 1.4.0 第 5～7 大類：戰場可讀（接觸陰影、虛線底座、牛皮紙標籤、地圖名）、動作切片 B（壓縮拉長、即時配件）、技能演出（噪音預算、地面演出、軍令朱印、重量頓幀、重播推近）
+func test_battle_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.spring_angle(0, 1.0, 0.0, 0.0, 0.0, 3) == GS.spring_angle(0, 1.0, 0.0, 0.0, 0.0, 3), "即時配件角度是純函式（同時刻同結果、不同幀率一樣）")
+	ok(GS.spring_angle(0, 1.0, 0.0, 0.0, 0.0, 3) != GS.spring_angle(0, 1.0, 0.0, 0.0, 0.0, 4), "每隻相位不同（不會整軍齊震）")
+	ok(GS.spring_angle(5, 1.0, 1.0, 0.2, 0.5, 1) == 0.0, "只有劍士、弓箭手、騎兵有即時配件")
+	ok(absf(GS.spring_angle(3, 2.0, 0.0, 0.3, 0.0, 1) - GS.spring_angle(3, 2.0, 0.0, 0.0, 0.0, 1)) > 0.3, "往前衝時配件往後拖")
+	var BS = load("res://scripts/ui/battle/battle_state.gd")
+	ok(int(BS.FX_CLASS_CAP["high"]) == 6 and int(BS.FX_CLASS_CAP["low"]) == 24 and int(BS.FX_CLASS_CAP["scar"]) == 12, "噪音預算上限（方案 §6.1）")
+	ok(not BS.FX_CLASS.has("tag") and not BS.FX_CLASS.has("stain") and "stain" in BS.FX_CAP_EXEMPT, "關鍵提示不在預算表（竹籤、茶漬範圍提示不吃額度、不被全域上限淘汰）")
+	var lo := 99.0
+	var hi := -99.0
+	for k in 400:
+		var wa: float = GS.spring_angle(2, 1.0, 1000.0 + k * 0.37, 0.0, 0.0, 1)
+		lo = minf(lo, wa)
+		hi = maxf(hi, wa)
+	ok(hi - lo <= 2.0 * (0.16 + 0.22) + 0.001, "走路相位累積很大時擺幅仍有界（Codex cat05 #3）")
+	ok(absf(GS.spring_angle(2, 1.0, -200.0, 0.0, 0.0, 1) - GS.spring_angle(2, 1.0, 0.0, 0.0, 0.0, 1)) < 0.0001, "暈眩／拖行姿勢碼不當走路相位")
+	ok(GS.spring_angle(0, 3.3, 2.0, 0.2, 0.5, 7, true) == float(GS.SPRING[0][4]), "減少動態：配件靜止")
+	var g = GS.new()
+	g.speed = 1.0
+	g.fx.clear()
+	for i in 6:
+		g._add_fx({"kind": "boom", "p": Vector2(100 + 100 * maxi(0, i - 1), 100), "t": 0.0, "dur": 1.0})   # 前兩個同處
+	g._add_fx({"kind": "boom", "p": Vector2(100, 100), "t": 0.0, "dur": 1.0})   # 同處第 3 個：被去重拒收
+	var nb := 0
+	for f in g.fx:
+		if f["kind"] == "boom":
+			nb += 1
+	ok(nb == 6 and g.fx[0]["p"] == Vector2(100, 100), "類別淘汰在去重之後：被拒收的不會先刪掉舊的（Codex cat05 #2）")
+	g.fx.clear()
+	for i in 45:
+		g._add_fx({"kind": "slash", "p": Vector2(i * 30, 50), "t": 0.0, "dur": 1.0})
+	g._stain(Vector2(300, 300), 40.0, true, 1)
+	for i in 10:
+		g._add_fx({"kind": "slash", "p": Vector2(i * 30, 90), "t": 0.0, "dur": 1.0})
+	var ns := 0
+	for f in g.fx:
+		if f["kind"] == "stain":
+			ns += 1
+	ok(ns == 1, "茶漬範圍提示在特效滿載時也不被淘汰（Codex cat05 #1）")
+	g.fx.clear()
+	ok(g.HITSTOP_W[0] == 0.0 and g.HITSTOP_W[2] == 0.06, "頓幀用固定呈現時間（不是幀數）")
+	g.play_kind = "official"
+	g.view = load("res://scripts/ui/view_buffer.gd").new()
+	g._dir_hot(Vector2(100, 100))
+	ok(g.dir_hot_until < 0.0, "實戰不推近（招牌鏡頭只在重播）")
+	g.free()
+	var bvs: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	var i_tag := bvs.find("fx[-1][\"cmd_tm\"] = tm")
+	ok(i_tag >= 0 and i_tag < bvs.find("\"kind\": \"cmdseal\""), "軍令橫幅的隊別標記標在橫幅上（不是後加的朱印；舊橫幅才清得掉）")
+	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu.find("inner.position.x + 18.0, inner.position.y - 9") >= 0, "地圖名刻在盤框左上角（不被戰報條切到）")

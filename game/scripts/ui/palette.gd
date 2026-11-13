@@ -34,6 +34,9 @@ const BAMBOO_D := Color("#8a7434")
 # 1.4.0 §7.2 木活字（每個數字一塊刻好的木塊）
 const WOOD_TYPE := Color("#dcc39a")
 const WOOD_TYPE_D := Color("#6b4a2a")
+# 1.4.0 §3.1 牛皮紙短標籤
+const KRAFT := Color("#e2cfa6")
+const KRAFT_D := Color("#7a5a36")
 # ── 隊色（[一般, 色盲][藍, 紅]）與塗裝底漆 ──
 const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]
 const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]

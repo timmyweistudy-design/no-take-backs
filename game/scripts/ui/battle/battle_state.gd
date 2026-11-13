@@ -41,8 +41,17 @@ const FX_CAP := 40
 const FX_PRIO := {"dust": 0, "slash": 1, "arrow": 1, "ripple": 1, "aim": 1, "hide": 1, "trip": 2, "shard": 2, "flash": 2, "vslash": 2,
 	"taunt": 2, "bang": 2, "puff": 1, "hex": 2}
 const OVERHEAD_CAP := {"note": 4, "bang": 6, "inkring": 4}
+## 1.4.0 §6.1 噪音預算：每一類同時上限（關鍵提示不在表裡＝不吃這個額度、不會被淘汰）；超額先丟同類最舊的
+const FX_CLASS := {"boom": "high", "axearc": "high", "cmdseal": "high", "windtrail": "high", "stompring": "high",
+	"dust": "low", "chips": "low", "spark": "low", "puff": "low", "leaves": "low", "ripple": "low",
+	"scorch": "scar"}
+## 範圍提示（茶漬＝技能範圍）不吃噪音預算、也不被全域上限淘汰；本身在 _stain 裡自己限量（Codex cat05 #1）
+const FX_CAP_EXEMPT := ["text", "stain"]
+const FX_CLASS_CAP := {"high": 6, "low": 24, "scar": 12}
 const FX_TEXT_CAP := 12   # V1.3：戰場跳字上限（_fx_text 直接加的那一路；TEXT_CAP 是合併跳字那一路）
 var fx_dropped := 0
+## 1.4.0：頓幀累積掉的展示時間（time − freeze_t＝頓幀時會停的動畫時鐘，即時配件用）
+var freeze_t := 0.0
 
 var fx_deduped := 0
 
