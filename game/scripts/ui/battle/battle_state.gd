@@ -376,6 +376,8 @@ var idle_since := {}   # id → 開始站定的時間（V1.3.1：最後一隻張
 var walking := {}      # id → 上一幀在走
 
 func _gait_reset() -> void:
+	if get("hd_state") != null:
+		get("hd_state").clear()   # 1.3.0 §5.4 走向記錄（跳轉、新的一場清掉）
 	gait_d.clear()
 	gait_on.clear()
 	gait_land.clear()

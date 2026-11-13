@@ -1716,12 +1716,17 @@ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: floa
 		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
 	else:
 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
-	if chip > 0 and not bool(Save.s("plain_ui")):
-		# 1.3.0 §5.2：掉漆貼花畫在這隻的座標系裡（跟著尺寸、巨獸、跟拍、面向翻轉；Codex cat04 #5）
-		var anc: Vector2 = CHIP_ANCHOR.get(type, Vector2(-5, -20))
-		draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale * (-1.0 if face < 0.0 else 1.0), scale), 0.0, p))
-		draw_texture_rect_region(chip_tex(), Rect2(anc - Vector2(7, 7), Vector2(14, 14)), Rect2(32 if chip == 2 else 0, 0, 32, 32), Color(1, 1, 1, alpha))
-		draw_set_transform_matrix(Art.base)
+	if chip > 0:
+		_chip_at(p, type, face, scale, chip, alpha)
+
+## 1.3.0 §5.2：掉漆貼花畫在這隻的座標系裡（跟著尺寸、巨獸、跟拍、面向翻轉；Codex cat04 #5）
+func _chip_at(p: Vector2, type: int, face: float, scale: float, chip: int, alpha: float) -> void:
+	if bool(Save.s("plain_ui")):
+		return
+	var anc: Vector2 = CHIP_ANCHOR.get(type, Vector2(-5, -20))
+	draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale * (-1.0 if face < 0.0 else 1.0), scale), 0.0, p))
+	draw_texture_rect_region(chip_tex(), Rect2(anc - Vector2(7, 7), Vector2(14, 14)), Rect2(32 if chip == 2 else 0, 0, 32, 32), Color(1, 1, 1, alpha))
+	draw_set_transform_matrix(Art.base)
 
 ## 1.3.0 §5.2 掉漆貼花：血 <50% 身側剝一塊漆露出淡黃原木胎；<25% 再加一塊＋邊角崩口。
 ## 預烘成 32×32 小圖（兩格：一塊／兩塊），每隻受傷的兵只多 1 次貼圖（1.1.0 教訓：每幀逐隻向量畫 p95 多 20%）。召喚物不掉漆。

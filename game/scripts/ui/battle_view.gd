@@ -654,6 +654,8 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		_add_fx({"src": s.id, "kind": "slash", "p": sp, "dir": signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0, "t": 0.0, "dur": 0.18})
 		sfx.play_unit("hit" if k == EV.HIT else "slash", 0.4, s.type)   # V1.3.1：出手聲依兵種音高
 		_hit_material(int(ev.get("tgt", -1)))
+		if s.type == D.BERSERKER and _frags_on():
+			frags.spawn(tpos, "wood", 4, view.tick * 4096 + s.id * 7 + 3, 22.0)   # 1.3.0 §6：狂戰士劈中帶起一圈木屑
 	var col := Color.WHITE
 	var label := ""
 	match k:
@@ -665,6 +667,9 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			if _fx_on("shake"):
 				shake = 0.12
 			_add_fx({"kind": "dust", "p": tpos, "t": 0.0, "dur": 0.5})
+			var dch := signf(tpos.x - sp.x) if tpos.x != sp.x else 1.0
+			for kp in 2:   # 1.3.0 §6 招牌動作：木馬輪子空轉揚起的兩團塵（騎士身後）
+				_add_fx({"kind": "dust", "p": sp + Vector2(-(18.0 + kp * 10.0) * dch * HK, -2.0 - kp * 3.0), "t": 0.0, "dur": 0.35 + kp * 0.08})   # 塵土（紫煙是潛行現形用的；Codex cat05 #7）
 		EV.BACKSTAB:
 			label = L.t("ev_backstab")
 			col = Color("#c77dff")
@@ -678,6 +683,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 			sfx.play("bell", 0.8)
 			brace_t[t.id] = time
 			_add_fx({"kind": "hex", "p": tpos + Vector2(10 * signf(sp.x - tpos.x), -24), "t": 0.0, "dur": 0.45})
+			_add_fx({"kind": "dust", "p": tpos + Vector2(8 * signf(sp.x - tpos.x), 2), "t": 0.0, "dur": 0.35})   # 1.3.0 §6：盾底砸進盤縫的塵圈
 		EV.ANTICAV:
 			label = L.t("ev_anticav")
 			col = Color("#9ad1ff")

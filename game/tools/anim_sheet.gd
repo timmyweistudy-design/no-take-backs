@@ -103,6 +103,23 @@ func _run() -> void:
 	for wi in cache.wt_pages.size():
 		cache.wt_pages[wi].get_image().save_png(out + "/walkturn%d.png" % wi)
 	print("EXTRA fidget=%s walkturn=%d" % [str(cache.fid_tex != null), cache.wt_pages.size()])
+	# 1.3.0 §5.4：背面走路頁（每種兵一列：藍 4 步相＋紅 4 步相），一次烘 TA_MAX 種、分批
+	var bw := Image.create(SC.CELL * SC.WT_PH * 2, SC.CELL * F8.DRAW_TOTAL, false, Image.FORMAT_RGBA8)
+	bw.fill(Color("#7d9a58"))
+	var done := 0
+	var ts: Array = range(F8.DRAW_TOTAL)
+	while done < ts.size():
+		var batch: Array = ts.slice(done, done + SC.TA_MAX)
+		cache.ensure_turn_atk(batch)
+		while cache._ta_busy:
+			await process_frame
+		for t9 in batch:
+			if cache.bw_tex.has(t9):
+				var bi: Image = cache.bw_tex[t9].get_image()
+				bw.blend_rect(bi, Rect2i(0, 0, SC.CELL * SC.WT_PH * 2, SC.CELL), Vector2i(0, t9 * SC.CELL))
+		done += batch.size()
+	bw.save_png(out + "/backwalk.png")
+	print("BACKWALK ok ", cache.bw_tex.size())
 	quit()
 
 static func _seg_hits(a: Vector2, b: Vector2, r: Rect2) -> bool:

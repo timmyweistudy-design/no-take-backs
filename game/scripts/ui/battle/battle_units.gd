@@ -463,6 +463,28 @@ func _board_ring(inner: Rect2) -> bool:
 
 const MAT_OAK := "res://art/mat/tile_oak.png"
 
+## 1.3.0 §5.4 走向：用模擬這一 tick「提出的移動」（mx、my，整數；擊退、推擠不算——Codex cat05 #1 #2）判斷，
+## 和幀率、倍速、暫停、鏡頭無關（同一場重播選到同一個方向）。遲滯：南北分量 > 東西 ×1.3 才轉成南／北，
+## < 東西 ×1.0 才回側面（不在臨界抖動）。不走路、出手、受擊一律側面（狀態保留，下次走路從側面重新判斷）。跳轉、新的一場清掉。
+const HEAD_FRONT_C := 0.55   # 往南走用的轉身角度（既有走路轉身頁 WT_C 0.55，22 種都有）
+var hd_state := {}
+func heading_of(id: int, mx: int, my: int, walking: bool) -> int:
+	if not walking or (mx == 0 and my == 0):
+		hd_state.erase(id)
+		return 0
+	var cur: int = int(hd_state.get(id, 0))
+	var ay := absi(my)
+	var ax := absi(mx)
+	var nxt := cur
+	if cur == 0 and ay * 10 > ax * 13:
+		nxt = 1 if my > 0 else -1
+	elif cur != 0 and ay <= ax:
+		nxt = 0
+	elif cur != 0 and signi(my) != cur and ay * 10 > ax * 13:
+		nxt = 1 if my > 0 else -1
+	hd_state[id] = nxt
+	return nxt
+
 ## 1.3.0：這一隻的頭頂資訊倍率（照 0.92 倍調的偏移 × 角色放大 × 跟拍放大）
 func hk_of(u) -> float:
 	return HK * focus_scale(u.id)
@@ -801,7 +823,8 @@ func _draw_units_of(s, dim: bool) -> void:
 					variant = 2
 		var hurt := 0.0
 		if live and hurt_t.has(u.id) and _fx_on("flash"):
-			hurt = clampf(1.0 - (time - hurt_t[u.id]) / 0.15, 0, 1) * int(Save.s("flash_pct")) / 100.0   # V1.5：受擊閃白強度
+			# 1.3.0 §6 受擊後仰也走定格（_pose_t；Codex cat05 #8）；V1.5：受擊閃白強度
+			hurt = clampf(1.0 - (maxf(_pose_t(time), float(hurt_t[u.id])) - hurt_t[u.id]) / 0.15, 0, 1) * int(Save.s("flash_pct")) / 100.0
 		var alpha := 0.45 if u.stealth > 0 else 1.0
 		if dim:
 			alpha *= 0.6
@@ -979,10 +1002,23 @@ func _draw_units_of(s, dim: bool) -> void:
 			if tm < 1.2:
 				fid = mini(3, int(tm / 1.2 * 4.0))
 		var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, ut, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id), mood, lean, crouch, variant, fid,
-			(2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0)   # 1.3.0 §5.2 受傷掉漆
-		if live and not u.hidden:
-			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)])
+		# 1.3.0 §5.4 依移動方向選視角：走路且不出手時，往南＝3/4 正面走路格、往北＝3/4 背面走路格（沒烘好就照舊側面）
+		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
+		var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
+		var chip := (2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0   # 1.3.0 §5.2 受傷掉漆
+		var drawn := false
+		var cache_ok: bool = sprites != null and sprites.is_ready(cbm()) and not bool(Save.s("plain_ui"))
+		if hd < 0 and cache_ok:
+			drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
+			if drawn and chip > 0:
+				_chip_at(p, u.type, face, usc, chip, alpha)   # 背面也有掉漆（Codex cat05 #4）
+		if not drawn:
+			# 往南：只有圖集有走路轉身頁時才用 3/4 正面（沒有就照舊側面，不讓向量畫只橫縮；Codex cat05 #6）
+			var front_ok: bool = hd > 0 and cache_ok and sprites.wt_loc.has(u.type)
+			var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
+			_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+		if live and not u.hidden and hd == 0:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
+			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], usc])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
 			var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)

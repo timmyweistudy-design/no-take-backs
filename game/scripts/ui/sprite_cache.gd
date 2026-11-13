@@ -55,6 +55,11 @@ var ta_tex := {}       # 兵種 → Texture2D（16 欄 × 1 列）
 var ta_order: Array = []   # 最近用到的在後面
 var ta_wanted: Array = []  # 最近要求過的兵種（換色、換塗裝重烘之後自動補回，Codex v151-i1 #6）
 var _ta_busy := false
+## 1.3.0 §5.4：背面走路頁（3/4 背面、4 步相 × 兩隊＝一列 8 格），只烘這一場的兵種、最多 TA_MAX 種、LRU（和轉身出手頁同一套）
+const BW_C := 0.55
+const BW_MAX := 22   # 一場最多 20 種兵＋2 種召喚物：全部留著（約 2.4 MiB／種），不讓在場的兵被淘汰回側面（方案 §19.3 全種類門檻；Codex cat05 #3）
+var bw_tex := {}
+var bw_order: Array = []
 var _ta_queue: Array = []
 var fid_loc := {}
 var ready_paint := ""     # V1.4 #15：這份快取是用哪套塗裝烘的
@@ -95,6 +100,8 @@ func build(cb: bool) -> void:
 	fid_tex = null
 	fid_loc.clear()
 	ta_tex.clear()
+	bw_tex.clear()
+	bw_order.clear()
 	ta_order.clear()
 	_ta_queue.clear()
 	_ta_busy = false
@@ -169,9 +176,11 @@ func ensure_turn_atk(types: Array) -> void:
 	if DisplayServer.get_name() == "headless" or ready_cb < 0:
 		return
 	for t in types:
-		if ta_tex.has(t):
+		if ta_tex.has(t) and bw_tex.has(t):
 			ta_order.erase(t)
 			ta_order.append(t)
+			bw_order.erase(t)
+			bw_order.append(t)   # 背面頁和轉身出手頁一起刷新（Codex cat05 #3）
 		elif not t in _ta_queue:
 			_ta_queue.append(t)
 	if _ta_busy or _ta_queue.is_empty():
@@ -189,10 +198,33 @@ func ensure_turn_atk(types: Array) -> void:
 		if g0 != _gen:
 			return
 		ta_tex[t] = ImageTexture.create_from_image(img)
+		ta_order.erase(t)
 		ta_order.append(t)
 		while ta_order.size() > TA_MAX:
 			ta_tex.erase(ta_order.pop_front())   # 超過上限：丟最久沒用的
+		if not bw_tex.has(t):
+			var pb := _ExtraPainter.new()
+			pb.cb = ready_cb == 1
+			pb.mode = 4
+			pb.types = [t]
+			var vpb: SubViewport = await _paint_steps(Vector2i(COLS * CELL, CELL), pb, 2 * WT_PH)
+			var imb: Image = await _post_vp(vpb, WT_PH)
+			if g0 != _gen:
+				return
+			bw_tex[t] = ImageTexture.create_from_image(imb)
+			bw_order.erase(t)
+			bw_order.append(t)
+			while bw_order.size() > BW_MAX:
+				bw_tex.erase(bw_order.pop_front())
 	_ta_busy = false
+
+## 1.3.0 §5.4 往北走（背對鏡頭）：有背面走路頁就畫，回傳 true；沒有（還沒烘好、簡化介面）回 false，呼叫端照舊畫側面。
+func draw_back_walk(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, hurt: float, alpha: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0, cb := false) -> bool:
+	if not bw_tex.has(type) or walk <= 0.0:
+		return false
+	var ph := int(fposmod(walk, TAU) / TAU * WT_PH) % WT_PH
+	_draw_cell(ci, bw_tex[type], team * WT_PH + ph, p, type, team, face, hurt, alpha, t, scale, lean, crouch, false, 0, cb, BW_C, 0.0001 + (ph + 0.5) * TAU / WT_PH)
+	return true
 
 ## 這場要用到的兵種。缺的才烘；烘的時候呼叫端先直接畫。
 func ensure(types: Array) -> void:
@@ -619,6 +651,20 @@ class _ExtraPainter extends Node2D:
 							Art2.unit(self, p, type, team, 1.0, 0.0, hk, 0.0, 1.0, 1.0, SC.RS, cb, Art2.M_HURT)
 							Art2.calm = false
 							Art2.hat_pop = 0.0
+				elif mode == 4:
+					# 1.3.0 §5.4：3/4 背面走路（4 步相）；team 0 在 0～3、team 1 在 4～7（後處理依 per＝4 分隊）
+					for ph4 in SC.WT_PH:
+						var idx4: int = team * SC.WT_PH + ph4
+						if idx4 < cell_from or idx4 >= cell_to:
+							continue
+						var p4 := Vector2((idx4 % SC.COLS) * SC.CELL, (idx4 / SC.COLS) * SC.CELL) + SC.origin_of(type)
+						Art2.turn_c = SC.BW_C
+						Art2.turn_s = sqrt(1.0 - SC.BW_C * SC.BW_C)
+						Art2.back = type in Art2.BACK_OK
+						Art2.unit(self, p4, type, team, 1.0, 0.0001 + (ph4 + 0.5) * TAU / SC.WT_PH, 0.0, 0.0, 1.0, 1.0, SC.RS, cb)
+						Art2.back = false
+						Art2.turn_c = 1.0
+						Art2.turn_s = 0.0
 				elif mode == 3:
 					# V1.5.1：轉身途中出手（一般 8 格＋交替／專屬 8 格）
 					for f in SC.ATK_FRAMES * 2:
