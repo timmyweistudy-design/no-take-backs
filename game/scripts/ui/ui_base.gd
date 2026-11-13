@@ -176,6 +176,7 @@ var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對
 var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
+var btn_seal_square := false   # 1.4.0 §1.1：下一顆主按鈕的蠟封畫成朱砂方印（大廳開戰）
 var probe_icons: Array = []   # 1.4.0 方案盤點（第 10 點：圖示要在框裡、上下留空）：每個圖示畫出來的框
 var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
 var _ink_keep_a := false   # 1.2.0：戰場跳字轉墨色時保留原透明度（淡出要和紙條同步，Codex cat04 #2）
@@ -959,9 +960,25 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 				var wr := Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws))
 				wax_face_cut = maxf(0.0, wr.end.x - rd.position.x)   # 1.3.0 R11：蠟封蓋住的左邊不算字的格子面（字在看得到的木牌上置中；Antigravity cat01）
 				# 深赤火漆＋金邊：和朱漆底拉開明度（Antigravity cat02 #1：紅疊紅看不清）
-				draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
-				draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
-				draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
+				if btn_seal_square:
+					# 1.4.0 §1.1：大廳「開戰」＝朱砂印泥盒的方印（不是圓火漆）
+					var sq := Rect2(wr.get_center() - Vector2(ws, ws) * 0.38, Vector2(ws, ws) * 0.76)
+					draw_rect(Rect2(sq.position + Vector2(1.5, 2.0), sq.size), Color(DIM_INK, 0.45))
+					draw_rect(sq, PAL.TRINKET_RED.darkened(0.15))
+					draw_rect(sq.grow(-3), Color(1, 0.85, 0.75, 0.75), false, 1.5)
+					# 印面：篆刻感的「冂」框＋兩道短橫＋一點（不是加號；Antigravity v140 cat02 #2），邊緣幾個缺口像印泥沒沾滿
+					var ic := Color(1, 0.86, 0.76, 0.85)
+					var q0 := sq.grow(-7)
+					draw_polyline(PackedVector2Array([q0.position + Vector2(0, q0.size.y), q0.position, Vector2(q0.end.x, q0.position.y), q0.end]), ic, 1.8, true)
+					draw_line(q0.position + Vector2(4, q0.size.y * 0.42), Vector2(q0.end.x - 4, q0.position.y + q0.size.y * 0.42), ic, 1.6)
+					draw_line(q0.position + Vector2(4, q0.size.y * 0.72), Vector2(q0.end.x - 4, q0.position.y + q0.size.y * 0.72), ic, 1.6)
+					draw_circle(q0.get_center() + Vector2(0, -q0.size.y * 0.16), 1.6, ic, true, -1.0, true)
+					for nk in 3:
+						draw_rect(Rect2(sq.position + Vector2(3 + nk * 9, sq.size.y - 4), Vector2(3, 2)), Color(PAL.TRINKET_RED.darkened(0.15), 0.9))
+				else:
+					draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
+					draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
+					draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
 				if layout_probe:
 					probe_deco("wax", wr, rd, "left")
 	elif paper_face:
@@ -1731,9 +1748,7 @@ func _obj_deco(r: Rect2, kind: String) -> void:
 			# 絲帶書籤從右緣紙邊夾出來（不往下垂：下緣是手把提示列，Codex cat08 #2）
 			var rb := Vector2(r.end.x + 8, r.position.y + 70)
 			draw_colored_polygon(PackedVector2Array([rb, rb + Vector2(26, 0), rb + Vector2(20, 6), rb + Vector2(26, 12), rb + Vector2(0, 12)]), PAL.TRINKET_RED)
-			if kind == "annot":
-				draw_arc(r.position + Vector2(40, 40), 18.0, 0.3, TAU - 0.2, 24, Color(1, 0.9, 0.75, 0.35), 5.0, true)   # 紙底襯一圈，紅筆在深木上才看得清（Hydrogen cat08 #5）
-				draw_arc(r.position + Vector2(40, 40), 18.0, 0.3, TAU - 0.2, 24, Color(0.85, 0.15, 0.1, 0.9), 3.0, true)
+			pass   # 1.4.0：批註本的左上裝飾硃筆圈拿掉——分岔點有真的硃筆圈了（Antigravity v140 cat02 #6）
 		"notebook":   # 1.3.0 對局手帳：皮面手帳攤開——左緣交叉棉線裝訂、中線書溝陰影、右緣三條彩色絲帶書籤
 			draw_rect(r.grow(-6), Color(0.32, 0.14, 0.07, 0.18))   # 皮面色（Hydrogen cat08 #8）
 			for i in int(r.size.y / 40.0):
@@ -2022,3 +2037,32 @@ func _icon_in(btn: Rect2, name: String, s: float, col := Color.WHITE) -> void:
 	var face := btn.grow_individual(0, 0, 0, -3.0)
 	var vd := maxf(1.0, s * 0.07) * 1.4 if (s >= 14.0 and not bool(Save.s("plain_ui"))) else 0.0
 	_icon(name, face.get_center() - Vector2(vd, vd) * 0.5, s, col)
+
+
+# ── 1.4.0 第 2 大類：木活字數字（方案 §7.2）──
+## 只換「核准的數字符號」：0～9、%、.、,、＋、−；每個數字畫在一塊刻好的小木塊上（原字型、原字距，不改排版寬）。
+## 其他字照原色原樣。簡化介面＝一般字。jump＝最後 10 秒倒數時數字跳一下（0～1，呼叫端算）。
+const WOOD_CHARS := "0123456789%.,+-−"
+static func is_wood_char(ch: String) -> bool:
+	return ch.length() == 1 and WOOD_CHARS.contains(ch)
+
+func _woodtype(p: Vector2, s: String, size: int, col: Color, center := false, bold := true, jump := 0.0) -> void:
+	# 一整條排成一塊活字版（四周留 5px），整串用墨色一次畫（分段畫會讓相鄰字框互疊、段數暴增）；數字之間刻淺槽
+	if bool(Save.s("plain_ui")):
+		_text(p, s, size, col, center, bold)
+		return
+	var w := _width(s, size, bold)
+	var x := p.x - (w * 0.5 if center else 0.0)
+	var ink := label_ink(s, size, bold)
+	var br := Rect2(Vector2(x - 5.0, p.y + ink.position.y - 5.0), Vector2(w + 10.0, ink.size.y + 10.0))
+	draw_rect(Rect2(br.position + Vector2(1, 2), br.size), Color(DIM_INK, 0.45))
+	draw_rect(br, PAL.WOOD_TYPE)
+	draw_rect(Rect2(br.position, Vector2(br.size.x, 1.5)), Color(1, 0.96, 0.85, 0.5))
+	draw_rect(Rect2(br.position.x, br.end.y - 2.0, br.size.x, 2.0), Color(PAL.WOOD_TYPE_D, 0.8))
+	draw_rect(br, PAL.WOOD_TYPE_D, false, 1.0)
+	var cx := x
+	for k in range(1, s.length()):
+		cx += _width(s[k - 1], size, bold)
+		if is_wood_char(s[k - 1]) and is_wood_char(s[k]):
+			draw_line(Vector2(cx, br.position.y + 3.0), Vector2(cx, br.end.y - 3.0), Color(PAL.WOOD_TYPE_D, 0.22), 1.0)
+	_text(Vector2(x, p.y - 3.0 * jump), s, size, PAL.INK, false, bold)

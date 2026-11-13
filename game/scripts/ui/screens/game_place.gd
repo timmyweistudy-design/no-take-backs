@@ -661,7 +661,7 @@ func _draw_place_hud() -> void:
 	if _is_free():
 		_fp_gold_preview(gb, a)
 	var gtxt := L.t("gold_of", [a.spent(), a.budget])
-	_text(Vector2(gb.end.x + 10, gb.position.y - tz("S") * 0.45), gtxt, tz("S"), ACCENT, false, true)
+	_woodtype(Vector2(gb.end.x + 10, gb.position.y - tz("S") * 0.45), gtxt, tz("S"), ACCENT, false, true)   # 1.4.0 §7.2 預算計數牌＝木活字
 	var ux := gb.end.x + 18 + _width(gtxt, tz("S"), true)
 	_text(Vector2(ux, gb.position.y - tz("S") * 0.45), L.t("units_of", [a.count(), a.unit_cap]), tz("S"), TXT_DIM, false, true)
 	if mode == Mode.DUEL and tp != null and rules != null and rules.handicap:
@@ -676,6 +676,17 @@ func _draw_place_hud() -> void:
 	# 第二行：資訊帶
 	_draw_info_band(Rect2(0, 52, 1280, 40), hover_card if hover_card >= 0 else selected, a.team)
 	# 卡列
+	if not bool(Save.s("plain_ui")) and not _card_types().is_empty():
+		# 1.4.0 §1.2 牌尺：卡片立在一條水平實木牌尺上（直槽，不做弧形）：尺身、上緣受光、每張卡底下一道卡榫陰影
+		var r0 := _card_rect(_card_types()[0])
+		var r1 := _card_rect(_card_types()[-1])
+		var rail := Rect2(r0.position.x - 6.0, r0.end.y - 12.0, r1.end.x - r0.position.x + 12.0, 800.0 - (r0.end.y - 12.0))
+		draw_rect(Rect2(rail.position + Vector2(0, -3), Vector2(rail.size.x, 3)), Color(DIM_INK, 0.35))
+		_mat_box(rail, "walnut", Color(1.0, 0.84, 0.62))   # 比桌面亮一階（Antigravity v140 cat02 #3）
+		draw_rect(Rect2(rail.position, Vector2(rail.size.x, 2)), Color(1, 0.9, 0.7, 0.35))
+		for i0 in _card_types():
+			var cr0 := _card_rect(i0)
+			draw_rect(Rect2(cr0.position.x + 4, cr0.end.y - 4, cr0.size.x - 8, 6), Color(DIM_INK, 0.5))
 	for i in _card_types():
 		var r := _card_rect(i)
 		var cap_ok: bool = a.type_cap == 0 or a.count_of(i) < a.type_cap

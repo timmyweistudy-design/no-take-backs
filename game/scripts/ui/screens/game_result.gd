@@ -249,11 +249,15 @@ func _draw_result() -> void:
 		if mvp != null and not (loss != "" and mvp.team == 1):   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
 			var mr := Rect2(250, y, 780, 76)
 			_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
-			_icon("trophy", mr.end - Vector2(34, 38), 34.0)
+			var seals := _res_seals()
+			if seals.is_empty():
+				_icon("trophy", mr.end - Vector2(34, 38), 34.0)
+			else:
+				_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
 			Art.ring(self, mr.position + Vector2(52, 66), mvp.team, mvp.type, cbm(), 1.25)
 			Art.unit(self, mr.position + Vector2(52, 66), mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.25, cbm())
 			_text(mr.position + Vector2(100, 10), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
-			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660)
+			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660 if seals.is_empty() else 500)
 			y = mr.end.y + 10
 		# 第七輪 A1：只列事件紀錄裡查得到的事實，不說「因為」（Codex：不宣稱因果）
 		var facts := _result_facts()
@@ -296,7 +300,11 @@ func _draw_result() -> void:
 			_btn(Rect2(800, y - tz("S") * 1.3 - 8, 230, 40), L.t("res_try_review"), func(): _open_review_on_first_loss())
 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
 			var need: int = rules.wins_needed() if rules != null else 2
-			_text(Vector2(640, y + 4), L.t("series_now", [round_no, wins[0], wins[1], need]), tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
+			var sn := L.t("series_now", [round_no, wins[0], wins[1], need])
+			if _width(sn, tz("B")) <= 780.0:
+				_woodtype(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false)   # 1.4.0 §7.2／§8.2：比數是木活字
+			else:
+				_text(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
 			y += tz("B") * 1.6
 	else:
 		_draw_result_details(Rect2(230, y, 820, 640 - y))
@@ -812,3 +820,44 @@ func _pc_save() -> void:
 		_toast(L.t("gif_fail"), true)
 		return
 	_toast(L.t("pc_saved", [ProjectSettings.globalize_path(fn)]))
+
+
+# ── 1.4.0 第 4 大類：謝幕（方案 §8）──
+## 系列結束（或單場的對 AI／雙人）才有三枚木印章：MVP、最大輸出、中流砥柱（承受最多傷害還站著的）。回傳 [[圖示, 標題鍵, 兵種, 數值], …]。
+func _res_seals() -> Array:
+	if sim == null or not (mode == Mode.VS_AI or mode == Mode.DUEL) or not series_over or watch_mode:
+		return []
+	# 頒給勝方（和局、對 AI 都頒藍方；雙人紅方勝就頒紅方，Codex v140 cat02 #2）；三枚一定都在，沒人合格＝「無得主」灰章（#3）
+	var tm: int = sim.winner if sim.winner >= 0 else 0
+	var best_d = null
+	var best_t = null
+	for u in sim.units:
+		if u.team != tm or u.summon:
+			continue
+		if best_d == null or u.dmg_dealt > best_d.dmg_dealt:
+			best_d = u
+		if u.alive and u.dmg_taken > 0 and (best_t == null or u.dmg_taken > best_t.dmg_taken):
+			best_t = u
+	var mvp = report.get("mvp")
+	return [["trophy", "seal_mvp", int(mvp.type) if mvp != null else -1, int(mvp.dmg_dealt) if mvp != null else 0, int(mvp.team) if mvp != null else tm],
+		["swords", "seal_dmg", int(best_d.type) if best_d != null else -1, int(best_d.dmg_dealt) if best_d != null else 0, tm],
+		["shield", "seal_tank", int(best_t.type) if best_t != null else -1, int(best_t.dmg_taken) if best_t != null else 0, tm]]
+
+func _draw_res_seals(mr: Rect2, seals: Array) -> void:
+	for k in seals.size():
+		var c := Vector2(mr.end.x - 34.0 - (seals.size() - 1 - k) * 50.0, mr.get_center().y)
+		var rr := 21.0
+		draw_circle(c + Vector2(1.5, 2.5), rr, Color(DIM_INK, 0.45), true, -1.0, true)
+		var sk: Array = seals[k]
+		var has: bool = int(sk[2]) >= 0
+		draw_circle(c, rr, PAL.WOOD_TYPE if has else Color(0.6, 0.57, 0.52), true, -1.0, true)
+		draw_arc(c, rr - 3.0, 0, TAU, 32, Color(PAL.TRINKET_RED if has else Color(0.35, 0.33, 0.3), 0.75), 2.0, true)   # 印面一圈朱砂（無得主＝灰章）
+		_icon(str(sk[0]), c, 22.0, PAL.TRINKET_RED.darkened(0.1) if has else Color(0.3, 0.28, 0.26))
+		var who := (L.t("blue") if int(sk[4]) == 0 else L.t("red")) + L.t("unit_%d" % int(sk[2])) if has else ""
+		var msg := L.t(str(sk[1]), [who, int(sk[3])]) if has else L.t("seal_none")
+		var idx := _btns.size()
+		_btns.append({"r": Rect2(c - Vector2(rr, rr), Vector2(rr, rr) * 2.0), "cb": func(): _toast(msg), "en": true})
+		if idx == _focus and pad_mode:
+			draw_arc(c, rr + 4.0, 0, TAU, 32, ACCENT, 3.0, true)   # 手把焦點框（Codex v140 cat02 #4）
+			if bool(Save.s("focus_strong")):
+				draw_arc(c, rr + 8.0, 0, TAU, 32, Color.WHITE, 3.0, true)

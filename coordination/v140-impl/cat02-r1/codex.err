@@ -1,0 +1,2693 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1d643-1775-70c0-9c25-f6e4937335c5
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.4.0 實作的程式審查。只讀。專案根目錄＝目前資料夾、遊戲在 game/。
+第 2～4 大類：規劃 coordination/v140-impl/cat02-plan.md；方案 docs/2026-11-13-v1.4.0-plan.md §7、§1、§8；差異 coordination/v140-impl/cat02-r1/diff.patch。
+請檢查：①_woodtype 在棋鐘（最後 10 秒跳、音效、跳轉／暫停時 clock_last 的行為）、擺陣預算、戰績、比數的使用；簡化介面；②大廳方印 btn_seal_square 有沒有在別的按鈕殘留（例外路徑沒重設）、lobby_stamps 存檔驗型、_lobby_start 在擋下（why 不空）時不記；③設定抽屜與值格木牌對手把焦點、停用、色盲的影響；④圖鑑熱鍵木牌（R11／R12 宣告、_probe_glyph）；⑤三枚印章：_res_seals 在 DUEL、觀戰、看代碼、和局、全部陣亡時（best_t 為空）；點擊區用 _btns.append 有沒有手把焦點；toast 字串；⑥覆盤硃筆圈位置推算（chh 反推）是否和實際圖表一致；⑦擺陣牌尺與卡片、自由部署的互動。
+附行號。最多 8 條必改，800 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會先核對規劃與差異，再追查相關程式路徑；全程只讀，只列有具體依據的必改項目並附行號。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'cat02-plan.md' -g 'diff.patch' -g '2026-11-13-v1.4.0-plan.md'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 418ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v131-impl1/diff.patch
+coordination/v130-impl/cat11-r1/diff.patch
+coordination/v130-impl2/diff.patch
+coordination/v140-impl/cat02-r1/diff.patch
+coordination/v140-impl/cat02-plan.md
+coordination/v120-impl/cat11-r1/diff.patch
+coordination/v120-impl2/diff.patch
+coordination/v130-impl/cat09-r1/diff.patch
+coordination/v140-impl/cat01-r1/diff.patch
+coordination/v130-impl1/diff.patch
+coordination/v120-impl/cat10-r1/diff.patch
+coordination/v130-impl/cat08-r1/diff.patch
+coordination/v120-impl/cat09-r1/diff.patch
+coordination/v120-impl/cat03-r1/diff.patch
+coordination/v130-impl/cat01-r1/diff.patch
+coordination/v130-impl/cat06-r1/diff.patch
+coordination/v120-impl/cat02-plan.md
+coordination/v120-impl/cat08-r1/diff.patch
+coordination/v120-final2/diff.patch
+coordination/v130-impl/cat03-r1/diff.patch
+coordination/v140-i2/diff.patch
+coordination/v130-impl/cat05-r1/diff.patch
+coordination/v120-final/diff.patch
+coordination/v120-impl/cat07-r1/diff.patch
+coordination/v130-impl/cat02-r1/diff.patch
+coordination/v140-i1/diff.patch
+coordination/v130-impl/cat04-r1/diff.patch
+coordination/v130-impl/cat02-plan.md
+coordination/v120-impl/cat04-r1/diff.patch
+coordination/v120-impl/cat06-r1/diff.patch
+docs/2026-11-13-v1.4.0-plan.md
+coordination/v121-impl1/diff.patch
+coordination/v120-impl/cat05-r1/diff.patch
+coordination/v121-impl2/diff.patch
+coordination/v131-impl3/diff.patch
+coordination/v131-impl2/diff.patch
+
+exec
+/bin/bash -lc 'cat coordination/v140-impl/cat02-plan.md; cat coordination/v140-impl/cat02-r1/diff.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+# 1.4.0 第 2～4 大類：§7 字與排版、§1 器物幾何、§8 謝幕
+
+## 第 2 大類（§7）
+- **§7.2 木活字**：`_woodtype`——以數字為主的標籤（棋鐘、擺陣預算計數牌、戰績大數字、系列比數）排成一條木活字版（原字型、原字距、墨色；數字之間刻淺槽）；勝負文字不用。最後 10 秒倒數每換一秒數字跳一下＋輕輕一聲（減少動態不跳）。色票 `WOOD_TYPE`／`WOOD_TYPE_D`。
+  - 偏離方案「只換數字字形」：分段畫數字（數字一色、其他字一色）會讓相鄰字框互疊、段數超過上限 → 整條標籤一塊版、一次畫。
+- **§7.1 三種字按語意收斂**：盤點既有（標題字只在匾額、畫面標題、勝負大章；老闆便條手寫；其他正文）——現況已符合，不改。
+- **§7.3 英文 150% 兩層**：結果頁 1.2.0 已有摘要／詳情；第 1 大類 R12 讓其他畫面改短或換行。
+## 第 3 大類（§1）
+- **§1.1 大廳**：開戰鈕的火漆改成朱砂印泥方印（`btn_seal_square`）；每次開戰在手帳右頁右下留一記方印（最多 3 記，存檔 `lobby_stamps`，下次打開還在）；蓋印悶響。
+- **§1.2 擺陣**：卡片立在一條水平實木牌尺上（直槽，每張卡底下一道卡榫陰影）。
+- **§1.3 設定**：三欄是三格抽屜（深一階抽屜底、上緣陰影、下緣黃銅把手）；值格改淺色木牌（原本黑膠囊），開＝綠。
+- **§1.4 圖鑑**：熱鍵數字移到卡片左下角的小木牌（宣告格子；上方沒有書籤舌的空間 → 量測後改左下，離頭飾遠）。
+- 不做（裁決）：大廳左頁只留三卡＋折頁、圖鑑大圖旋轉台、殘局一頁兩關、代碼投信動畫——版面幾何重排與手把焦點契約要重做，延後。
+## 第 4 大類（§8）
+- **三枚木印章**：系列結束時 MVP 卡右側三枚木印章（MVP、最大輸出、中流砥柱＝承受最多傷害還站著的），點開看詳情（toast）。
+- **系列比數**木活字。
+- **覆盤批註本**：兩條時間線分岔點在兩條墨線上各用硃筆圈一下。
+- 不做（裁決）：中場只剩勝負章＋下一局、系列結束長卷逐段展開——結果頁資訊架構重排，延後。
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index 90af45b..59adaf8 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1722,3 +1722,6 @@ od_todo,還沒過,Not yet,还没过,未クリア
+ od_stamps,老闆的印：%d 枚,Owner's stamps: %d,老板的印：%d 枚,店主の判：%d個
+ od_stamp_got,三題都過了，蓋印！老闆的印 +1,All three cleared — stamped! Owner's stamps +1,三题都过了，盖印！老板的印 +1,3問クリア、判を押しました！店主の判 +1
+ intro_skip,按任意鍵跳過,Press any key to skip,按任意键跳过,どれかキーでスキップ
++seal_mvp,MVP：%s（傷害 %d）,MVP: %s (damage %d),MVP：%s（伤害 %d）,MVP：%s（ダメージ %d）
++seal_dmg,最大輸出：%s（傷害 %d）,Top damage: %s (%d),最大输出：%s（伤害 %d）,最大火力：%s（ダメージ %d）
++seal_tank,中流砥柱：%s（承受 %d 還站著）,Rock of the line: %s (took %d and stood),中流砥柱：%s（承受 %d 还站着）,大黒柱：%s（%d 受けて健在）
+diff --git a/game/fonts/NTBLatin-B-sub.ttf b/game/fonts/NTBLatin-B-sub.ttf
+index 08c40dc..69f1dca 100644
+Binary files a/game/fonts/NTBLatin-B-sub.ttf and b/game/fonts/NTBLatin-B-sub.ttf differ
+diff --git a/game/fonts/NTBLatin-M-sub.ttf b/game/fonts/NTBLatin-M-sub.ttf
+index 5c2f274..431f33e 100644
+Binary files a/game/fonts/NTBLatin-M-sub.ttf and b/game/fonts/NTBLatin-M-sub.ttf differ
+diff --git a/game/fonts/NTBRounded-B-sub.otf b/game/fonts/NTBRounded-B-sub.otf
+index 88c05e3..994db0c 100644
+Binary files a/game/fonts/NTBRounded-B-sub.otf and b/game/fonts/NTBRounded-B-sub.otf differ
+diff --git a/game/fonts/NTBRounded-R-sub.otf b/game/fonts/NTBRounded-R-sub.otf
+index 00ce62a..36896cd 100644
+Binary files a/game/fonts/NTBRounded-R-sub.otf and b/game/fonts/NTBRounded-R-sub.otf differ
+diff --git a/game/fonts/NTBRoundedJP-B-sub.otf b/game/fonts/NTBRoundedJP-B-sub.otf
+index 5c5d856..82c5099 100644
+Binary files a/game/fonts/NTBRoundedJP-B-sub.otf and b/game/fonts/NTBRoundedJP-B-sub.otf differ
+diff --git a/game/fonts/NTBRoundedJP-R-sub.otf b/game/fonts/NTBRoundedJP-R-sub.otf
+index 700ca8a..ad27613 100644
+Binary files a/game/fonts/NTBRoundedJP-R-sub.otf and b/game/fonts/NTBRoundedJP-R-sub.otf differ
+diff --git a/game/fonts/NTBRoundedSC-B-sub.otf b/game/fonts/NTBRoundedSC-B-sub.otf
+index caaf3a7..a8aa987 100644
+Binary files a/game/fonts/NTBRoundedSC-B-sub.otf and b/game/fonts/NTBRoundedSC-B-sub.otf differ
+diff --git a/game/fonts/NTBRoundedSC-R-sub.otf b/game/fonts/NTBRoundedSC-R-sub.otf
+index 53f83b1..4b5bcf4 100644
+Binary files a/game/fonts/NTBRoundedSC-R-sub.otf and b/game/fonts/NTBRoundedSC-R-sub.otf differ
+diff --git a/game/fonts/NTBSans-B-sub.otf b/game/fonts/NTBSans-B-sub.otf
+index 4da0618..2ee8966 100644
+Binary files a/game/fonts/NTBSans-B-sub.otf and b/game/fonts/NTBSans-B-sub.otf differ
+diff --git a/game/fonts/NTBSans-R-sub.otf b/game/fonts/NTBSans-R-sub.otf
+index cad6e08..0f5da37 100644
+Binary files a/game/fonts/NTBSans-R-sub.otf and b/game/fonts/NTBSans-R-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-B-sub.otf b/game/fonts/NTBSansJP-B-sub.otf
+index a5285b1..8286046 100644
+Binary files a/game/fonts/NTBSansJP-B-sub.otf and b/game/fonts/NTBSansJP-B-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-R-sub.otf b/game/fonts/NTBSansJP-R-sub.otf
+index 6d739e3..26f4a6c 100644
+Binary files a/game/fonts/NTBSansJP-R-sub.otf and b/game/fonts/NTBSansJP-R-sub.otf differ
+diff --git a/game/fonts/NTBSansSC-B-sub.otf b/game/fonts/NTBSansSC-B-sub.otf
+index ea4f3dc..577c16d 100644
+Binary files a/game/fonts/NTBSansSC-B-sub.otf and b/game/fonts/NTBSansSC-B-sub.otf differ
+diff --git a/game/fonts/NTBSansSC-R-sub.otf b/game/fonts/NTBSansSC-R-sub.otf
+index 2654e6e..f3589b8 100644
+Binary files a/game/fonts/NTBSansSC-R-sub.otf and b/game/fonts/NTBSansSC-R-sub.otf differ
+diff --git a/game/fonts/NTBTitle-sub.ttf b/game/fonts/NTBTitle-sub.ttf
+index 598ed03..5aa6ccd 100644
+Binary files a/game/fonts/NTBTitle-sub.ttf and b/game/fonts/NTBTitle-sub.ttf differ
+diff --git a/game/fonts/ThenKhung-sub.ttf b/game/fonts/ThenKhung-sub.ttf
+index 81f27d9..c72051f 100644
+Binary files a/game/fonts/ThenKhung-sub.ttf and b/game/fonts/ThenKhung-sub.ttf differ
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index 5501bbd..f01a79b 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -179,6 +179,8 @@ static func sanitize_data(out: Dictionary) -> void:
+ 	out["songbook"] = load("res://scripts/game/songbook.gd").sanitize(out.get("songbook", []))   # 1.2.0 §11.8 棋譜本
+ 	out["intro_seen"] = out.get("intro_seen", false) is bool and bool(out.get("intro_seen", false))   # 1.3.0 §13 掌燈開門只播第一次
+ 	out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
++	var lst = out.get("lobby_stamps", 0)
++	out["lobby_stamps"] = clampi(int(lst), 0, 99) if (lst is int or lst is float) else 0   # 1.4.0 §1.1 手帳印跡
+ 	var ods = out.get("od_stamps", 0)
+ 	out["od_stamps"] = clampi(int(ods), 0, 100000) if (ods is int or ods is float) else 0
+ 	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index 2063f55..b0a8a49 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -838,7 +838,16 @@ func _draw_battle_hud() -> void:
+ 		draw_rect(cr.grow(-4), Color("#8a6a48", 0.7), false, 1.0)   # 最後一輪（Codex 看圖 #6）：鐘面內框，像有厚度的木盒
+ 		draw_rect(Rect2(cr.position.x, cr.end.y - 3, cr.size.x, 3), Color(DIM_INK, 0.35))
+ 		draw_rect(Rect2(640 - 9, 0, 18, 3), Color("#c9a24a"))
+-		_text(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true)
++		# 1.4.0 §7.2：數字是木活字；最後 10 秒每換一秒數字跳一下＋輕輕一聲（減少動態不跳）
++		if secs != clock_last:
++			if clock_last >= 0 and secs <= 10 and secs > 0 and sfx != null and not view.finished:
++				sfx.play_pitched("k_click", 0.22, 1.5)
++			clock_last = secs
++			clock_flip_t = time
++		var jmp := 0.0
++		if secs <= 10 and not bool(Save.s("reduce_motion")):
++			jmp = clampf(1.0 - (time - clock_flip_t) / 0.15, 0.0, 1.0)
++		_woodtype(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true, jmp)
+ 	else:
+ 		_text(Vector2(640, 4), clock_s, ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
+ 	# 1.2.0 §5.6 情境資訊：AI 名稱只在開場 3 秒、滑鼠指到戰力尺、手把按 View 後 2 秒顯示（Codex／Antigravity：資訊都在，次要的不常駐）
+@@ -1360,3 +1369,8 @@ func _draw_intro() -> void:
+ 	# 跳過提示（2 秒後）
+ 	if t > 2.0 and fade < 0.5:
+ 		_text(Vector2(1240, 760), L.t("intro_skip"), tz("C"), Color(1, 0.9, 0.75, 0.55 * a), false, false, 0.0)
++
++
++# ── 1.4.0 第 2 大類：棋鐘木活字 ──
++var clock_last := -1
++var clock_flip_t := -10.0
+diff --git a/game/scripts/ui/codex_view.gd b/game/scripts/ui/codex_view.gd
+index f565720..00872f8 100644
+--- a/game/scripts/ui/codex_view.gd
++++ b/game/scripts/ui/codex_view.gd
+@@ -263,8 +263,19 @@ func _draw_codex() -> void:
+ 		if t == cx_unit:
+ 			draw_rect(r.grow(1.0), ACCENT, false, 3.0)   # 第七輪 E9：選中的兵種金框
+ 		_unit_in(r, t, 0, 1.0, 0.6 if t != D.CAVALRY else 0.55)   # 人物在頁籤正中間（原本腳畫到框外）
+-		_probe_glyph = true   # V1.2.1：頁籤角落的快捷鍵數字是符號
+-		_text(r.position + Vector2(4, 2), str((t0 + 1) % 10), tcap(tz("C"), 14), TXT_DIM, false, true)
++		# 1.4.0 §1.4：熱鍵數字改在卡片左下角的小木牌（離頭飾遠；上方沒有放書籤舌的空間，量測後改這裡），木牌是宣告的格子（R11／R12）
++		var hk := str((t0 + 1) % 10)
++		var hsz := tcap(tz("C"), 14)
++		var hih := label_ink(hk, hsz, true).size.y
++		var tgw := maxf(16.0, _width(hk, hsz, true) + 13.0)
++		var tg := Rect2(r.position.x + 9.0, r.end.y - 9.0 - (hih + 10.0), tgw, hih + 10.0)
++		draw_rect(Rect2(tg.position + Vector2(1, 2), tg.size), Color(DIM_INK, 0.4))
++		draw_rect(tg, PAL.WOOD_TYPE)
++		draw_rect(tg, PAL.WOOD_TYPE_D, false, 1.0)
++		_probe_glyph = true
++		probe_cell_begin(tg)
++		_text(ink_center_p(tg, hk, hsz, true), hk, hsz, PAL.INK, true, true)
++		probe_cell_end()
+ 		_probe_glyph = false
+ 	_btn(Rect2(960, 104, 110, 38), L.t("cxz_summons"), func(): _cx_pick_unit(D.COUNT * 2), true, false, TH_ACTIVE if cx_unit >= D.COUNT * 2 else Color(0, 0, 0, 0))
+ 	if cx_zoom or cx_unit >= D.total():
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index 91ea513..d073593 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -118,6 +118,10 @@ func _lobby_block() -> String:
+ 
+ func _lobby_start() -> void:
+ 	var why := _lobby_block()
++	if why == "":
++		Save.data["lobby_stamps"] = mini(99, int(Save.data.get("lobby_stamps", 0)) + 1)   # 1.4.0 §1.1 手帳上的印跡
++		if sfx != null:
++			sfx.play_pitched("place_heavy", 0.5, 0.8)   # 蓋印的悶響
+ 	if why != "":
+ 		_toast(why, true)
+ 		return
+@@ -524,7 +528,18 @@ func _draw_lobby() -> void:
+ 	else:
+ 		_btn(Rect2(458, by, 200, 48), L.t("lb_random"), _lobby_random)
+ 	var why := _lobby_block()
++	btn_seal_square = true
+ 	_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
++	btn_seal_square = false
++	if not bool(Save.s("plain_ui")) and not lobby_open:
++		# 1.4.0 §1.1：每次開戰在手帳右頁右下蓋一記方印，最多留 3 記（下次打開還在）
++		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
++		for k in ns:
++			var sc := Vector2(1150.0 - k * 34.0, 660.0 - (k % 2) * 8.0)
++			draw_set_transform(sc, 0.08 * (k - 1), Vector2.ONE)
++			draw_rect(Rect2(-13, -13, 26, 26), Color(PAL.TRINKET_RED, 0.28), false, 2.5)
++			draw_rect(Rect2(-8, -8, 16, 16), Color(PAL.TRINKET_RED, 0.18))
++			draw_set_transform(Vector2.ZERO)
+ 	if why != "":
+ 		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
+ 	if lobby_menu:
+diff --git a/game/scripts/ui/palette.gd b/game/scripts/ui/palette.gd
+index d892ac3..b4df1ac 100644
+--- a/game/scripts/ui/palette.gd
++++ b/game/scripts/ui/palette.gd
+@@ -31,6 +31,9 @@ const TRINKET_BRASS := Color("#b8913f")
+ # 1.3.0 §7.1 狀態竹籤
+ const BAMBOO := Color("#d9c27a")
+ const BAMBOO_D := Color("#8a7434")
++# 1.4.0 §7.2 木活字（每個數字一塊刻好的木塊）
++const WOOD_TYPE := Color("#dcc39a")
++const WOOD_TYPE_D := Color("#6b4a2a")
+ # ── 隊色（[一般, 色盲][藍, 紅]）與塗裝底漆 ──
+ const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]
+ const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]
+diff --git a/game/scripts/ui/replay_view.gd b/game/scripts/ui/replay_view.gd
+index 45818e9..0b603c8 100644
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -795,6 +795,12 @@ func _rv_div_mark(r: Rect2, span: int) -> void:
+ 		return
+ 	var x := r.position.x + r.size.x * clampf(float(rv_div) / float(span), 0.0, 1.0)
+ 	_chalk_line(Vector2(x, r.position.y - 2), Vector2(x, r.end.y + 2), Color("#ffd166"), 2.6, 6.0)
++	# 1.4.0 §8.3 批註本：分岔點在兩條墨線上各用硃筆圈一下
++	if not bool(Save.s("plain_ui")):
++		var chh := (r.size.y - tz("S") * 1.5 - 12.0) * 0.5
++		for cy in [r.position.y + chh * 0.5, r.end.y - chh * 0.5]:
++			draw_arc(Vector2(x, cy), 11.0, 0.4, TAU - 0.3, 24, Color(1, 0.9, 0.75, 0.4), 4.0, true)
++			draw_arc(Vector2(x, cy), 11.0, 0.4, TAU - 0.3, 24, Color(PAL.TRINKET_RED, 0.9), 2.2, true)
+ 	draw_colored_polygon(PackedVector2Array([Vector2(x - 5, r.position.y - 8), Vector2(x + 5, r.position.y - 8), Vector2(x, r.position.y - 1)]), ACCENT)
+ 
+ func _rv_has_sel() -> bool:
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 4658bf8..7650bf8 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -870,6 +870,14 @@ func _draw_settings() -> void:
+ 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+ 		y0 += 60.0
+ 	var rows: Array = _settings_rows()
++	if not bool(Save.s("plain_ui")):
++		# 1.4.0 §1.3 工具箱：分頁、選項、說明三欄是三格抽屜（深一階的抽屜底＋上緣陰影＋下緣中央黃銅把手）
++		for dr in [Rect2(110, 150, 230, 560), SET_COL, SET_DESC.grow_individual(0, 16, 0, 74)]:
++			draw_rect(dr.grow(2), Color(DIM_INK, 0.28))
++			draw_rect(Rect2(dr.position, Vector2(dr.size.x, 6)), Color(DIM_INK, 0.3))
++			var pull := Vector2(dr.get_center().x, dr.end.y + 4)
++			draw_rect(Rect2(pull - Vector2(18, 3), Vector2(36, 6)), PAL.TRINKET_BRASS.darkened(0.3))
++			draw_rect(Rect2(pull - Vector2(16, 3), Vector2(32, 3)), PAL.TRINKET_BRASS)
+ 	for i in rows.size():
+ 		var y := _settings_row_y(i)
+ 		if i % 2 == 0:
+@@ -884,7 +892,7 @@ func _draw_settings() -> void:
+ 			_btn(r, val.substr(1), cb.bind(1))
+ 		else:
+ 			_btn(Rect2(r.position, Vector2(46, r.size.y)), "◀", cb.bind(-1))
+-			var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else TH_WOOD_D
++			var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else Color(0, 0, 0, 0)   # 1.4.0 §1.3：值格是淺色木牌（原本黑膠囊）；開＝綠
+ 			var vr := Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y))
+ 			_btn(vr, val, cb.bind(1), true, false, tint)
+ 			if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index 3e520ed..7e26521 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -993,7 +993,7 @@ func _draw_profile() -> void:
+ 		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 7.0)
+ 		_icon(tiles[i][0], r.position + Vector2(30, 40), 34.0, ACCENT)
+ 		_text(r.position + Vector2(56, 10), L.t(tiles[i][1]), tz("C"), TXT_DIM, false, false, tw - 62)
+-		_text(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true, tw - 62)
++		_woodtype(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true)   # 1.4.0 §7.2 戰績大數字＝木活字
+ 	# 兵種勝率
+ 	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
+ 	var ug: Dictionary = Save.data.get("unit_games_rec", {})   # V1.5.1：場數、勝場同口徑（對 AI、遠征、雙人）
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index 6292a36..6294e81 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -661,7 +661,7 @@ func _draw_place_hud() -> void:
+ 	if _is_free():
+ 		_fp_gold_preview(gb, a)
+ 	var gtxt := L.t("gold_of", [a.spent(), a.budget])
+-	_text(Vector2(gb.end.x + 10, gb.position.y - tz("S") * 0.45), gtxt, tz("S"), ACCENT, false, true)
++	_woodtype(Vector2(gb.end.x + 10, gb.position.y - tz("S") * 0.45), gtxt, tz("S"), ACCENT, false, true)   # 1.4.0 §7.2 預算計數牌＝木活字
+ 	var ux := gb.end.x + 18 + _width(gtxt, tz("S"), true)
+ 	_text(Vector2(ux, gb.position.y - tz("S") * 0.45), L.t("units_of", [a.count(), a.unit_cap]), tz("S"), TXT_DIM, false, true)
+ 	if mode == Mode.DUEL and tp != null and rules != null and rules.handicap:
+@@ -676,6 +676,17 @@ func _draw_place_hud() -> void:
+ 	# 第二行：資訊帶
+ 	_draw_info_band(Rect2(0, 52, 1280, 40), hover_card if hover_card >= 0 else selected, a.team)
+ 	# 卡列
++	if not bool(Save.s("plain_ui")) and not _card_types().is_empty():
++		# 1.4.0 §1.2 牌尺：卡片立在一條水平實木牌尺上（直槽，不做弧形）：尺身、上緣受光、每張卡底下一道卡榫陰影
++		var r0 := _card_rect(_card_types()[0])
++		var r1 := _card_rect(_card_types()[-1])
++		var rail := Rect2(r0.position.x - 6.0, r0.end.y - 12.0, r1.end.x - r0.position.x + 12.0, 800.0 - (r0.end.y - 12.0))
++		draw_rect(Rect2(rail.position + Vector2(0, -3), Vector2(rail.size.x, 3)), Color(DIM_INK, 0.35))
++		_mat_box(rail, "walnut", Color(0.78, 0.62, 0.46))
++		draw_rect(Rect2(rail.position, Vector2(rail.size.x, 2)), Color(1, 0.9, 0.7, 0.35))
++		for i0 in _card_types():
++			var cr0 := _card_rect(i0)
++			draw_rect(Rect2(cr0.position.x + 4, cr0.end.y - 4, cr0.size.x - 8, 6), Color(DIM_INK, 0.5))
+ 	for i in _card_types():
+ 		var r := _card_rect(i)
+ 		var cap_ok: bool = a.type_cap == 0 or a.count_of(i) < a.type_cap
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index 8628b5d..f4f965c 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -249,11 +249,15 @@ func _draw_result() -> void:
+ 		if mvp != null and not (loss != "" and mvp.team == 1):   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
+ 			var mr := Rect2(250, y, 780, 76)
+ 			_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
+-			_icon("trophy", mr.end - Vector2(34, 38), 34.0)
++			var seals := _res_seals()
++			if seals.is_empty():
++				_icon("trophy", mr.end - Vector2(34, 38), 34.0)
++			else:
++				_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
+ 			Art.ring(self, mr.position + Vector2(52, 66), mvp.team, mvp.type, cbm(), 1.25)
+ 			Art.unit(self, mr.position + Vector2(52, 66), mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.25, cbm())
+ 			_text(mr.position + Vector2(100, 10), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
+-			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660)
++			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660 if seals.is_empty() else 500)
+ 			y = mr.end.y + 10
+ 		# 第七輪 A1：只列事件紀錄裡查得到的事實，不說「因為」（Codex：不宣稱因果）
+ 		var facts := _result_facts()
+@@ -296,7 +300,11 @@ func _draw_result() -> void:
+ 			_btn(Rect2(800, y - tz("S") * 1.3 - 8, 230, 40), L.t("res_try_review"), func(): _open_review_on_first_loss())
+ 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
+ 			var need: int = rules.wins_needed() if rules != null else 2
+-			_text(Vector2(640, y + 4), L.t("series_now", [round_no, wins[0], wins[1], need]), tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
++			var sn := L.t("series_now", [round_no, wins[0], wins[1], need])
++			if _width(sn, tz("B")) <= 780.0:
++				_woodtype(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false)   # 1.4.0 §7.2／§8.2：比數是木活字
++			else:
++				_text(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
+ 			y += tz("B") * 1.6
+ 	else:
+ 		_draw_result_details(Rect2(230, y, 820, 640 - y))
+@@ -812,3 +820,39 @@ func _pc_save() -> void:
+ 		_toast(L.t("gif_fail"), true)
+ 		return
+ 	_toast(L.t("pc_saved", [ProjectSettings.globalize_path(fn)]))
++
++
++# ── 1.4.0 第 4 大類：謝幕（方案 §8）──
++## 系列結束（或單場的對 AI／雙人）才有三枚木印章：MVP、最大輸出、中流砥柱（承受最多傷害還站著的）。回傳 [[圖示, 標題鍵, 兵種, 數值], …]。
++func _res_seals() -> Array:
++	if sim == null or not (mode == Mode.VS_AI or mode == Mode.DUEL) or not series_over or watch_mode:
++		return []
++	var best_d = null
++	var best_t = null
++	for u in sim.units:
++		if u.team != 0 or u.summon:
++			continue
++		if best_d == null or u.dmg_dealt > best_d.dmg_dealt:
++			best_d = u
++		if u.alive and (best_t == null or u.dmg_taken > best_t.dmg_taken):
++			best_t = u
++	var out: Array = []
++	var mvp = report.get("mvp")
++	if mvp != null:
++		out.append(["trophy", "seal_mvp", int(mvp.type), int(mvp.dmg_dealt)])
++	if best_d != null:
++		out.append(["swords", "seal_dmg", int(best_d.type), int(best_d.dmg_dealt)])
++	if best_t != null and int(best_t.dmg_taken) > 0:
++		out.append(["shield", "seal_tank", int(best_t.type), int(best_t.dmg_taken)])
++	return out
++
++func _draw_res_seals(mr: Rect2, seals: Array) -> void:
++	for k in seals.size():
++		var c := Vector2(mr.end.x - 34.0 - (seals.size() - 1 - k) * 50.0, mr.get_center().y)
++		var rr := 21.0
++		draw_circle(c + Vector2(1.5, 2.5), rr, Color(DIM_INK, 0.45), true, -1.0, true)
++		draw_circle(c, rr, PAL.WOOD_TYPE, true, -1.0, true)
++		draw_arc(c, rr - 3.0, 0, TAU, 32, Color(PAL.TRINKET_RED, 0.75), 2.0, true)   # 印面一圈朱砂（邊緣微滲）
++		_icon(str(seals[k][0]), c, 22.0, PAL.TRINKET_RED.darkened(0.1))
++		var sk: Array = seals[k]
++		_btns.append({"r": Rect2(c - Vector2(rr, rr), Vector2(rr, rr) * 2.0), "cb": func(): _toast(L.t(str(sk[1]), [L.t("unit_%d" % int(sk[2])), int(sk[3])])), "en": true})
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index fddccf5..e476041 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -176,6 +176,7 @@ var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對
+ var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
+ var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
+ var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
++var btn_seal_square := false   # 1.4.0 §1.1：下一顆主按鈕的蠟封畫成朱砂方印（大廳開戰）
+ var probe_icons: Array = []   # 1.4.0 方案盤點（第 10 點：圖示要在框裡、上下留空）：每個圖示畫出來的框
+ var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
+ var _ink_keep_a := false   # 1.2.0：戰場跳字轉墨色時保留原透明度（淡出要和紙條同步，Codex cat04 #2）
+@@ -959,9 +960,18 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 				var wr := Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws))
+ 				wax_face_cut = maxf(0.0, wr.end.x - rd.position.x)   # 1.3.0 R11：蠟封蓋住的左邊不算字的格子面（字在看得到的木牌上置中；Antigravity cat01）
+ 				# 深赤火漆＋金邊：和朱漆底拉開明度（Antigravity cat02 #1：紅疊紅看不清）
+-				draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
+-				draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
+-				draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
++				if btn_seal_square:
++					# 1.4.0 §1.1：大廳「開戰」＝朱砂印泥盒的方印（不是圓火漆）
++					var sq := Rect2(wr.get_center() - Vector2(ws, ws) * 0.38, Vector2(ws, ws) * 0.76)
++					draw_rect(Rect2(sq.position + Vector2(1.5, 2.0), sq.size), Color(DIM_INK, 0.45))
++					draw_rect(sq, PAL.TRINKET_RED.darkened(0.15))
++					draw_rect(sq.grow(-3), Color(1, 0.85, 0.75, 0.75), false, 1.5)
++					draw_line(sq.position + Vector2(7, sq.size.y * 0.5), sq.end - Vector2(7, sq.size.y * 0.5), Color(1, 0.85, 0.75, 0.75), 1.5)
++					draw_line(sq.position + Vector2(sq.size.x * 0.5, 7), sq.end - Vector2(sq.size.x * 0.5, 7), Color(1, 0.85, 0.75, 0.75), 1.5)
++				else:
++					draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
++					draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
++					draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
+ 				if layout_probe:
+ 					probe_deco("wax", wr, rd, "left")
+ 	elif paper_face:
+@@ -2022,3 +2032,32 @@ func _icon_in(btn: Rect2, name: String, s: float, col := Color.WHITE) -> void:
+ 	var face := btn.grow_individual(0, 0, 0, -3.0)
+ 	var vd := maxf(1.0, s * 0.07) * 1.4 if (s >= 14.0 and not bool(Save.s("plain_ui"))) else 0.0
+ 	_icon(name, face.get_center() - Vector2(vd, vd) * 0.5, s, col)
++
++
++# ── 1.4.0 第 2 大類：木活字數字（方案 §7.2）──
++## 只換「核准的數字符號」：0～9、%、.、,、＋、−；每個數字畫在一塊刻好的小木塊上（原字型、原字距，不改排版寬）。
++## 其他字照原色原樣。簡化介面＝一般字。jump＝最後 10 秒倒數時數字跳一下（0～1，呼叫端算）。
++const WOOD_CHARS := "0123456789%.,+-−"
++static func is_wood_char(ch: String) -> bool:
++	return ch.length() == 1 and WOOD_CHARS.contains(ch)
++
++func _woodtype(p: Vector2, s: String, size: int, col: Color, center := false, bold := true, jump := 0.0) -> void:
++	# 一整條排成一塊活字版（四周留 5px），整串用墨色一次畫（分段畫會讓相鄰字框互疊、段數暴增）；數字之間刻淺槽
++	if bool(Save.s("plain_ui")):
++		_text(p, s, size, col, center, bold)
++		return
++	var w := _width(s, size, bold)
++	var x := p.x - (w * 0.5 if center else 0.0)
++	var ink := label_ink(s, size, bold)
++	var br := Rect2(Vector2(x - 5.0, p.y + ink.position.y - 5.0), Vector2(w + 10.0, ink.size.y + 10.0))
++	draw_rect(Rect2(br.position + Vector2(1, 2), br.size), Color(DIM_INK, 0.45))
++	draw_rect(br, PAL.WOOD_TYPE)
++	draw_rect(Rect2(br.position, Vector2(br.size.x, 1.5)), Color(1, 0.96, 0.85, 0.5))
++	draw_rect(Rect2(br.position.x, br.end.y - 2.0, br.size.x, 2.0), Color(PAL.WOOD_TYPE_D, 0.8))
++	draw_rect(br, PAL.WOOD_TYPE_D, false, 1.0)
++	var cx := x
++	for k in range(1, s.length()):
++		cx += _width(s[k - 1], size, bold)
++		if is_wood_char(s[k - 1]) and is_wood_char(s[k]):
++			draw_line(Vector2(cx, br.position.y + 3.0), Vector2(cx, br.end.y - 3.0), Color(PAL.WOOD_TYPE_D, 0.22), 1.0)
++	_text(Vector2(x, p.y - 3.0 * jump), s, size, PAL.INK, false, bold)
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 522e1c1..9f7361c 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index 8a28fe6..51cda94 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -1828,3 +1828,16 @@ func test_r12_r13_v140() -> void:
+ 	var ubs: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+ 	ok(ubs.find("maxf(ih + 8.0 + 1.0, (ih + 1.0) / 0.76)") >= 0, "價錢子格高度＝墨跡＋上下 max(4, 12%)")
+ 	ok(ubs.find("r.size.x - 2.0 * (maxf(6.0, r.size.x * 0.06) + 1.0)") >= 0, "按鈕標籤左右各留 max(6, 6% 寬)")
++
++## 1.4.0 第 2 大類：木活字數字（只換核准的數字符號、最後 10 秒才跳）
++func test_woodtype_v140() -> void:
++	var UB = load("res://scripts/ui/ui_base.gd")
++	var okc := true
++	for ch in "0123456789%":
++		okc = okc and UB.is_wood_char(ch)
++	ok(okc, "數字與百分號是木活字")
++	ok(not UB.is_wood_char("金") and not UB.is_wood_char("s") and not UB.is_wood_char("秒"), "文字不換（勝負文字、單位走原字型）")
++	var bv: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
++	ok(bv.find("secs <= 10 and not bool(Save.s(\"reduce_motion\"))") >= 0, "倒數只在最後 10 秒跳、減少動態不跳")
++	var P = load("res://scripts/ui/palette.gd")
++	ok(P.WOOD_TYPE != P.WOOD_TYPE_D, "木活字色在色票")
+
+exec
+/bin/bash -lc "rg -n '"'^##|''^###|woodtype|R11|R12|牌尺|硃筆|三枚|方印'"' docs/2026-11-13-v1.4.0-plan.md; rg --files game | head -60; find .. -name AGENTS.md -print" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "sed -n '/diff --git a\\/game\\/scripts\\/ui\\/screens\\/game_result.gd/,/diff --git a\\/game\\/tests/p' coordination/v140-impl/cat02-r1/diff.patch; rg -n 'clock_last|clock_flip|_res_seals|btn_seal_square|func _woodtype|func _btn|_probe_glyph|probe_cell_begin' game/scripts/ui/{ui_base.gd,battle_view.gd,screens/game_result.gd}; rg -n 'pad|focus|_btns' game/scripts/ui/input* game/scripts/ui/*pad*" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 0ms:
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index 8628b5d..f4f965c 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -249,11 +249,15 @@ func _draw_result() -> void:
+ 		if mvp != null and not (loss != "" and mvp.team == 1):   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
+ 			var mr := Rect2(250, y, 780, 76)
+ 			_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
+-			_icon("trophy", mr.end - Vector2(34, 38), 34.0)
++			var seals := _res_seals()
++			if seals.is_empty():
++				_icon("trophy", mr.end - Vector2(34, 38), 34.0)
++			else:
++				_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
+ 			Art.ring(self, mr.position + Vector2(52, 66), mvp.team, mvp.type, cbm(), 1.25)
+ 			Art.unit(self, mr.position + Vector2(52, 66), mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.25, cbm())
+ 			_text(mr.position + Vector2(100, 10), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
+-			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660)
++			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660 if seals.is_empty() else 500)
+ 			y = mr.end.y + 10
+ 		# 第七輪 A1：只列事件紀錄裡查得到的事實，不說「因為」（Codex：不宣稱因果）
+ 		var facts := _result_facts()
+@@ -296,7 +300,11 @@ func _draw_result() -> void:
+ 			_btn(Rect2(800, y - tz("S") * 1.3 - 8, 230, 40), L.t("res_try_review"), func(): _open_review_on_first_loss())
+ 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
+ 			var need: int = rules.wins_needed() if rules != null else 2
+-			_text(Vector2(640, y + 4), L.t("series_now", [round_no, wins[0], wins[1], need]), tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
++			var sn := L.t("series_now", [round_no, wins[0], wins[1], need])
++			if _width(sn, tz("B")) <= 780.0:
++				_woodtype(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false)   # 1.4.0 §7.2／§8.2：比數是木活字
++			else:
++				_text(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
+ 			y += tz("B") * 1.6
+ 	else:
+ 		_draw_result_details(Rect2(230, y, 820, 640 - y))
+@@ -812,3 +820,39 @@ func _pc_save() -> void:
+ 		_toast(L.t("gif_fail"), true)
+ 		return
+ 	_toast(L.t("pc_saved", [ProjectSettings.globalize_path(fn)]))
++
++
++# ── 1.4.0 第 4 大類：謝幕（方案 §8）──
++## 系列結束（或單場的對 AI／雙人）才有三枚木印章：MVP、最大輸出、中流砥柱（承受最多傷害還站著的）。回傳 [[圖示, 標題鍵, 兵種, 數值], …]。
++func _res_seals() -> Array:
++	if sim == null or not (mode == Mode.VS_AI or mode == Mode.DUEL) or not series_over or watch_mode:
++		return []
++	var best_d = null
++	var best_t = null
++	for u in sim.units:
++		if u.team != 0 or u.summon:
++			continue
++		if best_d == null or u.dmg_dealt > best_d.dmg_dealt:
++			best_d = u
++		if u.alive and (best_t == null or u.dmg_taken > best_t.dmg_taken):
++			best_t = u
++	var out: Array = []
++	var mvp = report.get("mvp")
++	if mvp != null:
++		out.append(["trophy", "seal_mvp", int(mvp.type), int(mvp.dmg_dealt)])
++	if best_d != null:
++		out.append(["swords", "seal_dmg", int(best_d.type), int(best_d.dmg_dealt)])
++	if best_t != null and int(best_t.dmg_taken) > 0:
++		out.append(["shield", "seal_tank", int(best_t.type), int(best_t.dmg_taken)])
++	return out
++
++func _draw_res_seals(mr: Rect2, seals: Array) -> void:
++	for k in seals.size():
++		var c := Vector2(mr.end.x - 34.0 - (seals.size() - 1 - k) * 50.0, mr.get_center().y)
++		var rr := 21.0
++		draw_circle(c + Vector2(1.5, 2.5), rr, Color(DIM_INK, 0.45), true, -1.0, true)
++		draw_circle(c, rr, PAL.WOOD_TYPE, true, -1.0, true)
++		draw_arc(c, rr - 3.0, 0, TAU, 32, Color(PAL.TRINKET_RED, 0.75), 2.0, true)   # 印面一圈朱砂（邊緣微滲）
++		_icon(str(seals[k][0]), c, 22.0, PAL.TRINKET_RED.darkened(0.1))
++		var sk: Array = seals[k]
++		_btns.append({"r": Rect2(c - Vector2(rr, rr), Vector2(rr, rr) * 2.0), "cb": func(): _toast(L.t(str(sk[1]), [L.t("unit_%d" % int(sk[2])), int(sk[3])])), "en": true})
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index fddccf5..e476041 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -176,6 +176,7 @@ var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對
+ var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
+ var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
+ var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
++var btn_seal_square := false   # 1.4.0 §1.1：下一顆主按鈕的蠟封畫成朱砂方印（大廳開戰）
+ var probe_icons: Array = []   # 1.4.0 方案盤點（第 10 點：圖示要在框裡、上下留空）：每個圖示畫出來的框
+ var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
+ var _ink_keep_a := false   # 1.2.0：戰場跳字轉墨色時保留原透明度（淡出要和紙條同步，Codex cat04 #2）
+@@ -959,9 +960,18 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 				var wr := Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws))
+ 				wax_face_cut = maxf(0.0, wr.end.x - rd.position.x)   # 1.3.0 R11：蠟封蓋住的左邊不算字的格子面（字在看得到的木牌上置中；Antigravity cat01）
+ 				# 深赤火漆＋金邊：和朱漆底拉開明度（Antigravity cat02 #1：紅疊紅看不清）
+-				draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
+-				draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
+-				draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
++				if btn_seal_square:
++					# 1.4.0 §1.1：大廳「開戰」＝朱砂印泥盒的方印（不是圓火漆）
++					var sq := Rect2(wr.get_center() - Vector2(ws, ws) * 0.38, Vector2(ws, ws) * 0.76)
++					draw_rect(Rect2(sq.position + Vector2(1.5, 2.0), sq.size), Color(DIM_INK, 0.45))
++					draw_rect(sq, PAL.TRINKET_RED.darkened(0.15))
++					draw_rect(sq.grow(-3), Color(1, 0.85, 0.75, 0.75), false, 1.5)
++					draw_line(sq.position + Vector2(7, sq.size.y * 0.5), sq.end - Vector2(7, sq.size.y * 0.5), Color(1, 0.85, 0.75, 0.75), 1.5)
++					draw_line(sq.position + Vector2(sq.size.x * 0.5, 7), sq.end - Vector2(sq.size.x * 0.5, 7), Color(1, 0.85, 0.75, 0.75), 1.5)
++				else:
++					draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
++					draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
++					draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
+ 				if layout_probe:
+ 					probe_deco("wax", wr, rd, "left")
+ 	elif paper_face:
+@@ -2022,3 +2032,32 @@ func _icon_in(btn: Rect2, name: String, s: float, col := Color.WHITE) -> void:
+ 	var face := btn.grow_individual(0, 0, 0, -3.0)
+ 	var vd := maxf(1.0, s * 0.07) * 1.4 if (s >= 14.0 and not bool(Save.s("plain_ui"))) else 0.0
+ 	_icon(name, face.get_center() - Vector2(vd, vd) * 0.5, s, col)
++
++
++# ── 1.4.0 第 2 大類：木活字數字（方案 §7.2）──
++## 只換「核准的數字符號」：0～9、%、.、,、＋、−；每個數字畫在一塊刻好的小木塊上（原字型、原字距，不改排版寬）。
++## 其他字照原色原樣。簡化介面＝一般字。jump＝最後 10 秒倒數時數字跳一下（0～1，呼叫端算）。
++const WOOD_CHARS := "0123456789%.,+-−"
++static func is_wood_char(ch: String) -> bool:
++	return ch.length() == 1 and WOOD_CHARS.contains(ch)
++
++func _woodtype(p: Vector2, s: String, size: int, col: Color, center := false, bold := true, jump := 0.0) -> void:
++	# 一整條排成一塊活字版（四周留 5px），整串用墨色一次畫（分段畫會讓相鄰字框互疊、段數暴增）；數字之間刻淺槽
++	if bool(Save.s("plain_ui")):
++		_text(p, s, size, col, center, bold)
++		return
++	var w := _width(s, size, bold)
++	var x := p.x - (w * 0.5 if center else 0.0)
++	var ink := label_ink(s, size, bold)
++	var br := Rect2(Vector2(x - 5.0, p.y + ink.position.y - 5.0), Vector2(w + 10.0, ink.size.y + 10.0))
++	draw_rect(Rect2(br.position + Vector2(1, 2), br.size), Color(DIM_INK, 0.45))
++	draw_rect(br, PAL.WOOD_TYPE)
++	draw_rect(Rect2(br.position, Vector2(br.size.x, 1.5)), Color(1, 0.96, 0.85, 0.5))
++	draw_rect(Rect2(br.position.x, br.end.y - 2.0, br.size.x, 2.0), Color(PAL.WOOD_TYPE_D, 0.8))
++	draw_rect(br, PAL.WOOD_TYPE_D, false, 1.0)
++	var cx := x
++	for k in range(1, s.length()):
++		cx += _width(s[k - 1], size, bold)
++		if is_wood_char(s[k - 1]) and is_wood_char(s[k]):
++			draw_line(Vector2(cx, br.position.y + 3.0), Vector2(cx, br.end.y - 3.0), Color(PAL.WOOD_TYPE_D, 0.22), 1.0)
++	_text(Vector2(x, p.y - 3.0 * jump), s, size, PAL.INK, false, bold)
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+game/scripts/ui/battle_view.gd:842:		if secs != clock_last:
+game/scripts/ui/battle_view.gd:843:			if clock_last >= 0 and secs <= 10 and secs > 0 and sfx != null and not view.finished:
+game/scripts/ui/battle_view.gd:845:			clock_last = secs
+game/scripts/ui/battle_view.gd:846:			clock_flip_t = time
+game/scripts/ui/battle_view.gd:849:			jmp = clampf(1.0 - (time - clock_flip_t) / 0.15, 0.0, 1.0)
+game/scripts/ui/battle_view.gd:1375:var clock_last := -1
+game/scripts/ui/battle_view.gd:1376:var clock_flip_t := -10.0
+game/scripts/ui/ui_base.gd:174:var _probe_glyph := false
+game/scripts/ui/ui_base.gd:179:var btn_seal_square := false   # 1.4.0 §1.1：下一顆主按鈕的蠟封畫成朱砂方印（大廳開戰）
+game/scripts/ui/ui_base.gd:786:func probe_cell_begin(face: Rect2) -> void:
+game/scripts/ui/ui_base.gd:827:				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis,
+game/scripts/ui/ui_base.gd:888:func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+game/scripts/ui/ui_base.gd:963:				if btn_seal_square:
+game/scripts/ui/ui_base.gd:1043:func _btn_shine(r: Rect2) -> void:
+game/scripts/ui/ui_base.gd:1450:func _btn_small(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+game/scripts/ui/ui_base.gd:1456:func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
+game/scripts/ui/ui_base.gd:2044:func _woodtype(p: Vector2, s: String, size: int, col: Color, center := false, bold := true, jump := 0.0) -> void:
+game/scripts/ui/screens/game_result.gd:252:			var seals := _res_seals()
+game/scripts/ui/screens/game_result.gd:256:				_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
+game/scripts/ui/screens/game_result.gd:827:func _res_seals() -> Array:
+game/scripts/ui/screens/game_result.gd:849:func _draw_res_seals(mr: Rect2, seals: Array) -> void:
+rg: game/scripts/ui/input*: No such file or directory (os error 2)
+rg: game/scripts/ui/*pad*: No such file or directory (os error 2)
+
+exec
+/bin/bash -lc "rg -n '_btns|focus|clock_last|clock_flip' game/scripts/{main*,ui,game} -g '*.gd' | head -130; nl -ba game/scripts/ui/replay_view.gd | sed -n '680,815p'; nl -ba game/scripts/ui/battle_view.gd | sed -n '800,865p'; nl -ba game/scripts/ui/screens/game_result.gd | sed -n '140,265p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 84ms:
+rg: game/scripts/main*: No such file or directory (os error 2)
+game/scripts/ui/unit_brief.gd:55:	return (r.has_point(mouse) and not pad_mode) or (pad_mode and _btns.size() - 1 == _focus)
+game/scripts/ui/lobby_view.gd:621:	for bi in range(_btns.size() - 1, -1, -1):
+game/scripts/ui/lobby_view.gd:622:		if r.intersects(_btns[bi]["r"]):
+game/scripts/ui/lobby_view.gd:623:			_btns.remove_at(bi)
+game/scripts/game/save.gd:15:	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
+game/scripts/ui/layout_rules.gd:233:	var fo: float = float(d.get("focus_out", 0.0))
+game/scripts/ui/game_screens.gd:316:	for b in _btns:
+game/scripts/ui/game_screens.gd:477:				_move_focus(-1)
+game/scripts/ui/game_screens.gd:479:				_move_focus(1)
+game/scripts/ui/game_screens.gd:481:				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+game/scripts/ui/game_screens.gd:483:					_btns[_focus]["cb"].call()
+game/scripts/ui/game_screens.gd:497:					_move_focus(1)
+game/scripts/ui/game_screens.gd:737:	_btns.clear()
+game/scripts/ui/game_screens.gd:740:	probe_btns.clear()
+game/scripts/ui/game_screens.gd:876:	if _focus >= _btns.size():
+game/scripts/ui/game_screens.gd:877:		_focus = 0
+game/scripts/ui/game_screens.gd:878:	_btns_gen = _gen
+game/scripts/ui/game_screens.gd:934:	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+game/scripts/ui/game_screens.gd:935:		var fy: float = _btns[_focus]["r"].position.y
+game/scripts/ui/game_screens.gd:1076:	if _btns_gen != _gen:
+game/scripts/ui/game_screens.gd:1078:	for i in _btns.size():
+game/scripts/ui/game_screens.gd:1079:		var b: Dictionary = _btns[i]
+game/scripts/ui/game_screens.gd:1082:				_focus = i
+game/scripts/ui/battle_view.gd:108:		_update_action_focus()
+game/scripts/ui/battle_view.gd:119:		_update_action_focus()
+game/scripts/ui/battle_view.gd:842:		if secs != clock_last:
+game/scripts/ui/battle_view.gd:843:			if clock_last >= 0 and secs <= 10 and secs > 0 and sfx != null and not view.finished:
+game/scripts/ui/battle_view.gd:845:			clock_last = secs
+game/scripts/ui/battle_view.gd:846:			clock_flip_t = time
+game/scripts/ui/battle_view.gd:849:			jmp = clampf(1.0 - (time - clock_flip_t) / 0.15, 0.0, 1.0)
+game/scripts/ui/battle_view.gd:975:	_focus = 0
+game/scripts/ui/battle_view.gd:1375:var clock_last := -1
+game/scripts/ui/battle_view.gd:1376:var clock_flip_t := -10.0
+game/scripts/ui/codex_view.gd:471:					_btns.append({"r": Rect2(pc - Vector2(56, 112), Vector2(112, 124)), "cb": func(): cx_spin_t = cx_clock; cx_angle = -1, "en": true})
+game/scripts/ui/battle/battle_fx.gd:243:func _focus_dim(world_p: Vector2) -> float:
+game/scripts/ui/battle/battle_fx.gd:246:	return 0.6 if world_p.distance_to(action_focus) > 200.0 else 1.0
+game/scripts/ui/battle/battle_state.gd:38:var action_focus := Vector2.ZERO
+game/scripts/ui/replay_view.gd:68:	_btns.append({"r": RC_BAR, "cb": func(): _seek_async(int(clampf((mouse.x - RC_BAR.position.x) / RC_BAR.size.x, 0.0, 1.0) * total)), "en": true})
+game/scripts/ui/replay_view.gd:710:			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true})
+game/scripts/ui/replay_view.gd:855:	_btns.append({"r": r, "cb": _rv_free_tap, "en": true})
+game/scripts/ui/ui_base.gd:355:var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+game/scripts/ui/ui_base.gd:413:var _btns: Array = []
+game/scripts/ui/ui_base.gd:414:var _focus := 0
+game/scripts/ui/ui_base.gd:418:var _btns_gen := -1          # _btns 是哪個世代畫出來的
+game/scripts/ui/ui_base.gd:592:func _move_focus(d: int) -> void:
+game/scripts/ui/ui_base.gd:594:	if _btns.is_empty():
+game/scripts/ui/ui_base.gd:596:	_focus = posmod(_focus + d, _btns.size())
+game/scripts/ui/ui_base.gd:698:func _focus_glide(rd: Rect2) -> Rect2:
+game/scripts/ui/ui_base.gd:715:var mag_focus := Vector2(-1, -1)   # V1.6.1 F4：手把模式時放大鏡跟著焦點按鈕（不用另外的鍵，不和 L3 提示衝突）
+game/scripts/ui/ui_base.gd:717:	return mag_focus if bool(get("pad_mode")) else get("mouse")
+game/scripts/ui/ui_base.gd:891:	var idx := _btns.size()
+game/scripts/ui/ui_base.gd:898:	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
+game/scripts/ui/ui_base.gd:900:	var focus := pad_mode and idx == _focus
+game/scripts/ui/ui_base.gd:906:	elif hover or focus:
+game/scripts/ui/ui_base.gd:929:		if enabled and (hover or focus):
+game/scripts/ui/ui_base.gd:949:		if enabled and (hover or focus):
+game/scripts/ui/ui_base.gd:979:		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
+game/scripts/ui/ui_base.gd:993:	if focus:
+game/scripts/ui/ui_base.gd:994:		rd = _focus_glide(rd)   # V1.6.1 A8：手把焦點框滑過去（0.08 秒；連續撥動、減少動態、版面檢查時直接跳）
+game/scripts/ui/ui_base.gd:995:		mag_focus = r.get_center()
+game/scripts/ui/ui_base.gd:996:	if (focus or hover) and enabled and not plain_ui_now():
+game/scripts/ui/ui_base.gd:999:		_box(rd.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.95 if focus else 0.75), 8.0, 2.5)
+game/scripts/ui/ui_base.gd:1000:	elif focus:
+game/scripts/ui/ui_base.gd:1002:	if focus and enabled and bool(Save.s("focus_strong")):
+game/scripts/ui/ui_base.gd:1008:		probe_btns.append(r)
+game/scripts/ui/ui_base.gd:1152:	_focus = 0
+game/scripts/ui/ui_base.gd:1457:	var idx := _btns.size()
+game/scripts/ui/ui_base.gd:1458:	_btns.append({"r": r, "cb": action, "en": true})
+game/scripts/ui/ui_base.gd:1459:	var hot := (r.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)
+game/scripts/ui/ui_base.gd:1465:		probe_btns.append(r)
+game/scripts/ui/ui_base.gd:1480:## 點擊只對「這個世代畫出來的按鈕」有效（_btns_gen）。
+game/scripts/ui/ui_base.gd:1801:	_focus = 0
+game/scripts/ui/ui_base.gd:1808:var nav_focus := {}   # V1.0.0：卡片面板 → 上次點的那張卡（返回時焦點回原卡）
+game/scripts/ui/ui_base.gd:1816:	_focus = int(nav_focus.get(overlay, 0))   # V1.0.0（Codex v100-i1 #8）：回到卡片面板時焦點回原卡
+game/scripts/ui/screens/game_place.gd:20:		_focus = 0
+game/scripts/ui/screens/game_place.gd:61:	_focus = int(nav_focus.get(overlay, 0)) if overlay != "" else 0   # V1.0.0（Codex v100-i3）：打完回卡片面板，焦點回原卡
+game/scripts/ui/screens/game_place.gd:1041:		_btns.append({"r": Rect2(cpos - Vector2(16, 16), Vector2(32, 32)), "cb": func(): plan_sel = ii, "en": true})
+game/scripts/ui/screens/game_place.gd:1051:	_btns.append({"r": Rect2(ruler.position.x, ruler.position.y + 44, ruler.size.x, ruler.size.y - 44), "cb": func():
+game/scripts/ui/battle/battle_units.gd:223:func _update_action_focus() -> void:
+game/scripts/ui/battle/battle_units.gd:230:	action_focus = sum / n if n > 0 else zoom_center
+game/scripts/ui/battle/battle_units.gd:491:	return HK * focus_scale(u.id)
+game/scripts/ui/battle/battle_units.gd:495:func focus_scale(id: int) -> float:
+game/scripts/ui/battle/battle_units.gd:738:		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)   # V1.4 #12 巨獸畫大；1.3.0 跟拍的那一隻畫大
+game/scripts/ui/battle/battle_units.gd:835:			alpha *= _focus_dim(p)
+game/scripts/ui/battle/battle_units.gd:1012:		var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
+game/scripts/ui/screens/game_result.gd:61:	_focus = 0
+game/scripts/ui/screens/game_result.gd:246:			_btns.append({"r": Rect2(mx - 18, ch.position.y, 36, ch.size.y), "cb": func(): _replay_from(tt), "en": true})
+game/scripts/ui/screens/game_result.gd:399:		bs.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])
+game/scripts/ui/screens/game_result.gd:806:	probe_align("postcard_btns", [P, Rect2(640.0 - (nb * 210.0 + (nb - 1) * 10.0) / 2.0, 670, nb * 210.0 + (nb - 1) * 10.0, 46)])
+game/scripts/ui/screens/game_result.gd:858:		_btns.append({"r": Rect2(c - Vector2(rr, rr), Vector2(rr, rr) * 2.0), "cb": func(): _toast(L.t(str(sk[1]), [L.t("unit_%d" % int(sk[2])), int(sk[3])])), "en": true})
+game/scripts/ui/screens/game_playroom.gd:165:		var paper_on: bool = (bool(_btns[_btns.size() - 1]["en"]) or mine or ai) and not bool(Save.s("plain_ui"))
+game/scripts/ui/screens/game_playroom.gd:290:	_focus = 0
+game/scripts/ui/screens/game_playroom.gd:708:		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
+game/scripts/ui/screens/game_playroom.gd:782:	_focus = 0
+game/scripts/ui/screens/game_modes.gd:496:			_btns.append({"r": cell, "cb": func(): rl_sel = cc, "en": true})
+game/scripts/ui/screens/game_modes.gd:1048:		var fi := _btns.size()
+game/scripts/ui/screens/game_modes.gd:1049:		_btns.append({"r": ar, "cb": func(): pass, "en": true, "snd": "k_click"})
+game/scripts/ui/screens/game_modes.gd:1050:		if (ar.has_point(mouse) and not pad_mode) or (pad_mode and fi == _focus):
+game/scripts/ui/screens/game_core.gd:43:	_focus = 0
+game/scripts/ui/screens/game_core.gd:903:	out["focus"] = not _btns.is_empty() and _focus >= 0 and _focus < _btns.size()
+game/scripts/ui/screens/game_core.gd:907:	for k in ["strings", "data", "fonts", "audio", "art", "save_roundtrip", "battle_code", "unit_cap", "no_tools", "title", "focus", "size"]:
+game/scripts/ui/screens/game_v16.gd:22:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:171:			return func(): overlay = "playroom"; _focus = 0
+game/scripts/ui/screens/game_v16.gd:217:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:291:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:319:var br_focus := 0
+game/scripts/ui/screens/game_v16.gd:322:	br_focus = _focus
+game/scripts/ui/screens/game_v16.gd:325:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:330:	_focus = br_focus
+game/scripts/ui/screens/game_v16.gd:458:				_focus = 0
+game/scripts/ui/screens/game_v16.gd:475:		_btn(b3, "", func(): overlay = "notebook"; _focus = 0)
+game/scripts/ui/screens/game_v16.gd:654:		or (_focus == 0 and hold_keys_down(Save.s("keys"), Save.s("pad")))
+game/scripts/ui/screens/game_v16.gd:741:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:858:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:904:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:979:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:1001:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1351:	_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
+game/scripts/ui/screens/game_v16.gd:1566:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1646:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1731:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1930:				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true})
+game/scripts/ui/screens/game_v16.gd:2029:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:2168:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:2252:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:2285:		_focus = 0
+game/scripts/ui/screens/game_menus.gd:13:		_focus = 0
+game/scripts/ui/screens/game_menus.gd:261:	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): call("_quit_mark"); get_tree().quit()]]
+game/scripts/ui/screens/game_menus.gd:293:		_btns.clear()   # 覆蓋層底下畫面的按鈕不能被點到（例如擺放畫面的開戰、結果頁的按鈕）
+game/scripts/ui/screens/game_menus.gd:295:		probe_btns.clear()
+   680	func _draw_review() -> void:
+   681		_boss_note("review", "review")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+   682		# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
+   683		_panel(Rect2(100, 40, 1080, 720))   # V1.5.2：面板上緣提到 40、底列移到 704，英文／日文 150% 走勢說明不壓到「重播」鈕
+   684		# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時左右兩欄一起往下（dy），不壓到「你的部署」與兵種鈕
+   685		var hint := L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint")
+   686		var hy := _h1(Vector2(640, 40), L.t("rv_title")) + GAP_L
+   687		hint = hint + "　" + L.t("rv_note")   # 1.2.0（Codex cat02 #2）：「不一定是敗因」的限制說明放在上方說明裡，一定看得到（原本在底部，放不下就不畫）
+   688		_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
+   689		var hend := hy + text_h(hint, tz("S"), 960)
+   690		var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
+   691		var cs := 40.0
+   692		var g0 := Vector2(130, 168 + dy)
+   693		_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
+   694		if rv_orig.deploy == "free":
+   695			_rv_free_board(g0)
+   696		for r in (0 if rv_orig.deploy == "free" else 9):
+   697			for c in 6:
+   698				var cell := Rect2(g0 + Vector2(c, r) * cs, Vector2(cs - 2, cs - 2))
+   699				var sel := rv_sel == Vector2i(c, r)
+   700				var changed := false
+   701				var oi: int = rv_orig.index_at(c, r)
+   702				var ni: int = rv_army.index_at(c, r)
+   703				if (oi == -1) != (ni == -1) or (oi != -1 and ni != -1 and rv_orig.units[oi]["type"] != rv_army.units[ni]["type"]):
+   704					changed = true
+   705				draw_rect(cell, Color(0.25, 0.4, 0.2) if not changed else Color(0.55, 0.42, 0.12))
+   706				if sel:
+   707					draw_rect(cell, ACCENT, false, 3.0)
+   708				if ni != -1:
+   709					Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 5), int(rv_army.units[ni]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.54, cbm())
+   710				_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true})
+   711		# 紅方站位（只看不能改）：同一列對齊，右邊是紅方前排
+   712		var cs2 := 26.0
+   713		var g1 := Vector2(g0.x + 6 * cs + 18, g0.y + (9 * cs - 9 * cs2) / 2)
+   714		if rv_orig.deploy != "free":
+   715			_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true, 572.0 - g1.x)   # V1.5.2：不伸進右欄兵種鈕上方
+   716		for r in (0 if rv_orig.deploy == "free" else 9):
+   717			for c in 6:
+   718				draw_rect(Rect2(g1 + Vector2(c, r) * cs2, Vector2(cs2 - 2, cs2 - 2)), Color(0.35, 0.2, 0.2, 0.45))
+   719		for u in (rv_enemy.units if rv_orig.deploy != "free" else []):
+   720			var lc := int(u["col"]) - (Army.COLS - Army.ZONE)
+   721			Art.unit(self, g1 + Vector2(lc * cs2 + cs2 / 2, int(u["row"]) * cs2 + cs2 - 3), int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.75, time, 0.34, cbm())
+   722		var by := g0.y + 9 * cs + 8
+   723		_text(Vector2(g0.x, by), L.t("rv_budget", [rv_army.spent(), rv_army.budget, review_changes(rv_orig, rv_army)]), tz("S"), Color.WHITE, false, false, 420)
+   724		var dsc := review_desc()
+   725		if dsc != "":
+   726			_text(Vector2(g0.x, by + tz("S") * 1.4), dsc, tz("S"), ACCENT, false, false, 420)
+   727		# 右：換成哪個兵種（頭像＋價錢）／拿掉
+   728		var bx := 580.0
+   729		var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
+   730		var ph := price_cell_h()   # 1.4.0 R12：價錢子格高＝墨跡＋上下內距；按鈕跟著長高、下面幾列一起往下
+   731		var bh := maxf(66.0, 35.0 + ph + 5.0)
+   732		var sh := bh - 66.0
+   733		for t in D.COUNT:
+   734			var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
+   735			var br := Rect2(bx + t * 56, 160 + dy, 52, bh)
+   736			_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
+   737			var pcell := Rect2(br.position.x, br.end.y - 3 - 2 - ph, br.size.x, ph)   # 價錢那一條（不碰下緣厚度與九宮格邊）
+   738			Art.unit(self, Vector2(br.position.x + 26, pcell.position.y - 4), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
+   739			probe_cell_begin(pcell)
+   740			_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
+   741			probe_cell_end()
+   742		_btn(Rect2(bx, 234 + dy + sh, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
+   743		_btn(Rect2(bx + 282, 234 + dy + sh, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+   744		_btn(Rect2(bx, 284 + dy + sh, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
+   745		# 兩條戰力走勢上下對齊（同一個時間軸長度）
+   746		var y := 350.0 + dy + sh
+   747		var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+   748		var b0: Array = rv_base.get("b", [100, 100])
+   749		var chh := 70.0 if tz("S") <= 17 else 54.0   # 1.2.0 字級表放大：大字級時走勢圖矮一點（圖可以縮、字不縮），底下說明才不壓到按鈕
+   750		var c0 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
+   751		if rv_base.is_empty() and rv_base_err != "":
+   752			_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
+   753			_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
+   754		elif rv_base.is_empty():
+   755			_text(Vector2(bx, y), L.t("busy_review"), tz("S"), TXT_DIM, false, true, 552)   # 1.2.0 §15.1：基準還在背景算
+   756		else:
+   757			_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
+   758			Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+   759		y += tz("S") * 1.5 + chh + 12.0
+   760		if not rv_result.is_empty():
+   761			_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+   762			var b1: Array = rv_result.get("b", [100, 100])
+   763			var c1 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
+   764			Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+   765			_rv_div_mark(Rect2(c0.position, Vector2(c0.size.x, c1.end.y - c0.position.y)), span)   # 一條金色粉筆線貫穿兩張圖
+   766			y += tz("S") * 1.5 + chh + 12.0
+   767			if rv_div >= 0:
+   768				# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
+   769				_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+   770				y += tz("S") * 1.5
+   771			_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+   772		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+   773	
+   774	## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
+   775	func _tm_new_ghost() -> void:
+   776		tm_ghost = Sim.new(rv_orig.copy(), rv_enemy.copy(), battle_rules)
+   777		if tm_ghost.cmd_on:
+   778			tm_ghost.cmd_play(last_cmds)
+   779		tm_ghost.fast = true
+   780	
+   781	## 讓原本的時間線跟上畫面上的 tick；跳回較早的時間就重建再追（模擬是確定性的，追到同一 tick 狀態一樣）。
+   782	func _tm_sync() -> void:
+   783		if tm_ghost == null or view == null:
+   784			return
+   785		if tm_ghost.tick > view.tick:
+   786			_tm_new_ghost()
+   787		var guard := 0
+   788		while tm_ghost.tick < view.tick and not tm_ghost.finished and guard < 20000:
+   789			tm_ghost.step()
+   790			guard += 1
+   791	
+   792	## V1.4 #1：在走勢圖上畫分岔點（墨色虛線＋小三角）。
+   793	func _rv_div_mark(r: Rect2, span: int) -> void:
+   794		if rv_div < 0 or span <= 0:
+   795			return
+   796		var x := r.position.x + r.size.x * clampf(float(rv_div) / float(span), 0.0, 1.0)
+   797		_chalk_line(Vector2(x, r.position.y - 2), Vector2(x, r.end.y + 2), Color("#ffd166"), 2.6, 6.0)
+   798		# 1.4.0 §8.3 批註本：分岔點在兩條墨線上各用硃筆圈一下
+   799		if not bool(Save.s("plain_ui")):
+   800			var chh := (r.size.y - tz("S") * 1.5 - 12.0) * 0.5
+   801			for cy in [r.position.y + chh * 0.5, r.end.y - chh * 0.5]:
+   802				draw_arc(Vector2(x, cy), 11.0, 0.4, TAU - 0.3, 24, Color(1, 0.9, 0.75, 0.4), 4.0, true)
+   803				draw_arc(Vector2(x, cy), 11.0, 0.4, TAU - 0.3, 24, Color(PAL.TRINKET_RED, 0.9), 2.2, true)
+   804		draw_colored_polygon(PackedVector2Array([Vector2(x - 5, r.position.y - 8), Vector2(x + 5, r.position.y - 8), Vector2(x, r.position.y - 1)]), ACCENT)
+   805	
+   806	func _rv_has_sel() -> bool:
+   807		if rv_orig.deploy == "free":
+   808			return rv_fsel >= 0 and rv_fsel < rv_army.units.size()
+   809		return rv_sel.x >= 0
+   810	
+   811	## 第六輪：自由陣型的小戰場。一般＝左邊自己的部署區（可點）＋右邊紅方部署區（小、只看）；
+   812	## 全場＝整個戰場一張圖，兩隊都畫。原位置留半透明殘影＋虛線，看得出搬了多遠。
+   813	var _rv_map := {}   # 自己這張圖的 {o: 左上, s: 每單位幾像素}
+   814	
+   815	func _rv_free_board(g0: Vector2) -> void:
+   800		# 色盲配色的亮橘底用深色字（對比 ≥7:1）
+   801		var lc := Color.WHITE
+   802		_text(Vector2(bx + 8, 42), L.t("hud_power", [roundi(p0 * 100.0 / (view.budget_of(0) * 1000))]), ts(15), lc, false, true)
+   803		var rt: String = L.t("hud_power", [roundi(p1 * 100.0 / (view.budget_of(1) * 1000))])
+   804		var rtw := font_bold.get_string_size(rt, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
+   805		# V1.2.1 F5：深色字只在字底下真的是亮橘條時用；紅方戰力低、字底下是藍條或空槽時改白字描邊
+   806		var on_orange: bool = cbm() and state == St.BATTLE and split <= bw - 8.0 - rtw - 4.0   # 結果頁有暗幕，深字不清楚
+   807		var rc := Color("#141820") if on_orange else Color.WHITE
+   808		_text(Vector2(bx + bw - 8 - rtw, 42), rt, ts(15), rc, false, true, 0.0, Color(1, 1, 1, 0.0) if on_orange else Color(0, 0, 0, -1))   # 深色字不加黑描邊（Antigravity S2 #1）
+   809		# 第八輪：生兵戰力 0（時間到不灌水），隻數用「本隊＋召喚」講清楚
+   810		var sn := [0, 0]
+   811		for su in view.units:
+   812			if su.alive and su.summon:
+   813				sn[su.team] += 1
+   814		for tm0 in 2:
+   815			var cnt0: int = view.alive_count(tm0) - sn[tm0]
+   816			var lb0: String = L.t("units_left", [cnt0]) if sn[tm0] == 0 else "%s＋%d" % [L.t("units_left", [cnt0]), sn[tm0]]
+   817			# 左邊靠條尾對齊、右邊靠條頭對齊，留出火焰位置；不限寬（大字級「8 隻＋1」不換行）
+   818			var lb_w: float = font_bold.get_string_size(lb0, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
+   819			if tm0 == 0 and lb_w > bx - 22.0 - HUD_LEFT_END and sn[tm0] > 0:   # 英文大字級擠不下就只留數字，別撞到左上的比分
+   820				lb0 = "%d＋%d" % [cnt0, sn[tm0]]
+   821				lb_w = font_bold.get_string_size(lb0, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
+   822			_text(Vector2(bx - 22 - lb_w if tm0 == 0 else bx + bw + 22, 42), lb0, ts(15), _legible(Art.team_color(tm0, cbm())))   # 1.3.0：150% 時字 ≥19 粗體不會自動提亮，這裡手動過一次（4.48 → ≥4.5）
+   823		for tm in 2:
+   824			if view.rally[tm] and not view.finished:
+   825				var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
+   826				_text(Vector2(rx, 66), L.t("rally"), ts(13), Color(1, 0.55 + 0.2 * sin(time * 8), 0.3), false, true)
+   827		var secs := maxi(0, (view.max_ticks - view.tick + 19) / 20)   # 第五輪：一局時間可調（原本寫死 90 秒）
+   828		var clock_s: String = L.t("secs", [secs]) + ("　" + L.t("frenzy") if view.frenzy else "")
+   829		if craft_hud and state == St.BATTLE:
+   830			# 1.2.0 §5.6 棋鐘：淺色木盒＋頂上黃銅按鈕，字用深墨（狂熱時深紅）。木盒是平塗＋邊線（不是九宮格：大字級時字會壓到九宮格邊）；
+   831			# 結果頁有暗幕，棋鐘回到原本的白字（深字在暗幕下看不清）
+   832			var cw0 := maxf(170.0, _width(clock_s, ts(22), true) + 40.0)
+   833			var cr := Rect2(640 - cw0 / 2, 1, cw0, maxf(32.0, ts(22) * 1.12))   # 第 11 大類：150% 時原本 ×1.3 的盒子蓋到戰力尺中央刻度，收緊到字高
+   834			draw_rect(Rect2(cr.position + Vector2(3, 3), cr.size), Color(DIM_INK, 0.5))
+   835			draw_rect(cr, Color("#e9d9b8"))
+   836			draw_rect(Rect2(cr.position, Vector2(cr.size.x, 3)), Color(1, 0.97, 0.88, 0.7))
+   837			draw_rect(cr, Color("#5a3a22"), false, 2.0)
+   838			draw_rect(cr.grow(-4), Color("#8a6a48", 0.7), false, 1.0)   # 最後一輪（Codex 看圖 #6）：鐘面內框，像有厚度的木盒
+   839			draw_rect(Rect2(cr.position.x, cr.end.y - 3, cr.size.x, 3), Color(DIM_INK, 0.35))
+   840			draw_rect(Rect2(640 - 9, 0, 18, 3), Color("#c9a24a"))
+   841			# 1.4.0 §7.2：數字是木活字；最後 10 秒每換一秒數字跳一下＋輕輕一聲（減少動態不跳）
+   842			if secs != clock_last:
+   843				if clock_last >= 0 and secs <= 10 and secs > 0 and sfx != null and not view.finished:
+   844					sfx.play_pitched("k_click", 0.22, 1.5)
+   845				clock_last = secs
+   846				clock_flip_t = time
+   847			var jmp := 0.0
+   848			if secs <= 10 and not bool(Save.s("reduce_motion")):
+   849				jmp = clampf(1.0 - (time - clock_flip_t) / 0.15, 0.0, 1.0)
+   850			_woodtype(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true, jmp)
+   851		else:
+   852			_text(Vector2(640, 4), clock_s, ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
+   853		# 1.2.0 §5.6 情境資訊：AI 名稱只在開場 3 秒、滑鼠指到戰力尺、手把按 View 後 2 秒顯示（Codex／Antigravity：資訊都在，次要的不常駐）
+   854		var ai_show: bool = view.tick < 60 or Rect2(bx - 10, 32, bw + 20, 52).has_point(mouse) or time < hud_info_until or shot_dir != ""
+   855		if mode == Mode.VS_AI and ai_name != "" and ai_show:
+   856			var ai_lb := "AI：%s" % ai_name
+   857			_text(Vector2(bx + bw - _width(ai_lb, tz("C")), 69.0), ai_lb, tz("C"), Color(1, 1, 1, 0.9))   # V1.2.1：大字級也在木條內
+   858		if state == St.BATTLE and bool(Save.s("playtest")):
+   859			if pt_call_tick < 0:
+   860				_btn(Rect2(780, 4, 162, 36), L.t("pt_call"), func(): pt_call_tick = view.tick; _toast(L.t("pt_called", [view.tick / 20])))
+   861		btn_ring_clip = Rect2(1, 1, 1278, 40)   # V1.5.2：頂列的加強焦點外圈不往下蓋到 y=42 的剩餘隻數
+   862		if state == St.BATTLE:
+   863			if play_kind != "official":
+   864				_btn(Rect2(1010, 4, 120, 36), L.t("back"), func(): call("_replay_back"))   # 第七輪 A9：立刻回上一個畫面
+   865			else:   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
+   140			title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
+   141			col = Art.team_color(w, cbm())
+   142		if mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win":
+   143			title = L.t("goal_ok") if bool(report["goal_ok"]) else L.t("goal_fail")   # 第十三輪：護送、撐住、斬首看條件
+   144			col = Color("#ffd166") if bool(report["goal_ok"]) else Color(1, 1, 1, 0.8)
+   145		var title_sz := tcap(tz("D"), 64)
+   146		# 第十輪 V2、F2：標題離上緣遠一點；橫幅從上面落下（版面檢查、簡化特效不演）
+   147		var drop := 0.0
+   148		if not layout_probe and not bool(Save.s("reduce_fx")):
+   149			var dk := clampf((time - result_t) / 0.25, 0.0, 1.0)
+   150			drop = (1.0 - dk) * (1.0 - dk) * -60.0
+   151		# V1.2 C3：勝負大字墊一條布幔絲帶（勝方隊色、兩端燕尾、金邊），不再是浮在面板上的單色字
+   152		var rib_in := 0.0   # 有緞帶時，摘要第一行用緞帶內寬排版（Codex v120-final：長行跨出緞帶）
+   153		if not bool(Save.s("plain_ui")):
+   154			var l1 := _result_line1(540.0 - 24.0)
+   155			# 緞帶最寬 540；燕尾依剩下的空間縮短，停在左右按鈕前（x 354～926）
+   156			var tw: float = minf(540.0, maxf(minf(540.0, _width(title, title_sz, true)) + 120.0, _width(l1, tz("S")) + 40.0))
+   157			var tail := clampf((572.0 - tw) / 2.0, 10.0, 34.0)
+   158			rib_in = tw - 24.0
+   159			l1 = _result_line1(rib_in)   # 高度用和正文同一個寬度決定的斷行
+   160			var ry0 := 114.0 - title_sz * 0.02
+   161			var ry := ry0 + drop
+   162			# 布幔上下要留白（Antigravity impl1）：往下一級字級（只能用字級表裡的值）
+   163			var lv: Array = TYPE_SCALE[_scale_key()].values()
+   164			var nxt := title_sz
+   165			for v in lv:
+   166				if v < title_sz and (nxt == title_sz or v > nxt):
+   167					nxt = v
+   168			# 布幔包住標題＋摘要第一行，下緣金邊落在第一行和勝負敘述之間的空隙；高度用實際（fit 後）字級，和正文推進同一算法
+   169			var y1 := 112.0 + nxt * 1.25 + (float(tz("C")) * 1.4 if play_kind == "review" else 0.0)
+   170			var l1h := y1 - (112.0 + nxt * 1.25) + text_h(l1, fit(l1, tz("S"), rib_in), rib_in)
+   171			var rh := 112.0 + nxt * 1.25 + l1h + 4.0 - ry0   # 靜態高度；開場落下時整條一起移動
+   172			var rx0 := 640.0 - tw / 2.0
+   173			var rib: Color = (col.darkened(0.35) if w >= 0 else Color("#5b4632"))
+   174			# V1.2.1 R3：勝方緞帶後方一次性放射光＋燕尾上方 6 顆金星（0.6 秒；畫在緞帶下、只在燕尾外，不擋字；簡化特效時不演）
+   175			var cel_k := clampf((time - result_t - 0.2) / 0.6, 0.0, 1.0)
+   176			if w >= 0 and cel_k < 1.0 and not bool(Save.s("reduce_fx")) and not layout_probe and shot_dir == "":
+   177				var cc := Vector2(640, ry0 + rh * 0.5)
+   178				var ga := sin(cel_k * PI)
+   179				for kk in 6:
+   180					draw_circle(cc, (tw * 0.35 + kk * 18.0) * (0.8 + 0.2 * cel_k), Color(1.0, 0.85, 0.45, 0.05 * ga), true, -1.0, true)
+   181				for si in 6:
+   182					var side := -1.0 if si < 3 else 1.0
+   183					var j := si % 3
+   184					var sp := Vector2(640 + side * (tw / 2.0 + tail * 0.4 - j * 22.0), ry0 - 6.0 - j * 9.0 - cel_k * 16.0)   # 從燕尾上方往上飄（兩側是按鈕，不往外放）
+   185					_icon("star", sp, 14.0 - j * 2.0, Color(1.0, 0.85, 0.4, ga))
+   186			for sgn in [-1.0, 1.0]:
+   187				var ex: float = rx0 if sgn < 0 else rx0 + tw
+   188				draw_colored_polygon(PackedVector2Array([Vector2(ex, ry + 8), Vector2(ex + sgn * tail, ry + 8), Vector2(ex + sgn * tail * 0.6, ry + rh * 0.5 + 4), Vector2(ex + sgn * tail, ry + rh), Vector2(ex, ry + rh)]), rib.darkened(0.35))
+   189			draw_rect(Rect2(rx0, ry, tw, rh), rib)
+   190			draw_rect(Rect2(rx0, ry, tw, 3), Color("#e8c26a"))
+   191			draw_rect(Rect2(rx0, ry + rh - 3, tw, 3), Color("#e8c26a"))
+   192			draw_rect(Rect2(rx0, ry + 3, tw, rh * 0.3), Color(1, 1, 1, 0.08))
+   193			col = Color("#fff6e0")
+   194			title_sz = nxt
+   195		_text(Vector2(640, 114 + drop + (title_sz * 0.08 if not bool(Save.s("plain_ui")) else 0.0)), title, title_sz, col, true, true, 540)
+   196		if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則（地形、撐住、技能）的代碼讀不回來，不給複製（Codex v13-r1 #1）
+   197			_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
+   198		if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
+   199			_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
+   200		if report.has("trial_stars"):
+   201			for ks in 3:
+   202				# V1.2 F1：星星一顆一顆彈出（截圖、版面檢查、簡化特效時直接到位）
+   203				var kk := 1.0
+   204				if not layout_probe and shot_dir == "" and not bool(Save.s("reduce_fx")):
+   205					kk = clampf((time - result_t - 0.35 - ks * 0.18) / 0.22, 0.0, 1.0)
+   206				var pop := 1.0 + 0.35 * sin(kk * PI)
+   207				if kk > 0.0:
+   208					_icon("star", Vector2(610 + ks * 30, 84), 26.0 * pop * kk, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
+   209		var mvp = report.get("mvp")
+   210		_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
+   211		var y := 112.0 + title_sz * 1.25
+   212		if play_kind == "review":
+   213			_text(Vector2(640, y), L.t("review_tag"), tz("C"), ACCENT, true, false, 480)
+   214			y += tz("C") * 1.4
+   215		# 標題區只用左右按鈕之間的寬度（Antigravity 實作第 1 輪：英文 150% 摘要壓到「詳細數據」按鈕）
+   216		var hw := 540.0 if y < 210 else 820.0
+   217		var line1 := _result_line1(rib_in if rib_in > 0.0 else hw)
+   218		var hw1 := rib_in if rib_in > 0.0 else hw
+   219		_text(Vector2(640, y), line1, tz("S"), TXT_DIM, true, false, hw1)
+   220		y += text_h(line1, fit(line1, tz("S"), hw1), hw1) + 6   # 和 _text 一樣先 fit 再量
+   221		_ink_mode = paper and rib_in > 0.0   # 緞帶以下才是紙面
+   222		var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
+   223		var loss := _loss_line(w, goal_mode)
+   224		if loss != "":
+   225			# V1.1 B1：輸的時候這一行改講「主要傷害來源＋可以試的兵」，不另外加高版面
+   226			hw = 540.0 if y < 210 else 820.0
+   227			_text(Vector2(640, y), loss, tz("B"), Color("#ffd8a8"), true, true, hw)
+   228			y += text_h(loss, tz("B"), hw, true) + 8
+   229		elif w >= 0 and not goal_mode:   # 第十三輪：護送、撐住、斬首不寫一般勝負敘述（Codex v13-r1 #6）
+   230			hw = 540.0 if y < 210 else 820.0
+   231			_text(Vector2(640, y), _verdict(w), tz("B"), Color.WHITE, true, true, hw)
+   232			y += text_h(_verdict(w), tz("B"), hw, true) + 8
+   233		if str(report.get("wager_line", "")) != "":
+   234			_text(Vector2(640, y), str(report["wager_line"]), tz("B"), Color("#ffd166"), true, true, 820)   # V1.4 #16 競猜結果
+   235			y += tz("B") * 1.5
+   236		if result_tab == 0:
+   237			# 戰力走勢（放大）＋最多 3 個關鍵時刻
+   238			var ch := Rect2(250, y + tz("C") * 1.35 * 2 + 4, 780, 100)   # 上方留兩排標記標籤的空間
+   239			var km := _key_marks()
+   240			Charts.momentum(self, ch, sim.power_log2, sim.budget_of(0), sim.budget_of(1), km, sim.tick)
+   241			# 第七輪 A7：點關鍵時刻直接跳重播
+   242			var span := float(maxi(1, sim.power_log2.size() / 2))
+   243			for m in km:
+   244				var mx := ch.position.x + ch.size.x * clampf(float(m["t"]) / maxf(1.0, span - 1), 0.0, 1.0)
+   245				var tt := int(m["t"])
+   246				_btns.append({"r": Rect2(mx - 18, ch.position.y, 36, ch.size.y), "cb": func(): _replay_from(tt), "en": true})
+   247			_text(Vector2(250, ch.end.y + 4), L.t("mom_caption"), tz("C"), TXT_DIM, false, false, 780)
+   248			y = ch.end.y + tz("C") * 1.6 + 6
+   249			if mvp != null and not (loss != "" and mvp.team == 1):   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
+   250				var mr := Rect2(250, y, 780, 76)
+   251				_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
+   252				var seals := _res_seals()
+   253				if seals.is_empty():
+   254					_icon("trophy", mr.end - Vector2(34, 38), 34.0)
+   255				else:
+   256					_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
+   257				Art.ring(self, mr.position + Vector2(52, 66), mvp.team, mvp.type, cbm(), 1.25)
+   258				Art.unit(self, mr.position + Vector2(52, 66), mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.25, cbm())
+   259				_text(mr.position + Vector2(100, 10), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
+   260				_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660 if seals.is_empty() else 500)
+   261				y = mr.end.y + 10
+   262			# 第七輪 A1：只列事件紀錄裡查得到的事實，不說「因為」（Codex：不宣稱因果）
+   263			var facts := _result_facts()
+   264			if mode == Mode.PUZZLE and str(report.get("rec_line", "")) != "":
+   265				# V1.4 #6 最小成本懸賞：本次 vs 你的最佳；破紀錄放最前面
+
+codex
+印章點擊區已進入手把焦點清單，但繪製時沒有焦點提示；獎項篩選也固定只看藍方。我會再核對看代碼、跳轉與字形探針，確認影響範圍。
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/ui_base.gd | sed -n '775,835p;888,920p;990,1040p'; nl -ba game/scripts/ui/screens/game_menus.gd | sed -n '850,925p'; rg -n 'series_over =|play_kind =|watch_mode =|craft_hud|func _seek|paused|time \\+=' game/scripts/ui/{battle_view.gd,replay_view.gd,game_screens.gd,screens/game_result.gd}; nl -ba game/scripts/ui/screens/game_modes.gd | sed -n '970,1004p'; rg -n 'func _card_rect|func _card_types' game/scripts/ui -g '*.gd'; rg -n 'glyph|cell' game/scripts/ui/layout_rules.gd | head -60; nl -ba game/scripts/ui/charts.gd | sed -n '1,140p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 19ms:
+   775		# 墨跡置中後，字的排版寬（含全形標點的留白）不能跑出格子面（日文 150%「（…）」右側留白大，墨跡中心偏左）
+   776		var aw := 0.0
+   777		for ln in s.split("\n"):
+   778			aw = maxf(aw, _font_for(ln, size, bold).get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+   779		if pad >= 0.0 and aw > 0.0:
+   780			var lo := face.position.x + pad + aw / 2.0
+   781			var hi := face.end.x - pad - aw / 2.0
+   782			p.x = clampf(p.x, lo, hi) if lo <= hi else face.get_center().x
+   783		return p
+   784	
+   785	## 宣告「接下來畫的字在這個格子裡」（R11）：非按鈕的格子（價錢小方塊、徽章、分頁字）用。
+   786	func probe_cell_begin(face: Rect2) -> void:
+   787		_probe_face = face
+   788		_probe_cell_seq += 1
+   789		_probe_cell_id = "cell%d" % _probe_cell_seq
+   790	
+   791	func probe_cell_end() -> void:
+   792		_probe_face = Rect2()
+   793		_probe_cell_id = ""
+   794	
+   795	func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+   796		if _ink_mode:
+   797			c = Color(_ink(c), c.a) if _ink_keep_a else _ink(c)
+   798		elif outline.a < 0.0 and not (size >= 24 or (bold and size >= 19)) and c.s >= 0.25 and not (c.get_luminance() < 0.35 and c.s < 0.8):   # 深色低彩度的浮雕字不動
+   799			c = Color(_legible(Color(c, 1.0)), c.a)   # V1.2.1 F5：深描邊上的彩色小字自動提亮到 4.5:1
+   800		if maxw > 0.0:
+   801			size = fit(s, size, maxw, bold)
+   802		var lines := wrap_lines(s, size, maxw, bold) if maxw > 0.0 else s.split("\n")
+   803		for i in lines.size():
+   804			var fnt := _font_for(lines[i], size, bold)
+   805			var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
+   806			var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
+   807			if mag_on and _probe_ui and size < 26 and c.a > 0.3:
+   808				var mw := w if center else fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+   809				if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).grow(4.0 if bool(get("pad_mode")) else 0.0).has_point(mag_point()):
+   810					mag_hit = [lines[i], size, bold]
+   811			var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
+   812			# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
+   813			var emboss := outline.a < 0.0 and (_ink_mode or (c.get_luminance() < 0.35 and c.s < 0.8))
+   814			if emboss:
+   815				oc = Color(0, 0, 0, 0)
+   816			var ow := text_outline_w(size)
+   817			var sh := text_shadow_dy(size)
+   818			# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
+   819			# V1.2 A3：外框算進描邊外擴（左右上各半個描邊、下方再加陰影位移），換字與換框才不會靜靜爆框
+   820			if layout_probe and c.a > 0.05 and lines[i].strip_edges() != "":
+   821				var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+   822				var ex := ow * 0.5 if oc.a > 0.0 else 0.0
+   823				# 直向：原本的框（1.1 倍字高）已經留了上下各約 0.05 字高的空，描邊與陰影只算超出的部分
+   824				var ey := maxf(0.0, ex - size * 0.05)
+   825				var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
+   826				probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
+   827					"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis,
+   828					"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98),
+   829					"face": _probe_face if _probe_face.size.x > 0.0 else null, "cell": _probe_cell_id, "ink": Rect2(q + ink_line(fnt, lines[i], size).position, ink_line(fnt, lines[i], size).size)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
+   830			if emboss:
+   831				draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
+   832			if oc.a > 0.0:
+   833				# V1.2 A3：先畫柔和的下方陰影，再畫深焦茶描邊（取代純黑），最後正文
+   834				draw_string_outline(fnt, q + Vector2(0, sh), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, Color(INK_SHADOW, oc.a * 0.55))
+   835				draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, oc)
+   888	func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+   889		if layout_probe and get("shot_dir") != "" and (get("shot_state") as Dictionary).has("dis"):
+   890			enabled = false   # V1.2.1：版面檢查的「停用」狀態：全部按鈕畫成停用，檢查停用樣式（手把流程不受影響）
+   891		var idx := _btns.size()
+   892		var hit := r
+   893		if btn_hit_min > r.size.y:
+   894			var dh := (btn_hit_min - r.size.y) * 0.5
+   895			hit = r.grow_individual(0.0, dh, 0.0, dh)
+   896			if layout_probe:
+   897				probe_hits.append(hit)
+   898		_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
+   899		var hover := hit.has_point(mouse) and not pad_mode
+   900		var focus := pad_mode and idx == _focus
+   901		var bg := TH_WOOD_L if not primary else TH_PRIMARY
+   902		if tint.a > 0:
+   903			bg = tint
+   904		if not enabled:
+   905			bg = Color(0.2, 0.17, 0.15)
+   906		elif hover or focus:
+   907			bg = bg.lightened(0.16)
+   908			if hover:
+   909				_hover_now = idx
+   910		var pressed := hover and enabled and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+   911		var rd := r.grow(-minf(r.size.x, r.size.y) * 0.025) if pressed else r
+   912		# V1.2 B3：按鈕下緣 3px 厚度（木牌的側面）；按下時往下沉、厚度消失
+   913		var solid: bool = tint.a <= 0.0 or tint.a > 0.6
+   914		if solid and r.size.y >= 20.0:
+   915			# 厚度畫在按鈕框內（下緣 3px），命中框、探針與畫面一致（Codex v120-impl2）；按下時面板往下壓、厚度被蓋住
+   916			_box(Rect2(rd.position, rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
+   917			rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
+   918		var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
+   919		# 1.2.0 §1.3：沒有自訂色的一般按鈕＝山毛櫸木牌（墨色字）；主要按鈕＝朱漆木牌＋左側紅蠟封；停用＝褪色木牌
+   920		var cloth: bool = btn_cloth != "" and not paper_face and not bool(Save.s("plain_ui")) and _ui_tex(MAT[btn_cloth]) != null   # 1.2.0 §1.3 布標分頁
+   990			_btn_shine(rd)
+   991		if btn_deco.is_valid():
+   992			btn_deco.call(rd)
+   993		if focus:
+   994			rd = _focus_glide(rd)   # V1.6.1 A8：手把焦點框滑過去（0.08 秒；連續撥動、減少動態、版面檢查時直接跳）
+   995			mag_focus = r.get_center()
+   996		if (focus or hover) and enabled and not plain_ui_now():
+   997			# V1.2.1 R2：滑鼠懸停與手把焦點同一種樣式：深邊＋金亮邊（深邊讓金框在紙上也看得到，Codex v121-r2）
+   998			_box(rd.grow(2.5), Color(0, 0, 0, 0), Color(INK, 0.7), 9.0, 1.5)
+   999			_box(rd.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.95 if focus else 0.75), 8.0, 2.5)
+  1000		elif focus:
+  1001			_box(rd.grow(1), Color(0, 0, 0, 0), ACCENT, 8.0, 3.0)
+  1002		if focus and enabled and bool(Save.s("focus_strong")):
+  1003			# V1.5.2：貼畫面邊的按鈕（戰場頂列）外圈往內收，整圈都看得到（不被畫面邊切掉）
+  1004			var scr := btn_ring_clip
+  1005			_box(rd.grow(5).intersection(scr), Color(0, 0, 0, 0), Color("#ffffff"), 10.0, 3.0)   # V1.5：加強焦點框（白色外圈）
+  1006			_box(rd.grow(8).intersection(scr), Color(0, 0, 0, 0), Color(INK, 0.9), 12.0, 2.0)
+  1007		if layout_probe:
+  1008			probe_btns.append(r)
+  1009			if label == "":
+  1010				probe_ctrls.append(r)   # 空白標籤的按鈕（卡片、頁籤）：裡面自己畫的字算按鈕內容
+  1011		# 1.2.0：按鈕字級看實際面高（扣下緣厚度與木牌毛邊）：放得下正文字就用正文字，不然用小一級（都在字級表內，比 1.1.0 同層大）
+  1012		var face_h: float = r.size.y - 3.0 - 6.0
+  1013		var lw := r.size.x - 2.0 * (maxf(6.0, r.size.x * 0.06) + 1.0)   # 1.4.0 R12：標籤左右各留 max(6, 6% 寬)（原本只留 5px）
+  1014		# 字級照原本的寬度選（不因為加內距而多降一級，Codex v140 cat01 #4）；內距只影響換行
+  1015		var sz := fit(label, ts(18) if r.size.y >= 40 and face_h >= ts(18) * 1.3 else ts(15), r.size.x - 10, primary)
+  1016		var lines := wrap_lines(label, sz, lw, primary)
+  1017		if lines.size() > 1 and lines.size() * sz * 1.25 > face_h:
+  1018			# 加了內距會換成放不下的兩行：退回原本的寬度（這顆按鈕要靠加寬或改短解決，R12 會擋）
+  1019			lines = wrap_lines(label, sz, r.size.x - 10, primary)
+  1020		_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
+  1021		_probe_btn_rect = r
+  1022		if wax_face_cut > 0.0:
+  1023			rd = rd.grow_individual(-wax_face_cut, 0.0, 0.0, 0.0)
+  1024			wax_face_cut = 0.0
+  1025		_probe_face = rd
+  1026		_probe_cell_id = "btn%d" % idx
+  1027		_probe_dis = not enabled
+  1028		var ink0 := _ink_mode   # 按鈕是木頭，字維持白色（紙面按鈕用墨色）
+  1029		_ink_mode = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)   # 1.2.0：淺色木牌、原胚布用墨色字
+  1030		var lab := "\n".join(lines)
+  1031		# 1.3.0 R11：字的墨跡中心對準按鈕面中心（扣掉下緣厚度；按下時字跟著下沉）——光學置中，不是名目行高置中
+  1032		_text(ink_center_p(rd, lab, sz, primary), lab, sz, Color.WHITE if enabled else (Color(0.16, 0.11, 0.07, 0.62) if plaque else Color(1, 1, 1, 0.4)), true, primary)
+  1033		_ink_mode = ink0
+  1034		_probe_btn_label = false
+  1035		_probe_face = Rect2()
+  1036		_probe_cell_id = ""
+  1037		_probe_dis = false
+  1038	
+  1039	static func plain_ui_now() -> bool:
+  1040		return bool(Save.s("plain_ui"))
+   850		_btn(Rect2(136, 166 + SET_TABS * 56 + 8, 190, 44), L.t("set_reset_page"), func(): _ask_confirm(L.t("set_reset_page_q"), func(): _reset_rows(page_keys), "settings"), any_changed)
+   851		var y0 := 166.0
+   852		if settings_tab == 5:
+   853			# 一鍵預設（可疊加；套用後可撤回）
+   854			var pk := ["preset_vis", "preset_motion", "preset_load"]
+   855			var pw := (SET_COL.size.x - 3 * 8.0 - 110.0) / 3.0
+   856			for k in 3:
+   857				_btn(Rect2(SET_COL.position.x + k * (pw + 8.0), y0, pw, 46), L.t(pk[k]), _apply_preset.bind(k), true, false, Color(0.2, 0.36, 0.5))
+   858			if not preset_undo.is_empty():
+   859				_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+   860			y0 += 60.0
+   861		elif settings_tab == 3:
+   862			# 1.1.0 E3：掌機建議（一鍵、先預覽、可撤回）
+   863			# 1.2.0 §15.3（Antigravity cat01 #4）：一顆「套用掌機配置」＋旁邊 30／60 二選一（不是兩顆一樣長的鈕）
+   864			var sw := 104.0
+   865			var aw := SET_COL.size.x - 118.0 - 2.0 * (sw + 8.0)
+   866			_btn(Rect2(SET_COL.position.x, y0, aw, 46), L.t("preset_hh"), func(): _apply_preset(4 if hh_fps == 60 else 3), true, false, Color(0.2, 0.36, 0.5))
+   867			_btn_small(Rect2(SET_COL.position.x + aw + 8.0, y0 + 4, sw, 38), L.t("preset_hh_30"), func(): hh_fps = 30, true, hh_fps == 30)
+   868			_btn_small(Rect2(SET_COL.position.x + aw + 16.0 + sw, y0 + 4, sw, 38), L.t("preset_hh_60"), func(): hh_fps = 60, true, hh_fps == 60)
+   869			if not preset_undo.is_empty():
+   870				_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+   871			y0 += 60.0
+   872		var rows: Array = _settings_rows()
+   873		if not bool(Save.s("plain_ui")):
+   874			# 1.4.0 §1.3 工具箱：分頁、選項、說明三欄是三格抽屜（深一階的抽屜底＋上緣陰影＋下緣中央黃銅把手）
+   875			for dr in [Rect2(110, 150, 230, 560), SET_COL, SET_DESC.grow_individual(0, 16, 0, 74)]:
+   876				draw_rect(dr.grow(2), Color(DIM_INK, 0.28))
+   877				draw_rect(Rect2(dr.position, Vector2(dr.size.x, 6)), Color(DIM_INK, 0.3))
+   878				var pull := Vector2(dr.get_center().x, dr.end.y + 4)
+   879				draw_rect(Rect2(pull - Vector2(18, 3), Vector2(36, 6)), PAL.TRINKET_BRASS.darkened(0.3))
+   880				draw_rect(Rect2(pull - Vector2(16, 3), Vector2(32, 3)), PAL.TRINKET_BRASS)
+   881		for i in rows.size():
+   882			var y := _settings_row_y(i)
+   883			if i % 2 == 0:
+   884				draw_rect(Rect2(340, y - 5, 560, 56), Color(1, 1, 1, 0.04))   # 第七輪 E11：斑馬底色
+   885			if set_changed(rows[i][0]):
+   886				draw_circle(Vector2(345, y + 22), 3.5, ACCENT, true, -1.0, true)   # V1.5.1 C1：和預設不同的列
+   887			_text(Vector2(352, y + 12), L.t(rows[i][0]), tz("B"), Color.WHITE, false, false, 270)
+   888			var val: String = rows[i][1]
+   889			var cb: Callable = rows[i][2]
+   890			var r := Rect2(632, y, 260, 48)
+   891			if val.begins_with("@"):
+   892				_btn(r, val.substr(1), cb.bind(1))
+   893			else:
+   894				_btn(Rect2(r.position, Vector2(46, r.size.y)), "◀", cb.bind(-1))
+   895				var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else Color(0, 0, 0, 0)   # 1.4.0 §1.3：值格是淺色木牌（原本黑膠囊）；開＝綠
+   896				var vr := Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y))
+   897				_btn(vr, val, cb.bind(1), true, false, tint)
+   898				if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):
+   899					_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"), bool(_btns[_btns.size() - 1]["en"]))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
+   900				_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
+   901			if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
+   902				var rw := r.size.x - 116
+   903				# 1.3.0 §15：木軌可以拖（輸入佇列處理：按下在軌上開始、拖到哪設到哪、放開才存檔；手把仍用 ◀ ▶ 逐級）
+   904				vol_rails[VOL_KEY[rows[i][0]]] = Rect2(r.position.x + 58, y + 30, rw, 20)
+   905				var fr := int(val.trim_suffix("%")) / 100.0
+   906				if bool(Save.s("plain_ui")):
+   907					draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), ACCENT)
+   908				else:   # 1.2.0 §1.4 木軌滑塊：凹槽全長＋已填的黃銅段＋黃銅滑塊（只是顯示，操作照舊用 ◀ ▶）
+   909					draw_rect(Rect2(r.position.x + 58, y + 40, rw, 6), Color("#2a1a10"))
+   910					draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), Color("#b8913f"))
+   911					var kx := r.position.x + 58 + rw * fr
+   912					draw_rect(Rect2(kx - 4, y + 37, 8, 12), Color("#7a5a22"))
+   913					draw_rect(Rect2(kx - 3, y + 38, 6, 10), Color("#d4ae55"))
+   914					draw_rect(Rect2(kx - 2, y + 39, 2, 8), Color(1, 0.96, 0.8, 0.6))
+   915		# 說明欄
+   916		var D0 := SET_DESC
+   917		draw_rect(D0, Color(0, 0, 0, 0.25))
+   918		var key: String = settings_item if settings_item != "" else (rows[0][0] if not rows.is_empty() else "")
+   919		if key != "":
+   920			_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
+   921			var dy := 18 + text_h(L.t(key), tz("B"), D0.size.x - 28, true)
+   922			_text(D0.position + Vector2(14, dy), L.t("sd_" + key), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)   # 標題換行時說明往下排
+   923			var kk: String = key
+   924			# 一律畫出來（不適用就停用）：焦點換列時按鈕數不變，手把焦點才走得到每一顆
+   925			_btn(Rect2(D0.position.x + 10, D0.end.y - 52, D0.size.x - 20, 44), L.t("set_reset_one"), func(): _reset_rows([kk]), SET_KEYS.has(kk) and set_changed(kk))
+game/scripts/ui/game_screens.gd:470:	if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
+game/scripts/ui/game_screens.gd:525:				elif overlay == "leave" and state == St.BATTLE and paused:
+game/scripts/ui/game_screens.gd:659:	time += delta
+game/scripts/ui/game_screens.gd:661:	if paused and key_t > 0.0:
+game/scripts/ui/game_screens.gd:663:	if paused and float(last_kill[1]) > 0.0:
+game/scripts/ui/game_screens.gd:994:	return _ink_k() < INK_DUR and (shot_dir == "" or ink_force) and not bool(Save.s("reduce_fx")) and play_kind == "official" and not bool(Save.s("plain_ui"))
+game/scripts/ui/battle_view.gd:7:	paused = false   # Codex r1：暫停中按直接看結果，算完要能進結算
+game/scripts/ui/battle_view.gd:81:	if paused:
+game/scripts/ui/battle_view.gd:490:	var live: bool = play_kind == "official"
+game/scripts/ui/battle_view.gd:768:	var craft_hud: bool = not bool(Save.s("plain_ui")) and _ui_tex(MAT["plaque"]) != null
+game/scripts/ui/battle_view.gd:769:	if craft_hud:
+game/scripts/ui/battle_view.gd:780:	if craft_hud:
+game/scripts/ui/battle_view.gd:829:	if craft_hud and state == St.BATTLE:
+game/scripts/ui/battle_view.gd:866:			_btn(Rect2(950, 4, 52, 36), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6；V1.5.2：頂列一律 y=4、高 36、右緣留 14（原本暫停鈕 y=2 和同列不齊；下緣 40 不碰 y=42 的剩餘隻數；加強焦點框在 _btn 裡夾在畫面內）
+game/scripts/ui/battle_view.gd:877:	play_kind = kind
+game/scripts/ui/battle_view.gd:913:	paused = false
+game/scripts/ui/battle_view.gd:1055:	_cam_apply_paused()
+game/scripts/ui/battle_view.gd:1062:	_cam_apply_paused()
+game/scripts/ui/battle_view.gd:1068:	if paused:
+game/scripts/ui/battle_view.gd:1081:func _cam_apply_paused() -> void:
+game/scripts/ui/battle_view.gd:1082:	if paused and pinch_zoom > 1.01:
+game/scripts/ui/battle_view.gd:1086:	elif paused:
+game/scripts/ui/battle_view.gd:1124:	if paused:
+game/scripts/ui/battle_view.gd:1286:	if state != St.BATTLE or view == null or paused or pad_mode or bool(Save.s("plain_ui")):
+game/scripts/ui/replay_view.gd:31:	_btn(Rect2(20, 704, 70, 36), "▶" if paused else "Ⅱ", func(): paused = not paused)
+game/scripts/ui/replay_view.gd:70:	if play_kind == "review":
+game/scripts/ui/replay_view.gd:76:	if play_kind == "replay" and DisplayServer.get_name() != "headless":
+game/scripts/ui/replay_view.gd:79:			_btn(Rect2(350, 650, 220, 40), L.t("gif_btn"), func(): gif_on = true; paused = false)
+game/scripts/ui/replay_view.gd:82:	if play_kind == "review":
+game/scripts/ui/replay_view.gd:84:	elif paused and play_kind == "replay" and mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
+game/scripts/ui/replay_view.gd:103:func _seek(target: int) -> void:
+game/scripts/ui/replay_view.gd:114:func _seek_async(target: int) -> void:
+game/scripts/ui/replay_view.gd:124:func _seek_pump() -> bool:
+game/scripts/ui/replay_view.gd:132:func _seek_begin(target: int) -> void:
+game/scripts/ui/replay_view.gd:135:	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+game/scripts/ui/replay_view.gd:151:func _seek_tick(budget_ms: int) -> bool:
+game/scripts/ui/replay_view.gd:173:func _seek_finish() -> void:
+game/scripts/ui/replay_view.gd:233:	if not _replay_controls_active() and not (paused and state == St.BATTLE):
+game/scripts/ui/replay_view.gd:245:	if play_kind == "official":
+game/scripts/ui/replay_view.gd:255:	paused = not paused
+game/scripts/ui/replay_view.gd:256:	if not paused and play_kind == "official":
+game/scripts/ui/replay_view.gd:273:	paused = false
+game/scripts/ui/replay_view.gd:289:	play_kind = replay_snap["kind"]
+game/scripts/ui/replay_view.gd:307:	if play_kind == "official":
+game/scripts/ui/replay_view.gd:322:	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+game/scripts/ui/replay_view.gd:363:	series_over = false
+game/scripts/ui/replay_view.gd:368:	watch_mode = true
+game/scripts/ui/screens/game_result.gd:7:	watch_mode = false
+game/scripts/ui/screens/game_result.gd:16:	series_over = false
+game/scripts/ui/screens/game_result.gd:58:	if play_kind == "official" and sim != null:
+game/scripts/ui/screens/game_result.gd:69:		series_over = series_done(wins, round_no, rules)
+game/scripts/ui/screens/game_result.gd:71:			series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+game/scripts/ui/screens/game_result.gd:72:		if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
+game/scripts/ui/screens/game_result.gd:76:	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+game/scripts/ui/screens/game_result.gd:83:	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
+game/scripts/ui/screens/game_result.gd:169:		var y1 := 112.0 + nxt * 1.25 + (float(tz("C")) * 1.4 if play_kind == "review" else 0.0)
+game/scripts/ui/screens/game_result.gd:212:	if play_kind == "review":
+game/scripts/ui/screens/game_result.gd:279:		var show_series: bool = (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official"
+game/scripts/ui/screens/game_result.gd:299:		if mode == Mode.VS_AI and sim.winner == 1 and play_kind == "official" and last_armies.size() == 2 and not watch_mode:
+game/scripts/ui/screens/game_result.gd:301:		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
+game/scripts/ui/screens/game_result.gd:345:	if _demo() and series_over and play_kind == "official":
+game/scripts/ui/screens/game_result.gd:369:			if puzzle_id == "ws" and bool(report.get("goal_ok", false)) and play_kind == "official" and not bool(get("trio_on")):
+game/scripts/ui/screens/game_result.gd:398:	if play_kind == "official" and not watch_mode:
+game/scripts/ui/screens/game_result.gd:400:	if bs.size() <= 4 or not (play_kind == "official" and not watch_mode):
+game/scripts/ui/screens/game_result.gd:464:	if bool(get("swap_on")) and mode == Mode.DUEL and play_kind == "official":
+game/scripts/ui/screens/game_result.gd:466:	if str(get("camp_id")) != "" and mode == Mode.VS_AI and play_kind == "official":
+game/scripts/ui/screens/game_result.gd:484:	if mode == Mode.VS_AI and sim.winner == 1 and play_kind == "official":
+game/scripts/ui/screens/game_result.gd:577:	if mode == Mode.DUEL or watch_mode or play_kind == "review":
+game/scripts/ui/screens/game_result.gd:626:	if w != 0 or watch_mode or play_kind == "review" or last_armies.size() != 2 or not (mode == Mode.VS_AI or mode == Mode.DUEL):
+game/scripts/ui/screens/game_result.gd:673:		series_over = false
+game/scripts/ui/screens/game_result.gd:692:	if play_kind == "review" and rv_last.size() == 2:
+   970			return    # 連勝只算單人
+   971		if w == 0:
+   972			Save.data["streak"] = int(Save.data.get("streak", 0)) + 1
+   973			Save.data["best_streak"] = maxi(int(Save.data.get("best_streak", 0)), int(Save.data["streak"]))
+   974		else:
+   975			Save.data["streak"] = 0
+   976	
+   977	func _draw_profile() -> void:
+   978		var P := Rect2(50, 24, 1180, 752)
+   979		_panel(P)
+   980		_h1(Vector2(640, 30), L.t("pf_title"))   # 1.2.0：H1 放大，緞帶上移 4（R2）
+   981		var st: Dictionary = Save.data.get("stats", {})
+   982		var cs: Dictionary = Save.data.get("custom_stats", {})
+   983		var g: int = int(st.get("games", 0)) + int(cs.get("games", 0))
+   984		var wn: int = int(st.get("wins", 0)) + int(cs.get("wins", 0))
+   985		var trial := 0
+   986		for v in Save.data.get("trial_stars", {}).values():
+   987			trial += int(v)
+   988		var tiles := [["swords", "pf_games", str(g)], ["trophy", "pf_wins", "%d%%" % (wn * 100 / maxi(1, g))], ["repeat", "pf_streak", "%d / %d" % [int(Save.data.get("streak", 0)), int(Save.data.get("best_streak", 0))]],
+   989			["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+   990		var tw := 212.0
+   991		for i in tiles.size():
+   992			var r := Rect2(78 + i * (tw + 8), 92, tw, 80)
+   993			_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 7.0)
+   994			_icon(tiles[i][0], r.position + Vector2(30, 40), 34.0, ACCENT)
+   995			_text(r.position + Vector2(56, 10), L.t(tiles[i][1]), tz("C"), TXT_DIM, false, false, tw - 62)
+   996			_woodtype(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true)   # 1.4.0 §7.2 戰績大數字＝木活字
+   997		# 兵種勝率
+   998		_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
+   999		var ug: Dictionary = Save.data.get("unit_games_rec", {})   # V1.5.1：場數、勝場同口徑（對 AI、遠征、雙人）
+  1000		var uw: Dictionary = Save.data.get("unit_wins_rec", {})
+  1001		var old_n := 0
+  1002		for v in Save.data.get("unit_games", {}).values():
+  1003			old_n += int(v)
+  1004		var rec_n := 0
+game/scripts/ui/screens/game_core.gd:482:func _card_types() -> Array:
+game/scripts/ui/screens/game_core.gd:501:func _card_rect(i: int) -> Rect2:
+62:	var cells := {}
+67:		var fk := str(t.get("cell", ""))   # 格子身分（按鈕索引／宣告序號），不用座標當鍵：重疊格不會誤合（Codex cat01 #4）
+70:		if not cells.has(fk):
+71:			cells[fk] = {"face": f, "ink": t["ink"], "s": str(t["s"])}
+73:			cells[fk]["ink"] = (cells[fk]["ink"] as Rect2).merge(t["ink"])
+74:			cells[fk]["s"] = str(cells[fk]["s"]) + "／" + str(t["s"])
+75:	for fk in cells:
+76:		var cl: Dictionary = cells[fk]
+86:	for fk in cells:
+87:		var cl2: Dictionary = cells[fk]
+     1	extends RefCounted
+     2	## 第五輪 §4.3 圖表元件。只用常見、一眼看得懂的圖；數字直接標在圖上，不用圖例。
+     3	## 每個函式第一個參數 ui＝畫面節點（用它的 draw_*、_text、tz、cbm）。
+     4	## 藍＝我方、紅＝敵方；色盲模式時填色改高對比（亮青藍／亮橘紅）並加斜線紋。
+     5	
+     6	const D = preload("res://scripts/core/unit_defs.gd")
+     7	
+     8	const BLUE := preload("res://scripts/ui/palette.gd").CHART_BLUE
+     9	const RED := preload("res://scripts/ui/palette.gd").CHART_RED
+    10	const BLUE_CB := preload("res://scripts/ui/palette.gd").CHART_BLUE_CB
+    11	const RED_CB := preload("res://scripts/ui/palette.gd").CHART_RED_CB
+    12	const GRID := preload("res://scripts/ui/palette.gd").CHART_GRID
+    13	const MUTED := preload("res://scripts/ui/palette.gd").CHART_MUTED   # V1.2.1 F5：不透明暖灰（原 60% 白在深木上只有 2.2:1）
+    14	
+    15	## 兵種定位色系（金幣條分段用，4 色系，不做 10 種彩虹）：近戰／遠程／突擊／支援
+    16	const ROLE_OF := [0, 0, 1, 2, 2, 0, 1, 3, 3, 0, 4, 4, 4, 0, 2, 0, 3, 1, 2, 0]   # 劍盾弓騎刺槍彈醫鼓狂
+    17	const ROLE_COL := [Color("#5b8def"), Color("#3fb6a8"), Color("#a46be0"), Color("#79c46a"), Color("#e0a03c")]
+    18	
+    19	static func team_col(team: int, cb: bool) -> Color:
+    20		if cb:
+    21			return BLUE_CB if team == 0 else RED_CB
+    22		return BLUE if team == 0 else RED
+    23	
+    24	## 斜線紋（色盲模式時讓紅方的面積多一個不靠顏色的差異）
+    25	static func hatch(ui: CanvasItem, r: Rect2, c: Color) -> void:
+    26		var step := 7.0
+    27		var x := r.position.x - r.size.y
+    28		while x < r.end.x:
+    29			var a := Vector2(maxf(x, r.position.x), r.position.y + maxf(0.0, r.position.x - x))
+    30			var b := Vector2(minf(x + r.size.y, r.end.x), r.position.y + minf(r.size.y, r.end.x - x))
+    31			if a.x < b.x:
+    32				ui.draw_line(Vector2(a.x, r.end.y - (a.y - r.position.y)), Vector2(b.x, r.end.y - (b.y - r.position.y)), c, 1.5)
+    33			x += step
+    34	
+    35	## 中線對比長條：rows＝[{label, b, r}]；兵種名在中間，藍往左、紅往右，數字標在條尾。
+    36	static func diverging(ui, rect: Rect2, rows: Array, mid_w := 110.0) -> void:
+    37		var cb: bool = ui.cbm()
+    38		var maxv := 1
+    39		for row in rows:
+    40			maxv = maxi(maxv, maxi(int(row["b"]), int(row["r"])))
+    41		var n := maxi(1, rows.size())
+    42		var rh := rect.size.y / n
+    43		# V1.2.1：中間兵種名欄依最長的名字算寬（英文 150% 的 Shieldbearer 原本被長條和數字蓋住）
+    44		for row in rows:
+    45			mid_w = maxf(mid_w, ui._width(str(row["label"]), ui.tz("S")) + (40.0 if row.has("type") else 16.0))
+    46		mid_w = minf(mid_w, rect.size.x * 0.4)
+    47		var half := (rect.size.x - mid_w) / 2.0
+    48		var cx := rect.position.x + half
+    49		var fs: int = ui.tz("S")
+    50		# V1.2.1：最長的條也要在條尾外留出數字的位置（原本滿格時數字被夾進條內，和其他列不一致）
+    51		var lab_w: float = ui._width(str(maxv), fs) + 8.0
+    52		var bar_half := maxf(20.0, half - lab_w)
+    53		for i in rows.size():
+    54			var row: Dictionary = rows[i]
+    55			var y := rect.position.y + i * rh
+    56			var bh := minf(rh * 0.62, 22.0)
+    57			var by := y + (rh - bh) / 2
+    58			if row.has("type"):
+    59				ui._unit_in(Rect2(cx, y, 28.0, rh), int(row["type"]), 0, 1.0, minf(0.42, rh / 80.0))   # 兵種頭像（V9）
+    60			ui._text(Vector2(cx + mid_w / 2 + (12.0 if row.has("type") else 0.0), y + (rh - fs * 1.1) / 2), str(row["label"]), fs, Color.WHITE, true, false, mid_w - 6)
+    61			var lb := bar_half * float(row["b"]) / maxv
+    62			var lr := bar_half * float(row["r"]) / maxv
+    63			ui.draw_rect(Rect2(cx - lb, by, lb, bh), team_col(0, cb))
+    64			var rr := Rect2(cx + mid_w, by, lr, bh)
+    65			ui.draw_rect(rr, team_col(1, cb))
+    66			if cb:
+    67				hatch(ui, rr, Color(0, 0, 0, 0.35))
+    68			var vb := str(int(row["b"]))
+    69			var vr := str(int(row["r"]))
+    70			var wb: float = ui._width(vb, fs)
+    71			ui._text(Vector2(cx - lb - wb - 6, y + (rh - fs * 1.1) / 2), vb, fs, MUTED)
+    72			ui._text(Vector2(cx + mid_w + lr + 6, y + (rh - fs * 1.1) / 2), vr, fs, MUTED)
+    73	
+    74	## 排名條：values＝這個指標在可比兵種裡的值（Dictionary type→值）；me＝這一種。
+    75	## 灰點＝其他兵種的位置，亮點＝這一種；右邊標「值・第 N 高」。只傳可比的兵種（第五輪 §4.3）。
+    76	static func rank_bar(ui, rect: Rect2, values: Dictionary, me: int, label: String, value_text: String, accent := Color("#ffd166")) -> void:
+    77		var fs: int = ui.tz("S")
+    78		ui._text(rect.position, label, fs, MUTED)
+    79		var lx := maxf(rect.position.x + rect.size.x * 0.22, rect.position.x + ui._width(label, fs) + 10)   # 標籤長（英文、大字）就往右讓
+    80		if values.size() <= 1:
+    81			# 不排名的指標（價格、補血、光環）：只寫數值，不畫條（Antigravity：灰條看起來像最低分）
+    82			ui._text(Vector2(lx, rect.position.y), value_text, fs, Color.WHITE, false, true, rect.end.x - lx)
+    83			return
+    84		# 數值文字放得下為優先：條的寬度＝剩下的空間（30%～最少 50px）
+    85		var rank_guess := 1
+    86		for t in values:
+    87			if t != me and float(values[t]) > float(values.get(me, 0)):
+    88				rank_guess += 1
+    89		var rt0: String = value_text if values.size() <= 1 else load("res://scripts/game/strings.gd").t("rank_nth", [value_text, rank_guess])
+    90		var lw := clampf(rect.end.x - lx - ui._width(rt0, fs, true) - 24, 40.0, rect.size.x * 0.30)
+    91		var cy := rect.position.y + fs * 0.75
+    92		var seg: bool = ui.has_method("_seg_bar") and not bool(ui.Save.s("plain_ui"))
+    93		if not seg:
+    94			ui.draw_line(Vector2(lx, cy), Vector2(lx + lw, cy), GRID, 4.0)
+    95		var mx := 0.0
+    96		var mn := 1e18
+    97		for t in values:
+    98			mx = maxf(mx, float(values[t]))
+    99			mn = minf(mn, float(values[t]))
+   100		var span := maxf(1e-6, mx - mn)
+   101		var rank := 1
+   102		for t in values:
+   103			if t != me and float(values[t]) > float(values.get(me, 0)):
+   104				rank += 1
+   105			var px := lx + lw * (float(values[t]) - mn) / span
+   106			if t != me and not seg:
+   107				ui.draw_circle(Vector2(px, cy), 4.0, Color(1, 1, 1, 0.35))
+   108		if seg:
+   109			# V1.2 C2：8 格刻印條；其他兵種的位置改成條下緣的小刻痕（資訊保留、不像滑桿）
+   110			var fr: float = (float(values.get(me, 0)) - mn) / span if values.has(me) else 0.0
+   111			ui._seg_bar(Rect2(lx, cy - 5, lw, 10), maxf(0.06, fr), accent)
+   112			for t2 in values:
+   113				if t2 != me:
+   114					var px2 := lx + lw * (float(values[t2]) - mn) / span
+   115					ui.draw_line(Vector2(px2, cy + 6), Vector2(px2, cy + 9), Color(1, 1, 1, 0.35), 1.5)
+   116		elif values.has(me):
+   117			var pm := lx + lw * (float(values[me]) - mn) / span
+   118			ui.draw_line(Vector2(lx, cy), Vector2(pm, cy), accent, 4.0)
+   119			ui.draw_circle(Vector2(pm, cy), 7.0, accent)
+   120		var rt: String = value_text if values.size() <= 1 else load("res://scripts/game/strings.gd").t("rank_nth", [value_text, rank])
+   121		ui._text(Vector2(lx + lw + 12, rect.position.y), rt, fs, Color.WHITE, false, true, rect.end.x - (lx + lw + 12))
+   122	
+   123	## 戰力走勢：log2＝每 tick [藍戰力, 紅戰力] 交錯；b0／b1＝兩邊預算。
+   124	## 值＝藍比例 ÷（藍比例＋紅比例），以 50% 為界上藍下紅；雙方都 0 時沿用上一點；最後一段做平滑（第五輪 §4.3）。
+   125	## marks＝[{t, label}] 最多畫 3 個，標籤不重疊。回傳每個取樣點的 y（測試用）。
+   126	static func momentum(ui, rect: Rect2, log2: PackedInt64Array, b0: int, b1: int, marks: Array, total_ticks := 0) -> Array:
+   127		var cb: bool = ui.cbm()
+   128		var n := log2.size() / 2
+   129		var mid := rect.position.y + rect.size.y / 2
+   130		# V1.2 C3：羊皮紙底＋墨水中線（原本是半透明黑底、白線，像看盤軟體）
+   131		var paper: bool = ui.has_method("_tex_box") and not bool(ui.Save.s("plain_ui")) and ui._tex_box(rect.grow_individual(6, 6, 6, 2), "paper")
+   132		if not paper:
+   133			ui.draw_rect(rect, Color(0, 0, 0, 0.25))
+   134		ui.draw_line(Vector2(rect.position.x, mid), Vector2(rect.end.x, mid), Color(0.14, 0.08, 0.04, 0.55) if paper else Color(1, 1, 1, 0.35), 1.0)
+   135		var wash := 0.62 if paper else 0.85
+   136		if n <= 1:
+   137			return []
+   138		var span := maxi(n, total_ticks)
+   139		var cols := int(minf(rect.size.x, 240.0))
+   140		var ys: Array = []
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/screens/game_core.gd | sed -n '480,525p'; nl -ba game/scripts/ui/screens/game_place.gd | sed -n '640,740p'; nl -ba game/scripts/ui/replay_view.gd | sed -n '100,185p;345,380p'; nl -ba game/scripts/ui/screens/game_result.gd | sed -n '50,80p;825,860p'; nl -ba game/scripts/ui/lobby_view.gd | sed -n '115,175p'; rg -n 'glyph' tools game/tools game/scripts/ui/layout* | head -60; sed -n '205,212p' docs/2026-11-13-v1.4.0-plan.md; rg -n 'Save.flush|Save.save|save_game|func save' game/scripts/ui/lobby_view.gd game/scripts/game/save.gd game/scripts/ui/screens/game_place.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 182ms:
+   480	## 卡列要顯示哪些兵種（第五輪 §4.4）：只放這局用得到的兵。
+   481	## 自訂規則：卡池；教學／殘局：關卡允許的；遠征與沒有規則的模式：全部（未解鎖的上鎖，提示還要幾場）。
+   482	func _card_types() -> Array:
+   483		var out: Array = []
+   484		if mode == Mode.GAUNTLET:
+   485			return RuleSet.types_of(_gauntlet_pool())   # 第八輪：遠征沿用對 AI 的出戰名單
+   486		for t in D.total():
+   487			if t >= D.COUNT and rules == null and mode != Mode.TUTORIAL and mode != Mode.PUZZLE:
+   488				continue
+   489			if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
+   490				if _allowed(t):
+   491					out.append(t)
+   492			elif rules != null and (mode == Mode.VS_AI or mode == Mode.DUEL):
+   493				if RuleSet.has(_cur_army().pool, t):
+   494					out.append(t)
+   495			else:
+   496				out.append(t)
+   497		return out
+   498	
+   499	
+   500	
+   501	func _card_rect(i: int) -> Rect2:
+   502		var types := _card_types()
+   503		var k := types.find(i)
+   504		if k < 0:
+   505			return Rect2()
+   506		var n := types.size()
+   507		var w := minf(CARD_W * 1.5, (860.0 - CARD_GAP * (n - 1)) / n)   # 卡少時卡片變大（最寬 120）
+   508		return Rect2(CARD_X0 + k * (w + CARD_GAP), CARD_Y, w, CARD_H)
+   509	
+   510	
+   511	
+   512	## 兵種卡右下角的「?」：開圖鑑到這個兵種（第二輪方案 R3）。第五輪：點擊框 32px。
+   513	func _card_help_rect(i: int) -> Rect2:
+   514		var r := _card_rect(i)
+   515		if not r.has_area():
+   516			return Rect2()
+   517		return Rect2(r.end.x - 38, r.end.y - 38, 36, 36)
+   518	
+   519	
+   520	
+   521	func _card_at(p: Vector2) -> int:
+   522		for i in _card_types():
+   523			if _card_rect(i).has_point(p):
+   524				return i
+   525		return -1
+   640			else:
+   641				head = L.t("both_done") if blind_phase == 2 else L.t("blind_turn", [L.t("blue") if blind_phase == 0 else L.t("red"), L.t("red") if blind_phase == 0 else L.t("blue")])
+   642				if bool(get("sealed_on")) and blind_phase < 2:
+   643					head = L.t("sealed_turn", [L.t("blue") if blind_phase == 0 else L.t("red"), get("sealed")[blind_phase].size() + 1])   # V1.4 #13
+   644		elif _cp_on():
+   645			head = _cp_head()   # 1.2.0 §11.6
+   646		elif mode == Mode.VS_AI and bool(get("wv_active")):
+   647			head = L.t("wv_head", [int(get("wv_no")), int(rules.budget_of(1)) if rules != null else 0])   # Antigravity v140-i3：常駐波數
+   648		elif mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
+   649			var pz := PZ.get_puzzle(puzzle_id)
+   650			head = L.field(pz, "")
+   651		elif mode == Mode.GAUNTLET:
+   652			head = "%s・%s" % [L.t("gauntlet_title", [gauntlet_stage]), L.t("ga_node_" + str(call("ga_node", gauntlet_stage)))]
+   653		var hz := tcap(tz("H2"), 26)
+   654		_text(Vector2(640, 2), head, hz, tcol if mode == Mode.DUEL else Color.WHITE, true, true, 520)
+   655		var star := -1
+   656		if mode == Mode.PUZZLE:
+   657			var pzs := PZ.get_puzzle(puzzle_id)
+   658			star = a.budget - int(pzs["budget"]) + int(pzs["star3"])   # 三星條件（只花 ≤N 金）換算成金幣條上的位置
+   659		var gb := Rect2(440, 6 + hz * 1.35, 230, 12)
+   660		Charts.gold_bar(self, gb, a.units, a.budget, star)
+   661		if _is_free():
+   662			_fp_gold_preview(gb, a)
+   663		var gtxt := L.t("gold_of", [a.spent(), a.budget])
+   664		_woodtype(Vector2(gb.end.x + 10, gb.position.y - tz("S") * 0.45), gtxt, tz("S"), ACCENT, false, true)   # 1.4.0 §7.2 預算計數牌＝木活字
+   665		var ux := gb.end.x + 18 + _width(gtxt, tz("S"), true)
+   666		_text(Vector2(ux, gb.position.y - tz("S") * 0.45), L.t("units_of", [a.count(), a.unit_cap]), tz("S"), TXT_DIM, false, true)
+   667		if mode == Mode.DUEL and tp != null and rules != null and rules.handicap:
+   668			_text(Vector2(440, gb.end.y + 2), L.t("hc_both", [rules.budget_of(0), rules.budget_of(1)]), tz("C"), TXT_DIM)
+   669		elif mode == Mode.DUEL and bool(get("swap_on")):
+   670			_text(Vector2(440, gb.end.y + 2), call("_swap_who"), tz("C"), ACCENT, false, false, 420)   # 1.2.0 §11.5
+   671		# 右：規則徽章（非標準時）
+   672		if rules != null and (mode == Mode.VS_AI or mode == Mode.DUEL):
+   673			var b := Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai")
+   674			if b != Presets.BADGE_CERT or not rules.diff(Presets.make("standard", "duel" if mode == Mode.DUEL else "ai", rules.pool_of(0))).is_empty():
+   675				_badge_pill(Vector2(1100, 8), b)
+   676		# 第二行：資訊帶
+   677		_draw_info_band(Rect2(0, 52, 1280, 40), hover_card if hover_card >= 0 else selected, a.team)
+   678		# 卡列
+   679		if not bool(Save.s("plain_ui")) and not _card_types().is_empty():
+   680			# 1.4.0 §1.2 牌尺：卡片立在一條水平實木牌尺上（直槽，不做弧形）：尺身、上緣受光、每張卡底下一道卡榫陰影
+   681			var r0 := _card_rect(_card_types()[0])
+   682			var r1 := _card_rect(_card_types()[-1])
+   683			var rail := Rect2(r0.position.x - 6.0, r0.end.y - 12.0, r1.end.x - r0.position.x + 12.0, 800.0 - (r0.end.y - 12.0))
+   684			draw_rect(Rect2(rail.position + Vector2(0, -3), Vector2(rail.size.x, 3)), Color(DIM_INK, 0.35))
+   685			_mat_box(rail, "walnut", Color(0.78, 0.62, 0.46))
+   686			draw_rect(Rect2(rail.position, Vector2(rail.size.x, 2)), Color(1, 0.9, 0.7, 0.35))
+   687			for i0 in _card_types():
+   688				var cr0 := _card_rect(i0)
+   689				draw_rect(Rect2(cr0.position.x + 4, cr0.end.y - 4, cr0.size.x - 8, 6), Color(DIM_INK, 0.5))
+   690		for i in _card_types():
+   691			var r := _card_rect(i)
+   692			var cap_ok: bool = a.type_cap == 0 or a.count_of(i) < a.type_cap
+   693			var afford: bool = D.cost(i) <= a.left() and a.count() < a.unit_cap and _allowed(i) and cap_ok
+   694			var bg := TH_WOOD   # V1.2：兵卡改木牌色（原本藍灰，像工程介面）
+   695			if i == selected:
+   696				bg = TH_ACTIVE
+   697			elif i == hover_card:
+   698				bg = TH_WOOD_L
+   699			var opened := _allowed(i)
+   700			if afford and not bool(Save.s("plain_ui")) and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28)):
+   701				pass
+   702			else:
+   703				draw_rect(r, bg if afford else Color(bg, 0.45))
+   704			draw_rect(r, tcol if i == selected else Color(1, 1, 1, 0.15), false, 2)
+   705			if layout_probe:
+   706				probe_ctrls.append(r)   # 兵卡是控制項：卡上的小字不算「要讀的文字」段數
+   707			# 三層卡：上＝快捷鍵、價錢；中＝全身圖；下＝已擺數量、?
+   708			Art.unit(self, r.position + Vector2(r.size.x / 2, 74), i, a.team, 1.0, 0.0, 0.0, 0.0, (1.0 if afford else 0.45) if opened else 0.25, time, 0.78, cbm())
+   709			call("_mastery_badge", r, i)   # V1.6 #12：熟練度 3 級起，卡上兵的頭頂多一顆星章
+   710			var fz := tz("C")
+   711			_text(r.position + Vector2(5, 3), "%d" % ((_card_types().find(i) + 1) % 10), fz, TXT_DIM, false, false, 20)
+   712			if opened:
+   713				var gt: String = L.t("gold", [D.cost(i)])
+   714				var gw := _width(gt, fz, true)
+   715				_text(r.position + Vector2(r.size.x - 5 - gw, 3), gt, fz, ACCENT if afford else Color("#f87171"), false, true)
+   716				if a.count_of(i) > 0:
+   717					var cnt := "×%d" % a.count_of(i) if a.type_cap == 0 else "×%d/%d" % [a.count_of(i), a.type_cap]
+   718					_text(r.position + Vector2(5, r.size.y - fz - 8), cnt, fz, Color(1, 1, 1, 0.85) if cap_ok else Color("#f87171"), false, true, r.size.x - 40)
+   719			else:
+   720				_lock_icon(r.position + Vector2(r.size.x - 14, 14))
+   721			_btn_quiet(_card_help_rect(i), "?", _open_codex.bind(i))   # 第七輪 N6：點擊框不變，外觀只留一個小問號，不切到角色
+   722		var start_label := L.t("start")
+   723		var start_en := _ready_to_fight()
+   724		if _cp_on() and not cp.done():
+   725			start_label = L.t("end_hand")
+   726			start_en = true
+   727		if mode == Mode.DUEL and tp != null and not tp.done():
+   728			start_label = L.t("end_hand")
+   729			start_en = tp.can_end_turn()
+   730		elif mode == Mode.DUEL and tp == null and blind_phase < 2:
+   731			start_label = L.t("blind_ready", [L.t("blue") if blind_phase == 0 else L.t("red")])
+   732			start_en = _cur_army().count() > 0 and (rules == null or _cur_army().has_combat())
+   733		var why := _start_block_reason()
+   734		if why != "":
+   735			start_en = false
+   736			_text(Vector2(1076, 664), why, tz("C"), Color("#ff8a8a"), true, true, 380)   # 開戰鈕灰掉時直接寫原因（Antigravity 第二輪）
+   737		_btn(Rect2(884, 690, 384, 50), start_label, func(): _on_start(), start_en, true)
+   738		if mode == Mode.VS_AI or (mode == Mode.GAUNTLET and gauntlet_stage == 1):
+   739			_btn(Rect2(884, 746, 120, 44), L.t("formations"), func(): _open("slots"))
+   740		if mode == Mode.GAUNTLET and gauntlet_stage > 1:
+   100		return true
+   101	
+   102	## 跳到某個 tick：同一組陣型從頭快轉（確定性模擬，結果一定一樣），畫面與音效狀態清空重建。
+   103	func _seek(target: int) -> void:
+   104		_seek_begin(target)
+   105		while not _seek_tick(1000000):
+   106			pass
+   107		_seek_finish()
+   108	
+   109	
+   110	## 第七輪 M3：時間軸點下去不再卡畫面，分批算。headless 測試直接走 _seek。
+   111	var _seek_stop := 0
+   112	var _seek_ct := -1
+   113	
+   114	func _seek_async(target: int) -> void:
+   115		if seek_target >= 0:
+   116			return
+   117		if DisplayServer.get_name() == "headless" or shot_dir != "":
+   118			_seek(target)
+   119			return
+   120		seek_target = target
+   121		_seek_begin(target)
+   122	
+   123	## 這一幀還在算就回傳 true（戰鬥畫面這一幀不動）。
+   124	func _seek_pump() -> bool:
+   125		if seek_target < 0:
+   126			return false
+   127		if _seek_tick(10):
+   128			seek_target = -1
+   129			_seek_finish()
+   130		return true
+   131	
+   132	func _seek_begin(target: int) -> void:
+   133		cues.clear()       # 1.3.0 §7.1：跳轉清掉預告（不留舊時間線的未來事件；Codex cat06 #2）
+   134		stat_prev.clear()
+   135		var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+   136		sim = Sim.new(armies2[0].copy(), armies2[1].copy(), battle_rules)
+   137		call("_cmd_setup", sim, play_kind)
+   138		ev_count = {}
+   139		set("last_blast_tick", -99)
+   140		_seek_ct = -1
+   141		_seek_deaths = {}
+   142		battle_marks.clear()
+   143		var dl: int = ViewBuffer.DELAY if (bool(sim.get("cmd_on")) and not bool(sim.get("cmd_scripted"))) else ViewBuffer.DELAY_LONG   # 和 ViewBuffer 的選法一樣
+   144		_seek_stop = maxi(0, target - (view.delay if view != null else dl))
+   145		_seek_target_now = target
+   146	
+   147	var _seek_target_now := 0
+   148	var _seek_deaths := {}   # V1.5.1 B2：快轉時誰在哪個 tick 倒下（跳轉後重建陣亡小旗）
+   149	
+   150	## 算到時間用完或到達目標；到達回傳 true。
+   151	func _seek_tick(budget_ms: int) -> bool:
+   152		var t0 := Time.get_ticks_msec()
+   153		while sim.tick < _seek_stop and not sim.finished:
+   154			if Time.get_ticks_msec() - t0 >= budget_ms:
+   155				return false
+   156			sim.step()
+   157			for ev in sim.events:   # 快轉時也要累計戰報次數與時間軸標記（Codex S5 #4：共用同一個收集函式）
+   158				if ev.has("src"):
+   159					var s = sim.unit_by_id(ev["src"])
+   160					var key := "%s%d" % [ev["kind"], s.team]
+   161					ev_count[key] = int(ev_count.get(key, 0)) + 1
+   162					if ev["kind"] == EV.BLAST and not ev.has("dmg"):
+   163						ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
+   164				_collect_mark(ev, sim, sim.tick)
+   165				if ev["kind"] == EV.DEATH:
+   166					_seek_deaths[int(ev["id"])] = sim.tick
+   167				if ev["kind"] == EV.CMD:
+   168					battle_marks.append({"tick": sim.tick, "kind": "cmd", "team": int(ev["team"]), "skill": int(ev["skill"])})   # V1.5.1：快轉也收軍令標記（原本跳轉後會漏）
+   169			if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
+   170				_seek_ct = sim.tick
+   171		return true
+   172	
+   173	func _seek_finish() -> void:
+   174		if sfx != null and sfx.has_method("reseed"):
+   175			sfx.reseed(sfx.seed_at(round_no, view.tick if view != null else 0))   # 1.3.0 §10：跳轉後音效變體從同一個狀態開始
+   176		call_deferred("_tm_sync")
+   177		var target := _seek_target_now
+   178		var keep_ct := _seek_ct
+   179		var had_clutch := keep_ct >= 0
+   180		view = ViewBuffer.new(sim)
+   181		prev_pos.clear()
+   182		_gait_reset()
+   183		for u in view.units:
+   184			prev_pos[u.id] = Vector2(u.x, u.y)
+   185		fx.clear()
+   345						_toast(L.t("bc_demo_locked"), true)
+   346						return
+   347		if r["mismatch"]:
+   348			_toast(L.t("bc_mismatch"))
+   349		last_cmds = r.get("cmds", [])
+   350		watch_code(r["a0"], r["a1"], r.get("rules"))
+   351	
+   352	## 看一場對戰代碼：當成全新的一局初始化（Codex S5 #2：原本沿用舊的陣型、比分、局數）
+   353	func watch_code(a0, a1, p_rules = null) -> void:
+   354		replay_marks = []   # V1.5.1：看別人的代碼不能留上一局的時間軸刻度（Codex v151-i2）
+   355		mode = Mode.VS_AI
+   356		rules = p_rules
+   357		battle_rules = p_rules
+   358		ai_name = ""
+   359		overlay = ""
+   360		armies = [a0.copy(), a1.copy()]
+   361		wins = [0, 0]
+   362		round_no = 1
+   363		series_over = false
+   364		last_player_formation = []
+   365		last_armies = [a0.copy(), a1.copy()]
+   366		rv_last = []
+   367		_begin_battle(a0.copy(), a1.copy(), "replay")
+   368		watch_mode = true
+   369	
+   370	
+   371	# ── 覆盤 ──
+   372	var rv_fsel := -1   # 第六輪：自由陣型覆盤選中的那一隻（索引）
+   373	
+   374	func _open_review() -> void:
+   375		rv_orig = last_armies[0].copy()
+   376		rv_army = last_armies[0].copy()
+   377		rv_enemy = last_armies[1].copy()
+   378		rv_fsel = -1
+   379		if rv_orig.deploy == "free":
+   380			# 編輯識別（和戰鬥編號分開，Codex 第一輪）：覆盤時每隻帶 eid，「只改一隻」依 eid 比
+    50		sfx.set_muffled(false)
+    51		_pc_capture()   # V1.4 #14：最後一格戰場畫面留給戰報卡
+    52		fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
+    53		clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
+    54		state = St.RESULT
+    55		tm_ghost = null
+    56		result_t = time
+    57		set("ink_stamped", false)   # 1.2.0 §9.4
+    58		if play_kind == "official" and sim != null:
+    59			last_cmds = sim.cmd_log.duplicate(true)
+    60		result_tab = 0
+    61		_focus = 0
+    62		slow_left = 0.0
+    63		zoom_target = 1.0
+    64		var w: int = sim.winner
+    65		var eff: Dictionary = PLAY_EFFECTS[play_kind]
+    66		if eff["series"]:
+    67			if w >= 0:
+    68				wins[w] += 1
+    69			series_over = series_done(wins, round_no, rules)
+    70			if bool(get("sealed_on")) and mode == Mode.DUEL and round_no >= 3:
+    71				series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+    72			if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
+    73				call("_ach", "SEALED_DONE")   # V1.5
+    74			call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+    75		call("_camp_settle")   # 1.2.0 §11.7 戰役評星
+    76		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+    77			set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
+    78			var wc: Array = get("wv_codes")
+    79			wc.append(BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds))   # V1.5.1 D1
+    80		_build_report()
+   825	# ── 1.4.0 第 4 大類：謝幕（方案 §8）──
+   826	## 系列結束（或單場的對 AI／雙人）才有三枚木印章：MVP、最大輸出、中流砥柱（承受最多傷害還站著的）。回傳 [[圖示, 標題鍵, 兵種, 數值], …]。
+   827	func _res_seals() -> Array:
+   828		if sim == null or not (mode == Mode.VS_AI or mode == Mode.DUEL) or not series_over or watch_mode:
+   829			return []
+   830		var best_d = null
+   831		var best_t = null
+   832		for u in sim.units:
+   833			if u.team != 0 or u.summon:
+   834				continue
+   835			if best_d == null or u.dmg_dealt > best_d.dmg_dealt:
+   836				best_d = u
+   837			if u.alive and (best_t == null or u.dmg_taken > best_t.dmg_taken):
+   838				best_t = u
+   839		var out: Array = []
+   840		var mvp = report.get("mvp")
+   841		if mvp != null:
+   842			out.append(["trophy", "seal_mvp", int(mvp.type), int(mvp.dmg_dealt)])
+   843		if best_d != null:
+   844			out.append(["swords", "seal_dmg", int(best_d.type), int(best_d.dmg_dealt)])
+   845		if best_t != null and int(best_t.dmg_taken) > 0:
+   846			out.append(["shield", "seal_tank", int(best_t.type), int(best_t.dmg_taken)])
+   847		return out
+   848	
+   849	func _draw_res_seals(mr: Rect2, seals: Array) -> void:
+   850		for k in seals.size():
+   851			var c := Vector2(mr.end.x - 34.0 - (seals.size() - 1 - k) * 50.0, mr.get_center().y)
+   852			var rr := 21.0
+   853			draw_circle(c + Vector2(1.5, 2.5), rr, Color(DIM_INK, 0.45), true, -1.0, true)
+   854			draw_circle(c, rr, PAL.WOOD_TYPE, true, -1.0, true)
+   855			draw_arc(c, rr - 3.0, 0, TAU, 32, Color(PAL.TRINKET_RED, 0.75), 2.0, true)   # 印面一圈朱砂（邊緣微滲）
+   856			_icon(str(seals[k][0]), c, 22.0, PAL.TRINKET_RED.darkened(0.1))
+   857			var sk: Array = seals[k]
+   858			_btns.append({"r": Rect2(c - Vector2(rr, rr), Vector2(rr, rr) * 2.0), "cb": func(): _toast(L.t(str(sk[1]), [L.t("unit_%d" % int(sk[2])), int(sk[3])])), "en": true})
+   115				names.append(L.t("unit_%d" % t))
+   116			return L.t("lb_has_locked", ["、".join(names)])
+   117		return ""
+   118	
+   119	func _lobby_start() -> void:
+   120		var why := _lobby_block()
+   121		if why == "":
+   122			Save.data["lobby_stamps"] = mini(99, int(Save.data.get("lobby_stamps", 0)) + 1)   # 1.4.0 §1.1 手帳上的印跡
+   123			if sfx != null:
+   124				sfx.play_pitched("place_heavy", 0.5, 0.8)   # 蓋印的悶響
+   125		if why != "":
+   126			_toast(why, true)
+   127			return
+   128		var lr: Dictionary = Save.data.get("last_rules", {})
+   129		lr[lobby_kind] = lobby_r.to_code()
+   130		lr[lobby_kind + "_preset"] = lobby_r.preset
+   131		lr[lobby_kind + "_extra"] = [lobby_r.ai_style, lobby_r.map_mode, lobby_r.bans, lobby_r.time_of]   # 系列選項不進規則碼，另外記（Codex #8）
+   132		Save.data["last_rules"] = lr
+   133		Save.save_data()
+   134		rules = lobby_r.copy()
+   135		set("challenge_army", null)
+   136		if lobby_kind == "duel" and rules.bans > 0:
+   137			call("_begin_bans", rules.bans)
+   138			return
+   139		call("_start_mode", Mode.VS_AI if lobby_kind == "ai" else Mode.DUEL)
+   140	
+   141	func _lobby_copy_code() -> void:
+   142		DisplayServer.clipboard_set(lobby_r.to_code())
+   143		_toast(L.t("lb_code_copied"))
+   144	
+   145	func _lobby_paste_code(text := "") -> void:
+   146		var from_clip := text == ""
+   147		var d: Dictionary = RuleSet.from_code(DisplayServer.clipboard_get() if from_clip else text)
+   148		if not d["ok"]:
+   149			if from_clip and _ask_code(L.t("lb_paste"), _lobby_paste_code):
+   150				return
+   151			_toast(L.t(d["why"]) if d["why"].begins_with("rr_") else L.t("lb_code_bad"), true)
+   152			return
+   153		if _demo() and not call("_demo_ok", d["rules"]):
+   154			_toast(L.t("bc_demo_locked"), true)
+   155			return
+   156		lobby_r = d["rules"]
+   157		if not _lobby_locked_units().is_empty():
+   158			_toast(_lobby_block(), true)   # 照原樣保留，開戰鈕會灰掉並寫原因
+   159		else:
+   160			_toast(L.t("lb_code_loaded"))
+   161	
+   162	func _lobby_save_preset() -> void:
+   163		var ps: Array = Save.data.get("rule_presets", [])
+   164		if ps.size() >= Save.MAX_PRESETS:
+   165			_toast(L.t("lb_full", [Save.MAX_PRESETS]), true)   # V1.5：滿了不偷偷蓋掉最舊的，請玩家先刪
+   166			lobby_menu = true
+   167			return
+   168		var used := {}
+   169		for e in ps:
+   170			used[str(e["name"])] = true
+   171		var k := 1
+   172		while used.has(L.t("lb_my_n", [k])):
+   173			k += 1   # 刪過中間那格也不會撞名
+   174		var nm := L.t("lb_my_n", [k])
+   175		ps.append({"name": nm, "code": lobby_r.to_code()})
+game/tools/dev_main.gd:353:		if sz < tz("C") and not t.get("glyph", false):
+game/tools/dev_main.gd:355:		if not size_ok(sz) and not t.get("glyph", false):
+game/tools/dev_main.gd:377:		if t.get("field", false) or t.get("glyph", false):
+### 7.1 三種字按語意收斂
+- 既有：工藝正文、文楷標題、老闆便條（Codex 第 2 輪更正）。規範：**標題字**只給匾額、畫面標題、勝負大章；**批註手寫**只給老闆與教練的話（不用在按鈕、數值、英文 150% 說明）；其他一律正文。
+### 7.2 木活字數字（只換核准的數字符號，Codex 第 3 輪）
+- 自畫 0～9、％、＋、−、小數點、千分位、×；等寬、帶微墨暈；只用在倒數、計分、預算計數牌、戰績大數字、比數。**勝負文字**走標題字與四語後備（數字字型不能承擔文字）。
+- 遵守字級表、基線對齊、墨跡探針；缺字回正文字型；秒數、百分比、負號、分隔符依語系組字（例如日文「秒」、英文 `s`）。
+- 翻頁微跳與輕滴答**只在最後 10 秒**（Antigravity 第 3 輪：每秒都跳會干擾）；減少動態時不翻頁、不跳字、數值照常更新。
+### 7.3 英文 150%
+- 不縮字：資訊改兩層（摘要／展開）、長文換行或展開，全文可達。
+game/scripts/game/save.gd:649:static func save_settings() -> bool:
+game/scripts/game/save.gd:653:static func save_data() -> bool:
+game/scripts/ui/lobby_view.gd:133:	Save.save_data()
+game/scripts/ui/lobby_view.gd:177:	Save.save_data()
+game/scripts/ui/lobby_view.gd:198:		Save.save_data()
+game/scripts/ui/lobby_view.gd:688:	Save.save_data()
+
+ succeeded in 42501ms:
+6:## 0. 總覽
+8:### 0.1 一句話
+11:### 0.2 為什麼還像電腦做的（187 畫面＋查核後的版本）
+22:### 0.3 底線（天馬行空也不能破）
+30:### 0.4 主軸決策（第 2～4 輪收斂）
+40:| 第 10 點 | R12 格子內距＋R13 圖示留白，量墨跡聯集與圖示可見本體；角標**明確宣告**（`corner_badge`）而不是白名單 | 24 組×187 畫面全驗 |
+42:### 0.5 全選也不衝突：共用契約
+51:### 0.6 主材質分配（一個畫面一種主材質，Antigravity 第 3 輪）
+56:| 擺陣 | 沙盤＋木牌尺 | 朱漆「開戰」 | 木牌 | 墨線 |
+63:| 殘局／覆盤 | 棋譜冊（線裝紙） | 木牌 | 星章 | 硃筆 |
+65:### 0.6b 做完長什麼樣（五個主畫面，Antigravity 第 3 輪描述、三方修訂）
+68:3. **擺陣**：乾淨的沙盤為主、盤框刻地名、盤角釘便條；右側茶杯與對手帶桌緣底座安坐；底部水平木牌尺立著兵偶與清楚的木活字價碼；右下朱漆主鈕獨大，盤面上下留足呼吸距離。
+70:5. **結果**：系列中場只蓋朱砂勝負章＋木活字比數＋唯一「下一局」主鈕；系列結束則橫展長卷宣紙（兩道細壓痕三分：左章與老闆評語、中段手卷走勢與剪報小框、右段三枚可點木印章），次要鈕統一收合。
+72:### 0.7 順序（依賴）
+77:## 1. 器物 2.0：每件器物有自己的面和操作方式
+79:### 1.1 大廳＝對局手帳（雙頁）
+82:- 預設分頁＝手帳**頂緣的紙籤**（有字位、R11 置中、R12 內距；Antigravity 第 3 輪：右緣絲帶太窄放不下 7 個分頁）；左頁底留**單行規則摘要**（例「100 金・24 隻・90 秒・技能：關」），進階收進折頁也看得到目前規則。
+83:- 開戰＝朱砂印泥盒，按下蓋一記方印（悶響），印跡留在手帳頁上（下次打開還在）。
+86:### 1.2 擺陣＝沙盤＋牌尺
+87:- 下方兵卡改**水平直槽**的實木牌尺（不做弧形：底部兵欄已窄，弧形吃高度、遮價格，Antigravity 第 3 輪），強化卡底木托與卡榫陰影；兵是立在槽裡的小棋子；滑鼠拖曳＝拔起（底座離槽）、放下（落子壓扁回彈）。
+90:- 手把與操作狀態機（Codex 第 3 輪：自由部署的 A 是畫筆按住／放開提交、Y 直線、另有搬移與框選，不能統一成「A 拔起放下」）：**牌尺焦點**與**棋盤游標**分兩個狀態（LB／RB 切換）；格子模式與自由部署各自列出按下、拖動、放開、取消的契約；驗收：筆畫取消零扣款、連續部署與原陣碼一致、24 組 PADWALK 走過牌尺。
+91:### 1.3 設定＝工具箱（外盒器物、內襯網格）
+96:### 1.4 圖鑑＝標本木箱
+100:### 1.5 戰績＝獎盃架＋帳簿；代碼＝郵局櫃台；殘局＝棋譜冊
+104:### 1.6 操作契約（每個器物都要列）
+108:## 2. 桌面世界與轉場
+109:### 2.1 背景世界
+112:### 2.2 轉場
+116:### 2.3 物件放在桌上
+119:### 2.4 燈
+121:### 2.5 鏡頭與時間仲裁（Codex 第 3 輪）
+125:### 2.6 不做
+127:### 2.7 切片 A（Go／No-Go，Codex 第 2 輪）
+131:## 3. 戰場可讀與質感
+132:### 3.1 混戰主次（參考 Riot「Clarity」原理：輪廓、效果重要性、噪音預算）
+136:### 3.2 放到桌上
+139:### 3.3 戰痕
+141:### 3.4 地面層次
+143:### 3.5 驗收
+146:## 4. 角色 4.0：外觀
+147:### 4.1 剪影先行
+149:### 4.2 分層配件
+151:### 4.3 戰損只在特寫
+153:### 4.4 5 方向原畫（外包）
+155:### 4.5 驗收
+158:## 5. 角色 4.0：動作與重量
+159:### 5.1 分件姿勢（烘焙優先）
+161:### 5.2 少量即時配件
+163:### 5.3 動作原則
+166:### 5.4 表情 3 幀
+168:### 5.5 腳底錨定
+170:### 5.6 中斷
+172:### 5.7 切片 B（Go／No-Go）
+176:## 6. 技能演出 3.0
+177:### 6.1 噪音預算（逐效果表，Codex 第 3 輪）
+188:### 6.2 地面演出（實戰）
+190:### 6.3 軍令＝桌面蓋漆印
+192:### 6.4 招牌鏡頭（只在重播／觀戰）
+194:### 6.5 頓幀依重量
+196:### 6.6 擴充規則正式化（另一條線）
+199:### 6.7 協同技第二組、新兵種
+201:### 6.8 驗收
+204:## 7. 字與排版 3.0
+205:### 7.1 三種字按語意收斂
+207:### 7.2 木活字數字（只換核准的數字符號，Codex 第 3 輪）
+211:### 7.3 英文 150%
+213:### 7.4 行距
+215:### 7.5 卡片格律
+216:- 標題置中或靠左（整個畫面一致）；屬性靠左；圖示右對齊；價錢、星等是子格（R11 置中、R12 內距）。
+217:### 7.6 切片 C（Go／No-Go）
+220:## 8. 結果與覆盤：謝幕
+221:### 8.1 資訊架構
+223:### 8.2 系列中場 vs 結束
+225:- 結束：**單張橫展長卷宣紙**、以兩道細壓痕在視覺上三分（不硬切三折：英文 150% 寬度吃重、像廉價賀卡，Antigravity 第 3 輪），展開 ≤280ms、可一鍵定格；左段大章＋老闆一句、中段手卷戰局（轉折點做成剪報小框，焦點停上時戰局曲線對應點亮起）、右段三枚木印章（MVP、最大輸出、中流砥柱）點開看詳情；次要獎項收合。
+226:### 8.3 覆盤批註本
+227:- 兩條時間線＝兩行墨線、分岔點硃筆圈（「沙」一聲）；數值放旁註；一鍵改兵比較，原陣不被覆寫（Codex）。
+228:### 8.4 敗因連事件
+230:### 8.5 驗收
+233:## 9. 聲音 3.0
+234:### 9.1 動態混音
+236:### 9.2 空間化
+238:### 9.3 碰撞與布料擬音
+240:### 9.4 人聲（嘟囔語）
+242:### 9.5 驗收
+245:## 10. 棋館的人 2.0
+246:### 10.1 回應
+248:### 10.2 立繪與臉
+250:### 10.3 留言牆
+252:### 10.4 故事
+254:### 10.5 每日出題印章本
+257:## 11. 玩法 2.0（離線優先、版本分流）
+269:### 11.11 開工規格（每項都要的資料表與狀態機，Codex 第 3 輪）
+280:## 12. 第一印象與商店
+281:### 12.1 標題「推門見桌」
+284:### 12.2 掌燈開門 2.0
+286:### 12.3 商店素材
+289:## 13. 驗收 3.0：更快但不漏
+290:### 13.1 提速
+298:### 13.1b 每項提速的「風險→不漏」對照（Codex 第 3 輪）
+308:### 13.2 不漏的保證
+309:- 清冊（screens.json＝**當版核准清冊**）與實拍 ID 集合必須相等；**逐畫面**核對預期元件角色與探針數（R11、R12、R13；不是只看總數 >0）；未歸屬元件零件；無快取全量是發版門檻。
+311:### 13.3 動態驗收
+314:## 14. 前三版精細化（第 9 點）
+319:## 15. 第 10 點：格子內距與圖示留白（R12、R13）
+320:### 15.1 定義（1280×800 邏輯 px）
+321:- **R12 格子內距**：量語意格（按鈕面、宣告的格子、卡片子格）裡**整段墨跡聯集**（含換行與後備字型，不含描邊陰影）到格子四邊：上、下 ≥ `max(4, 格高×12%)`；左、右 ≥ `max(6, 格寬×6%)`；刻意靠左的列也要左留白。
+324:### 15.2 角標宣告（取代白名單）
+327:### 15.3 工具（先改資料契約，Codex 第 3 輪）
+328:- 現況：`--geom-dump` 只輸出字形框 `gr`，沒有 R11 的墨跡／格子面；圖示只記名目正方形。→ 輸出**穩定元件 ID、宿主 ID、整段墨跡聯集、實際可見圖示框、裁切框、角色**，再接 R12／R13。
+330:### 15.3b 規則優先與特殊元件
+331:- 一般置中格要**同時**滿足 R11（置中 ≤1px）與 R12（內距）；放不下就擴格／重排，**不互相豁免**。
+333:- 九宮格的安全框與 R12 取較嚴；捲動清單量自身內容格與有效裁切框，測首／中／末列。
+335:- 進版面檢查成為規則（像 R11）：24 組 × **當版核准清冊**全驗（1.3.0 是 187 畫面＝4488 張，新畫面會增加）；全量 JSON 保留、Markdown 只列前 200 筆給人看；誤報用反例測試關帳。
+337:### 15.4 先修清單（實測）
+341:## 16. 參考與創新（借原理、避外觀）
+342:- 《Pentiment》：材料與文字共同建立世界 → 棋館自己的牌尺、票據、抽屜。
+350:## 17. 成本（粗估、人日、含整合回歸 20%）
+362:## 18. 優先層級與 Go／No-Go
+363:- **必做**：§15（R12／R13）、§7.1～7.5、§1（器物幾何）、§8、§3、§14 的 1.3.0 項（**精華匯出與真錄音除外**：匯出列應做、真錄音是使用者交付）；必做項依賴的切片（C）也列必做。
+370:## 19. 垂直切片（給 5 位真人）
+371:- 標題 → 大廳手帳（兩步開局）→ 擺陣牌尺 → 戰鬥（三兵分件動作、混戰主次）→ 系列結束謝幕（長卷＋印章）→ 覆盤批註本。
+376:## 20. 使用者 10 點對照
+388:| 10 格子與圖示留白 | §15（R12、R13、角標宣告、工具、先修清單） |
+390:## 21. 做完的定義
+405:| §13 | 當版清冊與實拍 ID 相等、逐畫面核對預期角色與 R11／R12／R13 探針數、未歸屬零件、無快取全量通過 |
+407:| §15 | R12／R13 進版面規則、24 組×**當版核准清冊**全驗（187 是基線；新畫面必增清冊、逐畫面核對預期角色與探針數）、先修清單清零 |
+409:### 21.0 切片與量測的 Go／No-Go 數字（Codex 第 4 輪）
+415:### 21.1 發版門檻（Codex 第 3 輪）
+game/icon.svg.import
+game/icon.svg
+game/project.godot
+game/export_presets.cfg
+game/scenes/main.tscn
+game/tests/sim_cache.gd
+game/tests/run_tests.gd.uid
+game/tests/run_tests.gd
+game/fonts/ThenKhung-sub.ttf.import
+game/fonts/ThenKhung-sub.ttf
+game/fonts/ThenKhung-missing.txt
+game/fonts/OFL-ThenKhung.txt
+game/fonts/NTBTitle-sub.ttf.import
+game/fonts/NTBTitle-sub.ttf
+game/fonts/NTBSansSC-R-sub.otf.import
+game/fonts/NTBSansSC-R-sub.otf
+game/fonts/NTBSansSC-B-sub.otf.import
+game/fonts/NTBSansSC-B-sub.otf
+game/fonts/NTBSansLatin-R-sub.ttf.import
+game/fonts/NTBSansLatin-R-sub.ttf
+game/fonts/NTBSansLatin-B-sub.ttf.import
+game/fonts/NTBSansLatin-B-sub.ttf
+game/fonts/NTBSansJP-R-sub.otf.import
+game/fonts/NTBSansJP-R-sub.otf
+game/fonts/NTBSansJP-B-sub.otf.import
+game/fonts/NTBSansJP-B-sub.otf
+game/fonts/NTBSans-R-sub.otf.import
+game/fonts/NTBSans-R-sub.otf
+game/fonts/NTBSans-B-sub.otf.import
+game/fonts/NTBSans-B-sub.otf
+game/fonts/NTBRoundedSC-R-sub.otf.import
+game/fonts/NTBRoundedSC-R-sub.otf
+game/fonts/NTBRoundedSC-B-sub.otf.import
+game/fonts/NTBRoundedSC-B-sub.otf
+game/fonts/NTBRoundedJP-R-sub.otf.import
+game/fonts/NTBRoundedJP-R-sub.otf
+game/fonts/NTBRoundedJP-B-sub.otf.import
+game/fonts/NTBRoundedJP-B-sub.otf
+game/fonts/NTBRounded-R-sub.otf.import
+game/fonts/NTBRounded-R-sub.otf
+game/fonts/NTBRounded-B-sub.otf.import
+game/fonts/NTBRounded-B-sub.otf
+game/fonts/NTBLatin-M-sub.ttf.import
+game/fonts/NTBLatin-M-sub.ttf
+game/fonts/NTBLatin-B-sub.ttf.import
+game/fonts/NTBLatin-B-sub.ttf
+game/licenses/kenney-interface-sounds.txt
+game/licenses/GODOT_LICENSE.txt
+game/licenses/GODOTSTEAM_LICENSE.md
+game/licenses/GenSenRounded-OFL.txt
+game/licenses/Fredoka-OFL.txt
+game/licenses/ambientcg-cc0.txt
+game/licenses/OFL-SourceSans3.txt
+game/licenses/OFL-NotoCJK.txt
+game/licenses/OFL-LXGWWenKai.txt
+game/licenses/OFL-ThenKhung.txt
+game/licenses/ResourceHanRounded-OFL.txt
+game/tests/test_base.gd
+game/tests/test_base.gd.uid
+game/tools/golden_free.gd
+../smarttrade-tw/frontend/node_modules/next/AGENTS.md
+
+exec
+/bin/bash -lc "nl -ba game/tools/dev_main.gd | sed -n '340,415p'; nl -ba game/scripts/ui/layout_rules.gd | sed -n '50,105p'; nl -ba game/scripts/ui/ui_base.gd | sed -n '920,958p'; rg -n 'func _build_report|\\[\"mvp\"\\]|mvp.*=' game/scripts/ui -g '*.gd' | head -40; nl -ba game/scripts/ui/battle_view.gd | sed -n '870,920p'; nl -ba game/scripts/ui/replay_view.gd | sed -n '185,218p'; rg -n 'CARD_Y|CARD_H|CARD_X0' game/scripts/ui/ui_base.gd; rg -n 'game_menus|settings_item|settings.*_focus' game/scripts/ui/game_screens.gd; git status --short" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 2450ms:
+   340					bad.append({"type": "戰場字越界", "s": t["s"], "r": str(r)})
+   341				continue
+   342			ui_n += 1
+   343			sizes.append(sz)
+   344			var in_ctrl: bool = t.get("btn", false)
+   345			for c in probe_ctrls:
+   346				if c.grow(1.0).encloses(r):
+   347					in_ctrl = true   # 整段字都在卡片／空白標籤按鈕裡＝控制項內容
+   348					break
+   349			if not in_ctrl:
+   350				free_n += 1
+   351			if r.position.x < -2 or r.end.x > 1282 or r.position.y < -2 or r.end.y > 802:
+   352				bad.append({"type": "越界", "s": t["s"], "r": str(r)})
+   353			if sz < tz("C") and not t.get("glyph", false):
+   354				bad.append({"type": "小於字級表下限", "s": t["s"], "size": sz})
+   355			if not size_ok(sz) and not t.get("glyph", false):
+   356				bad.append({"type": "表外字級", "s": t["s"], "size": sz})
+   357		for a in probe_texts.size():
+   358			if probe_texts[a].get("field", false):
+   359				continue
+   360			for b in range(a + 1, probe_texts.size()):
+   361				if probe_texts[b].get("field", false):
+   362					continue
+   363				var ra: Rect2 = probe_texts[a]["r"]
+   364				var rb: Rect2 = probe_texts[b]["r"]
+   365				var x := ra.intersection(rb)
+   366				if not x.has_area():
+   367					continue
+   368				var ratio := x.get_area() / maxf(1.0, minf(ra.get_area(), rb.get_area()))
+   369				if ratio <= 0.15:
+   370					continue
+   371				if probe_texts[a]["s"] != probe_texts[b]["s"]:
+   372					bad.append({"type": "重疊", "a": probe_texts[a]["s"], "b": probe_texts[b]["s"], "ratio": snappedf(ratio, 0.01)})
+   373				elif ra.position.distance_to(rb.position) > 2.0:
+   374					bad.append({"type": "相同字串重疊", "s": probe_texts[a]["s"], "ratio": snappedf(ratio, 0.01)})
+   375		# V1.2.1 F1：字要完整在九宮格的內容區裡（材質登記的實際斜邊內距）；只看包住字中心的最上層方塊，按鈕標籤也算
+   376		for t in probe_texts:
+   377			if t.get("field", false) or t.get("glyph", false):
+   378				continue
+   379			var tr2: Rect2 = t.get("gr", t["r"])   # 字形框
+   380			var cc := tr2.get_center()
+   381			var best = null
+   382			for bx in probe_boxes:
+   383				if bx["inner"].has_point(cc):
+   384					best = bx   # 最上層（最後畫）的方塊：疊在別的面板上的視窗算自己的框
+   385			if best != null and not best["inner"].grow(0.5).encloses(tr2):
+   386				bad.append({"type": "字壓到九宮格邊", "s": t["s"], "box": str(best["r"])})
+   387		# 第七輪 I3：按鈕框互撞（重疊但不是一個包住另一個）
+   388		for bi in probe_btns.size():
+   389			for bj in range(bi + 1, probe_btns.size()):
+   390				var r1: Rect2 = probe_btns[bi]
+   391				var r2: Rect2 = probe_btns[bj]
+   392				var inter := r1.intersection(r2)
+   393				if inter.get_area() > 6.0 and not r1.encloses(r2) and not r2.encloses(r1):
+   394					bad.append({"type": "按鈕互撞", "a": str(r1), "b": str(r2)})
+   395		for hr in probe_hits:
+   396			if hr.size.y < 44.0:   # V1.5.2：擴過點擊區的小鈕，點擊區要 ≥44
+   397				bad.append({"type": "點擊區不足 44", "r": str(hr)})
+   398			for b2 in _btns:   # 擴大的點擊區不能蓋到別顆按鈕的點擊區（先登記的會攔走點擊，Codex 實作第 2 輪）
+   399				var r2: Rect2 = b2["r"]
+   400				if r2 != hr and hr.intersection(r2).get_area() > 1.0 and not hr.encloses(r2) and not r2.encloses(hr):
+   401					bad.append({"type": "點擊區互撞", "a": str(hr), "b": str(r2)})
+   402		for r in probe_btns:
+   403			if r.size.x < 36.0 or r.size.y < 36.0:   # 方案 §5.3：點擊框 ≥36px
+   404				bad.append({"type": "點擊框太小", "r": str(r)})
+   405		# 第五輪（Antigravity 實作第 1 輪抓到自動檢查漏的）：按鈕外的文字壓到按鈕上
+   406		for t in probe_texts:
+   407			if t.get("field", false):
+   408				continue
+   409			var tr: Rect2 = t["r"]
+   410			if t.get("btn", false):
+   411				# 按鈕標籤：只豁免它自己的按鈕；要完整落在自己的框內，也不能壓到別顆按鈕（Codex 實作第 2 輪）
+   412				var own: Rect2 = t.get("own", Rect2())
+   413				if own.has_area() and not own.grow(2.0).encloses(tr):
+   414					bad.append({"type": "按鈕標籤超出按鈕", "s": t["s"], "btn": str(own)})
+   415				for br2 in probe_btns:
+    50		for dc in d.get("decos", []):
+    51			have[str(dc["kind"])] = int(have.get(str(dc["kind"]), 0)) + 1
+    52		for role in need:
+    53			if int(have.get(role, 0)) < int(need[role]):
+    54				_add(out, "fail", "G", role, "漏登記：%s 需要 ≥%d，實得 %d" % [role, int(need[role]), int(have.get(role, 0))])
+    55		for rb in ribbons:
+    56			if not panels.is_empty() and _panel_by_id(panels, str(rb.get("host", ""))) == null:
+    57				_add(out, "fail", "G", rb["id"], "緞帶沒有有效的宿主面板（host=%s）" % str(rb.get("host", "")))
+    58		if str(d.get("overlay", "")) != "" and panels.is_empty() and not bool(d.get("panelless_ok", false)):
+    59			_add(out, "fail", "G", str(d["overlay"]), "漏登記：覆蓋層沒有面板")
+    60		# ── R11（1.3.0，使用者第 10 點）：格子裡的字要置中：同一個格子面（按鈕面、圓鈕、宣告的格子）裡的字，
+    61		#    墨跡聯集中心－格子面中心－登記的光學偏移，每軸 ≤ TOL_CELL（1 邏輯 px）；字也不能越出格子面 ──
+    62		var cells := {}
+    63		for t in texts:
+    64			var f = t.get("face")
+    65			if not (f is Rect2) or not t.has("ink"):
+    66				continue
+    67			var fk := str(t.get("cell", ""))   # 格子身分（按鈕索引／宣告序號），不用座標當鍵：重疊格不會誤合（Codex cat01 #4）
+    68			if fk == "":
+    69				fk = "%d,%d,%d,%d" % [roundi(f.position.x), roundi(f.position.y), roundi(f.size.x), roundi(f.size.y)]
+    70			if not cells.has(fk):
+    71				cells[fk] = {"face": f, "ink": t["ink"], "s": str(t["s"])}
+    72			else:
+    73				cells[fk]["ink"] = (cells[fk]["ink"] as Rect2).merge(t["ink"])
+    74				cells[fk]["s"] = str(cells[fk]["s"]) + "／" + str(t["s"])
+    75		for fk in cells:
+    76			var cl: Dictionary = cells[fk]
+    77			var fr: Rect2 = cl["face"]
+    78			var ik: Rect2 = cl["ink"]
+    79			var e: Vector2 = ik.get_center() - fr.get_center() - OPT.of(str(d.get("overlay", "")), str(cl["s"]))   # 光學偏移鍵＝畫面（覆蓋層）|字串：跨版本穩定的元件身分
+    80			if absf(e.x) > TOL_CELL + 0.001 or absf(e.y) > TOL_CELL + 0.001:
+    81				_add(out, "fail", "R11", str(cl["s"]), "格子裡的字沒置中：偏 (%.1f, %.1f)，格子 %s" % [e.x, e.y, str(fr)])
+    82			elif not fr.grow(0.5).encloses(ik):
+    83				_add(out, "fail", "R11", str(cl["s"]), "字超出格子面：字 %s、格子 %s" % [str(ik), str(fr)])
+    84		# ── R12（1.4.0 §15，使用者第 10 點）：格子裡的字上下左右要有空：墨跡聯集到格子面四邊
+    85		#    上、下 ≥ max(4, 格高×12%)；左、右 ≥ max(6, 格寬×6%)。和 R11 同時要滿足（不互相豁免）──
+    86		for fk in cells:
+    87			var cl2: Dictionary = cells[fk]
+    88			var fr2: Rect2 = cl2["face"]
+    89			var ik2: Rect2 = cl2["ink"]
+    90			var mt := ik2.position.y - fr2.position.y
+    91			var mb := fr2.end.y - ik2.end.y
+    92			var ml := ik2.position.x - fr2.position.x
+    93			var mr := fr2.end.x - ik2.end.x
+    94			var nv := maxf(R12_V_MIN, fr2.size.y * R12_V_PCT)
+    95			var nh := maxf(R12_H_MIN, fr2.size.x * R12_H_PCT)
+    96			if mt < nv - 0.5 or mb < nv - 0.5:
+    97				_add(out, R12_LEVEL, "R12", str(cl2["s"]), "格子字上下太緊：上 %.1f、下 %.1f（要 ≥%.1f），格子 %s" % [mt, mb, nv, str(fr2)])
+    98			elif ml < nh - 0.5 or mr < nh - 0.5:
+    99				_add(out, R12_LEVEL, "R12", str(cl2["s"]), "格子字左右太緊：左 %.1f、右 %.1f（要 ≥%.1f），格子 %s" % [ml, mr, nh, str(fr2)])
+   100		# ── R13（1.4.0 §15）：圖示要完整在宿主格子裡、上下 ≥ max(3, 宿主高×10%)、左右 ≥3。
+   101		#    宿主＝畫圖示時宣告的格子面；沒有就找包住圖示中心的最小按鈕。都沒有＝行內／獨立圖示（只計數，見 icons_free）──
+   102		var free_icons := 0
+   103		for ic in d.get("icons", []):
+   104			var ir: Rect2 = ic["r"]
+   105			var host = ic.get("face")
+   920		var cloth: bool = btn_cloth != "" and not paper_face and not bool(Save.s("plain_ui")) and _ui_tex(MAT[btn_cloth]) != null   # 1.2.0 §1.3 布標分頁
+   921		# 1.2.0 第 4 大類 A10：「木色／選中」兩種標準色的按鈕也走木牌（原本是深色圓角塊，Antigravity cat03 #1）；選中＝暖一點的木牌＋朱砂框（不只靠顏色）。
+   922		# 木色／選中但沒有自己標籤的按鈕（字由呼叫端另外畫白字：技能格、試煉卡、禁用卡、遠征獎勵卡）維持原本深色，避免白字落在淺木牌上（Codex cat04 #1）
+   923		var sel_on: bool = tint == TH_ACTIVE
+   924		var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or ((sel_on or tint == TH_WOOD) and label != "")) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+   925		last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
+   926		last_btn_enabled = enabled
+   927		if cloth:
+   928			var ct := Color.WHITE if enabled else Color(0.6, 0.6, 0.6, 0.8)
+   929			if enabled and (hover or focus):
+   930				ct = Color(1.12, 1.12, 1.12)
+   931			_mat_box(rd, btn_cloth, ct)
+   932			# 縫線：布標內緣一圈虛線（裝飾，不登記探針）
+   933			var sc := Color(1, 1, 1, 0.35) if btn_cloth != "tab_linen" else Color(0.35, 0.25, 0.15, 0.4)
+   934			var sr := rd.grow(-5)
+   935			if layout_probe:
+   936				probe_deco("stitch", sr, rd, "inside")   # 1.2.0 元件契約：縫線登記成宿主內的裝飾
+   937			var dash := 6.0
+   938			var xx := sr.position.x
+   939			while xx < sr.end.x - dash:
+   940				draw_line(Vector2(xx, sr.position.y), Vector2(xx + dash * 0.6, sr.position.y), sc, 1.0)
+   941				draw_line(Vector2(xx, sr.end.y), Vector2(xx + dash * 0.6, sr.end.y), sc, 1.0)
+   942				xx += dash
+   943		elif plaque:
+   944			var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
+   945			if not enabled:
+   946				pt = Color(0.78, 0.75, 0.7, 0.85)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
+   947			elif sel_on and not primary:
+   948				pt = Color(1.0, 0.84, 0.66)
+   949			if enabled and (hover or focus):
+   950				pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
+   951			_mat_box(rd, "plaque", pt)
+   952			if sel_on and enabled and tint.a > 0.0:
+   953				draw_rect(rd.grow(-4 if rd.size.y >= 40.0 else -2), Color(Color("#9b281b"), 0.9), false, 2.5 if rd.size.y >= 40.0 else 1.5)   # 選中：朱砂框（矮按鈕框往外、變細，不壓到 150% 的字）
+   954			if primary and enabled and rd.size.x >= 120.0:
+   955				var wx := _ui_tex(MAT["wax_red"])
+   956				var ws := minf(rd.size.y + 8.0, 46.0)
+   957				# 長標籤時讓位（Antigravity cat02 #1）：字寬＋蠟封露出的部分放不下就不畫蠟封
+   958				var lab_w := _width(label, ts(18), true)
+game/scripts/ui/screens/game_v16.gd:1455:	var mvp = report.get("mvp")
+game/scripts/ui/screens/game_v16.gd:1456:	Career.medal_add(md, sim.units, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1)
+game/scripts/ui/screens/game_v16.gd:2245:	var mvp = report.get("mvp")
+game/scripts/ui/screens/game_v16.gd:2247:	coop_log.append_array([gauntlet_stage, coop_player(gauntlet_stage) if ga_coop else 0, 1 if won else 0, int(mvp.type) if mvp != null and mvp.team == 0 and not mvp.summon else -1])
+game/scripts/ui/screens/game_core.gd:294:func _build_report() -> void:
+game/scripts/ui/screens/game_core.gd:297:	var mvp = null
+game/scripts/ui/screens/game_core.gd:302:		if (sim.winner < 0 or u.team == sim.winner) and (mvp == null or u.dmg_dealt > mvp.dmg_dealt):
+game/scripts/ui/screens/game_core.gd:303:			mvp = u
+game/scripts/ui/screens/game_result.gd:209:	var mvp = report.get("mvp")
+game/scripts/ui/screens/game_result.gd:210:	_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
+game/scripts/ui/screens/game_result.gd:249:		if mvp != null and not (loss != "" and mvp.team == 1):   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
+game/scripts/ui/screens/game_result.gd:258:			Art.unit(self, mr.position + Vector2(52, 66), mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.25, cbm())
+game/scripts/ui/screens/game_result.gd:260:			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660 if seals.is_empty() else 500)
+game/scripts/ui/screens/game_result.gd:638:	var mvp = report.get("mvp")
+game/scripts/ui/screens/game_result.gd:640:	var unit := L.t("unit_%d" % mvp.type) if mvp != null else ""
+game/scripts/ui/screens/game_result.gd:641:	var dmg: int = mvp.dmg_dealt if mvp != null else 0
+game/scripts/ui/screens/game_result.gd:771:	var mvp = report.get("mvp")
+game/scripts/ui/screens/game_result.gd:772:	if mvp != null:
+game/scripts/ui/screens/game_result.gd:840:	var mvp = report.get("mvp")
+game/scripts/ui/screens/game_result.gd:841:	if mvp != null:
+   870	
+   871	
+   872	
+   873	## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）
+   874	func _begin_battle(a0, a1, kind := "official") -> void:
+   875		nav_stack.clear()   # V1.5.1：開戰後，之前的返回堆疊作廢
+   876		_pre_drop()
+   877		play_kind = kind
+   878		tm_ghost = null   # V1.4 #1：時光機的原本時間線只在「如果」播放時存在（_rv_play 之後會再設）
+   879		_ensure_sprites([a0, a1])
+   880		if kind == "official":
+   881			last_armies = [a0.copy(), a1.copy()]
+   882			battle_rules = rules.copy() if rules != null else _puzzle_rules()   # 第十三輪：殘局自帶規則
+   883		sim = Sim.new(a0, a1, battle_rules)
+   884		_cmd_setup(sim, kind)
+   885		view = ViewBuffer.new(sim)
+   886		atk_seq.clear()
+   887		clutch_tick = -1
+   888		replay_total = 0
+   889		if kind != "official":
+   890			# 重播／覆盤：先用確定性模擬算出整場長度，時間軸以實際秒數為滿（Antigravity S5）
+   891			var pa0 = a0.copy()
+   892			var pa1 = a1.copy()
+   893			var pr = battle_rules.copy() if battle_rules != null else null
+   894			var plog: Array = last_cmds.duplicate(true)
+   895			replay_bm = []
+   896			var run_pre := func() -> Array:
+   897				var pre = Sim.new(pa0, pa1, pr)
+   898				if pre.cmd_on:
+   899					pre.cmd_play(plog)
+   900				pre.fast = true
+   901				var bm: Array = []
+   902				while not pre.finished:
+   903					pre.step()
+   904					BM.collect(pre, bm)   # 1.2.0 §11.2：預跑順手收書籤（不多跑一次模擬）
+   905				return [pre.tick, bm]
+   906			if _async_ok():
+   907				pre_thread = Thread.new()
+   908				pre_thread.start(run_pre)
+   909			else:
+   910				var pv: Array = run_pre.call()
+   911				replay_total = int(pv[0])
+   912				replay_bm = pv[1]
+   913		paused = false
+   914		follow_id = -1
+   915		battle_marks.clear()
+   916		report_log.clear()
+   917		skip_busy = false
+   918		seek_target = -1
+   919		if kind == "official":
+   920			replay_snap = {}
+   185		fx.clear()
+   186		frags.clear()   # 1.2.0 §8.2
+   187		dying.clear()
+   188		graves.clear()
+   189		# V1.5.1 B2：跳轉前 1～4 秒倒下的兵，陣亡小旗照時間補回（倒地 1 秒後插旗、旗子留 3 秒）
+   190		for did in _seek_deaths:
+   191			var age: float = float(target - int(_seek_deaths[did])) / 20.0
+   192			var dv = view.unit_by_id(int(did))
+   193			if dv != null and age >= 1.0 and age < 4.0:
+   194				graves.append({"pos": _upos(dv), "team": dv.team, "t": age - 1.0})
+   195			elif dv != null and age >= 0.0 and age < 1.0:
+   196				# 不到一秒前倒下：倒地演出接著播完，跨過 1 秒照常插旗（Codex v151-i2 #1）
+   197				dying.append({"pos": _upos(dv), "type": dv.type, "team": dv.team, "face": signf(dv.fx) if dv.fx != 0 else 1.0, "t": age})
+   198		atk_hit.clear()
+   199		atk_seq.clear()
+   200		alt_hit.clear()
+   201		proj_tgt.clear()   # V1.5：跳轉不能留舊的飛行目標（Antigravity v150-i1 #1）
+   202		atk_t.clear()
+   203		hurt_t.clear()
+   204		hurt_dir.clear()
+   205		brace_t.clear()
+   206		accum = 0.0
+   207		present_debt = 0.0   # 1.2.0 §9.6：跳轉後不能帶著舊的欠時加速（Codex final-r2 #3）
+   208		result_delay = 0.0
+   209		clutch_t = 0.0
+   210		slow_left = 0.0
+   211		final_left = 0.0     # Codex v10-r1 #4：跳回前段不能留著慢動作，再播到末擊要再演
+   212		final_used = false
+   213		key_used = false
+   214		key_t = -10.0
+   215		last_kill = [-1, -10.0]
+   216		last_hitter.clear()
+   217		hitstop = 0.0
+   218		# 演出狀態依目標時間重建（Codex S5 #5）：最後時刻是否已發生、是否已進狂熱、音樂
+144:const CARD_Y := 694.0
+145:const CARD_W := 80.0     # 第四輪：一排 10 張窄卡（方案 D），起點 x＝CARD_X0
+146:const CARD_X0 := 12.0
+148:const CARD_H := 96.0
+932:			settings_item = rows[i][0]
+938:				settings_item = rows[i][0]
+ M game/data/strings.csv
+ M game/fonts/NTBLatin-B-sub.ttf
+ M game/fonts/NTBLatin-M-sub.ttf
+ M game/fonts/NTBRounded-B-sub.otf
+ M game/fonts/NTBRounded-R-sub.otf
+ M game/fonts/NTBRoundedJP-B-sub.otf
+ M game/fonts/NTBRoundedJP-R-sub.otf
+ M game/fonts/NTBRoundedSC-B-sub.otf
+ M game/fonts/NTBRoundedSC-R-sub.otf
+ M game/fonts/NTBSans-B-sub.otf
+ M game/fonts/NTBSans-R-sub.otf
+ M game/fonts/NTBSansJP-B-sub.otf
+ M game/fonts/NTBSansJP-R-sub.otf
+ M game/fonts/NTBSansSC-B-sub.otf
+ M game/fonts/NTBSansSC-R-sub.otf
+ M game/fonts/NTBTitle-sub.ttf
+ M game/fonts/ThenKhung-sub.ttf
+ M game/scripts/game/save.gd
+ M game/scripts/ui/battle_view.gd
+ M game/scripts/ui/codex_view.gd
+ M game/scripts/ui/lobby_view.gd
+ M game/scripts/ui/palette.gd
+ M game/scripts/ui/replay_view.gd
+ M game/scripts/ui/screens/game_menus.gd
+ M game/scripts/ui/screens/game_modes.gd
+ M game/scripts/ui/screens/game_place.gd
+ M game/scripts/ui/screens/game_result.gd
+ M game/scripts/ui/ui_base.gd
+ M game/tests/run_tests.gd
+ M game/tests/suites/ui.gd
+?? coordination/v140-impl/cat02-plan.md
+?? coordination/v140-impl/cat02-r1/
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/screens/game_core.gd | sed -n '294,312p'; rg -n 'stats|best_streak|streak' game/scripts/game/save.gd | head -35; nl -ba game/scripts/ui/screens/game_result.gd | sed -n '568,595p'; nl -ba game/scripts/ui/screens/game_menus.gd | sed -n '818,851p'; rg -n 'func t\\(|seal_' game/scripts/game/strings.gd game/data/strings.csv | tail -8; ls coordination/v140-impl/cat02-r1" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 774ms:
+   294	func _build_report() -> void:
+   295		var dealt := [D.zeros(), D.zeros()]
+   296		var taken := [D.zeros(), D.zeros()]
+   297		var mvp = null
+   298		for u in sim.units:
+   299			dealt[u.team][D.report_type(u.type)] += u.dmg_dealt
+   300			taken[u.team][D.report_type(u.type)] += u.dmg_taken
+   301			# MVP：勝方輸出最高的兵（平手時看全場）
+   302			if (sim.winner < 0 or u.team == sim.winner) and (mvp == null or u.dmg_dealt > mvp.dmg_dealt):
+   303				mvp = u
+   304		var sus: Dictionary = sim.suspense()
+   305		report = {"dealt": dealt, "taken": taken, "mvp": mvp, "sus": sus,
+   306			"lock_sec": int(sus["lock_ratio_permille"]) * sim.tick / 1000 / 20}
+   307		# 時間軸的領先交換點（第三輪 U5）：戰力差換號（忽略 1% 以內的小波動），最多 4 個
+   308		var leads: Array = []
+   309		var last_sign := 0
+   310		var eps: int = sim.budget * 1000 / 100
+   311		if sim.judge == 2:
+   312			eps = 10   # 讓子：用各自預算的比例（每千分之十＝1%）
+22:	"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
+25:	"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false, "gauntlet_run": {}, "puzzle_tries": {}, "puzzle_first": {}, "trial_tries": {}, "trial_first": {}, "daily_best": {},
+190:	for k in ["stats", "custom_stats"]:
+213:	for nk in ["streak", "best_streak"]:
+288:		for k in ["n", "pts", "streak", "best"]:
+446:	for k in ["daily_streak"]:
+577:		var st = out.get("stats", {})
+596:		var st0 = out.get("stats", {})
+690:	return d.get("stats") is Dictionary and d.get("achievements") is Array
+   568				x += bw + 6
+   569			y += tz("S") * 2.1
+   570		_text(Vector2(640, y + 4), L.t("fingerprint", [sim.fingerprint.substr(0, 12)]), tz("C"), TXT_DIM, true, false, 760)   # V1.2.1 F5：原 45% 白只有 2:1
+   571	
+   572	
+   573	
+   574	## 一句描述（第五輪：只講事實、和 MVP 一致，不宣稱因果——Codex 第二輪）。主角＝MVP（勝方傷害最高的那一隻）。
+   575	## V1.1 B1：藍方（玩家）輸了才有。傷害最多的敵方兵種與占比；能帶的兵裡剋它最強的那種當建議。雙人、觀戰不顯示。
+   576	func _loss_line(w: int, goal_mode: bool) -> String:
+   577		if mode == Mode.DUEL or watch_mode or play_kind == "review":
+   578			return ""
+   579		var lost: bool = (bool(report.get("goal_ok", true)) == false) if goal_mode else (w == 1)
+   580		if not lost:
+   581			return ""
+   582		var line := loss_summary(ev_count, _loss_pool())
+   583		var st: Dictionary = Save.data.get("stats", {})
+   584		if line != "" and int(st.get("wins", 0)) == 0 and int(st.get("games", 0)) <= 2 and (mode == Mode.VS_AI or mode == Mode.TUTORIAL):
+   585			line = L.t("loss_first", [line])   # V1.0.0 N6：前兩場還沒贏過：先講「輸很正常」再給建議
+   586		return line
+   587	
+   588	func _loss_pool() -> Array:
+   589		if mode == Mode.PUZZLE or mode == Mode.TUTORIAL:
+   590			return PZ.get_puzzle(puzzle_id).get("allowed", [])
+   591		var out: Array = []
+   592		var pool: int = int(armies[0].pool) if not armies.is_empty() else 0
+   593		for ty in 20:
+   594			if RuleSet.has(pool, ty):
+   595				out.append(ty)
+   818		var ph := 96.0 + items.size() * 66.0 + 24.0   # 面板高度照項目數
+   819		var P := Rect2(440, 400 - ph * 0.5, 400, ph)
+   820		_panel(P)
+   821		_text(Vector2(640, P.position.y + 26), L.t("pm_title"), tz("H2"), Color.WHITE, true, true, 340)
+   822		var y := P.position.y + 96
+   823		for it in items:
+   824			_btn(Rect2(P.position.x + 50, y, 300, 52), it[0], it[1], true, it[2])
+   825			y += 66
+   826	
+   827	const SET_COL := Rect2(340, 150, 560, 560)    # 設定頁中央操作欄
+   828	const SET_DESC := Rect2(910, 166, 236, 470)   # 設定頁右側說明欄
+   829	
+   830	func _draw_settings() -> void:
+   831		vol_rails.clear()
+   832		_panel(Rect2(110, 96, 1060, 628))
+   833		# V1.5.2 L8／L9：三欄畫面。左＝分頁、中＝操作欄（340～900，中線 620）、右＝說明欄；底部按鈕以中欄中線置中，
+   834		# 預設三鈕＋撤回整組放在中欄內（撤回原本 880～990 被說明欄蓋住 80px）
+   835		probe_axis(SET_COL.get_center().x)
+   836		probe_columns("settings", [Rect2(110, 150, 230, 560), SET_COL, SET_DESC])
+   837		_h1(Vector2(640, 92), L.t("settings_title"))   # 1.2.0：H1 字級放大 3px，緞帶上移保持和第一列的間距（R2）
+   838		for i in SET_TABS:
+   839			btn_cloth = "tab_indigo" if i == settings_tab else "tab_linen"   # 1.2.0 §1.3：分頁是布標（選中靛藍、未選原胚布）
+   840			_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
+   841				TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
+   842			btn_cloth = ""
+   843		# V1.5.1 C1：這一頁恢復預設（先確認）
+   844		var page_keys: Array = []
+   845		for rw in _settings_rows():
+   846			page_keys.append(rw[0])
+   847		var any_changed := false
+   848		for pk0 in page_keys:
+   849			any_changed = any_changed or set_changed(pk0)
+   850		_btn(Rect2(136, 166 + SET_TABS * 56 + 8, 190, 44), L.t("set_reset_page"), func(): _ask_confirm(L.t("set_reset_page_q"), func(): _reset_rows(page_keys), "settings"), any_changed)
+   851		var y0 := 166.0
+game/scripts/game/strings.gd:82:static func t(key: String, args: Array = []) -> String:
+game/data/strings.csv:1725:seal_mvp,MVP：%s（傷害 %d）,MVP: %s (damage %d),MVP：%s（伤害 %d）,MVP：%s（ダメージ %d）
+game/data/strings.csv:1726:seal_dmg,最大輸出：%s（傷害 %d）,Top damage: %s (%d),最大输出：%s（伤害 %d）,最大火力：%s（ダメージ %d）
+game/data/strings.csv:1727:seal_tank,中流砥柱：%s（承受 %d 還站著）,Rock of the line: %s (took %d and stood),中流砥柱：%s（承受 %d 还站着）,大黒柱：%s（%d 受けて健在）
+agy
+agy-prompt.txt
+agy.err
+agy.md
+codex-prompt.md
+codex.err
+codex.md
+diff.patch
+
+codex
+只讀靜態審查，必改 5 項（P2）：
+
+1. [battle_view.gd:842](game/scripts/ui/battle_view.gd:842)：只要秒數不同就滴答、重設跳字時間；未區分正常倒數與跳轉，也未在開局／seek 重設 `clock_last`。暫停時跳到最後 10 秒仍會響、跳。應只對正常播放跨秒觸發。
+
+2. [game_result.gd:833](game/scripts/ui/screens/game_result.gd:833)：最大輸出與坦傷固定只選藍方；DUEL 紅方勝出或和局時，MVP 可來自紅方，其餘獎卻仍頒藍方。應明定雙人獎項範圍，資料與 toast 加隊別，避免同兵種無法辨識。
+
+3. [game_result.gd:249](game/scripts/ui/screens/game_result.gd:249)、[845](game/scripts/ui/screens/game_result.gd:845)：印章依附 MVP 卡，單人敗局有敗因文字時整組消失；全部陣亡或無承傷者又直接少一枚。應獨立顯示獎項區，無合資格者保留「無得主」狀態，符合三枚契約。
+
+4. [game_result.gd:858](game/scripts/ui/screens/game_result.gd:858)：`_btns.append` 讓手把能選取、確認，但沒有繪製焦點框，也未支援加強焦點。焦點會進入看不見的停靠點；應補齊共用按鈕的焦點呈現。
+
+5. [game_modes.gd:996](game/scripts/ui/screens/game_modes.gd:996)：改用 `_woodtype` 後移除原本 `tw - 62` 寬度限制。長連勝數值在大字級會跨出戰績卡；需保留限寬／換行能力，並計入木牌兩側外擴。
+
+其餘核對：方印呼叫後有重設；存檔有驗型且開戰會落盤，阻擋時不記。設定值格沿用焦點／停用與文字、撥片辨識。圖鑑宣告有效，`_probe_glyph` 不豁免 R11／R12。觀戰／看代碼不頒章。覆盤 `chh` 反推與兩圖中線一致；牌尺未改動自由部署命中與輸入。
+
+結論：有條件
+tokens used
+77,526

@@ -1828,3 +1828,32 @@ func test_r12_r13_v140() -> void:
 	var ubs: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
 	ok(ubs.find("maxf(ih + 8.0 + 1.0, (ih + 1.0) / 0.76)") >= 0, "價錢子格高度＝墨跡＋上下 max(4, 12%)")
 	ok(ubs.find("r.size.x - 2.0 * (maxf(6.0, r.size.x * 0.06) + 1.0)") >= 0, "按鈕標籤左右各留 max(6, 6% 寬)")
+
+## 1.4.0 第 2 大類：木活字數字（只換核准的數字符號、最後 10 秒才跳）
+func test_woodtype_v140() -> void:
+	var UB = load("res://scripts/ui/ui_base.gd")
+	var okc := true
+	for ch in "0123456789%":
+		okc = okc and UB.is_wood_char(ch)
+	ok(okc, "數字與百分號是木活字")
+	ok(not UB.is_wood_char("金") and not UB.is_wood_char("s") and not UB.is_wood_char("秒"), "文字不換（勝負文字、單位走原字型）")
+	var bv: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(bv.find("secs <= 10 and not bool(Save.s(\"reduce_motion\"))") >= 0, "倒數只在最後 10 秒跳、減少動態不跳")
+	var P = load("res://scripts/ui/palette.gd")
+	ok(P.WOOD_TYPE != P.WOOD_TYPE_D, "木活字色在色票")
+
+## 1.4.0 第 3～4 大類：器物幾何、謝幕（方印、牌尺、抽屜、熱鍵木牌、三枚印章、棋鐘跳字只在正常播放）
+func test_vessels_curtain_v140() -> void:
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("var tm: int = sim.winner if sim.winner >= 0 else 0") >= 0, "印章頒給勝方（雙人紅方勝就頒紅方）")
+	ok(gr.find("seal_none") >= 0 and gr.find("idx == _focus and pad_mode") >= 0, "三枚一定都在（無得主＝灰章）、手把有焦點框")
+	var bv: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(bv.find("secs == clock_last - 1 and not paused and seek_target < 0") >= 0, "棋鐘只在正常播放往下走一秒才跳、響")
+	var cx: String = FileAccess.get_file_as_string("res://scripts/ui/codex_view.gd")
+	ok(cx.find("probe_cell_begin(tg)") >= 0, "圖鑑熱鍵木牌宣告成格子（R11／R12）")
+	var lv: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
+	ok(lv.find("btn_seal_square = true") >= 0 and lv.find("btn_seal_square = false") >= 0, "大廳方印只給開戰鈕（畫完重設）")
+	var SV = load("res://scripts/game/save.gd")
+	var d := {"lobby_stamps": "x"}
+	SV.sanitize_data(d)
+	ok(d["lobby_stamps"] == 0, "手帳印跡存檔驗型")

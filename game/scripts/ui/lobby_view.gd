@@ -118,6 +118,10 @@ func _lobby_block() -> String:
 
 func _lobby_start() -> void:
 	var why := _lobby_block()
+	if why == "":
+		Save.data["lobby_stamps"] = mini(99, int(Save.data.get("lobby_stamps", 0)) + 1)   # 1.4.0 §1.1 手帳上的印跡
+		if sfx != null:
+			sfx.play_pitched("place_heavy", 0.5, 0.8)   # 蓋印的悶響
 	if why != "":
 		_toast(why, true)
 		return
@@ -524,7 +528,18 @@ func _draw_lobby() -> void:
 	else:
 		_btn(Rect2(458, by, 200, 48), L.t("lb_random"), _lobby_random)
 	var why := _lobby_block()
+	btn_seal_square = true
 	_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
+	btn_seal_square = false
+	if not bool(Save.s("plain_ui")) and not lobby_open:
+		# 1.4.0 §1.1：每次開戰在手帳右頁右下蓋一記方印，最多留 3 記（下次打開還在）
+		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
+		for k in ns:
+			var sc := Vector2(1150.0 - k * 34.0, 660.0 - (k % 2) * 8.0)
+			draw_set_transform(sc, 0.08 * (k - 1), Vector2.ONE)
+			draw_rect(Rect2(-13, -13, 26, 26), Color(PAL.TRINKET_RED, 0.42), false, 2.5)
+			draw_rect(Rect2(-8, -8, 16, 16), Color(PAL.TRINKET_RED, 0.26))
+			draw_set_transform(Vector2.ZERO)
 	if why != "":
 		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
 	if lobby_menu:

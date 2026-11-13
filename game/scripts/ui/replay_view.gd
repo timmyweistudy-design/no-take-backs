@@ -171,6 +171,7 @@ func _seek_tick(budget_ms: int) -> bool:
 	return true
 
 func _seek_finish() -> void:
+	clock_last = -1   # 1.4.0 §7.2：跳轉後棋鐘不補跳不補響
 	if sfx != null and sfx.has_method("reseed"):
 		sfx.reseed(sfx.seed_at(round_no, view.tick if view != null else 0))   # 1.3.0 §10：跳轉後音效變體從同一個狀態開始
 	call_deferred("_tm_sync")
@@ -795,6 +796,12 @@ func _rv_div_mark(r: Rect2, span: int) -> void:
 		return
 	var x := r.position.x + r.size.x * clampf(float(rv_div) / float(span), 0.0, 1.0)
 	_chalk_line(Vector2(x, r.position.y - 2), Vector2(x, r.end.y + 2), Color("#ffd166"), 2.6, 6.0)
+	# 1.4.0 §8.3 批註本：分岔點在兩條墨線上各用硃筆圈一下
+	if not bool(Save.s("plain_ui")):
+		var chh := (r.size.y - tz("S") * 1.5 - 12.0) * 0.5
+		for cy in [r.position.y + chh * 0.5, r.end.y - chh * 0.5]:
+			draw_arc(Vector2(x, cy), 11.0, 0.4, TAU - 0.3, 24, Color(1, 0.9, 0.75, 0.4), 4.0, true)
+			draw_arc(Vector2(x, cy), 11.0, 0.4, TAU - 0.3, 24, Color(PAL.TRINKET_RED, 0.9), 2.2, true)
 	draw_colored_polygon(PackedVector2Array([Vector2(x - 5, r.position.y - 8), Vector2(x + 5, r.position.y - 8), Vector2(x, r.position.y - 1)]), ACCENT)
 
 func _rv_has_sel() -> bool:

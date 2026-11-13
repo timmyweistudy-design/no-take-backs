@@ -1013,6 +1013,7 @@ func _shots_v4() -> void:
 	hover_card = -1
 	# 第五輪：規則大廳（精簡、卡池、讓子、雙人、沙盒）
 	Save.data["last_rules"] = {}
+	Save.data["lobby_stamps"] = 2   # 1.4.0 §1.1：截圖看得到手帳上的印跡
 	_go_title()
 	_open_lobby("ai")
 	mouse = Vector2(-100, -100)

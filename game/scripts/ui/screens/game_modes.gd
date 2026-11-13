@@ -993,7 +993,10 @@ func _draw_profile() -> void:
 		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 7.0)
 		_icon(tiles[i][0], r.position + Vector2(30, 40), 34.0, ACCENT)
 		_text(r.position + Vector2(56, 10), L.t(tiles[i][1]), tz("C"), TXT_DIM, false, false, tw - 62)
-		_text(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true, tw - 62)
+		if _width(tiles[i][2], tz("H2"), true) + 10.0 <= tw - 62:
+			_woodtype(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true)   # 1.4.0 §7.2 戰績大數字＝木活字（含木牌外擴放得下才用）
+		else:
+			_text(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true, tw - 62)   # 放不下：照原本限寬（Codex v140 cat02 #5）
 	# 兵種勝率
 	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
 	var ug: Dictionary = Save.data.get("unit_games_rec", {})   # V1.5.1：場數、勝場同口徑（對 AI、遠征、雙人）

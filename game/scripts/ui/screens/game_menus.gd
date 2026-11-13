@@ -870,6 +870,14 @@ func _draw_settings() -> void:
 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
 		y0 += 60.0
 	var rows: Array = _settings_rows()
+	if not bool(Save.s("plain_ui")):
+		# 1.4.0 §1.3 工具箱：分頁、選項、說明三欄是三格抽屜（深一階的抽屜底＋上緣陰影＋下緣中央黃銅把手）
+		for dr in [Rect2(110, 150, 230, 560), SET_COL, SET_DESC.grow_individual(0, 16, 0, 74)]:
+			draw_rect(dr.grow(2), Color(DIM_INK, 0.28))
+			draw_rect(Rect2(dr.position, Vector2(dr.size.x, 6)), Color(DIM_INK, 0.3))
+			var pull := Vector2(dr.get_center().x, dr.end.y + 4)
+			draw_rect(Rect2(pull - Vector2(18, 3), Vector2(36, 6)), PAL.TRINKET_BRASS.darkened(0.3))
+			draw_rect(Rect2(pull - Vector2(16, 3), Vector2(32, 3)), PAL.TRINKET_BRASS)
 	for i in rows.size():
 		var y := _settings_row_y(i)
 		if i % 2 == 0:
@@ -884,7 +892,7 @@ func _draw_settings() -> void:
 			_btn(r, val.substr(1), cb.bind(1))
 		else:
 			_btn(Rect2(r.position, Vector2(46, r.size.y)), "◀", cb.bind(-1))
-			var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else TH_WOOD_D
+			var tint := Color(0.16, 0.5, 0.3) if val == L.t("on") else Color(0, 0, 0, 0)   # 1.4.0 §1.3：值格是淺色木牌（原本黑膠囊）；開＝綠
 			var vr := Rect2(r.position + Vector2(52, 0), Vector2(r.size.x - 104, r.size.y))
 			_btn(vr, val, cb.bind(1), true, false, tint)
 			if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):

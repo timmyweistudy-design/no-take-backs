@@ -819,7 +819,7 @@ func _draw_battle_hud() -> void:
 		if tm0 == 0 and lb_w > bx - 22.0 - HUD_LEFT_END and sn[tm0] > 0:   # 英文大字級擠不下就只留數字，別撞到左上的比分
 			lb0 = "%d＋%d" % [cnt0, sn[tm0]]
 			lb_w = font_bold.get_string_size(lb0, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
-		_text(Vector2(bx - 22 - lb_w if tm0 == 0 else bx + bw + 22, 42), lb0, ts(15), _legible(Art.team_color(tm0, cbm())))   # 1.3.0：150% 時字 ≥19 粗體不會自動提亮，這裡手動過一次（4.48 → ≥4.5）
+		_text(Vector2(bx - 22 - lb_w if tm0 == 0 else bx + bw + 22, 42), lb0, ts(15), _legible(Art.team_color(tm0, cbm())).lightened(0.06))   # 1.3.0：150% 時字 ≥19 粗體不會自動提亮，這裡手動過一次（4.48 → ≥4.5）
 	for tm in 2:
 		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0
@@ -838,7 +838,18 @@ func _draw_battle_hud() -> void:
 		draw_rect(cr.grow(-4), Color("#8a6a48", 0.7), false, 1.0)   # 最後一輪（Codex 看圖 #6）：鐘面內框，像有厚度的木盒
 		draw_rect(Rect2(cr.position.x, cr.end.y - 3, cr.size.x, 3), Color(DIM_INK, 0.35))
 		draw_rect(Rect2(640 - 9, 0, 18, 3), Color("#c9a24a"))
-		_text(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true)
+		# 1.4.0 §7.2：數字是木活字；最後 10 秒每換一秒數字跳一下＋輕輕一聲（減少動態不跳）
+		if secs != clock_last:
+			# 只有正常播放、往下走一秒才跳／響（跳轉、暫停、倒帶不算；Codex v140 cat02 #1）
+			var normal: bool = clock_last >= 0 and secs == clock_last - 1 and not paused and seek_target < 0
+			if normal and secs <= 10 and secs > 0 and sfx != null and not view.finished:
+				sfx.play_pitched("k_click", 0.22, 1.5)
+			clock_flip_t = time if normal else -10.0
+			clock_last = secs
+		var jmp := 0.0
+		if secs <= 10 and not bool(Save.s("reduce_motion")):
+			jmp = clampf(1.0 - (time - clock_flip_t) / 0.15, 0.0, 1.0)
+		_woodtype(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true, jmp)
 	else:
 		_text(Vector2(640, 4), clock_s, ts(22), Color.ORANGE_RED if view.frenzy else Color.WHITE, true, true)
 	# 1.2.0 §5.6 情境資訊：AI 名稱只在開場 3 秒、滑鼠指到戰力尺、手把按 View 後 2 秒顯示（Codex／Antigravity：資訊都在，次要的不常駐）
@@ -943,6 +954,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	zoom_target = 1.0
 	pinch_zoom = 1.0   # V1.4 #18：新的一場不沿用上一場的縮放
 	dir_manual = false   # 1.3.0 §2：每一場（含重播、精華段）導播重新接手
+	clock_last = -1      # 1.4.0 §7.2：棋鐘跳字重新算
 	if sfx != null and sfx.has_method("reseed"):
 		sfx.reseed(sfx.seed_at(round_no, 0))   # 1.3.0 §10：音效變體用固定種子
 	spot_a = 0.0
@@ -1360,3 +1372,8 @@ func _draw_intro() -> void:
 	# 跳過提示（2 秒後）
 	if t > 2.0 and fade < 0.5:
 		_text(Vector2(1240, 760), L.t("intro_skip"), tz("C"), Color(1, 0.9, 0.75, 0.55 * a), false, false, 0.0)
+
+
+# ── 1.4.0 第 2 大類：棋鐘木活字 ──
+var clock_last := -1
+var clock_flip_t := -10.0

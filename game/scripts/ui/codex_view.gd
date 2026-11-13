@@ -263,8 +263,19 @@ func _draw_codex() -> void:
 		if t == cx_unit:
 			draw_rect(r.grow(1.0), ACCENT, false, 3.0)   # 第七輪 E9：選中的兵種金框
 		_unit_in(r, t, 0, 1.0, 0.6 if t != D.CAVALRY else 0.55)   # 人物在頁籤正中間（原本腳畫到框外）
-		_probe_glyph = true   # V1.2.1：頁籤角落的快捷鍵數字是符號
-		_text(r.position + Vector2(4, 2), str((t0 + 1) % 10), tcap(tz("C"), 14), TXT_DIM, false, true)
+		# 1.4.0 §1.4：熱鍵數字改在卡片左下角的小木牌（離頭飾遠；上方沒有放書籤舌的空間，量測後改這裡），木牌是宣告的格子（R11／R12）
+		var hk := str((t0 + 1) % 10)
+		var hsz := tcap(tz("C"), 14)
+		var hih := label_ink(hk, hsz, true).size.y
+		var tgw := maxf(16.0, _width(hk, hsz, true) + 13.0)
+		var tg := Rect2(r.position.x + 9.0, r.end.y - 9.0 - (hih + 10.0), tgw, hih + 10.0)
+		draw_rect(Rect2(tg.position + Vector2(1, 2), tg.size), Color(DIM_INK, 0.4))
+		draw_rect(tg, PAL.WOOD_TYPE)
+		draw_rect(tg, PAL.WOOD_TYPE_D, false, 1.0)
+		_probe_glyph = true
+		probe_cell_begin(tg)
+		_text(ink_center_p(tg, hk, hsz, true), hk, hsz, PAL.INK, true, true)
+		probe_cell_end()
 		_probe_glyph = false
 	_btn(Rect2(960, 104, 110, 38), L.t("cxz_summons"), func(): _cx_pick_unit(D.COUNT * 2), true, false, TH_ACTIVE if cx_unit >= D.COUNT * 2 else Color(0, 0, 0, 0))
 	if cx_zoom or cx_unit >= D.total():
