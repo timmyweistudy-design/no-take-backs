@@ -591,7 +591,7 @@ func _draw_fs_confirm() -> void:
 	_btn(Rect2(650, P.end.y - 72, 210, 50), L.t("fs_revert"), func(): _fs_revert())
 
 ## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
-const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
+const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_table_view": ["table_view"], "set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
 	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
@@ -692,6 +692,7 @@ func _settings_rows() -> Array:
 				["set_fps", L.t("v_unlimited") if int(Save.s("fps_cap")) == 0 else str(int(Save.s("fps_cap"))), func(d): _step_setting("fps_cap", [30, 60, 120, 0], d); _apply_display()],
 				["set_vsync", _onoff("vsync"), func(d): _cycle_setting("vsync", [true, false]); _apply_display()],
 				["set_smooth_pose", _onoff("smooth_pose"), func(d): _cycle_setting("smooth_pose", [false, true])],   # 1.2.0 §7.2 定格表演層
+				["set_table_view", L.t("v_table") if bool(Save.s("table_view")) else L.t("v_topdown"), func(d): _cycle_setting("table_view", [true, false])],   # 1.3.0 §1.1 戰場視角
 				["set_paint", "@" + L.t("open_it"), func(d): call("_paint_open")]]
 		1:
 			return [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],

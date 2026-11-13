@@ -245,7 +245,7 @@ func _draw_field() -> void:
 	if fld_map != 0:
 		var mt := _map_tex()
 		if mt != null:
-			draw_texture_rect(mt, Rect2(ORIGIN, fld_size), false)
+			draw_texture_rect(mt, Rect2(ORIGIN, fld_size), false)   # 1.3.0：桌邊視角的牆格高度烘在地塊裡（map_art._relief）
 		else:
 			draw_rect(Rect2(ORIGIN, fld_size), Color(fbi.get("base", "#6f9a4a")))
 		if rules != null and rules.time_of != 0:
@@ -422,6 +422,19 @@ func _board_ring(inner: Rect2) -> bool:
 	for strip in [Rect2(outer.position, Vector2(outer.size.x, 18)), Rect2(Vector2(outer.position.x, inner.end.y), Vector2(outer.size.x, 18)),
 			Rect2(Vector2(outer.position.x, inner.position.y), Vector2(18, inner.size.y)), Rect2(Vector2(inner.end.x, inner.position.y), Vector2(18, inner.size.y))]:
 		draw_texture_rect(oak, strip, true, Color(0.95, 0.88, 0.8))
+	if tilt_on():
+		# 1.3.0 §1.1 桌邊視角：鏡頭從南邊斜看，棋盤南側露出一條木頭端面（端面較暗、年輪橫紋、底下貼桌的暗線）
+		var face := Rect2(Vector2(outer.position.x, outer.end.y), Vector2(outer.size.x, BOARD_EDGE_H))
+		draw_texture_rect(oak, face, true, Color(0.55, 0.46, 0.38))
+		for k in 4:   # 端面由上往下變暗（離燈遠）
+			draw_rect(Rect2(face.position + Vector2(0, k * face.size.y / 4.0), Vector2(face.size.x, face.size.y / 4.0)), Color(0.08, 0.05, 0.03, 0.06 * k))
+		for k in 3:
+			draw_line(face.position + Vector2(0, 3 + k * 3), Vector2(face.end.x, face.position.y + 3 + k * 3), Color(0.18, 0.1, 0.05, 0.18), 1.0)
+		draw_line(face.position, Vector2(face.end.x, face.position.y), Color(1, 0.9, 0.7, 0.4), 1.5)   # 上緣倒角受光（和框接起來）
+		for cx in [face.position.x, face.end.x]:   # 兩角的倒角斜線：框角往下接到端面，像一塊有厚度的板
+			var dxx := 4.0 if cx == face.position.x else -4.0
+			draw_line(Vector2(cx, face.position.y), Vector2(cx + dxx, face.end.y), Color(0.1, 0.06, 0.03, 0.55), 1.5)
+		draw_rect(Rect2(face.position + Vector2(0, face.size.y - 2), Vector2(face.size.x, 2)), Color(0.08, 0.05, 0.03, 0.6))
 	draw_rect(outer, Color("#2a1a10"), false, 2.0)                       # 外緣暗線
 	draw_rect(outer.grow(-2), Color(1, 0.9, 0.7, 0.28), false, 1.0)      # 外緣亮邊（倒角）
 	draw_rect(inner.grow(3), Color("#3a2414"), false, 3.0)               # 內緣刻線
@@ -443,6 +456,16 @@ func _board_ring(inner: Rect2) -> bool:
 	return true
 
 const MAT_OAK := "res://art/mat/tile_oak.png"
+
+## ── 1.3.0 §1 桌邊視角（路線 B：2D 假立體；路線 A 切片的結論見 coordination/v130-impl/cat02-plan.md）──
+## 鏡頭是正交、偏離俯視 20°：地面座標和 1.2.0 完全一樣（點格、版面、截圖座標都不變），只多出朝南的立面、厚度與燈影。
+## 設定「戰場視角」：桌邊（預設）／正上方（＝1.2.0 畫法）；簡化介面一律正上方。
+const BOARD_EDGE_H := 12.0   # 棋盤南側端面露出的高度（板厚 × sin20°）
+const RELIEF_H := 10.0       # 凸起牆格的南側立面高度（畫在牆格自己裡面，不往北伸：見 map_art._relief）
+
+func tilt_on() -> bool:
+	return bool(Save.s("table_view")) and not bool(Save.s("plain_ui"))
+
 
 ## V1.4 #10 沙盤機關：畫在沙盤上。還沒發動＝虛線框＋倒數秒數；崩塌後＝碎石；火牆燒時＝火焰；推進板＝木板＋往中線的箭頭。
 func _draw_map_events() -> void:
@@ -466,6 +489,8 @@ func _draw_map_events() -> void:
 					if tk >= t0:
 						# 碎石：深色底＋幾顆石頭（位置只看格子編號，固定）
 						draw_rect(R, Color(0.24, 0.19, 0.15, 0.92))
+						if tilt_on():
+							draw_rect(Rect2(Vector2(R.position.x, R.end.y - RELIEF_H), Vector2(R.size.x, RELIEF_H)), Color(0.14, 0.11, 0.08, 0.95))   # 1.3.0：崩塌後的碎石堆也有南側立面（動態牆格；Codex cat02 #3）
 						for k in 7:
 							var sp := R.position + Vector2(fposmod(k * 37.0 + side * 11.0, maxf(1.0, R.size.x - 12.0)) + 6.0, fposmod(k * 23.0 + 5.0, maxf(1.0, R.size.y - 12.0)) + 6.0)
 							draw_circle(sp, 5.0 + (k % 3) * 2.0, Color(0.42, 0.35, 0.28), true, -1.0, true)

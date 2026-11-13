@@ -1,0 +1,231 @@
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index 90f26ab..4c4149f 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1700,3 +1700,7 @@ lbd_t_xs_4,迴馬,Wheel back,回马,反転突撃
+ lbd_xs_4,騎兵衝鋒命中後往自己陣地撤一格（後面被擋就不撤），%d 秒內的下一擊照衝鋒算。每次衝鋒只撤一次。,"After a Cavalry charge lands, it pulls back one cell (unless blocked); its next hit within %d s counts as a charge. Once per charge.",骑兵冲锋命中后往自己阵地撤一格（后面被挡就不撤），%d 秒内的下一击照冲锋算。每次冲锋只撤一次。,騎兵の突撃が当たると自陣側へ1マス下がり（ふさがっていれば下がらない）、%d 秒以内の次の攻撃も突撃扱い。突撃ごとに1回。
+ lbd_t_xs_syn,協同技,Combos,协同技,連携技
+ lbd_xs_syn,狂戰士旁邊 %d 格內（含斜角）有同隊鼓手：開戰時攻擊 +%d%%。和「相鄰陣法」不能同時開。,A Berserker with an allied Drummer within %d cell (diagonals count) gets +%d%% attack from the start. Can't be on together with Formation bonds.,狂战士旁边 %d 格内（含斜角）有同队鼓手：开战时攻击 +%d%%。和「相邻阵法」不能同时开。,狂戦士の %d マス以内（斜め含む）に味方の鼓手がいると開戦時に攻撃 +%d%%。「隣接陣法」とは同時に使えません。
++set_table_view,戰場視角,Battlefield view,战场视角,戦場の視点
++sd_set_table_view,桌邊：從桌邊斜看棋盤，牆和積木有高度、棋盤有厚度。正上方：從正上方看（和舊版一樣）。點格子的位置兩種都一樣。,"Tabletop: look at the board from the edge of the table, so walls and blocks have height and the board has thickness. Top-down: straight down, like before. Clicking cells works the same in both.",桌边：从桌边斜看棋盘，墙和积木有高度、棋盘有厚度。正上方：从正上方看（和旧版一样）。点格子的位置两种都一样。,卓の端：卓の端から斜めに盤を見る（壁や積み木に高さ、盤に厚み）。真上：真上から見る（以前と同じ）。マスの位置はどちらも同じ。
++v_table,桌邊,Tabletop,桌边,卓の端
++v_topdown,正上方,Top-down,正上方,真上
+diff --git a/game/fonts/NTBLatin-B-sub.ttf b/game/fonts/NTBLatin-B-sub.ttf
+index 8368808..67b1316 100644
+Binary files a/game/fonts/NTBLatin-B-sub.ttf and b/game/fonts/NTBLatin-B-sub.ttf differ
+diff --git a/game/fonts/NTBLatin-M-sub.ttf b/game/fonts/NTBLatin-M-sub.ttf
+index 2532ef9..f8bf836 100644
+Binary files a/game/fonts/NTBLatin-M-sub.ttf and b/game/fonts/NTBLatin-M-sub.ttf differ
+diff --git a/game/fonts/NTBRoundedJP-B-sub.otf b/game/fonts/NTBRoundedJP-B-sub.otf
+index 2d8de64..3717aa0 100644
+Binary files a/game/fonts/NTBRoundedJP-B-sub.otf and b/game/fonts/NTBRoundedJP-B-sub.otf differ
+diff --git a/game/fonts/NTBRoundedJP-R-sub.otf b/game/fonts/NTBRoundedJP-R-sub.otf
+index ae7b5d0..5edf715 100644
+Binary files a/game/fonts/NTBRoundedJP-R-sub.otf and b/game/fonts/NTBRoundedJP-R-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-B-sub.otf b/game/fonts/NTBSansJP-B-sub.otf
+index d33f85c..b21937b 100644
+Binary files a/game/fonts/NTBSansJP-B-sub.otf and b/game/fonts/NTBSansJP-B-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-R-sub.otf b/game/fonts/NTBSansJP-R-sub.otf
+index 7c74c02..f7cf28e 100644
+Binary files a/game/fonts/NTBSansJP-R-sub.otf and b/game/fonts/NTBSansJP-R-sub.otf differ
+diff --git a/game/fonts/NTBTitle-sub.ttf b/game/fonts/NTBTitle-sub.ttf
+index 09274f4..191d769 100644
+Binary files a/game/fonts/NTBTitle-sub.ttf and b/game/fonts/NTBTitle-sub.ttf differ
+diff --git a/game/scripts/game/save.gd b/game/scripts/game/save.gd
+index d8dfae8..69ca841 100644
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS := {
+ 	"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
+ 	"long_press": 0.5, "place_mode": "both", "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
+ 	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
+-	"hold_confirm": false, "magnify": false, "ui_font": "craft", "smooth_pose": false,   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
++	"hold_confirm": false, "magnify": false, "ui_font": "craft", "smooth_pose": false, "table_view": true,   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
+ }
+ const ENUMS := {"ui_font": ["classic", "craft"], "place_mode": ["both", "tap"], "title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
+ 	"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3, 0], "rumble": [0, 25, 50, 100], "deadzone": [5, 10, 15, 20, 25, 30, 35, 40], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 70ef4dd..83024a6 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -246,6 +246,7 @@ func _draw_field() -> void:
+ 		var mt := _map_tex()
+ 		if mt != null:
+ 			draw_texture_rect(mt, Rect2(ORIGIN, fld_size), false)
++			_draw_relief(mt)   # 1.3.0 §1／§3：桌邊視角時牆格有高度（凸起積木／凹槽）
+ 		else:
+ 			draw_rect(Rect2(ORIGIN, fld_size), Color(fbi.get("base", "#6f9a4a")))
+ 		if rules != null and rules.time_of != 0:
+@@ -422,6 +423,14 @@ func _board_ring(inner: Rect2) -> bool:
+ 	for strip in [Rect2(outer.position, Vector2(outer.size.x, 18)), Rect2(Vector2(outer.position.x, inner.end.y), Vector2(outer.size.x, 18)),
+ 			Rect2(Vector2(outer.position.x, inner.position.y), Vector2(18, inner.size.y)), Rect2(Vector2(inner.end.x, inner.position.y), Vector2(18, inner.size.y))]:
+ 		draw_texture_rect(oak, strip, true, Color(0.95, 0.88, 0.8))
++	if tilt_on():
++		# 1.3.0 §1.1 桌邊視角：鏡頭從南邊斜看，棋盤南側露出一條木頭端面（端面較暗、年輪橫紋、底下貼桌的暗線）
++		var face := Rect2(Vector2(outer.position.x, outer.end.y), Vector2(outer.size.x, BOARD_EDGE_H))
++		draw_texture_rect(oak, face, true, Color(0.55, 0.46, 0.38))
++		for k in 3:
++			draw_line(face.position + Vector2(0, 3 + k * 3), Vector2(face.end.x, face.position.y + 3 + k * 3), Color(0.18, 0.1, 0.05, 0.18), 1.0)
++		draw_line(face.position, Vector2(face.end.x, face.position.y), Color(1, 0.9, 0.7, 0.35), 1.0)   # 上緣倒角受光
++		draw_rect(Rect2(face.position + Vector2(0, face.size.y - 2), Vector2(face.size.x, 2)), Color(0.08, 0.05, 0.03, 0.6))
+ 	draw_rect(outer, Color("#2a1a10"), false, 2.0)                       # 外緣暗線
+ 	draw_rect(outer.grow(-2), Color(1, 0.9, 0.7, 0.28), false, 1.0)      # 外緣亮邊（倒角）
+ 	draw_rect(inner.grow(3), Color("#3a2414"), false, 3.0)               # 內緣刻線
+@@ -444,6 +453,66 @@ func _board_ring(inner: Rect2) -> bool:
+ 
+ const MAT_OAK := "res://art/mat/tile_oak.png"
+ 
++## ── 1.3.0 §1 桌邊視角（路線 B：2D 假立體；路線 A 切片的結論見 coordination/v130-impl/cat02-plan.md）──
++## 鏡頭是正交、偏離俯視 20°：地面座標和 1.2.0 完全一樣（點格、版面、截圖座標都不變），只多出朝南的立面、厚度與燈影。
++## 設定「戰場視角」：桌邊（預設）／正上方（＝1.2.0 畫法）；簡化介面一律正上方。
++const BOARD_EDGE_H := 10.0   # 棋盤南側端面露出的高度（板厚 × sin20°）
++const RELIEF_H := 12.0       # 凸起牆格的頂面上移量（牆高 × sin20°；不超過半格 16px，北側格的腳點不會被蓋到）
++const RELIEF := {"ice": 1, "canyon": 1, "forest": 1, "river": -1, "lava": -1}   # 1＝凸起積木、-1＝凹槽（水、岩漿）
++
++func tilt_on() -> bool:
++	return bool(Save.s("table_view")) and not bool(Save.s("plain_ui"))
++
++## 牆格高度（只改畫面；牆格判讀色不變）：凸起＝右側落影（燈在左上）→ 頂面整格上移 RELIEF_H（從地塊貼圖取同一塊）→ 南側立面（較暗、上緣亮線）；
++## 凹槽＝北緣與西緣內陰影、南緣一道亮邊（水面低於地面）。由北往南畫，相鄰牆格接得起來。
++func _draw_relief(mt: Texture2D) -> void:
++	if not tilt_on() or fld_map == 0 or MapDefs.MAPS.size() <= fld_map:
++		return
++	var t = MapDefs.terrain(fld_map, fld_sz)
++	if t == null or not t.has_block:
++		return
++	var biome := str(MapDefs.MAPS[fld_map]["biome"])
++	var kind := int(RELIEF.get(biome, 0))
++	if kind == 0:
++		return
++	var cw: float = fld_size.x / float(t.n)
++	var ch: float = fld_size.y / float(t.m)
++	var blk := Color(MapArt.BIOME[biome]["block"])
++	var isb := func(c: int, r: int) -> bool: return c >= 0 and r >= 0 and c < t.n and r < t.m and t.grid[c + r * t.n] == t.BLOCK
++	if kind < 0:
++		for r in t.m:
++			for c in t.n:
++				if not isb.call(c, r):
++					continue
++				var R := Rect2(ORIGIN + Vector2(c * cw, r * ch), Vector2(cw, ch))
++				if not isb.call(c, r - 1):
++					for k in 3:
++						draw_rect(Rect2(R.position + Vector2(0, k * 2.0), Vector2(cw, 2.0)), Color(0.04, 0.03, 0.02, 0.26 - k * 0.08))
++				if not isb.call(c - 1, r):
++					draw_rect(Rect2(R.position, Vector2(3.0, ch)), Color(0.04, 0.03, 0.02, 0.16))
++				if not isb.call(c, r + 1):
++					draw_line(Vector2(R.position.x, R.end.y - 0.5), Vector2(R.end.x, R.end.y - 0.5), Color(1, 0.95, 0.85, 0.28), 1.0)
++		return
++	for r in t.m:
++		for c in t.n:
++			if isb.call(c, r) and not isb.call(c + 1, r):
++				var R2 := Rect2(ORIGIN + Vector2(c * cw, r * ch), Vector2(cw, ch))
++				draw_rect(Rect2(Vector2(R2.end.x, R2.position.y - RELIEF_H + 5.0), Vector2(6.0, ch)), Color(0.06, 0.04, 0.02, 0.24))   # 右側落影
++	for r in t.m:
++		for c in t.n:
++			if not isb.call(c, r):
++				continue
++			var R := Rect2(ORIGIN + Vector2(c * cw, r * ch), Vector2(cw, ch))
++			var top := Rect2(R.position - Vector2(0, RELIEF_H), R.size)
++			draw_texture_rect_region(mt, top, Rect2(R.position - ORIGIN, R.size))
++			if not isb.call(c, r - 1):
++				draw_line(top.position, Vector2(top.end.x, top.position.y), Color(1, 0.95, 0.85, 0.35), 1.0)   # 頂面北緣受光
++			if not isb.call(c, r + 1):
++				var fr := Rect2(Vector2(R.position.x, R.end.y - RELIEF_H), Vector2(cw, RELIEF_H))
++				draw_rect(fr, blk.darkened(0.45))
++				draw_line(fr.position, Vector2(fr.end.x, fr.position.y), Color(0, 0, 0, 0.35), 1.0)
++				draw_line(Vector2(fr.position.x, fr.end.y - 0.5), Vector2(fr.end.x, fr.end.y - 0.5), Color(0.05, 0.03, 0.02, 0.5), 1.0)
++
+ ## V1.4 #10 沙盤機關：畫在沙盤上。還沒發動＝虛線框＋倒數秒數；崩塌後＝碎石；火牆燒時＝火焰；推進板＝木板＋往中線的箭頭。
+ func _draw_map_events() -> void:
+ 	var ev: Array = MapDefs.events(fld_map)
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 49c6212..ce3ac3f 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -591,7 +591,7 @@ func _draw_fs_confirm() -> void:
+ 	_btn(Rect2(650, P.end.y - 72, 210, 50), L.t("fs_revert"), func(): _fs_revert())
+ 
+ ## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
+-const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
++const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_table_view": ["table_view"], "set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
+ 	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
+ 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
+ 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
+@@ -692,6 +692,7 @@ func _settings_rows() -> Array:
+ 				["set_fps", L.t("v_unlimited") if int(Save.s("fps_cap")) == 0 else str(int(Save.s("fps_cap"))), func(d): _step_setting("fps_cap", [30, 60, 120, 0], d); _apply_display()],
+ 				["set_vsync", _onoff("vsync"), func(d): _cycle_setting("vsync", [true, false]); _apply_display()],
+ 				["set_smooth_pose", _onoff("smooth_pose"), func(d): _cycle_setting("smooth_pose", [false, true])],   # 1.2.0 §7.2 定格表演層
++				["set_table_view", L.t("v_table") if bool(Save.s("table_view")) else L.t("v_topdown"), func(d): _cycle_setting("table_view", [true, false])],   # 1.3.0 §1.1 戰場視角
+ 				["set_paint", "@" + L.t("open_it"), func(d): call("_paint_open")]]
+ 		1:
+ 			return [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 0c867ff..ec46281 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -1093,6 +1093,19 @@ func _desk_props() -> void:
+ 	draw_colored_polygon(nb, Color("#d9c9a8"))
+ 	draw_line(Vector2(-10, 30), Vector2(104, 22), Color("#8b7355", 0.5), 1.0)
+ 	draw_line(Vector2(-10, 46), Vector2(100, 38), Color("#8b7355", 0.5), 1.0)
++	# 1.3.0 §1.2 茶杯（右側桌面）：熱氣三縷慢慢往上飄（減少特效時停住；截圖模式的時間是固定的，可重現）
++	var cup := Vector2(1236, 432)
++	draw_circle(cup + Vector2(5, 7), 23.0, Color(DIM_INK, 0.4), true, -1.0, true)
++	draw_circle(cup, 22.0, Color("#e9e1cf"), true, -1.0, true)
++	draw_circle(cup, 16.0, Color("#6b4a22"), true, -1.0, true)
++	draw_circle(cup - Vector2(4, 4), 5.0, Color(1, 0.95, 0.8, 0.25), true, -1.0, true)
++	var st_t: float = 0.0 if bool(Save.s("reduce_fx")) else time
++	for w in 3:
++		var pts := PackedVector2Array()
++		for k in 9:
++			var yy := -k * 7.0
++			pts.append(cup + Vector2(-8 + w * 8 + sin(st_t * 1.3 + k * 0.7 + w * 2.1) * (2.0 + k * 0.6), -20 + yy))
++		draw_polyline(pts, Color(1, 1, 1, 0.10 + 0.04 * w), 2.0, true)
+ 	# 沙漏（右下）
+ 	var hg := Vector2(1240, 752)
+ 	draw_rect(Rect2(hg - Vector2(16, 32), Vector2(32, 5)), Color("#7a5434"))
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 18461ef..fd3d66e 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index 47bafb7..d29e49b 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -780,3 +780,28 @@ func test_ext_event_routes_v120() -> void:
+ 	ok(tags.has("rescue") and tags.has("ext_fire") and bad.is_empty(), "急救、火矢標籤出現、都已登記、分流合法", "%s %s" % [tags.keys(), bad])
+ 	ok(not g.proj_tgt.has(arch.id) and not g.atk_hit.has(arch.id), "倒下射手的火矢不排拉弓／飛箭")
+ 	g.free()
++
++## 1.3.0 第 2 大類：桌邊視角（路線 B）——預設開、簡化介面一律正上方；每種有牆的地貌都定了凸起或凹槽；凸起高度不蓋到北側格腳點（半格 16px）
++func test_table_view_v130() -> void:
++	var SV = load("res://scripts/game/save.gd")
++	var keep: Dictionary = SV.settings.duplicate(true)
++	var BU = load("res://scripts/ui/battle/battle_units.gd")
++	var MD = load("res://scripts/core/map_defs.gd")
++	var g = load("res://scripts/ui/game_screens.gd").new()
++	SV.settings.erase("table_view")
++	SV.settings["plain_ui"] = false
++	ok(g.tilt_on(), "預設桌邊視角")
++	SV.settings["plain_ui"] = true
++	ok(not g.tilt_on(), "簡化介面一律正上方")
++	SV.settings["plain_ui"] = false
++	SV.settings["table_view"] = false
++	ok(not g.tilt_on(), "設定正上方")
++	var miss: Array = []
++	for mp in MD.MAPS:
++		var b := str(mp["biome"])
++		if b != "grass" and not BU.RELIEF.has(b):
++			miss.append(b)
++	ok(miss.is_empty(), "每種有牆的地貌都有高度定義（缺 %s）" % str(miss))
++	ok(BU.RELIEF_H < 16.0 and BU.BOARD_EDGE_H <= 12.0, "凸起高度 < 半格（北側格腳點不被蓋）")
++	g.free()
++	SV.settings = keep

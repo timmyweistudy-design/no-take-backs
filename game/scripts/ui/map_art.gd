@@ -14,16 +14,22 @@ static func key_of(map_id: int, size: int) -> int:
 	return map_id * 10 + size
 
 func texture(map_id: int, size: int) -> Texture2D:
-	var k := key_of(map_id, size) * 2 + (1 if _plain() else 0)   # 簡化介面另存一張（不烘紙紋、不調色）
+	var tl := _tilt()
+	var k := key_of(map_id, size) * 4 + (1 if _plain() else 0) + (2 if tl else 0)   # 簡化介面另存一張（不烘紙紋、不調色）；1.3.0 桌邊視角（高度）另存一張
 	if _tex.has(k):
 		return _tex[k]
 	if not _busy.has(k):
 		_busy[k] = true
-		_bake.call_deferred(map_id, size, _plain())   # 鍵與設定在排程當下固定（Codex v121：延後才讀會留下卡住的 busy）
+		_bake.call_deferred(map_id, size, _plain(), tl)   # 鍵與設定在排程當下固定（Codex v121：延後才讀會留下卡住的 busy）
 	return null
 
-func _bake(map_id: int, size: int, plain := false) -> void:
-	var k := key_of(map_id, size) * 2 + (1 if plain else 0)
+## 1.3.0 §1 桌邊視角：牆格高度烘進地塊（Codex cat02 #6：不每幀畫）
+static func _tilt() -> bool:
+	var Sv = preload("res://scripts/game/save.gd")
+	return bool(Sv.s("table_view")) and not bool(Sv.s("plain_ui"))
+
+func _bake(map_id: int, size: int, plain := false, tilt := false) -> void:
+	var k := key_of(map_id, size) * 4 + (1 if plain else 0) + (2 if tilt else 0)
 	var t = MD.terrain(map_id, size)
 	if t == null:
 		_busy.erase(k)   # 失敗也清掉，下次可以重試
@@ -37,6 +43,7 @@ func _bake(map_id: int, size: int, plain := false) -> void:
 	p.kind = MD.MAPS[map_id]["biome"]
 	p.t = t
 	p.plain = plain
+	p.tilt = tilt
 	vp.add_child(p)
 	add_child(vp)
 	await RenderingServer.frame_post_draw
@@ -160,6 +167,7 @@ static func draw_prop(ci: CanvasItem, origin: Vector2, pr: Array, time: float) -
 
 class _Painter extends Node2D:
 	var plain := false
+	var tilt := false
 	var biome: Dictionary
 	var kind := ""
 	var t
@@ -338,6 +346,48 @@ class _Painter extends Node2D:
 								draw_circle(pr.position + Vector2(pw * 0.5 - 0.5, ny), 1.3, Color("#3a2a1c"))
 		_personality(Q)
 		_decor(Q)
+		if tilt:
+			_relief(Q)
+
+	## 1.3.0 §1／§3 桌邊視角（鏡頭從南邊斜看，正交、偏離俯視 20°）：牆格的高度。
+	## 凸起（冰塊、峽谷斷崖）：南側立面畫在**牆格自己裡面**的下緣（頂面不往北移：不蓋北側格、點擊的格子和看到的一致，Codex cat02 #4 #5），
+	##   上緣一道暗線（頂面轉折）、底下貼地暗線，東側地上一條燈影（燈在左上）。林間的樹本來就是立體物件，不加方盒（Antigravity cat02 #2）。
+	## 凹槽（河、岩漿）：北緣、西緣內陰影，南緣一道亮邊（面低於地面）；只畫在和非牆格相鄰的邊（連成一條，不切段）。
+	const RELIEF := {"ice": 1, "canyon": 1, "river": -1, "lava": -1}
+	const FACE_H := 10.0
+	func _relief(Q: float) -> void:
+		var rk := int(RELIEF.get(kind, 0))
+		if rk == 0:
+			return
+		for r in t.m:
+			for c in t.n:
+				if _cell(c, r) != t.BLOCK:
+					continue
+				var o := Vector2(c, r) * Q
+				var s_free: bool = _cell(c, r + 1) != t.BLOCK
+				var e_free: bool = _cell(c + 1, r) != t.BLOCK and _cell(c + 1, r) != -1
+				if rk > 0:
+					if e_free:
+						draw_rect(Rect2(o + Vector2(Q, 4.0), Vector2(5.0, Q - (FACE_H if s_free else 0.0))), Color(0.06, 0.04, 0.02, 0.22))   # 東側地上的燈影
+					if s_free:
+						var fr := Rect2(o + Vector2(0, Q - FACE_H), Vector2(Q, FACE_H))
+						var fc := Color(biome["block"]).darkened(0.55 if kind == "canyon" else 0.4)
+						draw_rect(fr, fc)
+						if kind == "canyon":
+							for k in 2:
+								draw_line(fr.position + Vector2(0, 3 + k * 3), Vector2(fr.end.x, fr.position.y + 3 + k * 3), Color(0, 0, 0, 0.25), 1.0)   # 層板的板縫
+						draw_line(fr.position, Vector2(fr.end.x, fr.position.y), Color(0, 0, 0, 0.45), 1.5)          # 頂面轉立面的暗線
+						draw_line(Vector2(fr.position.x, fr.end.y - 0.5), Vector2(fr.end.x, fr.end.y - 0.5), Color(0.04, 0.03, 0.02, 0.6), 1.0)   # 貼地暗線
+						if e_free:
+							draw_rect(Rect2(Vector2(fr.end.x - 3.0, fr.position.y), Vector2(3.0, FACE_H)), Color(0, 0, 0, 0.25))   # 東端收邊
+				else:
+					if _cell(c, r - 1) != t.BLOCK and _cell(c, r - 1) != -1:
+						for k in 3:
+							draw_rect(Rect2(o + Vector2(0, k * 2.0), Vector2(Q, 2.0)), Color(0.04, 0.03, 0.02, 0.28 - k * 0.08))
+					if _cell(c - 1, r) != t.BLOCK and _cell(c - 1, r) != -1:
+						draw_rect(Rect2(o, Vector2(3.0, Q)), Color(0.04, 0.03, 0.02, 0.16))
+					if s_free and _cell(c, r + 1) != -1:
+						draw_line(o + Vector2(0, Q - 0.5), o + Vector2(Q, Q - 0.5), Color(1, 0.95, 0.85, 0.3), 1.0)
 
 	## 1.2.0 §5.2 地圖個性（第 6 大類 B，只改畫面、烘進地塊、固定種子）：只畫在可走格上，不改地形判讀。
 	func _personality(Q: float) -> void:

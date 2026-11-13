@@ -795,7 +795,7 @@ func _draw_battle_hud() -> void:
 		if tm0 == 0 and lb_w > bx - 22.0 - HUD_LEFT_END and sn[tm0] > 0:   # 英文大字級擠不下就只留數字，別撞到左上的比分
 			lb0 = "%d＋%d" % [cnt0, sn[tm0]]
 			lb_w = font_bold.get_string_size(lb0, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(15)).x
-		_text(Vector2(bx - 22 - lb_w if tm0 == 0 else bx + bw + 22, 42), lb0, ts(15), Art.team_color(tm0, cbm()))
+		_text(Vector2(bx - 22 - lb_w if tm0 == 0 else bx + bw + 22, 42), lb0, ts(15), _legible(Art.team_color(tm0, cbm())))   # 1.3.0：150% 時字 ≥19 粗體不會自動提亮，這裡手動過一次（4.48 → ≥4.5）
 	for tm in 2:
 		if view.rally[tm] and not view.finished:
 			var rx := bx - 70.0 if tm == 0 else bx + bw + 12.0

@@ -18,6 +18,11 @@ const TH_PRIMARY := Color("#e08a1e")
 const INK := Color("#24150B")
 const INK_SHADOW := Color("#140B06")
 const DIM_INK := Color("#1c130d")
+# ── 桌上小物 ──
+const CUP_GLAZE := Color("#e9e1cf")
+const CUP_BODY := Color("#d8cdb6")
+const CUP_FOOT := Color("#b9ac92")
+const TEA := Color("#6b4a22")
 # ── 隊色（[一般, 色盲][藍, 紅]）與塗裝底漆 ──
 const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]
 const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]

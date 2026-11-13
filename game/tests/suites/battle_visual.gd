@@ -780,3 +780,29 @@ func test_ext_event_routes_v120() -> void:
 	ok(tags.has("rescue") and tags.has("ext_fire") and bad.is_empty(), "急救、火矢標籤出現、都已登記、分流合法", "%s %s" % [tags.keys(), bad])
 	ok(not g.proj_tgt.has(arch.id) and not g.atk_hit.has(arch.id), "倒下射手的火矢不排拉弓／飛箭")
 	g.free()
+
+## 1.3.0 第 2 大類：桌邊視角（路線 B）——預設開、簡化介面一律正上方；每種有牆的地貌都定了凸起或凹槽；凸起高度不蓋到北側格腳點（半格 16px）
+func test_table_view_v130() -> void:
+	var SV = load("res://scripts/game/save.gd")
+	var keep: Dictionary = SV.settings.duplicate(true)
+	var BU = load("res://scripts/ui/battle/battle_units.gd")
+	var MD = load("res://scripts/core/map_defs.gd")
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	SV.settings.erase("table_view")
+	SV.settings["plain_ui"] = false
+	ok(g.tilt_on(), "預設桌邊視角")
+	SV.settings["plain_ui"] = true
+	ok(not g.tilt_on(), "簡化介面一律正上方")
+	SV.settings["plain_ui"] = false
+	SV.settings["table_view"] = false
+	ok(not g.tilt_on(), "設定正上方")
+	var MA = load("res://scripts/ui/map_art.gd")
+	var miss: Array = []
+	for mp in MD.MAPS:
+		var b := str(mp["biome"])
+		if not b in ["grass", "forest"] and not MA._Painter.RELIEF.has(b):   # 平原沒牆；林間的樹本來就是立體物件（刻意不加）
+			miss.append(b)
+	ok(miss.is_empty(), "每種有牆的地貌都有高度定義（缺 %s）" % str(miss))
+	ok(MA._Painter.FACE_H <= 16.0 and BU.BOARD_EDGE_H <= 14.0, "立面高度 ≤ 半格；立面畫在牆格自己裡面（不往北伸）")
+	g.free()
+	SV.settings = keep

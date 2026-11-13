@@ -1093,6 +1093,26 @@ func _desk_props() -> void:
 	draw_colored_polygon(nb, Color("#d9c9a8"))
 	draw_line(Vector2(-10, 30), Vector2(104, 22), Color("#8b7355", 0.5), 1.0)
 	draw_line(Vector2(-10, 46), Vector2(100, 38), Color("#8b7355", 0.5), 1.0)
+	# 1.3.0 §1.2 茶杯（右側桌面）：熱氣三縷慢慢往上飄（減少特效時停住；截圖模式的時間是固定的，可重現）
+	var cup := Vector2(1236, 432)
+	# 桌邊斜看：杯口是扁一點的橢圓、下面露出一段杯身；右下落影（燈在左上；Antigravity cat02 #5）
+	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
+	draw_circle(Vector2.ZERO, 22.0, Color(DIM_INK, 0.38), true, -1.0, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	draw_rect(Rect2(cup + Vector2(-20, 0), Vector2(40, 14)), PAL.CUP_BODY)   # 杯身
+	draw_rect(Rect2(cup + Vector2(-20, 10), Vector2(40, 4)), PAL.CUP_FOOT)
+	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup))
+	draw_circle(Vector2.ZERO, 21.0, PAL.CUP_GLAZE, true, -1.0, true)
+	draw_circle(Vector2.ZERO, 16.0, PAL.TEA, true, -1.0, true)
+	draw_circle(Vector2(-4, -4), 5.0, Color(1, 0.95, 0.8, 0.25), true, -1.0, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	var st_t: float = 0.0 if bool(Save.s("reduce_fx")) else time
+	for w in 3:
+		var pts := PackedVector2Array()
+		for k in 9:
+			var yy := -k * 7.0
+			pts.append(cup + Vector2(-8 + w * 8 + sin(st_t * 1.3 + k * 0.7 + w * 2.1) * (2.0 + k * 0.6), -20 + yy))
+		draw_polyline(pts, Color(1, 1, 1, 0.10 + 0.04 * w), 2.0, true)
 	# 沙漏（右下）
 	var hg := Vector2(1240, 752)
 	draw_rect(Rect2(hg - Vector2(16, 32), Vector2(32, 5)), Color("#7a5434"))
