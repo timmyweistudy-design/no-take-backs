@@ -99,5 +99,5 @@
 - 第 6＋7 大類驗收：統一檢查 5669 項全過；版面 24 組全量 4464 張（多了 `15c_replay_mag.png`）**0 違規**、R11 47133 段；棋子低對比 781／13536（5.8%）、>8% 的戰鬥截圖 122 張。
 
 ## 暫停（2026-11-13 17:05，使用者：「5:20 前沒做完就先暫停」）
-- 第 8 大類（器物）草稿：`build/tmp/c8/patch.py`（在 game/ 下 `python3 ../build/tmp/c8/patch.py`）、`build/tmp/c8/test.gd`（附加到 `tests/suites/ui.gd`，`test_vessels_v130` 登記在 ui 組）、規劃 `cat08-plan.md`；還沒套用、沒跑測試與審查。
+- 第 8 大類（器物）草稿：`build/tmp/c8/patch.py`（在 game/ 下 `python3 ../build/tmp/c8/patch.py`）、`build/tmp/c8/test.gd`（附加到 `tests/suites/ui.gd`，`test_vessels_v130` 登記在 ui 組）、規劃 `cat08-plan.md`；還沒套用到 game/；在快照 build/cg8 試套過：可解析、test_vessels_v130 等 17 項過（還沒跑全量、版面與審查）。
 - 之後：§8 套用→三方審查→驗收；§9.4、§10、§11、§12、§13、§14、§15；收尾（無快取 check_all、全量版面、匯出、STATE／CHANGELOG 四語、方案 §21 進度）。
