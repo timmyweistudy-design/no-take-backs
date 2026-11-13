@@ -266,7 +266,13 @@ func _draw_cmd_tab(R: Rect2) -> void:
 		_ink_mode = last_btn_paper
 		_probe_btn_label = true
 		_probe_btn_rect = crr
-		_text(crr.get_center() - Vector2(0, tz("C") * 0.62), L.t(str(COMMANDERS[k][0])), tz("C"), INK if _ink_mode else Color.WHITE, true, true, chw - 8)
+		var clab: String = L.t(str(COMMANDERS[k][0]))
+		var csz: int = fit(clab, tz("C"), chw - 8, true)
+		var clab2: String = "\n".join(wrap_lines(clab, csz, chw - 8, true))
+		var cface := Rect2(crr.position, crr.size - Vector2(0, 3))   # 1.3.0 R11：指揮官選擇鈕（一格一段字）墨跡置中
+		probe_cell_begin(cface)
+		_text(ink_center_p(cface, clab2, csz, true), clab2, csz, INK if _ink_mode else Color.WHITE, true, true)
+		probe_cell_end()
 		_probe_btn_label = false
 		_ink_mode = false
 	y += 98
@@ -558,7 +564,13 @@ func _draw_lobby_presets(o: Vector2) -> void:
 					lsz = c
 					break
 		_ink_mode = on_paper
-		_text(r.position + Vector2(tx, 5 if two else 8), lab, lsz, Color.WHITE, true, true, tw)
+		# 1.3.0 R11：字放在「色條以上」的文字區正中（原本從上緣固定 5／8 起排，字擠在上半）；選中時扣掉書籤槽
+		var lsz2: int = fit(lab, lsz, tw - 4, true)   # 留 4px：粗體墨跡比排版寬多出一點（英文 Monster Crew 多 1.5px）
+		var lab2: String = lab if two else "\n".join(wrap_lines(lab, lsz2, tw - 4, true))
+		var tcell := Rect2(r.position.x + tx - tw / 2, r.position.y + 3, tw, h - 9 - 2 - 3)
+		probe_cell_begin(tcell)
+		_text(ink_center_p(tcell, lab2, lsz2, true), lab2, lsz2, Color.WHITE, true, true)
+		probe_cell_end()
 		_ink_mode = false
 		var b := Presets.badge(p, lobby_kind)
 		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]

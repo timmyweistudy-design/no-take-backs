@@ -504,7 +504,10 @@ func _draw_relay() -> void:
 		_btn(br, "", _relay_set.bind(t), rl_sel.x >= 0)
 		var py := br.size.y - tz("C") * 1.15 - 7   # 和覆盤同一個算法：價錢在按鈕面板內
 		Art.unit(self, br.position + Vector2(31, py - 2), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0 if rl_sel.x >= 0 else 0.35, time, 0.5, cbm())
-		_text(br.position + Vector2(31, py), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if rl_sel.x >= 0 else Color(1, 1, 1, 0.3), true, true, 58)
+		var pcell := Rect2(br.position.x + 4, br.position.y + py - 3, br.size.x - 8, minf(tz("C") * 1.2 + 4, br.size.y - 3 - 4 - (py - 3)))   # 價錢那一條（不碰下緣厚度與九宮格邊）   # 1.3.0 R11：價錢子格
+		probe_cell_begin(pcell)
+		_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if rl_sel.x >= 0 else Color(1, 1, 1, 0.3), true, true)
+		probe_cell_end()
 	by += (rl_types.size() + 5) / 6 * 84 + 8
 	_btn(Rect2(bx, by, 190, 44), L.t("rv_remove"), _relay_set.bind(-1), rl_sel.x >= 0)
 	_btn(Rect2(bx + 200, by, 190, 44), L.t("rv_reset"), func(): rl_enemy = rl_orig.duplicate(true); rl_code = "")

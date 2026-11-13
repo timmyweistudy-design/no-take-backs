@@ -99,6 +99,11 @@ if arts:
     blk=sorted(arts, key=lambda d:-d['art']['black_pct'])
     u=sum(d['art']['units'] for d in arts); lu=sum(d['art']['low_units'] for d in arts)
     print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子輪廓對比 < 3:1 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
+# 1.3.0 R11：量到的格子字總數；全部是 0 代表探針沒接上（不能當成「沒有違規」）
+rc=sum(d.get('r11_cells',0) for d in rows)
+print('LAYOUT R11 格子字 %d 段（%d 張畫面有格子）' % (rc, sum(1 for d in rows if d.get('r11_cells',0)>0)))
+if rows and rc==0:
+    print('LAYOUT FAIL：R11 一段格子字都沒量到（探針沒接上）'); sys.exit(1)
 runs=glob.glob(os.path.join(out,'*','layout.jsonl'))
 want=int(os.environ.get('LAYOUT_N','14'))
 if len(runs)!=want or len(rows)!=want*expect:

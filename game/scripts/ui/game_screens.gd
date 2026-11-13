@@ -258,6 +258,7 @@ func _input(ev: InputEvent) -> void:
 
 ## 塗兵（佇列命令）：按住拖過格子連續擺。
 func _paint_cmd(p: Vector2) -> void:
+	call("vol_motion", p)   # 1.3.0：音量木軌拖曳中（沒在拖就什麼都不做）
 	if drag_from.x >= 0 and p.distance_to(drag_press_p) >= 10.0:
 		drag_moved = true   # V1.5.1：拖出去過就不算「點一下」（拖回原點也一樣，Codex v151-i3）
 	if _is_free():
@@ -279,6 +280,7 @@ var drag_press_p := Vector2.ZERO
 var drag_moved := false
 
 func _mb_release_cleanup() -> void:
+	call("vol_release")   # 1.3.0：過期的放開也結束音量拖曳（並存檔）
 	_fp_abort_drag()
 	drag_new = false
 	painting = false
@@ -293,6 +295,11 @@ func _mb_cmd(d: Dictionary) -> void:
 	mb.pressed = d["pressed"]
 	mb.position = d["pos"]
 	mouse = d["pos"]
+	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and bool(call("vol_press", mouse)):
+		return   # 1.3.0：在音量木軌上按下＝開始拖
+	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and bool(call("vol_release")):
+		_mb_release_cleanup()
+		return   # 拖完放開：存檔，不再觸發數值鈕
 	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 		if _do_click(mouse) > 0:
 			_mb_release_cleanup()
@@ -678,6 +685,7 @@ func _draw() -> void:
 
 func _draw_inner() -> void:
 	_btns.clear()
+	_probe_cell_seq = 0
 	probe_texts.clear()
 	probe_btns.clear()
 	probe_ctrls.clear()

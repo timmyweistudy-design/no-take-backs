@@ -146,20 +146,21 @@ const CARD_W := 80.0     # 第四輪：一排 10 張窄卡（方案 D），起�
 const CARD_X0 := 12.0
 const CARD_GAP := 6.0
 const CARD_H := 96.0
-const UI_BG := Color(0.11, 0.08, 0.06, 0.95)
-const PANEL := Color(0.17, 0.125, 0.09, 0.98)
-const ACCENT := Color("#ffd166")
+const PAL = preload("res://scripts/ui/palette.gd")   # 1.3.0 §4 色票單一來源
+const UI_BG := PAL.UI_BG
+const PANEL := PAL.PANEL
+const ACCENT := PAL.ACCENT
 ## V1.2.1 F5：次要字用不透明暖灰（原本是白色 50～80% 透明，疊在木紋上對比只有 2～3）
-const TXT_DIM := Color("#cfc3ae")
+const TXT_DIM := PAL.TXT_DIM
 # V9 P5 設計系統：胡桃木為底（白字才讀得清楚），羊皮紙只用在標題緞帶與重點卡片
-const TH_WOOD := Color("#3a2a1f")
-const TH_WOOD_L := Color("#55402d")
-const TH_WOOD_D := Color("#231912")
-const TH_EDGE := Color("#8d6c47")
-const TH_ACTIVE := Color("#8a5a24")
-const TH_PARCH := Color("#efdfbb")
-const TH_INK := Color("#2c2016")
-const TH_PRIMARY := Color("#e08a1e")
+const TH_WOOD := PAL.TH_WOOD
+const TH_WOOD_L := PAL.TH_WOOD_L
+const TH_WOOD_D := PAL.TH_WOOD_D
+const TH_EDGE := PAL.TH_EDGE
+const TH_ACTIVE := PAL.TH_ACTIVE
+const TH_PARCH := PAL.TH_PARCH
+const TH_INK := PAL.TH_INK
+const TH_PRIMARY := PAL.TH_PRIMARY
 const SP := 8.0        # 間距基準
 const Icons = preload("res://scripts/ui/icons.gd")
 var _sb_cache := {}
@@ -185,8 +186,8 @@ var _trans_t := -10.0
 var _hover_now := -1
 const UNIT_SCALE := 0.92
 ## V1.2 A2／B1：文字描邊與陰影的墨色（深焦茶，取代純黑）
-const INK := Color("#24150B")
-const INK_SHADOW := Color("#140B06")
+const INK := PAL.INK
+const INK_SHADOW := PAL.INK_SHADOW
 
 var font: Font
 var font_bold: Font
@@ -393,6 +394,10 @@ func probe_axis(x: float) -> void:
 	if layout_probe and not probe_panels.is_empty():
 		probe_panels[-1]["axis"] = x
 var _probe_btn_label := false
+var wax_face_cut := 0.0      # 1.3.0：主按鈕左側蠟封蓋住的寬度（這一顆按鈕畫字前用完就歸零）
+var _probe_cell_id := ""     # 1.3.0 R11：格子身分（同一格子的字才合併量；Codex cat01 #4）
+var _probe_cell_seq := 0
+var _probe_face := Rect2()   # 1.3.0 R11：這段字所在格子的「畫出來的面」（按鈕面扣厚度、圓鈕的圓、宣告的格子）；空＝不是格子
 var _probe_btn_rect := Rect2()     # 第五輪：其他控制項（兵卡）的外框；裡面的字不算段數     # 截圖用：特效停在當下的時刻不往前跑
 var pt_call_tick := -1
 var pt_rated := false
@@ -710,6 +715,80 @@ func mag_point() -> Vector2:
 
 var mag_on := false      # V1.6 #7 文字放大鏡：這一幀游標指到的介面字
 var mag_hit: Array = []
+## 1.3.0 R11 光學置中：一行字的實際墨跡框（TextServer 的字形點陣框聯集，含後備字型），相對於基線左端。快取。
+static var _ink_cache := {}
+static func ink_line(fnt: Font, s: String, size: int) -> Rect2:
+	var k := "%d|%d|%s" % [fnt.get_instance_id(), size, s]
+	if _ink_cache.has(k):
+		return _ink_cache[k]
+	var tsv := TextServerManager.get_primary_interface()
+	var rid := tsv.create_shaped_text()
+	tsv.shaped_text_add_string(rid, s, fnt.get_rids(), size)
+	var pen := 0.0
+	var out := Rect2()
+	var have := false
+	for g in tsv.shaped_text_get_glyphs(rid):
+		var frid: RID = g.get("font_rid", RID())
+		var idx: int = int(g.get("index", 0))
+		var fs := Vector2i(int(g.get("font_size", size)), 0)
+		if frid.is_valid() and idx > 0:
+			tsv.font_render_glyph(frid, fs, idx)
+			var gsz: Vector2 = tsv.font_get_glyph_size(frid, fs, idx)
+			if gsz.x > 0.0 and gsz.y > 0.0:
+				var gr := Rect2(Vector2(pen, 0.0) + (g.get("offset", Vector2.ZERO) as Vector2) + tsv.font_get_glyph_offset(frid, fs, idx), gsz)
+				out = gr if not have else out.merge(gr)
+				have = true
+		pen += float(g.get("advance", 0.0))
+	tsv.free_rid(rid)
+	if not have:
+		out = Rect2(0.0, -size * 0.8, pen, size * 0.98)   # 沒有墨跡（空白）：退回名目字形框
+	if _ink_cache.size() > 4000:
+		_ink_cache.clear()
+	_ink_cache[k] = out
+	return out
+
+## 整段（可多行，置中排）的墨跡框，相對於 _text(p, …, center=true) 的 p。
+func label_ink(s: String, size: int, bold := false) -> Rect2:
+	var lines := s.split("\n")
+	var out := Rect2()
+	var have := false
+	for i in lines.size():
+		if lines[i].strip_edges() == "":
+			continue   # 空白行保留行距、但不算墨跡（Codex cat01 #3：不然 "\n開始" 會依空白框置中）
+		var fnt := _font_for(lines[i], size, bold)
+		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var q := Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
+		var r := ink_line(fnt, lines[i], size)
+		r.position += q
+		out = r if not have else out.merge(r)
+		have = true
+	if not have:
+		out = Rect2(0.0, size * 0.05, 0.0, size * 0.98)   # 整段空白：名目框（不影響任何格子）
+	return out
+
+## 讓一段置中字的墨跡中心落在格子面 face 的中心：回傳要傳給 _text 的 p。
+func ink_center_p(face: Rect2, s: String, size: int, bold := false, pad := 5.0) -> Vector2:
+	var p := face.get_center() - label_ink(s, size, bold).get_center()
+	# 墨跡置中後，字的排版寬（含全形標點的留白）不能跑出格子面（日文 150%「（…）」右側留白大，墨跡中心偏左）
+	var aw := 0.0
+	for ln in s.split("\n"):
+		aw = maxf(aw, _font_for(ln, size, bold).get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+	if pad >= 0.0 and aw > 0.0:
+		var lo := face.position.x + pad + aw / 2.0
+		var hi := face.end.x - pad - aw / 2.0
+		p.x = clampf(p.x, lo, hi) if lo <= hi else face.get_center().x
+	return p
+
+## 宣告「接下來畫的字在這個格子裡」（R11）：非按鈕的格子（價錢小方塊、徽章、分頁字）用。
+func probe_cell_begin(face: Rect2) -> void:
+	_probe_face = face
+	_probe_cell_seq += 1
+	_probe_cell_id = "cell%d" % _probe_cell_seq
+
+func probe_cell_end() -> void:
+	_probe_face = Rect2()
+	_probe_cell_id = ""
+
 func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
 	if _ink_mode:
 		c = Color(_ink(c), c.a) if _ink_keep_a else _ink(c)
@@ -743,7 +822,8 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
 			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
 				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis,
-				"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
+				"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98),
+				"face": _probe_face if _probe_face.size.x > 0.0 else null, "cell": _probe_cell_id, "ink": Rect2(q + ink_line(fnt, lines[i], size).position, ink_line(fnt, lines[i], size).size)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
 		if emboss:
 			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
 		if oc.a > 0.0:
@@ -867,7 +947,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
 		_mat_box(rd, "plaque", pt)
 		if sel_on and enabled and tint.a > 0.0:
-			draw_rect(rd.grow(-4), Color(Color("#9b281b"), 0.9), false, 2.5)   # 選中：朱砂框
+			draw_rect(rd.grow(-4 if rd.size.y >= 40.0 else -2), Color(Color("#9b281b"), 0.9), false, 2.5 if rd.size.y >= 40.0 else 1.5)   # 選中：朱砂框（矮按鈕框往外、變細，不壓到 150% 的字）
 		if primary and enabled and rd.size.x >= 120.0:
 			var wx := _ui_tex(MAT["wax_red"])
 			var ws := minf(rd.size.y + 8.0, 46.0)
@@ -875,6 +955,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 			var lab_w := _width(label, ts(18), true)
 			if wx != null and lab_w + ws * 0.9 <= rd.size.x - 12.0:
 				var wr := Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws))
+				wax_face_cut = maxf(0.0, wr.end.x - rd.position.x)   # 1.3.0 R11：蠟封蓋住的左邊不算字的格子面（字在看得到的木牌上置中；Antigravity cat01）
 				# 深赤火漆＋金邊：和朱漆底拉開明度（Antigravity cat02 #1：紅疊紅看不清）
 				draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
 				draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
@@ -919,15 +1000,23 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var face_h: float = r.size.y - 3.0 - 6.0
 	var sz := fit(label, ts(18) if r.size.y >= 40 and face_h >= ts(18) * 1.3 else ts(15), r.size.x - 10, primary)
 	var lines := wrap_lines(label, sz, r.size.x - 10, primary)
-	var h := lines.size() * sz * line_h(lines.size())
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
 	_probe_btn_rect = r
+	if wax_face_cut > 0.0:
+		rd = rd.grow_individual(-wax_face_cut, 0.0, 0.0, 0.0)
+		wax_face_cut = 0.0
+	_probe_face = rd
+	_probe_cell_id = "btn%d" % idx
 	_probe_dis = not enabled
 	var ink0 := _ink_mode   # 按鈕是木頭，字維持白色（紙面按鈕用墨色）
 	_ink_mode = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)   # 1.2.0：淺色木牌、原胚布用墨色字
-	_text(rd.get_center() - Vector2(0, h / 2 - sz * 0.03), "\n".join(lines), sz, Color.WHITE if enabled else (Color(0.16, 0.11, 0.07, 0.62) if plaque else Color(1, 1, 1, 0.4)), true, primary)   # V1.2.1：對按鈕面置中（扣掉下緣厚度），按下時字跟著下沉
+	var lab := "\n".join(lines)
+	# 1.3.0 R11：字的墨跡中心對準按鈕面中心（扣掉下緣厚度；按下時字跟著下沉）——光學置中，不是名目行高置中
+	_text(ink_center_p(rd, lab, sz, primary), lab, sz, Color.WHITE if enabled else (Color(0.16, 0.11, 0.07, 0.62) if plaque else Color(1, 1, 1, 0.4)), true, primary)
 	_ink_mode = ink0
 	_probe_btn_label = false
+	_probe_face = Rect2()
+	_probe_cell_id = ""
 	_probe_dis = false
 
 static func plain_ui_now() -> bool:
@@ -1062,7 +1151,7 @@ func _draw_boss_note() -> void:
 	_btn(Rect2(640 - 80, P.end.y - 24 - bh, 160, bh), L.t("bn_ok"), _close_boss_note)   # 單顆底部按鈕置中（R4）；木牌（不是朱漆主按鈕，便條不該喧賓奪主）
 
 ## 憲法 3（禁純黑）：選單打開時的暗幕用暖暗墨色，不用 #000。
-const DIM_INK := Color("#1c130d")
+const DIM_INK := PAL.DIM_INK
 func _dim(a: float) -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, a))
 const TEX_FRAME := "res://art/ui/frame.png"
@@ -1326,15 +1415,20 @@ func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
 	var idx := _btns.size()
 	_btns.append({"r": r, "cb": action, "en": true})
 	var hot := (r.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)
-	var c := r.end - Vector2(12, 12)
-	draw_circle(c, 9.0, Color(ACCENT, 0.9) if hot else Color(0, 0, 0, 0.55), true, -1.0, true)
+	var sz := ts(14)
+	var rad := maxf(9.0, sz * 0.62)   # 1.3.0 R11：圓跟著字級長大（150% 時 21px 的「?」塞不進 9px 圓）
+	var c := r.end - Vector2(rad + 3.0, rad + 3.0)
+	draw_circle(c, rad, Color(ACCENT, 0.9) if hot else Color(0, 0, 0, 0.55), true, -1.0, true)
 	if layout_probe:
 		probe_btns.append(r)
 		probe_ctrls.append(r)
-	var sz := ts(14)
 	_probe_btn_label = true
 	_probe_btn_rect = r
-	_text(c - Vector2(0, sz * 0.62), label, sz, Color.BLACK if hot else TXT_DIM, true, true)
+	_probe_face = Rect2(c - Vector2(rad, rad), Vector2(rad, rad) * 2.0)   # 1.3.0 R11：格子是畫出來的圓，不是 36×36 點擊區
+	_probe_cell_id = "quiet%d" % idx
+	_text(ink_center_p(_probe_face, label, sz, true), label, sz, Color.BLACK if hot else TXT_DIM, true, true)
+	_probe_face = Rect2()
+	_probe_cell_id = ""
 	_probe_btn_label = false
 
 

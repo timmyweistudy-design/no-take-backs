@@ -446,7 +446,8 @@ func _layout_report(name: String, img: Image = null) -> void:
 	sizes.sort()
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
-		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": _art_checks(img)})
+		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": _art_checks(img),
+		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size()})   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()
 	f.store_line(line)

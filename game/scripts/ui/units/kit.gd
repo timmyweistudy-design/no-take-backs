@@ -109,7 +109,7 @@ static func _part_end(ci: CanvasItem) -> void:
 	_cur_weapon = false
 	ci.draw_set_transform_matrix(_cur_xf)
 
-const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]   # 第七輪：紅壓暗，灰階下敵我也分得開（小樣通過條件 ②）
+const TEAM = preload("res://scripts/ui/palette.gd").TEAM   # 第七輪：紅壓暗，灰階下敵我也分得開（小樣通過條件 ②）
 
 # ── 三段式攻擊（第二輪方案 R5）──
 # atk（0～1）＝一次攻擊動作的進度：0～ATK_WINDUP 前搖、ATK_WINDUP～ATK_STRIKE 揮擊（命中就在 ATK_WINDUP 那一刻）、之後後搖。
@@ -135,7 +135,7 @@ const FEATURE_EYES := {10: Vector2(1.5, -13), 13: Vector2(3, -17), 18: Vector2(3
 
 ## V1.4 #15 塗裝室：每隊 4 種底漆（第 0 種＝原色；同色系，敵我一眼還分得開）、漬洗／乾掃深淺、木座 4 種木料、棋盤框 4 種。
 ## 色盲配色時一律用原本的色盲色（塗裝不能蓋掉無障礙）。
-const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]
+const PAINTS = preload("res://scripts/ui/palette.gd").PAINTS
 const WASH := [0.12, 0.20, 0.32]     # 烘焙後處理的底部陰影（shaders/unit_bake.gdshader 的 sh_amt）
 const DRY := [0.04, 0.09, 0.16]      # 頂部亮邊（hi_amt）
 const WOODS := [[Color(0.30, 0.20, 0.12), Color(0.56, 0.41, 0.26), Color(0.62, 0.47, 0.30)],   # 橡木（原本）

@@ -1293,7 +1293,17 @@ func _draw_rift_lab() -> void:
 			_btn(br, "", func(): rift_lab_toggle(kk), true, k == 0, TH_ACTIVE if on else Color(0, 0, 0, 0))
 			_probe_btn_label = true
 			_probe_btn_rect = br
-			_text(br.position + Vector2(15, 7), ("✓ " if on else "") + L.t(str(Rift.ANOMS[k][0])), tz("C"), Color.WHITE, false, on, 335.0)
+			# 1.3.0 R11（Codex cat01 #5）：異變按鈕自己畫的標籤也是格子字——宣告按鈕面、墨跡置中
+			var rlab: String = ("✓ " if on else "") + L.t(str(Rift.ANOMS[k][0]))
+			var rsz: int = fit(rlab, tz("C"), 323.0, on)   # 左右各留 21px（Antigravity Hydrogen cat01：日文 150% 長字貼邊）
+			var rlines: Array = wrap_lines(rlab, rsz, 323.0, on)
+			var rlab2: String = balance_two_lines(rlab) if rlines.size() == 2 else "\n".join(rlines)   # 兩行時從中間斷（日文 150% 不留「可」「石」單字一行；Antigravity cat01）
+			if rlab2.split("\n").size() == 2 and (_width(rlab2.split("\n")[0], rsz, on) > 323.0 or _width(rlab2.split("\n")[1], rsz, on) > 323.0):
+				rlab2 = "\n".join(rlines)
+			var rface := Rect2(br.position, br.size - Vector2(0, 3))
+			probe_cell_begin(rface)
+			_text(ink_center_p(rface, rlab2, rsz, on), rlab2, rsz, Color.WHITE, true, on)
+			probe_cell_end()
 			_probe_btn_label = false
 		y += float(rh[ri]) + 6.0
 	y += GAP_L - 6.0
@@ -1914,7 +1924,12 @@ func _draw_editor() -> void:
 		var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 48.0, 92, 44)   # 1.2.0：列高 52→48（150% 放得下）
 		_btn(pr, "", func(): ed_type = t, true, false, TH_ACTIVE if ed_type == t else Color(0, 0, 0, 0))
 		Art.unit(self, pr.position + Vector2(24, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
-		_text(pr.position + Vector2(46, 14), "%dg" % D.cost(t), tz("C"), Color.WHITE, false, true, 44)
+		var pcell := Rect2(pr.position + Vector2(44, 0), Vector2(pr.size.x - 46, pr.size.y - 3))   # 1.3.0 R11：價錢子格＝頭像右邊那半（扣下緣厚度），字在子格置中
+		probe_cell_begin(pcell)
+		_ink_mode = ed_type != t and not bool(Save.s("plain_ui"))   # 淺色木牌上用墨色字（白字在米色木上看不清；選中＝深色底維持白字）
+		_text(ink_center_p(pcell, "%dg" % D.cost(t), tz("C"), true), "%dg" % D.cost(t), tz("C"), Color.WHITE, true, true)
+		_ink_mode = false
+		probe_cell_end()
 	y += 2 * 48.0 + GAP_S
 	var l := ed_lists()
 	var gold := [0, 0]

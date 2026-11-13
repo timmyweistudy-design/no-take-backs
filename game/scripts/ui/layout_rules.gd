@@ -14,6 +14,8 @@ const EDGE_MIN := 16.0     # R8：面板距畫面邊
 const GAP_EQ_TOL := 2.0    # R4：同組間距差
 const FILL_WARN := 0.3     # R6：最大垂直空白 > 面板高 30%（且 >160px）警告
 const GAP_EMPTY := 160.0
+const TOL_CELL := 1.0      # R11：格內字墨跡中心容差（邏輯 px）
+const OPT = preload("res://scripts/ui/optical_offsets.gd")
 
 ## d = {panels:[{id,r,skip:{R:理由}}], ribbons:[{id,r,body,cx,bottom,host}], decos:[{id,kind,r,host_r,edge}],
 ##      aligns:[{id,rects,tol}], texts:[{r,gr,s,btn,own}], btns:[Rect2], overlay:String, need:{role:min}}
@@ -45,6 +47,30 @@ static func check(d: Dictionary) -> Dictionary:
 			_add(out, "fail", "G", rb["id"], "緞帶沒有有效的宿主面板（host=%s）" % str(rb.get("host", "")))
 	if str(d.get("overlay", "")) != "" and panels.is_empty() and not bool(d.get("panelless_ok", false)):
 		_add(out, "fail", "G", str(d["overlay"]), "漏登記：覆蓋層沒有面板")
+	# ── R11（1.3.0，使用者第 10 點）：格子裡的字要置中：同一個格子面（按鈕面、圓鈕、宣告的格子）裡的字，
+	#    墨跡聯集中心－格子面中心－登記的光學偏移，每軸 ≤ TOL_CELL（1 邏輯 px）；字也不能越出格子面 ──
+	var cells := {}
+	for t in texts:
+		var f = t.get("face")
+		if not (f is Rect2) or not t.has("ink"):
+			continue
+		var fk := str(t.get("cell", ""))   # 格子身分（按鈕索引／宣告序號），不用座標當鍵：重疊格不會誤合（Codex cat01 #4）
+		if fk == "":
+			fk = "%d,%d,%d,%d" % [roundi(f.position.x), roundi(f.position.y), roundi(f.size.x), roundi(f.size.y)]
+		if not cells.has(fk):
+			cells[fk] = {"face": f, "ink": t["ink"], "s": str(t["s"])}
+		else:
+			cells[fk]["ink"] = (cells[fk]["ink"] as Rect2).merge(t["ink"])
+			cells[fk]["s"] = str(cells[fk]["s"]) + "／" + str(t["s"])
+	for fk in cells:
+		var cl: Dictionary = cells[fk]
+		var fr: Rect2 = cl["face"]
+		var ik: Rect2 = cl["ink"]
+		var e: Vector2 = ik.get_center() - fr.get_center() - OPT.of(str(d.get("overlay", "")), str(cl["s"]))   # 光學偏移鍵＝畫面（覆蓋層）|字串：跨版本穩定的元件身分
+		if absf(e.x) > TOL_CELL + 0.001 or absf(e.y) > TOL_CELL + 0.001:
+			_add(out, "fail", "R11", str(cl["s"]), "格子裡的字沒置中：偏 (%.1f, %.1f)，格子 %s" % [e.x, e.y, str(fr)])
+		elif not fr.grow(0.5).encloses(ik):
+			_add(out, "fail", "R11", str(cl["s"]), "字超出格子面：字 %s、格子 %s" % [str(ik), str(fr)])
 	# ── R1 面板（_panel 一律有全螢幕遮罩＝模態）水平置中；R8 面板距畫面邊 ──
 	for p in panels:
 		var r: Rect2 = p["r"]

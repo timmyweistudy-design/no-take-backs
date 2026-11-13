@@ -631,6 +631,47 @@ func _reset_rows(rows: Array) -> void:
 ## V1.5.1：戰鬥中改了要下一局才生效的設定（其餘立即生效）
 const NEXT_GAME_KEYS := ["set_place_mode", "set_speed", "set_title_bg", "set_hints", "set_confirm", "set_long_press", "set_playtest"]
 const VOL_STEPS := [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]   # 音量每格 5%
+const VOL_KEY := {"set_master": "master", "set_music": "music", "set_sfx": "sfx", "set_ui_vol": "ui_vol", "set_amb_vol": "amb_vol"}
+const VOL_PREVIEW := {"master": "hit", "music": "", "sfx": "hit", "ui_vol": "k_confirm", "amb_vol": "amb"}
+var vol_drag := ""            # 1.3.0：正在拖的音量（設定鍵）
+var vol_rails := {}           # 這一幀畫出來的音量木軌（設定鍵 → 軌道框）
+
+## 1.3.0 §15 第 4 項：音量木軌拖曳（走輸入佇列，和點擊同一順序；Codex cat01 #1 #2）。
+## 按下在軌上＝開始拖（吃掉這次按下，不觸發底下的數值鈕）；移動＝即時試聽（只改記憶體）；放開＝存檔一次、吃掉放開（不再 +5%）。
+## 離開設定、畫面換掉（佇列過期）都會結束並存檔。值照 VOL_STEPS（5% 一格）。
+func vol_press(p: Vector2) -> bool:
+	if overlay != "settings" or pad_mode:
+		return false
+	for k in vol_rails:
+		if (vol_rails[k] as Rect2).grow(4.0).has_point(p):
+			vol_drag = k
+			_vol_preview(p.x)
+			return true
+	return false
+
+func vol_motion(p: Vector2) -> void:
+	if vol_drag != "":
+		_vol_preview(p.x)
+
+func vol_release() -> bool:
+	if vol_drag == "":
+		return false
+	var k := vol_drag
+	vol_drag = ""
+	Save.set_setting(k, int(Save.s(k)))   # 拖曳中只改記憶體，放開才寫檔
+	return true
+
+func _vol_preview(x: float) -> void:
+	if not vol_rails.has(vol_drag):
+		return
+	var v: int = vol_from_x(x, vol_rails[vol_drag])
+	if v != int(Save.s(vol_drag)):
+		Save.settings[vol_drag] = v
+		_apply_volumes(str(VOL_PREVIEW[vol_drag]))
+
+static func vol_from_x(x: float, rail: Rect2) -> int:
+	var f := clampf((x - rail.position.x) / maxf(1.0, rail.size.x), 0.0, 1.0)
+	return int(roundf(f * 20.0)) * 5
 
 func _optv(k: String, vals: Array, keys: Array) -> String:
 	var i := vals.find(Save.s(k))
@@ -759,6 +800,7 @@ func _pause_resume() -> void:
 	paused = false
 
 func _settings_close() -> void:
+	vol_release()
 	overlay = settings_ret
 	settings_ret = ""
 
@@ -782,6 +824,7 @@ const SET_COL := Rect2(340, 150, 560, 560)    # 設定頁中央操作欄
 const SET_DESC := Rect2(910, 166, 236, 470)   # 設定頁右側說明欄
 
 func _draw_settings() -> void:
+	vol_rails.clear()
 	_panel(Rect2(110, 96, 1060, 628))
 	# V1.5.2 L8／L9：三欄畫面。左＝分頁、中＝操作欄（340～900，中線 620）、右＝說明欄；底部按鈕以中欄中線置中，
 	# 預設三鈕＋撤回整組放在中欄內（撤回原本 880～990 被說明欄蓋住 80px）
@@ -845,6 +888,8 @@ func _draw_settings() -> void:
 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
 		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
 			var rw := r.size.x - 116
+			# 1.3.0 §15：木軌可以拖（輸入佇列處理：按下在軌上開始、拖到哪設到哪、放開才存檔；手把仍用 ◀ ▶ 逐級）
+			vol_rails[VOL_KEY[rows[i][0]]] = Rect2(r.position.x + 58, y + 30, rw, 20)
 			var fr := int(val.trim_suffix("%")) / 100.0
 			if bool(Save.s("plain_ui")):
 				draw_rect(Rect2(r.position.x + 58, y + 41, rw * fr, 4), ACCENT)
@@ -1172,7 +1217,7 @@ func _draw_clear_data() -> void:
 	for i in CLEAR_KEYS.size():
 		var on := bool(clear_pick.get(i, false))
 		var ii := i
-		_btn(Rect2(380, cy + i * 58, 520, 50), ("✓ " if on else "　") + L.t(CLEAR_KEYS[i][0]), func(): clear_pick[ii] = not bool(clear_pick.get(ii, false)), true, false, Color(0.5, 0.18, 0.15) if on else Color(0, 0, 0, 0))
+		_btn(Rect2(380, cy + i * 58, 520, 50), ("✓ " if on else "") + L.t(CLEAR_KEYS[i][0]), func(): clear_pick[ii] = not bool(clear_pick.get(ii, false)), true, false, Color(0.5, 0.18, 0.15) if on else Color(0, 0, 0, 0))
 	var any := false
 	for k in clear_pick:
 		any = any or bool(clear_pick[k])

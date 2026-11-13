@@ -1513,3 +1513,80 @@ func test_layout_guard_wired_v152() -> void:
 	g.overlay = "ai_busy"
 	ok(not "G" in LR.check(g.layout_geom_input())["fail"].map(func(v): return str(v["type"])), "AI 思考中（宣告過的無面板覆蓋層）不擋")
 	g.free()
+
+## 1.3.0 R11（使用者第 10 點）：格子裡的字墨跡中心對格子面中心，每軸 ≤1px；字不能越出格子面；同一格子的多行合併量
+func test_layout_r11_v130() -> void:
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	var face := Rect2(100, 100, 120, 40)
+	var T := func(ink: Rect2, s := "開始", f = face) -> Dictionary:
+		return {"r": ink, "gr": ink, "s": s, "btn": true, "face": f, "ink": ink}
+	var r11 := func(res: Dictionary) -> int:
+		return res["fail"].filter(func(v): return str(v["type"]) == "R11").size()
+	ok(r11.call(LR.check({"texts": [T.call(Rect2(140, 110, 40, 20))]})) == 0, "R11 墨跡置中通過")
+	ok(r11.call(LR.check({"texts": [T.call(Rect2(141, 110, 40, 20))]})) == 0, "R11 偏 1px 在容差內")
+	ok(r11.call(LR.check({"texts": [T.call(Rect2(142, 110, 40, 20))]})) == 1, "R11 水平偏 2px 被抓")
+	ok(r11.call(LR.check({"texts": [T.call(Rect2(140, 108, 40, 20))]})) == 1, "R11 垂直偏 2px 被抓")
+	ok(r11.call(LR.check({"texts": [T.call(Rect2(140, 98, 40, 44))]})) == 1, "R11 字越出格子面被抓")
+	# 兩行合併成一個墨跡框量（各自不置中、合起來置中＝通過）
+	ok(r11.call(LR.check({"texts": [T.call(Rect2(140, 102, 40, 16), "第一行"), T.call(Rect2(140, 122, 40, 16), "第二行")]})) == 0, "R11 多行合併後置中通過")
+	# 沒有宣告格子面的字（一般說明文字）不量
+	ok(r11.call(LR.check({"texts": [{"r": Rect2(0, 0, 10, 10), "gr": Rect2(0, 0, 10, 10), "s": "說明", "btn": false, "face": null, "ink": Rect2(0, 0, 10, 10)}]})) == 0, "R11 非格子的字不量")
+	# 墨跡框：同一個字在不同字級的墨跡框高度隨字級長大、寬度 > 0（TextServer 字形框，不是名目框）
+	var UB = load("res://scripts/ui/ui_base.gd")
+	var fnt: Font = ThemeDB.fallback_font
+	var a: Rect2 = UB.ink_line(fnt, "?", 16)
+	var b: Rect2 = UB.ink_line(fnt, "?", 32)
+	ok(a.size.x > 0.0 and b.size.y > a.size.y * 1.6, "墨跡框隨字級長大 %s／%s" % [str(a), str(b)])
+	ok(a.position.y < 0.0 and a.end.y <= 1.0, "「?」的墨跡在基線以上 %s" % str(a))
+
+## 1.3.0 §4 色票單一來源：同名常數都指到 palette.gd（值不變）；scripts/ui 的內嵌 Color("#…") 只能減少不能變多（棘輪）
+const PALETTE_INLINE_MAX := 486
+func test_palette_v130() -> void:
+	var PAL = load("res://scripts/ui/palette.gd")
+	var UB = load("res://scripts/ui/ui_base.gd")
+	var K = load("res://scripts/ui/units/kit.gd")
+	ok(UB.ACCENT == Color("#ffd166") and UB.TH_WOOD == Color("#3a2a1f") and UB.INK == Color("#24150B") and UB.DIM_INK == Color("#1c130d"), "介面色值和 1.2.0 相同")
+	ok(K.TEAM == PAL.TEAM and K.TEAM[0][0] == Color("#45acff") and K.TEAM[1][1] == Color("#ffb000"), "隊色指到色票、值不變")
+	var re := RegEx.new()
+	re.compile("\"#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\"")   # 色碼字串（含 Color("#…") 與表格裡的 "#…"；Codex cat01 #6）
+	var n := 0
+	var stack: Array = ["res://scripts/ui"]
+	while not stack.is_empty():
+		var dir: String = stack.pop_back()
+		for sub in DirAccess.get_directories_at(dir):
+			stack.append(dir.path_join(sub))
+		for f in DirAccess.get_files_at(dir):
+			if f.ends_with(".gd") and f != "palette.gd":
+				n += re.search_all(FileAccess.get_file_as_string(dir.path_join(f))).size()
+	ok(n <= PALETTE_INLINE_MAX, "內嵌色碼 %d ≤ %d（新顏色請加到 palette.gd）" % [n, PALETTE_INLINE_MAX])
+
+## 1.3.0 §15：音量木軌拖曳的換算（軌左端 0、右端 100、照 5% 一格、超出夾住）
+func test_vol_drag_v130() -> void:
+	var G = load("res://scripts/ui/screens/game_menus.gd")
+	var rail := Rect2(100, 0, 200, 20)
+	ok(G.vol_from_x(100.0, rail) == 0 and G.vol_from_x(300.0, rail) == 100, "兩端 0／100")
+	ok(G.vol_from_x(200.0, rail) == 50 and G.vol_from_x(204.0, rail) == 50 and G.vol_from_x(206.0, rail) == 55, "照 5% 一格取最近")
+	ok(G.vol_from_x(-50.0, rail) == 0 and G.vol_from_x(999.0, rail) == 100, "超出軌道夾住")
+	# 按下在軌上開始拖、移動只改記憶體、放開才存檔且吃掉放開（不再觸發數值鈕 +5%）（Codex cat01 #1 #2）
+	var SV = load("res://scripts/game/save.gd")
+	var keep: Dictionary = SV.settings.duplicate(true)
+	var old_prefix: String = SV.prefix
+	SV.prefix = "t130vol_"   # 放開會寫設定檔：寫到測試前綴，不碰玩家的設定
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.sfx = FakeSfx.new()
+	g.overlay = "settings"
+	g.vol_rails = {"music": rail}
+	ok(not g.vol_press(Vector2(50, 10)), "軌道外按下不開始拖")
+	ok(g.vol_press(Vector2(200, 10)) and g.vol_drag == "music" and int(SV.s("music")) == 50, "軌上按下：開始拖、設到 50")
+	g.vol_motion(Vector2(260, 10))
+	ok(int(SV.s("music")) == 80, "拖曳中即時改值")
+	ok(g.vol_release() and g.vol_drag == "" and not g.vol_release(), "放開結束拖曳（第二次放開不算）")
+	g.overlay = "settings"
+	g.vol_rails = {"music": rail}
+	g.vol_press(Vector2(150, 10))
+	g._settings_close()
+	ok(g.vol_drag == "", "拖曳中關掉設定也結束")
+	g.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://t130vol_settings.json"))
+	SV.prefix = old_prefix
+	SV.settings = keep
