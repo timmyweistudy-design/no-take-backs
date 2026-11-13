@@ -763,6 +763,8 @@ func _draw_battle_hud() -> void:
 		draw_rect(sk, Color("#8a6a2a"))
 		draw_rect(sk.grow(-2), Color("#d4ae55"))
 		draw_rect(Rect2(sk.position + Vector2(3, 3), Vector2(3, sk.size.y - 6)), Color(1, 0.96, 0.8, 0.6))
+		for ry in [sk.position.y + 4.0, sk.end.y - 4.0]:
+			draw_circle(Vector2(sk.get_center().x, ry), 2.2, Color("#5a4214"))   # 最後一輪（Codex 看圖 #6）：滑塊上下兩顆鉚釘＝卡在尺上的固定方式
 	# 戰力條狀態（第三輪 V6）：狂熱整條加橘框；背水那端加火焰圖示與脈衝框
 	if view.frenzy and not view.finished:
 		draw_rect(Rect2(bx - 4, 38, bw + 8, 30), Color(1, 0.45, 0.1, 0.7 + 0.3 * sin(time * 6)), false, 3)
@@ -809,6 +811,8 @@ func _draw_battle_hud() -> void:
 		draw_rect(cr, Color("#e9d9b8"))
 		draw_rect(Rect2(cr.position, Vector2(cr.size.x, 3)), Color(1, 0.97, 0.88, 0.7))
 		draw_rect(cr, Color("#5a3a22"), false, 2.0)
+		draw_rect(cr.grow(-4), Color("#8a6a48", 0.7), false, 1.0)   # 最後一輪（Codex 看圖 #6）：鐘面內框，像有厚度的木盒
+		draw_rect(Rect2(cr.position.x, cr.end.y - 3, cr.size.x, 3), Color(DIM_INK, 0.35))
 		draw_rect(Rect2(640 - 9, 0, 18, 3), Color("#c9a24a"))
 		_text(Vector2(640, 4), clock_s, ts(22), Color("#8e1b14") if view.frenzy else Color("#2a1a10"), true, true)
 	else:

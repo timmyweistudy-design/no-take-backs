@@ -387,7 +387,7 @@ func _draw_campaign() -> void:
 		btn_paper = true
 		_btn(r, "", func(): _camp_play(sid), open2)   # 整張卡片就是按鈕（和主畫面卡片同一套紙卡）
 		btn_paper = false
-		var on_paper: bool = open2 and not bool(Save.s("plain_ui"))
+		var on_paper: bool = open2 and last_btn_paper and last_btn_enabled and not bool(Save.s("plain_ui"))   # 照按鈕實際畫出來的面（停用狀態是褪色木牌，不是紙）
 		_ink_mode = on_paper
 		var tc: Color = INK if on_paper else (Color.WHITE if open2 else TXT_DIM)
 		var nm := L.t("cmp_stage", [camp_ch, k2 + 1]) if str(st["goal"]) != "puzzle" else L.t("cmp_puzzle", [camp_ch])

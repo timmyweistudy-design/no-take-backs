@@ -1043,7 +1043,21 @@ func _draw_lobby_detail(R: Rect2) -> void:
 		6:
 			_draw_cmd_tab(L0)
 		7:
-			_rows_paged(L0, _ext_rows())
+			var xr := _ext_rows()
+			_rows_paged(L0, xr)
+			# 最後一輪（Codex 看圖 #3）：說明放在左欄列表下方的紙片上（右欄在大字級＋差異清單長時會省略說明）
+			var xid: String = lobby_item if lobby_item.begins_with("xs_") else "ext"
+			var xt := _ext_desc(xid)
+			var xy: float = L0.position.y + xr.size() * 66 + 8
+			var xh := text_h(xt, tz("S"), L0.size.x - 48) + 24
+			if xy + xh <= L0.end.y:
+				var xrect := Rect2(L0.position.x, xy, L0.size.x - 10, xh)
+				var paper := not bool(Save.s("plain_ui")) and _mat_box(xrect, "card2")
+				if not paper:
+					draw_rect(xrect, Color(0, 0, 0, 0.3))
+				_ink_mode = paper
+				_text(xrect.position + Vector2(16, 12), xt, tz("S"), Color.WHITE, false, false, L0.size.x - 48)
+				_ink_mode = false
 	_draw_lobby_desc(D0)
 
 ## V1.6.1 A7：列數超過這一欄放得下的就分頁（底下一列「◀ 1／2 ▶」），每個開關都找得到。
@@ -1228,7 +1242,7 @@ func _draw_lobby_desc(R: Rect2) -> void:
 	var id: String = lobby_item if lobby_item != "" else ["budget", "deploy", "pool", "ticks", "ai_level", "lab", "cmd_on", "ext"][lobby_tab]
 	_text(Vector2(x, y), L.t("lbd_t_" + id), tz("H2"), ACCENT, false, true, w)
 	y += tz("H2") * 1.6
-	var body := _ext_desc(id)
+	var body := "" if id == "ext" or id.begins_with("xs_") else _ext_desc(id)   # 新技能的說明畫在左欄紙片上
 	var bfs := tz("S") if _scale_key() == 100 else tz("C")   # 大字時說明改用註記字級，讓下面的差異清單放得下
 	# 先估警告＋差異清單要多高；說明＋清單放不下時省略說明，只留警告與差異（Antigravity 實作第 2 輪）
 	var need_h := tz("S") * 2.4 + _lobby_notes_h(w)

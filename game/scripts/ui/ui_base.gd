@@ -1377,13 +1377,23 @@ func _obj_open_anim(r: Rect2, kind: String, k: float) -> void:
 			var h := r.size.y * (1.0 - e)
 			if h < 1.0:
 				return
-			var col := Color("#3a2416") if kind == "ebony" else (Color("#8a8f93") if kind == "tin" else (Color("#7a5a3a") if kind == "trunk" else wood))
+			var col := Color("#3a2416") if kind == "ebony" else (Color("#8a8f93") if kind == "tin" else (Color("#8b4f2a") if kind == "trunk" else wood))   # 牛皮偏紅褐，和木頭分開
 			var lid := Rect2(r.position - Vector2(10, 10), Vector2(r.size.x + 20, h + 10))
 			draw_rect(Rect2(lid.position + Vector2(0, lid.size.y), Vector2(lid.size.x, 14)), Color(DIM_INK, 0.35 * (1.0 - e)))   # 掀起的蓋子在下面落影
 			draw_rect(lid, col)
 			for i in int(lid.size.y / 18.0):
 				draw_rect(Rect2(lid.position.x, lid.position.y + 9 + i * 18, lid.size.x, 1), Color(0, 0, 0, 0.12))   # 木紋／鐵皮壓紋
 			draw_rect(Rect2(lid.position.x, lid.end.y - 4, lid.size.x, 4), Color(1, 0.9, 0.7, 0.25))   # 蓋緣受光
+			var edge_h := minf(12.0, lid.size.y)
+			draw_rect(Rect2(lid.position.x, lid.end.y - edge_h, lid.size.x, edge_h), col.darkened(0.35))   # 蓋子的端面（厚度）
+			draw_rect(Rect2(lid.position.x, lid.end.y - edge_h, lid.size.x, 2), Color(1, 0.9, 0.7, 0.3))
+			if kind == "trunk":
+				draw_rect(Rect2(lid.position + Vector2(10, 8), lid.size - Vector2(20, 8 + edge_h + 4)), Color("#f0e2c0", 0.55), false, 1.5)   # 皮革縫線
+				for cx in [lid.position.x, lid.end.x - 22.0]:
+					draw_rect(Rect2(cx, lid.end.y - edge_h - 18, 22, 18 + edge_h), Color("#4a2c18"))   # 包角
+			for hx in [lid.position.x + lid.size.x * 0.22, lid.position.x + lid.size.x * 0.78]:
+				draw_rect(Rect2(hx - 14, lid.end.y - edge_h - 6, 28, edge_h + 10), Color("#a8873a"))   # 鉸鏈
+				draw_rect(Rect2(hx - 2, lid.end.y - edge_h - 6, 4, edge_h + 10), Color("#6e5520"))
 			draw_rect(Rect2(r.get_center().x - 16, lid.end.y - 14, 32, 10), Color("#c9a24a"))   # 鎖扣
 		"fold", "tube":
 			var w := r.size.x * (1.0 - e)
