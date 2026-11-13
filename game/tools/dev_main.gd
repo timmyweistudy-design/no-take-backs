@@ -451,6 +451,19 @@ func _layout_report(name: String, img: Image = null) -> void:
 	f.seek_end()
 	f.store_line(line)
 	f.close()
+	if "--geom-dump" in OS.get_cmdline_user_args():
+		# 1.3.0 方案盤點（第 10 點「格子裡的字要置中」）：每張截圖的字形框、所屬按鈕框、方塊框，給 tools/gen/center_audit.py 量偏移
+		var tx: Array = []
+		for t in probe_texts:
+			var g: Rect2 = t["gr"]
+			var o = t.get("own")
+			tx.append({"s": t["s"], "size": t["size"], "field": t.get("field", false), "g": [g.position.x, g.position.y, g.size.x, g.size.y],
+				"btn": bool(t.get("btn", false)), "own": [o.position.x, o.position.y, o.size.x, o.size.y] if o is Rect2 and o.size.x > 0.0 and bool(t.get("btn", false)) else null})
+		var bx: Array = probe_boxes.map(func(b): return [b["r"].position.x, b["r"].position.y, b["r"].size.x, b["r"].size.y])
+		var gf := FileAccess.open(shot_dir.path_join("geom.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("geom.jsonl")) else FileAccess.WRITE)
+		gf.seek_end()
+		gf.store_line(JSON.stringify({"shot": name, "texts": tx, "boxes": bx}))
+		gf.close()
 
 
 var shot_only: Array = []
