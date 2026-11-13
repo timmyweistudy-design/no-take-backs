@@ -101,3 +101,8 @@
 ## 暫停（2026-11-13 17:05，使用者：「5:20 前沒做完就先暫停」）
 - 第 8 大類（器物）草稿：`build/tmp/c8/patch.py`（在 game/ 下 `python3 ../build/tmp/c8/patch.py`）、`build/tmp/c8/test.gd`（附加到 `tests/suites/ui.gd`，`test_vessels_v130` 登記在 ui 組）、規劃 `cat08-plan.md`；還沒套用到 game/；在快照 build/cg8 試套過：可解析、test_vessels_v130 等 17 項過（還沒跑全量、版面與審查）。
 - 之後：§8 套用→三方審查→驗收；§9.4、§10、§11、§12、§13、§14、§15；收尾（無快取 check_all、全量版面、匯出、STATE／CHANGELOG 四語、方案 §21 進度）。
+
+## 第 8 大類：§8 每個畫面一件器物（規劃 `cat08-plan.md`）——**已套用、未全量驗收**（17:11）
+- 套用 `build/tmp/c8/patch.py`（兩處 GDScript 型別推斷錯誤已修，草稿同步）：大廳手帳、棋譜冊／批註本、標本木箱、工匠工具箱、獎盃架、郵局櫃台、三折宣紙、竹簾；新器物借用既有開合動畫（`OBJ_ANIM`）。
+- 已驗：ui 組 261 項全過（含 `test_vessels_v130`）；版面子集（zh_TW 100%、en 150% × 大廳、擺陣、結果兩層、設定、殘局、圖鑑、覆盤 9 畫面）18 張 0 違規；接觸表目視器物位置正確、不壓字。
+- 待做（接手第一步）：`python3 tools/check.py`、全量版面 24 組、Codex＋Hydrogen 三方審查（獎盃架 59_profile、郵局 64_codes 還沒看圖）。

@@ -1590,3 +1590,26 @@ func test_vol_drag_v130() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://t130vol_settings.json"))
 	SV.prefix = old_prefix
 	SV.settings = keep
+
+## 1.3.0 第 8 大類：每個畫面一件器物（每個器物都有畫法、開合動畫有對應、竹簾取代屏風、三折宣紙）
+func test_vessels_v130() -> void:
+	var UB = load("res://scripts/ui/ui_base.gd")
+	var src: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+	var deco: String = src.substr(src.find("func _obj_deco"), src.find("func _panel(") - src.find("func _obj_deco"))
+	var anim_kinds := ["box", "case", "trunk", "tin", "clock", "ebony", "fold", "tube", "letter"]
+	var all_ok := true
+	var anim_ok := true
+	for ov in UB.OBJ_OF:
+		var k: String = UB.OBJ_OF[ov]
+		if deco.find("\"%s\"" % k) < 0:
+			all_ok = false
+		if k != "card" and not (str(UB.OBJ_ANIM.get(k, k)) in anim_kinds):   # 立卡（確認框）1.2.0 起就不演開合
+			anim_ok = false
+	ok(all_ok, "每個器物都有畫法")
+	ok(anim_ok, "每個器物都有開合動畫（借用既有的）")
+	ok(UB.OBJ_OF["lobby"] == "notebook" and UB.OBJ_OF["puzzles"] == "book" and UB.OBJ_OF["codex"] == "specimen" and UB.OBJ_OF["settings"] == "toolbox"
+		and UB.OBJ_OF["profile"] == "shelf" and UB.OBJ_OF["codes"] == "post" and UB.OBJ_OF["review"] == "annot", "方案 §8 的畫面對應")
+	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
+	ok(gp.find("_bamboo_blind(mr)") >= 0 and gp.find("屏風的扇面") < 0, "敵陣遮罩改竹簾")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("三折宣紙") >= 0, "結果紙卡有三折摺痕")

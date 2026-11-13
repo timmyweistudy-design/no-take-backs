@@ -319,22 +319,10 @@ func _draw_hide_fog(hide_side: int) -> void:
 	var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
 	# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
 	var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, fld_size.y))
-	# V1.2 C4：敵陣遮擋改成木製屏風（木紋、三扇接縫、銅鉸鏈），不再是黑色半透明罩
-	if not bool(Save.s("plain_ui")) and _tex_box(mr, "wood", Color(0.62, 0.46, 0.33)):
-		var panels := 3
-		for pj in panels:   # 屏風的扇面交替明暗，看得出折角
-			var pr := Rect2(mr.position.x + mr.size.x * pj / panels, mr.position.y, mr.size.x / panels, mr.size.y)
-			draw_rect(pr, Color(1, 0.95, 0.85, 0.06) if pj % 2 == 0 else Color(0, 0, 0, 0.12))
-		for pi in range(1, panels):
-			var sx := mr.position.x + mr.size.x * pi / panels
-			draw_line(Vector2(sx, mr.position.y + 4), Vector2(sx, mr.end.y - 4), Color(0.1, 0.06, 0.03, 0.75), 3.0)
-			draw_line(Vector2(sx + 2, mr.position.y + 4), Vector2(sx + 2, mr.end.y - 4), Color(1, 0.9, 0.7, 0.12), 1.0)
-			for hy in [0.18, 0.5, 0.82]:
-				var hp := Vector2(sx, mr.position.y + mr.size.y * hy)
-				draw_circle(hp, 4.5, Color("#2a190d"), true, -1.0, true)
-				draw_circle(hp, 3.2, Color("#b98a45"), true, -1.0, true)
-				draw_circle(hp - Vector2(1, 1), 1.2, Color("#f0d9a0"), true, -1.0, true)
-		draw_rect(mr, Color(0, 0, 0, 0.18))   # 壓暗一點，讓上面的字更清楚
+	# 1.3.0 §0.4 敵陣遮罩＝竹簾（取代 1.2.0 木屏風）：橫向竹片（每片上亮下暗、竹節錯開）、三條直向編繩、上緣捲起的簾頭與黃銅掛鉤；
+	# 簾上的資訊（問號旗、預算木牌、AI 性格、每日計分、上一局殘影）全部照舊；壓暗讓字清楚
+	if not bool(Save.s("plain_ui")):
+		_bamboo_blind(mr)
 	else:
 		draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
 	var fp := mr.position + Vector2(mr.size.x / 2 - 8, mr.size.y / 2 - 120)
@@ -1085,3 +1073,34 @@ func _draw_plan_overlay() -> void:
 	_text(Vector2(640, ty), help, tz("C"), TXT_DIM, true, false, 860)
 	_draw_plan_timeline(Rect2(R.position.x + 20, ty + text_h(help, tz("C"), 860) + GAP_M, R.size.x - 40, 300))
 	_btn(Rect2(560, R.end.y - GAP_L - 44.0, 160, 44), L.t("plan_done"), func(): overlay = "", true, true)
+
+
+## 1.3.0 §0.4 竹簾：只畫畫面（遮擋範圍和 1.2.0 屏風一樣＝整個敵方半場）。
+func _bamboo_blind(mr: Rect2) -> void:
+	var base := PAL.BAMBOO.darkened(0.42)
+	draw_rect(mr, base)
+	var slat := 9.0
+	var n := int(mr.size.y / slat)
+	for i in n:
+		var y := mr.position.y + i * slat
+		draw_rect(Rect2(mr.position.x, y, mr.size.x, 1.5), Color(1, 0.95, 0.75, 0.16))
+		draw_rect(Rect2(mr.position.x, y + slat - 2.0, mr.size.x, 2.0), Color(0.12, 0.08, 0.02, 0.35))
+		var off := fmod(float(i * 37), 70.0)
+		var x := mr.position.x + off
+		while x < mr.end.x - 2.0:
+			draw_rect(Rect2(x, y + 1.5, 2.0, slat - 3.5), Color(0.15, 0.1, 0.03, 0.3))   # 竹節
+			x += 70.0
+	for cf in [1.0 / 6.0, 0.5, 5.0 / 6.0]:
+		var cx: float = mr.position.x + mr.size.x * cf
+		draw_line(Vector2(cx, mr.position.y), Vector2(cx, mr.end.y), PAL.TRINKET_LEATHER.darkened(0.35), 2.0)
+		for i in range(0, n, 2):
+			draw_circle(Vector2(cx, mr.position.y + i * slat + slat * 0.5), 1.6, PAL.TRINKET_LEATHER.darkened(0.5), true, -1.0, true)
+	var roll := Rect2(mr.position.x - 4, mr.position.y - 10, mr.size.x + 8, 16)
+	draw_rect(Rect2(roll.position + Vector2(2, 4), roll.size), Color(DIM_INK, 0.45))
+	draw_rect(roll, PAL.BAMBOO.darkened(0.25))
+	draw_rect(Rect2(roll.position.x, roll.position.y + 3, roll.size.x, 3), Color(1, 0.95, 0.75, 0.3))
+	draw_rect(Rect2(roll.position.x, roll.end.y - 4, roll.size.x, 4), Color(0.1, 0.06, 0.02, 0.35))
+	for hf in [0.2, 0.8]:
+		var hc := Vector2(roll.position.x + roll.size.x * hf, roll.position.y + 2)
+		draw_arc(hc, 6.0, PI, TAU, 10, PAL.TRINKET_BRASS, 2.5, true)
+	draw_rect(mr, Color(0, 0, 0, 0.26))   # 壓暗：竹色比木屏風亮，壓多一點讓上面的白字對比照舊

@@ -122,6 +122,14 @@ func _draw_result() -> void:
 		if not _mat_box(r, "card2"):
 			draw_rect(r, Color("#efe4cf"))
 		draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
+		# 1.3.0 §8 三折宣紙：兩道摺痕（左暗右亮的窄漸層，低透明，不影響字的對比）＋上下緣摺口
+		for fi in [1, 2]:
+			var fxp: float = r.position.x + r.size.x * fi / 3.0
+			for k3 in 5:
+				draw_rect(Rect2(fxp - 5 + k3, r.position.y, 1, r.size.y), Color(DIM_INK, 0.022 * (k3 + 1)))
+			draw_rect(Rect2(fxp, r.position.y, 2, r.size.y), Color(1, 0.97, 0.88, 0.22))
+			for yy in [r.position.y - 3.0, r.end.y - 3.0]:
+				draw_rect(Rect2(fxp - 2, yy, 4, 6), Color(DIM_INK, 0.35))
 	else:
 		_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
 		_box(r, PANEL, TH_EDGE, 10.0, 3.0)
