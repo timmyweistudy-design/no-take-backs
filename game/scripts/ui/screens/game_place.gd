@@ -414,10 +414,10 @@ func _draw_place_units() -> void:
 	var pz := PZ.get_puzzle(puzzle_id) if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) else {}
 	for it in list:
 		var p := ORIGIN + Vector2(it[1] + 0.5, it[0] + 0.82) * CS
-		var bsc := BossD.DRAW_SCALE if int(it[5]) == 1 else 1.0   # V1.4 #12 巨獸
+		var bsc := UNIT_SCALE * (BossD.DRAW_SCALE if int(it[5]) == 1 else 1.0)   # V1.4 #12 巨獸；1.3.0 擺陣和戰鬥同一個角色尺寸（Codex cat04 #4）
 		_ring(p, it[3], it[2], bsc)
 		if int(it[4]) > 0:
-			_sticker_badge(p, int(it[4]), 1.0)
+			_sticker_badge(p, int(it[4]), UNIT_SCALE)
 		_unit(p + Vector2(0, _settle_dy(Vector2i(it[1], it[0]))), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1], bsc)
 		if int(it[5]) == 1:
 			_text(p + Vector2(0, -84.0 * bsc), L.t("boss_name"), tz("C"), Color("#ffb4a8"), true, true, 120)
@@ -454,7 +454,7 @@ func _draw_place_units() -> void:
 			dragging_type = _cur_army().units[idx]["type"]
 	if dragging_type >= 0:
 		_lift_shadow(mouse + Vector2(0, 24 + LIFT_PX))   # V1.3 B3：拿起來的棋子在地上留影子
-		Art.unit(self, mouse + Vector2(0, 24), dragging_type, _cur_army().team, 1.0, 0.0, 0.0, 0.0, 0.75, time, 1.0, cbm(), Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
+		Art.unit(self, mouse + Vector2(0, 24), dragging_type, _cur_army().team, 1.0, 0.0, 0.0, 0.0, 0.75, time, UNIT_SCALE, cbm(), Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
 	var c := cursor if pad_mode else _cell_at(mouse)
 	if c.x >= 0:
 		var okp := _check_place(selected, c) == ""

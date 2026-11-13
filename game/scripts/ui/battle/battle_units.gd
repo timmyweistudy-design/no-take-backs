@@ -178,7 +178,7 @@ func _draw_xray(items: Array) -> void:
 				break
 		if hid:
 			var a: Array = items[i][1]
-			_unit(pa, int(a[0]), int(a[1]), float(a[2]), float(a[3]), float(a[4]), 0.0, float(a[5]) * 0.35, time, UNIT_SCALE, 0, float(a[6]), float(a[7]), int(a[8]))
+			_unit(pa, int(a[0]), int(a[1]), float(a[2]), float(a[3]), float(a[4]), 0.0, float(a[5]) * 0.35, time, float(items[i][2]) if items[i].size() > 2 else UNIT_SCALE, 0, float(a[6]), float(a[7]), int(a[8]))   # 1.3.0：補畫用本體的尺寸（巨獸、跟拍；Codex cat04 #3）
 			# 1.1.0 B4／A18：被蓋住的兵，只有游標停在它身上時才描一圈淡粉筆輪廓（常駐會在 800p 糊成雜訊；不移錨點、不改點擊判定）
 			var mp: Vector2 = _cam.affine_inverse() * mouse   # 游標換成場地座標（和兵同一個座標系）
 			if not bool(Save.s("reduce_fx")) and mp.distance_to(pa + Vector2(0, -22.0 * UNIT_SCALE)) < 18.0 * UNIT_SCALE:
@@ -463,6 +463,15 @@ func _board_ring(inner: Rect2) -> bool:
 
 const MAT_OAK := "res://art/mat/tile_oak.png"
 
+## 1.3.0：這一隻的頭頂資訊倍率（照 0.92 倍調的偏移 × 角色放大 × 跟拍放大）
+func hk_of(u) -> float:
+	return HK * focus_scale(u.id)
+
+## 1.3.0 §5.1：跟拍（點兵讓鏡頭跟）的那一隻畫成 1.4 倍（基準 1.25 倍的 1.12 倍）；只改畫面。
+const FOCUS_SCALE := 1.4 / 1.25
+func focus_scale(id: int) -> float:
+	return FOCUS_SCALE if follow_id >= 0 and id == follow_id else 1.0
+
 ## 1.3.0 §3 平原棉布拼貼（64px＝一格）：斜紋（每 6px 一道亮／暗細紋）；grid＝true 時上緣、左緣是壓縫棉線（亮線＋下方暗影、每 4px 一針），左上角一個小線結。
 static var _cotton := {}
 static func _cotton_tex(grid: bool) -> Texture2D:
@@ -701,7 +710,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		var p0: Vector2 = pc[u.id] if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
 		var ar0 := clampf(air0 * 0.05, 0.0, 1.0)
-		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0)   # V1.4 #12 巨獸畫大
+		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)   # V1.4 #12 巨獸畫大；1.3.0 跟拍的那一隻畫大
 		_ring(p0, u.team, u.type, bsc, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層（效能：合成格一次貼完；1.1.0 B14 族群底座部件也烘在合成格裡）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
 		if u.st > 0:
 			_sticker_badge(p0, u.st, UNIT_SCALE, u.ward or u.st != 3)   # V1.4 #9：護符用掉就淡掉
@@ -737,7 +746,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		var bk := {}
 		for u in list:
 			var q: Vector2 = pc[u.id]
-			var key := Vector2i(floori(q.x / 40.0), floori(q.y / 40.0))
+			var key := Vector2i(floori(q.x / (40.0 * HK)), floori(q.y / (40.0 * HK)))
 			if bk.has(key):
 				bk[key].append(q)
 			else:
@@ -753,7 +762,7 @@ func _draw_units_of(s, dim: bool) -> void:
 					if cell == null:
 						continue
 					for o in cell:
-						if q.distance_squared_to(o) < 1600.0:
+						if q.distance_squared_to(o) < 1600.0 * HK * HK:
 							n += 1
 			crowd[u.id] = n
 	# 第二層：身體（V9：地圖的前景物件依腳點 y 插進來，才有前後遮擋）
@@ -961,7 +970,7 @@ func _draw_units_of(s, dim: bool) -> void:
 			# 暈眩：頭上轉圈的星星
 			for sk0 in 3:
 				var sa0 := time * 5.0 + sk0 * TAU / 3.0
-				_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
+				_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 * hk_of(u) + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
 		# V1.3.1 P1：待機小動作。站著沒事（沒走、沒出手、沒暈、還在打）時，每隻約 30～60 秒做一次、1.2 秒，依 id 錯開
 		var fid := -1
 		if live and not moving and at == 0.0 and u.stun <= 0 and not s.finished and mood == 0 and not bool(Save.s("reduce_fx")):
@@ -970,9 +979,10 @@ func _draw_units_of(s, dim: bool) -> void:
 			if tm < 1.2:
 				fid = mini(3, int(tm / 1.2 * 4.0))
 		var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, ut, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0), mood, lean, crouch, variant, fid)
+		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, ut, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id), mood, lean, crouch, variant, fid,
+			(2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0)   # 1.3.0 §5.2 受傷掉漆
 		if live and not u.hidden:
-			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
+			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
 			var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
@@ -1018,10 +1028,10 @@ func _draw_units_of(s, dim: bool) -> void:
 		if u.hidden:
 			continue   # 偽裝中的寶箱不插小旗、不畫血條
 		var fh: int = -58 if u.type == D.CAVALRY else (-70 if u.type == F8.GOLEM or u.type == F8.SPRITE else (-62 if u.type == F8.DOLL else -50))
-		Art.flag(self, p + Vector2(-12, fh), u.team, cbm())
+		Art.flag(self, p + Vector2(-12, fh * hk_of(u)), u.team, cbm())
 		if u.stun > 0:
 			# 暈眩：三顆金色菱形繞著頭轉
-			var hc := p + Vector2(0, -70 if u.type == D.CAVALRY else -62)
+			var hc := p + Vector2(0, (-70 if u.type == D.CAVALRY else -62) * hk_of(u))
 			for j in 3:
 				var an := time * 5.0 + j * TAU / 3.0
 				var dc := hc + Vector2(cos(an) * 13, sin(an) * 4)
@@ -1064,7 +1074,7 @@ func _draw_units_of(s, dim: bool) -> void:
 		var show_hb: bool = (u.hp < u.max_hp and (not live or hurt_recent or u.hp * 100 <= u.max_hp * 35)) if hb == "hurt" else (hb == "all")
 		if (show_hb and hb != "sel" and hb != "off") or (live and u.id == follow_id and hb != "off"):
 			var w := 28.0
-			var top := p + Vector2(-w / 2, -66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58))
+			var top := p + Vector2(-w / 2, (-66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58)) * hk_of(u))
 			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
 			draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Art.team_color(u.team, cbm()).lightened(0.25))
 			if cbm():
@@ -1202,7 +1212,7 @@ func _draw_relic(t: int, p: Vector2, face: float, k: float, team: int) -> void:
 ## V1.4 #12 巨獸血條：上面一條大的（本體），下面兩條小的（前臂、背甲），部位斷了畫成灰色斷條。
 func _boss_bars(p: Vector2, u) -> void:
 	var w := 84.0
-	var top := p + Vector2(-w / 2.0, -76.0 * BossD.DRAW_SCALE)
+	var top := p + Vector2(-w / 2.0, -76.0 * BossD.DRAW_SCALE * HK)
 	draw_rect(Rect2(top - Vector2(2, 2), Vector2(w + 4, 9)), Art.OUT)
 	draw_rect(Rect2(top, Vector2(w * maxf(0.0, float(u.hp)) / maxf(1.0, float(u.max_hp)), 5)), Color("#e05a3a"))
 	var rows := [["sword", u.arm_hp, float(u.max_hp) * BossD.ARM_PCT / 100.0], ["shield", u.plate_hp, float(u.max_hp) * BossD.PART_PCT / 100.0]]

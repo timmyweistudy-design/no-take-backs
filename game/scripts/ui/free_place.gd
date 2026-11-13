@@ -630,9 +630,9 @@ func _fp_draw() -> void:
 			_fp_dashed_circle(_s_of(w) - Vector2(0, 0.32 * CS), a.spacing / 2000.0 * CS, Color(1, 1, 1, 0.35))
 	for it in lst:
 		var p := _s_of(Vector2i(it[1], it[0]))
-		_ring(p, it[3], it[2])
+		_ring(p, it[3], it[2], UNIT_SCALE)
 		var sd := _settle_dy(Vector2i(it[1], it[0]))
-		_unit(p + Vector2(0, sd), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1] * 0.001, 1.0)
+		_unit(p + Vector2(0, sd), it[2], it[3], 1.0 if it[3] == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + it[1] * 0.001, UNIT_SCALE)
 		if it[4]:
 			_hand_ring(p - Vector2(0, 2), 24, ACCENT, 2.5, true)
 		# 全場：擺到敵方半場的兵畫開戰朝向箭頭（會先往敵方底線走）
@@ -669,18 +669,18 @@ func _fp_draw() -> void:
 			for i in fp_sel:
 				var np: Vector2i = a.pos_of(a.units[i]) + dv
 				_lift_shadow(_s_of(np))
-				_unit(_s_of(np) - Vector2(0, LIFT_PX), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, 1.0, Art.M_SURPRISE)
+				_unit(_s_of(np) - Vector2(0, LIFT_PX), int(a.units[i]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.55 if ok_g else 0.25, time, UNIT_SCALE, Art.M_SURPRISE)
 		else:
 			var ok_m: bool = a.check_place_xy(int(a.units[fp_drag]["type"]), tgt.x, tgt.y, fp_drag) == ""
 			_lift_shadow(_s_of(tgt))
-			_unit(_s_of(tgt) - Vector2(0, LIFT_PX), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, 1.0, Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
+			_unit(_s_of(tgt) - Vector2(0, LIFT_PX), int(a.units[fp_drag]["type"]), a.team, face, 0.0, 0.0, 0.0, 0.6 if ok_m else 0.3, time, UNIT_SCALE, Art.M_SURPRISE)   # V1.3.1：被抓起來的驚訝臉
 	# 畫筆預覽：腳底亮點＋半透明小人＋費用泡泡
 	if fp_stroking:
 		var cost := 0
 		for it in fp_stroke:
 			var p2 := _s_of(Vector2i(it[1], it[2]))
 			draw_circle(p2, 5, Color(ACCENT, 0.9), true, -1.0, true)
-			_unit(p2, int(it[0]), a.team, 1.0 if a.team == 0 else -1.0, 0.0, 0.0, 0.0, 0.5, time, 1.0)
+			_unit(p2, int(it[0]), a.team, 1.0 if a.team == 0 else -1.0, 0.0, 0.0, 0.0, 0.5, time, UNIT_SCALE)
 			cost += D.cost(int(it[0]))
 		var tip := L.t("fp_bubble", [cost, fp_stroke.size()])
 		if fp_full:
@@ -786,7 +786,7 @@ func _fp_gesture() -> void:
 	var yc := lerpf(y0, y1, k)
 	var y := y0
 	while y <= yc:
-		_unit(_s_of(Vector2i(a.world_x(ox), int(y))), selected, a.team, 1.0 if a.team == 0 else -1.0, 0.0, 0.0, 0.0, 0.45, time, 1.0)
+		_unit(_s_of(Vector2i(a.world_x(ox), int(y))), selected, a.team, 1.0 if a.team == 0 else -1.0, 0.0, 0.0, 0.0, 0.45, time, UNIT_SCALE)
 		y += a.spacing
 	var hp := _s_of(Vector2i(a.world_x(ox), int(yc))) + Vector2(10, -10)
 	draw_circle(hp, 14.0, Color(1, 1, 1, 0.25 * (1.0 - k) + 0.25), true, -1.0, true)

@@ -81,6 +81,8 @@ static func _f_sheep(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 		ci.draw_circle(Vector2(ex + 0.7, -23), 1.4, Color(OUT, a), true, -1.0, true)
 	if not back:
 		ci.draw_arc(Vector2(16, -18), 2.6, 0.3, PI - 0.3, 6, Color(1, 1, 1, 0.8 * a), 1.2, true)
+		_c(ci, Vector2(14.5, -12.5), 3.0, PAL.TRINKET_GOLD, a)   # 1.3.0 §5.3：脖子上的小鈴鐺
+		ci.draw_circle(Vector2(14.5, -11.3), 0.9, Color(OUT, a), true, -1.0, true)
 	_part_end(ci)
 	# 頭上的引線（招牌）：越接近爆炸火花越大
 	_line(ci, Vector2(-1, -37), Vector2(4, -47), Color("#c9a26b"), 1.8, a)
@@ -343,6 +345,9 @@ static func _f_cat(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t
 	for s in [-1.0, 1.0]:
 		_poly(ci, PackedVector2Array([Vector2(s * 3.5, hy - 11), Vector2(s * 13, hy - 8), Vector2(s * 11, hy - 21)]), tc, a)
 	_c(ci, Vector2(0, hy), 12.0, tc.lightened(0.3), a)
+	if not back:   # 1.3.0 §5.3：紅項圈＋金鈴
+		ci.draw_line(Vector2(-7, -21.5), Vector2(8, -21.5), Color(PAL.TRINKET_RED, a), 2.2, true)
+		_c(ci, Vector2(3, -19.5), 2.5, PAL.TRINKET_GOLD, a)
 	_eyes(ci, Vector2(3.0, hy), a, t, angry)
 	for s2 in ([] if back else [-1.0, 1.0]):   # V1.5 背面不畫鬍鬚
 		ci.draw_line(Vector2(s2 * 9 + 2, hy + 4), Vector2(s2 * 16 + 2, hy + 3), Color(OUT, 0.7 * a), 1.0, true)

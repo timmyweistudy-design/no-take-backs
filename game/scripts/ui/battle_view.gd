@@ -612,7 +612,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	if tags.has(EV.EXT_FIRE):
 		# 1.2.0 擴充「火矢」：地上的小火燒到（不是射手出手：不畫箭、不讓射手做攻擊動作）
 		hurt_t[t.id] = time
-		_merge_text(t.id, EV.HIT, "", int(ev["dmg"]), _upos(t) + Vector2(0, -62), Color("#ff9a5a"))
+		_merge_text(t.id, EV.HIT, "", int(ev["dmg"]), _upos(t) + Vector2(0, -62 * HK), Color("#ff9a5a"))
 		_add_fx({"kind": "scorch", "p": _upos(t) + Vector2(0, 2), "t": 0.0, "dur": 0.4})
 		if _frags_on():
 			frags.spawn(_upos(t), "fire", 3, view.tick * 4096 + t.id, 6.0)
@@ -717,9 +717,9 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 		# 第七輪 D1：混戰（附近 3 隻以上）不再往上疊跳字，技能都進底部戰報列；稀疏時才跳字
 		if int(TEXT_TIER.get(k, 1)) < 2:
 			# V1.1 A5：一般狀態（反騎、反擊、破陣）不出字，只在頭頂閃一個小菱形，字留在底部戰報列
-			_add_fx({"kind": "badge", "p": tpos + Vector2(0, -64), "c": col, "t": 0.0, "dur": 0.4})
+			_add_fx({"kind": "badge", "p": tpos + Vector2(0, -64 * HK), "c": col, "t": 0.0, "dur": 0.4})
 		elif _crowd_at(t) < 3:
-			_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -78), col)
+			_merge_text(t.id, k, label, int(ev["dmg"]), tpos + Vector2(0, -78 * HK), col)
 		elif int(TEXT_TIER.get(k, 1)) >= 2:
 			text_key_in += 1
 			text_key_shown += 1   # 關鍵技能仍然有顯示，只是在戰報列（測試對帳用）

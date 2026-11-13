@@ -821,3 +821,19 @@ func test_base_shapes_v130() -> void:
 	ok(a != null and b != null and a.get_width() == 64 and a != b, "棉布拼貼：有格線／無格線兩張、一格 64px")
 	var img: Image = a.get_image()
 	ok(img.get_pixel(0, 10).a > 0.3 and img.get_pixel(3, 0).a < 0.2, "格線一針一針（每 4px 留縫）")
+
+## 1.3.0 第 4 大類：角色 1.25 倍、跟拍 1.4 倍、頭頂資訊跟著縮放、掉漆貼花
+func test_unit_scale_v130() -> void:
+	var UB = load("res://scripts/ui/ui_base.gd")
+	ok(absf(UB.UNIT_SCALE / 0.92 - 1.25) < 0.001 and absf(UB.HK - UB.UNIT_SCALE / 0.92) < 0.001, "戰場角色 1.25 倍；頭頂資訊倍率＝同一比例")
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.follow_id = 7
+	ok(absf(g.focus_scale(7) * 1.25 - 1.4) < 0.001 and g.focus_scale(3) == 1.0, "跟拍那隻 1.4 倍、其他照舊")
+	g.follow_id = -1
+	ok(g.focus_scale(7) == 1.0, "沒跟拍時都照舊")
+	var ct: Texture2D = UB.chip_tex()
+	ok(ct != null and ct.get_width() == 64 and ct.get_height() == 32, "掉漆貼花兩格（一塊／兩塊）")
+	var img: Image = ct.get_image()
+	ok(img.get_pixel(12, 14).a > 0.5 and img.get_pixel(44, 12).a > 0.5 and img.get_pixel(52, 21).a > 0.5, "兩格都有漆塊")
+	ok(UB.CHIP_ANCHOR.has(3) and UB.CHIP_ANCHOR.has(19), "騎兵、小石魔的掉漆位置另外定")
+	g.free()

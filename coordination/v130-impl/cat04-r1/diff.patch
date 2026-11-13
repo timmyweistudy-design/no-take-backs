@@ -1,0 +1,169 @@
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 1fb2509..f9d2a70 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -463,6 +463,41 @@ func _board_ring(inner: Rect2) -> bool:
+ 
+ const MAT_OAK := "res://art/mat/tile_oak.png"
+ 
++## 1.3.0 §5.2 掉漆貼花：血 <50% 身側剝一塊漆露出淡黃原木胎；<25% 再加一塊＋邊角崩口。
++## 預烘成 32×32 小圖（兩格：一塊／兩塊），每隻受傷的兵只多 1 次貼圖（1.1.0 教訓：每幀逐隻向量畫 p95 多 20%）。召喚物不掉漆。
++static var _chip_tex: Texture2D = null
++static func chip_tex() -> Texture2D:
++	if _chip_tex != null:
++		return _chip_tex
++	var img := Image.create(64, 32, false, Image.FORMAT_RGBA8)
++	img.fill(Color(0, 0, 0, 0))
++	var wood := Color(0.93, 0.82, 0.6, 0.95)
++	var edge := Color(0.32, 0.2, 0.1, 0.8)
++	for cell in 2:
++		var spots: Array = [[Vector2(12, 14), 5.0]] if cell == 0 else [[Vector2(12, 12), 5.0], [Vector2(20, 21), 4.0]]
++		for sp in spots:
++			var c: Vector2 = sp[0] + Vector2(cell * 32, 0)
++			var r: float = sp[1]
++			for y in range(int(c.y - r - 1), int(c.y + r + 2)):
++				for x in range(int(c.x - r - 1), int(c.x + r + 2)):
++					var d := Vector2(x, y).distance_to(c) + (0.8 if (x + y) % 3 == 0 else 0.0)   # 不規則的剝落邊
++					if d <= r - 1.0:
++						img.set_pixel(x, y, wood)
++					elif d <= r:
++						img.set_pixel(x, y, edge)
++	_chip_tex = ImageTexture.create_from_image(img)
++	return _chip_tex
++
++func _chip_decal(p: Vector2, two: bool, face: float, a: float) -> void:
++	var sc := UNIT_SCALE
++	var r := Rect2(p + Vector2((-4.0 if face > 0 else -12.0) * sc, -30.0 * sc), Vector2(16, 16) * sc)
++	draw_texture_rect_region(chip_tex(), r, Rect2(32 if two else 0, 0, 32, 32), Color(1, 1, 1, a))
++
++## 1.3.0 §5.1：跟拍（點兵讓鏡頭跟）的那一隻畫成 1.4 倍（基準 1.25 倍的 1.12 倍）；只改畫面。
++const FOCUS_SCALE := 1.4 / 1.25
++func focus_scale(id: int) -> float:
++	return FOCUS_SCALE if follow_id >= 0 and id == follow_id else 1.0
++
+ ## 1.3.0 §3 平原棉布拼貼（64px＝一格）：斜紋（每 6px 一道亮／暗細紋）；grid＝true 時上緣、左緣是壓縫棉線（亮線＋下方暗影、每 4px 一針），左上角一個小線結。
+ static var _cotton := {}
+ static func _cotton_tex(grid: bool) -> Texture2D:
+@@ -701,7 +736,7 @@ func _draw_units_of(s, dim: bool) -> void:
+ 		var p0: Vector2 = pc[u.id] if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
+ 		var air0: float = Gait.air(u.type, _walk_of(u, a_now)) if live else 0.0
+ 		var ar0 := clampf(air0 * 0.05, 0.0, 1.0)
+-		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0)   # V1.4 #12 巨獸畫大
++		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)   # V1.4 #12 巨獸畫大；1.3.0 跟拍的那一隻畫大
+ 		_ring(p0, u.team, u.type, bsc, ar0 if ar0 > 0.15 else 0.0)   # 小跳步不分層（效能：合成格一次貼完；1.1.0 B14 族群底座部件也烘在合成格裡）   # V1.3 A3：木座和隊伍圈留在地上，只有影子跟著跳起縮
+ 		if u.st > 0:
+ 			_sticker_badge(p0, u.st, UNIT_SCALE, u.ward or u.st != 3)   # V1.4 #9：護符用掉就淡掉
+@@ -970,7 +1005,9 @@ func _draw_units_of(s, dim: bool) -> void:
+ 			if tm < 1.2:
+ 				fid = mini(3, int(tm / 1.2 * 4.0))
+ 		var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
+-		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, ut, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0), mood, lean, crouch, variant, fid)
++		_unit(p, u.type, u.team, face, walk, at, hurt, alpha, ut, UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id), mood, lean, crouch, variant, fid)
++		if live and not u.hidden and u.max_hp > 0 and u.hp * 2 < u.max_hp and not bool(Save.s("plain_ui")) and not u.summon:
++			_chip_decal(p, u.hp * 4 < u.max_hp, face, alpha)   # 1.3.0 §5.2 受傷掉漆（一張預烘貼花，每隻一次貼圖）
+ 		if live and not u.hidden:
+ 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant]])
+ 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+diff --git a/game/scripts/ui/palette.gd b/game/scripts/ui/palette.gd
+index 18f49fc..68344cd 100644
+--- a/game/scripts/ui/palette.gd
++++ b/game/scripts/ui/palette.gd
+@@ -23,6 +23,11 @@ const CUP_GLAZE := Color("#e9e1cf")
+ const CUP_BODY := Color("#d8cdb6")
+ const CUP_FOOT := Color("#b9ac92")
+ const TEA := Color("#6b4a22")
++# ── 角色個性小物（1.3.0 §5.3）──
++const TRINKET_GOLD := Color("#d9b25a")
++const TRINKET_RED := Color("#c0392b")
++const TRINKET_LEATHER := Color("#7a5434")
++const TRINKET_BRASS := Color("#b8913f")
+ # ── 隊色（[一般, 色盲][藍, 紅]）與塗裝底漆 ──
+ const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]
+ const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index d433209..8eb2327 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -184,7 +184,7 @@ var _hover_key := -1
+ var _trans_gen := -1
+ var _trans_t := -10.0
+ var _hover_now := -1
+-const UNIT_SCALE := 0.92
++const UNIT_SCALE := 1.15   # 1.3.0 §5.1：戰場角色 1.25 倍（0.92 → 1.15；碰撞、射程、格子不動，純畫面；圖集 RS 1.6 仍超取樣）
+ ## V1.2 A2／B1：文字描邊與陰影的墨色（深焦茶，取代純黑）
+ const INK := PAL.INK
+ const INK_SHADOW := PAL.INK_SHADOW
+diff --git a/game/scripts/ui/units/kingdom.gd b/game/scripts/ui/units/kingdom.gd
+index ed256d6..eb948fa 100644
+--- a/game/scripts/ui/units/kingdom.gd
++++ b/game/scripts/ui/units/kingdom.gd
+@@ -40,6 +40,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
+ 		_poly(ci, PackedVector2Array([Vector2(-12, -11), Vector2(12, -11), Vector2(13, -5), Vector2(-13, -5)]), tc, a, false)   # 白袍下擺露出隊伍色
+ 		_poly(ci, PackedVector2Array([Vector2(-10, -24), Vector2(-3, -26), Vector2(8, -22), Vector2(10, -16), Vector2(0, -19), Vector2(-11, -15)]), tc, a)   # 第七輪 C1-8：大面積隊伍色披肩
+ 	ci.draw_line(Vector2(-9, -11), Vector2(9, -11), Color(OUT, 0.35 * a), 2.0, true)   # 腰帶
++	if not back:
++		_trinket(ci, type, tc, a)   # 1.3.0 §5.3 個性小物（烘進圖集，零每幀成本）
+ 	if back:
+ 		_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # V1.5 背面：披風、箭筒、火罐包、遠側斧都在身上看得到
+ 	# 頭（V1.3 A1b：轉身時頭不壓扁）
+@@ -321,6 +323,36 @@ static func _inf_back_items(ci: CanvasItem, type: int, tc: Color, fl: float, w:
+ 	_part_end(ci)
+ 
+ ## 1.1.0 B14：刺客遠側（後手）短刃。w < 0.5 時在身體前畫（被身體擋住），交叉斬時在頭之後畫。
++## 1.3.0 §5.3 個性小物（正面才畫；尺寸 ≤3px，不改剪影）：劍士護身符、盾兵腰包、弓箭手紅毛線箭羽、長槍兵領巾結、
++## 投彈兵掛胸前的防風銅眼鏡、醫者袍上的星星貼紙、鼓手腰間紅流蘇。狂戰士、刺客原本的剪影特徵已經夠強，不加。
++const PAL = preload("res://scripts/ui/palette.gd")
++static func _trinket(ci: CanvasItem, type: int, tc: Color, a: float) -> void:
++	match type:
++		D.SWORD:
++			ci.draw_line(Vector2(-1, -24), Vector2(3, -19), Color(OUT, 0.6 * a), 1.0, true)
++			_c(ci, Vector2(3.5, -18), 2.2, PAL.TRINKET_GOLD, a)
++		D.SHIELD:
++			_poly(ci, PackedVector2Array([Vector2(-9, -12), Vector2(-4, -12), Vector2(-4, -7), Vector2(-9, -7)]), PAL.TRINKET_LEATHER, a)
++		D.ARCHER:
++			_c(ci, Vector2(-8, -25), 1.7, PAL.TRINKET_RED, a, false)
++			_c(ci, Vector2(-6, -26.5), 1.5, PAL.TRINKET_RED, a, false)
++		D.PIKE:
++			_poly(ci, PackedVector2Array([Vector2(2, -24), Vector2(7, -22), Vector2(3, -19)]), tc.darkened(0.3), a)
++		D.BOMBER:
++			_c(ci, Vector2(0.5, -19), 2.0, PAL.TRINKET_BRASS, a)
++			_c(ci, Vector2(5, -19), 2.0, PAL.TRINKET_BRASS, a)
++			ci.draw_line(Vector2(2.5, -19), Vector2(3, -19), Color(OUT, 0.7 * a), 1.0)
++		D.MEDIC:
++			var st := PackedVector2Array()
++			for i in 10:
++				var r := 2.6 if i % 2 == 0 else 1.1
++				var ang := -PI / 2.0 + i * PI / 5.0
++				st.append(Vector2(5, -15) + Vector2(cos(ang), sin(ang)) * r)
++			_poly(ci, st, PAL.TRINKET_GOLD, a, false)
++		D.DRUMMER:
++			ci.draw_line(Vector2(6, -11), Vector2(7, -6), PAL.TRINKET_RED, 1.4, true)
++			ci.draw_line(Vector2(7, -11), Vector2(8.5, -6.5), PAL.TRINKET_RED, 1.4, true)
++
+ static func _assassin_far(ci: CanvasItem, w: float, a: float) -> void:
+ 	var bw := maxf(0.0, w)
+ 	_part(ci, 4.0, 0.9)   # 後手短刃在遠側
+@@ -386,6 +418,10 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
+ 		_horse_head(ci, tc, pony, a, true)
+ 	# 鞍布
+ 	_poly(ci, PackedVector2Array([Vector2(-7, -25), Vector2(6, -25), Vector2(7, -15), Vector2(-8, -15)]), tc, a)
++	if not back:   # 1.3.0 §5.3：木馬屁股上的發條鑰匙（黃銅）
++		_line(ci, Vector2(-12, -21), Vector2(-16, -27), PAL.TRINKET_BRASS, 1.6, a)
++		_c(ci, Vector2(-17, -28.5), 2.6, PAL.TRINKET_BRASS, a)
++		_c(ci, Vector2(-17, -28.5), 1.0, PAL.TRINKET_LEATHER, a, false)
+ 	# 騎士（小一號；V1.3 A1b：轉身時騎士不跟著馬壓扁）
+ 	var hy := -44.0
+ 	_part(ci, 0.0, 0.3)
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index 9a83133..6d28466 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -281,7 +281,7 @@ func _art_checks(img: Image) -> Dictionary:
+ 			if not u.alive:
+ 				continue
+ 			var sp: Vector2 = _cam * _upos(u)
+-			var inner := Rect2i(int(sp.x) - 18, int(sp.y) - 46, 36, 46)
++			var inner := Rect2i(int(sp.x - 18.0 * UNIT_SCALE / 0.92), int(sp.y - 46.0 * UNIT_SCALE / 0.92), int(36.0 * UNIT_SCALE / 0.92), int(46.0 * UNIT_SCALE / 0.92))   # 1.3.0：量框跟著角色尺寸（原本寫死 0.92 倍時的 36×46）
+ 			var outer := inner.grow(6)
+ 			var vals: Array = []
+ 			for yy in range(maxi(0, inner.position.y), mini(h, inner.end.y), 2):

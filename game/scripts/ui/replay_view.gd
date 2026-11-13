@@ -230,10 +230,10 @@ func _battle_click(p: Vector2) -> void:
 		return
 	var world := _cam.affine_inverse() * p
 	var best := -1
-	var bd := 40.0
+	var bd := 40.0 * HK   # 1.3.0：點兵半徑跟角色尺寸（Codex cat04 #2）
 	for u in view.units:
 		if u.alive:
-			var d := _upos(u).distance_to(world + Vector2(0, 20))
+			var d := _upos(u).distance_to(world + Vector2(0, 20 * HK))
 			if d < bd:
 				bd = d
 				best = u.id

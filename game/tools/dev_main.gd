@@ -281,7 +281,7 @@ func _art_checks(img: Image) -> Dictionary:
 			if not u.alive:
 				continue
 			var sp: Vector2 = _cam * _upos(u)
-			var inner := Rect2i(int(sp.x) - 18, int(sp.y) - 46, 36, 46)
+			var inner := Rect2i(int(sp.x - 18.0 * UNIT_SCALE / 0.92), int(sp.y - 46.0 * UNIT_SCALE / 0.92), int(36.0 * UNIT_SCALE / 0.92), int(46.0 * UNIT_SCALE / 0.92))   # 1.3.0：量框跟著角色尺寸（原本寫死 0.92 倍時的 36×46）
 			var outer := inner.grow(6)
 			var vals: Array = []
 			for yy in range(maxi(0, inner.position.y), mini(h, inner.end.y), 2):

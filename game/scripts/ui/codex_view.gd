@@ -649,7 +649,7 @@ func _draw_codex_demo() -> void:
 				draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 5)), Art.OUT)
 				draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 3)), Art.team_color(u.team, cbm()).lightened(0.25))
 		# 飛行物（縮到小劇場的比例：角色 0.72 倍，戰場是 UNIT_SCALE）
-		var ps := sc / UNIT_SCALE
+		var ps := sc / 0.92   # 戰場飛行物是照 0.92 倍角色調的固定尺寸；1.3.0 角色放大後小劇場比例不變（Codex cat04 #6）
 		for pj in pdraw:
 			var a0: Vector2 = pj[2] + proj_launch(int(pj[0]), float(pj[5])) * sc
 			var b0: Vector2 = pj[3] + Vector2(0, -16.0 * ps)

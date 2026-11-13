@@ -23,6 +23,11 @@ const CUP_GLAZE := Color("#e9e1cf")
 const CUP_BODY := Color("#d8cdb6")
 const CUP_FOOT := Color("#b9ac92")
 const TEA := Color("#6b4a22")
+# ── 角色個性小物（1.3.0 §5.3）──
+const TRINKET_GOLD := Color("#d9b25a")
+const TRINKET_RED := Color("#c0392b")
+const TRINKET_LEATHER := Color("#7a5434")
+const TRINKET_BRASS := Color("#b8913f")
 # ── 隊色（[一般, 色盲][藍, 紅]）與塗裝底漆 ──
 const TEAM := [[Color("#45acff"), Color("#d93a44")], [Color("#2f80ff"), Color("#ffb000")]]
 const PAINTS := [[Color("#45acff"), Color("#3f6fd8"), Color("#2fa5a0"), Color("#7d8be6")], [Color("#d93a44"), Color("#a62f3c"), Color("#d6662d"), Color("#c4467a")]]

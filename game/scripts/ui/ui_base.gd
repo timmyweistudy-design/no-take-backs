@@ -184,7 +184,8 @@ var _hover_key := -1
 var _trans_gen := -1
 var _trans_t := -10.0
 var _hover_now := -1
-const UNIT_SCALE := 0.92
+const HK := 1.15 / 0.92   # 1.3.0：頭頂資訊、跳字錨點、點兵半徑原本是照 0.92 倍角色調的，角色放大後一起乘這個（Codex cat04 #1 #2 #7）
+const UNIT_SCALE := 1.15   # 1.3.0 §5.1：戰場角色 1.25 倍（0.92 → 1.15；碰撞、射程、格子不動，純畫面；圖集 RS 1.6 仍超取樣）
 ## V1.2 A2／B1：文字描邊與陰影的墨色（深焦茶，取代純黑）
 const INK := PAL.INK
 const INK_SHADOW := PAL.INK_SHADOW
@@ -1708,13 +1709,48 @@ func _cycle_setting(k: String, opts: Array) -> void:
 
 ## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
 func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
-		mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1) -> void:
+		mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1, chip := 0) -> void:
 	if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
 		_unit_base(p, scale)
-	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊
+	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊（1.3.0：戰場跟拍 1.29 倍仍 < 1.4，用圖集）
 		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
 	else:
 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
+	if chip > 0 and not bool(Save.s("plain_ui")):
+		# 1.3.0 §5.2：掉漆貼花畫在這隻的座標系裡（跟著尺寸、巨獸、跟拍、面向翻轉；Codex cat04 #5）
+		var anc: Vector2 = CHIP_ANCHOR.get(type, Vector2(-5, -20))
+		draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale * (-1.0 if face < 0.0 else 1.0), scale), 0.0, p))
+		draw_texture_rect_region(chip_tex(), Rect2(anc - Vector2(7, 7), Vector2(14, 14)), Rect2(32 if chip == 2 else 0, 0, 32, 32), Color(1, 1, 1, alpha))
+		draw_set_transform_matrix(Art.base)
+
+## 1.3.0 §5.2 掉漆貼花：血 <50% 身側剝一塊漆露出淡黃原木胎；<25% 再加一塊＋邊角崩口。
+## 預烘成 32×32 小圖（兩格：一塊／兩塊），每隻受傷的兵只多 1 次貼圖（1.1.0 教訓：每幀逐隻向量畫 p95 多 20%）。召喚物不掉漆。
+static var _chip_tex: Texture2D = null
+static func chip_tex() -> Texture2D:
+	if _chip_tex != null:
+		return _chip_tex
+	var img := Image.create(64, 32, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var wood := Color(0.93, 0.82, 0.6, 0.95)
+	var edge := Color(0.32, 0.2, 0.1, 0.8)
+	for cell in 2:
+		var spots: Array = [[Vector2(12, 14), 5.0]] if cell == 0 else [[Vector2(12, 12), 5.0], [Vector2(20, 21), 4.0]]
+		for sp in spots:
+			var c: Vector2 = sp[0] + Vector2(cell * 32, 0)
+			var r: float = sp[1]
+			for y in range(int(c.y - r - 1), int(c.y + r + 2)):
+				for x in range(int(c.x - r - 1), int(c.x + r + 2)):
+					var d := Vector2(x, y).distance_to(c) + (0.8 if (x + y) % 3 == 0 else 0.0)   # 不規則的剝落邊
+					if d <= r - 1.0:
+						img.set_pixel(x, y, wood)
+					elif d <= r:
+						img.set_pixel(x, y, edge)
+	_chip_tex = ImageTexture.create_from_image(img)
+	return _chip_tex
+
+## 掉漆在身體上的位置（腳點座標、面朝右）：人形在腰側；騎兵在馬身；奇幻依身形。
+const CHIP_ANCHOR := {3: Vector2(-10, -16), 10: Vector2(-5, -14), 11: Vector2(-6, -15), 12: Vector2(-6, -12), 13: Vector2(-6, -10),
+	14: Vector2(-4, -20), 15: Vector2(-4, -16), 16: Vector2(-2, -22), 17: Vector2(-4, -18), 18: Vector2(-8, -14), 19: Vector2(-6, -22)}
 
 ## V1.2 D2：大圖（圖鑑、MVP）站在木製圓底座上，像桌上的棋偶公仔（V1.5.1 抽出來給圖鑑烘焙版大圖共用）
 func _unit_base(p: Vector2, scale: float) -> void:

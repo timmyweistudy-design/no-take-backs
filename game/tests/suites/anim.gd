@@ -87,7 +87,7 @@ func test_gait_driver_v9() -> void:
 	bv.prev_pos[u.id] = Vector2(u.x, u.y)
 	u.x += 60
 	bv._gait_tick(false)
-	ok(absf(bv._walk_of(u, 1.0) - w0 - 60.0 * 64.0 / 1000.0 / Gait.cycle_px(0, 0.92) * TAU) < 0.001, "相位前進量正比於位移")
+	ok(absf(bv._walk_of(u, 1.0) - w0 - 60.0 * 64.0 / 1000.0 / Gait.cycle_px(0, load("res://scripts/ui/ui_base.gd").UNIT_SCALE) * TAU) < 0.001, "相位前進量正比於位移")
 	# 被推（mx＝0 但有位移）也算小碎步
 	ok(u.mx == 0 and bv._walk_of(u, 1.0) > 0.0, "被推開時也有腳步（不會站姿平移）")
 	# 擊退

@@ -40,6 +40,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 		_poly(ci, PackedVector2Array([Vector2(-12, -11), Vector2(12, -11), Vector2(13, -5), Vector2(-13, -5)]), tc, a, false)   # 白袍下擺露出隊伍色
 		_poly(ci, PackedVector2Array([Vector2(-10, -24), Vector2(-3, -26), Vector2(8, -22), Vector2(10, -16), Vector2(0, -19), Vector2(-11, -15)]), tc, a)   # 第七輪 C1-8：大面積隊伍色披肩
 	ci.draw_line(Vector2(-9, -11), Vector2(9, -11), Color(OUT, 0.35 * a), 2.0, true)   # 腰帶
+	if not back:
+		_trinket(ci, type, tc, a)   # 1.3.0 §5.3 個性小物（烘進圖集，零每幀成本）
 	if back:
 		_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # V1.5 背面：披風、箭筒、火罐包、遠側斧都在身上看得到
 	# 頭（V1.3 A1b：轉身時頭不壓扁）
@@ -321,6 +323,34 @@ static func _inf_back_items(ci: CanvasItem, type: int, tc: Color, fl: float, w: 
 	_part_end(ci)
 
 ## 1.1.0 B14：刺客遠側（後手）短刃。w < 0.5 時在身體前畫（被身體擋住），交叉斬時在頭之後畫。
+## 1.3.0 §5.3 個性小物（正面才畫；尺寸 ≤3px，不改剪影）：劍士護身符、盾兵腰包、弓箭手紅毛線箭羽、長槍兵領巾結、
+## 投彈兵掛胸前的防風銅眼鏡、醫者袍上的星星貼紙、鼓手腰間紅流蘇。狂戰士、刺客原本的剪影特徵已經夠強，不加。
+const PAL = preload("res://scripts/ui/palette.gd")
+static func _trinket(ci: CanvasItem, type: int, tc: Color, a: float) -> void:
+	# 1.3.0 Antigravity cat04：原本太小、藏在頭的圓後面 → 放大、加描邊、移到頭外側；投彈兵頭上本來就有眼鏡，不重複
+	match type:
+		D.SWORD:
+			ci.draw_line(Vector2(-2, -24), Vector2(-4, -19), Color(OUT, 0.7 * a), 1.2, true)
+			_c(ci, Vector2(-4.5, -17.5), 2.9, PAL.TRINKET_GOLD, a)
+		D.SHIELD:
+			_poly(ci, PackedVector2Array([Vector2(-11, -13), Vector2(-4, -13), Vector2(-4, -6), Vector2(-11, -6)]), PAL.TRINKET_LEATHER, a)
+			ci.draw_line(Vector2(-11, -11), Vector2(-4, -11), Color(PAL.TRINKET_BRASS, a), 1.2)
+		D.ARCHER:
+			_c(ci, Vector2(-13.5, -22), 2.6, PAL.TRINKET_RED, a)
+			_c(ci, Vector2(-12, -25), 2.2, PAL.TRINKET_RED, a)
+		D.PIKE:
+			_poly(ci, PackedVector2Array([Vector2(2, -23), Vector2(10, -20), Vector2(3, -16)]), PAL.TRINKET_RED, a)
+		D.MEDIC:
+			var st := PackedVector2Array()
+			for i in 10:
+				var r := 3.4 if i % 2 == 0 else 1.5
+				var ang := -PI / 2.0 + i * PI / 5.0
+				st.append(Vector2(5, -15) + Vector2(cos(ang), sin(ang)) * r)
+			_poly(ci, st, PAL.TRINKET_GOLD, a)
+		D.DRUMMER:
+			for k in 3:
+				ci.draw_line(Vector2(-9 + k * 1.5, -11), Vector2(-10 + k * 1.5, -4), PAL.TRINKET_RED, 1.6, true)
+
 static func _assassin_far(ci: CanvasItem, w: float, a: float) -> void:
 	var bw := maxf(0.0, w)
 	_part(ci, 4.0, 0.9)   # 後手短刃在遠側
@@ -386,6 +416,10 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 		_horse_head(ci, tc, pony, a, true)
 	# 鞍布
 	_poly(ci, PackedVector2Array([Vector2(-7, -25), Vector2(6, -25), Vector2(7, -15), Vector2(-8, -15)]), tc, a)
+	if not back:   # 1.3.0 §5.3：木馬背上的發條鑰匙（黃銅；鞍布後面往上翹，不被木座切到）
+		_line(ci, Vector2(-9, -25), Vector2(-14, -34), PAL.TRINKET_BRASS, 2.0, a)
+		_c(ci, Vector2(-15, -36), 3.4, PAL.TRINKET_BRASS, a)
+		_c(ci, Vector2(-15, -36), 1.3, PAL.TRINKET_LEATHER, a, false)
 	# 騎士（小一號；V1.3 A1b：轉身時騎士不跟著馬壓扁）
 	var hy := -44.0
 	_part(ci, 0.0, 0.3)
