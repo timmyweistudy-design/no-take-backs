@@ -740,6 +740,7 @@ func _draw_inner() -> void:
 	probe_btns.clear()
 	probe_ctrls.clear()
 	probe_boxes.clear()
+	probe_icons.clear()
 	probe_reset_geom()
 	_probe_ui = false
 	_draw_desk()   # 1.2.0 §1.1 桌面世界：整個畫面是一張胡桃木桌（取代深綠底＋一圈樹）

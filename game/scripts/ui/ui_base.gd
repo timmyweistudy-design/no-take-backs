@@ -176,6 +176,7 @@ var _probe_anim := false   # V1.2.1：淡入淡出中的特效字（不檢查對
 var _probe_dis := false   # V1.2.1：版面檢查：這段字屬於停用的按鈕（停用另報，WCAG 豁免）   # V1.2.1：鍵帽字母等符號，版面檢查不算字級
 var probe_missing: Array = []   # V1.2.1：版面檢查期間找不到的材質
 var probe_boxes: Array = []   # V1.2.1 F1：版面檢查用，九宮格方塊（字不能壓進外圈斜邊）
+var probe_icons: Array = []   # 1.4.0 方案盤點（第 10 點：圖示要在框裡、上下留空）：每個圖示畫出來的框
 var btn_cloth := ""   # 1.2.0 §1.3：設了就畫布標（"tab_indigo" 選中、"tab_linen" 未選、"tab_madder" 警示）；畫完一顆呼叫端要清回 ""
 var _ink_keep_a := false   # 1.2.0：戰場跳字轉墨色時保留原透明度（淡出要和紙條同步，Codex cat04 #2）
 var _hand_mode := false   # 1.2.0：畫老闆便條時用手寫字
@@ -1330,6 +1331,8 @@ func _seg_bar(r: Rect2, frac: float, col: Color, segs := 8) -> void:
 const ICON_SOLID := ["people", "cards", "robot", "gear", "shield", "heart", "star", "lock", "trophy", "flag", "skull", "book", "puzzle", "tower", "dice", "save"]   # 有實心面、放得下高光點的圖示
 
 func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
+	if layout_probe and _probe_ui:
+		probe_icons.append({"n": name, "r": Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s))})
 	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
 	if _ink_mode:
 		col = _ink(col)

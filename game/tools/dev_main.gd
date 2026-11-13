@@ -466,7 +466,9 @@ func _layout_report(name: String, img: Image = null) -> void:
 		var bx: Array = probe_boxes.map(func(b): return [b["r"].position.x, b["r"].position.y, b["r"].size.x, b["r"].size.y])
 		var gf := FileAccess.open(shot_dir.path_join("geom.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("geom.jsonl")) else FileAccess.WRITE)
 		gf.seek_end()
-		gf.store_line(JSON.stringify({"shot": name, "texts": tx, "boxes": bx}))
+		var ic: Array = probe_icons.map(func(i): return {"n": i["n"], "r": [i["r"].position.x, i["r"].position.y, i["r"].size.x, i["r"].size.y]})
+		var bt: Array = probe_btns.map(func(b): return [b.position.x, b.position.y, b.size.x, b.size.y] if b is Rect2 else [0, 0, 0, 0])
+		gf.store_line(JSON.stringify({"shot": name, "texts": tx, "boxes": bx, "icons": ic, "btns": bt}))   # 1.4.0：加圖示框與按鈕框（量內距）
 		gf.close()
 
 
