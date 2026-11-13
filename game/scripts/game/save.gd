@@ -177,6 +177,10 @@ static func sanitize_data(out: Dictionary) -> void:
 	var lf = out.get("last_form", "")
 	out["last_form"] = lf if lf is String and str(lf).length() <= 8000 else ""   # 1.2.0 §11.1：上一陣（陣型碼）
 	out["songbook"] = load("res://scripts/game/songbook.gd").sanitize(out.get("songbook", []))   # 1.2.0 §11.8 棋譜本
+	out["intro_seen"] = out.get("intro_seen", false) is bool and bool(out.get("intro_seen", false))   # 1.3.0 §13 掌燈開門只播第一次
+	out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
+	var ods = out.get("od_stamps", 0)
+	out["od_stamps"] = clampi(int(ods), 0, 100000) if (ods is int or ods is float) else 0
 	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）
 	out["recent"] = load("res://scripts/game/recent.gd").valid(out.get("recent", []), ["hub_play", "hub_gauntlet", "hub_challenge", "playroom", "hub_collect"])   # 1.2.0 §11.11
 	for k in ["tutorial", "gauntlet_best", "unlock_games"]:

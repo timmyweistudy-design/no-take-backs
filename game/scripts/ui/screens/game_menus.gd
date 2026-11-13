@@ -1210,7 +1210,7 @@ func _draw_restore() -> void:
 		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
 
-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins"]], ["clr_all", []]]
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	_dim(0.6)
@@ -1493,7 +1493,8 @@ func hub_items(kind: String) -> Array:
 			return [["menu_puzzle", "hc_puzzle_d", "puzzle", func(): overlay = ""; _open("puzzles"), true],
 				["menu_trials", "hc_trials_d", "trophy", func(): overlay = ""; _open("trials"), true],
 				["rush_open", "hc_rush_d", "clock", func(): overlay = ""; call("_rush_start"), not _demo()],   # V1.6 #8（題庫是全部殘局：試玩版不開，Codex v160-i1 #7）
-				["trio_open", "hc_trio_d", "people", func(): overlay = "trio"; _focus = 0, not _demo()]]   # V1.6 #17
+				["trio_open", "hc_trio_d", "people", func(): overlay = "trio"; _focus = 0, not _demo()],   # V1.6 #17
+				["od_open", "hc_od_d", "star", func(): overlay = "owner_daily"; _focus = 0, not _demo()]]   # 1.3.0 §12.7 每日老闆出題
 		"playroom":   # V1.0.0 H1：遊戲間＝定期回來的（每日、每週、幽靈、裂隙）＋派對玩法（競猜、輪抽、車輪、雙封蠟）
 			return [["menu_daily", "hc_daily_d", "dice", func(): overlay = ""; call("_daily_entry"), not _demo()],   # 1.1.0 N4：今天打過了就開最近 7 天
 				["wk_open", "hc_weekly_d", "cards", func(): overlay = "weekly", not _demo()],
@@ -1664,5 +1665,5 @@ func _draw_first_run() -> void:
 		_btn(Rect2(289 + k * 238, y, 226, 48), L.t(pk[k]), func(): _apply_preset(kk), true, false, Color(0.2, 0.36, 0.5))
 	y += 60.0
 	_text(Vector2(640, y), L.t("fr_later"), tz("S"), TXT_DIM, true, false, 700)
-	_btn(Rect2(560, P.end.y - GAP_L - 48.0, 160, 48), L.t("fr_go"), func(): Save.set_setting("first_done", true); overlay = "", true, true)
+	_btn(Rect2(560, P.end.y - GAP_L - 48.0, 160, 48), L.t("fr_go"), func(): Save.set_setting("first_done", true); overlay = ""; call("intro_begin"), true, true)   # 1.3.0 §13：第一次設定完才掌燈開門（Codex cat11 #3）
 

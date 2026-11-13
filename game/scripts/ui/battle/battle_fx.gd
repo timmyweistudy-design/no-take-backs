@@ -853,3 +853,41 @@ func _draw_fx(f: Dictionary) -> void:
 					_text(p3, f["s"], sz, col, true, true)   # 外框與實際畫的字同一份幾何
 					_ink_keep_a = false
 					_ink_mode = ink0
+
+
+## 1.3.0 §11 老闆的手：開戰前（正式對局的 1 秒開場）從右上伸進來替棋鐘上發條——棉麻布袖、骨雕扳指；
+## 只在盤外（棋鐘在頂部 HUD），伸進 0～0.4、轉兩下 0.4～0.75、收袖 0.75～0.85、停 0.15。截圖、減少特效不演（開場本來就不播）。
+func _draw_owner_hand() -> void:
+	if start_hold <= 0.0 or bool(Save.s("plain_ui")):
+		return
+	var k := 1.0 - clampf(start_hold, 0.0, 1.0)
+	var reach := 0.0
+	if k < 0.4:
+		reach = 1.0 - pow(1.0 - k / 0.4, 3.0)
+	elif k < 0.75:
+		reach = 1.0
+	elif k < 0.85:
+		reach = 1.0 - (k - 0.75) / 0.1
+	if reach <= 0.0:
+		return
+	var tip := Vector2(724, 18)   # 棋鐘牌右側的發條鈕
+	var from := Vector2(1320, -70)
+	var p := from.lerp(tip, reach)
+	var tw := sin(clampf((k - 0.4) / 0.35, 0.0, 1.0) * PI * 4.0) * 0.18 if k >= 0.4 and k < 0.75 else 0.0
+	var dir := (tip - from).normalized()
+	var side := Vector2(-dir.y, dir.x)
+	var linen := Color(0.86, 0.8, 0.68)
+	# 袖子（從畫面外到手腕，寬口）
+	var w0 := 30.0
+	var w1 := 20.0
+	var cuff := p - dir * 26.0
+	draw_colored_polygon(PackedVector2Array([from + side * w0, from - side * w0, cuff - side * w1, cuff + side * w1]), linen.darkened(0.1))
+	draw_line(cuff + side * w1, cuff - side * w1, linen.darkened(0.35), 3.0, true)
+	# 手（掌＋三指捏著發條）、骨雕扳指
+	draw_set_transform_matrix(Transform2D(atan2(dir.y, dir.x) + tw, p - dir * 10.0))
+	draw_colored_polygon(PackedVector2Array([Vector2(-18, -11), Vector2(4, -12), Vector2(12, -5), Vector2(12, 5), Vector2(4, 12), Vector2(-18, 11)]), Color(0.93, 0.78, 0.64))
+	for fi in 3:
+		draw_line(Vector2(8, -6 + fi * 6), Vector2(17, -5 + fi * 5), Color(0.9, 0.74, 0.6), 4.5, true)
+	draw_rect(Rect2(Vector2(0, -12), Vector2(5, 7)), Color(0.95, 0.92, 0.82))   # 骨雕扳指
+	draw_line(Vector2(-18, 0), Vector2(2, 0), Color(0.75, 0.6, 0.48, 0.5), 1.0, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)

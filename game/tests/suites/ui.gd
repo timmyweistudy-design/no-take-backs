@@ -1613,3 +1613,180 @@ func test_vessels_v130() -> void:
 	ok(gp.find("_bamboo_blind(mr)") >= 0 and gp.find("屏風的扇面") < 0, "敵陣遮罩改竹簾")
 	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
 	ok(gr.find("三折宣紙") >= 0, "結果紙卡有三折摺痕")
+	# Codex cat08 #1～#3：器物裝飾不出畫面（用實際面板：戰績 Rect2(50,24,1180,752)、大廳 Rect2(50,30,1180,740)）
+	var scr := Rect2(0, 0, 1280, 800)
+	ok(scr.encloses(UB.obj_extent(Rect2(50, 24, 1180, 752), "shelf")), "獎盃架收在畫面內")
+	ok(scr.encloses(UB.obj_extent(Rect2(50, 30, 1180, 740), "notebook")), "手帳絲帶不出畫面")
+	ok(UB.obj_extent(Rect2(50, 30, 1180, 740), "notebook").end.y <= 776.0, "手帳裝飾不碰下緣手把提示列")
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	var rs: String = FileAccess.get_file_as_string("res://scripts/ui/layout_rules.gd")
+	ok(rs.find("器物裝飾出畫面") >= 0, "版面檢查會擋器物出畫面")
+
+## 1.3.0 第 9 大類：資訊層級（戰鬥 HUD 左上只在開場、暫停、懸停時出現；擺陣左上收進便籤）
+func test_info_layers_v130() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.state = g.St.BATTLE
+	g.view = load("res://scripts/ui/view_buffer.gd").new()
+	g.view.tick = 10
+	g.pad_mode = false
+	g.mouse = Vector2(640, 400)
+	var SV = load("res://scripts/game/save.gd")
+	var plain := bool(SV.s("plain_ui"))
+	ok(g.hud_meta_visible(), "開場 3 秒顯示模式與比分")
+	g.view.tick = 200
+	ok(g.hud_meta_visible() == plain, "戰鬥中收起（簡化介面一律顯示）")
+	g.mouse = Vector2(100, 40)
+	ok(g.hud_meta_visible(), "滑鼠移到左上就出現")
+	g.mouse = Vector2(640, 400)
+	g.paused = true
+	ok(g.hud_meta_visible(), "暫停時出現")
+	g.paused = false
+	g.pad_mode = true
+	ok(g.hud_meta_visible(), "手把（沒有懸停）一直顯示")
+	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
+	ok(gp.find("_pin_note(Rect2(") >= 0, "擺陣左上收進便籤")
+	g.free()
+
+## 1.3.0 第 10 大類：聲音 2.0 程式部分（落子音按重量分級、固定種子變體、棋館環境三層）
+func test_sound_v130() -> void:
+	var SX = load("res://scripts/game/sfx.gd")
+	var ok22 := true
+	for t in 22:
+		var pp: Array = SX.place_of(t)
+		if not (str(pp[0]) in ["place_light", "place_mid", "place_heavy"]):
+			ok22 = false
+	ok(ok22, "22 種都有落子音")
+	ok(SX.place_of(4)[0] == "place_light" and float(SX.place_of(4)[1]) > 1.0, "刺客輕脆")
+	ok(SX.place_of(2)[0] == "place_light", "弓手輕脆")
+	ok(SX.place_of(1)[0] == "place_heavy" and float(SX.place_of(1)[1]) < 1.0, "盾兵低沉")
+	var a = SX.new()
+	var b = SX.new()
+	a.streams = {"x": 0}
+	b.streams = {"x": 0}
+	a.variants = {"x": [1, 2, 3, 4]}
+	b.variants = {"x": [1, 2, 3, 4]}
+	a.reseed(777)
+	b.reseed(777)
+	var sa: Array = []
+	var sb: Array = []
+	for i in 12:
+		sa.append(a._pick_variant("x"))
+		sb.append(b._pick_variant("x"))
+	ok(sa == sb, "同種子同變體序列（驗收可重現）")
+	var rep := true
+	for i in range(1, sa.size()):
+		rep = rep and sa[i] != sa[i - 1]
+	ok(rep, "變體不連續重複")
+	a.free()
+	b.free()
+	ok(SX.room_gain(2, 1.0, 1.0) < SX.room_gain(2, 0.0, 1.0) and SX.room_gain(0, 1.0, 1.0) == SX.room_gain(0, 0.0, 1.0), "戰況緊只壓遠景")
+	for n in ["near", "mid", "far"]:
+		ok(ResourceLoader.exists("res://audio/amb_room_%s.wav" % n), "棋館環境 %s 層有檔" % n)
+	ok(SX.seed_at(1, 200) == SX.seed_at(1, 200) and SX.seed_at(1, 200) != SX.seed_at(1, 201) and SX.seed_at(1, 0) != SX.seed_at(2, 0), "跳轉後的變體種子＝局數＋tick（跳回同一 tick 一樣）")
+	var rp: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+	ok(rp.find("sfx.seed_at(round_no, view.tick") >= 0, "跳轉完成時重設音效種子")
+	var c = SX.new()
+	c.room_on = true
+	c.set_room_tense(true)
+	for i in 60:
+		c.room_tick(0.05)
+	ok(c.room_tense < 0.01, "離開戰鬥沒人刷新：緊張環境音自己放開")
+	c.free()
+	var UBx = load("res://scripts/ui/ui_base.gd")
+	ok(UBx.obj_extent(Rect2(100, 100, 400, 300), "toolbox").position.x <= 100 - 31.5, "工具箱提環外伸算進邊界")
+
+## 1.3.0 第 11 大類：棋館的人（對手坐在盤外、表情跟戰況、老闆的手只在開場）
+func test_parlor_people_v130() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var A = load("res://scripts/ui/art.gd")
+	ok(GS.seat_mood(0.3, 0.7) == A.M_HAPPY, "對手領先＝得意")
+	ok(GS.seat_mood(0.7, 0.3) == A.M_HURT, "對手落後＝慌")
+	ok(GS.seat_mood(0.5, 0.52) == A.M_GRIM, "膠著＝專注")
+	var g = GS.new()
+	g.mode = g.Mode.DUEL
+	g.view = load("res://scripts/ui/view_buffer.gd").new()
+	g.state = g.St.BATTLE
+	ok(not g.seat_visible(), "雙人對戰沒有對手木偶")
+	g.mode = g.Mode.VS_AI
+	var plain := bool(load("res://scripts/game/save.gd").s("plain_ui"))
+	ok(g.seat_visible() == (not plain), "對 AI 戰鬥時對手坐在桌邊（簡化介面不畫）")
+	g.watch_mode = true
+	ok(not g.seat_visible(), "看對戰代碼不畫")
+	var seat: Vector2 = GS.SEAT_FOOT
+	var field_right := 1170.0   # 盤框右緣（各尺寸地圖都縮放到這以內）
+	ok(seat.x - 40.0 > field_right and seat.y - 70.0 > 96.0 and seat.y + 12.0 < 432.0 - 30.0, "人物在盤外右側桌面、不蓋 HUD 與茶杯")
+	var fx: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_fx.gd")
+	ok(fx.find("func _draw_owner_hand") >= 0 and fx.find("if start_hold <= 0.0") >= 0, "老闆的手只在開場（截圖、減少特效時開場本來就不播）")
+	g.free()
+
+## 1.3.0 第 12 大類：每日老闆出題（挑題固定、只挑還沒三星的、一天一枚印、存檔驗型）
+func test_owner_daily_v130() -> void:
+	var OD = load("res://scripts/game/owner_daily.gd")
+	var ids := ["a", "b", "c", "d", "e", "f", "g"]
+	var p1: Array = OD.pick(20000, ids, {})
+	ok(p1.size() == 3 and p1 == OD.pick(20000, ids, {}), "同一天挑同三題")
+	var uniq := {}
+	for x in p1:
+		uniq[x] = true
+	ok(uniq.size() == 3, "三題不重複")
+	var diff_day := false
+	for dd in range(20001, 20010):
+		if OD.pick(dd, ids, {}) != p1:
+			diff_day = true
+	ok(diff_day, "題目每天換")
+	var p2: Array = OD.pick(20000, ids, {"a": 3, "b": 3, "c": 3, "d": 3})
+	ok(not "a" in p2 and not "b" in p2 and p2.size() == 3, "只挑還沒三星的")
+	ok(OD.pick(1, ["x", "y"], {}).size() == 2, "題不夠就全給")
+	var rec := {}
+	var r: Array = OD.record(rec, 5, ["a", "b", "c"], "a", 1)
+	ok(not r[1] and r[0]["done"] == ["a"], "過一題記下、還沒蓋印")
+	r = OD.record(r[0], 5, ["a", "b", "c"], "x", 3)
+	ok(r[0]["done"] == ["a"], "不是今天的題不算")
+	r = OD.record(r[0], 5, ["a", "b", "c"], "b", 0)
+	ok(r[0]["done"] == ["a"], "0 星不算")
+	r = OD.record(r[0], 5, ["a", "b", "c"], "b", 2)
+	r = OD.record(r[0], 5, ["a", "b", "c"], "c", 1)
+	ok(r[1] and r[0]["stamped"], "三題都過蓋印")
+	r = OD.record(r[0], 5, ["a", "b", "c"], "c", 3)
+	ok(not r[1], "一天只蓋一枚")
+	r = OD.record(r[0], 6, ["d", "e", "f"], "d", 1)
+	ok(r[0]["day"] == 6 and r[0]["done"] == ["d"] and not r[0]["stamped"], "換日重來")
+	var bad: Dictionary = OD.sanitize({"day": "x", "done": [1, "a", "b", "c", "d"], "stamped": "yes"})
+	ok(bad["day"] == -1 and bad["done"] == ["a", "b", "c"], "壞資料拒收、限長")
+	var p3: Array = OD.pick(20000, ids, {"a": 3, "b": 3, "c": 3, "d": 3, "e": 3, "f": 3})
+	ok("g" in p3 and p3.size() == 3, "只剩一題沒三星：一定挑進來，再用三星的補滿（Codex cat11 #6）")
+	var t1: Array = OD.today_picks({}, 30, ids, {})
+	var t2: Array = OD.today_picks(t1[1], 30, ids, {t1[0][0]: 3, t1[0][1]: 3, t1[0][2]: 3})
+	ok(t2[0] == t1[0], "當天拿到三星也不重抽（題單存在存檔，Codex cat11 #1）")
+	var rec2: Dictionary = t1[1].duplicate(true)
+	rec2["done"] = [t1[0][0]]
+	var t3: Array = OD.today_picks(rec2, 30, ids.filter(func(x): return x != t1[0][0]), {})
+	ok(not t1[0][0] in t3[0] and t3[1]["done"].is_empty(), "題庫移除的題：題單與完成紀錄一起拿掉")
+	ok(OD.today_picks(t1[1], 31, ids, {})[1]["day"] == 31, "換日重抽")
+	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	ok(gm.find("\"od_open\"") >= 0, "殘局卡片面板有入口")
+	ok(gm.find("\"notebook\", \"od\"]") >= 0 and gm.find("\"od_stamps\"]") >= 0, "清除殘局／戰績會一起清每日出題與印（Codex cat11 #7）")
+
+## 1.3.0 第 13 大類：掌燈開門（只播第一次、截圖／版面檢查／headless／減少動態不播、任何鍵跳過並記下）
+func test_intro_v130() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.intro_should_play(false, false, false, false, false), "第一次播")
+	ok(not GS.intro_should_play(true, false, false, false, false), "看過就不播")
+	ok(not GS.intro_should_play(false, true, false, false, false) and not GS.intro_should_play(false, false, true, false, false), "截圖、版面檢查不播")
+	ok(not GS.intro_should_play(false, false, false, true, false) and not GS.intro_should_play(false, false, false, false, true), "headless、減少動態不播")
+	var SV = load("res://scripts/game/save.gd")
+	var old_prefix: String = SV.prefix
+	SV.prefix = "test_intro_"
+	var g = GS.new()
+	g.intro_t = 1.0
+	g.intro_end()
+	ok(g.intro_t < 0.0 and bool(SV.data.get("intro_seen", false)), "跳過或播完就記下")
+	g.intro_t = 0.0
+	g.intro_tick(GS.INTRO_SEC + 0.1)
+	ok(g.intro_t < 0.0, "5 秒播完自動結束")
+	g.free()
+	SV.data.erase("intro_seen")
+	SV.prefix = old_prefix
+	var d := {"intro_seen": "yes"}
+	SV.sanitize_data(d)
+	ok(d["intro_seen"] is bool, "存檔欄位驗型")

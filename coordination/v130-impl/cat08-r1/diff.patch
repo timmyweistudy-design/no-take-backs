@@ -1,0 +1,254 @@
+commit 870ab4985a26d7bf068bf0acfdac95dc1b0fddb2
+Author: timmy <pweihome@gmail.com>
+Date:   Fri Nov 13 17:10:42 2026 +0800
+
+    1.3.0 第 8 大類：每個畫面一件器物（手帳、棋譜冊、標本箱、工具箱、獎盃架、郵局、三折宣紙、竹簾）
+    
+    只換容器裝飾，版面幾何不動。已驗：ui 組 261 項、版面子集 18 張 0 違規；
+    全量 check、全量版面、三方審查待做（17:20 暫停）。
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01UuTdHNwbJUvZCRW4hgQboN
+
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index 087f8f2..05a2c22 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -319,22 +319,10 @@ func _draw_hide_fog(hide_side: int) -> void:
+ 	var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
+ 	# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
+ 	var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, fld_size.y))
+-	# V1.2 C4：敵陣遮擋改成木製屏風（木紋、三扇接縫、銅鉸鏈），不再是黑色半透明罩
+-	if not bool(Save.s("plain_ui")) and _tex_box(mr, "wood", Color(0.62, 0.46, 0.33)):
+-		var panels := 3
+-		for pj in panels:   # 屏風的扇面交替明暗，看得出折角
+-			var pr := Rect2(mr.position.x + mr.size.x * pj / panels, mr.position.y, mr.size.x / panels, mr.size.y)
+-			draw_rect(pr, Color(1, 0.95, 0.85, 0.06) if pj % 2 == 0 else Color(0, 0, 0, 0.12))
+-		for pi in range(1, panels):
+-			var sx := mr.position.x + mr.size.x * pi / panels
+-			draw_line(Vector2(sx, mr.position.y + 4), Vector2(sx, mr.end.y - 4), Color(0.1, 0.06, 0.03, 0.75), 3.0)
+-			draw_line(Vector2(sx + 2, mr.position.y + 4), Vector2(sx + 2, mr.end.y - 4), Color(1, 0.9, 0.7, 0.12), 1.0)
+-			for hy in [0.18, 0.5, 0.82]:
+-				var hp := Vector2(sx, mr.position.y + mr.size.y * hy)
+-				draw_circle(hp, 4.5, Color("#2a190d"), true, -1.0, true)
+-				draw_circle(hp, 3.2, Color("#b98a45"), true, -1.0, true)
+-				draw_circle(hp - Vector2(1, 1), 1.2, Color("#f0d9a0"), true, -1.0, true)
+-		draw_rect(mr, Color(0, 0, 0, 0.18))   # 壓暗一點，讓上面的字更清楚
++	# 1.3.0 §0.4 敵陣遮罩＝竹簾（取代 1.2.0 木屏風）：橫向竹片（每片上亮下暗、竹節錯開）、三條直向編繩、上緣捲起的簾頭與黃銅掛鉤；
++	# 簾上的資訊（問號旗、預算木牌、AI 性格、每日計分、上一局殘影）全部照舊；壓暗讓字清楚
++	if not bool(Save.s("plain_ui")):
++		_bamboo_blind(mr)
+ 	else:
+ 		draw_rect(mr, Color(0.11, 0.09, 0.24, 0.80))
+ 	var fp := mr.position + Vector2(mr.size.x / 2 - 8, mr.size.y / 2 - 120)
+@@ -1085,3 +1073,34 @@ func _draw_plan_overlay() -> void:
+ 	_text(Vector2(640, ty), help, tz("C"), TXT_DIM, true, false, 860)
+ 	_draw_plan_timeline(Rect2(R.position.x + 20, ty + text_h(help, tz("C"), 860) + GAP_M, R.size.x - 40, 300))
+ 	_btn(Rect2(560, R.end.y - GAP_L - 44.0, 160, 44), L.t("plan_done"), func(): overlay = "", true, true)
++
++
++## 1.3.0 §0.4 竹簾：只畫畫面（遮擋範圍和 1.2.0 屏風一樣＝整個敵方半場）。
++func _bamboo_blind(mr: Rect2) -> void:
++	var base := PAL.BAMBOO.darkened(0.42)
++	draw_rect(mr, base)
++	var slat := 9.0
++	var n := int(mr.size.y / slat)
++	for i in n:
++		var y := mr.position.y + i * slat
++		draw_rect(Rect2(mr.position.x, y, mr.size.x, 1.5), Color(1, 0.95, 0.75, 0.16))
++		draw_rect(Rect2(mr.position.x, y + slat - 2.0, mr.size.x, 2.0), Color(0.12, 0.08, 0.02, 0.35))
++		var off := fmod(float(i * 37), 70.0)
++		var x := mr.position.x + off
++		while x < mr.end.x - 2.0:
++			draw_rect(Rect2(x, y + 1.5, 2.0, slat - 3.5), Color(0.15, 0.1, 0.03, 0.3))   # 竹節
++			x += 70.0
++	for cf in [1.0 / 6.0, 0.5, 5.0 / 6.0]:
++		var cx: float = mr.position.x + mr.size.x * cf
++		draw_line(Vector2(cx, mr.position.y), Vector2(cx, mr.end.y), PAL.TRINKET_LEATHER.darkened(0.35), 2.0)
++		for i in range(0, n, 2):
++			draw_circle(Vector2(cx, mr.position.y + i * slat + slat * 0.5), 1.6, PAL.TRINKET_LEATHER.darkened(0.5), true, -1.0, true)
++	var roll := Rect2(mr.position.x - 4, mr.position.y - 10, mr.size.x + 8, 16)
++	draw_rect(Rect2(roll.position + Vector2(2, 4), roll.size), Color(DIM_INK, 0.45))
++	draw_rect(roll, PAL.BAMBOO.darkened(0.25))
++	draw_rect(Rect2(roll.position.x, roll.position.y + 3, roll.size.x, 3), Color(1, 0.95, 0.75, 0.3))
++	draw_rect(Rect2(roll.position.x, roll.end.y - 4, roll.size.x, 4), Color(0.1, 0.06, 0.02, 0.35))
++	for hf in [0.2, 0.8]:
++		var hc := Vector2(roll.position.x + roll.size.x * hf, roll.position.y + 2)
++		draw_arc(hc, 6.0, PI, TAU, 10, PAL.TRINKET_BRASS, 2.5, true)
++	draw_rect(mr, Color(0, 0, 0, 0.26))   # 壓暗：竹色比木屏風亮，壓多一點讓上面的白字對比照舊
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index 2e90452..8628b5d 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -122,6 +122,14 @@ func _draw_result() -> void:
+ 		if not _mat_box(r, "card2"):
+ 			draw_rect(r, Color("#efe4cf"))
+ 		draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
++		# 1.3.0 §8 三折宣紙：兩道摺痕（左暗右亮的窄漸層，低透明，不影響字的對比）＋上下緣摺口
++		for fi in [1, 2]:
++			var fxp: float = r.position.x + r.size.x * fi / 3.0
++			for k3 in 5:
++				draw_rect(Rect2(fxp - 5 + k3, r.position.y, 1, r.size.y), Color(DIM_INK, 0.022 * (k3 + 1)))
++			draw_rect(Rect2(fxp, r.position.y, 2, r.size.y), Color(1, 0.97, 0.88, 0.22))
++			for yy in [r.position.y - 3.0, r.end.y - 3.0]:
++				draw_rect(Rect2(fxp - 2, yy, 4, 6), Color(DIM_INK, 0.35))
+ 	else:
+ 		_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
+ 		_box(r, PANEL, TH_EDGE, 10.0, 3.0)
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 936acf1..84be8a0 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -1474,8 +1474,9 @@ func probe_panel(r: Rect2) -> void:
+ 
+ ## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
+ ## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
+-const OBJ_OF := {"puzzles": "fold", "trials": "tube", "codex": "case", "settings": "box", "keys": "box", "profile": "trunk", "nemeses": "ebony",
+-	"codes": "letter", "wave_codes": "letter", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
++## 1.3.0 §8 每個畫面一件器物：大廳＝對局手帳、殘局＝棋譜冊、圖鑑＝標本木箱、設定＝工匠工具箱、戰績＝獎盃架、代碼＝郵局櫃台、覆盤＝批註本（1.2.0 的經摺帖、畫筒、牛皮箱…其餘照舊）
++const OBJ_OF := {"puzzles": "book", "trials": "tube", "codex": "specimen", "settings": "toolbox", "keys": "toolbox", "profile": "shelf", "nemeses": "ebony", "lobby": "notebook", "review": "annot",
++	"codes": "post", "wave_codes": "post", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
+ var panel_obj := ""
+ var obj_open_r := Rect2()     # 1.2.0 第 11 大類：這一幀畫的實物面板（開合動畫用）
+ var obj_open_kind := ""
+@@ -1483,7 +1484,9 @@ var obj_open_kind := ""
+ ## 1.2.0 第 11 大類 實物開合（第 4 大類記錄）：疊層打開的前 0.3 秒，在面板上蓋一層「還沒打開的那一面」再收走——
+ ## 木盒類掀蓋往上收、經摺帖／畫筒往右攤開、信封三角封口往上翻。只疊畫、不縮放不位移（按鈕位置與滑鼠一致，Codex v120-impl2）；
+ ## 截圖、版面檢查、減少特效、簡化介面不演（呼叫端判斷）。k＝0→1。
++const OBJ_ANIM := {"toolbox": "box", "specimen": "case", "shelf": "box", "book": "fold", "notebook": "fold", "annot": "fold", "post": "letter"}   # 1.3.0 器物借用的開合動畫
+ func _obj_open_anim(r: Rect2, kind: String, k: float) -> void:
++	kind = str(OBJ_ANIM.get(kind, kind))
+ 	var e := 1.0 - (1.0 - k) * (1.0 - k) * (1.0 - k)   # ease out
+ 	var wood := Color("#7a5232")
+ 	var paper := Color("#efe3c8")
+@@ -1636,6 +1639,86 @@ func _obj_deco(r: Rect2, kind: String) -> void:
+ 		"card":   # 立卡：底緣一道木腳架
+ 			draw_rect(Rect2(r.position.x + r.size.x * 0.3, r.end.y + 4, r.size.x * 0.4, 6), Color("#6b4a2e"))
+ 			draw_rect(Rect2(r.position.x + r.size.x * 0.3, r.end.y + 4, r.size.x * 0.4, 2), Color(1, 0.85, 0.6, 0.3))
++		"toolbox":   # 1.3.0 工匠工具箱：木盒護角＋左右兩側黃銅提環＋上緣兩個搭扣（標題緞帶在中央，不畫在那）
++			_obj_deco(r, "box")
++			for side in [-1.0, 1.0]:
++				var ex: float = (r.position.x - 10.0) if side < 0 else (r.end.x + 10.0)
++				var hc := Vector2(ex, r.get_center().y)
++				draw_rect(Rect2(hc - Vector2(5, 16), Vector2(10, 32)), brass_d)
++				draw_arc(hc + Vector2(6.0 * side, 0), 14.0, PI / 2 if side < 0 else -PI / 2, PI * 1.5 if side < 0 else PI / 2, 16, brass, 3.0, true)
++			for fx2 in [0.2, 0.8]:
++				var lc := Vector2(r.position.x + r.size.x * fx2, r.position.y - 6)
++				draw_rect(Rect2(lc - Vector2(12, 6), Vector2(24, 18)), brass_d)
++				draw_rect(Rect2(lc - Vector2(10, 4), Vector2(20, 14)), brass)
++				draw_rect(Rect2(lc + Vector2(-3, 4), Vector2(6, 8)), brass_d)
++		"specimen":   # 1.3.0 標本木箱：雙開箱的合頁鎖扣＋框內一圈暗紅絨布＋四角黃銅大頭針＋玻璃斜向反光
++			_obj_deco(r, "case")
++			draw_rect(r.grow(-4), Color(0.42, 0.08, 0.1, 0.55), false, 6.0)
++			for pc in [r.position + Vector2(18, 18), Vector2(r.end.x - 18, r.position.y + 18), Vector2(r.position.x + 18, r.end.y - 18), r.end - Vector2(18, 18)]:
++				draw_circle(pc + Vector2(1.5, 2), 4.0, Color(DIM_INK, 0.5), true, -1.0, true)
++				draw_circle(pc, 4.0, brass, true, -1.0, true)
++				draw_circle(pc - Vector2(1.2, 1.2), 1.4, Color(1, 0.95, 0.75, 0.9), true, -1.0, true)
++			for gi in 2:
++				var gx := r.position.x + r.size.x * (0.12 + gi * 0.1)
++				draw_colored_polygon(PackedVector2Array([Vector2(gx, r.position.y), Vector2(gx + 40, r.position.y), Vector2(gx - 60, r.end.y), Vector2(gx - 100, r.end.y)]), Color(1, 1, 1, 0.035))
++		"shelf":   # 1.3.0 牆上獎盃架：面板下緣一條厚木層板＋兩支鐵托架、上緣兩角各一座小金盃
++			var sy := r.end.y + 8.0
++			draw_rect(Rect2(r.position.x - 24, sy + 4, r.size.x + 48, 18), Color(DIM_INK, 0.45))
++			draw_rect(Rect2(r.position.x - 24, sy, r.size.x + 48, 16), PAL.TRINKET_LEATHER)
++			draw_rect(Rect2(r.position.x - 24, sy, r.size.x + 48, 3), Color(1, 0.9, 0.7, 0.3))
++			for bx in [r.position.x + 40.0, r.end.x - 40.0]:
++				draw_colored_polygon(PackedVector2Array([Vector2(bx - 4, sy + 16), Vector2(bx + 4, sy + 16), Vector2(bx + 4, sy + 30), Vector2(bx - 4, sy + 22)]), Color(0.18, 0.16, 0.15))
++			for cx2 in [r.position.x + 30.0, r.end.x - 30.0]:
++				var cb := Vector2(cx2, r.position.y - 4)
++				draw_rect(Rect2(cb + Vector2(-9, -4), Vector2(18, 4)), brass_d)
++				draw_rect(Rect2(cb + Vector2(-2, -12), Vector2(4, 8)), PAL.TRINKET_GOLD)
++				draw_colored_polygon(PackedVector2Array([cb + Vector2(-10, -26), cb + Vector2(10, -26), cb + Vector2(6, -14), cb + Vector2(-6, -14)]), PAL.TRINKET_GOLD)
++				draw_arc(cb + Vector2(-10, -22), 4.0, PI / 2, PI * 1.5, 8, PAL.TRINKET_GOLD, 2.0, true)
++				draw_arc(cb + Vector2(10, -22), 4.0, -PI / 2, PI / 2, 8, PAL.TRINKET_GOLD, 2.0, true)
++				draw_line(cb + Vector2(-6, -24), cb + Vector2(-4, -16), Color(1, 1, 1, 0.5), 1.5, true)
++		"post":   # 1.3.0 郵局櫃台：信封摺線與蠟封＋上緣右側黃銅投信口＋左上角波浪郵戳
++			_obj_deco(r, "letter")
++			var ms := Rect2(r.end.x - 170, r.position.y - 16, 120, 22)
++			draw_rect(Rect2(ms.position + Vector2(2, 3), ms.size), Color(DIM_INK, 0.5))
++			draw_rect(ms, brass_d)
++			draw_rect(ms.grow(-2), brass)
++			draw_rect(Rect2(ms.position + Vector2(12, 8), Vector2(ms.size.x - 24, 6)), Color(0.08, 0.05, 0.03))
++			var pm := r.position + Vector2(-6, -6)
++			draw_arc(pm, 22.0, 0, TAU, 28, Color(0.55, 0.12, 0.1, 0.75), 2.0, true)
++			draw_arc(pm, 16.0, 0, TAU, 24, Color(0.55, 0.12, 0.1, 0.6), 1.2, true)
++			for wy in 3:
++				var pts3 := PackedVector2Array()
++				for wx in 7:
++					pts3.append(pm + Vector2(24 + wx * 7, -6 + wy * 6 + sin(wx * 1.4) * 2.0))
++				draw_polyline(pts3, Color(0.55, 0.12, 0.1, 0.6), 1.2, true)
++		"book", "annot":   # 1.3.0 棋譜冊／批註本：左側線裝書脊（棉線針腳）、右側一疊紙邊、下緣垂一條絲帶書籤；批註本多一圈硃筆圈
++			var sp := Rect2(r.position.x - 18, r.position.y - 6, 14, r.size.y + 12)
++			draw_rect(Rect2(sp.position + Vector2(2, 3), sp.size), Color(DIM_INK, 0.45))
++			draw_rect(sp, Color(0.24, 0.14, 0.09))
++			var ny := int(sp.size.y / 46.0)
++			for i in ny:
++				var y0 := sp.position.y + 23.0 + i * 46.0
++				draw_line(Vector2(sp.position.x + 2, y0), Vector2(sp.end.x + 8, y0), Color(0.93, 0.88, 0.76, 0.85), 1.5)
++				draw_circle(Vector2(sp.end.x + 8, y0), 1.6, Color(0.1, 0.06, 0.03), true, -1.0, true)
++			for pl in 4:
++				draw_line(Vector2(r.end.x + 3 + pl * 2, r.position.y + 4 + pl * 2), Vector2(r.end.x + 3 + pl * 2, r.end.y - 4 + pl), Color(0.92, 0.86, 0.72, 0.7 - pl * 0.12), 1.0)
++			var rb := Vector2(r.end.x - 80, r.end.y - 2)
++			draw_colored_polygon(PackedVector2Array([rb, rb + Vector2(12, 0), rb + Vector2(12, 34), rb + Vector2(6, 28), rb + Vector2(0, 34)]), PAL.TRINKET_RED)
++			if kind == "annot":
++				draw_arc(r.position + Vector2(40, 40), 18.0, 0.3, TAU - 0.2, 24, Color(0.75, 0.12, 0.1, 0.55), 2.5, true)
++		"notebook":   # 1.3.0 對局手帳：皮面手帳攤開——左緣交叉棉線裝訂、中線書溝陰影、下緣三條彩色絲帶書籤
++			for i in int(r.size.y / 40.0):
++				var y1 := r.position.y + 20.0 + i * 40.0
++				draw_line(Vector2(r.position.x - 12, y1 - 7), Vector2(r.position.x - 2, y1 + 7), Color(0.93, 0.88, 0.76, 0.8), 1.5, true)
++				draw_line(Vector2(r.position.x - 12, y1 + 7), Vector2(r.position.x - 2, y1 - 7), Color(0.93, 0.88, 0.76, 0.8), 1.5, true)
++			var gx2 := r.get_center().x
++			for k2 in 5:
++				draw_rect(Rect2(gx2 - 5 + k2 * 2, r.position.y - 6, 2, 6), Color(DIM_INK, 0.12 * (k2 + 1)))
++				draw_rect(Rect2(gx2 - 5 + k2 * 2, r.end.y, 2, 6), Color(DIM_INK, 0.12 * (k2 + 1)))
++			var rcol := [PAL.TRINKET_RED, PAL.TRINKET_GOLD, Color(0.25, 0.45, 0.62)]
++			for ri in 3:
++				var rp := Vector2(r.end.x - 150 + ri * 22, r.end.y + 2)
++				draw_colored_polygon(PackedVector2Array([rp, rp + Vector2(12, 0), rp + Vector2(12, 26 - ri * 4), rp + Vector2(6, 21 - ri * 4), rp + Vector2(0, 26 - ri * 4)]), rcol[ri])
+ 		"clock":   # 暫停＝棋鐘：上緣兩顆黃銅按鈕
+ 			for fx in [0.3, 0.7]:
+ 				var bc := Vector2(r.position.x + r.size.x * fx, r.position.y - 4)
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index f1ddb06..6cd4c23 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index 28d4ca2..c367b85 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -1590,3 +1590,26 @@ func test_vol_drag_v130() -> void:
+ 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://t130vol_settings.json"))
+ 	SV.prefix = old_prefix
+ 	SV.settings = keep
++
++## 1.3.0 第 8 大類：每個畫面一件器物（每個器物都有畫法、開合動畫有對應、竹簾取代屏風、三折宣紙）
++func test_vessels_v130() -> void:
++	var UB = load("res://scripts/ui/ui_base.gd")
++	var src: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
++	var deco: String = src.substr(src.find("func _obj_deco"), src.find("func _panel(") - src.find("func _obj_deco"))
++	var anim_kinds := ["box", "case", "trunk", "tin", "clock", "ebony", "fold", "tube", "letter"]
++	var all_ok := true
++	var anim_ok := true
++	for ov in UB.OBJ_OF:
++		var k: String = UB.OBJ_OF[ov]
++		if deco.find("\"%s\"" % k) < 0:
++			all_ok = false
++		if k != "card" and not (str(UB.OBJ_ANIM.get(k, k)) in anim_kinds):   # 立卡（確認框）1.2.0 起就不演開合
++			anim_ok = false
++	ok(all_ok, "每個器物都有畫法")
++	ok(anim_ok, "每個器物都有開合動畫（借用既有的）")
++	ok(UB.OBJ_OF["lobby"] == "notebook" and UB.OBJ_OF["puzzles"] == "book" and UB.OBJ_OF["codex"] == "specimen" and UB.OBJ_OF["settings"] == "toolbox"
++		and UB.OBJ_OF["profile"] == "shelf" and UB.OBJ_OF["codes"] == "post" and UB.OBJ_OF["review"] == "annot", "方案 §8 的畫面對應")
++	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
++	ok(gp.find("_bamboo_blind(mr)") >= 0 and gp.find("屏風的扇面") < 0, "敵陣遮罩改竹簾")
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	ok(gr.find("三折宣紙") >= 0, "結果紙卡有三折摺痕")

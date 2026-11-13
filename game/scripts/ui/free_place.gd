@@ -213,7 +213,10 @@ func _fs_commit() -> void:
 
 ## 畫筆連續落子的音效：一筆只響一次＋依隻數升高音高（避免一次 10 聲破音，Antigravity 第一輪）。
 func _fp_sound(n: int) -> void:
-	if sfx != null and sfx.has_method("play_pitched"):
+	if sfx != null and sfx.has_method("place_of"):
+		var pp: Array = sfx.place_of(selected)   # 1.3.0 §10：自由部署也依重量分級
+		sfx.play_pitched(str(pp[0]), 0.6, float(pp[1]) * (1.0 + minf(0.25, n * 0.025)))
+	elif sfx != null and sfx.has_method("play_pitched"):
 		sfx.play_pitched("place_mid", 0.6, 1.0 + minf(0.25, n * 0.025))
 	elif sfx != null:
 		sfx.play("place_mid", 0.6)

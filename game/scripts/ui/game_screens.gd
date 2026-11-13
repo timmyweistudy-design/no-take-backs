@@ -107,6 +107,8 @@ func _ready() -> void:
 		Input.set_custom_mouse_cursor(load("res://art/ui/cursor.png"), Input.CURSOR_ARROW, Vector2(2, 2))
 	sfx = SfxScript.new()
 	add_child(sfx)
+	if sfx.has_method("play_room") and DisplayServer.get_name() != "headless":
+		sfx.call_deferred("play_room", true)   # 1.3.0 §10：棋館環境三層一直在（音量走環境音設定）
 	boot_parts["sfx"] = Time.get_ticks_msec()
 	call("_paint_apply")   # V1.4 #15：塗裝要在第一次烘圖集之前套上
 	sprites = SpriteCache.new()
@@ -145,6 +147,8 @@ func _ready() -> void:
 	_go_title()   # 截圖、影片、效能量測由 main 接手（S8）
 	if not bool(Save.s("first_done")) and shot_dir == "" and not video_mode and DisplayServer.get_name() != "headless":
 		overlay = "first_run"   # V1.5：第一次啟動先問語言、字級、無障礙
+	if not video_mode and overlay != "first_run":
+		intro_begin()   # 1.3.0 §13 掌燈開門（第一次；有第一次設定時等設定完才播）
 	boot_parts["title"] = Time.get_ticks_msec()
 
 
@@ -205,6 +209,15 @@ func _input(ev: InputEvent) -> void:
 			_enqueue("pan", ev.relative)   # 1.3.0 §2：中鍵拖曳平移
 		_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
 		_drag_scrape(ev.relative.length())
+		return
+	if intro_t >= 0.0 and ((ev is InputEventKey and ev.pressed) or (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)):
+		intro_end()   # 1.3.0 §13：任何按鍵、點擊跳過開場（這一下不再往下傳）
+		intro_eat = true
+		get_viewport().set_input_as_handled()
+		return
+	if intro_eat and ((ev is InputEventMouseButton and not ev.pressed) or (ev is InputEventScreenTouch and not ev.pressed) or (ev is InputEventJoypadButton and not ev.pressed) or (ev is InputEventKey and not ev.pressed)):
+		intro_eat = false   # 跳過那一下的放開也吞掉（不然會點到底下的按鈕；Codex cat11 #2）
+		get_viewport().set_input_as_handled()
 		return
 	if ev is InputEventMouseButton:
 		mouse = ev.position
@@ -294,6 +307,7 @@ func _mb_release_cleanup() -> void:
 
 ## 滑鼠按鍵（佇列命令，第三輪 A2）：按鈕點擊、擺放、拖曳、移除。
 var dbl_eat := false
+var intro_eat := false   # 1.3.0 §13
 
 ## 1.3.0 §2：雙擊回全景只認盤面範圍（按鈕列、HUD 不算）。
 func _field_hit(p: Vector2) -> bool:
@@ -575,6 +589,7 @@ func _throttle_when_minimized() -> void:
 
 func _process(delta: float) -> void:
 	_throttle_when_minimized()
+	intro_tick(delta)   # 1.3.0 §13
 	bg.reap()   # 1.1.0 N6：收掉已叫停、已停下的背景工作
 	_rv_poll()
 	_settings_hover()
@@ -791,6 +806,7 @@ func _draw_inner() -> void:
 	_probe_ui = true
 	Art.base = Transform2D.IDENTITY
 	if state == St.BATTLE:
+		_draw_seat()        # 1.3.0 §11 對手坐在盤外右側桌邊
 		_draw_spotlight()   # 1.3.0 §2 交戰熱點聚光
 		_draw_desat()       # 1.3.0 §2 最後一擊去飽和
 	if state == St.BATTLE and slow_left > 0:
@@ -808,6 +824,7 @@ func _draw_inner() -> void:
 			_v16_place_hud()   # V1.6
 		St.BATTLE:
 			_draw_battle_hud()
+			_draw_owner_hand()  # 1.3.0 §11 開戰前老闆替棋鐘上發條（畫在 HUD 之上，不然被木條蓋住；Codex cat11 #4）
 			_draw_replay_controls()
 			if sim != null and sim.cmd_on:
 				_draw_cmd_bar()
@@ -838,6 +855,7 @@ func _draw_inner() -> void:
 	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
 	obj_open_kind = ""
 	_draw_overlay()
+	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
 	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) else 1.0
 	if obj_open_force >= 0.0:
 		open_k = obj_open_force   # 開發截圖：固定在開到一半

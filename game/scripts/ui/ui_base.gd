@@ -1475,7 +1475,7 @@ func probe_panel(r: Rect2) -> void:
 ## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
 ## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
 ## 1.3.0 §8 每個畫面一件器物：大廳＝對局手帳、殘局＝棋譜冊、圖鑑＝標本木箱、設定＝工匠工具箱、戰績＝獎盃架、代碼＝郵局櫃台、覆盤＝批註本（1.2.0 的經摺帖、畫筒、牛皮箱…其餘照舊）
-const OBJ_OF := {"puzzles": "book", "trials": "tube", "codex": "specimen", "settings": "toolbox", "keys": "toolbox", "profile": "shelf", "nemeses": "ebony", "lobby": "notebook", "review": "annot",
+const OBJ_OF := {"puzzles": "book", "trials": "tube", "codex": "specimen", "settings": "toolbox", "keys": "toolbox", "profile": "shelf", "nemeses": "ebony", "lobby": "notebook", "review": "annot", "owner_daily": "book",
 	"codes": "post", "wave_codes": "post", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
 var panel_obj := ""
 var obj_open_r := Rect2()     # 1.2.0 第 11 大類：這一幀畫的實物面板（開合動畫用）
@@ -1484,6 +1484,20 @@ var obj_open_kind := ""
 ## 1.2.0 第 11 大類 實物開合（第 4 大類記錄）：疊層打開的前 0.3 秒，在面板上蓋一層「還沒打開的那一面」再收走——
 ## 木盒類掀蓋往上收、經摺帖／畫筒往右攤開、信封三角封口往上翻。只疊畫、不縮放不位移（按鈕位置與滑鼠一致，Codex v120-impl2）；
 ## 截圖、版面檢查、減少特效、簡化介面不演（呼叫端判斷）。k＝0→1。
+## 1.3.0：器物裝飾畫到面板外多遠（版面檢查用；照 _obj_deco 的實際幾何）。
+static func obj_extent(r: Rect2, kind: String) -> Rect2:
+	match kind:
+		"toolbox": return Rect2(r.position - Vector2(33, 12), r.size + Vector2(66, 28))   # 提環弧＋描邊約外伸 31.5（Codex cat09 #1）
+		"specimen", "case": return Rect2(r.position - Vector2(12, 0), r.size + Vector2(24, 20))
+		"shelf":
+			var top := maxf(r.position.y - 4.0, 30.0) - 26.0
+			var sy := minf(r.end.y + 8.0, 800.0 - 32.0)
+			return Rect2(Vector2(r.position.x - 24, minf(top, r.position.y)), Vector2(r.size.x + 48, sy + 30.0 - minf(top, r.position.y)))
+		"post", "letter": return Rect2(r.position - Vector2(28, 28), r.size + Vector2(28, 50))
+		"book", "annot": return Rect2(r.position - Vector2(20, 6), r.size + Vector2(54, 16))
+		"notebook": return Rect2(r.position - Vector2(12, 6), r.size + Vector2(38, 12))
+	return r.grow(10)
+
 const OBJ_ANIM := {"toolbox": "box", "specimen": "case", "shelf": "box", "book": "fold", "notebook": "fold", "annot": "fold", "post": "letter"}   # 1.3.0 器物借用的開合動畫
 func _obj_open_anim(r: Rect2, kind: String, k: float) -> void:
 	kind = str(OBJ_ANIM.get(kind, kind))
@@ -1653,23 +1667,24 @@ func _obj_deco(r: Rect2, kind: String) -> void:
 				draw_rect(Rect2(lc + Vector2(-3, 4), Vector2(6, 8)), brass_d)
 		"specimen":   # 1.3.0 標本木箱：雙開箱的合頁鎖扣＋框內一圈暗紅絨布＋四角黃銅大頭針＋玻璃斜向反光
 			_obj_deco(r, "case")
-			draw_rect(r.grow(-4), Color(0.42, 0.08, 0.1, 0.55), false, 6.0)
+			draw_rect(r.grow(-6), Color(0.3, 0.04, 0.07, 0.2))   # 箱底絨布色（Hydrogen cat08 #8：內底和別的器物分開）
+			draw_rect(r.grow(-6), Color(0.42, 0.08, 0.1, 0.65), false, 12.0)
 			for pc in [r.position + Vector2(18, 18), Vector2(r.end.x - 18, r.position.y + 18), Vector2(r.position.x + 18, r.end.y - 18), r.end - Vector2(18, 18)]:
 				draw_circle(pc + Vector2(1.5, 2), 4.0, Color(DIM_INK, 0.5), true, -1.0, true)
 				draw_circle(pc, 4.0, brass, true, -1.0, true)
 				draw_circle(pc - Vector2(1.2, 1.2), 1.4, Color(1, 0.95, 0.75, 0.9), true, -1.0, true)
 			for gi in 2:
 				var gx := r.position.x + r.size.x * (0.12 + gi * 0.1)
-				draw_colored_polygon(PackedVector2Array([Vector2(gx, r.position.y), Vector2(gx + 40, r.position.y), Vector2(gx - 60, r.end.y), Vector2(gx - 100, r.end.y)]), Color(1, 1, 1, 0.035))
+				draw_colored_polygon(PackedVector2Array([Vector2(gx, r.position.y), Vector2(gx + 40, r.position.y), Vector2(gx - 60, r.end.y), Vector2(gx - 100, r.end.y)]), Color(1, 1, 1, 0.06))
 		"shelf":   # 1.3.0 牆上獎盃架：面板下緣一條厚木層板＋兩支鐵托架、上緣兩角各一座小金盃
-			var sy := r.end.y + 8.0
+			var sy := minf(r.end.y + 8.0, 800.0 - 32.0)   # 收在畫面內（Codex cat08 #1：原本托架到 y814）
 			draw_rect(Rect2(r.position.x - 24, sy + 4, r.size.x + 48, 18), Color(DIM_INK, 0.45))
 			draw_rect(Rect2(r.position.x - 24, sy, r.size.x + 48, 16), PAL.TRINKET_LEATHER)
 			draw_rect(Rect2(r.position.x - 24, sy, r.size.x + 48, 3), Color(1, 0.9, 0.7, 0.3))
 			for bx in [r.position.x + 40.0, r.end.x - 40.0]:
 				draw_colored_polygon(PackedVector2Array([Vector2(bx - 4, sy + 16), Vector2(bx + 4, sy + 16), Vector2(bx + 4, sy + 30), Vector2(bx - 4, sy + 22)]), Color(0.18, 0.16, 0.15))
 			for cx2 in [r.position.x + 30.0, r.end.x - 30.0]:
-				var cb := Vector2(cx2, r.position.y - 4)
+				var cb := Vector2(cx2, maxf(r.position.y - 4.0, 30.0))   # 金盃頂不出畫面（原本 y−6）
 				draw_rect(Rect2(cb + Vector2(-9, -4), Vector2(18, 4)), brass_d)
 				draw_rect(Rect2(cb + Vector2(-2, -12), Vector2(4, 8)), PAL.TRINKET_GOLD)
 				draw_colored_polygon(PackedVector2Array([cb + Vector2(-10, -26), cb + Vector2(10, -26), cb + Vector2(6, -14), cb + Vector2(-6, -14)]), PAL.TRINKET_GOLD)
@@ -1702,11 +1717,14 @@ func _obj_deco(r: Rect2, kind: String) -> void:
 				draw_circle(Vector2(sp.end.x + 8, y0), 1.6, Color(0.1, 0.06, 0.03), true, -1.0, true)
 			for pl in 4:
 				draw_line(Vector2(r.end.x + 3 + pl * 2, r.position.y + 4 + pl * 2), Vector2(r.end.x + 3 + pl * 2, r.end.y - 4 + pl), Color(0.92, 0.86, 0.72, 0.7 - pl * 0.12), 1.0)
-			var rb := Vector2(r.end.x - 80, r.end.y - 2)
-			draw_colored_polygon(PackedVector2Array([rb, rb + Vector2(12, 0), rb + Vector2(12, 34), rb + Vector2(6, 28), rb + Vector2(0, 34)]), PAL.TRINKET_RED)
+			# 絲帶書籤從右緣紙邊夾出來（不往下垂：下緣是手把提示列，Codex cat08 #2）
+			var rb := Vector2(r.end.x + 8, r.position.y + 70)
+			draw_colored_polygon(PackedVector2Array([rb, rb + Vector2(26, 0), rb + Vector2(20, 6), rb + Vector2(26, 12), rb + Vector2(0, 12)]), PAL.TRINKET_RED)
 			if kind == "annot":
-				draw_arc(r.position + Vector2(40, 40), 18.0, 0.3, TAU - 0.2, 24, Color(0.75, 0.12, 0.1, 0.55), 2.5, true)
-		"notebook":   # 1.3.0 對局手帳：皮面手帳攤開——左緣交叉棉線裝訂、中線書溝陰影、下緣三條彩色絲帶書籤
+				draw_arc(r.position + Vector2(40, 40), 18.0, 0.3, TAU - 0.2, 24, Color(1, 0.9, 0.75, 0.35), 5.0, true)   # 紙底襯一圈，紅筆在深木上才看得清（Hydrogen cat08 #5）
+				draw_arc(r.position + Vector2(40, 40), 18.0, 0.3, TAU - 0.2, 24, Color(0.85, 0.15, 0.1, 0.9), 3.0, true)
+		"notebook":   # 1.3.0 對局手帳：皮面手帳攤開——左緣交叉棉線裝訂、中線書溝陰影、右緣三條彩色絲帶書籤
+			draw_rect(r.grow(-6), Color(0.32, 0.14, 0.07, 0.18))   # 皮面色（Hydrogen cat08 #8）
 			for i in int(r.size.y / 40.0):
 				var y1 := r.position.y + 20.0 + i * 40.0
 				draw_line(Vector2(r.position.x - 12, y1 - 7), Vector2(r.position.x - 2, y1 + 7), Color(0.93, 0.88, 0.76, 0.8), 1.5, true)
@@ -1717,8 +1735,9 @@ func _obj_deco(r: Rect2, kind: String) -> void:
 				draw_rect(Rect2(gx2 - 5 + k2 * 2, r.end.y, 2, 6), Color(DIM_INK, 0.12 * (k2 + 1)))
 			var rcol := [PAL.TRINKET_RED, PAL.TRINKET_GOLD, Color(0.25, 0.45, 0.62)]
 			for ri in 3:
-				var rp := Vector2(r.end.x - 150 + ri * 22, r.end.y + 2)
-				draw_colored_polygon(PackedVector2Array([rp, rp + Vector2(12, 0), rp + Vector2(12, 26 - ri * 4), rp + Vector2(6, 21 - ri * 4), rp + Vector2(0, 26 - ri * 4)]), rcol[ri])
+				var rp := Vector2(r.end.x + 2, r.position.y + 120 + ri * 22)   # 從右緣夾出（Codex cat08 #2）
+				var ln := 24.0 - ri * 4.0
+				draw_colored_polygon(PackedVector2Array([rp, rp + Vector2(ln, 0), rp + Vector2(ln - 6, 6), rp + Vector2(ln, 12), rp + Vector2(0, 12)]), rcol[ri])
 		"clock":   # 暫停＝棋鐘：上緣兩顆黃銅按鈕
 			for fx in [0.3, 0.7]:
 				var bc := Vector2(r.position.x + r.size.x * fx, r.position.y - 4)
@@ -1748,6 +1767,8 @@ func _panel(r: Rect2) -> void:
 		_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
 	if panel_obj != "" and not bool(Save.s("plain_ui")):
 		_obj_deco(r, panel_obj)
+		if layout_probe:
+			probe_decos.append({"id": "obj_%s" % panel_obj, "kind": "obj", "r": obj_extent(r, panel_obj), "host_r": r, "edge": "screen"})   # 1.3.0：器物裝飾不能出畫面（Codex cat08 #3）
 		obj_open_r = r
 		obj_open_kind = panel_obj
 

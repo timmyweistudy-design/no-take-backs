@@ -2,6 +2,60 @@
 
 > 玩家看的更新說明（商店頁「更新」與 Steam 公告用）。開發紀錄看 `docs/STATE.md` 與 `docs/history/`。
 
+# 1.3.0
+
+## 繁體中文
+**1.3.0：棋館活起來。**
+- **坐到桌邊**：戰場改成桌邊視角（設定可換回正上方）——冰塊、峽谷是凸起的積木，河與熔岩是凹槽，棋盤有木頭厚度；燈從左上照下來，影子同一個方向。平原是印花棉布，冰面下有淡藍裂紋，熔岩靠燈反光不再自己發亮；盤外桌面放著每張地圖的小東西。
+- **棋子變大、更像木偶**：戰場上的兵大了 1.25 倍；受傷會掉漆、露出原木；每種兵有個小物（護身符、紅毛線箭羽、發條鑰匙、羊鈴…）。往南走看得到臉、往北走看到背影。藍方圓底座、紅方八角底座（色盲也分得出隊伍）。
+- **看戲的人**：交戰最激烈的地方四周會微微壓暗；選一隻兵，角落出現黃銅放大鏡特寫（血、冷卻、表情）；重播時有自動導播（巡過兩軍、推近交戰區），滾輪縮放、中鍵拖、雙擊回全景；最後一擊畫面褪色、聲音壓低；分享頁有「精華三連」（最多三段、15 秒內）。
+- **技能看得懂**：騎兵衝鋒前地上先出兩道木輪痕、盾兵架盾前腳下一圈金箔；定身、破陣會從底座彈出一根竹籤；爆炸範圍是一灘墨漬，慢慢被木頭吸乾。
+- **每個畫面一件器物**：大廳是手帳、殘局是棋譜冊、圖鑑是標本箱、設定是工具箱、戰績是獎盃架、代碼是郵局櫃台、結果是三折宣紙；擺陣時敵方半場掛著竹簾。
+- **棋館的人**：對 AI 時，對手坐在桌邊，領先會得意、落後會慌；正式開戰前，老闆會伸手替棋鐘上發條；第一次開遊戲會「掌燈開門」（任何鍵跳過）。
+- **聲音**：落子音照重量分輕重（刺客、弓手清脆，盾兵、石魔低沉）；棋館有了環境聲（茶蓋、算盤、窗外微雨），戰況緊時遠處的聲音會變悶。
+- **新玩法**：「老闆出題」——每天三道你還沒三星的殘局，三題都過蓋一枚老闆的印。
+- **介面**：格子裡的字一律置中；設定的音量木軌可以直接拖；戰鬥中上方只留棋鐘、戰力尺與速度（模式與比分移到左上，滑過或暫停才出現）。
+- 修正：重播暫停時點兵，資料卡會畫不出來。
+
+## English
+**1.3.0 — The Parlor Comes Alive.**
+- **Pull up a chair**: the battlefield is now seen from the table's edge (switch back to top-down in Settings). Ice and canyon walls rise like blocks, rivers and lava sink into the board, the board has real thickness, and one lamp casts every shadow the same way. Plains are printed cotton, ice has faint cracks underneath, lava glints instead of glowing, and each map leaves a little keepsake on the table.
+- **Bigger, more puppet-like pieces**: units are 1.25× larger; damage chips the paint to bare wood; every unit carries a trinket (amulet, red yarn fletching, wind-up key, sheep bell…). Walk toward the camera and you see a face, walk away and you see a back. Blue stands on round bases, red on octagons (readable without colour too).
+- **For spectators**: the fiercest fighting gets a soft spotlight; select a unit for a brass magnifier close-up (HP, cooldown, expression); replays have an auto director (tours both armies, pushes in on the action), plus wheel zoom, middle-drag and double-click to reset; the final blow drains the colour and muffles the sound; the share page offers a "Highlight reel" (up to three clips, under 15 s).
+- **Readable skills**: cavalry leave wheel tracks before a charge, shield-bearers flash a gold-foil ring before bracing; stuns and breaches pop a bamboo tag from the base; blasts leave an ink stain that soaks into the wood.
+- **Every screen is an object**: the lobby is a notebook, puzzles a record book, the codex a specimen case, settings a toolbox, records a trophy shelf, codes a post-office counter, results a tri-fold paper; during deployment the enemy half hides behind a bamboo blind.
+- **People of the parlor**: against the AI your opponent sits at the table, smug when ahead and flustered when behind; before an official battle the owner reaches in to wind the clock; the first launch opens with a lamp being lit (any key skips).
+- **Sound**: placement sounds follow weight (assassins and archers click, shields and golems thud); the parlor now has ambience (teacup lids, an abacus, light rain), and the distant layer goes muffled when the fight gets tight.
+- **New**: "Owner's Picks" — three puzzles a day from the ones you haven't three-starred; clear all three for one of the owner's stamps.
+- **Interface**: text is centred in every cell; settings volume rails can be dragged; during battle the top bar keeps only the clock, the power ruler and the speed (mode and score appear when you hover the top-left or pause).
+- Fixed: selecting a unit while a replay was paused could fail to draw its info card.
+
+## 简体中文
+**1.3.0：棋馆活起来。**
+- **坐到桌边**：战场改成桌边视角（设置可换回正上方）——冰块、峡谷是凸起的积木，河与熔岩是凹槽，棋盘有木头厚度；灯从左上照下来，影子同一个方向。平原是印花棉布，冰面下有淡蓝裂纹，熔岩靠灯反光不再自己发亮；盘外桌面放着每张地图的小东西。
+- **棋子变大、更像木偶**：战场上的兵大了 1.25 倍；受伤会掉漆、露出原木；每种兵有个小物（护身符、红毛线箭羽、发条钥匙、羊铃…）。往南走看得到脸、往北走看到背影。蓝方圆底座、红方八角底座（色盲也分得出队伍）。
+- **看戏的人**：交战最激烈的地方四周会微微压暗；选一只兵，角落出现黄铜放大镜特写（血、冷却、表情）；重播时有自动导播（巡过两军、推近交战区），滚轮缩放、中键拖、双击回全景；最后一击画面褪色、声音压低；分享页有「精华三连」（最多三段、15 秒内）。
+- **技能看得懂**：骑兵冲锋前地上先出两道木轮痕、盾兵架盾前脚下一圈金箔；定身、破阵会从底座弹出一根竹签；爆炸范围是一滩墨渍，慢慢被木头吸干。
+- **每个画面一件器物**：大厅是手账、残局是棋谱册、图鉴是标本箱、设置是工具箱、战绩是奖杯架、代码是邮局柜台、结果是三折宣纸；摆阵时敌方半场挂着竹帘。
+- **棋馆的人**：对 AI 时，对手坐在桌边，领先会得意、落后会慌；正式开战前，老板会伸手替棋钟上发条；第一次开游戏会「掌灯开门」（任意键跳过）。
+- **声音**：落子音按重量分轻重（刺客、弓手清脆，盾兵、石魔低沉）；棋馆有了环境声（茶盖、算盘、窗外微雨），战况紧时远处的声音会变闷。
+- **新玩法**：「老板出题」——每天三道你还没三星的残局，三题都过盖一枚老板的印。
+- **界面**：格子里的字一律居中；设置的音量木轨可以直接拖；战斗中上方只留棋钟、战力尺与速度（模式与比分移到左上，滑过或暂停才出现）。
+- 修正：重播暂停时点兵，资料卡会画不出来。
+
+## 日本語
+**1.3.0：碁会所に灯がともる。**
+- **卓のそばに座る**：戦場は卓の端からの視点に（設定で真上に戻せます）。氷や峡谷は積み木のように盛り上がり、川と溶岩は溝に、盤には木の厚みが。灯りは左上の一つだけで、影はすべて同じ向き。平原はプリント木綿、氷の下に淡い亀裂、溶岩は光らず灯りを照り返します。盤の外には各マップの小物が置かれています。
+- **大きく、人形らしく**：戦場の兵は 1.25 倍に。傷つくと塗装がはがれて木地がのぞきます。兵ごとの小物（お守り、赤い毛糸の矢羽根、ぜんまい鍵、羊の鈴…）。手前に歩くと顔が、奥へ歩くと背中が見えます。青は丸い台座、赤は八角の台座（色覚に頼らず見分けられます）。
+- **観戦する人のために**：いちばん激しい交戦の周りがほんのり暗く。兵を選ぶと隅に真鍮の拡大鏡でアップ（HP・クールダウン・表情）。リプレイには自動カメラ（両軍を見回し、交戦地点に寄る）、ホイールで拡大、中ボタンで移動、ダブルクリックで全体に。最後の一撃で色と音が沈みます。共有ページに「ハイライト連続再生」（最大3場面・15秒以内）。
+- **スキルが読める**：騎兵は突撃前に車輪の跡、盾兵は構える前に金箔の輪。足止め・陣崩しは台座から竹札が跳ねます。爆発範囲は墨のしみになり、木に吸われて消えます。
+- **画面ごとに一つの道具**：ロビーは手帳、詰めは棋譜帳、図鑑は標本箱、設定は道具箱、戦績はトロフィー棚、コードは郵便局の窓口、結果は三つ折りの和紙。配置中、敵陣は竹すだれの向こう。
+- **碁会所の人々**：AI 戦では相手が卓のそばに座り、優勢なら得意げ、劣勢なら慌てます。正式な対局の前に店主がチェスクロックのねじを巻き、初回起動は「灯りをともして戸を開ける」演出（どのキーでもスキップ）。
+- **音**：駒を置く音が重さで変わります（暗殺者・弓兵は軽く、盾兵・石魔は重く）。碁会所の環境音（茶碗のふた、そろばん、窓の外の小雨）が加わり、戦況が拮抗すると遠くの音がこもります。
+- **新しい遊び**：「店主の出題」——まだ星3でない詰めから毎日3問。3問クリアで店主の判を1つ。
+- **UI**：マスの中の文字はすべて中央に。設定の音量レールはドラッグできます。戦闘中の上部は時計・戦力ゲージ・速度だけに（モードとスコアは左上にカーソルを合わせるか一時停止で表示）。
+- 修正：リプレイ一時停止中に兵を選ぶと情報カードが表示されないことがありました。
+
 # 1.2.0
 
 ## 繁體中文

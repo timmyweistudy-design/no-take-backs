@@ -2205,6 +2205,8 @@ func _shots_v161() -> void:
 	await _snap("v110_02_nb_words.png")
 	overlay = "daily_past"   # 1.1.0 N4
 	await _snap("v110_03_daily_past.png")
+	overlay = "owner_daily"   # 1.3.0 §12.7 每日老闆出題
+	await _snap("v130_od_owner_daily.png")
 	nb_buf = ""
 	overlay = ""
 	coop_log = []

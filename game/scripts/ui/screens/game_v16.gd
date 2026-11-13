@@ -352,6 +352,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_breport()
 		"daily_past":
 			_draw_daily_past()
+		"owner_daily":
+			_draw_owner_daily()   # 1.3.0 §12.7
 		"nb_words":
 			_draw_nb_words()
 		"fb_cat":
@@ -2350,3 +2352,94 @@ func codex_plaque(p: Vector2, t: int) -> void:
 	_text(r.position + Vector2(10, 3 + tz("C") * 0.1), txt, tz("C"), Color("#fff1d6"), false, true, w)
 	for i in 3:
 		_icon("star", Vector2(r.end.x - 54 + i * 18 + 9, r.get_center().y), 13.0, Color("#ffd166") if md[i] else Color(0, 0, 0, 0.35))
+
+
+# ── 1.3.0 第 11 大類：棋館的人（方案 §11；人物只在盤外、可略過）──
+const SEAT_FOOT := Vector2(1226, 318)   # 右側桌面：碗（y30）與茶杯（y432）之間的空位
+
+## 對 AI 時，對手（現有 AI 性格的木偶）坐在盤外右側桌邊：依戰況換表情（領先＝得意、落後＝慌、膠著＝專注），待機時微微晃；
+## 鏡頭推近（盤面蓋到桌邊）時淡出；簡化介面、幽靈／天梯／週賽不畫。
+func seat_visible() -> bool:
+	if mode != Mode.VS_AI or state != St.BATTLE or view == null or bool(Save.s("plain_ui")):
+		return false
+	if str(get("ghost_id")) != "" or bool(get("wk_active")) or rift_on or watch_mode:
+		return false
+	return true
+
+static func seat_mood(f_me: float, f_ai: float) -> int:
+	if f_ai - f_me > 0.15:
+		return Art.M_HAPPY
+	if f_me - f_ai > 0.15:
+		return Art.M_HURT
+	return Art.M_GRIM if absf(f_me - f_ai) <= 0.05 else 0
+
+func _draw_seat() -> void:
+	if not seat_visible():
+		return
+	var a := clampf(1.0 - (zoom - 1.0) / 0.08, 0.0, 1.0)
+	if a <= 0.01:
+		return
+	var st := _ai_style()
+	var f0: float = float(view.power(0)) / maxf(1.0, float(view.budget_of(0)) * 1000.0)   # 戰力以千分之一金計（Codex cat11 #5）
+	var f1: float = float(view.power(1)) / maxf(1.0, float(view.budget_of(1)) * 1000.0)
+	var mood := seat_mood(f0, f1)
+	var p := SEAT_FOOT
+	# 坐墊（深色布墊＋流蘇）＋落影
+	draw_set_transform_matrix(Transform2D(0, Vector2(1, 0.4), 0, p + Vector2(4, 6)))
+	draw_circle(Vector2.ZERO, 30.0, Color(DIM_INK, 0.4 * a), true, -1.0, true)
+	draw_set_transform_matrix(Transform2D(0, Vector2(1, 0.4), 0, p))
+	draw_circle(Vector2.ZERO, 28.0, Color(PAL.TRINKET_RED.darkened(0.45), a), true, -1.0, true)
+	draw_circle(Vector2.ZERO, 22.0, Color(PAL.TRINKET_RED.darkened(0.25), a), true, -1.0, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	var bob := 0.0 if bool(Save.s("reduce_motion")) else sin(time * 1.6) * 1.2
+	Art.unit(self, p + Vector2(0, -2 + bob), Persona.face(st), 1, -1.0, 0.0, 0.0, 0.0, a, time, 1.35, cbm(), mood)
+	# 前面一張矮茶几把腿擋住：看起來是坐在桌後的人，不是站著的兵（Hydrogen cat11 #1）
+	var tb := Rect2(p + Vector2(-36, -24), Vector2(72, 14))
+	draw_rect(Rect2(tb.position + Vector2(3, 4), tb.size), Color(DIM_INK, 0.45 * a))
+	draw_rect(tb, Color(PAL.TRINKET_LEATHER.darkened(0.15), a))
+	draw_rect(Rect2(tb.position, Vector2(tb.size.x, 3)), Color(1, 0.9, 0.7, 0.3 * a))
+	for lx in [tb.position.x + 6.0, tb.end.x - 10.0]:
+		draw_rect(Rect2(lx, tb.end.y, 4, 12), Color(PAL.TRINKET_LEATHER.darkened(0.4), a))
+	draw_circle(tb.position + Vector2(20, -3), 4.0, Color(PAL.CUP_GLAZE, a), true, -1.0, true)   # 茶几上的小茶杯
+
+
+# ── 1.3.0 第 12 大類：每日老闆出題（方案 §12.7）──
+const OwnerDaily = preload("res://scripts/game/owner_daily.gd")
+## 今天的題單（存在存檔的 od.picks；當天第一次看到才抽，之後拿到三星也不重抽）。
+func od_today() -> Array:
+	var ids: Array = []
+	for p in PZ.all_puzzles():
+		ids.append(str(p["id"]))
+	var r: Array = OwnerDaily.today_picks(Save.data.get("od", {}), Daily.today(), ids, Save.data.get("puzzle_stars", {}))
+	Save.data["od"] = r[1]
+	return r[0]
+
+func _od_after(id: String, stars: int) -> void:
+	var r: Array = OwnerDaily.record(Save.data.get("od", {}), Daily.today(), od_today(), id, stars)
+	Save.data["od"] = r[0]
+	if bool(r[1]):
+		Save.data["od_stamps"] = int(Save.data.get("od_stamps", 0)) + 1
+		_toast(L.t("od_stamp_got"))
+
+func _draw_owner_daily() -> void:
+	var picks := od_today()
+	var rec: Dictionary = OwnerDaily.sanitize(Save.data.get("od", {}))
+	var done: Array = rec["done"] if int(rec["day"]) == Daily.today() else []
+	var help := L.t("od_help")
+	var rowh := 52.0
+	var foot := L.t("od_stamps", [int(Save.data.get("od_stamps", 0))])
+	var P := modal_rect(720, 12.0 + h1_help_h(help, tz("S"), 640) + GAP_L + picks.size() * (rowh + GAP_S) + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("od_title"), help, tz("S"), 640) + GAP_L
+	var stars: Dictionary = Save.data.get("puzzle_stars", {})
+	for id in picks:
+		var pz := PZ.get_puzzle(id)
+		var st := int(stars.get(id, 0))
+		var mark := L.t("od_done") if id in done else L.t("od_todo")
+		var label := "%s　%s　%s" % [L.field(pz, ""), "★".repeat(st) + "☆".repeat(3 - st), mark]
+		var pid: String = id
+		_btn(Rect2(P.position.x + 40, y, P.size.x - 80, 44), label, func(): overlay = ""; _pick_puzzle(pid, false), true, not id in done)
+		y += rowh + GAP_S
+	y += GAP_M - GAP_S
+	_text(Vector2(640, y), foot, tz("S"), ACCENT, true, false, 640)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())

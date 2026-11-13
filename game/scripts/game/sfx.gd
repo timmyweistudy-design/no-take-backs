@@ -102,6 +102,7 @@ func _ready() -> void:
 		tension.stream = ts
 		add_child(tension)
 		tension.finished.connect(func(): tension.play())   # 循環（wav 匯入沒設 loop，播完接著播）
+	_room_setup()   # 1.3.0 §10 棋館環境三層
 	var lp := AudioEffectLowPassFilter.new()
 	lp.cutoff_hz = 900.0
 	AudioServer.add_bus_effect(0, lp)
@@ -274,6 +275,7 @@ func _tension_tick(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_tension_tick(delta)
+	room_tick(delta)   # 1.3.0 §10
 	if duck_t > 0.0:
 		duck_t -= delta
 	# V1.2：單軌戰鬥曲用「緊張程度」調音量（分軌時的鼓聲進出改成整首大小聲），並套用大招壓低
@@ -344,3 +346,92 @@ func play_music(name: String) -> void:
 	single_cur = 1.0
 	music.volume_db = linear_to_db(maxf(0.0001, music_vol * 0.6 * fade_in))   # 從 0 淡入，_process 往上拉
 	music.play()
+
+
+# ── 1.3.0 第 10 大類：聲音 2.0（程式部分；方案 §10）──
+## 落子音按重量分級：輕木（刺客、弓手…）清脆空心「嗒」、實心重木（盾兵、騎兵、石魔…）低沉「咚」、空心（鼓、骷髏、菇）中音、包鐵中音。
+## 回傳 [音效名, 音高]。
+static func place_of(type: int) -> Array:
+	match int(UNIT_MAT[type]) if type >= 0 and type < UNIT_MAT.size() else 3:
+		0: return ["place_light", 1.1]
+		1: return ["place_heavy", 0.88]
+		2: return ["place_mid", 0.94]
+	return ["place_mid", 1.0]
+
+func play_place(type: int, vol := 1.0) -> void:
+	var pp := place_of(type)
+	play(str(pp[0]), vol, float(pp[1]))
+
+## 隨機變體用固定種子：每一場開戰時重設（同一場重播、驗收錄影聽到的變體序列一樣）。
+func reseed(seed: int) -> void:
+	rng.seed = seed
+	_last_var.clear()
+
+## 種子＝局數＋畫面 tick：開戰（tick 0）和每次跳轉完成後都從同一個狀態開始，跳回同一個 tick 聽到的變體一樣（Codex cat09 #2）。
+static func seed_at(round_no: int, tick: int) -> int:
+	return 0x5EED + round_no * 7919 + tick * 31
+
+## 棋館環境三層（近：茶蓋、線香；中：算盤；遠：窗外微雨、更夫木梆）。遠層走自己的匯流排，戰況緊時低通、壓小。
+const ROOM_LAYERS := ["near", "mid", "far"]
+const ROOM_GAIN := [0.55, 0.45, 0.5]
+const BUS_ROOM_FAR := "RoomFar"
+var room: Array = []
+var room_on := false
+var room_tense := 0.0
+var room_tense_target := 0.0
+
+func _room_setup() -> void:
+	if AudioServer.get_bus_index(BUS_ROOM_FAR) < 0:
+		AudioServer.add_bus()
+		var bi := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bi, BUS_ROOM_FAR)
+		AudioServer.set_bus_send(bi, BUS_AMB)
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 700.0
+		AudioServer.add_bus_effect(bi, lp)
+		AudioServer.set_bus_effect_enabled(bi, 0, false)
+	for i in ROOM_LAYERS.size():
+		var p := AudioStreamPlayer.new()
+		p.bus = BUS_ROOM_FAR if ROOM_LAYERS[i] == "far" else BUS_AMB
+		p.stream = load_audio("amb_room_" + ROOM_LAYERS[i])
+		add_child(p)
+		p.finished.connect(func(): p.play())
+		room.append(p)
+
+func play_room(on: bool) -> void:
+	room_on = on
+	for i in room.size():
+		var p: AudioStreamPlayer = room[i]
+		if p.stream == null:
+			continue
+		if on and not p.playing:
+			p.play(fmod(i * 7.3, 20.0))
+		elif not on and p.playing:
+			p.stop()
+	_room_mix()
+
+## 戰況緊（差距小或最後時刻）：遠景低通、壓小。
+func set_room_tense(on: bool) -> void:
+	room_tense_target = 1.0 if on else 0.0
+	room_tense_hold = 0.3   # 戰鬥每幀刷新；離開戰鬥沒人刷新就自己放開（Codex cat09 #3）
+
+var room_tense_hold := 0.0
+
+static func room_gain(layer: int, tense: float, amb_v: float) -> float:
+	return amb_v * float(ROOM_GAIN[layer]) * (1.0 - 0.5 * tense if layer == 2 else 1.0)
+
+func _room_mix() -> void:
+	for i in room.size():
+		(room[i] as AudioStreamPlayer).volume_db = linear_to_db(maxf(0.0001, room_gain(i, room_tense, amb_vol) * 0.22))
+	var bi := AudioServer.get_bus_index(BUS_ROOM_FAR)
+	if bi >= 0 and AudioServer.get_bus_effect_count(bi) > 0:
+		AudioServer.set_bus_effect_enabled(bi, 0, room_tense > 0.5)
+
+func room_tick(delta: float) -> void:
+	if not room_on:
+		return
+	var was := room_tense
+	room_tense_hold -= delta
+	room_tense = move_toward(room_tense, room_tense_target if room_tense_hold > 0.0 else 0.0, delta * 0.8)
+	if was != room_tense or Engine.get_process_frames() % 30 == 0:
+		_room_mix()

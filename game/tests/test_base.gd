@@ -70,6 +70,14 @@ class FakeSfx:
 		pass
 	func set_muffled(_on: bool, _hz := 900.0) -> void:
 		pass
+	func play_place(_t: int, _v := 1.0) -> void:
+		pass
+	func reseed(_s: int) -> void:
+		pass
+	func seed_at(_r: int, _t: int) -> int:
+		return 0
+	func set_room_tense(_on: bool) -> void:
+		pass
 	func set_layer_targets(_g: Array) -> void:
 		pass
 	static func layer_targets(close: bool, clutch: bool) -> Array:

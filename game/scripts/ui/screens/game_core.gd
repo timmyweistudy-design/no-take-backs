@@ -396,6 +396,8 @@ func _progress_and_achievements() -> void:
 		if stars > int(ps.get(puzzle_id, 0)):
 			ps[puzzle_id] = stars
 		Save.data["puzzle_stars"] = ps
+		if mode == Mode.PUZZLE and has_method("_od_after"):
+			call("_od_after", puzzle_id, stars)   # 1.3.0 §12.7 每日老闆出題
 		if stars >= 1 and has_method("_coach_after_clear"):
 			call("_coach_after_clear", stars)   # V1.6.1 A4：自力最佳另記
 		if mode == Mode.PUZZLE:

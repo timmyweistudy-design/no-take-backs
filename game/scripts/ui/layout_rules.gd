@@ -125,6 +125,11 @@ static func check(d: Dictionary) -> Dictionary:
 				if absf(r.get_center().x - h.position.x) > r.size.x * 0.25 or r.get_center().y < h.position.y or r.get_center().y > h.end.y:
 					_add(out, "fail", "R3", dc["id"], "%s 沒跨在宿主左緣" % dc["kind"])
 				continue
+			"screen":
+				# 1.3.0：面板器物裝飾（手帳、獎盃架…）：可以超出面板，但不能出 1280×800 畫面
+				if not Rect2(0, 0, 1280, 800).encloses(r):
+					_add(out, "fail", "R3", dc["id"], "器物裝飾出畫面 %s" % str(r))
+				continue
 			"inside":
 				# 1.2.0：宿主內的裝飾（布標縫線）：整個在宿主裡
 				if not h.grow(TOL_ATTACH).encloses(r):

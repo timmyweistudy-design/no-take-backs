@@ -125,6 +125,8 @@ func _battle_process(delta: float) -> void:
 	# 分軌音樂依戰況混音（第三輪 S1）
 	var close := absf(view.power(0) * 100.0 / (view.budget_of(0) * 1000) - view.power(1) * 100.0 / (view.budget_of(1) * 1000)) <= 15.0
 	sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
+	if sfx.has_method("set_room_tense"):
+		sfx.set_room_tense(close or slow_left > 0)   # 1.3.0 §10：戰況緊時遠景低通
 	# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
 	if follow_id >= 0:
 		pass   # 由 _follow_update 決定
@@ -751,9 +753,11 @@ func _draw_battle_hud() -> void:
 	_hud_bar(Rect2(0, 0, 1280, 96))   # V1.2：頂部資訊列改深木紋（原本是平塗深底）；V1.2.1 加高，大字級的下排小字（AI 名）也在木條內
 	draw_line(Vector2(0, 86), Vector2(1280, 86), TH_EDGE, 2.0)
 	# 第五輪：左上和擺放畫面一樣——模式（粗）＋局數比分（小字），不再放遊戲標題（大字時會換行壓到棋盤）
-	_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), TXT_DIM, false, true, 300)
-	if mode == Mode.VS_AI or mode == Mode.DUEL:
-		_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), TXT_DIM, false, false, 300)
+	# 1.3.0 §9.4 資訊層級：戰鬥中 HUD 只留棋鐘、戰力尺、速度；模式與比分只在開場 3 秒、暫停、結果、滑鼠移到左上時出現
+	if hud_meta_visible():
+		_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), TXT_DIM, false, true, 300)
+		if mode == Mode.VS_AI or mode == Mode.DUEL:
+			_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), TXT_DIM, false, false, 300)
 	var p0: int = view.power(0)
 	var p1: int = view.power(1)
 	var f0: float = float(p0) / view.budget_of(0)
@@ -939,6 +943,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	zoom_target = 1.0
 	pinch_zoom = 1.0   # V1.4 #18：新的一場不沿用上一場的縮放
 	dir_manual = false   # 1.3.0 §2：每一場（含重播、精華段）導播重新接手
+	if sfx != null and sfx.has_method("reseed"):
+		sfx.reseed(sfx.seed_at(round_no, 0))   # 1.3.0 §10：音效變體用固定種子
 	spot_a = 0.0
 	spot_n = 0
 	desat_a = 0.0
@@ -1260,3 +1266,97 @@ func _stain(p: Vector2, r: float, tea: bool, seed: int) -> void:
 				fx.remove_at(i)
 				break
 	_add_fx({"kind": "stain", "p": p, "r": r, "tea": tea, "seed": seed, "t": 0.0, "dur": 2.0})
+
+
+
+# ── 1.3.0 第 9 大類：資訊層級（方案 §9.4）──
+const HUD_META_TICKS := 60   # 開場 3 秒
+
+## 戰鬥 HUD 左上的模式與比分要不要畫：開場 3 秒、暫停、結果頁、滑鼠移到左上（手把模式＝一直顯示，沒有懸停）、簡化介面一律顯示。
+func hud_meta_visible() -> bool:
+	if state != St.BATTLE or view == null or paused or pad_mode or bool(Save.s("plain_ui")):
+		return true
+	if view.tick < HUD_META_TICKS:
+		return true
+	return Rect2(0, 0, 330, 86).has_point(mouse)
+
+
+
+# ── 1.3.0 第 13 大類：第一印象「掌燈開門」（方案 §13）──
+## 第一次開遊戲：黑畫面裡劃火柴 → 油燈亮起、暖光從燈往外推開 → 光鋪滿桌面、標題浮出（5 秒）。
+## 任何按鍵、點擊跳過；看過（或跳過）就記在存檔，之後直接到標題。截圖、版面檢查、headless、減少動態時不播。
+const INTRO_SEC := 5.0
+const LAMP_AT := Vector2(214, 610)
+var intro_t := -1.0
+
+static func intro_should_play(seen: bool, shots: bool, probe: bool, headless: bool, reduce_motion: bool) -> bool:
+	return not seen and not shots and not probe and not headless and not reduce_motion
+
+func intro_begin() -> void:
+	if intro_should_play(bool(Save.data.get("intro_seen", false)), shot_dir != "", layout_probe, DisplayServer.get_name() == "headless", bool(Save.s("reduce_motion"))):
+		intro_t = 0.0
+
+func intro_end() -> void:
+	if intro_t < 0.0:
+		return
+	intro_t = -1.0
+	Save.data["intro_seen"] = true
+	Save.save_data()
+
+func intro_tick(delta: float) -> void:
+	if intro_t < 0.0:
+		return
+	var was := intro_t
+	intro_t += delta
+	if was < 0.5 and intro_t >= 0.5 and sfx != null:
+		sfx.play_pitched("place_light", 0.35, 1.6)   # 火柴擦一下（真錄音到位前先用輕木聲）
+	if intro_t >= INTRO_SEC:
+		intro_end()
+
+func _draw_intro() -> void:
+	if intro_t < 0.0:
+		return
+	var t := intro_t
+	var fade := clampf((t - 4.2) / 0.8, 0.0, 1.0)   # 最後 0.8 秒整層淡出
+	var a := 1.0 - fade
+	var light := clampf((t - 0.9) / 2.3, 0.0, 1.0)
+	light = 1.0 - pow(1.0 - light, 3.0)
+	# 暗幕：中心透明、外圍全黑的徑向貼圖從燈往外撐開（沿用聚光的那張），貼圖外面補黑
+	var sz := lerpf(60.0, 7000.0, light)
+	var r := Rect2(LAMP_AT - Vector2(sz, sz) / 2.0, Vector2(sz, sz))
+	var blk := Color(0.02, 0.015, 0.01, a)
+	if t < 0.9:
+		draw_rect(Rect2(0, 0, 1280, 800), blk)
+	else:
+		draw_texture_rect(_spot_tex(), r, false, Color(1, 1, 1, a))
+		draw_rect(Rect2(0, 0, 1280, maxf(0.0, r.position.y)), blk)
+		draw_rect(Rect2(0, r.end.y, 1280, maxf(0.0, 800.0 - r.end.y)), blk)
+		draw_rect(Rect2(0, r.position.y, maxf(0.0, r.position.x), r.size.y), blk)
+		draw_rect(Rect2(r.end.x, r.position.y, maxf(0.0, 1280.0 - r.end.x), r.size.y), blk)
+		draw_circle(LAMP_AT + Vector2(0, -48), 90.0 + light * 140.0, Color(1.0, 0.72, 0.35, 0.10 * a * (1.0 - light * 0.6)), true, -1.0, true)   # 暖光
+	# 火柴：0.45～0.9 秒一點火星＋幾顆飛散的火花
+	if t >= 0.45 and t < 1.1:
+		var sk := clampf((t - 0.45) / 0.65, 0.0, 1.0)
+		var mp := LAMP_AT + Vector2(36, -40)
+		for i in 6:
+			var ang := i * 1.05 + 0.4
+			draw_circle(mp + Vector2(cos(ang), sin(ang)) * sk * 26.0, 2.0 * (1.0 - sk), Color(1, 0.75, 0.3, 1.0 - sk), true, -1.0, true)
+		draw_circle(mp, 5.0 * (1.0 - sk * 0.5), Color(1, 0.85, 0.5, a), true, -1.0, true)
+	# 油燈（黃銅底座、玻璃燈罩、火焰）：0.8 秒起就在
+	if t >= 0.8:
+		var la := a
+		var base := LAMP_AT
+		draw_colored_polygon(PackedVector2Array([base + Vector2(-34, 0), base + Vector2(34, 0), base + Vector2(24, -16), base + Vector2(-24, -16)]), Color(PAL.TRINKET_BRASS.darkened(0.2), la))
+		draw_rect(Rect2(base + Vector2(-14, -30), Vector2(28, 14)), Color(PAL.TRINKET_BRASS, la))
+		draw_set_transform_matrix(Transform2D(0, Vector2(1, 1.5), 0, base + Vector2(0, -62)))
+		draw_circle(Vector2.ZERO, 22.0, Color(1, 0.95, 0.85, 0.18 * la), true, -1.0, true)
+		draw_arc(Vector2.ZERO, 22.0, 0, TAU, 32, Color(1, 1, 1, 0.35 * la), 1.5, true)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+		var fl := clampf((t - 0.8) / 0.4, 0.0, 1.0)
+		var flick := 1.0 + sin(t * 23.0) * 0.06 + sin(t * 37.0) * 0.04
+		var fh := 26.0 * fl * flick
+		draw_colored_polygon(PackedVector2Array([base + Vector2(-6, -36), base + Vector2(0, -36 - fh), base + Vector2(6, -36)]), Color(1, 0.7, 0.25, la))
+		draw_colored_polygon(PackedVector2Array([base + Vector2(-3, -36), base + Vector2(0, -36 - fh * 0.6), base + Vector2(3, -36)]), Color(1, 0.95, 0.7, la))
+	# 跳過提示（2 秒後）
+	if t > 2.0 and fade < 0.5:
+		_text(Vector2(1240, 760), L.t("intro_skip"), tz("C"), Color(1, 0.9, 0.75, 0.55 * a), false, false, 0.0)

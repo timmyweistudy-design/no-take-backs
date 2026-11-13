@@ -278,7 +278,7 @@ func _try_place(c: Vector2i) -> void:
 				cp.placed(c, D.cost(selected))
 		show_place_help = false
 		settle_t[Vector2i(c.x, c.y)] = time   # V1.3.1 P2：格子模式也有放下沉降
-		sfx.play(["place_mid", "place_heavy", "place_light", "place_heavy", "place_light", "place_heavy", "place_light", "place_light", "place_light", "place_heavy"][selected] if selected < 10 else "place_mid")
+		sfx.play_place(selected)   # 1.3.0 §10：落子音按重量分級（22 種都有，原本只有前 10 種）
 		sfx.play_wood(selected, 0.4)   # V1.6 #14：每種兵的木雕材質
 	elif why != L.t("err_taken"):
 		_toast(why, true)
@@ -613,8 +613,16 @@ func _draw_place_hud() -> void:
 	draw_line(Vector2(0, 50), Vector2(1280, 50), Color(1, 1, 1, 0.08), 1.0)
 	var a = _cur_army()
 	var tcol := Art.team_color(a.team, cbm())
-	# 左：模式與局數
+	# 左：模式與局數（1.3.0 §9.4：收在一張用黃銅圖釘釘住的牛皮紙便籤上；深色紙，字色照舊）
 	var ml := _mode_label()
+	if not bool(Save.s("plain_ui")):
+		# 便籤依實際文字配寬高（Codex cat09 #4）：寬＝較寬那行＋圖釘位，高＝兩行字高；下緣不進資訊帶（y52 起，資訊帶後畫會蓋住多的）
+		var two: bool = mode == Mode.VS_AI or mode == Mode.DUEL
+		var nw := minf(_width(L.t("menu_duel") if mode == Mode.DUEL else ml, tz("S"), true), 380.0)
+		if two:
+			nw = maxf(nw, _width("%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C")))
+		var nh := tz("S") * 1.35 + (tz("C") * 1.3 if two else 0.0) + 6.0
+		_pin_note(Rect2(6, 3, nw + 34.0, minf(nh, 48.0)))
 	if mode == Mode.DUEL:
 		ml = L.t("menu_duel")   # 規則細節已經在中間大字，左上只放模式名稱（避免換行）
 	_text(Vector2(16, 6), ml, tz("S"), TXT_DIM, false, true, 380)
@@ -1102,5 +1110,23 @@ func _bamboo_blind(mr: Rect2) -> void:
 	draw_rect(Rect2(roll.position.x, roll.end.y - 4, roll.size.x, 4), Color(0.1, 0.06, 0.02, 0.35))
 	for hf in [0.2, 0.8]:
 		var hc := Vector2(roll.position.x + roll.size.x * hf, roll.position.y + 2)
-		draw_arc(hc, 6.0, PI, TAU, 10, PAL.TRINKET_BRASS, 2.5, true)
+		draw_arc(hc, 9.0, PI, TAU, 12, PAL.TRINKET_BRASS, 3.5, true)   # Hydrogen cat08 #2：掛鉤加大
+		draw_circle(hc + Vector2(-9, 0), 2.5, PAL.TRINKET_BRASS.lightened(0.2), true, -1.0, true)
 	draw_rect(mr, Color(0, 0, 0, 0.26))   # 壓暗：竹色比木屏風亮，壓多一點讓上面的白字對比照舊
+
+
+## 1.3.0 §9.4 便籤：深牛皮紙（白字對比照舊）、下緣手撕鋸齒、左上黃銅圖釘、落影往右下。
+func _pin_note(r: Rect2) -> void:
+	var paper := PAL.TRINKET_LEATHER.darkened(0.62)   # 再深一點，淺色字對比更夠（Hydrogen cat11 #5）
+	draw_rect(Rect2(r.position + Vector2(3, 4), r.size), Color(DIM_INK, 0.45))
+	var pts := PackedVector2Array([r.position, Vector2(r.end.x, r.position.y)])
+	var n := int(r.size.x / 10.0)
+	for i in n + 1:
+		var x := r.end.x - r.size.x * i / float(n)
+		pts.append(Vector2(x, r.end.y - (3.0 if i % 2 == 0 else 0.0)))
+	draw_colored_polygon(pts, paper)
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 2)), Color(1, 0.9, 0.7, 0.12))
+	var pc := r.position + Vector2(r.size.x - 12, 8)
+	draw_circle(pc + Vector2(1.5, 2), 4.5, Color(DIM_INK, 0.6), true, -1.0, true)
+	draw_circle(pc, 4.5, PAL.TRINKET_BRASS, true, -1.0, true)
+	draw_circle(pc - Vector2(1.3, 1.3), 1.5, Color(1, 0.95, 0.75, 0.9), true, -1.0, true)

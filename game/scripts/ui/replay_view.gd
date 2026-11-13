@@ -171,6 +171,8 @@ func _seek_tick(budget_ms: int) -> bool:
 	return true
 
 func _seek_finish() -> void:
+	if sfx != null and sfx.has_method("reseed"):
+		sfx.reseed(sfx.seed_at(round_no, view.tick if view != null else 0))   # 1.3.0 §10：跳轉後音效變體從同一個狀態開始
 	call_deferred("_tm_sync")
 	var target := _seek_target_now
 	var keep_ct := _seek_ct
