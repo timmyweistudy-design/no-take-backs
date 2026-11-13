@@ -465,7 +465,7 @@ func _draw_overlay() -> void:
 				_probe_btn_label = false
 				if en:
 					for ks in 3:   # 星數在右下角（和下方說明同一列，說明讓出寬度）
-						_icon("star", Vector2(r.end.x - 52 + ks * 19, r.end.y - tz("C") * 0.75), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))
+						_icon("star", Vector2(r.end.x - 55 + ks * 19, r.end.y - 24.0), 17.0, Color("#ffd166") if ks < st else Color(1, 1, 1, 0.2))   # 1.4.0 R13：離按鈕面下緣 ≥7px（量看得到的框；原本 2.8）
 					var cde = Save.data.get("coached", {}).get(str(pz["id"]))
 					if not tut and cde is Dictionary and (int(cde.get("lv", 0)) >= 2 or int(cde.get("ap", 0)) == 1) and int(cde.get("self", 0)) < st:   # 1.1.0：用朋友最佳解過關也算協力
 						_icon("hint", Vector2(r.end.x - 74, r.end.y - tz("C") * 0.75), 15.0, Color("#7fd6c2"))   # V1.6.1 A4：教練協力（自力最佳比目前星數少）

@@ -248,7 +248,7 @@ func layout_geom_input() -> Dictionary:
 		need["panel"] = maxi(1, int(need.get("panel", 0)))
 	return {"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
 		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 3.0,
-		"boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need,
+		"boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need, "icons": probe_icons,
 		"panelless_ok": overlay in PANELLESS_OVERLAYS}
 
 
@@ -461,7 +461,10 @@ func _layout_report(name: String, img: Image = null) -> void:
 		for t in probe_texts:
 			var g: Rect2 = t["gr"]
 			var o = t.get("own")
+			var fc0 = t.get("face")
+			var ik0 = t.get("ink")
 			tx.append({"s": t["s"], "size": t["size"], "field": t.get("field", false), "g": [g.position.x, g.position.y, g.size.x, g.size.y],
+				"face": [fc0.position.x, fc0.position.y, fc0.size.x, fc0.size.y] if fc0 is Rect2 else null, "ink": [ik0.position.x, ik0.position.y, ik0.size.x, ik0.size.y] if ik0 is Rect2 else null, "cell": str(t.get("cell", "")),   # 1.4.0：和版面規則同一份資料（Codex v140 cat01 #6）
 				"btn": bool(t.get("btn", false)), "own": [o.position.x, o.position.y, o.size.x, o.size.y] if o is Rect2 and o.size.x > 0.0 and bool(t.get("btn", false)) else null})
 		var bx: Array = probe_boxes.map(func(b): return [b["r"].position.x, b["r"].position.y, b["r"].size.x, b["r"].size.y])
 		var gf := FileAccess.open(shot_dir.path_join("geom.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("geom.jsonl")) else FileAccess.WRITE)

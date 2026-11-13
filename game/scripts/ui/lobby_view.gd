@@ -290,7 +290,7 @@ func _draw_cmd_tab(R: Rect2) -> void:
 			hot = s
 		_probe_btn_label = true
 		_probe_btn_rect = cr
-		_icon(CmdD.ICONS[s], cr.position + Vector2(cw / 2, 22), 30.0, ACCENT if sel else Color(1, 1, 1, 0.4))
+		_icon(CmdD.ICONS[s], cr.position + Vector2(cw / 2, 27), 30.0, ACCENT if sel else Color(1, 1, 1, 0.4))   # 1.4.0 R13：上緣留 ≥8px（量看得到的框）
 		_text(cr.position + Vector2(cw / 2, 40), L.t("cmd_%d" % s), tz("C"), Color.WHITE if sel else TXT_DIM, true, false, cw - 6)
 		_probe_btn_label = false
 		if sel:
@@ -476,8 +476,8 @@ func _badge_pill(p: Vector2, b: String) -> float:
 	var icon: String = {"cert": "◎", "fun": "★", "lab": "◇"}[b]
 	var lab: String = icon + " " + L.t("lb_badge_" + b)
 	var fs := tz("S")
-	var w := _width(lab, fs, true) + 20
-	var r := Rect2(p, Vector2(w, fs * 1.6))
+	var w := maxf(_width(lab, fs, true) + 20.0, _width(lab, fs, true) / 0.86 + 2.0)   # 1.4.0 R12：左右各留 max(10, 寬×6%)
+	var r := Rect2(p, Vector2(w, maxf(fs * 1.6, label_ink(lab, fs, true).size.y + 10.0)))   # 1.4.0 R12：牌高＝墨跡＋上下各 5
 	draw_rect(r, Color(col, 0.22))
 	# 色盲也分得出：認證＝實線框、娛樂＝虛線框、沙盒＝雙線框
 	match b:
@@ -494,7 +494,9 @@ func _badge_pill(p: Vector2, b: String) -> float:
 		"lab":
 			draw_rect(r, col, false, 1.5)
 			draw_rect(r.grow(-4), col, false, 1.5)
-	_text(r.position + Vector2(10, fs * 0.25), lab, fs, Color.WHITE, false, true)
+	probe_cell_begin(r)   # 1.4.0：認證牌是格子（R11 置中、R12 內距；Codex v140 cat01 #1）
+	_text(ink_center_p(r, lab, fs, true), lab, fs, Color.WHITE, true, true)
+	probe_cell_end()
 	return w
 
 # ───────── 繪製 ─────────
@@ -505,10 +507,11 @@ func _draw_lobby() -> void:
 	var title := L.t("menu_vs_ai") if lobby_kind == "ai" else L.t("menu_duel")
 	_h1(Vector2(640, 24), title)   # 1.2.0：H1 放大，緞帶上移 4 保持和分頁的距離（R2）   # V1.5.2 L3：緞帶跨在面板上緣（和圖鑑同款），完整下緣到預設分頁 ≥16
 	_draw_lobby_presets(Vector2(80, 96))
+	var cy := 96.0 + lobby_tab_h() + 12.0   # 1.4.0 R12：分頁在大字級時長高（兩行字上下要留空），內容跟著往下
 	if lobby_open:
-		_draw_lobby_detail(Rect2(80, 176, 1120, 508))
+		_draw_lobby_detail(Rect2(80, cy, 1120, 684.0 - cy))
 	else:
-		_draw_lobby_main(Rect2(80, 176, 1120, 508))
+		_draw_lobby_main(Rect2(80, cy, 1120, 684.0 - cy))
 		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
 	# 底列
 	var by := 700.0
@@ -529,9 +532,21 @@ func _draw_lobby() -> void:
 	elif not lobby_open:
 		_boss_note("lobby", "lobby")   # 1.2.0 §12：第一次進大廳的便條
 
+## 1.4.0 R12：預設分頁高度——字級 150% 時兩行字要上下各留 max(4, 12%)，分頁從 68 長到 78。
+func lobby_tab_h() -> float:
+	if tz("B") < 22:
+		return 68.0
+	# 只有真的有分頁要換兩行時才長高（日文改短後全部一行，就不留空，Antigravity v140 cat01 #5）
+	var tw_min := 154.0 - 6.0 - BM_SLOT
+	var te := tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
+	for id in Presets.IDS:
+		if wrap_lines(L.t("lb_p_" + id), fit(L.t("lb_p_" + id), tz("B"), te, true), te, true).size() > 1:
+			return 78.0
+	return 68.0
+
 func _draw_lobby_presets(o: Vector2) -> void:
 	var w := 154.0
-	var h := 68.0
+	var h := lobby_tab_h()
 	for i in Presets.IDS.size():
 		var id: String = Presets.IDS[i]
 		var p = Presets.make(id, lobby_kind, _lobby_unlocked())
@@ -553,20 +568,21 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		var lab := L.t("lb_p_" + id)
 		var tw := (w - 6.0 - BM_SLOT) if on else (w - 12.0)
 		var tx := (6.0 + tw / 2) if on else w / 2
-		var two := wrap_lines(lab, fit(lab, tz("B"), tw, true), tw, true).size() > 1
+		var te := tw - 2.0 * (maxf(6.0, tw * 0.06) + 1.0)   # 1.4.0 R12：分頁字左右各留 max(6, 6% 寬)
+		var two := wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1
 		var lsz: int = tz("B")
 		if two:
 			lab = balance_two_lines(lab)
 			# 兩行時字級取字級表裡第二行字形下緣（5＋2.53×字級）還在色條上方 2px 的最大一級（Antigravity 實作第 3 輪：平衡後一行變短，fit 不會縮）
 			lsz = tz("C")
 			for c in [tz("B"), tz("S"), tz("C")]:
-				if 5.0 + 2.53 * c <= h - 11.0 and _width(lab, c, true) <= tw:
+				if 5.0 + 2.53 * c <= h - 11.0 and 2.3 * c <= (h - 14.0) * 0.76 and _width(lab, c, true) <= te:   # 1.4.0 R12：兩行墨跡上下也要留 12%
 					lsz = c
 					break
 		_ink_mode = on_paper
 		# 1.3.0 R11：字放在「色條以上」的文字區正中（原本從上緣固定 5／8 起排，字擠在上半）；選中時扣掉書籤槽
-		var lsz2: int = fit(lab, lsz, tw - 4, true)   # 留 4px：粗體墨跡比排版寬多出一點（英文 Monster Crew 多 1.5px）
-		var lab2: String = lab if two else "\n".join(wrap_lines(lab, lsz2, tw - 4, true))
+		var lsz2: int = fit(lab, lsz, te, true)
+		var lab2: String = lab if two else "\n".join(wrap_lines(lab, lsz2, te, true))
 		var tcell := Rect2(r.position.x + tx - tw / 2, r.position.y + 3, tw, h - 9 - 2 - 3)
 		probe_cell_begin(tcell)
 		_text(ink_center_p(tcell, lab2, lsz2, true), lab2, lsz2, Color.WHITE, true, true)
@@ -677,6 +693,11 @@ func _draw_lobby_main(R: Rect2) -> void:
 	var x := R.position.x
 	var lw := 600.0
 	var rowh := 96.0
+	# 1.4.0：規則摘要（最後一列）要多高先算好，上面四列平均讓出空間（84～96），規則列不撞底列（Codex v140 cat01 #5）
+	var sm0 := _summary(r)
+	var smz0 := fit(sm0, tz("S"), lw - 170.0)
+	var rules_need := maxf(rowh - 8.0, 12.0 + text_h(sm0, smz0, lw - 170.0) + 4.0 + 36.0 + 8.0)
+	rowh = clampf((R.size.y - rules_need) / 4.0, 84.0, 96.0)
 	var y := R.position.y
 	# V1.2 C1：左欄是一頁羊皮紙（像攤開的戰役筆記），紙上的字用墨色
 	if not bool(Save.s("plain_ui")):
@@ -820,8 +841,11 @@ func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:
 		var dep: float = lobby_r.half_depth() * k
 		draw_rect(Rect2(q.position, Vector2(dep, q.size.y)), Color(Art.team_color(0, cbm()), 0.2))
 		draw_rect(Rect2(q.end.x - dep, q.position.y, dep, q.size.y), Color(Art.team_color(1, cbm()), 0.2))
-		_icon("flag", q.position + Vector2(20, 22), 28.0, Art.team_color(0, cbm()).lightened(0.3))
-		_icon("flag", Vector2(q.end.x - 20, q.position.y + 22), 28.0, Art.team_color(1, cbm()).lightened(0.3))
+		var pf0 := _probe_face
+		_probe_face = q   # 1.4.0 R13：旗子屬於地圖預覽（不是剛好疊在上面的下拉選單鈕）
+		_icon("flag", q.position + Vector2(22, 26), 28.0, Art.team_color(0, cbm()).lightened(0.3))   # 1.4.0 R13：離預覽上緣 ≥8px
+		_icon("flag", Vector2(q.end.x - 24, q.position.y + 26), 28.0, Art.team_color(1, cbm()).lightened(0.3))
+		_probe_face = pf0
 	draw_rect(q, Color(0, 0, 0, 0.5), false, 1.5)
 
 func _lobby_set_size(z: int) -> void:

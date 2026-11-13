@@ -212,7 +212,7 @@ func _draw_trials() -> void:
 		_text(r.position + Vector2(154, 8 + tz("B") * 1.25), line2, tz("C"), TXT_DIM if last_btn_enabled else Color(TXT_DIM, 0.4), false, false, cw - 160)
 		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
 		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
-		var cy0: float = r.position.y + 8 + tz("B") * 1.25 + tz("C") * 1.2
+		var cy0: float = r.position.y + (5.0 if tz("C") >= 20 else 8.0) + tz("B") * 1.25 + tz("C") * 1.2   # 1.4.0 R13：150% 時上移 3，愛心、金幣離卡片下緣 ≥8px
 		var cx0: float = r.position.x + 154
 		_icon("heart", Vector2(cx0 + 9, cy0 + tz("C") * 0.62), 16.0, acol)
 		var c1s := "≥%d%%" % trial_rem(i)
@@ -500,15 +500,16 @@ func _draw_relay() -> void:
 	var by := 186.0 + tz("S") * 1.6
 	for k in rl_types.size():
 		var t: int = rl_types[k]
-		var br := Rect2(bx + (k % 6) * 66, by + (k / 6) * 84, 62, 78)
+		var ph := price_cell_h()   # 1.4.0 R12：和覆盤同一個算法
+		var bh := maxf(78.0, 35.0 + ph + 5.0)
+		var br := Rect2(bx + (k % 6) * 66, by + (k / 6) * (bh + 6.0), 62, bh)
 		_btn(br, "", _relay_set.bind(t), rl_sel.x >= 0)
-		var py := br.size.y - tz("C") * 1.15 - 7   # 和覆盤同一個算法：價錢在按鈕面板內
-		Art.unit(self, br.position + Vector2(31, py - 2), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0 if rl_sel.x >= 0 else 0.35, time, 0.5, cbm())
-		var pcell := Rect2(br.position.x + 4, br.position.y + py - 3, br.size.x - 8, minf(tz("C") * 1.2 + 4, br.size.y - 3 - 4 - (py - 3)))   # 價錢那一條（不碰下緣厚度與九宮格邊）   # 1.3.0 R11：價錢子格
+		var pcell := Rect2(br.position.x, br.end.y - 3 - 2 - ph, br.size.x, ph)   # 價錢那一條（不碰下緣厚度與九宮格邊）
+		Art.unit(self, Vector2(br.position.x + 31, pcell.position.y - 4), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0 if rl_sel.x >= 0 else 0.35, time, 0.5, cbm())
 		probe_cell_begin(pcell)
 		_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if rl_sel.x >= 0 else Color(1, 1, 1, 0.3), true, true)
 		probe_cell_end()
-	by += (rl_types.size() + 5) / 6 * 84 + 8
+	by += (rl_types.size() + 5) / 6 * (maxf(78.0, 35.0 + price_cell_h() + 5.0) + 6.0) + 8
 	_btn(Rect2(bx, by, 190, 44), L.t("rv_remove"), _relay_set.bind(-1), rl_sel.x >= 0)
 	_btn(Rect2(bx + 200, by, 190, 44), L.t("rv_reset"), func(): rl_enemy = rl_orig.duplicate(true); rl_code = "")
 	by += 56
@@ -927,7 +928,7 @@ func _draw_ban() -> void:
 		_unit_in(Rect2(r.position, Vector2(r.size.x, minf(74.0 if small else 112.0, ny - 2.0))), t, 0, 1.0, 0.72 if small else 1.05)
 		_text(r.position + Vector2(r.size.x / 2, ny), L.t("unit_%d" % t), nfs, Color.WHITE, true, true, r.size.x - 16)
 		if r.has_point(mouse) and not pad_mode:
-			_icon("ban", r.position + Vector2(r.size.x / 2, 42 if small else 62), 60.0 if small else 84.0)
+			_icon("ban", r.position + Vector2(r.size.x / 2, 44 if small else 64), 60.0 if small else 84.0)   # 1.4.0 R13
 	_btn(Rect2(P.end.x - 110, 76, 96, 40), L.t("ban_skip"), _ban_skip)
 	lobby_brief = _brief_pick(ts0, ban_hot)
 	var last: Rect2 = _ban_cell(ts0.size() - 1, ts0.size())

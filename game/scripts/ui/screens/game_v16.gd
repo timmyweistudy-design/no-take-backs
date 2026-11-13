@@ -473,13 +473,13 @@ func _tv_buttons(help: Rect2, notebook := false) -> void:
 		b2.position.x -= 44
 		var b3 := Rect2(help.position.x - 44, help.position.y, 40, 36)
 		_btn(b3, "", func(): overlay = "notebook"; _focus = 0)
-		_icon("book", b3.get_center(), 22.0, Color.WHITE)
+		_icon_in(b3, "book", 20.0, Color.WHITE)
 		if b3.has_point(mouse):
 			_tv_tip(L.t("nb_tip"), help)
 	_btn(b1, "", func(): tv_range = not tv_range, true, false, TH_ACTIVE if tv_range else Color(0, 0, 0, 0))
-	_icon("range", b1.get_center(), 22.0, Color.WHITE)
+	_icon_in(b1, "range", 20.0, Color.WHITE)
 	_btn(b2, "", func(): tv_mark_mode = not tv_mark_mode, true, false, TH_ACTIVE if tv_mark_mode else Color(0, 0, 0, 0))
-	_icon("flag", b2.get_center(), 22.0, Color.WHITE)
+	_icon_in(b2, "flag", 20.0, Color.WHITE)
 	if b1.has_point(mouse) or b2.has_point(mouse):
 		_tv_tip(L.t("tv_range_tip") if b1.has_point(mouse) else L.t("tv_mark_tip"), help)
 
@@ -2121,7 +2121,7 @@ func _draw_trio() -> void:
 		_btn(br, lbl, func(): _trio_start(ii), true, i == 0)
 		var tst := int(Save.data.get("trio_stars", {}).get(id, 1 if cl.has(id) else 0))   # V1.6.1 A3：整組星數（舊紀錄只有過關＝1 星）
 		for ks in 3:
-			_icon("star", Vector2(br.end.x - 50 + ks * 16, br.end.y - 10), 13.0, Color("#ffd166") if ks < tst else Color(1, 1, 1, 0.18))
+			_icon("star", Vector2(br.end.x - 50 + ks * 16, br.end.y - 14.0), 13.0, Color("#ffd166") if ks < tst else Color(1, 1, 1, 0.18))   # 1.4.0 R13：下緣留 ≥5px
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 func _draw_trio_result() -> void:

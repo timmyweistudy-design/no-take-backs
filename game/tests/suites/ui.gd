@@ -1790,3 +1790,41 @@ func test_intro_v130() -> void:
 	var d := {"intro_seen": "yes"}
 	SV.sanitize_data(d)
 	ok(d["intro_seen"] is bool, "存檔欄位驗型")
+
+## 1.4.0 第 1 大類：R12 格子內距、R13 圖示留白（使用者第 10 點）
+func test_r12_r13_v140() -> void:
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	var face := Rect2(100, 100, 120, 40)
+	var ok_ink := Rect2(130, 110, 60, 20)       # 上下 10、左右 30
+	var tight := Rect2(103, 102, 114, 36)       # 上下 2、左右 3
+	var base := {"panels": [], "ribbons": [], "decos": [], "aligns": [], "btns": [Rect2(100, 100, 120, 40)], "boxes": [], "overlay": "", "need": {}}
+	var d1: Dictionary = base.duplicate(true)
+	d1["texts"] = [{"s": "ok", "r": ok_ink, "gr": ok_ink, "size": 18, "face": face, "ink": ok_ink, "cell": "c1"}]
+	var o1: Dictionary = LR.check(d1)
+	var r12a := 0
+	for w in o1[LR.R12_LEVEL]:
+		if w["type"] == "R12":
+			r12a += 1
+	ok(r12a == 0, "內距夠的格子不列")
+	var d2: Dictionary = base.duplicate(true)
+	d2["texts"] = [{"s": "tight", "r": tight, "gr": tight, "size": 18, "face": face, "ink": Rect2(face.get_center() - tight.size / 2, tight.size), "cell": "c2"}]
+	var o2: Dictionary = LR.check(d2)
+	var r12b := 0
+	for w in o2[LR.R12_LEVEL]:
+		if w["type"] == "R12":
+			r12b += 1
+	ok(r12b == 1, "太緊的格子列出（置中但上下只剩 2px）")
+	var d3: Dictionary = base.duplicate(true)
+	d3["texts"] = []
+	d3["icons"] = [{"n": "star", "r": Rect2(200, 120, 30, 30), "face": null}, {"n": "flag", "r": Rect2(140, 108, 24, 24), "face": face}, {"n": "free", "r": Rect2(600, 600, 20, 20), "face": null}]
+	var o3: Dictionary = LR.check(d3)
+	var r13 := []
+	for w in o3[LR.R12_LEVEL]:
+		if w["type"] == "R13":
+			r13.append(w["id"])
+	ok("star" in r13 and not "flag" in r13, "圖示超出宿主列出；在宿主裡、上下留 8px 的不列")
+	ok(int(o3.get("icons_free", -1)) == 1, "不在任何格子裡的圖示只計數、不猜宿主")
+	ok(LR.R12_LEVEL == "fail", "先修清單清零後 R12／R13 是違規等級（發版前必須）")
+	var ubs: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+	ok(ubs.find("maxf(ih + 8.0 + 1.0, (ih + 1.0) / 0.76)") >= 0, "價錢子格高度＝墨跡＋上下 max(4, 12%)")
+	ok(ubs.find("r.size.x - 2.0 * (maxf(6.0, r.size.x * 0.06) + 1.0)") >= 0, "按鈕標籤左右各留 max(6, 6% 寬)")

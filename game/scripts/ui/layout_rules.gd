@@ -3,6 +3,16 @@
 ## 每條違規都帶規則代碼（R1…R10、G 守衛）與元件 ID，報告才能逐條對到程式。
 extends RefCounted
 
+## 1.4.0 §15 R12／R13 門檻（使用者第 10 點）。R12_LEVEL：遷移期 "warn"，先修清單做完改 "fail"（發版前必須 "fail"）。
+const R12_V_MIN := 4.0
+const R12_V_PCT := 0.12
+const R12_H_MIN := 6.0
+const R12_H_PCT := 0.06
+const R13_V_MIN := 3.0
+const R13_V_PCT := 0.10
+const R13_H_MIN := 3.0
+const R13_V_CAP := 8.0   # 高的卡片（例：卡片面板 262px）裡圖示在上方是設計：上下要求封頂 8px
+const R12_LEVEL := "fail"   # 1.4.0 第 1 大類收尾：先修清單清零 → 違規等級
 const SCREEN := Rect2(0, 0, 1280, 800)
 const TOL_CENTER := 1.0    # R1、R4、R10：中線容差
 const TOL_ATTACH := 1.0    # R3：依附邊容差
@@ -71,6 +81,47 @@ static func check(d: Dictionary) -> Dictionary:
 			_add(out, "fail", "R11", str(cl["s"]), "格子裡的字沒置中：偏 (%.1f, %.1f)，格子 %s" % [e.x, e.y, str(fr)])
 		elif not fr.grow(0.5).encloses(ik):
 			_add(out, "fail", "R11", str(cl["s"]), "字超出格子面：字 %s、格子 %s" % [str(ik), str(fr)])
+	# ── R12（1.4.0 §15，使用者第 10 點）：格子裡的字上下左右要有空：墨跡聯集到格子面四邊
+	#    上、下 ≥ max(4, 格高×12%)；左、右 ≥ max(6, 格寬×6%)。和 R11 同時要滿足（不互相豁免）──
+	for fk in cells:
+		var cl2: Dictionary = cells[fk]
+		var fr2: Rect2 = cl2["face"]
+		var ik2: Rect2 = cl2["ink"]
+		var mt := ik2.position.y - fr2.position.y
+		var mb := fr2.end.y - ik2.end.y
+		var ml := ik2.position.x - fr2.position.x
+		var mr := fr2.end.x - ik2.end.x
+		var nv := maxf(R12_V_MIN, fr2.size.y * R12_V_PCT)
+		var nh := maxf(R12_H_MIN, fr2.size.x * R12_H_PCT)
+		if mt < nv - 0.5 or mb < nv - 0.5:
+			_add(out, R12_LEVEL, "R12", str(cl2["s"]), "格子字上下太緊：上 %.1f、下 %.1f（要 ≥%.1f），格子 %s" % [mt, mb, nv, str(fr2)])
+		elif ml < nh - 0.5 or mr < nh - 0.5:
+			_add(out, R12_LEVEL, "R12", str(cl2["s"]), "格子字左右太緊：左 %.1f、右 %.1f（要 ≥%.1f），格子 %s" % [ml, mr, nh, str(fr2)])
+	# ── R13（1.4.0 §15）：圖示要完整在宿主格子裡、上下 ≥ max(3, 宿主高×10%)、左右 ≥3。
+	#    宿主＝畫圖示時宣告的格子面；沒有就找包住圖示中心的最小按鈕。都沒有＝行內／獨立圖示（只計數，見 icons_free）──
+	var free_icons := 0
+	for ic in d.get("icons", []):
+		var ir: Rect2 = ic["r"]
+		var host = ic.get("face")
+		if not (host is Rect2):
+			host = null
+			for b in btns:
+				var br: Rect2 = (b if b is Rect2 else Rect2()).grow_individual(0, 0, 0, -3.0)   # 按鈕面（扣下緣厚度，不把厚度算成留白；Codex v140 cat01 #2）
+				if br.has_point(ir.get_center()) and (host == null or br.get_area() < (host as Rect2).get_area()):
+					host = br
+		if host == null:
+			free_icons += 1
+			continue
+		var hr: Rect2 = host
+		var it := ir.position.y - hr.position.y
+		var ib := hr.end.y - ir.end.y
+		var il := ir.position.x - hr.position.x
+		var irr := hr.end.x - ir.end.x
+		if minf(minf(it, ib), minf(il, irr)) < -0.5:
+			_add(out, R12_LEVEL, "R13", str(ic.get("n", "")), "圖示超出宿主：圖示 %s、宿主 %s" % [str(ir), str(hr)])
+		elif minf(it, ib) < clampf(hr.size.y * R13_V_PCT, R13_V_MIN, R13_V_CAP) - 0.5 or minf(il, irr) < R13_H_MIN - 0.5:
+			_add(out, R12_LEVEL, "R13", str(ic.get("n", "")), "圖示太貼邊：上 %.1f、下 %.1f、左 %.1f、右 %.1f，宿主 %s" % [it, ib, il, irr, str(hr)])
+	out["icons_free"] = free_icons
 	# ── R1 面板（_panel 一律有全螢幕遮罩＝模態）水平置中；R8 面板距畫面邊 ──
 	for p in panels:
 		var r: Rect2 = p["r"]

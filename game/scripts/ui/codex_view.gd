@@ -844,9 +844,9 @@ func _draw_cx_zoom() -> void:
 		var tint := TH_ACTIVE if (i == 5 and cx_slow) else Color(0, 0, 0, 0)
 		_btn(rr, row1[i][0], row1[i][1], true, false, tint)
 		if i == 3:
-			_icon("pause" if cx_zplay else "play", rr.get_center(), 20.0, Color.WHITE)
+			_icon("pause" if cx_zplay else "play", rr.get_center() - Vector2(0, 1.5), 20.0, Color.WHITE)
 		elif i == 5:
-			_icon("slow", rr.get_center(), 20.0, Color.WHITE)
+			_icon("slow", rr.get_center() - Vector2(0, 1.5), 20.0, Color.WHITE)
 	var x2 := 220.0
 	y1 += 48.0   # V1.5.1：文字鈕放第二列整排（英文 150% 一列放不下，版面檢查）
 	var row2: Array = [[L.t("cxz_atk"), func(): cx_zalt = false; cx_zt = 0.0; cx_zplay = true, not cx_zalt], [L.t("cxz_alt"), func(): cx_zalt = true; cx_zt = 0.0; cx_zplay = true, cx_zalt],

@@ -1000,8 +1000,13 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 			probe_ctrls.append(r)   # 空白標籤的按鈕（卡片、頁籤）：裡面自己畫的字算按鈕內容
 	# 1.2.0：按鈕字級看實際面高（扣下緣厚度與木牌毛邊）：放得下正文字就用正文字，不然用小一級（都在字級表內，比 1.1.0 同層大）
 	var face_h: float = r.size.y - 3.0 - 6.0
+	var lw := r.size.x - 2.0 * (maxf(6.0, r.size.x * 0.06) + 1.0)   # 1.4.0 R12：標籤左右各留 max(6, 6% 寬)（原本只留 5px）
+	# 字級照原本的寬度選（不因為加內距而多降一級，Codex v140 cat01 #4）；內距只影響換行
 	var sz := fit(label, ts(18) if r.size.y >= 40 and face_h >= ts(18) * 1.3 else ts(15), r.size.x - 10, primary)
-	var lines := wrap_lines(label, sz, r.size.x - 10, primary)
+	var lines := wrap_lines(label, sz, lw, primary)
+	if lines.size() > 1 and lines.size() * sz * 1.25 > face_h:
+		# 加了內距會換成放不下的兩行：退回原本的寬度（這顆按鈕要靠加寬或改短解決，R12 會擋）
+		lines = wrap_lines(label, sz, r.size.x - 10, primary)
 	_probe_btn_label = true   # 版面檢查：這段是按鈕自己的標籤（不用位置猜，Antigravity 實作第 2 輪抓到猜錯的情況）
 	_probe_btn_rect = r
 	if wax_face_cut > 0.0:
@@ -1332,7 +1337,10 @@ const ICON_SOLID := ["people", "cards", "robot", "gear", "shield", "heart", "sta
 
 func _icon(name: String, c: Vector2, s: float, col := Color.WHITE) -> void:
 	if layout_probe and _probe_ui:
-		probe_icons.append({"n": name, "r": Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s))})
+		# 1.4.0 R13：記「看得到的」圖示框：名目正方形＋粗外框＋右下落影（Codex v140 cat01 #3：不是名目框）；畫在宣告的格子裡就記宿主
+		var vo := (maxf(1.2, s * 0.06) * 1.15 + 0.5) if (s >= 14.0 and not bool(Save.s("plain_ui")) and not _ink_mode) else 0.0
+		var vd := maxf(1.0, s * 0.07) * 1.4 if vo > 0.0 else 0.0
+		probe_icons.append({"n": name, "r": Rect2(c - Vector2(s, s) * 0.5 - Vector2(vo, vo), Vector2(s, s) + Vector2(vo * 2.0 + vd, vo * 2.0 + vd)), "face": _probe_face if _probe_face.size.x > 0.0 else null})
 	# V1.2 B4：圖示加深焦茶落影（像印上去的刻印），不再是平貼的單色圖形
 	if _ink_mode:
 		col = _ink(col)
@@ -1440,7 +1448,7 @@ func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
 	_btns.append({"r": r, "cb": action, "en": true})
 	var hot := (r.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)
 	var sz := ts(14)
-	var rad := maxf(9.0, sz * 0.62)   # 1.3.0 R11：圓跟著字級長大（150% 時 21px 的「?」塞不進 9px 圓）
+	var rad := maxf(9.0, maxf(sz * 0.62, label_ink(label, sz, true).size.y * 0.5 + 4.5))   # 1.3.0 R11：圓跟著字級長大；1.4.0 R12：墨跡上下各留 ≥4px
 	var c := r.end - Vector2(rad + 3.0, rad + 3.0)
 	draw_circle(c, rad, Color(ACCENT, 0.9) if hot else Color(0, 0, 0, 0.55), true, -1.0, true)
 	if layout_probe:
@@ -2001,3 +2009,16 @@ func _mode_label() -> String:
 
 ## 戰鬥播完（含結算延遲）之後要做的事；由 game_screens 在 _ready 設定（S8：取代基底的空函式）
 var on_battle_finished: Callable = func(): pass
+
+
+## 1.4.0 R12：兵種按鈕下方「N 金」價錢子格的高度＝價錢墨跡高＋上下各 max(4, 12%)（12% 用解方程：h×0.76 ≥ 墨跡）。
+func price_cell_h() -> float:
+	var ih := label_ink(L.t("gold", [10]), tz("C"), true).size.y
+	return ceilf(maxf(ih + 8.0 + 1.0, (ih + 1.0) / 0.76))
+
+
+## 1.4.0 R13：圖示畫在按鈕「面」（扣下緣 3px 厚度）的正中——以看得到的框（含粗外框與右下落影）置中，不是名目框。
+func _icon_in(btn: Rect2, name: String, s: float, col := Color.WHITE) -> void:
+	var face := btn.grow_individual(0, 0, 0, -3.0)
+	var vd := maxf(1.0, s * 0.07) * 1.4 if (s >= 14.0 and not bool(Save.s("plain_ui"))) else 0.0
+	_icon(name, face.get_center() - Vector2(vd, vd) * 0.5, s, col)

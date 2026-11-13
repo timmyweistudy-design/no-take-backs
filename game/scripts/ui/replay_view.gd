@@ -727,21 +727,23 @@ func _draw_review() -> void:
 	# 右：換成哪個兵種（頭像＋價錢）／拿掉
 	var bx := 580.0
 	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
+	var ph := price_cell_h()   # 1.4.0 R12：價錢子格高＝墨跡＋上下內距；按鈕跟著長高、下面幾列一起往下
+	var bh := maxf(66.0, 35.0 + ph + 5.0)
+	var sh := bh - 66.0
 	for t in D.COUNT:
 		var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
-		var br := Rect2(bx + t * 56, 160 + dy, 52, 66)
+		var br := Rect2(bx + t * 56, 160 + dy, 52, bh)
 		_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
-		var py := br.size.y - tz("C") * 1.15 - 7   # V1.2.1：按鈕下緣有 3px 厚度，價錢要在面板內
-		Art.unit(self, br.position + Vector2(26, py - 2), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
-		var pcell := Rect2(br.position.x + 4, br.position.y + py - 3, br.size.x - 8, minf(tz("C") * 1.2 + 4, br.size.y - 3 - 4 - (py - 3)))   # 價錢那一條（不碰下緣厚度與九宮格邊）   # 1.3.0 R11：價錢子格＝頭像下方那條（扣下緣厚度）
+		var pcell := Rect2(br.position.x, br.end.y - 3 - 2 - ph, br.size.x, ph)   # 價錢那一條（不碰下緣厚度與九宮格邊）
+		Art.unit(self, Vector2(br.position.x + 26, pcell.position.y - 4), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
 		probe_cell_begin(pcell)
 		_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
 		probe_cell_end()
-	_btn(Rect2(bx, 234 + dy, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
-	_btn(Rect2(bx + 282, 234 + dy, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
-	_btn(Rect2(bx, 284 + dy, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
+	_btn(Rect2(bx, 234 + dy + sh, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
+	_btn(Rect2(bx + 282, 234 + dy + sh, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+	_btn(Rect2(bx, 284 + dy + sh, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
 	# 兩條戰力走勢上下對齊（同一個時間軸長度）
-	var y := 350.0 + dy
+	var y := 350.0 + dy + sh
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
 	var b0: Array = rv_base.get("b", [100, 100])
 	var chh := 70.0 if tz("S") <= 17 else 54.0   # 1.2.0 字級表放大：大字級時走勢圖矮一點（圖可以縮、字不縮），底下說明才不壓到按鈕
