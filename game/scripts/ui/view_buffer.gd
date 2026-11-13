@@ -41,6 +41,9 @@ class VUnit:
 	var boss := false          # V1.4 #12 巨獸與部位
 	var arm_hp := 0
 	var plate_hp := 0
+	var cd := 0                # 1.3.0：暫停資料卡、放大鏡小窗要的冷卻與戰績（原本沒帶，資料卡讀 cd 會出錯；只給畫面，不進雜湊）
+	var dmg_dealt := 0
+	var kills := 0
 
 var units: Array = []          # 跟 sim.units 同順序
 var tick := 0
@@ -64,12 +67,14 @@ var cmd_snap: Array = []       # V1.5.1：[cmd_left, cmd_ready]（畫面這一�
 ## 把模擬當下的狀態存成一份快照。
 static func capture(sim) -> Dictionary:
 	var us: Array = []
+	var ux: Array = []
 	for u in sim.units:
+		ux.append([u.cd, u.dmg_dealt, u.kills])
 		us.append([u.id, u.team, u.type, u.x, u.y, u.hp, u.max_hp, u.alive, u.stealth, u.stun, u.fx, u.fy, u.mx, u.my, u.charge, u.target, u.breach, u.aura, u.bmode, 1 if u.hidden else 0, u.link, u.windup, u.guard, u.summon, u.st, 1 if u.ward else 0, 1 if u.boss else 0, u.arm_hp, u.plate_hp, u.shield, u.haste_t])
 	var cmd: Array = []
 	if bool(sim.get("cmd_on")):
 		cmd = [sim.cmd_left.duplicate(true), sim.cmd_ready.duplicate(true)]   # V1.5.1：軍令欄照畫面時間顯示（長緩衝時不提早跳）
-	return {"cmd": cmd, "tick": sim.tick, "units": us, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
+	return {"cmd": cmd, "tick": sim.tick, "units": us, "ux": ux, "events": sim.events.duplicate(true), "rally": sim.rally.duplicate(),
 		"frenzy": sim.frenzy, "finished": sim.finished, "power": [sim.power(0), sim.power(1)],
 		"alive": [sim.alive_count(0), sim.alive_count(1)], "zones": sim.zones.duplicate()}
 
@@ -110,6 +115,10 @@ func apply(fr: Dictionary) -> void:
 		if a.size() > 30:
 			v.st = a[24]; v.ward = a[25] == 1; v.boss = a[26] == 1; v.arm_hp = a[27]; v.plate_hp = a[28]
 		_by_id[v.id] = v
+	var ux: Array = fr.get("ux", [])
+	for i in mini(ux.size(), units.size()):
+		var v: VUnit = units[i]
+		v.cd = ux[i][0]; v.dmg_dealt = ux[i][1]; v.kills = ux[i][2]
 	tick = fr["tick"]
 	events = fr["events"]
 	rally = fr["rally"]

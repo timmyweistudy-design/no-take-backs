@@ -595,7 +595,7 @@ const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_table_view": ["table
 	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
 	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
-	"set_speed": ["speed"], "set_hp_bars": ["hp_bars"], "set_dmg_nums": ["dmg_nums"], "set_reduce_fx": ["reduce_fx"], "set_clutch_zoom": ["clutch_zoom"], "set_slowmo": ["slowmo"],
+	"set_speed": ["speed"], "set_hp_bars": ["hp_bars"], "set_dmg_nums": ["dmg_nums"], "set_reduce_fx": ["reduce_fx"], "set_clutch_zoom": ["clutch_zoom"], "set_slowmo": ["slowmo"], "set_spotlight": ["spotlight"], "set_battle_mag": ["battle_mag"], "set_auto_director": ["auto_director"],
 	"set_hold": ["hold_confirm"], "set_magnify": ["magnify"], "set_cb": ["colorblind"], "set_reduce_motion": ["reduce_motion"], "set_text_plate": ["text_plate"], "set_focus": ["focus_strong"],
 	"set_shake": ["shake_pct", "shake"], "set_flash": ["flash_pct", "flash"], "set_playtest": ["playtest"]}
 
@@ -693,6 +693,7 @@ func _settings_rows() -> Array:
 				["set_vsync", _onoff("vsync"), func(d): _cycle_setting("vsync", [true, false]); _apply_display()],
 				["set_smooth_pose", _onoff("smooth_pose"), func(d): _cycle_setting("smooth_pose", [false, true])],   # 1.2.0 §7.2 定格表演層
 				["set_table_view", L.t("v_table") if bool(Save.s("table_view")) else L.t("v_topdown"), func(d): _cycle_setting("table_view", [true, false])],   # 1.3.0 §1.1 戰場視角
+				["set_spotlight", _onoff("spotlight"), func(d): _cycle_setting("spotlight", [true, false])],   # 1.3.0 §2 交戰聚光（畫面類）
 				["set_paint", "@" + L.t("open_it"), func(d): call("_paint_open")]]
 		1:
 			return [["set_lang", L.t("lang_name"), func(d): _cycle_setting("lang", L.LANGS); L.lang = Save.s("lang"); _load_fonts()],
@@ -725,7 +726,9 @@ func _settings_rows() -> Array:
 				["set_dmg_nums", _optv("dmg_nums", ["merge", "each", "off"], ["v_merge", "v_each", "v_off"]), func(d): _step_setting("dmg_nums", ["merge", "each", "off"], d)],
 				["set_reduce_fx", L.t("v_min") if bool(Save.s("reduce_fx")) else L.t("v_full"), func(d): _cycle_setting("reduce_fx", [false, true])],
 				["set_clutch_zoom", _onoff("clutch_zoom"), func(d): _cycle_setting("clutch_zoom", [true, false])],
-				["set_slowmo", _onoff("slowmo"), func(d): _cycle_setting("slowmo", [true, false])]]
+				["set_slowmo", _onoff("slowmo"), func(d): _cycle_setting("slowmo", [true, false])],
+				["set_battle_mag", _onoff("battle_mag"), func(d): _cycle_setting("battle_mag", [true, false])],   # 1.3.0 §2 放大鏡小窗、自動導播
+				["set_auto_director", _onoff("auto_director"), func(d): _cycle_setting("auto_director", [true, false])]]
 		5:
 			return [["set_cb", L.t("v_cb") if bool(Save.s("colorblind")) else L.t("v_standard"), func(d): _cycle_setting("colorblind", [false, true]); _rebuild_sprites()],
 				["set_reduce_motion", _onoff("reduce_motion"), func(d): _cycle_setting("reduce_motion", [false, true])],
@@ -942,7 +945,7 @@ var preset_undo := {}
 var hh_fps := 30   # 1.2.0 §15.3：掌機配置要套 30 還是 60fps（二選一，預設省電）
 const PRESETS := [
 	{"text_scale": 150, "plain_titles": true, "text_plate": true, "focus_strong": true},
-	{"reduce_motion": true, "shake_pct": 0, "shake": false, "flash_pct": 0, "flash": false, "slowmo": false, "title_bg": "static", "clutch_zoom": false},
+	{"reduce_motion": true, "shake_pct": 0, "shake": false, "flash_pct": 0, "flash": false, "slowmo": false, "title_bg": "static", "clutch_zoom": false, "auto_director": false},
 	{"confirm_place": true, "toast_mult": 0, "long_press": 0.8, "hints": "full"},   # 低操作負擔：提示改成手動關
 	{"fps_cap": 30, "text_scale": 125, "place_mode": "tap"},
 	{"fps_cap": 60, "text_scale": 125, "place_mode": "tap"}]   # 1.2.0 §15.3：掌機建議 60fps 版（和 30fps 版只差 fps_cap；同樣未經實機驗證）   # 1.1.0 E3 掌機建議（Steam Deck 等 7 吋 800p）：只組合現有設定，可撤回；未經實機驗證，不宣稱 Deck 認證

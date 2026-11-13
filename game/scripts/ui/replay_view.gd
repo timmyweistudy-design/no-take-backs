@@ -86,7 +86,7 @@ func _draw_replay_controls() -> void:
 		btn_paper = true   # 羊皮紙按鈕：像翻開推演筆記，不是系統按鈕（Antigravity v140-i1）
 		_btn(Rect2(20, 650, 320, 40), L.t("tm_btn"), func(): _open_review())
 		btn_paper = false
-	if follow_id >= 0:
+	if follow_id >= 0 and clutch_t <= 0.0:   # 1.3.0：最後時刻橫幅出現時讓位（同一條高度，原本會疊字）
 		_text(Vector2(640, 92 + ts(16) * 1.4), L.t("rc_following"), ts(14), Color(1, 1, 1, 0.85), true, false, 600)
 
 ## 1.2.0 §11.2：跳到上／下一個書籤或關鍵時刻（沒有就不動、回 false）
@@ -130,6 +130,8 @@ func _seek_pump() -> bool:
 	return true
 
 func _seek_begin(target: int) -> void:
+	cues.clear()       # 1.3.0 §7.1：跳轉清掉預告（不留舊時間線的未來事件；Codex cat06 #2）
+	stat_prev.clear()
 	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
 	sim = Sim.new(armies2[0].copy(), armies2[1].copy(), battle_rules)
 	call("_cmd_setup", sim, play_kind)
@@ -240,6 +242,9 @@ func _battle_click(p: Vector2) -> void:
 	follow_id = best
 	if play_kind == "official":
 		return   # 正式對局暫停時只看資料，不動鏡頭
+	if best >= 0:
+		pinch_zoom = 1.0   # 1.3.0 §2：點兵跟拍＝新的意圖，取代手動縮放
+		dir_manual = true
 	if best < 0:
 		zoom_target = 1.0   # 取消跟拍：回到全景（中心由 _battle_process 拉回）
 

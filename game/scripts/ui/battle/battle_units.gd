@@ -468,6 +468,7 @@ const MAT_OAK := "res://art/mat/tile_oak.png"
 ## < 東西 ×1.0 才回側面（不在臨界抖動）。不走路、出手、受擊一律側面（狀態保留，下次走路從側面重新判斷）。跳轉、新的一場清掉。
 const HEAD_FRONT_C := 0.55   # 往南走用的轉身角度（既有走路轉身頁 WT_C 0.55，22 種都有）
 var hd_state := {}
+var mag_pose: Array = []    # 1.3.0 §2：被選那隻這一幀的 [面向, 受擊, 表情]（單位迴圈寫入、放大鏡小窗讀）
 func heading_of(id: int, mx: int, my: int, walking: bool) -> int:
 	if not walking or (mx == 0 and my == 0):
 		hd_state.erase(id)
@@ -672,6 +673,8 @@ func _goal_marker(p: Vector2, kind: String) -> void:
 			draw_line(q + d * r * 0.55, q + d * r * 1.3, c2, 2.5, true)
 
 func _draw_units_of(s, dim: bool) -> void:
+	if s == view:
+		mag_pose = []   # 1.3.0 §2：這一幀沒畫到被選的那隻（偽裝、潛行）就不沿用上一隻的姿勢（Codex cat06 #3）
 	var list: Array = []
 	for u in s.units:
 		if u.alive:
@@ -1003,6 +1006,8 @@ func _draw_units_of(s, dim: bool) -> void:
 				fid = mini(3, int(tm / 1.2 * 4.0))
 		var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
 		# 1.3.0 §5.4 依移動方向選視角：走路且不出手時，往南＝3/4 正面走路格、往北＝3/4 背面走路格（沒烘好就照舊側面）
+		if u.id == follow_id:
+			mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
 		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
 		var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
 		var chip := (2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0   # 1.3.0 §5.2 受傷掉漆

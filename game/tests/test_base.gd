@@ -68,7 +68,7 @@ class FakeSfx:
 		played.append(n)
 	func play_music(_n: String) -> void:
 		pass
-	func set_muffled(_on: bool) -> void:
+	func set_muffled(_on: bool, _hz := 900.0) -> void:
 		pass
 	func set_layer_targets(_g: Array) -> void:
 		pass

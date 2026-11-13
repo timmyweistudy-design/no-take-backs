@@ -860,3 +860,123 @@ func test_heading_view_v130() -> void:
 	ok(SC.BW_C == 0.55 and g.HEAD_FRONT_C == 0.55, "南北都用 3/4 角度（和既有走路轉身頁同角度）")
 	ok(SC.BW_MAX >= 22, "背面頁上限涵蓋一場所有兵種（不在場上被淘汰回側面）")
 	g.free()
+
+## 1.3.0 第 6 大類：導播（精華三連挑段、導播鏡頭目標、放大鏡角落、手動接管）
+func test_director_v130() -> void:
+	var DR = load("res://scripts/game/director_rules.gd")
+	var marks := [{"t": 100}, {"t": 150}, {"t": 400}, {"t": 700}, {"t": 900}, {"t": 1210}]
+	var r: Array = DR.pick_reel(marks, 1250)
+	ok(r.size() == 3 and bool(r[2].get("final", false)) and int(r[2]["t"]) == 1250, "最多三段、終局排最後")
+	var ts: Array = []
+	for m in r:
+		ts.append(int(m["t"]))
+	var dedup := true
+	for i in range(1, ts.size()):
+		dedup = dedup and ts[i] - ts[i - 1] >= DR.SEG_LEN
+	ok(dedup and not 150 in ts and not 1210 in ts, "相距不到一段的去重、和終局重疊的不要")
+	ok(DR.reel_seconds(r) <= 15.0, "精華三連 ≤15 秒")
+	ok(DR.pick_reel([{"t": 1200}], 1250).size() == 1, "不足兩個獨立事件只出一段（不硬湊）")
+	ok(DR.pick_reel([], -1).is_empty() and DR.pick_reel([{"t": 50}], -1).size() == 1, "沒有終局也能挑")
+	var fc := Vector2(500, 300)
+	ok(float(DR.director_target(5, false, Vector2.ZERO, 0, fc, 1000.0)[0]) == 1.2, "開戰巡盤")
+	var a: Vector2 = DR.director_target(0, false, Vector2.ZERO, 0, fc, 1000.0)[1]
+	var b: Vector2 = DR.director_target(DR.TOUR_TICKS - 1, false, Vector2.ZERO, 0, fc, 1000.0)[1]
+	ok(a.x < fc.x and b.x > fc.x, "巡盤從一軍到另一軍")
+	var z: float = DR.director_target(100, false, Vector2(200, 200), 6, fc, 1000.0)[0]
+	ok(z >= 1.2 and z <= 1.4, "交戰區推近 1.2～1.4 倍")
+	ok(float(DR.director_target(100, false, Vector2.ZERO, 1, fc, 1000.0)[0]) == 1.0 and float(DR.director_target(100, true, Vector2(1, 1), 9, fc, 1000.0)[0]) == 1.0, "沒交戰、勝負已分＝全景")
+	var cs := [Vector2(100, 600), Vector2(1180, 600), Vector2(100, 200), Vector2(1180, 200)]
+	ok(DR.mag_corner(cs, Vector2(150, 580), -1, [], 260.0) == 3, "放大鏡放在離那隻最遠的角")
+	ok(DR.mag_corner(cs, Vector2(1150, 220), -1, [3], 260.0) == 0, "被排除的角不用")
+	ok(DR.mag_corner(cs, Vector2(700, 400), 1, [], 260.0) == 1, "遲滯：那隻沒靠近就不換角")
+	var SV = load("res://scripts/game/save.gd")
+	ok(bool(SV.DEFAULT_SETTINGS["spotlight"]) and bool(SV.DEFAULT_SETTINGS["battle_mag"]) and bool(SV.DEFAULT_SETTINGS["auto_director"]), "三個設定預設開")
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	g.play_kind = "official"
+	g.view = load("res://scripts/ui/view_buffer.gd").new()
+	ok(not g._dir_on(), "正式對局不自動動鏡頭（只動小窗）")
+	g.play_kind = "replay"
+	ok(g._dir_on() == (bool(SV.s("auto_director")) and not bool(SV.s("reduce_motion"))), "重播時導播接手")
+	g.cam_wheel(true, Vector2(640, 400))
+	ok(g.dir_manual and g.pinch_zoom > 1.01, "滾輪放大＝交還手動")
+	ok(not g._dir_on(), "交還手動後導播不再動")
+	g.hl_reel = [100, 300]
+	g.follow_id = 4
+	g.cam_wheel(true, Vector2(640, 400))
+	ok(g.hl_reel.is_empty() and g.follow_id == -1, "動鏡頭＝精華三連停在這裡、重播跟拍放掉（手動優先）")
+	g._btns = [{"r": Rect2(600, 300, 100, 40), "cb": func(): pass, "en": true}]
+	ok(not g._field_hit(Vector2(650, 320)), "按鈕上雙擊不算回全景")
+	g._btns = []
+	var bsrc: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(bsrc.find("u.hidden or u.stealth > 0") >= 0, "偽裝、潛行的不給放大鏡特寫")
+	var rsrc: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+	ok(rsrc.find("cues.clear()") >= 0, "跳轉清掉技能預告")
+	g.follow_id = 3
+	g.cam_reset()
+	ok(g.pinch_zoom == 1.0 and g.follow_id == -1, "雙擊回全景、取消選取")
+	g.free()
+	# 暫停資料卡與放大鏡讀的冷卻、戰績：展示單位原本沒帶（讀 cd 會出錯），現在跟快照一起帶
+	var VB = load("res://scripts/ui/view_buffer.gd")
+	var fr: Dictionary = {"tick": 5, "units": [[0, 0, 0, 100, 100, 50, 60, true, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, false, 0, 0, 0, 0, 0, 0, 0]], "ux": [[7, 33, 2]],
+		"events": [], "rally": [false, false], "frenzy": false, "finished": false, "power": [1, 1], "alive": [1, 0]}
+	var vb = VB.new()
+	vb.apply(fr)
+	ok(vb.units[0].cd == 7 and vb.units[0].dmg_dealt == 33 and vb.units[0].kills == 2, "展示單位帶冷卻、輸出、擊倒")
+
+## 1.3.0 第 7 大類：技能演出三拍（預告、狀態竹籤、範圍墨漬）
+func test_skill_cues_v130() -> void:
+	var g = load("res://scripts/ui/game_screens.gd").new()
+	for i in 30:
+		g._cue_add("charge", 1, 2, 100 + i)
+	g._cue_add("charge", 1, 2, 129)
+	ok(g.cues.size() == g.CUE_MAX, "預告有上限、同一筆不重複")
+	var src: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(src.find("e[\"kind\"] == EV.CHARGE or e[\"kind\"] == EV.BRACED") >= 0, "衝鋒、架盾從展示緩衝拿命中 tick（不提前洩漏模擬）")
+	ok(src.find("if hit < view.tick:") >= 0, "命中後不再畫預告")
+	var V = load("res://scripts/ui/view_buffer.gd")
+	g.view = V.new()
+	for i in 2:
+		var u = V.VUnit.new()
+		u.id = i
+		u.team = i
+		u.alive = true
+		u.x = 3000 + i * 1000
+		u.y = 3000
+		g.view.units.append(u)
+	g._status_tags(true)
+	ok(g.fx.is_empty(), "沒有狀態就沒有竹籤")
+	g.view.units[0].stun = 10
+	g._status_tags(true)
+	var tags := 0
+	for f in g.fx:
+		if f["kind"] == "tag":
+			tags += 1
+	ok(tags == 1, "定身開始的那一 tick 出一根竹籤")
+	g._status_tags(true)
+	tags = 0
+	for f in g.fx:
+		if f["kind"] == "tag":
+			tags += 1
+	ok(tags == 1, "持續定身不再出")
+	g.view.units[1].breach = 5
+	g._status_tags(false)
+	tags = 0
+	for f in g.fx:
+		if f["kind"] == "tag":
+			tags += 1
+	ok(tags == 1 and g.stat_prev[1][1], "跳轉補播（不演）只記狀態不出竹籤")
+	g.fx.clear()
+	for i in 8:
+		g._stain(Vector2(100, 100), 40.0, i % 2 == 0, i)
+	var n := 0
+	for f in g.fx:
+		if f["kind"] == "stain":
+			n += 1
+	ok(n <= g.STAIN_MAX, "墨漬同時最多 %d 灘" % g.STAIN_MAX)
+	var PALx = load("res://scripts/ui/palette.gd")
+	ok(PALx.BAMBOO != PALx.BAMBOO_D, "竹籤色在色票")
+	var fxs: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_fx.gd")
+	ok(fxs.find("\"stain\":") >= 0 and fxs.find("\"tag\":") >= 0, "墨漬、竹籤有畫法")
+	var csv: String = FileAccess.get_file_as_string("res://data/strings.csv")
+	ok(csv.find("\ntag_stun,") >= 0 and csv.find("\ntag_breach,") >= 0, "竹籤字有四語")
+	g.free()

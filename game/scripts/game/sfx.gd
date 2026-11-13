@@ -109,8 +109,14 @@ func _ready() -> void:
 	AudioServer.set_bus_effect_enabled(0, _lowpass_idx, false)
 
 ## 最後時刻：整體低通（慢動作開始時開、結束時關）。
-func set_muffled(on: bool) -> void:
-	if _lowpass_idx >= 0 and AudioServer.is_bus_effect_enabled(0, _lowpass_idx) != on:
+## 1.3.0 §2：最後一擊壓得更低（約 400Hz），最後時刻照舊 900Hz。
+func set_muffled(on: bool, hz := 900.0) -> void:
+	if _lowpass_idx < 0:
+		return
+	var lp := AudioServer.get_bus_effect(0, _lowpass_idx) as AudioEffectLowPassFilter
+	if lp != null and on and absf(lp.cutoff_hz - hz) > 1.0:
+		lp.cutoff_hz = hz
+	if AudioServer.is_bus_effect_enabled(0, _lowpass_idx) != on:
 		AudioServer.set_bus_effect_enabled(0, _lowpass_idx, on)
 
 ## 聲道選擇（純函式，測試用）：先找空的；滿了就搶優先權最低（同級取最早開始）且低於新音效的。沒有可搶的回 -1。

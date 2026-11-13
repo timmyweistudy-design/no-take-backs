@@ -931,6 +931,18 @@ func _run_screenshots() -> void:
 		f["t"] = 0.0
 	paused = true
 	await _snap("15_replay.png")
+	# 1.3.0 §2：暫停中選一隻＝銅放大鏡小窗；交戰熱點聚光（截圖時強度固定 1）
+	for u in view.units:
+		if u.alive and not u.boss:
+			follow_id = u.id
+			break
+	_spot_update(1.0)
+	if spot_n < 2 and follow_id >= 0:
+		spot_p = _upos(view.unit_by_id(follow_id))
+	spot_a = 1.0
+	await _snap("15c_replay_mag.png")
+	follow_id = -1
+	spot_a = 0.0
 	_breport_open()   # 1.1.0 B10：手把重播戰報面板
 	await _snap("v110_04_breport.png")
 	_breport_close()

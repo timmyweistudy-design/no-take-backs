@@ -615,6 +615,41 @@ func _draw_fx(f: Dictionary) -> void:
 			# V1.0.0 角色：毒改濁紫（綠色留給補血），兩顆錯開的斑點
 			draw_circle(f["p"] + Vector2(-3.0, -k * 14.0), 3.0 + k * 3.0, Color(0.62, 0.42, 0.78, 0.75 * (1.0 - k)), true, -1.0, true)
 			draw_circle(f["p"] + Vector2(4.0, -k * 10.0 - 4.0), 2.0 + k * 2.0, Color(0.5, 0.32, 0.62, 0.6 * (1.0 - k)), true, -1.0, true)
+		"stain":
+			# 1.3.0 §7.1 範圍指示：墨漬（爆炸）／茶漬（踩地）。前 0.15 秒擴散到真實半徑，最後 1.5 秒收縮到 6 成並淡出（被木盤吸乾）
+			var st0: float = f["t"]
+			var grow := clampf(st0 / 0.15, 0.0, 1.0)
+			var dry := clampf((st0 - (float(f["dur"]) - 1.5)) / 1.5, 0.0, 1.0)
+			var rr0: float = float(f["r"]) * (0.55 + 0.45 * grow) * (1.0 - 0.4 * dry)
+			var sc0: Color = PAL.TEA if bool(f["tea"]) else PAL.DIM_INK
+			var pts0 := PackedVector2Array()
+			var sd0 := int(f["seed"])
+			for i in 18:
+				var ang := i * TAU / 18.0
+				var wob := 0.86 + 0.14 * float(((sd0 * 7 + i * 13) % 11)) / 10.0
+				pts0.append(Vector2(cos(ang), sin(ang) * 0.5) * rr0 * wob)
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2.ONE, 0, f["p"]))
+			draw_colored_polygon(pts0, Color(sc0, 0.22 * (1.0 - dry)))
+			draw_polyline(pts0 + PackedVector2Array([pts0[0]]), Color(sc0, 0.35 * (1.0 - dry)), 1.5, true)
+			draw_set_transform_matrix(_cam)
+		"tag":
+			# 1.3.0 §7.1 狀態竹籤：0～0.3 從底座彈到頭頂並自轉半圈（橫向縮放＝翻面，翻到背面是空白竹皮）、0.3～0.6 停、0.6～1 往盤外掉落淡出
+			var tq := float(f["t"]) / float(f["dur"])
+			var up := clampf(tq / 0.3, 0.0, 1.0)
+			var fall := clampf((tq - 0.6) / 0.4, 0.0, 1.0)
+			var tp0: Vector2 = f["p"] + Vector2(0, -70.0 * HK * (1.0 - (1.0 - up) * (1.0 - up))) + Vector2(float(f["dir"]) * 30.0 * fall, 40.0 * fall * fall)
+			var flip := cos(up * PI)
+			var tsz := tz("S")   # Hydrogen cat06 #5：竹籤加大
+			var tw0 := _width(str(f["s"]), tsz, true) + 20.0
+			var th0 := float(tsz) * 1.5
+			var a0 := 1.0 - fall
+			draw_set_transform_matrix(_cam * Transform2D(fall * float(f["dir"]) * 0.6, Vector2(absf(flip), 1.0), 0, tp0))
+			draw_rect(Rect2(Vector2(-tw0 / 2, -th0 / 2), Vector2(tw0, th0)), Color(PAL.BAMBOO, a0))
+			draw_rect(Rect2(Vector2(-tw0 / 2, -th0 / 2), Vector2(tw0, th0)), Color(PAL.BAMBOO_D, a0), false, 1.5)
+			draw_line(Vector2(-tw0 / 2 + 3, -th0 / 2 + 3), Vector2(tw0 / 2 - 3, -th0 / 2 + 3), Color(PAL.BAMBOO.lightened(0.3), a0 * 0.8), 1.0)
+			draw_set_transform_matrix(_cam)
+			if flip < -0.85:   # 翻回正面才寫字（字在盤面座標畫，不跟著縮放；版面檢查量得到真實位置）
+				_text(tp0 + Vector2(0, -th0 / 2 + 1), str(f["s"]), tsz, Color(PAL.INK, a0), true, true)
 		"scorch":
 			# V1.0.0 角色：投彈兵火罐落點焦痕（0.25 秒、扁橢圓、貼地），讓投彈兵和弓手、醫者在混戰裡分得開
 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.45), 0, f["p"]))

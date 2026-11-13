@@ -766,11 +766,24 @@ func _draw_songbook() -> void:
 		y += rowh + 8.0
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
+## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
 func _highlights() -> Array:
-	var out: Array = _key_marks() if not report.is_empty() else []
-	if sim != null and sim.winner >= 0:
-		out.append({"t": maxi(0, int(sim.tick) - 30), "label": "%s %ds" % [L.t("sh_final"), int(sim.tick) / 20]})
+	var marks: Array = _key_marks() if not report.is_empty() else []
+	var ft := maxi(0, int(sim.tick) - 30) if (sim != null and sim.winner >= 0) else -1
+	var out: Array = DirR.pick_reel(marks, ft)
+	for m in out:
+		if bool(m.get("final", false)):
+			m["label"] = "%s %ds" % [L.t("sh_final"), int(sim.tick) / 20]
 	return out
+
+func _hl_reel_go(hl: Array) -> void:
+	var ts: Array = []
+	for m in hl:
+		ts.append(int(m["t"]))
+	overlay = ""
+	call("_replay")
+	hl_reel = ts
+	_hl_seg(0)
 
 func _hl_go(t: int) -> void:
 	overlay = ""
@@ -783,7 +796,7 @@ func _draw_share() -> void:
 	var sol_ok: bool = mode == Mode.PUZZLE and puzzle_id != "ws" and (Save.data.get("pz_sol", {}) as Dictionary).has(puzzle_id) \
 		and load("res://scripts/game/solution_code.gd").entry_valid(puzzle_id, Save.data["pz_sol"][puzzle_id])   # 1.1.0 N5；不合法的舊紀錄不給分享（Codex v110-i3 #1）
 	var rows := 2 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0) + (1 if duel_code_ok() else 0)
-	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
+	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + below_head(tz("B")) + maxf(1.0, hl.size()) * 52.0 + (52.0 if hl.size() >= 2 else 0.0) + GAP_L + rows * 56.0 + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1(Vector2(640, P.position.y + 12), L.t("sh_title")) + GAP_L
 	_text(Vector2(640, y), L.t("sh_hl"), tz("B"), ACCENT, true, true, 560)
@@ -794,6 +807,9 @@ func _draw_share() -> void:
 	for m in hl:
 		var t := int(m["t"])
 		_btn(Rect2(400, y, 480, 44), str(m["label"]), func(): _hl_go(t))
+		y += 52.0
+	if hl.size() >= 2:
+		_btn(Rect2(400, y, 480, 44), L.t("sh_reel", [roundi(DirR.reel_seconds(hl))]), func(): _hl_reel_go(hl), true)   # 1.3.0 §2 精華三連
 		y += 52.0
 	y += GAP_L
 	_btn(Rect2(400, y, 480, 48), L.t("replay"), func(): overlay = ""; call("_replay"))

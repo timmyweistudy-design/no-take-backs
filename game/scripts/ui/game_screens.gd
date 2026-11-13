@@ -201,6 +201,8 @@ func _input(ev: InputEvent) -> void:
 		if ev.device != InputEvent.DEVICE_ID_EMULATION:
 			fp_touch = false
 		hover_card = _card_at(mouse)
+		if state == St.BATTLE and overlay == "" and (ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
+			_enqueue("pan", ev.relative)   # 1.3.0 §2：中鍵拖曳平移
 		_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
 		_drag_scrape(ev.relative.length())
 		return
@@ -209,8 +211,10 @@ func _input(ev: InputEvent) -> void:
 		if overlay == "codex" and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
 			_scroll_at(mouse, -48.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 48.0)   # 圖鑑捲動（第三輪 U1）
 			return
-		_enqueue("mb", {"i": ev.button_index, "pressed": ev.pressed, "pos": ev.position})
+		_enqueue("mb", {"i": ev.button_index, "pressed": ev.pressed, "pos": ev.position, "dbl": ev.double_click})
 		return
+	if state == St.BATTLE and ((ev is InputEventKey and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed)):
+		mag_hide = follow_id   # 1.3.0 §2：任何按鍵（含沒綁定的鍵、手把鍵）1 幀內收起放大鏡（只動畫面；Codex cat06 #6）
 	if ev is InputEventKey and ev.pressed:
 		if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
 			var dk: int = Keymap.key_to_default(Save.s("keys"), ev.keycode)
@@ -289,12 +293,39 @@ func _mb_release_cleanup() -> void:
 
 
 ## 滑鼠按鍵（佇列命令，第三輪 A2）：按鈕點擊、擺放、拖曳、移除。
+var dbl_eat := false
+
+## 1.3.0 §2：雙擊回全景只認盤面範圍（按鈕列、HUD 不算）。
+func _field_hit(p: Vector2) -> bool:
+	if p.y <= 96.0 or p.y >= (640.0 if _replay_controls_active() else 760.0):
+		return false
+	for b in _btns:
+		if (b["r"] as Rect2).has_point(p):
+			return false   # 按鈕上雙擊不算（Codex cat06 #4）
+	var lo: Vector2 = _cam * ORIGIN
+	var hi: Vector2 = _cam * (ORIGIN + fld_size)
+	return Rect2(lo, hi - lo).has_point(p)
+
 func _mb_cmd(d: Dictionary) -> void:
 	var mb := InputEventMouseButton.new()
 	mb.button_index = d["i"]
 	mb.pressed = d["pressed"]
 	mb.position = d["pos"]
 	mouse = d["pos"]
+	var eat_dbl := false
+	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+		eat_dbl = dbl_eat   # 雙擊回全景那次的放開：不論走哪條路都要清掉（Codex cat06 #4）
+		dbl_eat = false
+	if state == St.BATTLE and overlay == "" and mb.pressed:
+		mag_hide = follow_id   # 1.3.0 §2：任何按下都先收起放大鏡（點到兵會在放開時重新選）
+		hl_reel.clear()        # 精華三連播放中動了就停在這裡（交還手動）
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			cam_wheel(mb.button_index == MOUSE_BUTTON_WHEEL_UP, mouse)   # 滾輪縮放
+			return
+		if mb.button_index == MOUSE_BUTTON_LEFT and bool(d.get("dbl", false)) and _field_hit(mouse):
+			cam_reset()   # 雙擊盤面回全景
+			dbl_eat = true
+			return
 	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and bool(call("vol_press", mouse)):
 		return   # 1.3.0：在音量木軌上按下＝開始拖
 	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and bool(call("vol_release")):
@@ -312,7 +343,8 @@ func _mb_cmd(d: Dictionary) -> void:
 		if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
 			_mb_release_cleanup()
 			if overlay == "" and state == St.BATTLE and mb.button_index == MOUSE_BUTTON_LEFT:
-				_battle_click(mouse)   # 重播時點兵讓鏡頭跟（第三輪 F2）
+				if not eat_dbl:   # 雙擊回全景的那次放開不再選兵
+					_battle_click(mouse)   # 重播時點兵讓鏡頭跟（第三輪 F2）
 		return
 	var c := _cell_at(mouse)
 	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
@@ -404,6 +436,9 @@ func _place_tool_key(k: int) -> bool:
 
 func _key(k: int) -> void:
 	_toast_dismiss()
+	if state == St.BATTLE:
+		mag_hide = follow_id   # 1.3.0 §2：任何按鍵 1 幀內收起放大鏡
+		hl_reel.clear()        # 精華三連：按鍵＝交還手動（Codex cat06 #6）
 	if state == St.RESULT and _ink_active():
 		result_t -= INK_DUR   # 1.2.0 §9.4：任何按鍵跳過宣紙戰報演出
 		return
@@ -735,6 +770,7 @@ func _draw_inner() -> void:
 			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
 		_draw_units_of(view, false)
 		if state == St.BATTLE:
+			_draw_cues()   # 1.3.0 §7.1 技能預告（命中前）
 			_v16_battle_draw()
 	perf_parts["units"] = Time.get_ticks_usec() - _t
 	_t = Time.get_ticks_usec()
@@ -754,6 +790,9 @@ func _draw_inner() -> void:
 		draw_texture_rect(vg, Rect2(0, 0, 1280, 800), false, Color(1, 1, 1, 0.5))
 	_probe_ui = true
 	Art.base = Transform2D.IDENTITY
+	if state == St.BATTLE:
+		_draw_spotlight()   # 1.3.0 §2 交戰熱點聚光
+		_draw_desat()       # 1.3.0 §2 最後一擊去飽和
 	if state == St.BATTLE and slow_left > 0:
 		_draw_vignette(clampf((8.0 - slow_left) / 0.3, 0.0, 1.0))   # 多層暗角（第三輪 V2）
 	if state == St.BATTLE and time - key_t < 0.8 and not bool(Save.s("reduce_fx")):
@@ -776,6 +815,7 @@ func _draw_inner() -> void:
 			_draw_start_cue()
 			_draw_battle_report()
 			_draw_unit_info()
+			_draw_bmag()   # 1.3.0 §2 銅放大鏡小窗
 			if pre_thread != null:
 				_draw_busy(-1)
 			elif skip_busy:
@@ -915,6 +955,8 @@ func _process_cmds() -> int:
 		elif c["kind"] == "key":
 			_key(int(c["data"]))
 			done += 1
+		elif c["kind"] == "pan":
+			cam_pan(c["data"])
 		elif c["kind"] == "tool":
 			if state == St.PLACE and overlay == "":
 				call("_deploy_tool", str(c["data"]))

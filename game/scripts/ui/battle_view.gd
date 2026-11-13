@@ -73,6 +73,8 @@ func _battle_process(delta: float) -> void:
 		return
 	if call("_seek_pump"):
 		return
+	if _hl_reel_tick():
+		return   # 1.3.0 §2 精華三連：換段開始跳轉，這一幀不再推進（Codex cat06 #1）
 	if skip_busy:
 		_skip_step()
 		return
@@ -115,18 +117,24 @@ func _battle_process(delta: float) -> void:
 	# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
 	if slow_left > 0:
 		_update_action_focus()
-	sfx.set_muffled(slow_left > 0 and not view.finished)
+	# 1.3.0 §2 最後一擊的抽離感：環境低通壓到約 400Hz、畫面去飽和 25%，0.4 秒回彈（減少特效時慢動作本來就不開）
+	sfx.set_muffled((slow_left > 0 or final_left > 0) and not view.finished, 400.0 if final_left > 0 else 900.0)
+	desat_a = 0.25 if final_left > 0 else move_toward(desat_a, 0.0, delta * 0.25 / 0.4)
+	_spot_update(delta)
+	_pad_cam(delta)
 	# 分軌音樂依戰況混音（第三輪 S1）
 	var close := absf(view.power(0) * 100.0 / (view.budget_of(0) * 1000) - view.power(1) * 100.0 / (view.budget_of(1) * 1000)) <= 15.0
 	sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
 	# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
 	if follow_id >= 0:
 		pass   # 由 _follow_update 決定
+	elif pinch_zoom > 1.01:
+		zoom_target = pinch_zoom   # V1.4 #18：玩家用雙指放大，就停在那裡（1.3.0：手動優先於最後時刻框選，Codex cat06 #5）
+		zoom_center = zoom_center.lerp(pinch_center, minf(1.0, delta * 6))
 	elif slow_left > 0 and not view.finished and bool(Save.s("clutch_zoom")) and not bool(Save.s("reduce_motion")):   # V1.5：最後時刻自動放大可關
 		_frame_alive(delta)
-	elif pinch_zoom > 1.01:
-		zoom_target = pinch_zoom   # V1.4 #18：玩家用雙指放大，就停在那裡
-		zoom_center = zoom_center.lerp(pinch_center, minf(1.0, delta * 6))
+	elif _dir_on():
+		_director_cam(delta)   # 1.3.0 §2 自動導播（重播、觀戰）
 	else:
 		zoom_target = 1.0
 		zoom_center = zoom_center.lerp(ORIGIN + fld_size / 2, minf(1.0, delta * 3))
@@ -192,6 +200,7 @@ func _sim_step(with_fx: bool) -> void:
 	if tm_ghost != null:
 		call("_tm_sync")
 	_gait_tick(with_fx)
+	_status_tags(with_fx)   # 1.3.0 §7.1 狀態竹籤
 	_pump_view()
 	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
 	if view.frenzy and not frenzy_seen:
@@ -225,6 +234,8 @@ func _sim_step(with_fx: bool) -> void:
 func _pump_view() -> void:
 	for fr in view.pump(sim):
 		for e in fr["events"]:
+			if e["kind"] == EV.CHARGE or e["kind"] == EV.BRACED:
+				_cue_add(str(e["kind"]), int(e.get("src", -1)), int(e.get("tgt", -1)), int(fr["tick"]))   # 1.3.0 §7.1 預告
 			if e.get("tags", []).has(EV.EXT_FIRE):
 				continue   # 1.2.0 火矢的小火：不是射手出手，不排拉弓、飛箭（Codex cat09 #1）
 			# 第四輪：補血、戰鼓也走出手動畫；被貼身敲人、破陣、補血、戰鼓用專屬動作（variant 2）
@@ -325,6 +336,7 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 				var small: bool = ev.get("small", false)
 				_add_fx({"kind": "boom", "src": s.id, "p": sp + Vector2(0, -8), "t": 0.0, "dur": 0.45, "big": not small})
 				_add_fx({"kind": "wool", "p": sp + Vector2(0, -18), "t": 0.0, "dur": 0.6})
+				_stain(sp, (F8.DEATH_BLAST_R if small else F8.BLAST_R) * CS / 1000.0, false, view.tick * 31 + s.id)
 				sfx.play("boom", 0.8)
 				sfx.play("baa", 0.6)
 				if _fx_on("shake"):
@@ -380,6 +392,7 @@ func _on_event_v8(ev: Dictionary, k: String, with_fx: bool) -> bool:
 			_report_add(s.team, s.type, k, L.t("ev_vacuum"), Color("#9ad1ff"), s)
 		EV.STOMP:
 			_add_fx({"kind": "stompring", "p": sp, "t": 0.0, "dur": 0.45})
+			_stain(sp, F8.GOLEM_R * CS / 1000.0, true, view.tick * 31 + s.id)   # 踩地＝茶漬
 			sfx.play("stomp", 0.9)
 			if _fx_on("shake"):
 				shake = 0.14
@@ -637,6 +650,7 @@ func _on_event(ev: Dictionary, with_fx: bool) -> void:
 	if s.type == D.BOMBER and k == EV.BOMB:
 		_add_fx({"src": s.id, "kind": "boom", "p": tpos + Vector2(0, -6), "t": 0.0, "dur": 0.45})   # 帶攻擊者：同點多顆炸彈不被去重吃掉
 		_add_fx({"kind": "scorch", "p": tpos + Vector2(0, 2), "t": 0.0, "dur": 0.25})   # V1.0.0 角色：落點焦痕
+		_stain(tpos, D.SPLASH_R * CS / 1000.0, false, view.tick * 31 + s.id)   # 1.3.0 §7.1 波及範圍＝墨漬
 		sfx.play("boom", 0.55)
 	elif k == EV.SPLASH:
 		pass   # 波及只靠爆炸圈和受擊閃白，不另外畫砍擊、不印字（Antigravity 第一輪 §6.2）
@@ -912,6 +926,8 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	present_debt = 0.0   # 1.2.0 §9.6
 	slow_used = false
 	final_used = false
+	cues.clear()        # 1.3.0 §7.1
+	stat_prev.clear()
 	key_used = false
 	key_t = -10.0
 	last_kill = [-1, -10.0]
@@ -922,6 +938,14 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	zoom = 1.0
 	zoom_target = 1.0
 	pinch_zoom = 1.0   # V1.4 #18：新的一場不沿用上一場的縮放
+	dir_manual = false   # 1.3.0 §2：每一場（含重播、精華段）導播重新接手
+	spot_a = 0.0
+	spot_n = 0
+	desat_a = 0.0
+	mag_hide = -1
+	mag_corner_i = -1
+	if kind == "official":
+		hl_reel = []
 	fx.clear()
 	frags.clear()   # 1.2.0 §8.2
 	dying.clear()
@@ -938,3 +962,301 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	sfx.play("start")
 	sfx.play("horn", 0.55)
 	sfx.play_music("music_battle")
+
+
+
+# ── 1.3.0 第 6 大類：戰場導演與觀戰（方案 §2）──
+const DirR = preload("res://scripts/game/director_rules.gd")
+var dir_manual := false     # 玩家動過鏡頭（滾輪、拖曳、雙擊、點兵、右搖桿、扳機）＝這一場交還手動
+var spot_p := Vector2.ZERO  # 交戰熱點（盤面座標）
+var spot_n := 0
+var spot_a := 0.0           # 聚光強度（淡入淡出）
+var desat_a := 0.0          # 最後一擊去飽和
+var mag_hide := -1          # 按了任何鍵：這隻的放大鏡收起，直到換選
+var mag_corner_i := -1
+var hl_reel: Array = []     # 精華三連：各段的事件 tick
+var hl_i := 0
+var hl_end := -1
+const MAG_R := 70.0
+const MAG_CORNERS := [Vector2(100, 586), Vector2(1180, 586), Vector2(100, 214), Vector2(1180, 214)]   # 下緣停在 676：不壓重播控制列上方的提示字
+static var _spot_img_tex: ImageTexture = null
+
+## 交戰熱點：最近 0.8 秒有出手或受擊的單位裡，找鄰居最多的那一團（160px 內），取它們的中心。只看畫面，不進模擬。
+func _spot_update(delta: float) -> void:
+	var act: Array = []
+	for u in view.units:
+		if u.alive and ((hurt_t.has(u.id) and time - float(hurt_t[u.id]) < 0.8) or (atk_t.has(u.id) and time - float(atk_t[u.id]) < 0.8)):
+			act.append(_upos(u))
+	var best: Array = []
+	for a in act:
+		var grp: Array = []
+		for b in act:
+			if (a as Vector2).distance_to(b) < 160.0 * HK:
+				grp.append(b)
+		if grp.size() > best.size():
+			best = grp
+	spot_n = best.size()
+	if spot_n >= 2:
+		var c := Vector2.ZERO
+		for b in best:
+			c += b
+		c /= float(spot_n)
+		spot_p = c if spot_a <= 0.01 else spot_p.lerp(c, minf(1.0, delta * 2.0))
+		spot_a = move_toward(spot_a, 1.0, delta * 2.0)
+	else:
+		spot_a = move_toward(spot_a, 0.0, delta * 1.2)
+
+func _dir_on() -> bool:
+	return play_kind != "official" and not dir_manual and view != null and bool(Save.s("auto_director")) and not bool(Save.s("reduce_motion"))
+
+func _director_cam(delta: float) -> void:
+	var fc := ORIGIN + fld_size / 2
+	var r: Array = DirR.director_target(view.tick, view.finished, spot_p, spot_n, fc, fld_size.x)
+	zoom_target = float(r[0])
+	zoom_center = zoom_center.lerp(r[1], minf(1.0, delta * (4.0 if view.tick < DirR.TOUR_TICKS else 1.5)))
+
+## 手動鏡頭：右搖桿平移（放大時）、右扳機放大、左扳機縮小。動了就交還手動。
+func _pad_cam(delta: float) -> void:
+	if overlay != "" or Input.get_connected_joypads().is_empty():
+		return
+	var dz := maxf(0.15, int(Save.s("deadzone")) / 100.0)
+	var zi := Input.get_joy_axis(last_joy, JOY_AXIS_TRIGGER_RIGHT) - Input.get_joy_axis(last_joy, JOY_AXIS_TRIGGER_LEFT)
+	if absf(zi) > 0.3:
+		if pinch_zoom <= 1.01:
+			pinch_center = zoom_center
+		pinch_zoom = clampf(pinch_zoom * (1.0 + zi * delta * 1.2), 1.0, 2.0)
+		_take_manual()
+	var v := Vector2(Input.get_joy_axis(last_joy, JOY_AXIS_RIGHT_X), Input.get_joy_axis(last_joy, JOY_AXIS_RIGHT_Y))
+	if v.length() > dz and pinch_zoom > 1.01:
+		pinch_center += v * delta * 420.0 / pinch_zoom
+		_take_manual()
+
+## 滑鼠：滾輪縮放（往游標方向）、中鍵拖曳平移、雙擊回全景（game_screens 的輸入佇列呼叫）。
+func cam_wheel(up: bool, at: Vector2) -> void:
+	_take_manual()
+	if not up and pinch_zoom <= 1.01:
+		return
+	call("_pinch_by", 1.12 if up else 1.0 / 1.12, at)
+	_cam_apply_paused()
+
+func cam_pan(rel: Vector2) -> void:
+	if pinch_zoom <= 1.01:
+		return
+	_take_manual()
+	pinch_center -= rel / maxf(1.0, zoom)
+	_cam_apply_paused()
+
+func cam_reset() -> void:
+	_take_manual()
+	pinch_zoom = 1.0
+	follow_id = -1
+	if paused:
+		zoom = 1.0
+		zoom_target = 1.0
+		zoom_center = ORIGIN + fld_size / 2
+
+## 玩家動了鏡頭：導播交還、跟拍放掉（手動優先）、精華三連停在這裡。
+func _take_manual() -> void:
+	dir_manual = true
+	hl_reel = []
+	if follow_id >= 0 and play_kind != "official":
+		follow_id = -1
+
+## 暫停時 _battle_process 不跑鏡頭：滾輪、平移直接套上（Codex cat06 #5）。
+func _cam_apply_paused() -> void:
+	if paused and pinch_zoom > 1.01:
+		zoom = pinch_zoom
+		zoom_target = pinch_zoom
+		zoom_center = pinch_center
+	elif paused:
+		zoom = 1.0
+		zoom_target = 1.0
+
+## 聚光：熱點外圍淡淡壓暗（只壓戰場與桌面，畫在介面之前）；簡化介面、減少特效、設定關時不畫。
+func _draw_spotlight() -> void:
+	if spot_a <= 0.01 or view == null or not bool(Save.s("spotlight")) or bool(Save.s("plain_ui")) or bool(Save.s("reduce_fx")):
+		return
+	var c: Vector2 = _cam * spot_p
+	var sz := Vector2(2800, 2800) * clampf(zoom, 1.0, 1.6)
+	draw_texture_rect(_spot_tex(), Rect2(c - sz / 2.0, sz), false, Color(1, 1, 1, 0.34 * spot_a))   # Hydrogen cat06 #4：原本 0.2 太淡
+
+static func _spot_tex() -> ImageTexture:
+	if _spot_img_tex == null:
+		var n := 256
+		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		for y in n:
+			for x in n:
+				var r := Vector2(x + 0.5 - n / 2.0, y + 0.5 - n / 2.0).length() / (n / 2.0)
+				img.set_pixel(x, y, Color(DIM_INK, smoothstep(0.09, 0.22, r)))
+		_spot_img_tex = ImageTexture.create_from_image(img)
+	return _spot_img_tex
+
+## 最後一擊去飽和：整個戰場蓋一層中灰（約等於彩度降 25%），0.4 秒回彈。
+func _draw_desat() -> void:
+	if desat_a <= 0.005 or bool(Save.s("reduce_fx")):
+		return
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0.46, 0.44, 0.41, desat_a))
+
+## 銅放大鏡小窗：被選的那隻 1.6 倍特寫（表情、血、冷卻）；固定安全角、離那隻最遠，換角有遲滯；
+## 按任何鍵收起（mag_hide）、點背景取消選取；簡化介面、設定關時不畫；巨獸不畫（太大）。
+func _draw_bmag() -> void:
+	if follow_id < 0 or follow_id == mag_hide or view == null or mag_pose.size() < 3 or not bool(Save.s("battle_mag")) or bool(Save.s("plain_ui")):
+		return
+	var u = view.unit_by_id(follow_id)
+	if u == null or not u.alive or u.boss or u.hidden or u.stealth > 0:
+		return   # 偽裝、潛行中的不給特寫（不洩漏真身；Codex cat06 #3）
+	var banned: Array = []
+	if paused:
+		banned.append(3)   # 暫停時右上是資料卡
+	if call("_replay_controls_active"):
+		banned.append(0)   # 重播時左下是時光機、GIF 鈕（Codex cat06 #7）
+	mag_corner_i = DirR.mag_corner(MAG_CORNERS, _cam * _upos(u), mag_corner_i, banned, 260.0)
+	if mag_corner_i < 0:
+		return
+	var c: Vector2 = MAG_CORNERS[mag_corner_i]
+	var R := MAG_R
+	draw_circle(c + Vector2(4, 6), R + 10, Color(0, 0, 0, 0.32), true, -1.0, true)
+	draw_circle(c, R + 10, PAL.TRINKET_BRASS.darkened(0.25), true, -1.0, true)
+	draw_circle(c, R + 7, PAL.TRINKET_BRASS, true, -1.0, true)
+	draw_arc(c, R + 8.5, PI * 1.05, PI * 1.6, 24, PAL.TRINKET_BRASS.lightened(0.45), 1.5, true)   # 燈從左上來的亮邊
+	_mag_glass_bg(c, R, _upos(u))
+	_unit(c + Vector2(0, 34), u.type, u.team, float(mag_pose[0]), 0.0, 0.0, float(mag_pose[1]), 1.0, time, UNIT_SCALE * 1.6, int(mag_pose[2]))
+	# 鏡片：色散細邊、三道刮痕、左上反光（Hydrogen cat06 #1：原本太淡看不出是玻璃）
+	draw_arc(c + Vector2(-1.5, 0), R - 1, 0, TAU, 64, Color(1, 0.25, 0.2, 0.5), 2.0, true)
+	draw_arc(c + Vector2(1.5, 0), R - 1, 0, TAU, 64, Color(0.2, 0.45, 1, 0.5), 2.0, true)
+	for k in 3:
+		var a0 := 0.6 + k * 1.9
+		var p0 := c + Vector2(cos(a0), sin(a0)) * R * (0.35 + 0.15 * k)
+		draw_line(p0, p0 + Vector2(cos(a0 + 1.2), sin(a0 + 1.2)) * (14.0 + 6.0 * k), Color(1, 1, 1, 0.32), 1.2, true)
+	draw_arc(c, R * 0.84, PI * 1.08, PI * 1.42, 20, Color(1, 1, 1, 0.55), 4.0, true)
+	draw_arc(c, R * 0.72, PI * 1.15, PI * 1.3, 12, Color(1, 1, 1, 0.35), 2.0, true)
+	# 血（外圈，從 12 點順時針；四等分刻度）與冷卻（內圈金色，跑完＝可以出手）
+	var hp := clampf(float(u.hp) / maxf(1.0, float(u.max_hp)), 0.0, 1.0)
+	draw_arc(c, R + 4, 0, TAU, 64, Color(0, 0, 0, 0.6), 5.0, true)
+	if hp > 0.0:
+		draw_arc(c, R + 4, -PI / 2, -PI / 2 + TAU * hp, 64, Art.team_color(u.team, cbm()).lightened(0.25), 5.0, true)
+	for q in 4:
+		var aq := -PI / 2 + q * PI / 2
+		draw_line(c + Vector2(cos(aq), sin(aq)) * (R + 1.5), c + Vector2(cos(aq), sin(aq)) * (R + 6.5), PAL.TRINKET_BRASS.darkened(0.45), 1.5, true)
+	var cdb := float(D.stat(u.type).get("cd", 20))
+	var cdf := clampf(float(u.cd) / maxf(1.0, cdb), 0.0, 1.0)
+	if cdf > 0.0:
+		draw_arc(c, R - 5, -PI / 2, -PI / 2 + TAU * cdf, 48, Color(PAL.TRINKET_GOLD, 0.9), 3.0, true)
+
+## 精華三連：一段播完（或場次結束）就跳下一段；最後一段播完照常進結果。
+func _hl_seg(i: int) -> void:
+	hl_i = i
+	var t := int(hl_reel[i])
+	hl_end = t + DirR.SEG_LEN - DirR.SEG_PRE
+	call("_seek_async", maxi(0, t - DirR.SEG_PRE))
+
+func _hl_reel_tick() -> bool:
+	if hl_reel.is_empty() or view == null or seek_target >= 0 or state != St.BATTLE:
+		return false
+	if view.tick >= hl_end or view.finished:
+		if hl_i + 1 < hl_reel.size():
+			_hl_seg(hl_i + 1)
+			return true
+		hl_reel = []
+	return false
+
+## 放大鏡鏡片底：盤面地塊放大 1.6 倍（地圖有地塊時用 UV 圓形多邊形貼；平原用草地底色）。
+func _mag_glass_bg(c: Vector2, R: float, at: Vector2) -> void:
+	var mt: Texture2D = call("_map_tex") if fld_map != 0 else null
+	var pts := PackedVector2Array()
+	var uvs := PackedVector2Array()
+	for i in 40:
+		var a := i * TAU / 40.0
+		var d := Vector2(cos(a), sin(a))
+		pts.append(c + d * R)
+		uvs.append(((at - Vector2(0, 20)) + d * R / (1.6 * zoom) - ORIGIN) / fld_size)
+	if mt != null:
+		draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, mt)
+	else:
+		draw_colored_polygon(pts, Color(0.47, 0.6, 0.33))
+	draw_colored_polygon(pts, Color(1, 0.97, 0.88, 0.12))   # 鏡片微暖
+
+
+
+# ── 1.3.0 第 7 大類：技能演出三拍（方案 §7.1）──
+var cues: Array = []          # 預告：[種類, 來源 id, 目標 id, 命中 tick]（只在命中前畫）
+var stat_prev := {}           # 單位 id → [定身中, 破陣中]
+const CUE_MAX := 24
+const STAIN_MAX := 6          # 同時最多幾灘（同一技能連發不會鋪滿盤，視覺上限）
+const TAG_BURST := 4          # 同一 tick 超過 4 隻同時被定身（時停）就不逐隻插竹籤（時停有自己的橫幅）
+
+func _cue_add(kind: String, src: int, tgt: int, tick: int) -> void:
+	for c in cues:
+		if c[0] == kind and int(c[1]) == src and int(c[3]) == tick:
+			return
+	cues.append([kind, src, tgt, tick])
+	while cues.size() > CUE_MAX:
+		cues.pop_front()
+
+## 預告層（盤面座標，單位之後、特效之前）：騎兵衝鋒前地上兩道木輪痕、盾兵架盾前腳下金色紙箔圈；淡入到命中那一刻，命中後就不畫。
+func _draw_cues() -> void:
+	if view == null or cues.is_empty():
+		return
+	var keep: Array = []
+	for c in cues:
+		var hit := int(c[3])
+		if hit < view.tick:
+			continue
+		keep.append(c)
+		var k := clampf(1.0 - float(hit - view.tick) / float(maxi(1, view.DELAY_LONG)), 0.15, 1.0)
+		var s = view.unit_by_id(int(c[1]))
+		var t = view.unit_by_id(int(c[2]))
+		if s == null or t == null:
+			continue
+		var sp := _upos(s)
+		var tp := _upos(t)
+		if c[0] == EV.CHARGE:
+			var d := tp - sp
+			if d.length() < 4.0:
+				continue
+			var n := d.normalized()
+			var side := Vector2(-n.y, n.x) * 6.0 * HK
+			var steps := int(d.length() / 10.0)
+			for i in steps:
+				var a := sp + n * (i * 10.0) + Vector2(0, 2)
+				for sd in [-1.0, 1.0]:
+					draw_line(a + side * sd, a + side * sd + n * 5.0, Color(PAL.TRINKET_LEATHER.darkened(0.3), 0.45 * k), 2.0, true)
+		elif c[0] == EV.BRACED:
+			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.45), 0, tp + Vector2(0, 2)))
+			draw_arc(Vector2.ZERO, 22.0 * HK, 0, TAU, 40, Color(PAL.TRINKET_GOLD, 0.75 * k), 2.5, true)
+			draw_arc(Vector2.ZERO, 17.0 * HK, 0, TAU * k, 32, Color(PAL.TRINKET_GOLD.lightened(0.4), 0.6 * k), 1.5, true)
+			draw_set_transform_matrix(_cam)
+	cues = keep
+
+## 狀態竹籤：定身、破陣「開始」的那一 tick，從底座彈出一根薄竹籤、自轉半圈、往盤外掉落淡出（跳字設定關時不出）。
+func _status_tags(with_fx: bool) -> void:
+	var fresh: Array = []
+	for u in view.units:
+		var now := [u.alive and u.stun > 0, u.alive and u.breach > 0]
+		var was: Array = stat_prev.get(u.id, [false, false])
+		if with_fx and u.alive:
+			if now[0] and not was[0]:
+				fresh.append([u, "tag_stun"])
+			if now[1] and not was[1]:
+				fresh.append([u, "tag_breach"])
+		stat_prev[u.id] = now
+	if fresh.is_empty() or fresh.size() > TAG_BURST or str(Save.s("dmg_nums")) == "off":
+		return
+	for f in fresh:
+		var u = f[0]
+		_add_fx({"kind": "tag", "p": _upos(u) + Vector2(0, -6), "s": L.t(f[1]), "dir": -1.0 if u.team == 0 else 1.0, "t": 0.0, "dur": 0.9})
+
+## 範圍墨漬（茶漬）：擴散到真實範圍，停一下，最後 1.5 秒像被木頭吸乾地收縮淡出。
+func _stain(p: Vector2, r: float, tea: bool, seed: int) -> void:
+	if bool(Save.s("plain_ui")):
+		return
+	var n := 0
+	for f in fx:
+		if f["kind"] == "stain":
+			n += 1
+	if n >= STAIN_MAX:
+		for i in fx.size():
+			if fx[i]["kind"] == "stain":
+				fx.remove_at(i)
+				break
+	_add_fx({"kind": "stain", "p": p, "r": r, "tea": tea, "seed": seed, "t": 0.0, "dur": 2.0})
