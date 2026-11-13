@@ -444,9 +444,12 @@ func _layout_report(name: String, img: Image = null) -> void:
 	if TEXT_BUDGET.has(name) and int(Save.s("text_scale")) == 100 and free_n > tb_max:
 		bad.append({"type": "文字段數超過上限", "n": free_n, "max": tb_max})
 	sizes.sort()
+	var art := _art_checks(img)
+	if float(art["black_pct"]) > 1.0:
+		bad.append({"type": "純黑像素超過 1%", "pct": art["black_pct"]})   # 1.3.0 §4：美感報表的第一條變門檻（憲法 3：禁純黑）
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
-		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": _art_checks(img),
+		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art,
 		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size()})   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()

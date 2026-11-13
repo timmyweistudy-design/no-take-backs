@@ -307,7 +307,7 @@ func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
 func _bake_ring(cb: bool) -> void:
 	var painter := _RingPainter.new()
 	painter.cb = cb
-	var vp := _viewport(Vector2i(14 * CELL, CELL), painter)   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
+	var vp := _viewport(Vector2i(15 * CELL, CELL), painter)   # 1.3.0：第 15 格＝紅方八角木座（跳起來分層畫時用）   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
 	var g0 := _gen
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
@@ -339,7 +339,7 @@ func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0, a
 		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((6 + fan + idx) * CELL, 0, CELL, CELL))
 		ci.draw_set_transform_matrix(Art.base)
 		return
-	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(4 * CELL, 0, CELL, CELL))   # 木座
+	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((14 if team == 1 else 4) * CELL, 0, CELL, CELL))   # 木座（紅方八角）
 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale, scale), 0.0, p))
 	Art.base_trim(ci, Vector2.ZERO, type, 1.0)   # 1.1.0 B14：跳起來（少數）才分層畫部件
 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
@@ -379,9 +379,9 @@ func _draw_cell(ci: CanvasItem, tex: Texture2D, idx: int, p: Vector2, type: int,
 		slime_shine(ci, p, type, scale, alpha, by)   # 只在待機（跳起、壓扁時高光會對不上，不畫）
 
 ## 倒棋用：只貼木座（帶透明度）。
-func draw_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
+func draw_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0, team := 0) -> void:
 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
-	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(4 * CELL, 0, CELL, CELL), Color(1, 1, 1, a))
+	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((14 if team == 1 else 4) * CELL, 0, CELL, CELL), Color(1, 1, 1, a))
 	ci.draw_set_transform_matrix(Art.base)
 
 func _rect(idx: int) -> Rect2:
@@ -568,6 +568,7 @@ class _RingPainter extends Node2D:
 				var o := Vector2((team * 2 + heavy) * 192, 0) + Vector2(96, 140)
 				Art2.ring_mark(self, o, team, D2.SHIELD if heavy == 1 else D2.SWORD, cb, 1.6)
 		Art2.ring_base(self, Vector2(4 * 192, 0) + Vector2(96, 140), 1.6)
+		Art2.ring_base(self, Vector2(14 * 192, 0) + Vector2(96, 140), 1.6, 1.0, 1)   # 1.3.0：紅方八角木座
 		Art2.ring_shadow(self, Vector2(5 * 192, 0) + Vector2(96, 140), 1.6)
 		for team in 2:
 			for heavy in 2:

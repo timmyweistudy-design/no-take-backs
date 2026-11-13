@@ -248,9 +248,10 @@ func _draw_field() -> void:
 			draw_texture_rect(mt, Rect2(ORIGIN, fld_size), false)   # 1.3.0：桌邊視角的牆格高度烘在地塊裡（map_art._relief）
 		else:
 			draw_rect(Rect2(ORIGIN, fld_size), Color(fbi.get("base", "#6f9a4a")))
-		if rules != null and rules.time_of != 0:
+		if (rules != null and rules.time_of != 0) or _mode_tone().a > 0.0:   # 1.3.0：地形圖也套每日／戰役的時刻（Codex cat03 #2）
 			draw_rect(Rect2(ORIGIN, fld_size), _tone())
 		_draw_field_frame()
+		_map_prop()   # 1.3.0 §3
 		return
 	var f_rows: int = fld_h / 1000
 	var f_cols: int = fld_w / 1000
@@ -299,8 +300,12 @@ func _draw_field() -> void:
 			var an := k * PI / 2.0 + i
 			draw_circle(fp + Vector2(cos(an), sin(an)) * 2.2, 1.8, Color(fc, 0.75), true, -1.0, true)
 		draw_circle(fp, 1.3, Color("#f4a300"), true, -1.0, true)
-	if not free_f:
-		# 1.2.0 §5.1：格線是刻刀刻出的淺凹槽：暗線＋右／下方 1px 亮線（不是印上去的虛線）
+	if not bool(Save.s("plain_ui")):
+		# 1.3.0 §3 平原＝印花棉布：斜紋棉麻底紋＋格線是米白雙股棉線壓縫、交叉點小線結（一張 64px 拼貼，整盤一次貼；格線和格子對齊）
+		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		draw_texture_rect(_cotton_tex(not free_f), Rect2(ORIGIN, fld_size), true)
+	if not free_f and bool(Save.s("plain_ui")):
+		# 簡化介面：1.2.0 的刻刀格線（暗線＋右／下方 1px 亮線）
 		var carve := not bool(Save.s("plain_ui"))
 		for i in 17:
 			_wob_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, fld_size.y), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
@@ -310,6 +315,7 @@ func _draw_field() -> void:
 			_wob_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(fld_size.x, i * CS), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
 			if carve:
 				draw_line(ORIGIN + Vector2(0, i * CS + 1), ORIGIN + Vector2(fld_size.x, i * CS + 1), Color(1, 0.95, 0.8, 0.07), 1.0)
+	if not free_f:   # 部署區分界的粉筆線：兩種畫法都要（Codex／自查 cat03：棉布格線時不能一起拿掉）
 		_chalk_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, fld_size.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
 		_chalk_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, fld_size.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
 	_draw_field_frame()
@@ -456,6 +462,66 @@ func _board_ring(inner: Rect2) -> bool:
 	return true
 
 const MAT_OAK := "res://art/mat/tile_oak.png"
+
+## 1.3.0 §3 平原棉布拼貼（64px＝一格）：斜紋（每 6px 一道亮／暗細紋）；grid＝true 時上緣、左緣是壓縫棉線（亮線＋下方暗影、每 4px 一針），左上角一個小線結。
+static var _cotton := {}
+static func _cotton_tex(grid: bool) -> Texture2D:
+	if _cotton.has(grid):
+		return _cotton[grid]
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for y in 64:
+		for x in 64:
+			var d := (x + y) % 6
+			if d == 0:
+				img.set_pixel(x, y, Color(1, 1, 0.9, 0.06))
+			elif d == 3:
+				img.set_pixel(x, y, Color(0.05, 0.08, 0.02, 0.05))
+	if grid:
+		for i in 64:
+			var on := (i % 4) != 3   # 一針一針（每 4px 留 1px 縫）
+			if on:
+				img.set_pixel(i, 0, Color(1, 0.97, 0.86, 0.38))
+				img.set_pixel(0, i, Color(1, 0.97, 0.86, 0.38))
+			img.set_pixel(i, 1, Color(0.08, 0.05, 0.02, 0.14))
+			img.set_pixel(1, i, Color(0.08, 0.05, 0.02, 0.14))
+		for k in [[0, 0], [1, 0], [0, 1], [1, 1], [63, 0], [0, 63]]:
+			img.set_pixel(k[0], k[1], Color(0.96, 0.9, 0.76, 0.75))   # 交叉點的線結
+	var tex := ImageTexture.create_from_image(img)
+	_cotton[grid] = tex
+	return tex
+
+## 1.3.0 §3 地圖個性小物：放在盤框外的桌面上（左下角），不在可走格。只看地貌、固定位置。
+func _map_prop() -> void:
+	if bool(Save.s("plain_ui")) or MapDefs.MAPS.size() <= fld_map:
+		return
+	var p := ORIGIN + Vector2(-58, fld_size.y * 0.55)   # 左側桌面中段（離左下墨水瓶遠一點；Antigravity cat03）
+	var sh := Color(0.08, 0.05, 0.03, 0.3)
+	match str(MapDefs.MAPS[fld_map]["biome"]):
+		"river":   # 小紙船
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-14, 4), p + Vector2(14, 4), p + Vector2(9, 10), p + Vector2(-9, 10)]), sh)
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-16, 0), p + Vector2(16, 0), p + Vector2(10, 7), p + Vector2(-10, 7)]), PAL.TH_PARCH)
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-2, -16), p + Vector2(8, 0), p + Vector2(-2, 0)]), PAL.TH_PARCH.darkened(0.12))
+		"forest":   # 松果
+			draw_circle(p + Vector2(4, 6), 8.0, sh, true, -1.0, true)
+			for k in 4:
+				draw_circle(p + Vector2(0, -6 + k * 4), 6.0 - k * 0.6, PAL.TH_ACTIVE.darkened(0.15 * (k % 2)), true, -1.0, true)
+		"ice":   # 小雪人
+			draw_circle(p + Vector2(4, 10), 10.0, sh, true, -1.0, true)
+			draw_circle(p + Vector2(0, 4), 9.0, Color.WHITE, true, -1.0, true)
+			draw_circle(p + Vector2(0, -9), 6.0, Color.WHITE, true, -1.0, true)
+			draw_circle(p + Vector2(-2, -10), 0.9, PAL.INK, true, -1.0, true)
+			draw_circle(p + Vector2(2, -10), 0.9, PAL.INK, true, -1.0, true)
+		"lava":   # 小炭盆
+			draw_circle(p + Vector2(4, 8), 11.0, sh, true, -1.0, true)
+			draw_circle(p, 10.0, PAL.DIM_INK, true, -1.0, true)
+			for k in 3:
+				draw_circle(p + Vector2(-4 + k * 4, -1 + (k % 2) * 2), 2.5, PAL.TH_PRIMARY, true, -1.0, true)
+		"canyon":   # 小仙人掌
+			draw_rect(Rect2(p + Vector2(-3, -14), Vector2(6, 22)), PAL.TH_ACTIVE.lerp(Color(0.3, 0.5, 0.25), 0.8))
+			draw_rect(Rect2(p + Vector2(-9, -8), Vector2(6, 4)), Color(0.3, 0.5, 0.25))
+			draw_rect(Rect2(p + Vector2(3, -4), Vector2(6, 4)), Color(0.3, 0.5, 0.25))
+			draw_rect(Rect2(p + Vector2(-6, 8), Vector2(12, 5)), PAL.TH_ACTIVE)
 
 ## ── 1.3.0 §1 桌邊視角（路線 B：2D 假立體；路線 A 切片的結論見 coordination/v130-impl/cat02-plan.md）──
 ## 鏡頭是正交、偏離俯視 20°：地面座標和 1.2.0 完全一樣（點格、版面、截圖座標都不變），只多出朝南的立面、厚度與燈影。
@@ -1054,9 +1120,9 @@ func _draw_death(g: Dictionary, k: float) -> void:
 		var lift := 2.0 * sin(clampf(ft, 0.0, 1.0) * PI) if t < D.COUNT else 0.0   # 1.2.0 第 5 大類 A3：王國棋子翻倒時底座和身體一起離地一點（翻半圈的感覺；Codex cat05 #4）
 		var bp := p - Vector2(0, lift) * UNIT_SCALE
 		if sprites != null and sprites.is_ready(cbm()):
-			sprites.draw_base(self, bp, UNIT_SCALE, 0.8 * lal)
+			sprites.draw_base(self, bp, UNIT_SCALE, 0.8 * lal, int(g["team"]))
 		else:
-			Art.ring_base(self, bp, UNIT_SCALE, 0.8 * lal)
+			Art.ring_base(self, bp, UNIT_SCALE, 0.8 * lal, int(g["team"]))
 		# 往下 5px：倒下後身體貼著木座面，不是浮在上面（Antigravity v130-impl2）
 		_unit(p + Vector2(0, 5.0 * fe - lift) * UNIT_SCALE, t, g["team"], face, 0.0, 0.0, hurt, lal * (1.0 - 0.2 * ft), time, UNIT_SCALE, 1 if k < 0.4 else 0, float(TOPPLE[t]) * (fe - bounce * ft), 1.0 - 0.1 * ft)
 		return

@@ -208,18 +208,29 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
 ## V1.3 A3：腳底三層，由下往上：厚木座（棋子底座，留在地上）→ 接觸影子（跳起來會縮）→ 隊伍圈。
 ## air＝離地程度 0～1（只縮影子）。
 static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, scale := 1.0, air := 0.0) -> void:
-	ring_base(ci, p, scale)
+	ring_base(ci, p, scale, 1.0, team)
 	base_trim(ci, p, type, scale)   # 1.1.0 B14
 	ring_shadow(ci, p, scale * (1.0 - air * 0.35))
 	ring_mark(ci, p, team, type, cb, scale)
 
 ## 厚木座：下緣 2.5px 深色厚度、頂面木色、上緣 1px 亮倒角（深色地面也看得出邊）。
-static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
+## 1.3.0：底座形狀（藍方 20 邊的圓、紅方從 22.5° 起的八角）。
+static func base_poly(c: Vector2, team: int, rx: float, ry: float) -> PackedVector2Array:
+	return _ell(c, rx, ry, PI / 8.0, PI / 8.0 + TAU, 8) if team == 1 else _ell(c, rx, ry, 0.0, TAU, 20)
+
+static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0, team := 0) -> void:
 	# 比隊伍圈寬一圈（rx 21），外露的木邊看得出是棋子底座（Antigravity v130-impl1：原本被隊伍圈蓋住）
+	# 1.3.0 §4 底座形狀雙重編碼：藍方圓底座、紅方菱角八角底座（呼應藍圓紅菱的隊伍圈；色盲模式也一樣；形狀綁隊伍）
 	var wd: Array = WOODS[clampi(int(paint[4]), 0, 3)]   # V1.4 #15：木座木料
-	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale), Color(wd[0], 0.85 * a))
-	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(wd[1], 0.92 * a))
-	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(wd[2], 0.6 * a))
+	var big := 1.08 if team == 1 else 1.0   # 八角的外徑大一點，切角露在隊伍菱圈外（Antigravity cat03 #1：原本被菱圈蓋住看不出）
+	ci.draw_colored_polygon(base_poly(p + Vector2(0, 3.2) * scale, team, 21.0 * scale * big, 10.5 * scale * big), Color(wd[0], 0.85 * a))
+	var top := base_poly(p, team, 21.0 * scale * big, 10.5 * scale * big)
+	ci.draw_colored_polygon(top, Color(wd[1], 0.92 * a))
+	ci.draw_colored_polygon(base_poly(p + Vector2(0, 0.6) * scale, team, 15.5 * scale, 7.4 * scale), Color(wd[2], 0.6 * a))
+	if team == 1:
+		var rim := top.duplicate()
+		rim.append(top[0])
+		ci.draw_polyline(rim, Color(1.0, 0.9, 0.7, 0.55 * a), 1.2 * scale, true)   # 八角的邊亮一圈（切角看得出來）
 	ci.draw_arc(p + Vector2(0, -0.2) * scale, 20.4 * scale, PI * 1.08, PI * 1.92, 14, Color(1.0, 0.9, 0.7, 0.5 * a), 1.1 * scale, true)
 
 ## 1.1.0 B14：木座上的族群部件（另一層，畫在木座之後、隊伍圈之前）：王國兵＝木座前緣一道鐵箍＋兩顆鉚釘，

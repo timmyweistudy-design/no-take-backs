@@ -1,0 +1,303 @@
+diff --git a/game/scripts/ui/art.gd b/game/scripts/ui/art.gd
+index c4ecc06..4d4e4c5 100644
+--- a/game/scripts/ui/art.gd
++++ b/game/scripts/ui/art.gd
+@@ -208,18 +208,21 @@ static func overlay(ci: CanvasItem, type: int, team: int, mood: int, a: float, t
+ ## V1.3 A3：腳底三層，由下往上：厚木座（棋子底座，留在地上）→ 接觸影子（跳起來會縮）→ 隊伍圈。
+ ## air＝離地程度 0～1（只縮影子）。
+ static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, scale := 1.0, air := 0.0) -> void:
+-	ring_base(ci, p, scale)
++	ring_base(ci, p, scale, 1.0, team)
+ 	base_trim(ci, p, type, scale)   # 1.1.0 B14
+ 	ring_shadow(ci, p, scale * (1.0 - air * 0.35))
+ 	ring_mark(ci, p, team, type, cb, scale)
+ 
+ ## 厚木座：下緣 2.5px 深色厚度、頂面木色、上緣 1px 亮倒角（深色地面也看得出邊）。
+-static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
++static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0, team := 0) -> void:
+ 	# 比隊伍圈寬一圈（rx 21），外露的木邊看得出是棋子底座（Antigravity v130-impl1：原本被隊伍圈蓋住）
++	# 1.3.0 §4 底座形狀雙重編碼：藍方圓底座、紅方菱角八角底座（呼應藍圓紅菱的隊伍圈；色盲模式也一樣；形狀綁隊伍）
+ 	var wd: Array = WOODS[clampi(int(paint[4]), 0, 3)]   # V1.4 #15：木座木料
+-	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale), Color(wd[0], 0.85 * a))
+-	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale), Color(wd[1], 0.92 * a))
+-	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale), Color(wd[2], 0.6 * a))
++	var n := 8 if team == 1 else 20
++	var a0 := PI / 8.0 if team == 1 else 0.0
++	ci.draw_colored_polygon(_ell(p + Vector2(0, 3.2) * scale, 21.0 * scale, 10.5 * scale, a0, a0 + TAU, n), Color(wd[0], 0.85 * a))
++	ci.draw_colored_polygon(_ell(p, 21.0 * scale, 10.5 * scale, a0, a0 + TAU, n), Color(wd[1], 0.92 * a))
++	ci.draw_colored_polygon(_ell(p + Vector2(0, 0.6) * scale, 15.5 * scale, 7.4 * scale, a0, a0 + TAU, n), Color(wd[2], 0.6 * a))
+ 	ci.draw_arc(p + Vector2(0, -0.2) * scale, 20.4 * scale, PI * 1.08, PI * 1.92, 14, Color(1.0, 0.9, 0.7, 0.5 * a), 1.1 * scale, true)
+ 
+ ## 1.1.0 B14：木座上的族群部件（另一層，畫在木座之後、隊伍圈之前）：王國兵＝木座前緣一道鐵箍＋兩顆鉚釘，
+diff --git a/game/scripts/ui/battle/battle_state.gd b/game/scripts/ui/battle/battle_state.gd
+index 3596366..954a588 100644
+--- a/game/scripts/ui/battle/battle_state.gd
++++ b/game/scripts/ui/battle/battle_state.gd
+@@ -204,6 +204,14 @@ func _tone() -> Color:
+ 		return Color(1.0, 0.72, 0.45, 0.07)
+ 	if rules != null and rules.time_of != 0:
+ 		return Color(0.95, 0.42, 0.3, 0.16) if rules.time_of == 1 else Color(0.12, 0.16, 0.42, 0.30)
++	# 1.3.0 §4：時刻由模式決定（不讀真實時鐘，截圖可重現）
++	var dsp = get("daily_spec")
++	if dsp is Dictionary and not (dsp as Dictionary).is_empty():
++		return Color(0.7, 0.85, 1.0, 0.07)         # 每日挑戰：清晨（偏藍的淡光）
++	var camp: String = str(get("camp_id")) if get("camp_id") != null else ""
++	if camp != "" and mode == Mode.VS_AI:
++		var ch := int(camp.substr(1, 1)) if camp.length() > 1 else 1   # 戰役依章：1 晨、2 午、3 黃昏、4 夜、5 燈下
++		return [Color(1.0, 0.72, 0.45, 0.07), Color(1.0, 0.95, 0.85, 0.03), Color(0.95, 0.42, 0.3, 0.16), Color(0.12, 0.16, 0.42, 0.30), Color(1.0, 0.62, 0.25, 0.18)][clampi(ch - 1, 0, 4)]
+ 	match mode:
+ 		Mode.PUZZLE:
+ 			return Color(0.95, 0.42, 0.3, 0.16)    # 黃昏
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index df0b3c5..1490ddd 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -251,6 +251,7 @@ func _draw_field() -> void:
+ 		if rules != null and rules.time_of != 0:
+ 			draw_rect(Rect2(ORIGIN, fld_size), _tone())
+ 		_draw_field_frame()
++		_map_prop()   # 1.3.0 §3
+ 		return
+ 	var f_rows: int = fld_h / 1000
+ 	var f_cols: int = fld_w / 1000
+@@ -299,8 +300,12 @@ func _draw_field() -> void:
+ 			var an := k * PI / 2.0 + i
+ 			draw_circle(fp + Vector2(cos(an), sin(an)) * 2.2, 1.8, Color(fc, 0.75), true, -1.0, true)
+ 		draw_circle(fp, 1.3, Color("#f4a300"), true, -1.0, true)
+-	if not free_f:
+-		# 1.2.0 §5.1：格線是刻刀刻出的淺凹槽：暗線＋右／下方 1px 亮線（不是印上去的虛線）
++	if not bool(Save.s("plain_ui")):
++		# 1.3.0 §3 平原＝印花棉布：斜紋棉麻底紋＋格線是米白雙股棉線壓縫、交叉點小線結（一張 64px 拼貼，整盤一次貼；格線和格子對齊）
++		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
++		draw_texture_rect(_cotton_tex(not free_f), Rect2(ORIGIN, fld_size), true)
++	if not free_f and bool(Save.s("plain_ui")):
++		# 簡化介面：1.2.0 的刻刀格線（暗線＋右／下方 1px 亮線）
+ 		var carve := not bool(Save.s("plain_ui"))
+ 		for i in 17:
+ 			_wob_line(ORIGIN + Vector2(i * CS, 0), ORIGIN + Vector2(i * CS, fld_size.y), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
+@@ -310,6 +315,7 @@ func _draw_field() -> void:
+ 			_wob_line(ORIGIN + Vector2(0, i * CS), ORIGIN + Vector2(fld_size.x, i * CS), Color(0.12, 0.07, 0.03, 0.12 if carve else 0.07), 1.0)
+ 			if carve:
+ 				draw_line(ORIGIN + Vector2(0, i * CS + 1), ORIGIN + Vector2(fld_size.x, i * CS + 1), Color(1, 0.95, 0.8, 0.07), 1.0)
++	if not free_f:   # 部署區分界的粉筆線：兩種畫法都要（Codex／自查 cat03：棉布格線時不能一起拿掉）
+ 		_chalk_line(ORIGIN + Vector2(6 * CS, 0), ORIGIN + Vector2(6 * CS, fld_size.y), Color(Art.team_color(0, cbm()), 0.75), 3.0, 8.0)
+ 		_chalk_line(ORIGIN + Vector2(10 * CS, 0), ORIGIN + Vector2(10 * CS, fld_size.y), Color(Art.team_color(1, cbm()), 0.75), 3.0, 8.0)
+ 	_draw_field_frame()
+@@ -457,6 +463,66 @@ func _board_ring(inner: Rect2) -> bool:
+ 
+ const MAT_OAK := "res://art/mat/tile_oak.png"
+ 
++## 1.3.0 §3 平原棉布拼貼（64px＝一格）：斜紋（每 6px 一道亮／暗細紋）；grid＝true 時上緣、左緣是壓縫棉線（亮線＋下方暗影、每 4px 一針），左上角一個小線結。
++static var _cotton := {}
++static func _cotton_tex(grid: bool) -> Texture2D:
++	if _cotton.has(grid):
++		return _cotton[grid]
++	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
++	img.fill(Color(0, 0, 0, 0))
++	for y in 64:
++		for x in 64:
++			var d := (x + y) % 6
++			if d == 0:
++				img.set_pixel(x, y, Color(1, 1, 0.9, 0.06))
++			elif d == 3:
++				img.set_pixel(x, y, Color(0.05, 0.08, 0.02, 0.05))
++	if grid:
++		for i in 64:
++			var on := (i % 4) != 3   # 一針一針（每 4px 留 1px 縫）
++			if on:
++				img.set_pixel(i, 0, Color(1, 0.97, 0.86, 0.38))
++				img.set_pixel(0, i, Color(1, 0.97, 0.86, 0.38))
++			img.set_pixel(i, 1, Color(0.08, 0.05, 0.02, 0.14))
++			img.set_pixel(1, i, Color(0.08, 0.05, 0.02, 0.14))
++		for k in [[0, 0], [1, 0], [0, 1], [1, 1], [63, 0], [0, 63]]:
++			img.set_pixel(k[0], k[1], Color(0.96, 0.9, 0.76, 0.75))   # 交叉點的線結
++	var tex := ImageTexture.create_from_image(img)
++	_cotton[grid] = tex
++	return tex
++
++## 1.3.0 §3 地圖個性小物：放在盤框外的桌面上（左下角），不在可走格。只看地貌、固定位置。
++func _map_prop() -> void:
++	if bool(Save.s("plain_ui")) or MapDefs.MAPS.size() <= fld_map:
++		return
++	var p := ORIGIN + Vector2(-58, fld_size.y - 24)
++	var sh := Color(0.08, 0.05, 0.03, 0.3)
++	match str(MapDefs.MAPS[fld_map]["biome"]):
++		"river":   # 小紙船
++			draw_colored_polygon(PackedVector2Array([p + Vector2(-14, 4), p + Vector2(14, 4), p + Vector2(9, 10), p + Vector2(-9, 10)]), sh)
++			draw_colored_polygon(PackedVector2Array([p + Vector2(-16, 0), p + Vector2(16, 0), p + Vector2(10, 7), p + Vector2(-10, 7)]), PAL.TH_PARCH)
++			draw_colored_polygon(PackedVector2Array([p + Vector2(-2, -16), p + Vector2(8, 0), p + Vector2(-2, 0)]), PAL.TH_PARCH.darkened(0.12))
++		"forest":   # 松果
++			draw_circle(p + Vector2(4, 6), 8.0, sh, true, -1.0, true)
++			for k in 4:
++				draw_circle(p + Vector2(0, -6 + k * 4), 6.0 - k * 0.6, PAL.TH_ACTIVE.darkened(0.15 * (k % 2)), true, -1.0, true)
++		"ice":   # 小雪人
++			draw_circle(p + Vector2(4, 10), 10.0, sh, true, -1.0, true)
++			draw_circle(p + Vector2(0, 4), 9.0, Color.WHITE, true, -1.0, true)
++			draw_circle(p + Vector2(0, -9), 6.0, Color.WHITE, true, -1.0, true)
++			draw_circle(p + Vector2(-2, -10), 0.9, PAL.INK, true, -1.0, true)
++			draw_circle(p + Vector2(2, -10), 0.9, PAL.INK, true, -1.0, true)
++		"lava":   # 小炭盆
++			draw_circle(p + Vector2(4, 8), 11.0, sh, true, -1.0, true)
++			draw_circle(p, 10.0, PAL.DIM_INK, true, -1.0, true)
++			for k in 3:
++				draw_circle(p + Vector2(-4 + k * 4, -1 + (k % 2) * 2), 2.5, PAL.TH_PRIMARY, true, -1.0, true)
++		"canyon":   # 小仙人掌
++			draw_rect(Rect2(p + Vector2(-3, -14), Vector2(6, 22)), PAL.TH_ACTIVE.lerp(Color(0.3, 0.5, 0.25), 0.8))
++			draw_rect(Rect2(p + Vector2(-9, -8), Vector2(6, 4)), Color(0.3, 0.5, 0.25))
++			draw_rect(Rect2(p + Vector2(3, -4), Vector2(6, 4)), Color(0.3, 0.5, 0.25))
++			draw_rect(Rect2(p + Vector2(-6, 8), Vector2(12, 5)), PAL.TH_ACTIVE)
++
+ ## ── 1.3.0 §1 桌邊視角（路線 B：2D 假立體；路線 A 切片的結論見 coordination/v130-impl/cat02-plan.md）──
+ ## 鏡頭是正交、偏離俯視 20°：地面座標和 1.2.0 完全一樣（點格、版面、截圖座標都不變），只多出朝南的立面、厚度與燈影。
+ ## 設定「戰場視角」：桌邊（預設）／正上方（＝1.2.0 畫法）；簡化介面一律正上方。
+@@ -1054,9 +1120,9 @@ func _draw_death(g: Dictionary, k: float) -> void:
+ 		var lift := 2.0 * sin(clampf(ft, 0.0, 1.0) * PI) if t < D.COUNT else 0.0   # 1.2.0 第 5 大類 A3：王國棋子翻倒時底座和身體一起離地一點（翻半圈的感覺；Codex cat05 #4）
+ 		var bp := p - Vector2(0, lift) * UNIT_SCALE
+ 		if sprites != null and sprites.is_ready(cbm()):
+-			sprites.draw_base(self, bp, UNIT_SCALE, 0.8 * lal)
++			sprites.draw_base(self, bp, UNIT_SCALE, 0.8 * lal, int(g["team"]))
+ 		else:
+-			Art.ring_base(self, bp, UNIT_SCALE, 0.8 * lal)
++			Art.ring_base(self, bp, UNIT_SCALE, 0.8 * lal, int(g["team"]))
+ 		# 往下 5px：倒下後身體貼著木座面，不是浮在上面（Antigravity v130-impl2）
+ 		_unit(p + Vector2(0, 5.0 * fe - lift) * UNIT_SCALE, t, g["team"], face, 0.0, 0.0, hurt, lal * (1.0 - 0.2 * ft), time, UNIT_SCALE, 1 if k < 0.4 else 0, float(TOPPLE[t]) * (fe - bounce * ft), 1.0 - 0.1 * ft)
+ 		return
+diff --git a/game/scripts/ui/map_art.gd b/game/scripts/ui/map_art.gd
+index b7b2d8a..4ede897 100644
+--- a/game/scripts/ui/map_art.gd
++++ b/game/scripts/ui/map_art.gd
+@@ -287,12 +287,13 @@ class _Painter extends Node2D:
+ 							draw_line(o3 + Vector2(2, Q * 0.75), o3 + Vector2(Q * 0.7, 3), Color(1, 1, 1, 0.16), 2.0, true)
+ 						draw_arc(o3 + Vector2(Q / 2, (h3 % 20) + 6), 9.0, 0.3, 2.6, 8, Color(1, 1, 1, 0.22), 1.4, true)
+ 					"lava":
+-						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(1, 0.6, 0.1, 0.25 + (h3 % 30) / 100.0))
++						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(1, 0.6, 0.1, 0.12 + (h3 % 30) / 200.0))   # 1.3.0 §3：岩漿不自發光——亮度壓一階，靠燈在金泥上的反光點
+ 						# 硬殼與裂縫：暗塊之間透出亮岩漿
+ 						for kl in 2:
+ 							draw_circle(o3 + Vector2((h3 >> kl) % 30, (h3 >> (kl + 2)) % 30), 7.0 + kl * 2.0, Color("#3a2320"), true, -1.0, true)
+ 						if h3 % 3 == 0:   # 第十輪 V6：裂縫不要每格一條，才不會像條紋
+ 							draw_line(o3 + Vector2(h3 % 12, 4 + h3 % 8), o3 + Vector2(6 + h3 % 22, 18 + h3 % 12), Color("#d4a843"), 1.6, true)   # 1.2.0 §5.2 金繼：金泥細線，不發光
++							draw_circle(o3 + Vector2(h3 % 12, 4 + h3 % 8), 1.2, Color(1, 0.97, 0.85, 0.85), true, -1.0, true)   # 1.3.0：金泥上的燈反光點（左上那一端）
+ 					"canyon":
+ 						# 山崖：上面亮、岩層橫紋不對齊，不要像磚牆
+ 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color("#6d3a26"))
+@@ -428,6 +429,9 @@ class _Painter extends Node2D:
+ 							draw_circle(sp, 2.6, Color("#b2322a"), true, -1.0, true)
+ 							draw_circle(sp + Vector2(-0.8, -0.8), 0.6, Color(1, 1, 1, 0.9), true, -1.0, true)
+ 					"ice":   # 冰湖雪原：白瓷冰裂紋＋磨砂細點
++						if v == t.FAST and h % 3 == 1:   # 1.3.0 §3：冰面「下面」一層淡藍裂紋（比白瓷紋深、淡，看得出冰有厚度）
++							var ua := o + Vector2((h >> 2) % 28, (h >> 5) % 28)
++							draw_polyline(PackedVector2Array([ua, ua + Vector2(10 - (h >> 7) % 20, 7), ua + Vector2(4, 14)]), Color(0.3, 0.5, 0.72, 0.22), 1.4, true)
+ 						if h % 4 == 0:
+ 							var a := o + Vector2(h % 30, (h / 3) % 30)
+ 							var b := a + Vector2(8 - (h >> 4) % 16, 6 + (h >> 6) % 6)
+diff --git a/game/scripts/ui/sprite_cache.gd b/game/scripts/ui/sprite_cache.gd
+index 6ad0c6f..79178db 100644
+--- a/game/scripts/ui/sprite_cache.gd
++++ b/game/scripts/ui/sprite_cache.gd
+@@ -307,7 +307,7 @@ func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
+ func _bake_ring(cb: bool) -> void:
+ 	var painter := _RingPainter.new()
+ 	painter.cb = cb
+-	var vp := _viewport(Vector2i(14 * CELL, CELL), painter)   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
++	var vp := _viewport(Vector2i(15 * CELL, CELL), painter)   # 1.3.0：第 15 格＝紅方八角木座（跳起來分層畫時用）   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
+ 	var g0 := _gen
+ 	await RenderingServer.frame_post_draw
+ 	await RenderingServer.frame_post_draw
+@@ -339,7 +339,7 @@ func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0, a
+ 		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((6 + fan + idx) * CELL, 0, CELL, CELL))
+ 		ci.draw_set_transform_matrix(Art.base)
+ 		return
+-	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(4 * CELL, 0, CELL, CELL))   # 木座
++	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((14 if team == 1 else 4) * CELL, 0, CELL, CELL))   # 木座（紅方八角）
+ 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale, scale), 0.0, p))
+ 	Art.base_trim(ci, Vector2.ZERO, type, 1.0)   # 1.1.0 B14：跳起來（少數）才分層畫部件
+ 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+@@ -379,9 +379,9 @@ func _draw_cell(ci: CanvasItem, tex: Texture2D, idx: int, p: Vector2, type: int,
+ 		slime_shine(ci, p, type, scale, alpha, by)   # 只在待機（跳起、壓扁時高光會對不上，不畫）
+ 
+ ## 倒棋用：只貼木座（帶透明度）。
+-func draw_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0) -> void:
++func draw_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0, team := 0) -> void:
+ 	ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+-	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(4 * CELL, 0, CELL, CELL), Color(1, 1, 1, a))
++	ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((14 if team == 1 else 4) * CELL, 0, CELL, CELL), Color(1, 1, 1, a))
+ 	ci.draw_set_transform_matrix(Art.base)
+ 
+ func _rect(idx: int) -> Rect2:
+@@ -568,6 +568,7 @@ class _RingPainter extends Node2D:
+ 				var o := Vector2((team * 2 + heavy) * 192, 0) + Vector2(96, 140)
+ 				Art2.ring_mark(self, o, team, D2.SHIELD if heavy == 1 else D2.SWORD, cb, 1.6)
+ 		Art2.ring_base(self, Vector2(4 * 192, 0) + Vector2(96, 140), 1.6)
++		Art2.ring_base(self, Vector2(14 * 192, 0) + Vector2(96, 140), 1.6, 1.0, 1)   # 1.3.0：紅方八角木座
+ 		Art2.ring_shadow(self, Vector2(5 * 192, 0) + Vector2(96, 140), 1.6)
+ 		for team in 2:
+ 			for heavy in 2:
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index fd3d66e..13fae68 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index 218c17b..e6f17cf 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -806,3 +806,16 @@ func test_table_view_v130() -> void:
+ 	ok(MA._Painter.FACE_H <= 16.0 and BU.BOARD_EDGE_H <= 14.0, "立面高度 ≤ 半格；立面畫在牆格自己裡面（不往北伸）")
+ 	g.free()
+ 	SV.settings = keep
++
++## 1.3.0 第 3 大類：底座形狀雙重編碼（藍圓、紅八角，綁隊伍；色盲也一樣）、棉布拼貼、時刻由模式決定
++func test_base_shapes_v130() -> void:
++	var Art = load("res://scripts/ui/art.gd")
++	var pts0: PackedVector2Array = Art._ell(Vector2.ZERO, 21.0, 10.5, 0.0, TAU, 20)
++	var pts1: PackedVector2Array = Art._ell(Vector2.ZERO, 21.0, 10.5, PI / 8.0, PI / 8.0 + TAU, 8)
++	ok(pts0.size() == 20 and pts1.size() == 8, "藍方底座圓（20 邊）、紅方八角（8 邊）")
++	var BU = load("res://scripts/ui/battle/battle_units.gd")
++	var a: Texture2D = BU._cotton_tex(true)
++	var b: Texture2D = BU._cotton_tex(false)
++	ok(a != null and b != null and a.get_width() == 64 and a != b, "棉布拼貼：有格線／無格線兩張、一格 64px")
++	var img: Image = a.get_image()
++	ok(img.get_pixel(0, 10).a > 0.3 and img.get_pixel(3, 0).a < 0.2, "格線一針一針（每 4px 留縫）")
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index ccf48c8..9a83133 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -444,9 +444,12 @@ func _layout_report(name: String, img: Image = null) -> void:
+ 	if TEXT_BUDGET.has(name) and int(Save.s("text_scale")) == 100 and free_n > tb_max:
+ 		bad.append({"type": "文字段數超過上限", "n": free_n, "max": tb_max})
+ 	sizes.sort()
++	var art := _art_checks(img)
++	if float(art["black_pct"]) > 1.0:
++		bad.append({"type": "純黑像素超過 1%", "pct": art["black_pct"]})   # 1.3.0 §4：美感報表的第一條變門檻（憲法 3：禁純黑）
+ 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
+ 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
+-		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": _art_checks(img),
++		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art,
+ 		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size()})   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
+ 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
+ 	f.seek_end()
+diff --git a/game/tools/layout_check.sh b/game/tools/layout_check.sh
+index 652a055..e863158 100755
+--- a/game/tools/layout_check.sh
++++ b/game/tools/layout_check.sh
+@@ -98,7 +98,10 @@ arts=[d for d in rows if 'art' in d]
+ if arts:
+     blk=sorted(arts, key=lambda d:-d['art']['black_pct'])
+     u=sum(d['art']['units'] for d in arts); lu=sum(d['art']['low_units'] for d in arts)
+-    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子輪廓對比 < 3:1 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
++    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%；1.3.0 起算違規）；棋子輪廓對比 < 3:1 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
++    worst=sorted([d for d in arts if d['art']['units']>=10], key=lambda d:-d['art']['low_units']/d['art']['units'])[:3]
++    if worst:
++        print('LAYOUT 棋子低對比最多的戰鬥畫面：' + '、'.join('%s %s%d%% %.0f%%' % (d['shot'], d['lang'], d['scale'], 100.0*d['art']['low_units']/d['art']['units']) for d in worst))
+ # 1.3.0 R11：量到的格子字總數；全部是 0 代表探針沒接上（不能當成「沒有違規」）
+ rc=sum(d.get('r11_cells',0) for d in rows)
+ print('LAYOUT R11 格子字 %d 段（%d 張畫面有格子）' % (rc, sum(1 for d in rows if d.get('r11_cells',0)>0)))

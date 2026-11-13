@@ -204,6 +204,9 @@ func _tone() -> Color:
 		return Color(1.0, 0.72, 0.45, 0.07)
 	if rules != null and rules.time_of != 0:
 		return Color(0.95, 0.42, 0.3, 0.16) if rules.time_of == 1 else Color(0.12, 0.16, 0.42, 0.30)
+	var mt := _mode_tone()
+	if mt.a > 0.0:
+		return mt
 	match mode:
 		Mode.PUZZLE:
 			return Color(0.95, 0.42, 0.3, 0.16)    # 黃昏
@@ -212,6 +215,20 @@ func _tone() -> Color:
 	return Color(1.0, 0.72, 0.45, 0.07)            # 晨曦
 
 
+
+## 1.3.0 §4：時刻由模式決定（不讀真實時鐘，截圖可重現）。只看「這一場」的正式對局上下文：
+## 重播、看代碼、觀戰不套（Codex cat03 #1：同一個代碼不會因為前一場不同而變色）；戰役優先於每日（每日的規格可能殘留）。
+func _mode_tone() -> Color:
+	if mode != Mode.VS_AI or play_kind != "official":
+		return Color(0, 0, 0, 0)
+	var camp: String = str(get("camp_id")) if get("camp_id") != null else ""
+	if camp != "":
+		var ch := int(camp.substr(1, 1)) if camp.length() > 1 else 1   # 戰役依章：1 晨、2 午、3 黃昏、4 夜、5 燈下
+		return [Color(1.0, 0.72, 0.45, 0.07), Color(1.0, 0.95, 0.85, 0.03), Color(0.95, 0.42, 0.3, 0.16), Color(0.12, 0.16, 0.42, 0.30), Color(1.0, 0.62, 0.25, 0.18)][clampi(ch - 1, 0, 4)]
+	var dsp = get("daily_spec")
+	if dsp is Dictionary and not (dsp as Dictionary).is_empty():
+		return Color(0.7, 0.85, 1.0, 0.07)         # 每日挑戰：清晨（偏藍的淡光）
+	return Color(0, 0, 0, 0)
 
 ## 圖示膠囊標籤（R6）：kind＝"coin"／"unit"／"team"。回傳寬度。
 func _pill(p: Vector2, kind: String, label: String, col: Color, size := 16, cap := 99) -> float:

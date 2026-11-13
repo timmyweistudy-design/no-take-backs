@@ -496,7 +496,7 @@ func test_b14_layers_v110() -> void:
 	var art := FileAccess.get_file_as_string("res://scripts/ui/art.gd")
 	ok(art.contains("static func base_trim") and art.contains("base_trim(ci, p, type, scale)"), "底座部件另一層")
 	var sc := FileAccess.get_file_as_string("res://scripts/ui/sprite_cache.gd")
-	ok(sc.contains("Vector2i(14 * CELL, CELL)") and sc.contains("var fan := 4 if type >= D.COUNT else 0"), "部件烘進合成格（每隻還是一次貼圖），王國／奇幻各一組")
+	ok(sc.contains("Vector2i(15 * CELL, CELL)") and sc.contains("var fan := 4 if type >= D.COUNT else 0"), "部件烘進合成格（每隻還是一次貼圖），王國／奇幻各一組")
 
 ## 1.2.0 §15.1：開覆盤時「原本那一場」的基準在背景算：打開立刻回來、算完才填、離開就叫停。
 func test_review_base_async_v120() -> void:
@@ -806,3 +806,18 @@ func test_table_view_v130() -> void:
 	ok(MA._Painter.FACE_H <= 16.0 and BU.BOARD_EDGE_H <= 14.0, "立面高度 ≤ 半格；立面畫在牆格自己裡面（不往北伸）")
 	g.free()
 	SV.settings = keep
+
+## 1.3.0 第 3 大類：底座形狀雙重編碼（藍圓、紅八角，綁隊伍；色盲也一樣）、棉布拼貼、時刻由模式決定
+func test_base_shapes_v130() -> void:
+	var Art = load("res://scripts/ui/art.gd")
+	ok(Art.base_poly(Vector2.ZERO, 0, 21.0, 10.5).size() == 20 and Art.base_poly(Vector2.ZERO, 1, 21.0, 10.5).size() == 8, "實際用的底座形狀：藍方圓（20 邊）、紅方八角（8 邊）")
+	var art_src := FileAccess.get_file_as_string("res://scripts/ui/art.gd")
+	var sc_src := FileAccess.get_file_as_string("res://scripts/ui/sprite_cache.gd")
+	ok(art_src.contains("ring_base(ci, p, scale, 1.0, team)"), "合成格的底座照隊伍畫（ring 傳 team）")
+	ok(sc_src.contains("Rect2((14 if team == 1 else 4) * CELL") and sc_src.count("(14 if team == 1 else 4)") == 2, "跳起來分層、倒下底座都照隊伍取格")
+	var BU = load("res://scripts/ui/battle/battle_units.gd")
+	var a: Texture2D = BU._cotton_tex(true)
+	var b: Texture2D = BU._cotton_tex(false)
+	ok(a != null and b != null and a.get_width() == 64 and a != b, "棉布拼貼：有格線／無格線兩張、一格 64px")
+	var img: Image = a.get_image()
+	ok(img.get_pixel(0, 10).a > 0.3 and img.get_pixel(3, 0).a < 0.2, "格線一針一針（每 4px 留縫）")

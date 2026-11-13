@@ -287,12 +287,13 @@ class _Painter extends Node2D:
 							draw_line(o3 + Vector2(2, Q * 0.75), o3 + Vector2(Q * 0.7, 3), Color(1, 1, 1, 0.16), 2.0, true)
 						draw_arc(o3 + Vector2(Q / 2, (h3 % 20) + 6), 9.0, 0.3, 2.6, 8, Color(1, 1, 1, 0.22), 1.4, true)
 					"lava":
-						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(1, 0.6, 0.1, 0.25 + (h3 % 30) / 100.0))
+						draw_rect(Rect2(o3, Vector2(Q, Q)), Color(1, 0.6, 0.1, 0.12 + (h3 % 30) / 200.0))   # 1.3.0 §3：岩漿不自發光——亮度壓一階，靠燈在金泥上的反光點
 						# 硬殼與裂縫：暗塊之間透出亮岩漿
 						for kl in 2:
 							draw_circle(o3 + Vector2((h3 >> kl) % 30, (h3 >> (kl + 2)) % 30), 7.0 + kl * 2.0, Color("#3a2320"), true, -1.0, true)
-						if h3 % 3 == 0:   # 第十輪 V6：裂縫不要每格一條，才不會像條紋
+						if h3 % 2 == 0:   # 第十輪 V6：裂縫不要每格一條，才不會像條紋（1.3.0：每兩格一條，金泥看得到）
 							draw_line(o3 + Vector2(h3 % 12, 4 + h3 % 8), o3 + Vector2(6 + h3 % 22, 18 + h3 % 12), Color("#d4a843"), 1.6, true)   # 1.2.0 §5.2 金繼：金泥細線，不發光
+							draw_circle(o3 + Vector2(h3 % 12, 4 + h3 % 8), 1.2, Color(1, 0.97, 0.85, 0.85), true, -1.0, true)   # 1.3.0：金泥上的燈反光點（左上那一端）
 					"canyon":
 						# 山崖：上面亮、岩層橫紋不對齊，不要像磚牆
 						draw_rect(Rect2(o3, Vector2(Q, Q)), Color("#6d3a26"))
@@ -428,6 +429,9 @@ class _Painter extends Node2D:
 							draw_circle(sp, 2.6, Color("#b2322a"), true, -1.0, true)
 							draw_circle(sp + Vector2(-0.8, -0.8), 0.6, Color(1, 1, 1, 0.9), true, -1.0, true)
 					"ice":   # 冰湖雪原：白瓷冰裂紋＋磨砂細點
+						if v == t.FAST and h % 3 == 1:   # 1.3.0 §3：冰面「下面」一層淡藍裂紋（比白瓷紋深、淡，看得出冰有厚度）
+							var ua := o + Vector2((h >> 2) % 28, (h >> 5) % 28)
+							draw_polyline(PackedVector2Array([ua, ua + Vector2(10 - (h >> 7) % 20, 7), ua + Vector2(4, 14)]), Color(0.3, 0.5, 0.72, 0.22), 1.4, true)
 						if h % 4 == 0:
 							var a := o + Vector2(h % 30, (h / 3) % 30)
 							var b := a + Vector2(8 - (h >> 4) % 16, 6 + (h >> 6) % 6)

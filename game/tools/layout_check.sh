@@ -98,7 +98,12 @@ arts=[d for d in rows if 'art' in d]
 if arts:
     blk=sorted(arts, key=lambda d:-d['art']['black_pct'])
     u=sum(d['art']['units'] for d in arts); lu=sum(d['art']['low_units'] for d in arts)
-    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%）；棋子輪廓對比 < 3:1 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
+    print('LAYOUT 美感報表：純黑像素 > 1%% 的畫面 %d 張（最高 %s %.1f%%；1.3.0 起算違規）；棋子輪廓對比 < 3:1 的 %d／%d 隻' % (sum(1 for d in arts if d['art']['black_pct']>1), blk[0]['shot'], blk[0]['art']['black_pct'], lu, u))
+    # 1.3.0 §4：每張戰鬥截圖（≥5 隻）低對比棋子 >8% 逐張列警告（先當警告、不擋；量一輪再定門檻）
+    lw=[d for d in arts if d['art']['units']>=5 and d['art']['low_units']/d['art']['units']>0.08]
+    print('LAYOUT 美感警告：棋子低對比 >8%% 的戰鬥畫面 %d 張' % len(lw))
+    for d in sorted(lw, key=lambda d:-d['art']['low_units']/d['art']['units'])[:12]:
+        print('  美感警告 %s %s %d%%：低對比棋子 %d／%d（%.0f%%）' % (d['shot'], d['lang'], d['scale'], d['art']['low_units'], d['art']['units'], 100.0*d['art']['low_units']/d['art']['units']))
 # 1.3.0 R11：量到的格子字總數；全部是 0 代表探針沒接上（不能當成「沒有違規」）
 rc=sum(d.get('r11_cells',0) for d in rows)
 print('LAYOUT R11 格子字 %d 段（%d 張畫面有格子）' % (rc, sum(1 for d in rows if d.get('r11_cells',0)>0)))
