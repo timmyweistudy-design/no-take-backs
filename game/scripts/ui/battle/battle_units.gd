@@ -196,6 +196,13 @@ func _crowd_at(u) -> int:
 
 
 ## 暫停時點一隻兵看狀態（第七輪 A6）。
+## 暫停資料卡的位置：右上（頂欄下留 10px）；所選兵在那附近時改放左上。放大鏡也避開這一角（Codex v150 cat08 #1）
+func unit_info_rect(n: int, sp: Vector2) -> Rect2:
+	var R := Rect2(980, 146, 286, 16 + n * tz("S") * 1.4)   # 讓開「最後時刻」橫條（110～140，半透明深色會壓到標題）
+	if R.grow(40).has_point(sp):
+		R.position.x = 14.0
+	return R
+
 func _draw_unit_info() -> void:
 	if not paused or follow_id < 0 or view == null:
 		return
@@ -212,11 +219,16 @@ func _draw_unit_info() -> void:
 		L.t("ui_cd", ["%.1f" % (u.cd / 80.0)]),
 		L.t("ui_stats", [u.dmg_dealt, u.kills]),
 	]
-	var R := Rect2(980, 96, 286, 16 + lines.size() * tz("S") * 1.4)
-	draw_rect(R, Color(TH_WOOD_D, 0.94))
-	draw_rect(R, Color(Art.team_color(u.team, cbm()), 0.9), false, 2.0)
+	# 1.5.0 §13：黑底等寬資訊框 → 米紙浮籤（左緣一條隊色布條）；放在畫面右上，所選兵在右上時改放左上（不蓋住牠）
+	var R := unit_info_rect(lines.size(), _cam * _upos(u))
+	draw_rect(Rect2(R.position + Vector2(3, 5), R.size), Color(DIM_INK, 0.4))
+	draw_rect(R, Color("#f1e7d0"))   # 平塗米紙（紙紋貼圖上緣那條深色帶會讓標題對比不足；layout 對比檢查）
+	draw_rect(R, Color(0.45, 0.33, 0.2, 0.6), false, 1.0)
+	draw_rect(Rect2(R.position, Vector2(6, R.size.y)), Color(Art.team_color(u.team, cbm()), 0.95))
+	_ink_mode = true
 	for i in lines.size():
-		_text(R.position + Vector2(10, 8 + i * tz("S") * 1.4), lines[i], tz("S"), Color.WHITE, false, i == 0, 266)
+		_text(R.position + Vector2(16, 8 + i * tz("S") * 1.4), lines[i], tz("S"), Color.WHITE, false, i == 0, 260)
+	_ink_mode = false
 
 
 

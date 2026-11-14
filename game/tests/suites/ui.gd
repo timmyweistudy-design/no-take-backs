@@ -2600,3 +2600,9 @@ func test_typography_v150() -> void:
 	ok(gr.find("L.t(\"fingerprint\", [sim.fingerprint.substr(0, 12)])") < 0 and gr.find("DisplayServer.clipboard_set(fpc)") >= 0, "校驗碼收進「複製」小鈕（仍複製完整碼）")
 	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
 	ok(gv.find("_ink(Color.WHITE) if last_btn_paper else Color.WHITE") >= 0, "異變實驗室：紙面鈕用墨字")
+
+func test_polish_v150() -> void:
+	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(gv.find("_btn(br, label, func(): overlay = \"\"; _pick_puzzle(pid, false))") >= 0, "老闆出題三題都是次鈕（不再三條亮紅主鈕）")
+	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu.find("if R.grow(40).has_point(sp):") >= 0 and bu.find("draw_rect(R, Color(TH_WOOD_D, 0.94))") < 0, "暫停資料卡改米紙浮籤，所選兵在右上時移到左上")

@@ -1151,7 +1151,7 @@ func _draw_bmag() -> void:
 		return   # 偽裝、潛行中的不給特寫（不洩漏真身；Codex cat06 #3）
 	var banned: Array = []
 	if paused:
-		banned.append(3)   # 暫停時右上是資料卡
+		banned.append(2 if unit_info_rect(5, _cam * _upos(u)).position.x < 640.0 else 3)   # 暫停時資料卡那一角（右上，或所選兵在右上時的左上）
 	if call("_replay_controls_active"):
 		banned.append(0)   # 重播時左下是時光機、GIF 鈕（Codex cat06 #7）
 	mag_corner_i = DirR.mag_corner(MAG_CORNERS, _cam * _upos(u), mag_corner_i, banned, 260.0)

@@ -2479,7 +2479,16 @@ func _draw_owner_daily() -> void:
 		var mark := L.t("od_done") if id in done else L.t("od_todo")
 		var label := "%s　%s　%s" % [L.field(pz, ""), "★".repeat(st) + "☆".repeat(3 - st), mark]
 		var pid: String = id
-		_btn(Rect2(P.position.x + 40, y, P.size.x - 80, 44), label, func(): overlay = ""; _pick_puzzle(pid, false), true, not id in done)
+		# 1.5.0 §13：三顆都是次鈕（原本三條亮紅主鈕太刺眼）；左邊一個木章凹槽：做過＝蓋了紅泥章、沒做＝空槽
+		var br := Rect2(P.position.x + 40 + 48, y, P.size.x - 80 - 48, 44)
+		_btn(br, label, func(): overlay = ""; _pick_puzzle(pid, false))
+		var sc := Vector2(P.position.x + 40 + 20, y + 22)
+		draw_circle(sc, 18.0, Color(0.78, 0.62, 0.42), true, -1.0, true)   # 槽緣木刻高光（Hydrogen v150 cat08 #3：原本太暗看不出是凹槽）
+		draw_circle(sc + Vector2(0, 1), 14.0, Color(0.22, 0.13, 0.07), true, -1.0, true)   # 內凹
+		draw_arc(sc + Vector2(0, 1), 11.0, PI * 1.1, PI * 1.9, 12, Color(0, 0, 0, 0.45), 2.0, true)   # 上緣內陰影
+		if id in done:
+			draw_circle(sc, 12.0, Color(PAL.TRINKET_RED, 0.92), true, -1.0, true)
+			_hand_ring(sc, 8.5, Color(1, 0.88, 0.78, 0.7), 1.5)
 		y += rowh + GAP_S
 	y += GAP_M - GAP_S
 	_text(Vector2(640, y), foot, tz("S"), ACCENT, true, false, 640)
