@@ -1939,7 +1939,7 @@ func _draw_editor() -> void:
 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
 					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
 			if cx <= 5 or cx >= 10:
-				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true})
+				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true, "grid": true})
 	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
 	if WS3.ED_GOALS[ed_goal] == "trio":
 		# 三考：敵陣 1／2／3 分頁（欄標的位置）

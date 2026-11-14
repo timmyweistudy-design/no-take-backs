@@ -292,10 +292,12 @@ func _draw_title() -> void:
 		var pulse := 0.5 + 0.5 * sin(time * 3.0)
 		draw_rect(Rect2(68, y0 - 2, PW + 4, float(phs[0]) + 4), Color(ACCENT, 0.5 + 0.5 * pulse), false, 3.0)
 	var y2 := y0 + col_h + gap + 4
-	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): call("_quit_mark"); get_tree().quit()]]
+	var sys := [["menu_settings", func(): _open("settings")], ["menu_quit", func(): call("_quit_mark"); get_tree().quit()]]   # 1.5.0：代碼移到收藏
+	var sbw := (PW - 8.0 * (sys.size() - 1)) / sys.size()   # 系統鈕平分左欄寬度（和木牌同寬，左欄中線不變）
 	for i in sys.size():
-		_btn(Rect2(70 + i * 126, y2, 118, 40), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
-	probe_align("home_col", [Rect2(HOME_CX - tw / 2 - 60, 40, tw + 120, tsz), Rect2(70, y0, PW, col_h + gap), Rect2(70, y2, 2 * 126 + 118, 40)])
+		_btn(Rect2(70 + i * (sbw + 8.0), y2, sbw, 40), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
+	probe_align("home_col", [Rect2(HOME_CX - tw / 2 - 60, 40, tw + 120, tsz), Rect2(70, y0, PW, col_h + gap), Rect2(70, y2, PW, 40)])
+	screen_register("title", "plaque_battle")   # 1.5.0 §1.1：主動作＝對戰
 	call("_draw_next_step")   # V1.6 #1
 	# 底部：最佳紀錄、版本
 	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), TXT_DIM, false, false, 380)
@@ -325,7 +327,9 @@ func tut_remove_text() -> String:
 func _draw_overlay() -> void:
 	if overlay != "":
 		_btns.clear()   # 覆蓋層底下畫面的按鈕不能被點到（例如擺放畫面的開戰、結果頁的按鈕）
+		probe_screen = {}   # 1.5.0 R14：底下畫面的登記也清掉，由疊層自己登記（Codex v150 cat02 #2）
 		probe_texts.clear()   # 第五輪：底下畫面的字被遮罩蓋住，版面檢查只量覆蓋層本身
+		probe_icons.clear()   # 1.5.0：底下畫面的圖示也一樣（結果頁星級改成圖示後，教練疊層下面的星星被量到）
 		probe_btns.clear()
 		probe_ctrls.clear()
 		probe_reset_geom()
@@ -377,6 +381,8 @@ func _draw_overlay() -> void:
 			_draw_boss_note()   # 1.2.0 §12
 		"res_facts":
 			call("_draw_res_facts")   # 1.2.0
+		"res_more":
+			call("_draw_res_more")   # 1.5.0 §1.5
 		"wk_ghosts":
 			call("_draw_wk_ghosts")   # 1.2.0 §15.4
 		"relay":
@@ -1558,7 +1564,8 @@ func hub_items(kind: String) -> Array:
 				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
 				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
 				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true],   # V1.6.1 N2 新玩法導覽（常駐）
-				["sb_title", "hc_sb_d", "book", func(): overlay = "songbook"; _focus = 0, true]]   # 1.2.0 §11.8 棋譜本
+				["sb_title", "hc_sb_d", "book", func(): overlay = "songbook"; _focus = 0, true],   # 1.2.0 §11.8 棋譜本
+				["menu_codes", "hc_codes_d", "copy", func(): overlay = "codes"; _focus = 0, true]]   # 1.5.0 §1.1：代碼從標題系統鈕移到收藏（標題只留設定、離開）
 	return []
 
 func _draw_hub(kind: String) -> void:
@@ -1621,6 +1628,7 @@ const HUBS := ["hub_play", "hub_gauntlet", "hub_challenge", "playroom", "hub_col
 const Recent = preload("res://scripts/game/recent.gd")
 
 ## 1.2.0 §11.11 最近玩的：主畫面右上（建議下一步下方）最多 3 顆，點了等於點那張卡片。
+const RECENT_MAX := 1   # 1.5.0 §1.1：標題「最近玩的」只留 1 項（R14 標題上限 9）
 func _draw_recent(y: float) -> void:
 	if overlay != "":
 		return
@@ -1628,7 +1636,7 @@ func _draw_recent(y: float) -> void:
 	var shown: Array = []
 	for e in list:
 		for it in hub_items(str(e["h"])):
-			if str(it[0]) == str(e["k"]) and bool(it[4]):
+			if str(it[0]) == str(e["k"]) and bool(it[4]) and shown.size() < RECENT_MAX:
 				shown.append([str(e["h"]), it])
 	if shown.is_empty():
 		return
@@ -1640,7 +1648,10 @@ func _draw_recent(y: float) -> void:
 		var ek := str(it[0])
 		var cb: Callable = it[3]
 		btn_paper = true   # Antigravity cat08 #1：紙籤（和主畫面卡片同一套），不是深色膠囊
-		_btn(Rect2(830, y, 400, 40), "", func(): nav_hub = kind; Guide.see(Save.data, ek); Save.data["recent"] = Recent.push(Save.data.get("recent", []), kind, ek); cb.call(), true, false)
+		var go: Callable = cb
+		if ek == "menu_vs_ai" and call("quick_rematch_ok"):
+			go = func(): overlay = ""; call("_quick_rematch")   # 1.5.0 §1.1 兩步開戰
+		_btn(Rect2(830, y, 400, 40), "", func(): nav_hub = kind; Guide.see(Save.data, ek); Save.data["recent"] = Recent.push(Save.data.get("recent", []), kind, ek); go.call(), true, false)
 		btn_paper = false
 		_ink_mode = not bool(Save.s("plain_ui"))
 		_icon(str(it[2]), Vector2(852, y + 20), 22.0, Color("#7a4a10") if _ink_mode else ACCENT)

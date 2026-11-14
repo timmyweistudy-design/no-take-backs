@@ -249,7 +249,7 @@ func layout_geom_input() -> Dictionary:
 	return {"panels": probe_panels, "ribbons": probe_ribbons, "decos": probe_decos, "aligns": probe_aligns,
 		"texts": probe_texts.filter(func(t): return not t.get("field", false)), "btns": probe_btns, "focus_out": 3.0,
 		"boxes": probe_boxes.map(func(b): return b["r"]), "overlay": overlay, "need": need, "icons": probe_icons,
-		"panelless_ok": overlay in PANELLESS_OVERLAYS}
+		"panelless_ok": overlay in PANELLESS_OVERLAYS, "screen": probe_screen, "clicks": click_count()}
 
 
 ## 1.2.0 §14.7 美感自動檢查（第一批，先當報表、不擋）：
@@ -802,7 +802,13 @@ func _run_screenshots() -> void:
 	ink_force = false
 	result_t = time - 5.0
 	result_tab = 1
+	await _snap("v150_05e_result_flow.png")   # 1.5.0 §1.5：走勢與事件（原本首屏的曲線、事實）
+	result_tab = 2
 	await _snap("05b_result_details.png")
+	result_tab = 0
+	overlay = "res_more"   # 1.5.0 §1.5：底列「更多」
+	await _snap("v150_05f_result_more.png")
+	overlay = ""
 	if pc_shot != null:   # V1.4 #14 戰報明信片
 		overlay = "postcard"
 		await _snap("05c_postcard.png")
@@ -1744,13 +1750,18 @@ func _pad_walk() -> void:
 	_go_title()
 	await _pw_frames(3)
 	await _pw_cycle("標題")
-	for step in [[0, "hub_play"], [1, "hub_gauntlet"], [2, "hub_challenge"], [3, "playroom"], [4, "hub_collect"], [5, "settings"], [6, "codes"]]:   # V1.5：五塊木牌（0～4）＋系統列（5 設定、6 代碼、7 離開）
+	for step in [[0, "hub_play"], [1, "hub_gauntlet"], [2, "hub_challenge"], [3, "playroom"], [4, "hub_collect"], [5, "settings"]]:   # V1.5：五塊木牌（0～4）＋系統列（5 設定、6 離開；1.5.0 代碼移到收藏，下面另走）
 		_go_title()
 		await _pw_pick(step[0], "標題→" + str(step[1]))
 		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])
 		await _pw_cycle(str(step[1]))
 		await _pw_btn(JOY_BUTTON_B)
 		_pw_check(overlay == "", "%s：B 關不掉" % step[1])
+	_go_title()
+	await _pw_pick(4, "標題→收藏")
+	await _pw_pick(7, "收藏→代碼")   # 1.5.0：代碼在收藏第 8 張
+	_pw_check(overlay == "codes", "收藏→代碼：現在是 %s" % overlay)
+	await _pw_cycle("codes")
 	_go_title()
 	await _pw_pick(0, "標題→對戰")
 	await _pw_pick(1, "對戰→對 AI 大廳")

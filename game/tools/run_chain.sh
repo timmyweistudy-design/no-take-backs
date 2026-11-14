@@ -26,7 +26,12 @@ win_godot_since() {   # 這條鏈開始之後啟動的 Windows Godot（WSL 砍�
 }
 leftover() {   # 這一輪是否還有殘留：程序群裡除了收尾者自己以外的程序、或這輪開始後啟動的 Windows Godot（查詢失敗也算有殘留）
   local pg="$1" st="$2" self="${3:-}" others w
-  others=$(sess_pids "$pg" | grep -v "^${self:-x}$" | grep -v '^$' || true)
+  # 收尾者自己與它開的子程序（這裡的 ps／grep 管線也在同一個 session）不算殘留
+  others=$(ps -eo pid=,sid=,ppid= 2>/dev/null | awk -v s="$pg" -v me="${self:-0}" -v sh="$$" '
+    { pid[$1]=$1; sid[$1]=$2; par[$1]=$3 }
+    END { for (p in pid) { if (sid[p]!=s) continue; q=p; mine=0; n=0
+            while (q!="" && q>1 && n<50) { if (q==me || q==sh) { mine=1; break } q=par[q]; n++ }
+            if (!mine) print p } }' || true)
   w=$(win_godot_since "$st") || { echo "Windows 查詢失敗"; return 0; }
   [ -n "$others$w" ] && { echo "程序群：$others Windows：$w"; return 0; }
   return 1

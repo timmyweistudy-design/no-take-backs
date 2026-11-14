@@ -2337,3 +2337,52 @@ func test_input_matrix_v150() -> void:
 		Save.settings[k] = keep[k]
 	ok(n == 124, "輸入矩陣 124 組：來源 6 × 時機 4 × 組合 5＋回歸 4（%d）" % n)
 	ok(bad.is_empty(), "輸入矩陣全過：轉場中零穿透、放開零卡鎖、之後正常點擊不被吃", "\n".join(bad.slice(0, 20)))
+
+
+## 1.5.0 第 2 批：主動作登記＋R14、標題、結果首屏、兩步開戰
+func test_r14_v150() -> void:
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	var has := func(out: Dictionary, lvl: String) -> bool:
+		for v in out[lvl]:
+			if str(v["type"]) == "R14":
+				return true
+		return false
+	ok(not has.call(LR.check({"screen": {"cls": "title", "main": "plaque_battle", "skip": ""}, "clicks": 9}), "fail"), "標題 9 個可點元件：通過")
+	ok(has.call(LR.check({"screen": {"cls": "title", "main": "plaque_battle", "skip": ""}, "clicks": 10}), "fail"), "標題 10 個：失敗（已改造的類別）")
+	var ex: Dictionary = LR.check({"screen": {"cls": "result", "main": "x", "skip": "測試理由"}, "clicks": 9})
+	ok(not has.call(ex, "fail") and not (ex["exempt"] as Array).is_empty(), "登記豁免理由：不算失敗、列進宣告例外")
+	ok(has.call(LR.check({"screen": {"cls": "settings", "main": "x", "skip": ""}, "clicks": 30}), "warn") and not has.call(LR.check({"screen": {"cls": "settings", "main": "x", "skip": ""}, "clicks": 30}), "fail"), "還沒改造的類別：超標只警告")
+	ok(has.call(LR.check({"screen": {"cls": "title", "main": "", "skip": ""}, "clicks": 3}), "fail"), "登記了類別卻沒有主動作：失敗")
+	ok(LR.check({"clicks": 99})["fail"].is_empty(), "沒登記的畫面不查 R14")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true})
+	g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true, "grid": true})
+	ok(g.click_count() == 1, "棋盤格這類 grid 不算可點元件")
+	g.free()
+	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	ok(gm.find("screen_register(\"title\", \"plaque_battle\")") >= 0 and gm.find("[\"menu_codes\", func(): overlay = \"codes\"") < 0, "標題登記主動作；代碼不在標題系統列")
+	ok(gm.find("[\"menu_codes\", \"hc_codes_d\", \"copy\"") >= 0, "代碼移到收藏第二層")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("screen_register(\"result\"") >= 0 and gr.find("while bs.size() > RES_MAIN_MAX:") >= 0, "結果登記主動作；主動作最多 2 顆，其他進「更多」")
+
+func test_quick_rematch_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	var Save = load("res://scripts/game/save.gd")
+	var keep = Save.data.get("last_rules", {})
+	Save.data["last_rules"] = {}
+	ok(not g.quick_rematch_ok(), "沒有上次的大廳設定：不走兩步開戰（照舊進大廳）")
+	var keep_f = Save.data.get("last_form", "")
+	Save.data["last_rules"] = {"ai": load("res://scripts/core/ruleset.gd").standard().to_code()}
+	Save.data["last_form"] = ""
+	ok(not g.quick_rematch_ok(), "有規則但沒有上次陣型：照舊進大廳（Codex v150 cat02 #4）")
+	Save.data["last_form"] = "x"
+	ok(g.quick_rematch_ok(), "有上次規則與陣型：最近玩的直接進擺陣")
+	Save.data["last_rules"] = {"ai": "壞掉的碼"}
+	ok(not g.quick_rematch_ok(), "上次規則讀不回來：照舊進大廳（不悄悄換成標準）")
+	Save.data["last_rules"] = keep
+	Save.data["last_form"] = keep_f
+	g.free()
+	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	ok(gm.find("if ek == \"menu_vs_ai\" and call(\"quick_rematch_ok\"):") >= 0, "最近玩的：對 AI 快速對戰走兩步開戰")

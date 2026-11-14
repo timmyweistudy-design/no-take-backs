@@ -357,6 +357,17 @@ var layout_probe := false
 var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
 var probe_texts: Array = []
 var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
+var probe_screen := {}
+func screen_register(cls: String, main: String, skip_why := "") -> void:
+	probe_screen = {"cls": cls, "main": main, "skip": skip_why}
+## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算）
+func click_count() -> int:
+	var n := 0
+	for b in _btns:
+		if not bool(b.get("grid", false)):
+			n += 1
+	return n
 var probe_ctrls: Array = []
 # V1.5.2 排版幾何探針（scripts/ui/layout_rules.gd 檢查）：_panel、_h1 自動登記；依附裝飾、同欄對齊、例外由畫面宣告
 var probe_panels: Array = []

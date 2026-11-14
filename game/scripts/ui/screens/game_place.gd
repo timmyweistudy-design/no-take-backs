@@ -1038,7 +1038,7 @@ func _draw_plan_timeline(R: Rect2) -> void:
 		if i == plan_sel:
 			_hand_ring(cpos, 19.0, ACCENT, 2.6, true)
 		var ii := i
-		_btns.append({"r": Rect2(cpos - Vector2(16, 16), Vector2(32, 32)), "cb": func(): plan_sel = ii, "en": true})
+		_btns.append({"r": Rect2(cpos - Vector2(16, 16), Vector2(32, 32)), "cb": func(): plan_sel = ii, "en": true, "grid": true})
 	if plan_drag >= 0 and not pressed:
 		# 放開：照冷卻與開場限制修正後落子
 		if plan_drag < puzzle_plan.size():
@@ -1051,7 +1051,7 @@ func _draw_plan_timeline(R: Rect2) -> void:
 	_btns.append({"r": Rect2(ruler.position.x, ruler.position.y + 44, ruler.size.x, ruler.size.y - 44), "cb": func():
 		var tt := int(clampf((mouse.x - ruler.position.x) / ruler.size.x, 0.0, 1.0) * goal / 10.0) * 10
 		if plan_sel >= 0 and plan_sel < puzzle_plan.size():
-			puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, tt - PZ.plan_tick(pz, int(puzzle_plan[plan_sel]))), "en": true})
+			puzzle_plan = PZ.plan_fix(pz, puzzle_plan, plan_sel, tt - PZ.plan_tick(pz, int(puzzle_plan[plan_sel]))), "en": true, "grid": true})
 	# 說明列：選取的是哪一道、幾秒；連鎖
 	var y := ruler.end.y + tz("C") * 1.6 + 8
 	if plan_sel >= 0 and plan_sel < puzzle_plan.size():

@@ -57,6 +57,23 @@ func _open_lobby(kind: String) -> void:
 	lobby_tab = 0
 	_open("lobby")
 
+## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
+## （主畫面「最近玩的」→ 擺陣「開戰」＝2 次點擊）；沒有上次設定、或上次設定現在不能開（未解鎖、試玩版）就照舊進大廳。
+func quick_rematch_ok() -> bool:
+	# 上次規則要讀得回來、上次陣型要有——任一不行就照舊進大廳（不悄悄換成標準規則；Codex v150 cat02 #4）
+	var code := str(Save.data.get("last_rules", {}).get("ai", ""))
+	if code == "" or str(Save.data.get("last_form", "")) == "":
+		return false
+	return bool(RuleSet.from_code(code)["ok"])
+
+func _quick_rematch() -> void:
+	_open_lobby("ai")
+	if not quick_rematch_ok() or _lobby_block() != "" or lobby_r.to_code() != str(Save.data.get("last_rules", {}).get("ai", "")):
+		return   # 停在大廳（照舊）：規則讀回來不一樣＝有東西被換掉，讓玩家看一眼
+	_lobby_start()
+	if state == St.PLACE and armies.size() > 0 and armies[0].units.is_empty():
+		call("_deploy_tool", "last")   # 帶上次陣型（不合這次規則的照 _load_checked 擋、提示，留在擺陣自己調）
+
 func _lobby_clamp() -> void:
 	Presets.clamp_pool(lobby_r, lobby_kind, _lobby_unlocked(), _demo())
 

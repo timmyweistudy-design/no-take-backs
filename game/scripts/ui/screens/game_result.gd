@@ -170,7 +170,7 @@ func _draw_result() -> void:
 		# 布幔包住標題＋摘要第一行，下緣金邊落在第一行和勝負敘述之間的空隙；高度用實際（fit 後）字級，和正文推進同一算法
 		var y1 := 112.0 + nxt * 1.25 + (float(tz("C")) * 1.4 if play_kind == "review" else 0.0)
 		var l1h := y1 - (112.0 + nxt * 1.25) + text_h(l1, fit(l1, tz("S"), rib_in), rib_in)
-		var rh := 112.0 + nxt * 1.25 + l1h + 4.0 - ry0   # 靜態高度；開場落下時整條一起移動
+		var rh := 112.0 + nxt * 1.25 + l1h + RIB_PAD - ry0   # 靜態高度；開場落下時整條一起移動（1.5.0：下緣留 RIB_PAD，末行不貼邊）
 		var rx0 := 640.0 - tw / 2.0
 		var rib: Color = (col.darkened(0.35) if w >= 0 else Color("#5b4632"))
 		# V1.2.1 R3：勝方緞帶後方一次性放射光＋燕尾上方 6 顆金星（0.6 秒；畫在緞帶下、只在燕尾外，不擋字；簡化特效時不演）
@@ -195,10 +195,7 @@ func _draw_result() -> void:
 		col = Color("#fff6e0")
 		title_sz = nxt
 	_text(Vector2(640, 114 + drop + (title_sz * 0.08 if not bool(Save.s("plain_ui")) else 0.0)), title, title_sz, col, true, true, 540)
-	if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則（地形、撐住、技能）的代碼讀不回來，不給複製（Codex v13-r1 #1）
-		_btn(Rect2(214, 112, 140, 40), L.t("bc_copy"), func(): _copy_battle_code())   # 對戰代碼（第三輪 F3）
-	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
-		_btn(Rect2(214, 158, 140, 40), L.t("ch_copy"), func(): call("_copy_challenge"))
+	# 1.5.0 §1.5：對戰代碼、挑戰碼、圖鑑收進底列「更多」（首屏只留勝負、原因、MVP 與主鈕）
 	if report.has("trial_stars"):
 		for ks in 3:
 			# V1.2 F1：星星一顆一顆彈出（截圖、版面檢查、簡化特效時直接到位）
@@ -209,7 +206,6 @@ func _draw_result() -> void:
 			if kk > 0.0:
 				_icon("star", Vector2(610 + ks * 30, 84), 26.0 * pop * kk, Color("#ffd166") if ks < int(report["trial_stars"]) else Color(1, 1, 1, 0.2))
 	var mvp = report.get("mvp")
-	_btn(Rect2(926, 112, 140, 40), L.t("menu_codex_short"), _open_codex.bind(mvp.type if mvp != null else 0))
 	var y := 112.0 + title_sz * 1.25
 	if play_kind == "review":
 		_text(Vector2(640, y), L.t("review_tag"), tz("C"), ACCENT, true, false, 480)
@@ -219,7 +215,7 @@ func _draw_result() -> void:
 	var line1 := _result_line1(rib_in if rib_in > 0.0 else hw)
 	var hw1 := rib_in if rib_in > 0.0 else hw
 	_text(Vector2(640, y), line1, tz("S"), TXT_DIM, true, false, hw1)
-	y += text_h(line1, fit(line1, tz("S"), hw1), hw1) + 6   # 和 _text 一樣先 fit 再量
+	y += text_h(line1, fit(line1, tz("S"), hw1), hw1) + (6.0 + RIB_PAD - 4.0 if rib_in > 0.0 else 6.0)   # 和 _text 一樣先 fit 再量；緞帶加高的部分一起讓開
 	_ink_mode = paper and rib_in > 0.0   # 緞帶以下才是紙面
 	var goal_mode: bool = mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win"
 	var loss := _loss_line(w, goal_mode)
@@ -236,7 +232,62 @@ func _draw_result() -> void:
 		_text(Vector2(640, y), str(report["wager_line"]), tz("B"), Color("#ffd166"), true, true, 820)   # V1.4 #16 競猜結果
 		y += tz("B") * 1.5
 	if result_tab == 0:
-		# 戰力走勢（放大）＋最多 3 個關鍵時刻
+		# 1.5.0 §1.5 首屏三件事：勝負（緞帶）＋一句原因（上面的勝因／敗因）＋MVP（系列結束＝三枚印章）；系列比數
+		var show_mvp: bool = mvp != null and not (loss != "" and mvp.team == 1)   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
+		var lp := loss_pair(ev_count, _loss_pool()) if loss != "" else [-1, -1]
+		var use_loss: bool = loss != "" and int(lp[0]) >= 0   # 目標失敗（例：護送、剩餘戰力）時藍方雖然贏也放敗因卡（Codex v150 cat02 r2 #2）
+		if show_mvp and not use_loss:
+			# MVP 特寫：卡片高 120、木偶 2 倍，整組在剩下的空間裡偏上置中（首屏只有三件事，不留一大片空白）
+			var MH := 150.0
+			y += clampf((600.0 - y - MH - tz("B") * 1.6) * 0.45, 0.0, 90.0)
+			var mr := Rect2(250, y, 780, MH)
+			_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
+			var seals := _res_seals()
+			if seals.is_empty():
+				# 右側：傷害數字做成木活字（卡片左右平衡；Antigravity v150 cat02 r2 #2）
+				var dmg_s := str(int(mvp.dmg_dealt))
+				var dz := tz("D") if _width(dmg_s, tz("D"), true) < 200.0 else tz("B")
+				_woodtype(Vector2(mr.end.x - 120, mr.position.y + MH * 0.5 - dz * 0.75), dmg_s, dz, Color.WHITE, true, true)
+				_text(Vector2(mr.end.x - 120, mr.position.y + MH * 0.5 + dz * 0.55), L.t("mvp_dmg"), tz("C"), TXT_DIM, true, false, 200)
+			else:
+				_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
+			var foot := mr.position + Vector2(84, MH - 38)   # 底座（2.3 倍）整個收在卡片裡
+			Art.ring(self, foot, mvp.team, mvp.type, cbm(), 2.3)
+			Art.unit(self, foot, mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 2.3, cbm())
+			var ty0 := mr.position.y + (MH - tz("B") * 1.4 - text_h(L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), 600 if seals.is_empty() else 440)) * 0.5
+			_text(Vector2(mr.position.x + 170, ty0), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
+			_text(Vector2(mr.position.x + 170, ty0 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 600 if seals.is_empty() else 440)
+			y = mr.end.y + 14
+		elif use_loss:
+			# 輸了：首屏放一張「敗因卡」——主要傷害來源（紅方木偶）→ 建議改帶（藍方木偶）；字在上面那行，這裡是看得見的版本
+			if true:
+				var MH2 := 210.0   # 標籤在上、木偶在下，不互蓋；上下各留內距
+				y += clampf((600.0 - y - MH2) * 0.3, 0.0, 70.0)
+				var lr2 := Rect2(250, y, 780, MH2)
+				_box(lr2, Color(0.75, 0.3, 0.25, 0.10), Color(0.6, 0.25, 0.2, 0.45), 7.0, 1.5)
+				var fa := Vector2(500, lr2.position.y + MH2 - 34)
+				Art.ring(self, fa, 1, int(lp[0]), cbm(), 2.0)
+				Art.unit(self, fa, int(lp[0]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0, cbm())
+				_text(Vector2(fa.x, lr2.position.y + 14), L.t("loss_from"), tz("C"), TXT_DIM, true, false, 200)
+				if int(lp[1]) >= 0:
+					var fb := Vector2(780, lr2.position.y + MH2 - 34)
+					var ac := Vector2(640, lr2.position.y + MH2 * 0.6)
+					draw_line(ac - Vector2(50, 0), ac + Vector2(40, 0), Color(PAL.TRINKET_RED, 0.8), 4.0, true)
+					draw_colored_polygon(PackedVector2Array([ac + Vector2(52, 0), ac + Vector2(36, -10), ac + Vector2(36, 10)]), Color(PAL.TRINKET_RED, 0.8))
+					Art.ring(self, fb, 0, int(lp[1]), cbm(), 2.0)
+					Art.unit(self, fb, int(lp[1]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0, cbm())
+					_text(Vector2(fb.x, lr2.position.y + 14), L.t("loss_try"), tz("C"), TXT_DIM, true, false, 200)
+				y = lr2.end.y + 14
+		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
+			var need: int = rules.wins_needed() if rules != null else 2
+			var sn := L.t("series_now", [round_no, wins[0], wins[1], need])
+			if _width(sn, tz("B")) <= 780.0:
+				_woodtype(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false)   # 1.4.0 §7.2／§8.2：比數是木活字
+			else:
+				_text(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
+			y += tz("B") * 1.6
+	elif result_tab == 1:
+		# 1.5.0 §1.5：走勢與事件（原本首屏的戰力曲線、關鍵時刻、事實清單）
 		var ch := Rect2(250, y + tz("C") * 1.35 * 2 + 4, 780, 100)   # 上方留兩排標記標籤的空間
 		var km := _key_marks()
 		Charts.momentum(self, ch, sim.power_log2, sim.budget_of(0), sim.budget_of(1), km, sim.tick)
@@ -245,22 +296,9 @@ func _draw_result() -> void:
 		for m in km:
 			var mx := ch.position.x + ch.size.x * clampf(float(m["t"]) / maxf(1.0, span - 1), 0.0, 1.0)
 			var tt := int(m["t"])
-			_btns.append({"r": Rect2(mx - 18, ch.position.y, 36, ch.size.y), "cb": func(): _replay_from(tt), "en": true})
+			_btns.append({"r": Rect2(mx - 18, ch.position.y, 36, ch.size.y), "cb": func(): _replay_from(tt), "en": true, "grid": true})   # 時間軸上的點（R14 不算按鈕）
 		_text(Vector2(250, ch.end.y + 4), L.t("mom_caption"), tz("C"), TXT_DIM, false, false, 780)
 		y = ch.end.y + tz("C") * 1.6 + 6
-		if mvp != null and not (loss != "" and mvp.team == 1):   # V1.0.0 R1：輸了首屏不放對手的 MVP（留給敗因與重打）
-			var mr := Rect2(250, y, 780, 76)
-			_box(mr, Color(1, 0.82, 0.3, 0.12), Color(1, 0.82, 0.3, 0.5), 7.0, 1.5)
-			var seals := _res_seals()
-			if seals.is_empty():
-				_icon("trophy", mr.end - Vector2(34, 38), 34.0)
-			else:
-				_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
-			Art.ring(self, mr.position + Vector2(52, 66), mvp.team, mvp.type, cbm(), 1.25)
-			Art.unit(self, mr.position + Vector2(52, 66), mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.25, cbm())
-			_text(mr.position + Vector2(100, 10), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
-			_text(mr.position + Vector2(100, 10 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 660 if seals.is_empty() else 500)
-			y = mr.end.y + 10
 		# 第七輪 A1：只列事件紀錄裡查得到的事實，不說「因為」（Codex：不宣稱因果）
 		var facts := _result_facts()
 		if mode == Mode.PUZZLE and str(report.get("rec_line", "")) != "":
@@ -298,31 +336,19 @@ func _draw_result() -> void:
 			# Codex cat02 #2：放不下的事實不能就此消失 → 一顆「還有 N 條」開完整清單
 			_btn_small(Rect2(250, y, 260, more_h - 4.0), L.t("res_more_facts", [res_facts_all.size() - facts.size()]), func(): overlay = "res_facts")
 			y += more_h
-		if mode == Mode.VS_AI and sim.winner == 1 and play_kind == "official" and last_armies.size() == 2 and not watch_mode:
-			_btn(Rect2(800, y - tz("S") * 1.3 - 8, 230, 40), L.t("res_try_review"), func(): _open_review_on_first_loss())
-		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
-			var need: int = rules.wins_needed() if rules != null else 2
-			var sn := L.t("series_now", [round_no, wins[0], wins[1], need])
-			if _width(sn, tz("B")) <= 780.0:
-				_woodtype(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false)   # 1.4.0 §7.2／§8.2：比數是木活字
-			else:
-				_text(Vector2(640, y + 4), sn, tz("B"), Color(1, 1, 1, 0.85), true, false, 780)
-			y += tz("B") * 1.6
+		# 1.5.0：「試著覆盤」不另放一顆（覆盤在「更多」裡；輸得很近時是主動作），避免走勢分頁超過 R14（Codex v150 cat02 #1）
+
 	else:
 		_draw_result_details(Rect2(230, y, 820, 640 - y))
 		y = 590.0
-	_btn(Rect2(926, 160, 140, 40), L.t("res_details") if result_tab == 0 else L.t("res_summary"), func(): result_tab = 1 - result_tab)
-	if report.has("stars"):
+	_btn(Rect2(926, 112, 140, 40), L.t(["res_tab_flow", "res_details", "res_summary"][clampi(result_tab, 0, 2)]), func(): result_tab = (result_tab + 1) % 3)   # 1.5.0 §1.5：摘要 → 走勢與事件 → 詳細數據
+	if report.has("stars") and result_tab == 0:   # 星級只在摘要頁（走勢、詳細數據頁的內容到底，150% 換行會壓到底列；Codex v150 cat02 r2 #1、r3）
 		var pz := PZ.get_puzzle(puzzle_id)
 		var stn := int(report["stars"])
-		var sl: String = "★".repeat(stn) + "☆".repeat(3 - stn) + "　" + str(report.get("star_lines", L.t("star_rules", [pz["star2"], pz["star3"]])))
-		_text(Vector2(640, y), sl, tz("S"), ACCENT, true, false, 820)
-		y += text_h(sl, tz("S"), 820) + 4
-	if report.has("trial_lines"):
+		y = _star_row(y, stn, str(report.get("star_lines", L.t("star_rules", [pz["star2"], pz["star3"]]))))
+	if report.has("trial_lines") and result_tab == 0:
 		var tn := int(report.get("trial_stars", 0))
-		var tl: String = "★".repeat(tn) + "☆".repeat(3 - tn) + "　" + str(report["trial_lines"])
-		_text(Vector2(640, y), tl, tz("S"), ACCENT, true, false, 820)
-		y += text_h(tl, tz("S"), 820) + 4
+		y = _star_row(y, tn, str(report["trial_lines"]))
 	# 試煉只有一場，不顯示「三戰兩勝結束」（使用者截圖；大字級時還會壓到按鈕）
 	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL) and int(get("trial_id")) < 0:
 		var sw := L.t("series_draw") if wins[0] == wins[1] else L.t("series_win", [L.t("blue") if wins[0] > wins[1] else L.t("red"), wins[0], wins[1]])
@@ -395,19 +421,32 @@ func _draw_result() -> void:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 
 	var n_main := bs.size()   # V1.5：前面這幾顆是主動作（繼續、重試、下一題），後面是次入口
+	# 1.5.0 §1.5：底列＝最多 2 顆主動作＋「更多」＋「主選單」；其他（覆盤、教練、分享、重播、代碼、圖鑑、多出來的主動作）收進「更多」
+	res_more_items = []
 	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
 		if _near_miss():
 			bs.insert(0, [L.t("review_near"), func(): _open_review()])   # 第十輪 F4：輸得很近，主推覆盤
 			n_main += 1
 		else:
-			bs.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
+			if sim.winner == 1 and play_kind == "official":
+				res_more_items.append([L.t("res_try_review"), func(): _open_review_on_first_loss()])   # 輸了：覆盤直接跳到第一次失利（原本走勢頁那顆「試著覆盤」）
+			else:
+				res_more_items.append([L.t("menu_review"), func(): _open_review()])   # 覆盤（第三輪 F1）
 	if bool(call("coach_ok")):
-		bs.append([L.t("co_btn"), func(): call("_coach_open")])   # V1.6 #9 差一子教練
-	# V1.6 #5／B25：出題碼、戰報明信片、分享格、精華時刻收進一顆「分享」（按鈕列不再擠）
+		res_more_items.append([L.t("co_btn"), func(): call("_coach_open")])   # V1.6 #9 差一子教練
 	if play_kind == "official" and not watch_mode:
-		bs.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])
-	if bs.size() <= 4 or not (play_kind == "official" and not watch_mode):
-		bs.append([L.t("replay"), func(): _replay()])   # 按鈕太多時（試煉贏了 7 顆）重播收進「分享」面板（V1.6 #5）
+		res_more_items.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])   # V1.6 #5 分享（出題碼、明信片、精華）
+	res_more_items.append([L.t("replay"), func(): overlay = ""; _replay()])
+	if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則的代碼讀不回來，不給複製（Codex v13-r1 #1）
+		res_more_items.append([L.t("bc_copy"), func(): overlay = ""; _copy_battle_code()])
+	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
+		res_more_items.append([L.t("ch_copy"), func(): overlay = ""; call("_copy_challenge")])
+	var mvp_t: int = (report.get("mvp").type if report.get("mvp") != null else 0)
+	res_more_items.append([L.t("menu_codex_short"), func(): overlay = ""; _open_codex(mvp_t)])
+	while bs.size() > RES_MAIN_MAX:
+		res_more_items.insert(0, bs.pop_back())   # 多出來的主動作（例：試煉贏了的「試煉清單」）放「更多」最前面
+	n_main = mini(n_main, bs.size())
+	bs.append([L.t("res_more"), func(): overlay = "res_more"; _focus = 0])
 	bs.append([L.t("menu"), func(): _request_leave()])
 	# 按鈕寬依結果框內寬分（框 880、左右各留 16）：試煉贏了最多 6 顆，舊的固定 176 會凸出框外（使用者截圖）
 	var gap := 8.0
@@ -440,6 +479,14 @@ func _draw_result() -> void:
 			_btn(Rect2(x, 649, bw2, 44), bs[i][0], bs[i][1], true, false, TH_WOOD)
 		x += bw2 + gap
 	_ink_mode = false
+	var r14_why := ""
+	if result_tab == 2:
+		r14_why = "詳細數據分頁的「造成／承受」切換是這一頁的內容控制"
+	elif result_tab == 0 and not _res_seals().is_empty():
+		r14_why = "系列結束的三枚木印章（點開看詳情）"
+	elif result_tab == 1 and res_facts_all.size() > 0:
+		r14_why = "走勢分頁：時間軸關鍵時刻與「還有 N 條」是內容展開"
+	screen_register("result", "result_main", r14_why)   # 1.5.0 §1.1：主動作＝底列第一顆（豁免理由逐分頁寫明，Codex v150 cat02 #3）
 	if mode == Mode.VS_AI and not watch_mode:
 		_boss_note("result")   # 1.2.0 §12：第一次看結果的便條
 
@@ -532,6 +579,33 @@ func _open_review_on_first_loss() -> void:
 ## 結果頁第二層：中線對比長條（輸出／承傷切換）＋技能徽章（只列有發生的）＋指紋。
 var res_facts_all: Array = []
 ## 1.2.0：結果頁放不下時的完整事實清單（小面板）
+## 1.5.0：星級一列——三顆金色星星圖示（紙面墨色模式不會把文字星號轉成灰）＋條件文字；回傳下一行的 y
+func _star_row(y: float, n: int, txt: String) -> float:
+	var ink0 := _ink_mode
+	_ink_mode = false
+	for k in 3:
+		_icon("star", Vector2(640 - 26 + k * 26, y + 12), 22.0, Color("#ffd166") if k < n else Color(0.55, 0.5, 0.45, 0.6))
+	_ink_mode = ink0
+	_text(Vector2(640, y + 28), txt, tz("S"), ACCENT, true, false, 820)
+	return y + 28 + text_h(txt, tz("S"), 820) + 4
+
+const RES_MAIN_MAX := 2
+const RIB_PAD := 10.0   # 勝負緞帶下緣留白（原本 4，末行貼邊；Antigravity v150 cat02 r2 #4）
+var res_more_items: Array = []
+## 1.5.0 §1.5 結果頁「更多」：次要動作的清單（每顆一列，紙籤）
+func _draw_res_more() -> void:
+	var rowh := maxf(48.0, tz("S") * 2.0 + 8.0)
+	var w := 520.0
+	var P := modal_rect(w, 12.0 + h1_bottom(0.0) + GAP_L + res_more_items.size() * (rowh + GAP_S) - GAP_S + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("res_more")) + GAP_L
+	for it in res_more_items:
+		var cb: Callable = it[1]
+		_btn(Rect2(P.position.x + 40, y, w - 80, rowh), str(it[0]), func(): overlay = ""; cb.call())
+		y += rowh + GAP_S
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "", true, true)
+	screen_register("result_more", "back")
+
 func _draw_res_facts() -> void:
 	var w := 820.0
 	var hh := 0.0
@@ -603,6 +677,29 @@ func _loss_pool() -> Array:
 		if RuleSet.has(pool, ty):
 			out.append(ty)
 	return out
+
+## 1.5.0：敗因卡用的兩個兵種 [主要傷害來源, 建議改帶]（-1＝沒有）；和 loss_summary 同一套判斷
+static func loss_pair(counts: Dictionary, pool: Array) -> Array:
+	var total := 0
+	var top := -1
+	var top_v := 0
+	for k in counts:
+		if str(k).begins_with("dmgby0_"):
+			var v := int(counts[k])
+			total += v
+			if v > top_v:
+				top_v = v
+				top = int(str(k).substr(7))
+	if top < 0 or total <= 0:
+		return [-1, -1]
+	var best := -1
+	var best_sc := 0
+	for ty in pool:
+		var sc: int = AIT.counter_score(int(ty), top)
+		if sc > best_sc:
+			best_sc = sc
+			best = int(ty)
+	return [top, best]
 
 ## 純函式（測試用）。counts＝ev_count（含 dmgby0_<兵種>）、pool＝可以帶的兵種。
 static func loss_summary(counts: Dictionary, pool: Array) -> String:

@@ -360,7 +360,33 @@ static func check(d: Dictionary) -> Dictionary:
 			var off := absf(fr.get_center().x - float(rb["cx"]))
 			if not section and fr.position.y - float(rb["bottom"]) < 48.0 and fr.size.x < (host["r"] as Rect2).size.x * 0.7 and off > 2.0 and off < 60.0:
 				_add(out, "warn", "R7", rb["id"], "緞帶下的短字「%s」沒置中" % str(first["s"]))
+	_r14(out, d)
 	return out
+
+## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
+## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+const R14_LIMITS := {"title": 9, "lobby": 8, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+const R14_ENFORCE := ["title", "result"]
+static func _r14(out: Dictionary, d: Dictionary) -> void:
+	var sc: Dictionary = d.get("screen", {})
+	if sc.is_empty():
+		return
+	var cls := str(sc.get("cls", ""))
+	if str(sc.get("main", "")) == "":
+		_add(out, "fail", "R14", cls, "畫面登記了類別卻沒有主動作")
+	if not R14_LIMITS.has(cls):
+		return
+	var n := int(d.get("clicks", 0))
+	var lim := int(R14_LIMITS[cls])
+	if n <= lim:
+		return
+	if str(sc.get("skip", "")) != "":
+		var key := "_ex_R14:" + cls
+		if not out.has(key):
+			out[key] = true
+			out["exempt"].append({"rule": "R14", "id": cls, "why": str(sc["skip"])})
+		return
+	_add(out, "fail" if cls in R14_ENFORCE else "warn", "R14", cls, "可見可點元件 %d 個，超過「%s」類上限 %d（收進「更多」或拆頁）" % [n, cls, lim])
 
 
 static func _contents(texts: Array, btns: Array) -> Array:

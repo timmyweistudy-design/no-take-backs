@@ -709,7 +709,7 @@ func _draw_review() -> void:
 				draw_rect(cell, ACCENT, false, 3.0)
 			if ni != -1:
 				Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 5), int(rv_army.units[ni]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.54, cbm())
-			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true})
+			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕
 	# 紅方站位（只看不能改）：同一列對齊，右邊是紅方前排
 	var cs2 := 26.0
 	var g1 := Vector2(g0.x + 6 * cs + 18, g0.y + (9 * cs - 9 * cs2) / 2)

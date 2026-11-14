@@ -493,7 +493,7 @@ func _draw_relay() -> void:
 			if b >= 0:
 				Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 6), int(rl_enemy[b][0]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.6, cbm())
 			var cc := Vector2i(col, r)
-			_btns.append({"r": cell, "cb": func(): rl_sel = cc, "en": true})
+			_btns.append({"r": cell, "cb": func(): rl_sel = cc, "en": true, "grid": true})
 	# 右：換成哪種兵、拿掉、還原
 	var bx := 660.0
 	_text(Vector2(bx, 186), L.t("rl_changes", [relay_changes(rl_orig, rl_enemy)]), tz("S"), Color.WHITE, false, true, 400)
