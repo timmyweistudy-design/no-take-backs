@@ -840,7 +840,10 @@ func _draw_units_of(s, dim: bool) -> void:
 			if hk >= 0.0 and hk < 1.0:
 				p.x += float(hurt_dir.get(u.id, 0.0)) * 4.0 * (sin(hk * PI) if hk < 1.0 else 0.0)
 		if live and u.id == follow_id:
-			_hand_ring(p + Vector2(0, 2), 22.0, Color(ACCENT, 0.9), 3.0, true)   # 跟拍中的那隻
+			_hand_ring(p + Vector2(0, 2), 22.0, Color(ACCENT, 0.9), 3.0, true)   # 跟拍中的那隻（1.5.0：這就是跟拍標記，焦點暈光不再另畫白圈）
+		elif live and state == St.BATTLE and _focus_ids.size() == 2 and u.id == int(_focus_ids[1]):
+			# 1.5.0 §7：跟拍兵正在打的那隻——朱紅手繪圈＋頭頂朱紅倒三角（貼身近戰時虛線看不見，靠頭頂記號；Hydrogen v150 cat07 r2）
+			_hand_ring(p + Vector2(0, 2), 22.0, Color(0.86, 0.26, 0.18, 0.95), 3.0, true)
 		# 擠在一起時，正在出手或受擊的那隻加隊伍色光圈（第三輪 V5）
 		if live and (at > 0.0 or hurt > 0.0) and crowd.get(u.id, 0) >= 3:
 			_hand_ring(p + Vector2(0, -24 if u.type != D.CAVALRY else -28), 19.0, Color(Art.team_color(u.team, cbm()), 0.75 * alpha), 2.0)
@@ -1125,8 +1128,9 @@ func _draw_units_of(s, dim: bool) -> void:
 		if (show_hb and hb != "sel" and hb != "off") or (live and u.id == follow_id and hb != "off"):
 			var w := 28.0
 			var top := p + Vector2(-w / 2, (-66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58)) * hk_of(u))
-			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Art.OUT)
-			draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Art.team_color(u.team, cbm()).lightened(0.25))
+			var ha := hp_bar_alpha(u.id, _focus_ids, u.hp * 100 <= u.max_hp * 35) if live and state == St.BATTLE else 1.0   # 1.5.0 §7：非焦點兵血條淡一些
+			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Color(Art.OUT, Art.OUT.a * maxf(ha, 0.8)))
+			draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Color(Art.team_color(u.team, cbm()).lightened(0.25), ha))
 			if cbm():
 				# 色盲模式：血條左邊加隊伍形狀（藍＝●、紅＝◆），不只靠顏色（R8）
 				var mk := top + Vector2(-8, 2)   # 8px 標記＋黑邊（第三輪 V5）
@@ -1483,3 +1487,94 @@ func _spring_acc(p: Vector2, type: int, team: int, face: float, scale: float, cr
 	var pts := PackedVector2Array([xf * a0, xf * mid, xf * (a0 + d)])
 	draw_polyline(pts, Color(Art.OUT, alpha), (float(sp[2]) + 2.0) * scale, false)
 	draw_polyline(pts, Color(col, alpha), float(sp[2]) * scale, false)
+
+
+## ── 1.5.0 §7 戰場辨讀：焦點兵 ──
+## 焦點＝跟拍／選中的那隻＋它此刻的目標（快照裡的 target，逐 tick 決定；暫停、倒帶、跳轉、固定時鐘截圖都一樣）。
+## 回傳 [焦點 id, 目標 id（沒有＝-1）]；跟拍的兵不在場上＝空。純函式，測試直接呼叫。
+## （第 1 輪用「0.5 秒內交手的最多 3 隻」：動畫時鐘做基準，暫停／跳轉會變，而且看不出誰打誰——Codex、Hydrogen v150 cat07）
+static func pick_focus(units: Array, follow: int) -> Array:
+	if follow < 0:
+		return []
+	var me = null
+	for u in units:
+		if u.id == follow and u.alive and not u.hidden:
+			me = u
+			break
+	if me == null:
+		return []
+	var tid := -1
+	var ti: int = int(me.target)
+	if ti >= 0 and ti < units.size():
+		var t = units[ti]
+		if t.alive and not t.hidden and t.team != me.team:
+			tid = t.id
+	return [me.id, tid]
+
+var _focus_ids: Array = []
+
+## 跟拍兵腳下：淡象牙白暈＋細白外緣；它的目標：細的朱紅外緣；兩者之間一條淡墨虛線（誰在打誰）。
+## 提亮不壓暗（深色接觸陰影曾經讓輪廓對比變差）。減少特效：不畫暈。
+func _draw_focus_halo(s) -> void:
+	_focus_ids.clear()
+	if s == null or state != St.BATTLE:
+		return
+	_focus_ids = pick_focus(s.units, follow_id)
+	if _focus_ids.is_empty():
+		return
+	var by_id := {}
+	for u in s.units:
+		by_id[u.id] = u
+	var me = by_id[_focus_ids[0]]
+	var pm := _upos(me) + Vector2(0, 2)
+	var rr := 24.0 * HK * hk_of(me)
+	if not (bool(Save.s("plain_ui")) or bool(Save.s("reduce_fx"))):
+		var verts := PackedVector2Array([pm])
+		var cols := PackedColorArray([Color(1.0, 0.96, 0.86, 0.18)])
+		for k in ELL16.size():
+			verts.append(pm + ELL16[k] * rr * 1.3)
+			cols.append(Color(1.0, 0.96, 0.86, 0.0))
+		var idx := PackedInt32Array()
+		for k in ELL16.size():
+			idx.append_array([0, 1 + k, 1 + (k + 1) % ELL16.size()])
+		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, verts, cols)
+	if int(_focus_ids[1]) >= 0:
+		var tg = by_id[_focus_ids[1]]
+		var pt := _upos(tg) + Vector2(0, 2)
+		var d := pt - pm
+		var ln := d.length()
+		if ln > rr * 2.2:
+			var dir := d / ln
+			var a0 := pm + dir * rr * 1.1
+			var a1 := pt - dir * rr * 1.1
+			var seg := a1 - a0
+			var L0 := seg.length()
+			var k2 := 0.0
+			while k2 < L0:
+				draw_line(a0 + dir * k2, a0 + dir * minf(L0, k2 + 10.0), Color(0.86, 0.26, 0.18, 0.7), 2.5, true)   # 朱紅虛線：草地上也看得到（淡墨在草地上消失）
+				k2 += 18.0
+
+## 頭頂記號（最上層）：跟拍兵＝金色倒三角、它的目標＝朱紅倒三角；兩隻貼在一起時也分得出誰是誰
+func _draw_focus_marks(s) -> void:
+	if s == null or _focus_ids.is_empty():
+		return
+	var by_id := {}
+	for u in s.units:
+		by_id[u.id] = u
+	for k in 2:
+		var id := int(_focus_ids[k])
+		if id < 0 or not by_id.has(id):
+			continue
+		var u = by_id[id]
+		var col := Color(ACCENT, 1.0) if k == 0 else Color(0.86, 0.26, 0.18, 1.0)
+		var hy: float = (-84.0 if u.type == D.CAVALRY else -76.0) * hk_of(u)
+		var tp := _upos(u) + Vector2(0, hy - 4.0 * absf(sin(time * 3.0)) * (0.0 if bool(Save.s("reduce_motion")) else 1.0))
+		var w := 10.0 if k == 0 else 8.0
+		var tri := PackedVector2Array([tp + Vector2(-w, -w - 2), tp + Vector2(w, -w - 2), tp + Vector2(0, 2)])
+		draw_colored_polygon(tri, col)
+		draw_polyline(tri + PackedVector2Array([tri[0]]), Color(0.18, 0.09, 0.04, 0.95), 2.0, true)
+
+## 血條透明度：跟拍的兵與它的目標不透明，其他淡到 45%（逐 tick 決定，不看動畫時鐘；Hydrogen：受傷 0.8 秒內照亮會讓混戰整片都亮）
+## 低血量（≤35%）是要做決定的資訊，照舊不透明。外框另外保持 ≥0.8（固定時鐘量到：外框一起淡，密集混戰的輪廓對比變差）
+static func hp_bar_alpha(id: int, focus: Array, low := false) -> float:
+	return 1.0 if (id in focus or low) else 0.55

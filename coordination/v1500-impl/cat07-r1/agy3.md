@@ -1,0 +1,5 @@
+1. **跟拍兵仍難一眼認出**：在 [en_150_v150_03f_battle_focus.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat07-r1/agy3/en_150_v150_03f_battle_focus.png) 與 [zh_TW_100_v150_03f_battle_focus.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat07-r1/agy3/zh_TW_100_v150_03f_battle_focus.png) 下方中央「Charge! 35／衝鋒！35」處，金色手繪圈偏小且視覺上落在藍騎兵右側重疊的紅兵旁，未能明顯框住該藍騎兵底座；若不對照右下角圓形頭像，無法第一時間認出跟拍對象（而 [en_150_35_fantasy_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat07-r1/agy3/en_150_35_fantasy_battle.png) 與 [zh_TW_100_35_fantasy_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat07-r1/agy3/zh_TW_100_35_fantasy_battle.png) 則沒有跟拍頭像與目標標記，中央混戰堆疊亦看不出跟拍對象）。
+2. **看不到兩者之間的朱紅虛線，無法得知在打誰**：下方中央藍騎兵與左上目標之間隔著大片草地，畫面上完全看不到朱紅虛線相連；加上這隻藍騎兵身旁正好貼著另一隻紅兵，在沒有連線導引的情況下，會誤判牠正在攻擊身邊那隻。
+3. **目標朱紅圈與倒三角被氣泡及重疊兵堆切開**：左上雖看得到朱紅倒三角，但剛好位於「Charge! 35／衝鋒！35」氣泡正上方，與氣泡下方堆疊在一起的藍弓手、紅兵之間被氣泡隔斷，下方的朱紅手繪圈也與周圍單位重疊，看不清確切鎖定哪一隻紅兵。
+
+結論：不可

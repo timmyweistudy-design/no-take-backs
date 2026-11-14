@@ -816,6 +816,9 @@ func _draw_inner() -> void:
 				if f0["kind"] in GROUND_FX:
 					_draw_fx(f0)
 			_draw_contact_ao(view)   # 1.4.0 §3.2 接觸陰影
+			_draw_focus_halo(view)   # 1.5.0 §7 焦點兵腳下暈光（地面層）
+		else:
+			_focus_ids.clear()   # 結果頁、擺陣等：不留上一場的焦點（Codex v150 cat07 r3）
 		_draw_units_of(view, false)
 		if state == St.BATTLE:
 			_draw_occluded_bases(view)   # 1.4.0 §3.1 被擋住的兵補虛線底座
@@ -829,6 +832,8 @@ func _draw_inner() -> void:
 	for f in fx:
 		if not f.get("screen", false) and f["kind"] == "text":
 			_draw_fx(f)
+	if state == St.BATTLE:
+		_draw_focus_marks(view)   # 1.5.0 §7：跟拍兵／目標的頭頂記號畫在跳字泡泡之上（不被蓋住；Hydrogen v150 cat07 r3）
 	perf_parts["fx"] = Time.get_ticks_usec() - _t
 	if state == St.RESULT and _ink_active():
 		_draw_ink_report_field()

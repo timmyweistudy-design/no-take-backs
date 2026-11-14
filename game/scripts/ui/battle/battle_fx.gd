@@ -890,10 +890,15 @@ func _draw_fx(f: Dictionary) -> void:
 				r3.position.y -= 8.0 * slam * slam
 				var dim := _clutch_dim(p3)
 				col.a *= dim
-				if not f.get("plain", false):
+				var numeric := is_num_text(str(f["s"]))
+				if not f.get("plain", false) and not numeric:
 					_bubble(r3, col.a)   # V1.2 C6：漫畫對話泡（羊皮紙色圓角＋墨線＋朝下的尖角），取代黑色膠囊
 				var sz := int(ts(f["size"]) * (1.0 + float(f.get("pop", 0.0)) * 1.4))
-				if f.get("plain", false):
+				if numeric and not f.get("plain", false):
+					# 1.5.0 §7 戰況字降噪：純數字不包泡泡——奶白偏原色的字＋深褐粗外框（泡泡只留給擊倒、致命等關鍵短標）
+					var fill := col.lerp(Color(1.0, 0.96, 0.88, col.a), 0.55)
+					_text(p3, f["s"], sz, fill, true, true, 0.0, Color(0.24, 0.13, 0.06, col.a))
+				elif f.get("plain", false):
 					_text(p3, f["s"], sz, col, true, true, 0.0, Color(0.05, 0.2, 0.08, col.a))   # 補血綠字加深墨綠描邊
 				else:
 					var ink0 := _ink_mode
@@ -991,3 +996,17 @@ func _draw_owner_end() -> void:
 		draw_line(Vector2(8, -6 + fi * 6), Vector2(14 if sim.winner == 1 else 17, -5 + fi * 5), Color(0.9, 0.74, 0.6), 4.5, true)   # 叩桌時握拳（指頭短）
 	draw_rect(Rect2(Vector2(0, -12), Vector2(5, 7)), Color(0.95, 0.92, 0.82))
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## 1.5.0 §7：數字型跳字不包泡泡——只有數字、正負號、×、括號、百分比（含全形）；有字（衝鋒、擊倒…）的照舊泡泡。
+## 合併跳字「×3（24）」也算數字型（Codex v150 cat07 #3）。英文字母 x 不算（避免把詞當數字）。
+## 全形字用碼位組出來：原始碼裡不放字面（字型覆蓋檢查會把原始碼字面當成要顯示的字）
+static func is_num_text(s: String) -> bool:
+	var has_digit := false
+	for ch in s.strip_edges():
+		var c := ch.unicode_at(0)
+		if (c >= 0x30 and c <= 0x39) or (c >= 0xFF10 and c <= 0xFF19):
+			has_digit = true
+		elif not (ch in "+-×()% " or c in [0xFF0B, 0x2212, 0xFF0D, 0xFF08, 0xFF09, 0xFF05, 0x3000]):
+			return false
+	return has_digit

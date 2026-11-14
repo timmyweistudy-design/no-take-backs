@@ -688,6 +688,16 @@ func _run_screenshots() -> void:
 	for f in fx:
 		f["t"] = 0.0
 	await _snap("03_battle.png")
+	# 1.5.0 §7：跟拍一隻正在打的藍兵——腳下暈光、目標朱紅外緣、淡墨虛線（誰在打誰）；其他血條淡
+	var fsel := -1
+	for vu in view.units:
+		if vu.alive and vu.team == 0 and vu.target >= 0 and vu.target < view.units.size() and view.units[vu.target].alive and view.units[vu.target].team == 1:
+			fsel = vu.id
+			break
+	var keep_follow := follow_id
+	follow_id = fsel
+	await _snap("v150_03f_battle_focus.png")
+	follow_id = keep_follow
 	# V1.5：遠程飛行物（弓箭手、投彈兵、骷髏法師的紫火、醫者的十字光）在命中前飛在半空
 	var pa := Army.new(0, 200)
 	pa.units = [{"type": 2, "col": 3, "row": 2}, {"type": 2, "col": 3, "row": 4}, {"type": 6, "col": 2, "row": 3}, {"type": 6, "col": 2, "row": 6}, {"type": 17, "col": 1, "row": 4}, {"type": 7, "col": 3, "row": 5}, {"type": 1, "col": 5, "row": 3}, {"type": 1, "col": 5, "row": 5}]

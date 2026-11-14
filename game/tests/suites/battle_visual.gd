@@ -1034,3 +1034,32 @@ func test_battle_v140() -> void:
 	ok(i_tag >= 0 and i_tag < bvs.find("\"kind\": \"cmdseal\""), "軍令橫幅的隊別標記標在橫幅上（不是後加的朱印；舊橫幅才清得掉）")
 	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
 	ok(bu.find("inner.position.x + 18.0, inner.position.y - 9") >= 0, "地圖名刻在盤框左上角（不被戰報條切到）")
+
+func test_battle_read_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.is_num_text("12") and GS.is_num_text("-8") and GS.is_num_text("+30") and GS.is_num_text("×3" + String.chr(0xFF08) + "24" + String.chr(0xFF09)) and GS.is_num_text(String.chr(0xFF11) + String.chr(0xFF12)) and GS.is_num_text(String.chr(0x2212) + "5") and GS.is_num_text(String.chr(0xFF0B) + String.chr(0xFF13) + String.chr(0xFF10)), "數字型跳字（含合併「×3（24）」、全形、各種負號）不包泡泡")
+	ok(not GS.is_num_text("擊倒") and not GS.is_num_text("x2") and not GS.is_num_text("") and not GS.is_num_text("×") and not GS.is_num_text("衝鋒！35"), "有字的、空的、只有符號的照舊")
+	var VB = load("res://scripts/ui/view_buffer.gd")
+	var us: Array = []
+	for i in 4:
+		var u = VB.VUnit.new()
+		u.id = 10 + i
+		u.team = 0 if i < 2 else 1
+		u.alive = true
+		u.target = -1
+		us.append(u)
+	us[0].target = 2
+	ok(GS.pick_focus(us, 10) == [10, 12], "焦點＝跟拍的兵＋它的目標（快照的 target，逐 tick）", str(GS.pick_focus(us, 10)))
+	ok(GS.pick_focus(us, -1).is_empty(), "沒跟拍：沒有焦點（不亂畫）")
+	us[2].alive = false
+	ok(GS.pick_focus(us, 10) == [10, -1], "目標倒了：只剩跟拍的兵")
+	us[0].target = 1
+	ok(GS.pick_focus(us, 10) == [10, -1], "目標是自己人（補血）：不畫成攻擊對象")
+	us[0].alive = false
+	ok(GS.pick_focus(us, 10).is_empty(), "跟拍的兵倒了：沒有焦點")
+	us[0].alive = true
+	us[0].target = 99
+	ok(GS.pick_focus(us, 10) == [10, -1], "目標索引超出範圍：不當掉")
+	ok(GS.hp_bar_alpha(10, [10, 12]) == 1.0 and GS.hp_bar_alpha(12, [10, 12]) == 1.0 and GS.hp_bar_alpha(11, [10, 12]) == 0.55 and GS.hp_bar_alpha(11, [10, 12], true) == 1.0, "血條：跟拍兵與目標、低血量不透明，其他淡")
+	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu.find("pick_focus(s.units, follow_id)") >= 0 and bu.find("time - float(hurt") < 0 or bu.find("static func pick_focus(units: Array, follow: int)") >= 0, "焦點不看動畫時鐘（暫停、跳轉、固定時鐘截圖一致）")
