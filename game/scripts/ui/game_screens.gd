@@ -974,15 +974,22 @@ func _settings_hover() -> void:
 	if overlay != "settings":
 		return
 	var rows := _settings_rows()
-	for i in rows.size():
-		if Rect2(340, _settings_row_y(i) - 5, 560, 56).has_point(mouse):
-			settings_item = rows[i][0]
-	# 手把／鍵盤移焦點時，說明欄跟著焦點那一列（Antigravity v150-i1 #3）
-	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
-		var fy: float = _btns[_focus]["r"].position.y
+	if not pad_mode:
+		var hit := ""
 		for i in rows.size():
-			if absf(fy - _settings_row_y(i)) < 2.0:
-				settings_item = rows[i][0]
+			if Rect2(340, _settings_row_y(i) - 5, 560, 56).has_point(mouse):
+				hit = rows[i][0]
+		if hit != "":
+			settings_item = hit
+		elif Rect2(340, 150, 560, 500).has_point(mouse):
+			settings_item = ""   # 1.5.0：離開列（還在中欄）就收起說明；移到右欄的單項恢復鈕時保留（Codex v150 cat05 #2）
+	# 手把／鍵盤移焦點時，說明欄跟著焦點那一列（Antigravity v150-i1 #3）；只認中欄的列按鈕，分頁布標不算（Codex v150 cat05 #3）
+	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+		var fr: Rect2 = _btns[_focus]["r"]
+		if fr.position.x >= 600.0 and fr.position.x < 900.0:
+			for i in rows.size():
+				if absf(fr.position.y - _settings_row_y(i)) < 2.0:
+					settings_item = rows[i][0]
 
 
 

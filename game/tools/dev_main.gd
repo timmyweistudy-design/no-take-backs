@@ -849,6 +849,9 @@ func _run_screenshots() -> void:
 	_go_title()
 	overlay = "settings"
 	await _snap("08_settings.png")
+	set_adv_open = true   # 1.5.0 §1.3：進階微調抽屜
+	await _snap("v150_08z_settings_adv.png")
+	set_adv_open = false
 	settings_tab = 1   # V1.5 設定七頁：介面
 	await _snap("08e_settings_ui.png")
 	settings_tab = 2   # 聲音（總音量、四條、夜間、單聲道）

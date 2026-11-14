@@ -257,7 +257,7 @@ func test_settings_v150() -> void:
 	var bad: Array = []
 	for t in g.SET_TABS:
 		g.settings_tab = t
-		var rows: Array = g._settings_rows()
+		var rows: Array = g._settings_rows_all()
 		if rows.is_empty() or rows.size() > 8:
 			bad.append(t)
 	ok(bad.is_empty(), "七頁每頁 1～8 列（第 8 列底在 634，放得下不用捲）", str(bad))

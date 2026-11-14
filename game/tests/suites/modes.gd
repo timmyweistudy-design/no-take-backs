@@ -698,7 +698,7 @@ func test_no_unlock() -> void:
 	# 打完不跳解鎖提示，設定沒有全部解鎖
 	g.settings_tab = 2
 	var names: Array = []
-	for row in g._settings_rows():
+	for row in g._settings_rows_all():
 		names.append(row[0])
 	ok(not "set_unlock_all" in names, "設定沒有全部解鎖", str(names))
 	ok(L.t("unlock_next") == "unlock_next" and L.t("unit_unlocked") == "unit_unlocked" and L.t("locked_games") == "locked_games", "解鎖提示文字都拿掉了")

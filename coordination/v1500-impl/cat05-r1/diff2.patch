@@ -1,0 +1,417 @@
+diff --git a/docs/ui-layout-exceptions.md b/docs/ui-layout-exceptions.md
+index a08a3b1..2a816d7 100644
+--- a/docs/ui-layout-exceptions.md
++++ b/docs/ui-layout-exceptions.md
+@@ -15,3 +15,16 @@
+ - 設定頁底部「製作名單／返回」以中央操作欄中線（620）置中：用 `probe_axis` 宣告，不是例外。
+ | 元件庫展示（`v120_00_components`，開發用） | R6 | 下半是材質樣本與黃銅開關，直接畫、不經版面探針，不是空白 | `tools/dev_main.gd` `_draw_kit_demo` |
+ | 表情對照（`v120_03_moods`，開發用） | R6 | 角色直接畫、不經版面探針，不是空白 | `tools/dev_main.gd` `_draw_mood_demo` |
++
++### 1.5.0 R14（一頁一件事）的登記豁免
++可見可點元件超過該類上限時，畫面必須用 `screen_register(類別, 主動作, 理由)` 寫明理由，否則已改造的類別（標題、結果、大廳、擺陣、設定）算失敗。
++
++| 畫面 | 規則 | 理由 | 位置 |
++|---|---|---|---|
++| 大廳（進階折頁打開） | R14 | 折頁內部重排（卡池單側＋唯讀摘要、分頁收斂）排在後面的批次 | `lobby_view.gd` `lb_why` |
++| 大廳（「我的預設」選單展開） | R14 | 選單本身是一張清單（每列讀取／存入／刪除） | `lobby_view.gd` `lb_why` |
++| 結果「詳細數據」分頁 | R14 | 「造成／承受」切換是這一頁的內容控制 | `game_result.gd` `r14_why` |
++| 結果（系列結束） | R14 | 三枚木印章可點開看詳情 | `game_result.gd` `r14_why` |
++| 結果「走勢」分頁 | R14 | 時間軸關鍵時刻與「還有 N 條」是內容展開 | `game_result.gd` `r14_why` |
++| 自由部署（「工具」抽屜展開） | R14 | 貼齊、密集兩個開關暫時多出來；收合時在上限內 | `game_place.gd` `_draw_place_hud` |
++| 設定（剛套用一鍵預設） | R14 | 多一顆「撤回」，暫時 | `game_menus.gd` `_draw_settings` |
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index 7797a71..590b478 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1757,3 +1757,6 @@ foe_tag_hint,點開看敵情,Tap for scouting notes,点开看敌情,押すと敵
+ foe_zone,對方的地盤,Their ground,对方的地盘,相手の陣地
+ place_hint_foe_pad,按住 %s＋%s：開合右上的敵情翻牌。,Hold %s + %s: open or close the scouting tag (top right).,按住 %s＋%s：开合右上的敌情翻牌。,%s を押しながら %s：右上の敵情札を開閉。
+ foe_zone2,不能擺・開戰才看得到,Off-limits · hidden till battle,不能摆・开战才看得到,配置不可・開戦まで非公開
++set_adv_open,進階微調 ▸（%d 項）,Fine-tuning ▸ (%d),高端微调 ▸（%d 项）,詳細設定 ▸（%d 項目）
++set_adv_back,◂ 回到常用,◂ Back to common,◂ 回到常用,◂ よく使う設定へ
++set_hover_hint,把游標移到一列上，這裡會說明它在做什麼。,Point at a row to see what it does.,把光标移到一列上，这里会说明它在做什么。,行を選ぶと、ここに説明が出ます。
+diff --git a/game/fonts/NTBLatin-B-sub.ttf b/game/fonts/NTBLatin-B-sub.ttf
+index e2632a2..846a51d 100644
+Binary files a/game/fonts/NTBLatin-B-sub.ttf and b/game/fonts/NTBLatin-B-sub.ttf differ
+diff --git a/game/fonts/NTBLatin-M-sub.ttf b/game/fonts/NTBLatin-M-sub.ttf
+index 697275e..50dcfbe 100644
+Binary files a/game/fonts/NTBLatin-M-sub.ttf and b/game/fonts/NTBLatin-M-sub.ttf differ
+diff --git a/game/fonts/NTBRounded-B-sub.otf b/game/fonts/NTBRounded-B-sub.otf
+index 483d345..2e9538c 100644
+Binary files a/game/fonts/NTBRounded-B-sub.otf and b/game/fonts/NTBRounded-B-sub.otf differ
+diff --git a/game/fonts/NTBRounded-R-sub.otf b/game/fonts/NTBRounded-R-sub.otf
+index a3dd2f7..2d2b8cb 100644
+Binary files a/game/fonts/NTBRounded-R-sub.otf and b/game/fonts/NTBRounded-R-sub.otf differ
+diff --git a/game/fonts/NTBRoundedJP-B-sub.otf b/game/fonts/NTBRoundedJP-B-sub.otf
+index ea65ee6..6c395d9 100644
+Binary files a/game/fonts/NTBRoundedJP-B-sub.otf and b/game/fonts/NTBRoundedJP-B-sub.otf differ
+diff --git a/game/fonts/NTBRoundedJP-R-sub.otf b/game/fonts/NTBRoundedJP-R-sub.otf
+index eabadc8..0753519 100644
+Binary files a/game/fonts/NTBRoundedJP-R-sub.otf and b/game/fonts/NTBRoundedJP-R-sub.otf differ
+diff --git a/game/fonts/NTBSans-B-sub.otf b/game/fonts/NTBSans-B-sub.otf
+index 1660978..9597011 100644
+Binary files a/game/fonts/NTBSans-B-sub.otf and b/game/fonts/NTBSans-B-sub.otf differ
+diff --git a/game/fonts/NTBSans-R-sub.otf b/game/fonts/NTBSans-R-sub.otf
+index 7171dc8..5b2e979 100644
+Binary files a/game/fonts/NTBSans-R-sub.otf and b/game/fonts/NTBSans-R-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-B-sub.otf b/game/fonts/NTBSansJP-B-sub.otf
+index 058d292..795ef1d 100644
+Binary files a/game/fonts/NTBSansJP-B-sub.otf and b/game/fonts/NTBSansJP-B-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-R-sub.otf b/game/fonts/NTBSansJP-R-sub.otf
+index feef684..db6d15f 100644
+Binary files a/game/fonts/NTBSansJP-R-sub.otf and b/game/fonts/NTBSansJP-R-sub.otf differ
+diff --git a/game/fonts/NTBTitle-sub.ttf b/game/fonts/NTBTitle-sub.ttf
+index 7ad12ca..06f9937 100644
+Binary files a/game/fonts/NTBTitle-sub.ttf and b/game/fonts/NTBTitle-sub.ttf differ
+diff --git a/game/fonts/ThenKhung-missing.txt b/game/fonts/ThenKhung-missing.txt
+index dbf5f92..50d702f 100644
+--- a/game/fonts/ThenKhung-missing.txt
++++ b/game/fonts/ThenKhung-missing.txt
+@@ -1 +1 @@
+-≤≥▶◀⚠✓✗✦
+\ No newline at end of file
++≤≥▶▸◀◂⚠✓✗✦
+\ No newline at end of file
+diff --git a/game/fonts/ThenKhung-sub.ttf b/game/fonts/ThenKhung-sub.ttf
+index ca9344d..50064c4 100644
+Binary files a/game/fonts/ThenKhung-sub.ttf and b/game/fonts/ThenKhung-sub.ttf differ
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 22b51e0..6d494c1 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -974,15 +974,22 @@ func _settings_hover() -> void:
+ 	if overlay != "settings":
+ 		return
+ 	var rows := _settings_rows()
+-	for i in rows.size():
+-		if Rect2(340, _settings_row_y(i) - 5, 560, 56).has_point(mouse):
+-			settings_item = rows[i][0]
+-	# 手把／鍵盤移焦點時，說明欄跟著焦點那一列（Antigravity v150-i1 #3）
+-	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+-		var fy: float = _btns[_focus]["r"].position.y
++	if not pad_mode:
++		var hit := ""
+ 		for i in rows.size():
+-			if absf(fy - _settings_row_y(i)) < 2.0:
+-				settings_item = rows[i][0]
++			if Rect2(340, _settings_row_y(i) - 5, 560, 56).has_point(mouse):
++				hit = rows[i][0]
++		if hit != "":
++			settings_item = hit
++		elif Rect2(340, 150, 560, 500).has_point(mouse):
++			settings_item = ""   # 1.5.0：離開列（還在中欄）就收起說明；移到右欄的單項恢復鈕時保留（Codex v150 cat05 #2）
++	# 手把／鍵盤移焦點時，說明欄跟著焦點那一列（Antigravity v150-i1 #3）；只認中欄的列按鈕，分頁布標不算（Codex v150 cat05 #3）
++	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
++		var fr: Rect2 = _btns[_focus]["r"]
++		if fr.position.x >= 600.0 and fr.position.x < 900.0:
++			for i in rows.size():
++				if absf(fr.position.y - _settings_row_y(i)) < 2.0:
++					settings_item = rows[i][0]
+ 
+ 
+ 
+diff --git a/game/scripts/ui/layout_rules.gd b/game/scripts/ui/layout_rules.gd
+index 69f7504..a43e512 100644
+--- a/game/scripts/ui/layout_rules.gd
++++ b/game/scripts/ui/layout_rules.gd
+@@ -366,7 +366,7 @@ static func check(d: Dictionary) -> Dictionary:
+ ## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
+ ## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+ const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+-const R14_ENFORCE := ["title", "result", "lobby", "place"]
++const R14_ENFORCE := ["title", "result", "lobby", "place", "settings"]
+ static func _r14(out: Dictionary, d: Dictionary) -> void:
+ 	var sc: Dictionary = d.get("screen", {})
+ 	if sc.is_empty():
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index f8ce262..9f51aa5 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -725,9 +725,44 @@ func _pct(k: String) -> String:
+ 
+ ## V1.5：要跟 _draw_settings 的列位置一致（無障礙分頁上面多一排預設組合）
+ func _settings_row_y(i: int) -> float:
+-	return 166.0 + (60.0 if settings_tab == 5 or settings_tab == 3 else 0.0) + i * 60.0
+-
++	return 166.0 + (60.0 if settings_tab == 5 or settings_tab == 3 else 0.0) + (60.0 if set_adv_open else 0.0) + i * 60.0   # 抽屜打開：第一格是「回到常用」
++
++## 1.5.0 §1.3：每頁常用 ≤5 列，其他收進「進階微調」抽屜（抽屜打開＝同一欄只看進階列）
++const SET_ADV := {0: ["set_title_bg", "set_smooth_pose", "set_spotlight"], 1: ["set_plain_titles", "set_toast", "set_magnify"],
++	2: ["set_ui_vol", "set_amb_vol", "set_night", "set_mono"], 3: ["set_long_press", "set_rumble", "set_deadzone"],
++	4: ["set_clutch_zoom", "set_slowmo", "set_battle_mag", "set_auto_director"], 5: ["set_shake", "set_flash"],
++	6: ["set_export", "set_import", "set_playtest", "set_pt_export", "set_folder", "set_ws_archive"]}   # 資料頁常用＝備份、還原、清除（匯出入設定是進階；Hydrogen v150 cat05 #1）
++var set_adv_open := false
++var set_adv_focus := false   # 開合抽屜後，下一幀把焦點放回抽屜鈕（Codex v150 cat05 #1）
++
++func _set_adv_toggle() -> void:
++	set_adv_open = not set_adv_open
++	settings_item = ""
++	set_adv_focus = true
++	_btns.clear()
++
++## 目前看得到的列（畫面、滑鼠停留、焦點說明都用這個）
+ func _settings_rows() -> Array:
++	var adv: Array = SET_ADV.get(settings_tab, [])
++	var out: Array = []
++	for rw in _settings_rows_all():
++		if (rw[0] in adv) == set_adv_open:
++			out.append(rw)
++	return out
++
++## 這一頁抽屜裡有幾項、有沒有改過的
++func _settings_adv_info() -> Array:
++	var adv: Array = SET_ADV.get(settings_tab, [])
++	var n := 0
++	var changed := false
++	for rw in _settings_rows_all():
++		if rw[0] in adv:
++			n += 1
++			changed = changed or set_changed(rw[0])
++	return [n, changed]
++
++## 完整清單（恢復預設、測試、存檔核對用）
++func _settings_rows_all() -> Array:
+ 	match settings_tab:
+ 		0:
+ 			return [["set_fullscreen", L.t("v_borderless") if bool(Save.s("fullscreen")) else L.t("v_windowed"), func(d): _fs_change()],
+@@ -849,6 +884,8 @@ func _pause_resume() -> void:
+ 
+ func _settings_close() -> void:
+ 	vol_release()
++	set_adv_open = false   # 1.5.0 §1.3：下次打開回到常用
++	settings_item = ""
+ 	overlay = settings_ret
+ 	settings_ret = ""
+ 
+@@ -881,24 +918,29 @@ func _draw_settings() -> void:
+ 	_h1(Vector2(640, 92), L.t("settings_title"))   # 1.2.0：H1 字級放大 3px，緞帶上移保持和第一列的間距（R2）
+ 	for i in SET_TABS:
+ 		btn_cloth = "tab_indigo" if i == settings_tab else "tab_linen"   # 1.2.0 §1.3：分頁是布標（選中靛藍、未選原胚布）
+-		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
++		btn_group = "set_tabs"   # 1.5.0 R14：分頁列＝一個控制
++		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = ""; set_adv_open = false, true, false,
+ 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
++		btn_group = ""
+ 		btn_cloth = ""
+ 	# V1.5.1 C1：這一頁恢復預設（先確認）
+ 	var page_keys: Array = []
+-	for rw in _settings_rows():
++	for rw in _settings_rows_all():
+ 		page_keys.append(rw[0])
+ 	var any_changed := false
+ 	for pk0 in page_keys:
+ 		any_changed = any_changed or set_changed(pk0)
+-	_btn(Rect2(136, 166 + SET_TABS * 56 + 8, 190, 44), L.t("set_reset_page"), func(): _ask_confirm(L.t("set_reset_page_q"), func(): _reset_rows(page_keys), "settings"), any_changed)
++	if set_adv_open:   # 1.5.0 §1.3：「這頁恢復預設」低頻，收進抽屜裡
++		_btn(Rect2(136, 166 + SET_TABS * 56 + 8, 190, 44), L.t("set_reset_page"), func(): _ask_confirm(L.t("set_reset_page_q"), func(): _reset_rows(page_keys), "settings"), any_changed)
+ 	var y0 := 166.0
+ 	if settings_tab == 5:
+ 		# 一鍵預設（可疊加；套用後可撤回）
+ 		var pk := ["preset_vis", "preset_motion", "preset_load"]
+ 		var pw := (SET_COL.size.x - 3 * 8.0 - 110.0) / 3.0
++		btn_group = "set_presets"
+ 		for k in 3:
+ 			_btn(Rect2(SET_COL.position.x + k * (pw + 8.0), y0, pw, 46), L.t(pk[k]), _apply_preset.bind(k), true, false, Color(0.2, 0.36, 0.5))
++		btn_group = ""
+ 		if not preset_undo.is_empty():
+ 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+ 		y0 += 60.0
+@@ -907,9 +949,11 @@ func _draw_settings() -> void:
+ 		# 1.2.0 §15.3（Antigravity cat01 #4）：一顆「套用掌機配置」＋旁邊 30／60 二選一（不是兩顆一樣長的鈕）
+ 		var sw := 104.0
+ 		var aw := SET_COL.size.x - 118.0 - 2.0 * (sw + 8.0)
++		btn_group = "set_hh"   # 掌機配置＋30／60 二選一＝一個控制
+ 		_btn(Rect2(SET_COL.position.x, y0, aw, 46), L.t("preset_hh"), func(): _apply_preset(4 if hh_fps == 60 else 3), true, false, Color(0.2, 0.36, 0.5))
+ 		_btn_small(Rect2(SET_COL.position.x + aw + 8.0, y0 + 4, sw, 38), L.t("preset_hh_30"), func(): hh_fps = 30, true, hh_fps == 30)
+ 		_btn_small(Rect2(SET_COL.position.x + aw + 16.0 + sw, y0 + 4, sw, 38), L.t("preset_hh_60"), func(): hh_fps = 60, true, hh_fps == 60)
++		btn_group = ""
+ 		if not preset_undo.is_empty():
+ 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
+ 		y0 += 60.0
+@@ -932,6 +976,7 @@ func _draw_settings() -> void:
+ 		var val: String = rows[i][1]
+ 		var cb: Callable = rows[i][2]
+ 		var r := Rect2(632, y, 260, 48)
++		btn_group = "set_row_%d" % i   # 1.5.0 R14：◀ 值 ▶ ＝一個控制
+ 		if val.begins_with("@"):
+ 			_btn(r, val.substr(1), cb.bind(1))
+ 		else:
+@@ -956,10 +1001,25 @@ func _draw_settings() -> void:
+ 				draw_rect(Rect2(kx - 4, y + 37, 8, 12), Color("#7a5a22"))
+ 				draw_rect(Rect2(kx - 3, y + 38, 6, 10), Color("#d4ae55"))
+ 				draw_rect(Rect2(kx - 2, y + 39, 2, 8), Color(1, 0.96, 0.8, 0.6))
++	btn_group = ""
++	# 1.5.0 §1.3 抽屜鈕：常用列下面一整列寬；打開後換成「回到常用」。抽屜裡有改過的項目時鈕上亮一顆點
++	var ai: Array = _settings_adv_info()
++	if int(ai[0]) > 0:
++		# 收合：常用列下面；打開：欄頂（像翻到抽屜背面，回去的路在最上面；Hydrogen v150 cat05 #2）。米色紙鈕＝看得出能點
++		var ar := Rect2(SET_COL.position.x + 6, (_settings_row_y(0) - 60.0 if set_adv_open else _settings_row_y(rows.size())) + 4, SET_COL.size.x - 12, 44)
++		if set_adv_focus:
++			_focus = _btns.size()
++			set_adv_focus = false
++		_btn(ar, L.t("set_adv_back") if set_adv_open else L.t("set_adv_open", [int(ai[0])]), func(): _set_adv_toggle())
++		if bool(ai[1]) and not set_adv_open:
++			draw_circle(Vector2(ar.position.x + 14, ar.get_center().y), 4.0, ACCENT, true, -1.0, true)
+ 	# 說明欄
+ 	var D0 := SET_DESC
+ 	draw_rect(D0, Color(0, 0, 0, 0.25))
+-	var key: String = settings_item if settings_item != "" else (rows[0][0] if not rows.is_empty() else "")
++	var key: String = settings_item   # 1.5.0 §1.3：說明只跟著焦點／滑鼠所在的列
++	if key == "":
++		_text(D0.position + Vector2(14, 12), L.t("set_hover_hint"), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)
++		_btn(Rect2(D0.position.x + 10, D0.end.y - 52, D0.size.x - 20, 44), L.t("set_reset_one"), func(): pass, false)   # 焦點數不變
+ 	if key != "":
+ 		_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
+ 		var dy := 18 + text_h(L.t(key), tz("B"), D0.size.x - 28, true)
+@@ -974,6 +1034,7 @@ func _draw_settings() -> void:
+ 	var cxm := SET_COL.get_center().x
+ 	_btn(Rect2(cxm - 170, 662, 160, 44), L.t("menu_credits"), func(): _nav_push("settings"); _open("credits"))
+ 	_btn(Rect2(cxm + 10, 662, 160, 44), L.t("back"), func(): _settings_close())
++	screen_register("settings", "back", "剛套用一鍵預設：多一顆「撤回」（暫時）" if not preset_undo.is_empty() else "")   # 1.5.0 §1.1
+ 
+ 
+ ## 1.2.0 §1.3 黃銅撥片開關：開＝撥片朝上＋小綠點、關＝朝下（純裝飾，點擊照原本的值按鈕）
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index a485f25..9eda137 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/modes.gd b/game/tests/suites/modes.gd
+index d1d3731..39a8e8f 100644
+--- a/game/tests/suites/modes.gd
++++ b/game/tests/suites/modes.gd
+@@ -698,7 +698,7 @@ func test_no_unlock() -> void:
+ 	# 打完不跳解鎖提示，設定沒有全部解鎖
+ 	g.settings_tab = 2
+ 	var names: Array = []
+-	for row in g._settings_rows():
++	for row in g._settings_rows_all():
+ 		names.append(row[0])
+ 	ok(not "set_unlock_all" in names, "設定沒有全部解鎖", str(names))
+ 	ok(L.t("unlock_next") == "unlock_next" and L.t("unit_unlocked") == "unit_unlocked" and L.t("locked_games") == "locked_games", "解鎖提示文字都拿掉了")
+diff --git a/game/tests/suites/save.gd b/game/tests/suites/save.gd
+index e7047bb..5068d9f 100644
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -257,7 +257,7 @@ func test_settings_v150() -> void:
+ 	var bad: Array = []
+ 	for t in g.SET_TABS:
+ 		g.settings_tab = t
+-		var rows: Array = g._settings_rows()
++		var rows: Array = g._settings_rows_all()
+ 		if rows.is_empty() or rows.size() > 8:
+ 			bad.append(t)
+ 	ok(bad.is_empty(), "七頁每頁 1～8 列（第 8 列底在 634，放得下不用捲）", str(bad))
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index 2a26a0c..5ad9845 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -2351,7 +2351,7 @@ func test_r14_v150() -> void:
+ 	ok(has.call(LR.check({"screen": {"cls": "title", "main": "plaque_battle", "skip": ""}, "clicks": 10}), "fail"), "標題 10 個：失敗（已改造的類別）")
+ 	var ex: Dictionary = LR.check({"screen": {"cls": "result", "main": "x", "skip": "測試理由"}, "clicks": 9})
+ 	ok(not has.call(ex, "fail") and not (ex["exempt"] as Array).is_empty(), "登記豁免理由：不算失敗、列進宣告例外")
+-	ok(has.call(LR.check({"screen": {"cls": "settings", "main": "x", "skip": ""}, "clicks": 30}), "warn") and not has.call(LR.check({"screen": {"cls": "settings", "main": "x", "skip": ""}, "clicks": 30}), "fail"), "還沒改造的類別：超標只警告")
++	ok(has.call(LR.check({"screen": {"cls": "codex", "main": "x", "skip": ""}, "clicks": 30}), "warn") and not has.call(LR.check({"screen": {"cls": "codex", "main": "x", "skip": ""}, "clicks": 30}), "fail"), "還沒改造的類別：超標只警告")
+ 	ok(has.call(LR.check({"screen": {"cls": "title", "main": "", "skip": ""}, "clicks": 3}), "fail"), "登記了類別卻沒有主動作：失敗")
+ 	ok(LR.check({"clicks": 99})["fail"].is_empty(), "沒登記的畫面不查 R14")
+ 	var GS = load("res://scripts/ui/game_screens.gd")
+@@ -2520,3 +2520,61 @@ func test_place_tidy_v150() -> void:
+ 	g3._process_cmds()
+ 	ok(not g3.foe_tag_open, "真實輸入：點翻牌＝收合")
+ 	g3.free()
++
++func test_settings_drawer_v150() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	var bad_core: Array = []
++	var bad_cover: Array = []
++	for t in g.SET_TABS:
++		g.settings_tab = t
++		g.set_adv_open = false
++		var core: Array = g._settings_rows()
++		g.set_adv_open = true
++		var adv: Array = g._settings_rows()
++		var all: Array = g._settings_rows_all()
++		if core.size() > 5 or core.is_empty():
++			bad_core.append(t)
++		if core.size() + adv.size() != all.size():
++			bad_cover.append(t)
++		for a in adv:
++			ok(a[0] in g.SET_ADV[t], "抽屜裡的列都登記在 SET_ADV（%s）" % a[0])
++	ok(bad_core.is_empty(), "每頁常用 1～5 列（方案 §1.3）", str(bad_core))
++	ok(bad_cover.is_empty(), "常用＋進階＝完整清單（沒有設定被藏丟）", str(bad_cover))
++	g.settings_tab = 2
++	g.set_adv_open = true
++	g._settings_close()
++	ok(not g.set_adv_open, "關掉設定：下次打開回到常用")
++	# 真實按鍵路徑：焦點在抽屜鈕上按 Enter／A → 打開、焦點留在抽屜鈕（回到常用）上，不會落到「返回」（Codex v150 cat05 #1）
++	var g4 = GS.new()
++	g4.overlay = "settings"
++	g4.settings_tab = 0
++	g4.set_adv_open = false
++	g4._btns.clear()
++	g4._btns.append({"r": Rect2(346, 470, 548, 44), "cb": func(): g4._set_adv_toggle(), "en": true})
++	g4._btns.append({"r": Rect2(630, 662, 160, 44), "cb": func(): g4.overlay = "", "en": true})
++	g4._btns_gen = g4._gen
++	g4._focus = 0
++	g4._do_click(Vector2(600, 490))
++	ok(g4.set_adv_open and g4.set_adv_focus and g4._btns.is_empty(), "按抽屜鈕：打開、舊按鈕失效、下一幀焦點回抽屜鈕")
++	g4._do_click(Vector2(700, 680))
++	ok(g4.overlay == "settings", "同一幀再點：不會按到舊的「返回」")
++	g4.settings_item = "set_mono"
++	g4._settings_close()
++	ok(g4.settings_item == "" and not g4.set_adv_open, "關掉設定：說明與抽屜都清掉")
++	g4.free()
++	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
++	ok(gm.find("settings_item = \"\"; set_adv_open = false") >= 0, "切分頁：抽屜收回")
++	ok(gm.find("screen_register(\"settings\"") >= 0, "設定登記主動作")
++	var LR = load("res://scripts/ui/layout_rules.gd")
++	ok("settings" in LR.R14_ENFORCE, "設定轉成已改造類別（R14 上限 10，超標＝失敗）")
++	# 抽屜裡改過的項目：抽屜鈕要能看出來
++	var Save = load("res://scripts/game/save.gd")
++	var keep = Save.s("mono")
++	g.settings_tab = 2
++	for v in [true, false]:
++		Save.settings["mono"] = v
++		if g.set_changed("set_mono"):
++			ok(bool(g._settings_adv_info()[1]), "抽屜裡改過的項目會在抽屜鈕上亮點")
++	Save.settings["mono"] = keep
++	g.free()
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index c991a1b..ce6d9a3 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -849,6 +849,9 @@ func _run_screenshots() -> void:
+ 	_go_title()
+ 	overlay = "settings"
+ 	await _snap("08_settings.png")
++	set_adv_open = true   # 1.5.0 §1.3：進階微調抽屜
++	await _snap("v150_08z_settings_adv.png")
++	set_adv_open = false
+ 	settings_tab = 1   # V1.5 設定七頁：介面
+ 	await _snap("08e_settings_ui.png")
+ 	settings_tab = 2   # 聲音（總音量、四條、夜間、單聲道）
+diff --git a/game/tools/screens.json b/game/tools/screens.json
+index 0f681cb..fa42fea 100644
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -1168,5 +1168,11 @@
+   "states": [
+    "一般"
+   ]
++ },
++ "v150_08z_settings_adv.png": {
++  "entry": "設定（進階微調抽屜）",
++  "states": [
++   "一般"
++  ]
+  }
+ }

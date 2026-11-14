@@ -725,9 +725,52 @@ func _pct(k: String) -> String:
 
 ## V1.5：要跟 _draw_settings 的列位置一致（無障礙分頁上面多一排預設組合）
 func _settings_row_y(i: int) -> float:
-	return 166.0 + (60.0 if settings_tab == 5 or settings_tab == 3 else 0.0) + i * 60.0
+	return 166.0 + (60.0 if settings_tab == 5 or settings_tab == 3 else 0.0) + (60.0 if set_adv_open else 0.0) + i * 60.0   # 抽屜打開：第一格是「回到常用」
 
+## 1.5.0 §1.3：每頁常用 ≤5 列，其他收進「進階微調」抽屜（抽屜打開＝同一欄只看進階列）
+const SET_ADV := {0: ["set_title_bg", "set_smooth_pose", "set_spotlight"], 1: ["set_plain_titles", "set_toast", "set_magnify"],
+	2: ["set_ui_vol", "set_amb_vol", "set_night", "set_mono"], 3: ["set_long_press", "set_rumble", "set_deadzone"],
+	4: ["set_clutch_zoom", "set_slowmo", "set_battle_mag", "set_auto_director"], 5: ["set_shake", "set_flash"],
+	6: ["set_export", "set_import", "set_playtest", "set_pt_export", "set_folder", "set_ws_archive"]}   # 資料頁常用＝備份、還原、清除（匯出入設定是進階；Hydrogen v150 cat05 #1）
+var set_adv_open := false
+var set_adv_focus := false   # 開合抽屜後，下一幀把焦點放回抽屜鈕（Codex v150 cat05 #1）
+
+func _set_adv_toggle() -> void:
+	set_adv_open = not set_adv_open
+	settings_item = ""
+	set_adv_focus = true
+	vol_release()        # 開合時結束音量拖曳、舊木軌失效（不然同一幀按到被藏起來的音量；Codex v150 cat05 r2 #2）
+	vol_rails.clear()
+	_btns.clear()
+
+## 抽屜鈕畫出來時：開合後的第一幀把焦點放在它身上
+func _take_adv_focus() -> void:
+	if set_adv_focus:
+		_focus = _btns.size()
+		set_adv_focus = false
+
+## 目前看得到的列（畫面、滑鼠停留、焦點說明都用這個）
 func _settings_rows() -> Array:
+	var adv: Array = SET_ADV.get(settings_tab, [])
+	var out: Array = []
+	for rw in _settings_rows_all():
+		if (rw[0] in adv) == set_adv_open:
+			out.append(rw)
+	return out
+
+## 這一頁抽屜裡有幾項、有沒有改過的
+func _settings_adv_info() -> Array:
+	var adv: Array = SET_ADV.get(settings_tab, [])
+	var n := 0
+	var changed := false
+	for rw in _settings_rows_all():
+		if rw[0] in adv:
+			n += 1
+			changed = changed or set_changed(rw[0])
+	return [n, changed]
+
+## 完整清單（恢復預設、測試、存檔核對用）
+func _settings_rows_all() -> Array:
 	match settings_tab:
 		0:
 			return [["set_fullscreen", L.t("v_borderless") if bool(Save.s("fullscreen")) else L.t("v_windowed"), func(d): _fs_change()],
@@ -849,6 +892,8 @@ func _pause_resume() -> void:
 
 func _settings_close() -> void:
 	vol_release()
+	set_adv_open = false   # 1.5.0 §1.3：下次打開回到常用
+	settings_item = ""
 	overlay = settings_ret
 	settings_ret = ""
 
@@ -881,24 +926,29 @@ func _draw_settings() -> void:
 	_h1(Vector2(640, 92), L.t("settings_title"))   # 1.2.0：H1 字級放大 3px，緞帶上移保持和第一列的間距（R2）
 	for i in SET_TABS:
 		btn_cloth = "tab_indigo" if i == settings_tab else "tab_linen"   # 1.2.0 §1.3：分頁是布標（選中靛藍、未選原胚布）
-		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = "", true, false,
+		btn_group = "set_tabs"   # 1.5.0 R14：分頁列＝一個控制
+		_btn(Rect2(136, 166 + i * 56, 190, 48), L.t("set_tab_%d" % i), func(): settings_tab = i; settings_item = ""; set_adv_open = false, true, false,
 			TH_ACTIVE if i == settings_tab else Color(0, 0, 0, 0))
+		btn_group = ""
 		btn_cloth = ""
 	# V1.5.1 C1：這一頁恢復預設（先確認）
 	var page_keys: Array = []
-	for rw in _settings_rows():
+	for rw in _settings_rows_all():
 		page_keys.append(rw[0])
 	var any_changed := false
 	for pk0 in page_keys:
 		any_changed = any_changed or set_changed(pk0)
-	_btn(Rect2(136, 166 + SET_TABS * 56 + 8, 190, 44), L.t("set_reset_page"), func(): _ask_confirm(L.t("set_reset_page_q"), func(): _reset_rows(page_keys), "settings"), any_changed)
+	if set_adv_open and settings_tab != 6:   # 1.5.0 §1.3：「這頁恢復預設」低頻，收進抽屜裡；資料頁幾乎都是動作、唯一的開關有單項恢復（R14 上限；Codex v150 cat05 r2 #1）
+		_btn(Rect2(136, 166 + SET_TABS * 56 + 8, 190, 44), L.t("set_reset_page"), func(): _ask_confirm(L.t("set_reset_page_q"), func(): _reset_rows(page_keys), "settings"), any_changed)
 	var y0 := 166.0
 	if settings_tab == 5:
 		# 一鍵預設（可疊加；套用後可撤回）
 		var pk := ["preset_vis", "preset_motion", "preset_load"]
 		var pw := (SET_COL.size.x - 3 * 8.0 - 110.0) / 3.0
+		btn_group = "set_presets"
 		for k in 3:
 			_btn(Rect2(SET_COL.position.x + k * (pw + 8.0), y0, pw, 46), L.t(pk[k]), _apply_preset.bind(k), true, false, Color(0.2, 0.36, 0.5))
+		btn_group = ""
 		if not preset_undo.is_empty():
 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
 		y0 += 60.0
@@ -907,9 +957,11 @@ func _draw_settings() -> void:
 		# 1.2.0 §15.3（Antigravity cat01 #4）：一顆「套用掌機配置」＋旁邊 30／60 二選一（不是兩顆一樣長的鈕）
 		var sw := 104.0
 		var aw := SET_COL.size.x - 118.0 - 2.0 * (sw + 8.0)
+		btn_group = "set_hh"   # 掌機配置＋30／60 二選一＝一個控制
 		_btn(Rect2(SET_COL.position.x, y0, aw, 46), L.t("preset_hh"), func(): _apply_preset(4 if hh_fps == 60 else 3), true, false, Color(0.2, 0.36, 0.5))
 		_btn_small(Rect2(SET_COL.position.x + aw + 8.0, y0 + 4, sw, 38), L.t("preset_hh_30"), func(): hh_fps = 30, true, hh_fps == 30)
 		_btn_small(Rect2(SET_COL.position.x + aw + 16.0 + sw, y0 + 4, sw, 38), L.t("preset_hh_60"), func(): hh_fps = 60, true, hh_fps == 60)
+		btn_group = ""
 		if not preset_undo.is_empty():
 			_btn(Rect2(SET_COL.end.x - 110.0, y0, 110, 46), L.t("undo"), func(): _undo_preset())
 		y0 += 60.0
@@ -932,6 +984,7 @@ func _draw_settings() -> void:
 		var val: String = rows[i][1]
 		var cb: Callable = rows[i][2]
 		var r := Rect2(632, y, 260, 48)
+		btn_group = "set_row_%d" % i   # 1.5.0 R14：◀ 值 ▶ ＝一個控制
 		if val.begins_with("@"):
 			_btn(r, val.substr(1), cb.bind(1))
 		else:
@@ -956,10 +1009,23 @@ func _draw_settings() -> void:
 				draw_rect(Rect2(kx - 4, y + 37, 8, 12), Color("#7a5a22"))
 				draw_rect(Rect2(kx - 3, y + 38, 6, 10), Color("#d4ae55"))
 				draw_rect(Rect2(kx - 2, y + 39, 2, 8), Color(1, 0.96, 0.8, 0.6))
+	btn_group = ""
+	# 1.5.0 §1.3 抽屜鈕：常用列下面一整列寬；打開後換成「回到常用」。抽屜裡有改過的項目時鈕上亮一顆點
+	var ai: Array = _settings_adv_info()
+	if int(ai[0]) > 0:
+		# 收合：常用列下面；打開：欄頂（像翻到抽屜背面，回去的路在最上面；Hydrogen v150 cat05 #2）。米色紙鈕＝看得出能點
+		var ar := Rect2(SET_COL.position.x + 6, (_settings_row_y(0) - 60.0 if set_adv_open else _settings_row_y(rows.size())) + 4, SET_COL.size.x - 12, 44)
+		_take_adv_focus()
+		_btn(ar, L.t("set_adv_back") if set_adv_open else L.t("set_adv_open", [int(ai[0])]), func(): _set_adv_toggle())
+		if bool(ai[1]) and not set_adv_open:
+			draw_circle(Vector2(ar.position.x + 14, ar.get_center().y), 4.0, ACCENT, true, -1.0, true)
 	# 說明欄
 	var D0 := SET_DESC
 	draw_rect(D0, Color(0, 0, 0, 0.25))
-	var key: String = settings_item if settings_item != "" else (rows[0][0] if not rows.is_empty() else "")
+	var key: String = settings_item   # 1.5.0 §1.3：說明只跟著焦點／滑鼠所在的列
+	if key == "":
+		_text(D0.position + Vector2(14, 12), L.t("set_hover_hint"), tz("S"), Color(1, 1, 1, 0.85), false, false, D0.size.x - 28)
+		_btn(Rect2(D0.position.x + 10, D0.end.y - 52, D0.size.x - 20, 44), L.t("set_reset_one"), func(): pass, false)   # 焦點數不變
 	if key != "":
 		_text(D0.position + Vector2(14, 12), L.t(key), tz("B"), ACCENT, false, true, D0.size.x - 28)
 		var dy := 18 + text_h(L.t(key), tz("B"), D0.size.x - 28, true)
@@ -974,6 +1040,12 @@ func _draw_settings() -> void:
 	var cxm := SET_COL.get_center().x
 	_btn(Rect2(cxm - 170, 662, 160, 44), L.t("menu_credits"), func(): _nav_push("settings"); _open("credits"))
 	_btn(Rect2(cxm + 10, 662, 160, 44), L.t("back"), func(): _settings_close())
+	var s_why := ""
+	if not preset_undo.is_empty():
+		s_why = "剛套用一鍵預設：多一顆「撤回」（暫時）"
+	elif settings_tab == 6 and set_adv_open and not _ws_archive_row().is_empty():
+		s_why = "資料頁抽屜多一列「匯出舊實驗簿」：只有 V1.6.1 以前的存檔才有"
+	screen_register("settings", "back", s_why)   # 1.5.0 §1.1
 
 
 ## 1.2.0 §1.3 黃銅撥片開關：開＝撥片朝上＋小綠點、關＝朝下（純裝飾，點擊照原本的值按鈕）

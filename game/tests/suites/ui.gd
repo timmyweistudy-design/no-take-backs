@@ -2351,7 +2351,7 @@ func test_r14_v150() -> void:
 	ok(has.call(LR.check({"screen": {"cls": "title", "main": "plaque_battle", "skip": ""}, "clicks": 10}), "fail"), "標題 10 個：失敗（已改造的類別）")
 	var ex: Dictionary = LR.check({"screen": {"cls": "result", "main": "x", "skip": "測試理由"}, "clicks": 9})
 	ok(not has.call(ex, "fail") and not (ex["exempt"] as Array).is_empty(), "登記豁免理由：不算失敗、列進宣告例外")
-	ok(has.call(LR.check({"screen": {"cls": "settings", "main": "x", "skip": ""}, "clicks": 30}), "warn") and not has.call(LR.check({"screen": {"cls": "settings", "main": "x", "skip": ""}, "clicks": 30}), "fail"), "還沒改造的類別：超標只警告")
+	ok(has.call(LR.check({"screen": {"cls": "codex", "main": "x", "skip": ""}, "clicks": 30}), "warn") and not has.call(LR.check({"screen": {"cls": "codex", "main": "x", "skip": ""}, "clicks": 30}), "fail"), "還沒改造的類別：超標只警告")
 	ok(has.call(LR.check({"screen": {"cls": "title", "main": "", "skip": ""}, "clicks": 3}), "fail"), "登記了類別卻沒有主動作：失敗")
 	ok(LR.check({"clicks": 99})["fail"].is_empty(), "沒登記的畫面不查 R14")
 	var GS = load("res://scripts/ui/game_screens.gd")
@@ -2520,3 +2520,67 @@ func test_place_tidy_v150() -> void:
 	g3._process_cmds()
 	ok(not g3.foe_tag_open, "真實輸入：點翻牌＝收合")
 	g3.free()
+
+func test_settings_drawer_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	var bad_core: Array = []
+	var bad_cover: Array = []
+	for t in g.SET_TABS:
+		g.settings_tab = t
+		g.set_adv_open = false
+		var core: Array = g._settings_rows()
+		g.set_adv_open = true
+		var adv: Array = g._settings_rows()
+		var all: Array = g._settings_rows_all()
+		if core.size() > 5 or core.is_empty():
+			bad_core.append(t)
+		if core.size() + adv.size() != all.size():
+			bad_cover.append(t)
+		for a in adv:
+			ok(a[0] in g.SET_ADV[t], "抽屜裡的列都登記在 SET_ADV（%s）" % a[0])
+	ok(bad_core.is_empty(), "每頁常用 1～5 列（方案 §1.3）", str(bad_core))
+	ok(bad_cover.is_empty(), "常用＋進階＝完整清單（沒有設定被藏丟）", str(bad_cover))
+	g.settings_tab = 2
+	g.set_adv_open = true
+	g._settings_close()
+	ok(not g.set_adv_open, "關掉設定：下次打開回到常用")
+	# 真實按鍵路徑：焦點在抽屜鈕上按 Enter／A → 打開、焦點留在抽屜鈕（回到常用）上，不會落到「返回」（Codex v150 cat05 #1）
+	var g4 = GS.new()
+	g4.overlay = "settings"
+	g4.settings_tab = 0
+	g4.set_adv_open = false
+	g4._btns.clear()
+	g4._btns.append({"r": Rect2(346, 470, 548, 44), "cb": func(): g4._set_adv_toggle(), "en": true})
+	g4._btns.append({"r": Rect2(630, 662, 160, 44), "cb": func(): g4.overlay = "", "en": true})
+	g4._btns_gen = g4._gen
+	g4._focus = 0
+	g4._do_click(Vector2(600, 490))
+	ok(g4.set_adv_open and g4.set_adv_focus and g4._btns.is_empty(), "按抽屜鈕：打開、舊按鈕失效、下一幀焦點回抽屜鈕")
+	g4._do_click(Vector2(700, 680))
+	ok(g4.overlay == "settings", "同一幀再點：不會按到舊的「返回」")
+	g4._btns.append({"r": Rect2(136, 166, 190, 48), "cb": func(): pass, "en": true})   # 重畫：分頁布標先畫
+	g4._take_adv_focus()
+	ok(g4._focus == 1 and not g4.set_adv_focus, "重畫時焦點落在抽屜鈕（畫在分頁之後的那一顆），只做一次")
+	g4.vol_rails["master"] = Rect2(690, 200, 140, 20)
+	g4._set_adv_toggle()
+	ok(g4.vol_rails.is_empty(), "開合抽屜：舊音量木軌失效")
+	g4.settings_item = "set_mono"
+	g4._settings_close()
+	ok(g4.settings_item == "" and not g4.set_adv_open, "關掉設定：說明與抽屜都清掉")
+	g4.free()
+	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	ok(gm.find("settings_item = \"\"; set_adv_open = false") >= 0, "切分頁：抽屜收回")
+	ok(gm.find("screen_register(\"settings\"") >= 0, "設定登記主動作")
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	ok("settings" in LR.R14_ENFORCE, "設定轉成已改造類別（R14 上限 10，超標＝失敗）")
+	# 抽屜裡改過的項目：抽屜鈕要能看出來
+	var Save = load("res://scripts/game/save.gd")
+	var keep = Save.s("mono")
+	g.settings_tab = 2
+	for v in [true, false]:
+		Save.settings["mono"] = v
+		if g.set_changed("set_mono"):
+			ok(bool(g._settings_adv_info()[1]), "抽屜裡改過的項目會在抽屜鈕上亮點")
+	Save.settings["mono"] = keep
+	g.free()
