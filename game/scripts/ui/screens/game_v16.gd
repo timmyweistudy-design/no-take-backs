@@ -2386,6 +2386,10 @@ func _draw_seat() -> void:
 	var f1: float = float(view.power(1)) / maxf(1.0, float(view.budget_of(1)) * 1000.0)
 	var mood := seat_mood(f0, f1)
 	var p := SEAT_FOOT
+	# 1.4.0 §10.1 謝幕反應：播完到結算前（約 1.4 秒）對手點頭（贏）或攤手（輸），輸了把茶杯往前推一點；減少動態只換表情
+	var re := seat_react(view.finished, sim.winner if sim != null else -1, result_delay, bool(Save.s("reduce_motion")))
+	if int(re[0]) != 0:
+		mood = int(re[0])
 	# 坐墊（深色布墊＋流蘇）＋落影
 	draw_set_transform_matrix(Transform2D(0, Vector2(1, 0.4), 0, p + Vector2(4, 6)))
 	draw_circle(Vector2.ZERO, 30.0, Color(DIM_INK, 0.4 * a), true, -1.0, true)
@@ -2394,7 +2398,7 @@ func _draw_seat() -> void:
 	draw_circle(Vector2.ZERO, 22.0, Color(PAL.TRINKET_RED.darkened(0.25), a), true, -1.0, true)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 	var bob := 0.0 if bool(Save.s("reduce_motion")) else sin(time * 1.6) * 1.2
-	Art.unit(self, p + Vector2(0, -2 + bob), Persona.face(st), 1, -1.0, 0.0, 0.0, 0.0, a, time, 1.35, cbm(), mood)
+	Art.unit(self, p + Vector2(0, -2 + bob + float(re[1])), Persona.face(st), 1, -1.0, 0.0, 0.0, 0.0, a, time, 1.35, cbm(), mood, float(re[2]))
 	# 前面一張矮茶几把腿擋住：看起來是坐在桌後的人，不是站著的兵（Hydrogen cat11 #1）
 	var tb := Rect2(p + Vector2(-36, -24), Vector2(72, 14))
 	draw_rect(Rect2(tb.position + Vector2(3, 4), tb.size), Color(DIM_INK, 0.45 * a))
@@ -2402,8 +2406,26 @@ func _draw_seat() -> void:
 	draw_rect(Rect2(tb.position, Vector2(tb.size.x, 3)), Color(1, 0.9, 0.7, 0.3 * a))
 	for lx in [tb.position.x + 6.0, tb.end.x - 10.0]:
 		draw_rect(Rect2(lx, tb.end.y, 4, 12), Color(PAL.TRINKET_LEATHER.darkened(0.4), a))
-	draw_circle(tb.position + Vector2(20, -3), 4.0, Color(PAL.CUP_GLAZE, a), true, -1.0, true)   # 茶几上的小茶杯
+	draw_circle(tb.position + Vector2(20 - float(re[3]), -3), 4.0, Color(PAL.CUP_GLAZE, a), true, -1.0, true)   # 茶几上的小茶杯（輸了往前推）
+	if int(re[0]) == Art.M_HURT and view.finished:
+		# 輸了：額角一滴汗（靜態也看得出慌；Antigravity cat10 #3）
+		var sw := p + Vector2(14, -64)
+		draw_colored_polygon(PackedVector2Array([sw + Vector2(0, -6), sw + Vector2(4, 1), sw + Vector2(0, 4), sw + Vector2(-4, 1)]), Color(0.7, 0.88, 1.0, 0.95 * a))
+		draw_circle(sw + Vector2(-1, 0), 1.2, Color(1, 1, 1, 0.9 * a), true, -1.0, true)
 
+
+## 1.4.0 §10.1：對手木偶的謝幕反應（純函式：播完與否、勝方、播完後經過秒數、減少動態）→ [表情, 上下位移, 側傾, 茶杯前推 px]
+## 對手是紅方（1）：紅方勝＝點頭兩下；藍方勝＝攤手（側傾晃一下）＋茶杯往前推；平手＝專注。
+static func seat_react(finished: bool, winner: int, t: float, still: bool) -> Array:
+	if not finished:
+		return [0, 0.0, 0.0, 0.0]
+	var k := clampf(t / 1.2, 0.0, 1.0)
+	if winner == 1:
+		return [Art.M_HAPPY, 0.0 if still else absf(sin(k * PI * 2.0)) * 4.0, 0.0, 0.0]
+	if winner == 0:
+		var push := 0.0 if still else 8.0 * (1.0 - pow(1.0 - minf(1.0, k * 2.0), 3.0))
+		return [Art.M_HURT, 0.0, 0.0 if still else sin(k * PI * 2.0) * 0.12, push]
+	return [Art.M_GRIM, 0.0, 0.0, 0.0]
 
 # ── 1.3.0 第 12 大類：每日老闆出題（方案 §12.7）──
 const OwnerDaily = preload("res://scripts/game/owner_daily.gd")
@@ -2422,6 +2444,8 @@ func _od_after(id: String, stars: int) -> void:
 	if bool(r[1]):
 		Save.data["od_stamps"] = int(Save.data.get("od_stamps", 0)) + 1
 		_toast(L.t("od_stamp_got"))
+		if sfx != null:
+			sfx.play("place_heavy", 0.8)   # 1.4.0 §10.5 紅泥小章落下「咚」
 		if sfx != null and sfx.has_method("play_voice"):
 			sfx.play_voice("happy")   # 老闆蓋印時哼一聲
 
@@ -2432,7 +2456,10 @@ func _draw_owner_daily() -> void:
 	var help := L.t("od_help")
 	var rowh := 52.0
 	var foot := L.t("od_stamps", [int(Save.data.get("od_stamps", 0))])
-	var P := modal_rect(720, 12.0 + h1_help_h(help, tz("S"), 640) + GAP_L + picks.size() * (rowh + GAP_S) + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
+	var bk := stamp_page(int(Save.data.get("od_stamps", 0)))
+	var book := L.t("od_book", [int(bk[0])])
+	var slot := 30.0
+	var P := modal_rect(720, 12.0 + h1_help_h(help, tz("S"), 640) + GAP_L + picks.size() * (rowh + GAP_S) + GAP_M + text_h(foot, tz("S"), 640) + GAP_M + text_h(book, tz("S"), 640) + GAP_S + slot + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("od_title"), help, tz("S"), 640) + GAP_L
 	var stars: Dictionary = Save.data.get("puzzle_stars", {})
@@ -2446,4 +2473,23 @@ func _draw_owner_daily() -> void:
 		y += rowh + GAP_S
 	y += GAP_M - GAP_S
 	_text(Vector2(640, y), foot, tz("S"), ACCENT, true, false, 640)
+	y += text_h(foot, tz("S"), 640) + GAP_M
+	# 1.4.0 §10.5 印章冊：一頁 10 格，蓋滿翻下一頁（老闆的紅泥小章；空格是淡淡的框）
+	_text(Vector2(640, y), book, tz("S"), TXT_DIM, true, false, 640)
+	y += text_h(book, tz("S"), 640) + GAP_S
+	var x0 := 640.0 - (STAMP_PER_PAGE * slot + (STAMP_PER_PAGE - 1) * 8.0) / 2.0
+	for si in STAMP_PER_PAGE:
+		var sr := Rect2(x0 + si * (slot + 8.0), y, slot, slot)
+		if si < int(bk[1]):
+			draw_rect(sr.grow(-2), Color(PAL.TRINKET_RED, 0.85))
+			draw_rect(sr.grow(-7), Color(1, 0.9, 0.8, 0.35), false, 1.5)
+		else:
+			draw_rect(sr.grow(-2), Color(TXT_DIM, 0.35), false, 1.5)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())
+
+## 印章冊：第幾頁、這頁蓋了幾格（10 的倍數＝這頁剛好蓋滿，不跳到空白新頁）
+const STAMP_PER_PAGE := 10
+static func stamp_page(n: int) -> Array:
+	if n <= 0:
+		return [1, 0]
+	return [(n - 1) / STAMP_PER_PAGE + 1, (n - 1) % STAMP_PER_PAGE + 1]

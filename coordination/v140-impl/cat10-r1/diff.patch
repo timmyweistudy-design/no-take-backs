@@ -1,0 +1,290 @@
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index b97dcb8..1f58e12 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1728,3 +1728,4 @@ seal_tank,中流砥柱：%s（承受 %d 還站著）,Rock of the line: %s (took
+ seal_none,這一枚沒有得主,No one earned this seal,这一枚没有得主,この判は該当なし
+ set_voice_vol,人聲音量,Voice volume,人声音量,ボイスの音量
+ sd_set_voice_vol,老闆與常客說話時的嘟囔聲（字幕照常顯示）。,The mumbling voices of the owner and regulars (subtitles always shown).,老板与常客说话时的嘟囔声（字幕照常显示）。,店主や常連のつぶやき声の音量（字幕はいつも表示）。
++od_book,老闆的印章冊　第 %d 頁,Owner's stamp book — page %d,老板的印章册　第 %d 页,店主のスタンプ帳　%dページ目
+diff --git a/game/fonts/NTBLatin-B-sub.ttf b/game/fonts/NTBLatin-B-sub.ttf
+index fcb54b7..fbac6f3 100644
+Binary files a/game/fonts/NTBLatin-B-sub.ttf and b/game/fonts/NTBLatin-B-sub.ttf differ
+diff --git a/game/fonts/NTBLatin-M-sub.ttf b/game/fonts/NTBLatin-M-sub.ttf
+index 1940ed0..6bcf213 100644
+Binary files a/game/fonts/NTBLatin-M-sub.ttf and b/game/fonts/NTBLatin-M-sub.ttf differ
+diff --git a/game/fonts/NTBRounded-B-sub.otf b/game/fonts/NTBRounded-B-sub.otf
+index 9fc5c68..a6f7a59 100644
+Binary files a/game/fonts/NTBRounded-B-sub.otf and b/game/fonts/NTBRounded-B-sub.otf differ
+diff --git a/game/fonts/NTBRounded-R-sub.otf b/game/fonts/NTBRounded-R-sub.otf
+index 6c332b9..5b103ae 100644
+Binary files a/game/fonts/NTBRounded-R-sub.otf and b/game/fonts/NTBRounded-R-sub.otf differ
+diff --git a/game/fonts/NTBRoundedSC-B-sub.otf b/game/fonts/NTBRoundedSC-B-sub.otf
+index 79feddc..0d0289a 100644
+Binary files a/game/fonts/NTBRoundedSC-B-sub.otf and b/game/fonts/NTBRoundedSC-B-sub.otf differ
+diff --git a/game/fonts/NTBRoundedSC-R-sub.otf b/game/fonts/NTBRoundedSC-R-sub.otf
+index 6023cae..9f69e43 100644
+Binary files a/game/fonts/NTBRoundedSC-R-sub.otf and b/game/fonts/NTBRoundedSC-R-sub.otf differ
+diff --git a/game/fonts/NTBSans-B-sub.otf b/game/fonts/NTBSans-B-sub.otf
+index af484ce..8af1365 100644
+Binary files a/game/fonts/NTBSans-B-sub.otf and b/game/fonts/NTBSans-B-sub.otf differ
+diff --git a/game/fonts/NTBSans-R-sub.otf b/game/fonts/NTBSans-R-sub.otf
+index 51971d6..93af76b 100644
+Binary files a/game/fonts/NTBSans-R-sub.otf and b/game/fonts/NTBSans-R-sub.otf differ
+diff --git a/game/fonts/NTBSansSC-B-sub.otf b/game/fonts/NTBSansSC-B-sub.otf
+index c7433b4..e850ce6 100644
+Binary files a/game/fonts/NTBSansSC-B-sub.otf and b/game/fonts/NTBSansSC-B-sub.otf differ
+diff --git a/game/fonts/NTBSansSC-R-sub.otf b/game/fonts/NTBSansSC-R-sub.otf
+index ef2274d..12ea5d1 100644
+Binary files a/game/fonts/NTBSansSC-R-sub.otf and b/game/fonts/NTBSansSC-R-sub.otf differ
+diff --git a/game/fonts/NTBTitle-sub.ttf b/game/fonts/NTBTitle-sub.ttf
+index e0bea96..9c09d9b 100644
+Binary files a/game/fonts/NTBTitle-sub.ttf and b/game/fonts/NTBTitle-sub.ttf differ
+diff --git a/game/fonts/ThenKhung-sub.ttf b/game/fonts/ThenKhung-sub.ttf
+index bb55601..0487980 100644
+Binary files a/game/fonts/ThenKhung-sub.ttf and b/game/fonts/ThenKhung-sub.ttf differ
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index 77e9772..f91fa7b 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -940,3 +940,48 @@ func _draw_owner_hand() -> void:
+ 	draw_rect(Rect2(Vector2(0, -12), Vector2(5, 7)), Color(0.95, 0.92, 0.82))   # 骨雕扳指
+ 	draw_line(Vector2(-18, 0), Vector2(2, 0), Color(0.75, 0.6, 0.48, 0.5), 1.0, true)
+ 	draw_set_transform_matrix(Transform2D.IDENTITY)
++
++
++## 1.4.0 §10.1 老闆依勝負的手勢（對 AI、播完到結算前）：玩家贏＝伸手在棋鐘旁放一枚紅泥小章；玩家輸＝在桌緣叩兩下。
++## 純畫面；簡化介面、減少特效、截圖不畫（和開場上發條同一條規則）。
++func owner_end_pose(winner: int, t: float) -> Array:
++	# → [伸出程度 0～1, 叩桌位移 px, 章放下了沒]
++	var k := clampf(t / 1.3, 0.0, 1.0)
++	var reach := 0.0
++	if k < 0.35:
++		reach = 1.0 - pow(1.0 - k / 0.35, 3.0)
++	elif k < 0.8:
++		reach = 1.0
++	elif k < 1.0:
++		reach = 1.0 - (k - 0.8) / 0.2
++	var knock := 0.0
++	if winner == 1 and k >= 0.35 and k < 0.8:
++		knock = absf(sin((k - 0.35) / 0.45 * PI * 2.0)) * 6.0
++	return [reach, knock, winner == 0 and k >= 0.5]
++
++var owner_end_force := false   # 開發截圖：固定拍謝幕那一刻
++func _draw_owner_end() -> void:
++	if view == null or not view.finished or mode != Mode.VS_AI or bool(Save.s("plain_ui")) or bool(Save.s("reduce_fx")) or (shot_dir != "" and not owner_end_force) or sim == null or sim.winner < 0:
++		return
++	var ps: Array = owner_end_pose(sim.winner, result_delay)
++	if float(ps[0]) <= 0.0:
++		return
++	# 右側桌面、茶杯下方（不蓋 HUD 與按鈕；對手坐席在上、茶杯在中）
++	var tip := Vector2(1214, 600) if sim.winner == 0 else Vector2(1206, 650)
++	var from := Vector2(1340, 560) if sim.winner == 0 else Vector2(1340, 720)
++	var p := from.lerp(tip, float(ps[0])) + Vector2(0, float(ps[1]))
++	if bool(ps[2]):
++		draw_rect(Rect2(tip + Vector2(-40, -11), Vector2(22, 22)), Color(PAL.TRINKET_RED, 0.9))   # 放下的紅泥小章（手的左邊）
++		draw_rect(Rect2(tip + Vector2(-36, -7), Vector2(14, 14)), Color(1, 0.9, 0.8, 0.35), false, 1.5)
++	var dir := (tip - from).normalized()
++	var side := Vector2(-dir.y, dir.x)
++	var linen := Color(0.86, 0.8, 0.68)
++	var cuff := p - dir * 26.0
++	draw_colored_polygon(PackedVector2Array([from + side * 30.0, from - side * 30.0, cuff - side * 20.0, cuff + side * 20.0]), linen.darkened(0.1))
++	draw_line(cuff + side * 20.0, cuff - side * 20.0, linen.darkened(0.35), 3.0, true)
++	draw_set_transform_matrix(Transform2D(atan2(dir.y, dir.x), p - dir * 10.0))
++	draw_colored_polygon(PackedVector2Array([Vector2(-18, -11), Vector2(4, -12), Vector2(12, -5), Vector2(12, 5), Vector2(4, 12), Vector2(-18, 11)]), Color(0.93, 0.78, 0.64))
++	for fi in 3:
++		draw_line(Vector2(8, -6 + fi * 6), Vector2(14 if sim.winner == 1 else 17, -5 + fi * 5), Color(0.9, 0.74, 0.6), 4.5, true)   # 叩桌時握拳（指頭短）
++	draw_rect(Rect2(Vector2(0, -12), Vector2(5, 7)), Color(0.95, 0.92, 0.82))
++	draw_set_transform_matrix(Transform2D.IDENTITY)
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 05a4716..61a19d3 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -838,6 +838,7 @@ func _draw_inner() -> void:
+ 		St.BATTLE:
+ 			_draw_battle_hud()
+ 			_draw_owner_hand()  # 1.3.0 §11 開戰前老闆替棋鐘上發條（畫在 HUD 之上，不然被木條蓋住；Codex cat11 #4）
++			_draw_owner_end()   # 1.4.0 §10.1 播完後老闆依勝負的手勢
+ 			_draw_replay_controls()
+ 			if sim != null and sim.cmd_on:
+ 				_draw_cmd_bar()
+diff --git a/game/scripts/ui/screens/game_v16.gd b/game/scripts/ui/screens/game_v16.gd
+index c639a24..a020b7a 100644
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -2386,6 +2386,10 @@ func _draw_seat() -> void:
+ 	var f1: float = float(view.power(1)) / maxf(1.0, float(view.budget_of(1)) * 1000.0)
+ 	var mood := seat_mood(f0, f1)
+ 	var p := SEAT_FOOT
++	# 1.4.0 §10.1 謝幕反應：播完到結算前（約 1.4 秒）對手點頭（贏）或攤手（輸），輸了把茶杯往前推一點；減少動態只換表情
++	var re := seat_react(view.finished, sim.winner if sim != null else -1, result_delay, bool(Save.s("reduce_motion")))
++	if int(re[0]) != 0:
++		mood = int(re[0])
+ 	# 坐墊（深色布墊＋流蘇）＋落影
+ 	draw_set_transform_matrix(Transform2D(0, Vector2(1, 0.4), 0, p + Vector2(4, 6)))
+ 	draw_circle(Vector2.ZERO, 30.0, Color(DIM_INK, 0.4 * a), true, -1.0, true)
+@@ -2394,7 +2398,7 @@ func _draw_seat() -> void:
+ 	draw_circle(Vector2.ZERO, 22.0, Color(PAL.TRINKET_RED.darkened(0.25), a), true, -1.0, true)
+ 	draw_set_transform_matrix(Transform2D.IDENTITY)
+ 	var bob := 0.0 if bool(Save.s("reduce_motion")) else sin(time * 1.6) * 1.2
+-	Art.unit(self, p + Vector2(0, -2 + bob), Persona.face(st), 1, -1.0, 0.0, 0.0, 0.0, a, time, 1.35, cbm(), mood)
++	Art.unit(self, p + Vector2(0, -2 + bob + float(re[1])), Persona.face(st), 1, -1.0, 0.0, 0.0, 0.0, a, time, 1.35, cbm(), mood, float(re[2]))
+ 	# 前面一張矮茶几把腿擋住：看起來是坐在桌後的人，不是站著的兵（Hydrogen cat11 #1）
+ 	var tb := Rect2(p + Vector2(-36, -24), Vector2(72, 14))
+ 	draw_rect(Rect2(tb.position + Vector2(3, 4), tb.size), Color(DIM_INK, 0.45 * a))
+@@ -2402,8 +2406,21 @@ func _draw_seat() -> void:
+ 	draw_rect(Rect2(tb.position, Vector2(tb.size.x, 3)), Color(1, 0.9, 0.7, 0.3 * a))
+ 	for lx in [tb.position.x + 6.0, tb.end.x - 10.0]:
+ 		draw_rect(Rect2(lx, tb.end.y, 4, 12), Color(PAL.TRINKET_LEATHER.darkened(0.4), a))
+-	draw_circle(tb.position + Vector2(20, -3), 4.0, Color(PAL.CUP_GLAZE, a), true, -1.0, true)   # 茶几上的小茶杯
+-
++	draw_circle(tb.position + Vector2(20 - float(re[3]), -3), 4.0, Color(PAL.CUP_GLAZE, a), true, -1.0, true)   # 茶几上的小茶杯（輸了往前推）
++
++
++## 1.4.0 §10.1：對手木偶的謝幕反應（純函式：播完與否、勝方、播完後經過秒數、減少動態）→ [表情, 上下位移, 側傾, 茶杯前推 px]
++## 對手是紅方（1）：紅方勝＝點頭兩下；藍方勝＝攤手（側傾晃一下）＋茶杯往前推；平手＝專注。
++static func seat_react(finished: bool, winner: int, t: float, still: bool) -> Array:
++	if not finished:
++		return [0, 0.0, 0.0, 0.0]
++	var k := clampf(t / 1.2, 0.0, 1.0)
++	if winner == 1:
++		return [Art.M_HAPPY, 0.0 if still else absf(sin(k * PI * 2.0)) * 4.0, 0.0, 0.0]
++	if winner == 0:
++		var push := 0.0 if still else 8.0 * (1.0 - pow(1.0 - minf(1.0, k * 2.0), 3.0))
++		return [Art.M_HURT, 0.0, 0.0 if still else sin(k * PI * 2.0) * 0.12, push]
++	return [Art.M_GRIM, 0.0, 0.0, 0.0]
+ 
+ # ── 1.3.0 第 12 大類：每日老闆出題（方案 §12.7）──
+ const OwnerDaily = preload("res://scripts/game/owner_daily.gd")
+@@ -2422,6 +2439,8 @@ func _od_after(id: String, stars: int) -> void:
+ 	if bool(r[1]):
+ 		Save.data["od_stamps"] = int(Save.data.get("od_stamps", 0)) + 1
+ 		_toast(L.t("od_stamp_got"))
++		if sfx != null:
++			sfx.play("place_heavy", 0.8)   # 1.4.0 §10.5 紅泥小章落下「咚」
+ 		if sfx != null and sfx.has_method("play_voice"):
+ 			sfx.play_voice("happy")   # 老闆蓋印時哼一聲
+ 
+@@ -2432,7 +2451,10 @@ func _draw_owner_daily() -> void:
+ 	var help := L.t("od_help")
+ 	var rowh := 52.0
+ 	var foot := L.t("od_stamps", [int(Save.data.get("od_stamps", 0))])
+-	var P := modal_rect(720, 12.0 + h1_help_h(help, tz("S"), 640) + GAP_L + picks.size() * (rowh + GAP_S) + GAP_M + text_h(foot, tz("S"), 640) + GAP_L + 44.0 + GAP_L)
++	var bk := stamp_page(int(Save.data.get("od_stamps", 0)))
++	var book := L.t("od_book", [int(bk[0])])
++	var slot := 30.0
++	var P := modal_rect(720, 12.0 + h1_help_h(help, tz("S"), 640) + GAP_L + picks.size() * (rowh + GAP_S) + GAP_M + text_h(foot, tz("S"), 640) + GAP_M + text_h(book, tz("S"), 640) + GAP_S + slot + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("od_title"), help, tz("S"), 640) + GAP_L
+ 	var stars: Dictionary = Save.data.get("puzzle_stars", {})
+@@ -2446,4 +2468,23 @@ func _draw_owner_daily() -> void:
+ 		y += rowh + GAP_S
+ 	y += GAP_M - GAP_S
+ 	_text(Vector2(640, y), foot, tz("S"), ACCENT, true, false, 640)
++	y += text_h(foot, tz("S"), 640) + GAP_M
++	# 1.4.0 §10.5 印章冊：一頁 10 格，蓋滿翻下一頁（老闆的紅泥小章；空格是淡淡的框）
++	_text(Vector2(640, y), book, tz("S"), TXT_DIM, true, false, 640)
++	y += text_h(book, tz("S"), 640) + GAP_S
++	var x0 := 640.0 - (STAMP_PER_PAGE * slot + (STAMP_PER_PAGE - 1) * 8.0) / 2.0
++	for si in STAMP_PER_PAGE:
++		var sr := Rect2(x0 + si * (slot + 8.0), y, slot, slot)
++		if si < int(bk[1]):
++			draw_rect(sr.grow(-2), Color(PAL.TRINKET_RED, 0.85))
++			draw_rect(sr.grow(-7), Color(1, 0.9, 0.8, 0.35), false, 1.5)
++		else:
++			draw_rect(sr.grow(-2), Color(TXT_DIM, 0.35), false, 1.5)
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())
++
++## 印章冊：第幾頁、這頁蓋了幾格（10 的倍數＝這頁剛好蓋滿，不跳到空白新頁）
++const STAMP_PER_PAGE := 10
++static func stamp_page(n: int) -> Array:
++	if n <= 0:
++		return [1, 0]
++	return [(n - 1) / STAMP_PER_PAGE + 1, (n - 1) % STAMP_PER_PAGE + 1]
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 89c2eda..59624d2 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index f8c9600..3bc3c90 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -2100,3 +2100,28 @@ func test_sound_v140() -> void:
+ 	ok(ia >= 0 and gms.find("set_voice_vol(int(Save.s(\"voice_vol\"))", ia) > ia and gms.find("sfx.mono = bool(Save.s(\"mono\"))", ia) > ia, "人聲音量與單聲道在 _apply_master 同步（開機、切單聲道都會套，Codex cat09 #1）")
+ 	var bvs: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+ 	ok(bvs.find("ev.get(\"src\", ev.get(\"id\"") >= 0, "死亡事件用死者位置算聲像（Codex cat09 #4）")
++
++
++## 1.4.0 第 10 大類：棋館的人 2.0（謝幕反應、老闆手勢、印章冊）
++func test_people_v140() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var A = load("res://scripts/ui/art.gd")
++	ok(GS.seat_react(false, 1, 0.5, false)[0] == 0, "還在打：沒有謝幕反應")
++	var win: Array = GS.seat_react(true, 1, 0.3, false)
++	ok(int(win[0]) == A.M_HAPPY and float(win[1]) > 0.0 and float(win[3]) == 0.0, "對手贏：得意＋點頭、不推茶杯")
++	var lose: Array = GS.seat_react(true, 0, 1.0, false)
++	ok(int(lose[0]) == A.M_HURT and float(lose[3]) > 6.0, "對手輸：慌＋茶杯往前推")
++	var still: Array = GS.seat_react(true, 0, 1.0, true)
++	ok(int(still[0]) == A.M_HURT and float(still[1]) == 0.0 and float(still[2]) == 0.0 and float(still[3]) == 0.0, "減少動態：只換表情、不動")
++	ok(GS.seat_react(true, -1, 0.5, false)[0] == A.M_GRIM, "平手：專注")
++	ok(GS.seat_react(true, 1, 0.4, false) == GS.seat_react(true, 1, 0.4, false), "同一時刻同結果（純函式）")
++	var g = GS.new()
++	var pw: Array = g.owner_end_pose(0, 0.9)
++	ok(float(pw[0]) == 1.0 and bool(pw[2]) and float(pw[1]) == 0.0, "玩家贏：老闆伸手放下紅泥小章")
++	var pl: Array = g.owner_end_pose(1, 0.7)
++	ok(float(pl[0]) == 1.0 and float(pl[1]) > 0.0 and not bool(pl[2]), "玩家輸：老闆叩桌")
++	ok(float(g.owner_end_pose(0, 1.3)[0]) == 0.0, "結算前手收回")
++	g.free()
++	ok(GS.stamp_page(0) == [1, 0] and GS.stamp_page(1) == [1, 1] and GS.stamp_page(10) == [1, 10] and GS.stamp_page(11) == [2, 1], "印章冊一頁 10 格、蓋滿才翻頁")
++	var csv: String = FileAccess.get_file_as_string("res://data/strings.csv")
++	ok(csv.find("\nod_book,") >= 0, "印章冊頁碼有四語")
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index 7caa894..785a523 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -780,6 +780,11 @@ func _run_screenshots() -> void:
+ 	while not view.finished:
+ 		_sim_step(false)
+ 	zoom = 1.0
++	if mode == Mode.VS_AI:   # 1.4.0 §10.1 謝幕：對手木偶的反應＋老闆依勝負的手勢（播完 0.7 秒那一刻）
++		result_delay = 0.7
++		owner_end_force = true
++		await _snap("v140_10_curtain_call.png")
++		owner_end_force = false
+ 	_finish_battle()
+ 	await _snap("05_result.png")
+ 	note_key = "result"   # 1.2.0 §12 老闆便條（截圖平常不跳，這張專拍）
+@@ -2216,6 +2221,7 @@ func _shots_v161() -> void:
+ 	overlay = "daily_past"   # 1.1.0 N4
+ 	await _snap("v110_03_daily_past.png")
+ 	overlay = "owner_daily"   # 1.3.0 §12.7 每日老闆出題
++	Save.data["od_stamps"] = 13   # 1.4.0 §10.5 印章冊：第 2 頁蓋了 3 格
+ 	await _snap("v130_od_owner_daily.png")
+ 	nb_buf = ""
+ 	overlay = ""
+diff --git a/game/tools/screens.json b/game/tools/screens.json
+index f85b037..901b12e 100644
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -1120,5 +1120,11 @@
+   "states": [
+    "一般"
+   ]
++ },
++ "v140_10_curtain_call.png": {
++  "entry": "對 AI 戰鬥播完、結算前（1.4.0 §10.1 謝幕反應＋老闆手勢）",
++  "states": [
++   "一般"
++  ]
+  }
+ }
+\ No newline at end of file

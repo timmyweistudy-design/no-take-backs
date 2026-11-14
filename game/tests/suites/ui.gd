@@ -2100,3 +2100,28 @@ func test_sound_v140() -> void:
 	ok(ia >= 0 and gms.find("set_voice_vol(int(Save.s(\"voice_vol\"))", ia) > ia and gms.find("sfx.mono = bool(Save.s(\"mono\"))", ia) > ia, "人聲音量與單聲道在 _apply_master 同步（開機、切單聲道都會套，Codex cat09 #1）")
 	var bvs: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
 	ok(bvs.find("ev.get(\"src\", ev.get(\"id\"") >= 0, "死亡事件用死者位置算聲像（Codex cat09 #4）")
+
+
+## 1.4.0 第 10 大類：棋館的人 2.0（謝幕反應、老闆手勢、印章冊）
+func test_people_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var A = load("res://scripts/ui/art.gd")
+	ok(GS.seat_react(false, 1, 0.5, false)[0] == 0, "還在打：沒有謝幕反應")
+	var win: Array = GS.seat_react(true, 1, 0.3, false)
+	ok(int(win[0]) == A.M_HAPPY and float(win[1]) > 0.0 and float(win[3]) == 0.0, "對手贏：得意＋點頭、不推茶杯")
+	var lose: Array = GS.seat_react(true, 0, 1.0, false)
+	ok(int(lose[0]) == A.M_HURT and float(lose[3]) > 6.0, "對手輸：慌＋茶杯往前推")
+	var still: Array = GS.seat_react(true, 0, 1.0, true)
+	ok(int(still[0]) == A.M_HURT and float(still[1]) == 0.0 and float(still[2]) == 0.0 and float(still[3]) == 0.0, "減少動態：只換表情、不動")
+	ok(GS.seat_react(true, -1, 0.5, false)[0] == A.M_GRIM, "平手：專注")
+	ok(GS.seat_react(true, 1, 0.4, false) == GS.seat_react(true, 1, 0.4, false), "同一時刻同結果（純函式）")
+	var g = GS.new()
+	var pw: Array = g.owner_end_pose(0, 0.9)
+	ok(float(pw[0]) == 1.0 and bool(pw[2]) and float(pw[1]) == 0.0, "玩家贏：老闆伸手放下紅泥小章")
+	var pl: Array = g.owner_end_pose(1, 0.7)
+	ok(float(pl[0]) == 1.0 and float(pl[1]) > 0.0 and not bool(pl[2]), "玩家輸：老闆叩桌")
+	ok(float(g.owner_end_pose(0, 1.3)[0]) == 0.0, "結算前手收回")
+	g.free()
+	ok(GS.stamp_page(0) == [1, 0] and GS.stamp_page(1) == [1, 1] and GS.stamp_page(10) == [1, 10] and GS.stamp_page(11) == [2, 1], "印章冊一頁 10 格、蓋滿才翻頁")
+	var csv: String = FileAccess.get_file_as_string("res://data/strings.csv")
+	ok(csv.find("\nod_book,") >= 0, "印章冊頁碼有四語")

@@ -838,6 +838,7 @@ func _draw_inner() -> void:
 		St.BATTLE:
 			_draw_battle_hud()
 			_draw_owner_hand()  # 1.3.0 §11 開戰前老闆替棋鐘上發條（畫在 HUD 之上，不然被木條蓋住；Codex cat11 #4）
+			_draw_owner_end()   # 1.4.0 §10.1 播完後老闆依勝負的手勢
 			_draw_replay_controls()
 			if sim != null and sim.cmd_on:
 				_draw_cmd_bar()

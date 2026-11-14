@@ -780,6 +780,11 @@ func _run_screenshots() -> void:
 	while not view.finished:
 		_sim_step(false)
 	zoom = 1.0
+	if mode == Mode.VS_AI:   # 1.4.0 §10.1 謝幕：對手木偶的反應＋老闆依勝負的手勢（播完 0.7 秒那一刻）
+		result_delay = 0.7
+		owner_end_force = true
+		await _snap("v140_10_curtain_call.png")
+		owner_end_force = false
 	_finish_battle()
 	await _snap("05_result.png")
 	note_key = "result"   # 1.2.0 §12 老闆便條（截圖平常不跳，這張專拍）
@@ -2216,6 +2221,7 @@ func _shots_v161() -> void:
 	overlay = "daily_past"   # 1.1.0 N4
 	await _snap("v110_03_daily_past.png")
 	overlay = "owner_daily"   # 1.3.0 §12.7 每日老闆出題
+	Save.data["od_stamps"] = 13   # 1.4.0 §10.5 印章冊：第 2 頁蓋了 3 格
 	await _snap("v130_od_owner_daily.png")
 	nb_buf = ""
 	overlay = ""

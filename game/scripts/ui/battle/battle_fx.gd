@@ -940,3 +940,54 @@ func _draw_owner_hand() -> void:
 	draw_rect(Rect2(Vector2(0, -12), Vector2(5, 7)), Color(0.95, 0.92, 0.82))   # 骨雕扳指
 	draw_line(Vector2(-18, 0), Vector2(2, 0), Color(0.75, 0.6, 0.48, 0.5), 1.0, true)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## 1.4.0 §10.1 老闆依勝負的手勢（對 AI、播完到結算前）：玩家贏＝伸手在棋鐘旁放一枚紅泥小章；玩家輸＝在桌緣叩兩下。
+## 純畫面；簡化介面、減少特效、截圖不畫（和開場上發條同一條規則）。
+func owner_end_pose(winner: int, t: float) -> Array:
+	# → [伸出程度 0～1, 叩桌位移 px, 章放下了沒]
+	var k := clampf(t / 1.3, 0.0, 1.0)
+	var reach := 0.0
+	if k < 0.35:
+		reach = 1.0 - pow(1.0 - k / 0.35, 3.0)
+	elif k < 0.8:
+		reach = 1.0
+	elif k < 1.0:
+		reach = 1.0 - (k - 0.8) / 0.2
+	var knock := 0.0
+	if winner == 1 and k >= 0.35 and k < 0.8:
+		knock = absf(sin((k - 0.35) / 0.45 * PI * 2.0)) * 6.0
+	return [reach, knock, winner == 0 and k >= 0.5]
+
+var owner_end_force := false   # 開發截圖：固定拍謝幕那一刻
+func _draw_owner_end() -> void:
+	if view == null or not view.finished or mode != Mode.VS_AI or bool(Save.s("plain_ui")) or bool(Save.s("reduce_fx")) or (shot_dir != "" and not owner_end_force) or sim == null or sim.winner < 0:
+		return
+	if play_kind != "official" or not bool(call("seat_visible")):
+		return   # 只在正式對 AI 局（重播、覆盤、看代碼、幽靈、週賽、天梯不畫；和對手坐席同一條，Codex cat10 #1）
+	var ps: Array = owner_end_pose(sim.winner, result_delay)
+	if float(ps[0]) <= 0.0:
+		return
+	# 右側桌面、茶杯下方（不蓋 HUD 與按鈕；對手坐席在上、茶杯在中）
+	var tip := Vector2(1214, 600) if sim.winner == 0 else Vector2(1206, 650)
+	var from := Vector2(1340, 560) if sim.winner == 0 else Vector2(1340, 720)
+	var p := from.lerp(tip, float(ps[0])) + Vector2(0, float(ps[1]))
+	if bool(ps[2]):
+		# 放下的紅泥小章（手的左邊）：右下落影＋下緣厚度＋印面淺框，像一塊放在桌上的小方印（Antigravity cat10 #2）
+		draw_rect(Rect2(tip + Vector2(-37, -6), Vector2(24, 22)), Color(DIM_INK, 0.45))
+		draw_rect(Rect2(tip + Vector2(-40, -8), Vector2(22, 22)), PAL.TRINKET_RED.darkened(0.35))
+		draw_rect(Rect2(tip + Vector2(-40, -12), Vector2(22, 20)), Color(PAL.TRINKET_RED, 0.95))
+		draw_rect(Rect2(tip + Vector2(-36, -8), Vector2(14, 12)), Color(1, 0.9, 0.8, 0.35), false, 1.5)
+	var dir := (tip - from).normalized()
+	var side := Vector2(-dir.y, dir.x)
+	var linen := Color(0.86, 0.8, 0.68)
+	var cuff := p - dir * 26.0
+	draw_circle(p + Vector2(4, 10), 14.0, Color(DIM_INK, 0.3), true, -1.0, true)   # 手在桌面上的落影
+	draw_colored_polygon(PackedVector2Array([from + side * 30.0, from - side * 30.0, cuff - side * 20.0, cuff + side * 20.0]), linen.darkened(0.1))
+	draw_line(cuff + side * 20.0, cuff - side * 20.0, linen.darkened(0.35), 3.0, true)
+	draw_set_transform_matrix(Transform2D(atan2(dir.y, dir.x), p - dir * 10.0))
+	draw_colored_polygon(PackedVector2Array([Vector2(-18, -11), Vector2(4, -12), Vector2(12, -5), Vector2(12, 5), Vector2(4, 12), Vector2(-18, 11)]), Color(0.93, 0.78, 0.64))
+	for fi in 3:
+		draw_line(Vector2(8, -6 + fi * 6), Vector2(14 if sim.winner == 1 else 17, -5 + fi * 5), Color(0.9, 0.74, 0.6), 4.5, true)   # 叩桌時握拳（指頭短）
+	draw_rect(Rect2(Vector2(0, -12), Vector2(5, 7)), Color(0.95, 0.92, 0.82))
+	draw_set_transform_matrix(Transform2D.IDENTITY)
