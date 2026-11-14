@@ -479,6 +479,15 @@ func _key(k: int) -> void:
 	if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
 		tm_ghost_on = not tm_ghost_on   # 1.2.0 §11.3
 		return
+	# 1.5.0 §1.2 大廳三步：肩鍵（Q／E）＝上一步／下一步，Y（Tab）＝打開／收起進階折頁
+	if overlay == "lobby" and not bool(get("lobby_menu")):
+		if (k == KEY_Q or k == KEY_E) and not bool(get("lobby_open")):
+			call("_lobby_step_by", -1 if k == KEY_Q else 1)
+			return
+		if k == KEY_TAB:
+			set("lobby_open", not bool(get("lobby_open")))
+			_btns.clear()   # 開合折頁：舊按鈕立刻失效（同一幀 Y＋A 不會按到開合前的「開戰」；Codex v150 cat03 r3）
+			return
 	# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
 	if state != St.PLACE or overlay != "":
 		match k:

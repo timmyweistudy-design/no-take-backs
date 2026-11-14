@@ -365,8 +365,8 @@ static func check(d: Dictionary) -> Dictionary:
 
 ## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
 ## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
-const R14_LIMITS := {"title": 9, "lobby": 8, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
-const R14_ENFORCE := ["title", "result"]
+const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+const R14_ENFORCE := ["title", "result", "lobby"]
 static func _r14(out: Dictionary, d: Dictionary) -> void:
 	var sc: Dictionary = d.get("screen", {})
 	if sc.is_empty():

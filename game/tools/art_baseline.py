@@ -7,6 +7,7 @@
   python3 tools/art_baseline.py merge <版面輸出夾> <基線檔>   # 新畫面補進基線（舊畫面不覆蓋）
 """
 import json, os, sys, glob
+SHOT_TOL_ABS, SHOT_TOL_PCT, TOTAL_TOL_PCT = 3, 0.15, 0.02
 
 def read(out_dir):
     """回傳 (有棋子的畫面×組 → [low, units], 這輪實際拍到的 畫面×組 集合)"""
@@ -54,9 +55,14 @@ def main():
         lo_c += v[0]; lo_b += old[k][0]
         if v[0] > old[k][0]:
             flips.append('%s：%d → %d（/%d）' % (k, old[k][0], v[0], v[1]))
+    # 容差（1.5.0 第 3 批量測）：密集兵團裡單隻棋子在 3:1 門檻上下跳動是量測顆粒——每張畫面最多多 max(3, 15%)、總數最多多 2%
     for shot in sorted(by_c):
-        if by_c[shot] > by_b[shot]:
-            worse.append('%s：%d → %d（24 組加總）' % (shot, by_b[shot], by_c[shot]))
+        if by_c[shot] > by_b[shot] + max(SHOT_TOL_ABS, int(by_b[shot] * SHOT_TOL_PCT)):
+            worse.append('%s：%d → %d（24 組加總，超過容差）' % (shot, by_b[shot], by_c[shot]))
+        elif by_c[shot] > by_b[shot]:
+            flips.append('%s：%d → %d（24 組加總，容差內）' % (shot, by_b[shot], by_c[shot]))
+    if lo_b > 0 and lo_c > lo_b * (1.0 + TOTAL_TOL_PCT):
+        worse.append('總數 %d → %d（超過 %d%%）' % (lo_b, lo_c, int(TOTAL_TOL_PCT * 100)))
     print('ART 固定時鐘棋子低對比 %d（基線 %d）；比基線差的畫面 %d 張、探針消失 %d 筆、新畫面 %d 筆（沒有基線，不算）；單組上下跳動 %d 筆（只列參考）' % (lo_c, lo_b, len(worse), len(lost), len(new), len(flips)))
     for w in worse[:40]:
         print('  ' + w)

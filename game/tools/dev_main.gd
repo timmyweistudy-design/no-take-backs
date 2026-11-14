@@ -492,6 +492,8 @@ func _snap(name: String) -> void:
 		pad_mode = true   # V1.2.1：手把焦點狀態（焦點框畫在目前的按鈕上）
 	if clutch_t > 0.0 and (clutch_t < 0.3 or clutch_t > 1.45):
 		clutch_t = 0.8   # 1.2.0：「最後時刻」橫幅在淡入淡出途中（透明度 <1）做對比檢查沒有意義 → 截圖一律拍完全顯示的穩定狀態（真實時間模式也一樣）
+	if shot_fixed and state == St.BATTLE:
+		time = 600.0 + float(name.hash() & 1023) * 0.01   # 1.5.0 §12：固定模式下戰鬥截圖的動畫時間只由畫面名決定（不受前面拍了幾張影響；美感基線才比得了）
 	queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -1028,7 +1030,13 @@ func _shots_v4() -> void:
 	_go_title()
 	_open_lobby("ai")
 	mouse = Vector2(-100, -100)
+	lobby_step = 2   # 1.5.0 §1.2：22_lobby＝第三步「開戰」（有上次設定時打開就在這裡）
 	await _snap("22_lobby.png")
+	lobby_step = 0
+	await _snap("v150_22a_lobby_step1.png")   # 第一步：對手
+	lobby_step = 1
+	await _snap("v150_22b_lobby_step2.png")   # 第二步：地圖
+	lobby_step = 2
 	# V1.5.2 空／滿資料：「我的預設」下拉 0 筆、10 筆（上限）
 	var rp_keep = Save.data.get("rule_presets", [])
 	Save.data["rule_presets"] = []
@@ -1216,6 +1224,7 @@ func _shots_v9() -> void:
 	_lobby_pick("standard")
 	lobby_r.map_id = 1
 	lobby_r.ai_style = 1
+	lobby_step = 1   # 1.5.0：地圖在第二步
 	for k1 in 12:
 		await get_tree().process_frame
 	await _snap("57_lobby_map.png")
@@ -1766,6 +1775,29 @@ func _pad_walk() -> void:
 	await _pw_pick(0, "標題→對戰")
 	await _pw_pick(1, "對戰→對 AI 大廳")
 	await _pw_cycle("大廳")
+	# 1.5.0 §1.2 大廳三步：RB 下一步、LB 上一步、Y 進階折頁；換步後焦點在主鈕（Codex v150 cat03 #5）
+	_go_title()
+	_open_lobby("ai")   # 上面巡過每顆鈕之後畫面不在大廳了：重新打開
+	lobby_step = 0
+	lobby_open = false
+	lobby_menu = false
+	await _pw_frames(3)
+	_ov_t = time - 1.0   # 等疊層開始畫、轉場直接到終態（第一下不要被轉場吃掉）
+	for st in [1, 2]:
+		await _pw_btn(JOY_BUTTON_RIGHT_SHOULDER)
+		await _pw_frames(3)
+		_pw_check(lobby_step == st, "大廳 RB：應該到第 %d 步，現在 %d（overlay=%s menu=%s open=%s state=%d cmds=%d）" % [st + 1, lobby_step + 1, overlay, str(lobby_menu), str(lobby_open), state, _cmds.size()])
+		_pw_check(_focus >= 0 and _focus < _btns.size() and _btns[_focus]["r"].position.x >= 960.0, "大廳換步後焦點不在主鈕（第 %d 步）" % [st + 1])
+		await _pw_cycle("大廳第 %d 步" % [st + 1])
+	await _pw_btn(JOY_BUTTON_LEFT_SHOULDER)
+	await _pw_frames(3)
+	_pw_check(lobby_step == 1, "大廳 LB：應該回第 2 步")
+	await _pw_btn(JOY_BUTTON_Y)
+	await _pw_frames(3)
+	_pw_check(lobby_open, "大廳 Y：應該打開進階折頁")
+	await _pw_btn(JOY_BUTTON_Y)
+	await _pw_frames(3)
+	_pw_check(not lobby_open, "大廳 Y：應該收起進階折頁")
 	_go_title()
 	overlay = "reward"
 	await _pw_cycle("獎勵")
@@ -1837,6 +1869,7 @@ func _shots_cmd() -> void:
 	_lobby_adj("cmd_on", 1)
 	await _snap("71_lobby_cmd_on.png")
 	lobby_open = false
+	lobby_step = 2   # 1.5.0：規則列（軍令快切）在第三步
 	_lobby_pick("standard")
 	_lobby_adj("cmd_on", 1)
 	await _snap("72_lobby_cmd_quick.png")

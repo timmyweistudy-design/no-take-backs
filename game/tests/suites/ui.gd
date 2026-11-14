@@ -2386,3 +2386,62 @@ func test_quick_rematch_v150() -> void:
 	g.free()
 	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
 	ok(gm.find("if ek == \"menu_vs_ai\" and call(\"quick_rematch_ok\"):") >= 0, "最近玩的：對 AI 快速對戰走兩步開戰")
+
+
+## 1.5.0 第 3 批：大廳三步頁
+func test_lobby_steps_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.LB_STEP_ROWS.size() == 3 and "opp" in GS.LB_STEP_ROWS[0] and "map" in GS.LB_STEP_ROWS[1] and "rules" in GS.LB_STEP_ROWS[2], "三步：對手／地圖（含大小）／開戰（卡池＋規則）")
+	var seen := {}
+	for rows in GS.LB_STEP_ROWS:
+		for r0 in rows:
+			ok(not seen.has(r0), "每一列只在一步出現（%s）" % r0)
+			seen[r0] = true
+	ok(seen.size() == 5, "五列都有地方放（地圖、大小、卡池、對手、規則）")
+	var g = GS.new()
+	g.lobby_step = 0
+	ok(g._lb_show("opp") and not g._lb_show("map"), "第一步只放對手")
+	g.lobby_step = 2
+	ok(g._lb_show("rules") and g._lb_show("cards") and not g._lb_show("opp"), "第三步放卡池與規則")
+	g.btn_group = ""
+	g._btns.clear()
+	for k in 3:
+		g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true, "group": "st_x"})
+	g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true, "group": ""})
+	ok(g.click_count() == 2, "同一組按鈕（步進器、分頁列）算一個控制")
+	g.free()
+	var g2 = GS.new()
+	g2.overlay = "lobby"
+	g2.lobby_open = false
+	g2.lobby_menu = false
+	g2.lobby_step = 0
+	g2._key(KEY_E)
+	ok(g2.lobby_step == 1 and g2._lb_focus_main, "大廳 RB（E）＝下一步，焦點交給主鈕", "step=%d state=%d" % [g2.lobby_step, g2.state])
+	g2._key(KEY_Q)
+	ok(g2.lobby_step == 0, "大廳 LB（Q）＝上一步")
+	g2._key(KEY_TAB)
+	ok(g2.lobby_open, "大廳 Y（Tab）＝打開進階折頁")
+	# 同一幀 LB＋A：換步後舊按鈕失效，不會按到上一步畫面的「開戰」（Codex v150 cat03 r2）
+	g2.lobby_open = false
+	g2.lobby_step = 2
+	var fired := [false]
+	g2._btns.clear()
+	g2._btns.append({"r": Rect2(966, 700, 234, 48), "cb": func(): fired[0] = true, "en": true})
+	g2._btns_gen = g2._gen
+	g2._focus = 0
+	g2._key(KEY_Q)
+	g2._key(KEY_ENTER)
+	ok(g2.lobby_step == 1 and not fired[0], "同一幀先 LB 再 A：不會觸發舊畫面的開戰")
+	fired[0] = false
+	g2._btns.clear()
+	g2._btns.append({"r": Rect2(966, 700, 234, 48), "cb": func(): fired[0] = true, "en": true})
+	g2._btns_gen = g2._gen
+	g2._focus = 0
+	g2._key(KEY_TAB)
+	g2._key(KEY_ENTER)
+	ok(not fired[0], "同一幀先 Y 再 A：開合折頁後舊按鈕失效（Codex v150 cat03 r3）")
+	g2.free()
+	var lv: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
+	ok(lv.find("lobby_step = 2 if code != \"\" else 0") >= 0, "有上次設定時直接打開在第三步")
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	ok("lobby" in LR.R14_ENFORCE, "大廳是已改造類別（R14 超標失敗）")

@@ -1370,12 +1370,21 @@ func _draw_contact_ao(s) -> void:
 			idx.append(base + 1 + (k + 1) % n)
 	if not idx.is_empty():
 		# 中心深、邊緣透明的柔和陰影（硬邊整圈 0.16 會把兵四周的地面壓暗，棋子輪廓對比警告從 5.9% 升到 10%；收尾量測）
+		# 1.5.0 §7：密集處依周圍兵數減淡（擠成一團時陰影疊加會把整團壓暗，輪廓對比變差；固定時鐘量測）
 		var cols := PackedColorArray()
 		cols.resize(verts.size())
-		var c_in := Color(DIM_INK, 0.2)
 		var c_out := Color(DIM_INK, 0.0)
-		for vi in verts.size():
-			cols[vi] = c_in if vi % (n + 1) == 0 else c_out
+		var r2 := (28.0 * HK) * (28.0 * HK)
+		for ui in _ao_pos.size():
+			var pu: Vector2 = _ao_pos[ui][1]
+			var nb := 0
+			for uj in _ao_pos.size():
+				if uj != ui and pu.distance_squared_to(_ao_pos[uj][1]) < r2:
+					nb += 1
+			var b0 := ui * (n + 1)
+			cols[b0] = Color(DIM_INK, 0.2 / (1.0 + 0.6 * nb))
+			for k in n:
+				cols[b0 + 1 + k] = c_out
 		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, verts, cols)
 
 ## 被前面的兵擋住的：在最上層補一圈虛線底座（找得到自己的兵；48 兵都能定位）。最多 24 隻。

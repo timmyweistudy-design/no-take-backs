@@ -55,6 +55,7 @@ func _open_lobby(kind: String) -> void:
 	lobby_menu = false
 	lobby_item = ""
 	lobby_tab = 0
+	lobby_step = 2 if code != "" else 0   # 1.5.0：有上次設定＝直接到「確認」（遠征牌→快速對戰→開戰）
 	_open("lobby")
 
 ## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
@@ -525,6 +526,8 @@ func _draw_lobby() -> void:
 	var P := Rect2(50, 30, 1180, 740)
 	_panel(P)
 	probe_skip("R4", "大廳底列：左側操作組（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右，刻意分兩組")
+	if not lobby_open and lobby_step < 2:
+		probe_skip("R6", "大廳三步的第 1、2 步每步只放一兩列：留白是「一頁一件事」的設計（1.5.0 §1.2）")
 	var title := L.t("menu_vs_ai") if lobby_kind == "ai" else L.t("menu_duel")
 	_h1(Vector2(640, 24), title)   # 1.2.0：H1 放大，緞帶上移 4 保持和分頁的距離（R2）   # V1.5.2 L3：緞帶跨在面板上緣（和圖鑑同款），完整下緣到預設分頁 ≥16
 	_draw_lobby_presets(Vector2(80, 96))
@@ -536,18 +539,33 @@ func _draw_lobby() -> void:
 		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
 	# 底列
 	var by := 700.0
-	_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
+	if lobby_open or lobby_step == 0:
+		_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
+	else:
+		_btn(Rect2(80, by, 150, 48), L.t("lb_prev"), func(): _lobby_step_by(-1))   # 1.5.0 §1.2：上一步
 	_btn(Rect2(244, by, 200, 48), L.t("lb_collapse") if lobby_open else L.t("lb_expand"), func(): lobby_open = not lobby_open)
+	if not lobby_open:
+		_btn(Rect2(458, by, 190, 48), L.t("lb_random"), _lobby_random)   # 隨機＝底列一顆有字的鈕（不再像第 4 個步驟；骰子圖示看不懂，Antigravity v150 cat03 r2 #2）
 	if lobby_open:
 		_btn(Rect2(458, by, 150, 48), L.t("lb_copy"), _lobby_copy_code)
 		_btn(Rect2(620, by, 150, 48), L.t("lb_paste"), _lobby_paste_code)
 		_btn(Rect2(782, by, 150, 48), L.t("lb_save"), _lobby_save_preset)
-	else:
-		_btn(Rect2(458, by, 200, 48), L.t("lb_random"), _lobby_random)
 	var why := _lobby_block()
-	btn_seal_square = true
-	_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
-	btn_seal_square = false
+	if _lb_focus_main:
+		_focus = _btns.size()   # 換步後焦點落在主鈕
+		_lb_focus_main = false
+	if not lobby_open and lobby_step < 2:
+		_btn(Rect2(966, by, 234, 48), L.t("lb_next"), func(): _lobby_step_by(1), true, true)   # 1.5.0 §1.2：下一步
+	else:
+		btn_seal_square = true
+		_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
+		btn_seal_square = false
+	var lb_why := ""
+	if lobby_open:
+		lb_why = "進階折頁的內部重排（卡池單側＋唯讀摘要、分頁收斂）排在後面的批次"
+	elif lobby_menu:
+		lb_why = "「我的預設」下拉選單展開時：選單本身是一張清單（每列讀取／存入／刪除）"
+	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", lb_why)
 	if not bool(Save.s("plain_ui")) and not lobby_open:
 		# 1.4.0 §1.1：每次開戰在手帳右頁右下蓋一記方印，最多留 3 記（下次打開還在）
 		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
@@ -577,6 +595,7 @@ func lobby_tab_h() -> float:
 	return 68.0
 
 func _draw_lobby_presets(o: Vector2) -> void:
+	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
 	var w := 154.0
 	var h := lobby_tab_h()
 	for i in Presets.IDS.size():
@@ -625,6 +644,7 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		_box(Rect2(r.position + Vector2(8, h - 9), Vector2(w - 16, 4)), bc, Color(0, 0, 0, 0), 2.0)
 	if layout_probe and Presets.IDS.has(lobby_r.preset):
 		probe_need["bookmark"] = 1   # 漏登記守衛：選了內建預設就一定要畫出紅書籤
+	btn_group = ""   # 「我的預設」開下拉選單，和模式紙籤（直接切換）語意不同：單獨計數（Codex v150 cat03 #4）
 	var mr := Rect2(o + Vector2(6 * (w + 10), 0), Vector2(1120 - 6 * (w + 10), h))
 	_btn(mr, L.t("lb_mine"), func(): lobby_menu = not lobby_menu, true, false, TH_ACTIVE if lobby_r.preset == "custom" else TH_WOOD)
 
@@ -768,53 +788,83 @@ func _draw_lobby_main(R: Rect2) -> void:
 		_text(Vector2(x + 44, mid - text_h(s, lsz, 112, true) * 0.5), s, lsz, Color(1, 1, 1, 0.92), false, true, 112)
 	var cx := x + 160
 	var cw := lw - 170
-	# 地圖
-	label.call("map", L.t("lb_map"), y, rowh - 8.0)
-	_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
-	var mk: String = MapDefs.MAPS[r.map_id]["key"]
-	_text(Vector2(cx + 134, y + 26), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
-	_btn(Rect2(x + lw - 104, y + 22, 44, 44), "‹", _lobby_adj.bind("map", -1))
-	_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
-	y += rowh
-	# 大小
-	label.call("size", L.t("lb_size"), y, rowh - 8.0)
-	for i in 3:
-		var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
-		var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
-		if L.cjk():
-			sz_txt = L.t("map_size_%d" % i) + "  " + sz_txt
-		_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
-	y += rowh
-	# 卡牌
-	label.call("cards", L.t("lb_cards"), y, rowh - 8.0)
-	var p0: int = r.pool_of(0)
-	_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
-	_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
-	_btn_small(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
-		lobby_open = true
-		lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
-	y += rowh
-	# 對手
-	if lobby_kind == "ai":
-		label.call("robot", L.t("lb_opponent"), y, rowh - 8.0)
-		var w1 := (cw - 8) / 2.0
-		_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level", 36.0)
-		_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style", 36.0)
-	else:
-		label.call("swords", L.t("lb_place_rule"), y, rowh - 8.0)
-		_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
-	y += rowh
-	# 規則
-	var sm := _summary(r)
-	var smz := fit(sm, tz("S"), cw)
-	var rules_h := maxf(rowh - 8.0, 12.0 + text_h(sm, smz, cw) + 4.0 + 36.0 + 8.0)   # 英文 150% 規則摘要換行：列底色跟著長高，認證牌與技能鈕留在列內
-	label.call("gear", L.t("lb_rules"), y, minf(rules_h, R.end.y - y))
-	_text(Vector2(cx, y + 8), sm, smz, Color.WHITE, false, false, cw)
-	var by0: float = y + 12 + text_h(sm, smz, cw) + 4.0
-	_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
-	_btn_small(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
+	# 1.5.0 §1.2 三步：左頁上方一條步驟紙籤（可以直接點跳）；一次只放這一步的列
+	btn_group = "lb_steps"
+	var sw0 := (lw - 16.0) / 3.0
+	for k in 3:
+		var stl := L.t("lb_step_%d" % k) if not (k == 0 and lobby_kind == "duel") else L.t("lb_step_0d")   # 雙人第一步是落子方式，不是對手
+		btn_paper = lobby_step != k   # 未選的步驟＝手帳上的紙籤；目前這一步＝上色木牌（一眼看得出在第幾步；Antigravity v150 cat03 r2 #1）
+		_btn(Rect2(x + k * (sw0 + 8.0), y, sw0, 40), "%d　%s" % [k + 1, stl], func(): _lobby_step_by(k - lobby_step), true, false, TH_ACTIVE if lobby_step == k else Color(0, 0, 0, 0))
+		btn_paper = false
+	btn_group = ""
+	y += 52.0
+	# 這一步只有一兩列：在剩下的高度裡偏上置中（不在紙頁上留一大片空白）
+	var nrows: int = (LB_STEP_ROWS[clampi(lobby_step, 0, 2)] as Array).size()
+	y += maxf(0.0, (R.end.y - y - nrows * rowh - (rules_need - rowh if lobby_step == 2 else 0.0)) * 0.3)
+	if _lb_show("map"):
+		# 地圖
+		label.call("map", L.t("lb_map"), y, rowh - 8.0)
+		_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
+		var mk: String = MapDefs.MAPS[r.map_id]["key"]
+		_text(Vector2(cx + 134, y + 26), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
+		btn_group = "st_map"   # 1.5.0 R14：地圖左右箭頭＝一個步進器
+		_btn(Rect2(x + lw - 104, y + 22, 44, 44), "‹", _lobby_adj.bind("map", -1))
+		_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
+		btn_group = ""
+		y += rowh
+	if _lb_show("size"):
+		# 大小
+		label.call("size", L.t("lb_size"), y, rowh - 8.0)
+		for i in 3:
+			var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
+			var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
+			if L.cjk():
+				sz_txt = L.t("map_size_%d" % i) + "  " + sz_txt
+			btn_group = "lb_size"   # 1.5.0 R14：大小三選一＝一個控制
+			_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
+			btn_group = ""
+		y += rowh
+	if _lb_show("cards"):
+		# 卡牌
+		label.call("cards", L.t("lb_cards"), y, rowh - 8.0)
+		var p0: int = r.pool_of(0)
+		_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
+		_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
+		_btn_small(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
+			lobby_open = true
+			lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
+		y += rowh
+	if _lb_show("opp"):
+		# 對手
+		if lobby_kind == "ai":
+			label.call("robot", L.t("lb_opponent"), y, rowh - 8.0)
+			var w1 := (cw - 8) / 2.0
+			_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level", 36.0)
+			_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style", 36.0)
+		else:
+			label.call("swords", L.t("lb_place_rule"), y, rowh - 8.0)
+			_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
+		y += rowh
+	if _lb_show("rules"):
+		# 規則
+		var sm := _summary(r)
+		var smz := fit(sm, tz("S"), cw)
+		var rules_h := maxf(rowh - 8.0, 12.0 + text_h(sm, smz, cw) + 4.0 + 36.0 + 8.0)   # 英文 150% 規則摘要換行：列底色跟著長高，認證牌與技能鈕留在列內
+		label.call("gear", L.t("lb_rules"), y, minf(rules_h, R.end.y - y))
+		_text(Vector2(cx, y + 8), sm, smz, Color.WHITE, false, false, cw)
+		var by0: float = y + 12 + text_h(sm, smz, cw) + 4.0
+		_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
+		_btn_small(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
+	if lobby_step < 2:
+		# 這一步在做什麼、下一步會看到什麼（一兩句；Antigravity v150 cat03 #4：左頁只有一兩列時不要一大片空白）
+		var hk := "lb_step_help_%d%s" % [lobby_step, "d" if (lobby_step == 0 and lobby_kind == "duel") else ""]
+		_text(Vector2(x + 16, y + 14), L.t(hk), tz("S"), Color(1, 1, 1, 0.8), false, false, lw - 32)
 	_ink_mode = false
 	# 右：預覽
+	if lobby_step == 0 and lobby_kind == "ai":
+		_draw_lobby_foe(Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, R.size.y))   # 1.5.0 第一步：右頁是對手（陣容＋性格），不是地圖
+		_ink_mode = false
+		return
 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
 	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
 	_map_thumb(pv, r.map_id, r.map_size, true)
@@ -851,6 +901,38 @@ func _draw_lobby_main(R: Rect2) -> void:
 			Art.unit(self, Vector2(pv.end.x - 50 - k2 * 66, my), int(foes[(k2 * 4 + 1) % foes.size()]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k2, 1.3, cbm())
 		_icon("swords", Vector2(pv.get_center().x, my - 32), 44.0, ACCENT)
 	_ink_mode = false
+
+## 1.5.0 §1.2 大廳三步：0 對手、1 地圖、2 確認（開戰）。有上次設定時直接打開在第三步。
+var lobby_step := 2
+var _lb_focus_main := false   # 換步之後焦點放到主鈕（下一步／開戰），不留在舊步驟的按鈕索引上（Codex v150 cat03 #2）
+func _lobby_step_by(d: int) -> void:
+	var n := clampi(lobby_step + d, 0, 2)
+	if n != lobby_step:
+		lobby_step = n
+		_lb_focus_main = true
+		_btns.clear()   # 舊步驟的按鈕立刻失效（同一幀 LB＋A 不會按到上一步畫面的「開戰」；Codex v150 cat03 r2）
+const LB_STEP_ROWS := [["opp"], ["map", "size"], ["cards", "rules"]]
+func _lb_show(row: String) -> bool:
+	return row in LB_STEP_ROWS[clampi(lobby_step, 0, 2)]
+
+## 第一步的右頁：對手陣容（紅方卡池的代表兵）＋難度一句話
+func _draw_lobby_foe(R: Rect2) -> void:
+	_ink_mode = not bool(Save.s("plain_ui"))   # 右頁是紙：字用墨色
+	var foes: Array = RuleSet.types_of(lobby_r.pool_of(1))
+	var n := mini(5, foes.size())
+	var base_y := R.position.y + 170.0
+	if not bool(Save.s("plain_ui")):
+		draw_rect(Rect2(R.position.x + 20, base_y - 6, R.size.x - 40, 14), Color(DIM_INK, 0.25))   # 陳列台的影子
+	for k in n:
+		var px := R.position.x + R.size.x * (k + 0.5) / float(maxi(1, n))
+		var t: int = int(foes[(k * 3 + int(lobby_r.ai_style)) % foes.size()])
+		Art.unit(self, Vector2(px, base_y - (k % 2) * 10.0), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k, 1.5 if k % 2 == 0 else 1.25, cbm())
+	var ty := base_y + 32.0
+	var head := L.t("ai_style_%d" % int(lobby_r.ai_style)) + "・" + L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])
+	_text(Vector2(R.get_center().x, ty), head, tz("B"), Color.WHITE, true, true, R.size.x - 20)
+	ty += tz("B") * 1.5
+	var tr := L.t("ai_trait_%d" % lobby_r.ai_level)
+	_text(Vector2(R.get_center().x, ty), tr, tz("S"), Color(1, 1, 1, 0.85), true, false, R.size.x - 40)
 
 ## 地圖縮圖：貼上烘好的地面，full 時標出雙方部署區。
 func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:
@@ -1036,9 +1118,11 @@ func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
 
 ## ◀ 值 ▶ 的調整列；點兩側箭頭，也可以點中間（往下一個）。
 func _stepper(r: Rect2, value: String, id: String, aw := 52.0) -> void:
+	btn_group = "st_" + id   # 1.5.0 R14：一個步進器＝一個控制
 	_btn(Rect2(r.position, Vector2(aw, r.size.y)), "◀", _lobby_adj.bind(id, -1))
 	_btn(Rect2(r.position + Vector2(aw + 6, 0), Vector2(r.size.x - aw * 2 - 12, r.size.y)), value, _lobby_adj.bind(id, 1), true, false, TH_WOOD_D)
 	_btn(Rect2(r.end.x - aw, r.position.y, aw, r.size.y), "▶", _lobby_adj.bind(id, 1))
+	btn_group = ""
 	if r.grow(4).has_point(mouse):
 		lobby_item = id
 

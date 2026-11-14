@@ -1,0 +1,419 @@
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index 0380631..5ea7fb1 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1743,3 +1743,8 @@ hc_codes_d,貼上或複製代碼：對戰、挑戰、陣型、規則。,"Paste o
+ loss_from,主要傷害來源,Most damage from,主要伤害来源,主なダメージ源
+ loss_try,可以改帶,Try bringing,可以改带,次はこれを
+ mvp_dmg,傷害,damage,伤害,ダメージ
++lb_step_0,對手,Opponent,对手,相手
++lb_step_1,地圖,Map,地图,マップ
++lb_step_2,開戰,Battle,开战,開戦
++lb_prev,‹ 上一步,‹ Back,‹ 上一步,‹ 戻る
++lb_next,下一步 ›,Next ›,下一步 ›,次へ ›
+diff --git a/game/fonts/NTBLatin-B-sub.ttf b/game/fonts/NTBLatin-B-sub.ttf
+index 9a2649c..9477e05 100644
+Binary files a/game/fonts/NTBLatin-B-sub.ttf and b/game/fonts/NTBLatin-B-sub.ttf differ
+diff --git a/game/fonts/NTBLatin-M-sub.ttf b/game/fonts/NTBLatin-M-sub.ttf
+index 7b3b5a9..f3262c2 100644
+Binary files a/game/fonts/NTBLatin-M-sub.ttf and b/game/fonts/NTBLatin-M-sub.ttf differ
+diff --git a/game/fonts/NTBRounded-B-sub.otf b/game/fonts/NTBRounded-B-sub.otf
+index 1ad7f43..874a1ec 100644
+Binary files a/game/fonts/NTBRounded-B-sub.otf and b/game/fonts/NTBRounded-B-sub.otf differ
+diff --git a/game/fonts/NTBRounded-R-sub.otf b/game/fonts/NTBRounded-R-sub.otf
+index cbad142..812ecb7 100644
+Binary files a/game/fonts/NTBRounded-R-sub.otf and b/game/fonts/NTBRounded-R-sub.otf differ
+diff --git a/game/fonts/NTBSans-B-sub.otf b/game/fonts/NTBSans-B-sub.otf
+index aca9fc4..9bd83af 100644
+Binary files a/game/fonts/NTBSans-B-sub.otf and b/game/fonts/NTBSans-B-sub.otf differ
+diff --git a/game/fonts/NTBSans-R-sub.otf b/game/fonts/NTBSans-R-sub.otf
+index 319eec2..039f221 100644
+Binary files a/game/fonts/NTBSans-R-sub.otf and b/game/fonts/NTBSans-R-sub.otf differ
+diff --git a/game/fonts/NTBTitle-sub.ttf b/game/fonts/NTBTitle-sub.ttf
+index 134e1b3..f6c0669 100644
+Binary files a/game/fonts/NTBTitle-sub.ttf and b/game/fonts/NTBTitle-sub.ttf differ
+diff --git a/game/fonts/ThenKhung-sub.ttf b/game/fonts/ThenKhung-sub.ttf
+index 0b8e744..faf1d13 100644
+Binary files a/game/fonts/ThenKhung-sub.ttf and b/game/fonts/ThenKhung-sub.ttf differ
+diff --git a/game/scripts/ui/layout_rules.gd b/game/scripts/ui/layout_rules.gd
+index 4e6b2c5..3980dd0 100644
+--- a/game/scripts/ui/layout_rules.gd
++++ b/game/scripts/ui/layout_rules.gd
+@@ -366,7 +366,7 @@ static func check(d: Dictionary) -> Dictionary:
+ ## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
+ ## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+ const R14_LIMITS := {"title": 9, "lobby": 8, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+-const R14_ENFORCE := ["title", "result"]
++const R14_ENFORCE := ["title", "result", "lobby"]
+ static func _r14(out: Dictionary, d: Dictionary) -> void:
+ 	var sc: Dictionary = d.get("screen", {})
+ 	if sc.is_empty():
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index 472129e..f9bec59 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -55,6 +55,7 @@ func _open_lobby(kind: String) -> void:
+ 	lobby_menu = false
+ 	lobby_item = ""
+ 	lobby_tab = 0
++	lobby_step = 2 if code != "" else 0   # 1.5.0：有上次設定＝直接到「確認」（遠征牌→快速對戰→開戰）
+ 	_open("lobby")
+ 
+ ## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
+@@ -536,18 +537,23 @@ func _draw_lobby() -> void:
+ 		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
+ 	# 底列
+ 	var by := 700.0
+-	_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
++	if lobby_open or lobby_step == 0:
++		_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
++	else:
++		_btn(Rect2(80, by, 150, 48), L.t("lb_prev"), func(): lobby_step -= 1)   # 1.5.0 §1.2：上一步
+ 	_btn(Rect2(244, by, 200, 48), L.t("lb_collapse") if lobby_open else L.t("lb_expand"), func(): lobby_open = not lobby_open)
+ 	if lobby_open:
+ 		_btn(Rect2(458, by, 150, 48), L.t("lb_copy"), _lobby_copy_code)
+ 		_btn(Rect2(620, by, 150, 48), L.t("lb_paste"), _lobby_paste_code)
+ 		_btn(Rect2(782, by, 150, 48), L.t("lb_save"), _lobby_save_preset)
+-	else:
+-		_btn(Rect2(458, by, 200, 48), L.t("lb_random"), _lobby_random)
+ 	var why := _lobby_block()
+-	btn_seal_square = true
+-	_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
+-	btn_seal_square = false
++	if not lobby_open and lobby_step < 2:
++		_btn(Rect2(966, by, 234, 48), L.t("lb_next"), func(): lobby_step += 1, true, true)   # 1.5.0 §1.2：下一步
++	else:
++		btn_seal_square = true
++		_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
++		btn_seal_square = false
++	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", "進階折頁的內部重排（卡池單側＋唯讀摘要、分頁收斂）排在後面的批次" if lobby_open else "")
+ 	if not bool(Save.s("plain_ui")) and not lobby_open:
+ 		# 1.4.0 §1.1：每次開戰在手帳右頁右下蓋一記方印，最多留 3 記（下次打開還在）
+ 		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
+@@ -577,6 +583,7 @@ func lobby_tab_h() -> float:
+ 	return 68.0
+ 
+ func _draw_lobby_presets(o: Vector2) -> void:
++	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
+ 	var w := 154.0
+ 	var h := lobby_tab_h()
+ 	for i in Presets.IDS.size():
+@@ -627,6 +634,7 @@ func _draw_lobby_presets(o: Vector2) -> void:
+ 		probe_need["bookmark"] = 1   # 漏登記守衛：選了內建預設就一定要畫出紅書籤
+ 	var mr := Rect2(o + Vector2(6 * (w + 10), 0), Vector2(1120 - 6 * (w + 10), h))
+ 	_btn(mr, L.t("lb_mine"), func(): lobby_menu = not lobby_menu, true, false, TH_ACTIVE if lobby_r.preset == "custom" else TH_WOOD)
++	btn_group = ""
+ 
+ func _draw_lobby_menu(o: Vector2) -> void:
+ 	var ps: Array = Save.data.get("rule_presets", [])
+@@ -768,53 +776,78 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 		_text(Vector2(x + 44, mid - text_h(s, lsz, 112, true) * 0.5), s, lsz, Color(1, 1, 1, 0.92), false, true, 112)
+ 	var cx := x + 160
+ 	var cw := lw - 170
+-	# 地圖
+-	label.call("map", L.t("lb_map"), y, rowh - 8.0)
+-	_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
+-	var mk: String = MapDefs.MAPS[r.map_id]["key"]
+-	_text(Vector2(cx + 134, y + 26), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
+-	_btn(Rect2(x + lw - 104, y + 22, 44, 44), "‹", _lobby_adj.bind("map", -1))
+-	_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
+-	y += rowh
+-	# 大小
+-	label.call("size", L.t("lb_size"), y, rowh - 8.0)
+-	for i in 3:
+-		var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
+-		var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
+-		if L.cjk():
+-			sz_txt = L.t("map_size_%d" % i) + "  " + sz_txt
+-		_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
+-	y += rowh
+-	# 卡牌
+-	label.call("cards", L.t("lb_cards"), y, rowh - 8.0)
+-	var p0: int = r.pool_of(0)
+-	_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
+-	_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
+-	_btn_small(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
+-		lobby_open = true
+-		lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
+-	y += rowh
+-	# 對手
+-	if lobby_kind == "ai":
+-		label.call("robot", L.t("lb_opponent"), y, rowh - 8.0)
+-		var w1 := (cw - 8) / 2.0
+-		_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level", 36.0)
+-		_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style", 36.0)
+-	else:
+-		label.call("swords", L.t("lb_place_rule"), y, rowh - 8.0)
+-		_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
+-	y += rowh
+-	# 規則
+-	var sm := _summary(r)
+-	var smz := fit(sm, tz("S"), cw)
+-	var rules_h := maxf(rowh - 8.0, 12.0 + text_h(sm, smz, cw) + 4.0 + 36.0 + 8.0)   # 英文 150% 規則摘要換行：列底色跟著長高，認證牌與技能鈕留在列內
+-	label.call("gear", L.t("lb_rules"), y, minf(rules_h, R.end.y - y))
+-	_text(Vector2(cx, y + 8), sm, smz, Color.WHITE, false, false, cw)
+-	var by0: float = y + 12 + text_h(sm, smz, cw) + 4.0
+-	_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
+-	_btn_small(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
++	# 1.5.0 §1.2 三步：左頁上方一條步驟紙籤（可以直接點跳）；一次只放這一步的列
++	btn_group = "lb_steps"
++	var rw0 := 120.0
++	var sw0 := (lw - 24.0 - rw0) / 3.0
++	for k in 3:
++		_btn(Rect2(x + k * (sw0 + 8.0), y, sw0, 40), "%d　%s" % [k + 1, L.t("lb_step_%d" % k)], func(): lobby_step = k, true, false, TH_ACTIVE if lobby_step == k else TH_WOOD)
++	btn_group = ""
++	_btn(Rect2(x + lw - rw0, y, rw0, 40), L.t("lb_random"), _lobby_random)   # 隨機（原本在底列）
++	y += 52.0
++	# 這一步只有一兩列：在剩下的高度裡偏上置中（不在紙頁上留一大片空白）
++	var nrows: int = (LB_STEP_ROWS[clampi(lobby_step, 0, 2)] as Array).size()
++	y += maxf(0.0, (R.end.y - y - nrows * rowh - (rules_need - rowh if lobby_step == 2 else 0.0)) * 0.3)
++	if _lb_show("map"):
++		# 地圖
++		label.call("map", L.t("lb_map"), y, rowh - 8.0)
++		_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
++		var mk: String = MapDefs.MAPS[r.map_id]["key"]
++		_text(Vector2(cx + 134, y + 26), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
++		btn_group = "st_map"   # 1.5.0 R14：地圖左右箭頭＝一個步進器
++		_btn(Rect2(x + lw - 104, y + 22, 44, 44), "‹", _lobby_adj.bind("map", -1))
++		_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
++		btn_group = ""
++		y += rowh
++	if _lb_show("size"):
++		# 大小
++		label.call("size", L.t("lb_size"), y, rowh - 8.0)
++		for i in 3:
++			var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
++			var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
++			if L.cjk():
++				sz_txt = L.t("map_size_%d" % i) + "  " + sz_txt
++			btn_group = "lb_size"   # 1.5.0 R14：大小三選一＝一個控制
++			_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
++			btn_group = ""
++		y += rowh
++	if _lb_show("cards"):
++		# 卡牌
++		label.call("cards", L.t("lb_cards"), y, rowh - 8.0)
++		var p0: int = r.pool_of(0)
++		_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
++		_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
++		_btn_small(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
++			lobby_open = true
++			lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
++		y += rowh
++	if _lb_show("opp"):
++		# 對手
++		if lobby_kind == "ai":
++			label.call("robot", L.t("lb_opponent"), y, rowh - 8.0)
++			var w1 := (cw - 8) / 2.0
++			_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level", 36.0)
++			_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style", 36.0)
++		else:
++			label.call("swords", L.t("lb_place_rule"), y, rowh - 8.0)
++			_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
++		y += rowh
++	if _lb_show("rules"):
++		# 規則
++		var sm := _summary(r)
++		var smz := fit(sm, tz("S"), cw)
++		var rules_h := maxf(rowh - 8.0, 12.0 + text_h(sm, smz, cw) + 4.0 + 36.0 + 8.0)   # 英文 150% 規則摘要換行：列底色跟著長高，認證牌與技能鈕留在列內
++		label.call("gear", L.t("lb_rules"), y, minf(rules_h, R.end.y - y))
++		_text(Vector2(cx, y + 8), sm, smz, Color.WHITE, false, false, cw)
++		var by0: float = y + 12 + text_h(sm, smz, cw) + 4.0
++		_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
++		_btn_small(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
+ 	_ink_mode = false
+ 	# 右：預覽
++	if lobby_step == 0 and lobby_kind == "ai":
++		_draw_lobby_foe(Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, R.size.y))   # 1.5.0 第一步：右頁是對手（陣容＋性格），不是地圖
++		_ink_mode = false
++		return
+ 	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
+ 	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
+ 	_map_thumb(pv, r.map_id, r.map_size, true)
+@@ -852,6 +885,31 @@ func _draw_lobby_main(R: Rect2) -> void:
+ 		_icon("swords", Vector2(pv.get_center().x, my - 32), 44.0, ACCENT)
+ 	_ink_mode = false
+ 
++## 1.5.0 §1.2 大廳三步：0 對手、1 地圖、2 確認（開戰）。有上次設定時直接打開在第三步。
++var lobby_step := 2
++const LB_STEP_ROWS := [["opp"], ["map", "size"], ["cards", "rules"]]
++func _lb_show(row: String) -> bool:
++	return row in LB_STEP_ROWS[clampi(lobby_step, 0, 2)]
++
++## 第一步的右頁：對手陣容（紅方卡池的代表兵）＋難度一句話
++func _draw_lobby_foe(R: Rect2) -> void:
++	_ink_mode = not bool(Save.s("plain_ui"))   # 右頁是紙：字用墨色
++	var foes: Array = RuleSet.types_of(lobby_r.pool_of(1))
++	var n := mini(5, foes.size())
++	var base_y := R.position.y + 170.0
++	if not bool(Save.s("plain_ui")):
++		draw_rect(Rect2(R.position.x + 20, base_y - 6, R.size.x - 40, 14), Color(DIM_INK, 0.25))   # 陳列台的影子
++	for k in n:
++		var px := R.position.x + R.size.x * (k + 0.5) / float(maxi(1, n))
++		var t: int = int(foes[(k * 3 + int(lobby_r.ai_style)) % foes.size()])
++		Art.unit(self, Vector2(px, base_y - (k % 2) * 10.0), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k, 1.5 if k % 2 == 0 else 1.25, cbm())
++	var ty := base_y + 32.0
++	var head := L.t("ai_style_%d" % int(lobby_r.ai_style)) + "・" + L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])
++	_text(Vector2(R.get_center().x, ty), head, tz("B"), Color.WHITE, true, true, R.size.x - 20)
++	ty += tz("B") * 1.5
++	var tr := L.t("ai_trait_%d" % lobby_r.ai_level)
++	_text(Vector2(R.get_center().x, ty), tr, tz("S"), Color(1, 1, 1, 0.85), true, false, R.size.x - 40)
++
+ ## 地圖縮圖：貼上烘好的地面，full 時標出雙方部署區。
+ func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:
+ 	if map_art == null:
+@@ -1036,9 +1094,11 @@ func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
+ 
+ ## ◀ 值 ▶ 的調整列；點兩側箭頭，也可以點中間（往下一個）。
+ func _stepper(r: Rect2, value: String, id: String, aw := 52.0) -> void:
++	btn_group = "st_" + id   # 1.5.0 R14：一個步進器＝一個控制
+ 	_btn(Rect2(r.position, Vector2(aw, r.size.y)), "◀", _lobby_adj.bind(id, -1))
+ 	_btn(Rect2(r.position + Vector2(aw + 6, 0), Vector2(r.size.x - aw * 2 - 12, r.size.y)), value, _lobby_adj.bind(id, 1), true, false, TH_WOOD_D)
+ 	_btn(Rect2(r.end.x - aw, r.position.y, aw, r.size.y), "▶", _lobby_adj.bind(id, 1))
++	btn_group = ""
+ 	if r.grow(4).has_point(mouse):
+ 		lobby_item = id
+ 
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 0ffed6a..8d1acc1 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -361,12 +361,20 @@ var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框
+ var probe_screen := {}
+ func screen_register(cls: String, main: String, skip_why := "") -> void:
+ 	probe_screen = {"cls": cls, "main": main, "skip": skip_why}
+-## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算）
++## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
++var btn_group := ""
+ func click_count() -> int:
+ 	var n := 0
++	var seen := {}
+ 	for b in _btns:
+-		if not bool(b.get("grid", false)):
+-			n += 1
++		if bool(b.get("grid", false)):
++			continue
++		var gp := str(b.get("group", ""))
++		if gp != "":
++			if seen.has(gp):
++				continue
++			seen[gp] = true
++		n += 1
+ 	return n
+ var probe_ctrls: Array = []
+ # V1.5.2 排版幾何探針（scripts/ui/layout_rules.gd 檢查）：_panel、_h1 自動登記；依附裝飾、同欄對齊、例外由畫面宣告
+@@ -910,7 +918,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
+ 		hit = r.grow_individual(0.0, dh, 0.0, dh)
+ 		if layout_probe:
+ 			probe_hits.append(hit)
+-	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
++	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click"), "group": btn_group})
+ 	var hover := hit.has_point(mouse) and not pad_mode
+ 	var focus := pad_mode and idx == _focus
+ 	var bg := TH_WOOD_L if not primary else TH_PRIMARY
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index b04eccc..dc936c5 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index 4bf0a1f..5a9796c 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -2386,3 +2386,31 @@ func test_quick_rematch_v150() -> void:
+ 	g.free()
+ 	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+ 	ok(gm.find("if ek == \"menu_vs_ai\" and call(\"quick_rematch_ok\"):") >= 0, "最近玩的：對 AI 快速對戰走兩步開戰")
++
++
++## 1.5.0 第 3 批：大廳三步頁
++func test_lobby_steps_v150() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	ok(GS.LB_STEP_ROWS.size() == 3 and "opp" in GS.LB_STEP_ROWS[0] and "map" in GS.LB_STEP_ROWS[1] and "rules" in GS.LB_STEP_ROWS[2], "三步：對手／地圖（含大小）／開戰（卡池＋規則）")
++	var seen := {}
++	for rows in GS.LB_STEP_ROWS:
++		for r0 in rows:
++			ok(not seen.has(r0), "每一列只在一步出現（%s）" % r0)
++			seen[r0] = true
++	ok(seen.size() == 5, "五列都有地方放（地圖、大小、卡池、對手、規則）")
++	var g = GS.new()
++	g.lobby_step = 0
++	ok(g._lb_show("opp") and not g._lb_show("map"), "第一步只放對手")
++	g.lobby_step = 2
++	ok(g._lb_show("rules") and g._lb_show("cards") and not g._lb_show("opp"), "第三步放卡池與規則")
++	g.btn_group = ""
++	g._btns.clear()
++	for k in 3:
++		g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true, "group": "st_x"})
++	g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true, "group": ""})
++	ok(g.click_count() == 2, "同一組按鈕（步進器、分頁列）算一個控制")
++	g.free()
++	var lv: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
++	ok(lv.find("lobby_step = 2 if code != \"\" else 0") >= 0, "有上次設定時直接打開在第三步")
++	var LR = load("res://scripts/ui/layout_rules.gd")
++	ok("lobby" in LR.R14_ENFORCE, "大廳是已改造類別（R14 超標失敗）")
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index 3f880c2..783ed83 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1028,7 +1028,13 @@ func _shots_v4() -> void:
+ 	_go_title()
+ 	_open_lobby("ai")
+ 	mouse = Vector2(-100, -100)
++	lobby_step = 2   # 1.5.0 §1.2：22_lobby＝第三步「開戰」（有上次設定時打開就在這裡）
+ 	await _snap("22_lobby.png")
++	lobby_step = 0
++	await _snap("v150_22a_lobby_step1.png")   # 第一步：對手
++	lobby_step = 1
++	await _snap("v150_22b_lobby_step2.png")   # 第二步：地圖
++	lobby_step = 2
+ 	# V1.5.2 空／滿資料：「我的預設」下拉 0 筆、10 筆（上限）
+ 	var rp_keep = Save.data.get("rule_presets", [])
+ 	Save.data["rule_presets"] = []
+@@ -1216,6 +1222,7 @@ func _shots_v9() -> void:
+ 	_lobby_pick("standard")
+ 	lobby_r.map_id = 1
+ 	lobby_r.ai_style = 1
++	lobby_step = 1   # 1.5.0：地圖在第二步
+ 	for k1 in 12:
+ 		await get_tree().process_frame
+ 	await _snap("57_lobby_map.png")
+@@ -1837,6 +1844,7 @@ func _shots_cmd() -> void:
+ 	_lobby_adj("cmd_on", 1)
+ 	await _snap("71_lobby_cmd_on.png")
+ 	lobby_open = false
++	lobby_step = 2   # 1.5.0：規則列（軍令快切）在第三步
+ 	_lobby_pick("standard")
+ 	_lobby_adj("cmd_on", 1)
+ 	await _snap("72_lobby_cmd_quick.png")
+diff --git a/game/tools/screens.json b/game/tools/screens.json
+index d909c52..d00ee78 100644
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -1138,5 +1138,17 @@
+   "states": [
+    "一般"
+   ]
++ },
++ "v150_22a_lobby_step1.png": {
++  "entry": "大廳第一步：對手（1.5.0 §1.2）",
++  "states": [
++   "一般"
++  ]
++ },
++ "v150_22b_lobby_step2.png": {
++  "entry": "大廳第二步：地圖（1.5.0 §1.2）",
++  "states": [
++   "一般"
++  ]
+  }
+ }
+\ No newline at end of file

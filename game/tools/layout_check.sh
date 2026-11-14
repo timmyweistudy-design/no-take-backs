@@ -47,7 +47,7 @@ if [ -s "$FAILS" ]; then cat "$FAILS"; exit 1; fi
 EXPECT=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | wc -l)
 NAMES=$(grep -o '_snap("[^"]*")' tools/dev_main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')
 # 1.2.0 §14.4：LAYOUT_SHOTS=a.png,b.png 只存、只檢查這些畫面（流程照跑）；開發中快速看用，每日與發版一律全量
-if [ -n "${LAYOUT_SHOTS:-}" ]; then NAMES="$LAYOUT_SHOTS,"; EXPECT=$(echo "$LAYOUT_SHOTS" | tr ',' '\n' | grep -c .); fi
+if [ -n "${LAYOUT_SHOTS:-}" ]; then NAMES="$LAYOUT_SHOTS,"; EXPECT=$(echo "$LAYOUT_SHOTS" | tr ',' '\n' | grep . | sort -u | wc -l); fi
 # 1.2.0 §14.4：畫面狀態清冊（tools/screens.json）要和 dev_main 的截圖清單完全一致（新畫面一定要登記入口與狀態）
 python3 - "$(grep -o '_snap("[^"]*")' tools/dev_main.gd | sed 's/_snap("//; s/")//' | sort | tr '\n' ',')" <<'PY' || exit 1
 import json, sys

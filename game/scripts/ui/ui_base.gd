@@ -361,12 +361,20 @@ var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框�
 var probe_screen := {}
 func screen_register(cls: String, main: String, skip_why := "") -> void:
 	probe_screen = {"cls": cls, "main": main, "skip": skip_why}
-## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算）
+## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
+var btn_group := ""
 func click_count() -> int:
 	var n := 0
+	var seen := {}
 	for b in _btns:
-		if not bool(b.get("grid", false)):
-			n += 1
+		if bool(b.get("grid", false)):
+			continue
+		var gp := str(b.get("group", ""))
+		if gp != "":
+			if seen.has(gp):
+				continue
+			seen[gp] = true
+		n += 1
 	return n
 var probe_ctrls: Array = []
 # V1.5.2 排版幾何探針（scripts/ui/layout_rules.gd 檢查）：_panel、_h1 自動登記；依附裝飾、同欄對齊、例外由畫面宣告
@@ -910,7 +918,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		hit = r.grow_individual(0.0, dh, 0.0, dh)
 		if layout_probe:
 			probe_hits.append(hit)
-	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click")})
+	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click"), "group": btn_group})
 	var hover := hit.has_point(mouse) and not pad_mode
 	var focus := pad_mode and idx == _focus
 	var bg := TH_WOOD_L if not primary else TH_PRIMARY
