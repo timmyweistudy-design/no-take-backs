@@ -2,6 +2,48 @@
 
 > 玩家看的更新說明（商店頁「更新」與 Steam 公告用）。開發紀錄看 `docs/STATE.md` 與 `docs/history/`。
 
+# 1.5.0
+
+## 繁體中文
+**1.5.0：一頁一景（第一階段）。** 每一頁只做一件事，該收的收起來。
+- **大廳分三步**：先選對手、再選地圖、最後確認開戰；上方紙籤可以直接跳步，手把用 LB／RB 換步、Y 打開進階。打過一次之後再進來，直接停在「開戰」那一步。
+- **再來一場**：標題的「最近玩」可以一鍵沿用上次的規則和陣型，兩下就開戰。代碼移進「收藏」。
+- **結果頁**：第一眼只有勝負、MVP 特寫和一句原因；輸了會告訴你被什麼打垮。曲線、事件、分享收在分頁和「更多」裡。重播校驗碼收進一顆「複製」鈕。
+- **擺陣**：對 AI 時敵方半場不再整片蓋住——粉筆圈出「對方的地盤」，草地照常看得到；敵情收在右上一塊可以翻開的木牌（手把：按住 RT＋View）。自由部署的貼齊、密集收進「工具」。上方兵種資訊只剩一行，不再壓到棋盤。
+- **設定**：每頁只放最常用的幾項，其他在「進階微調」裡；說明只在你指到那一列時出現。
+- **戰場**：傷害數字不再包紙泡泡，畫面清爽；跟拍一隻兵時，牠頭上一個金色記號、牠正在打的那隻頭上一個朱紅記號，中間一條虛線——誰在打誰一眼看出來；沒在打的兵血條淡一些。
+- **小地方**：還原進度的備份清單改成日期時間；老闆每日出題不再是三條刺眼的紅鈕，改成木章凹槽；重播暫停時的兵種資料改成米紙浮籤，不會蓋住你選的那隻。
+
+## English
+**1.5.0 — One Page, One Scene (part one).** Every page does one thing; the rest is tucked away.
+- **The lobby in three steps**: pick your opponent, then the map, then confirm and fight. Jump between steps with the paper tabs, or LB/RB on a gamepad (Y opens Advanced). Coming back after a match drops you straight on the Fight step.
+- **Quick rematch**: "Recent" on the title screen reuses your last rules and formation — two clicks to battle. Share codes moved into Collection.
+- **Results**: the first view is just the verdict, an MVP close-up and one reason; a loss tells you what broke you. Charts, events and sharing live in tabs and "More". The replay checksum is now a single "Copy" button.
+- **Deployment**: against the AI the enemy half is no longer blacked out — a chalk line marks "their ground" and the grass stays visible; scouting notes hang on a flip tag at the top right (gamepad: hold RT + View). Snap and Tight moved into "Tools" in free deployment. The unit info strip is a single line and no longer spills onto the board.
+- **Settings**: each page shows only the common options; the rest are under "Fine-tuning". Descriptions appear only for the row you point at.
+- **Battlefield**: damage numbers lose their paper bubbles; when you follow a unit it gets a gold marker, the unit it's attacking gets a vermilion one, with a dashed line between — who's hitting whom at a glance. Health bars of units not in focus are dimmed.
+- **Little things**: backups show a date and time; Owner's Picks swaps its three loud red buttons for stamp slots; the paused unit card in replays is a paper tag that moves out of the way of the unit you picked.
+
+## 简体中文
+**1.5.0：一页一景（第一阶段）。** 每一页只做一件事，该收的收起来。
+- **大厅分三步**：先选对手、再选地图、最后确认开战；上方纸签可以直接跳步，手柄用 LB／RB 换步、Y 打开进阶。打过一次之后再进来，直接停在“开战”那一步。
+- **再来一场**：标题的“最近玩”可以一键沿用上次的规则和阵型，两下就开战。代码移进“收藏”。
+- **结果页**：第一眼只有胜负、MVP 特写和一句原因；输了会告诉你被什么打垮。曲线、事件、分享收在分页和“更多”里。重播校验码收进一个“复制”按钮。
+- **摆阵**：对 AI 时敌方半场不再整片盖住——粉笔圈出“对方的地盘”，草地照常看得到；敌情收在右上一块可以翻开的木牌（手柄：按住 RT＋View）。自由部署的对齐、紧密收进“工具”。上方兵种信息只剩一行，不再压到棋盘。
+- **设置**：每页只放最常用的几项，其他在“进阶微调”里；说明只在你指到那一行时出现。
+- **战场**：伤害数字不再包纸泡泡，画面清爽；跟拍一只兵时，它头上一个金色记号、它正在打的那只头上一个朱红记号，中间一条虚线——谁在打谁一眼看出来；没在打的兵血条淡一些。
+- **小地方**：还原进度的备份清单改成日期时间；老板每日出题不再是三条刺眼的红按钮，改成木章凹槽；重播暂停时的兵种资料改成米纸浮签，不会盖住你选的那只。
+
+## 日本語
+**1.5.0：一頁一景（第一弾）。** どの画面もやることは一つ。それ以外はしまっておきます。
+- **ロビーは3ステップ**：相手を選び、マップを選び、最後に確認して開戦。上の紙タグで直接移動でき、パッドは LB／RB で切り替え、Y で詳細設定。一度遊んだあとは「開戦」のステップから始まります。
+- **もう一戦**：タイトルの「最近」から前回のルールと陣形をそのまま使えます。2回押せば開戦。コードは「コレクション」へ移動。
+- **結果画面**：最初に見えるのは勝敗・MVP のアップ・理由ひとことだけ。負けたときは何にやられたかを教えます。グラフ・イベント・共有はタブと「もっと」に。リプレイ照合コードは「コピー」ボタン一つに。
+- **配置**：AI 戦で敵陣が真っ黒に覆われなくなりました。チョークで「相手の陣地」を囲み、草地はそのまま見えます。敵情は右上のめくれる木札に（パッド：RT を押しながら View）。自由配置の「整列」「密集」は「道具」の中へ。上の兵種情報は一行になり、盤に重なりません。
+- **設定**：各ページはよく使う項目だけ。残りは「詳細設定」に。説明は指している行のときだけ出ます。
+- **戦場**：ダメージ数字から紙の吹き出しをなくしました。ユニットを追跡すると、その頭上に金の印、攻撃している相手の頭上に朱の印、間に点線——誰が誰を叩いているか一目で分かります。注目していない兵の HP バーは控えめに。
+- **細かいところ**：バックアップ一覧は日付と時刻に。親方の日替わり出題は派手な赤ボタン三本をやめ、木の判子のくぼみに。リプレイ一時停止中の兵種カードは和紙の札になり、選んだ兵を隠しません。
+
 # 1.4.0
 
 ## 繁體中文

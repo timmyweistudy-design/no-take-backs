@@ -476,6 +476,11 @@ func _v16_place_key(k: int) -> bool:
 
 ## 資訊帶右邊（「?」左邊）兩顆小鈕
 func _tv_buttons(help: Rect2, notebook := false) -> void:
+	btn_group = "tv_tools"   # 1.5.0 R14：射程、標記、實驗簿三顆小圖示＝一組檢視工具（試煉擺陣原本 13 個，第 4 批漏拍這個變體）
+	_tv_buttons_draw(help, notebook)
+	btn_group = ""
+
+func _tv_buttons_draw(help: Rect2, notebook: bool) -> void:
 	var b1 := Rect2(help.position.x - 88, help.position.y, 40, 36)
 	var b2 := Rect2(help.position.x - 44, help.position.y, 40, 36)
 	if notebook:
