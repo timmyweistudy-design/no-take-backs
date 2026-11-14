@@ -2584,3 +2584,19 @@ func test_settings_drawer_v150() -> void:
 			ok(bool(g._settings_adv_info()[1]), "抽屜裡改過的項目會在抽屜鈕上亮點")
 	Save.settings["mono"] = keep
 	g.free()
+
+func test_typography_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.backup_label("progress_20261110_120000.json") == "2026/11/10 12:00", "備份檔名顯示成日期時間（不像除錯字串）", GS.backup_label("progress_20261110_120000.json"))
+	ok(GS.backup_label("user://x/shot_progress_20260102_090500.json") == "2026/01/02 09:05", "有前綴、有路徑也讀得出來")
+	ok(GS.backup_label("progress_weird.json") == "progress_weird", "讀不出日期：照原檔名（不吞掉）")
+	ok(GS.backup_label("progress_20261340_256199.json") == "progress_20261340_256199", "日期時間超出範圍：照原檔名（不顯示假日期）")
+	ok(GS.backup_label("progress_20260230_120000.json") == "progress_20260230_120000" and GS.backup_label("progress_20260229_120000.json") == "progress_20260229_120000" and GS.backup_label("progress_20280229_120000.json") == "2028/02/29 12:00", "2 月依閏年檢查")
+	var labs: Array = GS.backup_labels(["progress_20261110_120000.json", "progress_20261110_120045.json", "progress_20261109_080000.json"])
+	ok(labs[0] == "2026/11/10 12:00:00" and labs[1] == "2026/11/10 12:00:45" and labs[2] == "2026/11/09 08:00", "同一分鐘兩份：都帶秒，分得出來", str(labs))
+	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
+	ok(gp.find("draw_rect(Rect2(x - 4, y - 2, bw + 8, bh + 6)") < 0 and gp.find("if _width(blurb, bsz) <= room:") >= 0, "擺陣資訊帶只有一行：定位放不下就不放（不再折行壓進棋盤）")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("L.t(\"fingerprint\", [sim.fingerprint.substr(0, 12)])") < 0 and gr.find("DisplayServer.clipboard_set(fpc)") >= 0, "校驗碼收進「複製」小鈕（仍複製完整碼）")
+	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(gv.find("_ink(Color.WHITE) if last_btn_paper else Color.WHITE") >= 0, "異變實驗室：紙面鈕用墨字")

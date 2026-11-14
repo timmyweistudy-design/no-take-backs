@@ -650,7 +650,11 @@ func _draw_result_details(R: Rect2) -> void:
 			_text(br.position + Vector2(8, tz("S") * 0.3), lab, tz("S"), Color.WHITE, false, true)
 			x += bw + 6
 		y += tz("S") * 2.1
-	_text(Vector2(640, y + 4), L.t("fingerprint", [sim.fingerprint.substr(0, 12)]), tz("C"), TXT_DIM, true, false, 760)   # V1.2.1 F5：原 45% 白只有 2:1
+	# 1.5.0 §2：校驗碼不再整串印在頁面上（像除錯訊息）——收進一顆小鈕，按了複製完整碼（Codex：仍可完整複製）
+	var fpl := L.t("fp_copy")
+	var fpw := _width(fpl, ts(18), true) + 40.0   # 按鈕標籤用 ts(18)（高 ≥40 時），左右各留 ≥13
+	var fpc: String = sim.fingerprint
+	_btn(Rect2(640 - fpw * 0.5, y + 2, fpw, maxf(40.0, tz("C") * 1.3 + 12.0)), fpl, func(): DisplayServer.clipboard_set(fpc); _toast(L.t("fp_copied")))
 
 
 

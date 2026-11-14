@@ -803,10 +803,15 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 80)
 		_draw_place_help()
 		return
-	call("_tv_buttons", help, int(get("trial_id")) >= 0 and mode == Mode.VS_AI)   # V1.6 #6：射程覆蓋、標記；試煉多實驗簿
+	var nb3: bool = int(get("trial_id")) >= 0 and mode == Mode.VS_AI
+	call("_tv_buttons", help, nb3)   # V1.6 #6：射程覆蓋、標記；試煉多實驗簿
+	# 1.5.0：內容右界＝右邊小鈕（兩顆或試煉三顆）左緣再留 12；遠征「還能改幾隻」也算進去（Codex v150 cat06 #1、#2）
+	var rb: float = help.position.x - (132.0 if nb3 else 88.0) - 12.0
 	if mode == Mode.GAUNTLET and gauntlet_stage > 1:
 		var gt := L.t("gauntlet_changes", [maxi(0, gauntlet_changes - _gauntlet_diff())])
-		_text(Vector2(R.end.x - 150 - _width(gt, tz("S")), y), gt, tz("S"), ACCENT)
+		var gx := R.end.x - 150 - _width(gt, tz("S"))
+		_text(Vector2(gx, y), gt, tz("S"), ACCENT)
+		rb = minf(rb, gx - 12.0)
 	var name: String = L.t("unit_%d" % i)
 	_text(Vector2(x, y - 2), name, tz("B"), ACCENT, false, true)
 	x += _width(name, tz("B"), true) + 12
@@ -816,15 +821,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 		_draw_place_help()
 		return
 	var blurb: String = L.t("blurb_%d" % i)
-	# 第八輪：放不下一行就換行並墊底色，免得掉進戰場讀不到（不縮字：字級表是無障礙底線）
 	var bsz: int = tz("S")
-	# V1.5.2：只超出一點點（例如日文 125% 只多一個「す」）就放寬到 600 不換行；第二行單獨一個字會掉到左側工具列框上
-	var bw := 600.0 if _width(blurb, bsz) <= 600.0 else 470.0
-	if _width(blurb, bsz) > bw:
-		var bh: float = font.get_multiline_string_size(blurb, HORIZONTAL_ALIGNMENT_LEFT, bw, bsz).y
-		draw_rect(Rect2(x - 4, y - 2, bw + 8, bh + 6), Color(0.07, 0.08, 0.11, 0.9))
-	_text(Vector2(x, y), blurb, bsz, Color(1, 1, 1, 0.85), false, false, bw)
-	x += minf(_width(blurb, bsz), bw) + 20
 	var beats: Array = []
 	var fears: Array = []
 	for t in D.COUNT:
@@ -835,16 +832,28 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
 			fears.append(t)
 	var lab_b: String = L.t("synergy") if D.is_support(i) else L.t("beats")
 	var list_b: Array = AIT.SYNERGY.get(i, []) if D.is_support(i) else beats
+	# 1.5.0 §1.4／§2：資訊帶只有一行——兵名＋剋／怕小圖示；一句定位放得下才放（放不下就不放，不再折成兩行壓進棋盤；
+	# 完整說明在兵卡的「?」與圖鑑）。剋／怕的寬度先算好，定位只用剩下的空間
+	var pills := 0.0
+	for g0 in [[lab_b, list_b], [L.t("fears"), fears]]:
+		if not (g0[1] as Array).is_empty():
+			pills += _width(g0[0], tz("S"), true) + 10.0 + (g0[1] as Array).size() * 38.0 + 18.0
+	var room := rb - x - pills - 20.0   # 定位句後面還有 20 間隔
+	if _width(blurb, bsz) <= room:
+		_text(Vector2(x, y), blurb, bsz, Color(1, 1, 1, 0.85), false, false, room)
+		x += _width(blurb, bsz) + 20
 	for grp in [[lab_b, list_b, Color("#4ade80")], [L.t("fears"), fears, Color("#f87171")]]:
 		if grp[1].is_empty():
 			continue
 		# 第十輪 V8：一組一個底框，圖示不貼字
 		var pill_w: float = _width(grp[0], tz("S"), true) + 16.0 + grp[1].size() * 38.0
-		_box(Rect2(x - 6, R.position.y + 2, minf(pill_w, help.position.x - x), R.size.y - 4), Color(0, 0, 0, 0.22), Color(0, 0, 0, 0), 8.0)
+		if x + _width(grp[0], tz("S"), true) + 10.0 + 34.0 > rb:
+			break   # 連標籤加一個圖示都放不下：整組不畫（Codex v150 cat06 r2 #1）
+		_box(Rect2(x - 6, R.position.y + 2, minf(pill_w, rb - x + 6.0), R.size.y - 4), Color(0, 0, 0, 0.22), Color(0, 0, 0, 0), 8.0)
 		_text(Vector2(x, y), grp[0], tz("S"), grp[2], false, true)
 		x += _width(grp[0], tz("S"), true) + 10
 		for t in grp[1]:
-			if x > help.position.x - 40:
+			if x + 34.0 > rb:
 				break
 			draw_circle(Vector2(x + 17, R.get_center().y), 17, Color(1, 1, 1, 0.08))
 			Art.unit(self, Vector2(x + 17, R.position.y + 39), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.68, cbm())

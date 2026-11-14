@@ -1330,7 +1330,7 @@ func _draw_rift_lab() -> void:
 				rlab2 = "\n".join(rlines)
 			var rface := Rect2(br.position, br.size - Vector2(0, 3))
 			probe_cell_begin(rface)
-			_text(ink_center_p(rface, rlab2, rsz, on), rlab2, rsz, Color.WHITE, true, on)
+			_text(ink_center_p(rface, rlab2, rsz, on), rlab2, rsz, _ink(Color.WHITE) if last_btn_paper else Color.WHITE, true, on)   # 1.5.0 §2：紙面鈕上用墨字（白字壓米色紙幾乎看不見）
 			probe_cell_end()
 			_probe_btn_label = false
 		y += float(rh[ri]) + 6.0

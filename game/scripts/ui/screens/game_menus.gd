@@ -1318,6 +1318,34 @@ func _after_data_swap() -> void:
 	call("_paint_apply")
 	_rebuild_sprites()
 
+## 1.5.0 §2：備份檔名 progress_20261110_120000.json → 「2026/11/10 12:00」（讀不出來就照原檔名）
+## 只認「…progress_YYYYMMDD_HHMMSS.json」而且日期時間在範圍內（Codex v150 cat06 #4）；secs＝同一分鐘有兩份時帶秒（#3）
+static func backup_label(nm: String, secs := false) -> String:
+	var b := nm.get_file().trim_suffix(".json")
+	var rx := RegEx.create_from_string("progress_(\\d{4})(\\d{2})(\\d{2})_(\\d{2})(\\d{2})(\\d{2})$")
+	var m := rx.search(b)
+	if m == null:
+		return b
+	var v: Array = []
+	for k in range(1, 7):
+		v.append(int(m.get_string(k)))
+	var leap: bool = (v[0] % 4 == 0 and v[0] % 100 != 0) or v[0] % 400 == 0
+	var mdays := [31, 29 if leap else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+	if v[1] < 1 or v[1] > 12 or v[2] < 1 or v[2] > int(mdays[clampi(v[1] - 1, 0, 11)]) or v[3] > 23 or v[4] > 59 or v[5] > 59:
+		return b   # 依月份與閏年檢查（Codex v150 cat06 r2 #2）
+	var s := "%s/%s/%s %s:%s" % [m.get_string(1), m.get_string(2), m.get_string(3), m.get_string(4), m.get_string(5)]
+	return s + ":" + m.get_string(6) if secs else s
+
+## 整份清單的顯示名：同一分鐘有兩份以上就都帶秒
+static func backup_labels(lst: Array) -> Array:
+	var base: Array = []
+	for nm in lst:
+		base.append(backup_label(str(nm)))
+	var out: Array = []
+	for i in lst.size():
+		out.append(backup_label(str(lst[i]), base.count(base[i]) > 1))
+	return out
+
 func _draw_restore() -> void:
 	_dim(0.6)
 	# V1.5.2 L3／L7：說明從緞帶下緣＋16 起、面板高度照內容（沒有備份時不留 500px 空白）、水平置中
@@ -1329,9 +1357,11 @@ func _draw_restore() -> void:
 	var ry := _h1_help(Vector2(640, P.position.y + 12), L.t("set_restore"), L.t("restore_help"), tz("S"), 560)
 	if lst.is_empty():
 		_text(Vector2(640, ry), L.t("restore_none"), tz("B"), TXT_DIM, true, false, 560)
+	var labs: Array = backup_labels(lst)
 	for i in n:
 		var nm: String = lst[i]
-		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
+		var lb: String = labs[i]
+		_btn(Rect2(380, ry + i * 48, 520, 44), lb, func(): _ask_confirm(L.t("restore_q", [lb]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
 
 const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]

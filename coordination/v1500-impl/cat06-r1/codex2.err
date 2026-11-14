@@ -1,0 +1,653 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1db3e-1445-7db1-a1f5-0ca3d87c774f
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.5.0 實作的程式審查（第 2 輪，最多三輪）。只讀。專案根目錄＝目前資料夾、遊戲在 game/。
+第 6 批（排印切片）。第 1 輪你的意見在 coordination/v1500-impl/cat06-r1/codex.md；新的完整差異 coordination/v1500-impl/cat06-r1/diff2.patch。
+這輪改了：資訊帶內容右界 `rb`＝右邊小鈕左緣（兩顆或試煉三顆）再留 12、遠征提示左緣也算進去；定位句預留 20 間隔；圖示截斷用同一個右界。`backup_label` 改用 RegEx 只認 `progress_YYYYMMDD_HHMMSS` 並檢查範圍；`backup_labels` 同一分鐘兩份以上都帶秒；確認框用同一個顯示名。測試補了範圍外與同分鐘。
+請只看這些修正是否正確、有沒有新問題。附行號。最多 4 條必改、400 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀檢查本輪差異與上一輪意見，確認這些修正是否正確，以及是否引入新問題。
+exec
+/bin/bash -lc "pwd; rg --files -g AGENTS.md -g 'codex.md' -g 'diff2.patch' -g '*backup*' coordination game" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 154ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v140-i3/codex.md
+coordination/v140-f3/codex.md
+coordination/v130-impl/cat11-r1/codex.md
+coordination/v140-f2/codex.md
+coordination/v140-i5/codex.md
+coordination/v140-f1/codex.md
+coordination/v140-i4/codex.md
+coordination/v140-impl/cat12-r1/codex.md
+coordination/v130-impl/cat09-r1/codex.md
+coordination/v140-impl/cat08-r1/diff2.patch
+coordination/v140-impl/cat08-r1/codex.md
+coordination/v140-impl/cat02-r1/codex.md
+coordination/v130-impl/cat08-r1/codex.md
+coordination/v140-impl/cat01-r1/codex.md
+coordination/v140-impl/cat11-r1/diff2.patch
+coordination/v140-impl/cat11-r1/codex.md
+coordination/v140-impl/cat05-r1/codex.md
+coordination/v140-impl/cat09-r1/codex.md
+coordination/v140-impl/cat10-r1/codex.md
+coordination/v130-impl/cat02-r1/codex.md
+coordination/v130-impl/cat06-r1/codex.md
+coordination/v152-impl/r3/codex.md
+coordination/v150-r3/codex.md
+coordination/v130-impl/cat01-r1/codex.md
+coordination/v150-r2/codex.md
+coordination/v130-impl/cat05-r1/codex.md
+coordination/v150-r1/codex.md
+coordination/v152-impl/r2/codex.md
+coordination/v152-impl/r1/codex.md
+coordination/v1500-impl/cat06-r1/diff2.patch
+coordination/v1500-impl/cat06-r1/codex.md
+coordination/v1500-impl/cat03-r1/diff2.patch
+coordination/v1500-impl/cat03-r1/codex.md
+coordination/v130-impl/cat04-r1/codex.md
+coordination/v1500-impl/cat02-r1/diff2.patch
+coordination/v1500-impl/cat02-r1/codex.md
+coordination/v1500-impl/cat01-r1/diff2.patch
+coordination/v1500-impl/cat01-r1/codex.md
+coordination/v1500-impl/cat05-r1/diff2.patch
+coordination/v1500-impl/cat05-r1/codex.md
+coordination/v1500-impl/cat04-r1/diff2.patch
+coordination/v1500-impl/cat04-r1/codex.md
+coordination/v130-impl/cat03-r1/codex.md
+coordination/v120-impl/cat07-r1/codex.md
+coordination/v120-impl/final-r2/codex.md
+coordination/v120-impl/cat10-r1/codex.md
+coordination/v120-impl/final-r1/codex.md
+coordination/v120-impl/cat05-r1/codex.md
+coordination/v120-impl/cat03-r1/codex.md
+coordination/v120-impl/cat06-r1/codex.md
+coordination/v120-impl/cat04-r1/codex.md
+coordination/v120-impl/cat09-r1/codex.md
+coordination/v120-impl/cat08-r1/codex.md
+coordination/v120-impl/cat11-r1/codex.md
+
+exec
+/bin/bash -lc 'cat coordination/v1500-impl/cat06-r1/codex.md; cat coordination/v1500-impl/cat06-r1/diff2.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+只讀靜態審查，必改 4 項（路徑皆相對 `game/scripts/ui/screens/`）：
+
+1. **P1｜`game_place.gd:836`**：`room` 未扣遠征提示；提示於 808–809 行獨立靠右繪製，定位句或剋／怕圖示仍可能覆蓋「還能改幾隻」。應共用內容右界。
+2. **P2｜`game_place.gd:836–849`**：預估漏扣定位句後的 20px 間隔。試煉三鈕最左界為 `help.x−132`，內容卻可能延伸至 `help.x−120`，侵入 12px；圖示截斷也只避開「?」。應依實際小鈕左界統一預估與截斷。
+3. **P2｜`game_menus.gd:1331、1346`**：日期顯示省略秒及流水號，同分鐘多份備份會同名，確認框也無法區分。應保留秒／序號或附原檔名，讓還原目標可辨識。
+4. **P2｜`game_menus.gd:1327–1331`**：只驗證整數，`progress_20261340_256199.json` 仍被格式化成假日期。應檢查日期、時間範圍及完整命名結構；手動改名不符合時回退原名。
+
+其餘：`list_b` 的 SYNERGY 預估與繪製一致；教學／殘局分支未改；解析不依賴時區。校驗碼仍複製完整值，詳細頁 R14 豁免、手把按鈕登記及截圖決定性保留。`last_btn_paper` 隨停用／簡化介面／焦點狀態更新；Reset 無異義共用。未執行測試。
+
+結論：有條件
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index 2335787..0962f15 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1253,8 +1253,8 @@ set_when_now,戰鬥中改：立即生效,Takes effect now,战斗中改：立即
+ set_when_next,戰鬥中改：下一局生效,Takes effect next match,战斗中改：下一局生效,対局中の変更：次の対局から
+ code_auto,貼上代碼（自動辨識）,Paste a code (auto-detect),粘贴代码（自动辨识）,コードを貼り付け（自動判別）
+ code_army_here,這是陣型碼：請在擺陣畫面貼上,This is a formation code — paste it on the placement screen,这是阵型码：请在摆阵画面粘贴,これは陣形コードです。配置画面で貼り付けてください
+-set_reset_one,恢復這一項預設,Reset this setting,恢复这一项预设,初期値に戻す
+-set_reset_page,恢復這頁預設,Reset this page,恢复这页预设,初期化
++set_reset_one,恢復這一項預設,Reset,恢复这一项预设,初期値に戻す
++set_reset_page,恢復這頁預設,Reset page,恢复这页预设,初期化
+ set_reset_page_q,把這一頁的設定都改回預設嗎？（語言不會改）,Reset every setting on this page? (Language stays.),把这一页的设置都改回预设吗？（语言不会改）,このページの設定をすべて初期値に戻しますか？（言語はそのまま）
+ set_reset_done,已恢復預設,Reset to default,已恢复预设,初期値に戻しました
+ preset_q,這組預設會改 %d 項：,This preset changes %d settings:,这组预设会改 %d 项：,このプリセットで %d 項目が変わります：
+@@ -1760,3 +1760,5 @@ foe_zone2,不能擺・開戰才看得到,Off-limits · hidden till battle,不能
+ set_adv_open,進階微調 ▶（%d 項）,Fine-tuning ▶ (%d),进阶微调 ▶（%d 项）,詳細設定 ▶（%d 項目）
+ set_adv_back,◀ 回到常用,◀ Back to common,◀ 回到常用,◀ よく使う設定へ
+ set_hover_hint,把游標移到一列上，這裡會說明它在做什麼。,Point at a row to see what it does.,把光标移到一列上，这里会说明它在做什么。,行を選ぶと、ここに説明が出ます。
++fp_copy,複製重播校驗碼,Copy replay code,复制重播校验码,照合コードをコピー
++fp_copied,已複製重播校驗碼（同一場重播一定相同）,Replay check copied (identical for every replay of this battle),已复制重播校验码（同一场重播一定相同）,照合コードをコピーしました（同じ対戦なら必ず一致）
+diff --git a/game/fonts/NTBLatin-B-sub.ttf b/game/fonts/NTBLatin-B-sub.ttf
+index 6ad1f4c..6e4dd0f 100644
+Binary files a/game/fonts/NTBLatin-B-sub.ttf and b/game/fonts/NTBLatin-B-sub.ttf differ
+diff --git a/game/fonts/NTBLatin-M-sub.ttf b/game/fonts/NTBLatin-M-sub.ttf
+index 9e052da..99d35fe 100644
+Binary files a/game/fonts/NTBLatin-M-sub.ttf and b/game/fonts/NTBLatin-M-sub.ttf differ
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index be7a1f1..c0a4dc6 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -1318,6 +1318,32 @@ func _after_data_swap() -> void:
+ 	call("_paint_apply")
+ 	_rebuild_sprites()
+ 
++## 1.5.0 §2：備份檔名 progress_20261110_120000.json → 「2026/11/10 12:00」（讀不出來就照原檔名）
++## 只認「…progress_YYYYMMDD_HHMMSS.json」而且日期時間在範圍內（Codex v150 cat06 #4）；secs＝同一分鐘有兩份時帶秒（#3）
++static func backup_label(nm: String, secs := false) -> String:
++	var b := nm.get_file().trim_suffix(".json")
++	var rx := RegEx.create_from_string("progress_(\\d{4})(\\d{2})(\\d{2})_(\\d{2})(\\d{2})(\\d{2})$")
++	var m := rx.search(b)
++	if m == null:
++		return b
++	var v: Array = []
++	for k in range(1, 7):
++		v.append(int(m.get_string(k)))
++	if v[1] < 1 or v[1] > 12 or v[2] < 1 or v[2] > 31 or v[3] > 23 or v[4] > 59 or v[5] > 59:
++		return b
++	var s := "%s/%s/%s %s:%s" % [m.get_string(1), m.get_string(2), m.get_string(3), m.get_string(4), m.get_string(5)]
++	return s + ":" + m.get_string(6) if secs else s
++
++## 整份清單的顯示名：同一分鐘有兩份以上就都帶秒
++static func backup_labels(lst: Array) -> Array:
++	var base: Array = []
++	for nm in lst:
++		base.append(backup_label(str(nm)))
++	var out: Array = []
++	for i in lst.size():
++		out.append(backup_label(str(lst[i]), base.count(base[i]) > 1))
++	return out
++
+ func _draw_restore() -> void:
+ 	_dim(0.6)
+ 	# V1.5.2 L3／L7：說明從緞帶下緣＋16 起、面板高度照內容（沒有備份時不留 500px 空白）、水平置中
+@@ -1329,9 +1355,11 @@ func _draw_restore() -> void:
+ 	var ry := _h1_help(Vector2(640, P.position.y + 12), L.t("set_restore"), L.t("restore_help"), tz("S"), 560)
+ 	if lst.is_empty():
+ 		_text(Vector2(640, ry), L.t("restore_none"), tz("B"), TXT_DIM, true, false, 560)
++	var labs: Array = backup_labels(lst)
+ 	for i in n:
+ 		var nm: String = lst[i]
+-		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
++		var lb: String = labs[i]
++		_btn(Rect2(380, ry + i * 48, 520, 44), lb, func(): _ask_confirm(L.t("restore_q", [lb]), func(): _progress_restore(nm), "restore"))
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
+ 
+ const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]
+diff --git a/game/scripts/ui/screens/game_place.gd b/game/scripts/ui/screens/game_place.gd
+index 9d86d39..2ca7ca6 100644
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -803,10 +803,15 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
+ 			_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 80)
+ 		_draw_place_help()
+ 		return
+-	call("_tv_buttons", help, int(get("trial_id")) >= 0 and mode == Mode.VS_AI)   # V1.6 #6：射程覆蓋、標記；試煉多實驗簿
++	var nb3: bool = int(get("trial_id")) >= 0 and mode == Mode.VS_AI
++	call("_tv_buttons", help, nb3)   # V1.6 #6：射程覆蓋、標記；試煉多實驗簿
++	# 1.5.0：內容右界＝右邊小鈕（兩顆或試煉三顆）左緣再留 12；遠征「還能改幾隻」也算進去（Codex v150 cat06 #1、#2）
++	var rb: float = help.position.x - (132.0 if nb3 else 88.0) - 12.0
+ 	if mode == Mode.GAUNTLET and gauntlet_stage > 1:
+ 		var gt := L.t("gauntlet_changes", [maxi(0, gauntlet_changes - _gauntlet_diff())])
+-		_text(Vector2(R.end.x - 150 - _width(gt, tz("S")), y), gt, tz("S"), ACCENT)
++		var gx := R.end.x - 150 - _width(gt, tz("S"))
++		_text(Vector2(gx, y), gt, tz("S"), ACCENT)
++		rb = minf(rb, gx - 12.0)
+ 	var name: String = L.t("unit_%d" % i)
+ 	_text(Vector2(x, y - 2), name, tz("B"), ACCENT, false, true)
+ 	x += _width(name, tz("B"), true) + 12
+@@ -816,15 +821,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
+ 		_draw_place_help()
+ 		return
+ 	var blurb: String = L.t("blurb_%d" % i)
+-	# 第八輪：放不下一行就換行並墊底色，免得掉進戰場讀不到（不縮字：字級表是無障礙底線）
+ 	var bsz: int = tz("S")
+-	# V1.5.2：只超出一點點（例如日文 125% 只多一個「す」）就放寬到 600 不換行；第二行單獨一個字會掉到左側工具列框上
+-	var bw := 600.0 if _width(blurb, bsz) <= 600.0 else 470.0
+-	if _width(blurb, bsz) > bw:
+-		var bh: float = font.get_multiline_string_size(blurb, HORIZONTAL_ALIGNMENT_LEFT, bw, bsz).y
+-		draw_rect(Rect2(x - 4, y - 2, bw + 8, bh + 6), Color(0.07, 0.08, 0.11, 0.9))
+-	_text(Vector2(x, y), blurb, bsz, Color(1, 1, 1, 0.85), false, false, bw)
+-	x += minf(_width(blurb, bsz), bw) + 20
+ 	var beats: Array = []
+ 	var fears: Array = []
+ 	for t in D.COUNT:
+@@ -835,6 +832,16 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
+ 			fears.append(t)
+ 	var lab_b: String = L.t("synergy") if D.is_support(i) else L.t("beats")
+ 	var list_b: Array = AIT.SYNERGY.get(i, []) if D.is_support(i) else beats
++	# 1.5.0 §1.4／§2：資訊帶只有一行——兵名＋剋／怕小圖示；一句定位放得下才放（放不下就不放，不再折成兩行壓進棋盤；
++	# 完整說明在兵卡的「?」與圖鑑）。剋／怕的寬度先算好，定位只用剩下的空間
++	var pills := 0.0
++	for g0 in [[lab_b, list_b], [L.t("fears"), fears]]:
++		if not (g0[1] as Array).is_empty():
++			pills += _width(g0[0], tz("S"), true) + 10.0 + (g0[1] as Array).size() * 38.0 + 18.0
++	var room := rb - x - pills - 20.0   # 定位句後面還有 20 間隔
++	if _width(blurb, bsz) <= room:
++		_text(Vector2(x, y), blurb, bsz, Color(1, 1, 1, 0.85), false, false, room)
++		x += _width(blurb, bsz) + 20
+ 	for grp in [[lab_b, list_b, Color("#4ade80")], [L.t("fears"), fears, Color("#f87171")]]:
+ 		if grp[1].is_empty():
+ 			continue
+@@ -844,7 +851,7 @@ func _draw_info_band(R: Rect2, i: int, team: int) -> void:
+ 		_text(Vector2(x, y), grp[0], tz("S"), grp[2], false, true)
+ 		x += _width(grp[0], tz("S"), true) + 10
+ 		for t in grp[1]:
+-			if x > help.position.x - 40:
++			if x + 34.0 > rb:
+ 				break
+ 			draw_circle(Vector2(x + 17, R.get_center().y), 17, Color(1, 1, 1, 0.08))
+ 			Art.unit(self, Vector2(x + 17, R.position.y + 39), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.68, cbm())
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index fd3cd1f..b1a2610 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -650,7 +650,11 @@ func _draw_result_details(R: Rect2) -> void:
+ 			_text(br.position + Vector2(8, tz("S") * 0.3), lab, tz("S"), Color.WHITE, false, true)
+ 			x += bw + 6
+ 		y += tz("S") * 2.1
+-	_text(Vector2(640, y + 4), L.t("fingerprint", [sim.fingerprint.substr(0, 12)]), tz("C"), TXT_DIM, true, false, 760)   # V1.2.1 F5：原 45% 白只有 2:1
++	# 1.5.0 §2：校驗碼不再整串印在頁面上（像除錯訊息）——收進一顆小鈕，按了複製完整碼（Codex：仍可完整複製）
++	var fpl := L.t("fp_copy")
++	var fpw := _width(fpl, tz("C"), true) + 44.0
++	var fpc: String = sim.fingerprint
++	_btn(Rect2(640 - fpw * 0.5, y + 2, fpw, maxf(40.0, tz("C") * 1.3 + 12.0)), fpl, func(): DisplayServer.clipboard_set(fpc); _toast(L.t("fp_copied")))
+ 
+ 
+ 
+diff --git a/game/scripts/ui/screens/game_v16.gd b/game/scripts/ui/screens/game_v16.gd
+index 0e2fa00..10ab78a 100644
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -1330,7 +1330,7 @@ func _draw_rift_lab() -> void:
+ 				rlab2 = "\n".join(rlines)
+ 			var rface := Rect2(br.position, br.size - Vector2(0, 3))
+ 			probe_cell_begin(rface)
+-			_text(ink_center_p(rface, rlab2, rsz, on), rlab2, rsz, Color.WHITE, true, on)
++			_text(ink_center_p(rface, rlab2, rsz, on), rlab2, rsz, _ink(Color.WHITE) if last_btn_paper else Color.WHITE, true, on)   # 1.5.0 §2：紙面鈕上用墨字（白字壓米色紙幾乎看不見）
+ 			probe_cell_end()
+ 			_probe_btn_label = false
+ 		y += float(rh[ri]) + 6.0
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 9eda137..8d2f1ab 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index 0d85f2d..75f5384 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -2584,3 +2584,18 @@ func test_settings_drawer_v150() -> void:
+ 			ok(bool(g._settings_adv_info()[1]), "抽屜裡改過的項目會在抽屜鈕上亮點")
+ 	Save.settings["mono"] = keep
+ 	g.free()
++
++func test_typography_v150() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	ok(GS.backup_label("progress_20261110_120000.json") == "2026/11/10 12:00", "備份檔名顯示成日期時間（不像除錯字串）", GS.backup_label("progress_20261110_120000.json"))
++	ok(GS.backup_label("user://x/shot_progress_20260102_090500.json") == "2026/01/02 09:05", "有前綴、有路徑也讀得出來")
++	ok(GS.backup_label("progress_weird.json") == "progress_weird", "讀不出日期：照原檔名（不吞掉）")
++	ok(GS.backup_label("progress_20261340_256199.json") == "progress_20261340_256199", "日期時間超出範圍：照原檔名（不顯示假日期）")
++	var labs: Array = GS.backup_labels(["progress_20261110_120000.json", "progress_20261110_120045.json", "progress_20261109_080000.json"])
++	ok(labs[0] == "2026/11/10 12:00:00" and labs[1] == "2026/11/10 12:00:45" and labs[2] == "2026/11/09 08:00", "同一分鐘兩份：都帶秒，分得出來", str(labs))
++	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
++	ok(gp.find("draw_rect(Rect2(x - 4, y - 2, bw + 8, bh + 6)") < 0 and gp.find("if _width(blurb, bsz) <= room:") >= 0, "擺陣資訊帶只有一行：定位放不下就不放（不再折行壓進棋盤）")
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	ok(gr.find("L.t(\"fingerprint\", [sim.fingerprint.substr(0, 12)])") < 0 and gr.find("DisplayServer.clipboard_set(fpc)") >= 0, "校驗碼收進「複製」小鈕（仍複製完整碼）")
++	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
++	ok(gv.find("_ink(Color.WHITE) if last_btn_paper else Color.WHITE") >= 0, "異變實驗室：紙面鈕用墨字")
+
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '"'!game/.godot/**'"' /mnt/c/Users/timmy/projects 2>/dev/null" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 1 in 623ms:
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/screens/game_place.gd | sed -n '748,880p'; nl -ba game/scripts/ui/screens/game_menus.gd | sed -n '1315,1375p'; rg -n 'func _tv_buttons|progress_.*json|backup.*suffix|backup.*prefix|backup_list|list_backups|_backups' game/scripts" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 85ms:
+   748			_text(Vector2(1076, 664), why, tz("C"), Color("#ff8a8a"), true, true, 380)   # 開戰鈕灰掉時直接寫原因（Antigravity 第二輪）
+   749		_btn(Rect2(884, 690, 384, 50), start_label, func(): _on_start(), start_en, true)
+   750		if mode == Mode.VS_AI or (mode == Mode.GAUNTLET and gauntlet_stage == 1):
+   751			_btn(Rect2(884, 746, 120, 44), L.t("formations"), func(): _open("slots"))
+   752		if mode == Mode.GAUNTLET and gauntlet_stage > 1:
+   753			_btn(Rect2(884, 746, 120, 44), L.t("ga_info"), func(): overlay = "ga_info")   # V1.4 收尾：本戰條件（契約、加成、宿敵／巨獸、貼紙）
+   754		if mode == Mode.PUZZLE:
+   755			_btn(Rect2(884, 746, 120, 44), L.t("menu_hint"), func(): call("_puzzle_hint"))
+   756			if PZ.get_puzzle(puzzle_id).has("cmd"):
+   757				_draw_plan_panel(Rect2(520, 692, 356, 100))
+   758		if _can_edit_existing():
+   759			_btn(Rect2(1012, 746, 120, 44), L.t("clear"), func(): _clear_mine())
+   760		_btn(Rect2(1140, 746, 128, 44), L.t("menu"), func(): _request_leave())
+   761		if removed_banner_t > 0.0:
+   762			var bw := _width(removed_banner, tz("B"), true) + 40
+   763			var br := Rect2(640 - bw / 2, 100, bw, tz("B") * 1.8)
+   764			draw_rect(br, Color(0.45, 0.12, 0.12, 0.92))
+   765			draw_rect(br, Color("#ff8a8a"), false, 2.0)
+   766			_text(Vector2(640, br.position.y + tz("B") * 0.35), removed_banner, tz("B"), Color.WHITE, true, true)
+   767		foe_tag_r = Rect2()
+   768		foe_card_r = Rect2()
+   769		if foe_zone_r.size.x > 0.0 and mode == Mode.VS_AI:
+   770			_draw_foe_tag(foe_zone_r)   # 1.5.0 §1.4 敵情翻牌（畫在卡列之後，展開的紙卡在最上層）
+   771		foe_zone_r = Rect2()
+   772		screen_register("place", "start", "自由部署「工具」抽屜展開中：貼齊、密集兩個開關暫時多出來（收合時在上限內）" if (_is_free() and fp_more) else "")   # 1.5.0 §1.1：主動作＝開戰
+   773		if _cp_on():
+   774			_boss_note("coop")   # 1.2.0 §12.2
+   775		elif mode == Mode.DUEL and bool(get("swap_on")):
+   776			_boss_note("swap")
+   777		elif mode == Mode.VS_AI and not watch_mode:
+   778			_boss_note("place")   # 1.2.0 §12：第一次擺陣的便條
+   779	
+   780	
+   781	
+   782	## 資訊帶（第五輪 §4.4）：選中／停留的兵種名稱、一句定位、剋／怕頭像（28px 以上），右邊「?」開操作說明。
+   783	## 殘局顯示提示與三星條件；遠征顯示還能改幾隻。
+   784	func _draw_info_band(R: Rect2, i: int, team: int) -> void:
+   785		draw_rect(R, Color(0, 0, 0, 0.35))
+   786		var y := R.position.y + (R.size.y - tz("S") * 1.1) / 2
+   787		var x := 16.0
+   788		var help := Rect2(R.end.x - 46, R.position.y + 2, 36, 36)
+   789		_btn(help, "?", func(): show_place_help = not show_place_help)
+   790		if mode == Mode.TUTORIAL or mode == Mode.PUZZLE:
+   791			var pz := PZ.get_puzzle(puzzle_id)
+   792			var hint: String = L.field(pz, "hint")
+   793			if mode == Mode.PUZZLE:
+   794				var st := "　★ " + L.t("star2_short", [pz["star2"]]) + "　★ " + L.t("star3_short", [pz["star3"]])
+   795				if PZ.goal(pz) != "win":
+   796					st = "　" + L.t("goal_prefix") + _goal_text(pz) + st   # 第十三輪：護送、撐住、斬首（V1.1：前面加「過關：」，和星數條件分開）
+   797				if pz.has("cap"):
+   798					st = "　" + L.t("cap_note", [int(pz["cap"])]) + st
+   799				call("_tv_buttons", help, true)   # V1.6 #6／#12：射程、標記、實驗簿
+   800				_text(Vector2(R.end.x - 192 - _width(st, tz("S"), true), y), st, tz("S"), ACCENT, false, true)
+   801				_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 252 - _width(st, tz("S"), true))
+   802			else:
+   803				_text(Vector2(x, y), hint, tz("S"), Color(1, 1, 1, 0.85), false, false, R.size.x - 80)
+   804			_draw_place_help()
+   805			return
+   806		var nb3: bool = int(get("trial_id")) >= 0 and mode == Mode.VS_AI
+   807		call("_tv_buttons", help, nb3)   # V1.6 #6：射程覆蓋、標記；試煉多實驗簿
+   808		# 1.5.0：內容右界＝右邊小鈕（兩顆或試煉三顆）左緣再留 12；遠征「還能改幾隻」也算進去（Codex v150 cat06 #1、#2）
+   809		var rb: float = help.position.x - (132.0 if nb3 else 88.0) - 12.0
+   810		if mode == Mode.GAUNTLET and gauntlet_stage > 1:
+   811			var gt := L.t("gauntlet_changes", [maxi(0, gauntlet_changes - _gauntlet_diff())])
+   812			var gx := R.end.x - 150 - _width(gt, tz("S"))
+   813			_text(Vector2(gx, y), gt, tz("S"), ACCENT)
+   814			rb = minf(rb, gx - 12.0)
+   815		var name: String = L.t("unit_%d" % i)
+   816		_text(Vector2(x, y - 2), name, tz("B"), ACCENT, false, true)
+   817		x += _width(name, tz("B"), true) + 12
+   818		if not _allowed(i) and not (rules != null):
+   819			var lock: String = L.t("locked_demo") if not RS.available(i, _demo()) else L.t("locked_classic")
+   820			_text(Vector2(x, y), lock, tz("S"), TXT_DIM)
+   821			_draw_place_help()
+   822			return
+   823		var blurb: String = L.t("blurb_%d" % i)
+   824		var bsz: int = tz("S")
+   825		var beats: Array = []
+   826		var fears: Array = []
+   827		for t in D.COUNT:
+   828			var sc := AIT.counter_score(i, t)
+   829			if sc > 0:
+   830				beats.append(t)
+   831			elif sc < 0:
+   832				fears.append(t)
+   833		var lab_b: String = L.t("synergy") if D.is_support(i) else L.t("beats")
+   834		var list_b: Array = AIT.SYNERGY.get(i, []) if D.is_support(i) else beats
+   835		# 1.5.0 §1.4／§2：資訊帶只有一行——兵名＋剋／怕小圖示；一句定位放得下才放（放不下就不放，不再折成兩行壓進棋盤；
+   836		# 完整說明在兵卡的「?」與圖鑑）。剋／怕的寬度先算好，定位只用剩下的空間
+   837		var pills := 0.0
+   838		for g0 in [[lab_b, list_b], [L.t("fears"), fears]]:
+   839			if not (g0[1] as Array).is_empty():
+   840				pills += _width(g0[0], tz("S"), true) + 10.0 + (g0[1] as Array).size() * 38.0 + 18.0
+   841		var room := rb - x - pills - 20.0   # 定位句後面還有 20 間隔
+   842		if _width(blurb, bsz) <= room:
+   843			_text(Vector2(x, y), blurb, bsz, Color(1, 1, 1, 0.85), false, false, room)
+   844			x += _width(blurb, bsz) + 20
+   845		for grp in [[lab_b, list_b, Color("#4ade80")], [L.t("fears"), fears, Color("#f87171")]]:
+   846			if grp[1].is_empty():
+   847				continue
+   848			# 第十輪 V8：一組一個底框，圖示不貼字
+   849			var pill_w: float = _width(grp[0], tz("S"), true) + 16.0 + grp[1].size() * 38.0
+   850			_box(Rect2(x - 6, R.position.y + 2, minf(pill_w, help.position.x - x), R.size.y - 4), Color(0, 0, 0, 0.22), Color(0, 0, 0, 0), 8.0)
+   851			_text(Vector2(x, y), grp[0], tz("S"), grp[2], false, true)
+   852			x += _width(grp[0], tz("S"), true) + 10
+   853			for t in grp[1]:
+   854				if x + 34.0 > rb:
+   855					break
+   856				draw_circle(Vector2(x + 17, R.get_center().y), 17, Color(1, 1, 1, 0.08))
+   857				Art.unit(self, Vector2(x + 17, R.position.y + 39), t, 1 - team, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.68, cbm())
+   858				x += 38
+   859			x += 18
+   860		_draw_place_help()
+   861	
+   862	
+   863	
+   864	## 操作說明（第五輪：從頂部移到「?」；第一次進擺放畫面自動打開）。
+   865	func _draw_place_help() -> void:
+   866		if not show_place_help:
+   867			return
+   868		var lines: Array = [L.t("place_hint_lock")]
+   869		if _is_free():
+   870			# 第六輪：自由排兵的手勢（雙人＝放開即落子、不能收回）
+   871			lines.append(L.t("place_hint_fp_turns" if mode == Mode.DUEL and tp != null else "place_hint_fp"))
+   872			lines.append(L.t("place_hint_fp_tools"))
+   873		elif mode == Mode.DUEL and tp != null:
+   874			lines.append(L.t("place_hint_turns"))
+   875		else:
+   876			lines.append(L.t("place_hint_free"))
+   877		var kt: Dictionary = Save.s("keys")
+   878		lines.append(L.t("place_hint_keys", [Keymap.key_name(kt, "prev"), Keymap.key_name(kt, "next"), Keymap.key_name(kt, "start"), Keymap.key_name(kt, "codex")]))
+   879		if _deploy_tools_ok():
+   880			if pad_mode:
+  1315	
+  1316	## 整份進度換掉（還原、全部清除）之後：塗裝重新套用、圖集重烘（Codex v150-i2 #6）
+  1317	func _after_data_swap() -> void:
+  1318		call("_paint_apply")
+  1319		_rebuild_sprites()
+  1320	
+  1321	## 1.5.0 §2：備份檔名 progress_20261110_120000.json → 「2026/11/10 12:00」（讀不出來就照原檔名）
+  1322	## 只認「…progress_YYYYMMDD_HHMMSS.json」而且日期時間在範圍內（Codex v150 cat06 #4）；secs＝同一分鐘有兩份時帶秒（#3）
+  1323	static func backup_label(nm: String, secs := false) -> String:
+  1324		var b := nm.get_file().trim_suffix(".json")
+  1325		var rx := RegEx.create_from_string("progress_(\\d{4})(\\d{2})(\\d{2})_(\\d{2})(\\d{2})(\\d{2})$")
+  1326		var m := rx.search(b)
+  1327		if m == null:
+  1328			return b
+  1329		var v: Array = []
+  1330		for k in range(1, 7):
+  1331			v.append(int(m.get_string(k)))
+  1332		if v[1] < 1 or v[1] > 12 or v[2] < 1 or v[2] > 31 or v[3] > 23 or v[4] > 59 or v[5] > 59:
+  1333			return b
+  1334		var s := "%s/%s/%s %s:%s" % [m.get_string(1), m.get_string(2), m.get_string(3), m.get_string(4), m.get_string(5)]
+  1335		return s + ":" + m.get_string(6) if secs else s
+  1336	
+  1337	## 整份清單的顯示名：同一分鐘有兩份以上就都帶秒
+  1338	static func backup_labels(lst: Array) -> Array:
+  1339		var base: Array = []
+  1340		for nm in lst:
+  1341			base.append(backup_label(str(nm)))
+  1342		var out: Array = []
+  1343		for i in lst.size():
+  1344			out.append(backup_label(str(lst[i]), base.count(base[i]) > 1))
+  1345		return out
+  1346	
+  1347	func _draw_restore() -> void:
+  1348		_dim(0.6)
+  1349		# V1.5.2 L3／L7：說明從緞帶下緣＋16 起、面板高度照內容（沒有備份時不留 500px 空白）、水平置中
+  1350		var lst := backup_list()
+  1351		var n := mini(10, lst.size())   # 留的 10 份都選得到
+  1352		var body := (n * 48.0 - 4.0) if n > 0 else text_h(L.t("restore_none"), tz("B"), 560)
+  1353		var P := modal_rect(620, 12.0 + h1_help_h(L.t("restore_help"), tz("S"), 560) + body + GAP_XL + 44.0 + GAP_L)
+  1354		_panel(P)
+  1355		var ry := _h1_help(Vector2(640, P.position.y + 12), L.t("set_restore"), L.t("restore_help"), tz("S"), 560)
+  1356		if lst.is_empty():
+  1357			_text(Vector2(640, ry), L.t("restore_none"), tz("B"), TXT_DIM, true, false, 560)
+  1358		var labs: Array = backup_labels(lst)
+  1359		for i in n:
+  1360			var nm: String = lst[i]
+  1361			var lb: String = labs[i]
+  1362			_btn(Rect2(380, ry + i * 48, 520, 44), lb, func(): _ask_confirm(L.t("restore_q", [lb]), func(): _progress_restore(nm), "restore"))
+  1363		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
+  1364	
+  1365	const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]
+  1366	
+  1367	func _draw_clear_data() -> void:
+  1368		_dim(0.6)
+  1369		# V1.5.2 L3／L7／L8：說明從緞帶下緣＋16 起、面板照內容高、底部雙按鈕同寬置中
+  1370		var P := modal_rect(620, 12.0 + h1_help_h(L.t("clear_help"), tz("S"), 560) + CLEAR_KEYS.size() * 58.0 - 8.0 + GAP_XL + 44.0 + GAP_L)
+  1371		_panel(P)
+  1372		var cy := _h1_help(Vector2(640, P.position.y + 12), L.t("set_clear"), L.t("clear_help"), tz("S"), 560)
+  1373		for i in CLEAR_KEYS.size():
+  1374			var on := bool(clear_pick.get(i, false))
+  1375			var ii := i
+game/scripts/ui/screens/game_menus.gd:1231:## 正式遊戲前綴是空的＝仍是 user://backup，舊備份照樣讀得到；不用 file_prefix()（含 demo_，試玩版舊備份會找不到）。
+game/scripts/ui/screens/game_menus.gd:1233:	return "user://%sbackup" % Save.prefix
+game/scripts/ui/screens/game_menus.gd:1235:static func backup_list() -> Array:
+game/scripts/ui/screens/game_menus.gd:1266:	var lst := backup_list()
+game/scripts/ui/screens/game_menus.gd:1321:## 1.5.0 §2：備份檔名 progress_20261110_120000.json → 「2026/11/10 12:00」（讀不出來就照原檔名）
+game/scripts/ui/screens/game_menus.gd:1322:## 只認「…progress_YYYYMMDD_HHMMSS.json」而且日期時間在範圍內（Codex v150 cat06 #4）；secs＝同一分鐘有兩份時帶秒（#3）
+game/scripts/ui/screens/game_menus.gd:1350:	var lst := backup_list()
+game/scripts/ui/screens/game_v16.gd:478:func _tv_buttons(help: Rect2, notebook := false) -> void:
+
+exec
+/bin/bash -lc "sed -n '1220,1295p' game/scripts/ui/screens/game_menus.gd; sed -n '470,510p' game/scripts/ui/screens/game_v16.gd; rg -n 'backup|%04d.*%02d|timestamp' game/scripts/core/save* game/scripts/autoload* game/scripts -g '*save*'; command -v godot godot4; rg -n 'gauntlet_changes,|"'^beats,|''^fears,|''^synergy,'"' game/data/strings.csv; rg -n 'func _box|func _text|func _width' game/scripts/ui" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 96ms:
+		draw_rect(Rect2(okr.position, Vector2(okr.size.x * clampf(float(get("hold_t")) / 0.6, 0.0, 1.0), 6)), ACCENT)
+	else:
+		_btn(okr, L.t("ok_go"), func(): _confirm_go(), true, false, Color(0.55, 0.16, 0.12))
+	_btn(Rect2(650, P.end.y - 72, 250, 50), L.t("cancel"), func(): overlay = confirm_ret, true, true)
+
+func _confirm_go() -> void:
+	overlay = confirm_ret
+	if confirm_cb.is_valid():
+		confirm_cb.call()
+
+## V1.5.2：備份資料夾跟著存檔前綴（截圖、測試模式用 shot_／smoke_，不碰玩家真正的備份）。
+## 正式遊戲前綴是空的＝仍是 user://backup，舊備份照樣讀得到；不用 file_prefix()（含 demo_，試玩版舊備份會找不到）。
+static func backup_dir() -> String:
+	return "user://%sbackup" % Save.prefix
+
+static func backup_list() -> Array:
+	var out: Array = []
+	var dir := DirAccess.open(backup_dir())
+	if dir == null:
+		return out
+	for f in dir.get_files():
+		if f.ends_with(".json"):
+			out.append(f)
+	out.sort()
+	out.reverse()
+	return out
+
+func _progress_backup() -> bool:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(backup_dir()))
+	var dt := Time.get_datetime_dict_from_system()
+	var base := "progress_%04d%02d%02d_%02d%02d%02d" % [dt["year"], dt["month"], dt["day"], dt["hour"], dt["minute"], dt["second"]]
+	var name := base + ".json"
+	var k := 2
+	while FileAccess.file_exists(backup_dir() + "/" + name):
+		name = "%s_%02d.json" % [base, k]   # 兩位數流水號：字串排序＝時間順序（Codex v150-f3 #3）   # 同一秒連按：不蓋掉前一份（Codex v150-i2 #3）
+		k += 1
+	var f := FileAccess.open(backup_dir() + "/" + name, FileAccess.WRITE)
+	if f == null:
+		_toast(L.t("backup_fail"), true)
+		return false
+	f.store_string(JSON.stringify(Save.data))
+	var werr := f.get_error()
+	f.close()
+	if werr != OK:
+		_toast(L.t("backup_fail"), true)
+		return false
+	var lst := backup_list()
+	while lst.size() > 10:   # 最多留 10 份
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(backup_dir() + "/" + str(lst.pop_back())))
+	_toast(L.t("backup_done", [name]))
+	return true
+
+func _progress_restore(name: String) -> void:
+	var f := FileAccess.open(backup_dir() + "/" + name, FileAccess.READ)
+	if f == null:
+		_toast(L.t("backup_fail"), true)
+		return
+	var d = JSON.parse_string(f.get_as_text())
+	if not Save.restorable(d):
+		_toast(L.t("restore_bad"), true)   # 不是進度存檔、或是比這版新的格式：不還原
+		return
+	if Save.data_locked:
+		_toast(L.t("restore_bad"), true)   # 目前讀到的是未來版存檔（唯讀）：還原了也存不進去
+		return
+	if not _progress_backup():   # 還原前先把現在的進度備份一份；備份失敗就不動現在的進度
+		return
+	var data: Dictionary = Save.migrate(d)
+	Save.sanitize_data(data)
+	Guide.seed_eff(data)   # V1.6.1：還原的舊備份沒有有效場數，照升級的規則補
+	if not _commit_data(data):
+		return
+	overlay = "settings"   # 還原後留在設定頁（Codex v151-i2）
+	_toast(L.t("restore_done"))
+
+## V1.5.1：換整份進度時先寫檔，寫成功才換畫面狀態；寫不進去就還原記憶體裡的舊進度（記憶體與磁碟不會不一致）
+func _commit_data(data: Dictionary) -> bool:
+			return false
+		KEY_T:
+			if tv_toggle_at(_cur_army(), _tv_pad_world() if pad_mode else _tv_world_at(mouse)):
+				sfx.play("k_click", 0.7)
+			return true
+	return false
+
+## 資訊帶右邊（「?」左邊）兩顆小鈕
+func _tv_buttons(help: Rect2, notebook := false) -> void:
+	var b1 := Rect2(help.position.x - 88, help.position.y, 40, 36)
+	var b2 := Rect2(help.position.x - 44, help.position.y, 40, 36)
+	if notebook:
+		b1.position.x -= 44
+		b2.position.x -= 44
+		var b3 := Rect2(help.position.x - 44, help.position.y, 40, 36)
+		_btn(b3, "", func(): overlay = "notebook"; _focus = 0)
+		_icon_in(b3, "book", 20.0, Color.WHITE)
+		if b3.has_point(mouse):
+			_tv_tip(L.t("nb_tip"), help)
+	_btn(b1, "", func(): tv_range = not tv_range, true, false, TH_ACTIVE if tv_range else Color(0, 0, 0, 0))
+	_icon_in(b1, "range", 20.0, Color.WHITE)
+	_btn(b2, "", func(): tv_mark_mode = not tv_mark_mode, true, false, TH_ACTIVE if tv_mark_mode else Color(0, 0, 0, 0))
+	_icon_in(b2, "flag", 20.0, Color.WHITE)
+	if b1.has_point(mouse) or b2.has_point(mouse):
+		_tv_tip(L.t("tv_range_tip") if b1.has_point(mouse) else L.t("tv_mark_tip"), help)
+
+func _tv_tip(tip: String, help: Rect2) -> void:
+	if true:
+		var tw := _width(tip, tz("S")) + 20.0
+		var tr := Rect2(clampf(mouse.x - tw / 2, 8, 1272 - tw), help.end.y + 6, tw, tz("S") * 1.6)
+		draw_rect(tr, Color(0.06, 0.07, 0.1, 0.92))
+		_text(tr.position + Vector2(10, tz("S") * 0.25), tip, tz("S"), Color.WHITE, false, false, tw)
+
+func _foot_of(w: Vector2i) -> Vector2:
+	return ORIGIN + Vector2(w.x / 1000.0, w.y / 1000.0 + 0.32) * CS
+
+## 擺陣畫面疊層：射程覆蓋（我方每隻有射程的兵畫淡圈；看得到敵兵時，每隻兵朝最近敵兵畫短箭頭）＋標記號碼
+func _v16_place_draw() -> void:
+	var a = _cur_army()
+	if tv_range:
+		var foes: Array = []
+rg: game/scripts/core/save*: No such file or directory (os error 2)
+rg: game/scripts/autoload*: No such file or directory (os error 2)
+/home/timmy/.local/bin/godot
+112:gauntlet_changes,這一戰還能改 %d 隻,%d changes left this battle,这一战还能改 %d 个,この戦いはあと%d体変更できます
+217:beats,剋,Beats,克,得意
+218:fears,怕,Fears,怕,苦手
+267:synergy,協同,Pairs with,协同,相性
+game/scripts/ui/ui_base.gd:659:func _width(s: String, size: int, bold := false) -> float:
+game/scripts/ui/ui_base.gd:818:func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+game/scripts/ui/ui_base.gd:1337:func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw := 0.0) -> void:
+game/scripts/ui/battle/battle_state.gd:182:func _text_rect(f: Dictionary, at: Vector2) -> Rect2:
+game/scripts/ui/battle/battle_state.gd:189:static func _text_alpha(f: Dictionary) -> float:
+
+codex
+必改 2 項（路徑相對 `game/scripts/ui/screens/`）：
+
+1. **P2｜`game_place.gd:849–859`**：只有圖示遵守 `rb`；底框仍延伸至 `help.position.x`，標籤也無邊界檢查。第一組截斷後仍加 18px 並繪製下一組標籤，可能覆蓋遠征提示或小鈕。底框、標籤與後續群組都須共用 `rb`，空間不足即停止。
+
+2. **P2｜`game_menus.gd:1332`**：日期只驗證日為 1–31，`progress_20260230_120000.json`、非閏年的 2/29 仍顯示為正常日期。須依月份與閏年驗證，並補測試。
+
+20px 預留、同分鐘帶秒及確認框共用顯示名的修正正確。只讀靜態審查，未執行測試。
+
+結論：有條件
+tokens used
+38,579
