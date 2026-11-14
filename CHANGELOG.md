@@ -2,6 +2,56 @@
 
 > 玩家看的更新說明（商店頁「更新」與 Steam 公告用）。開發紀錄看 `docs/STATE.md` 與 `docs/history/`。
 
+# 1.4.0
+
+## 繁體中文
+**1.4.0：掌中劇場。**
+- **字和圖示不再擠**：每個格子、按鈕裡的字上下左右都留了空，圖示完整待在框裡；放不下就換行或把格子撐大，不縮字。
+- **木活字與器物**：棋鐘、擺陣預算、戰績大數字改成一條木活字版，最後 10 秒棋鐘往下跳一格、輕響一聲；大廳的「開戰」是一方朱砂印，每開一戰在手帳上留一記印跡；擺陣兵牌立在木牌尺上；設定是三格抽屜；系列打完頒三枚木印章（沒人合格的是灰章）。
+- **戰場看得清**：每隻兵腳下有接觸陰影；被前面的兵擋住時，補一圈隊色虛線底座；技能字改成牛皮紙短標籤＋細引線；地圖名刻在盤框左上角。
+- **動作有重量**：出手前會先縮一下、出手時拉長；劍士的盔羽、弓手的披風、騎兵的鞍穗會跟著走路與出手擺動。重擊有一瞬間的停頓；重播的自動導播會在招牌技能時推近。
+- **器物滑進來**：大廳、圖鑑、設定這些頁會從桌上的固定位置滑進來（0.3 秒）；轉場中按任何鍵直接到位，那一下不會點到新頁。
+- **聲音**：戰場聲音依出手位置分左右（單聲道設定時不分）；老闆和對手會嘟囔幾句（新的「人聲音量」）。
+- **棋館的人**：對 AI 打完那一刻，對手贏了會點頭、輸了會慌張地把茶杯往前推；老闆會在桌上放下一枚紅泥小章（你贏）或叩叩桌子（你輸）。每日老闆出題多了一本印章冊。
+- **新玩法：無盡塔**（遠征頁）：一層一層往上打，每層一種突變、敵人越來越強；輸一場就結束，記最高層；中途離開下次從那一層繼續。
+- **標題**：「對戰」是朱漆主牌；建議下一步改成釘在桌上的牛皮紙便箋；木台上改成五隻大小錯落的代表木偶。
+
+## English
+**1.4.0 — Theatre in Your Hands.**
+- **Nothing cramped**: text in every cell and button now keeps breathing room on all sides, and icons sit fully inside their frames; if something doesn't fit it wraps or the cell grows — text is never shrunk.
+- **Wood type and objects**: the clock, deployment budget and big record numbers are set in a strip of wooden type; in the last 10 seconds the clock drops a notch with a soft tick. The lobby's "Fight" is a cinnabar seal that leaves a stamp in the notebook each time; unit cards stand on a wooden rack; settings are a three-drawer chest; a finished series awards three wooden seals (grey if nobody earned one).
+- **A clearer battlefield**: every unit has a contact shadow; a unit hidden behind another gets a dashed team-coloured base; skill callouts are short kraft-paper tags with a leader line; the map name is carved into the board's top-left corner.
+- **Motion with weight**: units squash before a strike and stretch into it; the swordsman's plume, the archer's cape and the cavalry's tassel swing with every step and blow. Heavy hits pause for a beat, and the replay director pushes in on signature skills.
+- **Objects slide in**: the lobby, codex, settings and more slide in from their spot on the table (0.3 s); press anything mid-slide to jump to the end — that press never lands on the new page.
+- **Sound**: battle sounds follow where they happen, left or right (off in mono); the owner and your opponent mumble a few words (new "Voice volume").
+- **People of the parlor**: the moment an AI match ends, your opponent nods if they won or nervously pushes their teacup forward if they lost; the owner sets down a little red seal (you won) or knocks on the table (you lost). Owner's Picks now has a stamp book.
+- **New: Endless Tower** (Gauntlet page): climb floor by floor — a new mutation each floor, a stronger enemy each time. One loss ends the run; your best floor is kept, and if you leave mid-run you pick up on that floor.
+- **Title**: "Battle" is the lacquered main plaque; the suggested next step is a kraft note pinned to the table; the shelf shows five display puppets of different sizes.
+
+## 简体中文
+**1.4.0：掌中剧场。**
+- **字和图标不再挤**：每个格子、按钮里的字上下左右都留了空，图标完整待在框里；放不下就换行或把格子撑大，不缩字。
+- **木活字与器物**：棋钟、摆阵预算、战绩大数字改成一条木活字版，最后 10 秒棋钟往下跳一格、轻响一声；大厅的「开战」是一方朱砂印，每开一战在手帐上留一记印迹；摆阵兵牌立在木牌尺上；设置是三格抽屉；系列打完颁三枚木印章（没人合格的是灰章）。
+- **战场看得清**：每只兵脚下有接触阴影；被前面的兵挡住时，补一圈队色虚线底座；技能字改成牛皮纸短标签＋细引线；地图名刻在盘框左上角。
+- **动作有重量**：出手前会先缩一下、出手时拉长；剑士的盔羽、弓手的披风、骑兵的鞍穗会跟着走路与出手摆动。重击有一瞬间的停顿；重播的自动导播会在招牌技能时推近。
+- **器物滑进来**：大厅、图鉴、设置这些页会从桌上的固定位置滑进来（0.3 秒）；转场中按任何键直接到位，那一下不会点到新页。
+- **声音**：战场声音依出手位置分左右（单声道设置时不分）；老板和对手会嘟囔几句（新的「人声音量」）。
+- **棋馆的人**：对 AI 打完那一刻，对手赢了会点头、输了会慌张地把茶杯往前推；老板会在桌上放下一枚红泥小章（你赢）或叩叩桌子（你输）。每日老板出题多了一本印章册。
+- **新玩法：无尽塔**（远征页）：一层一层往上打，每层一种突变、敌人越来越强；输一场就结束，记最高层；中途离开下次从那一层继续。
+- **标题**：「对战」是朱漆主牌；建议下一步改成钉在桌上的牛皮纸便笺；木台上改成五只大小错落的代表木偶。
+
+## 日本語
+**1.4.0：手のひらの劇場。**
+- **窮屈さをなくしました**：マスやボタンの文字は上下左右に余白を取り、アイコンは枠の中にきちんと収まります。入りきらないときは折り返すかマスを広げ、文字は縮めません。
+- **木活字と道具**：対局時計・配置予算・戦績の大きな数字を木活字の版に。残り 10 秒は時計が一段ずつ下がり、小さく鳴ります。ロビーの「開戦」は朱の角印で、開戦のたびに手帳へ印影が残ります。配置の兵札は木の札立てに、設定は三段の引き出しに。シリーズ終了時は木の印を三つ贈ります（該当者なしは灰色の印）。
+- **見やすい戦場**：兵の足元に接地影。前の兵に隠れた兵には陣営色の点線台座。スキルの文字はクラフト紙の短い札＋細い引き出し線に。マップ名は盤枠の左上に刻まれます。
+- **重みのある動き**：攻撃前に一瞬縮み、攻撃で伸びます。剣士の兜の羽根、弓兵のマント、騎兵の房飾りが歩みと攻撃に合わせて揺れます。重い一撃には一瞬の間。リプレイの自動演出は看板スキルで寄ります。
+- **道具が滑り込む**：ロビー・図鑑・設定などは机の決まった位置から滑り込みます（0.3 秒）。途中で何か押すとすぐ到着し、その一押しが新しいページに届くことはありません。
+- **サウンド**：戦場の音が発生位置で左右に分かれます（モノラル設定では分かれません）。店主と対戦相手が少しつぶやきます（新しい「ボイスの音量」）。
+- **碁会所の人々**：AI 戦が終わった瞬間、勝った相手はうなずき、負けた相手はあわてて湯呑みを前に押します。店主は机に小さな朱印を置くか（あなたの勝ち）、机をトントンと叩きます（あなたの負け）。店主の出題にスタンプ帳が付きました。
+- **新モード：無限の塔**（遠征ページ）：一階ずつ登り、階ごとに変異が変わり敵はだんだん強く。一度負けたら終了で最高到達階を記録。途中でやめても次はその階から再開。
+- **タイトル**：「対戦」は朱塗りのメイン札に。おすすめは机に留めたクラフト紙のメモに。木台の兵は大きさの違う五体の飾り人形に。
+
 # 1.3.0
 
 ## 繁體中文

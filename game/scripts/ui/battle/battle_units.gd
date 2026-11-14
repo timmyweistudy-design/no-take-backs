@@ -1369,9 +1369,13 @@ func _draw_contact_ao(s) -> void:
 			idx.append(base + 1 + k)
 			idx.append(base + 1 + (k + 1) % n)
 	if not idx.is_empty():
+		# 中心深、邊緣透明的柔和陰影（硬邊整圈 0.16 會把兵四周的地面壓暗，棋子輪廓對比警告從 5.9% 升到 10%；收尾量測）
 		var cols := PackedColorArray()
 		cols.resize(verts.size())
-		cols.fill(Color(DIM_INK, 0.16))
+		var c_in := Color(DIM_INK, 0.2)
+		var c_out := Color(DIM_INK, 0.0)
+		for vi in verts.size():
+			cols[vi] = c_in if vi % (n + 1) == 0 else c_out
 		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, verts, cols)
 
 ## 被前面的兵擋住的：在最上層補一圈虛線底座（找得到自己的兵；48 兵都能定位）。最多 24 隻。
@@ -1403,6 +1407,8 @@ func _draw_occluded_bases(s) -> void:
 	for a in _ao_pos:
 		if not _occ_ids.has(a[0].id):
 			continue
+		if int(a[0].team) != 0 and a[0].id != follow_id:
+			continue   # 只畫玩家這邊（藍方）與正在跟拍的那隻：目的是找得到自己的兵；兩隊都畫時密集處整團被虛線蓋住（收尾量測）
 		var pa: Vector2 = a[1]
 		var tm: int = clampi(int(a[0].team), 0, 1)
 		for k in range(0, ELL16.size(), 2):   # 虛線＝每隔一段畫一段
@@ -1410,8 +1416,8 @@ func _draw_occluded_bases(s) -> void:
 			segs[tm].append(pa + ELL16[(k + 1) % ELL16.size()] * (17.0 * HK))
 	for tm in 2:
 		if not (segs[tm] as PackedVector2Array).is_empty():
-			draw_multiline(segs[tm], Color(Art.OUT, 0.75), 4.0)   # 深色襯底：草地上也看得到（Antigravity cat05 #2）
-			draw_multiline(segs[tm], Color(Art.team_color(tm, cbm()).lightened(0.15), 1.0), 2.5)
+			# 亮隊色 2px（審查時加過 4px 深色襯底：密集混戰裡整團被虛線蓋住、棋子輪廓對比警告翻倍 → 收尾拿掉，只留提亮）
+			draw_multiline(segs[tm], Color(Art.team_color(tm, cbm()).lightened(0.25), 0.95), 2.0)
 
 ## 單位橢圓（扁 0.42）16 點，接觸陰影與虛線底座共用（不每幀算 sin／cos）
 static var ELL16: PackedVector2Array = _ell16()

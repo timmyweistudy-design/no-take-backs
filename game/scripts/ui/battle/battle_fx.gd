@@ -678,7 +678,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var wob := 0.86 + 0.14 * float(((sd0 * 7 + i * 13) % 11)) / 10.0
 				pts0.append(Vector2(cos(ang), sin(ang) * 0.5) * rr0 * wob)
 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2.ONE, 0, f["p"]))
-			draw_colored_polygon(pts0, Color(sc0, 0.22 * (1.0 - dry)))
+			draw_colored_polygon(pts0, Color(sc0, 0.11 * (1.0 - dry)))   # 1.4.0：茶漬不再被淘汰、常留在兵腳下 → 底色減半（範圍看邊線），不把棋子周圍壓暗（收尾量測：輪廓對比警告 5.9%→10%）
 			draw_polyline(pts0 + PackedVector2Array([pts0[0]]), Color(sc0, 0.35 * (1.0 - dry)), 1.5, true)
 			draw_set_transform_matrix(_cam)
 		"tag":
