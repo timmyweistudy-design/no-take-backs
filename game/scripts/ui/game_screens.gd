@@ -36,6 +36,8 @@ func _drag_scrape(d: float) -> void:
 		sfx.play_pitched("place_light", 0.18, 0.8)
 
 func _ready() -> void:
+	if not Input.joy_connection_changed.is_connected(_trans_joy_changed):
+		Input.joy_connection_changed.connect(_trans_joy_changed)   # 1.4.0 第 8 大類
 	boot_parts["ready_in"] = Time.get_ticks_msec()
 	on_battle_finished = _finish_battle
 	for a in OS.get_cmdline_user_args():
@@ -188,6 +190,10 @@ func _keys_input(ev: InputEvent) -> bool:
 
 
 func _input(ev: InputEvent) -> void:
+	if _trans_gate(ev):
+		if is_inside_tree():
+			get_viewport().set_input_as_handled()
+		return
 	if _keys_input(ev):
 		return
 	if nb_edit >= 0 and _nb_edit_input(ev):
@@ -855,16 +861,29 @@ func _draw_inner() -> void:
 	if overlay != _ov_seen:
 		_ov_seen = overlay
 		_ov_t = time
+		_trans_begin()
 	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
 	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
 	obj_open_kind = ""
+	var slide := ov_slide_offset()   # 1.4.0 §2.2：器物從桌上的固定位置滑進來（大廳從左、圖鑑從下…）；只動畫面
+	var m0 := mouse
+	if slide != Vector2.ZERO:
+		ui_xf = Transform2D(0.0, slide)   # 疊層裡自己切矩陣的地方都以 ui_xf 為底（不會把滑動蓋掉）
+		Art.base = ui_xf
+		draw_set_transform_matrix(ui_xf)
+		mouse = Vector2(-9999, -9999)     # 滑入中不判 hover（命中框沒位移，高亮會錯位；Codex cat08 #6）
 	_draw_overlay()
-	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
-	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) else 1.0
+	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
 	if obj_open_force >= 0.0:
 		open_k = obj_open_force   # 開發截圖：固定在開到一半
 	if open_k < 1.0 and obj_open_kind != "":
-		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫）
+		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫；和內容一起滑，Codex cat08 #1）
+	if slide != Vector2.ZERO:
+		mouse = m0
+		ui_xf = Transform2D.IDENTITY
+		Art.base = Transform2D.IDENTITY
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
 	if ok_k < 1.0:
 		draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
 	_draw_pad_footer()
@@ -1089,3 +1108,90 @@ func _do_click(p: Vector2) -> int:
 				return 1
 			return 0
 	return 0
+
+
+# ── 1.4.0 第 8 大類：桌面世界與轉場（方案 §2；切片 A）──
+## 每個疊層在桌上的固定位置（從哪邊滑進來）；沒列的照舊淡入。
+const SLIDE_FROM := {"lobby": Vector2(-80, 0), "codex": Vector2(0, 70), "settings": Vector2(80, 0), "keys": Vector2(80, 0),
+	"profile": Vector2(0, -60), "puzzles": Vector2(-70, 0), "trials": Vector2(-70, 0), "codes": Vector2(70, 0)}
+const SLIDE_SEC := 0.3    # 180～300ms；和 1.3.0 器物開合同長（同時到終態，Codex cat08 #1）
+var trans_eat := {}            # 跳過轉場的輸入（來源＋鍵碼＋裝置／手指）→ 各自的放開才解鎖；可能同時好幾個（Codex cat08 r2 #1、r3 #1）
+var trans_stick_eat := false   # 用搖桿跳過／轉場中推著搖桿：回中之前不送方向（方案 §2.5）
+
+## 輸入的身分：同一顆鍵／同一個滑鼠鈕／同一根手指的按下與放開對得起來
+static func trans_sig(ev: InputEvent) -> String:
+	if ev is InputEventKey:
+		return "k%d" % int(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
+	if ev is InputEventMouseButton:
+		return "m%d" % int(ev.button_index)
+	if ev is InputEventJoypadButton:
+		return "j%d:%d" % [ev.device, int(ev.button_index)]
+	if ev is InputEventScreenTouch:
+		return "t%d" % int(ev.index)
+	return ""
+
+## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
+## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
+func _trans_gate(ev: InputEvent) -> bool:
+	var active := ov_trans_k() < 1.0
+	if not active and trans_eat.is_empty():
+		return false
+	if ev is InputEventMouseMotion:
+		mouse = ev.position
+		return active
+	if ev is InputEventJoypadMotion:
+		if ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y:
+			stick[ev.axis] = ev.axis_value   # 狀態照記
+			if active and absf(ev.axis_value) >= int(Save.s("deadzone")) / 100.0:
+				_ov_t = time - 1.0       # 推搖桿本身也是跳過（Codex cat08 r5 #1）
+				trans_stick_eat = true   # 轉場中收到有效軸輸入當下就鎖（不靠逐幀時轉場還在；同幀再按鍵跳過也鎖著，Codex cat08 r4 #1）
+		return active
+	var sig := trans_sig(ev)
+	if sig == "":
+		return active
+	if ev is InputEventScreenTouch and not ev.pressed:
+		touches.erase(ev.index)   # 吃掉放開也要清手指狀態（不留幽靈手指、長按計時；Codex cat08 r2 #3）
+		lp_t = -1.0
+	if ev.pressed:
+		if active:
+			_ov_t = time - 1.0
+			trans_eat[sig] = true
+			return true
+		return trans_eat.has(sig)   # 同一顆鍵按住的連發（echo）也吃
+	if trans_eat.has(sig):
+		trans_eat.erase(sig)
+		return true
+	return active
+
+## 疊層剛換（轉場開始）：取消進行中的長按（不從計時器繞過閘門）；開頁前就推著的搖桿鎖到回中（Codex cat08 r3 #2、#3）
+func _trans_begin() -> void:
+	if ov_trans_k() >= 1.0:
+		return
+	lp_t = -1.0
+	var dz := int(Save.s("deadzone")) / 100.0
+	if absf(float(stick.get(JOY_AXIS_LEFT_X, 0.0))) >= dz or absf(float(stick.get(JOY_AXIS_LEFT_Y, 0.0))) >= dz:
+		trans_stick_eat = true
+
+## 手把拔掉：引擎不補放開事件 → 清掉那支手把的跳過身分與搖桿狀態（Codex cat08 r3 #4）
+func _trans_joy_changed(device: int, connected: bool) -> void:
+	if connected:
+		return
+	for k in trans_eat.keys():
+		if String(k).begins_with("j%d:" % device):
+			trans_eat.erase(k)
+	stick[JOY_AXIS_LEFT_X] = 0.0
+	stick[JOY_AXIS_LEFT_Y] = 0.0
+	trans_stick_eat = false
+
+## 轉場進度（0→1；沒有轉場＝1）。截圖、版面檢查、減少特效、減少動態、簡化介面都沒有轉場。
+func ov_trans_k() -> float:
+	if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
+		return 1.0
+	return clampf((time - _ov_t) / SLIDE_SEC, 0.0, 1.0)
+
+func ov_slide_offset() -> Vector2:
+	var k := ov_trans_k()
+	if k >= 1.0:
+		return Vector2.ZERO
+	var e := 1.0 - pow(1.0 - k, 3.0)
+	return SLIDE_FROM[overlay] * (1.0 - e)

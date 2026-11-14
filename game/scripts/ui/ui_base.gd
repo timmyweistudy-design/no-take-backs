@@ -316,6 +316,8 @@ var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 �
 var prev_pos := {}
 var accum := 0.0
 var speed := 1.0
+## 1.4.0 §2.2：介面底層矩陣（疊層滑入時＝位移；平常＝單位矩陣）。介面裡切矩陣都乘在它上面、還原也還原成它。
+var ui_xf := Transform2D.IDENTITY
 var slow_used := false
 var final_used := false   # 第十輪 F1
 var pinch_zoom := 1.0             # V1.4 #18：雙指縮放戰場（1＝不縮；戰鬥中蓋過自動全景）
@@ -1120,16 +1122,16 @@ func _desk_props() -> void:
 	# 1.3.0 §1.2 茶杯（右側桌面）：熱氣三縷慢慢往上飄（減少特效時停住；截圖模式的時間是固定的，可重現）
 	var cup := Vector2(1236, 432)
 	# 桌邊斜看：杯口是扁一點的橢圓、下面露出一段杯身；右下落影（燈在左上；Antigravity cat02 #5）
-	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
+	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
 	draw_circle(Vector2.ZERO, 22.0, Color(DIM_INK, 0.38), true, -1.0, true)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
+	draw_set_transform_matrix(ui_xf)
 	draw_rect(Rect2(cup + Vector2(-20, 0), Vector2(40, 14)), PAL.CUP_BODY)   # 杯身
 	draw_rect(Rect2(cup + Vector2(-20, 10), Vector2(40, 4)), PAL.CUP_FOOT)
-	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup))
+	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup))
 	draw_circle(Vector2.ZERO, 21.0, PAL.CUP_GLAZE, true, -1.0, true)
 	draw_circle(Vector2.ZERO, 16.0, PAL.TEA, true, -1.0, true)
 	draw_circle(Vector2(-4, -4), 5.0, Color(1, 0.95, 0.8, 0.25), true, -1.0, true)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
+	draw_set_transform_matrix(ui_xf)
 	var st_t: float = 0.0 if bool(Save.s("reduce_fx")) else time
 	for w in 3:
 		var pts := PackedVector2Array()
@@ -1892,12 +1894,12 @@ func _unit_base(p: Vector2, scale: float) -> void:
 	if true:
 		var bw := 30.0 * scale
 		var bh := 9.0 * scale
-		draw_set_transform(p + Vector2(0, 2 * scale), 0.0, Vector2(1, bh / bw))
+		draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1, bh / bw), 0.0, p + Vector2(0, 2 * scale)))
 		draw_circle(Vector2(0, 3 * scale * bw / bh), bw * 1.04, Color(0, 0, 0, 0.3), true, -1.0, true)
 		draw_circle(Vector2.ZERO, bw, Color("#5a3b22"), true, -1.0, true)
 		draw_circle(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, Color("#8a5f37"), true, -1.0, true)
 		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		draw_set_transform_matrix(ui_xf)
 
 ## 在一個框（或圓）的正中間畫一隻兵（使用者回報：圖鑑頁籤的人物沒有在格子正中間）。
 ## 角色的腳在原點、頭頂約在 -50（騎兵含騎士約 -54），視覺中心在腳上方 24（騎兵 26）× 縮放。

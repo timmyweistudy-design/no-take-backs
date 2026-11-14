@@ -1323,10 +1323,10 @@ func _draw_nemeses() -> void:
 		# 狀態：已復仇＝朱紅「雪恥」印章；還沒＝墨色小字（Antigravity v140-i1）
 		var sp := r.position + Vector2(r.size.x - 74, 44)   # 離紙邊夠遠，英文 150% 的 Unavenged 也放得下
 		if done:
-			draw_set_transform_matrix(Transform2D(-0.18, sp))
+			draw_set_transform_matrix(ui_xf * Transform2D(-0.18, sp))
 			_hand_ring(Vector2.ZERO, 30.0, Color("#8e1b14", 0.95), 3.0)
 			_hand_ring(Vector2.ZERO, 25.0, Color("#8e1b14", 0.75), 1.4, false, 1)
-			draw_set_transform_matrix(Transform2D.IDENTITY)
+			draw_set_transform_matrix(ui_xf)
 			_ink_mode = true
 			var nd := L.t("nem_done")
 			var nsz: int = tz("S") if _width(nd, tz("S"), true) <= 52.0 else tz("C")   # 英文印章字放得進圓圈（收尾第 2 輪）

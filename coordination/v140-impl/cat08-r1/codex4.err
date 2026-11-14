@@ -1,0 +1,1542 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1d734-5f22-7903-a7f6-10bbb3529f45
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.4.0 實作的程式審查（第 4 輪）。只讀。專案根目錄＝目前資料夾、遊戲在 game/。
+第 8 大類（轉場切片 A）。前三輪意見 coordination/v140-impl/cat08-r1/codex.md、codex2.md、codex3.md。新差異 coordination/v140-impl/cat08-r1/diff4.patch。
+第 3 輪後的改法：trans_eat 改成集合（每個跳過的輸入各自放開才解鎖）；疊層一換就 _trans_begin（取消長按、開頁前推著的搖桿鎖到回中）；_stick_repeat 開頭先檢查鎖（自由游標與方向連發兩條路都擋）、回中＝死區內才解鎖；手把斷線 _trans_joy_changed 清身分與搖桿；測試補這四種情況。
+關於測試第 5 條：測試仍是直接建物件走 _input（不入樹）、核對命令佇列 _cmds；PADWALK 的目的是驗焦點可達（不是驗轉場），所以走訪時先把轉場跳到終態——請判斷這個取捨能否接受，若不能，請具體說要加哪一個整合測試。
+請逐條確認第 3 輪 5 條，再找新問題。附行號。最多 5 條必改，500 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會先核對前三輪意見、這輪差異與相關程式及測試，再逐條確認第 3 輪的 5 點並檢查新問題；全程只讀。
+exec
+/bin/bash -lc "pwd; rg --files -g AGENTS.md -g 'codex*.md' -g diff4.patch -g '*trans*' -g '*test*' coordination game" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 59ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v140-f2/codex.md
+coordination/v150-r1/codex.md
+coordination/v140-r2/codex.prompt.md
+coordination/v140-r2/codex.out.md
+coordination/v131-impl1/codex.prompt.md
+coordination/v131-impl1/codex.out.md
+coordination/v140-impl/cat08-r1/diff4.patch
+coordination/v140-impl/cat08-r1/codex4.md
+coordination/v140-impl/cat08-r1/codex3.md
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v140-impl/cat08-r1/codex.md
+coordination/v140-impl/cat08-r1/codex-prompt4.md
+coordination/v140-impl/cat08-r1/codex-prompt3.md
+coordination/v140-impl/cat08-r1/codex-prompt2.md
+coordination/v140-impl/cat08-r1/codex-prompt.md
+coordination/v120-r3/codex.prompt.md
+coordination/v120-r3/codex.out.md
+coordination/v150-r3/codex.md
+coordination/v140-f1/codex.md
+coordination/v152-impl/r3/codex.md
+coordination/v120-r3/agy/codex_r2.md
+coordination/v150-r2/codex.md
+coordination/v131-r3/codex.prompt.md
+coordination/v131-r3/codex.out.md
+game/tools/playtest_report.py
+coordination/v140-impl/cat05-r1/codex.md
+coordination/v140-impl/cat05-r1/codex-prompt.md
+coordination/v140-r1/codex.prompt.md
+coordination/v140-r1/codex.out.md
+coordination/v152-impl/r2/codex.md
+coordination/v120-r2/codex.prompt.md
+coordination/v120-r2/codex.out.md
+coordination/v152-impl/r1/codex.md
+coordination/v120-r2/agy/codex_r1.md
+coordination/v131-r2/codex.prompt.md
+coordination/v131-r2/codex.out.md
+game/data/l10n_extra.ja.translation
+game/data/l10n_extra.zh_CN.translation
+coordination/v140-impl/cat02-r1/codex.md
+coordination/v140-impl/cat02-r1/codex-prompt.md
+coordination/v130-r3/codex.prompt.md
+coordination/v130-r3/codex.out.md
+coordination/v120-r1/codex.prompt.md
+coordination/v120-r1/codex.out.md
+coordination/v131-r2/agy/codex_r1.md
+game/tests/test_base.gd.uid
+game/tests/test_base.gd
+game/tests/run_tests.gd
+coordination/v120-final2/codex.prompt.md
+coordination/v120-final2/codex.out.md
+coordination/v130-r3/agy/codex_r2.md
+coordination/v131-r1/codex.prompt.md
+coordination/v131-r1/codex.out.md
+coordination/v120-impl2/codex.prompt.md
+coordination/v120-impl2/codex.out.md
+game/tests/run_tests.gd.uid
+coordination/v140-impl/cat01-r1/codex.md
+coordination/v140-impl/cat01-r1/codex-prompt.md
+coordination/v130-r2/codex.prompt.md
+coordination/v130-r2/codex.out.md
+coordination/v120-final/codex.prompt.md
+coordination/v120-final/codex.out.md
+coordination/v121-r2/codex.prompt.md
+coordination/v121-r2/codex.out.md
+coordination/v121-impl1/codex.prompt.md
+coordination/v121-impl1/codex.out.md
+coordination/v120-impl/final-r2/codex.md
+coordination/v120-impl/final-r2/codex-prompt.md
+coordination/v130-r2/agy/codex_r1.md
+coordination/v131-impl3/codex.prompt.md
+coordination/v131-impl3/codex.out.md
+coordination/v140-i5/codex.md
+coordination/v121-r2/agy/codex_r1.md
+coordination/v120-impl/final-r1/codex.md
+coordination/v120-impl/final-r1/codex-visual.md
+coordination/v120-impl/final-r1/codex-prompt.md
+coordination/v120-impl/cat07-r1/codex.md
+coordination/v120-impl/cat07-r1/codex-prompt.md
+coordination/v130-r1/codex.prompt.md
+coordination/v130-r1/codex.out.md
+coordination/v120-impl/cat04-r1/codex.md
+coordination/v120-impl/cat04-r1/codex-prompt.md
+coordination/v121-impl2/codex.prompt.md
+coordination/v121-impl2/codex.out.md
+coordination/v121-r1/codex.prompt.md
+coordination/v140-i4/codex.md
+coordination/v121-r1/codex.out.md
+coordination/v121-r3/codex.prompt.md
+coordination/v121-r3/codex.out.md
+coordination/v131-impl2/codex.prompt.md
+coordination/v131-impl2/codex.out.md
+coordination/v130-impl/cat11-r1/codex.md
+coordination/v130-impl/cat11-r1/codex-prompt.md
+coordination/v140-i3/codex.md
+coordination/v120-impl/cat03-r1/codex-prompt.md
+coordination/v120-impl/cat06-r1/codex.md
+coordination/v120-impl/cat06-r1/codex-prompt.md
+coordination/v121-r3/agy/codex_r2.md
+coordination/v130-impl/cat06-r1/codex.md
+coordination/v130-impl/cat06-r1/codex-prompt.md
+coordination/v120-impl/cat11-r1/codex.md
+coordination/v120-impl/cat11-r1/codex-prompt.md
+coordination/v130-impl2/codex.prompt.md
+coordination/v130-impl2/codex.out.md
+coordination/v140-i2/codex.prompt.md
+coordination/v140-i2/codex.out.md
+coordination/v120-impl/cat03-r1/codex.md
+coordination/v130-impl/cat08-r1/codex.md
+coordination/v130-impl/cat08-r1/codex-prompt.md
+coordination/v130-impl/cat09-r1/codex.md
+coordination/v130-impl/cat09-r1/codex-prompt.md
+coordination/v130-impl1/codex.prompt.md
+coordination/v130-impl1/codex.out.md
+coordination/v120-impl/cat10-r1/codex.md
+coordination/v120-impl/cat10-r1/codex-prompt.md
+coordination/v140-f3/codex.md
+coordination/v120-impl/cat09-r1/codex.md
+coordination/v120-impl/cat09-r1/codex-prompt.md
+coordination/v120-impl/cat05-r1/codex-prompt.md
+coordination/v120-impl/cat05-r1/codex.md
+coordination/v120-impl/cat08-r1/codex-prompt.md
+coordination/v120-impl/cat08-r1/codex.md
+coordination/v140-i1/codex.out.md
+coordination/v140-i1/codex.prompt.md
+coordination/v130-impl/cat03-r1/codex-prompt.md
+coordination/v130-impl/cat03-r1/codex.md
+coordination/v130-impl/cat04-r1/codex-prompt.md
+coordination/v130-impl/cat01-r1/codex-prompt.md
+coordination/v130-impl/cat04-r1/codex.md
+coordination/v130-impl/cat01-r1/codex.md
+coordination/v130-impl/cat05-r1/codex-prompt.md
+coordination/v130-impl/cat02-r1/codex-prompt.md
+coordination/v130-impl/cat02-r1/codex.md
+coordination/v130-impl/cat05-r1/codex.md
+
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '"'!game/.godot/**'"' . /mnt/c/Users/timmy 2>/dev/null | head -60; cat coordination/v140-impl/cat08-r1/codex.md coordination/v140-impl/cat08-r1/codex2.md coordination/v140-impl/cat08-r1/codex3.md coordination/v140-impl/cat08-r1/diff4.patch" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc 'for p in /AGENTS.md /mnt/AGENTS.md /mnt/c/AGENTS.md /mnt/c/Users/AGENTS.md /mnt/c/Users/timmy/AGENTS.md /mnt/c/Users/timmy/projects/AGENTS.md AGENTS.md; do if [ -f "$p" ]; then cat "$p"; fi; done; cat coordination/v140-impl/cat08-r1/codex.md coordination/v140-impl/cat08-r1/codex2.md coordination/v140-impl/cat08-r1/codex3.md coordination/v140-impl/cat08-r1/diff4.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+只讀靜態審查；未執行測試。下稱 S＝`game/scripts/ui/game_screens.gd`，M＝同目錄 `screens/game_menus.gd`。
+
+必改：
+
+1. **開合與滑入錯位**：S:872–881 先還原矩陣才畫器物開合，蓋子留在終點、內容仍滑動。共用 `_ov_t` 可同步起跑，但滑入於 250ms 解鎖，開合要 300ms；須統一終態與座標。
+2. **按下未被吃掉**：S:343–349 只在放開時進 `_do_click`。轉場中按下、250ms 後放開，會直接點中新頁；觸控模擬滑鼠同樣可穿透。須追蹤並吞掉整次按放。
+3. **音量拖曳穿透**：S:343、278；M:642–669 在攔截前即可開始拖曳、修改及儲存音量，轉場及 hold 期間皆可操作。
+4. **捲動穿透**：S:224–226、264–267 的滾輪、右搖桿直接捲圖鑑，既不跳過也不吃輸入。
+5. **hold 不辨輸入來源**：S:453–457 吞掉跳過後所有獨立操作；但 M:101–109 的左搖桿持續推住，350ms 後照樣移焦。須等待原輸入放開／回中，避免固定 250ms 同時誤吞與漏吞。
+6. **hover 錯位**：`ui_base.gd:900–913,1468` 用未位移命中框判 hover／按下；畫面卻經 `ui_xf` 位移。焦點框隨圖走，滑鼠高亮會錯位，應轉換滑鼠座標或暫停 hover。
+7. **驗證不足**：`game/tools/dev_main.gd:1691–1693` 強改時間並清 hold，PADWALK 無法驗出上述問題。`tests/suites/ui.gd:1863–1900` 漏簡化、reduce_fx、layout_probe、色盲、手把、停用四態與真實按放／類比；只驗進度不能證明截圖、探針、走訪終態一致，須補重拍與整合驗證。
+
+八種疊層實際繪圖路徑 grep 未見中途漏還原單位矩陣。`_ov_t` 重設點為 S:862（疊層改名）、456／1093（跳過及 hold）、dev_main:1692；按住確認僅走 `confirm`（`game_v16.gd:650`），本切片未新增該頁滑入。
+
+結論：不可
+只讀靜態審查，未執行測試。S＝`game/scripts/ui/game_screens.gd`，M＝`screens/game_menus.gd`（同目錄）。
+
+上輪逐條：①已解（S:864–881，同矩陣、同為0.3秒）；②部分；③已解（S:191）；④已解（S:1123–1132）；⑤部分；⑥已解（S:870）；⑦未解。
+
+必改：
+
+1. S:1133–1142：`trans_eat` 未記來源、鍵碼、裝置／手指。按住滑鼠跳過，再放開另一鍵就會清鎖，原滑鼠放開可點中新頁；方向鍵 echo 也會穿透。須追蹤原輸入至放開。
+2. M:84–114：`_stick_repeat` 不檢查轉場；開頁前已推住可繼續連發。死區20%時，推0.46會移焦，卻未達S:1129的0.5跳過門檻。
+3. S:1143、613–652：轉場吞掉既有觸控的放開，卻不清 `touches`／`lp_t`；可留下幽靈手指，既有長按計時仍會送右鍵。須保留狀態清理。
+4. S:872、1147：減少動態只停滑入及閘門，器物開合仍播0.3秒；會在未開完時接受操作，未一致到終態。
+5. `game/tests/suites/ui.gd:1882–1908`只直呼閘門；`game/tools/dev_main.gd:1691–1694`仍強改時間、清鎖。須經完整輸入／逐幀路徑驗證上述案例及重拍終態。
+
+結論：不可
+只讀靜態審查，未執行測試。S＝`game/scripts/ui/game_screens.gd`；M＝同目錄 `screens/game_menus.gd`。
+
+逐條：第1輪①已解（S:865–877）②部分③已解（S:191）④已解（S:1136–1145）⑤部分⑥已解（S:871）⑦未解；第2輪①部分②部分③部分④已解（S:873）⑤未解。
+
+必改：
+
+1. S:1152–1155：只存一個身分。按住A跳過第一頁，再以B跳過第二頁，B雖被吞卻未記錄，其放開／echo會穿透。須追蹤所有尚未放開的跳過輸入。
+2. S:1151、M:101：已推住左搖桿時，若按鍵先跳過，逐幀檢查便看不到轉場，方向可繼續連發。另M:85–87在鎖定檢查前進自由游標，關頁後未回中仍會移動。須涵蓋兩條路徑。
+3. S:640–653、1146：只在觸控放開時清長按；既有手指按住並開頁，計時仍可直接排入右鍵命令，繞過閘門。開頁須取消長按。
+4. S:1156–1158：解除只靠放開；手把跳過後拔除，身分會殘留，後續跳過又無法記錄。[引擎斷線處理](https://github.com/godotengine/godot/blob/4.6-stable/core/input/input.cpp#L589-L648)不補按鈕放開。須處理斷線並清搖桿狀態。
+5. `game/tests/suites/ui.gd:1865,1937–1949`未入樹、未執行命令；焦點不變不能證明沒有排入方向。`game/tools/dev_main.gd:1691–1694`仍強改時間清鎖；須補逐幀整合及重拍終態。
+
+結論：不可
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index bf57a32..f42a00e 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -36,6 +36,8 @@ func _drag_scrape(d: float) -> void:
+ 		sfx.play_pitched("place_light", 0.18, 0.8)
+ 
+ func _ready() -> void:
++	if not Input.joy_connection_changed.is_connected(_trans_joy_changed):
++		Input.joy_connection_changed.connect(_trans_joy_changed)   # 1.4.0 第 8 大類
+ 	boot_parts["ready_in"] = Time.get_ticks_msec()
+ 	on_battle_finished = _finish_battle
+ 	for a in OS.get_cmdline_user_args():
+@@ -188,6 +190,10 @@ func _keys_input(ev: InputEvent) -> bool:
+ 
+ 
+ func _input(ev: InputEvent) -> void:
++	if _trans_gate(ev):
++		if is_inside_tree():
++			get_viewport().set_input_as_handled()
++		return
+ 	if _keys_input(ev):
+ 		return
+ 	if nb_edit >= 0 and _nb_edit_input(ev):
+@@ -855,16 +861,29 @@ func _draw_inner() -> void:
+ 	if overlay != _ov_seen:
+ 		_ov_seen = overlay
+ 		_ov_t = time
++		_trans_begin()
+ 	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+ 	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+ 	obj_open_kind = ""
++	var slide := ov_slide_offset()   # 1.4.0 §2.2：器物從桌上的固定位置滑進來（大廳從左、圖鑑從下…）；只動畫面
++	var m0 := mouse
++	if slide != Vector2.ZERO:
++		ui_xf = Transform2D(0.0, slide)   # 疊層裡自己切矩陣的地方都以 ui_xf 為底（不會把滑動蓋掉）
++		Art.base = ui_xf
++		draw_set_transform_matrix(ui_xf)
++		mouse = Vector2(-9999, -9999)     # 滑入中不判 hover（命中框沒位移，高亮會錯位；Codex cat08 #6）
+ 	_draw_overlay()
+-	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
+-	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) else 1.0
++	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
+ 	if obj_open_force >= 0.0:
+ 		open_k = obj_open_force   # 開發截圖：固定在開到一半
+ 	if open_k < 1.0 and obj_open_kind != "":
+-		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫）
++		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫；和內容一起滑，Codex cat08 #1）
++	if slide != Vector2.ZERO:
++		mouse = m0
++		ui_xf = Transform2D.IDENTITY
++		Art.base = Transform2D.IDENTITY
++		draw_set_transform_matrix(Transform2D.IDENTITY)
++	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
+ 	if ok_k < 1.0:
+ 		draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
+ 	_draw_pad_footer()
+@@ -1089,3 +1108,87 @@ func _do_click(p: Vector2) -> int:
+ 				return 1
+ 			return 0
+ 	return 0
++
++
++# ── 1.4.0 第 8 大類：桌面世界與轉場（方案 §2；切片 A）──
++## 每個疊層在桌上的固定位置（從哪邊滑進來）；沒列的照舊淡入。
++const SLIDE_FROM := {"lobby": Vector2(-80, 0), "codex": Vector2(0, 70), "settings": Vector2(80, 0), "keys": Vector2(80, 0),
++	"profile": Vector2(0, -60), "puzzles": Vector2(-70, 0), "trials": Vector2(-70, 0), "codes": Vector2(70, 0)}
++const SLIDE_SEC := 0.3    # 180～300ms；和 1.3.0 器物開合同長（同時到終態，Codex cat08 #1）
++var trans_eat := {}            # 跳過轉場的輸入（來源＋鍵碼＋裝置／手指）→ 各自的放開才解鎖；可能同時好幾個（Codex cat08 r2 #1、r3 #1）
++var trans_stick_eat := false   # 用搖桿跳過／轉場中推著搖桿：回中之前不送方向（方案 §2.5）
++
++## 輸入的身分：同一顆鍵／同一個滑鼠鈕／同一根手指的按下與放開對得起來
++static func trans_sig(ev: InputEvent) -> String:
++	if ev is InputEventKey:
++		return "k%d" % int(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
++	if ev is InputEventMouseButton:
++		return "m%d" % int(ev.button_index)
++	if ev is InputEventJoypadButton:
++		return "j%d:%d" % [ev.device, int(ev.button_index)]
++	if ev is InputEventScreenTouch:
++		return "t%d" % int(ev.index)
++	return ""
++
++## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
++## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
++func _trans_gate(ev: InputEvent) -> bool:
++	var active := ov_trans_k() < 1.0
++	if not active and trans_eat.is_empty():
++		return false
++	if ev is InputEventMouseMotion:
++		mouse = ev.position
++		return active
++	if ev is InputEventJoypadMotion:
++		if ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y:
++			stick[ev.axis] = ev.axis_value   # 狀態照記；方向的鎖在 _stick_repeat（和移焦同一個門檻）
++		return active
++	var sig := trans_sig(ev)
++	if sig == "":
++		return active
++	if ev is InputEventScreenTouch and not ev.pressed:
++		touches.erase(ev.index)   # 吃掉放開也要清手指狀態（不留幽靈手指、長按計時；Codex cat08 r2 #3）
++		lp_t = -1.0
++	if ev.pressed:
++		if active:
++			_ov_t = time - 1.0
++			trans_eat[sig] = true
++			return true
++		return trans_eat.has(sig)   # 同一顆鍵按住的連發（echo）也吃
++	if trans_eat.has(sig):
++		trans_eat.erase(sig)
++		return true
++	return active
++
++## 疊層剛換（轉場開始）：取消進行中的長按（不從計時器繞過閘門）；開頁前就推著的搖桿鎖到回中（Codex cat08 r3 #2、#3）
++func _trans_begin() -> void:
++	if ov_trans_k() >= 1.0:
++		return
++	lp_t = -1.0
++	var dz := int(Save.s("deadzone")) / 100.0
++	if absf(float(stick.get(JOY_AXIS_LEFT_X, 0.0))) >= dz or absf(float(stick.get(JOY_AXIS_LEFT_Y, 0.0))) >= dz:
++		trans_stick_eat = true
++
++## 手把拔掉：引擎不補放開事件 → 清掉那支手把的跳過身分與搖桿狀態（Codex cat08 r3 #4）
++func _trans_joy_changed(device: int, connected: bool) -> void:
++	if connected:
++		return
++	for k in trans_eat.keys():
++		if String(k).begins_with("j%d:" % device):
++			trans_eat.erase(k)
++	stick[JOY_AXIS_LEFT_X] = 0.0
++	stick[JOY_AXIS_LEFT_Y] = 0.0
++	trans_stick_eat = false
++
++## 轉場進度（0→1；沒有轉場＝1）。截圖、版面檢查、減少特效、減少動態、簡化介面都沒有轉場。
++func ov_trans_k() -> float:
++	if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
++		return 1.0
++	return clampf((time - _ov_t) / SLIDE_SEC, 0.0, 1.0)
++
++func ov_slide_offset() -> Vector2:
++	var k := ov_trans_k()
++	if k >= 1.0:
++		return Vector2.ZERO
++	var e := 1.0 - pow(1.0 - k, 3.0)
++	return SLIDE_FROM[overlay] * (1.0 - e)
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index bd4aca9..7d5bf24 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -536,10 +536,10 @@ func _draw_lobby() -> void:
+ 		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
+ 		for k in ns:
+ 			var sc := Vector2(1150.0 - k * 34.0, 660.0 - (k % 2) * 8.0)
+-			draw_set_transform(sc, 0.08 * (k - 1), Vector2.ONE)
++			draw_set_transform_matrix(ui_xf * Transform2D(0.08 * (k - 1), sc))
+ 			draw_rect(Rect2(-13, -13, 26, 26), Color(PAL.TRINKET_RED, 0.42), false, 2.5)
+ 			draw_rect(Rect2(-8, -8, 16, 16), Color(PAL.TRINKET_RED, 0.26))
+-			draw_set_transform(Vector2.ZERO)
++			draw_set_transform_matrix(ui_xf)
+ 	if why != "":
+ 		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
+ 	if lobby_menu:
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 7650bf8..a21ae9a 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -82,6 +82,13 @@ func _draw_keys() -> void:
+ 
+ 
+ func _stick_repeat(delta: float) -> void:
++	if get("trans_stick_eat") == true:
++		var dz0 := int(Save.s("deadzone")) / 100.0
++		if absf(stick[JOY_AXIS_LEFT_X]) < dz0 and absf(stick[JOY_AXIS_LEFT_Y]) < dz0:
++			set("trans_stick_eat", false)   # 回中（死區內）才解鎖；自由游標與方向連發兩條路都擋（Codex cat08 r3 #2）
++		else:
++			_stick_dir = Vector2i.ZERO
++			return
+ 	if _is_free() and overlay == "":
+ 		_fp_pad_process(delta, Vector2(stick[JOY_AXIS_LEFT_X], stick[JOY_AXIS_LEFT_Y]))   # 第六輪：平滑游標
+ 		return
+@@ -98,6 +105,12 @@ func _stick_repeat(delta: float) -> void:
+ 			d.x = nv
+ 		else:
+ 			d.y = nv
++	if d != Vector2i.ZERO and call("ov_trans_k") < 1.0:
++		set("_ov_t", float(get("time")) - 1.0)   # 1.4.0：轉場中推搖桿（和移焦同一個門檻）＝跳過
++		set("trans_stick_eat", true)
++	if get("trans_stick_eat") == true:
++		_stick_dir = d   # 回中之前不送方向（開頁前就推著的也一樣，Codex cat08 r2 #2）
++		return
+ 	if d != _stick_dir:
+ 		_stick_dir = d
+ 		_stick_t = 0.35
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index 79d8929..999b1f3 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -1323,10 +1323,10 @@ func _draw_nemeses() -> void:
+ 		# 狀態：已復仇＝朱紅「雪恥」印章；還沒＝墨色小字（Antigravity v140-i1）
+ 		var sp := r.position + Vector2(r.size.x - 74, 44)   # 離紙邊夠遠，英文 150% 的 Unavenged 也放得下
+ 		if done:
+-			draw_set_transform_matrix(Transform2D(-0.18, sp))
++			draw_set_transform_matrix(ui_xf * Transform2D(-0.18, sp))
+ 			_hand_ring(Vector2.ZERO, 30.0, Color("#8e1b14", 0.95), 3.0)
+ 			_hand_ring(Vector2.ZERO, 25.0, Color("#8e1b14", 0.75), 1.4, false, 1)
+-			draw_set_transform_matrix(Transform2D.IDENTITY)
++			draw_set_transform_matrix(ui_xf)
+ 			_ink_mode = true
+ 			var nd := L.t("nem_done")
+ 			var nsz: int = tz("S") if _width(nd, tz("S"), true) <= 52.0 else tz("C")   # 英文印章字放得進圓圈（收尾第 2 輪）
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index d691151..794d95e 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -316,6 +316,8 @@ var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 
+ var prev_pos := {}
+ var accum := 0.0
+ var speed := 1.0
++## 1.4.0 §2.2：介面底層矩陣（疊層滑入時＝位移；平常＝單位矩陣）。介面裡切矩陣都乘在它上面、還原也還原成它。
++var ui_xf := Transform2D.IDENTITY
+ var slow_used := false
+ var final_used := false   # 第十輪 F1
+ var pinch_zoom := 1.0             # V1.4 #18：雙指縮放戰場（1＝不縮；戰鬥中蓋過自動全景）
+@@ -1120,16 +1122,16 @@ func _desk_props() -> void:
+ 	# 1.3.0 §1.2 茶杯（右側桌面）：熱氣三縷慢慢往上飄（減少特效時停住；截圖模式的時間是固定的，可重現）
+ 	var cup := Vector2(1236, 432)
+ 	# 桌邊斜看：杯口是扁一點的橢圓、下面露出一段杯身；右下落影（燈在左上；Antigravity cat02 #5）
+-	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
++	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
+ 	draw_circle(Vector2.ZERO, 22.0, Color(DIM_INK, 0.38), true, -1.0, true)
+-	draw_set_transform_matrix(Transform2D.IDENTITY)
++	draw_set_transform_matrix(ui_xf)
+ 	draw_rect(Rect2(cup + Vector2(-20, 0), Vector2(40, 14)), PAL.CUP_BODY)   # 杯身
+ 	draw_rect(Rect2(cup + Vector2(-20, 10), Vector2(40, 4)), PAL.CUP_FOOT)
+-	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup))
++	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup))
+ 	draw_circle(Vector2.ZERO, 21.0, PAL.CUP_GLAZE, true, -1.0, true)
+ 	draw_circle(Vector2.ZERO, 16.0, PAL.TEA, true, -1.0, true)
+ 	draw_circle(Vector2(-4, -4), 5.0, Color(1, 0.95, 0.8, 0.25), true, -1.0, true)
+-	draw_set_transform_matrix(Transform2D.IDENTITY)
++	draw_set_transform_matrix(ui_xf)
+ 	var st_t: float = 0.0 if bool(Save.s("reduce_fx")) else time
+ 	for w in 3:
+ 		var pts := PackedVector2Array()
+@@ -1892,12 +1894,12 @@ func _unit_base(p: Vector2, scale: float) -> void:
+ 	if true:
+ 		var bw := 30.0 * scale
+ 		var bh := 9.0 * scale
+-		draw_set_transform(p + Vector2(0, 2 * scale), 0.0, Vector2(1, bh / bw))
++		draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1, bh / bw), 0.0, p + Vector2(0, 2 * scale)))
+ 		draw_circle(Vector2(0, 3 * scale * bw / bh), bw * 1.04, Color(0, 0, 0, 0.3), true, -1.0, true)
+ 		draw_circle(Vector2.ZERO, bw, Color("#5a3b22"), true, -1.0, true)
+ 		draw_circle(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, Color("#8a5f37"), true, -1.0, true)
+ 		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
+-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
++		draw_set_transform_matrix(ui_xf)
+ 
+ ## 在一個框（或圓）的正中間畫一隻兵（使用者回報：圖鑑頁籤的人物沒有在格子正中間）。
+ ## 角色的腳在原點、頭頂約在 -50（騎兵含騎士約 -54），視覺中心在腳上方 24（騎兵 26）× 縮放。
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index a3b9d3c..593a707 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index c6f66b5..34809aa 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -1857,3 +1857,163 @@ func test_vessels_curtain_v140() -> void:
+ 	var d := {"lobby_stamps": "x"}
+ 	SV.sanitize_data(d)
+ 	ok(d["lobby_stamps"] == 0, "手帳印跡存檔驗型")
++
++
++## 1.4.0 第 8 大類：器物從桌上的固定位置滑進來（方案 §2.2）
++func test_transition_v140() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.shot_dir = ""
++	g.layout_probe = false
++	g.overlay = "codex"
++	g.time = 10.0
++	g._ov_t = 10.0
++	var Save = load("res://scripts/game/save.gd")
++	var keep := {}
++	for k in ["reduce_fx", "reduce_motion", "plain_ui"]:
++		keep[k] = Save.s(k)
++		Save.settings[k] = false
++	ok(g.ov_trans_k() == 0.0 and g.ov_slide_offset() == GS.SLIDE_FROM["codex"], "剛打開：在桌上的起點（圖鑑從下面）")
++	g.time = 10.0 + GS.SLIDE_SEC * 0.5
++	ok(g.ov_trans_k() > 0.0 and g.ov_trans_k() < 1.0, "轉場中")
++	# 走完整的 _input 路徑（閘門在最前面）：吃掉的事件不會進命令佇列
++	var mbe := func(btn: int, down: bool) -> InputEventMouseButton:
++		var e := InputEventMouseButton.new()
++		e.button_index = btn
++		e.pressed = down
++		e.position = Vector2(640, 400)
++		return e
++	var nq: int = g._cmds.size()
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
++	ok(g.ov_trans_k() == 1.0 and g.ov_slide_offset() == Vector2.ZERO and g._cmds.size() == nq, "轉場中按下＝直接到終態，這一下吃掉（沒進佇列）")
++	var kd := InputEventKey.new()
++	kd.keycode = KEY_ESCAPE
++	kd.pressed = true
++	g._input(kd)
++	var nq_k: int = g._cmds.size()
++	var ku := InputEventKey.new()
++	ku.keycode = KEY_ESCAPE
++	ku.pressed = false
++	g._input(ku)
++	ok(g.trans_eat.has("m%d" % MOUSE_BUTTON_LEFT), "放開別的鍵不會解鎖（只認跳過的那一個輸入，Codex cat08 r2 #1）")
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
++	ok(g.trans_eat.is_empty() and g._cmds.size() == nq_k, "跳過的那一下放開也吃掉（多久之後放開都一樣）")
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
++	ok(g._cmds.size() == nq_k + 1, "之後的點擊照常進佇列（不靠固定時間）")
++	g._ov_t = g.time
++	var ke := InputEventKey.new()
++	ke.keycode = KEY_DOWN
++	ke.pressed = true
++	g._input(ke)
++	var nq2: int = g._cmds.size()
++	var ke2 := InputEventKey.new()
++	ke2.keycode = KEY_DOWN
++	ke2.pressed = true
++	ke2.echo = true
++	g._input(ke2)
++	ok(g._cmds.size() == nq2, "同一顆鍵按住的連發也吃掉")
++	ke2.pressed = false
++	ke2.echo = false
++	g._input(ke2)
++	g._ov_t = g.time
++	var nq3: int = g._cmds.size()
++	g._input(mbe.call(MOUSE_BUTTON_WHEEL_DOWN, true))
++	g._input(mbe.call(MOUSE_BUTTON_WHEEL_DOWN, false))
++	ok(g._cmds.size() == nq3, "滾輪在轉場中不捲（Codex cat08 #4）")
++	g._ov_t = g.time
++	var mv2 := InputEventMouseMotion.new()
++	mv2.position = Vector2(500, 500)
++	ok(g._trans_gate(mv2), "轉場中的拖曳／移動不生效（音量木軌不會被拖，Codex cat08 #3）")
++	var td := InputEventScreenTouch.new()
++	td.index = 0
++	td.pressed = true
++	td.position = Vector2(100, 100)
++	g._input(td)
++	var tu := InputEventScreenTouch.new()
++	tu.index = 0
++	tu.pressed = false
++	g._input(tu)
++	ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat.is_empty(), "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）")
++	g._ov_t = g.time
++	g.stick[JOY_AXIS_LEFT_Y] = 0.46
++	var dz_keep = Save.s("deadzone")
++	Save.settings["deadzone"] = 20
++	g._stick_dir = Vector2i.ZERO
++	var f0: int = g._focus
++	g._stick_repeat(0.016)
++	ok(g.ov_trans_k() == 1.0 and g.trans_stick_eat and g._focus == f0, "轉場中推搖桿（和移焦同門檻）＝跳過、不移焦（Codex cat08 r2 #2）")
++	g._stick_repeat(0.5)
++	ok(g._focus == f0, "推著不放也不送方向")
++	g.stick[JOY_AXIS_LEFT_Y] = 0.0
++	g._stick_repeat(0.016)
++	ok(not g.trans_stick_eat, "搖桿回中才解鎖")
++	# 兩個輸入各跳過一頁：兩個都記著，各自放開才解鎖（Codex cat08 r3 #1）
++	g._ov_t = g.time
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
++	g._ov_t = g.time
++	var kb := InputEventKey.new()
++	kb.keycode = KEY_B
++	kb.pressed = true
++	g._input(kb)
++	ok(g.trans_eat.size() == 2, "按住 A 跳過、再用 B 跳過：兩個都記")
++	var nq4: int = g._cmds.size()
++	var kb2 := InputEventKey.new()
++	kb2.keycode = KEY_B
++	kb2.pressed = true
++	kb2.echo = true
++	g._input(kb2)
++	kb2.pressed = false
++	kb2.echo = false
++	g._input(kb2)
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
++	ok(g._cmds.size() == nq4 and g.trans_eat.is_empty(), "B 的連發與放開、A 的放開都吃掉")
++	# 手把跳過後拔掉：身分清掉（Codex cat08 r3 #4）
++	g._ov_t = g.time
++	var jb := InputEventJoypadButton.new()
++	jb.device = 3
++	jb.button_index = JOY_BUTTON_A
++	jb.pressed = true
++	g._input(jb)
++	ok(g.trans_eat.has("j3:%d" % JOY_BUTTON_A), "手把跳過記身分")
++	g._trans_joy_changed(3, false)
++	ok(g.trans_eat.is_empty() and not g.trans_stick_eat, "手把拔掉：身分與搖桿狀態清掉（引擎不補放開）")
++	# 開頁前就推著搖桿、長按計時中：轉場開始時鎖搖桿、取消長按（Codex cat08 r3 #2、#3）
++	g.stick[JOY_AXIS_LEFT_X] = 0.9
++	g.lp_t = 0.2
++	g._ov_t = g.time
++	g._trans_begin()
++	ok(g.trans_stick_eat and g.lp_t < 0.0, "轉場開始：推著的搖桿鎖到回中、長按取消")
++	g._ov_t = g.time - 1.0
++	var f1: int = g._focus
++	g._stick_repeat(0.016)
++	g._stick_repeat(0.5)
++	ok(g._focus == f1 and g._stick_dir == Vector2i.ZERO, "轉場被別的鍵跳過之後，推著的搖桿仍不送方向")
++	g.stick[JOY_AXIS_LEFT_X] = 0.0
++	g._stick_repeat(0.016)
++	ok(not g.trans_stick_eat, "回中解鎖")
++	Save.settings["deadzone"] = dz_keep
++	for k2 in ["plain_ui", "reduce_fx"]:
++		g._ov_t = g.time
++		Save.settings[k2] = true
++		ok(g.ov_trans_k() == 1.0, "%s：沒有轉場" % k2)
++		Save.settings[k2] = false
++	g._ov_t = g.time
++	g.layout_probe = true
++	ok(g.ov_trans_k() == 1.0, "版面探針拍終態")
++	g.layout_probe = false
++	ok(GS.SLIDE_SEC >= 0.18 and GS.SLIDE_SEC <= 0.3, "轉場 180～300ms")
++	g._ov_t = g.time
++	Save.settings["reduce_motion"] = true
++	ok(g.ov_trans_k() == 1.0, "減少動態：沒有轉場")
++	Save.settings["reduce_motion"] = false
++	g.shot_dir = "x"
++	ok(g.ov_trans_k() == 1.0, "截圖：沒有轉場（固定畫面重拍一致）")
++	g.shot_dir = ""
++	g.overlay = "result_x"
++	ok(g.ov_trans_k() == 1.0, "沒列在表裡的疊層照舊淡入")
++	for k in keep:
++		Save.settings[k] = keep[k]
++	g.free()
++	for f in ["res://scripts/ui/lobby_view.gd", "res://scripts/ui/screens/game_modes.gd", "res://scripts/ui/ui_base.gd"]:
++		var src: String = FileAccess.get_file_as_string(f)
++		ok(src.find("draw_set_transform(Vector2.ZERO") < 0 and src.find("draw_set_transform_matrix(Transform2D.IDENTITY)") < 0, "%s 切矩陣都以 ui_xf 為底（滑動不會被蓋掉）" % f.get_file())
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index f1e2ef5..7caa894 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1688,6 +1688,10 @@ func _pw_check(cond: bool, what: String) -> void:
+ 		_pw_bad.append(what)
+ 
+ func _pw_btn(b: int) -> void:
++	if ov_trans_k() < 1.0:
++		_ov_t = time - 1.0   # 1.4.0 §2.2：轉場中的第一下會被吃掉（設計如此）；走訪時等轉場結束再按（等於玩家等 0.25 秒）
++	trans_eat.clear()
++	trans_stick_eat = false
+ 	for pressed in [true, false]:
+ 		var ev := InputEventJoypadButton.new()
+ 		ev.button_index = b
+
+exec
+/bin/bash -lc "rg --files game coordination/v140-impl | rg '("'^|/)AGENTS.md$'"'; nl -ba game/scripts/ui/game_screens.gd | sed -n '180,390p;600,675p;820,900p;1110,1210p'; nl -ba game/scripts/ui/screens/game_menus.gd | sed -n '80,150p'; rg -n '_stick_repeat|lp_t|_cmds|_draw_inner|_ov_seen|_ov_t' game/scripts/ui game/scripts/game_v16.gd game/tools/dev_main.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 993ms:
+   180		if ev is InputEventJoypadButton and ev.pressed and part[0] == "pad":
+   181			if not Keymap.can_bind_pad(ev.button_index):
+   182				_toast(L.t("keys_reserved"), true)
+   183				return true
+   184			Save.settings["pad"] = Keymap.rebind(Keymap.PAD_ACTIONS, Save.s("pad"), part[1], ev.button_index)
+   185			Save.save_settings()
+   186			keys_capture = ""
+   187			return true
+   188		return ev is InputEventKey or ev is InputEventJoypadButton
+   189	
+   190	
+   191	
+   192	func _input(ev: InputEvent) -> void:
+   193		if _trans_gate(ev):
+   194			if is_inside_tree():
+   195				get_viewport().set_input_as_handled()
+   196			return
+   197		if _keys_input(ev):
+   198			return
+   199		if nb_edit >= 0 and _nb_edit_input(ev):
+   200			return   # V1.6.1 N3：實驗簿改名時，鍵盤輸入給名稱框
+   201		if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
+   202			fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
+   203			_touch_input(ev)   # V1.4 #18：長按＝右鍵、雙指縮放
+   204			return
+   205		if ev is InputEventMagnifyGesture and (state == St.BATTLE or state == St.RESULT):
+   206			_pinch_by(ev.factor, ev.position)   # 觸控板的捏合也一樣
+   207			return
+   208		if ev is InputEventMouseMotion:
+   209			mouse = ev.position
+   210			pad_mode = false
+   211			if ev.device != InputEvent.DEVICE_ID_EMULATION:
+   212				fp_touch = false
+   213			hover_card = _card_at(mouse)
+   214			if state == St.BATTLE and overlay == "" and (ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
+   215				_enqueue("pan", ev.relative)   # 1.3.0 §2：中鍵拖曳平移
+   216			_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
+   217			_drag_scrape(ev.relative.length())
+   218			return
+   219		if intro_t >= 0.0 and ((ev is InputEventKey and ev.pressed) or (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)):
+   220			intro_end()   # 1.3.0 §13：任何按鍵、點擊跳過開場（這一下不再往下傳）
+   221			intro_eat = true
+   222			get_viewport().set_input_as_handled()
+   223			return
+   224		if intro_eat and ((ev is InputEventMouseButton and not ev.pressed) or (ev is InputEventScreenTouch and not ev.pressed) or (ev is InputEventJoypadButton and not ev.pressed) or (ev is InputEventKey and not ev.pressed)):
+   225			intro_eat = false   # 跳過那一下的放開也吞掉（不然會點到底下的按鈕；Codex cat11 #2）
+   226			get_viewport().set_input_as_handled()
+   227			return
+   228		if ev is InputEventMouseButton:
+   229			mouse = ev.position
+   230			if overlay == "codex" and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+   231				_scroll_at(mouse, -48.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 48.0)   # 圖鑑捲動（第三輪 U1）
+   232				return
+   233			_enqueue("mb", {"i": ev.button_index, "pressed": ev.pressed, "pos": ev.position, "dbl": ev.double_click})
+   234			return
+   235		if state == St.BATTLE and ((ev is InputEventKey and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed)):
+   236			mag_hide = follow_id   # 1.3.0 §2：任何按鍵（含沒綁定的鍵、手把鍵）1 幀內收起放大鏡（只動畫面；Codex cat06 #6）
+   237		if ev is InputEventKey and ev.pressed:
+   238			if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+   239				var dk: int = Keymap.key_to_default(Save.s("keys"), ev.keycode)
+   240				if dk >= 0:
+   241					_enqueue("key", dk)
+   242			return
+   243		if ev is InputEventJoypadButton:
+   244			var db: int = Keymap.pad_to_default(Save.s("pad"), ev.button_index)
+   245			if db < 0:
+   246				return
+   247			ev = ev.duplicate()
+   248			ev.button_index = db
+   249		if ev is InputEventJoypadButton:
+   250			last_joy = ev.device     # 所有分流之前記（Codex v10-r1 #6）
+   251			if ev.button_index == JOY_BUTTON_X:
+   252				_pad_x_hold(ev.pressed)   # 1.1.0 Q1：長按拿掉鍵＝清空自己的陣
+   253		if ev is InputEventJoypadButton and ev.pressed and _pad_tool(ev):
+   254			return
+   255		if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
+   256			_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
+   257		if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+   258			pad_mode = true
+   259			_enqueue("padbtn", {"b": ev.button_index, "pressed": ev.pressed})   # 第六輪：自由排兵要知道按下與放開
+   260			return
+   261		if ev is InputEventJoypadButton and ev.pressed:
+   262			pad_mode = true
+   263			var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
+   264				JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
+   265				JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
+   266				JOY_BUTTON_BACK: KEY_F1, JOY_BUTTON_LEFT_STICK: KEY_H, JOY_BUTTON_RIGHT_STICK: KEY_P}
+   267			if map.has(ev.button_index):
+   268				_enqueue("key", map[ev.button_index])
+   269			return
+   270		if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > maxf(0.1, int(Save.s("deadzone")) / 100.0):   # V1.5：死區照設定
+   271			pad_mode = true
+   272			_scroll_by("left", ev.axis_value * 24.0)   # 右搖桿捲圖鑑左欄
+   273			return
+   274		if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
+   275			# 左搖桿：只記下狀態，由 _stick_repeat 依固定節奏送方向鍵（Codex S1 #6：原本每個抖動事件都會送一次）
+   276			stick[ev.axis] = ev.axis_value
+   277			if absf(ev.axis_value) > 0.6:
+   278				pad_mode = true
+   279	
+   280	
+   281	
+   282	## 塗兵（佇列命令）：按住拖過格子連續擺。
+   283	func _paint_cmd(p: Vector2) -> void:
+   284		call("vol_motion", p)   # 1.3.0：音量木軌拖曳中（沒在拖就什麼都不做）
+   285		if drag_from.x >= 0 and p.distance_to(drag_press_p) >= 10.0:
+   286			drag_moved = true   # V1.5.1：拖出去過就不算「點一下」（拖回原點也一樣，Codex v151-i3）
+   287		if _is_free():
+   288			if overlay == "":
+   289				_fp_motion(p)
+   290			return
+   291		if state != St.PLACE or overlay != "" or not painting:
+   292			return
+   293		if _cur_army().team != paint_team:
+   294			painting = false
+   295			return
+   296		var c := _cell_at(p)
+   297		if c.x >= 0 and _cur_army().index_at(c.x, c.y) == -1:
+   298			_try_place(c)
+   299	
+   300	
+   301	
+   302	var drag_press_p := Vector2.ZERO
+   303	var drag_moved := false
+   304	
+   305	func _mb_release_cleanup() -> void:
+   306		call("vol_release")   # 1.3.0：過期的放開也結束音量拖曳（並存檔）
+   307		_fp_abort_drag()
+   308		drag_new = false
+   309		painting = false
+   310		drag_from = Vector2i(-1, -1)
+   311	
+   312	
+   313	
+   314	## 滑鼠按鍵（佇列命令，第三輪 A2）：按鈕點擊、擺放、拖曳、移除。
+   315	var dbl_eat := false
+   316	var intro_eat := false   # 1.3.0 §13
+   317	
+   318	## 1.3.0 §2：雙擊回全景只認盤面範圍（按鈕列、HUD 不算）。
+   319	func _field_hit(p: Vector2) -> bool:
+   320		if p.y <= 96.0 or p.y >= (640.0 if _replay_controls_active() else 760.0):
+   321			return false
+   322		for b in _btns:
+   323			if (b["r"] as Rect2).has_point(p):
+   324				return false   # 按鈕上雙擊不算（Codex cat06 #4）
+   325		var lo: Vector2 = _cam * ORIGIN
+   326		var hi: Vector2 = _cam * (ORIGIN + fld_size)
+   327		return Rect2(lo, hi - lo).has_point(p)
+   328	
+   329	func _mb_cmd(d: Dictionary) -> void:
+   330		var mb := InputEventMouseButton.new()
+   331		mb.button_index = d["i"]
+   332		mb.pressed = d["pressed"]
+   333		mb.position = d["pos"]
+   334		mouse = d["pos"]
+   335		var eat_dbl := false
+   336		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+   337			eat_dbl = dbl_eat   # 雙擊回全景那次的放開：不論走哪條路都要清掉（Codex cat06 #4）
+   338			dbl_eat = false
+   339		if state == St.BATTLE and overlay == "" and mb.pressed:
+   340			mag_hide = follow_id   # 1.3.0 §2：任何按下都先收起放大鏡（點到兵會在放開時重新選）
+   341			hl_reel.clear()        # 精華三連播放中動了就停在這裡（交還手動）
+   342			if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+   343				cam_wheel(mb.button_index == MOUSE_BUTTON_WHEEL_UP, mouse)   # 滾輪縮放
+   344				return
+   345			if mb.button_index == MOUSE_BUTTON_LEFT and bool(d.get("dbl", false)) and _field_hit(mouse):
+   346				cam_reset()   # 雙擊盤面回全景
+   347				dbl_eat = true
+   348				return
+   349		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and bool(call("vol_press", mouse)):
+   350			return   # 1.3.0：在音量木軌上按下＝開始拖
+   351		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and bool(call("vol_release")):
+   352			_mb_release_cleanup()
+   353			return   # 拖完放開：存檔，不再觸發數值鈕
+   354		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+   355			if _do_click(mouse) > 0:
+   356				_mb_release_cleanup()
+   357				return
+   358		if state == St.PLACE and overlay == "" and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and _v16_place_click(mouse):
+   359			return   # V1.6 #6：標記模式
+   360		if state == St.PLACE and overlay == "" and _fp_mb(d):
+   361			return   # 第六輪：自由排兵處理掉了
+   362		if overlay != "" or state != St.PLACE:
+   363			if not mb.pressed:   # 放開滑鼠一定要清掉拖曳／塗兵狀態，即使上面蓋著覆蓋層
+   364				_mb_release_cleanup()
+   365				if overlay == "" and state == St.BATTLE and mb.button_index == MOUSE_BUTTON_LEFT:
+   366					if not eat_dbl:   # 雙擊回全景的那次放開不再選兵
+   367						_battle_click(mouse)   # 重播時點兵讓鏡頭跟（第三輪 F2）
+   368			return
+   369		var c := _cell_at(mouse)
+   370		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+   371			var k := _card_at(mouse)
+   372			if k >= 0 and _card_help_rect(k).has_point(mouse):
+   373				return   # 放開時由「?」按鈕處理
+   374			if k >= 0:
+   375				if _allowed(k):
+   376					selected = k
+   377					drag_new = true
+   378					sfx.play("k_click", 0.7)
+   379				else:
+   380					_toast(L.t("err_type"), true)
+   381				return
+   382			if c.x < 0:
+   383				return
+   384			if _can_edit_existing() and _cur_army().index_at(c.x, c.y) != -1:
+   385				if (mode == Mode.TUTORIAL or mode == Mode.PUZZLE) and PZ.is_fixed(PZ.get_puzzle(puzzle_id), c.x, c.y):
+   386					_toast(L.t("err_locked"), true)
+   387					return
+   388				if mode == Mode.VS_AI and bool(call("wave_is_locked", c)):
+   389					_toast(L.t("wv_locked"), true)   # V1.4 #11：車輪戰殘兵不能搬
+   390					return
+   600		_rv_poll()
+   601		_settings_hover()
+   602		_v16_tick(delta)   # V1.6：漏斗里程碑、背景工作
+   603		var _t0 := Time.get_ticks_usec()
+   604		_process_inner(delta)
+   605		perf_proc_us = Time.get_ticks_usec() - _t0
+   606	
+   607	
+   608	var rumble_seen := 0.0
+   609	
+   610	## ── V1.4 #18 觸控：點＝左鍵（引擎把觸控模擬成滑鼠）、長按 0.5 秒＝右鍵（拿掉兵）、雙指捏合＝縮放戰場 ──
+   611	const LONG_PRESS := 0.5
+   612	var touches := {}            # 手指編號 → 位置
+   613	var lp_t := -1.0             # 長按計時（-1＝沒有在算）
+   614	var lp_pos := Vector2.ZERO
+   615	
+   616	func _touch_input(ev: InputEvent) -> void:
+   617		if ev is InputEventScreenTouch:
+   618			if ev.pressed:
+   619				touches[ev.index] = ev.position
+   620			else:
+   621				touches.erase(ev.index)
+   622			lp_t = 0.0 if (ev.pressed and touches.size() == 1 and overlay == "") else -1.0   # 覆蓋層（例如軍令時間軸）不用長按，免得拖曳變右鍵
+   623			lp_pos = ev.position
+   624			return
+   625		if ev is InputEventScreenDrag:
+   626			var old: Vector2 = touches.get(ev.index, ev.position)
+   627			touches[ev.index] = ev.position
+   628			if lp_t >= 0.0 and ev.position.distance_to(lp_pos) > 12.0:
+   629				lp_t = -1.0   # 拖動了就不是長按
+   630			if touches.size() == 2 and (state == St.BATTLE or state == St.RESULT):
+   631				var ks := touches.keys()
+   632				var other: Vector2 = touches[ks[0] if ks[1] == ev.index else ks[1]]
+   633				var d0: float = old.distance_to(other)
+   634				var d1: float = ev.position.distance_to(other)
+   635				if d0 > 8.0:
+   636					_pinch_by(d1 / d0, (ev.position + other) / 2.0)
+   637	
+   638	func _pinch_by(f: float, at: Vector2) -> void:
+   639		pinch_zoom = clampf(pinch_zoom * f, 1.0, 2.0)
+   640		pinch_center = _fld_xf().affine_inverse() * at
+   641	
+   642	func _touch_tick(delta: float) -> void:
+   643		if lp_t < 0.0:
+   644			return
+   645		lp_t += delta
+   646		if lp_t >= float(Save.s("long_press")):
+   647			lp_t = -1.0
+   648			# 長按：取消左鍵的拖曳，改送一次右鍵（擺陣時拿掉兵；其他畫面右鍵本來就是返回／取消）
+   649			drag_new = false
+   650			painting = false
+   651			drag_from = Vector2i(-1, -1)
+   652			if _is_free():
+   653				_fp_abort_drag()
+   654			_enqueue("mb", {"i": MOUSE_BUTTON_RIGHT, "pressed": true, "pos": lp_pos})
+   655			_enqueue("mb", {"i": MOUSE_BUTTON_RIGHT, "pressed": false, "pos": lp_pos})
+   656			Input.vibrate_handheld(30)
+   657	
+   658	func _process_inner(delta: float) -> void:
+   659		if shot_dir != "" and bool(get("shot_fixed")):
+   660			delta = 1.0 / 60.0   # 1.2.0 §14.6：視覺回歸模式（--shot-fixed）用固定幀時間；一般版面檢查照真實時間（Codex cat01 #6）
+   661		_touch_tick(delta)
+   662		_pad_clear_tick()
+   663		_stick_repeat(delta)
+   664		_process_cmds()
+   665		time += delta
+   666		call("_gif_tick", delta)   # V1.4 #14
+   667		if paused and key_t > 0.0:
+   668			key_t += delta
+   669		if paused and float(last_kill[1]) > 0.0:
+   670			last_kill[1] = float(last_kill[1]) + delta   # 暫停時定格與歡呼波浪也凍結   # V1.3 C4：暫停時關鍵時刻的演出凍結（Codex v130-impl2）
+   671		SteamApi.run_callbacks()
+   672		if toast_t > 0:
+   673			toast_t -= delta
+   674		# V1.5：手把震動跟著鏡頭震動（強度可調、0 關掉；只在用手把時）
+   675		if shake > rumble_seen + 0.05 and pad_mode and int(Save.s("rumble")) > 0:
+   820			_draw_spotlight()   # 1.3.0 §2 交戰熱點聚光
+   821			_draw_desat()       # 1.3.0 §2 最後一擊去飽和
+   822		if state == St.BATTLE and slow_left > 0:
+   823			_draw_vignette(clampf((8.0 - slow_left) / 0.3, 0.0, 1.0))   # 多層暗角（第三輪 V2）
+   824		if state == St.BATTLE and time - key_t < 0.8 and not bool(Save.s("reduce_fx")):
+   825			_draw_key_moment((time - key_t) / 0.8)
+   826		if state != St.RESULT:
+   827			for f in fx:
+   828				if f.get("screen", false):
+   829					_draw_fx(f)
+   830		match state:
+   831			St.TITLE: _draw_title()
+   832			St.PLACE:
+   833				_draw_place_hud()
+   834				_v16_place_hud()   # V1.6
+   835			St.BATTLE:
+   836				_draw_battle_hud()
+   837				_draw_owner_hand()  # 1.3.0 §11 開戰前老闆替棋鐘上發條（畫在 HUD 之上，不然被木條蓋住；Codex cat11 #4）
+   838				_draw_replay_controls()
+   839				if sim != null and sim.cmd_on:
+   840					_draw_cmd_bar()
+   841				_draw_frenzy_edge()
+   842				_draw_start_cue()
+   843				_draw_battle_report()
+   844				_draw_unit_info()
+   845				_draw_bmag()   # 1.3.0 §2 銅放大鏡小窗
+   846				if pre_thread != null:
+   847					_draw_busy(-1)
+   848				elif skip_busy:
+   849					_draw_busy(roundi(view.tick * 100.0 / maxf(1.0, view.max_ticks)))
+   850				elif seek_target >= 0:
+   851					_draw_busy(roundi(sim.tick * 100.0 / maxf(1.0, seek_target)))
+   852			St.RESULT:
+   853				if not _ink_active():
+   854					_draw_battle_hud()   # 宣紙戰報演出時頂部 HUD 退場（Antigravity cat03 #3）
+   855				if _ink_active():
+   856					_draw_ink_report_screen()   # 1.2.0 §9.4 宣紙戰報：勝負章蓋下之前不出結果面板
+   857				else:
+   858					_draw_result()
+   859		_draw_clutch_banner()
+   860		# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
+   861		if overlay != _ov_seen:
+   862			_ov_seen = overlay
+   863			_ov_t = time
+   864			_trans_begin()
+   865		var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+   866		var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+   867		obj_open_kind = ""
+   868		var slide := ov_slide_offset()   # 1.4.0 §2.2：器物從桌上的固定位置滑進來（大廳從左、圖鑑從下…）；只動畫面
+   869		var m0 := mouse
+   870		if slide != Vector2.ZERO:
+   871			ui_xf = Transform2D(0.0, slide)   # 疊層裡自己切矩陣的地方都以 ui_xf 為底（不會把滑動蓋掉）
+   872			Art.base = ui_xf
+   873			draw_set_transform_matrix(ui_xf)
+   874			mouse = Vector2(-9999, -9999)     # 滑入中不判 hover（命中框沒位移，高亮會錯位；Codex cat08 #6）
+   875		_draw_overlay()
+   876		var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
+   877		if obj_open_force >= 0.0:
+   878			open_k = obj_open_force   # 開發截圖：固定在開到一半
+   879		if open_k < 1.0 and obj_open_kind != "":
+   880			_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫；和內容一起滑，Codex cat08 #1）
+   881		if slide != Vector2.ZERO:
+   882			mouse = m0
+   883			ui_xf = Transform2D.IDENTITY
+   884			Art.base = Transform2D.IDENTITY
+   885			draw_set_transform_matrix(Transform2D.IDENTITY)
+   886		_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
+   887		if ok_k < 1.0:
+   888			draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
+   889		_draw_pad_footer()
+   890		if toast_t > 0:
+   891			var a := minf(1.0, toast_t * 2)
+   892			var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
+   893			var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
+   894			if overlay == "" and _is_free():
+   895				ty = 50.0   # 第六輪：自由擺放整個戰場都可能有兵，提示改蓋在上方的兵種說明條（Codex 實作第 3 輪 #2）
+   896			draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, (0.94 if bool(Save.s("text_plate")) else 0.72) * a))   # V1.5：高對比文字底板
+   897			_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
+   898		if _focus >= _btns.size():
+   899			_focus = 0
+   900		_btns_gen = _gen
+  1110		return 0
+  1111	
+  1112	
+  1113	# ── 1.4.0 第 8 大類：桌面世界與轉場（方案 §2；切片 A）──
+  1114	## 每個疊層在桌上的固定位置（從哪邊滑進來）；沒列的照舊淡入。
+  1115	const SLIDE_FROM := {"lobby": Vector2(-80, 0), "codex": Vector2(0, 70), "settings": Vector2(80, 0), "keys": Vector2(80, 0),
+  1116		"profile": Vector2(0, -60), "puzzles": Vector2(-70, 0), "trials": Vector2(-70, 0), "codes": Vector2(70, 0)}
+  1117	const SLIDE_SEC := 0.3    # 180～300ms；和 1.3.0 器物開合同長（同時到終態，Codex cat08 #1）
+  1118	var trans_eat := {}            # 跳過轉場的輸入（來源＋鍵碼＋裝置／手指）→ 各自的放開才解鎖；可能同時好幾個（Codex cat08 r2 #1、r3 #1）
+  1119	var trans_stick_eat := false   # 用搖桿跳過／轉場中推著搖桿：回中之前不送方向（方案 §2.5）
+  1120	
+  1121	## 輸入的身分：同一顆鍵／同一個滑鼠鈕／同一根手指的按下與放開對得起來
+  1122	static func trans_sig(ev: InputEvent) -> String:
+  1123		if ev is InputEventKey:
+  1124			return "k%d" % int(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
+  1125		if ev is InputEventMouseButton:
+  1126			return "m%d" % int(ev.button_index)
+  1127		if ev is InputEventJoypadButton:
+  1128			return "j%d:%d" % [ev.device, int(ev.button_index)]
+  1129		if ev is InputEventScreenTouch:
+  1130			return "t%d" % int(ev.index)
+  1131		return ""
+  1132	
+  1133	## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
+  1134	## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
+  1135	func _trans_gate(ev: InputEvent) -> bool:
+  1136		var active := ov_trans_k() < 1.0
+  1137		if not active and trans_eat.is_empty():
+  1138			return false
+  1139		if ev is InputEventMouseMotion:
+  1140			mouse = ev.position
+  1141			return active
+  1142		if ev is InputEventJoypadMotion:
+  1143			if ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y:
+  1144				stick[ev.axis] = ev.axis_value   # 狀態照記；方向的鎖在 _stick_repeat（和移焦同一個門檻）
+  1145			return active
+  1146		var sig := trans_sig(ev)
+  1147		if sig == "":
+  1148			return active
+  1149		if ev is InputEventScreenTouch and not ev.pressed:
+  1150			touches.erase(ev.index)   # 吃掉放開也要清手指狀態（不留幽靈手指、長按計時；Codex cat08 r2 #3）
+  1151			lp_t = -1.0
+  1152		if ev.pressed:
+  1153			if active:
+  1154				_ov_t = time - 1.0
+  1155				trans_eat[sig] = true
+  1156				return true
+  1157			return trans_eat.has(sig)   # 同一顆鍵按住的連發（echo）也吃
+  1158		if trans_eat.has(sig):
+  1159			trans_eat.erase(sig)
+  1160			return true
+  1161		return active
+  1162	
+  1163	## 疊層剛換（轉場開始）：取消進行中的長按（不從計時器繞過閘門）；開頁前就推著的搖桿鎖到回中（Codex cat08 r3 #2、#3）
+  1164	func _trans_begin() -> void:
+  1165		if ov_trans_k() >= 1.0:
+  1166			return
+  1167		lp_t = -1.0
+  1168		var dz := int(Save.s("deadzone")) / 100.0
+  1169		if absf(float(stick.get(JOY_AXIS_LEFT_X, 0.0))) >= dz or absf(float(stick.get(JOY_AXIS_LEFT_Y, 0.0))) >= dz:
+  1170			trans_stick_eat = true
+  1171	
+  1172	## 手把拔掉：引擎不補放開事件 → 清掉那支手把的跳過身分與搖桿狀態（Codex cat08 r3 #4）
+  1173	func _trans_joy_changed(device: int, connected: bool) -> void:
+  1174		if connected:
+  1175			return
+  1176		for k in trans_eat.keys():
+  1177			if String(k).begins_with("j%d:" % device):
+  1178				trans_eat.erase(k)
+  1179		stick[JOY_AXIS_LEFT_X] = 0.0
+  1180		stick[JOY_AXIS_LEFT_Y] = 0.0
+  1181		trans_stick_eat = false
+  1182	
+  1183	## 轉場進度（0→1；沒有轉場＝1）。截圖、版面檢查、減少特效、減少動態、簡化介面都沒有轉場。
+  1184	func ov_trans_k() -> float:
+  1185		if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
+  1186			return 1.0
+  1187		return clampf((time - _ov_t) / SLIDE_SEC, 0.0, 1.0)
+  1188	
+  1189	func ov_slide_offset() -> Vector2:
+  1190		var k := ov_trans_k()
+  1191		if k >= 1.0:
+  1192			return Vector2.ZERO
+  1193		var e := 1.0 - pow(1.0 - k, 3.0)
+  1194		return SLIDE_FROM[overlay] * (1.0 - e)
+    80		_btn(Rect2(660, 672, 240, 44), L.t("back"), func(): keys_capture = ""; overlay = "settings")
+    81	
+    82	
+    83	
+    84	func _stick_repeat(delta: float) -> void:
+    85		if get("trans_stick_eat") == true:
+    86			var dz0 := int(Save.s("deadzone")) / 100.0
+    87			if absf(stick[JOY_AXIS_LEFT_X]) < dz0 and absf(stick[JOY_AXIS_LEFT_Y]) < dz0:
+    88				set("trans_stick_eat", false)   # 回中（死區內）才解鎖；自由游標與方向連發兩條路都擋（Codex cat08 r3 #2）
+    89			else:
+    90				_stick_dir = Vector2i.ZERO
+    91				return
+    92		if _is_free() and overlay == "":
+    93			_fp_pad_process(delta, Vector2(stick[JOY_AXIS_LEFT_X], stick[JOY_AXIS_LEFT_Y]))   # 第六輪：平滑游標
+    94			return
+    95		var d := _stick_dir
+    96		for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
+    97			var v: float = stick[ax]
+    98			var cur: int = d.x if ax == JOY_AXIS_LEFT_X else d.y
+    99			var nv := cur
+   100			if absf(v) > int(Save.s("deadzone")) / 100.0 + 0.25:   # V1.5.1：觸發門檻＝死區＋25%（原本 maxf(0.6, …) 讓 5～40% 的設定都被 0.6 吃掉）
+   101				nv = 1 if v > 0 else -1
+   102			elif absf(v) < int(Save.s("deadzone")) / 100.0:
+   103				nv = 0
+   104			if ax == JOY_AXIS_LEFT_X:
+   105				d.x = nv
+   106			else:
+   107				d.y = nv
+   108		if d != Vector2i.ZERO and call("ov_trans_k") < 1.0:
+   109			set("_ov_t", float(get("time")) - 1.0)   # 1.4.0：轉場中推搖桿（和移焦同一個門檻）＝跳過
+   110			set("trans_stick_eat", true)
+   111		if get("trans_stick_eat") == true:
+   112			_stick_dir = d   # 回中之前不送方向（開頁前就推著的也一樣，Codex cat08 r2 #2）
+   113			return
+   114		if d != _stick_dir:
+   115			_stick_dir = d
+   116			_stick_t = 0.35
+   117			_stick_fire()
+   118		elif d != Vector2i.ZERO:
+   119			_stick_t -= delta
+   120			if _stick_t <= 0.0:
+   121				_stick_t += 0.12
+   122				_stick_fire()
+   123	
+   124	
+   125	func _stick_fire() -> void:
+   126		if _stick_dir.x != 0:
+   127			_enqueue("key", KEY_RIGHT if _stick_dir.x > 0 else KEY_LEFT)
+   128		if _stick_dir.y != 0:
+   129			_enqueue("key", KEY_DOWN if _stick_dir.y > 0 else KEY_UP)
+   130	
+   131	
+   132	
+   133	func _start_free_intro() -> void:
+   134		overlay = ""
+   135		lobby_kind = "ai"
+   136		lobby_r = Presets.make("standard", "ai", _lobby_unlocked())
+   137		lobby_r.rounds = 1
+   138		lobby_r.ai_level = 0
+   139		rules = lobby_r.copy()
+   140		difficulty = 0
+   141		set("challenge_army", null)
+   142		_start_mode(Mode.VS_AI)
+   143		free_intro = true
+   144		free_intro_moved = false
+   145	
+   146	
+   147	
+   148	func _draw_save_notice() -> void:
+   149		var msg := ""
+   150		if Save.data_locked:
+rg: game/scripts/game_v16.gd: No such file or directory (os error 2)
+game/tools/dev_main.gd:1640:func _draw_inner() -> void:
+game/tools/dev_main.gd:1645:	super._draw_inner()
+game/tools/dev_main.gd:1692:		_ov_t = time - 1.0   # 1.4.0 §2.2：轉場中的第一下會被吃掉（設計如此）；走訪時等轉場結束再按（等於玩家等 0.25 秒）
+game/scripts/ui/game_screens.gd:6:var _ov_seen := ""   # V1.2 F1：覆蓋層動畫用
+game/scripts/ui/game_screens.gd:7:var _ov_t := -9.0
+game/scripts/ui/game_screens.gd:275:		# 左搖桿：只記下狀態，由 _stick_repeat 依固定節奏送方向鍵（Codex S1 #6：原本每個抖動事件都會送一次）
+game/scripts/ui/game_screens.gd:613:var lp_t := -1.0             # 長按計時（-1＝沒有在算）
+game/scripts/ui/game_screens.gd:622:		lp_t = 0.0 if (ev.pressed and touches.size() == 1 and overlay == "") else -1.0   # 覆蓋層（例如軍令時間軸）不用長按，免得拖曳變右鍵
+game/scripts/ui/game_screens.gd:628:		if lp_t >= 0.0 and ev.position.distance_to(lp_pos) > 12.0:
+game/scripts/ui/game_screens.gd:629:			lp_t = -1.0   # 拖動了就不是長按
+game/scripts/ui/game_screens.gd:643:	if lp_t < 0.0:
+game/scripts/ui/game_screens.gd:645:	lp_t += delta
+game/scripts/ui/game_screens.gd:646:	if lp_t >= float(Save.s("long_press")):
+game/scripts/ui/game_screens.gd:647:		lp_t = -1.0
+game/scripts/ui/game_screens.gd:663:	_stick_repeat(delta)
+game/scripts/ui/game_screens.gd:664:	_process_cmds()
+game/scripts/ui/game_screens.gd:737:	_draw_inner()
+game/scripts/ui/game_screens.gd:742:func _draw_inner() -> void:
+game/scripts/ui/game_screens.gd:861:	if overlay != _ov_seen:
+game/scripts/ui/game_screens.gd:862:		_ov_seen = overlay
+game/scripts/ui/game_screens.gd:863:		_ov_t = time
+game/scripts/ui/game_screens.gd:866:	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+game/scripts/ui/game_screens.gd:876:	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
+game/scripts/ui/game_screens.gd:969:func _process_cmds() -> int:
+game/scripts/ui/game_screens.gd:972:	var q := _cmds
+game/scripts/ui/game_screens.gd:973:	_cmds = []
+game/scripts/ui/game_screens.gd:1144:			stick[ev.axis] = ev.axis_value   # 狀態照記；方向的鎖在 _stick_repeat（和移焦同一個門檻）
+game/scripts/ui/game_screens.gd:1151:		lp_t = -1.0
+game/scripts/ui/game_screens.gd:1154:			_ov_t = time - 1.0
+game/scripts/ui/game_screens.gd:1167:	lp_t = -1.0
+game/scripts/ui/game_screens.gd:1187:	return clampf((time - _ov_t) / SLIDE_SEC, 0.0, 1.0)
+game/scripts/ui/replay_view.gd:325:	DisplayServer.clipboard_set(BattleCode.encode(armies2[0], armies2[1], battle_rules, last_cmds))
+game/scripts/ui/replay_view.gd:351:	last_cmds = r.get("cmds", [])
+game/scripts/ui/replay_view.gd:578:		rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)
+game/scripts/ui/replay_view.gd:583:	var lg: Array = last_cmds.duplicate(true)
+game/scripts/ui/replay_view.gd:628:		_rv_set_result(review_run(rv_army, rv_enemy, battle_rules, last_cmds))
+game/scripts/ui/replay_view.gd:633:	var lg: Array = last_cmds.duplicate(true)
+game/scripts/ui/replay_view.gd:780:		tm_ghost.cmd_play(last_cmds)
+game/scripts/ui/battle_view.gd:427:		s.cmd_play(last_cmds)
+game/scripts/ui/battle_view.gd:911:		var plog: Array = last_cmds.duplicate(true)
+game/scripts/ui/battle/battle_state.gd:12:var last_cmds: Array = []       # 第十二輪：上一場官方對局的技能施放紀錄（重播、覆盤、代碼用）
+game/scripts/ui/ui_base.gd:417:var _cmds: Array = []        # 輸入命令佇列（A2）
+game/scripts/ui/ui_base.gd:1491:	_cmds.append({"kind": kind, "data": data, "gen": _gen})
+game/scripts/ui/screens/game_core.gd:286:	return {"v": 2, "session": pt_session, "game": pt_game, "code": BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds),
+game/scripts/ui/screens/game_result.gd:59:		last_cmds = sim.cmd_log.duplicate(true)
+game/scripts/ui/screens/game_result.gd:79:		wc.append(BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds))   # V1.5.1 D1
+game/scripts/ui/screens/game_result.gd:782:		code = BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
+game/scripts/ui/screens/game_v16.gd:729:	var code := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
+game/scripts/ui/screens/game_menus.gd:84:func _stick_repeat(delta: float) -> void:
+game/scripts/ui/screens/game_menus.gd:109:		set("_ov_t", float(get("time")) - 1.0)   # 1.4.0：轉場中推搖桿（和移焦同一個門檻）＝跳過
+
+codex
+集合追蹤與斷線清理已補上。不過，搖桿鎖定仍有同幀事件順序的缺口：轉場中先推搖桿、再按鍵跳過，可能在逐幀檢查前失去轉場狀態；我正核對命令處理與繪圖時序，以及現有測試能否抓到它。
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/game_screens.gd | sed -n '955,1035p'; nl -ba game/tests/suites/ui.gd | sed -n '1935,2025p'; nl -ba game/tools/dev_main.gd | sed -n '1688,1710p'; rg -n '_gen|overlay =|vol_drag|_pad_x_hold|_pad_clear_tick' game/scripts/ui/ui_base.gd game/scripts/ui/screens/game_menus.gd game/scripts/ui/screens/game_v16.gd | head -85; rg --files -g AGENTS.md game coordination; command -v godot godot4 godot-mono" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1806ms:
+   955		# 手把／鍵盤移焦點時，說明欄跟著焦點那一列（Antigravity v150-i1 #3）
+   956		if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+   957			var fy: float = _btns[_focus]["r"].position.y
+   958			for i in rows.size():
+   959				if absf(fy - _settings_row_y(i)) < 2.0:
+   960					settings_item = rows[i][0]
+   961	
+   962	
+   963	
+   964	
+   965	
+   966	
+   967	
+   968	## ── 輸入命令佇列的執行端（第三輪 A2；S8 從 ui_base 移下來：基底不再用空函式呼叫上層）──
+   969	func _process_cmds() -> int:
+   970		var done := 0
+   971		_update_gen()
+   972		var q := _cmds
+   973		_cmds = []
+   974		for c in q:
+   975			if c["gen"] != _gen:
+   976				# 畫面已經換了：丟掉。但「放開滑鼠」一定要清掉拖曳／塗兵狀態（Codex S1 #2）
+   977				if c["kind"] == "mb" and not c["data"]["pressed"]:
+   978					_mb_release_cleanup()
+   979				elif c["kind"] == "padbtn" and not c["data"]["pressed"]:
+   980					_fp_abort_drag()   # 手把放開 A／X 的事件過期：同樣清掉（Codex 實作第 3 輪 #1）
+   981				continue
+   982			if c["kind"] == "click":
+   983				done += _do_click(c["data"])
+   984			elif c["kind"] == "mb":
+   985				# 滑鼠按鍵（擺放、拖曳、移除）也走同一個佇列，和鍵盤選兵的先後順序一致（Codex S1 #2）
+   986				_mb_cmd(c["data"])
+   987				done += 1
+   988			elif c["kind"] == "paint":
+   989				_paint_cmd(c["data"])
+   990			elif c["kind"] == "padbtn":
+   991				if not _fp_pad_button(int(c["data"]["b"]), bool(c["data"]["pressed"])) and c["data"]["pressed"]:
+   992					var mp := {JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_B: KEY_ESCAPE}
+   993					if mp.has(int(c["data"]["b"])):
+   994						_key(mp[int(c["data"]["b"])])
+   995				done += 1
+   996			elif c["kind"] == "key":
+   997				_key(int(c["data"]))
+   998				done += 1
+   999			elif c["kind"] == "pan":
+  1000				cam_pan(c["data"])
+  1001			elif c["kind"] == "tool":
+  1002				if state == St.PLACE and overlay == "":
+  1003					call("_deploy_tool", str(c["data"]))
+  1004				done += 1
+  1005			_update_gen()
+  1006		return done
+  1007	
+  1008	
+  1009	
+  1010	## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
+  1011	## ── 1.2.0 §9.4 宣紙戰報（結果頁前 1.2 秒）──
+  1012	## 盤面 0.3 秒淡成宣紙 → 陣亡點蓋 8px 朱砂小印、擊倒者到被擊倒者一道淡墨線（40%、最底層）→ 0.55 秒勝負大章蓋下 → 1.0 秒後才出結果面板。
+  1013	## 點任意處／任何按鍵跳過；截圖、減少特效、重播與覆盤不播。
+  1014	const INK_DUR := 1.0
+  1015	func _ink_active() -> bool:
+  1016		return _ink_k() < INK_DUR and (shot_dir == "" or ink_force) and not bool(Save.s("reduce_fx")) and play_kind == "official" and not bool(Save.s("plain_ui"))
+  1017	
+  1018	var ink_force := false   # 截圖流程專拍宣紙戰報時用
+  1019	func _ink_k() -> float:
+  1020		return 0.8 if ink_force else time - result_t   # 截圖專拍時停在蓋章後的瞬間（截圖等幀的實際時間不固定）
+  1021	
+  1022	func _draw_ink_report_field() -> void:
+  1023		var k := _ink_k()
+  1024		var pa := clampf(k / 0.3, 0.0, 1.0) * 0.82
+  1025		var pt := _ui_tex(MAT["card2"])
+  1026		var fr := Rect2(ORIGIN, fld_size)
+  1027		if pt != null:
+  1028			draw_texture_rect(pt, fr, false, Color(1, 1, 1, pa))
+  1029		else:
+  1030			draw_rect(fr, Color(Color("#e8d8c3"), pa))
+  1031		if k < 0.25 or view == null:
+  1032			return
+  1033		var a2 := clampf((k - 0.25) / 0.25, 0.0, 1.0)
+  1034		for u in view.units:
+  1035			if u.alive:
+  1935		g._input(tu)
+  1936		ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat.is_empty(), "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）")
+  1937		g._ov_t = g.time
+  1938		g.stick[JOY_AXIS_LEFT_Y] = 0.46
+  1939		var dz_keep = Save.s("deadzone")
+  1940		Save.settings["deadzone"] = 20
+  1941		g._stick_dir = Vector2i.ZERO
+  1942		var f0: int = g._focus
+  1943		g._stick_repeat(0.016)
+  1944		ok(g.ov_trans_k() == 1.0 and g.trans_stick_eat and g._focus == f0, "轉場中推搖桿（和移焦同門檻）＝跳過、不移焦（Codex cat08 r2 #2）")
+  1945		g._stick_repeat(0.5)
+  1946		ok(g._focus == f0, "推著不放也不送方向")
+  1947		g.stick[JOY_AXIS_LEFT_Y] = 0.0
+  1948		g._stick_repeat(0.016)
+  1949		ok(not g.trans_stick_eat, "搖桿回中才解鎖")
+  1950		# 兩個輸入各跳過一頁：兩個都記著，各自放開才解鎖（Codex cat08 r3 #1）
+  1951		g._ov_t = g.time
+  1952		g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
+  1953		g._ov_t = g.time
+  1954		var kb := InputEventKey.new()
+  1955		kb.keycode = KEY_B
+  1956		kb.pressed = true
+  1957		g._input(kb)
+  1958		ok(g.trans_eat.size() == 2, "按住 A 跳過、再用 B 跳過：兩個都記")
+  1959		var nq4: int = g._cmds.size()
+  1960		var kb2 := InputEventKey.new()
+  1961		kb2.keycode = KEY_B
+  1962		kb2.pressed = true
+  1963		kb2.echo = true
+  1964		g._input(kb2)
+  1965		kb2.pressed = false
+  1966		kb2.echo = false
+  1967		g._input(kb2)
+  1968		g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
+  1969		ok(g._cmds.size() == nq4 and g.trans_eat.is_empty(), "B 的連發與放開、A 的放開都吃掉")
+  1970		# 手把跳過後拔掉：身分清掉（Codex cat08 r3 #4）
+  1971		g._ov_t = g.time
+  1972		var jb := InputEventJoypadButton.new()
+  1973		jb.device = 3
+  1974		jb.button_index = JOY_BUTTON_A
+  1975		jb.pressed = true
+  1976		g._input(jb)
+  1977		ok(g.trans_eat.has("j3:%d" % JOY_BUTTON_A), "手把跳過記身分")
+  1978		g._trans_joy_changed(3, false)
+  1979		ok(g.trans_eat.is_empty() and not g.trans_stick_eat, "手把拔掉：身分與搖桿狀態清掉（引擎不補放開）")
+  1980		# 開頁前就推著搖桿、長按計時中：轉場開始時鎖搖桿、取消長按（Codex cat08 r3 #2、#3）
+  1981		g.stick[JOY_AXIS_LEFT_X] = 0.9
+  1982		g.lp_t = 0.2
+  1983		g._ov_t = g.time
+  1984		g._trans_begin()
+  1985		ok(g.trans_stick_eat and g.lp_t < 0.0, "轉場開始：推著的搖桿鎖到回中、長按取消")
+  1986		g._ov_t = g.time - 1.0
+  1987		var f1: int = g._focus
+  1988		g._stick_repeat(0.016)
+  1989		g._stick_repeat(0.5)
+  1990		ok(g._focus == f1 and g._stick_dir == Vector2i.ZERO, "轉場被別的鍵跳過之後，推著的搖桿仍不送方向")
+  1991		g.stick[JOY_AXIS_LEFT_X] = 0.0
+  1992		g._stick_repeat(0.016)
+  1993		ok(not g.trans_stick_eat, "回中解鎖")
+  1994		Save.settings["deadzone"] = dz_keep
+  1995		for k2 in ["plain_ui", "reduce_fx"]:
+  1996			g._ov_t = g.time
+  1997			Save.settings[k2] = true
+  1998			ok(g.ov_trans_k() == 1.0, "%s：沒有轉場" % k2)
+  1999			Save.settings[k2] = false
+  2000		g._ov_t = g.time
+  2001		g.layout_probe = true
+  2002		ok(g.ov_trans_k() == 1.0, "版面探針拍終態")
+  2003		g.layout_probe = false
+  2004		ok(GS.SLIDE_SEC >= 0.18 and GS.SLIDE_SEC <= 0.3, "轉場 180～300ms")
+  2005		g._ov_t = g.time
+  2006		Save.settings["reduce_motion"] = true
+  2007		ok(g.ov_trans_k() == 1.0, "減少動態：沒有轉場")
+  2008		Save.settings["reduce_motion"] = false
+  2009		g.shot_dir = "x"
+  2010		ok(g.ov_trans_k() == 1.0, "截圖：沒有轉場（固定畫面重拍一致）")
+  2011		g.shot_dir = ""
+  2012		g.overlay = "result_x"
+  2013		ok(g.ov_trans_k() == 1.0, "沒列在表裡的疊層照舊淡入")
+  2014		for k in keep:
+  2015			Save.settings[k] = keep[k]
+  2016		g.free()
+  2017		for f in ["res://scripts/ui/lobby_view.gd", "res://scripts/ui/screens/game_modes.gd", "res://scripts/ui/ui_base.gd"]:
+  2018			var src: String = FileAccess.get_file_as_string(f)
+  2019			ok(src.find("draw_set_transform(Vector2.ZERO") < 0 and src.find("draw_set_transform_matrix(Transform2D.IDENTITY)") < 0, "%s 切矩陣都以 ui_xf 為底（滑動不會被蓋掉）" % f.get_file())
+  1688			_pw_bad.append(what)
+  1689	
+  1690	func _pw_btn(b: int) -> void:
+  1691		if ov_trans_k() < 1.0:
+  1692			_ov_t = time - 1.0   # 1.4.0 §2.2：轉場中的第一下會被吃掉（設計如此）；走訪時等轉場結束再按（等於玩家等 0.25 秒）
+  1693		trans_eat.clear()
+  1694		trans_stick_eat = false
+  1695		for pressed in [true, false]:
+  1696			var ev := InputEventJoypadButton.new()
+  1697			ev.button_index = b
+  1698			ev.pressed = pressed
+  1699			ev.device = 0
+  1700			_input(ev)
+  1701			await _pw_frames(2)
+  1702	
+  1703	func _pw_frames(n: int) -> void:
+  1704		for i in n:
+  1705			await get_tree().process_frame
+  1706	
+  1707	## 方向鍵走到第 i 顆再按 A；同時確認焦點走得到。
+  1708	func _pw_pick(i: int, what: String) -> void:
+  1709		await _pw_frames(2)
+  1710		_pw_check(i < _btns.size(), "%s：沒有第 %d 顆按鈕（共 %d）" % [what, i, _btns.size()])
+game/scripts/ui/ui_base.gd:186:var _trans_gen := -1
+game/scripts/ui/ui_base.gd:418:var _gen := 0                # 畫面世代
+game/scripts/ui/ui_base.gd:419:var _gen_key := ""
+game/scripts/ui/ui_base.gd:420:var _btns_gen := -1          # _btns 是哪個世代畫出來的
+game/scripts/ui/ui_base.gd:1160:	overlay = "boss_note"
+game/scripts/ui/ui_base.gd:1166:	overlay = note_ret
+game/scripts/ui/ui_base.gd:1489:## 點擊只對「這個世代畫出來的按鈕」有效（_btns_gen）。
+game/scripts/ui/ui_base.gd:1491:	_cmds.append({"kind": kind, "data": data, "gen": _gen})
+game/scripts/ui/ui_base.gd:1493:func _update_gen() -> void:
+game/scripts/ui/ui_base.gd:1495:	if key != _gen_key:
+game/scripts/ui/ui_base.gd:1496:		_gen_key = key
+game/scripts/ui/ui_base.gd:1497:		_gen += 1
+game/scripts/ui/ui_base.gd:1807:	overlay = name
+game/scripts/ui/ui_base.gd:1820:	if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
+game/scripts/ui/ui_base.gd:1822:	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
+game/scripts/ui/screens/game_v16.gd:21:	overlay = "fb_cat"
+game/scripts/ui/screens/game_v16.gd:25:	overlay = fb_ret
+game/scripts/ui/screens/game_v16.gd:146:		overlay = "demo_end"   # 試玩版結尾：完整版有什麼＋願望單
+game/scripts/ui/screens/game_v16.gd:171:			return func(): overlay = "playroom"; _focus = 0
+game/scripts/ui/screens/game_v16.gd:213:	if overlay == "" and Guide.tour_due(Save.data, _demo()):
+game/scripts/ui/screens/game_v16.gd:216:		overlay = "tour"
+game/scripts/ui/screens/game_v16.gd:273:	_btn(Rect2(640 - 120, y + 52 + GAP_M, 240, 44), L.t("de_keep"), func(): overlay = "")
+game/scripts/ui/screens/game_v16.gd:290:		overlay = "daily_past"
+game/scripts/ui/screens/game_v16.gd:312:		_btn(Rect2(P.end.x - 220, y + 4, 180, 44), L.t("dp_today") if i == 0 else L.t("dp_practice"), func(): overlay = ""; call("_start_daily_day", dd, prac), true, i == 0)
+game/scripts/ui/screens/game_v16.gd:324:	overlay = "breport"
+game/scripts/ui/screens/game_v16.gd:328:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:457:				overlay = "notebook"
+game/scripts/ui/screens/game_v16.gd:475:		_btn(b3, "", func(): overlay = "notebook"; _focus = 0)
+game/scripts/ui/screens/game_v16.gd:740:	overlay = "songbook"
+game/scripts/ui/screens/game_v16.gd:766:		_btn(Rect2(r.end.x - 244, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
+game/scripts/ui/screens/game_v16.gd:769:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_v16.gd:785:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:791:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:817:	_btn(Rect2(400, y, 480, 48), L.t("replay"), func(): overlay = ""; call("_replay"))
+game/scripts/ui/screens/game_v16.gd:822:		_btn(Rect2(400, y, 480, 48), L.t("pc_btn"), func(): overlay = "postcard", true, true)
+game/scripts/ui/screens/game_v16.gd:825:		_btn(Rect2(400, y, 480, 48), L.t("ws_make"), func(): overlay = ""; call("_make_workshop"))
+game/scripts/ui/screens/game_v16.gd:842:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_v16.gd:857:	overlay = "rush_menu"
+game/scripts/ui/screens/game_v16.gd:876:	_btn(Rect2(640 - 290, y, 280, 52), L.t("rush_daily"), func(): overlay = ""; _rush_go(true), true, true)
+game/scripts/ui/screens/game_v16.gd:877:	_btn(Rect2(650, y, 280 - GAP_S, 52), L.t("rush_free"), func(): overlay = ""; _rush_go(false))
+game/scripts/ui/screens/game_v16.gd:903:	overlay = "rush_end"
+game/scripts/ui/screens/game_v16.gd:909:	if state == St.PLACE and overlay == "":
+game/scripts/ui/screens/game_v16.gd:944:	_btn(Rect2(640 - 345, y, 220, 50), L.t("rush_again"), func(): overlay = ""; _rush_go(bool(rush.get("daily", false))), true, true)
+game/scripts/ui/screens/game_v16.gd:947:	_btn(Rect2(640 + 125, y, 220, 50), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_v16.gd:978:		overlay = "coach"
+game/scripts/ui/screens/game_v16.gd:1000:	overlay = "coach"
+game/scripts/ui/screens/game_v16.gd:1019:		if co_thread_key == co_key and str((res as Dictionary).get("status", "")) == "cancel" and overlay == "coach":
+game/scripts/ui/screens/game_v16.gd:1027:			if overlay == "coach" and want != "":
+game/scripts/ui/screens/game_v16.gd:1042:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:1088:		overlay = ""
+game/scripts/ui/screens/game_v16.gd:1206:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:1328:	_btn(Rect2(640 - 160, y, 320, 52), L.t("rf_lab_go"), func(): overlay = ""; _rift_lab_start(), not rift_lab.is_empty(), true)
+game/scripts/ui/screens/game_v16.gd:1329:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "rift")
+game/scripts/ui/screens/game_v16.gd:1350:	_btn(Rect2(640 - 330, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
+game/scripts/ui/screens/game_v16.gd:1351:	_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
+game/scripts/ui/screens/game_v16.gd:1522:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_v16.gd:1565:	overlay = "nb_words"
+game/scripts/ui/screens/game_v16.gd:1574:	overlay = "notebook"
+game/scripts/ui/screens/game_v16.gd:1645:	overlay = "nb_cmp"
+game/scripts/ui/screens/game_v16.gd:1652:		overlay = "notebook"
+game/scripts/ui/screens/game_v16.gd:1680:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "notebook"; nb_cmp_a = -1)
+game/scripts/ui/screens/game_v16.gd:1707:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:1722:var dt_gen := 0
+game/scripts/ui/screens/game_v16.gd:1730:	overlay = "daily_top"
+game/scripts/ui/screens/game_v16.gd:1737:	dt_gen += 1
+game/scripts/ui/screens/game_v16.gd:1738:	var gen := dt_gen
+game/scripts/ui/screens/game_v16.gd:1740:		if gen != dt_gen or overlay != "daily_top":
+game/scripts/ui/screens/game_v16.gd:1759:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:1786:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_v16.gd:1997:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:2006:	overlay = ""
+game/scripts/ui/screens/game_v16.gd:2028:	overlay = "trio_result"
+game/scripts/ui/screens/game_v16.gd:2159:	_btn(Rect2(640 - 230, y, 220, 50), L.t("retry"), func(): overlay = ""; _trio_start_custom(trio_custom) if not trio_custom.is_empty() else _trio_start(trio_i), not trio_busy, true)
+game/scripts/ui/screens/game_v16.gd:2167:		overlay = "trio"
+game/scripts/ui/screens/game_v16.gd:2251:		overlay = "coop_sum"
+game/scripts/ui/screens/game_v16.gd:2279:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_v16.gd:2282:	if ga_coop and mode == Mode.GAUNTLET and state == St.PLACE and overlay == "" and coop_seen != gauntlet_stage:
+game/scripts/ui/screens/game_v16.gd:2284:		overlay = "coop_hand"
+game/scripts/ui/screens/game_v16.gd:2295:	_btn(Rect2(640 - 140, y, 280, 52), L.t("coop_ready", [p]), func(): overlay = "", true, true)
+game/scripts/ui/screens/game_v16.gd:2441:		_btn(Rect2(P.position.x + 40, y, P.size.x - 80, 44), label, func(): overlay = ""; _pick_puzzle(pid, false), true, not id in done)
+game/scripts/ui/screens/game_menus.gd:12:		overlay = "gauntlet_resume"
+game/scripts/ui/screens/game_menus.gd:20:		overlay = "gauntlet_pick"
+game/scripts/ui/screens/game_menus.gd:28:	overlay = ""
+game/scripts/ui/screens/game_menus.gd:52:	_btn(Rect2(560, GP.end.y - GAP_L - 40.0, 160, 40), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_menus.gd:80:	_btn(Rect2(660, 672, 240, 44), L.t("back"), func(): keys_capture = ""; overlay = "settings")
+/home/timmy/.local/bin/godot
+
+codex
+只讀靜態審查，未執行測試。S＝`game/scripts/ui/game_screens.gd`；M＝同目錄 `screens/game_menus.gd`；T＝`game/tests/suites/ui.gd`。
+
+第3輪逐條：
+①已解：集合各自解除（S:1155、1158）。
+②部分：鎖已提前到自由游標之前（M:85），仍有下述缺口。
+③已補：開頁取消長按（S:864、1167）。
+④已解：連接斷線訊號並清狀態（S:39、1173）。
+⑤部分：按放已查佇列，但搖桿仍只查焦點（T:1944、1990）。
+
+必改：
+
+1. S:1142–1145、1154；M:108：轉場中先收到左搖桿0.9，再於同幀按鍵跳過，motion只記狀態；逐幀時轉場已結束，未設鎖，會排入方向。須在轉場收到有效軸輸入時即鎖定，避免依賴逐幀時仍在轉場。
+2. T:1983–1990直接呼叫初始化並強改時間，驗不到事件順序。補入樹整合測試：正常開頁，首個轉場幀依序送軸偏移及跳過按鍵，實際逐幀處理命令；驗持續推住不移焦／游標，回中再推才恢復，並查方向佇列。
+
+PADWALK只驗可達性，預先跳終態可接受；但不能替代上述整合測試。
+
+結論：不可
+2026-11-13T23:19:38.928236Z ERROR codex_core::session: failed to record rollout items: thread 01a1d734-5f22-7903-a7f6-10bbb3529f45 not found
+tokens used
+48,077

@@ -1857,3 +1857,222 @@ func test_vessels_curtain_v140() -> void:
 	var d := {"lobby_stamps": "x"}
 	SV.sanitize_data(d)
 	ok(d["lobby_stamps"] == 0, "手帳印跡存檔驗型")
+
+
+## 1.4.0 第 8 大類：器物從桌上的固定位置滑進來（方案 §2.2）
+func test_transition_v140() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.shot_dir = ""
+	g.layout_probe = false
+	g.overlay = "codex"
+	g.time = 10.0
+	g._ov_t = 10.0
+	var Save = load("res://scripts/game/save.gd")
+	var keep := {}
+	for k in ["reduce_fx", "reduce_motion", "plain_ui"]:
+		keep[k] = Save.s(k)
+		Save.settings[k] = false
+	ok(g.ov_trans_k() == 0.0 and g.ov_slide_offset() == GS.SLIDE_FROM["codex"], "剛打開：在桌上的起點（圖鑑從下面）")
+	g.time = 10.0 + GS.SLIDE_SEC * 0.5
+	ok(g.ov_trans_k() > 0.0 and g.ov_trans_k() < 1.0, "轉場中")
+	# 走完整的 _input 路徑（閘門在最前面）：吃掉的事件不會進命令佇列
+	var mbe := func(btn: int, down: bool) -> InputEventMouseButton:
+		var e := InputEventMouseButton.new()
+		e.button_index = btn
+		e.pressed = down
+		e.position = Vector2(640, 400)
+		return e
+	var nq: int = g._cmds.size()
+	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
+	ok(g.ov_trans_k() == 1.0 and g.ov_slide_offset() == Vector2.ZERO and g._cmds.size() == nq, "轉場中按下＝直接到終態，這一下吃掉（沒進佇列）")
+	var kd := InputEventKey.new()
+	kd.keycode = KEY_ESCAPE
+	kd.pressed = true
+	g._input(kd)
+	var nq_k: int = g._cmds.size()
+	var ku := InputEventKey.new()
+	ku.keycode = KEY_ESCAPE
+	ku.pressed = false
+	g._input(ku)
+	ok(g.trans_eat.has("m%d" % MOUSE_BUTTON_LEFT), "放開別的鍵不會解鎖（只認跳過的那一個輸入，Codex cat08 r2 #1）")
+	g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
+	ok(g.trans_eat.is_empty() and g._cmds.size() == nq_k, "跳過的那一下放開也吃掉（多久之後放開都一樣）")
+	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
+	ok(g._cmds.size() == nq_k + 1, "之後的點擊照常進佇列（不靠固定時間）")
+	g._ov_t = g.time
+	var ke := InputEventKey.new()
+	ke.keycode = KEY_DOWN
+	ke.pressed = true
+	g._input(ke)
+	var nq2: int = g._cmds.size()
+	var ke2 := InputEventKey.new()
+	ke2.keycode = KEY_DOWN
+	ke2.pressed = true
+	ke2.echo = true
+	g._input(ke2)
+	ok(g._cmds.size() == nq2, "同一顆鍵按住的連發也吃掉")
+	ke2.pressed = false
+	ke2.echo = false
+	g._input(ke2)
+	g._ov_t = g.time
+	var nq3: int = g._cmds.size()
+	g._input(mbe.call(MOUSE_BUTTON_WHEEL_DOWN, true))
+	g._input(mbe.call(MOUSE_BUTTON_WHEEL_DOWN, false))
+	ok(g._cmds.size() == nq3, "滾輪在轉場中不捲（Codex cat08 #4）")
+	g._ov_t = g.time
+	var mv2 := InputEventMouseMotion.new()
+	mv2.position = Vector2(500, 500)
+	ok(g._trans_gate(mv2), "轉場中的拖曳／移動不生效（音量木軌不會被拖，Codex cat08 #3）")
+	var td := InputEventScreenTouch.new()
+	td.index = 0
+	td.pressed = true
+	td.position = Vector2(100, 100)
+	g._input(td)
+	var tu := InputEventScreenTouch.new()
+	tu.index = 0
+	tu.pressed = false
+	g._input(tu)
+	ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat.is_empty(), "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）")
+	g._ov_t = g.time
+	g.stick[JOY_AXIS_LEFT_Y] = 0.46
+	var dz_keep = Save.s("deadzone")
+	Save.settings["deadzone"] = 20
+	g._stick_dir = Vector2i.ZERO
+	var f0: int = g._focus
+	g._stick_repeat(0.016)
+	ok(g.ov_trans_k() == 1.0 and g.trans_stick_eat and g._focus == f0, "轉場中推搖桿（和移焦同門檻）＝跳過、不移焦（Codex cat08 r2 #2）")
+	g._stick_repeat(0.5)
+	ok(g._focus == f0, "推著不放也不送方向")
+	g.stick[JOY_AXIS_LEFT_Y] = 0.0
+	g._stick_repeat(0.016)
+	ok(not g.trans_stick_eat, "搖桿回中才解鎖")
+	# 兩個輸入各跳過一頁：兩個都記著，各自放開才解鎖（Codex cat08 r3 #1）
+	g._ov_t = g.time
+	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
+	g._ov_t = g.time
+	var kb := InputEventKey.new()
+	kb.keycode = KEY_B
+	kb.pressed = true
+	g._input(kb)
+	ok(g.trans_eat.size() == 2, "按住 A 跳過、再用 B 跳過：兩個都記")
+	var nq4: int = g._cmds.size()
+	var kb2 := InputEventKey.new()
+	kb2.keycode = KEY_B
+	kb2.pressed = true
+	kb2.echo = true
+	g._input(kb2)
+	kb2.pressed = false
+	kb2.echo = false
+	g._input(kb2)
+	g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
+	ok(g._cmds.size() == nq4 and g.trans_eat.is_empty(), "B 的連發與放開、A 的放開都吃掉")
+	# 手把跳過後拔掉：身分清掉（Codex cat08 r3 #4）
+	g._ov_t = g.time
+	var jb := InputEventJoypadButton.new()
+	jb.device = 3
+	jb.button_index = JOY_BUTTON_A
+	jb.pressed = true
+	g._input(jb)
+	ok(g.trans_eat.has("j3:%d" % JOY_BUTTON_A), "手把跳過記身分")
+	g._trans_joy_changed(3, false)
+	ok(g.trans_eat.is_empty() and not g.trans_stick_eat, "手把拔掉：身分與搖桿狀態清掉（引擎不補放開）")
+	# 開頁前就推著搖桿、長按計時中：轉場開始時鎖搖桿、取消長按（Codex cat08 r3 #2、#3）
+	g.stick[JOY_AXIS_LEFT_X] = 0.9
+	g.lp_t = 0.2
+	g._ov_t = g.time
+	g._trans_begin()
+	ok(g.trans_stick_eat and g.lp_t < 0.0, "轉場開始：推著的搖桿鎖到回中、長按取消")
+	g._ov_t = g.time - 1.0
+	var f1: int = g._focus
+	g._stick_repeat(0.016)
+	g._stick_repeat(0.5)
+	ok(g._focus == f1 and g._stick_dir == Vector2i.ZERO, "轉場被別的鍵跳過之後，推著的搖桿仍不送方向")
+	g.stick[JOY_AXIS_LEFT_X] = 0.0
+	g._stick_repeat(0.016)
+	ok(not g.trans_stick_eat, "回中解鎖")
+	# 事件順序整合（Codex cat08 r4 #2）：照遊戲的順序——開頁（畫面那一幀偵測到疊層改變）→ 同一幀先來搖桿偏移、再來跳過鍵 → 逐幀跑 _stick_repeat，查方向命令有沒有進佇列
+	var dir_cmds := func() -> int:
+		var n := 0
+		for c in g._cmds:
+			if c["kind"] == "key" and int(c["data"]) in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+				n += 1
+		return n
+	g.stick[JOY_AXIS_LEFT_X] = 0.0
+	g.stick[JOY_AXIS_LEFT_Y] = 0.0
+	g._stick_dir = Vector2i.ZERO
+	g.trans_stick_eat = false
+	g.trans_eat.clear()
+	g.overlay = "settings"
+	g._ov_t = g.time
+	g._trans_begin()
+	var ax2 := InputEventJoypadMotion.new()
+	ax2.axis = JOY_AXIS_LEFT_Y
+	ax2.axis_value = 0.9
+	g._input(ax2)
+	var kx := InputEventKey.new()
+	kx.keycode = KEY_X
+	kx.pressed = true
+	g._input(kx)
+	var d0: int = dir_cmds.call()
+	for fr in 60:
+		g.time += 1.0 / 60.0
+		g._stick_repeat(1.0 / 60.0)
+	ok(dir_cmds.call() == d0, "轉場中先推搖桿、同幀按鍵跳過：推著一秒都不送方向")
+	kx.pressed = false
+	g._input(kx)
+	ax2.axis_value = 0.0
+	g._input(ax2)
+	g._stick_repeat(1.0 / 60.0)
+	ax2.axis_value = 0.9
+	g._input(ax2)
+	g._stick_repeat(1.0 / 60.0)
+	ok(dir_cmds.call() == d0 + 1, "回中再推才恢復（送一次方向）")
+	# 只推搖桿（不按鍵）：走 _input，推下去就到終態、推著不送方向、回中再推恢復（Codex cat08 r5 #1）
+	ax2.axis_value = 0.0
+	g._input(ax2)
+	g._stick_repeat(1.0 / 60.0)
+	g.overlay = "codex"
+	g._ov_t = g.time
+	g._trans_begin()
+	ax2.axis_value = 0.9
+	g._input(ax2)
+	ok(g.ov_trans_k() == 1.0 and g.trans_stick_eat, "只推搖桿：立即到終態並鎖方向")
+	var d1: int = dir_cmds.call()
+	for fr in 60:
+		g.time += 1.0 / 60.0
+		g._stick_repeat(1.0 / 60.0)
+	ok(dir_cmds.call() == d1, "推著一秒不送方向")
+	ax2.axis_value = 0.0
+	g._input(ax2)
+	g._stick_repeat(1.0 / 60.0)
+	ax2.axis_value = 0.9
+	g._input(ax2)
+	g._stick_repeat(1.0 / 60.0)
+	ok(dir_cmds.call() == d1 + 1 and not g.trans_stick_eat, "回中再推恢復")
+	Save.settings["deadzone"] = dz_keep
+	for k2 in ["plain_ui", "reduce_fx"]:
+		g._ov_t = g.time
+		Save.settings[k2] = true
+		ok(g.ov_trans_k() == 1.0, "%s：沒有轉場" % k2)
+		Save.settings[k2] = false
+	g._ov_t = g.time
+	g.layout_probe = true
+	ok(g.ov_trans_k() == 1.0, "版面探針拍終態")
+	g.layout_probe = false
+	ok(GS.SLIDE_SEC >= 0.18 and GS.SLIDE_SEC <= 0.3, "轉場 180～300ms")
+	g._ov_t = g.time
+	Save.settings["reduce_motion"] = true
+	ok(g.ov_trans_k() == 1.0, "減少動態：沒有轉場")
+	Save.settings["reduce_motion"] = false
+	g.shot_dir = "x"
+	ok(g.ov_trans_k() == 1.0, "截圖：沒有轉場（固定畫面重拍一致）")
+	g.shot_dir = ""
+	g.overlay = "result_x"
+	ok(g.ov_trans_k() == 1.0, "沒列在表裡的疊層照舊淡入")
+	for k in keep:
+		Save.settings[k] = keep[k]
+	g.free()
+	for f in ["res://scripts/ui/lobby_view.gd", "res://scripts/ui/screens/game_modes.gd", "res://scripts/ui/ui_base.gd"]:
+		var src: String = FileAccess.get_file_as_string(f)
+		ok(src.find("draw_set_transform(Vector2.ZERO") < 0 and src.find("draw_set_transform_matrix(Transform2D.IDENTITY)") < 0, "%s 切矩陣都以 ui_xf 為底（滑動不會被蓋掉）" % f.get_file())

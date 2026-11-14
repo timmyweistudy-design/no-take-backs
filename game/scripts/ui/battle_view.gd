@@ -478,7 +478,7 @@ func _cmd_event(ev: Dictionary, with_fx: bool) -> void:
 		return
 	sfx.play(["brace", "bugle", "raise", "stomp", "timestop"][sk], 0.9)
 	fx = fx.filter(func(f): return f.get("cmd_tm", -1) != tm)     # 一隊同時只留最新一條，不疊字
-	_fx_text(Vector2(400.0 if tm == 0 else 880.0, 128), "%s　%s" % [L.t("blue") if tm == 0 else L.t("red"), L.t("cmd_%d" % sk)], Art.team_color(tm, cbm()).lightened(0.45), 1.3, tz("B"), true)   # V1.0.0：0.25 時紅方在動態戰場上對比偶爾 < 3；1.4.0 §6.3：大字橫幅降一級，主角是桌面朱印
+	_fx_text(Vector2(400.0 if tm == 0 else 880.0, 128), "%s　%s" % [L.t("blue") if tm == 0 else L.t("red"), L.t("cmd_%d" % sk)], Art.team_color(tm, cbm()).lightened(0.45 if tm == 0 else 0.62), 1.3, tz("B"), true)   # V1.0.0：0.25 時紅方在動態戰場上對比偶爾 < 3；1.4.0 §6.3：大字橫幅降一級，主角是桌面朱印；字變小對比門檻變 4.5，紅方提亮（版面 75_cmd_cd）
 	fx[-1]["cmd_tm"] = tm   # 標在橫幅上（要在朱印加進來之前；版面 75_cmd_cd 抓到標錯對象、舊橫幅沒清）
 	if not bool(Save.s("plain_ui")):
 		_add_fx({"kind": "cmdseal", "p": ORIGIN + fld_size * Vector2(0.25 if tm == 0 else 0.75, 0.5), "t": 0.0, "dur": 0.9, "c": Art.team_color(tm, cbm()).darkened(0.15)})

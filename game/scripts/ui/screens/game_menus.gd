@@ -82,6 +82,13 @@ func _draw_keys() -> void:
 
 
 func _stick_repeat(delta: float) -> void:
+	if get("trans_stick_eat") == true:
+		var dz0 := int(Save.s("deadzone")) / 100.0
+		if absf(stick[JOY_AXIS_LEFT_X]) < dz0 and absf(stick[JOY_AXIS_LEFT_Y]) < dz0:
+			set("trans_stick_eat", false)   # 回中（死區內）才解鎖；自由游標與方向連發兩條路都擋（Codex cat08 r3 #2）
+		else:
+			_stick_dir = Vector2i.ZERO
+			return
 	if _is_free() and overlay == "":
 		_fp_pad_process(delta, Vector2(stick[JOY_AXIS_LEFT_X], stick[JOY_AXIS_LEFT_Y]))   # 第六輪：平滑游標
 		return
@@ -98,6 +105,12 @@ func _stick_repeat(delta: float) -> void:
 			d.x = nv
 		else:
 			d.y = nv
+	if d != Vector2i.ZERO and call("ov_trans_k") < 1.0:
+		set("_ov_t", float(get("time")) - 1.0)   # 1.4.0：轉場中推搖桿（和移焦同一個門檻）＝跳過
+		set("trans_stick_eat", true)
+	if get("trans_stick_eat") == true:
+		_stick_dir = d   # 回中之前不送方向（開頁前就推著的也一樣，Codex cat08 r2 #2）
+		return
 	if d != _stick_dir:
 		_stick_dir = d
 		_stick_t = 0.35

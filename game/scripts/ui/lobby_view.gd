@@ -536,10 +536,10 @@ func _draw_lobby() -> void:
 		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
 		for k in ns:
 			var sc := Vector2(1150.0 - k * 34.0, 660.0 - (k % 2) * 8.0)
-			draw_set_transform(sc, 0.08 * (k - 1), Vector2.ONE)
+			draw_set_transform_matrix(ui_xf * Transform2D(0.08 * (k - 1), sc))
 			draw_rect(Rect2(-13, -13, 26, 26), Color(PAL.TRINKET_RED, 0.42), false, 2.5)
 			draw_rect(Rect2(-8, -8, 16, 16), Color(PAL.TRINKET_RED, 0.26))
-			draw_set_transform(Vector2.ZERO)
+			draw_set_transform_matrix(ui_xf)
 	if why != "":
 		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
 	if lobby_menu:

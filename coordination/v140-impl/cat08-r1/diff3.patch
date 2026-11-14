@@ -1,0 +1,367 @@
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index bf57a32..a19402a 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -188,6 +188,10 @@ func _keys_input(ev: InputEvent) -> bool:
+ 
+ 
+ func _input(ev: InputEvent) -> void:
++	if _trans_gate(ev):
++		if is_inside_tree():
++			get_viewport().set_input_as_handled()
++		return
+ 	if _keys_input(ev):
+ 		return
+ 	if nb_edit >= 0 and _nb_edit_input(ev):
+@@ -858,13 +862,25 @@ func _draw_inner() -> void:
+ 	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+ 	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+ 	obj_open_kind = ""
++	var slide := ov_slide_offset()   # 1.4.0 §2.2：器物從桌上的固定位置滑進來（大廳從左、圖鑑從下…）；只動畫面
++	var m0 := mouse
++	if slide != Vector2.ZERO:
++		ui_xf = Transform2D(0.0, slide)   # 疊層裡自己切矩陣的地方都以 ui_xf 為底（不會把滑動蓋掉）
++		Art.base = ui_xf
++		draw_set_transform_matrix(ui_xf)
++		mouse = Vector2(-9999, -9999)     # 滑入中不判 hover（命中框沒位移，高亮會錯位；Codex cat08 #6）
+ 	_draw_overlay()
+-	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
+-	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) else 1.0
++	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
+ 	if obj_open_force >= 0.0:
+ 		open_k = obj_open_force   # 開發截圖：固定在開到一半
+ 	if open_k < 1.0 and obj_open_kind != "":
+-		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫）
++		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫；和內容一起滑，Codex cat08 #1）
++	if slide != Vector2.ZERO:
++		mouse = m0
++		ui_xf = Transform2D.IDENTITY
++		Art.base = Transform2D.IDENTITY
++		draw_set_transform_matrix(Transform2D.IDENTITY)
++	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
+ 	if ok_k < 1.0:
+ 		draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
+ 	_draw_pad_footer()
+@@ -1089,3 +1105,68 @@ func _do_click(p: Vector2) -> int:
+ 				return 1
+ 			return 0
+ 	return 0
++
++
++# ── 1.4.0 第 8 大類：桌面世界與轉場（方案 §2；切片 A）──
++## 每個疊層在桌上的固定位置（從哪邊滑進來）；沒列的照舊淡入。
++const SLIDE_FROM := {"lobby": Vector2(-80, 0), "codex": Vector2(0, 70), "settings": Vector2(80, 0), "keys": Vector2(80, 0),
++	"profile": Vector2(0, -60), "puzzles": Vector2(-70, 0), "trials": Vector2(-70, 0), "codes": Vector2(70, 0)}
++const SLIDE_SEC := 0.3    # 180～300ms；和 1.3.0 器物開合同長（同時到終態，Codex cat08 #1）
++var trans_eat := ""            # 跳過轉場的那一下是哪個輸入（來源＋鍵碼＋裝置／手指）：只有它的放開會解鎖（Codex cat08 r2 #1）
++var trans_stick_eat := false   # 用搖桿跳過／轉場中推著搖桿：回中之前不送方向（方案 §2.5）
++
++## 輸入的身分：同一顆鍵／同一個滑鼠鈕／同一根手指的按下與放開對得起來
++static func trans_sig(ev: InputEvent) -> String:
++	if ev is InputEventKey:
++		return "k%d" % int(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
++	if ev is InputEventMouseButton:
++		return "m%d" % int(ev.button_index)
++	if ev is InputEventJoypadButton:
++		return "j%d:%d" % [ev.device, int(ev.button_index)]
++	if ev is InputEventScreenTouch:
++		return "t%d" % int(ev.index)
++	return ""
++
++## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
++## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
++func _trans_gate(ev: InputEvent) -> bool:
++	var active := ov_trans_k() < 1.0
++	if not active and trans_eat == "":
++		return false
++	if ev is InputEventMouseMotion:
++		mouse = ev.position
++		return active
++	if ev is InputEventJoypadMotion:
++		if ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y:
++			stick[ev.axis] = ev.axis_value   # 狀態照記；方向的鎖在 _stick_repeat（和移焦同一個門檻）
++		return active
++	var sig := trans_sig(ev)
++	if sig == "":
++		return active
++	if ev is InputEventScreenTouch and not ev.pressed:
++		touches.erase(ev.index)   # 吃掉放開也要清手指狀態（不留幽靈手指、長按計時；Codex cat08 r2 #3）
++		lp_t = -1.0
++	if ev.pressed:
++		if active:
++			_ov_t = time - 1.0
++			if trans_eat == "":
++				trans_eat = sig
++			return true
++		return sig == trans_eat   # 同一顆鍵按住的連發（echo）也吃
++	if sig == trans_eat:
++		trans_eat = ""
++		return true
++	return active
++
++## 轉場進度（0→1；沒有轉場＝1）。截圖、版面檢查、減少特效、減少動態、簡化介面都沒有轉場。
++func ov_trans_k() -> float:
++	if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
++		return 1.0
++	return clampf((time - _ov_t) / SLIDE_SEC, 0.0, 1.0)
++
++func ov_slide_offset() -> Vector2:
++	var k := ov_trans_k()
++	if k >= 1.0:
++		return Vector2.ZERO
++	var e := 1.0 - pow(1.0 - k, 3.0)
++	return SLIDE_FROM[overlay] * (1.0 - e)
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index bd4aca9..7d5bf24 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -536,10 +536,10 @@ func _draw_lobby() -> void:
+ 		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
+ 		for k in ns:
+ 			var sc := Vector2(1150.0 - k * 34.0, 660.0 - (k % 2) * 8.0)
+-			draw_set_transform(sc, 0.08 * (k - 1), Vector2.ONE)
++			draw_set_transform_matrix(ui_xf * Transform2D(0.08 * (k - 1), sc))
+ 			draw_rect(Rect2(-13, -13, 26, 26), Color(PAL.TRINKET_RED, 0.42), false, 2.5)
+ 			draw_rect(Rect2(-8, -8, 16, 16), Color(PAL.TRINKET_RED, 0.26))
+-			draw_set_transform(Vector2.ZERO)
++			draw_set_transform_matrix(ui_xf)
+ 	if why != "":
+ 		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
+ 	if lobby_menu:
+diff --git a/game/scripts/ui/screens/game_menus.gd b/game/scripts/ui/screens/game_menus.gd
+index 7650bf8..2f714d4 100644
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -98,6 +98,14 @@ func _stick_repeat(delta: float) -> void:
+ 			d.x = nv
+ 		else:
+ 			d.y = nv
++	if d != Vector2i.ZERO and call("ov_trans_k") < 1.0:
++		set("_ov_t", float(get("time")) - 1.0)   # 1.4.0：轉場中推搖桿（和移焦同一個門檻）＝跳過
++		set("trans_stick_eat", true)
++	if get("trans_stick_eat") == true:
++		_stick_dir = d   # 回中之前不送方向（開頁前就推著的也一樣，Codex cat08 r2 #2）
++		if d == Vector2i.ZERO:
++			set("trans_stick_eat", false)
++		return
+ 	if d != _stick_dir:
+ 		_stick_dir = d
+ 		_stick_t = 0.35
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index 79d8929..999b1f3 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -1323,10 +1323,10 @@ func _draw_nemeses() -> void:
+ 		# 狀態：已復仇＝朱紅「雪恥」印章；還沒＝墨色小字（Antigravity v140-i1）
+ 		var sp := r.position + Vector2(r.size.x - 74, 44)   # 離紙邊夠遠，英文 150% 的 Unavenged 也放得下
+ 		if done:
+-			draw_set_transform_matrix(Transform2D(-0.18, sp))
++			draw_set_transform_matrix(ui_xf * Transform2D(-0.18, sp))
+ 			_hand_ring(Vector2.ZERO, 30.0, Color("#8e1b14", 0.95), 3.0)
+ 			_hand_ring(Vector2.ZERO, 25.0, Color("#8e1b14", 0.75), 1.4, false, 1)
+-			draw_set_transform_matrix(Transform2D.IDENTITY)
++			draw_set_transform_matrix(ui_xf)
+ 			_ink_mode = true
+ 			var nd := L.t("nem_done")
+ 			var nsz: int = tz("S") if _width(nd, tz("S"), true) <= 52.0 else tz("C")   # 英文印章字放得進圓圈（收尾第 2 輪）
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index d691151..794d95e 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -316,6 +316,8 @@ var atk_hit := {}         # 單位 id → 命中 tick 的序列（最多留 4 
+ var prev_pos := {}
+ var accum := 0.0
+ var speed := 1.0
++## 1.4.0 §2.2：介面底層矩陣（疊層滑入時＝位移；平常＝單位矩陣）。介面裡切矩陣都乘在它上面、還原也還原成它。
++var ui_xf := Transform2D.IDENTITY
+ var slow_used := false
+ var final_used := false   # 第十輪 F1
+ var pinch_zoom := 1.0             # V1.4 #18：雙指縮放戰場（1＝不縮；戰鬥中蓋過自動全景）
+@@ -1120,16 +1122,16 @@ func _desk_props() -> void:
+ 	# 1.3.0 §1.2 茶杯（右側桌面）：熱氣三縷慢慢往上飄（減少特效時停住；截圖模式的時間是固定的，可重現）
+ 	var cup := Vector2(1236, 432)
+ 	# 桌邊斜看：杯口是扁一點的橢圓、下面露出一段杯身；右下落影（燈在左上；Antigravity cat02 #5）
+-	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
++	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
+ 	draw_circle(Vector2.ZERO, 22.0, Color(DIM_INK, 0.38), true, -1.0, true)
+-	draw_set_transform_matrix(Transform2D.IDENTITY)
++	draw_set_transform_matrix(ui_xf)
+ 	draw_rect(Rect2(cup + Vector2(-20, 0), Vector2(40, 14)), PAL.CUP_BODY)   # 杯身
+ 	draw_rect(Rect2(cup + Vector2(-20, 10), Vector2(40, 4)), PAL.CUP_FOOT)
+-	draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup))
++	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup))
+ 	draw_circle(Vector2.ZERO, 21.0, PAL.CUP_GLAZE, true, -1.0, true)
+ 	draw_circle(Vector2.ZERO, 16.0, PAL.TEA, true, -1.0, true)
+ 	draw_circle(Vector2(-4, -4), 5.0, Color(1, 0.95, 0.8, 0.25), true, -1.0, true)
+-	draw_set_transform_matrix(Transform2D.IDENTITY)
++	draw_set_transform_matrix(ui_xf)
+ 	var st_t: float = 0.0 if bool(Save.s("reduce_fx")) else time
+ 	for w in 3:
+ 		var pts := PackedVector2Array()
+@@ -1892,12 +1894,12 @@ func _unit_base(p: Vector2, scale: float) -> void:
+ 	if true:
+ 		var bw := 30.0 * scale
+ 		var bh := 9.0 * scale
+-		draw_set_transform(p + Vector2(0, 2 * scale), 0.0, Vector2(1, bh / bw))
++		draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1, bh / bw), 0.0, p + Vector2(0, 2 * scale)))
+ 		draw_circle(Vector2(0, 3 * scale * bw / bh), bw * 1.04, Color(0, 0, 0, 0.3), true, -1.0, true)
+ 		draw_circle(Vector2.ZERO, bw, Color("#5a3b22"), true, -1.0, true)
+ 		draw_circle(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, Color("#8a5f37"), true, -1.0, true)
+ 		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
+-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
++		draw_set_transform_matrix(ui_xf)
+ 
+ ## 在一個框（或圓）的正中間畫一隻兵（使用者回報：圖鑑頁籤的人物沒有在格子正中間）。
+ ## 角色的腳在原點、頭頂約在 -50（騎兵含騎士約 -54），視覺中心在腳上方 24（騎兵 26）× 縮放。
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index a3b9d3c..593a707 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index c6f66b5..761ed4f 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -1857,3 +1857,119 @@ func test_vessels_curtain_v140() -> void:
+ 	var d := {"lobby_stamps": "x"}
+ 	SV.sanitize_data(d)
+ 	ok(d["lobby_stamps"] == 0, "手帳印跡存檔驗型")
++
++
++## 1.4.0 第 8 大類：器物從桌上的固定位置滑進來（方案 §2.2）
++func test_transition_v140() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.shot_dir = ""
++	g.layout_probe = false
++	g.overlay = "codex"
++	g.time = 10.0
++	g._ov_t = 10.0
++	var Save = load("res://scripts/game/save.gd")
++	var keep := {}
++	for k in ["reduce_fx", "reduce_motion", "plain_ui"]:
++		keep[k] = Save.s(k)
++		Save.settings[k] = false
++	ok(g.ov_trans_k() == 0.0 and g.ov_slide_offset() == GS.SLIDE_FROM["codex"], "剛打開：在桌上的起點（圖鑑從下面）")
++	g.time = 10.0 + GS.SLIDE_SEC * 0.5
++	ok(g.ov_trans_k() > 0.0 and g.ov_trans_k() < 1.0, "轉場中")
++	# 走完整的 _input 路徑（閘門在最前面）：吃掉的事件不會進命令佇列
++	var mbe := func(btn: int, down: bool) -> InputEventMouseButton:
++		var e := InputEventMouseButton.new()
++		e.button_index = btn
++		e.pressed = down
++		e.position = Vector2(640, 400)
++		return e
++	var nq: int = g._cmds.size()
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
++	ok(g.ov_trans_k() == 1.0 and g.ov_slide_offset() == Vector2.ZERO and g._cmds.size() == nq, "轉場中按下＝直接到終態，這一下吃掉（沒進佇列）")
++	var kd := InputEventKey.new()
++	kd.keycode = KEY_ESCAPE
++	kd.pressed = true
++	g._input(kd)
++	var nq_k: int = g._cmds.size()
++	var ku := InputEventKey.new()
++	ku.keycode = KEY_ESCAPE
++	ku.pressed = false
++	g._input(ku)
++	ok(g.trans_eat == "m%d" % MOUSE_BUTTON_LEFT, "放開別的鍵不會解鎖（只認跳過的那一個輸入，Codex cat08 r2 #1）")
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
++	ok(g.trans_eat == "" and g._cmds.size() == nq_k, "跳過的那一下放開也吃掉（多久之後放開都一樣）")
++	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
++	ok(g._cmds.size() == nq_k + 1, "之後的點擊照常進佇列（不靠固定時間）")
++	g._ov_t = g.time
++	var ke := InputEventKey.new()
++	ke.keycode = KEY_DOWN
++	ke.pressed = true
++	g._input(ke)
++	var nq2: int = g._cmds.size()
++	var ke2 := InputEventKey.new()
++	ke2.keycode = KEY_DOWN
++	ke2.pressed = true
++	ke2.echo = true
++	g._input(ke2)
++	ok(g._cmds.size() == nq2, "同一顆鍵按住的連發也吃掉")
++	ke2.pressed = false
++	ke2.echo = false
++	g._input(ke2)
++	g._ov_t = g.time
++	var nq3: int = g._cmds.size()
++	g._input(mbe.call(MOUSE_BUTTON_WHEEL_DOWN, true))
++	g._input(mbe.call(MOUSE_BUTTON_WHEEL_DOWN, false))
++	ok(g._cmds.size() == nq3, "滾輪在轉場中不捲（Codex cat08 #4）")
++	g._ov_t = g.time
++	var mv2 := InputEventMouseMotion.new()
++	mv2.position = Vector2(500, 500)
++	ok(g._trans_gate(mv2), "轉場中的拖曳／移動不生效（音量木軌不會被拖，Codex cat08 #3）")
++	var td := InputEventScreenTouch.new()
++	td.index = 0
++	td.pressed = true
++	td.position = Vector2(100, 100)
++	g._input(td)
++	var tu := InputEventScreenTouch.new()
++	tu.index = 0
++	tu.pressed = false
++	g._input(tu)
++	ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat == "", "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）")
++	g._ov_t = g.time
++	g.stick[JOY_AXIS_LEFT_Y] = 0.46
++	var dz_keep = Save.s("deadzone")
++	Save.settings["deadzone"] = 20
++	g._stick_dir = Vector2i.ZERO
++	var f0: int = g._focus
++	g._stick_repeat(0.016)
++	ok(g.ov_trans_k() == 1.0 and g.trans_stick_eat and g._focus == f0, "轉場中推搖桿（和移焦同門檻）＝跳過、不移焦（Codex cat08 r2 #2）")
++	g._stick_repeat(0.5)
++	ok(g._focus == f0, "推著不放也不送方向")
++	g.stick[JOY_AXIS_LEFT_Y] = 0.0
++	g._stick_repeat(0.016)
++	ok(not g.trans_stick_eat, "搖桿回中才解鎖")
++	Save.settings["deadzone"] = dz_keep
++	for k2 in ["plain_ui", "reduce_fx"]:
++		g._ov_t = g.time
++		Save.settings[k2] = true
++		ok(g.ov_trans_k() == 1.0, "%s：沒有轉場" % k2)
++		Save.settings[k2] = false
++	g._ov_t = g.time
++	g.layout_probe = true
++	ok(g.ov_trans_k() == 1.0, "版面探針拍終態")
++	g.layout_probe = false
++	ok(GS.SLIDE_SEC >= 0.18 and GS.SLIDE_SEC <= 0.3, "轉場 180～300ms")
++	g._ov_t = g.time
++	Save.settings["reduce_motion"] = true
++	ok(g.ov_trans_k() == 1.0, "減少動態：沒有轉場")
++	Save.settings["reduce_motion"] = false
++	g.shot_dir = "x"
++	ok(g.ov_trans_k() == 1.0, "截圖：沒有轉場（固定畫面重拍一致）")
++	g.shot_dir = ""
++	g.overlay = "result_x"
++	ok(g.ov_trans_k() == 1.0, "沒列在表裡的疊層照舊淡入")
++	for k in keep:
++		Save.settings[k] = keep[k]
++	g.free()
++	for f in ["res://scripts/ui/lobby_view.gd", "res://scripts/ui/screens/game_modes.gd", "res://scripts/ui/ui_base.gd"]:
++		var src: String = FileAccess.get_file_as_string(f)
++		ok(src.find("draw_set_transform(Vector2.ZERO") < 0 and src.find("draw_set_transform_matrix(Transform2D.IDENTITY)") < 0, "%s 切矩陣都以 ui_xf 為底（滑動不會被蓋掉）" % f.get_file())
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index f1e2ef5..24367de 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1688,6 +1688,10 @@ func _pw_check(cond: bool, what: String) -> void:
+ 		_pw_bad.append(what)
+ 
+ func _pw_btn(b: int) -> void:
++	if ov_trans_k() < 1.0:
++		_ov_t = time - 1.0   # 1.4.0 §2.2：轉場中的第一下會被吃掉（設計如此）；走訪時等轉場結束再按（等於玩家等 0.25 秒）
++	trans_eat = ""
++	trans_stick_eat = false
+ 	for pressed in [true, false]:
+ 		var ev := InputEventJoypadButton.new()
+ 		ev.button_index = b
