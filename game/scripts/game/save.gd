@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS := {
 	"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
 	"long_press": 0.5, "place_mode": "both", "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
 	"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
-	"hold_confirm": false, "magnify": false, "ui_font": "craft", "smooth_pose": false, "table_view": true, "spotlight": true, "battle_mag": true, "auto_director": true,   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
+	"hold_confirm": false, "magnify": false, "ui_font": "craft", "smooth_pose": false, "table_view": true, "spotlight": true, "battle_mag": true, "auto_director": true, "voice_vol": 70,   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
 }
 const ENUMS := {"ui_font": ["classic", "craft"], "place_mode": ["both", "tap"], "title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
 	"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3, 0], "rumble": [0, 25, 50, 100], "deadzone": [5, 10, 15, 20, 25, 30, 35, 40], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
@@ -139,6 +139,7 @@ static func sanitize_settings(d: Dictionary) -> Dictionary:
 	out["sfx"] = clampi(int(out["sfx"]), 0, 100)
 	out["ui_vol"] = clampi(int(out["ui_vol"]), 0, 100)
 	out["amb_vol"] = clampi(int(out["amb_vol"]), 0, 100)
+	out["voice_vol"] = clampi(int(out.get("voice_vol", 70)), 0, 100)   # 1.4.0（Codex cat09 #3）
 	out["speed"] = clampf(float(out["speed"]), 0.25, 8.0)
 	if not str(out["duel_rule"]) in ["snake5", "snake5c", "cap10", "blind", "custom"]:
 		out["duel_rule"] = DEFAULT_SETTINGS["duel_rule"]

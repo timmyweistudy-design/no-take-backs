@@ -1,0 +1,6 @@
+1. **新列與既有音量列一致性**：在 [en_150_08d_settings_sound.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v140-impl/cat09-r1/agy/en_150_08d_settings_sound.png)、[zh_TW_100_08d_settings_sound.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v140-impl/cat09-r1/agy/zh_TW_100_08d_settings_sound.png) 與 [zh_TW_150_08d_settings_sound.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v140-impl/cat09-r1/agy/zh_TW_150_08d_settings_sound.png) 的中間列表第 6 列，「Voices／人聲」皆具備與前 5 列音量相同的左右三角鈕、羊皮紙底框、`70%` 置中顯示及底部木軌滑桿（滑塊位置與第 2 列同樣 `70%` 的音樂列一致），左欄標籤與右欄控制項皆對齊；僅第 6 列名稱未像前 5 列帶有「volume／音量」後綴。
+2. **150% 縮放空間與邊界**：在 [en_150_08d_settings_sound.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v140-impl/cat09-r1/agy/en_150_08d_settings_sound.png) 與 [zh_TW_150_08d_settings_sound.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v140-impl/cat09-r1/agy/zh_TW_150_08d_settings_sound.png) 中，中間第 6 列「Voices／人聲」與右側控制區間距寬裕，文字與按鈕皆無擠壓或裁切，整體內容也完全落在木框抽屜內、未見超出邊界。
+3. **說明文字可讀性（無法確認）**：三張圖右上角說明區分別只顯示第 1 列的「Master volume／All sound at once.」（`en_150`）與「總音量／所有聲音一起調。」（`zh_TW_100`、`zh_TW_150`），沒有選取或懸停在「Voices／人聲」列的截圖，因此看不到該列實際的說明文字內容，無法判斷是否易懂或 150% 時是否會折行／裁切。
+4. **整頁長度**：三張圖中間欄共 8 列設定加底部「Credits／Back」或「製作名單／返回」按鈕，底部按鈕與抽屜下框線之間仍有完整留白，整頁沒有過長或溢出框外的情況。
+
+結論：有條件

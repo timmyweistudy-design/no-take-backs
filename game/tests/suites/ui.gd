@@ -2076,3 +2076,27 @@ func test_transition_v140() -> void:
 	for f in ["res://scripts/ui/lobby_view.gd", "res://scripts/ui/screens/game_modes.gd", "res://scripts/ui/ui_base.gd"]:
 		var src: String = FileAccess.get_file_as_string(f)
 		ok(src.find("draw_set_transform(Vector2.ZERO") < 0 and src.find("draw_set_transform_matrix(Transform2D.IDENTITY)") < 0, "%s 切矩陣都以 ui_xf 為底（滑動不會被蓋掉）" % f.get_file())
+
+
+## 1.4.0 第 9 大類：聲音 3.0（空間化、嘟囔語）
+func test_sound_v140() -> void:
+	var SX = load("res://scripts/game/sfx.gd")
+	ok(SX.pan_bus(-0.9, false) == SX.BUS_SFX_L and SX.pan_bus(0.9, false) == SX.BUS_SFX_R, "聲像跟著出手的兵分左右")
+	ok(SX.pan_bus(0.1, false) == SX.BUS_SFX and SX.pan_bus(-0.9, true) == SX.BUS_SFX, "中間留正中；單聲道時不分")
+	var GM = load("res://scripts/ui/screens/game_menus.gd")
+	var Save = load("res://scripts/game/save.gd")
+	ok(GM.VOL_KEY.get("set_voice_vol", "") == "voice_vol" and GM.VOL_PREVIEW.get("voice_vol", "") == "voice", "人聲獨立音量有設定列、調整時試聽")
+	ok(int(Save.DEFAULT_SETTINGS.get("voice_vol", -1)) == 70, "人聲預設 70")
+	for m in ["happy", "sad", "hmm"]:
+		for i in 3:
+			ok(FileAccess.file_exists("res://audio/voice_%s_%d.wav" % [m, i + 1]), "嘟囔語占位檔 %s %d" % [m, i + 1])
+	var csv: String = FileAccess.get_file_as_string("res://data/strings.csv")
+	ok(csv.find("\nset_voice_vol,") >= 0 and csv.find("\nsd_set_voice_vol,") >= 0, "人聲設定有四語")
+	ok(int(Save.sanitize_settings({"voice_vol": 900})["voice_vol"]) == 100 and int(Save.sanitize_settings({"voice_vol": -5})["voice_vol"]) == 0, "人聲音量清理 0～100（Codex cat09 #3）")
+	var sxs: String = FileAccess.get_file_as_string("res://scripts/game/sfx.gd")
+	ok(sxs.find("func set_voice_vol") >= 0 and sxs.find("voice.stop()") >= 0, "人聲調到 0 正在說的立刻停（Codex cat09 #2）")
+	var gms: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	var ia := gms.find("func _apply_master() -> void:")
+	ok(ia >= 0 and gms.find("set_voice_vol(int(Save.s(\"voice_vol\"))", ia) > ia and gms.find("sfx.mono = bool(Save.s(\"mono\"))", ia) > ia, "人聲音量與單聲道在 _apply_master 同步（開機、切單聲道都會套，Codex cat09 #1）")
+	var bvs: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(bvs.find("ev.get(\"src\", ev.get(\"id\"") >= 0, "死亡事件用死者位置算聲像（Codex cat09 #4）")

@@ -537,6 +537,9 @@ func _apply_volumes(sample: String) -> void:
 	if sfx == null:
 		return
 	sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")), int(Save.s("ui_vol")), int(Save.s("amb_vol")))
+	if "voice_vol" in sfx:
+		if sample == "voice":
+			sfx.play_voice("hmm")
 	if sample == "amb":
 		if sfx.amb_name == "":
 			sfx.play_ambience("forest")
@@ -606,7 +609,7 @@ func _draw_fs_confirm() -> void:
 ## V1.5.1 C1：每一列對應的存檔鍵（恢復預設、修改標記用）。語言不列入（恢復預設不該把語言改掉）
 const SET_KEYS := {"set_smooth_pose": ["smooth_pose"], "set_table_view": ["table_view"], "set_fullscreen": ["fullscreen"], "set_title_bg": ["title_bg"], "set_fps": ["fps_cap"], "set_vsync": ["vsync"],
 	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
-	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_night": ["night"], "set_mono": ["mono"],
+	"set_master": ["master"], "set_music": ["music"], "set_sfx": ["sfx"], "set_ui_vol": ["ui_vol"], "set_amb_vol": ["amb_vol"], "set_voice_vol": ["voice_vol"], "set_night": ["night"], "set_mono": ["mono"],
 	"set_keys": ["keys", "pad"], "set_confirm": ["confirm_place"], "set_place_mode": ["place_mode"], "set_long_press": ["long_press"], "set_rumble": ["rumble"], "set_deadzone": ["deadzone"],
 	"set_speed": ["speed"], "set_hp_bars": ["hp_bars"], "set_dmg_nums": ["dmg_nums"], "set_reduce_fx": ["reduce_fx"], "set_clutch_zoom": ["clutch_zoom"], "set_slowmo": ["slowmo"], "set_spotlight": ["spotlight"], "set_battle_mag": ["battle_mag"], "set_auto_director": ["auto_director"],
 	"set_hold": ["hold_confirm"], "set_magnify": ["magnify"], "set_cb": ["colorblind"], "set_reduce_motion": ["reduce_motion"], "set_text_plate": ["text_plate"], "set_focus": ["focus_strong"],
@@ -644,8 +647,8 @@ func _reset_rows(rows: Array) -> void:
 ## V1.5.1：戰鬥中改了要下一局才生效的設定（其餘立即生效）
 const NEXT_GAME_KEYS := ["set_place_mode", "set_speed", "set_title_bg", "set_hints", "set_confirm", "set_long_press", "set_playtest"]
 const VOL_STEPS := [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]   # 音量每格 5%
-const VOL_KEY := {"set_master": "master", "set_music": "music", "set_sfx": "sfx", "set_ui_vol": "ui_vol", "set_amb_vol": "amb_vol"}
-const VOL_PREVIEW := {"master": "hit", "music": "", "sfx": "hit", "ui_vol": "k_confirm", "amb_vol": "amb"}
+const VOL_KEY := {"set_master": "master", "set_music": "music", "set_sfx": "sfx", "set_ui_vol": "ui_vol", "set_amb_vol": "amb_vol", "set_voice_vol": "voice_vol"}
+const VOL_PREVIEW := {"master": "hit", "music": "", "sfx": "hit", "ui_vol": "k_confirm", "amb_vol": "amb", "voice_vol": "voice"}
 var vol_drag := ""            # 1.3.0：正在拖的音量（設定鍵）
 var vol_rails := {}           # 這一幀畫出來的音量木軌（設定鍵 → 軌道框）
 
@@ -723,6 +726,7 @@ func _settings_rows() -> Array:
 				["set_sfx", _pct("sfx"), func(d): _step_setting("sfx", VOL_STEPS, d); _apply_volumes("hit")],
 				["set_ui_vol", _pct("ui_vol"), func(d): _step_setting("ui_vol", VOL_STEPS, d); _apply_volumes("k_confirm")],
 				["set_amb_vol", _pct("amb_vol"), func(d): _step_setting("amb_vol", VOL_STEPS, d); _apply_volumes("amb")],
+				["set_voice_vol", _pct("voice_vol"), func(d): _step_setting("voice_vol", VOL_STEPS, d); _apply_volumes("voice")],   # 1.4.0 §9.4
 				["set_night", _onoff("night"), func(d): _cycle_setting("night", [false, true]); _apply_master()],
 				["set_mono", _onoff("mono"), func(d): _cycle_setting("mono", [false, true]); _apply_master()]]
 		3:
@@ -911,7 +915,7 @@ func _draw_settings() -> void:
 			if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):
 				_brass_toggle(Vector2(vr.position.x + 18, vr.get_center().y), val == L.t("on"), bool(_btns[_btns.size() - 1]["en"]))   # 1.2.0 §1.3：開關＝黃銅撥片（字照樣在）
 			_btn(Rect2(r.end.x - 46, r.position.y, 46, r.size.y), "▶", cb.bind(1))
-		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol"]:
+		if val.ends_with("%") and rows[i][0] in ["set_master", "set_music", "set_sfx", "set_ui_vol", "set_amb_vol", "set_voice_vol"]:
 			var rw := r.size.x - 116
 			# 1.3.0 §15：木軌可以拖（輸入佇列處理：按下在軌上開始、拖到哪設到哪、放開才存檔；手把仍用 ◀ ▶ 逐級）
 			vol_rails[VOL_KEY[rows[i][0]]] = Rect2(r.position.x + 58, y + 30, rw, 20)
@@ -1636,6 +1640,9 @@ func hub_note(kind: String) -> String:
 
 ## ── V1.5 設定套用：總音量、夜間模式（壓縮器）、單聲道（立體聲收成中間）；幀率、垂直同步 ──
 func _apply_master() -> void:
+	if sfx != null and sfx.has_method("set_voice_vol"):
+		sfx.set_voice_vol(int(Save.s("voice_vol")) / 100.0)   # 1.4.0 §9.4 人聲獨立音量（開機、調音量、切單聲道都走這裡；Codex cat09 #1）
+		sfx.mono = bool(Save.s("mono"))
 	var bus := 0
 	AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.0001, int(Save.s("master")) / 100.0)))
 	for i in range(AudioServer.get_bus_effect_count(bus) - 1, -1, -1):

@@ -1438,6 +1438,8 @@ func _persona_result() -> void:
 		return
 	var st := _ai_style()
 	report["ps_line"] = L.t("ps_say", [L.t("ps_name_%d" % st), L.t(Persona.line_key(st, "lose" if sim.winner == 0 else "win"))])
+	if sfx != null and sfx.has_method("play_voice"):
+		sfx.play_voice("sad" if sim.winner == 0 else "happy")   # 1.4.0 §9.4：對手開口時一段嘟囔（字幕＝上面這句）
 	report["ps_hab"] = L.t("ps_hab", [L.t("ps_name_%d" % st), L.t("ps_hab_%d" % clampi(st, 0, 5))])   # 1.1.0 A8：這位對手的習慣（有空位才顯示）
 
 ## ── #12 生涯：熟練度＋實驗簿 ──
@@ -2420,6 +2422,8 @@ func _od_after(id: String, stars: int) -> void:
 	if bool(r[1]):
 		Save.data["od_stamps"] = int(Save.data.get("od_stamps", 0)) + 1
 		_toast(L.t("od_stamp_got"))
+		if sfx != null and sfx.has_method("play_voice"):
+			sfx.play_voice("happy")   # 老闆蓋印時哼一聲
 
 func _draw_owner_daily() -> void:
 	var picks := od_today()

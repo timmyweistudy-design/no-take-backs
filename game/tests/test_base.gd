@@ -74,6 +74,14 @@ class FakeSfx:
 		pass
 	func reseed(_s: int) -> void:
 		pass
+	var pan_hint := 0.0
+	var voice_vol := 0.7
+	var mono := false
+	var voices: Array = []
+	func play_voice(m: String) -> void:
+		voices.append(m)
+	func set_voice_vol(v: float) -> void:
+		voice_vol = v
 	func seed_at(_r: int, _t: int) -> int:
 		return 0
 	func set_room_tense(_on: bool) -> void:

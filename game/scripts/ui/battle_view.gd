@@ -233,6 +233,8 @@ func _sim_step(with_fx: bool) -> void:
 			deaths += 1
 		_collect_mark(ev, view, view.tick)
 		_on_event(ev, with_fx)
+	if sfx != null and "pan_hint" in sfx:
+		sfx.pan_hint = 0.0   # 事件以外的聲音（棋鐘、結算）回到正中
 	# 碾壓局最後一擊（優化方案 F1）：0.2 秒頓格＋微震，直接進結算
 	if view.finished and not slow_used and deaths > 0 and with_fx:
 		hitstop = 0.2
@@ -545,6 +547,10 @@ func _kill_rumble() -> void:
 	Input.start_joy_vibration(last_joy, 0.12 * rk, 0.22 * rk, 0.06)
 
 func _on_event(ev: Dictionary, with_fx: bool) -> void:
+	if sfx != null and "pan_hint" in sfx:
+		var pid: int = int(ev.get("src", ev.get("id", ev.get("tgt", -1))))   # 出手者；死亡事件只有 id（Codex cat09 #4）
+		var ps0 = view.unit_by_id(pid) if pid >= 0 else null
+		sfx.pan_hint = clampf((_cam * _upos(ps0)).x / 640.0 - 1.0, -1.0, 1.0) if ps0 != null else 0.0   # 1.4.0 §9.2 聲像跟著出手的兵
 	var k: String = ev["kind"]
 	if ev.has("src") and ev.has("tgt"):
 		last_hitter[int(ev["tgt"])] = int(ev["src"])   # V1.3.1：死亡事件不帶擊倒者，記住每個目標最後被誰打（Codex v131-impl3）

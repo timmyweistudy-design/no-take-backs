@@ -118,6 +118,9 @@ func _ready() -> void:
 	if capsule_path == "":
 		_rebuild_sprites.call_deferred()
 	sfx.set_volumes(int(Save.s("sfx")), int(Save.s("music")), int(Save.s("ui_vol")), int(Save.s("amb_vol")))
+	if sfx.has_method("set_voice_vol"):
+		sfx.set_voice_vol(int(Save.s("voice_vol")) / 100.0)   # 1.4.0：開機就套人聲音量與單聲道（Codex cat09 #1）
+		sfx.mono = bool(Save.s("mono"))
 	grass = load("res://art/cainos/TX_Tileset_Grass.png")
 	for i in 9:
 		var tex = load("res://art/cainos/plant_%02d.png" % i)

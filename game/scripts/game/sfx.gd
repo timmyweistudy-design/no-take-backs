@@ -103,6 +103,7 @@ func _ready() -> void:
 		add_child(tension)
 		tension.finished.connect(func(): tension.play())   # 循環（wav 匯入沒設 loop，播完接著播）
 	_room_setup()   # 1.3.0 §10 棋館環境三層
+	_voice_setup()  # 1.4.0 §9.4 嘟囔語
 	var lp := AudioEffectLowPassFilter.new()
 	lp.cutoff_hz = 900.0
 	AudioServer.add_bus_effect(0, lp)
@@ -177,7 +178,7 @@ func play(name: String, vol := 1.0, pitch := 1.0) -> void:
 		return
 	var p := players[ch]
 	p.stop()
-	p.bus = BUS_UI if is_ui(name) else BUS_SFX
+	p.bus = BUS_UI if is_ui(name) else pan_bus(pan_hint, mono)   # 1.4.0 §9.2：戰場音效依單位位置分左右（單聲道設定時不分）
 	p.stream = _pick_variant(name)
 	p.pitch_scale = pitch * (1.0 + rng.randf_range(-0.05, 0.05) if pitch != 1.0 else 1.0 + rng.randf_range(-0.1, 0.1))   # 兵種音高再加 ±5% 微擾，同音高齊發不會共鳴
 	p.volume_db = linear_to_db(maxf(0.0001, gain * vol)) + trim_db(p.stream)   # V1.2.1 E2：個別音檔響度修正
@@ -435,3 +436,65 @@ func room_tick(delta: float) -> void:
 	room_tense = move_toward(room_tense, room_tense_target if room_tense_hold > 0.0 else 0.0, delta * 0.8)
 	if was != room_tense or Engine.get_process_frames() % 30 == 0:
 		_room_mix()
+
+
+# ── 1.4.0 第 9 大類：聲音 3.0 程式部分（方案 §9）──
+## §9.2 空間化：戰場事件播放前由呼叫端設 pan_hint（−1 左～＋1 右）；用兩條帶聲像的子匯流排（不改原本的音效匯流排音量）。
+const BUS_SFX_L := "SfxL"
+const BUS_SFX_R := "SfxR"
+var pan_hint := 0.0
+var mono := false
+static func pan_bus(h: float, is_mono: bool) -> String:
+	if is_mono or absf(h) < 0.25:
+		return BUS_SFX
+	return BUS_SFX_L if h < 0.0 else BUS_SFX_R
+
+## §9.4 嘟囔語：老闆與常客的無意義語音（happy／sad／hmm 各 3 個），字幕照常、獨立音量（voice_vol）；占位檔是程序合成。
+const BUS_VOICE := "Voice"
+var voice: AudioStreamPlayer
+var voice_vol := 0.7
+var _voice_streams := {}
+
+func _voice_setup() -> void:
+	for pb in [[BUS_SFX_L, -0.45], [BUS_SFX_R, 0.45]]:
+		if AudioServer.get_bus_index(pb[0]) < 0:
+			AudioServer.add_bus()
+			var bi := AudioServer.bus_count - 1
+			AudioServer.set_bus_name(bi, pb[0])
+			AudioServer.set_bus_send(bi, BUS_SFX)
+			var pan := AudioEffectPanner.new()
+			pan.pan = float(pb[1])
+			AudioServer.add_bus_effect(bi, pan)
+	if AudioServer.get_bus_index(BUS_VOICE) < 0:
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(AudioServer.bus_count - 1, BUS_VOICE)
+		AudioServer.set_bus_send(AudioServer.bus_count - 1, "Master")
+	voice = AudioStreamPlayer.new()
+	voice.bus = BUS_VOICE
+	add_child(voice)
+	for mood in ["happy", "sad", "hmm"]:
+		var vs: Array = []
+		for i in 3:
+			var st = load_audio("voice_%s_%d" % [mood, i + 1])
+			if st != null:
+				vs.append(st)
+		_voice_streams[mood] = vs
+
+## 人聲音量：調到 0 時正在說的也立刻停（Codex cat09 #2）
+func set_voice_vol(v: float) -> void:
+	voice_vol = clampf(v, 0.0, 1.0)
+	if voice == null:
+		return
+	if voice_vol <= 0.0:
+		voice.stop()
+	else:
+		voice.volume_db = linear_to_db(maxf(0.0001, voice_vol))
+
+func play_voice(mood: String) -> void:
+	var vs: Array = _voice_streams.get(mood, [])
+	if voice == null or vs.is_empty() or voice_vol <= 0.0:
+		return
+	voice.stop()
+	voice.stream = vs[rng.randi_range(0, vs.size() - 1)]
+	voice.volume_db = linear_to_db(maxf(0.0001, voice_vol))
+	voice.play()
