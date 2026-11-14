@@ -358,6 +358,10 @@ func _mb_cmd(d: Dictionary) -> void:
 		if _do_click(mouse) > 0:
 			_mb_release_cleanup()
 			return
+	if state == St.PLACE and overlay == "" and (foe_card_r.has_point(mouse) or foe_tag_r.has_point(mouse)):
+		if not mb.pressed:
+			_mb_release_cleanup()
+		return   # 1.5.0 §1.4：敵情翻牌與紙卡擋住底下的部署區（不點穿）
 	if state == St.PLACE and overlay == "" and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and _v16_place_click(mouse):
 		return   # V1.6 #6：標記模式
 	if state == St.PLACE and overlay == "" and _fp_mb(d):
@@ -428,6 +432,10 @@ func _pad_tool(ev: InputEventJoypadButton) -> bool:
 	if state != St.PLACE or overlay != "" or Input.get_joy_axis(ev.device, JOY_AXIS_TRIGGER_RIGHT) < 0.5:
 		return false
 	var id := ""
+	if ev.button_index == JOY_BUTTON_BACK and mode == Mode.VS_AI:
+		pad_mode = true
+		_enqueue("tool", "foe")   # 1.5.0 §1.4：RT＋View＝開合敵情翻牌
+		return true
 	match ev.button_index:
 		JOY_BUTTON_Y:
 			id = "align" if _is_free() else "flip"

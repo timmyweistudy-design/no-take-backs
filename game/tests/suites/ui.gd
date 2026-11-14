@@ -2445,3 +2445,78 @@ func test_lobby_steps_v150() -> void:
 	ok(lv.find("lobby_step = 2 if code != \"\" else 0") >= 0, "有上次設定時直接打開在第三步")
 	var LR = load("res://scripts/ui/layout_rules.gd")
 	ok("lobby" in LR.R14_ENFORCE, "大廳是已改造類別（R14 超標失敗）")
+
+func test_place_tidy_v150() -> void:
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	ok("place" in LR.R14_ENFORCE and int(LR.R14_LIMITS["place"]) == 12, "擺陣轉成已改造類別（上限 12，超標＝失敗）")
+	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
+	ok(gp.find("screen_register(\"place\"") >= 0, "擺陣登記主動作")
+	ok(gp.find("if mode == Mode.VS_AI:\n\t\t_chalk_zone(mr)") >= 0, "對 AI：敵區改粉筆虛線框（不再整片竹簾）")
+	ok(gp.find("_bamboo_blind(mr)") >= 0, "雙人對戰照舊竹簾")
+	ok(gp.find("btn_group = \"cards\"") >= 0, "兵卡牌尺（含卡上的 ?）算一個選擇器")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	ok(not g.foe_tag_open, "敵情翻牌預設收合")
+	var gc: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_core.gd")
+	ok(gc.find("foe_tag_open = false") >= 0, "新的一局擺陣：翻牌收回")
+	ok(not g.fp_more, "自由部署「工具 ▾」預設收合（貼齊、密集收在裡面）")
+	g._fp_tool_click("more")
+	ok(g.fp_more, "點「工具」展開")
+	g._fp_tool_click("more")
+	ok(not g.fp_more, "再點收回")
+	var snap0: bool = g.fp_snap
+	g._fp_tool_click("snap")
+	ok(g.fp_snap != snap0, "收進去的開關照樣能切")
+	# 卡上的 ? 進同一組：10 個 ? ＝ 1 個控制
+	g._btns.clear()
+	g.btn_group = "cards"
+	for k in 10:
+		g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true, "group": g.btn_group})
+	g.btn_group = ""
+	g._btns.append({"r": Rect2(), "cb": func(): pass, "en": true, "group": ""})
+	ok(g.click_count() == 2, "兵卡牌尺＝一個控制")
+	g.free()
+	var fp: String = FileAccess.get_file_as_string("res://scripts/ui/free_place.gd")
+	ok(fp.find("btn_group = \"fp_tool\"") >= 0, "畫筆／直線／框選三選一＝一組")
+	# 從真的滑鼠路徑（_mb_cmd）點在展開的紙卡上：不點穿到底下的部署區（Codex v150 cat04 #4）
+	var g2 = GS.new()
+	g2.state = g2.St.PLACE
+	g2.overlay = ""
+	g2.mode = g2.Mode.VS_AI
+	g2.foe_card_r = Rect2(700, 120, 400, 300)
+	g2.painting = false
+	g2.drag_new = false
+	g2._mb_cmd({"i": MOUSE_BUTTON_LEFT, "pressed": true, "pos": Vector2(800, 200)})
+	ok(not g2.painting and not g2.drag_new and g2.drag_from.x < 0, "按在紙卡上：不開始塗兵／拖曳")
+	g2.foe_tag_open = false
+	ok(g2._deploy_tool("foe") and g2.foe_tag_open, "RT＋View（部署工具 foe）＝開合翻牌")
+	g2._deploy_tool("foe")
+	ok(not g2.foe_tag_open, "再按一次收回")
+	g2.free()
+	var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+	ok(gs.find("ev.button_index == JOY_BUTTON_BACK and mode == Mode.VS_AI") >= 0, "手把 RT＋View 接到翻牌")
+	# 從真實 _input 進入（輸入契約）：滑鼠在紙卡上按下＋放開＝什麼都不發生；在翻牌上放開＝開合
+	var g3 = GS.new()
+	g3.state = g3.St.PLACE
+	g3.overlay = ""
+	g3.mode = g3.Mode.VS_AI
+	g3.shot_dir = ""
+	g3.time = 10.0
+	g3.foe_card_r = Rect2(560, 300, 200, 200)
+	g3.foe_tag_r = Rect2(900, 100, 200, 48)
+	g3.foe_tag_open = true
+	g3._btns.clear()
+	g3._btns.append({"r": g3.foe_tag_r, "cb": func(): g3.foe_tag_open = not g3.foe_tag_open, "en": true})
+	g3._btns_gen = g3._gen
+	for dn in [true, false]:
+		g3._input(_im_ev("mouse", dn))   # (640, 400) 在紙卡上
+	g3._process_cmds()
+	ok(g3.foe_tag_open and not g3.painting and g3.drag_from.x < 0, "真實輸入：點在紙卡上不點穿、不收合")
+	g3._btns_gen = g3._gen   # 下一幀重畫按鈕
+	for dn in [true, false]:
+		var e: InputEventMouseButton = _im_ev("mouse", dn)
+		e.position = Vector2(950, 120)
+		g3._input(e)
+	g3._process_cmds()
+	ok(not g3.foe_tag_open, "真實輸入：點翻牌＝收合")
+	g3.free()

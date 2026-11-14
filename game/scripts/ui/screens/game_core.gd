@@ -40,6 +40,7 @@ func _reset_place(keep_blue := false) -> void:
 	zoom = 1.0
 	tp = null
 	blind_phase = 0
+	foe_tag_open = false   # 1.5.0 §1.4
 	_focus = 0
 	var keep_ok: bool = keep_blue and not armies.is_empty() and (rules == null or rules.keep_formation)
 	var blue_keep = armies[0].copy() if keep_ok else null

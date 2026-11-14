@@ -319,6 +319,16 @@ func _draw_hide_fog(hide_side: int) -> void:
 	var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
 	# 迷霧（R6）：深藍紫半透明＋飄動的雲＋發光紅問號旗，格線仍透出來
 	var mr := Rect2(ORIGIN + Vector2(x0 * CS, 0), Vector2(cols * CS, fld_size.y))
+	# 1.5.0 §1.4：對 AI 不再整片竹簾——粉筆虛線框＋地上一面紅旗印（草地照常看得到）；簾上的資訊搬到盤外右上的倒掛翻牌（HUD 畫）
+	if mode == Mode.VS_AI:
+		_chalk_zone(mr)
+		foe_zone_r = _cam * mr   # 轉成螢幕座標（自由部署縮放、非標準尺寸置中後翻牌仍貼著敵區；Codex v150 cat04 #3）
+		_ground_flag(mr.get_center() + Vector2(0, 30), mr.size.x)
+		if round_no > 1 and last_armies.size() == 2 and _is_free():
+			for gu in last_armies[1].units:
+				var gw0: Vector2i = Army.pos_of(gu)
+				_unit(ORIGIN + Vector2(gw0) * CS / 1000.0, int(gu["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.28, 0.0, 1.0)
+		return
 	# 1.3.0 §0.4 敵陣遮罩＝竹簾（取代 1.2.0 木屏風）：橫向竹片（每片上亮下暗、竹節錯開）、三條直向編繩、上緣捲起的簾頭與黃銅掛鉤；
 	# 簾上的資訊（問號旗、預算木牌、AI 性格、每日計分、上一局殘影）全部照舊；壓暗讓字清楚
 	if not bool(Save.s("plain_ui")):
@@ -718,7 +728,9 @@ func _draw_place_hud() -> void:
 				_text(r.position + Vector2(5, r.size.y - fz - 8), cnt, fz, Color(1, 1, 1, 0.85) if cap_ok else Color("#f87171"), false, true, r.size.x - 40)
 		else:
 			_lock_icon(r.position + Vector2(r.size.x - 14, 14))
-		_btn_quiet(_card_help_rect(i), "?", _open_codex.bind(i))   # 第七輪 N6：點擊框不變，外觀只留一個小問號，不切到角色
+		btn_group = "cards"   # 1.5.0 R14：兵卡牌尺＝一個選擇器（卡上的 ? 同一組）
+		_btn_quiet(_card_help_rect(i), "?", _open_codex.bind(i))
+		btn_group = ""   # 第七輪 N6：點擊框不變，外觀只留一個小問號，不切到角色
 	var start_label := L.t("start")
 	var start_en := _ready_to_fight()
 	if _cp_on() and not cp.done():
@@ -752,6 +764,12 @@ func _draw_place_hud() -> void:
 		draw_rect(br, Color(0.45, 0.12, 0.12, 0.92))
 		draw_rect(br, Color("#ff8a8a"), false, 2.0)
 		_text(Vector2(640, br.position.y + tz("B") * 0.35), removed_banner, tz("B"), Color.WHITE, true, true)
+	foe_tag_r = Rect2()
+	foe_card_r = Rect2()
+	if foe_zone_r.size.x > 0.0 and mode == Mode.VS_AI:
+		_draw_foe_tag(foe_zone_r)   # 1.5.0 §1.4 敵情翻牌（畫在卡列之後，展開的紙卡在最上層）
+	foe_zone_r = Rect2()
+	screen_register("place", "start", "自由部署「工具」抽屜展開中：貼齊、密集兩個開關暫時多出來（收合時在上限內）" if (_is_free() and fp_more) else "")   # 1.5.0 §1.1：主動作＝開戰
 	if _cp_on():
 		_boss_note("coop")   # 1.2.0 §12.2
 	elif mode == Mode.DUEL and bool(get("swap_on")):
@@ -858,6 +876,9 @@ func _draw_place_help() -> void:
 			lines.append(L.t("place_hint_tools_fp_pad" if _is_free() else "place_hint_tools_pad", [rt, _pk("pause"), _pk("prev")]))
 		else:
 			lines.append(L.t("place_hint_tools_fp") if _is_free() else L.t("place_hint_tools", [Keymap.key_name(kt, "flip")]))   # 1.2.0 §11.1
+	if mode == Mode.VS_AI and pad_mode:
+		var rt2: String = {"ps": "R2", "nintendo": "ZR"}.get(Keymap.pad_family(Input.get_joy_name(last_joy)), "RT")
+		lines.append(L.t("place_hint_foe_pad", [rt2, _pk("codex")]))   # 1.5.0 §1.4
 	var body := "\n".join(lines)
 	var w := 520.0
 	var h := text_h(body, tz("S"), w - 28) + 24
@@ -874,6 +895,9 @@ func _deploy_tools_ok() -> bool:
 	return _can_edit_existing() and not _cp_on() and mode != Mode.TUTORIAL and mode != Mode.PUZZLE and not (mode == Mode.GAUNTLET and gauntlet_stage > 1) and not (mode == Mode.VS_AI and bool(get("wv_active")))
 
 func _deploy_tool(id: String) -> bool:
+	if id == "foe":
+		foe_tag_open = not foe_tag_open   # 1.5.0 §1.4：按住 RT＋View＝開合敵情翻牌（不受部署工具限制）
+		return true
 	if not _deploy_tools_ok():
 		return false
 	call("_mb_release_cleanup")   # 拖曳／框選／塗兵進行中用工具：先取消那個操作（不然放開時用舊起點再位移；Codex cat11 #4）
@@ -1141,3 +1165,163 @@ func _pin_note(r: Rect2) -> void:
 	draw_circle(pc + Vector2(1.5, 2), 4.5, Color(DIM_INK, 0.6), true, -1.0, true)
 	draw_circle(pc, 4.5, PAL.TRINKET_BRASS, true, -1.0, true)
 	draw_circle(pc - Vector2(1.3, 1.3), 1.5, Color(1, 0.95, 0.75, 0.9), true, -1.0, true)
+
+
+## 1.5.0 §1.4 對 AI：敵方部署區＝粉筆虛線框＋淡淡一層、地上一面紅旗印（草地照常看得到；雙人對戰照舊竹簾）。
+func _chalk_zone(mr: Rect2) -> void:
+	draw_rect(mr, Color(0.96, 0.93, 0.84, 0.07))
+	var ink := Color(0.96, 0.93, 0.84, 0.62)
+	# 粉筆斜線（稀疏短劃，像在地上畫的「不能擺」記號；Hydrogen v150 cat04 #1）
+	var hx := Color(0.96, 0.93, 0.84, 0.16)
+	var row := 0
+	var yy := mr.position.y + 24.0
+	while yy < mr.end.y - 12.0:
+		var xx := mr.position.x + (24.0 if row % 2 == 0 else 48.0)
+		while xx < mr.end.x - 16.0:
+			draw_line(Vector2(xx, yy + 7.0), Vector2(xx + 12.0, yy - 7.0), hx, 2.0, true)
+			xx += 48.0
+		yy += 36.0
+		row += 1
+	var r := mr.grow(-6.0)
+	var pts := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]
+	for k in 4:
+		var a: Vector2 = pts[k]
+		var b: Vector2 = pts[k + 1]
+		var ln := a.distance_to(b)
+		var dir := (b - a) / maxf(1.0, ln)
+		var s := 0.0
+		var i := 0
+		while s < ln:
+			var e := minf(ln, s + 14.0)
+			var wob := Vector2(-dir.y, dir.x) * (0.8 if i % 3 == 0 else -0.5)   # 粉筆線手畫的抖
+			draw_line(a + dir * s + wob, a + dir * e - wob, ink, 3.0, true)
+			s += 22.0
+			i += 1
+
+
+## 地上的紅旗印：插在敵區中央的小旗（不發光、不晃），旗下一句「對方的地盤」
+func _ground_flag(c: Vector2, zw: float) -> void:
+	var sh := PackedVector2Array()
+	for k in 16:
+		var t := TAU * k / 16.0
+		sh.append(c + Vector2(cos(t) * 26.0, sin(t) * 9.0))
+	draw_colored_polygon(sh, Color(DIM_INK, 0.22))
+	draw_line(c, c + Vector2(0, -60), Color(0.85, 0.78, 0.7), 3.0, true)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -60), c + Vector2(38, -48), c + Vector2(0, -34)]), Color(0.82, 0.2, 0.2))
+	var lw := clampf(zw - 24.0, 200.0, 420.0)   # 跟敵區一樣寬，副標不硬折（Hydrogen v150 cat04 r2 #2）
+	_text(c + Vector2(0, 12), L.t("foe_zone"), ts(15), Color(0.98, 0.95, 0.86, 0.85), true, true, lw)
+	_text(c + Vector2(0, 12 + text_h(L.t("foe_zone"), ts(15), lw, true) + 2.0), L.t("foe_zone2"), ts(14), Color(0.98, 0.95, 0.86, 0.7), true, false, lw)
+
+
+const PersonaFT = preload("res://scripts/game/persona.gd")
+## 倒掛胡桃木翻牌（螢幕座標，畫在 HUD）：收合＝頭像＋「性格・預算」一行；點開＝敵情紙卡（預算木牌、陣型開戰揭曉、難度性格、老闆的話、每日突變）。
+
+func _foe_tag_name() -> String:
+	if mode == Mode.GAUNTLET and int(get("gauntlet_nemesis")) >= 0:
+		return ai_name
+	if bool(get("ghost_id") != "") or bool(get("wk_active")) or bool(get("rift_on")):
+		return ai_name if ai_name != "" else L.t("red")
+	return L.t("ps_name_%d" % int(call("_ai_style")))
+
+func _foe_tag_has_persona() -> bool:
+	return not (bool(get("ghost_id") != "") or bool(get("wk_active")) or bool(get("rift_on")))
+
+func _draw_foe_tag(zone: Rect2) -> void:
+	var eb: int = rules.budget_of(1) if rules != null else 100
+	var sep := "・" if (L.lang.begins_with("zh") or L.lang == "ja") else " · "
+	var line := _foe_tag_name() + sep + L.t("gold", [eb])
+	var fz := tz("C")
+	var arrow := "▲" if foe_tag_open else "▼"
+	var aw := _width(arrow, fz, true)
+	var line2 := ""
+	var tw := 50.0 + _width(line, fz, true) + 12.0 + aw + 22.0
+	var avail := zone.size.x - 16.0
+	if tw > avail:
+		# 敵區太窄（小地圖、英文大字）：名字一行、預算一行（Hydrogen v150 cat04 #3）；名字還是太長才只留預算
+		line = _foe_tag_name()
+		line2 = L.t("gold", [eb])
+		tw = 50.0 + maxf(_width(line, fz, true), _width(line2, fz, true)) + 12.0 + aw + 22.0
+		if tw > avail:
+			line = line2
+			line2 = ""
+			tw = 50.0 + _width(line, fz, true) + 12.0 + aw + 22.0
+	var th := maxf(48.0, fz * (3.4 if line2 != "" else 2.2))
+	var tr := Rect2(zone.end.x - tw - 10.0, zone.position.y + 14.0, tw, th)
+	# 兩條吊繩掛在棋盤上緣
+	for fx0 in [0.22, 0.78]:
+		var hx: float = tr.position.x + tr.size.x * fx0
+		draw_line(Vector2(hx, zone.position.y - 4.0), Vector2(hx, tr.position.y + 4.0), PAL.TRINKET_LEATHER.darkened(0.3), 2.0, true)
+	foe_tag_r = tr
+	var idx := _btns.size()
+	_btn(tr, "", func(): foe_tag_open = not foe_tag_open)   # 走一般按鈕契約（停用狀態、點擊範圍、音效、探針；Codex v150 cat04 #5），外觀再蓋胡桃木
+	var en: bool = _btns[idx]["en"]
+	draw_rect(Rect2(tr.position + Vector2(3, 4), tr.size), Color(DIM_INK, 0.45))
+	_mat_box(tr, "walnut", Color(1.0, 0.86, 0.66) if en else Color(0.6, 0.55, 0.5))
+	draw_rect(Rect2(tr.position, Vector2(tr.size.x, 2)), Color(1, 0.9, 0.7, 0.35))
+	if en and ((tr.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)):
+		draw_rect(tr, ACCENT, false, 2.0)
+	var ac := tr.position + Vector2(26, th * 0.5)
+	if _foe_tag_has_persona():
+		Art.unit(self, ac + Vector2(0, 18), PersonaFT.face(int(call("_ai_style"))), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.5, cbm())
+	else:
+		draw_circle(ac, 12.0, Art.team_color(1, cbm()), true, -1.0, true)
+	var ly := tr.position.y + (th - fz * (2.5 if line2 != "" else 1.3)) * 0.5
+	_text(Vector2(tr.position.x + 50, ly), line, fz, Color.WHITE, false, true, tw - 50.0 - aw - 22.0)
+	if line2 != "":
+		_text(Vector2(tr.position.x + 50, ly + fz * 1.2), line2, fz, ACCENT, false, true, tw - 50.0 - aw - 22.0)
+	_text(Vector2(tr.end.x - 14.0 - aw * 0.5, tr.position.y + (th - fz * 1.3) * 0.5), arrow, fz, TXT_DIM, true, true)
+	if not foe_tag_open:
+		return
+	# 敵情紙卡：吊在翻牌下面，寬＝敵區寬減邊
+	var cw := minf(zone.size.x - 24.0, 420.0)
+	var cx := zone.end.x - cw - 12.0
+	var y := tr.end.y + 10.0
+	var lines: Array = []   # [文字, 字級, 色, 粗]
+	var ec: int = rules.unit_cap if rules != null else 24
+	var sg := L.t("fog_sign", [eb, ec])
+	if mode == Mode.GAUNTLET and int(get("gauntlet_nemesis")) >= 0:
+		sg = L.t("nem_sign", [ai_name])
+	lines.append([sg, tz("C"), Color(0.32, 0.2, 0.1), true])
+	lines.append([L.t("ai_hidden").replace("\n", "" if (L.lang.begins_with("zh") or L.lang == "ja") else " "), tz("B"), Color(0.2, 0.13, 0.08), true])
+	var dsp = get("daily_spec")
+	var daily: bool = dsp is Dictionary and not (dsp as Dictionary).is_empty()
+	if daily:
+		lines.append([str(call("_daily_desc", dsp, rules)), tz("C"), Color(0.35, 0.22, 0.12), false])
+		lines.append([L.t("daily_score"), tz("C"), Color(0.35, 0.22, 0.12), false])
+		var b0: Array = Save.data.get("daily_best", {}).get(str(dsp["key"]), [])
+		if not b0.is_empty():
+			lines.append([L.t("daily_best", [int(b0[0]), int(b0[1])]), tz("C"), Color(0.35, 0.22, 0.12), false])
+	else:
+		lines.append([L.t("ai_trait_%d" % difficulty), tz("C"), Color(0.35, 0.22, 0.12), false])
+	var tw2 := cw - 32.0
+	var h := 16.0
+	for ln in lines:
+		h += text_h(ln[0], ln[1], tw2, ln[3]) + 8.0
+	var pers: bool = not daily and _foe_tag_has_persona()
+	var st: int = int(call("_ai_style"))
+	var q := ""
+	if pers:
+		q = ("「" + L.t(PersonaFT.line_key(st, "open")) + "」") if (L.lang.begins_with("zh") or L.lang == "ja") else ("\"" + L.t(PersonaFT.line_key(st, "open")) + "\"")
+		h += 70.0 + ts(16) * 1.4 + text_h(q, tz("C"), tw2) + 10.0
+	var fav := ""
+	if pers and difficulty == 1:
+		fav = L.t("ps_fav", [ai_tpl_name(str(AI.TEMPLATES[PersonaFT.fav(st)]["name"]))])   # 「最近愛用」也搬過來（Codex v150 cat04 #2）
+		h += text_h(fav, tz("C"), tw2) + 6.0
+	var cr := Rect2(cx, y, cw, h)
+	foe_card_r = cr
+	draw_rect(Rect2(cr.position + Vector2(3, 5), cr.size), Color(DIM_INK, 0.4))
+	if bool(Save.s("plain_ui")) or not _tex_box(cr, "paper"):
+		draw_rect(cr, Color(0.93, 0.88, 0.76))
+	var ty := y + 14.0
+	for ln in lines:
+		_text(Vector2(cr.position.x + cw * 0.5, ty), ln[0], ln[1], ln[2], true, ln[3], tw2)
+		ty += text_h(ln[0], ln[1], tw2, ln[3]) + 8.0
+	if pers:
+		Art.unit(self, Vector2(cr.position.x + cw * 0.5, ty + 62.0), PersonaFT.face(st), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.9, cbm())
+		ty += 70.0
+		_text(Vector2(cr.position.x + cw * 0.5, ty), L.t("ps_name_%d" % st), ts(16), Color(0.2, 0.13, 0.08), true, true, tw2)
+		ty += ts(16) * 1.4
+		_text(Vector2(cr.position.x + cw * 0.5, ty), q, tz("C"), Color(0.35, 0.22, 0.12), true, false, tw2)
+		if fav != "":
+			ty += text_h(q, tz("C"), tw2) + 6.0
+			_text(Vector2(cr.position.x + cw * 0.5, ty), fav, tz("C"), Color(0.25, 0.3, 0.45), true, false, tw2)

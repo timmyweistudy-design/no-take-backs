@@ -1485,7 +1485,7 @@ func _btn_small(r: Rect2, label: String, action: Callable, enabled := true, prim
 ## 安靜的小按鈕（第七輪 N6）：點擊框維持可點的大小，平常只畫一個小記號，滑過才亮。
 func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
 	var idx := _btns.size()
-	_btns.append({"r": r, "cb": action, "en": true})
+	_btns.append({"r": r, "cb": action, "en": true, "group": btn_group})
 	var hot := (r.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)
 	var sz := ts(14)
 	var rad := maxf(9.0, maxf(sz * 0.62, label_ink(label, sz, true).size.y * 0.5 + 4.5))   # 1.3.0 R11：圓跟著字級長大；1.4.0 R12：墨跡上下各留 ≥4px

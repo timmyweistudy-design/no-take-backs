@@ -665,6 +665,9 @@ func _run_screenshots() -> void:
 	selected = D.ARCHER
 	mouse = ORIGIN + Vector2(2.5, 6.5) * CS
 	await _snap("02_place.png")
+	foe_tag_open = true   # 1.5.0 §1.4：敵情翻牌展開
+	await _snap("v150_02b_place_foe.png")
+	foe_tag_open = false
 	# 找一個會出現「最後時刻」的對手，截圖才拍得到
 	var red_pick = null
 	for k in 120:
@@ -835,6 +838,14 @@ func _run_screenshots() -> void:
 	selected = D.SHIELD
 	mouse = ORIGIN + Vector2(4.5, 1.5) * CS
 	await _snap("07_duel.png")
+	duel_rule = "blind"   # 1.5.0 §1.4：盲擺雙人照舊竹簾（紅方擺時藍方被遮）
+	_start_mode(Mode.DUEL)
+	for s7 in [[D.SHIELD, 4, 4], [D.SWORD, 4, 3], [D.ARCHER, 2, 4]]:
+		armies[0].place(s7[0], s7[1], s7[2])
+	blind_phase = 1
+	selected = D.SWORD
+	mouse = ORIGIN + Vector2(12.5, 4.5) * CS
+	await _snap("v150_07c_duel_blind.png")
 	_go_title()
 	overlay = "settings"
 	await _snap("08_settings.png")
@@ -1349,6 +1360,9 @@ func _shots_v6() -> void:
 	mouse = ORIGIN + Vector2(2.0, 3.6) * CS
 	toast_t = 0.0
 	await _snap("27_free_place.png")
+	fp_more = true   # 1.5.0 §1.4：「工具 ▾」展開
+	await _snap("v150_27b_free_tools.png")
+	fp_more = false
 	# 畫筆預覽：從左上往下拖一條
 	selected = D.SWORD
 	_fs_begin(_w_of(ORIGIN + Vector2(1.2, 1.0) * CS))

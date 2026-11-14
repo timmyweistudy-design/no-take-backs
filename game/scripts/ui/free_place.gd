@@ -11,6 +11,11 @@ const TOUCH_LIFT := 40.0
 var fp_tool := "brush"         # brush／line／select
 var fp_snap := false           # 工具列的「對齊」常駐開關（按住 G＝暫時）
 var fp_dense := true           # 畫筆間距：true＝最小間距、false＝1.0 格
+var fp_more := false          # 1.5.0 §1.4：工具列「工具 ▾」展開（貼齊、密集收在裡面）
+var foe_tag_open := false     # 1.5.0 §1.4：對 AI 擺陣的敵情翻牌
+var foe_tag_r := Rect2()       # 翻牌、展開的紙卡（螢幕座標）：點在上面不往下傳（Codex v150 cat04 #4）
+var foe_card_r := Rect2()
+var foe_zone_r := Rect2()      # 這一幀敵方部署區（未縮放座標；HUD 用來掛翻牌）
 var fp_stroke: Array = []      # 預覽中的點 [type, x, y]
 var fp_stroking := false
 var fp_line := false           # 這一筆是直線
@@ -839,43 +844,53 @@ func _fp_reticle(p: Vector2) -> void:
 ## 工具列：戰場左邊的直排工具列（Antigravity 第二輪：右下放不下）。點＝切換常駐；按住 Shift／Ctrl／G＝暫時。
 func _fp_toolbar() -> void:
 	draw_set_transform_matrix(Transform2D.IDENTITY)   # V9：工具列不跟著地圖縮放
-	_box(Rect2(4, 92, 120, 420), Color(TH_WOOD_D, 0.82), TH_EDGE.darkened(0.3), 8.0, 1.5)
+	# 1.5.0 §1.4：常駐只留「畫筆／直線／框選」三選一（一組控制）＋復原＋「工具 ▾」；貼齊、密集收進工具裡
 	var items: Array = [["brush", L.t("fp_t_brush")], ["line", L.t("fp_t_line")]]
 	if not _fp_duel_turns():
 		items.append(["select", L.t("fp_t_select")])
-	items.append(["snap", L.t("fp_t_snap")])
-	items.append(["dense", L.t("fp_t_dense") if fp_dense else L.t("fp_t_loose")])
-	if not _fp_duel_turns():
 		items.append(["undo", L.t("fp_t_undo")])
+	items.append(["more", L.t("fp_t_more") + (" ▲" if fp_more else " ▼")])
+	if fp_more:
+		items.append(["snap", L.t("fp_t_snap")])
+		items.append(["dense", L.t("fp_t_dense") if fp_dense else L.t("fp_t_loose")])
 	# 直排在戰場左邊的空白（第六輪截圖：放在戰場裡會擋到全場模式的敵兵）
 	var w := ORIGIN.x - 16
 	var x := 8.0
 	var y := ORIGIN.y + 48   # 讓開上方說明條（150% 時會換成兩行）
-	# 第七輪 N7：三種性質分組，長得不一樣：模式（三選一，亮底）／開關（右邊有燈）／單次動作（暗底）
+	# 第七輪 N7：三種性質分組，長得不一樣：模式（三選一，亮底）／單次動作（暗底）／開關（右邊有燈，收在「工具」裡）
+	var gid := func(id: String) -> int:
+		return 0 if id in ["brush", "line", "select"] else (1 if id in ["snap", "dense"] else 2)
 	var extra := 0
 	var prev_g := -1
 	for it in items:
-		var g0: int = 0 if it[0] in ["brush", "line", "select"] else (1 if it[0] in ["snap", "dense"] else 2)
-		if prev_g >= 0 and g0 != prev_g:
+		var g0: int = gid.call(it[0])
+		if prev_g >= 0 and g0 != prev_g and not (it[0] == "more" or prev_g == 1):
 			extra += 10
 		prev_g = g0
-	draw_rect(Rect2(x - 4, y - 4, w + 8, items.size() * 46 + 4 + extra), Color(0.06, 0.07, 0.1, 0.8))
+	_box(Rect2(4, y - 8, w + 8, items.size() * 46 + 8 + extra), Color(TH_WOOD_D, 0.82), TH_EDGE.darkened(0.3), 8.0, 1.5)
 	prev_g = -1
 	for k in items.size():
 		var id: String = items[k][0]
-		var g: int = 0 if id in ["brush", "line", "select"] else (1 if id in ["snap", "dense"] else 2)
-		if prev_g >= 0 and g != prev_g:
+		var g: int = gid.call(id)
+		if prev_g >= 0 and g != prev_g and not (id == "more" or prev_g == 1):
 			draw_line(Vector2(x, y + 2), Vector2(x + w, y + 2), Color(1, 1, 1, 0.25), 1.0)
 			y += 10
 		prev_g = g
-		var on: bool = (id == fp_tool) or (id == "snap" and fp_snap) or (id == "dense" and fp_dense)
+		var on: bool = (id == fp_tool) or (id == "snap" and fp_snap) or (id == "dense" and fp_dense) or (id == "more" and fp_more)
 		var cb := func(): _fp_tool_click(id)
 		var tint := TH_ACTIVE if (g == 0 and on) else (Color(0.1, 0.11, 0.15, 0.95) if g == 2 else Color(0.14, 0.15, 0.2, 0.9))
-		_btn(Rect2(x, y, w, 40), items[k][1], cb, true, false, tint)
+		btn_group = "fp_tool" if g == 0 else ""   # 1.5.0 R14：三選一＝一個控制
+		_btn(Rect2(x + (10.0 if g == 1 else 0.0), y, w - (10.0 if g == 1 else 0.0), 40), items[k][1], cb, true, false, tint)
+		btn_group = ""
 		if g == 0 and on:
 			draw_rect(Rect2(x, y, 4, 40), ACCENT)
 		elif g == 1:
 			draw_circle(Vector2(x + w - 7, y + 7), 3.5, ACCENT if on else Color(1, 1, 1, 0.25), true, -1.0, true)
+		elif id == "more" and not fp_more:
+			# 收合時「工具」左緣兩顆小燈（上＝貼齊、下＝密集）＝貼齊、密集目前開著沒（Hydrogen v150 cat04 #5）
+			for li in 2:
+				var lon: bool = fp_snap if li == 0 else fp_dense
+				draw_circle(Vector2(x + 6, y + 13 + li * 14), 3.0, ACCENT if lon else Color(1, 1, 1, 0.25), true, -1.0, true)
 		y += 46
 	draw_set_transform_matrix(_cam)
 
@@ -889,6 +904,8 @@ func _fp_tool_click(id: String) -> void:
 			fp_dense = not fp_dense
 		"undo":
 			_fp_undo_do(false)
+		"more":
+			fp_more = not fp_more
 
 ## 開始擺放時重設自由模式的狀態。
 func _fp_reset() -> void:
