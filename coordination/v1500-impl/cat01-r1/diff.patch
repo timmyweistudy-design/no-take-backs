@@ -1,0 +1,474 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 97b32c3..d671ed1 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -7,6 +7,7 @@ Godot 4.6.2 確定性自動對決。**下一版 1.5.0「一頁一景」只有方
+ - 驗收：`tools/check_all.sh`（全部重跑）。只取最後一行結論，細節在 `build/tmp/check/summary.json`。
+ - 版面：`tools/layout_check.sh <exe> <新資料夾>`（24 組：繁中、英文、簡中、日文 × 三字級＋簡化／色盲／手把／停用（150%，1.1.0 起 100／125% 也各有一組）＋日文狀態組；也查 R1～R10 排版規則）；`LAYOUT_QUICK=1` 跑 5 組；`LAYOUT_COMBOS="ja:150 …"` 只重跑指定組。會檢查文字對比（截圖取樣）、九宮格內距、缺圖，也走一次手把流程（`PADWALK`）。
+ - 1.2.0 驗收工具：`tools/audit_selection.sh <out>`（同 commit 有快取 vs 無快取逐步比對）；`tools/perf_ab.sh <A> <B> <輪數> <out>`（ABBA 交錯效能，輸出絕對路徑）；`PYTHONPATH=../build/pylibnp python3 tools/visual_diff.py <舊> <新> <out>`（像素差＋SSIM 接觸表；截圖模式固定幀時間與亂數，同一份程式重拍應該一致）；版面 `LAYOUT_JOBS=2`（預設）平行、`LAYOUT_SHOTS=a.png,b.png` 只拍指定畫面（開發用，驗收要全量）；新截圖要登記 `tools/screens.json`。完整檢查會核對測試 ID 聯集；重算作者解的測試有模擬快取（`tests/sim_cache.gd`，`--no-cache` 停用）。
++- 1.5.0 驗收契約：**美感指標（棋子輪廓對比）只在固定時鐘比**——`LAYOUT_FIXED=1 tools/layout_check.sh …` 會自動拿 `docs/ui-art-baseline.json`（1.3.0 基線）逐畫面×組比，比基線差＝失敗；新畫面用 `python3 tools/art_baseline.py merge <輸出夾> ../docs/ui-art-baseline.json` 補進基線。一般版面檢查是真實時間、美感數字有雜訊，不拿來比。背景長工作用 `tools/run_chain.sh <名稱> '<步驟1>' '<步驟2>'`（綁 run ID、程序群；`--stop <名稱>` 整條停、含 Windows Godot；`--status`）。任何「吃輸入」的功能都要接 `test_input_matrix_v150` 的 100 組範本（從真實 `_input` 進入）。
+ - 試玩版流程用 `g.force_demo = true` 測，背景計算用 `g.force_async = true`，不必匯出。
+ - 匯出：`tools/export_check.sh <空資料夾>`。圖集：`tools/atlas_check.gd`（不能 headless）。
+ - 殘局量產（`tools/gen/*.py` 在專案根目錄、`.gd` 在 game/ 下）：草稿 `tools/gen/puzzle_drafts.py` → `tools/balance/puzzle_forge.gd`（爬山求解、訂星）→ `tools/gen/puzzle_tune.py`（自動調預算）→ `tools/gen/puzzle_merge.py`（併進 `data/puzzles.json`）。試煉：`tools/gen/trial_specs.py` → `tools/balance/trial_forge.gd` → `tools/gen/trial_merge.py`（寫 `data/trials.json`）。量產在 `build/cg/game` 快照跑。
+diff --git a/docs/ui-layout-rules.md b/docs/ui-layout-rules.md
+index 267e773..7061366 100644
+--- a/docs/ui-layout-rules.md
++++ b/docs/ui-layout-rules.md
+@@ -48,3 +48,9 @@
+ - PADWALK（手把流程）只證明焦點走得到，**不算**排版通過。
+ - 所以收尾一定要：拼接觸表（`python3 tools/layout_sheet.py <輸出夾> <圖> --shots … --combos …`，會畫 x=640 紅線與 y=400 藍線），用「找錯」的眼光看；回報寫清楚檢查器管什麼、不管什麼，不能用「0 違規」代表排版正確。
+ - 違規全表：`python3 tools/layout_table.py <輸出夾> --md <檔>`。收尾驗收跑 `LAYOUT_STRICT_WARN=1`：未豁免的排版警告也算失敗。
++
++
++## 1.5.0：美感指標只在固定時鐘比
++- 一般版面檢查用真實幀時間，戰鬥截圖拍到的 tick 每次不同，「棋子輪廓對比 < 3:1」的數字會浮動 ±20%，**不能拿來比版本**。
++- 比較一律用 `LAYOUT_FIXED=1`（固定幀時間＋固定亂數，重拍逐像素一致）；`docs/ui-art-baseline.json` 是 1.3.0（b13c359）在固定時鐘下的逐畫面×組基線，`layout_check.sh` 在固定模式自動比，任一畫面×組的低對比棋子數比基線多＝失敗。
++- 地面痕跡（茶漬、焦痕，`GROUND_FX`）畫在兵之下：蓋在兵上會把旁邊的兵壓暗（1.4.0 → 1.5.0 用這把尺抓到的退步）。
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index d3da598..4a50732 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -679,7 +679,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				pts0.append(Vector2(cos(ang), sin(ang) * 0.5) * rr0 * wob)
+ 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2.ONE, 0, f["p"]))
+ 			draw_colored_polygon(pts0, Color(sc0, 0.11 * (1.0 - dry)))   # 1.4.0：茶漬不再被淘汰、常留在兵腳下 → 底色減半（範圍看邊線），不把棋子周圍壓暗（收尾量測：輪廓對比警告 5.9%→10%）
+-			draw_polyline(pts0 + PackedVector2Array([pts0[0]]), Color(sc0, 0.35 * (1.0 - dry)), 1.5, true)
++			draw_polyline(pts0 + PackedVector2Array([pts0[0]]), Color(sc0, 0.35 * (1.0 - dry)), 1.5, true)   # 1.5.0：茶漬改畫在兵之下（GROUND_FX），濃度照 1.4.0
+ 			draw_set_transform_matrix(_cam)
+ 		"tag":
+ 			# 1.3.0 §7.1 狀態竹籤：0～0.3 從底座彈到頭頂並自轉半圈（橫向縮放＝翻面，翻到背面是空白竹皮）、0.3～0.6 停、0.6～1 往盤外掉落淡出
+diff --git a/game/scripts/ui/battle/battle_state.gd b/game/scripts/ui/battle/battle_state.gd
+index e88a9e3..ffb60ca 100644
+--- a/game/scripts/ui/battle/battle_state.gd
++++ b/game/scripts/ui/battle/battle_state.gd
+@@ -47,6 +47,8 @@ const FX_CLASS := {"boom": "high", "axearc": "high", "cmdseal": "high", "windtra
+ 	"scorch": "scar"}
+ ## 範圍提示（茶漬＝技能範圍）不吃噪音預算、也不被全域上限淘汰；本身在 _stain 裡自己限量（Codex cat05 #1）
+ const FX_CAP_EXEMPT := ["text", "stain"]
++## 1.5.0：地面痕跡＝畫在兵之下的特效（戰鬥畫面）
++const GROUND_FX := ["stain", "scorch"]
+ const FX_CLASS_CAP := {"high": 6, "low": 24, "scar": 12}
+ const FX_TEXT_CAP := 12   # V1.3：戰場跳字上限（_fx_text 直接加的那一路；TEXT_CAP 是合併跳字那一路）
+ var fx_dropped := 0
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 61a19d3..f1eea6e 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -794,6 +794,9 @@ func _draw_inner() -> void:
+ 		if state == St.BATTLE and _frags_on():
+ 			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
+ 		if state == St.BATTLE:
++			for f0 in fx:   # 1.5.0：地面痕跡（茶漬、焦痕）滲在木盤上＝畫在兵之下（蓋在兵上時，固定時鐘量到 Boss 戰旁邊的兵被壓暗）
++				if f0["kind"] in GROUND_FX:
++					_draw_fx(f0)
+ 			_draw_contact_ao(view)   # 1.4.0 §3.2 接觸陰影
+ 		_draw_units_of(view, false)
+ 		if state == St.BATTLE:
+@@ -803,7 +806,7 @@ func _draw_inner() -> void:
+ 	perf_parts["units"] = Time.get_ticks_usec() - _t
+ 	_t = Time.get_ticks_usec()
+ 	for f in fx:   # 先畫特效，跳字最後畫（Antigravity S2 #1：特效不能蓋住跳字）
+-		if not f.get("screen", false) and f["kind"] != "text":
++		if not f.get("screen", false) and f["kind"] != "text" and not (state == St.BATTLE and f["kind"] in GROUND_FX):
+ 			_draw_fx(f)
+ 	for f in fx:
+ 		if not f.get("screen", false) and f["kind"] == "text":
+@@ -1136,9 +1139,18 @@ static func trans_sig(ev: InputEvent) -> String:
+ 
+ ## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
+ ## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
++var _held := {}             # 目前按住的輸入身分（轉場開始時一併列入要吃掉的清單：開頁前按下、轉場後放開不能變成新頁上的點擊；1.5.0 輸入矩陣）
++var _trans_skip_t := -1.0   # 跳過轉場的那一幀：同一幀的其他按下也吃掉（兩個輸入同時按）
++
+ func _trans_gate(ev: InputEvent) -> bool:
++	var sig0 := trans_sig(ev)
++	if sig0 != "":
++		if ev.pressed:
++			_held[sig0] = true
++		else:
++			_held.erase(sig0)
+ 	var active := ov_trans_k() < 1.0
+-	if not active and trans_eat.is_empty():
++	if not active and trans_eat.is_empty() and time != _trans_skip_t:
+ 		return false
+ 	if ev is InputEventMouseMotion:
+ 		mouse = ev.position
+@@ -1148,6 +1160,7 @@ func _trans_gate(ev: InputEvent) -> bool:
+ 			stick[ev.axis] = ev.axis_value   # 狀態照記
+ 			if active and absf(ev.axis_value) >= int(Save.s("deadzone")) / 100.0:
+ 				_ov_t = time - 1.0       # 推搖桿本身也是跳過（Codex cat08 r5 #1）
++				_trans_skip_t = time
+ 				trans_stick_eat = true   # 轉場中收到有效軸輸入當下就鎖（不靠逐幀時轉場還在；同幀再按鍵跳過也鎖著，Codex cat08 r4 #1）
+ 		return active
+ 	var sig := trans_sig(ev)
+@@ -1157,8 +1170,10 @@ func _trans_gate(ev: InputEvent) -> bool:
+ 		touches.erase(ev.index)   # 吃掉放開也要清手指狀態（不留幽靈手指、長按計時；Codex cat08 r2 #3）
+ 		lp_t = -1.0
+ 	if ev.pressed:
+-		if active:
+-			_ov_t = time - 1.0
++		if active or time == _trans_skip_t:
++			if active:
++				_ov_t = time - 1.0
++				_trans_skip_t = time
+ 			trans_eat[sig] = true
+ 			return true
+ 		return trans_eat.has(sig)   # 同一顆鍵按住的連發（echo）也吃
+@@ -1172,6 +1187,8 @@ func _trans_begin() -> void:
+ 	if ov_trans_k() >= 1.0:
+ 		return
+ 	lp_t = -1.0
++	for k in _held:
++		trans_eat[k] = true   # 開頁前就按住的：放開要吃掉（不在新頁上點）
+ 	var dz := int(Save.s("deadzone")) / 100.0
+ 	if absf(float(stick.get(JOY_AXIS_LEFT_X, 0.0))) >= dz or absf(float(stick.get(JOY_AXIS_LEFT_Y, 0.0))) >= dz:
+ 		trans_stick_eat = true
+diff --git a/game/scripts/ui/screens/game_v16.gd b/game/scripts/ui/screens/game_v16.gd
+index 61a2812..c474935 100644
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -78,6 +78,10 @@ static func _clip_set(txt: String) -> bool:
+ func _notification(what: int) -> void:
+ 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+ 		_quit_mark()
++	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
++		var h = get("_held")
++		if h is Dictionary:
++			(h as Dictionary).clear()   # 1.5.0：失焦時放開事件可能收不到，按住清單清掉（不留卡住的轉場鎖）
+ 
+ func _quit_mark() -> void:
+ 	Funnel.leave(screen_id())
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 8a6db20..5c80a8d 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index 450d072..af0a906 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -1898,6 +1898,7 @@ func test_transition_v140() -> void:
+ 	ok(g.trans_eat.has("m%d" % MOUSE_BUTTON_LEFT), "放開別的鍵不會解鎖（只認跳過的那一個輸入，Codex cat08 r2 #1）")
+ 	g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
+ 	ok(g.trans_eat.is_empty() and g._cmds.size() == nq_k, "跳過的那一下放開也吃掉（多久之後放開都一樣）")
++	g.time += 1.0 / 60.0   # 下一幀（1.5.0：跳過的那一幀的其他按下也吃掉）
+ 	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
+ 	ok(g._cmds.size() == nq_k + 1, "之後的點擊照常進佇列（不靠固定時間）")
+ 	g._ov_t = g.time
+@@ -1933,7 +1934,7 @@ func test_transition_v140() -> void:
+ 	tu.index = 0
+ 	tu.pressed = false
+ 	g._input(tu)
+-	ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat.is_empty(), "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）")
++	ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat.is_empty(), "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）", "%s %s %s" % [str(g.touches), str(g.lp_t), str(g.trans_eat)])
+ 	g._ov_t = g.time
+ 	g.stick[JOY_AXIS_LEFT_Y] = 0.46
+ 	var dz_keep = Save.s("deadzone")
+@@ -2142,3 +2143,171 @@ func test_title_v140() -> void:
+ 	ok(src.find("btn_no_wax = i == 0\n\t\t_btn(mr2, \"\", pq[3], on, i == 0)") >= 0 and src.find("btn_no_wax = false") >= 0, "對戰是朱漆木牌主牌（不畫火漆、畫完重設）")
+ 	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+ 	ok(v16.find("_btn(NS_RECT, \"\", _next_action(k), true, false, PAL.KRAFT)") >= 0 and v16.find("Color(0.16, 0.3, 0.42, 0.95)") < 0, "建議下一步改牛皮紙便箋（不再是深藍膠囊）")
++
++
++## 1.5.0 §12／§17：輸入身分測試範本（100 組）——來源 6 × 時機 4 × 組合 4 ＝ 96 組＋4 組 1.4.0 回歸。
++## 全部從真實 _input 進入；核對：轉場中的事件一律不進命令佇列、放開／回中之後鎖全部解開、最後一次正常點擊照常進佇列（不卡死）。
++## 之後任何「吃輸入」的功能都要接這個範本（把 open_fn 換成自己的開啟方式）。
++func _im_ev(src: String, down: bool, val := 1.0) -> InputEvent:
++	match src:
++		"mouse":
++			var e := InputEventMouseButton.new()
++			e.button_index = MOUSE_BUTTON_LEFT
++			e.pressed = down
++			e.position = Vector2(640, 400)
++			return e
++		"key":
++			var k := InputEventKey.new()
++			k.keycode = KEY_X
++			k.physical_keycode = KEY_X
++			k.pressed = down
++			return k
++		"key2":
++			var k2 := InputEventKey.new()
++			k2.keycode = KEY_B
++			k2.physical_keycode = KEY_B
++			k2.pressed = down
++			return k2
++		"joy":
++			var j := InputEventJoypadButton.new()
++			j.device = 0
++			j.button_index = JOY_BUTTON_A
++			j.pressed = down
++			return j
++		"lstick":
++			var a := InputEventJoypadMotion.new()
++			a.device = 0
++			a.axis = JOY_AXIS_LEFT_Y
++			a.axis_value = val if down else 0.0
++			return a
++		"rstick":
++			var r := InputEventJoypadMotion.new()
++			r.device = 0
++			r.axis = JOY_AXIS_RIGHT_Y
++			r.axis_value = val if down else 0.0
++			return r
++		_:
++			var t := InputEventScreenTouch.new()
++			t.index = 0
++			t.pressed = down
++			t.position = Vector2(640, 400)
++			return t
++
++func test_input_matrix_v150() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var Save = load("res://scripts/game/save.gd")
++	var keep := {}
++	for k in ["reduce_fx", "reduce_motion", "plain_ui", "deadzone"]:
++		keep[k] = Save.s(k)
++	Save.settings["reduce_fx"] = false
++	Save.settings["reduce_motion"] = false
++	Save.settings["plain_ui"] = false
++	Save.settings["deadzone"] = 20
++	var srcs := ["mouse", "key", "joy", "lstick", "rstick", "touch"]
++	var timings := ["start", "mid", "last", "after"]
++	var combos := ["single", "pair", "hold", "unplug"]
++	var bad: Array = []
++	var n := 0
++	for src in srcs:
++		for tm in timings:
++			for cb in combos:
++				n += 1
++				var g = GS.new()
++				g.shot_dir = ""
++				g.layout_probe = false
++				g.overlay = ""
++				g.time = 10.0
++				for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
++					g.stick[ax] = 0.0
++				# 「按住跨轉場」：轉場開始前就按下
++				if cb == "hold":
++					g._input(_im_ev(src, true))
++				g.overlay = "codex"
++				g._ov_t = g.time
++				g._trans_begin()
++				var during: bool = tm != "after"
++				if tm == "mid":
++					g.time += GS.SLIDE_SEC * 0.5
++				elif tm == "last":
++					g.time += GS.SLIDE_SEC - 1.0 / 60.0
++				elif tm == "after":
++					g.time += GS.SLIDE_SEC + 0.05
++				var q0: int = g._cmds.size()
++				if cb != "hold":
++					g._input(_im_ev(src, true))
++				if cb == "pair":
++					g._input(_im_ev("key2", true))
++				# 按住期間的連發／搖桿持續推：逐幀跑 0.5 秒
++				for fr in 30:
++					g.time += 1.0 / 60.0
++					if src == "key":
++						var ec: InputEventKey = _im_ev("key", true)
++						ec.echo = true
++						g._input(ec)
++					g._stick_repeat(1.0 / 60.0)
++				if cb == "unplug":
++					g._trans_joy_changed(0, false)
++				var q_mid: int = g._cmds.size()
++				if cb == "pair":
++					g._input(_im_ev("key2", false))
++				g._input(_im_ev(src, false))
++				g._stick_repeat(1.0 / 60.0)
++				var q1: int = g._cmds.size()
++				var stuck: bool = not g.trans_eat.is_empty() or g.trans_stick_eat
++				# 轉場中：佇列一筆都不能多（按住跨轉場的放開也要吃掉）；轉場後：照常（不檢查數量，只檢查不卡）
++				if during and cb != "unplug" and q1 != q0:
++					bad.append("%s/%s/%s 轉場中有 %d 筆進佇列" % [src, tm, cb, q1 - q0])
++				if during and cb == "unplug" and src != "joy" and src != "lstick" and src != "rstick" and q1 != q0:
++					bad.append("%s/%s/%s 轉場中有 %d 筆進佇列" % [src, tm, cb, q1 - q0])
++				if stuck:
++					bad.append("%s/%s/%s 放開後鎖沒解開（%s, %s）" % [src, tm, cb, str(g.trans_eat.keys()), str(g.trans_stick_eat)])
++				# 最後一次正常點擊一定要進佇列（不卡死）
++				var q2: int = g._cmds.size()
++				g._input(_im_ev("mouse", true))
++				g._input(_im_ev("mouse", false))
++				if g._cmds.size() <= q2:
++					bad.append("%s/%s/%s 之後的正常點擊被吃掉（卡死）" % [src, tm, cb])
++				if q_mid < q0:
++					bad.append("%s/%s/%s 佇列變少？" % [src, tm, cb])
++				g.free()
++	# 4 組 1.4.0 回歸（Codex cat08 抓過的）：兩輸入各跳一頁、別的鍵放開不解鎖、只推搖桿跳過、手把跳過後拔掉
++	var g2 = GS.new()
++	g2.shot_dir = ""
++	g2.time = 10.0
++	for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
++		g2.stick[ax] = 0.0
++	g2.overlay = "codex"
++	g2._ov_t = g2.time
++	g2._input(_im_ev("mouse", true))
++	g2.overlay = "settings"
++	g2._ov_t = g2.time
++	g2._input(_im_ev("key", true))
++	n += 1
++	if g2.trans_eat.size() != 2:
++		bad.append("回歸 1：兩個輸入各跳一頁沒有都記")
++	g2._input(_im_ev("key2", false))
++	n += 1
++	if g2.trans_eat.size() != 2:
++		bad.append("回歸 2：別的鍵放開解了鎖")
++	g2._input(_im_ev("mouse", false))
++	g2._input(_im_ev("key", false))
++	g2.overlay = "keys"
++	g2._ov_t = g2.time
++	g2._input(_im_ev("lstick", true, 0.9))
++	n += 1
++	if not (g2.ov_trans_k() == 1.0 and g2.trans_stick_eat):
++		bad.append("回歸 3：只推搖桿沒有跳過")
++	g2._input(_im_ev("lstick", false))
++	g2._stick_repeat(1.0 / 60.0)
++	g2.overlay = "profile"
++	g2._ov_t = g2.time
++	g2._input(_im_ev("joy", true))
++	g2._trans_joy_changed(0, false)
++	n += 1
++	if not g2.trans_eat.is_empty():
++		bad.append("回歸 4：手把拔掉身分沒清")
++	g2.free()
++	for k in keep:
++		Save.settings[k] = keep[k]
++	ok(n == 100, "輸入矩陣 100 組（%d）" % n)
++	ok(bad.is_empty(), "輸入矩陣全過：轉場中零穿透、放開零卡鎖、之後正常點擊不被吃", "\n".join(bad.slice(0, 20)))
+diff --git a/game/tools/layout_check.sh b/game/tools/layout_check.sh
+index c16274f..2e5b127 100755
+--- a/game/tools/layout_check.sh
++++ b/game/tools/layout_check.sh
+@@ -60,7 +60,7 @@ bad = [k for k, v in reg.items() if not v.get('entry') or not isinstance(v.get('
+ if bad:
+     print('LAYOUT FAIL：清冊缺入口或狀態：%s' % bad[:10]); sys.exit(1)
+ PY
+-python3 - "$OUT" "$EXPECT" "$NAMES" <<'PY'
++python3 - "$OUT" "$EXPECT" "$NAMES" <<'PY' && RC=0 || RC=$?
+ import json,sys,glob,os
+ out=sys.argv[1]; expect=int(sys.argv[2]); names=set(x for x in sys.argv[3].split(',') if x); total=0; rows=[]
+ for f in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
+@@ -115,3 +115,8 @@ if len(runs)!=want or len(rows)!=want*expect:
+     print('LAYOUT FAIL：應有 %d 組 × %d 張，實得 %d 組、%d 張（截圖沒跑完也算失敗）' % (want, expect, len(runs), len(rows))); sys.exit(1)
+ sys.exit(1 if total or (gw and os.environ.get('LAYOUT_STRICT_WARN')=='1') else 0)
+ PY
++# 1.5.0 §12：美感指標只在固定時鐘比。LAYOUT_FIXED=1 且有基線檔＝逐畫面×組不准比基線差（新畫面列出、要 merge 進基線）
++if [ -n "${LAYOUT_FIXED:-}" ] && [ -f ../docs/ui-art-baseline.json ] && [ -z "${LAYOUT_NO_ART:-}" ]; then
++  python3 tools/art_baseline.py check "$OUT" ../docs/ui-art-baseline.json || RC=1
++fi
++exit $RC
+diff --git a/game/tools/art_baseline.py b/game/tools/art_baseline.py
+new file mode 100755
+index 0000000..a48993a
+--- /dev/null
++++ b/game/tools/art_baseline.py
+@@ -0,0 +1,52 @@
++#!/usr/bin/env python3
++"""1.5.0 §12：固定時鐘美感基線（棋子輪廓對比）。
++美感指標只在 LAYOUT_FIXED=1（固定幀時間）下比；一般版面檢查是真實時間，每次跑會浮動，不能比（1.4.0 收尾教訓）。
++用法（game/ 下）：
++  python3 tools/art_baseline.py save  <版面輸出夾> <基線檔>   # 逐畫面×組記 low_units／units
++  python3 tools/art_baseline.py check <版面輸出夾> <基線檔>   # 任一畫面×組 low_units 高於基線＝失敗（exit 1）
++  python3 tools/art_baseline.py merge <版面輸出夾> <基線檔>   # 新畫面補進基線（舊畫面不覆蓋）
++"""
++import json, os, sys, glob
++
++def read(out_dir):
++    r = {}
++    for f in sorted(glob.glob(os.path.join(out_dir, '*', 'layout.jsonl'))):
++        combo = os.path.basename(os.path.dirname(f))
++        for line in open(f, encoding='utf-8'):
++            x = json.loads(line)
++            a = x.get('art') or {}
++            if int(a.get('units', 0)) <= 0:
++                continue
++            r['%s|%s' % (x['shot'], combo)] = [int(a.get('low_units', 0)), int(a['units'])]
++    return r
++
++def main():
++    if len(sys.argv) != 4 or sys.argv[1] not in ('save', 'check', 'merge'):
++        print(__doc__); sys.exit(2)
++    cmd, out_dir, base = sys.argv[1:]
++    cur = read(out_dir)
++    if cmd == 'save':
++        json.dump(cur, open(base, 'w', encoding='utf-8'), ensure_ascii=False, indent=0, sort_keys=True)
++        print('ART 基線寫入 %d 筆（%s）' % (len(cur), base)); return
++    old = json.load(open(base, encoding='utf-8')) if os.path.exists(base) else {}
++    if cmd == 'merge':
++        n = 0
++        for k, v in cur.items():
++            if k not in old:
++                old[k] = v; n += 1
++        json.dump(old, open(base, 'w', encoding='utf-8'), ensure_ascii=False, indent=0, sort_keys=True)
++        print('ART 基線補進 %d 筆新畫面' % n); return
++    worse, new, lo_c, lo_b = [], [], 0, 0
++    for k, v in sorted(cur.items()):
++        if k not in old:
++            new.append(k); continue
++        lo_c += v[0]; lo_b += old[k][0]
++        if v[0] > old[k][0]:
++            worse.append('%s：%d → %d（/%d）' % (k, old[k][0], v[0], v[1]))
++    print('ART 固定時鐘棋子低對比 %d（基線 %d）；比基線差 %d 筆、新畫面 %d 筆（沒有基線，不算）' % (lo_c, lo_b, len(worse), len(new)))
++    for w in worse[:40]:
++        print('  ' + w)
++    sys.exit(1 if worse else 0)
++
++if __name__ == '__main__':
++    main()
+diff --git a/game/tools/run_chain.sh b/game/tools/run_chain.sh
+new file mode 100755
+index 0000000..0b8a8d8
+--- /dev/null
++++ b/game/tools/run_chain.sh
+@@ -0,0 +1,42 @@
++#!/usr/bin/env bash
++# 1.5.0 §12：背景驗收鏈。整條鏈綁 run ID 與提交雜湊、跑在自己的程序群；中止時整條停（含 Windows Godot），確認退出才准開新輪。
++# 用法（game/ 下）：
++#   tools/run_chain.sh <名稱> '<步驟1>' '<步驟2>' …     # 依序跑，任一步失敗就停；日誌 ../build/tmp/chains/<名稱>/stepN.log
++#   tools/run_chain.sh --stop <名稱>                     # 停掉整條鏈
++#   tools/run_chain.sh --status <名稱>
++set -u
++D="../build/tmp/chains"
++mkdir -p "$D"
++if [ "${1:-}" = "--stop" ]; then
++  f="$D/$2.run"; [ -f "$f" ] || { echo "CHAIN 沒有 $2"; exit 0; }
++  pg=$(sed -n 's/^pgid=//p' "$f")
++  [ -n "$pg" ] && kill -TERM -- "-$pg" 2>/dev/null
++  powershell.exe -NoProfile -c "Get-Process Godot* -ErrorAction SilentlyContinue | Stop-Process -Force" >/dev/null 2>&1
++  for i in $(seq 1 20); do kill -0 -- "-$pg" 2>/dev/null || break; sleep 0.5; done
++  if kill -0 -- "-$pg" 2>/dev/null; then echo "CHAIN $2 還沒停乾淨"; exit 1; fi
++  echo "state=stopped" >> "$f"; echo "CHAIN $2 已停"; exit 0
++fi
++if [ "${1:-}" = "--status" ]; then cat "$D/$2.run" 2>/dev/null || echo "CHAIN 沒有 $2"; exit 0; fi
++name="$1"; shift
++f="$D/$name.run"
++if [ -f "$f" ] && ! grep -q '^state=' "$f"; then
++  pg=$(sed -n 's/^pgid=//p' "$f")
++  if [ -n "$pg" ] && kill -0 -- "-$pg" 2>/dev/null; then echo "CHAIN $name 還在跑（pgid $pg），先 --stop"; exit 1; fi
++fi
++mkdir -p "$D/$name"
++rid="$(date +%Y%m%d-%H%M%S)-$$"
++commit="$(git rev-parse --short HEAD 2>/dev/null)$(git diff --quiet 2>/dev/null || echo +dirty)"
++printf 'run=%s\ncommit=%s\nstarted=%s\n' "$rid" "$commit" "$(date '+%F %T')" > "$f"
++setsid bash -c '
++  f="$1"; dir="$2"; shift 2
++  echo "pgid=$(ps -o pgid= $$ | tr -d " ")" >> "$f"
++  n=0
++  for step in "$@"; do
++    n=$((n+1)); echo "step$n=$step" >> "$f"
++    bash -c "$step" > "$dir/step$n.log" 2>&1; rc=$?
++    echo "step${n}_rc=$rc" >> "$f"
++    [ $rc -ne 0 ] && { echo "state=failed@$n" >> "$f"; exit $rc; }
++  done
++  echo "state=done" >> "$f"' _ "$f" "$D/$name" "$@" &
++sleep 1
++echo "CHAIN $name 開始（run $rid、$commit）"

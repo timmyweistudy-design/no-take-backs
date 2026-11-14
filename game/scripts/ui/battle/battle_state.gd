@@ -47,6 +47,8 @@ const FX_CLASS := {"boom": "high", "axearc": "high", "cmdseal": "high", "windtra
 	"scorch": "scar"}
 ## 範圍提示（茶漬＝技能範圍）不吃噪音預算、也不被全域上限淘汰；本身在 _stain 裡自己限量（Codex cat05 #1）
 const FX_CAP_EXEMPT := ["text", "stain"]
+## 1.5.0：地面痕跡＝畫在兵之下的特效（戰鬥畫面）
+const GROUND_FX := ["stain", "scorch"]
 const FX_CLASS_CAP := {"high": 6, "low": 24, "scar": 12}
 const FX_TEXT_CAP := 12   # V1.3：戰場跳字上限（_fx_text 直接加的那一路；TEXT_CAP 是合併跳字那一路）
 var fx_dropped := 0

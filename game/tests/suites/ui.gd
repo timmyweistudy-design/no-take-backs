@@ -1898,6 +1898,7 @@ func test_transition_v140() -> void:
 	ok(g.trans_eat.has("m%d" % MOUSE_BUTTON_LEFT), "放開別的鍵不會解鎖（只認跳過的那一個輸入，Codex cat08 r2 #1）")
 	g._input(mbe.call(MOUSE_BUTTON_LEFT, false))
 	ok(g.trans_eat.is_empty() and g._cmds.size() == nq_k, "跳過的那一下放開也吃掉（多久之後放開都一樣）")
+	g.time += 1.0 / 60.0   # 下一幀（1.5.0：跳過的那一幀的其他按下也吃掉）
 	g._input(mbe.call(MOUSE_BUTTON_LEFT, true))
 	ok(g._cmds.size() == nq_k + 1, "之後的點擊照常進佇列（不靠固定時間）")
 	g._ov_t = g.time
@@ -1933,7 +1934,7 @@ func test_transition_v140() -> void:
 	tu.index = 0
 	tu.pressed = false
 	g._input(tu)
-	ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat.is_empty(), "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）")
+	ok(g.touches.is_empty() and g.lp_t < 0.0 and g.trans_eat.is_empty(), "觸控跳過：放開吃掉、手指狀態與長按計時清掉（Codex cat08 r2 #3）", "%s %s %s" % [str(g.touches), str(g.lp_t), str(g.trans_eat)])
 	g._ov_t = g.time
 	g.stick[JOY_AXIS_LEFT_Y] = 0.46
 	var dz_keep = Save.s("deadzone")
@@ -2142,3 +2143,197 @@ func test_title_v140() -> void:
 	ok(src.find("btn_no_wax = i == 0\n\t\t_btn(mr2, \"\", pq[3], on, i == 0)") >= 0 and src.find("btn_no_wax = false") >= 0, "對戰是朱漆木牌主牌（不畫火漆、畫完重設）")
 	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
 	ok(v16.find("_btn(NS_RECT, \"\", _next_action(k), true, false, PAL.KRAFT)") >= 0 and v16.find("Color(0.16, 0.3, 0.42, 0.95)") < 0, "建議下一步改牛皮紙便箋（不再是深藍膠囊）")
+
+
+## 1.5.0 §12／§17：輸入身分測試範本（100 組）——來源 6 × 時機 4 × 組合 4 ＝ 96 組＋4 組 1.4.0 回歸。
+## 全部從真實 _input 進入；核對：轉場中的事件一律不進命令佇列、放開／回中之後鎖全部解開、最後一次正常點擊照常進佇列（不卡死）。
+## 之後任何「吃輸入」的功能都要接這個範本（把 open_fn 換成自己的開啟方式）。
+func _im_ev(src: String, down: bool, val := 1.0) -> InputEvent:
+	match src:
+		"mouse":
+			var e := InputEventMouseButton.new()
+			e.button_index = MOUSE_BUTTON_LEFT
+			e.pressed = down
+			e.position = Vector2(640, 400)
+			return e
+		"key":
+			var k := InputEventKey.new()
+			k.keycode = KEY_X
+			k.physical_keycode = KEY_X
+			k.pressed = down
+			return k
+		"key2":
+			var k2 := InputEventKey.new()
+			k2.keycode = KEY_B
+			k2.physical_keycode = KEY_B
+			k2.pressed = down
+			return k2
+		"joy":
+			var j := InputEventJoypadButton.new()
+			j.device = 0
+			j.button_index = JOY_BUTTON_A
+			j.pressed = down
+			return j
+		"lstick":
+			var a := InputEventJoypadMotion.new()
+			a.device = 0
+			a.axis = JOY_AXIS_LEFT_Y
+			a.axis_value = val if down else 0.0
+			return a
+		"rstick":
+			var r := InputEventJoypadMotion.new()
+			r.device = 0
+			r.axis = JOY_AXIS_RIGHT_Y
+			r.axis_value = val if down else 0.0
+			return r
+		_:
+			var t := InputEventScreenTouch.new()
+			t.index = 0
+			t.pressed = down
+			t.position = Vector2(640, 400)
+			return t
+
+func test_input_matrix_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var Save = load("res://scripts/game/save.gd")
+	var keep := {}
+	for k in ["reduce_fx", "reduce_motion", "plain_ui", "deadzone"]:
+		keep[k] = Save.s(k)
+	Save.settings["reduce_fx"] = false
+	Save.settings["reduce_motion"] = false
+	Save.settings["plain_ui"] = false
+	Save.settings["deadzone"] = 20
+	var srcs := ["mouse", "key", "joy", "lstick", "rstick", "touch"]
+	var timings := ["start", "mid", "last", "after"]
+	var combos := ["single", "pair", "pairrev", "hold", "unplug"]   # pairrev＝同一幀先按別的鍵跳過、再操作這個來源（Codex v150 cat01 r3 #1）
+	var bad: Array = []
+	var n := 0
+	# 副作用量測：命令佇列、圖鑑捲動、觸控手指——轉場中一個都不能變（Codex v150 cat01 #4：只看佇列會漏掉右搖桿直接捲動）
+	var fx_of := func(g) -> Array:
+		return [g._cmds.size(), float(g.cx_scroll.get("left", 0.0)), g.touches.size()]
+	for src in srcs:
+		for tm in timings:
+			for cb in combos:
+				n += 1
+				var g = GS.new()
+				g.shot_dir = ""
+				g.layout_probe = false
+				g.overlay = ""
+				g.time = 10.0
+				g.cx_regions["left"] = Rect2(0, 0, 100, 100)
+				g.cx_content["left"] = 5000.0
+				for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
+					g.stick[ax] = 0.0
+				if cb == "hold":
+					g._input(_im_ev(src, true))   # 按住跨轉場：轉場開始前就按下
+				g.overlay = "codex"
+				g._ov_t = g.time
+				g._trans_begin()
+				var during: bool = tm != "after"
+				if tm == "mid":
+					g.time += GS.SLIDE_SEC * 0.5
+				elif tm == "last":
+					g.time += GS.SLIDE_SEC - 1.0 / 60.0
+				elif tm == "after":
+					g.time += GS.SLIDE_SEC + 0.05
+				var f0: Array = fx_of.call(g)
+				if cb == "pairrev":
+					g._input(_im_ev("key2", true))
+				if cb != "hold":
+					g._input(_im_ev(src, true))
+				if cb == "pair":
+					g._input(_im_ev("key2", true))
+				var fp: Array = fx_of.call(g)   # 按下當下的副作用（觸控手指在放開時會清掉，要在這裡量）
+				for fr in 30:   # 按住期間：鍵盤連發、搖桿持續推，逐幀 0.5 秒
+					g.time += 1.0 / 60.0
+					if src == "key":
+						var ec: InputEventKey = _im_ev("key", true)
+						ec.echo = true
+						g._input(ec)
+					if src == "rstick":
+						g._input(_im_ev("rstick", true))
+					g._stick_repeat(1.0 / 60.0)
+				var unplugged: bool = cb == "unplug" and src in ["joy", "lstick", "rstick"]
+				if cb == "unplug":
+					g._trans_joy_changed(0, false)
+				if cb == "pair" or cb == "pairrev":
+					g._input(_im_ev("key2", false))
+				if not unplugged:
+					g._input(_im_ev(src, false))   # 拔掉的手把不會有放開事件（引擎不補）
+				g._stick_repeat(1.0 / 60.0)
+				var f1: Array = fx_of.call(g)
+				if during:
+					if f1[0] != f0[0]:
+						bad.append("%s/%s/%s 轉場中有 %d 筆進佇列" % [src, tm, cb, f1[0] - f0[0]])
+					if absf(float(f1[1]) - float(f0[1])) > 0.001:
+						bad.append("%s/%s/%s 轉場中圖鑑被捲動" % [src, tm, cb])
+					if int(fp[2]) != int(f0[2]):
+						bad.append("%s/%s/%s 轉場中觸控手指被記下" % [src, tm, cb])
+				else:
+					# 轉場後：按下當下或之後要有實際副作用（不是全部吃掉的假通過）；只有「按住跨轉場」豁免（按下在開頁前，設計如此）
+					var moved: bool = f1[0] > f0[0] or fp[0] > f0[0] or absf(float(f1[1]) - float(f0[1])) > 0.001 or int(fp[2]) > int(f0[2])
+					if not moved and cb != "hold":
+						bad.append("%s/%s/%s 轉場後的輸入沒有效果（被誤吃）" % [src, tm, cb])
+				if not g.trans_eat.is_empty() or g.trans_stick_eat or g.trans_rstick_eat:
+					bad.append("%s/%s/%s 放開／回中／拔掉後鎖沒解開（%s, %s, %s）" % [src, tm, cb, str(g.trans_eat.keys()), str(g.trans_stick_eat), str(g.trans_rstick_eat)])
+				# 恢復：下一幀同一個來源再操作一次，一定有效果（每種來源都驗，不只滑鼠）
+				g.time += 1.0 / 60.0
+				var f2: Array = fx_of.call(g)
+				if src in ["lstick"]:
+					g._input(_im_ev("lstick", true))
+					g._stick_repeat(1.0 / 60.0)
+					g._input(_im_ev("lstick", false))
+				elif src == "rstick":
+					g._input(_im_ev("rstick", true))
+					g._input(_im_ev("rstick", false))
+				elif src == "touch":
+					g._input(_im_ev("touch", true))
+				else:
+					g._input(_im_ev(src, true))
+					g._input(_im_ev(src, false))
+				var f3: Array = fx_of.call(g)
+				var rec: bool = f3[0] > f2[0] or absf(float(f3[1]) - float(f2[1])) > 0.001 or f3[2] > f2[2]
+				if not rec:
+					bad.append("%s/%s/%s 之後同一來源再操作沒有效果（卡死）" % [src, tm, cb])
+				g.free()
+	# 4 組 1.4.0 回歸（Codex cat08 抓過的）：兩輸入各跳一頁、別的鍵放開不解鎖、只推搖桿跳過、手把跳過後拔掉
+	var g2 = GS.new()
+	g2.shot_dir = ""
+	g2.time = 10.0
+	for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
+		g2.stick[ax] = 0.0
+	g2.overlay = "codex"
+	g2._ov_t = g2.time
+	g2._input(_im_ev("mouse", true))
+	g2.overlay = "settings"
+	g2._ov_t = g2.time
+	g2._input(_im_ev("key", true))
+	n += 1
+	if g2.trans_eat.size() != 2:
+		bad.append("回歸 1：兩個輸入各跳一頁沒有都記")
+	g2._input(_im_ev("key2", false))
+	n += 1
+	if g2.trans_eat.size() != 2:
+		bad.append("回歸 2：別的鍵放開解了鎖")
+	g2._input(_im_ev("mouse", false))
+	g2._input(_im_ev("key", false))
+	g2.overlay = "keys"
+	g2._ov_t = g2.time
+	g2._input(_im_ev("lstick", true, 0.9))
+	n += 1
+	if not (g2.ov_trans_k() == 1.0 and g2.trans_stick_eat):
+		bad.append("回歸 3：只推搖桿沒有跳過")
+	g2._input(_im_ev("lstick", false))
+	g2._stick_repeat(1.0 / 60.0)
+	g2.overlay = "profile"
+	g2._ov_t = g2.time
+	g2._input(_im_ev("joy", true))
+	g2._trans_joy_changed(0, false)
+	n += 1
+	if not g2.trans_eat.is_empty():
+		bad.append("回歸 4：手把拔掉身分沒清")
+	g2.free()
+	for k in keep:
+		Save.settings[k] = keep[k]
+	ok(n == 124, "輸入矩陣 124 組：來源 6 × 時機 4 × 組合 5＋回歸 4（%d）" % n)
+	ok(bad.is_empty(), "輸入矩陣全過：轉場中零穿透、放開零卡鎖、之後正常點擊不被吃", "\n".join(bad.slice(0, 20)))

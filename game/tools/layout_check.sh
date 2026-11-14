@@ -60,7 +60,7 @@ bad = [k for k, v in reg.items() if not v.get('entry') or not isinstance(v.get('
 if bad:
     print('LAYOUT FAIL：清冊缺入口或狀態：%s' % bad[:10]); sys.exit(1)
 PY
-python3 - "$OUT" "$EXPECT" "$NAMES" <<'PY'
+python3 - "$OUT" "$EXPECT" "$NAMES" <<'PY' && RC=0 || RC=$?
 import json,sys,glob,os
 out=sys.argv[1]; expect=int(sys.argv[2]); names=set(x for x in sys.argv[3].split(',') if x); total=0; rows=[]
 for f in sorted(glob.glob(os.path.join(out,'*','layout.jsonl'))):
@@ -115,3 +115,8 @@ if len(runs)!=want or len(rows)!=want*expect:
     print('LAYOUT FAIL：應有 %d 組 × %d 張，實得 %d 組、%d 張（截圖沒跑完也算失敗）' % (want, expect, len(runs), len(rows))); sys.exit(1)
 sys.exit(1 if total or (gw and os.environ.get('LAYOUT_STRICT_WARN')=='1') else 0)
 PY
+# 1.5.0 §12：美感指標只在固定時鐘比。LAYOUT_FIXED=1 且有基線檔＝逐畫面×組不准比基線差（新畫面列出、要 merge 進基線）
+if [ -n "${LAYOUT_FIXED:-}" ] && [ -f ../docs/ui-art-baseline.json ] && [ -z "${LAYOUT_NO_ART:-}" ]; then
+  python3 tools/art_baseline.py check "$OUT" ../docs/ui-art-baseline.json || RC=1
+fi
+exit $RC

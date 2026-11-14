@@ -794,6 +794,9 @@ func _draw_inner() -> void:
 		if state == St.BATTLE and _frags_on():
 			frags.draw(self)   # 1.2.0 §8.2 材料碎片在地上、單位之下
 		if state == St.BATTLE:
+			for f0 in fx:   # 1.5.0：地面痕跡（茶漬、焦痕）滲在木盤上＝畫在兵之下（蓋在兵上時，固定時鐘量到 Boss 戰旁邊的兵被壓暗）
+				if f0["kind"] in GROUND_FX:
+					_draw_fx(f0)
 			_draw_contact_ao(view)   # 1.4.0 §3.2 接觸陰影
 		_draw_units_of(view, false)
 		if state == St.BATTLE:
@@ -803,7 +806,7 @@ func _draw_inner() -> void:
 	perf_parts["units"] = Time.get_ticks_usec() - _t
 	_t = Time.get_ticks_usec()
 	for f in fx:   # 先畫特效，跳字最後畫（Antigravity S2 #1：特效不能蓋住跳字）
-		if not f.get("screen", false) and f["kind"] != "text":
+		if not f.get("screen", false) and f["kind"] != "text" and not (state == St.BATTLE and f["kind"] in GROUND_FX):
 			_draw_fx(f)
 	for f in fx:
 		if not f.get("screen", false) and f["kind"] == "text":
@@ -1121,6 +1124,19 @@ const SLIDE_FROM := {"lobby": Vector2(-80, 0), "codex": Vector2(0, 70), "setting
 const SLIDE_SEC := 0.3    # 180～300ms；和 1.3.0 器物開合同長（同時到終態，Codex cat08 #1）
 var trans_eat := {}            # 跳過轉場的輸入（來源＋鍵碼＋裝置／手指）→ 各自的放開才解鎖；可能同時好幾個（Codex cat08 r2 #1、r3 #1）
 var trans_stick_eat := false   # 用搖桿跳過／轉場中推著搖桿：回中之前不送方向（方案 §2.5）
+var _rstick := Vector2.ZERO    # 右搖桿兩軸目前的值（轉場開始時還推著＝鎖到回中；兩軸都回中才解鎖，Codex v150 cat01 r2 #1）
+var trans_rstick_eat := false  # 1.5.0：右搖桿推過轉場也鎖到回中（不然轉場一結束就直接捲圖鑑，Codex v150 cat01 #3）
+
+## 失焦：放開事件收不到，所有輸入身分與鎖一起清
+func _trans_reset_input() -> void:
+	_held.clear()
+	_rstick = Vector2.ZERO
+	stick[JOY_AXIS_LEFT_X] = 0.0   # 失焦期間回中收不到事件：左搖桿舊值與連發狀態一起清（Codex v150 cat01 r3 #2）
+	stick[JOY_AXIS_LEFT_Y] = 0.0
+	set("_stick_dir", Vector2i.ZERO)
+	trans_eat.clear()
+	trans_stick_eat = false
+	trans_rstick_eat = false
 
 ## 輸入的身分：同一顆鍵／同一個滑鼠鈕／同一根手指的按下與放開對得起來
 static func trans_sig(ev: InputEvent) -> String:
@@ -1136,18 +1152,45 @@ static func trans_sig(ev: InputEvent) -> String:
 
 ## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
 ## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
+var _held := {}             # 目前按住的輸入身分（轉場開始時一併列入要吃掉的清單：開頁前按下、轉場後放開不能變成新頁上的點擊；1.5.0 輸入矩陣）
+var _trans_skip_t := -1.0   # 跳過轉場的那一幀：同一幀的其他按下也吃掉（兩個輸入同時按）
+
 func _trans_gate(ev: InputEvent) -> bool:
+	if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+		if ev.axis == JOY_AXIS_RIGHT_X:
+			_rstick.x = ev.axis_value   # 平常也記（轉場開始時要知道還推著沒）
+		else:
+			_rstick.y = ev.axis_value
+	var sig0 := trans_sig(ev)
+	if sig0 != "":
+		if ev.pressed:
+			_held[sig0] = true
+		else:
+			_held.erase(sig0)
 	var active := ov_trans_k() < 1.0
-	if not active and trans_eat.is_empty():
+	if not active and trans_eat.is_empty() and time != _trans_skip_t and not trans_rstick_eat:
 		return false
 	if ev is InputEventMouseMotion:
 		mouse = ev.position
 		return active
+	if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+		var dzr := int(Save.s("deadzone")) / 100.0
+		if (active or time == _trans_skip_t) and absf(ev.axis_value) >= dzr:   # 同一幀先按鍵跳過、再推搖桿也鎖（Codex v150 cat01 r3 #1）
+			if active:
+				_ov_t = time - 1.0
+				_trans_skip_t = time
+			trans_rstick_eat = true
+		if trans_rstick_eat:
+			if absf(_rstick.x) < dzr and absf(_rstick.y) < dzr:
+				trans_rstick_eat = false   # 兩軸都回中才解鎖
+			return true
+		return active
 	if ev is InputEventJoypadMotion:
 		if ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y:
 			stick[ev.axis] = ev.axis_value   # 狀態照記
-			if active and absf(ev.axis_value) >= int(Save.s("deadzone")) / 100.0:
+			if (active or time == _trans_skip_t) and absf(ev.axis_value) >= int(Save.s("deadzone")) / 100.0:
 				_ov_t = time - 1.0       # 推搖桿本身也是跳過（Codex cat08 r5 #1）
+				_trans_skip_t = time
 				trans_stick_eat = true   # 轉場中收到有效軸輸入當下就鎖（不靠逐幀時轉場還在；同幀再按鍵跳過也鎖著，Codex cat08 r4 #1）
 		return active
 	var sig := trans_sig(ev)
@@ -1157,8 +1200,10 @@ func _trans_gate(ev: InputEvent) -> bool:
 		touches.erase(ev.index)   # 吃掉放開也要清手指狀態（不留幽靈手指、長按計時；Codex cat08 r2 #3）
 		lp_t = -1.0
 	if ev.pressed:
-		if active:
-			_ov_t = time - 1.0
+		if active or time == _trans_skip_t:
+			if active:
+				_ov_t = time - 1.0
+				_trans_skip_t = time
 			trans_eat[sig] = true
 			return true
 		return trans_eat.has(sig)   # 同一顆鍵按住的連發（echo）也吃
@@ -1172,6 +1217,10 @@ func _trans_begin() -> void:
 	if ov_trans_k() >= 1.0:
 		return
 	lp_t = -1.0
+	for k in _held:
+		trans_eat[k] = true   # 開頁前就按住的：放開要吃掉（不在新頁上點）
+	if absf(_rstick.x) >= int(Save.s("deadzone")) / 100.0 or absf(_rstick.y) >= int(Save.s("deadzone")) / 100.0:
+		trans_rstick_eat = true   # 開頁前就推著右搖桿：回中之前不捲新頁
 	var dz := int(Save.s("deadzone")) / 100.0
 	if absf(float(stick.get(JOY_AXIS_LEFT_X, 0.0))) >= dz or absf(float(stick.get(JOY_AXIS_LEFT_Y, 0.0))) >= dz:
 		trans_stick_eat = true
@@ -1183,6 +1232,11 @@ func _trans_joy_changed(device: int, connected: bool) -> void:
 	for k in trans_eat.keys():
 		if String(k).begins_with("j%d:" % device):
 			trans_eat.erase(k)
+	for k2 in _held.keys():
+		if String(k2).begins_with("j%d:" % device):
+			_held.erase(k2)   # 拔掉的手把按住的鈕也清（不然下次轉場會把舊鎖復活，Codex v150 cat01 #2）
+	trans_rstick_eat = false
+	_rstick = Vector2.ZERO   # 舊值不留（Codex v150 cat01 r2 #2）
 	stick[JOY_AXIS_LEFT_X] = 0.0
 	stick[JOY_AXIS_LEFT_Y] = 0.0
 	trans_stick_eat = false

@@ -1695,8 +1695,7 @@ func _pw_check(cond: bool, what: String) -> void:
 func _pw_btn(b: int) -> void:
 	if ov_trans_k() < 1.0:
 		_ov_t = time - 1.0   # 1.4.0 §2.2：轉場中的第一下會被吃掉（設計如此）；走訪時等轉場結束再按（等於玩家等 0.25 秒）
-	trans_eat.clear()
-	trans_stick_eat = false
+	_trans_reset_input()
 	for pressed in [true, false]:
 		var ev := InputEventJoypadButton.new()
 		ev.button_index = b

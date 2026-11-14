@@ -78,6 +78,8 @@ static func _clip_set(txt: String) -> bool:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_quit_mark()
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		call("_trans_reset_input")   # 1.5.0：失焦時放開事件可能收不到——按住清單與轉場鎖一起清（不留卡住的鎖，Codex v150 cat01 #2）
 
 func _quit_mark() -> void:
 	Funnel.leave(screen_id())
