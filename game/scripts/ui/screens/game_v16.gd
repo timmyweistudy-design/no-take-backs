@@ -220,14 +220,22 @@ func _draw_next_step() -> void:
 		return
 	var k := Guide.next_step(Save.data, _daily_done_today(), _demo()) if Save.s("hints") != "off" else ""
 	# 右上角（示範戰場上方的空白）；高度照字級算
-	var NS_RECT := Rect2(830, 104, 400, ceilf(14.0 + tz("C") * 1.25 + tz("S") * 1.35))
+	var NS_RECT := Rect2(830, 104, 400, ceilf(22.0 + tz("C") * 1.25 + tz("S") * 1.35))   # 1.4.0：便箋上下多留空（字框不貼到下緣厚度，R12）
 	call("_draw_recent", (NS_RECT.end.y + 16.0) if k != "" else 104.0)   # 1.2.0 §11.11
 	if k == "":
 		return
-	_btn(NS_RECT, "", _next_action(k), true, false, Color(0.16, 0.3, 0.42, 0.95))
-	_icon("flag", NS_RECT.position + Vector2(30, NS_RECT.size.y / 2), 26.0, ACCENT)
-	_text(NS_RECT.position + Vector2(56, 6), L.t("ns_head"), tz("C"), TXT_DIM, false, false, NS_RECT.size.x - 70)
-	_text(NS_RECT.position + Vector2(56, 6 + tz("C") * 1.25), _ns_text(k), tz("S"), Color.WHITE, false, true, NS_RECT.size.x - 70)
+	# 1.4.0 §12.1：原本深藍膠囊（易和藍隊色混）→ 牛皮紙便箋＋黃銅圖釘、墨字、朱紅小旗
+	_btn(NS_RECT, "", _next_action(k), true, false, PAL.KRAFT)
+	if not bool(Save.s("plain_ui")):
+		draw_circle(NS_RECT.position + Vector2(10, 9), 4.0, PAL.TRINKET_GOLD, true, -1.0, true)   # 圖釘
+		draw_circle(NS_RECT.position + Vector2(9, 8), 1.5, Color(1, 1, 1, 0.6), true, -1.0, true)
+	_ink_mode = true   # 只給圖示（紙上的墨色圖示不厚塗）；字直接給墨色，探針記到的就是畫出來的顏色（版面對比檢查）
+	_icon("flag", NS_RECT.position + Vector2(30, NS_RECT.size.y / 2), 26.0, PAL.TRINKET_RED)
+	_ink_mode = false
+	# 墨字＋一圈淺米色描邊（像凸版印在紙上；導覽暗幕蓋過來的那幾幀字也讀得到——版面對比檢查取到的就是那一幀）
+	var halo := Color(PAL.KRAFT.lightened(0.45), 0.95)
+	_text(NS_RECT.position + Vector2(56, 9), L.t("ns_head"), tz("C"), PAL.KRAFT_D.darkened(0.45), false, false, NS_RECT.size.x - 70, halo)
+	_text(NS_RECT.position + Vector2(56, 9 + tz("C") * 1.25), _ns_text(k), tz("S"), INK, false, true, NS_RECT.size.x - 70, halo)
 
 func _ns_text(k: String) -> String:
 	if k.begins_with("v16:"):

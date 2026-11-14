@@ -163,6 +163,9 @@ func _draw_save_notice() -> void:
 
 const HOME_CX := 255.0   # V1.5.2 L5：主畫面左欄中線（木牌 70～440 的中線）
 
+## 1.4.0 §12.1 標題主次：對戰主牌多高的量；底架 5 隻代表木偶 [腳點, 兵種, 隊, 縮放]（後排小、前排大，錯落）
+const HOME_MAIN_EXTRA := 12.0
+const TITLE_SHELF := [[Vector2(600, 724), 0, 0, 1.3], [Vector2(745, 716), 2, 1, 1.05], [Vector2(880, 744), 3, 0, 1.6], [Vector2(1025, 720), 1, 1, 1.15], [Vector2(1150, 740), 4, 0, 1.4]]
 func _draw_title() -> void:
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.05, 0.06, 0.1, 0.18))
 	if overlay != "":
@@ -179,9 +182,15 @@ func _draw_title() -> void:
 		draw_line(Vector2(512, 708), Vector2(1214, 708), Color(1, 0.85, 0.6, 0.3), 1.5)
 		_tex_box(Rect2(490, 752, 746, 22), "wood", Color(0.45, 0.3, 0.19))
 		draw_rect(Rect2(490, 774, 746, 6), Color(0, 0, 0, 0.35))
-	for i in D.COUNT:
-		var gp := Vector2(544.0 + i * 70.0, 720.0 + (i % 2) * 22.0)
-		Art.unit(self, gp, i, i % 2, 1.0 if i % 2 == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + i, 1.25, cbm())
+	# 1.4.0 §12.1：底架改 5 隻大小、前後錯落的代表木偶（靠後的小、靠前的大；實體落影、不用模糊），不再 11 隻排排站
+	for sh in TITLE_SHELF:
+		var gp: Vector2 = sh[0]
+		var sc: float = sh[3]
+		if not bool(Save.s("plain_ui")):
+			draw_set_transform_matrix(Transform2D(0.0, Vector2(1.0, 0.36), 0.0, gp + Vector2(5, 3)))
+			draw_circle(Vector2.ZERO, 20.0 * sc, Color(DIM_INK, 0.45), true, -1.0, true)   # 落影（燈在左上）
+			draw_set_transform_matrix(Transform2D.IDENTITY)
+		Art.unit(self, gp, int(sh[1]), int(sh[2]), 1.0 if int(sh[2]) == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time + gp.x * 0.01, sc, cbm())
 	var bob := sin(time * 1.5) * 4
 	# 第五輪 §4.4：主選單收成左側一塊面板，背景的自動對決露出來；標題用標題字
 	var dk := Color(0.11, 0.075, 0.05, 0.86)
@@ -228,13 +237,23 @@ func _draw_title() -> void:
 	for pq0 in plaques:
 		ph = maxf(ph, 8.0 + tz("B") * 1.3 + text_h(L.t(str(pq0[1])), tz("C"), sw) + 8.0)
 	var room := 724.0 - 48.0 - y0
-	var show_sub := ph * 5.0 + 20.0 <= room   # 放不下（150% 字級＋長副標）就只放名稱，不縮字
+	var show_sub := ph * 5.0 + 20.0 + HOME_MAIN_EXTRA <= room   # 放不下（150% 字級＋長副標）就只放名稱，不縮字
 	if not show_sub:
 		ph = maxf(48.0, 12.0 + tz("B") * 1.3)
-	var gap := clampf((room - ph * 5.0) / 5.0, 4.0, 8.0)
+	var gap := clampf((room - ph * 5.0 - HOME_MAIN_EXTRA) / 5.0, 4.0, 8.0)
+	# 1.4.0 §12.1：第一塊「對戰」是朱漆主牌、比其他高一截（主次分明；其他退為木牌）
+	var pys: Array = []
+	var phs: Array = []
+	var yy := y0
+	for i0 in plaques.size():
+		var h0 := ph + (HOME_MAIN_EXTRA if i0 == 0 else 0.0)
+		pys.append(yy)
+		phs.append(h0)
+		yy += h0 + gap
+	var col_h: float = yy - gap - y0
 	# 1.2.0 §1.1 A3 多寶盒籤牌：五支木籤插在左邊一個小木盒的槽裡（盒在籤後面，籤頭露出右邊）
 	if not bool(Save.s("plain_ui")):
-		var bxr := Rect2(50, y0 - 10, 30, 5 * (ph + gap) - gap + 20)
+		var bxr := Rect2(50, y0 - 10, 30, col_h + 20)
 		draw_rect(Rect2(bxr.position + Vector2(4, 6), bxr.size), Color(DIM_INK, 0.5))
 		if not _mat_box(bxr, "plaque", Color(0.55, 0.36, 0.22)):
 			draw_rect(bxr, Color("#5a3a22"))
@@ -242,39 +261,41 @@ func _draw_title() -> void:
 		for kc in [bxr.position + Vector2(3, 3), Vector2(bxr.end.x - 3, bxr.position.y + 3), Vector2(bxr.position.x + 3, bxr.end.y - 3), bxr.end - Vector2(3, 3)]:
 			draw_circle(kc, 2.5, Color("#c9a24a"))   # 黃銅包角釘
 		for i in plaques.size():
-			var sy := y0 + i * (ph + gap)
-			draw_rect(Rect2(bxr.position.x + 6, sy + 4, 18, ph - 8), Color(0.1, 0.06, 0.03, 0.75))   # 籤槽
+			draw_rect(Rect2(bxr.position.x + 6, float(pys[i]) + 4, 18, float(phs[i]) - 8), Color(0.1, 0.06, 0.03, 0.75))   # 籤槽
 	for i in plaques.size():
 		var pq: Array = plaques[i]
-		var mr2 := Rect2(70, y0 + i * (ph + gap), PW, ph)
+		var mr2 := Rect2(70, float(pys[i]), PW, float(phs[i]))
 		var on := not _demo() or bool(pq[4])
-		_btn(mr2, "", pq[3], on, i == 0 and fresh)
+		btn_no_wax = i == 0
+		_btn(mr2, "", pq[3], on, i == 0)   # 1.4.0：對戰＝朱漆木牌主牌（走主鈕的木牌材質；不畫左側火漆，不壓小人）
+		btn_no_wax = false
 		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else (Color(0.12, 0.07, 0.03, 0.55) if not bool(Save.s("plain_ui")) else Color(1, 1, 1, 0.35)))   # 1.2.0：籤插進盒的那一端壓暗
 		# V1.5.2 L5：小人照木牌內容區定位（150% 只放名稱時木牌變矮，腳點不再寫死 y+54 而掉出木牌）
-		var foot := minf(54.0, ph - 6.0)
+		var foot := minf(54.0 + (HOME_MAIN_EXTRA * 0.5 if i == 0 else 0.0), float(phs[i]) - 6.0)
 		Art.unit(self, mr2.position + Vector2(34, foot), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72 * minf(1.0, foot / 54.0), cbm())
 		var tcol: Color = Color.WHITE if on else TXT_DIM
 		var tag := home_tag(i)
 		var tw2 := (_width(tag, tz("C"), true) + 24.0) if tag != "" else 0.0
 		var nw := minf(_width(L.t(str(pq[0])), tz("B"), true), sw - tw2 - 8.0)
-		_text(mr2.position + Vector2(66, 6 if show_sub else (ph - tz("B") * 1.2) * 0.5), L.t(str(pq[0])), tz("B"), tcol, false, true, sw - tw2 - 8.0)
+		var top0 := (float(phs[i]) - ph) * 0.5   # 主牌比較高：字整組垂直置中
+		_text(mr2.position + Vector2(66, top0 + (6 if show_sub else (ph - tz("B") * 1.2) * 0.5)), L.t(str(pq[0])), tz("B"), tcol, false, true, sw - tw2 - 8.0)
 		if show_sub:
-			_text(mr2.position + Vector2(66, 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), TXT_DIM, false, false, sw)
+			_text(mr2.position + Vector2(66, top0 + 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), Color(1, 0.93, 0.85) if i == 0 else TXT_DIM, false, false, sw)
 		if tag != "":
 			# 狀態小牌：緊跟在名稱右邊（不蓋字），羊皮紙底＋墨字（不只靠顏色）
-			var tr := Rect2(mr2.position.x + 66 + nw + 8, (mr2.position.y + 3 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (ph - tz("C") * 1.5) * 0.5 - 3), tw2, tz("C") * 1.5 + 6)   # 九宮格四邊留內距
+			var tr := Rect2(mr2.position.x + 66 + nw + 8, (mr2.position.y + (float(phs[i]) - ph) * 0.5 + 3 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (float(phs[i]) - tz("C") * 1.5) * 0.5 - 3), tw2, tz("C") * 1.5 + 6)   # 九宮格四邊留內距
 			_tex_box(tr, "paper")
 			_ink_mode = true
 			_text(tr.position + Vector2(12, 3 + tz("C") * 0.2), tag, tz("C"), INK, false, true, tw2)
 			_ink_mode = false
 	if fresh:
 		var pulse := 0.5 + 0.5 * sin(time * 3.0)
-		draw_rect(Rect2(68, y0 - 2, PW + 4, ph + 4), Color(ACCENT, 0.5 + 0.5 * pulse), false, 3.0)
-	var y2 := y0 + 5 * (ph + gap) + 4
+		draw_rect(Rect2(68, y0 - 2, PW + 4, float(phs[0]) + 4), Color(ACCENT, 0.5 + 0.5 * pulse), false, 3.0)
+	var y2 := y0 + col_h + gap + 4
 	var sys := [["menu_settings", func(): _open("settings")], ["menu_codes", func(): overlay = "codes"; _focus = 0], ["menu_quit", func(): call("_quit_mark"); get_tree().quit()]]
 	for i in sys.size():
 		_btn(Rect2(70 + i * 126, y2, 118, 40), L.t(sys[i][0]), sys[i][1], true, false, Color(TH_WOOD_D, 0.92))
-	probe_align("home_col", [Rect2(HOME_CX - tw / 2 - 60, 40, tw + 120, tsz), Rect2(70, y0, PW, 5 * (ph + gap)), Rect2(70, y2, 2 * 126 + 118, 40)])
+	probe_align("home_col", [Rect2(HOME_CX - tw / 2 - 60, 40, tw + 120, tsz), Rect2(70, y0, PW, col_h + gap), Rect2(70, y2, 2 * 126 + 118, 40)])
 	call("_draw_next_step")   # V1.6 #1
 	# 底部：最佳紀錄、版本
 	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), TXT_DIM, false, false, 380)

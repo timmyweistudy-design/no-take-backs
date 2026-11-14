@@ -229,7 +229,7 @@ func _contrast_issues(img: Image) -> Dictionary:
 			ratio = maxf(ratio, maxf(contrast(oeff, bgc), contrast(over.call(c, oeff), oeff)))
 		if ratio >= need:
 			continue
-		var item := {"type": "對比不足", "s": t["s"], "ratio": snappedf(ratio, 0.01), "need": need}
+		var item := {"type": "對比不足", "s": t["s"], "ratio": snappedf(ratio, 0.01), "need": need, "fg": c.to_html(false), "bg": (bgc as Color).to_html(false), "at": [int(t["r"].position.x), int(t["r"].position.y)]}   # 1.4.0：帶字色、取樣背景與位置（查錯用）
 		if dis:
 			warn.append(item)   # 只有登記為停用的元件另報（WCAG 豁免停用元件）
 		else:

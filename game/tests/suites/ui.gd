@@ -2125,3 +2125,20 @@ func test_people_v140() -> void:
 	ok(GS.stamp_page(0) == [1, 0] and GS.stamp_page(1) == [1, 1] and GS.stamp_page(10) == [1, 10] and GS.stamp_page(11) == [2, 1], "印章冊一頁 10 格、蓋滿才翻頁")
 	var csv: String = FileAccess.get_file_as_string("res://data/strings.csv")
 	ok(csv.find("\nod_book,") >= 0, "印章冊頁碼有四語")
+
+
+## 1.4.0 第 12 大類：標題主次（朱漆對戰主牌、牛皮紙建議便箋、底架錯落木偶）
+func test_title_v140() -> void:
+	var GM = load("res://scripts/ui/screens/game_menus.gd")
+	ok(GM.TITLE_SHELF.size() >= 3 and GM.TITLE_SHELF.size() <= 5, "底架 3～5 隻代表木偶")
+	var scs := {}
+	var ys := {}
+	for sh in GM.TITLE_SHELF:
+		scs[float(sh[3])] = true
+		ys[(sh[0] as Vector2).y] = true
+		ok((sh[0] as Vector2).x > 520.0 and (sh[0] as Vector2).x < 1200.0 and (sh[0] as Vector2).y >= 708.0 and (sh[0] as Vector2).y <= 752.0, "木偶腳點在木台上")
+	ok(scs.size() >= 3 and ys.size() >= 3, "大小、前後錯落（不是排排站）")
+	var src: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	ok(src.find("btn_no_wax = i == 0\n\t\t_btn(mr2, \"\", pq[3], on, i == 0)") >= 0 and src.find("btn_no_wax = false") >= 0, "對戰是朱漆木牌主牌（不畫火漆、畫完重設）")
+	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(v16.find("_btn(NS_RECT, \"\", _next_action(k), true, false, PAL.KRAFT)") >= 0 and v16.find("Color(0.16, 0.3, 0.42, 0.95)") < 0, "建議下一步改牛皮紙便箋（不再是深藍膠囊）")

@@ -318,6 +318,8 @@ var accum := 0.0
 var speed := 1.0
 ## 1.4.0 §2.2：介面底層矩陣（疊層滑入時＝位移；平常＝單位矩陣）。介面裡切矩陣都乘在它上面、還原也還原成它。
 var ui_xf := Transform2D.IDENTITY
+## 1.4.0 §12.1：朱漆木牌但不要左側火漆（標題主牌左端有小人，火漆會壓到）；畫完由呼叫端重設
+var btn_no_wax := false
 var slow_used := false
 var final_used := false   # 第十輪 F1
 var pinch_zoom := 1.0             # V1.4 #18：雙指縮放戰場（1＝不縮；戰鬥中蓋過自動全景）
@@ -953,7 +955,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 		_mat_box(rd, "plaque", pt)
 		if sel_on and enabled and tint.a > 0.0:
 			draw_rect(rd.grow(-4 if rd.size.y >= 40.0 else -2), Color(Color("#9b281b"), 0.9), false, 2.5 if rd.size.y >= 40.0 else 1.5)   # 選中：朱砂框（矮按鈕框往外、變細，不壓到 150% 的字）
-		if primary and enabled and rd.size.x >= 120.0:
+		if primary and enabled and rd.size.x >= 120.0 and not btn_no_wax:
 			var wx := _ui_tex(MAT["wax_red"])
 			var ws := minf(rd.size.y + 8.0, 46.0)
 			# 長標籤時讓位（Antigravity cat02 #1）：字寬＋蠟封露出的部分放不下就不畫蠟封
