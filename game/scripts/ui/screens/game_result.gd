@@ -24,6 +24,7 @@ func _start_mode(m: int) -> void:
 		set("challenge_army", null)
 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
 	set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
+	set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
 	set("cp_on", false)       # 1.2.0 §11.6：_cp_start 會在 _start_mode 之後再設回來
 	set("camp_id", "")        # 1.2.0 §11.7：_camp_play 會在 _start_mode 之後再設回來
 	set("ghost_id", "")       # V1.4 #7：幽靈、每週棋盒也是在 _start_mode 之後才設
@@ -97,6 +98,7 @@ func _finish_battle() -> void:
 			call("_record_match", w)
 		call("_trial_finish", w)
 		call("_daily_finish", w)
+		call("_tower_finish", w)   # 1.4.0 §11.1
 		Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
 	if eff["log"]:
 		Save.playtest_log(_pt_entry(0))
@@ -382,6 +384,13 @@ func _draw_result() -> void:
 			bs.append([L.t("wv_again"), func(): call("_wave_start")])
 			if not (get("wv_codes") as Array).is_empty():
 				bs.append([L.t("wv_copy"), func(): DisplayServer.clipboard_set(call("wave_code", get("wv_codes"))); _toast(L.t("bc_copied"))])
+	if bool(get("tower_on")) and mode == Mode.VS_AI:
+		# 1.4.0 §11.1 無盡塔：贏了爬下一層，輸了從第 1 層重來
+		var tb: Array = call("tower_button", int(get("tower_result")), int(get("tower_floor")))
+		if not tb.is_empty():
+			bs.clear()
+			var nf: int = int(tb[1])
+			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_start", nf)])
 	if watch_mode:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 

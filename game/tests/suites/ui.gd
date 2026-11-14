@@ -1765,7 +1765,7 @@ func test_owner_daily_v130() -> void:
 	ok(OD.today_picks(t1[1], 31, ids, {})[1]["day"] == 31, "換日重抽")
 	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
 	ok(gm.find("\"od_open\"") >= 0, "殘局卡片面板有入口")
-	ok(gm.find("\"notebook\", \"od\"]") >= 0 and gm.find("\"od_stamps\"]") >= 0, "清除殘局／戰績會一起清每日出題與印（Codex cat11 #7）")
+	ok(gm.find("\"notebook\", \"od\"]") >= 0 and gm.find("\"od_stamps\"") >= 0 and gm.find("\"od_stamps\"") < gm.find("[\"clr_all\""), "清除殘局／戰績會一起清每日出題與印（Codex cat11 #7）")
 
 ## 1.3.0 第 13 大類：掌燈開門（只播第一次、截圖／版面檢查／headless／減少動態不播、任何鍵跳過並記下）
 func test_intro_v130() -> void:

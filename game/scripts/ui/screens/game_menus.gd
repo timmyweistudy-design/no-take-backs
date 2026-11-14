@@ -1235,7 +1235,7 @@ func _draw_restore() -> void:
 		_btn(Rect2(380, ry + i * 48, 520, 44), nm.trim_prefix("progress_").trim_suffix(".json"), func(): _ask_confirm(L.t("restore_q", [nm.trim_prefix("progress_").trim_suffix(".json")]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
 
-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps"]], ["clr_all", []]]
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	_dim(0.6)
@@ -1513,7 +1513,8 @@ func hub_items(kind: String) -> Array:
 		"hub_gauntlet":   # V1.0.0 H1／M5：遠征牌＝單人遠征＋雙人接力遠征
 			return [["menu_gauntlet", "hc_gauntlet_d", "flag", func(): overlay = ""; _enter_gauntlet(), not _demo()],
 				["cmp_title", "hc_cmp_d", "book", func(): call("_camp_open"), not _demo()],   # 1.2.0 §11.7 戰役
-				["coop_open", "hc_coop_d", "people", func(): overlay = ""; call("_coop_start"), not _demo()]]   # V1.6 #21
+				["coop_open", "hc_coop_d", "people", func(): overlay = ""; call("_coop_start"), not _demo()],   # V1.6 #21
+				["tw_open", "hc_tw_d", "tower", func(): overlay = ""; call("_tower_open"), not _demo()]]   # 1.4.0 §11.1 無盡塔
 		"hub_challenge":   # V1.0.0 H1：「挑戰」拆掉，這張牌改成「殘局」：單人求解類
 			return [["menu_puzzle", "hc_puzzle_d", "puzzle", func(): overlay = ""; _open("puzzles"), true],
 				["menu_trials", "hc_trials_d", "trophy", func(): overlay = ""; _open("trials"), true],

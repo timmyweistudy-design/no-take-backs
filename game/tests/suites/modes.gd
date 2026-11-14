@@ -1599,3 +1599,58 @@ func test_wave_code_v151() -> void:
 	ok(GM.wave_decode(code + "x").is_empty() and GM.wave_decode(GM.wave_code(["NTS1.abc"])).is_empty() and GM.wave_decode(GM.wave_code([c1, c1, c1, c1])).is_empty(), "壞碼、非對戰代碼、四波都拒絕")
 	var GMenu = load("res://scripts/ui/screens/game_menus.gd")
 	ok(GMenu.code_kind(code) == "waves", "一鍵辨識認得車輪戰代碼")
+
+
+## 1.4.0 §11.1 無盡塔：每層規則合法、敵陣固定（跨機器一樣）、突變輪換、敵方預算遞增有上限、續局與最高層
+func test_tower_v140() -> void:
+	var TW = load("res://scripts/game/tower.gd")
+	var muts := {}
+	var prev_bonus := -1
+	for f in range(1, 41):
+		var sp: Dictionary = TW.spec(f)
+		muts[int(sp["mut"])] = true
+		ok(int(sp["bonus"]) >= prev_bonus and int(sp["bonus"]) <= TW.BONUS_MAX, "第 %d 層敵方加碼遞增、有上限" % f)
+		prev_bonus = int(sp["bonus"])
+		var r = TW.make_rules(sp, RS9.full_pool())
+		var bad: Array = r.validate()
+		ok(bad.is_empty(), "第 %d 層規則合法" % f, str(bad))
+		ok(int(r.budget_of(1)) == mini(RS9.BUDGET_MAX, int(r.budget_of(0)) + int(sp["bonus"])), "第 %d 層敵方預算＝我方＋加碼（夾在上限內）" % f)
+		var e = TW.enemy(sp, r)
+		ok(e.has_combat() and e.units.size() > 0, "第 %d 層敵陣有戰鬥兵" % f)
+		var e2 = TW.enemy(TW.spec(f), TW.make_rules(TW.spec(f), RS9.full_pool()))
+		ok(e.to_code() == e2.to_code(), "第 %d 層同一支敵軍（只由層數決定）" % f)
+		for u in e.units:
+			ok(RS9.has(r.pool_of(1), int(u["type"])), "第 %d 層敵兵在卡池內" % f)
+	ok(muts.size() == 8, "前 40 層 8 種突變都出現")
+	ok(TW.spec(0)["floor"] == 1 and TW.spec(-3)["floor"] == 1, "層數至少 1")
+	ok(TW.record(3, 5) == [5, true] and TW.record(7, 5) == [7, false], "最高層：刷新才更新")
+	ok(TW.next_run(4, 4, true) == 5 and TW.next_run(4, 4, false) == 0, "續局：贏了下一層、輸了清掉")
+	ok(TW.sanitize_run("x") == 0 and TW.sanitize_run(-2) == 0 and TW.sanitize_run(12.0) == 12, "續局欄位驗型")
+	var SV = load("res://scripts/game/save.gd")
+	var d := {"tower_best": "bad", "tower_run": [1]}
+	SV.sanitize_data(d)
+	ok(int(d["tower_best"]) == 0 and int(d["tower_run"]) == 0, "存檔壞資料清成 0")
+	var GM = load("res://scripts/ui/screens/game_menus.gd")
+	var found := false
+	for row in GM.CLEAR_KEYS:
+		if "tower_best" in row[1] and "tower_run" in row[1]:
+			found = true
+	ok(found, "清除戰績會清無盡塔")
+	# 結果頁按鈕照正式結算（覆盤改陣贏了不能跳層，Codex cat11 #2）
+	var GSx = load("res://scripts/ui/game_screens.gd")
+	ok(GSx.tower_button(0, 4) == ["tw_next", 5] and GSx.tower_button(1, 4) == ["tw_again", 1] and GSx.tower_button(-1, 4).is_empty(), "結果頁按鈕只看正式結算")
+	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	var i0 := v16.find("func _tower_start(")
+	var i1 := v16.find("func _tower_finish(")
+	var body := v16.substr(i0, i1 - i0)
+	ok(body.find("set(\"daily_spec\", {})") >= 0 and body.find("set(\"daily_practice\", false)") >= 0 and body.find("Save.save_data()") >= 0, "進塔清掉每日狀態、續局寫進存檔（Codex cat11 #1、#3）")
+	var rs: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(rs.find("call(\"tower_button\", int(get(\"tower_result\"))") >= 0, "結果頁用 tower_result（不是畫面上這一場的勝負）")
+	# 讓子規則代碼往返：塔的規則轉成代碼再讀回，兩邊預算一樣（分享、重播、對戰紀錄走代碼）
+	for f in [2, 9, 16, 30]:
+		var r0 = TW.make_rules(TW.spec(f), RS9.full_pool())
+		var back: Dictionary = RS9.from_code(r0.to_code())
+		ok(bool(back["ok"]) and int(back["rules"].budget_of(0)) == int(r0.budget_of(0)) and int(back["rules"].budget_of(1)) == int(r0.budget_of(1)), "第 %d 層規則代碼往返預算一致" % f)
+	var csv: String = FileAccess.get_file_as_string("res://data/strings.csv")
+	for k in ["tw_open", "hc_tw_d", "tw_head", "tw_next", "tw_again", "tw_floor_clear", "tw_over", "tw_resume"]:
+		ok(csv.find("\n%s," % k) >= 0, "無盡塔字串 %s" % k)

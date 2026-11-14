@@ -182,6 +182,9 @@ static func sanitize_data(out: Dictionary) -> void:
 	out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
 	var lst = out.get("lobby_stamps", 0)
 	out["lobby_stamps"] = clampi(int(lst), 0, 99) if (lst is int or lst is float) else 0   # 1.4.0 §1.1 手帳印跡
+	var twb = out.get("tower_best", 0)
+	out["tower_best"] = clampi(int(twb), 0, 100000) if (twb is int or twb is float) else 0   # 1.4.0 §11.1 無盡塔最高層
+	out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
 	var ods = out.get("od_stamps", 0)
 	out["od_stamps"] = clampi(int(ods), 0, 100000) if (ods is int or ods is float) else 0
 	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）

@@ -2493,3 +2493,63 @@ static func stamp_page(n: int) -> Array:
 	if n <= 0:
 		return [1, 0]
 	return [(n - 1) / STAMP_PER_PAGE + 1, (n - 1) % STAMP_PER_PAGE + 1]
+
+
+# ── 1.4.0 §11.1 無盡塔（1.3.0 延伸，stash 補完）──
+const Tower = preload("res://scripts/game/tower.gd")
+var tower_on := false
+var tower_floor := 1
+var tower_result := -1   # 這一層的正式結算（-1＝還沒、0＝過、1＝沒過）；結果頁的按鈕只看它（覆盤改陣贏了不能跳層，Codex cat11 #2）
+
+## 結果頁的無盡塔按鈕：照正式結算，不照畫面上這一場（覆盤、重播）→ [文字鍵, 下一次的層]
+static func tower_button(result: int, floor_no: int) -> Array:
+	if result == 0:
+		return ["tw_next", floor_no + 1]
+	if result == 1:
+		return ["tw_again", 1]
+	return []
+
+## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
+func _tower_open() -> void:
+	var run := int(Save.data.get("tower_run", 0))
+	if run > 1:
+		_toast(L.t("tw_resume", [run]))
+	_tower_start(maxi(1, run))
+
+func _tower_start(floor_no: int) -> void:
+	if _demo():
+		_toast(L.t("demo_locked"), true)
+		return
+	var sp: Dictionary = Tower.spec(floor_no)
+	var r = Tower.make_rules(sp, RS.mask(false))
+	if not r.validate().is_empty():
+		_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
+		if floor_no > 1:
+			Save.data["tower_run"] = 0
+			_tower_start(1)
+		return
+	set("daily_spec", {})        # 從每日挑戰／每日練習直接進塔：不帶每日狀態（不記每日紀錄、不跳過塔結算，Codex cat11 #1）
+	set("daily_practice", false)
+	rules = r
+	challenge_army = Tower.enemy(sp, r)   # 這一層固定的敵陣（走挑戰碼那條路）
+	overlay = ""
+	_start_mode(Mode.VS_AI)
+	tower_on = true
+	tower_floor = int(sp["floor"])
+	tower_result = -1
+	Save.data["tower_run"] = tower_floor
+	Save.save_data()   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]))
+
+func _tower_finish(w: int) -> void:
+	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+		return
+	var best := int(Save.data.get("tower_best", 0))
+	Save.data["tower_run"] = Tower.next_run(int(Save.data.get("tower_run", 0)), tower_floor, w == 0)
+	tower_result = 0 if w == 0 else 1
+	if w == 0:
+		var r: Array = Tower.record(best, tower_floor)
+		Save.data["tower_best"] = r[0]
+		_toast(L.t("tw_floor_clear", [tower_floor]))
+	else:
+		_toast(L.t("tw_over", [tower_floor, best]))
