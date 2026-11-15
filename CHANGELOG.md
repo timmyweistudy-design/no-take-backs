@@ -15,6 +15,7 @@
 - **小地方**：還原進度的備份清單改成日期時間；老闆每日出題不再是三條刺眼的紅鈕，改成木章凹槽；重播暫停時的兵種資料改成米紙浮籤，不會蓋住你選的那隻。
 - **戰績分三頁**：總覽（大數字＋你最常派、勝率最高的兵）、兵種（勝率與熟練度）、成就（怎麼拿直接寫在牌子上）。試煉每頁 8 關，比較不擠。
 - **戰場**：「衝鋒！」這類短標改成手裁的小吊牌；最後時刻棋盤木框會滲出一點暖紅光。
+- **輸了直接看關鍵**：敗因卡上一顆「看第一隻倒下」，重播從你第一隻兵倒下前 2 秒開始、鏡頭跟著牠。大廳的進階設定底下只剩「收起」和「開戰」，複製／貼上規則、存成預設收進「我的預設」選單。
 
 ## English
 **1.5.0 — One Page, One Scene (part one).** Every page does one thing; the rest is tucked away.
@@ -27,6 +28,7 @@
 - **Little things**: backups show a date and time; Owner's Picks swaps its three loud red buttons for stamp slots; the paused unit card in replays is a paper tag that moves out of the way of the unit you picked.
 - **Records in three tabs**: Overview (big numbers plus your most-fielded and best units), Units (win rate and mastery), Achievements (how to earn each one is written right on it). Trials show 8 per page.
 - **Battlefield**: callouts like "Charge!" are now little hand-cut tags; in the final moments the board's wooden frame glows faintly warm.
+- **See what went wrong**: the defeat card has a "First fall ▶" button — the replay starts 2 seconds before your first unit falls, following it. The lobby's advanced panel now has just "Collapse" and "Fight" at the bottom; copy/paste rules and save preset live in the "Saved ▼" menu.
 
 ## 简体中文
 **1.5.0：一页一景（第一阶段）。** 每一页只做一件事，该收的收起来。
@@ -39,6 +41,7 @@
 - **小地方**：还原进度的备份清单改成日期时间；老板每日出题不再是三条刺眼的红按钮，改成木章凹槽；重播暂停时的兵种资料改成米纸浮签，不会盖住你选的那只。
 - **战绩分三页**：总览（大数字＋你最常派、胜率最高的兵）、兵种（胜率与熟练度）、成就（怎么拿直接写在牌子上）。试炼每页 8 关，比较不挤。
 - **战场**：“冲锋！”这类短标改成手裁的小吊牌；最后时刻棋盘木框会渗出一点暖红光。
+- **输了直接看关键**：败因卡上一个“看第一只倒下”，重播从你第一只兵倒下前 2 秒开始、镜头跟着它。大厅的进阶设置底下只剩“收起”和“开战”，复制／粘贴规则、存成预设收进“我的预设”菜单。
 
 ## 日本語
 **1.5.0：一頁一景（第一弾）。** どの画面もやることは一つ。それ以外はしまっておきます。
@@ -51,6 +54,7 @@
 - **細かいところ**：バックアップ一覧は日付と時刻に。親方の日替わり出題は派手な赤ボタン三本をやめ、木の判子のくぼみに。リプレイ一時停止中の兵種カードは和紙の札になり、選んだ兵を隠しません。
 - **戦績は3タブに**：概要（大きな数字と、よく出す兵・勝率トップ）、兵種（勝率と熟練度）、実績（取り方を札に直接表記）。試練は1ページ8つに。
 - **戦場**：「突撃！」などの短いラベルは手で切った小さな札に。最後の局面では盤の木枠がほんのり赤く光ります。
+- **負けの決め手をすぐ確認**：敗因カードの「最初の脱落へ」で、最初に倒れた兵の 2 秒前からリプレイ、その兵を追跡します。ロビーの詳細設定の下は「閉じる」と「開戦」だけに。ルールのコピー／貼り付けとプリセット保存は「保存済み」メニューへ。
 
 # 1.4.0
 
