@@ -2641,3 +2641,10 @@ func test_lobby_fold_v150() -> void:
 func test_title_notes_v150() -> void:
 	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
 	ok(gv.find("var NS_RECT := Rect2(830, 20,") >= 0 and gv.find("else 20.0)") >= 0, "標題的建議下一步、最近玩整組在示範戰場框之上（不壓框；§13）")
+
+func test_lobby_fold_menu_v150() -> void:
+	var lv: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
+	ok(lv.find("var acts := [[\"lb_copy\", _lobby_copy_code], [\"lb_save\", _lobby_save_preset], [\"lb_paste\", _lobby_paste_code]]") >= 0, "複製／存成預設／貼上規則搬進「我的預設」選單")
+	ok(lv.find("_btn(Rect2(458, by, 150, 48), L.t(\"lb_copy\")") < 0, "折頁底列不再有代碼與存預設（只剩收起＋開戰）")
+	for grp in ["cmdr_cards", "cmd_cards", "sb_units", "sb_skills", "cmd_side"]:
+		ok(lv.find("btn_group = \"%s\"" % grp) >= 0, "折頁 R14 分組：%s" % grp)

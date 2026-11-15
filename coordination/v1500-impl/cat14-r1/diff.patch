@@ -1,0 +1,140 @@
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index 07bb076..eafbeb8 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -274,7 +274,9 @@ func _draw_cmd_tab(R: Rect2) -> void:
+ 		return
+ 	for ti in 2:
+ 		var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
++		btn_group = "cmd_side"   # 1.5.0 R14：兩邊切換＝一個控制
+ 		_btn_small(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
++		btn_group = ""
+ 	y += 44
+ 	var tm: int = clampi(lobby_pool_team, 0, 1)
+ 	# V1.4 #8 指揮官：一排羊皮紙名牌，點一位就套用他的軍令與開局金
+@@ -283,7 +285,9 @@ func _draw_cmd_tab(R: Rect2) -> void:
+ 	for k in COMMANDERS.size():
+ 		var crr := Rect2(R.position.x + (k % 3) * (chw + 6), y + (k / 3) * 48, chw, 42)
+ 		btn_paper = k == cur
++		btn_group = "cmdr_cards"   # 1.5.0 R14：將領卡＝一個選擇器
+ 		_btn(crr, "", _cmdr_pick.bind(tm, k), true, false, Color(0, 0, 0, 0))
++		btn_group = ""
+ 		btn_paper = false
+ 		_ink_mode = last_btn_paper
+ 		_probe_btn_label = true
+@@ -307,7 +311,9 @@ func _draw_cmd_tab(R: Rect2) -> void:
+ 	for s in CmdD.COUNT:
+ 		var cr := Rect2(R.position.x + s * (cw + 6), y, cw, 100)
+ 		var sel: bool = (m >> s) & 1 == 1
++		btn_group = "cmd_cards"   # 1.5.0 R14：軍令卡＝一個多選格
+ 		_btn(cr, "", _cmd_toggle.bind(tm, s), true, false, Color(0.22, 0.38, 0.3) if sel else Color(0.16, 0.16, 0.2))
++		btn_group = ""
+ 		if _brief_hot(cr):
+ 			hot = s
+ 		_probe_btn_label = true
+@@ -539,17 +545,16 @@ func _draw_lobby() -> void:
+ 		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
+ 	# 底列
+ 	var by := 700.0
+-	if lobby_open or lobby_step == 0:
+-		_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
++	if lobby_open:
++		_btn(Rect2(80, by, 200, 48), L.t("lb_collapse"), func(): lobby_open = not lobby_open)   # 1.5.0 §1.2：折頁裡回去的路只有「收起」（Esc 照舊返回）
+ 	else:
+-		_btn(Rect2(80, by, 150, 48), L.t("lb_prev"), func(): _lobby_step_by(-1))   # 1.5.0 §1.2：上一步
+-	_btn(Rect2(244, by, 200, 48), L.t("lb_collapse") if lobby_open else L.t("lb_expand"), func(): lobby_open = not lobby_open)
++		if lobby_step == 0:
++			_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
++		else:
++			_btn(Rect2(80, by, 150, 48), L.t("lb_prev"), func(): _lobby_step_by(-1))   # 1.5.0 §1.2：上一步
++		_btn(Rect2(244, by, 200, 48), L.t("lb_expand"), func(): lobby_open = not lobby_open)
+ 	if not lobby_open:
+ 		_btn(Rect2(458, by, 190, 48), L.t("lb_random"), _lobby_random)   # 隨機＝底列一顆有字的鈕（不再像第 4 個步驟；骰子圖示看不懂，Antigravity v150 cat03 r2 #2）
+-	if lobby_open:
+-		_btn(Rect2(458, by, 150, 48), L.t("lb_copy"), _lobby_copy_code)
+-		_btn(Rect2(620, by, 150, 48), L.t("lb_paste"), _lobby_paste_code)
+-		_btn(Rect2(782, by, 150, 48), L.t("lb_save"), _lobby_save_preset)
+ 	var why := _lobby_block()
+ 	if _lb_focus_main:
+ 		_focus = _btns.size()   # 換步後焦點落在主鈕
+@@ -562,7 +567,9 @@ func _draw_lobby() -> void:
+ 		btn_seal_square = false
+ 	var lb_why := ""
+ 	if lobby_open:
+-		lb_why = "進階折頁：子分頁、卡池、類別、牌組已各算一組（1.5.0 第 10 批），但折頁仍有 14～40 個控制；折頁重做（子分頁併成三格、代碼／存預設進選單、規則格精簡）還沒做"
++		# 1.5.0 第 10、14 批：子分頁、卡池、類別、牌組、步進器、將領／軍令／技能格各算一組，代碼與存預設進「我的預設」選單，
++		# 底列只剩收起＋開戰——折頁從 18～48 個控制降到 10～13；剩下是每一頁自己的規則列，再減要把規則列分頁
++		lb_why = "進階折頁：每一頁自己的規則列（5 列以上）"
+ 	elif lobby_menu:
+ 		lb_why = "「我的預設」下拉選單展開時：選單本身是一張清單（每列讀取／存入／刪除）"
+ 	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", lb_why)
+@@ -653,18 +660,33 @@ func _draw_lobby_menu(o: Vector2) -> void:
+ 	var rows: int = clampi(ps.size(), 1, 5)
+ 	var cols := 2 if ps.size() > 5 else 1
+ 	o.x -= 240.0 * (cols - 1) + 30.0
+-	var r := Rect2(o, Vector2(12 + cols * 240, 12 + rows * 50))
++	var act := 56.0   # 1.5.0 §1.2：複製／貼上規則、存成預設搬進這個選單（原本在折頁底列）
++	var r := Rect2(o, Vector2(maxf(12 + cols * 240, 3 * 156 + 12), 12 + rows * 50 + act))
++	if r.end.x > 1200.0:
++		r.position.x = 1200.0 - r.size.x
+ 	# 下拉選單蓋住的底層按鈕不能被點到（Antigravity v150-i2 #6）
+ 	for bi in range(_btns.size() - 1, -1, -1):
+ 		if r.intersects(_btns[bi]["r"]):
+ 			_btns.remove_at(bi)
++	if layout_probe:
++		# 選單蓋住的底層字也不算（看不到；版面檢查不知道疊放順序）
++		for ti in range(probe_texts.size() - 1, -1, -1):
++			if r.intersects(probe_texts[ti]["r"]):
++				probe_texts.remove_at(ti)
++		for pi in range(probe_btns.size() - 1, -1, -1):
++			if r.intersects(probe_btns[pi]):
++				probe_btns.remove_at(pi)
+ 	draw_rect(r, PANEL)
+ 	draw_rect(r, Color(1, 1, 1, 0.3), false, 1.5)
++	var acts := [["lb_copy", _lobby_copy_code], ["lb_save", _lobby_save_preset], ["lb_paste", _lobby_paste_code]]
++	for ai in 3:
++		_btn(Rect2(r.position + Vector2(6 + ai * 156, 6), Vector2(150, 44)), L.t(acts[ai][0]), acts[ai][1])
++	draw_line(r.position + Vector2(6, act + 2), Vector2(r.end.x - 6, r.position.y + act + 2), Color(1, 1, 1, 0.2), 1.0)
+ 	if ps.is_empty():
+-		_text(r.position + Vector2(110, 18), L.t("lb_mine_empty"), tz("S"), TXT_DIM, true, false, 200)
++		_text(r.position + Vector2(r.size.x * 0.5, act + 18), L.t("lb_mine_empty"), tz("S"), TXT_DIM, true, false, r.size.x - 20)
+ 		return
+ 	for i in ps.size():
+-		var cp := r.position + Vector2(6 + (i / 5) * 240, 6 + (i % 5) * 50)
++		var cp := r.position + Vector2(6 + (i / 5) * 240, act + 6 + (i % 5) * 50)
+ 		_btn(Rect2(cp, Vector2(144, 44)), str(ps[i]["name"]), _lobby_load_preset.bind(i))
+ 		_btn(Rect2(cp + Vector2(148, 0), Vector2(44, 44)), "", func(): DisplayServer.clipboard_set(str(ps[i]["code"])); _toast(L.t("lb_copied")))
+ 		_icon("copy", cp + Vector2(170, 22), 18.0, Color.WHITE)
+@@ -1361,7 +1383,9 @@ func _draw_lab_tab(R: Rect2) -> void:
+ 		var t: int = lab_types[lj]
+ 		# 第八輪：兩邊名單不同時聯集最多 20 種，一排放不下就換第二排
+ 		var cr := Rect2(R.position + Vector2((lj % lab_cols) * 58, (lj / lab_cols) * lab_h), Vector2(54, lab_h - 4))
++		btn_group = "sb_units"   # 1.5.0 R14：沙盒兵種格＝一個選擇器
+ 		_btn(cr, "", func(): lobby_sb_unit = t, true, false, TH_ACTIVE if t == lobby_sb_unit else Color(0.16, 0.16, 0.2))
++		btn_group = ""
+ 		_unit_in(cr, t, 0, 1.0, 0.55)
+ 		if lobby_r.stat_pct.has(t):
+ 			draw_circle(cr.position + Vector2(48, 8), 5, Color("#a46be0"))
+@@ -1369,9 +1393,11 @@ func _draw_lab_tab(R: Rect2) -> void:
+ 	var y := R.position.y + (80 if lab_types.size() <= lab_cols else 100)
+ 	for k in 3:
+ 		_text(Vector2(R.position.x, y + 14), L.t(["lb_hp", "lb_atk", "lb_spd"][k]), tz("B"), Color.WHITE, false, false, 200)
++		btn_group = "sb_row_%d" % k   # 1.5.0 R14：◀ 值 ▶＝一個控制
+ 		_btn(Rect2(R.position.x + 230, y, 52, 48), "◀", _lobby_sb_adj.bind(k, -1))
+ 		_btn(Rect2(R.position.x + 288, y, 190, 48), "%d%%" % int(cur[k]), _lobby_sb_adj.bind(k, 1), true, false, TH_WOOD_D)
+ 		_btn(Rect2(R.position.x + 484, y, 52, 48), "▶", _lobby_sb_adj.bind(k, 1))
++		btn_group = ""
+ 		y += 56
+ 	_text(Vector2(R.position.x, y + 4), L.t("lb_skills"), tz("S"), TXT_DIM)
+ 	y += 30
+@@ -1380,8 +1406,10 @@ func _draw_lab_tab(R: Rect2) -> void:
+ 	for i in skill_list.size():
+ 		var s: String = skill_list[i]
+ 		var off: bool = s in lobby_r.skills_off
++		btn_group = "sb_skills"   # 1.5.0 R14：技能開關格＝一個多選格
+ 		_btn_small(Rect2(R.position.x + (i % 4) * 148, y + (i / 4) * 44, 140, 38), ("× " if off else "✓ ") + L.t("sk_" + s), _lobby_sb_skill.bind(s), true, false,
+ 			Color(0.35, 0.18, 0.2) if off else Color(0.16, 0.26, 0.2))
++		btn_group = ""
+ 	if mouse.y > R.position.y and mouse.y < R.end.y and mouse.x > R.position.x and mouse.x < R.end.x:
+ 		lobby_item = "lab"
+ 
