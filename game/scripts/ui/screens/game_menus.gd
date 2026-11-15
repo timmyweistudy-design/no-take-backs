@@ -1743,7 +1743,7 @@ func _draw_recent(y: float) -> void:
 	if shown.is_empty():
 		return
 	_text(Vector2(840, y), L.t("recent_head"), tz("C"), Color(1, 1, 1, 0.85), false, false, 380)
-	y += tz("C") * 1.4
+	y += tz("C") * 1.2   # 1.5.0：英文 150% 時整組仍要在示範戰場框（y≈180）之上
 	for s in shown:
 		var kind: String = s[0]
 		var it: Array = s[1]

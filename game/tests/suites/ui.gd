@@ -2637,3 +2637,7 @@ func test_lobby_fold_v150() -> void:
 	var lv: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
 	for grp in ["pool_side", "pool_filter", "pool_cards", "pool_decks", "lb_subtabs"]:
 		ok(lv.find("btn_group = \"%s\"" % grp) >= 0, "大廳折頁 R14 分組：%s" % grp)
+
+func test_title_notes_v150() -> void:
+	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(gv.find("var NS_RECT := Rect2(830, 20,") >= 0 and gv.find("else 20.0)") >= 0, "標題的建議下一步、最近玩整組在示範戰場框之上（不壓框；§13）")

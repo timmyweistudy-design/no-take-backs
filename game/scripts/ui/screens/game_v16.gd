@@ -222,8 +222,8 @@ func _draw_next_step() -> void:
 		return
 	var k := Guide.next_step(Save.data, _daily_done_today(), _demo()) if Save.s("hints") != "off" else ""
 	# 右上角（示範戰場上方的空白）；高度照字級算
-	var NS_RECT := Rect2(830, 104, 400, ceilf(22.0 + tz("C") * 1.25 + tz("S") * 1.35))   # 1.4.0：便箋上下多留空（字框不貼到下緣厚度，R12）
-	call("_draw_recent", (NS_RECT.end.y + 16.0) if k != "" else 104.0)   # 1.2.0 §11.11
+	var NS_RECT := Rect2(830, 20, 400, ceilf(22.0 + tz("C") * 1.25 + tz("S") * 1.35))   # 1.4.0：便箋上下多留空（字框不貼到下緣厚度，R12）；1.5.0 §13：整組上移，不壓示範戰場的框
+	call("_draw_recent", (NS_RECT.end.y + 8.0) if k != "" else 20.0)   # 1.2.0 §11.11
 	if k == "":
 		return
 	# 1.4.0 §12.1：原本深藍膠囊（易和藍隊色混）→ 牛皮紙便箋＋黃銅圖釘、墨字、朱紅小旗
