@@ -744,8 +744,9 @@ func _draw_review() -> void:
 		_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
 		var pcell := Rect2(br.position.x, br.end.y - 3 - 2 - ph, br.size.x, ph)   # 價錢那一條（不碰下緣厚度與九宮格邊）
 		Art.unit(self, Vector2(br.position.x + 26, pcell.position.y - 4), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
+		var pp := last_btn_paper
 		probe_cell_begin(pcell)
-		_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if can else Color(1, 1, 1, 0.3), true, true)
+		_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), (_ink(ACCENT) if pp else ACCENT) if can else Color(1, 1, 1, 0.3), true, true)   # 1.6.0 B02：紙面鈕上金字壓成深金
 		probe_cell_end()
 	_btn(Rect2(bx, 234 + dy + sh, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
 	_btn(Rect2(bx + 282, 234 + dy + sh, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)

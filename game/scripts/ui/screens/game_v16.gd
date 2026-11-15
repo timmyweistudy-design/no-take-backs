@@ -206,9 +206,11 @@ func _draw_tour() -> void:
 		y += rh + 8.0
 		var en: bool = not _demo() or str(it[0]) == "fog_open"
 		_btn(r, "", _entry_action(str(it[0])), en, false)   # 不用主按鈕的橘底：說明字在橘底上對比不夠（接觸表看到）
+		_ink_mode = last_btn_paper   # 1.6.0 B02（P2.2）：紙面鈕上用墨字
 		_icon(str(it[2]), r.position + Vector2(30, rh / 2.0), 26.0, ACCENT if en else TXT_DIM)
 		_text(r.position + Vector2(60, 6), L.t(str(it[0])), tz("S"), Color.WHITE if en else TXT_DIM, false, true, 220)
 		_text(r.position + Vector2(290, 8), L.t(str(it[1])), tz("C"), TXT_DIM, false, false, r.size.x - 300)
+		_ink_mode = false
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 
 func _draw_next_step() -> void:
@@ -267,7 +269,7 @@ func _pz_label(i: int) -> String:
 func _new_tag(r: Rect2) -> void:
 	var w := _width(L.t("new_tag"), tz("C"), true) + 20.0
 	var tr := Rect2(r.end.x - w - 8.0, r.position.y + 8.0, w, tz("C") * 1.5 + 4.0)
-	_tex_box(tr, "wood", Color("#b8322a"))
+	_tex_box(tr, "wood", Color("#b8322a"))   # 朱漆木牌（_tex_box 會登記成深底；畫失敗就不登記）
 	_text(tr.position + Vector2(10, 2 + tz("C") * 0.2), L.t("new_tag"), tz("C"), Color.WHITE, false, true, w)
 
 var demo_end_shown := false
@@ -2158,14 +2160,17 @@ func _draw_trio_result() -> void:
 		var has := k < trio_res.size()
 		var kk := k
 		_btn(r, "", func(): _trio_watch(kk), has, false)
+		var pp := last_btn_paper   # 1.6.0 B02（P2.2）：紙面卡上用墨字
 		_mini_formation(Rect2(r.position + Vector2(cw / 2.0 - 40, 10), Vector2(80, 84)), Trio.make_pz(s, k), true)
 		r5.append([Rect2(r.position + Vector2(cw / 2.0 - 40, 10), Vector2(80, 84)), Rect2(r.position + Vector2(8, 102), Vector2(cw - 16, tz("S")))])
+		_ink_mode = pp
 		var head := L.t("tr_card", [k + 1])
 		_text(Vector2(r.get_center().x, r.position.y + 102), head, tz("S"), Color.WHITE, true, true, cw - 16)
 		var st_line := ("—" if trio_err else L.t("tr_calc")) if not has else ((L.t("tr_won", [int(trio_res[k]["rem"])])) if bool(trio_res[k]["ok"]) else L.t("tr_lost"))
 		_text(Vector2(r.get_center().x, r.position.y + 102 + tz("S") * 1.5), st_line, tz("S"), (ACCENT if has and bool(trio_res[k]["ok"]) else Color(1, 0.75, 0.7)) if has else TXT_DIM, true, false, cw - 16)
 		if has:
 			_text(Vector2(r.get_center().x, r.end.y - tz("C") * 1.6), L.t("tr_watch"), tz("C"), TXT_DIM, true, false, cw - 16)
+		_ink_mode = false
 	probe_cards("trio_cards", r5)
 	y += ch + GAP_L
 	_text(Vector2(640, y), foot, tz("S"), ACCENT if all_ok else Color.WHITE, true, false, 680)

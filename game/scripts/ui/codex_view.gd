@@ -796,7 +796,12 @@ func _draw_cx_zoom() -> void:
 		_ink_mode = true
 	var nm := L.t("unit_%d" % cx_unit)
 	_text(R.position + Vector2(16, 10), nm, tz("H2"), Color.WHITE, false, true, 360)
-	_text(R.position + Vector2(390, 10 + (tz("H2") - tz("C")) * 0.5), L.t("cxz_demo"), tz("C"), TXT_DIM, false, false, 330)
+	# 1.6.0 B02（Hydrogen r2）：說明緊接在名稱後、寬度排到關閉鈕前；還是兩行就從面板上緣起排（英文 150% 第二行原本被示範框蓋住）
+	var dx := 16.0 + minf(_width(nm, tz("H2"), true), 360.0) + 24.0
+	var dw := (R.size.x - 140.0 - 12.0 if cx_unit < D.total() else R.size.x - 16.0) - dx
+	var dlines := wrap_lines(L.t("cxz_demo"), tz("C"), dw, false).size()
+	var dy0 := 10 + (tz("H2") - tz("C")) * 0.5 if dlines < 2 else 4.0
+	_text(R.position + Vector2(dx, dy0), L.t("cxz_demo"), tz("C"), TXT_DIM, false, false, dw)
 	if cx_unit < D.total():
 		_btn(Rect2(R.end.x - 140, R.position.y + 6, 128, 38), L.t("cxz_close"), func(): cx_zoom = false)
 	_ink_mode = false
@@ -876,4 +881,4 @@ func _cx_dummy(p: Vector2, face: float, hurt: float, ally: bool) -> void:
 	draw_circle(hc, 20.0, Color("#d8c08a").lerp(Color.WHITE, hurt * 0.7), true, -1.0, true)
 	draw_rect(Rect2(hc + Vector2(-26, 30), Vector2(52, 8)), Art.team_color(0 if ally else 1, cbm()))
 	if hurt > 0.3:
-		_text(hc + Vector2(0, -50), L.t("cxz_hit") if not ally else "+", tz("B"), Color("#ffe066"), true, true, 120)
+		_text(hc + Vector2(0, -50), L.t("cxz_hit") if not ally else "+", tz("B"), _ink(Color("#ffe066")), true, true, 120)   # 1.6.0 B02：示範台是紙面，金字壓成深金

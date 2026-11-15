@@ -462,3 +462,15 @@ static func _skip(out: Dictionary, p, rule: String) -> bool:
 
 static func _add(out: Dictionary, lvl: String, rule: String, id, msg: String) -> void:
 	out[lvl].append({"type": rule, "id": str(id), "s": msg})
+
+## 1.6.0 B02（P2.2）：淺紙白字——亮字（相對亮度 > 0.45、非停用、非輸入欄）的字形中心，往回找畫這個字之前最後蓋上的底面
+## （faces[0:fz]，[範圍, 是不是淺紙面]），那一層是淺紙面＝違規（畫家演算法：紙上又蓋深色框，框裡的白字不算）。
+## 底面用畫的時候登記的範圍，不用截圖取樣（取樣器取最壞點，會把字旁亮邊當背景）。
+static func paper_white(lum: float, dis: bool, field: bool, gc: Vector2, faces: Array, fz: int) -> bool:
+	if lum <= 0.45 or dis or field:
+		return false
+	for i in range(mini(fz, faces.size()) - 1, -1, -1):
+		var f: Array = faces[i]
+		if (f[0] as Rect2).has_point(gc):
+			return bool(f[1])
+	return false

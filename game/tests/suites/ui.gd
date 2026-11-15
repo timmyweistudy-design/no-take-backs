@@ -2672,3 +2672,39 @@ func test_lobby_fold_r14_v150() -> void:
 	ok(lv.find("L.t(\"lb_reset\")") < 0, "「重置回標準」拿掉（和頂緣「標準」紙籤同一件事）")
 	ok(lv.find("\"cmd_params\")") >= 0 and lv.find("btn_group = \"sb_params\"") >= 0, "所選物件的參數條＝一個控制")
 	ok(lv.find("LOBBY_TABS[lobby_tab] == \"lb_tab_cmd\" and lobby_r.cmd_on") >= 0, "折頁豁免只剩軍令頁開啟時")
+
+## 1.6.0 B02（P2.2）：紙面字色規則＋偵測——淺紙面按鈕上的亮字由版面檢查擋下（偵測器靠畫的時候登記的紙面範圍）
+func test_paper_ink_v1600() -> void:
+	var UB = load("res://scripts/ui/ui_base.gd")
+	var PAL = load("res://scripts/ui/palette.gd")
+	for c in [Color.WHITE, Color("#f0c040"), Color(1, 0.75, 0.7)]:
+		ok(UB._ink(c).get_luminance() < 0.45, "紙上墨色：%s 壓成深色" % c.to_html(false))
+	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+	ok(ub.find("probe_faces.append([rd, last_btn_paper])") >= 0 and ub.find("\"fz\": probe_faces.size()") >= 0, "按鈕面依繪製順序登記、字記下自己畫在第幾層之後")
+	var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+	ok(gs.find("probe_faces.clear()") >= 0, "每幀清空底面登記")
+	var dm: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
+	ok(dm.find("LayoutRules.paper_white(") >= 0 and dm.find("\"淺紙白字\"") >= 0, "版面檢查接上淺紙白字判定")
+	ok(ub.find("probe_faces.append([r, kind == \"paper\"])") >= 0 and ub.find("probe_faces.append([r, false])") >= 0, "直接畫的紙面、木面、深色平塗框也登記")
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	var faces := [[Rect2(100, 100, 200, 60), true], [Rect2(250, 100, 50, 30), false], [Rect2(110, 100, 60, 60), true]]
+	ok(LR.paper_white(1.0, false, false, Vector2(150, 130), faces, 3), "反例：白字在紙面上＝違規")
+	ok(not LR.paper_white(0.05, false, false, Vector2(150, 130), faces, 3), "墨字在紙面上不算")
+	ok(not LR.paper_white(1.0, true, false, Vector2(150, 130), faces, 3), "停用字不算（停用樣式另有規則）")
+	ok(not LR.paper_white(1.0, false, true, Vector2(150, 130), faces, 3), "輸入欄字不算（欄位底是深色）")
+	ok(not LR.paper_white(1.0, false, false, Vector2(150, 200), faces, 3), "沒有任何底面登記的地方不算")
+	ok(not LR.paper_white(1.0, false, false, Vector2(270, 110), faces, 3), "紙面上又蓋深色框：框裡的白字不算")
+	ok(LR.paper_white(1.0, false, false, Vector2(240, 110), faces, 3), "深色框旁邊的紙面照查")
+	ok(not LR.paper_white(1.0, false, false, Vector2(270, 110), [[Rect2(250, 100, 50, 30), false], [Rect2(100, 100, 200, 60), true]], 1), "字畫在紙面之前（紙面後來才蓋上）：照當時那一層（深色）判")
+	ok(LR.paper_white(1.0, false, false, Vector2(270, 110), [[Rect2(250, 100, 50, 30), false], [Rect2(100, 100, 200, 60), true]], 2), "深色框在下、紙面在上：照最上層（紙面）判")
+	var fixes := {
+		"res://scripts/ui/screens/game_menus.gd": "(_ink(Color.WHITE) if pp else Color.WHITE) if on else TXT_DIM",
+		"res://scripts/ui/replay_view.gd": "(_ink(ACCENT) if pp else ACCENT) if can",
+		"res://scripts/ui/screens/game_modes.gd": "(_ink(ACCENT) if pp else ACCENT) if rl_sel.x >= 0",
+		"res://scripts/ui/screens/game_place.gd": "probe_faces.append([tr, false])",
+	}
+	for f in fixes:
+		ok(FileAccess.get_file_as_string(f).find(fixes[f]) >= 0, "%s：紙面字修正在位" % f.get_file())
+	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(gv.find("_ink_mode = last_btn_paper   # 1.6.0 B02") >= 0 and gv.find("var pp := last_btn_paper   # 1.6.0 B02") >= 0, "導覽列、一陣三考卡片用墨字")
+	ok(PAL != null, "色票載入")

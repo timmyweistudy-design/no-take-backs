@@ -1265,7 +1265,8 @@ func _draw_foe_tag(zone: Rect2) -> void:
 	_btn(tr, "", func(): foe_tag_open = not foe_tag_open)   # 走一般按鈕契約（停用狀態、點擊範圍、音效、探針；Codex v150 cat04 #5），外觀再蓋胡桃木
 	var en: bool = _btns[idx]["en"]
 	draw_rect(Rect2(tr.position + Vector2(3, 4), tr.size), Color(DIM_INK, 0.45))
-	_mat_box(tr, "walnut", Color(1.0, 0.86, 0.66) if en else Color(0.6, 0.55, 0.5))
+	if _mat_box(tr, "walnut", Color(1.0, 0.86, 0.66) if en else Color(0.6, 0.55, 0.5)) and layout_probe:
+		probe_faces.append([tr, false])   # 1.6.0 B02：真的蓋成胡桃木（深色）才登記成深底；缺圖時照底下的紙面查（Codex v1600 B02 #3）
 	draw_rect(Rect2(tr.position, Vector2(tr.size.x, 2)), Color(1, 0.9, 0.7, 0.35))
 	if en and ((tr.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)):
 		draw_rect(tr, ACCENT, false, 2.0)

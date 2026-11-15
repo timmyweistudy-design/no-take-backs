@@ -506,10 +506,11 @@ func _draw_relay() -> void:
 		var bh := maxf(78.0, 35.0 + ph + 5.0)
 		var br := Rect2(bx + (k % 6) * 66, by + (k / 6) * (bh + 6.0), 62, bh)
 		_btn(br, "", _relay_set.bind(t), rl_sel.x >= 0)
+		var pp := last_btn_paper
 		var pcell := Rect2(br.position.x, br.end.y - 3 - 2 - ph, br.size.x, ph)   # 價錢那一條（不碰下緣厚度與九宮格邊）
 		Art.unit(self, Vector2(br.position.x + 31, pcell.position.y - 4), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0 if rl_sel.x >= 0 else 0.35, time, 0.5, cbm())
 		probe_cell_begin(pcell)
-		_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), ACCENT if rl_sel.x >= 0 else Color(1, 1, 1, 0.3), true, true)
+		_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), (_ink(ACCENT) if pp else ACCENT) if rl_sel.x >= 0 else Color(1, 1, 1, 0.3), true, true)   # 1.6.0 B02：紙面鈕上金字壓成深金
 		probe_cell_end()
 	by += (rl_types.size() + 5) / 6 * (maxf(78.0, 35.0 + price_cell_h() + 5.0) + 6.0) + 8
 	_btn(Rect2(bx, by, 190, 44), L.t("rv_remove"), _relay_set.bind(-1), rl_sel.x >= 0)

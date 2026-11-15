@@ -267,20 +267,21 @@ func _draw_title() -> void:
 		var mr2 := Rect2(70, float(pys[i]), PW, float(phs[i]))
 		var on := not _demo() or bool(pq[4])
 		btn_no_wax = i == 0
-		_btn(mr2, "", pq[3], on, i == 0)   # 1.4.0：對戰＝朱漆木牌主牌（走主鈕的木牌材質；不畫左側火漆，不壓小人）
+		_btn(mr2, "", pq[3], on, i == 0)
+		var pp := last_btn_paper   # 1.6.0 B02（P2.2）：淺色木牌（紙面）上用墨字   # 1.4.0：對戰＝朱漆木牌主牌（走主鈕的木牌材質；不畫左側火漆，不壓小人）
 		btn_no_wax = false
 		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else (Color(0.12, 0.07, 0.03, 0.55) if not bool(Save.s("plain_ui")) else Color(1, 1, 1, 0.35)))   # 1.2.0：籤插進盒的那一端壓暗
 		# V1.5.2 L5：小人照木牌內容區定位（150% 只放名稱時木牌變矮，腳點不再寫死 y+54 而掉出木牌）
 		var foot := minf(54.0 + (HOME_MAIN_EXTRA * 0.5 if i == 0 else 0.0), float(phs[i]) - 6.0)
 		Art.unit(self, mr2.position + Vector2(34, foot), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72 * minf(1.0, foot / 54.0), cbm())
-		var tcol: Color = Color.WHITE if on else TXT_DIM
+		var tcol: Color = (_ink(Color.WHITE) if pp else Color.WHITE) if on else TXT_DIM
 		var tag := home_tag(i)
 		var tw2 := (_width(tag, tz("C"), true) + 24.0) if tag != "" else 0.0
 		var nw := minf(_width(L.t(str(pq[0])), tz("B"), true), sw - tw2 - 8.0)
 		var top0 := (float(phs[i]) - ph) * 0.5   # 主牌比較高：字整組垂直置中
 		_text(mr2.position + Vector2(66, top0 + (6 if show_sub else (ph - tz("B") * 1.2) * 0.5)), L.t(str(pq[0])), tz("B"), tcol, false, true, sw - tw2 - 8.0)
 		if show_sub:
-			_text(mr2.position + Vector2(66, top0 + 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), Color(1, 0.93, 0.85) if i == 0 else TXT_DIM, false, false, sw)
+			_text(mr2.position + Vector2(66, top0 + 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), Color(1, 0.93, 0.85) if i == 0 else (_ink(TXT_DIM) if pp else TXT_DIM), false, false, sw)
 		if tag != "":
 			# 狀態小牌：緊跟在名稱右邊（不蓋字），羊皮紙底＋墨字（不只靠顏色）
 			var tr := Rect2(mr2.position.x + 66 + nw + 8, (mr2.position.y + (float(phs[i]) - ph) * 0.5 + 3 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (float(phs[i]) - tz("C") * 1.5) * 0.5 - 3), tw2, tz("C") * 1.5 + 6)   # 九宮格四邊留內距

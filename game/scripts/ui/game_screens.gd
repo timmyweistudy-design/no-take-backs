@@ -765,6 +765,7 @@ func _draw_inner() -> void:
 	_probe_cell_seq = 0
 	probe_texts.clear()
 	probe_btns.clear()
+	probe_faces.clear()
 	probe_ctrls.clear()
 	probe_boxes.clear()
 	probe_icons.clear()
@@ -970,6 +971,7 @@ func _draw_pad_footer() -> void:
 	draw_rect(Rect2(0, 770, 1280, 30), Color(0, 0, 0, 0.45))
 	if layout_probe:
 		probe_boxes.append({"r": Rect2(0, 770, 1280, 30), "inner": Rect2(0, 766, 1280, 34)})   # 提示列是最上層的底（不是底下兵卡的字）
+		probe_faces.append([Rect2(0, 770, 1280, 30), false])   # 1.6.0 B02：壓暗條蓋在紙卡上，條上的白字不算淺紙白字
 	_key_hints(640, 773, items, 14)
 
 

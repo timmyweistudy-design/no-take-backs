@@ -358,6 +358,7 @@ var layout_probe := false
 var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
 var probe_texts: Array = []
 var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+var probe_faces: Array = []     # 1.6.0 B02：這一幀依繪製順序登記的底面 [範圍, 是不是淺紙面]（淺紙白字檢查：字看它之前最後蓋上的那一層）
 ## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
 var probe_screen := {}
 func screen_register(cls: String, main: String, skip_why := "") -> void:
@@ -848,7 +849,7 @@ func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := 
 			var ey := maxf(0.0, ex - size * 0.05)
 			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
 			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
-				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis,
+				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis, "fz": probe_faces.size(),
 				"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98),
 				"face": _probe_face if _probe_face.size.x > 0.0 else null, "cell": _probe_cell_id, "ink": Rect2(q + ink_line(fnt, lines[i], size).position, ink_line(fnt, lines[i], size).size)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
 		if emboss:
@@ -947,6 +948,8 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	var sel_on: bool = tint == TH_ACTIVE
 	var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or ((sel_on or tint == TH_WOOD) and label != "")) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
 	last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
+	if layout_probe:
+		probe_faces.append([rd, last_btn_paper])   # 實際畫出來的面（不含擴大的點擊區；Codex v1600 B02 #2）；深色鈕也登記（紙上的深色鈕裡白字是對的）
 	last_btn_enabled = enabled
 	if cloth:
 		var ct := Color.WHITE if enabled else Color(0.6, 0.6, 0.6, 0.8)
@@ -1007,7 +1010,8 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 					probe_deco("wax", wr, rd, "left")
 	elif paper_face:
 		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
-		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
+		if not _tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE) and layout_probe:
+			probe_faces.append([rd, false])   # 1.6.0 B02：紙貼圖缺了就不是淺紙（Codex v1600 B02 r2 #1）
 		_box(rd, Color(0, 0, 0, 0), TH_EDGE.darkened(0.25), 7.0, 1.5)
 	else:
 		_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
@@ -1264,6 +1268,8 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 		# 1.2.0（Codex cat02 #8）：簡化介面一律退回平塗（同位置、同內距探針），不貼材質
 		var flat: Color = {"wood": TH_WOOD, "groove": Color(0.12, 0.09, 0.07), "paper": Color("#efe4cc")}[kind]
 		draw_rect(r, Color(flat.r * tint.r, flat.g * tint.g, flat.b * tint.b, tint.a))
+		if layout_probe:
+			probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
 		if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
 			var ins0: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
 			probe_boxes.append({"r": r, "inner": r.grow_individual(-ins0[0], -ins0[1], -ins0[2], -ins0[3])})
@@ -1272,6 +1278,8 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 	var tx := _ui_tex(path)
 	if tx == null:
 		return false
+	if layout_probe:
+		probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
 	tint = qcol(tint)   # V1.2.1 F1：量化後當鍵，淡出時不會每幀多一個樣式
 	var k := "t|%s|%s" % [kind, tint.to_html()]
 	var sb: StyleBoxTexture = _sb_cache.get(k)
@@ -1341,6 +1349,8 @@ func _box(r: Rect2, bg: Color, border := Color(0, 0, 0, 0), radius := 6.0, bw :=
 			_box(r, Color(0, 0, 0, 0), border, radius, bw)
 		return
 	draw_style_box(_flat_sb(bg, border, radius, bw), r)
+	if layout_probe and bg.a >= 0.6 and bg.get_luminance() < 0.35:
+		probe_faces.append([r, false])   # 1.6.0 B02：紙上的深色平塗框（數值框、下拉選單）裡白字是對的
 
 ## 平塗方塊的樣式（量化後快取；測試可以直接呼叫，不必在繪製階段）。
 func _flat_sb(bg: Color, border: Color, radius: float, bw: float) -> StyleBoxFlat:

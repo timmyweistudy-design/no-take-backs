@@ -227,6 +227,11 @@ func _contrast_issues(img: Image) -> Dictionary:
 			# 描邊字（裁決 R8）：描邊先疊在背景上、字再疊在描邊上；「字對背景」「描邊對背景」「字對描邊」取最好的
 			var oeff: Color = over.call(oc, bgc)
 			ratio = maxf(ratio, maxf(contrast(oeff, bgc), contrast(over.call(c, oeff), oeff)))
+		# 1.6.0 B02（P2.2）：淺紙面按鈕上的亮字（白、淺灰）靠細描邊「算過」對比，實際糊成一片（異變實驗室、新玩法導覽）。
+		# 用畫的時候登記的紙面範圍判（取樣器刻意取最壞的背景點，會把字旁的亮邊當背景，誤報太多）
+		if LayoutRules.paper_white(rel_lum(c), dis, bool(t.get("field", false)), (t.get("gr", t["r"]) as Rect2).get_center(), probe_faces, int(t.get("fz", probe_faces.size()))):
+			bad.append({"type": "淺紙白字", "s": t["s"], "fg": c.to_html(false), "at": [int(t["r"].position.x), int(t["r"].position.y)]})
+			continue
 		if ratio >= need:
 			continue
 		var item := {"type": "對比不足", "s": t["s"], "ratio": snappedf(ratio, 0.01), "need": need, "fg": c.to_html(false), "bg": (bgc as Color).to_html(false), "at": [int(t["r"].position.x), int(t["r"].position.y)]}   # 1.4.0：帶字色、取樣背景與位置（查錯用）

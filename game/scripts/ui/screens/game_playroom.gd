@@ -174,7 +174,7 @@ func _draw_draft() -> void:
 			var sc := r.position + Vector2(r.size.x - 26, 26)
 			draw_circle(sc, 17.0, tcol.darkened(0.35), true, -1.0, true)
 			draw_circle(sc, 13.0, tcol, true, -1.0, true)
-			_text(r.position + Vector2(100, 12), L.t("df_mine") if mine else L.t("df_ai"), tz("S"), Color.WHITE, true, true, 150)
+			_text(r.position + Vector2(100, 12), L.t("df_mine") if mine else L.t("df_ai"), tz("S"), tcol.darkened(0.45) if paper_on else Color.WHITE, true, true, 150)   # 1.6.0 B02：紙卡上用深隊伍色（白字壓米色紙看不見）
 	_text(Vector2(640, 582 + dy), L.t("df_count", [df_mine.size(), df_ai.size()]), tz("S"), Color.WHITE, true, true, 700)
 	# V1.5.2 L8：雙按鈕同寬、群組置中
 	var by := maxf(640.0, 582 + dy + tz("S") * 1.3 + GAP_M)
@@ -898,14 +898,14 @@ func _draw_ga_info() -> void:
 	_h1(Vector2(640, 122), L.t("ga_info"))
 	var paper := Rect2(250, 190, 780, 400)
 	_tex_box(paper, "paper")
-	_ink_mode = not bool(Save.s("plain_ui"))
-	var tc: Color = INK if _ink_mode else Color.WHITE
+	_ink_mode = true   # 1.6.0 B02：簡化介面的紙也是淺色平塗（#efe4cc），一樣用墨字
+	var tc: Color = INK
 	var y := paper.position.y + 18
 	var lw := 150.0
 	for ln in _ga_info_lines():
 		if y > paper.end.y - tz("S") * 1.5:
 			break
-		_text(Vector2(paper.position.x + 20, y), str(ln[0]), tz("S"), Color("#5a3008") if _ink_mode else ACCENT, false, true, lw)
+		_text(Vector2(paper.position.x + 20, y), str(ln[0]), tz("S"), Color("#5a3008"), false, true, lw)
 		var body := str(ln[1])
 		_text(Vector2(paper.position.x + 30 + lw, y), body, tz("S"), tc, false, false, paper.size.x - lw - 50)
 		y += text_h(body, tz("S"), paper.size.x - lw - 50) + 10
