@@ -1,0 +1,419 @@
+# 1.6.0 R0 資料包清冊
+
+- 版本錨點：945105e（main，2026-11-15 14:38，工作目錄乾淨；1.5.0）
+- 來源：全量版面（真實時間）`build/tmp/r0full`；固定時鐘戰鬥 `build/tmp/r0fixed`。
+- 固定拍攝契約：截圖腳本 `game/tools/dev_main.gd`（每張畫面的 seed、擺陣、tick 都寫死在腳本裡）；固定時鐘模式 `LAYOUT_FIXED=1` 下戰鬥截圖的動畫時間＝600＋畫面名雜湊（`_snap`）；解析度 1280×800；字級組見資料夾名。
+
+## 接觸表 zh（200 張；圖號 zh-001 起，順序＝畫面名排序；`sheets/zh_NN.jpg` 每頁 30 張）
+- zh-001 `01_title` — 標題
+- zh-002 `01b_hub_play` — 標題→卡片面板
+- zh-003 `01c_hub_challenge` — 標題→卡片面板
+- zh-004 `01d_hub_collect` — 標題→卡片面板
+- zh-005 `01e_hub_gauntlet` — 標題→卡片面板
+- zh-006 `02_place` — 擺陣
+- zh-007 `03_battle` — 戰鬥
+- zh-008 `03c_projectiles` — 戰鬥
+- zh-009 `03d_pause_menu` — 戰鬥→暫停
+- zh-010 `04_clutch` — 戰鬥
+- zh-011 `05_result` — 結果
+- zh-012 `05b_result_details` — 結果
+- zh-013 `05c_postcard` — 結果→分享
+- zh-014 `05d_share` — 結果→分享
+- zh-015 `06_puzzle` — 殘局
+- zh-016 `07_duel` — 雙人
+- zh-017 `08_settings` — 設定
+- zh-018 `08b_keys` — 設定→按鍵
+- zh-019 `08c_settings_visual` — 設定
+- zh-020 `08d_settings_sound` — 設定
+- zh-021 `08e_settings_ui` — 設定
+- zh-022 `08f_settings_controls` — 設定
+- zh-023 `08g_settings_battle` — 戰鬥
+- zh-024 `08h_settings_data` — 設定
+- zh-025 `08i_clear_data` — 設定→資料
+- zh-026 `08j_restore` — 設定→資料
+- zh-027 `08j_restore@full` — 設定→資料
+- zh-028 `08k_first_run` — 第一次開遊戲
+- zh-029 `08l_settings_undo` — 設定
+- zh-030 `08m_confirm@long` — 確認窗
+- zh-031 `09_puzzles` — 殘局
+- zh-032 `10_codex` — 圖鑑
+- zh-033 `10b_codex_scrolled` — 圖鑑
+- zh-034 `10c_codex_zoom` — 圖鑑
+- zh-035 `10d_codex_summon` — 圖鑑
+- zh-036 `10e_codex_archer_demo` — 圖鑑
+- zh-037 `11_codex_locked` — 圖鑑
+- zh-038 `12_fx` — 戰鬥
+- zh-039 `13_poses` — 戰鬥（姿勢表）
+- zh-040 `13b_poses_new` — 戰鬥（姿勢表）
+- zh-041 `14_colorblind` — 戰鬥（色盲）
+- zh-042 `14b_plain_ui` — 戰鬥（簡化介面）
+- zh-043 `15_replay` — 重播
+- zh-044 `15c_replay_mag` — 重播→暫停選兵（1.3.0 放大鏡小窗、聚光）
+- zh-045 `16_review` — 覆盤
+- zh-046 `16b_time_machine` — 覆盤→時光機
+- zh-047 `17_place_new` — 擺陣
+- zh-048 `17b_place_drum` — 擺陣
+- zh-049 `18_battle_new` — 戰鬥
+- zh-050 `19_codex_new` — 圖鑑
+- zh-051 `20_puzzles_new` — 殘局
+- zh-052 `21_place_locked` — 擺陣
+- zh-053 `22_lobby` — 對 AI 大廳
+- zh-054 `22c_lobby_menu@empty` — 對 AI 大廳
+- zh-055 `22c_lobby_menu@full` — 對 AI 大廳
+- zh-056 `23_lobby_pool` — 對 AI 大廳
+- zh-057 `24_lobby_army` — 對 AI 大廳
+- zh-058 `25_lobby_duel` — 雙人
+- zh-059 `26_lobby_lab` — 對 AI 大廳
+- zh-060 `27_free_place` — 擺陣
+- zh-061 `27b_free_brush` — 自由排兵
+- zh-062 `27c_free_select` — 自由排兵
+- zh-063 `28_free_full_ai` — 自由排兵
+- zh-064 `29_free_duel_full` — 雙人
+- zh-065 `30_lobby_deploy` — 對 AI 大廳
+- zh-066 `31_review_free` — 覆盤
+- zh-067 `32_lobby_fantasy` — 對 AI 大廳
+- zh-068 `33_lobby_roster` — 對 AI 大廳
+- zh-069 `34_fantasy_place` — 擺陣
+- zh-070 `35_fantasy_battle` — 戰鬥
+- zh-071 `36_fantasy_late` — 奇幻
+- zh-072 `37_codex_fantasy` — 圖鑑
+- zh-073 `38_puzzles_fantasy` — 殘局
+- zh-074 `39_lobby_roster_ai` — 對 AI 大廳
+- zh-075 `40_lobby_roster_two` — 對 AI 大廳
+- zh-076 `41_gauntlet_pick` — 遠征
+- zh-077 `50_map_river_battle` — 戰鬥
+- zh-078 `50_map_river_place` — 擺陣
+- zh-079 `51_map_forest_battle` — 戰鬥
+- zh-080 `51_map_forest_place` — 擺陣
+- zh-081 `52_map_ice_battle` — 戰鬥
+- zh-082 `52_map_ice_place` — 擺陣
+- zh-083 `53_map_lava_battle` — 戰鬥
+- zh-084 `53_map_lava_place` — 擺陣
+- zh-085 `54_map_canyon_battle` — 戰鬥
+- zh-086 `54_map_canyon_place` — 擺陣
+- zh-087 `55_map_small_battle` — 戰鬥
+- zh-088 `55_map_small_place` — 擺陣
+- zh-089 `56_map_large_battle` — 戰鬥
+- zh-090 `56_map_large_place` — 擺陣
+- zh-091 `57_lobby_map` — 對 AI 大廳
+- zh-092 `58_trials` — 主題試煉
+- zh-093 `59_profile` — 戰績
+- zh-094 `59b_nemeses` — 宿敵
+- zh-095 `59b_nemeses@empty` — 宿敵
+- zh-096 `59b_nemeses@full` — 宿敵
+- zh-097 `59c_relay` — 接力殘局
+- zh-098 `59d_playroom` — 遊戲間
+- zh-099 `59e_wager` — 遊戲間→競猜
+- zh-100 `59f_draft` — 遊戲間→輪抽
+- zh-101 `59g_sealed` — 遊戲間→雙封蠟
+- zh-102 `59h_paint` — 塗裝室
+- zh-103 `59i_ghosts` — 遊戲間→幽靈
+- zh-104 `59j_weekly` — 遊戲間→每週棋盒
+- zh-105 `60_reward` — 遠征→獎勵
+- zh-106 `60a_reward_picked` — 遠征→獎勵
+- zh-107 `60b_ga_info` — 遠征→本戰條件
+- zh-108 `61_ban` — 雙人→禁牌
+- zh-109 `62_ban_20` — 雙人→禁牌
+- zh-110 `63_leave` — 離開確認
+- zh-111 `64_codes` — 代碼
+- zh-112 `65_gauntlet_resume` — 遠征
+- zh-113 `70_lobby_cmd_off` — 對 AI 大廳
+- zh-114 `71_lobby_cmd_on` — 對 AI 大廳
+- zh-115 `72_lobby_cmd_quick` — 對 AI 大廳
+- zh-116 `73_cmd_ready` — 手動技能
+- zh-117 `74_cmd_cast` — 手動技能
+- zh-118 `75_cmd_cd` — 手動技能
+- zh-119 `76_cmd_duel` — 雙人
+- zh-120 `80_chapter4` — 殘局列表
+- zh-121 `81_chapter7_filter` — 殘局列表
+- zh-122 `82_place_terrain` — 擺陣
+- zh-123 `83_place_protect` — 擺陣
+- zh-124 `84_place_plan` — 擺陣
+- zh-125 `84b_plan_chain` — 軍令時間軸
+- zh-126 `85_hint_locked` — 殘局提示
+- zh-127 `86_hint_open` — 殘局提示
+- zh-128 `86b_hint_applied` — 殘局提示
+- zh-129 `87_battle_terrain` — 戰鬥
+- zh-130 `87b_quarry_place` — 擺陣
+- zh-131 `87c_quarry_battle` — 戰鬥
+- zh-132 `87d_boss_battle` — 戰鬥
+- zh-133 `88_result_survive` — 結果
+- zh-134 `89_trials_p2` — 主題試煉
+- zh-135 `90_trials_p3` — 主題試煉
+- zh-136 `91_trial_fixed` — 主題試煉
+- zh-137 `92_trial_win_result` — 結果
+- zh-138 `93_daily_place` — 擺陣
+- zh-139 `94_loss_result` — 結果
+- zh-140 `95_route_reward` — 遠征→獎勵
+- zh-141 `96_chapter11` — 殘局列表
+- zh-142 `97_place_flawless` — 擺陣
+- zh-143 `v100_01_ga_sum` — 遠征總結
+- zh-144 `v110_01_fb_cat` — 回報分類
+- zh-145 `v110_02_nb_words` — 實驗簿改名
+- zh-146 `v110_03_daily_past` — 每日挑戰
+- zh-147 `v110_04_breport` — 重播→戰報
+- zh-148 `v120_00_components` — 開發用：元件庫展示
+- zh-149 `v120_01_ink` — 結果（宣紙戰報演出）
+- zh-150 `v120_02_note` — 結果（第一次看結果的老闆便條）
+- zh-151 `v120_03_moods` — 開發用：五種表情對照
+- zh-152 `v120_04_recent` — 主畫面（最近玩的）
+- zh-153 `v120_05_songbook` — 結果→分享→收進棋譜本／收藏→棋譜本
+- zh-154 `v120_05_songbook@empty` — 收藏→棋譜本
+- zh-155 `v120_06_campaign` — 遠征→老闆的棋館
+- zh-156 `v120_07_editor_map` — 收藏→出題台（地形）
+- zh-157 `v120_08_lobby_ext` — 大廳（新技能分頁：架盾、火矢開著，說明火矢）
+- zh-158 `v130_od_owner_daily` — 殘局→老闆出題（1.3.0 §12.7）
+- zh-159 `v140_10_curtain_call` — 對 AI 戰鬥播完、結算前（1.4.0 §10.1 謝幕反應＋老闆手勢）
+- zh-160 `v150_02b_place_foe` — 擺陣（敵情翻牌展開）
+- zh-161 `v150_03f_battle_focus` — 對戰（跟拍一隻：焦點與目標）
+- zh-162 `v150_05e_result_flow` — 結果頁→看細節（1.5.0 §1.5 走勢與事件）
+- zh-163 `v150_05f_result_more` — 結果頁→更多（1.5.0 §1.5 次要動作收納）
+- zh-164 `v150_07c_duel_blind` — 雙人盲擺（竹簾）
+- zh-165 `v150_08z_settings_adv` — 設定（進階微調抽屜）
+- zh-166 `v150_22a_lobby_step1` — 大廳第一步：對手（1.5.0 §1.2）
+- zh-167 `v150_22b_lobby_step2` — 大廳第二步：地圖（1.5.0 §1.2）
+- zh-168 `v150_27b_free_tools` — 自由部署（工具展開）
+- zh-169 `v150_59c_profile_units` — 戰績（兵種）
+- zh-170 `v150_59d_profile_badges` — 戰績（徽章櫃）
+- zh-171 `v150_90b_trials_p4` — 試煉第 4 頁
+- zh-172 `v161_01_rush_menu` — 極速賽
+- zh-173 `v161_02_tour` — 新玩法導覽
+- zh-174 `v161_03_trio_cards` — 一陣三考
+- zh-175 `v161_04_rift_lab` — 裂隙
+- zh-176 `v161_05_editor_target` — 出題台
+- zh-177 `v161_06_notebook_rename` — 實驗簿
+- zh-178 `v161_07_notebook_compare` — 實驗簿
+- zh-179 `v161_08_lock_arcs` — 戰鬥（鎖定弧）
+- zh-180 `v161_09_coop_sum` — 合作接力
+- zh-181 `v16_01_title_next` — 標題
+- zh-182 `v16_02_demo_end` — 試玩版結束
+- zh-183 `v16_03_place_range` — 擺陣
+- zh-184 `v16_04_battle_marks` — 戰鬥
+- zh-185 `v16_05_hold_confirm` — 確認窗
+- zh-186 `v16_06_magnifier` — 標題（放大鏡）
+- zh-187 `v16_07_rush_place` — 擺陣
+- zh-188 `v16_08_rush_end` — 極速賽
+- zh-189 `v16_09_coach` — 教練
+- zh-190 `v16_10_rift` — 裂隙
+- zh-191 `v16_11_rift_place` — 擺陣
+- zh-192 `v16_12_hub_challenge` — 標題→卡片面板
+- zh-193 `v16_13_editor` — 出題台
+- zh-194 `v16_14_trio` — 一陣三考
+- zh-195 `v16_15_trio_place` — 擺陣
+- zh-196 `v16_16_trio_result` — 結果
+- zh-197 `v16_17_fog_place` — 擺陣
+- zh-198 `v16_18_hub_play` — 標題→卡片面板
+- zh-199 `v16_19_coop_hand` — 合作接力
+- zh-200 `v16_20_coop_place` — 擺陣
+
+## 接觸表 en（200 張；圖號 en-001 起，順序＝畫面名排序；`sheets/en_NN.jpg` 每頁 30 張）
+- en-001 `01_title` — 標題
+- en-002 `01b_hub_play` — 標題→卡片面板
+- en-003 `01c_hub_challenge` — 標題→卡片面板
+- en-004 `01d_hub_collect` — 標題→卡片面板
+- en-005 `01e_hub_gauntlet` — 標題→卡片面板
+- en-006 `02_place` — 擺陣
+- en-007 `03_battle` — 戰鬥
+- en-008 `03c_projectiles` — 戰鬥
+- en-009 `03d_pause_menu` — 戰鬥→暫停
+- en-010 `04_clutch` — 戰鬥
+- en-011 `05_result` — 結果
+- en-012 `05b_result_details` — 結果
+- en-013 `05c_postcard` — 結果→分享
+- en-014 `05d_share` — 結果→分享
+- en-015 `06_puzzle` — 殘局
+- en-016 `07_duel` — 雙人
+- en-017 `08_settings` — 設定
+- en-018 `08b_keys` — 設定→按鍵
+- en-019 `08c_settings_visual` — 設定
+- en-020 `08d_settings_sound` — 設定
+- en-021 `08e_settings_ui` — 設定
+- en-022 `08f_settings_controls` — 設定
+- en-023 `08g_settings_battle` — 戰鬥
+- en-024 `08h_settings_data` — 設定
+- en-025 `08i_clear_data` — 設定→資料
+- en-026 `08j_restore` — 設定→資料
+- en-027 `08j_restore@full` — 設定→資料
+- en-028 `08k_first_run` — 第一次開遊戲
+- en-029 `08l_settings_undo` — 設定
+- en-030 `08m_confirm@long` — 確認窗
+- en-031 `09_puzzles` — 殘局
+- en-032 `10_codex` — 圖鑑
+- en-033 `10b_codex_scrolled` — 圖鑑
+- en-034 `10c_codex_zoom` — 圖鑑
+- en-035 `10d_codex_summon` — 圖鑑
+- en-036 `10e_codex_archer_demo` — 圖鑑
+- en-037 `11_codex_locked` — 圖鑑
+- en-038 `12_fx` — 戰鬥
+- en-039 `13_poses` — 戰鬥（姿勢表）
+- en-040 `13b_poses_new` — 戰鬥（姿勢表）
+- en-041 `14_colorblind` — 戰鬥（色盲）
+- en-042 `14b_plain_ui` — 戰鬥（簡化介面）
+- en-043 `15_replay` — 重播
+- en-044 `15c_replay_mag` — 重播→暫停選兵（1.3.0 放大鏡小窗、聚光）
+- en-045 `16_review` — 覆盤
+- en-046 `16b_time_machine` — 覆盤→時光機
+- en-047 `17_place_new` — 擺陣
+- en-048 `17b_place_drum` — 擺陣
+- en-049 `18_battle_new` — 戰鬥
+- en-050 `19_codex_new` — 圖鑑
+- en-051 `20_puzzles_new` — 殘局
+- en-052 `21_place_locked` — 擺陣
+- en-053 `22_lobby` — 對 AI 大廳
+- en-054 `22c_lobby_menu@empty` — 對 AI 大廳
+- en-055 `22c_lobby_menu@full` — 對 AI 大廳
+- en-056 `23_lobby_pool` — 對 AI 大廳
+- en-057 `24_lobby_army` — 對 AI 大廳
+- en-058 `25_lobby_duel` — 雙人
+- en-059 `26_lobby_lab` — 對 AI 大廳
+- en-060 `27_free_place` — 擺陣
+- en-061 `27b_free_brush` — 自由排兵
+- en-062 `27c_free_select` — 自由排兵
+- en-063 `28_free_full_ai` — 自由排兵
+- en-064 `29_free_duel_full` — 雙人
+- en-065 `30_lobby_deploy` — 對 AI 大廳
+- en-066 `31_review_free` — 覆盤
+- en-067 `32_lobby_fantasy` — 對 AI 大廳
+- en-068 `33_lobby_roster` — 對 AI 大廳
+- en-069 `34_fantasy_place` — 擺陣
+- en-070 `35_fantasy_battle` — 戰鬥
+- en-071 `36_fantasy_late` — 奇幻
+- en-072 `37_codex_fantasy` — 圖鑑
+- en-073 `38_puzzles_fantasy` — 殘局
+- en-074 `39_lobby_roster_ai` — 對 AI 大廳
+- en-075 `40_lobby_roster_two` — 對 AI 大廳
+- en-076 `41_gauntlet_pick` — 遠征
+- en-077 `50_map_river_battle` — 戰鬥
+- en-078 `50_map_river_place` — 擺陣
+- en-079 `51_map_forest_battle` — 戰鬥
+- en-080 `51_map_forest_place` — 擺陣
+- en-081 `52_map_ice_battle` — 戰鬥
+- en-082 `52_map_ice_place` — 擺陣
+- en-083 `53_map_lava_battle` — 戰鬥
+- en-084 `53_map_lava_place` — 擺陣
+- en-085 `54_map_canyon_battle` — 戰鬥
+- en-086 `54_map_canyon_place` — 擺陣
+- en-087 `55_map_small_battle` — 戰鬥
+- en-088 `55_map_small_place` — 擺陣
+- en-089 `56_map_large_battle` — 戰鬥
+- en-090 `56_map_large_place` — 擺陣
+- en-091 `57_lobby_map` — 對 AI 大廳
+- en-092 `58_trials` — 主題試煉
+- en-093 `59_profile` — 戰績
+- en-094 `59b_nemeses` — 宿敵
+- en-095 `59b_nemeses@empty` — 宿敵
+- en-096 `59b_nemeses@full` — 宿敵
+- en-097 `59c_relay` — 接力殘局
+- en-098 `59d_playroom` — 遊戲間
+- en-099 `59e_wager` — 遊戲間→競猜
+- en-100 `59f_draft` — 遊戲間→輪抽
+- en-101 `59g_sealed` — 遊戲間→雙封蠟
+- en-102 `59h_paint` — 塗裝室
+- en-103 `59i_ghosts` — 遊戲間→幽靈
+- en-104 `59j_weekly` — 遊戲間→每週棋盒
+- en-105 `60_reward` — 遠征→獎勵
+- en-106 `60a_reward_picked` — 遠征→獎勵
+- en-107 `60b_ga_info` — 遠征→本戰條件
+- en-108 `61_ban` — 雙人→禁牌
+- en-109 `62_ban_20` — 雙人→禁牌
+- en-110 `63_leave` — 離開確認
+- en-111 `64_codes` — 代碼
+- en-112 `65_gauntlet_resume` — 遠征
+- en-113 `70_lobby_cmd_off` — 對 AI 大廳
+- en-114 `71_lobby_cmd_on` — 對 AI 大廳
+- en-115 `72_lobby_cmd_quick` — 對 AI 大廳
+- en-116 `73_cmd_ready` — 手動技能
+- en-117 `74_cmd_cast` — 手動技能
+- en-118 `75_cmd_cd` — 手動技能
+- en-119 `76_cmd_duel` — 雙人
+- en-120 `80_chapter4` — 殘局列表
+- en-121 `81_chapter7_filter` — 殘局列表
+- en-122 `82_place_terrain` — 擺陣
+- en-123 `83_place_protect` — 擺陣
+- en-124 `84_place_plan` — 擺陣
+- en-125 `84b_plan_chain` — 軍令時間軸
+- en-126 `85_hint_locked` — 殘局提示
+- en-127 `86_hint_open` — 殘局提示
+- en-128 `86b_hint_applied` — 殘局提示
+- en-129 `87_battle_terrain` — 戰鬥
+- en-130 `87b_quarry_place` — 擺陣
+- en-131 `87c_quarry_battle` — 戰鬥
+- en-132 `87d_boss_battle` — 戰鬥
+- en-133 `88_result_survive` — 結果
+- en-134 `89_trials_p2` — 主題試煉
+- en-135 `90_trials_p3` — 主題試煉
+- en-136 `91_trial_fixed` — 主題試煉
+- en-137 `92_trial_win_result` — 結果
+- en-138 `93_daily_place` — 擺陣
+- en-139 `94_loss_result` — 結果
+- en-140 `95_route_reward` — 遠征→獎勵
+- en-141 `96_chapter11` — 殘局列表
+- en-142 `97_place_flawless` — 擺陣
+- en-143 `v100_01_ga_sum` — 遠征總結
+- en-144 `v110_01_fb_cat` — 回報分類
+- en-145 `v110_02_nb_words` — 實驗簿改名
+- en-146 `v110_03_daily_past` — 每日挑戰
+- en-147 `v110_04_breport` — 重播→戰報
+- en-148 `v120_00_components` — 開發用：元件庫展示
+- en-149 `v120_01_ink` — 結果（宣紙戰報演出）
+- en-150 `v120_02_note` — 結果（第一次看結果的老闆便條）
+- en-151 `v120_03_moods` — 開發用：五種表情對照
+- en-152 `v120_04_recent` — 主畫面（最近玩的）
+- en-153 `v120_05_songbook` — 結果→分享→收進棋譜本／收藏→棋譜本
+- en-154 `v120_05_songbook@empty` — 收藏→棋譜本
+- en-155 `v120_06_campaign` — 遠征→老闆的棋館
+- en-156 `v120_07_editor_map` — 收藏→出題台（地形）
+- en-157 `v120_08_lobby_ext` — 大廳（新技能分頁：架盾、火矢開著，說明火矢）
+- en-158 `v130_od_owner_daily` — 殘局→老闆出題（1.3.0 §12.7）
+- en-159 `v140_10_curtain_call` — 對 AI 戰鬥播完、結算前（1.4.0 §10.1 謝幕反應＋老闆手勢）
+- en-160 `v150_02b_place_foe` — 擺陣（敵情翻牌展開）
+- en-161 `v150_03f_battle_focus` — 對戰（跟拍一隻：焦點與目標）
+- en-162 `v150_05e_result_flow` — 結果頁→看細節（1.5.0 §1.5 走勢與事件）
+- en-163 `v150_05f_result_more` — 結果頁→更多（1.5.0 §1.5 次要動作收納）
+- en-164 `v150_07c_duel_blind` — 雙人盲擺（竹簾）
+- en-165 `v150_08z_settings_adv` — 設定（進階微調抽屜）
+- en-166 `v150_22a_lobby_step1` — 大廳第一步：對手（1.5.0 §1.2）
+- en-167 `v150_22b_lobby_step2` — 大廳第二步：地圖（1.5.0 §1.2）
+- en-168 `v150_27b_free_tools` — 自由部署（工具展開）
+- en-169 `v150_59c_profile_units` — 戰績（兵種）
+- en-170 `v150_59d_profile_badges` — 戰績（徽章櫃）
+- en-171 `v150_90b_trials_p4` — 試煉第 4 頁
+- en-172 `v161_01_rush_menu` — 極速賽
+- en-173 `v161_02_tour` — 新玩法導覽
+- en-174 `v161_03_trio_cards` — 一陣三考
+- en-175 `v161_04_rift_lab` — 裂隙
+- en-176 `v161_05_editor_target` — 出題台
+- en-177 `v161_06_notebook_rename` — 實驗簿
+- en-178 `v161_07_notebook_compare` — 實驗簿
+- en-179 `v161_08_lock_arcs` — 戰鬥（鎖定弧）
+- en-180 `v161_09_coop_sum` — 合作接力
+- en-181 `v16_01_title_next` — 標題
+- en-182 `v16_02_demo_end` — 試玩版結束
+- en-183 `v16_03_place_range` — 擺陣
+- en-184 `v16_04_battle_marks` — 戰鬥
+- en-185 `v16_05_hold_confirm` — 確認窗
+- en-186 `v16_06_magnifier` — 標題（放大鏡）
+- en-187 `v16_07_rush_place` — 擺陣
+- en-188 `v16_08_rush_end` — 極速賽
+- en-189 `v16_09_coach` — 教練
+- en-190 `v16_10_rift` — 裂隙
+- en-191 `v16_11_rift_place` — 擺陣
+- en-192 `v16_12_hub_challenge` — 標題→卡片面板
+- en-193 `v16_13_editor` — 出題台
+- en-194 `v16_14_trio` — 一陣三考
+- en-195 `v16_15_trio_place` — 擺陣
+- en-196 `v16_16_trio_result` — 結果
+- en-197 `v16_17_fog_place` — 擺陣
+- en-198 `v16_18_hub_play` — 標題→卡片面板
+- en-199 `v16_19_coop_hand` — 合作接力
+- en-200 `v16_20_coop_place` — 擺陣
+
+## 其他
+- `orig/`：1:1 原圖（繁中 100%、英文 150%、簡化、色盲；`fixed_` 開頭＝固定時鐘）
+- `strip/`：全流程條（01_title → v150_22a_lobby_step1 → v150_22b_lobby_step2 → 22_lobby → 02_place → 03_battle → 35_fantasy_battle → 04_clutch → 05_result）
+- `gray/`：灰階
+- `thumb/`：商店縮圖實尺寸 460×215、616×353
+- **動態（連環條、帶時間戳錄影）：這次沒有**——截圖工具只拍單幀；列為「待驗」（軟缺口，見提示詞 §4）。
+
+## 這次全量版面結果（R0 截圖同一次）
+- 24 組 4800 張、違規 0、排版警告 0、宣告例外 46；純黑 >1% 的畫面 0 張；真實時間棋子低對比 883／14496（只列參考，美感比較只看固定時鐘）。

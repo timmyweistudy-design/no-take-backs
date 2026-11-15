@@ -450,7 +450,8 @@ func _layout_report(name: String, img: Image = null) -> void:
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
 		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art,
-		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size()})   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
+		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size(),
+		"cap": _cap_info()})   # 1.6.0 R0：固定拍攝契約——每張截圖的拍攝參數（重拍、前後對照要同鏡位同幀）   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
 	f.seek_end()
 	f.store_line(line)
@@ -477,6 +478,22 @@ func _layout_report(name: String, img: Image = null) -> void:
 
 var shot_only: Array = []
 var shot_fixed := false   # 1.2.0：--shot-fixed＝視覺回歸模式（固定幀時間、固定亂數、橫幅拍穩定狀態）；一般版面檢查照真實時間跑（Codex cat01 #6）   # 1.2.0 §14.4：--shot-only=a.png,b.png 只存這些（流程照跑）
+## 1.6.0 R0：這張截圖的拍攝參數（畫面狀態、地圖、模擬 tick、動畫時間、鏡頭、跟拍、場上數量）
+func _cap_info() -> Dictionary:
+	var alive := 0
+	if view != null:
+		for u in view.units:
+			if u.alive and not u.hidden:
+				alive += 1
+	var texts := 0
+	for f0 in fx:
+		if f0["kind"] == "text":
+			texts += 1
+	return {"state": int(state), "overlay": overlay, "map": fld_map, "sim_tick": sim.tick if sim != null else -1,
+		"view_tick": view.tick if view != null else -1, "anim_time": snappedf(time, 0.01), "zoom": snappedf(zoom, 0.001),
+		"cam": [snappedf(zoom_center.x, 0.1), snappedf(zoom_center.y, 0.1)], "follow": follow_id, "alive": alive,
+		"fx": fx.size(), "fx_text": texts, "paused": paused, "fixed_clock": bool(shot_fixed), "size": [1280, 800]}
+
 func _snap(name: String) -> void:
 	if shot_only.is_empty():
 		for a0 in OS.get_cmdline_user_args():
@@ -2111,6 +2128,7 @@ func _shots_v16() -> void:
 	var keep: Dictionary = Save.data.duplicate(true)
 	Save.data["tutorial"] = 1
 	Save.data["stats"] = {"wins": 0, "games": 0}
+	preload("res://scripts/game/guide.gd").see(Save.data, "tour161")   # 1.6.0 R0：導覽已看過（不然存檔改了會跳出新玩法導覽，蓋住要拍的標題）
 	await _snap("v16_01_title_next.png")
 	overlay = "demo_end"
 	await _snap("v16_02_demo_end.png")

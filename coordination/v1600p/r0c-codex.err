@@ -1,0 +1,1737 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1de14-be3a-7e43-8386-ac5bc705951d
+--------
+user
+你是《落子無悔》1.6.0 規劃小組的 Codex（只讀，專案根目錄＝目前資料夾）。提示詞定稿：coordination/v1600p/p5-prompt-final.md。
+現在是第 0 輪：主持人資料包在 coordination/v1600p/r0-brief.md 與 coordination/v1600p/shots/（manifest.md）。請照提示詞「兩方確認資料清單、列出缺口」：
+只回：①資料是否足以開始 R1（硬門檻 1～5、7）；②你做 R1（20 小時熟手、本機雙人朋友＋玩法／工程深挖）還缺什麼資料、要主持人補什麼（最多 6 條，標必須／可選）；③版本錨點或現況有沒有和程式／文件對不上的。300 字內，最後一行「可以開始 R1：是／否」。
+
+codex
+我會先核對定稿提示詞、主持人資料包與截圖清單，再比對版本錨點及相關程式／文件。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'p5-prompt-final.md' -g 'r0-brief.md' -g 'manifest.md' -g 'package.json' -g '*version*'" in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+ succeeded in 53ms:
+/mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+p5-prompt-final.md
+r0-brief.md
+shots/manifest.md
+agy_r0/p5-prompt-final.md
+agy_r0/manifest.md
+agy_r0/r0-brief.md
+
+exec
+/bin/bash -lc 'cat p5-prompt-final.md r0-brief.md shots/manifest.md' in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+ succeeded in 0ms:
+# 落子無悔 1.6.0 方案討論：提示詞定稿（v5）
+
+> 提示詞歷程：v1 主持人（`p1-prompt-draft.md`）→ v2 Codex（`p2-codex.md`）、Hydrogen（`p2-agy.md`）→ v3 綜合（`p3-prompt-combined.md`）→ 兩方復讀（`p4-codex.md`、`p4-agy.md`，皆「有條件」）→ **本定稿**。
+> 路徑一律以儲存庫根目錄為準（遊戲在 `game/`，畫面清冊是 `game/tools/screens.json`）；若在討論子目錄，請向上定位。兩位審查者只讀、只交文字，主持人落檔。
+> 路徑辨識：`docs/history/2026-11-10-v1.6.0-*`、`coordination/v160*`、程式裡的 `_v160` 測試名都是**舊的內部 V1.6.0**，與本次無關。本次資料夾 `coordination/v1600p/`，方案檔 `docs/2026-11-15-v1.6.0-plan.md`。
+> 本提示詞不授權修改遊戲、產生素材、執行長時間驗收、提交或發布。主持人逐輪宣布開始；不要一次代寫全部輪次，也不要替其他角色編造意見或簽核。
+
+---
+
+## 0. 角色與目標
+
+你們是《落子無悔》（Godot 4.6.2 確定性自動對決：木偶兵在桌上棋盤自動對打，玩家排兵、觀戰、覆盤，棋館老闆坐在桌邊）的 1.6.0 規劃小組。
+**只規劃、不實作。** 產出一份：構思有企圖心、可全選不衝突、能分批落地、每項都有驗收的方案——工程正確性與覆蓋**每項必備**；**凡涉及可見畫面或動態的項目，另外必備畫面判讀條件**（純工程項目註明不適用及理由）。使用者讀得懂「玩起來、看起來會怎樣」；實作者能據此估工、切片、實作、驗收。
+
+- **主持人 Claude（導演與旅程總管）**：玩家從商店頁、前 5 分鐘到 20 小時的節奏與斷點；資料包、整併、依賴排序、裁決、寫全案。每項裁決保留理由與未解條件；不能用「兩票同意」覆蓋相容性失敗，也不能用測試全過證明美感成立。
+- **Codex（系統、玩法、工程與驗收）**：玩法深度與決策、狀態機、資料與版本邊界、效能、製作成本、測試覆蓋與退路；查證附來源；估工標明前提與不確定性。
+- **Hydrogen（美術總監，看截圖與連續幀）**：大作感、手作感、去電腦感；世界一體（一張桌子、一盞光、一套材質語言）；版面呼吸；角色剪影與動態；戰場可讀。每條意見用 `[圖號｜區域｜看到什麼｜改成什麼]`。靜態圖只支持靜態判斷；連環條只判姿勢與面向；節奏、手感、輸入回饋要帶時間戳的錄影，音畫同步要含音訊——沒有就標「待驗」。
+
+三方都可以提出玩法與創意；分工是查核責任，不限制發想。
+
+## 1. 使用者要求（九點全部有效，最終方案逐項對照）
+1. 更像大作、減少電腦表單感，有整體設計的棋館世界。
+2. 角色外觀更好、動作自然，走路與轉身處理各個面向。
+3. 值得反覆玩的玩法與決策（不是多一個入口）。
+4. 版面簡潔，一頁不塞太多；常用好找，進階仍找得到。
+5. 至少十個有實質內容的大方向，可全選不衝突；每方向多細項、每細項有細節。
+6. 先看完整畫面再判斷。
+7. 查資料借鑑原理，提出本作原創解法。
+8. 驗收更快，覆蓋與可信度不下降。
+9. 前幾版繼續精修；已修好的不重提成新工作。
+
+「可全選」＝各方向能共存、依賴排得開、共用資源有預算；不是同時施工，也不是同一功能的兩條互斥技術路線都做。
+
+方案要同時回答：新手第一小時能否完成一局、看懂結果、願意再試？熟手有沒有新的策略問題？畫面、動作、聲音能否一起建立手作棋館的辨識度？全選後內容、效能、入口、製作成本是否可控？
+
+## 2. 現況與待處置清單
+
+### 2.1 先讀
+`docs/STATE.md`（「1.5.0 一頁一景」）、`docs/2026-11-14-v1.5.0-plan.md` §21、`coordination/v1500-impl/ledger.md`；追程式先看 `docs/MODULES.md`。方案是目標不是完成證明；文件矛盾由主持人列出、程式行為由 Codex 查、畫面以實際圖為準。
+
+### 2.2 1.5.0 已做（主持人在 R0 資料包附版本錨點與批次數）
+- R14 一頁一件事（標題、結果、大廳、擺陣、設定、戰績強制；大廳軍令頁開啟時 10 個控制為唯一豁免；殘局刻意不拆頁）。
+- 旅程：再來一場兩步開戰；結果首屏三件事＋敗因卡＋看第一隻倒下；大廳三步＋進階折頁減法（底列收起＋開戰、規則列一頁 3 列）；擺陣粉筆禁區＋敵情翻牌、工具收合、資訊帶一行；設定常用＋抽屜；戰績三頁籤；試煉每頁 8 關。
+- 戰場：數字跳字無泡泡、跟拍兵＋目標記號、非焦點血條淡、短標吊牌、決勝木框暖光；塗裝室水彩凹槽。
+- 驗收：固定時鐘美感基線（低對比棋子 573／基線 568、0 張超過容差；容差逐畫面 max(3,15%)、總數 2%——「0 張變差」指沒超過容差，不是每張都沒增加；不可默默放寬或重設基線）、輸入矩陣 124 組、背景驗收鏈、改程式前 `chain_busy.sh`。
+- **基線升版規則（1.6.0 新增）**：1.6.0 若主動改光影、材質、版面，舊像素容差不能卡死改版，也不能偷偷換掉——必須：同鏡位「左 1.5.0｜中 1.6.0｜右 1.6.0 灰階」並列通過四層觀片、色盲／低對比／R14 檢查，並由主持人在裁決公開登記「1.6.0 新基線（保留 1.5.0 對照）」，之後才用新基線比。
+
+### 2.3 1.5.0 未做（R1 必須逐項表態：收編升級／重新設計／延後／刻意不做／待確認）
+§2 字體 3.0｜§3 桌面舞台｜§4 手作材質全站｜§5 角色剪影｜§6 五方向轉身｜§7 地形微縮、外圍降飽和、故事物件、棋鐘輕晃、印章短標、跳字面積取樣｜§8 老闆露臉、常客｜§10 換邊賽對 AI、無盡塔分岔、聯賽、猜轉折｜§11 改一子比較、快照跳轉、精華匯出、導播 2.0｜§12 驗收提速｜§13 便條固定桌位、旋轉展台、出題台提示、棋譜本恢復、圖集烘焙尖峰（約 46 ms，目標 <40）。
+這是候選問題庫，不是待辦清單；要重新判斷價值。
+
+## 3. 底線（不能破）
+- 舊場次位元組、舊 digest、`FINGERPRINT b8fe741bcbfcf800` 不變；保留 golden／compat／mirror 測試族。模擬整數、左右鏡像；畫面狀態不進模擬。改規則或數值走版本分流（升版本不代替舊場相容；另列平衡、三星解、代碼相容）。
+- 新模式優先重組現有規則；新存檔欄位、日期種子、續局、獎勵要寫遷移、重啟、防重複結算。
+- 字級只用字級表、不縮字；四語、三字級、簡化、色盲、手把、停用、24 組版面、R1～R14 要過且豁免可追溯。**不以加 `btn_group` 或加豁免冒充減法**——同時看玩家實際的選擇數、操作步數、找路成本。
+- 隊色、地形語意、目標標記不能為裝飾犧牲；美感只在固定時鐘、同條件比。
+- 吃輸入的新功能接 124 組矩陣同一套真實 `_input` 測法；**124 組是既有基線，新功能要擴充自己的案例**。
+- 參考別人只拆原理（視覺：明暗比例、材質層次、景深、介面桌物化；玩法：決策結構、資訊揭露、回饋循環、覆盤機制），不搬元素與版型；商店素材只用實機畫面。
+- 外部原畫、真錄音、授權、實機、真人測試：誰交付、規格、要多久、沒交付時的程式／幾何／合成退路；沒拿到不能標完成。**退路也有品質下限**：仍要過第 1、5、6 把尺與基本音畫對拍。
+
+## 4. 第 0 輪資料包（主持人準備，`coordination/v1600p/shots/`＋`manifest.md`）
+**R1 硬門檻**：下列第 1～5、7 項齊備才宣布 R1。第 6 項（動態）或個別特殊狀態缺圖，可以列「待驗」先開跑，但那部分不做視覺定案；主持人在宣布 R1 時列出缺口與補齊節點。**全畫面盤點完成前不進全案簽核。**
+1. **版本錨點**：提交雜湊、是否有未提交變更、擷取日期、遊戲版本。
+2. **全畫面清冊＋接觸表**：繁中 100%、英文 150%；依 `game/tools/screens.json` 核對，標出缺圖；抽屜、模態、錯誤、空白、停用、長字串等狀態另列。
+3. **1:1 原圖**：主要畫面原解析度（接觸表看不出材質接縫、字邊）；含簡化／色盲代表頁、**戰場高負載尖峰幀**（多兵貼身＋跳字＋預告虛線＋目標記號同時出現）。
+4. **全流程橫向條**（World-Cohesion Strip）：標題→大廳三步→擺陣→開戰前／中／決勝→結算，拼一條（繁中 100%），看是不是「同一張棋館木桌」。
+5. **兩張照妖鏡**：灰階明度版（全流程條、戰場）；商店縮圖實尺寸（460×215、616×353）。
+6. **動態**：①連環條 4～6 格**關鍵姿勢**（預備、出手／轉向中段、受擊頓幀、收招回穩；不是單純等距 tick）——走路含轉向、揮擊／受擊／倒下；②帶時間戳的錄影（展示時鐘、播放速度、操作序列）——擺陣→開戰轉場、手把導航、音畫同步要含音訊。沒有的列待驗。
+7. **固定拍攝契約**：每張戰場與動態圖記 `seed／tick／機位／解析度／UI 比例`，之後切片能同鏡位同幀做前後對照。
+8. **現況差異表**：文件矛盾、缺資料、已修好的舊問題、使用者待交付。
+9. **驗收與耗時基準**：現有工具、覆蓋、最近有效耗時；沒量的寫未知。
+
+## 5. 怎麼看圖、怎麼對比
+- **四層觀片**（依序，不直接跳「哪裡醜」）：①縮圖／灰階 3 秒：視線第一落點、主視覺／互動區／背景三階明度分開了嗎？②並排：光源方向、木與紙的色溫、投影軟硬、框厚度跨頁一致嗎？哪一頁突然變回系統視窗？③1:1：腳底接觸、文字是不是落在實體物件上、圖示是不是過銳的向量色塊？④連環條：位移像平移紙片還是有重心起伏的木偶？混戰尖峰時跳字、血條、短標是否蓋臉蓋動作線？
+- **對比一律並列，兩套模板**：靜態＝「左 1.5.0｜中 1.6.0｜右 1.6.0 灰階」；動態＝「上排 1.5.0 連環條｜下排 1.6.0 同 tick 連環條」＋關鍵接觸幀灰階對照。不接受單放一張新圖說變好。
+- **規劃期不產圖**：本階段只指定未來對照圖「怎麼拍、怎麼判」；提案還沒實作就不要求新圖、不宣稱改善。R1 可以附「1.5.0 原圖圈註或簡易拼貼示意」，必須標「提案示意（非實機證據）」。
+- **圖號引用欄位統一**：診斷用 `[圖號｜區域｜看到什麼]`，審查與對比用 `[圖號｜區域｜看到什麼｜改成什麼]`。
+
+## 6. 「電腦感 → 手作大作感」六把診斷尺（視覺、版面、角色、動態提案至少對應一把）
+| # | 電腦感病徵 | 1.6.0 目標 | 檢驗 |
+|---|---|---|---|
+| 1 | 平面貼片：物件浮著、沒接觸 | 桌物落實：統一主光、底緣接觸陰影、盤面厚度與凹槽 | 1:1 看交界；跨頁光向一致 |
+| 2 | 純色向量、程式漸層、直角、重複貼圖 | 主材質表：木、厚紙、蠟封、粉筆灰、銅件磨損共用色盤與顆粒尺度；手工倒角、纖維 | 跨頁材質色溫採樣；紋理容量預算（MiB，待量）；圖集烘焙最長一幀（ms，目標 <40） |
+| 3 | 懸浮視窗 UI | 桌面敘事化：數值落在便條、木牌、棋鐘、帳本、印章；保留留白 | R14＋24 組＋英文 150% 無裁切無重疊 |
+| 4 | 等速線性動畫、剛體平移 | 重量、錯拍、呼吸：依材質錯拍進場、頓幀、重心起伏、多面向過渡 | 連環條姿勢曲線與面向過渡 |
+| 5 | 資訊扁平、焦點打架 | 遠中近三階明度＋外圍退讓；字三階；跳字避開剪影 | 灰階焦點對比；尖峰幀遮擋計數 |
+| 6 | 角色沒存在感、桌面空洞 | 剪影一秒辨識；桌上微故事（老闆神態、茶杯、棋譜、燈隨局勢） | 460×215 縮圖辨識；低對比／色盲剪影分離 |
+**禁用詞**：「提升質感、更有溫度、更豐富、更流暢、增強沉浸感」——要寫「哪個畫面、做什麼、玩家感到什麼、怎麼確認」。
+
+## 7. 證據、數字的寫法
+- 每條主張標：**已知**（檔案／圖／測試／量測）、**推論**（附依據）、**提案**、**待驗**（缺什麼、怎麼取得）。玩家日記是設計假說，不是真人訪談；找不到功能不能直接說不存在。
+- 重要驗收數字寫：**指標、樣本／案例、條件、量法、門檻、依據（既有契約／已量基準／本次目標）、失敗處置**。沒量過先寫量測計畫與暫定門檻。點擊數定義起點、終點、是否含擺陣；效能定義機器、解析度、冷熱啟動、統計方式；真人測試寫人數、任務、成功判定。全案共同驗收寫一次，細項引用。
+
+## 8. 五輪
+### R1｜一小時體檢＋藍圖（三方獨立，主持人收齊後才公開）
+主持人分配視角，整組至少涵蓋：商店頁路過者（商店印象→實機落差）、第一次開的新手、20 小時熟手、本機雙人朋友。每方交：
+1. **兩種玩家的一小時**：各 6～8 個關鍵時刻「想做什麼→看見什麼→做了什麼→卡住／出戲（覺得電腦感）／想關掉／想再來」，附 `[圖號｜位置｜看到什麼]`，沒證據標待驗。
+2. **專業深挖**：Hydrogen 對全站做六把尺掃描，說 §2～§8、§13 哪些併成「全站美術統一工程」、哪些重構，並拆解同類手作／桌遊／木偶作品的明暗比例、材質層次、轉向過渡（附 §10 引用格式）；Codex 盤玩法耐玩缺口（§10、§11）、效能（§12、§13 烘焙）與同類作品可借鑑的系統結構（附來源）；主持人盤旅程斷點、剩餘豁免、精修順序。
+3. **§2.3 未做清單逐項表態**。
+4. **≥10 個大方向、每方向 ≥3 細項**，固定欄位：`暫定 ID／一句話願景／問題證據／現況／細項（做法＋玩家看到的變化＋工程驗收（§7 七欄）＋畫面判讀條件（固定截圖或連環條＋四層觀片哪一層；純工程註明不適用））／預期價值／主要成本與未知`。至少涵蓋視覺整體、角色動作、玩法、覆盤、介面、驗收效率、舊版精修；不要用十種材質湊十個方向。
+5. **≥2 個超越舊待辦的提案**（新的樂趣或整體體驗，不是再加一層選單）；**3 項最該保留的現有設計**（精修時別磨掉）。
+**正文放旅程與結論**；「§2.3 逐項表態表」「細項完整規格表」「證據表」另附、不計正文字數，正文用 ID 引用。
+最後一行：`最值得探索的 3 件事：…`
+
+### R2｜整併、配重、驗證可全選
+主持人先把三份 R1 整併成方向清單（保留來源對照、相異意見、被合併細項；不因名稱相似就合併）。每方：
+1. **100 點**配在整併清單上，單一方向 ≤20 點（分數排先後，低分不自動刪）。
+2. **合併 ≥2 組**（寫合併後樣子；真的沒有就說明）。
+3. **最多列 3 個「優先延後或刪除候選」**（可以是方向、細項或互斥路線）並寫理由；沒有就說明為什麼——**不強制淘汰**，也不拆項湊數。
+4. **標出全站前置底座**（例：主光與主材質、字體 3.0、驗收提速），確保各方向長在同一個世界。
+5. 重複、互斥、依賴、共用資源競爭與解法；新入口與學習成本；全選後效能／素材／維護負擔；**全選後的畫面空間預算**：各方向佔哪一塊桌面、哪一層視覺權重（主／次／背景），同一頁會不會互擠、破 R14 留白與三階明度。
+6. **反方**：替得分最高的 2 個方向各寫一段最強反對理由。
+7. 最可能讓方案失敗的 3 件事與早期訊號。
+主持人裁決：≥10 個相容大方向，分「必做／應做／選配／依賴交付」；互斥技術路線留給切片判決；並**發布 R3 切片清單**（穩定 ID、核心未知、主筆、查核者、前置資料）——每個切片一位主筆、另一方查核，不三方重寫同一份。
+最後一行：`優先驗證的 3 件事：…`
+
+### R3｜切片規格（依不確定性與影響挑，不只看名次；8～10 個）
+至少涵蓋：角色造型與多方向動作；舞台、材質與戰場辨讀共存；**一個代表頁的桌面敘事化版面重構（含 R14、英文 150%、簡化模式）**；一個完整玩法循環；覆盤或狀態還原；驗收提速不漏案例。技術已足夠的方向直接寫批次規格，不必切片。每個切片：
+1. 要回答的一個核心問題；2. 最小可玩／可看範圍與明確不做；3. 涉及模組、資料、素材、前置（未確認的標待定位）；4. 工程與素材工作量區間、前提、信心（「兩天」是時間盒提案，要定義人日與素材前提）；5. 固定場景（R0 基線圖號、seed／tick／機位）與「左基線｜中切片｜右灰階或連環條」對照組；6. **Go／No-Go／資料不足**三種判決，各含工程數字；涉及畫面的另含畫面判讀條件；7. No-Go 退路、保留成果、停止投入的項目；使用者交付沒到時的替代；8. 通過後量產成本與下一道門檻。
+本輪只交規格，沒實驗結果不得宣稱通過。最後一行：`最影響決策的未知：…`
+
+### R4｜主持人起草全案 → 兩方審
+全案含：一頁給使用者的願景與代表性旅程；**全站美術統一規格摘要**（主光方向、主材質色盤、三階明度與字級原則）；≥10 方向 × ≥3 細項（證據、現況、價值、範圍、不做）；依賴順序、共同預算、切片決策與退路；**分批實作表**（`批次 ID／玩家看見的改變／納入細項／前置依賴／模組與素材／規模／驗收與證據／回退`；一批不同時重畫全站＋改核心規則＋加新模式）；驗收表；1.5.0 未做逐項處置；九點對照；外部交付、未知、發版條件；驗收提速方案。
+- **Codex 審**：確定性與指紋、版本相容、玩法閉環、輸入矩陣與 24 組覆蓋、工時效能預算、驗收腳本可行。
+- **Hydrogen 審**：六把尺全站覆蓋；全流程條的世界一體（光向、色溫、材質）；角色剪影與多方向過渡；戰場尖峰幀可讀（隊色與目標不被遮）；R14＋英文 150%＋簡化模式不毀桌物化。未實作的效果只判「規格是否足以驗證」，不簽「畫面已達標」。
+審查只列「阻擋／建議／待驗」，每條：定位、問題、影響、最小修正、通過條件。主持人逐條回覆採納／替代／不採納理由。最後一行：`結論：可／有條件／不可`
+
+### R5｜修訂與規劃簽核
+主持人先交修訂版＋意見處置表。每方只交：未解除的阻擋；待交付／待實驗條件、責任人、最晚決策點；前 3 批啟動順序確認；`結論：可／有條件／不可`。簽核只代表「方案足以進入實作」。無阻擋＝凍結；有條件＝寫進對應批次的開始或放量門檻；不可＝只修相關段落，不重跑發想。簽核後的新點子另列候選，不擴張本版。
+
+## 9. 驗收提速要成為可驗證的工程方向
+先拆耗時來源再對症；既有快取、雙工、差分重拍、背景鏈不能重算成新成果。開發時可按影響範圍快速回饋，但**共享樣式、字型、導航、模擬變動要擴大驗證**（差分驗收要列擴大觸發條件）；優先測玩家行為、相容性、失敗邊界，不加只重述程式的測試。每項寫：改善哪段壁鐘、原基準與環境；怎麼證明案例集合、結果與必要副作用沒漏；快取鍵、隔離、就緒判定、失敗碼、取消；同版本前後比、各段省時不相加；發版仍保留無快取全量、24 組版面、固定時鐘、匯出檢查。驗收鏈執行時不改其輸入（`chain_busy.sh`）。
+
+## 10. 研究與引用
+技術可行性、工具限制、設計原理不確定時查證，優先官方文件、原始研究、開發者分享。關鍵引用附：來源連結／查閱日期／支持哪個判斷／哪些不能直接套用／本作如何轉化。沒查到標待驗；不補造引文，不從成品反推未公開實作。
+
+## 11. 格式與篇幅
+繁體中文；玩家看得懂的名稱；方向、細項、批次、問題都有穩定 ID（合併保留對照）；已知問題附相對路徑與章節／符號／圖號，新設計附預定畫面與狀態；不得編造截圖或程式定位。建議上限：R1 4500 字、R2 2000、R3 每切片 300～600、R4 審查 2500、R5 800；證據表與規格表可另附，完整優先。主持人全案不受字數限制，共用契約集中引用。
+
+---
+**現在執行第 0 輪：主持人準備資料包；兩方確認資料清單、列出缺口，待主持人宣布 R1 才開始獨立發想。**
+
+## 定稿說明（主持人）
+- 兩方復讀皆「有條件」。採納：路徑基準與只讀邊界、`game/tools/screens.json`；雙重驗收只套可見畫面項；連環條只判姿勢、節奏與音畫用帶時間戳錄影；規劃期不產圖（可附標註示意）；R2 改「最多 3 個刪延候選、不強制」；主持人發 R3 切片清單（主筆＋查核）；124 組是基線要擴充；擴大驗證觸發；R1 硬門檻（1～5、7）與軟缺口；基線升版規則；靜態／動態兩套對照模板；R1 附表不計字數；Hydrogen 也查參考；R2 畫面空間預算；R3 必選「桌面敘事化代表頁」；R4 Hydrogen 審查範圍補齊；全站美術規格摘要；連環條取關鍵姿勢；圖號欄位統一；退路品質下限；紋理容量與烘焙時間分開；參考原理含玩法結構。
+- 兩方意見衝突處：R2 淘汰——採 Codex（不強制）；Hydrogen 擔心的「失焦」由「最多 3 個候選＋反方＋畫面空間預算」承接。
+# 1.6.0 第 0 輪資料包（主持人 Claude）
+
+提示詞定稿：`coordination/v1600p/p5-prompt-final.md`（以下簡稱「提示詞」）。資料在 `coordination/v1600p/shots/`，清冊 `shots/manifest.md`。
+
+## 1. 版本錨點
+- 提交 `945105e`（main，2026-11-15 14:38），工作目錄乾淨；遊戲版本 1.5.0（`project.godot`）。
+- 1.5.0 實作 17 批（`coordination/v1500-impl/ledger.md`；方案 §21 進度表標到 17 批）。
+- 最近一次完整檢查：6960 項全過，FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變（第 17 批驗收）。
+
+## 2. 資料包內容（對照提示詞 §4）
+| # | 項目 | 狀態 | 位置 |
+|---|---|---|---|
+| 1 | 版本錨點 | 齊 | 本檔 §1 |
+| 2 | 全畫面清冊＋接觸表（繁中 100%、英文 150%） | 齊（缺圖見 manifest） | `shots/sheets/zh_*.jpg`、`en_*.jpg`；圖號 `zh-001`… |
+| 3 | 1:1 原圖（主要畫面＋簡化、色盲代表＋固定時鐘戰鬥尖峰） | 齊 | `shots/orig/` |
+| 4 | 全流程橫向條 | 齊 | `shots/strip/flow_zh_TW_100.jpg`（另有英文 150%） |
+| 5 | 灰階、商店縮圖實尺寸 | 齊 | `shots/gray/`、`shots/thumb/` |
+| 6 | 動態（關鍵姿勢連環條、帶時間戳錄影） | **缺（軟缺口）** | 截圖工具只拍單幀；R1 動態相關一律「待驗」，R3 動作切片會把「拍連環條／錄影」列為前置 |
+| 7 | 固定拍攝契約 | 齊 | manifest 開頭：場景都寫死在 `game/tools/dev_main.gd`，固定時鐘戰鬥時間＝600＋畫面名雜湊，1280×800 |
+| 8 | 現況差異表 | 見 §3 | |
+| 9 | 驗收與耗時基準 | 見 §4 | |
+
+R1 硬門檻（1～5、7）已齊；第 6 項缺，補齊節點＝R3 切片前置。
+
+## 3. 現況差異表
+- 1.5.0 方案寫的「同屏 6 張兵卡＋分頁」沒做（故意：數字鍵與比價要全部看得到）；殘局選關沒拆頁（故意：一章十關是故事單位）。
+- 美感驗收容差是對 1.5.0 方案 §17「不高於基線」的放寬（ledger 第 3 批）。
+- 1.5.0 STATE 的「最後一次驗收」是第 8 批後的全量收尾（4728 張）；第 9～17 批各自驗收受影響畫面＋完整檢查，沒有再跑一次 24 組全量——**這次 R0 的全量就是補這一次**（結果附在 manifest 末尾）。
+- 使用者待交付（仍未到）：真錄音、老闆與常客原稿、5 方向原畫（若外包）、母語校對、Steam 後台、Deck 實機、真人試玩與盲測。
+
+## 4. 驗收耗時基準（最近有效量測，Windows Godot 4.6.2、這台 WSL）
+- 有快取完整檢查 `check.py`：約 490～580 秒（50 步，快取 31～46 步）。
+- 無快取 `check_all.sh`：1218 秒（1.5.0 收尾）。
+- 版面 24 組全量（真實時間）：約 35 分；固定時鐘戰鬥 27 畫面 × 24 組：約 20 分。
+- 單組 4 組合、十幾張畫面的開發重拍：約 3～8 分。
+- 沒量的：匯出檢查單獨耗時、圖集冷烘焙在不同機器的分布。
+
+## 5. R1 視角分配（提示詞 §8 R1）
+- **主持人 Claude**：第一次開的新手、20 小時熟手。
+- **Codex**：20 小時熟手、本機雙人朋友。
+- **Hydrogen**：Steam 商店頁路過者（商店印象→實機落差）、第一次開的新手。
+整組涵蓋四種玩家；新手、熟手各有兩方獨立看。
+# 1.6.0 R0 資料包清冊
+
+- 版本錨點：945105e（main，2026-11-15 14:38，工作目錄乾淨；1.5.0）
+- 來源：全量版面（真實時間）`build/tmp/r0full`；固定時鐘戰鬥 `build/tmp/r0fixed`。
+- 固定拍攝契約：截圖腳本 `game/tools/dev_main.gd`（每張畫面的 seed、擺陣、tick 都寫死在腳本裡）；固定時鐘模式 `LAYOUT_FIXED=1` 下戰鬥截圖的動畫時間＝600＋畫面名雜湊（`_snap`）；解析度 1280×800；字級組見資料夾名。
+
+## 接觸表 zh（200 張；圖號 zh-001 起，順序＝畫面名排序；`sheets/zh_NN.jpg` 每頁 30 張）
+- zh-001 `01_title` — 標題
+- zh-002 `01b_hub_play` — 標題→卡片面板
+- zh-003 `01c_hub_challenge` — 標題→卡片面板
+- zh-004 `01d_hub_collect` — 標題→卡片面板
+- zh-005 `01e_hub_gauntlet` — 標題→卡片面板
+- zh-006 `02_place` — 擺陣
+- zh-007 `03_battle` — 戰鬥
+- zh-008 `03c_projectiles` — 戰鬥
+- zh-009 `03d_pause_menu` — 戰鬥→暫停
+- zh-010 `04_clutch` — 戰鬥
+- zh-011 `05_result` — 結果
+- zh-012 `05b_result_details` — 結果
+- zh-013 `05c_postcard` — 結果→分享
+- zh-014 `05d_share` — 結果→分享
+- zh-015 `06_puzzle` — 殘局
+- zh-016 `07_duel` — 雙人
+- zh-017 `08_settings` — 設定
+- zh-018 `08b_keys` — 設定→按鍵
+- zh-019 `08c_settings_visual` — 設定
+- zh-020 `08d_settings_sound` — 設定
+- zh-021 `08e_settings_ui` — 設定
+- zh-022 `08f_settings_controls` — 設定
+- zh-023 `08g_settings_battle` — 戰鬥
+- zh-024 `08h_settings_data` — 設定
+- zh-025 `08i_clear_data` — 設定→資料
+- zh-026 `08j_restore` — 設定→資料
+- zh-027 `08j_restore@full` — 設定→資料
+- zh-028 `08k_first_run` — 第一次開遊戲
+- zh-029 `08l_settings_undo` — 設定
+- zh-030 `08m_confirm@long` — 確認窗
+- zh-031 `09_puzzles` — 殘局
+- zh-032 `10_codex` — 圖鑑
+- zh-033 `10b_codex_scrolled` — 圖鑑
+- zh-034 `10c_codex_zoom` — 圖鑑
+- zh-035 `10d_codex_summon` — 圖鑑
+- zh-036 `10e_codex_archer_demo` — 圖鑑
+- zh-037 `11_codex_locked` — 圖鑑
+- zh-038 `12_fx` — 戰鬥
+- zh-039 `13_poses` — 戰鬥（姿勢表）
+- zh-040 `13b_poses_new` — 戰鬥（姿勢表）
+- zh-041 `14_colorblind` — 戰鬥（色盲）
+- zh-042 `14b_plain_ui` — 戰鬥（簡化介面）
+- zh-043 `15_replay` — 重播
+- zh-044 `15c_replay_mag` — 重播→暫停選兵（1.3.0 放大鏡小窗、聚光）
+- zh-045 `16_review` — 覆盤
+- zh-046 `16b_time_machine` — 覆盤→時光機
+- zh-047 `17_place_new` — 擺陣
+- zh-048 `17b_place_drum` — 擺陣
+- zh-049 `18_battle_new` — 戰鬥
+- zh-050 `19_codex_new` — 圖鑑
+- zh-051 `20_puzzles_new` — 殘局
+- zh-052 `21_place_locked` — 擺陣
+- zh-053 `22_lobby` — 對 AI 大廳
+- zh-054 `22c_lobby_menu@empty` — 對 AI 大廳
+- zh-055 `22c_lobby_menu@full` — 對 AI 大廳
+- zh-056 `23_lobby_pool` — 對 AI 大廳
+- zh-057 `24_lobby_army` — 對 AI 大廳
+- zh-058 `25_lobby_duel` — 雙人
+- zh-059 `26_lobby_lab` — 對 AI 大廳
+- zh-060 `27_free_place` — 擺陣
+- zh-061 `27b_free_brush` — 自由排兵
+- zh-062 `27c_free_select` — 自由排兵
+- zh-063 `28_free_full_ai` — 自由排兵
+- zh-064 `29_free_duel_full` — 雙人
+- zh-065 `30_lobby_deploy` — 對 AI 大廳
+- zh-066 `31_review_free` — 覆盤
+- zh-067 `32_lobby_fantasy` — 對 AI 大廳
+- zh-068 `33_lobby_roster` — 對 AI 大廳
+- zh-069 `34_fantasy_place` — 擺陣
+- zh-070 `35_fantasy_battle` — 戰鬥
+- zh-071 `36_fantasy_late` — 奇幻
+- zh-072 `37_codex_fantasy` — 圖鑑
+- zh-073 `38_puzzles_fantasy` — 殘局
+- zh-074 `39_lobby_roster_ai` — 對 AI 大廳
+- zh-075 `40_lobby_roster_two` — 對 AI 大廳
+- zh-076 `41_gauntlet_pick` — 遠征
+- zh-077 `50_map_river_battle` — 戰鬥
+- zh-078 `50_map_river_place` — 擺陣
+- zh-079 `51_map_forest_battle` — 戰鬥
+- zh-080 `51_map_forest_place` — 擺陣
+- zh-081 `52_map_ice_battle` — 戰鬥
+- zh-082 `52_map_ice_place` — 擺陣
+- zh-083 `53_map_lava_battle` — 戰鬥
+- zh-084 `53_map_lava_place` — 擺陣
+- zh-085 `54_map_canyon_battle` — 戰鬥
+- zh-086 `54_map_canyon_place` — 擺陣
+- zh-087 `55_map_small_battle` — 戰鬥
+- zh-088 `55_map_small_place` — 擺陣
+- zh-089 `56_map_large_battle` — 戰鬥
+- zh-090 `56_map_large_place` — 擺陣
+- zh-091 `57_lobby_map` — 對 AI 大廳
+- zh-092 `58_trials` — 主題試煉
+- zh-093 `59_profile` — 戰績
+- zh-094 `59b_nemeses` — 宿敵
+- zh-095 `59b_nemeses@empty` — 宿敵
+- zh-096 `59b_nemeses@full` — 宿敵
+- zh-097 `59c_relay` — 接力殘局
+- zh-098 `59d_playroom` — 遊戲間
+- zh-099 `59e_wager` — 遊戲間→競猜
+- zh-100 `59f_draft` — 遊戲間→輪抽
+- zh-101 `59g_sealed` — 遊戲間→雙封蠟
+- zh-102 `59h_paint` — 塗裝室
+- zh-103 `59i_ghosts` — 遊戲間→幽靈
+- zh-104 `59j_weekly` — 遊戲間→每週棋盒
+- zh-105 `60_reward` — 遠征→獎勵
+- zh-106 `60a_reward_picked` — 遠征→獎勵
+- zh-107 `60b_ga_info` — 遠征→本戰條件
+- zh-108 `61_ban` — 雙人→禁牌
+- zh-109 `62_ban_20` — 雙人→禁牌
+- zh-110 `63_leave` — 離開確認
+- zh-111 `64_codes` — 代碼
+- zh-112 `65_gauntlet_resume` — 遠征
+- zh-113 `70_lobby_cmd_off` — 對 AI 大廳
+- zh-114 `71_lobby_cmd_on` — 對 AI 大廳
+- zh-115 `72_lobby_cmd_quick` — 對 AI 大廳
+- zh-116 `73_cmd_ready` — 手動技能
+- zh-117 `74_cmd_cast` — 手動技能
+- zh-118 `75_cmd_cd` — 手動技能
+- zh-119 `76_cmd_duel` — 雙人
+- zh-120 `80_chapter4` — 殘局列表
+- zh-121 `81_chapter7_filter` — 殘局列表
+- zh-122 `82_place_terrain` — 擺陣
+- zh-123 `83_place_protect` — 擺陣
+- zh-124 `84_place_plan` — 擺陣
+- zh-125 `84b_plan_chain` — 軍令時間軸
+- zh-126 `85_hint_locked` — 殘局提示
+- zh-127 `86_hint_open` — 殘局提示
+- zh-128 `86b_hint_applied` — 殘局提示
+- zh-129 `87_battle_terrain` — 戰鬥
+- zh-130 `87b_quarry_place` — 擺陣
+- zh-131 `87c_quarry_battle` — 戰鬥
+- zh-132 `87d_boss_battle` — 戰鬥
+- zh-133 `88_result_survive` — 結果
+- zh-134 `89_trials_p2` — 主題試煉
+- zh-135 `90_trials_p3` — 主題試煉
+- zh-136 `91_trial_fixed` — 主題試煉
+- zh-137 `92_trial_win_result` — 結果
+- zh-138 `93_daily_place` — 擺陣
+- zh-139 `94_loss_result` — 結果
+- zh-140 `95_route_reward` — 遠征→獎勵
+- zh-141 `96_chapter11` — 殘局列表
+- zh-142 `97_place_flawless` — 擺陣
+- zh-143 `v100_01_ga_sum` — 遠征總結
+- zh-144 `v110_01_fb_cat` — 回報分類
+- zh-145 `v110_02_nb_words` — 實驗簿改名
+- zh-146 `v110_03_daily_past` — 每日挑戰
+- zh-147 `v110_04_breport` — 重播→戰報
+- zh-148 `v120_00_components` — 開發用：元件庫展示
+- zh-149 `v120_01_ink` — 結果（宣紙戰報演出）
+- zh-150 `v120_02_note` — 結果（第一次看結果的老闆便條）
+- zh-151 `v120_03_moods` — 開發用：五種表情對照
+- zh-152 `v120_04_recent` — 主畫面（最近玩的）
+- zh-153 `v120_05_songbook` — 結果→分享→收進棋譜本／收藏→棋譜本
+- zh-154 `v120_05_songbook@empty` — 收藏→棋譜本
+- zh-155 `v120_06_campaign` — 遠征→老闆的棋館
+- zh-156 `v120_07_editor_map` — 收藏→出題台（地形）
+- zh-157 `v120_08_lobby_ext` — 大廳（新技能分頁：架盾、火矢開著，說明火矢）
+- zh-158 `v130_od_owner_daily` — 殘局→老闆出題（1.3.0 §12.7）
+- zh-159 `v140_10_curtain_call` — 對 AI 戰鬥播完、結算前（1.4.0 §10.1 謝幕反應＋老闆手勢）
+- zh-160 `v150_02b_place_foe` — 擺陣（敵情翻牌展開）
+- zh-161 `v150_03f_battle_focus` — 對戰（跟拍一隻：焦點與目標）
+- zh-162 `v150_05e_result_flow` — 結果頁→看細節（1.5.0 §1.5 走勢與事件）
+- zh-163 `v150_05f_result_more` — 結果頁→更多（1.5.0 §1.5 次要動作收納）
+- zh-164 `v150_07c_duel_blind` — 雙人盲擺（竹簾）
+- zh-165 `v150_08z_settings_adv` — 設定（進階微調抽屜）
+- zh-166 `v150_22a_lobby_step1` — 大廳第一步：對手（1.5.0 §1.2）
+- zh-167 `v150_22b_lobby_step2` — 大廳第二步：地圖（1.5.0 §1.2）
+- zh-168 `v150_27b_free_tools` — 自由部署（工具展開）
+- zh-169 `v150_59c_profile_units` — 戰績（兵種）
+- zh-170 `v150_59d_profile_badges` — 戰績（徽章櫃）
+- zh-171 `v150_90b_trials_p4` — 試煉第 4 頁
+- zh-172 `v161_01_rush_menu` — 極速賽
+- zh-173 `v161_02_tour` — 新玩法導覽
+- zh-174 `v161_03_trio_cards` — 一陣三考
+- zh-175 `v161_04_rift_lab` — 裂隙
+- zh-176 `v161_05_editor_target` — 出題台
+- zh-177 `v161_06_notebook_rename` — 實驗簿
+- zh-178 `v161_07_notebook_compare` — 實驗簿
+- zh-179 `v161_08_lock_arcs` — 戰鬥（鎖定弧）
+- zh-180 `v161_09_coop_sum` — 合作接力
+- zh-181 `v16_01_title_next` — 標題
+- zh-182 `v16_02_demo_end` — 試玩版結束
+- zh-183 `v16_03_place_range` — 擺陣
+- zh-184 `v16_04_battle_marks` — 戰鬥
+- zh-185 `v16_05_hold_confirm` — 確認窗
+- zh-186 `v16_06_magnifier` — 標題（放大鏡）
+- zh-187 `v16_07_rush_place` — 擺陣
+- zh-188 `v16_08_rush_end` — 極速賽
+- zh-189 `v16_09_coach` — 教練
+- zh-190 `v16_10_rift` — 裂隙
+- zh-191 `v16_11_rift_place` — 擺陣
+- zh-192 `v16_12_hub_challenge` — 標題→卡片面板
+- zh-193 `v16_13_editor` — 出題台
+- zh-194 `v16_14_trio` — 一陣三考
+- zh-195 `v16_15_trio_place` — 擺陣
+- zh-196 `v16_16_trio_result` — 結果
+- zh-197 `v16_17_fog_place` — 擺陣
+- zh-198 `v16_18_hub_play` — 標題→卡片面板
+- zh-199 `v16_19_coop_hand` — 合作接力
+- zh-200 `v16_20_coop_place` — 擺陣
+
+## 接觸表 en（200 張；圖號 en-001 起，順序＝畫面名排序；`sheets/en_NN.jpg` 每頁 30 張）
+- en-001 `01_title` — 標題
+- en-002 `01b_hub_play` — 標題→卡片面板
+- en-003 `01c_hub_challenge` — 標題→卡片面板
+- en-004 `01d_hub_collect` — 標題→卡片面板
+- en-005 `01e_hub_gauntlet` — 標題→卡片面板
+- en-006 `02_place` — 擺陣
+- en-007 `03_battle` — 戰鬥
+- en-008 `03c_projectiles` — 戰鬥
+- en-009 `03d_pause_menu` — 戰鬥→暫停
+- en-010 `04_clutch` — 戰鬥
+- en-011 `05_result` — 結果
+- en-012 `05b_result_details` — 結果
+- en-013 `05c_postcard` — 結果→分享
+- en-014 `05d_share` — 結果→分享
+- en-015 `06_puzzle` — 殘局
+- en-016 `07_duel` — 雙人
+- en-017 `08_settings` — 設定
+- en-018 `08b_keys` — 設定→按鍵
+- en-019 `08c_settings_visual` — 設定
+- en-020 `08d_settings_sound` — 設定
+- en-021 `08e_settings_ui` — 設定
+- en-022 `08f_settings_controls` — 設定
+- en-023 `08g_settings_battle` — 戰鬥
+- en-024 `08h_settings_data` — 設定
+- en-025 `08i_clear_data` — 設定→資料
+- en-026 `08j_restore` — 設定→資料
+- en-027 `08j_restore@full` — 設定→資料
+- en-028 `08k_first_run` — 第一次開遊戲
+- en-029 `08l_settings_undo` — 設定
+- en-030 `08m_confirm@long` — 確認窗
+- en-031 `09_puzzles` — 殘局
+- en-032 `10_codex` — 圖鑑
+- en-033 `10b_codex_scrolled` — 圖鑑
+- en-034 `10c_codex_zoom` — 圖鑑
+- en-035 `10d_codex_summon` — 圖鑑
+- en-036 `10e_codex_archer_demo` — 圖鑑
+- en-037 `11_codex_locked` — 圖鑑
+- en-038 `12_fx` — 戰鬥
+- en-039 `13_poses` — 戰鬥（姿勢表）
+- en-040 `13b_poses_new` — 戰鬥（姿勢表）
+- en-041 `14_colorblind` — 戰鬥（色盲）
+- en-042 `14b_plain_ui` — 戰鬥（簡化介面）
+- en-043 `15_replay` — 重播
+- en-044 `15c_replay_mag` — 重播→暫停選兵（1.3.0 放大鏡小窗、聚光）
+- en-045 `16_review` — 覆盤
+- en-046 `16b_time_machine` — 覆盤→時光機
+- en-047 `17_place_new` — 擺陣
+- en-048 `17b_place_drum` — 擺陣
+- en-049 `18_battle_new` — 戰鬥
+- en-050 `19_codex_new` — 圖鑑
+- en-051 `20_puzzles_new` — 殘局
+- en-052 `21_place_locked` — 擺陣
+- en-053 `22_lobby` — 對 AI 大廳
+- en-054 `22c_lobby_menu@empty` — 對 AI 大廳
+- en-055 `22c_lobby_menu@full` — 對 AI 大廳
+- en-056 `23_lobby_pool` — 對 AI 大廳
+- en-057 `24_lobby_army` — 對 AI 大廳
+- en-058 `25_lobby_duel` — 雙人
+- en-059 `26_lobby_lab` — 對 AI 大廳
+- en-060 `27_free_place` — 擺陣
+- en-061 `27b_free_brush` — 自由排兵
+- en-062 `27c_free_select` — 自由排兵
+- en-063 `28_free_full_ai` — 自由排兵
+- en-064 `29_free_duel_full` — 雙人
+- en-065 `30_lobby_deploy` — 對 AI 大廳
+- en-066 `31_review_free` — 覆盤
+- en-067 `32_lobby_fantasy` — 對 AI 大廳
+- en-068 `33_lobby_roster` — 對 AI 大廳
+- en-069 `34_fantasy_place` — 擺陣
+- en-070 `35_fantasy_battle` — 戰鬥
+- en-071 `36_fantasy_late` — 奇幻
+- en-072 `37_codex_fantasy` — 圖鑑
+- en-073 `38_puzzles_fantasy` — 殘局
+- en-074 `39_lobby_roster_ai` — 對 AI 大廳
+- en-075 `40_lobby_roster_two` — 對 AI 大廳
+- en-076 `41_gauntlet_pick` — 遠征
+- en-077 `50_map_river_battle` — 戰鬥
+- en-078 `50_map_river_place` — 擺陣
+- en-079 `51_map_forest_battle` — 戰鬥
+- en-080 `51_map_forest_place` — 擺陣
+- en-081 `52_map_ice_battle` — 戰鬥
+- en-082 `52_map_ice_place` — 擺陣
+- en-083 `53_map_lava_battle` — 戰鬥
+- en-084 `53_map_lava_place` — 擺陣
+- en-085 `54_map_canyon_battle` — 戰鬥
+- en-086 `54_map_canyon_place` — 擺陣
+- en-087 `55_map_small_battle` — 戰鬥
+- en-088 `55_map_small_place` — 擺陣
+- en-089 `56_map_large_battle` — 戰鬥
+- en-090 `56_map_large_place` — 擺陣
+- en-091 `57_lobby_map` — 對 AI 大廳
+- en-092 `58_trials` — 主題試煉
+- en-093 `59_profile` — 戰績
+- en-094 `59b_nemeses` — 宿敵
+- en-095 `59b_nemeses@empty` — 宿敵
+- en-096 `59b_nemeses@full` — 宿敵
+- en-097 `59c_relay` — 接力殘局
+- en-098 `59d_playroom` — 遊戲間
+- en-099 `59e_wager` — 遊戲間→競猜
+- en-100 `59f_draft` — 遊戲間→輪抽
+- en-101 `59g_sealed` — 遊戲間→雙封蠟
+- en-102 `59h_paint` — 塗裝室
+- en-103 `59i_ghosts` — 遊戲間→幽靈
+- en-104 `59j_weekly` — 遊戲間→每週棋盒
+- en-105 `60_reward` — 遠征→獎勵
+- en-106 `60a_reward_picked` — 遠征→獎勵
+- en-107 `60b_ga_info` — 遠征→本戰條件
+- en-108 `61_ban` — 雙人→禁牌
+- en-109 `62_ban_20` — 雙人→禁牌
+- en-110 `63_leave` — 離開確認
+- en-111 `64_codes` — 代碼
+- en-112 `65_gauntlet_resume` — 遠征
+- en-113 `70_lobby_cmd_off` — 對 AI 大廳
+- en-114 `71_lobby_cmd_on` — 對 AI 大廳
+- en-115 `72_lobby_cmd_quick` — 對 AI 大廳
+- en-116 `73_cmd_ready` — 手動技能
+- en-117 `74_cmd_cast` — 手動技能
+- en-118 `75_cmd_cd` — 手動技能
+- en-119 `76_cmd_duel` — 雙人
+- en-120 `80_chapter4` — 殘局列表
+- en-121 `81_chapter7_filter` — 殘局列表
+- en-122 `82_place_terrain` — 擺陣
+- en-123 `83_place_protect` — 擺陣
+- en-124 `84_place_plan` — 擺陣
+- en-125 `84b_plan_chain` — 軍令時間軸
+- en-126 `85_hint_locked` — 殘局提示
+- en-127 `86_hint_open` — 殘局提示
+- en-128 `86b_hint_applied` — 殘局提示
+- en-129 `87_battle_terrain` — 戰鬥
+- en-130 `87b_quarry_place` — 擺陣
+- en-131 `87c_quarry_battle` — 戰鬥
+- en-132 `87d_boss_battle` — 戰鬥
+- en-133 `88_result_survive` — 結果
+- en-134 `89_trials_p2` — 主題試煉
+- en-135 `90_trials_p3` — 主題試煉
+- en-136 `91_trial_fixed` — 主題試煉
+- en-137 `92_trial_win_result` — 結果
+- en-138 `93_daily_place` — 擺陣
+- en-139 `94_loss_result` — 結果
+- en-140 `95_route_reward` — 遠征→獎勵
+- en-141 `96_chapter11` — 殘局列表
+- en-142 `97_place_flawless` — 擺陣
+- en-143 `v100_01_ga_sum` — 遠征總結
+- en-144 `v110_01_fb_cat` — 回報分類
+- en-145 `v110_02_nb_words` — 實驗簿改名
+- en-146 `v110_03_daily_past` — 每日挑戰
+- en-147 `v110_04_breport` — 重播→戰報
+- en-148 `v120_00_components` — 開發用：元件庫展示
+- en-149 `v120_01_ink` — 結果（宣紙戰報演出）
+- en-150 `v120_02_note` — 結果（第一次看結果的老闆便條）
+- en-151 `v120_03_moods` — 開發用：五種表情對照
+- en-152 `v120_04_recent` — 主畫面（最近玩的）
+- en-153 `v120_05_songbook` — 結果→分享→收進棋譜本／收藏→棋譜本
+- en-154 `v120_05_songbook@empty` — 收藏→棋譜本
+- en-155 `v120_06_campaign` — 遠征→老闆的棋館
+- en-156 `v120_07_editor_map` — 收藏→出題台（地形）
+- en-157 `v120_08_lobby_ext` — 大廳（新技能分頁：架盾、火矢開著，說明火矢）
+- en-158 `v130_od_owner_daily` — 殘局→老闆出題（1.3.0 §12.7）
+- en-159 `v140_10_curtain_call` — 對 AI 戰鬥播完、結算前（1.4.0 §10.1 謝幕反應＋老闆手勢）
+- en-160 `v150_02b_place_foe` — 擺陣（敵情翻牌展開）
+- en-161 `v150_03f_battle_focus` — 對戰（跟拍一隻：焦點與目標）
+- en-162 `v150_05e_result_flow` — 結果頁→看細節（1.5.0 §1.5 走勢與事件）
+- en-163 `v150_05f_result_more` — 結果頁→更多（1.5.0 §1.5 次要動作收納）
+- en-164 `v150_07c_duel_blind` — 雙人盲擺（竹簾）
+- en-165 `v150_08z_settings_adv` — 設定（進階微調抽屜）
+- en-166 `v150_22a_lobby_step1` — 大廳第一步：對手（1.5.0 §1.2）
+- en-167 `v150_22b_lobby_step2` — 大廳第二步：地圖（1.5.0 §1.2）
+- en-168 `v150_27b_free_tools` — 自由部署（工具展開）
+- en-169 `v150_59c_profile_units` — 戰績（兵種）
+- en-170 `v150_59d_profile_badges` — 戰績（徽章櫃）
+- en-171 `v150_90b_trials_p4` — 試煉第 4 頁
+- en-172 `v161_01_rush_menu` — 極速賽
+- en-173 `v161_02_tour` — 新玩法導覽
+- en-174 `v161_03_trio_cards` — 一陣三考
+- en-175 `v161_04_rift_lab` — 裂隙
+- en-176 `v161_05_editor_target` — 出題台
+- en-177 `v161_06_notebook_rename` — 實驗簿
+- en-178 `v161_07_notebook_compare` — 實驗簿
+- en-179 `v161_08_lock_arcs` — 戰鬥（鎖定弧）
+- en-180 `v161_09_coop_sum` — 合作接力
+- en-181 `v16_01_title_next` — 標題
+- en-182 `v16_02_demo_end` — 試玩版結束
+- en-183 `v16_03_place_range` — 擺陣
+- en-184 `v16_04_battle_marks` — 戰鬥
+- en-185 `v16_05_hold_confirm` — 確認窗
+- en-186 `v16_06_magnifier` — 標題（放大鏡）
+- en-187 `v16_07_rush_place` — 擺陣
+- en-188 `v16_08_rush_end` — 極速賽
+- en-189 `v16_09_coach` — 教練
+- en-190 `v16_10_rift` — 裂隙
+- en-191 `v16_11_rift_place` — 擺陣
+- en-192 `v16_12_hub_challenge` — 標題→卡片面板
+- en-193 `v16_13_editor` — 出題台
+- en-194 `v16_14_trio` — 一陣三考
+- en-195 `v16_15_trio_place` — 擺陣
+- en-196 `v16_16_trio_result` — 結果
+- en-197 `v16_17_fog_place` — 擺陣
+- en-198 `v16_18_hub_play` — 標題→卡片面板
+- en-199 `v16_19_coop_hand` — 合作接力
+- en-200 `v16_20_coop_place` — 擺陣
+
+## 其他
+- `orig/`：1:1 原圖（繁中 100%、英文 150%、簡化、色盲；`fixed_` 開頭＝固定時鐘）
+- `strip/`：全流程條（01_title → v150_22a_lobby_step1 → v150_22b_lobby_step2 → 22_lobby → 02_place → 03_battle → 35_fantasy_battle → 04_clutch → 05_result）
+- `gray/`：灰階
+- `thumb/`：商店縮圖實尺寸 460×215、616×353
+- **動態（連環條、帶時間戳錄影）：這次沒有**——截圖工具只拍單幀；列為「待驗」（軟缺口，見提示詞 §4）。
+
+## 這次全量版面結果（R0 截圖同一次）
+- 24 組 4800 張、違規 0、排版警告 0、宣告例外 46；純黑 >1% 的畫面 0 張；真實時間棋子低對比 883／14496（只列參考，美感比較只看固定時鐘）。
+
+exec
+/bin/bash -lc 'ls -la ../..; rg --files ../.. -g AGENTS.md' in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+ exited 1 in 123ms:
+total 84
+drwxrwxrwx 1 timmy timmy  4096 Nov 15 14:37 .
+drwxrwxrwx 1 timmy timmy  4096 Nov 14 17:20 ..
+drwxrwxrwx 1 timmy timmy  4096 Nov  4 22:58 .claude
+drwxrwxrwx 1 timmy timmy  4096 Nov 15 14:38 .git
+drwxrwxrwx 1 timmy timmy  4096 Nov  1 13:31 .github
+-rwxrwxrwx 1 timmy timmy    86 Nov  7 00:46 .gitignore
+-rwxrwxrwx 1 timmy timmy 48405 Nov 15 13:38 CHANGELOG.md
+-rwxrwxrwx 1 timmy timmy 10802 Nov 15 14:37 CLAUDE.md
+-rwxrwxrwx 1 timmy timmy 12767 Nov 10 19:53 README.md
+-rwxrwxrwx 1 timmy timmy  7580 Nov 11 17:16 THIRD_PARTY_LICENSES.md
+drwxrwxrwx 1 timmy timmy  4096 Nov 14 05:20 build
+drwxrwxrwx 1 timmy timmy  4096 Nov 15 14:19 coordination
+drwxrwxrwx 1 timmy timmy  4096 Nov 14 16:59 docs
+drwxrwxrwx 1 timmy timmy  4096 Nov 15 06:08 game
+-rwxrwxrwx 1 timmy timmy   241 Nov  4 22:58 play.bat
+drwxrwxrwx 1 timmy timmy  4096 Nov  6 09:59 tools
+
+exec
+/bin/bash -lc "cat r0-brief.md; sed -n '1,65p' shots/manifest.md; rg --files shots | head -65" in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+exec
+/bin/bash -lc 'git -C ../.. rev-parse HEAD; git -C ../.. status --short; cat ../../docs/STATE.md; cat ../../coordination/v1500-impl/ledger.md' in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+exec
+/bin/bash -lc "rg -n 'version|FINGERPRINT|b8fe741bcbfcf800' ../../game/project.godot ../../game/scripts ../../docs/MODULES.md; head -45 ../../game/tools/screens.json; rg -n '"'^##.*21|''^###.*21|573|568|124|46 ms|46ms'"' ../../docs/2026-11-14-v1.5.0-plan.md" in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+ succeeded in 19ms:
+# 1.6.0 第 0 輪資料包（主持人 Claude）
+
+提示詞定稿：`coordination/v1600p/p5-prompt-final.md`（以下簡稱「提示詞」）。資料在 `coordination/v1600p/shots/`，清冊 `shots/manifest.md`。
+
+## 1. 版本錨點
+- 提交 `945105e`（main，2026-11-15 14:38），工作目錄乾淨；遊戲版本 1.5.0（`project.godot`）。
+- 1.5.0 實作 17 批（`coordination/v1500-impl/ledger.md`；方案 §21 進度表標到 17 批）。
+- 最近一次完整檢查：6960 項全過，FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變（第 17 批驗收）。
+
+## 2. 資料包內容（對照提示詞 §4）
+| # | 項目 | 狀態 | 位置 |
+|---|---|---|---|
+| 1 | 版本錨點 | 齊 | 本檔 §1 |
+| 2 | 全畫面清冊＋接觸表（繁中 100%、英文 150%） | 齊（缺圖見 manifest） | `shots/sheets/zh_*.jpg`、`en_*.jpg`；圖號 `zh-001`… |
+| 3 | 1:1 原圖（主要畫面＋簡化、色盲代表＋固定時鐘戰鬥尖峰） | 齊 | `shots/orig/` |
+| 4 | 全流程橫向條 | 齊 | `shots/strip/flow_zh_TW_100.jpg`（另有英文 150%） |
+| 5 | 灰階、商店縮圖實尺寸 | 齊 | `shots/gray/`、`shots/thumb/` |
+| 6 | 動態（關鍵姿勢連環條、帶時間戳錄影） | **缺（軟缺口）** | 截圖工具只拍單幀；R1 動態相關一律「待驗」，R3 動作切片會把「拍連環條／錄影」列為前置 |
+| 7 | 固定拍攝契約 | 齊 | manifest 開頭：場景都寫死在 `game/tools/dev_main.gd`，固定時鐘戰鬥時間＝600＋畫面名雜湊，1280×800 |
+| 8 | 現況差異表 | 見 §3 | |
+| 9 | 驗收與耗時基準 | 見 §4 | |
+
+R1 硬門檻（1～5、7）已齊；第 6 項缺，補齊節點＝R3 切片前置。
+
+## 3. 現況差異表
+- 1.5.0 方案寫的「同屏 6 張兵卡＋分頁」沒做（故意：數字鍵與比價要全部看得到）；殘局選關沒拆頁（故意：一章十關是故事單位）。
+- 美感驗收容差是對 1.5.0 方案 §17「不高於基線」的放寬（ledger 第 3 批）。
+- 1.5.0 STATE 的「最後一次驗收」是第 8 批後的全量收尾（4728 張）；第 9～17 批各自驗收受影響畫面＋完整檢查，沒有再跑一次 24 組全量——**這次 R0 的全量就是補這一次**（結果附在 manifest 末尾）。
+- 使用者待交付（仍未到）：真錄音、老闆與常客原稿、5 方向原畫（若外包）、母語校對、Steam 後台、Deck 實機、真人試玩與盲測。
+
+## 4. 驗收耗時基準（最近有效量測，Windows Godot 4.6.2、這台 WSL）
+- 有快取完整檢查 `check.py`：約 490～580 秒（50 步，快取 31～46 步）。
+- 無快取 `check_all.sh`：1218 秒（1.5.0 收尾）。
+- 版面 24 組全量（真實時間）：約 35 分；固定時鐘戰鬥 27 畫面 × 24 組：約 20 分。
+- 單組 4 組合、十幾張畫面的開發重拍：約 3～8 分。
+- 沒量的：匯出檢查單獨耗時、圖集冷烘焙在不同機器的分布。
+
+## 5. R1 視角分配（提示詞 §8 R1）
+- **主持人 Claude**：第一次開的新手、20 小時熟手。
+- **Codex**：20 小時熟手、本機雙人朋友。
+- **Hydrogen**：Steam 商店頁路過者（商店印象→實機落差）、第一次開的新手。
+整組涵蓋四種玩家；新手、熟手各有兩方獨立看。
+# 1.6.0 R0 資料包清冊
+
+- 版本錨點：945105e（main，2026-11-15 14:38，工作目錄乾淨；1.5.0）
+- 來源：全量版面（真實時間）`build/tmp/r0full`；固定時鐘戰鬥 `build/tmp/r0fixed`。
+- 固定拍攝契約：截圖腳本 `game/tools/dev_main.gd`（每張畫面的 seed、擺陣、tick 都寫死在腳本裡）；固定時鐘模式 `LAYOUT_FIXED=1` 下戰鬥截圖的動畫時間＝600＋畫面名雜湊（`_snap`）；解析度 1280×800；字級組見資料夾名。
+
+## 接觸表 zh（200 張；圖號 zh-001 起，順序＝畫面名排序；`sheets/zh_NN.jpg` 每頁 30 張）
+- zh-001 `01_title` — 標題
+- zh-002 `01b_hub_play` — 標題→卡片面板
+- zh-003 `01c_hub_challenge` — 標題→卡片面板
+- zh-004 `01d_hub_collect` — 標題→卡片面板
+- zh-005 `01e_hub_gauntlet` — 標題→卡片面板
+- zh-006 `02_place` — 擺陣
+- zh-007 `03_battle` — 戰鬥
+- zh-008 `03c_projectiles` — 戰鬥
+- zh-009 `03d_pause_menu` — 戰鬥→暫停
+- zh-010 `04_clutch` — 戰鬥
+- zh-011 `05_result` — 結果
+- zh-012 `05b_result_details` — 結果
+- zh-013 `05c_postcard` — 結果→分享
+- zh-014 `05d_share` — 結果→分享
+- zh-015 `06_puzzle` — 殘局
+- zh-016 `07_duel` — 雙人
+- zh-017 `08_settings` — 設定
+- zh-018 `08b_keys` — 設定→按鍵
+- zh-019 `08c_settings_visual` — 設定
+- zh-020 `08d_settings_sound` — 設定
+- zh-021 `08e_settings_ui` — 設定
+- zh-022 `08f_settings_controls` — 設定
+- zh-023 `08g_settings_battle` — 戰鬥
+- zh-024 `08h_settings_data` — 設定
+- zh-025 `08i_clear_data` — 設定→資料
+- zh-026 `08j_restore` — 設定→資料
+- zh-027 `08j_restore@full` — 設定→資料
+- zh-028 `08k_first_run` — 第一次開遊戲
+- zh-029 `08l_settings_undo` — 設定
+- zh-030 `08m_confirm@long` — 確認窗
+- zh-031 `09_puzzles` — 殘局
+- zh-032 `10_codex` — 圖鑑
+- zh-033 `10b_codex_scrolled` — 圖鑑
+- zh-034 `10c_codex_zoom` — 圖鑑
+- zh-035 `10d_codex_summon` — 圖鑑
+- zh-036 `10e_codex_archer_demo` — 圖鑑
+- zh-037 `11_codex_locked` — 圖鑑
+- zh-038 `12_fx` — 戰鬥
+- zh-039 `13_poses` — 戰鬥（姿勢表）
+- zh-040 `13b_poses_new` — 戰鬥（姿勢表）
+- zh-041 `14_colorblind` — 戰鬥（色盲）
+- zh-042 `14b_plain_ui` — 戰鬥（簡化介面）
+- zh-043 `15_replay` — 重播
+- zh-044 `15c_replay_mag` — 重播→暫停選兵（1.3.0 放大鏡小窗、聚光）
+- zh-045 `16_review` — 覆盤
+- zh-046 `16b_time_machine` — 覆盤→時光機
+- zh-047 `17_place_new` — 擺陣
+- zh-048 `17b_place_drum` — 擺陣
+- zh-049 `18_battle_new` — 戰鬥
+- zh-050 `19_codex_new` — 圖鑑
+- zh-051 `20_puzzles_new` — 殘局
+- zh-052 `21_place_locked` — 擺陣
+- zh-053 `22_lobby` — 對 AI 大廳
+- zh-054 `22c_lobby_menu@empty` — 對 AI 大廳
+- zh-055 `22c_lobby_menu@full` — 對 AI 大廳
+- zh-056 `23_lobby_pool` — 對 AI 大廳
+- zh-057 `24_lobby_army` — 對 AI 大廳
+- zh-058 `25_lobby_duel` — 雙人
+shots/manifest.md
+shots/strip/flow_en_150.jpg
+shots/strip/flow_zh_TW_100.jpg
+shots/thumb/460x215_35_fantasy_battle.png
+shots/thumb/460x215_05_result.png
+shots/thumb/460x215_03_battle.png
+shots/thumb/460x215_02_place.png
+shots/thumb/460x215_01_title.png
+shots/thumb/616x353_03_battle.png
+shots/thumb/616x353_02_place.png
+shots/thumb/616x353_01_title.png
+shots/thumb/616x353_05_result.png
+shots/thumb/616x353_35_fantasy_battle.png
+shots/gray/fixed_54_map_canyon_battle_gray.jpg
+shots/gray/fixed_35_fantasy_battle_gray.jpg
+shots/gray/fixed_03_battle_gray.jpg
+shots/gray/fixed_v150_03f_battle_focus_gray.jpg
+shots/gray/fixed_87d_boss_battle_gray.jpg
+shots/gray/flow_zh_TW_100_gray.jpg
+shots/sheets/en_07.jpg
+shots/sheets/zh_04.jpg
+shots/sheets/en_06.jpg
+shots/sheets/zh_03.jpg
+shots/sheets/en_05.jpg
+shots/sheets/zh_02.jpg
+shots/sheets/en_04.jpg
+shots/sheets/zh_01.jpg
+shots/sheets/en_03.jpg
+shots/sheets/en_02.jpg
+shots/sheets/en_01.jpg
+shots/sheets/zh_05.jpg
+shots/sheets/zh_07.jpg
+shots/sheets/zh_06.jpg
+shots/orig/en_150__09_puzzles.jpg
+shots/orig/fixed_zh_TW_100__35_fantasy_battle.jpg
+shots/orig/fixed_zh_TW_100__03_battle.jpg
+shots/orig/en_150__v150_22b_lobby_step2.jpg
+shots/orig/en_150__08_settings.jpg
+shots/orig/en_150__v150_22a_lobby_step1.jpg
+shots/orig/en_150__05_result.jpg
+shots/orig/en_150__v150_03f_battle_focus.jpg
+shots/orig/en_150__04_clutch.jpg
+shots/orig/en_150__v150_02b_place_foe.jpg
+shots/orig/en_150__03_battle.jpg
+shots/orig/en_150__94_loss_result.jpg
+shots/orig/en_150__02_place.jpg
+shots/orig/en_150__87d_boss_battle.jpg
+shots/orig/en_150__01_title.jpg
+shots/orig/en_150__59_profile.jpg
+shots/orig/en_150__59h_paint.jpg
+shots/orig/en_150__58_trials.jpg
+shots/orig/en_150__35_fantasy_battle.jpg
+shots/orig/en_150__27_free_place.jpg
+shots/orig/en_150__24_lobby_army.jpg
+shots/orig/en_150__22_lobby.jpg
+shots/orig/en_150__15c_replay_mag.jpg
+shots/orig/en_150__10_codex.jpg
+shots/orig/zh_TW_100__10_codex.jpg
+shots/orig/zh_TW_100__09_puzzles.jpg
+shots/orig/zh_TW_100__02_place.jpg
+shots/orig/zh_TW_100__08_settings.jpg
+shots/orig/zh_TW_100__05_result.jpg
+shots/orig/zh_TW_100__04_clutch.jpg
+shots/orig/zh_TW_100__03_battle.jpg
+shots/orig/zh_TW_100__59_profile.jpg
+
+ succeeded in 97ms:
+../../game/project.godot:9:config_version=5
+../../game/project.godot:14:config/version="1.5.0"
+../../docs/MODULES.md:137:| `save.gd` | 310 | 存檔遷移（第二輪方案 R8）：v1 進度不掉、補上 unit_wins、改用 schema_version；不認得的欄位保留；新版存檔不降版。 |
+../../game/scripts/core/unit_defs.gd:205:static func version_of(armies: Array) -> String:
+../../game/scripts/game/codex.gd:151:	if int(d.get("schema_version", 0)) != 1:
+../../game/scripts/game/codex.gd:152:		errs.append("schema_version 不是 1")
+../../game/scripts/game/duel_code.gd:33:		"r": D.version_of(tp.armies), "d": D.digest_of(tp.armies)})
+../../game/scripts/game/duel_code.gd:100:	var mismatch: bool = str(j.get("r", "")) != D.version_of(tp.armies) or str(j.get("d", "")) != D.digest_of(tp.armies)
+../../game/scripts/core/sticker_defs.gd:3:## 沒貼紙的陣型完全照舊（舊對戰碼、重播、FINGERPRINT 不變）；有貼紙時模擬雜湊多一段 "st"。
+../../game/scripts/game/battle_code.gd:19:		var j7 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code(), "c": cmds})
+../../game/scripts/game/battle_code.gd:24:		var j4 := JSON.stringify({"a": a0.to_code(), "b": a1.to_code(), "ba": a0.budget, "bb": a1.budget, "r": D.version_of([a0, a1]), "d": D.digest_of([a0, a1]), "rules": rules.to_code() if rules != null else ""})
+../../game/scripts/game/battle_code.gd:114:	var mismatch: bool = str(j.get("r", "")) != D.version_of([a0, a1]) or str(j.get("d", "")) != D.digest_of([a0, a1])
+../../game/scripts/game/save.gd:5:const SAVE_VERSION := 4   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則；4：1.2.0 戰役 campaign、棋譜本、最近玩的、上一陣
+../../game/scripts/game/save.gd:21:	"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
+../../game/scripts/game/save.gd:111:	return int(_num(d.get("schema_version", d.get("version", 1)), 1))
+../../game/scripts/game/save.gd:576:		# 1 → 2：欄位名 version 改成 schema_version；加 unit_wins
+../../game/scripts/game/save.gd:577:		out.erase("version")
+../../game/scripts/game/save.gd:607:	out["schema_version"] = v
+../../game/scripts/game/save.gd:690:	var v = d.get("schema_version", d.get("version"))
+../../game/scripts/game/save.gd:714:static func playtest_report(app_version: String) -> Dictionary:
+../../game/scripts/game/save.gd:731:	var head := {"app": app_version, "os": OS.get_name(), "entries": rows.size()}
+../../game/scripts/ui/screens/game_v16.gd:26:	var txt := Funnel.report(str(ProjectSettings.get_setting("application/config/version")), fb_screen, cat)
+../../game/scripts/ui/screens/game_core.gd:883:	var out := {"demo": demo, "exported": OS.has_feature("template"), "engine": Engine.get_version_info().string}
+../../game/scripts/ui/screens/game_core.gd:906:	out["version"] = str(ProjectSettings.get_setting("application/config/version"))
+../../game/scripts/ui/screens/game_menus.gd:303:	_text(Vector2(70, 740), "%s　｜　v%s" % [L.t("gauntlet_best", [int(Save.data.get("gauntlet_best", 0))]), str(ProjectSettings.get_setting("application/config/version"))], tz("C"), TXT_DIM, false, false, 380)
+../../game/scripts/ui/screens/game_menus.gd:586:	var r: Dictionary = Save.playtest_report(str(ProjectSettings.get_setting("application/config/version")))
+{
+ "01_title.png": {
+  "entry": "標題",
+  "states": [
+   "一般"
+  ]
+ },
+ "01b_hub_play.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "01c_hub_challenge.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "01d_hub_collect.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "01e_hub_gauntlet.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "02_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "03_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "03c_projectiles.png": {
+  "entry": "戰鬥",
+146:- **1.3.0**：`sprite_cache.gd` 冷烘焙尖峰 46 ms → <40；`15c_replay_mag` 黑底等寬資訊框改米紙浮籤、避開所選兵、連跳清追蹤；聚光在截圖看不出。
+205:## 21. 實作進度（2026-11-15，17 批）
+210:| §12 契約與基線（P0） | **做了** | 1、3 | 固定時鐘美感基線（1.3.0 同條件重拍）＋容差（對 §17 的放寬）、`run_chain.sh`、輸入矩陣 124 組；提速表 9 項沒做 |
+
+ succeeded in 3580ms:
+945105e1ab7e66c33d85016c6ac5050ea59b531b
+?? coordination/v1600p/agy_r0/
+?? coordination/v1600p/r0-brief.md
+?? coordination/v1600p/r0c-agy-prompt.txt
+?? coordination/v1600p/r0c-agy.err
+?? coordination/v1600p/r0c-agy.md
+?? coordination/v1600p/r0c-codex-prompt.md
+?? coordination/v1600p/r0c-codex.err
+?? coordination/v1600p/r0c-codex.md
+?? coordination/v1600p/shots/
+# 落子無悔：現在的真相
+
+> 第七輪 J3 建立，1.5.0 更新（V1.0.0 起按功能分節；1.5.0 新增的集中在「1.5.0 一頁一景」一節、1.4.0 的在「1.4.0 掌中劇場」一節、1.3.0 的在「1.3.0 棋館活起來」）。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
+> 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/history/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/history/2026-11-04-fantasy-units-plan-v8.md` §12、第九輪 `docs/history/2026-11-04-v1-release-plan-v9.md` §14、第十輪 `docs/history/2026-11-05-v1-polish-plan-v10.md` §14，第十一、十二輪追加在同一份 §15；第十三輪 `docs/history/2026-11-06-puzzle-expansion-plan-v13.md` §14、裁決 `coordination/v13-ledger.md`。
+
+## 版本
+| 項目 | 值 | 位置 |
+|---|---|---|
+| App | 1.5.0（1.0.0 是第一個公開正式版；內部 1.0.x～1.6.1 是開發版。單一來源 `project.godot`，匯出設定同步；標題頁顯示、試玩回報帶版本。存檔與代碼不看 App 版本） | `project.godot` |
+| 引擎 | Godot 4.6.2-stable（本機、CI、匯出模板要一致，`check_all.sh` 會擋） | `tools/check_all.sh`、`.github/workflows/ci.yml` |
+| 規則版本 | `D.RULES_VERSION`（1.3.0）；用到新兵的場次顯示 1.4.1 | `scripts/core/unit_defs.gd` |
+| 存檔格式 | `SAVE_VERSION` | `scripts/game/save.gd` |
+| GodotSteam | 4.23.2 | `addons/godotsteam/` |
+
+
+## 1.5.0 一頁一景（2026-11-15；方案 `docs/2026-11-14-v1.5.0-plan.md`（文末 §21 實作進度表）、裁決 `coordination/v1500-impl/ledger.md`；這版只做了方案的「旅程減法＋排印切片＋戰場辨讀核心＋精修一部分」，其餘見進度表）
+- **一頁一件事 R14**（`layout_rules.gd` `_r14`）：畫面用 `screen_register(類別, 主動作, 豁免理由)` 登記；`click_count()` 數可點元件（`grid` 不算；同一個 `btn_group` 的按鈕＝一個控制，`_btn`／`_btn_quiet` 都帶組）。上限 `R14_LIMITS`；已改造類別 `R14_ENFORCE`＝標題、結果、大廳、擺陣、設定（超標＝失敗，除非登記理由）；其他類別先警告。豁免理由表在 `docs/ui-layout-exceptions.md`。
+- **標題**：代碼移進「收藏」第二層；最近玩 1 筆＋「再來一場」兩步開戰（`quick_rematch_ok`：要有上次規則與陣型，讀不回來就照舊進大廳）。
+- **結果**：分頁 0／1／2（首屏＝勝負章＋MVP 木偶特寫＋一句原因；輸了是「敗因卡」）；主動作最多 2 顆（`RES_MAIN_MAX`），其他進「更多」（`res_more`）；校驗碼收進「複製重播校驗碼」鈕。
+- **大廳三步**（`lobby_view.gd`）：`lobby_step` 0 對手（雙人＝落子順序）／1 地圖＋大小／2 開戰（卡池＋規則摘要）；步驟紙籤可點跳；LB／RB（Q／E）換步、Y（Tab）開收進階；換步／開合時清 `_btns`（同一幀舊按鈕不會執行）。有上次設定直接開在第 3 步。
+- **擺陣**：對 AI 敵區＝粉筆虛線框＋稀疏斜線＋地上紅旗「對方的地盤／不能擺・開戰才看得到」；資訊在倒掛胡桃木翻牌（`_draw_foe_tag`；收合＝頭像＋名字・預算，放不下改兩行或只留預算；點開＝敵情紙卡；手把 RT＋View；翻牌與紙卡擋住底下的點擊）。雙人盲擺照舊竹簾。自由部署工具列：畫筆／直線／框選一組＋復原＋「工具 ▼」（貼齊、密集；收合時左緣兩顆燈）。資訊帶只有一行（兵名＋剋／怕；定位句放得下才放）。
+- **設定**：每頁常用 3～5 列＋「進階微調」抽屜（`SET_ADV`；打開＝同一欄只看進階列，「回到常用」在欄頂；`_settings_rows()` 看得到的、`_settings_rows_all()` 完整）；說明欄只跟著滑鼠／焦點的列；「這頁恢復預設」只在抽屜裡。
+- **排印**：備份清單顯示「2026/11/10 12:00」（`backup_label`，依月份閏年檢查，同分鐘帶秒）；異變實驗室紙面鈕用墨字；英文重置鈕 Reset／Reset page。
+- **戰場辨讀**：數字型跳字（`is_num_text`：數字、正負號、×、括號、%，含全形；合併「×3（24）」也算）無泡泡、奶白字深褐粗外框；有字短標照舊泡泡。焦點逐 tick 決定（`pick_focus`＝跟拍兵＋快照 `target`）：跟拍兵金圈＋腳下淡暈、目標朱紅圈、兩者朱紅虛線、頭頂金／朱紅倒三角（畫在跳字之上）；血條：焦點與低血量不透明，其他填色 55%、外框 ≥0.8（外框一起淡會讓密集混戰輪廓對比變差）。
+- **精修**：老闆每日出題＝次鈕＋木章凹槽；重播暫停資料卡＝米紙浮籤（`unit_info_rect`，所選兵在右上時移到左上，放大鏡避開同一角）。
+- **驗收契約（新）**：美感指標只在固定時鐘比（`LAYOUT_FIXED=1` 自動比 `docs/ui-art-baseline.json`，逐畫面 24 組加總；容差每畫面 max(3, 15%)、總數 2%——**這是對方案 §17「不高於基線」的放寬**，見 ledger 第 3 批）；固定時鐘下戰鬥截圖的動畫時間只由畫面名決定。背景長工作 `tools/run_chain.sh`。吃輸入的功能接 `test_input_matrix_v150`（124 組，從真實 `_input`）；轉場閘門補了按住跨轉場、同幀第二輸入、右搖桿、失焦。
+- **第 9～13 批（收尾後繼續）**：戰績三頁籤（`pf_tab`：總覽＋最常出戰／勝率最高、兵種＋熟練度、成就一頁 10 個條件寫在牌上；R14 戰績強制）；試煉每頁 8 關（`TRIAL_PAGE`，從結果返回停在該關的頁）；大廳卡池另一邊唯讀摘要（`pool_summary`）＋折頁內 R14 分組；標題建議便箋與最近玩移到展示框上方；戰場短標改手裁吊牌（`tag_poly`）；決勝時刻木框暖光（`_draw_clutch_frame`，最後時刻慢動作或橫幅期間）。
+- **第 14～15 批**：大廳進階折頁底列只剩「收起細項」＋「開戰」，複製／貼上規則、存成預設進「我的預設 ▼」選單（按了先收選單）；折頁格狀控制各算一組（折頁 10～13 個控制，豁免＝每頁自己的規則列）。敗因直達：`first_fall`（藍方第一隻倒下 [tick, id]，順播／快轉都記、重播來回保存），敗因卡「看第一隻倒下」跳到前 2 秒並跟拍。
+- **第 16 批**：塗裝室色票改水彩凹槽（`_paint_well`）。
+- **沒做（見方案 §21）**：大廳進階折頁內部重排、§1.6 其他重災頁、字體 3.0 全站（三階字、註記色、英文 150% 改寫、直排木牌）、§3 桌面舞台、§4 材質（含短標泡泡改樣式）、§5 剪影、§6 五方向轉身、§7 外圍降飽和／地形微縮／故事物件／決勝暖光、§8 老闆露臉與常客、§10 新玩法、§11 覆盤棋課、§12 提速、§13 其餘。
+
+## 1.4.0 掌中劇場（2026-11-14；方案 `docs/2026-11-13-v1.4.0-plan.md`、裁決 `coordination/v140-impl/ledger.md`）
+- **內距規則 R12／R13**（`layout_rules.gd`，違規等級）：R11 宣告的格子裡，墨跡上下 ≥ max(4, 高×12%)、左右 ≥ max(6, 寬×6%)；圖示量「看得到的」框（名目＋外框＋落影），完整在宿主裡、上下 ≥ clamp(高×10%, 3, 8)、左右 ≥3。放不下＝換行、撐格子或改短字串，不縮字（按鈕字級照原寬度選）。按鈕裡的圖示用 `_icon_in`。
+- **木活字與器物**：`_woodtype`（整條一塊淺木版＋墨字；棋鐘最後 10 秒正常播放跨秒才跳、響）；大廳開戰＝朱砂方印 `btn_seal_square`＋手帳右頁印跡（`lobby_stamps`）；擺陣木牌尺；設定三格抽屜；系列結束三枚木印章（`_res_seals`，沒人合格＝灰章）；圖鑑熱鍵在卡片左下木牌。色票 `WOOD_TYPE`、`KRAFT`。
+- **戰場辨讀**：接觸陰影（一次 triangle array）；被擋住的兵補隊色虛線底座（`_draw_occluded_bases`，鍵含場次／tick 段／活兵數）；牛皮紙短標籤＋引線；地圖名在盤框左上（字級 C 放不進 18px 木框的 125／150% 不刻）。
+- **動作切片 B**：前搖壓縮 7%、出手拉長 5%；即時配件 `SPRING`（劍士盔羽、弓手披風、騎兵鞍穗；`spring_angle` 純函式、掛在 `unit_xf × Gait.body_xf`；轉身／背面不畫；減少動態靜止）。
+- **技能演出 3.0**：噪音預算 `FX_CLASS`／`FX_CLASS_CAP`（高 6／低 24／戰痕 12；`FX_CAP_EXEMPT` 跳字與茶漬範圍提示不被淘汰）；風痕、落葉、軍令朱印；頓幀依重量 `HITSTOP_W`（0／30／60ms，`freeze_t` 讓配件一起停）；招牌推近 `_dir_hot` 只在重播／觀戰自動導播（仲裁：技能推近 > 最後時刻框選）。
+- **轉場切片 A**：疊層從桌上固定位置滑進來 0.3 秒（`SLIDE_FROM`、`ui_xf` 介面底層矩陣）；輸入閘門 `_trans_gate`（`_input` 最前面；記每個跳過輸入的身分，各自放開才解鎖；搖桿鎖到回中；斷線清除）；截圖、版面探針、減少特效／動態、簡化介面沒有轉場。2560×1600 桌面＋鏡頭沒做。
+- **聲音**：戰場聲像 `SfxL`／`SfxR`（依出手／死者畫面 x；單聲道不分）；嘟囔語 `audio/voice_{happy,sad,hmm}_{1..3}.wav`（`tools/gen/mumble_voice.py` 占位）＋`Voice` 匯流排＋設定「人聲音量」`voice_vol`。
+- **棋館的人**：謝幕反應 `seat_react`（對手點頭／慌＋汗＋推茶杯）、老闆手勢 `owner_end_pose`（正式對 AI 局；放紅泥小章／叩桌）；每日出題印章冊（一頁 10 格，`stamp_page`）。截圖 `v140_10_curtain_call`。
+- **無盡塔**（`scripts/game/tower.gd`；遠征頁第 4 張牌）：每層規則與敵陣只由層數決定（8 突變輪換、敵方 +4 金／層、上限 +60 再夾在規則上限；開讓子）；`tower_best`、`tower_run`（進層就存檔，下次繼續）；結果頁按鈕照正式結算 `tower_result`。
+- **標題**：對戰＝朱漆木牌主牌（`btn_no_wax`、高 12px）；建議下一步＝牛皮紙便箋（墨字＋淺描邊）；底架 `TITLE_SHELF` 5 隻錯落。
+- **工具**：版面對比違規帶字色、取樣背景與位置；`dev_main` 截圖新增 `v140_10_curtain_call`。
+- **沒做、留給下一版或使用者**：桌面畫布＋鏡頭轉場、換邊賽對 AI、聯賽本機、快照跳轉、精華匯出、常客桌邊反應與立繪、碰撞布料擬音（等真錄音）、大廳三卡折頁、圖鑑旋轉台、長卷逐段展開、驗收提速 7 項（現況：有快取檢查約 9 分、無快取約 20 分、版面全量約 35 分）、圖集讀回尖峰（約 41～46 ms，目標 <40）。
+
+## 1.3.0 棋館活起來（2026-11-13；方案 `docs/2026-11-13-v1.3.0-plan.md`、裁決 `coordination/v130-impl/ledger.md`）
+- **鏡頭與空間**：路線 A（3D 淺桌面）切片量過、整合 No-Go；走路線 B：設定「戰場視角」桌邊（預設）／正上方（＝1.2.0；簡化介面一律正上方）。桌邊＝地面座標不變（點格零誤差），凸起地形（冰、峽谷）南側立面、凹陷（河、熔岩）內陰影，烘在地塊裡（`map_art._relief`，貼圖鍵含視角）；棋盤南緣木頭端面；一盞燈在左上，所有影子往右下。
+- **地形材料**：平原＝印花棉布拼貼（`_cotton_tex`）；冰面下淡藍裂紋；熔岩壓暗＋金泥裂紋反光；盤外左側桌面依地圖放小物（紙船、松果、雪人、炭盆、仙人掌）；時刻由模式決定（`_mode_tone`：戰役依章、每日清晨、只套正式對局）。
+- **角色**：戰場基準 `UNIT_SCALE` 1.15（1.25 倍；擺陣、自由部署同尺寸），頭頂資訊與點兵半徑乘 `HK`；跟拍那隻 1.4 倍（`focus_scale`）；血 <50%／<25% 掉漆貼花（`chip_tex`、`CHIP_ANCHOR`）；兵種小物烘進圖集（`kingdom.gd`／`fantasy.gd` 的 `_trinket`）；藍方圓底座、紅方八角底座（`Art.base_poly`，色盲也有）。依模擬提出的移動（`mx`／`my`＋遲滯）選視角：往南 3/4 正面走路頁、往北 3/4 背面走路頁（`sprite_cache` `bw_tex`，`BW_MAX` 22）；受擊後仰走定格。
+- **導播**（`battle_view.gd` 第 6 大類段、`director_rules.gd`）：交戰熱點聚光（設定「戰場聚光」）；銅放大鏡小窗（被選那隻 1.6 倍、外圈血內圈冷卻；設定「放大鏡小窗」；偽裝、潛行、巨獸不給；任何鍵收起）；自動導播只在重播／觀戰（設定「自動導播」）；鏡頭仲裁：跟拍 → 手動縮放 → 最後時刻框選 → 導播 → 全景；滾輪、中鍵拖、雙擊回全景、右搖桿、扳機；最後一擊低通 400Hz＋去飽和；分享頁「精華三連」（≤3 段、≤15 秒）。
+- **技能三拍**：衝鋒木輪痕、架盾金箔圈預告（只用展示緩衝，跳轉清空）；定身、破陣竹籤；投彈、爆爆羊墨漬、石魔踩地茶漬（≤6 灘）。擴充規則仍只在沙盒（`docs/rules-ext-v1.md`）。
+- **介面**：R11 格內置中（`layout_rules.gd`，每軸 ≤1 邏輯 px；光學偏移登記 `optical_offsets.gd`）；色票單一來源 `scripts/ui/palette.gd`（行內色碼上限測試）；音量木軌可拖；器物：大廳手帳、殘局棋譜冊（含每日出題）、覆盤批註本、圖鑑標本箱、設定／按鍵工具箱、戰績獎盃架、代碼郵局、結果三折宣紙、敵陣竹簾（`OBJ_OF`、`obj_extent` 版面檢查不出畫面）；戰鬥 HUD 左上模式比分只在開場 3 秒、暫停、懸停出現；擺陣左上便籤。
+- **棋館的人**：對 AI 時對手木偶坐在盤外右側桌邊（表情跟戰況）；正式開戰前老闆的手替棋鐘上發條；第一次開遊戲「掌燈開門」（5 秒、任何鍵跳過）。
+- **聲音**：落子音依重量分級（`Sfx.place_of`）；棋館環境三層 `audio/amb_room_{near,mid,far}.wav`（`tools/gen/room_ambience.py` 程序合成，真錄音到位換檔即可），遠層 RoomFar 匯流排戰況緊時低通；變體固定種子（開戰與跳轉完成時 `seed_at(局數, tick)`）。
+- **玩法**：每日老闆出題（`owner_daily.gd`）。
+- **工具**：`tools/dev_main.gd --geom-dump`、`tools/gen/center_audit.py`（置中盤點）、`tools/cam_slice.gd`（路線 A 切片量測）、`tools/anim_sheet.gd`（含背面走路頁）、`tools/gen/room_ambience.py`。
+- **沒做、留給下一版或使用者**：器物的版面幾何重排（牌尺、印章、逐折翻開）、木活字數字、老闆立繪與常客、聯賽與其他新系統玩法、換邊賽對 AI、新兵種與協同技第二組、擴充規則正式化、圖集讀回尖峰、真錄音／嘟囔語／分軌配樂、商店素材、5 方向原畫（現在是走路的南北 3/4 頁）。
+
+## 規則
+- 標準：自由排兵，最小間距 0.8 格、縱深 6 格；100 金、24 隻、90 秒。平衡認證只給「格子標準」和這一組。
+- 兵種 20 種，一局每方最多帶 10 種（出戰名單）。舊 10 種數值在 `unit_defs.gd`，編號 0 劍士、1 盾兵、2 弓箭手、3 騎兵、4 刺客、5 長槍兵、6 投彈兵、7 醫者、8 鼓手、9 狂戰士。
+- 奇幻 10 種數值在 `fantasy_defs.gd`（表下）；召喚物 20 小史萊姆、21 骷髏不能購買。孢子菇、爆爆羊、寶箱怪是奇襲兵，不算戰鬥兵，要另帶主力。
+- 標準規則與平衡認證仍只含舊 10 種；奇幻軍是獨立預設，徽章「娛樂」。
+- 開放：不靠場數解鎖（第十一輪拿掉）。正式版一開始 20 種兵、全部殘局與教學、圖鑑老兵筆記都能用；第一次開遊戲仍主推教學，預設「標準」是王國軍 10 種。試玩版是版本內容差異（`roster.gd`）。`unlock_games` 只是累計場數，判斷新玩家用。
+- 選卡簡介：大廳卡池、雙人禁牌下方有兵種簡介卡，滑鼠或手把指到哪張講哪隻：頭像、金幣、定位、一句話、剋與怕、血量／攻擊／射程／速度比較條（以全部兵種最大值為滿）。
+- 地圖（V9）：6 張（青草平原、雙橋河谷、林間小徑、冰湖雪原、熔岩裂谷、古道峽谷）× 3 大小（12×7、16×9、18×10），只配自由排兵。地形 3 種：擋路（只有幽靈能穿，不能停牆內）、慢 ×70%、快 ×120%（有減速就不吃加速）。全部左右鏡像，資料在 `map_defs.gd`、查詢與整數尋路在 `terrain.gd`。平原＋16×9 走舊路徑；其他是娛樂徽章。規則碼 NTBR4。
+- 模式（V9）：主題試煉 30 關（見下）；挑戰碼 NTC1（陣型傳給朋友打，全場規則不適用）；遠征每戰後三選一；雙人輪流禁牌（0～2 張）；AI 性格 6 種；每局地圖固定／輪替／隨機；牌組 3 組；戰績頁。AI 性格、每局地圖、禁牌不進規則碼。
+- 試玩版（V10）：教學 3 關、殘局前 5 關、對 AI 簡單與普通、雙人、試煉第 1、3 關；舊 7 種＋爆爆羊；地圖平原、雙橋河谷、冰湖雪原；不開遠征、困難。定義在 `presets.gd`（`DEMO_*`）與 `_demo_ok`，匯入碼、重播、貼上規則都走這裡。
+- 遠征（V10）：每戰之間自動存點（`gauntlet_run`），開遠征時問要不要接著打；三戰兩勝不存，離開時跳確認。
+- 遠征路線（V1.1）：7 戰是節點（前哨、遭遇、菁英、首領；菁英敵方 +10 金且 AI 高一級、首領 +20 金），每戰後從 6 種事件用種子抽 3 種：多 10 金、多 2 隻、多換 2 隻、募兵（卡池一進一出，離隊的不能是剛打完那一戰的兵）、斥候劫掠（下一戰敵方 −10 金）、截斷援軍（下一戰敵方 −2 隻）。只改戰前配置，每場仍是一般對戰、舊代碼可重播；續局存檔多 `foe_gold`／`foe_cap`（沒有＝0）。
+- 每日挑戰（V1.1）：標題頁一顆鈕。UTC 日數決定地圖、AI 性格與種子，每 7 天換一種突變（8 種，只用現有規則參數：預算、隻數、每種上限、卡池、地圖、縱深、局長、雙方手動技能）；敵陣是普通 AI＋固定種子組好的固定陣（`scripts/game/daily.gd`）。最佳紀錄存 `daily_best`（鍵＝「日數-v版本」，留最近 10 天，先比剩餘戰力再比花費）。改到 AI 或產生器要升 `Daily.VER`（`test_daily_v11` 釘住兩天的敵陣）。試玩版不開。
+- 雙方名單可以不同；有新兵的對戰代碼用 NTB6（軍隊）、NTB4（對戰）、NTBR3（規則），沒用新兵照舊格式；開手動技能用 NTB7、NTBR5。
+
+| # | 兵種 | 金 | 血 | 攻 | 冷卻 | 射程 | 移速 | 上限 |
+|---|---|---|---|---|---|---|---|---|
+| 10 | 孢子菇 | 5 | 360 | 9 | 20 | 2200 | 0 | 6 |
+| 11 | 爆爆羊 | 3 | 110 | 50 | 20 | 500 | 110 | 8 |
+| 12 | 寶箱怪 | 5 | 340 | 15 | 22 | 700 | 45 | 6 |
+| 13 | 史萊姆 | 5 | 240 | 9 | 24 | 700 | 45 | 8 |
+| 14 | 幽靈 | 6 | 200 | 15 | 20 | 700 | 85 | 8 |
+| 15 | 巫毒娃娃 | 5 | 250 | 6 | 24 | 700 | 40 | 4 |
+| 16 | 沙漏精靈 | 5 | 180 | 3 | 24 | 700 | 50 | 3 |
+| 17 | 骷髏法師 | 6 | 170 | 8 | 24 | 4000 | 45 | 3 |
+| 18 | 吸塵貓 | 5 | 260 | 12 | 22 | 700 | 50 | 3 |
+| 19 | 小石魔 | 8 | 820 | 24 | 36 | 800 | 30 | 2 |
+- 爆爆羊：爆炸半徑 1.5 格，只傷敵（半路被打死的爆炸友敵都傷，對友軍減半）。吸塵貓：每 5 秒把 4.5 格內的敵人往貓身上拉，每隻最多 2 格，拉到 0.9 格停。小石魔：每 4 秒拍地，半徑 1.5 格內敵人受 3 傷、擊退 0.8 格，留碎石區。常數在 `fantasy_defs.gd`。
+- 手動技能（V1.0.4，大廳「技能」分頁，預設關）：護盾、戰吼、治療、隕石、凍結 5 種可選，每場最多帶 3 種，次數、冷卻、威力可調。程式 `cmd_defs.gd`；名稱和說明在 `data/strings.csv`（`cmd_0`～`cmd_4`、`cmd_d_*`），改名後要重建字型。施放記成 `[tick, 隊伍, 技能]`，重播照紀錄；AI 用確定性規則施放。開啟後徽章一律「娛樂」，規則碼 NTBR5、對戰代碼 NTB7（帶 `c`）；沒開走舊路徑，舊雜湊不變。
+- 殘局（V1.0.5）：100 關、10 章各 10 關（王國基礎、王國新兵、魔物報到、跨界連鎖、連鎖大作戰、護送・死守・斬首、地利、限制與借力、時序、宗師），章名與開場小故事在 `data/puzzles.json` 的 `chapters`；舊 25 關在第 1～3 章（位置與存檔不變），新 75 關在 `extra`。目標 4 種：打贏、護送（指定我方兵要活著）、撐住（局長 N tick 結束時沒被打光）、斬首（指定敵兵要死），都用戰後狀態判定，判定只有一份（`puzzles.gd` 的 `outcome／play`，遊戲、工具、測試共用）。第 7 章是 16×9 地形圖上的格子部署；第 8 章有每關隻數上限；第 9 章戰前寫好技能施放秒數（受開場時間與冷卻限制），敵方技能照腳本。自帶規則的殘局不給複製對戰代碼。列表可切章、只看未滿三星，顯示總星數。
+- 殘局第 11 章（V1.1）「完美主義」10 關：目標 flawless（獲勝且 `goal_type` 那種兵一隻都不倒）、margin（獲勝且剩餘 ≥ `goal_rem`%），一樣只看戰後狀態、判定在 `puzzles.gd outcome`。`CHAPTERS` = 11；資料由 `tools/gen/chapter11_merge.py` 附加，`puzzle_merge.py` 重跑會保留第 11 章。
+- 殘局工坊碼（V1.1）：打贏的格子對戰（平原、沒開技能、非試煉／每日）結果頁有「做成殘局碼」（`NTP1.`，`scripts/game/workshop.gd`）；「代碼」→「解殘局碼」先驗格式、兵種、座標、重複格、預算 ≤200，再用 `PZ.play` 重跑作者解，過關才收。門檻＝作者成績（剩餘 ≥ 作者、花費 ≤ 作者）。這關 id 是 `ws`，不進清單、不存星數、不記嘗試次數。
+- 三層提示（V1.0.5）：第一層講條件與主題、第二層顯示三星解的兵種（要先打過一次）、第三層確認後把三星解擺上去（不影響星數）。手把 L3 提示、R3 時間設定。
+- 主題試煉（V1.0.5）：30 關，分 3 頁。第 1～10 關照舊；第 11～30 關資料在 `data/trials.json`：限定卡池、單主題與混搭頭目、規則變形（預算、縱深、每種兵上限、雙方技能），敵陣由 AI 用固定種子組好後凍結成資料，剩餘與花費門檻各關不同。存檔以索引為鍵，只能往後加。
+- 看得懂（V1.1）：擺放時選中的兵對看得到的敵兵頭上畫 ▲（剋它）／▼（被剋，只讀剋制表）；輸的時候結果頁標題下一行改成「多半傷害來自 X（N%）→ 可以試試 Y」（逐 tick 累計受傷來源，快轉與播放共用 `_collect_mark`）。
+- 三星：殘局條件是勝利、剩餘戰力、花費，以和畫面相同的四捨五入百分比判定，結果頁逐條顯示 ✓／× 和本場數值。試煉：過關 1 星，剩餘戰力達標（普通 30%、困難 20%）加 1 星，花費不超過 80% 加 1 星，兩項分開算。
+- 雙人：輪流落子 5 手為預設，另有每手 10 金、同時暗擺、自訂手數。
+- **1.2.0 擴充規則 v1**（契約 `docs/rules-ext-v1.md`）：`RuleSet.ext_skills` 位元 0 架盾、1 接拍、2 急救契約、3 火矢、4 迴馬，`synergy` 協同技（狂戰士＋鼓手，和相鄰陣法互斥）。數值是 `battle_sim.gd` 的 `EXT_*` 常數（改了要升 `EXT_VERSION`）。大廳進階區「新技能」分頁開關；開了就是沙盒（`is_sandbox()`：徽章沙盒、不記戰績、不給成就）。規則碼 NTBR7；沒開時代碼與模擬位元組不變。金標準 `tests/golden/ext_v1.json` 29 場。正式模式上線要先過契約 §5（AI、教練、平衡、三星重驗）。
+- 模式與部署：對戰、遠征可自由；殘局、教學是格子（教學多一關自由排兵入門是例外）。
+
+## 存檔
+- 位置 `user://`：`save.json`（進度，Steam Auto-Cloud 同步）、`settings.json`（本機）；試玩版前綴 `demo_`，進度不帶進正式版。
+- 主檔壞掉：移成 `.corruptN` 留證據 → 讀 `.bak`。只有驗證過的主檔才會輪替成備份。
+- 比目前新的存檔：不碰原檔，這次不寫，標題頁提示。
+- 寫入失敗：記為未存，回標題時重試，標題頁提示。
+- `SAVE_VERSION` 4（1.2.0）：3→4 補 `campaign`（戰役星數）、`songbook`（棋譜本 ≤6）、`recent`（最近玩的 3 個）、`last_form`（上一陣）。
+- 1.3.0 新鍵（不升版、舊存檔沒有＝預設，逐欄驗型）：`od`（每日老闆出題：day、picks ≤3、done ≤3、stamped）、`od_stamps`（老闆的印）、`intro_seen`（掌燈開門看過了）。設定新鍵：`spotlight`、`battle_mag`、`auto_director`（預設開；減少動態的預設組關自動導播）、`table_view`（1.3.0 第 2 類）。
+
+## 版本契約（S5）：什麼改動影響什麼
+| 改動 | 重播／對戰代碼 | 金標準 | 要做什麼 |
+|---|---|---|---|
+| 模擬規則、`unit_defs`／`fantasy_defs` 數值 | **預設不做**（鐵則：舊 FINGERPRINT／digest 不變）。新機制走新規則欄位＋新代碼前綴，缺欄位走舊路徑。真的要改既有數值時：舊代碼顯示警告、用新規則重算（不留舊模擬） | 舊基準不覆蓋；只新增新版基準檔（例 `golden_v8` 之後另開新檔），commit 說明 | 升 `RULES_VERSION`；重跑平衡驗收、反制庫、殘局 |
+| 只有部署規則（間距、縱深、全場） | 代碼帶部署欄位，舊代碼照舊規則驗合法性 | `golden_free` 看案例 | 不升 `RULES_VERSION`；更新 `presets.gd` 認證 |
+| 畫面、特效、文字 | 不影響 | 不影響 | 版面檢查、改中文要重建字型 |
+| 存檔欄位 | 不影響 | 不影響 | 升 `SAVE_VERSION`、寫遷移、測未來版鎖定 |
+| 代碼格式（NTB*／NTBR*） | 舊格式要能解 | `seal_codes`、`golden_free` 會紅 | 加新前綴，舊的不能拿掉 |
+
+> 下面依功能分節（V1.0.0 起；原本依版本分節）。各條末尾的版本代號只說明是哪一版做的；歷史與理由看 `docs/history/` 的各版方案與 `coordination/*ledger*`。
+
+## 模式與內容
+- 遊戲間（標題「遊戲間」）：四張卡＝觀戰競猜（眼力分）、輪抽（各抽 4 張當卡池）、車輪戰（擺一次迎三波 70／90／110 金，殘兵鎖原格、多 15 金補兵，最佳存 `wave_best`）、雙封蠟戰書（雙人各暗封三陣、一戰揭一封、三戰兩勝、平手不加賽）；下排兩鈕：幽靈軍團（`data/ghosts.json` 30 個凍結名人陣，打贏存 `ghost_beat`）、每週棋盒（UTC 週一換題：舊 10 種抽 6 種卡池、80～120 金、對手是一個幽靈；本地最省紀錄 `weekly`，`pend`＝待送排行榜）。
+- 遠征：戰利品契約（6 份、每站抽 2＋不簽，`gauntlet_run.contract`）；宿敵戰記（輸了記敵陣與稱號，菁英站 60% 攔路，`nemeses` 最多 6）；事件多一種「木座貼紙」；獎勵頁先選事件與契約再按「前往下一站」；擺陣頁「本戰條件」；終點敵陣中央「巨獸」。
+- 木座貼紙（`sticker_defs.gd`）：開局衝鋒、倒下自爆、護符、寒霜、鐵皮、迅捷；存在陣型 `u["st"]`，NTB6 每隻第 4 位元組；只有遠征能貼，陣型碼匯入會拿掉。
+- 巨獸（`boss_defs.gd`）：石魔加 `u["boss"]`（血×2、大碰撞、橫掃半徑 2.1 格×2 傷害）；背甲（20% 血）分攤 35% 傷害、前臂（8% 血）只有近戰打得到、打斷不再橫掃；有巨獸那站敵方少 42 金；NTB6 第 4 位元組最高位元，只在重播對戰碼紅方。
+- 沙盤機關（`map_defs.gd` `events`）：崩塌礦坑（20 秒中路崩塌、重算導航）、烽火關（中線火牆 15、35 秒各燒 3 秒）、推進板（8、28 秒往中線推一格）；只配自由排兵；每場 `terrain.clone()`。
+- 殘局第 12 章「軍令連鎖」10 關：多技能定時軍令（計畫編碼 tick×8＋技能），木刻度尺時間軸可拖曳。
+- 挑戰卡片面板（8 張、四欄）：殘局極速賽（180 秒、+20／−15，`rush_best`）、裂隙模式（每週 3 個相容異變，`rift_best`）、一陣三考（`data/trio.json` 20 組，`trio_clear`；V1.6.1 起見下節）。對戰卡片面板：迷霧推演（斥候回報約三分之一的敵兵，依欄列每 3 隻露 1 隻）、雙人接力遠征（`gauntlet_run.coop`）。收藏卡片面板：殘局出題台（NTP3：打贏／斬首／撐住／求和／大勝／護送／完美）。
+- 殘局新目標「求和」（`draw`：時限到雙方都還有人）。
+- 差一子教練（結果頁，輸的格子殘局與對 AI）：最多 15 次模擬試「只動一隻兵一格」，背景執行緒；殘局可直接擺好重打，對 AI 改到覆盤。
+- 每日全球榜：自由座標打包（`SteamApi.pack_free`，版本 2）、上傳 `daily_<日數>`、下載前 5 名陣來打（沒有 Steam 顯示「上架後開放」）。
+- 地形 AI：一般對 AI 在地形圖上會避開慢速地、近戰找通道（`formations.terrain_smart`）；每日挑戰照舊。
+- 相鄰陣法（大廳「系列」分頁，娛樂）：`rules.adj`、`adj_defs.gd` 4 組 +8%；NTBR6；關閉時走舊路徑。
+- 實驗簿：鍵＝殘局 id、試煉 `t`＋編號、工坊／出題台 `w`＋內容 md5 前 12 碼（方案另存完整雜湊 `h`）、三考 `q`＋題組 id；可改名（16 字；手把用 Steam 螢幕鍵盤，沒有就輪替預設名）、兩份並排比較；成績排序：星→剩餘→花費少。
+- 教練：32 候選（移位 20：格子前後上下一格、自由部署 8 方向半格；同價換兵 12），6 秒期限、每 64 tick 看取消；結果四種（找到／這類全試過／候選用完／時間到）；第 2 層畫殘影；離開面板就取消。紀錄 `coached[鍵]={lv, ap, self}`，殘局清單在「看過第 2 層以上且自力最佳 < 星數」的關畫提示圖示；每日不給教練。
+- 一陣三考：20 組（前 10 組和 V1.6.0 相同）；第一場用剛打完的模擬，第 2、3 場背景算（`trio_job` 序號，換題、回標題作廢）；結算三張卡＋整組星數（三勝 1 星；剩餘平均 ≥ s2＝2 星；再加花費 ≤ s3%＝3 星；預設 45／88，`trio.json` 單組覆寫，每組有三星解 `sol3`）；`trio_stars`。出題台可出三考題（NTP4 `g=trio`），朋友的三考題不存紀錄。
+- 出題台：斬首、護送、完美可以點目標 → NTP4（`t`＝[欄, 列]）；沒點照舊 NTP3。護送目標殘血 ≤30% 外圈約 1 Hz 呼吸紅框。
+- 迷霧推演：自由座標同樣依 x、y 排序每 3 隻露 1 隻，被看到的兵腳下暖光＋雙色框。
+- AI 招牌陣：普通難度一般對 AI，40%（另一顆亂數）用該性格兩套愛用模板之一，屏風上寫「聽說最近愛用」。
+- 裂隙：`Rift.VER` 2（排除 5 組容易磨到時間到的組合）、紀錄留 8 週（依週）、異變練習場（不記紀錄）。
+- 極速賽：入口選單「今日題組」（UTC 日數種子，`rush_day`，可複製分享格）／「隨機練習」；題庫用求解器指標篩（局長 ≤1400 tick、隨機過關率 ≥3%），48 題。
+- 接力遠征：每站記 [站, 玩家, 勝負, MVP]（續局 `clog`），最後一站贏或中途輸了出總結。
+- **V1.0.0**：單人遠征也有總結頁（每站紀錄 `clog`，單人玩家欄＝0；和接力遠征共用 `coop_sum` 頁）；殘局、試煉「重打」保留上次擺法（`retry_key`／`_apply_retry`，換關不帶）；一陣三考背景運算可取消、有期限（`TRIO_LIMIT_MS` 20 秒，逾時不寫星數，被取消的執行緒放 `trio_old` 背景回收）；出題碼重跑作者解有期限（`workshop.gd` `SOLVE_MS` 8 秒，超過回 `ws_slow`）；極速賽說明寫清楚只在擺陣時計時。
+- **1.1.0**：每日挑戰打過後再點開「最近 7 天」：今天照常記，過去的是練習（`daily_practice`：不存最佳、不算連勝、不送榜、不記戰績與成就、不算有效場數與熟練度）。殘局最佳解碼 `NTQ1`（`solution_code.gd`；最佳＝星→剩餘→花費少，存玩家擺的兵＋時序關卡的軍令；代碼頁貼上打開那一關並擺好，算「協力」）。三考結算頁返回回到三考清單。覆盤重算、GIF 匯出可取消、有期限。
+- **1.2.0**：戰役「老闆的棋館」5 章 ×（6 戰＋1 殘局）（`data/campaign.json` 由 `tools/gen/campaign_gen.py` 產生、`campaign.gd`）：前面每一關都要有星才開；目標贏／保兵（N 隻活著＋最貴那隻要活）／限時；星級門檻在關卡資料；每章通關塗裝點數 +1。換邊雙局（`swap_duel.gd`：兩局各坐一邊，分數＝剩餘戰力 %、跟著玩家，平手比倒下少）；合作布陣（`coop_place.gd`：P1／P2 輪流、每手上限、只能撤自己這一手；固定格子標準規則）；換邊與合作在試玩版扣掉試玩沒有的兵。裂隙改每週天梯：`Rift.week_of` 週界 UTC 週一、`Rift.VER` 3、榜 `rift_<週>_v<版>`，只送當週、回主畫面補送、過期丟棄。出題台可選地形圖（NTP5，牆格不能放，三考不帶地形）。每週棋盒玩家幽靈：上傳前鏡像成紅方（修 V1.4 起下載永遠空的漏洞）。
+
+## 主畫面、選單與新手
+- 主畫面（V1.5，V1.0.0 改）：五塊木牌＋系統列（設定、代碼、離開）；木牌點了開第二層卡片面板（`home_plaques`、`hub_items`）。木牌高度照字量算，放不下副標就只放名稱。
+- 暫停選單（戰鬥中 Esc／手把 B）：繼續、直接看結果、設定（關掉回暫停選單，`settings_ret`）、離開。重播的 Esc 仍是返回。
+- 我的預設 10 格（`Save.MAX_PRESETS`），滿了提示不覆蓋。結果頁主動作寬、次入口木色。成就 31 個（V1.5 加 7 個）。
+- 返回目的地：共用返回堆疊 `nav_stack`／`_nav_push`／`_nav_back`（ui_base.gd）；卡片面板畫出時與 `_start_mode` 清空；`nav_hub` 記最後經過的卡片面板，打完回標題時重新打開。Esc／手把 B 走同一套（沒登記來處的子頁用自己的返回目的地）。
+- 確認框：`_ask_confirm(msg, cb, ret, items, sep)`，面板照實高，清單放不下截前幾項加「…等另外 M 項」（`confirm_more`）。
+- 新手：主畫面右上「建議下一步」（`v16_guide.gd` 依進度挑一件）；卡片面板沒開過的新入口有「新」（存檔 `seen`）；試玩版打滿 4 場出現結尾畫面（願望單鈕等 `SteamApi.STORE_URL`）。
+- 新手：V1.6 新玩法在有效對局（`eff_games`：正式對局，不含教學、觀戰、實驗徽章；老存檔第一次開用標準＋自訂局數估計）滿 3 場前不標「新」、不進建議下一步；收藏卡片「新玩法導覽」常駐，老玩家第一次開跳一次（`seen` 的 `tour161`）。
+- 大廳：「系列」分頁放不下時分頁；左側分頁在「實驗」前有「進階」分隔。`equals` 比地圖（大廳預設比對把地圖帶過去）。
+- **V1.0.0 五牌**：對戰（教學、對 AI、同機、迷霧）、遠征（`hub_gauntlet`：單人遠征、雙人接力）、殘局（`hub_challenge`：殘局、試煉、極速賽、一陣三考；原「挑戰」拆掉）、遊戲間（`playroom` 改成卡片面板 8 張：每日、每週、幽靈、裂隙、競猜、輪抽、車輪、雙封蠟，底下顯示眼力分與車輪最佳）、收藏。`HUBS` 常數列出全部卡片面板；每日挑戰「今天還沒打」的小牌掛在遊戲間木牌。新玩法導覽留在收藏（系統列 150% 放不下第四顆鈕）。
+- **V1.0.0 新手**：建議下一步多「繼續遠征（第 N 站）」與「繼續殘局 章-關」（`v16_guide.gd` `gauntlet_cont`／`puzzle_more`、`next_puzzle_id`）；第一小時先推殘局（過 5 關或贏一場 AI 才推別的）；教學第 1 關提示「擺錯可以拿掉」（照滑鼠／手把／只點選顯示操作，講清楚只有雙人輪流落子不能收回）、第 2 關提示剋制記號 ▲▼；前兩場還沒贏過時，敗因前面加「一開始輸很正常」。輸了的結果頁首屏不放對手的 MVP。
+- 戰績兵種勝率：`unit_games_rec`／`unit_wins_rec`（對 AI、遠征、雙人同口徑；實驗室不記；雙人記勝方）；舊 `unit_wins` 只給圖鑑老兵筆記。
+- **1.1.0**：「回報問題」先選類別（`fb_cat`）；回報 json `fmt` 2（`cat`、`first_boot`、`first_battle_sec`＝第一次開遊戲那次到第一次開戰的秒數）。結果頁有空位時一行「這位對手的習慣」（`ps_hab_*`）。殘局章節全三星畫火漆印。手把長按拿掉鍵 0.8 秒＝清空自己的陣（雙人輪流落子已落子不能清）。沒有螢幕鍵盤時實驗簿改名用詞彙格（`nb_words`）。設定「資料」頁：有舊 `ws` 實驗簿才出現「匯出舊實驗簿」。大廳雙人說明依 AI 實測：超過 5 種兵先手明顯佔優（10 種約 61%）。
+- **1.2.0**：標題五塊木牌插在多寶盒籤槽；主畫面右上「最近玩的」3 顆紙籤（`recent`）；老闆便條（`_boss_note`：大廳、擺陣、結果，戰役、棋譜本、教練、時光機、出題台、換邊、合作各一張，看過記 `seen` 的 `note_*`，截圖與版面檢查不跳）；大廳線裝書、布標分頁、紙籤列；大廳進階區「新技能」分頁。
+
+## 擺陣與戰鬥畫面
+- 攻擊動作是三段式（前搖／命中／收招）：`art.gd` 的 `POSE_PROFILE` 給全部 22 種（含召喚物）專屬形狀與收招停頓；命中時間點 `ATK_WINDUP` 全兵種相同。
+- 密陣：被正下方的兵蓋到臉時，在最上層補畫 35% 透明的自己（`_draw_xray`）。倒下：骷髏散骨、寶箱怪吐金幣、史萊姆濺開、幽靈化煙、小石魔碎石；勝利：鼓手音符、狂戰士火花、醫者綠十字。殘局斬首目標倒下有頓格＋「斬首成功！」。
+- 受擊：閃白＋壓扁＋後退；盾兵火花、小石魔石屑、史萊姆綠滴。大招前搖：小石魔、吸塵貓、沙漏精靈畫實際作用半徑的地面預警圈；手動技能在受影響那隊腳下畫法陣。
+- 第 1 層技能字（反騎、反擊、破陣）不出字，頭上閃小菱形；字只進底部戰報。
+- 冰湖雪原底色降 15%，亮色地圖腳底加深色影子（`BIOME.shadow`）。
+- 轉身：沒有中間影格的兵，窄位最少 0.45（`battle_state.gd` `TURN_MIN_W`）＋腳下揚塵＋展開回彈 1.04。劍士、盾兵、騎兵、長槍兵、史萊姆、小石魔（`sprite_cache.gd` `TURN_TYPES`）另烘 3 張中間姿勢（cos 0.8／0.55／0.3）：`kit.gd` 的 `turn_c`、`_part(z, fwd)` 讓頭與史萊姆不壓扁、武器透視縮短並留在臉前、大盾不縮、臉往中間移。轉身頁約 7 MiB。逐格條：`tools/anim_sheet.gd` 產 `turn.png`。
+- 錯開：呼吸 `Art.idle_bob(t, 腳點)` 依 x、y 錯相位與頻率 ±10%（烘焙時 `bake_no_bob`）；眨眼依位置錯開。停步慣性 0.3 秒（`stop_t`）。
+- 腳下三層：厚木座 → 接觸影子（跳起來縮）→ 隊伍圈；站地上時貼一次預烘合成格（`ring_tex` 第 6～9 格），跳起 >0.15 才分層。
+- 倒棋：一般兵（`battle_units.gd` `TOPPLE`）死亡側倒 90° 躺在木座上，1.7 秒淡出（`death_life`）；化煙、化開、碎裂等專屬死法不變。
+- 手作線條：整圈 → `_hand_ring`（三版預算、焦點圈每秒換 6 次、簡化特效固定）；虛線 → `_chalk_line`（粉筆，花紋只看段號）；格線 `_wob_line`；牆邊 `_wob_edge` 烘進地塊（不改可走範圍）；松樹手繪；介面材質低頻削角（`tools/gen/gen_ui_tex.py` `rough_mask`）。
+- 降噪：頭頂符號上限（`OVERHEAD_CAP`，滿了丟最舊）、戰場跳字上限 `FX_TEXT_CAP`；選中（跟拍）的兵滿血也顯示血條；走勢圖整場差距小時縱軸放大（最多 3 倍，標「縱軸放大 ×N」）。
+- 特效：受擊整隻剪影變白；箭命中後釘住抖 0.18 秒；碎屑不規則翻滾；跳字從上方 8px 壓下；戰報事件地上墨圈（`inkring`）；每場第一次破陣的關鍵時刻（四周壓暗＋墨圈，不改播放速度，簡化特效關）；金幣條改木槽木珠。
+- 擺陣：拖曳抬高 12px＋地上影子；自由模式放下 0.18 秒沉降＋落子聲（落點立即提交）。結果頁有筆聲（`ui_quill.wav`，程式合成）。
+- 遠程時間同步（只動畫面）：沒有手動軍令的局展示緩衝 8 tick（`ViewBuffer.DELAY_LONG`），手動軍令局 2 tick。`PROJ_FLY`（弓箭手 5、投彈兵 6、骷髏法師 5、醫者補血 3）；`proj_phase(hits, disp, type, delay, only)` 只提早有飛行物的那幾發；`proj_tgt` 記命中 tick→目標；施放者陣亡已離手的照飛；跳轉清掉。
+- 時序：手動軍令局遠程前搖 1＋飛行 1（`proj_wind`）；`proj_phase` 回傳 [出手, 命中, 飛行進度, 動作起點, 前搖]；照紀錄施放的軍令局 8 tick、軍令欄讀 `ViewBuffer.cmd_snap`；跳轉補軍令標記、陣亡小旗與倒地。
+- 擺陣：資訊帶「射程」（V）畫我方射程覆蓋與最近敵兵方向、「標記」（T）最多 3 隻、觀戰時頭上號碼；殘局多「實驗簿」（N，每關 5 份方案＋成績，`notebook`）。
+- 擺陣「射程」開著時，看得到敵陣的模式畫「開場鎖定」虛線弧（模擬跑 1 tick 的選目標）。有標記兵時，其他兵的一般跳字變淡。焦點框 0.08 秒滑動（連撥、減少動態、版面檢查時直接跳）；按住確認走改鍵、任何手把；手把模式放大鏡跟焦點按鈕；擊倒、確定時手把短震。
+- 時光機（重播暫停→回開戰前改一隻、分岔秒數、原時間線粉筆圈）；接力殘局 NTP2；每關最佳花費／兵數／時間（`pz_best`）；戰報卡 PNG、重播中錄 3 秒 GIF（`gif.gd`）；大廳指揮官 6 位（軍令組合＋開局金）。
+- **V1.0.0**：4 倍速以上略過裝飾碎屑與一般跳字（`battle_fx.gd` `FAST_SPEED`／`FAST_SKIP`），預警圈、爆炸、分裂、拍地照畫。
+- **1.1.0**：同一目標超過 3 條鎖定弧只畫 3 條，目標旁「×N」，其餘拉細線到 ×N（`lock_groups`）。被擋住的兵游標停上去描淡粉筆輪廓。4 倍速以上投射物落點畫小圈。拖兵每約 70px 一聲輕摩擦。小地圖（12×7）放大時上方留 36px 頭頂空間（`HEAD_ROOM`）。
+- **1.2.0 桌上世界**：胡桃木桌面（`_draw_desk`）、橡木棋盤框＋刻刀格線、河＝藍染絹、橋＝木片、各地圖個性（`map_art._personality`）、盤緣刻地圖名、河谷水珠；HUD 棋鐘＋山毛櫸木尺（AI 名稱只在開場 3 秒、指到尺、F1／View 時顯示）；開場三段落子；宣紙戰報（墨線、朱砂小印、勝負大章，任意鍵跳過）→ 結果紙卡；材料碎片（`battle/frags.gd`，單格 ≤2、總數 ≤30，減少特效／簡化／4 倍速不掉）；跳字改紙條墨字。
+- **1.2.0 部署與覆盤**：格子 M 整軍翻轉、Shift＋←→ 平移、自由 A 對齊、L 複製上一陣（手把：按住 RT＋Y／十字 ←→／LB，提示照綁定）；重播書籤（倒下、第一次破盾，`[` `]` 跳）；時光機同一秒存活數；教練證據（改前／改後四個差值＋出力前二）；棋譜本（分享面板收藏，`songbook`）。
+
+## 角色
+- 1.1.0：刺客遠側短刃在身體後面（交叉斬才到前面）；木座族群部件層 `Art.base_trim`（王國鐵箍、奇幻樹皮），圖集不含、貼完再畫。新特效：翻書、骷髏拼裝、史萊姆彈出、鼓手木紋波、狂戰士斧弧（4 倍速與減少特效規則見 `battle_fx.gd`）。
+- 轉身：22 種兵都有 3 張中間姿勢（`sprite_cache.gd` `TURN_TYPES`）；部件標註在 `kingdom.gd`／`fantasy.gd`（`_part(z, fwd)`、圓件 `_part_at(x0)`，武器最多縮一半）。走路中轉身另一頁：1 角度 × 4 步相（`WT_*`）。出手時每一擊鎖朝向（`atk_face`）。
+- 待機小動作：每種兵 4 格（`FIDGET`：前搖幅度＋回頭看），30～60 秒一次、1.2 秒；受擊那一下帽子彈起 5px（`hat_pop`，只在待機）。
+- 表情：`M_HAPPY`（勝利 ^^）、`M_SURPRISE`（擺陣抓起）、`M_GRIM`（存活 <25% 且對方 >2 倍）；最後一隻站定 1.5 秒後左右張望。羊、幽靈、骷髏法師、骷髏也吃得到表情（`FEATURE_EYES`）。
+- 剪影：投彈兵肩桶、骷髏法師書前探＋兜帽尖、大史萊姆王冠、刺客雙燕尾、狂戰士待機 V 斧。史萊姆高光不烘進圖集，貼圖後畫在世界左上。
+- 圖鑑大圖：點角色轉一圈＋小動作（`codex_view.gd` `_cx_portrait`）。
+- 收尾效果：每種兵出手／倒下音高不同（`sfx.gd` `UNIT_PITCH`，0.82～1.25＋±5%）；最後一擊定格 0.2 秒後勝方從中線往後排波浪歡呼（每格 0.06 秒）；巫毒娃娃的針、骷髏頭骨、寶箱金幣倒下時落地（`_draw_relic`，同畫面最多 4 組）；孢子菇、投彈兵火罐、沙漏玻璃的高光在正上方。擊倒者用「目標最後被誰打」推算（模擬的死亡事件不帶擊倒者）。
+- 角色：握持三層（`_grip`、`_fist`）；人形 9 種有背面（`Art.back`、`BACK_OK`：不畫五官、後腦勺、背後物件畫在身上、近遠側互換）。圖鑑固定縮放 `CX_FIT`；檢視控制：左右轉（人形 16 格一整圈、其他 9 格半圈）、0.25 倍慢動作（`cx_clock` 累積）、出手一次含飛行物。驗收圖 `tools/unit_review.gd` → `docs/review/v150/units/`。
+- 角色：22 種都有背面（`Art.BACK_OK` 全部）。戰場轉身中出手用轉身攻擊格（`SpriteCache.ensure_turn_atk`：1 個中繼角 0.55 ×（一般＋交替）8 格 × 兩隊，只烘本局兵種、上限 10 種、重烘自動補回）；轉身插值用畫面 tick。
+- 圖鑑：大圖與近看用 `codex_bake.gd`（向量→`unit_bake.gdshader`，著色器 `y_off` 只給圖鑑）；近看模式（假人靶、逐格、0.25 倍、放大、一般／特殊）；召喚物分頁；小劇場走展示緩衝（遠程命中前射出）。
+- AI 人設：6 種性格的名號、頭像、開場／輸贏台詞（`v16_persona.gd`），首領與宿敵嗆聲。熟練度（`mastery`，5 級）顯示在圖鑑，3 級起兵卡有星章。
+- 熟練度：兵卡外框（3、4 級銀、5 級金）、圖鑑大圖腳下木牌（等級＋戰功章 3 個：出場 20、擊倒 50、MVP 5，`medals`）、戰場只有標記的兵腳下畫星。
+- **V1.0.0 剪影辨識**：`tools/dev_main.gd --sil=`＋`tools/gen/sil_report.py` 量 22 種兵 50% 大小的輪廓相似度；最難分的 5 種（孢子菇、幽靈、投彈兵、盾兵、史萊姆）補事件表現：幽靈移動時身後淡煙、孢子毒改濁紫（綠留給補血）、投彈兵落點焦痕 0.25 秒；盾兵擋箭漣漪、嘲諷腳底弧、史萊姆分裂「啵」原本就有。其餘 17 種的逐兵表見 V1.0.0 方案 §3（P2，未做）。
+- **1.1.0**：劍士反擊木屑（`chips`）、醫者被補者腳下藥膏環（`healring`）、巫毒分傷線改暗紅（紫留給毒）。其餘方案 §5 表現多數原本就有（逐兵盤點見 `coordination/v110-impl/ledger.md`）。
+- **1.2.0**：攻擊姿勢 22 種全部走資料（`data/poses/*.json`，`tools/gen/pose_gen.py` 由 POSE_PROFILE 產生，`scripts/ui/pose_files.gd`；hit 事件＝ATK_STRIKE，演出不延後）；落子壓扁回彈、不倒翁搖、倒下連座離地；待機與歡呼定格 1/12 秒（設定「平滑動作」可關）；王國上發條、奇幻呼吸；圖鑑表情輪播；棋子上漆高光與磨損烘焙。
+
+## 介面材質與排版
+- 字型：`fonts/NTBRounded-{R,B}-sub.otf`（源泉圓體 TW，中文）＋`fonts/NTBLatin-{M,B}-sub.ttf`（Fredoka，英數主字型，中文落到後備；0～9 等寬置中）；ThenKhung 只給粗體 ≥H2 標題。來源字型在 `build/fontsrc`，`tools/gen/build_font.py` 重建。
+- 文字：深焦茶描邊（3／4／5px 依字級）＋下方陰影；深色字（含紙上墨色字）不描邊、改淺浮雕。`_ink_mode` 時淺色字自動轉墨色、彩色字壓暗，`_btn` 內固定白字。
+- 材質：`art/ui/` 木紋、凹槽、羊皮紙、銅釘木框、暈影、游標由 `tools/gen/gen_ui_tex.py` 生成（雜訊非決定性，重跑會變檔）。`_box` 對夠大夠實的方塊畫染色木紋；面板、戰場、大廳預覽有木框；大廳左欄、圖鑑左欄是羊皮紙頁；結果頁勝負字墊隊色緞帶。
+- 兵：圖集烘焙後跑 `shaders/unit_bake.gdshader`（隊伍墨色外輪廓、頂亮底暗）；縮放 >1.4 倍改向量直畫＋木底座。換色重烘有世代保護。
+- 設定 `plain_ui`（預設 false）：關掉材質、緞帶、紙頁、外輪廓烘焙、暈影等，回到 V1.1 平面介面。
+- 大廳是攤開的雙頁筆記（木書殼、兩頁羊皮紙、書脊、紅書籤）；戰報條是深木槽＋隊色小章（藍圓、紅菱）；圖示 Q 版厚塗（`Icons.force` 畫剪影）。
+- 地塊烘焙（`map_art.gd`）含手繪筆觸、邊緣裝飾、紙紋 5% 與調色（`shaders/grade_bake.gdshader`）；快取分簡化介面與否兩份。亮的特效墊放射柔光。
+- 文字：次要字用不透明暖灰 `TXT_DIM`；彩色小字在 `_text` 自動提亮（對描邊 5:1）；紙上墨字至少 85% 不透明。
+- 按鈕：懸停與手把焦點同一樣式（深邊＋金亮邊）、按下內陰影；`btn_paper` 畫紙面，`last_btn_paper`／`last_btn_enabled` 給呼叫端決定卡片內文字。
+- 版面檢查（`tools/dev_main.gd`）：文字對比用截圖取樣（反鋸齒排除、透明度合成、描邊三種比法取最好、背景未知必敗、停用另報）；九宮格依材質登記的斜邊內距（木紋上 3／下 4／左右 3、紙 5、凹槽 3）檢查字形框；缺圖算違規；狀態 `--shot-state=plain,cb,pad,dis`。
+- 規則：`docs/ui-layout-rules.md`（間距階 4／8／12／16／24／32／48＝`GAP_XS`～`GAP_XL`；R1 模態面板置中、R2 緞帶下距 ≥16、R3 依附裝飾貼齊、R4 底部按鈕群組、R6 留白、R7 副標置中、R8 不出面板／不跨欄／焦點框在畫面內、R9 文字到按鈕、R10 同欄中線、G 漏登記守衛）。例外：`docs/ui-layout-exceptions.md`（4 條）。
+- 偵測器：`scripts/ui/layout_rules.gd`（純矩形）；`_panel`／`probe_panel`、`_h1` 自動登記，`probe_deco`、`probe_columns`、`probe_align`、`probe_axis`、`probe_skip` 由畫面宣告；`tools/dev_main.gd` 的 `layout_geom_input()` 交給規則，`OVERLAY_RIBBON`／`OVERLAY_PANEL` 是每個覆蓋層的必要角色（新覆蓋層要加）。
+- 排版工具：`modal_rect(寬, 高)`（置中、照內容高）、`_h1` 回傳緞帶完整下緣、`_h1_help`／`h1_help_h`、`below_head`、`btn_deco`（按鈕底面之後、焦點框之前畫依附裝飾）、`_btn_small`（可見面不變、點擊區 44）、`btn_ring_clip`（加強焦點外圈的可畫範圍）、`balance_two_lines`。
+- 大廳紅書籤（A 案）：選中預設分頁右側（右緣−34、寬 20），上緣貼分頁上緣、長 30；只有選中的分頁讓書籤槽（`BM_SLOT` 42），未選中的不畫書籤、字整格置中。
+- 備份資料夾跟存檔前綴（`backup_dir()`；正式遊戲仍是 `user://backup`）。
+- 版面檢查 21 組（四語 × 三字級＋狀態；補了簡中、日文 125%）；空／滿資料截圖名帶 `@`；`LAYOUT_STRICT_WARN=1` 時排版警告也算失敗；違規全表 `tools/layout_table.py`、接觸表 `tools/layout_sheet.py`（畫中線、修前修後並排、標 commit）。
+- **V1.0.0**：版面檢查加「字形實高 < 9px（Deck，字級 × 0.7）」違規（`dev_main.gd` `DECK_CAP`／`DECK_MIN_PX`），符號也算。圖鑑左欄多一塊範圍格網（`cx_ranges`：射程或支援範圍＋爆爆羊／吸塵貓／小石魔技能範圍，數值取兵種常數）。
+- **1.2.0**：材質 `art/mat/`（`tools/gen/materials.py`，ambientCG CC0，manifest 契約由 `check_assets.py` 檢查，≤64 MiB）；「工藝」字型組為預設（Noto Sans→NTB Sans、霞鶩文楷→NTB Title；圓體可在設定切回）；字級表 2.0（100%：C15 S16 B18 H2 24 H1 34 T44）；元件庫 2.0（木牌按鈕、朱漆主按鈕＋蠟封、布標分頁、黃銅撥片、暖墨暗幕 `_dim`）；每個疊層一個實物外框（`OBJ_OF`），打開前 0.3 秒演開合（只疊畫，截圖／版面／減少特效／簡化不演；開發截圖 `--shot-open`）。
+
+## 設定、無障礙、輸入
+- 設定七頁（畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料）：`_settings_rows`；列位置 `_settings_row_y`。無障礙頁三個一鍵預設（可疊加、可撤回）。資料頁：設定碼 `NTS1.`（匯入先預覽）、進度備份 `user://backup/`（留 10 份，同秒加流水號）、還原（確認框、`Save.restorable` 驗身分與版本、唯讀存檔不還原）、分項清除（先自動備份，備份失敗不清）。首次啟動三個問題（`first_done`；老玩家自動略過）。多項一起改用 `Save.set_settings`（只寫一次）＋`_apply_all_settings`。
+- 新設定鍵與合法值：`Save.DEFAULT_SETTINGS`、`Save.ENUMS`；新安裝畫面震動 25%、閃白 50%，老玩家照原本開關。提示停留可「手動關」（`toast_mult` 0）。
+- 設定：速度表 `SPEEDS`（0.25～8）、死區觸發＝死區＋25%、修改標記與單項／整頁恢復預設（`SET_KEYS`）、預設套用前預覽（舊→新）、擺兵方式 `place_mode`（只點選：不連續塗、點一下自己的兵拿掉）、全螢幕 10 秒自動還原（`_guard_fs` 也管匯入／恢復／預設）、戰鬥中生效時機、還原與清除先寫檔（`_commit_data`）。
+- 無障礙：按住確認（`hold_confirm`，0.6 秒）、文字放大鏡（`magnify`，只跟滑鼠）。
+- 觸控：長按 0.5 秒＝右鍵（覆蓋層內不觸發）、雙指／觸控板捏合縮放戰場 1～2 倍；Deck 實機清單 `docs/release/deck-checklist.md`。
+- **V1.0.0**：無障礙對照表 `docs/accessibility.md`（GAG 基本／中級逐條）。
+- **1.1.0**：設定「操作」頁「掌機建議」一鍵（30 fps、字級 125%、只點選擺兵；可撤回）。PS 手把用正確的 ○△。色覺模擬工具 `tools/gen/cb_sim.py`（結果寫在 `docs/accessibility.md`）。
+
+## 語言
+- 本地化前置：`L.field(資料, 後綴)`、`L.pick`、`LANGS`／`SUFFIX`；加語言看 `docs/localization.md`。
+- 語言：繁中、英文、簡中（OpenCC 轉換＋用語修正）、日文（Codex 翻譯）；簡中與日文未經母語校對（設定說明欄寫明）。字型：繁中源泉圓體 TW、簡中 Resource Han Rounded CN、日文源泉圓體 JP（各自子集 `fontchars.py`）；日文行首禁則；程式內二元陣列走 `data/l10n_extra.csv`；翻譯流程 `tools/gen/l10n_extract.py` → Codex → `l10n_build.py`（原文改過會擋舊譯稿）。
+
+## 聲音
+- 聲音匯流排 Music／SFX／UI／Ambience（都送 Master，最後時刻低通掛 Master）；換曲 0.6 秒交叉淡入淡出。
+- 聲音：OpenGameArt CC0 配樂 3 首（`music_title`／`music_place`／`music_battle`，Ogg，執行時設循環）、音效 47 個（`名稱__2` 變體隨機、不連抽）；`tools/gen/import_audio.py`（`build/venv-audio`）。戰鬥曲是錄音單軌，狂熱同曲 1.08 倍音高（舊合成三分軌已移除）。
+- 聲音：四條音量（音樂、音效、介面、環境，設定裡有試聽）；`data/audio_trim.json`（`tools/gen/audio_trim.py` 產生）逐檔修響度。
+- 擬音：落子木雕材質 4 種、倒下木座聲、膠著時低鼓循環（`tools/gen/gen_audio_v16.py`）。
+- **V1.0.0**：配樂 5 首：再加 RandomMind（CC0）〈Medieval: Exploration〉＝`music_codex`（標題頁開著圖鑑、大廳、收藏、生涯、塗裝、宿敵時，`CALM_OVERLAYS`）、〈Medieval Kings Feast〉＝`music_puzzle`（殘局、教學擺陣）。同一個音效同時最多 3 路（`sfx.gd` `SAME_MAX`）。
+
+## 分享、代碼、回報、Steam
+- 雙人輪序紀錄碼 NTD1（1.1.0 B2，`game/duel_code.gd`）：規則、先手、禁牌後卡池、每手落子；解碼逐手重放驗合法才播。重播時手把 View／Select 開戰報面板（B10）。
+- 代碼：「代碼」頁一鍵貼上自動辨識（`code_kind`）；車輪戰代碼 NTW1（`wave_code`／`wave_decode`）。
+- 工具：試玩回報白名單匯出（`Save.playtest_report`）；校對包 `tools/gen/l10n_review.py`（export → `docs/l10n-review/`；import 回填 `ja_zz_review.json`、`zhcn_review.json`，校對優先於程式內 OVERRIDE）。
+- 試玩回報：本機漏斗（存檔 `funnel`：第一次開遊戲、教學、第一場、第一次輸贏、各模式第一次打開、最後離開的畫面）；暫停選單與設定「資料」頁的「回報問題」→ 複製到剪貼簿並存 `user://report_*.json`。
+- 分享（結果頁「分享」）：精華時刻（決勝、領先交換、最後一擊，點了跳去看）、戰報明信片、出題碼、每日／每週不劇透分享格、每日連續天數（`daily_streak`）、今日高手陣。
+- Steam 排行榜（每週棋盒）：`steam.gd` 上傳／下載程式寫好，附加資料放陣型；未在後台建榜、未實測。
+- 每日、每週榜：每日榜名 `daily_<日數>_v<Daily.VER>`、待送 `daily_pend` 帶 `ver`；每個榜同時只有一筆上傳在途，在途時再送只留最新一筆；找榜失敗只放開那一個。
+- 成就 37 個（V1.6.1 加 RUSH_10、TRIO_STAR3、RIFT_WIN、WORKBENCH、MASTER_5、COOP_CLEAR）；生涯頁成就一頁 32 個、可換頁。
+- **V1.0.0 Steam**：排行榜全部請求走單一通道（`steam.gd` `_lb_q`／`_lb_cur`）：同時一筆、回呼對在途那筆（找榜用榜名、上傳下載用 handle），找榜失敗只結束那一筆（下載回空清單，畫面不再卡在讀取中），逾時 15 秒當失敗並暫停 3 秒，上傳任意 10 分鐘最多 10 次，佇列裡同一個榜只留最新一筆。成就：接 `user_stats_stored`，回呼不是 OK 就約 10 秒後把本機成就重設重送。
+- **V1.0.0 代碼與回報**：代碼相容表 `docs/codes.md`（測試釘住）；回報問題的提示照實講（已存檔＋已複製／只存檔／只複製／失敗）；壞存檔隔離 20 個編號用完改用時間戳記名，不覆蓋舊證據。
+- **1.1.0**：`platform_report`（唯讀：雲端開關與檔案、分支、排行榜 API）併進正式 App 的 `--steam-test`；遊戲結束清掉排行榜佇列的回呼（`lb_drop`）。熱修與 beta 分支流程：`docs/release/steam-setup.md` G 節。成就依類別上色（`ACH_CAT`）。
+
+## 工具與素材
+- 1.1.0：背景工作共用 `scripts/game/bg_pool.gd`；純邏輯 `playroom_rules.gd`、`screen_rules.gd`；測試組依功能分（`coach_lab`、`share_codes`、`reports_platform`、`modes_live`、`battle_visual`）；效能模式多 `atlas_sweep`（圖集上限量測）。
+- 商店圖：`tools/gen/gen_capsules.py <zh_TW_100 截圖夾>` → `docs/release/capsules/`（Steam 全尺寸＋8 張截圖）。
+- 商店圖：小膠囊不放副標（120×45 可讀）；`tools/gen/gen_capsules.py`。
+- 工具：`tools/anim_sheet.gd` 產 `turn.png`、`fidget.png`、`walkturn0.png`，並檢查武器穿眼（`ANCHOR`）、出格（`CLIP`）。
+- 資源：轉身＋小動作＋走路轉身圖集比 V1.3.0 多約 93 MiB 貼圖記憶體（上限 104）；效能模式 json 多 `mem_static_*`、`tex_mem_mib`。
+- 塗裝室（戰績頁）：兩軍各 4 種同色系底漆、漬洗／乾掃 3 段（烘焙後處理參數）、木座 4 種、棋盤框 4 種；成就數解鎖；色盲時底漆不換；存 `paint`。
+- 工具：`tools/gen/audio_measure.py`（音效響度→`docs/playtest/loudness.md`、試聽表標「★要聽」）、`tools/balance/v161_metrics.gd`（三考／裂隙／極速賽節奏）、`tools/balance/adj_eval.gd`（相鄰陣法）、`tools/gen/trio_star_forge.gd`＋`trio_star_merge.py`＋`trio_stars.gd`（三考三星解與門檻）。翻譯：新字串的日文放 `build/tmp/v140/l10n/ja_v161.json`（`batch_v161.json` 是對應原文），`l10n_build.py` 才不會蓋回英文。
+- **V1.0.0**：成就圖示 37 張 `docs/release/achievements/`（`tools/gen/gen_ach_icons.py`，ID 對 `steam.gd`，附 64px 縮圖表）；匯出檢查要求自我檢查 `ok:true`、標題頁＋焦點＋1280×800＋版本號（`EXPECT_VERSION`），Linux 試玩版也實際啟動，並輸出 `manifest.txt`（commit＋各成品 sha256）；CI 分層（push 快速、夜間／`v*` 標籤／手動跑完整雙平台）。
+- **1.1.0**：`playtest_report.py` 讀回報 json（漏斗、第一次開戰秒數、最後畫面、分類）；`l10n_review.py status`；試聽表盲聽模式；`--video-scene=kingdom／fantasy` 固定種子；`dead_code_scan.py`（候選清單，未刪）；`check.py` 每步自己的程序記號、例外收尾、`t_stateful2` 拆兩行程；版面檢查 24 組。純邏輯檔改功能名（`scripts/game/` 的 career、coach、funnel、guide、persona、rift、rush、share、trio；原 `v16_*`）。新增語言評估 `docs/l10n-new-language.md`。
+- **1.2.0 驗收工具**：`tools/audit_selection.sh`（有快取 vs 無快取逐步比對）、完整檢查核對測試 ID 聯集、`tests/sim_cache.gd`（重算作者解的模擬快取，命中 5% 抽驗）、`tools/screens.json` 畫面清冊（`--shot-only`）、版面平行 `LAYOUT_JOBS`、`tools/visual_diff.py`（`--shot-fixed` 固定幀時間與亂數）、美感報表（純黑比例、棋子輪廓對比）、`tools/perf_ab.sh`（ABBA）。圖集後處理直接吃視窗貼圖（`_post_vp`）。
+
+## 已知限制
+- 1.2.0：沒有真人看過「桌上世界」；聲音沒換真錄音（落子、蓋章沿用 `place_heavy`）、老闆沒有語音；關鍵美術、預告成片、商店截圖重拍、8 方向姿勢、個性小物、塗裝室 2.0、高解析立繪、新兵種都要美術或錄音來源。擴充規則只在沙盒（AI 不會刻意利用、沒有平衡）。圖集烘焙最長一幀約 74 ms（目標 < 40 沒達到）。棋子輪廓對比 < 3:1 約 13.7%（新量法，只當報表）。戰役難度只有程式產生的預算／種子，沒有真人校準。
+- 1.1.0：三考門檻仍是「求解器找得到」（量測：隨機三勝率 4～83%，隨機陣幾乎拿不到三星；`docs/balance-runs/v110/trio_metrics.jsonl`），等真人資料再調。統一檢查理想下限約 750 秒（總工作量 ÷16），<600 秒要減少金標準／相容場數，沒做。覆盤剛打開時的基準重算仍同步（一場）。`ghost_fetch`（下載玩家幽靈陣）沒接到畫面。死碼候選 22 個未刪（`docs/review/v110/dead_code.md`）。沒做：雙人輪序紀錄碼、手把重播戰報面板、雙手武器前後手畫序、背景工作共用類別、測試組依功能拆名。
+- V1.0.0：Steam 某個排行榜或成就回呼永遠不回時，本次執行期間不再送該類請求（下載回空、待送留存檔），重開遊戲恢復；排行榜、成就、雲端都沒有正式 AppID 實測。出題碼驗證、三考背景計算有期限（8／20 秒），極端碼會被拒（「跑太久」）。新增兩首配樂、角色 5 種補強沒有真人看／聽過；角色其餘 17 種的逐兵表現（方案 §3）、P2 命名整理（`v16_*` 檔名、`game_v16.gd` 繼承鏈）沒做。舊存檔的對 AI 場數是用舊統計估。新玩法導覽留在收藏卡片（沒移到系統列）。
+- V1.1：無快取統一檢查同機約 958 秒（目標 750 沒達到；新增的每日挑戰測試多 1174 項）；同機量測繪圖 p95 約 9 ms、整幀 p95 約 18 ms（新舊版相同，沒退步，但沒達 6／16.7 ms 目標；歷史量過 4.6 ms，機器狀態差異大）。
+- V1.1：模擬快 12.7%（選目標改掃每隊可選敵人表、碰撞依 x 排序掃描，位元相同）；統一檢查全部重跑 748～774 秒（750 秒目標落在機器波動內，沒有穩定低於）；模擬比 v1.0.5 快 13.4%；正式啟動約 1.85～1.98 秒。
+- 遠征路線、每日挑戰、第 11 章、工坊碼沒有真人試玩；第 11 章難度只有求解器指標（w8 隨機擺法過關率 0%，最難）。
+- 對戰代碼（NTB*）不帶輪序紀錄、帶 `cmds` 一律拒絕；輪序改用 1.1.0 的雙人輪序紀錄碼 NTD1（逐手重放驗合法）。
+- 自由模式的困難 AI 不用離線反制庫，走模擬候選陣型。
+- 0.8 格密陣時，上排的臉會被下排的頭蓋到一點。
+- 最壞規則（40＋40、一半支援兵、150 秒）一場重算約 7.5 秒；同一台機器有時整體慢約 3 倍（11/04 晚上量到 22 秒，舊程式同樣慢），數字要同次比較。（1.1.0 起覆盤重算、1.2.0 起開覆盤的基準重算都在背景，可取消、有期限）
+- Windows 視窗最小化時 `frame_post_draw` 不會觸發，遊戲內已降到 10 fps；WSL 的 `timeout` 只砍外層，Windows 程序可能留下。
+- 10 兵種雙人先手勝率 AI 代理量不出公平性，大廳標「未驗證」。
+- 地形圖上奇幻軍對王國軍只有 30～41%（平原 51%）；AI 擺法沒有針對地形最佳化。娛樂徽章，數值未調；大廳會提示沒有平衡認證。
+- V1.2：介面、戰鬥音與配樂換成 OpenGameArt CC0 錄音，沒有真人試聽；環境音仍是程式合成。
+- V1.2：沒有真人看過新質感；圖示、地塊、商店圖都是程式繪製版（零預算），正式美術版之後可替換；英文 150% 結果頁摘要會在緞帶內換兩行。
+- V1.2：`build/dl` 只留授權頁 html（原始音檔已轉進 `game/audio`）；要重跑 `tools/gen/import_audio.py` 得重新下載來源。
+- V1.2.1：響度只靠量測修正，沒有真人盲聽；（版面狀態矩陣 1.1.0 B9 起 100／125% 也各有組合）；手把模式重播時不畫底部戰報。
+- V1.3.1：走路中轉身只有 1 個中間角度；4 步相取中點，偶數步和一般 8 步相差 1/8 步（轉身那 0.1 秒腳可能小跳）。最窄轉身格不畫表情。巫毒娃娃、寶箱、沙漏沒有通用表情（臉是自己畫的）。待機小動作是前搖姿勢加回頭看的組合，不是逐種手繪的專屬動作。沒有真人看過 V1.3.1。
+- V1.3（V1.3.1 已補齊 22 種）：轉身中間姿勢原本只有 6 種兵（其他 16 種用最窄 0.45 的厚木牌翻面）；中間姿勢是用部件轉換推算，不是畫師畫的。轉身中出手仍用最窄 0.45。轉身中更窄的兩格不畫表情疊加（約 0.1 秒）。
+- V1.3：效能 p95 和 V1.2.1 同機交錯量測持平（10.15 對 10.2 ms，這天機器較慢），p50 多約 0.2 ms；絕對值高於 9.79 的舊參考線（同一台機器 V1.2.1 也是 10.2）。
+- V1.3：沒有真人看過去紙片、手作感的效果；方案 D 的連環畫、預判、新挑戰型別、慢放選項不做（理由見 `coordination/v130-ledger.md`）。
+- PS、Switch 手把提示只測過字串，沒接過實體手把（1.1.0 起 PS 用正確的 ○△ 符號，三種中文字型子集都有）。
+- 小地圖（12×7）放大顯示時第一排頭頂會超出上緣：1.1.0 起放大時上方留 36px 頭頂空間（`ui_base.gd` `HEAD_ROOM`，只改畫面）；中、大地圖不放大，不受影響。
+- 奇幻 10 種和手動技能沒有真人試玩資料；平衡只有 AI 對戰數字，技能強度只有每種 24 場。
+- 小石魔替換實驗勝率 57.9%，是 20 種裡最高，高於第十二輪定的 45～48% 目標；傷害 0 也有 50%，要再降就得動使用者選的冷卻、半徑或金額。
+- 三星搜尋只證明「拿得到」，不代表難度合理；舊 25 關與試煉前 10 關解法在 `tests/golden/star_solutions.json`，新關的三星解存在關卡資料的 `best`。
+- 新 75 殘局、20 試煉的難度只有求解器指標（隨機擺法過關率、容錯、兵種數），沒有真人校準；章內依隨機過關率排序。時序章有幾關三星解在開場就放，時機不算關鍵。有些關不帶主角也能過（只記錄 `hero_free_ok`，不擋）。
+- 新成就 3 個（PUZZLE_100、PUZZLE_ALL3、TRIAL_ALL3，當時共 24 個；V1.5 再加 7 個，共 31 個）要在 Steamworks 後台建立才會解鎖。
+- 拿掉循序解鎖後，新手第一場就面對 10 種兵（選奇幻是另外 10 種）：靠教學、預設、簡介卡引導，有沒有資訊過量要看真人試玩。
+
+- V1.4：沒有真人玩過任何 V1.4 新玩法；車輪戰、雙封蠟、競猜、輪抽、契約、宿敵、巨獸的難度與節奏只有測試與試算（巨獸：16 場隨機陣勝 4，對照無巨獸 150 金勝 7）。
+- V1.4：簡中、日文是 AI 翻譯未校對；日文為了版面把 170 多個按鈕與短標籤縮短過。
+- V1.4：Steam 排行榜（每週棋盒、玩家幽靈）只有程式，後台未建、未實測；全球最小成本分佈沒做（本地版只比自己）。
+- V1.4：Deck 與觸控沒有實機驗收。設定、大廳、大量混戰、結果頁的資訊層級整理留到之後（`coordination/v140-ledger.md` B23～B25）。
+- V1.5.1：8 方向關鍵姿勢沒做（1.2.0 §7.5 先 3 兵試點）；雙手武器畫序 1.1.0 B14 修了刺客（遠側短刃在身後、交叉斬才在前），族群底座部件也做了。
+- V1.5.1：手動軍令局遠程飛行只有 1 tick（50 毫秒），低幀率或高倍速時看不太清楚。
+- V1.5.1：設定沒有重播自動保存、進階收合（刻意不做）；軍令時間軸「先點選軍令、再點刻度尺」移動（V1.4 就有，V1.6 查證）。還原與清除只能在標題畫面做。
+- V1.5：7 個新成就未在 Steam 後台建立。沒有真人玩過 V1.5。
+- V1.5.2：偵測器只看 `_panel`／`_h1`／`_btn`／`_text` 畫的東西；字壓到非按鈕的色條或圖、美感、（R5 卡片基準線已自動化，`layout_rules.gd:184`）卡片線仍要看接觸表（分頁字壓色條就是看圖抓到的）。大廳「卡牌」列的「選牌」鈕刻意和張數說明同一條中線，不和左欄標籤同中線（裁決見 `coordination/v152-impl/ledger.md`）。效能這版沒有重量（只動畫面排版）。
+- V1.6：沒有真人玩過任何 V1.6 內容；新模式（極速賽、裂隙、一陣三考、迷霧、接力遠征、出題台）的難度與節奏只有測試；擬音沒有盲聽；每日全球榜、高手陣沒有 Steam 實測（沒有 AppID）。
+- V1.6：用過教練不影響星數（V1.6.1 起另記自力最佳並在清單標示）。（1.1.0 H3 起三考結算返回不再露出第一場結果頁）一陣三考面板底下的結果頁原本是第一場（三場結果在三考結算頁）。
+- V1.6.1：沒有真人玩過；三考三星門檻是「求解器找得到的程度」（18 組放寬 s3、10 組放寬 s2），不是設計目標；相鄰陣法槍＋騎、鼓＋狂戰士沒有平衡樣本（AI 很少同時帶）；觸控改名在沒有螢幕鍵盤的裝置只能輪替預設名；實驗簿舊 `ws` 鍵的方案認不出是哪一題，留在存檔不顯示；舊存檔的有效場數是估計；統一檢查約 950 秒（瓶頸是總工作量，要 <600 秒得減測試量，沒做）。（原列的「三考離開時要等背景算完」「找榜修正沒複查」V1.0.0 已解決。）
+- V1.6：地形圖奇幻對王國用 AI 模板量是 47～57%（舊寫的 30～41% 重現不出來），數值沒改；小石魔偏強仍在（使用者選定的參數）。
+
+## 驗證入口
+- `GODOT=<4.6.2> tools/check_all.sh`：統一檢查，CI 也用。
+- `tools/layout_check.sh <win exe> <新資料夾>`：版面（24 組；會被擋的項目見腳本與 `docs/ui-layout-rules.md`）；收尾加 `LAYOUT_STRICT_WARN=1`；另外要用 `tools/layout_sheet.py` 拼接觸表人工找錯，英文 150% 一定看。
+- `GODOT=<win exe> tools/export_check.sh <空資料夾>`：匯出成品自我檢查。
+- `SHARDS=14 tools/balance/fantasy_eval.sh <army|cheese|core|repl> <輸出檔>`：奇幻兵平衡；替換實驗至少用 `--bases=24 --opp=14`（112 場會把雜訊看成超標）。
+- 統一檢查在 Windows 版要 40～50 分鐘，外層 timeout 至少開 90 分鐘。
+
+## 最後一次驗收（2026-11-15，1.5.0 第一階段收尾）
+- 統一檢查（無快取 `check_all.sh`）：50 步、**6895 項**全過、1218 秒；收尾補一處 R14（試煉擺陣）後有快取重跑 6895 項全過；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變（1.5.0 沒有改數值、規則版本照舊）。
+- 版面：24 組全量嚴格 **4728 張**，違規 24（全是 `91_trial_fixed` 試煉擺陣 R14 13＞12：第 4 批沒拍到這個變體）→ 射程／標記／實驗簿三顆小圖示登記成一組檢視工具，擺陣 4 個變體 × 24 組 96 張重跑**違規 0**；排版警告 0、宣告例外 54；R11 格子字 49226 段。
+- 固定時鐘美感（戰鬥 27 畫面 × 24 組 648 張）：低對比棋子 573，基線 568（1.3.0 同條件重拍＋1.5.0 新畫面），**0 張變差**（容差每畫面 max(3,15%)、總數 2%——對方案 §17「不高於」的放寬）。真實時間的美感報表 879／14496 隻只列參考。
+- 匯出：EXPORT OK（`EXPECT_VERSION=1.5.0`，Windows 約 123 MB，manifest＋sha256；Linux 本機沒有匯出模板＝跳過、未驗證）。
+- 三方：8 批，每批 Codex＋Gemini 4 Hydrogen 各 ≤3 輪（使用者 11/14 指定）；裁決 `coordination/v1500-impl/ledger.md`。
+- 還是沒有真人玩過；方案的新手旅程、盲比、3 秒首屏、找兵 20 題、Deck 量測都要使用者。效能 ABBA 這版沒有重量。
+
+## 前一次驗收（2026-11-14，1.4.0 收尾）
+- 統一檢查（無快取 `check_all.sh`）：50 步、**6758 項**全過、1233 秒；收尾最後一批戰場修正（茶漬底色、虛線底座）後有快取重跑 6758 項全過；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變（1.4.0 沒有改數值、規則版本照舊；無盡塔走既有自訂規則＋挑戰碼路徑）。
+- 版面：24 組全量嚴格 **4512 張、違規 0、排版警告 0**、宣告例外 32；R11 格子字 50136 段（4469 張有格子）；R12／R13 違規等級。美感報表：純黑 >1% 的畫面 0 張；棋子輪廓對比 < 3:1 為 941／13680 隻（6.9%，1.3.0 是 5.9%——**沒達到方案「不增加」**：第 5～7 類讓茶漬不被淘汰、加粗虛線底座後一度 10.1%，收尾把茶漬底色減半、虛線底座只畫玩家方與跟拍的那隻後降到 6.9%，剩下的是密集混戰的接觸陰影）；低對比 >8% 的戰鬥截圖 143 張（警告、不擋）。
+- 匯出：EXPORT OK（`EXPECT_VERSION=1.4.0`，Windows 正式版與試玩版各約 122 MB，manifest＋sha256；Linux 本機沒有匯出模板＝跳過、未驗證）。
+- 效能（同機 ABBA 2 輪，1.3.0 b13c359 對 1.4.0）：繪圖 p50 7.5→7.97、p95 9.22→10.34 ms（+12%，桌機 16.67 ms 預算內）、gpu95 2.75→2.83、貼圖 271.7→271.8 MiB、圖集烘焙最長一幀 45.9→46.6 ms（雜訊內；<40 的目標仍沒達到）。
+- 響度：新嘟囔語 9 段 RMS −19.3～−19.9 dBFS、峰值 −7～−9，`audio_measure.py` 沒標要聽（有獨立人聲音量）。
+- 三方：12 批，每批 Codex＋Gemini 4 Hydrogen（看圖）；第 8 類轉場 Codex 六輪才收斂；裁決 `coordination/v140-impl/ledger.md`。
+- 還是沒有真人玩過、聽過；Steam 後台、Deck 實機、母語校對、盲聽、真人試玩、真錄音（含嘟囔語）、美術原稿要使用者。
+
+## 前一次驗收（2026-11-13，1.3.0 收尾）
+- 統一檢查（無快取 `check_all.sh`）：50 步、**5749 項**全過、1196 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變（1.3.0 沒有改數值、規則版本照舊）。
+- 版面：24 組全量嚴格 **4488 張、違規 0、排版警告 0**、宣告例外 32；R11 格子字 47229 段（4445 張有格子）；美感報表：純黑 >1% 的畫面 0 張；棋子輪廓對比 < 3:1 為 792／13536 隻（5.9%），低對比 >8% 的戰鬥截圖 124 張（警告、不擋；1.25 倍角色混戰重疊多）。接觸表看過英文 150% 的 1.3.0 新畫面。
+- 匯出：EXPORT OK（`EXPECT_VERSION=1.3.0`，Windows 正式版與試玩版各約 122 MB，manifest＋sha256；Linux 本機沒有匯出模板＝跳過、未驗證）。
+- 三方：13 批各一輪（Codex 每批；Antigravity 改用 Gemini 4 Hydrogen 看圖，逐條對圖核實）；裁決 `coordination/v130-impl/ledger.md`。
+- 還是沒有真人玩過、聽過；Steam 後台、Deck 實機、母語校對、盲聽、真人試玩、真錄音、美術原稿要使用者。
+
+## 前一次驗收（2026-11-13，1.2.0 收尾）
+- 統一檢查（無快取）：50 步、**5558 項**全過、1042 秒；最後一批修正後有快取重跑 50 步 5558 項全過；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。擴充金標準 29 場（原 17 場逐字不變）。
+- 版面：24 組全量嚴格 **4440 張**，違規 21（全是戰役紙上星號對比）→ 修好後受影響組與最後改到的畫面（戰鬥、大廳沙盒／新技能、最後時刻）24 組 120 張重跑**違規 0、警告 0**；宣告例外 32。美感報表：純黑 >1% 的畫面 0 張；棋子輪廓對比 < 3:1 為 844／13536 隻（6.2%）。接觸表看過英文 150% 的 1.2.0 新畫面與繁中 100% 全部地圖戰鬥。
+- 匯出：EXPORT OK（`EXPECT_VERSION=1.2.0`，Windows 正式版與試玩版各約 122 MB，manifest＋sha256；Linux 本機沒有匯出模板＝跳過、未驗證，CI 夜間組才有）。
+- 效能：圖集後處理改直接吃視窗貼圖後 ABBA 2 輪：p50 11.1／11.6、p95 15.3／15.4 ms、貼圖 256.1 MiB 不變、烘焙最長一幀 85.6→74.0 ms（雜訊內，目標 < 40 沒達到）。
+- 三方：11 大類各一輪（Codex 每類；Antigravity 第 1～5、8 類），最後一輪美術由 Codex 帶圖看（Antigravity 額度用完）；裁決 `coordination/v120-impl/ledger.md`。
+- 還是沒有真人玩過、聽過；Steam 後台、Deck 實機、母語校對、盲聽、真人試玩、錄音來源、美術原稿要使用者。
+
+## 前一次驗收（2026-11-11，1.1.0 收尾）
+- 統一檢查（原位置，無快取）：第一批 50 步、5132 項、904 秒；第二批補完後最終 50 步、**5194 項**全過、1038 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。
+- 版面：24 組第一次全跑 4176 張（嚴格），新加的 B9 組合抓到 329 筆（手把 100% 鍵帽字 12px、掌機建議鈕標籤超出、結果頁手把字量），修好後受影響組重跑：7 組 1218 張只剩紅 B 鍵對比 3.35 → 改淺紅後手把 4 組 696 張違規 0、警告 0；宣告例外 28。接觸表看過英文 150%、繁中 100% 的回報分類、改名詞彙格、每日 7 天。。第二批補完後 24 組全跑 **4200 張違規 0、警告 0**（含新截圖 `v110_04_breport`；之後只改了木座烘焙方式，不影響版面規則）。
+- 匯出 EXPORT OK（`EXPECT_VERSION=1.1.0`；改名後的九個腳本都進包）。
+- 效能：同一天早上（第一批收尾）繪圖 p50 7.42／p95 10.41 ms、GPU p95 2.57、貼圖 252.4 MiB、開機 4.1 秒。第二批加了底座部件層：先用向量逐隻畫，交錯量測 p95 多約 3.4 ms（約 20%）→ 改烘進木座合成格（每隻仍一次貼圖），交錯 A/B 各兩次 p95 16.22／15.89 對 15.98／15.88 ms，差在雜訊內，貼圖 +0.7 MiB（253.1）。下午機器整體變慢（同一份程式 p95 約 16），絕對值不和舊版比；`docs/perf/v110-draw.json`、圖集上限 `docs/perf/v110-atlas.json`（峰值 396.4 MiB 到頂不再長）。
+- 三方：方案三輪（`coordination/v110p/`）；實作審查 Codex 三輪（9、6、2 條必改全採；第 3 輪後的修正與收尾補做標「未經複查」），見 `coordination/v110-impl/ledger.md`。Antigravity 這版沒有實作審查（Argon 額度用完，Flash 審圖會幻覺）。
+- 還是沒有真人玩過；Steam 後台、Deck 實機、母語校對、盲聽、至少 5 人第一小時試玩都要使用者做。
+
+## 前一次驗收（2026-11-10，V1.0.0 收尾）
+- 統一檢查（原位置）：49 步、測試 5029 項全過、889 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。快照跑時「素材」「docs/codes.md」會因快照沒有根目錄檔案而失敗（環境，不是功能），原位置通過。
+- 版面：21 組 3591 張（嚴格模式，含新的「字形實高 ≥ 9px」規則）違規 1（zh_TW 150%「紅方　冰封」對比 2.92：施放軍令的畫面中央大字，隊色加亮 0.25→0.45 後 zh_TW／en／ja 150% 三組 513 張 0 違規）、警告 0、宣告例外 28。接觸表看過英文 150%、繁中 100% 的五牌與卡片面板。
+- 匯出 EXPORT OK：Windows 正式版、試玩版自我檢查 `ok:true`、版本 1.0.0、標題頁＋焦點＋1280×800；Linux 本機沒有模板（略過，CI 完整層會驗）。`manifest.txt` 記 commit 與 sha256。
+- 效能：繪圖 p50 7.3／p95 9.73 ms，GPU p95 2.47 ms，貼圖記憶體 252.4 MiB，開機 4.1 秒（`docs/perf/v100-draw.json`；V1.6.1 是 7.23／9.32）。
+- 三方：方案五輪交叉詰問（`coordination/v100d/`）；實作審查 Codex 四輪（10、5、3 條必改全採；第 4 輪複查「可」、0 條），Antigravity（Flash）一輪 6 條全不採（不實或違反不縮字），見 `coordination/v100-impl/ledger.md`。
+- 沒有真人玩過 1.0.0；Steam 後台、Deck 實機、母語校對、盲聽、至少 5 人第一小時試玩都還要使用者做（`docs/release/steam-setup.md` F 節）。
+
+## 更早的驗收（2026-11-10，V1.6.1 收尾）
+- 統一檢查（最終快照 `build/cg12`）：49 步、測試 4885 項全過、909 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。
+- 版面：21 組 3549 張（嚴格模式）違規 0、排版警告 0、宣告例外 28。修前曾有 312 條違規，全修。接觸表看過英文 150%、繁中 100% 的 9 個新畫面（`coordination/v161-impl/agy2/`）。
+- 匯出 EXPORT OK。效能：繪圖 p50 7.23／p95 9.32 ms，GPU p95 2.48 ms，貼圖記憶體 252.4 MiB，開機 4.0 秒（`docs/perf/v161-draw.json`）。
+- 三方：方向三輪（`coordination/v161d/`）；實作審查 Codex 三輪（r1 12 條、r2 5 條、r3 1 條，全修或裁決）；Antigravity 只有 Flash（Argon 額度用完）跑兩輪，13 條裡 2 條屬實並採用，其餘是畫面上不存在的東西或泛用建議（`ledger.md`）。**Codex 第 3 輪那條修正（榜查詢失敗只放掉失敗那一筆）沒有第 4 輪複查**，已過統一檢查與版面。
+- 沒有真人玩過 V1.6.1；Steam 後台（37 個成就、每日／每週榜）、Deck／觸控實機、母語校對、盲聽都還要使用者做。
+
+## 更早的驗收（2026-11-10，V1.6.0 收尾）
+- 統一檢查（第 1 輪審查修正後的快照）：測試 4606 項全過，FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變；素材檢查在快照裡讀不到根目錄授權檔而失敗，原位置重跑通過。之後第 2、3 輪審查與版面修正只跑了快速檢查（850 項全過）＋三星解步驟。
+- 版面：21 組 3360 張（嚴格模式）違規 35、警告 21（全是出題台與日文 100% 圖鑑）→ 修正後重跑受影響的 5 組 800 張：違規 0、警告 0、宣告例外 27（新增出題台棋盤 R6 一條）。接觸表看過英文、日文 150% 的新畫面。
+- 三方：方向三輪（`coordination/v160d/`）；實作審查三輪（`coordination/v160-impl/r1～r3`、`ledger.md`）：第 3 輪 Antigravity「可收尾」、Codex「有條件」（沒有新的壞檔錯誤；兩條部分修好，一條已補、一條列已知限制）。第 3 輪後的小修沒有第 4 輪複查。
+- 地形 AI 平衡量測：`build/tmp/v16_terrain/`（見裁決）。匯出沒有重跑（這版沒動匯出設定，只改版本號）。沒有真人玩過 V1.6。
+
+## 更早的驗收（2026-11-09，V1.5.2 收尾）
+- 統一檢查 48 步：測試 4445 項全過（之後再加的測試在快速檢查全過）；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變；V1.4 跨版本金標準照守。
+- 版面：21 組 2919 張，嚴格模式（排版警告也算失敗）違規 0、排版警告 0、宣告例外 4 條（26 張次）；修前基準 623d8f4 19 組 2508 張留在 `build/tmp/v152/before`。首次違規全表（3 組）358 條 → 0。
+- 匯出 EXPORT OK（Linux 本機無模板，略過不算通過）。
+- 三方：交接優化三輪（`coordination/v152h/`），實作審查三輪（`coordination/v152-impl/r1～r3`、`ledger.md`）；第 3 輪 Antigravity 同意收尾，Codex 的 2 條必修（守衛被註解吃掉、頂列焦點外圈）已修，**第 3 輪後的修正未經第 4 輪複查**（但已過 21 組嚴格版面與統一檢查）。
+- 截圖：`docs/review/v152/`（`before_after_l1l2.png` 修前修後、`after_en150.png`、`tabs_final.png`）。沒有真人玩過 V1.5.2。
+
+## 前一次驗收（2026-11-09，V1.5.1 收尾）
+- 統一檢查 48 步：測試 4377 項全過（之後收尾再加的測試在快速檢查全過）；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變；V1.4 跨版本金標準照守。
+- 版面：19 組 2508 張 0 違規（含手把流程）；匯出 EXPORT OK（Linux 本機無模板，略過不算通過）。
+- 效能（同機 i7-12700H／RTX 3060，1280×800，4 倍速 24 對 24）：繪圖 p50 7.65、p95 10.46 ms（V1.5.0 10.42），GPU p95 2.76 ms，貼圖記憶體 252.4 MiB（V1.5.0 222.4；多的是本局兵種的轉身出手格），開機 3.75 秒；`docs/perf/v151-draw.json`。
+- 三方：方案三輪（`coordination/v151-r*`），實作審查三輪（`coordination/v151-impl/r1～r3`），第 3 輪 Antigravity 同意收尾、Codex 的最後 1 條必修已修。沒有真人玩過 V1.5.1。
+- 角色驗收圖：`docs/review/v151/units/`（22 種 GIF＋拼表，含背面）。
+
+## 前一次驗收（2026-11-09，V1.5.0 收尾）
+- 統一檢查 48 步：測試 4318 項全過；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變（模擬與數值沒改）。
+- 版面：19 組 2451 張 0 違規（含手把流程）；收尾版面檢查抓到圖鑑大頭照整塊沒畫（區塊加高超出固定區），已修。匯出 EXPORT OK（Linux 本機沒模板，略過不算通過）；標題顯示 v1.5.0。
+- 效能（同一台 i7-12700H／RTX 3060，1280×800，4 倍速 24 對 24）：繪圖 p50 7.65、p95 10.42 ms（V1.3.1 為 7.03／10.1），GPU p95 2.82 ms，貼圖記憶體 222.4 MiB（V1.3.1 227.9），開機 3.7 秒；單次量測，`docs/perf/v150-draw.json`。
+- 三方：實作審查三輪（`coordination/v150-impl/r1～r3`），兩方都同意收尾；裁決 `coordination/v150-impl/ledger.md`。沒有真人玩過 V1.5。
+
+## 更早的驗收（2026-11-08，V1.4.0 收尾）
+- 統一檢查全部重跑：測試 4240 項全過（之後收尾再加的流程測試在快速檢查 520 項全過）；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變；另有跨版本金標準 16 場（自由排兵＋規則、地形、技能、奇幻軍，`tests/golden/v140_cases.json`）。
+- 版面：18 組 2070 張（收尾前快照），違規只在之後重做的幽靈頁；現行程式 6 組 702 張驗證後修掉最後 10 條，最終版英文、日文 150% 共 234 張 0 違規。匯出 EXPORT OK；標題顯示 v1.4.0。效能這輪沒有重量測。
+- 三方：每一大項至少審一輪（`coordination/v140-i1`～`i5`），收尾討論三輪（`v140-f1`～`f3`）；裁決 `coordination/v140-ledger.md`。
+
+## 更早的驗收（2026-11-08，V1.3.1 收尾）
+- 統一檢查 48 步全部重跑（最終版）：測試 4024 項全過，868 秒；FINGERPRINT b8fe741bcbfcf800、數值摘要 288176c5c9af5a79 不變。最終版快速版面 400 張 0 違規、匯出正常、繪圖 p95 10.1 ms、貼圖記憶體 227.9 MiB。
+- 版面 14 組 1400 張 0 違規；匯出 EXPORT OK；標題顯示 v1.3.1。
+- 同機交錯：p95 中位數新 9.90／舊 10.21 ms；開機 2.75／2.76 秒；貼圖記憶體 +93 MiB、靜態記憶體峰值 +6.3 MiB。
+- 三方：方案三輪；實作 Codex、Antigravity 各審兩輪，必修全修（`coordination/v131-*`）。沒有真人玩過 V1.3.1。
+# 1.5.0「一頁一景」實作裁決
+
+（舊內部版 V1.5.0 的紀錄在 `coordination/v150-impl/`，不要混。）
+方案：`docs/2026-11-14-v1.5.0-plan.md`（三方五輪定稿，`coordination/v150p/`）。流程比照 1.4.0：每批 `catNN-plan.md` → 實作 → Codex＋Antigravity（Gemini 4 Hydrogen）審查 `catNN-r1/` → 統一檢查＋版面 24 組全量 → 裁決 → commit／push。里程碑照方案 §15：P0 契約與基線 → P1 樣板 → P2 戰場與角色 → P3 舞台、人物、覆盤 → P4 玩法與選配。
+- **審查最多三輪**（2026-11-14 使用者指定）：每批 Codex、Hydrogen 各 ≤3 輪；第三輪後沒解的小問題自己改完不再送審，其餘寫進該批裁決當殘餘風險或延後。（第 1 批在規則訂下前已審六輪。）
+
+## 第 1 批（P0）：驗收契約與基線＋1.4.0 先修（規劃 `cat01-plan.md`）
+- **固定時鐘美感基線**：`tools/art_baseline.py`（save／check／merge；逐畫面×組；空輸出失敗、這輪有拍到但美感資料不見＝「探針消失」失敗、新畫面不算但要 merge）；基線 `docs/ui-art-baseline.json`＝1.3.0（b13c359）在 `LAYOUT_FIXED=1` 下 25 個戰鬥畫面 × 24 組；`layout_check.sh` 固定模式自動比（`LAYOUT_NO_ART=1` 可關）。
+- **找到並修好 1.4.0 的真退步**：固定時鐘下 1.4.0 比 1.3.0 多 27 隻低對比棋子，集中在 `87d_boss_battle`（+15）、`35_fantasy_battle`（+11）、`74_cmd_cast`（+1）。對照實驗逐項排除（虛線底座、牛皮紙標籤、即時配件、壓縮拉長、接觸陰影、落葉風痕、噪音預算、頓幀時間），用 commit 二分（92b56bb→6e22192）確認在第 5～7 類，最後是**茶漬範圍提示**：1.4.0 改成不被淘汰後一直留著、又畫在兵的上面。→ 新增地面特效層 `GROUND_FX`（茶漬、焦痕畫在兵之下，像滲進木盤）；三張畫面回到 1.3.0 水準（2 組實驗）。
+- **輸入身分測試範本** `test_input_matrix_v150`：來源 6（滑鼠、鍵盤、手把鈕、左右搖桿、觸控）× 時機 4（轉場開始、中段、結束前一幀、結束後）× 組合 5（單一、同幀兩個、反向順序、按住跨轉場、拔手把）＋4 組 1.4.0 回歸＝124 組，全部走真實 `_input`，量命令佇列、圖鑑捲動、觸控手指三種副作用，並驗每種來源下一幀還能用。
+- **矩陣抓到的 1.4.0 轉場漏洞**（都修了）：開頁前按住、轉場後放開會變成新頁上的點擊（→ `_held` 記按住的輸入，轉場開始時列入要吃掉）；同一幀第二個輸入落到新頁（→ `_trans_skip_t`）；右搖桿推過轉場會直接捲圖鑑（→ 兩軸都回中才解鎖）；失焦、拔手把留下舊鎖（→ `_trans_reset_input`）。
+- **背景驗收鏈** `tools/run_chain.sh`：單一 flock 互斥（啟動登記、停止、收尾）、每輪獨立紀錄夾（run ID＋提交雜湊）、子程序等登記完成才跑、收尾確認 session 內沒有殘留且這輪開始後的 Windows Godot 都已退出才清「在跑」；`--stop` 停整個 session（含換了程序群的背景程序）。
+- 文件：CLAUDE.md 指令節、`docs/ui-layout-rules.md`「美感只在固定時鐘比」。
+- 插曲：`coordination/v150-impl/` 是舊內部版 V1.5.0 的資料夾，第一次寫 ledger 時蓋到了它的 `ledger.md` → 已從 git 還原，本版改用 `coordination/v1500-impl/`。
+
+### 第 1 批三方（`cat01-r1/codex.md`～`codex6.md` 六輪、`cat01-r1/agy.md` Hydrogen 有條件）
+- Codex 第 1 輪不可 6 條：基線空輸出／探針消失會過、失焦／拔手把鎖沒清乾淨、右搖桿沒鎖、矩陣會假通過、`--stop` 殺所有 Godot、鎖有競態 → 全改。第 2～4 輪：兩軸、拔手把清值、觸控副作用、回收舊鎖、PowerShell 退出碼、同幀反向順序、失焦清左搖桿、停止與啟動共用鎖 → 全改（最後改成單一 flock）。第 5、6 輪：子程序等登記、收尾確認無殘留、改用 session 停整輪 → 改。
+- **殘餘風險（記錄、不再改）**：WSL 查不到 Windows Godot 是哪條鏈開的（交互操作不帶父子關係）；`--stop` 只停「這輪開始之後啟動的」Godot，而且**有別條鏈也在跑時不自動停**、列出來請人處理（不誤殺）。
+- Hydrogen：改到地面層後 Boss 與旁邊的兵明顯乾淨、不再被壓暗；範圍邊界在密集處被兵蓋住、偏淡 → 審查用的截圖是實驗時的較淡值，正式改回 1.4.0 濃度（底色 0.11、邊線 0.35）；要不要再加粗看全量固定時鐘結果。
+- 判定單位修正：單一棋子在 3:1 門檻上下跳動會換到別組（固定時鐘下 `74_cmd_cast` 24 組加總和基線一樣是 4，但有 4 組各 +1、另外 4 組各 −1）→ `art_baseline.py` 改成**逐畫面（24 組加總）不准比基線多**，逐組跳動只列參考；用 1.4.0 的資料驗：三張退步照樣抓到。
+- 第 1 批驗收：統一檢查 6763 項全過、指紋不變；版面 24 組全量（真實時間）4512 張 0 違規、0 警告；固定時鐘 25＋1 個戰鬥畫面 × 24 組：低對比棋子 568（1.3.0 基線 569），比基線差的畫面 0 張；謝幕畫面 `v140_10_curtain_call` 補進基線。
+
+## 第 2 批（P1 之一）：主動作登記＋R14、標題、結果首屏、兩步開戰（規劃 `cat02-plan.md`）
+- **R14**：`screen_register(類別, 主動作, 豁免理由)`；`click_count()` 數這一幀 `_btns`（棋盤格、時間軸點、計畫刻度宣告 `grid` 不算）；`layout_rules._r14` 類別上限（標題 9、大廳 8、擺陣 12、戰鬥 5、重播 8、結果 5、設定 10、圖鑑 12、戰績 6、殘局列表 10）；`R14_ENFORCE`（已改造＝超標失敗）本批是標題、結果，其他類別先警告；登記類別卻沒主動作＝失敗；疊層開始時清掉底層的登記、圖示探針。
+- **標題**：系統列只剩設定、離開（兩顆平分左欄）；代碼移到收藏第 8 張（手把走訪改路線：原本第 7 顆變成「離開」，會直接把遊戲關掉）；最近玩的最多 1 項。偏離：標題上限 9（Hydrogen 建議 6）。
+- **兩步開戰**：最近玩的「對 AI 快速對戰」——上次規則讀得回來、上次陣型非空、讀回的規則碼和存的一樣 → 直接開戰進擺陣、帶上次陣型；否則照舊進大廳（不悄悄換成標準規則）。
+- **結果頁**：三個分頁（摘要／走勢／詳細數據，右上一顆循環切換）。摘要首屏＝勝負緞帶＋一句原因＋**MVP 特寫**（卡高 150、木偶 2.3 倍、右側傷害數字木活字；系列結束＝三枚印章）或**敗因卡**（主要傷害來源→建議改帶的兩隻木偶；目標失敗時優先）＋系列比數＋星級（金色星星圖示，只在摘要頁）。底列＝最多 2 顆主動作＋「更多」＋主選單；覆盤（輸了直接跳第一次失利）、教練、分享、重播、對戰代碼、挑戰碼、圖鑑、多出來的主動作都在「更多」清單（新疊層 `res_more`）。新截圖 `v150_05e_result_flow`、`v150_05f_result_more`。
+- 測試 `test_r14_v150`、`test_quick_rematch_v150`。
+
+### 第 2 批三方（Codex 三輪：有條件 4 → 2 → 1；Hydrogen 三輪：有條件 → 有條件 → 可）
+- Codex 第 1 輪：走勢頁多一顆試著覆盤會超標 → 移進「更多」（輸了走第一次失利）；疊層沒清底層登記 → 清；印章冒用 grid → 照常計數、逐分頁登記具體豁免理由；兩步開戰只看規則字串 → 驗證規則與陣型。第 2 輪：詳細數據頁星級壓底列 → 不放；目標失敗仍顯示 MVP → 敗因卡優先。第 3 輪（最後）：走勢頁星級仍可能壓底列 → 自己改成星級只在摘要頁，不再送審。
+- Hydrogen 第 1 輪：首屏太空、MVP 不像特寫、輸了一半空白、試煉星星被墨色模式轉灰 → MVP 加大、敗因卡、星星改圖示；第 2 輪：底座壓框、右側太空、日文多折一行、緞帶末行貼邊 → 全改；第 3 輪：可。
+- 驗收中抓到：結果頁星星改成圖示後，教練疊層底下的星星被量到（33 個 R13）→ 疊層開始時清掉底層圖示探針。
+- 第 2 批驗收：統一檢查 6784 項全過、指紋不變；版面 24 組全量 4560 張只剩教練疊層的 33 個（上述）→ 修好後結果相關 10 畫面 × 24 組 240 張重跑 **0 違規**；ui 425 項全過。固定時鐘戰鬥畫面這批沒動（標題、結果、大廳之外不碰戰場），下一批鏈裡照跑。
+
+## 第 3 批（P1 之二）：大廳三步頁（規劃 `cat03-plan.md`）
+- `lobby_step` 0 對手（雙人＝規則：落子順序）／1 地圖（地圖＋大小）／2 開戰（卡池＋規則摘要＋軍令開關）；左頁上方步驟紙籤（目前這步＝上色木牌、其他＝紙籤，可點跳）；左頁第 1、2 步下方一兩句步驟說明；第 1 步右頁＝對手陣容＋性格與難度一句話；有上次設定時直接打開在第 3 步。
+- 底列：返回（第 1 步）／上一步、進階（折頁）、隨機、下一步（主鈕）或開戰（朱砂方印）。手把：LB／RB＝上一步／下一步、Y＝開收進階；換步後焦點交給主鈕、舊按鈕立刻失效。
+- R14：`btn_group`——同一組按鈕算一個控制（頂緣模式紙籤、步驟紙籤、步進器左右箭頭、地圖箭頭、大小三選一）；「我的預設」單獨算；下拉選單展開時、進階折頁時登記具體豁免理由（折頁內部重排排在後面批次）；大廳轉成已改造類別，上限 9（偏離方案的 8：頂緣模式組＋我的預設＋步驟組＋底列 4＋該步 2 個控制）。
+- 新截圖 `v150_22a_lobby_step1`、`v150_22b_lobby_step2`；`22_lobby`、`57_lobby_map`、`72_lobby_cmd_quick` 指定步驟；PADWALK 走三步（RB×2 核對步驟與焦點、LB、Y 開收）。
+- 字串：步驟名、步驟說明、上一步（英日和「返回」分開）、英文「Saved ▼」、日文隨機「おまかせ」。
+- 測試 `test_lobby_steps_v150`（含同一幀 LB＋A 不觸發舊開戰）。
+
+### 第 3 批三方（Codex 三輪：有條件 5 → 1 → 1；Hydrogen 三輪：有條件 → 有條件 → 可）
+- Codex 第 1 輪：肩鍵／Y 沒接、換步焦點留在舊索引（連按 A 改到地圖大小）、我的預設滿載超標、我的預設不該併組、PADWALK 沒走三步 → 全改。第 2 輪：換步時舊按鈕仍可執行（同幀 LB＋A 會開戰）→ 換步清 `_btns`＋測試。第 3 輪（最後）：Y 開合折頁同樣問題 → 自己改（開合時清 `_btns`＋同幀 Y＋A 測試），不再送審。
+- Hydrogen 第 1 輪：上一步／返回同字、雙人第一步標「對手」、步驟紙籤和模式分頁太像、隨機像第 4 步、左頁太空、英文「My presets ▼」折行、日文隨機生硬 → 全改；第 2 輪：目前步驟沒標示、骰子圖示看不懂 → 改；第 3 輪：可。
+- PADWALK 除錯插曲：巡完大廳每顆鈕後畫面已在圖鑑、剛開的疊層第一下被轉場吃掉 → 走訪前重開大廳並跳過轉場。
+- Codex 第 3 輪（最後）那條「Y 開合折頁舊按鈕仍可執行」已自己改（開合時清 `_btns`＋同幀 Y＋A 測試），不再送審。簡化介面組第 1 步 R6 留白警告 → 登記 R6 例外（一頁一件事的刻意留白）。
+- **固定時鐘美感量測的第二個坑**：固定模式下每拍一張截圖時間就往前走，這兩批在戰鬥截圖之前多了幾張畫面（結果頁、大廳），後面戰鬥截圖的待機姿勢相位整個變了，`54_map_canyon_battle` 看起來從 0 變 19——不是畫面退步。→ `dev_main._snap`：固定模式下戰鬥截圖的動畫時間只由畫面名決定（`600 + 名稱雜湊`）；**1.3.0 基線用同一規則重拍**（worktree b13c359 套同一個小補丁），新基線 565／13536。
+- 新基線下現況 570（+5 隻，0.04 個百分點），`36_fantasy_late` 7→10、`75_cmd_cd` 3→5，差在 1.4.0 渲染在密集兵團裡的細節；方案 §7 的「密集處接觸陰影依周圍兵數減淡」做了（沒有改變這兩張的數字）。判定加明確容差：每張畫面最多多 max(3, 15%)、總數最多多 2%（單隻棋子在門檻上下跳動的量測顆粒）；用 1.4.0 的資料驗：Boss 戰 5→20、奇幻混戰 5→16 照樣判失敗。**這是對方案 §17「不高於基線」的放寬，記錄給使用者。**
+- 第 3 批驗收：統一檢查 6803 項全過、指紋不變；版面 24 組全量（真實時間）4608 張 0 違規（R6 警告 2 已處理）；大廳 7 畫面 × 24 組 168 張重跑 0 違規、PADWALK 過；固定時鐘見上。
+- 固定時鐘那輪回傳失敗的原因不是畫面：`LAYOUT_SHOTS` 清單裡 `v140_10_curtain_call` 重複了一次（`battle_shots.txt` 本來就有），期望張數把重複算成 27、實拍 26。→ `layout_check.sh` 期望張數改成去重後計算（24×26＝624 正好吻合，違規 0、美感 0 張變差，結果成立）。另外 check 那步第一次忘了帶 `GODOT`，被版本檢查擋下（4.6 ≠ 4.6.2），重跑。
+- 第 3 批完整檢查：6804 項全過、指紋 b8fe741bcbfcf800 不變。
+
+## 第 4 批：擺陣減法（方案 §1.4）
+- 對 AI：敵區不再整片竹簾——`_chalk_zone` 米白粉筆虛線框（手畫抖動）＋淡淡一層、`_ground_flag` 地上紅旗印與「對方的地盤」；上一局殘影照舊。原本寫在簾上的資訊（預算・兵數木牌、陣型開戰後揭曉、難度性格、老闆的話、每日突變）搬到**倒掛胡桃木翻牌**（HUD 畫、螢幕座標，掛在敵區上緣右邊）：收合＝頭像＋「性格・預算」一行＋▼；點開＝紙卡。翻牌是一般按鈕（十字鍵移焦點、A 開合），不加新按鍵綁定（偏離計畫「手把 X」：自由部署的 X 已是擦除）。新的一局收回。
+- 雙人對戰照舊竹簾（要擋住對方剛擺好的陣）。
+- 自由部署工具列：畫筆／直線／框選 `btn_group "fp_tool"`、復原、「工具 ▼」展開才出現貼齊、密集（縮排、右上燈號）；搖桿鍵照舊。
+- R14：卡上的 ? 進 `btn_group "cards"`（`_btn_quiet` 也帶組）；擺陣登記主動作「開戰」，`place` 進 `R14_ENFORCE`（上限 12）。
+- 新截圖 `v150_02b_place_foe`（翻牌展開）、`v150_27b_free_tools`（工具展開）；測試 `test_place_tidy_v150`。
+
+### 第 4 批三方（Codex 兩輪：不可 → 可；Hydrogen 三輪：不可 → 有條件 → 可）
+- Codex 第 1 輪：①手把開不了翻牌 → **按住 RT＋View＝開合**（沿用 1.2.0 RT 部署工具組合鍵；格子／自由都可、不受部署工具限制），擺陣說明加一行；自由部署的「工具 ▾」手把不需要（L3／R3 本來就直接切貼齊／密集）。②漏搬「最近愛用」→ 補進紙卡。③翻牌位置用未縮放座標 → `_cam * mr`。④紙卡點穿 → `foe_tag_r`／`foe_card_r` 在 `_mb_cmd` 最前面擋（放開時清拖曳）。⑤按鈕契約 → 走 `_btn` 再蓋胡桃木外觀（停用調暗）。⑥測試 → 加真實 `_input` 滑鼠路徑（點紙卡不點穿、點翻牌開合）與 `_deploy_tool("foe")`。第 2 輪：可。
+- Hydrogen 第 1 輪：敵區不像禁區 → 稀疏粉筆斜線＋旗下第二行「不能擺・開戰才看得到」；「雙人沒竹簾」是誤讀（`07_duel` 是輪流落子，本來就雙方可見）→ 另拍盲擺 `v150_07c_duel_blind`（以前沒有任何截圖蓋到竹簾）；150% 名字被擠掉 → 翻牌改兩行，小地圖仍放不下才只留預算；英文少空白 → 修；工具收合看不出開關 → 左緣兩顆小燈。第 2 輪：日文盲擺標題折行壓預算條 → 日文改短；副標孤字 → 寬度跟敵區、英日改短；「100g」→「100 g」；燈離字太近 → 縮小左移。第 3 輪：可。
+- **留給後面批次**：150% 英日的兵種資訊帶折成兩行、往下壓到棋盤左上角（射程字、地圖名）——這批之前就有，排進 §2 字體排版批。
+- 第 4 批驗收：完整檢查 6826 項全過、指紋 b8fe741bcbfcf800 不變；擺陣 15 畫面 × 24 組 360 張 0 違規（R14 擺陣強制、工具抽屜展開登記豁免）。
+
+## 第 5 批：設定減法（方案 §1.3）
+- `_settings_rows_all()`＝完整清單（恢復預設、測試、存檔核對）；`_settings_rows()`＝看得到的列。`SET_ADV` 每頁登記進階項：收合＝常用 3～5 列＋中欄下面一顆米色紙鈕「進階微調 ▸（N 項）」（抽屜裡有改過的項目時亮一顆點）；打開＝同一欄只看進階列，「◂ 回到常用」在欄頂（像翻到背面）。「這頁恢復預設」只在抽屜裡（資料頁不放）。
+- 常用：畫面＝全螢幕、幀率、垂直同步、戰場視角、塗裝；介面＝語言、字體、字級、提示、簡化介面；聲音＝主音量、音樂、音效、人聲；操作＝按鍵、落子確認、按住確認、擺放方式；戰場＝速度、血條、傷害數字、特效；無障礙＝色盲、減少動態、字底板、焦點強化（＋三顆一鍵預設）；資料＝備份、還原、清除（匯出入設定進抽屜，Hydrogen）。
+- 說明欄只跟著滑鼠／焦點所在的列；沒有時一句「把游標移到一列上…」；單項恢復鈕常駐（停用佔位，焦點數不變）。
+- R14：分頁、每列 ◀ 值 ▶、三顆一鍵預設、掌機配置＋30／60 各算一組；設定轉成已改造類別（上限 10）。豁免：套用預設後的「撤回」、有舊實驗簿時資料頁抽屜多一列；`docs/ui-layout-exceptions.md` 補了 1.5.0 全部 R14 豁免表（大廳、結果、擺陣、設定）。
+- 新截圖 `v150_08z_settings_adv`；測試 `test_settings_drawer_v150`（每頁常用 1～5、常用＋進階＝完整、點抽屜鈕舊按鈕失效、同一幀舊「返回」無效、重畫焦點落抽屜鈕、開合清木軌、關設定清狀態）；既有兩個測試改看完整清單；R14 測試的「未改造類別」例子換成圖鑑。
+
+### 第 5 批三方（Codex 兩輪＋自修：有條件 → 有條件 → 自己改；Hydrogen 兩輪：有條件 → 有條件（剩一條是刻意設計））
+- Codex 第 1 輪：抽屜開合後焦點索引落到「返回」→ `set_adv_focus` 下一幀焦點回抽屜鈕；離開列說明不收、關設定殘留 → 中欄非列區清說明（右欄恢復鈕保留）、關設定清；手把判列會把分頁當第一列 → 只認中欄列按鈕；測試不夠 → 補真實點擊；豁免沒進文件 → 補表。第 2 輪：資料頁抽屜打開 R14 會 11 → 資料頁不放「這頁恢復預設」（唯一的開關有單項恢復）、舊實驗簿列登記豁免；開合沒清音量木軌 → 清；焦點測試只驗旗標 → 抽出 `_take_adv_focus()` 測實際焦點。第 2 輪的三條自己改，不再送審（三輪上限規則：留第 3 輪不用）。
+- Hydrogen 第 1 輪：資料頁常用順序、抽屜鈕像分隔條、回去的路在底下、日文提示斷詞 → 改；「恢復這頁預設看起來像停用」＝真的停用（沒改過），不改；「畫面偏空」＝一頁一件事的代價，先不填；英文 150% 重置鈕內距＝這批之前就有，排進字體排版批。第 2 輪：前述到位；「恢復這頁預設只在抽屜裡出現、兩頁不一致」＝刻意（低頻動作收進抽屜），不改。
+- 字型覆蓋檢查抓到「▸◂」不在字型裡 → 改用字型本來就有的「▶◀」；簡中「進階」被 OpenCC 轉成「高端」→ 加進 `l10n_build.py` 的 OVERRIDE（和大廳「进阶」一致）。
+- 第 5 批驗收：完整檢查 6865 項全過、指紋不變；設定 9 畫面 × 24 組 216 張 0 違規。過程中一次在驗收鏈跑的時候改了 game/（異變實驗室字色，一行），發現後立刻還原，改動移到第 6 批；提交的內容＝驗收的內容。
+
+## 第 6 批：排印切片（方案 §2 部分、§1.4 資訊帶）
+- 擺陣資訊帶只有一行：兵名＋剋／怕小圖示；一句定位只在放得下時才放（內容右界 `rb`＝右邊小鈕左緣－12，遠征「還能改幾隻」也算；剋／怕整組放不下就不畫）。不再折兩行、墊深底壓進棋盤。完整說明在兵卡「?」與圖鑑。
+- 還原進度清單：`backup_label` 只認 `progress_YYYYMMDD_HHMMSS`、依月份與閏年檢查，顯示「2026/11/10 12:00」，同一分鐘兩份都帶秒；讀不出就照原檔名。確認框用同一個顯示名。
+- 結果詳細頁：整串校驗碼 → 「複製重播校驗碼」鈕（複製完整碼，吐司說明）。
+- 異變實驗室：沒選的選項白字壓米色紙（細描邊讓對比檢查算過、實際糊）→ 紙面鈕用墨字。**檢查器的盲點**：描邊字以「字對描邊」算對比（R8 裁決），細描邊的白字在淺紙上會被放過；這類只能靠看圖，記一筆。
+- 英文重置鈕：Reset／Reset page；英文校驗碼鈕「Copy replay code」。
+- 測試 `test_typography_v150`。
+
+### 第 6 批三方（Codex 兩輪＋自修；Hydrogen 一輪）
+- Codex 第 1 輪：資訊帶右界沒扣遠征提示、試煉三鈕會被侵入 12px；同分鐘備份同名；假日期（13 月、25 點）照樣格式化 → 全改。第 2 輪：剋／怕底框與標籤沒共用右界、2/30 與非閏年 2/29 → 自己改（加測試），不再送審。
+- Hydrogen 第 1 輪：四項都到位；「日文 150% 定位句被藏、功能型兵種一眼看不出用法」＝刻意取捨（一行優先，說明在兵卡「?」），記錄；英文校驗碼鈕仍帶檢查味 → 改「Copy replay code」；異變日文偶有斷行 → 排進字體 3.0 全站批。
+- 第 6 批驗收：完整檢查 6877 項全過、指紋不變；21 畫面 × 24 組 504 張——第一次 5 個違規（校驗碼鈕在 125%／日文 100% 左右太緊：按鈕標籤其實用 ts(18)，寬度卻用註記字算）→ 改用 ts(18) 算寬，05b 重拍 24 組 0 違規。
+
+## 第 7 批：戰場辨讀（方案 §7 核心）
+- 戰況字降噪：數字型跳字（數字、正負號、×、括號、%，含全形；合併的「×3（24）」也算）不包泡泡——奶白偏原色＋深褐粗外框；有字的關鍵短標（衝鋒、頂住、擊倒…）照舊泡泡。
+- **焦點改成逐 tick 決定**：第 1 輪做法是「跟拍＋0.5 秒內交手最多 3 隻」，用動畫時鐘當基準——暫停會消失、跳轉／倒帶不一致（Codex P1），而且畫面上看不出誰打誰、暈光和底座、技能圈混在一起（Hydrogen 不可）。→ 改成：焦點＝跟拍／選中的那隻＋它此刻的目標（快照的 `target`）；跟拍兵腳下淡象牙白暈＋白外緣、目標朱紅細外緣、兩者之間一條淡墨虛線。沒跟拍就不畫（不製造雜訊）。目標是自己人（補血）不算攻擊對象。
+- 血條：跟拍兵與目標不透明，其他 45%（原本「0.8 秒內被打照亮」會讓混戰整片都亮，Hydrogen #5）。
+- 噪音預算：焦點裝飾最多 2 隻＋1 條線、和導播／放大鏡共用 `follow_id`（同一個強調來源），不另吃 `FX_CLASS`。
+- 新截圖 `v150_03f_battle_focus`（跟拍一隻正在打的藍兵）。測試 `test_battle_read_v150`。
+- 這批不做（記錄）：外圍地面降飽和（要遮罩保護隊色與地形語意色）、致命一擊印章短標、交戰區跳字面積取樣器、地形微縮、故事物件、決勝暖光；Hydrogen 指出關鍵短標泡泡是直角素色框、像介面（1.2.0 起的樣式），排進材質批。
+
+### 第 7 批三方（Codex 三輪：有條件 → 有條件 → 有條件（自修）；Hydrogen 三輪：不可 → 不可 → 不可（第 3 輪後自己看圖改））
+- Codex 第 1 輪：焦點用動畫時鐘（暫停／跳轉／固定截圖不一致）、合併跳字「×3（24）」漏降噪、噪音預算、測試 → 焦點改逐 tick（快照 target），白名單判數字，其他照改。第 2 輪：跟拍有兩個圈（舊金圈＋新白圈）、全形「＋」漏 → 只留金圈、補「＋」。第 3 輪：結果頁殘留上一場目標圈 → 非戰鬥清 `_focus_ids`、目標圈限戰鬥（自己改，不再送審）。
+- Hydrogen：第 1 輪「混戰看不出誰打誰、暈光跟底座混、血條沒降噪」→ 改成「跟拍兵＋它的目標」。第 2 輪「認不出跟拍哪隻、貼身時看不出在打誰、泡泡遮住」→ 目標朱紅圈＋頭頂倒三角、虛線改朱紅。第 3 輪「仍認不出」→ 我自己對圖：那張截圖跟拍兵和目標其實貼在一起（左上那團），而「衝鋒！35」泡泡正好蓋住兩者頭頂 → 頭頂記號（跟拍＝金、目標＝朱紅倒三角）改在**跳字之後**畫（最上層），截圖確認兩個倒三角並排清楚。三輪用完，最後這個改動沒再送 Hydrogen，記錄。
+- 固定時鐘插曲：第 2 版把非焦點血條連外框一起淡到 45%，`35_fantasy_battle` 低對比棋子 8 → 15（超過容差、總數 577）。→ 外框保持 ≥0.8、低血量（≤35%）照舊不透明、其他填色 55%：回到 570（基線 565、0 張變差）。**血條外框是密集混戰裡棋子輪廓的一部分**，記一筆。
+- Hydrogen 指出但不在這批：短標泡泡在 `87d_boss_battle` 被頂邊裁切、騎兵繞翼淡黃虛線容易和焦點線混淆（既有樣式）→ 排進材質批／戰場第二批。
+- 字型覆蓋檢查：原始碼裡的全形數字字面（數字白名單、測試字串）被當成要顯示的字 → 改用碼位組出來（`String.chr`）。
+- 第 7 批驗收：完整檢查 6890 項全過、指紋不變；固定時鐘戰鬥 27 畫面 × 24 組 648 張 0 違規，低對比 570（基線 565、0 張變差）；新畫面 `v150_03f_battle_focus` 併進美感基線。
+
+## 第 8 批：前幾版精修（方案 §13 一部分）
+- `v130_od_owner_daily`：三條亮紅主鈕 → 米色次鈕＋左邊木章凹槽（槽緣木刻高光＋內凹＋上緣內陰影；做過＝紅泥章）。
+- `15c_replay_mag`：暫停資料卡黑底等寬框 → 平塗米紙浮籤（左緣隊色布條、墨字）；放在「最後時刻」橫條下面（y146：橫條是半透明深色，原本壓在標題上，對比檢查抓到 4.14:1）；所選兵在右上時移到左上（`unit_info_rect`），放大鏡跟著避開那一角（Codex）。
+- 前面批次已做掉的 §13 項：`08j_restore@full` 時間戳（第 6 批）、1.4.0 固定時鐘輪廓對比（第 3 批＋第 7 批維持）。
+- 不做（記錄）：老闆便條改固定桌位——結果頁紙張兩側只剩約 190px 桌面放不下（手寫字用 H2，小字會糊），要和 §3 桌面舞台一起重排；`v120_04_recent` 導引卡、`59h_paint` 色盤、出題台非法目標提示、棋譜本壞資料恢復排在後面。
+- 三方：Codex 一輪（放大鏡會蓋住移到左上的浮籤 → 改）；Hydrogen 一輪（凹槽看不懂、浮籤貼頂 → 改）。各一輪後自己改完，用 24 組重拍驗，不再送審。
+- 驗收：完整檢查 6895 項全過、指紋不變；兩畫面 × 24 組 48 張 0 違規。
+
+## 收尾（2026-11-15）
+- 版本 1.5.0（`project.godot`、`export_presets.cfg`）。STATE「1.5.0 一頁一景」與最後一次驗收、方案 §21 進度表、CHANGELOG 四語、CLAUDE.md、記憶。
+- 無快取全量 6895 項全過；24 組全量版面抓到 `91_trial_fixed`（試煉擺陣）R14 13＞12 → 射程／標記／實驗簿三顆小圖示＝一組檢視工具（`_tv_buttons` 掛 `btn_group "tv_tools"`），擺陣 4 變體 × 24 組重跑 0 違規；有快取重跑 6895 項全過。固定時鐘 573／基線 568、0 張變差。EXPORT OK（1.5.0）。
+- 這次只完成方案的第一階段；剩下的列在方案 §21。
+
+## 第 9 批：重災頁減法（方案 §1.6 一部分；收尾後依使用者「全做」繼續）
+- 戰績三頁籤：總覽（5 格木活字＋「最常出戰」「勝率最高（≥3 場）」前三名，填掉原本 237px 的空白、不用豁免）／兵種（王國／奇幻切換，一次 10 隻：出戰勝率＋短版熟練度「Lv1（7／15）」）／成就（一頁 10 個，條件直接寫在牌上；原本成就是看不見的焦點目標）。R14 戰績強制（上限 6）。頁籤從 `_h1` 下緣＋16 起（R2）。
+- 試煉每頁 8 關、4 頁；從結果頁返回試煉時停在那一關的頁（Codex）。
+- 殘局選關不拆：一章十關是故事單位，而且那頁已有留白——偏離方案「6～8 關」。
+- 三方：Codex 一輪（測試字串、返回頁碼 → 改）；Hydrogen 一輪（日文熟練度折出括號 → 短版字串；頁籤用語「徽章櫃」和標題「成就」不一致 → 統一「成就」；日文長條件孤字「す。」→ 留著，字體 3.0 批再處理）。改完不再送審，用 24 組驗。
+- **又犯一次**：第 9 批的驗收鏈還在跑時開始改第 10 批（lobby_view.gd、字串、字型）→ 停掉那條鏈，第 9＋10 批合併重跑驗收。
+
+## 第 10 批：大廳進階折頁（方案 §1.2 剩下的一部分）
+- 卡池：兩邊不同時一次編一邊，另一邊一行唯讀摘要（`pool_summary`：「10 種・近戰 4・遠程 3・支援 2・奇襲 1」，類別和篩選膠囊同一套、奇襲優先）。
+- R14 分組：卡池兩邊切換、篩選膠囊、兵卡格、牌組 1～3、折頁子分頁。
+- **沒做到折頁每格 ≤9**：拿掉豁免量到折頁 18～48 個控制（實驗 48、軍令 34、卡池 23）。真正要做的是折頁重做（子分頁併三格、代碼與存預設進選單、規則列精簡），比一批大 → 豁免改寫成具體理由，列在方案 §21。
+- 字型覆蓋檢查又抓到原始碼字面：豁免理由裡的「斂」「篩」字型沒有 → 改寫成字型有的字。
+- 三方：Codex 一輪「可」；Hydrogen 一輪（英文用了全形冒號 → 改）。
+- 第 9＋10 批合併驗收：完整檢查 6915 項全過、指紋不變；戰績／試煉／大廳 24 畫面 × 24 組 576 張 0 違規。
+- 驗收鏈跑時又一次改了 game/（標題便箋上移）→ 立刻 `git checkout` 還原、改動存成 patch 移到第 11 批。新增 `build/tmp/chain_busy.sh`：改 game/ 前先跑，有進行中的鏈就回傳 1。
+
+## 第 11 批：標題便箋不壓展示框（方案 §13「v120_04_recent 導引卡壓展示框」）
+- 「建議下一步」便箋、「最近玩」紙籤整組移到示範戰場框上方（便箋 y20、組內間距收緊）。Hydrogen 一輪：英文 150% 紙籤仍壓到框 → 收緊後確認離框約 10px。
+- 驗收：完整檢查 6919 項全過、指紋不變；標題 10 畫面 × 24 組 240 張 0 違規。
+
+## 第 12 批：短標吊牌（方案 §4 手作材質的切片）
+- 戰場短標（衝鋒、頂住…）從直角牛皮紙框改成手裁吊牌：左邊兩角斜切、右緣細鋸齒（`tag_poly`，全部在原框內，字的幾何不動）；落影同形。穿線孔試過：貼在第一個字前像標點，拿掉。
+- Hydrogen 一輪「可」。Codex 沒送（純繪圖外形，有測試：多邊形在框內、可三角化）。
+- 驗收：完整檢查 6924 項全過、指紋不變；固定時鐘戰鬥 648 張 0 違規、573／基線 568、0 張變差。
+- §4 其他（主材質表、紋理上限、全站材質）沒做。
+
+## 第 13 批：決勝暖光（方案 §7「決勝時刻：棋盤木框滲微弱暖紅光」）
+- `_draw_clutch_frame`：最後時刻（慢動作 0.3 秒淡入；慢動作關掉時跟著「最後時刻」橫幅那段）木框帶上四圈暖紅細線、由外往內變淡；畫在框貼圖之上、只在盤外，不碰盤面（固定時鐘棋子對比不受影響）。減少動態不呼吸；簡化介面、減少特效不畫。
+- 過程：先畫在 `draw_rect` 底框上 → 被後面的框貼圖（StyleBox）蓋住看不到 → 移到 `_draw_field_frame` 框貼圖之後；截圖模式慢動作是關的 → 加上跟橫幅計時。
+- 「棋鐘輕晃」沒做（動態、要真人看手感）。
+- 測試 `test_clutch_frame_v150`（邊界 7.7 有浮點誤差，改用 7.6）。
+- 第 13 批驗收：完整檢查 6931 項全過、指紋不變；固定時鐘戰鬥＋15c 共 672 張 0 違規、573／基線 568、0 張變差。
+
+## 第 14 批：大廳進階折頁減法（方案 §1.2 剩下的）
+- 折頁底列只剩「收起細項」＋「開戰」（返回、複製規則、貼上規則、存成預設拿掉；B／Esc 照舊離開大廳）。「我的預設 ▼」選單上面多一列「複製規則／存成預設／貼上規則」，按了先收選單（Codex）；選單蓋住的底層字與按鈕不進版面探針（檢查器不知道疊放順序）。
+- R14 分組：將領卡、軍令卡、軍令兩邊切換、沙盒兵種格、技能開關格、沙盒步進列。
+- 量測（拿掉豁免、繁中 100%）：折頁從 18～48 個控制降到 10～13（軍令關閉那頁降到 ≤9）。剩下是每一頁自己的規則列（軍隊 5 列等）——再減要把規則列分頁，沒做；豁免理由改成「每一頁自己的規則列」，細節寫在程式註解。
+- 三方：Codex 一輪（貼上後選單沒收 → 改）；Hydrogen 沒送（截圖自己看過：底列兩顆、選單三顆動作鈕）。
+- 驗收：完整檢查 6941 項全過、指紋不變；大廳 19 畫面 × 24 組 456 張 0 違規；選單兩畫面 × 24 組重拍 0 違規。
+
+## 第 15 批：敗因直達（方案 §11 覆盤切片的第一步）
+- `first_fall`＝藍方第一隻倒下的 [tick, id]：戰鬥事件迴圈記、開戰／跳轉重設、快轉時重建（Codex）、進重播前存／回結果頁還原（Codex）。結果頁敗因卡左下一顆「看第一隻倒下」：重播從倒下前 2 秒（40 tick）開始、鏡頭跟著那一隻。雙人、觀戰不出現。
+- 三方：Codex 一輪（快轉沒重建、回結果頁會消失 → 改）；Hydrogen 沒送（看圖：鈕在敗因卡左下，不壓木偶）。
+- 驗收：完整檢查 6949 項全過、指紋不變；結果／重播 4 畫面 × 24 組 96 張 0 違規。
+- §11 其他（改一子比較、快照跳轉、精華匯出、導播 2.0、觀察／已驗證文字）沒做。
+
+## 第 16 批：塗裝室水彩凹槽（方案 §13「59h_paint 色票改水彩凹槽色盤」）
+- `_paint_well`：白瓷緣＋上緣內陰影＋積在槽裡的顏料（下半較濃）＋濕亮；底漆兩列一格一槽，漬洗／乾掃三個小槽依深淺。旋轉展台沒做。
+- 三方：沒送（純裝飾，自己對圖：四語 150% 不壓字）。驗收：完整檢查 6953 項全過、指紋不變；塗裝室 × 24 組 0 違規。
+
+## 第 17 批：大廳折頁每格 ≤9（方案 §1.2 收尾）
+- 折頁規則列一頁 3 列（`FOLD_ROWS`）、翻頁算一個控制；「重置回標準」拿掉（和頂緣「標準」紙籤同一件事）；牌組列（隨機、存、1～3）一組；所選物件的參數條（沙盒兵種血量／攻擊／速度、所選軍令的次數／冷卻／強度）各算一個控制。
+- 量測（拿掉豁免、繁中 100%）：除了軍令頁開啟時 10 個，其餘折頁都 ≤9；豁免只剩「軍令頁：開關、兩邊、將領、軍令、參數條各一個」。
+- 驗收：完整檢查 6960 項全過、指紋不變；大廳 19 畫面 × 24 組 456 張 0 違規。三方沒送（版面減法，前一批已審過同一套做法）。
+
+exec
+/bin/bash -lc "python3 - <<'PY'
+import json,re,pathlib
+s=json.load(open('../../game/tools/screens.json'))
+m=pathlib.Path('shots/manifest.md').read_text()
+listed=set(re.findall(r'"'^- zh-'"\\d+ "'`([''^`]+)`'"',m,re.M))
+expected=set(k.removesuffix('.png') for k in s)
+print('screens',len(s),'missing',sorted(expected-listed),'extra',sorted(listed-expected))
+from PIL import Image
+for p in pathlib.Path('shots/orig').glob('*'):
+ if 'fixed' in p.name or 'plain' in p.name or 'color' in p.name: print(p,Image.open(p).size)
+PY
+rg -n 'LAYOUT_FIXED|600|35_fantasy_battle|v150_03f_battle_focus|_snap|camera|seed' ../../game/tools/dev_main.gd | head -65; rg -n 'R14_ENFORCE|FOLD_ROWS|軍令頁|_draw_clutch_frame|tag_poly' ../../game/scripts/ui/layout_rules.gd ../../game/scripts/ui/screens/lobby_view.gd ../../game/scripts/ui/screens/battle_view.gd" in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+ exited 2 in 71ms:
+screens 200 missing [] extra []
+shots/orig/fixed_zh_TW_100__03_battle.jpg (1280, 800)
+shots/orig/fixed_zh_TW_100__35_fantasy_battle.jpg (1280, 800)
+shots/orig/fixed_zh_TW_100__54_map_canyon_battle.jpg (1280, 800)
+shots/orig/fixed_zh_TW_100__87d_boss_battle.jpg (1280, 800)
+shots/orig/fixed_zh_TW_100__v150_03f_battle_focus.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__01_title.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__02_place.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__03_battle.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__04_clutch.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__05_result.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__08_settings.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__09_puzzles.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__10_codex.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__15c_replay_mag.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__22_lobby.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__24_lobby_army.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__27_free_place.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__35_fantasy_battle.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__58_trials.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__59h_paint.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__59_profile.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__87d_boss_battle.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__94_loss_result.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__v150_02b_place_foe.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__v150_03f_battle_focus.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__v150_22a_lobby_step1.jpg (1280, 800)
+shots/orig/zh_TW_150_plain__v150_22b_lobby_step2.jpg (1280, 800)
+480:func _snap(name: String) -> void:
+496:		time = 600.0 + float(name.hash() & 1023) * 0.01   # 1.5.0 §12：固定模式下戰鬥截圖的動畫時間只由畫面名決定（不受前面拍了幾張影響；美感基線才比得了）
+545:		r.seed = 777 + k
+553:	r_fallback.seed = 777   # 找不到接近的對手時也用固定種子（不然每次錄出不同的仗）
+621:	# 最小化會讓 frame_post_draw 永遠不來（_snap 卡死），移到外面也就不會被按到。
+634:	await _snap("01_title.png")
+636:	await _snap("01b_hub_play.png")
+638:	await _snap("01c_hub_challenge.png")
+640:	await _snap("01d_hub_collect.png")
+642:	await _snap("01e_hub_gauntlet.png")
+646:	await _snap("v120_04_recent.png")
+650:	await _snap("v120_05_songbook@empty.png")
+652:	ra.seed = 4242
+656:	await _snap("v120_05_songbook.png")
+667:	await _snap("02_place.png")
+669:	await _snap("v150_02b_place_foe.png")
+675:		r.seed = 777 + k
+690:	await _snap("03_battle.png")
+699:	await _snap("v150_03f_battle_focus.png")
+721:	await _snap("03c_projectiles.png")
+723:	await _snap("03d_pause_menu.png")
+757:	await _snap("12_fx.png")
+759:	await _snap("13_poses.png")
+761:	await _snap("13b_poses_new.png")
+768:	await _snap("14_colorblind.png")
+778:	await _snap("14b_plain_ui.png")
+794:		await _snap("04_clutch.png")
+801:		await _snap("v140_10_curtain_call.png")
+804:	await _snap("05_result.png")
+807:	await _snap("v120_02_note.png")
+810:	await _snap("v120_03_moods.png")
+816:	await _snap("v120_01_ink.png")
+820:	await _snap("v150_05e_result_flow.png")   # 1.5.0 §1.5：走勢與事件（原本首屏的曲線、事實）
+822:	await _snap("05b_result_details.png")
+825:	await _snap("v150_05f_result_more.png")
+829:		await _snap("05c_postcard.png")
+832:	await _snap("05d_share.png")
+839:	await _snap("06_puzzle.png")
+850:	await _snap("07_duel.png")
+858:	await _snap("v150_07c_duel_blind.png")
+861:	await _snap("08_settings.png")
+863:	await _snap("v150_08z_settings_adv.png")
+866:	await _snap("08e_settings_ui.png")
+868:	await _snap("08d_settings_sound.png")
+870:	await _snap("08f_settings_controls.png")
+872:	await _snap("08g_settings_battle.png")
+874:	await _snap("08c_settings_visual.png")
+876:	await _snap("08l_settings_undo.png")
+879:	await _snap("08h_settings_data.png")
+883:	await _snap("08i_clear_data.png")
+886:	await _snap("08j_restore.png")   # V1.5.2：截圖前綴的備份資料夾＝空資料
+894:	await _snap("08j_restore@full.png")
+902:	await _snap("08m_confirm@long.png")
+904:	await _snap("08k_first_run.png")
+907:	await _snap("08b_keys.png")
+910:	await _snap("09_puzzles.png")
+917:	await _snap("10_codex.png")
+919:	await _snap("10b_codex_scrolled.png")
+925:	await _snap("10c_codex_zoom.png")
+929:	await _snap("10d_codex_summon.png")
+945:	await _snap("10e_codex_archer_demo.png")
+950:	await _snap("11_codex_locked.png")
+959:	await _snap("16_review.png")
+967:	await _snap("16b_time_machine.png")
+975:	await _snap("15_replay.png")
+rg: ../../game/scripts/ui/screens/lobby_view.gd: No such file or directory (os error 2)
+rg: ../../game/scripts/ui/screens/battle_view.gd: No such file or directory (os error 2)
+../../game/scripts/ui/layout_rules.gd:367:## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+../../game/scripts/ui/layout_rules.gd:369:const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+../../game/scripts/ui/layout_rules.gd:389:	_add(out, "fail" if cls in R14_ENFORCE else "warn", "R14", cls, "可見可點元件 %d 個，超過「%s」類上限 %d（收進「更多」或拆頁）" % [n, cls, lim])
+
+exec
+/bin/bash -lc "sed -n '480,510p' ../../game/tools/dev_main.gd; sed -n '670,725p' ../../game/tools/dev_main.gd; rg --files ../../game | rg '(lobby_view|battle_view)'; rg -n '35_fantasy_battle|87d_boss_battle|54_map_canyon_battle' ../../game/tools/dev_main.gd" in /mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p
+ succeeded in 0ms:
+func _snap(name: String) -> void:
+	if shot_only.is_empty():
+		for a0 in OS.get_cmdline_user_args():
+			if a0.begins_with("--shot-only="):
+				shot_only = Array(a0.substr(12).split(",", false))
+				break
+		if shot_only.is_empty():
+			shot_only = ["*"]
+	var skip_save: bool = not ("*" in shot_only) and not (name in shot_only)   # 跳過的畫面照樣等待（不改變後面畫面的時序；Codex cat01 #6）
+	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)   # 真的被縮下去就還原，否則永遠等不到繪製
+	if shot_state.has("pad"):
+		pad_mode = true   # V1.2.1：手把焦點狀態（焦點框畫在目前的按鈕上）
+	if clutch_t > 0.0 and (clutch_t < 0.3 or clutch_t > 1.45):
+		clutch_t = 0.8   # 1.2.0：「最後時刻」橫幅在淡入淡出途中（透明度 <1）做對比檢查沒有意義 → 截圖一律拍完全顯示的穩定狀態（真實時間模式也一樣）
+	if shot_fixed and state == St.BATTLE:
+		time = 600.0 + float(name.hash() & 1023) * 0.01   # 1.5.0 §12：固定模式下戰鬥截圖的動畫時間只由畫面名決定（不受前面拍了幾張影響；美感基線才比得了）
+	queue_redraw()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	if skip_save:
+		return
+	var img := get_viewport().get_texture().get_image()
+	var serr := img.save_png(shot_dir.path_join(name))
+	if serr != OK:
+		print("SHOTFAIL ", name, " ", serr)   # 1.2.0（Codex cat01 #5）：存檔失敗不能默默通過
+	print("SHOT ", name)
+	if layout_probe:
+		_layout_report(name, img)
+
+	foe_tag_open = false
+	# 找一個會出現「最後時刻」的對手，截圖才拍得到
+	var red_pick = null
+	for k in 120:
+		var r := RandomNumberGenerator.new()
+		r.seed = 777 + k
+		var cand = AI.build(1, 100, r)["army"]
+		if _would_clutch(armies[0], cand):
+			red_pick = cand
+			break
+	if red_pick != null:
+		last_player_formation = armies[0].units.duplicate(true)
+		ai_name = L.t("diff_normal")
+		_begin_battle(armies[0].copy(), red_pick.copy())
+	else:
+		_on_start()
+	for i in 150:
+		_sim_step(true)
+	for f in fx:
+		f["t"] = 0.0
+	await _snap("03_battle.png")
+	# 1.5.0 §7：跟拍一隻正在打的藍兵——腳下暈光、目標朱紅外緣、淡墨虛線（誰在打誰）；其他血條淡
+	var fsel := -1
+	for vu in view.units:
+		if vu.alive and vu.team == 0 and vu.target >= 0 and vu.target < view.units.size() and view.units[vu.target].alive and view.units[vu.target].team == 1:
+			fsel = vu.id
+			break
+	var keep_follow := follow_id
+	follow_id = fsel
+	await _snap("v150_03f_battle_focus.png")
+	follow_id = keep_follow
+	# V1.5：遠程飛行物（弓箭手、投彈兵、骷髏法師的紫火、醫者的十字光）在命中前飛在半空
+	var pa := Army.new(0, 200)
+	pa.units = [{"type": 2, "col": 3, "row": 2}, {"type": 2, "col": 3, "row": 4}, {"type": 6, "col": 2, "row": 3}, {"type": 6, "col": 2, "row": 6}, {"type": 17, "col": 1, "row": 4}, {"type": 7, "col": 3, "row": 5}, {"type": 1, "col": 5, "row": 3}, {"type": 1, "col": 5, "row": 5}]
+	var pe := Army.new(1, 200)
+	pe.units = [{"type": 0, "col": 10, "row": 2}, {"type": 0, "col": 10, "row": 4}, {"type": 0, "col": 10, "row": 6}, {"type": 9, "col": 11, "row": 3}, {"type": 9, "col": 11, "row": 5}]
+	rules = null
+	_start_mode(Mode.VS_AI)
+	_begin_battle(pa, pe)
+	# 一直跑到有兩個以上飛行物在半空（進度 0.25～0.75）才拍
+	for i in 300:
+		_sim_step(true)
+		var mid := 0
+		for u in view.units:
+			if u.alive and atk_hit.has(u.id):
+				var ph: Array = proj_phase(atk_hit[u.id], float(view.tick) + 0.5, u.type, view.delay)
+				if float(ph[2]) > 0.25 and float(ph[2]) < 0.75:
+					mid += 1
+		if mid >= 2:
+			break
+	accum = 0.025
+	await _snap("03c_projectiles.png")
+	call("_open_pause_menu")   # V1.5 暫停選單
+	await _snap("03d_pause_menu.png")
+	call("_pause_resume")
+	clutch_t = 0.0   # 這一場的「最後時刻」橫幅不要留到後面的截圖
+../../game/scripts/ui/lobby_view.gd.uid
+../../game/scripts/ui/lobby_view.gd
+../../game/scripts/ui/battle_view.gd.uid
+../../game/scripts/ui/battle_view.gd
+1130:# _snap("54_map_canyon_battle.png")
+1342:	await _snap("35_fantasy_battle.png")
+2027:	await _snap("87d_boss_battle.png")
+
+codex
+①尚不足：1～5資料大致齊，200畫面清冊吻合；7僅引用腳本，未逐張記錄 seed／tick／機位／UI比例，硬門檻未滿。
+
+②請主持人補：
+- 【必須】戰場圖號→實際拍攝參數表；動畫時間不等於模擬 tick。
+- 【必須】指明「貼身多兵＋跳字＋預告虛線＋目標記號」同框尖峰圖號，缺則補拍。
+- 【可選】熟手進度存檔、雙人盲擺／換邊操作紀錄。
+- 【可選】效能機器規格及分步耗時原始紀錄。
+動態依約待驗，R3前補。
+
+③HEAD＝945105e、遊戲1.5.0吻合；目前有未追蹤資料包，「工作目錄乾淨」須註明時間點。STATE仍把已完成的短標、決勝暖光列未做，且R14清單漏戰績。
+
+可以開始 R1：否
+tokens used
+42,708
