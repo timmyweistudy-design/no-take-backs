@@ -141,6 +141,7 @@ func _seek_begin(target: int) -> void:
 	_seek_ct = -1
 	_seek_deaths = {}
 	battle_marks.clear()
+	first_fall = [-1, -1]
 	var dl: int = ViewBuffer.DELAY if (bool(sim.get("cmd_on")) and not bool(sim.get("cmd_scripted"))) else ViewBuffer.DELAY_LONG   # 和 ViewBuffer 的選法一樣
 	_seek_stop = maxi(0, target - (view.delay if view != null else dl))
 	_seek_target_now = target
@@ -165,6 +166,10 @@ func _seek_tick(budget_ms: int) -> bool:
 			_collect_mark(ev, sim, sim.tick)
 			if ev["kind"] == EV.DEATH:
 				_seek_deaths[int(ev["id"])] = sim.tick
+				if int(first_fall[0]) < 0:
+					var dsu = sim.unit_by_id(int(ev["id"]))
+					if dsu != null and dsu.team == 0:
+						first_fall = [sim.tick, int(ev["id"])]   # 1.5.0 §11：快轉也要重建（Codex v150 cat15 #1）
 			if ev["kind"] == EV.CMD:
 				battle_marks.append({"tick": sim.tick, "kind": "cmd", "team": int(ev["team"]), "skill": int(ev["skill"])})   # V1.5.1：快轉也收軍令標記（原本跳轉後會漏）
 		if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
@@ -264,7 +269,7 @@ func _replay_snapshot() -> void:
 	if play_kind != "official" and not replay_snap.is_empty():
 		return   # Codex r2：重播完再重播，返回目的地還是最早那個結算
 	replay_snap = {"sim": sim, "view": view, "report": report, "marks": battle_marks.duplicate(true), "kind": play_kind,
-		"tab": result_tab, "overlay": "", "ev_count": ev_count.duplicate(), "pt_rated": pt_rated, "pt_call": pt_call_tick}
+		"tab": result_tab, "overlay": "", "ev_count": ev_count.duplicate(), "pt_rated": pt_rated, "pt_call": pt_call_tick, "first_fall": first_fall.duplicate()}
 
 ## 重播的「返回」：回到進來的地方。只還原畫面，比分、進度、成就、試玩紀錄都不寫。
 func _replay_back() -> void:
@@ -293,6 +298,7 @@ func _replay_back() -> void:
 	ev_count = replay_snap["ev_count"]   # Codex r1：戰報、評分狀態也要還原，不然同一局能再評一次
 	pt_rated = replay_snap["pt_rated"]
 	pt_call_tick = replay_snap["pt_call"]
+	first_fall = replay_snap.get("first_fall", [-1, -1])   # 回結果頁：敗因直達鈕還在（Codex v150 cat15 #2）
 	overlay = replay_snap["overlay"]
 	result_delay = 0.0
 	state = St.RESULT

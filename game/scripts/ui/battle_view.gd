@@ -231,6 +231,10 @@ func _sim_step(with_fx: bool) -> void:
 				ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
 		if k == EV.DEATH:
 			deaths += 1
+			if int(first_fall[0]) < 0:
+				var du = view.unit_by_id(int(ev.get("id", -1)))
+				if du != null and du.team == 0:
+					first_fall = [view.tick, int(ev["id"])]   # 1.5.0 §11：藍方第一隻倒下（逐 tick 事件，順播與跳轉一致）
 		_collect_mark(ev, view, view.tick)
 		_on_event(ev, with_fx)
 	if sfx != null and "pan_hint" in sfx:
@@ -936,6 +940,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
 	paused = false
 	follow_id = -1
 	battle_marks.clear()
+	first_fall = [-1, -1]
 	report_log.clear()
 	skip_busy = false
 	seek_target = -1

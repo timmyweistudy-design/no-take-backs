@@ -277,6 +277,12 @@ func _draw_result() -> void:
 					Art.ring(self, fb, 0, int(lp[1]), cbm(), 2.0)
 					Art.unit(self, fb, int(lp[1]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0, cbm())
 					_text(Vector2(fb.x, lr2.position.y + 14), L.t("loss_try"), tz("C"), TXT_DIM, true, false, 200)
+				if int(first_fall[0]) >= 0 and play_kind == "official" and not watch_mode:
+					# 1.5.0 §11 敗因直達：跳到藍方第一隻倒下前 2 秒的重播，鏡頭跟著那一隻
+					var ff: Array = first_fall.duplicate()
+					var jl := L.t("loss_jump")
+					var jw := minf(176.0, _width(jl, ts(15), true) + 30.0)
+					_btn_small(Rect2(lr2.position.x + 14, lr2.end.y - 54, maxf(150.0, jw), 40), jl, func(): call("_replay_from", maxi(0, int(ff[0]) - 40)); follow_id = int(ff[1]))
 				y = lr2.end.y + 14
 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
 			var need: int = rules.wins_needed() if rules != null else 2

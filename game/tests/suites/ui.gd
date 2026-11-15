@@ -2648,3 +2648,16 @@ func test_lobby_fold_menu_v150() -> void:
 	ok(lv.find("_btn(Rect2(458, by, 150, 48), L.t(\"lb_copy\")") < 0, "折頁底列不再有代碼與存預設（只剩收起＋開戰）")
 	for grp in ["cmdr_cards", "cmd_cards", "sb_units", "sb_skills", "cmd_side"]:
 		ok(lv.find("btn_group = \"%s\"" % grp) >= 0, "折頁 R14 分組：%s" % grp)
+
+func test_loss_jump_v150() -> void:
+	var bv: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(bv.find("first_fall = [view.tick, int(ev[\"id\"])]") >= 0 and bv.find("first_fall = [-1, -1]") >= 0, "藍方第一隻倒下：逐 tick 事件記錄、每場重設")
+	var rv: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+	ok(rv.find("first_fall = [-1, -1]") >= 0 and rv.find("first_fall = [sim.tick, int(ev[\"id\"])]") >= 0, "跳轉時重設、快轉時重建（順播與跳轉一致）")
+	ok(rv.find("\"first_fall\": first_fall.duplicate()") >= 0 and rv.find("first_fall = replay_snap.get(\"first_fall\"") >= 0, "進重播前存、返回結果頁還原")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("call(\"_replay_from\", maxi(0, int(ff[0]) - 40)); follow_id = int(ff[1])") >= 0, "敗因卡：跳到倒下前 2 秒、鏡頭跟著那一隻")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	ok(g.first_fall == [-1, -1], "預設沒有倒下紀錄（敗因卡不畫按鈕）")
+	g.free()

@@ -300,6 +300,7 @@ func _frags_on() -> bool:
 var paused := false        # 重播控制：暫停（第三輪 F2）
 var follow_id := -1       # 重播控制：鏡頭跟著哪一隻
 var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出
+var first_fall := [-1, -1]   # 1.5.0 §11 敗因直達：藍方第一隻倒下的 [tick, id]（每場、每次跳轉重算）
 var battle_marks: Array = []   # 結果頁時間軸的關鍵事件（第三輪 U5）：{tick, kind, team}
 var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
 var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）

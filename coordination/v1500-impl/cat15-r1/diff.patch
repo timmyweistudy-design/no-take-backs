@@ -1,0 +1,64 @@
+diff --git a/game/scripts/ui/battle_view.gd b/game/scripts/ui/battle_view.gd
+index 95fac03..b9f6c85 100644
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -231,6 +231,10 @@ func _sim_step(with_fx: bool) -> void:
+ 				ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
+ 		if k == EV.DEATH:
+ 			deaths += 1
++			if int(first_fall[0]) < 0:
++				var du = view.unit_by_id(int(ev.get("id", -1)))
++				if du != null and du.team == 0:
++					first_fall = [view.tick, int(ev["id"])]   # 1.5.0 §11：藍方第一隻倒下（逐 tick 事件，順播與跳轉一致）
+ 		_collect_mark(ev, view, view.tick)
+ 		_on_event(ev, with_fx)
+ 	if sfx != null and "pan_hint" in sfx:
+@@ -936,6 +940,7 @@ func _begin_battle(a0, a1, kind := "official") -> void:
+ 	paused = false
+ 	follow_id = -1
+ 	battle_marks.clear()
++	first_fall = [-1, -1]
+ 	report_log.clear()
+ 	skip_busy = false
+ 	seek_target = -1
+diff --git a/game/scripts/ui/replay_view.gd b/game/scripts/ui/replay_view.gd
+index a82642d..416521f 100644
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -141,6 +141,7 @@ func _seek_begin(target: int) -> void:
+ 	_seek_ct = -1
+ 	_seek_deaths = {}
+ 	battle_marks.clear()
++	first_fall = [-1, -1]
+ 	var dl: int = ViewBuffer.DELAY if (bool(sim.get("cmd_on")) and not bool(sim.get("cmd_scripted"))) else ViewBuffer.DELAY_LONG   # 和 ViewBuffer 的選法一樣
+ 	_seek_stop = maxi(0, target - (view.delay if view != null else dl))
+ 	_seek_target_now = target
+diff --git a/game/scripts/ui/screens/game_result.gd b/game/scripts/ui/screens/game_result.gd
+index ff01cfa..f7603cd 100644
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -277,6 +277,12 @@ func _draw_result() -> void:
+ 					Art.ring(self, fb, 0, int(lp[1]), cbm(), 2.0)
+ 					Art.unit(self, fb, int(lp[1]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 2.0, cbm())
+ 					_text(Vector2(fb.x, lr2.position.y + 14), L.t("loss_try"), tz("C"), TXT_DIM, true, false, 200)
++				if int(first_fall[0]) >= 0 and play_kind == "official" and not watch_mode:
++					# 1.5.0 §11 敗因直達：跳到藍方第一隻倒下前 2 秒的重播，鏡頭跟著那一隻
++					var ff: Array = first_fall.duplicate()
++					var jl := L.t("loss_jump")
++					var jw := minf(176.0, _width(jl, ts(15), true) + 30.0)
++					_btn_small(Rect2(lr2.position.x + 14, lr2.end.y - 54, maxf(150.0, jw), 40), jl, func(): call("_replay_from", maxi(0, int(ff[0]) - 40)); follow_id = int(ff[1]))
+ 				y = lr2.end.y + 14
+ 		if (mode == Mode.VS_AI or mode == Mode.DUEL) and not series_over and play_kind == "official":
+ 			var need: int = rules.wins_needed() if rules != null else 2
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index ee097ed..0dc1907 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -300,6 +300,7 @@ func _frags_on() -> bool:
+ var paused := false        # 重播控制：暫停（第三輪 F2）
+ var follow_id := -1       # 重播控制：鏡頭跟著哪一隻
+ var graves: Array = []        # 陣亡處的小旗（第三輪 R5）：{pos, team, t}，3 秒淡出
++var first_fall := [-1, -1]   # 1.5.0 §11 敗因直達：藍方第一隻倒下的 [tick, id]（每場、每次跳轉重算）
+ var battle_marks: Array = []   # 結果頁時間軸的關鍵事件（第三輪 U5）：{tick, kind, team}
+ var hurt_dir := {}        # 受擊後退方向（第三輪 R2，只是演出）
+ var brace_t := {}         # 盾兵頂住的畫面時間（盾放大 1.35 倍 0.35 秒）
