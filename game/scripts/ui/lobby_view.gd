@@ -339,7 +339,7 @@ func _draw_cmd_tab(R: Rect2) -> void:
 	for k in 3:
 		var sx: float = R.position.x + k * (w3 + 8)
 		_text(Vector2(sx, y), items[k][1], tz("S"), TXT_DIM, false, false, w3)
-		_stepper(Rect2(sx, y + tz("S") * 1.35, w3, 52), items[k][2], items[k][0], 36.0)
+		_stepper(Rect2(sx, y + tz("S") * 1.35, w3, 52), items[k][2], items[k][0], 36.0, "cmd_params")   # 所選軍令的三個參數＝一張參數條
 
 func _lobby_adj(id: String, d: int) -> void:
 	var r = lobby_r
@@ -566,10 +566,10 @@ func _draw_lobby() -> void:
 		_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
 		btn_seal_square = false
 	var lb_why := ""
-	if lobby_open:
-		# 1.5.0 第 10、14 批：子分頁、卡池、類別、牌組、步進器、將領／軍令／技能格各算一組，代碼與存預設進「我的預設」選單，
-		# 底列只剩收起＋開戰——折頁從 18～48 個控制降到 10～13；剩下是每一頁自己的規則列，再減要把規則列分頁
-		lb_why = "進階折頁：每一頁自己的規則列（5 列以上）"
+	if lobby_open and LOBBY_TABS[lobby_tab] == "lb_tab_cmd" and lobby_r.cmd_on:
+		# 1.5.0 第 10、14、17 批後：折頁各頁 ≤9（規則列一頁 3 列、參數條、格狀控制各一組、重置回標準＝「標準」紙籤）；
+		# 只剩軍令頁開啟時 10 個（開關、兩邊、將領、軍令、參數條＋固定 5）
+		lb_why = "軍令頁：開關、兩邊、將領、軍令、參數條各一個"
 	elif lobby_menu:
 		lb_why = "「我的預設」下拉選單展開時：選單本身是一張清單（每列讀取／存入／刪除）"
 	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", lb_why)
@@ -1162,8 +1162,8 @@ func _draw_pool_heads(o: Vector2, p: int, step: float) -> void:
 		i += 1
 
 ## ◀ 值 ▶ 的調整列；點兩側箭頭，也可以點中間（往下一個）。
-func _stepper(r: Rect2, value: String, id: String, aw := 52.0) -> void:
-	btn_group = "st_" + id   # 1.5.0 R14：一個步進器＝一個控制
+func _stepper(r: Rect2, value: String, id: String, aw := 52.0, grp := "") -> void:
+	btn_group = grp if grp != "" else "st_" + id   # 1.5.0 R14：一個步進器＝一個控制；調同一個選取物件的幾個參數可以共用一組（grp）
 	_btn(Rect2(r.position, Vector2(aw, r.size.y)), "◀", _lobby_adj.bind(id, -1))
 	_btn(Rect2(r.position + Vector2(aw + 6, 0), Vector2(r.size.x - aw * 2 - 12, r.size.y)), value, _lobby_adj.bind(id, 1), true, false, TH_WOOD_D)
 	_btn(Rect2(r.end.x - aw, r.position.y, aw, r.size.y), "▶", _lobby_adj.bind(id, 1))
@@ -1200,7 +1200,7 @@ func _draw_lobby_detail(R: Rect2) -> void:
 				rows.append(["budget_red", L.t("lb_gold_red"), L.t("lb_n_gold", [lobby_r.budget_of(1)])])
 			rows.append(["unit_cap", L.t("lb_cap"), L.t("lb_n_units", [lobby_r.unit_cap])])
 			rows.append(["type_cap", L.t("lb_type_cap"), L.t("lb_nolimit") if lobby_r.type_cap == 0 else L.t("lb_n_units", [lobby_r.type_cap])])
-			_rows(L0, rows)
+			_rows_paged(L0, rows)
 		1:
 			var fr: bool = lobby_r.deploy == "free"
 			var rowsd: Array = [["deploy", L.t("lb_deploy"), L.t("lb_deploy_free") if fr else L.t("lb_deploy_grid")]]
@@ -1212,7 +1212,7 @@ func _draw_lobby_detail(R: Rect2) -> void:
 				elif lobby_kind == "ai":
 					rowsd.append(["depth", L.t("lb_depth_ai"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
 				rowsd.append(["fullfield", L.t("lb_full_ai") if lobby_kind == "ai" else L.t("lb_full_duel"), L.t("on") if lobby_r.fullfield != 0 else L.t("off")])
-			_rows(L0, rowsd)
+			_rows_paged(L0, rowsd)
 			var pv_y: float = L0.position.y + rowsd.size() * 66 + 8
 			if L0.end.y - pv_y >= 110.0:
 				_draw_deploy_preview(Rect2(L0.position.x + 230, pv_y, 360, L0.end.y - pv_y - 8))
@@ -1261,8 +1261,9 @@ func _draw_lobby_detail(R: Rect2) -> void:
 
 ## V1.6.1 A7：列數超過這一欄放得下的就分頁（底下一列「◀ 1／2 ▶」），每個開關都找得到。
 var lobby_rpage := 0
+const FOLD_ROWS := 3   # 1.5.0 §1.2：折頁一頁最多 3 列規則（R14 大廳上限 9：頂緣 2＋子分頁 1＋收起／開戰 2＋規則 3＋翻頁 1）
 func _rows_paged(R: Rect2, rows: Array) -> void:
-	var cap := int(R.size.y / 66.0)
+	var cap := mini(int(R.size.y / 66.0), FOLD_ROWS + 1)
 	if rows.size() <= cap:
 		lobby_rpage = 0
 		_rows(R, rows)
@@ -1272,9 +1273,11 @@ func _rows_paged(R: Rect2, rows: Array) -> void:
 	lobby_rpage = clampi(lobby_rpage, 0, pages - 1)
 	_rows(R, rows.slice(lobby_rpage * per, lobby_rpage * per + per))
 	var y := R.position.y + per * 66
+	btn_group = "rows_pager"   # 翻頁＝一個控制
 	_btn_small(Rect2(R.position.x + 230, y, 60, 44), "◀", func(): lobby_rpage -= 1, lobby_rpage > 0)
-	_text(Vector2(R.position.x + 230 + 180, y + 10), L.t("lb_page", [lobby_rpage + 1, pages]), tz("S"), Color.WHITE, true, false, 200)
 	_btn_small(Rect2(R.position.x + 230 + 300, y, 60, 44), "▶", func(): lobby_rpage += 1, lobby_rpage < pages - 1)
+	btn_group = ""
+	_text(Vector2(R.position.x + 230 + 180, y + 10), L.t("lb_page", [lobby_rpage + 1, pages]), tz("S"), Color.WHITE, true, false, 200)
 
 func _rows(R: Rect2, rows: Array) -> void:
 	for i in rows.size():
@@ -1358,10 +1361,10 @@ func _draw_pool_tab(R: Rect2) -> void:
 			y += box.size.y + 8
 	# V9：牌組：隨機 10 張、存 3 組
 	var by2: float = R.end.y - 52.0
+	var decks: Array = Save.data.get("decks", [])
+	btn_group = "pool_decks"   # 1.5.0 R14：牌組列（隨機、存、1～3）＝一個控制
 	_btn(Rect2(R.position.x, by2, 130, 44), L.t("lb_deck_random"), _deck_random)
 	_btn(Rect2(R.position.x + 138, by2, 130, 44), L.t("lb_deck_save"), _deck_save)
-	var decks: Array = Save.data.get("decks", [])
-	btn_group = "pool_decks"   # 1.5.0 R14：牌組 1～3＝一個控制
 	for di in 3:
 		var has_d: bool = di < decks.size()
 		_btn(Rect2(R.position.x + 276 + di * 104, by2, 96, 44), L.t("lb_deck_n", [di + 1]), _deck_load.bind(di), has_d)
@@ -1394,7 +1397,7 @@ func _draw_lab_tab(R: Rect2) -> void:
 	var y := R.position.y + (80 if lab_types.size() <= lab_cols else 100)
 	for k in 3:
 		_text(Vector2(R.position.x, y + 14), L.t(["lb_hp", "lb_atk", "lb_spd"][k]), tz("B"), Color.WHITE, false, false, 200)
-		btn_group = "sb_row_%d" % k   # 1.5.0 R14：◀ 值 ▶＝一個控制
+		btn_group = "sb_params"   # 1.5.0 R14：所選兵種的血量／攻擊／速度＝一張參數條（第 17 批）
 		_btn(Rect2(R.position.x + 230, y, 52, 48), "◀", _lobby_sb_adj.bind(k, -1))
 		_btn(Rect2(R.position.x + 288, y, 190, 48), "%d%%" % int(cur[k]), _lobby_sb_adj.bind(k, 1), true, false, TH_WOOD_D)
 		_btn(Rect2(R.position.x + 484, y, 52, 48), "▶", _lobby_sb_adj.bind(k, 1))
@@ -1471,8 +1474,7 @@ func _draw_lobby_desc(R: Rect2) -> void:
 		y += text_h(body, bfs, w) + 12
 	_badge_pill(Vector2(x, y), Presets.badge(lobby_r, lobby_kind))
 	y += tz("S") * 2.4
-	_draw_lobby_notes(Rect2(x, y, w, R.end.y - y - 60))
-	_btn(Rect2(x, R.end.y - 54, 200, 44), L.t("lb_reset"), func(): _lobby_pick("standard"))
+	_draw_lobby_notes(Rect2(x, y, w, R.end.y - y - 8))   # 1.5.0 §1.2：「重置回標準」拿掉——和頂緣「標準」紙籤是同一件事（R14 折頁每格 ≤9）
 
 
 ## V1.2 C1：選中的預設像夾在筆記本上的書籤，從分頁底下垂進紙頁（紙頁畫完才畫，才不會被蓋住）。

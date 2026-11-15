@@ -2665,3 +2665,10 @@ func test_loss_jump_v150() -> void:
 func test_paint_wells_v150() -> void:
 	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_playroom.gd")
 	ok(gp.find("func _paint_well(") >= 0 and gp.find("_paint_well(c, 15.0, Art.PAINTS[row][k])") >= 0, "塗裝室底漆色票＝水彩凹槽（§13）")
+
+func test_lobby_fold_r14_v150() -> void:
+	var lv: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
+	ok(lv.find("const FOLD_ROWS := 3") >= 0 and lv.find("btn_group = \"rows_pager\"") >= 0, "折頁規則列一頁 3 列、翻頁算一個控制")
+	ok(lv.find("L.t(\"lb_reset\")") < 0, "「重置回標準」拿掉（和頂緣「標準」紙籤同一件事）")
+	ok(lv.find("\"cmd_params\")") >= 0 and lv.find("btn_group = \"sb_params\"") >= 0, "所選物件的參數條＝一個控制")
+	ok(lv.find("LOBBY_TABS[lobby_tab] == \"lb_tab_cmd\" and lobby_r.cmd_on") >= 0, "折頁豁免只剩軍令頁開啟時")
