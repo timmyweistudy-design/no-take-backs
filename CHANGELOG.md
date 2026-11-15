@@ -13,6 +13,8 @@
 - **設定**：每頁只放最常用的幾項，其他在「進階微調」裡；說明只在你指到那一列時出現。
 - **戰場**：傷害數字不再包紙泡泡，畫面清爽；跟拍一隻兵時，牠頭上一個金色記號、牠正在打的那隻頭上一個朱紅記號，中間一條虛線——誰在打誰一眼看出來；沒在打的兵血條淡一些。
 - **小地方**：還原進度的備份清單改成日期時間；老闆每日出題不再是三條刺眼的紅鈕，改成木章凹槽；重播暫停時的兵種資料改成米紙浮籤，不會蓋住你選的那隻。
+- **戰績分三頁**：總覽（大數字＋你最常派、勝率最高的兵）、兵種（勝率與熟練度）、成就（怎麼拿直接寫在牌子上）。試煉每頁 8 關，比較不擠。
+- **戰場**：「衝鋒！」這類短標改成手裁的小吊牌；最後時刻棋盤木框會滲出一點暖紅光。
 
 ## English
 **1.5.0 — One Page, One Scene (part one).** Every page does one thing; the rest is tucked away.
@@ -23,6 +25,8 @@
 - **Settings**: each page shows only the common options; the rest are under "Fine-tuning". Descriptions appear only for the row you point at.
 - **Battlefield**: damage numbers lose their paper bubbles; when you follow a unit it gets a gold marker, the unit it's attacking gets a vermilion one, with a dashed line between — who's hitting whom at a glance. Health bars of units not in focus are dimmed.
 - **Little things**: backups show a date and time; Owner's Picks swaps its three loud red buttons for stamp slots; the paused unit card in replays is a paper tag that moves out of the way of the unit you picked.
+- **Records in three tabs**: Overview (big numbers plus your most-fielded and best units), Units (win rate and mastery), Achievements (how to earn each one is written right on it). Trials show 8 per page.
+- **Battlefield**: callouts like "Charge!" are now little hand-cut tags; in the final moments the board's wooden frame glows faintly warm.
 
 ## 简体中文
 **1.5.0：一页一景（第一阶段）。** 每一页只做一件事，该收的收起来。
@@ -33,6 +37,8 @@
 - **设置**：每页只放最常用的几项，其他在“进阶微调”里；说明只在你指到那一行时出现。
 - **战场**：伤害数字不再包纸泡泡，画面清爽；跟拍一只兵时，它头上一个金色记号、它正在打的那只头上一个朱红记号，中间一条虚线——谁在打谁一眼看出来；没在打的兵血条淡一些。
 - **小地方**：还原进度的备份清单改成日期时间；老板每日出题不再是三条刺眼的红按钮，改成木章凹槽；重播暂停时的兵种资料改成米纸浮签，不会盖住你选的那只。
+- **战绩分三页**：总览（大数字＋你最常派、胜率最高的兵）、兵种（胜率与熟练度）、成就（怎么拿直接写在牌子上）。试炼每页 8 关，比较不挤。
+- **战场**：“冲锋！”这类短标改成手裁的小吊牌；最后时刻棋盘木框会渗出一点暖红光。
 
 ## 日本語
 **1.5.0：一頁一景（第一弾）。** どの画面もやることは一つ。それ以外はしまっておきます。
@@ -43,6 +49,8 @@
 - **設定**：各ページはよく使う項目だけ。残りは「詳細設定」に。説明は指している行のときだけ出ます。
 - **戦場**：ダメージ数字から紙の吹き出しをなくしました。ユニットを追跡すると、その頭上に金の印、攻撃している相手の頭上に朱の印、間に点線——誰が誰を叩いているか一目で分かります。注目していない兵の HP バーは控えめに。
 - **細かいところ**：バックアップ一覧は日付と時刻に。親方の日替わり出題は派手な赤ボタン三本をやめ、木の判子のくぼみに。リプレイ一時停止中の兵種カードは和紙の札になり、選んだ兵を隠しません。
+- **戦績は3タブに**：概要（大きな数字と、よく出す兵・勝率トップ）、兵種（勝率と熟練度）、実績（取り方を札に直接表記）。試練は1ページ8つに。
+- **戦場**：「突撃！」などの短いラベルは手で切った小さな札に。最後の局面では盤の木枠がほんのり赤く光ります。
 
 # 1.4.0
 
