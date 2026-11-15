@@ -1,0 +1,5 @@
+1. **像不像手作紙牌**：像。左邊雙斜角搭配右緣細鋸齒與細框陰影，和右上角牛皮紙按鈕（`Speed 1×`、`Results ›`／`速度 1×`、`直接看結果`）美術語彙一致，比原本直角框更有手裁標籤感；100% 縮放（[zh_TW_100_03_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat12-r1/agy/zh_TW_100_03_battle.png)）下右緣鋸齒偏細微，但吊牌輪廓仍明確。
+2. **會不會更雜**：不會。標籤總面積不變、底色維持素面，右緣鋸齒幅度極小，在單位與特效密集交戰區（[en_150_03_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat12-r1/agy/en_150_03_battle.png)、[zh_TW_100_03_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat12-r1/agy/zh_TW_100_03_battle.png)）不會增加視覺雜訊。
+3. **150% 英文**：在 [en_150_03_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat12-r1/agy/en_150_03_battle.png) 與 [en_150_87d_boss_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat12-r1/agy/en_150_87d_boss_battle.png) 中，`Charge! 35`、`Braced! 14` 字體銳利、無破圖，數字右側與鋸齒邊緣留白充足；拿掉穿線孔後確認左側內距與右側平衡即可（另 [zh_TW_100_87d_boss_battle.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1500-impl/cat12-r1/agy/zh_TW_100_87d_boss_battle.png) 上方 `頂住！14` 被戰場頂框裁切、150% 貼齊頂框屬既有位置邊界問題，非新外框所致）。
+
+結論：可

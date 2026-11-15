@@ -1063,3 +1063,13 @@ func test_battle_read_v150() -> void:
 	ok(GS.hp_bar_alpha(10, [10, 12]) == 1.0 and GS.hp_bar_alpha(12, [10, 12]) == 1.0 and GS.hp_bar_alpha(11, [10, 12]) == 0.55 and GS.hp_bar_alpha(11, [10, 12], true) == 1.0, "血條：跟拍兵與目標、低血量不透明，其他淡")
 	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
 	ok(bu.find("pick_focus(s.units, follow_id)") >= 0 and bu.find("time - float(hurt") < 0 or bu.find("static func pick_focus(units: Array, follow: int)") >= 0, "焦點不看動畫時鐘（暫停、跳轉、固定時鐘截圖一致）")
+
+func test_tag_shape_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var r := Rect2(100, 50, 80, 24)
+	var pts: PackedVector2Array = GS.tag_poly(r)
+	var inside := true
+	for p in pts:
+		inside = inside and r.grow(0.01).has_point(p)
+	ok(inside and pts.size() >= 8, "短標吊牌外形全部在原本的框內（字的幾何不動）")
+	ok(Geometry2D.triangulate_polygon(pts).size() > 0, "吊牌多邊形可以三角化（畫得出來）")

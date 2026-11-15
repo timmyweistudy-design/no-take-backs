@@ -371,6 +371,22 @@ func _add_fx(d: Dictionary) -> void:
 
 
 ## V1.2 C6：對話泡。r＝文字外框；尖角朝下指向角色。透明度跟著字淡出。
+## 吊牌外形：左邊兩角斜切（切 min(5, 高×0.3)）、右緣每 4px 一個 1px 小鋸齒；全部在 r 之內
+static func tag_poly(r: Rect2) -> PackedVector2Array:
+	var c := minf(5.0, r.size.y * 0.3)
+	var pts := PackedVector2Array([Vector2(r.position.x + c, r.position.y), Vector2(r.end.x, r.position.y)])
+	var y := r.position.y + 4.0
+	var k := 0
+	while y < r.end.y - 2.0:
+		pts.append(Vector2(r.end.x - (1.0 if k % 2 == 0 else 0.0), y))
+		y += 4.0
+		k += 1
+	pts.append(Vector2(r.end.x, r.end.y))
+	pts.append(Vector2(r.position.x + c, r.end.y))
+	pts.append(Vector2(r.position.x, r.end.y - c))
+	pts.append(Vector2(r.position.x, r.position.y + c))
+	return pts
+
 func _bubble(r: Rect2, a: float) -> void:
 	var rr := r.grow_individual(4, 1, 4, 2)
 	# 1.2.0 第 4 大類 A11：跳字泡改成小紙條（米白紙底＋墨邊），字用墨色（保留色相）；簡化介面維持深色泡
@@ -378,11 +394,13 @@ func _bubble(r: Rect2, a: float) -> void:
 	var mid := rr.position.x + rr.size.x * 0.5
 	if paper:
 		# 1.4.0 §3.1：牛皮紙短標籤（方角、底緣深一階）＋細短引線指向觸發點（取代白底圓角泡＋三角尾）
+		# 1.5.0 §4：手裁吊牌——左邊兩角斜切、右緣細鋸齒（穿線孔試過：貼在第一個字前面像標點，拿掉）（原本直角素色框像介面；Hydrogen v150 cat07）。外框範圍不變（字的幾何不動）
 		var kraft := Color(PAL.KRAFT, 0.95 * a)
-		draw_rect(Rect2(rr.position + Vector2(1, 2), rr.size), Color(DIM_INK, 0.35 * a))
-		draw_rect(rr, kraft)
-		draw_rect(Rect2(rr.position.x, rr.end.y - 2.0, rr.size.x, 2.0), Color(PAL.KRAFT_D, 0.8 * a))
-		draw_rect(rr, Color(PAL.KRAFT_D, 0.9 * a), false, 1.0)
+		var tag := tag_poly(rr)
+		draw_colored_polygon(tag * Transform2D(0.0, Vector2(-1, -2)), Color(DIM_INK, 0.35 * a))
+		draw_colored_polygon(tag, kraft)
+		draw_rect(Rect2(rr.position.x + 5.0, rr.end.y - 2.0, rr.size.x - 7.0, 2.0), Color(PAL.KRAFT_D, 0.8 * a))
+		draw_polyline(tag + PackedVector2Array([tag[0]]), Color(PAL.KRAFT_D, 0.9 * a), 1.0, true)
 		draw_line(Vector2(mid, rr.end.y), Vector2(mid, rr.end.y + 9.0), Color(PAL.KRAFT_D, 0.95 * a), 2.0, true)   # 引線加粗（Antigravity cat05 #3）
 		draw_circle(Vector2(mid, rr.end.y + 9.5), 1.6, Color(PAL.KRAFT_D, 0.85 * a), true, -1.0, true)
 		return
