@@ -29,8 +29,16 @@ sc() {  # 執行檔 期望 demo 標記
   [ -n "${EXPECT_VERSION:-}" ] && { echo "$line" | grep -q "\"version\":\"$EXPECT_VERSION\"" || { echo "EXPORT FAIL：$3 版本不是 $EXPECT_VERSION"; exit 1; }; }
   grep -aE "SCRIPT ERROR" "$log" && { echo "EXPORT FAIL：$3 有腳本錯誤"; exit 1; }
 }
+# 1.6.0 B09：匯出前一定重烘預設外觀離線圖集包（包不進 git；過期的包成品裡沒人驗得出來）。要開渲染視窗（移到畫面外）；NO_PACK=1 略過（成品會即時烘）
+if [ "${NO_PACK:-}" != "1" ]; then
+  timeout 600 "$GODOT" --path "$(wp .)" --resolution 1280x800 -- --bake-pack="$(wp "$OUT/bake-pack.json")" > "$OUT/bake-pack.log" 2>&1
+  grep -a '^BAKEPACK OK' "$OUT/bake-pack.log" || { echo "EXPORT FAIL：離線圖集包烘失敗（看 $OUT/bake-pack.log；NO_PACK=1 可略過）"; exit 1; }
+fi
 ex "Windows Desktop" "$OUT/win/NoTakeBacks.exe" win
 sc "$OUT/win/NoTakeBacks.exe" false win
+if [ "${NO_PACK:-}" != "1" ]; then
+  grep -a '^SELFCHECK' "$OUT/selfcheck-win.log" | grep -q '"pack":true' || { echo "EXPORT FAIL：成品沒帶到能用的離線圖集包（看 selfcheck-win.log 的 pack_why）"; exit 1; }
+fi
 if [ "$MODE" != "--smoke" ]; then
   ex "Windows Demo" "$OUT/demo/NoTakeBacksDemo.exe" demo
   sc "$OUT/demo/NoTakeBacksDemo.exe" true demo

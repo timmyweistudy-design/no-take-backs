@@ -904,6 +904,9 @@ func _self_check() -> void:
 	out["focus"] = not _btns.is_empty() and _focus >= 0 and _focus < _btns.size()
 	out["size"] = int(ProjectSettings.get_setting("display/window/size/viewport_width")) == 1280 and int(ProjectSettings.get_setting("display/window/size/viewport_height")) == 800
 	out["version"] = str(ProjectSettings.get_setting("application/config/version"))
+	var AP = load("res://scripts/ui/atlas_pack.gd")   # 1.6.0 B09：預設外觀離線圖集包帶進成品而且能用（export_check 驗；不列入 ok，NO_PACK=1 可略）
+	out["pack"] = AP.usable()
+	out["pack_why"] = AP.why
 	var good := true
 	for k in ["strings", "data", "fonts", "audio", "art", "save_roundtrip", "battle_code", "unit_cap", "no_tools", "title", "focus", "size"]:
 		good = good and bool(out[k])

@@ -1906,6 +1906,10 @@ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: floa
 		_unit_base(p, scale)
 	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊（1.3.0：戰場跟拍 1.29 倍仍 < 1.4，用圖集）
 		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
+	elif scale <= 1.4 and sprites != null and sprites.prev_has(type):
+		sprites.draw_prev(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, variant, fid)   # 1.6.0 B09：重建中先用舊圖集（不退回很貴的向量畫）
+	elif scale <= 1.4 and sprites != null and not sprites.build_done and int(get("state")) == St.TITLE and str(get("shot_dir")) == "" and not layout_probe:
+		pass   # 1.6.0 B09：開機第一次烘的那不到一秒，標題示範棋盤的兵先不畫（30 多隻向量兵是開機長幀主因），好了再出現
 	else:
 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
 	if chip > 0:

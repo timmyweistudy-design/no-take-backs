@@ -41,7 +41,7 @@ func _ready() -> void:
 	boot_parts["ready_in"] = Time.get_ticks_msec()
 	on_battle_finished = _finish_battle
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check=") or a.begins_with("--sil="):
+		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check=") or a.begins_with("--sil=") or a.begins_with("--bake-pack=") or a.begins_with("--pack-bench=") or a.begins_with("--pack-selftest="):
 			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
 		elif a == "--self-check":
 			Save.prefix = "smoke_"
@@ -94,7 +94,7 @@ func _ready() -> void:
 	var _ua := OS.get_cmdline_user_args()
 	var _special := "--video" in _ua
 	for x in _ua:
-		if x.begins_with("--perf=") or x.begins_with("--mem-check="):
+		if x.begins_with("--perf=") or x.begins_with("--mem-check=") or x.begins_with("--bake-pack=") or x.begins_with("--pack-bench=") or x.begins_with("--pack-selftest="):
 			_special = true
 	for x in _ua:
 		if x.begins_with("--capsule="):

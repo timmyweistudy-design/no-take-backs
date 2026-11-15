@@ -1081,3 +1081,103 @@ func test_clutch_frame_v150() -> void:
 	ok(GS.clutch_glow(5.0, 0.3, true) == 1.0 and GS.clutch_glow(5.0, 0.3, false) < 1.0, "減少動態：不呼吸（定值）")
 	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
 	ok(bu.find("draw_rect(fr.grow(11.0 - k * 2.5)") >= 0, "暖光只畫在木框帶上（盤外），不碰盤面")
+
+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：兵種條拆拼逐像素一致、環境鍵、壞包整包停用、包讀回＝烘的時候的像素（解碼差 0）、過期包不用
+func test_atlas_pack_v1600() -> void:
+	var AP = load("res://scripts/ui/atlas_pack.gd")
+	var SC = load("res://scripts/ui/sprite_cache.gd")
+	# 兵種條：一頁拆成每種一條、再拼回來要逐像素一樣（包以兵種為單位，頁怎麼組都拼得回來）
+	var per: int = 2 * SC.FRAMES_PER
+	var rows := int(ceil(float(SC.TYPES_PER_PAGE * per) / SC.COLS))
+	var page := Image.create(SC.COLS * SC.CELL, rows * SC.CELL, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1600
+	for c in SC.TYPES_PER_PAGE * per:
+		page.fill_rect(Rect2i((c % SC.COLS) * SC.CELL + rng.randi_range(0, 100), (c / SC.COLS) * SC.CELL + rng.randi_range(0, 100), 60, 60), Color(rng.randf(), rng.randf(), rng.randf(), 1))
+	var strips: Array = []
+	for k in SC.TYPES_PER_PAGE:
+		strips.append(SC.strip_of(page, k))
+	ok(SC.page_from(strips, rows).get_data() == page.get_data(), "兵種條拆開再拼回整頁逐像素一樣")
+	ok(SC.TYPES_PER_PAGE * SC.MAX_PAGES >= 30, "頁變小後總容量不變（≥30 種）")
+	# 環境鍵：JSON 數字讀回是 float 也算同；引擎不同＝不用
+	var e: Dictionary = AP.env_key()
+	var m: Dictionary = e.duplicate()
+	m["format"] = float(e["format"])
+	ok(AP.env_match(m, e) == "", "清冊數字是 float 也比得上")
+	m["engine"] = "4.7.0-stable"
+	ok(AP.env_match(m, e).begins_with("engine"), "引擎版本不同＝包不能用")
+	# 壞包：讀失敗一次就整包停用、退回即時烘
+	AP.reset()
+	AP.fail("type3", "測試")
+	ok(not AP.usable() and AP.misses == 1, "讀包失敗一次＝整包停用")
+	AP.reset()
+	var sc: String = FileAccess.get_file_as_string("res://scripts/ui/sprite_cache.gd")
+	ok(sc.find("Art.paint_sig() == AtlasPack.DEFAULT_PAINT") >= 0, "只有預設塗裝讀包（特殊塗裝照舊即時烘）")
+	ok(sc.find("if g0 != _gen:\n\t\t\treturn null") >= 0, "讀包回來世代變了＝作廢、不停用包（重建競態）")
+	# 注入：user:// 的假包（Codex B09 r1 #6）——換錯檔（同尺寸）、檔案雜湊不符、清冊不完整、來源過期都要擋
+	var real_dir: String = AP.dir
+	AP.dir = "user://test_pack_v1600"
+	AP.saved_sha.clear()
+	AP.saved_fsha.clear()
+	var ia := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	ia.fill(Color(1, 0, 0, 1))
+	var ib := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	ib.fill(Color(0, 0, 1, 1))
+	AP.save(0, "a", ia)
+	AP.save(0, "b", ib)
+	var fake: Dictionary = AP.env_key()
+	fake["src"] = AP.src_key()
+	fake["paint"] = AP.DEFAULT_PAINT
+	fake["files"] = 2
+	fake["selfcheck_mismatch"] = 0
+	fake["selfcheck_pages"] = 1
+	fake["sha"] = AP.saved_sha.duplicate()
+	fake["fsha"] = AP.saved_fsha.duplicate()
+	var wf := func(d: Dictionary):
+		var f := FileAccess.open(AP.dir + "/manifest.json", FileAccess.WRITE)
+		f.store_string(JSON.stringify(d))
+		f.close()
+		AP.reset()
+	wf.call(fake)
+	ok(AP.usable() and AP.verify_file(0, "a") and AP.verify_file(0, "b"), "假包：清冊完整、檔案雜湊對得上＝能用")
+	ok(AP.verify_pixels(0, "a", load(AP.path(0, "a"))) and not AP.verify_pixels(0, "a", ib), "像素雜湊：讀回＝烘的；別張同尺寸的圖＝不符")
+	DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.path(0, "b")), ProjectSettings.globalize_path(AP.path(0, "a")))   # 換錯檔（同尺寸）
+	ok(not AP.verify_file(0, "a"), "同尺寸換錯檔＝檔案雜湊不符、不讀")
+	var f2 := fake.duplicate(true)
+	f2["fsha"].erase("cb0/b")
+	wf.call(f2)
+	ok(not AP.usable() and AP.why.begins_with("清冊不完整"), "清冊少一筆檔案雜湊＝整包不用")
+	var f3 := fake.duplicate(true)
+	f3["src"] = "0000000000000000"
+	wf.call(f3)
+	ok(not AP.usable() and AP.why.begins_with("來源改過"), "來源雜湊不同（畫法改過）＝包過期不用")
+	var f4 := fake.duplicate(true)
+	f4["paint"] = "11220"
+	wf.call(f4)
+	ok(not AP.usable(), "清冊塗裝不是預設＝不用")
+	for k in ["a", "b"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(AP.path(0, k)))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(AP.dir + "/manifest.json"))
+	AP.dir = real_dir
+	AP.reset()
+	var man: Dictionary = AP.manifest()
+	if man.is_empty():
+		ok(not AP.usable(), "沒有包（新複製的專案）＝照舊即時烘")
+		return
+	var stale: bool = str(man.get("src", "")) != AP.src_key()
+	if stale:
+		ok(not AP.usable() and AP.why.begins_with("來源改過"), "包過期（畫法改過）＝執行時不用、匯出前重烘")
+		return
+	ok(int(man.get("selfcheck_mismatch", -1)) == 0 and int(man.get("selfcheck_pages", 0)) > 0, "烘包自我核對：拼回的頁和畫出來的一樣")
+	var sha: Dictionary = man.get("sha", {})
+	ok(sha.size() == int(man.get("files", -1)) and sha.size() >= 100 and (man.get("fsha", {}) as Dictionary).size() == sha.size(), "清冊每張圖都有像素與檔案雜湊（%d 張）" % sha.size())
+	ok(AP.usable(), "真包：這份程式＋這台環境能用")
+	var bad := 0
+	for k in sha:
+		var parts: PackedStringArray = str(k).split("/")
+		var cbn := int(parts[0].substr(2))
+		var img = load(AP.path(cbn, parts[1]))
+		if not (img is Image) or not AP.verify_pixels(cbn, parts[1], img) or not AP.verify_file(cbn, parts[1]):
+			bad += 1
+	ok(bad == 0, "包讀回的每張圖＝烘的時候的像素、檔案沒被換（解碼差 0；%d 張）" % sha.size())
+

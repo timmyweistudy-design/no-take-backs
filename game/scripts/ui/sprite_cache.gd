@@ -14,6 +14,7 @@ const Art = preload("res://scripts/ui/art.gd")
 const D = preload("res://scripts/core/unit_defs.gd")
 const Gait = preload("res://scripts/ui/units/gait.gd")
 const Save = preload("res://scripts/game/save.gd")
+const AtlasPack = preload("res://scripts/ui/atlas_pack.gd")   # 1.6.0 B09 預設外觀離線圖集包
 
 const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
 const RS := 1.6            # 烘焙解析度倍率
@@ -25,8 +26,8 @@ const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前�
 # 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..23 攻擊兩組（一般／交替或專屬）
 const FRAMES_PER := 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * 2
 const COLS := 16
-const TYPES_PER_PAGE := 6  # 6×2×28＝336 格＝21 列×192＝4032px，不超過 4096
-const MAX_PAGES := 5
+const TYPES_PER_PAGE := 2  # 1.6.0 B09：6→2（一頁 2×2×28＝112 格＝7 列×192＝1344px）：大頁第一次上傳 GPU 是長幀主因，小頁分散到多幀；總容量不變
+const MAX_PAGES := 15   # 1.6.0 B09：頁變小，頁數上限 ×3（容量同樣 30 種）
 const TURN_TYPES := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]   # V1.3.1：全部 22 種（V1.3.0 只有 6 種試點）
 const TURN_C := [0.8, 0.55, 0.3]
 # V1.3.1 P1：走路中轉身（2 個角度 × 4 個步相，保留步相；每頁 11 種兵）、待機小動作 4 格＋受擊帽子彈起 1 格
@@ -83,24 +84,52 @@ static func origin_of(type: int) -> Vector2:
 	return Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160))
 
 ## 全部清掉，烘舊 10 種和腳底圈。
+var build_done := false   # 1.6.0 B09：這次 build 的全部（腳底圈、舊 10 種、轉身／待機／走路轉身）都好了（量測屏障；Codex B09 r1 #4）
+## 1.6.0 B09 雙緩衝：重建（換色盲、換塗裝）時先留著上一套完整圖集，新的還沒好之前用舊的畫（顏色晚不到一秒才換），
+## 不退回很貴的向量畫法（有畫面時的長幀主因）；新的全部好了就放掉。開機第一次沒有舊的。
+const _SWAP := ["pages", "loc", "ring_tex", "turn_tex", "turn_loc", "wt_pages", "wt_loc", "fid_tex", "fid_loc", "ta_tex", "bw_tex", "ready_cb", "ready_paint"]
+var prev := {}
+
+func prev_has(type: int) -> bool:
+	return not prev.is_empty() and (prev["loc"] as Dictionary).has(type)
+
+func draw_prev(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1) -> void:
+	var cur := {}
+	for k in _SWAP:
+		cur[k] = get(k)
+		set(k, prev[k])
+	draw_unit(ci, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, int(prev["ready_cb"]) == 1, variant, fid)
+	for k in _SWAP:
+		set(k, cur[k])
+
 func build(cb: bool) -> void:
 	if DisplayServer.get_name() == "headless":
 		return
 	_gen += 1
-	pages.clear()
-	loc.clear()
+	# 原本在場（或排隊中）的擴充兵種：重建時一起補，全部好了才放掉舊圖集（Codex B09 r3 #2：換色後新兵缺頁一直退回向量）
+	var keep: Array = []
+	for t in loc.keys() + _queue + _baking + (prev.get("loc", {}) as Dictionary).keys():
+		if int(t) >= D.COUNT and not int(t) in keep:
+			keep.append(int(t))
+	if build_done and ring_tex != null:
+		prev = {}
+		for k in _SWAP:
+			prev[k] = get(k)   # 留住舊的容器（下面換成新的，不 clear 舊的）
+	build_done = false
+	pages = []
+	loc = {}
 	_queue.clear()
 	_baking = []
 	_busy = false
 	ring_tex = null
 	turn_tex = null
-	turn_loc.clear()
-	wt_pages.clear()
-	wt_loc.clear()
+	turn_loc = {}
+	wt_pages = []
+	wt_loc = {}
 	fid_tex = null
-	fid_loc.clear()
-	ta_tex.clear()
-	bw_tex.clear()
+	fid_loc = {}
+	ta_tex = {}
+	bw_tex = {}
 	bw_order.clear()
 	ta_order.clear()
 	_ta_queue.clear()
@@ -110,6 +139,7 @@ func build(cb: bool) -> void:
 	var base: Array = []
 	for t in D.COUNT:
 		base.append(t)
+	base.append_array(keep)
 	var g0 := _gen
 	await _bake_ring(cb)
 	if g0 != _gen:
@@ -118,31 +148,38 @@ func build(cb: bool) -> void:
 	if g0 != _gen:
 		return
 	await _bake_turn(cb)
+	if g0 == _gen:
+		build_done = true
+		prev = {}   # 新的全好了：放掉舊圖集
 	if g0 == _gen and not ta_wanted.is_empty():
 		ensure_turn_atk(ta_wanted.duplicate())
 
 func _bake_turn(cb: bool) -> void:
 	var g0 := _gen
-	var painter := _TurnPainter.new()
-	painter.cb = cb
 	var n := TURN_TYPES.size() * 2 * TURN_C.size()
-	var vp := _viewport(Vector2i(COLS * CELL, int(ceil(float(n) / COLS)) * CELL), painter)
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
-	var img: Image = await _post_vp(vp, TURN_C.size())   # 第 11 大類：省一次讀回＋上傳
+	var tsz := Vector2i(COLS * CELL, int(ceil(float(n) / COLS)) * CELL)
+	var img: Image = await _baked("turn", func() -> Image:
+		var painter := _TurnPainter.new()
+		painter.cb = cb
+		var vp := _viewport(tsz, painter)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		return await _post_vp(vp, TURN_C.size()), tsz)   # 第 11 大類：省一次讀回＋上傳
 	if g0 != _gen or (1 if cb else 0) != ready_cb:
 		return
 	turn_tex = _mk_tex(img)
 	for k in TURN_TYPES.size():
 		turn_loc[TURN_TYPES[k]] = k * 2 * TURN_C.size()
 	# V1.3.1：待機小動作頁、走路轉身頁（各自世代檢查）
-	var pf := _ExtraPainter.new()
-	pf.cb = cb
-	pf.mode = 1
-	pf.types = TURN_TYPES
 	var nf := TURN_TYPES.size() * 2 * FID_PER
-	var vpf: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL), pf, nf)
-	var imf: Image = await _post_vp(vpf, FID_PER)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+	var fsz := Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL)
+	var imf: Image = await _baked("fid", func() -> Image:
+		var pf := _ExtraPainter.new()
+		pf.cb = cb
+		pf.mode = 1
+		pf.types = TURN_TYPES
+		var vpf: SubViewport = await _paint_steps(fsz, pf, nf)
+		return await _post_vp(vpf, FID_PER), fsz)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 	if g0 != _gen or (1 if cb else 0) != ready_cb:
 		return
 	fid_tex = _mk_tex(imf)
@@ -152,13 +189,15 @@ func _bake_turn(cb: bool) -> void:
 	var pg := 0
 	while pg * WT_TYPES_PER_PAGE < TURN_TYPES.size():
 		var chunk: Array = TURN_TYPES.slice(pg * WT_TYPES_PER_PAGE, (pg + 1) * WT_TYPES_PER_PAGE)
-		var pw := _ExtraPainter.new()
-		pw.cb = cb
-		pw.mode = 2
-		pw.types = chunk
 		var nw := chunk.size() * 2 * per_w
-		var vpw: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL), pw, nw)
-		var imw: Image = await _post_vp(vpw, per_w)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+		var wsz := Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL)
+		var imw: Image = await _baked("wt%d" % pg, func() -> Image:
+			var pw := _ExtraPainter.new()
+			pw.cb = cb
+			pw.mode = 2
+			pw.types = chunk
+			var vpw: SubViewport = await _paint_steps(wsz, pw, nw)
+			return await _post_vp(vpw, per_w), wsz)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 		if g0 != _gen or (1 if cb else 0) != ready_cb:
 			return
 		wt_pages.append(_mk_tex(imw))
@@ -189,12 +228,13 @@ func ensure_turn_atk(types: Array) -> void:
 	var g0 := _gen
 	while not _ta_queue.is_empty():
 		var t: int = _ta_queue.pop_front()
-		var pt := _ExtraPainter.new()
-		pt.cb = ready_cb == 1
-		pt.mode = 3
-		pt.types = [t]
-		var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, 2 * CELL), pt, ATK_FRAMES * 2 * 2)
-		var img: Image = await _post_vp(vp, ATK_FRAMES * 2)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+		var img: Image = await _baked("ta%d" % t, func() -> Image:
+			var pt := _ExtraPainter.new()
+			pt.cb = ready_cb == 1
+			pt.mode = 3
+			pt.types = [t]
+			var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, 2 * CELL), pt, ATK_FRAMES * 2 * 2)
+			return await _post_vp(vp, ATK_FRAMES * 2), Vector2i(COLS * CELL, 2 * CELL))   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 		if g0 != _gen:
 			return
 		ta_tex[t] = _mk_tex(img)
@@ -203,12 +243,13 @@ func ensure_turn_atk(types: Array) -> void:
 		while ta_order.size() > TA_MAX:
 			ta_tex.erase(ta_order.pop_front())   # 超過上限：丟最久沒用的
 		if not bw_tex.has(t):
-			var pb := _ExtraPainter.new()
-			pb.cb = ready_cb == 1
-			pb.mode = 4
-			pb.types = [t]
-			var vpb: SubViewport = await _paint_steps(Vector2i(COLS * CELL, CELL), pb, 2 * WT_PH)
-			var imb: Image = await _post_vp(vpb, WT_PH)
+			var imb: Image = await _baked("bw%d" % t, func() -> Image:
+				var pb := _ExtraPainter.new()
+				pb.cb = ready_cb == 1
+				pb.mode = 4
+				pb.types = [t]
+				var vpb: SubViewport = await _paint_steps(Vector2i(COLS * CELL, CELL), pb, 2 * WT_PH)
+				return await _post_vp(vpb, WT_PH), Vector2i(COLS * CELL, CELL))
 			if g0 != _gen:
 				return
 			bw_tex[t] = _mk_tex(imb)
@@ -278,6 +319,116 @@ func stage_report() -> Dictionary:
 		out[k] = {"n": e[0], "total_ms": snappedf(int(e[1]) / 1000.0, 0.1), "max_ms": snappedf(int(e[2]) / 1000.0, 0.1)}
 	return out
 
+## ── 1.6.0 B09（S7）離線包 ──
+var pack_capture := false          # --bake-pack：照常畫，畫完存進包
+var pack_pages: Array = []         # 烘包時留每頁 [兵種, 原圖]（自我核對：拼回來要逐像素一樣）
+var pack_stats := {"hit": 0, "paint": 0}
+
+func _pack_on() -> bool:
+	# 簡化介面不跑後處理 shader（_post_vp），烘出來和包不同：不讀包（Codex B09 r2 #1）
+	return not pack_capture and Art.paint_sig() == AtlasPack.DEFAULT_PAINT and not bool(Save.s("plain_ui")) and AtlasPack.usable()
+
+## 背景執行緒讀包＋驗像素雜湊（主執行緒只等）；壞檔、錯圖回 null。cb 在請求時固定（Codex B09 r1 #3）
+func _load_raw(key: String, cb0: int) -> Image:
+	var p := AtlasPack.path(cb0, key)
+	if not ResourceLoader.exists(p):
+		return null
+	var t0 := Time.get_ticks_usec()
+	var ok := [false]
+	var task := WorkerThreadPool.add_task(func(): ok[0] = AtlasPack.verify_file(cb0, key))   # 先驗檔（位元組雜湊）再讀
+	while not WorkerThreadPool.is_task_completed(task):
+		await RenderingServer.frame_post_draw
+	WorkerThreadPool.wait_for_task_completion(task)
+	if not ok[0] or ResourceLoader.load_threaded_request(p, "Image") != OK:
+		return null
+	while ResourceLoader.load_threaded_get_status(p) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		await RenderingServer.frame_post_draw
+	_stat("pack_wait", Time.get_ticks_usec() - t0)   # 牆鐘時間（跨幀），不是單幀成本
+	return ResourceLoader.load_threaded_get(p) as Image
+
+## 一次只讀一份包（暫存上限：拼頁＝一頁＋一條，約 28 MiB；Codex B09 r1 #5）
+var _pack_lock := false
+func _lock() -> void:
+	while _pack_lock:
+		await RenderingServer.frame_post_draw
+	_pack_lock = true
+
+## 一張圖：預設外觀＋包能用＝讀包；否則照舊畫（make 是會 await 的做法），烘包時順便存。
+## await 回來世代變了（build 重來）＝回 null，不算命中也不停用包（呼叫端的世代檢查會丟掉這批；Codex B09 r1 #3）
+func _baked(key: String, make: Callable, size: Vector2i) -> Image:
+	var g0 := _gen
+	var cb0 := ready_cb
+	if _pack_on():
+		await _lock()
+		var on2 := _pack_on()   # 等鎖時可能整包被停用了：重查（Codex B09 r2 #2）
+		var im: Image = await _load_raw(key, cb0) if (g0 == _gen and on2) else null
+		_pack_lock = false
+		if g0 != _gen:
+			return null
+		if on2 and not _pack_on():
+			on2 = false   # 讀的時候別的協程把包停用了：這張也不算命中，改畫（Codex B09 r3 #1）
+		if not on2:
+			return await _paint_fallback(key, make)
+		if im != null and im.get_size() == size:
+			pack_stats["hit"] += 1
+			return im
+		AtlasPack.fail(key, "缺檔、壞檔或像素指紋不符" if im == null else "大小 %s≠%s" % [im.get_size(), size])
+	return await _paint_fallback(key, make)
+
+func _paint_fallback(key: String, make: Callable) -> Image:
+	var img: Image = await make.call()
+	pack_stats["paint"] += 1
+	if pack_capture and img != null:
+		AtlasPack.save(ready_cb, key, img)
+	return img
+
+## 一頁裡第 k 種兵的格子（2 隊 × FRAMES_PER＝56 格）抄成一條（16 欄 × 4 列）；包以兵種為單位，頁怎麼組都拼得回來
+static func strip_of(page: Image, k: int) -> Image:
+	var per := 2 * FRAMES_PER
+	var s := Image.create(COLS * CELL, int(ceil(float(per) / COLS)) * CELL, false, page.get_format())
+	for c in per:
+		var src := k * per + c
+		s.blit_rect(page, Rect2i((src % COLS) * CELL, (src / COLS) * CELL, CELL, CELL), Vector2i((c % COLS) * CELL, (c / COLS) * CELL))
+	return s
+
+static func page_from(strips: Array, rows: int) -> Image:
+	var per := 2 * FRAMES_PER
+	var pg := Image.create(COLS * CELL, rows * CELL, false, (strips[0] as Image).get_format())
+	for k in strips.size():
+		_blit_strip(pg, strips[k], k)   # 和執行時拼頁同一個函式
+	return pg
+
+## 由兵種條拼頁：一條一條讀、在背景執行緒貼進頁、貼完就放掉（同時只有一頁＋一條在記憶體）
+func _assemble(types: Array, rows: int) -> Image:
+	var g0 := _gen
+	var cb0 := ready_cb
+	var want := Vector2i(COLS * CELL, int(ceil(float(2 * FRAMES_PER) / COLS)) * CELL)
+	await _lock()
+	if not _pack_on():
+		_pack_lock = false
+		return null
+	var page: Image = null
+	for k in types.size():
+		var s: Image = await _load_raw("type%d" % types[k], cb0) if g0 == _gen else null
+		if s == null or s.get_size() != want or g0 != _gen:
+			_pack_lock = false
+			return null
+		if page == null:
+			page = Image.create(COLS * CELL, rows * CELL, false, s.get_format())
+		var kk := k
+		var task := WorkerThreadPool.add_task(func(): _blit_strip(page, s, kk))   # 貼格在背景執行緒
+		while not WorkerThreadPool.is_task_completed(task):
+			await RenderingServer.frame_post_draw
+		WorkerThreadPool.wait_for_task_completion(task)
+	_pack_lock = false
+	return page if g0 == _gen else null
+
+static func _blit_strip(pg: Image, s: Image, k: int) -> void:
+	var per := 2 * FRAMES_PER
+	for c in per:
+		var dst := k * per + c
+		pg.blit_rect(s, Rect2i((c % COLS) * CELL, (c / COLS) * CELL, CELL, CELL), Vector2i((dst % COLS) * CELL, (dst / COLS) * CELL))
+
 func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
 	painter.cell_from = 0
 	painter.cell_to = PAINT_CHUNK
@@ -302,13 +453,32 @@ func _bake_page(types: Array) -> void:
 	var cb := ready_cb == 1
 	var total := types.size() * 2 * FRAMES_PER
 	var rows := int(ceil(float(total) / COLS))
-	var painter := _Painter.new()
-	painter.cb = cb
-	painter.types = types
-	# 1.2.0 §15.2：一整頁（6 種×2 隊×28 格＝336 個向量角色）在同一幀畫完就是開戰前的長幀（136～215 ms，ABBA 量過不是讀回造成）。
-	# 改成分段：每幀只畫 PAINT_CHUNK 格，視窗第一次清空、之後不清（累積），畫完整頁才讀回。
-	var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, rows * CELL), painter, total)
-	var img: Image = await _post_vp(vp)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+	var img: Image = null
+	if _pack_on() and not types.all(func(t): return AtlasPack.has(ready_cb, "type%d" % t)):
+		AtlasPack.fail("type%s" % str(types), "缺兵種條")   # 包不完整＝整包停用（Codex B09 r2 #2）
+	if _pack_on():
+		img = await _assemble(types, rows)   # 1.6.0 B09：預設外觀從包裡的兵種條拼頁（背景執行緒），不畫不讀回
+		if gen0 != _gen:
+			return   # 拼到一半重建了：這批作廢，不停用包
+		if img != null and not _pack_on():
+			img = null   # 拼的時候包被停用了：丟掉、改畫（Codex B09 r3 #1）
+		elif img == null:
+			AtlasPack.fail("type%s" % str(types), "拼頁失敗（缺條、錯圖）")
+		else:
+			pack_stats["hit"] += 1
+	if img == null:
+		var painter := _Painter.new()
+		painter.cb = cb
+		painter.types = types
+		# 1.2.0 §15.2：一整頁（6 種×2 隊×28 格＝336 個向量角色）在同一幀畫完就是開戰前的長幀（136～215 ms，ABBA 量過不是讀回造成）。
+		# 改成分段：每幀只畫 PAINT_CHUNK 格，視窗第一次清空、之後不清（累積），畫完整頁才讀回。
+		var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, rows * CELL), painter, total)
+		img = await _post_vp(vp)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+		pack_stats["paint"] += 1
+		if pack_capture and img != null:
+			for k in types.size():
+				AtlasPack.save(ready_cb, "type%d" % types[k], strip_of(img, k))
+			pack_pages.append([types.duplicate(), img])
 	if (1 if cb else 0) != ready_cb or gen0 != _gen:
 		return   # 烘的時候換了配色（或重建了）：這一批作廢
 	# 新兵頁太多就丟最舊的（舊 10 種那兩頁不丟）
@@ -362,15 +532,18 @@ func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
 	return out
 
 func _bake_ring(cb: bool) -> void:
-	var painter := _RingPainter.new()
-	painter.cb = cb
-	var vp := _viewport(Vector2i(15 * CELL, CELL), painter)   # 1.3.0：第 15 格＝紅方八角木座（跳起來分層畫時用）   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
 	var g0 := _gen
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
-	if g0 == _gen:
-		ring_tex = _mk_tex(vp.get_texture().get_image())
-	vp.queue_free()
+	var img: Image = await _baked("ring", func() -> Image:
+		var painter := _RingPainter.new()
+		painter.cb = cb
+		var vp := _viewport(Vector2i(15 * CELL, CELL), painter)   # 1.3.0：第 15 格＝紅方八角木座（跳起來分層畫時用）   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var im := vp.get_texture().get_image()
+		vp.queue_free()
+		return im, Vector2i(15 * CELL, CELL))
+	if g0 == _gen and img != null:
+		ring_tex = _mk_tex(img)
 
 ## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。
 func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float, variant := 0) -> int:

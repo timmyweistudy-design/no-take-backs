@@ -1620,6 +1620,206 @@ func _ready() -> void:
 			_run_mem_check.call_deferred(a.substr(12))
 		elif a.begins_with("--sil="):
 			_run_sil.call_deferred(a.substr(6))
+		elif a.begins_with("--bake-pack="):
+			_run_bake_pack.call_deferred(a.substr(12))
+		elif a.begins_with("--pack-bench="):
+			_run_pack_bench.call_deferred(a.substr(13))
+		elif a.begins_with("--pack-selftest="):
+			_run_pack_selftest.call_deferred(a.substr(16))
+
+
+## 1.6.0 B09（Codex r2 #3）實跑：①重建中途換色盲（競態）：最後是新配色、包讀到的頁＝包裡兵種條拼的頁、沒有誤停用；
+## ②壞包：把一條換成別種（同尺寸）→ 驗檔擋下、整包停用、退回即時烘，而且即時烘的頁＝原包拼的頁（包和即時烘逐像素一樣）。
+## 用法：<exe> --path game --resolution 1280x800 -- --pack-selftest=<json 絕對路徑>
+func _run_pack_selftest(out_path: String) -> void:
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+	DisplayServer.window_set_position(Vector2i(-4000, -4000))
+	var AP = preload("res://scripts/ui/atlas_pack.gd")
+	var rep := {}
+	var wait_all := func(cb: bool) -> void:
+		var g := 0
+		while not (sprites.build_done and sprites.is_ready(cb) and not sprites._busy and not sprites._ta_busy) and g < 4000:
+			g += 1
+			await RenderingServer.frame_post_draw
+	var page_eq := func(cbn: int, dir: String) -> bool:   # 目前第 0 頁（舊 10 種的第一頁）＝dir 裡的兵種條拼起來
+		var pe: Dictionary = sprites.pages[0]
+		var got: Image = (pe["tex"] as Texture2D).get_image()
+		var strips: Array = []
+		for t in pe["types"]:
+			strips.append(load("%s/cb%d/type%d.res" % [dir, cbn, t]))
+		var want: Image = sprites.page_from(strips, got.get_height() / sprites.CELL)
+		return got.get_data() == want.get_data()
+	await wait_all.call(false)
+	# ① 競態
+	AP.reset()
+	sprites.pack_stats = {"hit": 0, "paint": 0}
+	sprites.build(false)
+	for i in 3:
+		await RenderingServer.frame_post_draw
+	sprites.build(true)
+	await wait_all.call(true)
+	rep["race_ready_cb"] = sprites.is_ready(true)
+	rep["race_pack_still_on"] = AP.usable() and AP.misses == 0
+	rep["race_hits"] = sprites.pack_stats["hit"]
+	rep["race_paint"] = sprites.pack_stats["paint"]
+	rep["race_page_eq"] = page_eq.call(1, AP.DIR)
+	# ①b 戰場換色：擴充兵種在場時重建（Codex B09 r3 #2）——重建中舊圖集還能畫、好了以後新圖集也有這些兵種
+	var UD = preload("res://scripts/core/unit_defs.gd")
+	var ext := [UD.COUNT, UD.COUNT + 1]
+	sprites.ensure(ext)
+	await wait_all.call(true)
+	rep["ext_before"] = ext.all(func(t): return sprites.has_type(t))
+	sprites.build(false)
+	await RenderingServer.frame_post_draw
+	rep["ext_prev_during"] = ext.all(func(t): return sprites.prev_has(t))
+	await wait_all.call(false)
+	rep["ext_after"] = ext.all(func(t): return sprites.has_type(t)) and sprites.prev.is_empty()
+	# ② 壞包：複製一份到 user://，把舊 10 種第一頁的一條換成同尺寸的別種
+	var bad := "user://pack_selftest"
+	for cbd in ["cb0", "cb1"]:
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(bad + "/" + cbd))
+		for f in DirAccess.get_files_at(AP.DIR + "/" + cbd):
+			DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.DIR + "/" + cbd + "/" + f), ProjectSettings.globalize_path(bad + "/" + cbd + "/" + f))
+	DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.DIR + "/manifest.json"), ProjectSettings.globalize_path(bad + "/manifest.json"))
+	var t0: int = sprites.pages[0]["types"][0]
+	DirAccess.copy_absolute(ProjectSettings.globalize_path(bad + "/cb0/type%d.res" % (t0 + 1)), ProjectSettings.globalize_path(bad + "/cb0/type%d.res" % t0))
+	AP.dir = bad
+	AP.reset()
+	sprites.pack_stats = {"hit": 0, "paint": 0}
+	sprites.build(false)
+	await wait_all.call(false)
+	rep["bad_detected"] = AP.misses >= 1 and not AP.usable()
+	rep["bad_why"] = AP.why
+	rep["bad_fell_back_paint"] = sprites.pack_stats["paint"] > 0
+	rep["bad_ready"] = sprites.is_ready(false)
+	AP.dir = AP.DIR
+	rep["paint_eq_pack"] = page_eq.call(0, AP.DIR)   # 退回即時烘的頁＝原包拼的頁
+	rep["ok"] = bool(rep["race_ready_cb"]) and bool(rep["race_pack_still_on"]) and int(rep["race_hits"]) > 0 and bool(rep["race_page_eq"]) and bool(rep["ext_before"]) and bool(rep["ext_prev_during"]) and bool(rep["ext_after"]) and bool(rep["bad_detected"]) and bool(rep["bad_fell_back_paint"]) and bool(rep["bad_ready"]) and bool(rep["paint_eq_pack"])
+	AP.reset()
+	var f := FileAccess.open(out_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(rep, "  "))
+	f.close()
+	print("PACKSELFTEST ", "OK" if rep["ok"] else "FAIL", " ", JSON.stringify(rep))
+	get_tree().quit(0 if rep["ok"] else 1)
+
+
+## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到「全部就緒」build_done 的時間、期間每幀）；熱＝同一程序切色盲重建 20 次。
+## 屏障＝build_done（腳底圈、舊 10 種、轉身／待機／走路轉身全好）＋沒有在烘的新兵頁、轉身出手（Codex B09 r1 #4）。
+## 每次記：最長幀（全部幀，含開機頭兩幀）、頭兩幀另列、暫存記憶體峰值（相對開始時）。--bench-blank＝畫面不畫（只量烘焙）；預設有畫面（玩家實際承受：含圖集沒好時的向量替代畫法）。
+## 加 --no-pack＝即時烘焙對照。用法：<exe> --path game --resolution 1280x800 -- --pack-bench=<json 絕對路徑> [--no-pack] [--bench-blank]
+func _bench_wait(cb: bool) -> Dictionary:
+	var t0 := Time.get_ticks_msec()
+	var last := Time.get_ticks_usec()
+	var frames: Array = []
+	var m0 := Performance.get_monitor(Performance.MEMORY_STATIC)
+	var mpk := m0
+	var t_0 := Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)
+	var tpk := t_0
+	var g := 0
+	while sprites != null and not (sprites.build_done and sprites.is_ready(cb) and not sprites._busy and not sprites._ta_busy) and g < 3000:
+		g += 1
+		await RenderingServer.frame_post_draw
+		var now := Time.get_ticks_usec()
+		frames.append(snappedf((now - last) / 1000.0, 0.1))
+		last = now
+		mpk = maxf(mpk, Performance.get_monitor(Performance.MEMORY_STATIC))
+		tpk = maxf(tpk, Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED))
+	return {"tex_peak_over_mib": snappedf((tpk - t_0) / 1048576.0, 0.1), "tex_peak_mib": snappedf(tpk / 1048576.0, 0.1), "ms": Time.get_ticks_msec() - t0, "longest_frame_ms": frames.max() if not frames.is_empty() else 0.0, "first2": frames.slice(0, 2),
+		"after2_max": frames.slice(2).max() if frames.size() > 2 else 0.0, "frames": frames.size(), "temp_peak_mib": snappedf((mpk - m0) / 1048576.0, 0.1)}
+
+func _run_pack_bench(out_path: String) -> void:
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+	DisplayServer.window_set_position(Vector2i(-4000, -4000))
+	var blank := "--bench-blank" in OS.get_cmdline_user_args()
+	if blank:
+		visible = false   # 只量烘焙本身：畫面不畫
+	var cold: Dictionary = await _bench_wait(false)
+	var warm: Array = []
+	for i in 20:
+		var cb := i % 2 == 0
+		sprites.build(cb)
+		var w: Dictionary = await _bench_wait(cb)
+		w["cb"] = cb
+		warm.append(w)
+	var AP = preload("res://scripts/ui/atlas_pack.gd")
+	var rep := {"blank": blank, "pack": AP.usable(), "why": AP.why, "misses": AP.misses, "cold": cold, "warm": warm, "stats": sprites.pack_stats.duplicate(), "stages": sprites.stage_report(),
+		"tex_mib": snappedf(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0, 0.1), "static_mib": snappedf(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, 0.1)}
+	var f := FileAccess.open(out_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(rep, "  "))
+	f.close()
+	get_tree().quit()
+
+## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+## 烘完自我核對（兵種條拼回整頁要逐像素一樣）、寫清冊（來源雜湊、引擎、渲染路徑）。視窗移到畫面外（不搶焦點）。
+## 用法：<exe> --path game --resolution 1280x800 -- --bake-pack=<報告 json 絕對路徑>
+func _run_bake_pack(report_path: String) -> void:
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+	DisplayServer.window_set_position(Vector2i(-4000, -4000))
+	var AP = preload("res://scripts/ui/atlas_pack.gd")
+	var t0 := Time.get_ticks_msec()
+	var rep := {"ok": false}
+	var saved_paint: Array = Art.paint.duplicate()
+	Art.paint = [0, 0, 1, 1, 0, 0]   # 只收預設塗裝
+	sprites.pack_capture = true
+	AP.saved_sha.clear()
+	AP.saved_fsha.clear()
+	var mism := 0
+	var pages_checked := 0
+	for cb in [false, true]:
+		var g := 0
+		while sprites._busy and g < 2000:   # 等開機那次烘完（避免兩次烘交錯）
+			g += 1
+			await get_tree().process_frame
+		sprites.pack_pages.clear()
+		await sprites.build(cb)
+		sprites.ensure(range(D.COUNT, 22))
+		sprites.ensure_turn_atk(range(0, 22))
+		g = 0
+		while (sprites._busy or sprites._ta_busy) and g < 20000:
+			g += 1
+			await get_tree().process_frame
+		for pe in sprites.pack_pages:
+			var types: Array = pe[0]
+			var img: Image = pe[1]
+			var strips: Array = []
+			for t in types:
+				strips.append(load(AP.path(1 if cb else 0, "type%d" % t)))
+			var back: Image = sprites.page_from(strips, img.get_height() / sprites.CELL)
+			pages_checked += 1
+			if back.get_data() != img.get_data():
+				mism += 1
+	sprites.pack_capture = false
+	Art.paint = saved_paint
+	var bytes := 0
+	var files := 0
+	for cbd in ["cb0", "cb1"]:
+		var d := DirAccess.open(AP.DIR + "/" + cbd)
+		if d != null:
+			for f in d.get_files():
+				if f.ends_with(".res"):
+					files += 1
+					bytes += FileAccess.get_file_as_bytes(AP.DIR + "/" + cbd + "/" + f).size()
+	var man: Dictionary = AP.env_key()
+	man["src"] = AP.src_key()
+	man["paint"] = AP.DEFAULT_PAINT
+	man["files"] = files
+	man["bytes"] = bytes
+	man["selfcheck_pages"] = pages_checked
+	man["selfcheck_mismatch"] = mism
+	man["sha"] = AP.saved_sha.duplicate()
+	man["fsha"] = AP.saved_fsha.duplicate()
+	if mism == 0 and files > 0:
+		var mf := FileAccess.open(AP.MANIFEST, FileAccess.WRITE)
+		mf.store_string(JSON.stringify(man, "  "))
+		mf.close()
+	rep = man.duplicate()
+	rep["ok"] = mism == 0 and files > 0
+	rep["ms"] = Time.get_ticks_msec() - t0
+	var rf := FileAccess.open(report_path, FileAccess.WRITE)
+	rf.store_string(JSON.stringify(rep, "  "))
+	rf.close()
+	print("BAKEPACK ", "OK" if rep["ok"] else "FAIL", " files=", files, " MiB=", snappedf(bytes / 1048576.0, 0.1), " mismatch=", mism, " ms=", rep["ms"])
+	get_tree().quit(0 if rep["ok"] else 1)
 
 
 ## V1.0.0 角色：剪影辨識表。22 種兵（含召喚物）站成兩排：上排原尺寸、下排 50%；平塗背景，tools/gen/sil_report.py 轉灰階、
