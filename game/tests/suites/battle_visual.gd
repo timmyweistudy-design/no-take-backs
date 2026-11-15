@@ -1073,3 +1073,11 @@ func test_tag_shape_v150() -> void:
 		inside = inside and r.grow(0.01).has_point(p)
 	ok(inside and pts.size() >= 8, "短標吊牌外形全部在原本的框內（字的幾何不動）")
 	ok(Geometry2D.triangulate_polygon(pts).size() > 0, "吊牌多邊形可以三角化（畫得出來）")
+
+func test_clutch_frame_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.clutch_glow(0.0, 1.0, false) == 0.0, "沒有最後時刻：不發光")
+	ok(GS.clutch_glow(8.0, 1.0, true) == 0.0 and GS.clutch_glow(7.6, 1.0, true) == 1.0, "最後時刻開始 0.3 秒內淡入")
+	ok(GS.clutch_glow(5.0, 0.3, true) == 1.0 and GS.clutch_glow(5.0, 0.3, false) < 1.0, "減少動態：不呼吸（定值）")
+	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu.find("draw_rect(fr.grow(11.0 - k * 2.5)") >= 0, "暖光只畫在木框帶上（盤外），不碰盤面")

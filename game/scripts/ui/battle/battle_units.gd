@@ -384,6 +384,7 @@ func _draw_field_frame() -> void:
 			sb.draw_center = false
 			_sb_cache["field_frame"] = sb
 		draw_style_box(sb, Rect2(ORIGIN, fld_size).grow(14))
+	_draw_clutch_frame()   # 1.5.0 §7 決勝時刻：木框滲微弱暖紅光（畫在框貼圖之上、只在框帶上，不碰盤面）
 	for k6 in 4:   # V1.2：沙盤內緣落影加深（草地像陷在木框裡）
 		var sh := Color(0, 0, 0, 0.2 - k6 * 0.045)
 		var ii := float(k6 * 2)
@@ -1585,6 +1586,25 @@ func _draw_focus_marks(s) -> void:
 		var tri := PackedVector2Array([tp + Vector2(-w, -w - 2), tp + Vector2(w, -w - 2), tp + Vector2(0, 2)])
 		draw_colored_polygon(tri, col)
 		draw_polyline(tri + PackedVector2Array([tri[0]]), Color(0.18, 0.09, 0.04, 0.95), 2.0, true)
+
+## 決勝暖光強度：最後時刻慢動作開始 0.3 秒內淡入；減少動態時不呼吸。純函式（測試用）
+static func clutch_glow(slow: float, t: float, still: bool) -> float:
+	if slow <= 0.0:
+		return 0.0
+	var k := clampf((8.0 - slow) / 0.3, 0.0, 1.0)
+	return k * (1.0 if still else 0.85 + 0.15 * sin(t * 3.0))
+
+func _draw_clutch_frame() -> void:
+	if state != St.BATTLE or bool(Save.s("plain_ui")) or bool(Save.s("reduce_fx")):
+		return
+	var g := clutch_glow(float(get("slow_left")), time, bool(Save.s("reduce_motion")))
+	if float(get("clutch_t")) > 0.0:
+		g = maxf(g, 1.0)   # 慢動作關掉（設定或截圖）時，橫幅那段照樣亮——決勝時刻本身，不是慢動作的附屬
+	if g <= 0.0:
+		return
+	var fr := Rect2(ORIGIN, fld_size)
+	for k in 4:
+		draw_rect(fr.grow(11.0 - k * 2.5), Color(0.95, 0.38, 0.16, g * (0.34 - k * 0.07)), false, 2.5)   # 框帶（盤外 1～12px）
 
 ## 血條透明度：跟拍的兵與它的目標不透明，其他淡到 45%（逐 tick 決定，不看動畫時鐘；Hydrogen：受傷 0.8 秒內照亮會讓混戰整片都亮）
 ## 低血量（≤35%）是要做決定的資訊，照舊不透明。外框另外保持 ≥0.8（固定時鐘量到：外框一起淡，密集混戰的輪廓對比變差）
