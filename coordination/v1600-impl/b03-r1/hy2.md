@@ -1,0 +1,6 @@
+1. **右緣三槽成立**：[en150_place.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/en150_place.png)、[zh_daily_place.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/zh_daily_place.png) 盤框高內右緣完整露出肖像鈕、茶杯、沙漏，未遭底列遮擋。
+2. **緞帶與桌物成立**：[zh_result_15.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/zh_result_15.png) 與 [zh_result_16.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/zh_result_16.png) 藍旗副標皆淺字（R1 誤判因 [strip_zh_left15_mid16_right_gray.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/strip_zh_left15_mid16_right_gray.png) 縮圖混色）；底中量尺屬原有桌物，1.6 頂部戰力條已收合。
+3. **主層與簡化版成立**：[zh_result_16.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/zh_result_16.png) 暗紙襯亮藍旗與 MVP 金框對比明確；[zh150_plain_place.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/zh150_plain_place.png) 右上肖像鈕不壓盤且清楚。
+4. **其餘檢視**：僅 [zh_daily_place.png](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b03-r1/hy2/zh_daily_place.png) 盤面左上字樣貼頂框微裁（不確定是否原有），無其餘 S2 未過處。
+
+結論：Go

@@ -147,6 +147,7 @@ const CARD_X0 := 12.0
 const CARD_GAP := 6.0
 const CARD_H := 96.0
 const PAL = preload("res://scripts/ui/palette.gd")   # 1.3.0 §4 色票單一來源
+const Seats = preload("res://scripts/ui/table_seats.gd")   # 1.6.0 B03（P1.1）桌位表單一來源
 const UI_BG := PAL.UI_BG
 const PANEL := PAL.PANEL
 const ACCENT := PAL.ACCENT
@@ -901,8 +902,16 @@ static func _wcag(a: Color, b: Color) -> float:
 	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
 
 ## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
+## 1.6.0 B03：ink_deep＝桌燈下的暗紙（結果紙 L*≈64）：彩色字再壓深、中間調的彩色（隊色小圖示）也壓，對紙 ≥4.5:1
+static var ink_deep := false
 static func _ink(c: Color) -> Color:
 	var lum := c.get_luminance()
+	if ink_deep and c.s >= 0.25:
+		var a0 := c.a if c.a < 0.45 else maxf(c.a, 0.85)
+		if lum >= 0.45:
+			return Color(c.darkened(0.82), a0)
+		if lum > 0.12:
+			return Color(c.darkened(0.5), a0)
 	if lum < 0.45:
 		return c
 	var a := c.a if c.a < 0.45 else maxf(c.a, 0.85)   # V1.2.1 F5：紙上墨字至少 85%；很淡的裝飾（空星）保持淡
@@ -1119,7 +1128,21 @@ func _draw_desk() -> void:
 	var vg := _ui_tex(TEX_VIGNETTE)
 	if vg != null:
 		draw_texture_rect(vg, Rect2(0, 0, 1280, 800), false, Color(0.11, 0.075, 0.05, 0.85))
+	# 1.6.0 B03（P1.2）：有棋盤的頁（擺陣、戰鬥、結果）盤外桌面再壓暗——盤面畫在桌面之上，所以只暗到盤外（盤內隊色 ΔE＝0）
+	if int(get("state")) != St.TITLE and str(get("overlay")) == "":   # 疊層（大廳、設定…）打開時不壓（Codex B03 r1 #3）
+		draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, PAL.OFF_BOARD_DIM))
 	_desk_props()
+
+## 1.6.0 B03（P1.2）接觸影：桌上物件底緣往右下（主光左上 35°）偏移 CONTACT_OFF、羽化 CONTACT_FEATHER（三層由寬到窄疊）。
+## 全站同一組數字（docs/art-spec-v160.md §1）；簡化介面只畫一層硬影。
+func _contact_shadow(r: Rect2, radius := 6.0, a := PAL.CONTACT_A) -> void:
+	var base := Rect2(r.position + PAL.CONTACT_OFF, r.size)
+	if bool(Save.s("plain_ui")):
+		draw_rect(base, Color(DIM_INK, a))
+		return
+	for i in 3:
+		var g: float = PAL.CONTACT_FEATHER * (1.0 - i / 3.0) * 0.5
+		draw_style_box(_flat_sb(Color(DIM_INK, a / 2.2), Color(0, 0, 0, 0), radius + g, 0.0), base.grow(g))
 
 ## 桌上小物（固定位置、低彩度、一律在畫面邊角，UI 蓋在上面也沒關係）
 func _desk_props() -> void:
@@ -1146,9 +1169,13 @@ func _desk_props() -> void:
 	draw_line(Vector2(-10, 30), Vector2(104, 22), Color("#8b7355", 0.5), 1.0)
 	draw_line(Vector2(-10, 46), Vector2(100, 38), Color("#8b7355", 0.5), 1.0)
 	# 1.3.0 §1.2 茶杯（右側桌面）：熱氣三縷慢慢往上飄（減少特效時停住；截圖模式的時間是固定的，可重現）
-	var cup := Vector2(1236, 432)
-	# 桌邊斜看：杯口是扁一點的橢圓、下面露出一段杯身；右下落影（燈在左上；Antigravity cat02 #5）
-	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(7, 20)))
+	# 1.6.0 B03（P1.1）：位置照桌位表右緣中槽；窄到沒有槽就不畫（HIDE_ORDER 第一個讓位）
+	var slots: Dictionary = Seats.right_slots()
+	if slots.is_empty():
+		return
+	var cup: Vector2 = (slots["cup"] as Rect2).get_center()
+	# 桌邊斜看：杯口是扁一點的橢圓、下面露出一段杯身；右下落影（燈在左上；1.6.0 接觸影偏移 (3,4)）
+	draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1.0, 0.82), 0.0, cup + Vector2(PAL.CONTACT_OFF.x, 14.0 + PAL.CONTACT_OFF.y)))
 	draw_circle(Vector2.ZERO, 22.0, Color(DIM_INK, 0.38), true, -1.0, true)
 	draw_set_transform_matrix(ui_xf)
 	draw_rect(Rect2(cup + Vector2(-20, 0), Vector2(40, 14)), PAL.CUP_BODY)   # 杯身
@@ -1165,8 +1192,9 @@ func _desk_props() -> void:
 			var yy := -k * 7.0
 			pts.append(cup + Vector2(-8 + w * 8 + sin(st_t * 1.3 + k * 0.7 + w * 2.1) * (2.0 + k * 0.6), -20 + yy))
 		draw_polyline(pts, Color(1, 1, 1, 0.10 + 0.04 * w), 2.0, true)
-	# 沙漏（右下）
-	var hg := Vector2(1240, 752)
+	# 沙漏（右緣下槽）
+	var hg: Vector2 = (slots["clock"] as Rect2).get_center() + Vector2(0, 8)
+	_contact_shadow(Rect2(hg + Vector2(-16, 27), Vector2(32, 5)), 2.0)
 	draw_rect(Rect2(hg - Vector2(16, 32), Vector2(32, 5)), Color("#7a5434"))
 	draw_rect(Rect2(hg + Vector2(-16, 27), Vector2(32, 5)), Color("#7a5434"))
 	draw_colored_polygon(PackedVector2Array([hg + Vector2(-12, -27), hg + Vector2(12, -27), hg, hg + Vector2(12, 27), hg + Vector2(-12, 27), hg]), Color(0.85, 0.9, 0.95, 0.22))

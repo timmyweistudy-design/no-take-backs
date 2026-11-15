@@ -783,6 +783,8 @@ func _draw_battle_hud() -> void:
 		_text(Vector2(16, 6), L.t("menu_duel") if mode == Mode.DUEL else _mode_label(), tz("S"), TXT_DIM, false, true, 300)
 		if mode == Mode.VS_AI or mode == Mode.DUEL:
 			_text(Vector2(16, 6 + tz("S") * 1.35), "%s　%s" % [L.t("round", [round_no]), L.t("score", [wins[0], wins[1]])], tz("C"), TXT_DIM, false, false, 300)
+	if state == St.RESULT:
+		return   # 1.6.0 B03（S2）：結果頁背後的戰力尺、棋鐘收合（只留木條與左上模式），紙張後面不透出戰況數字
 	var p0: int = view.power(0)
 	var p1: int = view.power(1)
 	var f0: float = float(p0) / view.budget_of(0)

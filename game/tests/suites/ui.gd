@@ -2708,3 +2708,99 @@ func test_paper_ink_v1600() -> void:
 	var gv: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
 	ok(gv.find("_ink_mode = last_btn_paper   # 1.6.0 B02") >= 0 and gv.find("var pp := last_btn_paper   # 1.6.0 B02") >= 0, "導覽列、一陣三考卡片用墨字")
 	ok(PAL != null, "色票載入")
+
+## 1.6.0 B03（S2；P1.1～P1.3）：桌位表單一來源、主材質、接觸影、結果 HUD 收合
+func test_table_seats_v1600() -> void:
+	var TS = load("res://scripts/ui/table_seats.gd")
+	var PAL = load("res://scripts/ui/palette.gd")
+	var UB = load("res://scripts/ui/ui_base.gd")
+	ok(TS.BOARD.position == UB.ORIGIN and TS.BOARD.size == UB.FIELD, "桌位表的盤面＝ORIGIN、FIELD（同一個盤）")
+	var sl: Dictionary = TS.right_slots()
+	ok(sl.has("owner") and sl.has("cup") and sl.has("clock"), "右緣三槽：上老闆、中茶杯、下棋鐘")
+	var fr: Rect2 = TS.frame_rect()
+	for k in sl:
+		var r: Rect2 = sl[k]
+		ok(r.position.x - fr.end.x >= TS.SLOT_GAP and r.end.x <= TS.SCREEN.x and r.size.x >= TS.SLOT_W_MIN and r.size.x <= TS.SLOT_W, "槽 %s：距盤框 ≥16、不出螢幕、寬 88～104" % k)
+	ok(not (sl["owner"] as Rect2).intersects(sl["cup"]) and not (sl["cup"] as Rect2).intersects(sl["clock"]), "三槽不重疊")
+	ok(TS.right_slots(Rect2(100, 100, 1100, 576)).is_empty(), "盤太寬、桌緣放不下槽＝回空（呼叫端照 HIDE_ORDER 退）")
+	var rep: Dictionary = TS.spec_report()
+	ok(not bool(rep["board_ok"]) and float(rep["edge_r"]) == 112.0, "規格符合度如實回報（盤含框 1056 > 1040、右桌緣 112；B06 決定縮盤）")
+	var nr: Rect2 = TS.result_note_rect()
+	ok(nr.end.x <= TS.RESULT_PAPER.position.x - TS.SLOT_GAP and nr.size.y <= TS.RESULT_NOTE_MAX.y, "局內便條在結果紙外左下、不壓紙")
+	for m in [PAL.MAT_WALNUT, PAL.MAT_PAPER, PAL.MAT_WAX, PAL.MAT_CHALK, PAL.MAT_BRASS]:
+		ok(m.size() == 3, "主材質三色（Base／Shadow／Highlight）")
+	ok(PAL.CONTACT_OFF == Vector2(3, 4) and PAL.CONTACT_FEATHER == 6.0 and PAL.CONTACT_A >= 0.35 and PAL.CONTACT_A <= 0.45, "接觸影 (3,4)、羽化 6、α 0.35～0.45")
+	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+	ok(ub.find("func _contact_shadow(") >= 0 and ub.find("Seats.right_slots()") >= 0 and ub.find("Vector2(1236, 432)") < 0, "接觸影共用函式；茶杯、沙漏照桌位表（不再寫死座標）")
+	ok(ub.find("if int(get(\"state\")) != St.TITLE and str(get(\"overlay\")) == \"\":") >= 0, "有棋盤的頁、沒開疊層時盤外桌面壓暗")
+	# 肖像鈕：從真實 _input 進入（輸入契約）——點鈕＝開合、點展開紙卡不點穿不收合（Codex B03 r1 #6）
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.state = g.St.PLACE
+	g.overlay = ""
+	g.mode = g.Mode.VS_AI
+	g.shot_dir = ""
+	g.time = 10.0
+	var slot: Rect2 = sl["owner"]
+	var cw := minf(384.0 - 24.0, 420.0)   # 敵區寬 384（16×64 的右 6 欄）
+	g.foe_card_r = Rect2(slot.position.x - cw - 10.0, slot.position.y, cw, 300)
+	ok(g.foe_card_r.position.x >= TS.BOARD.position.x and g.foe_card_r.end.x < slot.position.x, "展開紙卡浮在槽左邊、不出盤左緣、不蓋到槽")
+	g.foe_tag_r = slot
+	g.foe_tag_open = true
+	g._btns.clear()
+	g._btns.append({"r": slot, "cb": func(): g.foe_tag_open = not g.foe_tag_open, "en": true})
+	g._btns_gen = g._gen
+	for dn in [true, false]:
+		var e0: InputEventMouseButton = _im_ev("mouse", dn)
+		e0.position = g.foe_card_r.get_center()
+		g._input(e0)
+	g._process_cmds()
+	ok(g.foe_tag_open and not g.painting and g.drag_from.x < 0, "真實輸入：點在展開紙卡上不點穿、不收合")
+	g._btns_gen = g._gen
+	for dn in [true, false]:
+		var e1: InputEventMouseButton = _im_ev("mouse", dn)
+		e1.position = slot.get_center()
+		g._input(e1)
+	g._process_cmds()
+	ok(not g.foe_tag_open, "真實輸入：點右緣肖像鈕＝收合")
+	# 手把 RT＋View：從真實 _input 進（扳機軸走 Input 狀態、View 鍵走 _input → 指令佇列 → _deploy_tool；Codex B03 r2 #3）
+	g.foe_tag_open = false
+	var rt := InputEventJoypadMotion.new()
+	rt.device = 0
+	rt.axis = JOY_AXIS_TRIGGER_RIGHT
+	rt.axis_value = 1.0
+	Input.parse_input_event(rt)
+	Input.flush_buffered_events()
+	var vb := InputEventJoypadButton.new()
+	vb.device = 0
+	vb.button_index = JOY_BUTTON_BACK
+	vb.pressed = true
+	g._input(vb)
+	g._process_cmds()
+	ok(g.foe_tag_open, "真實輸入：按住 RT＋View＝展開翻牌")
+	vb.pressed = false
+	g._input(vb)
+	vb.pressed = true
+	g._input(vb)
+	g._process_cmds()
+	ok(not g.foe_tag_open, "再按一次 RT＋View＝收合")
+	rt.axis_value = 0.0
+	Input.parse_input_event(rt)
+	Input.flush_buffered_events()
+	g.free()
+	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
+	ok(gp.find("_draw_foe_slot(slots[\"owner\"], zone)") >= 0 and gp.find("func _draw_foe_card(") >= 0, "敵情翻牌收合成右緣上槽肖像鈕、展開才浮出紙卡")
+	var bv: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(bv.find("if state == St.RESULT:\n\t\treturn   # 1.6.0 B03") >= 0, "結果頁背後戰力尺、棋鐘收合")
+	# 暗紙深墨：對結果紙最暗取樣點（#a69178）≥4.5:1；淺紙照舊（ink_deep 關）
+	var DM = load("res://tools/dev_main.gd")
+	var dark_paper := Color("#a69178")
+	UB.ink_deep = true
+	for c in [Color("#ffd166"), Color("#7ddc6a"), Color("#ff6b6b"), Color("#45acff"), Color("#2f80ff"), Color("#1c4566"), Color.WHITE]:
+		ok(DM.contrast(UB._ink(c), dark_paper) >= 4.5, "深墨：%s 在暗紙上 ≥4.5:1" % c.to_html(false))
+	UB.ink_deep = false
+	ok(UB._ink(Color("#1c4566")) == Color("#1c4566"), "淺紙（一般）中間調的深隊色不動（深墨才壓）")
+	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+	ok(gsrc.find("ink_deep = not bool(Save.s(\"plain_ui\"))") >= 0 and gsrc.find("_draw_result()\n\t\t\t\tink_deep = false") >= 0, "只有結果紙開深墨、畫完關掉")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("_mat_box(r, \"card2\", PAL.PAPER_DESK_TONE)") >= 0 and gr.find("_contact_shadow(r, 4.0, 0.45)") >= 0, "結果紙：桌燈色調＋共用接觸影")

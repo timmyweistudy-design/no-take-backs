@@ -116,13 +116,13 @@ func _pt_rate(v: int) -> void:
 func _draw_result() -> void:
 	# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
 	_dim(0.7)   # 第七輪 E2：整個畫面（含 HUD）壓暗
-	var r := Rect2(200, 100, 880, 610)
+	var r: Rect2 = Seats.RESULT_PAPER   # 1.6.0 B03：結果紙照桌位表（Codex B03 r1 #1）
 	# 1.2.0 §9.4 E3：結果面板是一張紙卡（宣紙戰報的延續）：落影在右下（光源左上）、紙上的字自動換墨色；簡化介面維持原本深色面板
 	var paper := not bool(Save.s("plain_ui"))
 	if paper:
-		draw_rect(Rect2(r.position + Vector2(6, 8), r.size), Color(DIM_INK, 0.45))
-		if not _mat_box(r, "card2"):
-			draw_rect(r, Color("#efe4cf"))
+		_contact_shadow(r, 4.0, 0.45)   # 1.6.0 B03（P1.2）：全站同一組接觸影
+		if not _mat_box(r, "card2", PAL.PAPER_DESK_TONE):   # 1.6.0 B03：桌燈下的紙（L* 壓到中階）
+			draw_rect(r, Color("#efe4cf") * PAL.PAPER_DESK_TONE)
 		draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
 		# 1.3.0 §8 三折宣紙：兩道摺痕（左暗右亮的窄漸層，低透明，不影響字的對比）＋上下緣摺口
 		for fi in [1, 2]:
@@ -255,7 +255,7 @@ func _draw_result() -> void:
 			Art.ring(self, foot, mvp.team, mvp.type, cbm(), 2.3)
 			Art.unit(self, foot, mvp.type, mvp.team, 1.0 if mvp.team == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 2.3, cbm())
 			var ty0 := mr.position.y + (MH - tz("B") * 1.4 - text_h(L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), 600 if seals.is_empty() else 440)) * 0.5
-			_text(Vector2(mr.position.x + 170, ty0), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT, false, true, 400)
+			_text(Vector2(mr.position.x + 170, ty0), "MVP　" + L.t("unit_%d" % mvp.type), tz("B"), ACCENT.darkened(0.78) if _ink_mode else ACCENT, false, true, 400)   # 1.6.0 B03：桌燈下的紙比較暗，金字墨再壓深一點（≥4.5:1）
 			_text(Vector2(mr.position.x + 170, ty0 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 600 if seals.is_empty() else 440)
 			y = mr.end.y + 14
 		elif use_loss:

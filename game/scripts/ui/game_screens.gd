@@ -886,7 +886,9 @@ func _draw_inner() -> void:
 			if _ink_active():
 				_draw_ink_report_screen()   # 1.2.0 §9.4 宣紙戰報：勝負章蓋下之前不出結果面板
 			else:
+				ink_deep = not bool(Save.s("plain_ui"))   # 1.6.0 B03：結果紙是桌燈下的暗紙，紙上彩色字用深墨
 				_draw_result()
+				ink_deep = false
 	_draw_clutch_banner()
 	# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
 	if overlay != _ov_seen:

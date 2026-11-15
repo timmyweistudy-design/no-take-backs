@@ -1236,6 +1236,12 @@ func _foe_tag_has_persona() -> bool:
 	return not (bool(get("ghost_id") != "") or bool(get("wk_active")) or bool(get("rift_on")))
 
 func _draw_foe_tag(zone: Rect2) -> void:
+	# 1.6.0 B03（P1.1）：敵情翻牌預設收合成桌位表右緣上槽的老闆肖像鈕（不再吊在棋盤右上、壓盤面）；點開才浮出紙卡。
+	# 桌緣窄到沒有槽（桌位表回空）才退回 1.5.0 吊在盤上的翻牌。
+	var slots: Dictionary = Seats.right_slots()
+	if not slots.is_empty():
+		_draw_foe_slot(slots["owner"], zone)
+		return
 	var eb: int = rules.budget_of(1) if rules != null else 100
 	var sep := "・" if (L.lang.begins_with("zh") or L.lang == "ja") else " · "
 	var line := _foe_tag_name() + sep + L.t("gold", [eb])
@@ -1284,9 +1290,45 @@ func _draw_foe_tag(zone: Rect2) -> void:
 		return
 	# 敵情紙卡：吊在翻牌下面，寬＝敵區寬減邊
 	var cw := minf(zone.size.x - 24.0, 420.0)
-	var cx := zone.end.x - cw - 12.0
-	var y := tr.end.y + 10.0
+	_draw_foe_card(zone.end.x - cw - 12.0, tr.end.y + 10.0, cw, eb, false)
+
+## 1.6.0 B03：右緣上槽的老闆肖像鈕（收合狀態）：上半肖像、下半對方預算；展開＝紙卡浮在槽的左邊（蓋在盤上，點別處或再按收合）
+func _draw_foe_slot(tr: Rect2, zone: Rect2) -> void:
+	var eb: int = rules.budget_of(1) if rules != null else 100
+	var fz := tz("C")
+	foe_tag_r = tr
+	var idx := _btns.size()
+	_btn(tr, "", func(): foe_tag_open = not foe_tag_open)   # 走一般按鈕契約（停用狀態、點擊範圍、音效、探針），外觀再蓋胡桃木
+	var en: bool = _btns[idx]["en"]
+	var plain: bool = bool(Save.s("plain_ui"))
+	if not plain:
+		_contact_shadow(tr, 4.0)
+		if _mat_box(tr, "walnut", Color(1.0, 0.86, 0.66) if en else Color(0.6, 0.55, 0.5)) and layout_probe:
+			probe_faces.append([tr, false])   # 真的蓋成胡桃木（深色）才登記成深底
+	# 簡化介面：維持 _btn 畫的平塗面（不貼紋理；Codex B03 r1 #2）
+	if not plain:
+		draw_rect(Rect2(tr.position, Vector2(tr.size.x, 2)), Color(1, 0.9, 0.7, 0.35))
+	if en and ((tr.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)):
+		draw_rect(tr, ACCENT, false, 2.0)
+	var ac := Vector2(tr.get_center().x, tr.position.y + 44.0)
+	if _foe_tag_has_persona():
+		Art.unit(self, ac + Vector2(0, 18), PersonaFT.face(int(call("_ai_style"))), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.6, cbm())
+	else:
+		draw_circle(ac, 16.0, Art.team_color(1, cbm()), true, -1.0, true)
+	var arrow := "▲" if foe_tag_open else "▼"
+	_text(Vector2(tr.end.x - 14.0, tr.position.y + 6.0), arrow, fz, TXT_DIM, true, true)
+	_text(Vector2(tr.get_center().x, tr.end.y - fz * 1.5), L.t("gold", [eb]), fz, ACCENT, true, true, tr.size.x - 12.0)
+	if not foe_tag_open:
+		return
+	var cw := minf(zone.size.x - 24.0, 420.0)
+	_draw_foe_card(tr.position.x - cw - 10.0, tr.position.y, cw, eb, true)
+
+## 敵情紙卡（展開）；with_name＝收合鈕上沒有名字時，卡片第一行補上對手名
+func _draw_foe_card(cx: float, y: float, cw: float, eb: int, with_name: bool) -> void:
 	var lines: Array = []   # [文字, 字級, 色, 粗]
+	var dsp_n = get("daily_spec")
+	if with_name and (not _foe_tag_has_persona() or (dsp_n is Dictionary and not (dsp_n as Dictionary).is_empty())):
+		lines.append([_foe_tag_name(), tz("S"), Color(0.2, 0.13, 0.08), true])   # 有老闆頭像時名字在頭像下面，不重複
 	var ec: int = rules.unit_cap if rules != null else 24
 	var sg := L.t("fog_sign", [eb, ec])
 	if mode == Mode.GAUNTLET and int(get("gauntlet_nemesis")) >= 0:
@@ -1319,7 +1361,7 @@ func _draw_foe_tag(zone: Rect2) -> void:
 		h += text_h(fav, tz("C"), tw2) + 6.0
 	var cr := Rect2(cx, y, cw, h)
 	foe_card_r = cr
-	draw_rect(Rect2(cr.position + Vector2(3, 5), cr.size), Color(DIM_INK, 0.4))
+	_contact_shadow(cr, 4.0)   # 1.6.0 B03（P1.2）
 	if bool(Save.s("plain_ui")) or not _tex_box(cr, "paper"):
 		draw_rect(cr, Color(0.93, 0.88, 0.76))
 	var ty := y + 14.0

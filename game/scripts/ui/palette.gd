@@ -55,3 +55,18 @@ const TERRAIN := {
 	"lava": {"base": "#3f3640", "base2": "#4a4049", "slow": "#7e7680", "fast": "#6a5d62", "block": "#d94a14", "edge": "#7a3322", "frame": "#2c2428", "sound": "lava", "outer": "#19131a"},
 	"canyon": {"base": "#d9b37a", "base2": "#e2bf88", "slow": "#c79a5e", "fast": "#a89a86", "block": "#6d3a26", "edge": "#c47a4e", "frame": "#6e4a2c", "sound": "wind", "outer": "#3f2c1e"},
 }
+# ── 1.6.0 B03（P1.3）主材質表：[Base, Shadow, Highlight]（docs/art-spec-v160.md §2；灰階三階：桌 ≤25｜紙 35～65｜主層 ≥75 L*）──
+const MAT_WALNUT := [Color("#5b4632"), Color("#3a2b1e"), Color("#7a5e44")]
+const MAT_PAPER := [Color("#e8dcc0"), Color("#cbbd9c"), Color("#f6efdf")]
+const MAT_WAX := [Color("#a8231c"), Color("#7a1812"), Color("#c94a3a")]
+const MAT_CHALK := [Color("#f5eedc", 0.62), Color("#cfc6b0"), Color("#f5eedc")]
+const MAT_BRASS := [Color("#b8913f"), Color("#7a5a22"), Color("#d4ae55")]
+# 1.6.0 B03（P1.2）主光與接觸影：左上 35° 暖白；桌上物件底緣影偏移 (3, 4)、羽化 6、DIM_INK α0.4
+const LIGHT_DEG := 35.0
+const CONTACT_OFF := Vector2(3, 4)
+const CONTACT_FEATHER := 6.0
+const CONTACT_A := 0.4
+# 1.6.0 B03：攤在桌上的紙（結果紙）在桌燈下的色調——把 L* 從 1.5.0 的約 86 壓到紙的中階（量測見 tools/tone_check.py）
+const PAPER_DESK_TONE := Color(0.72, 0.68, 0.62)
+# 1.6.0 B03：盤外桌面壓暗（只在盤框外，盤內隊色 ΔE＝0）
+const OFF_BOARD_DIM := 0.18
