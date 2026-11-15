@@ -10,7 +10,7 @@ const TRIALS := [[1, 1, 2, 1], [2, 1, 3, 1], [3, 1, 3, 1], [4, 1, 1, 1], [5, 1, 
 	[2, 1, 0, 1], [3, 1, 0, 1], [4, 0, 0, 1], [5, 1, 0, 1], [1, 2, 0, 2],
 	[2, 1, 0, 2], [3, 1, 0, 2], [4, 2, 0, 2], [5, 1, 0, 2], [1, 0, 0, 2],
 	[2, 2, 0, 2], [3, 0, 0, 2], [4, 1, 0, 2], [5, 1, 0, 2], [1, 2, 0, 2]]
-const TRIAL_PAGE := 10
+const TRIAL_PAGE := 8   # 1.5.0 §1.6：每頁 10 關 → 8 關（四列，卡片留白）
 const TD = preload("res://scripts/game/trial_data.gd")
 const Daily = preload("res://scripts/game/daily.gd")
 var daily_spec := {}      # V1.1 D2：這場是每日挑戰時的規格；其他模式是空的
@@ -177,7 +177,7 @@ func _draw_trials() -> void:
 	var stars: Dictionary = Save.data.get("trial_stars", {})
 	var pages: int = ceili(TRIALS.size() / float(TRIAL_PAGE))
 	trial_page = clampi(trial_page, 0, pages - 1)
-	# 第十三輪：30 關分 3 頁
+	# 第十三輪：30 關分 3 頁；1.5.0 起每頁 8 關、分 4 頁
 	var tot := 0
 	for k0 in TRIALS.size():
 		tot += int(stars.get(str(k0), 0))
@@ -190,11 +190,13 @@ func _draw_trials() -> void:
 			break
 		var t: Array = TRIALS[i]
 		var x := trial_x(i)
-		var r := Rect2(116 + (k % 2) * (cw + 8), 164 + tdy + (k / 2) * (ch + 7), cw, ch)
+		var r0 := Rect2(116 + (k % 2) * (cw + 8), 164 + tdy + (k / 2) * (ch + 22), cw, ch)
+		var r := Rect2(r0.position, Vector2(cw, ch + 12))   # 1.5.0：卡片高 +12、列距 +15；內容往下 6（置中）
 		var got := int(stars.get(str(i), 0))
 		btn_paper = got > 0   # V1.2.1 R1：過關的試煉卡是紙面
 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
 		btn_paper = false
+		r = Rect2(r.position + Vector2(0, 6), Vector2(cw, ch))
 		_ink_mode = last_btn_paper
 		_probe_dis = not last_btn_enabled   # 停用的卡片：裡面的字也算停用（另報）
 		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
@@ -974,10 +976,34 @@ func _record_match(w: int) -> void:
 	else:
 		Save.data["streak"] = 0
 
+## 1.5.0 §1.6 戰績三頁籤（原本一頁塞 5 格數字＋20 格兵種＋32 個成就）：總覽／兵種／徽章櫃；每頁非按鈕格 ≤12
+var pf_tab := 0
+var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+const CareerPF = preload("res://scripts/game/career.gd")
+
 func _draw_profile() -> void:
 	var P := Rect2(50, 24, 1180, 752)
 	_panel(P)
-	_h1(Vector2(640, 30), L.t("pf_title"))   # 1.2.0：H1 放大，緞帶上移 4（R2）
+	var hy := _h1(Vector2(640, 30), L.t("pf_title")) + GAP_L   # 1.2.0：H1 放大，緞帶上移 4（R2）；頁籤從緞帶下緣＋16 起
+	var tabw := 200.0
+	for i in 3:
+		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
+		btn_group = "pf_tabs"
+		var ii := i
+		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+		btn_group = ""
+		btn_cloth = ""
+	match pf_tab:
+		0: _draw_pf_overview(hy + 46.0 + GAP_M)
+		1: _draw_pf_units(hy + 46.0 + GAP_M)
+		2: _draw_pf_badges(hy + 46.0 + GAP_M)
+	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): _nav_back())
+	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
+	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): call("_paint_open"))   # V1.4 #15 塗裝室
+	screen_register("profile", "back")
+
+## 總覽：五格大數字（三＋二兩列，留白給木活字）
+func _draw_pf_overview(y0: float) -> void:
 	var st: Dictionary = Save.data.get("stats", {})
 	var cs: Dictionary = Save.data.get("custom_stats", {})
 	var g: int = int(st.get("games", 0)) + int(cs.get("games", 0))
@@ -987,18 +1013,69 @@ func _draw_profile() -> void:
 		trial += int(v)
 	var tiles := [["swords", "pf_games", str(g)], ["trophy", "pf_wins", "%d%%" % (wn * 100 / maxi(1, g))], ["repeat", "pf_streak", "%d / %d" % [int(Save.data.get("streak", 0)), int(Save.data.get("best_streak", 0))]],
 		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
-	var tw := 212.0
+	var tw := 330.0
+	var th := 128.0
 	for i in tiles.size():
-		var r := Rect2(78 + i * (tw + 8), 92, tw, 80)
-		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 7.0)
-		_icon(tiles[i][0], r.position + Vector2(30, 40), 34.0, ACCENT)
-		_text(r.position + Vector2(56, 10), L.t(tiles[i][1]), tz("C"), TXT_DIM, false, false, tw - 62)
-		if _width(tiles[i][2], tz("H2"), true) + 10.0 <= tw - 62:
-			_woodtype(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true)   # 1.4.0 §7.2 戰績大數字＝木活字（含木牌外擴放得下才用）
+		var row := 0 if i < 3 else 1
+		var n := 3 if row == 0 else 2
+		var col := i if row == 0 else i - 3
+		var x0 := 640.0 - (n * tw + (n - 1) * 16.0) / 2.0
+		var r := Rect2(x0 + col * (tw + 16), y0 + 12 + row * (th + 20), tw, th)
+		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 9.0)
+		_icon(tiles[i][0], r.position + Vector2(48, th * 0.5), 48.0, ACCENT)
+		_text(r.position + Vector2(92, 26), L.t(tiles[i][1]), tz("B"), TXT_DIM, false, false, tw - 104)
+		if _width(tiles[i][2], tz("H1"), true) + 10.0 <= tw - 104:
+			_woodtype(r.position + Vector2(92, 26 + tz("B") * 1.6), tiles[i][2], tz("H1"), Color.WHITE, false, true)
 		else:
-			_text(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true, tw - 62)   # 放不下：照原本限寬（Codex v140 cat02 #5）
-	# 兵種勝率
-	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
+			_text(r.position + Vector2(92, 26 + tz("B") * 1.6), tiles[i][2], tz("H1"), Color.WHITE, false, true, tw - 104)
+	# 下面一列：最常出戰、勝率最高（至少 3 場）各前三名——總覽頁不只是數字，也看得出自己的習慣
+	var ug: Dictionary = Save.data.get("unit_games_rec", {})
+	var uw: Dictionary = Save.data.get("unit_wins_rec", {})
+	var most: Array = []
+	var best: Array = []
+	for t in D.total():
+		var gg := int(ug.get(str(t), 0))
+		if gg > 0:
+			most.append([gg, -t, t])
+		if gg >= 3:
+			best.append([int(uw.get(str(t), 0)) * 1000 / gg, -t, t])
+	most.sort()
+	most.reverse()
+	best.sort()
+	best.reverse()
+	var by := y0 + 12 + 2 * (th + 20) + 8
+	var bh := 706.0 - by   # 到底部按鈕上方 16
+	var bw := (2 * tw + 16)
+	for c in 2:
+		var lst: Array = (most if c == 0 else best).slice(0, 3)
+		var br := Rect2(640 - bw - 8 + c * (bw + 16), by, bw, bh)
+		if c == 1:
+			br.position.x = 640 + 8
+		br.size.x = minf(bw, (1080.0 - 16.0) / 2.0)
+		if c == 0:
+			br.position.x = 640 - 8 - br.size.x
+		_box(br, Color(0, 0, 0, 0.18), Color(0, 0, 0, 0), 9.0)
+		_text(Vector2(br.position.x + 16, br.position.y + 10), L.t("pf_most" if c == 0 else "pf_best"), tz("B"), ACCENT, false, true, br.size.x - 32)
+		if lst.is_empty():
+			_text(Vector2(br.get_center().x, br.position.y + bh * 0.5), L.t("pf_none"), tz("S"), TXT_DIM, true, false, br.size.x - 32)
+			continue
+		for j in lst.size():
+			var t2: int = lst[j][2]
+			var cx := br.position.x + 16 + j * ((br.size.x - 32) / 3.0)
+			var cwid := (br.size.x - 32) / 3.0
+			_unit_in(Rect2(cx, br.position.y + 30, cwid, 72), t2, 0, 1.0, 0.95)
+			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
+			_text(Vector2(cx + cwid * 0.5, br.position.y + 104), L.t("unit_%d" % t2), tz("S"), Color.WHITE, true, false, cwid - 6)
+			_text(Vector2(cx + cwid * 0.5, br.position.y + 104 + tz("S") * 1.35), val, tz("S"), ACCENT, true, true, cwid - 6)
+
+## 兵種：一次 10 隻（王國／奇幻切換），每格：兵、出戰勝率、場數、熟練度
+func _draw_pf_units(y0: float) -> void:
+	var gw := 180.0
+	for k in 2:
+		btn_group = "pf_grp"
+		var kk := k
+		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
+		btn_group = ""
 	var ug: Dictionary = Save.data.get("unit_games_rec", {})   # V1.5.1：場數、勝場同口徑（對 AI、遠征、雙人）
 	var uw: Dictionary = Save.data.get("unit_wins_rec", {})
 	var old_n := 0
@@ -1007,64 +1084,63 @@ func _draw_profile() -> void:
 	var rec_n := 0
 	for v in ug.values():
 		rec_n += int(v)
-	if old_n > rec_n:
-		_text(Vector2(80 + _width(L.t("pf_units"), tz("B"), true) + 16, 184 + (tz("B") - tz("C")) * 0.5), L.t("pf_units_since"), tz("C"), TXT_DIM, false, false, 600)   # 舊存檔：從這版起算
+	var head := L.t("pf_units") + ("　" + L.t("pf_units_since") if old_n > rec_n else "")
+	_text(Vector2(640, y0 + 52), head, tz("S"), TXT_DIM, true, false, 1000)
 	var um := RS.mask(_demo())
-	var cw := 108.0
-	for t in D.total():
-		var r2 := Rect2(78 + (t % 10) * (cw + 4), 212 + (t / 10) * 116, cw, 110)
-		_box(r2, Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 6.0)
+	var cw := 200.0
+	var chh := 214.0
+	var ms: Dictionary = Save.data.get("mastery", {})
+	for j in 10:
+		var t := pf_grp * 10 + j
+		if t >= D.total():
+			break
+		var r2 := Rect2(640 - (5 * cw + 4 * 12) / 2.0 + (j % 5) * (cw + 12), y0 + 52 + tz("S") * 1.4 + 10 + (j / 5) * (chh + 14), cw, chh)
+		_box(r2, Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 8.0)
 		var open: bool = RuleSet.has(um, t)
-		_unit_in(Rect2(r2.position, Vector2(cw, 70)), t, 0, 1.0 if open else 0.3, 0.62)
+		_unit_in(Rect2(r2.position + Vector2(0, 6), Vector2(cw, 100)), t, 0, 1.0 if open else 0.3, 0.9)
+		_text(Vector2(r2.get_center().x, r2.position.y + 108), L.t("unit_%d" % t), tz("C"), ACCENT, true, true, cw - 12)
 		var gg := int(ug.get(str(t), 0))
-		if gg == 0:
-			_text(r2.position + Vector2(cw / 2, 74), L.t("pf_none"), tz("C"), TXT_DIM, true, false, cw - 6)   # V1.1 C4：沒出戰不寫 0%
-		else:
-			_text(r2.position + Vector2(cw / 2, 68), "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg), tz("B"), Color.WHITE, true, true, cw - 6)
-		if gg > 0:
-			pass
-	# 成就
+		var wl := L.t("pf_none") if gg == 0 else "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg)
+		_text(Vector2(r2.get_center().x, r2.position.y + 108 + tz("C") * 1.4), wl, tz("B"), Color.WHITE if gg > 0 else TXT_DIM, true, gg > 0, cw - 12)
+		var xp := int(ms.get(str(t), 0))
+		var lv := CareerPF.level(xp)
+		var nx := CareerPF.next_at(xp)
+		var ml := L.t("pf_ms_max", [lv]) if nx <= xp else L.t("pf_ms", [lv, xp, nx])   # 短版（卡片窄，日文 150% 原本折出單獨的括號）
+		_text(Vector2(r2.get_center().x, r2.end.y - tz("S") * 1.5 - 6), ml, tz("S"), TXT_DIM, true, false, cw - 12)
+
+## 徽章櫃：一頁 10 個（兩欄五列），條件直接寫在牌子上（不用滑過才看得到）
+func _draw_pf_badges(y0: float) -> void:
 	var earned: Array = Save.data.get("achievements", [])
 	var ach: Dictionary = SteamApi.ACHIEVEMENTS
 	var keys := ach.keys()
 	var ach_pages := ceili(keys.size() / float(ACH_PAGE))
 	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
-	_text(Vector2(80, 448), L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), ACCENT, false, true, 330)
-	var hover_k := ""
+	var ht := L.t("pf_ach", [earned.size(), keys.size()])
+	_text(Vector2(80, y0 + 6), ht, tz("B"), ACCENT, false, true, 400)
 	if ach_pages > 1:
-		# V1.6.1：37 個成就一頁放不下（四欄八列＝32），分頁；切換鈕在「成就」標題右邊
-		var px := 80.0 + minf(330.0, _width(L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), true)) + 16.0
-		_btn_small(Rect2(px, 440, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
-		_text(Vector2(px + 84, 448 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 70)
-		_btn_small(Rect2(px + 124, 440, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+		btn_group = "pf_pager"
+		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+		btn_group = ""
+		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+	var cw := 548.0
+	var chh := 92.0   # 條件在日文 150% 會兩行
 	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
 		var k: String = keys[i2]
 		var on: bool = k in earned
 		var j2 := i2 - pf_ach_page * ACH_PAGE
-		var pos := Vector2(84 + (j2 % 4) * 279, 488 + (j2 / 4) * 28)   # V1.5：四欄；V1.6.1：一頁八列
-		var ar := Rect2(pos - Vector2(4, 1), Vector2(271, 26))
+		var ar := Rect2(80 + (j2 % 2) * (cw + 24), y0 + 54 + (j2 / 2) * (chh + 8), cw, chh)
 		if on:
-			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
+			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 6.0, 1.0)   # V1.1 C4：已解鎖加金框
 		else:
-			_box(ar, Color(0, 0, 0, 0.16), Color(1, 1, 1, 0.10), 4.0, 1.0)   # V1.2.1：未解鎖也有框（三欄對稱）
-		# 手把：成就是看不見的焦點目標（不畫按鈕），焦點移到哪一個就顯示它的條件（Codex v121-impl2：不能只輪播）
-		var fi := _btns.size()
-		_btns.append({"r": ar, "cb": func(): pass, "en": true, "snd": "k_click"})
-		if (ar.has_point(mouse) and not pad_mode) or (pad_mode and fi == _focus):
-			hover_k = k
-			_box(ar.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.7), 5.0, 1.5)
-		draw_rect(Rect2(ar.position + Vector2(1, 3), Vector2(3, ar.size.y - 6)), SteamApi.ACH_CAT_COL.get(SteamApi.ACH_CAT.get(k, ""), Color(1, 1, 1, 0.2)))   # 1.1.0 A15：類別色條
-		_icon("star" if on else "lock", Vector2(pos.x + 10, ar.get_center().y), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
-		_text(Vector2(pos.x + 26, ar.get_center().y - text_h("Ag", tz("C"), 0.0) * 0.5), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 242)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
-	# V1.2.1：滑過成就，標題列右邊顯示解鎖條件（未解鎖的也看得到怎麼拿）
-	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
-	var cw2 := 560.0
-	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
-	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): _nav_back())
-	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
-	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): call("_paint_open"))   # V1.4 #15 塗裝室
+			_box(ar, Color(0, 0, 0, 0.16), Color(1, 1, 1, 0.10), 6.0, 1.0)
+		draw_rect(Rect2(ar.position + Vector2(1, 4), Vector2(4, ar.size.y - 8)), SteamApi.ACH_CAT_COL.get(SteamApi.ACH_CAT.get(k, ""), Color(1, 1, 1, 0.2)))   # 1.1.0 A15：類別色條
+		_icon("star" if on else "lock", Vector2(ar.position.x + 30, ar.get_center().y), 28.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
+		_text(Vector2(ar.position.x + 56, ar.position.y + 8), str(L.pick(ach[k][0], ach[k][1])), tz("B"), Color.WHITE if on else TXT_DIM, false, true, cw - 68)
+		var cond := str(L.pick(ACH_DESC.get(k, ["", ""])[0], ACH_DESC.get(k, ["", ""])[1]))
+		_text(Vector2(ar.position.x + 56, ar.position.y + 10 + tz("B") * 1.3), cond, tz("S"), TXT_DIM, false, false, cw - 68)
 
-const ACH_PAGE := 32
+const ACH_PAGE := 10
 var pf_ach_page := 0
 
 ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──

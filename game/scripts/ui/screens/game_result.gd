@@ -387,6 +387,7 @@ func _draw_result() -> void:
 				bs.append([L.t("retry"), func(): _mark_retry(); call("_start_trial", tid); _apply_retry()])
 				bs.append([L.t("trial_title"), func():
 					_go_title()
+					set("trial_page", tid / int(get("TRIAL_PAGE")))   # 1.5.0：回到這一關所在的那頁（每頁 8 關；Codex v150 cat09 #2）
 					_open("trials")])
 			else:
 				bs.append([(L.t("sealed_again") if bool(get("sealed_on")) else L.t("new_match")) if series_over else L.t("next_round"), func(): _next_round()])

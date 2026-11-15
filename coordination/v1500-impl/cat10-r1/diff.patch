@@ -1,0 +1,106 @@
+diff --git a/game/scripts/ui/lobby_view.gd b/game/scripts/ui/lobby_view.gd
+index 4948b31..606b21e 100644
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -562,7 +562,7 @@ func _draw_lobby() -> void:
+ 		btn_seal_square = false
+ 	var lb_why := ""
+ 	if lobby_open:
+-		lb_why = "進階折頁的內部重排（卡池單側＋唯讀摘要、分頁收斂）排在後面的批次"
++		lb_why = "進階折頁：子分頁、卡池、篩選、牌組已各算一組（1.5.0 第 10 批），但折頁仍有 14～40 個控制；折頁重做（子分頁併成三格、代碼／存預設進選單、規則格收斂）還沒做"
+ 	elif lobby_menu:
+ 		lb_why = "「我的預設」下拉選單展開時：選單本身是一張清單（每列讀取／存入／刪除）"
+ 	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", lb_why)
+@@ -670,6 +670,28 @@ func _draw_lobby_menu(o: Vector2) -> void:
+ 		_icon("copy", cp + Vector2(170, 22), 18.0, Color.WHITE)
+ 		_btn(Rect2(cp + Vector2(196, 0), Vector2(40, 44)), "×", _lobby_delete_preset.bind(i))
+ 
++## 卡池唯讀摘要：「10 種・近戰 4・遠程 3・支援 2・奇襲 1」（類別跟篩選膠囊同一套）
++func pool_summary(mask: int) -> String:
++	var n := [0, 0, 0, 0]
++	var tot := 0
++	for t in D.total():
++		if not RuleSet.has(mask, t):
++			continue
++		tot += 1
++		if t in Presets.F8.RAID:
++			n[3] += 1
++		elif D.is_support(t):
++			n[2] += 1
++		elif D.is_melee(t):
++			n[0] += 1
++		else:
++			n[1] += 1
++	var parts: Array = [L.t("lb_pool_n", [tot])]
++	for k in 4:
++		if n[k] > 0:
++			parts.append("%s %d" % [L.t("lb_filter_%d" % (k + 1)), n[k]])
++	return "・".join(parts) if (L.lang.begins_with("zh") or L.lang == "ja") else " · ".join(parts)
++
+ func _filter_hit(t: int) -> bool:
+ 	match lobby_filter:
+ 		1:
+@@ -1140,8 +1162,10 @@ func _draw_lobby_detail(R: Rect2) -> void:
+ 		if i == adv_at:
+ 			draw_line(R.position + Vector2(8, i * 58 + 2), R.position + Vector2(142, i * 58 + 2), Color(1, 1, 1, 0.25), 1.0)
+ 			_text(R.position + Vector2(75, i * 58 + 4), L.t("lb_adv"), tz("C"), TXT_DIM, true, false, 140)
++		btn_group = "lb_subtabs"   # 1.5.0 R14：折頁子分頁＝一個選擇器
+ 		_btn(Rect2(R.position + Vector2(0, i * 58 + gy), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx; lobby_rpage = 0, true, false,
+ 			TH_ACTIVE if idx == lobby_tab else Color(0, 0, 0, 0))
++		btn_group = ""
+ 	var L0 := Rect2(R.position + Vector2(170, 0), Vector2(600, R.size.y))
+ 	var D0 := Rect2(Vector2(L0.end.x + 20, R.position.y), Vector2(R.end.x - L0.end.x - 20, R.size.y))
+ 	draw_rect(D0, Color(0, 0, 0, 0.25))
+@@ -1247,10 +1271,18 @@ func _draw_pool_tab(R: Rect2) -> void:
+ 	if not two:
+ 		lobby_pool_team = 0
+ 	if two:
++		btn_group = "pool_side"   # 1.5.0 R14：兩邊切換＝一個控制
+ 		for ti in 2:
+ 			var pl: String = (L.t("lb_your_pool") if ti == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ti == 0 else L.t("lb_red_pool"))
+ 			_btn_small(Rect2(R.position.x + ti * 180, y, 170, 38), pl, func(): lobby_pool_team = ti, true, false, TH_ACTIVE if ti == lobby_pool_team else Color(0, 0, 0, 0))
+-		y += 50   # V1.5.2：兩排小鈕的點擊區都擴到 44，間距要夠（原本 44 時陣營鈕和篩選膠囊的點擊區重疊）
++		btn_group = ""
++		# 1.5.0 §1.2：另一邊的卡池只給唯讀摘要（幾種、各類幾種），不用切過去才知道
++		var ot := 1 - lobby_pool_team
++		var on_l := (L.t("lb_your_pool") if ot == 0 else L.t("lb_ai_pool")) if lobby_kind == "ai" else (L.t("lb_blue_pool") if ot == 0 else L.t("lb_red_pool"))
++		y += 50
++		var osum: String = on_l + "：" + pool_summary(int(lobby_r.pool[ot]))
++		_text(Vector2(R.position.x, y - 4), osum, tz("S"), TXT_DIM, false, false, R.size.x)
++		y += text_h(osum, tz("S"), R.size.x) + 6.0   # V1.5.2：兩排小鈕的點擊區都擴到 44，間距要夠（原本 44 時陣營鈕和篩選膠囊的點擊區重疊）
+ 	var teams := [lobby_pool_team]
+ 	for tm in teams:
+ 		# 戰鬥兵、支援兵分框（第五輪 §3.6）
+@@ -1265,8 +1297,10 @@ func _draw_pool_tab(R: Rect2) -> void:
+ 		for fi0 in 5:
+ 			fw = maxf(fw, _width(L.t("lb_filter_%d" % fi0), ts(15)) + 14.0)
+ 		fw = minf(fw, (R.size.x - fx0) / 5.0 - 4.0)
++		btn_group = "pool_filter"   # 1.5.0 R14：篩選膠囊＝一個控制
+ 		for fi in 5:
+ 			_btn_small(Rect2(R.position.x + fx0 + fi * (fw + 4.0), y - 4, fw, 36), L.t("lb_filter_%d" % fi), func(): lobby_filter = fi, true, false, TH_ACTIVE if lobby_filter == fi else TH_WOOD)
++		btn_group = ""
+ 		y += maxf(38.0, text_h(title_r, tz("S"), 190) + 8.0)   # 1.2.0：標題在 150% 換行時下一段跟著往下（原本固定 38，第二行壓到「王國軍」）
+ 		var groups := [[L.t("lb_army_kingdom"), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]
+ 		if has_new_row:
+@@ -1285,7 +1319,9 @@ func _draw_pool_tab(R: Rect2) -> void:
+ 				var cr := Rect2(box.position + Vector2(8 + j * (cw + 4), 4 + tz("C") * 1.2), Vector2(cw, cardh))
+ 				var on := RuleSet.has(int(lobby_r.pool[tm]), t)
+ 				var can := RuleSet.has(sel, t)
++				btn_group = "pool_cards"   # 1.5.0 R14：兵卡格＝一個選擇器
+ 				_btn(cr, "", _lobby_toggle_unit.bind(tm, t), true, false, Color(0.22, 0.38, 0.3) if on else Color(0.16, 0.16, 0.2))
++				btn_group = ""
+ 				if _brief_hot(cr):
+ 					brief_hot = t
+ 				if on:
+@@ -1302,9 +1338,11 @@ func _draw_pool_tab(R: Rect2) -> void:
+ 	_btn(Rect2(R.position.x, by2, 130, 44), L.t("lb_deck_random"), _deck_random)
+ 	_btn(Rect2(R.position.x + 138, by2, 130, 44), L.t("lb_deck_save"), _deck_save)
+ 	var decks: Array = Save.data.get("decks", [])
++	btn_group = "pool_decks"   # 1.5.0 R14：牌組 1～3＝一個控制
+ 	for di in 3:
+ 		var has_d: bool = di < decks.size()
+ 		_btn(Rect2(R.position.x + 276 + di * 104, by2, 96, 44), L.t("lb_deck_n", [di + 1]), _deck_load.bind(di), has_d)
++	btn_group = ""
+ 	if brief_list.is_empty():
+ 		brief_list = RuleSet.types_of(sel)
+ 	lobby_brief = _brief_pick(brief_list, brief_hot)

@@ -1,0 +1,2400 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1dc85-64ba-7140-aba6-8f72354cac76
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.5.0 實作的程式審查（第 1 輪，最多三輪）。只讀。專案根目錄＝目前資料夾、遊戲在 game/。
+第 9 批：規劃 coordination/v1500-impl/cat09-plan.md；差異 coordination/v1500-impl/cat09-r1/diff.patch。
+重點：戰績頁籤（`pf_tab`、`pf_grp`、`pf_ach_page`）的手把焦點與狀態重設（進出戰績頁、切頁籤）、成就從焦點目標移除後手把能否到達所有可點元件；`_draw_pf_*` 版位與 `_h1` 回傳；試煉 TRIAL_PAGE 8 對其他地方（試玩版 DEMO_TRIALS、從結果返回試煉頁時落在哪一頁、PADWALK）有沒有影響；最常出戰／勝率最高排序是否決定性。附行號。最多 5 條必改、400 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會唯讀檢查第 9 批規劃、差異與相關程式，追查手把焦點、試煉分頁及排序，並附上問題行號。
+
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'cat09-plan.md' -g 'diff.patch' -g '*PADWALK*' -g '*padwalk*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 606ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v131-impl2/diff.patch
+coordination/v131-impl1/diff.patch
+coordination/v130-impl/cat11-r1/diff.patch
+coordination/v140-impl/cat02-r1/diff.patch
+coordination/v140-impl/cat12-r1/diff.patch
+coordination/v140-impl/cat11-r1/diff.patch
+coordination/v140-impl/cat01-r1/diff.patch
+coordination/v130-impl/cat09-r1/diff.patch
+coordination/v130-impl/cat09-plan.md
+coordination/v131-impl3/diff.patch
+coordination/v130-impl/cat08-r1/diff.patch
+coordination/v140-impl/cat10-r1/diff.patch
+coordination/v140-impl/cat09-r1/diff.patch
+coordination/v130-impl/cat06-r1/diff.patch
+coordination/v140-impl/cat09-plan.md
+coordination/v140-i2/diff.patch
+coordination/v140-impl/cat08-r1/diff.patch
+coordination/v120-impl2/diff.patch
+coordination/v140-i1/diff.patch
+coordination/v130-impl/cat05-r1/diff.patch
+coordination/v140-impl/cat05-r1/diff.patch
+coordination/v130-impl2/diff.patch
+coordination/v130-impl/cat04-r1/diff.patch
+coordination/v1500-impl/cat09-r1/diff.patch
+coordination/v130-impl1/diff.patch
+coordination/v1500-impl/cat09-plan.md
+coordination/v1500-impl/cat05-r1/diff.patch
+coordination/v1500-impl/cat08-r1/diff.patch
+coordination/v1500-impl/cat03-r1/diff.patch
+coordination/v130-impl/cat03-r1/diff.patch
+coordination/v1500-impl/cat01-r1/diff.patch
+coordination/v1500-impl/cat02-r1/diff.patch
+coordination/v120-impl/cat04-r1/diff.patch
+coordination/v120-impl/cat08-r1/diff.patch
+coordination/v120-impl/cat06-r1/diff.patch
+coordination/v1500-impl/cat04-r1/diff.patch
+coordination/v120-impl/cat11-r1/diff.patch
+coordination/v1500-impl/cat07-r1/diff.patch
+coordination/v1500-impl/cat06-r1/diff.patch
+coordination/v120-impl/cat10-r1/diff.patch
+coordination/v120-impl/cat03-r1/diff.patch
+coordination/v120-impl/cat07-r1/diff.patch
+coordination/v120-impl/cat09-plan.md
+coordination/v130-impl/cat02-r1/diff.patch
+coordination/v120-impl/cat09-r1/diff.patch
+coordination/v120-impl/cat05-r1/diff.patch
+coordination/v120-final2/diff.patch
+coordination/v120-final/diff.patch
+coordination/v121-impl1/diff.patch
+coordination/v121-impl2/diff.patch
+coordination/v130-impl/cat01-r1/diff.patch
+
+exec
+/bin/bash -lc 'cat coordination/v1500-impl/cat09-plan.md; cat coordination/v1500-impl/cat09-r1/diff.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+# 第 9 批（P1 之六）：其他重災頁（方案 §1.6 一部分）
+1. **戰績三頁籤**（原本一頁：5 格數字＋20 格兵種勝率＋32 個成就）：總覽（5 格木活字大數字＋「最常出戰」「勝率最高（≥3 場）」前三名）／兵種（王國／奇幻切換，一次 10 隻：兵、出戰勝率、熟練度）／徽章櫃（一頁 10 個、兩欄五列；**解鎖條件直接寫在牌子上**，不用滑過才看——原本成就是看不見的焦點目標）。戰績轉成 R14 已改造類別（上限 6）。
+2. **試煉每頁 10 → 8 關**（30 關分 4 頁），卡片高 +12、列距 +15。
+3. 殘局選關照舊每章 10 關：章是故事單位（一章一段故事、十關），拆成兩頁會切斷；而且這頁 5 列已經有留白。偏離方案「6～8 關」，記錄。
+4. 沒做（§1.6 其他）：大廳 lab 兩頁籤、名冊單邊切換、覆盤子棋盤、編輯器放大、異變三格木夾、章節封條。
+diff --git a/game/data/strings.csv b/game/data/strings.csv
+index 0962f15..dac400d 100644
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1762,3 +1762,9 @@ set_adv_back,◀ 回到常用,◀ Back to common,◀ 回到常用,◀ よく使
+ set_hover_hint,把游標移到一列上，這裡會說明它在做什麼。,Point at a row to see what it does.,把光标移到一列上，这里会说明它在做什么。,行を選ぶと、ここに説明が出ます。
+ fp_copy,複製重播校驗碼,Copy replay code,复制重播校验码,照合コードをコピー
+ fp_copied,已複製重播校驗碼（同一場重播一定相同）,Replay check copied (identical for every replay of this battle),已复制重播校验码（同一场重播一定相同）,照合コードをコピーしました（同じ対戦なら必ず一致）
++pf_tab_0,總覽,Overview,总览,概要
++pf_tab_1,兵種,Units,兵种,兵種
++pf_tab_2,徽章櫃,Badges,徽章柜,バッジ棚
++pf_most,最常出戰,Most fielded,最常出战,よく出撃する兵
++pf_best,勝率最高（至少 3 場）,Best win rate (3+ games),胜率最高（至少 3 场）,勝率トップ（3戦以上）
++pf_games_n,%d 場,%d games,%d 场,%d戦
+diff --git a/game/fonts/NTBLatin-B-sub.ttf b/game/fonts/NTBLatin-B-sub.ttf
+index 6e4dd0f..973443e 100644
+Binary files a/game/fonts/NTBLatin-B-sub.ttf and b/game/fonts/NTBLatin-B-sub.ttf differ
+diff --git a/game/fonts/NTBLatin-M-sub.ttf b/game/fonts/NTBLatin-M-sub.ttf
+index 99d35fe..27aab26 100644
+Binary files a/game/fonts/NTBLatin-M-sub.ttf and b/game/fonts/NTBLatin-M-sub.ttf differ
+diff --git a/game/fonts/NTBRounded-B-sub.otf b/game/fonts/NTBRounded-B-sub.otf
+index 2e9538c..29d4e41 100644
+Binary files a/game/fonts/NTBRounded-B-sub.otf and b/game/fonts/NTBRounded-B-sub.otf differ
+diff --git a/game/fonts/NTBRounded-R-sub.otf b/game/fonts/NTBRounded-R-sub.otf
+index 2d2b8cb..d0e5f49 100644
+Binary files a/game/fonts/NTBRounded-R-sub.otf and b/game/fonts/NTBRounded-R-sub.otf differ
+diff --git a/game/fonts/NTBRoundedJP-B-sub.otf b/game/fonts/NTBRoundedJP-B-sub.otf
+index 5aceeb3..5239a8b 100644
+Binary files a/game/fonts/NTBRoundedJP-B-sub.otf and b/game/fonts/NTBRoundedJP-B-sub.otf differ
+diff --git a/game/fonts/NTBRoundedJP-R-sub.otf b/game/fonts/NTBRoundedJP-R-sub.otf
+index b6cbcc4..29b5425 100644
+Binary files a/game/fonts/NTBRoundedJP-R-sub.otf and b/game/fonts/NTBRoundedJP-R-sub.otf differ
+diff --git a/game/fonts/NTBRoundedSC-B-sub.otf b/game/fonts/NTBRoundedSC-B-sub.otf
+index 93cfaa1..c9e3ee3 100644
+Binary files a/game/fonts/NTBRoundedSC-B-sub.otf and b/game/fonts/NTBRoundedSC-B-sub.otf differ
+diff --git a/game/fonts/NTBRoundedSC-R-sub.otf b/game/fonts/NTBRoundedSC-R-sub.otf
+index 9f89c97..eb0be41 100644
+Binary files a/game/fonts/NTBRoundedSC-R-sub.otf and b/game/fonts/NTBRoundedSC-R-sub.otf differ
+diff --git a/game/fonts/NTBSans-B-sub.otf b/game/fonts/NTBSans-B-sub.otf
+index 9597011..7305592 100644
+Binary files a/game/fonts/NTBSans-B-sub.otf and b/game/fonts/NTBSans-B-sub.otf differ
+diff --git a/game/fonts/NTBSans-R-sub.otf b/game/fonts/NTBSans-R-sub.otf
+index 5b2e979..a5f318f 100644
+Binary files a/game/fonts/NTBSans-R-sub.otf and b/game/fonts/NTBSans-R-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-B-sub.otf b/game/fonts/NTBSansJP-B-sub.otf
+index 33116ee..8873258 100644
+Binary files a/game/fonts/NTBSansJP-B-sub.otf and b/game/fonts/NTBSansJP-B-sub.otf differ
+diff --git a/game/fonts/NTBSansJP-R-sub.otf b/game/fonts/NTBSansJP-R-sub.otf
+index 1dfa075..b77bc6d 100644
+Binary files a/game/fonts/NTBSansJP-R-sub.otf and b/game/fonts/NTBSansJP-R-sub.otf differ
+diff --git a/game/fonts/NTBSansSC-B-sub.otf b/game/fonts/NTBSansSC-B-sub.otf
+index 9f80bff..3df0735 100644
+Binary files a/game/fonts/NTBSansSC-B-sub.otf and b/game/fonts/NTBSansSC-B-sub.otf differ
+diff --git a/game/fonts/NTBSansSC-R-sub.otf b/game/fonts/NTBSansSC-R-sub.otf
+index 0e8e1c7..2acd64e 100644
+Binary files a/game/fonts/NTBSansSC-R-sub.otf and b/game/fonts/NTBSansSC-R-sub.otf differ
+diff --git a/game/fonts/NTBTitle-sub.ttf b/game/fonts/NTBTitle-sub.ttf
+index 06f9937..cea1b0b 100644
+Binary files a/game/fonts/NTBTitle-sub.ttf and b/game/fonts/NTBTitle-sub.ttf differ
+diff --git a/game/fonts/ThenKhung-sub.ttf b/game/fonts/ThenKhung-sub.ttf
+index 50064c4..9c9f387 100644
+Binary files a/game/fonts/ThenKhung-sub.ttf and b/game/fonts/ThenKhung-sub.ttf differ
+diff --git a/game/scripts/ui/layout_rules.gd b/game/scripts/ui/layout_rules.gd
+index a43e512..65904c7 100644
+--- a/game/scripts/ui/layout_rules.gd
++++ b/game/scripts/ui/layout_rules.gd
+@@ -366,7 +366,7 @@ static func check(d: Dictionary) -> Dictionary:
+ ## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
+ ## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+ const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+-const R14_ENFORCE := ["title", "result", "lobby", "place", "settings"]
++const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+ static func _r14(out: Dictionary, d: Dictionary) -> void:
+ 	var sc: Dictionary = d.get("screen", {})
+ 	if sc.is_empty():
+diff --git a/game/scripts/ui/screens/game_modes.gd b/game/scripts/ui/screens/game_modes.gd
+index 5f593b8..e9426f1 100644
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -10,7 +10,7 @@ const TRIALS := [[1, 1, 2, 1], [2, 1, 3, 1], [3, 1, 3, 1], [4, 1, 1, 1], [5, 1,
+ 	[2, 1, 0, 1], [3, 1, 0, 1], [4, 0, 0, 1], [5, 1, 0, 1], [1, 2, 0, 2],
+ 	[2, 1, 0, 2], [3, 1, 0, 2], [4, 2, 0, 2], [5, 1, 0, 2], [1, 0, 0, 2],
+ 	[2, 2, 0, 2], [3, 0, 0, 2], [4, 1, 0, 2], [5, 1, 0, 2], [1, 2, 0, 2]]
+-const TRIAL_PAGE := 10
++const TRIAL_PAGE := 8   # 1.5.0 §1.6：每頁 10 關 → 8 關（四列，卡片留白）
+ const TD = preload("res://scripts/game/trial_data.gd")
+ const Daily = preload("res://scripts/game/daily.gd")
+ var daily_spec := {}      # V1.1 D2：這場是每日挑戰時的規格；其他模式是空的
+@@ -177,7 +177,7 @@ func _draw_trials() -> void:
+ 	var stars: Dictionary = Save.data.get("trial_stars", {})
+ 	var pages: int = ceili(TRIALS.size() / float(TRIAL_PAGE))
+ 	trial_page = clampi(trial_page, 0, pages - 1)
+-	# 第十三輪：30 關分 3 頁
++	# 第十三輪：30 關分 3 頁；1.5.0 起每頁 8 關、分 4 頁
+ 	var tot := 0
+ 	for k0 in TRIALS.size():
+ 		tot += int(stars.get(str(k0), 0))
+@@ -190,11 +190,13 @@ func _draw_trials() -> void:
+ 			break
+ 		var t: Array = TRIALS[i]
+ 		var x := trial_x(i)
+-		var r := Rect2(116 + (k % 2) * (cw + 8), 164 + tdy + (k / 2) * (ch + 7), cw, ch)
++		var r0 := Rect2(116 + (k % 2) * (cw + 8), 164 + tdy + (k / 2) * (ch + 22), cw, ch)
++		var r := Rect2(r0.position, Vector2(cw, ch + 12))   # 1.5.0：卡片高 +12、列距 +15；內容往下 6（置中）
+ 		var got := int(stars.get(str(i), 0))
+ 		btn_paper = got > 0   # V1.2.1 R1：過關的試煉卡是紙面
+ 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+ 		btn_paper = false
++		r = Rect2(r.position + Vector2(0, 6), Vector2(cw, ch))
+ 		_ink_mode = last_btn_paper
+ 		_probe_dis = not last_btn_enabled   # 停用的卡片：裡面的字也算停用（另報）
+ 		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
+@@ -974,10 +976,34 @@ func _record_match(w: int) -> void:
+ 	else:
+ 		Save.data["streak"] = 0
+ 
++## 1.5.0 §1.6 戰績三頁籤（原本一頁塞 5 格數字＋20 格兵種＋32 個成就）：總覽／兵種／徽章櫃；每頁非按鈕格 ≤12
++var pf_tab := 0
++var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
++const CareerPF = preload("res://scripts/game/career.gd")
++
+ func _draw_profile() -> void:
+ 	var P := Rect2(50, 24, 1180, 752)
+ 	_panel(P)
+-	_h1(Vector2(640, 30), L.t("pf_title"))   # 1.2.0：H1 放大，緞帶上移 4（R2）
++	var hy := _h1(Vector2(640, 30), L.t("pf_title")) + GAP_L   # 1.2.0：H1 放大，緞帶上移 4（R2）；頁籤從緞帶下緣＋16 起
++	var tabw := 200.0
++	for i in 3:
++		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
++		btn_group = "pf_tabs"
++		var ii := i
++		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
++		btn_group = ""
++		btn_cloth = ""
++	match pf_tab:
++		0: _draw_pf_overview(hy + 46.0 + GAP_M)
++		1: _draw_pf_units(hy + 46.0 + GAP_M)
++		2: _draw_pf_badges(hy + 46.0 + GAP_M)
++	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): _nav_back())
++	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
++	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): call("_paint_open"))   # V1.4 #15 塗裝室
++	screen_register("profile", "back")
++
++## 總覽：五格大數字（三＋二兩列，留白給木活字）
++func _draw_pf_overview(y0: float) -> void:
+ 	var st: Dictionary = Save.data.get("stats", {})
+ 	var cs: Dictionary = Save.data.get("custom_stats", {})
+ 	var g: int = int(st.get("games", 0)) + int(cs.get("games", 0))
+@@ -987,18 +1013,69 @@ func _draw_profile() -> void:
+ 		trial += int(v)
+ 	var tiles := [["swords", "pf_games", str(g)], ["trophy", "pf_wins", "%d%%" % (wn * 100 / maxi(1, g))], ["repeat", "pf_streak", "%d / %d" % [int(Save.data.get("streak", 0)), int(Save.data.get("best_streak", 0))]],
+ 		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+-	var tw := 212.0
++	var tw := 330.0
++	var th := 128.0
+ 	for i in tiles.size():
+-		var r := Rect2(78 + i * (tw + 8), 92, tw, 80)
+-		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 7.0)
+-		_icon(tiles[i][0], r.position + Vector2(30, 40), 34.0, ACCENT)
+-		_text(r.position + Vector2(56, 10), L.t(tiles[i][1]), tz("C"), TXT_DIM, false, false, tw - 62)
+-		if _width(tiles[i][2], tz("H2"), true) + 10.0 <= tw - 62:
+-			_woodtype(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true)   # 1.4.0 §7.2 戰績大數字＝木活字（含木牌外擴放得下才用）
++		var row := 0 if i < 3 else 1
++		var n := 3 if row == 0 else 2
++		var col := i if row == 0 else i - 3
++		var x0 := 640.0 - (n * tw + (n - 1) * 16.0) / 2.0
++		var r := Rect2(x0 + col * (tw + 16), y0 + 12 + row * (th + 20), tw, th)
++		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 9.0)
++		_icon(tiles[i][0], r.position + Vector2(48, th * 0.5), 48.0, ACCENT)
++		_text(r.position + Vector2(92, 26), L.t(tiles[i][1]), tz("B"), TXT_DIM, false, false, tw - 104)
++		if _width(tiles[i][2], tz("H1"), true) + 10.0 <= tw - 104:
++			_woodtype(r.position + Vector2(92, 26 + tz("B") * 1.6), tiles[i][2], tz("H1"), Color.WHITE, false, true)
+ 		else:
+-			_text(r.position + Vector2(56, 34), tiles[i][2], tz("H2"), Color.WHITE, false, true, tw - 62)   # 放不下：照原本限寬（Codex v140 cat02 #5）
+-	# 兵種勝率
+-	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
++			_text(r.position + Vector2(92, 26 + tz("B") * 1.6), tiles[i][2], tz("H1"), Color.WHITE, false, true, tw - 104)
++	# 下面一列：最常出戰、勝率最高（至少 3 場）各前三名——總覽頁不只是數字，也看得出自己的習慣
++	var ug: Dictionary = Save.data.get("unit_games_rec", {})
++	var uw: Dictionary = Save.data.get("unit_wins_rec", {})
++	var most: Array = []
++	var best: Array = []
++	for t in D.total():
++		var gg := int(ug.get(str(t), 0))
++		if gg > 0:
++			most.append([gg, -t, t])
++		if gg >= 3:
++			best.append([int(uw.get(str(t), 0)) * 1000 / gg, -t, t])
++	most.sort()
++	most.reverse()
++	best.sort()
++	best.reverse()
++	var by := y0 + 12 + 2 * (th + 20) + 8
++	var bh := 706.0 - by   # 到底部按鈕上方 16
++	var bw := (2 * tw + 16)
++	for c in 2:
++		var lst: Array = (most if c == 0 else best).slice(0, 3)
++		var br := Rect2(640 - bw - 8 + c * (bw + 16), by, bw, bh)
++		if c == 1:
++			br.position.x = 640 + 8
++		br.size.x = minf(bw, (1080.0 - 16.0) / 2.0)
++		if c == 0:
++			br.position.x = 640 - 8 - br.size.x
++		_box(br, Color(0, 0, 0, 0.18), Color(0, 0, 0, 0), 9.0)
++		_text(Vector2(br.position.x + 16, br.position.y + 10), L.t("pf_most" if c == 0 else "pf_best"), tz("B"), ACCENT, false, true, br.size.x - 32)
++		if lst.is_empty():
++			_text(Vector2(br.get_center().x, br.position.y + bh * 0.5), L.t("pf_none"), tz("S"), TXT_DIM, true, false, br.size.x - 32)
++			continue
++		for j in lst.size():
++			var t2: int = lst[j][2]
++			var cx := br.position.x + 16 + j * ((br.size.x - 32) / 3.0)
++			var cwid := (br.size.x - 32) / 3.0
++			_unit_in(Rect2(cx, br.position.y + 30, cwid, 72), t2, 0, 1.0, 0.95)
++			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
++			_text(Vector2(cx + cwid * 0.5, br.position.y + 104), L.t("unit_%d" % t2), tz("S"), Color.WHITE, true, false, cwid - 6)
++			_text(Vector2(cx + cwid * 0.5, br.position.y + 104 + tz("S") * 1.35), val, tz("S"), ACCENT, true, true, cwid - 6)
++
++## 兵種：一次 10 隻（王國／奇幻切換），每格：兵、出戰勝率、場數、熟練度
++func _draw_pf_units(y0: float) -> void:
++	var gw := 180.0
++	for k in 2:
++		btn_group = "pf_grp"
++		var kk := k
++		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
++		btn_group = ""
+ 	var ug: Dictionary = Save.data.get("unit_games_rec", {})   # V1.5.1：場數、勝場同口徑（對 AI、遠征、雙人）
+ 	var uw: Dictionary = Save.data.get("unit_wins_rec", {})
+ 	var old_n := 0
+@@ -1007,64 +1084,63 @@ func _draw_profile() -> void:
+ 	var rec_n := 0
+ 	for v in ug.values():
+ 		rec_n += int(v)
+-	if old_n > rec_n:
+-		_text(Vector2(80 + _width(L.t("pf_units"), tz("B"), true) + 16, 184 + (tz("B") - tz("C")) * 0.5), L.t("pf_units_since"), tz("C"), TXT_DIM, false, false, 600)   # 舊存檔：從這版起算
++	var head := L.t("pf_units") + ("　" + L.t("pf_units_since") if old_n > rec_n else "")
++	_text(Vector2(640, y0 + 52), head, tz("S"), TXT_DIM, true, false, 1000)
+ 	var um := RS.mask(_demo())
+-	var cw := 108.0
+-	for t in D.total():
+-		var r2 := Rect2(78 + (t % 10) * (cw + 4), 212 + (t / 10) * 116, cw, 110)
+-		_box(r2, Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 6.0)
++	var cw := 200.0
++	var chh := 214.0
++	var ms: Dictionary = Save.data.get("mastery", {})
++	for j in 10:
++		var t := pf_grp * 10 + j
++		if t >= D.total():
++			break
++		var r2 := Rect2(640 - (5 * cw + 4 * 12) / 2.0 + (j % 5) * (cw + 12), y0 + 52 + tz("S") * 1.4 + 10 + (j / 5) * (chh + 14), cw, chh)
++		_box(r2, Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 8.0)
+ 		var open: bool = RuleSet.has(um, t)
+-		_unit_in(Rect2(r2.position, Vector2(cw, 70)), t, 0, 1.0 if open else 0.3, 0.62)
++		_unit_in(Rect2(r2.position + Vector2(0, 6), Vector2(cw, 100)), t, 0, 1.0 if open else 0.3, 0.9)
++		_text(Vector2(r2.get_center().x, r2.position.y + 108), L.t("unit_%d" % t), tz("C"), ACCENT, true, true, cw - 12)
+ 		var gg := int(ug.get(str(t), 0))
+-		if gg == 0:
+-			_text(r2.position + Vector2(cw / 2, 74), L.t("pf_none"), tz("C"), TXT_DIM, true, false, cw - 6)   # V1.1 C4：沒出戰不寫 0%
+-		else:
+-			_text(r2.position + Vector2(cw / 2, 68), "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg), tz("B"), Color.WHITE, true, true, cw - 6)
+-		if gg > 0:
+-			pass
+-	# 成就
++		var wl := L.t("pf_none") if gg == 0 else "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg)
++		_text(Vector2(r2.get_center().x, r2.position.y + 108 + tz("C") * 1.4), wl, tz("B"), Color.WHITE if gg > 0 else TXT_DIM, true, gg > 0, cw - 12)
++		var xp := int(ms.get(str(t), 0))
++		var lv := CareerPF.level(xp)
++		var nx := CareerPF.next_at(xp)
++		var ml := L.t("ms_max", [lv]) if nx <= xp else L.t("ms_line", [lv, xp, nx])
++		_text(Vector2(r2.get_center().x, r2.end.y - tz("S") * 1.5 - 6), ml, tz("S"), TXT_DIM, true, false, cw - 12)
++
++## 徽章櫃：一頁 10 個（兩欄五列），條件直接寫在牌子上（不用滑過才看得到）
++func _draw_pf_badges(y0: float) -> void:
+ 	var earned: Array = Save.data.get("achievements", [])
+ 	var ach: Dictionary = SteamApi.ACHIEVEMENTS
+ 	var keys := ach.keys()
+ 	var ach_pages := ceili(keys.size() / float(ACH_PAGE))
+ 	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+-	_text(Vector2(80, 448), L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), ACCENT, false, true, 330)
+-	var hover_k := ""
++	var ht := L.t("pf_ach", [earned.size(), keys.size()])
++	_text(Vector2(80, y0 + 6), ht, tz("B"), ACCENT, false, true, 400)
+ 	if ach_pages > 1:
+-		# V1.6.1：37 個成就一頁放不下（四欄八列＝32），分頁；切換鈕在「成就」標題右邊
+-		var px := 80.0 + minf(330.0, _width(L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), true)) + 16.0
+-		_btn_small(Rect2(px, 440, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+-		_text(Vector2(px + 84, 448 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 70)
+-		_btn_small(Rect2(px + 124, 440, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
++		btn_group = "pf_pager"
++		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
++		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
++		btn_group = ""
++		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
++	var cw := 548.0
++	var chh := 92.0   # 條件在日文 150% 會兩行
+ 	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+ 		var k: String = keys[i2]
+ 		var on: bool = k in earned
+ 		var j2 := i2 - pf_ach_page * ACH_PAGE
+-		var pos := Vector2(84 + (j2 % 4) * 279, 488 + (j2 / 4) * 28)   # V1.5：四欄；V1.6.1：一頁八列
+-		var ar := Rect2(pos - Vector2(4, 1), Vector2(271, 26))
++		var ar := Rect2(80 + (j2 % 2) * (cw + 24), y0 + 54 + (j2 / 2) * (chh + 8), cw, chh)
+ 		if on:
+-			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 4.0, 1.0)   # V1.1 C4：已解鎖加金框
++			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 6.0, 1.0)   # V1.1 C4：已解鎖加金框
+ 		else:
+-			_box(ar, Color(0, 0, 0, 0.16), Color(1, 1, 1, 0.10), 4.0, 1.0)   # V1.2.1：未解鎖也有框（三欄對稱）
+-		# 手把：成就是看不見的焦點目標（不畫按鈕），焦點移到哪一個就顯示它的條件（Codex v121-impl2：不能只輪播）
+-		var fi := _btns.size()
+-		_btns.append({"r": ar, "cb": func(): pass, "en": true, "snd": "k_click"})
+-		if (ar.has_point(mouse) and not pad_mode) or (pad_mode and fi == _focus):
+-			hover_k = k
+-			_box(ar.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.7), 5.0, 1.5)
+-		draw_rect(Rect2(ar.position + Vector2(1, 3), Vector2(3, ar.size.y - 6)), SteamApi.ACH_CAT_COL.get(SteamApi.ACH_CAT.get(k, ""), Color(1, 1, 1, 0.2)))   # 1.1.0 A15：類別色條
+-		_icon("star" if on else "lock", Vector2(pos.x + 10, ar.get_center().y), 20.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
+-		_text(Vector2(pos.x + 26, ar.get_center().y - text_h("Ag", tz("C"), 0.0) * 0.5), str(L.pick(ach[k][0], ach[k][1])), tz("C"), Color.WHITE if on else TXT_DIM, false, false, 242)   # V1.2.1 F5：未解鎖原本 66% 白只有 1.7:1
+-	# V1.2.1：滑過成就，標題列右邊顯示解鎖條件（未解鎖的也看得到怎麼拿）
+-	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
+-	var cw2 := 560.0
+-	_text(Vector2(1200 - minf(cw2, _width(cond, tz("S"))), 448 + (tz("B") - tz("S")) * 0.5), cond, tz("S"), TXT_DIM if hover_k == "" else Color.WHITE, false, false, cw2)
+-	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): _nav_back())
+-	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
+-	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): call("_paint_open"))   # V1.4 #15 塗裝室
+-
+-const ACH_PAGE := 32
++			_box(ar, Color(0, 0, 0, 0.16), Color(1, 1, 1, 0.10), 6.0, 1.0)
++		draw_rect(Rect2(ar.position + Vector2(1, 4), Vector2(4, ar.size.y - 8)), SteamApi.ACH_CAT_COL.get(SteamApi.ACH_CAT.get(k, ""), Color(1, 1, 1, 0.2)))   # 1.1.0 A15：類別色條
++		_icon("star" if on else "lock", Vector2(ar.position.x + 30, ar.get_center().y), 28.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
++		_text(Vector2(ar.position.x + 56, ar.position.y + 8), str(L.pick(ach[k][0], ach[k][1])), tz("B"), Color.WHITE if on else TXT_DIM, false, true, cw - 68)
++		var cond := str(L.pick(ACH_DESC.get(k, ["", ""])[0], ACH_DESC.get(k, ["", ""])[1]))
++		_text(Vector2(ar.position.x + 56, ar.position.y + 10 + tz("B") * 1.3), cond, tz("S"), TXT_DIM, false, false, cw - 68)
++
++const ACH_PAGE := 10
+ var pf_ach_page := 0
+ 
+ ## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 74b1f21..0e48943 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/ui.gd b/game/tests/suites/ui.gd
+index d9e594c..9a0474a 100644
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -2606,3 +2606,18 @@ func test_polish_v150() -> void:
+ 	ok(gv.find("_btn(br, label, func(): overlay = \"\"; _pick_puzzle(pid, false))") >= 0, "老闆出題三題都是次鈕（不再三條亮紅主鈕）")
+ 	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+ 	ok(bu.find("if R.grow(40).has_point(sp):") >= 0 and bu.find("draw_rect(R, Color(TH_WOOD_D, 0.94))") < 0, "暫停資料卡改米紙浮籤，所選兵在右上時移到左上")
++
++func test_crowded_pages_v150() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	ok(GS.TRIAL_PAGE == 8 and ceili(GS.TRIALS.size() / float(GS.TRIAL_PAGE)) == 4, "試煉每頁 8 關、30 關分 4 頁", str(GS.TRIAL_PAGE))
++	ok(GS.ACH_PAGE <= 12, "徽章櫃每頁 ≤12 個（方案 §1.6：非按鈕格 ≤12）")
++	var LR = load("res://scripts/ui/layout_rules.gd")
++	ok("profile" in LR.R14_ENFORCE and int(LR.R14_LIMITS["profile"]) == 6, "戰績轉成已改造類別（上限 6）")
++	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_modes.gd")
++	ok(gm.find("0: _draw_pf_overview()") >= 0 and gm.find("1: _draw_pf_units()") >= 0 and gm.find("2: _draw_pf_badges()") >= 0, "戰績分三頁籤：總覽／兵種／徽章櫃")
++	ok(gm.find("_btns.append({\"r\": ar, \"cb\": func(): pass") < 0, "成就不再是看不見的焦點目標（條件直接寫在牌子上）")
++	var g = GS.new()
++	g.pf_tab = 2
++	g.pf_ach_page = 3
++	ok(g.pf_tab == 2, "頁籤狀態可設")
++	g.free()
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index 5ba6d64..f6e5a54 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1146,7 +1146,13 @@ func _shots_v9() -> void:
+ 	Save.data["unit_wins_rec"] = {"0": 7, "2": 4, "3": 5, "13": 1}
+ 	overlay = ""
+ 	_open("profile")
++	set("pf_tab", 0)
+ 	await _snap("59_profile.png")
++	set("pf_tab", 1)   # 1.5.0 §1.6 戰績三頁籤
++	await _snap("v150_59c_profile_units.png")
++	set("pf_tab", 2)
++	await _snap("v150_59d_profile_badges.png")
++	set("pf_tab", 0)
+ 	# V1.4 #2 宿敵戰記（範例資料，截完還原）
+ 	var nem_keep = Save.data.get("nemeses", [])
+ 	Save.data["nemeses"] = [{"units": [{"type": 5, "col": 10, "row": 2}, {"type": 5, "col": 10, "row": 3}, {"type": 2, "col": 12, "row": 4}, {"type": 1, "col": 10, "row": 5}], "losses": 2, "revenged": false, "stage": 3},
+@@ -2038,6 +2044,8 @@ func _shots_v13() -> void:
+ 	await _snap("89_trials_p2.png")
+ 	set("trial_page", 2)
+ 	await _snap("90_trials_p3.png")
++	set("trial_page", 3)   # 1.5.0：每頁 8 關，30 關分 4 頁
++	await _snap("v150_90b_trials_p4.png")
+ 	set("trial_page", 0)
+ 	overlay = ""
+ 	call("_start_trial", 14)
+diff --git a/game/tools/screens.json b/game/tools/screens.json
+index 85b3302..196383d 100644
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -1180,5 +1180,23 @@
+   "states": [
+    "一般"
+   ]
++ },
++ "v150_90b_trials_p4.png": {
++  "entry": "試煉第 4 頁",
++  "states": [
++   "一般"
++  ]
++ },
++ "v150_59c_profile_units.png": {
++  "entry": "戰績（兵種）",
++  "states": [
++   "一般"
++  ]
++ },
++ "v150_59d_profile_badges.png": {
++  "entry": "戰績（徽章櫃）",
++  "states": [
++   "一般"
++  ]
+  }
+ }
+
+exec
+/bin/bash -lc "rg -n 'pf_tab|pf_grp|pf_ach_page|TRIAL_PAGE|trial_page|DEMO_TRIALS|PADWALK|func _h1|pf_tabs|pf_pager|profile' game/scripts/ui/input* game/scripts/ui/game* game/scripts/ui/screens/game_modes.gd game/tools game/scripts/game/presets.gd game/tests/suites/ui.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 0ms:
+rg: game/scripts/ui/input*: No such file or directory (os error 2)
+game/scripts/ui/game_screens.gd:1153:	"profile": Vector2(0, -60), "puzzles": Vector2(-70, 0), "trials": Vector2(-70, 0), "codes": Vector2(70, 0)}
+game/scripts/game/presets.gd:5:const DEMO_TRIALS := [0, 2]
+game/scripts/ui/screens/game_modes.gd:13:const TRIAL_PAGE := 8   # 1.5.0 §1.6：每頁 10 關 → 8 關（四列，卡片留白）
+game/scripts/ui/screens/game_modes.gd:50:	if _demo() and not i in Presets.DEMO_TRIALS:
+game/scripts/ui/screens/game_modes.gd:170:var trial_page := 0
+game/scripts/ui/screens/game_modes.gd:178:	var pages: int = ceili(TRIALS.size() / float(TRIAL_PAGE))
+game/scripts/ui/screens/game_modes.gd:179:	trial_page = clampi(trial_page, 0, pages - 1)
+game/scripts/ui/screens/game_modes.gd:184:	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
+game/scripts/ui/screens/game_modes.gd:187:	for k in TRIAL_PAGE:
+game/scripts/ui/screens/game_modes.gd:188:		var i: int = trial_page * TRIAL_PAGE + k
+game/scripts/ui/screens/game_modes.gd:197:		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+game/scripts/ui/screens/game_modes.gd:229:	# 翻頁鈕放在關卡卡片後面：手把焦點先落在第一關（版面檢查 PADWALK）
+game/scripts/ui/screens/game_modes.gd:230:	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
+game/scripts/ui/screens/game_modes.gd:231:	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
+game/scripts/ui/screens/game_modes.gd:980:var pf_tab := 0
+game/scripts/ui/screens/game_modes.gd:981:var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+game/scripts/ui/screens/game_modes.gd:984:func _draw_profile() -> void:
+game/scripts/ui/screens/game_modes.gd:990:		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
+game/scripts/ui/screens/game_modes.gd:991:		btn_group = "pf_tabs"
+game/scripts/ui/screens/game_modes.gd:993:		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+game/scripts/ui/screens/game_modes.gd:996:	match pf_tab:
+game/scripts/ui/screens/game_modes.gd:1001:	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
+game/scripts/ui/screens/game_modes.gd:1003:	screen_register("profile", "back")
+game/scripts/ui/screens/game_modes.gd:1075:		btn_group = "pf_grp"
+game/scripts/ui/screens/game_modes.gd:1077:		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
+game/scripts/ui/screens/game_modes.gd:1094:		var t := pf_grp * 10 + j
+game/scripts/ui/screens/game_modes.gd:1117:	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+game/scripts/ui/screens/game_modes.gd:1121:		btn_group = "pf_pager"
+game/scripts/ui/screens/game_modes.gd:1122:		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+game/scripts/ui/screens/game_modes.gd:1123:		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+game/scripts/ui/screens/game_modes.gd:1125:		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+game/scripts/ui/screens/game_modes.gd:1128:	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+game/scripts/ui/screens/game_modes.gd:1131:		var j2 := i2 - pf_ach_page * ACH_PAGE
+game/scripts/ui/screens/game_modes.gd:1144:var pf_ach_page := 0
+game/scripts/ui/screens/game_modes.gd:1420:	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back("profile"))
+game/tests/suites/ui.gd:1199:	g._nav_push("hub_collect"); g._open("profile")
+game/tests/suites/ui.gd:1200:	g._nav_push("profile"); g.overlay = "nemeses"
+game/tests/suites/ui.gd:1201:	g._nav_back("profile")
+game/tests/suites/ui.gd:1202:	ok(g.overlay == "profile", "宿敵返回戰績", g.overlay)
+game/tests/suites/ui.gd:1611:		and UB.OBJ_OF["profile"] == "shelf" and UB.OBJ_OF["codes"] == "post" and UB.OBJ_OF["review"] == "annot", "方案 §8 的畫面對應")
+game/tests/suites/ui.gd:2328:	g2.overlay = "profile"
+game/tests/suites/ui.gd:2612:	ok(GS.TRIAL_PAGE == 8 and ceili(GS.TRIALS.size() / float(GS.TRIAL_PAGE)) == 4, "試煉每頁 8 關、30 關分 4 頁", str(GS.TRIAL_PAGE))
+game/tests/suites/ui.gd:2615:	ok("profile" in LR.R14_ENFORCE and int(LR.R14_LIMITS["profile"]) == 6, "戰績轉成已改造類別（上限 6）")
+game/tests/suites/ui.gd:2620:	g.pf_tab = 2
+game/tests/suites/ui.gd:2621:	g.pf_ach_page = 3
+game/tests/suites/ui.gd:2622:	ok(g.pf_tab == 2, "頁籤狀態可設")
+game/tools/layout_check.sh:39:  grep -q "PADWALK OK" "$d/run.log" || echo "LAYOUT FAIL：$lang $sc% 手把流程：$(grep PADWALK "$d/run.log" | cut -c1-400)" >> "$FAILS"
+game/tools/screens.json:554: "59_profile.png": {
+game/tools/screens.json:1190: "v150_59c_profile_units.png": {
+game/tools/screens.json:1196: "v150_59d_profile_badges.png": {
+game/tools/dev_main.gd:9:const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat", "nb_words", "daily_past", "songbook", "campaign"]
+game/tools/dev_main.gd:1148:	_open("profile")
+game/tools/dev_main.gd:1149:	set("pf_tab", 0)
+game/tools/dev_main.gd:1150:	await _snap("59_profile.png")
+game/tools/dev_main.gd:1151:	set("pf_tab", 1)   # 1.5.0 §1.6 戰績三頁籤
+game/tools/dev_main.gd:1152:	await _snap("v150_59c_profile_units.png")
+game/tools/dev_main.gd:1153:	set("pf_tab", 2)
+game/tools/dev_main.gd:1154:	await _snap("v150_59d_profile_badges.png")
+game/tools/dev_main.gd:1155:	set("pf_tab", 0)
+game/tools/dev_main.gd:1736:# ── 第十輪 T5：只用手把走主要流程。失敗印 PADWALK FAIL，版面檢查會擋 ──
+game/tools/dev_main.gd:1890:		print("PADWALK OK")
+game/tools/dev_main.gd:1892:		print("PADWALK FAIL ", "；".join(_pw_bad))
+game/tools/dev_main.gd:2043:	set("trial_page", 1)
+game/tools/dev_main.gd:2045:	set("trial_page", 2)
+game/tools/dev_main.gd:2047:	set("trial_page", 3)   # 1.5.0：每頁 8 關，30 關分 4 頁
+game/tools/dev_main.gd:2049:	set("trial_page", 0)
+game/tools/dev_main.gd:2163:		for ok in [["settings", "dev_open_box.png"], ["codes", "dev_open_letter.png"], ["puzzles", "dev_open_fold.png"], ["profile", "dev_open_trunk.png"]]:
+
+exec
+/bin/bash -lc "rg -n 'func _h1|func _open|func _nav|pf_ach|trial_page|focus|btn_group|sort' game/scripts/ui/base game/scripts/ui/screens/navigation* game/scripts/ui -g '*.gd'" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 0ms:
+rg: game/scripts/ui/base: No such file or directory (os error 2)
+rg: game/scripts/ui/screens/navigation*: No such file or directory (os error 2)
+game/scripts/ui/unit_brief.gd:55:	return (r.has_point(mouse) and not pad_mode) or (pad_mode and _btns.size() - 1 == _focus)
+game/scripts/ui/layout_rules.gd:233:	var fo: float = float(d.get("focus_out", 0.0))
+game/scripts/ui/layout_rules.gd:320:		iv.sort_custom(func(a, b): return a[0] < b[0])
+game/scripts/ui/layout_rules.gd:416:	row.sort_custom(func(a, b): return a.position.x < b.position.x)
+game/scripts/ui/free_place.gd:284:	idx.sort()
+game/scripts/ui/free_place.gd:630:	lst.sort()
+game/scripts/ui/free_place.gd:882:		btn_group = "fp_tool" if g == 0 else ""   # 1.5.0 R14：三選一＝一個控制
+game/scripts/ui/free_place.gd:884:		btn_group = ""
+game/scripts/ui/replay_view.gd:376:func _open_review() -> void:
+game/scripts/ui/replay_view.gd:851:	order.sort_custom(func(a, b): return int(rv_army.units[a]["y"]) < int(rv_army.units[b]["y"]))
+game/scripts/ui/codex_view.gd:57:func _open_codex(t: int) -> void:
+game/scripts/ui/codex_view.gd:632:		list.sort_custom(func(a, c): return a.y < c.y)
+game/scripts/ui/ui_base.gd:364:## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
+game/scripts/ui/ui_base.gd:365:var btn_group := ""
+game/scripts/ui/ui_base.gd:437:var _focus := 0
+game/scripts/ui/ui_base.gd:615:func _move_focus(d: int) -> void:
+game/scripts/ui/ui_base.gd:619:	_focus = posmod(_focus + d, _btns.size())
+game/scripts/ui/ui_base.gd:626:	levels.sort()
+game/scripts/ui/ui_base.gd:721:func _focus_glide(rd: Rect2) -> Rect2:
+game/scripts/ui/ui_base.gd:738:var mag_focus := Vector2(-1, -1)   # V1.6.1 F4：手把模式時放大鏡跟著焦點按鈕（不用另外的鍵，不和 L3 提示衝突）
+game/scripts/ui/ui_base.gd:740:	return mag_focus if bool(get("pad_mode")) else get("mouse")
+game/scripts/ui/ui_base.gd:921:	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click"), "group": btn_group})
+game/scripts/ui/ui_base.gd:923:	var focus := pad_mode and idx == _focus
+game/scripts/ui/ui_base.gd:929:	elif hover or focus:
+game/scripts/ui/ui_base.gd:952:		if enabled and (hover or focus):
+game/scripts/ui/ui_base.gd:972:		if enabled and (hover or focus):
+game/scripts/ui/ui_base.gd:1009:		_tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE)
+game/scripts/ui/ui_base.gd:1023:	if focus:
+game/scripts/ui/ui_base.gd:1024:		rd = _focus_glide(rd)   # V1.6.1 A8：手把焦點框滑過去（0.08 秒；連續撥動、減少動態、版面檢查時直接跳）
+game/scripts/ui/ui_base.gd:1025:		mag_focus = r.get_center()
+game/scripts/ui/ui_base.gd:1026:	if (focus or hover) and enabled and not plain_ui_now():
+game/scripts/ui/ui_base.gd:1029:		_box(rd.grow(1), Color(0, 0, 0, 0), Color(ACCENT, 0.95 if focus else 0.75), 8.0, 2.5)
+game/scripts/ui/ui_base.gd:1030:	elif focus:
+game/scripts/ui/ui_base.gd:1032:	if focus and enabled and bool(Save.s("focus_strong")):
+game/scripts/ui/ui_base.gd:1182:	_focus = 0
+game/scripts/ui/ui_base.gd:1420:func _h1(center: Vector2, s: String, maxw := 0.0) -> float:
+game/scripts/ui/ui_base.gd:1446:func _h1_help(center: Vector2, title: String, help: String, sz: int, maxw: float) -> float:
+game/scripts/ui/ui_base.gd:1488:	_btns.append({"r": r, "cb": action, "en": true, "group": btn_group})
+game/scripts/ui/ui_base.gd:1489:	var hot := (r.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)
+game/scripts/ui/ui_base.gd:1825:func _open(name: String) -> void:
+game/scripts/ui/ui_base.gd:1829:	_focus = 0
+game/scripts/ui/ui_base.gd:1836:var nav_focus := {}   # V1.0.0：卡片面板 → 上次點的那張卡（返回時焦點回原卡）
+game/scripts/ui/ui_base.gd:1837:func _nav_push(from: String) -> void:
+game/scripts/ui/ui_base.gd:1840:func _nav_back(fallback := "") -> void:
+game/scripts/ui/ui_base.gd:1844:	_focus = int(nav_focus.get(overlay, 0))   # V1.0.0（Codex v100-i1 #8）：回到卡片面板時焦點回原卡
+game/scripts/ui/lobby_view.gd:27:func _open_lobby(kind: String) -> void:
+game/scripts/ui/lobby_view.gd:554:	if _lb_focus_main:
+game/scripts/ui/lobby_view.gd:555:		_focus = _btns.size()   # 換步後焦點落在主鈕
+game/scripts/ui/lobby_view.gd:556:		_lb_focus_main = false
+game/scripts/ui/lobby_view.gd:598:	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
+game/scripts/ui/lobby_view.gd:647:	btn_group = ""   # 「我的預設」開下拉選單，和模式紙籤（直接切換）語意不同：單獨計數（Codex v150 cat03 #4）
+game/scripts/ui/lobby_view.gd:792:	btn_group = "lb_steps"
+game/scripts/ui/lobby_view.gd:799:	btn_group = ""
+game/scripts/ui/lobby_view.gd:810:		btn_group = "st_map"   # 1.5.0 R14：地圖左右箭頭＝一個步進器
+game/scripts/ui/lobby_view.gd:813:		btn_group = ""
+game/scripts/ui/lobby_view.gd:823:			btn_group = "lb_size"   # 1.5.0 R14：大小三選一＝一個控制
+game/scripts/ui/lobby_view.gd:825:			btn_group = ""
+game/scripts/ui/lobby_view.gd:907:var _lb_focus_main := false   # 換步之後焦點放到主鈕（下一步／開戰），不留在舊步驟的按鈕索引上（Codex v150 cat03 #2）
+game/scripts/ui/lobby_view.gd:912:		_lb_focus_main = true
+game/scripts/ui/lobby_view.gd:1121:	btn_group = "st_" + id   # 1.5.0 R14：一個步進器＝一個控制
+game/scripts/ui/lobby_view.gd:1125:	btn_group = ""
+game/scripts/ui/game_screens.gd:503:				_move_focus(-1)
+game/scripts/ui/game_screens.gd:505:				_move_focus(1)
+game/scripts/ui/game_screens.gd:507:				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+game/scripts/ui/game_screens.gd:509:					_btns[_focus]["cb"].call()
+game/scripts/ui/game_screens.gd:523:					_move_focus(1)
+game/scripts/ui/game_screens.gd:819:			_draw_focus_halo(view)   # 1.5.0 §7 焦點兵腳下暈光（地面層）
+game/scripts/ui/game_screens.gd:821:			_focus_ids.clear()   # 結果頁、擺陣等：不留上一場的焦點（Codex v150 cat07 r3）
+game/scripts/ui/game_screens.gd:836:		_draw_focus_marks(view)   # 1.5.0 §7：跟拍兵／目標的頭頂記號畫在跳字泡泡之上（不被蓋住；Hydrogen v150 cat07 r3）
+game/scripts/ui/game_screens.gd:928:	if _focus >= _btns.size():
+game/scripts/ui/game_screens.gd:929:		_focus = 0
+game/scripts/ui/game_screens.gd:992:	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+game/scripts/ui/game_screens.gd:993:		var fr: Rect2 = _btns[_focus]["r"]
+game/scripts/ui/game_screens.gd:1141:				_focus = i
+game/scripts/ui/map_art.gd:105:	out.sort_custom(func(a, b): return a[0] < b[0])
+game/scripts/ui/battle_view.gd:113:		_update_action_focus()
+game/scripts/ui/battle_view.gd:126:		_update_action_focus()
+game/scripts/ui/battle_view.gd:1000:	_focus = 0
+game/scripts/ui/screens/game_playroom.gd:112:	df_pool.sort()
+game/scripts/ui/screens/game_playroom.gd:290:	_focus = 0
+game/scripts/ui/screens/game_playroom.gd:782:	_focus = 0
+game/scripts/ui/screens/game_playroom.gd:830:		top.sort_custom(func(p1, p2): return cnt[p1] > cnt[p2] or (cnt[p1] == cnt[p2] and p1 < p2))
+game/scripts/ui/screens/game_modes.gd:170:var trial_page := 0
+game/scripts/ui/screens/game_modes.gd:179:	trial_page = clampi(trial_page, 0, pages - 1)
+game/scripts/ui/screens/game_modes.gd:184:	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
+game/scripts/ui/screens/game_modes.gd:188:		var i: int = trial_page * TRIAL_PAGE + k
+game/scripts/ui/screens/game_modes.gd:230:	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
+game/scripts/ui/screens/game_modes.gd:231:	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
+game/scripts/ui/screens/game_modes.gd:401:func _open_relay() -> void:
+game/scripts/ui/screens/game_modes.gd:411:	rl_types.sort()
+game/scripts/ui/screens/game_modes.gd:636:	out.sort()
+game/scripts/ui/screens/game_modes.gd:673:	out.sort()
+game/scripts/ui/screens/game_modes.gd:991:		btn_group = "pf_tabs"
+game/scripts/ui/screens/game_modes.gd:993:		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+game/scripts/ui/screens/game_modes.gd:994:		btn_group = ""
+game/scripts/ui/screens/game_modes.gd:1042:	most.sort()
+game/scripts/ui/screens/game_modes.gd:1044:	best.sort()
+game/scripts/ui/screens/game_modes.gd:1075:		btn_group = "pf_grp"
+game/scripts/ui/screens/game_modes.gd:1078:		btn_group = ""
+game/scripts/ui/screens/game_modes.gd:1117:	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+game/scripts/ui/screens/game_modes.gd:1118:	var ht := L.t("pf_ach", [earned.size(), keys.size()])
+game/scripts/ui/screens/game_modes.gd:1121:		btn_group = "pf_pager"
+game/scripts/ui/screens/game_modes.gd:1122:		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+game/scripts/ui/screens/game_modes.gd:1123:		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+game/scripts/ui/screens/game_modes.gd:1124:		btn_group = ""
+game/scripts/ui/screens/game_modes.gd:1125:		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+game/scripts/ui/screens/game_modes.gd:1128:	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+game/scripts/ui/screens/game_modes.gd:1131:		var j2 := i2 - pf_ach_page * ACH_PAGE
+game/scripts/ui/screens/game_modes.gd:1144:var pf_ach_page := 0
+game/scripts/ui/screens/game_modes.gd:1319:	units.sort_custom(func(a, b): return a["col"] < b["col"] or (a["col"] == b["col"] and a["row"] < b["row"]))
+game/scripts/ui/screens/game_core.gd:44:	_focus = 0
+game/scripts/ui/screens/game_core.gd:692:	rows.sort_custom(func(p, q):
+game/scripts/ui/screens/game_core.gd:705:	used.sort_custom(func(p, q):
+game/scripts/ui/screens/game_core.gd:789:	out.sort_custom(func(a, b): return int(a["t"]) < int(b["t"]))
+game/scripts/ui/screens/game_core.gd:904:	out["focus"] = not _btns.is_empty() and _focus >= 0 and _focus < _btns.size()
+game/scripts/ui/screens/game_core.gd:908:	for k in ["strings", "data", "fonts", "audio", "art", "save_roundtrip", "battle_code", "unit_cap", "no_tools", "title", "focus", "size"]:
+game/scripts/ui/screens/game_result.gd:62:	_focus = 0
+game/scripts/ui/screens/game_result.gd:438:		res_more_items.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])   # V1.6 #5 分享（出題碼、明信片、精華）
+game/scripts/ui/screens/game_result.gd:449:	bs.append([L.t("res_more"), func(): overlay = "res_more"; _focus = 0])
+game/scripts/ui/screens/game_result.gd:537:	out.sort_custom(func(x, y): return x[0] < y[0])   # 依時間排
+game/scripts/ui/screens/game_result.gd:560:func _open_review_on_first_loss() -> void:
+game/scripts/ui/screens/game_result.gd:970:		if idx == _focus and pad_mode:
+game/scripts/ui/screens/game_result.gd:972:			if bool(Save.s("focus_strong")):
+game/scripts/ui/screens/game_place.gd:20:		_focus = 0
+game/scripts/ui/screens/game_place.gd:61:	_focus = int(nav_focus.get(overlay, 0)) if overlay != "" else 0   # V1.0.0（Codex v100-i3）：打完回卡片面板，焦點回原卡
+game/scripts/ui/screens/game_place.gd:411:	list.sort()
+game/scripts/ui/screens/game_place.gd:588:		ordered.sort_custom(func(p, q): return (0 if not D.is_support(int(p["type"])) else 1) < (0 if not D.is_support(int(q["type"])) else 1))
+game/scripts/ui/screens/game_place.gd:731:		btn_group = "cards"   # 1.5.0 R14：兵卡牌尺＝一個選擇器（卡上的 ? 同一組）
+game/scripts/ui/screens/game_place.gd:733:		btn_group = ""   # 第七輪 N6：點擊框不變，外觀只留一個小問號，不切到角色
+game/scripts/ui/screens/game_place.gd:1270:	if en and ((tr.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)):
+game/scripts/ui/screens/game_v16.gd:22:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:112:func _open_codex(t: int) -> void:
+game/scripts/ui/screens/game_v16.gd:173:			return func(): overlay = "playroom"; _focus = 0
+game/scripts/ui/screens/game_v16.gd:219:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:301:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:329:var br_focus := 0
+game/scripts/ui/screens/game_v16.gd:332:	br_focus = _focus
+game/scripts/ui/screens/game_v16.gd:335:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:340:	_focus = br_focus
+game/scripts/ui/screens/game_v16.gd:468:				_focus = 0
+game/scripts/ui/screens/game_v16.gd:479:	btn_group = "tv_tools"   # 1.5.0 R14：射程、標記、實驗簿三顆小圖示＝一組檢視工具（試煉擺陣原本 13 個，第 4 批漏拍這個變體）
+game/scripts/ui/screens/game_v16.gd:481:	btn_group = ""
+game/scripts/ui/screens/game_v16.gd:490:		_btn(b3, "", func(): overlay = "notebook"; _focus = 0)
+game/scripts/ui/screens/game_v16.gd:630:		order.sort_custom(func(p, q): return p[0] < q[0])
+game/scripts/ui/screens/game_v16.gd:669:		or (_focus == 0 and hold_keys_down(Save.s("keys"), Save.s("pad")))
+game/scripts/ui/screens/game_v16.gd:756:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:873:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:919:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:994:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:1016:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1366:	_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
+game/scripts/ui/screens/game_v16.gd:1583:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1663:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1690:		ks.sort()
+game/scripts/ui/screens/game_v16.gd:1748:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:1852:	e.sort()
+game/scripts/ui/screens/game_v16.gd:1853:	s.sort()
+game/scripts/ui/screens/game_v16.gd:1889:			e.sort()
+game/scripts/ui/screens/game_v16.gd:2046:	_focus = 0
+game/scripts/ui/screens/game_v16.gd:2185:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:2204:	lst.sort_custom(func(a, b): return _fog_key(a) < _fog_key(b))
+game/scripts/ui/screens/game_v16.gd:2269:		_focus = 0
+game/scripts/ui/screens/game_v16.gd:2302:		_focus = 0
+game/scripts/ui/screens/game_menus.gd:13:		_focus = 0
+game/scripts/ui/screens/game_menus.gd:611:	_focus = 0
+game/scripts/ui/screens/game_menus.gd:642:	"set_hold": ["hold_confirm"], "set_magnify": ["magnify"], "set_cb": ["colorblind"], "set_reduce_motion": ["reduce_motion"], "set_text_plate": ["text_plate"], "set_focus": ["focus_strong"],
+game/scripts/ui/screens/game_menus.gd:658:		_focus = 0
+game/scripts/ui/screens/game_menus.gd:736:var set_adv_focus := false   # 開合抽屜後，下一幀把焦點放回抽屜鈕（Codex v150 cat05 #1）
+game/scripts/ui/screens/game_menus.gd:741:	set_adv_focus = true
+game/scripts/ui/screens/game_menus.gd:747:func _take_adv_focus() -> void:
+game/scripts/ui/screens/game_menus.gd:748:	if set_adv_focus:
+game/scripts/ui/screens/game_menus.gd:749:		_focus = _btns.size()
+game/scripts/ui/screens/game_menus.gd:750:		set_adv_focus = false
+game/scripts/ui/screens/game_menus.gd:823:				["set_focus", L.t("v_strong") if bool(Save.s("focus_strong")) else L.t("v_standard"), func(d): _cycle_setting("focus_strong", [false, true])],
+game/scripts/ui/screens/game_menus.gd:884:func _open_pause_menu() -> void:
+game/scripts/ui/screens/game_menus.gd:887:	_focus = 0
+game/scripts/ui/screens/game_menus.gd:929:		btn_group = "set_tabs"   # 1.5.0 R14：分頁列＝一個控制
+game/scripts/ui/screens/game_menus.gd:932:		btn_group = ""
+game/scripts/ui/screens/game_menus.gd:948:		btn_group = "set_presets"
+game/scripts/ui/screens/game_menus.gd:951:		btn_group = ""
+game/scripts/ui/screens/game_menus.gd:960:		btn_group = "set_hh"   # 掌機配置＋30／60 二選一＝一個控制
+game/scripts/ui/screens/game_menus.gd:964:		btn_group = ""
+game/scripts/ui/screens/game_menus.gd:987:		btn_group = "set_row_%d" % i   # 1.5.0 R14：◀ 值 ▶ ＝一個控制
+game/scripts/ui/screens/game_menus.gd:1012:	btn_group = ""
+game/scripts/ui/screens/game_menus.gd:1018:		_take_adv_focus()
+game/scripts/ui/screens/game_menus.gd:1071:	{"text_scale": 150, "plain_titles": true, "text_plate": true, "focus_strong": true},
+game/scripts/ui/screens/game_menus.gd:1192:	_focus = 1
+game/scripts/ui/screens/game_menus.gd:1243:	out.sort()
+game/scripts/ui/screens/game_menus.gd:1314:	_focus = 0
+game/scripts/ui/screens/game_menus.gd:1470:	ordered.sort_custom(func(p, q): return (0 if not D.is_support(int(p["type"])) else 1) < (0 if not D.is_support(int(q["type"])) else 1))
+game/scripts/ui/screens/game_menus.gd:1611:	return [["home_play", "home_play_d", 3, func(): overlay = "hub_play"; _focus = 0, true],
+game/scripts/ui/screens/game_menus.gd:1612:		["menu_gauntlet", "home_gauntlet_d", 1, func(): overlay = "hub_gauntlet"; _focus = 0, false],   # V1.0.0 H1：單人遠征＋雙人接力
+game/scripts/ui/screens/game_menus.gd:1613:		["home_challenge", "home_challenge_d", 2, func(): overlay = "hub_challenge"; _focus = 0, true],
+game/scripts/ui/screens/game_menus.gd:1614:		["menu_playroom", "home_playroom_d", 8, func(): overlay = "playroom"; _focus = 0, false],
+game/scripts/ui/screens/game_menus.gd:1615:		["home_collect", "home_collect_d", 13, func(): overlay = "hub_collect"; _focus = 0, true]]
+game/scripts/ui/screens/game_menus.gd:1651:				["trio_open", "hc_trio_d", "people", func(): overlay = "trio"; _focus = 0, not _demo()],   # V1.6 #17
+game/scripts/ui/screens/game_menus.gd:1652:				["od_open", "hc_od_d", "star", func(): overlay = "owner_daily"; _focus = 0, not _demo()]]   # 1.3.0 §12.7 每日老闆出題
+game/scripts/ui/screens/game_menus.gd:1657:				["rift_open", "hc_rift_d", "swap", func(): overlay = "rift"; _focus = 0, not _demo()],   # V1.6 #10
+game/scripts/ui/screens/game_menus.gd:1667:				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
+game/scripts/ui/screens/game_menus.gd:1668:				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true],   # V1.6.1 N2 新玩法導覽（常駐）
+game/scripts/ui/screens/game_menus.gd:1669:				["sb_title", "hc_sb_d", "book", func(): overlay = "songbook"; _focus = 0, true],   # 1.2.0 §11.8 棋譜本
+game/scripts/ui/screens/game_menus.gd:1670:				["menu_codes", "hc_codes_d", "copy", func(): overlay = "codes"; _focus = 0, true]]   # 1.5.0 §1.1：代碼從標題系統鈕移到收藏（標題只留設定、離開）
+game/scripts/ui/screens/game_menus.gd:1711:		_btn(r, "", func(): _nav_push(kind); nav_focus[kind] = ci; nav_hub = kind; Guide.see(Save.data, ek); Save.data["recent"] = Recent.push(Save.data.get("recent", []), kind, ek); cb.call(), bool(it[4]), i == 0)
+game/scripts/ui/battle/frags.gd:98:			arr.sort_custom(func(a, b): return int(a["born"]) > int(b["born"]))
+game/scripts/ui/battle/battle_state.gd:38:var action_focus := Vector2.ZERO
+game/scripts/ui/battle/battle_state.gd:122:	es.sort_custom(func(a, b): return a[0] < b[0])
+game/scripts/ui/battle/battle_fx.gd:192:	list.sort_custom(func(a, b): return a.get("tier", 1) > b.get("tier", 1) or (a.get("tier", 1) == b.get("tier", 1) and a["t"] < b["t"]))
+game/scripts/ui/battle/battle_fx.gd:243:func _focus_dim(world_p: Vector2) -> float:
+game/scripts/ui/battle/battle_fx.gd:246:	return 0.6 if world_p.distance_to(action_focus) > 200.0 else 1.0
+game/scripts/ui/battle/battle_units.gd:235:func _update_action_focus() -> void:
+game/scripts/ui/battle/battle_units.gd:242:	action_focus = sum / n if n > 0 else zoom_center
+game/scripts/ui/battle/battle_units.gd:399:func _open_drop(u) -> Vector2:
+game/scripts/ui/battle/battle_units.gd:421:func _open_squash(u) -> float:
+game/scripts/ui/battle/battle_units.gd:503:	return HK * focus_scale(u.id)
+game/scripts/ui/battle/battle_units.gd:507:func focus_scale(id: int) -> float:
+game/scripts/ui/battle/battle_units.gd:717:		list.sort_custom(func(a, b): return pc[a.id].y < pc[b.id].y)
+game/scripts/ui/battle/battle_units.gd:719:		list.sort_custom(func(a, b): return a.y < b.y)
+game/scripts/ui/battle/battle_units.gd:750:		var bsc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)   # V1.4 #12 巨獸畫大；1.3.0 跟拍的那一隻畫大
+game/scripts/ui/battle/battle_units.gd:847:			alpha *= _focus_dim(p)
+game/scripts/ui/battle/battle_units.gd:856:		elif live and state == St.BATTLE and _focus_ids.size() == 2 and u.id == int(_focus_ids[1]):
+game/scripts/ui/battle/battle_units.gd:1034:		var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
+game/scripts/ui/battle/battle_units.gd:1143:			var ha := hp_bar_alpha(u.id, _focus_ids, u.hp * 100 <= u.max_hp * 35) if live and state == St.BATTLE else 1.0   # 1.5.0 §7：非焦點兵血條淡一些
+game/scripts/ui/battle/battle_units.gd:1417:		sy.sort_custom(func(x, y): return (x[1] as Vector2).y < (y[1] as Vector2).y)   # 依 y 排好：只往後看 48px 內（不是 O(n²) 全掃）
+game/scripts/ui/battle/battle_units.gd:1508:static func pick_focus(units: Array, follow: int) -> Array:
+game/scripts/ui/battle/battle_units.gd:1526:var _focus_ids: Array = []
+game/scripts/ui/battle/battle_units.gd:1530:func _draw_focus_halo(s) -> void:
+game/scripts/ui/battle/battle_units.gd:1531:	_focus_ids.clear()
+game/scripts/ui/battle/battle_units.gd:1534:	_focus_ids = pick_focus(s.units, follow_id)
+game/scripts/ui/battle/battle_units.gd:1535:	if _focus_ids.is_empty():
+game/scripts/ui/battle/battle_units.gd:1540:	var me = by_id[_focus_ids[0]]
+game/scripts/ui/battle/battle_units.gd:1553:	if int(_focus_ids[1]) >= 0:
+game/scripts/ui/battle/battle_units.gd:1554:		var tg = by_id[_focus_ids[1]]
+game/scripts/ui/battle/battle_units.gd:1570:func _draw_focus_marks(s) -> void:
+game/scripts/ui/battle/battle_units.gd:1571:	if s == null or _focus_ids.is_empty():
+game/scripts/ui/battle/battle_units.gd:1577:		var id := int(_focus_ids[k])
+game/scripts/ui/battle/battle_units.gd:1591:static func hp_bar_alpha(id: int, focus: Array, low := false) -> float:
+game/scripts/ui/battle/battle_units.gd:1592:	return 1.0 if (id in focus or low) else 0.55
+
+exec
+/bin/bash -lc "sed -n '600,650p' game/scripts/ui/ui_base.gd; sed -n '1410,1450p' game/scripts/ui/ui_base.gd; sed -n '1815,1855p' game/scripts/ui/ui_base.gd; sed -n '1,78p' game/scripts/ui/screens/game_place.gd; sed -n '1736,1895p' game/tools/dev_main.gd; sed -n '975,1147p' game/scripts/ui/screens/game_modes.gd; rg -n 'func tz|GAP_L|GAP_M|plain_titles|ribbon' game/scripts/ui/ui_base.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+
+
+func cbm() -> bool:
+	return bool(Save.s("colorblind"))
+
+
+func _toast(s: String, deny := false) -> void:
+	toast = s
+	var tm := int(Save.s("toast_mult"))
+	toast_t = 2.0 * tm if tm > 0 else 600.0   # V1.5：提示停留 標準／加長／很長／手動關（點一下才收）
+	toast_born = time
+	if deny:
+		sfx.play("ui_deny")
+
+
+func _move_focus(d: int) -> void:
+	pad_mode = true
+	if _btns.is_empty():
+		return
+	_focus = posmod(_focus + d, _btns.size())
+
+
+## 字太寬就往下一級縮（第五輪：只在字級表內往下走，最小到「註記」，不再縮到 9px；還是太寬就由 _text 換行）。
+func fit(s: String, size: int, maxw: float, bold := false) -> int:
+	var sz := size
+	var levels: Array = TYPE_SCALE[_scale_key()].values()
+	levels.sort()
+	while _width(s, sz, bold) > maxw:
+		var nxt := -1
+		for v in levels:
+			if v < sz:
+				nxt = v
+		if nxt < 0:
+			break
+		sz = nxt
+	return sz
+
+func _font_for(s: String, size: int, bold: bool) -> Font:
+	if _hand_mode and font_title != null:
+		return font_title   # 1.2.0：老闆便條、印章用手寫字（憲法 6：只放建議，不承載數值）
+	if font_craft:
+		# 1.2.0（Codex cat02 #3）工藝字型的分工：D／DX 展示大字＝ThenKhung（logo 氣質不變）；H1、T＝手寫楷體；H2 以下＝正文黑體
+		if bold and not bool(Save.s("plain_titles")) and not _has_digit(s):
+			if font_display != null and size >= tz("D"):
+				return font_display
+			if font_title != null and size >= tz("H1"):
+				return font_title
+		return font_bold if bold else font
+	if bold and font_title != null and size >= tz("H2") and not bool(Save.s("plain_titles")) and not _has_digit(s):
+		return font_title
+	return font_bold if bold else font
+	if st < 1 or st > STK.COUNT:
+		return
+	var c := p + Vector2(15, 5) * scale
+	var a := 1.0 if on else 0.35
+	draw_circle(c + Vector2(0, 1.2) * scale, 7.5 * scale, Color(0.1, 0.06, 0.03, 0.5 * a), true, -1.0, true)
+	draw_circle(c, 7.0 * scale, Color(0.98, 0.94, 0.84, a), true, -1.0, true)
+	draw_circle(c, 5.6 * scale, Color(Color(STK.COLORS[st]), a), true, -1.0, true)
+	Icons.draw(self, STK.ICONS[st], c, 8.0 * scale, Color(1, 1, 1, a))
+
+## 羊皮紙標題緞帶：畫面標題統一用它。回傳緞帶含尾的完整下緣（V1.5.2 L3：下方內容從「下緣＋GAP_L」起排）。
+func _h1(center: Vector2, s: String, maxw := 0.0) -> float:
+	var sz := tz("H1")
+	var w := minf(_width(s, sz, true) + 72.0, maxw if maxw > 0.0 else 900.0)
+	var r := Rect2(center.x - w / 2, center.y - 2, w, sz * 1.45)
+	var notch := 14.0
+	for sgn in [-1.0, 1.0]:
+		var ex: float = r.position.x if sgn < 0 else r.end.x
+		draw_colored_polygon(PackedVector2Array([Vector2(ex - sgn * 4, r.position.y + 6), Vector2(ex + sgn * 20, r.position.y + 6), Vector2(ex + sgn * (20 - notch), r.get_center().y + 3), Vector2(ex + sgn * 20, r.end.y + 2), Vector2(ex - sgn * 4, r.end.y + 2)]), TH_PARCH.darkened(0.28))
+	_box(r, TH_PARCH, TH_PARCH.darkened(0.45), 4.0, 2.0)
+	_text(center + Vector2(0, sz * 0.07), s, sz, TH_INK, true, true, maxf(w - 20.0, 100.0))
+	if layout_probe:
+		var host := ""
+		for k in range(probe_panels.size() - 1, -1, -1):
+			var pk: Rect2 = probe_panels[k]["r"]
+			# 緞帶可以跨在面板上緣（圖鑑、大廳、試煉）：中心 x 在面板內、緞帶本體碰到面板就算它的宿主
+			if pk.grow(2.0).has_point(center + Vector2(0, 2)) or (center.x > pk.position.x and center.x < pk.end.x and r.intersects(pk.grow(2.0))):
+				host = probe_panels[k]["id"]
+				break
+		probe_ribbons.append({"id": "H%d" % probe_ribbons.size(), "r": Rect2(r.position.x - 20, r.position.y, r.size.x + 40, r.size.y + 2), "body": r, "cx": center.x, "bottom": r.end.y + 2.0, "host": host})
+	return r.end.y + 2.0
+
+## 標題緞帶完整下緣（不畫，給排版先算位置用）
+func h1_bottom(center_y: float) -> float:
+	return center_y - 2.0 + tz("H1") * 1.45 + 2.0
+
+## V1.5.2：緞帶＋下方置中說明。回傳下一個內容的起點（說明下緣＋GAP_L；沒說明時＝緞帶下緣＋GAP_L）。
+func _h1_help(center: Vector2, title: String, help: String, sz: int, maxw: float) -> float:
+	var y := _h1(center, title) + GAP_L
+	if help == "":
+		return y
+	_text(Vector2(center.x, y), help, sz, TXT_DIM, true, false, maxw)
+	else:
+		_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
+	if panel_obj != "" and not bool(Save.s("plain_ui")):
+		_obj_deco(r, panel_obj)
+		if layout_probe:
+			probe_decos.append({"id": "obj_%s" % panel_obj, "kind": "obj", "r": obj_extent(r, panel_obj), "host_r": r, "edge": "screen"})   # 1.3.0：器物裝飾不能出畫面（Codex cat08 #3）
+		obj_open_r = r
+		obj_open_kind = panel_obj
+
+
+func _open(name: String) -> void:
+	if overlay.begins_with("hub_"):
+		nav_stack.append(overlay)   # 卡片面板開著時直接開下一頁（例如結果頁「試煉」）：記得回面板
+	overlay = name
+	_focus = 0
+
+## V1.5.1 返回目的地：打開下一層之前記下「從哪來」，返回鈕、Esc、手把 B 都走 _nav_back（使用者回報：返回都跳回主畫面）。
+## 卡片面板（hub）畫出來時清空堆疊；開戰也清空。nav_hub＝最後經過的卡片面板，打完回標題時重新打開它。
+var nav_stack: Array = []
+var nav_hub := ""
+
+var nav_focus := {}   # V1.0.0：卡片面板 → 上次點的那張卡（返回時焦點回原卡）
+func _nav_push(from: String) -> void:
+	nav_stack.append(from)
+
+func _nav_back(fallback := "") -> void:
+	if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
+		nav_hub = ""   # 關掉卡片面板：之後打完不再自動打開它
+	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
+	_focus = int(nav_focus.get(overlay, 0))   # V1.0.0（Codex v100-i1 #8）：回到卡片面板時焦點回原卡
+
+
+func _fmt_num(v: float) -> String:
+	return str(int(v)) if v == floorf(v) else str(v)
+
+
+func _onoff(k: String) -> String:
+	return L.t("on") if bool(Save.s(k)) else L.t("off")
+
+
+func _cycle_setting(k: String, opts: Array) -> void:
+extends "res://scripts/ui/screens/game_core.gd"
+## 由 game_screens.gd 拆出（V9 P1，行為不變）
+
+# ───────────────────────── 狀態切換 ─────────────────────────
+## 第十輪 B10：玩家按離開。系列打到一半或遠征途中，先確認（自動導頁直接呼叫 _go_title，不跳確認）。
+func _leave_at_risk() -> bool:
+	if state == St.TITLE or watch_mode:
+		return false
+	if mode == Mode.GAUNTLET:
+		if state == St.RESULT and sim != null:
+			return sim.winner == 0 and gauntlet_stage < 7
+		return gauntlet_stage > 1
+	if mode == Mode.VS_AI or mode == Mode.DUEL:
+		return wins[0] + wins[1] > 0 and not series_over
+	return false
+
+func _request_leave() -> void:
+	if _leave_at_risk():
+		overlay = "leave"
+		_focus = 0
+	else:
+		_go_title()
+
+func _leave_confirm() -> void:
+	overlay = ""
+	_go_title()
+
+func _go_title() -> void:
+	call("_rift_sync")   # 1.2.0 §11.9：回主畫面時補送當週天梯成績（沒有連線事件可接，回主畫面是固定的重試點；Codex cat10 #7）
+	var rs = get("rush")
+	if rs is Dictionary and bool(rs.get("on", false)):
+		rs["on"] = false   # V1.6 #8：離開就結束極速賽（不記紀錄）
+	set("rift_on", false)   # V1.6 #10
+	set("trio_on", false)   # V1.6 #17
+	set("fog_on", false)   # V1.6 #20
+	set("tv_mark_mode", false)   # V1.6 #6：標記模式不能帶到別的畫面（Antigravity v160-i1 #1）
+	set("tv_marks", [])
+	set("ga_coop", false)   # V1.6 #21：續局時從存檔讀回
+	set("challenge_army", null)   # 每日高手陣、裂隙的敵陣不能留到一般對 AI（Antigravity v160-i1 #2）
+	set("wv_active", false)   # V1.4 #11：離開就結束車輪戰
+	set("wv_mode", false)
+	set("sealed_on", false)   # V1.4 #13
+	set("sealed", [[], []])
+	set("ghost_id", "")
+	set("wk_active", false)
+	set("wg_active", false)   # V1.4 #16：離開就取消押注，不能拿下一場來結算（Codex v140-i2）
+	call("_pre_drop")
+	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
+	sfx.set_muffled(false)
+	watch_mode = false
+	clutch_t = 0.0
+	state = St.TITLE
+	overlay = ""
+	set("settings_ret", "")
+	nav_stack.clear()
+	if nav_hub != "":
+		overlay = nav_hub   # V1.5.1：從卡片面板進去打完，回來時回到那個面板
+	sim = null
+	view = null
+	zoom = 1.0
+	_focus = int(nav_focus.get(overlay, 0)) if overlay != "" else 0   # V1.0.0（Codex v100-i3）：打完回卡片面板，焦點回原卡
+	_new_demo()
+	sfx.play_music("music_title")
+	sfx.play_ambience("")
+
+
+
+func _new_demo() -> void:
+	var r := RandomNumberGenerator.new()
+	r.seed = rng.randi()
+	demo = Sim.new(AI.build(0, 100, r)["army"], AI.build(1, 100, r)["army"])
+	demo.fast = true
+	demo_acc = 0.0
+
+
+
+## 第六輪（Codex 實作第 1 輪 #5）：雙人全場被封鎖到跳完手、一方沒有戰鬥兵時，照樣按「開戰」——
+## 模擬在第 0 tick 就依 §3.8 判定（有戰鬥兵的一方勝、雙方都沒有＝和局），不能卡在開戰鈕永久灰掉。
+# ── 第十輪 T5：只用手把走主要流程。失敗印 PADWALK FAIL，版面檢查會擋 ──
+var _pw_bad: Array = []
+
+func _pw_check(cond: bool, what: String) -> void:
+	if not cond:
+		_pw_bad.append(what)
+
+func _pw_btn(b: int) -> void:
+	if ov_trans_k() < 1.0:
+		_ov_t = time - 1.0   # 1.4.0 §2.2：轉場中的第一下會被吃掉（設計如此）；走訪時等轉場結束再按（等於玩家等 0.25 秒）
+	_trans_reset_input()
+	for pressed in [true, false]:
+		var ev := InputEventJoypadButton.new()
+		ev.button_index = b
+		ev.pressed = pressed
+		ev.device = 0
+		_input(ev)
+		await _pw_frames(2)
+
+func _pw_frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+## 方向鍵走到第 i 顆再按 A；同時確認焦點走得到。
+func _pw_pick(i: int, what: String) -> void:
+	await _pw_frames(2)
+	_pw_check(i < _btns.size(), "%s：沒有第 %d 顆按鈕（共 %d）" % [what, i, _btns.size()])
+	var guard := 0
+	while _focus != i and guard < 60:
+		guard += 1
+		await _pw_btn(JOY_BUTTON_DPAD_DOWN)
+	_pw_check(_focus == i, "%s：焦點走不到第 %d 顆" % [what, i])
+	await _pw_btn(JOY_BUTTON_A)
+	await _pw_frames(3)
+
+## 這個畫面的每顆按鈕都走得到、都在畫面內。
+func _pw_cycle(what: String) -> void:
+	await _pw_frames(2)
+	var n: int = _btns.size()
+	_pw_check(n > 0, "%s：沒有按鈕" % what)
+	for b in _btns:
+		_pw_check(Rect2(0, 0, 1280, 800).encloses(b["r"]), "%s：按鈕超出畫面 %s" % [what, str(b["r"])])
+	var seen := {}
+	for k in n:
+		seen[_focus] = true
+		await _pw_btn(JOY_BUTTON_DPAD_DOWN)
+	_pw_check(seen.size() == n, "%s：焦點只走到 %d／%d 顆" % [what, seen.size(), n])
+
+func _pad_walk() -> void:
+	_pw_bad = []
+	layout_probe = false
+	shot_dir = ""
+	rules = null
+	overlay = ""
+	for nk in ["lobby", "place", "result"]:   # 1.2.0：老闆便條是第一次才跳的疊層，手把流程先當看過（便條本身另有截圖與測試）
+		preload("res://scripts/game/guide.gd").see(Save.data, "note_" + nk)
+	_go_title()
+	await _pw_frames(3)
+	await _pw_cycle("標題")
+	for step in [[0, "hub_play"], [1, "hub_gauntlet"], [2, "hub_challenge"], [3, "playroom"], [4, "hub_collect"], [5, "settings"]]:   # V1.5：五塊木牌（0～4）＋系統列（5 設定、6 離開；1.5.0 代碼移到收藏，下面另走）
+		_go_title()
+		await _pw_pick(step[0], "標題→" + str(step[1]))
+		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])
+		await _pw_cycle(str(step[1]))
+		await _pw_btn(JOY_BUTTON_B)
+		_pw_check(overlay == "", "%s：B 關不掉" % step[1])
+	_go_title()
+	await _pw_pick(4, "標題→收藏")
+	await _pw_pick(7, "收藏→代碼")   # 1.5.0：代碼在收藏第 8 張
+	_pw_check(overlay == "codes", "收藏→代碼：現在是 %s" % overlay)
+	await _pw_cycle("codes")
+	_go_title()
+	await _pw_pick(0, "標題→對戰")
+	await _pw_pick(1, "對戰→對 AI 大廳")
+	await _pw_cycle("大廳")
+	# 1.5.0 §1.2 大廳三步：RB 下一步、LB 上一步、Y 進階折頁；換步後焦點在主鈕（Codex v150 cat03 #5）
+	_go_title()
+	_open_lobby("ai")   # 上面巡過每顆鈕之後畫面不在大廳了：重新打開
+	lobby_step = 0
+	lobby_open = false
+	lobby_menu = false
+	await _pw_frames(3)
+	_ov_t = time - 1.0   # 等疊層開始畫、轉場直接到終態（第一下不要被轉場吃掉）
+	for st in [1, 2]:
+		await _pw_btn(JOY_BUTTON_RIGHT_SHOULDER)
+		await _pw_frames(3)
+		_pw_check(lobby_step == st, "大廳 RB：應該到第 %d 步，現在 %d（overlay=%s menu=%s open=%s state=%d cmds=%d）" % [st + 1, lobby_step + 1, overlay, str(lobby_menu), str(lobby_open), state, _cmds.size()])
+		_pw_check(_focus >= 0 and _focus < _btns.size() and _btns[_focus]["r"].position.x >= 960.0, "大廳換步後焦點不在主鈕（第 %d 步）" % [st + 1])
+		await _pw_cycle("大廳第 %d 步" % [st + 1])
+	await _pw_btn(JOY_BUTTON_LEFT_SHOULDER)
+	await _pw_frames(3)
+	_pw_check(lobby_step == 1, "大廳 LB：應該回第 2 步")
+	await _pw_btn(JOY_BUTTON_Y)
+	await _pw_frames(3)
+	_pw_check(lobby_open, "大廳 Y：應該打開進階折頁")
+	await _pw_btn(JOY_BUTTON_Y)
+	await _pw_frames(3)
+	_pw_check(not lobby_open, "大廳 Y：應該收起進階折頁")
+	_go_title()
+	overlay = "reward"
+	await _pw_cycle("獎勵")
+	overlay = ""
+	rules = RuleSet.standard()
+	rules.ai_pool_same = false
+	rules.pool = [1023, ~1023 & ((1 << 20) - 1)]
+	ban_left = [1, 1]
+	overlay = "ban"
+	await _pw_cycle("禁牌 20 張")
+	overlay = ""
+	rules = null
+	# 試煉從頭打到結果：擺一隻、開戰、跳過、看結果、回主選單
+	_go_title()
+	_open("trials")
+	await _pw_pick(0, "試煉第 1 關")
+	_pw_check(state == St.PLACE, "試煉沒有進擺放")
+	await _pw_btn(JOY_BUTTON_LEFT_SHOULDER)
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = JOY_BUTTON_A
+	ev.pressed = true
+	_input(ev)
+	await _pw_frames(3)
+	var ev2 := InputEventJoypadButton.new()
+	ev2.button_index = JOY_BUTTON_A
+	ev2.pressed = false
+	_input(ev2)
+	await _pw_frames(3)
+	if armies[0].units.is_empty():
+		_pw_bad.append("手把 A 擺不下兵")
+		armies[0].place_xy(0, armies[0].world_x(3000), 3000)
+	await _pw_btn(JOY_BUTTON_START)
+	await _pw_frames(5)
+	_pw_check(state == St.BATTLE, "Start 沒有開戰，現在 %d" % state)
+	await _pw_btn(JOY_BUTTON_B)   # V1.5：B 打開暫停選單（第二項＝直接看結果）
+	await _pw_frames(3)
+	_pw_check(overlay == "pause_menu" and paused, "B 沒有打開暫停選單，現在 %s" % overlay)
+	await _pw_btn(JOY_BUTTON_DPAD_DOWN)
+	await _pw_frames(2)
+	await _pw_btn(JOY_BUTTON_A)
+	var wait := 0
+	while state != St.RESULT and wait < 900:
+		wait += 1
+		await get_tree().process_frame
+	_pw_check(state == St.RESULT, "B 跳過後沒進結果頁")
+	wait = 0
+	while call("_ink_active") and wait < 300:   # 1.2.0：宣紙戰報演完（約 1 秒）才出結果面板
+		wait += 1
+		await get_tree().process_frame
+	await _pw_cycle("結果頁")
+	await _pw_btn(JOY_BUTTON_B)
+	await _pw_frames(3)
+	if overlay == "leave":
+		await _pw_pick(1, "離開確認")
+	_pw_check(state == St.TITLE, "結果頁 B 沒回標題，現在 %d" % state)
+	if _pw_bad.is_empty():
+		print("PADWALK OK")
+	else:
+		print("PADWALK FAIL ", "；".join(_pw_bad))
+
+# ── 第十二輪：手動技能的畫面 ──
+func _shots_cmd() -> void:
+		Save.data["best_streak"] = maxi(int(Save.data.get("best_streak", 0)), int(Save.data["streak"]))
+	else:
+		Save.data["streak"] = 0
+
+## 1.5.0 §1.6 戰績三頁籤（原本一頁塞 5 格數字＋20 格兵種＋32 個成就）：總覽／兵種／徽章櫃；每頁非按鈕格 ≤12
+var pf_tab := 0
+var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+const CareerPF = preload("res://scripts/game/career.gd")
+
+func _draw_profile() -> void:
+	var P := Rect2(50, 24, 1180, 752)
+	_panel(P)
+	var hy := _h1(Vector2(640, 30), L.t("pf_title")) + GAP_L   # 1.2.0：H1 放大，緞帶上移 4（R2）；頁籤從緞帶下緣＋16 起
+	var tabw := 200.0
+	for i in 3:
+		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
+		btn_group = "pf_tabs"
+		var ii := i
+		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+		btn_group = ""
+		btn_cloth = ""
+	match pf_tab:
+		0: _draw_pf_overview(hy + 46.0 + GAP_M)
+		1: _draw_pf_units(hy + 46.0 + GAP_M)
+		2: _draw_pf_badges(hy + 46.0 + GAP_M)
+	_btn(Rect2(340, 722, 160, 44), L.t("back"), func(): _nav_back())
+	_btn(Rect2(520, 722, 200, 44), L.t("nem_open"), func(): _nav_push("profile"); overlay = "nemeses")   # V1.4 #2 宿敵戰記
+	_btn(Rect2(740, 722, 200, 44), L.t("paint_open"), func(): call("_paint_open"))   # V1.4 #15 塗裝室
+	screen_register("profile", "back")
+
+## 總覽：五格大數字（三＋二兩列，留白給木活字）
+func _draw_pf_overview(y0: float) -> void:
+	var st: Dictionary = Save.data.get("stats", {})
+	var cs: Dictionary = Save.data.get("custom_stats", {})
+	var g: int = int(st.get("games", 0)) + int(cs.get("games", 0))
+	var wn: int = int(st.get("wins", 0)) + int(cs.get("wins", 0))
+	var trial := 0
+	for v in Save.data.get("trial_stars", {}).values():
+		trial += int(v)
+	var tiles := [["swords", "pf_games", str(g)], ["trophy", "pf_wins", "%d%%" % (wn * 100 / maxi(1, g))], ["repeat", "pf_streak", "%d / %d" % [int(Save.data.get("streak", 0)), int(Save.data.get("best_streak", 0))]],
+		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+	var tw := 330.0
+	var th := 128.0
+	for i in tiles.size():
+		var row := 0 if i < 3 else 1
+		var n := 3 if row == 0 else 2
+		var col := i if row == 0 else i - 3
+		var x0 := 640.0 - (n * tw + (n - 1) * 16.0) / 2.0
+		var r := Rect2(x0 + col * (tw + 16), y0 + 12 + row * (th + 20), tw, th)
+		_box(r, Color(0, 0, 0, 0.24), Color(0, 0, 0, 0), 9.0)
+		_icon(tiles[i][0], r.position + Vector2(48, th * 0.5), 48.0, ACCENT)
+		_text(r.position + Vector2(92, 26), L.t(tiles[i][1]), tz("B"), TXT_DIM, false, false, tw - 104)
+		if _width(tiles[i][2], tz("H1"), true) + 10.0 <= tw - 104:
+			_woodtype(r.position + Vector2(92, 26 + tz("B") * 1.6), tiles[i][2], tz("H1"), Color.WHITE, false, true)
+		else:
+			_text(r.position + Vector2(92, 26 + tz("B") * 1.6), tiles[i][2], tz("H1"), Color.WHITE, false, true, tw - 104)
+	# 下面一列：最常出戰、勝率最高（至少 3 場）各前三名——總覽頁不只是數字，也看得出自己的習慣
+	var ug: Dictionary = Save.data.get("unit_games_rec", {})
+	var uw: Dictionary = Save.data.get("unit_wins_rec", {})
+	var most: Array = []
+	var best: Array = []
+	for t in D.total():
+		var gg := int(ug.get(str(t), 0))
+		if gg > 0:
+			most.append([gg, -t, t])
+		if gg >= 3:
+			best.append([int(uw.get(str(t), 0)) * 1000 / gg, -t, t])
+	most.sort()
+	most.reverse()
+	best.sort()
+	best.reverse()
+	var by := y0 + 12 + 2 * (th + 20) + 8
+	var bh := 706.0 - by   # 到底部按鈕上方 16
+	var bw := (2 * tw + 16)
+	for c in 2:
+		var lst: Array = (most if c == 0 else best).slice(0, 3)
+		var br := Rect2(640 - bw - 8 + c * (bw + 16), by, bw, bh)
+		if c == 1:
+			br.position.x = 640 + 8
+		br.size.x = minf(bw, (1080.0 - 16.0) / 2.0)
+		if c == 0:
+			br.position.x = 640 - 8 - br.size.x
+		_box(br, Color(0, 0, 0, 0.18), Color(0, 0, 0, 0), 9.0)
+		_text(Vector2(br.position.x + 16, br.position.y + 10), L.t("pf_most" if c == 0 else "pf_best"), tz("B"), ACCENT, false, true, br.size.x - 32)
+		if lst.is_empty():
+			_text(Vector2(br.get_center().x, br.position.y + bh * 0.5), L.t("pf_none"), tz("S"), TXT_DIM, true, false, br.size.x - 32)
+			continue
+		for j in lst.size():
+			var t2: int = lst[j][2]
+			var cx := br.position.x + 16 + j * ((br.size.x - 32) / 3.0)
+			var cwid := (br.size.x - 32) / 3.0
+			_unit_in(Rect2(cx, br.position.y + 30, cwid, 72), t2, 0, 1.0, 0.95)
+			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
+			_text(Vector2(cx + cwid * 0.5, br.position.y + 104), L.t("unit_%d" % t2), tz("S"), Color.WHITE, true, false, cwid - 6)
+			_text(Vector2(cx + cwid * 0.5, br.position.y + 104 + tz("S") * 1.35), val, tz("S"), ACCENT, true, true, cwid - 6)
+
+## 兵種：一次 10 隻（王國／奇幻切換），每格：兵、出戰勝率、場數、熟練度
+func _draw_pf_units(y0: float) -> void:
+	var gw := 180.0
+	for k in 2:
+		btn_group = "pf_grp"
+		var kk := k
+		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
+		btn_group = ""
+	var ug: Dictionary = Save.data.get("unit_games_rec", {})   # V1.5.1：場數、勝場同口徑（對 AI、遠征、雙人）
+	var uw: Dictionary = Save.data.get("unit_wins_rec", {})
+	var old_n := 0
+	for v in Save.data.get("unit_games", {}).values():
+		old_n += int(v)
+	var rec_n := 0
+	for v in ug.values():
+		rec_n += int(v)
+	var head := L.t("pf_units") + ("　" + L.t("pf_units_since") if old_n > rec_n else "")
+	_text(Vector2(640, y0 + 52), head, tz("S"), TXT_DIM, true, false, 1000)
+	var um := RS.mask(_demo())
+	var cw := 200.0
+	var chh := 214.0
+	var ms: Dictionary = Save.data.get("mastery", {})
+	for j in 10:
+		var t := pf_grp * 10 + j
+		if t >= D.total():
+			break
+		var r2 := Rect2(640 - (5 * cw + 4 * 12) / 2.0 + (j % 5) * (cw + 12), y0 + 52 + tz("S") * 1.4 + 10 + (j / 5) * (chh + 14), cw, chh)
+		_box(r2, Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 8.0)
+		var open: bool = RuleSet.has(um, t)
+		_unit_in(Rect2(r2.position + Vector2(0, 6), Vector2(cw, 100)), t, 0, 1.0 if open else 0.3, 0.9)
+		_text(Vector2(r2.get_center().x, r2.position.y + 108), L.t("unit_%d" % t), tz("C"), ACCENT, true, true, cw - 12)
+		var gg := int(ug.get(str(t), 0))
+		var wl := L.t("pf_none") if gg == 0 else "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg)
+		_text(Vector2(r2.get_center().x, r2.position.y + 108 + tz("C") * 1.4), wl, tz("B"), Color.WHITE if gg > 0 else TXT_DIM, true, gg > 0, cw - 12)
+		var xp := int(ms.get(str(t), 0))
+		var lv := CareerPF.level(xp)
+		var nx := CareerPF.next_at(xp)
+		var ml := L.t("ms_max", [lv]) if nx <= xp else L.t("ms_line", [lv, xp, nx])
+		_text(Vector2(r2.get_center().x, r2.end.y - tz("S") * 1.5 - 6), ml, tz("S"), TXT_DIM, true, false, cw - 12)
+
+## 徽章櫃：一頁 10 個（兩欄五列），條件直接寫在牌子上（不用滑過才看得到）
+func _draw_pf_badges(y0: float) -> void:
+	var earned: Array = Save.data.get("achievements", [])
+	var ach: Dictionary = SteamApi.ACHIEVEMENTS
+	var keys := ach.keys()
+	var ach_pages := ceili(keys.size() / float(ACH_PAGE))
+	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+	var ht := L.t("pf_ach", [earned.size(), keys.size()])
+	_text(Vector2(80, y0 + 6), ht, tz("B"), ACCENT, false, true, 400)
+	if ach_pages > 1:
+		btn_group = "pf_pager"
+		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+		btn_group = ""
+		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+	var cw := 548.0
+	var chh := 92.0   # 條件在日文 150% 會兩行
+	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+		var k: String = keys[i2]
+		var on: bool = k in earned
+		var j2 := i2 - pf_ach_page * ACH_PAGE
+		var ar := Rect2(80 + (j2 % 2) * (cw + 24), y0 + 54 + (j2 / 2) * (chh + 8), cw, chh)
+		if on:
+			_box(ar, Color(1.0, 0.82, 0.4, 0.14), Color(1.0, 0.82, 0.4, 0.55), 6.0, 1.0)   # V1.1 C4：已解鎖加金框
+		else:
+			_box(ar, Color(0, 0, 0, 0.16), Color(1, 1, 1, 0.10), 6.0, 1.0)
+		draw_rect(Rect2(ar.position + Vector2(1, 4), Vector2(4, ar.size.y - 8)), SteamApi.ACH_CAT_COL.get(SteamApi.ACH_CAT.get(k, ""), Color(1, 1, 1, 0.2)))   # 1.1.0 A15：類別色條
+		_icon("star" if on else "lock", Vector2(ar.position.x + 30, ar.get_center().y), 28.0, Color("#ffd166") if on else Color(1, 1, 1, 0.3))
+		_text(Vector2(ar.position.x + 56, ar.position.y + 8), str(L.pick(ach[k][0], ach[k][1])), tz("B"), Color.WHITE if on else TXT_DIM, false, true, cw - 68)
+		var cond := str(L.pick(ACH_DESC.get(k, ["", ""])[0], ACH_DESC.get(k, ["", ""])[1]))
+		_text(Vector2(ar.position.x + 56, ar.position.y + 10 + tz("B") * 1.3), cond, tz("S"), TXT_DIM, false, false, cw - 68)
+
+const ACH_PAGE := 10
+var pf_ach_page := 0
+
+## ── 殘局提示（第十三輪三層）：方向 → 拿到 1 星後看三星編制 → 自己按才揭曉解答 ──
+func _puzzle_hint() -> void:
+38:const GAP_M := 12.0
+39:const GAP_L := 16.0
+382:var probe_ribbons: Array = []
+391:	probe_ribbons.clear()
+580:func tz(role: String) -> int:
+642:		if bold and not bool(Save.s("plain_titles")) and not _has_digit(s):
+648:	if bold and font_title != null and size >= tz("H2") and not bool(Save.s("plain_titles")) and not _has_digit(s):
+1200:	var P := modal_rect(w, 32.0 + lines.size() * lh + 8.0 + tz("B") * 1.4 + GAP_L + bh + 24.0)
+1419:## 羊皮紙標題緞帶：畫面標題統一用它。回傳緞帶含尾的完整下緣（V1.5.2 L3：下方內容從「下緣＋GAP_L」起排）。
+1438:		probe_ribbons.append({"id": "H%d" % probe_ribbons.size(), "r": Rect2(r.position.x - 20, r.position.y, r.size.x + 40, r.size.y + 2), "body": r, "cx": center.x, "bottom": r.end.y + 2.0, "host": host})
+1445:## V1.5.2：緞帶＋下方置中說明。回傳下一個內容的起點（說明下緣＋GAP_L；沒說明時＝緞帶下緣＋GAP_L）。
+1447:	var y := _h1(center, title) + GAP_L
+1451:	return y + text_h(help, fit(help, sz, maxw), maxw) + GAP_L
+1455:	return h1_bottom(0.0) + GAP_L + ((text_h(help, fit(help, sz, maxw), maxw) + GAP_L) if help != "" else 0.0)
+1470:## V1.5.2 R9：一行置中小標題（字級 sz）下方的控制項起點：字形下緣（約 1.03 字高）＋GAP_M
+1472:	return ceilf(sz * 1.05) + GAP_M
+
+exec
+/bin/bash -lc "sed -n '535,590p' game/scripts/ui/ui_base.gd; sed -n '165,240p' game/scripts/ui/screens/game_modes.gd; rg -n 'trials|trial_i|trial_index|/ 10|/10' game/scripts/ui/screens/game_result.gd game/scripts/ui/screens/game_place.gd game/scripts/ui/screens/game_modes.gd; sed -n '615,645p' game/scripts/ui/screens/game_modes.gd; sed -n '2610,2625p' game/tests/suites/ui.gd; command -v godot godot4 godot4.6 || true; rg --files /usr/local/bin /tmp /opt 2>/dev/null | rg -i 'godot' | head -20" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+		bold.fallbacks = bold.fallbacks + [rb]
+	font = _latin_over("res://fonts/NTBSansLatin-R-sub.ttf", reg)
+	font_bold = _latin_over("res://fonts/NTBSansLatin-B-sub.ttf", bold)
+	font_title = font_bold
+	font_craft = true
+	font_display = null
+	if ResourceLoader.exists("res://fonts/ThenKhung-sub.ttf"):
+		var tk2 = load("res://fonts/ThenKhung-sub.ttf")
+		if tk2 is FontFile:
+			tk2 = tk2.duplicate()
+			tk2.fallbacks = [bold]
+			font_display = tk2
+	if ResourceLoader.exists("res://fonts/NTBTitle-sub.ttf"):
+		var tt = load("res://fonts/NTBTitle-sub.ttf")
+		if tt is FontFile:
+			tt = tt.duplicate()
+			tt.fallbacks = [bold]
+			font_title = tt
+
+
+func _apply_fullscreen() -> void:
+	if shot_dir != "":
+		return
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if Save.s("fullscreen") else DisplayServer.WINDOW_MODE_WINDOWED)
+
+
+## 舊介面寫的字級數字（11～84）吸附到字級表：11～14→註記、15→次要、16～18→內文、19～24→區塊標題、25～48→畫面標題、49 以上→展示。
+## 這樣全遊戲不會再出現表外字級，也不會小於 14（第五輪 §4.2）。新程式請直接用 tz("B") 這類語意名稱。
+static func role_of(px: int) -> String:
+	if px <= 14:
+		return "C"
+	if px == 15:
+		return "S"
+	if px <= 18:
+		return "B"
+	if px <= 24:
+		return "H2"
+	if px <= 48:
+		return "H1"
+	return "D" if px < 80 else "DX"
+
+func _scale_key() -> int:
+	var sc := int(Save.s("text_scale"))
+	return 150 if sc >= 150 else (125 if sc >= 125 else 100)
+
+func tz(role: String) -> int:
+	return int(TYPE_SCALE[_scale_key()][role])
+
+func ts(px: int) -> int:
+	return tz(role_of(px))
+
+## 封頂（第五輪）：取字級表裡 ≤ 上限的最大值，但不低於「註記」。取代 tcap(ts(x), N)，避免封出表外字級。
+func tcap(sz: int, maxpx: int) -> int:
+	var best := tz("C")
+	for v in TYPE_SCALE[_scale_key()].values():
+		if v <= mini(sz, maxpx) and v > best:
+		full += 1 if int(all.get(str(k), 0)) >= 3 else 0
+	if full >= TRIALS.size():
+		call("_ach", "TRIAL_ALL3")   # 第十三輪
+	Save.save_data()
+
+var trial_page := 0
+
+func _draw_trials() -> void:
+	# V1.5.2 L3：面板上緣提到 24、緞帶跨在上緣（和圖鑑、大廳同款），說明從緞帶下緣＋16 起；卡片照說明實高往下
+	var P := Rect2(90, 24, 1100, 736)
+	_panel(P)
+	var tdy := maxf(0.0, _h1_help(Vector2(640, 24), L.t("trial_title"), L.t("trial_rule"), tz("S"), 1000) - 164.0)
+	var stars: Dictionary = Save.data.get("trial_stars", {})
+	var pages: int = ceili(TRIALS.size() / float(TRIAL_PAGE))
+	trial_page = clampi(trial_page, 0, pages - 1)
+	# 第十三輪：30 關分 3 頁；1.5.0 起每頁 8 關、分 4 頁
+	var tot := 0
+	for k0 in TRIALS.size():
+		tot += int(stars.get(str(k0), 0))
+	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
+	var cw := 524.0
+	var ch := 98.0   # 1.2.0 §3.1 字級表放大後：卡片高度不能再加（5 列塞滿面板），改收行距（1.4→1.25、1.35→1.2）
+	for k in TRIAL_PAGE:
+		var i: int = trial_page * TRIAL_PAGE + k
+		if i >= TRIALS.size():
+			break
+		var t: Array = TRIALS[i]
+		var x := trial_x(i)
+		var r0 := Rect2(116 + (k % 2) * (cw + 8), 164 + tdy + (k / 2) * (ch + 22), cw, ch)
+		var r := Rect2(r0.position, Vector2(cw, ch + 12))   # 1.5.0：卡片高 +12、列距 +15；內容往下 6（置中）
+		var got := int(stars.get(str(i), 0))
+		btn_paper = got > 0   # V1.2.1 R1：過關的試煉卡是紙面
+		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+		btn_paper = false
+		r = Rect2(r.position + Vector2(0, 6), Vector2(cw, ch))
+		_ink_mode = last_btn_paper
+		_probe_dis = not last_btn_enabled   # 停用的卡片：裡面的字也算停用（另報）
+		call("_map_thumb", Rect2(r.position + Vector2(8, 8), Vector2(136, 84)), int(t[0]), int(t[1]))
+		var tcol := Color.WHITE if last_btn_enabled else Color(1, 1, 1, 0.4)
+		var acol := ACCENT if last_btn_enabled else Color(ACCENT, 0.4)
+		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, trial_name(i)], tz("B"), tcol, false, true, cw - 240)
+		var sz := "%s %d×%d" % [L.t("map_size_%d" % int(t[1])), MapDefs.SIZES[t[1]][0], MapDefs.SIZES[t[1]][1]]
+		var diff: String = L.t(["diff_easy", "diff_normal", "diff_hard"][int(t[3])])
+		# 第十三輪新關：第二行放主題規則＋難度（地圖看縮圖就知道），第三行只放星數條件，150% 字級才排得下
+		var line2: String = "%s・%s・%s" % [sz, L.t("ai_style_%d" % int(t[2])), diff]
+		if x.has("tag_zh"):
+			line2 = L.t("name_sep_fmt", [L.field(x, "tag"), diff])
+			if _width(line2, tz("C")) > cw - 160:
+				line2 = L.field(x, "tag")   # 1.2.0：放不下一行就只留主題（難度看星數條件與顏色），不換成兩行出框
+		_text(r.position + Vector2(154, 8 + tz("B") * 1.25), line2, tz("C"), TXT_DIM if last_btn_enabled else Color(TXT_DIM, 0.4), false, false, cw - 160)
+		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
+		# V1.1 C3：條件改成「圖示＋數字」（♥ 剩餘戰力、金幣 花費），不寫長句
+		var cy0: float = r.position.y + (5.0 if tz("C") >= 20 else 8.0) + tz("B") * 1.25 + tz("C") * 1.2   # 1.4.0 R13：150% 時上移 3，愛心、金幣離卡片下緣 ≥8px
+		var cx0: float = r.position.x + 154
+		_icon("heart", Vector2(cx0 + 9, cy0 + tz("C") * 0.62), 16.0, acol)
+		var c1s := "≥%d%%" % trial_rem(i)
+		_text(Vector2(cx0 + 22, cy0), c1s, tz("C"), acol, false, true, 120)
+		var cx1: float = cx0 + 34 + font_bold.get_string_size(c1s, HORIZONTAL_ALIGNMENT_LEFT, -1, tz("C")).x
+		_icon("coin", Vector2(cx1 + 9, cy0 + tz("C") * 0.62), 16.0, acol)
+		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), acol, false, true, 120)
+		for k2 in 3:
+			_icon("star", r.position + Vector2(cw - 66 + k2 * 22, 20), 20.0, Color("#ffd166") if k2 < got else Color(1, 1, 1, 0.16))
+		_ink_mode = false
+		_probe_dis = false
+	# 翻頁鈕放在關卡卡片後面：手把焦點先落在第一關（版面檢查 PADWALK）
+	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
+	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
+	_btn(Rect2(560, 700, 160, 44), L.t("back"), func(): _nav_back())
+
+## ── 挑戰碼：把自己的陣型傳給朋友打（不需要伺服器）──
+func _challenge_encode() -> String:
+	var r = rules if rules != null else RuleSet.standard()
+	var j := JSON.stringify({"a": last_armies[0].to_code(), "r": r.to_code()})
+	var b := Marshalls.utf8_to_base64(j).replace("+", "-").replace("/", "_").replace("=", "")
+	return "NTC1.%s.%s" % [b, b.sha256_text().substr(0, 6)]
+
+game/scripts/ui/screens/game_modes.gd:5:## 第十三輪：再加 20 關（索引 10～29，只往後加、不重排，存檔用索引）：敵陣固定在 data/trials.json，
+game/scripts/ui/screens/game_modes.gd:22:var trial_id := -1
+game/scripts/ui/screens/game_modes.gd:57:	trial_id = i
+game/scripts/ui/screens/game_modes.gd:110:	var x := trial_x(trial_id)
+game/scripts/ui/screens/game_modes.gd:149:	if trial_id >= 0:
+game/scripts/ui/screens/game_modes.gd:150:		Save.note_try("trial", str(trial_id), w == 0, armies[0].spent())   # V1.1 F2
+game/scripts/ui/screens/game_modes.gd:151:	if trial_id < 0 or w != 0:
+game/scripts/ui/screens/game_modes.gd:153:	var lvl: int = int(TRIALS[trial_id][3])
+game/scripts/ui/screens/game_modes.gd:156:	var pct: int = trial_spend_pct(trial_id)
+game/scripts/ui/screens/game_modes.gd:157:	var st: int = trial_stars(lvl, rem, spent, armies[0].budget, pct, trial_rem(trial_id))
+game/scripts/ui/screens/game_modes.gd:158:	report["trial_lines"] = call("_star_lines", true, rem, trial_rem(trial_id), spent, armies[0].budget * pct / 100)
+game/scripts/ui/screens/game_modes.gd:160:	all[str(trial_id)] = maxi(int(all.get(str(trial_id), 0)), st)
+game/scripts/ui/screens/game_modes.gd:172:func _draw_trials() -> void:
+game/scripts/ui/screens/game_modes.gd:224:		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), acol, false, true, 120)
+game/scripts/ui/screens/game_modes.gd:728:			var r := "%.1f" % (STK.BLAST_R / 1000.0)
+game/scripts/ui/screens/game_modes.gd:1015:		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+game/scripts/ui/screens/game_modes.gd:1067:			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
+game/scripts/ui/screens/game_modes.gd:1272:	"TRIAL_ALL3": ["30 關主題試煉全部三星", "Get 3 stars on all 30 trials"],
+game/scripts/ui/screens/game_result.gd:19:	set("trial_id", -1)
+game/scripts/ui/screens/game_result.gd:353:	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL) and int(get("trial_id")) < 0:
+game/scripts/ui/screens/game_result.gd:383:			if get("trial_id") >= 0:
+game/scripts/ui/screens/game_result.gd:384:				var tid: int = get("trial_id")
+game/scripts/ui/screens/game_result.gd:390:					_open("trials")])
+game/scripts/ui/screens/game_result.gd:738:	if int(get("trial_id")) >= 0 or not (get("daily_spec") as Dictionary).is_empty():
+game/scripts/ui/screens/game_place.gd:318:		cols = float(rules.half_depth()) / 1000.0
+game/scripts/ui/screens/game_place.gd:319:	var x0 := float(fld_w) / 1000.0 - cols if hide_side == 1 else 0.0
+game/scripts/ui/screens/game_place.gd:330:				_unit(ORIGIN + Vector2(gw0) * CS / 1000.0, int(gu["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.28, 0.0, 1.0)
+game/scripts/ui/screens/game_place.gd:361:			_unit(ORIGIN + Vector2(gw) * CS / 1000.0, int(gu["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.28, 0.0, 1.0)
+game/scripts/ui/screens/game_place.gd:483:				_arc_clipped(p, D.STATS[D.PIKE]["reach"] / 1000.0 * CS, 0, TAU, Color(1, 0.9, 0.5, 0.5), 2.0)
+game/scripts/ui/screens/game_place.gd:486:				_arc_clipped(p, D.STATS[D.BOMBER]["reach"] / 1000.0 * CS, 0, TAU, Color(1, 0.85, 0.7, 0.5), 2.0)
+game/scripts/ui/screens/game_place.gd:488:				var br0 := D.BOMB_MIN / 1000.0 * CS
+game/scripts/ui/screens/game_place.gd:500:				var rad: float = (D.HEAL_RANGE if selected == D.MEDIC else D.DRUM_RANGE) / 1000.0 * CS
+game/scripts/ui/screens/game_place.gd:572:	return keep.place(int(u["type"]), clampi(p.x / 1000, 0, 15), clampi(p.y / 1000, 0, 8))
+game/scripts/ui/screens/game_place.gd:806:	var nb3: bool = int(get("trial_id")) >= 0 and mode == Mode.VS_AI
+game/scripts/ui/screens/game_place.gd:1078:			var td := int(clampf((mouse.x - ruler.position.x) / ruler.size.x, 0.0, 1.0) * goal / 10.0) * 10
+game/scripts/ui/screens/game_place.gd:1085:		var tt := int(clampf((mouse.x - ruler.position.x) / ruler.size.x, 0.0, 1.0) * goal / 10.0) * 10
+game/scripts/ui/screens/game_place.gd:1167:	var n := int(r.size.x / 10.0)
+		2:
+			return tick <= 900
+		3:
+			return rem >= 60
+		_:
+			return true   # 少帶、窮兵：簽了就是條件，贏了就達成
+
+func _ct_reward(k: int) -> String:
+	var c: Array = CONTRACTS[k]
+	return L.t("ct_gold", [int(c[1])]) if int(c[1]) > 0 else L.t("ct_cap", [int(c[2])])
+
+## 這一站可簽的 2 份契約（同一趟同一站永遠一樣）。
+func _contract_offers() -> Array:
+	var r := RandomNumberGenerator.new()
+	r.seed = gauntlet_seed * 53 + gauntlet_stage * 389 + 11
+	var ids: Array = range(CONTRACTS.size())
+	var out: Array = []
+	while out.size() < 2:
+		var k: int = ids[r.randi() % ids.size()]
+		ids.erase(k)
+		out.append(k)
+	out.sort()
+	return out
+
+## 簽了的契約這一戰的代價（預算、隻數），在 _gauntlet_next 之後套上。
+func _apply_contract_cost() -> void:
+	if gauntlet_contract < 0 or armies.is_empty():
+		return
+	var c: Array = CONTRACTS[gauntlet_contract]
+	armies[0].budget += int(c[3])
+	armies[0].unit_cap = maxi(4, armies[0].unit_cap + int(c[4]))
+func test_crowded_pages_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.TRIAL_PAGE == 8 and ceili(GS.TRIALS.size() / float(GS.TRIAL_PAGE)) == 4, "試煉每頁 8 關、30 關分 4 頁", str(GS.TRIAL_PAGE))
+	ok(GS.ACH_PAGE <= 12, "徽章櫃每頁 ≤12 個（方案 §1.6：非按鈕格 ≤12）")
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	ok("profile" in LR.R14_ENFORCE and int(LR.R14_LIMITS["profile"]) == 6, "戰績轉成已改造類別（上限 6）")
+	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_modes.gd")
+	ok(gm.find("0: _draw_pf_overview()") >= 0 and gm.find("1: _draw_pf_units()") >= 0 and gm.find("2: _draw_pf_badges()") >= 0, "戰績分三頁籤：總覽／兵種／徽章櫃")
+	ok(gm.find("_btns.append({\"r\": ar, \"cb\": func(): pass") < 0, "成就不再是看不見的焦點目標（條件直接寫在牌子上）")
+	var g = GS.new()
+	g.pf_tab = 2
+	g.pf_ach_page = 3
+	ok(g.pf_tab == 2, "頁籤狀態可設")
+	g.free()
+/home/timmy/.local/bin/godot
+
+codex
+已確認手把焦點按按鈕索引循環，移除成就焦點不會讓其他按鈕失聯。新版測試有一項仍比對舊函式呼叫，必然失敗；我正在核對大字級版位與排名排序。
+
+web search: 
+web search: https://raw.githubusercontent.com/godotengine/godot/4.6/core/variant/array.cpp
+exec
+/bin/bash -lc "sed -n '25,43p' game/scripts/ui/ui_base.gd; sed -n '375,396p' game/scripts/ui/screens/game_result.gd; sed -n '480,529p' game/scripts/ui/game_screens.gd; sed -n '45,65p' game/scripts/ui/screens/game_modes.gd; sed -n '1658,1668p' game/scripts/ui/screens/game_menus.gd; rg -n 'pf_|trial|crowded' coordination/v1500-impl/cat09-r1/* -g '*.md'; ls -l /home/timmy/.local/bin/godot" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+const HardAI = preload("res://scripts/core/hard_ai.gd")
+const RuleSet = preload("res://scripts/core/ruleset.gd")
+const Presets = preload("res://scripts/game/presets.gd")
+const CmdD = preload("res://scripts/core/cmd_defs.gd")
+const Charts = preload("res://scripts/ui/charts.gd")
+
+enum St { TITLE, PLACE, BATTLE, RESULT }
+enum Mode { VS_AI, DUEL, TUTORIAL, PUZZLE, GAUNTLET }
+
+const ORIGIN := Vector2(128, 100)
+# V1.5.2 間距階（docs/ui-layout-rules.md）：4／8／12／16／24／32／48
+const GAP_XS := 4.0
+const GAP_S := 8.0
+const GAP_M := 12.0
+const GAP_L := 16.0
+const GAP_XL := 24.0
+const BATTLE_DY := 36.0   # 第十輪 B9：戰鬥鏡頭下移，貼上緣的兵頭不被頂列蓋住（只改畫面）
+var force_demo := false   # 測試用：不必匯出就能走試玩版流程
+func _demo() -> bool:
+		draw_rect(wr, Color(0.35, 0.22, 0.05, 0.95))
+		draw_rect(wr, ACCENT, false, 2.0)
+		_text(Vector2(276, wr.position.y + 12), L.t("demo_wish"), tz("S"), Color.WHITE, false, true, 480)
+		var url: String = SteamApi.STORE_URL
+		_btn(Rect2(780, wr.position.y + 6, 230, 40), L.t("demo_wish_btn") if url != "" else L.t("demo_wish_soon"), func(): OS.shell_open(url), url != "", true)
+	var bs: Array = []
+	match mode:
+		Mode.VS_AI, Mode.DUEL:
+			if get("trial_id") >= 0:
+				var tid: int = get("trial_id")
+				if w == 0 and tid + 1 < get("TRIALS").size():
+					bs.append([L.t("next_puzzle"), func(): call("_start_trial", tid + 1)])
+				bs.append([L.t("retry"), func(): _mark_retry(); call("_start_trial", tid); _apply_retry()])
+				bs.append([L.t("trial_title"), func():
+					_go_title()
+					_open("trials")])
+			else:
+				bs.append([(L.t("sealed_again") if bool(get("sealed_on")) else L.t("new_match")) if series_over else L.t("next_round"), func(): _next_round()])
+		Mode.TUTORIAL, Mode.PUZZLE:
+			bs.append([L.t("retry"), func(): _mark_retry(); _start_mode(mode)])
+			if ((w == 0 and mode == Mode.TUTORIAL) or bool(report.get("goal_ok", false))) and puzzle_id != "ws":
+				bs.append([L.t("next_puzzle"), func(): _next_puzzle()])
+	if state == St.PLACE and _fp_key(k):
+		return
+	if state == St.BATTLE and overlay == "" and _cmd_key(k):
+		return
+	if state == St.BATTLE and overlay == "" and (k == KEY_BRACKETLEFT or k == KEY_BRACKETRIGHT) and _replay_controls_active():
+		_bm_jump(-1 if k == KEY_BRACKETLEFT else 1)   # 1.2.0 §11.2 書籤
+		return
+	if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
+		tm_ghost_on = not tm_ghost_on   # 1.2.0 §11.3
+		return
+	# 1.5.0 §1.2 大廳三步：肩鍵（Q／E）＝上一步／下一步，Y（Tab）＝打開／收起進階折頁
+	if overlay == "lobby" and not bool(get("lobby_menu")):
+		if (k == KEY_Q or k == KEY_E) and not bool(get("lobby_open")):
+			call("_lobby_step_by", -1 if k == KEY_Q else 1)
+			return
+		if k == KEY_TAB:
+			set("lobby_open", not bool(get("lobby_open")))
+			_btns.clear()   # 開合折頁：舊按鈕立刻失效（同一幀 Y＋A 不會按到開合前的「開戰」；Codex v150 cat03 r3）
+			return
+	# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
+	if state != St.PLACE or overlay != "":
+		match k:
+			KEY_UP, KEY_LEFT:
+				_move_focus(-1)
+			KEY_DOWN, KEY_RIGHT:
+				_move_focus(1)
+			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+					sfx.play("k_click", 0.7)
+					_btns[_focus]["cb"].call()
+			KEY_F1:
+				if state == St.BATTLE and overlay == "" and play_kind != "official":
+					call("_breport_open")   # 1.1.0 B10：手把 View／Select＝戰報面板
+				elif state == St.BATTLE and overlay == "":
+					set("hud_info_until", time + 2.0)   # 1.2.0 §5.6：正式對戰按 View＝叫出 AI 名稱與性格 2 秒
+			KEY_PAGEUP, KEY_PAGEDOWN:
+				if overlay == "codex":
+					_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
+			KEY_P, KEY_TAB:
+				# 手把 Y 送的是 Tab：戰鬥中＝暫停（第七輪 A6）
+				if state == St.BATTLE and overlay == "":
+					_toggle_pause()
+				elif k == KEY_TAB:
+					_move_focus(1)
+			KEY_ESCAPE:
+				if overlay == "ai_busy":
+					pass      # 第十輪 I4：AI 計算中不能取消
+				elif overlay == "first_run":
+					Save.set_setting("first_done", true)   # V1.5：跳過第一次啟動的問題
+					overlay = ""
+var ban_left := [0, 0]
+var ban_turn := 0
+
+## ── 主題試煉 ──
+func _start_trial(i: int) -> void:
+	if _demo() and not i in Presets.DEMO_TRIALS:
+		_toast(L.t("demo_locked"), true)
+		return
+	rules = _trial_rules(i, trial_x(i))
+	challenge_army = null      # 上一場挑戰碼的敵陣不能留到試煉（Codex #5）
+	rng.seed = 7000 + i        # 同一關每次是同一支隊伍
+	_start_mode(Mode.VS_AI)
+	trial_id = i
+
+## 試煉的規則（遊戲與工具共用）。x＝第十三輪的關卡資料（舊 10 關是空的）。
+func _trial_rules(i: int, x: Dictionary):
+	var t: Array = TRIALS[i]
+	var r = Presets.make("standard", "ai", RS.mask(_demo()))
+	r.deploy = "free"
+	r.spacing = 800
+	r.depth = 6000
+				["pr_wager", "pr_wager_d", "dice", func(): call("_wager_new"), true],
+				["pr_draft", "pr_draft_d", "cards", func(): call("_draft_new"), true],
+				["pr_waves", "pr_waves_d", "swords", func(): call("_wave_start"), true],
+				["pr_sealed", "pr_sealed_d", "book", func(): call("_sealed_start"), true]]
+		"hub_collect":
+			return [["menu_codex", "hc_codex_d", "book", func(): overlay = ""; _open_codex(0), true],
+				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
+				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
+				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
+				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
+				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true],   # V1.6.1 N2 新玩法導覽（常駐）
+coordination/v1500-impl/cat09-r1/codex-prompt.md:3:重點：戰績頁籤（`pf_tab`、`pf_grp`、`pf_ach_page`）的手把焦點與狀態重設（進出戰績頁、切頁籤）、成就從焦點目標移除後手把能否到達所有可點元件；`_draw_pf_*` 版位與 `_h1` 回傳；試煉 TRIAL_PAGE 8 對其他地方（試玩版 DEMO_TRIALS、從結果返回試煉頁時落在哪一頁、PADWALK）有沒有影響；最常出戰／勝率最高排序是否決定性。附行號。最多 5 條必改、400 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1500-impl/cat09-r1/agy.md:1:1. **試煉（58_trials）**：每頁 8 關（2×4）只做「選關與看三星條件」一件事，留白與資訊密度適中；150% 英文與日文的標題、戰力／金幣門檻與分頁列皆無裁切或擁擠，整體好讀。
+coordination/v1500-impl/cat09-r1/diff.patch:9:+pf_tab_0,總覽,Overview,总览,概要
+coordination/v1500-impl/cat09-r1/diff.patch:10:+pf_tab_1,兵種,Units,兵种,兵種
+coordination/v1500-impl/cat09-r1/diff.patch:11:+pf_tab_2,徽章櫃,Badges,徽章柜,バッジ棚
+coordination/v1500-impl/cat09-r1/diff.patch:12:+pf_most,最常出戰,Most fielded,最常出战,よく出撃する兵
+coordination/v1500-impl/cat09-r1/diff.patch:13:+pf_best,勝率最高（至少 3 場）,Best win rate (3+ games),胜率最高（至少 3 场）,勝率トップ（3戦以上）
+coordination/v1500-impl/cat09-r1/diff.patch:14:+pf_games_n,%d 場,%d games,%d 场,%d戦
+coordination/v1500-impl/cat09-r1/diff.patch:86: const TD = preload("res://scripts/game/trial_data.gd")
+coordination/v1500-impl/cat09-r1/diff.patch:89:@@ -177,7 +177,7 @@ func _draw_trials() -> void:
+coordination/v1500-impl/cat09-r1/diff.patch:90: 	var stars: Dictionary = Save.data.get("trial_stars", {})
+coordination/v1500-impl/cat09-r1/diff.patch:92: 	trial_page = clampi(trial_page, 0, pages - 1)
+coordination/v1500-impl/cat09-r1/diff.patch:98:@@ -190,11 +190,13 @@ func _draw_trials() -> void:
+coordination/v1500-impl/cat09-r1/diff.patch:101: 		var x := trial_x(i)
+coordination/v1500-impl/cat09-r1/diff.patch:107: 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+coordination/v1500-impl/cat09-r1/diff.patch:118:+var pf_tab := 0
+coordination/v1500-impl/cat09-r1/diff.patch:119:+var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+coordination/v1500-impl/cat09-r1/diff.patch:125:-	_h1(Vector2(640, 30), L.t("pf_title"))   # 1.2.0：H1 放大，緞帶上移 4（R2）
+coordination/v1500-impl/cat09-r1/diff.patch:126:+	var hy := _h1(Vector2(640, 30), L.t("pf_title")) + GAP_L   # 1.2.0：H1 放大，緞帶上移 4（R2）；頁籤從緞帶下緣＋16 起
+coordination/v1500-impl/cat09-r1/diff.patch:129:+		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
+coordination/v1500-impl/cat09-r1/diff.patch:130:+		btn_group = "pf_tabs"
+coordination/v1500-impl/cat09-r1/diff.patch:132:+		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/diff.patch:135:+	match pf_tab:
+coordination/v1500-impl/cat09-r1/diff.patch:136:+		0: _draw_pf_overview(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/diff.patch:137:+		1: _draw_pf_units(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/diff.patch:138:+		2: _draw_pf_badges(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/diff.patch:145:+func _draw_pf_overview(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/diff.patch:150: 		trial += int(v)
+coordination/v1500-impl/cat09-r1/diff.patch:151: 	var tiles := [["swords", "pf_games", str(g)], ["trophy", "pf_wins", "%d%%" % (wn * 100 / maxi(1, g))], ["repeat", "pf_streak", "%d / %d" % [int(Save.data.get("streak", 0)), int(Save.data.get("best_streak", 0))]],
+coordination/v1500-impl/cat09-r1/diff.patch:152: 		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+coordination/v1500-impl/cat09-r1/diff.patch:176:-	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
+coordination/v1500-impl/cat09-r1/diff.patch:205:+		_text(Vector2(br.position.x + 16, br.position.y + 10), L.t("pf_most" if c == 0 else "pf_best"), tz("B"), ACCENT, false, true, br.size.x - 32)
+coordination/v1500-impl/cat09-r1/diff.patch:207:+			_text(Vector2(br.get_center().x, br.position.y + bh * 0.5), L.t("pf_none"), tz("S"), TXT_DIM, true, false, br.size.x - 32)
+coordination/v1500-impl/cat09-r1/diff.patch:214:+			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
+coordination/v1500-impl/cat09-r1/diff.patch:219:+func _draw_pf_units(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/diff.patch:222:+		btn_group = "pf_grp"
+coordination/v1500-impl/cat09-r1/diff.patch:224:+		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/diff.patch:234:-		_text(Vector2(80 + _width(L.t("pf_units"), tz("B"), true) + 16, 184 + (tz("B") - tz("C")) * 0.5), L.t("pf_units_since"), tz("C"), TXT_DIM, false, false, 600)   # 舊存檔：從這版起算
+coordination/v1500-impl/cat09-r1/diff.patch:235:+	var head := L.t("pf_units") + ("　" + L.t("pf_units_since") if old_n > rec_n else "")
+coordination/v1500-impl/cat09-r1/diff.patch:246:+		var t := pf_grp * 10 + j
+coordination/v1500-impl/cat09-r1/diff.patch:257:-			_text(r2.position + Vector2(cw / 2, 74), L.t("pf_none"), tz("C"), TXT_DIM, true, false, cw - 6)   # V1.1 C4：沒出戰不寫 0%
+coordination/v1500-impl/cat09-r1/diff.patch:263:+		var wl := L.t("pf_none") if gg == 0 else "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg)
+coordination/v1500-impl/cat09-r1/diff.patch:272:+func _draw_pf_badges(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/diff.patch:277: 	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+coordination/v1500-impl/cat09-r1/diff.patch:278:-	_text(Vector2(80, 448), L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), ACCENT, false, true, 330)
+coordination/v1500-impl/cat09-r1/diff.patch:280:+	var ht := L.t("pf_ach", [earned.size(), keys.size()])
+coordination/v1500-impl/cat09-r1/diff.patch:284:-		var px := 80.0 + minf(330.0, _width(L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), true)) + 16.0
+coordination/v1500-impl/cat09-r1/diff.patch:285:-		_btn_small(Rect2(px, 440, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+coordination/v1500-impl/cat09-r1/diff.patch:286:-		_text(Vector2(px + 84, 448 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 70)
+coordination/v1500-impl/cat09-r1/diff.patch:287:-		_btn_small(Rect2(px + 124, 440, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+coordination/v1500-impl/cat09-r1/diff.patch:288:+		btn_group = "pf_pager"
+coordination/v1500-impl/cat09-r1/diff.patch:289:+		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+coordination/v1500-impl/cat09-r1/diff.patch:290:+		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+coordination/v1500-impl/cat09-r1/diff.patch:292:+		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+coordination/v1500-impl/cat09-r1/diff.patch:295: 	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+coordination/v1500-impl/cat09-r1/diff.patch:298: 		var j2 := i2 - pf_ach_page * ACH_PAGE
+coordination/v1500-impl/cat09-r1/diff.patch:317:-	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
+coordination/v1500-impl/cat09-r1/diff.patch:333: var pf_ach_page := 0
+coordination/v1500-impl/cat09-r1/diff.patch:344:-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+coordination/v1500-impl/cat09-r1/diff.patch:345:+const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+coordination/v1500-impl/cat09-r1/diff.patch:348: const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+coordination/v1500-impl/cat09-r1/diff.patch:358:+func test_crowded_pages_v150() -> void:
+coordination/v1500-impl/cat09-r1/diff.patch:365:+	ok(gm.find("0: _draw_pf_overview()") >= 0 and gm.find("1: _draw_pf_units()") >= 0 and gm.find("2: _draw_pf_badges()") >= 0, "戰績分三頁籤：總覽／兵種／徽章櫃")
+coordination/v1500-impl/cat09-r1/diff.patch:368:+	g.pf_tab = 2
+coordination/v1500-impl/cat09-r1/diff.patch:369:+	g.pf_ach_page = 3
+coordination/v1500-impl/cat09-r1/diff.patch:370:+	ok(g.pf_tab == 2, "頁籤狀態可設")
+coordination/v1500-impl/cat09-r1/diff.patch:380:+	set("pf_tab", 0)
+coordination/v1500-impl/cat09-r1/diff.patch:382:+	set("pf_tab", 1)   # 1.5.0 §1.6 戰績三頁籤
+coordination/v1500-impl/cat09-r1/diff.patch:384:+	set("pf_tab", 2)
+coordination/v1500-impl/cat09-r1/diff.patch:386:+	set("pf_tab", 0)
+coordination/v1500-impl/cat09-r1/diff.patch:391: 	await _snap("89_trials_p2.png")
+coordination/v1500-impl/cat09-r1/diff.patch:392: 	set("trial_page", 2)
+coordination/v1500-impl/cat09-r1/diff.patch:393: 	await _snap("90_trials_p3.png")
+coordination/v1500-impl/cat09-r1/diff.patch:394:+	set("trial_page", 3)   # 1.5.0：每頁 8 關，30 關分 4 頁
+coordination/v1500-impl/cat09-r1/diff.patch:395:+	await _snap("v150_90b_trials_p4.png")
+coordination/v1500-impl/cat09-r1/diff.patch:396: 	set("trial_page", 0)
+coordination/v1500-impl/cat09-r1/diff.patch:398: 	call("_start_trial", 14)
+coordination/v1500-impl/cat09-r1/diff.patch:408:+ "v150_90b_trials_p4.png": {
+coordination/v1500-impl/cat09-r1/agy-prompt.txt:1:檔案（都在這個資料夾）：en_150_58_trials.png、en_150_59_profile.png、en_150_v150_59c_profile_units.png、en_150_v150_59d_profile_badges.png、ja_150_58_trials.png、ja_150_59_profile.png、ja_150_v150_59c_profile_units.png、ja_150_v150_59d_profile_badges.png、zh_TW_100_58_trials.png、zh_TW_100_59_profile.png、zh_TW_100_v150_59c_profile_units.png、zh_TW_100_v150_59d_profile_badges.png
+coordination/v1500-impl/cat09-r1/agy-prompt.txt:3:《落子無悔》1.5.0 第 9 批「重災頁減法」：戰績原本一頁塞 5 格數字＋20 格兵種＋32 個成就，現在分三頁籤：總覽（59_profile：5 格大數字＋最常出戰／勝率最高前三）、兵種（v150_59c：王國／奇幻切換，一次 10 隻，勝率＋熟練度）、徽章櫃（v150_59d：一頁 10 個，解鎖條件直接寫在牌子上）。試煉（58_trials）每頁 10 關改 8 關。
+coordination/v1500-impl/cat09-r1/codex.err:15:重點：戰績頁籤（`pf_tab`、`pf_grp`、`pf_ach_page`）的手把焦點與狀態重設（進出戰績頁、切頁籤）、成就從焦點目標移除後手把能否到達所有可點元件；`_draw_pf_*` 版位與 `_h1` 回傳；試煉 TRIAL_PAGE 8 對其他地方（試玩版 DEMO_TRIALS、從結果返回試煉頁時落在哪一頁、PADWALK）有沒有影響；最常出戰／勝率最高排序是否決定性。附行號。最多 5 條必改、400 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1500-impl/cat09-r1/codex.err:92:+pf_tab_0,總覽,Overview,总览,概要
+coordination/v1500-impl/cat09-r1/codex.err:93:+pf_tab_1,兵種,Units,兵种,兵種
+coordination/v1500-impl/cat09-r1/codex.err:94:+pf_tab_2,徽章櫃,Badges,徽章柜,バッジ棚
+coordination/v1500-impl/cat09-r1/codex.err:95:+pf_most,最常出戰,Most fielded,最常出战,よく出撃する兵
+coordination/v1500-impl/cat09-r1/codex.err:96:+pf_best,勝率最高（至少 3 場）,Best win rate (3+ games),胜率最高（至少 3 场）,勝率トップ（3戦以上）
+coordination/v1500-impl/cat09-r1/codex.err:97:+pf_games_n,%d 場,%d games,%d 场,%d戦
+coordination/v1500-impl/cat09-r1/codex.err:169: const TD = preload("res://scripts/game/trial_data.gd")
+coordination/v1500-impl/cat09-r1/codex.err:172:@@ -177,7 +177,7 @@ func _draw_trials() -> void:
+coordination/v1500-impl/cat09-r1/codex.err:173: 	var stars: Dictionary = Save.data.get("trial_stars", {})
+coordination/v1500-impl/cat09-r1/codex.err:175: 	trial_page = clampi(trial_page, 0, pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:181:@@ -190,11 +190,13 @@ func _draw_trials() -> void:
+coordination/v1500-impl/cat09-r1/codex.err:184: 		var x := trial_x(i)
+coordination/v1500-impl/cat09-r1/codex.err:190: 		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+coordination/v1500-impl/cat09-r1/codex.err:201:+var pf_tab := 0
+coordination/v1500-impl/cat09-r1/codex.err:202:+var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+coordination/v1500-impl/cat09-r1/codex.err:208:-	_h1(Vector2(640, 30), L.t("pf_title"))   # 1.2.0：H1 放大，緞帶上移 4（R2）
+coordination/v1500-impl/cat09-r1/codex.err:209:+	var hy := _h1(Vector2(640, 30), L.t("pf_title")) + GAP_L   # 1.2.0：H1 放大，緞帶上移 4（R2）；頁籤從緞帶下緣＋16 起
+coordination/v1500-impl/cat09-r1/codex.err:212:+		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
+coordination/v1500-impl/cat09-r1/codex.err:213:+		btn_group = "pf_tabs"
+coordination/v1500-impl/cat09-r1/codex.err:215:+		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/codex.err:218:+	match pf_tab:
+coordination/v1500-impl/cat09-r1/codex.err:219:+		0: _draw_pf_overview(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/codex.err:220:+		1: _draw_pf_units(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/codex.err:221:+		2: _draw_pf_badges(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/codex.err:228:+func _draw_pf_overview(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/codex.err:233: 		trial += int(v)
+coordination/v1500-impl/cat09-r1/codex.err:234: 	var tiles := [["swords", "pf_games", str(g)], ["trophy", "pf_wins", "%d%%" % (wn * 100 / maxi(1, g))], ["repeat", "pf_streak", "%d / %d" % [int(Save.data.get("streak", 0)), int(Save.data.get("best_streak", 0))]],
+coordination/v1500-impl/cat09-r1/codex.err:235: 		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+coordination/v1500-impl/cat09-r1/codex.err:259:-	_text(Vector2(80, 184), L.t("pf_units"), tz("B"), ACCENT, false, true, 600)
+coordination/v1500-impl/cat09-r1/codex.err:288:+		_text(Vector2(br.position.x + 16, br.position.y + 10), L.t("pf_most" if c == 0 else "pf_best"), tz("B"), ACCENT, false, true, br.size.x - 32)
+coordination/v1500-impl/cat09-r1/codex.err:290:+			_text(Vector2(br.get_center().x, br.position.y + bh * 0.5), L.t("pf_none"), tz("S"), TXT_DIM, true, false, br.size.x - 32)
+coordination/v1500-impl/cat09-r1/codex.err:297:+			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
+coordination/v1500-impl/cat09-r1/codex.err:302:+func _draw_pf_units(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/codex.err:305:+		btn_group = "pf_grp"
+coordination/v1500-impl/cat09-r1/codex.err:307:+		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/codex.err:317:-		_text(Vector2(80 + _width(L.t("pf_units"), tz("B"), true) + 16, 184 + (tz("B") - tz("C")) * 0.5), L.t("pf_units_since"), tz("C"), TXT_DIM, false, false, 600)   # 舊存檔：從這版起算
+coordination/v1500-impl/cat09-r1/codex.err:318:+	var head := L.t("pf_units") + ("　" + L.t("pf_units_since") if old_n > rec_n else "")
+coordination/v1500-impl/cat09-r1/codex.err:329:+		var t := pf_grp * 10 + j
+coordination/v1500-impl/cat09-r1/codex.err:340:-			_text(r2.position + Vector2(cw / 2, 74), L.t("pf_none"), tz("C"), TXT_DIM, true, false, cw - 6)   # V1.1 C4：沒出戰不寫 0%
+coordination/v1500-impl/cat09-r1/codex.err:346:+		var wl := L.t("pf_none") if gg == 0 else "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg)
+coordination/v1500-impl/cat09-r1/codex.err:355:+func _draw_pf_badges(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/codex.err:360: 	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:361:-	_text(Vector2(80, 448), L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), ACCENT, false, true, 330)
+coordination/v1500-impl/cat09-r1/codex.err:363:+	var ht := L.t("pf_ach", [earned.size(), keys.size()])
+coordination/v1500-impl/cat09-r1/codex.err:367:-		var px := 80.0 + minf(330.0, _width(L.t("pf_ach", [earned.size(), keys.size()]), tz("B"), true)) + 16.0
+coordination/v1500-impl/cat09-r1/codex.err:368:-		_btn_small(Rect2(px, 440, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+coordination/v1500-impl/cat09-r1/codex.err:369:-		_text(Vector2(px + 84, 448 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 70)
+coordination/v1500-impl/cat09-r1/codex.err:370:-		_btn_small(Rect2(px + 124, 440, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:371:+		btn_group = "pf_pager"
+coordination/v1500-impl/cat09-r1/codex.err:372:+		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+coordination/v1500-impl/cat09-r1/codex.err:373:+		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:375:+		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+coordination/v1500-impl/cat09-r1/codex.err:378: 	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+coordination/v1500-impl/cat09-r1/codex.err:381: 		var j2 := i2 - pf_ach_page * ACH_PAGE
+coordination/v1500-impl/cat09-r1/codex.err:400:-	var cond: String = (L.t("pf_ach_hint") if not pad_mode else "") if hover_k == "" else str(L.pick(ACH_DESC.get(hover_k, ["", ""])[0], ACH_DESC.get(hover_k, ["", ""])[1]))
+coordination/v1500-impl/cat09-r1/codex.err:416: var pf_ach_page := 0
+coordination/v1500-impl/cat09-r1/codex.err:427:-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+coordination/v1500-impl/cat09-r1/codex.err:428:+const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+coordination/v1500-impl/cat09-r1/codex.err:431: const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+coordination/v1500-impl/cat09-r1/codex.err:441:+func test_crowded_pages_v150() -> void:
+coordination/v1500-impl/cat09-r1/codex.err:448:+	ok(gm.find("0: _draw_pf_overview()") >= 0 and gm.find("1: _draw_pf_units()") >= 0 and gm.find("2: _draw_pf_badges()") >= 0, "戰績分三頁籤：總覽／兵種／徽章櫃")
+coordination/v1500-impl/cat09-r1/codex.err:451:+	g.pf_tab = 2
+coordination/v1500-impl/cat09-r1/codex.err:452:+	g.pf_ach_page = 3
+coordination/v1500-impl/cat09-r1/codex.err:453:+	ok(g.pf_tab == 2, "頁籤狀態可設")
+coordination/v1500-impl/cat09-r1/codex.err:463:+	set("pf_tab", 0)
+coordination/v1500-impl/cat09-r1/codex.err:465:+	set("pf_tab", 1)   # 1.5.0 §1.6 戰績三頁籤
+coordination/v1500-impl/cat09-r1/codex.err:467:+	set("pf_tab", 2)
+coordination/v1500-impl/cat09-r1/codex.err:469:+	set("pf_tab", 0)
+coordination/v1500-impl/cat09-r1/codex.err:474: 	await _snap("89_trials_p2.png")
+coordination/v1500-impl/cat09-r1/codex.err:475: 	set("trial_page", 2)
+coordination/v1500-impl/cat09-r1/codex.err:476: 	await _snap("90_trials_p3.png")
+coordination/v1500-impl/cat09-r1/codex.err:477:+	set("trial_page", 3)   # 1.5.0：每頁 8 關，30 關分 4 頁
+coordination/v1500-impl/cat09-r1/codex.err:478:+	await _snap("v150_90b_trials_p4.png")
+coordination/v1500-impl/cat09-r1/codex.err:479: 	set("trial_page", 0)
+coordination/v1500-impl/cat09-r1/codex.err:481: 	call("_start_trial", 14)
+coordination/v1500-impl/cat09-r1/codex.err:491:+ "v150_90b_trials_p4.png": {
+coordination/v1500-impl/cat09-r1/codex.err:512:/bin/bash -lc "rg -n 'pf_tab|pf_grp|pf_ach_page|TRIAL_PAGE|trial_page|DEMO_TRIALS|PADWALK|func _h1|pf_tabs|pf_pager|profile' game/scripts/ui/input* game/scripts/ui/game* game/scripts/ui/screens/game_modes.gd game/tools game/scripts/game/presets.gd game/tests/suites/ui.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1500-impl/cat09-r1/codex.err:515:game/scripts/ui/game_screens.gd:1153:	"profile": Vector2(0, -60), "puzzles": Vector2(-70, 0), "trials": Vector2(-70, 0), "codes": Vector2(70, 0)}
+coordination/v1500-impl/cat09-r1/codex.err:519:game/scripts/ui/screens/game_modes.gd:170:var trial_page := 0
+coordination/v1500-impl/cat09-r1/codex.err:521:game/scripts/ui/screens/game_modes.gd:179:	trial_page = clampi(trial_page, 0, pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:522:game/scripts/ui/screens/game_modes.gd:184:	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
+coordination/v1500-impl/cat09-r1/codex.err:524:game/scripts/ui/screens/game_modes.gd:188:		var i: int = trial_page * TRIAL_PAGE + k
+coordination/v1500-impl/cat09-r1/codex.err:525:game/scripts/ui/screens/game_modes.gd:197:		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+coordination/v1500-impl/cat09-r1/codex.err:527:game/scripts/ui/screens/game_modes.gd:230:	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
+coordination/v1500-impl/cat09-r1/codex.err:528:game/scripts/ui/screens/game_modes.gd:231:	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
+coordination/v1500-impl/cat09-r1/codex.err:529:game/scripts/ui/screens/game_modes.gd:980:var pf_tab := 0
+coordination/v1500-impl/cat09-r1/codex.err:530:game/scripts/ui/screens/game_modes.gd:981:var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+coordination/v1500-impl/cat09-r1/codex.err:532:game/scripts/ui/screens/game_modes.gd:990:		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
+coordination/v1500-impl/cat09-r1/codex.err:533:game/scripts/ui/screens/game_modes.gd:991:		btn_group = "pf_tabs"
+coordination/v1500-impl/cat09-r1/codex.err:534:game/scripts/ui/screens/game_modes.gd:993:		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/codex.err:535:game/scripts/ui/screens/game_modes.gd:996:	match pf_tab:
+coordination/v1500-impl/cat09-r1/codex.err:538:game/scripts/ui/screens/game_modes.gd:1075:		btn_group = "pf_grp"
+coordination/v1500-impl/cat09-r1/codex.err:539:game/scripts/ui/screens/game_modes.gd:1077:		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/codex.err:540:game/scripts/ui/screens/game_modes.gd:1094:		var t := pf_grp * 10 + j
+coordination/v1500-impl/cat09-r1/codex.err:541:game/scripts/ui/screens/game_modes.gd:1117:	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:542:game/scripts/ui/screens/game_modes.gd:1121:		btn_group = "pf_pager"
+coordination/v1500-impl/cat09-r1/codex.err:543:game/scripts/ui/screens/game_modes.gd:1122:		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+coordination/v1500-impl/cat09-r1/codex.err:544:game/scripts/ui/screens/game_modes.gd:1123:		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:545:game/scripts/ui/screens/game_modes.gd:1125:		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+coordination/v1500-impl/cat09-r1/codex.err:546:game/scripts/ui/screens/game_modes.gd:1128:	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+coordination/v1500-impl/cat09-r1/codex.err:547:game/scripts/ui/screens/game_modes.gd:1131:		var j2 := i2 - pf_ach_page * ACH_PAGE
+coordination/v1500-impl/cat09-r1/codex.err:548:game/scripts/ui/screens/game_modes.gd:1144:var pf_ach_page := 0
+coordination/v1500-impl/cat09-r1/codex.err:558:game/tests/suites/ui.gd:2620:	g.pf_tab = 2
+coordination/v1500-impl/cat09-r1/codex.err:559:game/tests/suites/ui.gd:2621:	g.pf_ach_page = 3
+coordination/v1500-impl/cat09-r1/codex.err:560:game/tests/suites/ui.gd:2622:	ok(g.pf_tab == 2, "頁籤狀態可設")
+coordination/v1500-impl/cat09-r1/codex.err:565:game/tools/dev_main.gd:9:const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat", "nb_words", "daily_past", "songbook", "campaign"]
+coordination/v1500-impl/cat09-r1/codex.err:567:game/tools/dev_main.gd:1149:	set("pf_tab", 0)
+coordination/v1500-impl/cat09-r1/codex.err:569:game/tools/dev_main.gd:1151:	set("pf_tab", 1)   # 1.5.0 §1.6 戰績三頁籤
+coordination/v1500-impl/cat09-r1/codex.err:571:game/tools/dev_main.gd:1153:	set("pf_tab", 2)
+coordination/v1500-impl/cat09-r1/codex.err:573:game/tools/dev_main.gd:1155:	set("pf_tab", 0)
+coordination/v1500-impl/cat09-r1/codex.err:577:game/tools/dev_main.gd:2043:	set("trial_page", 1)
+coordination/v1500-impl/cat09-r1/codex.err:578:game/tools/dev_main.gd:2045:	set("trial_page", 2)
+coordination/v1500-impl/cat09-r1/codex.err:579:game/tools/dev_main.gd:2047:	set("trial_page", 3)   # 1.5.0：每頁 8 關，30 關分 4 頁
+coordination/v1500-impl/cat09-r1/codex.err:580:game/tools/dev_main.gd:2049:	set("trial_page", 0)
+coordination/v1500-impl/cat09-r1/codex.err:584:/bin/bash -lc "rg -n 'func _h1|func _open|func _nav|pf_ach|trial_page|focus|btn_group|sort' game/scripts/ui/base game/scripts/ui/screens/navigation* game/scripts/ui -g '*.gd'" in /mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1500-impl/cat09-r1/codex.err:670:game/scripts/ui/screens/game_modes.gd:170:var trial_page := 0
+coordination/v1500-impl/cat09-r1/codex.err:671:game/scripts/ui/screens/game_modes.gd:179:	trial_page = clampi(trial_page, 0, pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:672:game/scripts/ui/screens/game_modes.gd:184:	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
+coordination/v1500-impl/cat09-r1/codex.err:673:game/scripts/ui/screens/game_modes.gd:188:		var i: int = trial_page * TRIAL_PAGE + k
+coordination/v1500-impl/cat09-r1/codex.err:674:game/scripts/ui/screens/game_modes.gd:230:	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
+coordination/v1500-impl/cat09-r1/codex.err:675:game/scripts/ui/screens/game_modes.gd:231:	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
+coordination/v1500-impl/cat09-r1/codex.err:680:game/scripts/ui/screens/game_modes.gd:991:		btn_group = "pf_tabs"
+coordination/v1500-impl/cat09-r1/codex.err:681:game/scripts/ui/screens/game_modes.gd:993:		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/codex.err:685:game/scripts/ui/screens/game_modes.gd:1075:		btn_group = "pf_grp"
+coordination/v1500-impl/cat09-r1/codex.err:687:game/scripts/ui/screens/game_modes.gd:1117:	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:688:game/scripts/ui/screens/game_modes.gd:1118:	var ht := L.t("pf_ach", [earned.size(), keys.size()])
+coordination/v1500-impl/cat09-r1/codex.err:689:game/scripts/ui/screens/game_modes.gd:1121:		btn_group = "pf_pager"
+coordination/v1500-impl/cat09-r1/codex.err:690:game/scripts/ui/screens/game_modes.gd:1122:		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+coordination/v1500-impl/cat09-r1/codex.err:691:game/scripts/ui/screens/game_modes.gd:1123:		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:693:game/scripts/ui/screens/game_modes.gd:1125:		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+coordination/v1500-impl/cat09-r1/codex.err:694:game/scripts/ui/screens/game_modes.gd:1128:	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+coordination/v1500-impl/cat09-r1/codex.err:695:game/scripts/ui/screens/game_modes.gd:1131:		var j2 := i2 - pf_ach_page * ACH_PAGE
+coordination/v1500-impl/cat09-r1/codex.err:696:game/scripts/ui/screens/game_modes.gd:1144:var pf_ach_page := 0
+coordination/v1500-impl/cat09-r1/codex.err:1152:	_open("trials")
+coordination/v1500-impl/cat09-r1/codex.err:1205:var pf_tab := 0
+coordination/v1500-impl/cat09-r1/codex.err:1206:var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+coordination/v1500-impl/cat09-r1/codex.err:1212:	var hy := _h1(Vector2(640, 30), L.t("pf_title")) + GAP_L   # 1.2.0：H1 放大，緞帶上移 4（R2）；頁籤從緞帶下緣＋16 起
+coordination/v1500-impl/cat09-r1/codex.err:1215:		btn_cloth = "tab_indigo" if i == pf_tab else "tab_linen"
+coordination/v1500-impl/cat09-r1/codex.err:1216:		btn_group = "pf_tabs"
+coordination/v1500-impl/cat09-r1/codex.err:1218:		_btn(Rect2(640 - 1.5 * tabw - 8 + i * (tabw + 8), hy, tabw, 46), L.t("pf_tab_%d" % i), func(): pf_tab = ii; pf_ach_page = 0, true, false, TH_ACTIVE if i == pf_tab else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/codex.err:1221:	match pf_tab:
+coordination/v1500-impl/cat09-r1/codex.err:1222:		0: _draw_pf_overview(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/codex.err:1223:		1: _draw_pf_units(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/codex.err:1224:		2: _draw_pf_badges(hy + 46.0 + GAP_M)
+coordination/v1500-impl/cat09-r1/codex.err:1231:func _draw_pf_overview(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/codex.err:1236:	var trial := 0
+coordination/v1500-impl/cat09-r1/codex.err:1237:	for v in Save.data.get("trial_stars", {}).values():
+coordination/v1500-impl/cat09-r1/codex.err:1238:		trial += int(v)
+coordination/v1500-impl/cat09-r1/codex.err:1239:	var tiles := [["swords", "pf_games", str(g)], ["trophy", "pf_wins", "%d%%" % (wn * 100 / maxi(1, g))], ["repeat", "pf_streak", "%d / %d" % [int(Save.data.get("streak", 0)), int(Save.data.get("best_streak", 0))]],
+coordination/v1500-impl/cat09-r1/codex.err:1240:		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+coordination/v1500-impl/cat09-r1/codex.err:1283:		_text(Vector2(br.position.x + 16, br.position.y + 10), L.t("pf_most" if c == 0 else "pf_best"), tz("B"), ACCENT, false, true, br.size.x - 32)
+coordination/v1500-impl/cat09-r1/codex.err:1285:			_text(Vector2(br.get_center().x, br.position.y + bh * 0.5), L.t("pf_none"), tz("S"), TXT_DIM, true, false, br.size.x - 32)
+coordination/v1500-impl/cat09-r1/codex.err:1292:			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
+coordination/v1500-impl/cat09-r1/codex.err:1297:func _draw_pf_units(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/codex.err:1300:		btn_group = "pf_grp"
+coordination/v1500-impl/cat09-r1/codex.err:1302:		_btn(Rect2(640 - gw - 4 + k * (gw + 8), y0, gw, 42), L.t("lb_army_kingdom" if k == 0 else "lb_army_fantasy"), func(): pf_grp = kk, true, false, TH_ACTIVE if k == pf_grp else Color(0, 0, 0, 0))
+coordination/v1500-impl/cat09-r1/codex.err:1312:	var head := L.t("pf_units") + ("　" + L.t("pf_units_since") if old_n > rec_n else "")
+coordination/v1500-impl/cat09-r1/codex.err:1319:		var t := pf_grp * 10 + j
+coordination/v1500-impl/cat09-r1/codex.err:1328:		var wl := L.t("pf_none") if gg == 0 else "%d%%" % mini(100, int(uw.get(str(t), 0)) * 100 / gg)
+coordination/v1500-impl/cat09-r1/codex.err:1337:func _draw_pf_badges(y0: float) -> void:
+coordination/v1500-impl/cat09-r1/codex.err:1342:	pf_ach_page = clampi(pf_ach_page, 0, ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:1343:	var ht := L.t("pf_ach", [earned.size(), keys.size()])
+coordination/v1500-impl/cat09-r1/codex.err:1346:		btn_group = "pf_pager"
+coordination/v1500-impl/cat09-r1/codex.err:1347:		_btn_small(Rect2(1004, y0, 44, 40), "◀", func(): pf_ach_page -= 1, pf_ach_page > 0)
+coordination/v1500-impl/cat09-r1/codex.err:1348:		_btn_small(Rect2(1150, y0, 44, 40), "▶", func(): pf_ach_page += 1, pf_ach_page < ach_pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:1350:		_text(Vector2(1099, y0 + 6 + (tz("B") - tz("S")) * 0.5), "%d／%d" % [pf_ach_page + 1, ach_pages], tz("S"), Color.WHITE, true, false, 90)
+coordination/v1500-impl/cat09-r1/codex.err:1353:	for i2 in range(pf_ach_page * ACH_PAGE, mini(keys.size(), pf_ach_page * ACH_PAGE + ACH_PAGE)):
+coordination/v1500-impl/cat09-r1/codex.err:1356:		var j2 := i2 - pf_ach_page * ACH_PAGE
+coordination/v1500-impl/cat09-r1/codex.err:1369:var pf_ach_page := 0
+coordination/v1500-impl/cat09-r1/codex.err:1391:/bin/bash -lc "sed -n '535,590p' game/scripts/ui/ui_base.gd; sed -n '165,240p' game/scripts/ui/screens/game_modes.gd; rg -n 'trials|trial_i|trial_index|/ 10|/10' game/scripts/ui/screens/game_result.gd game/scripts/ui/screens/game_place.gd game/scripts/ui/screens/game_modes.gd; sed -n '615,645p' game/scripts/ui/screens/game_modes.gd; sed -n '2610,2625p' game/tests/suites/ui.gd; command -v godot godot4 godot4.6 || true; rg --files /usr/local/bin /tmp /opt 2>/dev/null | rg -i 'godot' | head -20" in /mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1500-impl/cat09-r1/codex.err:1454:var trial_page := 0
+coordination/v1500-impl/cat09-r1/codex.err:1456:func _draw_trials() -> void:
+coordination/v1500-impl/cat09-r1/codex.err:1460:	var tdy := maxf(0.0, _h1_help(Vector2(640, 24), L.t("trial_title"), L.t("trial_rule"), tz("S"), 1000) - 164.0)
+coordination/v1500-impl/cat09-r1/codex.err:1461:	var stars: Dictionary = Save.data.get("trial_stars", {})
+coordination/v1500-impl/cat09-r1/codex.err:1463:	trial_page = clampi(trial_page, 0, pages - 1)
+coordination/v1500-impl/cat09-r1/codex.err:1468:	_text(Vector2(184, 710), L.t("trial_page", [trial_page + 1, pages, tot, TRIALS.size() * 3]), tz("S"), TXT_DIM, false, false, 360)
+coordination/v1500-impl/cat09-r1/codex.err:1472:		var i: int = trial_page * TRIAL_PAGE + k
+coordination/v1500-impl/cat09-r1/codex.err:1476:		var x := trial_x(i)
+coordination/v1500-impl/cat09-r1/codex.err:1481:		_btn(r, "", _start_trial.bind(i), not _demo() or i in Presets.DEMO_TRIALS, false, TH_WOOD)
+coordination/v1500-impl/cat09-r1/codex.err:1489:		_text(r.position + Vector2(154, 8), "%d. %s" % [i + 1, trial_name(i)], tz("B"), tcol, false, true, cw - 240)
+coordination/v1500-impl/cat09-r1/codex.err:1504:		var c1s := "≥%d%%" % trial_rem(i)
+coordination/v1500-impl/cat09-r1/codex.err:1508:		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), acol, false, true, 120)
+coordination/v1500-impl/cat09-r1/codex.err:1514:	_btn(Rect2(116, 700, 52, 44), "◀", func(): trial_page -= 1, trial_page > 0 and not _demo())
+coordination/v1500-impl/cat09-r1/codex.err:1515:	_btn(Rect2(1112, 700, 52, 44), "▶", func(): trial_page += 1, trial_page < pages - 1 and not _demo())
+coordination/v1500-impl/cat09-r1/codex.err:1525:game/scripts/ui/screens/game_modes.gd:5:## 第十三輪：再加 20 關（索引 10～29，只往後加、不重排，存檔用索引）：敵陣固定在 data/trials.json，
+coordination/v1500-impl/cat09-r1/codex.err:1526:game/scripts/ui/screens/game_modes.gd:22:var trial_id := -1
+coordination/v1500-impl/cat09-r1/codex.err:1527:game/scripts/ui/screens/game_modes.gd:57:	trial_id = i
+coordination/v1500-impl/cat09-r1/codex.err:1528:game/scripts/ui/screens/game_modes.gd:110:	var x := trial_x(trial_id)
+coordination/v1500-impl/cat09-r1/codex.err:1529:game/scripts/ui/screens/game_modes.gd:149:	if trial_id >= 0:
+coordination/v1500-impl/cat09-r1/codex.err:1530:game/scripts/ui/screens/game_modes.gd:150:		Save.note_try("trial", str(trial_id), w == 0, armies[0].spent())   # V1.1 F2
+coordination/v1500-impl/cat09-r1/codex.err:1531:game/scripts/ui/screens/game_modes.gd:151:	if trial_id < 0 or w != 0:
+coordination/v1500-impl/cat09-r1/codex.err:1532:game/scripts/ui/screens/game_modes.gd:153:	var lvl: int = int(TRIALS[trial_id][3])
+coordination/v1500-impl/cat09-r1/codex.err:1533:game/scripts/ui/screens/game_modes.gd:156:	var pct: int = trial_spend_pct(trial_id)
+coordination/v1500-impl/cat09-r1/codex.err:1534:game/scripts/ui/screens/game_modes.gd:157:	var st: int = trial_stars(lvl, rem, spent, armies[0].budget, pct, trial_rem(trial_id))
+coordination/v1500-impl/cat09-r1/codex.err:1535:game/scripts/ui/screens/game_modes.gd:158:	report["trial_lines"] = call("_star_lines", true, rem, trial_rem(trial_id), spent, armies[0].budget * pct / 100)
+coordination/v1500-impl/cat09-r1/codex.err:1536:game/scripts/ui/screens/game_modes.gd:160:	all[str(trial_id)] = maxi(int(all.get(str(trial_id), 0)), st)
+coordination/v1500-impl/cat09-r1/codex.err:1537:game/scripts/ui/screens/game_modes.gd:172:func _draw_trials() -> void:
+coordination/v1500-impl/cat09-r1/codex.err:1538:game/scripts/ui/screens/game_modes.gd:224:		_text(Vector2(cx1 + 22, cy0), "≤%d" % (tb * trial_spend_pct(i) / 100), tz("C"), acol, false, true, 120)
+coordination/v1500-impl/cat09-r1/codex.err:1540:game/scripts/ui/screens/game_modes.gd:1015:		["tower", "pf_trials", "%d / %d" % [trial, TRIALS.size() * 3]], ["road", "pf_gauntlet", "%d / 7" % int(Save.data.get("gauntlet_best", 0))]]
+coordination/v1500-impl/cat09-r1/codex.err:1541:game/scripts/ui/screens/game_modes.gd:1067:			var val := L.t("pf_games_n", [int(lst[j][0])]) if c == 0 else "%d%%" % (int(lst[j][0]) / 10)
+coordination/v1500-impl/cat09-r1/codex.err:1542:game/scripts/ui/screens/game_modes.gd:1272:	"TRIAL_ALL3": ["30 關主題試煉全部三星", "Get 3 stars on all 30 trials"],
+coordination/v1500-impl/cat09-r1/codex.err:1543:game/scripts/ui/screens/game_result.gd:19:	set("trial_id", -1)
+coordination/v1500-impl/cat09-r1/codex.err:1544:game/scripts/ui/screens/game_result.gd:353:	if series_over and (mode == Mode.VS_AI or mode == Mode.DUEL) and int(get("trial_id")) < 0:
+coordination/v1500-impl/cat09-r1/codex.err:1545:game/scripts/ui/screens/game_result.gd:383:			if get("trial_id") >= 0:
+coordination/v1500-impl/cat09-r1/codex.err:1546:game/scripts/ui/screens/game_result.gd:384:				var tid: int = get("trial_id")
+coordination/v1500-impl/cat09-r1/codex.err:1547:game/scripts/ui/screens/game_result.gd:390:					_open("trials")])
+coordination/v1500-impl/cat09-r1/codex.err:1548:game/scripts/ui/screens/game_result.gd:738:	if int(get("trial_id")) >= 0 or not (get("daily_spec") as Dictionary).is_empty():
+coordination/v1500-impl/cat09-r1/codex.err:1558:game/scripts/ui/screens/game_place.gd:806:	var nb3: bool = int(get("trial_id")) >= 0 and mode == Mode.VS_AI
+coordination/v1500-impl/cat09-r1/codex.err:1593:func test_crowded_pages_v150() -> void:
+coordination/v1500-impl/cat09-r1/codex.err:1600:	ok(gm.find("0: _draw_pf_overview()") >= 0 and gm.find("1: _draw_pf_units()") >= 0 and gm.find("2: _draw_pf_badges()") >= 0, "戰績分三頁籤：總覽／兵種／徽章櫃")
+coordination/v1500-impl/cat09-r1/codex.err:1603:	g.pf_tab = 2
+coordination/v1500-impl/cat09-r1/codex.err:1604:	g.pf_ach_page = 3
+coordination/v1500-impl/cat09-r1/codex.err:1605:	ok(g.pf_tab == 2, "頁籤狀態可設")
+lrwxrwxrwx 1 timmy timmy 23 May 29 11:59 /home/timmy/.local/bin/godot -> /home/timmy/godot/godot
+
+exec
+/bin/bash -lc "rg -n -A5 'const TYPE_SCALE' game/scripts/ui/ui_base.gd; sed -n '1660,1667p' game/scripts/ui/screens/game_menus.gd; rg -n 'shots|pad.walk|trial_page' game/tools/dev_main.gd | head -25; rg -n 'text_h|func _text' game/scripts/ui/ui_base.gd; git status --short" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 3180ms:
+203:const TYPE_SCALE := {
+204-	100: {"D": 64, "DX": 84, "T": 44, "H1": 34, "H2": 24, "B": 18, "S": 16, "C": 15},
+205-	125: {"D": 70, "DX": 92, "T": 48, "H1": 38, "H2": 28, "B": 22, "S": 19, "C": 18},
+206-	150: {"D": 70, "DX": 92, "T": 48, "H1": 38, "H2": 30, "B": 25, "S": 22, "C": 21},
+207-}
+208-var sfx
+				["pr_waves", "pr_waves_d", "swords", func(): call("_wave_start"), true],
+				["pr_sealed", "pr_sealed_d", "book", func(): call("_sealed_start"), true]]
+		"hub_collect":
+			return [["menu_codex", "hc_codex_d", "book", func(): overlay = ""; _open_codex(0), true],
+				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
+				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
+				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
+				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
+619:func _run_screenshots() -> void:
+627:		await _shots_v9()
+997:	await _shots_v4()
+998:	await _shots_cmd()
+999:	await _shots_v13()
+1000:	await _shots_v16()
+1001:	await _pad_walk()
+1006:func _shots_v4() -> void:
+1105:	await _shots_v6()
+1106:	await _shots_v8()
+1107:	await _shots_v9()
+1135:func _shots_v9() -> void:
+1297:func _shots_v8() -> void:
+1364:func _shots_v6() -> void:
+1590:		_run_screenshots.call_deferred()
+1784:func _pad_walk() -> void:
+1895:func _shots_cmd() -> void:
+1952:func _shots_v13() -> void:
+2043:	set("trial_page", 1)
+2045:	set("trial_page", 2)
+2047:	set("trial_page", 3)   # 1.5.0：每頁 8 關，30 關分 4 頁
+2049:	set("trial_page", 0)
+2108:func _shots_v16() -> void:
+2233:	await _shots_v161()
+2236:func _shots_v161() -> void:
+711:func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
+818:func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+1451:	return y + text_h(help, fit(help, sz, maxw), maxw) + GAP_L
+1455:	return h1_bottom(0.0) + GAP_L + ((text_h(help, fit(help, sz, maxw), maxw) + GAP_L) if help != "" else 0.0)
+ M game/data/strings.csv
+ M game/fonts/NTBLatin-B-sub.ttf
+ M game/fonts/NTBLatin-M-sub.ttf
+ M game/fonts/NTBRounded-B-sub.otf
+ M game/fonts/NTBRounded-R-sub.otf
+ M game/fonts/NTBRoundedJP-B-sub.otf
+ M game/fonts/NTBRoundedJP-R-sub.otf
+ M game/fonts/NTBRoundedSC-B-sub.otf
+ M game/fonts/NTBRoundedSC-R-sub.otf
+ M game/fonts/NTBSans-B-sub.otf
+ M game/fonts/NTBSans-R-sub.otf
+ M game/fonts/NTBSansJP-B-sub.otf
+ M game/fonts/NTBSansJP-R-sub.otf
+ M game/fonts/NTBSansSC-B-sub.otf
+ M game/fonts/NTBSansSC-R-sub.otf
+ M game/fonts/NTBTitle-sub.ttf
+ M game/fonts/ThenKhung-sub.ttf
+ M game/scripts/ui/layout_rules.gd
+ M game/scripts/ui/screens/game_modes.gd
+ M game/tests/run_tests.gd
+ M game/tests/suites/ui.gd
+ M game/tools/dev_main.gd
+ M game/tools/screens.json
+?? coordination/v1500-impl/cat09-plan.md
+?? coordination/v1500-impl/cat09-r1/
+
+exec
+/bin/bash -lc "sed -n '688,718p' game/scripts/ui/ui_base.gd; sed -n '818,868p' game/scripts/ui/ui_base.gd; sed -n '1190,1276p' game/scripts/ui/screens/game_modes.gd; rg -n 'ACHIEVEMENTS' game/scripts -g '*steam*'; rg --files | rg 'v150_59d|59_profile|layout.*/.*(json|log)"'$'"' | head -15" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 207ms:
+				# 避頭點（第六輪截圖）：句號、逗號、右括號不放行首——把上一行最後一個字一起帶到下一行（不掛出框外）
+				# V1.4 #17：日文另加小假名、長音、中黑點不放行首；簡中的右引號也算
+				if tok.length() == 1 and NO_LINE_HEAD.contains(tok) and cur.length() > 1 and cur.unicode_at(cur.length() - 1) >= 0x2E80:
+					# 往回多帶幾個字，直到新的一行開頭不是禁則字（「ュー」這種連續的也處理，Codex v140-i4）；最多帶 4 個
+					var n := 1
+					while n < 4 and n < cur.length() - 1 and NO_LINE_HEAD.contains(cur[cur.length() - n]) and cur.unicode_at(cur.length() - n - 1) >= 0x2E80:
+						n += 1
+					out.append(cur.substr(0, cur.length() - n).strip_edges(false, true))
+					cur = cur.substr(cur.length() - n) + tok
+				else:
+					out.append(cur.strip_edges(false, true))
+					cur = tok.strip_edges(true, false) if tok == " " else tok
+			else:
+				cur += tok
+		if cur != "":
+			out.append(cur)
+	return out
+
+## 行距（第五輪 §4.2，XAG 101）：多行的段落 1.5 倍；單行照舊。
+static func line_h(n: int) -> float:
+	return 1.5 if n > 1 else 1.3
+
+## 一段字換行後的高度（排版用）。
+func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
+	var n := wrap_lines(s, size, maxw, bold).size()
+	return n * size * line_h(n)
+
+
+## V1.6.1 A8：焦點框平滑移動
+const FOCUS_GLIDE := 0.08
+var fg_from := Rect2()
+func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+	if _ink_mode:
+		c = Color(_ink(c), c.a) if _ink_keep_a else _ink(c)
+	elif outline.a < 0.0 and not (size >= 24 or (bold and size >= 19)) and c.s >= 0.25 and not (c.get_luminance() < 0.35 and c.s < 0.8):   # 深色低彩度的浮雕字不動
+		c = Color(_legible(Color(c, 1.0)), c.a)   # V1.2.1 F5：深描邊上的彩色小字自動提亮到 4.5:1
+	if maxw > 0.0:
+		size = fit(s, size, maxw, bold)
+	var lines := wrap_lines(s, size, maxw, bold) if maxw > 0.0 else s.split("\n")
+	for i in lines.size():
+		var fnt := _font_for(lines[i], size, bold)
+		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
+		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
+		if mag_on and _probe_ui and size < 26 and c.a > 0.3:
+			var mw := w if center else fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).grow(4.0 if bool(get("pad_mode")) else 0.0).has_point(mag_point()):
+				mag_hit = [lines[i], size, bold]
+		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
+		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
+		var emboss := outline.a < 0.0 and (_ink_mode or (c.get_luminance() < 0.35 and c.s < 0.8))
+		if emboss:
+			oc = Color(0, 0, 0, 0)
+		var ow := text_outline_w(size)
+		var sh := text_shadow_dy(size)
+		# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
+		# V1.2 A3：外框算進描邊外擴（左右上各半個描邊、下方再加陰影位移），換字與換框才不會靜靜爆框
+		if layout_probe and c.a > 0.05 and lines[i].strip_edges() != "":
+			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			var ex := ow * 0.5 if oc.a > 0.0 else 0.0
+			# 直向：原本的框（1.1 倍字高）已經留了上下各約 0.05 字高的空，描邊與陰影只算超出的部分
+			var ey := maxf(0.0, ex - size * 0.05)
+			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
+			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
+				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis,
+				"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98),
+				"face": _probe_face if _probe_face.size.x > 0.0 else null, "cell": _probe_cell_id, "ink": Rect2(q + ink_line(fnt, lines[i], size).position, ink_line(fnt, lines[i], size).size)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
+		if emboss:
+			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
+		if oc.a > 0.0:
+			# V1.2 A3：先畫柔和的下方陰影，再畫深焦茶描邊（取代純黑），最後正文
+			draw_string_outline(fnt, q + Vector2(0, sh), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, Color(INK_SHADOW, oc.a * 0.55))
+			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, oc)
+		draw_string(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
+
+
+## V1.2 A3：描邊依字級減薄（小字描太粗會糊）、陰影位移依字級（純函式，測試與探針共用）。
+static func text_outline_w(size: int) -> int:
+	return 3 if size <= 16 else (4 if size <= 22 else 5)
+
+static func text_shadow_dy(size: int) -> float:
+	return maxf(1.0, roundf(size / 12.0))
+
+	# 第二層：三星編制（兵種與隻數，不給位置）
+	var got := int(Save.data.get("puzzle_stars", {}).get(puzzle_id, 0))
+	_text(Vector2(x, y), L.t("ph_l2"), tz("S"), ACCENT, false, true, w)
+	y += tz("S") * 1.5
+	if got >= 1:
+		var lx := x
+		for it in PZ.best_lineup(pz):
+			_unit(Vector2(lx + 22, y + 52), int(it[0]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.62)
+			_text(Vector2(lx + 44, y + 30), "×%d" % int(it[1]), tz("B"), Color.WHITE, false, true)
+			lx += 96
+		y += 66
+		var cond := L.t("ph_cond", [int(pz["star3"]), int(pz["star2"])])
+		_text(Vector2(x, y), cond, tz("S"), TXT_DIM, false, false, w)
+		y += text_h(cond, tz("S"), w) + 16
+	else:
+		_text(Vector2(x, y), L.t("ph_locked"), tz("S"), TXT_DIM, false, false, w)
+		y += tz("S") * 1.6 + 16
+	# 第三層：揭曉解答（要再按一次確認）
+	_text(Vector2(x, y), L.t("ph_l3"), tz("S"), ACCENT, false, true, w)
+	y += tz("S") * 1.5
+	if not puzzle_reveal:
+		_btn(Rect2(x, y, 260, 44), L.t("ph_reveal"), func(): puzzle_reveal = true)
+	else:
+		_text(Vector2(x, y), L.t("ph_reveal_q"), tz("S"), Color(1, 1, 1, 0.85), false, false, w)
+		y += text_h(L.t("ph_reveal_q"), tz("S"), w) + 6
+		_btn(Rect2(x, y, 220, 44), L.t("ph_apply"), func(): _apply_best(), true, true)
+		_btn(Rect2(x + 236, y, 160, 44), L.t("ph_cancel"), func(): puzzle_reveal = false)
+	# 返回和第三層按鈕同一列、靠右：大字級時內文變長也不會撞（版面檢查 86_hint_open en 150%）
+	_btn(Rect2(x + w - 160, y, 160, 44), L.t("back"), func(): overlay = "")
+
+## 提示框三層內容的高度（和 _draw_puzzle_hint 同一套遞增；面板照它算高）
+func _hint_body_h(pz: Dictionary, w: float) -> float:
+	var h := tz("S") * 1.5 + text_h(L.field(pz, "hint") + "　" + _puzzle_hint_text(), tz("S"), w) + 16
+	h += tz("S") * 1.5
+	if int(Save.data.get("puzzle_stars", {}).get(puzzle_id, 0)) >= 1:
+		h += 66 + text_h(L.t("ph_cond", [int(pz["star3"]), int(pz["star2"])]), tz("S"), w) + 16
+	else:
+		h += tz("S") * 1.6 + 16
+	h += tz("S") * 1.5
+	if puzzle_reveal:
+		h += text_h(L.t("ph_reveal_q"), tz("S"), w) + 6
+	return h + 44.0
+
+## 把三星解直接擺上去（固定兵留著），技能關連施放時間一起帶。
+func _apply_best() -> void:
+	var pz := PZ.get_puzzle(puzzle_id)
+	var best: Dictionary = pz.get("best", {})
+	armies[0] = PZ.player_army(pz)
+	for e in best.get("u", []):
+		armies[0].place(int(e[0]), int(e[1]), int(e[2]))
+	if not best.get("p", []).is_empty():
+		puzzle_plan = best["p"].duplicate()
+	puzzle_reveal = false
+	overlay = ""
+	_toast(L.t("ph_applied"))
+
+
+## V1.2.1：成就的解鎖條件（docs/release/steam-setup.md 同步；PUZZLE_ALL 是第 1 章的 10 關）。
+const ACH_DESC := {
+	"FIRST_WIN": ["第一次獲勝", "Win your first battle"],
+	"LONE_HERO": ["只剩最後一隻兵時拿下勝利", "Win with only one unit left standing"],
+	"COMEBACK": ["曾落後 15% 以上戰力後獲勝", "Win after trailing by 15% power or more"],
+	"CLOSE_CALL": ["勝利時剩餘戰力 5% 以下", "Win with 5% power or less remaining"],
+	"NO_TAKEBACKS": ["打完一場輪流落子的三戰兩勝", "Finish a best-of-3 with turn-by-turn placement"],
+	"HARD_WIN": ["打贏困難 AI", "Beat the Hard AI"],
+	"SWEEP": ["三戰兩勝以 2:0 拿下", "Win a best-of-3 2–0"],
+	"TUTORIAL": ["完成 3 關教學", "Finish all 3 tutorials"],
+	"PUZZLE_ALL": ["第 1 章 10 關殘局全部過關", "Clear all 10 Chapter 1 puzzles"],
+	"PUZZLE_3STAR": ["任一關殘局拿到三星", "Get 3 stars on any puzzle"],
+	"GAUNTLET": ["連勝遠征打到最後一關並獲勝", "Win the final battle of a Gauntlet run"],
+	"FRENZY_WIN": ["打進狂熱時間後獲勝", "Win after the Frenzy begins"],
+	"ALL_TYPES": ["用 5 種不同的兵獲勝", "Win using 5 different unit types"],
+	"CHARGE_5": ["一場衝鋒 5 次以上並獲勝", "Win with 5+ cavalry charges in one battle"],
+	"BACKSTAB_3": ["一場背刺 3 次以上並獲勝", "Win with 3+ backstabs in one battle"],
+	"CUSTOM_LOWGOLD": ["自訂規則：用低金幣獲勝", "Custom rules: win on a low budget"],
+	"CUSTOM_UNDERDOG": ["自訂規則：讓子時以少勝多", "Custom rules: win with the smaller budget"],
+	"CUSTOM_BIG": ["自訂規則：大軍團獲勝", "Custom rules: win a grand-army battle"],
+	"FANTASY_WIN": ["只用奇幻軍獲勝", "Win using only Monster units"],
+	"BOOM_5": ["一場羊爆 5 次以上並獲勝", "Win with 5+ sheep explosions in one battle"],
+	"RAISE_3": ["一場復活 3 隻以上並獲勝", "Win after raising 3+ units in one battle"],
+	"PUZZLE_100": ["100 關殘局全部過關", "Clear all 100 puzzles"],
+	"PUZZLE_ALL3": ["100 關殘局全部三星", "Get 3 stars on all 100 puzzles"],
+	"TRIAL_ALL3": ["30 關主題試煉全部三星", "Get 3 stars on all 30 trials"],
+	"GHOST_ALL": ["打敗全部幽靈名將的陣型", "Defeat every ghost formation"],
+	"WEEKLY_WIN": ["打贏一次每週棋盒", "Win a Weekly Box"],
+	"WAVE_3": ["車輪戰連贏三波", "Win all three waves in Waves"],
+	"REVENGE": ["在遠征裡打敗宿敵", "Defeat a nemesis in the Gauntlet"],
+game/scripts/game/steam.gd:8:const ACHIEVEMENTS := {
+game/scripts/game/steam.gd:85:	var n: Array = ACHIEVEMENTS.get(id, [id, id])
+game/scripts/game/steam.gd:196:		for id in ACHIEVEMENTS:
+coordination/v1500-impl/cat09-r1/agy/zh_TW_100_v150_59d_profile_badges.png
+coordination/v1500-impl/cat09-r1/agy/zh_TW_100_59_profile.png
+coordination/v1500-impl/cat09-r1/agy/ja_150_v150_59d_profile_badges.png
+coordination/v1500-impl/cat09-r1/agy/ja_150_59_profile.png
+coordination/v1500-impl/cat09-r1/agy/en_150_v150_59d_profile_badges.png
+coordination/v1500-impl/cat09-r1/agy/en_150_59_profile.png
+coordination/v130-impl/cat11-r1/agy/59_profile.png
+coordination/v130-impl/cat08-r1/agy/59_profile.png
+coordination/v140-impl/cat02-r1/agy/zh_59_profile.png
+
+exec
+/bin/bash -lc 'rg --files coordination/v1500-impl/cat09-r1/agy | head -30' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+coordination/v1500-impl/cat09-r1/agy/zh_TW_100_v150_59d_profile_badges.png
+coordination/v1500-impl/cat09-r1/agy/zh_TW_100_v150_59c_profile_units.png
+coordination/v1500-impl/cat09-r1/agy/zh_TW_100_59_profile.png
+coordination/v1500-impl/cat09-r1/agy/zh_TW_100_58_trials.png
+coordination/v1500-impl/cat09-r1/agy/ja_150_v150_59d_profile_badges.png
+coordination/v1500-impl/cat09-r1/agy/ja_150_v150_59c_profile_units.png
+coordination/v1500-impl/cat09-r1/agy/ja_150_59_profile.png
+coordination/v1500-impl/cat09-r1/agy/ja_150_58_trials.png
+coordination/v1500-impl/cat09-r1/agy/en_150_v150_59d_profile_badges.png
+coordination/v1500-impl/cat09-r1/agy/en_150_v150_59c_profile_units.png
+coordination/v1500-impl/cat09-r1/agy/en_150_59_profile.png
+coordination/v1500-impl/cat09-r1/agy/en_150_58_trials.png
+
+exec
+/bin/bash -lc "sed -n '8,51p' game/scripts/game/steam.gd; sed -n '1280,1303p' game/scripts/ui/screens/game_modes.gd; sed -n '80,112p' game/scripts/game/locale.gd 2>/dev/null; rg -n 'func pick|func _trans.*reset|_gen|pf_' game/scripts/game/locale* game/scripts/ui/game_screens.gd | head -30" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+const ACHIEVEMENTS := {
+	"FIRST_WIN": ["初陣告捷", "First Victory"],
+	"LONE_HERO": ["孤勇者", "Lone Hero"],
+	"COMEBACK": ["絕地翻盤", "Comeback"],
+	"CLOSE_CALL": ["一線之隔", "By a Hair"],
+	"NO_TAKEBACKS": ["落子無悔", "No Take-Backs"],
+	"HARD_WIN": ["勝過困難 AI", "Beat Hard AI"],
+	"SWEEP": ["二比零", "Clean Sweep"],
+	"TUTORIAL": ["學會了", "Graduated"],
+	"PUZZLE_ALL": ["殘局全破", "Puzzle Master"],
+	"PUZZLE_3STAR": ["完美解", "Perfect Solution"],
+	"GAUNTLET": ["七連勝", "Seven Straight"],
+	"FRENZY_WIN": ["狂熱中取勝", "Won in the Frenzy"],
+	"ALL_TYPES": ["五兵齊出", "Combined Arms"],
+	"CHARGE_5": ["鐵騎突擊", "Cavalry Storm"],
+	"BACKSTAB_3": ["暗影三連", "Shadow Trio"],
+	# 第五輪：自訂規則專屬（標準成就只看平衡認證的規則）
+	"CUSTOM_LOWGOLD": ["精打細算", "Shoestring Army"],
+	"CUSTOM_UNDERDOG": ["以寡擊眾", "Underdog"],
+	"CUSTOM_BIG": ["大軍壓境", "Grand Army"],
+	# 第八輪：奇幻兵團
+	"FANTASY_WIN": ["傭兵公會開張", "Monster Mercenaries"],
+	"BOOM_5": ["羊到爆炸", "Sheep Go Boom"],
+	"RAISE_3": ["大家起來", "Rise and Shine"],
+	# 第十三輪：百關殘局、30 關試煉
+	"PUZZLE_100": ["百局通關", "Hundred Puzzles"],
+	"PUZZLE_ALL3": ["百局三星", "Hundred Perfect"],
+	"TRIAL_ALL3": ["試煉滿星", "Trial Perfectionist"],
+	# V1.5：只用既有事件與統計
+	"GHOST_ALL": ["名將皆敗", "Ghostbuster"],
+	"WEEKLY_WIN": ["本週破盒", "Box Breaker"],
+	"WAVE_3": ["車輪不倒", "Last One Standing"],
+	"REVENGE": ["雪恥", "Sweet Revenge"],
+	"PAINTER": ["自己的顏色", "True Colors"],
+	"SHARP_EYE": ["好眼力", "Sharp Eye"],
+	"SEALED_DONE": ["封蠟三戰", "Sealed Fate"],
+	# V1.6.1 D7：V1.6 玩法（極速賽、三考、裂隙、出題台、熟練度、接力遠征）
+	"RUSH_10": ["極速十連", "Rush Ten"],
+	"TRIO_STAR3": ["三考滿分", "Triple Threat"],
+	"RIFT_WIN": ["裂隙行者", "Rift Walker"],
+	"WORKBENCH": ["出題人", "Puzzle Setter"],
+	"MASTER_5": ["熟能生巧", "Master Hand"],
+	"COOP_CLEAR": ["接力到底", "Relay to the End"],
+}
+	"RUSH_10": ["極速賽一次解開 10 題", "Solve 10 puzzles in one Puzzle Rush"],
+	"TRIO_STAR3": ["一陣三考任一組拿到三星", "Get 3 stars on any One Army, Three Tests set"],
+	"RIFT_WIN": ["打贏一次本週裂隙", "Win a weekly Rift"],
+	"WORKBENCH": ["用出題台做出一個殘局碼", "Make a code in the Puzzle Workbench"],
+	"MASTER_5": ["任一種兵熟練度到 5 級", "Reach mastery 5 with any unit"],
+	"COOP_CLEAR": ["雙人接力遠征打完 7 站", "Clear all 7 stages of a Relay Expedition"],
+}
+
+
+## ── V1.4 #2 宿敵戰記 ──
+## 宿敵的稱號：依陣型決定地名、主力兵種與稱呼（同一個陣永遠同一個名字）。
+static func nemesis_title_parts(units: Array) -> Array:
+	var cnt := {}
+	var h := 7
+	for u in units:
+		var t := int(u["type"])
+		cnt[t] = int(cnt.get(t, 0)) + 1
+		h = (h * 31 + t * 7 + int(u.get("col", 0)) * 3 + int(u.get("row", 0))) % 100003
+	var main := -1
+	for t in cnt:
+		if main < 0 or int(cnt[t]) > int(cnt[main]) or (int(cnt[t]) == int(cnt[main]) and int(t) < main):
+			main = int(t)
+	return [h % 6, maxi(0, main), (h / 6) % 4]
+
+rg: game/scripts/game/locale*: No such file or directory (os error 2)
+game/scripts/ui/game_screens.gd:507:				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+game/scripts/ui/game_screens.gd:930:	_btns_gen = _gen
+game/scripts/ui/game_screens.gd:932:	if _gen != _trans_gen:
+game/scripts/ui/game_screens.gd:933:		_trans_gen = _gen
+game/scripts/ui/game_screens.gd:992:	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+game/scripts/ui/game_screens.gd:1008:	_update_gen()
+game/scripts/ui/game_screens.gd:1012:		if c["gen"] != _gen:
+game/scripts/ui/game_screens.gd:1042:		_update_gen()
+game/scripts/ui/game_screens.gd:1135:	if _btns_gen != _gen:
+game/scripts/ui/game_screens.gd:1161:func _trans_reset_input() -> void:
+
+codex
+- P1：[ui.gd:2617](game/tests/suites/ui.gd#L2617) 仍搜尋 `_draw_pf_overview()` 等無參數呼叫；實作已傳入版位參數，此測試必敗。請更新斷言並驗證切頁行為。
+- P2：[game_result.gd:388](game/scripts/ui/screens/game_result.gd#L388) 返回試煉未依 `tid / TRIAL_PAGE` 更新頁碼。從第 8 關連打到第 9 關後返回，仍停第一頁；請同步目前關卡所在頁。
+
+其餘：成就移除焦點後，所有按鈕仍可循環到達；重進保留頁籤／兵團，切頁籤重設徽章頁碼。`_h1` 下緣使用正確；DEMO_TRIALS 0、2 仍在首頁。PADWALK 未覆蓋戰績與跨頁返回。排名以兵種編號破同分，具決定性（[Godot 比較實作](https://github.com/godotengine/godot/blob/4.6/core/variant/array.cpp#L156)）。
+
+結論：有條件
+tokens used
+71,430

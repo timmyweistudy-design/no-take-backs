@@ -1146,7 +1146,13 @@ func _shots_v9() -> void:
 	Save.data["unit_wins_rec"] = {"0": 7, "2": 4, "3": 5, "13": 1}
 	overlay = ""
 	_open("profile")
+	set("pf_tab", 0)
 	await _snap("59_profile.png")
+	set("pf_tab", 1)   # 1.5.0 §1.6 戰績三頁籤
+	await _snap("v150_59c_profile_units.png")
+	set("pf_tab", 2)
+	await _snap("v150_59d_profile_badges.png")
+	set("pf_tab", 0)
 	# V1.4 #2 宿敵戰記（範例資料，截完還原）
 	var nem_keep = Save.data.get("nemeses", [])
 	Save.data["nemeses"] = [{"units": [{"type": 5, "col": 10, "row": 2}, {"type": 5, "col": 10, "row": 3}, {"type": 2, "col": 12, "row": 4}, {"type": 1, "col": 10, "row": 5}], "losses": 2, "revenged": false, "stage": 3},
@@ -2038,6 +2044,8 @@ func _shots_v13() -> void:
 	await _snap("89_trials_p2.png")
 	set("trial_page", 2)
 	await _snap("90_trials_p3.png")
+	set("trial_page", 3)   # 1.5.0：每頁 8 關，30 關分 4 頁
+	await _snap("v150_90b_trials_p4.png")
 	set("trial_page", 0)
 	overlay = ""
 	call("_start_trial", 14)

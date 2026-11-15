@@ -2606,3 +2606,34 @@ func test_polish_v150() -> void:
 	ok(gv.find("_btn(br, label, func(): overlay = \"\"; _pick_puzzle(pid, false))") >= 0, "老闆出題三題都是次鈕（不再三條亮紅主鈕）")
 	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
 	ok(bu.find("if R.grow(40).has_point(sp):") >= 0 and bu.find("draw_rect(R, Color(TH_WOOD_D, 0.94))") < 0, "暫停資料卡改米紙浮籤，所選兵在右上時移到左上")
+
+func test_crowded_pages_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	ok(GS.TRIAL_PAGE == 8 and ceili(GS.TRIALS.size() / float(GS.TRIAL_PAGE)) == 4, "試煉每頁 8 關、30 關分 4 頁", str(GS.TRIAL_PAGE))
+	ok(GS.ACH_PAGE <= 12, "徽章櫃每頁 ≤12 個（方案 §1.6：非按鈕格 ≤12）")
+	var LR = load("res://scripts/ui/layout_rules.gd")
+	ok("profile" in LR.R14_ENFORCE and int(LR.R14_LIMITS["profile"]) == 6, "戰績轉成已改造類別（上限 6）")
+	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_modes.gd")
+	ok(gm.find("0: _draw_pf_overview(") >= 0 and gm.find("1: _draw_pf_units(") >= 0 and gm.find("2: _draw_pf_badges(") >= 0, "戰績分三頁籤：總覽／兵種／成就")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("set(\"trial_page\", tid / int(get(\"TRIAL_PAGE\")))") >= 0, "從結果返回試煉：停在這一關所在的頁")
+	ok(gm.find("_btns.append({\"r\": ar, \"cb\": func(): pass") < 0, "成就不再是看不見的焦點目標（條件直接寫在牌子上）")
+	var g = GS.new()
+	g.pf_tab = 2
+	g.pf_ach_page = 3
+	ok(g.pf_tab == 2, "頁籤狀態可設")
+	g.free()
+
+func test_lobby_fold_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	var all := 0
+	for t in g.D.total():
+		all |= 1 << t
+	var s0: String = g.pool_summary(all)
+	ok(s0.find(str(g.D.total())) >= 0, "卡池唯讀摘要：總種數", s0)
+	ok(g.pool_summary(0).find("0") >= 0, "空卡池也有摘要（不當掉）")
+	g.free()
+	var lv: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
+	for grp in ["pool_side", "pool_filter", "pool_cards", "pool_decks", "lb_subtabs"]:
+		ok(lv.find("btn_group = \"%s\"" % grp) >= 0, "大廳折頁 R14 分組：%s" % grp)
