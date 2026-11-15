@@ -543,13 +543,12 @@ func _paint_swatch(row: int, k: int, r: Rect2, lock: bool, on: bool) -> void:
 		return
 	match row:
 		0, 1:
-			draw_circle(c, 13.0, Art.OUT, true, -1.0, true)
-			draw_circle(c, 11.0, Art.PAINTS[row][k], true, -1.0, true)
+			_paint_well(c, 15.0, Art.PAINTS[row][k])   # 1.5.0 §13：水彩凹槽（原本是平塗圓點）
 		2, 3:
 			for i in 3:
 				var a := 0.25 + 0.5 * float(i <= k)
 				var col := Color(0.12, 0.08, 0.05, a) if row == 2 else Color(1.0, 0.95, 0.8, a)
-				draw_rect(Rect2(c + Vector2(-27 + i * 19, -8), Vector2(16, 16)), col)
+				_paint_well(c + Vector2(-19 + i * 19, 0), 8.5, col)
 		4:
 			var wd: Array = Art.WOODS[k]
 			draw_colored_polygon(_ellipse_pts(c + Vector2(0, 3), 26.0, 9.0), wd[0])
@@ -559,6 +558,16 @@ func _paint_swatch(row: int, k: int, r: Rect2, lock: bool, on: bool) -> void:
 			draw_rect(Rect2(c - Vector2(22, 5), Vector2(44, 10)), Color("#6f9a4a"))
 	if on:
 		_hand_ring(c + Vector2(35, -10), 5.0, Color("#e8c46a"), 2.0)
+
+## 調色盤上的一個瓷凹槽：白瓷緣＋上緣內陰影＋積在槽裡的顏料（下半較濃）＋一點濕亮
+func _paint_well(c: Vector2, r: float, col: Color) -> void:
+	draw_circle(c + Vector2(0, 1.5), r + 2.0, Color(0, 0, 0, 0.25), true, -1.0, true)   # 落影
+	draw_circle(c, r + 2.0, Color("#f3efe6"), true, -1.0, true)                          # 白瓷緣
+	draw_circle(c, r, Color("#d9d3c6"), true, -1.0, true)                                # 槽底
+	draw_arc(c, r - 1.0, PI * 1.05, PI * 1.95, 14, Color(0, 0, 0, 0.18), 2.0, true)      # 上緣內陰影
+	draw_circle(c + Vector2(0, r * 0.12), r * 0.82, col, true, -1.0, true)               # 顏料
+	draw_circle(c + Vector2(0, r * 0.3), r * 0.55, Color(col.darkened(0.12), col.a), true, -1.0, true)   # 下半積得較濃
+	draw_circle(c + Vector2(-r * 0.32, -r * 0.18), maxf(1.5, r * 0.16), Color(1, 1, 1, 0.55 * col.a + 0.2), true, -1.0, true)   # 濕亮
 
 func _ellipse_pts(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
 	var pts := PackedVector2Array()

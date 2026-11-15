@@ -2661,3 +2661,7 @@ func test_loss_jump_v150() -> void:
 	var g = GS.new()
 	ok(g.first_fall == [-1, -1], "預設沒有倒下紀錄（敗因卡不畫按鈕）")
 	g.free()
+
+func test_paint_wells_v150() -> void:
+	var gp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_playroom.gd")
+	ok(gp.find("func _paint_well(") >= 0 and gp.find("_paint_well(c, 15.0, Art.PAINTS[row][k])") >= 0, "塗裝室底漆色票＝水彩凹槽（§13）")
