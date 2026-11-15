@@ -318,3 +318,71 @@ func test_save_v4_migration_v120() -> void:
 	ok(int(m["schema_version"]) == 4 and m["campaign"] is Dictionary and m["songbook"] is Array and m["recent"] is Array and m["last_form"] == "" and int(m["puzzle_stars"]["p1"]) == 3 and int(m["tutorial"]) == 2, "3→4 補新欄位、舊進度保留", str(m))
 	var keep: Dictionary = SVx.migrate({"schema_version": 3, "campaign": {"c1_1": 2}})
 	ok(int(keep["campaign"]["c1_1"]) == 2, "已有的戰役進度不覆蓋")
+
+## 1.6.0 B01：會話邊界範本套在現有無盡塔——結算走正式的 `_tower_finish`，重啟走正式的 `Save.sanitize_data`（Codex v1600 B01 #3～#5）
+func test_session_contract_tower_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var T = load("res://scripts/game/tower.gd")
+	var keep: Dictionary = SV.data.duplicate(true)
+	var g = GS.new()
+	var snap := func() -> Array: return [int(SV.data.get("tower_run", 0)), int(SV.data.get("tower_best", 0))]
+	var reload := func(d: Dictionary) -> Dictionary:
+		var rt: Dictionary = JSON.parse_string(JSON.stringify(d))   # 寫檔再讀回（整數變浮點）
+		SV.sanitize_data(rt)
+		return rt
+	session_contract("無盡塔", {
+		"start": func():
+			SV.data["tower_run"] = 3
+			SV.data["tower_best"] = 2
+			g.tower_on = true
+			g.mode = g.Mode.VS_AI
+			g.play_kind = "official"
+			g.tower_floor = 3   # 這一場打的是第 3 層（同一場重送結算時不變）
+			return snap.call(),
+		"commit": func(_st): return SV.data.duplicate(true),
+		"restart": func(sv):
+			var d: Dictionary = SV.migrate(reload.call(sv))   # 重啟＝寫檔讀回＋正式遷移＋清理
+			SV.data["tower_run"] = d.get("tower_run", 0)
+			SV.data["tower_best"] = d.get("tower_best", 0)
+			var g2 = GS.new()   # 重啟換一個新的畫面物件（不沿用舊狀態）
+			g2.free()
+			return snap.call(),
+		"settle": func(st):
+			var before: Array = snap.call()
+			g._tower_finish(0)   # 贏了這一層（正式結算）
+			return [snap.call(), snap.call() != before],
+		"same": func(a, b): return a == b,
+		"bad_inputs": ["x", -5, 1e12, null, [], {}],
+		"sanitize": func(v):
+			var d := {"tower_run": v}
+			SV.sanitize_data(d)
+			return d["tower_run"],
+		"old_samples": [[{"tower_run": 3, "tower_best": 2}, [3, 2]]],
+	})
+	# 結算後存讀再重送：重啟後再結算一次也不重領
+	SV.data["tower_run"] = 3
+	SV.data["tower_best"] = 2
+	g.tower_floor = 3
+	g._tower_finish(0)
+	var after1: Array = snap.call()
+	var d2: Dictionary = reload.call(SV.data.duplicate(true))
+	SV.data["tower_run"] = d2["tower_run"]
+	SV.data["tower_best"] = d2["tower_best"]
+	g._tower_finish(0)
+	ok(snap.call() == after1, "結算後存讀再重送：狀態不變（不重領）", str(snap.call()) + " vs " + str(after1))
+	ok(after1 == [4, 3], "贏第 3 層：下一層 4、最高 3", str(after1))
+	for b in ["x", -5, null, [], {}]:
+		var d := {"tower_run": b}
+		SV.sanitize_data(d)
+		ok(int(d["tower_run"]) == 0, "壞資料讀回＝0（%s）" % str(b))
+	# 寫檔失敗：承諾（進層寫檔）失敗時記為未存，下次重試寫進去，內容就是承諾的那一層
+	SV.data["tower_run"] = 5
+	SV.fail_inject["tmp"] = 1
+	ok(not SV.save_data() and SV.has_unsaved(), "寫檔失敗：記為未存，不假裝成功")
+	ok(SV.retry_pending(), "重試後寫進去")
+	var disk = SV._parse(SV._dp())
+	ok(disk is Dictionary and int(disk.get("tower_run", -1)) == 5, "存檔裡是承諾的那一層（5）", str(disk.get("tower_run", -1) if disk is Dictionary else disk))
+	g.free()
+	SV.data = keep
+	SV.save_data()

@@ -1,0 +1,2423 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1de88-f1f8-7d92-adcd-397c76dd37f0
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（第 2 輪，最多三輪）。只讀。專案根目錄＝目前資料夾。
+B01。第 1 輪意見 coordination/v1600-impl/b01-r1/codex.md；新差異 coordination/v1600-impl/b01-r1/diff2.patch。
+改了：data/ 與 tools/screens.json → FULL；對照表沒認領的畫面一律加拍；game_v16 補教練、軍令時間軸等入口；塔的會話測試改呼叫正式 `_tower_finish`、重啟走正式 `Save.sanitize_data`、比對狀態快照、結算後存讀再重送；範本的結算檢查改成也比對狀態快照。
+只看這些修正是否正確、有沒有新問題。附行號。最多 4 條必改、300 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會先讀第 1 輪意見與新差異，只檢查這次修正及其新增風險，並附上對應行號。
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b01-r1/codex.md' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+必改：
+
+1. `affected_shots.py:14–18,59–63`：`data/puzzles.json`、`data/l10n_extra.csv`、`tools/screens.json` 均實測回傳 0 張。資料與截圖登記異動應保守 FULL。
+2. `affected_shots.py:22–29`：entry 前綴漏掉教練、大廳第一步、軍令時間軸；對應腳本修改仍漏拍。補齊映射，未知入口須擴驗。
+3. `save.gd:325–334`（tests/suites）：防重結算由測試自己的 `settled` 閉包提供，未呼叫正式 `_tower_finish`；正式防重失效仍會通過。須改測正式流程。
+4. `test_base.gd:322–324`：只驗回傳旗標，第二次偷偷改狀態也會通過；且未在結算後存讀再重送。須比對狀態／獎勵快照，並驗重啟不重領。
+5. `test_base.gd:325–329`：壞資料只驗非 null；舊樣本繞過正式遷移。須驗安全預期值、真實舊檔遷移，補各邊界中斷、續玩、回退及寫檔失敗。
+
+分片前綴未見互踩；259 個 ID 聯集完整、無重複，快取含參數與步驟名。sprite 計時未見改動 await、清理或世代判斷；以上為只讀靜態審查與 Python 推演。
+
+結論：有條件
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b01-r1/diff2.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+diff --git a/game/scripts/ui/sprite_cache.gd b/game/scripts/ui/sprite_cache.gd
+index f220dea..da0d4d5 100644
+--- a/game/scripts/ui/sprite_cache.gd
++++ b/game/scripts/ui/sprite_cache.gd
+@@ -132,7 +132,7 @@ func _bake_turn(cb: bool) -> void:
+ 	var img: Image = await _post_vp(vp, TURN_C.size())   # 第 11 大類：省一次讀回＋上傳
+ 	if g0 != _gen or (1 if cb else 0) != ready_cb:
+ 		return
+-	turn_tex = ImageTexture.create_from_image(img)
++	turn_tex = _mk_tex(img)
+ 	for k in TURN_TYPES.size():
+ 		turn_loc[TURN_TYPES[k]] = k * 2 * TURN_C.size()
+ 	# V1.3.1：待機小動作頁、走路轉身頁（各自世代檢查）
+@@ -145,7 +145,7 @@ func _bake_turn(cb: bool) -> void:
+ 	var imf: Image = await _post_vp(vpf, FID_PER)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+ 	if g0 != _gen or (1 if cb else 0) != ready_cb:
+ 		return
+-	fid_tex = ImageTexture.create_from_image(imf)
++	fid_tex = _mk_tex(imf)
+ 	for k in TURN_TYPES.size():
+ 		fid_loc[TURN_TYPES[k]] = k * 2 * FID_PER
+ 	var per_w := WT_C.size() * WT_PH
+@@ -161,7 +161,7 @@ func _bake_turn(cb: bool) -> void:
+ 		var imw: Image = await _post_vp(vpw, per_w)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+ 		if g0 != _gen or (1 if cb else 0) != ready_cb:
+ 			return
+-		wt_pages.append(ImageTexture.create_from_image(imw))
++		wt_pages.append(_mk_tex(imw))
+ 		for k in chunk.size():
+ 			wt_loc[chunk[k]] = [pg, k * 2 * per_w]
+ 		pg += 1
+@@ -197,7 +197,7 @@ func ensure_turn_atk(types: Array) -> void:
+ 		var img: Image = await _post_vp(vp, ATK_FRAMES * 2)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+ 		if g0 != _gen:
+ 			return
+-		ta_tex[t] = ImageTexture.create_from_image(img)
++		ta_tex[t] = _mk_tex(img)
+ 		ta_order.erase(t)
+ 		ta_order.append(t)
+ 		while ta_order.size() > TA_MAX:
+@@ -211,7 +211,7 @@ func ensure_turn_atk(types: Array) -> void:
+ 			var imb: Image = await _post_vp(vpb, WT_PH)
+ 			if g0 != _gen:
+ 				return
+-			bw_tex[t] = ImageTexture.create_from_image(imb)
++			bw_tex[t] = _mk_tex(imb)
+ 			bw_order.erase(t)
+ 			bw_order.append(t)
+ 			while bw_order.size() > BW_MAX:
+@@ -259,6 +259,25 @@ func _viewport(size: Vector2i, painter: Node) -> SubViewport:
+ const PAINT_CHUNK := 28   # 每幀最多畫幾格（一種兵一隊的一整組影格）
+ 
+ ## 1.2.0 §15.2：分段畫進同一個視窗（第一次清空、之後累積），每幀最多 PAINT_CHUNK 格；回傳畫好的視窗（呼叫端讀回後釋放）。
++## 1.6.0 B01（P10.1）：烘焙各段耗時——讀回（GPU→CPU）、上傳（建貼圖）、每段畫格；[次數, 總 µs, 最大 µs]。量測用，不影響畫面。
++var stage_stats := {}
++func _stat(k: String, us: int) -> void:
++	var e: Array = stage_stats.get(k, [0, 0, 0])
++	stage_stats[k] = [int(e[0]) + 1, int(e[1]) + us, maxi(int(e[2]), us)]
++
++func _mk_tex(img: Image) -> ImageTexture:
++	var t0 := Time.get_ticks_usec()
++	var t := ImageTexture.create_from_image(img)
++	_stat("upload", Time.get_ticks_usec() - t0)
++	return t
++
++func stage_report() -> Dictionary:
++	var out := {}
++	for k in stage_stats:
++		var e: Array = stage_stats[k]
++		out[k] = {"n": e[0], "total_ms": snappedf(int(e[1]) / 1000.0, 0.1), "max_ms": snappedf(int(e[2]) / 1000.0, 0.1)}
++	return out
++
+ func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
+ 	painter.cell_from = 0
+ 	painter.cell_to = PAINT_CHUNK
+@@ -267,11 +286,13 @@ func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
+ 	await RenderingServer.frame_post_draw
+ 	var c0 := PAINT_CHUNK
+ 	while c0 < total:
++		var t_pf := Time.get_ticks_usec()
+ 		painter.cell_from = c0
+ 		painter.cell_to = c0 + PAINT_CHUNK
+ 		painter.queue_redraw()
+ 		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+ 		await RenderingServer.frame_post_draw
++		_stat("paint_frame", Time.get_ticks_usec() - t_pf)   # 一段畫格＋等到畫完（含當幀其他工作）
+ 		c0 += PAINT_CHUNK
+ 	await RenderingServer.frame_post_draw
+ 	return vp
+@@ -300,7 +321,7 @@ func _bake_page(types: Array) -> void:
+ 				pages[i] = null
+ 				break
+ 	var pn := pages.size()
+-	pages.append({"tex": ImageTexture.create_from_image(img), "types": types})
++	pages.append({"tex": _mk_tex(img), "types": types})
+ 	for k in types.size():
+ 		loc[types[k]] = [pn, k * 2 * FRAMES_PER]
+ 
+@@ -309,7 +330,9 @@ func _bake_page(types: Array) -> void:
+ func _post_vp(src: SubViewport, per := FRAMES_PER) -> Image:
+ 	var sh_path := "res://shaders/unit_bake.gdshader"
+ 	if not ResourceLoader.exists(sh_path) or bool(Save.s("plain_ui")):
++		var t_rb := Time.get_ticks_usec()
+ 		var raw := src.get_texture().get_image()
++		_stat("readback", Time.get_ticks_usec() - t_rb)
+ 		src.queue_free()
+ 		return raw
+ 	var out := await _post_tex(src.get_texture(), src.size, per)
+@@ -332,7 +355,9 @@ func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
+ 	var vp := _viewport(size, tr)
+ 	await RenderingServer.frame_post_draw
+ 	await RenderingServer.frame_post_draw
++	var t_rb := Time.get_ticks_usec()
+ 	var out := vp.get_texture().get_image()
++	_stat("readback", Time.get_ticks_usec() - t_rb)
+ 	vp.queue_free()
+ 	return out
+ 
+@@ -344,7 +369,7 @@ func _bake_ring(cb: bool) -> void:
+ 	await RenderingServer.frame_post_draw
+ 	await RenderingServer.frame_post_draw
+ 	if g0 == _gen:
+-		ring_tex = ImageTexture.create_from_image(vp.get_texture().get_image())
++		ring_tex = _mk_tex(vp.get_texture().get_image())
+ 	vp.queue_free()
+ 
+ ## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 9e28bee..1840d17 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/save.gd b/game/tests/suites/save.gd
+index 5068d9f..c1d2d25 100644
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -318,3 +318,61 @@ func test_save_v4_migration_v120() -> void:
+ 	ok(int(m["schema_version"]) == 4 and m["campaign"] is Dictionary and m["songbook"] is Array and m["recent"] is Array and m["last_form"] == "" and int(m["puzzle_stars"]["p1"]) == 3 and int(m["tutorial"]) == 2, "3→4 補新欄位、舊進度保留", str(m))
+ 	var keep: Dictionary = SVx.migrate({"schema_version": 3, "campaign": {"c1_1": 2}})
+ 	ok(int(keep["campaign"]["c1_1"]) == 2, "已有的戰役進度不覆蓋")
++
++## 1.6.0 B01：會話邊界範本套在現有無盡塔——結算走正式的 `_tower_finish`，重啟走正式的 `Save.sanitize_data`（Codex v1600 B01 #3～#5）
++func test_session_contract_tower_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var T = load("res://scripts/game/tower.gd")
++	var keep: Dictionary = SV.data.duplicate(true)
++	var g = GS.new()
++	var snap := func() -> Array: return [int(SV.data.get("tower_run", 0)), int(SV.data.get("tower_best", 0))]
++	var reload := func(d: Dictionary) -> Dictionary:
++		var rt: Dictionary = JSON.parse_string(JSON.stringify(d))   # 寫檔再讀回（整數變浮點）
++		SV.sanitize_data(rt)
++		return rt
++	session_contract("無盡塔", {
++		"start": func():
++			SV.data["tower_run"] = 3
++			SV.data["tower_best"] = 2
++			g.tower_on = true
++			g.mode = g.Mode.VS_AI
++			g.play_kind = "official"
++			g.tower_floor = 3   # 這一場打的是第 3 層（同一場重送結算時不變）
++			return snap.call(),
++		"commit": func(_st): return SV.data.duplicate(true),
++		"restart": func(sv):
++			var d: Dictionary = reload.call(sv)
++			SV.data["tower_run"] = d.get("tower_run", 0)
++			SV.data["tower_best"] = d.get("tower_best", 0)
++			return snap.call(),
++		"settle": func(st):
++			var before: Array = snap.call()
++			g._tower_finish(0)   # 贏了這一層（正式結算）
++			return [snap.call(), snap.call() != before],
++		"same": func(a, b): return a == b,
++		"bad_inputs": ["x", -5, 1e12, null, [], {}],
++		"sanitize": func(v):
++			var d := {"tower_run": v}
++			SV.sanitize_data(d)
++			return d["tower_run"],
++		"old_samples": [[{"tower_run": 3, "tower_best": 2}, [3, 2]]],
++	})
++	# 結算後存讀再重送：重啟後再結算一次也不重領
++	SV.data["tower_run"] = 3
++	SV.data["tower_best"] = 2
++	g.tower_floor = 3
++	g._tower_finish(0)
++	var after1: Array = snap.call()
++	var d2: Dictionary = reload.call(SV.data.duplicate(true))
++	SV.data["tower_run"] = d2["tower_run"]
++	SV.data["tower_best"] = d2["tower_best"]
++	g._tower_finish(0)
++	ok(snap.call() == after1, "結算後存讀再重送：狀態不變（不重領）", str(snap.call()) + " vs " + str(after1))
++	ok(after1 == [4, 3], "贏第 3 層：下一層 4、最高 3", str(after1))
++	for b in ["x", -5, null, [], {}]:
++		var d := {"tower_run": b}
++		SV.sanitize_data(d)
++		ok(int(d["tower_run"]) == 0, "壞資料讀回＝0（%s）" % str(b))
++	g.free()
++	SV.data = keep
+diff --git a/game/tests/test_base.gd b/game/tests/test_base.gd
+index ff1e4d2..6867f22 100644
+--- a/game/tests/test_base.gd
++++ b/game/tests/test_base.gd
+@@ -306,3 +306,24 @@ class FakePlat:
+ 	func getFileCount(): return 3
+ 	func getFileNameAndSize(i): return {"name": ["save.json", "save.json.bak", "settings.json"][i], "size": 10}
+ 	func getCurrentBetaName(): return {"ret": true, "name": "beta"}
++
++## 1.6.0 B01（方案 §3.1）：會話邊界測試範本。新玩法（塔分岔、茶局、情報、棋課）都用它。
++## 一個會話＝開局 → 承諾（寫進存檔）→ 戰鬥 → 結算（只一次）→ 續玩 → 回退。範本檢查：
++##   ① 承諾後「重啟」（存檔來回序列化＋sanitize）狀態不變、不重抽；② 結算兩次＝第二次不改任何東西；
++##   ③ 壞資料（亂型別、缺欄、負數、超大）讀回＝安全預設，不當掉；④ 舊版樣本原樣讀回。
++## s 是字典：start() -> 狀態、commit(狀態) -> 存檔字典、restart(存檔字典) -> 狀態、settle(狀態) -> [新狀態, 是否有變]、
++## same(a, b) -> bool、bad_inputs: Array、sanitize(v) -> 狀態、old_samples: Array of [存檔字典, 期望狀態]
++func session_contract(name: String, s: Dictionary) -> void:
++	var st0 = s["start"].call()
++	var saved: Dictionary = s["commit"].call(st0)
++	var round_trip = JSON.parse_string(JSON.stringify(saved))   # 模擬寫檔再讀回（整數會變浮點，sanitize 要處理）
++	var st1 = s["restart"].call(round_trip)
++	ok(bool(s["same"].call(st0, st1)), name + "：承諾後重啟，狀態不變（不重抽）")
++	var r1: Array = s["settle"].call(st1)
++	var r2: Array = s["settle"].call(r1[0])
++	ok(bool(r1[1]) and not bool(r2[1]) and bool(s["same"].call(r1[0], r2[0])), name + "：結算只生效一次（第二次不改狀態快照）")
++	for b in s.get("bad_inputs", []):
++		var v = s["sanitize"].call(b)
++		ok(v != null, name + "：壞資料讀回不當掉（%s）" % str(b))
++	for pair in s.get("old_samples", []):
++		ok(bool(s["same"].call(s["restart"].call(pair[0]), pair[1])), name + "：舊版樣本原樣讀回")
+diff --git a/game/tools/check.py b/game/tools/check.py
+index f6bc153..92f8788 100644
+--- a/game/tools/check.py
++++ b/game/tools/check.py
+@@ -134,7 +134,9 @@ def plan(a) -> list:
+         gd("t_stateful", "tests/run_tests.gd", ["--only=rules,save" + skip, "--prefix=ta_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+         # 1.1.0 B1：t_stateful2 是最長的單步（626 秒），拆成兩個行程、各用自己的存檔前綴（總工作量不變，關鍵路徑變短）
+         gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+-        gd("t_stateful3", "tests/run_tests.gd", ["--only=modes,coach_lab,share_codes,reports_platform,modes_live,battle_visual" + skip, "--prefix=tc_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
++        # 1.6.0 B01：t_stateful3 是關鍵路徑（508 秒、六組）。拆兩個行程、各用自己的存檔前綴（總工作量不變；測試 ID 聯集照舊核對）
++        gd("t_stateful3", "tests/run_tests.gd", ["--only=modes,coach_lab" + skip, "--prefix=tc_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
++        gd("t_stateful4", "tests/run_tests.gd", ["--only=share_codes,reports_platform,modes_live,battle_visual" + skip, "--prefix=td_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
+         # V1.1 E1：最慢的兩組各切 8 片（每片太長，最後幾分鐘只剩少數工作在跑）
+         global FULL_GOLDEN
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index 290a22a..3c7e092 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1497,7 +1497,8 @@ func _perf_atlas_sweep() -> Dictionary:
+ 			worst_frame = maxf(worst_frame, longest)
+ 			rounds.append({"types": want, "ms": Time.get_ticks_msec() - t0, "tex_mib": snappedf(mem, 0.1), "longest_frame_ms": snappedf(longest, 0.1),
+ 				"pages": sprites.pages.filter(func(p): return p != null).size(), "ta": sprites.ta_tex.size()})
+-	return {"peak_tex_mib": snappedf(peak, 0.1), "worst_bake_frame_ms": snappedf(worst_frame, 0.1), "max_pages": sprites.MAX_PAGES, "ta_max": sprites.TA_MAX, "rounds": rounds}
++	return {"peak_tex_mib": snappedf(peak, 0.1), "worst_bake_frame_ms": snappedf(worst_frame, 0.1), "max_pages": sprites.MAX_PAGES, "ta_max": sprites.TA_MAX, "rounds": rounds,
++		"stages": sprites.stage_report()}   # 1.6.0 B01：讀回／上傳／畫格各段最大值（找出最長幀是哪一段）
+ 
+ ## 繪圖效能量測（第二輪 R2、第三輪 T3）：
+ ## ・啟動時間（引擎啟動到量測開始）、色盲切換的圖集重建時間
+diff --git a/game/tools/affected_shots.py b/game/tools/affected_shots.py
+new file mode 100755
+index 0000000..c86c2e1
+--- /dev/null
++++ b/game/tools/affected_shots.py
+@@ -0,0 +1,77 @@
++#!/usr/bin/env python3
++"""1.6.0 B01（P11.4）差分擴驗：從改動的檔案推出開發時要重拍哪些畫面。
++用法：python3 tools/affected_shots.py [git 範圍，預設 HEAD]   （在 game/ 下；看工作目錄＋暫存區對該範圍的差異）
++輸出：最後一行 `AFFECTED FULL <理由>` 或 `AFFECTED <n> <逗號分隔的截圖名>`；後者可直接給 LAYOUT_SHOTS。
++規則（寧可多拍）：
++- 共用的東西（字型、字串、色票、介面底層、整個畫面腳本的入口、模擬、截圖腳本、版面檢查）→ FULL（24 組全量）。
++- 已知只影響某類畫面的檔案 → 依 screens.json 的 entry 關鍵字挑。
++- 不認得的 scripts/ui 檔 → FULL（依賴不明就擴大）。
++- 只改 tests/、docs/、coordination/ → 不用重拍（輸出 0 張）。
++發版一律全量；這只是開發回饋。"""
++import json, os, subprocess, sys
++
++ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # game/
++FULL = [
++    ("data/", "遊戲資料（殘局、字串、譯稿、地圖…）"), ("tools/screens.json", "截圖登記"), ("fonts/", "字型"), ("scripts/ui/palette.gd", "色票"), ("scripts/ui/ui_base.gd", "介面底層"),
++    ("scripts/ui/game_screens.gd", "畫面入口"), ("scripts/ui/layout_rules.gd", "版面規則"), ("scripts/ui/art.gd", "角色繪製"),
++    ("scripts/ui/sprite_cache.gd", "圖集"), ("scripts/core/", "模擬"), ("scripts/game/save.gd", "存檔"), ("tools/dev_main.gd", "截圖腳本"),
++    ("tools/layout_check.sh", "版面檢查"), ("art/", "素材"), ("shaders/", "shader"), ("project.godot", "專案設定"), ("scripts/ui/table_seats.gd", "桌位表"),
++]
++# 檔案 → screens.json entry 開頭關鍵字（任一命中就拍）
++ENTRY = {
++    "scripts/ui/screens/game_place.gd": ["擺陣", "自由排兵", "殘局", "主題試煉"],
++    "scripts/ui/free_place.gd": ["擺陣", "自由排兵"],
++    "scripts/ui/lobby_view.gd": ["對 AI 大廳", "雙人", "標題"],
++    "scripts/ui/screens/game_result.gd": ["結果", "結果頁", "遠征總結"],
++    "scripts/ui/screens/game_menus.gd": ["標題", "設定", "收藏", "殘局列表", "確認窗", "第一次開遊戲", "代碼", "離開確認"],
++    "scripts/ui/screens/game_modes.gd": ["主題試煉", "戰績", "遠征", "宿敵", "極速賽", "一陣三考"],
++    "scripts/ui/screens/game_playroom.gd": ["遊戲間", "塗裝室", "合作接力", "裂隙"],
++    "scripts/ui/screens/game_v16.gd": ["標題", "遊戲間", "出題台", "實驗簿", "每日挑戰", "裂隙", "戰鬥", "教練", "軍令時間軸", "極速賽", "一陣三考", "合作接力"],
++    "scripts/ui/codex_view.gd": ["圖鑑"],
++    "scripts/ui/replay_view.gd": ["重播", "覆盤", "結果"],
++    "scripts/ui/battle_view.gd": ["戰鬥", "重播"],
++    "scripts/ui/battle/battle_units.gd": ["戰鬥", "重播", "擺陣"],
++    "scripts/ui/battle/battle_fx.gd": ["戰鬥", "重播"],
++    "scripts/ui/battle/battle_state.gd": ["戰鬥", "重播"],
++}
++QUIET = ("tests/", "../docs/", "docs/", "../coordination/", "coordination/", "tools/affected_shots.py")
++
++def changed(rng):
++    out = subprocess.run(["git", "diff", "--name-only", rng], cwd=ROOT, capture_output=True, text=True).stdout.split()
++    out += subprocess.run(["git", "ls-files", "--others", "--exclude-standard", "--full-name"], cwd=ROOT, capture_output=True, text=True).stdout.split()
++    return sorted(set(f[len("game/"):] if f.startswith("game/") else "../" + f for f in out))
++
++def decide(files, screens):
++    shots = set()
++    for f in files:
++        if f.startswith(QUIET) or f.endswith((".md", ".txt")) and not f.startswith("data/"):
++            continue
++        for pre, why in FULL:
++            if f.startswith(pre):
++                return "FULL", "%s（%s）" % (why, f)
++        if f in ENTRY:
++            keys = ENTRY[f]
++            for n, v in screens.items():
++                e = v.get("entry", "")
++                if any(e.startswith(k) for k in keys):
++                    shots.add(n)
++            # 沒被任何對照表認領的畫面（入口名不在表裡）也一起拍——依賴不明就擴大（Codex v1600 B01 #2）
++            allk = [k for ks in ENTRY.values() for k in ks]
++            for n, v in screens.items():
++                if not any(v.get("entry", "").startswith(k) for k in allk):
++                    shots.add(n)
++            continue
++        if f.startswith(("scripts/", "tools/", "../tools/")) and f.endswith((".gd", ".py", ".sh")):
++            if f.startswith("tools/") and not f.endswith(".gd"):
++                continue   # 其他工具腳本不影響畫面
++            return "FULL", "依賴不明（%s）" % f
++    return "LIST", sorted(shots)
++
++if __name__ == "__main__":
++    rng = sys.argv[1] if len(sys.argv) > 1 else "HEAD"
++    screens = json.load(open(os.path.join(ROOT, "tools/screens.json"), encoding="utf-8"))
++    kind, v = decide(changed(rng), screens)
++    if kind == "FULL":
++        print("AFFECTED FULL", v)
++    else:
++        print("AFFECTED %d %s" % (len(v), ",".join(v)))
+
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '*diff*' coordination/v1600-impl/b01-r1; nl -ba game/tests/suites/save.gd | tail -75; nl -ba game/tests/test_base.gd | tail -35; rg -n 'func _tower_finish|tower_floor|tower_run|func sanitize_data' game/scripts/ui/screens/game* game/scripts/game/save.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 11ms:
+coordination/v1600-impl/b01-r1/diff.patch
+coordination/v1600-impl/b01-r1/diff2.patch
+   304		var SV = load("res://scripts/game/save.gd")
+   305		var GM = load("res://scripts/ui/screens/game_menus.gd")
+   306		var old: String = SV.prefix
+   307		SV.prefix = ""
+   308		ok(GM.backup_dir() == "user://backup", "正式遊戲：備份仍在 user://backup", GM.backup_dir())
+   309		SV.prefix = "shot_"
+   310		ok(GM.backup_dir() == "user://shot_backup", "截圖模式：備份在 user://shot_backup", GM.backup_dir())
+   311		SV.prefix = old
+   312	
+   313	
+   314	## 1.2.0：存檔格式 3 → 4 補上戰役、棋譜本、最近玩的、上一陣；舊進度不動（Codex cat10 #4）
+   315	func test_save_v4_migration_v120() -> void:
+   316		var SVx = load("res://scripts/game/save.gd")
+   317		var m: Dictionary = SVx.migrate({"schema_version": 3, "stats": {"games": 5, "wins": 2}, "tutorial": 2, "puzzle_stars": {"p1": 3}})
+   318		ok(int(m["schema_version"]) == 4 and m["campaign"] is Dictionary and m["songbook"] is Array and m["recent"] is Array and m["last_form"] == "" and int(m["puzzle_stars"]["p1"]) == 3 and int(m["tutorial"]) == 2, "3→4 補新欄位、舊進度保留", str(m))
+   319		var keep: Dictionary = SVx.migrate({"schema_version": 3, "campaign": {"c1_1": 2}})
+   320		ok(int(keep["campaign"]["c1_1"]) == 2, "已有的戰役進度不覆蓋")
+   321	
+   322	## 1.6.0 B01：會話邊界範本套在現有無盡塔——結算走正式的 `_tower_finish`，重啟走正式的 `Save.sanitize_data`（Codex v1600 B01 #3～#5）
+   323	func test_session_contract_tower_v1600() -> void:
+   324		var GS = load("res://scripts/ui/game_screens.gd")
+   325		var SV = load("res://scripts/game/save.gd")
+   326		var T = load("res://scripts/game/tower.gd")
+   327		var keep: Dictionary = SV.data.duplicate(true)
+   328		var g = GS.new()
+   329		var snap := func() -> Array: return [int(SV.data.get("tower_run", 0)), int(SV.data.get("tower_best", 0))]
+   330		var reload := func(d: Dictionary) -> Dictionary:
+   331			var rt: Dictionary = JSON.parse_string(JSON.stringify(d))   # 寫檔再讀回（整數變浮點）
+   332			SV.sanitize_data(rt)
+   333			return rt
+   334		session_contract("無盡塔", {
+   335			"start": func():
+   336				SV.data["tower_run"] = 3
+   337				SV.data["tower_best"] = 2
+   338				g.tower_on = true
+   339				g.mode = g.Mode.VS_AI
+   340				g.play_kind = "official"
+   341				g.tower_floor = 3   # 這一場打的是第 3 層（同一場重送結算時不變）
+   342				return snap.call(),
+   343			"commit": func(_st): return SV.data.duplicate(true),
+   344			"restart": func(sv):
+   345				var d: Dictionary = reload.call(sv)
+   346				SV.data["tower_run"] = d.get("tower_run", 0)
+   347				SV.data["tower_best"] = d.get("tower_best", 0)
+   348				return snap.call(),
+   349			"settle": func(st):
+   350				var before: Array = snap.call()
+   351				g._tower_finish(0)   # 贏了這一層（正式結算）
+   352				return [snap.call(), snap.call() != before],
+   353			"same": func(a, b): return a == b,
+   354			"bad_inputs": ["x", -5, 1e12, null, [], {}],
+   355			"sanitize": func(v):
+   356				var d := {"tower_run": v}
+   357				SV.sanitize_data(d)
+   358				return d["tower_run"],
+   359			"old_samples": [[{"tower_run": 3, "tower_best": 2}, [3, 2]]],
+   360		})
+   361		# 結算後存讀再重送：重啟後再結算一次也不重領
+   362		SV.data["tower_run"] = 3
+   363		SV.data["tower_best"] = 2
+   364		g.tower_floor = 3
+   365		g._tower_finish(0)
+   366		var after1: Array = snap.call()
+   367		var d2: Dictionary = reload.call(SV.data.duplicate(true))
+   368		SV.data["tower_run"] = d2["tower_run"]
+   369		SV.data["tower_best"] = d2["tower_best"]
+   370		g._tower_finish(0)
+   371		ok(snap.call() == after1, "結算後存讀再重送：狀態不變（不重領）", str(snap.call()) + " vs " + str(after1))
+   372		ok(after1 == [4, 3], "贏第 3 層：下一層 4、最高 3", str(after1))
+   373		for b in ["x", -5, null, [], {}]:
+   374			var d := {"tower_run": b}
+   375			SV.sanitize_data(d)
+   376			ok(int(d["tower_run"]) == 0, "壞資料讀回＝0（%s）" % str(b))
+   377		g.free()
+   378		SV.data = keep
+   295		func downloadLeaderboardEntries(_a, _b, _c, _h): pass
+   296		func run_callbacks(): pass
+   297	
+   298	func _put(path: String, txt: String) -> void:
+   299		var f := FileAccess.open(path, FileAccess.WRITE)
+   300		f.store_string(txt)
+   301		f.close()
+   302	
+   303	class FakePlat:
+   304		func isCloudEnabledForAccount(): return true
+   305		func isCloudEnabledForApp(): return true
+   306		func getFileCount(): return 3
+   307		func getFileNameAndSize(i): return {"name": ["save.json", "save.json.bak", "settings.json"][i], "size": 10}
+   308		func getCurrentBetaName(): return {"ret": true, "name": "beta"}
+   309	
+   310	## 1.6.0 B01（方案 §3.1）：會話邊界測試範本。新玩法（塔分岔、茶局、情報、棋課）都用它。
+   311	## 一個會話＝開局 → 承諾（寫進存檔）→ 戰鬥 → 結算（只一次）→ 續玩 → 回退。範本檢查：
+   312	##   ① 承諾後「重啟」（存檔來回序列化＋sanitize）狀態不變、不重抽；② 結算兩次＝第二次不改任何東西；
+   313	##   ③ 壞資料（亂型別、缺欄、負數、超大）讀回＝安全預設，不當掉；④ 舊版樣本原樣讀回。
+   314	## s 是字典：start() -> 狀態、commit(狀態) -> 存檔字典、restart(存檔字典) -> 狀態、settle(狀態) -> [新狀態, 是否有變]、
+   315	## same(a, b) -> bool、bad_inputs: Array、sanitize(v) -> 狀態、old_samples: Array of [存檔字典, 期望狀態]
+   316	func session_contract(name: String, s: Dictionary) -> void:
+   317		var st0 = s["start"].call()
+   318		var saved: Dictionary = s["commit"].call(st0)
+   319		var round_trip = JSON.parse_string(JSON.stringify(saved))   # 模擬寫檔再讀回（整數會變浮點，sanitize 要處理）
+   320		var st1 = s["restart"].call(round_trip)
+   321		ok(bool(s["same"].call(st0, st1)), name + "：承諾後重啟，狀態不變（不重抽）")
+   322		var r1: Array = s["settle"].call(st1)
+   323		var r2: Array = s["settle"].call(r1[0])
+   324		ok(bool(r1[1]) and not bool(r2[1]) and bool(s["same"].call(r1[0], r2[0])), name + "：結算只生效一次（第二次不改狀態快照）")
+   325		for b in s.get("bad_inputs", []):
+   326			var v = s["sanitize"].call(b)
+   327			ok(v != null, name + "：壞資料讀回不當掉（%s）" % str(b))
+   328		for pair in s.get("old_samples", []):
+   329			ok(bool(s["same"].call(s["restart"].call(pair[0]), pair[1])), name + "：舊版樣本原樣讀回")
+game/scripts/ui/screens/game_result.gd:422:		var tb: Array = call("tower_button", int(get("tower_result")), int(get("tower_floor")))
+game/scripts/ui/screens/game_menus.gd:1367:const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]
+game/scripts/game/save.gd:170:static func sanitize_data(out: Dictionary) -> void:
+game/scripts/game/save.gd:187:	out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
+game/scripts/ui/screens/game_v16.gd:2525:var tower_floor := 1
+game/scripts/ui/screens/game_v16.gd:2538:	var run := int(Save.data.get("tower_run", 0))
+game/scripts/ui/screens/game_v16.gd:2552:			Save.data["tower_run"] = 0
+game/scripts/ui/screens/game_v16.gd:2562:	tower_floor = int(sp["floor"])
+game/scripts/ui/screens/game_v16.gd:2564:	Save.data["tower_run"] = tower_floor
+game/scripts/ui/screens/game_v16.gd:2566:	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]))
+game/scripts/ui/screens/game_v16.gd:2568:func _tower_finish(w: int) -> void:
+game/scripts/ui/screens/game_v16.gd:2572:	Save.data["tower_run"] = Tower.next_run(int(Save.data.get("tower_run", 0)), tower_floor, w == 0)
+game/scripts/ui/screens/game_v16.gd:2575:		var r: Array = Tower.record(best, tower_floor)
+game/scripts/ui/screens/game_v16.gd:2577:		_toast(L.t("tw_floor_clear", [tower_floor]))
+game/scripts/ui/screens/game_v16.gd:2579:		_toast(L.t("tw_over", [tower_floor, best]))
+
+exec
+/bin/bash -lc 'cat game/tools/screens.json' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+{
+ "01_title.png": {
+  "entry": "標題",
+  "states": [
+   "一般"
+  ]
+ },
+ "01b_hub_play.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "01c_hub_challenge.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "01d_hub_collect.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "01e_hub_gauntlet.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "02_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "03_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "03c_projectiles.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "03d_pause_menu.png": {
+  "entry": "戰鬥→暫停",
+  "states": [
+   "一般"
+  ]
+ },
+ "04_clutch.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "05_result.png": {
+  "entry": "結果",
+  "states": [
+   "一般"
+  ]
+ },
+ "05b_result_details.png": {
+  "entry": "結果",
+  "states": [
+   "一般"
+  ]
+ },
+ "05c_postcard.png": {
+  "entry": "結果→分享",
+  "states": [
+   "一般"
+  ]
+ },
+ "05d_share.png": {
+  "entry": "結果→分享",
+  "states": [
+   "一般"
+  ]
+ },
+ "06_puzzle.png": {
+  "entry": "殘局",
+  "states": [
+   "一般"
+  ]
+ },
+ "07_duel.png": {
+  "entry": "雙人",
+  "states": [
+   "一般"
+  ]
+ },
+ "08_settings.png": {
+  "entry": "設定",
+  "states": [
+   "一般"
+  ]
+ },
+ "08b_keys.png": {
+  "entry": "設定→按鍵",
+  "states": [
+   "一般"
+  ]
+ },
+ "08c_settings_visual.png": {
+  "entry": "設定",
+  "states": [
+   "一般"
+  ]
+ },
+ "08d_settings_sound.png": {
+  "entry": "設定",
+  "states": [
+   "一般"
+  ]
+ },
+ "08e_settings_ui.png": {
+  "entry": "設定",
+  "states": [
+   "一般"
+  ]
+ },
+ "08f_settings_controls.png": {
+  "entry": "設定",
+  "states": [
+   "一般"
+  ]
+ },
+ "08g_settings_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "08h_settings_data.png": {
+  "entry": "設定",
+  "states": [
+   "一般"
+  ]
+ },
+ "08i_clear_data.png": {
+  "entry": "設定→資料",
+  "states": [
+   "一般"
+  ]
+ },
+ "08j_restore.png": {
+  "entry": "設定→資料",
+  "states": [
+   "一般"
+  ]
+ },
+ "08j_restore@full.png": {
+  "entry": "設定→資料",
+  "states": [
+   "滿資料"
+  ]
+ },
+ "08k_first_run.png": {
+  "entry": "第一次開遊戲",
+  "states": [
+   "一般"
+  ]
+ },
+ "08l_settings_undo.png": {
+  "entry": "設定",
+  "states": [
+   "一般"
+  ]
+ },
+ "08m_confirm@long.png": {
+  "entry": "確認窗",
+  "states": [
+   "長內容"
+  ]
+ },
+ "09_puzzles.png": {
+  "entry": "殘局",
+  "states": [
+   "一般"
+  ]
+ },
+ "10_codex.png": {
+  "entry": "圖鑑",
+  "states": [
+   "一般"
+  ]
+ },
+ "10b_codex_scrolled.png": {
+  "entry": "圖鑑",
+  "states": [
+   "捲動後"
+  ]
+ },
+ "10c_codex_zoom.png": {
+  "entry": "圖鑑",
+  "states": [
+   "一般"
+  ]
+ },
+ "10d_codex_summon.png": {
+  "entry": "圖鑑",
+  "states": [
+   "一般"
+  ]
+ },
+ "10e_codex_archer_demo.png": {
+  "entry": "圖鑑",
+  "states": [
+   "試玩版"
+  ]
+ },
+ "11_codex_locked.png": {
+  "entry": "圖鑑",
+  "states": [
+   "未解鎖"
+  ]
+ },
+ "12_fx.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "13_poses.png": {
+  "entry": "戰鬥（姿勢表）",
+  "states": [
+   "一般"
+  ]
+ },
+ "13b_poses_new.png": {
+  "entry": "戰鬥（姿勢表）",
+  "states": [
+   "一般"
+  ]
+ },
+ "14_colorblind.png": {
+  "entry": "戰鬥（色盲）",
+  "states": [
+   "一般"
+  ]
+ },
+ "14b_plain_ui.png": {
+  "entry": "戰鬥（簡化介面）",
+  "states": [
+   "一般"
+  ]
+ },
+ "15_replay.png": {
+  "entry": "重播",
+  "states": [
+   "一般"
+  ]
+ },
+ "15c_replay_mag.png": {
+  "entry": "重播→暫停選兵（1.3.0 放大鏡小窗、聚光）",
+  "states": [
+   "一般"
+  ]
+ },
+ "16_review.png": {
+  "entry": "覆盤",
+  "states": [
+   "一般"
+  ]
+ },
+ "16b_time_machine.png": {
+  "entry": "覆盤→時光機",
+  "states": [
+   "一般"
+  ]
+ },
+ "17_place_new.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "17b_place_drum.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "18_battle_new.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "19_codex_new.png": {
+  "entry": "圖鑑",
+  "states": [
+   "一般"
+  ]
+ },
+ "20_puzzles_new.png": {
+  "entry": "殘局",
+  "states": [
+   "一般"
+  ]
+ },
+ "21_place_locked.png": {
+  "entry": "擺陣",
+  "states": [
+   "未解鎖"
+  ]
+ },
+ "22_lobby.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "22c_lobby_menu@empty.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "空資料"
+  ]
+ },
+ "22c_lobby_menu@full.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "滿資料"
+  ]
+ },
+ "23_lobby_pool.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "24_lobby_army.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "25_lobby_duel.png": {
+  "entry": "雙人",
+  "states": [
+   "一般"
+  ]
+ },
+ "26_lobby_lab.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "27_free_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "27b_free_brush.png": {
+  "entry": "自由排兵",
+  "states": [
+   "一般"
+  ]
+ },
+ "27c_free_select.png": {
+  "entry": "自由排兵",
+  "states": [
+   "一般"
+  ]
+ },
+ "28_free_full_ai.png": {
+  "entry": "自由排兵",
+  "states": [
+   "一般"
+  ]
+ },
+ "29_free_duel_full.png": {
+  "entry": "雙人",
+  "states": [
+   "一般"
+  ]
+ },
+ "30_lobby_deploy.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "31_review_free.png": {
+  "entry": "覆盤",
+  "states": [
+   "一般"
+  ]
+ },
+ "32_lobby_fantasy.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "33_lobby_roster.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "34_fantasy_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "35_fantasy_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "36_fantasy_late.png": {
+  "entry": "奇幻",
+  "states": [
+   "一般"
+  ]
+ },
+ "37_codex_fantasy.png": {
+  "entry": "圖鑑",
+  "states": [
+   "一般"
+  ]
+ },
+ "38_puzzles_fantasy.png": {
+  "entry": "殘局",
+  "states": [
+   "一般"
+  ]
+ },
+ "39_lobby_roster_ai.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "40_lobby_roster_two.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "41_gauntlet_pick.png": {
+  "entry": "遠征",
+  "states": [
+   "一般"
+  ]
+ },
+ "50_map_river_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "50_map_river_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "51_map_forest_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "51_map_forest_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "52_map_ice_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "52_map_ice_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "53_map_lava_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "53_map_lava_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "54_map_canyon_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "54_map_canyon_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "55_map_small_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "55_map_small_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "56_map_large_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "56_map_large_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "57_lobby_map.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "58_trials.png": {
+  "entry": "主題試煉",
+  "states": [
+   "一般"
+  ]
+ },
+ "59_profile.png": {
+  "entry": "戰績",
+  "states": [
+   "一般"
+  ]
+ },
+ "59b_nemeses.png": {
+  "entry": "宿敵",
+  "states": [
+   "一般"
+  ]
+ },
+ "59b_nemeses@empty.png": {
+  "entry": "宿敵",
+  "states": [
+   "空資料"
+  ]
+ },
+ "59b_nemeses@full.png": {
+  "entry": "宿敵",
+  "states": [
+   "滿資料"
+  ]
+ },
+ "59c_relay.png": {
+  "entry": "接力殘局",
+  "states": [
+   "一般"
+  ]
+ },
+ "59d_playroom.png": {
+  "entry": "遊戲間",
+  "states": [
+   "一般"
+  ]
+ },
+ "59e_wager.png": {
+  "entry": "遊戲間→競猜",
+  "states": [
+   "一般"
+  ]
+ },
+ "59f_draft.png": {
+  "entry": "遊戲間→輪抽",
+  "states": [
+   "一般"
+  ]
+ },
+ "59g_sealed.png": {
+  "entry": "遊戲間→雙封蠟",
+  "states": [
+   "一般"
+  ]
+ },
+ "59h_paint.png": {
+  "entry": "塗裝室",
+  "states": [
+   "一般"
+  ]
+ },
+ "59i_ghosts.png": {
+  "entry": "遊戲間→幽靈",
+  "states": [
+   "一般"
+  ]
+ },
+ "59j_weekly.png": {
+  "entry": "遊戲間→每週棋盒",
+  "states": [
+   "一般"
+  ]
+ },
+ "60_reward.png": {
+  "entry": "遠征→獎勵",
+  "states": [
+   "一般"
+  ]
+ },
+ "60a_reward_picked.png": {
+  "entry": "遠征→獎勵",
+  "states": [
+   "一般"
+  ]
+ },
+ "60b_ga_info.png": {
+  "entry": "遠征→本戰條件",
+  "states": [
+   "一般"
+  ]
+ },
+ "61_ban.png": {
+  "entry": "雙人→禁牌",
+  "states": [
+   "一般"
+  ]
+ },
+ "62_ban_20.png": {
+  "entry": "雙人→禁牌",
+  "states": [
+   "一般"
+  ]
+ },
+ "63_leave.png": {
+  "entry": "離開確認",
+  "states": [
+   "一般"
+  ]
+ },
+ "64_codes.png": {
+  "entry": "代碼",
+  "states": [
+   "一般"
+  ]
+ },
+ "65_gauntlet_resume.png": {
+  "entry": "遠征",
+  "states": [
+   "一般"
+  ]
+ },
+ "70_lobby_cmd_off.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "71_lobby_cmd_on.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "72_lobby_cmd_quick.png": {
+  "entry": "對 AI 大廳",
+  "states": [
+   "一般"
+  ]
+ },
+ "73_cmd_ready.png": {
+  "entry": "手動技能",
+  "states": [
+   "一般"
+  ]
+ },
+ "74_cmd_cast.png": {
+  "entry": "手動技能",
+  "states": [
+   "一般"
+  ]
+ },
+ "75_cmd_cd.png": {
+  "entry": "手動技能",
+  "states": [
+   "一般"
+  ]
+ },
+ "76_cmd_duel.png": {
+  "entry": "雙人",
+  "states": [
+   "一般"
+  ]
+ },
+ "80_chapter4.png": {
+  "entry": "殘局列表",
+  "states": [
+   "一般"
+  ]
+ },
+ "81_chapter7_filter.png": {
+  "entry": "殘局列表",
+  "states": [
+   "一般"
+  ]
+ },
+ "82_place_terrain.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "83_place_protect.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "84_place_plan.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "84b_plan_chain.png": {
+  "entry": "軍令時間軸",
+  "states": [
+   "一般"
+  ]
+ },
+ "85_hint_locked.png": {
+  "entry": "殘局提示",
+  "states": [
+   "未解鎖"
+  ]
+ },
+ "86_hint_open.png": {
+  "entry": "殘局提示",
+  "states": [
+   "一般"
+  ]
+ },
+ "86b_hint_applied.png": {
+  "entry": "殘局提示",
+  "states": [
+   "一般"
+  ]
+ },
+ "87_battle_terrain.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "87b_quarry_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "87c_quarry_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "87d_boss_battle.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "88_result_survive.png": {
+  "entry": "結果",
+  "states": [
+   "一般"
+  ]
+ },
+ "89_trials_p2.png": {
+  "entry": "主題試煉",
+  "states": [
+   "一般"
+  ]
+ },
+ "90_trials_p3.png": {
+  "entry": "主題試煉",
+  "states": [
+   "一般"
+  ]
+ },
+ "91_trial_fixed.png": {
+  "entry": "主題試煉",
+  "states": [
+   "一般"
+  ]
+ },
+ "92_trial_win_result.png": {
+  "entry": "結果",
+  "states": [
+   "一般"
+  ]
+ },
+ "93_daily_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "94_loss_result.png": {
+  "entry": "結果",
+  "states": [
+   "一般"
+  ]
+ },
+ "95_route_reward.png": {
+  "entry": "遠征→獎勵",
+  "states": [
+   "一般"
+  ]
+ },
+ "96_chapter11.png": {
+  "entry": "殘局列表",
+  "states": [
+   "一般"
+  ]
+ },
+ "97_place_flawless.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "v100_01_ga_sum.png": {
+  "entry": "遠征總結",
+  "states": [
+   "一般"
+  ]
+ },
+ "v110_01_fb_cat.png": {
+  "entry": "回報分類",
+  "states": [
+   "一般"
+  ]
+ },
+ "v110_02_nb_words.png": {
+  "entry": "實驗簿改名",
+  "states": [
+   "一般"
+  ]
+ },
+ "v110_03_daily_past.png": {
+  "entry": "每日挑戰",
+  "states": [
+   "一般"
+  ]
+ },
+ "v130_od_owner_daily.png": {
+  "entry": "殘局→老闆出題（1.3.0 §12.7）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v110_04_breport.png": {
+  "entry": "重播→戰報",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_01_rush_menu.png": {
+  "entry": "極速賽",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_02_tour.png": {
+  "entry": "新玩法導覽",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_03_trio_cards.png": {
+  "entry": "一陣三考",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_04_rift_lab.png": {
+  "entry": "裂隙",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_05_editor_target.png": {
+  "entry": "出題台",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_06_notebook_rename.png": {
+  "entry": "實驗簿",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_07_notebook_compare.png": {
+  "entry": "實驗簿",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_08_lock_arcs.png": {
+  "entry": "戰鬥（鎖定弧）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v161_09_coop_sum.png": {
+  "entry": "合作接力",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_01_title_next.png": {
+  "entry": "標題",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_02_demo_end.png": {
+  "entry": "試玩版結束",
+  "states": [
+   "試玩版"
+  ]
+ },
+ "v16_03_place_range.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_04_battle_marks.png": {
+  "entry": "戰鬥",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_05_hold_confirm.png": {
+  "entry": "確認窗",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_06_magnifier.png": {
+  "entry": "標題（放大鏡）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_07_rush_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_08_rush_end.png": {
+  "entry": "極速賽",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_09_coach.png": {
+  "entry": "教練",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_10_rift.png": {
+  "entry": "裂隙",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_11_rift_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_12_hub_challenge.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_13_editor.png": {
+  "entry": "出題台",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_14_trio.png": {
+  "entry": "一陣三考",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_15_trio_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_16_trio_result.png": {
+  "entry": "結果",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_17_fog_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_18_hub_play.png": {
+  "entry": "標題→卡片面板",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_19_coop_hand.png": {
+  "entry": "合作接力",
+  "states": [
+   "一般"
+  ]
+ },
+ "v16_20_coop_place.png": {
+  "entry": "擺陣",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_00_components.png": {
+  "entry": "開發用：元件庫展示",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_01_ink.png": {
+  "entry": "結果（宣紙戰報演出）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_02_note.png": {
+  "entry": "結果（第一次看結果的老闆便條）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_03_moods.png": {
+  "entry": "開發用：五種表情對照",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_04_recent.png": {
+  "entry": "主畫面（最近玩的）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_05_songbook.png": {
+  "entry": "結果→分享→收進棋譜本／收藏→棋譜本",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_05_songbook@empty.png": {
+  "entry": "收藏→棋譜本",
+  "states": [
+   "空資料"
+  ]
+ },
+ "v120_06_campaign.png": {
+  "entry": "遠征→老闆的棋館",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_07_editor_map.png": {
+  "entry": "收藏→出題台（地形）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v120_08_lobby_ext.png": {
+  "entry": "大廳（新技能分頁：架盾、火矢開著，說明火矢）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v140_10_curtain_call.png": {
+  "entry": "對 AI 戰鬥播完、結算前（1.4.0 §10.1 謝幕反應＋老闆手勢）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_05e_result_flow.png": {
+  "entry": "結果頁→看細節（1.5.0 §1.5 走勢與事件）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_05f_result_more.png": {
+  "entry": "結果頁→更多（1.5.0 §1.5 次要動作收納）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_22a_lobby_step1.png": {
+  "entry": "大廳第一步：對手（1.5.0 §1.2）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_22b_lobby_step2.png": {
+  "entry": "大廳第二步：地圖（1.5.0 §1.2）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_02b_place_foe.png": {
+  "entry": "擺陣（敵情翻牌展開）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_27b_free_tools.png": {
+  "entry": "自由部署（工具展開）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_07c_duel_blind.png": {
+  "entry": "雙人盲擺（竹簾）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_08z_settings_adv.png": {
+  "entry": "設定（進階微調抽屜）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_03f_battle_focus.png": {
+  "entry": "對戰（跟拍一隻：焦點與目標）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_90b_trials_p4.png": {
+  "entry": "試煉第 4 頁",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_59c_profile_units.png": {
+  "entry": "戰績（兵種）",
+  "states": [
+   "一般"
+  ]
+ },
+ "v150_59d_profile_badges.png": {
+  "entry": "戰績（徽章櫃）",
+  "states": [
+   "一般"
+  ]
+ }
+}
+
+exec
+/bin/bash -lc "sed -n '2520,2595p' game/scripts/ui/screens/game_v16.gd; sed -n '1,160p' game/scripts/game/tower.gd; sed -n '90,195p' game/scripts/game/save.gd; rg -n '"'^static func (load|migrate)|func _toast'"' game/scripts/game/save.gd game/scripts/ui/game_screens.gd game/scripts/ui/screens/*.gd; rg --files -g AGENTS.md /mnt/c/Users/timmy/projects 2>/dev/null" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 1 in 736ms:
+
+
+# ── 1.4.0 §11.1 無盡塔（1.3.0 延伸，stash 補完）──
+const Tower = preload("res://scripts/game/tower.gd")
+var tower_on := false
+var tower_floor := 1
+var tower_result := -1   # 這一層的正式結算（-1＝還沒、0＝過、1＝沒過）；結果頁的按鈕只看它（覆盤改陣贏了不能跳層，Codex cat11 #2）
+
+## 結果頁的無盡塔按鈕：照正式結算，不照畫面上這一場（覆盤、重播）→ [文字鍵, 下一次的層]
+static func tower_button(result: int, floor_no: int) -> Array:
+	if result == 0:
+		return ["tw_next", floor_no + 1]
+	if result == 1:
+		return ["tw_again", 1]
+	return []
+
+## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
+func _tower_open() -> void:
+	var run := int(Save.data.get("tower_run", 0))
+	if run > 1:
+		_toast(L.t("tw_resume", [run]))
+	_tower_start(maxi(1, run))
+
+func _tower_start(floor_no: int) -> void:
+	if _demo():
+		_toast(L.t("demo_locked"), true)
+		return
+	var sp: Dictionary = Tower.spec(floor_no)
+	var r = Tower.make_rules(sp, RS.mask(false))
+	if not r.validate().is_empty():
+		_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
+		if floor_no > 1:
+			Save.data["tower_run"] = 0
+			_tower_start(1)
+		return
+	set("daily_spec", {})        # 從每日挑戰／每日練習直接進塔：不帶每日狀態（不記每日紀錄、不跳過塔結算，Codex cat11 #1）
+	set("daily_practice", false)
+	rules = r
+	challenge_army = Tower.enemy(sp, r)   # 這一層固定的敵陣（走挑戰碼那條路）
+	overlay = ""
+	_start_mode(Mode.VS_AI)
+	tower_on = true
+	tower_floor = int(sp["floor"])
+	tower_result = -1
+	Save.data["tower_run"] = tower_floor
+	Save.save_data()   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]))
+
+func _tower_finish(w: int) -> void:
+	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+		return
+	var best := int(Save.data.get("tower_best", 0))
+	Save.data["tower_run"] = Tower.next_run(int(Save.data.get("tower_run", 0)), tower_floor, w == 0)
+	tower_result = 0 if w == 0 else 1
+	if w == 0:
+		var r: Array = Tower.record(best, tower_floor)
+		Save.data["tower_best"] = r[0]
+		_toast(L.t("tw_floor_clear", [tower_floor]))
+	else:
+		_toast(L.t("tw_over", [tower_floor, best]))
+extends RefCounted
+## 1.4.0 §11.1（1.3.0 延伸、stash 補完）：無盡塔——一路往上打，每層一種突變（沿用每日挑戰的 8 種）、地圖與 AI 性格輪換，
+## 敵方預算每層多一點（上限 +60）；輸一場就結束，記最高層數（本機）。每層的規則與敵陣只由層數決定（固定種子、跨機器一樣）。
+const Daily = preload("res://scripts/game/daily.gd")
+const AI = preload("res://scripts/core/ai_army.gd")
+const BONUS_STEP := 4     # 每層敵方多 4 金
+const BONUS_MAX := 60
+
+static func spec(floor_no: int) -> Dictionary:
+	var f := maxi(1, floor_no)
+	var mut := posmod(f - 1, Daily.MUTATORS)
+	return {"floor": f, "mut": mut, "map": 3 if mut == 3 else posmod(f * 5 + 2, 6), "style": posmod(f * 3 + 1, 5),
+		"level": clampi((f - 1) / 6, 0, 2), "seed": 70000 + posmod(f * 7919, 1000003), "bonus": mini(BONUS_MAX, (f - 1) * BONUS_STEP)}
+
+## 這一層的規則：每日挑戰的規則（自由部署、單局、突變）再加敵方預算。
+static func make_rules(sp: Dictionary, mask: int):
+	var r = Daily.make_rules(sp, mask)
+	var RS = load("res://scripts/core/ruleset.gd")
+	r.budget = [int(r.budget_of(0)), mini(RS.BUDGET_MAX, int(r.budget_of(1)) + int(sp["bonus"]))]   # 大地圖本來就接近上限：加碼夾在合法範圍內
+	r.handicap = int(r.budget[1]) != int(r.budget[0])   # 兩邊預算不同要開讓子，否則 budget_of 兩邊都取藍方（stash 原本漏了，測試抓到）
+	return r
+
+static func enemy(sp: Dictionary, r):
+	return Daily.enemy(sp, r)
+
+## 記最高層：過了第 f 層＝最高至少 f。回傳 [新最高, 是否刷新]。
+static func record(best: int, cleared_floor: int) -> Array:
+	return [maxi(best, cleared_floor), cleared_floor > best]
+
+## 續局：下一次要打的層（0＝沒有進行中的塔）。贏了＝下一層、輸了＝清掉；壞資料＝0。
+static func next_run(run: int, floor_no: int, won: bool) -> int:
+	return floor_no + 1 if won else 0
+
+static func sanitize_run(v) -> int:
+	return clampi(int(v), 0, 100000) if (v is int or v is float) else 0
+## 回傳 {value, source}。主檔壞 → 隔離 → 讀備份。
+static func _read(path: String, defaults: Dictionary) -> Dictionary:
+	if FileAccess.file_exists(path):
+		var m = _parse(path)
+		if m != null:
+			return {"value": m, "source": "main"}
+		_quarantine(path)
+	var bak := path + ".bak"
+	if FileAccess.file_exists(bak):
+		var b = _parse(bak)
+		if b != null:
+			return {"value": b, "source": "bak"}
+	return {"value": defaults.duplicate(true), "source": "none"}
+
+static func _num(v, fallback := 0.0) -> float:
+	return float(v) if (v is int or v is float) else float(fallback)
+
+static func _count(v, hi := 1000000000) -> int:
+	return clampi(int(_num(v)), 0, hi)
+
+static func schema_of(d: Dictionary) -> int:
+	return int(_num(d.get("schema_version", d.get("version", 1)), 1))
+
+## 設定逐欄驗型（R4）：型別不對用預設，數值夾在合法範圍；不認得的欄位保留。
+static func sanitize_settings(d: Dictionary) -> Dictionary:
+	var out := d.duplicate(true)
+	# V1.2.1 F4：介面音、環境音是新欄位；舊檔沒有（或型別錯）時承接舊的音效值，舊靜音也保持靜音
+	var old_sfx = out.get("sfx", DEFAULT_SETTINGS["sfx"])
+	if not (old_sfx is int or old_sfx is float):
+		old_sfx = DEFAULT_SETTINGS["sfx"]
+	for nk in ["ui_vol", "amb_vol"]:
+		if not (out.get(nk) is int or out.get(nk) is float):
+			out[nk] = int(old_sfx)
+	for k in DEFAULT_SETTINGS:
+		var dv = DEFAULT_SETTINGS[k]
+		var v = out.get(k, dv)
+		if dv is bool:
+			out[k] = v if v is bool else dv
+		elif dv is String:
+			out[k] = v if v is String else dv
+		elif dv is int:
+			out[k] = int(v) if (v is int or v is float) else dv
+		elif dv is float:
+			out[k] = float(v) if (v is int or v is float) else dv
+	if not str(out["lang"]) in preload("res://scripts/game/strings.gd").LANGS:   # V1.2.1 G3：語言清單單一來源
+		out["lang"] = DEFAULT_SETTINGS["lang"]
+	if not int(out["text_scale"]) in [100, 125, 150]:
+		out["text_scale"] = DEFAULT_SETTINGS["text_scale"]
+	out["music"] = clampi(int(out["music"]), 0, 100)
+	out["sfx"] = clampi(int(out["sfx"]), 0, 100)
+	out["ui_vol"] = clampi(int(out["ui_vol"]), 0, 100)
+	out["amb_vol"] = clampi(int(out["amb_vol"]), 0, 100)
+	out["voice_vol"] = clampi(int(out.get("voice_vol", 70)), 0, 100)   # 1.4.0（Codex cat09 #3）
+	out["speed"] = clampf(float(out["speed"]), 0.25, 8.0)
+	if not str(out["duel_rule"]) in ["snake5", "snake5c", "cap10", "blind", "custom"]:
+		out["duel_rule"] = DEFAULT_SETTINGS["duel_rule"]
+	var KM = load("res://scripts/game/keymap.gd")
+	out["keys"] = KM.sanitize(KM.ACTIONS, out.get("keys"))
+	out["pad"] = KM.sanitize(KM.PAD_ACTIONS, out.get("pad"))
+	if not str(out["roster"]) in ["all", "classic"]:
+		out["roster"] = DEFAULT_SETTINGS["roster"]
+	# V1.5：已經有設定檔的老玩家不問第一次啟動的三個問題
+	if not d.has("first_done") and d.size() > 0:
+		out["first_done"] = true
+	# V1.5：列舉值不在清單裡就回預設；舊存檔的震動、閃白開關轉成強度（關＝0）
+	# 新安裝（沒有設定檔）照方案：震動 25%、閃白柔和（50%）；老玩家照原本開關（開＝100）不改手感
+	if not d.has("shake_pct"):
+		out["shake_pct"] = (100 if bool(out["shake"]) else 0) if d.size() > 0 else 25
+	if not d.has("flash_pct"):
+		out["flash_pct"] = (100 if bool(out["flash"]) else 0) if d.size() > 0 else 50
+	for ek in ENUMS:
+		if not out[ek] in ENUMS[ek]:
+			out[ek] = DEFAULT_SETTINGS[ek]
+	out["master"] = clampi(int(out["master"]), 0, 100)
+	out["long_press"] = clampf(float(out["long_press"]), 0.3, 1.0)
+	out["shake"] = int(out["shake_pct"]) > 0
+	out["flash"] = int(out["flash_pct"]) > 0
+	return out
+
+## 進度逐欄驗型（R4）：語法對但型別錯的欄位不能讓遊戲當掉；壞欄位改預設，其他進度保留。
+static func sanitize_data(out: Dictionary) -> void:
+	var sl: Array = ["", "", "", "", ""]
+	var raw_sl = out.get("slots", [])
+	if raw_sl is Array:
+		for i in mini(raw_sl.size(), sl.size()):
+			if raw_sl[i] is String and str(raw_sl[i]).length() <= 8000:
+				sl[i] = raw_sl[i]
+	out["slots"] = sl
+	var lf = out.get("last_form", "")
+	out["last_form"] = lf if lf is String and str(lf).length() <= 8000 else ""   # 1.2.0 §11.1：上一陣（陣型碼）
+	out["songbook"] = load("res://scripts/game/songbook.gd").sanitize(out.get("songbook", []))   # 1.2.0 §11.8 棋譜本
+	out["intro_seen"] = out.get("intro_seen", false) is bool and bool(out.get("intro_seen", false))   # 1.3.0 §13 掌燈開門只播第一次
+	out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
+	var lst = out.get("lobby_stamps", 0)
+	out["lobby_stamps"] = clampi(int(lst), 0, 99) if (lst is int or lst is float) else 0   # 1.4.0 §1.1 手帳印跡
+	var twb = out.get("tower_best", 0)
+	out["tower_best"] = clampi(int(twb), 0, 100000) if (twb is int or twb is float) else 0   # 1.4.0 §11.1 無盡塔最高層
+	out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
+	var ods = out.get("od_stamps", 0)
+	out["od_stamps"] = clampi(int(ods), 0, 100000) if (ods is int or ods is float) else 0
+	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）
+	out["recent"] = load("res://scripts/game/recent.gd").valid(out.get("recent", []), ["hub_play", "hub_gauntlet", "hub_challenge", "playroom", "hub_collect"])   # 1.2.0 §11.11
+	for k in ["tutorial", "gauntlet_best", "unlock_games"]:
+		out[k] = _count(out.get(k, 0))
+	for k in ["stats", "custom_stats"]:
+		var st = out.get(k, {})
+game/scripts/game/save.gd:39:static func load_all() -> void:
+game/scripts/game/save.gd:570:static func migrate(d: Dictionary) -> Dictionary:
+
+exec
+/bin/bash -lc "rg -n '"'^func |''^static func '"' game/scripts/ui/screens/game_v16.gd; sed -n '35,65p' game/scripts/game/save.gd; sed -n '1,45p' game/tests/test_base.gd; nl -ba game/tools/affected_shots.py | tail -45; rg -n 'session|會話|B01' docs coordination/v1600* -g '*.md'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 320ms:
+9:func screen_id() -> String:
+18:func _feedback() -> void:
+24:func _feedback_save(cat: String) -> void:
+32:static func report_name(prefix: String, sec: int) -> String:
+41:func mark_friend_assist() -> void:
+53:static func feedback_key(saved: bool, copied: bool) -> String:
+62:static func _write_text(path: String, txt: String) -> bool:
+72:static func _clip_set(txt: String) -> bool:
+78:func _notification(what: int) -> void:
+84:func _quit_mark() -> void:
+91:func _v16_tick(_delta: float) -> void:
+112:func _open_codex(t: int) -> void:
+116:func _finish_battle() -> void:
+151:func _daily_done_today() -> bool:
+157:func _next_action(k: String) -> Callable:
+181:func _entry_action(key: String) -> Callable:
+191:func _tour_row_h(it: Array) -> float:
+194:func _draw_tour() -> void:
+214:func _draw_next_step() -> void:
+242:func _ns_text(k: String) -> String:
+257:func _pz_label(i: int) -> String:
+267:func _new_tag(r: Rect2) -> void:
+274:func _draw_demo_end() -> void:
+285:func _draw_fb_cat() -> void:
+298:func _daily_entry() -> void:
+305:func _draw_daily_past() -> void:
+330:func _breport_open() -> void:
+337:func _breport_close() -> void:
+342:func _draw_breport() -> void:
+359:func _draw_v16_overlay(name: String) -> void:
+416:func _tv_pos_list(a) -> Array:
+423:func tv_toggle_at(a, w: Vector2i) -> bool:
+437:func _tv_world_at(p: Vector2) -> Vector2i:
+443:func _v16_place_click(p: Vector2) -> bool:
+451:func _tv_pad_world() -> Vector2i:
+456:func _v16_place_key(k: int) -> bool:
+478:func _tv_buttons(help: Rect2, notebook := false) -> void:
+483:func _tv_buttons_draw(help: Rect2, notebook: bool) -> void:
+501:func _tv_tip(tip: String, help: Rect2) -> void:
+508:func _foot_of(w: Vector2i) -> Vector2:
+512:func _v16_place_draw() -> void:
+546:func _lock_pairs(a0, a1) -> Array:
+559:static func lock_groups(pairs: Array, n: int) -> Dictionary:
+562:static func lock_targets(a0, a1, rr) -> Array:
+575:func _lock_arc(a: Vector2, b: Vector2) -> void:
+591:func _chalk_arrow(a: Vector2, b: Vector2) -> void:
+597:func _tv_badge(at: Vector2, n: int, dead := false) -> void:
+603:func _tv_draw_marks_place(a) -> void:
+609:func _begin_battle(a0, a1, kind := "official") -> void:
+622:static func tv_ids_for(a0, marks: Array) -> Array:
+645:func _v16_battle_draw() -> void:
+664:func _hold_tick(delta: float) -> void:
+678:static func hold_keys_down(keys, pad) -> bool:
+691:func _draw_magnifier() -> void:
+714:func _share_ready() -> bool:
+718:func _daily_finish(w: int) -> void:
+741:func _sb_add_current() -> void:
+758:func _draw_songbook() -> void:
+787:func _highlights() -> Array:
+796:func _hl_reel_go(hl: Array) -> void:
+805:func _hl_go(t: int) -> void:
+810:func _draw_share() -> void:
+859:func _ghost_settle(w: int) -> void:
+871:func _rush_start() -> void:
+875:func _rush_go(daily: bool) -> void:
+881:func _draw_rush_menu() -> void:
+895:func _rush_load() -> void:
+903:func _rush_end() -> void:
+921:func _rush_tick(delta: float) -> void:
+930:func _rush_settle() -> void:
+943:func _v16_place_hud() -> void:
+952:func _draw_rush_end() -> void:
+972:func _coach_pz() -> Dictionary:
+975:func coach_ok() -> bool:
+986:func _coach_open() -> void:
+1021:func _v16_jobs(_delta: float) -> void:
+1045:func _exit_tree() -> void:
+1055:func _coach_cancel() -> void:
+1059:func _coach_cancel_quiet() -> void:
+1066:func _coach_note(lv: int, applied := false) -> void:
+1081:func _coach_after_clear(stars: int) -> void:
+1092:static func coach_badge(data: Dictionary, pid: String) -> bool:
+1096:func _coach_apply() -> void:
+1115:func _dir_name(f: Vector2i, t: Vector2i) -> String:
+1130:func _coach_hint2() -> String:
+1137:func _coach_status_line() -> String:
+1149:func _coach_ghost(c: Vector2) -> void:
+1171:func _draw_coach() -> void:
+1211:func _coach_evidence(ev: Dictionary) -> String:
+1220:func _close_overlay_plain() -> void:
+1229:func _rift_picks() -> Array:
+1232:func _rift_start() -> void:
+1244:func _rift_settle() -> void:
+1266:func _rift_sync() -> void:
+1279:func rift_lab_toggle(k: int) -> void:
+1292:func _rift_lab_start() -> void:
+1301:func _draw_rift_lab() -> void:
+1346:func _draw_rift() -> void:
+1369:func _start_mode(m: int) -> void:
+1391:func _prewarm_sprites() -> void:
+1418:func _ai_style() -> int:
+1422:func _go_title() -> void:
+1428:func _pick_puzzle(id: String, tut: bool) -> void:
+1433:func _signature_tpl(seed: int, pool: int) -> int:
+1439:func _persona_fog(c: Vector2, w: float) -> void:
+1451:func _persona_result() -> void:
+1463:func _career_settle() -> void:
+1488:func mastery_line(t: int) -> String:
+1494:func _nb_key() -> String:
+1501:func _nb_hash() -> String:
+1504:func _nb_items() -> Array:
+1507:func _draw_notebook() -> void:
+1550:func _nb_rename(i: int) -> void:
+1579:func _nb_words_open(it: Dictionary) -> void:
+1585:func _nb_words_done(ok: bool) -> void:
+1593:static func nb_words_add(buf: String, w: String) -> String:
+1596:func _draw_nb_words() -> void:
+1617:func _nb_cycle_name(it: Dictionary) -> void:
+1626:func _nb_commit() -> void:
+1632:func _nb_edit_end() -> void:
+1640:func _nb_edit_input(ev: InputEvent) -> bool:
+1657:static func nb_edit_append(buf: String, uc: int) -> String:
+1660:func _nb_cmp_pick(i: int) -> void:
+1666:func _draw_nb_cmp() -> void:
+1699:func _nb_save() -> void:
+1709:func _nb_load(i: int) -> void:
+1726:func _nb_del(i: int) -> void:
+1741:func _daily_sync() -> void:
+1746:func _daily_top_open() -> void:
+1762:func _daily_top_go(units: Array) -> void:
+1781:func _draw_daily_top() -> void:
+1819:func _ed_trio_map() -> void:
+1823:func _ed_set_map(m: int) -> void:
+1837:func ed_cs() -> float:
+1840:func _ed_rect() -> Rect2:
+1843:func ed_lists() -> Array:
+1856:func ed_toggle(c: Vector2i) -> void:
+1879:func _ed_make() -> void:
+1903:func _ed_sync_foe() -> void:
+1910:func _ed_switch_foe(i: int) -> void:
+1920:func _draw_editor() -> void:
+2007:func _trio_set() -> Dictionary:
+2010:func _trio_start_custom(ts: Dictionary) -> void:
+2018:func _trio_start(i: int) -> void:
+2034:func _trio_settle() -> void:
+2070:func _trio_cancel() -> void:
+2076:func _trio_jobs() -> void:
+2088:func _trio_done() -> void:
+2108:func _trio_watch(k: int) -> void:
+2118:func _draw_trio() -> void:
+2144:func _draw_trio_result() -> void:
+2180:func _trio_back() -> void:
+2192:func _fog_start() -> void:
+2201:static func fog_seen(units: Array) -> Array:
+2211:static func _fog_key(u: Dictionary) -> int:
+2216:func _fog_draw() -> void:
+2235:static func coop_player(stage: int) -> int:
+2238:func _enter_gauntlet() -> void:
+2242:func _coop_start() -> void:
+2248:func _coop_go() -> void:
+2257:func _coop_settle() -> void:
+2271:static func coop_rows(log: Array) -> Array:
+2274:func _draw_coop_sum() -> void:
+2298:func _coop_tick() -> void:
+2304:func _draw_coop_hand() -> void:
+2314:func _coop_hud() -> void:
+2325:static func adj_links(units: Array, pos_of: Callable) -> Array:
+2339:func _adj_draw(a) -> void:
+2346:func _mastery_badge(r: Rect2, t: int) -> void:
+2356:func mastery_lv(t: int) -> int:
+2360:func codex_plaque(p: Vector2, t: int) -> void:
+2379:func seat_visible() -> bool:
+2386:static func seat_mood(f_me: float, f_ai: float) -> int:
+2393:func _draw_seat() -> void:
+2434:static func seat_react(finished: bool, winner: int, t: float, still: bool) -> Array:
+2448:func od_today() -> Array:
+2456:func _od_after(id: String, stars: int) -> void:
+2467:func _draw_owner_daily() -> void:
+2516:static func stamp_page(n: int) -> Array:
+2529:static func tower_button(result: int, floor_no: int) -> Array:
+2537:func _tower_open() -> void:
+2543:func _tower_start(floor_no: int) -> void:
+2568:func _tower_finish(w: int) -> void:
+static var pending := {}
+## 只給測試用：接下來幾次寫入要假裝失敗（"tmp"＝寫暫存失敗；"rotate"＝輪替備份失敗）。
+static var fail_inject := {}
+
+static func load_all() -> void:
+	pending = {}
+	settings = sanitize_settings(_read(_sp(), {}).get("value", {}))
+	var r := _read(_dp(), {})
+	data_source = r["source"]
+	var raw: Dictionary = r["value"]
+	data_locked = schema_of(raw) > SAVE_VERSION
+	# 未來版存檔：記憶體用全新進度，檔案完全不碰（Codex plan7 R5）
+	data = migrate({}) if data_locked else migrate(raw)   # 先讀原始內容再遷移（遷移裡才補預設值），不然舊檔會被當成新版（Codex 收尾輪 #1）
+
+## 檔名前綴：測試／截圖的 prefix 在前；試玩版另外一份，進度不帶進正式版（N1、§18-4）。
+static func file_prefix(demo := OS.has_feature("demo")) -> String:
+	return prefix + ("demo_" if demo else "")
+
+static func _sp() -> String:
+	return "user://%ssettings.json" % file_prefix()
+
+static func _dp() -> String:
+	return "user://%ssave.json" % file_prefix()
+
+## 讀一個 JSON 檔；內容不是物件就回傳 null。
+static func _parse(path: String):
+	var j := JSON.new()   # 不用 JSON.parse_string：壞檔是預期情況，不該在日誌印 ERROR
+	if j.parse(FileAccess.get_file_as_string(path)) != OK:
+		return null
+	return j.data if typeof(j.data) == TYPE_DICTIONARY else null
+
+extends RefCounted
+
+## 測試共用（第七輪 I1）：斷言、常數、輔助函式。各主題的測試在 tests/suites/。
+
+
+
+var runner = null   # run_tests.gd（框架測試要用）
+
+const D = preload("res://scripts/core/unit_defs.gd")
+
+const Army = preload("res://scripts/core/army.gd")
+
+const Sim = preload("res://scripts/core/battle_sim.gd")
+
+const AI = preload("res://scripts/core/ai_army.gd")
+
+const TP = preload("res://scripts/core/turn_placement.gd")
+
+const MC = preload("res://scripts/core/mirror_check.gd")
+
+const PZ = preload("res://scripts/game/puzzles.gd")
+
+const CX = preload("res://scripts/game/codex.gd")
+
+const BV = preload("res://scripts/ui/battle_view.gd")
+
+const F = preload("res://scripts/core/formations.gd")
+
+const EVS = preload("res://scripts/core/events.gd")
+
+const Art = preload("res://scripts/ui/art.gd")
+
+var passed := 0
+
+var failed := 0
+
+func ok(cond: bool, name: String, extra := "") -> void:
+	if cond:
+		passed += 1
+		print("PASS ", name)
+	else:
+		failed += 1
+		print("FAIL ", name, "  ", extra)
+
+func army_from(team: int, spec: Array):
+    33	    "scripts/ui/battle/battle_units.gd": ["戰鬥", "重播", "擺陣"],
+    34	    "scripts/ui/battle/battle_fx.gd": ["戰鬥", "重播"],
+    35	    "scripts/ui/battle/battle_state.gd": ["戰鬥", "重播"],
+    36	}
+    37	QUIET = ("tests/", "../docs/", "docs/", "../coordination/", "coordination/", "tools/affected_shots.py")
+    38	
+    39	def changed(rng):
+    40	    out = subprocess.run(["git", "diff", "--name-only", rng], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    41	    out += subprocess.run(["git", "ls-files", "--others", "--exclude-standard", "--full-name"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    42	    return sorted(set(f[len("game/"):] if f.startswith("game/") else "../" + f for f in out))
+    43	
+    44	def decide(files, screens):
+    45	    shots = set()
+    46	    for f in files:
+    47	        if f.startswith(QUIET) or f.endswith((".md", ".txt")) and not f.startswith("data/"):
+    48	            continue
+    49	        for pre, why in FULL:
+    50	            if f.startswith(pre):
+    51	                return "FULL", "%s（%s）" % (why, f)
+    52	        if f in ENTRY:
+    53	            keys = ENTRY[f]
+    54	            for n, v in screens.items():
+    55	                e = v.get("entry", "")
+    56	                if any(e.startswith(k) for k in keys):
+    57	                    shots.add(n)
+    58	            # 沒被任何對照表認領的畫面（入口名不在表裡）也一起拍——依賴不明就擴大（Codex v1600 B01 #2）
+    59	            allk = [k for ks in ENTRY.values() for k in ks]
+    60	            for n, v in screens.items():
+    61	                if not any(v.get("entry", "").startswith(k) for k in allk):
+    62	                    shots.add(n)
+    63	            continue
+    64	        if f.startswith(("scripts/", "tools/", "../tools/")) and f.endswith((".gd", ".py", ".sh")):
+    65	            if f.startswith("tools/") and not f.endswith(".gd"):
+    66	                continue   # 其他工具腳本不影響畫面
+    67	            return "FULL", "依賴不明（%s）" % f
+    68	    return "LIST", sorted(shots)
+    69	
+    70	if __name__ == "__main__":
+    71	    rng = sys.argv[1] if len(sys.argv) > 1 else "HEAD"
+    72	    screens = json.load(open(os.path.join(ROOT, "tools/screens.json"), encoding="utf-8"))
+    73	    kind, v = decide(changed(rng), screens)
+    74	    if kind == "FULL":
+    75	        print("AFFECTED FULL", v)
+    76	    else:
+    77	        print("AFFECTED %d %s" % (len(v), ",".join(v)))
+coordination/v1600-impl/b01-plan.md:1:# B01：量測工具與存檔範本（方案 §4 B01：P11.1、P11.4、P10.1、§3.1 範本）
+coordination/v1600-impl/b01-plan.md:5:4. **會話邊界範本**：`tests/test_base.gd::session_contract`（承諾後重啟不變、結算只一次、壞資料不當、舊樣本讀回）；先套無盡塔 `test_session_contract_tower_v1600`。
+coordination/v1600p/r5-codex.md:9:- Codex：B01 登記同機冷熱基準及 K4 場景、量法；B09 放量前完成 S7、塗裝鍵與容量分帳。
+coordination/v1600p/r5-codex.md:12:- Codex 主責 S8、Hydrogen 查核：B22 結案前驗等價與三次全鏈；未達 25 分由 Claude 裁決，不記 S8 Go。責任與期限於 B01 開工前登錄。
+coordination/v1600p/r5-codex.md:14:③前 3 批：**B01→B03→B09**。B03 僅代表切片，B09 Go 後才開全站量產；B02 可獨立修正。
+coordination/v1600p/r5-codex-prompt.md:3:只交：①尚未解除的阻擋（每條：定位、為什麼仍阻擋、最小修正）；②待交付／待實驗條件、責任人、最晚決策點；③前 3 批啟動順序確認（B01→B03→？）；④`結論：可／有條件／不可`。簽核只代表「方案足以進入實作」。≤800 字。
+coordination/v1600-impl/b01-r1/codex-prompt2.md:2:B01。第 1 輪意見 coordination/v1600-impl/b01-r1/codex.md；新差異 coordination/v1600-impl/b01-r1/diff2.patch。
+coordination/v1600-impl/b01-r1/codex-prompt2.md:3:改了：data/ 與 tools/screens.json → FULL；對照表沒認領的畫面一律加拍；game_v16 補教練、軍令時間軸等入口；塔的會話測試改呼叫正式 `_tower_finish`、重啟走正式 `Save.sanitize_data`、比對狀態快照、結算後存讀再重送；範本的結算檢查改成也比對狀態快照。
+coordination/v1600p/r5-agy.md:12:確認依 **B01 → B02 → B03**（`B01` 與 `B02` 可錯開檢查腳本並行，**`B03` 須待 `B01` 交付量測與存檔範本後啟動**）；`B03` 過 S2 與四層觀片後解鎖 `B04`／`B05`／`B06`。
+coordination/v1600-impl/b01-r1/codex-prompt.md:2:B01：規劃 coordination/v1600-impl/b01-plan.md；方案 docs/2026-11-15-v1.6.0-plan.md §3.1、§4 B01；差異 coordination/v1600-impl/b01-r1/diff.patch。
+coordination/v1600-impl/b01-r1/codex-prompt.md:3:重點：①check.py 拆 t_stateful3：兩個行程的存檔前綴會不會互踩、測試 ID 聯集核對是否仍完整（看 check.py 357 行附近）、快取鍵；②affected_shots.py 規則是否寧可多拍（有沒有會漏拍的路徑，例如 data/*.json、scripts/game/*、新增畫面、只改 screens.json）；③sprite_cache 計時有沒有改到行為（await 順序、例外路徑、世代作廢）；④session_contract 範本能不能真的抓到「重抽、重領、壞資料、舊樣本」，塔的套用是不是只在測 sanitize 而沒測到結算只一次的實際程式（settle 是測試自己寫的閉包）。
+coordination/v1600p/r4-response.md:8:| C4 | Codex 阻擋 | 會話邊界、遷移範本無交付批、塔退路 | 採納：§3.1 會話邊界；B01 交付範本；塔退路寫明 |
+coordination/v1600p/r2-codex.md:20:M01桌位／主光／材質、M03字級表／三階排印／紙面字、M14容量與資源生命週期、M15量測／就緒／基線升版先立契約。共同鎖住舊碼、digest、指紋與mirror；新玩法共用版本化會話、遷移、重啟及一次結算契約。原型可並行，量產須過底座門檻。
+coordination/v1600p/r2-codex.md:28:- M11把A09-3競猜獎勵併入三局拆招，兩者無必要依賴；分開會話與驗收，競猜沿既有入口。
+coordination/v1600p/r2-codex.md:34:依賴：M04／05先過M14容量門檻；M16展台只用已驗方向；M07事件證據供M09。入口：M09沿結果→覆盤，M10沿遠征，M11沿雙人，M12沿迷霧；每次只教當前一個決策，不在標題加模式排。各玩法保留獨立會話，付費情報不硬塞茶局。
+docs/2026-11-15-v1.6.0-plan.md:105:- **順序（無環；R5 定）**：**B01**（量測、存檔範本）→ **B02**（紙面字，獨立小批可錯開）→ **B03** 代表頁（S2 Go）→ **B09** 容量准入（S7 Go）→ 並列審片逐批解鎖 **B06**（全站桌）→ **B08**（混戰）→ **B10** 兩兵種剪影 → **B13a** 全兵種剪影＋**一次登記 1.6.0 新基線**（P1＋P3＋P4）。動態另一條線：B11 轉身（S3）→ B12 大型驗證 → B13b 全兵種轉身——**剪影量產與新基線不等轉身 Go**。P2、P6、P7、P8 平行接在 B03／B04／B01 之後；P12 美術、P13 展台在 B13a／B13b 之後。原型可並行；量產門檻＝該批前置 Go＋B09 容量准入。
+docs/2026-11-15-v1.6.0-plan.md:119:- **讀取／拒絕**：新存檔欄位（`tower_run_v2`、`tower_route`、`lesson_pairs`、`tea_session`、`intel_session`）逐欄驗型；版本號較新＝唯讀提示不覆寫；壞資料隔離到 `quarantine`（1.0.0 起既有機制），原檔不動；舊樣本（1.5.0 存檔）原樣讀回。
+docs/2026-11-15-v1.6.0-plan.md:120:- **會話邊界**（P7、P9、P14、P6 各自）：開局→**承諾**（敵陣、路線、陣型、規則、結算 ID 寫檔）→戰鬥→結算（只一次）→續玩→回退；每個邊界中斷、重啟、重複回呼、寫檔失敗各一個測試；模式之間不共用會話資料。B01 交付**存檔遷移與會話邊界測試範本**（`tests/suites/save.gd` 新範本），P6、P7、P9、P14 都用它。
+docs/2026-11-15-v1.6.0-plan.md:141:| B01 | （不可見）量得到慢在哪；存檔遷移範本 | P11.1、P11.4、P10.1、§3.1 範本 | — | `tools/check.py`、`layout_check.sh`、`sprite_cache.gd`、`tests/suites/save.gd` | 6～9＋0＋0 | K7 案例集合差 0；冷熱各 20 次機器登記 | 撤分片、保留量測 |
+docs/2026-11-15-v1.6.0-plan.md:143:| B03 | 三代表頁像同一張桌（S2） | P1.1～P1.3、§1 數值、結果 HUD 收合 | B01 | `palette.gd`、桌位表（新 `scripts/ui/table_seats.gd`）、`game_result.gd`、`game_place.gd`、`game_menus.gd`；色盤與陰影素材 | 2～3＋2～3＋0 | S2 判決：三頁流程條灰階三階、盤內 ΔE 0、新增紋理 ≤32MiB、烘焙 <40ms、24 組 0 | 盤外暗角＋窄緣隱藏杯墊 |
+docs/2026-11-15-v1.6.0-plan.md:149:| B09 | 圖集不卡（S7） | P10.2、P10.3 | B01 | `sprite_cache.gd`、匯出包 | 5～9＋0.5～1＋0 | S7 判決：最長幀 <40ms、解碼差 0、錯命中 0、容量內 | 安全重烘 |
+docs/2026-11-15-v1.6.0-plan.md:156:| B15 | 覆盤帳本（S5） | P6.1～P6.4 | B04、B01 範本 | `replay_view.gd`（`review_changes`、`review_run` 重用）、新 `scripts/game/lesson.gd` | 5～9＋1～2＋0 | S5 判決：四類各 5 例 20/20 還原、八種失敗邊界（版本不符、壞筆、取消、重啟、過期重算、容量滿、重複保存、寫檔失敗；R3＋R5 聯集）、正式副作用 0（統計、進度、成就、紀錄、日誌比對）；「首次戰力不同≠因果」 | 雙碼人工紀錄 |
+docs/2026-11-15-v1.6.0-plan.md:158:| B17 | 塔分岔＋續塔（S6） | P7.1、P7.2 | B01 範本 | `tower.gd`、`save.gd:187`、`game_v16.gd:2538～2572` | 4～6 | S6 判決：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05；換路（K6）資料不足＝照開但不宣稱「有選擇性」 | 回固定塔（新欄位保留不讀） |
+docs/2026-11-15-v1.6.0-plan.md:159:| B18 | 換邊雙局＋棋譜集 | P7.3、P7.4 | B17 | `game_playroom.gd`（`SwapDuel`） | 4～6 | §3.1 會話邊界；鏡像場分數 | 退一般對 AI |
+docs/2026-11-15-v1.6.0-plan.md:163:| B22 | 驗收直達與升版管線（S8） | P11.2、P11.3、P11.5 | B01 | `dev_main.gd` 直達、PNG 佇列（上限 4）、世代屏障 | 7～12 | S8 判決：三次全鏈（啟動到全部退出，含無快取、24 組、固定時鐘、匯出）≤25 分；案例／狀態／副作用／固定圖差 0；取消整個工作群、異常非零退出；未達標＝保留耗時表，P11 以 B01＋B22 的量測與等價工具結案、25 分目標另行裁決 | 退完整走訪 |
+docs/2026-11-15-v1.6.0-plan.md:164:| B23 | （選配）朋友桌 | P9 | B04、B01 範本 | 新 `tea_session` | 5～8 | §3.1；IN-160-08 | 不開入口 |
+docs/2026-11-15-v1.6.0-plan.md:165:| B24 | （選配）情報取捨 | P14 | B04、B01 範本 | 迷霧推演、規則版本 | 4～7 | §3.1；升規則版本＋平衡、三星、代碼；IN-160-08 | 不開入口 |
+docs/2026-11-15-v1.6.0-plan.md:175:- **K5 會話資料**：新存檔欄位逐欄驗型、遷移、重啟、只結算一次；舊進度不改寫。
+docs/2026-11-15-v1.6.0-plan.md:200:- **條件、責任人、最晚決策點**（R5 兩方，B01 開工前在 ledger 登錄）：
+docs/2026-11-15-v1.6.0-plan.md:203:| 同機冷熱基準、K4 場景與量法 | Codex 規格、實作者量 | B01 結案 |
+coordination/v1600p/r1-codex.md:47:【提案】十二方向可共存：D01／02／09／10 先提供底座；D03／04／11／12 再放量；D05／06／07／08 各自接入既有旅程。D06 與 D07 是不同會話契約，不強塞進同一局。以下估工合計約工程 **56–98 人日**、美術 **22–43 人日**，低信心、未含外部等待與真人招募；不是一個短衝刺的承諾。
+coordination/v1600p/r1-codex.md:98:| K5 會話資料 | 新資料含 schema、mode、規則版本、seed、玩家身分、階段、陣型、已結算 ID；每個階段中斷／重啟／重複回呼。先凍結對手與選擇再保存，獎勵與正式統計只能結算一次；舊進度不改寫。 |
+coordination/v1600p/agy_r5/r4-response.md:8:| C4 | Codex 阻擋 | 會話邊界、遷移範本無交付批、塔退路 | 採納：§3.1 會話邊界；B01 交付範本；塔退路寫明 |
+coordination/v1600p/agy_r2/r1-codex.md:47:【提案】十二方向可共存：D01／02／09／10 先提供底座；D03／04／11／12 再放量；D05／06／07／08 各自接入既有旅程。D06 與 D07 是不同會話契約，不強塞進同一局。以下估工合計約工程 **56–98 人日**、美術 **22–43 人日**，低信心、未含外部等待與真人招募；不是一個短衝刺的承諾。
+coordination/v1600p/agy_r2/r1-codex.md:98:| K5 會話資料 | 新資料含 schema、mode、規則版本、seed、玩家身分、階段、陣型、已結算 ID；每個階段中斷／重啟／重複回呼。先凍結對手與選擇再保存，獎勵與正式統計只能結算一次；舊進度不改寫。 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:105:- **順序（無環）**：B01（量測、存檔範本）→ B03 代表頁（S2 Go）→ 並列審片逐批解鎖 B06（全站桌）→ B08（混戰）→ B09（容量）→ B10 兩兵種 → B11 轉身（S3）→ B12 大型驗證 → B13 全兵種＋**一次登記新基線**；P2、P6、P7、P8 平行接在 B03／B04／B01 之後；P5 儀式、P12、P13 展台在各自前置之後。原型可並行；量產門檻＝該批前置 Go＋P10 容量准入。
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:112:- **讀取／拒絕**：新存檔欄位（`tower_run_v2`、`tower_route`、`lesson_pairs`、`tea_session`、`intel_session`）逐欄驗型；版本號較新＝唯讀提示不覆寫；壞資料隔離到 `quarantine`（1.0.0 起既有機制），原檔不動；舊樣本（1.5.0 存檔）原樣讀回。
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:113:- **會話邊界**（P7、P9、P14、P6 各自）：開局→**承諾**（敵陣、路線、陣型、規則、結算 ID 寫檔）→戰鬥→結算（只一次）→續玩→回退；每個邊界中斷、重啟、重複回呼、寫檔失敗各一個測試；模式之間不共用會話資料。B01 交付**存檔遷移與會話邊界測試範本**（`tests/suites/save.gd` 新範本），P6、P7、P9、P14 都用它。
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:134:| B01 | （不可見）量得到慢在哪；存檔遷移範本 | P11.1、P11.4、P10.1、§3.1 範本 | — | `tools/check.py`、`layout_check.sh`、`sprite_cache.gd`、`tests/suites/save.gd` | 6～9＋0＋0 | K7 案例集合差 0；冷熱各 20 次機器登記 | 撤分片、保留量測 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:136:| B03 | 三代表頁像同一張桌（S2） | P1.1～P1.3、§1 數值、結果 HUD 收合 | B01 | `palette.gd`、桌位表（新 `scripts/ui/table_seats.gd`）、`game_result.gd`、`game_place.gd`、`game_menus.gd`；色盤與陰影素材 | 2～3＋2～3＋0 | S2 判決：三頁流程條灰階三階、盤內 ΔE 0、新增紋理 ≤32MiB、烘焙 <40ms、24 組 0 | 盤外暗角＋窄緣隱藏杯墊 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:142:| B09 | 圖集不卡（S7） | P10.2、P10.3 | B01 | `sprite_cache.gd`、匯出包 | 5～9＋0.5～1＋0 | S7 判決：最長幀 <40ms、解碼差 0、錯命中 0、容量內 | 安全重烘 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:148:| B15 | 覆盤帳本（S5） | P6.1～P6.4 | B04、B01 範本 | `replay_view.gd`（`review_changes`、`review_run` 重用）、新 `scripts/game/lesson.gd` | 5～9＋1～2＋0 | S5 判決：四類各 5 例 20/20 還原、六種失敗邊界（版本不符、壞筆、取消、重啟、過期重算、容量滿）、正式副作用 0（統計、進度、成就、紀錄、日誌比對）；「首次戰力不同≠因果」 | 雙碼人工紀錄 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:150:| B17 | 塔分岔＋續塔（S6） | P7.1、P7.2 | B01 範本 | `tower.gd`、`save.gd:187`、`game_v16.gd:2538～2572` | 4～6 | S6 判決：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05；換路（K6）資料不足＝照開但不宣稱「有選擇性」 | 回固定塔（新欄位保留不讀） |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:151:| B18 | 換邊雙局＋棋譜集 | P7.3、P7.4 | B17 | `game_playroom.gd`（`SwapDuel`） | 4～6 | §3.1 會話邊界；鏡像場分數 | 退一般對 AI |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:155:| B22 | 驗收直達與升版管線（S8） | P11.2、P11.3、P11.5 | B01 | `dev_main.gd` 直達、PNG 佇列（上限 4）、世代屏障 | 7～12 | S8 判決：三次全鏈（啟動到全部退出，含無快取、24 組、固定時鐘、匯出）≤25 分；案例／狀態／副作用／固定圖差 0；取消整個工作群、異常非零退出；未達標＝保留耗時表，P11 以 B01＋B22 的量測與等價工具結案、25 分目標另行裁決 | 退完整走訪 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:156:| B23 | （選配）朋友桌 | P9 | B04、B01 範本 | 新 `tea_session` | 5～8 | §3.1；IN-160-08 | 不開入口 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:157:| B24 | （選配）情報取捨 | P14 | B04、B01 範本 | 迷霧推演、規則版本 | 4～7 | §3.1；升規則版本＋平衡、三星、代碼；IN-160-08 | 不開入口 |
+coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:167:- **K5 會話資料**：新存檔欄位逐欄驗型、遷移、重啟、只結算一次；舊進度不改寫。
+docs/history/2026-11-04-grand-optimization-plan-v7.md:79:| S7 | 試玩紀錄沒有完整規則，重建不了自訂局（`game_screens.gd:357`） | 每局記對戰代碼、紀錄格式版本、session ID 與局 ID；彙整工具要去重（對戰紀錄和評分不能重複算局數） | S | P1 |
+docs/history/2026-11-04-grand-optimization-plan-v7.md:263:| 補回存檔、金標準保留、Steam 離線補送、session 去重、封存工具版本 | 〔X〕 | §2、§3、§14 |
+coordination/v1600p/ledger.md:13:- R4：全案草稿 → Codex 9 阻擋＋1 待驗、Hydrogen 4 阻擋＋2 建議＋2 待驗（皆有條件）→ 修訂（`r4-response.md` 逐條處置）：依賴環、版本與會話契約、輸入案例、批次八欄、美術數值、桌位幾何、結果頁 HUD、發版不靠揭露文字。
+coordination/v1600p/ledger.md:17:`docs/2026-11-15-v1.6.0-plan.md`：14 方向、24 批（B01～B24，含 B13a／B13b）、K0～K7 共同驗收、版本矩陣、輸入案例 IN-160-01～08、條件責任表。前三批 B01 → B02 → B03（之後 B09 → B06）。
+coordination/v1600p/agy_r3/r2-codex.md:20:M01桌位／主光／材質、M03字級表／三階排印／紙面字、M14容量與資源生命週期、M15量測／就緒／基線升版先立契約。共同鎖住舊碼、digest、指紋與mirror；新玩法共用版本化會話、遷移、重啟及一次結算契約。原型可並行，量產須過底座門檻。
+coordination/v1600p/agy_r3/r2-codex.md:28:- M11把A09-3競猜獎勵併入三局拆招，兩者無必要依賴；分開會話與驗收，競猜沿既有入口。
+coordination/v1600p/agy_r3/r2-codex.md:34:依賴：M04／05先過M14容量門檻；M16展台只用已驗方向；M07事件證據供M09。入口：M09沿結果→覆盤，M10沿遠征，M11沿雙人，M12沿迷霧；每次只教當前一個決策，不在標題加模式排。各玩法保留獨立會話，付費情報不硬塞茶局。
+coordination/v1600p/agy_r4/2026-11-15-v1.6.0-plan.md:101:| B01 | （看不見）驗收變快、量得到慢在哪 | P11.1、P11.4、P10.1 | — | 6～9 | 保留量測、撤分片 |
+coordination/v1600p/agy_r4/2026-11-15-v1.6.0-plan.md:103:| B03 | 三個代表頁像同一張桌（S2） | P1.1、P1.2、P1.3（標題、擺陣、結果） | B01 | 4～6 | 盤外暗角＋窄緣隱藏杯墊 |
+coordination/v1600p/agy_r4/2026-11-15-v1.6.0-plan.md:109:| B09 | 圖集不卡（S7） | P10.2、P10.3 | B01 | 5～9 | 安全重烘 |
+coordination/v1600p/agy_r4/2026-11-15-v1.6.0-plan.md:115:| B15 | 塔分岔＋續塔（S6） | P7.1、P7.2 | B01 | 4～6 | 回固定塔 |
+coordination/v1600p/agy_r4/2026-11-15-v1.6.0-plan.md:120:| B20 | 驗收直達與升版管線（S8） | P11.2、P11.3、P11.5 | B01 | 7～12 | 退完整走訪 |
+coordination/v1600p/agy_r4/2026-11-15-v1.6.0-plan.md:131:- **K5 會話資料**：新存檔欄位逐欄驗型、遷移、重啟、只結算一次；舊進度不改寫。
+
+codex
+FULL 與未知入口加拍已補上；仍發現 `game_v16` 會漏拍已登記的畫面。會話測試已改呼叫正式結算，但重啟仍沿用同一物件，舊檔也尚未走正式遷移。
+exec
+/bin/bash -lc "PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+import runpy,json
+m=runpy.run_path('game/tools/affected_shots.py')
+s=json.load(open('game/tools/screens.json'))
+for f in ['data/puzzles.json','data/l10n_extra.csv','tools/screens.json','scripts/ui/screens/game_v16.gd','scripts/ui/lobby_view.gd']:
+ k,v=m['decide']([f],s)
+ print(f,k, len(v) if isinstance(v,list) else v)
+ if f.endswith('game_v16.gd'):
+  print('omitted:',[n for n in ['v16_03_place_range.png','v16_16_trio_result.png','10_codex.png','v16_09_coach.png','84b_plan_chain.png'] if n not in v])
+PY
+sed -n '508,546p' game/scripts/ui/screens/game_v16.gd; sed -n '2350,2379p' game/scripts/ui/screens/game_v16.gd; sed -n '570,595p' game/scripts/game/save.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+data/puzzles.json FULL 遊戲資料（殘局、字串、譯稿、地圖…）（data/puzzles.json）
+data/l10n_extra.csv FULL 遊戲資料（殘局、字串、譯稿、地圖…）（data/l10n_extra.csv）
+tools/screens.json FULL 截圖登記（tools/screens.json）
+scripts/ui/screens/game_v16.gd LIST 73
+omitted: ['v16_03_place_range.png', 'v16_16_trio_result.png', '10_codex.png']
+scripts/ui/lobby_view.gd LIST 49
+func _foot_of(w: Vector2i) -> Vector2:
+	return ORIGIN + Vector2(w.x / 1000.0, w.y / 1000.0 + 0.32) * CS
+
+## 擺陣畫面疊層：射程覆蓋（我方每隻有射程的兵畫淡圈；看得到敵兵時，每隻兵朝最近敵兵畫短箭頭）＋標記號碼
+func _v16_place_draw() -> void:
+	var a = _cur_army()
+	if tv_range:
+		var foes: Array = []
+		if _enemy_visible() and armies.size() > 1 and mode != Mode.DUEL:
+			foes = _tv_pos_list(armies[1])
+		for u in a.units:
+			var p: Vector2i = a.pos_of(u)
+			var sp := _foot_of(p) - Vector2(0, 0.32 * CS)
+			var rr: float = _fp_range_of(int(u["type"]))
+			if rr > 0.0:
+				draw_circle(sp, rr * CS, Color(1, 0.9, 0.5, 0.05))
+				call("_arc_clipped", sp, rr * CS, 0, TAU, Color(1, 0.9, 0.5, 0.3), 1.2)
+		if not foes.is_empty():
+			# V1.6.1 A9：開場鎖定（用模擬跑 1 tick 的選目標結果，不是「最近的敵兵」）；虛線弧，白黑雙邊。不保證第一下打到它（之後會換目標）。
+			# 1.1.0 A13：同一個目標第 4 條起不再各畫一條，目標旁標「×N」（N＝總條數；資訊不丟，也不在目標點疊成光團）
+			var per := lock_groups(_lock_pairs(a, armies[1]), LOCK_MAX)
+			for pr in per["draw"]:
+				_lock_arc(_foot_of(pr[0]) - Vector2(0, 0.32 * CS), _foot_of(pr[1]) - Vector2(0, 0.32 * CS))
+			for tg in per["count"]:
+				var tp := _foot_of(tg) - Vector2(0, 0.32 * CS) + Vector2(10, -18)
+				_text(tp, "×%d" % int(per["count"][tg]), tz("C"), Color(1, 0.95, 0.8), false, true, 60)
+			for pr in per["rest"]:
+				# 第 4 條起：從自己拉一條細淡線到目標旁的「×N」（看得出是哪幾隻鎖它，Codex v110-i1 #6）
+				var src := _foot_of(pr[0]) - Vector2(0, 0.32 * CS)
+				var dst := _foot_of(pr[1]) - Vector2(0, 0.32 * CS) + Vector2(8, -10)
+				draw_line(src, src.lerp(dst, 0.85), Color(1, 0.95, 0.8, 0.28), 1.0, true)
+	_tv_draw_marks_place(a)
+	_fog_draw()
+	_adj_draw(a)
+
+## [[我方位置, 鎖定的敵兵位置], …]（雙方陣型沒變就用快取，不每幀重算）
+var lock_key := 0
+var lock_cache: Array = []
+func _lock_pairs(a0, a1) -> Array:
+	_icon("star", r.position + Vector2(r.size.x / 2, 30), 16.0, Color("#ffd166") if lv >= 5 else Color("#d8dde6"))
+	# V1.6.1 A1：兵卡外框（3、4 級銀、5 級金；深邊＋亮邊，紙上木上都看得到）
+	var fc := Color("#ffd166") if lv >= 5 else Color("#c9d1dc")
+	draw_rect(r.grow(-2), Color(0, 0, 0, 0.5), false, 3.0)
+	draw_rect(r.grow(-2), fc, false, 1.6)
+
+func mastery_lv(t: int) -> int:
+	return Career.level(int(Save.data.get("mastery", {}).get(str(t), 0)))
+
+## 圖鑑大圖腳下的木牌：刻熟練度等級＋戰功章（三顆，拿到的亮）
+func codex_plaque(p: Vector2, t: int) -> void:
+	if t >= D.total():
+		return
+	var lv := mastery_lv(t)
+	var md := Career.medals_of(Save.data.get("medals", {}), t)
+	var txt := L.t("ms_plaque", [lv])
+	var w := _width(txt, tz("C"), true) + 20.0 + 3 * 18.0
+	var r := Rect2(p.x - w / 2, p.y, w, tz("C") * 1.5 + 6)
+	_tex_box(r, "wood", Color("#8a5a2b"))
+	_text(r.position + Vector2(10, 3 + tz("C") * 0.1), txt, tz("C"), Color("#fff1d6"), false, true, w)
+	for i in 3:
+		_icon("star", Vector2(r.end.x - 54 + i * 18 + 9, r.get_center().y), 13.0, Color("#ffd166") if md[i] else Color(0, 0, 0, 0.35))
+
+
+# ── 1.3.0 第 11 大類：棋館的人（方案 §11；人物只在盤外、可略過）──
+const SEAT_FOOT := Vector2(1226, 318)   # 右側桌面：碗（y30）與茶杯（y432）之間的空位
+
+## 對 AI 時，對手（現有 AI 性格的木偶）坐在盤外右側桌邊：依戰況換表情（領先＝得意、落後＝慌、膠著＝專注），待機時微微晃；
+## 鏡頭推近（盤面蓋到桌邊）時淡出；簡化介面、幽靈／天梯／週賽不畫。
+func seat_visible() -> bool:
+static func migrate(d: Dictionary) -> Dictionary:
+	var out := d.duplicate(true)
+	var v := schema_of(out)
+	if v > SAVE_VERSION:
+		return out
+	if v < 2:
+		# 1 → 2：欄位名 version 改成 schema_version；加 unit_wins
+		out.erase("version")
+		v = 2
+	if v < 3:
+		# 2 → 3：解鎖改看獨立的累計場數，初值＝原本的正式場數（已解鎖的兵不會被收回）
+		var st = out.get("stats", {})
+		out["unlock_games"] = _count(st.get("games", 0)) if st is Dictionary else 0
+		v = 3
+	if v < 4:
+		# 3 → 4（1.2.0 §11）：補戰役進度、棋譜本、最近玩的、上一陣（舊進度全保留）
+		for kv in [["campaign", {}], ["songbook", []], ["recent", []], ["last_form", ""]]:
+			if not out.has(kv[0]):
+				out[kv[0]] = kv[1]
+		v = 4
+	# 我的預設：逐筆驗型、限長、最多 5 組（Codex 第一輪）
+	var ps: Array = []
+	var raw = out.get("rule_presets", [])
+	if raw is Array:
+		for e in raw:
+			if e is Dictionary and e.get("name") is String and e.get("code") is String and str(e["code"]).length() <= 2000 and ps.size() < MAX_PRESETS:
+
+codex
+1. `affected_shots.py:29,59–62`：game_v16 仍漏擺陣、結果、圖鑑；實測漏選 `v16_03_place_range.png` 等。須補映射或 FULL。
+2. `test_base.gd:322–324`：未深複製首次結算快照；第二次原地修改同一陣列／字典，兩份一起變仍可通過。須先保存獨立快照。
+3. `save.gd:330–359,367–370`：只做 JSON＋sanitize，舊樣本未走 migrate，重啟仍沿用同一 g；缺各邊界中斷、續玩、回退及寫檔失敗驗證。第 1 輪第 5 項尚未完成。
+
+結論：有條件
+tokens used
+45,124

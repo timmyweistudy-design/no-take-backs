@@ -134,7 +134,9 @@ def plan(a) -> list:
         gd("t_stateful", "tests/run_tests.gd", ["--only=rules,save" + skip, "--prefix=ta_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
         # 1.1.0 B1：t_stateful2 是最長的單步（626 秒），拆成兩個行程、各用自己的存檔前綴（總工作量不變，關鍵路徑變短）
         gd("t_stateful2", "tests/run_tests.gd", ["--only=fantasy,ui" + skip, "--prefix=tb_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
-        gd("t_stateful3", "tests/run_tests.gd", ["--only=modes,coach_lab,share_codes,reports_platform,modes_live,battle_visual" + skip, "--prefix=tc_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+        # 1.6.0 B01：t_stateful3 是關鍵路徑（508 秒、六組）。拆兩個行程、各用自己的存檔前綴（總工作量不變；測試 ID 聯集照舊核對）
+        gd("t_stateful3", "tests/run_tests.gd", ["--only=modes,coach_lab" + skip, "--prefix=tc_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
+        gd("t_stateful4", "tests/run_tests.gd", ["--only=share_codes,reports_platform,modes_live,battle_visual" + skip, "--prefix=td_"], TEST_DONE.pattern, ["tests/run_tests.gd", "tests/test_base.gd"] + [f"tests/suites/{g}.gd" for g in STATEFUL], data + ["fonts"])
         shards("mirror", "tools/mirror_100.gd", [], r"^MIRROR100 100/100", 4)
         # V1.1 E1：最慢的兩組各切 8 片（每片太長，最後幾分鐘只剩少數工作在跑）
         global FULL_GOLDEN

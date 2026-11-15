@@ -306,3 +306,25 @@ class FakePlat:
 	func getFileCount(): return 3
 	func getFileNameAndSize(i): return {"name": ["save.json", "save.json.bak", "settings.json"][i], "size": 10}
 	func getCurrentBetaName(): return {"ret": true, "name": "beta"}
+
+## 1.6.0 B01（方案 §3.1）：會話邊界測試範本。新玩法（塔分岔、茶局、情報、棋課）都用它。
+## 一個會話＝開局 → 承諾（寫進存檔）→ 戰鬥 → 結算（只一次）→ 續玩 → 回退。範本檢查：
+##   ① 承諾後「重啟」（存檔來回序列化＋sanitize）狀態不變、不重抽；② 結算兩次＝第二次不改任何東西；
+##   ③ 壞資料（亂型別、缺欄、負數、超大）讀回＝安全預設，不當掉；④ 舊版樣本原樣讀回。
+## s 是字典：start() -> 狀態、commit(狀態) -> 存檔字典、restart(存檔字典) -> 狀態、settle(狀態) -> [新狀態, 是否有變]、
+## same(a, b) -> bool、bad_inputs: Array、sanitize(v) -> 狀態、old_samples: Array of [存檔字典, 期望狀態]
+func session_contract(name: String, s: Dictionary) -> void:
+	var st0 = s["start"].call()
+	var saved: Dictionary = s["commit"].call(st0)
+	var round_trip = JSON.parse_string(JSON.stringify(saved))   # 模擬寫檔再讀回（整數會變浮點，sanitize 要處理）
+	var st1 = s["restart"].call(round_trip)
+	ok(bool(s["same"].call(st0, st1)), name + "：承諾後重啟，狀態不變（不重抽）")
+	var r1: Array = s["settle"].call(st1)
+	var snap1: String = var_to_str(r1[0])   # 先存獨立快照（第二次原地修改同一個陣列／字典也抓得到；Codex v1600 B01 r2 #2）
+	var r2: Array = s["settle"].call(r1[0])
+	ok(bool(r1[1]) and not bool(r2[1]) and var_to_str(r2[0]) == snap1, name + "：結算只生效一次（第二次不改狀態快照）")
+	for b in s.get("bad_inputs", []):
+		var v = s["sanitize"].call(b)
+		ok(v != null, name + "：壞資料讀回不當掉（%s）" % str(b))
+	for pair in s.get("old_samples", []):
+		ok(bool(s["same"].call(s["restart"].call(pair[0]), pair[1])), name + "：舊版樣本原樣讀回")

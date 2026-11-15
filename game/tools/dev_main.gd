@@ -1497,7 +1497,8 @@ func _perf_atlas_sweep() -> Dictionary:
 			worst_frame = maxf(worst_frame, longest)
 			rounds.append({"types": want, "ms": Time.get_ticks_msec() - t0, "tex_mib": snappedf(mem, 0.1), "longest_frame_ms": snappedf(longest, 0.1),
 				"pages": sprites.pages.filter(func(p): return p != null).size(), "ta": sprites.ta_tex.size()})
-	return {"peak_tex_mib": snappedf(peak, 0.1), "worst_bake_frame_ms": snappedf(worst_frame, 0.1), "max_pages": sprites.MAX_PAGES, "ta_max": sprites.TA_MAX, "rounds": rounds}
+	return {"peak_tex_mib": snappedf(peak, 0.1), "worst_bake_frame_ms": snappedf(worst_frame, 0.1), "max_pages": sprites.MAX_PAGES, "ta_max": sprites.TA_MAX, "rounds": rounds,
+		"stages": sprites.stage_report()}   # 1.6.0 B01：讀回／上傳／畫格各段最大值（找出最長幀是哪一段）
 
 ## 繪圖效能量測（第二輪 R2、第三輪 T3）：
 ## ・啟動時間（引擎啟動到量測開始）、色盲切換的圖集重建時間

@@ -132,7 +132,7 @@ func _bake_turn(cb: bool) -> void:
 	var img: Image = await _post_vp(vp, TURN_C.size())   # 第 11 大類：省一次讀回＋上傳
 	if g0 != _gen or (1 if cb else 0) != ready_cb:
 		return
-	turn_tex = ImageTexture.create_from_image(img)
+	turn_tex = _mk_tex(img)
 	for k in TURN_TYPES.size():
 		turn_loc[TURN_TYPES[k]] = k * 2 * TURN_C.size()
 	# V1.3.1：待機小動作頁、走路轉身頁（各自世代檢查）
@@ -145,7 +145,7 @@ func _bake_turn(cb: bool) -> void:
 	var imf: Image = await _post_vp(vpf, FID_PER)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 	if g0 != _gen or (1 if cb else 0) != ready_cb:
 		return
-	fid_tex = ImageTexture.create_from_image(imf)
+	fid_tex = _mk_tex(imf)
 	for k in TURN_TYPES.size():
 		fid_loc[TURN_TYPES[k]] = k * 2 * FID_PER
 	var per_w := WT_C.size() * WT_PH
@@ -161,7 +161,7 @@ func _bake_turn(cb: bool) -> void:
 		var imw: Image = await _post_vp(vpw, per_w)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 		if g0 != _gen or (1 if cb else 0) != ready_cb:
 			return
-		wt_pages.append(ImageTexture.create_from_image(imw))
+		wt_pages.append(_mk_tex(imw))
 		for k in chunk.size():
 			wt_loc[chunk[k]] = [pg, k * 2 * per_w]
 		pg += 1
@@ -197,7 +197,7 @@ func ensure_turn_atk(types: Array) -> void:
 		var img: Image = await _post_vp(vp, ATK_FRAMES * 2)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
 		if g0 != _gen:
 			return
-		ta_tex[t] = ImageTexture.create_from_image(img)
+		ta_tex[t] = _mk_tex(img)
 		ta_order.erase(t)
 		ta_order.append(t)
 		while ta_order.size() > TA_MAX:
@@ -211,7 +211,7 @@ func ensure_turn_atk(types: Array) -> void:
 			var imb: Image = await _post_vp(vpb, WT_PH)
 			if g0 != _gen:
 				return
-			bw_tex[t] = ImageTexture.create_from_image(imb)
+			bw_tex[t] = _mk_tex(imb)
 			bw_order.erase(t)
 			bw_order.append(t)
 			while bw_order.size() > BW_MAX:
@@ -259,6 +259,25 @@ func _viewport(size: Vector2i, painter: Node) -> SubViewport:
 const PAINT_CHUNK := 28   # 每幀最多畫幾格（一種兵一隊的一整組影格）
 
 ## 1.2.0 §15.2：分段畫進同一個視窗（第一次清空、之後累積），每幀最多 PAINT_CHUNK 格；回傳畫好的視窗（呼叫端讀回後釋放）。
+## 1.6.0 B01（P10.1）：烘焙各段耗時——讀回（GPU→CPU）、上傳（建貼圖）、每段畫格；[次數, 總 µs, 最大 µs]。量測用，不影響畫面。
+var stage_stats := {}
+func _stat(k: String, us: int) -> void:
+	var e: Array = stage_stats.get(k, [0, 0, 0])
+	stage_stats[k] = [int(e[0]) + 1, int(e[1]) + us, maxi(int(e[2]), us)]
+
+func _mk_tex(img: Image) -> ImageTexture:
+	var t0 := Time.get_ticks_usec()
+	var t := ImageTexture.create_from_image(img)
+	_stat("upload", Time.get_ticks_usec() - t0)
+	return t
+
+func stage_report() -> Dictionary:
+	var out := {}
+	for k in stage_stats:
+		var e: Array = stage_stats[k]
+		out[k] = {"n": e[0], "total_ms": snappedf(int(e[1]) / 1000.0, 0.1), "max_ms": snappedf(int(e[2]) / 1000.0, 0.1)}
+	return out
+
 func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
 	painter.cell_from = 0
 	painter.cell_to = PAINT_CHUNK
@@ -267,11 +286,13 @@ func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
 	await RenderingServer.frame_post_draw
 	var c0 := PAINT_CHUNK
 	while c0 < total:
+		var t_pf := Time.get_ticks_usec()
 		painter.cell_from = c0
 		painter.cell_to = c0 + PAINT_CHUNK
 		painter.queue_redraw()
 		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 		await RenderingServer.frame_post_draw
+		_stat("paint_frame", Time.get_ticks_usec() - t_pf)   # 一段畫格＋等到畫完（含當幀其他工作）
 		c0 += PAINT_CHUNK
 	await RenderingServer.frame_post_draw
 	return vp
@@ -300,7 +321,7 @@ func _bake_page(types: Array) -> void:
 				pages[i] = null
 				break
 	var pn := pages.size()
-	pages.append({"tex": ImageTexture.create_from_image(img), "types": types})
+	pages.append({"tex": _mk_tex(img), "types": types})
 	for k in types.size():
 		loc[types[k]] = [pn, k * 2 * FRAMES_PER]
 
@@ -309,7 +330,9 @@ func _bake_page(types: Array) -> void:
 func _post_vp(src: SubViewport, per := FRAMES_PER) -> Image:
 	var sh_path := "res://shaders/unit_bake.gdshader"
 	if not ResourceLoader.exists(sh_path) or bool(Save.s("plain_ui")):
+		var t_rb := Time.get_ticks_usec()
 		var raw := src.get_texture().get_image()
+		_stat("readback", Time.get_ticks_usec() - t_rb)
 		src.queue_free()
 		return raw
 	var out := await _post_tex(src.get_texture(), src.size, per)
@@ -332,7 +355,9 @@ func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
 	var vp := _viewport(size, tr)
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
+	var t_rb := Time.get_ticks_usec()
 	var out := vp.get_texture().get_image()
+	_stat("readback", Time.get_ticks_usec() - t_rb)
 	vp.queue_free()
 	return out
 
@@ -344,7 +369,7 @@ func _bake_ring(cb: bool) -> void:
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	if g0 == _gen:
-		ring_tex = ImageTexture.create_from_image(vp.get_texture().get_image())
+		ring_tex = _mk_tex(vp.get_texture().get_image())
 	vp.queue_free()
 
 ## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。
