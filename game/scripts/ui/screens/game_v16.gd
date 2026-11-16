@@ -376,6 +376,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_share()
 		"songbook":
 			_draw_songbook()
+		"sb_full":
+			_draw_sb_full()
 		"campaign":
 			call("_draw_campaign")
 		"rush_end":
@@ -740,15 +742,31 @@ func _daily_finish(w: int) -> void:
 ## ── 1.2.0 §11.8 名局棋譜本 ──
 const SB = preload("res://scripts/game/songbook.gd")
 
+var sb_pending := {}   # 1.6.0 B16：滿六筆時等玩家確認的那一場 {c, n, note}
+
 func _sb_add_current() -> void:
 	if last_armies.size() != 2:
 		return
 	var code := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
+	if SB.add_check(Save.data.get("songbook", []), code) == "full":
+		# 1.6.0 B16（P13.1）：第七筆明示——先說會擠掉哪一筆，確認了才換
+		sb_pending = {"c": code, "n": _sb_title_now(), "note": _sb_note_now()}
+		overlay = "sb_full"
+		_focus = 0
+		return
+	_sb_commit(code, _sb_title_now(), _sb_note_now())
+
+func _sb_title_now() -> String:
 	var w: int = sim.winner if sim != null else -1
 	var res := L.t("sb_win") if w == 0 else (L.t("sb_lose") if w == 1 else L.t("sb_draw"))
-	var title := "%s　%s" % [Time.get_date_string_from_system(), res]
+	return "%s　%s" % [Time.get_date_string_from_system(), res]
+
+func _sb_note_now() -> String:
 	var marks: Array = _key_marks() if not report.is_empty() else []
-	var note := L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
+	return L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
+
+func _sb_commit(code: String, title: String, note: String) -> void:
+	sb_pending = {}
 	Save.data["songbook"] = SB.add(Save.data.get("songbook", []), code, title, note, int(Time.get_unix_time_from_system()))
 	if Save.save_data():
 		_toast(L.t("sb_added"))
@@ -757,12 +775,56 @@ func _sb_add_current() -> void:
 	overlay = "songbook"
 	_focus = 0
 
+## 滿了：說清楚會擠掉哪一筆（最舊的＝最下面那筆），替換／取消
+func _draw_sb_full() -> void:
+	_dim(0.6)
+	var book: Array = Save.data.get("songbook", [])
+	var old_n: String = str(book[book.size() - 1].get("n", "")) if not book.is_empty() else ""
+	var body := L.t("sb_full_body", [SB.MAX, old_n])
+	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("S"), 560) + GAP_L + 48.0 + GAP_L)
+	_panel(P)
+	var y := _h1(Vector2(640, P.position.y + 12), L.t("sb_full_title")) + GAP_L
+	_text(Vector2(640, y), body, tz("S"), Color.WHITE, true, false, 560)
+	_btn(Rect2(640 - 250, P.end.y - GAP_L - 48.0, 240, 48), L.t("sb_replace"), func(): _sb_confirm(), not sb_pending.is_empty(), true)
+	_btn(Rect2(640 + 10, P.end.y - GAP_L - 48.0, 240, 48), L.t("cancel"), func(): sb_pending = {}; overlay = "")
+	screen_register("result", "sb_replace")   # 結果頁的確認框：照結果類上限算（兩顆各算一顆；Codex B16 r1）
+
+## 確認替換：核對還是同一局（確認框開著時換了局＝過期，不收舊局；Codex B16 r1）
+func _sb_confirm() -> bool:
+	var cur := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds) if last_armies.size() == 2 else ""
+	if sb_pending.is_empty() or str(sb_pending.get("c", "")) != cur:
+		sb_pending = {}
+		overlay = ""
+		return false
+	_sb_commit(str(sb_pending["c"]), str(sb_pending.get("n", "")), str(sb_pending.get("note", "")))
+	return true
+
+## 隔離區：複製要真的進了剪貼簿才說成功；清掉要寫得進檔案才算數（寫不進＝還原、照實說）
+func _sb_bad_copy() -> bool:
+	var txt := "\n".join(PackedStringArray(Save.data.get("songbook_bad", [])))
+	DisplayServer.clipboard_set(txt)
+	var good := DisplayServer.clipboard_get() == txt
+	_toast(L.t("sb_bad_copied") if good else L.t("sb_bad_copy_fail"), not good)
+	return good
+
+func _sb_bad_clear() -> bool:
+	var keep = Save.data.get("songbook_bad", [])
+	Save.data.erase("songbook_bad")
+	if Save.save_data():
+		return true
+	Save.data["songbook_bad"] = keep
+	_toast(L.t("save_failed"), true)
+	return false
+
 func _draw_songbook() -> void:
 	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	_dim(0.6)
 	var book: Array = Save.data.get("songbook", [])
 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
+	var bad: Array = Save.data.get("songbook_bad", [])
+	var bad_txt := L.t("sb_bad", [bad.size()])
+	var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
 	if book.is_empty():
@@ -783,6 +845,15 @@ func _draw_songbook() -> void:
 		_btn(Rect2(r.end.x - 244, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
 		_btn(Rect2(r.end.x - 116, r.position.y + (rowh - 44.0) / 2.0, 104, 44), L.t("sb_del"), func(): Save.data["songbook"] = SB.remove(Save.data.get("songbook", []), idx); Save.save_data())
 		y += rowh + 8.0
+	if not bad.is_empty():
+		# 1.6.0 B16（P13.1）：讀不出來的紀錄隔離在這裡（原文還在）：複製出來救、或清掉
+		y += GAP_M - 8.0
+		_text(Vector2(640, y), bad_txt, tz("S"), Color(1, 0.8, 0.7), true, false, 680)
+		y += text_h(bad_txt, tz("S"), 680) + 8.0
+		btn_group = "sb_bad"
+		_btn(Rect2(640 - 250, y, 240, 44), L.t("sb_bad_copy"), func(): _sb_bad_copy())
+		_btn(Rect2(640 + 10, y, 240, 44), L.t("sb_bad_clear"), func(): _sb_bad_clear())
+		btn_group = ""
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 ## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。

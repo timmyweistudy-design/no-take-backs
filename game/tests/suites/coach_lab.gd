@@ -443,7 +443,8 @@ func test_play_tools_v120() -> void:
 	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C%d" % (SBx.MAX + 1), "棋譜本：新的在前、滿了丟最舊")
 	book = SBx.add(book, "C3", "t", "n", 99)
 	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C3" and book.filter(func(e): return str(e["c"]) == "C3").size() == 1, "同一場再收一次只會移到最前面")
-	ok(SBx.sanitize([{"c": 5}, "x", {"c": "OK", "t": "bad"}]).size() == 1, "棋譜本存檔逐筆驗型")
+	var okc: String = load("res://scripts/game/battle_code.gd").encode(F.training_pool(0)[2], F.training_pool(0)[9].mirrored())
+	ok(SBx.sanitize([{"c": 5}, "x", {"c": okc, "t": "bad"}]).size() == 1, "棋譜本存檔逐筆驗型（1.6.0 B16 起代碼要解得開）")
 	# §11.11 最近玩的
 	var RCx = load("res://scripts/game/recent.gd")
 	var rl: Array = RCx.push([], "hub_play", "menu_vs_ai")
@@ -529,3 +530,283 @@ func test_pad_tools_v120() -> void:
 	ok(not g._pad_tool(y) and int(g.armies[0].units[0]["row"]) == 8, "沒按 RT：Y 照原本（不翻轉）")
 	g.free()
 	SV.data = keep
+
+## 1.6.0 B15（P6.1～P6.2；S5）覆盤棋課：四類（換兵、移位、新增、拿掉）各 5 例存→讀回→重算 20/20 一致；
+## 八種失敗邊界（版本不符、壞筆、取消、重啟、過期重算、容量滿、重複保存、寫檔失敗）；正式副作用 0（存檔除了 lessons 以外不變）。
+func test_lesson_v1600() -> void:
+	var LS = load("res://scripts/game/lesson.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var RV = load("res://scripts/ui/replay_view.gd")
+	var base = Army.new(0, 300)
+	for p in [[0, 3, 2], [3, 4, 4], [1, 2, 6], [2, 1, 3], [0, 3, 7]]:
+		base.place(p[0], p[1], p[2])
+	var en = Army.new(1, 300)
+	for p in [[0, 12, 4], [2, 13, 2], [1, 12, 6], [0, 11, 3]]:
+		en.place(p[0], p[1], p[2])
+	var edits := {
+		"swap": [func(a): a.remove_at(3, 2); a.place(1, 3, 2), func(a): a.remove_at(4, 4); a.place(0, 4, 4), func(a): a.remove_at(2, 6); a.place(2, 2, 6), func(a): a.remove_at(1, 3); a.place(3, 1, 3), func(a): a.remove_at(3, 7); a.place(2, 3, 7)],
+		"move": [func(a): a.move(3, 2, 5, 2), func(a): a.move(4, 4, 5, 4), func(a): a.move(2, 6, 4, 6), func(a): a.move(1, 3, 0, 3), func(a): a.move(3, 7, 5, 8)],
+		"add": [func(a): a.place(0, 5, 1), func(a): a.place(1, 5, 5), func(a): a.place(2, 0, 0), func(a): a.place(3, 4, 8), func(a): a.place(0, 2, 4)],
+		"remove": [func(a): a.remove_at(3, 2), func(a): a.remove_at(4, 4), func(a): a.remove_at(2, 6), func(a): a.remove_at(1, 3), func(a): a.remove_at(3, 7)],
+	}
+	var list: Array = []
+	var kinds_ok := 0
+	for k in LS.KINDS:
+		for f in edits[k]:
+			var alt = base.copy()
+			f.call(alt)
+			if RV.review_changes(base, alt) == 1 and LS.kind_of(base, alt) == k:
+				kinds_ok += 1
+			var r0: Dictionary = RV.review_run(base, en, null, [])
+			var r1: Dictionary = RV.review_run(alt, en, null, [])
+			var e: Dictionary = LS.make(base, alt, en, null, [], r0, r1, RV.diverge_tick(r0["log2"], r1["log2"]))
+			list = LS.add(list, e)[0]
+	var ut_ok := 0
+	for e in list:
+		var ut: Array = e["u"]
+		ut_ok += 1 if (e["k"] == "add" and ut[0] == -1 and ut[1] >= 0) or (e["k"] == "remove" and ut[0] >= 0 and ut[1] == -1) or (e["k"] == "swap" and ut[0] >= 0 and ut[1] >= 0 and ut[0] != ut[1]) or (e["k"] == "move" and ut[0] >= 0 and ut[0] == ut[1]) else 0
+	ok(ut_ok == 20, "每則記下改了哪種兵（%d／20）" % ut_ok)
+	ok(kinds_ok == 20 and list.size() == 20, "四類各 5 例都判對類別、都只改一隻（%d／20、存了 %d 則）" % [kinds_ok, list.size()])
+	# 重啟：存檔來回序列化（JSON 整數變浮點）＋sanitize 後讀回、各自重算，結果和存的一樣
+	var d: Dictionary = JSON.parse_string(JSON.stringify({"lessons": list}))
+	SV.sanitize_extras(d)
+	var back: Array = d["lessons"]
+	var same := 0
+	for e in back:
+		var r: Dictionary = LS.restore(e)
+		if r["ok"] and not r["stale"] and LS.same_result(e, RV.review_run(r["orig"], r["enemy"], r["rules"], r["cmds"]), RV.review_run(r["alt"], r["enemy"], r["rules"], r["cmds"])) and LS.kind_of(r["orig"], r["alt"]) == e["k"]:
+			same += 1
+	ok(back.size() == 20 and same == 20, "重啟（存檔來回＋驗型）後讀回重算 20/20 一致（%d）" % same)
+	# 全場陣型：讀回後重新配編輯識別，類別照樣判得出來
+	var fa = Army.new(0, 100)   # 規則預算 100（碼裡預算要和規則一致）
+	fa.deploy = "free"
+	var fe := 0
+	for p in [[0, 1500, 2000], [3, 2500, 4000], [1, 1000, 6000]]:
+		fe += 1 if fa.place_xy(p[0], p[1], p[2]) else 0
+	if fe == 3:
+		for i in fa.units.size():
+			fa.units[i]["eid"] = i
+		var fb = fa.copy()
+		fb.move_xy(1, 2600, 4200)
+		var rr = RSET.standard()
+		rr.deploy = "free"   # 全場陣型要帶自由部署規則才編得成碼（同遊戲裡的 battle_rules）
+		var ef_en = Army.new(1, 100)
+		ef_en.deploy = "free"
+		ef_en.place_xy(0, 10500, 4000)
+		var r0f: Dictionary = RV.review_run(fa, ef_en, rr, [])
+		var ef: Dictionary = LS.make(fa, fb, ef_en, rr, [], r0f, RV.review_run(fb, ef_en, rr, []), -1)
+		var rf: Dictionary = LS.restore(ef)
+		ok(ef["k"] == "move" and rf["ok"] and LS.kind_of(rf["orig"], rf["alt"]) == "move", "全場陣型：移位讀回後仍判成移位（編輯識別重新配對）", str([ef["k"], rf.get("why"), str(ef["o"]).substr(0, 5)]))
+	else:
+		ok(false, "全場陣型樣本擺不進去（%d／3）" % fe)
+	# 帶規則的碼（NTB3：換地圖、改預算的那一型），讀回重算一致
+	var rr3 = RSET.standard()
+	rr3.budget = [120, 120]   # 改預算＝非標準規則，走 NTB3
+	var rb0 = Army.new(0, 120)
+	var rb1 = Army.new(1, 120)
+	rb0.place(0, 3, 2); rb0.place(3, 4, 4)
+	rb1.place(0, 12, 4); rb1.place(2, 13, 2)
+	var rb2 = rb0.copy()
+	rb2.remove_at(3, 2); rb2.place(1, 3, 2)
+	var e3: Dictionary = LS.make(rb0, rb2, rb1, rr3, [], RV.review_run(rb0, rb1, rr3, []), RV.review_run(rb2, rb1, rr3, []), -1)
+	var r3: Dictionary = LS.restore(e3)
+	ok(r3["ok"] and r3["rules"] != null and LS.same_result(e3, RV.review_run(r3["orig"], r3["enemy"], r3["rules"], r3["cmds"]), RV.review_run(r3["alt"], r3["enemy"], r3["rules"], r3["cmds"])), "帶規則的碼（改預算）：讀回重算一致", str([r3.get("why"), str(e3["o"]).substr(0, 4)]))
+	# 敵方預算不同的兩個碼＝不是同一組（Codex B15 r1）
+	var BCx = load("res://scripts/game/battle_code.gd")
+	var enb = en.copy()
+	enb.budget = 250
+	var ex: Dictionary = back[0].duplicate(true)
+	ex["a"] = BCx.encode(LS.restore(back[0])["alt"], enb, null, [])
+	ex["id"] = (str(ex["o"]) + "|" + str(ex["a"])).sha256_text().substr(0, 16)
+	ok(LS.restore(ex)["why"] == "pair", "兩個碼的敵方預算不同：不當成同一組")
+	var ebig: Dictionary = back[0].duplicate(true)
+	ebig["v"] = 1.0e30
+	ok(not LS.valid(ebig), "超大版本號不能溢位繞過")
+	var eu: Dictionary = back[0].duplicate(true)
+	eu["u"] = [1.0e30, -5]
+	var su: Array = LS.sanitize([eu])[0]
+	ok(su.size() == 1 and su[0]["u"] == [-1, -1], "兵種欄位壞了（超大浮點）：只清掉顯示、不丟整則")
+	var e0: Dictionary = back[0]
+	# ① 版本不符
+	var ev: Dictionary = e0.duplicate(true)
+	ev["v"] = LS.VERSION + 1
+	ok(LS.valid(ev) and LS.restore(ev)["why"] == "ver", "版本比遊戲新：讀得進清單但不還原（ver）")
+	# ② 壞筆：碼被改、型別亂、缺欄
+	var eb: Dictionary = e0.duplicate(true)
+	eb["a"] = str(eb["a"]).substr(0, str(eb["a"]).length() - 1) + "x"
+	var junk: Array = [eb, {"id": 3}, "x", null, {"v": 1, "id": "0123456789abcdef", "o": "a", "a": "b", "k": "swap", "ro": [0, 0, 0], "ra": [0, 0]}, e0]
+	var sj: Array = LS.sanitize(junk)
+	ok(sj[0].size() == 1 and int(sj[1]) == 5 and LS.sanitize("garbage")[0].is_empty() and LS.sanitize(null)[0].is_empty(), "壞筆：竄改、缺欄、亂型別都丟掉，好的留下（丟 %d）" % int(sj[1]))
+	var ep: Dictionary = e0.duplicate(true)
+	var other: Dictionary = back[1]
+	ep["a"] = other["a"]
+	ep["o"] = back[19]["o"]
+	ep["id"] = (str(ep["o"]) + "|" + str(ep["a"])).sha256_text().substr(0, 16)
+	ok(LS.valid(ep), "配對檢查樣本合格")
+	# ⑥ 容量滿、⑦ 重複保存
+	var full: Array = []
+	for i in LS.CAP:
+		var o := "O%d" % i
+		full.append({"v": 1, "id": (o + "|A").sha256_text().substr(0, 16), "o": o, "a": "A", "k": "add", "ro": [1, 50, 100], "ra": [0, 20, 120], "div": 10})
+	var rf2: Array = LS.add(full, e0)
+	ok(rf2[1] == "full" and rf2[0].size() == LS.CAP, "容量滿：不加、不擠掉舊的")
+	var rd: Array = LS.add(back, e0)
+	ok(rd[1] == "dup" and rd[0].size() == back.size(), "重複保存：同一組不重複記")
+	ok(LS.sanitize(full + [e0])[0].size() == LS.CAP, "存檔裡超過容量：只留前 %d 則" % LS.CAP)
+	# 畫面流程：真的覆盤 → 改一隻 → 重算 → 記進棋課；過期重算、取消、寫檔失敗、正式副作用
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	var keep: Dictionary = SV.data.duplicate(true)
+	SV.data.erase("lessons")
+	g.last_armies = [base.copy(), en.copy()]
+	g.last_cmds = []
+	g.battle_rules = null
+	g._open_review()
+	var before: Dictionary = SV.data.duplicate(true)
+	ok(not g._rv_can_save(), "還沒重算不能記")
+	g.rv_army.remove_at(3, 2)
+	g._rv_dirty()
+	g._rv_recalc()
+	ok(g._rv_can_save(), "重算完成、只改一隻：可以記")
+	g._rv_dirty()
+	ok(not g._rv_can_save(), "過期重算：改了陣型（世代換了）就不能記舊結果")
+	g._rv_recalc()
+	var lk0: bool = SV.data_locked
+	SV.data_locked = false   # 前面的測試可能留下「未來版存檔鎖定」（鎖定時存檔一律回成功）
+	SV.fail_inject = {"tmp": 1}
+	var st1: String = g._rv_save_lesson()
+	ok(st1 == "unsaved" and SV.has_unsaved() and SV.data.get("lessons", []).size() == 1, "寫檔失敗：留在記憶體、標未存、照實說（%s）" % st1)
+	ok(SV.retry_pending() and not SV.has_unsaved(), "寫檔失敗後重試寫進去")
+	ok(g._rv_save_lesson() == "dup", "畫面上再按一次＝已經記過")
+	var after: Dictionary = SV.data.duplicate(true)
+	var lessons_now: Array = after.get("lessons", [])
+	after.erase("lessons")
+	ok(var_to_str(after) == var_to_str(before), "正式副作用 0：存檔除了棋課以外一個欄位都沒變（統計、進度、成就、紀錄、日誌）")
+	# 棋課本：重算核對、取消
+	g.rv_tab = 2
+	g._ls_check(lessons_now[0])
+	ok(g.ls_check.get(lessons_now[0]["id"]) == "ok", "棋課本：重算核對和記下時一致", str(g.ls_check))
+	g._ls_done(lessons_now[0], false, [{"cancel": true}, {}])
+	ok(not g.ls_check.has(lessons_now[0]["id"]), "取消：不留半套狀態")
+	var stl: Dictionary = lessons_now[0].duplicate(true)
+	g._ls_done(stl, true, [{}, {}])
+	ok(g.ls_check.get(stl["id"]) == "stale", "規則版本不同：標出來（照現在規則重算，不拿存的當真）")
+	# 分頁：每頁筆數照字級與高度算（大字級少、至少 1、最多 5），最後一列鈕不超過返回列
+	ok(GS.ls_per_page(260.0, 15) >= 2 and GS.ls_per_page(260.0, 27) <= GS.ls_per_page(260.0, 15) and GS.ls_per_page(600.0, 27) == 1 and GS.ls_per_page(260.0, 27) * (27 * 1.5 * 3.0 + 60.0) <= 370.0, "棋課本每頁筆數照字級算（15→%d、27→%d）" % [GS.ls_per_page(260.0, 15), GS.ls_per_page(260.0, 27)])
+	SV.data["lessons"] = lessons_now
+	# 看如果：走看對戰代碼的路，覆盤收掉、變成觀看
+	g._ls_watch(lessons_now[0])
+	ok(g.overlay == "" and g.watch_mode and g.play_kind == "replay" and g.ls_thread == null, "看如果：覆盤收掉、走觀看（%s/%s/%s）" % [g.overlay, g.watch_mode, g.play_kind])
+	g._ls_delete(lessons_now[0]["id"])
+	ok(SV.data.get("lessons", []).is_empty(), "刪除")
+	g.free()
+	SV.data = keep
+	SV.save_data()
+	SV.data_locked = lk0
+	# P6.1 證據分層
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	var rvs: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+	ok(gr.find("line = L.t(\"ev_observed\", [line])") >= 0 and rvs.find("var vt := L.t(\"ev_verified\")") >= 0, "證據分層：敗因卡標「觀察」、覆盤重算後標「此條件下已驗證」")
+
+
+## 1.6.0 B16（P13.1、P6.5）棋譜本：壞資料隔離與恢復、第七筆明示替換、結果「更多」直接收。
+func test_songbook_v1600() -> void:
+	var SBx = load("res://scripts/game/songbook.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var BCx = load("res://scripts/game/battle_code.gd")
+	var pool := F.training_pool(0)
+	var codes: Array = []
+	for i in 8:
+		codes.append(BCx.encode(pool[i], pool[(i + 3) % pool.size()].mirrored()))
+	var good := {"c": codes[0], "n": "a", "note": "b", "t": 5}
+	var broken := {"c": str(codes[1]).substr(0, 40) + "zz", "n": "壞", "note": "", "t": 6}
+	var sp: Array = SBx.split([good, broken, 7, {"c": codes[2], "t": 1.0e30}])
+	ok(sp[0].size() == 2 and sp[1].size() == 2 and int(sp[0][1]["t"]) == 0, "壞碼與亂型別隔離（不丟）、好的留下、超大時間歸零（好 %d、壞 %d）" % [sp[0].size(), sp[1].size()])
+	ok(str(sp[1][0]).find(str(broken["c"])) >= 0, "隔離的是原文（可以複製出來救）")
+	# 存檔路徑：讀回時隔離進 songbook_bad；全部正常的舊存檔不多出欄位
+	var d := {"songbook": [good, broken]}
+	SV.sanitize_data(d)
+	ok((d["songbook"] as Array).size() == 1 and (d.get("songbook_bad", []) as Array).size() == 1, "存檔讀回：壞的一筆移到隔離區")
+	var d2: Dictionary = JSON.parse_string(JSON.stringify(d))
+	SV.sanitize_data(d2)
+	ok((d2["songbook"] as Array).size() == 1 and (d2.get("songbook_bad", []) as Array).size() == 1, "重啟後隔離區照舊（不重複、不消失）")
+	var d3 := {"songbook": [good]}
+	SV.sanitize_data(d3)
+	ok(not d3.has("songbook_bad"), "全部正常：不多出隔離欄位（舊進度不改寫）")
+	ok(SBx.sanitize_bad([1, "x", "x", "y"]) == ["x", "y"], "隔離區驗型、去重")
+	# 第七筆明示
+	var book: Array = []
+	for i in SBx.MAX:
+		book = SBx.add(book, codes[i], "t%d" % i, "n", i)
+	ok(SBx.add_check(book, codes[6]) == "full" and SBx.add_check(book, codes[2]) == "dup" and SBx.add_check([], codes[0]) == "ok", "加之前先問：滿了／已收過／可以")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	var keep: Dictionary = SV.data.duplicate(true)
+	SV.data["songbook"] = book.duplicate(true)
+	g.last_armies = [pool[6].copy(), pool[1].mirrored()]
+	g.last_cmds = []
+	g.battle_rules = null
+	g._sb_add_current()
+	ok(g.overlay == "sb_full" and (SV.data["songbook"] as Array) == book, "第七筆：先問，冊子還沒動")
+	g.sb_pending = {}
+	g.overlay = ""
+	ok((SV.data["songbook"] as Array) == book, "取消：冊子不變")
+	g._sb_add_current()
+	var pend: Dictionary = g.sb_pending.duplicate()
+	g.last_armies = [pool[7].copy(), pool[1].mirrored()]   # 確認框開著時換了一局
+	ok(not g._sb_confirm() and (SV.data["songbook"] as Array) == book and g.sb_pending.is_empty(), "過期的確認不收舊局")
+	g.last_armies = [pool[6].copy(), pool[1].mirrored()]
+	g._sb_add_current()
+	ok(g.sb_pending == pend, "同一局再按：同一個待確認")
+	ok(g._sb_confirm(), "確認替換")
+	var nb: Array = SV.data["songbook"]
+	ok(nb.size() == SBx.MAX and str(nb[0]["c"]) != str(book[0]["c"]) and nb.filter(func(e): return str(e["c"]) == str(book[SBx.MAX - 1]["c"])).is_empty(), "確認替換：新的在最上面、最舊那筆（畫面上說的那筆）被換掉")
+	# 清掉：寫檔失敗＝還原
+	var lk1: bool = SV.data_locked
+	SV.data_locked = false
+	SV.data["songbook_bad"] = ["x"]
+	SV.fail_inject = {"tmp": 1}
+	ok(not g._sb_bad_clear() and SV.data.get("songbook_bad", []) == ["x"], "清掉時寫檔失敗：隔離區還原")
+	SV.retry_pending()
+	ok(g._sb_bad_clear() and not SV.data.has("songbook_bad"), "清掉")
+	g.free()
+	SV.data = keep
+	SV.save_data()
+	SV.data_locked = lk1
+	# 讀檔成本與邊界：存成 null、巨量、巢狀
+	var dn := {"songbook": null}
+	SV.sanitize_data(dn)
+	ok((dn["songbook"] as Array).is_empty() and (dn.get("songbook_bad", []) as Array).size() == 1, "棋譜本存成 null：隔離（不默默消失）")
+	var huge: Array = []
+	for i in 500:
+		huge.append({"c": codes[0]})
+	var nest := {"c": [[[[1]]]], "n": "x".repeat(20000)}
+	var t0 := Time.get_ticks_msec()
+	var sph: Array = SBx.split(huge + [nest])
+	ok(sph[0].size() == 1 and Time.get_ticks_msec() - t0 < 500 and str(sph[1][-1]).begins_with("+"), "巨量重複：只看前 %d 筆、重複不重解（%d ms）" % [SBx.SCAN_MAX, Time.get_ticks_msec() - t0])
+	# 存檔路徑：前面已有不同壞資料時，「+N」超量提示也留得住
+	var mix: Array = []
+	for i in 10:
+		mix.append({"c": "bad%d" % i})
+	for i in 40:
+		mix.append({"c": codes[0]})
+	var dm := {"songbook": mix}
+	SV.sanitize_data(dm)
+	ok(str((dm["songbook_bad"] as Array)[0]).begins_with("+") and (dm["songbook_bad"] as Array).size() == SBx.BAD_MAX, "前面有壞資料時，超量提示仍在隔離區（%s）" % str(dm["songbook_bad"][0]))
+	var full7: Array = []
+	for i in SBx.MAX:
+		full7.append({"c": codes[i]})
+	full7.append({"c": "bad-after-full"})
+	var sf: Array = SBx.split(full7)
+	ok(sf[0].size() == SBx.MAX and sf[1].size() == 1 and str(sf[1][0]).find("bad-after-full") >= 0, "冊子滿了之後的壞碼也進隔離區（Codex B16 r3）")
+	var bigbad: Array = []
+	for i in 100000:
+		bigbad.append("s%d" % i)
+	var t1 := Time.get_ticks_msec()
+	ok(SBx.sanitize_bad(bigbad).size() == SBx.BAD_MAX and Time.get_ticks_msec() - t1 < 100, "隔離區有界（十萬筆 %d ms）" % (Time.get_ticks_msec() - t1))
+	var spn: Array = SBx.split([nest])
+	ok(spn[1].size() == 1 and str(spn[1][0]).length() <= SBx.BAD_TEXT, "巢狀／超長：只留截過的原文")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gr.find("res_more_items.append([L.t(\"sb_add\"), func(): call(\"_sb_add_current\")])") >= 0, "結果頁「更多」直接收進棋譜本")

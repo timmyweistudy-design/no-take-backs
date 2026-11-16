@@ -697,6 +697,18 @@ func _run_screenshots() -> void:
 	Save.data["songbook"] = [{"c": sb_code, "n": "2026-11-12　" + L.t("sb_win"), "note": L.t("sb_note", [L.t("tl_lead") + " 23s"]), "t": 0},
 		{"c": sb_code + "", "n": "2026-11-11　" + L.t("sb_lose"), "note": L.t("sb_note_none"), "t": 0}]
 	await _snap("v120_05_songbook.png")
+	# 1.6.0 B16（P13.1）：隔離區（讀不出來的紀錄原文還在）＋滿六筆時的替換確認
+	Save.data["songbook_bad"] = ["{\"c\":\"NTB2.broken\",\"n\":\"2026-11-01\"}"]
+	await _snap("v160_16d_songbook_bad.png")
+	Save.data.erase("songbook_bad")
+	var sb6: Array = []
+	for i in 6:
+		sb6.append({"c": sb_code + ("" if i == 0 else "#%d" % i), "n": "2026-11-%02d　%s" % [10 - i, L.t("sb_win") if i % 2 == 0 else L.t("sb_lose")], "note": L.t("sb_note_none"), "t": 0})
+	Save.data["songbook"] = sb6
+	sb_pending = {"c": "x", "n": "t", "note": ""}
+	overlay = "sb_full"
+	await _snap("v160_16e_songbook_full.png")
+	sb_pending = {}
 	Save.data["songbook"] = []
 	overlay = ""
 	difficulty = 1
@@ -1010,6 +1022,21 @@ func _run_screenshots() -> void:
 	await _snap("v160_16a_review_edit.png")   # 1.6.0 B07（P2.5）：覆盤「改動」頁（重算前）
 	_rv_recalc()
 	await _snap("16_review.png")   # 重算好了自動翻到「讀結果」頁
+	# 1.6.0 B15（P6.2）：記進棋課 → 棋課本頁（重算核對過）。存檔的 lessons 拍完還原（不影響後面的截圖）
+	var ls_keep = Save.data.get("lessons", null)
+	Save.data["lessons"] = []
+	_rv_save_lesson()
+	toast = ""
+	toast_t = 0.0
+	rv_tab = 2
+	_ls_check(_ls_list()[0])
+	await _snap("v160_16c_lesson_book.png")
+	if ls_keep == null:
+		Save.data.erase("lessons")
+	else:
+		Save.data["lessons"] = ls_keep
+	ls_check.clear()
+	rv_tab = 1
 	# V1.4 #1 時光機：播放「如果」，原本時間線畫成地上的白圈
 	_rv_play()
 	while seek_target >= 0:

@@ -1,0 +1,850 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e4c9-82db-74a3-9ea5-a2a9870cee7e
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B15 第 3 輪＝最後一輪）。只讀。專案根目錄＝目前資料夾。
+第 2 輪 coordination/v1600-impl/b15-r1/codex2.md（有條件 2 條）；新差異 diff3.patch（同資料夾；快照 build/cg/b15/game）。
+處理：①長文分支：勝負一行（強調色）、「此條件下已驗證」自己一行（淡色），y 下移一行後才排第二張圖（圖的位置由 y 決定）；②`u` 先比浮點範圍再轉整數，壞了＝[-1,-1] 不丟整則（測試加一條）。
+只看這兩個修正。附行號。最多 2 條、150 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀核對這兩項修正、相關測試與行號。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'diff3.patch' -g 'codex2.md' -g '*b15*' coordination build/cg/b15/game" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 142ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v140-impl/cat08-r1/diff3.patch
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v140-impl/cat11-r1/codex2.md
+coordination/v1600-impl/b15-r1/diff3.patch
+coordination/v1600-impl/b15-r1/codex2.md
+coordination/v1600-impl/b15-r1/b15-plan.md
+coordination/v1600-impl/b15-plan.md
+coordination/v1600-impl/b07-r1/codex2.md
+coordination/v1600-impl/b11-r1/diff3.patch
+coordination/v1600-impl/b11-r1/codex2.md
+coordination/v1600-impl/b14-r1/diff3.patch
+coordination/v1600-impl/b14-r1/codex2.md
+coordination/v1600-impl/b10-r1/codex2.md
+coordination/v1600-impl/b09-r1/diff3.patch
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1600-impl/b06-r1/diff3.patch
+coordination/v1600-impl/b06-r1/codex2.md
+coordination/v1500-impl/cat07-r1/diff3.patch
+coordination/v1500-impl/cat07-r1/codex2.md
+coordination/v1500-impl/cat03-r1/diff3.patch
+coordination/v1500-impl/cat03-r1/codex2.md
+coordination/v1500-impl/cat01-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/codex2.md
+coordination/v1500-impl/cat01-r1/codex2.md
+coordination/v1500-impl/cat05-r1/codex2.md
+coordination/v1600-impl/b12-r1/diff3.patch
+coordination/v1600-impl/b12-r1/codex2.md
+coordination/v1600-impl/b04-r1/codex2.md
+coordination/v1600-impl/b02-r1/codex2.md
+coordination/v1600-impl/b05-r1/codex2.md
+coordination/v1600-impl/b08-r1/diff3.patch
+coordination/v1600-impl/b08-r1/codex2.md
+coordination/v1600-impl/b01-r1/codex2.md
+coordination/v1500-impl/cat04-r1/codex2.md
+coordination/v1600-impl/b03-r1/codex2.md
+coordination/v1500-impl/cat06-r1/codex2.md
+
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '"'!build'"' -g '"'!node_modules'"'; cat coordination/v1600-impl/b15-r1/codex2.md; cat coordination/v1600-impl/b15-r1/diff3.patch" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 192ms:
+行號均指快照；r＝scripts/ui/replay_view.gd，l＝scripts/game/lesson.gd。
+
+- P2｜r:825–828：長文分支把「此條件下已驗證」整句改成強調色；換行後圖表仍只下移一行，英文 150% 會與圖表重疊。應保留淡色，依實際文字高度排圖。
+- P2｜l:169：新增 `u` 欄仍先 `int()` 才驗範圍，超大浮點會進入溢位轉型。應先 `_is_int`＋數值範圍，再轉整數；不合法則保留預設值。
+
+其餘修正靜態核對無新增問題；執行緒收尾路徑合理，NTB7 沿用 cmds 還原，本輪不要求另加樣本。
+
+結論：有條件
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -665,6 +665,7 @@
+ 
+ func _rv_poll() -> void:
+ 	_rv_base_poll()
++	_ls_poll()
+ 	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
+ 		_rv_cancel()   # 離開覆盤或改了陣型：舊的不用算完
+ 		return
+@@ -680,6 +681,10 @@
+ ## 結束時：叫停再等（64 tick 內會停）；GIF 也叫停。
+ func _rv_exit() -> void:
+ 	_rv_cancel()
++	if ls_thread != null:
++		bg.retire(ls_thread)
++		ls_thread = null
++		ls_check.erase(ls_thread_id)
+ 	if rv_base_thread != null:
+ 		bg.retire(rv_base_thread)
+ 		rv_base_thread = null
+@@ -712,7 +717,7 @@
+ 	dy += 52.0
+ 	var cs := 40.0
+ 	var g0 := Vector2(130, 168 + dy)
+-	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_ro") if rv_tab == 1 else L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」；1.6.0 B07：讀結果頁只看（Hydrogen r1）
++	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_ro") if rv_tab >= 1 else L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」；1.6.0 B07：讀結果頁只看（Hydrogen r1）
+ 	if rv_orig.deploy == "free":
+ 		_rv_free_board(g0)
+ 	for r in (0 if rv_orig.deploy == "free" else 9):
+@@ -749,9 +754,13 @@
+ 	# 1.6.0 B07（P2.5）：右欄按任務分兩頁——「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果的走勢、分岔、播放）
+ 	var bx := 580.0
+ 	btn_group = "rv_tabs"
+-	for k in 2:
+-		_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k; rv_focus_main = true, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
++	for k in 3:   # 1.6.0 B15：第三頁「棋課本」
++		_btn(Rect2(bx + k * 186, tab_y, 180, 40), L.t(["rv_tab_edit", "rv_tab_read", "rv_tab_book"][k]), func(): rv_tab = k; rv_focus_main = true, k != 1 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+ 	btn_group = ""
++	if rv_tab == 2:
++		_rv_draw_book(bx, dy)
++		_btn(Rect2(560, 704, 160, 44), L.t("back"), func(): overlay = "")
++		return
+ 	if rv_tab == 1:
+ 		_rv_draw_read(bx, dy)
+ 		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+@@ -807,7 +816,16 @@
+ 		Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+ 	y += tz("S") * 1.5 + chh + 12.0
+ 	if not rv_result.is_empty():
+-		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
++		# 1.6.0 B15（P6.1）：重算過＝此條件下已驗證（淡色接在後面，和勝敗分開；放不下就整句一起換行）
++		var rn := L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])])
++		var vt := L.t("ev_verified")
++		if _width(rn, tz("S"), true) + _width("　" + vt, tz("S")) <= 552.0:
++			_text(Vector2(bx, y), rn, tz("S"), ACCENT, false, true, 552)
++			_text(Vector2(bx + _width(rn, tz("S"), true), y), "　" + vt, tz("S"), TXT_DIM, false, false, 552.0 - _width(rn, tz("S"), true))
++		else:
++			_text(Vector2(bx, y), rn, tz("S"), ACCENT, false, true, 552)
++			y += tz("S") * 1.5   # 放不下：驗證字自己一行，走勢圖往下讓（Hydrogen B15 r2：英文 150% 被圖蓋住）
++			_text(Vector2(bx, y), vt, tz("S"), TXT_DIM, false, true, 552)
+ 		var b1: Array = rv_result.get("b", [100, 100])
+ 		var c1 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
+ 		Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+@@ -817,12 +835,162 @@
+ 			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
+ 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+ 			y += tz("S") * 1.5
++		# 1.6.0 B15（P6.2）：把這組對照記進棋課本（只在重算完成、世代相符時能按）
++		_btn(Rect2(bx, y + 4, 270, 40), L.t("ls_save"), func(): _rv_save_lesson(), _rv_can_save())
+ 		if rv_focus_main:
+ 			_focus = _btns.size()
+ 			rv_focus_main = false
+ 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+ 
+ 
++## ── 1.6.0 B15（P6.2；S5）棋課本 ──
++const Lesson = preload("res://scripts/game/lesson.gd")
++const LS_PER_PAGE := 5
++var ls_page := 0
++var ls_check := {}        # id → "busy"／"ok"／"diff"／"stale"／"bad"
++var ls_thread: Thread = null
++var ls_thread_id := ""
++var ls_thread_e := {}
++var ls_thread_stale := false
++
++## 每頁幾則：一列最多＝標題兩行＋核對一行＋鈕列（40＋間距），從 y 排到 630 為止（翻頁列在 640）
++static func ls_per_page(y: float, sz: int) -> int:
++	return clampi(int((630.0 - y) / (sz * 1.5 * 3.0 + 60.0)), 1, LS_PER_PAGE)
++
++func _rv_can_save() -> bool:
++	return not rv_result.is_empty() and not rv_base.is_empty() and rv_thread == null and review_changes(rv_orig, rv_army) == 1 and Lesson.kind_of(rv_orig, rv_army) != ""
++
++## 存一則：不重複、滿了不擠掉舊的；寫檔失敗＝留在記憶體並標未存（Save 會重試），照實說。
++func _rv_save_lesson() -> String:
++	if not _rv_can_save():
++		return "bad"
++	var e := Lesson.make(rv_orig, rv_army, rv_enemy, battle_rules, last_cmds, rv_base, rv_result, rv_div)
++	var cur: Array = Lesson.sanitize(Save.data.get("lessons", []))[0]
++	var r: Array = Lesson.add(cur, e)
++	var st: String = r[1]
++	if st == "ok":
++		Save.data["lessons"] = r[0]
++		if not Save.save_data():
++			st = "unsaved"
++	_toast(L.t("ls_full", [Lesson.CAP]) if st == "full" else L.t({"ok": "ls_saved", "unsaved": "ls_unsaved", "dup": "ls_dup", "bad": "ls_bad"}[st]), st != "ok")
++	return st
++
++func _ls_list() -> Array:
++	return Lesson.sanitize(Save.data.get("lessons", []))[0]
++
++func _rv_draw_book(bx: float, dy: float) -> void:
++	var list := _ls_list()
++	var y := 168.0 + dy
++	if list.is_empty():
++		_text(Vector2(bx, y), L.t("ls_empty"), tz("S"), TXT_DIM, false, true, 552)
++		return
++	_text(Vector2(bx, y), L.t("ls_intro"), tz("S"), TXT_DIM, false, true, 552)   # 這一頁在做什麼（Hydrogen B15 r1）
++	y += text_h(L.t("ls_intro"), tz("S"), 552) + 10.0
++	# 每頁幾則照字級與可用高度算（標題可能兩行＋核對狀態＋一列鈕），不溢出到翻頁／返回（Codex B15 r1）
++	var per := ls_per_page(y, tz("S"))
++	var pages := maxi(1, ceili(list.size() / float(per)))
++	ls_page = clampi(ls_page, 0, pages - 1)
++	for i in range(ls_page * per, mini(list.size(), (ls_page + 1) * per)):
++		var e: Dictionary = list[list.size() - 1 - i]   # 新的在上面
++		var id: String = e["id"]
++		var ut: Array = e.get("u", [-1, -1])
++		var what := L.t("ls_kind_" + str(e["k"]))
++		if int(ut[0]) >= 0 and int(ut[1]) >= 0 and int(ut[0]) != int(ut[1]):
++			what += L.t("ls_types", [L.t("unit_%d" % int(ut[0])), L.t("unit_%d" % int(ut[1]))])
++		elif maxi(int(ut[0]), int(ut[1])) >= 0:
++			what += L.t("ls_type1", [L.t("unit_%d" % maxi(int(ut[0]), int(ut[1])))])
++		var head := L.t("ls_row", [what, _rv_outcome(int(e["ro"][0]), int(e["ro"][1])), _rv_outcome(int(e["ra"][0]), int(e["ra"][1]))])
++		_text(Vector2(bx, y), head, tz("S"), Color.WHITE, false, true, 552)
++		var hy := y + text_h(head, tz("S"), 552)   # 標題在 150% 會換行：照實際高度往下排
++		var st: String = ls_check.get(id, "")
++		if st != "":
++			var sl: String = L.t("busy_review") if st == "busy" else L.t("ls_" + st)
++			_text(Vector2(bx, hy + 2), sl, tz("S"), ACCENT if st == "ok" else (TXT_DIM if st == "busy" else Color(1, 0.75, 0.7)), false, true, 552)
++			hy += 2 + text_h(sl, tz("S"), 552)
++		var by := hy + 8.0
++		btn_group = "ls_row%d" % i   # 每列一組（R14 照列算）
++		_btn(Rect2(bx, by, 180, 40), L.t("ls_check"), _ls_check.bind(e), ls_thread == null)
++		_btn(Rect2(bx + 186, by, 180, 40), L.t("ls_watch"), _ls_watch.bind(e), st != "bad")
++		_btn(Rect2(bx + 372, by, 180, 40), L.t("ls_del"), _ls_delete.bind(id))
++		btn_group = ""
++		y = by + 52.0
++	if pages > 1:
++		_text(Vector2(bx + 276, 650), L.t("ls_page", [ls_page + 1, pages]), tz("S"), TXT_DIM, true, true, 200)
++		btn_group = "ls_pages"
++		_btn(Rect2(bx, 640, 120, 40), "‹", func(): ls_page = maxi(0, ls_page - 1), ls_page > 0)
++		_btn(Rect2(bx + 432, 640, 120, 40), "›", func(): ls_page = mini(pages - 1, ls_page + 1), ls_page < pages - 1)
++		btn_group = ""
++
++## 重算核對：兩個碼各自重算，和存的結果比（S5 20/20 還原的判準）。規則版本不同＝照現在規則重算、標出來。
++func _ls_check(e: Dictionary) -> void:
++	if ls_thread != null:
++		return
++	var r := Lesson.restore(e)
++	if not r["ok"]:
++		ls_check[e["id"]] = "bad"
++		return
++	ls_check[e["id"]] = "busy"
++	var o = r["orig"]
++	var a = r["alt"]
++	var en = r["enemy"]
++	var ru = r["rules"]
++	var cm: Array = r["cmds"]
++	if not _async_ok() or shot_dir != "":
++		_ls_done(e, bool(r["stale"]), [review_run(o, en, ru, cm), review_run(a, en, ru, cm)])
++		return
++	var ctl: Dictionary = BgPool.make_ctl(RV_LIMIT_MS * 2)
++	ls_thread = bg.start(func(): return [review_run(o, en, ru, cm, ctl), review_run(a, en, ru, cm, ctl)], ctl)
++	if ls_thread == null:
++		ls_check.erase(e["id"])
++		_toast(L.t("rv_fail"), true)
++		return
++	ls_thread_id = e["id"]
++	ls_thread_e = e
++	ls_thread_stale = bool(r["stale"])
++
++func _ls_done(e: Dictionary, stale: bool, res: Array) -> void:
++	if bool(res[0].get("cancel", false)) or bool(res[1].get("cancel", false)):
++		ls_check.erase(e["id"])
++		_toast(L.t("rv_slow"), true)
++		return
++	if stale:
++		ls_check[e["id"]] = "stale"
++	else:
++		ls_check[e["id"]] = "ok" if Lesson.same_result(e, res[0], res[1]) else "diff"
++
++func _ls_poll() -> void:
++	if ls_thread == null:
++		return
++	if overlay != "review" or rv_tab != 2:
++		bg.retire(ls_thread)   # 離開棋課本＝取消（不留半套結果）
++		ls_thread = null
++		ls_check.erase(ls_thread_id)
++		return
++	if not ls_thread.is_alive():
++		var res = bg.take(ls_thread)
++		ls_thread = null
++		if res is Array and res.size() == 2:
++			_ls_done(ls_thread_e, ls_thread_stale, res)
++		else:
++			ls_check.erase(ls_thread_id)
++
++## 看「如果」那一場：走看對戰代碼的路（全新一局的情境，不動目前這局的陣型、規則、軍令）
++func _ls_watch(e: Dictionary) -> void:
++	var r := Lesson.restore(e)
++	if not r["ok"]:
++		ls_check[e["id"]] = "bad"
++		_toast(L.t("ls_bad"), true)
++		return
++	_rv_exit()
++	overlay = ""
++	_watch_code_str(str(e["a"]))   # 走看對戰代碼的同一條路：試玩版鎖定兵種／地圖、規則版本提示都在裡面（Codex B15 r1）
++
++func _ls_delete(id: String) -> void:
++	Save.data["lessons"] = Lesson.remove(_ls_list(), id)
++	ls_check.erase(id)
++	if not Save.save_data():
++		_toast(L.t("ls_unsaved"), true)
++
+ ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
+ func _tm_new_ghost() -> void:
+ 	tm_ghost = Sim.new(rv_orig.copy(), rv_enemy.copy(), battle_rules)
+--- a/game/tests/suites/coach_lab.gd
++++ b/game/tests/suites/coach_lab.gd
+@@ -529,3 +529,178 @@
+ 	ok(not g._pad_tool(y) and int(g.armies[0].units[0]["row"]) == 8, "沒按 RT：Y 照原本（不翻轉）")
+ 	g.free()
+ 	SV.data = keep
++
++## 1.6.0 B15（P6.1～P6.2；S5）覆盤棋課：四類（換兵、移位、新增、拿掉）各 5 例存→讀回→重算 20/20 一致；
++## 八種失敗邊界（版本不符、壞筆、取消、重啟、過期重算、容量滿、重複保存、寫檔失敗）；正式副作用 0（存檔除了 lessons 以外不變）。
++func test_lesson_v1600() -> void:
++	var LS = load("res://scripts/game/lesson.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var RV = load("res://scripts/ui/replay_view.gd")
++	var base = Army.new(0, 300)
++	for p in [[0, 3, 2], [3, 4, 4], [1, 2, 6], [2, 1, 3], [0, 3, 7]]:
++		base.place(p[0], p[1], p[2])
++	var en = Army.new(1, 300)
++	for p in [[0, 12, 4], [2, 13, 2], [1, 12, 6], [0, 11, 3]]:
++		en.place(p[0], p[1], p[2])
++	var edits := {
++		"swap": [func(a): a.remove_at(3, 2); a.place(1, 3, 2), func(a): a.remove_at(4, 4); a.place(0, 4, 4), func(a): a.remove_at(2, 6); a.place(2, 2, 6), func(a): a.remove_at(1, 3); a.place(3, 1, 3), func(a): a.remove_at(3, 7); a.place(2, 3, 7)],
++		"move": [func(a): a.move(3, 2, 5, 2), func(a): a.move(4, 4, 5, 4), func(a): a.move(2, 6, 4, 6), func(a): a.move(1, 3, 0, 3), func(a): a.move(3, 7, 5, 8)],
++		"add": [func(a): a.place(0, 5, 1), func(a): a.place(1, 5, 5), func(a): a.place(2, 0, 0), func(a): a.place(3, 4, 8), func(a): a.place(0, 2, 4)],
++		"remove": [func(a): a.remove_at(3, 2), func(a): a.remove_at(4, 4), func(a): a.remove_at(2, 6), func(a): a.remove_at(1, 3), func(a): a.remove_at(3, 7)],
++	}
++	var list: Array = []
++	var kinds_ok := 0
++	for k in LS.KINDS:
++		for f in edits[k]:
++			var alt = base.copy()
++			f.call(alt)
++			if RV.review_changes(base, alt) == 1 and LS.kind_of(base, alt) == k:
++				kinds_ok += 1
++			var r0: Dictionary = RV.review_run(base, en, null, [])
++			var r1: Dictionary = RV.review_run(alt, en, null, [])
++			var e: Dictionary = LS.make(base, alt, en, null, [], r0, r1, RV.diverge_tick(r0["log2"], r1["log2"]))
++			list = LS.add(list, e)[0]
++	var ut_ok := 0
++	for e in list:
++		var ut: Array = e["u"]
++		ut_ok += 1 if (e["k"] == "add" and ut[0] == -1 and ut[1] >= 0) or (e["k"] == "remove" and ut[0] >= 0 and ut[1] == -1) or (e["k"] == "swap" and ut[0] >= 0 and ut[1] >= 0 and ut[0] != ut[1]) or (e["k"] == "move" and ut[0] >= 0 and ut[0] == ut[1]) else 0
++	ok(ut_ok == 20, "每則記下改了哪種兵（%d／20）" % ut_ok)
++	ok(kinds_ok == 20 and list.size() == 20, "四類各 5 例都判對類別、都只改一隻（%d／20、存了 %d 則）" % [kinds_ok, list.size()])
++	# 重啟：存檔來回序列化（JSON 整數變浮點）＋sanitize 後讀回、各自重算，結果和存的一樣
++	var d: Dictionary = JSON.parse_string(JSON.stringify({"lessons": list}))
++	SV.sanitize_extras(d)
++	var back: Array = d["lessons"]
++	var same := 0
++	for e in back:
++		var r: Dictionary = LS.restore(e)
++		if r["ok"] and not r["stale"] and LS.same_result(e, RV.review_run(r["orig"], r["enemy"], r["rules"], r["cmds"]), RV.review_run(r["alt"], r["enemy"], r["rules"], r["cmds"])) and LS.kind_of(r["orig"], r["alt"]) == e["k"]:
++			same += 1
++	ok(back.size() == 20 and same == 20, "重啟（存檔來回＋驗型）後讀回重算 20/20 一致（%d）" % same)
++	# 全場陣型：讀回後重新配編輯識別，類別照樣判得出來
++	var fa = Army.new(0, 100)   # 規則預算 100（碼裡預算要和規則一致）
++	fa.deploy = "free"
++	var fe := 0
++	for p in [[0, 1500, 2000], [3, 2500, 4000], [1, 1000, 6000]]:
++		fe += 1 if fa.place_xy(p[0], p[1], p[2]) else 0
++	if fe == 3:
++		for i in fa.units.size():
++			fa.units[i]["eid"] = i
++		var fb = fa.copy()
++		fb.move_xy(1, 2600, 4200)
++		var rr = RSET.standard()
++		rr.deploy = "free"   # 全場陣型要帶自由部署規則才編得成碼（同遊戲裡的 battle_rules）
++		var ef_en = Army.new(1, 100)
++		ef_en.deploy = "free"
++		ef_en.place_xy(0, 10500, 4000)
++		var r0f: Dictionary = RV.review_run(fa, ef_en, rr, [])
++		var ef: Dictionary = LS.make(fa, fb, ef_en, rr, [], r0f, RV.review_run(fb, ef_en, rr, []), -1)
++		var rf: Dictionary = LS.restore(ef)
++		ok(ef["k"] == "move" and rf["ok"] and LS.kind_of(rf["orig"], rf["alt"]) == "move", "全場陣型：移位讀回後仍判成移位（編輯識別重新配對）", str([ef["k"], rf.get("why"), str(ef["o"]).substr(0, 5)]))
++	else:
++		ok(false, "全場陣型樣本擺不進去（%d／3）" % fe)
++	# 帶規則的碼（NTB3：換地圖、改預算的那一型），讀回重算一致
++	var rr3 = RSET.standard()
++	rr3.budget = [120, 120]   # 改預算＝非標準規則，走 NTB3
++	var rb0 = Army.new(0, 120)
++	var rb1 = Army.new(1, 120)
++	rb0.place(0, 3, 2); rb0.place(3, 4, 4)
++	rb1.place(0, 12, 4); rb1.place(2, 13, 2)
++	var rb2 = rb0.copy()
++	rb2.remove_at(3, 2); rb2.place(1, 3, 2)
++	var e3: Dictionary = LS.make(rb0, rb2, rb1, rr3, [], RV.review_run(rb0, rb1, rr3, []), RV.review_run(rb2, rb1, rr3, []), -1)
++	var r3: Dictionary = LS.restore(e3)
++	ok(r3["ok"] and r3["rules"] != null and LS.same_result(e3, RV.review_run(r3["orig"], r3["enemy"], r3["rules"], r3["cmds"]), RV.review_run(r3["alt"], r3["enemy"], r3["rules"], r3["cmds"])), "帶規則的碼（改預算）：讀回重算一致", str([r3.get("why"), str(e3["o"]).substr(0, 4)]))
++	# 敵方預算不同的兩個碼＝不是同一組（Codex B15 r1）
++	var BCx = load("res://scripts/game/battle_code.gd")
++	var enb = en.copy()
++	enb.budget = 250
++	var ex: Dictionary = back[0].duplicate(true)
++	ex["a"] = BCx.encode(LS.restore(back[0])["alt"], enb, null, [])
++	ex["id"] = (str(ex["o"]) + "|" + str(ex["a"])).sha256_text().substr(0, 16)
++	ok(LS.restore(ex)["why"] == "pair", "兩個碼的敵方預算不同：不當成同一組")
++	var ebig: Dictionary = back[0].duplicate(true)
++	ebig["v"] = 1.0e30
++	ok(not LS.valid(ebig), "超大版本號不能溢位繞過")
++	var eu: Dictionary = back[0].duplicate(true)
++	eu["u"] = [1.0e30, -5]
++	var su: Array = LS.sanitize([eu])[0]
++	ok(su.size() == 1 and su[0]["u"] == [-1, -1], "兵種欄位壞了（超大浮點）：只清掉顯示、不丟整則")
++	var e0: Dictionary = back[0]
++	# ① 版本不符
++	var ev: Dictionary = e0.duplicate(true)
++	ev["v"] = LS.VERSION + 1
++	ok(LS.valid(ev) and LS.restore(ev)["why"] == "ver", "版本比遊戲新：讀得進清單但不還原（ver）")
++	# ② 壞筆：碼被改、型別亂、缺欄
++	var eb: Dictionary = e0.duplicate(true)
++	eb["a"] = str(eb["a"]).substr(0, str(eb["a"]).length() - 1) + "x"
++	var junk: Array = [eb, {"id": 3}, "x", null, {"v": 1, "id": "0123456789abcdef", "o": "a", "a": "b", "k": "swap", "ro": [0, 0, 0], "ra": [0, 0]}, e0]
++	var sj: Array = LS.sanitize(junk)
++	ok(sj[0].size() == 1 and int(sj[1]) == 5 and LS.sanitize("garbage")[0].is_empty() and LS.sanitize(null)[0].is_empty(), "壞筆：竄改、缺欄、亂型別都丟掉，好的留下（丟 %d）" % int(sj[1]))
++	var ep: Dictionary = e0.duplicate(true)
++	var other: Dictionary = back[1]
++	ep["a"] = other["a"]
++	ep["o"] = back[19]["o"]
++	ep["id"] = (str(ep["o"]) + "|" + str(ep["a"])).sha256_text().substr(0, 16)
++	ok(LS.valid(ep), "配對檢查樣本合格")
++	# ⑥ 容量滿、⑦ 重複保存
++	var full: Array = []
++	for i in LS.CAP:
++		var o := "O%d" % i
++		full.append({"v": 1, "id": (o + "|A").sha256_text().substr(0, 16), "o": o, "a": "A", "k": "add", "ro": [1, 50, 100], "ra": [0, 20, 120], "div": 10})
++	var rf2: Array = LS.add(full, e0)
++	ok(rf2[1] == "full" and rf2[0].size() == LS.CAP, "容量滿：不加、不擠掉舊的")
++	var rd: Array = LS.add(back, e0)
++	ok(rd[1] == "dup" and rd[0].size() == back.size(), "重複保存：同一組不重複記")
++	ok(LS.sanitize(full + [e0])[0].size() == LS.CAP, "存檔裡超過容量：只留前 %d 則" % LS.CAP)
++	# 畫面流程：真的覆盤 → 改一隻 → 重算 → 記進棋課；過期重算、取消、寫檔失敗、正式副作用
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	var keep: Dictionary = SV.data.duplicate(true)
++	SV.data.erase("lessons")
++	g.last_armies = [base.copy(), en.copy()]
++	g.last_cmds = []
++	g.battle_rules = null
++	g._open_review()
++	var before: Dictionary = SV.data.duplicate(true)
++	ok(not g._rv_can_save(), "還沒重算不能記")
++	g.rv_army.remove_at(3, 2)
++	g._rv_dirty()
++	g._rv_recalc()
++	ok(g._rv_can_save(), "重算完成、只改一隻：可以記")
++	g._rv_dirty()
++	ok(not g._rv_can_save(), "過期重算：改了陣型（世代換了）就不能記舊結果")
++	g._rv_recalc()
++	SV.fail_inject = {"tmp": 1}
++	var st1: String = g._rv_save_lesson()
++	ok(st1 == "unsaved" and SV.has_unsaved() and SV.data.get("lessons", []).size() == 1, "寫檔失敗：留在記憶體、標未存、照實說（%s）" % st1)
++	ok(SV.retry_pending() and not SV.has_unsaved(), "寫檔失敗後重試寫進去")
++	ok(g._rv_save_lesson() == "dup", "畫面上再按一次＝已經記過")
++	var after: Dictionary = SV.data.duplicate(true)
++	var lessons_now: Array = after.get("lessons", [])
++	after.erase("lessons")
++	ok(var_to_str(after) == var_to_str(before), "正式副作用 0：存檔除了棋課以外一個欄位都沒變（統計、進度、成就、紀錄、日誌）")
++	# 棋課本：重算核對、取消
++	g.rv_tab = 2
++	g._ls_check(lessons_now[0])
++	ok(g.ls_check.get(lessons_now[0]["id"]) == "ok", "棋課本：重算核對和記下時一致", str(g.ls_check))
++	g._ls_done(lessons_now[0], false, [{"cancel": true}, {}])
++	ok(not g.ls_check.has(lessons_now[0]["id"]), "取消：不留半套狀態")
++	var stl: Dictionary = lessons_now[0].duplicate(true)
++	g._ls_done(stl, true, [{}, {}])
++	ok(g.ls_check.get(stl["id"]) == "stale", "規則版本不同：標出來（照現在規則重算，不拿存的當真）")
++	# 分頁：每頁筆數照字級與高度算（大字級少、至少 1、最多 5），最後一列鈕不超過返回列
++	ok(GS.ls_per_page(260.0, 15) >= 2 and GS.ls_per_page(260.0, 27) <= GS.ls_per_page(260.0, 15) and GS.ls_per_page(600.0, 27) == 1 and GS.ls_per_page(260.0, 27) * (27 * 1.5 * 3.0 + 60.0) <= 370.0, "棋課本每頁筆數照字級算（15→%d、27→%d）" % [GS.ls_per_page(260.0, 15), GS.ls_per_page(260.0, 27)])
++	SV.data["lessons"] = lessons_now
++	# 看如果：走看對戰代碼的路，覆盤收掉、變成觀看
++	g._ls_watch(lessons_now[0])
++	ok(g.overlay == "" and g.watch_mode and g.play_kind == "replay" and g.ls_thread == null, "看如果：覆盤收掉、走觀看（%s/%s/%s）" % [g.overlay, g.watch_mode, g.play_kind])
++	g._ls_delete(lessons_now[0]["id"])
++	ok(SV.data.get("lessons", []).is_empty(), "刪除")
++	g.free()
++	SV.data = keep
++	SV.save_data()
++	# P6.1 證據分層
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	var rvs: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
++	ok(gr.find("line = L.t(\"ev_observed\", [line])") >= 0 and rvs.find("var vt := L.t(\"ev_verified\")") >= 0, "證據分層：敗因卡標「觀察」、覆盤重算後標「此條件下已驗證」")
+--- a/game/scripts/game/lesson.gd
++++ b/game/scripts/game/lesson.gd
+@@ -0,0 +1,228 @@
++extends RefCounted
++## 1.6.0 B15（P6.2；S5）配對棋課紀錄：覆盤裡「只改一隻」重算過的一組對照，存成一則棋課。
++## 一則＝原局碼＋改局碼（同一個對手、同一份規則與軍令）＋改了什麼（四類：換兵、移位、新增、拿掉）＋兩邊的結果摘要＋分岔 tick。
++## 只存「此條件下已驗證」的東西：重算完成、世代相符才存；讀回時用兩個碼各自重算，結果要和存的時候一樣才算還原。
++## 純邏輯（不碰畫面、不碰存檔）：存檔欄位 Save.data["lessons"]，畫面在 replay_view.gd。
++## 「第一次戰力不同」只是分岔點，不是因果——畫面上照 rv_note 說明。
++const BattleCode = preload("res://scripts/game/battle_code.gd")
++const Army = preload("res://scripts/core/army.gd")
++
++const VERSION := 1
++const CAP := 30                 # 容量：滿了不自動丟舊的（玩家自己刪）
++const KINDS := ["swap", "move", "add", "remove"]
++const CODE_MAX := 8000          # 和 BattleCode.decode 的上限一致
++
++## 判斷改了哪一類（只改一隻時才有意義；改了不只一隻或沒改回 ""）。
++static func kind_of(orig, now) -> String:
++	if orig.deploy == "free":
++		var ma := {}
++		for u in orig.units:
++			ma[int(u.get("eid", -1))] = u
++		var seen := {}
++		var out := ""
++		var n := 0
++		for u in now.units:
++			var e := int(u.get("eid", -1))
++			seen[e] = true
++			if not ma.has(e):
++				out = "add"
++				n += 1
++			elif int(ma[e]["type"]) != int(u["type"]):
++				out = "swap"
++				n += 1
++			elif int(ma[e]["x"]) != int(u["x"]) or int(ma[e]["y"]) != int(u["y"]):
++				out = "move"
++				n += 1
++		for e in ma:
++			if not seen.has(e):
++				out = "remove"
++				n += 1
++		return out if n == 1 else ""
++	var a := {}
++	var b := {}
++	for u in orig.units:
++		a[Vector2i(int(u["col"]), int(u["row"]))] = int(u["type"])
++	for u in now.units:
++		b[Vector2i(int(u["col"]), int(u["row"]))] = int(u["type"])
++	var gone: Array = []
++	var added: Array = []
++	var swapped := 0
++	for k in a:
++		if not b.has(k):
++			gone.append(k)
++		elif b[k] != a[k]:
++			swapped += 1
++	for k in b:
++		if not a.has(k):
++			added.append(k)
++	if swapped == 1 and gone.is_empty() and added.is_empty():
++		return "swap"
++	if swapped == 0 and gone.size() == 1 and added.size() == 1:
++		return "move" if a[gone[0]] == b[added[0]] else "swap"
++	if swapped == 0 and gone.size() == 1 and added.is_empty():
++		return "remove"
++	if swapped == 0 and gone.is_empty() and added.size() == 1:
++		return "add"
++	return ""
++
++## 改了哪種兵：[原本的兵種, 改成的兵種]（-1＝沒有：新增的原本、拿掉的改成）。給棋課本列名字用。
++static func types_of(orig, now) -> Array:
++	var k := kind_of(orig, now)
++	if k == "":
++		return [-1, -1]
++	var key := func(u) -> String:
++		return ("%d" % int(u.get("eid", -1))) if orig.deploy == "free" else ("%d,%d" % [int(u["col"]), int(u["row"])])
++	var a := {}
++	var b := {}
++	for u in orig.units:
++		a[key.call(u)] = u
++	for u in now.units:
++		b[key.call(u)] = u
++	var from := -1
++	var to := -1
++	for kk in a:
++		if not b.has(kk) or int(b[kk]["type"]) != int(a[kk]["type"]) or (orig.deploy == "free" and (int(b[kk]["x"]) != int(a[kk]["x"]) or int(b[kk]["y"]) != int(a[kk]["y"]))):
++			from = int(a[kk]["type"])
++	for kk in b:
++		if not a.has(kk) or int(b[kk]["type"]) != int(a[kk]["type"]) or (orig.deploy == "free" and (int(b[kk]["x"]) != int(a[kk]["x"]) or int(b[kk]["y"]) != int(a[kk]["y"]))):
++			to = int(b[kk]["type"])
++	if k == "move":
++		to = from if to == -1 else to
++	return [from, to]
++
++## 結果摘要：[勝方, 剩餘%, 結束 tick]
++static func outcome(res: Dictionary) -> Array:
++	return [int(res.get("winner", -1)), int(res.get("rem", 0)), int(res.get("ticks", 0))]
++
++## 做一則。base／alt＝review_run 的結果（重算完成的）。
++static func make(orig, alt, enemy, rules, cmds: Array, base: Dictionary, res: Dictionary, div: int) -> Dictionary:
++	var o := BattleCode.encode(orig, enemy, rules, cmds)
++	var a := BattleCode.encode(alt, enemy, rules, cmds)
++	return {"v": VERSION, "id": (o + "|" + a).sha256_text().substr(0, 16), "o": o, "a": a, "k": kind_of(orig, alt), "ro": outcome(base), "ra": outcome(res), "div": div, "u": types_of(orig, alt)}
++
++## 加進清單：回 [新清單, 狀態]。狀態：ok／dup（同一組已存過，不重複）／full（滿了）／bad（這則不合格）。
++## 不改傳進來的清單。
++static func add(list: Array, e: Dictionary) -> Array:
++	if not valid(e):
++		return [list, "bad"]
++	for x in list:
++		if x is Dictionary and str(x.get("id", "")) == str(e["id"]):
++			return [list, "dup"]
++	if list.size() >= CAP:
++		return [list, "full"]
++	var out := list.duplicate(true)
++	out.append(e.duplicate(true))
++	return [out, "ok"]
++
++static func remove(list: Array, id: String) -> Array:
++	var out: Array = []
++	for x in list:
++		if not (x is Dictionary and str(x.get("id", "")) == id):
++			out.append(x)
++	return out
++
++static func _is_int(x) -> bool:
++	return x is int or (x is float and float(x) == floorf(float(x)))
++
++static func _trio(v) -> bool:
++	if not v is Array or v.size() != 3:
++		return false
++	for x in v:
++		if not _is_int(x) or absf(float(x)) > 1.0e7:
++			return false
++	return int(v[0]) >= -1 and int(v[0]) <= 1 and int(v[1]) >= 0 and int(v[1]) <= 100 and int(v[2]) >= 0 and int(v[2]) < 1000000
++
++static func valid(e) -> bool:
++	if not e is Dictionary:
++		return false
++	for k in ["id", "o", "a", "k"]:
++		if not e.get(k) is String:
++			return false
++	var vv = e.get("v")
++	if not _is_int(vv) or float(vv) < 1.0 or float(vv) > 1000.0:
++		return false   # 先限範圍再轉整數（超大浮點不能溢位繞過「版本比遊戲新」）
++	if str(e["o"]).length() > CODE_MAX or str(e["a"]).length() > CODE_MAX or str(e["id"]).length() != 16:
++		return false
++	if not str(e["k"]) in KINDS:
++		return false
++	if (str(e["o"]) + "|" + str(e["a"])).sha256_text().substr(0, 16) != str(e["id"]):
++		return false   # 碼被改過（壞筆）
++	if not _trio(e.get("ro")) or not _trio(e.get("ra")):
++		return false
++	var d = e.get("div", -1)
++	return _is_int(d) and float(d) >= -1.0 and float(d) < 1000000.0
++
++## 存檔讀回：逐則驗型；壞的丟掉（回 [好的, 丟了幾則]）；JSON 讀回的整數是浮點，轉回整數。超過容量只留前 CAP 則。
++static func sanitize(raw) -> Array:
++	var out: Array = []
++	var bad := 0
++	if not raw is Array:
++		return [out, 0 if raw == null else 1]
++	var ids := {}
++	for e in raw:
++		if out.size() >= CAP or not valid(e) or ids.has(str(e["id"])):
++			bad += 1
++			continue
++		ids[str(e["id"])] = true
++		var uu = e.get("u", [-1, -1])
++		var ut: Array = [-1, -1]
++		if uu is Array and uu.size() == 2 and _is_int(uu[0]) and _is_int(uu[1]) and float(uu[0]) >= -1.0 and float(uu[0]) < 64.0 and float(uu[1]) >= -1.0 and float(uu[1]) < 64.0:   # 先比浮點範圍再轉整數（Codex B15 r2）
++			ut = [int(uu[0]), int(uu[1])]   # 兵種名只是顯示用：壞了就不顯示，不丟整則
++		out.append({"v": int(e["v"]), "id": str(e["id"]), "o": str(e["o"]), "a": str(e["a"]), "k": str(e["k"]),
++			"ro": [int(e["ro"][0]), int(e["ro"][1]), int(e["ro"][2])], "ra": [int(e["ra"][0]), int(e["ra"][1]), int(e["ra"][2])], "div": int(e.get("div", -1)), "u": ut})
++	return [out, bad]
++
++## 讀回一則：解兩個碼。回 {ok, why, orig, alt, enemy, rules, cmds, stale}。
++## why：ver（存的版本比遊戲新）／code（碼壞）／pair（兩個碼不是同一個對手、同一份規則）
++## stale＝規則或資料版本和現在不同（BattleCode 的 mismatch）：照樣打開，但結果要重算，不拿存的結果當真。
++static func restore(e: Dictionary) -> Dictionary:
++	if int(e.get("v", 0)) > VERSION:
++		return {"ok": false, "why": "ver"}
++	var o := BattleCode.decode(str(e.get("o", "")))
++	var a := BattleCode.decode(str(e.get("a", "")))
++	if not o.get("ok", false) or not a.get("ok", false):
++		return {"ok": false, "why": "code"}
++	var ro = o.get("rules")
++	var ra = a.get("rules")
++	if o["a1"].to_code() != a["a1"].to_code() or int(o["a1"].budget) != int(a["a1"].budget) or int(o["a0"].budget) != int(a["a0"].budget) or (ro == null) != (ra == null) or (ro != null and ro.to_code() != ra.to_code()) or o.get("cmds", []) != a.get("cmds", []):
++		return {"ok": false, "why": "pair"}
++	var orig = o["a0"]
++	var alt = a["a0"]
++	if orig.deploy == "free":
++		assign_eids(orig, alt)
++	return {"ok": true, "why": "", "orig": orig, "alt": alt, "enemy": o["a1"], "rules": ro, "cmds": o.get("cmds", []), "stale": bool(o.get("mismatch", false)) or bool(a.get("mismatch", false))}
++
++## 全場陣型讀回後重新配編輯識別：一模一樣的兩隊一一配對，剩下的（改了的那一隻）照順序配；改局多的那隻給新號。
++static func assign_eids(orig, alt) -> void:
++	for i in orig.units.size():
++		orig.units[i]["eid"] = i
++	var used := {}
++	var left: Array = []
++	for j in alt.units.size():
++		var v: Dictionary = alt.units[j]
++		var hit := -1
++		for i in orig.units.size():
++			var u: Dictionary = orig.units[i]
++			if not used.has(i) and int(u["type"]) == int(v["type"]) and int(u["x"]) == int(v["x"]) and int(u["y"]) == int(v["y"]):
++				hit = i
++				break
++		if hit >= 0:
++			used[hit] = true
++			v["eid"] = hit
++		else:
++			left.append(j)
++	var free_i: Array = []
++	for i in orig.units.size():
++		if not used.has(i):
++			free_i.append(i)
++	var nxt: int = orig.units.size()
++	for j in left:
++		if not free_i.is_empty():
++			alt.units[j]["eid"] = free_i.pop_front()
++		else:
++			alt.units[j]["eid"] = nxt
++			nxt += 1
++
++## 重算後和存的結果一樣嗎（20/20 還原的判準）
++static func same_result(e: Dictionary, base: Dictionary, res: Dictionary) -> bool:
++	return outcome(base) == Array(e.get("ro", [])) and outcome(res) == Array(e.get("ra", []))
+
+exec
+/bin/bash -lc "nl -ba build/cg/b15/game/scripts/ui/replay_view.gd | sed -n '810,840p'; nl -ba build/cg/b15/game/scripts/game/lesson.gd | sed -n '155,177p'; rg -n -C 4 '1.0e|1e|超大|溢位|兵種.*壞|\\[\"u\"\\]' build/cg/b15/game/tests/suites/coach_lab.gd; rg --files -g AGENTS.md /mnt/c/Users/timmy/projects 2>/dev/null" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 1 in 443ms:
+   810			_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
+   811			_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
+   812		elif rv_base.is_empty():
+   813			_text(Vector2(bx, y), L.t("busy_review"), tz("S"), TXT_DIM, false, true, 552)   # 1.2.0 §15.1：基準還在背景算
+   814		else:
+   815			_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
+   816			Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+   817		y += tz("S") * 1.5 + chh + 12.0
+   818		if not rv_result.is_empty():
+   819			# 1.6.0 B15（P6.1）：重算過＝此條件下已驗證（淡色接在後面，和勝敗分開；放不下就整句一起換行）
+   820			var rn := L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])])
+   821			var vt := L.t("ev_verified")
+   822			if _width(rn, tz("S"), true) + _width("　" + vt, tz("S")) <= 552.0:
+   823				_text(Vector2(bx, y), rn, tz("S"), ACCENT, false, true, 552)
+   824				_text(Vector2(bx + _width(rn, tz("S"), true), y), "　" + vt, tz("S"), TXT_DIM, false, false, 552.0 - _width(rn, tz("S"), true))
+   825			else:
+   826				_text(Vector2(bx, y), rn, tz("S"), ACCENT, false, true, 552)
+   827				y += tz("S") * 1.5   # 放不下：驗證字自己一行，走勢圖往下讓（Hydrogen B15 r2：英文 150% 被圖蓋住）
+   828				_text(Vector2(bx, y), vt, tz("S"), TXT_DIM, false, true, 552)
+   829			var b1: Array = rv_result.get("b", [100, 100])
+   830			var c1 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
+   831			Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+   832			_rv_div_mark(Rect2(c0.position, Vector2(c0.size.x, c1.end.y - c0.position.y)), span)   # 一條金色粉筆線貫穿兩張圖
+   833			y += tz("S") * 1.5 + chh + 12.0
+   834			if rv_div >= 0:
+   835				# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
+   836				_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+   837				y += tz("S") * 1.5
+   838			# 1.6.0 B15（P6.2）：把這組對照記進棋課本（只在重算完成、世代相符時能按）
+   839			_btn(Rect2(bx, y + 4, 270, 40), L.t("ls_save"), func(): _rv_save_lesson(), _rv_can_save())
+   840			if rv_focus_main:
+   155	## 存檔讀回：逐則驗型；壞的丟掉（回 [好的, 丟了幾則]）；JSON 讀回的整數是浮點，轉回整數。超過容量只留前 CAP 則。
+   156	static func sanitize(raw) -> Array:
+   157		var out: Array = []
+   158		var bad := 0
+   159		if not raw is Array:
+   160			return [out, 0 if raw == null else 1]
+   161		var ids := {}
+   162		for e in raw:
+   163			if out.size() >= CAP or not valid(e) or ids.has(str(e["id"])):
+   164				bad += 1
+   165				continue
+   166			ids[str(e["id"])] = true
+   167			var uu = e.get("u", [-1, -1])
+   168			var ut: Array = [-1, -1]
+   169			if uu is Array and uu.size() == 2 and _is_int(uu[0]) and _is_int(uu[1]) and float(uu[0]) >= -1.0 and float(uu[0]) < 64.0 and float(uu[1]) >= -1.0 and float(uu[1]) < 64.0:   # 先比浮點範圍再轉整數（Codex B15 r2）
+   170				ut = [int(uu[0]), int(uu[1])]   # 兵種名只是顯示用：壞了就不顯示，不丟整則
+   171			out.append({"v": int(e["v"]), "id": str(e["id"]), "o": str(e["o"]), "a": str(e["a"]), "k": str(e["k"]),
+   172				"ro": [int(e["ro"][0]), int(e["ro"][1]), int(e["ro"][2])], "ra": [int(e["ra"][0]), int(e["ra"][1]), int(e["ra"][2])], "div": int(e.get("div", -1)), "u": ut})
+   173		return [out, bad]
+   174	
+   175	## 讀回一則：解兩個碼。回 {ok, why, orig, alt, enemy, rules, cmds, stale}。
+   176	## why：ver（存的版本比遊戲新）／code（碼壞）／pair（兩個碼不是同一個對手、同一份規則）
+   177	## stale＝規則或資料版本和現在不同（BattleCode 的 mismatch）：照樣打開，但結果要重算，不拿存的結果當真。
+287-	var sol: Array = pz.get("best", {}).get("u", [])
+288-	ok(not sol.is_empty(), "第一關有三星解")
+289-	var code: String = SC.encode(str(pz["id"]), sol)
+290-	var d: Dictionary = SC.decode(code)
+291:	ok(bool(d["ok"]) and d["pid"] == str(pz["id"]) and (d["u"] as Array).size() == sol.size(), "來回")
+292-	ok(not bool(SC.decode(code + "x")["ok"]) and not bool(SC.decode("NTQ1.abc.123456")["ok"]), "壞碼不收")
+293-	ok(not bool(SC.decode(SC.encode("ws", sol))["ok"]) and not bool(SC.decode(SC.encode("no_such", sol))["ok"]), "工坊、不存在的關不收")
+294-	var best := {}
+295-	SC.merge(best, "p1", 2, 40, 30, [[0, 1, 2]])
+296-	SC.merge(best, "p1", 2, 40, 35, [[0, 1, 3]])
+297:	ok(best["p1"]["u"] == [[0, 1, 2]], "花費多的不換")
+298-	SC.merge(best, "p1", 3, 10, 50, [[0, 1, 4]])
+299:	ok(best["p1"]["u"] == [[0, 1, 4]] and best["p1"]["r"] == [3, 10, 50], "星數多優先")
+300-	var S = load("res://scripts/game/save.gd")
+301-	var dd := {"pz_sol": {"p1": {"r": [3, 10, 50], "u": [[0, 1, 4]]}, "bad": {"r": [1], "u": []}, "bad2": {"r": [1, 2, 3], "u": [["x", 1, 2]]}}}
+302-	S.sanitize_extras(dd)
+303-	ok(dd["pz_sol"].size() == 1 and dd["pz_sol"].has("p1"), "存檔驗證丟掉壞的", str(dd["pz_sol"]))
+--
+326-			cmdpz = p
+327-			break
+328-	if not cmdpz.is_empty():
+329-		var plan: Array = PZ.default_plan(cmdpz)
+330:		var d: Dictionary = SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], plan))
+331-		ok(bool(d["ok"]) and d["plan"] == plan, "時序關卡連軍令一起來回")
+332:		ok(not bool(SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], [1]))["ok"]) or plan.size() == 1, "軍令數量不對不收")
+333-		# Codex v110-i2 #1：軍令要合法（時間在開場～局長內、照冷卻），小數、負數不收
+334-		ok(SC.plan_legal(cmdpz, plan), "預設軍令合法")
+335-		var bad_t: Array = plan.duplicate()
+336-		bad_t[0] = PZ.plan_make(cmdpz, PZ.plan_skill(cmdpz, int(plan[0])), 999999)
+337-		ok(not SC.plan_legal(cmdpz, bad_t), "超過局長不收")
+338-		var bad_n: Array = plan.duplicate()
+339-		bad_n[0] = -1
+340:		ok(not bool(SC.decode(SC.encode(str(cmdpz["id"]), cmdpz["best"]["u"], bad_n))["ok"]), "負數軍令不收")
+341-	ok(not SC._int_like(1.9) and SC._int_like(2.0) and SC._int_like(3), "只收整數")
+342-	ok(not S.sol_entry_ok({"r": [3, 10.5, 10], "u": [[0, 1, 2]]}), "存檔小數不收")
+343-	ok(not S.sol_entry_ok({"r": [3, 10, 10], "u": [[0, 1.5, 2]]}), "存檔座標小數不收")
+344-	# Codex v110-i3 #1：存檔裡不合法的舊紀錄（重疊部署）不能擋住合法新紀錄
+345-	var p0: Dictionary = PZ.puzzles()[0]
+346:	var good_u: Array = p0["best"]["u"]
+347-	var dup: Array = [good_u[0], good_u[0]]
+348-	var bk := {str(p0["id"]): {"r": [3, 100, 0], "u": dup, "c": []}}
+349-	ok(not SC.entry_valid(str(p0["id"]), bk[str(p0["id"])]), "重疊部署判不合法")
+350-	SC.merge(bk, str(p0["id"]), 1, 5, 99, good_u)
+351:	ok(bk[str(p0["id"])]["u"] == good_u, "合法新紀錄換掉不合法舊紀錄")
+352-
+353-## 1.2.0 第 8 大類（§11.1／11.2／11.3／11.4／11.8／11.11）：部署工具、重播書籤、分岔比較、教練證據、棋譜本、最近玩的
+354-func test_play_tools_v120() -> void:
+355-	var Army = load("res://scripts/core/army.gd")
+--
+561-			var e: Dictionary = LS.make(base, alt, en, null, [], r0, r1, RV.diverge_tick(r0["log2"], r1["log2"]))
+562-			list = LS.add(list, e)[0]
+563-	var ut_ok := 0
+564-	for e in list:
+565:		var ut: Array = e["u"]
+566-		ut_ok += 1 if (e["k"] == "add" and ut[0] == -1 and ut[1] >= 0) or (e["k"] == "remove" and ut[0] >= 0 and ut[1] == -1) or (e["k"] == "swap" and ut[0] >= 0 and ut[1] >= 0 and ut[0] != ut[1]) or (e["k"] == "move" and ut[0] >= 0 and ut[0] == ut[1]) else 0
+567-	ok(ut_ok == 20, "每則記下改了哪種兵（%d／20）" % ut_ok)
+568-	ok(kinds_ok == 20 and list.size() == 20, "四類各 5 例都判對類別、都只改一隻（%d／20、存了 %d 則）" % [kinds_ok, list.size()])
+569-	# 重啟：存檔來回序列化（JSON 整數變浮點）＋sanitize 後讀回、各自重算，結果和存的一樣
+--
+618-	ex["a"] = BCx.encode(LS.restore(back[0])["alt"], enb, null, [])
+619-	ex["id"] = (str(ex["o"]) + "|" + str(ex["a"])).sha256_text().substr(0, 16)
+620-	ok(LS.restore(ex)["why"] == "pair", "兩個碼的敵方預算不同：不當成同一組")
+621-	var ebig: Dictionary = back[0].duplicate(true)
+622:	ebig["v"] = 1.0e30
+623:	ok(not LS.valid(ebig), "超大版本號不能溢位繞過")
+624-	var eu: Dictionary = back[0].duplicate(true)
+625:	eu["u"] = [1.0e30, -5]
+626-	var su: Array = LS.sanitize([eu])[0]
+627:	ok(su.size() == 1 and su[0]["u"] == [-1, -1], "兵種欄位壞了（超大浮點）：只清掉顯示、不丟整則")
+628-	var e0: Dictionary = back[0]
+629-	# ① 版本不符
+630-	var ev: Dictionary = e0.duplicate(true)
+631-	ev["v"] = LS.VERSION + 1
+
+codex
+- `replay_view.gd:826–830`：勝負強調色、驗證淡色各一行；y 下移後排第二圖，符合。
+- `lesson.gd:169–172`：先驗浮點範圍再轉整數；壞 u 保留整則、回退 [-1,-1]。`coach_lab.gd:624–627` 已加測試；僅靜態核對。
+
+結論：可
+tokens used
+19,849

@@ -177,7 +177,11 @@ static func sanitize_data(out: Dictionary) -> void:
 	out["slots"] = sl
 	var lf = out.get("last_form", "")
 	out["last_form"] = lf if lf is String and str(lf).length() <= 8000 else ""   # 1.2.0 §11.1：上一陣（陣型碼）
-	out["songbook"] = load("res://scripts/game/songbook.gd").sanitize(out.get("songbook", []))   # 1.2.0 §11.8 棋譜本
+	var sbp: Array = load("res://scripts/game/songbook.gd").split(out["songbook"] if out.has("songbook") else [])   # 1.2.0 §11.8 棋譜本（明確存成 null 也隔離）
+	out["songbook"] = sbp[0]
+	if not sbp[1].is_empty() or out.has("songbook_bad"):
+		# 1.6.0 B16（P13.1）：壞的那幾筆隔離起來（不丟），棋譜本頁可以複製出來或清掉
+		out["songbook_bad"] = load("res://scripts/game/songbook.gd").sanitize_bad(sbp[1] + (out.get("songbook_bad", []) if out.get("songbook_bad", []) is Array else []))
 	out["intro_seen"] = out.get("intro_seen", false) is bool and bool(out.get("intro_seen", false))   # 1.3.0 §13 掌燈開門只播第一次
 	out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
 	var lst = out.get("lobby_stamps", 0)
@@ -373,6 +377,9 @@ static func _is_int_num(x) -> bool:
 	return _is_num(x) and float(x) == floorf(float(x))   # 整數（JSON 讀進來是 float，小數不收；Codex v110-i2 #8）
 
 static func sanitize_extras(out: Dictionary) -> void:
+	# 1.6.0 B15（P6.2）棋課：沒有這個欄位＝舊存檔＝不補（讀回不改寫舊進度）；有就逐則驗型、壞的丟掉
+	if out.has("lessons"):
+		out["lessons"] = preload("res://scripts/game/lesson.gd").sanitize(out["lessons"])[0]
 	var f = out.get("funnel", {})
 	var f2 := {}
 	if f is Dictionary:

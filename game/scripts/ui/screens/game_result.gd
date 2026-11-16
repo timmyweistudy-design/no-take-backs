@@ -444,6 +444,8 @@ func _draw_result() -> void:
 	if play_kind == "official" and not watch_mode:
 		res_more_items.append([L.t("sh_btn"), func(): overlay = "share"; _focus = 0])   # V1.6 #5 分享（出題碼、明信片、精華）
 	res_more_items.append([L.t("replay"), func(): overlay = ""; _replay()])
+	if last_armies.size() == 2 and not (mode == Mode.PUZZLE and battle_rules != null):
+		res_more_items.append([L.t("sb_add"), func(): call("_sb_add_current")])   # 1.6.0 B16（P6.5）：棋譜本從結果「更多」直接收（原本要進分享）
 	if not (mode == Mode.PUZZLE and battle_rules != null):   # 第十三輪：殘局自帶規則的代碼讀不回來，不給複製（Codex v13-r1 #1）
 		res_more_items.append([L.t("bc_copy"), func(): overlay = ""; _copy_battle_code()])
 	if (mode == Mode.VS_AI or mode == Mode.DUEL) and last_armies.size() == 2 and not watch_mode and (rules == null or rules.fullfield == 0):
@@ -677,6 +679,8 @@ func _loss_line(w: int, goal_mode: bool) -> String:
 	var st: Dictionary = Save.data.get("stats", {})
 	if line != "" and int(st.get("wins", 0)) == 0 and int(st.get("games", 0)) <= 2 and (mode == Mode.VS_AI or mode == Mode.TUTORIAL):
 		line = L.t("loss_first", [line])   # V1.0.0 N6：前兩場還沒贏過：先講「輸很正常」再給建議
+	if line != "":
+		line = L.t("ev_observed", [line])   # 1.6.0 B15（P6.1）證據分層：敗因卡是「觀察」，覆盤重算過才是「此條件下已驗證」
 	return line
 
 func _loss_pool() -> Array:

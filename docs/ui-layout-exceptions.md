@@ -30,3 +30,4 @@
 | 自由部署（「工具」抽屜展開） | R14 | 貼齊、密集兩個開關暫時多出來；收合時在上限內 | `game_place.gd` `_draw_place_hud` |
 | 設定（剛套用一鍵預設） | R14 | 多一顆「撤回」，暫時 | `game_menus.gd` `_draw_settings` |
 | 設定「資料」抽屜（有舊實驗簿時） | R14 | 多一列「匯出舊實驗簿」：只有 V1.6.1 以前的存檔才有 | `game_menus.gd` `_draw_settings` |
+| 覆盤「棋課本」頁（`v160_16c_lesson_book`） | R6 | 覆盤面板三頁（改動、讀結果、棋課本）共用固定高度；棋課本筆數少時下面留白，每頁筆數照字級算 | `replay_view.gd` `_rv_draw_book` |

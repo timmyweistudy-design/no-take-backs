@@ -1,0 +1,1131 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e4f7-e53b-7271-b77c-5bee8d0b1d6a
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B16 第 2 輪，最多三輪）。只讀。專案根目錄＝目前資料夾。
+第 1 輪 coordination/v1600-impl/b16-r1/codex.md（不可 6 條）；新差異 diff2.patch（同資料夾；現在已搬進 game/，基準＝B15 快照）。
+處理：①讀檔最多看 SCAN_MAX＝32 筆（多的記「+N」）、重複好碼不重解、壞筆只取 c/n/note 字串截字（`_raw_of`，不序列化巢狀）；②存成 null 也隔離；③確認替換 `_sb_confirm` 核對目前這局的代碼＝待確認的代碼，不同＝過期不收；④清掉寫檔失敗＝還原、照實說；⑤複製後讀回剪貼簿核對才說成功；⑥確認框登記 `screen_register("result", "sb_replace")`（結果類上限 5、強制），兩顆不再合組。測試 test_songbook_v1600 增加過期、清掉失敗、null、巨量、巢狀。
+只看修正是否正確、有沒有新問題。附行號。最多 4 條、300 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會先讀第 1 輪紀錄、diff2.patch 與相關實作和測試，只檢查這輪修正及新問題。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'diff2.patch' -g 'codex.md' -g '*songbook*' -g '*song_book*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 494ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v150-r1/codex.md
+coordination/v150-r3/codex.md
+coordination/v140-f1/codex.md
+coordination/v140-f3/codex.md
+coordination/v150-r2/codex.md
+coordination/v1500-impl/cat15-r1/codex.md
+coordination/v140-f2/codex.md
+coordination/v1500-impl/cat07-r1/diff2.patch
+coordination/v1500-impl/cat07-r1/codex.md
+coordination/v1500-impl/cat14-r1/codex.md
+coordination/v152-impl/r3/codex.md
+coordination/v152-impl/r2/codex.md
+coordination/v152-impl/r1/codex.md
+coordination/v140-impl/cat12-r1/codex.md
+coordination/v1500-impl/cat03-r1/diff2.patch
+coordination/v1500-impl/cat06-r1/diff2.patch
+coordination/v1500-impl/cat03-r1/codex.md
+coordination/v1500-impl/cat06-r1/codex.md
+coordination/v140-impl/cat11-r1/diff2.patch
+coordination/v140-impl/cat11-r1/codex.md
+coordination/v1500-impl/cat04-r1/diff2.patch
+coordination/v1500-impl/cat04-r1/codex.md
+coordination/v1600-impl/b16-r1/hy2/zh_TW_100_v160_16d_songbook_bad.png
+coordination/v1600-impl/b16-r1/hy2/ja_150_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy2/en_150_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy2/en_150_v160_16d_songbook_bad.png
+coordination/v140-impl/cat05-r1/codex.md
+coordination/v1600-impl/b16-r1/hy1/zh_TW_100_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy1/zh_TW_100_v160_16d_songbook_bad.png
+coordination/v1600-impl/b16-r1/hy1/ja_150_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy1/en_150_v160_16d_songbook_bad.png
+coordination/v1600-impl/b16-r1/diff2.patch
+coordination/v1600-impl/b16-r1/codex.md
+coordination/v1500-impl/cat10-r1/codex.md
+coordination/v1500-impl/cat05-r1/diff2.patch
+coordination/v1500-impl/cat05-r1/codex.md
+coordination/v140-impl/cat10-r1/codex.md
+game/scripts/game/songbook.gd.uid
+game/scripts/game/songbook.gd
+coordination/v140-impl/cat02-r1/codex.md
+coordination/v1500-impl/cat09-r1/codex.md
+coordination/v1500-impl/cat08-r1/codex.md
+coordination/v120-impl/final-r2/codex.md
+coordination/v1500-impl/cat02-r1/diff2.patch
+coordination/v1500-impl/cat02-r1/codex.md
+coordination/v140-impl/cat09-r1/codex.md
+coordination/v1600-impl/b15-r1/diff2.patch
+coordination/v1600-impl/b15-r1/codex.md
+coordination/v120-impl/final-r1/codex.md
+coordination/v140-impl/cat01-r1/codex.md
+coordination/v140-impl/cat08-r1/diff2.patch
+coordination/v140-impl/cat08-r1/codex.md
+coordination/v130-impl/cat11-r1/codex.md
+coordination/v120-impl/cat11-r1/codex.md
+coordination/v120-impl/cat04-r1/codex.md
+coordination/v1600-impl/b10-r1/diff2.patch
+coordination/v1600-impl/b10-r1/codex.md
+coordination/v1600-impl/b06-r1/diff2.patch
+coordination/v1600-impl/b06-r1/codex.md
+coordination/v140-i5/codex.md
+coordination/v120-impl/cat08-r1/codex.md
+coordination/v120-impl/cat10-r1/codex.md
+coordination/v1600-impl/b14-r1/diff2.patch
+coordination/v1600-impl/b14-r1/codex.md
+coordination/v1600-impl/b09-r1/diff2.patch
+coordination/v1600-impl/b09-r1/codex.md
+coordination/v140-i4/codex.md
+coordination/v1600-impl/b08-r1/diff2.patch
+coordination/v1600-impl/b08-r1/codex.md
+coordination/v1500-impl/cat01-r1/diff2.patch
+coordination/v1500-impl/cat01-r1/codex.md
+coordination/v120-impl/cat09-r1/codex.md
+coordination/v140-i3/codex.md
+coordination/v1600-impl/b02-r1/codex.md
+coordination/v120-impl/cat03-r1/codex.md
+coordination/v120-impl/cat07-r1/codex.md
+coordination/v130-impl/cat01-r1/codex.md
+coordination/v1600-impl/b05-r1/codex.md
+coordination/v130-impl/cat09-r1/codex.md
+coordination/v1600-impl/b01-r1/diff2.patch
+coordination/v1600-impl/b01-r1/codex.md
+coordination/v1600-impl/b02-r1/diff2.patch
+coordination/v130-impl/cat08-r1/codex.md
+coordination/v1600-impl/b03-r1/diff2.patch
+coordination/v1600-impl/b03-r1/codex.md
+coordination/v1600-impl/b12-r1/diff2.patch
+coordination/v1600-impl/b12-r1/codex.md
+coordination/v1600-impl/b05-r1/diff2.patch
+coordination/v1600-impl/b07-r1/diff2.patch
+coordination/v1600-impl/b07-r1/codex.md
+coordination/v1600-impl/b11-r1/codex.md
+coordination/v1600-impl/b11-r1/diff2.patch
+coordination/v1600-impl/b04-r1/codex.md
+coordination/v1600-impl/b04-r1/diff2.patch
+coordination/v120-impl/cat06-r1/codex.md
+coordination/v130-impl/cat06-r1/codex.md
+coordination/v130-impl/cat03-r1/codex.md
+coordination/v130-impl/cat02-r1/codex.md
+coordination/v130-impl/cat04-r1/codex.md
+coordination/v120-impl/cat05-r1/codex.md
+coordination/v130-impl/cat05-r1/codex.md
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b16-r1/codex.md; cat coordination/v1600-impl/b16-r1/diff2.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+行號以 B16 快照為準：
+
+- P1 `songbook.gd:48–64`：限六筆前仍掃完整陣列；重複好碼也逐筆解碼，壞筆先完整 JSON 序列化才截字，巨量／巢狀資料可拖垮讀檔。
+- P2 `songbook.gd:41`：明確存成 `songbook:null` 會直接消失，未隔離原文。
+- P1 `game_v16.gd:789`：確認只檢查 pending 非空；Esc／B、離頁及新局未清 pending，提交也未核對局次，過期確認仍可收舊局。
+- P2 `game_v16.gd:830`：清掉先刪記憶體資料，忽略寫檔失敗；畫面看似成功，重啟卻回來。
+- P2 `game_v16.gd:829`：未驗剪貼簿內容便宣告複製成功，複製失敗後清掉可能失去救援原文。
+- P2 `game_v16.gd:792`：登記 `sb_full`，但 `layout_rules.gd:368,377` 無此類別上限，R14 直接略過；替換／取消還被合算一組。
+
+結論：不可
+--- a/game/scripts/game/songbook.gd
++++ b/game/scripts/game/songbook.gd
+@@ -18,14 +18,73 @@
+ 		out.remove_at(i)
+ 	return out
+ 
+-## 存檔讀進來時逐筆驗型（壞的丟掉）
++## 存檔讀進來時逐筆驗型。壞的不丟：交給 split 隔離（1.6.0 B16）。
+ static func sanitize(raw) -> Array:
++	return split(raw)[0]
++
++const BAD_MAX := 6
++const BattleCode = preload("res://scripts/game/battle_code.gd")
++
++static func _entry(e):
++	if not (e is Dictionary and e.get("c") is String and str(e["c"]).length() <= CODE_MAX and str(e["c"]) != ""):
++		return null
++	if not BattleCode.decode(str(e["c"])).get("ok", false):
++		return null   # 代碼讀不出來（壞碼）：隔離，不放進冊子（不然「看」會失敗）
++	var t = e.get("t", 0)
++	var ti := int(t) if ((t is int or t is float) and absf(float(t)) < 1.0e12) else 0
++	return {"c": str(e["c"]), "n": str(e.get("n", "")).left(80), "note": str(e.get("note", "")).left(120), "t": ti}
++
++const SCAN_MAX := 32   # 讀檔時最多看幾筆（巨量資料不拖垮讀檔；Codex B16 r1）
++const BAD_TEXT := CODE_MAX + 400
++
++## 壞的那筆留原文：只取 c／n／note 三個字串欄（截到上限），不把巢狀資料整個序列化
++static func _raw_of(e) -> String:
++	if e is String:
++		return e.left(BAD_TEXT)
++	if e is Dictionary:
++		var o := {}
++		for k in ["c", "n", "note"]:
++			var v = e.get(k)
++			o[k] = v.left(CODE_MAX) if v is String else type_string(typeof(v))
++		return JSON.stringify(o).left(BAD_TEXT)
++	return type_string(typeof(e))
++
++## 1.6.0 B16（P13.1）壞資料隔離：回 [好的, 壞的原文字串]。玩家可以複製出來救、或清掉。
++static func split(raw) -> Array:
+ 	var out: Array = []
++	var bad: Array = []
+ 	if not raw is Array:
+-		return out
++		bad.append(_raw_of(raw))   # 不是陣列（含明確存成 null）：整個欄位隔離
++		return [out, bad]
++	var seen := {}
++	var n := 0
+ 	for e in raw:
+-		if out.size() >= MAX:
++		n += 1
++		if n > SCAN_MAX:
++			bad.append("+%d" % (raw.size() - SCAN_MAX))   # 太多筆：多的不看，記一筆數量
+ 			break
+-		if e is Dictionary and e.get("c") is String and str(e["c"]).length() <= CODE_MAX and str(e["c"]) != "":
+-			out.append({"c": str(e["c"]), "n": str(e.get("n", "")).left(80), "note": str(e.get("note", "")).left(120), "t": int(e.get("t", 0)) if (e.get("t") is int or e.get("t") is float) else 0})
+-	return out
++		if e is Dictionary and e.get("c") is String and seen.has(e["c"]):
++			continue   # 重複的好碼不再解碼
++		var g = _entry(e)
++		if g == null:
++			bad.append(_raw_of(e))
++		elif out.size() < MAX:
++			seen[g["c"]] = true
++			out.append(g)
++	return [out, bad]
++
++## 隔離區驗型：只收字串、去重、最多 BAD_MAX（新的在前）
++static func sanitize_bad(raw) -> Array:
++	var out: Array = []
++	if raw is Array:
++		for x in raw:
++			if x is String and x.length() <= BAD_TEXT and not x in out:
++				out.append(x)
++	return out.slice(0, BAD_MAX)
++
++## 加一場之前先問：dup（已收過，會移到最上面）／full（滿了，會擠掉最舊的那筆）／ok
++static func add_check(book: Array, code: String) -> String:
++	for e in book:
++		if e is Dictionary and str(e.get("c", "")) == code:
++			return "dup"
++	return "full" if book.size() >= MAX else "ok"
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -177,7 +177,11 @@
+ 	out["slots"] = sl
+ 	var lf = out.get("last_form", "")
+ 	out["last_form"] = lf if lf is String and str(lf).length() <= 8000 else ""   # 1.2.0 §11.1：上一陣（陣型碼）
+-	out["songbook"] = load("res://scripts/game/songbook.gd").sanitize(out.get("songbook", []))   # 1.2.0 §11.8 棋譜本
++	var sbp: Array = load("res://scripts/game/songbook.gd").split(out["songbook"] if out.has("songbook") else [])   # 1.2.0 §11.8 棋譜本（明確存成 null 也隔離）
++	out["songbook"] = sbp[0]
++	if not sbp[1].is_empty() or out.has("songbook_bad"):
++		# 1.6.0 B16（P13.1）：壞的那幾筆隔離起來（不丟），棋譜本頁可以複製出來或清掉
++		out["songbook_bad"] = load("res://scripts/game/songbook.gd").sanitize_bad(sbp[1] + (out.get("songbook_bad", []) if out.get("songbook_bad", []) is Array else []))
+ 	out["intro_seen"] = out.get("intro_seen", false) is bool and bool(out.get("intro_seen", false))   # 1.3.0 §13 掌燈開門只播第一次
+ 	out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
+ 	var lst = out.get("lobby_stamps", 0)
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -376,6 +376,8 @@
+ 			_draw_share()
+ 		"songbook":
+ 			_draw_songbook()
++		"sb_full":
++			_draw_sb_full()
+ 		"campaign":
+ 			call("_draw_campaign")
+ 		"rush_end":
+@@ -740,15 +742,31 @@
+ ## ── 1.2.0 §11.8 名局棋譜本 ──
+ const SB = preload("res://scripts/game/songbook.gd")
+ 
++var sb_pending := {}   # 1.6.0 B16：滿六筆時等玩家確認的那一場 {c, n, note}
++
+ func _sb_add_current() -> void:
+ 	if last_armies.size() != 2:
+ 		return
+ 	var code := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
++	if SB.add_check(Save.data.get("songbook", []), code) == "full":
++		# 1.6.0 B16（P13.1）：第七筆明示——先說會擠掉哪一筆，確認了才換
++		sb_pending = {"c": code, "n": _sb_title_now(), "note": _sb_note_now()}
++		overlay = "sb_full"
++		_focus = 0
++		return
++	_sb_commit(code, _sb_title_now(), _sb_note_now())
++
++func _sb_title_now() -> String:
+ 	var w: int = sim.winner if sim != null else -1
+ 	var res := L.t("sb_win") if w == 0 else (L.t("sb_lose") if w == 1 else L.t("sb_draw"))
+-	var title := "%s　%s" % [Time.get_date_string_from_system(), res]
++	return "%s　%s" % [Time.get_date_string_from_system(), res]
++
++func _sb_note_now() -> String:
+ 	var marks: Array = _key_marks() if not report.is_empty() else []
+-	var note := L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
++	return L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
++
++func _sb_commit(code: String, title: String, note: String) -> void:
++	sb_pending = {}
+ 	Save.data["songbook"] = SB.add(Save.data.get("songbook", []), code, title, note, int(Time.get_unix_time_from_system()))
+ 	if Save.save_data():
+ 		_toast(L.t("sb_added"))
+@@ -757,12 +775,56 @@
+ 	overlay = "songbook"
+ 	_focus = 0
+ 
++## 滿了：說清楚會擠掉哪一筆（最舊的＝最下面那筆），替換／取消
++func _draw_sb_full() -> void:
++	_dim(0.6)
++	var book: Array = Save.data.get("songbook", [])
++	var old_n: String = str(book[book.size() - 1].get("n", "")) if not book.is_empty() else ""
++	var body := L.t("sb_full_body", [SB.MAX, old_n])
++	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("S"), 560) + GAP_L + 48.0 + GAP_L)
++	_panel(P)
++	var y := _h1(Vector2(640, P.position.y + 12), L.t("sb_full_title")) + GAP_L
++	_text(Vector2(640, y), body, tz("S"), Color.WHITE, true, false, 560)
++	_btn(Rect2(640 - 250, P.end.y - GAP_L - 48.0, 240, 48), L.t("sb_replace"), func(): _sb_confirm(), not sb_pending.is_empty(), true)
++	_btn(Rect2(640 + 10, P.end.y - GAP_L - 48.0, 240, 48), L.t("cancel"), func(): sb_pending = {}; overlay = "")
++	screen_register("result", "sb_replace")   # 結果頁的確認框：照結果類上限算（兩顆各算一顆；Codex B16 r1）
++
++## 確認替換：核對還是同一局（確認框開著時換了局＝過期，不收舊局；Codex B16 r1）
++func _sb_confirm() -> bool:
++	var cur := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds) if last_armies.size() == 2 else ""
++	if sb_pending.is_empty() or str(sb_pending.get("c", "")) != cur:
++		sb_pending = {}
++		overlay = ""
++		return false
++	_sb_commit(str(sb_pending["c"]), str(sb_pending.get("n", "")), str(sb_pending.get("note", "")))
++	return true
++
++## 隔離區：複製要真的進了剪貼簿才說成功；清掉要寫得進檔案才算數（寫不進＝還原、照實說）
++func _sb_bad_copy() -> bool:
++	var txt := "\n".join(PackedStringArray(Save.data.get("songbook_bad", [])))
++	DisplayServer.clipboard_set(txt)
++	var good := DisplayServer.clipboard_get() == txt
++	_toast(L.t("sb_bad_copied") if good else L.t("sb_bad_copy_fail"), not good)
++	return good
++
++func _sb_bad_clear() -> bool:
++	var keep = Save.data.get("songbook_bad", [])
++	Save.data.erase("songbook_bad")
++	if Save.save_data():
++		return true
++	Save.data["songbook_bad"] = keep
++	_toast(L.t("save_failed"), true)
++	return false
++
+ func _draw_songbook() -> void:
+ 	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
+ 	var book: Array = Save.data.get("songbook", [])
+ 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
++	var bad: Array = Save.data.get("songbook_bad", [])
++	var bad_txt := L.t("sb_bad", [bad.size()])
++	var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
+ 	if book.is_empty():
+@@ -783,6 +845,15 @@
+ 		_btn(Rect2(r.end.x - 244, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
+ 		_btn(Rect2(r.end.x - 116, r.position.y + (rowh - 44.0) / 2.0, 104, 44), L.t("sb_del"), func(): Save.data["songbook"] = SB.remove(Save.data.get("songbook", []), idx); Save.save_data())
+ 		y += rowh + 8.0
++	if not bad.is_empty():
++		# 1.6.0 B16（P13.1）：讀不出來的紀錄隔離在這裡（原文還在）：複製出來救、或清掉
++		y += GAP_M - 8.0
++		_text(Vector2(640, y), bad_txt, tz("S"), Color(1, 0.8, 0.7), true, false, 680)
++		y += text_h(bad_txt, tz("S"), 680) + 8.0
++		btn_group = "sb_bad"
++		_btn(Rect2(640 - 250, y, 240, 44), L.t("sb_bad_copy"), func(): _sb_bad_copy())
++		_btn(Rect2(640 + 10, y, 240, 44), L.t("sb_bad_clear"), func(): _sb_bad_clear())
++		btn_group = ""
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
+ ## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
+--- a/game/tests/suites/coach_lab.gd
++++ b/game/tests/suites/coach_lab.gd
+@@ -443,7 +443,8 @@
+ 	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C%d" % (SBx.MAX + 1), "棋譜本：新的在前、滿了丟最舊")
+ 	book = SBx.add(book, "C3", "t", "n", 99)
+ 	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C3" and book.filter(func(e): return str(e["c"]) == "C3").size() == 1, "同一場再收一次只會移到最前面")
+-	ok(SBx.sanitize([{"c": 5}, "x", {"c": "OK", "t": "bad"}]).size() == 1, "棋譜本存檔逐筆驗型")
++	var okc: String = load("res://scripts/game/battle_code.gd").encode(F.training_pool(0)[2], F.training_pool(0)[9].mirrored())
++	ok(SBx.sanitize([{"c": 5}, "x", {"c": okc, "t": "bad"}]).size() == 1, "棋譜本存檔逐筆驗型（1.6.0 B16 起代碼要解得開）")
+ 	# §11.11 最近玩的
+ 	var RCx = load("res://scripts/game/recent.gd")
+ 	var rl: Array = RCx.push([], "hub_play", "menu_vs_ai")
+@@ -704,3 +705,82 @@
+ 	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+ 	var rvs: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+ 	ok(gr.find("line = L.t(\"ev_observed\", [line])") >= 0 and rvs.find("var vt := L.t(\"ev_verified\")") >= 0, "證據分層：敗因卡標「觀察」、覆盤重算後標「此條件下已驗證」")
++
++
++## 1.6.0 B16（P13.1、P6.5）棋譜本：壞資料隔離與恢復、第七筆明示替換、結果「更多」直接收。
++func test_songbook_v1600() -> void:
++	var SBx = load("res://scripts/game/songbook.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var BCx = load("res://scripts/game/battle_code.gd")
++	var pool := F.training_pool(0)
++	var codes: Array = []
++	for i in 8:
++		codes.append(BCx.encode(pool[i], pool[(i + 3) % pool.size()].mirrored()))
++	var good := {"c": codes[0], "n": "a", "note": "b", "t": 5}
++	var broken := {"c": str(codes[1]).substr(0, 40) + "zz", "n": "壞", "note": "", "t": 6}
++	var sp: Array = SBx.split([good, broken, 7, {"c": codes[2], "t": 1.0e30}])
++	ok(sp[0].size() == 2 and sp[1].size() == 2 and int(sp[0][1]["t"]) == 0, "壞碼與亂型別隔離（不丟）、好的留下、超大時間歸零（好 %d、壞 %d）" % [sp[0].size(), sp[1].size()])
++	ok(str(sp[1][0]).find(str(broken["c"])) >= 0, "隔離的是原文（可以複製出來救）")
++	# 存檔路徑：讀回時隔離進 songbook_bad；全部正常的舊存檔不多出欄位
++	var d := {"songbook": [good, broken]}
++	SV.sanitize_data(d)
++	ok((d["songbook"] as Array).size() == 1 and (d.get("songbook_bad", []) as Array).size() == 1, "存檔讀回：壞的一筆移到隔離區")
++	var d2: Dictionary = JSON.parse_string(JSON.stringify(d))
++	SV.sanitize_data(d2)
++	ok((d2["songbook"] as Array).size() == 1 and (d2.get("songbook_bad", []) as Array).size() == 1, "重啟後隔離區照舊（不重複、不消失）")
++	var d3 := {"songbook": [good]}
++	SV.sanitize_data(d3)
++	ok(not d3.has("songbook_bad"), "全部正常：不多出隔離欄位（舊進度不改寫）")
++	ok(SBx.sanitize_bad([1, "x", "x", "y"]) == ["x", "y"], "隔離區驗型、去重")
++	# 第七筆明示
++	var book: Array = []
++	for i in SBx.MAX:
++		book = SBx.add(book, codes[i], "t%d" % i, "n", i)
++	ok(SBx.add_check(book, codes[6]) == "full" and SBx.add_check(book, codes[2]) == "dup" and SBx.add_check([], codes[0]) == "ok", "加之前先問：滿了／已收過／可以")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	var keep: Dictionary = SV.data.duplicate(true)
++	SV.data["songbook"] = book.duplicate(true)
++	g.last_armies = [pool[6].copy(), pool[1].mirrored()]
++	g.last_cmds = []
++	g.battle_rules = null
++	g._sb_add_current()
++	ok(g.overlay == "sb_full" and (SV.data["songbook"] as Array) == book, "第七筆：先問，冊子還沒動")
++	g.sb_pending = {}
++	g.overlay = ""
++	ok((SV.data["songbook"] as Array) == book, "取消：冊子不變")
++	g._sb_add_current()
++	var pend: Dictionary = g.sb_pending.duplicate()
++	g.last_armies = [pool[7].copy(), pool[1].mirrored()]   # 確認框開著時換了一局
++	ok(not g._sb_confirm() and (SV.data["songbook"] as Array) == book and g.sb_pending.is_empty(), "過期的確認不收舊局")
++	g.last_armies = [pool[6].copy(), pool[1].mirrored()]
++	g._sb_add_current()
++	ok(g.sb_pending == pend, "同一局再按：同一個待確認")
++	ok(g._sb_confirm(), "確認替換")
++	var nb: Array = SV.data["songbook"]
++	ok(nb.size() == SBx.MAX and str(nb[0]["c"]) != str(book[0]["c"]) and nb.filter(func(e): return str(e["c"]) == str(book[SBx.MAX - 1]["c"])).is_empty(), "確認替換：新的在最上面、最舊那筆（畫面上說的那筆）被換掉")
++	# 清掉：寫檔失敗＝還原
++	SV.data["songbook_bad"] = ["x"]
++	SV.fail_inject = {"tmp": 1}
++	ok(not g._sb_bad_clear() and SV.data.get("songbook_bad", []) == ["x"], "清掉時寫檔失敗：隔離區還原")
++	SV.retry_pending()
++	ok(g._sb_bad_clear() and not SV.data.has("songbook_bad"), "清掉")
++	g.free()
++	SV.data = keep
++	SV.save_data()
++	# 讀檔成本與邊界：存成 null、巨量、巢狀
++	var dn := {"songbook": null}
++	SV.sanitize_data(dn)
++	ok((dn["songbook"] as Array).is_empty() and (dn.get("songbook_bad", []) as Array).size() == 1, "棋譜本存成 null：隔離（不默默消失）")
++	var huge: Array = []
++	for i in 500:
++		huge.append({"c": codes[0]})
++	var nest := {"c": [[[[1]]]], "n": "x".repeat(20000)}
++	var t0 := Time.get_ticks_msec()
++	var sph: Array = SBx.split(huge + [nest])
++	ok(sph[0].size() == 1 and Time.get_ticks_msec() - t0 < 500 and str(sph[1][-1]).begins_with("+"), "巨量重複：只看前 %d 筆、重複不重解（%d ms）" % [SBx.SCAN_MAX, Time.get_ticks_msec() - t0])
++	var spn: Array = SBx.split([nest])
++	ok(spn[1].size() == 1 and str(spn[1][0]).length() <= SBx.BAD_TEXT, "巢狀／超長：只留截過的原文")
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	ok(gr.find("res_more_items.append([L.t(\"sb_add\"), func(): call(\"_sb_add_current\")])") >= 0, "結果頁「更多」直接收進棋譜本")
+
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '*test*' game | head -60; git status --short" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 7284ms:
+game/tools/playtest_report.py
+game/tests/test_base.gd.uid
+game/tests/test_base.gd
+game/tests/run_tests.gd
+game/tests/run_tests.gd.uid
+ M game/data/strings.csv
+ M game/fonts/NTBLatin-B-sub.ttf
+ M game/fonts/NTBLatin-M-sub.ttf
+ M game/fonts/NTBRounded-B-sub.otf
+ M game/fonts/NTBRounded-R-sub.otf
+ M game/fonts/NTBRoundedJP-B-sub.otf
+ M game/fonts/NTBRoundedJP-R-sub.otf
+ M game/fonts/NTBRoundedSC-B-sub.otf
+ M game/fonts/NTBRoundedSC-R-sub.otf
+ M game/fonts/NTBSans-B-sub.otf
+ M game/fonts/NTBSans-R-sub.otf
+ M game/fonts/NTBSansJP-B-sub.otf
+ M game/fonts/NTBSansJP-R-sub.otf
+ M game/fonts/NTBSansSC-B-sub.otf
+ M game/fonts/NTBSansSC-R-sub.otf
+ M game/fonts/NTBTitle-sub.ttf
+ M game/fonts/ThenKhung-sub.ttf
+ M game/scripts/game/save.gd
+ M game/scripts/game/songbook.gd
+ M game/scripts/ui/replay_view.gd
+ M game/scripts/ui/screens/game_result.gd
+ M game/scripts/ui/screens/game_v16.gd
+ M game/tests/run_tests.gd
+ M game/tests/suites/coach_lab.gd
+ M game/tools/dev_main.gd
+ M game/tools/screens.json
+?? coordination/v1600-impl/b09-r1/codex.err
+?? coordination/v1600-impl/b09-r1/codex2.err
+?? coordination/v1600-impl/b09-r1/codex3.err
+?? coordination/v1600-impl/b15-plan.md
+?? coordination/v1600-impl/b15-r1/
+?? coordination/v1600-impl/b16-plan.md
+?? coordination/v1600-impl/b16-r1/
+?? game/scripts/game/lesson.gd
+
+exec
+/bin/bash -lc "nl -ba game/scripts/game/songbook.gd; rg -n 'func save_data|func retry_pending|pending|sanitize_data|fail_inject' game/scripts/game/save.gd; rg -n 'func screen_register|result|force|sb_replace' game/scripts/ui/layout_rules.gd game/scripts/ui/*.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/screens/game_v16.gd | sed -n '740,865p'; nl -ba game/scripts/game/save.gd | sed -n '1,135p'; rg -n 'screen_register|func.*r14|MAX_PRIMARY|result.*5' game/scripts -g '*.gd'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 263ms:
+     1	extends RefCounted
+     2	## 1.2.0 §11.8 名局棋譜本：把重播碼（對戰代碼）收成冊，最多 MAX 筆（新的在前，滿了丟最舊的）。
+     3	## 每筆 {"c": 代碼, "n": 標題（日期＋結果）, "note": 老闆批註（這場的關鍵時刻）, "t": 收進來的時間}。純資料。
+     4	const MAX := 6
+     5	const CODE_MAX := 6000
+     6	
+     7	static func add(book: Array, code: String, title: String, note: String, now: int) -> Array:
+     8		var out: Array = []
+     9		for e in book:
+    10			if e is Dictionary and str(e.get("c", "")) != code:
+    11				out.append(e)
+    12		out.push_front({"c": code, "n": title.left(80), "note": note.left(120), "t": now})
+    13		return out.slice(0, MAX)
+    14	
+    15	static func remove(book: Array, i: int) -> Array:
+    16		var out := book.duplicate(true)
+    17		if i >= 0 and i < out.size():
+    18			out.remove_at(i)
+    19		return out
+    20	
+    21	## 存檔讀進來時逐筆驗型。壞的不丟：交給 split 隔離（1.6.0 B16）。
+    22	static func sanitize(raw) -> Array:
+    23		return split(raw)[0]
+    24	
+    25	const BAD_MAX := 6
+    26	const BattleCode = preload("res://scripts/game/battle_code.gd")
+    27	
+    28	static func _entry(e):
+    29		if not (e is Dictionary and e.get("c") is String and str(e["c"]).length() <= CODE_MAX and str(e["c"]) != ""):
+    30			return null
+    31		if not BattleCode.decode(str(e["c"])).get("ok", false):
+    32			return null   # 代碼讀不出來（壞碼）：隔離，不放進冊子（不然「看」會失敗）
+    33		var t = e.get("t", 0)
+    34		var ti := int(t) if ((t is int or t is float) and absf(float(t)) < 1.0e12) else 0
+    35		return {"c": str(e["c"]), "n": str(e.get("n", "")).left(80), "note": str(e.get("note", "")).left(120), "t": ti}
+    36	
+    37	const SCAN_MAX := 32   # 讀檔時最多看幾筆（巨量資料不拖垮讀檔；Codex B16 r1）
+    38	const BAD_TEXT := CODE_MAX + 400
+    39	
+    40	## 壞的那筆留原文：只取 c／n／note 三個字串欄（截到上限），不把巢狀資料整個序列化
+    41	static func _raw_of(e) -> String:
+    42		if e is String:
+    43			return e.left(BAD_TEXT)
+    44		if e is Dictionary:
+    45			var o := {}
+    46			for k in ["c", "n", "note"]:
+    47				var v = e.get(k)
+    48				o[k] = v.left(CODE_MAX) if v is String else type_string(typeof(v))
+    49			return JSON.stringify(o).left(BAD_TEXT)
+    50		return type_string(typeof(e))
+    51	
+    52	## 1.6.0 B16（P13.1）壞資料隔離：回 [好的, 壞的原文字串]。玩家可以複製出來救、或清掉。
+    53	static func split(raw) -> Array:
+    54		var out: Array = []
+    55		var bad: Array = []
+    56		if not raw is Array:
+    57			bad.append(_raw_of(raw))   # 不是陣列（含明確存成 null）：整個欄位隔離
+    58			return [out, bad]
+    59		var seen := {}
+    60		var n := 0
+    61		for e in raw:
+    62			n += 1
+    63			if n > SCAN_MAX:
+    64				bad.append("+%d" % (raw.size() - SCAN_MAX))   # 太多筆：多的不看，記一筆數量
+    65				break
+    66			if e is Dictionary and e.get("c") is String and seen.has(e["c"]):
+    67				continue   # 重複的好碼不再解碼
+    68			var g = _entry(e)
+    69			if g == null:
+    70				bad.append(_raw_of(e))
+    71			elif out.size() < MAX:
+    72				seen[g["c"]] = true
+    73				out.append(g)
+    74		return [out, bad]
+    75	
+    76	## 隔離區驗型：只收字串、去重、最多 BAD_MAX（新的在前）
+    77	static func sanitize_bad(raw) -> Array:
+    78		var out: Array = []
+    79		if raw is Array:
+    80			for x in raw:
+    81				if x is String and x.length() <= BAD_TEXT and not x in out:
+    82					out.append(x)
+    83		return out.slice(0, BAD_MAX)
+    84	
+    85	## 加一場之前先問：dup（已收過，會移到最上面）／full（滿了，會擠掉最舊的那筆）／ok
+    86	static func add_check(book: Array, code: String) -> String:
+    87		for e in book:
+    88			if e is Dictionary and str(e.get("c", "")) == code:
+    89				return "dup"
+    90		return "full" if book.size() >= MAX else "ok"
+34:## 第七輪 R7：寫入失敗還沒補上的檔案（路徑）；retry_pending() 重試。
+35:static var pending := {}
+37:static var fail_inject := {}
+40:	pending = {}
+71:	if int(fail_inject.get("quarantine", 0)) > 0:
+72:		fail_inject["quarantine"] -= 1   # 測試用：模擬隔離失敗
+170:static func sanitize_data(out: Dictionary) -> void:
+613:	sanitize_data(out)
+620:	if fail_inject.get("tmp", 0) > 0:
+621:		fail_inject["tmp"] -= 1
+640:			if fail_inject.get("rotate", 0) > 0:
+641:				fail_inject["rotate"] -= 1
+655:		pending.erase(path)
+657:		pending[path] = true
+664:static func save_data() -> bool:
+670:	return not pending.is_empty()
+673:static func retry_pending() -> bool:
+674:	if pending.has(_sp()):
+676:	if pending.has(_dp()):
+678:	return pending.is_empty()
+game/scripts/ui/layout_rules.gd:368:const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+game/scripts/ui/layout_rules.gd:369:const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+game/scripts/ui/icons.gd:5:static var force := Color(0, 0, 0, 0)
+game/scripts/ui/icons.gd:8:	return Color(force, force.a * c.a) if force.a > 0.0 else c
+game/scripts/ui/layout_rules.gd:368:const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+game/scripts/ui/layout_rules.gd:369:const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+game/scripts/ui/game_screens.gd:8:var obj_open_force := -1.0   # 開發用：固定實物開合的進度（<0＝照時間）
+game/scripts/ui/game_screens.gd:475:		result_t -= INK_DUR   # 1.2.0 §9.4：任何按鍵跳過宣紙戰報演出
+game/scripts/ui/game_screens.gd:552:				elif overlay == "trio_result":
+game/scripts/ui/game_screens.gd:608:## V1.5：第一次啟動先問語言、字級、無障礙（1.6.0 B05：抽成一支，開機與截圖流程的冷啟走查共用；force＝截圖模式也照走）
+game/scripts/ui/game_screens.gd:627:func _boot_first_run(force := false) -> void:
+game/scripts/ui/game_screens.gd:628:	if not bool(Save.s("first_done")) and (force or (shot_dir == "" and not video_mode and DisplayServer.get_name() != "headless")):
+game/scripts/ui/game_screens.gd:930:				_draw_result()   # 結果紙的桌燈色調與深墨：B06 起全站統一（_draw 開頭設定）
+game/scripts/ui/game_screens.gd:949:	if obj_open_force >= 0.0:
+game/scripts/ui/game_screens.gd:950:		open_k = obj_open_force   # 開發截圖：固定在開到一半
+game/scripts/ui/game_screens.gd:1096:	return _ink_k() < INK_DUR and (shot_dir == "" or ink_force) and not bool(Save.s("reduce_fx")) and play_kind == "official" and not bool(Save.s("plain_ui"))
+game/scripts/ui/game_screens.gd:1098:var ink_force := false   # 截圖流程專拍宣紙戰報時用
+game/scripts/ui/game_screens.gd:1100:	return 0.8 if ink_force else time - result_t   # 截圖專拍時停在蓋章後的瞬間（截圖等幀的實際時間不固定）
+game/scripts/ui/game_screens.gd:1176:		result_t -= INK_DUR   # 1.2.0 §9.4：點任意處跳過宣紙戰報演出
+game/scripts/ui/battle_view.gd:11:		result_delay = 9.0
+game/scripts/ui/battle_view.gd:22:		result_delay = 9.0
+game/scripts/ui/battle_view.gd:156:		result_delay += delta
+game/scripts/ui/battle_view.gd:157:		if result_delay >= RESULT_DELAY:
+game/scripts/ui/battle_view.gd:178:	if settle_ok and not paused and view.finished and result_delay < RESULT_DELAY:
+game/scripts/ui/battle_view.gd:179:		result_delay = RESULT_DELAY   # 收盤跳過：下一幀直接到結果
+game/scripts/ui/battle_view.gd:1029:	result_delay = 0.0
+game/scripts/ui/replay_view.gd:17:var rv_result := {}         # {winner, rem, log}
+game/scripts/ui/replay_view.gd:215:	result_delay = 0.0
+game/scripts/ui/replay_view.gd:272:		"tab": result_tab, "overlay": "", "ev_count": ev_count.duplicate(), "pt_rated": pt_rated, "pt_call": pt_call_tick, "first_fall": first_fall.duplicate()}
+game/scripts/ui/replay_view.gd:297:	result_tab = replay_snap["tab"]
+game/scripts/ui/replay_view.gd:303:	result_delay = 0.0
+game/scripts/ui/replay_view.gd:618:		if not rv_result.is_empty():
+game/scripts/ui/replay_view.gd:619:			_rv_set_result(rv_result)   # 先算好的「如果」要重新和基準比分岔點
+game/scripts/ui/replay_view.gd:621:func _rv_set_result(res: Dictionary) -> void:
+game/scripts/ui/replay_view.gd:622:	if rv_result.is_empty() and not res.is_empty():
+game/scripts/ui/replay_view.gd:625:	rv_result = res
+game/scripts/ui/replay_view.gd:634:	rv_result = {}
+game/scripts/ui/replay_view.gd:646:		_rv_set_result(review_run(rv_army, rv_enemy, battle_rules, last_cmds))
+game/scripts/ui/replay_view.gd:679:			_rv_set_result(res)
+game/scripts/ui/replay_view.gd:758:		_btn(Rect2(bx + k * 186, tab_y, 180, 40), L.t(["rv_tab_edit", "rv_tab_read", "rv_tab_book"][k]), func(): rv_tab = k; rv_focus_main = true, k != 1 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+game/scripts/ui/replay_view.gd:766:		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/replay_view.gd:791:	if not rv_result.is_empty():
+game/scripts/ui/replay_view.gd:792:		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+game/scripts/ui/replay_view.gd:797:	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/replay_view.gd:805:	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+game/scripts/ui/replay_view.gd:818:	if not rv_result.is_empty():
+game/scripts/ui/replay_view.gd:820:		var rn := L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])])
+game/scripts/ui/replay_view.gd:829:		var b1: Array = rv_result.get("b", [100, 100])
+game/scripts/ui/replay_view.gd:831:		Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+game/scripts/ui/replay_view.gd:861:	return not rv_result.is_empty() and not rv_base.is_empty() and rv_thread == null and review_changes(rv_orig, rv_army) == 1 and Lesson.kind_of(rv_orig, rv_army) != ""
+game/scripts/ui/replay_view.gd:867:	var e := Lesson.make(rv_orig, rv_army, rv_enemy, battle_rules, last_cmds, rv_base, rv_result, rv_div)
+game/scripts/ui/replay_view.gd:959:		ls_check[e["id"]] = "ok" if Lesson.same_result(e, res[0], res[1]) else "diff"
+game/scripts/ui/replay_view.gd:1115:	var span := float(maxi(n, maxi(int(rv_base.get("ticks", 0)), int(rv_result.get("ticks", 0)))))
+game/scripts/ui/table_seats.gd:49:static func result_note_rect(paper := RESULT_PAPER) -> Rect2:
+game/scripts/ui/ui_base.gd:42:var force_demo := false   # 測試用：不必匯出就能走試玩版流程
+game/scripts/ui/ui_base.gd:44:	return force_demo or OS.has_feature("demo")
+game/scripts/ui/ui_base.gd:45:var force_async := false  # 測試用：headless 也走背景計算
+game/scripts/ui/ui_base.gd:48:	return force_async or (DisplayServer.get_name() != "headless" and shot_dir == "")
+game/scripts/ui/ui_base.gd:272:var result_tab := 0           # 第五輪：結果頁 0＝摘要、1＝詳細數據
+game/scripts/ui/ui_base.gd:273:var result_metric := 0        # 詳細數據：0＝輸出、1＝承傷
+game/scripts/ui/ui_base.gd:337:var result_t := -100.0    # 第十輪 F2：進結果頁的時間
+game/scripts/ui/ui_base.gd:348:var result_delay := 0.0
+game/scripts/ui/ui_base.gd:366:func screen_register(cls: String, main: String, skip_why := "") -> void:
+game/scripts/ui/ui_base.gd:1224:## 1.6.0 B06（方案 P1.5、§1 桌位表）：結果頁的老闆便條不再蓋在結果紙上——釘在紙外左下桌緣（`Seats.result_note_rect`），
+game/scripts/ui/ui_base.gd:1226:var note_pin_force := false   # 截圖專拍（平常截圖流程不釘便條）
+game/scripts/ui/ui_base.gd:1230:	return note_pin_force or (shot_dir == "" and not layout_probe and preload("res://scripts/game/guide.gd").is_new(Save.data, "note_" + key))
+game/scripts/ui/ui_base.gd:1234:	var R0 := Seats.result_note_rect()
+game/scripts/ui/ui_base.gd:1495:		Icons.force = Color(INK, col.a * 0.7)
+game/scripts/ui/ui_base.gd:1496:		Icons.draw(self, name, c + Vector2(off, off) * 1.4, s, Icons.force)
+game/scripts/ui/ui_base.gd:1497:		Icons.force = Color(INK, col.a)
+game/scripts/ui/ui_base.gd:1500:			Icons.draw(self, name, c + d, s, Icons.force)
+game/scripts/ui/ui_base.gd:1502:		Icons.force = dk
+game/scripts/ui/ui_base.gd:1504:		Icons.force = Color(0, 0, 0, 0)
+
+ succeeded in 301ms:
+   740		sh_text = Share.daily_text(L, Time.get_date_string_from_unix_time(day * 86400), L.t("daily_mut_%d" % int(daily_spec["mut"])), rem, armies[0].spent(), armies[0].budget, int(sim.tick / 20), int(st["n"]))
+   741	
+   742	## ── 1.2.0 §11.8 名局棋譜本 ──
+   743	const SB = preload("res://scripts/game/songbook.gd")
+   744	
+   745	var sb_pending := {}   # 1.6.0 B16：滿六筆時等玩家確認的那一場 {c, n, note}
+   746	
+   747	func _sb_add_current() -> void:
+   748		if last_armies.size() != 2:
+   749			return
+   750		var code := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
+   751		if SB.add_check(Save.data.get("songbook", []), code) == "full":
+   752			# 1.6.0 B16（P13.1）：第七筆明示——先說會擠掉哪一筆，確認了才換
+   753			sb_pending = {"c": code, "n": _sb_title_now(), "note": _sb_note_now()}
+   754			overlay = "sb_full"
+   755			_focus = 0
+   756			return
+   757		_sb_commit(code, _sb_title_now(), _sb_note_now())
+   758	
+   759	func _sb_title_now() -> String:
+   760		var w: int = sim.winner if sim != null else -1
+   761		var res := L.t("sb_win") if w == 0 else (L.t("sb_lose") if w == 1 else L.t("sb_draw"))
+   762		return "%s　%s" % [Time.get_date_string_from_system(), res]
+   763	
+   764	func _sb_note_now() -> String:
+   765		var marks: Array = _key_marks() if not report.is_empty() else []
+   766		return L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
+   767	
+   768	func _sb_commit(code: String, title: String, note: String) -> void:
+   769		sb_pending = {}
+   770		Save.data["songbook"] = SB.add(Save.data.get("songbook", []), code, title, note, int(Time.get_unix_time_from_system()))
+   771		if Save.save_data():
+   772			_toast(L.t("sb_added"))
+   773		else:
+   774			_toast(L.t("save_failed"), true)
+   775		overlay = "songbook"
+   776		_focus = 0
+   777	
+   778	## 滿了：說清楚會擠掉哪一筆（最舊的＝最下面那筆），替換／取消
+   779	func _draw_sb_full() -> void:
+   780		_dim(0.6)
+   781		var book: Array = Save.data.get("songbook", [])
+   782		var old_n: String = str(book[book.size() - 1].get("n", "")) if not book.is_empty() else ""
+   783		var body := L.t("sb_full_body", [SB.MAX, old_n])
+   784		var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("S"), 560) + GAP_L + 48.0 + GAP_L)
+   785		_panel(P)
+   786		var y := _h1(Vector2(640, P.position.y + 12), L.t("sb_full_title")) + GAP_L
+   787		_text(Vector2(640, y), body, tz("S"), Color.WHITE, true, false, 560)
+   788		_btn(Rect2(640 - 250, P.end.y - GAP_L - 48.0, 240, 48), L.t("sb_replace"), func(): _sb_confirm(), not sb_pending.is_empty(), true)
+   789		_btn(Rect2(640 + 10, P.end.y - GAP_L - 48.0, 240, 48), L.t("cancel"), func(): sb_pending = {}; overlay = "")
+   790		screen_register("result", "sb_replace")   # 結果頁的確認框：照結果類上限算（兩顆各算一顆；Codex B16 r1）
+   791	
+   792	## 確認替換：核對還是同一局（確認框開著時換了局＝過期，不收舊局；Codex B16 r1）
+   793	func _sb_confirm() -> bool:
+   794		var cur := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds) if last_armies.size() == 2 else ""
+   795		if sb_pending.is_empty() or str(sb_pending.get("c", "")) != cur:
+   796			sb_pending = {}
+   797			overlay = ""
+   798			return false
+   799		_sb_commit(str(sb_pending["c"]), str(sb_pending.get("n", "")), str(sb_pending.get("note", "")))
+   800		return true
+   801	
+   802	## 隔離區：複製要真的進了剪貼簿才說成功；清掉要寫得進檔案才算數（寫不進＝還原、照實說）
+   803	func _sb_bad_copy() -> bool:
+   804		var txt := "\n".join(PackedStringArray(Save.data.get("songbook_bad", [])))
+   805		DisplayServer.clipboard_set(txt)
+   806		var good := DisplayServer.clipboard_get() == txt
+   807		_toast(L.t("sb_bad_copied") if good else L.t("sb_bad_copy_fail"), not good)
+   808		return good
+   809	
+   810	func _sb_bad_clear() -> bool:
+   811		var keep = Save.data.get("songbook_bad", [])
+   812		Save.data.erase("songbook_bad")
+   813		if Save.save_data():
+   814			return true
+   815		Save.data["songbook_bad"] = keep
+   816		_toast(L.t("save_failed"), true)
+   817		return false
+   818	
+   819	func _draw_songbook() -> void:
+   820		_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+   821		_dim(0.6)
+   822		var book: Array = Save.data.get("songbook", [])
+   823		var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+   824		var bad: Array = Save.data.get("songbook_bad", [])
+   825		var bad_txt := L.t("sb_bad", [bad.size()])
+   826		var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
+   827		var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
+   828		_panel(P)
+   829		var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
+   830		if book.is_empty():
+   831			_text(Vector2(640, y + 10), L.t("sb_empty"), tz("S"), Color(1, 1, 1, 0.88), true, false, 680)   # Antigravity cat08 #4：空狀態要讀得到
+   832		for i in book.size():
+   833			var e: Dictionary = book[i]
+   834			var r := Rect2(P.position.x + 30, y, P.size.x - 60, rowh)
+   835			# Antigravity cat08 #3：每筆是一張夾在冊子裡的紙頁（墨字），不是深色資料列
+   836			var paper_ok: bool = not bool(Save.s("plain_ui")) and _tex_box(r, "paper")
+   837			if not paper_ok:
+   838				draw_rect(r, Color(0, 0, 0, 0.18))
+   839			_ink_mode = paper_ok
+   840			_text(r.position + Vector2(14, 10), str(e["n"]), tz("B"), INK if paper_ok else Color.WHITE, false, true, r.size.x - 270)
+   841			_text(r.position + Vector2(14, 10 + tz("B") * 1.3), str(e["note"]), tz("S"), INK if paper_ok else TXT_DIM, false, false, r.size.x - 270)
+   842			_ink_mode = false
+   843			var c := str(e["c"])
+   844			var idx := i
+   845			_btn(Rect2(r.end.x - 244, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
+   846			_btn(Rect2(r.end.x - 116, r.position.y + (rowh - 44.0) / 2.0, 104, 44), L.t("sb_del"), func(): Save.data["songbook"] = SB.remove(Save.data.get("songbook", []), idx); Save.save_data())
+   847			y += rowh + 8.0
+   848		if not bad.is_empty():
+   849			# 1.6.0 B16（P13.1）：讀不出來的紀錄隔離在這裡（原文還在）：複製出來救、或清掉
+   850			y += GAP_M - 8.0
+   851			_text(Vector2(640, y), bad_txt, tz("S"), Color(1, 0.8, 0.7), true, false, 680)
+   852			y += text_h(bad_txt, tz("S"), 680) + 8.0
+   853			btn_group = "sb_bad"
+   854			_btn(Rect2(640 - 250, y, 240, 44), L.t("sb_bad_copy"), func(): _sb_bad_copy())
+   855			_btn(Rect2(640 + 10, y, 240, 44), L.t("sb_bad_clear"), func(): _sb_bad_clear())
+   856			btn_group = ""
+   857		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+   858	
+   859	## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
+   860	func _highlights() -> Array:
+   861		var marks: Array = _key_marks() if not report.is_empty() else []
+   862		var ft := maxi(0, int(sim.tick) - 30) if (sim != null and sim.winner >= 0) else -1
+   863		var out: Array = DirR.pick_reel(marks, ft)
+   864		for m in out:
+   865			if bool(m.get("final", false)):
+     1	extends RefCounted
+     2	## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
+     3	## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
+     4	
+     5	const SAVE_VERSION := 4   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則；4：1.2.0 戰役 campaign、棋譜本、最近玩的、上一陣
+     6	const MAX_PRESETS := 10   # V1.5：5 → 10 格
+     7	static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
+     8	
+     9	const DEFAULT_SETTINGS := {
+    10		"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
+    11		"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
+    12		# V1.5 設定七頁：畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料（docs/history/2026-11-09-v1.5.0-plan.md §2）
+    13		"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
+    14		"long_press": 0.5, "place_mode": "both", "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
+    15		"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
+    16		"hold_confirm": false, "magnify": false, "ui_font": "craft", "smooth_pose": false, "table_view": true, "spotlight": true, "battle_mag": true, "auto_director": true, "voice_vol": 70,   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
+    17	}
+    18	const ENUMS := {"ui_font": ["classic", "craft"], "place_mode": ["both", "tap"], "title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
+    19		"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3, 0], "rumble": [0, 25, 50, 100], "deadzone": [5, 10, 15, 20, 25, 30, 35, 40], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
+    20	const DEFAULT_SAVE := {
+    21		"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
+    22		"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
+    23		# 第五輪：解鎖累計場數（標準＋自訂局都算，沙盒不算）、自訂規則戰績、我的預設、上次在大廳用的規則（代碼）
+    24		"ai_games": 0, "ai_wins": 0,   # V1.0.0：對 AI 場數、勝場（新存檔明確 0；老存檔沒有＝回退舊統計）
+    25		"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false, "gauntlet_run": {}, "puzzle_tries": {}, "puzzle_first": {}, "trial_tries": {}, "trial_first": {}, "daily_best": {},
+    26	}
+    27	
+    28	static var settings := {}
+    29	static var data := {}
+    30	## 第七輪 R5：存檔來自比這一版新的遊戲。原檔不動、這次進度不寫入，畫面要告知玩家。
+    31	static var data_locked := false
+    32	## 第七輪 R6：這次讀到的來源："none"／"main"／"bak"（"bak"＝主檔壞了，已隔離）。
+    33	static var data_source := "none"
+    34	## 第七輪 R7：寫入失敗還沒補上的檔案（路徑）；retry_pending() 重試。
+    35	static var pending := {}
+    36	## 只給測試用：接下來幾次寫入要假裝失敗（"tmp"＝寫暫存失敗；"rotate"＝輪替備份失敗）。
+    37	static var fail_inject := {}
+    38	
+    39	static func load_all() -> void:
+    40		pending = {}
+    41		settings = sanitize_settings(_read(_sp(), {}).get("value", {}))
+    42		var r := _read(_dp(), {})
+    43		data_source = r["source"]
+    44		var raw: Dictionary = r["value"]
+    45		data_locked = schema_of(raw) > SAVE_VERSION
+    46		# 未來版存檔：記憶體用全新進度，檔案完全不碰（Codex plan7 R5）
+    47		data = migrate({}) if data_locked else migrate(raw)   # 先讀原始內容再遷移（遷移裡才補預設值），不然舊檔會被當成新版（Codex 收尾輪 #1）
+    48	
+    49	## 檔名前綴：測試／截圖的 prefix 在前；試玩版另外一份，進度不帶進正式版（N1、§18-4）。
+    50	static func file_prefix(demo := OS.has_feature("demo")) -> String:
+    51		return prefix + ("demo_" if demo else "")
+    52	
+    53	static func _sp() -> String:
+    54		return "user://%ssettings.json" % file_prefix()
+    55	
+    56	static func _dp() -> String:
+    57		return "user://%ssave.json" % file_prefix()
+    58	
+    59	## 讀一個 JSON 檔；內容不是物件就回傳 null。
+    60	static func _parse(path: String):
+    61		var j := JSON.new()   # 不用 JSON.parse_string：壞檔是預期情況，不該在日誌印 ERROR
+    62		if j.parse(FileAccess.get_file_as_string(path)) != OK:
+    63			return null
+    64		return j.data if typeof(j.data) == TYPE_DICTIONARY else null
+    65	
+    66	## 壞掉的主檔移到旁邊留證據，主檔位置空出來，下一次寫入才不會拿它蓋掉好備份（R6）。
+    67	## V1.0.0 D3：20 個編號都用過時改用時間戳記名（不覆蓋舊證據）；改名失敗就複製再刪；都失敗回 false
+    68	## （主檔留在原地；save_data 只輪替驗證過的主檔，所以壞主檔不會蓋掉備份）。
+    69	static var quarantine_failed := false
+    70	static func _quarantine(path: String) -> bool:
+    71		if int(fail_inject.get("quarantine", 0)) > 0:
+    72			fail_inject["quarantine"] -= 1   # 測試用：模擬隔離失敗
+    73			quarantine_failed = true
+    74			return false
+    75		var dst := ""
+    76		for n in range(1, 21):
+    77			if not FileAccess.file_exists("%s.corrupt%d" % [path, n]):
+    78				dst = "%s.corrupt%d" % [path, n]
+    79				break
+    80		if dst == "":
+    81			dst = "%s.corrupt_%d_%d" % [path, int(Time.get_unix_time_from_system()), Time.get_ticks_msec()]
+    82		if DirAccess.rename_absolute(path, dst) == OK:
+    83			return true
+    84		if DirAccess.copy_absolute(path, dst) == OK and DirAccess.remove_absolute(path) == OK:
+    85			return true
+    86		quarantine_failed = true
+    87		push_warning("save: 壞檔隔離失敗 " + path)
+    88		return false
+    89	
+    90	## 回傳 {value, source}。主檔壞 → 隔離 → 讀備份。
+    91	static func _read(path: String, defaults: Dictionary) -> Dictionary:
+    92		if FileAccess.file_exists(path):
+    93			var m = _parse(path)
+    94			if m != null:
+    95				return {"value": m, "source": "main"}
+    96			_quarantine(path)
+    97		var bak := path + ".bak"
+    98		if FileAccess.file_exists(bak):
+    99			var b = _parse(bak)
+   100			if b != null:
+   101				return {"value": b, "source": "bak"}
+   102		return {"value": defaults.duplicate(true), "source": "none"}
+   103	
+   104	static func _num(v, fallback := 0.0) -> float:
+   105		return float(v) if (v is int or v is float) else float(fallback)
+   106	
+   107	static func _count(v, hi := 1000000000) -> int:
+   108		return clampi(int(_num(v)), 0, hi)
+   109	
+   110	static func schema_of(d: Dictionary) -> int:
+   111		return int(_num(d.get("schema_version", d.get("version", 1)), 1))
+   112	
+   113	## 設定逐欄驗型（R4）：型別不對用預設，數值夾在合法範圍；不認得的欄位保留。
+   114	static func sanitize_settings(d: Dictionary) -> Dictionary:
+   115		var out := d.duplicate(true)
+   116		# V1.2.1 F4：介面音、環境音是新欄位；舊檔沒有（或型別錯）時承接舊的音效值，舊靜音也保持靜音
+   117		var old_sfx = out.get("sfx", DEFAULT_SETTINGS["sfx"])
+   118		if not (old_sfx is int or old_sfx is float):
+   119			old_sfx = DEFAULT_SETTINGS["sfx"]
+   120		for nk in ["ui_vol", "amb_vol"]:
+   121			if not (out.get(nk) is int or out.get(nk) is float):
+   122				out[nk] = int(old_sfx)
+   123		for k in DEFAULT_SETTINGS:
+   124			var dv = DEFAULT_SETTINGS[k]
+   125			var v = out.get(k, dv)
+   126			if dv is bool:
+   127				out[k] = v if v is bool else dv
+   128			elif dv is String:
+   129				out[k] = v if v is String else dv
+   130			elif dv is int:
+   131				out[k] = int(v) if (v is int or v is float) else dv
+   132			elif dv is float:
+   133				out[k] = float(v) if (v is int or v is float) else dv
+   134		if not str(out["lang"]) in preload("res://scripts/game/strings.gd").LANGS:   # V1.2.1 G3：語言清單單一來源
+   135			out["lang"] = DEFAULT_SETTINGS["lang"]
+game/scripts/ui/layout_rules.gd:368:const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+game/scripts/ui/layout_rules.gd:370:static func _r14(out: Dictionary, d: Dictionary) -> void:
+game/scripts/ui/lobby_view.gd:580:	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", lb_why)
+game/scripts/ui/screens/game_v16.gd:790:	screen_register("result", "sb_replace")   # 結果頁的確認框：照結果類上限算（兩顆各算一顆；Codex B16 r1）
+game/scripts/ui/battle/battle_units.gd:1163:			crouch *= settle_dip(result_delay)   # 1.6.0 B14（P5.4）收盤：倖存的兵點一下頭
+game/scripts/ui/screens/game_result.gd:151:		var dk := clampf((time - result_t) / 0.25, 0.0, 1.0)
+game/scripts/ui/screens/game_result.gd:156:		var l1 := _result_line1(540.0 - 24.0)
+game/scripts/ui/screens/game_result.gd:204:				kk = clampf((time - result_t - 0.35 - ks * 0.18) / 0.22, 0.0, 1.0)
+game/scripts/ui/screens/game_result.gd:320:		# V1.6 #11／#12：AI 台詞、熟練度升級只在還有空位時放（多一行會把系列結果擠到按鈕上：版面檢查 05_result en 150%）
+game/scripts/ui/screens/game_result.gd:350:	_btn(Rect2(926, 112, 140, 40), L.t(["res_tab_flow", "res_details", "res_summary"][clampi(result_tab, 0, 2)]), func(): result_tab = (result_tab + 1) % 3)   # 1.5.0 §1.5：摘要 → 走勢與事件 → 詳細數據
+game/scripts/ui/screens/game_result.gd:351:	if report.has("stars") and result_tab == 0:   # 星級只在摘要頁（走勢、詳細數據頁的內容到底，150% 換行會壓到底列；Codex v150 cat02 r2 #1、r3）
+game/scripts/ui/screens/game_result.gd:498:	screen_register("result", "result_main", r14_why)   # 1.5.0 §1.1：主動作＝底列第一顆（豁免理由逐分頁寫明，Codex v150 cat02 #3）
+game/scripts/ui/screens/game_result.gd:500:		_note_pin("result")   # 1.2.0 §12 第一次看結果的便條 → 1.6.0 B06（P1.5）釘在紙外左下桌緣，點開才展開
+game/scripts/ui/screens/game_result.gd:530:		return [call("_swap_fact")] + _result_facts_base()   # 1.2.0 §11.5：換邊雙局的分數放第一條
+game/scripts/ui/screens/game_result.gd:616:	screen_register("result_more", "back")
+game/scripts/ui/screens/game_place.gd:772:	screen_register("place", "start", "自由部署「工具」抽屜展開中：貼齊、密集兩個開關暫時多出來（收合時在上限內）" if (_is_free() and fp_more) else "")   # 1.5.0 §1.1：主動作＝開戰
+game/scripts/ui/screens/game_modes.gd:1004:	screen_register("profile", "back")
+game/scripts/ui/replay_view.gd:766:		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/replay_view.gd:792:		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+game/scripts/ui/replay_view.gd:797:	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+game/scripts/ui/screens/game_menus.gd:310:	screen_register("title", "plaque_battle")   # 1.5.0 §1.1：主動作＝對戰
+game/scripts/ui/screens/game_menus.gd:1058:	screen_register("settings", "back", s_why)   # 1.5.0 §1.1
+game/scripts/ui/screens/game_menus.gd:1892:	screen_register("first_run", "fr_first")
+game/scripts/ui/ui_base.gd:366:func screen_register(cls: String, main: String, skip_why := "") -> void:
+
+codex
+局碼核對、清掉失敗還原、剪貼簿讀回與確認框登記都已補上。讀檔仍有幾個邊界疑點：第七種好碼未被記入去重表，隔離區驗型仍掃完整陣列；我會再核對巢狀欄位與「+N」是否也有漏接。
+exec
+/bin/bash -lc "nl -ba game/scripts/game/save.gd | sed -n '170,192p'; nl -ba game/scripts/game/save.gd | sed -n '650,681p'; nl -ba game/scripts/ui/ui_base.gd | sed -n '355,380p'; nl -ba game/scripts/ui/layout_rules.gd | sed -n '365,405p'; nl -ba game/tests/suites/coach_lab.gd | sed -n '770,786p'; rg -n 'btn_group =|_draw_overlay|_draw_v16|_overlay_v16' game/scripts/ui/game_screens.gd game/scripts/ui/screens/game_v16.gd; command -v godot godot4 godot4.6 || true" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 200ms:
+   170	static func sanitize_data(out: Dictionary) -> void:
+   171		var sl: Array = ["", "", "", "", ""]
+   172		var raw_sl = out.get("slots", [])
+   173		if raw_sl is Array:
+   174			for i in mini(raw_sl.size(), sl.size()):
+   175				if raw_sl[i] is String and str(raw_sl[i]).length() <= 8000:
+   176					sl[i] = raw_sl[i]
+   177		out["slots"] = sl
+   178		var lf = out.get("last_form", "")
+   179		out["last_form"] = lf if lf is String and str(lf).length() <= 8000 else ""   # 1.2.0 §11.1：上一陣（陣型碼）
+   180		var sbp: Array = load("res://scripts/game/songbook.gd").split(out["songbook"] if out.has("songbook") else [])   # 1.2.0 §11.8 棋譜本（明確存成 null 也隔離）
+   181		out["songbook"] = sbp[0]
+   182		if not sbp[1].is_empty() or out.has("songbook_bad"):
+   183			# 1.6.0 B16（P13.1）：壞的那幾筆隔離起來（不丟），棋譜本頁可以複製出來或清掉
+   184			out["songbook_bad"] = load("res://scripts/game/songbook.gd").sanitize_bad(sbp[1] + (out.get("songbook_bad", []) if out.get("songbook_bad", []) is Array else []))
+   185		out["intro_seen"] = out.get("intro_seen", false) is bool and bool(out.get("intro_seen", false))   # 1.3.0 §13 掌燈開門只播第一次
+   186		out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
+   187		var lst = out.get("lobby_stamps", 0)
+   188		out["lobby_stamps"] = clampi(int(lst), 0, 99) if (lst is int or lst is float) else 0   # 1.4.0 §1.1 手帳印跡
+   189		var twb = out.get("tower_best", 0)
+   190		out["tower_best"] = clampi(int(twb), 0, 100000) if (twb is int or twb is float) else 0   # 1.4.0 §11.1 無盡塔最高層
+   191		out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
+   192		var ods = out.get("od_stamps", 0)
+   650		return DirAccess.rename_absolute(tmp, path) == OK
+   651	
+   652	static func _tracked_write(path: String, d: Dictionary) -> bool:
+   653		var good := _write(path, d)
+   654		if good:
+   655			pending.erase(path)
+   656		else:
+   657			pending[path] = true
+   658		return good
+   659	
+   660	static func save_settings() -> bool:
+   661		return _tracked_write(_sp(), settings)
+   662	
+   663	## 未來版存檔（R5）一律不寫，回傳 true 是因為這不是「寫入失敗」，畫面已經常駐提示。
+   664	static func save_data() -> bool:
+   665		if data_locked:
+   666			return true
+   667		return _tracked_write(_dp(), data)
+   668	
+   669	static func has_unsaved() -> bool:
+   670		return not pending.is_empty()
+   671	
+   672	## R7：上次寫入失敗就再試一次（換畫面、回標題時呼叫）。回傳 true＝現在沒有未存內容。
+   673	static func retry_pending() -> bool:
+   674		if pending.has(_sp()):
+   675			save_settings()
+   676		if pending.has(_dp()):
+   677			save_data()
+   678		return pending.is_empty()
+   679	
+   680	static func s(key: String):
+   681		return settings.get(key, DEFAULT_SETTINGS.get(key))
+   355	var clutch_t := 0.0                # 最後時刻橫幅剩幾秒
+   356	var freeze_fx := false
+   357	## 版面檢查（第三輪 T4）：截圖模式記下每一段介面文字實際畫出的外框，拍照時檢查越界、太小、互相重疊。
+   358	var layout_probe := false
+   359	var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
+   360	var probe_texts: Array = []
+   361	var probe_shrink: Array = []   # 1.6.0 B07：這一幀被 fit() 縮級的字 [字, 要的級, 給的級, 最小級仍放不下]
+   362	var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+   363	var probe_faces: Array = []     # 1.6.0 B02：這一幀依繪製順序登記的底面 [範圍, 是不是淺紙面]（淺紙白字檢查：字看它之前最後蓋上的那一層）
+   364	## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
+   365	var probe_screen := {}
+   366	func screen_register(cls: String, main: String, skip_why := "") -> void:
+   367		probe_screen = {"cls": cls, "main": main, "skip": skip_why}
+   368	## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
+   369	var btn_group := ""
+   370	func click_count() -> int:
+   371		var n := 0
+   372		var seen := {}
+   373		for b in _btns:
+   374			if bool(b.get("grid", false)):
+   375				continue
+   376			var gp := str(b.get("group", ""))
+   377			if gp != "":
+   378				if seen.has(gp):
+   379					continue
+   380				seen[gp] = true
+   365	
+   366	## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
+   367	## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+   368	const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+   369	const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+   370	static func _r14(out: Dictionary, d: Dictionary) -> void:
+   371		var sc: Dictionary = d.get("screen", {})
+   372		if sc.is_empty():
+   373			return
+   374		var cls := str(sc.get("cls", ""))
+   375		if str(sc.get("main", "")) == "":
+   376			_add(out, "fail", "R14", cls, "畫面登記了類別卻沒有主動作")
+   377		if not R14_LIMITS.has(cls):
+   378			return
+   379		var n := int(d.get("clicks", 0))
+   380		var lim := int(R14_LIMITS[cls])
+   381		if n <= lim:
+   382			return
+   383		if str(sc.get("skip", "")) != "":
+   384			var key := "_ex_R14:" + cls
+   385			if not out.has(key):
+   386				out[key] = true
+   387				out["exempt"].append({"rule": "R14", "id": cls, "why": str(sc["skip"])})
+   388			return
+   389		_add(out, "fail" if cls in R14_ENFORCE else "warn", "R14", cls, "可見可點元件 %d 個，超過「%s」類上限 %d（收進「更多」或拆頁）" % [n, cls, lim])
+   390	
+   391	
+   392	static func _contents(texts: Array, btns: Array) -> Array:
+   393		var cs: Array = []
+   394		for t in texts:
+   395			cs.append({"r": t.get("gr", t["r"]), "s": t["s"], "kind": "text"})
+   396		for b in btns:
+   397			cs.append({"r": b, "s": "按鈕%s" % str(b), "kind": "btn"})
+   398		return cs
+   399	
+   400	
+   401	## 面板內最下面一排（同 y、同高、完整在面板裡、在面板下半部）的按鈕，依 x 排序
+   402	static func _bottom_row(pr: Rect2, btns: Array) -> Array:
+   403		var inside: Array = []
+   404		for b in btns:
+   405			if pr.grow(1.0).encloses(b) and b.get_center().y > pr.get_center().y:
+   770		SV.data = keep
+   771		SV.save_data()
+   772		# 讀檔成本與邊界：存成 null、巨量、巢狀
+   773		var dn := {"songbook": null}
+   774		SV.sanitize_data(dn)
+   775		ok((dn["songbook"] as Array).is_empty() and (dn.get("songbook_bad", []) as Array).size() == 1, "棋譜本存成 null：隔離（不默默消失）")
+   776		var huge: Array = []
+   777		for i in 500:
+   778			huge.append({"c": codes[0]})
+   779		var nest := {"c": [[[[1]]]], "n": "x".repeat(20000)}
+   780		var t0 := Time.get_ticks_msec()
+   781		var sph: Array = SBx.split(huge + [nest])
+   782		ok(sph[0].size() == 1 and Time.get_ticks_msec() - t0 < 500 and str(sph[1][-1]).begins_with("+"), "巨量重複：只看前 %d 筆、重複不重解（%d ms）" % [SBx.SCAN_MAX, Time.get_ticks_msec() - t0])
+   783		var spn: Array = SBx.split([nest])
+   784		ok(spn[1].size() == 1 and str(spn[1][0]).length() <= SBx.BAD_TEXT, "巢狀／超長：只留截過的原文")
+   785		var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+   786		ok(gr.find("res_more_items.append([L.t(\"sb_add\"), func(): call(\"_sb_add_current\")])") >= 0, "結果頁「更多」直接收進棋譜本")
+game/scripts/ui/game_screens.gd:947:	_draw_overlay()
+game/scripts/ui/screens/game_v16.gd:361:func _draw_v16_overlay(name: String) -> void:
+game/scripts/ui/screens/game_v16.gd:483:	btn_group = "tv_tools"   # 1.5.0 R14：射程、標記、實驗簿三顆小圖示＝一組檢視工具（試煉擺陣原本 13 個，第 4 批漏拍這個變體）
+game/scripts/ui/screens/game_v16.gd:485:	btn_group = ""
+game/scripts/ui/screens/game_v16.gd:853:		btn_group = "sb_bad"
+game/scripts/ui/screens/game_v16.gd:856:		btn_group = ""
+/home/timmy/.local/bin/godot
+
+codex
+- P1 `game/scripts/game/songbook.gd:80–83`：隔離區仍掃完整陣列，且以持續增長的陣列去重，巨量不同字串可達平方成本；最後才截六筆，讀檔成本仍無界。
+- P2 同檔 `71–73`：`seen` 只記前六筆；六種好碼後重複第七種，仍逐筆解碼，未完全修正「重複好碼不重解」。
+- P2 同檔 `64、83`：前六筆已有不同壞資料時，尾端「+N」會被截掉；經 `save.gd:184` 後，超量提示消失。新增測試未涵蓋此存檔路徑。
+
+其餘指定修正靜態核對通過；未執行會寫檔的測試。
+
+結論：不可
+tokens used
+30,775

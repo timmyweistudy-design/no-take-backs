@@ -665,6 +665,7 @@ func _rv_cancel() -> void:
 
 func _rv_poll() -> void:
 	_rv_base_poll()
+	_ls_poll()
 	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
 		_rv_cancel()   # 離開覆盤或改了陣型：舊的不用算完
 		return
@@ -680,6 +681,10 @@ func _rv_poll() -> void:
 ## 結束時：叫停再等（64 tick 內會停）；GIF 也叫停。
 func _rv_exit() -> void:
 	_rv_cancel()
+	if ls_thread != null:
+		bg.retire(ls_thread)
+		ls_thread = null
+		ls_check.erase(ls_thread_id)
 	if rv_base_thread != null:
 		bg.retire(rv_base_thread)
 		rv_base_thread = null
@@ -712,7 +717,7 @@ func _draw_review() -> void:
 	dy += 52.0
 	var cs := 40.0
 	var g0 := Vector2(130, 168 + dy)
-	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_ro") if rv_tab == 1 else L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」；1.6.0 B07：讀結果頁只看（Hydrogen r1）
+	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_ro") if rv_tab >= 1 else L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」；1.6.0 B07：讀結果頁只看（Hydrogen r1）
 	if rv_orig.deploy == "free":
 		_rv_free_board(g0)
 	for r in (0 if rv_orig.deploy == "free" else 9):
@@ -749,9 +754,13 @@ func _draw_review() -> void:
 	# 1.6.0 B07（P2.5）：右欄按任務分兩頁——「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果的走勢、分岔、播放）
 	var bx := 580.0
 	btn_group = "rv_tabs"
-	for k in 2:
-		_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k; rv_focus_main = true, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+	for k in 3:   # 1.6.0 B15：第三頁「棋課本」
+		_btn(Rect2(bx + k * 186, tab_y, 180, 40), L.t(["rv_tab_edit", "rv_tab_read", "rv_tab_book"][k]), func(): rv_tab = k; rv_focus_main = true, k != 1 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
 	btn_group = ""
+	if rv_tab == 2:
+		_rv_draw_book(bx, dy)
+		_btn(Rect2(560, 704, 160, 44), L.t("back"), func(): overlay = "")
+		return
 	if rv_tab == 1:
 		_rv_draw_read(bx, dy)
 		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
@@ -807,7 +816,16 @@ func _rv_draw_read(bx: float, dy: float) -> void:
 		Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
 	y += tz("S") * 1.5 + chh + 12.0
 	if not rv_result.is_empty():
-		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+		# 1.6.0 B15（P6.1）：重算過＝此條件下已驗證（淡色接在後面，和勝敗分開；放不下就整句一起換行）
+		var rn := L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])])
+		var vt := L.t("ev_verified")
+		if _width(rn, tz("S"), true) + _width("　" + vt, tz("S")) <= 552.0:
+			_text(Vector2(bx, y), rn, tz("S"), ACCENT, false, true, 552)
+			_text(Vector2(bx + _width(rn, tz("S"), true), y), "　" + vt, tz("S"), TXT_DIM, false, false, 552.0 - _width(rn, tz("S"), true))
+		else:
+			_text(Vector2(bx, y), rn, tz("S"), ACCENT, false, true, 552)
+			y += tz("S") * 1.5   # 放不下：驗證字自己一行，走勢圖往下讓（Hydrogen B15 r2：英文 150% 被圖蓋住）
+			_text(Vector2(bx, y), vt, tz("S"), TXT_DIM, false, true, 552)
 		var b1: Array = rv_result.get("b", [100, 100])
 		var c1 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
 		Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
@@ -817,11 +835,162 @@ func _rv_draw_read(bx: float, dy: float) -> void:
 			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
 			y += tz("S") * 1.5
+		# 1.6.0 B15（P6.2）：把這組對照記進棋課本（只在重算完成、世代相符時能按）
+		_btn(Rect2(bx, y + 4, 270, 40), L.t("ls_save"), func(): _rv_save_lesson(), _rv_can_save())
 		if rv_focus_main:
 			_focus = _btns.size()
 			rv_focus_main = false
 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
 
+
+## ── 1.6.0 B15（P6.2；S5）棋課本 ──
+const Lesson = preload("res://scripts/game/lesson.gd")
+const LS_PER_PAGE := 5
+var ls_page := 0
+var ls_check := {}        # id → "busy"／"ok"／"diff"／"stale"／"bad"
+var ls_thread: Thread = null
+var ls_thread_id := ""
+var ls_thread_e := {}
+var ls_thread_stale := false
+
+## 每頁幾則：一列最多＝標題兩行＋核對一行＋鈕列（40＋間距），從 y 排到 630 為止（翻頁列在 640）
+static func ls_per_page(y: float, sz: int) -> int:
+	return clampi(int((630.0 - y) / (sz * 1.5 * 3.0 + 60.0)), 1, LS_PER_PAGE)
+
+func _rv_can_save() -> bool:
+	return not rv_result.is_empty() and not rv_base.is_empty() and rv_thread == null and review_changes(rv_orig, rv_army) == 1 and Lesson.kind_of(rv_orig, rv_army) != ""
+
+## 存一則：不重複、滿了不擠掉舊的；寫檔失敗＝留在記憶體並標未存（Save 會重試），照實說。
+func _rv_save_lesson() -> String:
+	if not _rv_can_save():
+		return "bad"
+	var e := Lesson.make(rv_orig, rv_army, rv_enemy, battle_rules, last_cmds, rv_base, rv_result, rv_div)
+	var cur: Array = Lesson.sanitize(Save.data.get("lessons", []))[0]
+	var r: Array = Lesson.add(cur, e)
+	var st: String = r[1]
+	if st == "ok":
+		Save.data["lessons"] = r[0]
+		if not Save.save_data():
+			st = "unsaved"
+	_toast(L.t("ls_full", [Lesson.CAP]) if st == "full" else L.t({"ok": "ls_saved", "unsaved": "ls_unsaved", "dup": "ls_dup", "bad": "ls_bad"}[st]), st != "ok")
+	return st
+
+func _ls_list() -> Array:
+	return Lesson.sanitize(Save.data.get("lessons", []))[0]
+
+func _rv_draw_book(bx: float, dy: float) -> void:
+	var list := _ls_list()
+	var y := 168.0 + dy
+	if list.is_empty():
+		_text(Vector2(bx, y), L.t("ls_empty"), tz("S"), TXT_DIM, false, true, 552)
+		return
+	_text(Vector2(bx, y), L.t("ls_intro"), tz("S"), TXT_DIM, false, true, 552)   # 這一頁在做什麼（Hydrogen B15 r1）
+	probe_skip("R6", "覆盤面板三頁共用固定高度；棋課本筆數少時下面留白（每頁筆數照字級算）")
+	y += text_h(L.t("ls_intro"), tz("S"), 552) + 10.0
+	# 每頁幾則照字級與可用高度算（標題可能兩行＋核對狀態＋一列鈕），不溢出到翻頁／返回（Codex B15 r1）
+	var per := ls_per_page(y, tz("S"))
+	var pages := maxi(1, ceili(list.size() / float(per)))
+	ls_page = clampi(ls_page, 0, pages - 1)
+	for i in range(ls_page * per, mini(list.size(), (ls_page + 1) * per)):
+		var e: Dictionary = list[list.size() - 1 - i]   # 新的在上面
+		var id: String = e["id"]
+		var ut: Array = e.get("u", [-1, -1])
+		var what := L.t("ls_kind_" + str(e["k"]))
+		if int(ut[0]) >= 0 and int(ut[1]) >= 0 and int(ut[0]) != int(ut[1]):
+			what += L.t("ls_types", [L.t("unit_%d" % int(ut[0])), L.t("unit_%d" % int(ut[1]))])
+		elif maxi(int(ut[0]), int(ut[1])) >= 0:
+			what += L.t("ls_type1", [L.t("unit_%d" % maxi(int(ut[0]), int(ut[1])))])
+		var head := L.t("ls_row", [what, _rv_outcome(int(e["ro"][0]), int(e["ro"][1])), _rv_outcome(int(e["ra"][0]), int(e["ra"][1]))])
+		_text(Vector2(bx, y), head, tz("S"), Color.WHITE, false, true, 552)
+		var hy := y + text_h(head, tz("S"), 552)   # 標題在 150% 會換行：照實際高度往下排
+		var st: String = ls_check.get(id, "")
+		if st != "":
+			var sl: String = L.t("busy_review") if st == "busy" else L.t("ls_" + st)
+			_text(Vector2(bx, hy + 2), sl, tz("S"), ACCENT if st == "ok" else (TXT_DIM if st == "busy" else Color(1, 0.75, 0.7)), false, true, 552)
+			hy += 2 + text_h(sl, tz("S"), 552)
+		var by := hy + 8.0
+		btn_group = "ls_row%d" % i   # 每列一組（R14 照列算）
+		_btn(Rect2(bx, by, 180, 40), L.t("ls_check"), _ls_check.bind(e), ls_thread == null)
+		_btn(Rect2(bx + 186, by, 180, 40), L.t("ls_watch"), _ls_watch.bind(e), st != "bad")
+		_btn(Rect2(bx + 372, by, 180, 40), L.t("ls_del"), _ls_delete.bind(id))
+		btn_group = ""
+		y = by + 52.0
+	if pages > 1:
+		_text(Vector2(bx + 276, 650), L.t("ls_page", [ls_page + 1, pages]), tz("S"), TXT_DIM, true, true, 200)
+		btn_group = "ls_pages"
+		_btn(Rect2(bx, 640, 120, 40), "‹", func(): ls_page = maxi(0, ls_page - 1), ls_page > 0)
+		_btn(Rect2(bx + 432, 640, 120, 40), "›", func(): ls_page = mini(pages - 1, ls_page + 1), ls_page < pages - 1)
+		btn_group = ""
+
+## 重算核對：兩個碼各自重算，和存的結果比（S5 20/20 還原的判準）。規則版本不同＝照現在規則重算、標出來。
+func _ls_check(e: Dictionary) -> void:
+	if ls_thread != null:
+		return
+	var r := Lesson.restore(e)
+	if not r["ok"]:
+		ls_check[e["id"]] = "bad"
+		return
+	ls_check[e["id"]] = "busy"
+	var o = r["orig"]
+	var a = r["alt"]
+	var en = r["enemy"]
+	var ru = r["rules"]
+	var cm: Array = r["cmds"]
+	if not _async_ok() or shot_dir != "":
+		_ls_done(e, bool(r["stale"]), [review_run(o, en, ru, cm), review_run(a, en, ru, cm)])
+		return
+	var ctl: Dictionary = BgPool.make_ctl(RV_LIMIT_MS * 2)
+	ls_thread = bg.start(func(): return [review_run(o, en, ru, cm, ctl), review_run(a, en, ru, cm, ctl)], ctl)
+	if ls_thread == null:
+		ls_check.erase(e["id"])
+		_toast(L.t("rv_fail"), true)
+		return
+	ls_thread_id = e["id"]
+	ls_thread_e = e
+	ls_thread_stale = bool(r["stale"])
+
+func _ls_done(e: Dictionary, stale: bool, res: Array) -> void:
+	if bool(res[0].get("cancel", false)) or bool(res[1].get("cancel", false)):
+		ls_check.erase(e["id"])
+		_toast(L.t("rv_slow"), true)
+		return
+	if stale:
+		ls_check[e["id"]] = "stale"
+	else:
+		ls_check[e["id"]] = "ok" if Lesson.same_result(e, res[0], res[1]) else "diff"
+
+func _ls_poll() -> void:
+	if ls_thread == null:
+		return
+	if overlay != "review" or rv_tab != 2:
+		bg.retire(ls_thread)   # 離開棋課本＝取消（不留半套結果）
+		ls_thread = null
+		ls_check.erase(ls_thread_id)
+		return
+	if not ls_thread.is_alive():
+		var res = bg.take(ls_thread)
+		ls_thread = null
+		if res is Array and res.size() == 2:
+			_ls_done(ls_thread_e, ls_thread_stale, res)
+		else:
+			ls_check.erase(ls_thread_id)
+
+## 看「如果」那一場：走看對戰代碼的路（全新一局的情境，不動目前這局的陣型、規則、軍令）
+func _ls_watch(e: Dictionary) -> void:
+	var r := Lesson.restore(e)
+	if not r["ok"]:
+		ls_check[e["id"]] = "bad"
+		_toast(L.t("ls_bad"), true)
+		return
+	_rv_exit()
+	overlay = ""
+	_watch_code_str(str(e["a"]))   # 走看對戰代碼的同一條路：試玩版鎖定兵種／地圖、規則版本提示都在裡面（Codex B15 r1）
+
+func _ls_delete(id: String) -> void:
+	Save.data["lessons"] = Lesson.remove(_ls_list(), id)
+	ls_check.erase(id)
+	if not Save.save_data():
+		_toast(L.t("ls_unsaved"), true)
 
 ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
 func _tm_new_ghost() -> void:

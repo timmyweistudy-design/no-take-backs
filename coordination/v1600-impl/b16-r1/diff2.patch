@@ -1,0 +1,311 @@
+--- a/game/scripts/game/songbook.gd
++++ b/game/scripts/game/songbook.gd
+@@ -18,14 +18,73 @@
+ 		out.remove_at(i)
+ 	return out
+ 
+-## 存檔讀進來時逐筆驗型（壞的丟掉）
++## 存檔讀進來時逐筆驗型。壞的不丟：交給 split 隔離（1.6.0 B16）。
+ static func sanitize(raw) -> Array:
++	return split(raw)[0]
++
++const BAD_MAX := 6
++const BattleCode = preload("res://scripts/game/battle_code.gd")
++
++static func _entry(e):
++	if not (e is Dictionary and e.get("c") is String and str(e["c"]).length() <= CODE_MAX and str(e["c"]) != ""):
++		return null
++	if not BattleCode.decode(str(e["c"])).get("ok", false):
++		return null   # 代碼讀不出來（壞碼）：隔離，不放進冊子（不然「看」會失敗）
++	var t = e.get("t", 0)
++	var ti := int(t) if ((t is int or t is float) and absf(float(t)) < 1.0e12) else 0
++	return {"c": str(e["c"]), "n": str(e.get("n", "")).left(80), "note": str(e.get("note", "")).left(120), "t": ti}
++
++const SCAN_MAX := 32   # 讀檔時最多看幾筆（巨量資料不拖垮讀檔；Codex B16 r1）
++const BAD_TEXT := CODE_MAX + 400
++
++## 壞的那筆留原文：只取 c／n／note 三個字串欄（截到上限），不把巢狀資料整個序列化
++static func _raw_of(e) -> String:
++	if e is String:
++		return e.left(BAD_TEXT)
++	if e is Dictionary:
++		var o := {}
++		for k in ["c", "n", "note"]:
++			var v = e.get(k)
++			o[k] = v.left(CODE_MAX) if v is String else type_string(typeof(v))
++		return JSON.stringify(o).left(BAD_TEXT)
++	return type_string(typeof(e))
++
++## 1.6.0 B16（P13.1）壞資料隔離：回 [好的, 壞的原文字串]。玩家可以複製出來救、或清掉。
++static func split(raw) -> Array:
+ 	var out: Array = []
++	var bad: Array = []
+ 	if not raw is Array:
+-		return out
++		bad.append(_raw_of(raw))   # 不是陣列（含明確存成 null）：整個欄位隔離
++		return [out, bad]
++	var seen := {}
++	var n := 0
+ 	for e in raw:
+-		if out.size() >= MAX:
++		n += 1
++		if n > SCAN_MAX:
++			bad.append("+%d" % (raw.size() - SCAN_MAX))   # 太多筆：多的不看，記一筆數量
+ 			break
+-		if e is Dictionary and e.get("c") is String and str(e["c"]).length() <= CODE_MAX and str(e["c"]) != "":
+-			out.append({"c": str(e["c"]), "n": str(e.get("n", "")).left(80), "note": str(e.get("note", "")).left(120), "t": int(e.get("t", 0)) if (e.get("t") is int or e.get("t") is float) else 0})
+-	return out
++		if e is Dictionary and e.get("c") is String and seen.has(e["c"]):
++			continue   # 重複的好碼不再解碼
++		var g = _entry(e)
++		if g == null:
++			bad.append(_raw_of(e))
++		elif out.size() < MAX:
++			seen[g["c"]] = true
++			out.append(g)
++	return [out, bad]
++
++## 隔離區驗型：只收字串、去重、最多 BAD_MAX（新的在前）
++static func sanitize_bad(raw) -> Array:
++	var out: Array = []
++	if raw is Array:
++		for x in raw:
++			if x is String and x.length() <= BAD_TEXT and not x in out:
++				out.append(x)
++	return out.slice(0, BAD_MAX)
++
++## 加一場之前先問：dup（已收過，會移到最上面）／full（滿了，會擠掉最舊的那筆）／ok
++static func add_check(book: Array, code: String) -> String:
++	for e in book:
++		if e is Dictionary and str(e.get("c", "")) == code:
++			return "dup"
++	return "full" if book.size() >= MAX else "ok"
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -177,7 +177,11 @@
+ 	out["slots"] = sl
+ 	var lf = out.get("last_form", "")
+ 	out["last_form"] = lf if lf is String and str(lf).length() <= 8000 else ""   # 1.2.0 §11.1：上一陣（陣型碼）
+-	out["songbook"] = load("res://scripts/game/songbook.gd").sanitize(out.get("songbook", []))   # 1.2.0 §11.8 棋譜本
++	var sbp: Array = load("res://scripts/game/songbook.gd").split(out["songbook"] if out.has("songbook") else [])   # 1.2.0 §11.8 棋譜本（明確存成 null 也隔離）
++	out["songbook"] = sbp[0]
++	if not sbp[1].is_empty() or out.has("songbook_bad"):
++		# 1.6.0 B16（P13.1）：壞的那幾筆隔離起來（不丟），棋譜本頁可以複製出來或清掉
++		out["songbook_bad"] = load("res://scripts/game/songbook.gd").sanitize_bad(sbp[1] + (out.get("songbook_bad", []) if out.get("songbook_bad", []) is Array else []))
+ 	out["intro_seen"] = out.get("intro_seen", false) is bool and bool(out.get("intro_seen", false))   # 1.3.0 §13 掌燈開門只播第一次
+ 	out["od"] = load("res://scripts/game/owner_daily.gd").sanitize(out.get("od", {}))   # 1.3.0 §12.7 每日老闆出題（新鍵逐欄驗型；舊存檔沒有＝空）
+ 	var lst = out.get("lobby_stamps", 0)
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -376,6 +376,8 @@
+ 			_draw_share()
+ 		"songbook":
+ 			_draw_songbook()
++		"sb_full":
++			_draw_sb_full()
+ 		"campaign":
+ 			call("_draw_campaign")
+ 		"rush_end":
+@@ -740,15 +742,31 @@
+ ## ── 1.2.0 §11.8 名局棋譜本 ──
+ const SB = preload("res://scripts/game/songbook.gd")
+ 
++var sb_pending := {}   # 1.6.0 B16：滿六筆時等玩家確認的那一場 {c, n, note}
++
+ func _sb_add_current() -> void:
+ 	if last_armies.size() != 2:
+ 		return
+ 	var code := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds)
++	if SB.add_check(Save.data.get("songbook", []), code) == "full":
++		# 1.6.0 B16（P13.1）：第七筆明示——先說會擠掉哪一筆，確認了才換
++		sb_pending = {"c": code, "n": _sb_title_now(), "note": _sb_note_now()}
++		overlay = "sb_full"
++		_focus = 0
++		return
++	_sb_commit(code, _sb_title_now(), _sb_note_now())
++
++func _sb_title_now() -> String:
+ 	var w: int = sim.winner if sim != null else -1
+ 	var res := L.t("sb_win") if w == 0 else (L.t("sb_lose") if w == 1 else L.t("sb_draw"))
+-	var title := "%s　%s" % [Time.get_date_string_from_system(), res]
++	return "%s　%s" % [Time.get_date_string_from_system(), res]
++
++func _sb_note_now() -> String:
+ 	var marks: Array = _key_marks() if not report.is_empty() else []
+-	var note := L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
++	return L.t("sb_note_none") if marks.is_empty() else L.t("sb_note", [str(marks[marks.size() - 1]["label"])])
++
++func _sb_commit(code: String, title: String, note: String) -> void:
++	sb_pending = {}
+ 	Save.data["songbook"] = SB.add(Save.data.get("songbook", []), code, title, note, int(Time.get_unix_time_from_system()))
+ 	if Save.save_data():
+ 		_toast(L.t("sb_added"))
+@@ -757,12 +775,56 @@
+ 	overlay = "songbook"
+ 	_focus = 0
+ 
++## 滿了：說清楚會擠掉哪一筆（最舊的＝最下面那筆），替換／取消
++func _draw_sb_full() -> void:
++	_dim(0.6)
++	var book: Array = Save.data.get("songbook", [])
++	var old_n: String = str(book[book.size() - 1].get("n", "")) if not book.is_empty() else ""
++	var body := L.t("sb_full_body", [SB.MAX, old_n])
++	var P := modal_rect(640, 12.0 + h1_bottom(0.0) + GAP_L + text_h(body, tz("S"), 560) + GAP_L + 48.0 + GAP_L)
++	_panel(P)
++	var y := _h1(Vector2(640, P.position.y + 12), L.t("sb_full_title")) + GAP_L
++	_text(Vector2(640, y), body, tz("S"), Color.WHITE, true, false, 560)
++	_btn(Rect2(640 - 250, P.end.y - GAP_L - 48.0, 240, 48), L.t("sb_replace"), func(): _sb_confirm(), not sb_pending.is_empty(), true)
++	_btn(Rect2(640 + 10, P.end.y - GAP_L - 48.0, 240, 48), L.t("cancel"), func(): sb_pending = {}; overlay = "")
++	screen_register("result", "sb_replace")   # 結果頁的確認框：照結果類上限算（兩顆各算一顆；Codex B16 r1）
++
++## 確認替換：核對還是同一局（確認框開著時換了局＝過期，不收舊局；Codex B16 r1）
++func _sb_confirm() -> bool:
++	var cur := BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds) if last_armies.size() == 2 else ""
++	if sb_pending.is_empty() or str(sb_pending.get("c", "")) != cur:
++		sb_pending = {}
++		overlay = ""
++		return false
++	_sb_commit(str(sb_pending["c"]), str(sb_pending.get("n", "")), str(sb_pending.get("note", "")))
++	return true
++
++## 隔離區：複製要真的進了剪貼簿才說成功；清掉要寫得進檔案才算數（寫不進＝還原、照實說）
++func _sb_bad_copy() -> bool:
++	var txt := "\n".join(PackedStringArray(Save.data.get("songbook_bad", [])))
++	DisplayServer.clipboard_set(txt)
++	var good := DisplayServer.clipboard_get() == txt
++	_toast(L.t("sb_bad_copied") if good else L.t("sb_bad_copy_fail"), not good)
++	return good
++
++func _sb_bad_clear() -> bool:
++	var keep = Save.data.get("songbook_bad", [])
++	Save.data.erase("songbook_bad")
++	if Save.save_data():
++		return true
++	Save.data["songbook_bad"] = keep
++	_toast(L.t("save_failed"), true)
++	return false
++
+ func _draw_songbook() -> void:
+ 	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
+ 	var book: Array = Save.data.get("songbook", [])
+ 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
++	var bad: Array = Save.data.get("songbook_bad", [])
++	var bad_txt := L.t("sb_bad", [bad.size()])
++	var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
+ 	if book.is_empty():
+@@ -783,6 +845,15 @@
+ 		_btn(Rect2(r.end.x - 244, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
+ 		_btn(Rect2(r.end.x - 116, r.position.y + (rowh - 44.0) / 2.0, 104, 44), L.t("sb_del"), func(): Save.data["songbook"] = SB.remove(Save.data.get("songbook", []), idx); Save.save_data())
+ 		y += rowh + 8.0
++	if not bad.is_empty():
++		# 1.6.0 B16（P13.1）：讀不出來的紀錄隔離在這裡（原文還在）：複製出來救、或清掉
++		y += GAP_M - 8.0
++		_text(Vector2(640, y), bad_txt, tz("S"), Color(1, 0.8, 0.7), true, false, 680)
++		y += text_h(bad_txt, tz("S"), 680) + 8.0
++		btn_group = "sb_bad"
++		_btn(Rect2(640 - 250, y, 240, 44), L.t("sb_bad_copy"), func(): _sb_bad_copy())
++		_btn(Rect2(640 + 10, y, 240, 44), L.t("sb_bad_clear"), func(): _sb_bad_clear())
++		btn_group = ""
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
+ ## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
+--- a/game/tests/suites/coach_lab.gd
++++ b/game/tests/suites/coach_lab.gd
+@@ -443,7 +443,8 @@
+ 	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C%d" % (SBx.MAX + 1), "棋譜本：新的在前、滿了丟最舊")
+ 	book = SBx.add(book, "C3", "t", "n", 99)
+ 	ok(book.size() == SBx.MAX and str(book[0]["c"]) == "C3" and book.filter(func(e): return str(e["c"]) == "C3").size() == 1, "同一場再收一次只會移到最前面")
+-	ok(SBx.sanitize([{"c": 5}, "x", {"c": "OK", "t": "bad"}]).size() == 1, "棋譜本存檔逐筆驗型")
++	var okc: String = load("res://scripts/game/battle_code.gd").encode(F.training_pool(0)[2], F.training_pool(0)[9].mirrored())
++	ok(SBx.sanitize([{"c": 5}, "x", {"c": okc, "t": "bad"}]).size() == 1, "棋譜本存檔逐筆驗型（1.6.0 B16 起代碼要解得開）")
+ 	# §11.11 最近玩的
+ 	var RCx = load("res://scripts/game/recent.gd")
+ 	var rl: Array = RCx.push([], "hub_play", "menu_vs_ai")
+@@ -704,3 +705,82 @@
+ 	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+ 	var rvs: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+ 	ok(gr.find("line = L.t(\"ev_observed\", [line])") >= 0 and rvs.find("var vt := L.t(\"ev_verified\")") >= 0, "證據分層：敗因卡標「觀察」、覆盤重算後標「此條件下已驗證」")
++
++
++## 1.6.0 B16（P13.1、P6.5）棋譜本：壞資料隔離與恢復、第七筆明示替換、結果「更多」直接收。
++func test_songbook_v1600() -> void:
++	var SBx = load("res://scripts/game/songbook.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var BCx = load("res://scripts/game/battle_code.gd")
++	var pool := F.training_pool(0)
++	var codes: Array = []
++	for i in 8:
++		codes.append(BCx.encode(pool[i], pool[(i + 3) % pool.size()].mirrored()))
++	var good := {"c": codes[0], "n": "a", "note": "b", "t": 5}
++	var broken := {"c": str(codes[1]).substr(0, 40) + "zz", "n": "壞", "note": "", "t": 6}
++	var sp: Array = SBx.split([good, broken, 7, {"c": codes[2], "t": 1.0e30}])
++	ok(sp[0].size() == 2 and sp[1].size() == 2 and int(sp[0][1]["t"]) == 0, "壞碼與亂型別隔離（不丟）、好的留下、超大時間歸零（好 %d、壞 %d）" % [sp[0].size(), sp[1].size()])
++	ok(str(sp[1][0]).find(str(broken["c"])) >= 0, "隔離的是原文（可以複製出來救）")
++	# 存檔路徑：讀回時隔離進 songbook_bad；全部正常的舊存檔不多出欄位
++	var d := {"songbook": [good, broken]}
++	SV.sanitize_data(d)
++	ok((d["songbook"] as Array).size() == 1 and (d.get("songbook_bad", []) as Array).size() == 1, "存檔讀回：壞的一筆移到隔離區")
++	var d2: Dictionary = JSON.parse_string(JSON.stringify(d))
++	SV.sanitize_data(d2)
++	ok((d2["songbook"] as Array).size() == 1 and (d2.get("songbook_bad", []) as Array).size() == 1, "重啟後隔離區照舊（不重複、不消失）")
++	var d3 := {"songbook": [good]}
++	SV.sanitize_data(d3)
++	ok(not d3.has("songbook_bad"), "全部正常：不多出隔離欄位（舊進度不改寫）")
++	ok(SBx.sanitize_bad([1, "x", "x", "y"]) == ["x", "y"], "隔離區驗型、去重")
++	# 第七筆明示
++	var book: Array = []
++	for i in SBx.MAX:
++		book = SBx.add(book, codes[i], "t%d" % i, "n", i)
++	ok(SBx.add_check(book, codes[6]) == "full" and SBx.add_check(book, codes[2]) == "dup" and SBx.add_check([], codes[0]) == "ok", "加之前先問：滿了／已收過／可以")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	var keep: Dictionary = SV.data.duplicate(true)
++	SV.data["songbook"] = book.duplicate(true)
++	g.last_armies = [pool[6].copy(), pool[1].mirrored()]
++	g.last_cmds = []
++	g.battle_rules = null
++	g._sb_add_current()
++	ok(g.overlay == "sb_full" and (SV.data["songbook"] as Array) == book, "第七筆：先問，冊子還沒動")
++	g.sb_pending = {}
++	g.overlay = ""
++	ok((SV.data["songbook"] as Array) == book, "取消：冊子不變")
++	g._sb_add_current()
++	var pend: Dictionary = g.sb_pending.duplicate()
++	g.last_armies = [pool[7].copy(), pool[1].mirrored()]   # 確認框開著時換了一局
++	ok(not g._sb_confirm() and (SV.data["songbook"] as Array) == book and g.sb_pending.is_empty(), "過期的確認不收舊局")
++	g.last_armies = [pool[6].copy(), pool[1].mirrored()]
++	g._sb_add_current()
++	ok(g.sb_pending == pend, "同一局再按：同一個待確認")
++	ok(g._sb_confirm(), "確認替換")
++	var nb: Array = SV.data["songbook"]
++	ok(nb.size() == SBx.MAX and str(nb[0]["c"]) != str(book[0]["c"]) and nb.filter(func(e): return str(e["c"]) == str(book[SBx.MAX - 1]["c"])).is_empty(), "確認替換：新的在最上面、最舊那筆（畫面上說的那筆）被換掉")
++	# 清掉：寫檔失敗＝還原
++	SV.data["songbook_bad"] = ["x"]
++	SV.fail_inject = {"tmp": 1}
++	ok(not g._sb_bad_clear() and SV.data.get("songbook_bad", []) == ["x"], "清掉時寫檔失敗：隔離區還原")
++	SV.retry_pending()
++	ok(g._sb_bad_clear() and not SV.data.has("songbook_bad"), "清掉")
++	g.free()
++	SV.data = keep
++	SV.save_data()
++	# 讀檔成本與邊界：存成 null、巨量、巢狀
++	var dn := {"songbook": null}
++	SV.sanitize_data(dn)
++	ok((dn["songbook"] as Array).is_empty() and (dn.get("songbook_bad", []) as Array).size() == 1, "棋譜本存成 null：隔離（不默默消失）")
++	var huge: Array = []
++	for i in 500:
++		huge.append({"c": codes[0]})
++	var nest := {"c": [[[[1]]]], "n": "x".repeat(20000)}
++	var t0 := Time.get_ticks_msec()
++	var sph: Array = SBx.split(huge + [nest])
++	ok(sph[0].size() == 1 and Time.get_ticks_msec() - t0 < 500 and str(sph[1][-1]).begins_with("+"), "巨量重複：只看前 %d 筆、重複不重解（%d ms）" % [SBx.SCAN_MAX, Time.get_ticks_msec() - t0])
++	var spn: Array = SBx.split([nest])
++	ok(spn[1].size() == 1 and str(spn[1][0]).length() <= SBx.BAD_TEXT, "巢狀／超長：只留截過的原文")
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	ok(gr.find("res_more_items.append([L.t(\"sb_add\"), func(): call(\"_sb_add_current\")])") >= 0, "結果頁「更多」直接收進棋譜本")

@@ -1,0 +1,639 @@
+--- a/game/scripts/game/lesson.gd
++++ b/game/scripts/game/lesson.gd
+@@ -0,0 +1,196 @@
++extends RefCounted
++## 1.6.0 B15（P6.2；S5）配對棋課紀錄：覆盤裡「只改一隻」重算過的一組對照，存成一則棋課。
++## 一則＝原局碼＋改局碼（同一個對手、同一份規則與軍令）＋改了什麼（四類：換兵、移位、新增、拿掉）＋兩邊的結果摘要＋分岔 tick。
++## 只存「此條件下已驗證」的東西：重算完成、世代相符才存；讀回時用兩個碼各自重算，結果要和存的時候一樣才算還原。
++## 純邏輯（不碰畫面、不碰存檔）：存檔欄位 Save.data["lessons"]，畫面在 replay_view.gd。
++## 「第一次戰力不同」只是分岔點，不是因果——畫面上照 rv_note 說明。
++const BattleCode = preload("res://scripts/game/battle_code.gd")
++const Army = preload("res://scripts/core/army.gd")
++
++const VERSION := 1
++const CAP := 30                 # 容量：滿了不自動丟舊的（玩家自己刪）
++const KINDS := ["swap", "move", "add", "remove"]
++const CODE_MAX := 8000          # 和 BattleCode.decode 的上限一致
++
++## 判斷改了哪一類（只改一隻時才有意義；改了不只一隻或沒改回 ""）。
++static func kind_of(orig, now) -> String:
++	if orig.deploy == "free":
++		var ma := {}
++		for u in orig.units:
++			ma[int(u.get("eid", -1))] = u
++		var seen := {}
++		var out := ""
++		var n := 0
++		for u in now.units:
++			var e := int(u.get("eid", -1))
++			seen[e] = true
++			if not ma.has(e):
++				out = "add"
++				n += 1
++			elif int(ma[e]["type"]) != int(u["type"]):
++				out = "swap"
++				n += 1
++			elif int(ma[e]["x"]) != int(u["x"]) or int(ma[e]["y"]) != int(u["y"]):
++				out = "move"
++				n += 1
++		for e in ma:
++			if not seen.has(e):
++				out = "remove"
++				n += 1
++		return out if n == 1 else ""
++	var a := {}
++	var b := {}
++	for u in orig.units:
++		a[Vector2i(int(u["col"]), int(u["row"]))] = int(u["type"])
++	for u in now.units:
++		b[Vector2i(int(u["col"]), int(u["row"]))] = int(u["type"])
++	var gone: Array = []
++	var added: Array = []
++	var swapped := 0
++	for k in a:
++		if not b.has(k):
++			gone.append(k)
++		elif b[k] != a[k]:
++			swapped += 1
++	for k in b:
++		if not a.has(k):
++			added.append(k)
++	if swapped == 1 and gone.is_empty() and added.is_empty():
++		return "swap"
++	if swapped == 0 and gone.size() == 1 and added.size() == 1:
++		return "move" if a[gone[0]] == b[added[0]] else "swap"
++	if swapped == 0 and gone.size() == 1 and added.is_empty():
++		return "remove"
++	if swapped == 0 and gone.is_empty() and added.size() == 1:
++		return "add"
++	return ""
++
++## 結果摘要：[勝方, 剩餘%, 結束 tick]
++static func outcome(res: Dictionary) -> Array:
++	return [int(res.get("winner", -1)), int(res.get("rem", 0)), int(res.get("ticks", 0))]
++
++## 做一則。base／alt＝review_run 的結果（重算完成的）。
++static func make(orig, alt, enemy, rules, cmds: Array, base: Dictionary, res: Dictionary, div: int) -> Dictionary:
++	var o := BattleCode.encode(orig, enemy, rules, cmds)
++	var a := BattleCode.encode(alt, enemy, rules, cmds)
++	return {"v": VERSION, "id": (o + "|" + a).sha256_text().substr(0, 16), "o": o, "a": a, "k": kind_of(orig, alt), "ro": outcome(base), "ra": outcome(res), "div": div}
++
++## 加進清單：回 [新清單, 狀態]。狀態：ok／dup（同一組已存過，不重複）／full（滿了）／bad（這則不合格）。
++## 不改傳進來的清單。
++static func add(list: Array, e: Dictionary) -> Array:
++	if not valid(e):
++		return [list, "bad"]
++	for x in list:
++		if x is Dictionary and str(x.get("id", "")) == str(e["id"]):
++			return [list, "dup"]
++	if list.size() >= CAP:
++		return [list, "full"]
++	var out := list.duplicate(true)
++	out.append(e.duplicate(true))
++	return [out, "ok"]
++
++static func remove(list: Array, id: String) -> Array:
++	var out: Array = []
++	for x in list:
++		if not (x is Dictionary and str(x.get("id", "")) == id):
++			out.append(x)
++	return out
++
++static func _trio(v) -> bool:
++	if not v is Array or v.size() != 3:
++		return false
++	for x in v:
++		if not ((x is int) or (x is float and float(x) == floorf(float(x)))):
++			return false
++	return int(v[0]) >= -1 and int(v[0]) <= 1 and int(v[1]) >= 0 and int(v[1]) <= 100 and int(v[2]) >= 0 and int(v[2]) < 1000000
++
++static func valid(e) -> bool:
++	if not e is Dictionary:
++		return false
++	for k in ["id", "o", "a", "k"]:
++		if not e.get(k) is String:
++			return false
++	var vv = e.get("v")
++	if not ((vv is int) or (vv is float and float(vv) == floorf(float(vv)))):
++		return false
++	if str(e["o"]).length() > CODE_MAX or str(e["a"]).length() > CODE_MAX or str(e["id"]).length() != 16:
++		return false
++	if not str(e["k"]) in KINDS:
++		return false
++	if (str(e["o"]) + "|" + str(e["a"])).sha256_text().substr(0, 16) != str(e["id"]):
++		return false   # 碼被改過（壞筆）
++	if not _trio(e.get("ro")) or not _trio(e.get("ra")):
++		return false
++	var d = e.get("div", -1)
++	return (d is int or (d is float and float(d) == floorf(float(d)))) and int(d) >= -1 and int(d) < 1000000
++
++## 存檔讀回：逐則驗型；壞的丟掉（回 [好的, 丟了幾則]）；JSON 讀回的整數是浮點，轉回整數。超過容量只留前 CAP 則。
++static func sanitize(raw) -> Array:
++	var out: Array = []
++	var bad := 0
++	if not raw is Array:
++		return [out, 0 if raw == null else 1]
++	var ids := {}
++	for e in raw:
++		if out.size() >= CAP or not valid(e) or ids.has(str(e["id"])):
++			bad += 1
++			continue
++		ids[str(e["id"])] = true
++		out.append({"v": int(e["v"]), "id": str(e["id"]), "o": str(e["o"]), "a": str(e["a"]), "k": str(e["k"]),
++			"ro": [int(e["ro"][0]), int(e["ro"][1]), int(e["ro"][2])], "ra": [int(e["ra"][0]), int(e["ra"][1]), int(e["ra"][2])], "div": int(e.get("div", -1))})
++	return [out, bad]
++
++## 讀回一則：解兩個碼。回 {ok, why, orig, alt, enemy, rules, cmds, stale}。
++## why：ver（存的版本比遊戲新）／code（碼壞）／pair（兩個碼不是同一個對手、同一份規則）
++## stale＝規則或資料版本和現在不同（BattleCode 的 mismatch）：照樣打開，但結果要重算，不拿存的結果當真。
++static func restore(e: Dictionary) -> Dictionary:
++	if int(e.get("v", 0)) > VERSION:
++		return {"ok": false, "why": "ver"}
++	var o := BattleCode.decode(str(e.get("o", "")))
++	var a := BattleCode.decode(str(e.get("a", "")))
++	if not o.get("ok", false) or not a.get("ok", false):
++		return {"ok": false, "why": "code"}
++	var ro = o.get("rules")
++	var ra = a.get("rules")
++	if o["a1"].to_code() != a["a1"].to_code() or (ro == null) != (ra == null) or (ro != null and ro.to_code() != ra.to_code()) or o.get("cmds", []) != a.get("cmds", []):
++		return {"ok": false, "why": "pair"}
++	var orig = o["a0"]
++	var alt = a["a0"]
++	if orig.deploy == "free":
++		assign_eids(orig, alt)
++	return {"ok": true, "why": "", "orig": orig, "alt": alt, "enemy": o["a1"], "rules": ro, "cmds": o.get("cmds", []), "stale": bool(o.get("mismatch", false)) or bool(a.get("mismatch", false))}
++
++## 全場陣型讀回後重新配編輯識別：一模一樣的兩隊一一配對，剩下的（改了的那一隻）照順序配；改局多的那隻給新號。
++static func assign_eids(orig, alt) -> void:
++	for i in orig.units.size():
++		orig.units[i]["eid"] = i
++	var used := {}
++	var left: Array = []
++	for j in alt.units.size():
++		var v: Dictionary = alt.units[j]
++		var hit := -1
++		for i in orig.units.size():
++			var u: Dictionary = orig.units[i]
++			if not used.has(i) and int(u["type"]) == int(v["type"]) and int(u["x"]) == int(v["x"]) and int(u["y"]) == int(v["y"]):
++				hit = i
++				break
++		if hit >= 0:
++			used[hit] = true
++			v["eid"] = hit
++		else:
++			left.append(j)
++	var free_i: Array = []
++	for i in orig.units.size():
++		if not used.has(i):
++			free_i.append(i)
++	var nxt: int = orig.units.size()
++	for j in left:
++		if not free_i.is_empty():
++			alt.units[j]["eid"] = free_i.pop_front()
++		else:
++			alt.units[j]["eid"] = nxt
++			nxt += 1
++
++## 重算後和存的結果一樣嗎（20/20 還原的判準）
++static func same_result(e: Dictionary, base: Dictionary, res: Dictionary) -> bool:
++	return outcome(base) == Array(e.get("ro", [])) and outcome(res) == Array(e.get("ra", []))
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -373,6 +373,9 @@
+ 	return _is_num(x) and float(x) == floorf(float(x))   # 整數（JSON 讀進來是 float，小數不收；Codex v110-i2 #8）
+ 
+ static func sanitize_extras(out: Dictionary) -> void:
++	# 1.6.0 B15（P6.2）棋課：沒有這個欄位＝舊存檔＝不補（讀回不改寫舊進度）；有就逐則驗型、壞的丟掉
++	if out.has("lessons"):
++		out["lessons"] = preload("res://scripts/game/lesson.gd").sanitize(out["lessons"])[0]
+ 	var f = out.get("funnel", {})
+ 	var f2 := {}
+ 	if f is Dictionary:
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -665,6 +665,7 @@
+ 
+ func _rv_poll() -> void:
+ 	_rv_base_poll()
++	_ls_poll()
+ 	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
+ 		_rv_cancel()   # 離開覆盤或改了陣型：舊的不用算完
+ 		return
+@@ -680,6 +681,10 @@
+ ## 結束時：叫停再等（64 tick 內會停）；GIF 也叫停。
+ func _rv_exit() -> void:
+ 	_rv_cancel()
++	if ls_thread != null:
++		bg.retire(ls_thread)
++		ls_thread = null
++		ls_check.erase(ls_thread_id)
+ 	if rv_base_thread != null:
+ 		bg.retire(rv_base_thread)
+ 		rv_base_thread = null
+@@ -749,9 +754,13 @@
+ 	# 1.6.0 B07（P2.5）：右欄按任務分兩頁——「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果的走勢、分岔、播放）
+ 	var bx := 580.0
+ 	btn_group = "rv_tabs"
+-	for k in 2:
+-		_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k; rv_focus_main = true, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
++	for k in 3:   # 1.6.0 B15：第三頁「棋課本」
++		_btn(Rect2(bx + k * 186, tab_y, 180, 40), L.t(["rv_tab_edit", "rv_tab_read", "rv_tab_book"][k]), func(): rv_tab = k; rv_focus_main = true, k != 1 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+ 	btn_group = ""
++	if rv_tab == 2:
++		_rv_draw_book(bx, dy)
++		_btn(Rect2(560, 704, 160, 44), L.t("back"), func(): overlay = "")
++		return
+ 	if rv_tab == 1:
+ 		_rv_draw_read(bx, dy)
+ 		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+@@ -807,7 +816,7 @@
+ 		Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+ 	y += tz("S") * 1.5 + chh + 12.0
+ 	if not rv_result.is_empty():
+-		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
++		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]) + "　" + L.t("ev_verified"), tz("S"), ACCENT, false, true, 552)   # 1.6.0 B15（P6.1）：重算過＝此條件下已驗證
+ 		var b1: Array = rv_result.get("b", [100, 100])
+ 		var c1 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
+ 		Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+@@ -817,12 +826,149 @@
+ 			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
+ 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+ 			y += tz("S") * 1.5
++		# 1.6.0 B15（P6.2）：把這組對照記進棋課本（只在重算完成、世代相符時能按）
++		_btn(Rect2(bx, y + 4, 270, 40), L.t("ls_save"), func(): _rv_save_lesson(), _rv_can_save())
+ 		if rv_focus_main:
+ 			_focus = _btns.size()
+ 			rv_focus_main = false
+ 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+ 
+ 
++## ── 1.6.0 B15（P6.2；S5）棋課本 ──
++const Lesson = preload("res://scripts/game/lesson.gd")
++const LS_PER_PAGE := 5
++var ls_page := 0
++var ls_check := {}        # id → "busy"／"ok"／"diff"／"stale"／"bad"
++var ls_thread: Thread = null
++var ls_thread_id := ""
++var ls_thread_e := {}
++var ls_thread_stale := false
++
++func _rv_can_save() -> bool:
++	return not rv_result.is_empty() and not rv_base.is_empty() and rv_thread == null and review_changes(rv_orig, rv_army) == 1 and Lesson.kind_of(rv_orig, rv_army) != ""
++
++## 存一則：不重複、滿了不擠掉舊的；寫檔失敗＝留在記憶體並標未存（Save 會重試），照實說。
++func _rv_save_lesson() -> String:
++	if not _rv_can_save():
++		return "bad"
++	var e := Lesson.make(rv_orig, rv_army, rv_enemy, battle_rules, last_cmds, rv_base, rv_result, rv_div)
++	var cur: Array = Lesson.sanitize(Save.data.get("lessons", []))[0]
++	var r: Array = Lesson.add(cur, e)
++	var st: String = r[1]
++	if st == "ok":
++		Save.data["lessons"] = r[0]
++		if not Save.save_data():
++			st = "unsaved"
++	_toast(L.t("ls_full", [Lesson.CAP]) if st == "full" else L.t({"ok": "ls_saved", "unsaved": "ls_unsaved", "dup": "ls_dup", "bad": "ls_bad"}[st]), st != "ok")
++	return st
++
++func _ls_list() -> Array:
++	return Lesson.sanitize(Save.data.get("lessons", []))[0]
++
++func _rv_draw_book(bx: float, dy: float) -> void:
++	var list := _ls_list()
++	var y := 168.0 + dy
++	if list.is_empty():
++		_text(Vector2(bx, y), L.t("ls_empty"), tz("S"), TXT_DIM, false, true, 552)
++		return
++	var pages := maxi(1, ceili(list.size() / float(LS_PER_PAGE)))
++	ls_page = clampi(ls_page, 0, pages - 1)
++	for i in range(ls_page * LS_PER_PAGE, mini(list.size(), (ls_page + 1) * LS_PER_PAGE)):
++		var e: Dictionary = list[list.size() - 1 - i]   # 新的在上面
++		var id: String = e["id"]
++		var head := L.t("ls_row", [L.t("ls_kind_" + str(e["k"])), _rv_outcome(int(e["ro"][0]), int(e["ro"][1])), _rv_outcome(int(e["ra"][0]), int(e["ra"][1]))])
++		_text(Vector2(bx, y), head, tz("S"), Color.WHITE, false, true, 552)
++		var hy := y + text_h(head, tz("S"), 552)   # 標題在 150% 會換行：照實際高度往下排
++		var st: String = ls_check.get(id, "")
++		if st != "":
++			var sl: String = L.t("busy_review") if st == "busy" else L.t("ls_" + st)
++			_text(Vector2(bx, hy + 2), sl, tz("S"), ACCENT if st == "ok" else (TXT_DIM if st == "busy" else Color(1, 0.75, 0.7)), false, true, 552)
++			hy += 2 + text_h(sl, tz("S"), 552)
++		var by := hy + 8.0
++		btn_group = "ls_row"
++		_btn(Rect2(bx, by, 180, 40), L.t("ls_check"), _ls_check.bind(e), ls_thread == null)
++		_btn(Rect2(bx + 186, by, 180, 40), L.t("ls_watch"), _ls_watch.bind(e), st != "bad")
++		_btn(Rect2(bx + 372, by, 180, 40), L.t("ls_del"), _ls_delete.bind(id))
++		btn_group = ""
++		y = by + 52.0
++	if pages > 1:
++		_text(Vector2(bx + 276, 650), L.t("ls_page", [ls_page + 1, pages]), tz("S"), TXT_DIM, true, true, 200)
++		btn_group = "ls_pages"
++		_btn(Rect2(bx, 640, 120, 40), "‹", func(): ls_page = maxi(0, ls_page - 1), ls_page > 0)
++		_btn(Rect2(bx + 432, 640, 120, 40), "›", func(): ls_page = mini(pages - 1, ls_page + 1), ls_page < pages - 1)
++		btn_group = ""
++
++## 重算核對：兩個碼各自重算，和存的結果比（S5 20/20 還原的判準）。規則版本不同＝照現在規則重算、標出來。
++func _ls_check(e: Dictionary) -> void:
++	if ls_thread != null:
++		return
++	var r := Lesson.restore(e)
++	if not r["ok"]:
++		ls_check[e["id"]] = "bad"
++		return
++	ls_check[e["id"]] = "busy"
++	var o = r["orig"]
++	var a = r["alt"]
++	var en = r["enemy"]
++	var ru = r["rules"]
++	var cm: Array = r["cmds"]
++	if not _async_ok() or shot_dir != "":
++		_ls_done(e, bool(r["stale"]), [review_run(o, en, ru, cm), review_run(a, en, ru, cm)])
++		return
++	var ctl: Dictionary = BgPool.make_ctl(RV_LIMIT_MS * 2)
++	ls_thread = bg.start(func(): return [review_run(o, en, ru, cm, ctl), review_run(a, en, ru, cm, ctl)], ctl)
++	if ls_thread == null:
++		ls_check.erase(e["id"])
++		_toast(L.t("rv_fail"), true)
++		return
++	ls_thread_id = e["id"]
++	ls_thread_e = e
++	ls_thread_stale = bool(r["stale"])
++
++func _ls_done(e: Dictionary, stale: bool, res: Array) -> void:
++	if bool(res[0].get("cancel", false)) or bool(res[1].get("cancel", false)):
++		ls_check.erase(e["id"])
++		_toast(L.t("rv_slow"), true)
++		return
++	if stale:
++		ls_check[e["id"]] = "stale"
++	else:
++		ls_check[e["id"]] = "ok" if Lesson.same_result(e, res[0], res[1]) else "diff"
++
++func _ls_poll() -> void:
++	if ls_thread == null:
++		return
++	if overlay != "review" or rv_tab != 2:
++		bg.retire(ls_thread)   # 離開棋課本＝取消（不留半套結果）
++		ls_thread = null
++		ls_check.erase(ls_thread_id)
++		return
++	if not ls_thread.is_alive():
++		var res = bg.take(ls_thread)
++		ls_thread = null
++		if res is Array and res.size() == 2:
++			_ls_done(ls_thread_e, ls_thread_stale, res)
++		else:
++			ls_check.erase(ls_thread_id)
++
++## 看「如果」那一場：走看對戰代碼的路（全新一局的情境，不動目前這局的陣型、規則、軍令）
++func _ls_watch(e: Dictionary) -> void:
++	var r := Lesson.restore(e)
++	if not r["ok"]:
++		ls_check[e["id"]] = "bad"
++		_toast(L.t("ls_bad"), true)
++		return
++	_rv_exit()
++	overlay = ""
++	last_cmds = r["cmds"]
++	watch_code(r["alt"], r["enemy"], r["rules"])
++
++func _ls_delete(id: String) -> void:
++	Save.data["lessons"] = Lesson.remove(_ls_list(), id)
++	ls_check.erase(id)
++	if not Save.save_data():
++		_toast(L.t("ls_unsaved"), true)
++
+ ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
+ func _tm_new_ghost() -> void:
+ 	tm_ghost = Sim.new(rv_orig.copy(), rv_enemy.copy(), battle_rules)
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -677,6 +677,8 @@
+ 	var st: Dictionary = Save.data.get("stats", {})
+ 	if line != "" and int(st.get("wins", 0)) == 0 and int(st.get("games", 0)) <= 2 and (mode == Mode.VS_AI or mode == Mode.TUTORIAL):
+ 		line = L.t("loss_first", [line])   # V1.0.0 N6：前兩場還沒贏過：先講「輸很正常」再給建議
++	if line != "":
++		line = L.t("ev_observed", [line])   # 1.6.0 B15（P6.1）證據分層：敗因卡是「觀察」，覆盤重算過才是「此條件下已驗證」
+ 	return line
+ 
+ func _loss_pool() -> Array:
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1010,6 +1010,21 @@
+ 	await _snap("v160_16a_review_edit.png")   # 1.6.0 B07（P2.5）：覆盤「改動」頁（重算前）
+ 	_rv_recalc()
+ 	await _snap("16_review.png")   # 重算好了自動翻到「讀結果」頁
++	# 1.6.0 B15（P6.2）：記進棋課 → 棋課本頁（重算核對過）。存檔的 lessons 拍完還原（不影響後面的截圖）
++	var ls_keep = Save.data.get("lessons", null)
++	Save.data["lessons"] = []
++	_rv_save_lesson()
++	toast = ""
++	toast_t = 0.0
++	rv_tab = 2
++	_ls_check(_ls_list()[0])
++	await _snap("v160_16c_lesson_book.png")
++	if ls_keep == null:
++		Save.data.erase("lessons")
++	else:
++		Save.data["lessons"] = ls_keep
++	ls_check.clear()
++	rv_tab = 1
+ 	# V1.4 #1 時光機：播放「如果」，原本時間線畫成地上的白圈
+ 	_rv_play()
+ 	while seek_target >= 0:
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -293,6 +293,12 @@
+    "一般"
+   ]
+  },
++ "v160_16c_lesson_book.png": {
++  "entry": "覆盤（棋課本，1.6.0 B15）",
++  "states": [
++   "一般"
++  ]
++ },
+  "16b_time_machine.png": {
+   "entry": "覆盤→時光機",
+   "states": [
+--- a/game/tests/suites/coach_lab.gd
++++ b/game/tests/suites/coach_lab.gd
+@@ -529,3 +529,140 @@
+ 	ok(not g._pad_tool(y) and int(g.armies[0].units[0]["row"]) == 8, "沒按 RT：Y 照原本（不翻轉）")
+ 	g.free()
+ 	SV.data = keep
++
++## 1.6.0 B15（P6.1～P6.2；S5）覆盤棋課：四類（換兵、移位、新增、拿掉）各 5 例存→讀回→重算 20/20 一致；
++## 八種失敗邊界（版本不符、壞筆、取消、重啟、過期重算、容量滿、重複保存、寫檔失敗）；正式副作用 0（存檔除了 lessons 以外不變）。
++func test_lesson_v1600() -> void:
++	var LS = load("res://scripts/game/lesson.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var RV = load("res://scripts/ui/replay_view.gd")
++	var base = Army.new(0, 300)
++	for p in [[0, 3, 2], [3, 4, 4], [1, 2, 6], [2, 1, 3], [0, 3, 7]]:
++		base.place(p[0], p[1], p[2])
++	var en = Army.new(1, 300)
++	for p in [[0, 12, 4], [2, 13, 2], [1, 12, 6], [0, 11, 3]]:
++		en.place(p[0], p[1], p[2])
++	var edits := {
++		"swap": [func(a): a.remove_at(3, 2); a.place(1, 3, 2), func(a): a.remove_at(4, 4); a.place(0, 4, 4), func(a): a.remove_at(2, 6); a.place(2, 2, 6), func(a): a.remove_at(1, 3); a.place(3, 1, 3), func(a): a.remove_at(3, 7); a.place(2, 3, 7)],
++		"move": [func(a): a.move(3, 2, 5, 2), func(a): a.move(4, 4, 5, 4), func(a): a.move(2, 6, 4, 6), func(a): a.move(1, 3, 0, 3), func(a): a.move(3, 7, 5, 8)],
++		"add": [func(a): a.place(0, 5, 1), func(a): a.place(1, 5, 5), func(a): a.place(2, 0, 0), func(a): a.place(3, 4, 8), func(a): a.place(0, 2, 4)],
++		"remove": [func(a): a.remove_at(3, 2), func(a): a.remove_at(4, 4), func(a): a.remove_at(2, 6), func(a): a.remove_at(1, 3), func(a): a.remove_at(3, 7)],
++	}
++	var list: Array = []
++	var kinds_ok := 0
++	for k in LS.KINDS:
++		for f in edits[k]:
++			var alt = base.copy()
++			f.call(alt)
++			if RV.review_changes(base, alt) == 1 and LS.kind_of(base, alt) == k:
++				kinds_ok += 1
++			var r0: Dictionary = RV.review_run(base, en, null, [])
++			var r1: Dictionary = RV.review_run(alt, en, null, [])
++			var e: Dictionary = LS.make(base, alt, en, null, [], r0, r1, RV.diverge_tick(r0["log2"], r1["log2"]))
++			list = LS.add(list, e)[0]
++	ok(kinds_ok == 20 and list.size() == 20, "四類各 5 例都判對類別、都只改一隻（%d／20、存了 %d 則）" % [kinds_ok, list.size()])
++	# 重啟：存檔來回序列化（JSON 整數變浮點）＋sanitize 後讀回、各自重算，結果和存的一樣
++	var d: Dictionary = JSON.parse_string(JSON.stringify({"lessons": list}))
++	SV.sanitize_extras(d)
++	var back: Array = d["lessons"]
++	var same := 0
++	for e in back:
++		var r: Dictionary = LS.restore(e)
++		if r["ok"] and not r["stale"] and LS.same_result(e, RV.review_run(r["orig"], r["enemy"], r["rules"], r["cmds"]), RV.review_run(r["alt"], r["enemy"], r["rules"], r["cmds"])) and LS.kind_of(r["orig"], r["alt"]) == e["k"]:
++			same += 1
++	ok(back.size() == 20 and same == 20, "重啟（存檔來回＋驗型）後讀回重算 20/20 一致（%d）" % same)
++	# 全場陣型：讀回後重新配編輯識別，類別照樣判得出來
++	var fa = Army.new(0, 100)   # 規則預算 100（碼裡預算要和規則一致）
++	fa.deploy = "free"
++	var fe := 0
++	for p in [[0, 1500, 2000], [3, 2500, 4000], [1, 1000, 6000]]:
++		fe += 1 if fa.place_xy(p[0], p[1], p[2]) else 0
++	if fe == 3:
++		for i in fa.units.size():
++			fa.units[i]["eid"] = i
++		var fb = fa.copy()
++		fb.move_xy(1, 2600, 4200)
++		var rr = RSET.standard()
++		rr.deploy = "free"   # 全場陣型要帶自由部署規則才編得成碼（同遊戲裡的 battle_rules）
++		var ef_en = Army.new(1, 100)
++		ef_en.deploy = "free"
++		ef_en.place_xy(0, 10500, 4000)
++		var r0f: Dictionary = RV.review_run(fa, ef_en, rr, [])
++		var ef: Dictionary = LS.make(fa, fb, ef_en, rr, [], r0f, RV.review_run(fb, ef_en, rr, []), -1)
++		var rf: Dictionary = LS.restore(ef)
++		ok(ef["k"] == "move" and rf["ok"] and LS.kind_of(rf["orig"], rf["alt"]) == "move", "全場陣型：移位讀回後仍判成移位（編輯識別重新配對）", str([ef["k"], rf.get("why"), str(ef["o"]).substr(0, 5)]))
++	else:
++		ok(false, "全場陣型樣本擺不進去（%d／3）" % fe)
++	var e0: Dictionary = back[0]
++	# ① 版本不符
++	var ev: Dictionary = e0.duplicate(true)
++	ev["v"] = LS.VERSION + 1
++	ok(LS.valid(ev) and LS.restore(ev)["why"] == "ver", "版本比遊戲新：讀得進清單但不還原（ver）")
++	# ② 壞筆：碼被改、型別亂、缺欄
++	var eb: Dictionary = e0.duplicate(true)
++	eb["a"] = str(eb["a"]).substr(0, str(eb["a"]).length() - 1) + "x"
++	var junk: Array = [eb, {"id": 3}, "x", null, {"v": 1, "id": "0123456789abcdef", "o": "a", "a": "b", "k": "swap", "ro": [0, 0, 0], "ra": [0, 0]}, e0]
++	var sj: Array = LS.sanitize(junk)
++	ok(sj[0].size() == 1 and int(sj[1]) == 5 and LS.sanitize("garbage")[0].is_empty() and LS.sanitize(null)[0].is_empty(), "壞筆：竄改、缺欄、亂型別都丟掉，好的留下（丟 %d）" % int(sj[1]))
++	var ep: Dictionary = e0.duplicate(true)
++	var other: Dictionary = back[1]
++	ep["a"] = other["a"]
++	ep["o"] = back[19]["o"]
++	ep["id"] = (str(ep["o"]) + "|" + str(ep["a"])).sha256_text().substr(0, 16)
++	ok(LS.valid(ep), "配對檢查樣本合格")
++	# ⑥ 容量滿、⑦ 重複保存
++	var full: Array = []
++	for i in LS.CAP:
++		var o := "O%d" % i
++		full.append({"v": 1, "id": (o + "|A").sha256_text().substr(0, 16), "o": o, "a": "A", "k": "add", "ro": [1, 50, 100], "ra": [0, 20, 120], "div": 10})
++	var rf2: Array = LS.add(full, e0)
++	ok(rf2[1] == "full" and rf2[0].size() == LS.CAP, "容量滿：不加、不擠掉舊的")
++	var rd: Array = LS.add(back, e0)
++	ok(rd[1] == "dup" and rd[0].size() == back.size(), "重複保存：同一組不重複記")
++	ok(LS.sanitize(full + [e0])[0].size() == LS.CAP, "存檔裡超過容量：只留前 %d 則" % LS.CAP)
++	# 畫面流程：真的覆盤 → 改一隻 → 重算 → 記進棋課；過期重算、取消、寫檔失敗、正式副作用
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	var keep: Dictionary = SV.data.duplicate(true)
++	SV.data.erase("lessons")
++	g.last_armies = [base.copy(), en.copy()]
++	g.last_cmds = []
++	g.battle_rules = null
++	g._open_review()
++	var before: Dictionary = SV.data.duplicate(true)
++	ok(not g._rv_can_save(), "還沒重算不能記")
++	g.rv_army.remove_at(3, 2)
++	g._rv_dirty()
++	g._rv_recalc()
++	ok(g._rv_can_save(), "重算完成、只改一隻：可以記")
++	g._rv_dirty()
++	ok(not g._rv_can_save(), "過期重算：改了陣型（世代換了）就不能記舊結果")
++	g._rv_recalc()
++	SV.fail_inject = {"tmp": 1}
++	var st1: String = g._rv_save_lesson()
++	ok(st1 == "unsaved" and SV.has_unsaved() and SV.data.get("lessons", []).size() == 1, "寫檔失敗：留在記憶體、標未存、照實說（%s）" % st1)
++	ok(SV.retry_pending() and not SV.has_unsaved(), "寫檔失敗後重試寫進去")
++	ok(g._rv_save_lesson() == "dup", "畫面上再按一次＝已經記過")
++	var after: Dictionary = SV.data.duplicate(true)
++	var lessons_now: Array = after.get("lessons", [])
++	after.erase("lessons")
++	ok(var_to_str(after) == var_to_str(before), "正式副作用 0：存檔除了棋課以外一個欄位都沒變（統計、進度、成就、紀錄、日誌）")
++	# 棋課本：重算核對、取消
++	g.rv_tab = 2
++	g._ls_check(lessons_now[0])
++	ok(g.ls_check.get(lessons_now[0]["id"]) == "ok", "棋課本：重算核對和記下時一致", str(g.ls_check))
++	g._ls_done(lessons_now[0], false, [{"cancel": true}, {}])
++	ok(not g.ls_check.has(lessons_now[0]["id"]), "取消：不留半套狀態")
++	var stl: Dictionary = lessons_now[0].duplicate(true)
++	g._ls_done(stl, true, [{}, {}])
++	ok(g.ls_check.get(stl["id"]) == "stale", "規則版本不同：標出來（照現在規則重算，不拿存的當真）")
++	g._ls_delete(lessons_now[0]["id"])
++	ok(SV.data.get("lessons", []).is_empty(), "刪除")
++	g.free()
++	SV.data = keep
++	SV.save_data()
++	# P6.1 證據分層
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	var rvs: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
++	ok(gr.find("line = L.t(\"ev_observed\", [line])") >= 0 and rvs.find("+ \"　\" + L.t(\"ev_verified\")") >= 0, "證據分層：敗因卡標「觀察」、覆盤重算後標「此條件下已驗證」")
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1788,3 +1788,25 @@
+ rv_you_ro,你的陣型（在「改動」頁改）,Yours (edit on Change),你的阵型（在「改动」页改）,自軍（「変更」で編集）
+ ed_help_verify,驗證：電腦用你擺的解打一次敵陣，贏了才產生殘局碼並複製。,Verify: the game plays your solution against the enemy; only a win makes a code to copy.,验证：电脑用你摆的解打一次敌阵，赢了才产生残局码并复制。,検証：あなたの解で敵陣と戦い、勝てた場合だけ詰め戦コードを作ってコピーします。
+ ed_verify_d,要改兵或目標，按「回去改」。,"To change units or the goal, press Edit more.",要改兵或目标，按「回去改」。,兵や目標を変えるには「編集に戻る」。
++rv_tab_book,棋課本,Lessons,棋课本,棋課ノート
++ev_observed,觀察：%s,Observed: %s,观察：%s,観察：%s
++ev_verified,（此條件下已驗證）,(verified under these conditions),（此条件下已验证）,（この条件で検証済み）
++ls_save,記進棋課,Save lesson,记进棋课,棋課に記録
++ls_saved,記進棋課本了,Lesson saved,记进棋课本了,棋課ノートに記録しました
++ls_unsaved,記下了，但還沒寫進存檔（會再試）,"Kept, but not written to disk yet (will retry)",记下了，但还没写进存盘（会再试）,記録しましたが、まだ保存できていません（再試行します）
++ls_dup,這一課已經記過了,This lesson is already saved,这一课已经记过了,このレッスンは記録済みです
++ls_full,棋課本滿了（%d 則），先刪一則,Lesson book is full (%d). Delete one first,棋课本满了（%d 则），先删一则,棋課ノートがいっぱいです（%d件）。先に1件消してください
++ls_bad,這一課讀不出來,This lesson can't be read,这一课读不出来,このレッスンは読み込めません
++ls_empty,還沒有棋課。在「讀結果」頁按「記進棋課」。,"No lessons yet. Press ""Save lesson"" on the Results page.",还没有棋课。在「读结果」页按「记进棋课」。,まだありません。「結果を見る」で「棋課に記録」を押してください。
++ls_kind_swap,換兵,Swap,换兵,入れ替え
++ls_kind_move,移位,Move,移位,移動
++ls_kind_add,加兵,Add,加兵,追加
++ls_kind_remove,拿掉,Remove,拿掉,削除
++ls_row,%s｜原本 %s → 如果 %s,%s | Original %s → What if %s,%s｜原本 %s → 如果 %s,%s｜元 %s → もしも %s
++ls_check,重算核對,Re-check,重算核对,再計算で確認
++ls_watch,看如果,Watch,看如果,見る
++ls_del,刪除,Delete,删除,削除
++ls_ok,重算一致：和記下時一樣,Re-run matches the saved result,重算一致：和记下时一样,再計算は記録と一致
++ls_diff,重算結果和記下時不同,Re-run differs from the saved result,重算结果和记下时不同,再計算の結果が記録と違います
++ls_stale,規則版本不同：已照現在規則重算,Rules changed: re-run under current rules,规则版本不同：已照现在规则重算,ルールが変わりました：現在のルールで再計算
++ls_page,%d／%d 頁,Page %d/%d,%d／%d 页,%d／%dページ
