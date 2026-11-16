@@ -1439,3 +1439,104 @@ func test_turn_rhythm_v1600() -> void:
 	var dm: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
 	var mg: String = FileAccess.get_file_as_string("res://scripts/ui/main.gd")
 	ok(dm.find("func _run_turn_strip(") >= 0 and dm.find("print(\"TURNSTRIP \"") >= 0 and mg.find("\"--turn-strip=\"") >= 0, "連拍工具：--turn-strip（160 組合、缺格、腳滑比）")
+
+## 1.6.0 B12（S3 大型／非人形驗證）：巨獸（石魔底、放大 1.75 倍走向量畫）與召喚物骷髏的剪影＋轉身。
+## 剪影與轉身要真的繪圖：dev_main --sil（sil_report）與 --turn-strip --turn-strip-types=19b,21，數字記 ledger。這裡驗畫法與工具接線。
+func test_large_verify_v1600() -> void:
+	var fs: String = FileAccess.get_file_as_string("res://scripts/ui/units/fantasy.gd")
+	ok(fs.find("var up := 30.0 if (w == 0.0 and walk == 0.0) else 0.0") >= 0, "石魔：純待機時近側拳頭舉過肩（出手、走路一律放下）")
+	ok(fs.find("if back:\n\t\t_skel_bone(ci, w, walk, bone, a)") >= 0, "骷髏：背面時骨棒在身體之前畫（被擋住）")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	var bs: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_state.gd")
+	ok(bs.find("# 1.6.0 B12：巨獸放大走向量畫") >= 0, "巨獸直接換邊（不壓扁轉身，腳不往中間滑）")
+	ok(FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd").find("if (signf(f0) == tgt_f and absf(f0) >= 0.9) or ((\"boss\" in u) and u.boss):") >= 0, "巨獸出手轉向也直接換邊")
+	g.free()
+	ok(fs.find("rock.lightened(0.28)") >= 0, "石魔：受光的岩頂")
+	ok(fs.find("var ang: float = -0.15 + (w * 0.9 if w < 0.0 else w * 1.0)") >= 0 and fs.find("hand + bdir * 22.0") >= 0, "骷髏：骨棒待機往前平舉、加長")
+	var dm: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
+	ok(dm.find("--turn-strip-types=") >= 0 and dm.find("不算缺格") >= 0, "連拍工具可指定兵種與巨獸尺寸（巨獸向量畫不算缺格）")
+
+## 1.6.0 B14（P5.3、P5.4；IN-160-07）桌偶儀式＋疲累：落桌→開戰敲桌→收盤，可跳過；跳過不吞輸入、不改模擬。
+func test_ceremony_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var pool := F.training_pool(0)
+	var run := func(skip_at: int) -> Array:
+		var g = GS.new()
+		g.sfx = FakeSfx.new()
+		g._begin_battle(pool[2].copy(), pool[9].mirrored(), "official")
+		g.start_hold = 1.0   # headless 平常沒有儀式：硬開
+		var guard := 0
+		while g.state == g.St.BATTLE and not g.view.finished and guard < 12000:
+			guard += 1
+			if guard == skip_at:
+				g.skip_ceremony()
+			g._process_inner(1.0 / 60.0)
+		var out := [int(g.sim.winner), int(g.view.tick), guard]
+		g.free()
+		return out
+	var a: Array = run.call(-1)
+	var b: Array = run.call(20)
+	ok(a[0] == b[0] and a[1] == b[1], "跳過儀式不改模擬（勝方 %d／%d、結束 tick %d／%d）" % [a[0], b[0], a[1], b[1]])
+	ok(b[2] < a[2], "跳過＝少等（幀數 %d → %d）" % [a[2], b[2]])
+	# 不吞輸入：儀式中按 P（暫停）＝跳過儀式，而且這一下照常暫停
+	var g2 = GS.new()
+	g2.sfx = FakeSfx.new()
+	g2._begin_battle(pool[2].copy(), pool[9].mirrored(), "official")
+	g2.start_hold = 1.0
+	g2.time = 5.0
+	g2._update_gen()
+	var e := InputEventKey.new()
+	e.keycode = KEY_P
+	e.pressed = true
+	g2._input(e)
+	g2._process_cmds()
+	ok(g2.start_hold == 0.0 and g2.paused, "儀式中按 P：跳過儀式，同一下也暫停（不吞輸入）", "hold=%s paused=%s" % [g2.start_hold, g2.paused])
+	g2.free()
+	# 收盤跳過的邊界（Codex B14 r1）：滑鼠／觸控、P、Esc、暫停中都不跳收盤；空白鍵、手把 A 跳
+	var mb := InputEventMouseButton.new()
+	mb.pressed = true
+	var kp := InputEventKey.new()
+	kp.keycode = KEY_P
+	kp.pressed = true
+	var ke := InputEventKey.new()
+	ke.keycode = KEY_ESCAPE
+	ke.pressed = true
+	var ks := InputEventKey.new()
+	ks.keycode = KEY_SPACE
+	ks.pressed = true
+	var ja := InputEventJoypadButton.new()
+	ja.button_index = JOY_BUTTON_A
+	ja.pressed = true
+	var jy := InputEventJoypadButton.new()
+	jy.button_index = JOY_BUTTON_Y
+	jy.pressed = true
+	var kt := InputEventKey.new()
+	kt.keycode = KEY_TAB
+	kt.pressed = true
+	ok(not GS._settle_skip_ok(jy) and not GS._settle_skip_ok(kt), "收盤：手把 Y、Tab（暫停的另一組綁定）不跳")
+	var KM = load("res://scripts/game/keymap.gd")
+	var keys2: Dictionary = KM.rebind(KM.ACTIONS, {}, "pause", KEY_SPACE)
+	var pad2: Dictionary = KM.rebind(KM.PAD_ACTIONS, {}, "pause", JOY_BUTTON_A)
+	ok(not GS._settle_skip_ok(ks, keys2) and not GS._settle_skip_ok(ja, null, pad2), "收盤：空白／A 改綁成暫停時，按下是暫停、不跳（Codex B14 r3）", "keys2=%s pad2=%s" % [keys2, pad2])
+	ok(not GS._settle_skip_ok(mb) and not GS._settle_skip_ok(kp) and not GS._settle_skip_ok(ke) and GS._settle_skip_ok(ks) and GS._settle_skip_ok(ja), "收盤只讓鍵盤／手把跳（滑鼠放開不會落到結果頁；P、Esc 照原意）")
+	var g3 = GS.new()
+	g3.sfx = FakeSfx.new()
+	g3._begin_battle(pool[2].copy(), pool[9].mirrored(), "official")
+	g3.start_hold = 0.0
+	var gd3 := 0
+	while not g3.view.finished and gd3 < 12000:
+		gd3 += 1
+		g3._process_inner(1.0 / 60.0)
+	g3.result_delay = 0.2
+	g3.paused = true
+	ok(not g3.skip_ceremony(true) and g3.result_delay == 0.2, "暫停中不跳收盤")
+	g3.paused = false
+	ok(not g3.skip_ceremony(false) and g3.skip_ceremony(true) and g3.result_delay >= g3.RESULT_DELAY, "收盤：可跳的鍵才跳，跳了直接到結果")
+	g3.free()
+	var BU = load("res://scripts/ui/battle/battle_units.gd")
+	ok(BU.settle_dip(0.3) == 1.0 and BU.settle_dip(0.85) < 1.0 and BU.settle_dip(0.85) >= 0.96 and BU.settle_dip(1.3) == 1.0, "收盤：結束後 0.6～1.1 秒點頭（最多 4%）")
+	var bv: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
+	ok(bv.find("if not bool(Save.s(\"reduce_motion\")):\n\t\tshake = maxf(shake, 0.12)") >= 0, "開戰敲桌：減少動態時不震")
+	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu.find("return view != null and view.tick >= FATIGUE_TICK and not u.boss") >= 0 and BU.FATIGUE_CROUCH >= 0.9 and bu.find("_sweat(p + Vector2(19") >= 0, "疲累：30 秒後、血量 <30%，往前垂、矮一點、頭邊一滴汗（只改畫面）")

@@ -70,6 +70,8 @@ func _battle_process(delta: float) -> void:
 		for at in [0.25, 0.55, 0.85]:   # 1.2.0 §9.1：三段落子各一聲厚重落子聲（全場只有 3 聲）
 			if ph0 < at and ph1 >= at and sfx != null:
 				sfx.play("place_heavy", 0.75)
+		if start_hold <= 0.0:
+			_ceremony_knock()   # 1.6.0 B14（P5.4）落桌完＝開戰敲桌
 		return
 	if call("_seek_pump"):
 		return
@@ -152,10 +154,33 @@ func _battle_process(delta: float) -> void:
 	zoom = lerpf(zoom, zoom_target, delta * 3)
 	if view.finished:
 		result_delay += delta
-		if result_delay > 1.4:
+		if result_delay >= RESULT_DELAY:
 			on_battle_finished.call()
 
 
+
+## 1.6.0 B14（P5.4）桌偶儀式：落桌（start_hold 三段落子，1.2.0 起）→ 開戰敲桌（木聲＋輕震，減少動態不震）→ 收盤（結束後倖存的兵點一下頭）。
+## 只改畫面與聲音、不碰模擬（start_hold 只是晚開始）；可跳過：儀式中任何按下都跳過，而且那一下照常處理（不吞輸入，IN-160-07）。
+func _ceremony_knock() -> void:
+	if sfx != null:
+		sfx.play("hit_wood", 0.9)
+	if not bool(Save.s("reduce_motion")):
+		shake = maxf(shake, 0.12)
+
+## settle_ok＝這一下可以跳過收盤：只限鍵盤／手把、不是暫停或 Esc、目前沒暫停（Codex B14 r1：滑鼠／觸控的放開會落到結果頁；暫停／離開確認優先）
+func skip_ceremony(settle_ok := true) -> bool:
+	if state != St.BATTLE or view == null:
+		return false
+	if start_hold > 0.0:
+		start_hold = 0.0
+		_ceremony_knock()
+		return true
+	if settle_ok and not paused and view.finished and result_delay < RESULT_DELAY:
+		result_delay = RESULT_DELAY   # 收盤跳過：下一幀直接到結果
+		return true
+	return false
+
+const RESULT_DELAY := 1.4
 
 ## with_fx＝false（直接看結果、重播跳轉補播）只記狀態與標記，不放慢動作、不播音效、不出橫幅（Codex S8 #2）。
 func _check_clutch(with_fx := true) -> void:

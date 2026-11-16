@@ -196,6 +196,8 @@ func _input(ev: InputEvent) -> void:
 		if is_inside_tree():
 			get_viewport().set_input_as_handled()
 		return
+	if state == St.BATTLE and _is_press(ev):
+		call("skip_ceremony", _settle_skip_ok(ev))   # 1.6.0 B14（IN-160-07）：桌偶儀式中按下＝跳過，這一下照常往下處理（不吞輸入）
 	if _keys_input(ev):
 		return
 	if nb_edit >= 0 and _nb_edit_input(ev):
@@ -604,6 +606,24 @@ func _key(k: int) -> void:
 
 
 ## V1.5：第一次啟動先問語言、字級、無障礙（1.6.0 B05：抽成一支，開機與截圖流程的冷啟走查共用；force＝截圖模式也照走）
+## 一次「按下」（鍵、滑鼠鍵、手把鍵；不含放開、連發、移動）
+static func _is_press(ev: InputEvent) -> bool:
+	if ev is InputEventKey:
+		return ev.pressed and not ev.echo
+	if ev is InputEventMouseButton or ev is InputEventJoypadButton or ev is InputEventScreenTouch:
+		return ev.pressed
+	return false
+
+## 收盤只讓「確認」跳過：空白、Enter、手把 A（白名單；暫停、返回、重綁的鍵都照原意，Codex B14 r2）
+## 先照改鍵換算回預設鍵（同 _input 的 key_to_default／pad_to_default）：空白或 A 被綁成暫停時，按下去是暫停、不跳（Codex B14 r3）
+static func _settle_skip_ok(ev: InputEvent, keys = null, pad = null) -> bool:
+	if ev is InputEventKey:
+		var dk: int = Keymap.key_to_default(keys if keys is Dictionary else Save.s("keys"), ev.keycode)
+		return dk in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER]
+	if ev is InputEventJoypadButton:
+		return Keymap.pad_to_default(pad if pad is Dictionary else Save.s("pad"), ev.button_index) == JOY_BUTTON_A
+	return false
+
 func _boot_first_run(force := false) -> void:
 	if not bool(Save.s("first_done")) and (force or (shot_dir == "" and not video_mode and DisplayServer.get_name() != "headless")):
 		overlay = "first_run"

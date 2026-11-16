@@ -837,6 +837,10 @@ func _run_screenshots() -> void:
 		await _snap("04_clutch.png")
 	while not view.finished:
 		_sim_step(false)
+	# 1.6.0 B14（P5.4）收盤：結束後倖存的兵點一下頭（點到最低那一刻）
+	result_delay = 0.85
+	await _snap("v160_14b_settle.png")
+	result_delay = 0.0
 	zoom = 1.0
 	if mode == Mode.VS_AI:   # 1.4.0 §10.1 謝幕：對手木偶的反應＋老闆依勝負的手勢（播完 0.7 秒那一刻）
 		result_delay = 0.7
@@ -1048,6 +1052,7 @@ func _run_screenshots() -> void:
 	await _shots_v13()
 	await _shots_v16()
 	# 1.6.0 B04／B05：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
+	await _shot_fatigue()   # 1.6.0 B14：另開一場長戰鬥，放在所有截圖之後（不動到前面截圖的戰鬥狀態）
 	await _lobby_pad_walk()
 	await _first_run_walk()
 	await _pad_walk()
@@ -1873,6 +1878,7 @@ func _run_sil(out_path: String) -> void:
 ## 兩兩轉換 20 種＝160 組合，每組 8 格。每格記走哪條畫法（圖集／向量＝缺格）；原地轉身（東↔西）另量腳底接地點左右漂移（腳滑比）。
 ## 用法：<exe> --path game --resolution 1280x800 -- --turn-strip=<輸出資料夾（Windows 路徑）>   每頁存 PNG、最後存 turn_strip.json，印 TURNSTRIP
 var ts_mode := false
+var ts_types: Array = [[0, false], [3, false]]   # [兵種, 巨獸尺寸]；預設＝B11 的劍士、騎兵
 var ts_page: Array = []   # 這一頁要畫的 [type, team, from, to, k, 格子左上]
 var ts_routes: Array = []   # 這一頁每格實際走的畫法
 const TS_DIRS := ["E", "W", "SE", "SW", "N"]
@@ -1919,6 +1925,11 @@ func _ts_draw_one(p: Vector2, type: int, team: int, st: Dictionary) -> String:
 
 func _run_turn_strip(out_dir: String) -> void:
 	Save.prefix = "shot_"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--turn-strip-types="):
+			ts_types = []
+			for tk in a.substr(19).split(","):
+				ts_types.append([int(tk.trim_suffix("b")), tk.ends_with("b")])
 	var res := {"combos": 0, "missing": 0, "missing_list": [], "slide": [], "pages": 0}
 	print("TS start")
 	for cbv in [false, true]:
@@ -1929,26 +1940,39 @@ func _run_turn_strip(out_dir: String) -> void:
 		while not (sprites.is_ready(cbv) and sprites.build_done) and guard < 1200:
 			guard += 1
 			await get_tree().process_frame
-		sprites.ensure_turn_atk([D.SWORD, D.CAVALRY])   # 和開戰時同一支：出場兵種補烘轉身出手格＋背面走路頁
-		while not (sprites.bw_tex.has(D.SWORD) and sprites.bw_tex.has(D.CAVALRY)) and guard < 2400:
+		var ts_list: Array = []
+		for spec in ts_types:
+			ts_list.append(int(spec[0]))
+		sprites.ensure(ts_list)
+		sprites.ensure_turn_atk(ts_list)   # 和開戰時同一支：出場兵種補烘轉身出手格＋背面走路頁
+		var all_bw := func() -> bool:
+			for t in ts_list:
+				if not sprites.bw_tex.has(t) or not sprites.has_type(t):
+					return false
+			return true
+		while not all_bw.call() and guard < 2400:
 			guard += 1
 			await get_tree().process_frame
 		print("TS ready cb=", cbv, " guard=", guard, " ready=", sprites.is_ready(cbv), " done=", sprites.build_done)
 		var jobs: Array = []
-		for type in [D.SWORD, D.CAVALRY]:
+		for spec in ts_types:   # 1.6.0 B12：可指定兵種（--turn-strip-types=19b,21；b＝巨獸尺寸）
 			for team in 2:
 				for a in TS_DIRS:
 					for b in TS_DIRS:
 						if a != b:
-							jobs.append([type, team, a, b])
-		var per_page := 8   # 每頁 2 欄 × 4 列、列距 196（騎兵的槍伸很高，列距 98 會伸進上一列的腳底量測區）
+							jobs.append([int(spec[0]), team, a, b, bool(spec[1])])
+		var big: bool = not jobs.is_empty() and bool(jobs[0][4])
+		var per_page := 4 if big else 8   # 每頁 2 欄 × 4 列、列距 196（騎兵的槍伸很高，列距 98 會伸進上一列的腳底量測區）；巨獸一列一組
 		for pg in range(0, jobs.size(), per_page):
 			ts_page = []
 			for ji in range(pg, mini(pg + per_page, jobs.size())):
 				var j: Array = jobs[ji]
 				var row := ji - pg
 				for f in 8:
-					ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 78 + (640 if row >= 4 else 0), 100 + (row % 4) * 196)])
+					if bool(j[4]):
+						ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 158, 4 + row * 196), true])
+					else:
+						ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 78 + (640 if row >= 4 else 0), 100 + (row % 4) * 196), false])
 			ts_mode = true
 			queue_redraw()
 			await get_tree().process_frame
@@ -1963,25 +1987,31 @@ func _run_turn_strip(out_dir: String) -> void:
 				var xs: Array = []
 				for f in 8:
 					var idx := (ji - pg) * 8 + f
-					if ts_routes[idx] != "atlas":
+					if ts_routes[idx] != "atlas" and not bool(j[4]):   # 巨獸本來就是向量畫（放大超過 1.4 倍），不算缺格
 						miss += 1
 					if j[2] in ["E", "W"] and j[3] in ["E", "W"]:
-						xs.append(_ts_foot_x(img, ts_page[idx][5]))
+						xs.append(_ts_feet_lr(img, ts_page[idx][5], bool(j[4])))
 				if miss > 0:
 					res["missing"] += miss
 					res["missing_list"].append([j[0], j[1], int(cbv), j[2], j[3], miss])
 				if not xs.is_empty():
 					var lo := 1e9
 					var hi := -1e9
+					var lo2 := 1e9
+					var hi2 := -1e9
 					var bad := 0
 					for x in xs:
-						if x > -900.0:
-							lo = minf(lo, x)
-							hi = maxf(hi, x)
+						if x.x > -900.0:
+							lo = minf(lo, x.x)
+							hi = maxf(hi, x.x)
+							lo2 = minf(lo2, x.y)
+							hi2 = maxf(hi2, x.y)
 						else:
 							bad += 1
+					hi = maxf(hi - lo, hi2 - lo2) + lo   # 左右腳各自的漂移取大者
 					# 八格都要量得到腳（Codex B11 r1 #5：量不到不能當沒滑）；量不到＝ 9.9（必失敗）
-					res["slide"].append([j[0], j[1], int(cbv), j[2], j[3], snappedf((hi - lo) / (36.0 * UNIT_SCALE / 0.92), 0.001) if bad == 0 and hi >= lo else 9.9])
+					var bw: float = 36.0 * UNIT_SCALE / 0.92 * (BossD.DRAW_SCALE if bool(j[4]) else 1.0)
+					res["slide"].append([j[0], j[1], int(cbv), j[2], j[3], snappedf((hi - lo) / bw, 0.001) if bad == 0 and hi >= lo else 9.9])
 	ts_mode = false
 	Save.set_setting("colorblind", false)
 	var worst := 0.0
@@ -1991,18 +2021,21 @@ func _run_turn_strip(out_dir: String) -> void:
 	var f := FileAccess.open(out_dir.path_join("turn_strip.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(res))
 	f.close()
-	var ok: bool = res["combos"] == 160 and res["missing"] == 0 and worst <= 0.1
+	var ok: bool = res["combos"] == 80 * ts_types.size() and res["missing"] == 0 and worst <= 0.1
 	print("TURNSTRIP ", "OK" if ok else "FAIL", " combos=", res["combos"], " missing=", res["missing"], " slide_max=", worst)
 	get_tree().quit(0 if ok else 1)
 
 ## 一格的腳底接地點：找到最低的前景列，取「最低 6 列」裡所有前景像素的平均 x（相對格子中心）——兩隻腳都算進去
 ## （只取最低一列會只抓到靠前那隻腳，轉身時換腳就像在滑；B11 第一版的量法錯誤）
-func _ts_foot_x(img: Image, o: Vector2) -> float:
+func _ts_foot_x(img: Image, o: Vector2, big := false) -> float:
 	var x0 := int(o.x)
 	var y0 := int(o.y)
 	var low := -1
-	for yy in range(y0 + 95, y0 + 20, -1):
-		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):   # 畫面外 get_pixel 會給黑色（被當成腳）
+	var cw := 154 if big else 74
+	var cx := 79 if big else 39
+	var ybot := 190 if big else 95
+	for yy in range(y0 + ybot, y0 + 20, -1):
+		for xx in range(x0 + 4, mini(x0 + cw, img.get_width())):   # 畫面外 get_pixel 會給黑色（被當成腳）
 			var c := img.get_pixel(xx, yy)
 			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
 				low = yy
@@ -2011,15 +2044,49 @@ func _ts_foot_x(img: Image, o: Vector2) -> float:
 			break
 	if low < 0:
 		return -999.0
-	var sx := 0.0
-	var n := 0
-	for yy in range(low - 5, low + 1):
-		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):
+	var pts: Array = []
+	for yy in range(low - (9 if big else 5), low + 1):
+		for xx in range(x0 + 4, mini(x0 + cw, img.get_width())):
 			var c := img.get_pixel(xx, yy)
 			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
-				sx += xx
-				n += 1
-	return sx / maxi(1, n) - (x0 + 39)
+				pts.append(float(xx))
+	if pts.is_empty():
+		return -999.0
+	return pts.reduce(func(acc, v): return acc + v, 0.0) / pts.size() - (x0 + cx)
+
+## 左右腳分開追蹤（Codex B12 r1 #4：只看雙腳重心，對稱往內滑看不出來）：最低帶的前景像素以重心分左右兩群，各取平均 x
+func _ts_feet_lr(img: Image, o: Vector2, big := false) -> Vector2:
+	var x0 := int(o.x)
+	var y0 := int(o.y)
+	var cw := 154 if big else 74
+	var cx := 79 if big else 39
+	var c0: float = _ts_foot_x(img, o, big)
+	if c0 < -900.0:
+		return Vector2(-999.0, -999.0)
+	var low := -1
+	for yy in range((y0 + (190 if big else 95)), y0 + 20, -1):
+		for xx in range(x0 + 4, mini(x0 + cw, img.get_width())):
+			var c := img.get_pixel(xx, yy)
+			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
+				low = yy
+				break
+		if low >= 0:
+			break
+	var ls := 0.0
+	var ln := 0
+	var rs := 0.0
+	var rn := 0
+	for yy in range(low - (9 if big else 5), low + 1):
+		for xx in range(x0 + 4, mini(x0 + cw, img.get_width())):
+			var c := img.get_pixel(xx, yy)
+			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
+				if float(xx) - (x0 + cx) < c0:
+					ls += xx
+					ln += 1
+				else:
+					rs += xx
+					rn += 1
+	return Vector2(ls / maxi(1, ln) - (x0 + cx) if ln > 0 else c0, rs / maxi(1, rn) - (x0 + cx) if rn > 0 else c0)
 
 func _draw() -> void:
 	if ts_mode:
@@ -2028,7 +2095,18 @@ func _draw() -> void:
 		for e in ts_page:
 			var o: Vector2 = e[5]
 			var st := _ts_state(e[2], e[3], e[4])
-			ts_routes.append(_ts_draw_one(o + Vector2(39, 78), e[0], e[1], st))
+			if bool(e[6]):
+				# 巨獸：和戰鬥同一條路（放大 1.75 倍走向量畫，Art.unit）；不吃南北方向、不插方向過渡（Codex B12 r1 #3）；
+				# 朝向照 _face_of（Codex B12 r1 #1：工具要和戰鬥同一條）
+				var fa0 := 1.0 if e[2] in ["E", "SE"] else (-1.0 if e[2] in ["W", "SW"] else (1.0 if e[3] in ["E", "SE"] else -1.0))
+				var fb0 := 1.0 if e[3] in ["E", "SE"] else (-1.0 if e[3] in ["W", "SW"] else fa0)
+				var fl := lerpf(fa0, fb0, e[4])
+				var fw := 1.0 if fl >= 0.0 else -1.0   # 和戰鬥 _face_of 同一條：巨獸直接換邊（B12）
+				var wk: float = (0.3 + float(e[4]) * 4.0) if (e[2] in ["SE", "SW", "N"] or e[3] in ["SE", "SW", "N"]) else 0.0
+				Art.unit(self, o + Vector2(79, 168), e[0], e[1], fw, wk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE * BossD.DRAW_SCALE, cbm())
+				ts_routes.append("vector")
+			else:
+				ts_routes.append(_ts_draw_one(o + Vector2(39, 78), e[0], e[1], st))
 		draw_set_transform_matrix(Transform2D.IDENTITY)
 		return
 	if not sil_mode:
@@ -2816,6 +2894,33 @@ func _first_run_walk() -> void:
 	pad_mode = pad0
 	if had_dis:
 		shot_state["dis"] = true
+
+## 1.6.0 B14（P5.3）疲累：另開一場會打很久的（訓練陣 2 對 9，約 51 秒），推到 32 秒（tick 640）拍——殘血的兵往前垂。
+## 用完把戰鬥狀態交回下一段截圖自己設定（後面的截圖都會重新開場）。
+func _shot_fatigue() -> void:
+	var FF = preload("res://scripts/core/formations.gd")
+	var pool: Array = FF.training_pool(0)
+	_begin_battle(pool[2].copy(), pool[9].mirrored(), "replay")
+	start_hold = 0.0
+	while not view.finished and view.tick < 640:
+		_sim_step(false)
+	for k in 30:
+		_frame_alive(0.1)   # 讓受擊閃白、表情退掉（同 04_clutch 的做法）
+	slow_left = 0.0
+	clutch_t = 0.0
+	zoom = 1.0
+	# 拉近到血最少的疲累兵（亂戰裡看得到姿勢與汗滴；Hydrogen B14 r1）
+	var tgt = null
+	for u in view.units:
+		if u.alive and fatigued(u) and (tgt == null or u.hp < tgt.hp):
+			tgt = u
+	if tgt != null:
+		zoom = 2.0
+		zoom_target = 2.0
+		zoom_center = _upos(tgt) + Vector2(0, -30)
+	await _snap("v160_14a_fatigue.png")
+	zoom = 1.0
+	zoom_target = 1.0
 
 func _lobby_pad_walk() -> void:
 	var pad0: bool = pad_mode

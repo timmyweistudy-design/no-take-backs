@@ -373,15 +373,17 @@ static func _f_golem(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	var lift: float = maxf(0.0, -w) * 24.0 - maxf(0.0, w) * 8.0 + (20.0 if variant == 2 else 0.0) - absf(Gait.swing(19, walk)) * 25.0   # 走路雙臂下沉
 	# V1.3 A1b：轉身時遠側手臂往前、近側往後（左右手的位置交錯，才看得出是轉身）
 	_part(ci, 6.0, 0.3)   # 遠側（左）手臂，和遠側肩甲同方向（Codex v131-impl2）
-	_line(ci, Vector2(-20, -34), Vector2(-23, -22 - lift), rock.darkened(0.15), 7.0, a)
-	_c(ci, Vector2(-23, -19 - lift), 8.0, rock.darkened(0.1), a)
+	_line(ci, Vector2(-20, -34), Vector2(-26, -20 - lift), rock.darkened(0.15), 7.5, a)   # 1.6.0 B12：遠側拳頭往外、加大（離地 ≥8，不碰腳底）
+	_c(ci, Vector2(-27, -17 - lift), 9.5, rock.darkened(0.1), a)
 	_part_end(ci)
 	_poly(ci, PackedVector2Array([Vector2(-21, -10), Vector2(-24, -36), Vector2(-11, -47), Vector2(11, -47), Vector2(24, -36), Vector2(21, -10)]), rock, a)
 	# V1.3.1：近側手臂畫在軀幹前面（Codex v131-impl1：原本被軀幹蓋住）
 	_part(ci, -6.0, 0.3)   # 近側（右）手臂
-	_line(ci, Vector2(20, -34), Vector2(23, -22 - lift), rock.darkened(0.15), 7.0, a)
-	_c(ci, Vector2(23, -19 - lift), 8.0, rock.darkened(0.1), a)
+	var up := 30.0 if (w == 0.0 and walk == 0.0) else 0.0   # 1.6.0 B12：純待機（沒出手、沒走路）時近側拳頭舉過肩（剪影一邊高、一邊低）；出手、走路一律放下（Hydrogen r1、Codex r1 #2）
+	_line(ci, Vector2(20, -34), Vector2(28, -16 - lift - up * 1.3), rock.darkened(0.15), 7.5, a)
+	_c(ci, Vector2(30, -12 - lift - up * 1.45), 10.0 + up * 0.06, rock.darkened(0.1), a)
 	_part_end(ci)
+	_poly(ci, PackedVector2Array([Vector2(-20, -34), Vector2(-11, -45), Vector2(11, -45), Vector2(20, -34), Vector2(12, -30), Vector2(-12, -30)]), rock.lightened(0.28), a, false)   # 1.6.0 B12：受光的岩頂（灰階內部對比，原本全兵種最低）
 	# 岩石裂紋
 	ci.draw_polyline(PackedVector2Array([Vector2(-19, -28), Vector2(-14, -24), Vector2(-17, -18)]), Color(0.2, 0.18, 0.15, 0.7 * a), 1.6, true)
 	ci.draw_polyline(PackedVector2Array([Vector2(17, -14), Vector2(13, -18), Vector2(17, -22)]), Color(0.2, 0.18, 0.15, 0.7 * a), 1.6, true)
@@ -410,6 +412,8 @@ static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: flo
 	_line(ci, Vector2(-4, -10 + bx.origin.y), Vector2(-4 + ft[0], -2 - ft[1]), bone, 2.2, a)
 	_line(ci, Vector2(4, -10 + bx.origin.y), Vector2(4 + ft[2], -2 - ft[3]), bone, 2.2, a)
 	_push_body(ci, bx)
+	if back:
+		_skel_bone(ci, w, walk, bone, a)   # 背面：骨棒在身前，先畫（被身體擋住）
 	_poly(ci, PackedVector2Array([Vector2(-8, -24), Vector2(8, -24), Vector2(7, -11), Vector2(-7, -11)]), tc, a)
 	for k in 2:
 		ci.draw_line(Vector2(-5, -21 + k * 4.0), Vector2(5, -21 + k * 4.0), Color(bone, a), 1.6, true)
@@ -421,12 +425,18 @@ static func _f_skeleton(ci: CanvasItem, tc: Color, walk: float, w: float, a: flo
 		ci.draw_circle(Vector2(ex, -33), 2.6, Color(OUT, a), true, -1.0, true)
 	if not back:
 		ci.draw_line(Vector2(-1, -27), Vector2(5, -27), Color(OUT, a), 1.2, true)
-	var ang: float = -1.0 + (w * 0.5 if w < 0.0 else w * 1.4) + Gait.swing(21, walk) * 1.6
+	if not back:
+		_skel_bone(ci, w, walk, bone, a)
+
+## 骷髏的骨棒（1.6.0 B12 抽出：背面時骨棒在身前，要在身體之前畫——被身體擋住，不遮胸臉；Hydrogen B12 r1）
+static func _skel_bone(ci: CanvasItem, w: float, walk: float, bone: Color, a: float) -> void:
+	var ang: float = -0.15 + (w * 0.9 if w < 0.0 else w * 1.0) + Gait.swing(21, walk) * 1.6   # 1.6.0 B12：骨棒待機往前平舉（剪影往前伸一根，和舉手的投彈兵分開）
 	var hand := Vector2(8, -18)
 	_part(ci, -4.0, 1.0)   # 骨刀在近側
 	var bdir := Vector2(cos(ang), sin(ang))
-	_line(ci, hand - bdir * 3.5, hand + bdir * 16.0, bone, 2.6, a)   # V1.5：骨棒尾端露在手後
+	_line(ci, hand - bdir * 3.5, hand + bdir * 22.0, bone, 3.0, a)   # V1.5：骨棒尾端露在手後；1.6.0 B12：加長
 	_c(ci, hand - bdir * 4.2, 1.8, bone, a)
-	_c(ci, hand + bdir * 17.0, 3.0, bone, a)
+	_c(ci, hand + bdir * 23.0 + bdir.orthogonal() * 2.0, 3.4, bone, a)   # 大腿骨的兩個關節頭
+	_c(ci, hand + bdir * 23.0 - bdir.orthogonal() * 2.0, 3.4, bone, a)
 	_fist(ci, hand, bdir, a, Color("#d8d0bc"), 2.8)   # V1.5：骨手握住（原本骨棒浮在半空，Antigravity v150-i1 #10）
 	_part_end(ci)

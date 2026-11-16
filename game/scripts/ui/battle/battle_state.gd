@@ -528,6 +528,9 @@ const TURN_BOUNCE := 0.04
 func _face_of(u) -> float:
 	var f: float = face_now.get(u.id, signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0))
 	var a := absf(f)
+	if ("boss" in u) and u.boss:   # 測試的假兵沒有 boss 欄位
+		# 1.6.0 B12：巨獸放大走向量畫，壓扁轉身會把整隻（連腳）夾成一條線、腳往中間滑（連拍量到 0.197）→ 直接換邊（翻面揚塵照舊）
+		return 1.0 if f >= 0.0 else -1.0
 	if a < 0.9 and sprites != null and sprites.has_turn(u.type):
 		# 有轉身影格的兵：傳原本的朝向，貼圖端選中間姿勢（不能是 0，退回直接繪製時才不會消失）
 		return maxf(a, 0.18) * (1.0 if f >= 0.0 else -1.0)

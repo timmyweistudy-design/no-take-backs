@@ -548,6 +548,30 @@ func turn_crouch(id: int) -> float:
 			c *= 1.0 + TURN_SQ * sin(k1 * PI)
 	return c
 
+## 1.6.0 B14（P5.4）收盤：結束後 0.6～1.1 秒倖存的兵點一下頭（縱向壓 4%）
+static func settle_dip(rd: float) -> float:
+	var k := (rd - 0.6) / 0.5
+	return 1.0 - 0.04 * sin(k * PI) if k > 0.0 and k < 1.0 else 1.0
+
+## 疲累的汗滴：淺藍水滴＋墨邊＋一點亮光（a＝淡入）
+func _sweat(c: Vector2, a: float) -> void:
+	var pts := PackedVector2Array()
+	for v in [Vector2(0, -6), Vector2(3.6, 0.5), Vector2(2.6, 3.4), Vector2(0, 4.4), Vector2(-2.6, 3.4), Vector2(-3.6, 0.5)]:
+		pts.append(c + v * 1.6)
+	var ol := pts.duplicate()
+	ol.append(pts[0])
+	draw_colored_polygon(pts, Color(0.62, 0.84, 1.0, 0.95 * a))
+	draw_polyline(ol, Color(Art.OUT, 0.9 * a), 1.8, true)
+	draw_circle(c + Vector2(-1.8, 1.2), 1.4, Color(1, 1, 1, 0.85 * a), true, -1.0, true)
+
+## 1.6.0 B14（P5.3）疲累姿勢：只改畫面
+const FATIGUE_TICK := 600     # 開戰 30 秒（20 tick／秒）後
+const FATIGUE_HP := 30        # 血量 <30%
+const FATIGUE_LEAN := 0.10
+const FATIGUE_CROUCH := 0.93
+func fatigued(u) -> bool:
+	return view != null and view.tick >= FATIGUE_TICK and not u.boss and u.max_hp > 0 and u.hp * 100 < u.max_hp * FATIGUE_HP
+
 const FOCUS_SCALE := 1.4 / 1.25
 const BOSS_SIL_PX := 3.0   # 1.6.0 B10（P4.4）：巨獸外框多加的畫面像素
 func focus_scale(id: int) -> float:
@@ -1087,8 +1111,8 @@ func _draw_units_of(s, dim: bool) -> void:
 				var tgt_f: float = float(atk_face[u.id][1])
 				var f0: float = float(atk_face[u.id][2]) if atk_face[u.id].size() > 2 else tgt_f
 				var kf := clampf((_disp_tick() - float(atk_face[u.id][3] if atk_face[u.id].size() > 3 else _disp_tick())) / 2.0, 0.0, 1.0)
-				if signf(f0) == tgt_f and absf(f0) >= 0.9:
-					face = tgt_f
+				if (signf(f0) == tgt_f and absf(f0) >= 0.9) or (("boss" in u) and u.boss):
+					face = tgt_f   # 1.6.0 B12：巨獸出手轉向也直接換邊（向量畫連腳夾扁；Codex B12 r2）
 				else:
 					# 經過正面轉過去：寬度不低於 0.45（不壓成一條線），過半就朝向目標（不背對目標揮空，Antigravity v151-i1 #4）
 					var lf := lerpf(f0, tgt_f, kf)
@@ -1132,6 +1156,11 @@ func _draw_units_of(s, dim: bool) -> void:
 			crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
 		if u.id == follow_id:
 			mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
+		if live and fatigued(u):
+			lean += FATIGUE_LEAN   # 1.6.0 B14（P5.3）疲累：開戰 30 秒後、血量 <30% 的兵往前垂、矮一點
+			crouch *= FATIGUE_CROUCH
+		if live and view.finished and u.alive and not bool(Save.s("reduce_motion")):
+			crouch *= settle_dip(result_delay)   # 1.6.0 B14（P5.4）收盤：倖存的兵點一下頭
 		if live and hurt <= 0.0 and not bool(Save.s("reduce_motion")):
 			crouch *= turn_crouch(u.id)   # 1.6.0 B11（P5.1 程式轉身退路）：預備壓縮（很輕）→ 側緣過渡（轉身格）→ 落定微彈（往上拉，不往下壓）；受擊中、減少動態不套（Codex r1 #6）；暫停時由展示時鐘凍結姿勢（Codex r3）
 		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
@@ -1212,6 +1241,8 @@ func _draw_units_of(s, dim: bool) -> void:
 			continue   # 偽裝中的寶箱不插小旗、不畫血條
 		var fh: int = -58 if u.type == D.CAVALRY else (-70 if u.type == F8.GOLEM or u.type == F8.SPRITE else (-62 if u.type == F8.DOLL else -50))
 		Art.flag(self, p + Vector2(-12, fh * hk_of(u)), u.team, cbm())
+		if live and fatigued(u) and not bool(Save.s("plain_ui")):
+			_sweat(p + Vector2(19, (fh + 22) * hk_of(u)), clampf((view.tick - FATIGUE_TICK) / 20.0, 0.0, 1.0))   # 1.6.0 B14（P5.3）疲累：頭邊一滴汗（和受擊閃白、暈眩星星分得開；Hydrogen r1）
 		if u.stun > 0:
 			# 暈眩：三顆金色菱形繞著頭轉
 			var hc := p + Vector2(0, (-70 if u.type == D.CAVALRY else -62) * hk_of(u))

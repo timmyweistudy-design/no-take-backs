@@ -1,0 +1,2044 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e465-03fe-7790-beab-09353b0ff232
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B14 第 1 輪，最多三輪）。只讀。專案根目錄＝目前資料夾。
+計畫 coordination/v1600-impl/b14-plan.md；差異 coordination/v1600-impl/b14-r1/diff.patch（快照 build/cg/b14/game，基準＝現在的 game/）。
+做了：開戰敲桌（落桌完 `_ceremony_knock`：木聲＋shake，減少動態不震）、收盤點頭（`settle_dip(result_delay)`，0.6～1.1 秒、4%）、跳過（`_input` 在 `_trans_gate` 之後：戰鬥中按下＝`skip_ceremony()`，儀式中立刻開戰、收盤中直接到結果；不 return，事件照常處理）、疲累（tick≥600、血量<30%：lean+0.06、crouch×0.96，巨獸不套）。截圖：疲累另開一場長戰鬥（放在所有截圖之後）、收盤。測試 test_ceremony_v1600 6 項（跳過與不跳過勝方／結束 tick 相同、儀式中按 P 跳過且暫停）。
+請找：錯誤、跳過的邊界（暫停中、重播／覆盤、跳轉、倍速、手把扳機軸、滑鼠移動、觸控拖曳、同一幀多個按下、Esc 離開確認）、收盤跳過會不會讓結果頁吃到同一下、疲累與轉身節奏／受擊壓縮疊加、只改畫面是否成立。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會先讀計畫與差異，再對照快照的輸入、收盤與姿態流程，集中檢查跳過邊界及是否影響戰鬥結果。
+
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'b14-plan.md' -g 'diff.patch' -g '*ceremony*' coordination build/cg/b14/game game" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 360ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v131-impl3/diff.patch
+coordination/v140-i1/diff.patch
+coordination/v131-impl2/diff.patch
+coordination/v140-i2/diff.patch
+coordination/v131-impl1/diff.patch
+coordination/v120-final2/diff.patch
+coordination/v140-impl/cat12-r1/diff.patch
+coordination/v1500-impl/cat15-r1/diff.patch
+coordination/v120-final/diff.patch
+coordination/v140-impl/cat08-r1/diff.patch
+coordination/v1500-impl/cat14-r1/diff.patch
+coordination/v140-impl/cat10-r1/diff.patch
+coordination/v140-impl/cat11-r1/diff.patch
+coordination/v1600-impl/b14-r1/diff.patch
+coordination/v1600-impl/b14-r1/b14-plan.md
+coordination/v1600-impl/b14-plan.md
+coordination/v140-impl/cat05-r1/diff.patch
+coordination/v140-impl/cat09-r1/diff.patch
+coordination/v1500-impl/cat06-r1/diff.patch
+coordination/v140-impl/cat02-r1/diff.patch
+coordination/v1600-impl/b08-r1/diff.patch
+coordination/v1500-impl/cat03-r1/diff.patch
+coordination/v1600-impl/b12-r1/diff.patch
+coordination/v1500-impl/cat05-r1/diff.patch
+coordination/v140-impl/cat01-r1/diff.patch
+coordination/v120-impl2/diff.patch
+coordination/v1500-impl/cat10-r1/diff.patch
+coordination/v130-impl2/diff.patch
+coordination/v1500-impl/cat01-r1/diff.patch
+coordination/v1500-impl/cat02-r1/diff.patch
+coordination/v1500-impl/cat04-r1/diff.patch
+coordination/v1500-impl/cat09-r1/diff.patch
+coordination/v1600-impl/b07-r1/diff.patch
+coordination/v130-impl1/diff.patch
+coordination/v1600-impl/b11-r1/diff.patch
+coordination/v120-impl/cat11-r1/diff.patch
+coordination/v1500-impl/cat07-r1/diff.patch
+coordination/v120-impl/cat10-r1/diff.patch
+coordination/v1500-impl/cat08-r1/diff.patch
+coordination/v1600-impl/b06-r1/diff.patch
+coordination/v1600-impl/b10-r1/diff.patch
+coordination/v120-impl/cat09-r1/diff.patch
+coordination/v1600-impl/b09-r1/diff.patch
+coordination/v130-impl/cat11-r1/diff.patch
+coordination/v121-impl2/diff.patch
+coordination/v1600-impl/b05-r1/diff.patch
+coordination/v1600-impl/b04-r1/diff.patch
+coordination/v120-impl/cat08-r1/diff.patch
+coordination/v121-impl1/diff.patch
+coordination/v130-impl/cat09-r1/diff.patch
+coordination/v120-impl/cat05-r1/diff.patch
+coordination/v120-impl/cat07-r1/diff.patch
+coordination/v120-impl/cat06-r1/diff.patch
+coordination/v130-impl/cat08-r1/diff.patch
+coordination/v130-impl/cat03-r1/diff.patch
+coordination/v1600-impl/b03-r1/diff.patch
+coordination/v120-impl/cat04-r1/diff.patch
+coordination/v130-impl/cat05-r1/diff.patch
+coordination/v130-impl/cat04-r1/diff.patch
+coordination/v130-impl/cat06-r1/diff.patch
+coordination/v1600-impl/b02-r1/diff.patch
+coordination/v120-impl/cat03-r1/diff.patch
+coordination/v130-impl/cat01-r1/diff.patch
+coordination/v1600-impl/b01-r1/diff.patch
+coordination/v1600-impl/b02-r1/hy1/diff.patch
+coordination/v130-impl/cat02-r1/diff.patch
+
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '*ceremony*' .; cat coordination/v1600-impl/b14-plan.md; cat coordination/v1600-impl/b14-r1/diff.patch" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 232ms:
+# B14 桌偶儀式＋疲累（P5.3、P5.4；IN-160-07）計畫
+
+方案 §5 B14：IN-160-07（桌偶儀式跳過不吞輸入、不改模擬）。前置 B11。回退：關閉儀式。
+- 既有：開場 `start_hold` 1 秒三段落桌（1.2.0 §9.1，三聲厚重落子聲）、謝幕（1.4.0）。
+- P5.4 補：①落桌完＝開戰敲桌（`hit_wood` 木聲＋輕震 0.12，`shake` 照設定縮放；減少動態不震）；②收盤：結束後到結果頁那 1.4 秒（`result_delay`），倖存的兵在 0.6～1.1 秒點一下頭（縱向 4%；減少動態不做）；③跳過：戰鬥中任何「按下」（鍵、滑鼠、手把、觸控；不含放開／連發）都先 `skip_ceremony()`（儀式中＝立刻開戰並敲桌；收盤中＝直接到結果），**這一下照常往下處理**（不吞輸入）。
+- P5.3 疲累：開戰 30 秒（tick 600）後、血量 <30% 的兵往前垂 0.06、矮 4%（巨獸不套）；只改畫面。
+- 截圖：`v160_14a_fatigue`（另開一場長戰鬥推到 tick 640，放在所有截圖之後）、`v160_14b_settle`（結束後 0.85 秒）。
+- 驗收：test_ceremony_v1600（同一場跳過與不跳過：勝方、結束 tick 相同；儀式中按 P＝跳過且同一下暫停）；24 組 0。
+--- a/game/scripts/ui/battle_view.gd
++++ b/game/scripts/ui/battle_view.gd
+@@ -70,6 +70,8 @@
+ 		for at in [0.25, 0.55, 0.85]:   # 1.2.0 §9.1：三段落子各一聲厚重落子聲（全場只有 3 聲）
+ 			if ph0 < at and ph1 >= at and sfx != null:
+ 				sfx.play("place_heavy", 0.75)
++		if start_hold <= 0.0:
++			_ceremony_knock()   # 1.6.0 B14（P5.4）落桌完＝開戰敲桌
+ 		return
+ 	if call("_seek_pump"):
+ 		return
+@@ -152,11 +154,33 @@
+ 	zoom = lerpf(zoom, zoom_target, delta * 3)
+ 	if view.finished:
+ 		result_delay += delta
+-		if result_delay > 1.4:
++		if result_delay >= RESULT_DELAY:
+ 			on_battle_finished.call()
+ 
+ 
+ 
++## 1.6.0 B14（P5.4）桌偶儀式：落桌（start_hold 三段落子，1.2.0 起）→ 開戰敲桌（木聲＋輕震，減少動態不震）→ 收盤（結束後倖存的兵點一下頭）。
++## 只改畫面與聲音、不碰模擬（start_hold 只是晚開始）；可跳過：儀式中任何按下都跳過，而且那一下照常處理（不吞輸入，IN-160-07）。
++func _ceremony_knock() -> void:
++	if sfx != null:
++		sfx.play("hit_wood", 0.9)
++	if not bool(Save.s("reduce_motion")):
++		shake = maxf(shake, 0.12)
++
++func skip_ceremony() -> bool:
++	if state != St.BATTLE or view == null:
++		return false
++	if start_hold > 0.0:
++		start_hold = 0.0
++		_ceremony_knock()
++		return true
++	if view.finished and result_delay < RESULT_DELAY:
++		result_delay = RESULT_DELAY   # 收盤跳過：下一幀直接到結果
++		return true
++	return false
++
++const RESULT_DELAY := 1.4
++
+ ## with_fx＝false（直接看結果、重播跳轉補播）只記狀態與標記，不放慢動作、不播音效、不出橫幅（Codex S8 #2）。
+ func _check_clutch(with_fx := true) -> void:
+ 	if slow_used or view.finished:
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -196,6 +196,8 @@
+ 		if is_inside_tree():
+ 			get_viewport().set_input_as_handled()
+ 		return
++	if state == St.BATTLE and _is_press(ev):
++		call("skip_ceremony")   # 1.6.0 B14（IN-160-07）：桌偶儀式中按下＝跳過，這一下照常往下處理（不吞輸入）
+ 	if _keys_input(ev):
+ 		return
+ 	if nb_edit >= 0 and _nb_edit_input(ev):
+@@ -604,6 +606,14 @@
+ 
+ 
+ ## V1.5：第一次啟動先問語言、字級、無障礙（1.6.0 B05：抽成一支，開機與截圖流程的冷啟走查共用；force＝截圖模式也照走）
++## 一次「按下」（鍵、滑鼠鍵、手把鍵；不含放開、連發、移動）
++static func _is_press(ev: InputEvent) -> bool:
++	if ev is InputEventKey:
++		return ev.pressed and not ev.echo
++	if ev is InputEventMouseButton or ev is InputEventJoypadButton or ev is InputEventScreenTouch:
++		return ev.pressed
++	return false
++
+ func _boot_first_run(force := false) -> void:
+ 	if not bool(Save.s("first_done")) and (force or (shot_dir == "" and not video_mode and DisplayServer.get_name() != "headless")):
+ 		overlay = "first_run"
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -548,6 +548,19 @@
+ 			c *= 1.0 + TURN_SQ * sin(k1 * PI)
+ 	return c
+ 
++## 1.6.0 B14（P5.4）收盤：結束後 0.6～1.1 秒倖存的兵點一下頭（縱向壓 4%）
++static func settle_dip(rd: float) -> float:
++	var k := (rd - 0.6) / 0.5
++	return 1.0 - 0.04 * sin(k * PI) if k > 0.0 and k < 1.0 else 1.0
++
++## 1.6.0 B14（P5.3）疲累姿勢：只改畫面
++const FATIGUE_TICK := 600     # 開戰 30 秒（20 tick／秒）後
++const FATIGUE_HP := 30        # 血量 <30%
++const FATIGUE_LEAN := 0.06
++const FATIGUE_CROUCH := 0.96
++func fatigued(u) -> bool:
++	return view != null and view.tick >= FATIGUE_TICK and not u.boss and u.max_hp > 0 and u.hp * 100 < u.max_hp * FATIGUE_HP
++
+ const FOCUS_SCALE := 1.4 / 1.25
+ const BOSS_SIL_PX := 3.0   # 1.6.0 B10（P4.4）：巨獸外框多加的畫面像素
+ func focus_scale(id: int) -> float:
+@@ -1132,6 +1145,11 @@
+ 			crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
+ 		if u.id == follow_id:
+ 			mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
++		if live and fatigued(u):
++			lean += FATIGUE_LEAN   # 1.6.0 B14（P5.3）疲累：開戰 30 秒後、血量 <30% 的兵往前垂、矮一點
++			crouch *= FATIGUE_CROUCH
++		if live and view.finished and u.alive and not bool(Save.s("reduce_motion")):
++			crouch *= settle_dip(result_delay)   # 1.6.0 B14（P5.4）收盤：倖存的兵點一下頭
+ 		if live and hurt <= 0.0 and not bool(Save.s("reduce_motion")):
+ 			crouch *= turn_crouch(u.id)   # 1.6.0 B11（P5.1 程式轉身退路）：預備壓縮（很輕）→ 側緣過渡（轉身格）→ 落定微彈（往上拉，不往下壓）；受擊中、減少動態不套（Codex r1 #6）；暫停時由展示時鐘凍結姿勢（Codex r3）
+ 		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -837,6 +837,10 @@
+ 		await _snap("04_clutch.png")
+ 	while not view.finished:
+ 		_sim_step(false)
++	# 1.6.0 B14（P5.4）收盤：結束後倖存的兵點一下頭（點到最低那一刻）
++	result_delay = 0.85
++	await _snap("v160_14b_settle.png")
++	result_delay = 0.0
+ 	zoom = 1.0
+ 	if mode == Mode.VS_AI:   # 1.4.0 §10.1 謝幕：對手木偶的反應＋老闆依勝負的手勢（播完 0.7 秒那一刻）
+ 		result_delay = 0.7
+@@ -1048,6 +1052,7 @@
+ 	await _shots_v13()
+ 	await _shots_v16()
+ 	# 1.6.0 B04／B05：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
++	await _shot_fatigue()   # 1.6.0 B14：另開一場長戰鬥，放在所有截圖之後（不動到前面截圖的戰鬥狀態）
+ 	await _lobby_pad_walk()
+ 	await _first_run_walk()
+ 	await _pad_walk()
+@@ -2817,6 +2822,20 @@
+ 	if had_dis:
+ 		shot_state["dis"] = true
+ 
++## 1.6.0 B14（P5.3）疲累：另開一場會打很久的（訓練陣 2 對 9，約 51 秒），推到 32 秒（tick 640）拍——殘血的兵往前垂。
++## 用完把戰鬥狀態交回下一段截圖自己設定（後面的截圖都會重新開場）。
++func _shot_fatigue() -> void:
++	var FF = preload("res://scripts/core/formations.gd")
++	var pool: Array = FF.training_pool(0)
++	_begin_battle(pool[2].copy(), pool[9].mirrored(), "replay")
++	start_hold = 0.0
++	while not view.finished and view.tick < 640:
++		_sim_step(false)
++	slow_left = 0.0
++	clutch_t = 0.0
++	zoom = 1.0
++	await _snap("v160_14a_fatigue.png")
++
+ func _lobby_pad_walk() -> void:
+ 	var pad0: bool = pad_mode
+ 	# 走查真的開戰：會寫 last_rules、蓋章數、消耗亂數——全部存起來、走完還原（不然之後截圖的 AI 陣容、規則都變了；b04c 抓到 74_cmd_cast 0→423）
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -65,6 +65,18 @@
+    "一般"
+   ]
+  },
++ "v160_14a_fatigue.png": {
++  "entry": "戰鬥（疲累姿勢，1.6.0 B14）",
++  "states": [
++   "一般"
++  ]
++ },
++ "v160_14b_settle.png": {
++  "entry": "戰鬥（收盤點頭，1.6.0 B14）",
++  "states": [
++   "一般"
++  ]
++ },
+  "05_result.png": {
+   "entry": "結果",
+   "states": [
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -1439,3 +1439,46 @@
+ 	var dm: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
+ 	var mg: String = FileAccess.get_file_as_string("res://scripts/ui/main.gd")
+ 	ok(dm.find("func _run_turn_strip(") >= 0 and dm.find("print(\"TURNSTRIP \"") >= 0 and mg.find("\"--turn-strip=\"") >= 0, "連拍工具：--turn-strip（160 組合、缺格、腳滑比）")
++
++## 1.6.0 B14（P5.3、P5.4；IN-160-07）桌偶儀式＋疲累：落桌→開戰敲桌→收盤，可跳過；跳過不吞輸入、不改模擬。
++func test_ceremony_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var pool := F.training_pool(0)
++	var run := func(skip_at: int) -> Array:
++		var g = GS.new()
++		g.sfx = FakeSfx.new()
++		g._begin_battle(pool[2].copy(), pool[9].mirrored(), "official")
++		g.start_hold = 1.0   # headless 平常沒有儀式：硬開
++		var guard := 0
++		while g.state == g.St.BATTLE and not g.view.finished and guard < 12000:
++			guard += 1
++			if guard == skip_at:
++				g.skip_ceremony()
++			g._process_inner(1.0 / 60.0)
++		var out := [int(g.sim.winner), int(g.view.tick), guard]
++		g.free()
++		return out
++	var a: Array = run.call(-1)
++	var b: Array = run.call(20)
++	ok(a[0] == b[0] and a[1] == b[1], "跳過儀式不改模擬（勝方 %d／%d、結束 tick %d／%d）" % [a[0], b[0], a[1], b[1]])
++	ok(b[2] < a[2], "跳過＝少等（幀數 %d → %d）" % [a[2], b[2]])
++	# 不吞輸入：儀式中按 P（暫停）＝跳過儀式，而且這一下照常暫停
++	var g2 = GS.new()
++	g2.sfx = FakeSfx.new()
++	g2._begin_battle(pool[2].copy(), pool[9].mirrored(), "official")
++	g2.start_hold = 1.0
++	g2.time = 5.0
++	g2._update_gen()
++	var e := InputEventKey.new()
++	e.keycode = KEY_P
++	e.pressed = true
++	g2._input(e)
++	g2._process_cmds()
++	ok(g2.start_hold == 0.0 and g2.paused, "儀式中按 P：跳過儀式，同一下也暫停（不吞輸入）", "hold=%s paused=%s" % [g2.start_hold, g2.paused])
++	g2.free()
++	var BU = load("res://scripts/ui/battle/battle_units.gd")
++	ok(BU.settle_dip(0.3) == 1.0 and BU.settle_dip(0.85) < 1.0 and BU.settle_dip(0.85) >= 0.96 and BU.settle_dip(1.3) == 1.0, "收盤：結束後 0.6～1.1 秒點頭（最多 4%）")
++	var bv: String = FileAccess.get_file_as_string("res://scripts/ui/battle_view.gd")
++	ok(bv.find("if not bool(Save.s(\"reduce_motion\")):\n\t\tshake = maxf(shake, 0.12)") >= 0, "開戰敲桌：減少動態時不震")
++	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
++	ok(bu.find("return view != null and view.tick >= FATIGUE_TICK and not u.boss") >= 0 and BU.FATIGUE_CROUCH >= 0.95, "疲累：30 秒後、血量 <30%，往前垂、矮一點（只改畫面）")
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+
+exec
+/bin/bash -lc "nl -ba build/cg/b14/game/scripts/ui/battle_view.gd | head -205; nl -ba build/cg/b14/game/scripts/ui/game_screens.gd | sed -n '150,370p'; rg -n 'func _keys_input|func _process_cmds|on_battle_finished|result_delay|JoypadMotion|paused|leave_confirm' build/cg/b14/game/scripts/ui/{battle*,game*,input*,*keys*}.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 50ms:
+     1	extends "res://scripts/ui/battle/battle_units.gd"
+     2	## 其他層在同資料夾（V9 P1 拆檔）
+     3	
+     4	func _on_skip() -> void:
+     5		if skip_busy:
+     6			return   # 防重入
+     7		paused = false   # Codex r1：暫停中按直接看結果，算完要能進結算
+     8		if DisplayServer.get_name() == "headless" or shot_dir != "":
+     9			while not view.finished:
+    10				_sim_step(false)
+    11			result_delay = 9.0
+    12			return
+    13		skip_busy = true
+    14	
+    15	
+    16	func _skip_step() -> void:
+    17		var t0 := Time.get_ticks_msec()
+    18		while not view.finished and Time.get_ticks_msec() - t0 < 10:
+    19			_sim_step(false)
+    20		if view.finished:
+    21			skip_busy = false
+    22			result_delay = 9.0
+    23	
+    24	
+    25	## 第十輪 I4：重播的全長在背景算，算完才開始播。
+    26	func _pre_join() -> void:
+    27		if pre_thread != null:
+    28			var v = pre_thread.wait_to_finish()
+    29			pre_thread = null
+    30			if v is Array:
+    31				replay_total = int(v[0])
+    32				replay_bm = v[1]
+    33	
+    34	## 不要等：還在算就留給 _pre_reap 收。
+    35	func _pre_drop() -> void:
+    36		if pre_thread != null:
+    37			pre_old.append(pre_thread)
+    38			pre_thread = null
+    39	
+    40	func _pre_reap() -> void:
+    41		for i in range(pre_old.size() - 1, -1, -1):
+    42			if not pre_old[i].is_alive():
+    43				pre_old[i].wait_to_finish()
+    44				pre_old.remove_at(i)
+    45	
+    46	func _exit_tree() -> void:
+    47		if has_method("_rv_exit"):
+    48			call("_rv_exit")   # 1.1.0 H1：覆盤重算、GIF 先叫停再等
+    49		bg.drain()   # 1.1.0 N6：覆盤、GIF、教練、三考、出題碼的背景工作：全部叫停再等（各自 64 tick／每格內會停）
+    50		_pre_join()
+    51		_pre_drop()
+    52		for th in pre_old:
+    53			th.wait_to_finish()
+    54		pre_old.clear()
+    55		if ai_thread != null:
+    56			ai_thread.wait_to_finish()
+    57			ai_thread = null
+    58	
+    59	func _battle_process(delta: float) -> void:
+    60		if pre_thread != null:
+    61			if pre_thread.is_alive():
+    62				return
+    63			_pre_join()
+    64		if view != null:
+    65			_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
+    66		if start_hold > 0.0:
+    67			var ph0 := 1.0 - start_hold
+    68			start_hold -= delta
+    69			var ph1 := 1.0 - start_hold
+    70			for at in [0.25, 0.55, 0.85]:   # 1.2.0 §9.1：三段落子各一聲厚重落子聲（全場只有 3 聲）
+    71				if ph0 < at and ph1 >= at and sfx != null:
+    72					sfx.play("place_heavy", 0.75)
+    73			if start_hold <= 0.0:
+    74				_ceremony_knock()   # 1.6.0 B14（P5.4）落桌完＝開戰敲桌
+    75			return
+    76		if call("_seek_pump"):
+    77			return
+    78		if _hl_reel_tick():
+    79			return   # 1.3.0 §2 精華三連：換段開始跳轉，這一幀不再推進（Codex cat06 #1）
+    80		if skip_busy:
+    81			_skip_step()
+    82			return
+    83		if paused:
+    84			return
+    85		if hitstop > 0:
+    86			# 1.2.0 §9.6 展示時鐘：停頓期間欠下的模擬 tick（只算真的停頓的那段、照停頓當下的倍速換算）
+    87			var used := minf(delta, hitstop)
+    88			present_debt += used * speed / 0.05
+    89			freeze_t += used   # 1.4.0：配件等只看展示時間的動畫也一起停（Codex cat05 #8）
+    90			hitstop -= delta
+    91			if hitstop > 0:
+    92				return
+    93			hitstop = 0.0
+    94			delta -= used      # 停頓在這一幀中間結束：剩下的時間照常推進（不丟掉，Codex cat05 #8）
+    95		var rate := speed
+    96		if present_debt > 0.0 and slow_left <= 0 and final_left <= 0:
+    97			if present_debt > 20.0:
+    98				# 落後超過 1 秒（20 tick）：不播演出直接追上（事件照常記進戰報與書籤；最後時刻只記狀態不演）
+    99				var nskip := int(present_debt)
+   100				for _i in nskip:
+   101					if view.finished:
+   102						break
+   103					_sim_step(false)
+   104				present_debt = 0.0
+   105			else:
+   106				var extra := minf(delta * speed * 0.5 / 0.05, present_debt)   # 追回：最多 1.5 倍速
+   107				accum += extra * 0.05
+   108				present_debt -= extra
+   109		if slow_left > 0:
+   110			rate *= 0.5
+   111			slow_left -= delta
+   112		if final_left > 0:
+   113			rate *= 0.25      # 第十輪 F1：最後一擊
+   114			final_left -= delta
+   115			_update_action_focus()
+   116		accum += delta * rate
+   117		while accum >= 0.05 and not view.finished:
+   118			accum -= 0.05
+   119			var was_slow := slow_left > 0 or final_left > 0
+   120			_sim_step(true)
+   121			if (slow_left > 0 or final_left > 0) and not was_slow:
+   122				break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
+   123			if hitstop > 0:
+   124				break   # 1.4.0：這一 tick 觸發頓幀，剩下的累積等停完再消耗（Codex cat05 #8）
+   125		# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
+   126		# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
+   127		if slow_left > 0:
+   128			_update_action_focus()
+   129		# 1.3.0 §2 最後一擊的抽離感：環境低通壓到約 400Hz、畫面去飽和 25%，0.4 秒回彈（減少特效時慢動作本來就不開）
+   130		sfx.set_muffled((slow_left > 0 or final_left > 0) and not view.finished, 400.0 if final_left > 0 else 900.0)
+   131		desat_a = 0.25 if final_left > 0 else move_toward(desat_a, 0.0, delta * 0.25 / 0.4)
+   132		_spot_update(delta)
+   133		_pad_cam(delta)
+   134		# 分軌音樂依戰況混音（第三輪 S1）
+   135		var close := absf(view.power(0) * 100.0 / (view.budget_of(0) * 1000) - view.power(1) * 100.0 / (view.budget_of(1) * 1000)) <= 15.0
+   136		sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
+   137		if sfx.has_method("set_room_tense"):
+   138			sfx.set_room_tense(close or slow_left > 0)   # 1.3.0 §10：戰況緊時遠景低通
+   139		# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
+   140		if follow_id >= 0:
+   141			pass   # 由 _follow_update 決定
+   142		elif pinch_zoom > 1.01:
+   143			zoom_target = pinch_zoom   # V1.4 #18：玩家用雙指放大，就停在那裡（1.3.0：手動優先於最後時刻框選，Codex cat06 #5）
+   144			zoom_center = zoom_center.lerp(pinch_center, minf(1.0, delta * 6))
+   145		elif _dir_on() and time < dir_hot_until and not view.finished:
+   146			_director_cam(delta)   # 1.4.0 §2.5 仲裁：技能推近（只重播）> 最後時刻框選（Codex cat05 #7）
+   147		elif slow_left > 0 and not view.finished and bool(Save.s("clutch_zoom")) and not bool(Save.s("reduce_motion")):   # V1.5：最後時刻自動放大可關
+   148			_frame_alive(delta)
+   149		elif _dir_on():
+   150			_director_cam(delta)   # 1.3.0 §2 自動導播（重播、觀戰）
+   151		else:
+   152			zoom_target = 1.0
+   153			zoom_center = zoom_center.lerp(ORIGIN + fld_size / 2, minf(1.0, delta * 3))
+   154		zoom = lerpf(zoom, zoom_target, delta * 3)
+   155		if view.finished:
+   156			result_delay += delta
+   157			if result_delay >= RESULT_DELAY:
+   158				on_battle_finished.call()
+   159	
+   160	
+   161	
+   162	## 1.6.0 B14（P5.4）桌偶儀式：落桌（start_hold 三段落子，1.2.0 起）→ 開戰敲桌（木聲＋輕震，減少動態不震）→ 收盤（結束後倖存的兵點一下頭）。
+   163	## 只改畫面與聲音、不碰模擬（start_hold 只是晚開始）；可跳過：儀式中任何按下都跳過，而且那一下照常處理（不吞輸入，IN-160-07）。
+   164	func _ceremony_knock() -> void:
+   165		if sfx != null:
+   166			sfx.play("hit_wood", 0.9)
+   167		if not bool(Save.s("reduce_motion")):
+   168			shake = maxf(shake, 0.12)
+   169	
+   170	func skip_ceremony() -> bool:
+   171		if state != St.BATTLE or view == null:
+   172			return false
+   173		if start_hold > 0.0:
+   174			start_hold = 0.0
+   175			_ceremony_knock()
+   176			return true
+   177		if view.finished and result_delay < RESULT_DELAY:
+   178			result_delay = RESULT_DELAY   # 收盤跳過：下一幀直接到結果
+   179			return true
+   180		return false
+   181	
+   182	const RESULT_DELAY := 1.4
+   183	
+   184	## with_fx＝false（直接看結果、重播跳轉補播）只記狀態與標記，不放慢動作、不播音效、不出橫幅（Codex S8 #2）。
+   185	func _check_clutch(with_fx := true) -> void:
+   186		if slow_used or view.finished:
+   187			return
+   188		if clutch_cond(view):
+   189			slow_used = true
+   190			clutch_tick = view.tick
+   191			battle_marks.append({"tick": view.tick, "kind": "clutch", "team": -1})
+   192			if not with_fx:
+   193				return
+   194			if _fx_on("slowmo"):
+   195				slow_left = 8.0
+   196			clutch_t = 1.6   # 最後時刻橫幅（第三輪 V2）：獨立一層畫在 _draw_clutch_banner
+   197			sfx.play("clutch")
+   198	
+   199	
+   200	
+   201	## 鏡頭安全框（優化方案 F2）：把所有存活單位框進畫面，四周留 15%。
+   202	func _frame_alive(delta: float) -> void:
+   203		var lo := Vector2(1e9, 1e9)
+   204		var hi := Vector2(-1e9, -1e9)
+   205		for u in view.units:
+nl: could not write output: Broken pipe
+   150			Save.prefix = "shot_"
+   151			Save.load_all()
+   152		_go_title()   # 截圖、影片、效能量測由 main 接手（S8）
+   153		_boot_first_run()
+   154		if not video_mode and overlay != "first_run":
+   155			intro_begin()   # 1.3.0 §13 掌燈開門（第一次；有第一次設定時等設定完才播）
+   156		boot_parts["title"] = Time.get_ticks_msec()
+   157	
+   158	
+   159	
+   160	## 反制庫的陣型只能用這場開放的兵種（第四輪：不會拿你還沒解鎖的兵打你）。
+   161	func _types_ok(a: Army) -> bool:
+   162		for u in a.units:
+   163			if int(u["type"]) >= _ntypes():
+   164				return false
+   165		return true
+   166	
+   167	
+   168	
+   169	func _keys_input(ev: InputEvent) -> bool:
+   170		if keys_capture == "":
+   171			return false
+   172		var part := keys_capture.split(":")
+   173		if ev is InputEventKey and ev.pressed and not ev.echo:
+   174			if ev.keycode != KEY_ESCAPE and part[0] == "kb":
+   175				if not Keymap.can_bind_key(ev.keycode):
+   176					_toast(L.t("keys_reserved"), true)
+   177					return true
+   178				Save.settings["keys"] = Keymap.rebind(Keymap.ACTIONS, Save.s("keys"), part[1], ev.keycode)
+   179				Save.save_settings()
+   180			keys_capture = ""
+   181			return true
+   182		if ev is InputEventJoypadButton and ev.pressed and part[0] == "pad":
+   183			if not Keymap.can_bind_pad(ev.button_index):
+   184				_toast(L.t("keys_reserved"), true)
+   185				return true
+   186			Save.settings["pad"] = Keymap.rebind(Keymap.PAD_ACTIONS, Save.s("pad"), part[1], ev.button_index)
+   187			Save.save_settings()
+   188			keys_capture = ""
+   189			return true
+   190		return ev is InputEventKey or ev is InputEventJoypadButton
+   191	
+   192	
+   193	
+   194	func _input(ev: InputEvent) -> void:
+   195		if _trans_gate(ev):
+   196			if is_inside_tree():
+   197				get_viewport().set_input_as_handled()
+   198			return
+   199		if state == St.BATTLE and _is_press(ev):
+   200			call("skip_ceremony")   # 1.6.0 B14（IN-160-07）：桌偶儀式中按下＝跳過，這一下照常往下處理（不吞輸入）
+   201		if _keys_input(ev):
+   202			return
+   203		if nb_edit >= 0 and _nb_edit_input(ev):
+   204			return   # V1.6.1 N3：實驗簿改名時，鍵盤輸入給名稱框
+   205		if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
+   206			fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
+   207			_touch_input(ev)   # V1.4 #18：長按＝右鍵、雙指縮放
+   208			return
+   209		if ev is InputEventMagnifyGesture and (state == St.BATTLE or state == St.RESULT):
+   210			_pinch_by(ev.factor, ev.position)   # 觸控板的捏合也一樣
+   211			return
+   212		if ev is InputEventMouseMotion:
+   213			mouse = ev.position
+   214			pad_mode = false
+   215			if ev.device != InputEvent.DEVICE_ID_EMULATION:
+   216				fp_touch = false
+   217			hover_card = _card_at(mouse)
+   218			if state == St.BATTLE and overlay == "" and (ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
+   219				_enqueue("pan", ev.relative)   # 1.3.0 §2：中鍵拖曳平移
+   220			_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
+   221			_drag_scrape(ev.relative.length())
+   222			return
+   223		if intro_t >= 0.0 and ((ev is InputEventKey and ev.pressed) or (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)):
+   224			intro_end()   # 1.3.0 §13：任何按鍵、點擊跳過開場（這一下不再往下傳）
+   225			intro_eat = true
+   226			get_viewport().set_input_as_handled()
+   227			return
+   228		if intro_eat and ((ev is InputEventMouseButton and not ev.pressed) or (ev is InputEventScreenTouch and not ev.pressed) or (ev is InputEventJoypadButton and not ev.pressed) or (ev is InputEventKey and not ev.pressed)):
+   229			intro_eat = false   # 跳過那一下的放開也吞掉（不然會點到底下的按鈕；Codex cat11 #2）
+   230			get_viewport().set_input_as_handled()
+   231			return
+   232		if ev is InputEventMouseButton:
+   233			mouse = ev.position
+   234			if overlay == "codex" and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+   235				_scroll_at(mouse, -48.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 48.0)   # 圖鑑捲動（第三輪 U1）
+   236				return
+   237			_enqueue("mb", {"i": ev.button_index, "pressed": ev.pressed, "pos": ev.position, "dbl": ev.double_click})
+   238			return
+   239		if state == St.BATTLE and ((ev is InputEventKey and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed)):
+   240			mag_hide = follow_id   # 1.3.0 §2：任何按鍵（含沒綁定的鍵、手把鍵）1 幀內收起放大鏡（只動畫面；Codex cat06 #6）
+   241		if ev is InputEventKey and ev.pressed:
+   242			if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+   243				var dk: int = Keymap.key_to_default(Save.s("keys"), ev.keycode)
+   244				if dk >= 0:
+   245					_enqueue("key", dk)
+   246			return
+   247		if ev is InputEventJoypadButton:
+   248			var db: int = Keymap.pad_to_default(Save.s("pad"), ev.button_index)
+   249			if db < 0:
+   250				return
+   251			ev = ev.duplicate()
+   252			ev.button_index = db
+   253		if ev is InputEventJoypadButton:
+   254			last_joy = ev.device     # 所有分流之前記（Codex v10-r1 #6）
+   255			if ev.button_index == JOY_BUTTON_X:
+   256				_pad_x_hold(ev.pressed)   # 1.1.0 Q1：長按拿掉鍵＝清空自己的陣
+   257		if ev is InputEventJoypadButton and ev.pressed and _pad_tool(ev):
+   258			return
+   259		if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
+   260			_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
+   261		if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+   262			pad_mode = true
+   263			_enqueue("padbtn", {"b": ev.button_index, "pressed": ev.pressed})   # 第六輪：自由排兵要知道按下與放開
+   264			return
+   265		if ev is InputEventJoypadButton and ev.pressed:
+   266			pad_mode = true
+   267			var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
+   268				JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
+   269				JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
+   270				JOY_BUTTON_BACK: KEY_F1, JOY_BUTTON_LEFT_STICK: KEY_H, JOY_BUTTON_RIGHT_STICK: KEY_P}
+   271			if map.has(ev.button_index):
+   272				_enqueue("key", map[ev.button_index])
+   273			return
+   274		if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > maxf(0.1, int(Save.s("deadzone")) / 100.0):   # V1.5：死區照設定
+   275			pad_mode = true
+   276			_scroll_by("left", ev.axis_value * 24.0)   # 右搖桿捲圖鑑左欄
+   277			return
+   278		if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
+   279			# 左搖桿：只記下狀態，由 _stick_repeat 依固定節奏送方向鍵（Codex S1 #6：原本每個抖動事件都會送一次）
+   280			stick[ev.axis] = ev.axis_value
+   281			if absf(ev.axis_value) > 0.6:
+   282				pad_mode = true
+   283	
+   284	
+   285	
+   286	## 塗兵（佇列命令）：按住拖過格子連續擺。
+   287	func _paint_cmd(p: Vector2) -> void:
+   288		call("vol_motion", p)   # 1.3.0：音量木軌拖曳中（沒在拖就什麼都不做）
+   289		if drag_from.x >= 0 and p.distance_to(drag_press_p) >= 10.0:
+   290			drag_moved = true   # V1.5.1：拖出去過就不算「點一下」（拖回原點也一樣，Codex v151-i3）
+   291		if _is_free():
+   292			if overlay == "":
+   293				_fp_motion(p)
+   294			return
+   295		if state != St.PLACE or overlay != "" or not painting:
+   296			return
+   297		if _cur_army().team != paint_team:
+   298			painting = false
+   299			return
+   300		var c := _cell_at(p)
+   301		if c.x >= 0 and _cur_army().index_at(c.x, c.y) == -1:
+   302			_try_place(c)
+   303	
+   304	
+   305	
+   306	var drag_press_p := Vector2.ZERO
+   307	var drag_moved := false
+   308	
+   309	func _mb_release_cleanup() -> void:
+   310		call("vol_release")   # 1.3.0：過期的放開也結束音量拖曳（並存檔）
+   311		_fp_abort_drag()
+   312		drag_new = false
+   313		painting = false
+   314		drag_from = Vector2i(-1, -1)
+   315	
+   316	
+   317	
+   318	## 滑鼠按鍵（佇列命令，第三輪 A2）：按鈕點擊、擺放、拖曳、移除。
+   319	var dbl_eat := false
+   320	var intro_eat := false   # 1.3.0 §13
+   321	
+   322	## 1.3.0 §2：雙擊回全景只認盤面範圍（按鈕列、HUD 不算）。
+   323	func _field_hit(p: Vector2) -> bool:
+   324		if p.y <= 96.0 or p.y >= (640.0 if _replay_controls_active() else 760.0):
+   325			return false
+   326		for b in _btns:
+   327			if (b["r"] as Rect2).has_point(p):
+   328				return false   # 按鈕上雙擊不算（Codex cat06 #4）
+   329		var lo: Vector2 = _cam * ORIGIN
+   330		var hi: Vector2 = _cam * (ORIGIN + fld_size)
+   331		return Rect2(lo, hi - lo).has_point(p)
+   332	
+   333	func _mb_cmd(d: Dictionary) -> void:
+   334		var mb := InputEventMouseButton.new()
+   335		mb.button_index = d["i"]
+   336		mb.pressed = d["pressed"]
+   337		mb.position = d["pos"]
+   338		mouse = d["pos"]
+   339		var eat_dbl := false
+   340		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+   341			eat_dbl = dbl_eat   # 雙擊回全景那次的放開：不論走哪條路都要清掉（Codex cat06 #4）
+   342			dbl_eat = false
+   343		if state == St.BATTLE and overlay == "" and mb.pressed:
+   344			mag_hide = follow_id   # 1.3.0 §2：任何按下都先收起放大鏡（點到兵會在放開時重新選）
+   345			hl_reel.clear()        # 精華三連播放中動了就停在這裡（交還手動）
+   346			if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+   347				cam_wheel(mb.button_index == MOUSE_BUTTON_WHEEL_UP, mouse)   # 滾輪縮放
+   348				return
+   349			if mb.button_index == MOUSE_BUTTON_LEFT and bool(d.get("dbl", false)) and _field_hit(mouse):
+   350				cam_reset()   # 雙擊盤面回全景
+   351				dbl_eat = true
+   352				return
+   353		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and bool(call("vol_press", mouse)):
+   354			return   # 1.3.0：在音量木軌上按下＝開始拖
+   355		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and bool(call("vol_release")):
+   356			_mb_release_cleanup()
+   357			return   # 拖完放開：存檔，不再觸發數值鈕
+   358		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+   359			if _do_click(mouse) > 0:
+   360				_mb_release_cleanup()
+   361				return
+   362		if state == St.PLACE and overlay == "" and (foe_card_r.has_point(mouse) or foe_tag_r.has_point(mouse)):
+   363			if not mb.pressed:
+   364				_mb_release_cleanup()
+   365			return   # 1.5.0 §1.4：敵情翻牌與紙卡擋住底下的部署區（不點穿）
+   366		if state == St.PLACE and overlay == "" and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and _v16_place_click(mouse):
+   367			return   # V1.6 #6：標記模式
+   368		if state == St.PLACE and overlay == "" and _fp_mb(d):
+   369			return   # 第六輪：自由排兵處理掉了
+   370		if overlay != "" or state != St.PLACE:
+rg: build/cg/b14/game/scripts/ui/input*.gd: No such file or directory (os error 2)
+rg: build/cg/b14/game/scripts/ui/*keys*.gd: No such file or directory (os error 2)
+build/cg/b14/game/scripts/ui/game_screens.gd:42:	on_battle_finished = _finish_battle
+build/cg/b14/game/scripts/ui/game_screens.gd:169:func _keys_input(ev: InputEvent) -> bool:
+build/cg/b14/game/scripts/ui/game_screens.gd:274:	if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > maxf(0.1, int(Save.s("deadzone")) / 100.0):   # V1.5：死區照設定
+build/cg/b14/game/scripts/ui/game_screens.gd:278:	if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
+build/cg/b14/game/scripts/ui/game_screens.gd:554:				elif overlay == "leave" and state == St.BATTLE and paused:
+build/cg/b14/game/scripts/ui/game_screens.gd:703:	if paused and key_t > 0.0:
+build/cg/b14/game/scripts/ui/game_screens.gd:705:	if paused and float(last_kill[1]) > 0.0:
+build/cg/b14/game/scripts/ui/game_screens.gd:1039:func _process_cmds() -> int:
+build/cg/b14/game/scripts/ui/game_screens.gd:1222:	if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+build/cg/b14/game/scripts/ui/game_screens.gd:1239:	if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+build/cg/b14/game/scripts/ui/game_screens.gd:1251:	if ev is InputEventJoypadMotion:
+build/cg/b14/game/scripts/ui/battle_view.gd:7:	paused = false   # Codex r1：暫停中按直接看結果，算完要能進結算
+build/cg/b14/game/scripts/ui/battle_view.gd:11:		result_delay = 9.0
+build/cg/b14/game/scripts/ui/battle_view.gd:22:		result_delay = 9.0
+build/cg/b14/game/scripts/ui/battle_view.gd:83:	if paused:
+build/cg/b14/game/scripts/ui/battle_view.gd:156:		result_delay += delta
+build/cg/b14/game/scripts/ui/battle_view.gd:157:		if result_delay >= RESULT_DELAY:
+build/cg/b14/game/scripts/ui/battle_view.gd:158:			on_battle_finished.call()
+build/cg/b14/game/scripts/ui/battle_view.gd:177:	if view.finished and result_delay < RESULT_DELAY:
+build/cg/b14/game/scripts/ui/battle_view.gd:178:		result_delay = RESULT_DELAY   # 收盤跳過：下一幀直接到結果
+build/cg/b14/game/scripts/ui/battle_view.gd:895:			var normal: bool = clock_last >= 0 and secs == clock_last - 1 and not paused and seek_target < 0
+build/cg/b14/game/scripts/ui/battle_view.gd:919:			_btn(Rect2(950, 4, 52, 36), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6；V1.5.2：頂列一律 y=4、高 36、右緣留 14（原本暫停鈕 y=2 和同列不齊；下緣 40 不碰 y=42 的剩餘隻數；加強焦點框在 _btn 裡夾在畫面內）
+build/cg/b14/game/scripts/ui/battle_view.gd:966:	paused = false
+build/cg/b14/game/scripts/ui/battle_view.gd:1028:	result_delay = 0.0
+build/cg/b14/game/scripts/ui/battle_view.gd:1115:	_cam_apply_paused()
+build/cg/b14/game/scripts/ui/battle_view.gd:1122:	_cam_apply_paused()
+build/cg/b14/game/scripts/ui/battle_view.gd:1128:	if paused:
+build/cg/b14/game/scripts/ui/battle_view.gd:1141:func _cam_apply_paused() -> void:
+build/cg/b14/game/scripts/ui/battle_view.gd:1142:	if paused and pinch_zoom > 1.01:
+build/cg/b14/game/scripts/ui/battle_view.gd:1146:	elif paused:
+build/cg/b14/game/scripts/ui/battle_view.gd:1184:	if paused:
+build/cg/b14/game/scripts/ui/battle_view.gd:1346:	if state != St.BATTLE or view == null or paused or pad_mode or bool(Save.s("plain_ui")):
+
+exec
+/bin/bash -lc "nl -ba build/cg/b14/game/scripts/ui/game_screens.gd | sed -n '465,575p;640,755p;1000,1100p'; rg -n 'func _finish_battle|func _toggle_pause|func _seek|result_delay|start_hold|func _touch_input|func _touch' build/cg/b14/game/scripts/ui; nl -ba build/cg/b14/game/scripts/ui/battle/battle_units.gd | sed -n '1020,1205p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 96ms:
+   465				if Input.is_key_pressed(KEY_SHIFT):
+   466					return call("_deploy_tool", "fwd" if k == KEY_RIGHT else "back")
+   467		return false
+   468	
+   469	func _key(k: int) -> void:
+   470		_toast_dismiss()
+   471		if state == St.BATTLE:
+   472			mag_hide = follow_id   # 1.3.0 §2：任何按鍵 1 幀內收起放大鏡
+   473			hl_reel.clear()        # 精華三連：按鍵＝交還手動（Codex cat06 #6）
+   474		if state == St.RESULT and _ink_active():
+   475			result_t -= INK_DUR   # 1.2.0 §9.4：任何按鍵跳過宣紙戰報演出
+   476			return
+   477		if state == St.PLACE and overlay == "" and _v16_place_key(k):
+   478			return
+   479		if state == St.PLACE and overlay == "" and _place_tool_key(k):
+   480			return
+   481		if state == St.PLACE and _fp_key(k):
+   482			return
+   483		if state == St.BATTLE and overlay == "" and _cmd_key(k):
+   484			return
+   485		if state == St.BATTLE and overlay == "" and (k == KEY_BRACKETLEFT or k == KEY_BRACKETRIGHT) and _replay_controls_active():
+   486			_bm_jump(-1 if k == KEY_BRACKETLEFT else 1)   # 1.2.0 §11.2 書籤
+   487			return
+   488		if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
+   489			tm_ghost_on = not tm_ghost_on   # 1.2.0 §11.3
+   490			return
+   491		# 1.5.0 §1.2 大廳三步：肩鍵（Q／E）＝上一步／下一步，Y（Tab）＝打開／收起進階折頁
+   492		if overlay == "lobby" and not bool(get("lobby_menu")):
+   493			if (k == KEY_Q or k == KEY_E) and not bool(get("lobby_open")):
+   494				call("_lobby_step_by", -1 if k == KEY_Q else 1)
+   495				return
+   496			if k == KEY_TAB:
+   497				set("lobby_open", not bool(get("lobby_open")))
+   498				_btns.clear()   # 開合折頁：舊按鈕立刻失效（同一幀 Y＋A 不會按到開合前的「開戰」；Codex v150 cat03 r3）
+   499				return
+   500		# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
+   501		if state != St.PLACE or overlay != "":
+   502			match k:
+   503				KEY_UP, KEY_LEFT:
+   504					_move_focus(-1)
+   505				KEY_DOWN, KEY_RIGHT:
+   506					_move_focus(1)
+   507				KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+   508					if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+   509						sfx.play("k_click", 0.7)
+   510						_btns[_focus]["cb"].call()
+   511				KEY_F1:
+   512					if state == St.BATTLE and overlay == "" and play_kind != "official":
+   513						call("_breport_open")   # 1.1.0 B10：手把 View／Select＝戰報面板
+   514					elif state == St.BATTLE and overlay == "":
+   515						set("hud_info_until", time + 2.0)   # 1.2.0 §5.6：正式對戰按 View＝叫出 AI 名稱與性格 2 秒
+   516				KEY_PAGEUP, KEY_PAGEDOWN:
+   517					if overlay == "codex":
+   518						_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
+   519				KEY_P, KEY_TAB:
+   520					# 手把 Y 送的是 Tab：戰鬥中＝暫停（第七輪 A6）
+   521					if state == St.BATTLE and overlay == "":
+   522						_toggle_pause()
+   523					elif k == KEY_TAB:
+   524						_move_focus(1)
+   525				KEY_ESCAPE:
+   526					if overlay == "" and state == St.TITLE and bool(get("home_more")):
+   527						call("_home_more_set", false)   # 1.6.0 B05：返回先收起「更多」抽屜（換世代、焦點回到「更多」）
+   528					elif overlay == "ai_busy":
+   529						pass      # 第十輪 I4：AI 計算中不能取消
+   530					elif overlay == "first_run":
+   531						Save.set_setting("first_done", true)   # V1.5：跳過第一次啟動的問題
+   532						overlay = ""
+   533					elif overlay == "paint":
+   534						call("_paint_close")   # V1.4 #15：Esc／手把 B 也要存塗裝（Codex、Antigravity v140-i4）
+   535					elif overlay == "pause_menu":
+   536						call("_pause_resume")
+   537					elif overlay == "settings":
+   538						call("_settings_close")
+   539					elif overlay == "fs_confirm":
+   540						call("_fs_revert")
+   541					elif overlay == "confirm":
+   542						overlay = str(get("confirm_ret"))
+   543					elif overlay in ["keys", "restore", "clear_data"]:
+   544						set("keys_capture", "")
+   545						overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
+   546					elif overlay == "codex" and bool(get("cx_zoom")) and int(get("cx_unit")) < D.total():
+   547						set("cx_zoom", false)   # V1.5.1：近看模式先收合
+   548					elif overlay == "breport":
+   549						call("_breport_close")   # 1.1.0 B10：回到重播、焦點與暫停狀態還原
+   550					elif overlay == "boss_note":
+   551						call("_close_boss_note")   # 1.2.0：Esc／手把 B＝知道了（不然下一幀又跳出來，Codex cat03 #1）
+   552					elif overlay == "trio_result":
+   553						call("_trio_back")   # 1.1.0 H3：和結算頁返回鈕同一條路
+   554					elif overlay == "leave" and state == St.BATTLE and paused:
+   555						overlay = "pause_menu"   # 和「留下」一樣回暫停選單（Codex v151-i1 #3）
+   556					elif overlay != "":
+   557						# V1.5.1：Esc／手把 B 和返回鈕同一套目的地；沒登記來處的子頁用它返回鈕的目的地
+   558						call("_nav_back", {"wager": "playroom", "draft": "playroom", "wave_codes": "codes", "ghosts": "playroom", "weekly": "playroom", "rift": "playroom", "nb_words": "notebook", "daily_past": "playroom", "wk_ghosts": "weekly"}.get(overlay, ""))
+   559					elif state == St.BATTLE:
+   560						if play_kind != "official":
+   561							_replay_back()   # 第七輪 A9：重播時 Esc＝返回
+   562						else:
+   563							call("_open_pause_menu")   # V1.5：Esc 開暫停選單（原本直接看結果，移進選單第二項）
+   564					elif state != St.TITLE:
+   565						_request_leave()
+   566			return
+   567		pad_mode = true
+   568		match k:
+   569			KEY_UP: cursor.y = maxi(0, cursor.y - 1)
+   570			KEY_DOWN: cursor.y = mini(8, cursor.y + 1)
+   571			KEY_LEFT: cursor.x = maxi(0, cursor.x - 1)
+   572			KEY_RIGHT: cursor.x = mini(15, cursor.x + 1)
+   573			KEY_F1:
+   574				_open_codex(selected)
+   575			KEY_H:
+   640		_process_inner(delta)
+   641		perf_proc_us = Time.get_ticks_usec() - _t0
+   642	
+   643	
+   644	var rumble_seen := 0.0
+   645	
+   646	## ── V1.4 #18 觸控：點＝左鍵（引擎把觸控模擬成滑鼠）、長按 0.5 秒＝右鍵（拿掉兵）、雙指捏合＝縮放戰場 ──
+   647	const LONG_PRESS := 0.5
+   648	var touches := {}            # 手指編號 → 位置
+   649	var lp_t := -1.0             # 長按計時（-1＝沒有在算）
+   650	var lp_pos := Vector2.ZERO
+   651	
+   652	func _touch_input(ev: InputEvent) -> void:
+   653		if ev is InputEventScreenTouch:
+   654			if ev.pressed:
+   655				touches[ev.index] = ev.position
+   656			else:
+   657				touches.erase(ev.index)
+   658			lp_t = 0.0 if (ev.pressed and touches.size() == 1 and overlay == "") else -1.0   # 覆蓋層（例如軍令時間軸）不用長按，免得拖曳變右鍵
+   659			lp_pos = ev.position
+   660			return
+   661		if ev is InputEventScreenDrag:
+   662			var old: Vector2 = touches.get(ev.index, ev.position)
+   663			touches[ev.index] = ev.position
+   664			if lp_t >= 0.0 and ev.position.distance_to(lp_pos) > 12.0:
+   665				lp_t = -1.0   # 拖動了就不是長按
+   666			if touches.size() == 2 and (state == St.BATTLE or state == St.RESULT):
+   667				var ks := touches.keys()
+   668				var other: Vector2 = touches[ks[0] if ks[1] == ev.index else ks[1]]
+   669				var d0: float = old.distance_to(other)
+   670				var d1: float = ev.position.distance_to(other)
+   671				if d0 > 8.0:
+   672					_pinch_by(d1 / d0, (ev.position + other) / 2.0)
+   673	
+   674	func _pinch_by(f: float, at: Vector2) -> void:
+   675		pinch_zoom = clampf(pinch_zoom * f, 1.0, 2.0)
+   676		pinch_center = _fld_xf().affine_inverse() * at
+   677	
+   678	func _touch_tick(delta: float) -> void:
+   679		if lp_t < 0.0:
+   680			return
+   681		lp_t += delta
+   682		if lp_t >= float(Save.s("long_press")):
+   683			lp_t = -1.0
+   684			# 長按：取消左鍵的拖曳，改送一次右鍵（擺陣時拿掉兵；其他畫面右鍵本來就是返回／取消）
+   685			drag_new = false
+   686			painting = false
+   687			drag_from = Vector2i(-1, -1)
+   688			if _is_free():
+   689				_fp_abort_drag()
+   690			_enqueue("mb", {"i": MOUSE_BUTTON_RIGHT, "pressed": true, "pos": lp_pos})
+   691			_enqueue("mb", {"i": MOUSE_BUTTON_RIGHT, "pressed": false, "pos": lp_pos})
+   692			Input.vibrate_handheld(30)
+   693	
+   694	func _process_inner(delta: float) -> void:
+   695		if shot_dir != "" and bool(get("shot_fixed")):
+   696			delta = 1.0 / 60.0   # 1.2.0 §14.6：視覺回歸模式（--shot-fixed）用固定幀時間；一般版面檢查照真實時間（Codex cat01 #6）
+   697		_touch_tick(delta)
+   698		_pad_clear_tick()
+   699		_stick_repeat(delta)
+   700		_process_cmds()
+   701		time += delta
+   702		call("_gif_tick", delta)   # V1.4 #14
+   703		if paused and key_t > 0.0:
+   704			key_t += delta
+   705		if paused and float(last_kill[1]) > 0.0:
+   706			last_kill[1] = float(last_kill[1]) + delta   # 暫停時定格與歡呼波浪也凍結   # V1.3 C4：暫停時關鍵時刻的演出凍結（Codex v130-impl2）
+   707		SteamApi.run_callbacks()
+   708		if toast_t > 0:
+   709			toast_t -= delta
+   710		# V1.5：手把震動跟著鏡頭震動（強度可調、0 關掉；只在用手把時）
+   711		if shake > rumble_seen + 0.05 and pad_mode and int(Save.s("rumble")) > 0:
+   712			var rk: float = clampf(shake * 4.0, 0.2, 1.0) * int(Save.s("rumble")) / 100.0
+   713			Input.start_joy_vibration(last_joy, 0.3 * rk, 0.6 * rk, 0.18)
+   714		rumble_seen = shake
+   715		if removed_banner_t > 0.0:
+   716			removed_banner_t -= delta
+   717		if ach_t > 0:
+   718			ach_t -= delta
+   719		elif not ach_queue.is_empty():
+   720			toast = ach_queue.pop_front()
+   721			toast_t = 2.5
+   722			ach_t = 2.6
+   723		shake = maxf(0.0, shake - delta)
+   724		if not freeze_fx:
+   725			for f in fx:
+   726				f["t"] += delta
+   727				if f.has("pop"):
+   728					f["pop"] = maxf(0.0, f["pop"] - delta)
+   729			fx = fx.filter(func(f): return f["t"] < f["dur"])
+   730			if _frags_on():
+   731				frags.step(delta)
+   732			else:
+   733				frags.clear()   # 戰鬥中切減少特效／簡化／4 倍速：舊碎片也收掉（Codex cat09 #3）
+   734			clutch_t = maxf(0.0, clutch_t - delta)
+   735		for g in dying:
+   736			var t0: float = g["t"]
+   737			g["t"] += delta
+   738			if t0 < 1.0 and g["t"] >= 1.0:   # 只在跨過 1 秒那一幀插旗（倒棋留 1.7 秒，Codex v130-impl1）
+   739				graves.append({"pos": g["pos"], "team": g["team"], "t": 0.0})
+   740		dying = dying.filter(func(g): return g["t"] < death_life(int(g["type"])))   # V1.3 A5：倒棋留 1.7 秒
+   741		for g in graves:
+   742			g["t"] += delta
+   743		graves = graves.filter(func(g): return g["t"] < 3.0)
+   744		if overlay == "codex":
+   745			_codex_tick(delta)
+   746		if overlay == "ai_busy":
+   747			_ai_poll()
+   748		if not pre_old.is_empty():
+   749			_pre_reap()
+   750		if state == St.TITLE and demo != null and shot_dir == "" and Save.s("title_bg") == "demo" and not bool(Save.s("reduce_motion")):   # V1.5：主畫面背景可改靜態
+   751			demo_acc += delta
+   752			while demo_acc >= 0.05:
+   753				demo_acc -= 0.05
+   754				demo.step()
+   755			if demo.finished:
+  1000		if items.is_empty():
+  1001			return
+  1002		draw_rect(Rect2(0, 770, 1280, 30), Color(0, 0, 0, 0.45))
+  1003		if layout_probe:
+  1004			probe_boxes.append({"r": Rect2(0, 770, 1280, 30), "inner": Rect2(0, 766, 1280, 34)})   # 提示列是最上層的底（不是底下兵卡的字）
+  1005			probe_faces.append([Rect2(0, 770, 1280, 30), false])   # 1.6.0 B02：壓暗條蓋在紙卡上，條上的白字不算淺紙白字
+  1006		_key_hints(640, 773, items, 14)
+  1007	
+  1008	
+  1009	
+  1010	## 滑鼠停在哪一列：輸入狀態，每幀更新一次（第七輪 H7：原本在繪圖時改狀態）。
+  1011	func _settings_hover() -> void:
+  1012		if overlay != "settings":
+  1013			return
+  1014		var rows := _settings_rows()
+  1015		if not pad_mode:
+  1016			var hit := ""
+  1017			for i in rows.size():
+  1018				if Rect2(340, _settings_row_y(i) - 5, 560, 56).has_point(mouse):
+  1019					hit = rows[i][0]
+  1020			if hit != "":
+  1021				settings_item = hit
+  1022			elif Rect2(340, 150, 560, 500).has_point(mouse):
+  1023				settings_item = ""   # 1.5.0：離開列（還在中欄）就收起說明；移到右欄的單項恢復鈕時保留（Codex v150 cat05 #2）
+  1024		# 手把／鍵盤移焦點時，說明欄跟著焦點那一列（Antigravity v150-i1 #3）；只認中欄的列按鈕，分頁布標不算（Codex v150 cat05 #3）
+  1025		if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+  1026			var fr: Rect2 = _btns[_focus]["r"]
+  1027			if fr.position.x >= 600.0 and fr.position.x < 900.0:
+  1028				for i in rows.size():
+  1029					if absf(fr.position.y - _settings_row_y(i)) < 2.0:
+  1030						settings_item = rows[i][0]
+  1031	
+  1032	
+  1033	
+  1034	
+  1035	
+  1036	
+  1037	
+  1038	## ── 輸入命令佇列的執行端（第三輪 A2；S8 從 ui_base 移下來：基底不再用空函式呼叫上層）──
+  1039	func _process_cmds() -> int:
+  1040		var done := 0
+  1041		_update_gen()
+  1042		var q := _cmds
+  1043		_cmds = []
+  1044		for c in q:
+  1045			if c["gen"] != _gen:
+  1046				# 畫面已經換了：丟掉。但「放開滑鼠」一定要清掉拖曳／塗兵狀態（Codex S1 #2）
+  1047				if c["kind"] == "mb" and not c["data"]["pressed"]:
+  1048					_mb_release_cleanup()
+  1049				elif c["kind"] == "padbtn" and not c["data"]["pressed"]:
+  1050					_fp_abort_drag()   # 手把放開 A／X 的事件過期：同樣清掉（Codex 實作第 3 輪 #1）
+  1051				continue
+  1052			if c["kind"] == "click":
+  1053				done += _do_click(c["data"])
+  1054			elif c["kind"] == "mb":
+  1055				# 滑鼠按鍵（擺放、拖曳、移除）也走同一個佇列，和鍵盤選兵的先後順序一致（Codex S1 #2）
+  1056				_mb_cmd(c["data"])
+  1057				done += 1
+  1058			elif c["kind"] == "paint":
+  1059				_paint_cmd(c["data"])
+  1060			elif c["kind"] == "padbtn":
+  1061				if not _fp_pad_button(int(c["data"]["b"]), bool(c["data"]["pressed"])) and c["data"]["pressed"]:
+  1062					var mp := {JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_B: KEY_ESCAPE}
+  1063					if mp.has(int(c["data"]["b"])):
+  1064						_key(mp[int(c["data"]["b"])])
+  1065				done += 1
+  1066			elif c["kind"] == "key":
+  1067				_key(int(c["data"]))
+  1068				done += 1
+  1069			elif c["kind"] == "pan":
+  1070				cam_pan(c["data"])
+  1071			elif c["kind"] == "tool":
+  1072				if state == St.PLACE and overlay == "":
+  1073					call("_deploy_tool", str(c["data"]))
+  1074				done += 1
+  1075			_update_gen()
+  1076		return done
+  1077	
+  1078	
+  1079	
+  1080	## 點擊：只對這個畫面世代畫出來的按鈕有效。回傳執行了幾個。
+  1081	## ── 1.2.0 §9.4 宣紙戰報（結果頁前 1.2 秒）──
+  1082	## 盤面 0.3 秒淡成宣紙 → 陣亡點蓋 8px 朱砂小印、擊倒者到被擊倒者一道淡墨線（40%、最底層）→ 0.55 秒勝負大章蓋下 → 1.0 秒後才出結果面板。
+  1083	## 點任意處／任何按鍵跳過；截圖、減少特效、重播與覆盤不播。
+  1084	const INK_DUR := 1.0
+  1085	func _ink_active() -> bool:
+  1086		return _ink_k() < INK_DUR and (shot_dir == "" or ink_force) and not bool(Save.s("reduce_fx")) and play_kind == "official" and not bool(Save.s("plain_ui"))
+  1087	
+  1088	var ink_force := false   # 截圖流程專拍宣紙戰報時用
+  1089	func _ink_k() -> float:
+  1090		return 0.8 if ink_force else time - result_t   # 截圖專拍時停在蓋章後的瞬間（截圖等幀的實際時間不固定）
+  1091	
+  1092	func _draw_ink_report_field() -> void:
+  1093		var k := _ink_k()
+  1094		var pa := clampf(k / 0.3, 0.0, 1.0) * 0.82
+  1095		var pt := _ui_tex(MAT["card2"])
+  1096		var fr := Rect2(ORIGIN, fld_size)
+  1097		if pt != null:
+  1098			draw_texture_rect(pt, fr, false, Color(1, 1, 1, pa))
+  1099		else:
+  1100			draw_rect(fr, Color(Color("#e8d8c3"), pa))
+build/cg/b14/game/scripts/ui/game_screens.gd:652:func _touch_input(ev: InputEvent) -> void:
+build/cg/b14/game/scripts/ui/game_screens.gd:678:func _touch_tick(delta: float) -> void:
+build/cg/b14/game/scripts/ui/ui_base.gd:348:var result_delay := 0.0
+build/cg/b14/game/scripts/ui/replay_view.gd:103:func _seek(target: int) -> void:
+build/cg/b14/game/scripts/ui/replay_view.gd:114:func _seek_async(target: int) -> void:
+build/cg/b14/game/scripts/ui/replay_view.gd:124:func _seek_pump() -> bool:
+build/cg/b14/game/scripts/ui/replay_view.gd:132:func _seek_begin(target: int) -> void:
+build/cg/b14/game/scripts/ui/replay_view.gd:153:func _seek_tick(budget_ms: int) -> bool:
+build/cg/b14/game/scripts/ui/replay_view.gd:179:func _seek_finish() -> void:
+build/cg/b14/game/scripts/ui/replay_view.gd:215:	result_delay = 0.0
+build/cg/b14/game/scripts/ui/replay_view.gd:261:func _toggle_pause() -> void:
+build/cg/b14/game/scripts/ui/replay_view.gd:303:	result_delay = 0.0
+build/cg/b14/game/scripts/ui/battle_view.gd:11:		result_delay = 9.0
+build/cg/b14/game/scripts/ui/battle_view.gd:22:		result_delay = 9.0
+build/cg/b14/game/scripts/ui/battle_view.gd:66:	if start_hold > 0.0:
+build/cg/b14/game/scripts/ui/battle_view.gd:67:		var ph0 := 1.0 - start_hold
+build/cg/b14/game/scripts/ui/battle_view.gd:68:		start_hold -= delta
+build/cg/b14/game/scripts/ui/battle_view.gd:69:		var ph1 := 1.0 - start_hold
+build/cg/b14/game/scripts/ui/battle_view.gd:73:		if start_hold <= 0.0:
+build/cg/b14/game/scripts/ui/battle_view.gd:156:		result_delay += delta
+build/cg/b14/game/scripts/ui/battle_view.gd:157:		if result_delay >= RESULT_DELAY:
+build/cg/b14/game/scripts/ui/battle_view.gd:162:## 1.6.0 B14（P5.4）桌偶儀式：落桌（start_hold 三段落子，1.2.0 起）→ 開戰敲桌（木聲＋輕震，減少動態不震）→ 收盤（結束後倖存的兵點一下頭）。
+build/cg/b14/game/scripts/ui/battle_view.gd:163:## 只改畫面與聲音、不碰模擬（start_hold 只是晚開始）；可跳過：儀式中任何按下都跳過，而且那一下照常處理（不吞輸入，IN-160-07）。
+build/cg/b14/game/scripts/ui/battle_view.gd:173:	if start_hold > 0.0:
+build/cg/b14/game/scripts/ui/battle_view.gd:174:		start_hold = 0.0
+build/cg/b14/game/scripts/ui/battle_view.gd:177:	if view.finished and result_delay < RESULT_DELAY:
+build/cg/b14/game/scripts/ui/battle_view.gd:178:		result_delay = RESULT_DELAY   # 收盤跳過：下一幀直接到結果
+build/cg/b14/game/scripts/ui/battle_view.gd:975:	start_hold = 0.0
+build/cg/b14/game/scripts/ui/battle_view.gd:977:		start_hold = 1.0
+build/cg/b14/game/scripts/ui/battle_view.gd:1028:	result_delay = 0.0
+build/cg/b14/game/scripts/ui/screens/game_v16.gd:116:func _finish_battle() -> void:
+build/cg/b14/game/scripts/ui/screens/game_v16.gd:2425:	var re := seat_react(view.finished, sim.winner if sim != null else -1, result_delay, bool(Save.s("reduce_motion")))
+build/cg/b14/game/scripts/ui/screens/game_result.gd:50:func _finish_battle() -> void:
+build/cg/b14/game/scripts/ui/battle/battle_state.gd:22:var start_hold := 0.0
+build/cg/b14/game/scripts/ui/battle/battle_units.gd:398:## 重播、減少特效、截圖都沒有這 1 秒（start_hold＝0），所以不影響。
+build/cg/b14/game/scripts/ui/battle/battle_units.gd:401:	if start_hold <= 0.0 or play_kind != "official":
+build/cg/b14/game/scripts/ui/battle/battle_units.gd:406:	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
+build/cg/b14/game/scripts/ui/battle/battle_units.gd:423:	if start_hold <= 0.0 or play_kind != "official":
+build/cg/b14/game/scripts/ui/battle/battle_units.gd:428:	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
+build/cg/b14/game/scripts/ui/battle/battle_units.gd:1152:			crouch *= settle_dip(result_delay)   # 1.6.0 B14（P5.4）收盤：倖存的兵點一下頭
+build/cg/b14/game/scripts/ui/battle/battle_fx.gd:38:	if start_hold <= 0.0:
+build/cg/b14/game/scripts/ui/battle/battle_fx.gd:40:	var k := clampf(start_hold, 0.0, 1.0)
+build/cg/b14/game/scripts/ui/battle/battle_fx.gd:1257:	if start_hold <= 0.0 or bool(Save.s("plain_ui")):
+build/cg/b14/game/scripts/ui/battle/battle_fx.gd:1259:	var k := 1.0 - clampf(start_hold, 0.0, 1.0)
+build/cg/b14/game/scripts/ui/battle/battle_fx.gd:1315:	var ps: Array = owner_end_pose(sim.winner, result_delay)
+  1020				for k in 3:                      # 馬蹄噴土
+  1021					var ph := fmod(time * 4.0 + k * 0.33 + u.id * 0.1, 1.0)
+  1022					draw_circle(p + Vector2(-face * (14 + ph * 16), -2 - ph * 6), 3.2 * (1.0 - ph), Color(0.85, 0.75, 0.55, 0.7 * (1.0 - ph)), true, -1.0, true)
+  1023			if s.frenzy and at == 0.0 and not s.finished:
+  1024				mood |= Art.M_BROWS
+  1025				# 狂熱氣場（第三輪 R3）：身邊橘紅脈衝圈
+  1026				var pulse := 0.5 + 0.5 * sin(time * 7.0 + u.id)
+  1027				_hand_ring(p + Vector2(0, -22), 15.0 + pulse * 3.0, Color(1.0, 0.33, 0.2, (0.35 + 0.3 * pulse) * alpha), 2.0)
+  1028			if u.type == D.ASSASSIN and u.stealth > 0:
+  1029				mood |= Art.M_HOOD
+  1030				crouch = 0.9                     # 潛行蹲身
+  1031			if live and brace_t.has(u.id) and time - brace_t[u.id] < 0.35:
+  1032				mood |= Art.M_BRACE
+  1033			# 勝利：存活的勝方每 0.45 秒原地跳 10px、武器高舉
+  1034			var hop := 0.0
+  1035			var won: bool = live and sim != null and u.team == sim.winner and (state == St.RESULT or (state == St.BATTLE and view != null and view.finished))
+  1036			var frz := 0.2   # 定格 0.2 秒（Antigravity v131-impl3：0.4 像卡住）
+  1037			if won and u.id == int(last_kill[0]) and time - float(last_kill[1]) < frz and not bool(Save.s("reduce_fx")):
+  1038				# V1.3.1 P2：最後一擊定格：擊倒最後一隻的那隻停在揮擊到底的姿勢 0.4 秒，再一起歡呼
+  1039				won = false
+  1040				at = Art.ATK_STRIKE
+  1041				lean = 0.0
+  1042			if won:
+  1043				# V1.3.1 P2：歡呼像波浪：定格結束後從中線往後排，每格延遲 0.06 秒才起跳
+  1044				var w0: float = float(last_kill[1]) + frz
+  1045				var dly := absf(p.x - (ORIGIN.x + fld_size.x * 0.5)) / CS * 0.06
+  1046				var tw := _pose_t(time) - w0 - dly   # 1.2.0 第 5 大類 C：歡呼走定格（12fps 姿勢）
+  1047				hop = absf(sin(tw * PI / 0.45)) * 10.0 if tw > 0.0 else 0.0
+  1048				mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
+  1049				at = Art.ATK_WINDUP
+  1050				lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
+  1051				crouch = 1.06
+  1052				_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
+  1053				# V1.1 A7：兵種專屬的勝利小動作（簡化特效時不畫）
+  1054				match -1 if bool(Save.s("reduce_fx")) else u.type:
+  1055					D.DRUMMER:   # 鼓手：頭邊冒音符
+  1056						var nk := fmod(time * 1.6 + u.id * 0.3, 1.0)
+  1057						_icon("sound", p + Vector2(18 + nk * 8, -48 - nk * 22 - hop), 14.0, Color(1.0, 0.85, 0.4, 1.0 - nk))
+  1058					D.BERSERKER:   # 狂戰士：雙斧互敲的火花圈
+  1059						var bk := absf(sin((time + u.id * 0.05) * PI / 0.45))
+  1060						_hand_ring(p + Vector2(0, -50 - hop), 8.0 + bk * 6.0, Color(1.0, 0.55, 0.2, 0.8 * bk), 2.5)
+  1061					D.MEDIC:   # 醫者：綠色小十字往上飄
+  1062						var mk := fmod(time * 1.2 + u.id * 0.4, 1.0)
+  1063						var mc := p + Vector2(-16, -44 - mk * 24 - hop)
+  1064						draw_line(mc - Vector2(4, 0), mc + Vector2(4, 0), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+  1065						draw_line(mc - Vector2(0, 4), mc + Vector2(0, 4), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+  1066			p.y -= hop
+  1067			if u.hidden:
+  1068				Art.mimic_closed(self, p, u.team, face, alpha, time, cbm(), UNIT_SCALE)   # 偽裝中的寶箱怪
+  1069				continue
+  1070			if u.type == F8.GHOST:
+  1071				alpha *= 0.9
+  1072				p.y -= 3.0 + 2.5 * sin(time * 2.2 + u.id * 0.9)   # V1.1 A4：幽靈上下漂
+  1073				if moving and live and not bool(Save.s("reduce_fx")):
+  1074					# V1.0.0 角色（剪影辨識）：移動時身後一串淡煙（貼著身體，0.3 格內），和史萊姆、盾兵的剪影分開
+  1075					for k5 in 3:
+  1076						var ph5 := fmod(time * 2.5 + k5 * 0.33 + u.id * 0.17, 1.0)
+  1077						draw_circle(p + Vector2(-face * (10.0 + ph5 * 12.0), -14.0 + ph5 * 4.0), 5.0 * (1.0 - ph5) * UNIT_SCALE, Color(0.85, 0.9, 1.0, 0.35 * (1.0 - ph5) * alpha), true, -1.0, true)
+  1078			# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
+  1079			if live and walk == 0.0 and at == 0.0:
+  1080				var tq := _pose_t(time)   # 1.2.0 第 5 大類 C：待機小動作走定格
+  1081				lean += sin(tq * 1.1 + u.id * 1.7) * 0.018
+  1082				var idle_k := fmod(tq + u.id * 1.37, 7.3)
+  1083				if idle_k < 0.3:
+  1084					crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
+  1085				# 1.2.0 第 5 大類 D 個性動作：王國＝偶爾上發條（左右扭 0.4 秒）；奇幻＝呼吸膨縮（各兵相位不同）
+  1086				if u.type < D.COUNT:
+  1087					var wk := fmod(tq + u.id * 2.71, 9.7)
+  1088					if wk < 0.4:
+  1089						lean += sin(wk / 0.4 * TAU * 2.0) * 0.05
+  1090				else:
+  1091					crouch *= 1.0 + 0.03 * sin(tq * 2.0 + u.id * 1.3)
+  1092			if live:
+  1093				face = _face_of(u)
+  1094				# V1.3.1 P0-2：出手前先轉完。前搖一開始就面向目標（不改命中時間），出手中途目標換邊也維持到收招
+  1095				if at > 0.0:
+  1096					# 鎖定的是「這一擊」：連擊換到下一擊時重新取方向（Codex v131-impl1）
+  1097					if not atk_face.has(u.id) or int(atk_face[u.id][0]) != hit_now:
+  1098						atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0), float(face_now.get(u.id, face)), _disp_tick()]
+  1099					# V1.5.1 A3：前搖時從原本朝向轉過去（2 個畫面 tick，跟著暫停與倍速走），轉身途中出手用轉身攻擊格，不再瞬間跳回側面
+  1100					var tgt_f: float = float(atk_face[u.id][1])
+  1101					var f0: float = float(atk_face[u.id][2]) if atk_face[u.id].size() > 2 else tgt_f
+  1102					var kf := clampf((_disp_tick() - float(atk_face[u.id][3] if atk_face[u.id].size() > 3 else _disp_tick())) / 2.0, 0.0, 1.0)
+  1103					if signf(f0) == tgt_f and absf(f0) >= 0.9:
+  1104						face = tgt_f
+  1105					else:
+  1106						# 經過正面轉過去：寬度不低於 0.45（不壓成一條線），過半就朝向目標（不背對目標揮空，Antigravity v151-i1 #4）
+  1107						var lf := lerpf(f0, tgt_f, kf)
+  1108						# 從第一格就朝目標（轉身格的方向），寬度從轉到一半慢慢回到側面（Codex v151-i2：前半不再朝舊方向蓄力）
+  1109						face = tgt_f * (maxf(absf(lf), 0.45) if (kf >= 0.5 or signf(f0) == tgt_f) else 0.45)   # 同方向只是轉完剩下的角度
+  1110					face_now[u.id] = face
+  1111				elif atk_face.has(u.id):
+  1112					atk_face.erase(u.id)
+  1113				var tdk := _turn_dust_k(u)
+  1114				if tdk > 0.0 and not rfx:
+  1115					# V1.3 A1a：翻面時腳下踩出一小團塵土（畫在身體下面）
+  1116					for i in 3:
+  1117						var dx := (float(i) - 1.0) * (6.0 + (1.0 - tdk) * 8.0)
+  1118						draw_circle(p + Vector2(dx, 1.0 - (1.0 - tdk) * 3.0) , (2.0 + (1.0 - tdk) * 2.5) * UNIT_SCALE, Color(0.85, 0.75, 0.55, 0.55 * tdk), true, -1.0, true)
+  1119			if u.stealth > 0:
+  1120				# 潛行：身後兩道暗紫殘影
+  1121				for g in 2:
+  1122					var gp := p + Vector2(-(8 + g * 8) * face, 0)
+  1123					draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
+  1124					_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
+  1125			if live and walk <= Gait.POSE_DAZE + 1.0:
+  1126				# 暈眩：頭上轉圈的星星
+  1127				for sk0 in 3:
+  1128					var sa0 := time * 5.0 + sk0 * TAU / 3.0
+  1129					_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 * hk_of(u) + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
+  1130			# V1.3.1 P1：待機小動作。站著沒事（沒走、沒出手、沒暈、還在打）時，每隻約 30～60 秒做一次、1.2 秒，依 id 錯開
+  1131			var fid := -1
+  1132			if live and not moving and at == 0.0 and u.stun <= 0 and not s.finished and mood == 0 and not bool(Save.s("reduce_fx")):
+  1133				var per := 30.0 + float((u.id * 7919) % 30)
+  1134				var tm := fmod(time + u.id * 3.7, per)
+  1135				if tm < 1.2:
+  1136					fid = mini(3, int(tm / 1.2 * 4.0))
+  1137			var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
+  1138			# 1.3.0 §5.4 依移動方向選視角：走路且不出手時，往南＝3/4 正面走路格、往北＝3/4 背面走路格（沒烘好就照舊側面）
+  1139			# 1.4.0 §5.3：整體壓縮蓄力（前搖）→ 出手時拉長，再回原形；只動畫面（命中 tick 不變，at 是展示時鐘算的）
+  1140			if bool(Save.s("reduce_motion")):
+  1141				pass   # 減少動態：不壓縮拉長（Codex cat05 #5）
+  1142			elif live and at > 0.0 and at < Art.ATK_WINDUP:
+  1143				crouch *= 1.0 - SQUASH * sin(at / Art.ATK_WINDUP * PI * 0.5)
+  1144			elif live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.1:
+  1145				crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
+  1146			if u.id == follow_id:
+  1147				mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
+  1148			if live and fatigued(u):
+  1149				lean += FATIGUE_LEAN   # 1.6.0 B14（P5.3）疲累：開戰 30 秒後、血量 <30% 的兵往前垂、矮一點
+  1150				crouch *= FATIGUE_CROUCH
+  1151			if live and view.finished and u.alive and not bool(Save.s("reduce_motion")):
+  1152				crouch *= settle_dip(result_delay)   # 1.6.0 B14（P5.4）收盤：倖存的兵點一下頭
+  1153			if live and hurt <= 0.0 and not bool(Save.s("reduce_motion")):
+  1154				crouch *= turn_crouch(u.id)   # 1.6.0 B11（P5.1 程式轉身退路）：預備壓縮（很輕）→ 側緣過渡（轉身格）→ 落定微彈（往上拉，不往下壓）；受擊中、減少動態不套（Codex r1 #6）；暫停時由展示時鐘凍結姿勢（Codex r3）
+  1155			var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
+  1156			var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
+  1157			var chip := (2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0   # 1.3.0 §5.2 受傷掉漆
+  1158			var drawn := false
+  1159			var cache_ok: bool = sprites != null and sprites.is_ready(cbm()) and not bool(Save.s("plain_ui"))
+  1160			var hb = hd_t.get(u.id)
+  1161			var blending := false
+  1162			if live and hb != null and anim_clock() - float(hb[0]) < HD_BLEND and hd_blend_c(int(hb[1]), int(hb[2])) < 1.0 and cache_ok and sprites.has_turn(u.type) and not u.boss:
+  1163				blending = true
+  1164				# 方向切換的過渡格：轉身格（站姿）一閃，不直接從側面跳到正面／背面
+  1165				_unit(p, u.type, u.team, (signf(face) if face != 0.0 else 1.0) * hd_blend_c(int(hb[1]), int(hb[2])), 0.0, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+  1166				drawn = true
+  1167			var dmode := dir_draw_mode(u.type, hd, cache_ok)
+  1168			if dmode < 0 and not drawn:
+  1169				drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
+  1170				if drawn and chip > 0:
+  1171					_chip_at(p, u.type, face, usc, chip, alpha)   # 背面也有掉漆（Codex cat05 #4）
+  1172			if not drawn:
+  1173				# 往南：只有圖集有走路轉身頁時才用 3/4 正面（沒有就照舊側面，不讓向量畫只橫縮；Codex cat05 #6）
+  1174				var front_ok: bool = dmode > 0
+  1175				var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
+  1176				if u.boss and not bool(Save.s("plain_ui")):
+  1177					# 1.6.0 B10（P4.4）巨獸外框加粗：先墊一層往外擴的墨色剪影（畫面約 +3px），再正常畫
+  1178					Art.sil_w = BOSS_SIL_PX / usc
+  1179					Art.unit(self, p, u.type, u.team, fdraw, walk, at, 0.0, alpha, ut, usc, cbm(), 0, lean, crouch, variant)
+  1180					Art.sil_w = 0.0
+  1181				_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+  1182			if live and not u.hidden and hd == 0 and not blending:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）；1.6.0 B11：方向過渡那一閃也不疊（Codex r2 #2）
+  1183				_spring_acc(p, u.type, u.team, face, usc, crouch, lean, walk, at, alpha, u.id, ut)   # 1.4.0 §5.2 即時配件（延遲回彈）
+  1184			if live and not u.hidden and hd == 0 and not blending:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
+  1185				xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], usc])
+  1186			# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+  1187			if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
+  1188				var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
+  1189				_draw_smear(p, u.type, u.team, face, sk, alpha, variant, 1.0)
+  1190			# 衝鋒就緒的金色拖尾（第三輪 R3）
+  1191			if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
+  1192				var tip := p + Vector2(face * 26.0, -44.0)
+  1193				for k in 4:
+  1194					var q0 := tip - Vector2(face * k * 8.0, 0)
+  1195					var q1 := tip - Vector2(face * (k + 1) * 8.0, 0)
+  1196					draw_line(q0, q1, Color(1.0, 0.86, 0.3, (0.8 - k * 0.2) * alpha), 3.0 - k * 0.5, true)
+  1197		_draw_xray(xray)
+  1198		while prop_i < fld_props.size():
+  1199			MapArt.draw_prop(self, ORIGIN, fld_props[prop_i], time)
+  1200			prop_i += 1
+  1201		for pp in pot_draw:
+  1202			draw_circle(pp, 6.5, Art.OUT, true, -1.0, true)
+  1203			draw_circle(pp, 5.0, Color("#2a2533"), true, -1.0, true)
+  1204			draw_circle(pp + Vector2(3, -5), 2.0, Color(1, 0.8, 0.3), true, -1.0, true)
+  1205		pot_draw.clear()
+
+codex
+收盤跳過目前只把計時設滿，仍會被暫停與跳轉流程擋住；滑鼠則是在放開時才觸發按鈕，我正在核對跨到結果頁後是否會誤點。
+
+exec
+/bin/bash -lc "nl -ba build/cg/b14/game/scripts/ui/screens/game_result.gd | sed -n '45,125p'; nl -ba build/cg/b14/game/scripts/ui/game_screens.gd | sed -n '1115,1185p'; nl -ba build/cg/b14/game/scripts/ui/replay_view.gd | sed -n '100,225p;250,315p'; rg -n 'lean|crouch|hurt' build/cg/b14/game/scripts/art/sprites.gd build/cg/b14/game/scripts/art.gd; rg -n 'func _open_pause_menu|func _pause_resume|func _update_gen|func _trans_gate' build/cg/b14/game/scripts/ui; nl -ba build/cg/b14/game/scripts/ui/screens/game_v16.gd | sed -n '110,145p'; nl -ba build/cg/b14/game/scripts/ui/battle_view.gd | sed -n '954,985p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 133ms:
+    45			gauntlet_seed = rng.randi()
+    46		_reset_place()
+    47	
+    48	
+    49	
+    50	func _finish_battle() -> void:
+    51		sfx.set_muffled(false)
+    52		_pc_capture()   # V1.4 #14：最後一格戰場畫面留給戰報卡
+    53		fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
+    54		clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
+    55		state = St.RESULT
+    56		tm_ghost = null
+    57		result_t = time
+    58		set("ink_stamped", false)   # 1.2.0 §9.4
+    59		if play_kind == "official" and sim != null:
+    60			last_cmds = sim.cmd_log.duplicate(true)
+    61		result_tab = 0
+    62		_focus = 0
+    63		slow_left = 0.0
+    64		zoom_target = 1.0
+    65		var w: int = sim.winner
+    66		var eff: Dictionary = PLAY_EFFECTS[play_kind]
+    67		if eff["series"]:
+    68			if w >= 0:
+    69				wins[w] += 1
+    70			series_over = series_done(wins, round_no, rules)
+    71			if bool(get("sealed_on")) and mode == Mode.DUEL and round_no >= 3:
+    72				series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+    73			if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
+    74				call("_ach", "SEALED_DONE")   # V1.5
+    75			call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+    76		call("_camp_settle")   # 1.2.0 §11.7 戰役評星
+    77		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+    78			set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
+    79			var wc: Array = get("wv_codes")
+    80			wc.append(BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds))   # V1.5.1 D1
+    81		_build_report()
+    82		call("_ghost_settle", w)   # V1.4 #7
+    83		call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
+    84		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
+    85			call("_wave_end", w == 0)   # V1.4 #11：車輪戰結束（輸了或三波打完）
+    86		if mode == Mode.DUEL:
+    87			sfx.play("win" if w >= 0 else "lose")
+    88		elif mode == Mode.PUZZLE and report.has("goal_ok"):
+    89			sfx.play("win" if bool(report["goal_ok"]) else "lose")   # 第十三輪：照過關條件（Codex v13-r1 #6）
+    90		else:
+    91			sfx.play("win" if w == 0 else "lose")
+    92		sfx.play("ui_quill", 0.45)   # V1.3 B4：戰報寫上羊皮紙的筆聲（各模式都有）
+    93		if eff["progress"] and bool(get("daily_practice")):
+    94			call("_daily_finish", w)   # 1.1.0：每日練習只給練習結果提示，不記戰績、成就、對戰紀錄（Codex v110-i2 #3）
+    95		elif eff["progress"]:
+    96			_progress_and_achievements()
+    97			if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
+    98				call("_record_match", w)
+    99			call("_trial_finish", w)
+   100			call("_daily_finish", w)
+   101			call("_tower_finish", w)   # 1.4.0 §11.1
+   102			Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
+   103		if eff["log"]:
+   104			Save.playtest_log(_pt_entry(0))
+   105	
+   106	
+   107	
+   108	func _pt_rate(v: int) -> void:
+   109		pt_rated = true
+   110		if PLAY_EFFECTS[play_kind]["log"]:
+   111			Save.playtest_log(_pt_entry(v))
+   112		_toast(L.t("pt_thanks"))
+   113	
+   114	
+   115	
+   116	func _draw_result() -> void:
+   117		# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
+   118		_dim(0.7)   # 第七輪 E2：整個畫面（含 HUD）壓暗
+   119		var r: Rect2 = Seats.RESULT_PAPER   # 1.6.0 B03：結果紙照桌位表（Codex B03 r1 #1）
+   120		# 1.2.0 §9.4 E3：結果面板是一張紙卡（宣紙戰報的延續）：落影在右下（光源左上）、紙上的字自動換墨色；簡化介面維持原本深色面板
+   121		var paper := not bool(Save.s("plain_ui"))
+   122		if paper:
+   123			_contact_shadow(r, 4.0, 0.45)   # 1.6.0 B03（P1.2）：全站同一組接觸影
+   124			if not _mat_box(r, "card2"):   # 1.6.0 B03：桌燈下的紙（L* 壓到中階）
+   125				draw_rect(r, Color("#efe4cf") * PAL.PAPER_DESK_TONE)
+  1115				# 朱砂小印：圓形印泥（直徑約 8px）＋偏一點的第二層＋中間留白一點（像沒壓滿的印），不是方塊（Antigravity cat03 #3）
+  1116				var off := Vector2(float(int(u2.id) * 37 % 5) - 2.0, float(int(u2.id) * 53 % 5) - 2.0) * 0.4
+  1117				draw_circle(c, 4.5, Color(Color("#9b281b"), 0.85 * a2), true, -1.0, true)
+  1118				draw_circle(c + off, 3.6, Color(Color("#b5361f"), 0.6 * a2), true, -1.0, true)
+  1119				draw_circle(c - off * 1.5, 1.2, Color(Color("#efe4cf"), 0.5 * a2), true, -1.0, true)
+  1120	
+  1121	## 毛筆墨線：起筆細、中段粗、收筆帶飛白（固定種子斷幾小段），取代 1px 幾何直線（Antigravity cat03 #3）
+  1122	func _brush_line(a: Vector2, b: Vector2, col: Color, seed_i: int) -> void:
+  1123		var n := 10
+  1124		var nrm := (b - a).orthogonal().normalized()
+  1125		for i in n:
+  1126			if i >= 6 and (seed_i * 7 + i * 13) % 5 == 0:
+  1127				continue   # 飛白：收筆段偶爾斷開
+  1128			var t0 := float(i) / n
+  1129			var t1 := float(i + 1) / n
+  1130			var wv := 1.2 + 3.6 * sin(PI * (t0 + t1) * 0.5) * (1.0 - 0.35 * t0)
+  1131			var wob := nrm * sin(t0 * 7.0 + seed_i) * 0.8
+  1132			draw_line(a.lerp(b, t0) + wob, a.lerp(b, t1) + wob, col, wv, true)
+  1133	
+  1134	func _draw_ink_report_screen() -> void:
+  1135		var k := _ink_k()
+  1136		if k < 0.55 or sim == null:
+  1137			return
+  1138		var win: bool = sim.winner == 0 or (mode == Mode.DUEL and sim.winner == 1)
+  1139		var drop := clampf((k - 0.55) / 0.12, 0.0, 1.0)
+  1140		var sc := lerpf(1.6, 1.0, drop)
+  1141		var c := Vector2(640, 380)
+  1142		var sz := 120.0
+  1143		var col := Color("#9b281b") if sim.winner >= 0 else Color("#5a4630")
+  1144		var txt: String = L.t("ink_draw") if sim.winner < 0 else (L.t("ink_win") if win else L.t("ink_lose"))
+  1145		# 壓下動畫用繪圖變換縮放整個印章，字級固定 T（動畫中不產生表外字級、不換字型，Codex cat03 #4）；介面層本來就是單位變換，畫完還原
+  1146		draw_set_transform(c * (1.0 - sc), 0.0, Vector2(sc, sc))   # 以印章中心縮放；座標仍是螢幕座標（版面探針記到的是落定後的位置）
+  1147		draw_rect(Rect2(c - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), Color(col, 0.18 * drop))
+  1148		draw_rect(Rect2(c - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), Color(col, 0.95 * drop), false, 6.0)
+  1149		for kk in 14:   # 印泥沒壓滿的斑駁：框上幾處紙色小缺口（固定位置）
+  1150			var side := kk % 4
+  1151			var tt := float((kk * 37) % 100) / 100.0
+  1152			var pp := c + (Vector2(lerpf(-sz, sz, tt) * 0.5, -sz * 0.5) if side == 0 else (Vector2(lerpf(-sz, sz, tt) * 0.5, sz * 0.5) if side == 1 else (Vector2(-sz * 0.5, lerpf(-sz, sz, tt) * 0.5) if side == 2 else Vector2(sz * 0.5, lerpf(-sz, sz, tt) * 0.5))))
+  1153			draw_circle(pp, 1.5 + float(kk % 3), Color(Color("#efe4cf"), 0.7 * drop), true, -1.0, true)
+  1154		_text(c - Vector2(0, tz("T") * 0.62), txt, tz("T"), Color(col, drop), true, true)
+  1155		draw_set_transform_matrix(Transform2D.IDENTITY)
+  1156		if drop >= 1.0 and not ink_stamped:
+  1157			ink_stamped = true
+  1158			if sfx != null:
+  1159				sfx.play("place_heavy", 1.0)   # 蓋章聲
+  1160	
+  1161	var ink_stamped := false
+  1162	
+  1163	func _do_click(p: Vector2) -> int:
+  1164		_toast_dismiss()
+  1165		if state == St.RESULT and _ink_active():
+  1166			result_t -= INK_DUR   # 1.2.0 §9.4：點任意處跳過宣紙戰報演出
+  1167			return 1
+  1168		if _btns_gen != _gen:
+  1169			return 0
+  1170		for i in _btns.size():
+  1171			var b: Dictionary = _btns[i]
+  1172			if b["r"].has_point(p):
+  1173				if b["en"]:
+  1174					_focus = i
+  1175					if sfx != null:
+  1176						sfx.play(str(b.get("snd", "k_click")), 0.7)
+  1177					b["cb"].call()
+  1178					return 1
+  1179				return 0
+  1180		return 0
+  1181	
+  1182	
+  1183	# ── 1.4.0 第 8 大類：桌面世界與轉場（方案 §2；切片 A）──
+  1184	## 每個疊層在桌上的固定位置（從哪邊滑進來）；沒列的照舊淡入。
+  1185	const SLIDE_FROM := {"lobby": Vector2(-80, 0), "codex": Vector2(0, 70), "settings": Vector2(80, 0), "keys": Vector2(80, 0),
+   100		return true
+   101	
+   102	## 跳到某個 tick：同一組陣型從頭快轉（確定性模擬，結果一定一樣），畫面與音效狀態清空重建。
+   103	func _seek(target: int) -> void:
+   104		_seek_begin(target)
+   105		while not _seek_tick(1000000):
+   106			pass
+   107		_seek_finish()
+   108	
+   109	
+   110	## 第七輪 M3：時間軸點下去不再卡畫面，分批算。headless 測試直接走 _seek。
+   111	var _seek_stop := 0
+   112	var _seek_ct := -1
+   113	
+   114	func _seek_async(target: int) -> void:
+   115		if seek_target >= 0:
+   116			return
+   117		if DisplayServer.get_name() == "headless" or shot_dir != "":
+   118			_seek(target)
+   119			return
+   120		seek_target = target
+   121		_seek_begin(target)
+   122	
+   123	## 這一幀還在算就回傳 true（戰鬥畫面這一幀不動）。
+   124	func _seek_pump() -> bool:
+   125		if seek_target < 0:
+   126			return false
+   127		if _seek_tick(10):
+   128			seek_target = -1
+   129			_seek_finish()
+   130		return true
+   131	
+   132	func _seek_begin(target: int) -> void:
+   133		set("dir_hot_until", -1.0)   # 1.4.0：跳轉不帶舊的推近焦點（Codex cat05 #7）
+   134		cues.clear()       # 1.3.0 §7.1：跳轉清掉預告（不留舊時間線的未來事件；Codex cat06 #2）
+   135		stat_prev.clear()
+   136		var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+   137		sim = Sim.new(armies2[0].copy(), armies2[1].copy(), battle_rules)
+   138		call("_cmd_setup", sim, play_kind)
+   139		ev_count = {}
+   140		set("last_blast_tick", -99)
+   141		_seek_ct = -1
+   142		_seek_deaths = {}
+   143		battle_marks.clear()
+   144		first_fall = [-1, -1]
+   145		var dl: int = ViewBuffer.DELAY if (bool(sim.get("cmd_on")) and not bool(sim.get("cmd_scripted"))) else ViewBuffer.DELAY_LONG   # 和 ViewBuffer 的選法一樣
+   146		_seek_stop = maxi(0, target - (view.delay if view != null else dl))
+   147		_seek_target_now = target
+   148	
+   149	var _seek_target_now := 0
+   150	var _seek_deaths := {}   # V1.5.1 B2：快轉時誰在哪個 tick 倒下（跳轉後重建陣亡小旗）
+   151	
+   152	## 算到時間用完或到達目標；到達回傳 true。
+   153	func _seek_tick(budget_ms: int) -> bool:
+   154		var t0 := Time.get_ticks_msec()
+   155		while sim.tick < _seek_stop and not sim.finished:
+   156			if Time.get_ticks_msec() - t0 >= budget_ms:
+   157				return false
+   158			sim.step()
+   159			for ev in sim.events:   # 快轉時也要累計戰報次數與時間軸標記（Codex S5 #4：共用同一個收集函式）
+   160				if ev.has("src"):
+   161					var s = sim.unit_by_id(ev["src"])
+   162					var key := "%s%d" % [ev["kind"], s.team]
+   163					ev_count[key] = int(ev_count.get(key, 0)) + 1
+   164					if ev["kind"] == EV.BLAST and not ev.has("dmg"):
+   165						ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
+   166				_collect_mark(ev, sim, sim.tick)
+   167				if ev["kind"] == EV.DEATH:
+   168					_seek_deaths[int(ev["id"])] = sim.tick
+   169					if int(first_fall[0]) < 0:
+   170						var dsu = sim.unit_by_id(int(ev["id"]))
+   171						if dsu != null and dsu.team == 0:
+   172							first_fall = [sim.tick, int(ev["id"])]   # 1.5.0 §11：快轉也要重建（Codex v150 cat15 #1）
+   173				if ev["kind"] == EV.CMD:
+   174					battle_marks.append({"tick": sim.tick, "kind": "cmd", "team": int(ev["team"]), "skill": int(ev["skill"])})   # V1.5.1：快轉也收軍令標記（原本跳轉後會漏）
+   175			if _seek_ct < 0 and not sim.finished and clutch_cond(sim):
+   176				_seek_ct = sim.tick
+   177		return true
+   178	
+   179	func _seek_finish() -> void:
+   180		clock_last = -1   # 1.4.0 §7.2：跳轉後棋鐘不補跳不補響
+   181		if sfx != null and sfx.has_method("reseed"):
+   182			sfx.reseed(sfx.seed_at(round_no, view.tick if view != null else 0))   # 1.3.0 §10：跳轉後音效變體從同一個狀態開始
+   183		call_deferred("_tm_sync")
+   184		var target := _seek_target_now
+   185		var keep_ct := _seek_ct
+   186		var had_clutch := keep_ct >= 0
+   187		view = ViewBuffer.new(sim)
+   188		prev_pos.clear()
+   189		_gait_reset()
+   190		for u in view.units:
+   191			prev_pos[u.id] = Vector2(u.x, u.y)
+   192		fx.clear()
+   193		frags.clear()   # 1.2.0 §8.2
+   194		dying.clear()
+   195		graves.clear()
+   196		# V1.5.1 B2：跳轉前 1～4 秒倒下的兵，陣亡小旗照時間補回（倒地 1 秒後插旗、旗子留 3 秒）
+   197		for did in _seek_deaths:
+   198			var age: float = float(target - int(_seek_deaths[did])) / 20.0
+   199			var dv = view.unit_by_id(int(did))
+   200			if dv != null and age >= 1.0 and age < 4.0:
+   201				graves.append({"pos": _upos(dv), "team": dv.team, "t": age - 1.0})
+   202			elif dv != null and age >= 0.0 and age < 1.0:
+   203				# 不到一秒前倒下：倒地演出接著播完，跨過 1 秒照常插旗（Codex v151-i2 #1）
+   204				dying.append({"pos": _upos(dv), "type": dv.type, "team": dv.team, "face": signf(dv.fx) if dv.fx != 0 else 1.0, "t": age})
+   205		atk_hit.clear()
+   206		atk_seq.clear()
+   207		alt_hit.clear()
+   208		proj_tgt.clear()   # V1.5：跳轉不能留舊的飛行目標（Antigravity v150-i1 #1）
+   209		atk_t.clear()
+   210		hurt_t.clear()
+   211		hurt_dir.clear()
+   212		brace_t.clear()
+   213		accum = 0.0
+   214		present_debt = 0.0   # 1.2.0 §9.6：跳轉後不能帶著舊的欠時加速（Codex final-r2 #3）
+   215		result_delay = 0.0
+   216		clutch_t = 0.0
+   217		slow_left = 0.0
+   218		final_left = 0.0     # Codex v10-r1 #4：跳回前段不能留著慢動作，再播到末擊要再演
+   219		final_used = false
+   220		key_used = false
+   221		key_t = -10.0
+   222		last_kill = [-1, -10.0]
+   223		last_hitter.clear()
+   224		hitstop = 0.0
+   225		# 演出狀態依目標時間重建（Codex S5 #5）：最後時刻是否已發生、是否已進狂熱、音樂
+   250					best = u.id
+   251		follow_id = best
+   252		if play_kind == "official":
+   253			return   # 正式對局暫停時只看資料，不動鏡頭
+   254		if best >= 0:
+   255			pinch_zoom = 1.0   # 1.3.0 §2：點兵跟拍＝新的意圖，取代手動縮放
+   256			dir_manual = true
+   257		if best < 0:
+   258			zoom_target = 1.0   # 取消跟拍：回到全景（中心由 _battle_process 拉回）
+   259	
+   260	## 暫停（第七輪 A6）：正式對局也能停下來看；繼續時放掉選取。
+   261	func _toggle_pause() -> void:
+   262		paused = not paused
+   263		if not paused and play_kind == "official":
+   264			follow_id = -1
+   265	
+   266	
+   267	## 進重播前存結算畫面（第七輪 A9）。
+   268	func _replay_snapshot() -> void:
+   269		if play_kind != "official" and not replay_snap.is_empty():
+   270			return   # Codex r2：重播完再重播，返回目的地還是最早那個結算
+   271		replay_snap = {"sim": sim, "view": view, "report": report, "marks": battle_marks.duplicate(true), "kind": play_kind,
+   272			"tab": result_tab, "overlay": "", "ev_count": ev_count.duplicate(), "pt_rated": pt_rated, "pt_call": pt_call_tick, "first_fall": first_fall.duplicate()}
+   273	
+   274	## 重播的「返回」：回到進來的地方。只還原畫面，比分、進度、成就、試玩紀錄都不寫。
+   275	func _replay_back() -> void:
+   276		tm_ghost = null   # V1.4 #1：回到結果頁，原本時間線的淡圈不能留下
+   277		call("_pre_drop")
+   278		seek_target = -1   # Codex r1：算到一半返回，不能把下一場快轉到舊目標
+   279		skip_busy = false
+   280		paused = false
+   281		follow_id = -1
+   282		zoom = 1.0
+   283		zoom_target = 1.0
+   284		fx.clear()
+   285		frags.clear()   # 1.2.0 §8.2
+   286		dying.clear()
+   287		report_log.clear()
+   288		sfx.set_muffled(false)
+   289		if watch_mode or replay_snap.is_empty():
+   290			call("_go_title")
+   291			return
+   292		sim = replay_snap["sim"]
+   293		view = replay_snap["view"]
+   294		report = replay_snap["report"]
+   295		battle_marks = replay_snap["marks"]
+   296		play_kind = replay_snap["kind"]
+   297		result_tab = replay_snap["tab"]
+   298		ev_count = replay_snap["ev_count"]   # Codex r1：戰報、評分狀態也要還原，不然同一局能再評一次
+   299		pt_rated = replay_snap["pt_rated"]
+   300		pt_call_tick = replay_snap["pt_call"]
+   301		first_fall = replay_snap.get("first_fall", [-1, -1])   # 回結果頁：敗因直達鈕還在（Codex v150 cat15 #2）
+   302		overlay = replay_snap["overlay"]
+   303		result_delay = 0.0
+   304		state = St.RESULT
+   305		replay_snap = {}
+   306	
+   307	
+   308	## 從關鍵時刻開始重播（第七輪 A7）。
+   309	func _replay_from(t: int) -> void:
+   310		call("_replay")
+   311		_seek_async(t)
+   312	
+   313	
+   314	func _follow_update(delta: float) -> void:
+   315		if play_kind == "official":
+rg: build/cg/b14/game/scripts/art/sprites.gd: No such file or directory (os error 2)
+rg: build/cg/b14/game/scripts/art.gd: No such file or directory (os error 2)
+build/cg/b14/game/scripts/ui/ui_base.gd:1618:func _update_gen() -> void:
+build/cg/b14/game/scripts/ui/game_screens.gd:1221:func _trans_gate(ev: InputEvent) -> bool:
+build/cg/b14/game/scripts/ui/screens/game_menus.gd:894:func _open_pause_menu() -> void:
+build/cg/b14/game/scripts/ui/screens/game_menus.gd:899:func _pause_resume() -> void:
+   110		_v16_jobs(_delta)
+   111	
+   112	func _open_codex(t: int) -> void:
+   113		Funnel.mark("codex_open")
+   114		super._open_codex(t)
+   115	
+   116	func _finish_battle() -> void:
+   117		super._finish_battle()
+   118		if play_kind != "official" or sim == null:
+   119			return
+   120		if bool(rush.get("on", false)) and mode == Mode.PUZZLE:
+   121			_rush_settle()
+   122			return
+   123		if trio_on and mode == Mode.PUZZLE:
+   124			_trio_settle()
+   125		_coop_settle()
+   126		if mode == Mode.VS_AI and not watch_mode and not bool(get("daily_practice")):
+   127			# V1.0.0（Codex v100-i1）：對 AI 的場數與勝場另記（stats 連教學、殘局都算，建議下一步不能用它判斷「打過 AI」）
+   128			Save.data["ai_games"] = int(Save.data.get("ai_games", 0)) + 1
+   129			if sim.winner == 0:
+   130				Save.data["ai_wins"] = int(Save.data.get("ai_wins", 0)) + 1
+   131		if mode != Mode.TUTORIAL and not watch_mode and not bool(get("daily_practice")) and not (rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB):
+   132			Save.data["eff_games"] = int(Save.data.get("eff_games", 0)) + 1   # V1.6.1 N1：有效對局（1.1.0：每日練習不算）
+   133		_rift_settle()
+   134		_persona_result()
+   135		if not bool(get("daily_practice")):
+   136			_career_settle()   # 1.1.0（Codex v110-i1 #4）：每日練習不累積熟練度、戰功章
+   137		Funnel.mark("first_battle")
+   138		if mode != Mode.DUEL:
+   139			var won: bool = sim.winner == 0
+   140			Funnel.mark("first_win" if won else "first_loss")
+   141			if mode == Mode.TUTORIAL and won:
+   142				Funnel.mark("tutorial_done")
+   143			if mode == Mode.PUZZLE and puzzle_id != "ws" and (won or bool(report.get("goal_ok", false))):
+   144				Funnel.mark("puzzle_clear")   # 工坊、一陣三考不算（三考只打了第一場，Antigravity v160-i2 #4）
+   145		if Guide.demo_end_due(Save.data, _demo(), demo_end_shown):
+   954				var bm: Array = []
+   955				while not pre.finished:
+   956					pre.step()
+   957					BM.collect(pre, bm)   # 1.2.0 §11.2：預跑順手收書籤（不多跑一次模擬）
+   958				return [pre.tick, bm]
+   959			if _async_ok():
+   960				pre_thread = Thread.new()
+   961				pre_thread.start(run_pre)
+   962			else:
+   963				var pv: Array = run_pre.call()
+   964				replay_total = int(pv[0])
+   965				replay_bm = pv[1]
+   966		paused = false
+   967		follow_id = -1
+   968		battle_marks.clear()
+   969		first_fall = [-1, -1]
+   970		report_log.clear()
+   971		skip_busy = false
+   972		seek_target = -1
+   973		if kind == "official":
+   974			replay_snap = {}
+   975		start_hold = 0.0
+   976		if kind == "official" and shot_dir == "" and DisplayServer.get_name() != "headless" and not bool(Save.s("reduce_fx")):
+   977			start_hold = 1.0
+   978			if sfx != null:
+   979				sfx.play("bugle", 0.8)
+   980		graves.clear()
+   981		clutch_t = 0.0
+   982		atk_hit.clear()
+   983		alt_hit.clear()
+   984		proj_tgt.clear()
+   985		brace_t.clear()
+
+exec
+/bin/bash -lc "rg -n 'func .*draw|crouch|lean' build/cg/b14/game/scripts/render/*sprite* | head -60; nl -ba build/cg/b14/game/scripts/ui/game_screens.gd | sed -n '1185,1253p'; nl -ba build/cg/b14/game/scripts/ui/ui_base.gd | sed -n '1610,1650p'; nl -ba build/cg/b14/game/scripts/ui/screens/game_menus.gd | sed -n '890,920p'; rg -n 'func _cmd_key|KEY_Q|KEY_E|speed' build/cg/b14/game/scripts/ui/battle/battle_cmd* build/cg/b14/game/scripts/ui/replay_view.gd | head -55; rg --files build/cg/b14/game/scripts | rg 'sprites|atlas|art'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 89ms:
+rg: build/cg/b14/game/scripts/render/*sprite*: IO error for operation on build/cg/b14/game/scripts/render/*sprite*: No such file or directory (os error 2)
+  1185	const SLIDE_FROM := {"lobby": Vector2(-80, 0), "codex": Vector2(0, 70), "settings": Vector2(80, 0), "keys": Vector2(80, 0),
+  1186		"profile": Vector2(0, -60), "puzzles": Vector2(-70, 0), "trials": Vector2(-70, 0), "codes": Vector2(70, 0)}
+  1187	const SLIDE_SEC := 0.3    # 180～300ms；和 1.3.0 器物開合同長（同時到終態，Codex cat08 #1）
+  1188	var trans_eat := {}            # 跳過轉場的輸入（來源＋鍵碼＋裝置／手指）→ 各自的放開才解鎖；可能同時好幾個（Codex cat08 r2 #1、r3 #1）
+  1189	var trans_stick_eat := false   # 用搖桿跳過／轉場中推著搖桿：回中之前不送方向（方案 §2.5）
+  1190	var _rstick := Vector2.ZERO    # 右搖桿兩軸目前的值（轉場開始時還推著＝鎖到回中；兩軸都回中才解鎖，Codex v150 cat01 r2 #1）
+  1191	var trans_rstick_eat := false  # 1.5.0：右搖桿推過轉場也鎖到回中（不然轉場一結束就直接捲圖鑑，Codex v150 cat01 #3）
+  1192	
+  1193	## 失焦：放開事件收不到，所有輸入身分與鎖一起清
+  1194	func _trans_reset_input() -> void:
+  1195		_held.clear()
+  1196		_rstick = Vector2.ZERO
+  1197		stick[JOY_AXIS_LEFT_X] = 0.0   # 失焦期間回中收不到事件：左搖桿舊值與連發狀態一起清（Codex v150 cat01 r3 #2）
+  1198		stick[JOY_AXIS_LEFT_Y] = 0.0
+  1199		set("_stick_dir", Vector2i.ZERO)
+  1200		trans_eat.clear()
+  1201		trans_stick_eat = false
+  1202		trans_rstick_eat = false
+  1203	
+  1204	## 輸入的身分：同一顆鍵／同一個滑鼠鈕／同一根手指的按下與放開對得起來
+  1205	static func trans_sig(ev: InputEvent) -> String:
+  1206		if ev is InputEventKey:
+  1207			return "k%d" % int(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
+  1208		if ev is InputEventMouseButton:
+  1209			return "m%d" % int(ev.button_index)
+  1210		if ev is InputEventJoypadButton:
+  1211			return "j%d:%d" % [ev.device, int(ev.button_index)]
+  1212		if ev is InputEventScreenTouch:
+  1213			return "t%d" % int(ev.index)
+  1214		return ""
+  1215	
+  1216	## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
+  1217	## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
+  1218	var _held := {}             # 目前按住的輸入身分（轉場開始時一併列入要吃掉的清單：開頁前按下、轉場後放開不能變成新頁上的點擊；1.5.0 輸入矩陣）
+  1219	var _trans_skip_t := -1.0   # 跳過轉場的那一幀：同一幀的其他按下也吃掉（兩個輸入同時按）
+  1220	
+  1221	func _trans_gate(ev: InputEvent) -> bool:
+  1222		if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+  1223			if ev.axis == JOY_AXIS_RIGHT_X:
+  1224				_rstick.x = ev.axis_value   # 平常也記（轉場開始時要知道還推著沒）
+  1225			else:
+  1226				_rstick.y = ev.axis_value
+  1227		var sig0 := trans_sig(ev)
+  1228		if sig0 != "":
+  1229			if ev.pressed:
+  1230				_held[sig0] = true
+  1231			else:
+  1232				_held.erase(sig0)
+  1233		var active := ov_trans_k() < 1.0
+  1234		if not active and trans_eat.is_empty() and time != _trans_skip_t and not trans_rstick_eat:
+  1235			return false
+  1236		if ev is InputEventMouseMotion:
+  1237			mouse = ev.position
+  1238			return active
+  1239		if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+  1240			var dzr := int(Save.s("deadzone")) / 100.0
+  1241			if (active or time == _trans_skip_t) and absf(ev.axis_value) >= dzr:   # 同一幀先按鍵跳過、再推搖桿也鎖（Codex v150 cat01 r3 #1）
+  1242				if active:
+  1243					_ov_t = time - 1.0
+  1244					_trans_skip_t = time
+  1245				trans_rstick_eat = true
+  1246			if trans_rstick_eat:
+  1247				if absf(_rstick.x) < dzr and absf(_rstick.y) < dzr:
+  1248					trans_rstick_eat = false   # 兩軸都回中才解鎖
+  1249				return true
+  1250			return active
+  1251		if ev is InputEventJoypadMotion:
+  1252			if ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y:
+  1253				stick[ev.axis] = ev.axis_value   # 狀態照記
+  1610	
+  1611	## ── 輸入命令佇列（第三輪 A2）──
+  1612	## 輸入事件不再直接執行，也不在 _draw 裡派發：先排進佇列，在 _process 開頭依序處理。
+  1613	## 每個命令記下排入時的「畫面世代」；畫面（狀態、覆蓋層、模式）一換，舊命令就丟掉，避免點到下一個畫面的按鈕。
+  1614	## 點擊只對「這個世代畫出來的按鈕」有效（_btns_gen）。
+  1615	func _enqueue(kind: String, data) -> void:
+  1616		_cmds.append({"kind": kind, "data": data, "gen": _gen})
+  1617	
+  1618	func _update_gen() -> void:
+  1619		var key := "%d|%s|%d|%s" % [state, overlay, mode, str(get("home_more"))]   # 1.6.0 B05：標題「更多」抽屜開關也換世代（舊按鈕作廢，Codex B05 r1 #2）
+  1620		if key != _gen_key:
+  1621			_gen_key = key
+  1622			_gen += 1
+  1623	
+  1624	
+  1625	## 自己畫框、不走 _panel 的模態面板也要登記（R1、漏登記守衛）
+  1626	func probe_panel(r: Rect2) -> void:
+  1627		if layout_probe:
+  1628			probe_panels.append({"id": "P%d" % probe_panels.size(), "r": r, "skip": {}})
+  1629	
+  1630	## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
+  1631	## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
+  1632	## 1.3.0 §8 每個畫面一件器物：大廳＝對局手帳、殘局＝棋譜冊、圖鑑＝標本木箱、設定＝工匠工具箱、戰績＝獎盃架、代碼＝郵局櫃台、覆盤＝批註本（1.2.0 的經摺帖、畫筒、牛皮箱…其餘照舊）
+  1633	const OBJ_OF := {"puzzles": "book", "trials": "tube", "codex": "specimen", "settings": "toolbox", "keys": "toolbox", "profile": "shelf", "nemeses": "ebony", "lobby": "notebook", "review": "annot", "owner_daily": "book",
+  1634		"codes": "post", "wave_codes": "post", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
+  1635	var panel_obj := ""
+  1636	var obj_open_r := Rect2()     # 1.2.0 第 11 大類：這一幀畫的實物面板（開合動畫用）
+  1637	var obj_open_kind := ""
+  1638	
+  1639	## 1.2.0 第 11 大類 實物開合（第 4 大類記錄）：疊層打開的前 0.3 秒，在面板上蓋一層「還沒打開的那一面」再收走——
+  1640	## 木盒類掀蓋往上收、經摺帖／畫筒往右攤開、信封三角封口往上翻。只疊畫、不縮放不位移（按鈕位置與滑鼠一致，Codex v120-impl2）；
+  1641	## 截圖、版面檢查、減少特效、簡化介面不演（呼叫端判斷）。k＝0→1。
+  1642	## 1.3.0：器物裝飾畫到面板外多遠（版面檢查用；照 _obj_deco 的實際幾何）。
+  1643	static func obj_extent(r: Rect2, kind: String) -> Rect2:
+  1644		match kind:
+  1645			"toolbox": return Rect2(r.position - Vector2(33, 12), r.size + Vector2(66, 28))   # 提環弧＋描邊約外伸 31.5（Codex cat09 #1）
+  1646			"specimen", "case": return Rect2(r.position - Vector2(12, 0), r.size + Vector2(24, 20))
+  1647			"shelf":
+  1648				var top := maxf(r.position.y - 4.0, 30.0) - 26.0
+  1649				var sy := minf(r.end.y + 8.0, 800.0 - 32.0)
+  1650				return Rect2(Vector2(r.position.x - 24, minf(top, r.position.y)), Vector2(r.size.x + 48, sy + 30.0 - minf(top, r.position.y)))
+   890	
+   891	## V1.5 暫停選單：戰鬥中按 Esc／手把 B 打開。「重開」不做：勝負在擺陣時就定了，重開＝看完結果再改陣（裁決見 v150 ledger）。
+   892	var settings_ret := ""   # 設定頁關掉後回哪個覆蓋層（暫停選單進來的要回暫停選單）
+   893	
+   894	func _open_pause_menu() -> void:
+   895		paused = true
+   896		overlay = "pause_menu"
+   897		_focus = 0
+   898	
+   899	func _pause_resume() -> void:
+   900		overlay = ""
+   901		paused = false
+   902	
+   903	func _settings_close() -> void:
+   904		vol_release()
+   905		set_adv_open = false   # 1.5.0 §1.3：下次打開回到常用
+   906		settings_item = ""
+   907		overlay = settings_ret
+   908		settings_ret = ""
+   909	
+   910	func _draw_pause_menu() -> void:
+   911		var items: Array = [[L.t("pm_resume"), func(): _pause_resume(), true]]
+   912		if play_kind == "official":
+   913			items.append([L.t("skip"), func(): overlay = ""; call("_on_skip"), false])
+   914		items.append([L.t("pm_settings"), func(): settings_ret = "pause_menu"; overlay = "settings", false])
+   915		items.append([L.t("fb_btn"), func(): call("_feedback"), false])   # V1.6 #2
+   916		items.append([L.t("pm_leave"), func(): overlay = ""; _request_leave(), false])   # 確認框開著時戰鬥維持暫停（Antigravity v150-i2 #3）
+   917		var ph := 96.0 + items.size() * 66.0 + 24.0   # 面板高度照項目數
+   918		var P := Rect2(440, 400 - ph * 0.5, 400, ph)
+   919		_panel(P)
+   920		_text(Vector2(640, P.position.y + 26), L.t("pm_title"), tz("H2"), Color.WHITE, true, true, 340)
+rg: build/cg/b14/game/scripts/ui/battle/battle_cmd*: No such file or directory (os error 2)
+build/cg/b14/game/scripts/ui/replay_view.gd:33:	_btn(Rect2(98, 704, 68, 36), "−", func(): speed = speed_step(speed, -1), speed > float(SPEEDS[0]))
+build/cg/b14/game/scripts/ui/replay_view.gd:34:	_btn(Rect2(172, 704, 68, 36), "%s×" % _fmt_num(speed), func(): speed = 1.0, true, false, Color(0.45, 0.3, 0.12))
+build/cg/b14/game/scripts/ui/replay_view.gd:35:	_btn(Rect2(246, 704, 68, 36), "+", func(): speed = speed_step(speed, 1), speed < float(SPEEDS[SPEEDS.size() - 1]))
+build/cg/b14/game/scripts/ui/charts.gd.uid
+build/cg/b14/game/scripts/ui/charts.gd
+build/cg/b14/game/scripts/ui/map_art.gd.uid
+build/cg/b14/game/scripts/ui/map_art.gd
+build/cg/b14/game/scripts/ui/art.gd.uid
+build/cg/b14/game/scripts/ui/art.gd
+build/cg/b14/game/scripts/ui/atlas_pack.gd
+build/cg/b14/game/scripts/ui/atlas_pack.gd.uid
+
+exec
+/bin/bash -lc "rg -n '_held|trans_eat|_ov_state|_ov_key|_update_gen' build/cg/b14/game/scripts/ui/game_screens.gd; rg -n 'hurt|lean|crouch' build/cg/b14/game/scripts/ui/atlas_pack.gd | tail -35; rg -n 'lean|crouch' build/cg/b14/game/scripts/ui/art.gd | head -25; nl -ba build/cg/b14/game/scripts/ui/game_screens.gd | sed -n '1260,1340p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+1041:	_update_gen()
+1075:		_update_gen()
+1188:var trans_eat := {}            # 跳過轉場的輸入（來源＋鍵碼＋裝置／手指）→ 各自的放開才解鎖；可能同時好幾個（Codex cat08 r2 #1、r3 #1）
+1195:	_held.clear()
+1200:	trans_eat.clear()
+1218:var _held := {}             # 目前按住的輸入身分（轉場開始時一併列入要吃掉的清單：開頁前按下、轉場後放開不能變成新頁上的點擊；1.5.0 輸入矩陣）
+1230:			_held[sig0] = true
+1232:			_held.erase(sig0)
+1234:	if not active and trans_eat.is_empty() and time != _trans_skip_t and not trans_rstick_eat:
+1270:			trans_eat[sig] = true
+1272:		return trans_eat.has(sig)   # 同一顆鍵按住的連發（echo）也吃
+1273:	if trans_eat.has(sig):
+1274:		trans_eat.erase(sig)
+1283:	for k in _held:
+1284:		trans_eat[k] = true   # 開頁前就按住的：放開要吃掉（不在新頁上點）
+1295:	for k in trans_eat.keys():
+1297:			trans_eat.erase(k)
+1298:	for k2 in _held.keys():
+1300:			_held.erase(k2)   # 拔掉的手把按住的鈕也清（不然下次轉場會把舊鎖復活，Codex v150 cat01 #2）
+46:		return PoseData.eval(type, atk)   # 1.2.0 §7.1 姿勢資料化（22 種）：資料版和原本的 POSE_PROFILE 公式等值（測試）；POSE_PROFILE 留著當產生器來源與 windup_lean
+61:static func windup_lean(type: int) -> float:
+78:## lean＝額外傾角（騎兵衝鋒前傾）、crouch＝縱向縮放（刺客潛行蹲身）。
+79:static func unit_xf(p: Vector2, face: float, walk: float, atk: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0, gtype := 0) -> Transform2D:
+84:	var outer := Transform2D(lean * face, Vector2(scale * face, scale * crouch), 0.0, p + Vector2(0, bob * scale))
+89:## alpha＝透明度（潛行）；t＝時間（待機呼吸）；scale＝縮放；mood＝表情疊加（M_*）；lean／crouch 見 unit_xf。
+91:		hurt: float, alpha: float, t: float, scale := 1.0, cb := false, mood := 0, lean := 0.0, crouch := 1.0, variant := 0) -> void:
+97:	_xf = base * unit_xf(p, face, walk, atk, t, scale, lean, crouch, type)
+  1260		if sig == "":
+  1261			return active
+  1262		if ev is InputEventScreenTouch and not ev.pressed:
+  1263			touches.erase(ev.index)   # 吃掉放開也要清手指狀態（不留幽靈手指、長按計時；Codex cat08 r2 #3）
+  1264			lp_t = -1.0
+  1265		if ev.pressed:
+  1266			if active or time == _trans_skip_t:
+  1267				if active:
+  1268					_ov_t = time - 1.0
+  1269					_trans_skip_t = time
+  1270				trans_eat[sig] = true
+  1271				return true
+  1272			return trans_eat.has(sig)   # 同一顆鍵按住的連發（echo）也吃
+  1273		if trans_eat.has(sig):
+  1274			trans_eat.erase(sig)
+  1275			return true
+  1276		return active
+  1277	
+  1278	## 疊層剛換（轉場開始）：取消進行中的長按（不從計時器繞過閘門）；開頁前就推著的搖桿鎖到回中（Codex cat08 r3 #2、#3）
+  1279	func _trans_begin() -> void:
+  1280		if ov_trans_k() >= 1.0:
+  1281			return
+  1282		lp_t = -1.0
+  1283		for k in _held:
+  1284			trans_eat[k] = true   # 開頁前就按住的：放開要吃掉（不在新頁上點）
+  1285		if absf(_rstick.x) >= int(Save.s("deadzone")) / 100.0 or absf(_rstick.y) >= int(Save.s("deadzone")) / 100.0:
+  1286			trans_rstick_eat = true   # 開頁前就推著右搖桿：回中之前不捲新頁
+  1287		var dz := int(Save.s("deadzone")) / 100.0
+  1288		if absf(float(stick.get(JOY_AXIS_LEFT_X, 0.0))) >= dz or absf(float(stick.get(JOY_AXIS_LEFT_Y, 0.0))) >= dz:
+  1289			trans_stick_eat = true
+  1290	
+  1291	## 手把拔掉：引擎不補放開事件 → 清掉那支手把的跳過身分與搖桿狀態（Codex cat08 r3 #4）
+  1292	func _trans_joy_changed(device: int, connected: bool) -> void:
+  1293		if connected:
+  1294			return
+  1295		for k in trans_eat.keys():
+  1296			if String(k).begins_with("j%d:" % device):
+  1297				trans_eat.erase(k)
+  1298		for k2 in _held.keys():
+  1299			if String(k2).begins_with("j%d:" % device):
+  1300				_held.erase(k2)   # 拔掉的手把按住的鈕也清（不然下次轉場會把舊鎖復活，Codex v150 cat01 #2）
+  1301		trans_rstick_eat = false
+  1302		_rstick = Vector2.ZERO   # 舊值不留（Codex v150 cat01 r2 #2）
+  1303		stick[JOY_AXIS_LEFT_X] = 0.0
+  1304		stick[JOY_AXIS_LEFT_Y] = 0.0
+  1305		trans_stick_eat = false
+  1306	
+  1307	## 轉場進度（0→1；沒有轉場＝1）。截圖、版面檢查、減少特效、減少動態、簡化介面都沒有轉場。
+  1308	func ov_trans_k() -> float:
+  1309		if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
+  1310			return 1.0
+  1311		return clampf((time - _ov_t) / SLIDE_SEC, 0.0, 1.0)
+  1312	
+  1313	func ov_slide_offset() -> Vector2:
+  1314		var k := ov_trans_k()
+  1315		if k >= 1.0:
+  1316			return Vector2.ZERO
+  1317		var e := 1.0 - pow(1.0 - k, 3.0)
+  1318		return SLIDE_FROM[overlay] * (1.0 - e)
+
+codex
+快照行號：BV＝battle_view.gd，GS＝game_screens.gd。
+
+- **P1** BV:178、GS:358–359：滑鼠／觸控按下跳過收盤，跨幀放開仍呼叫 `_do_click`；結果頁會吃到同一下，跳過宣紙演出，重播或減少特效時更可能誤按結果鈕。需防跨頁放開。
+- **P2** BV:83、177–178：收盤按 P／Esc 先設滿計時，再暫停，無法「直接到結果」；暫停／離開確認內操作也會暗中跳過，恢復即結算。應明定覆蓋層與暫停優先序並補測。
+- GS:610–615：扳機軸不算按下；滑鼠移動、觸控拖曳亦不跳過。若扳機也須支援，需加閾值與回中去重。
+- battle_units.gd:1148–1154：疲累只改繪圖參數，與轉身乘算；受擊時轉身壓縮停用，巨獸排除。同幀多次按下不會重敲。現有測試未覆蓋收盤輸入邊界。
+
+結論：有條件
+tokens used
+57,060
