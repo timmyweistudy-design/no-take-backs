@@ -237,10 +237,11 @@ func _draw_title() -> void:
 	for pq0 in plaques:
 		ph = maxf(ph, 8.0 + tz("B") * 1.3 + text_h(L.t(str(pq0[1])), tz("C"), sw) + 8.0)
 	var room := 724.0 - 48.0 - y0
-	var show_sub := ph * 5.0 + 20.0 + HOME_MAIN_EXTRA <= room   # 放不下（150% 字級＋長副標）就只放名稱，不縮字
+	var npq := float(plaques.size())   # 1.6.0 B05：三主牌＋更多（抽屜打開再多兩塊）
+	var show_sub := ph * npq + 20.0 + HOME_MAIN_EXTRA <= room   # 放不下（150% 字級＋長副標）就只放名稱，不縮字
 	if not show_sub:
 		ph = maxf(48.0, 12.0 + tz("B") * 1.3)
-	var gap := clampf((room - ph * 5.0 - HOME_MAIN_EXTRA) / 5.0, 4.0, 8.0)
+	var gap := clampf((room - ph * npq - HOME_MAIN_EXTRA) / npq, 4.0, 8.0)
 	# 1.4.0 §12.1：第一塊「對戰」是朱漆主牌、比其他高一截（主次分明；其他退為木牌）
 	var pys: Array = []
 	var phs: Array = []
@@ -264,27 +265,35 @@ func _draw_title() -> void:
 			draw_rect(Rect2(bxr.position.x + 6, float(pys[i]) + 4, 18, float(phs[i]) - 8), Color(0.1, 0.06, 0.03, 0.75))   # 籤槽
 	for i in plaques.size():
 		var pq: Array = plaques[i]
-		var mr2 := Rect2(70, float(pys[i]), PW, float(phs[i]))
+		var ind := 28.0 if i >= 4 else 0.0   # 1.6.0 B05：抽屜裡的兩塊往右縮一截（看得出是「更多」底下的）
+		var mr2 := Rect2(70 + ind, float(pys[i]), PW - ind, float(phs[i]))
 		var on := not _demo() or bool(pq[4])
 		btn_no_wax = i == 0
+		btn_group = "home_more" if i >= 3 else ""   # R14：「更多」和抽屜裡的兩塊＝一個控制（抽屜）
 		_btn(mr2, "", pq[3], on, i == 0)
+		btn_group = ""
 		var pp := last_btn_paper   # 1.6.0 B02（P2.2）：淺色木牌（紙面）上用墨字   # 1.4.0：對戰＝朱漆木牌主牌（走主鈕的木牌材質；不畫左側火漆，不壓小人）
 		btn_no_wax = false
 		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else (Color(0.12, 0.07, 0.03, 0.55) if not bool(Save.s("plain_ui")) else Color(1, 1, 1, 0.35)))   # 1.2.0：籤插進盒的那一端壓暗
 		# V1.5.2 L5：小人照木牌內容區定位（150% 只放名稱時木牌變矮，腳點不再寫死 y+54 而掉出木牌）
 		var foot := minf(54.0 + (HOME_MAIN_EXTRA * 0.5 if i == 0 else 0.0), float(phs[i]) - 6.0)
-		Art.unit(self, mr2.position + Vector2(34, foot), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72 * minf(1.0, foot / 54.0), cbm())
+		if i == 3:
+			# 1.6.0 B05（Hydrogen r1 #2）：「更多」不是玩法：不放兵偶，放展開／收起箭頭（和三主牌分得開）
+			_text(mr2.position + Vector2(34, float(phs[i]) * 0.5 - tz("B") * 0.62), "▲" if home_more else "▼", tz("B"), _ink(Color.WHITE) if last_btn_paper else Color.WHITE, true, true)
+		else:
+			Art.unit(self, mr2.position + Vector2(34, foot), int(pq[2]), 0, 1.0, 0.0, 0.0, 0.0, 1.0 if on else 0.4, time, 0.72 * minf(1.0, foot / 54.0), cbm())
 		var tcol: Color = (_ink(Color.WHITE) if pp else Color.WHITE) if on else TXT_DIM
 		var tag := home_tag(i)
 		var tw2 := (_width(tag, tz("C"), true) + 24.0) if tag != "" else 0.0
-		var nw := minf(_width(L.t(str(pq[0])), tz("B"), true), sw - tw2 - 8.0)
+		var swi := sw - ind   # 抽屜裡的木牌窄一截：名稱、狀態小牌的可用寬一起扣
+		var nw := minf(_width(L.t(str(pq[0])), tz("B"), true), swi - tw2 - 14.0)
 		var top0 := (float(phs[i]) - ph) * 0.5   # 主牌比較高：字整組垂直置中
-		_text(mr2.position + Vector2(66, top0 + (6 if show_sub else (ph - tz("B") * 1.2) * 0.5)), L.t(str(pq[0])), tz("B"), tcol, false, true, sw - tw2 - 8.0)
+		_text(mr2.position + Vector2(66, top0 + (6 if show_sub else (ph - tz("B") * 1.2) * 0.5)), L.t(str(pq[0])), tz("B"), tcol, false, true, swi - tw2 - 14.0)
 		if show_sub:
-			_text(mr2.position + Vector2(66, top0 + 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), Color(1, 0.93, 0.85) if i == 0 else (_ink(TXT_DIM) if pp else TXT_DIM), false, false, sw)
+			_text(mr2.position + Vector2(66, top0 + 8 + tz("B") * 1.3), L.t(str(pq[1])), tz("C"), Color(1, 0.93, 0.85) if i == 0 else (_ink(TXT_DIM) if pp else TXT_DIM), false, false, swi)
 		if tag != "":
 			# 狀態小牌：緊跟在名稱右邊（不蓋字），羊皮紙底＋墨字（不只靠顏色）
-			var tr := Rect2(mr2.position.x + 66 + nw + 8, (mr2.position.y + (float(phs[i]) - ph) * 0.5 + 3 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (float(phs[i]) - tz("C") * 1.5) * 0.5 - 3), tw2, tz("C") * 1.5 + 6)   # 九宮格四邊留內距
+			var tr := Rect2(mr2.position.x + 66 + nw + 14, (mr2.position.y + (float(phs[i]) - ph) * 0.5 + 3 + (tz("B") * 1.3 - tz("C") * 1.5) * 0.5) if show_sub else (mr2.position.y + (float(phs[i]) - tz("C") * 1.5) * 0.5 - 3), tw2, tz("C") * 1.5 + 6)   # 九宮格四邊留內距
 			_tex_box(tr, "paper")
 			_ink_mode = true
 			_text(tr.position + Vector2(12, 3 + tz("C") * 0.2), tag, tz("C"), INK, false, true, tw2)
@@ -1608,12 +1617,23 @@ func _paste_code() -> void:
 
 
 ## ── V1.5 主畫面五塊木牌：[名稱, 副標, 代表兵種, 動作, 試玩版也開] ──
+## 1.6.0 B05（P8.2）：桌上三主牌（對戰、遠征、殘局）＋「更多」抽屜；抽屜打開時下面插兩塊小木牌（遊戲間、收藏）。
+var home_more := false
+## 抽屜開關：焦點留在「更多」上（收起後不會落到別的按鈕，例如原本收藏的位置變成「離開」；Codex B05 r1 #3）
+func _home_more_set(on: bool) -> void:
+	home_more = on
+	_focus = 3
+	_update_gen()
+
 func home_plaques() -> Array:
-	return [["home_play", "home_play_d", 3, func(): overlay = "hub_play"; _focus = 0, true],
-		["menu_gauntlet", "home_gauntlet_d", 1, func(): overlay = "hub_gauntlet"; _focus = 0, false],   # V1.0.0 H1：單人遠征＋雙人接力
-		["home_challenge", "home_challenge_d", 2, func(): overlay = "hub_challenge"; _focus = 0, true],
-		["menu_playroom", "home_playroom_d", 8, func(): overlay = "playroom"; _focus = 0, false],
-		["home_collect", "home_collect_d", 13, func(): overlay = "hub_collect"; _focus = 0, true]]
+	var out := [["home_play", "home_play_d", 3, func(): overlay = "hub_play"; _focus = 0; home_more = false, true],
+		["menu_gauntlet", "home_gauntlet_d", 1, func(): overlay = "hub_gauntlet"; _focus = 0; home_more = false, false],   # V1.0.0 H1：單人遠征＋雙人接力
+		["home_challenge", "home_challenge_d", 2, func(): overlay = "hub_challenge"; _focus = 0; home_more = false, true],
+		["home_more", "home_more_d", 8, func(): _home_more_set(not home_more), true]]
+	if home_more:
+		out.append(["menu_playroom", "home_playroom_d", 8, func(): overlay = "playroom"; _focus = 0; home_more = false, false])
+		out.append(["home_collect", "home_collect_d", 13, func(): overlay = "hub_collect"; _focus = 0; home_more = false, true])
+	return out
 
 ## 木牌右上的狀態小字：新玩家「先從教學開始」、遠征續局「第 N 站」、每日挑戰今天還沒打。
 func home_tag(i: int) -> String:
@@ -1623,7 +1643,7 @@ func home_tag(i: int) -> String:
 		1:
 			var g: Dictionary = Save.data.get("gauntlet_run", {})
 			return L.t("home_st_run", [int(g.get("stage", 1))]) if not g.is_empty() and not _demo() else ""
-		3:   # V1.0.0 H1：每日挑戰搬到遊戲間
+		3:   # V1.0.0 H1：每日挑戰搬到遊戲間；1.6.0 B05：遊戲間收進「更多」抽屜——小牌一律掛在「更多」那一列（抽屜裡的牌窄，掛不下；Hydrogen r2）
 			if _demo():
 				return ""
 			var sp: Dictionary = Daily.spec(Daily.today())
@@ -1803,31 +1823,78 @@ func _apply_display() -> void:
 
 
 ## ── V1.5 第一次啟動：主選單前先問語言、字級、無障礙預設（可跳過；XAG：先讓玩家能讀得懂再進遊戲）──
+## 1.6.0 B05（P8.1、S9）首開入館便條：一張便條擺在左側桌緣（≤35% 屏、不壓右邊示範戰場；背景只輕壓暗），
+## 語言、字級、一鍵調整三列小鈕；底下「進館逛逛」（＝原本的開始：掌燈開門）和主鈕「開第一局」（直接進對 AI 大廳的確認步）。
+const FR_NOTE_X := 28.0
+const FR_NOTE_W := 500.0
+func first_run_rect() -> Rect2:
+	var bh := 40.0
+	var cw := FR_NOTE_W - 40.0
+	var h := 16.0 + text_h(L.t("fr_title"), tz("B"), cw) + GAP_M
+	for k in ["fr_lang", "fr_text", "fr_access"]:
+		h += text_h(L.t(k), tz("S"), cw) + 16.0
+	h += bh * 2.0 + 8.0 + bh * 2.0 + GAP_M * 3.0   # 語言 2×2、字級一列、一鍵調整一列
+	h += text_h(L.t("fr_later"), tz("C"), cw) + GAP_M + 48.0 + 18.0
+	return Rect2(FR_NOTE_X, maxf(24.0, 400.0 - h * 0.5), FR_NOTE_W, h)
+
 func _draw_first_run() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color(0.06, 0.04, 0.03, 0.92))
-	# V1.5.2 L3／L7：內容從緞帶下緣＋16 起；面板照內容高（說明到開始鈕不再空 190px）；三排按鈕各自置中
-	var P := modal_rect(800, 12.0 + h1_bottom(0.0) + GAP_L + 3.0 * below_head(tz("B")) + 200.0 + text_h(L.t("fr_later"), tz("S"), 700) + GAP_XL + 48.0 + GAP_L)
-	_panel(P)
-	var y := _h1(Vector2(640, P.position.y + 12), L.t("fr_title")) + GAP_L
-	_text(Vector2(640, y), L.t("fr_lang"), tz("B"), Color.WHITE, true, true, 700)
-	y += below_head(tz("B"))
+	draw_rect(Rect2(0, 0, 1280, 800), Color(0.06, 0.04, 0.03, 0.35))
+	var R := first_run_rect()
+	probe_panel(R)
+	probe_skip("R1", "首開便條擺在左側桌緣（方案 P8.1：不壓示範戰場），刻意不置中")
+	_contact_shadow(R)
+	if bool(Save.s("plain_ui")):
+		draw_rect(R, Color(0.13, 0.09, 0.06))   # 簡化介面：深色平塗底＋白字（Codex B05 r1 #1：亮紙配白字讀不到）
+		draw_rect(R, Color(1, 1, 1, 0.35), false, 2.0)
+	elif not _mat_box(R, "card1"):
+		draw_rect(R, PAL.MAT_PAPER[0])
+	_ink_mode = not bool(Save.s("plain_ui"))
+	var x0 := R.position.x + 20.0
+	var cw := R.size.x - 40.0
+	var y := R.position.y + 16.0
+	_text(Vector2(R.get_center().x, y), L.t("fr_title"), tz("B"), Color.WHITE, true, true, cw)
+	y += text_h(L.t("fr_title"), tz("B"), cw) + GAP_M
+	var bh := 40.0
+	_text(Vector2(x0, y), L.t("fr_lang"), tz("S"), Color.WHITE, false, true, cw)
+	y += text_h(L.t("fr_lang"), tz("S"), cw) + 16.0
+	btn_group = "fr_lang"   # R14：同一列選項＝一個控制
 	for i in L.LANGS.size():
 		var lg: String = L.LANGS[i]
-		_btn(Rect2(640.0 - (L.LANGS.size() * 178.0 - 10.0) / 2.0 + i * 178, y, 168, 48), L.lang_name_of(lg), func(): Save.set_setting("lang", lg); L.lang = lg; _load_fonts(), true, false, TH_ACTIVE if L.lang == lg else Color(0, 0, 0, 0))
-	y += 70.0
-	_text(Vector2(640, y), L.t("fr_text"), tz("B"), Color.WHITE, true, true, 700)
-	y += below_head(tz("B"))
+		var bw := (cw - 8.0) / 2.0
+		_btn(Rect2(x0 + (i % 2) * (bw + 8.0), y + (i / 2) * (bh + 8.0), bw, bh), L.lang_name_of(lg), func(): Save.set_setting("lang", lg); L.lang = lg; _load_fonts(), true, false, TH_ACTIVE if L.lang == lg else Color(0, 0, 0, 0))
+	btn_group = ""
+	y += bh * 2.0 + 8.0 + GAP_M
+	_text(Vector2(x0, y), L.t("fr_text"), tz("S"), Color.WHITE, false, true, cw)
+	y += text_h(L.t("fr_text"), tz("S"), cw) + 16.0
+	btn_group = "fr_text"   # R14：同一列選項＝一個控制
 	for i in 3:
 		var ts0: int = [100, 125, 150][i]
-		_btn(Rect2(339 + i * 206, y, 190, 48), "%d%%" % ts0, func(): Save.set_setting("text_scale", ts0), true, false, TH_ACTIVE if int(Save.s("text_scale")) == ts0 else Color(0, 0, 0, 0))
-	y += 70.0
-	_text(Vector2(640, y), L.t("fr_access"), tz("B"), Color.WHITE, true, true, 700)
-	y += below_head(tz("B"))
+		var bw2 := (cw - 16.0) / 3.0
+		_btn(Rect2(x0 + i * (bw2 + 8.0), y, bw2, bh), "%d%%" % ts0, func(): Save.set_setting("text_scale", ts0), true, false, TH_ACTIVE if int(Save.s("text_scale")) == ts0 else Color(0, 0, 0, 0))
+	btn_group = ""
+	y += bh + GAP_M
+	_text(Vector2(x0, y), L.t("fr_access"), tz("S"), Color.WHITE, false, true, cw)
+	y += text_h(L.t("fr_access"), tz("S"), cw) + 16.0
 	var pk := ["preset_vis", "preset_motion", "preset_load"]
+	btn_group = "fr_preset"   # R14：同一列選項＝一個控制
 	for k in 3:
 		var kk := k
-		_btn(Rect2(289 + k * 238, y, 226, 48), L.t(pk[k]), func(): _apply_preset(kk), true, false, Color(0.2, 0.36, 0.5))
-	y += 60.0
-	_text(Vector2(640, y), L.t("fr_later"), tz("S"), TXT_DIM, true, false, 700)
-	_btn(Rect2(560, P.end.y - GAP_L - 48.0, 160, 48), L.t("fr_go"), func(): Save.set_setting("first_done", true); overlay = ""; call("intro_begin"), true, true)   # 1.3.0 §13：第一次設定完才掌燈開門（Codex cat11 #3）
+		var bw3 := (cw - 16.0) / 3.0
+		_btn(Rect2(x0 + k * (bw3 + 8.0), y, bw3, bh), L.t(pk[k]), func(): _apply_preset(kk), true, false, Color(0.2, 0.36, 0.5))
+	btn_group = ""
+	y += bh + GAP_M
+	_text(Vector2(R.get_center().x, y), L.t("fr_later"), tz("C"), TXT_DIM, true, false, cw)
+	_ink_mode = false
+	var by := R.end.y - 18.0 - 48.0
+	var hw := (cw - 8.0) / 2.0
+	_btn(Rect2(x0, by, hw, 48), L.t("fr_enter"), func(): Save.set_setting("first_done", true); overlay = ""; call("intro_begin"))   # 1.3.0 §13：第一次設定完才掌燈開門（Codex cat11 #3）
+	_btn(Rect2(x0 + hw + 8.0, by, hw, 48), L.t("fr_first"), _first_battle, true, true)
+	screen_register("first_run", "fr_first")
+
+## 開第一局：設定完直接進對 AI 大廳的確認步（預設規則），按「開戰」就開打——冷啟到開戰 2 下（S9 要 ≤3）
+func _first_battle() -> void:
+	Save.set_setting("first_done", true)
+	overlay = ""
+	_open_lobby("ai")
+	lobby_step = 2
 

@@ -1612,7 +1612,7 @@ func _enqueue(kind: String, data) -> void:
 	_cmds.append({"kind": kind, "data": data, "gen": _gen})
 
 func _update_gen() -> void:
-	var key := "%d|%s|%d" % [state, overlay, mode]
+	var key := "%d|%s|%d|%s" % [state, overlay, mode, str(get("home_more"))]   # 1.6.0 B05：標題「更多」抽屜開關也換世代（舊按鈕作廢，Codex B05 r1 #2）
 	if key != _gen_key:
 		_gen_key = key
 		_gen += 1

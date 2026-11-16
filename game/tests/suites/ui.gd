@@ -2178,7 +2178,7 @@ func test_title_v140() -> void:
 		ok((sh[0] as Vector2).x > 520.0 and (sh[0] as Vector2).x < 1200.0 and (sh[0] as Vector2).y >= 708.0 and (sh[0] as Vector2).y <= 752.0, "木偶腳點在木台上")
 	ok(scs.size() >= 3 and ys.size() >= 3, "大小、前後錯落（不是排排站）")
 	var src: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
-	ok(src.find("btn_no_wax = i == 0\n\t\t_btn(mr2, \"\", pq[3], on, i == 0)") >= 0 and src.find("btn_no_wax = false") >= 0, "對戰是朱漆木牌主牌（不畫火漆、畫完重設）")
+	ok(src.find("btn_no_wax = i == 0\n") >= 0 and src.find("_btn(mr2, \"\", pq[3], on, i == 0)") >= 0 and src.find("btn_no_wax = false") >= 0, "對戰是朱漆木牌主牌（不畫火漆、畫完重設）")
 	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
 	ok(v16.find("_btn(NS_RECT, \"\", _next_action(k), true, false, PAL.KRAFT)") >= 0 and v16.find("Color(0.16, 0.3, 0.42, 0.95)") < 0, "建議下一步改牛皮紙便箋（不再是深藍膠囊）")
 
@@ -2853,7 +2853,7 @@ func test_desk_table_v1600() -> void:
 	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
 	ok(ub.find("if kind == \"paper\":\n\t\ttint = tint * ((PAL.PAPER_BOOK_TONE_TEX if paper_book else PAL.PAPER_DESK_TONE_TEX) if paper_tone != Color.WHITE") >= 0 and ub.find("if kind.begins_with(\"card\"):\n\t\ttint = tint * paper_tone") >= 0, "羊皮紙、卡紙都乘桌燈色調（大廳簿紙再暗一階，B04）")
 	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
-	ok(gsrc.find("not bool(Save.s(\"plain_ui\")) and not (state == St.TITLE and overlay == \"\") and not no_desk_paper") >= 0, "桌燈紙的範圍：簡化介面、標題頁本身除外（大廳 B04 起是簿紙）")
+	ok(gsrc.find("not bool(Save.s(\"plain_ui\")) and not (state == St.TITLE and overlay == \"\") and overlay != \"first_run\" and not no_desk_paper") >= 0, "桌燈紙的範圍：簡化介面、標題頁本身、首開便條（B05 新紙）除外（大廳 B04 起是簿紙）")
 	var dark_paper: Color = Color("#efe4cc") * PAL.PAPER_DESK_TONE
 	ok(load("res://tools/dev_main.gd").contrast(Color("#2a1e15"), dark_paper) >= 4.5, "深墨字對桌燈紙 ≥4.5:1")
 	# 地形微縮：地塊烘焙的光向＝全站接觸影方向
@@ -3057,4 +3057,61 @@ func test_lobby_book_v1600() -> void:
 	g._process_cmds()
 	ok(in_trans and not fired[0] and g.lobby_step == 0, "大廳滑入轉場中按 A 不會落到按鈕（轉場中=%s）" % in_trans)
 	ok(FileAccess.get_file_as_string("res://tools/dev_main.gd").find("print(\"LOBBYPAD \"") >= 0, "截圖流程有真畫面手把走查（對 AI、雙人 ≤3 步、同幀兩下只走一步、撥片切換、重開焦點）")
+	g.free()
+
+
+## 1.6.0 B05（S9；P8.1、P8.2）第一幕：首開入館便條 ≤35% 屏、不壓示範戰場；「開第一局」直達大廳確認步（冷啟到開戰 2 下，
+## 真畫面點擊是截圖流程的 FIRSTRUN）；桌上三主牌＋「更多」抽屜（IN-160-02：停用、返回、手把）。
+func test_first_act_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g._load_fonts()
+	var LS = load("res://scripts/game/strings.gd")
+	var Sv = load("res://scripts/game/save.gd")
+	var keep_lang = LS.lang
+	var keep_ts = Sv.settings.get("text_scale", 100)
+	var keep_fd = Sv.settings.get("first_done", false)
+	var fz := 0.72
+	var off := Vector2(1270.0 - (g.ORIGIN.x + g.FIELD.x) * fz, 400.0 - (g.ORIGIN.y + g.FIELD.y / 2.0) * fz)
+	var field := Rect2(g.ORIGIN * fz + off, g.FIELD * fz)
+	var worst := 0.0
+	var hit := false
+	for lg in ["zh_TW", "en", "zh_CN", "ja"]:
+		LS.lang = lg
+		for sc in [100, 125, 150]:
+			Sv.settings["text_scale"] = sc
+			var R: Rect2 = g.first_run_rect()
+			worst = maxf(worst, R.get_area() / (1280.0 * 800.0))
+			hit = hit or R.intersects(field) or R.end.y > 800.0 or R.position.y < 0.0
+	LS.lang = keep_lang
+	Sv.settings["text_scale"] = keep_ts
+	ok(worst <= 0.35 and not hit, "首開便條四語三字級最大 %.1f%% 屏（≤35%%）、不壓示範戰場、不出畫面" % (worst * 100.0))
+	g._first_battle()
+	ok(g.overlay == "lobby" and g.lobby_step == 2 and bool(Sv.settings.get("first_done", false)), "開第一局：直接進對 AI 大廳的確認步（再按開戰＝冷啟 2 下）")
+	Sv.settings["first_done"] = keep_fd
+	g.overlay = ""
+	g.home_more = false
+	ok(g.home_plaques().size() == 4, "桌上三主牌＋更多（抽屜關著 4 塊）")
+	(g.home_plaques()[3][3] as Callable).call()
+	ok(g.home_more and g.home_plaques().size() == 6, "按更多＝抽屜打開，多出遊戲間、收藏")
+	(g.home_plaques()[5][3] as Callable).call()
+	ok(g.overlay == "hub_collect" and not g.home_more, "抽屜裡選收藏＝打開收藏、抽屜收起")
+	g.overlay = ""
+	g.state = g.St.TITLE
+	g._home_more_set(true)
+	var gen0: int = g._gen
+	g._focus = 5
+	g._key(KEY_ESCAPE)
+	ok(not g.home_more and g.overlay == "", "返回（Esc／B）先收起抽屜")
+	ok(g._gen != gen0 and g._focus == 3, "收抽屜換世代（舊按鈕作廢，同幀 B→A 點不到收起的項目）、焦點回到「更多」")
+	var src0: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	ok(src0.find("btn_group = \"home_more\" if i >= 3 else \"\"") >= 0, "R14：更多＋抽屜兩塊算一個控制")
+	var pq: Array = g.home_plaques()
+	ok(not bool(pq[1][4]) and bool(pq[0][4]) and bool(pq[3][4]), "試玩版：遠征停用；對戰、更多照開（抽屜裡遊戲間停用照舊）")
+	g.home_more = true
+	ok(not bool(g.home_plaques()[4][4]), "試玩版：抽屜裡的遊戲間停用")
+	g.home_more = false
+	var src: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
+	ok(src.find("print(\"FIRSTRUN \"") >= 0 and src.find("[4, \"playroom\", true], [5, \"hub_collect\", true]") >= 0, "截圖流程：冷啟點擊走查（FIRSTRUN）、手把走查涵蓋抽屜（PADWALK）")
 	g.free()

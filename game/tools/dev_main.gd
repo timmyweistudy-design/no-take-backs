@@ -6,8 +6,8 @@ const PANELLESS_OVERLAYS := ["ai_busy"]
 ## 由各覆蓋層的繪圖函式靜態整理；之後新增覆蓋層要加進來，否則守衛只會要求面板。
 const DECK_CAP := 0.7
 const DECK_MIN_PX := 9.0
-const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat", "nb_words", "daily_past", "songbook", "campaign"]
-const OVERLAY_PANEL := ["postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
+const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat", "nb_words", "daily_past", "songbook", "campaign"]
+const OVERLAY_PANEL := ["first_run", "postcard", "pause_menu", "confirm", "fs_confirm", "leave", "slots"]
 ## 開發工具入口（第七輪 H3，原 scripts/ui/main.gd）：自動截圖、版面報告、商店膠囊圖、實機影片、效能與記憶體量測。
 ## 匯出設定排除 tools/，所以出貨版沒有這些；從專案路徑帶對應參數啟動時由 scripts/ui/main.gd 換成這一支。
 
@@ -672,6 +672,9 @@ func _run_screenshots() -> void:
 	for i in 160:
 		demo.step()
 	await _snap("01_title.png")
+	home_more = true   # 1.6.0 B05：「更多」抽屜打開（遊戲間、收藏）
+	await _snap("v160_01m_title_more.png")
+	home_more = false
 	overlay = "hub_play"   # V1.5 主畫面第二層卡片
 	await _snap("01b_hub_play.png")
 	overlay = "hub_challenge"
@@ -1042,8 +1045,9 @@ func _run_screenshots() -> void:
 	await _shots_cmd()
 	await _shots_v13()
 	await _shots_v16()
-	# 1.6.0 B04：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
+	# 1.6.0 B04／B05：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
 	await _lobby_pad_walk()
+	await _first_run_walk()
 	await _pad_walk()
 	get_tree().quit()
 
@@ -2058,15 +2062,26 @@ func _pad_walk() -> void:
 	_go_title()
 	await _pw_frames(3)
 	await _pw_cycle("標題")
-	for step in [[0, "hub_play"], [1, "hub_gauntlet"], [2, "hub_challenge"], [3, "playroom"], [4, "hub_collect"], [5, "settings"]]:   # V1.5：五塊木牌（0～4）＋系統列（5 設定、6 離開；1.5.0 代碼移到收藏，下面另走）
+	# 1.6.0 B05：三主牌（0～2）＋「更多」（3，抽屜；打開後 4 遊戲間、5 收藏）＋系統列（抽屜關著時 4 設定、5 離開）
+	for step in [[0, "hub_play", false], [1, "hub_gauntlet", false], [2, "hub_challenge", false], [4, "playroom", true], [5, "hub_collect", true], [4, "settings", false]]:
 		_go_title()
+		home_more = false
+		if step[2]:
+			await _pw_pick(3, "標題→更多")
+			_pw_check(home_more, "標題→更多：抽屜沒打開")
 		await _pw_pick(step[0], "標題→" + str(step[1]))
 		_pw_check(overlay == step[1], "標題→%s：現在是 %s" % [step[1], overlay])
 		await _pw_cycle(str(step[1]))
 		await _pw_btn(JOY_BUTTON_B)
 		_pw_check(overlay == "", "%s：B 關不掉" % step[1])
 	_go_title()
-	await _pw_pick(4, "標題→收藏")
+	home_more = false
+	await _pw_pick(3, "標題→更多")
+	await _pw_btn(JOY_BUTTON_B)
+	_pw_check(not home_more and overlay == "", "更多抽屜：B 收不起來")
+	_go_title()
+	await _pw_pick(3, "標題→更多")
+	await _pw_pick(5, "更多→收藏")
 	await _pw_pick(7, "收藏→代碼")   # 1.5.0：代碼在收藏第 8 張
 	_pw_check(overlay == "codes", "收藏→代碼：現在是 %s" % overlay)
 	await _pw_cycle("codes")
@@ -2579,6 +2594,61 @@ func _shots_v161() -> void:
 ## 結果印在 run.log：NOTEPIN OK／FAIL（驗收鏈數 24 組都要 OK）。存檔已是截圖前綴，B 關掉記住的「看過」不碰正式存檔。
 ## 1.6.0 B04（S1）：大廳手把 ≤3 步開戰——真的畫面、真的手把 A（走 _input），從打開大廳（第一步）按到進入擺陣，
 ## 印 LOBBYPAD OK／FAIL；走完回到大廳第三步、還原手把模式（之後的截圖照舊）。
+## 1.6.0 B05（S9）：冷啟到開戰的點擊數——真畫面、真的滑鼠點擊（走 _input）：首開便條按「開第一局」→ 大廳確認步按「開戰」→ 擺陣。
+## 印 FIRSTRUN OK／FAIL（點擊數、便條面積比、和示範戰場框相交否）；走完回到標題。
+func _first_run_walk() -> void:
+	var pad0: bool = pad_mode
+	var had_dis: bool = shot_state.has("dis")
+	shot_state.erase("dis")
+	var fd0 = Save.s("first_done")
+	var data0: Dictionary = Save.data.duplicate(true)
+	var rng0: int = rng.state
+	Save.set_setting("first_done", false)   # 真的冷啟：沒設定過＝開機那一支判斷打開首開（不是手動指定疊層）
+	var frame := func() -> void:
+		queue_redraw()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+	var click := func(p: Vector2) -> void:
+		for dn in [true, false]:
+			var e := InputEventMouseButton.new()
+			e.button_index = MOUSE_BUTTON_LEFT
+			e.position = p
+			e.pressed = dn
+			_input(e)
+			await get_tree().process_frame
+	_go_title()
+	_boot_first_run(true)   # 和開機同一支（截圖模式也照走）
+	await frame.call()
+	var booted: bool = overlay == "first_run"
+	var R: Rect2 = first_run_rect()
+	var area: float = R.get_area() / (1280.0 * 800.0)
+	# 標題示範戰場在畫面上的框（game_screens 標題的鏡頭：縮 0.72、靠右；和 _draw 同一組數字）
+	var fz := 0.72
+	var off := Vector2(1270.0 - (ORIGIN.x + FIELD.x) * fz, 400.0 - (ORIGIN.y + FIELD.y / 2.0) * fz)
+	var field := Rect2(ORIGIN * fz + off, FIELD * fz)
+	var hits_field: bool = R.intersects(field)
+	var clicks := 0
+	var cw: float = R.size.x - 40.0
+	var hw: float = (cw - 8.0) / 2.0
+	await click.call(Rect2(R.position.x + 20.0 + hw + 8.0, R.end.y - 18.0 - 48.0, hw, 48.0).get_center())   # 開第一局
+	clicks += 1
+	await frame.call()
+	var in_lobby: bool = overlay == "lobby" and lobby_step == 2
+	await click.call(Rect2(966, 700, 234, 48).get_center())   # 大廳確認步「開戰」
+	clicks += 1
+	for i in 3:
+		await get_tree().process_frame
+	var ok: bool = booted and in_lobby and state == St.PLACE and clicks <= 3 and area <= 0.35 and not hits_field
+	print("FIRSTRUN ", "OK" if ok else "FAIL", " ", JSON.stringify({"booted": booted, "clicks": clicks, "lobby_confirm": in_lobby, "place": state == St.PLACE, "note_area": snappedf(area, 0.001), "hits_field": hits_field}))
+	Save.set_setting("first_done", fd0)
+	Save.data = data0
+	rng.state = rng0
+	_go_title()
+	overlay = ""
+	pad_mode = pad0
+	if had_dis:
+		shot_state["dis"] = true
+
 func _lobby_pad_walk() -> void:
 	var pad0: bool = pad_mode
 	# 走查真的開戰：會寫 last_rules、蓋章數、消耗亂數——全部存起來、走完還原（不然之後截圖的 AI 陣容、規則都變了；b04c 抓到 74_cmd_cast 0→423）

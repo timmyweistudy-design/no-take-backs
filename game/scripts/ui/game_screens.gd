@@ -150,8 +150,7 @@ func _ready() -> void:
 		Save.prefix = "shot_"
 		Save.load_all()
 	_go_title()   # 截圖、影片、效能量測由 main 接手（S8）
-	if not bool(Save.s("first_done")) and shot_dir == "" and not video_mode and DisplayServer.get_name() != "headless":
-		overlay = "first_run"   # V1.5：第一次啟動先問語言、字級、無障礙
+	_boot_first_run()
 	if not video_mode and overlay != "first_run":
 		intro_begin()   # 1.3.0 §13 掌燈開門（第一次；有第一次設定時等設定完才播）
 	boot_parts["title"] = Time.get_ticks_msec()
@@ -522,7 +521,9 @@ func _key(k: int) -> void:
 				elif k == KEY_TAB:
 					_move_focus(1)
 			KEY_ESCAPE:
-				if overlay == "ai_busy":
+				if overlay == "" and state == St.TITLE and bool(get("home_more")):
+					call("_home_more_set", false)   # 1.6.0 B05：返回先收起「更多」抽屜（換世代、焦點回到「更多」）
+				elif overlay == "ai_busy":
 					pass      # 第十輪 I4：AI 計算中不能取消
 				elif overlay == "first_run":
 					Save.set_setting("first_done", true)   # V1.5：跳過第一次啟動的問題
@@ -601,6 +602,11 @@ func _key(k: int) -> void:
 			_request_leave()
 
 
+
+## V1.5：第一次啟動先問語言、字級、無障礙（1.6.0 B05：抽成一支，開機與截圖流程的冷啟走查共用；force＝截圖模式也照走）
+func _boot_first_run(force := false) -> void:
+	if not bool(Save.s("first_done")) and (force or (shot_dir == "" and not video_mode and DisplayServer.get_name() != "headless")):
+		overlay = "first_run"
 
 func _throttle_when_minimized() -> void:
 	var mini: bool = DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MINIMIZED
@@ -759,7 +765,7 @@ func _draw() -> void:
 	# 1.6.0 B06（方案 P1.3 主材質全站）：桌燈下的紙——全站紙面（羊皮紙、卡紙）乘桌燈色調、紙上彩色字用深墨（B03 結果紙同一套）。
 	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳＝挑戰簿（B04：簿紙再暗一階，貼圖上蓋平塗層讓斑紋減半，暗斑不 <4.5:1）；
 	# 簡化介面照舊平塗亮紙（雙階色塊規格）。
-	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and not no_desk_paper
+	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and overlay != "first_run" and not no_desk_paper   # 1.6.0 B05：首開便條是一張新紙（亮紙、墨字；Hydrogen B05 r1 #1）
 	paper_tone = PAL.PAPER_DESK_TONE if desk_paper else Color.WHITE
 	paper_book = desk_paper and (overlay == "lobby" or note_ret == "lobby")   # 1.6.0 B04：大廳＝挑戰簿（B06 留給本批）
 	ink_deep = desk_paper
