@@ -1,0 +1,1758 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e419-b2cd-7173-8e28-932ef1b8f963
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B11 第 3 輪＝最後一輪）。只讀。專案根目錄＝目前資料夾。
+第 2 輪 coordination/v1600-impl/b11-r1/codex2.md（不可 2 條）；新差異 coordination/v1600-impl/b11-r1/diff3.patch（快照 build/cg/b11/game）。
+處理：①展示時鐘 `anim_clock()`＝_disp_tick()×0.05（暫停、全場頓幀凍結、倍速等比）；轉身開始 turn_start_t、翻面 turn_flip_t（新，turn_t 留給揚塵照舊）、方向切換 hd_t 都記展示時鐘，turn_crouch 與方向過渡用它判斷。②方向過渡那一閃（blending）不疊即時配件、不補畫 xray 輪廓。另依 Hydrogen r2：側↔背不插轉身格（轉身格朝鏡頭烘，插了會先露臉再背過去；要過渡得另烘背面轉身頁，留給原畫或 B13b），連拍工具改成照戰鬥模擬（face 連續插值、走路 |face|<0.9 由 draw_unit 走 3/4 正面頁）。TURNSTRIP OK；battle_visual 309 項。
+只看這些修正是否正確、有沒有新問題。附行號。最多 3 條、250 字內。第三輪後沒解的寫進裁決。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀第 2 輪意見、新差異與對應快照，核對這輪修正是否引入新問題。
+exec
+/bin/bash -lc "pwd; rg --files -g AGENTS.md -g codex2.md -g diff3.patch -g '*battle_visual*' -g '*turnstrip*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 288ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+game/tests/suites/battle_visual.gd.uid
+game/tests/suites/battle_visual.gd
+coordination/v140-impl/cat11-r1/codex2.md
+coordination/v1500-impl/cat06-r1/codex2.md
+coordination/v1500-impl/cat02-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/codex2.md
+coordination/v140-impl/cat08-r1/diff3.patch
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v1600-impl/b11-r1/diff3.patch
+coordination/v1600-impl/b11-r1/codex2.md
+coordination/v1500-impl/cat05-r1/codex2.md
+coordination/v1600-impl/b10-r1/codex2.md
+coordination/v1500-impl/cat01-r1/diff3.patch
+coordination/v1500-impl/cat01-r1/codex2.md
+coordination/v1600-impl/b09-r1/diff3.patch
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1500-impl/cat03-r1/diff3.patch
+coordination/v1500-impl/cat03-r1/codex2.md
+coordination/v1500-impl/cat04-r1/codex2.md
+coordination/v1600-impl/b05-r1/codex2.md
+coordination/v1500-impl/cat07-r1/diff3.patch
+coordination/v1500-impl/cat07-r1/codex2.md
+coordination/v1600-impl/b03-r1/codex2.md
+coordination/v1600-impl/b04-r1/codex2.md
+coordination/v1600-impl/b08-r1/codex2.md
+coordination/v1600-impl/b02-r1/codex2.md
+coordination/v1600-impl/b08-r1/diff3.patch
+coordination/v1600-impl/b01-r1/codex2.md
+coordination/v1600-impl/b07-r1/codex2.md
+coordination/v1600-impl/b06-r1/diff3.patch
+coordination/v1600-impl/b06-r1/codex2.md
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b11-r1/codex2.md; cat coordination/v1600-impl/b11-r1/diff3.patch; rg --files build/cg/b11/game | head -50; for p in /AGENTS.md /mnt/AGENTS.md /mnt/c/AGENTS.md /mnt/c/Users/AGENTS.md /mnt/c/Users/timmy/AGENTS.md /mnt/c/Users/timmy/projects/AGENTS.md; do if [ -f "$p" ]; then cat "$p"; fi; done' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 102ms:
+- P1 [battle_units:1132](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b11/game/scripts/ui/battle/battle_units.gd:1132)：只排除 paused，未排除全場 hitstop；turn_crouch 仍用持續增加的 time，未受擊的兵在頓幀中仍壓彈。1140 的方向過渡也會在暫停／頓幀中到期跳格，應改用會凍結的展示時鐘。
+- P2 [battle_units:1159](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b11/game/scripts/ui/battle/battle_units.gd:1159)：南北轉回側面的過渡期間，主體用過渡 face、walk=0，配件與 xray 卻仍用原 face、walk；密陣會疊出不同姿勢的輪廓。應共用本幀實際繪製姿勢，或過渡期間停用補畫。
+
+結論：不可
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -484,8 +484,31 @@
+ const HEAD_FRONT_C := 0.55   # 往南走用的轉身角度（既有走路轉身頁 WT_C 0.55，22 種都有）
+ var hd_state := {}
+ var mag_pose: Array = []    # 1.3.0 §2：被選那隻這一幀的 [面向, 受擊, 表情]（單位迴圈寫入、放大鏡小窗讀）
++## 1.6.0 B11（Hydrogen r1：方向切換直接換姿勢、缺中格）：方向一換就記 [時間, 舊, 新]，HD_BLEND 秒內插一格轉身格過渡
++const HD_BLEND := 0.08
++var hd_t := {}
++## 這一格畫哪一種（戰鬥與連拍工具共用；Codex B11 r1 #4）：-1＝背面走路頁、1＝3/4 正面走路頁、0＝側面（含轉身格）
++func dir_draw_mode(type: int, hd: int, cache_ok: bool) -> int:
++	if hd < 0 and cache_ok and sprites.bw_tex.has(type):
++		return -1
++	if hd > 0 and cache_ok and sprites.wt_loc.has(type):
++		return 1
++	return 0
++
++## 兩個方向之間過渡用的轉身格寬度（cos）：側↔正面 0.8、側↔背面 0.55、正面↔背面 0.3
++## 側↔背面不插（1.0＝不插）：轉身格是朝鏡頭烘的，插在轉向背面的中間會先露臉再突然背過去（Hydrogen B11 r2）；
++## 要有「轉向背面」的過渡得另烘背面轉身頁（圖集容量另算），留給原畫或 B13b。
++static func hd_blend_c(a: int, b: int) -> float:
++	if a == b:
++		return 1.0
++	if a == 0 or b == 0:
++		return 0.8 if (a + b) > 0 else 1.0
++	return 0.3
++
+ func heading_of(id: int, mx: int, my: int, walking: bool) -> int:
+ 	if not walking or (mx == 0 and my == 0):
++		if int(hd_state.get(id, 0)) != 0:
++			hd_t[id] = [anim_clock(), int(hd_state[id]), 0]
+ 		hd_state.erase(id)
+ 		return 0
+ 	var cur: int = int(hd_state.get(id, 0))
+@@ -498,6 +521,8 @@
+ 		nxt = 0
+ 	elif cur != 0 and signi(my) != cur and ay * 10 > ax * 13:
+ 		nxt = 1 if my > 0 else -1
++	if nxt != cur:
++		hd_t[id] = [anim_clock(), cur, nxt]
+ 	hd_state[id] = nxt
+ 	return nxt
+ 
+@@ -506,6 +531,23 @@
+ 	return HK * focus_scale(u.id)
+ 
+ ## 1.3.0 §5.1：跟拍（點兵讓鏡頭跟）的那一隻畫成 1.4 倍（基準 1.25 倍的 1.12 倍）；只改畫面。
++## 1.6.0 B11（P5.1）程式轉身退路的縱向節奏（橫向靠轉身格）：轉身剛開始 TURN_ANT 秒內壓 3%（比受擊小得多，
++## 1.3 起「轉身不往下壓、會像受擊」的顧慮——量級壓到受擊的三分之一以下）；翻面後 0.25 秒內往上拉 3%（微彈）。
++const TURN_ANT := 0.06
++const TURN_SQ := 0.03
++func turn_crouch(id: int) -> float:
++	var c := 1.0
++	var now := anim_clock()   # 展示時鐘：暫停、頓幀凍結（Codex B11 r2 #1）
++	if turn_start_t.has(id):
++		var k0: float = (now - float(turn_start_t[id])) / TURN_ANT
++		if k0 >= 0.0 and k0 < 1.0:
++			c *= 1.0 - TURN_SQ * sin(k0 * PI)
++	if turn_flip_t.has(id):
++		var k1: float = (now - float(turn_flip_t[id])) / 0.25
++		if k1 >= 0.0 and k1 < 1.0:
++			c *= 1.0 + TURN_SQ * sin(k1 * PI)
++	return c
++
+ const FOCUS_SCALE := 1.4 / 1.25
+ const BOSS_SIL_PX := 3.0   # 1.6.0 B10（P4.4）：巨獸外框多加的畫面像素
+ func focus_scale(id: int) -> float:
+@@ -1090,18 +1132,28 @@
+ 			crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
+ 		if u.id == follow_id:
+ 			mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
++		if live and not paused and hurt <= 0.0 and not bool(Save.s("reduce_motion")):
++			crouch *= turn_crouch(u.id)   # 1.6.0 B11（P5.1 程式轉身退路）：預備壓縮（很輕）→ 側緣過渡（轉身格）→ 落定微彈（往上拉，不往下壓）；暫停、受擊中、減少動態不套（Codex r1 #3 #6）
+ 		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
+ 		var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
+ 		var chip := (2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0   # 1.3.0 §5.2 受傷掉漆
+ 		var drawn := false
+ 		var cache_ok: bool = sprites != null and sprites.is_ready(cbm()) and not bool(Save.s("plain_ui"))
+-		if hd < 0 and cache_ok:
++		var hb = hd_t.get(u.id)
++		var blending := false
++		if live and hb != null and anim_clock() - float(hb[0]) < HD_BLEND and hd_blend_c(int(hb[1]), int(hb[2])) < 1.0 and cache_ok and sprites.has_turn(u.type) and not u.boss:
++			blending = true
++			# 方向切換的過渡格：轉身格（站姿）一閃，不直接從側面跳到正面／背面
++			_unit(p, u.type, u.team, (signf(face) if face != 0.0 else 1.0) * hd_blend_c(int(hb[1]), int(hb[2])), 0.0, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
++			drawn = true
++		var dmode := dir_draw_mode(u.type, hd, cache_ok)
++		if dmode < 0 and not drawn:
+ 			drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
+ 			if drawn and chip > 0:
+ 				_chip_at(p, u.type, face, usc, chip, alpha)   # 背面也有掉漆（Codex cat05 #4）
+ 		if not drawn:
+ 			# 往南：只有圖集有走路轉身頁時才用 3/4 正面（沒有就照舊側面，不讓向量畫只橫縮；Codex cat05 #6）
+-			var front_ok: bool = hd > 0 and cache_ok and sprites.wt_loc.has(u.type)
++			var front_ok: bool = dmode > 0
+ 			var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
+ 			if u.boss and not bool(Save.s("plain_ui")):
+ 				# 1.6.0 B10（P4.4）巨獸外框加粗：先墊一層往外擴的墨色剪影（畫面約 +3px），再正常畫
+@@ -1109,9 +1161,9 @@
+ 				Art.unit(self, p, u.type, u.team, fdraw, walk, at, 0.0, alpha, ut, usc, cbm(), 0, lean, crouch, variant)
+ 				Art.sil_w = 0.0
+ 			_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+-		if live and not u.hidden and hd == 0:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）
++		if live and not u.hidden and hd == 0 and not blending:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）；1.6.0 B11：方向過渡那一閃也不疊（Codex r2 #2）
+ 			_spring_acc(p, u.type, u.team, face, usc, crouch, lean, walk, at, alpha, u.id, ut)   # 1.4.0 §5.2 即時配件（延遲回彈）
+-		if live and not u.hidden and hd == 0:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
++		if live and not u.hidden and hd == 0 and not blending:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
+ 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], usc])
+ 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+ 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
+--- a/game/scripts/ui/battle/battle_state.gd
++++ b/game/scripts/ui/battle/battle_state.gd
+@@ -68,6 +68,10 @@
+ 
+ 
+ ## 畫面上現在播到第幾 tick（含小數，插值用）。
++## 1.6.0 B11（Codex r2）：展示時鐘（秒，1 倍速換算）——跟著模擬 tick 走：暫停、全場頓幀凍結，倍速等比加快
++func anim_clock() -> float:
++	return _disp_tick() * 0.05
++
+ func _disp_tick() -> float:
+ 	if view == null:
+ 		return 0.0
+@@ -395,6 +399,9 @@
+ 	drag_t.clear()
+ 	face_now.clear()
+ 	turn_t.clear()
++	turn_start_t.clear()
++	turn_flip_t.clear()
++	set("hd_t", {})
+ 	stop_t.clear()
+ 	atk_face.clear()
+ 	idle_since.clear()
+@@ -504,12 +511,17 @@
+ 		var f0: float = float(face_now.get(u.id, tgt))
+ 		var f1: float = move_toward(f0, tgt, delta * 11.0)
+ 		face_now[u.id] = f1
++		if absf(f0) >= 0.999 and f1 != f0:
++			turn_start_t[u.id] = anim_clock()   # 1.6.0 B11：轉身開始那一刻（預備壓縮從這裡算；展示時鐘）
+ 		if f0 != 0.0 and signf(f1) != signf(f0):
+ 			turn_t[u.id] = time   # V1.3 A1a：翻面那一刻（腳下揚塵、展開回彈從這裡算）
++			turn_flip_t[u.id] = anim_clock()   # 1.6.0 B11：同一刻的展示時鐘（落定微彈用）
+ 
+ ## 轉身過場（V1.3 A1a）：像厚木牌俐落翻面，不是紙片等比夾扁。
+ ## 寬度不低於 TURN_MIN_W（窄位直接跳過去），展開段 X 微回彈 1.04；不做 Y 下壓（混戰時會像受擊）。
+ const TURN_MIN_W := 0.45
++var turn_start_t := {}   # 1.6.0 B11：{兵 id: 轉身開始的展示時鐘}
++var turn_flip_t := {}    # 1.6.0 B11：{兵 id: 翻面那一刻的展示時鐘}
+ const TURN_BOUNCE := 0.04
+ func _face_of(u) -> float:
+ 	var f: float = face_now.get(u.id, signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0))
+--- a/game/scripts/ui/units/kingdom.gd
++++ b/game/scripts/ui/units/kingdom.gd
+@@ -3,6 +3,27 @@
+ 
+ ## variant：0 一般招式、1 交替招式（劍士上挑；其他兵種同一般）。第三輪 R4。
+ ## 第四輪：variant 2＝新兵的專屬動作（長槍兵拒騎頓槍、投彈兵被貼身拿點火棒敲、醫者舉杖施法、鼓手大力敲、狂戰士雙斧高舉）。
++## 劍：斜舉的亮刃（攻擊時往前揮）；前搖往後拉 35°、揮擊揮到 +60° 以上。
++## V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
++## 1.6.0 B11（Hydrogen r1）：抽出來——背面時劍在身前，要在身體與頭之前畫（被擋住），原本畫在頭上面像劍壓頭前。
++static func _sword_blade(ci: CanvasItem, w: float, sway: float, variant: int, a: float) -> void:
++	var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5) + sway   # 第十輪 F3：揮幅加大；1.6.0 B10（P4.1）：待機劍往前上方斜伸（剪影往右突出，和直立杖、圓團分開），揮到底的角度不變
++	if variant == 1:
++		# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
++		ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
++	_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
++	var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
++	var dir := Vector2(cos(ang), sin(ang))
++	var tip := hand + dir * 34.0   # 1.6.0 B10（P4.1）：劍刃 24→34、加寬，往前上方斜伸（剪影多一道斜線）
++	var side := dir.orthogonal() * 4.2
++	# V1.5：握柄＋柄頭在手後、護手在刃根（手往前 3.5px），拳頭蓋住握柄——不再像刀刃插在圓點上被切斷
++	_grip(ci, hand, dir, 6.0, a)
++	var root := hand + dir * 3.5
++	_poly(ci, PackedVector2Array([root + side, tip + side * 0.3, tip + dir * 3.0, tip - side * 0.3, root - side]), Color("#f4f7ff"), a)
++	_line(ci, root - dir.orthogonal() * 7.0, root + dir.orthogonal() * 7.0, GOLD, 3.0, a)
++	_fist(ci, hand, dir, a)
++	_part_end(ci)
++
+ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: float, a: float, t: float, angry := false, variant := 0) -> void:
+ 	# 腿（V9 P2）：腳踩地不動，上半身另外起伏；腿從腰連到腳，分隔不會斷開
+ 	var ft: Array = Gait.feet(type, walk)
+@@ -20,6 +41,8 @@
+ 	# 第七輪 C2：小披風分隊，藍方圓角、紅方燕尾（除了圍巾已經很明顯的刺客與騎兵）
+ 	if not back:
+ 		_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # 背後的東西先畫（被身體擋住）
++	if back and type == D.SWORD:
++		_sword_blade(ci, w, sway, variant, a)   # 1.6.0 B11：背面時劍在身前，被身體、頭擋住（先畫）
+ 	# 身體（圓胖的上衣，隊伍色；狂戰士赤膊，隊伍色只留在獸皮披肩與褲頭；醫者白袍）
+ 	var bw0 := 13.0 if type == D.SHIELD else 10.5   # 第七輪 C1-2：盾兵身體加寬
+ 	var body := PackedVector2Array()
+@@ -68,27 +91,10 @@
+ 			_part(ci, 0.0, 0.0)
+ 			_hat_off(ci)
+ 			_part_end(ci)
+-			# 劍：斜舉的亮刃（攻擊時往前揮）
+-			# 前搖往後拉 35°、揮擊揮到 +60° 以上
+-			# V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
+-			var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5) + sway   # 第十輪 F3：揮幅加大；1.6.0 B10（P4.1）：待機劍往前上方斜伸（剪影往右突出，和直立杖、圓團分開），揮到底的角度不變
+-			if variant == 1:
+-				# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
+-				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
+-			# 第七輪 C1-1：隊伍色短領巾；劍身加寬、十字護手
++			# 第七輪 C1-1：隊伍色短領巾
+ 			_poly(ci, PackedVector2Array([Vector2(-9, -24), Vector2(8, -24), Vector2(6, -20), Vector2(-3, -19), Vector2(-5, -14), Vector2(-9, -17)]), tc.lightened(0.15), a, true)
+-			_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
+-			var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
+-			var dir := Vector2(cos(ang), sin(ang))
+-			var tip := hand + dir * 34.0   # 1.6.0 B10（P4.1）：劍刃 24→34、加寬，往前上方斜伸（剪影多一道斜線）
+-			var side := dir.orthogonal() * 4.2
+-			# V1.5：握柄＋柄頭在手後、護手在刃根（手往前 3.5px），拳頭蓋住握柄——不再像刀刃插在圓點上被切斷
+-			_grip(ci, hand, dir, 6.0, a)
+-			var root := hand + dir * 3.5
+-			_poly(ci, PackedVector2Array([root + side, tip + side * 0.3, tip + dir * 3.0, tip - side * 0.3, root - side]), Color("#f4f7ff"), a)
+-			_line(ci, root - dir.orthogonal() * 7.0, root + dir.orthogonal() * 7.0, GOLD, 3.0, a)
+-			_fist(ci, hand, dir, a)
+-			_part_end(ci)
++			if not back:
++				_sword_blade(ci, w, sway, variant, a)   # 背面時劍拿在身前＝被身體擋住，已在身體之前畫過（1.6.0 B11）
+ 		D.SHIELD:
+ 			# 圓頭盔＋面罩
+ 			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+@@ -386,6 +392,24 @@
+ 		_c(ci, Vector2(26, -35), 1.8, OUT, a, false)
+ 		ci.draw_circle(Vector2(26.6, -35.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
+ 
++## 騎兵長槍＋小旗（衝鋒時放平前刺）。1.6.0 B11（Hydrogen r1）抽出來：背面時槍在騎士身前，要在騎士之前畫（被擋住）。
++static func _cav_lance(ci: CanvasItem, tc: Color, w: float, walk: float, a: float) -> void:
++	var tilt: float = (-0.7 + w * 0.5 if w < 0.0 else -0.7 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺；1.6.0 B10（P4.1）：待機槍放低往前平伸（剪影變寬長，和斜舉劍的劍士分開），前搖舉到原本高度
++	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
++	var base := Vector2(-6, -30)
++	var dir := Vector2(cos(tilt), sin(tilt))
++	var tip := base + dir * 60.0   # 第七輪 C1-4：騎槍加長；1.6.0 B10（P4.1）50→60
++	_line(ci, base, tip, WOOD, 2.6, a)
++	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
++	var f0 := base + dir * 32.0
++	_poly(ci, PackedVector2Array([f0, f0 + dir * 11.0, f0 + dir * 3.0 + dir.orthogonal() * 10.0]), tc.lightened(0.2), a)   # 隊伍色小旗放大
++	# V1.5：騎士的手握在槍桿上（原本沒有手，像槍浮在胸前）；手前一個小護盤
++	var gp := base + dir * 13.0
++	var o := dir.orthogonal()
++	_poly(ci, PackedVector2Array([gp + dir * 3.0 + o * 4.5, gp + dir * 9.0, gp + dir * 3.0 - o * 4.5]), STEEL, a)
++	_fist(ci, gp, dir, a)
++	_part_end(ci)
++
+ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry := false) -> void:
+ 	var wk := Gait.ph(walk)
+ 	var gallop := sin(wk) * 3.5 if wk != 0.0 else 0.0
+@@ -423,6 +447,8 @@
+ 		_line(ci, Vector2(-9, -25), Vector2(-14, -34), PAL.TRINKET_BRASS, 2.0, a)
+ 		_c(ci, Vector2(-15, -36), 3.4, PAL.TRINKET_BRASS, a)
+ 		_c(ci, Vector2(-15, -36), 1.3, PAL.TRINKET_LEATHER, a, false)
++	if back:
++		_cav_lance(ci, tc, w, walk, a)   # 1.6.0 B11：背面時槍在身前，被騎士擋住（先畫）
+ 	# 騎士（小一號；V1.3 A1b：轉身時騎士不跟著馬壓扁）
+ 	var hy := -44.0
+ 	_part(ci, 0.0, 0.3)
+@@ -434,22 +460,8 @@
+ 	_eyes(ci, Vector2(2.0, hy + 1), a, t, angry)
+ 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.0, true)
+ 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(GOLD, a), 3.5, true)
+-	# 長槍＋小旗（衝鋒時放平前刺）
+-	var tilt: float = (-0.7 + w * 0.5 if w < 0.0 else -0.7 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺；1.6.0 B10（P4.1）：待機槍放低往前平伸（剪影變寬長，和斜舉劍的劍士分開），前搖舉到原本高度
+-	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
+-	var base := Vector2(-6, -30)
+-	var dir := Vector2(cos(tilt), sin(tilt))
+-	var tip := base + dir * 60.0   # 第七輪 C1-4：騎槍加長；1.6.0 B10（P4.1）50→60
+-	_line(ci, base, tip, WOOD, 2.6, a)
+-	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
+-	var f0 := base + dir * 32.0
+-	_poly(ci, PackedVector2Array([f0, f0 + dir * 11.0, f0 + dir * 3.0 + dir.orthogonal() * 10.0]), tc.lightened(0.2), a)   # 隊伍色小旗放大
+-	# V1.5：騎士的手握在槍桿上（原本沒有手，像槍浮在胸前）；手前一個小護盤
+-	var gp := base + dir * 13.0
+-	var o := dir.orthogonal()
+-	_poly(ci, PackedVector2Array([gp + dir * 3.0 + o * 4.5, gp + dir * 9.0, gp + dir * 3.0 - o * 4.5]), STEEL, a)
+-	_fist(ci, gp, dir, a)
+-	_part_end(ci)
++	if not back:
++		_cav_lance(ci, tc, w, walk, a)   # 1.6.0 B11：背面時槍在身前，已在騎士之前畫過
+ 
+ 
+ ## V1.5 刺客短刀：hand＝握點，end＝刀尖。刃從護手往刀尖，握柄與柄頭在手後，深色手套蓋住握柄。
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1650,6 +1650,8 @@
+ 			_run_mem_check.call_deferred(a.substr(12))
+ 		elif a.begins_with("--sil="):
+ 			_run_sil.call_deferred(a.substr(6))
++		elif a.begins_with("--turn-strip="):
++			_run_turn_strip.call_deferred(a.substr(13))
+ 		elif a.begins_with("--bake-pack="):
+ 			_run_bake_pack.call_deferred(a.substr(12))
+ 		elif a.begins_with("--pack-bench="):
+@@ -1867,7 +1869,168 @@
+ 	print("SIL ", out_path, " ", err)
+ 	get_tree().quit(0 if err == OK else 1)
+ 
++## 1.6.0 B11（P5.5、S3）轉身連拍：劍士、騎兵 × 兩隊 × 色盲開關 × 五方向（東、西＝側面；東南、西南＝往南走的 3/4 正面；北＝背面）
++## 兩兩轉換 20 種＝160 組合，每組 8 格。每格記走哪條畫法（圖集／向量＝缺格）；原地轉身（東↔西）另量腳底接地點左右漂移（腳滑比）。
++## 用法：<exe> --path game --resolution 1280x800 -- --turn-strip=<輸出資料夾（Windows 路徑）>   每頁存 PNG、最後存 turn_strip.json，印 TURNSTRIP
++var ts_mode := false
++var ts_page: Array = []   # 這一頁要畫的 [type, team, from, to, k, 格子左上]
++var ts_routes: Array = []   # 這一頁每格實際走的畫法
++const TS_DIRS := ["E", "W", "SE", "SW", "N"]
++const TS_CELL := Vector2(78, 96)
++func _ts_state(a: String, b: String, k: float) -> Dictionary:
++	# 照戰鬥的實際行為模擬（Hydrogen B11 r2）：朝向 face 在 8 格之間連續變（face_now 的轉身插值），走路時 |face|<0.9 由
++	# draw_unit 自動走 3/4 正面頁（正中過渡）；南北頁照 heading 前後半；方向切換中間插同一支 hd_blend_c 的轉身格（側↔背不插，見 hd_blend_c）
++	var fa := 1.0 if a in ["E", "SE"] else (-1.0 if a in ["W", "SW"] else (1.0 if b in ["E", "SE"] else -1.0))
++	var fb := 1.0 if b in ["E", "SE"] else (-1.0 if b in ["W", "SW"] else fa)
++	var face := lerpf(fa, fb, k)
++	if absf(face) < 0.18:
++		face = 0.18 * (signf(fb) if k >= 0.5 else signf(fa))
++	var walking := a in ["SE", "SW", "N"] or b in ["SE", "SW", "N"]
++	var ha := 1 if a in ["SE", "SW"] else (-1 if a == "N" else 0)
++	var hb := 1 if b in ["SE", "SW"] else (-1 if b == "N" else 0)
++	var hd := ha if k < 0.5 else hb
++	var c := hd_blend_c(ha, hb)
++	if ha != hb and c < 1.0 and k > 0.36 and k < 0.64:
++		return {"face": signf(face) * c, "hd": 0, "walk": 0.0}
++	return {"face": face, "hd": hd, "walk": (0.3 + k * 4.0) if walking else 0.0}
++
++func _ts_draw_one(p: Vector2, type: int, team: int, st: Dictionary) -> String:
++	var face: float = st["face"]
++	var walk: float = st["walk"]
++	var hd: int = st["hd"]
++	var dm := dir_draw_mode(type, hd, true)   # 和戰鬥同一支選畫法（Codex B11 r1 #4）
++	if hd != 0 and dm == 0:
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"   # 要南北頁卻沒有＝缺格
++	if dm < 0:
++		sprites.draw_back_walk(self, p, type, team, face, walk, 0.0, 1.0, 0.0, UNIT_SCALE, 0.0, 1.0, cbm())
++		return "atlas"
++	if dm > 0:
++		sprites.draw_unit(self, p, type, team, signf(face) * HEAD_FRONT_C, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
++		return "atlas"
++	if absf(face) < 0.9 and not sprites.has_turn(type):
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"
++	if not sprites.has_type(type):
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"
++	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
++	return "atlas"
++
++func _run_turn_strip(out_dir: String) -> void:
++	Save.prefix = "shot_"
++	var res := {"combos": 0, "missing": 0, "missing_list": [], "slide": [], "pages": 0}
++	print("TS start")
++	for cbv in [false, true]:
++		Save.set_setting("colorblind", cbv)
++		_rebuild_sprites()
++		print("TS rebuild cb=", cbv)
++		var guard := 0
++		while not (sprites.is_ready(cbv) and sprites.build_done) and guard < 1200:
++			guard += 1
++			await get_tree().process_frame
++		sprites.ensure_turn_atk([D.SWORD, D.CAVALRY])   # 和開戰時同一支：出場兵種補烘轉身出手格＋背面走路頁
++		while not (sprites.bw_tex.has(D.SWORD) and sprites.bw_tex.has(D.CAVALRY)) and guard < 2400:
++			guard += 1
++			await get_tree().process_frame
++		print("TS ready cb=", cbv, " guard=", guard, " ready=", sprites.is_ready(cbv), " done=", sprites.build_done)
++		var jobs: Array = []
++		for type in [D.SWORD, D.CAVALRY]:
++			for team in 2:
++				for a in TS_DIRS:
++					for b in TS_DIRS:
++						if a != b:
++							jobs.append([type, team, a, b])
++		var per_page := 8   # 每頁 2 欄 × 4 列、列距 196（騎兵的槍伸很高，列距 98 會伸進上一列的腳底量測區）
++		for pg in range(0, jobs.size(), per_page):
++			ts_page = []
++			for ji in range(pg, mini(pg + per_page, jobs.size())):
++				var j: Array = jobs[ji]
++				var row := ji - pg
++				for f in 8:
++					ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 78 + (640 if row >= 4 else 0), 100 + (row % 4) * 196)])
++			ts_mode = true
++			queue_redraw()
++			await get_tree().process_frame
++			await RenderingServer.frame_post_draw
++			var img := get_viewport().get_texture().get_image()
++			img.save_png(out_dir.path_join("turn_strip_cb%d_%02d.png" % [int(cbv), pg / per_page]))
++			res["pages"] += 1
++			for ji in range(pg, mini(pg + per_page, jobs.size())):
++				var j: Array = jobs[ji]
++				res["combos"] += 1
++				var miss := 0
++				var xs: Array = []
++				for f in 8:
++					var idx := (ji - pg) * 8 + f
++					if ts_routes[idx] != "atlas":
++						miss += 1
++					if j[2] in ["E", "W"] and j[3] in ["E", "W"]:
++						xs.append(_ts_foot_x(img, ts_page[idx][5]))
++				if miss > 0:
++					res["missing"] += miss
++					res["missing_list"].append([j[0], j[1], int(cbv), j[2], j[3], miss])
++				if not xs.is_empty():
++					var lo := 1e9
++					var hi := -1e9
++					var bad := 0
++					for x in xs:
++						if x > -900.0:
++							lo = minf(lo, x)
++							hi = maxf(hi, x)
++						else:
++							bad += 1
++					# 八格都要量得到腳（Codex B11 r1 #5：量不到不能當沒滑）；量不到＝ 9.9（必失敗）
++					res["slide"].append([j[0], j[1], int(cbv), j[2], j[3], snappedf((hi - lo) / (36.0 * UNIT_SCALE / 0.92), 0.001) if bad == 0 and hi >= lo else 9.9])
++	ts_mode = false
++	Save.set_setting("colorblind", false)
++	var worst := 0.0
++	for sl in res["slide"]:
++		worst = maxf(worst, float(sl[5]))
++	res["slide_max"] = worst
++	var f := FileAccess.open(out_dir.path_join("turn_strip.json"), FileAccess.WRITE)
++	f.store_string(JSON.stringify(res))
++	f.close()
++	var ok: bool = res["combos"] == 160 and res["missing"] == 0 and worst <= 0.1
++	print("TURNSTRIP ", "OK" if ok else "FAIL", " combos=", res["combos"], " missing=", res["missing"], " slide_max=", worst)
++	get_tree().quit(0 if ok else 1)
++
++## 一格的腳底接地點：找到最低的前景列，取「最低 6 列」裡所有前景像素的平均 x（相對格子中心）——兩隻腳都算進去
++## （只取最低一列會只抓到靠前那隻腳，轉身時換腳就像在滑；B11 第一版的量法錯誤）
++func _ts_foot_x(img: Image, o: Vector2) -> float:
++	var x0 := int(o.x)
++	var y0 := int(o.y)
++	var low := -1
++	for yy in range(y0 + 95, y0 + 20, -1):
++		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):   # 畫面外 get_pixel 會給黑色（被當成腳）
++			var c := img.get_pixel(xx, yy)
++			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
++				low = yy
++				break
++		if low >= 0:
++			break
++	if low < 0:
++		return -999.0
++	var sx := 0.0
++	var n := 0
++	for yy in range(low - 5, low + 1):
++		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):
++			var c := img.get_pixel(xx, yy)
++			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
++				sx += xx
++				n += 1
++	return sx / maxi(1, n) - (x0 + 39)
++
+ func _draw() -> void:
++	if ts_mode:
++		draw_rect(Rect2(0, 0, 1280, 800), Color(0.5, 0.5, 0.5))
++		ts_routes = []
++		for e in ts_page:
++			var o: Vector2 = e[5]
++			var st := _ts_state(e[2], e[3], e[4])
++			ts_routes.append(_ts_draw_one(o + Vector2(39, 78), e[0], e[1], st))
++		draw_set_transform_matrix(Transform2D.IDENTITY)
++		return
+ 	if not sil_mode:
+ 		super._draw()
+ 		return
+--- a/game/scripts/ui/main.gd
++++ b/game/scripts/ui/main.gd
+@@ -2,7 +2,7 @@
+ ## 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。
+ 
+ const DEV := "res://tools/dev_main.gd"
+-const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil=", "--bake-pack=", "--pack-bench=", "--pack-selftest="]
++const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil=", "--bake-pack=", "--pack-bench=", "--pack-selftest=", "--turn-strip="]
+ 
+ func _ready() -> void:
+ 	for a in OS.get_cmdline_user_args():
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -855,7 +855,7 @@
+ 	ok(g.hd_state.is_empty(), "跳轉／新的一場清掉走向記錄")
+ 	var src: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+ 	ok(src.find("heading_of(u.id, u.mx, u.my") >= 0 and src.find("hurt <= 0.0") >= 0, "走向用模擬的 mx／my，受擊時不轉")
+-	ok(src.find("sprites.wt_loc.has(u.type)") >= 0, "沒有轉身頁時不硬轉（避免只橫縮）")
++	ok(src.find("sprites.wt_loc.has(type)") >= 0, "沒有轉身頁時不硬轉（避免只橫縮）")
+ 	var SC = load("res://scripts/ui/sprite_cache.gd")
+ 	ok(SC.BW_C == 0.55 and g.HEAD_FRONT_C == 0.55, "南北都用 3/4 角度（和既有走路轉身頁同角度）")
+ 	ok(SC.BW_MAX >= 22, "背面頁上限涵蓋一場所有兵種（不在場上被淘汰回側面）")
+@@ -1411,3 +1411,30 @@
+ 	var ks: String = FileAccess.get_file_as_string("res://scripts/ui/units/kingdom.gd")
+ 	ok(ks.find("var tip := hand + dir * 34.0") >= 0 and ks.find("var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5)") >= 0, "劍士：劍刃 34、待機斜伸、揮到底角度 0.8 不變")
+ 	ok(ks.find("var tip := base + dir * 60.0") >= 0 and ks.find("Vector2(17, -41), Vector2(31, -38)") >= 0, "騎兵：槍 60、馬頭抬高往前")
++
++## 1.6.0 B11（S3；P5.1、P5.2、P5.5）兩兵種轉身（程式退路）：命中頓幀、轉身縱向節奏（預備壓縮很輕、落定往上微彈）、
++## 連拍工具（真畫面 160 組合缺格與腳滑在 --turn-strip 量，驗收鏈印 TURNSTRIP）。
++func test_turn_rhythm_v1600() -> void:
++	var BU = load("res://scripts/ui/battle/battle_units.gd")
++	var bsrc: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
++	ok(bsrc.find("if live and not paused and hurt <= 0.0 and not bool(Save.s(\"reduce_motion\")):\n\t\t\tcrouch *= turn_crouch(u.id)") >= 0, "轉身縱向節奏：暫停、受擊中、減少動態不套（不和受擊壓縮疊加）")
++	ok(BU.hd_blend_c(0, 1) == 0.8 and BU.hd_blend_c(0, -1) == 1.0 and BU.hd_blend_c(1, -1) == 0.3 and BU.hd_blend_c(0, 0) == 1.0, "方向切換的過渡轉身格：側↔正 0.8、正↔背 0.3、側↔背不插（轉身格朝鏡頭，會先露臉）")
++	ok(bsrc.find("var dmode := dir_draw_mode(u.type, hd, cache_ok)") >= 0 and FileAccess.get_file_as_string("res://tools/dev_main.gd").find("var dm := dir_draw_mode(type, hd, true)") >= 0, "戰鬥與連拍工具用同一支選畫法")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	ok(is_equal_approx(g.turn_crouch(1), 1.0), "沒在轉身＝不壓不拉")
++	g.turn_start_t[1] = g.anim_clock() - g.TURN_ANT * 0.5   # 展示時鐘（沒有戰鬥＝0）
++	var c0: float = g.turn_crouch(1)
++	ok(c0 < 1.0 and c0 >= 1.0 - g.TURN_SQ - 1e-6 and g.TURN_SQ <= 0.04, "預備壓縮最多 %.0f%%（受擊壓縮的三分之一以下，不像被打）" % (g.TURN_SQ * 100.0))
++	g.turn_start_t.clear()
++	g.turn_flip_t[1] = g.anim_clock() - 0.125
++	ok(g.turn_crouch(1) > 1.0, "翻面後往上微彈（不往下壓）")
++	g.turn_flip_t[1] = g.anim_clock() - 1.0
++	ok(is_equal_approx(g.turn_crouch(1), 1.0), "0.25 秒後回到原樣")
++	var bs: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
++	ok(bs.find("var now := anim_clock()") >= 0 and bs.find("hd_t[id] = [anim_clock(), cur, nxt]") >= 0, "轉身節奏與方向過渡都用展示時鐘（暫停、頓幀凍結、倍速等比）")
++	ok(bs.count("hd == 0 and not blending:") == 2, "方向過渡那一閃不疊配件、不補畫輪廓")
++	g.free()
++	var dm: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
++	var mg: String = FileAccess.get_file_as_string("res://scripts/ui/main.gd")
++	ok(dm.find("func _run_turn_strip(") >= 0 and dm.find("print(\"TURNSTRIP \"") >= 0 and mg.find("\"--turn-strip=\"") >= 0, "連拍工具：--turn-strip（160 組合、缺格、腳滑比）")
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+build/cg/b11/game/icon.svg.import
+build/cg/b11/game/icon.svg
+build/cg/b11/game/export_presets.cfg
+build/cg/b11/game/project.godot
+build/cg/b11/game/fonts/NTBSans-R-sub.otf
+build/cg/b11/game/fonts/NTBSans-B-sub.otf.import
+build/cg/b11/game/fonts/NTBSans-B-sub.otf
+build/cg/b11/game/fonts/NTBRoundedSC-R-sub.otf.import
+build/cg/b11/game/fonts/NTBRoundedSC-R-sub.otf
+build/cg/b11/game/fonts/NTBRoundedSC-B-sub.otf.import
+build/cg/b11/game/fonts/NTBRoundedSC-B-sub.otf
+build/cg/b11/game/fonts/NTBRoundedJP-R-sub.otf.import
+build/cg/b11/game/fonts/NTBRoundedJP-R-sub.otf
+build/cg/b11/game/fonts/NTBRoundedJP-B-sub.otf.import
+build/cg/b11/game/fonts/NTBRoundedJP-B-sub.otf
+build/cg/b11/game/fonts/NTBRounded-R-sub.otf.import
+build/cg/b11/game/fonts/NTBRounded-R-sub.otf
+build/cg/b11/game/fonts/NTBRounded-B-sub.otf.import
+build/cg/b11/game/fonts/NTBRounded-B-sub.otf
+build/cg/b11/game/fonts/NTBLatin-M-sub.ttf.import
+build/cg/b11/game/fonts/NTBLatin-M-sub.ttf
+build/cg/b11/game/fonts/NTBLatin-B-sub.ttf.import
+build/cg/b11/game/fonts/NTBLatin-B-sub.ttf
+build/cg/b11/game/fonts/NTBSansSC-B-sub.otf
+build/cg/b11/game/fonts/NTBSansLatin-R-sub.ttf.import
+build/cg/b11/game/fonts/NTBSansLatin-R-sub.ttf
+build/cg/b11/game/fonts/NTBSansLatin-B-sub.ttf.import
+build/cg/b11/game/fonts/NTBSansLatin-B-sub.ttf
+build/cg/b11/game/fonts/NTBSansJP-R-sub.otf.import
+build/cg/b11/game/fonts/NTBSansJP-R-sub.otf
+build/cg/b11/game/fonts/NTBSansJP-B-sub.otf.import
+build/cg/b11/game/fonts/NTBSansJP-B-sub.otf
+build/cg/b11/game/fonts/NTBSans-R-sub.otf.import
+build/cg/b11/game/fonts/NTBTitle-sub.ttf.import
+build/cg/b11/game/fonts/NTBTitle-sub.ttf
+build/cg/b11/game/fonts/NTBSansSC-R-sub.otf.import
+build/cg/b11/game/fonts/NTBSansSC-R-sub.otf
+build/cg/b11/game/fonts/NTBSansSC-B-sub.otf.import
+build/cg/b11/game/fonts/ThenKhung-missing.txt
+build/cg/b11/game/fonts/OFL-ThenKhung.txt
+build/cg/b11/game/fonts/ThenKhung-sub.ttf
+build/cg/b11/game/fonts/ThenKhung-sub.ttf.import
+build/cg/b11/game/shaders/grade_bake.gdshader.uid
+build/cg/b11/game/shaders/grade_bake.gdshader
+build/cg/b11/game/shaders/unit_bake.gdshader
+build/cg/b11/game/shaders/unit_bake.gdshader.uid
+build/cg/b11/game/data/l10n_extra.csv.import
+build/cg/b11/game/data/l10n_extra.csv
+build/cg/b11/game/data/ghosts.json
+build/cg/b11/game/data/credits.txt
+
+exec
+/bin/bash -lc "rg --files --hidden -g AGENTS.md -g '"'!game/.godot/**'"' -g '"'!build/**'"'; nl -ba build/cg/b11/game/scripts/ui/battle/battle_state.gd | sed -n '1,130p;440,560p'; nl -ba build/cg/b11/game/scripts/ui/battle/battle_units.gd | sed -n '480,560p;1035,1180p'; nl -ba build/cg/b11/game/tools/dev_main.gd | sed -n '1868,2040p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 324ms:
+     1	extends "res://scripts/ui/ui_base.gd"
+     2	## 由 battle_view.gd 拆出（V9 P1，行為不變）
+     3	const F8 = preload("res://scripts/core/fantasy_defs.gd")
+     4	const EV = preload("res://scripts/core/events.gd")
+     5	## 戰場、單位、特效、戰鬥 HUD、最後時刻鏡頭（演出層：不影響戰鬥結果）。
+     6	
+     7	
+     8	## 第七輪 M3：跳到結果不再卡畫面。正常畫面分批算（每幀限時）；headless 與截圖走同步。
+     9	var skip_busy := false
+    10	var pre_thread: Thread = null   # 第十輪 I4：重播先算全長放背景
+    11	var ai_thread: Thread = null    # 第十輪 I4：困難 AI 放背景
+    12	var last_cmds: Array = []       # 第十二輪：上一場官方對局的技能施放紀錄（重播、覆盤、代碼用）
+    13	var pre_old: Array = []         # 返回時還沒算完的舊工作：不等它，算完再收（Codex v10-r1 #3）
+    14	
+    15	const HUD_LEFT_END := 240.0     # 左上比分文字最寬到這裡
+    16	
+    17	## 戰報列（第七輪 E1）：承接混戰時的技能跳字。同隊同兵種同技能 2 秒內合併。
+    18	var report_log: Array = []
+    19	const REPORT_CAP := 6
+    20	
+    21	## 開戰號角（第七輪 A10）：正式對局開戰前留 1 秒，陣線亮一下。只是畫面緩衝，模擬還沒開始；簡化特效時略過。
+    22	var start_hold := 0.0
+    23	
+    24	## 跳字（第三輪 V1）：
+    25	## ・合併：同一種技能、同一區（48×32px）0.35 秒內合併成「背刺 ×3（120）」，數字變大彈一下
+    26	## ・分級：TEXT_TIER 2＝關鍵（衝鋒、背刺、頂住），1＝一般技能；關鍵的不會因為上限被丟
+    27	## ・上限：戰場上同時最多 TEXT_CAP 個，超過時丟最舊的一般跳字
+    28	## ・避讓：每幀用「含描邊的實際外框」排版（_layout_texts）：關鍵、新的先佔位，其他重疊就往上推
+    29	const TEXT_CAP := 12
+    30	const TEXT_TIER := {"charge": 2, "backstab": 2, "braced": 2, "anticav": 1, "counter": 1, "pike_brace": 2, "breach": 1, "heal": 0}
+    31	const TEXT_CELL := Vector2(48, 32)
+    32	var text_dropped := 0          # 被上限丟掉的跳字數（測試對帳用）
+    33	
+    34	var text_key_in := 0           # 進來的關鍵跳字事件數（合併也算）
+    35	var text_key_shown := 0        # 關鍵跳字實際顯示（新增或併進既有的）的次數
+    36	
+    37	## 焦點＝最近 0.8 秒內出手或受擊的單位的中心（Antigravity S2 #2：原本用鏡頭中心，旁觀的弓兵不會淡化）
+    38	var action_focus := Vector2.ZERO
+    39	## 特效預算（第三輪 V3）：戰場特效（不含跳字）同時最多 FX_CAP 個。超過時先丟優先權低、最舊的；關鍵（2）不丟。
+    40	const FX_CAP := 40
+    41	const FX_PRIO := {"dust": 0, "slash": 1, "arrow": 1, "ripple": 1, "aim": 1, "hide": 1, "trip": 2, "shard": 2, "flash": 2, "vslash": 2,
+    42		"taunt": 2, "bang": 2, "puff": 1, "hex": 2}
+    43	const OVERHEAD_CAP := {"note": 4, "bang": 6, "inkring": 4}
+    44	## 1.4.0 §6.1 噪音預算：每一類同時上限（關鍵提示不在表裡＝不吃這個額度、不會被淘汰）；超額先丟同類最舊的
+    45	const FX_CLASS := {"boom": "high", "axearc": "high", "cmdseal": "high", "windtrail": "high", "stompring": "high",
+    46		"dust": "low", "chips": "low", "spark": "low", "puff": "low", "leaves": "low", "ripple": "low",
+    47		"scorch": "scar"}
+    48	## 範圍提示（茶漬＝技能範圍）不吃噪音預算、也不被全域上限淘汰；本身在 _stain 裡自己限量（Codex cat05 #1）
+    49	const FX_CAP_EXEMPT := ["text", "stain"]
+    50	## 1.5.0：地面痕跡＝畫在兵之下的特效（戰鬥畫面）
+    51	const GROUND_FX := ["stain", "scorch"]
+    52	const FX_CLASS_CAP := {"high": 6, "low": 24, "scar": 12}
+    53	const FX_TEXT_CAP := 12   # V1.3：戰場跳字上限（_fx_text 直接加的那一路；TEXT_CAP 是合併跳字那一路）
+    54	var fx_dropped := 0
+    55	## 1.4.0：頓幀累積掉的展示時間（time − freeze_t＝頓幀時會停的動畫時鐘，即時配件用）
+    56	var freeze_t := 0.0
+    57	
+    58	var fx_deduped := 0
+    59	
+    60	
+    61	## 最後時刻（優化方案 F1）：雙方剩餘戰力都 ≤30% 且差距 ≤15%；或雙方各剩 ≤3 隻且差距 ≤15%。
+    62	## 最後時刻的條件（view 與 sim 都有 budget／power／alive_count，重播跳轉時用同一個條件重算，Codex S7 #2）。
+    63	static func clutch_cond(s) -> bool:
+    64		# 第五輪：各自用自己的預算算比例（舊判定時兩邊預算相同，和 1.3.0 一樣）
+    65		var p0: float = s.power(0) * 100.0 / (s.budget_of(0) * 1000.0)
+    66		var p1: float = s.power(1) * 100.0 / (s.budget_of(1) * 1000.0)
+    67		return absf(p0 - p1) <= 15.0 and ((p0 <= 30.0 and p1 <= 30.0) or (s.alive_count(0) <= 3 and s.alive_count(1) <= 3))
+    68	
+    69	
+    70	## 畫面上現在播到第幾 tick（含小數，插值用）。
+    71	## 1.6.0 B11（Codex r2）：展示時鐘（秒，1 倍速換算）——跟著模擬 tick 走：暫停、全場頓幀凍結，倍速等比加快
+    72	func anim_clock() -> float:
+    73		return _disp_tick() * 0.05
+    74	
+    75	func _disp_tick() -> float:
+    76		if view == null:
+    77			return 0.0
+    78		if state != St.BATTLE:
+    79			return float(view.tick)
+    80		return view.tick + clampf(accum / 0.05, 0.0, 8.0 if view.finished else 1.0)
+    81	
+    82	
+    83	
+    84	## 這一刻要演哪一次命中（Codex R5 #2）：取前搖已開始的最近一次；但前一次的揮擊還沒做完就先讓它做完（揮擊優先、後搖可被截斷）。
+    85	static func pick_hit(hits: Array, disp: float, type: int, wind := -1.0) -> int:
+    86		var tm := atk_timing(type, wind)
+    87		var w: float = tm[1]
+    88		var strike_end: float = w + tm[2]
+    89		var cur := -1
+    90		for h in hits:
+    91			if float(h) - w <= disp:
+    92				if cur >= 0 and disp - (float(cur) - w) < strike_end:
+    93					break   # 前一次還在揮擊，不換
+    94				cur = h
+    95		return cur
+    96	
+    97	
+    98	
+    99	## 三段式攻擊進度（R5）：前搖固定是命中前 DELAY 個 tick，揮擊與後搖依攻擊間隔壓縮（攻速快的兵動作也快，不會疊在一起）。
+   100	## 回傳 Art.unit 的 atk 參數：0＝沒在攻擊；0～0.3125 前搖、0.3125～0.53125 揮擊（命中在 0.3125）、之後後搖到 1。
+   101	## 一次攻擊動作的時長（tick）：前搖固定 DELAY，揮擊 0.22×總長；atk_progress 與 pick_hit 共用（Codex S4 #1）。
+   102	## V1.5：遠程的飛行時間（tick）。0＝近戰或不畫飛行物（孢子菇是毒圈、巫毒是連線，各自另外演）。
+   103	## 實際飛行還會被緩衝長度限制：飛行＋前搖不能超過展示緩衝（手動軍令局緩衝只有 2，就幾乎直接命中）。
+   104	const PROJ_FLY := {2: 5, 6: 6, 17: 5, 7: 3}   # 弓箭手、投彈兵、骷髏法師、醫者（補血）
+   105	
+   106	static func proj_fly(type: int) -> int:
+   107		return int(PROJ_FLY.get(type, 0))
+   108	
+   109	## V1.5：這一刻該演哪一次攻擊。回傳 [出手 tick, 命中 tick, 飛行進度 -1／0～1]；沒有就 [-1, -1, -1]。
+   110	## 遠程的出手比命中早 fly 個 tick（fly＝飛行時間，受緩衝長度限制）；飛行進度在出手～命中之間由 0 走到 1。
+   111	## only：哪些命中 tick 是飛行物（null＝全部）。投彈兵貼身敲人這種近身命中不提早出手、不畫炸彈（Codex v150-i1 #3）。
+   112	static func proj_phase(hits: Array, disp: float, type: int, delay: int, only = null) -> Array:
+   113		# 回傳 [出手 tick, 命中 tick, 飛行進度, 動作起點 tick, 前搖長度]
+   114		# V1.5.1：每一發各自決定前搖——有飛行物的那發用局內前搖（手動軍令局 1 tick），近身的（投彈兵敲擊）照舊 2 tick（Codex v151-i1 #7）
+   115		var wd := proj_wind(type, delay)
+   116		var fly: int = maxi(0, mini(proj_fly(type), delay - wd))
+   117		var tm := atk_timing(type)
+   118		var st: float = tm[2]
+   119		var es: Array = []   # [動作起點, 出手, 命中, 前搖]
+   120		for x in hits:
+   121			var shift: bool = fly > 0 and (only == null or (only as Dictionary).has(int(x)))
+   122			if shift:
+   123				es.append([int(x) - fly - wd, int(x) - fly, int(x), wd])
+   124			else:
+   125				es.append([int(x) - ViewBuffer.DELAY, int(x), int(x), ViewBuffer.DELAY])
+   126		es.sort_custom(func(a, b): return a[0] < b[0])
+   127		var cur: Array = []
+   128		for e in es:
+   129			if float(e[0]) <= disp:
+   130				if not cur.is_empty() and disp - float(cur[0]) < float(cur[3]) + st:
+   440			if with_fx and gait_on.get(u.id, false):
+   441				_gait_step_snd(u, d)
+   442	
+   443	## 腳步聲：全場一起走會變噪音，所以限量（約每 0.11 秒最多一聲）、音量很小；小石魔例外。
+   444	var _step_cool := 0
+   445	func _gait_step_snd(u, d: Array) -> void:
+   446		var k: int = Gait.kind(u.type)
+   447		if k == Gait.FLOAT or k == Gait.ROOT or k == Gait.HOP:
+   448			return
+   449		var a: float = Gait.phase_of(u.type, d[0], CS, UNIT_SCALE, u.id)
+   450		var b: float = Gait.phase_of(u.type, d[1], CS, UNIT_SCALE, u.id)
+   451		if int(a / PI) == int(b / PI):
+   452			return
+   453		if u.type == 19:
+   454			sfx.play("step_heavy", 0.55)
+   455			return
+   456		if view.tick <= _step_cool:
+   457			return
+   458		_step_cool = view.tick + 2
+   459		var snd := "step_grass"
+   460		match MapDefs.MAPS[fld_map]["biome"]:
+   461			"ice":
+   462				snd = "step_snow"
+   463			"lava", "canyon":
+   464				snd = "step_stone"
+   465			"river":
+   466				if absi(int(u.x) - fld_w / 2) < fld_w / 10:
+   467					snd = "step_wood"
+   468		sfx.play(snd, 0.16)
+   469	
+   470	## 小石魔、馬、羊落地揚塵。
+   471	func _gait_step_fx(u, d: Array) -> void:
+   472		if not gait_on.get(u.id, false):
+   473			return
+   474		var a: float = Gait.phase_of(u.type, d[0], CS, UNIT_SCALE, u.id)
+   475		var b: float = Gait.phase_of(u.type, d[1], CS, UNIT_SCALE, u.id)
+   476		if int(a / PI) != int(b / PI):
+   477			fx.append({"kind": "step", "p": _upos(u), "t": 0.0, "dur": 0.35, "big": u.type == 19})
+   478	
+   479	## 這一幀要畫的走路相位。
+   480	func _walk_of(u, a: float) -> float:
+   481		var k: int = Gait.kind(u.type)
+   482		if u.stun > 0 or (drag_t.get(u.id, 0.0) > 0.0):
+   483			if drag_t.get(u.id, 0.0) > 0.0:
+   484				return Gait.POSE_DRAG
+   485			return Gait.POSE_DAZE
+   486		if k == Gait.ROOT:
+   487			return 0.0
+   488		if gait_on.get(u.id, false):
+   489			var d: Array = gait_d.get(u.id, [0.0, 0.0])
+   490			return Gait.phase_of(u.type, lerpf(d[0], d[1], a), CS, UNIT_SCALE, u.id)
+   491		if k == Gait.FLOAT:
+   492			return 0.0001 + time * 4.0 + u.id * 0.37      # 飄浮的就算停著也在飄
+   493		return 0.0
+   494	
+   495	func _gait_frame(delta: float) -> void:
+   496		for id in drag_t.keys():
+   497			drag_t[id] -= delta
+   498			if drag_t[id] <= 0.0:
+   499				drag_t.erase(id)
+   500		# V1.3.1 P1：全場只剩最後一隻、而且沒在出手也沒在走時，左右張望（用轉身影格）
+   501		var alive := [0, 0]
+   502		for u0 in view.units:
+   503			if u0.alive:
+   504				alive[u0.team] += 1
+   505		for u in view.units:
+   506			var tgt: float = signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0)
+   507			if u.mx != 0 or u.my != 0 or u.stun > 0 or atk_face.has(u.id) or drag_t.has(u.id) or not idle_since.has(u.id):   # 出手、暈眩也不算站定
+   508				idle_since[u.id] = time
+   509			if u.alive and alive[u.team] == 1 and not view.finished and time - float(idle_since[u.id]) > 1.5 and not atk_face.has(u.id):
+   510				tgt = 1.0 if sin(time * PI / 1.1 + u.id) >= 0.0 else -1.0   # 站定 1.5 秒後才開始張望
+   511			var f0: float = float(face_now.get(u.id, tgt))
+   512			var f1: float = move_toward(f0, tgt, delta * 11.0)
+   513			face_now[u.id] = f1
+   514			if absf(f0) >= 0.999 and f1 != f0:
+   515				turn_start_t[u.id] = anim_clock()   # 1.6.0 B11：轉身開始那一刻（預備壓縮從這裡算；展示時鐘）
+   516			if f0 != 0.0 and signf(f1) != signf(f0):
+   517				turn_t[u.id] = time   # V1.3 A1a：翻面那一刻（腳下揚塵、展開回彈從這裡算）
+   518				turn_flip_t[u.id] = anim_clock()   # 1.6.0 B11：同一刻的展示時鐘（落定微彈用）
+   519	
+   520	## 轉身過場（V1.3 A1a）：像厚木牌俐落翻面，不是紙片等比夾扁。
+   521	## 寬度不低於 TURN_MIN_W（窄位直接跳過去），展開段 X 微回彈 1.04；不做 Y 下壓（混戰時會像受擊）。
+   522	const TURN_MIN_W := 0.45
+   523	var turn_start_t := {}   # 1.6.0 B11：{兵 id: 轉身開始的展示時鐘}
+   524	var turn_flip_t := {}    # 1.6.0 B11：{兵 id: 翻面那一刻的展示時鐘}
+   525	const TURN_BOUNCE := 0.04
+   526	func _face_of(u) -> float:
+   527		var f: float = face_now.get(u.id, signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0))
+   528		var a := absf(f)
+   529		if a < 0.9 and sprites != null and sprites.has_turn(u.type):
+   530			# 有轉身影格的兵：傳原本的朝向，貼圖端選中間姿勢（不能是 0，退回直接繪製時才不會消失）
+   531			return maxf(a, 0.18) * (1.0 if f >= 0.0 else -1.0)
+   532		var w := TURN_MIN_W + (1.0 - TURN_MIN_W) * a
+   533		if a < 1.0 and turn_t.has(u.id) and time - float(turn_t[u.id]) < 0.25:
+   534			w *= 1.0 + TURN_BOUNCE * sin(clampf((a - 0.55) / 0.45, 0.0, 1.0) * PI)
+   535		return w if f >= 0.0 else -w
+   536	
+   537	## 剛翻面的兵腳下的小揚塵：0～1（1＝剛翻），超過 0.25 秒＝0。
+   538	func _turn_dust_k(u) -> float:
+   539		if not turn_t.has(u.id):
+   540			return 0.0
+   541		var k: float = (time - float(turn_t[u.id])) / 0.25
+   542		return 1.0 - k if k >= 0.0 and k < 1.0 else 0.0
+   543	
+   544	## 打到不同東西聲音不同：盾與石魔是硬的、史萊姆是軟的。
+   545	func _hit_material(id: int) -> void:
+   546		if id < 0 or view == null:
+   547			return
+   548		var u = view.unit_by_id(id)
+   549		if u == null:
+   550			return
+   551		var cp: Vector2 = _upos(u) + Vector2(0, -26)
+   552		if call("_frags_on") and u.type != D.SHIELD:
+   553			var fk: int = view.tick * 4096 + u.id
+   554			frags.spawn(_upos(u), "poison" if u.type in [13, 20] else ("ice" if u.type == 19 else "wood"), 2, fk, 26.0)   # 1.2.0 §8.2 命中＝木屑＋墨點（史萊姆＝水彩暈、石魔＝白瓷碎）
+   555			frags.spawn(_upos(u), "ink", 1, fk + 1, 26.0)
+   556		match u.type:
+   557			D.SHIELD:
+   558				sfx.play("hit_metal", 0.22)
+   559				call("_add_fx", {"kind": "chips", "p": cp, "t": 0.0, "dur": 0.32, "c": Color("#e8f0ff"), "spark": true})   # V1.1 A2：盾面火花
+   560			19, 12:
+   480	
+   481	## 1.3.0 §5.4 走向：用模擬這一 tick「提出的移動」（mx、my，整數；擊退、推擠不算——Codex cat05 #1 #2）判斷，
+   482	## 和幀率、倍速、暫停、鏡頭無關（同一場重播選到同一個方向）。遲滯：南北分量 > 東西 ×1.3 才轉成南／北，
+   483	## < 東西 ×1.0 才回側面（不在臨界抖動）。不走路、出手、受擊一律側面（狀態保留，下次走路從側面重新判斷）。跳轉、新的一場清掉。
+   484	const HEAD_FRONT_C := 0.55   # 往南走用的轉身角度（既有走路轉身頁 WT_C 0.55，22 種都有）
+   485	var hd_state := {}
+   486	var mag_pose: Array = []    # 1.3.0 §2：被選那隻這一幀的 [面向, 受擊, 表情]（單位迴圈寫入、放大鏡小窗讀）
+   487	## 1.6.0 B11（Hydrogen r1：方向切換直接換姿勢、缺中格）：方向一換就記 [時間, 舊, 新]，HD_BLEND 秒內插一格轉身格過渡
+   488	const HD_BLEND := 0.08
+   489	var hd_t := {}
+   490	## 這一格畫哪一種（戰鬥與連拍工具共用；Codex B11 r1 #4）：-1＝背面走路頁、1＝3/4 正面走路頁、0＝側面（含轉身格）
+   491	func dir_draw_mode(type: int, hd: int, cache_ok: bool) -> int:
+   492		if hd < 0 and cache_ok and sprites.bw_tex.has(type):
+   493			return -1
+   494		if hd > 0 and cache_ok and sprites.wt_loc.has(type):
+   495			return 1
+   496		return 0
+   497	
+   498	## 兩個方向之間過渡用的轉身格寬度（cos）：側↔正面 0.8、側↔背面 0.55、正面↔背面 0.3
+   499	## 側↔背面不插（1.0＝不插）：轉身格是朝鏡頭烘的，插在轉向背面的中間會先露臉再突然背過去（Hydrogen B11 r2）；
+   500	## 要有「轉向背面」的過渡得另烘背面轉身頁（圖集容量另算），留給原畫或 B13b。
+   501	static func hd_blend_c(a: int, b: int) -> float:
+   502		if a == b:
+   503			return 1.0
+   504		if a == 0 or b == 0:
+   505			return 0.8 if (a + b) > 0 else 1.0
+   506		return 0.3
+   507	
+   508	func heading_of(id: int, mx: int, my: int, walking: bool) -> int:
+   509		if not walking or (mx == 0 and my == 0):
+   510			if int(hd_state.get(id, 0)) != 0:
+   511				hd_t[id] = [anim_clock(), int(hd_state[id]), 0]
+   512			hd_state.erase(id)
+   513			return 0
+   514		var cur: int = int(hd_state.get(id, 0))
+   515		var ay := absi(my)
+   516		var ax := absi(mx)
+   517		var nxt := cur
+   518		if cur == 0 and ay * 10 > ax * 13:
+   519			nxt = 1 if my > 0 else -1
+   520		elif cur != 0 and ay <= ax:
+   521			nxt = 0
+   522		elif cur != 0 and signi(my) != cur and ay * 10 > ax * 13:
+   523			nxt = 1 if my > 0 else -1
+   524		if nxt != cur:
+   525			hd_t[id] = [anim_clock(), cur, nxt]
+   526		hd_state[id] = nxt
+   527		return nxt
+   528	
+   529	## 1.3.0：這一隻的頭頂資訊倍率（照 0.92 倍調的偏移 × 角色放大 × 跟拍放大）
+   530	func hk_of(u) -> float:
+   531		return HK * focus_scale(u.id)
+   532	
+   533	## 1.3.0 §5.1：跟拍（點兵讓鏡頭跟）的那一隻畫成 1.4 倍（基準 1.25 倍的 1.12 倍）；只改畫面。
+   534	## 1.6.0 B11（P5.1）程式轉身退路的縱向節奏（橫向靠轉身格）：轉身剛開始 TURN_ANT 秒內壓 3%（比受擊小得多，
+   535	## 1.3 起「轉身不往下壓、會像受擊」的顧慮——量級壓到受擊的三分之一以下）；翻面後 0.25 秒內往上拉 3%（微彈）。
+   536	const TURN_ANT := 0.06
+   537	const TURN_SQ := 0.03
+   538	func turn_crouch(id: int) -> float:
+   539		var c := 1.0
+   540		var now := anim_clock()   # 展示時鐘：暫停、頓幀凍結（Codex B11 r2 #1）
+   541		if turn_start_t.has(id):
+   542			var k0: float = (now - float(turn_start_t[id])) / TURN_ANT
+   543			if k0 >= 0.0 and k0 < 1.0:
+   544				c *= 1.0 - TURN_SQ * sin(k0 * PI)
+   545		if turn_flip_t.has(id):
+   546			var k1: float = (now - float(turn_flip_t[id])) / 0.25
+   547			if k1 >= 0.0 and k1 < 1.0:
+   548				c *= 1.0 + TURN_SQ * sin(k1 * PI)
+   549		return c
+   550	
+   551	const FOCUS_SCALE := 1.4 / 1.25
+   552	const BOSS_SIL_PX := 3.0   # 1.6.0 B10（P4.4）：巨獸外框多加的畫面像素
+   553	func focus_scale(id: int) -> float:
+   554		return FOCUS_SCALE if follow_id >= 0 and id == follow_id else 1.0
+   555	
+   556	## 1.6.0 B08（P3.3、S4）：兵偶頭胸框（戰場座標）——跳字不蓋。腳底點往上 FACE_BOT～FACE_TOP（×HK×巨獸／跟拍縮放），半寬 FACE_HW。
+   557	## 站姿的頭胸對截圖量過（14～54、半寬 17，--face-debug 畫得出來）；再包住姿勢起伏（Codex B08 r1 #2）：跳步 ≤10px、走路起伏 4、
+   558	## 幽靈上下漂 ≤5.5、衝鋒前傾 ≤15°（頭頂橫移約 ±17px）→ 上緣多 12、左右各多 6（HK 單位）。
+   559	const FACE_TOP := 66.0
+   560	const FACE_BOT := 14.0
+  1035				mood |= Art.M_HAPPY   # V1.3.1：歡呼 ^ ^ 眼
+  1036				at = Art.ATK_WINDUP
+  1037				lean = Art.windup_lean(u.type)      # 抵銷前搖的後仰（V1.1：依兵種）：站直、武器高舉（和前搖分得開，Antigravity S4）
+  1038				crouch = 1.06
+  1039				_star_above(p + Vector2(0, -hop - (74 if u.type == D.CAVALRY else 66)))
+  1040				# V1.1 A7：兵種專屬的勝利小動作（簡化特效時不畫）
+  1041				match -1 if bool(Save.s("reduce_fx")) else u.type:
+  1042					D.DRUMMER:   # 鼓手：頭邊冒音符
+  1043						var nk := fmod(time * 1.6 + u.id * 0.3, 1.0)
+  1044						_icon("sound", p + Vector2(18 + nk * 8, -48 - nk * 22 - hop), 14.0, Color(1.0, 0.85, 0.4, 1.0 - nk))
+  1045					D.BERSERKER:   # 狂戰士：雙斧互敲的火花圈
+  1046						var bk := absf(sin((time + u.id * 0.05) * PI / 0.45))
+  1047						_hand_ring(p + Vector2(0, -50 - hop), 8.0 + bk * 6.0, Color(1.0, 0.55, 0.2, 0.8 * bk), 2.5)
+  1048					D.MEDIC:   # 醫者：綠色小十字往上飄
+  1049						var mk := fmod(time * 1.2 + u.id * 0.4, 1.0)
+  1050						var mc := p + Vector2(-16, -44 - mk * 24 - hop)
+  1051						draw_line(mc - Vector2(4, 0), mc + Vector2(4, 0), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+  1052						draw_line(mc - Vector2(0, 4), mc + Vector2(0, 4), Color(0.5, 1.0, 0.55, 1.0 - mk), 2.5)
+  1053			p.y -= hop
+  1054			if u.hidden:
+  1055				Art.mimic_closed(self, p, u.team, face, alpha, time, cbm(), UNIT_SCALE)   # 偽裝中的寶箱怪
+  1056				continue
+  1057			if u.type == F8.GHOST:
+  1058				alpha *= 0.9
+  1059				p.y -= 3.0 + 2.5 * sin(time * 2.2 + u.id * 0.9)   # V1.1 A4：幽靈上下漂
+  1060				if moving and live and not bool(Save.s("reduce_fx")):
+  1061					# V1.0.0 角色（剪影辨識）：移動時身後一串淡煙（貼著身體，0.3 格內），和史萊姆、盾兵的剪影分開
+  1062					for k5 in 3:
+  1063						var ph5 := fmod(time * 2.5 + k5 * 0.33 + u.id * 0.17, 1.0)
+  1064						draw_circle(p + Vector2(-face * (10.0 + ph5 * 12.0), -14.0 + ph5 * 4.0), 5.0 * (1.0 - ph5) * UNIT_SCALE, Color(0.85, 0.9, 1.0, 0.35 * (1.0 - ph5) * alpha), true, -1.0, true)
+  1065			# 待機小動作（V9 P2）：重心換腳、偶爾縮一下身子
+  1066			if live and walk == 0.0 and at == 0.0:
+  1067				var tq := _pose_t(time)   # 1.2.0 第 5 大類 C：待機小動作走定格
+  1068				lean += sin(tq * 1.1 + u.id * 1.7) * 0.018
+  1069				var idle_k := fmod(tq + u.id * 1.37, 7.3)
+  1070				if idle_k < 0.3:
+  1071					crouch *= 1.0 - sin(idle_k / 0.3 * PI) * 0.05
+  1072				# 1.2.0 第 5 大類 D 個性動作：王國＝偶爾上發條（左右扭 0.4 秒）；奇幻＝呼吸膨縮（各兵相位不同）
+  1073				if u.type < D.COUNT:
+  1074					var wk := fmod(tq + u.id * 2.71, 9.7)
+  1075					if wk < 0.4:
+  1076						lean += sin(wk / 0.4 * TAU * 2.0) * 0.05
+  1077				else:
+  1078					crouch *= 1.0 + 0.03 * sin(tq * 2.0 + u.id * 1.3)
+  1079			if live:
+  1080				face = _face_of(u)
+  1081				# V1.3.1 P0-2：出手前先轉完。前搖一開始就面向目標（不改命中時間），出手中途目標換邊也維持到收招
+  1082				if at > 0.0:
+  1083					# 鎖定的是「這一擊」：連擊換到下一擊時重新取方向（Codex v131-impl1）
+  1084					if not atk_face.has(u.id) or int(atk_face[u.id][0]) != hit_now:
+  1085						atk_face[u.id] = [hit_now, signf(u.fx) if u.fx != 0 else (1.0 if face >= 0.0 else -1.0), float(face_now.get(u.id, face)), _disp_tick()]
+  1086					# V1.5.1 A3：前搖時從原本朝向轉過去（2 個畫面 tick，跟著暫停與倍速走），轉身途中出手用轉身攻擊格，不再瞬間跳回側面
+  1087					var tgt_f: float = float(atk_face[u.id][1])
+  1088					var f0: float = float(atk_face[u.id][2]) if atk_face[u.id].size() > 2 else tgt_f
+  1089					var kf := clampf((_disp_tick() - float(atk_face[u.id][3] if atk_face[u.id].size() > 3 else _disp_tick())) / 2.0, 0.0, 1.0)
+  1090					if signf(f0) == tgt_f and absf(f0) >= 0.9:
+  1091						face = tgt_f
+  1092					else:
+  1093						# 經過正面轉過去：寬度不低於 0.45（不壓成一條線），過半就朝向目標（不背對目標揮空，Antigravity v151-i1 #4）
+  1094						var lf := lerpf(f0, tgt_f, kf)
+  1095						# 從第一格就朝目標（轉身格的方向），寬度從轉到一半慢慢回到側面（Codex v151-i2：前半不再朝舊方向蓄力）
+  1096						face = tgt_f * (maxf(absf(lf), 0.45) if (kf >= 0.5 or signf(f0) == tgt_f) else 0.45)   # 同方向只是轉完剩下的角度
+  1097					face_now[u.id] = face
+  1098				elif atk_face.has(u.id):
+  1099					atk_face.erase(u.id)
+  1100				var tdk := _turn_dust_k(u)
+  1101				if tdk > 0.0 and not rfx:
+  1102					# V1.3 A1a：翻面時腳下踩出一小團塵土（畫在身體下面）
+  1103					for i in 3:
+  1104						var dx := (float(i) - 1.0) * (6.0 + (1.0 - tdk) * 8.0)
+  1105						draw_circle(p + Vector2(dx, 1.0 - (1.0 - tdk) * 3.0) , (2.0 + (1.0 - tdk) * 2.5) * UNIT_SCALE, Color(0.85, 0.75, 0.55, 0.55 * tdk), true, -1.0, true)
+  1106			if u.stealth > 0:
+  1107				# 潛行：身後兩道暗紫殘影
+  1108				for g in 2:
+  1109					var gp := p + Vector2(-(8 + g * 8) * face, 0)
+  1110					draw_circle(gp + Vector2(0, -22), 11.0 - g * 2.0, Color(0.3, 0.15, 0.45, 0.22 - g * 0.08), true, -1.0, true)
+  1111					_unit(gp, u.type, u.team, face, 0.0, 0.0, 0.0, 0.14 - g * 0.06, time, UNIT_SCALE)
+  1112			if live and walk <= Gait.POSE_DAZE + 1.0:
+  1113				# 暈眩：頭上轉圈的星星
+  1114				for sk0 in 3:
+  1115					var sa0 := time * 5.0 + sk0 * TAU / 3.0
+  1116					_icon("star", p + Vector2(cos(sa0) * 15.0, -60.0 * hk_of(u) + sin(sa0) * 5.0), 13.0, Color("#ffd166"))
+  1117			# V1.3.1 P1：待機小動作。站著沒事（沒走、沒出手、沒暈、還在打）時，每隻約 30～60 秒做一次、1.2 秒，依 id 錯開
+  1118			var fid := -1
+  1119			if live and not moving and at == 0.0 and u.stun <= 0 and not s.finished and mood == 0 and not bool(Save.s("reduce_fx")):
+  1120				var per := 30.0 + float((u.id * 7919) % 30)
+  1121				var tm := fmod(time + u.id * 3.7, per)
+  1122				if tm < 1.2:
+  1123					fid = mini(3, int(tm / 1.2 * 4.0))
+  1124			var ut := _pose_t(time) if (live and walk == 0.0 and at == 0.0) else time   # 1.2.0 第 5 大類 C：待機時整隻（含呼吸起伏）走定格時間（Codex cat05 #3）
+  1125			# 1.3.0 §5.4 依移動方向選視角：走路且不出手時，往南＝3/4 正面走路格、往北＝3/4 背面走路格（沒烘好就照舊側面）
+  1126			# 1.4.0 §5.3：整體壓縮蓄力（前搖）→ 出手時拉長，再回原形；只動畫面（命中 tick 不變，at 是展示時鐘算的）
+  1127			if bool(Save.s("reduce_motion")):
+  1128				pass   # 減少動態：不壓縮拉長（Codex cat05 #5）
+  1129			elif live and at > 0.0 and at < Art.ATK_WINDUP:
+  1130				crouch *= 1.0 - SQUASH * sin(at / Art.ATK_WINDUP * PI * 0.5)
+  1131			elif live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.1:
+  1132				crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
+  1133			if u.id == follow_id:
+  1134				mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
+  1135			if live and not paused and hurt <= 0.0 and not bool(Save.s("reduce_motion")):
+  1136				crouch *= turn_crouch(u.id)   # 1.6.0 B11（P5.1 程式轉身退路）：預備壓縮（很輕）→ 側緣過渡（轉身格）→ 落定微彈（往上拉，不往下壓）；暫停、受擊中、減少動態不套（Codex r1 #3 #6）
+  1137			var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
+  1138			var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
+  1139			var chip := (2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0   # 1.3.0 §5.2 受傷掉漆
+  1140			var drawn := false
+  1141			var cache_ok: bool = sprites != null and sprites.is_ready(cbm()) and not bool(Save.s("plain_ui"))
+  1142			var hb = hd_t.get(u.id)
+  1143			var blending := false
+  1144			if live and hb != null and anim_clock() - float(hb[0]) < HD_BLEND and hd_blend_c(int(hb[1]), int(hb[2])) < 1.0 and cache_ok and sprites.has_turn(u.type) and not u.boss:
+  1145				blending = true
+  1146				# 方向切換的過渡格：轉身格（站姿）一閃，不直接從側面跳到正面／背面
+  1147				_unit(p, u.type, u.team, (signf(face) if face != 0.0 else 1.0) * hd_blend_c(int(hb[1]), int(hb[2])), 0.0, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+  1148				drawn = true
+  1149			var dmode := dir_draw_mode(u.type, hd, cache_ok)
+  1150			if dmode < 0 and not drawn:
+  1151				drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
+  1152				if drawn and chip > 0:
+  1153					_chip_at(p, u.type, face, usc, chip, alpha)   # 背面也有掉漆（Codex cat05 #4）
+  1154			if not drawn:
+  1155				# 往南：只有圖集有走路轉身頁時才用 3/4 正面（沒有就照舊側面，不讓向量畫只橫縮；Codex cat05 #6）
+  1156				var front_ok: bool = dmode > 0
+  1157				var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
+  1158				if u.boss and not bool(Save.s("plain_ui")):
+  1159					# 1.6.0 B10（P4.4）巨獸外框加粗：先墊一層往外擴的墨色剪影（畫面約 +3px），再正常畫
+  1160					Art.sil_w = BOSS_SIL_PX / usc
+  1161					Art.unit(self, p, u.type, u.team, fdraw, walk, at, 0.0, alpha, ut, usc, cbm(), 0, lean, crouch, variant)
+  1162					Art.sil_w = 0.0
+  1163				_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+  1164			if live and not u.hidden and hd == 0 and not blending:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）；1.6.0 B11：方向過渡那一閃也不疊（Codex r2 #2）
+  1165				_spring_acc(p, u.type, u.team, face, usc, crouch, lean, walk, at, alpha, u.id, ut)   # 1.4.0 §5.2 即時配件（延遲回彈）
+  1166			if live and not u.hidden and hd == 0 and not blending:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
+  1167				xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], usc])
+  1168			# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+  1169			if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
+  1170				var sk := clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.12 - Art.ATK_WINDUP), 0.0, 1.0)
+  1171				_draw_smear(p, u.type, u.team, face, sk, alpha, variant, 1.0)
+  1172			# 衝鋒就緒的金色拖尾（第三輪 R3）
+  1173			if u.type == D.CAVALRY and moving and u.charge >= D.CHARGE_NEED:
+  1174				var tip := p + Vector2(face * 26.0, -44.0)
+  1175				for k in 4:
+  1176					var q0 := tip - Vector2(face * k * 8.0, 0)
+  1177					var q1 := tip - Vector2(face * (k + 1) * 8.0, 0)
+  1178					draw_line(q0, q1, Color(1.0, 0.86, 0.3, (0.8 - k * 0.2) * alpha), 3.0 - k * 0.5, true)
+  1179		_draw_xray(xray)
+  1180		while prop_i < fld_props.size():
+  1868		var err := get_viewport().get_texture().get_image().save_png(out_path)
+  1869		print("SIL ", out_path, " ", err)
+  1870		get_tree().quit(0 if err == OK else 1)
+  1871	
+  1872	## 1.6.0 B11（P5.5、S3）轉身連拍：劍士、騎兵 × 兩隊 × 色盲開關 × 五方向（東、西＝側面；東南、西南＝往南走的 3/4 正面；北＝背面）
+  1873	## 兩兩轉換 20 種＝160 組合，每組 8 格。每格記走哪條畫法（圖集／向量＝缺格）；原地轉身（東↔西）另量腳底接地點左右漂移（腳滑比）。
+  1874	## 用法：<exe> --path game --resolution 1280x800 -- --turn-strip=<輸出資料夾（Windows 路徑）>   每頁存 PNG、最後存 turn_strip.json，印 TURNSTRIP
+  1875	var ts_mode := false
+  1876	var ts_page: Array = []   # 這一頁要畫的 [type, team, from, to, k, 格子左上]
+  1877	var ts_routes: Array = []   # 這一頁每格實際走的畫法
+  1878	const TS_DIRS := ["E", "W", "SE", "SW", "N"]
+  1879	const TS_CELL := Vector2(78, 96)
+  1880	func _ts_state(a: String, b: String, k: float) -> Dictionary:
+  1881		# 照戰鬥的實際行為模擬（Hydrogen B11 r2）：朝向 face 在 8 格之間連續變（face_now 的轉身插值），走路時 |face|<0.9 由
+  1882		# draw_unit 自動走 3/4 正面頁（正中過渡）；南北頁照 heading 前後半；方向切換中間插同一支 hd_blend_c 的轉身格（側↔背不插，見 hd_blend_c）
+  1883		var fa := 1.0 if a in ["E", "SE"] else (-1.0 if a in ["W", "SW"] else (1.0 if b in ["E", "SE"] else -1.0))
+  1884		var fb := 1.0 if b in ["E", "SE"] else (-1.0 if b in ["W", "SW"] else fa)
+  1885		var face := lerpf(fa, fb, k)
+  1886		if absf(face) < 0.18:
+  1887			face = 0.18 * (signf(fb) if k >= 0.5 else signf(fa))
+  1888		var walking := a in ["SE", "SW", "N"] or b in ["SE", "SW", "N"]
+  1889		var ha := 1 if a in ["SE", "SW"] else (-1 if a == "N" else 0)
+  1890		var hb := 1 if b in ["SE", "SW"] else (-1 if b == "N" else 0)
+  1891		var hd := ha if k < 0.5 else hb
+  1892		var c := hd_blend_c(ha, hb)
+  1893		if ha != hb and c < 1.0 and k > 0.36 and k < 0.64:
+  1894			return {"face": signf(face) * c, "hd": 0, "walk": 0.0}
+  1895		return {"face": face, "hd": hd, "walk": (0.3 + k * 4.0) if walking else 0.0}
+  1896	
+  1897	func _ts_draw_one(p: Vector2, type: int, team: int, st: Dictionary) -> String:
+  1898		var face: float = st["face"]
+  1899		var walk: float = st["walk"]
+  1900		var hd: int = st["hd"]
+  1901		var dm := dir_draw_mode(type, hd, true)   # 和戰鬥同一支選畫法（Codex B11 r1 #4）
+  1902		if hd != 0 and dm == 0:
+  1903			Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
+  1904			return "vector"   # 要南北頁卻沒有＝缺格
+  1905		if dm < 0:
+  1906			sprites.draw_back_walk(self, p, type, team, face, walk, 0.0, 1.0, 0.0, UNIT_SCALE, 0.0, 1.0, cbm())
+  1907			return "atlas"
+  1908		if dm > 0:
+  1909			sprites.draw_unit(self, p, type, team, signf(face) * HEAD_FRONT_C, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
+  1910			return "atlas"
+  1911		if absf(face) < 0.9 and not sprites.has_turn(type):
+  1912			Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
+  1913			return "vector"
+  1914		if not sprites.has_type(type):
+  1915			Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
+  1916			return "vector"
+  1917		sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
+  1918		return "atlas"
+  1919	
+  1920	func _run_turn_strip(out_dir: String) -> void:
+  1921		Save.prefix = "shot_"
+  1922		var res := {"combos": 0, "missing": 0, "missing_list": [], "slide": [], "pages": 0}
+  1923		print("TS start")
+  1924		for cbv in [false, true]:
+  1925			Save.set_setting("colorblind", cbv)
+  1926			_rebuild_sprites()
+  1927			print("TS rebuild cb=", cbv)
+  1928			var guard := 0
+  1929			while not (sprites.is_ready(cbv) and sprites.build_done) and guard < 1200:
+  1930				guard += 1
+  1931				await get_tree().process_frame
+  1932			sprites.ensure_turn_atk([D.SWORD, D.CAVALRY])   # 和開戰時同一支：出場兵種補烘轉身出手格＋背面走路頁
+  1933			while not (sprites.bw_tex.has(D.SWORD) and sprites.bw_tex.has(D.CAVALRY)) and guard < 2400:
+  1934				guard += 1
+  1935				await get_tree().process_frame
+  1936			print("TS ready cb=", cbv, " guard=", guard, " ready=", sprites.is_ready(cbv), " done=", sprites.build_done)
+  1937			var jobs: Array = []
+  1938			for type in [D.SWORD, D.CAVALRY]:
+  1939				for team in 2:
+  1940					for a in TS_DIRS:
+  1941						for b in TS_DIRS:
+  1942							if a != b:
+  1943								jobs.append([type, team, a, b])
+  1944			var per_page := 8   # 每頁 2 欄 × 4 列、列距 196（騎兵的槍伸很高，列距 98 會伸進上一列的腳底量測區）
+  1945			for pg in range(0, jobs.size(), per_page):
+  1946				ts_page = []
+  1947				for ji in range(pg, mini(pg + per_page, jobs.size())):
+  1948					var j: Array = jobs[ji]
+  1949					var row := ji - pg
+  1950					for f in 8:
+  1951						ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 78 + (640 if row >= 4 else 0), 100 + (row % 4) * 196)])
+  1952				ts_mode = true
+  1953				queue_redraw()
+  1954				await get_tree().process_frame
+  1955				await RenderingServer.frame_post_draw
+  1956				var img := get_viewport().get_texture().get_image()
+  1957				img.save_png(out_dir.path_join("turn_strip_cb%d_%02d.png" % [int(cbv), pg / per_page]))
+  1958				res["pages"] += 1
+  1959				for ji in range(pg, mini(pg + per_page, jobs.size())):
+  1960					var j: Array = jobs[ji]
+  1961					res["combos"] += 1
+  1962					var miss := 0
+  1963					var xs: Array = []
+  1964					for f in 8:
+  1965						var idx := (ji - pg) * 8 + f
+  1966						if ts_routes[idx] != "atlas":
+  1967							miss += 1
+  1968						if j[2] in ["E", "W"] and j[3] in ["E", "W"]:
+  1969							xs.append(_ts_foot_x(img, ts_page[idx][5]))
+  1970					if miss > 0:
+  1971						res["missing"] += miss
+  1972						res["missing_list"].append([j[0], j[1], int(cbv), j[2], j[3], miss])
+  1973					if not xs.is_empty():
+  1974						var lo := 1e9
+  1975						var hi := -1e9
+  1976						var bad := 0
+  1977						for x in xs:
+  1978							if x > -900.0:
+  1979								lo = minf(lo, x)
+  1980								hi = maxf(hi, x)
+  1981							else:
+  1982								bad += 1
+  1983						# 八格都要量得到腳（Codex B11 r1 #5：量不到不能當沒滑）；量不到＝ 9.9（必失敗）
+  1984						res["slide"].append([j[0], j[1], int(cbv), j[2], j[3], snappedf((hi - lo) / (36.0 * UNIT_SCALE / 0.92), 0.001) if bad == 0 and hi >= lo else 9.9])
+  1985		ts_mode = false
+  1986		Save.set_setting("colorblind", false)
+  1987		var worst := 0.0
+  1988		for sl in res["slide"]:
+  1989			worst = maxf(worst, float(sl[5]))
+  1990		res["slide_max"] = worst
+  1991		var f := FileAccess.open(out_dir.path_join("turn_strip.json"), FileAccess.WRITE)
+  1992		f.store_string(JSON.stringify(res))
+  1993		f.close()
+  1994		var ok: bool = res["combos"] == 160 and res["missing"] == 0 and worst <= 0.1
+  1995		print("TURNSTRIP ", "OK" if ok else "FAIL", " combos=", res["combos"], " missing=", res["missing"], " slide_max=", worst)
+  1996		get_tree().quit(0 if ok else 1)
+  1997	
+  1998	## 一格的腳底接地點：找到最低的前景列，取「最低 6 列」裡所有前景像素的平均 x（相對格子中心）——兩隻腳都算進去
+  1999	## （只取最低一列會只抓到靠前那隻腳，轉身時換腳就像在滑；B11 第一版的量法錯誤）
+  2000	func _ts_foot_x(img: Image, o: Vector2) -> float:
+  2001		var x0 := int(o.x)
+  2002		var y0 := int(o.y)
+  2003		var low := -1
+  2004		for yy in range(y0 + 95, y0 + 20, -1):
+  2005			for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):   # 畫面外 get_pixel 會給黑色（被當成腳）
+  2006				var c := img.get_pixel(xx, yy)
+  2007				if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
+  2008					low = yy
+  2009					break
+  2010			if low >= 0:
+  2011				break
+  2012		if low < 0:
+  2013			return -999.0
+  2014		var sx := 0.0
+  2015		var n := 0
+  2016		for yy in range(low - 5, low + 1):
+  2017			for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):
+  2018				var c := img.get_pixel(xx, yy)
+  2019				if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
+  2020					sx += xx
+  2021					n += 1
+  2022		return sx / maxi(1, n) - (x0 + 39)
+  2023	
+  2024	func _draw() -> void:
+  2025		if ts_mode:
+  2026			draw_rect(Rect2(0, 0, 1280, 800), Color(0.5, 0.5, 0.5))
+  2027			ts_routes = []
+  2028			for e in ts_page:
+  2029				var o: Vector2 = e[5]
+  2030				var st := _ts_state(e[2], e[3], e[4])
+  2031				ts_routes.append(_ts_draw_one(o + Vector2(39, 78), e[0], e[1], st))
+  2032			draw_set_transform_matrix(Transform2D.IDENTITY)
+  2033			return
+  2034		if not sil_mode:
+  2035			super._draw()
+  2036			return
+  2037		draw_rect(Rect2(0, 0, 1280, 800), Color(0.5, 0.5, 0.5))
+  2038		# 1.6.0 B10（Codex B10 r1 #6）：樣本可換——--sil-team=1（紅方）、--sil-atk=0.5（攻擊格）、--sil-cb（色盲）、--sil-turn=0.55（轉身角 cos）
+  2039		var ua := OS.get_cmdline_user_args()
+  2040		var st := 0
+
+exec
+/bin/bash -lc "rg -n '_gait_frame|accum|hitstop|freeze_t|paused' build/cg/b11/game/scripts/ui/battle/battle_view.gd; rg -n 'hd_state|hd_t|turn_start_t|turn_flip_t|_gait_clear' build/cg/b11/game/scripts/ui/battle/*.gd; sed -n '270,410p' coordination/v1600-impl/b11-r1/diff3.patch; rg -n 'func draw_unit|absf\\(face\\)|wt_loc|walk_turn' build/cg/b11/game/scripts/ui/*sprites* build/cg/b11/game/scripts/ui/units/* 2>/dev/null" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 130ms:
+rg: build/cg/b11/game/scripts/ui/battle/battle_view.gd: IO error for operation on build/cg/b11/game/scripts/ui/battle/battle_view.gd: No such file or directory (os error 2)
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:394:	if get("hd_state") != null:
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:395:		get("hd_state").clear()   # 1.3.0 §5.4 走向記錄（跳轉、新的一場清掉）
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:402:	turn_start_t.clear()
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:403:	turn_flip_t.clear()
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:404:	set("hd_t", {})
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:515:			turn_start_t[u.id] = anim_clock()   # 1.6.0 B11：轉身開始那一刻（預備壓縮從這裡算；展示時鐘）
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:518:			turn_flip_t[u.id] = anim_clock()   # 1.6.0 B11：同一刻的展示時鐘（落定微彈用）
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:523:var turn_start_t := {}   # 1.6.0 B11：{兵 id: 轉身開始的展示時鐘}
+build/cg/b11/game/scripts/ui/battle/battle_state.gd:524:var turn_flip_t := {}    # 1.6.0 B11：{兵 id: 翻面那一刻的展示時鐘}
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:485:var hd_state := {}
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:489:var hd_t := {}
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:510:		if int(hd_state.get(id, 0)) != 0:
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:511:			hd_t[id] = [anim_clock(), int(hd_state[id]), 0]
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:512:		hd_state.erase(id)
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:514:	var cur: int = int(hd_state.get(id, 0))
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:525:		hd_t[id] = [anim_clock(), cur, nxt]
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:526:	hd_state[id] = nxt
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:541:	if turn_start_t.has(id):
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:542:		var k0: float = (now - float(turn_start_t[id])) / TURN_ANT
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:545:	if turn_flip_t.has(id):
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:546:		var k1: float = (now - float(turn_flip_t[id])) / 0.25
+build/cg/b11/game/scripts/ui/battle/battle_units.gd:1142:		var hb = hd_t.get(u.id)
+-	# V1.5：騎士的手握在槍桿上（原本沒有手，像槍浮在胸前）；手前一個小護盤
+-	var gp := base + dir * 13.0
+-	var o := dir.orthogonal()
+-	_poly(ci, PackedVector2Array([gp + dir * 3.0 + o * 4.5, gp + dir * 9.0, gp + dir * 3.0 - o * 4.5]), STEEL, a)
+-	_fist(ci, gp, dir, a)
+-	_part_end(ci)
++	if not back:
++		_cav_lance(ci, tc, w, walk, a)   # 1.6.0 B11：背面時槍在身前，已在騎士之前畫過
+ 
+ 
+ ## V1.5 刺客短刀：hand＝握點，end＝刀尖。刃從護手往刀尖，握柄與柄頭在手後，深色手套蓋住握柄。
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1650,6 +1650,8 @@
+ 			_run_mem_check.call_deferred(a.substr(12))
+ 		elif a.begins_with("--sil="):
+ 			_run_sil.call_deferred(a.substr(6))
++		elif a.begins_with("--turn-strip="):
++			_run_turn_strip.call_deferred(a.substr(13))
+ 		elif a.begins_with("--bake-pack="):
+ 			_run_bake_pack.call_deferred(a.substr(12))
+ 		elif a.begins_with("--pack-bench="):
+@@ -1867,7 +1869,168 @@
+ 	print("SIL ", out_path, " ", err)
+ 	get_tree().quit(0 if err == OK else 1)
+ 
++## 1.6.0 B11（P5.5、S3）轉身連拍：劍士、騎兵 × 兩隊 × 色盲開關 × 五方向（東、西＝側面；東南、西南＝往南走的 3/4 正面；北＝背面）
++## 兩兩轉換 20 種＝160 組合，每組 8 格。每格記走哪條畫法（圖集／向量＝缺格）；原地轉身（東↔西）另量腳底接地點左右漂移（腳滑比）。
++## 用法：<exe> --path game --resolution 1280x800 -- --turn-strip=<輸出資料夾（Windows 路徑）>   每頁存 PNG、最後存 turn_strip.json，印 TURNSTRIP
++var ts_mode := false
++var ts_page: Array = []   # 這一頁要畫的 [type, team, from, to, k, 格子左上]
++var ts_routes: Array = []   # 這一頁每格實際走的畫法
++const TS_DIRS := ["E", "W", "SE", "SW", "N"]
++const TS_CELL := Vector2(78, 96)
++func _ts_state(a: String, b: String, k: float) -> Dictionary:
++	# 照戰鬥的實際行為模擬（Hydrogen B11 r2）：朝向 face 在 8 格之間連續變（face_now 的轉身插值），走路時 |face|<0.9 由
++	# draw_unit 自動走 3/4 正面頁（正中過渡）；南北頁照 heading 前後半；方向切換中間插同一支 hd_blend_c 的轉身格（側↔背不插，見 hd_blend_c）
++	var fa := 1.0 if a in ["E", "SE"] else (-1.0 if a in ["W", "SW"] else (1.0 if b in ["E", "SE"] else -1.0))
++	var fb := 1.0 if b in ["E", "SE"] else (-1.0 if b in ["W", "SW"] else fa)
++	var face := lerpf(fa, fb, k)
++	if absf(face) < 0.18:
++		face = 0.18 * (signf(fb) if k >= 0.5 else signf(fa))
++	var walking := a in ["SE", "SW", "N"] or b in ["SE", "SW", "N"]
++	var ha := 1 if a in ["SE", "SW"] else (-1 if a == "N" else 0)
++	var hb := 1 if b in ["SE", "SW"] else (-1 if b == "N" else 0)
++	var hd := ha if k < 0.5 else hb
++	var c := hd_blend_c(ha, hb)
++	if ha != hb and c < 1.0 and k > 0.36 and k < 0.64:
++		return {"face": signf(face) * c, "hd": 0, "walk": 0.0}
++	return {"face": face, "hd": hd, "walk": (0.3 + k * 4.0) if walking else 0.0}
++
++func _ts_draw_one(p: Vector2, type: int, team: int, st: Dictionary) -> String:
++	var face: float = st["face"]
++	var walk: float = st["walk"]
++	var hd: int = st["hd"]
++	var dm := dir_draw_mode(type, hd, true)   # 和戰鬥同一支選畫法（Codex B11 r1 #4）
++	if hd != 0 and dm == 0:
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"   # 要南北頁卻沒有＝缺格
++	if dm < 0:
++		sprites.draw_back_walk(self, p, type, team, face, walk, 0.0, 1.0, 0.0, UNIT_SCALE, 0.0, 1.0, cbm())
++		return "atlas"
++	if dm > 0:
++		sprites.draw_unit(self, p, type, team, signf(face) * HEAD_FRONT_C, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
++		return "atlas"
++	if absf(face) < 0.9 and not sprites.has_turn(type):
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"
++	if not sprites.has_type(type):
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"
++	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
++	return "atlas"
++
++func _run_turn_strip(out_dir: String) -> void:
++	Save.prefix = "shot_"
++	var res := {"combos": 0, "missing": 0, "missing_list": [], "slide": [], "pages": 0}
++	print("TS start")
++	for cbv in [false, true]:
++		Save.set_setting("colorblind", cbv)
++		_rebuild_sprites()
++		print("TS rebuild cb=", cbv)
++		var guard := 0
++		while not (sprites.is_ready(cbv) and sprites.build_done) and guard < 1200:
++			guard += 1
++			await get_tree().process_frame
++		sprites.ensure_turn_atk([D.SWORD, D.CAVALRY])   # 和開戰時同一支：出場兵種補烘轉身出手格＋背面走路頁
++		while not (sprites.bw_tex.has(D.SWORD) and sprites.bw_tex.has(D.CAVALRY)) and guard < 2400:
++			guard += 1
++			await get_tree().process_frame
++		print("TS ready cb=", cbv, " guard=", guard, " ready=", sprites.is_ready(cbv), " done=", sprites.build_done)
++		var jobs: Array = []
++		for type in [D.SWORD, D.CAVALRY]:
++			for team in 2:
++				for a in TS_DIRS:
++					for b in TS_DIRS:
++						if a != b:
++							jobs.append([type, team, a, b])
++		var per_page := 8   # 每頁 2 欄 × 4 列、列距 196（騎兵的槍伸很高，列距 98 會伸進上一列的腳底量測區）
++		for pg in range(0, jobs.size(), per_page):
++			ts_page = []
++			for ji in range(pg, mini(pg + per_page, jobs.size())):
++				var j: Array = jobs[ji]
++				var row := ji - pg
++				for f in 8:
++					ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 78 + (640 if row >= 4 else 0), 100 + (row % 4) * 196)])
++			ts_mode = true
++			queue_redraw()
++			await get_tree().process_frame
++			await RenderingServer.frame_post_draw
++			var img := get_viewport().get_texture().get_image()
++			img.save_png(out_dir.path_join("turn_strip_cb%d_%02d.png" % [int(cbv), pg / per_page]))
++			res["pages"] += 1
++			for ji in range(pg, mini(pg + per_page, jobs.size())):
++				var j: Array = jobs[ji]
++				res["combos"] += 1
++				var miss := 0
++				var xs: Array = []
++				for f in 8:
++					var idx := (ji - pg) * 8 + f
++					if ts_routes[idx] != "atlas":
++						miss += 1
++					if j[2] in ["E", "W"] and j[3] in ["E", "W"]:
++						xs.append(_ts_foot_x(img, ts_page[idx][5]))
++				if miss > 0:
++					res["missing"] += miss
++					res["missing_list"].append([j[0], j[1], int(cbv), j[2], j[3], miss])
++				if not xs.is_empty():
++					var lo := 1e9
++					var hi := -1e9
++					var bad := 0
++					for x in xs:
++						if x > -900.0:
++							lo = minf(lo, x)
++							hi = maxf(hi, x)
++						else:
++							bad += 1
++					# 八格都要量得到腳（Codex B11 r1 #5：量不到不能當沒滑）；量不到＝ 9.9（必失敗）
++					res["slide"].append([j[0], j[1], int(cbv), j[2], j[3], snappedf((hi - lo) / (36.0 * UNIT_SCALE / 0.92), 0.001) if bad == 0 and hi >= lo else 9.9])
++	ts_mode = false
++	Save.set_setting("colorblind", false)
+
+codex
+展示時鐘與 blending 的配件、輪廓排除已接上；但暫停時仍會略過 turn_crouch，可能讓壓彈姿勢跳回原狀。我正核對更新流程與連拍工具的對應行為。
+exec
+/bin/bash -lc "rg -n '_gait_frame|accum|freeze_t|hitstop' build/cg/b11/game/scripts/ui/battle_view.gd; rg -n 'func draw_unit|absf\\(face\\)|wt_loc' build/cg/b11/game/scripts -g '*sprite*'; rg -n 'paused|_gait_frame' build/cg/b11/game/scripts/ui/main.gd; rg --files coordination/v1600-impl/b11-r1" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 116ms:
+65:		_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
+83:	if hitstop > 0:
+85:		var used := minf(delta, hitstop)
+87:		freeze_t += used   # 1.4.0：配件等只看展示時間的動畫也一起停（Codex cat05 #8）
+88:		hitstop -= delta
+89:		if hitstop > 0:
+91:		hitstop = 0.0
+105:			accum += extra * 0.05
+114:	accum += delta * rate
+115:	while accum >= 0.05 and not view.finished:
+116:		accum -= 0.05
+121:		if hitstop > 0:
+244:		hitstop = 0.2
+363:					hitstop = maxf(hitstop, 0.06)
+594:					hitstop = maxf(hitstop, 0.3)   # 簡化特效時不頓格（Codex v110-impl2）
+704:			_hitstop_weight(2)   # 1.4.0 §6.5 重擊頓一下
+968:	accum = 0.0
+980:	hitstop = 0.0
+1418:func _hitstop_weight(w: int) -> void:
+1421:	hitstop = maxf(hitstop, HITSTOP_W[clampi(w, 0, 2)])
+build/cg/b11/game/scripts/ui/sprite_cache.gd:50:var wt_loc := {}                 # 兵種 → [頁, 起始格]
+build/cg/b11/game/scripts/ui/sprite_cache.gd:90:const _SWAP := ["pages", "loc", "ring_tex", "turn_tex", "turn_loc", "wt_pages", "wt_loc", "fid_tex", "fid_loc", "ta_tex", "bw_tex", "ready_cb", "ready_paint"]
+build/cg/b11/game/scripts/ui/sprite_cache.gd:128:	wt_loc = {}
+build/cg/b11/game/scripts/ui/sprite_cache.gd:205:			wt_loc[chunk[k]] = [pg, k * 2 * per_w]
+build/cg/b11/game/scripts/ui/sprite_cache.gd:634:func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
+build/cg/b11/game/scripts/ui/sprite_cache.gd:636:	if hurt > 0.5 and atk <= 0.0 and walk == 0.0 and absf(face) >= 0.9 and fid_loc.has(type):
+build/cg/b11/game/scripts/ui/sprite_cache.gd:640:	if fid >= 0 and hurt <= 0.0 and atk <= 0.0 and walk == 0.0 and absf(face) >= 0.9 and fid_loc.has(type):
+build/cg/b11/game/scripts/ui/sprite_cache.gd:643:	if absf(face) < 0.9 and atk <= 0.0 and walk > 0.0 and wt_loc.has(type):
+build/cg/b11/game/scripts/ui/sprite_cache.gd:645:		var wl: Array = wt_loc[type]
+build/cg/b11/game/scripts/ui/sprite_cache.gd:650:	if absf(face) < 0.9 and has_turn(type):
+build/cg/b11/game/scripts/ui/sprite_cache.gd:692:	var af := absf(face)
+coordination/v1600-impl/b11-r1/codex-prompt.md
+coordination/v1600-impl/b11-r1/b11-plan.md
+coordination/v1600-impl/b11-r1/hy-prompt.txt
+coordination/v1600-impl/b11-r1/diff3.patch
+coordination/v1600-impl/b11-r1/diff2.patch
+coordination/v1600-impl/b11-r1/diff.patch
+coordination/v1600-impl/b11-r1/codex3.raw
+coordination/v1600-impl/b11-r1/codex3.err
+coordination/v1600-impl/b11-r1/codex2.raw
+coordination/v1600-impl/b11-r1/codex2.md
+coordination/v1600-impl/b11-r1/codex2.err
+coordination/v1600-impl/b11-r1/codex.raw
+coordination/v1600-impl/b11-r1/codex.md
+coordination/v1600-impl/b11-r1/codex.err
+coordination/v1600-impl/b11-r1/codex-prompt3.md
+coordination/v1600-impl/b11-r1/codex-prompt2.md
+coordination/v1600-impl/b11-r1/hy2.err
+coordination/v1600-impl/b11-r1/hy.err
+coordination/v1600-impl/b11-r1/hy-prompt3.txt
+coordination/v1600-impl/b11-r1/hy-prompt2.txt
+coordination/v1600-impl/b11-r1/hy.md
+coordination/v1600-impl/b11-r1/hy3.md
+coordination/v1600-impl/b11-r1/hy3.err
+coordination/v1600-impl/b11-r1/hy2.md
+coordination/v1600-impl/b11-r1/turn_strip2.json
+coordination/v1600-impl/b11-r1/turn_strip.json
+coordination/v1600-impl/b11-r1/turn_strip3.json
+coordination/v1600-impl/b11-r1/hy2/round1.md
+coordination/v1600-impl/b11-r1/hy2/cavalry_team0_page5.png
+coordination/v1600-impl/b11-r1/hy2/sword_team0_page0.png
+coordination/v1600-impl/b11-r1/hy3/round2.md
+coordination/v1600-impl/b11-r1/hy3/cavalry_team0_page5.png
+coordination/v1600-impl/b11-r1/hy3/sword_team0_page0.png
+coordination/v1600-impl/b11-r1/hy1/cavalry_team0_page5.png
+coordination/v1600-impl/b11-r1/hy1/sword_team0_page0.png
+
+exec
+/bin/bash -lc "nl -ba build/cg/b11/game/scripts/ui/battle_view.gd | sed -n '20,140p'; nl -ba build/cg/b11/game/tests/suites/battle_visual.gd | tail -90; cat coordination/v1600-impl/b11-r1/hy2.md" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+    20		if view.finished:
+    21			skip_busy = false
+    22			result_delay = 9.0
+    23	
+    24	
+    25	## 第十輪 I4：重播的全長在背景算，算完才開始播。
+    26	func _pre_join() -> void:
+    27		if pre_thread != null:
+    28			var v = pre_thread.wait_to_finish()
+    29			pre_thread = null
+    30			if v is Array:
+    31				replay_total = int(v[0])
+    32				replay_bm = v[1]
+    33	
+    34	## 不要等：還在算就留給 _pre_reap 收。
+    35	func _pre_drop() -> void:
+    36		if pre_thread != null:
+    37			pre_old.append(pre_thread)
+    38			pre_thread = null
+    39	
+    40	func _pre_reap() -> void:
+    41		for i in range(pre_old.size() - 1, -1, -1):
+    42			if not pre_old[i].is_alive():
+    43				pre_old[i].wait_to_finish()
+    44				pre_old.remove_at(i)
+    45	
+    46	func _exit_tree() -> void:
+    47		if has_method("_rv_exit"):
+    48			call("_rv_exit")   # 1.1.0 H1：覆盤重算、GIF 先叫停再等
+    49		bg.drain()   # 1.1.0 N6：覆盤、GIF、教練、三考、出題碼的背景工作：全部叫停再等（各自 64 tick／每格內會停）
+    50		_pre_join()
+    51		_pre_drop()
+    52		for th in pre_old:
+    53			th.wait_to_finish()
+    54		pre_old.clear()
+    55		if ai_thread != null:
+    56			ai_thread.wait_to_finish()
+    57			ai_thread = null
+    58	
+    59	func _battle_process(delta: float) -> void:
+    60		if pre_thread != null:
+    61			if pre_thread.is_alive():
+    62				return
+    63			_pre_join()
+    64		if view != null:
+    65			_gait_frame(delta)   # 不能放在只有部分情況才跑的地方（Codex P2 #1）
+    66		if start_hold > 0.0:
+    67			var ph0 := 1.0 - start_hold
+    68			start_hold -= delta
+    69			var ph1 := 1.0 - start_hold
+    70			for at in [0.25, 0.55, 0.85]:   # 1.2.0 §9.1：三段落子各一聲厚重落子聲（全場只有 3 聲）
+    71				if ph0 < at and ph1 >= at and sfx != null:
+    72					sfx.play("place_heavy", 0.75)
+    73			return
+    74		if call("_seek_pump"):
+    75			return
+    76		if _hl_reel_tick():
+    77			return   # 1.3.0 §2 精華三連：換段開始跳轉，這一幀不再推進（Codex cat06 #1）
+    78		if skip_busy:
+    79			_skip_step()
+    80			return
+    81		if paused:
+    82			return
+    83		if hitstop > 0:
+    84			# 1.2.0 §9.6 展示時鐘：停頓期間欠下的模擬 tick（只算真的停頓的那段、照停頓當下的倍速換算）
+    85			var used := minf(delta, hitstop)
+    86			present_debt += used * speed / 0.05
+    87			freeze_t += used   # 1.4.0：配件等只看展示時間的動畫也一起停（Codex cat05 #8）
+    88			hitstop -= delta
+    89			if hitstop > 0:
+    90				return
+    91			hitstop = 0.0
+    92			delta -= used      # 停頓在這一幀中間結束：剩下的時間照常推進（不丟掉，Codex cat05 #8）
+    93		var rate := speed
+    94		if present_debt > 0.0 and slow_left <= 0 and final_left <= 0:
+    95			if present_debt > 20.0:
+    96				# 落後超過 1 秒（20 tick）：不播演出直接追上（事件照常記進戰報與書籤；最後時刻只記狀態不演）
+    97				var nskip := int(present_debt)
+    98				for _i in nskip:
+    99					if view.finished:
+   100						break
+   101					_sim_step(false)
+   102				present_debt = 0.0
+   103			else:
+   104				var extra := minf(delta * speed * 0.5 / 0.05, present_debt)   # 追回：最多 1.5 倍速
+   105				accum += extra * 0.05
+   106				present_debt -= extra
+   107		if slow_left > 0:
+   108			rate *= 0.5
+   109			slow_left -= delta
+   110		if final_left > 0:
+   111			rate *= 0.25      # 第十輪 F1：最後一擊
+   112			final_left -= delta
+   113			_update_action_focus()
+   114		accum += delta * rate
+   115		while accum >= 0.05 and not view.finished:
+   116			accum -= 0.05
+   117			var was_slow := slow_left > 0 or final_left > 0
+   118			_sim_step(true)
+   119			if (slow_left > 0 or final_left > 0) and not was_slow:
+   120				break   # 這一 tick 觸發慢動作：剩下的累積留到下一幀用慢速消耗（Codex S8 #3）
+   121			if hitstop > 0:
+   122				break   # 1.4.0：這一 tick 觸發頓幀，剩下的累積等停完再消耗（Codex cat05 #8）
+   123		# 播完之後展示時鐘繼續走（不再推進快照）：最後一格的位置插值與最後一擊的後搖要演完（Codex R5 #1）
+   124		# 最後時刻只在 _sim_step 每個畫面 tick 判定（Codex S8 #1：每幀也判會讓觸發 tick 跟幀率有關）
+   125		if slow_left > 0:
+   126			_update_action_focus()
+   127		# 1.3.0 §2 最後一擊的抽離感：環境低通壓到約 400Hz、畫面去飽和 25%，0.4 秒回彈（減少特效時慢動作本來就不開）
+   128		sfx.set_muffled((slow_left > 0 or final_left > 0) and not view.finished, 400.0 if final_left > 0 else 900.0)
+   129		desat_a = 0.25 if final_left > 0 else move_toward(desat_a, 0.0, delta * 0.25 / 0.4)
+   130		_spot_update(delta)
+   131		_pad_cam(delta)
+   132		# 分軌音樂依戰況混音（第三輪 S1）
+   133		var close := absf(view.power(0) * 100.0 / (view.budget_of(0) * 1000) - view.power(1) * 100.0 / (view.budget_of(1) * 1000)) <= 15.0
+   134		sfx.set_layer_targets(sfx.layer_targets(close, slow_left > 0 and not view.finished))
+   135		if sfx.has_method("set_room_tense"):
+   136			sfx.set_room_tense(close or slow_left > 0)   # 1.3.0 §10：戰況緊時遠景低通
+   137		# 鏡頭只有一個決策點（Codex S5 #6）：跟拍優先於最後時刻框選，兩者都沒有才回到全景
+   138		if follow_id >= 0:
+   139			pass   # 由 _follow_update 決定
+   140		elif pinch_zoom > 1.01:
+  1351						worst = maxf(worst, cover[k])
+  1352					pp.free()
+  1353		ok(n > 200 and worst <= 0.40, "落影蓋到單一可走格的面積最多 %.0f%%（≤40%%；%d 塊影子）" % [worst * 100.0, n])
+  1354		var src: String = FileAccess.get_file_as_string("res://scripts/ui/map_art.gd")
+  1355		var alphas: Array = []
+  1356		for line in src.split("\n"):
+  1357			if line.find("draw_rect(ssh") >= 0 or line.find("draw_rect(esh") >= 0 or line.find("凹槽北緣內影") >= 0:
+  1358				var m := RegEx.create_from_string("Color\\(([0-9.]+), ([0-9.]+), ([0-9.]+), ([0-9.]+)\\)").search(line)
+  1359				if m != null:
+  1360					alphas.append(float(m.get_string(4)))
+  1361		ok(alphas.size() >= 3 and alphas.max() <= 0.35, "落影、東側影、凹槽內影不透明度 ≤0.35（%s）" % [alphas])
+  1362		var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+  1363		var i_desk := gs.find("_draw_desk()   #")
+  1364		var i_field := gs.find("\t_draw_field()\n")
+  1365		var i_units := gs.find("_draw_units_of(view, false)")
+  1366		ok(i_desk >= 0 and i_field > i_desk and i_units > i_field, "畫的順序：桌面（含盤外壓暗）→ 盤面與地形 → 兵與隊色圈")
+  1367		var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+  1368		var i_dim := ub.find("Color(DIM_INK, PAL.OFF_BOARD_DIM)")
+  1369		ok(i_dim > ub.find("func _draw_desk()") and i_dim < ub.find("func _desk_props()"), "盤外壓暗在 _draw_desk 裡（盤面畫在它之上，盤內隊色不變）")
+  1370	
+  1371	## 1.6.0 B10（P4.1～P4.4）兩兵種剪影試作：色盲旗形、底座厚度與木紋、巨獸粗外框（剪影墊底一趟）、全兵種血條避讓。
+  1372	## 剪影分離（劍士、騎兵和其他兵種最大 IoU）要真的繪圖，headless 量不了：用 dev_main --sil＋tools/gen/sil_report.py 量，數字記在 ledger。
+  1373	func test_silhouette_v1600() -> void:
+  1374		var Art = load("res://scripts/ui/art.gd")
+  1375		# P4.2 色盲旗形：藍方圓旗（12 點同半徑）、紅方燕尾（右緣有往內的 V 口）
+  1376		var p := Vector2(100, 100)
+  1377		var blue: PackedVector2Array = Art.flag_shape(p, 0)
+  1378		var c := p + Vector2(5.0, -8.5)
+  1379		var round_ok := blue.size() >= 10
+  1380		for q in blue:
+  1381			round_ok = round_ok and absf(q.distance_to(c) - 4.6) < 0.01
+  1382		var red: PackedVector2Array = Art.flag_shape(p, 1)
+  1383		var right := -INF
+  1384		for q in red:
+  1385			right = maxf(right, q.x)
+  1386		var notch := false
+  1387		for k in range(1, red.size() - 1):
+  1388			notch = notch or (red[k].x < right - 3.0 and red[k - 1].x >= right - 0.01 and red[k + 1].x >= right - 0.01)
+  1389		ok(round_ok and notch, "色盲旗形：藍方圓旗、紅方燕尾（不靠顏色）")
+  1390		var asrc: String = FileAccess.get_file_as_string("res://scripts/ui/art.gd")
+  1391		ok(asrc.find("if cb:\n\t\tvar pts2: PackedVector2Array = flag_shape(p, team)") >= 0, "色盲模式才換旗形（一般模式三角小旗不變）")
+  1392		# P4.3 底座：斜邊加厚、鐵箍跟著新斜邊、頂面木紋
+  1393		ok(Art.BASE_EDGE >= 4.0 and asrc.find("var c0 := p + Vector2(0, BASE_EDGE) * scale") >= 0 and asrc.find("木紋：頂面上半圈的兩道淺弧") >= 0, "底座斜邊 %.1f、鐵箍跟著斜邊、頂面木紋" % Art.BASE_EDGE)
+  1394		# P4.4 巨獸粗外框：剪影那一趟只畫墨色、往外擴；畫完一定歸零（不然之後全部兵都變黑）
+  1395		var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+  1396		var i0 := bu.find("Art.sil_w = BOSS_SIL_PX / usc")
+  1397		ok(i0 >= 0 and bu.find("Art.sil_w = 0.0", i0) > i0 and bu.find("Art.sil_w = 0.0", i0) - i0 < 260, "巨獸剪影墊底一趟後 sil_w 歸零")
+  1398		var kit: String = FileAccess.get_file_as_string("res://scripts/ui/units/kit.gd")
+  1399		ok(kit.count("if sil_w > 0.0:") == 3, "圓、多邊形、線三種基本筆畫都支援剪影墊底")
+  1400		ok(Art.sil_w == 0.0, "平常 sil_w＝0")
+  1401		# 全兵種血條避讓：頭頂血條框蓋到別隻的頭胸 → 改畫底座弧；自己的頭胸不算
+  1402		var BU = load("res://scripts/ui/battle/battle_units.gd")
+  1403		var faces := {1: Rect2(100, 100, 40, 50), 2: Rect2(200, 100, 40, 50)}
+  1404		var bu_src: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+  1405		ok(bu_src.find("if not hp_bar_blocks(hp_arc_rect(p), u.id, bar_faces):") >= 0 and bu_src.find("if u.id != follow_id:\n\t\t\t\t\tcontinue") >= 0, "底座弧也會蓋到前排頭胸就不畫（跟拍那隻照畫頭頂）")
+  1406		ok(bu_src.find("var bar_r := Rect2(top + Vector2(-14.5, -4.5), Vector2(w + 15.5, 13.0)) if cbm()") >= 0, "遮擋檢查含色盲標記的完整範圍")
+  1407		ok(bu_src.find("var ae := a1 - (a1 - a0) * frac") >= 0, "底座弧血量終點插值（低血量不會看起來空血）")
+  1408		ok(FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd").find("var ed := 2.2 * Art.BASE_EDGE / 3.2") >= 0, "大圖底座同步加厚＋木紋")
+  1409		ok(BU.hp_bar_blocks(Rect2(110, 140, 30, 6), 2, faces) and not BU.hp_bar_blocks(Rect2(110, 140, 30, 6), 1, faces) and not BU.hp_bar_blocks(Rect2(150, 60, 30, 6), 3, faces), "血條避讓：蓋到別隻頭胸才改底座弧，自己的不算")
+  1410		# P4.1 劍士、騎兵剪影：劍刃 34、待機往前上方斜伸；馬頭抬高、槍 60
+  1411		var ks: String = FileAccess.get_file_as_string("res://scripts/ui/units/kingdom.gd")
+  1412		ok(ks.find("var tip := hand + dir * 34.0") >= 0 and ks.find("var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5)") >= 0, "劍士：劍刃 34、待機斜伸、揮到底角度 0.8 不變")
+  1413		ok(ks.find("var tip := base + dir * 60.0") >= 0 and ks.find("Vector2(17, -41), Vector2(31, -38)") >= 0, "騎兵：槍 60、馬頭抬高往前")
+  1414	
+  1415	## 1.6.0 B11（S3；P5.1、P5.2、P5.5）兩兵種轉身（程式退路）：命中頓幀、轉身縱向節奏（預備壓縮很輕、落定往上微彈）、
+  1416	## 連拍工具（真畫面 160 組合缺格與腳滑在 --turn-strip 量，驗收鏈印 TURNSTRIP）。
+  1417	func test_turn_rhythm_v1600() -> void:
+  1418		var BU = load("res://scripts/ui/battle/battle_units.gd")
+  1419		var bsrc: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+  1420		ok(bsrc.find("if live and not paused and hurt <= 0.0 and not bool(Save.s(\"reduce_motion\")):\n\t\t\tcrouch *= turn_crouch(u.id)") >= 0, "轉身縱向節奏：暫停、受擊中、減少動態不套（不和受擊壓縮疊加）")
+  1421		ok(BU.hd_blend_c(0, 1) == 0.8 and BU.hd_blend_c(0, -1) == 1.0 and BU.hd_blend_c(1, -1) == 0.3 and BU.hd_blend_c(0, 0) == 1.0, "方向切換的過渡轉身格：側↔正 0.8、正↔背 0.3、側↔背不插（轉身格朝鏡頭，會先露臉）")
+  1422		ok(bsrc.find("var dmode := dir_draw_mode(u.type, hd, cache_ok)") >= 0 and FileAccess.get_file_as_string("res://tools/dev_main.gd").find("var dm := dir_draw_mode(type, hd, true)") >= 0, "戰鬥與連拍工具用同一支選畫法")
+  1423		var GS = load("res://scripts/ui/game_screens.gd")
+  1424		var g = GS.new()
+  1425		ok(is_equal_approx(g.turn_crouch(1), 1.0), "沒在轉身＝不壓不拉")
+  1426		g.turn_start_t[1] = g.anim_clock() - g.TURN_ANT * 0.5   # 展示時鐘（沒有戰鬥＝0）
+  1427		var c0: float = g.turn_crouch(1)
+  1428		ok(c0 < 1.0 and c0 >= 1.0 - g.TURN_SQ - 1e-6 and g.TURN_SQ <= 0.04, "預備壓縮最多 %.0f%%（受擊壓縮的三分之一以下，不像被打）" % (g.TURN_SQ * 100.0))
+  1429		g.turn_start_t.clear()
+  1430		g.turn_flip_t[1] = g.anim_clock() - 0.125
+  1431		ok(g.turn_crouch(1) > 1.0, "翻面後往上微彈（不往下壓）")
+  1432		g.turn_flip_t[1] = g.anim_clock() - 1.0
+  1433		ok(is_equal_approx(g.turn_crouch(1), 1.0), "0.25 秒後回到原樣")
+  1434		var bs: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+  1435		ok(bs.find("var now := anim_clock()") >= 0 and bs.find("hd_t[id] = [anim_clock(), cur, nxt]") >= 0, "轉身節奏與方向過渡都用展示時鐘（暫停、頓幀凍結、倍速等比）")
+  1436		ok(bs.count("hd == 0 and not blending:") == 2, "方向過渡那一閃不疊配件、不補畫輪廓")
+  1437		g.free()
+  1438		var dm: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
+  1439		var mg: String = FileAccess.get_file_as_string("res://scripts/ui/main.gd")
+  1440		ok(dm.find("func _run_turn_strip(") >= 0 and dm.find("print(\"TURNSTRIP \"") >= 0 and mg.find("\"--turn-strip=\"") >= 0, "連拍工具：--turn-strip（160 組合、缺格、腳滑比）")
+1. 背面成立：sword_team0_page0.png、cavalry_team0_page5.png 4列6~8、14~16格武器被身擋僅露尖端，不再壓頭穿腦，配後腦勺可辨。
+2. 4列轉身朝前（新問題）：兩圖4列4~5、12~13格皆露臉（5格武器先翻左），6、14格突切背面，側面轉背面不成立。
+3. 2~3列跨向仍直翻：兩圖2列12→13、3列4→5格仍缺正中過渡直翻；cavalry_team0_page5.png 2~3列4、12格馬腳仍收直（不確定是否透視）。
+結論：No-Go
+
+codex
+- P2 [battle_units.gd:1135](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b11/game/scripts/ui/battle/battle_units.gd:1135)：仍以 `not paused` 跳過 turn_crouch。壓彈途中暫停會立即恢復原比例，續播又跳回壓彈姿勢，未達「暫停凍結」。裁決保留：移除此條件，讓展示時鐘凍結姿勢，並修正 1420 行測試。
+- blending 排除配件／xray、側↔背取消插格及連拍 face 插值，靜態核對未見新問題。
+
+結論：有條件
+tokens used
+49,868

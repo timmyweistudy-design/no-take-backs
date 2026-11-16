@@ -484,8 +484,31 @@ const MAT_OAK := "res://art/mat/tile_oak.png"
 const HEAD_FRONT_C := 0.55   # 往南走用的轉身角度（既有走路轉身頁 WT_C 0.55，22 種都有）
 var hd_state := {}
 var mag_pose: Array = []    # 1.3.0 §2：被選那隻這一幀的 [面向, 受擊, 表情]（單位迴圈寫入、放大鏡小窗讀）
+## 1.6.0 B11（Hydrogen r1：方向切換直接換姿勢、缺中格）：方向一換就記 [時間, 舊, 新]，HD_BLEND 秒內插一格轉身格過渡
+const HD_BLEND := 0.08
+var hd_t := {}
+## 這一格畫哪一種（戰鬥與連拍工具共用；Codex B11 r1 #4）：-1＝背面走路頁、1＝3/4 正面走路頁、0＝側面（含轉身格）
+func dir_draw_mode(type: int, hd: int, cache_ok: bool) -> int:
+	if hd < 0 and cache_ok and sprites.bw_tex.has(type):
+		return -1
+	if hd > 0 and cache_ok and sprites.wt_loc.has(type):
+		return 1
+	return 0
+
+## 兩個方向之間過渡用的轉身格寬度（cos）：側↔正面 0.8、側↔背面 0.55、正面↔背面 0.3
+## 側↔背面不插（1.0＝不插）：轉身格是朝鏡頭烘的，插在轉向背面的中間會先露臉再突然背過去（Hydrogen B11 r2）；
+## 要有「轉向背面」的過渡得另烘背面轉身頁（圖集容量另算），留給原畫或 B13b。
+static func hd_blend_c(a: int, b: int) -> float:
+	if a == b:
+		return 1.0
+	if a == 0 or b == 0:
+		return 0.8 if (a + b) > 0 else 1.0
+	return 0.3
+
 func heading_of(id: int, mx: int, my: int, walking: bool) -> int:
 	if not walking or (mx == 0 and my == 0):
+		if int(hd_state.get(id, 0)) != 0:
+			hd_t[id] = [anim_clock(), int(hd_state[id]), 0]
 		hd_state.erase(id)
 		return 0
 	var cur: int = int(hd_state.get(id, 0))
@@ -498,6 +521,8 @@ func heading_of(id: int, mx: int, my: int, walking: bool) -> int:
 		nxt = 0
 	elif cur != 0 and signi(my) != cur and ay * 10 > ax * 13:
 		nxt = 1 if my > 0 else -1
+	if nxt != cur:
+		hd_t[id] = [anim_clock(), cur, nxt]
 	hd_state[id] = nxt
 	return nxt
 
@@ -506,6 +531,23 @@ func hk_of(u) -> float:
 	return HK * focus_scale(u.id)
 
 ## 1.3.0 §5.1：跟拍（點兵讓鏡頭跟）的那一隻畫成 1.4 倍（基準 1.25 倍的 1.12 倍）；只改畫面。
+## 1.6.0 B11（P5.1）程式轉身退路的縱向節奏（橫向靠轉身格）：轉身剛開始 TURN_ANT 秒內壓 3%（比受擊小得多，
+## 1.3 起「轉身不往下壓、會像受擊」的顧慮——量級壓到受擊的三分之一以下）；翻面後 0.25 秒內往上拉 3%（微彈）。
+const TURN_ANT := 0.06
+const TURN_SQ := 0.03
+func turn_crouch(id: int) -> float:
+	var c := 1.0
+	var now := anim_clock()   # 展示時鐘：暫停、頓幀凍結（Codex B11 r2 #1）
+	if turn_start_t.has(id):
+		var k0: float = (now - float(turn_start_t[id])) / TURN_ANT
+		if k0 >= 0.0 and k0 < 1.0:
+			c *= 1.0 - TURN_SQ * sin(k0 * PI)
+	if turn_flip_t.has(id):
+		var k1: float = (now - float(turn_flip_t[id])) / 0.25
+		if k1 >= 0.0 and k1 < 1.0:
+			c *= 1.0 + TURN_SQ * sin(k1 * PI)
+	return c
+
 const FOCUS_SCALE := 1.4 / 1.25
 const BOSS_SIL_PX := 3.0   # 1.6.0 B10（P4.4）：巨獸外框多加的畫面像素
 func focus_scale(id: int) -> float:
@@ -1090,18 +1132,28 @@ func _draw_units_of(s, dim: bool) -> void:
 			crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
 		if u.id == follow_id:
 			mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
+		if live and hurt <= 0.0 and not bool(Save.s("reduce_motion")):
+			crouch *= turn_crouch(u.id)   # 1.6.0 B11（P5.1 程式轉身退路）：預備壓縮（很輕）→ 側緣過渡（轉身格）→ 落定微彈（往上拉，不往下壓）；受擊中、減少動態不套（Codex r1 #6）；暫停時由展示時鐘凍結姿勢（Codex r3）
 		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
 		var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
 		var chip := (2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0   # 1.3.0 §5.2 受傷掉漆
 		var drawn := false
 		var cache_ok: bool = sprites != null and sprites.is_ready(cbm()) and not bool(Save.s("plain_ui"))
-		if hd < 0 and cache_ok:
+		var hb = hd_t.get(u.id)
+		var blending := false
+		if live and hb != null and anim_clock() - float(hb[0]) < HD_BLEND and hd_blend_c(int(hb[1]), int(hb[2])) < 1.0 and cache_ok and sprites.has_turn(u.type) and not u.boss:
+			blending = true
+			# 方向切換的過渡格：轉身格（站姿）一閃，不直接從側面跳到正面／背面
+			_unit(p, u.type, u.team, (signf(face) if face != 0.0 else 1.0) * hd_blend_c(int(hb[1]), int(hb[2])), 0.0, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+			drawn = true
+		var dmode := dir_draw_mode(u.type, hd, cache_ok)
+		if dmode < 0 and not drawn:
 			drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
 			if drawn and chip > 0:
 				_chip_at(p, u.type, face, usc, chip, alpha)   # 背面也有掉漆（Codex cat05 #4）
 		if not drawn:
 			# 往南：只有圖集有走路轉身頁時才用 3/4 正面（沒有就照舊側面，不讓向量畫只橫縮；Codex cat05 #6）
-			var front_ok: bool = hd > 0 and cache_ok and sprites.wt_loc.has(u.type)
+			var front_ok: bool = dmode > 0
 			var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
 			if u.boss and not bool(Save.s("plain_ui")):
 				# 1.6.0 B10（P4.4）巨獸外框加粗：先墊一層往外擴的墨色剪影（畫面約 +3px），再正常畫
@@ -1109,9 +1161,9 @@ func _draw_units_of(s, dim: bool) -> void:
 				Art.unit(self, p, u.type, u.team, fdraw, walk, at, 0.0, alpha, ut, usc, cbm(), 0, lean, crouch, variant)
 				Art.sil_w = 0.0
 			_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
-		if live and not u.hidden and hd == 0:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）
+		if live and not u.hidden and hd == 0 and not blending:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）；1.6.0 B11：方向過渡那一閃也不疊（Codex r2 #2）
 			_spring_acc(p, u.type, u.team, face, usc, crouch, lean, walk, at, alpha, u.id, ut)   # 1.4.0 §5.2 即時配件（延遲回彈）
-		if live and not u.hidden and hd == 0:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
+		if live and not u.hidden and hd == 0 and not blending:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], usc])
 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:

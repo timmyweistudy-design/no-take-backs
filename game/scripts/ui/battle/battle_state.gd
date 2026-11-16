@@ -68,6 +68,12 @@ static func clutch_cond(s) -> bool:
 
 
 ## 畫面上現在播到第幾 tick（含小數，插值用）。
+## 1.6.0 B11（Codex r2）：展示時鐘（秒，1 倍速換算）——跟著模擬 tick 走：暫停、全場頓幀凍結，倍速等比加快
+func anim_clock() -> float:
+	if view == null or not ("tick" in view):
+		return time   # 沒有模擬（測試的假 view、標題示範以外）：退回一般時間
+	return _disp_tick() * 0.05
+
 func _disp_tick() -> float:
 	if view == null:
 		return 0.0
@@ -395,6 +401,9 @@ func _gait_reset() -> void:
 	drag_t.clear()
 	face_now.clear()
 	turn_t.clear()
+	turn_start_t.clear()
+	turn_flip_t.clear()
+	set("hd_t", {})
 	stop_t.clear()
 	atk_face.clear()
 	idle_since.clear()
@@ -504,12 +513,17 @@ func _gait_frame(delta: float) -> void:
 		var f0: float = float(face_now.get(u.id, tgt))
 		var f1: float = move_toward(f0, tgt, delta * 11.0)
 		face_now[u.id] = f1
+		if absf(f0) >= 0.999 and f1 != f0:
+			turn_start_t[u.id] = anim_clock()   # 1.6.0 B11：轉身開始那一刻（預備壓縮從這裡算；展示時鐘）
 		if f0 != 0.0 and signf(f1) != signf(f0):
 			turn_t[u.id] = time   # V1.3 A1a：翻面那一刻（腳下揚塵、展開回彈從這裡算）
+			turn_flip_t[u.id] = anim_clock()   # 1.6.0 B11：同一刻的展示時鐘（落定微彈用）
 
 ## 轉身過場（V1.3 A1a）：像厚木牌俐落翻面，不是紙片等比夾扁。
 ## 寬度不低於 TURN_MIN_W（窄位直接跳過去），展開段 X 微回彈 1.04；不做 Y 下壓（混戰時會像受擊）。
 const TURN_MIN_W := 0.45
+var turn_start_t := {}   # 1.6.0 B11：{兵 id: 轉身開始的展示時鐘}
+var turn_flip_t := {}    # 1.6.0 B11：{兵 id: 翻面那一刻的展示時鐘}
 const TURN_BOUNCE := 0.04
 func _face_of(u) -> float:
 	var f: float = face_now.get(u.id, signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0))

@@ -1650,6 +1650,8 @@ func _ready() -> void:
 			_run_mem_check.call_deferred(a.substr(12))
 		elif a.begins_with("--sil="):
 			_run_sil.call_deferred(a.substr(6))
+		elif a.begins_with("--turn-strip="):
+			_run_turn_strip.call_deferred(a.substr(13))
 		elif a.begins_with("--bake-pack="):
 			_run_bake_pack.call_deferred(a.substr(12))
 		elif a.begins_with("--pack-bench="):
@@ -1867,7 +1869,168 @@ func _run_sil(out_path: String) -> void:
 	print("SIL ", out_path, " ", err)
 	get_tree().quit(0 if err == OK else 1)
 
+## 1.6.0 B11（P5.5、S3）轉身連拍：劍士、騎兵 × 兩隊 × 色盲開關 × 五方向（東、西＝側面；東南、西南＝往南走的 3/4 正面；北＝背面）
+## 兩兩轉換 20 種＝160 組合，每組 8 格。每格記走哪條畫法（圖集／向量＝缺格）；原地轉身（東↔西）另量腳底接地點左右漂移（腳滑比）。
+## 用法：<exe> --path game --resolution 1280x800 -- --turn-strip=<輸出資料夾（Windows 路徑）>   每頁存 PNG、最後存 turn_strip.json，印 TURNSTRIP
+var ts_mode := false
+var ts_page: Array = []   # 這一頁要畫的 [type, team, from, to, k, 格子左上]
+var ts_routes: Array = []   # 這一頁每格實際走的畫法
+const TS_DIRS := ["E", "W", "SE", "SW", "N"]
+const TS_CELL := Vector2(78, 96)
+func _ts_state(a: String, b: String, k: float) -> Dictionary:
+	# 照戰鬥的實際行為模擬（Hydrogen B11 r2）：朝向 face 在 8 格之間連續變（face_now 的轉身插值），走路時 |face|<0.9 由
+	# draw_unit 自動走 3/4 正面頁（正中過渡）；南北頁照 heading 前後半；方向切換中間插同一支 hd_blend_c 的轉身格（側↔背不插，見 hd_blend_c）
+	var fa := 1.0 if a in ["E", "SE"] else (-1.0 if a in ["W", "SW"] else (1.0 if b in ["E", "SE"] else -1.0))
+	var fb := 1.0 if b in ["E", "SE"] else (-1.0 if b in ["W", "SW"] else fa)
+	var face := lerpf(fa, fb, k)
+	if absf(face) < 0.18:
+		face = 0.18 * (signf(fb) if k >= 0.5 else signf(fa))
+	var walking := a in ["SE", "SW", "N"] or b in ["SE", "SW", "N"]
+	var ha := 1 if a in ["SE", "SW"] else (-1 if a == "N" else 0)
+	var hb := 1 if b in ["SE", "SW"] else (-1 if b == "N" else 0)
+	var hd := ha if k < 0.5 else hb
+	var c := hd_blend_c(ha, hb)
+	if ha != hb and c < 1.0 and k > 0.36 and k < 0.64:
+		return {"face": signf(face) * c, "hd": 0, "walk": 0.0}
+	return {"face": face, "hd": hd, "walk": (0.3 + k * 4.0) if walking else 0.0}
+
+func _ts_draw_one(p: Vector2, type: int, team: int, st: Dictionary) -> String:
+	var face: float = st["face"]
+	var walk: float = st["walk"]
+	var hd: int = st["hd"]
+	var dm := dir_draw_mode(type, hd, true)   # 和戰鬥同一支選畫法（Codex B11 r1 #4）
+	if hd != 0 and dm == 0:
+		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
+		return "vector"   # 要南北頁卻沒有＝缺格
+	if dm < 0:
+		sprites.draw_back_walk(self, p, type, team, face, walk, 0.0, 1.0, 0.0, UNIT_SCALE, 0.0, 1.0, cbm())
+		return "atlas"
+	if dm > 0:
+		sprites.draw_unit(self, p, type, team, signf(face) * HEAD_FRONT_C, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
+		return "atlas"
+	if absf(face) < 0.9 and not sprites.has_turn(type):
+		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
+		return "vector"
+	if not sprites.has_type(type):
+		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
+		return "vector"
+	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
+	return "atlas"
+
+func _run_turn_strip(out_dir: String) -> void:
+	Save.prefix = "shot_"
+	var res := {"combos": 0, "missing": 0, "missing_list": [], "slide": [], "pages": 0}
+	print("TS start")
+	for cbv in [false, true]:
+		Save.set_setting("colorblind", cbv)
+		_rebuild_sprites()
+		print("TS rebuild cb=", cbv)
+		var guard := 0
+		while not (sprites.is_ready(cbv) and sprites.build_done) and guard < 1200:
+			guard += 1
+			await get_tree().process_frame
+		sprites.ensure_turn_atk([D.SWORD, D.CAVALRY])   # 和開戰時同一支：出場兵種補烘轉身出手格＋背面走路頁
+		while not (sprites.bw_tex.has(D.SWORD) and sprites.bw_tex.has(D.CAVALRY)) and guard < 2400:
+			guard += 1
+			await get_tree().process_frame
+		print("TS ready cb=", cbv, " guard=", guard, " ready=", sprites.is_ready(cbv), " done=", sprites.build_done)
+		var jobs: Array = []
+		for type in [D.SWORD, D.CAVALRY]:
+			for team in 2:
+				for a in TS_DIRS:
+					for b in TS_DIRS:
+						if a != b:
+							jobs.append([type, team, a, b])
+		var per_page := 8   # 每頁 2 欄 × 4 列、列距 196（騎兵的槍伸很高，列距 98 會伸進上一列的腳底量測區）
+		for pg in range(0, jobs.size(), per_page):
+			ts_page = []
+			for ji in range(pg, mini(pg + per_page, jobs.size())):
+				var j: Array = jobs[ji]
+				var row := ji - pg
+				for f in 8:
+					ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 78 + (640 if row >= 4 else 0), 100 + (row % 4) * 196)])
+			ts_mode = true
+			queue_redraw()
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			var img := get_viewport().get_texture().get_image()
+			img.save_png(out_dir.path_join("turn_strip_cb%d_%02d.png" % [int(cbv), pg / per_page]))
+			res["pages"] += 1
+			for ji in range(pg, mini(pg + per_page, jobs.size())):
+				var j: Array = jobs[ji]
+				res["combos"] += 1
+				var miss := 0
+				var xs: Array = []
+				for f in 8:
+					var idx := (ji - pg) * 8 + f
+					if ts_routes[idx] != "atlas":
+						miss += 1
+					if j[2] in ["E", "W"] and j[3] in ["E", "W"]:
+						xs.append(_ts_foot_x(img, ts_page[idx][5]))
+				if miss > 0:
+					res["missing"] += miss
+					res["missing_list"].append([j[0], j[1], int(cbv), j[2], j[3], miss])
+				if not xs.is_empty():
+					var lo := 1e9
+					var hi := -1e9
+					var bad := 0
+					for x in xs:
+						if x > -900.0:
+							lo = minf(lo, x)
+							hi = maxf(hi, x)
+						else:
+							bad += 1
+					# 八格都要量得到腳（Codex B11 r1 #5：量不到不能當沒滑）；量不到＝ 9.9（必失敗）
+					res["slide"].append([j[0], j[1], int(cbv), j[2], j[3], snappedf((hi - lo) / (36.0 * UNIT_SCALE / 0.92), 0.001) if bad == 0 and hi >= lo else 9.9])
+	ts_mode = false
+	Save.set_setting("colorblind", false)
+	var worst := 0.0
+	for sl in res["slide"]:
+		worst = maxf(worst, float(sl[5]))
+	res["slide_max"] = worst
+	var f := FileAccess.open(out_dir.path_join("turn_strip.json"), FileAccess.WRITE)
+	f.store_string(JSON.stringify(res))
+	f.close()
+	var ok: bool = res["combos"] == 160 and res["missing"] == 0 and worst <= 0.1
+	print("TURNSTRIP ", "OK" if ok else "FAIL", " combos=", res["combos"], " missing=", res["missing"], " slide_max=", worst)
+	get_tree().quit(0 if ok else 1)
+
+## 一格的腳底接地點：找到最低的前景列，取「最低 6 列」裡所有前景像素的平均 x（相對格子中心）——兩隻腳都算進去
+## （只取最低一列會只抓到靠前那隻腳，轉身時換腳就像在滑；B11 第一版的量法錯誤）
+func _ts_foot_x(img: Image, o: Vector2) -> float:
+	var x0 := int(o.x)
+	var y0 := int(o.y)
+	var low := -1
+	for yy in range(y0 + 95, y0 + 20, -1):
+		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):   # 畫面外 get_pixel 會給黑色（被當成腳）
+			var c := img.get_pixel(xx, yy)
+			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
+				low = yy
+				break
+		if low >= 0:
+			break
+	if low < 0:
+		return -999.0
+	var sx := 0.0
+	var n := 0
+	for yy in range(low - 5, low + 1):
+		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):
+			var c := img.get_pixel(xx, yy)
+			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
+				sx += xx
+				n += 1
+	return sx / maxi(1, n) - (x0 + 39)
+
 func _draw() -> void:
+	if ts_mode:
+		draw_rect(Rect2(0, 0, 1280, 800), Color(0.5, 0.5, 0.5))
+		ts_routes = []
+		for e in ts_page:
+			var o: Vector2 = e[5]
+			var st := _ts_state(e[2], e[3], e[4])
+			ts_routes.append(_ts_draw_one(o + Vector2(39, 78), e[0], e[1], st))
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+		return
 	if not sil_mode:
 		super._draw()
 		return

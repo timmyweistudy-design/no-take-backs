@@ -3,6 +3,27 @@ extends "res://scripts/ui/units/kit.gd"
 
 ## variant：0 一般招式、1 交替招式（劍士上挑；其他兵種同一般）。第三輪 R4。
 ## 第四輪：variant 2＝新兵的專屬動作（長槍兵拒騎頓槍、投彈兵被貼身拿點火棒敲、醫者舉杖施法、鼓手大力敲、狂戰士雙斧高舉）。
+## 劍：斜舉的亮刃（攻擊時往前揮）；前搖往後拉 35°、揮擊揮到 +60° 以上。
+## V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
+## 1.6.0 B11（Hydrogen r1）：抽出來——背面時劍在身前，要在身體與頭之前畫（被擋住），原本畫在頭上面像劍壓頭前。
+static func _sword_blade(ci: CanvasItem, w: float, sway: float, variant: int, a: float) -> void:
+	var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5) + sway   # 第十輪 F3：揮幅加大；1.6.0 B10（P4.1）：待機劍往前上方斜伸（剪影往右突出，和直立杖、圓團分開），揮到底的角度不變
+	if variant == 1:
+		# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
+		ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
+	_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
+	var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
+	var dir := Vector2(cos(ang), sin(ang))
+	var tip := hand + dir * 34.0   # 1.6.0 B10（P4.1）：劍刃 24→34、加寬，往前上方斜伸（剪影多一道斜線）
+	var side := dir.orthogonal() * 4.2
+	# V1.5：握柄＋柄頭在手後、護手在刃根（手往前 3.5px），拳頭蓋住握柄——不再像刀刃插在圓點上被切斷
+	_grip(ci, hand, dir, 6.0, a)
+	var root := hand + dir * 3.5
+	_poly(ci, PackedVector2Array([root + side, tip + side * 0.3, tip + dir * 3.0, tip - side * 0.3, root - side]), Color("#f4f7ff"), a)
+	_line(ci, root - dir.orthogonal() * 7.0, root + dir.orthogonal() * 7.0, GOLD, 3.0, a)
+	_fist(ci, hand, dir, a)
+	_part_end(ci)
+
 static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: float, a: float, t: float, angry := false, variant := 0) -> void:
 	# 腿（V9 P2）：腳踩地不動，上半身另外起伏；腿從腰連到腳，分隔不會斷開
 	var ft: Array = Gait.feet(type, walk)
@@ -20,6 +41,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 	# 第七輪 C2：小披風分隊，藍方圓角、紅方燕尾（除了圍巾已經很明顯的刺客與騎兵）
 	if not back:
 		_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # 背後的東西先畫（被身體擋住）
+	if back and type == D.SWORD:
+		_sword_blade(ci, w, sway, variant, a)   # 1.6.0 B11：背面時劍在身前，被身體、頭擋住（先畫）
 	# 身體（圓胖的上衣，隊伍色；狂戰士赤膊，隊伍色只留在獸皮披肩與褲頭；醫者白袍）
 	var bw0 := 13.0 if type == D.SHIELD else 10.5   # 第七輪 C1-2：盾兵身體加寬
 	var body := PackedVector2Array()
@@ -68,27 +91,10 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_part(ci, 0.0, 0.0)
 			_hat_off(ci)
 			_part_end(ci)
-			# 劍：斜舉的亮刃（攻擊時往前揮）
-			# 前搖往後拉 35°、揮擊揮到 +60° 以上
-			# V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
-			var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5) + sway   # 第十輪 F3：揮幅加大；1.6.0 B10（P4.1）：待機劍往前上方斜伸（剪影往右突出，和直立杖、圓團分開），揮到底的角度不變
-			if variant == 1:
-				# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
-				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
-			# 第七輪 C1-1：隊伍色短領巾；劍身加寬、十字護手
+			# 第七輪 C1-1：隊伍色短領巾
 			_poly(ci, PackedVector2Array([Vector2(-9, -24), Vector2(8, -24), Vector2(6, -20), Vector2(-3, -19), Vector2(-5, -14), Vector2(-9, -17)]), tc.lightened(0.15), a, true)
-			_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
-			var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
-			var dir := Vector2(cos(ang), sin(ang))
-			var tip := hand + dir * 34.0   # 1.6.0 B10（P4.1）：劍刃 24→34、加寬，往前上方斜伸（剪影多一道斜線）
-			var side := dir.orthogonal() * 4.2
-			# V1.5：握柄＋柄頭在手後、護手在刃根（手往前 3.5px），拳頭蓋住握柄——不再像刀刃插在圓點上被切斷
-			_grip(ci, hand, dir, 6.0, a)
-			var root := hand + dir * 3.5
-			_poly(ci, PackedVector2Array([root + side, tip + side * 0.3, tip + dir * 3.0, tip - side * 0.3, root - side]), Color("#f4f7ff"), a)
-			_line(ci, root - dir.orthogonal() * 7.0, root + dir.orthogonal() * 7.0, GOLD, 3.0, a)
-			_fist(ci, hand, dir, a)
-			_part_end(ci)
+			if not back:
+				_sword_blade(ci, w, sway, variant, a)   # 背面時劍拿在身前＝被身體擋住，已在身體之前畫過（1.6.0 B11）
 		D.SHIELD:
 			# 圓頭盔＋面罩
 			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
@@ -386,6 +392,24 @@ static func _horse_head(ci: CanvasItem, tc: Color, pony: Color, a: float, eye: b
 		_c(ci, Vector2(26, -35), 1.8, OUT, a, false)
 		ci.draw_circle(Vector2(26.6, -35.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
 
+## 騎兵長槍＋小旗（衝鋒時放平前刺）。1.6.0 B11（Hydrogen r1）抽出來：背面時槍在騎士身前，要在騎士之前畫（被擋住）。
+static func _cav_lance(ci: CanvasItem, tc: Color, w: float, walk: float, a: float) -> void:
+	var tilt: float = (-0.7 + w * 0.5 if w < 0.0 else -0.7 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺；1.6.0 B10（P4.1）：待機槍放低往前平伸（剪影變寬長，和斜舉劍的劍士分開），前搖舉到原本高度
+	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
+	var base := Vector2(-6, -30)
+	var dir := Vector2(cos(tilt), sin(tilt))
+	var tip := base + dir * 60.0   # 第七輪 C1-4：騎槍加長；1.6.0 B10（P4.1）50→60
+	_line(ci, base, tip, WOOD, 2.6, a)
+	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
+	var f0 := base + dir * 32.0
+	_poly(ci, PackedVector2Array([f0, f0 + dir * 11.0, f0 + dir * 3.0 + dir.orthogonal() * 10.0]), tc.lightened(0.2), a)   # 隊伍色小旗放大
+	# V1.5：騎士的手握在槍桿上（原本沒有手，像槍浮在胸前）；手前一個小護盤
+	var gp := base + dir * 13.0
+	var o := dir.orthogonal()
+	_poly(ci, PackedVector2Array([gp + dir * 3.0 + o * 4.5, gp + dir * 9.0, gp + dir * 3.0 - o * 4.5]), STEEL, a)
+	_fist(ci, gp, dir, a)
+	_part_end(ci)
+
 static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry := false) -> void:
 	var wk := Gait.ph(walk)
 	var gallop := sin(wk) * 3.5 if wk != 0.0 else 0.0
@@ -423,6 +447,8 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 		_line(ci, Vector2(-9, -25), Vector2(-14, -34), PAL.TRINKET_BRASS, 2.0, a)
 		_c(ci, Vector2(-15, -36), 3.4, PAL.TRINKET_BRASS, a)
 		_c(ci, Vector2(-15, -36), 1.3, PAL.TRINKET_LEATHER, a, false)
+	if back:
+		_cav_lance(ci, tc, w, walk, a)   # 1.6.0 B11：背面時槍在身前，被騎士擋住（先畫）
 	# 騎士（小一號；V1.3 A1b：轉身時騎士不跟著馬壓扁）
 	var hy := -44.0
 	_part(ci, 0.0, 0.3)
@@ -434,22 +460,8 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	_eyes(ci, Vector2(2.0, hy + 1), a, t, angry)
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.0, true)
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(GOLD, a), 3.5, true)
-	# 長槍＋小旗（衝鋒時放平前刺）
-	var tilt: float = (-0.7 + w * 0.5 if w < 0.0 else -0.7 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺；1.6.0 B10（P4.1）：待機槍放低往前平伸（剪影變寬長，和斜舉劍的劍士分開），前搖舉到原本高度
-	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
-	var base := Vector2(-6, -30)
-	var dir := Vector2(cos(tilt), sin(tilt))
-	var tip := base + dir * 60.0   # 第七輪 C1-4：騎槍加長；1.6.0 B10（P4.1）50→60
-	_line(ci, base, tip, WOOD, 2.6, a)
-	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
-	var f0 := base + dir * 32.0
-	_poly(ci, PackedVector2Array([f0, f0 + dir * 11.0, f0 + dir * 3.0 + dir.orthogonal() * 10.0]), tc.lightened(0.2), a)   # 隊伍色小旗放大
-	# V1.5：騎士的手握在槍桿上（原本沒有手，像槍浮在胸前）；手前一個小護盤
-	var gp := base + dir * 13.0
-	var o := dir.orthogonal()
-	_poly(ci, PackedVector2Array([gp + dir * 3.0 + o * 4.5, gp + dir * 9.0, gp + dir * 3.0 - o * 4.5]), STEEL, a)
-	_fist(ci, gp, dir, a)
-	_part_end(ci)
+	if not back:
+		_cav_lance(ci, tc, w, walk, a)   # 1.6.0 B11：背面時槍在身前，已在騎士之前畫過
 
 
 ## V1.5 刺客短刀：hand＝握點，end＝刀尖。刃從護手往刀尖，握柄與柄頭在手後，深色手套蓋住握柄。

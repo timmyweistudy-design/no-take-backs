@@ -1,0 +1,524 @@
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -484,8 +484,31 @@
+ const HEAD_FRONT_C := 0.55   # 往南走用的轉身角度（既有走路轉身頁 WT_C 0.55，22 種都有）
+ var hd_state := {}
+ var mag_pose: Array = []    # 1.3.0 §2：被選那隻這一幀的 [面向, 受擊, 表情]（單位迴圈寫入、放大鏡小窗讀）
++## 1.6.0 B11（Hydrogen r1：方向切換直接換姿勢、缺中格）：方向一換就記 [時間, 舊, 新]，HD_BLEND 秒內插一格轉身格過渡
++const HD_BLEND := 0.08
++var hd_t := {}
++## 這一格畫哪一種（戰鬥與連拍工具共用；Codex B11 r1 #4）：-1＝背面走路頁、1＝3/4 正面走路頁、0＝側面（含轉身格）
++func dir_draw_mode(type: int, hd: int, cache_ok: bool) -> int:
++	if hd < 0 and cache_ok and sprites.bw_tex.has(type):
++		return -1
++	if hd > 0 and cache_ok and sprites.wt_loc.has(type):
++		return 1
++	return 0
++
++## 兩個方向之間過渡用的轉身格寬度（cos）：側↔正面 0.8、側↔背面 0.55、正面↔背面 0.3
++## 側↔背面不插（1.0＝不插）：轉身格是朝鏡頭烘的，插在轉向背面的中間會先露臉再突然背過去（Hydrogen B11 r2）；
++## 要有「轉向背面」的過渡得另烘背面轉身頁（圖集容量另算），留給原畫或 B13b。
++static func hd_blend_c(a: int, b: int) -> float:
++	if a == b:
++		return 1.0
++	if a == 0 or b == 0:
++		return 0.8 if (a + b) > 0 else 1.0
++	return 0.3
++
+ func heading_of(id: int, mx: int, my: int, walking: bool) -> int:
+ 	if not walking or (mx == 0 and my == 0):
++		if int(hd_state.get(id, 0)) != 0:
++			hd_t[id] = [anim_clock(), int(hd_state[id]), 0]
+ 		hd_state.erase(id)
+ 		return 0
+ 	var cur: int = int(hd_state.get(id, 0))
+@@ -498,6 +521,8 @@
+ 		nxt = 0
+ 	elif cur != 0 and signi(my) != cur and ay * 10 > ax * 13:
+ 		nxt = 1 if my > 0 else -1
++	if nxt != cur:
++		hd_t[id] = [anim_clock(), cur, nxt]
+ 	hd_state[id] = nxt
+ 	return nxt
+ 
+@@ -506,6 +531,23 @@
+ 	return HK * focus_scale(u.id)
+ 
+ ## 1.3.0 §5.1：跟拍（點兵讓鏡頭跟）的那一隻畫成 1.4 倍（基準 1.25 倍的 1.12 倍）；只改畫面。
++## 1.6.0 B11（P5.1）程式轉身退路的縱向節奏（橫向靠轉身格）：轉身剛開始 TURN_ANT 秒內壓 3%（比受擊小得多，
++## 1.3 起「轉身不往下壓、會像受擊」的顧慮——量級壓到受擊的三分之一以下）；翻面後 0.25 秒內往上拉 3%（微彈）。
++const TURN_ANT := 0.06
++const TURN_SQ := 0.03
++func turn_crouch(id: int) -> float:
++	var c := 1.0
++	var now := anim_clock()   # 展示時鐘：暫停、頓幀凍結（Codex B11 r2 #1）
++	if turn_start_t.has(id):
++		var k0: float = (now - float(turn_start_t[id])) / TURN_ANT
++		if k0 >= 0.0 and k0 < 1.0:
++			c *= 1.0 - TURN_SQ * sin(k0 * PI)
++	if turn_flip_t.has(id):
++		var k1: float = (now - float(turn_flip_t[id])) / 0.25
++		if k1 >= 0.0 and k1 < 1.0:
++			c *= 1.0 + TURN_SQ * sin(k1 * PI)
++	return c
++
+ const FOCUS_SCALE := 1.4 / 1.25
+ const BOSS_SIL_PX := 3.0   # 1.6.0 B10（P4.4）：巨獸外框多加的畫面像素
+ func focus_scale(id: int) -> float:
+@@ -1090,18 +1132,28 @@
+ 			crouch *= 1.0 + STRETCH * sin(clampf((at - Art.ATK_WINDUP) / (Art.ATK_STRIKE + 0.1 - Art.ATK_WINDUP), 0.0, 1.0) * PI)
+ 		if u.id == follow_id:
+ 			mag_pose = [face, hurt, mood]   # 1.3.0 §2 放大鏡小窗用同一幀的表情
++		if live and not paused and hurt <= 0.0 and not bool(Save.s("reduce_motion")):
++			crouch *= turn_crouch(u.id)   # 1.6.0 B11（P5.1 程式轉身退路）：預備壓縮（很輕）→ 側緣過渡（轉身格）→ 落定微彈（往上拉，不往下壓）；暫停、受擊中、減少動態不套（Codex r1 #3 #6）
+ 		var hd := heading_of(u.id, u.mx, u.my, live and walk > 0.0 and at == 0.0 and hurt <= 0.0 and not u.boss)
+ 		var usc: float = UNIT_SCALE * (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id)
+ 		var chip := (2 if u.hp * 4 < u.max_hp else 1) if (live and not u.hidden and not u.summon and u.max_hp > 0 and u.hp * 2 < u.max_hp) else 0   # 1.3.0 §5.2 受傷掉漆
+ 		var drawn := false
+ 		var cache_ok: bool = sprites != null and sprites.is_ready(cbm()) and not bool(Save.s("plain_ui"))
+-		if hd < 0 and cache_ok:
++		var hb = hd_t.get(u.id)
++		var blending := false
++		if live and hb != null and anim_clock() - float(hb[0]) < HD_BLEND and hd_blend_c(int(hb[1]), int(hb[2])) < 1.0 and cache_ok and sprites.has_turn(u.type) and not u.boss:
++			blending = true
++			# 方向切換的過渡格：轉身格（站姿）一閃，不直接從側面跳到正面／背面
++			_unit(p, u.type, u.team, (signf(face) if face != 0.0 else 1.0) * hd_blend_c(int(hb[1]), int(hb[2])), 0.0, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
++			drawn = true
++		var dmode := dir_draw_mode(u.type, hd, cache_ok)
++		if dmode < 0 and not drawn:
+ 			drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
+ 			if drawn and chip > 0:
+ 				_chip_at(p, u.type, face, usc, chip, alpha)   # 背面也有掉漆（Codex cat05 #4）
+ 		if not drawn:
+ 			# 往南：只有圖集有走路轉身頁時才用 3/4 正面（沒有就照舊側面，不讓向量畫只橫縮；Codex cat05 #6）
+-			var front_ok: bool = hd > 0 and cache_ok and sprites.wt_loc.has(u.type)
++			var front_ok: bool = dmode > 0
+ 			var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
+ 			if u.boss and not bool(Save.s("plain_ui")):
+ 				# 1.6.0 B10（P4.4）巨獸外框加粗：先墊一層往外擴的墨色剪影（畫面約 +3px），再正常畫
+@@ -1109,9 +1161,9 @@
+ 				Art.unit(self, p, u.type, u.team, fdraw, walk, at, 0.0, alpha, ut, usc, cbm(), 0, lean, crouch, variant)
+ 				Art.sil_w = 0.0
+ 			_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
+-		if live and not u.hidden and hd == 0:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）
++		if live and not u.hidden and hd == 0 and not blending:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）；1.6.0 B11：方向過渡那一閃也不疊（Codex r2 #2）
+ 			_spring_acc(p, u.type, u.team, face, usc, crouch, lean, walk, at, alpha, u.id, ut)   # 1.4.0 §5.2 即時配件（延遲回彈）
+-		if live and not u.hidden and hd == 0:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
++		if live and not u.hidden and hd == 0 and not blending:   # 南北走的那隻不補畫（補畫只有側面，會疊出另一個輪廓；Codex cat05 #5）
+ 			xray.append([p, [u.type, u.team, face, walk, at, alpha, lean, crouch, variant], usc])
+ 		# 揮擊殘影（第三輪 R1、S4 依兵種分開）
+ 		if live and at >= Art.ATK_WINDUP and at < Art.ATK_STRIKE + 0.12:
+--- a/game/scripts/ui/battle/battle_state.gd
++++ b/game/scripts/ui/battle/battle_state.gd
+@@ -68,6 +68,10 @@
+ 
+ 
+ ## 畫面上現在播到第幾 tick（含小數，插值用）。
++## 1.6.0 B11（Codex r2）：展示時鐘（秒，1 倍速換算）——跟著模擬 tick 走：暫停、全場頓幀凍結，倍速等比加快
++func anim_clock() -> float:
++	return _disp_tick() * 0.05
++
+ func _disp_tick() -> float:
+ 	if view == null:
+ 		return 0.0
+@@ -395,6 +399,9 @@
+ 	drag_t.clear()
+ 	face_now.clear()
+ 	turn_t.clear()
++	turn_start_t.clear()
++	turn_flip_t.clear()
++	set("hd_t", {})
+ 	stop_t.clear()
+ 	atk_face.clear()
+ 	idle_since.clear()
+@@ -504,12 +511,17 @@
+ 		var f0: float = float(face_now.get(u.id, tgt))
+ 		var f1: float = move_toward(f0, tgt, delta * 11.0)
+ 		face_now[u.id] = f1
++		if absf(f0) >= 0.999 and f1 != f0:
++			turn_start_t[u.id] = anim_clock()   # 1.6.0 B11：轉身開始那一刻（預備壓縮從這裡算；展示時鐘）
+ 		if f0 != 0.0 and signf(f1) != signf(f0):
+ 			turn_t[u.id] = time   # V1.3 A1a：翻面那一刻（腳下揚塵、展開回彈從這裡算）
++			turn_flip_t[u.id] = anim_clock()   # 1.6.0 B11：同一刻的展示時鐘（落定微彈用）
+ 
+ ## 轉身過場（V1.3 A1a）：像厚木牌俐落翻面，不是紙片等比夾扁。
+ ## 寬度不低於 TURN_MIN_W（窄位直接跳過去），展開段 X 微回彈 1.04；不做 Y 下壓（混戰時會像受擊）。
+ const TURN_MIN_W := 0.45
++var turn_start_t := {}   # 1.6.0 B11：{兵 id: 轉身開始的展示時鐘}
++var turn_flip_t := {}    # 1.6.0 B11：{兵 id: 翻面那一刻的展示時鐘}
+ const TURN_BOUNCE := 0.04
+ func _face_of(u) -> float:
+ 	var f: float = face_now.get(u.id, signf(u.fx) if u.fx != 0 else (1.0 if u.team == 0 else -1.0))
+--- a/game/scripts/ui/units/kingdom.gd
++++ b/game/scripts/ui/units/kingdom.gd
+@@ -3,6 +3,27 @@
+ 
+ ## variant：0 一般招式、1 交替招式（劍士上挑；其他兵種同一般）。第三輪 R4。
+ ## 第四輪：variant 2＝新兵的專屬動作（長槍兵拒騎頓槍、投彈兵被貼身拿點火棒敲、醫者舉杖施法、鼓手大力敲、狂戰士雙斧高舉）。
++## 劍：斜舉的亮刃（攻擊時往前揮）；前搖往後拉 35°、揮擊揮到 +60° 以上。
++## V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
++## 1.6.0 B11（Hydrogen r1）：抽出來——背面時劍在身前，要在身體與頭之前畫（被擋住），原本畫在頭上面像劍壓頭前。
++static func _sword_blade(ci: CanvasItem, w: float, sway: float, variant: int, a: float) -> void:
++	var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5) + sway   # 第十輪 F3：揮幅加大；1.6.0 B10（P4.1）：待機劍往前上方斜伸（剪影往右突出，和直立杖、圓團分開），揮到底的角度不變
++	if variant == 1:
++		# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
++		ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
++	_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
++	var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
++	var dir := Vector2(cos(ang), sin(ang))
++	var tip := hand + dir * 34.0   # 1.6.0 B10（P4.1）：劍刃 24→34、加寬，往前上方斜伸（剪影多一道斜線）
++	var side := dir.orthogonal() * 4.2
++	# V1.5：握柄＋柄頭在手後、護手在刃根（手往前 3.5px），拳頭蓋住握柄——不再像刀刃插在圓點上被切斷
++	_grip(ci, hand, dir, 6.0, a)
++	var root := hand + dir * 3.5
++	_poly(ci, PackedVector2Array([root + side, tip + side * 0.3, tip + dir * 3.0, tip - side * 0.3, root - side]), Color("#f4f7ff"), a)
++	_line(ci, root - dir.orthogonal() * 7.0, root + dir.orthogonal() * 7.0, GOLD, 3.0, a)
++	_fist(ci, hand, dir, a)
++	_part_end(ci)
++
+ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: float, a: float, t: float, angry := false, variant := 0) -> void:
+ 	# 腿（V9 P2）：腳踩地不動，上半身另外起伏；腿從腰連到腳，分隔不會斷開
+ 	var ft: Array = Gait.feet(type, walk)
+@@ -20,6 +41,8 @@
+ 	# 第七輪 C2：小披風分隊，藍方圓角、紅方燕尾（除了圍巾已經很明顯的刺客與騎兵）
+ 	if not back:
+ 		_inf_back_items(ci, type, tc, fl, w, sway, variant, a)   # 背後的東西先畫（被身體擋住）
++	if back and type == D.SWORD:
++		_sword_blade(ci, w, sway, variant, a)   # 1.6.0 B11：背面時劍在身前，被身體、頭擋住（先畫）
+ 	# 身體（圓胖的上衣，隊伍色；狂戰士赤膊，隊伍色只留在獸皮披肩與褲頭；醫者白袍）
+ 	var bw0 := 13.0 if type == D.SHIELD else 10.5   # 第七輪 C1-2：盾兵身體加寬
+ 	var body := PackedVector2Array()
+@@ -68,27 +91,10 @@
+ 			_part(ci, 0.0, 0.0)
+ 			_hat_off(ci)
+ 			_part_end(ci)
+-			# 劍：斜舉的亮刃（攻擊時往前揮）
+-			# 前搖往後拉 35°、揮擊揮到 +60° 以上
+-			# V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
+-			var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5) + sway   # 第十輪 F3：揮幅加大；1.6.0 B10（P4.1）：待機劍往前上方斜伸（剪影往右突出，和直立杖、圓團分開），揮到底的角度不變
+-			if variant == 1:
+-				# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
+-				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
+-			# 第七輪 C1-1：隊伍色短領巾；劍身加寬、十字護手
++			# 第七輪 C1-1：隊伍色短領巾
+ 			_poly(ci, PackedVector2Array([Vector2(-9, -24), Vector2(8, -24), Vector2(6, -20), Vector2(-3, -19), Vector2(-5, -14), Vector2(-9, -17)]), tc.lightened(0.15), a, true)
+-			_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
+-			var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
+-			var dir := Vector2(cos(ang), sin(ang))
+-			var tip := hand + dir * 34.0   # 1.6.0 B10（P4.1）：劍刃 24→34、加寬，往前上方斜伸（剪影多一道斜線）
+-			var side := dir.orthogonal() * 4.2
+-			# V1.5：握柄＋柄頭在手後、護手在刃根（手往前 3.5px），拳頭蓋住握柄——不再像刀刃插在圓點上被切斷
+-			_grip(ci, hand, dir, 6.0, a)
+-			var root := hand + dir * 3.5
+-			_poly(ci, PackedVector2Array([root + side, tip + side * 0.3, tip + dir * 3.0, tip - side * 0.3, root - side]), Color("#f4f7ff"), a)
+-			_line(ci, root - dir.orthogonal() * 7.0, root + dir.orthogonal() * 7.0, GOLD, 3.0, a)
+-			_fist(ci, hand, dir, a)
+-			_part_end(ci)
++			if not back:
++				_sword_blade(ci, w, sway, variant, a)   # 背面時劍拿在身前＝被身體擋住，已在身體之前畫過（1.6.0 B11）
+ 		D.SHIELD:
+ 			# 圓頭盔＋面罩
+ 			_hat_on(ci)   # V1.3.1：受擊時帽子彈起（只在受擊影格）
+@@ -386,6 +392,24 @@
+ 		_c(ci, Vector2(26, -35), 1.8, OUT, a, false)
+ 		ci.draw_circle(Vector2(26.6, -35.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
+ 
++## 騎兵長槍＋小旗（衝鋒時放平前刺）。1.6.0 B11（Hydrogen r1）抽出來：背面時槍在騎士身前，要在騎士之前畫（被擋住）。
++static func _cav_lance(ci: CanvasItem, tc: Color, w: float, walk: float, a: float) -> void:
++	var tilt: float = (-0.7 + w * 0.5 if w < 0.0 else -0.7 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺；1.6.0 B10（P4.1）：待機槍放低往前平伸（剪影變寬長，和斜舉劍的劍士分開），前搖舉到原本高度
++	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
++	var base := Vector2(-6, -30)
++	var dir := Vector2(cos(tilt), sin(tilt))
++	var tip := base + dir * 60.0   # 第七輪 C1-4：騎槍加長；1.6.0 B10（P4.1）50→60
++	_line(ci, base, tip, WOOD, 2.6, a)
++	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
++	var f0 := base + dir * 32.0
++	_poly(ci, PackedVector2Array([f0, f0 + dir * 11.0, f0 + dir * 3.0 + dir.orthogonal() * 10.0]), tc.lightened(0.2), a)   # 隊伍色小旗放大
++	# V1.5：騎士的手握在槍桿上（原本沒有手，像槍浮在胸前）；手前一個小護盤
++	var gp := base + dir * 13.0
++	var o := dir.orthogonal()
++	_poly(ci, PackedVector2Array([gp + dir * 3.0 + o * 4.5, gp + dir * 9.0, gp + dir * 3.0 - o * 4.5]), STEEL, a)
++	_fist(ci, gp, dir, a)
++	_part_end(ci)
++
+ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry := false) -> void:
+ 	var wk := Gait.ph(walk)
+ 	var gallop := sin(wk) * 3.5 if wk != 0.0 else 0.0
+@@ -423,6 +447,8 @@
+ 		_line(ci, Vector2(-9, -25), Vector2(-14, -34), PAL.TRINKET_BRASS, 2.0, a)
+ 		_c(ci, Vector2(-15, -36), 3.4, PAL.TRINKET_BRASS, a)
+ 		_c(ci, Vector2(-15, -36), 1.3, PAL.TRINKET_LEATHER, a, false)
++	if back:
++		_cav_lance(ci, tc, w, walk, a)   # 1.6.0 B11：背面時槍在身前，被騎士擋住（先畫）
+ 	# 騎士（小一號；V1.3 A1b：轉身時騎士不跟著馬壓扁）
+ 	var hy := -44.0
+ 	_part(ci, 0.0, 0.3)
+@@ -434,22 +460,8 @@
+ 	_eyes(ci, Vector2(2.0, hy + 1), a, t, angry)
+ 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.0, true)
+ 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(GOLD, a), 3.5, true)
+-	# 長槍＋小旗（衝鋒時放平前刺）
+-	var tilt: float = (-0.7 + w * 0.5 if w < 0.0 else -0.7 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺；1.6.0 B10（P4.1）：待機槍放低往前平伸（剪影變寬長，和斜舉劍的劍士分開），前搖舉到原本高度
+-	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
+-	var base := Vector2(-6, -30)
+-	var dir := Vector2(cos(tilt), sin(tilt))
+-	var tip := base + dir * 60.0   # 第七輪 C1-4：騎槍加長；1.6.0 B10（P4.1）50→60
+-	_line(ci, base, tip, WOOD, 2.6, a)
+-	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
+-	var f0 := base + dir * 32.0
+-	_poly(ci, PackedVector2Array([f0, f0 + dir * 11.0, f0 + dir * 3.0 + dir.orthogonal() * 10.0]), tc.lightened(0.2), a)   # 隊伍色小旗放大
+-	# V1.5：騎士的手握在槍桿上（原本沒有手，像槍浮在胸前）；手前一個小護盤
+-	var gp := base + dir * 13.0
+-	var o := dir.orthogonal()
+-	_poly(ci, PackedVector2Array([gp + dir * 3.0 + o * 4.5, gp + dir * 9.0, gp + dir * 3.0 - o * 4.5]), STEEL, a)
+-	_fist(ci, gp, dir, a)
+-	_part_end(ci)
++	if not back:
++		_cav_lance(ci, tc, w, walk, a)   # 1.6.0 B11：背面時槍在身前，已在騎士之前畫過
+ 
+ 
+ ## V1.5 刺客短刀：hand＝握點，end＝刀尖。刃從護手往刀尖，握柄與柄頭在手後，深色手套蓋住握柄。
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1650,6 +1650,8 @@
+ 			_run_mem_check.call_deferred(a.substr(12))
+ 		elif a.begins_with("--sil="):
+ 			_run_sil.call_deferred(a.substr(6))
++		elif a.begins_with("--turn-strip="):
++			_run_turn_strip.call_deferred(a.substr(13))
+ 		elif a.begins_with("--bake-pack="):
+ 			_run_bake_pack.call_deferred(a.substr(12))
+ 		elif a.begins_with("--pack-bench="):
+@@ -1867,7 +1869,168 @@
+ 	print("SIL ", out_path, " ", err)
+ 	get_tree().quit(0 if err == OK else 1)
+ 
++## 1.6.0 B11（P5.5、S3）轉身連拍：劍士、騎兵 × 兩隊 × 色盲開關 × 五方向（東、西＝側面；東南、西南＝往南走的 3/4 正面；北＝背面）
++## 兩兩轉換 20 種＝160 組合，每組 8 格。每格記走哪條畫法（圖集／向量＝缺格）；原地轉身（東↔西）另量腳底接地點左右漂移（腳滑比）。
++## 用法：<exe> --path game --resolution 1280x800 -- --turn-strip=<輸出資料夾（Windows 路徑）>   每頁存 PNG、最後存 turn_strip.json，印 TURNSTRIP
++var ts_mode := false
++var ts_page: Array = []   # 這一頁要畫的 [type, team, from, to, k, 格子左上]
++var ts_routes: Array = []   # 這一頁每格實際走的畫法
++const TS_DIRS := ["E", "W", "SE", "SW", "N"]
++const TS_CELL := Vector2(78, 96)
++func _ts_state(a: String, b: String, k: float) -> Dictionary:
++	# 照戰鬥的實際行為模擬（Hydrogen B11 r2）：朝向 face 在 8 格之間連續變（face_now 的轉身插值），走路時 |face|<0.9 由
++	# draw_unit 自動走 3/4 正面頁（正中過渡）；南北頁照 heading 前後半；方向切換中間插同一支 hd_blend_c 的轉身格（側↔背不插，見 hd_blend_c）
++	var fa := 1.0 if a in ["E", "SE"] else (-1.0 if a in ["W", "SW"] else (1.0 if b in ["E", "SE"] else -1.0))
++	var fb := 1.0 if b in ["E", "SE"] else (-1.0 if b in ["W", "SW"] else fa)
++	var face := lerpf(fa, fb, k)
++	if absf(face) < 0.18:
++		face = 0.18 * (signf(fb) if k >= 0.5 else signf(fa))
++	var walking := a in ["SE", "SW", "N"] or b in ["SE", "SW", "N"]
++	var ha := 1 if a in ["SE", "SW"] else (-1 if a == "N" else 0)
++	var hb := 1 if b in ["SE", "SW"] else (-1 if b == "N" else 0)
++	var hd := ha if k < 0.5 else hb
++	var c := hd_blend_c(ha, hb)
++	if ha != hb and c < 1.0 and k > 0.36 and k < 0.64:
++		return {"face": signf(face) * c, "hd": 0, "walk": 0.0}
++	return {"face": face, "hd": hd, "walk": (0.3 + k * 4.0) if walking else 0.0}
++
++func _ts_draw_one(p: Vector2, type: int, team: int, st: Dictionary) -> String:
++	var face: float = st["face"]
++	var walk: float = st["walk"]
++	var hd: int = st["hd"]
++	var dm := dir_draw_mode(type, hd, true)   # 和戰鬥同一支選畫法（Codex B11 r1 #4）
++	if hd != 0 and dm == 0:
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"   # 要南北頁卻沒有＝缺格
++	if dm < 0:
++		sprites.draw_back_walk(self, p, type, team, face, walk, 0.0, 1.0, 0.0, UNIT_SCALE, 0.0, 1.0, cbm())
++		return "atlas"
++	if dm > 0:
++		sprites.draw_unit(self, p, type, team, signf(face) * HEAD_FRONT_C, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
++		return "atlas"
++	if absf(face) < 0.9 and not sprites.has_turn(type):
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"
++	if not sprites.has_type(type):
++		Art.unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, cbm())
++		return "vector"
++	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
++	return "atlas"
++
++func _run_turn_strip(out_dir: String) -> void:
++	Save.prefix = "shot_"
++	var res := {"combos": 0, "missing": 0, "missing_list": [], "slide": [], "pages": 0}
++	print("TS start")
++	for cbv in [false, true]:
++		Save.set_setting("colorblind", cbv)
++		_rebuild_sprites()
++		print("TS rebuild cb=", cbv)
++		var guard := 0
++		while not (sprites.is_ready(cbv) and sprites.build_done) and guard < 1200:
++			guard += 1
++			await get_tree().process_frame
++		sprites.ensure_turn_atk([D.SWORD, D.CAVALRY])   # 和開戰時同一支：出場兵種補烘轉身出手格＋背面走路頁
++		while not (sprites.bw_tex.has(D.SWORD) and sprites.bw_tex.has(D.CAVALRY)) and guard < 2400:
++			guard += 1
++			await get_tree().process_frame
++		print("TS ready cb=", cbv, " guard=", guard, " ready=", sprites.is_ready(cbv), " done=", sprites.build_done)
++		var jobs: Array = []
++		for type in [D.SWORD, D.CAVALRY]:
++			for team in 2:
++				for a in TS_DIRS:
++					for b in TS_DIRS:
++						if a != b:
++							jobs.append([type, team, a, b])
++		var per_page := 8   # 每頁 2 欄 × 4 列、列距 196（騎兵的槍伸很高，列距 98 會伸進上一列的腳底量測區）
++		for pg in range(0, jobs.size(), per_page):
++			ts_page = []
++			for ji in range(pg, mini(pg + per_page, jobs.size())):
++				var j: Array = jobs[ji]
++				var row := ji - pg
++				for f in 8:
++					ts_page.append([j[0], j[1], j[2], j[3], f / 7.0, Vector2(6 + f * 78 + (640 if row >= 4 else 0), 100 + (row % 4) * 196)])
++			ts_mode = true
++			queue_redraw()
++			await get_tree().process_frame
++			await RenderingServer.frame_post_draw
++			var img := get_viewport().get_texture().get_image()
++			img.save_png(out_dir.path_join("turn_strip_cb%d_%02d.png" % [int(cbv), pg / per_page]))
++			res["pages"] += 1
++			for ji in range(pg, mini(pg + per_page, jobs.size())):
++				var j: Array = jobs[ji]
++				res["combos"] += 1
++				var miss := 0
++				var xs: Array = []
++				for f in 8:
++					var idx := (ji - pg) * 8 + f
++					if ts_routes[idx] != "atlas":
++						miss += 1
++					if j[2] in ["E", "W"] and j[3] in ["E", "W"]:
++						xs.append(_ts_foot_x(img, ts_page[idx][5]))
++				if miss > 0:
++					res["missing"] += miss
++					res["missing_list"].append([j[0], j[1], int(cbv), j[2], j[3], miss])
++				if not xs.is_empty():
++					var lo := 1e9
++					var hi := -1e9
++					var bad := 0
++					for x in xs:
++						if x > -900.0:
++							lo = minf(lo, x)
++							hi = maxf(hi, x)
++						else:
++							bad += 1
++					# 八格都要量得到腳（Codex B11 r1 #5：量不到不能當沒滑）；量不到＝ 9.9（必失敗）
++					res["slide"].append([j[0], j[1], int(cbv), j[2], j[3], snappedf((hi - lo) / (36.0 * UNIT_SCALE / 0.92), 0.001) if bad == 0 and hi >= lo else 9.9])
++	ts_mode = false
++	Save.set_setting("colorblind", false)
++	var worst := 0.0
++	for sl in res["slide"]:
++		worst = maxf(worst, float(sl[5]))
++	res["slide_max"] = worst
++	var f := FileAccess.open(out_dir.path_join("turn_strip.json"), FileAccess.WRITE)
++	f.store_string(JSON.stringify(res))
++	f.close()
++	var ok: bool = res["combos"] == 160 and res["missing"] == 0 and worst <= 0.1
++	print("TURNSTRIP ", "OK" if ok else "FAIL", " combos=", res["combos"], " missing=", res["missing"], " slide_max=", worst)
++	get_tree().quit(0 if ok else 1)
++
++## 一格的腳底接地點：找到最低的前景列，取「最低 6 列」裡所有前景像素的平均 x（相對格子中心）——兩隻腳都算進去
++## （只取最低一列會只抓到靠前那隻腳，轉身時換腳就像在滑；B11 第一版的量法錯誤）
++func _ts_foot_x(img: Image, o: Vector2) -> float:
++	var x0 := int(o.x)
++	var y0 := int(o.y)
++	var low := -1
++	for yy in range(y0 + 95, y0 + 20, -1):
++		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):   # 畫面外 get_pixel 會給黑色（被當成腳）
++			var c := img.get_pixel(xx, yy)
++			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
++				low = yy
++				break
++		if low >= 0:
++			break
++	if low < 0:
++		return -999.0
++	var sx := 0.0
++	var n := 0
++	for yy in range(low - 5, low + 1):
++		for xx in range(x0 + 4, mini(x0 + 74, img.get_width())):
++			var c := img.get_pixel(xx, yy)
++			if absf(c.r - 0.5) + absf(c.g - 0.5) + absf(c.b - 0.5) > 0.12:
++				sx += xx
++				n += 1
++	return sx / maxi(1, n) - (x0 + 39)
++
+ func _draw() -> void:
++	if ts_mode:
++		draw_rect(Rect2(0, 0, 1280, 800), Color(0.5, 0.5, 0.5))
++		ts_routes = []
++		for e in ts_page:
++			var o: Vector2 = e[5]
++			var st := _ts_state(e[2], e[3], e[4])
++			ts_routes.append(_ts_draw_one(o + Vector2(39, 78), e[0], e[1], st))
++		draw_set_transform_matrix(Transform2D.IDENTITY)
++		return
+ 	if not sil_mode:
+ 		super._draw()
+ 		return
+--- a/game/scripts/ui/main.gd
++++ b/game/scripts/ui/main.gd
+@@ -2,7 +2,7 @@
+ ## 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。
+ 
+ const DEV := "res://tools/dev_main.gd"
+-const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil=", "--bake-pack=", "--pack-bench=", "--pack-selftest="]
++const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil=", "--bake-pack=", "--pack-bench=", "--pack-selftest=", "--turn-strip="]
+ 
+ func _ready() -> void:
+ 	for a in OS.get_cmdline_user_args():
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -855,7 +855,7 @@
+ 	ok(g.hd_state.is_empty(), "跳轉／新的一場清掉走向記錄")
+ 	var src: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+ 	ok(src.find("heading_of(u.id, u.mx, u.my") >= 0 and src.find("hurt <= 0.0") >= 0, "走向用模擬的 mx／my，受擊時不轉")
+-	ok(src.find("sprites.wt_loc.has(u.type)") >= 0, "沒有轉身頁時不硬轉（避免只橫縮）")
++	ok(src.find("sprites.wt_loc.has(type)") >= 0, "沒有轉身頁時不硬轉（避免只橫縮）")
+ 	var SC = load("res://scripts/ui/sprite_cache.gd")
+ 	ok(SC.BW_C == 0.55 and g.HEAD_FRONT_C == 0.55, "南北都用 3/4 角度（和既有走路轉身頁同角度）")
+ 	ok(SC.BW_MAX >= 22, "背面頁上限涵蓋一場所有兵種（不在場上被淘汰回側面）")
+@@ -1411,3 +1411,30 @@
+ 	var ks: String = FileAccess.get_file_as_string("res://scripts/ui/units/kingdom.gd")
+ 	ok(ks.find("var tip := hand + dir * 34.0") >= 0 and ks.find("var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5)") >= 0, "劍士：劍刃 34、待機斜伸、揮到底角度 0.8 不變")
+ 	ok(ks.find("var tip := base + dir * 60.0") >= 0 and ks.find("Vector2(17, -41), Vector2(31, -38)") >= 0, "騎兵：槍 60、馬頭抬高往前")
++
++## 1.6.0 B11（S3；P5.1、P5.2、P5.5）兩兵種轉身（程式退路）：命中頓幀、轉身縱向節奏（預備壓縮很輕、落定往上微彈）、
++## 連拍工具（真畫面 160 組合缺格與腳滑在 --turn-strip 量，驗收鏈印 TURNSTRIP）。
++func test_turn_rhythm_v1600() -> void:
++	var BU = load("res://scripts/ui/battle/battle_units.gd")
++	var bsrc: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
++	ok(bsrc.find("if live and not paused and hurt <= 0.0 and not bool(Save.s(\"reduce_motion\")):\n\t\t\tcrouch *= turn_crouch(u.id)") >= 0, "轉身縱向節奏：暫停、受擊中、減少動態不套（不和受擊壓縮疊加）")
++	ok(BU.hd_blend_c(0, 1) == 0.8 and BU.hd_blend_c(0, -1) == 1.0 and BU.hd_blend_c(1, -1) == 0.3 and BU.hd_blend_c(0, 0) == 1.0, "方向切換的過渡轉身格：側↔正 0.8、正↔背 0.3、側↔背不插（轉身格朝鏡頭，會先露臉）")
++	ok(bsrc.find("var dmode := dir_draw_mode(u.type, hd, cache_ok)") >= 0 and FileAccess.get_file_as_string("res://tools/dev_main.gd").find("var dm := dir_draw_mode(type, hd, true)") >= 0, "戰鬥與連拍工具用同一支選畫法")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	ok(is_equal_approx(g.turn_crouch(1), 1.0), "沒在轉身＝不壓不拉")
++	g.turn_start_t[1] = g.anim_clock() - g.TURN_ANT * 0.5   # 展示時鐘（沒有戰鬥＝0）
++	var c0: float = g.turn_crouch(1)
++	ok(c0 < 1.0 and c0 >= 1.0 - g.TURN_SQ - 1e-6 and g.TURN_SQ <= 0.04, "預備壓縮最多 %.0f%%（受擊壓縮的三分之一以下，不像被打）" % (g.TURN_SQ * 100.0))
++	g.turn_start_t.clear()
++	g.turn_flip_t[1] = g.anim_clock() - 0.125
++	ok(g.turn_crouch(1) > 1.0, "翻面後往上微彈（不往下壓）")
++	g.turn_flip_t[1] = g.anim_clock() - 1.0
++	ok(is_equal_approx(g.turn_crouch(1), 1.0), "0.25 秒後回到原樣")
++	var bs: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
++	ok(bs.find("var now := anim_clock()") >= 0 and bs.find("hd_t[id] = [anim_clock(), cur, nxt]") >= 0, "轉身節奏與方向過渡都用展示時鐘（暫停、頓幀凍結、倍速等比）")
++	ok(bs.count("hd == 0 and not blending:") == 2, "方向過渡那一閃不疊配件、不補畫輪廓")
++	g.free()
++	var dm: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
++	var mg: String = FileAccess.get_file_as_string("res://scripts/ui/main.gd")
++	ok(dm.find("func _run_turn_strip(") >= 0 and dm.find("print(\"TURNSTRIP \"") >= 0 and mg.find("\"--turn-strip=\"") >= 0, "連拍工具：--turn-strip（160 組合、缺格、腳滑比）")
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
