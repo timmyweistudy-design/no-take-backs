@@ -215,6 +215,7 @@ static func ring(ci: CanvasItem, p: Vector2, team: int, type: int, cb := false, 
 
 ## 厚木座：下緣 2.5px 深色厚度、頂面木色、上緣 1px 亮倒角（深色地面也看得出邊）。
 ## 1.3.0：底座形狀（藍方 20 邊的圓、紅方從 22.5° 起的八角）。
+const BASE_EDGE := 4.4
 static func base_poly(c: Vector2, team: int, rx: float, ry: float) -> PackedVector2Array:
 	return _ell(c, rx, ry, PI / 8.0, PI / 8.0 + TAU, 8) if team == 1 else _ell(c, rx, ry, 0.0, TAU, 20)
 
@@ -223,10 +224,18 @@ static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0, team :
 	# 1.3.0 §4 底座形狀雙重編碼：藍方圓底座、紅方菱角八角底座（呼應藍圓紅菱的隊伍圈；色盲模式也一樣；形狀綁隊伍）
 	var wd: Array = WOODS[clampi(int(paint[4]), 0, 3)]   # V1.4 #15：木座木料
 	var big := 1.08 if team == 1 else 1.0   # 八角的外徑大一點，切角露在隊伍菱圈外（Antigravity cat03 #1：原本被菱圈蓋住看不出）
-	ci.draw_colored_polygon(base_poly(p + Vector2(0, 3.2) * scale, team, 21.0 * scale * big, 10.5 * scale * big), Color(wd[0], 0.85 * a))
+	# 1.6.0 B10（P4.3）：斜邊厚度 3.2→BASE_EDGE（木座像一塊有厚度的棋子），頂面兩道淺木紋弧
+	ci.draw_colored_polygon(base_poly(p + Vector2(0, BASE_EDGE) * scale, team, 21.0 * scale * big, 10.5 * scale * big), Color(wd[0], 0.85 * a))
 	var top := base_poly(p, team, 21.0 * scale * big, 10.5 * scale * big)
 	ci.draw_colored_polygon(top, Color(wd[1], 0.92 * a))
 	ci.draw_colored_polygon(base_poly(p + Vector2(0, 0.6) * scale, team, 15.5 * scale, 7.4 * scale), Color(wd[2], 0.6 * a))
+	for g in [[-6.0, 0.55, 0.30], [5.0, 0.70, 0.22]]:   # 木紋：頂面上半圈的兩道淺弧（[x 偏移, 半徑比例, 不透明度]）
+		var gc := p + Vector2(g[0], -1.5) * scale
+		var pts := PackedVector2Array()
+		for i in 7:
+			var an := PI * (1.15 + 0.7 * i / 6.0)
+			pts.append(gc + Vector2(cos(an) * 17.0 * g[1], sin(an) * 8.0 * g[1]) * scale)
+		ci.draw_polyline(pts, Color(wd[0], g[2] * a), 1.0 * scale, true)
 	if team == 1:
 		var rim := top.duplicate()
 		rim.append(top[0])
@@ -236,7 +245,7 @@ static func ring_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0, team :
 ## 1.1.0 B14：木座上的族群部件（另一層，畫在木座之後、隊伍圈之前）：王國兵＝木座前緣一道鐵箍＋兩顆鉚釘，
 ## 奇幻兵＝前緣三道樹皮刻痕＋一小撮青苔。只在木座前緣厚度那一帶（≤0.3 格），不改木座本身、不蓋隊伍圈。
 static func base_trim(ci: CanvasItem, p: Vector2, type: int, scale := 1.0, a := 1.0) -> void:
-	var c0 := p + Vector2(0, 3.2) * scale
+	var c0 := p + Vector2(0, BASE_EDGE) * scale   # 1.6.0 B10：跟著加厚的斜邊
 	if type < D.COUNT:
 		var pts := PackedVector2Array()
 		for i in 13:
@@ -271,11 +280,31 @@ static func ring_mark(ci: CanvasItem, p: Vector2, team: int, type: int, cb := fa
 
 
 ## 頭頂小旗（8×10）。
+## 1.6.0 B10（P4.2）色盲模式：旗形綁隊伍——藍方圓旗、紅方燕尾旗（不靠顏色也分得出；一般模式維持三角小旗）。
 static func flag(ci: CanvasItem, p: Vector2, team: int, cb := false) -> void:
 	var tc := team_color(team, cb)
 	ci.draw_line(p, p + Vector2(0, -12), OUT, 2.0, true)
+	if cb:
+		var pts2: PackedVector2Array = flag_shape(p, team)
+		ci.draw_colored_polygon(pts2, OUT)   # 色盲配色多一圈黑邊（同腳底圈）
+		var inner := PackedVector2Array()
+		var c := p + Vector2(4.5, -8.5)
+		for q in pts2:
+			inner.append(c + (q - c) * 0.72)
+		ci.draw_colored_polygon(inner, tc)
+		return
 	var pts := PackedVector2Array([p + Vector2(0, -12), p + Vector2(9, -9), p + Vector2(0, -5)])
 	ci.draw_colored_polygon(pts, tc)
+
+## 色盲旗形的外框（旗桿頂 p+(0,-12)）：藍方＝圓旗（8 段的圓），紅方＝燕尾（右緣剪一個 V 口）
+static func flag_shape(p: Vector2, team: int) -> PackedVector2Array:
+	if team == 0:
+		var out := PackedVector2Array()
+		for i in 12:
+			var an := i * TAU / 12.0
+			out.append(p + Vector2(5.0, -8.5) + Vector2(cos(an), sin(an)) * 4.6)
+		return out
+	return PackedVector2Array([p + Vector2(0, -13), p + Vector2(11, -13), p + Vector2(6.5, -8.5), p + Vector2(11, -4), p + Vector2(0, -4)])
 
 
 ## 小靈魂（死亡演出）。

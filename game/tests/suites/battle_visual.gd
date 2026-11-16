@@ -1367,3 +1367,47 @@ func test_semantic_guard_v1600() -> void:
 	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
 	var i_dim := ub.find("Color(DIM_INK, PAL.OFF_BOARD_DIM)")
 	ok(i_dim > ub.find("func _draw_desk()") and i_dim < ub.find("func _desk_props()"), "盤外壓暗在 _draw_desk 裡（盤面畫在它之上，盤內隊色不變）")
+
+## 1.6.0 B10（P4.1～P4.4）兩兵種剪影試作：色盲旗形、底座厚度與木紋、巨獸粗外框（剪影墊底一趟）、全兵種血條避讓。
+## 剪影分離（劍士、騎兵和其他兵種最大 IoU）要真的繪圖，headless 量不了：用 dev_main --sil＋tools/gen/sil_report.py 量，數字記在 ledger。
+func test_silhouette_v1600() -> void:
+	var Art = load("res://scripts/ui/art.gd")
+	# P4.2 色盲旗形：藍方圓旗（12 點同半徑）、紅方燕尾（右緣有往內的 V 口）
+	var p := Vector2(100, 100)
+	var blue: PackedVector2Array = Art.flag_shape(p, 0)
+	var c := p + Vector2(5.0, -8.5)
+	var round_ok := blue.size() >= 10
+	for q in blue:
+		round_ok = round_ok and absf(q.distance_to(c) - 4.6) < 0.01
+	var red: PackedVector2Array = Art.flag_shape(p, 1)
+	var right := -INF
+	for q in red:
+		right = maxf(right, q.x)
+	var notch := false
+	for k in range(1, red.size() - 1):
+		notch = notch or (red[k].x < right - 3.0 and red[k - 1].x >= right - 0.01 and red[k + 1].x >= right - 0.01)
+	ok(round_ok and notch, "色盲旗形：藍方圓旗、紅方燕尾（不靠顏色）")
+	var asrc: String = FileAccess.get_file_as_string("res://scripts/ui/art.gd")
+	ok(asrc.find("if cb:\n\t\tvar pts2: PackedVector2Array = flag_shape(p, team)") >= 0, "色盲模式才換旗形（一般模式三角小旗不變）")
+	# P4.3 底座：斜邊加厚、鐵箍跟著新斜邊、頂面木紋
+	ok(Art.BASE_EDGE >= 4.0 and asrc.find("var c0 := p + Vector2(0, BASE_EDGE) * scale") >= 0 and asrc.find("木紋：頂面上半圈的兩道淺弧") >= 0, "底座斜邊 %.1f、鐵箍跟著斜邊、頂面木紋" % Art.BASE_EDGE)
+	# P4.4 巨獸粗外框：剪影那一趟只畫墨色、往外擴；畫完一定歸零（不然之後全部兵都變黑）
+	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	var i0 := bu.find("Art.sil_w = BOSS_SIL_PX / usc")
+	ok(i0 >= 0 and bu.find("Art.sil_w = 0.0", i0) > i0 and bu.find("Art.sil_w = 0.0", i0) - i0 < 260, "巨獸剪影墊底一趟後 sil_w 歸零")
+	var kit: String = FileAccess.get_file_as_string("res://scripts/ui/units/kit.gd")
+	ok(kit.count("if sil_w > 0.0:") == 3, "圓、多邊形、線三種基本筆畫都支援剪影墊底")
+	ok(Art.sil_w == 0.0, "平常 sil_w＝0")
+	# 全兵種血條避讓：頭頂血條框蓋到別隻的頭胸 → 改畫底座弧；自己的頭胸不算
+	var BU = load("res://scripts/ui/battle/battle_units.gd")
+	var faces := {1: Rect2(100, 100, 40, 50), 2: Rect2(200, 100, 40, 50)}
+	var bu_src: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu_src.find("if not hp_bar_blocks(hp_arc_rect(p), u.id, bar_faces):") >= 0 and bu_src.find("if u.id != follow_id:\n\t\t\t\t\tcontinue") >= 0, "底座弧也會蓋到前排頭胸就不畫（跟拍那隻照畫頭頂）")
+	ok(bu_src.find("var bar_r := Rect2(top + Vector2(-14.5, -4.5), Vector2(w + 15.5, 13.0)) if cbm()") >= 0, "遮擋檢查含色盲標記的完整範圍")
+	ok(bu_src.find("var ae := a1 - (a1 - a0) * frac") >= 0, "底座弧血量終點插值（低血量不會看起來空血）")
+	ok(FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd").find("var ed := 2.2 * Art.BASE_EDGE / 3.2") >= 0, "大圖底座同步加厚＋木紋")
+	ok(BU.hp_bar_blocks(Rect2(110, 140, 30, 6), 2, faces) and not BU.hp_bar_blocks(Rect2(110, 140, 30, 6), 1, faces) and not BU.hp_bar_blocks(Rect2(150, 60, 30, 6), 3, faces), "血條避讓：蓋到別隻頭胸才改底座弧，自己的不算")
+	# P4.1 劍士、騎兵剪影：劍刃 34、待機往前上方斜伸；馬頭抬高、槍 60
+	var ks: String = FileAccess.get_file_as_string("res://scripts/ui/units/kingdom.gd")
+	ok(ks.find("var tip := hand + dir * 34.0") >= 0 and ks.find("var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5)") >= 0, "劍士：劍刃 34、待機斜伸、揮到底角度 0.8 不變")
+	ok(ks.find("var tip := base + dir * 60.0") >= 0 and ks.find("Vector2(17, -41), Vector2(31, -38)") >= 0, "騎兵：槍 60、馬頭抬高往前")

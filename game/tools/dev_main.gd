@@ -332,6 +332,9 @@ func _art_checks(img: Image) -> Dictionary:
 			out["units"] += 1
 			if maxf(cr.call(dark, ring), cr.call(lite, ring)) < 3.0:
 				out["low_units"] += 1
+				if not out.has("low"):
+					out["low"] = []
+				(out["low"] as Array).append([u.type, u.team, int(sp.x), int(sp.y)])   # 1.6.0 B10：哪幾隻（查變差的原因用）
 	return out
 
 func _layout_report(name: String, img: Image = null) -> void:
@@ -1861,12 +1864,31 @@ func _draw() -> void:
 		super._draw()
 		return
 	draw_rect(Rect2(0, 0, 1280, 800), Color(0.5, 0.5, 0.5))
+	# 1.6.0 B10（Codex B10 r1 #6）：樣本可換——--sil-team=1（紅方）、--sil-atk=0.5（攻擊格）、--sil-cb（色盲）、--sil-turn=0.55（轉身角 cos）
+	var ua := OS.get_cmdline_user_args()
+	var st := 0
+	var sa := 0.0
+	var scb := false
+	var stc := 1.0
+	for a in ua:
+		if a.begins_with("--sil-team="):
+			st = int(a.substr(11))
+		elif a.begins_with("--sil-atk="):
+			sa = float(a.substr(10))
+		elif a == "--sil-cb":
+			scb = true
+		elif a.begins_with("--sil-turn="):
+			stc = float(a.substr(11))
+	Art.turn_c = stc
+	Art.turn_s = sqrt(maxf(0.0, 1.0 - stc * stc))
 	for t in 22:
 		var col := t % 11
 		var row := t / 11
 		var x := 58.0 + col * 116.0
-		Art.unit(self, Vector2(x, 150.0 + row * 210.0), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.6, false)
-		Art.unit(self, Vector2(x, 560.0 + row * 110.0), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.8, false)
+		Art.unit(self, Vector2(x, 150.0 + row * 210.0), t, st, 1.0, 0.0, sa, 0.0, 1.0, 0.0, 1.6, scb)
+		Art.unit(self, Vector2(x, 560.0 + row * 110.0), t, st, 1.0, 0.0, sa, 0.0, 1.0, 0.0, 0.8, scb)
+	Art.turn_c = 1.0
+	Art.turn_s = 0.0
 
 
 ## 記憶體檢查（第三輪 P2）：連打 20 場（直接看結果）＋切 20 次色盲（每次重建角色圖集），

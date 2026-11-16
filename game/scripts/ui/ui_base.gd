@@ -2018,8 +2018,11 @@ func _unit_base(p: Vector2, scale: float) -> void:
 		draw_set_transform_matrix(ui_xf * Transform2D(0.0, Vector2(1, bh / bw), 0.0, p + Vector2(0, 2 * scale)))
 		draw_circle(Vector2(0, 3 * scale * bw / bh), bw * 1.04, Color(0, 0, 0, 0.3), true, -1.0, true)
 		draw_circle(Vector2.ZERO, bw, Color("#5a3b22"), true, -1.0, true)
-		draw_circle(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, Color("#8a5f37"), true, -1.0, true)
-		draw_arc(Vector2(0, -2.2 * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
+		var ed := 2.2 * Art.BASE_EDGE / 3.2   # 1.6.0 B10（P4.3；Codex B10 r1 #4）：大圖底座斜邊同比例加厚
+		draw_circle(Vector2(0, -ed * scale * bw / bh), bw * 0.96, Color("#8a5f37"), true, -1.0, true)
+		draw_arc(Vector2(0, -ed * scale * bw / bh), bw * 0.96, PI * 1.1, PI * 1.9, 24, Color(1, 0.9, 0.7, 0.35), 2.0, true)
+		for g in [[-0.28, 0.55, 0.30], [0.24, 0.70, 0.22]]:   # 頂面兩道淺木紋（同戰場底座）
+			draw_arc(Vector2(bw * g[0], -ed * scale * bw / bh), bw * 0.96 * g[1], PI * 1.15, PI * 1.85, 14, Color(0.35, 0.22, 0.12, g[2]), 1.2 * scale, true)
 		draw_set_transform_matrix(ui_xf)
 
 ## 在一個框（或圓）的正中間畫一隻兵（使用者回報：圖鑑頁籤的人物沒有在格子正中間）。

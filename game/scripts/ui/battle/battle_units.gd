@@ -507,6 +507,7 @@ func hk_of(u) -> float:
 
 ## 1.3.0 §5.1：跟拍（點兵讓鏡頭跟）的那一隻畫成 1.4 倍（基準 1.25 倍的 1.12 倍）；只改畫面。
 const FOCUS_SCALE := 1.4 / 1.25
+const BOSS_SIL_PX := 3.0   # 1.6.0 B10（P4.4）：巨獸外框多加的畫面像素
 func focus_scale(id: int) -> float:
 	return FOCUS_SCALE if follow_id >= 0 and id == follow_id else 1.0
 
@@ -1102,6 +1103,11 @@ func _draw_units_of(s, dim: bool) -> void:
 			# 往南：只有圖集有走路轉身頁時才用 3/4 正面（沒有就照舊側面，不讓向量畫只橫縮；Codex cat05 #6）
 			var front_ok: bool = hd > 0 and cache_ok and sprites.wt_loc.has(u.type)
 			var fdraw: float = (signf(face) if face != 0.0 else 1.0) * HEAD_FRONT_C if front_ok else face
+			if u.boss and not bool(Save.s("plain_ui")):
+				# 1.6.0 B10（P4.4）巨獸外框加粗：先墊一層往外擴的墨色剪影（畫面約 +3px），再正常畫
+				Art.sil_w = BOSS_SIL_PX / usc
+				Art.unit(self, p, u.type, u.team, fdraw, walk, at, 0.0, alpha, ut, usc, cbm(), 0, lean, crouch, variant)
+				Art.sil_w = 0.0
 			_unit(p, u.type, u.team, fdraw, walk, at, hurt, alpha, ut, usc, mood, lean, crouch, variant, fid, chip)
 		if live and not u.hidden and hd == 0:   # 南北走的轉身／背面頁不疊側面配件（Codex cat05 #4）
 			_spring_acc(p, u.type, u.team, face, usc, crouch, lean, walk, at, alpha, u.id, ut)   # 1.4.0 §5.2 即時配件（延遲回彈）
@@ -1145,6 +1151,7 @@ func _draw_units_of(s, dim: bool) -> void:
 	if dim:
 		return
 	# 第三層：小旗、血條、狀態（永遠畫在最上面）
+	var bar_faces: Dictionary = face_rects() if live else {}
 	for u in list:
 		var p: Vector2 = pc[u.id] if live else ORIGIN + Vector2(u.x, u.y) * CS / 1000.0
 		if live:
@@ -1200,6 +1207,16 @@ func _draw_units_of(s, dim: bool) -> void:
 			var w := 28.0
 			var top := p + Vector2(-w / 2, (-66 if u.type == D.CAVALRY else (-76 if u.type == F8.GOLEM or u.type == F8.SPRITE else -58)) * hk_of(u))
 			var ha := hp_bar_alpha(u.id, _focus_ids, u.hp * 100 <= u.max_hp * 35) if live and state == St.BATTLE else 1.0   # 1.5.0 §7：非焦點兵血條淡一些
+			# 頭頂血條的完整範圍（含色盲標記：紅菱到 -14.5、上下 ±6.5；Codex B10 r1 #3）
+			var bar_r := Rect2(top + Vector2(-14.5, -4.5), Vector2(w + 15.5, 13.0)) if cbm() else Rect2(top - Vector2(1, 1), Vector2(w + 2, 6))
+			if live and hp_bar_blocks(bar_r, u.id, bar_faces):
+				# 1.6.0 B10（P4.4 全兵種血條避讓）：頭頂血條會疊到別隻的頭胸 → 改畫在自己底座前緣半圓弧；
+				# 弧也會蓋到（前排兵的頭胸壓在自己底座上）→ 不畫（受傷 3 秒、低血量的條件下次有空位再出現）；跟拍那隻照畫頭頂（玩家指定要看）
+				if not hp_bar_blocks(hp_arc_rect(p), u.id, bar_faces):
+					_hp_arc(p, u, ha)
+					continue
+				if u.id != follow_id:
+					continue
 			draw_rect(Rect2(top - Vector2(1, 1), Vector2(w + 2, 6)), Color(Art.OUT, Art.OUT.a * maxf(ha, 0.8)))
 			draw_rect(Rect2(top, Vector2(w * u.hp / u.max_hp, 4)), Color(Art.team_color(u.team, cbm()).lightened(0.25), ha))
 			if cbm():
@@ -1333,6 +1350,51 @@ func _draw_relic(t: int, p: Vector2, face: float, k: float, team: int) -> void:
 				var up := sin(minf(k / 0.7, 1.0) * PI) * 26.0
 				draw_circle(p + Vector2(dx, -18.0 - up + k * 14.0) * UNIT_SCALE, 3.2 * UNIT_SCALE, Color(Art.GOLD, a), true, -1.0, true)
 
+
+## 1.6.0 B10：頭頂血條框 r 會不會蓋到別隻兵的頭胸框（B08 face_rects）
+static func hp_bar_blocks(r: Rect2, own: int, faces: Dictionary) -> bool:
+	for id in faces:
+		if id != own and (faces[id] as Rect2).intersects(r):
+			return true
+	return false
+
+## 底座前緣半圓弧血條：沿木座前緣（下半圈）畫底弧＋按血量比例的隊伍色弧；色盲模式弧的左端加隊伍形狀
+## 底座弧血條的完整範圍（含色盲標記），給遮擋檢查
+func hp_arc_rect(p: Vector2) -> Rect2:
+	var c := p + Vector2(0, Art.BASE_EDGE * 0.5) * UNIT_SCALE
+	return Rect2(c + Vector2(-21.0 * UNIT_SCALE - 14.0, -3.0), Vector2(42.0 * UNIT_SCALE + 17.0, 10.5 * UNIT_SCALE + 8.0))
+
+func _hp_arc(p: Vector2, u, ha: float) -> void:
+	var c := p + Vector2(0, Art.BASE_EDGE * 0.5) * UNIT_SCALE
+	var rx := 21.0 * UNIT_SCALE
+	var ry := 10.5 * UNIT_SCALE
+	var a0 := PI * 0.12
+	var a1 := PI * 0.88
+	var frac := clampf(float(u.hp) / maxf(1.0, float(u.max_hp)), 0.0, 1.0)
+	var bg := PackedVector2Array()
+	var fg := PackedVector2Array()
+	for i in 17:
+		var an := a1 - (a1 - a0) * i / 16.0   # 從左往右（畫面左＝a1）
+		var q := c + Vector2(cos(an) * rx, sin(an) * ry)
+		bg.append(q)
+		if float(i) / 16.0 <= frac + 1e-4:
+			fg.append(q)
+	if frac > 0.0:
+		var ae := a1 - (a1 - a0) * frac   # 終點插值（Codex B10 r1 #2：血量很低時只剩一點、看起來像空血）
+		fg.append(c + Vector2(cos(ae) * rx, sin(ae) * ry))
+		if fg.size() == 1:
+			fg.insert(0, bg[0])
+	draw_polyline(bg, Color(Art.OUT, Art.OUT.a * maxf(ha, 0.8)), 6.0, true)
+	if fg.size() >= 2:
+		draw_polyline(fg, Color(Art.team_color(u.team, cbm()).lightened(0.25), ha), 3.5, true)
+	if cbm():
+		var mk := bg[0] + Vector2(-6, 0)
+		if u.team == 0:
+			draw_circle(mk, 4.5, Art.OUT, true, -1.0, true)
+			draw_circle(mk, 3.2, Art.team_color(0, true), true, -1.0, true)
+		else:
+			draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -5), mk + Vector2(5, 0), mk + Vector2(0, 5), mk + Vector2(-5, 0)]), Art.OUT)
+			draw_colored_polygon(PackedVector2Array([mk + Vector2(0, -3.5), mk + Vector2(3.5, 0), mk + Vector2(0, 3.5), mk + Vector2(-3.5, 0)]), Art.team_color(1, true))
 
 ## V1.4 #12 巨獸血條：上面一條大的（本體），下面兩條小的（前臂、背甲），部位斷了畫成灰色斷條。
 func _boss_bars(p: Vector2, u) -> void:

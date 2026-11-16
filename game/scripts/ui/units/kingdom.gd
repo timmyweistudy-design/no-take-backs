@@ -63,14 +63,15 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.05, PI * 1.95, 18, Color(OUT, a), 6.5, true)
 			ci.draw_arc(Vector2(0, hy), 12.0, PI * 1.05, PI * 1.95, 18, Color(STEEL, a), 4.0, true)
 			_part_at(ci, 3.0)   # V1.5：羽飾轉正時移到頭頂正中
-			_poly(ci, PackedVector2Array([Vector2(-2, hy - 12), Vector2(4, hy - 21), Vector2(7, hy - 19), Vector2(3, hy - 11)]), tc.lightened(0.2), a)
+			# 1.6.0 B10（P4.1）：羽飾加高成冠（剪影頭頂多一道往後掃的尖，和圓頭步兵分開）
+			_poly(ci, PackedVector2Array([Vector2(-3, hy - 11), Vector2(-1, hy - 22), Vector2(4, hy - 28), Vector2(8, hy - 25), Vector2(4, hy - 10)]), tc.lightened(0.2), a)
 			_part(ci, 0.0, 0.0)
 			_hat_off(ci)
 			_part_end(ci)
 			# 劍：斜舉的亮刃（攻擊時往前揮）
 			# 前搖往後拉 35°、揮擊揮到 +60° 以上
 			# V1.3.1：前搖（也是勝利姿勢）劍往後只拉到接近垂直、手往前推，刃不再切過右眼（原本 w×0.9 會穿臉）
-			var ang := -1.15 + (w * 0.4 if w < 0.0 else w * 1.95) + sway   # 第十輪 F3：揮幅加大
+			var ang := -0.7 + (w * 0.55 if w < 0.0 else w * 1.5) + sway   # 第十輪 F3：揮幅加大；1.6.0 B10（P4.1）：待機劍往前上方斜伸（剪影往右突出，和直立杖、圓團分開），揮到底的角度不變
 			if variant == 1:
 				# 上挑：前搖把劍壓低到身前下方，揮擊時往上撩過頭頂
 				ang = 0.6 + (-w * 0.35 if w < 0.0 else -w * 2.6)
@@ -79,8 +80,8 @@ static func _infantry(ci: CanvasItem, type: int, tc: Color, walk: float, w: floa
 			_part(ci, -8.0, 1.0)   # V1.3 A1b：劍透視縮短、留在臉的前方（V1.3.1 錨點檢查：最窄格 -4 仍穿眼，改 -8）
 			var hand := Vector2(9 + (-w * 5.0 if w < 0.0 and variant != 1 else 0.0), -17 + sway * 8.0)
 			var dir := Vector2(cos(ang), sin(ang))
-			var tip := hand + dir * 24.0
-			var side := dir.orthogonal() * 3.6
+			var tip := hand + dir * 34.0   # 1.6.0 B10（P4.1）：劍刃 24→34、加寬，往前上方斜伸（剪影多一道斜線）
+			var side := dir.orthogonal() * 4.2
 			# V1.5：握柄＋柄頭在手後、護手在刃根（手往前 3.5px），拳頭蓋住握柄——不再像刀刃插在圓點上被切斷
 			_grip(ci, hand, dir, 6.0, a)
 			var root := hand + dir * 3.5
@@ -377,11 +378,13 @@ static func _berserk_axe(ci: CanvasItem, k2: int, w: float, sway: float, variant
 
 ## 馬頭與鬃毛（eye＝畫不畫眼睛；背面時頭在身後看不到眼）
 static func _horse_head(ci: CanvasItem, tc: Color, pony: Color, a: float, eye: bool) -> void:
-	_poly(ci, PackedVector2Array([Vector2(10, -22), Vector2(17, -36), Vector2(27, -33), Vector2(28, -26), Vector2(17, -19)]), pony, a)
-	_poly(ci, PackedVector2Array([Vector2(10, -24), Vector2(14, -37), Vector2(18, -36), Vector2(14, -23)]), tc, a, false)
+	# 1.6.0 B10（P4.1）：馬頸抬高、馬頭往前伸長，加一隻往前的耳朵（剪影：身體前上方一個明顯的馬頭，不再是一團）
+	_poly(ci, PackedVector2Array([Vector2(10, -22), Vector2(17, -41), Vector2(31, -38), Vector2(33, -30), Vector2(18, -19)]), pony, a)
+	_poly(ci, PackedVector2Array([Vector2(18, -40), Vector2(21, -47), Vector2(23, -39)]), pony, a)
+	_poly(ci, PackedVector2Array([Vector2(10, -24), Vector2(14, -42), Vector2(18, -41), Vector2(14, -23)]), tc, a, false)
 	if eye:
-		_c(ci, Vector2(23, -31), 1.8, OUT, a, false)
-		ci.draw_circle(Vector2(23.6, -31.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
+		_c(ci, Vector2(26, -35), 1.8, OUT, a, false)
+		ci.draw_circle(Vector2(26.6, -35.6), 0.7, Color(1, 1, 1, a), true, -1.0, true)
 
 static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float, t: float, angry := false) -> void:
 	var wk := Gait.ph(walk)
@@ -432,11 +435,11 @@ static func _cavalry(ci: CanvasItem, tc: Color, walk: float, w: float, a: float,
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(OUT, a), 6.0, true)
 	ci.draw_arc(Vector2(-1, hy), 9.5, PI * 1.0, PI * 2.0, 18, Color(GOLD, a), 3.5, true)
 	# 長槍＋小旗（衝鋒時放平前刺）
-	var tilt: float = (-0.55 + w * 0.3 if w < 0.0 else -0.55 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺
+	var tilt: float = (-0.7 + w * 0.5 if w < 0.0 else -0.7 * (1.0 - w)) + Gait.swing(D.CAVALRY, walk)   # 前搖舉高、揮擊放平前刺；1.6.0 B10（P4.1）：待機槍放低往前平伸（剪影變寬長，和斜舉劍的劍士分開），前搖舉到原本高度
 	_part(ci, -9.0, 1.0)   # 騎槍透視縮短、整支移到臉的前方
 	var base := Vector2(-6, -30)
 	var dir := Vector2(cos(tilt), sin(tilt))
-	var tip := base + dir * 50.0   # 第七輪 C1-4：騎槍加長
+	var tip := base + dir * 60.0   # 第七輪 C1-4：騎槍加長；1.6.0 B10（P4.1）50→60
 	_line(ci, base, tip, WOOD, 2.6, a)
 	_poly(ci, PackedVector2Array([tip, tip - dir * 7.0 + dir.orthogonal() * 3.0, tip - dir * 7.0 - dir.orthogonal() * 3.0]), STEEL, a)
 	var f0 := base + dir * 32.0

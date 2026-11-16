@@ -164,7 +164,13 @@ static func _star(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
 		c + Vector2(0, r), c + Vector2(-r * 0.28, r * 0.28), c + Vector2(-r, 0), c + Vector2(-r * 0.28, -r * 0.28)]), col)
 
 
+## 1.6.0 B10（P4.4）巨獸粗外框：sil_w>0 時是「剪影墊底」那一趟——圓、多邊形、線全部畫成墨色並往外擴 sil_w（局部座標），
+## 之後正常再畫一次蓋上去，露在外面的那圈就是加粗的外框。
+static var sil_w := 0.0
 static func _c(ci: CanvasItem, c: Vector2, r: float, col: Color, a: float, outline := true) -> void:
+	if sil_w > 0.0:
+		ci.draw_circle(c, r + INNER_W + sil_w, Color(OUT, a), true, -1.0, true)
+		return
 	if outline:
 		ci.draw_circle(c, r + INNER_W, Color(OUT, a), true, -1.0, true)
 	ci.draw_circle(c, r, Color(col, col.a * a), true, -1.0, true)
@@ -177,6 +183,12 @@ static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float,
 			ar.append(pts[k])
 		ar.append(pts[0])
 		_anchor("weapon", ar)
+	if sil_w > 0.0:
+		var cl := pts.duplicate()
+		cl.append(pts[0])
+		ci.draw_colored_polygon(pts, Color(OUT, a))
+		ci.draw_polyline(cl, Color(OUT, a), INNER_W * 2.0 + sil_w * 2.0, true)
+		return
 	if outline:
 		var closed := pts.duplicate()
 		closed.append(pts[0])
@@ -187,6 +199,9 @@ static func _poly(ci: CanvasItem, pts: PackedVector2Array, col: Color, a: float,
 static func _line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float, al: float) -> void:
 	if _cur_weapon:
 		_anchor("weapon", [a, b])
+	if sil_w > 0.0:
+		ci.draw_line(a, b, Color(OUT, al), w + INNER_W * 1.9 + sil_w * 2.0, true)
+		return
 	ci.draw_line(a, b, Color(OUT, al), w + INNER_W * 1.9, true)
 	ci.draw_line(a, b, Color(col, col.a * al), w, true)
 
