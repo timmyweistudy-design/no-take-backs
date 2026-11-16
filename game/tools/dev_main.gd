@@ -1042,6 +1042,8 @@ func _run_screenshots() -> void:
 	await _shots_cmd()
 	await _shots_v13()
 	await _shots_v16()
+	# 1.6.0 B04：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
+	await _lobby_pad_walk()
 	await _pad_walk()
 	get_tree().quit()
 
@@ -2575,10 +2577,98 @@ func _shots_v161() -> void:
 
 ## 1.6.0 B06（Codex B06 r1 #4）：便條釘位的真實繪製＋手把——真的畫出來（按鈕由繪製登記）、十字鍵從結果頁按鈕走到「打開看」、A 打開、B 關掉。
 ## 結果印在 run.log：NOTEPIN OK／FAIL（驗收鏈數 24 組都要 OK）。存檔已是截圖前綴，B 關掉記住的「看過」不碰正式存檔。
+## 1.6.0 B04（S1）：大廳手把 ≤3 步開戰——真的畫面、真的手把 A（走 _input），從打開大廳（第一步）按到進入擺陣，
+## 印 LOBBYPAD OK／FAIL；走完回到大廳第三步、還原手把模式（之後的截圖照舊）。
+func _lobby_pad_walk() -> void:
+	var pad0: bool = pad_mode
+	# 走查真的開戰：會寫 last_rules、蓋章數、消耗亂數——全部存起來、走完還原（不然之後截圖的 AI 陣容、規則都變了；b04c 抓到 74_cmd_cast 0→423）
+	var data0: Dictionary = Save.data.duplicate(true)
+	var rng0: int = rng.state
+	var had_dis: bool = shot_state.has("dis")   # 停用組合：全部按鈕畫成停用，A 按不下去；走的時候拿掉（同 _note_pin_walk）
+	shot_state.erase("dis")
+	var frame := func() -> void:
+		queue_redraw()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+	var press := func(b: int, same_frame := false) -> void:
+		for dn in [true, false]:
+			var e := InputEventJoypadButton.new()
+			e.device = 0
+			e.button_index = b
+			e.pressed = dn
+			_input(e)
+			if not same_frame:
+				await get_tree().process_frame
+	var rep := {}
+	# ①對 AI、②雙人：從打開大廳（第一步）連按 A，幾下進到擺陣（S1 ≤3）
+	for kind in ["ai", "duel"]:
+		_go_title()
+		_open_lobby(kind)
+		lobby_step = 0
+		var steps := 0
+		for i in 5:
+			await frame.call()
+			if state != St.TITLE or overlay != "lobby":
+				break
+			await press.call(JOY_BUTTON_A)
+			steps += 1
+		for i in 3:
+			await get_tree().process_frame
+		rep[kind] = {"steps": steps, "place": state == St.PLACE}
+	# ③同一幀兩下 A：只走一步（不跳過第二步）
+	_go_title()
+	_open_lobby("ai")
+	lobby_step = 0
+	await frame.call()
+	await press.call(JOY_BUTTON_A, true)
+	await press.call(JOY_BUTTON_A, true)
+	await get_tree().process_frame
+	await frame.call()
+	rep["same_frame"] = lobby_step
+	# ④撥片：十字鍵往上走到玩法頁籤（lb_modes 組）、A 換玩法；⑤B 退一步／離開，重開焦點回主鈕
+	var p0: String = str(lobby_r.preset)
+	var moved := 0
+	for i in 20:   # 十字鍵在大廳是照閱讀順序前後移（1.5.0 起），頁籤在最前面，最多走 20 下
+		await frame.call()
+		if _focus >= 0 and _focus < _btns.size() and str(_btns[_focus].get("group", "")) == "lb_modes":
+			break
+		await press.call(JOY_BUTTON_DPAD_UP)
+		moved += 1
+	var on_tab: bool = _focus >= 0 and _focus < _btns.size() and str(_btns[_focus].get("group", "")) == "lb_modes"
+	if on_tab:
+		await press.call(JOY_BUTTON_DPAD_LEFT)   # 換到隔壁那片撥片（往左一定還在玩法頁籤組裡；往右可能是「我的預設」下拉）
+		await frame.call()
+		on_tab = _focus >= 0 and _focus < _btns.size() and str(_btns[_focus].get("group", "")) == "lb_modes"
+		await press.call(JOY_BUTTON_A)
+		await frame.call()
+	rep["tab"] = {"reached": on_tab, "moves": moved, "changed": str(lobby_r.preset) != p0}
+	var st1: int = lobby_step
+	await press.call(JOY_BUTTON_B)
+	await frame.call()
+	rep["back"] = {"from_step": st1, "overlay": overlay, "step": lobby_step}
+	_go_title()
+	_open_lobby("ai")
+	await frame.call()
+	var fm: int = _focus
+	# 主鈕＝底列右邊那顆（下一步／開戰，Rect2(966, 700, 234, 48)；點擊區可能加高，比位置與寬）（Codex B04 r2）
+	rep["reopen_main"] = fm >= 0 and fm < _btns.size() and is_equal_approx((_btns[fm]["r"] as Rect2).position.x, 966.0) and is_equal_approx((_btns[fm]["r"] as Rect2).size.x, 234.0)
+	var ok: bool = rep["ai"]["place"] and rep["ai"]["steps"] <= 3 and rep["duel"]["place"] and rep["duel"]["steps"] <= 3 and rep["same_frame"] == 1 and rep["tab"]["reached"] and rep["tab"]["changed"] \
+		and rep["back"]["overlay"] == "" and rep["reopen_main"]
+	print("LOBBYPAD ", "OK" if ok else "FAIL", " ", JSON.stringify(rep))
+	Save.data = data0
+	rng.state = rng0
+	_go_title()
+	_open_lobby("ai")
+	mouse = Vector2(-100, -100)
+	pad_mode = pad0
+	if had_dis:
+		shot_state["dis"] = true
+
 func _note_pin_walk() -> void:
 	# 「停用」組合（:dis）會把所有按鈕畫成停用、A 按不下去；這段驗的是手把能走到並打開便條，走的時候暫時拿掉停用旗標
 	var had_dis: bool = shot_state.has("dis")
 	shot_state.erase("dis")
+	var pad0: bool = pad_mode   # 走查送真的手把事件會切到手把模式：走完還原，不然之後的截圖都多了手把提示（1.6.0 B04 抓到）
 	var lay: Dictionary = _note_pin_layout()
 	var target: Vector2 = (lay["btn"] as Rect2).get_center()
 	var find := func() -> int:
@@ -2618,3 +2708,4 @@ func _note_pin_walk() -> void:
 	overlay = ""
 	if had_dis:
 		shot_state["dis"] = true
+	pad_mode = pad0

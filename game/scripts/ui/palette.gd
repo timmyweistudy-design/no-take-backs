@@ -68,6 +68,12 @@ const CONTACT_FEATHER := 6.0
 const CONTACT_A := 0.4
 # 1.6.0 B03：攤在桌上的紙（結果紙）在桌燈下的色調——把 L* 從 1.5.0 的約 86 壓到紙的中階（量測見 tools/tone_check.py）
 const PAPER_DESK_TONE := Color(0.72, 0.68, 0.62)
-const PAPER_DESK_TONE_TEX := Color(0.8, 0.76, 0.7)   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
+const PAPER_DESK_TONE_TEX := Color(0.8, 0.76, 0.7)
+## 1.6.0 B04（S1）挑戰簿簿紙：比桌燈紙再暗一階（中位 L*≈63，S1 要 45～65）；貼圖斑紋上再蓋一層平塗簿紙色 BOOK_FLAT（BOOK_FLAT_A），
+## 起伏減半，最暗處仍 ≥L*55（墨字 ≥4.5:1）
+const PAPER_BOOK_TONE_TEX := Color(0.734, 0.698, 0.643)
+const BOOK_FLAT := Color(0.67, 0.60, 0.49)
+const BOOK_FLAT_A := 0.7
+const BOOK_FRAME_DIM := 0.15   # 大廳外框（暗木框）再壓暗，L* 15.7→約 13.5（S1 要 12～15）   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
 # 1.6.0 B03：盤外桌面壓暗（只在盤框外，盤內隊色 ΔE＝0）
 const OFF_BOARD_DIM := 0.18

@@ -1,0 +1,2676 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e2f5-185a-7590-9055-e424374dff68
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B04 第 1 輪，最多三輪）。只讀。專案根目錄＝目前資料夾。
+計畫 coordination/v1600-impl/b04-plan.md；差異 coordination/v1600-impl/b04-r1/diff.patch（快照 build/cg/b04/game，B10 驗收完搬回 game/）。
+做了：①大廳不再排除在桌燈紙外（B06 留給本批）；大廳＝簿紙 `paper_book`：貼圖紙乘 PAPER_BOOK_TONE_TEX（比桌燈紙暗一階），兩頁再蓋 BOOK_FLAT（α 0.7）讓斑紋減半——實測中位 L* 63.0、2% 分位 61.0（S1 45～65）。②暗木框：大廳面板蓋 BOOK_FRAME_DIM 0.15，實測 L* 13.5（S1 12～15）。③未選中的玩法頁籤改木撥片（btn_cloth＝"" → 木牌），選中仍靛布＋書籤。④英文大字級頁籤縮寫：`tab_label` 擠成兩行時用 `lb_p_*_short`（Monsters、Big army、1-Type；中日文短名＝原名），lobby_tab_h 也用它算，英文 150% 頁籤不再長高。⑤手把 ≤3 步開戰：`_open_lobby` 設 `_lb_focus_main`；截圖流程新增 `_lobby_pad_walk`（真畫面、真手把 A 走 _input，印 LOBBYPAD；停用組合暫時拿掉停用旗標），zh_TW 100、en 150 停用、zh_TW 150 手把都 3 步進擺陣。⑥B06 留下的問題：`_note_pin_walk` 送手把事件後 pad_mode 沒還原，之後截圖多了手把提示 → 走完還原。測試 test_lobby_book_v1600 14 項。版面：大廳 8 張 × 3 組 0 違規（一筆英文 150% 對比 4.44 → 平塗層加厚後 0）。
+請找：錯誤、漏掉的路徑（大廳裡的便條、我的預設下拉、折頁、雙人大廳、簡化介面、色盲、停用）、對比風險、手把走查是否自欺、縮寫字串的語言處理。附行號。最多 6 條必改、400 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會先核對計畫、差異與快照中的相關路徑，重點查大廳變體、手把走查及縮寫語系處理。
+exec
+/bin/bash -lc "pwd && rg --files -g AGENTS.md -g b04-plan.md -g diff.patch -g '*lobby*' -g '*screenshot*' -g '*locale*' -g '*translation*' coordination build/cg/b04/game | head -100" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 457ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v131-impl3/diff.patch
+coordination/v1600-impl/b04-plan.md
+coordination/v120-impl2/diff.patch
+coordination/v1600-impl/b10-r1/diff.patch
+coordination/v131-impl2/diff.patch
+coordination/v152-impl/r2/sheet_lobby_tabs.png
+coordination/v1600-impl/b09-r1/diff.patch
+coordination/v1600-impl/b03-r1/diff.patch
+coordination/v120-impl/cat11-r1/diff.patch
+coordination/v131-impl1/diff.patch
+coordination/v130-impl/cat11-r1/diff.patch
+coordination/v120-impl/cat10-r1/diff.patch
+coordination/v130-impl/cat02-r1/diff.patch
+coordination/v120-impl/cat09-r1/diff.patch
+coordination/v130-impl/cat11-r1/agy/22_lobby.png
+coordination/v120-impl/cat04-r1/diff.patch
+coordination/v130-impl/cat09-r1/diff.patch
+coordination/v1600-impl/b02-r1/hy1/diff.patch
+coordination/v1600-impl/b02-r1/diff.patch
+coordination/v1600-impl/b08-r1/diff.patch
+coordination/v130-impl/cat01-r1/diff.patch
+coordination/v120-impl/cat08-r1/diff.patch
+coordination/v130-impl/cat08-r1/diff.patch
+coordination/v1600-impl/b01-r1/diff.patch
+coordination/v120-impl/cat03-r1/diff.patch
+coordination/v140-impl/cat12-r1/diff.patch
+coordination/v130-impl2/diff.patch
+coordination/v1500-impl/cat15-r1/diff.patch
+coordination/v1600-impl/b06-r1/diff.patch
+coordination/v130-impl/cat08-r1/agy/22_lobby.png
+coordination/v1500-impl/cat14-r1/diff.patch
+coordination/v1600p/shots/orig/zh_TW_150_plain__v150_22b_lobby_step2.jpg
+coordination/v1600p/shots/orig/zh_TW_150_plain__v150_22a_lobby_step1.jpg
+coordination/v1600p/shots/orig/zh_TW_150_plain__24_lobby_army.jpg
+coordination/v1600p/shots/orig/zh_TW_150_plain__22_lobby.jpg
+coordination/v1600p/shots/orig/zh_TW_150_cb__v150_22b_lobby_step2.jpg
+coordination/v1600p/shots/orig/zh_TW_150_cb__v150_22a_lobby_step1.jpg
+coordination/v1600p/shots/orig/zh_TW_150_cb__24_lobby_army.jpg
+coordination/v1600p/shots/orig/zh_TW_150_cb__22_lobby.jpg
+coordination/v1600p/shots/orig/zh_TW_100__v150_22b_lobby_step2.jpg
+coordination/v1600p/shots/orig/zh_TW_100__v150_22a_lobby_step1.jpg
+coordination/v1600p/shots/orig/zh_TW_100__24_lobby_army.jpg
+coordination/v1600p/shots/orig/zh_TW_100__22_lobby.jpg
+coordination/v1600p/shots/orig/en_150__v150_22b_lobby_step2.jpg
+coordination/v1600p/shots/orig/en_150__v150_22a_lobby_step1.jpg
+coordination/v1600p/shots/orig/en_150__24_lobby_army.jpg
+coordination/v1600p/shots/orig/en_150__22_lobby.jpg
+coordination/v120-impl/cat07-r1/diff.patch
+coordination/v120-final2/diff.patch
+coordination/v130-impl/cat06-r1/diff.patch
+coordination/v130-impl1/diff.patch
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_v150_22a_lobby_step1_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_32_lobby_fantasy_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_25_lobby_duel_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_22_lobby_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/en_150_v150_22a_lobby_step1_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/en_150_32_lobby_fantasy_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/en_150_25_lobby_duel_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/en_150_22_lobby_old_left_new_right.png
+coordination/v1600-impl/b04-r1/diff.patch
+coordination/v1600-impl/b04-r1/b04-plan.md
+coordination/v140-impl/cat11-r1/diff.patch
+coordination/v1500-impl/cat14-r1/agy/zh_TW_100_24_lobby_army.png
+coordination/v1500-impl/cat14-r1/agy/zh_TW_100_23_lobby_pool.png
+coordination/v1500-impl/cat14-r1/agy/zh_TW_100_22c_lobby_menu_full.png
+coordination/v1500-impl/cat14-r1/agy/en_150_24_lobby_army.png
+coordination/v120-final/diff.patch
+coordination/v1600p/agy_r4/zh_TW_100__22_lobby.jpg
+coordination/v1600p/agy_r4/en_150__22_lobby.jpg
+coordination/v120-impl/cat06-r1/diff.patch
+coordination/v1600p/agy_r5/en_150__22_lobby.jpg
+coordination/v140-impl/cat02-r1/diff.patch
+coordination/v1600p/agy_r3/zh_TW_150_plain__v150_22b_lobby_step2.jpg
+coordination/v1600p/agy_r3/zh_TW_150_plain__v150_22a_lobby_step1.jpg
+coordination/v1600p/agy_r3/zh_TW_150_plain__24_lobby_army.jpg
+coordination/v1600p/agy_r3/zh_TW_150_plain__22_lobby.jpg
+coordination/v1600p/agy_r3/zh_TW_150_cb__v150_22b_lobby_step2.jpg
+coordination/v1600p/agy_r3/zh_TW_150_cb__v150_22a_lobby_step1.jpg
+coordination/v1600p/agy_r3/zh_TW_150_cb__24_lobby_army.jpg
+coordination/v1600p/agy_r3/zh_TW_150_cb__22_lobby.jpg
+coordination/v1600p/agy_r3/zh_TW_100__v150_22b_lobby_step2.jpg
+coordination/v1600p/agy_r3/zh_TW_100__v150_22a_lobby_step1.jpg
+coordination/v1600p/agy_r3/zh_TW_100__24_lobby_army.jpg
+coordination/v1600p/agy_r3/zh_TW_100__22_lobby.jpg
+coordination/v1600p/agy_r3/en_150__v150_22b_lobby_step2.jpg
+coordination/v1600p/agy_r3/en_150__v150_22a_lobby_step1.jpg
+coordination/v1600p/agy_r3/en_150__24_lobby_army.jpg
+coordination/v1600p/agy_r3/en_150__22_lobby.jpg
+coordination/v1600p/agy_r1/zh_TW_150_plain__v150_22b_lobby_step2.jpg
+coordination/v1600p/agy_r1/zh_TW_150_plain__v150_22a_lobby_step1.jpg
+coordination/v1600p/agy_r1/zh_TW_150_plain__24_lobby_army.jpg
+coordination/v1600p/agy_r1/zh_TW_150_plain__22_lobby.jpg
+coordination/v1600p/agy_r1/zh_TW_150_cb__v150_22b_lobby_step2.jpg
+coordination/v1600p/agy_r1/zh_TW_150_cb__v150_22a_lobby_step1.jpg
+coordination/v1600p/agy_r1/zh_TW_150_cb__24_lobby_army.jpg
+coordination/v1600p/agy_r1/zh_TW_150_cb__22_lobby.jpg
+coordination/v1600p/agy_r1/zh_TW_100__v150_22b_lobby_step2.jpg
+coordination/v1600p/agy_r1/zh_TW_100__v150_22a_lobby_step1.jpg
+coordination/v1600p/agy_r1/zh_TW_100__24_lobby_army.jpg
+coordination/v1600p/agy_r1/zh_TW_100__22_lobby.jpg
+
+exec
+/bin/bash -lc 'find .. -name AGENTS.md -print; cat coordination/v1600-impl/b04-plan.md; cat coordination/v1600-impl/b04-r1/diff.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc 'for p in /AGENTS.md /mnt/AGENTS.md /mnt/c/AGENTS.md /mnt/c/Users/AGENTS.md /mnt/c/Users/timmy/AGENTS.md /mnt/c/Users/timmy/projects/AGENTS.md AGENTS.md; do if [ -f "$p" ]; then cat "$p"; fi; done; cat coordination/v1600-impl/b04-plan.md; cat coordination/v1600-impl/b04-r1/diff.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+# B04 大廳變挑戰簿（S1；P2.4、P2.1、英文頁籤縮寫）計畫
+
+方案 §5 B04 驗收：S1 判決＝簿紙灰階 45～65%、暗木框 12～15%、R14 0、英文 150% 裁切 0、手把 ≤3 步開戰、IN-160-01（翻頁、撥片、返回：手把焦點恢復、同幀第二輸入、跨轉場）。回退：寬度維持、只換樣式。
+
+## 起點（1.6.0 B06 後，固定時鐘 22_lobby）
+- 1.5.0 起大廳已是書本樣式（左緣縫線、左右兩頁、書籤緞帶、右緣色籤）。簿紙 L* 82.9／右頁 80.4（太亮，B06 刻意把大廳留給本批）；木框 L* 15.7～16.6（略亮）；頂部預設頁籤是羊皮紙吊牌。
+
+## 做法
+1. **簿紙**：大廳打開時也上桌燈紙（B06 的 desk_paper 範圍拿掉 lobby 例外），簿紙另用 `PAPER_BOOK_TONE`（比一般桌燈紙再暗一階），中位 L* 落在 45～65；紙上字走深墨（B06 機制），暗斑比對（dark_spot_diff）新增 0。
+2. **暗木框**：大廳外框（縫線那圈）壓暗到 L* 12～15。
+3. **木撥片**：頂部玩法頁籤（標準、經典 5 種…）從羊皮紙吊牌改成木撥片（暗木底＋淺刻字＋選中那片往下壓、亮邊），選中仍有書籤緞帶。
+4. **英文頁籤縮寫**：英文 150% 頁籤字放不下時用縮寫字串（strings.csv 新鍵 `*_short`，四語；中文、日文不縮），裁切 0。
+5. **P2.1 三階排印**：大廳頁內字級只用 tz 的三級（標題、內文、註記），超過的併級（檢查器數級數）。
+6. **手把 ≤3 步開戰**：從大廳打開（焦點預設在「開戰」或第一步）量到按下開戰的手把輸入數 ≤3；走真實 `_input`。
+7. **IN-160-01**：撥片切換、翻頁（步驟 1→2→3）、返回；手把焦點恢復、同幀兩個輸入只吃一個、轉場中輸入不落空（接 test_input_matrix_v150 範本）。
+
+## 驗收
+- 量測：`tools/tone_check.py` 加 22_lobby（紙 45～65、框 12～15）；24 組 0（含 R14、英文 150% 裁切）；固定時鐘不比基線差（大廳沒有戰場棋子，美感數字不受影響）。
+- 測試 `test_lobby_book_v1600`；Hydrogen 看 22 系列前後；Codex 看程式。
+--- a/game/scripts/ui/palette.gd
++++ b/game/scripts/ui/palette.gd
+@@ -68,6 +68,12 @@
+ const CONTACT_A := 0.4
+ # 1.6.0 B03：攤在桌上的紙（結果紙）在桌燈下的色調——把 L* 從 1.5.0 的約 86 壓到紙的中階（量測見 tools/tone_check.py）
+ const PAPER_DESK_TONE := Color(0.72, 0.68, 0.62)
+-const PAPER_DESK_TONE_TEX := Color(0.8, 0.76, 0.7)   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
++const PAPER_DESK_TONE_TEX := Color(0.8, 0.76, 0.7)
++## 1.6.0 B04（S1）挑戰簿簿紙：比桌燈紙再暗一階（中位 L*≈63，S1 要 45～65）；貼圖斑紋上再蓋一層平塗簿紙色 BOOK_FLAT（BOOK_FLAT_A），
++## 起伏減半，最暗處仍 ≥L*55（墨字 ≥4.5:1）
++const PAPER_BOOK_TONE_TEX := Color(0.734, 0.698, 0.643)
++const BOOK_FLAT := Color(0.67, 0.60, 0.49)
++const BOOK_FLAT_A := 0.7
++const BOOK_FRAME_DIM := 0.15   # 大廳外框（暗木框）再壓暗，L* 15.7→約 13.5（S1 要 12～15）   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
+ # 1.6.0 B03：盤外桌面壓暗（只在盤框外，盤內隊色 ΔE＝0）
+ const OFF_BOARD_DIM := 0.18
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -904,6 +904,7 @@
+ ## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
+ ## 1.6.0 B03：ink_deep＝桌燈下的暗紙（結果紙 L*≈64）：彩色字再壓深、中間調的彩色（隊色小圖示）也壓，對紙 ≥4.5:1
+ static var ink_deep := false
++static var paper_book := false   # 1.6.0 B04：大廳挑戰簿打開時＝簿紙（再暗一階）
+ static var paper_tone := Color.WHITE   # 1.6.0 B06：全站紙面乘這個色（桌燈下的紙＝PAL.PAPER_DESK_TONE；game_screens._draw 每幀設定）
+ static func _ink(c: Color) -> Color:
+ 	var lum := c.get_luminance()
+@@ -1362,7 +1363,7 @@
+ 	if layout_probe:
+ 		probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
+ 	if kind == "paper":
+-		tint = tint * (PAL.PAPER_DESK_TONE_TEX if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
++		tint = tint * ((PAL.PAPER_BOOK_TONE_TEX if paper_book else PAL.PAPER_DESK_TONE_TEX) if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
+ 	tint = qcol(tint)   # V1.2.1 F1：量化後當鍵，淡出時不會每幀多一個樣式
+ 	var k := "t|%s|%s" % [kind, tint.to_html()]
+ 	var sb: StyleBoxTexture = _sb_cache.get(k)
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -757,14 +757,16 @@
+ 	mag_hit = []
+ 	var _t0 := Time.get_ticks_usec()
+ 	# 1.6.0 B06（方案 P1.3 主材質全站）：桌燈下的紙——全站紙面（羊皮紙、卡紙）乘桌燈色調、紙上彩色字用深墨（B03 結果紙同一套）。
+-	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳整頁屬 B04（挑戰簿重做紙面；先套桌燈紙會讓說明字的紙紋暗斑 <4.5:1）；
++	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳＝挑戰簿（B04：簿紙再暗一階，貼圖上蓋平塗層讓斑紋減半，暗斑不 <4.5:1）；
+ 	# 簡化介面照舊平塗亮紙（雙階色塊規格）。
+-	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and overlay != "lobby" and note_ret != "lobby" and not no_desk_paper
++	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and not no_desk_paper
+ 	paper_tone = PAL.PAPER_DESK_TONE if desk_paper else Color.WHITE
++	paper_book = desk_paper and (overlay == "lobby" or note_ret == "lobby")   # 1.6.0 B04：大廳＝挑戰簿（B06 留給本批）
+ 	ink_deep = desk_paper
+ 	_draw_inner()
+ 	ink_deep = false
+ 	paper_tone = Color.WHITE
++	paper_book = false
+ 	_draw_magnifier()   # V1.6 #7：最上層
+ 	perf_draw_us = Time.get_ticks_usec() - _t0
+ 
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -56,6 +56,7 @@
+ 	lobby_item = ""
+ 	lobby_tab = 0
+ 	lobby_step = 2 if code != "" else 0   # 1.5.0：有上次設定＝直接到「確認」（遠征牌→快速對戰→開戰）
++	_lb_focus_main = true   # 1.6.0 B04（S1 手把 ≤3 步開戰）：一打開焦點就在主鈕（下一步／開戰），A 連按三下就開戰
+ 	_open("lobby")
+ 
+ ## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
+@@ -531,6 +532,8 @@
+ func _draw_lobby() -> void:
+ 	var P := Rect2(50, 30, 1180, 740)
+ 	_panel(P)
++	if paper_book:
++		draw_rect(P, Color(0.05, 0.03, 0.02, PAL.BOOK_FRAME_DIM))   # 1.6.0 B04（S1）暗木框：書殼再壓暗（頁面、頁籤畫在之後，不受影響）
+ 	probe_skip("R4", "大廳底列：左側操作組（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右，刻意分兩組")
+ 	if not lobby_open and lobby_step < 2:
+ 		probe_skip("R6", "大廳三步的第 1、2 步每步只放一兩列：留白是「一頁一件事」的設計（1.5.0 §1.2）")
+@@ -597,10 +600,17 @@
+ 	var tw_min := 154.0 - 6.0 - BM_SLOT
+ 	var te := tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
+ 	for id in Presets.IDS:
+-		if wrap_lines(L.t("lb_p_" + id), fit(L.t("lb_p_" + id), tz("B"), te, true), te, true).size() > 1:
++		if wrap_lines(tab_label(id, te), fit(tab_label(id, te), tz("B"), te, true), te, true).size() > 1:
+ 			return 78.0
+ 	return 68.0
+ 
++## 頁籤字：擠成兩行時有短名就用短名（1.6.0 B04 英文大字級頁籤縮寫）
++func tab_label(id: String, te: float) -> String:
++	var lab := L.t("lb_p_" + id)
++	if wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1 and L.has("lb_p_" + id + "_short"):
++		return L.t("lb_p_" + id + "_short")
++	return lab
++
+ func _draw_lobby_presets(o: Vector2) -> void:
+ 	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
+ 	var w := 154.0
+@@ -614,7 +624,8 @@
+ 		# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
+ 		if on:
+ 			btn_deco = _draw_bookmark
+-		btn_cloth = "tab_indigo" if on else "tab_linen"   # 1.2.0 第 4 大類：預設分頁是布標（和設定分頁同一套；選中靛藍、未選原胚布）
++		# 1.2.0 第 4 大類：預設分頁是布標（選中靛藍）；1.6.0 B04（P2.4）未選中的改木撥片（暗木牌、淺字），挑戰簿上一排木撥片
++		btn_cloth = "tab_indigo" if on else ("" if paper_book else "tab_linen")
+ 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+ 		btn_cloth = ""
+ 		var on_paper := last_btn_paper   # 原胚布：字用墨色
+@@ -623,10 +634,10 @@
+ 			draw_rect(r, ACCENT, false, 3.0)
+ 		# 只有選中的分頁讓出書籤槽（可用區 [6, w−BM_SLOT]）；沒選中的照整格置中（實作審查第 2 輪看圖：六格一律讓槽時
+ 		# 沒書籤的分頁字明顯偏左）。要換兩行時中日文從中間斷（不留「決」「種」單字一行），從上緣 5 起排，色條在 h−9
+-		var lab := L.t("lb_p_" + id)
+ 		var tw := (w - 6.0 - BM_SLOT) if on else (w - 12.0)
+ 		var tx := (6.0 + tw / 2) if on else w / 2
+ 		var te := tw - 2.0 * (maxf(6.0, tw * 0.06) + 1.0)   # 1.4.0 R12：分頁字左右各留 max(6, 6% 寬)
++		var lab := tab_label(id, te)   # 1.6.0 B04：英文大字級頁籤縮寫（擠成兩行時改用短名）
+ 		var two := wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1
+ 		var lsz: int = tz("B")
+ 		if two:
+@@ -804,6 +815,10 @@
+ 		_tex_box(Rect2(x - 16, top - 4, R.size.x + 32, bot - top + 10), "wood", Color(0.42, 0.27, 0.16))
+ 		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
+ 		_tex_box(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), "paper")
++		if paper_book:
++			# 1.6.0 B04（S1）簿紙：貼圖斑紋上蓋一層平塗簿紙色，起伏減半（中位 L*≈63、最暗處仍讓墨字 ≥4.5:1）
++			draw_rect(Rect2(x - 10, top, lw + 18, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
++			draw_rect(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
+ 		for k in 6:   # 書脊：中間往兩邊漸淡的陰影
+ 			var a := 0.22 - k * 0.035
+ 			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1101,6 +1101,7 @@
+ 	await _snap("v150_22a_lobby_step1.png")   # 第一步：對手
+ 	lobby_step = 1
+ 	await _snap("v150_22b_lobby_step2.png")   # 第二步：地圖
++	await _lobby_pad_walk()
+ 	lobby_step = 2
+ 	# V1.5.2 空／滿資料：「我的預設」下拉 0 筆、10 筆（上限）
+ 	var rp_keep = Save.data.get("rule_presets", [])
+@@ -2572,10 +2573,46 @@
+ 
+ ## 1.6.0 B06（Codex B06 r1 #4）：便條釘位的真實繪製＋手把——真的畫出來（按鈕由繪製登記）、十字鍵從結果頁按鈕走到「打開看」、A 打開、B 關掉。
+ ## 結果印在 run.log：NOTEPIN OK／FAIL（驗收鏈數 24 組都要 OK）。存檔已是截圖前綴，B 關掉記住的「看過」不碰正式存檔。
++## 1.6.0 B04（S1）：大廳手把 ≤3 步開戰——真的畫面、真的手把 A（走 _input），從打開大廳（第一步）按到進入擺陣，
++## 印 LOBBYPAD OK／FAIL；走完回到大廳第三步、還原手把模式（之後的截圖照舊）。
++func _lobby_pad_walk() -> void:
++	var pad0: bool = pad_mode
++	var had_dis: bool = shot_state.has("dis")   # 停用組合：全部按鈕畫成停用，A 按不下去；走的時候拿掉（同 _note_pin_walk）
++	shot_state.erase("dis")
++	_go_title()
++	_open_lobby("ai")
++	lobby_step = 0
++	var steps := 0
++	for i in 5:
++		queue_redraw()
++		await get_tree().process_frame
++		await RenderingServer.frame_post_draw
++		if state != St.TITLE or overlay != "lobby":
++			break
++		for dn in [true, false]:
++			var e := InputEventJoypadButton.new()
++			e.device = 0
++			e.button_index = JOY_BUTTON_A
++			e.pressed = dn
++			_input(e)
++			await get_tree().process_frame
++		steps += 1
++	for i in 3:
++		await get_tree().process_frame
++	var ok: bool = state == St.PLACE and steps <= 3
++	print("LOBBYPAD ", "OK" if ok else "FAIL", " ", JSON.stringify({"steps": steps, "state": int(state), "overlay": overlay}))
++	_go_title()
++	_open_lobby("ai")
++	mouse = Vector2(-100, -100)
++	pad_mode = pad0
++	if had_dis:
++		shot_state["dis"] = true
++
+ func _note_pin_walk() -> void:
+ 	# 「停用」組合（:dis）會把所有按鈕畫成停用、A 按不下去；這段驗的是手把能走到並打開便條，走的時候暫時拿掉停用旗標
+ 	var had_dis: bool = shot_state.has("dis")
+ 	shot_state.erase("dis")
++	var pad0: bool = pad_mode   # 走查送真的手把事件會切到手把模式：走完還原，不然之後的截圖都多了手把提示（1.6.0 B04 抓到）
+ 	var lay: Dictionary = _note_pin_layout()
+ 	var target: Vector2 = (lay["btn"] as Rect2).get_center()
+ 	var find := func() -> int:
+@@ -2615,3 +2652,4 @@
+ 	overlay = ""
+ 	if had_dis:
+ 		shot_state["dis"] = true
++	pad_mode = pad0
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1774,3 +1774,6 @@
+ loss_jump,看第一隻倒下,First fall ▶,看第一个倒下,最初の脱落へ
+ bn_pin,老闆留了張便條,A note from the owner,老板留了张便条,店主からのメモ
+ bn_pin_open,打開看,Read,打开看,読む
++lb_p_fantasy_short,奇幻兵團,Monsters,奇幻兵团,魔物軍団
++lb_p_single_short,單兵種對決,1-Type,单兵种对决,単兵種戦
++lb_p_big_short,大軍團,Big army,大军团,大軍団
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -2969,3 +2969,64 @@
+ 	else:
+ 		Sv.data["seen"] = keep_seen
+ 	g.free()
++
++
++## 1.6.0 B04（S1；P2.4、P2.1、英文頁籤縮寫）挑戰簿：簿紙色調在 45～65、暗木框、木撥片、英文大字級頁籤縮寫、
++## 打開大廳焦點就在主鈕（手把 ≤3 步開戰；真畫面走查是截圖流程的 LOBBYPAD）、IN-160-01（返回、重開焦點恢復、同幀第二輸入）。
++func test_lobby_book_v1600() -> void:
++	var PAL = load("res://scripts/ui/palette.gd")
++	var lstar := func(c: Color) -> float:
++		var lin := func(v: float) -> float:
++			return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
++		var y: float = 0.2126 * lin.call(c.r) + 0.7152 * lin.call(c.g) + 0.0722 * lin.call(c.b)
++		return 116.0 * pow(y, 1.0 / 3.0) - 16.0 if y > 0.008856 else 903.3 * y
++	var lf: float = lstar.call(PAL.BOOK_FLAT)
++	ok(lf >= 45.0 and lf <= 65.0, "簿紙平塗色 L* %.1f 在 45～65（截圖實測中位 63.0）" % lf)
++	ok(PAL.PAPER_BOOK_TONE_TEX.v < PAL.PAPER_DESK_TONE_TEX.v and PAL.BOOK_FLAT_A >= 0.5, "簿紙比桌燈紙暗一階、平塗層讓斑紋減半以上")
++	ok(load("res://tools/dev_main.gd").contrast(Color("#2a1e15"), PAL.BOOK_FLAT) >= 4.5, "深墨字對簿紙 ≥4.5:1")
++	ok(PAL.BOOK_FRAME_DIM > 0.0 and PAL.BOOK_FRAME_DIM <= 0.25, "暗木框壓暗 %.2f（截圖實測 L* 13.5）" % PAL.BOOK_FRAME_DIM)
++	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
++	ok(gsrc.find("paper_book = desk_paper and (overlay == \"lobby\" or note_ret == \"lobby\")") >= 0 and gsrc.find("paper_tone = Color.WHITE\n\tpaper_book = false") >= 0, "簿紙只在大廳、每幀畫完歸零")
++	ok(gsrc.find("overlay != \"lobby\"") < 0, "大廳不再排除在桌燈紙之外（B06 留給本批的那條拿掉）")
++	var lsrc: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
++	ok(lsrc.find("btn_cloth = \"tab_indigo\" if on else (\"\" if paper_book else \"tab_linen\")") >= 0, "未選中的頁籤是木撥片（選中仍是靛布＋書籤）")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g._load_fonts()
++	var LS = load("res://scripts/game/strings.gd")
++	var Sv = load("res://scripts/game/save.gd")
++	var keep_lang = LS.lang
++	var keep_ts = Sv.settings.get("text_scale", 100)
++	var tw_min: float = 154.0 - 6.0 - g.BM_SLOT
++	var te: float = tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
++	LS.lang = "en"
++	Sv.settings["text_scale"] = 150
++	var en_short: bool = g.tab_label("fantasy", te) == LS.t("lb_p_fantasy_short") and g.tab_label("single", te) == LS.t("lb_p_single_short")
++	var one_line := true
++	for id in ["standard", "classic5", "fantasy", "small", "big", "single"]:
++		var lab: String = g.tab_label(id, te)
++		one_line = one_line and g.wrap_lines(lab, g.fit(lab, g.tz("B"), te, true), te, true).size() == 1
++	var dbg := []
++	for id in ["standard", "classic5", "fantasy", "small", "big", "single"]:
++		var lab2: String = g.tab_label(id, te)
++		dbg.append("%s=%d" % [lab2, g.wrap_lines(lab2, g.fit(lab2, g.tz("B"), te, true), te, true).size()])
++	ok(en_short and one_line and g.lobby_tab_h() == 68.0, "英文 150%：擠成兩行的頁籤改縮寫，六個頁籤都一行、頁籤不長高", "%s short=%s h=%s" % [dbg, en_short, g.lobby_tab_h()])
++	Sv.settings["text_scale"] = 100
++	ok(g.tab_label("fantasy", te) == LS.t("lb_p_fantasy"), "英文 100% 放得下就用全名")
++	LS.lang = "zh_TW"
++	Sv.settings["text_scale"] = 150
++	ok(g.tab_label("single", te) == LS.t("lb_p_single"), "中文不縮寫")
++	LS.lang = keep_lang
++	Sv.settings["text_scale"] = keep_ts
++	# 手把 ≤3 步：打開大廳焦點交給主鈕；第一步→第二步→開戰各一下 A
++	g._open_lobby("ai")
++	ok(g.overlay == "lobby" and g._lb_focus_main, "打開大廳焦點就在主鈕（下一步／開戰）")
++	ok(3 - g.lobby_step <= 3, "從打開到開戰最多 3 下 A（第 %d 步起）" % g.lobby_step)
++	# IN-160-01：返回後重開，焦點照樣回到主鈕（不留在舊索引）
++	g._focus = 5
++	g._key(KEY_ESCAPE)
++	ok(g.overlay != "lobby", "大廳 B／Esc 返回")
++	g._open_lobby("ai")
++	ok(g._lb_focus_main, "重開大廳焦點恢復到主鈕")
++	g.free()
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_lobby_book_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+
+exec
+/bin/bash -lc "rg --files build/cg/b04 -g AGENTS.md; rg -n 'note_ret|_lb_focus_main|lb_menu|func _ink|func _paper|paper_tone|paper_book|_lobby_step|_lobby_next' build/cg/b04/game/scripts/ui/{game_screens,lobby_view,ui_base,game_input}.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 18ms:
+rg: build/cg/b04/game/scripts/ui/game_input.gd: No such file or directory (os error 2)
+build/cg/b04/game/scripts/ui/game_screens.gd:493:			call("_lobby_step_by", -1 if k == KEY_Q else 1)
+build/cg/b04/game/scripts/ui/game_screens.gd:763:	paper_tone = PAL.PAPER_DESK_TONE if desk_paper else Color.WHITE
+build/cg/b04/game/scripts/ui/game_screens.gd:764:	paper_book = desk_paper and (overlay == "lobby" or note_ret == "lobby")   # 1.6.0 B04：大廳＝挑戰簿（B06 留給本批）
+build/cg/b04/game/scripts/ui/game_screens.gd:768:	paper_tone = Color.WHITE
+build/cg/b04/game/scripts/ui/game_screens.gd:769:	paper_book = false
+build/cg/b04/game/scripts/ui/game_screens.gd:1068:func _ink_active() -> bool:
+build/cg/b04/game/scripts/ui/game_screens.gd:1072:func _ink_k() -> float:
+build/cg/b04/game/scripts/ui/ui_base.gd:907:static var paper_book := false   # 1.6.0 B04：大廳挑戰簿打開時＝簿紙（再暗一階）
+build/cg/b04/game/scripts/ui/ui_base.gd:908:static var paper_tone := Color.WHITE   # 1.6.0 B06：全站紙面乘這個色（桌燈下的紙＝PAL.PAPER_DESK_TONE；game_screens._draw 每幀設定）
+build/cg/b04/game/scripts/ui/ui_base.gd:909:static func _ink(c: Color) -> Color:
+build/cg/b04/game/scripts/ui/ui_base.gd:1208:var note_ret := ""   # 便條疊在哪個疊層上（大廳本身是疊層 "lobby"）；關掉時還原（Codex cat03 #2）
+build/cg/b04/game/scripts/ui/ui_base.gd:1215:	note_ret = host
+build/cg/b04/game/scripts/ui/ui_base.gd:1243:	note_ret = ""
+build/cg/b04/game/scripts/ui/ui_base.gd:1274:	overlay = note_ret
+build/cg/b04/game/scripts/ui/ui_base.gd:1275:	note_ret = ""
+build/cg/b04/game/scripts/ui/ui_base.gd:1366:		tint = tint * ((PAL.PAPER_BOOK_TONE_TEX if paper_book else PAL.PAPER_DESK_TONE_TEX) if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
+build/cg/b04/game/scripts/ui/ui_base.gd:1398:		tint = tint * paper_tone   # 1.6.0 B06：卡紙也是桌燈下的紙
+build/cg/b04/game/scripts/ui/lobby_view.gd:59:	_lb_focus_main = true   # 1.6.0 B04（S1 手把 ≤3 步開戰）：一打開焦點就在主鈕（下一步／開戰），A 連按三下就開戰
+build/cg/b04/game/scripts/ui/lobby_view.gd:535:	if paper_book:
+build/cg/b04/game/scripts/ui/lobby_view.gd:557:			_btn(Rect2(80, by, 150, 48), L.t("lb_prev"), func(): _lobby_step_by(-1))   # 1.5.0 §1.2：上一步
+build/cg/b04/game/scripts/ui/lobby_view.gd:562:	if _lb_focus_main:
+build/cg/b04/game/scripts/ui/lobby_view.gd:564:		_lb_focus_main = false
+build/cg/b04/game/scripts/ui/lobby_view.gd:566:		_btn(Rect2(966, by, 234, 48), L.t("lb_next"), func(): _lobby_step_by(1), true, true)   # 1.5.0 §1.2：下一步
+build/cg/b04/game/scripts/ui/lobby_view.gd:628:		btn_cloth = "tab_indigo" if on else ("" if paper_book else "tab_linen")
+build/cg/b04/game/scripts/ui/lobby_view.gd:818:		if paper_book:
+build/cg/b04/game/scripts/ui/lobby_view.gd:857:		_btn(Rect2(x + k * (sw0 + 8.0), y, sw0, 40), "%d　%s" % [k + 1, stl], func(): _lobby_step_by(k - lobby_step), true, false, TH_ACTIVE if lobby_step == k else Color(0, 0, 0, 0))
+build/cg/b04/game/scripts/ui/lobby_view.gd:967:var _lb_focus_main := false   # 換步之後焦點放到主鈕（下一步／開戰），不留在舊步驟的按鈕索引上（Codex v150 cat03 #2）
+build/cg/b04/game/scripts/ui/lobby_view.gd:968:func _lobby_step_by(d: int) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:972:		_lb_focus_main = true
+
+exec
+/bin/bash -lc "sed -n '1,120p' build/cg/b04/game/scripts/ui/lobby_view.gd; sed -n '530,690p' build/cg/b04/game/scripts/ui/lobby_view.gd; sed -n '780,1030p' build/cg/b04/game/scripts/ui/lobby_view.gd; sed -n '900,950p' build/cg/b04/game/scripts/ui/ui_base.gd; sed -n '1200,1285p' build/cg/b04/game/scripts/ui/ui_base.gd; rg -n 'func _draw_note|note_ret|lobby_menu|_draw_lobby' build/cg/b04/game/scripts/ui/*.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 114ms:
+extends "res://scripts/ui/unit_brief.gd"
+## 規則大廳（第五輪 §3.5、§3.6）。兩段式：
+##   精簡模式：預設卡片＋規則摘要＋（AI 難度／落子方式）＋開戰。新手兩秒開戰。
+##   自訂模式：按「自訂細項」展開分頁（軍隊、卡池、對局、AI、沙盒）＋右側說明欄（白話說明、和標準的差異、重置）。
+## 改的是 lobby_r；按開戰才複製一份凍結成 rules（這個系列不再變）。
+
+
+var lobby_kind := "ai"
+var lobby_r = null
+var lobby_open := false        # 自訂細項展開
+var lobby_tab := 0             # 0 軍隊 1 卡池 2 對局 3 AI 4 沙盒
+var lobby_item := ""           # 說明欄目前說明的項目
+var lobby_menu := false        # 「我的預設」下拉
+var lobby_pool_team := 0       # 第八輪：兩邊名單不同時正在看哪一邊
+var lobby_filter := 0          # V9 卡池篩選：0 全部、1 近戰、2 遠程、3 支援、4 奇襲
+var lobby_sb_unit := 0         # 沙盒分頁正在調的兵種
+
+const LOBBY_TABS := ["lb_tab_army", "lb_tab_deploy", "lb_tab_pool", "lb_tab_match", "lb_tab_ai", "lb_tab_lab", "lb_tab_cmd", "lb_tab_ext"]   # 1.2.0 第 11 大類：新技能（實驗）
+
+func _lobby_unlocked() -> int:
+	return RS.mask(_demo())
+
+func _lobby_std():
+	return Presets.make("standard", lobby_kind, _lobby_unlocked())
+
+## 打開大廳：沿用上次在這個模式用的規則（存檔裡的規則代碼）；沒有或不合法就用標準。
+func _open_lobby(kind: String) -> void:
+	lobby_kind = kind
+	var code := str(Save.data.get("last_rules", {}).get(kind, ""))
+	var r = null
+	if code != "":
+		var d: Dictionary = RuleSet.from_code(code)
+		if d["ok"]:
+			r = d["rules"]
+			r.preset = str(Save.data.get("last_rules", {}).get(kind + "_preset", "custom"))
+			if r.preset == "standard":
+				r.pool = Presets.make("standard", kind, _lobby_unlocked()).pool.duplicate()   # 舊存檔的標準可能只存到解鎖的幾種
+			var ex = Save.data.get("last_rules", {}).get(kind + "_extra", [])
+			if ex is Array and ex.size() >= 3:
+				if ex.size() >= 4:
+					r.time_of = clampi(int(ex[3]), 0, 2)
+				r.ai_style = clampi(int(ex[0]), 0, RuleSet.AI_STYLES - 1)
+				r.map_mode = clampi(int(ex[1]), 0, 2)
+				r.bans = clampi(int(ex[2]), 0, 2)
+	if r == null:
+		r = Presets.make("standard", kind, _lobby_unlocked())
+		# 第四輪的舊設定當作第一次打開大廳的初始值（Codex 第一輪）
+		if str(Save.s("roster")) == "classic":
+			r.pool = [31, 31]
+		if kind == "duel":
+			r.place_rule = str(Save.s("duel_rule")) if str(Save.s("duel_rule")) in RuleSet.PLACE_RULES else "snake5"
+	lobby_r = r
+	# 存過的規則照原樣保留（Codex 實作第 3 輪：重開雙人大廳不能把兩邊不同的卡池改成一樣）；含未解鎖兵由開戰鈕擋
+	lobby_open = false
+	lobby_menu = false
+	lobby_item = ""
+	lobby_tab = 0
+	lobby_step = 2 if code != "" else 0   # 1.5.0：有上次設定＝直接到「確認」（遠征牌→快速對戰→開戰）
+	_lb_focus_main = true   # 1.6.0 B04（S1 手把 ≤3 步開戰）：一打開焦點就在主鈕（下一步／開戰），A 連按三下就開戰
+	_open("lobby")
+
+## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
+## （主畫面「最近玩的」→ 擺陣「開戰」＝2 次點擊）；沒有上次設定、或上次設定現在不能開（未解鎖、試玩版）就照舊進大廳。
+func quick_rematch_ok() -> bool:
+	# 上次規則要讀得回來、上次陣型要有——任一不行就照舊進大廳（不悄悄換成標準規則；Codex v150 cat02 #4）
+	var code := str(Save.data.get("last_rules", {}).get("ai", ""))
+	if code == "" or str(Save.data.get("last_form", "")) == "":
+		return false
+	return bool(RuleSet.from_code(code)["ok"])
+
+func _quick_rematch() -> void:
+	_open_lobby("ai")
+	if not quick_rematch_ok() or _lobby_block() != "" or lobby_r.to_code() != str(Save.data.get("last_rules", {}).get("ai", "")):
+		return   # 停在大廳（照舊）：規則讀回來不一樣＝有東西被換掉，讓玩家看一眼
+	_lobby_start()
+	if state == St.PLACE and armies.size() > 0 and armies[0].units.is_empty():
+		call("_deploy_tool", "last")   # 帶上次陣型（不合這次規則的照 _load_checked 擋、提示，留在擺陣自己調）
+
+func _lobby_clamp() -> void:
+	Presets.clamp_pool(lobby_r, lobby_kind, _lobby_unlocked(), _demo())
+
+func _lobby_pick(id: String) -> void:
+	if id == "fantasy" and not RuleSet.has_new(Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())):
+		_toast(L.t("lb_fantasy_locked"), true)   # 第八輪：第 14 場才有第一種奇幻軍
+		return
+	var keep_level: int = lobby_r.ai_level
+	var keep_place: String = lobby_r.place_rule
+	var keep_map: Array = [lobby_r.map_id, lobby_r.map_size, lobby_r.ai_style, lobby_r.map_mode]
+	lobby_r = Presets.make(id, lobby_kind, Presets.selectable(lobby_kind, _lobby_unlocked(), _demo()))
+	lobby_r.ai_level = keep_level
+	lobby_r.ai_style = keep_map[2]
+	if lobby_r.deploy == "free":
+		lobby_r.map_id = keep_map[0]    # 換玩法不動已經選好的地圖
+		lobby_r.map_mode = keep_map[3]
+	if lobby_kind == "duel" and id != "standard" and id != "classic5":
+		lobby_r.place_rule = keep_place
+	_lobby_clamp()
+	lobby_menu = false
+
+## 規則有改動就把預設名稱改成「自訂」（卡片上不再亮）。
+func _lobby_touch() -> void:
+	if lobby_r.preset in Presets.IDS:
+		var p = Presets.make(lobby_r.preset, lobby_kind, _lobby_unlocked())
+		p.ai_level = lobby_r.ai_level
+		p.map_id = lobby_r.map_id   # V1.6.1 B1：地圖是另外選的（不屬於玩法預設），比對前帶過去，預設名稱不會因為換地圖變「自訂」
+		p.map_size = lobby_r.map_size
+		p.vents = lobby_r.vents
+		if not p.equals(lobby_r):
+			lobby_r.preset = "custom"
+
+## 卡池裡還沒解鎖（或試玩版不能用）的兵；有的話不能開戰（Codex 實作第 1 輪：匯入的規則照原樣保留，只是不能開戰）。
+func _lobby_locked_units() -> Array:
+	var sel := Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
+	var out: Array = []
+	for tm in 2:
+		for t in D.total():
+			if RuleSet.has(lobby_r.pool_of(tm), t) and not RuleSet.has(sel, t) and not t in out:
+				out.append(t)
+	return out
+
+
+# ───────── 繪製 ─────────
+func _draw_lobby() -> void:
+	var P := Rect2(50, 30, 1180, 740)
+	_panel(P)
+	if paper_book:
+		draw_rect(P, Color(0.05, 0.03, 0.02, PAL.BOOK_FRAME_DIM))   # 1.6.0 B04（S1）暗木框：書殼再壓暗（頁面、頁籤畫在之後，不受影響）
+	probe_skip("R4", "大廳底列：左側操作組（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右，刻意分兩組")
+	if not lobby_open and lobby_step < 2:
+		probe_skip("R6", "大廳三步的第 1、2 步每步只放一兩列：留白是「一頁一件事」的設計（1.5.0 §1.2）")
+	var title := L.t("menu_vs_ai") if lobby_kind == "ai" else L.t("menu_duel")
+	_h1(Vector2(640, 24), title)   # 1.2.0：H1 放大，緞帶上移 4 保持和分頁的距離（R2）   # V1.5.2 L3：緞帶跨在面板上緣（和圖鑑同款），完整下緣到預設分頁 ≥16
+	_draw_lobby_presets(Vector2(80, 96))
+	var cy := 96.0 + lobby_tab_h() + 12.0   # 1.4.0 R12：分頁在大字級時長高（兩行字上下要留空），內容跟著往下
+	if lobby_open:
+		_draw_lobby_detail(Rect2(80, cy, 1120, 684.0 - cy))
+	else:
+		_draw_lobby_main(Rect2(80, cy, 1120, 684.0 - cy))
+		_ink_mode = false   # 任何路徑結束都關掉紙上墨色
+	# 底列
+	var by := 700.0
+	if lobby_open:
+		_btn(Rect2(80, by, 200, 48), L.t("lb_collapse"), func(): lobby_open = not lobby_open)   # 1.5.0 §1.2：折頁裡回去的路只有「收起」（Esc 照舊返回）
+	else:
+		if lobby_step == 0:
+			_btn(Rect2(80, by, 150, 48), L.t("back"), func(): _nav_back())
+		else:
+			_btn(Rect2(80, by, 150, 48), L.t("lb_prev"), func(): _lobby_step_by(-1))   # 1.5.0 §1.2：上一步
+		_btn(Rect2(244, by, 200, 48), L.t("lb_expand"), func(): lobby_open = not lobby_open)
+	if not lobby_open:
+		_btn(Rect2(458, by, 190, 48), L.t("lb_random"), _lobby_random)   # 隨機＝底列一顆有字的鈕（不再像第 4 個步驟；骰子圖示看不懂，Antigravity v150 cat03 r2 #2）
+	var why := _lobby_block()
+	if _lb_focus_main:
+		_focus = _btns.size()   # 換步後焦點落在主鈕
+		_lb_focus_main = false
+	if not lobby_open and lobby_step < 2:
+		_btn(Rect2(966, by, 234, 48), L.t("lb_next"), func(): _lobby_step_by(1), true, true)   # 1.5.0 §1.2：下一步
+	else:
+		btn_seal_square = true
+		_btn(Rect2(966, by, 234, 48), L.t("lb_start"), _lobby_start, why == "", true)
+		btn_seal_square = false
+	var lb_why := ""
+	if lobby_open and LOBBY_TABS[lobby_tab] == "lb_tab_cmd" and lobby_r.cmd_on:
+		# 1.5.0 第 10、14、17 批後：折頁各頁 ≤9（規則列一頁 3 列、參數條、格狀控制各一組、重置回標準＝「標準」紙籤）；
+		# 只剩軍令頁開啟時 10 個（開關、兩邊、將領、軍令、參數條＋固定 5）
+		lb_why = "軍令頁：開關、兩邊、將領、軍令、參數條各一個"
+	elif lobby_menu:
+		lb_why = "「我的預設」下拉選單展開時：選單本身是一張清單（每列讀取／存入／刪除）"
+	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", lb_why)
+	if not bool(Save.s("plain_ui")) and not lobby_open:
+		# 1.4.0 §1.1：每次開戰在手帳右頁右下蓋一記方印，最多留 3 記（下次打開還在）
+		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
+		for k in ns:
+			var sc := Vector2(1150.0 - k * 34.0, 660.0 - (k % 2) * 8.0)
+			draw_set_transform_matrix(ui_xf * Transform2D(0.08 * (k - 1), sc))
+			draw_rect(Rect2(-13, -13, 26, 26), Color(PAL.TRINKET_RED, 0.42), false, 2.5)
+			draw_rect(Rect2(-8, -8, 16, 16), Color(PAL.TRINKET_RED, 0.26))
+			draw_set_transform_matrix(ui_xf)
+	if why != "":
+		_text(Vector2(1083, by - tz("C") * 1.5), why, tz("C"), Color("#ff8a8a"), true, true, 460)
+	if lobby_menu:
+		_draw_lobby_menu(Vector2(1000, 186))
+	elif not lobby_open:
+		_boss_note("lobby", "lobby")   # 1.2.0 §12：第一次進大廳的便條
+
+## 1.4.0 R12：預設分頁高度——字級 150% 時兩行字要上下各留 max(4, 12%)，分頁從 68 長到 78。
+func lobby_tab_h() -> float:
+	if tz("B") < 22:
+		return 68.0
+	# 只有真的有分頁要換兩行時才長高（日文改短後全部一行，就不留空，Antigravity v140 cat01 #5）
+	var tw_min := 154.0 - 6.0 - BM_SLOT
+	var te := tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
+	for id in Presets.IDS:
+		if wrap_lines(tab_label(id, te), fit(tab_label(id, te), tz("B"), te, true), te, true).size() > 1:
+			return 78.0
+	return 68.0
+
+## 頁籤字：擠成兩行時有短名就用短名（1.6.0 B04 英文大字級頁籤縮寫）
+func tab_label(id: String, te: float) -> String:
+	var lab := L.t("lb_p_" + id)
+	if wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1 and L.has("lb_p_" + id + "_short"):
+		return L.t("lb_p_" + id + "_short")
+	return lab
+
+func _draw_lobby_presets(o: Vector2) -> void:
+	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
+	var w := 154.0
+	var h := lobby_tab_h()
+	for i in Presets.IDS.size():
+		var id: String = Presets.IDS[i]
+		var p = Presets.make(id, lobby_kind, _lobby_unlocked())
+		Presets.clamp_pool(p, lobby_kind, _lobby_unlocked(), _demo())
+		var r := Rect2(o + Vector2(i * (w + 10), 0), Vector2(w, h))
+		var on: bool = lobby_r.preset == id
+		# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
+		if on:
+			btn_deco = _draw_bookmark
+		# 1.2.0 第 4 大類：預設分頁是布標（選中靛藍）；1.6.0 B04（P2.4）未選中的改木撥片（暗木牌、淺字），挑戰簿上一排木撥片
+		btn_cloth = "tab_indigo" if on else ("" if paper_book else "tab_linen")
+		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+		btn_cloth = ""
+		var on_paper := last_btn_paper   # 原胚布：字用墨色
+		btn_deco = Callable()
+		if on:
+			draw_rect(r, ACCENT, false, 3.0)
+		# 只有選中的分頁讓出書籤槽（可用區 [6, w−BM_SLOT]）；沒選中的照整格置中（實作審查第 2 輪看圖：六格一律讓槽時
+		# 沒書籤的分頁字明顯偏左）。要換兩行時中日文從中間斷（不留「決」「種」單字一行），從上緣 5 起排，色條在 h−9
+		var tw := (w - 6.0 - BM_SLOT) if on else (w - 12.0)
+		var tx := (6.0 + tw / 2) if on else w / 2
+		var te := tw - 2.0 * (maxf(6.0, tw * 0.06) + 1.0)   # 1.4.0 R12：分頁字左右各留 max(6, 6% 寬)
+		var lab := tab_label(id, te)   # 1.6.0 B04：英文大字級頁籤縮寫（擠成兩行時改用短名）
+		var two := wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1
+		var lsz: int = tz("B")
+		if two:
+			lab = balance_two_lines(lab)
+			# 兩行時字級取字級表裡第二行字形下緣（5＋2.53×字級）還在色條上方 2px 的最大一級（Antigravity 實作第 3 輪：平衡後一行變短，fit 不會縮）
+			lsz = tz("C")
+			for c in [tz("B"), tz("S"), tz("C")]:
+				if 5.0 + 2.53 * c <= h - 11.0 and 2.3 * c <= (h - 14.0) * 0.76 and _width(lab, c, true) <= te:   # 1.4.0 R12：兩行墨跡上下也要留 12%
+					lsz = c
+					break
+		_ink_mode = on_paper
+		# 1.3.0 R11：字放在「色條以上」的文字區正中（原本從上緣固定 5／8 起排，字擠在上半）；選中時扣掉書籤槽
+		var lsz2: int = fit(lab, lsz, te, true)
+		var lab2: String = lab if two else "\n".join(wrap_lines(lab, lsz2, te, true))
+		var tcell := Rect2(r.position.x + tx - tw / 2, r.position.y + 3, tw, h - 9 - 2 - 3)
+		probe_cell_begin(tcell)
+		_text(ink_center_p(tcell, lab2, lsz2, true), lab2, lsz2, Color.WHITE, true, true)
+		probe_cell_end()
+		_ink_mode = false
+		var b := Presets.badge(p, lobby_kind)
+		var bc: Color = {"cert": Color("#3fbf6a"), "fun": Color("#e8b33a"), "lab": Color("#a46be0")}[b]
+		_box(Rect2(r.position + Vector2(8, h - 9), Vector2(w - 16, 4)), bc, Color(0, 0, 0, 0), 2.0)
+	if layout_probe and Presets.IDS.has(lobby_r.preset):
+		probe_need["bookmark"] = 1   # 漏登記守衛：選了內建預設就一定要畫出紅書籤
+	btn_group = ""   # 「我的預設」開下拉選單，和模式紙籤（直接切換）語意不同：單獨計數（Codex v150 cat03 #4）
+	var mr := Rect2(o + Vector2(6 * (w + 10), 0), Vector2(1120 - 6 * (w + 10), h))
+	_btn(mr, L.t("lb_mine"), func(): lobby_menu = not lobby_menu, true, false, TH_ACTIVE if lobby_r.preset == "custom" else TH_WOOD)
+
+func _draw_lobby_menu(o: Vector2) -> void:
+	var ps: Array = Save.data.get("rule_presets", [])
+	var rows: int = clampi(ps.size(), 1, 5)
+	var cols := 2 if ps.size() > 5 else 1
+	o.x -= 240.0 * (cols - 1) + 30.0
+	var act := 56.0   # 1.5.0 §1.2：複製／貼上規則、存成預設搬進這個選單（原本在折頁底列）
+	var r := Rect2(o, Vector2(maxf(12 + cols * 240, 3 * 156 + 12), 12 + rows * 50 + act))
+	if r.end.x > 1200.0:
+		r.position.x = 1200.0 - r.size.x
+	# 下拉選單蓋住的底層按鈕不能被點到（Antigravity v150-i2 #6）
+	for bi in range(_btns.size() - 1, -1, -1):
+		if r.intersects(_btns[bi]["r"]):
+			_btns.remove_at(bi)
+	if layout_probe:
+		# 選單蓋住的底層字也不算（看不到；版面檢查不知道疊放順序）
+		for ti in range(probe_texts.size() - 1, -1, -1):
+			if r.intersects(probe_texts[ti]["r"]):
+				probe_texts.remove_at(ti)
+		for pi in range(probe_btns.size() - 1, -1, -1):
+			if r.intersects(probe_btns[pi]):
+				probe_btns.remove_at(pi)
+	draw_rect(r, PANEL)
+	Save.data["decks"] = decks
+	Save.save_data()
+	_toast(L.t("lb_deck_saved"))
+
+func _deck_load(i: int) -> void:
+	var decks: Array = Save.data.get("decks", [])
+	if i >= decks.size():
+		return
+	var sel: int = Presets.selectable(lobby_kind, _lobby_unlocked(), _demo())
+	var p: int = int(decks[i]) & sel
+	if p == 0 or not RuleSet.has_combat(p):
+		_toast(L.t("lb_deck_locked"), true)
+		return
+	lobby_r.pool[lobby_pool_team] = p
+	if lobby_r.ai_pool_same:
+		lobby_r.pool[1] = p
+	_lobby_touch()
+
+## V9 P5 單頁大廳：左邊四件事（地圖、卡牌、對手、規則），右邊即時預覽；1 秒可開打，細項收在「進階」。
+func _draw_lobby_main(R: Rect2) -> void:
+	var r = lobby_r
+	var x := R.position.x
+	var lw := 600.0
+	var rowh := 96.0
+	# 1.4.0：規則摘要（最後一列）要多高先算好，上面四列平均讓出空間（84～96），規則列不撞底列（Codex v140 cat01 #5）
+	var sm0 := _summary(r)
+	var smz0 := fit(sm0, tz("S"), lw - 170.0)
+	var rules_need := maxf(rowh - 8.0, 12.0 + text_h(sm0, smz0, lw - 170.0) + 4.0 + 36.0 + 8.0)
+	rowh = clampf((R.size.y - rules_need) / 4.0, 84.0, 96.0)
+	var y := R.position.y
+	# V1.2 C1：左欄是一頁羊皮紙（像攤開的戰役筆記），紙上的字用墨色
+	if not bool(Save.s("plain_ui")):
+		# V1.2 C1：攤開的戰術筆記：木書殼＋左右兩頁羊皮紙＋中間書脊陰影（上緣和頁籤留空，Antigravity impl3）
+		var top := y - 8.0   # 紙頁上緣和預覽木框之間留白（Antigravity impl4）
+		var bot := R.end.y + 6.0
+		_tex_box(Rect2(x - 16, top - 4, R.size.x + 32, bot - top + 10), "wood", Color(0.42, 0.27, 0.16))
+		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
+		_tex_box(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), "paper")
+		if paper_book:
+			# 1.6.0 B04（S1）簿紙：貼圖斑紋上蓋一層平塗簿紙色，起伏減半（中位 L*≈63、最暗處仍讓墨字 ≥4.5:1）
+			draw_rect(Rect2(x - 10, top, lw + 18, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
+			draw_rect(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
+		for k in 6:   # 書脊：中間往兩邊漸淡的陰影
+			var a := 0.22 - k * 0.035
+			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+			draw_rect(Rect2(x + lw + 9 + k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+		# 1.2.0 §1.1 A4 線裝對局譜：書脊上五針線裝（穿孔＋跨脊的靛色線），上下兩針包角
+		var sx := x + lw + 8.0
+		for kn in 5:
+			var sy := top + 22.0 + kn * (bot - top - 44.0) / 4.0
+			draw_line(Vector2(sx - 9, sy), Vector2(sx + 9, sy), Color("#2b3f5c"), 2.0, true)
+			draw_line(Vector2(sx - 9, sy + 1.5), Vector2(sx + 9, sy + 1.5), Color(1, 1, 1, 0.12), 1.0)
+			for hx in [-9.0, 9.0]:
+				draw_circle(Vector2(sx + hx, sy), 2.2, Color(0.22, 0.14, 0.07, 0.75))
+		draw_line(Vector2(sx, top + 22.0), Vector2(sx, bot - 22.0), Color("#2b3f5c", 0.55), 1.5)
+		_ink_mode = true
+	# V1.5.2 L6：列底色高度照內容（hh）；左欄圖示與標籤和右邊主控制項共用列中線（原本標籤靠上、控制項置中）
+	var label := func(ic: String, s: String, yy: float, hh: float) -> void:
+		if _ink_mode:   # 1.2.0 A10：紙頁上的列＝一條紙籤（淡墨上下細線＋左上折角），不是深色圓角框
+			draw_rect(Rect2(x, yy, lw, hh), Color(0.36, 0.22, 0.1, 0.05))
+			draw_line(Vector2(x + 14, yy), Vector2(x + lw, yy), Color(0.26, 0.16, 0.08, 0.35), 1.0)
+			draw_line(Vector2(x, yy + hh), Vector2(x + lw, yy + hh), Color(0.26, 0.16, 0.08, 0.35), 1.0)
+			draw_colored_polygon(PackedVector2Array([Vector2(x, yy), Vector2(x + 14, yy), Vector2(x, yy + 14)]), Color(0.36, 0.22, 0.1, 0.22))
+		else:
+			_box(Rect2(x, yy, lw, hh), Color(0, 0, 0, 0.2), Color(0, 0, 0, 0), 7.0)
+		var mid := yy + minf(hh, rowh - 8.0) * 0.5
+		_icon(ic, Vector2(x + 26, mid), 26.0, ACCENT)
+		var lsz := fit(s, tz("B"), 112, true)
+		_text(Vector2(x + 44, mid - text_h(s, lsz, 112, true) * 0.5), s, lsz, Color(1, 1, 1, 0.92), false, true, 112)
+	var cx := x + 160
+	var cw := lw - 170
+	# 1.5.0 §1.2 三步：左頁上方一條步驟紙籤（可以直接點跳）；一次只放這一步的列
+	btn_group = "lb_steps"
+	var sw0 := (lw - 16.0) / 3.0
+	for k in 3:
+		var stl := L.t("lb_step_%d" % k) if not (k == 0 and lobby_kind == "duel") else L.t("lb_step_0d")   # 雙人第一步是落子方式，不是對手
+		btn_paper = lobby_step != k   # 未選的步驟＝手帳上的紙籤；目前這一步＝上色木牌（一眼看得出在第幾步；Antigravity v150 cat03 r2 #1）
+		_btn(Rect2(x + k * (sw0 + 8.0), y, sw0, 40), "%d　%s" % [k + 1, stl], func(): _lobby_step_by(k - lobby_step), true, false, TH_ACTIVE if lobby_step == k else Color(0, 0, 0, 0))
+		btn_paper = false
+	btn_group = ""
+	y += 52.0
+	# 這一步只有一兩列：在剩下的高度裡偏上置中（不在紙頁上留一大片空白）
+	var nrows: int = (LB_STEP_ROWS[clampi(lobby_step, 0, 2)] as Array).size()
+	y += maxf(0.0, (R.end.y - y - nrows * rowh - (rules_need - rowh if lobby_step == 2 else 0.0)) * 0.3)
+	if _lb_show("map"):
+		# 地圖
+		label.call("map", L.t("lb_map"), y, rowh - 8.0)
+		_map_thumb(Rect2(cx, y + 8, 124, 72), r.map_id, r.map_size)
+		var mk: String = MapDefs.MAPS[r.map_id]["key"]
+		_text(Vector2(cx + 134, y + 26), L.t("map_" + mk), tz("B"), Color.WHITE, false, true, cw - 134 - 104)
+		btn_group = "st_map"   # 1.5.0 R14：地圖左右箭頭＝一個步進器
+		_btn(Rect2(x + lw - 104, y + 22, 44, 44), "‹", _lobby_adj.bind("map", -1))
+		_btn(Rect2(x + lw - 54, y + 22, 44, 44), "›", _lobby_adj.bind("map", 1))
+		btn_group = ""
+		y += rowh
+	if _lb_show("size"):
+		# 大小
+		label.call("size", L.t("lb_size"), y, rowh - 8.0)
+		for i in 3:
+			var sr := Rect2(cx + i * ((cw - 16) / 3.0 + 8), y + 18, (cw - 16) / 3.0, 52)
+			var sz_txt := "%d×%d" % [MapDefs.SIZES[i][0], MapDefs.SIZES[i][1]]
+			if L.cjk():
+				sz_txt = L.t("map_size_%d" % i) + "  " + sz_txt
+			btn_group = "lb_size"   # 1.5.0 R14：大小三選一＝一個控制
+			_btn(sr, sz_txt, _lobby_set_size.bind(i), true, false, TH_ACTIVE if r.map_size == i else TH_WOOD)
+			btn_group = ""
+		y += rowh
+	if _lb_show("cards"):
+		# 卡牌
+		label.call("cards", L.t("lb_cards"), y, rowh - 8.0)
+		var p0: int = r.pool_of(0)
+		_draw_pool_heads(Vector2(cx, y + 6), p0, 44.0)
+		_text(Vector2(cx, y + 64 - tz("C") * 0.55), L.t("lb_cards_n", [RuleSet.pool_count(p0)]), tz("C"), TXT_DIM, false, false, cw - 130)   # V1.2.1 B7：和「選牌」鈕同一條中線
+		_btn_small(Rect2(x + lw - 124, y + 44, 114, 40), L.t("lb_pick_cards"), func():
+			lobby_open = true
+			lobby_tab = LOBBY_TABS.find("lb_tab_pool"))
+		y += rowh
+	if _lb_show("opp"):
+		# 對手
+		if lobby_kind == "ai":
+			label.call("robot", L.t("lb_opponent"), y, rowh - 8.0)
+			var w1 := (cw - 8) / 2.0
+			_stepper(Rect2(cx, y + 18, w1, 52), L.t(["diff_easy", "diff_normal", "diff_hard"][r.ai_level]), "ai_level", 36.0)
+			_stepper(Rect2(cx + w1 + 8, y + 18, w1, 52), L.t("ai_style_%d" % r.ai_style), "ai_style", 36.0)
+		else:
+			label.call("swords", L.t("lb_place_rule"), y, rowh - 8.0)
+			_stepper(Rect2(cx, y + 18, cw, 52), _place_text(r.place_rule), "place_rule")
+		y += rowh
+	if _lb_show("rules"):
+		# 規則
+		var sm := _summary(r)
+		var smz := fit(sm, tz("S"), cw)
+		var rules_h := maxf(rowh - 8.0, 12.0 + text_h(sm, smz, cw) + 4.0 + 36.0 + 8.0)   # 英文 150% 規則摘要換行：列底色跟著長高，認證牌與技能鈕留在列內
+		label.call("gear", L.t("lb_rules"), y, minf(rules_h, R.end.y - y))
+		_text(Vector2(cx, y + 8), sm, smz, Color.WHITE, false, false, cw)
+		var by0: float = y + 12 + text_h(sm, smz, cw) + 4.0
+		_badge_pill(Vector2(cx, by0), Presets.badge(r, lobby_kind))
+		_btn_small(Rect2(cx + cw - 124, by0 - 6, 124, 36), L.t("lb_cmd_quick", [L.t("on") if r.cmd_on() else L.t("off")]), func(): _lobby_adj("cmd_on", 1), true, false, TH_ACTIVE if r.cmd_on() else Color(0, 0, 0, 0))
+	if lobby_step < 2:
+		# 這一步在做什麼、下一步會看到什麼（一兩句；Antigravity v150 cat03 #4：左頁只有一兩列時不要一大片空白）
+		var hk := "lb_step_help_%d%s" % [lobby_step, "d" if (lobby_step == 0 and lobby_kind == "duel") else ""]
+		_text(Vector2(x + 16, y + 14), L.t(hk), tz("S"), Color(1, 1, 1, 0.8), false, false, lw - 32)
+	_ink_mode = false
+	# 右：預覽
+	if lobby_step == 0 and lobby_kind == "ai":
+		_draw_lobby_foe(Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, R.size.y))   # 1.5.0 第一步：右頁是對手（陣容＋性格），不是地圖
+		_ink_mode = false
+		return
+	var pv := Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, 288)
+	_box(pv.grow(3), TH_WOOD_D, TH_EDGE, 6.0, 2.0)
+	_map_thumb(pv, r.map_id, r.map_size, true)
+	_wood_frame(pv, 9.0)   # V1.2 C1：沙盤預覽加木框
+	var ly := pv.end.y + 12
+	var lx := pv.position.x
+	_ink_mode = not bool(Save.s("plain_ui"))   # 右頁也是紙：說明字用墨色
+	if r.map_id != 0:
+		for t in [["block", "terrain_block"], ["slow", "terrain_slow"], ["fast", "terrain_fast"]]:
+			_icon(t[0], Vector2(lx + 12, ly + 12), 22.0, Color.WHITE)
+			var tw := _width(L.t(t[1]), tz("C"))
+			_text(Vector2(lx + 28, ly + 2), L.t(t[1]), tz("C"), Color(1, 1, 1, 0.85))
+			lx += 40 + tw + 12
+		ly += 34
+	# 地圖是什麼樣的玩法（第一眼就要懂）
+	var md := map_desc(r.map_id)
+	_text(Vector2(pv.position.x, ly), md, tz("S"), Color(1, 1, 1, 0.88), false, false, pv.size.x)
+	ly += text_h(md, tz("S"), pv.size.x) + 8
+	if lobby_r.map_id != 0 and RuleSet.has_new(lobby_r.pool_of(0)):   # 第十輪 R7：講清楚沒認證，不動 AI 也不動數值
+		_text(Vector2(pv.position.x, ly), L.t("lb_map_fantasy_note"), tz("C"), ACCENT, false, false, pv.size.x)
+		ly += text_h(L.t("lb_map_fantasy_note"), tz("C"), pv.size.x) + 8
+	var notes_h := _lobby_notes_h(pv.size.x)
+	if notes_h > 0.0:
+		_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
+		_ink_mode = false
+	elif R.end.y - ly >= 96.0:
+		# 空下來的地方放雙方陣容，填補留白也提醒「要打了」
+		var my := minf(R.end.y - 10.0, ly + 104.0)
+		var mine: Array = RuleSet.types_of(r.pool_of(0))
+		var foes: Array = RuleSet.types_of(r.pool_of(1))
+		for k in mini(3, mine.size()):
+			Art.unit(self, Vector2(pv.position.x + 50 + k * 66, my), int(mine[(k * 3) % mine.size()]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time + k, 1.3, cbm())
+		for k2 in mini(3, foes.size()):
+			Art.unit(self, Vector2(pv.end.x - 50 - k2 * 66, my), int(foes[(k2 * 4 + 1) % foes.size()]), 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k2, 1.3, cbm())
+		_icon("swords", Vector2(pv.get_center().x, my - 32), 44.0, ACCENT)
+	_ink_mode = false
+
+## 1.5.0 §1.2 大廳三步：0 對手、1 地圖、2 確認（開戰）。有上次設定時直接打開在第三步。
+var lobby_step := 2
+var _lb_focus_main := false   # 換步之後焦點放到主鈕（下一步／開戰），不留在舊步驟的按鈕索引上（Codex v150 cat03 #2）
+func _lobby_step_by(d: int) -> void:
+	var n := clampi(lobby_step + d, 0, 2)
+	if n != lobby_step:
+		lobby_step = n
+		_lb_focus_main = true
+		_btns.clear()   # 舊步驟的按鈕立刻失效（同一幀 LB＋A 不會按到上一步畫面的「開戰」；Codex v150 cat03 r2）
+const LB_STEP_ROWS := [["opp"], ["map", "size"], ["cards", "rules"]]
+func _lb_show(row: String) -> bool:
+	return row in LB_STEP_ROWS[clampi(lobby_step, 0, 2)]
+
+## 第一步的右頁：對手陣容（紅方卡池的代表兵）＋難度一句話
+func _draw_lobby_foe(R: Rect2) -> void:
+	_ink_mode = not bool(Save.s("plain_ui"))   # 右頁是紙：字用墨色
+	var foes: Array = RuleSet.types_of(lobby_r.pool_of(1))
+	var n := mini(5, foes.size())
+	var base_y := R.position.y + 170.0
+	if not bool(Save.s("plain_ui")):
+		draw_rect(Rect2(R.position.x + 20, base_y - 6, R.size.x - 40, 14), Color(DIM_INK, 0.25))   # 陳列台的影子
+	for k in n:
+		var px := R.position.x + R.size.x * (k + 0.5) / float(maxi(1, n))
+		var t: int = int(foes[(k * 3 + int(lobby_r.ai_style)) % foes.size()])
+		Art.unit(self, Vector2(px, base_y - (k % 2) * 10.0), t, 1, -1.0, 0.0, 0.0, 0.0, 1.0, time + k, 1.5 if k % 2 == 0 else 1.25, cbm())
+	var ty := base_y + 32.0
+	var head := L.t("ai_style_%d" % int(lobby_r.ai_style)) + "・" + L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])
+	_text(Vector2(R.get_center().x, ty), head, tz("B"), Color.WHITE, true, true, R.size.x - 20)
+	ty += tz("B") * 1.5
+	var tr := L.t("ai_trait_%d" % lobby_r.ai_level)
+	_text(Vector2(R.get_center().x, ty), tr, tz("S"), Color(1, 1, 1, 0.85), true, false, R.size.x - 40)
+
+## 地圖縮圖：貼上烘好的地面，full 時標出雙方部署區。
+func _map_thumb(r: Rect2, map_id: int, size: int, full := false) -> void:
+	if map_art == null:
+		_map_tex()
+	var tex: Texture2D = null
+	if map_id != 0 and map_art != null and map_art.is_inside_tree():
+		tex = map_art.texture(map_id, size)
+	var w := float(MapDefs.width(size))
+	var h := float(MapDefs.height(size))
+	var k := minf(r.size.x / w, r.size.y / h)
+	var q := Rect2(r.get_center() - Vector2(w, h) * k / 2.0, Vector2(w, h) * k)
+	if tex != null:
+		draw_texture_rect(tex, q, false)
+	else:
+		draw_rect(q, Color("#6f9a4a"))
+		if map_id == 0 and grass != null:
+			draw_texture_rect_region(grass, q, Rect2(0, 0, 256, 128), Color(1, 1, 1, 0.8))
+	if full:
+		var dep: float = lobby_r.half_depth() * k
+		draw_rect(Rect2(q.position, Vector2(dep, q.size.y)), Color(Art.team_color(0, cbm()), 0.2))
+		draw_rect(Rect2(q.end.x - dep, q.position.y, dep, q.size.y), Color(Art.team_color(1, cbm()), 0.2))
+		var pf0 := _probe_face
+		_probe_face = q   # 1.4.0 R13：旗子屬於地圖預覽（不是剛好疊在上面的下拉選單鈕）
+		_icon("flag", q.position + Vector2(22, 26), 28.0, Art.team_color(0, cbm()).lightened(0.3))   # 1.4.0 R13：離預覽上緣 ≥8px
+		_icon("flag", Vector2(q.end.x - 24, q.position.y + 26), 28.0, Art.team_color(1, cbm()).lightened(0.3))
+		_probe_face = pf0
+	draw_rect(q, Color(0, 0, 0, 0.5), false, 1.5)
+
+func _lobby_set_size(z: int) -> void:
+	var r = lobby_r
+	lobby_item = "map_size"
+	if r.map_size == z:
+		return
+	r.map_size = z
+	var la: float = 0.2126 * f.call(a.r) + 0.7152 * f.call(a.g) + 0.0722 * f.call(a.b)
+	var lb: float = 0.2126 * f.call(b.r) + 0.7152 * f.call(b.g) + 0.0722 * f.call(b.b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
+## 1.6.0 B03：ink_deep＝桌燈下的暗紙（結果紙 L*≈64）：彩色字再壓深、中間調的彩色（隊色小圖示）也壓，對紙 ≥4.5:1
+static var ink_deep := false
+static var paper_book := false   # 1.6.0 B04：大廳挑戰簿打開時＝簿紙（再暗一階）
+static var paper_tone := Color.WHITE   # 1.6.0 B06：全站紙面乘這個色（桌燈下的紙＝PAL.PAPER_DESK_TONE；game_screens._draw 每幀設定）
+static func _ink(c: Color) -> Color:
+	var lum := c.get_luminance()
+	if ink_deep and c.s >= 0.25:
+		var a0 := c.a if c.a < 0.45 else maxf(c.a, 0.85)
+		if lum >= 0.45:
+			return Color(c.darkened(0.82), a0)
+		if lum > 0.12:
+			return Color(c.darkened(0.5), a0)
+	if lum < 0.45:
+		return c
+	var a := c.a if c.a < 0.45 else maxf(c.a, 0.85)   # V1.2.1 F5：紙上墨字至少 85%；很淡的裝飾（空星）保持淡
+	if c.s < 0.25:
+		return Color(INK, a)
+	return Color(c.darkened(0.74), a)
+
+func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+	if layout_probe and get("shot_dir") != "" and (get("shot_state") as Dictionary).has("dis"):
+		enabled = false   # V1.2.1：版面檢查的「停用」狀態：全部按鈕畫成停用，檢查停用樣式（手把流程不受影響）
+	var idx := _btns.size()
+	var hit := r
+	if btn_hit_min > r.size.y:
+		var dh := (btn_hit_min - r.size.y) * 0.5
+		hit = r.grow_individual(0.0, dh, 0.0, dh)
+		if layout_probe:
+			probe_hits.append(hit)
+	_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click"), "group": btn_group})
+	var hover := hit.has_point(mouse) and not pad_mode
+	var focus := pad_mode and idx == _focus
+	var bg := TH_WOOD_L if not primary else TH_PRIMARY
+	if tint.a > 0:
+		bg = tint
+	if not enabled:
+		bg = Color(0.2, 0.17, 0.15)
+	elif hover or focus:
+		bg = bg.lightened(0.16)
+		if hover:
+			_hover_now = idx
+	var pressed := hover and enabled and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	var rd := r.grow(-minf(r.size.x, r.size.y) * 0.025) if pressed else r
+	# V1.2 B3：按鈕下緣 3px 厚度（木牌的側面）；按下時往下沉、厚度消失
+	var solid: bool = tint.a <= 0.0 or tint.a > 0.6
+	if solid and r.size.y >= 20.0:
+	draw_rect(Rect2(hg - Vector2(16, 32), Vector2(32, 5)), Color("#7a5434"))
+	draw_rect(Rect2(hg + Vector2(-16, 27), Vector2(32, 5)), Color("#7a5434"))
+	draw_colored_polygon(PackedVector2Array([hg + Vector2(-12, -27), hg + Vector2(12, -27), hg, hg + Vector2(12, 27), hg + Vector2(-12, 27), hg]), Color(0.85, 0.9, 0.95, 0.22))
+	draw_colored_polygon(PackedVector2Array([hg + Vector2(-8, 27), hg + Vector2(8, 27), hg + Vector2(0, 12)]), Color("#d9b874"))
+
+## 1.2.0 §12 老闆的便條：第一次進大廳、擺陣、結果時，跳一張紙卡（手寫字，只放建議、不放數值）；按「知道了」就不再出現。
+## 是一個小的模態疊層（overlay＝boss_note），不蓋在按鈕上；截圖、版面檢查平常不跳（乾淨存檔每張都會跳），另拍一張專拍。
+var note_key := ""
+var note_ret := ""   # 便條疊在哪個疊層上（大廳本身是疊層 "lobby"）；關掉時還原（Codex cat03 #2）
+func _boss_note(key: String, host := "") -> void:
+	if overlay != host or shot_dir != "" or layout_probe:
+		return
+	if not preload("res://scripts/game/guide.gd").is_new(Save.data, "note_" + key):
+		return
+	note_key = key
+	note_ret = host
+	overlay = "boss_note"
+	_focus = 0
+
+## 1.6.0 B06（方案 P1.5、§1 桌位表）：結果頁的老闆便條不再蓋在結果紙上——釘在紙外左下桌緣（`Seats.result_note_rect`），
+## 點「打開看」才展開全文（同一個便條疊層，知道了＝記住、之後不再釘）。字放不下時往上撐高（不縮字；英文 150%）。
+var note_pin_force := false   # 截圖專拍（平常截圖流程不釘便條）
+func _note_pin_shown(key: String) -> bool:
+	if overlay != "":
+		return false
+	return note_pin_force or (shot_dir == "" and not layout_probe and preload("res://scripts/game/guide.gd").is_new(Save.data, "note_" + key))
+
+## 便條的框（紙外左下桌緣，下緣對齊結果紙下緣；字多時往上撐）與字行
+func _note_pin_layout() -> Dictionary:
+	var R0 := Seats.result_note_rect()
+	var pad := 12.0
+	var sz := tz("B")
+	_hand_mode = true
+	var lines := wrap_lines(L.t("bn_pin"), sz, R0.size.x - pad * 2.0)
+	_hand_mode = false
+	var lh := sz * line_h(lines.size())
+	var bh := maxf(40.0, tz("S") * 1.9)
+	var h := maxf(R0.size.y, 14.0 + lines.size() * lh + 8.0 + bh + pad)
+	var R := Rect2(R0.position.x, R0.end.y - h, R0.size.x, h)
+	return {"r": R, "pad": pad, "sz": sz, "lines": lines, "lh": lh, "btn": Rect2(R.position.x + pad, R.end.y - pad - bh, R.size.x - pad * 2.0, bh)}
+
+func _note_pin_open(key: String) -> void:
+	note_key = key
+	note_ret = ""
+	overlay = "boss_note"
+	_focus = 0
+
+func _note_pin(key: String) -> void:
+	if not _note_pin_shown(key):
+		return
+	var lay := _note_pin_layout()
+	var R: Rect2 = lay["r"]
+	probe_panel(R)
+	probe_skip("R1", "桌位表固定位置：結果紙外左下桌緣（方案 §1、P1.5），刻意不置中")
+	_contact_shadow(R)
+	if bool(Save.s("plain_ui")) or not _mat_box(R, "card1"):
+		draw_rect(R, PAL.MAT_PAPER[0])
+	probe_faces.append([R, true])
+	var cx := R.get_center().x
+	draw_colored_polygon(PackedVector2Array([Vector2(cx - 30, R.position.y - 7), Vector2(cx + 26, R.position.y - 10),
+		Vector2(cx + 28, R.position.y + 7), Vector2(cx - 28, R.position.y + 10)]), Color(0.93, 0.88, 0.7, 0.82))   # 一段紙膠帶
+	_ink_mode = true
+	_hand_mode = true
+	var y := R.position.y + 14.0
+	for ln in lay["lines"]:
+		_text(Vector2(R.position.x + float(lay["pad"]), y), ln, int(lay["sz"]), INK)
+		y += float(lay["lh"])
+	_hand_mode = false
+	_ink_mode = false
+	_btn(lay["btn"], L.t("bn_pin_open"), _note_pin_open.bind(key))
+
+func _close_boss_note() -> void:
+	preload("res://scripts/game/guide.gd").see(Save.data, "note_" + note_key)
+	Save.save_data()
+	overlay = note_ret
+	note_ret = ""
+
+func _draw_boss_note() -> void:
+	var w := 600.0
+	var txt := L.t("bn_" + note_key)
+	var sign := "—— " + L.t("ps_name_0")
+	var sz := tz("H2")   # 手寫字在小字級會糊成黑體的樣子（Antigravity cat03 #4）→ 用 H2，自己斷行（不走 fit 縮字）
+	_hand_mode = true
+	var lines := wrap_lines(txt, sz, w - 72)
+	_hand_mode = false
+	var lh := sz * line_h(lines.size())
+build/cg/b04/game/scripts/ui/game_screens.gd:491:	if overlay == "lobby" and not bool(get("lobby_menu")):
+build/cg/b04/game/scripts/ui/game_screens.gd:764:	paper_book = desk_paper and (overlay == "lobby" or note_ret == "lobby")   # 1.6.0 B04：大廳＝挑戰簿（B06 留給本批）
+build/cg/b04/game/scripts/ui/lobby_view.gd:13:var lobby_menu := false        # 「我的預設」下拉
+build/cg/b04/game/scripts/ui/lobby_view.gd:55:	lobby_menu = false
+build/cg/b04/game/scripts/ui/lobby_view.gd:98:	lobby_menu = false
+build/cg/b04/game/scripts/ui/lobby_view.gd:185:		lobby_menu = true
+build/cg/b04/game/scripts/ui/lobby_view.gd:204:	lobby_menu = false
+build/cg/b04/game/scripts/ui/lobby_view.gd:532:func _draw_lobby() -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:542:	_draw_lobby_presets(Vector2(80, 96))
+build/cg/b04/game/scripts/ui/lobby_view.gd:545:		_draw_lobby_detail(Rect2(80, cy, 1120, 684.0 - cy))
+build/cg/b04/game/scripts/ui/lobby_view.gd:547:		_draw_lobby_main(Rect2(80, cy, 1120, 684.0 - cy))
+build/cg/b04/game/scripts/ui/lobby_view.gd:576:	elif lobby_menu:
+build/cg/b04/game/scripts/ui/lobby_view.gd:590:	if lobby_menu:
+build/cg/b04/game/scripts/ui/lobby_view.gd:591:		_draw_lobby_menu(Vector2(1000, 186))
+build/cg/b04/game/scripts/ui/lobby_view.gd:614:func _draw_lobby_presets(o: Vector2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:667:	_btn(mr, L.t("lb_mine"), func(): lobby_menu = not lobby_menu, true, false, TH_ACTIVE if lobby_r.preset == "custom" else TH_WOOD)
+build/cg/b04/game/scripts/ui/lobby_view.gd:669:func _draw_lobby_menu(o: Vector2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:695:		_btn(Rect2(r.position + Vector2(6 + ai * 156, 6), Vector2(150, 44)), L.t(acts[ai][0]), func(): lobby_menu = false; act_cb.call())   # 先收選單（貼上會開系統貼上／Steam 鍵盤；Codex v150 cat14）
+build/cg/b04/game/scripts/ui/lobby_view.gd:799:func _draw_lobby_main(R: Rect2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:925:		_draw_lobby_foe(Rect2(x + lw + 16, R.position.y, R.size.x - lw - 16, R.size.y))   # 1.5.0 第一步：右頁是對手（陣容＋性格），不是地圖
+build/cg/b04/game/scripts/ui/lobby_view.gd:951:		_draw_lobby_notes(Rect2(pv.position.x, ly, pv.size.x, maxf(0.0, R.end.y - ly)))
+build/cg/b04/game/scripts/ui/lobby_view.gd:979:func _draw_lobby_foe(R: Rect2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:1057:func _draw_lobby_compact(R: Rect2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:1085:	_draw_lobby_notes(Rect2(R.end.x - 420, R.position.y + 210, 396, 230))
+build/cg/b04/game/scripts/ui/lobby_view.gd:1105:func _draw_lobby_notes(R: Rect2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:1190:func _draw_lobby_detail(R: Rect2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:1275:	_draw_lobby_desc(D0)
+build/cg/b04/game/scripts/ui/lobby_view.gd:1475:func _draw_lobby_desc(R: Rect2) -> void:
+build/cg/b04/game/scripts/ui/lobby_view.gd:1492:	_draw_lobby_notes(Rect2(x, y, w, R.end.y - y - 8))   # 1.5.0 §1.2：「重置回標準」拿掉——和頂緣「標準」紙籤是同一件事（R14 折頁每格 ≤9）
+build/cg/b04/game/scripts/ui/ui_base.gd:1208:var note_ret := ""   # 便條疊在哪個疊層上（大廳本身是疊層 "lobby"）；關掉時還原（Codex cat03 #2）
+build/cg/b04/game/scripts/ui/ui_base.gd:1215:	note_ret = host
+build/cg/b04/game/scripts/ui/ui_base.gd:1243:	note_ret = ""
+build/cg/b04/game/scripts/ui/ui_base.gd:1274:	overlay = note_ret
+build/cg/b04/game/scripts/ui/ui_base.gd:1275:	note_ret = ""
+
+codex
+手把走查在截圖模式下會略過首次大廳便條，因此目前的「3 步」證據尚未涵蓋新存檔。我也在核對簿紙色調是否套到未加平塗層的小紙面。
+exec
+/bin/bash -lc "sed -n '1280,1335p' build/cg/b04/game/scripts/ui/ui_base.gd; sed -n '1100,1145p' build/cg/b04/game/scripts/ui/lobby_view.gd; sed -n '1190,1285p' build/cg/b04/game/scripts/ui/lobby_view.gd; sed -n '1470,1500p' build/cg/b04/game/scripts/ui/lobby_view.gd; cat build/cg/b04/game/scripts/game/strings.gd; rg -n 'boss_note|_focus|JOY_BUTTON_A|func _input|_input_gate' build/cg/b04/game/scripts/ui/game_screens.gd; rg -n 'lb_p_(fantasy|single|big),' build/cg/b04/game/data/strings.csv; rg --files coordination/v1600-impl/b04-r1 | tail -35" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 58ms:
+	var sign := "—— " + L.t("ps_name_0")
+	var sz := tz("H2")   # 手寫字在小字級會糊成黑體的樣子（Antigravity cat03 #4）→ 用 H2，自己斷行（不走 fit 縮字）
+	_hand_mode = true
+	var lines := wrap_lines(txt, sz, w - 72)
+	_hand_mode = false
+	var lh := sz * line_h(lines.size())
+	var bh := maxf(44.0, tz("B") * 1.9)
+	var P := modal_rect(w, 32.0 + lines.size() * lh + 8.0 + tz("B") * 1.4 + GAP_L + bh + 24.0)
+	probe_panel(P)
+	draw_rect(Rect2(P.position + Vector2(6, 9), P.size), Color(DIM_INK, 0.45))   # 落影（光源左上）
+	if bool(Save.s("plain_ui")) or not _mat_box(P, "card1"):
+		draw_rect(P, Color("#f5efe6"))
+	# 兩段斜貼的紙膠帶（左上、右上）
+	for tx in [P.position.x + 20, P.end.x - 92]:
+		draw_colored_polygon(PackedVector2Array([Vector2(tx, P.position.y - 6), Vector2(tx + 72, P.position.y - 12), Vector2(tx + 76, P.position.y + 8), Vector2(tx + 4, P.position.y + 14)]), Color(0.93, 0.88, 0.7, 0.82))
+	_ink_mode = true
+	_hand_mode = true
+	var y := P.position.y + 32.0
+	for ln in lines:
+		_text(Vector2(P.position.x + 36, y), ln, sz, INK)
+		y += lh
+	y += 8.0
+	_text(Vector2(P.end.x - 36 - _width(sign, tz("B")), y), sign, tz("B"), Color(INK, 0.85))
+	_hand_mode = false
+	_ink_mode = false
+	_btn(Rect2(640 - 80, P.end.y - 24 - bh, 160, bh), L.t("bn_ok"), _close_boss_note)   # 單顆底部按鈕置中（R4）；木牌（不是朱漆主按鈕，便條不該喧賓奪主）
+
+## 憲法 3（禁純黑）：選單打開時的暗幕用暖暗墨色，不用 #000。
+const DIM_INK := PAL.DIM_INK
+func _dim(a: float) -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, a))
+const TEX_FRAME := "res://art/ui/frame.png"
+const TEX_GROOVE := "res://art/ui/groove.png"
+const TEX_PAPER := "res://art/ui/paper.png"
+const TEX_VIGNETTE := "res://art/ui/vignette.png"
+var _tex_cache := {}
+
+func _ui_tex(path: String) -> Texture2D:
+	if not _tex_cache.has(path):
+		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
+	if _tex_cache[path] == null and layout_probe and not path in probe_missing:
+		probe_missing.append(path)
+	return _tex_cache[path]
+
+## V1.2：頂部資訊列：深木紋＋下緣一條亮線與落影（沒有貼圖時照舊平塗）。
+func _hud_bar(r: Rect2) -> void:
+	if bool(Save.s("plain_ui")) or not _tex_box(r.grow_individual(8, 8, 8, 0), "wood", Color(0.3, 0.21, 0.15, 0.97)):
+		draw_rect(r, UI_BG)
+		return
+	draw_rect(Rect2(r.position.x, r.end.y - 2, r.size.x, 2), Color(0.55, 0.42, 0.28, 0.9))
+	draw_rect(Rect2(r.position.x, r.end.y, r.size.x, 4), Color(0, 0, 0, 0.25))
+
+## V1.2：木製框（九宮格、四角銅釘、中間透明），面板、戰場、大廳沙盤預覽共用。grow＝往外擴多少。
+func _wood_frame(r: Rect2, grow := 8.0, key := "frame") -> void:
+	var fx := _ui_tex(TEX_FRAME)
+	if fx == null or bool(Save.s("plain_ui")):
+		for d in df:
+			h += text_h("・" + _diff_text(d), tz("S"), w - 10)
+	return h
+
+## 驗證錯誤（紅）、花不完的錢（黃）、和標準不同的項目。
+func _draw_lobby_notes(R: Rect2) -> void:
+	var y := R.position.y
+	for k in lobby_r.validate():
+		_text(Vector2(R.position.x, y), "× " + L.t(k), tz("B"), Color("#ff7b7b"), false, true, R.size.x)
+		y += tz("B") * 1.5
+	var two: bool = lobby_r.handicap or not lobby_r.ai_pool_same
+	for tm in (2 if two else 1):
+		var ms: Dictionary = lobby_r.max_spend(tm)
+		if int(ms["unused"]) > 0 and lobby_r.validate().is_empty():
+			var who := (L.t("blue") if tm == 0 else L.t("red")) + "：" if two else ""
+			var line := "⚠ " + who + L.t("lb_unused", [ms["units"], ms["spend"], ms["unused"]])
+			_text(Vector2(R.position.x, y), line, tz("S"), Color("#ffd166"), false, false, R.size.x)
+			y += text_h(line, tz("S"), R.size.x) + 4
+	var df: Array = lobby_r.diff(_lobby_std())
+	if not df.is_empty() and y + tz("S") * 1.4 <= R.end.y:
+		_text(Vector2(R.position.x, y), L.t("lb_diff_n", [df.size()]), tz("S"), TXT_DIM, false, true, R.size.x)
+		y += tz("S") * 1.4
+		var fs := tz("S")
+		var left := R.end.y - y - tz("S") * 0.6   # 留一點邊，最後一行不碰到下面的重置鈕
+		var list_h := 0.0
+		for d in df:
+			list_h += text_h("・" + _diff_text(d), fs, R.size.x - 10)
+		if list_h <= left:
+			for d in df:
+				var ln := "・" + _diff_text(d)
+				_text(Vector2(R.position.x + 10, y), ln, fs, TXT_DIM, false, false, R.size.x - 10)
+				y += text_h(ln, fs, R.size.x - 10)
+		else:
+			# 放不下（大字）：改成一段連續文字、用註記字級；還是放不下就截到放得下的項目數＋「…」（Antigravity 實作第 1 輪）
+			fs = tz("C")
+			var bits: Array = []
+			for d in df:
+				bits.append(_diff_text(d))
+			var para := "・".join(bits)
+			while bits.size() > 1 and text_h(para, fs, R.size.x) > left:
+				bits.pop_back()
+				para = "・".join(bits) + "…"
+			if text_h(para, fs, R.size.x) <= left:
+				_text(Vector2(R.position.x, y), para, fs, TXT_DIM, false, false, R.size.x)
+
+func _diff_text(d: Array) -> String:
+func _draw_lobby_detail(R: Rect2) -> void:
+	var tabs: Array = LOBBY_TABS.duplicate()
+	if lobby_kind == "duel":
+		tabs.erase("lb_tab_ai")
+	# V1.6.1 A10：常用（前面）與進階（實驗、軍令）中間隔一段、標「進階」
+	var adv_gap := tz("C") * 1.6 + 8.0
+	var adv_at: int = tabs.find("lb_tab_lab")
+	for i in tabs.size():
+		var idx: int = LOBBY_TABS.find(tabs[i])
+		var gy := adv_gap if adv_at >= 0 and i >= adv_at else 0.0
+		if i == adv_at:
+			draw_line(R.position + Vector2(8, i * 58 + 2), R.position + Vector2(142, i * 58 + 2), Color(1, 1, 1, 0.25), 1.0)
+			_text(R.position + Vector2(75, i * 58 + 4), L.t("lb_adv"), tz("C"), TXT_DIM, true, false, 140)
+		btn_group = "lb_subtabs"   # 1.5.0 R14：折頁子分頁＝一個選擇器
+		_btn(Rect2(R.position + Vector2(0, i * 58 + gy), Vector2(150, 50)), L.t(tabs[i]), func(): lobby_tab = idx; lobby_rpage = 0, true, false,
+			TH_ACTIVE if idx == lobby_tab else Color(0, 0, 0, 0))
+		btn_group = ""
+	var L0 := Rect2(R.position + Vector2(170, 0), Vector2(600, R.size.y))
+	var D0 := Rect2(Vector2(L0.end.x + 20, R.position.y), Vector2(R.end.x - L0.end.x - 20, R.size.y))
+	draw_rect(D0, Color(0, 0, 0, 0.25))
+	match lobby_tab:
+		0:
+			var rows: Array = [["budget", L.t("lb_gold_blue") if lobby_r.handicap else L.t("lb_gold"), L.t("lb_n_gold", [lobby_r.budget_of(0)])],
+				["handicap", L.t("lb_handicap"), L.t("on") if lobby_r.handicap else L.t("off")]]
+			if lobby_r.handicap:
+				rows.append(["budget_red", L.t("lb_gold_red"), L.t("lb_n_gold", [lobby_r.budget_of(1)])])
+			rows.append(["unit_cap", L.t("lb_cap"), L.t("lb_n_units", [lobby_r.unit_cap])])
+			rows.append(["type_cap", L.t("lb_type_cap"), L.t("lb_nolimit") if lobby_r.type_cap == 0 else L.t("lb_n_units", [lobby_r.type_cap])])
+			_rows_paged(L0, rows)
+		1:
+			var fr: bool = lobby_r.deploy == "free"
+			var rowsd: Array = [["deploy", L.t("lb_deploy"), L.t("lb_deploy_free") if fr else L.t("lb_deploy_grid")]]
+			if fr:
+				rowsd.append(["spacing", L.t("lb_spacing"), L.t("lb_cells", [lobby_r.spacing / 1000.0])])
+				# 全場：雙人沒有縱深（整個戰場）；對 AI 的縱深只管 AI 自己擺多深（Antigravity 實作第 1 輪 #7）
+				if lobby_r.fullfield == RuleSet.FULL_NONE:
+					rowsd.append(["depth", L.t("lb_depth"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
+				elif lobby_kind == "ai":
+					rowsd.append(["depth", L.t("lb_depth_ai"), L.t("lb_cells", [lobby_r.depth / 1000.0])])
+				rowsd.append(["fullfield", L.t("lb_full_ai") if lobby_kind == "ai" else L.t("lb_full_duel"), L.t("on") if lobby_r.fullfield != 0 else L.t("off")])
+			_rows_paged(L0, rowsd)
+			var pv_y: float = L0.position.y + rowsd.size() * 66 + 8
+			if L0.end.y - pv_y >= 110.0:
+				_draw_deploy_preview(Rect2(L0.position.x + 230, pv_y, 360, L0.end.y - pv_y - 8))
+				_text(Vector2(L0.position.x, pv_y + 4), L.t("lb_deploy_preview"), tz("S"), TXT_DIM, false, false, 220)
+		2:
+			_draw_pool_tab(L0)
+		3:
+			var rows2: Array = [["ticks", L.t("lb_time"), L.t("lb_n_secs", [_secs(lobby_r.ticks)])], ["rounds", L.t("lb_rounds"), _rounds_text(lobby_r.rounds)]]
+			if lobby_kind == "duel":
+				rows2.append(["place_rule", L.t("lb_place_rule"), _place_text(lobby_r.place_rule)])
+				if lobby_r.place_rule == "custom":
+					rows2.append(["turns", L.t("lb_turns"), L.t("lb_n_turns", [lobby_r.turns])])
+				if lobby_r.place_rule != "blind":
+					rows2.append(["carry", L.t("lb_carry"), L.t("on") if lobby_r.carry else L.t("off")])
+				rows2.append(["bans", L.t("lb_bans"), L.t("lb_bans_n", [lobby_r.bans])])
+			rows2.append(["keep", L.t("lb_keep"), L.t("on") if lobby_r.keep_formation else L.t("off")])
+			if lobby_r.deploy == "free":
+				rows2.append(["map_mode", L.t("lb_map_mode"), L.t("map_mode_%d" % lobby_r.map_mode)])
+			rows2.append(["time_of", L.t("lb_time_of"), L.t("time_of_%d" % lobby_r.time_of)])
+			rows2.append(["adj", L.t("lb_adj"), L.t("on") if lobby_r.adj else L.t("off")])   # V1.6 #22（娛樂）；V1.6.1 A7：一律列出，放不下就分頁
+			_rows_paged(L0, rows2)
+		4:
+			_rows(L0, [["ai_level", L.t("lb_ai_level"), L.t(["diff_easy", "diff_normal", "diff_hard"][lobby_r.ai_level])],
+				["ai_pool_same", L.t("lb_ai_pool_same"), L.t("on") if lobby_r.ai_pool_same else L.t("off")]])
+		5:
+			_draw_lab_tab(L0)
+		6:
+			_draw_cmd_tab(L0)
+		7:
+			var xr := _ext_rows()
+			_rows_paged(L0, xr)
+			# 最後一輪（Codex 看圖 #3）：說明放在左欄列表下方的紙片上（右欄在大字級＋差異清單長時會省略說明）
+			var xid: String = lobby_item if lobby_item.begins_with("xs_") else "ext"
+			var xt := _ext_desc(xid)
+			var xy: float = L0.position.y + xr.size() * 66 + 8
+			var xh := text_h(xt, tz("S"), L0.size.x - 48) + 24
+			if xy + xh <= L0.end.y:
+				var xrect := Rect2(L0.position.x, xy, L0.size.x - 10, xh)
+				var paper := not bool(Save.s("plain_ui")) and _mat_box(xrect, "card2")
+				if not paper:
+					draw_rect(xrect, Color(0, 0, 0, 0.3))
+				_ink_mode = paper
+				_text(xrect.position + Vector2(16, 12), xt, tz("S"), Color.WHITE, false, false, L0.size.x - 48)
+				_ink_mode = false
+	_draw_lobby_desc(D0)
+
+## V1.6.1 A7：列數超過這一欄放得下的就分頁（底下一列「◀ 1／2 ▶」），每個開關都找得到。
+var lobby_rpage := 0
+const FOLD_ROWS := 3   # 1.5.0 §1.2：折頁一頁最多 3 列規則（R14 大廳上限 9：頂緣 2＋子分頁 1＋收起／開戰 2＋規則 3＋翻頁 1）
+func _rows_paged(R: Rect2, rows: Array) -> void:
+	var cap := mini(int(R.size.y / 66.0), FOLD_ROWS + 1)
+	if rows.size() <= cap:
+		lobby_rpage = 0
+		_rows(R, rows)
+		return
+			if t in types:
+				out.append(s)
+				break
+	return out
+
+func _draw_lobby_desc(R: Rect2) -> void:
+	var x := R.position.x + 16
+	var w := R.size.x - 32
+	var y := R.position.y + 14
+	var id: String = lobby_item if lobby_item != "" else ["budget", "deploy", "pool", "ticks", "ai_level", "lab", "cmd_on", "ext"][lobby_tab]
+	_text(Vector2(x, y), L.t("lbd_t_" + id), tz("H2"), ACCENT, false, true, w)
+	y += tz("H2") * 1.6
+	var body := "" if id == "ext" or id.begins_with("xs_") else _ext_desc(id)   # 新技能的說明畫在左欄紙片上
+	var bfs := tz("S") if _scale_key() == 100 else tz("C")   # 大字時說明改用註記字級，讓下面的差異清單放得下
+	# 先估警告＋差異清單要多高；說明＋清單放不下時省略說明，只留警告與差異（Antigravity 實作第 2 輪）
+	var need_h := tz("S") * 2.4 + _lobby_notes_h(w)
+	var avail := R.end.y - 60 - y
+	if text_h(body, bfs, w) + 12 + need_h <= avail:
+		_text(Vector2(x, y), body, bfs, Color(1, 1, 1, 0.88), false, false, w)
+		y += text_h(body, bfs, w) + 12
+	_badge_pill(Vector2(x, y), Presets.badge(lobby_r, lobby_kind))
+	y += tz("S") * 2.4
+	_draw_lobby_notes(Rect2(x, y, w, R.end.y - y - 8))   # 1.5.0 §1.2：「重置回標準」拿掉——和頂緣「標準」紙籤是同一件事（R14 折頁每格 ≤9）
+
+
+## V1.2 C1：選中的預設像夾在筆記本上的書籤，從分頁底下垂進紙頁（紙頁畫完才畫，才不會被蓋住）。
+## V1.5.2 L2（A 案）：選中分頁的紅書籤。宿主＝分頁面框 r：本體左 x＝右緣−34、寬 20、上緣貼分頁上緣、
+## 下尖端在上緣＋30、中央凹口在上緣＋23。未選分頁不畫（舊的褐色小耳拿掉）。
+const BM_SLOT := 42.0   # 分頁文字右側讓給書籤的寬度（書籤 34＋間隔 8；粗體描邊外擴後仍留 6px）
+
+func _draw_bookmark(r: Rect2) -> void:
+extends RefCounted
+## 字串表（優化方案 I）：data/strings.csv，欄位 key,zh_TW,en。所有畫面文字都從這裡來，不寫死在程式裡。
+
+static var _table := {}
+static var lang := "zh_TW"
+const LANGS := ["zh_TW", "en", "zh_CN", "ja"]   # V1.4 #17：簡中、日文（AI 翻譯，未經母語校對）
+## V1.2.1 G3：資料檔（殘局、章節、試煉、圖鑑）的語言欄位後綴。之後加簡中、日文：這裡加 "zh_CN": "sc"、"ja": "ja"，
+## strings.csv 加一欄、資料檔加 *_sc／*_ja 欄位、字型子集加字，程式不用再到處改。
+const SUFFIX := {"zh_TW": "zh", "en": "en", "zh_CN": "sc", "ja": "ja"}
+static var _extra := {}   # data/l10n_extra.csv：程式裡的二元陣列（成就名、條件、AI 陣型名）其他語言的譯文，以中文原文為鍵
+
+## 中文系（漢字、不用空白分詞、用全形標點）：版面、引號、斷行用。
+static func cjk(l := "") -> bool:
+	return (lang if l == "" else l) != "en"
+
+## 依目前語言取資料欄位：field(pz, "") → pz["zh"]／pz["en"]；field(pz, "hint") → pz["hint_zh"]／pz["hint_en"]。缺的退回英文、再退回中文。
+static func field(d: Dictionary, base: String) -> String:
+	var pre := base + "_" if base != "" else ""
+	for suf in [SUFFIX.get(lang, "en"), "en", "zh"]:
+		if d.has(pre + suf):
+			return str(d[pre + suf])
+	return ""
+
+## V1.6.1 F6：程式組出來的題目（工坊、出題台、一陣三考）把字串表的四種語言寫進資料欄位，簡中、日文不再退回英文。
+static func fill(d: Dictionary, base: String, key: String, args: Array = []) -> void:
+	load_table()
+	var row: Dictionary = _table.get(key, {})
+	var pre := base + "_" if base != "" else ""
+	for l in LANGS:
+		var s: String = str(row.get(l, ""))
+		if s == "":
+			s = str(row.get("en", key))
+		d[pre + str(SUFFIX[l])] = s % args if not args.is_empty() else s
+
+## 二選一的舊資料（[中文, 英文]）：之後加語言時改成字典。
+static func pick(zh, en):
+	return pick_for(zh, en, lang)
+
+static func pick_for(zh, en, l: String):
+	if l == "zh_TW":
+		return zh
+	if l == "en":
+		return en
+	_load_extra()
+	var s: String = str(_extra.get(str(zh), {}).get(l, ""))
+	return s if s != "" else en
+
+static func _load_extra() -> void:
+	if not _extra.is_empty():
+		return
+	_extra["_"] = {}
+	var f := FileAccess.open("res://data/l10n_extra.csv", FileAccess.READ)
+	if f == null:
+		return
+	var header := f.get_csv_line()
+	while not f.eof_reached():
+		var row := f.get_csv_line()
+		if row.size() < header.size() or row[0] == "":
+			continue
+		var d := {}
+		for i in range(1, header.size()):
+			d[header[i]] = row[i]
+		_extra[row[0]] = d
+
+static func load_table() -> void:
+	if not _table.is_empty():
+		return
+	var f := FileAccess.open("res://data/strings.csv", FileAccess.READ)
+	if f == null:
+		push_error("strings.csv 讀不到")
+		return
+	var header := f.get_csv_line()
+	while not f.eof_reached():
+		var row := f.get_csv_line()
+		if row.size() < 3 or row[0] == "":
+			continue
+		var d := {}
+		for i in range(1, mini(header.size(), row.size())):   # 少了後面的語言欄（剛加、還沒跑翻譯）：那幾種語言退回英文
+			d[header[i]] = row[i].replace("\\n", "\n")
+		_table[row[0]] = d
+
+static func t(key: String, args: Array = []) -> String:
+	load_table()
+	var d: Dictionary = _table.get(key, {})
+	var s: String = d.get(lang, "")
+	if s == "":
+		s = d.get("en", d.get("zh_TW", key))   # 沒翻到的退回英文
+	if s == "":
+		s = key
+	if args.is_empty():
+		return s
+	return s % args
+
+## V1.5：某個語言自己的名稱（第一次啟動的語言按鈕要用該語言寫，例如「日本語」）。
+static func lang_name_of(l: String) -> String:
+	load_table()
+	var d: Dictionary = _table.get("lang_name", {})
+	var s: String = str(d.get(l, ""))
+	return s if s != "" else l
+
+static func has(key: String) -> bool:
+	load_table()
+	return _table.has(key)
+
+static func keys() -> Array:
+	load_table()
+	return _table.keys()
+
+## 給字型子集化用：所有語言的所有字。
+static func all_text() -> String:
+	load_table()
+	var s := ""
+	for k in _table:
+		for l in LANGS:
+			s += _table[k].get(l, "")
+	return s
+195:func _input(ev: InputEvent) -> void:
+258:	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
+260:	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+267:			JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
+503:				_move_focus(-1)
+505:				_move_focus(1)
+507:				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+509:					_btns[_focus]["cb"].call()
+523:					_move_focus(1)
+547:				elif overlay == "boss_note":
+548:					call("_close_boss_note")   # 1.2.0：Esc／手把 B＝知道了（不然下一幀又跳出來，Codex cat03 #1）
+832:			_draw_focus_halo(view)   # 1.5.0 §7 焦點兵腳下暈光（地面層）
+834:			_focus_ids.clear()   # 結果頁、擺陣等：不留上一場的焦點（Codex v150 cat07 r3）
+851:		_draw_focus_marks(view)   # 1.5.0 §7：跟拍兵／目標的頭頂記號畫在跳字泡泡之上（不被蓋住；Hydrogen v150 cat07 r3）
+943:	if _focus >= _btns.size():
+944:		_focus = 0
+1008:	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+1009:		var fr: Rect2 = _btns[_focus]["r"]
+1157:				_focus = i
+352:lb_p_big,大軍團,Grand army,大军团,大軍団
+353:lb_p_single,單兵種對決,One-type duel,单兵种对决,単兵種戦
+634:lb_p_fantasy,奇幻兵團,Monster Crew,奇幻兵团,魔物軍団
+coordination/v1600-impl/b04-r1/codex-prompt.md
+coordination/v1600-impl/b04-r1/b04-plan.md
+coordination/v1600-impl/b04-r1/hy-prompt.txt
+coordination/v1600-impl/b04-r1/diff.patch
+coordination/v1600-impl/b04-r1/codex.raw
+coordination/v1600-impl/b04-r1/codex.err
+coordination/v1600-impl/b04-r1/hy.md
+coordination/v1600-impl/b04-r1/hy.err
+coordination/v1600-impl/b04-r1/hy1/en_150_v150_22a_lobby_step1_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/en_150_25_lobby_duel_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/en_150_32_lobby_fantasy_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_25_lobby_duel_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_22_lobby_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_32_lobby_fantasy_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/zh_TW_100_v150_22a_lobby_step1_old_left_new_right.png
+coordination/v1600-impl/b04-r1/hy1/en_150_22_lobby_old_left_new_right.png
+
+exec
+/bin/bash -lc "rg -n '\"paper\"|_mat_box|func _mat_box|MAT_PAPER|func _draw_inner|boss_note|_btns_gen' build/cg/b04/game/scripts/ui/{lobby_view,ui_base,game_screens}.gd; sed -n '195,285p' build/cg/b04/game/scripts/ui/game_screens.gd; sed -n '885,950p' build/cg/b04/game/scripts/ui/game_screens.gd; sed -n '1380,1425p' build/cg/b04/game/scripts/ui/ui_base.gd; sed -n '1070,1125p' build/cg/b04/game/tools/dev_main.gd; rg -n 'IN-160|same|同幀|test_input_matrix' build/cg/b04/game/tests/suites/ui.gd; rg --files build/cg/b04 | head -20" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 313ms:
+build/cg/b04/game/scripts/ui/ui_base.gd:444:var _btns_gen := -1          # _btns 是哪個世代畫出來的
+build/cg/b04/game/scripts/ui/ui_base.gd:969:		_mat_box(rd, btn_cloth, ct)
+build/cg/b04/game/scripts/ui/ui_base.gd:989:		_mat_box(rd, "plaque", pt)
+build/cg/b04/game/scripts/ui/ui_base.gd:1024:		if not _tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE) and layout_probe:
+build/cg/b04/game/scripts/ui/ui_base.gd:1206:## 是一個小的模態疊層（overlay＝boss_note），不蓋在按鈕上；截圖、版面檢查平常不跳（乾淨存檔每張都會跳），另拍一張專拍。
+build/cg/b04/game/scripts/ui/ui_base.gd:1209:func _boss_note(key: String, host := "") -> void:
+build/cg/b04/game/scripts/ui/ui_base.gd:1216:	overlay = "boss_note"
+build/cg/b04/game/scripts/ui/ui_base.gd:1244:	overlay = "boss_note"
+build/cg/b04/game/scripts/ui/ui_base.gd:1255:	if bool(Save.s("plain_ui")) or not _mat_box(R, "card1"):
+build/cg/b04/game/scripts/ui/ui_base.gd:1256:		draw_rect(R, PAL.MAT_PAPER[0])
+build/cg/b04/game/scripts/ui/ui_base.gd:1271:func _close_boss_note() -> void:
+build/cg/b04/game/scripts/ui/ui_base.gd:1277:func _draw_boss_note() -> void:
+build/cg/b04/game/scripts/ui/ui_base.gd:1290:	if bool(Save.s("plain_ui")) or not _mat_box(P, "card1"):
+build/cg/b04/game/scripts/ui/ui_base.gd:1305:	_btn(Rect2(640 - 80, P.end.y - 24 - bh, 160, bh), L.t("bn_ok"), _close_boss_note)   # 單顆底部按鈕置中（R4）；木牌（不是朱漆主按鈕，便條不該喧賓奪主）
+build/cg/b04/game/scripts/ui/ui_base.gd:1351:		var flat: Color = {"wood": TH_WOOD, "groove": Color(0.12, 0.09, 0.07), "paper": Color("#efe4cc")}[kind]
+build/cg/b04/game/scripts/ui/ui_base.gd:1354:			probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
+build/cg/b04/game/scripts/ui/ui_base.gd:1356:			var ins0: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
+build/cg/b04/game/scripts/ui/ui_base.gd:1359:	var path: String = {"wood": TEX_WOOD, "groove": TEX_GROOVE, "paper": TEX_PAPER}[kind]
+build/cg/b04/game/scripts/ui/ui_base.gd:1364:		probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
+build/cg/b04/game/scripts/ui/ui_base.gd:1365:	if kind == "paper":
+build/cg/b04/game/scripts/ui/ui_base.gd:1374:		var m := 10.0 if kind != "paper" else 14.0
+build/cg/b04/game/scripts/ui/ui_base.gd:1380:		var mode := StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH if kind == "paper" else StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+build/cg/b04/game/scripts/ui/ui_base.gd:1388:		var ins: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
+build/cg/b04/game/scripts/ui/ui_base.gd:1393:func _mat_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
+build/cg/b04/game/scripts/ui/ui_base.gd:1607:## 點擊只對「這個世代畫出來的按鈕」有效（_btns_gen）。
+build/cg/b04/game/scripts/ui/ui_base.gd:1899:		_mat_box(r.grow(-6), "walnut", Color(0.62, 0.6, 0.58))   # 1.2.0 §2：面板底是胡桃木紋（壓暗，字照樣看得清）
+build/cg/b04/game/scripts/ui/game_screens.gd:507:				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+build/cg/b04/game/scripts/ui/game_screens.gd:547:				elif overlay == "boss_note":
+build/cg/b04/game/scripts/ui/game_screens.gd:548:					call("_close_boss_note")   # 1.2.0：Esc／手把 B＝知道了（不然下一幀又跳出來，Codex cat03 #1）
+build/cg/b04/game/scripts/ui/game_screens.gd:774:func _draw_inner() -> void:
+build/cg/b04/game/scripts/ui/game_screens.gd:945:	_btns_gen = _gen
+build/cg/b04/game/scripts/ui/game_screens.gd:1008:	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+build/cg/b04/game/scripts/ui/game_screens.gd:1151:	if _btns_gen != _gen:
+build/cg/b04/game/scripts/ui/lobby_view.gd:593:		_boss_note("lobby", "lobby")   # 1.2.0 §12：第一次進大廳的便條
+build/cg/b04/game/scripts/ui/lobby_view.gd:816:		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
+build/cg/b04/game/scripts/ui/lobby_view.gd:817:		_tex_box(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), "paper")
+build/cg/b04/game/scripts/ui/lobby_view.gd:1269:				var paper := not bool(Save.s("plain_ui")) and _mat_box(xrect, "card2")
+func _input(ev: InputEvent) -> void:
+	if _trans_gate(ev):
+		if is_inside_tree():
+			get_viewport().set_input_as_handled()
+		return
+	if _keys_input(ev):
+		return
+	if nb_edit >= 0 and _nb_edit_input(ev):
+		return   # V1.6.1 N3：實驗簿改名時，鍵盤輸入給名稱框
+	if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
+		fp_touch = true   # 第六輪：觸控時預覽畫在手指上方
+		_touch_input(ev)   # V1.4 #18：長按＝右鍵、雙指縮放
+		return
+	if ev is InputEventMagnifyGesture and (state == St.BATTLE or state == St.RESULT):
+		_pinch_by(ev.factor, ev.position)   # 觸控板的捏合也一樣
+		return
+	if ev is InputEventMouseMotion:
+		mouse = ev.position
+		pad_mode = false
+		if ev.device != InputEvent.DEVICE_ID_EMULATION:
+			fp_touch = false
+		hover_card = _card_at(mouse)
+		if state == St.BATTLE and overlay == "" and (ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
+			_enqueue("pan", ev.relative)   # 1.3.0 §2：中鍵拖曳平移
+		_enqueue("paint", mouse)   # 一律排入，由執行端判斷有沒有在塗兵（同一幀按下再拖過也不漏格，Codex S3）
+		_drag_scrape(ev.relative.length())
+		return
+	if intro_t >= 0.0 and ((ev is InputEventKey and ev.pressed) or (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)):
+		intro_end()   # 1.3.0 §13：任何按鍵、點擊跳過開場（這一下不再往下傳）
+		intro_eat = true
+		get_viewport().set_input_as_handled()
+		return
+	if intro_eat and ((ev is InputEventMouseButton and not ev.pressed) or (ev is InputEventScreenTouch and not ev.pressed) or (ev is InputEventJoypadButton and not ev.pressed) or (ev is InputEventKey and not ev.pressed)):
+		intro_eat = false   # 跳過那一下的放開也吞掉（不然會點到底下的按鈕；Codex cat11 #2）
+		get_viewport().set_input_as_handled()
+		return
+	if ev is InputEventMouseButton:
+		mouse = ev.position
+		if overlay == "codex" and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+			_scroll_at(mouse, -48.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 48.0)   # 圖鑑捲動（第三輪 U1）
+			return
+		_enqueue("mb", {"i": ev.button_index, "pressed": ev.pressed, "pos": ev.position, "dbl": ev.double_click})
+		return
+	if state == St.BATTLE and ((ev is InputEventKey and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed)):
+		mag_hide = follow_id   # 1.3.0 §2：任何按鍵（含沒綁定的鍵、手把鍵）1 幀內收起放大鏡（只動畫面；Codex cat06 #6）
+	if ev is InputEventKey and ev.pressed:
+		if not ev.echo or ev.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+			var dk: int = Keymap.key_to_default(Save.s("keys"), ev.keycode)
+			if dk >= 0:
+				_enqueue("key", dk)
+		return
+	if ev is InputEventJoypadButton:
+		var db: int = Keymap.pad_to_default(Save.s("pad"), ev.button_index)
+		if db < 0:
+			return
+		ev = ev.duplicate()
+		ev.button_index = db
+	if ev is InputEventJoypadButton:
+		last_joy = ev.device     # 所有分流之前記（Codex v10-r1 #6）
+		if ev.button_index == JOY_BUTTON_X:
+			_pad_x_hold(ev.pressed)   # 1.1.0 Q1：長按拿掉鍵＝清空自己的陣
+	if ev is InputEventJoypadButton and ev.pressed and _pad_tool(ev):
+		return
+	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
+		_fp_abort_drag()   # 覆蓋層開著時放開 A／X：清掉拖曳狀態（Antigravity 實作第 1 輪 #2）
+	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+		pad_mode = true
+		_enqueue("padbtn", {"b": ev.button_index, "pressed": ev.pressed})   # 第六輪：自由排兵要知道按下與放開
+		return
+	if ev is InputEventJoypadButton and ev.pressed:
+		pad_mode = true
+		var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
+			JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
+			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
+			JOY_BUTTON_BACK: KEY_F1, JOY_BUTTON_LEFT_STICK: KEY_H, JOY_BUTTON_RIGHT_STICK: KEY_P}
+		if map.has(ev.button_index):
+			_enqueue("key", map[ev.button_index])
+		return
+	if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > maxf(0.1, int(Save.s("deadzone")) / 100.0):   # V1.5：死區照設定
+		pad_mode = true
+		_scroll_by("left", ev.axis_value * 24.0)   # 右搖桿捲圖鑑左欄
+		return
+	if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_LEFT_X or ev.axis == JOY_AXIS_LEFT_Y):
+		# 左搖桿：只記下狀態，由 _stick_repeat 依固定節奏送方向鍵（Codex S1 #6：原本每個抖動事件都會送一次）
+		stick[ev.axis] = ev.axis_value
+		if absf(ev.axis_value) > 0.6:
+			pad_mode = true
+
+
+
+## 塗兵（佇列命令）：按住拖過格子連續擺。
+				_draw_cmd_bar()
+			_draw_frenzy_edge()
+			_draw_start_cue()
+			_draw_battle_report()
+			_draw_unit_info()
+			_draw_bmag()   # 1.3.0 §2 銅放大鏡小窗
+			if pre_thread != null:
+				_draw_busy(-1)
+			elif skip_busy:
+				_draw_busy(roundi(view.tick * 100.0 / maxf(1.0, view.max_ticks)))
+			elif seek_target >= 0:
+				_draw_busy(roundi(sim.tick * 100.0 / maxf(1.0, seek_target)))
+		St.RESULT:
+			if not _ink_active():
+				_draw_battle_hud()   # 宣紙戰報演出時頂部 HUD 退場（Antigravity cat03 #3）
+			if _ink_active():
+				_draw_ink_report_screen()   # 1.2.0 §9.4 宣紙戰報：勝負章蓋下之前不出結果面板
+			else:
+				_draw_result()   # 結果紙的桌燈色調與深墨：B06 起全站統一（_draw 開頭設定）
+	_draw_clutch_banner()
+	# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
+	if overlay != _ov_seen:
+		_ov_seen = overlay
+		_ov_t = time
+		_trans_begin()
+	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+	var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+	obj_open_kind = ""
+	var slide := ov_slide_offset()   # 1.4.0 §2.2：器物從桌上的固定位置滑進來（大廳從左、圖鑑從下…）；只動畫面
+	var m0 := mouse
+	if slide != Vector2.ZERO:
+		ui_xf = Transform2D(0.0, slide)   # 疊層裡自己切矩陣的地方都以 ui_xf 為底（不會把滑動蓋掉）
+		Art.base = ui_xf
+		draw_set_transform_matrix(ui_xf)
+		mouse = Vector2(-9999, -9999)     # 滑入中不判 hover（命中框沒位移，高亮會錯位；Codex cat08 #6）
+	_draw_overlay()
+	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
+	if obj_open_force >= 0.0:
+		open_k = obj_open_force   # 開發截圖：固定在開到一半
+	if open_k < 1.0 and obj_open_kind != "":
+		_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫；和內容一起滑，Codex cat08 #1）
+	if slide != Vector2.ZERO:
+		mouse = m0
+		ui_xf = Transform2D.IDENTITY
+		Art.base = Transform2D.IDENTITY
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+	_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
+	if ok_k < 1.0:
+		draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
+	_draw_pad_footer()
+	if toast_t > 0:
+		var a := minf(1.0, toast_t * 2)
+		var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
+		var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
+		if overlay == "" and _is_free():
+			ty = 50.0   # 第六輪：自由擺放整個戰場都可能有兵，提示改蓋在上方的兵種說明條（Codex 實作第 3 輪 #2）
+		draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, (0.94 if bool(Save.s("text_plate")) else 0.72) * a))   # V1.5：高對比文字底板
+		_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
+	if _focus >= _btns.size():
+		_focus = 0
+	_btns_gen = _gen
+	# V9：畫面切換 0.25 秒淡入（版面檢查、簡化特效時不做）
+	if _gen != _trans_gen:
+		_trans_gen = _gen
+		_trans_t = time
+	if not layout_probe and not bool(Save.s("reduce_fx")) and time - _trans_t < 0.25:
+		var mode := StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH if kind == "paper" else StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		sb.axis_stretch_horizontal = mode
+		sb.axis_stretch_vertical = mode
+		sb.modulate_color = tint
+		_sb_cache[k] = sb
+	draw_style_box(sb, r)
+	if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
+		# V1.2.1 F1：登記材質的內容內距（gen_ui_tex.py 的實際斜邊：木紋上 3／下 4／左右 3，紙 5，凹槽 3），字不能壓進去
+		var ins: Array = {"wood": [3.0, 3.0, 3.0, 4.0], "paper": [5.0, 5.0, 5.0, 5.0], "groove": [3.0, 3.0, 3.0, 3.0]}[kind]
+		probe_boxes.append({"r": r, "inner": r.grow_individual(-ins[0], -ins[1], -ins[2], -ins[3])})
+	return true
+
+## 1.2.0 §1.3：元件庫 2.0 的材質框（9 宮格或平鋪）。kind 見 MAT；回傳有沒有畫（缺圖就退回呼叫端的平塗）。
+func _mat_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
+	var tx := _ui_tex(MAT[kind])
+	if tx == null:
+		return false
+	if kind.begins_with("card"):
+		tint = tint * paper_tone   # 1.6.0 B06：卡紙也是桌燈下的紙
+	tint = qcol(tint)
+	var k := "m|%s|%s" % [kind, tint.to_html()]
+	var sb: StyleBoxTexture = _sb_cache.get(k)
+	if sb == null:
+		_sb_room()
+		sb = StyleBoxTexture.new()
+		sb.texture = tx
+		var m: float = MAT_MARGIN.get(kind, 0.0)
+		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+			sb.set_texture_margin(side, m)
+		var tile: bool = not MAT_MARGIN.has(kind)
+		sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE if tile else StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		sb.axis_stretch_vertical = sb.axis_stretch_horizontal
+		sb.modulate_color = tint
+		_sb_cache[k] = sb
+	draw_style_box(sb, r)
+	if layout_probe and MAT_MARGIN.has(kind) and minf(r.size.x, r.size.y) >= 20.0:
+		var ins: float = MAT_INSET.get(kind, 4.0)   # 毛邊實際寬度（materials.py 的 edge 減 2px 透明）：字不能壓進去
+		probe_boxes.append({"r": r, "inner": r.grow(-ins)})
+	return true
+
+## V1.2.1 F1：樣式快取的顏色量化（透明度 16 級、RGB 8 位元），鍵和實際樣式用同一個值。
+static func qcol(c: Color) -> Color:
+	return Color(roundf(c.r * 255.0) / 255.0, roundf(c.g * 255.0) / 255.0, roundf(c.b * 255.0) / 255.0, roundf(clampf(c.a, 0.0, 1.0) * 15.0) / 15.0)
+
+const SB_CACHE_MAX := 512
+## 快取滿了整個清掉（用到再建；每個樣式只是幾個欄位，重建很便宜）。
+		_sim_step(true)
+	await _snap("18_battle_new.png")
+	_go_title()
+	Save.data["unit_wins"] = {"7": 5}
+	_open_codex(D.MEDIC)
+	cx_skill = 0
+	_cx_restart()
+	for i in 60:
+		_codex_tick(0.05)
+	await _snap("19_codex_new.png")
+	overlay = "puzzles"
+	puzzle_tab = 1
+	Save.data["stats"] = {"wins": 0, "games": 6}   # 解鎖到投彈兵：醫者、鼓手、狂戰士的關卡是鎖住的
+	Save.data["unlock_games"] = 6
+	await _snap("20_puzzles_new.png")
+	puzzle_tab = 0
+	overlay = ""
+	_start_mode(Mode.VS_AI)
+	selected = D.SWORD
+	hover_card = D.MEDIC
+	await _snap("21_place_locked.png")
+	hover_card = -1
+	# 第五輪：規則大廳（精簡、卡池、讓子、雙人、沙盒）
+	Save.data["last_rules"] = {}
+	Save.data["lobby_stamps"] = 2   # 1.4.0 §1.1：截圖看得到手帳上的印跡
+	_go_title()
+	_open_lobby("ai")
+	mouse = Vector2(-100, -100)
+	lobby_step = 2   # 1.5.0 §1.2：22_lobby＝第三步「開戰」（有上次設定時打開就在這裡）
+	await _snap("22_lobby.png")
+	lobby_step = 0
+	await _snap("v150_22a_lobby_step1.png")   # 第一步：對手
+	lobby_step = 1
+	await _snap("v150_22b_lobby_step2.png")   # 第二步：地圖
+	await _lobby_pad_walk()
+	lobby_step = 2
+	# V1.5.2 空／滿資料：「我的預設」下拉 0 筆、10 筆（上限）
+	var rp_keep = Save.data.get("rule_presets", [])
+	Save.data["rule_presets"] = []
+	lobby_menu = true
+	await _snap("22c_lobby_menu@empty.png")
+	var rp10: Array = []
+	for k in Save.MAX_PRESETS:
+		rp10.append({"name": L.t("lb_my_n", [k + 1]), "code": lobby_r.to_code()})
+	Save.data["rule_presets"] = rp10
+	await _snap("22c_lobby_menu@full.png")
+	lobby_menu = false
+	Save.data["rule_presets"] = rp_keep
+	lobby_open = true
+	lobby_tab = 2
+	lobby_r.ai_pool_same = false
+	lobby_r.pool[1] = 0b0000011111
+	_lobby_touch()
+	lobby_item = "pool"
+	await _snap("23_lobby_pool.png")
+	lobby_tab = 0
+930:	var same: bool = s1.units.size() == s2.units.size()
+933:			same = false
+934:	ok(same, "原本時間線重建後追到同一 tick，位置與血量完全一樣（淡圈才對得上）")
+2060:	ok(dir_cmds.call() == d0, "轉場中先推搖桿、同幀按鍵跳過：推著一秒都不送方向")
+2234:func test_input_matrix_v150() -> void:
+2975:## 打開大廳焦點就在主鈕（手把 ≤3 步開戰；真畫面走查是截圖流程的 LOBBYPAD）、IN-160-01（返回、重開焦點恢復、同幀第二輸入）。
+3026:	# IN-160-01：返回後重開，焦點照樣回到主鈕（不留在舊索引）
+build/cg/b04/game/icon.svg.import
+build/cg/b04/game/icon.svg
+build/cg/b04/game/export_presets.cfg
+build/cg/b04/game/project.godot
+build/cg/b04/game/tests/test_base.gd.uid
+build/cg/b04/game/tests/test_base.gd
+build/cg/b04/game/fonts/ThenKhung-sub.ttf.import
+build/cg/b04/game/fonts/ThenKhung-sub.ttf
+build/cg/b04/game/fonts/ThenKhung-missing.txt
+build/cg/b04/game/fonts/OFL-ThenKhung.txt
+build/cg/b04/game/fonts/NTBTitle-sub.ttf.import
+build/cg/b04/game/fonts/NTBTitle-sub.ttf
+build/cg/b04/game/fonts/NTBSansSC-R-sub.otf.import
+build/cg/b04/game/fonts/NTBSansSC-R-sub.otf
+build/cg/b04/game/fonts/NTBSansSC-B-sub.otf.import
+build/cg/b04/game/fonts/NTBSansSC-B-sub.otf
+build/cg/b04/game/fonts/NTBSansLatin-R-sub.ttf.import
+build/cg/b04/game/fonts/NTBSansLatin-R-sub.ttf
+build/cg/b04/game/fonts/NTBSansLatin-B-sub.ttf.import
+build/cg/b04/game/fonts/NTBSansLatin-B-sub.ttf
+
+exec
+/bin/bash -lc "sed -n '2234,2330p' build/cg/b04/game/tests/suites/ui.gd; rg -n 'func _trans_gate|shot_dir|layout_probe' build/cg/b04/game/scripts/ui/transition*.gd; sed -n '940,1038p' build/cg/b04/game/scripts/ui/ui_base.gd; rg -n 'tone_check|lobby|BOOK' tools/tone_check.py; rg --files build | rg '(b04.*(run.log|json|png)"'$|AGENTS.md$)'"' | head -45; sed -n '2576,2617p' build/cg/b04/game/tools/dev_main.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 58191ms:
+../smarttrade-tw/frontend/node_modules/next/AGENTS.md
+# B04 大廳變挑戰簿（S1；P2.4、P2.1、英文頁籤縮寫）計畫
+
+方案 §5 B04 驗收：S1 判決＝簿紙灰階 45～65%、暗木框 12～15%、R14 0、英文 150% 裁切 0、手把 ≤3 步開戰、IN-160-01（翻頁、撥片、返回：手把焦點恢復、同幀第二輸入、跨轉場）。回退：寬度維持、只換樣式。
+
+## 起點（1.6.0 B06 後，固定時鐘 22_lobby）
+- 1.5.0 起大廳已是書本樣式（左緣縫線、左右兩頁、書籤緞帶、右緣色籤）。簿紙 L* 82.9／右頁 80.4（太亮，B06 刻意把大廳留給本批）；木框 L* 15.7～16.6（略亮）；頂部預設頁籤是羊皮紙吊牌。
+
+## 做法
+1. **簿紙**：大廳打開時也上桌燈紙（B06 的 desk_paper 範圍拿掉 lobby 例外），簿紙另用 `PAPER_BOOK_TONE`（比一般桌燈紙再暗一階），中位 L* 落在 45～65；紙上字走深墨（B06 機制），暗斑比對（dark_spot_diff）新增 0。
+2. **暗木框**：大廳外框（縫線那圈）壓暗到 L* 12～15。
+3. **木撥片**：頂部玩法頁籤（標準、經典 5 種…）從羊皮紙吊牌改成木撥片（暗木底＋淺刻字＋選中那片往下壓、亮邊），選中仍有書籤緞帶。
+4. **英文頁籤縮寫**：英文 150% 頁籤字放不下時用縮寫字串（strings.csv 新鍵 `*_short`，四語；中文、日文不縮），裁切 0。
+5. **P2.1 三階排印**：大廳頁內字級只用 tz 的三級（標題、內文、註記），超過的併級（檢查器數級數）。
+6. **手把 ≤3 步開戰**：從大廳打開（焦點預設在「開戰」或第一步）量到按下開戰的手把輸入數 ≤3；走真實 `_input`。
+7. **IN-160-01**：撥片切換、翻頁（步驟 1→2→3）、返回；手把焦點恢復、同幀兩個輸入只吃一個、轉場中輸入不落空（接 test_input_matrix_v150 範本）。
+
+## 驗收
+- 量測：`tools/tone_check.py` 加 22_lobby（紙 45～65、框 12～15）；24 組 0（含 R14、英文 150% 裁切）；固定時鐘不比基線差（大廳沒有戰場棋子，美感數字不受影響）。
+- 測試 `test_lobby_book_v1600`；Hydrogen 看 22 系列前後；Codex 看程式。
+--- a/game/scripts/ui/palette.gd
++++ b/game/scripts/ui/palette.gd
+@@ -68,6 +68,12 @@
+ const CONTACT_A := 0.4
+ # 1.6.0 B03：攤在桌上的紙（結果紙）在桌燈下的色調——把 L* 從 1.5.0 的約 86 壓到紙的中階（量測見 tools/tone_check.py）
+ const PAPER_DESK_TONE := Color(0.72, 0.68, 0.62)
+-const PAPER_DESK_TONE_TEX := Color(0.8, 0.76, 0.7)   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
++const PAPER_DESK_TONE_TEX := Color(0.8, 0.76, 0.7)
++## 1.6.0 B04（S1）挑戰簿簿紙：比桌燈紙再暗一階（中位 L*≈63，S1 要 45～65）；貼圖斑紋上再蓋一層平塗簿紙色 BOOK_FLAT（BOOK_FLAT_A），
++## 起伏減半，最暗處仍 ≥L*55（墨字 ≥4.5:1）
++const PAPER_BOOK_TONE_TEX := Color(0.734, 0.698, 0.643)
++const BOOK_FLAT := Color(0.67, 0.60, 0.49)
++const BOOK_FLAT_A := 0.7
++const BOOK_FRAME_DIM := 0.15   # 大廳外框（暗木框）再壓暗，L* 15.7→約 13.5（S1 要 12～15）   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
+ # 1.6.0 B03：盤外桌面壓暗（只在盤框外，盤內隊色 ΔE＝0）
+ const OFF_BOARD_DIM := 0.18
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -904,6 +904,7 @@
+ ## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
+ ## 1.6.0 B03：ink_deep＝桌燈下的暗紙（結果紙 L*≈64）：彩色字再壓深、中間調的彩色（隊色小圖示）也壓，對紙 ≥4.5:1
+ static var ink_deep := false
++static var paper_book := false   # 1.6.0 B04：大廳挑戰簿打開時＝簿紙（再暗一階）
+ static var paper_tone := Color.WHITE   # 1.6.0 B06：全站紙面乘這個色（桌燈下的紙＝PAL.PAPER_DESK_TONE；game_screens._draw 每幀設定）
+ static func _ink(c: Color) -> Color:
+ 	var lum := c.get_luminance()
+@@ -1362,7 +1363,7 @@
+ 	if layout_probe:
+ 		probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
+ 	if kind == "paper":
+-		tint = tint * (PAL.PAPER_DESK_TONE_TEX if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
++		tint = tint * ((PAL.PAPER_BOOK_TONE_TEX if paper_book else PAL.PAPER_DESK_TONE_TEX) if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
+ 	tint = qcol(tint)   # V1.2.1 F1：量化後當鍵，淡出時不會每幀多一個樣式
+ 	var k := "t|%s|%s" % [kind, tint.to_html()]
+ 	var sb: StyleBoxTexture = _sb_cache.get(k)
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -757,14 +757,16 @@
+ 	mag_hit = []
+ 	var _t0 := Time.get_ticks_usec()
+ 	# 1.6.0 B06（方案 P1.3 主材質全站）：桌燈下的紙——全站紙面（羊皮紙、卡紙）乘桌燈色調、紙上彩色字用深墨（B03 結果紙同一套）。
+-	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳整頁屬 B04（挑戰簿重做紙面；先套桌燈紙會讓說明字的紙紋暗斑 <4.5:1）；
++	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳＝挑戰簿（B04：簿紙再暗一階，貼圖上蓋平塗層讓斑紋減半，暗斑不 <4.5:1）；
+ 	# 簡化介面照舊平塗亮紙（雙階色塊規格）。
+-	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and overlay != "lobby" and note_ret != "lobby" and not no_desk_paper
++	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and not no_desk_paper
+ 	paper_tone = PAL.PAPER_DESK_TONE if desk_paper else Color.WHITE
++	paper_book = desk_paper and (overlay == "lobby" or note_ret == "lobby")   # 1.6.0 B04：大廳＝挑戰簿（B06 留給本批）
+ 	ink_deep = desk_paper
+ 	_draw_inner()
+ 	ink_deep = false
+ 	paper_tone = Color.WHITE
++	paper_book = false
+ 	_draw_magnifier()   # V1.6 #7：最上層
+ 	perf_draw_us = Time.get_ticks_usec() - _t0
+ 
+--- a/game/scripts/ui/lobby_view.gd
++++ b/game/scripts/ui/lobby_view.gd
+@@ -56,6 +56,7 @@
+ 	lobby_item = ""
+ 	lobby_tab = 0
+ 	lobby_step = 2 if code != "" else 0   # 1.5.0：有上次設定＝直接到「確認」（遠征牌→快速對戰→開戰）
++	_lb_focus_main = true   # 1.6.0 B04（S1 手把 ≤3 步開戰）：一打開焦點就在主鈕（下一步／開戰），A 連按三下就開戰
+ 	_open("lobby")
+ 
+ ## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
+@@ -531,6 +532,8 @@
+ func _draw_lobby() -> void:
+ 	var P := Rect2(50, 30, 1180, 740)
+ 	_panel(P)
++	if paper_book:
++		draw_rect(P, Color(0.05, 0.03, 0.02, PAL.BOOK_FRAME_DIM))   # 1.6.0 B04（S1）暗木框：書殼再壓暗（頁面、頁籤畫在之後，不受影響）
+ 	probe_skip("R4", "大廳底列：左側操作組（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右，刻意分兩組")
+ 	if not lobby_open and lobby_step < 2:
+ 		probe_skip("R6", "大廳三步的第 1、2 步每步只放一兩列：留白是「一頁一件事」的設計（1.5.0 §1.2）")
+@@ -597,10 +600,17 @@
+ 	var tw_min := 154.0 - 6.0 - BM_SLOT
+ 	var te := tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
+ 	for id in Presets.IDS:
+-		if wrap_lines(L.t("lb_p_" + id), fit(L.t("lb_p_" + id), tz("B"), te, true), te, true).size() > 1:
++		if wrap_lines(tab_label(id, te), fit(tab_label(id, te), tz("B"), te, true), te, true).size() > 1:
+ 			return 78.0
+ 	return 68.0
+ 
++## 頁籤字：擠成兩行時有短名就用短名（1.6.0 B04 英文大字級頁籤縮寫）
++func tab_label(id: String, te: float) -> String:
++	var lab := L.t("lb_p_" + id)
++	if wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1 and L.has("lb_p_" + id + "_short"):
++		return L.t("lb_p_" + id + "_short")
++	return lab
++
+ func _draw_lobby_presets(o: Vector2) -> void:
+ 	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
+ 	var w := 154.0
+@@ -614,7 +624,8 @@
+ 		# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
+ 		if on:
+ 			btn_deco = _draw_bookmark
+-		btn_cloth = "tab_indigo" if on else "tab_linen"   # 1.2.0 第 4 大類：預設分頁是布標（和設定分頁同一套；選中靛藍、未選原胚布）
++		# 1.2.0 第 4 大類：預設分頁是布標（選中靛藍）；1.6.0 B04（P2.4）未選中的改木撥片（暗木牌、淺字），挑戰簿上一排木撥片
++		btn_cloth = "tab_indigo" if on else ("" if paper_book else "tab_linen")
+ 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+ 		btn_cloth = ""
+ 		var on_paper := last_btn_paper   # 原胚布：字用墨色
+@@ -623,10 +634,10 @@
+ 			draw_rect(r, ACCENT, false, 3.0)
+ 		# 只有選中的分頁讓出書籤槽（可用區 [6, w−BM_SLOT]）；沒選中的照整格置中（實作審查第 2 輪看圖：六格一律讓槽時
+ 		# 沒書籤的分頁字明顯偏左）。要換兩行時中日文從中間斷（不留「決」「種」單字一行），從上緣 5 起排，色條在 h−9
+-		var lab := L.t("lb_p_" + id)
+ 		var tw := (w - 6.0 - BM_SLOT) if on else (w - 12.0)
+ 		var tx := (6.0 + tw / 2) if on else w / 2
+ 		var te := tw - 2.0 * (maxf(6.0, tw * 0.06) + 1.0)   # 1.4.0 R12：分頁字左右各留 max(6, 6% 寬)
++		var lab := tab_label(id, te)   # 1.6.0 B04：英文大字級頁籤縮寫（擠成兩行時改用短名）
+ 		var two := wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1
+ 		var lsz: int = tz("B")
+ 		if two:
+@@ -804,6 +815,10 @@
+ 		_tex_box(Rect2(x - 16, top - 4, R.size.x + 32, bot - top + 10), "wood", Color(0.42, 0.27, 0.16))
+ 		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
+ 		_tex_box(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), "paper")
++		if paper_book:
++			# 1.6.0 B04（S1）簿紙：貼圖斑紋上蓋一層平塗簿紙色，起伏減半（中位 L*≈63、最暗處仍讓墨字 ≥4.5:1）
++			draw_rect(Rect2(x - 10, top, lw + 18, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
++			draw_rect(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
+ 		for k in 6:   # 書脊：中間往兩邊漸淡的陰影
+ 			var a := 0.22 - k * 0.035
+ 			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1101,6 +1101,7 @@
+ 	await _snap("v150_22a_lobby_step1.png")   # 第一步：對手
+ 	lobby_step = 1
+ 	await _snap("v150_22b_lobby_step2.png")   # 第二步：地圖
++	await _lobby_pad_walk()
+ 	lobby_step = 2
+ 	# V1.5.2 空／滿資料：「我的預設」下拉 0 筆、10 筆（上限）
+ 	var rp_keep = Save.data.get("rule_presets", [])
+@@ -2572,10 +2573,46 @@
+ 
+ ## 1.6.0 B06（Codex B06 r1 #4）：便條釘位的真實繪製＋手把——真的畫出來（按鈕由繪製登記）、十字鍵從結果頁按鈕走到「打開看」、A 打開、B 關掉。
+ ## 結果印在 run.log：NOTEPIN OK／FAIL（驗收鏈數 24 組都要 OK）。存檔已是截圖前綴，B 關掉記住的「看過」不碰正式存檔。
++## 1.6.0 B04（S1）：大廳手把 ≤3 步開戰——真的畫面、真的手把 A（走 _input），從打開大廳（第一步）按到進入擺陣，
++## 印 LOBBYPAD OK／FAIL；走完回到大廳第三步、還原手把模式（之後的截圖照舊）。
++func _lobby_pad_walk() -> void:
++	var pad0: bool = pad_mode
++	var had_dis: bool = shot_state.has("dis")   # 停用組合：全部按鈕畫成停用，A 按不下去；走的時候拿掉（同 _note_pin_walk）
++	shot_state.erase("dis")
++	_go_title()
++	_open_lobby("ai")
++	lobby_step = 0
++	var steps := 0
++	for i in 5:
++		queue_redraw()
++		await get_tree().process_frame
++		await RenderingServer.frame_post_draw
++		if state != St.TITLE or overlay != "lobby":
++			break
++		for dn in [true, false]:
++			var e := InputEventJoypadButton.new()
++			e.device = 0
++			e.button_index = JOY_BUTTON_A
++			e.pressed = dn
++			_input(e)
++			await get_tree().process_frame
++		steps += 1
++	for i in 3:
++		await get_tree().process_frame
++	var ok: bool = state == St.PLACE and steps <= 3
++	print("LOBBYPAD ", "OK" if ok else "FAIL", " ", JSON.stringify({"steps": steps, "state": int(state), "overlay": overlay}))
++	_go_title()
++	_open_lobby("ai")
++	mouse = Vector2(-100, -100)
++	pad_mode = pad0
++	if had_dis:
++		shot_state["dis"] = true
++
+ func _note_pin_walk() -> void:
+ 	# 「停用」組合（:dis）會把所有按鈕畫成停用、A 按不下去；這段驗的是手把能走到並打開便條，走的時候暫時拿掉停用旗標
+ 	var had_dis: bool = shot_state.has("dis")
+ 	shot_state.erase("dis")
++	var pad0: bool = pad_mode   # 走查送真的手把事件會切到手把模式：走完還原，不然之後的截圖都多了手把提示（1.6.0 B04 抓到）
+ 	var lay: Dictionary = _note_pin_layout()
+ 	var target: Vector2 = (lay["btn"] as Rect2).get_center()
+ 	var find := func() -> int:
+@@ -2615,3 +2652,4 @@
+ 	overlay = ""
+ 	if had_dis:
+ 		shot_state["dis"] = true
++	pad_mode = pad0
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1774,3 +1774,6 @@
+ loss_jump,看第一隻倒下,First fall ▶,看第一个倒下,最初の脱落へ
+ bn_pin,老闆留了張便條,A note from the owner,老板留了张便条,店主からのメモ
+ bn_pin_open,打開看,Read,打开看,読む
++lb_p_fantasy_short,奇幻兵團,Monsters,奇幻兵团,魔物軍団
++lb_p_single_short,單兵種對決,1-Type,单兵种对决,単兵種戦
++lb_p_big_short,大軍團,Big army,大军团,大軍団
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -2969,3 +2969,64 @@
+ 	else:
+ 		Sv.data["seen"] = keep_seen
+ 	g.free()
++
++
++## 1.6.0 B04（S1；P2.4、P2.1、英文頁籤縮寫）挑戰簿：簿紙色調在 45～65、暗木框、木撥片、英文大字級頁籤縮寫、
++## 打開大廳焦點就在主鈕（手把 ≤3 步開戰；真畫面走查是截圖流程的 LOBBYPAD）、IN-160-01（返回、重開焦點恢復、同幀第二輸入）。
++func test_lobby_book_v1600() -> void:
++	var PAL = load("res://scripts/ui/palette.gd")
++	var lstar := func(c: Color) -> float:
++		var lin := func(v: float) -> float:
++			return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
++		var y: float = 0.2126 * lin.call(c.r) + 0.7152 * lin.call(c.g) + 0.0722 * lin.call(c.b)
++		return 116.0 * pow(y, 1.0 / 3.0) - 16.0 if y > 0.008856 else 903.3 * y
++	var lf: float = lstar.call(PAL.BOOK_FLAT)
++	ok(lf >= 45.0 and lf <= 65.0, "簿紙平塗色 L* %.1f 在 45～65（截圖實測中位 63.0）" % lf)
++	ok(PAL.PAPER_BOOK_TONE_TEX.v < PAL.PAPER_DESK_TONE_TEX.v and PAL.BOOK_FLAT_A >= 0.5, "簿紙比桌燈紙暗一階、平塗層讓斑紋減半以上")
++	ok(load("res://tools/dev_main.gd").contrast(Color("#2a1e15"), PAL.BOOK_FLAT) >= 4.5, "深墨字對簿紙 ≥4.5:1")
++	ok(PAL.BOOK_FRAME_DIM > 0.0 and PAL.BOOK_FRAME_DIM <= 0.25, "暗木框壓暗 %.2f（截圖實測 L* 13.5）" % PAL.BOOK_FRAME_DIM)
++	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
++	ok(gsrc.find("paper_book = desk_paper and (overlay == \"lobby\" or note_ret == \"lobby\")") >= 0 and gsrc.find("paper_tone = Color.WHITE\n\tpaper_book = false") >= 0, "簿紙只在大廳、每幀畫完歸零")
++	ok(gsrc.find("overlay != \"lobby\"") < 0, "大廳不再排除在桌燈紙之外（B06 留給本批的那條拿掉）")
++	var lsrc: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
++	ok(lsrc.find("btn_cloth = \"tab_indigo\" if on else (\"\" if paper_book else \"tab_linen\")") >= 0, "未選中的頁籤是木撥片（選中仍是靛布＋書籤）")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g._load_fonts()
++	var LS = load("res://scripts/game/strings.gd")
++	var Sv = load("res://scripts/game/save.gd")
++	var keep_lang = LS.lang
++	var keep_ts = Sv.settings.get("text_scale", 100)
++	var tw_min: float = 154.0 - 6.0 - g.BM_SLOT
++	var te: float = tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
++	LS.lang = "en"
++	Sv.settings["text_scale"] = 150
++	var en_short: bool = g.tab_label("fantasy", te) == LS.t("lb_p_fantasy_short") and g.tab_label("single", te) == LS.t("lb_p_single_short")
++	var one_line := true
++	for id in ["standard", "classic5", "fantasy", "small", "big", "single"]:
++		var lab: String = g.tab_label(id, te)
++		one_line = one_line and g.wrap_lines(lab, g.fit(lab, g.tz("B"), te, true), te, true).size() == 1
++	var dbg := []
++	for id in ["standard", "classic5", "fantasy", "small", "big", "single"]:
++		var lab2: String = g.tab_label(id, te)
++		dbg.append("%s=%d" % [lab2, g.wrap_lines(lab2, g.fit(lab2, g.tz("B"), te, true), te, true).size()])
++	ok(en_short and one_line and g.lobby_tab_h() == 68.0, "英文 150%：擠成兩行的頁籤改縮寫，六個頁籤都一行、頁籤不長高", "%s short=%s h=%s" % [dbg, en_short, g.lobby_tab_h()])
++	Sv.settings["text_scale"] = 100
++	ok(g.tab_label("fantasy", te) == LS.t("lb_p_fantasy"), "英文 100% 放得下就用全名")
++	LS.lang = "zh_TW"
++	Sv.settings["text_scale"] = 150
++	ok(g.tab_label("single", te) == LS.t("lb_p_single"), "中文不縮寫")
++	LS.lang = keep_lang
++	Sv.settings["text_scale"] = keep_ts
++	# 手把 ≤3 步：打開大廳焦點交給主鈕；第一步→第二步→開戰各一下 A
++	g._open_lobby("ai")
++	ok(g.overlay == "lobby" and g._lb_focus_main, "打開大廳焦點就在主鈕（下一步／開戰）")
++	ok(3 - g.lobby_step <= 3, "從打開到開戰最多 3 下 A（第 %d 步起）" % g.lobby_step)
++	# IN-160-01：返回後重開，焦點照樣回到主鈕（不留在舊索引）
++	g._focus = 5
++	g._key(KEY_ESCAPE)
++	ok(g.overlay != "lobby", "大廳 B／Esc 返回")
++	g._open_lobby("ai")
++	ok(g._lb_focus_main, "重開大廳焦點恢復到主鈕")
++	g.free()
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_lobby_book_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+
+ succeeded in 3629ms:
+func test_input_matrix_v150() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var Save = load("res://scripts/game/save.gd")
+	var keep := {}
+	for k in ["reduce_fx", "reduce_motion", "plain_ui", "deadzone"]:
+		keep[k] = Save.s(k)
+	Save.settings["reduce_fx"] = false
+	Save.settings["reduce_motion"] = false
+	Save.settings["plain_ui"] = false
+	Save.settings["deadzone"] = 20
+	var srcs := ["mouse", "key", "joy", "lstick", "rstick", "touch"]
+	var timings := ["start", "mid", "last", "after"]
+	var combos := ["single", "pair", "pairrev", "hold", "unplug"]   # pairrev＝同一幀先按別的鍵跳過、再操作這個來源（Codex v150 cat01 r3 #1）
+	var bad: Array = []
+	var n := 0
+	# 副作用量測：命令佇列、圖鑑捲動、觸控手指——轉場中一個都不能變（Codex v150 cat01 #4：只看佇列會漏掉右搖桿直接捲動）
+	var fx_of := func(g) -> Array:
+		return [g._cmds.size(), float(g.cx_scroll.get("left", 0.0)), g.touches.size()]
+	for src in srcs:
+		for tm in timings:
+			for cb in combos:
+				n += 1
+				var g = GS.new()
+				g.shot_dir = ""
+				g.layout_probe = false
+				g.overlay = ""
+				g.time = 10.0
+				g.cx_regions["left"] = Rect2(0, 0, 100, 100)
+				g.cx_content["left"] = 5000.0
+				for ax in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y]:
+					g.stick[ax] = 0.0
+				if cb == "hold":
+					g._input(_im_ev(src, true))   # 按住跨轉場：轉場開始前就按下
+				g.overlay = "codex"
+				g._ov_t = g.time
+				g._trans_begin()
+				var during: bool = tm != "after"
+				if tm == "mid":
+					g.time += GS.SLIDE_SEC * 0.5
+				elif tm == "last":
+					g.time += GS.SLIDE_SEC - 1.0 / 60.0
+				elif tm == "after":
+					g.time += GS.SLIDE_SEC + 0.05
+				var f0: Array = fx_of.call(g)
+				if cb == "pairrev":
+					g._input(_im_ev("key2", true))
+				if cb != "hold":
+					g._input(_im_ev(src, true))
+				if cb == "pair":
+					g._input(_im_ev("key2", true))
+				var fp: Array = fx_of.call(g)   # 按下當下的副作用（觸控手指在放開時會清掉，要在這裡量）
+				for fr in 30:   # 按住期間：鍵盤連發、搖桿持續推，逐幀 0.5 秒
+					g.time += 1.0 / 60.0
+					if src == "key":
+						var ec: InputEventKey = _im_ev("key", true)
+						ec.echo = true
+						g._input(ec)
+					if src == "rstick":
+						g._input(_im_ev("rstick", true))
+					g._stick_repeat(1.0 / 60.0)
+				var unplugged: bool = cb == "unplug" and src in ["joy", "lstick", "rstick"]
+				if cb == "unplug":
+					g._trans_joy_changed(0, false)
+				if cb == "pair" or cb == "pairrev":
+					g._input(_im_ev("key2", false))
+				if not unplugged:
+					g._input(_im_ev(src, false))   # 拔掉的手把不會有放開事件（引擎不補）
+				g._stick_repeat(1.0 / 60.0)
+				var f1: Array = fx_of.call(g)
+				if during:
+					if f1[0] != f0[0]:
+						bad.append("%s/%s/%s 轉場中有 %d 筆進佇列" % [src, tm, cb, f1[0] - f0[0]])
+					if absf(float(f1[1]) - float(f0[1])) > 0.001:
+						bad.append("%s/%s/%s 轉場中圖鑑被捲動" % [src, tm, cb])
+					if int(fp[2]) != int(f0[2]):
+						bad.append("%s/%s/%s 轉場中觸控手指被記下" % [src, tm, cb])
+				else:
+					# 轉場後：按下當下或之後要有實際副作用（不是全部吃掉的假通過）；只有「按住跨轉場」豁免（按下在開頁前，設計如此）
+					var moved: bool = f1[0] > f0[0] or fp[0] > f0[0] or absf(float(f1[1]) - float(f0[1])) > 0.001 or int(fp[2]) > int(f0[2])
+					if not moved and cb != "hold":
+						bad.append("%s/%s/%s 轉場後的輸入沒有效果（被誤吃）" % [src, tm, cb])
+				if not g.trans_eat.is_empty() or g.trans_stick_eat or g.trans_rstick_eat:
+					bad.append("%s/%s/%s 放開／回中／拔掉後鎖沒解開（%s, %s, %s）" % [src, tm, cb, str(g.trans_eat.keys()), str(g.trans_stick_eat), str(g.trans_rstick_eat)])
+				# 恢復：下一幀同一個來源再操作一次，一定有效果（每種來源都驗，不只滑鼠）
+				g.time += 1.0 / 60.0
+				var f2: Array = fx_of.call(g)
+				if src in ["lstick"]:
+					g._input(_im_ev("lstick", true))
+					g._stick_repeat(1.0 / 60.0)
+					g._input(_im_ev("lstick", false))
+				elif src == "rstick":
+					g._input(_im_ev("rstick", true))
+					g._input(_im_ev("rstick", false))
+				elif src == "touch":
+					g._input(_im_ev("touch", true))
+				else:
+					g._input(_im_ev(src, true))
+rg: build/cg/b04/game/scripts/ui/transition*.gd: IO error for operation on build/cg/b04/game/scripts/ui/transition*.gd: No such file or directory (os error 2)
+	if not enabled:
+		bg = Color(0.2, 0.17, 0.15)
+	elif hover or focus:
+		bg = bg.lightened(0.16)
+		if hover:
+			_hover_now = idx
+	var pressed := hover and enabled and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	var rd := r.grow(-minf(r.size.x, r.size.y) * 0.025) if pressed else r
+	# V1.2 B3：按鈕下緣 3px 厚度（木牌的側面）；按下時往下沉、厚度消失
+	var solid: bool = tint.a <= 0.0 or tint.a > 0.6
+	if solid and r.size.y >= 20.0:
+		# 厚度畫在按鈕框內（下緣 3px），命中框、探針與畫面一致（Codex v120-impl2）；按下時面板往下壓、厚度被蓋住
+		_box(Rect2(rd.position, rd.size), Color(bg.darkened(0.55), 1.0), Color(0, 0, 0, 0), 7.0)
+		rd = Rect2(rd.position + Vector2(0, 3.0 if pressed else 0.0), rd.size - Vector2(0, 3))
+	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
+	# 1.2.0 §1.3：沒有自訂色的一般按鈕＝山毛櫸木牌（墨色字）；主要按鈕＝朱漆木牌＋左側紅蠟封；停用＝褪色木牌
+	var cloth: bool = btn_cloth != "" and not paper_face and not bool(Save.s("plain_ui")) and _ui_tex(MAT[btn_cloth]) != null   # 1.2.0 §1.3 布標分頁
+	# 1.2.0 第 4 大類 A10：「木色／選中」兩種標準色的按鈕也走木牌（原本是深色圓角塊，Antigravity cat03 #1）；選中＝暖一點的木牌＋朱砂框（不只靠顏色）。
+	# 木色／選中但沒有自己標籤的按鈕（字由呼叫端另外畫白字：技能格、試煉卡、禁用卡、遠征獎勵卡）維持原本深色，避免白字落在淺木牌上（Codex cat04 #1）
+	var sel_on: bool = tint == TH_ACTIVE
+	var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or ((sel_on or tint == TH_WOOD) and label != "")) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+	last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
+	if layout_probe:
+		probe_faces.append([rd, last_btn_paper])   # 實際畫出來的面（不含擴大的點擊區；Codex v1600 B02 #2）；深色鈕也登記（紙上的深色鈕裡白字是對的）
+	last_btn_enabled = enabled
+	if cloth:
+		var ct := Color.WHITE if enabled else Color(0.6, 0.6, 0.6, 0.8)
+		if enabled and (hover or focus):
+			ct = Color(1.12, 1.12, 1.12)
+		_mat_box(rd, btn_cloth, ct)
+		# 縫線：布標內緣一圈虛線（裝飾，不登記探針）
+		var sc := Color(1, 1, 1, 0.35) if btn_cloth != "tab_linen" else Color(0.35, 0.25, 0.15, 0.4)
+		var sr := rd.grow(-5)
+		if layout_probe:
+			probe_deco("stitch", sr, rd, "inside")   # 1.2.0 元件契約：縫線登記成宿主內的裝飾
+		var dash := 6.0
+		var xx := sr.position.x
+		while xx < sr.end.x - dash:
+			draw_line(Vector2(xx, sr.position.y), Vector2(xx + dash * 0.6, sr.position.y), sc, 1.0)
+			draw_line(Vector2(xx, sr.end.y), Vector2(xx + dash * 0.6, sr.end.y), sc, 1.0)
+			xx += dash
+	elif plaque:
+		var pt := Color(0.86, 0.36, 0.2) if primary else Color.WHITE
+		if not enabled:
+			pt = Color(0.78, 0.75, 0.7, 0.85)   # 停用＝褪色淺灰木牌（字照樣讀得到，不是一塊深色髒塊）
+		elif sel_on and not primary:
+			pt = Color(1.0, 0.84, 0.66)
+		if enabled and (hover or focus):
+			pt = Color(minf(pt.r * 1.1, 1.3), minf(pt.g * 1.1, 1.3), minf(pt.b * 1.1, 1.3))
+		_mat_box(rd, "plaque", pt)
+		if sel_on and enabled and tint.a > 0.0:
+			draw_rect(rd.grow(-4 if rd.size.y >= 40.0 else -2), Color(Color("#9b281b"), 0.9), false, 2.5 if rd.size.y >= 40.0 else 1.5)   # 選中：朱砂框（矮按鈕框往外、變細，不壓到 150% 的字）
+		if primary and enabled and rd.size.x >= 120.0 and not btn_no_wax:
+			var wx := _ui_tex(MAT["wax_red"])
+			var ws := minf(rd.size.y + 8.0, 46.0)
+			# 長標籤時讓位（Antigravity cat02 #1）：字寬＋蠟封露出的部分放不下就不畫蠟封
+			var lab_w := _width(label, ts(18), true)
+			if wx != null and lab_w + ws * 0.9 <= rd.size.x - 12.0:
+				var wr := Rect2(rd.position + Vector2(-ws * 0.35, (rd.size.y - ws) * 0.5), Vector2(ws, ws))
+				wax_face_cut = maxf(0.0, wr.end.x - rd.position.x)   # 1.3.0 R11：蠟封蓋住的左邊不算字的格子面（字在看得到的木牌上置中；Antigravity cat01）
+				# 深赤火漆＋金邊：和朱漆底拉開明度（Antigravity cat02 #1：紅疊紅看不清）
+				if btn_seal_square:
+					# 1.4.0 §1.1：大廳「開戰」＝朱砂印泥盒的方印（不是圓火漆）
+					var sq := Rect2(wr.get_center() - Vector2(ws, ws) * 0.38, Vector2(ws, ws) * 0.76)
+					draw_rect(Rect2(sq.position + Vector2(1.5, 2.0), sq.size), Color(DIM_INK, 0.45))
+					draw_rect(sq, PAL.TRINKET_RED.darkened(0.15))
+					draw_rect(sq.grow(-3), Color(1, 0.85, 0.75, 0.75), false, 1.5)
+					# 印面：篆刻感的「冂」框＋兩道短橫＋一點（不是加號；Antigravity v140 cat02 #2），邊緣幾個缺口像印泥沒沾滿
+					var ic := Color(1, 0.86, 0.76, 0.85)
+					var q0 := sq.grow(-7)
+					draw_polyline(PackedVector2Array([q0.position + Vector2(0, q0.size.y), q0.position, Vector2(q0.end.x, q0.position.y), q0.end]), ic, 1.8, true)
+					draw_line(q0.position + Vector2(4, q0.size.y * 0.42), Vector2(q0.end.x - 4, q0.position.y + q0.size.y * 0.42), ic, 1.6)
+					draw_line(q0.position + Vector2(4, q0.size.y * 0.72), Vector2(q0.end.x - 4, q0.position.y + q0.size.y * 0.72), ic, 1.6)
+					draw_circle(q0.get_center() + Vector2(0, -q0.size.y * 0.16), 1.6, ic, true, -1.0, true)
+					for nk in 3:
+						draw_rect(Rect2(sq.position + Vector2(3 + nk * 9, sq.size.y - 4), Vector2(3, 2)), Color(PAL.TRINKET_RED.darkened(0.15), 0.9))
+				else:
+					draw_circle(wr.get_center() + Vector2(1.5, 2.0), ws * 0.44, Color(DIM_INK, 0.45), true, -1.0, true)
+					draw_texture_rect(wx, wr, false, Color(0.62, 0.42, 0.42))
+					draw_arc(wr.get_center(), ws * 0.4, 0.0, TAU, 28, Color("#d9b25a"), 1.6, true)
+				if layout_probe:
+					probe_deco("wax", wr, rd, "left")
+	elif paper_face:
+		# V1.2.1 R1：紙面卡片（例如已過關的殘局）；懸停時紙變亮
+		if not _tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE) and layout_probe:
+			probe_faces.append([rd, false])   # 1.6.0 B02：紙貼圖缺了就不是淺紙（Codex v1600 B02 r2 #1）
+		_box(rd, Color(0, 0, 0, 0), TH_EDGE.darkened(0.25), 7.0, 1.5)
+	else:
+		_box(rd, bg, TH_EDGE.darkened(0.25) if solid else Color(0, 0, 0, 0), 7.0, 1.5)
+	if (tint.a <= 0.0 or tint.a > 0.6) and not paper_face and not plaque and not cloth:
+		draw_line(rd.position + Vector2(6, 1.5), rd.position + Vector2(rd.size.x - 6, 1.5), Color(1, 1, 1, 0.16), 1.5)
+		draw_line(rd.position + Vector2(6, rd.size.y - 1.5), rd.end - Vector2(6, 1.5), Color(0, 0, 0, 0.3), 2.0)
+	if pressed:
+		for k in 3:   # V1.2.1 R2：按下時上緣內陰影（像被壓進去）
+			draw_rect(Rect2(rd.position + Vector2(3, 2 + k * 2.0), Vector2(rd.size.x - 6, 2.0)), Color(0, 0, 0, 0.22 - k * 0.07))
+	if primary and enabled:
+		_btn_shine(rd)
+	if btn_deco.is_valid():
+		btn_deco.call(rd)
+rg: tools/tone_check.py: IO error for operation on tools/tone_check.py: No such file or directory (os error 2)
+build/check-cache/sim/f236ad10b9cb04ea70dc05fedeb2a265b73ce83baf488ef89d087513f183716e.json
+build/check-cache/sim/ebf6ab47c13b04fc2b253d2697d36d9412d7fe29ba77349df275397043fbdcb4.json
+build/check-cache/sim/e5c0180ab03944b2b5552b4401a5b1567adf14caa2809e343edb040c70d83e36.json
+build/check-cache/sim/e5707c03d1fa71984d62d6c421d1cb6383133d65f2e8dd4dc633f897b046571f.json
+build/check-cache/sim/e33ed500412d062db04e12d18c3e3a95c0de42a59493fb4052a3a7354dfebb7b.json
+build/check-cache/sim/e0f4d08470ad4aa5ca3aa50a8643c33a6195fb95b38a644d930b6afb04a23f04.json
+build/check-cache/sim/e0f2d2184f29a0a3bc7f78419273d733cb0466cda8040e1449ce2394da6ba677.json
+build/check-cache/sim/c3fd621b3fa4804111700b12d6a253b048ba79833bc2117b114c7aff4ce14761.json
+build/check-cache/sim/b0c5153c2c2bd7dbbe93c923ea1a87ab11fe977d99e25dcb0466e0a6d281d808.json
+build/check-cache/sim/b05a93826494c9bf6ad94b715e3bc62a6864b0455302a0422676a4c07c050b25.json
+build/check-cache/sim/ae8bf69eeb9de9d92b613a5fff4d5f2872ccb042686a927a7e0c73a3453105cb.json
+build/check-cache/sim/a526b043bebb59c22a2f529849427f6eba2cf3461e9692dc7cd5dba583d9c1ca.json
+build/check-cache/sim/99f484d54c09fb047ed6d9381f1902292cd3f364a8467e268a1f0ce9b39959fb.json
+build/check-cache/sim/8b8df551310941b0421353ad628aa05750efbfdcac900380ef35db54689287b8.json
+build/check-cache/sim/8363bad2eec5ebc5dcf50217b35b6bdd87f91aee5a326126b9ebcb047046f16b.json
+build/check-cache/sim/7b04fa91ed4a296bc2f2e803e02aa6168f5279404b2a7cbc120a7c06c2979151.json
+build/check-cache/sim/760bfadf2c0bfb9c1cfa102d559416fd2caa28eb20cc1106fd4cfcc932e0db04.json
+build/check-cache/sim/71282850d7336d97aaeb4bb04859b6ec1df75e31a1bd20c7500a7148b54cbc50.json
+build/check-cache/sim/6fd2f337e7dea1155aa9253b04c4d5732619ebf4d84e63cf1bae2a216210d067.json
+build/check-cache/sim/6c38ab0407c05769b7bc835443839517e6483ce2dfa9958aae11f903d84b4f67.json
+build/check-cache/sim/68ed71ea839d027bfaab27e5b4814120ced04a7c9423ba86467579d4bf367b04.json
+build/check-cache/sim/64cc107b026281cb7ddb045485cad40e57d93dd0c2796911a9c6ad435d2c7512.json
+build/check-cache/sim/3c9c53970d4921cf886b86cc6eb049b5e89b662398a6367e354c188e5837b712.json
+build/check-cache/sim/228dc7619dbf580fc5e1e6a991713ef343e07450bfbf2a9b04dfeb5b191dff29.json
+build/check-cache/sim/202cf90d8647f0661d626c4b228b4312ec911df1638d7caf65fef4b04bc7a479.json
+build/check-cache/sim/16c1d3a2dd53bb2f7b18fe008edd72fa5931c7c336b81a958926bb044c542f18.json
+build/tmp/b04q/zh_TW_100/v150_22a_lobby_step1.png
+build/tmp/b04q/zh_TW_100/run.log
+build/tmp/b04q/zh_TW_100/32_lobby_fantasy.png
+build/tmp/b04q/zh_TW_100/25_lobby_duel.png
+build/tmp/b04q/zh_TW_100/23_lobby_pool.png
+build/tmp/b04q/zh_TW_100/22_lobby.png
+build/tmp/b04q/en_150/v150_22a_lobby_step1.png
+build/tmp/b04q/en_150/run.log
+build/tmp/b04q/en_150/32_lobby_fantasy.png
+build/tmp/b04q/en_150/25_lobby_duel.png
+build/tmp/b04q/en_150/23_lobby_pool.png
+build/tmp/b04q/en_150/22_lobby.png
+build/tmp/b04_cmp.png
+build/cg/b04/game/tools/screens.json
+build/cg/b04/game/data/trio.json
+build/cg/b04/game/data/trials.json
+build/cg/b04/game/data/puzzles.json
+build/cg/b04/game/tests/golden/v140_cases.json
+build/cg/b04/game/tests/golden/star_solutions.json
+## 1.6.0 B04（S1）：大廳手把 ≤3 步開戰——真的畫面、真的手把 A（走 _input），從打開大廳（第一步）按到進入擺陣，
+## 印 LOBBYPAD OK／FAIL；走完回到大廳第三步、還原手把模式（之後的截圖照舊）。
+func _lobby_pad_walk() -> void:
+	var pad0: bool = pad_mode
+	var had_dis: bool = shot_state.has("dis")   # 停用組合：全部按鈕畫成停用，A 按不下去；走的時候拿掉（同 _note_pin_walk）
+	shot_state.erase("dis")
+	_go_title()
+	_open_lobby("ai")
+	lobby_step = 0
+	var steps := 0
+	for i in 5:
+		queue_redraw()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		if state != St.TITLE or overlay != "lobby":
+			break
+		for dn in [true, false]:
+			var e := InputEventJoypadButton.new()
+			e.device = 0
+			e.button_index = JOY_BUTTON_A
+			e.pressed = dn
+			_input(e)
+			await get_tree().process_frame
+		steps += 1
+	for i in 3:
+		await get_tree().process_frame
+	var ok: bool = state == St.PLACE and steps <= 3
+	print("LOBBYPAD ", "OK" if ok else "FAIL", " ", JSON.stringify({"steps": steps, "state": int(state), "overlay": overlay}))
+	_go_title()
+	_open_lobby("ai")
+	mouse = Vector2(-100, -100)
+	pad_mode = pad0
+	if had_dis:
+		shot_state["dis"] = true
+
+func _note_pin_walk() -> void:
+	# 「停用」組合（:dis）會把所有按鈕畫成停用、A 按不下去；這段驗的是手把能走到並打開便條，走的時候暫時拿掉停用旗標
+	var had_dis: bool = shot_state.has("dis")
+	shot_state.erase("dis")
+	var pad0: bool = pad_mode   # 走查送真的手把事件會切到手把模式：走完還原，不然之後的截圖都多了手把提示（1.6.0 B04 抓到）
+	var lay: Dictionary = _note_pin_layout()
+	var target: Vector2 = (lay["btn"] as Rect2).get_center()
+
+exec
+/bin/bash -lc "rg -n 'func _trans_gate|func _trans_enabled|shot_dir "'!=|layout_probe'"' build/cg/b04/game/scripts/ui/ui_base.gd | tail -20; nl -ba build/cg/b04/game/scripts/ui/ui_base.gd | sed -n '1600,1695p'; nl -ba build/cg/b04/game/scripts/ui/lobby_view.gd | sed -n '618,632p'; rg -n 'lobby_stamps|last_rules' build/cg/b04/game/scripts/ui/lobby_view.gd | head -15; rg -n '"'^func _trans_gate'"' build/cg/b04/game/scripts/ui/*.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 30ms:
+962:	if layout_probe:
+973:		if layout_probe:
+1020:				if layout_probe:
+1024:		if not _tex_box(rd, "paper", Color(1.12, 1.1, 1.04) if (hover or focus) else Color.WHITE) and layout_probe:
+1053:	if layout_probe:
+1210:	if overlay != host or shot_dir != "" or layout_probe:
+1225:	return note_pin_force or (shot_dir == "" and not layout_probe and preload("res://scripts/game/guide.gd").is_new(Save.data, "note_" + key))
+1320:	if _tex_cache[path] == null and layout_probe and not path in probe_missing:
+1353:		if layout_probe:
+1355:		if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
+1363:	if layout_probe:
+1386:	if layout_probe and minf(r.size.x, r.size.y) >= 20.0:
+1415:	if layout_probe and MAT_MARGIN.has(kind) and minf(r.size.x, r.size.y) >= 20.0:
+1438:	if layout_probe and bg.a >= 0.6 and bg.get_luminance() < 0.35:
+1476:	if layout_probe and _probe_ui:
+1527:	if layout_probe:
+1591:	if layout_probe:
+1620:	if layout_probe:
+1916:		if layout_probe:
+1969:	elif scale <= 1.4 and sprites != null and not sprites.build_done and int(get("state")) == St.TITLE and str(get("shot_dir")) == "" and not layout_probe:
+  1600		_probe_cell_id = ""
+  1601		_probe_btn_label = false
+  1602	
+  1603	
+  1604	## ── 輸入命令佇列（第三輪 A2）──
+  1605	## 輸入事件不再直接執行，也不在 _draw 裡派發：先排進佇列，在 _process 開頭依序處理。
+  1606	## 每個命令記下排入時的「畫面世代」；畫面（狀態、覆蓋層、模式）一換，舊命令就丟掉，避免點到下一個畫面的按鈕。
+  1607	## 點擊只對「這個世代畫出來的按鈕」有效（_btns_gen）。
+  1608	func _enqueue(kind: String, data) -> void:
+  1609		_cmds.append({"kind": kind, "data": data, "gen": _gen})
+  1610	
+  1611	func _update_gen() -> void:
+  1612		var key := "%d|%s|%d" % [state, overlay, mode]
+  1613		if key != _gen_key:
+  1614			_gen_key = key
+  1615			_gen += 1
+  1616	
+  1617	
+  1618	## 自己畫框、不走 _panel 的模態面板也要登記（R1、漏登記守衛）
+  1619	func probe_panel(r: Rect2) -> void:
+  1620		if layout_probe:
+  1621			probe_panels.append({"id": "P%d" % probe_panels.size(), "r": r, "skip": {}})
+  1622	
+  1623	## 1.2.0 §1.2「一個畫面＝一個實物」：疊層 → 實物種類。只在面板外框一圈（框外 8px 到框內 10px）加裝飾、
+  1624	## 面板內容區與文字底色不變（對比、版面探針不受影響）；簡化介面不畫。第 4 大類 A0。
+  1625	## 1.3.0 §8 每個畫面一件器物：大廳＝對局手帳、殘局＝棋譜冊、圖鑑＝標本木箱、設定＝工匠工具箱、戰績＝獎盃架、代碼＝郵局櫃台、覆盤＝批註本（1.2.0 的經摺帖、畫筒、牛皮箱…其餘照舊）
+  1626	const OBJ_OF := {"puzzles": "book", "trials": "tube", "codex": "specimen", "settings": "toolbox", "keys": "toolbox", "profile": "shelf", "nemeses": "ebony", "lobby": "notebook", "review": "annot", "owner_daily": "book",
+  1627		"codes": "post", "wave_codes": "post", "songbook": "fold", "playroom": "tin", "weekly": "tin", "ghosts": "tin", "confirm": "card", "leave": "card", "pause_menu": "clock"}
+  1628	var panel_obj := ""
+  1629	var obj_open_r := Rect2()     # 1.2.0 第 11 大類：這一幀畫的實物面板（開合動畫用）
+  1630	var obj_open_kind := ""
+  1631	
+  1632	## 1.2.0 第 11 大類 實物開合（第 4 大類記錄）：疊層打開的前 0.3 秒，在面板上蓋一層「還沒打開的那一面」再收走——
+  1633	## 木盒類掀蓋往上收、經摺帖／畫筒往右攤開、信封三角封口往上翻。只疊畫、不縮放不位移（按鈕位置與滑鼠一致，Codex v120-impl2）；
+  1634	## 截圖、版面檢查、減少特效、簡化介面不演（呼叫端判斷）。k＝0→1。
+  1635	## 1.3.0：器物裝飾畫到面板外多遠（版面檢查用；照 _obj_deco 的實際幾何）。
+  1636	static func obj_extent(r: Rect2, kind: String) -> Rect2:
+  1637		match kind:
+  1638			"toolbox": return Rect2(r.position - Vector2(33, 12), r.size + Vector2(66, 28))   # 提環弧＋描邊約外伸 31.5（Codex cat09 #1）
+  1639			"specimen", "case": return Rect2(r.position - Vector2(12, 0), r.size + Vector2(24, 20))
+  1640			"shelf":
+  1641				var top := maxf(r.position.y - 4.0, 30.0) - 26.0
+  1642				var sy := minf(r.end.y + 8.0, 800.0 - 32.0)
+  1643				return Rect2(Vector2(r.position.x - 24, minf(top, r.position.y)), Vector2(r.size.x + 48, sy + 30.0 - minf(top, r.position.y)))
+  1644			"post", "letter": return Rect2(r.position - Vector2(28, 28), r.size + Vector2(28, 50))
+  1645			"book", "annot": return Rect2(r.position - Vector2(20, 6), r.size + Vector2(54, 16))
+  1646			"notebook": return Rect2(r.position - Vector2(12, 6), r.size + Vector2(38, 12))
+  1647		return r.grow(10)
+  1648	
+  1649	const OBJ_ANIM := {"toolbox": "box", "specimen": "case", "shelf": "box", "book": "fold", "notebook": "fold", "annot": "fold", "post": "letter"}   # 1.3.0 器物借用的開合動畫
+  1650	func _obj_open_anim(r: Rect2, kind: String, k: float) -> void:
+  1651		kind = str(OBJ_ANIM.get(kind, kind))
+  1652		var e := 1.0 - (1.0 - k) * (1.0 - k) * (1.0 - k)   # ease out
+  1653		var wood := Color("#7a5232")
+  1654		var paper := Color("#efe3c8")
+  1655		match kind:
+  1656			"box", "case", "trunk", "tin", "clock", "ebony":
+  1657				var h := r.size.y * (1.0 - e)
+  1658				if h < 1.0:
+  1659					return
+  1660				var col := Color("#3a2416") if kind == "ebony" else (Color("#8a8f93") if kind == "tin" else (Color("#8b4f2a") if kind == "trunk" else wood))   # 牛皮偏紅褐，和木頭分開
+  1661				var lid := Rect2(r.position - Vector2(10, 10), Vector2(r.size.x + 20, h + 10))
+  1662				draw_rect(Rect2(lid.position + Vector2(0, lid.size.y), Vector2(lid.size.x, 14)), Color(DIM_INK, 0.35 * (1.0 - e)))   # 掀起的蓋子在下面落影
+  1663				draw_rect(lid, col)
+  1664				for i in int(lid.size.y / 18.0):
+  1665					draw_rect(Rect2(lid.position.x, lid.position.y + 9 + i * 18, lid.size.x, 1), Color(0, 0, 0, 0.12))   # 木紋／鐵皮壓紋
+  1666				draw_rect(Rect2(lid.position.x, lid.end.y - 4, lid.size.x, 4), Color(1, 0.9, 0.7, 0.25))   # 蓋緣受光
+  1667				var edge_h := minf(12.0, lid.size.y)
+  1668				draw_rect(Rect2(lid.position.x, lid.end.y - edge_h, lid.size.x, edge_h), col.darkened(0.35))   # 蓋子的端面（厚度）
+  1669				draw_rect(Rect2(lid.position.x, lid.end.y - edge_h, lid.size.x, 2), Color(1, 0.9, 0.7, 0.3))
+  1670				if kind == "trunk":
+  1671					draw_rect(Rect2(lid.position + Vector2(10, 8), lid.size - Vector2(20, 8 + edge_h + 4)), Color("#f0e2c0", 0.55), false, 1.5)   # 皮革縫線
+  1672					for cx in [lid.position.x, lid.end.x - 22.0]:
+  1673						draw_rect(Rect2(cx, lid.end.y - edge_h - 18, 22, 18 + edge_h), Color("#4a2c18"))   # 包角
+  1674				for hx in [lid.position.x + lid.size.x * 0.22, lid.position.x + lid.size.x * 0.78]:
+  1675					draw_rect(Rect2(hx - 14, lid.end.y - edge_h - 6, 28, edge_h + 10), Color("#a8873a"))   # 鉸鏈
+  1676					draw_rect(Rect2(hx - 2, lid.end.y - edge_h - 6, 4, edge_h + 10), Color("#6e5520"))
+  1677				draw_rect(Rect2(r.get_center().x - 16, lid.end.y - 14, 32, 10), Color("#c9a24a"))   # 鎖扣
+  1678			"fold", "tube":
+  1679				var w := r.size.x * (1.0 - e)
+  1680				if w < 1.0:
+  1681					return
+  1682				var pr := Rect2(Vector2(r.end.x - w, r.position.y - 6), Vector2(w + 6, r.size.y + 12))
+  1683				draw_rect(pr, paper)
+  1684				var nf := 5
+  1685				for i in range(1, nf):
+  1686					var x := pr.position.x + pr.size.x * i / nf
+  1687					draw_rect(Rect2(x - 3, pr.position.y, 3, pr.size.y), Color(DIM_INK, 0.12))
+  1688				draw_rect(Rect2(pr.position.x - 8, pr.position.y, 8, pr.size.y), Color(DIM_INK, 0.25 * (1.0 - e)))   # 還沒攤開那疊的厚度影
+  1689			"letter":
+  1690				var apex_y := r.position.y + r.size.y * 0.55 * (1.0 - e)
+  1691				if apex_y - r.position.y < 2.0:
+  1692					return
+  1693				draw_colored_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), Vector2(r.get_center().x, apex_y)]), paper.darkened(0.06))
+  1694				draw_polyline(PackedVector2Array([r.position, Vector2(r.get_center().x, apex_y), Vector2(r.end.x, r.position.y)]), Color(DIM_INK, 0.5), 2.0)
+  1695				draw_circle(Vector2(r.get_center().x, apex_y - 14), 14, Color("#8e1b14"))   # 蠟封跟著封口走
+   618		for i in Presets.IDS.size():
+   619			var id: String = Presets.IDS[i]
+   620			var p = Presets.make(id, lobby_kind, _lobby_unlocked())
+   621			Presets.clamp_pool(p, lobby_kind, _lobby_unlocked(), _demo())
+   622			var r := Rect2(o + Vector2(i * (w + 10), 0), Vector2(w, h))
+   623			var on: bool = lobby_r.preset == id
+   624			# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
+   625			if on:
+   626				btn_deco = _draw_bookmark
+   627			# 1.2.0 第 4 大類：預設分頁是布標（選中靛藍）；1.6.0 B04（P2.4）未選中的改木撥片（暗木牌、淺字），挑戰簿上一排木撥片
+   628			btn_cloth = "tab_indigo" if on else ("" if paper_book else "tab_linen")
+   629			_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+   630			btn_cloth = ""
+   631			var on_paper := last_btn_paper   # 原胚布：字用墨色
+   632			btn_deco = Callable()
+29:	var code := str(Save.data.get("last_rules", {}).get(kind, ""))
+35:			r.preset = str(Save.data.get("last_rules", {}).get(kind + "_preset", "custom"))
+38:			var ex = Save.data.get("last_rules", {}).get(kind + "_extra", [])
+66:	var code := str(Save.data.get("last_rules", {}).get("ai", ""))
+73:	if not quick_rematch_ok() or _lobby_block() != "" or lobby_r.to_code() != str(Save.data.get("last_rules", {}).get("ai", "")):
+141:		Save.data["lobby_stamps"] = mini(99, int(Save.data.get("lobby_stamps", 0)) + 1)   # 1.4.0 §1.1 手帳上的印跡
+147:	var lr: Dictionary = Save.data.get("last_rules", {})
+151:	Save.data["last_rules"] = lr
+581:		var ns := mini(3, int(Save.data.get("lobby_stamps", 0)))
+build/cg/b04/game/scripts/ui/game_screens.gd:1204:func _trans_gate(ev: InputEvent) -> bool:
+
+exec
+/bin/bash -lc "nl -ba build/cg/b04/game/scripts/ui/game_screens.gd | sed -n '1180,1225p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+  1180		stick[JOY_AXIS_LEFT_X] = 0.0   # 失焦期間回中收不到事件：左搖桿舊值與連發狀態一起清（Codex v150 cat01 r3 #2）
+  1181		stick[JOY_AXIS_LEFT_Y] = 0.0
+  1182		set("_stick_dir", Vector2i.ZERO)
+  1183		trans_eat.clear()
+  1184		trans_stick_eat = false
+  1185		trans_rstick_eat = false
+  1186	
+  1187	## 輸入的身分：同一顆鍵／同一個滑鼠鈕／同一根手指的按下與放開對得起來
+  1188	static func trans_sig(ev: InputEvent) -> String:
+  1189		if ev is InputEventKey:
+  1190			return "k%d" % int(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
+  1191		if ev is InputEventMouseButton:
+  1192			return "m%d" % int(ev.button_index)
+  1193		if ev is InputEventJoypadButton:
+  1194			return "j%d:%d" % [ev.device, int(ev.button_index)]
+  1195		if ev is InputEventScreenTouch:
+  1196			return "t%d" % int(ev.index)
+  1197		return ""
+  1198	
+  1199	## 轉場的輸入閘門（在 _input 最前面）：轉場中任何按下＝跳到終態並吃掉，連同同一個輸入的放開（含按住的連發）；
+  1200	## 拖曳、滾輪、捲動、hover 在轉場中都不生效（Codex cat08 #2～#5）。回傳 true＝這個事件吃掉。
+  1201	var _held := {}             # 目前按住的輸入身分（轉場開始時一併列入要吃掉的清單：開頁前按下、轉場後放開不能變成新頁上的點擊；1.5.0 輸入矩陣）
+  1202	var _trans_skip_t := -1.0   # 跳過轉場的那一幀：同一幀的其他按下也吃掉（兩個輸入同時按）
+  1203	
+  1204	func _trans_gate(ev: InputEvent) -> bool:
+  1205		if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+  1206			if ev.axis == JOY_AXIS_RIGHT_X:
+  1207				_rstick.x = ev.axis_value   # 平常也記（轉場開始時要知道還推著沒）
+  1208			else:
+  1209				_rstick.y = ev.axis_value
+  1210		var sig0 := trans_sig(ev)
+  1211		if sig0 != "":
+  1212			if ev.pressed:
+  1213				_held[sig0] = true
+  1214			else:
+  1215				_held.erase(sig0)
+  1216		var active := ov_trans_k() < 1.0
+  1217		if not active and trans_eat.is_empty() and time != _trans_skip_t and not trans_rstick_eat:
+  1218			return false
+  1219		if ev is InputEventMouseMotion:
+  1220			mouse = ev.position
+  1221			return active
+  1222		if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
+  1223			var dzr := int(Save.s("deadzone")) / 100.0
+  1224			if (active or time == _trans_skip_t) and absf(ev.axis_value) >= dzr:   # 同一幀先按鍵跳過、再推搖桿也鎖（Codex v150 cat01 r3 #1）
+  1225				if active:
+
+codex
+必改（行號均指快照）：
+
+1. [ui_base.gd:1271](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b04/game/scripts/ui/ui_base.gd:1271)：首次便條關閉後未恢復主鈕焦點；開廳時的旗標已被消耗，焦點回到首個玩法頁籤，連按 A 無法三步開戰。截圖模式略過便條，走查漏驗此路徑。
+
+2. [lobby_view.gd:629](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b04/game/scripts/ui/lobby_view.gd:629)：空標籤使 `_btn` 的 `plaque` 判斷為假（ui_base.gd:960）；清空布材質後實際畫圓角色塊，沒有木牌材質。須明確支援外繪文字的木撥片。
+
+3. [dev_main.gd:2578](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b04/game/tools/dev_main.gd:2578)：走查僅 AI、逐幀 A，且截圖模式停用轉場；新測試亦未送同幀雙輸入。須補雙人、撥片切換、翻頁返回與正常轉場的 IN-160-01 驗證，現有 OK 不足以驗收。
+
+結論：有條件
+tokens used
+71,510

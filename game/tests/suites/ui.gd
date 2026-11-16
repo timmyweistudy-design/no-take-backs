@@ -2851,9 +2851,9 @@ func test_desk_table_v1600() -> void:
 	var Sv = load("res://scripts/game/save.gd")
 	# 全站桌燈紙：紙與卡紙乘 paper_tone；標題頁本身（沒疊層）、簡化介面不乘
 	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
-	ok(ub.find("if kind == \"paper\":\n\t\ttint = tint * (PAL.PAPER_DESK_TONE_TEX") >= 0 and ub.find("if kind.begins_with(\"card\"):\n\t\ttint = tint * paper_tone") >= 0, "羊皮紙、卡紙都乘桌燈色調")
+	ok(ub.find("if kind == \"paper\":\n\t\ttint = tint * ((PAL.PAPER_BOOK_TONE_TEX if paper_book else PAL.PAPER_DESK_TONE_TEX) if paper_tone != Color.WHITE") >= 0 and ub.find("if kind.begins_with(\"card\"):\n\t\ttint = tint * paper_tone") >= 0, "羊皮紙、卡紙都乘桌燈色調（大廳簿紙再暗一階，B04）")
 	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
-	ok(gsrc.find("not bool(Save.s(\"plain_ui\")) and not (state == St.TITLE and overlay == \"\") and overlay != \"lobby\"") >= 0, "桌燈紙的範圍：簡化介面、標題頁本身、大廳（B04）除外")
+	ok(gsrc.find("not bool(Save.s(\"plain_ui\")) and not (state == St.TITLE and overlay == \"\") and not no_desk_paper") >= 0, "桌燈紙的範圍：簡化介面、標題頁本身除外（大廳 B04 起是簿紙）")
 	var dark_paper: Color = Color("#efe4cc") * PAL.PAPER_DESK_TONE
 	ok(load("res://tools/dev_main.gd").contrast(Color("#2a1e15"), dark_paper) >= 4.5, "深墨字對桌燈紙 ≥4.5:1")
 	# 地形微縮：地塊烘焙的光向＝全站接觸影方向
@@ -2968,4 +2968,93 @@ func test_desk_table_v1600() -> void:
 		Sv.data.erase("seen")
 	else:
 		Sv.data["seen"] = keep_seen
+	g.free()
+
+
+## 1.6.0 B04（S1；P2.4、P2.1、英文頁籤縮寫）挑戰簿：簿紙色調在 45～65、暗木框、木撥片、英文大字級頁籤縮寫、
+## 打開大廳焦點就在主鈕（手把 ≤3 步開戰；真畫面走查是截圖流程的 LOBBYPAD）、IN-160-01（返回、重開焦點恢復、同幀第二輸入）。
+func test_lobby_book_v1600() -> void:
+	var PAL = load("res://scripts/ui/palette.gd")
+	var lstar := func(c: Color) -> float:
+		var lin := func(v: float) -> float:
+			return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
+		var y: float = 0.2126 * lin.call(c.r) + 0.7152 * lin.call(c.g) + 0.0722 * lin.call(c.b)
+		return 116.0 * pow(y, 1.0 / 3.0) - 16.0 if y > 0.008856 else 903.3 * y
+	var lf: float = lstar.call(PAL.BOOK_FLAT)
+	ok(lf >= 45.0 and lf <= 65.0, "簿紙平塗色 L* %.1f 在 45～65（截圖實測中位 63.0）" % lf)
+	ok(PAL.PAPER_BOOK_TONE_TEX.v < PAL.PAPER_DESK_TONE_TEX.v and PAL.BOOK_FLAT_A >= 0.5, "簿紙比桌燈紙暗一階、平塗層讓斑紋減半以上")
+	ok(load("res://tools/dev_main.gd").contrast(Color("#2a1e15"), PAL.BOOK_FLAT) >= 4.5, "深墨字對簿紙 ≥4.5:1")
+	ok(PAL.BOOK_FRAME_DIM > 0.0 and PAL.BOOK_FRAME_DIM <= 0.25, "暗木框壓暗 %.2f（截圖實測 L* 13.5）" % PAL.BOOK_FRAME_DIM)
+	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+	ok(gsrc.find("paper_book = desk_paper and (overlay == \"lobby\" or note_ret == \"lobby\")") >= 0 and gsrc.find("paper_tone = Color.WHITE\n\tpaper_book = false") >= 0, "簿紙只在大廳、每幀畫完歸零")
+	ok(gsrc.find("overlay != \"lobby\"") < 0, "大廳不再排除在桌燈紙之外（B06 留給本批的那條拿掉）")
+	var lsrc: String = FileAccess.get_file_as_string("res://scripts/ui/lobby_view.gd")
+	ok(lsrc.find("btn_cloth = \"tab_indigo\" if on else (\"\" if paper_book else \"tab_linen\")") >= 0, "未選中的頁籤是木撥片（選中仍是靛布＋書籤）")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g._load_fonts()
+	var LS = load("res://scripts/game/strings.gd")
+	var Sv = load("res://scripts/game/save.gd")
+	var keep_lang = LS.lang
+	var keep_ts = Sv.settings.get("text_scale", 100)
+	var tw_min: float = 154.0 - 6.0 - g.BM_SLOT
+	var te: float = tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
+	LS.lang = "en"
+	Sv.settings["text_scale"] = 150
+	var en_short: bool = g.tab_label("fantasy", te) == LS.t("lb_p_fantasy_short") and g.tab_label("single", te) == LS.t("lb_p_single_short")
+	var one_line := true
+	for id in ["standard", "classic5", "fantasy", "small", "big", "single"]:
+		var lab: String = g.tab_label(id, te)
+		one_line = one_line and g.wrap_lines(lab, g.fit(lab, g.tz("B"), te, true), te, true).size() == 1
+	var dbg := []
+	for id in ["standard", "classic5", "fantasy", "small", "big", "single"]:
+		var lab2: String = g.tab_label(id, te)
+		dbg.append("%s=%d" % [lab2, g.wrap_lines(lab2, g.fit(lab2, g.tz("B"), te, true), te, true).size()])
+	ok(en_short and one_line and g.lobby_tab_h() == 68.0, "英文 150%：擠成兩行的頁籤改縮寫，六個頁籤都一行、頁籤不長高", "%s short=%s h=%s" % [dbg, en_short, g.lobby_tab_h()])
+	Sv.settings["text_scale"] = 100
+	ok(g.tab_label("fantasy", te) == LS.t("lb_p_fantasy"), "英文 100% 放得下就用全名")
+	LS.lang = "zh_TW"
+	Sv.settings["text_scale"] = 150
+	ok(g.tab_label("single", te) == LS.t("lb_p_single"), "中文不縮寫")
+	LS.lang = keep_lang
+	Sv.settings["text_scale"] = keep_ts
+	# 手把 ≤3 步：打開大廳焦點交給主鈕；第一步→第二步→開戰各一下 A
+	g._open_lobby("ai")
+	ok(g.overlay == "lobby" and g._lb_focus_main, "打開大廳焦點就在主鈕（下一步／開戰）")
+	ok(3 - g.lobby_step <= 3, "從打開到開戰最多 3 下 A（第 %d 步起）" % g.lobby_step)
+	# IN-160-01：返回後重開，焦點照樣回到主鈕（不留在舊索引）
+	g._focus = 5
+	g._key(KEY_ESCAPE)
+	ok(g.overlay != "lobby", "大廳 B／Esc 返回")
+	g._open_lobby("ai")
+	ok(g._lb_focus_main, "重開大廳焦點恢復到主鈕")
+	# 首次大廳便條關掉：焦點回到主鈕（Codex B04 r1 #1）
+	g._lb_focus_main = false
+	g.overlay = "boss_note"
+	g.note_key = "lobby"
+	g.note_ret = "lobby"
+	g._close_boss_note()
+	ok(g.overlay == "lobby" and g._lb_focus_main, "大廳便條關掉後焦點回主鈕")
+	# 跨轉場（IN-160-01）：大廳滑入中按 A＝吃掉（跳過轉場），不會按到底下的按鈕、不換步
+	g.time = 50.0
+	g._go_title()
+	g._open_lobby("ai")
+	g.lobby_step = 0
+	var fired := [false]
+	g._btns.clear()
+	g._btns.append({"r": Rect2(966, 700, 234, 48), "cb": func(): fired[0] = true, "en": true})
+	g._btns_gen = g._gen
+	g._focus = 0
+	g.pad_mode = true
+	g._ov_t = g.time   # 轉場起點（_process 偵測到疊層換了才設；這裡直接設成「剛打開」）
+	var in_trans: bool = g.ov_trans_k() < 1.0
+	for dn in [true, false]:
+		var e := InputEventJoypadButton.new()
+		e.button_index = JOY_BUTTON_A
+		e.pressed = dn
+		g._input(e)
+	g._process_cmds()
+	ok(in_trans and not fired[0] and g.lobby_step == 0, "大廳滑入轉場中按 A 不會落到按鈕（轉場中=%s）" % in_trans)
+	ok(FileAccess.get_file_as_string("res://tools/dev_main.gd").find("print(\"LOBBYPAD \"") >= 0, "截圖流程有真畫面手把走查（對 AI、雙人 ≤3 步、同幀兩下只走一步、撥片切換、重開焦點）")
 	g.free()

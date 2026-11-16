@@ -757,14 +757,16 @@ func _draw() -> void:
 	mag_hit = []
 	var _t0 := Time.get_ticks_usec()
 	# 1.6.0 B06（方案 P1.3 主材質全站）：桌燈下的紙——全站紙面（羊皮紙、卡紙）乘桌燈色調、紙上彩色字用深墨（B03 結果紙同一套）。
-	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳整頁屬 B04（挑戰簿重做紙面；先套桌燈紙會讓說明字的紙紋暗斑 <4.5:1）；
+	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳＝挑戰簿（B04：簿紙再暗一階，貼圖上蓋平塗層讓斑紋減半，暗斑不 <4.5:1）；
 	# 簡化介面照舊平塗亮紙（雙階色塊規格）。
-	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and overlay != "lobby" and note_ret != "lobby" and not no_desk_paper
+	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and not no_desk_paper
 	paper_tone = PAL.PAPER_DESK_TONE if desk_paper else Color.WHITE
+	paper_book = desk_paper and (overlay == "lobby" or note_ret == "lobby")   # 1.6.0 B04：大廳＝挑戰簿（B06 留給本批）
 	ink_deep = desk_paper
 	_draw_inner()
 	ink_deep = false
 	paper_tone = Color.WHITE
+	paper_book = false
 	_draw_magnifier()   # V1.6 #7：最上層
 	perf_draw_us = Time.get_ticks_usec() - _t0
 

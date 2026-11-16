@@ -904,6 +904,8 @@ static func _wcag(a: Color, b: Color) -> float:
 ## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
 ## 1.6.0 B03：ink_deep＝桌燈下的暗紙（結果紙 L*≈64）：彩色字再壓深、中間調的彩色（隊色小圖示）也壓，對紙 ≥4.5:1
 static var ink_deep := false
+var btn_plaque := false   # 1.6.0 B04（Codex r1 #2）：字由呼叫端另外畫（墨色）的木牌——挑戰簿的木撥片頁籤
+static var paper_book := false   # 1.6.0 B04：大廳挑戰簿打開時＝簿紙（再暗一階）
 static var paper_tone := Color.WHITE   # 1.6.0 B06：全站紙面乘這個色（桌燈下的紙＝PAL.PAPER_DESK_TONE；game_screens._draw 每幀設定）
 static func _ink(c: Color) -> Color:
 	var lum := c.get_luminance()
@@ -915,7 +917,7 @@ static func _ink(c: Color) -> Color:
 			return Color(c.darkened(0.5), a0)
 	if lum < 0.45:
 		return c
-	var a := c.a if c.a < 0.45 else maxf(c.a, 0.85)   # V1.2.1 F5：紙上墨字至少 85%；很淡的裝飾（空星）保持淡
+	var a := c.a if c.a < 0.45 else maxf(c.a, 0.97 if paper_book else 0.85)   # V1.2.1 F5：紙上墨字至少 85%；很淡的裝飾（空星）保持淡；1.6.0 B04：簿紙暗一階，墨字近乎不透明（Hydrogen B04 r1 #2：灰字發悶）
 	if c.s < 0.25:
 		return Color(INK, a)
 	return Color(c.darkened(0.74), a)
@@ -956,7 +958,7 @@ func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary :=
 	# 1.2.0 第 4 大類 A10：「木色／選中」兩種標準色的按鈕也走木牌（原本是深色圓角塊，Antigravity cat03 #1）；選中＝暖一點的木牌＋朱砂框（不只靠顏色）。
 	# 木色／選中但沒有自己標籤的按鈕（字由呼叫端另外畫白字：技能格、試煉卡、禁用卡、遠征獎勵卡）維持原本深色，避免白字落在淺木牌上（Codex cat04 #1）
 	var sel_on: bool = tint == TH_ACTIVE
-	var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or ((sel_on or tint == TH_WOOD) and label != "")) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+	var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or ((sel_on or tint == TH_WOOD) and (label != "" or btn_plaque))) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
 	last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
 	if layout_probe:
 		probe_faces.append([rd, last_btn_paper])   # 實際畫出來的面（不含擴大的點擊區；Codex v1600 B02 #2）；深色鈕也登記（紙上的深色鈕裡白字是對的）
@@ -1272,6 +1274,8 @@ func _close_boss_note() -> void:
 	Save.save_data()
 	overlay = note_ret
 	note_ret = ""
+	if overlay == "lobby":
+		set("_lb_focus_main", true)   # 1.6.0 B04（Codex r1 #1）：首次大廳便條關掉後，焦點回到主鈕（手把 ≤3 步開戰不斷）
 
 func _draw_boss_note() -> void:
 	var w := 600.0
@@ -1362,7 +1366,7 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 	if layout_probe:
 		probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
 	if kind == "paper":
-		tint = tint * (PAL.PAPER_DESK_TONE_TEX if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
+		tint = tint * ((PAL.PAPER_BOOK_TONE_TEX if paper_book else PAL.PAPER_DESK_TONE_TEX) if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
 	tint = qcol(tint)   # V1.2.1 F1：量化後當鍵，淡出時不會每幀多一個樣式
 	var k := "t|%s|%s" % [kind, tint.to_html()]
 	var sb: StyleBoxTexture = _sb_cache.get(k)

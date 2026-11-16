@@ -1,0 +1,5 @@
+1. 綠牌字色：[zh_TW_100_22_lobby](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b04-r1/hy2/zh_TW_100_22_lobby_old_left_new_right.png)/[en_150_22_lobby](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b04-r1/hy2/en_150_22_lobby_old_left_new_right.png)/[zh_TW_100_25_lobby_duel](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b04-r1/hy2/zh_TW_100_25_lobby_duel_old_left_new_right.png)/[en_150_25_lobby_duel](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b04-r1/hy2/en_150_25_lobby_duel_old_left_new_right.png) 右圖左頁綠牌清晰；含 [zh_TW_100_v150_22a](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b04-r1/hy2/zh_TW_100_v150_22a_lobby_step1_old_left_new_right.png)/[en_150_v150_22a](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b04-r1/hy2/en_150_v150_22a_lobby_step1_old_left_new_right.png) 6右圖字與步驟加深。
+2. 木牌縮寫：6右圖頂未選木牌與藍布明確；en_150 頂排 Monsters、Grand army、1-Type 均單行。
+3. 疑點：6右圖頂排「經典5種/Classic 5」底緣綠線不確定是否為標記；無退步。
+
+結論：Go

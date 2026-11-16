@@ -7,24 +7,26 @@ import glob, json, os, sys
 
 def load(out):
     spots, combos = {}, set()
+    shots = set()
     for f in sorted(glob.glob(os.path.join(out, "*", "layout.jsonl"))):
         combo = os.path.basename(os.path.dirname(f))
         combos.add(combo)
         for ln in open(f, encoding="utf-8"):
             d = json.loads(ln)
+            shots.add((combo, d["shot"]))
             for w in d.get("warnings", []):
                 if w.get("type") in ("紙面暗斑對比", "紙面暗斑未量"):
                     # 鍵含位置（Codex B06 r3 #3：同頁同字別處新增的暗斑不會被既有那筆蓋掉）；「未量」＝取樣不足，桌燈紙新增的也算失敗
                     spots[(combo, d["shot"], w.get("s", ""), tuple(w.get("at", ())), w["type"])] = float(w.get("ratio", 0))
-    return spots, combos
+    return spots, combos, shots
 
-on, c_on = load(sys.argv[1])
-off, c_off = load(sys.argv[2])
+on, c_on, _ = load(sys.argv[1])
+off, c_off, s_off = load(sys.argv[2])
 fails = []
 # 對照（關）可以只拍幾組（四語、三字級各涵蓋）：只在對照有的組合上比；對照的組合開的那邊一定要有
 if not c_off or not c_off <= c_on:
     fails.append("對照組合不在新版裡或是空的（開 %s／關 %s）" % (sorted(c_on), sorted(c_off)))
-on = {k: v for k, v in on.items() if k[0] in c_off}
+on = {k: v for k, v in on.items() if (k[0], k[1]) in s_off}   # 只比對照（關）有拍到的畫面×組（1.6.0 B04：對照只拍大廳那幾張）
 added = sorted(k for k in on if k not in off)
 for k in added:
     print("  新增%s：%s %s「%s」@%s %.2f" % (k[4][2:], k[0], k[1], k[2], list(k[3]), on[k]))

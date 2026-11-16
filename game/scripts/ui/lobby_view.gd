@@ -56,6 +56,7 @@ func _open_lobby(kind: String) -> void:
 	lobby_item = ""
 	lobby_tab = 0
 	lobby_step = 2 if code != "" else 0   # 1.5.0：有上次設定＝直接到「確認」（遠征牌→快速對戰→開戰）
+	_lb_focus_main = true   # 1.6.0 B04（S1 手把 ≤3 步開戰）：一打開焦點就在主鈕（下一步／開戰），A 連按三下就開戰
 	_open("lobby")
 
 ## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
@@ -506,6 +507,8 @@ func _badge_pill(p: Vector2, b: String) -> float:
 	var fs := tz("S")
 	var w := maxf(_width(lab, fs, true) + 20.0, _width(lab, fs, true) / 0.86 + 2.0)   # 1.4.0 R12：左右各留 max(10, 寬×6%)
 	var r := Rect2(p, Vector2(w, maxf(fs * 1.6, label_ink(lab, fs, true).size.y + 10.0)))   # 1.4.0 R12：牌高＝墨跡＋上下各 5
+	if paper_book:
+		draw_rect(r, Color(0.93, 0.89, 0.8, 0.6))   # 1.6.0 B04（Hydrogen r1 #1）：簿紙暗一階，認證牌墊一層淺紙底（綠框、字才不發悶）
 	draw_rect(r, Color(col, 0.22))
 	# 色盲也分得出：認證＝實線框、娛樂＝虛線框、沙盒＝雙線框
 	match b:
@@ -531,6 +534,8 @@ func _badge_pill(p: Vector2, b: String) -> float:
 func _draw_lobby() -> void:
 	var P := Rect2(50, 30, 1180, 740)
 	_panel(P)
+	if paper_book:
+		draw_rect(P, Color(0.05, 0.03, 0.02, PAL.BOOK_FRAME_DIM))   # 1.6.0 B04（S1）暗木框：書殼再壓暗（頁面、頁籤畫在之後，不受影響）
 	probe_skip("R4", "大廳底列：左側操作組（返回、展開、隨機／代碼）靠左，右側「開始」主按鈕靠右，刻意分兩組")
 	if not lobby_open and lobby_step < 2:
 		probe_skip("R6", "大廳三步的第 1、2 步每步只放一兩列：留白是「一頁一件事」的設計（1.5.0 §1.2）")
@@ -597,9 +602,16 @@ func lobby_tab_h() -> float:
 	var tw_min := 154.0 - 6.0 - BM_SLOT
 	var te := tw_min - 2.0 * (maxf(6.0, tw_min * 0.06) + 1.0)
 	for id in Presets.IDS:
-		if wrap_lines(L.t("lb_p_" + id), fit(L.t("lb_p_" + id), tz("B"), te, true), te, true).size() > 1:
+		if wrap_lines(tab_label(id, te), fit(tab_label(id, te), tz("B"), te, true), te, true).size() > 1:
 			return 78.0
 	return 68.0
+
+## 頁籤字：擠成兩行時有短名就用短名（1.6.0 B04 英文大字級頁籤縮寫）
+func tab_label(id: String, te: float) -> String:
+	var lab := L.t("lb_p_" + id)
+	if wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1 and L.has("lb_p_" + id + "_short"):
+		return L.t("lb_p_" + id + "_short")
+	return lab
 
 func _draw_lobby_presets(o: Vector2) -> void:
 	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
@@ -614,8 +626,11 @@ func _draw_lobby_presets(o: Vector2) -> void:
 		# V1.5.2 L2（A 案）：選中分頁的紅書籤上緣貼分頁上緣、在右側垂下；畫在分頁底面之後、焦點框之前（不蓋手把焦點框）
 		if on:
 			btn_deco = _draw_bookmark
-		btn_cloth = "tab_indigo" if on else "tab_linen"   # 1.2.0 第 4 大類：預設分頁是布標（和設定分頁同一套；選中靛藍、未選原胚布）
+		# 1.2.0 第 4 大類：預設分頁是布標（選中靛藍）；1.6.0 B04（P2.4）未選中的改木撥片（暗木牌、淺字），挑戰簿上一排木撥片
+		btn_cloth = "tab_indigo" if on else ("" if paper_book else "tab_linen")
+		btn_plaque = paper_book and not on   # 木撥片＝木牌材質（字在下面另外用墨色畫）
 		_btn(r, "", _lobby_pick.bind(id), true, false, TH_ACTIVE if on else TH_WOOD)
+		btn_plaque = false
 		btn_cloth = ""
 		var on_paper := last_btn_paper   # 原胚布：字用墨色
 		btn_deco = Callable()
@@ -623,10 +638,10 @@ func _draw_lobby_presets(o: Vector2) -> void:
 			draw_rect(r, ACCENT, false, 3.0)
 		# 只有選中的分頁讓出書籤槽（可用區 [6, w−BM_SLOT]）；沒選中的照整格置中（實作審查第 2 輪看圖：六格一律讓槽時
 		# 沒書籤的分頁字明顯偏左）。要換兩行時中日文從中間斷（不留「決」「種」單字一行），從上緣 5 起排，色條在 h−9
-		var lab := L.t("lb_p_" + id)
 		var tw := (w - 6.0 - BM_SLOT) if on else (w - 12.0)
 		var tx := (6.0 + tw / 2) if on else w / 2
 		var te := tw - 2.0 * (maxf(6.0, tw * 0.06) + 1.0)   # 1.4.0 R12：分頁字左右各留 max(6, 6% 寬)
+		var lab := tab_label(id, te)   # 1.6.0 B04：英文大字級頁籤縮寫（擠成兩行時改用短名）
 		var two := wrap_lines(lab, fit(lab, tz("B"), te, true), te, true).size() > 1
 		var lsz: int = tz("B")
 		if two:
@@ -804,6 +819,10 @@ func _draw_lobby_main(R: Rect2) -> void:
 		_tex_box(Rect2(x - 16, top - 4, R.size.x + 32, bot - top + 10), "wood", Color(0.42, 0.27, 0.16))
 		_tex_box(Rect2(x - 10, top, lw + 18, bot - top), "paper")
 		_tex_box(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), "paper")
+		if paper_book:
+			# 1.6.0 B04（S1）簿紙：貼圖斑紋上蓋一層平塗簿紙色，起伏減半（中位 L*≈63、最暗處仍讓墨字 ≥4.5:1）
+			draw_rect(Rect2(x - 10, top, lw + 18, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
+			draw_rect(Rect2(x + lw + 8, top, R.size.x - lw + 2, bot - top), Color(PAL.BOOK_FLAT, PAL.BOOK_FLAT_A))
 		for k in 6:   # 書脊：中間往兩邊漸淡的陰影
 			var a := 0.22 - k * 0.035
 			draw_rect(Rect2(x + lw + 7 - k * 2.0, top, 2.0, bot - top), Color(0.2, 0.12, 0.05, a))
