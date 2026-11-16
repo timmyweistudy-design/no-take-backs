@@ -1,0 +1,482 @@
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -358,6 +358,7 @@
+ var layout_probe := false
+ var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
+ var probe_texts: Array = []
++var probe_shrink: Array = []   # 1.6.0 B07：這一幀被 fit() 縮級的字 [字, 要的級, 給的級, 最小級仍放不下]
+ var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+ var probe_faces: Array = []     # 1.6.0 B02：這一幀依繪製順序登記的底面 [範圍, 是不是淺紙面]（淺紙白字檢查：字看它之前最後蓋上的那一層）
+ ## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
+@@ -635,6 +636,9 @@
+ 		if nxt < 0:
+ 			break
+ 		sz = nxt
++	if layout_probe and sz < size:
++		# 1.6.0 B07（P2.3）：版面檢查記下「字被擠到縮級」——英文 150% 重災頁的量測（縮到最小級還放不下＝over）
++		probe_shrink.append([s.substr(0, 60), size, sz, _width(s, sz, bold) > maxw])
+ 	return sz
+ 
+ func _font_for(s: String, size: int, bold: bool) -> Font:
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -776,6 +776,7 @@
+ 	probe_screen = {}
+ 	_probe_cell_seq = 0
+ 	probe_texts.clear()
++	probe_shrink.clear()
+ 	probe_btns.clear()
+ 	probe_faces.clear()
+ 	probe_ctrls.clear()
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -378,12 +378,14 @@
+ 
+ # ── 覆盤 ──
+ var rv_fsel := -1   # 第六輪：自由陣型覆盤選中的那一隻（索引）
++var rv_tab := 0     # 1.6.0 B07（P2.5）：覆盤按任務分兩頁：0＝改動（換兵、重算）、1＝讀結果（兩條走勢、分岔、播放）
+ 
+ func _open_review() -> void:
+ 	rv_orig = last_armies[0].copy()
+ 	rv_army = last_armies[0].copy()
+ 	rv_enemy = last_armies[1].copy()
+ 	rv_fsel = -1
++	rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁
+ 	if rv_orig.deploy == "free":
+ 		# 編輯識別（和戰鬥編號分開，Codex 第一輪）：覆盤時每隻帶 eid，「只改一隻」依 eid 比
+ 		for i in rv_orig.units.size():
+@@ -610,6 +612,8 @@
+ 			_rv_set_result(rv_result)   # 先算好的「如果」要重新和基準比分岔點
+ 
+ func _rv_set_result(res: Dictionary) -> void:
++	if rv_result.is_empty() and not res.is_empty():
++		rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」
+ 	rv_result = res
+ 	rv_div = diverge_tick(rv_base.get("log2", PackedInt64Array()), res.get("log2", PackedInt64Array())) if not res.is_empty() else -1
+ 
+@@ -696,6 +700,8 @@
+ 	_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
+ 	var hend := hy + text_h(hint, tz("S"), 960)
+ 	var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
++	var tab_y := 160.0 + dy   # 1.6.0 B07：「改動／讀結果」頁籤列在說明下面，左右兩欄一起往下讓一列
++	dy += 52.0
+ 	var cs := 40.0
+ 	var g0 := Vector2(130, 168 + dy)
+ 	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
+@@ -732,8 +738,17 @@
+ 	var dsc := review_desc()
+ 	if dsc != "":
+ 		_text(Vector2(g0.x, by + tz("S") * 1.4), dsc, tz("S"), ACCENT, false, false, 420)
+-	# 右：換成哪個兵種（頭像＋價錢）／拿掉
++	# 1.6.0 B07（P2.5）：右欄按任務分兩頁——「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果的走勢、分岔、播放）
+ 	var bx := 580.0
++	btn_group = "rv_tabs"
++	for k in 2:
++		_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
++	btn_group = ""
++	if rv_tab == 1:
++		_rv_draw_read(bx, dy)
++		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
++		return
++	# 右：換成哪個兵種（頭像＋價錢）／拿掉
+ 	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
+ 	var ph := price_cell_h()   # 1.4.0 R12：價錢子格高＝墨跡＋上下內距；按鈕跟著長高、下面幾列一起往下
+ 	var bh := maxf(66.0, 35.0 + ph + 5.0)
+@@ -751,8 +766,22 @@
+ 	_btn(Rect2(bx, 234 + dy + sh, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
+ 	_btn(Rect2(bx + 282, 234 + dy + sh, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+ 	_btn(Rect2(bx, 284 + dy + sh, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
+-	# 兩條戰力走勢上下對齊（同一個時間軸長度）
++	# 改動頁：重算好了就提示去「讀結果」看（走勢在那一頁）
+ 	var y := 350.0 + dy + sh
++	if not rv_result.is_empty():
++		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
++		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())
++	elif rv_base.is_empty() and rv_base_err != "":
++		_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
++		_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
++	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
++
++
++## 1.6.0 B07（P2.5）：覆盤「讀結果」頁：原本 vs 如果兩條走勢上下對齊、分岔點、播放「如果」。
++func _rv_draw_read(bx: float, dy: float) -> void:
++	var sh := 0.0
++	# 兩條戰力走勢上下對齊（同一個時間軸長度）
++	var y := 168.0 + dy
+ 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+ 	var b0: Array = rv_base.get("b", [100, 100])
+ 	var chh := 70.0 if tz("S") <= 17 else 54.0   # 1.2.0 字級表放大：大字級時走勢圖矮一點（圖可以縮、字不縮），底下說明才不壓到按鈕
+@@ -778,7 +807,7 @@
+ 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+ 			y += tz("S") * 1.5
+ 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+-	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
++
+ 
+ ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
+ func _tm_new_ghost() -> void:
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -1919,6 +1919,7 @@
+ 		ed_cells[k] = ed_foes[i][k]
+ 	ed_msg = ""
+ 
++var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
+ func _draw_editor() -> void:
+ 	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.7)
+@@ -1946,7 +1947,7 @@
+ 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
+ 					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
+ 			if cx <= 5 or cx >= 10:
+-				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true, "grid": true})
++				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
+ 	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
+ 	if WS3.ED_GOALS[ed_goal] == "trio":
+ 		# 三考：敵陣 1／2／3 分頁（欄標的位置）
+@@ -1956,8 +1957,8 @@
+ 	else:
+ 		_text(G.position + Vector2(13 * ed_cs(), -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ed_cs())
+ 	y = G.end.y + GAP_M
+-	# 兵種調色盤（20 種，兩排）
+-	for t in 20:
++	# 兵種調色盤（20 種，兩排）；1.6.0 B07（P2.5）驗證段不顯示（只留驗證要用的選擇）
++	for t in (20 if ed_tab == 0 else 0):
+ 		var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 48.0, 92, 44)   # 1.2.0：列高 52→48（150% 放得下）
+ 		_btn(pr, "", func(): ed_type = t, true, false, TH_ACTIVE if ed_type == t else Color(0, 0, 0, 0))
+ 		Art.unit(self, pr.position + Vector2(24, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+@@ -1967,7 +1968,7 @@
+ 		_text(ink_center_p(pcell, "%dg" % D.cost(t), tz("C"), true), "%dg" % D.cost(t), tz("C"), Color.WHITE, true, true)
+ 		_ink_mode = false
+ 		probe_cell_end()
+-	y += 2 * 48.0 + GAP_S
++	y += 2 * 48.0 + GAP_S   # 驗證段也保留這塊高度（版面不跳）
+ 	var l := ed_lists()
+ 	var gold := [0, 0]
+ 	for i in 2:
+@@ -1982,22 +1983,30 @@
+ 	if gname in WS3.PICK_GOALS:
+ 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
+ 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+-		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
+-		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", true, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
++		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
++		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", ed_tab == 0, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
+ 	else:
+-		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
++		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
+ 	y += 44 + GAP_S
+ 	if ed_msg != "":
+ 		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
+ 	var by := P.end.y - GAP_L - 48.0
+-	# 1.2.0 §11.10：四顆同寬置中（出題、地形、清空、返回）；三考題不能加地形
++	# 1.2.0 §11.10：四顆同寬置中；三考題不能加地形
++	# 1.6.0 B07（P2.5）按任務分兩段：編輯段＝下一步：驗證／地形／清空／返回；驗證段＝驗證並複製／回去改／返回
+ 	var bw := 240.0
+ 	var bx := 640.0 - (4 * bw + 3 * 16.0) / 2.0
+-	_btn(Rect2(bx, by, bw, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
+-	var mk: String = MapDefs.MAPS[ed_map]["key"]
+-	_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
+-	_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+-	_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
++	var ready: bool = not l[0].is_empty() and not l[1].is_empty()
++	if ed_tab == 0:
++		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = "", ready, true)
++		var mk: String = MapDefs.MAPS[ed_map]["key"]
++		_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
++		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
++		_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
++	else:
++		var bx3 := 640.0 - (3 * bw + 2 * 16.0) / 2.0
++		_btn(Rect2(bx3, by, bw, 48), L.t("ed_make"), func(): _ed_make(), ready, true)
++		_btn(Rect2(bx3 + bw + 16, by, bw, 48), L.t("ed_back_edit"), func(): ed_tab = 0; ed_msg = "")
++		_btn(Rect2(bx3 + 2 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())
+ 
+ ## ── #17 一陣三考 ──
+ const Trio = preload("res://scripts/game/trio.gd")
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -1665,7 +1665,7 @@
+ 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
+ 				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
+ 				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
+-				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
++				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0; set("ed_tab", 0), not _demo()],   # V1.6 #16 出題台
+ 				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true],   # V1.6.1 N2 新玩法導覽（常駐）
+ 				["sb_title", "hc_sb_d", "book", func(): overlay = "songbook"; _focus = 0, true],   # 1.2.0 §11.8 棋譜本
+ 				["menu_codes", "hc_codes_d", "copy", func(): overlay = "codes"; _focus = 0, true]]   # 1.5.0 §1.1：代碼從標題系統鈕移到收藏（標題只留設定、離開）
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -472,7 +472,7 @@
+ 		bad.append({"type": "純黑像素超過 1%", "pct": art["black_pct"]})   # 1.3.0 §4：美感報表的第一條變門檻（憲法 3：禁純黑）
+ 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
+ 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
+-		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art,
++		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art, "shrink": probe_shrink.duplicate(),
+ 		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size(),
+ 		"cap": _cap_info()})   # 1.6.0 R0：固定拍攝契約——每張截圖的拍攝參數（重拍、前後對照要同鏡位同幀）   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
+ 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
+@@ -999,8 +999,10 @@
+ 	var u0: Dictionary = rv_army.units[0]
+ 	rv_sel = Vector2i(int(u0["col"]), int(u0["row"]))
+ 	_rv_set_type(D.SHIELD if int(u0["type"]) != D.SHIELD else D.SWORD)
++	rv_tab = 0
++	await _snap("v160_16a_review_edit.png")   # 1.6.0 B07（P2.5）：覆盤「改動」頁（重算前）
+ 	_rv_recalc()
+-	await _snap("16_review.png")
++	await _snap("16_review.png")   # 重算好了自動翻到「讀結果」頁
+ 	# V1.4 #1 時光機：播放「如果」，原本時間線畫成地上的白圈
+ 	_rv_play()
+ 	while seek_target >= 0:
+@@ -2424,6 +2426,9 @@
+ 	_ed_set_map(1)   # 1.2.0 §11.10 出題台地形（雙橋河谷）
+ 	await _snap("v120_07_editor_map.png")
+ 	_ed_set_map(0)
++	ed_tab = 1   # 1.6.0 B07（P2.5）：出題台驗證段
++	await _snap("v160_13b_editor_verify.png")
++	ed_tab = 0
+ 	overlay = ""
+ 	if "--shot-open" in OS.get_cmdline_user_args():
+ 		# 1.2.0 第 11 大類 開發用：實物開合動畫開到一半（不在版面清冊：蓋子蓋住字是設計，不做對比檢查；只在 --shot-open 時拍）
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -263,6 +263,12 @@
+    "一般"
+   ]
+  },
++ "v160_16a_review_edit.png": {
++  "entry": "覆盤（改動頁，1.6.0 B07）",
++  "states": [
++   "一般"
++  ]
++ },
+  "16_review.png": {
+   "entry": "覆盤",
+   "states": [
+@@ -1120,6 +1126,12 @@
+   "states": [
+    "一般"
+   ]
++ },
++ "v160_13b_editor_verify.png": {
++  "entry": "出題台（驗證段，1.6.0 B07）",
++  "states": [
++   "一般"
++  ]
+  },
+  "v120_08_lobby_ext.png": {
+   "entry": "大廳（新技能分頁：架盾、火矢開著，說明火矢）",
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1,6 +1,6 @@
+ key,zh_TW,en,zh_CN,ja
+ title,落子無悔,No Take-Backs,落子无悔,落子無悔
+-subtitle,擺好就不能反悔，只能看著它們打到最後一秒,Place your army. No take-backs. Watch it fight to the last second.,摆好就不能反悔，只能看着它们打到最后一秒,置いたら待ったなし。最後の一秒まで戦いを見届けます
++subtitle,擺好就不能反悔，只能看著它們打到最後一秒,Set up. No take-backs. Watch it fight.,摆好就不能反悔，只能看着它们打到最后一秒,置いたら待ったなし。最後の一秒まで戦いを見届けます
+ menu_vs_ai,對 AI 快速對戰,Quick Battle vs AI,对 AI 快速对战,AIとクイック対戦
+ menu_duel,同機雙人對決,Local Duel (2P),同机双人对决,同端末2人対戦
+ menu_tutorial,教學（3 關）,Tutorial (3),教学（3 关）,入門（3面）
+@@ -705,7 +705,7 @@
+ ch_name,朋友的陣型,Friend's army,朋友的阵型,友達の陣形
+ rw_title,選一個獎勵,Pick a Reward,选一个奖励,報酬を選ぶ
+ rw_gold,多 10 金,10 Extra Gold,多 10 金,10 G追加
+-rw_gold_d,之後每一戰的預算都加,Added to every later battle,之后每一战的预算都加,以後の全戦闘で予算増加
++rw_gold_d,之後每一戰的預算都加,Added to later battles,之后每一战的预算都加,以後の全戦闘で予算増加
+ rw_cap,多 2 隻,2 More Units,多 2 个,2体追加
+ rw_cap_d,之後每一戰的人數上限都加,Added to your unit limit,之后每一战的人数上限都加,以後すべての戦闘で配置上限が増えます
+ rw_change,多換 2 隻,2 More Swaps,多换 2 个,変更枠＋2体
+@@ -1408,8 +1408,8 @@
+ hc_ed_d,自己擺雙方、選目標，作者解打得過就產生殘局碼給朋友。,"Set up both sides, pick a goal; if your own solution clears it, you get a code to share.",自己摆双方、选目标，作者解打得过就产生残局码给朋友。,両軍を配置して目標を選び、自分の解でクリアできたらコードを作成。
+ ed_title,殘局出題台,Puzzle workbench,残局出题台,パズル工房
+ ed_help,先選下面的兵種，再點格子擺上去（再點一次拿掉）。左邊是你的解、右邊是敵陣。,"Pick a unit below, then click squares to place it (click again to remove). Left = your solution, right = the enemy.",先选下面的兵种，再点格子摆上去（再点一次拿掉）。左边是你的解、右边是敌阵。,下で兵種を選び、マスをクリックして配置（もう一度で削除）。左が自分の解、右が敵陣。
+-ed_you,你的解（0～5 欄）,Your solution (cols 0–5),你的解（0～5 栏）,自分の解（0～5列）
+-ed_foe,敵陣（10～15 欄）,Enemy (cols 10–15),敌阵（10～15 栏）,敵陣（10～15列）
++ed_you,你的解（0～5 欄）,You (0–5),你的解（0～5 栏）,自分の解（0～5列）
++ed_foe,敵陣（10～15 欄）,Enemy (10–15),敌阵（10～15 栏）,敵陣（10～15列）
+ ed_info,你的解 %d 隻 %d 金・敵陣 %d 隻 %d 金,"Solution %d units, %d g · Enemy %d units, %d g",你的解 %d 个 %d 金・敌阵 %d 个 %d 金,解 %d体 %dG・敵陣 %d体 %dG
+ ed_goal,目標：%s,Goal: %s,目标：%s,目標：%s
+ ed_g_win,打贏,Win,打赢,勝利
+@@ -1759,7 +1759,7 @@
+ foe_zone2,不能擺・開戰才看得到,Off-limits · hidden till battle,不能摆・开战才看得到,配置不可・開戦まで非公開
+ set_adv_open,進階微調 ▶（%d 項）,Fine-tuning ▶ (%d),进阶微调 ▶（%d 项）,詳細設定 ▶（%d 項目）
+ set_adv_back,◀ 回到常用,◀ Back to common,◀ 回到常用,◀ よく使う設定へ
+-set_hover_hint,把游標移到一列上，這裡會說明它在做什麼。,Point at a row to see what it does.,把光标移到一列上，这里会说明它在做什么。,行を選ぶと、ここに説明が出ます。
++set_hover_hint,把游標移到一列上，這裡會說明它在做什麼。,Point at a row for help.,把光标移到一列上，这里会说明它在做什么。,行を選ぶと、ここに説明が出ます。
+ fp_copy,複製重播校驗碼,Copy replay code,复制重播校验码,照合コードをコピー
+ fp_copied,已複製重播校驗碼（同一場重播一定相同）,Replay check copied (identical for every replay of this battle),已复制重播校验码（同一场重播一定相同）,照合コードをコピーしました（同じ対戦なら必ず一致）
+ pf_tab_0,總覽,Overview,总览,概要
+@@ -1777,3 +1777,7 @@
+ lb_p_fantasy_short,奇幻兵團,Monsters,奇幻兵团,魔物軍団
+ lb_p_big_short,大軍團,Big army,大军团,大軍団
+ lb_p_single_short,單兵種對決,1-Type,单兵种对决,単兵種戦
++rv_tab_edit,改動,Change,改动,変更
++rv_tab_read,讀結果,Results,读结果,結果を見る
++ed_to_verify,下一步：驗證,Next: Verify,下一步：验证,次へ：検証
++ed_back_edit,回去改,Edit more,回去改,編集に戻る
+--- a/game/data/codex.json
++++ b/game/data/codex.json
+@@ -5,7 +5,7 @@
+   {
+    "id": 0,
+    "role_zh": "前排破盾手",
+-   "role_en": "Front-line shield breaker",
++   "role_en": "Front shield breaker",
+    "story_zh": "王國裡最準時上下班的模範步兵。頭盔上的小藍羽是媽媽縫的，短劍磨得亮晶晶。最喜歡找舉大盾的傢伙比力氣；背後有黑影靠近時，也會毫不猶豫轉身回一劍。",
+    "story_en": "The kingdom's most punctual foot soldier. Mom sewed the little blue plume on the helmet; the short sword is polished to a shine. Loves testing strength against big shields — and spins around the moment a shadow creeps up behind.",
+    "tagline_zh": "我先上，點心留一份！",
+@@ -36,7 +36,7 @@
+   {
+    "id": 1,
+    "role_zh": "前排肉盾、反騎兵",
+-   "role_en": "Front-line wall, anti-cavalry",
++   "role_en": "Front wall, anti-cavalry",
+    "story_zh": "原本是城門口的守衛大叔，因為力氣太大總把門把拽壞，乾脆拆了一塊厚鐵板當盾。雖然走得慢吞吞，但只要把盾往地上一插，連狂奔的小馬都會撞得眼冒金星。",
+    "story_en": "Used to guard the city gate, but kept ripping off door handles — so now carries a slab of iron as a shield. Slow on foot, but plant that shield and even a galloping pony sees stars.",
+    "tagline_zh": "靠過來，這邊有位子！",
+@@ -100,7 +100,7 @@
+   {
+    "id": 3,
+    "role_zh": "側翼突擊、獵弓手",
+-   "role_en": "Flank raider, archer hunter",
++   "role_en": "Flanker, hunts archers",
+    "story_zh": "金色蘑菇頭配上一匹脾氣倔強的小馬。最討厭正面排隊，總愛沿著邊邊繞去後排找弓箭手。直直跑起來就停不下來，唯獨看到大盾牌會雙腿發軟。",
+    "story_en": "A golden mushroom haircut on a stubborn little pony. Hates waiting in line up front and loves sneaking around the edge to find archers. Once running straight there's no stopping — except at the sight of a big shield.",
+    "tagline_zh": "坐穩，我們繞一下！",
+@@ -132,7 +132,7 @@
+   {
+    "id": 4,
+    "role_zh": "潛入、獵重甲",
+-   "role_en": "Infiltrator, armor hunter",
++   "role_en": "Sneaks in, hunts armor",
+    "story_zh": "把紫色大兜帽拉得低低的害羞小個子，怕生所以開戰時會先憋氣隱形。最擅長偷偷繞到盾兵背後戳一下，或綁繩子絆倒小馬；被發現時會臉紅到忘記閃躲。",
+    "story_en": "A shy little one with a big purple hood pulled low — so shy they hold their breath and vanish when battle starts. Expert at poking shields from behind and tripping ponies; when spotted, they blush so hard they forget to dodge.",
+    "tagline_zh": "借過一下，嘿嘿。",
+@@ -164,7 +164,7 @@
+   {
+    "id": 5,
+    "role_zh": "第二排長柄、拒騎",
+-   "role_en": "Second-rank pike, anti-cavalry",
++   "role_en": "Pike line, anti-cavalry",
+    "story_zh": "村裡個子最高的孩子，偏偏最怕站第一排。銅色的扁鍋盔是外婆的湯鍋改的，長槍尖綁著紅纓，躲在盾牌哥哥後面也能戳到前面的人。看到小馬衝過來，會把槍尾往地上一頓——「停！」",
+    "story_en": "The tallest kid in the village, and the most nervous about the front row. The copper pot-helmet used to be Grandma's soup pot; the red tassel on the pike lets everyone know where the poke is coming from. Hiding behind a big shield, it can still reach the front. When a pony charges in, it plants the butt of the pike — \"Stop!\"",
+    "tagline_zh": "我在後面，但我搆得到！",
+@@ -196,7 +196,7 @@
+   {
+    "id": 6,
+    "role_zh": "後排範圍轟炸、拆盾牆",
+-   "role_en": "Back-line area bomber, wall breaker",
++   "role_en": "Bomber, breaks walls",
+    "story_zh": "戴著黃銅大護目鏡、圍著橘紅頭巾的發明家。肩上永遠扛著一顆冒小火花的圓滾滾火罐，最喜歡看擠成一團的盾牌一起跳起來。敵人一靠近就慌了，只會拿點火棒亂敲。",
+    "story_en": "An inventor in big brass goggles and an orange bandana, always shouldering a round pot with a fizzing fuse. Loves watching a packed shield wall hop all at once. Gets flustered the moment anyone comes close — then it's just frantic bonking with the lighter stick.",
+    "tagline_zh": "大家站好——不要動喔！",
+@@ -227,7 +227,7 @@
+   {
+    "id": 7,
+    "role_zh": "後排補血、撐住前排",
+-   "role_en": "Back-line healer, keeps the front alive",
++   "role_en": "Heals the front line",
+    "story_zh": "戴著印了綠十字的白色高帽，手上的長杖頂端會發綠光。戰場上它一刀也不揮，眼睛只盯著誰的血最少，跟在後面一路小跑。隊友都走光了，才會氣呼呼地拿杖子敲人。",
+    "story_en": "A tall white hat with a green cross and a staff whose tip glows green. It never swings at anyone — its eyes are only on whoever's lowest, trotting along behind them. Only when the whole team is gone does it angrily bonk someone with the staff.",
+    "tagline_zh": "誰受傷了？舉手！",
+@@ -258,7 +258,7 @@
+   {
+    "id": 8,
+    "role_zh": "陣型中心、全隊加速",
+-   "role_en": "Formation center, team-wide tempo",
++   "role_en": "Center, speeds the team",
+    "story_zh": "羽毛帽是全軍最高的，胸前掛著比自己還圓的大鼓。咚、咚、咚——鼓聲一響，旁邊的人手腳都跟著快起來。它自己不打架，只負責讓大家打得更起勁。",
+    "story_en": "The tallest feathered hat in the army and a drum rounder than itself. Boom, boom, boom — when it plays, everyone nearby moves a little faster. It doesn't fight; it just makes everyone fight harder.",
+    "tagline_zh": "跟著節拍——上！",
+@@ -288,7 +288,7 @@
+   {
+    "id": 9,
+    "role_zh": "破陣開路",
+-   "role_en": "Wall breaker, opens the way",
++   "role_en": "Breaks walls open",
+    "story_zh": "一頭火紅刺蝟頭、披著毛茸茸的獸皮，左右手各一把大斧。它不在乎自己砍了多少，只要把對面的大盾劈出裂縫，後面的弓箭手和劍士就能一擁而上。被小馬撞到也紋風不動。",
+    "story_en": "A fiery spiky head, a fluffy pelt and a big axe in each hand. It doesn't care how much damage it does — it just splits the enemy's shields so the archers and swords behind can pour in. Even a charging pony can't budge it.",
+    "tagline_zh": "盾牌？借我看一下。",
+@@ -320,7 +320,7 @@
+   {
+    "id": 10,
+    "role_zh": "不會動的毒圈封路",
+-   "role_en": "Stationary poison roadblock",
++   "role_en": "Poison roadblock",
+    "story_zh": "住在森林裡的蘑菇，被傭兵公會的傳單騙來當兵。它不會走路，也懶得走路，只要有人踩進它的地盤，就噗地噴一口孢子。隊友都說它是全軍最穩的同事，因為它真的不會動。",
+    "story_en": "A forest mushroom lured in by a guild flyer. It can't walk and wouldn't want to. Step on its turf and it puffs out spores. Teammates call it the steadiest soldier around, because it truly never moves.",
+    "tagline_zh": "別踩我的草皮",
+@@ -410,7 +410,7 @@
+   {
+    "id": 13,
+    "role_zh": "打不完的前排",
+-   "role_en": "The front line that keeps coming",
++   "role_en": "Endless front line",
+    "story_zh": "一團黏黏的東西，對任何事都很樂觀。被砍成兩半時它會說「太好了，多一個朋友」。小史萊姆長大後會忘記對方，然後在下一場互相打招呼。",
+    "story_en": "A cheerful blob, optimistic about everything. Cut in half, it says, \"Great, one more friend.\" The slimelets forget each other and say hello again next battle.",
+    "tagline_zh": "我們是一夥的，也是兩夥的",
+@@ -440,7 +440,7 @@
+   {
+    "id": 14,
+    "role_zh": "穿牆獵殺後排",
+-   "role_en": "Back-line hunter through walls",
++   "role_en": "Hunts the back line",
+    "story_zh": "它不記得自己怎麼死的，只記得還有東西沒吃完。穿過前排時它會小聲說「借過」，然後直直飄到弓箭手面前，弓箭手通常會射它，箭會穿過去，弓箭手通常會哭。",
+    "story_en": "It can't recall how it died, only that it left a snack unfinished. Slipping through the front line, it whispers \"excuse me,\" drifts up to the archer, gets shot, the arrow passes through, and the archer usually cries.",
+    "tagline_zh": "借過，我趕時間",
+@@ -500,7 +500,7 @@
+   {
+    "id": 16,
+    "role_zh": "關鍵時刻的時停",
+-   "role_en": "Time stop at the clutch moment",
++   "role_en": "Clutch time stop",
+    "story_zh": "一隻從時鐘店逃出來的小精靈，沙子流完就會打瞌睡。隊友快撐不住的時候，它會用力敲一下自己的玻璃，全場安靜兩秒半。它覺得兩秒半夠長了，反正大家都很急。",
+    "story_en": "A little sprite that fled a clock shop and nods off when the sand runs out. When allies are failing, it knocks on its own glass and everything goes quiet for two and a half seconds. It thinks two and a half seconds is plenty, since everyone's always in a hurry.",
+    "tagline_zh": "再等兩秒",
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_lobby_book_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+
+--- (新增測試，附在 game/tests/suites/ui.gd 末尾) ---
+## 1.6.0 B07（P2.3）英文 150% 重災頁改寫：圖鑑兵種定位最多兩行（頭像右邊 CX_TAG_W；原本最長的到三行）、標題副標、設定說明、
+## 獎勵說明、出題台欄名在 150% 都一行；（母語未校對＝待驗，ledger 記）。P2.5 覆盤分「改動／讀結果」、出題分「編輯／驗證」。
+func test_en150_rewrite_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g._load_fonts()
+	var LS = load("res://scripts/game/strings.gd")
+	var Sv = load("res://scripts/game/save.gd")
+	var CX = load("res://scripts/game/codex_data.gd") if ResourceLoader.exists("res://scripts/game/codex_data.gd") else null
+	var keep_lang = LS.lang
+	var keep_ts = Sv.settings.get("text_scale", 100)
+	LS.lang = "en"
+	Sv.settings["text_scale"] = 150
+	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/codex.json"))
+	var units: Array = raw.get("units", []) if raw.has("units") else []
+	var bad: Array = []
+	var n := 0
+	for u in units:
+		if u is Dictionary and u.has("role_en"):
+			n += 1
+			if g.wrap_lines(str(u["role_en"]), g.ts(15), g.CX_TAG_W).size() > 2:
+				bad.append(str(u["role_en"]))
+	ok(n >= 20 and bad.is_empty(), "圖鑑 %d 種兵的英文定位在 150%% 最多兩行（%d px；大字級時口號讓位）" % [n, int(g.CX_TAG_W)], str(bad))
+	var one := func(k: String, size: int, w: float) -> bool:
+		return g.wrap_lines(LS.t(k), size, w).size() == 1
+	ok(one.call("subtitle", g.tz("S"), 420.0), "標題副標英文 150%% 一行（%s）" % LS.t("subtitle"))
+	ok(one.call("set_hover_hint", g.tz("S"), 260.0) or g.wrap_lines(LS.t("set_hover_hint"), g.tz("S"), 260.0).size() <= 2, "設定說明欄提示短到兩行內")
+	ok(LS.t("ed_you").length() <= 12 and LS.t("ed_foe").length() <= 14, "出題台欄名縮短（不再拆成兩行）")
+	LS.lang = keep_lang
+	Sv.settings["text_scale"] = keep_ts
+	var rv: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+	ok(rv.find("var rv_tab := 0") >= 0 and rv.find("rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」") >= 0 and rv.find("rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁") >= 0, "覆盤分「改動／讀結果」：打開在改動、重算好翻到讀結果")
+	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(v16.find("var ed_tab := 0") >= 0 and v16.find("for t in (20 if ed_tab == 0 else 0):") >= 0 and v16.find("\"en\": ed_tab == 0, \"grid\": true") >= 0, "出題分「編輯／驗證」：驗證段收起兵種盤、棋盤只看不改")
+	g.free()

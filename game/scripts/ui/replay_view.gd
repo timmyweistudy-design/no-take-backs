@@ -378,12 +378,15 @@ func watch_code(a0, a1, p_rules = null) -> void:
 
 # ── 覆盤 ──
 var rv_fsel := -1   # 第六輪：自由陣型覆盤選中的那一隻（索引）
+var rv_focus_main := false   # 1.6.0 B07：翻頁後這一幀把焦點放到該頁主鈕
+var rv_tab := 0     # 1.6.0 B07（P2.5）：覆盤按任務分兩頁：0＝改動（換兵、重算）、1＝讀結果（兩條走勢、分岔、播放）
 
 func _open_review() -> void:
 	rv_orig = last_armies[0].copy()
 	rv_army = last_armies[0].copy()
 	rv_enemy = last_armies[1].copy()
 	rv_fsel = -1
+	rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁
 	if rv_orig.deploy == "free":
 		# 編輯識別（和戰鬥編號分開，Codex 第一輪）：覆盤時每隻帶 eid，「只改一隻」依 eid 比
 		for i in rv_orig.units.size():
@@ -444,6 +447,8 @@ func _rv_try(edit: Callable) -> void:
 	_rv_dirty()
 
 func _rv_cell(c: Vector2i) -> void:
+	if rv_tab != 0:
+		return   # 1.6.0 B07（Codex r1 #1）：讀結果頁只看，不能改陣
 	if rv_sel.x >= 0 and rv_army.index_at(rv_sel.x, rv_sel.y) != -1 and rv_army.index_at(c.x, c.y) == -1:
 		var from := rv_sel
 		_rv_try(func(): rv_army.move(from.x, from.y, c.x, c.y))
@@ -453,6 +458,8 @@ func _rv_cell(c: Vector2i) -> void:
 
 ## 第六輪：自由陣型覆盤——點小戰場：點到兵就選它；選了之後點空地就搬過去。
 func _rv_free_click(w: Vector2i) -> void:
+	if rv_tab != 0:
+		return   # 1.6.0 B07（Codex r1 #1）：讀結果頁只看，不能改陣
 	var hit: int = rv_army.index_near(w.x, w.y, 450)
 	if hit >= 0:
 		rv_fsel = hit
@@ -470,6 +477,8 @@ func _rv_free_click(w: Vector2i) -> void:
 	_rv_dirty()
 
 func _rv_free_set_type(t: int) -> void:
+	if rv_tab != 0:
+		return   # 1.6.0 B07（Codex r1 #1）：讀結果頁只看，不能改陣
 	if rv_fsel < 0 or rv_fsel >= rv_army.units.size():
 		return
 	var trial = rv_army.copy()
@@ -610,6 +619,9 @@ func _rv_base_poll() -> void:
 			_rv_set_result(rv_result)   # 先算好的「如果」要重新和基準比分岔點
 
 func _rv_set_result(res: Dictionary) -> void:
+	if rv_result.is_empty() and not res.is_empty():
+		rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」
+		rv_focus_main = true   # 焦點交給讀結果頁的「播放如果」（不落到棋盤；Codex r1 #3）
 	rv_result = res
 	rv_div = diverge_tick(rv_base.get("log2", PackedInt64Array()), res.get("log2", PackedInt64Array())) if not res.is_empty() else -1
 
@@ -696,9 +708,11 @@ func _draw_review() -> void:
 	_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
 	var hend := hy + text_h(hint, tz("S"), 960)
 	var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
+	var tab_y := 160.0 + dy   # 1.6.0 B07：「改動／讀結果」頁籤列在說明下面，左右兩欄一起往下讓一列
+	dy += 52.0
 	var cs := 40.0
 	var g0 := Vector2(130, 168 + dy)
-	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
+	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_ro") if rv_tab == 1 else L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」；1.6.0 B07：讀結果頁只看（Hydrogen r1）
 	if rv_orig.deploy == "free":
 		_rv_free_board(g0)
 	for r in (0 if rv_orig.deploy == "free" else 9):
@@ -715,7 +729,7 @@ func _draw_review() -> void:
 				draw_rect(cell, ACCENT, false, 3.0)
 			if ni != -1:
 				Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 5), int(rv_army.units[ni]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.54, cbm())
-			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕
+			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": rv_tab == 0, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕；1.6.0 B07：讀結果頁不能改
 	# 紅方站位（只看不能改）：同一列對齊，右邊是紅方前排
 	var cs2 := 26.0
 	var g1 := Vector2(g0.x + 6 * cs + 18, g0.y + (9 * cs - 9 * cs2) / 2)
@@ -732,8 +746,17 @@ func _draw_review() -> void:
 	var dsc := review_desc()
 	if dsc != "":
 		_text(Vector2(g0.x, by + tz("S") * 1.4), dsc, tz("S"), ACCENT, false, false, 420)
-	# 右：換成哪個兵種（頭像＋價錢）／拿掉
+	# 1.6.0 B07（P2.5）：右欄按任務分兩頁——「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果的走勢、分岔、播放）
 	var bx := 580.0
+	btn_group = "rv_tabs"
+	for k in 2:
+		_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k; rv_focus_main = true, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+	btn_group = ""
+	if rv_tab == 1:
+		_rv_draw_read(bx, dy)
+		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+		return
+	# 右：換成哪個兵種（頭像＋價錢）／拿掉
 	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
 	var ph := price_cell_h()   # 1.4.0 R12：價錢子格高＝墨跡＋上下內距；按鈕跟著長高、下面幾列一起往下
 	var bh := maxf(66.0, 35.0 + ph + 5.0)
@@ -750,9 +773,26 @@ func _draw_review() -> void:
 		probe_cell_end()
 	_btn(Rect2(bx, 234 + dy + sh, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
 	_btn(Rect2(bx + 282, 234 + dy + sh, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+	if rv_focus_main:
+		_focus = _btns.size()   # 改動頁主鈕＝重算
+		rv_focus_main = false
 	_btn(Rect2(bx, 284 + dy + sh, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
-	# 兩條戰力走勢上下對齊（同一個時間軸長度）
+	# 改動頁：重算好了就提示去「讀結果」看（走勢在那一頁）
 	var y := 350.0 + dy + sh
+	if not rv_result.is_empty():
+		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())
+	elif rv_base.is_empty() and rv_base_err != "":
+		_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
+		_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
+	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+
+
+## 1.6.0 B07（P2.5）：覆盤「讀結果」頁：原本 vs 如果兩條走勢上下對齊、分岔點、播放「如果」。
+func _rv_draw_read(bx: float, dy: float) -> void:
+	var sh := 0.0
+	# 兩條戰力走勢上下對齊（同一個時間軸長度）
+	var y := 168.0 + dy
 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
 	var b0: Array = rv_base.get("b", [100, 100])
 	var chh := 70.0 if tz("S") <= 17 else 54.0   # 1.2.0 字級表放大：大字級時走勢圖矮一點（圖可以縮、字不縮），底下說明才不壓到按鈕
@@ -777,8 +817,11 @@ func _draw_review() -> void:
 			# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
 			y += tz("S") * 1.5
+		if rv_focus_main:
+			_focus = _btns.size()
+			rv_focus_main = false
 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
-	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+
 
 ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
 func _tm_new_ghost() -> void:
@@ -880,6 +923,8 @@ func _dash(a: Vector2, b: Vector2, c: Color, w: float) -> void:
 			draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), c, w)
 
 func _rv_free_tap() -> void:
+	if rv_tab != 0:
+		return   # 1.6.0 B07（Codex r1 #1）：讀結果頁只看，不能改陣
 	if _rv_map.is_empty():
 		return
 	var m := get_local_mouse_position()

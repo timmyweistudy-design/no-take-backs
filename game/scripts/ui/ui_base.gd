@@ -358,6 +358,7 @@ var freeze_fx := false
 var layout_probe := false
 var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
 var probe_texts: Array = []
+var probe_shrink: Array = []   # 1.6.0 B07：這一幀被 fit() 縮級的字 [字, 要的級, 給的級, 最小級仍放不下]
 var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
 var probe_faces: Array = []     # 1.6.0 B02：這一幀依繪製順序登記的底面 [範圍, 是不是淺紙面]（淺紙白字檢查：字看它之前最後蓋上的那一層）
 ## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
@@ -635,6 +636,9 @@ func fit(s: String, size: int, maxw: float, bold := false) -> int:
 		if nxt < 0:
 			break
 		sz = nxt
+	if layout_probe and sz < size:
+		# 1.6.0 B07（P2.3）：版面檢查記下「字被擠到縮級」——英文 150% 重災頁的量測（縮到最小級還放不下＝over）
+		probe_shrink.append([s.substr(0, 60), size, sz, _width(s, sz, bold) > maxw])
 	return sz
 
 func _font_for(s: String, size: int, bold: bool) -> Font:

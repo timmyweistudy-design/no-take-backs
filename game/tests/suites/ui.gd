@@ -3115,3 +3115,42 @@ func test_first_act_v1600() -> void:
 	var src: String = FileAccess.get_file_as_string("res://tools/dev_main.gd")
 	ok(src.find("print(\"FIRSTRUN \"") >= 0 and src.find("[4, \"playroom\", true], [5, \"hub_collect\", true]") >= 0, "截圖流程：冷啟點擊走查（FIRSTRUN）、手把走查涵蓋抽屜（PADWALK）")
 	g.free()
+
+
+## 1.6.0 B07（P2.3）英文 150% 重災頁改寫：圖鑑兵種定位最多兩行（頭像右邊 CX_TAG_W；原本最長的到三行）、標題副標、設定說明、
+## 獎勵說明、出題台欄名在 150% 都一行；（母語未校對＝待驗，ledger 記）。P2.5 覆盤分「改動／讀結果」、出題分「編輯／驗證」。
+func test_en150_rewrite_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g._load_fonts()
+	var LS = load("res://scripts/game/strings.gd")
+	var Sv = load("res://scripts/game/save.gd")
+	var CX = load("res://scripts/game/codex_data.gd") if ResourceLoader.exists("res://scripts/game/codex_data.gd") else null
+	var keep_lang = LS.lang
+	var keep_ts = Sv.settings.get("text_scale", 100)
+	LS.lang = "en"
+	Sv.settings["text_scale"] = 150
+	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/codex.json"))
+	var units: Array = raw.get("units", []) if raw.has("units") else []
+	var bad: Array = []
+	var n := 0
+	for u in units:
+		if u is Dictionary and u.has("role_en"):
+			n += 1
+			if g.wrap_lines(str(u["role_en"]), g.ts(15), g.CX_TAG_W).size() > 2:
+				bad.append(str(u["role_en"]))
+	ok(n >= 20 and bad.is_empty(), "圖鑑 %d 種兵的英文定位在 150%% 最多兩行（%d px；大字級時口號讓位）" % [n, int(g.CX_TAG_W)], str(bad))
+	var one := func(k: String, size: int, w: float) -> bool:
+		return g.wrap_lines(LS.t(k), size, w).size() == 1
+	ok(one.call("subtitle", g.tz("S"), 420.0), "標題副標英文 150%% 一行（%s）" % LS.t("subtitle"))
+	ok(one.call("set_hover_hint", g.tz("S"), 260.0) or g.wrap_lines(LS.t("set_hover_hint"), g.tz("S"), 260.0).size() <= 2, "設定說明欄提示短到兩行內")
+	ok(LS.t("ed_you").length() <= 12 and LS.t("ed_foe").length() <= 14, "出題台欄名縮短（不再拆成兩行）")
+	LS.lang = keep_lang
+	Sv.settings["text_scale"] = keep_ts
+	var rv: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+	ok(rv.find("var rv_tab := 0") >= 0 and rv.find("rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」") >= 0 and rv.find("rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁") >= 0, "覆盤分「改動／讀結果」：打開在改動、重算好翻到讀結果")
+	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(rv.count("if rv_tab != 0:\n\t\treturn   # 1.6.0 B07（Codex r1 #1）") == 4, "讀結果頁擋住四個改陣入口（格子、自由點擊、自由拖放、換兵種）")
+	ok(rv.find("rv_focus_main = true   # 焦點交給讀結果頁") >= 0 and v16.find("ed_focus_main = true, ready, true)") >= 0, "翻頁／切段後焦點交給新頁主鈕（手把不落到停用棋盤）")
+	ok(v16.find("var ed_tab := 0") >= 0 and v16.find("for t in (20 if ed_tab == 0 else 0):") >= 0 and v16.find("\"en\": ed_tab == 0, \"grid\": true") >= 0, "出題分「編輯／驗證」：驗證段收起兵種盤、棋盤只看不改")
+	g.free()

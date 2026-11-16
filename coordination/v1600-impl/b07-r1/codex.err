@@ -1,0 +1,2154 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e3af-c06b-72a0-8830-3e23a40b07d2
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B07 第 1 輪，最多三輪）。只讀。專案根目錄＝目前資料夾。
+計畫 coordination/v1600-impl/b07-plan.md；差異 coordination/v1600-impl/b07-r1/diff.patch（快照 build/cg/b07/game，基準＝B04 提交 b82d933；B05 驗收完一起搬回）。
+做了：①版面檢查記 `fit()` 縮級（`probe_shrink`，每幀清；layout.jsonl `shrink`）——當參考不當門檻（先試一行、放不下換行的也會記）。②英文改寫（母語未校對＝待驗）：圖鑑 13 種兵定位縮短、標題副標、設定說明提示、獎勵說明、出題台欄名。③P2.5：覆盤 `rv_tab`（0 改動、1 讀結果；打開＝0、第一次有結果自動翻 1；讀結果頁畫兩條走勢＋分岔＋播放，改動頁只畫換兵／重算與一行結果）；頁籤列在說明下面、左右兩欄下移 52。出題台 `ed_tab`（0 編輯段：下一步：驗證／地形／清空／返回；1 驗證段：驗證並複製／回去改／返回，兵種盤不畫、棋盤格停用、目標鈕停用）；從殘局卡片打開出題台重設 0。新截圖 v160_16a_review_edit、v160_13b_editor_verify。測試 test_en150_rewrite_v1600 6 項；16 張 0 違規。
+請找：錯誤、漏掉的路徑（覆盤自由陣型、重算中、基準算失敗、手把焦點與頁籤、出題台三考題模式、從其他入口打開出題台沒重設 ed_tab、驗證段 ed_pick 殘留）、縮級紀錄的效能／記憶體（每幀 append）。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀核對計畫、差異與相關路徑，優先查頁籤狀態、手把操作及縮級紀錄，附上行號。
+exec
+/bin/bash -lc "pwd && rg --files -g 'AGENTS.md' -g 'b07-plan.md' -g 'diff.patch' -g '*en150*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 457ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v131-impl3/diff.patch
+docs/review/v152/after_en150.png
+coordination/v140-i1/diff.patch
+coordination/v131-impl2/diff.patch
+coordination/v140-i2/diff.patch
+coordination/v131-impl1/diff.patch
+coordination/v130-impl/cat11-r1/diff.patch
+coordination/v140-impl/cat12-r1/diff.patch
+coordination/v140-impl/cat08-r1/diff.patch
+coordination/v120-final2/diff.patch
+coordination/v130-impl/cat09-r1/diff.patch
+coordination/v120-final/diff.patch
+coordination/v130-impl/cat08-r1/diff.patch
+coordination/v140-impl/cat11-r1/diff.patch
+coordination/v140-impl/cat05-r1/diff.patch
+coordination/v140-impl/cat10-r1/diff.patch
+coordination/v130-impl/cat06-r1/diff.patch
+coordination/v140-impl/cat02-r1/diff.patch
+coordination/v152-impl/r1/sheet_en150.png
+coordination/v130-impl/cat06-r1/agy/b_mag_en150.png
+coordination/v140-impl/cat09-r1/diff.patch
+coordination/v130-impl/cat05-r1/diff.patch
+coordination/v140-impl/cat01-r1/diff.patch
+coordination/v120-impl2/diff.patch
+coordination/v1600-impl/b10-r1/diff.patch
+coordination/v130-impl/cat02-r1/diff.patch
+coordination/v1600-impl/b09-r1/diff.patch
+coordination/v130-impl/cat04-r1/diff.patch
+coordination/v130-impl2/diff.patch
+coordination/v120-impl/cat07-r1/diff.patch
+coordination/v1500-impl/cat15-r1/diff.patch
+coordination/v1500-impl/cat06-r1/diff.patch
+coordination/v130-impl/cat01-r1/diff.patch
+coordination/v120-impl/cat06-r1/diff.patch
+coordination/v130-impl/cat03-r1/diff.patch
+coordination/v1500-impl/cat14-r1/diff.patch
+coordination/v120-impl/cat11-r1/diff.patch
+coordination/v130-impl1/diff.patch
+coordination/v120-impl/cat10-r1/diff.patch
+coordination/v1500-impl/cat05-r1/diff.patch
+coordination/v121-impl2/diff.patch
+coordination/v1600-impl/b04-r1/diff.patch
+coordination/v120-impl/cat05-r1/diff.patch
+coordination/v120-impl/cat09-r1/diff.patch
+coordination/v1600-impl/b08-r1/diff.patch
+coordination/v121-impl1/diff.patch
+coordination/v1600-impl/b03-r1/hy2/en150_place.png
+coordination/v1600-impl/b07-r1/diff.patch
+coordination/v1600-impl/b07-r1/b07-plan.md
+coordination/v1600-impl/b07-plan.md
+coordination/v120-impl/cat08-r1/diff.patch
+coordination/v120-impl/cat04-r1/diff.patch
+coordination/v1500-impl/cat04-r1/diff.patch
+coordination/v1600-impl/b03-r1/hy1/en150_result.png
+coordination/v1600-impl/b03-r1/hy1/en150_place_foe_open.png
+coordination/v1600-impl/b03-r1/hy1/en150_place.png
+coordination/v1600-impl/b03-r1/diff.patch
+coordination/v1500-impl/cat03-r1/diff.patch
+coordination/v1500-impl/cat01-r1/diff.patch
+coordination/v1500-impl/cat02-r1/diff.patch
+coordination/v1600-impl/b02-r1/diff.patch
+coordination/v120-impl/cat03-r1/diff.patch
+coordination/v1500-impl/cat10-r1/diff.patch
+coordination/v1600-impl/b01-r1/diff.patch
+coordination/v1600-impl/b02-r1/hy1/diff.patch
+coordination/v1600-impl/b06-r1/diff.patch
+coordination/v120-impl/cat02-sheets/skin_en150.png
+coordination/v1500-impl/cat08-r1/diff.patch
+coordination/v1500-impl/cat07-r1/diff.patch
+coordination/v1500-impl/cat09-r1/diff.patch
+coordination/v1600-impl/b05-r1/diff.patch
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b07-plan.md; cat coordination/v1600-impl/b07-r1/diff.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+# B07 英文 150% 重災頁＋按任務減選擇（P2.3、P2.5）計畫
+
+方案 §5 B07：24 組 0；母語未校對＝標待驗不結案。前置 B04。
+
+## P2.3 英文 150% 重災頁改寫（`08f`、`23`、`58`、`89`、`10_codex`、`60_reward`、`01_title`）
+- 量測：版面檢查新增 `fit()` 縮級紀錄（layout.jsonl `shrink`：[字, 要的級, 給的級, 最小級仍放不下]）。全站英文 150% 跑一輪：203 頁 0 違規、縮級 24 種字串（多半是大廳頁籤的試量，B04 已用縮寫）；「最小級仍放不下」47 條多數是先試一行、放不下照常換行（不是裁切）——此紀錄當參考，不當門檻。
+- 改寫（英文，**母語未校對＝待驗**）：圖鑑 13 種兵定位縮短（150% 最多兩行；原本最長的 39 字元到三行）；標題副標 → 「Set up. No take-backs. Watch it fight.」（150% 一行）；設定說明欄提示、獎勵「之後每一戰」說明、出題台兩個欄名縮短。`23`、`58`、`89` 在 1.6.0 B04 後英文 150% 已無裁切／縮級（頁籤縮寫在 B04 做了），不再改。
+## P2.5 按任務減選擇
+- 覆盤分兩頁：「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果走勢、分岔、播放）；打開在改動、重算好自動翻到讀結果。
+- 出題台分兩段：編輯段（下一步：驗證／地形／清空／返回）；驗證段（驗證並複製／回去改／返回；兵種盤收起、棋盤只看、目標鈕停用）。
+## 驗收
+- 測試 `test_en150_rewrite_v1600`；24 組 0；新截圖 `v160_16a_review_edit`、`v160_13b_editor_verify`。
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -358,6 +358,7 @@
+ var layout_probe := false
+ var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
+ var probe_texts: Array = []
++var probe_shrink: Array = []   # 1.6.0 B07：這一幀被 fit() 縮級的字 [字, 要的級, 給的級, 最小級仍放不下]
+ var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+ var probe_faces: Array = []     # 1.6.0 B02：這一幀依繪製順序登記的底面 [範圍, 是不是淺紙面]（淺紙白字檢查：字看它之前最後蓋上的那一層）
+ ## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
+@@ -635,6 +636,9 @@
+ 		if nxt < 0:
+ 			break
+ 		sz = nxt
++	if layout_probe and sz < size:
++		# 1.6.0 B07（P2.3）：版面檢查記下「字被擠到縮級」——英文 150% 重災頁的量測（縮到最小級還放不下＝over）
++		probe_shrink.append([s.substr(0, 60), size, sz, _width(s, sz, bold) > maxw])
+ 	return sz
+ 
+ func _font_for(s: String, size: int, bold: bool) -> Font:
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -776,6 +776,7 @@
+ 	probe_screen = {}
+ 	_probe_cell_seq = 0
+ 	probe_texts.clear()
++	probe_shrink.clear()
+ 	probe_btns.clear()
+ 	probe_faces.clear()
+ 	probe_ctrls.clear()
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -378,12 +378,14 @@
+ 
+ # ── 覆盤 ──
+ var rv_fsel := -1   # 第六輪：自由陣型覆盤選中的那一隻（索引）
++var rv_tab := 0     # 1.6.0 B07（P2.5）：覆盤按任務分兩頁：0＝改動（換兵、重算）、1＝讀結果（兩條走勢、分岔、播放）
+ 
+ func _open_review() -> void:
+ 	rv_orig = last_armies[0].copy()
+ 	rv_army = last_armies[0].copy()
+ 	rv_enemy = last_armies[1].copy()
+ 	rv_fsel = -1
++	rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁
+ 	if rv_orig.deploy == "free":
+ 		# 編輯識別（和戰鬥編號分開，Codex 第一輪）：覆盤時每隻帶 eid，「只改一隻」依 eid 比
+ 		for i in rv_orig.units.size():
+@@ -610,6 +612,8 @@
+ 			_rv_set_result(rv_result)   # 先算好的「如果」要重新和基準比分岔點
+ 
+ func _rv_set_result(res: Dictionary) -> void:
++	if rv_result.is_empty() and not res.is_empty():
++		rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」
+ 	rv_result = res
+ 	rv_div = diverge_tick(rv_base.get("log2", PackedInt64Array()), res.get("log2", PackedInt64Array())) if not res.is_empty() else -1
+ 
+@@ -696,6 +700,8 @@
+ 	_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
+ 	var hend := hy + text_h(hint, tz("S"), 960)
+ 	var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
++	var tab_y := 160.0 + dy   # 1.6.0 B07：「改動／讀結果」頁籤列在說明下面，左右兩欄一起往下讓一列
++	dy += 52.0
+ 	var cs := 40.0
+ 	var g0 := Vector2(130, 168 + dy)
+ 	_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
+@@ -732,8 +738,17 @@
+ 	var dsc := review_desc()
+ 	if dsc != "":
+ 		_text(Vector2(g0.x, by + tz("S") * 1.4), dsc, tz("S"), ACCENT, false, false, 420)
+-	# 右：換成哪個兵種（頭像＋價錢）／拿掉
++	# 1.6.0 B07（P2.5）：右欄按任務分兩頁——「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果的走勢、分岔、播放）
+ 	var bx := 580.0
++	btn_group = "rv_tabs"
++	for k in 2:
++		_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
++	btn_group = ""
++	if rv_tab == 1:
++		_rv_draw_read(bx, dy)
++		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
++		return
++	# 右：換成哪個兵種（頭像＋價錢）／拿掉
+ 	var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
+ 	var ph := price_cell_h()   # 1.4.0 R12：價錢子格高＝墨跡＋上下內距；按鈕跟著長高、下面幾列一起往下
+ 	var bh := maxf(66.0, 35.0 + ph + 5.0)
+@@ -751,8 +766,22 @@
+ 	_btn(Rect2(bx, 234 + dy + sh, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
+ 	_btn(Rect2(bx + 282, 234 + dy + sh, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+ 	_btn(Rect2(bx, 284 + dy + sh, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
+-	# 兩條戰力走勢上下對齊（同一個時間軸長度）
++	# 改動頁：重算好了就提示去「讀結果」看（走勢在那一頁）
+ 	var y := 350.0 + dy + sh
++	if not rv_result.is_empty():
++		_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
++		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())
++	elif rv_base.is_empty() and rv_base_err != "":
++		_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
++		_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
++	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
++
++
++## 1.6.0 B07（P2.5）：覆盤「讀結果」頁：原本 vs 如果兩條走勢上下對齊、分岔點、播放「如果」。
++func _rv_draw_read(bx: float, dy: float) -> void:
++	var sh := 0.0
++	# 兩條戰力走勢上下對齊（同一個時間軸長度）
++	var y := 168.0 + dy
+ 	var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+ 	var b0: Array = rv_base.get("b", [100, 100])
+ 	var chh := 70.0 if tz("S") <= 17 else 54.0   # 1.2.0 字級表放大：大字級時走勢圖矮一點（圖可以縮、字不縮），底下說明才不壓到按鈕
+@@ -778,7 +807,7 @@
+ 			_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+ 			y += tz("S") * 1.5
+ 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+-	_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
++
+ 
+ ## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
+ func _tm_new_ghost() -> void:
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -1919,6 +1919,7 @@
+ 		ed_cells[k] = ed_foes[i][k]
+ 	ed_msg = ""
+ 
++var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
+ func _draw_editor() -> void:
+ 	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.7)
+@@ -1946,7 +1947,7 @@
+ 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
+ 					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
+ 			if cx <= 5 or cx >= 10:
+-				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true, "grid": true})
++				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
+ 	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
+ 	if WS3.ED_GOALS[ed_goal] == "trio":
+ 		# 三考：敵陣 1／2／3 分頁（欄標的位置）
+@@ -1956,8 +1957,8 @@
+ 	else:
+ 		_text(G.position + Vector2(13 * ed_cs(), -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ed_cs())
+ 	y = G.end.y + GAP_M
+-	# 兵種調色盤（20 種，兩排）
+-	for t in 20:
++	# 兵種調色盤（20 種，兩排）；1.6.0 B07（P2.5）驗證段不顯示（只留驗證要用的選擇）
++	for t in (20 if ed_tab == 0 else 0):
+ 		var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 48.0, 92, 44)   # 1.2.0：列高 52→48（150% 放得下）
+ 		_btn(pr, "", func(): ed_type = t, true, false, TH_ACTIVE if ed_type == t else Color(0, 0, 0, 0))
+ 		Art.unit(self, pr.position + Vector2(24, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+@@ -1967,7 +1968,7 @@
+ 		_text(ink_center_p(pcell, "%dg" % D.cost(t), tz("C"), true), "%dg" % D.cost(t), tz("C"), Color.WHITE, true, true)
+ 		_ink_mode = false
+ 		probe_cell_end()
+-	y += 2 * 48.0 + GAP_S
++	y += 2 * 48.0 + GAP_S   # 驗證段也保留這塊高度（版面不跳）
+ 	var l := ed_lists()
+ 	var gold := [0, 0]
+ 	for i in 2:
+@@ -1982,22 +1983,30 @@
+ 	if gname in WS3.PICK_GOALS:
+ 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
+ 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+-		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
+-		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", true, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
++		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
++		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", ed_tab == 0, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
+ 	else:
+-		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
++		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
+ 	y += 44 + GAP_S
+ 	if ed_msg != "":
+ 		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
+ 	var by := P.end.y - GAP_L - 48.0
+-	# 1.2.0 §11.10：四顆同寬置中（出題、地形、清空、返回）；三考題不能加地形
++	# 1.2.0 §11.10：四顆同寬置中；三考題不能加地形
++	# 1.6.0 B07（P2.5）按任務分兩段：編輯段＝下一步：驗證／地形／清空／返回；驗證段＝驗證並複製／回去改／返回
+ 	var bw := 240.0
+ 	var bx := 640.0 - (4 * bw + 3 * 16.0) / 2.0
+-	_btn(Rect2(bx, by, bw, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
+-	var mk: String = MapDefs.MAPS[ed_map]["key"]
+-	_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
+-	_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+-	_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
++	var ready: bool = not l[0].is_empty() and not l[1].is_empty()
++	if ed_tab == 0:
++		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = "", ready, true)
++		var mk: String = MapDefs.MAPS[ed_map]["key"]
++		_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
++		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
++		_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
++	else:
++		var bx3 := 640.0 - (3 * bw + 2 * 16.0) / 2.0
++		_btn(Rect2(bx3, by, bw, 48), L.t("ed_make"), func(): _ed_make(), ready, true)
++		_btn(Rect2(bx3 + bw + 16, by, bw, 48), L.t("ed_back_edit"), func(): ed_tab = 0; ed_msg = "")
++		_btn(Rect2(bx3 + 2 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())
+ 
+ ## ── #17 一陣三考 ──
+ const Trio = preload("res://scripts/game/trio.gd")
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -1665,7 +1665,7 @@
+ 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
+ 				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
+ 				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
+-				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0, not _demo()],   # V1.6 #16 出題台
++				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0; set("ed_tab", 0), not _demo()],   # V1.6 #16 出題台
+ 				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true],   # V1.6.1 N2 新玩法導覽（常駐）
+ 				["sb_title", "hc_sb_d", "book", func(): overlay = "songbook"; _focus = 0, true],   # 1.2.0 §11.8 棋譜本
+ 				["menu_codes", "hc_codes_d", "copy", func(): overlay = "codes"; _focus = 0, true]]   # 1.5.0 §1.1：代碼從標題系統鈕移到收藏（標題只留設定、離開）
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -472,7 +472,7 @@
+ 		bad.append({"type": "純黑像素超過 1%", "pct": art["black_pct"]})   # 1.3.0 §4：美感報表的第一條變門檻（憲法 3：禁純黑）
+ 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
+ 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
+-		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art,
++		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art, "shrink": probe_shrink.duplicate(),
+ 		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size(),
+ 		"cap": _cap_info()})   # 1.6.0 R0：固定拍攝契約——每張截圖的拍攝參數（重拍、前後對照要同鏡位同幀）   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
+ 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
+@@ -999,8 +999,10 @@
+ 	var u0: Dictionary = rv_army.units[0]
+ 	rv_sel = Vector2i(int(u0["col"]), int(u0["row"]))
+ 	_rv_set_type(D.SHIELD if int(u0["type"]) != D.SHIELD else D.SWORD)
++	rv_tab = 0
++	await _snap("v160_16a_review_edit.png")   # 1.6.0 B07（P2.5）：覆盤「改動」頁（重算前）
+ 	_rv_recalc()
+-	await _snap("16_review.png")
++	await _snap("16_review.png")   # 重算好了自動翻到「讀結果」頁
+ 	# V1.4 #1 時光機：播放「如果」，原本時間線畫成地上的白圈
+ 	_rv_play()
+ 	while seek_target >= 0:
+@@ -2424,6 +2426,9 @@
+ 	_ed_set_map(1)   # 1.2.0 §11.10 出題台地形（雙橋河谷）
+ 	await _snap("v120_07_editor_map.png")
+ 	_ed_set_map(0)
++	ed_tab = 1   # 1.6.0 B07（P2.5）：出題台驗證段
++	await _snap("v160_13b_editor_verify.png")
++	ed_tab = 0
+ 	overlay = ""
+ 	if "--shot-open" in OS.get_cmdline_user_args():
+ 		# 1.2.0 第 11 大類 開發用：實物開合動畫開到一半（不在版面清冊：蓋子蓋住字是設計，不做對比檢查；只在 --shot-open 時拍）
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -263,6 +263,12 @@
+    "一般"
+   ]
+  },
++ "v160_16a_review_edit.png": {
++  "entry": "覆盤（改動頁，1.6.0 B07）",
++  "states": [
++   "一般"
++  ]
++ },
+  "16_review.png": {
+   "entry": "覆盤",
+   "states": [
+@@ -1120,6 +1126,12 @@
+   "states": [
+    "一般"
+   ]
++ },
++ "v160_13b_editor_verify.png": {
++  "entry": "出題台（驗證段，1.6.0 B07）",
++  "states": [
++   "一般"
++  ]
+  },
+  "v120_08_lobby_ext.png": {
+   "entry": "大廳（新技能分頁：架盾、火矢開著，說明火矢）",
+--- a/game/data/strings.csv
++++ b/game/data/strings.csv
+@@ -1,6 +1,6 @@
+ key,zh_TW,en,zh_CN,ja
+ title,落子無悔,No Take-Backs,落子无悔,落子無悔
+-subtitle,擺好就不能反悔，只能看著它們打到最後一秒,Place your army. No take-backs. Watch it fight to the last second.,摆好就不能反悔，只能看着它们打到最后一秒,置いたら待ったなし。最後の一秒まで戦いを見届けます
++subtitle,擺好就不能反悔，只能看著它們打到最後一秒,Set up. No take-backs. Watch it fight.,摆好就不能反悔，只能看着它们打到最后一秒,置いたら待ったなし。最後の一秒まで戦いを見届けます
+ menu_vs_ai,對 AI 快速對戰,Quick Battle vs AI,对 AI 快速对战,AIとクイック対戦
+ menu_duel,同機雙人對決,Local Duel (2P),同机双人对决,同端末2人対戦
+ menu_tutorial,教學（3 關）,Tutorial (3),教学（3 关）,入門（3面）
+@@ -705,7 +705,7 @@
+ ch_name,朋友的陣型,Friend's army,朋友的阵型,友達の陣形
+ rw_title,選一個獎勵,Pick a Reward,选一个奖励,報酬を選ぶ
+ rw_gold,多 10 金,10 Extra Gold,多 10 金,10 G追加
+-rw_gold_d,之後每一戰的預算都加,Added to every later battle,之后每一战的预算都加,以後の全戦闘で予算増加
++rw_gold_d,之後每一戰的預算都加,Added to later battles,之后每一战的预算都加,以後の全戦闘で予算増加
+ rw_cap,多 2 隻,2 More Units,多 2 个,2体追加
+ rw_cap_d,之後每一戰的人數上限都加,Added to your unit limit,之后每一战的人数上限都加,以後すべての戦闘で配置上限が増えます
+ rw_change,多換 2 隻,2 More Swaps,多换 2 个,変更枠＋2体
+@@ -1408,8 +1408,8 @@
+ hc_ed_d,自己擺雙方、選目標，作者解打得過就產生殘局碼給朋友。,"Set up both sides, pick a goal; if your own solution clears it, you get a code to share.",自己摆双方、选目标，作者解打得过就产生残局码给朋友。,両軍を配置して目標を選び、自分の解でクリアできたらコードを作成。
+ ed_title,殘局出題台,Puzzle workbench,残局出题台,パズル工房
+ ed_help,先選下面的兵種，再點格子擺上去（再點一次拿掉）。左邊是你的解、右邊是敵陣。,"Pick a unit below, then click squares to place it (click again to remove). Left = your solution, right = the enemy.",先选下面的兵种，再点格子摆上去（再点一次拿掉）。左边是你的解、右边是敌阵。,下で兵種を選び、マスをクリックして配置（もう一度で削除）。左が自分の解、右が敵陣。
+-ed_you,你的解（0～5 欄）,Your solution (cols 0–5),你的解（0～5 栏）,自分の解（0～5列）
+-ed_foe,敵陣（10～15 欄）,Enemy (cols 10–15),敌阵（10～15 栏）,敵陣（10～15列）
++ed_you,你的解（0～5 欄）,You (0–5),你的解（0～5 栏）,自分の解（0～5列）
++ed_foe,敵陣（10～15 欄）,Enemy (10–15),敌阵（10～15 栏）,敵陣（10～15列）
+ ed_info,你的解 %d 隻 %d 金・敵陣 %d 隻 %d 金,"Solution %d units, %d g · Enemy %d units, %d g",你的解 %d 个 %d 金・敌阵 %d 个 %d 金,解 %d体 %dG・敵陣 %d体 %dG
+ ed_goal,目標：%s,Goal: %s,目标：%s,目標：%s
+ ed_g_win,打贏,Win,打赢,勝利
+@@ -1759,7 +1759,7 @@
+ foe_zone2,不能擺・開戰才看得到,Off-limits · hidden till battle,不能摆・开战才看得到,配置不可・開戦まで非公開
+ set_adv_open,進階微調 ▶（%d 項）,Fine-tuning ▶ (%d),进阶微调 ▶（%d 项）,詳細設定 ▶（%d 項目）
+ set_adv_back,◀ 回到常用,◀ Back to common,◀ 回到常用,◀ よく使う設定へ
+-set_hover_hint,把游標移到一列上，這裡會說明它在做什麼。,Point at a row to see what it does.,把光标移到一列上，这里会说明它在做什么。,行を選ぶと、ここに説明が出ます。
++set_hover_hint,把游標移到一列上，這裡會說明它在做什麼。,Point at a row for help.,把光标移到一列上，这里会说明它在做什么。,行を選ぶと、ここに説明が出ます。
+ fp_copy,複製重播校驗碼,Copy replay code,复制重播校验码,照合コードをコピー
+ fp_copied,已複製重播校驗碼（同一場重播一定相同）,Replay check copied (identical for every replay of this battle),已复制重播校验码（同一场重播一定相同）,照合コードをコピーしました（同じ対戦なら必ず一致）
+ pf_tab_0,總覽,Overview,总览,概要
+@@ -1777,3 +1777,7 @@
+ lb_p_fantasy_short,奇幻兵團,Monsters,奇幻兵团,魔物軍団
+ lb_p_big_short,大軍團,Big army,大军团,大軍団
+ lb_p_single_short,單兵種對決,1-Type,单兵种对决,単兵種戦
++rv_tab_edit,改動,Change,改动,変更
++rv_tab_read,讀結果,Results,读结果,結果を見る
++ed_to_verify,下一步：驗證,Next: Verify,下一步：验证,次へ：検証
++ed_back_edit,回去改,Edit more,回去改,編集に戻る
+--- a/game/data/codex.json
++++ b/game/data/codex.json
+@@ -5,7 +5,7 @@
+   {
+    "id": 0,
+    "role_zh": "前排破盾手",
+-   "role_en": "Front-line shield breaker",
++   "role_en": "Front shield breaker",
+    "story_zh": "王國裡最準時上下班的模範步兵。頭盔上的小藍羽是媽媽縫的，短劍磨得亮晶晶。最喜歡找舉大盾的傢伙比力氣；背後有黑影靠近時，也會毫不猶豫轉身回一劍。",
+    "story_en": "The kingdom's most punctual foot soldier. Mom sewed the little blue plume on the helmet; the short sword is polished to a shine. Loves testing strength against big shields — and spins around the moment a shadow creeps up behind.",
+    "tagline_zh": "我先上，點心留一份！",
+@@ -36,7 +36,7 @@
+   {
+    "id": 1,
+    "role_zh": "前排肉盾、反騎兵",
+-   "role_en": "Front-line wall, anti-cavalry",
++   "role_en": "Front wall, anti-cavalry",
+    "story_zh": "原本是城門口的守衛大叔，因為力氣太大總把門把拽壞，乾脆拆了一塊厚鐵板當盾。雖然走得慢吞吞，但只要把盾往地上一插，連狂奔的小馬都會撞得眼冒金星。",
+    "story_en": "Used to guard the city gate, but kept ripping off door handles — so now carries a slab of iron as a shield. Slow on foot, but plant that shield and even a galloping pony sees stars.",
+    "tagline_zh": "靠過來，這邊有位子！",
+@@ -100,7 +100,7 @@
+   {
+    "id": 3,
+    "role_zh": "側翼突擊、獵弓手",
+-   "role_en": "Flank raider, archer hunter",
++   "role_en": "Flanker, hunts archers",
+    "story_zh": "金色蘑菇頭配上一匹脾氣倔強的小馬。最討厭正面排隊，總愛沿著邊邊繞去後排找弓箭手。直直跑起來就停不下來，唯獨看到大盾牌會雙腿發軟。",
+    "story_en": "A golden mushroom haircut on a stubborn little pony. Hates waiting in line up front and loves sneaking around the edge to find archers. Once running straight there's no stopping — except at the sight of a big shield.",
+    "tagline_zh": "坐穩，我們繞一下！",
+@@ -132,7 +132,7 @@
+   {
+    "id": 4,
+    "role_zh": "潛入、獵重甲",
+-   "role_en": "Infiltrator, armor hunter",
++   "role_en": "Sneaks in, hunts armor",
+    "story_zh": "把紫色大兜帽拉得低低的害羞小個子，怕生所以開戰時會先憋氣隱形。最擅長偷偷繞到盾兵背後戳一下，或綁繩子絆倒小馬；被發現時會臉紅到忘記閃躲。",
+    "story_en": "A shy little one with a big purple hood pulled low — so shy they hold their breath and vanish when battle starts. Expert at poking shields from behind and tripping ponies; when spotted, they blush so hard they forget to dodge.",
+    "tagline_zh": "借過一下，嘿嘿。",
+@@ -164,7 +164,7 @@
+   {
+    "id": 5,
+    "role_zh": "第二排長柄、拒騎",
+-   "role_en": "Second-rank pike, anti-cavalry",
++   "role_en": "Pike line, anti-cavalry",
+    "story_zh": "村裡個子最高的孩子，偏偏最怕站第一排。銅色的扁鍋盔是外婆的湯鍋改的，長槍尖綁著紅纓，躲在盾牌哥哥後面也能戳到前面的人。看到小馬衝過來，會把槍尾往地上一頓——「停！」",
+    "story_en": "The tallest kid in the village, and the most nervous about the front row. The copper pot-helmet used to be Grandma's soup pot; the red tassel on the pike lets everyone know where the poke is coming from. Hiding behind a big shield, it can still reach the front. When a pony charges in, it plants the butt of the pike — \"Stop!\"",
+    "tagline_zh": "我在後面，但我搆得到！",
+@@ -196,7 +196,7 @@
+   {
+    "id": 6,
+    "role_zh": "後排範圍轟炸、拆盾牆",
+-   "role_en": "Back-line area bomber, wall breaker",
++   "role_en": "Bomber, breaks walls",
+    "story_zh": "戴著黃銅大護目鏡、圍著橘紅頭巾的發明家。肩上永遠扛著一顆冒小火花的圓滾滾火罐，最喜歡看擠成一團的盾牌一起跳起來。敵人一靠近就慌了，只會拿點火棒亂敲。",
+    "story_en": "An inventor in big brass goggles and an orange bandana, always shouldering a round pot with a fizzing fuse. Loves watching a packed shield wall hop all at once. Gets flustered the moment anyone comes close — then it's just frantic bonking with the lighter stick.",
+    "tagline_zh": "大家站好——不要動喔！",
+@@ -227,7 +227,7 @@
+   {
+    "id": 7,
+    "role_zh": "後排補血、撐住前排",
+-   "role_en": "Back-line healer, keeps the front alive",
++   "role_en": "Heals the front line",
+    "story_zh": "戴著印了綠十字的白色高帽，手上的長杖頂端會發綠光。戰場上它一刀也不揮，眼睛只盯著誰的血最少，跟在後面一路小跑。隊友都走光了，才會氣呼呼地拿杖子敲人。",
+    "story_en": "A tall white hat with a green cross and a staff whose tip glows green. It never swings at anyone — its eyes are only on whoever's lowest, trotting along behind them. Only when the whole team is gone does it angrily bonk someone with the staff.",
+    "tagline_zh": "誰受傷了？舉手！",
+@@ -258,7 +258,7 @@
+   {
+    "id": 8,
+    "role_zh": "陣型中心、全隊加速",
+-   "role_en": "Formation center, team-wide tempo",
++   "role_en": "Center, speeds the team",
+    "story_zh": "羽毛帽是全軍最高的，胸前掛著比自己還圓的大鼓。咚、咚、咚——鼓聲一響，旁邊的人手腳都跟著快起來。它自己不打架，只負責讓大家打得更起勁。",
+    "story_en": "The tallest feathered hat in the army and a drum rounder than itself. Boom, boom, boom — when it plays, everyone nearby moves a little faster. It doesn't fight; it just makes everyone fight harder.",
+    "tagline_zh": "跟著節拍——上！",
+@@ -288,7 +288,7 @@
+   {
+    "id": 9,
+    "role_zh": "破陣開路",
+-   "role_en": "Wall breaker, opens the way",
++   "role_en": "Breaks walls open",
+    "story_zh": "一頭火紅刺蝟頭、披著毛茸茸的獸皮，左右手各一把大斧。它不在乎自己砍了多少，只要把對面的大盾劈出裂縫，後面的弓箭手和劍士就能一擁而上。被小馬撞到也紋風不動。",
+    "story_en": "A fiery spiky head, a fluffy pelt and a big axe in each hand. It doesn't care how much damage it does — it just splits the enemy's shields so the archers and swords behind can pour in. Even a charging pony can't budge it.",
+    "tagline_zh": "盾牌？借我看一下。",
+@@ -320,7 +320,7 @@
+   {
+    "id": 10,
+    "role_zh": "不會動的毒圈封路",
+-   "role_en": "Stationary poison roadblock",
++   "role_en": "Poison roadblock",
+    "story_zh": "住在森林裡的蘑菇，被傭兵公會的傳單騙來當兵。它不會走路，也懶得走路，只要有人踩進它的地盤，就噗地噴一口孢子。隊友都說它是全軍最穩的同事，因為它真的不會動。",
+    "story_en": "A forest mushroom lured in by a guild flyer. It can't walk and wouldn't want to. Step on its turf and it puffs out spores. Teammates call it the steadiest soldier around, because it truly never moves.",
+    "tagline_zh": "別踩我的草皮",
+@@ -410,7 +410,7 @@
+   {
+    "id": 13,
+    "role_zh": "打不完的前排",
+-   "role_en": "The front line that keeps coming",
++   "role_en": "Endless front line",
+    "story_zh": "一團黏黏的東西，對任何事都很樂觀。被砍成兩半時它會說「太好了，多一個朋友」。小史萊姆長大後會忘記對方，然後在下一場互相打招呼。",
+    "story_en": "A cheerful blob, optimistic about everything. Cut in half, it says, \"Great, one more friend.\" The slimelets forget each other and say hello again next battle.",
+    "tagline_zh": "我們是一夥的，也是兩夥的",
+@@ -440,7 +440,7 @@
+   {
+    "id": 14,
+    "role_zh": "穿牆獵殺後排",
+-   "role_en": "Back-line hunter through walls",
++   "role_en": "Hunts the back line",
+    "story_zh": "它不記得自己怎麼死的，只記得還有東西沒吃完。穿過前排時它會小聲說「借過」，然後直直飄到弓箭手面前，弓箭手通常會射它，箭會穿過去，弓箭手通常會哭。",
+    "story_en": "It can't recall how it died, only that it left a snack unfinished. Slipping through the front line, it whispers \"excuse me,\" drifts up to the archer, gets shot, the arrow passes through, and the archer usually cries.",
+    "tagline_zh": "借過，我趕時間",
+@@ -500,7 +500,7 @@
+   {
+    "id": 16,
+    "role_zh": "關鍵時刻的時停",
+-   "role_en": "Time stop at the clutch moment",
++   "role_en": "Clutch time stop",
+    "story_zh": "一隻從時鐘店逃出來的小精靈，沙子流完就會打瞌睡。隊友快撐不住的時候，它會用力敲一下自己的玻璃，全場安靜兩秒半。它覺得兩秒半夠長了，反正大家都很急。",
+    "story_en": "A little sprite that fled a clock shop and nods off when the sand runs out. When allies are failing, it knocks on its own glass and everything goes quiet for two and a half seconds. It thinks two and a half seconds is plenty, since everyone's always in a hurry.",
+    "tagline_zh": "再等兩秒",
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_lobby_book_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+
+--- (新增測試，附在 game/tests/suites/ui.gd 末尾) ---
+## 1.6.0 B07（P2.3）英文 150% 重災頁改寫：圖鑑兵種定位最多兩行（頭像右邊 CX_TAG_W；原本最長的到三行）、標題副標、設定說明、
+## 獎勵說明、出題台欄名在 150% 都一行；（母語未校對＝待驗，ledger 記）。P2.5 覆盤分「改動／讀結果」、出題分「編輯／驗證」。
+func test_en150_rewrite_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g._load_fonts()
+	var LS = load("res://scripts/game/strings.gd")
+	var Sv = load("res://scripts/game/save.gd")
+	var CX = load("res://scripts/game/codex_data.gd") if ResourceLoader.exists("res://scripts/game/codex_data.gd") else null
+	var keep_lang = LS.lang
+	var keep_ts = Sv.settings.get("text_scale", 100)
+	LS.lang = "en"
+	Sv.settings["text_scale"] = 150
+	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/codex.json"))
+	var units: Array = raw.get("units", []) if raw.has("units") else []
+	var bad: Array = []
+	var n := 0
+	for u in units:
+		if u is Dictionary and u.has("role_en"):
+			n += 1
+			if g.wrap_lines(str(u["role_en"]), g.ts(15), g.CX_TAG_W).size() > 2:
+				bad.append(str(u["role_en"]))
+	ok(n >= 20 and bad.is_empty(), "圖鑑 %d 種兵的英文定位在 150%% 最多兩行（%d px；大字級時口號讓位）" % [n, int(g.CX_TAG_W)], str(bad))
+	var one := func(k: String, size: int, w: float) -> bool:
+		return g.wrap_lines(LS.t(k), size, w).size() == 1
+	ok(one.call("subtitle", g.tz("S"), 420.0), "標題副標英文 150%% 一行（%s）" % LS.t("subtitle"))
+	ok(one.call("set_hover_hint", g.tz("S"), 260.0) or g.wrap_lines(LS.t("set_hover_hint"), g.tz("S"), 260.0).size() <= 2, "設定說明欄提示短到兩行內")
+	ok(LS.t("ed_you").length() <= 12 and LS.t("ed_foe").length() <= 14, "出題台欄名縮短（不再拆成兩行）")
+	LS.lang = keep_lang
+	Sv.settings["text_scale"] = keep_ts
+	var rv: String = FileAccess.get_file_as_string("res://scripts/ui/replay_view.gd")
+	ok(rv.find("var rv_tab := 0") >= 0 and rv.find("rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」") >= 0 and rv.find("rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁") >= 0, "覆盤分「改動／讀結果」：打開在改動、重算好翻到讀結果")
+	var v16: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(v16.find("var ed_tab := 0") >= 0 and v16.find("for t in (20 if ed_tab == 0 else 0):") >= 0 and v16.find("\"en\": ed_tab == 0, \"grid\": true") >= 0, "出題分「編輯／驗證」：驗證段收起兵種盤、棋盤只看不改")
+	g.free()
+
+exec
+/bin/bash -lc "rg -n 'editor|ed_pick|rv_tab|review|btn_group|_focus' build/cg/b07/game/scripts/ui/game_input.gd build/cg/b07/game/scripts/ui/replay_view.gd build/cg/b07/game/scripts/ui/screens/game_v16.gd | head -180; rg -n 'overlay = \"editor\"|ed_tab|ed_toggle|_ed_make|_ed_foe' build/cg/b07/game/scripts" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 461ms:
+rg: build/cg/b07/game/scripts/ui/game_input.gd: No such file or directory (os error 2)
+build/cg/b07/game/scripts/ui/replay_view.gd:7:##   可以「播放如果」看那一場。覆盤只看不算：比分、進度、成就、日誌都不寫（副作用矩陣 review）。
+build/cg/b07/game/scripts/ui/replay_view.gd:70:	if play_kind == "review":
+build/cg/b07/game/scripts/ui/replay_view.gd:71:		_text(Vector2(640, 92), L.t("review_tag"), ts(16), ACCENT, true, true, 600)
+build/cg/b07/game/scripts/ui/replay_view.gd:82:	if play_kind == "review":
+build/cg/b07/game/scripts/ui/replay_view.gd:87:		_btn(Rect2(20, 650, 320, 40), L.t("tm_btn"), func(): _open_review())
+build/cg/b07/game/scripts/ui/replay_view.gd:136:	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+build/cg/b07/game/scripts/ui/replay_view.gd:330:	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+build/cg/b07/game/scripts/ui/replay_view.gd:381:var rv_tab := 0     # 1.6.0 B07（P2.5）：覆盤按任務分兩頁：0＝改動（換兵、重算）、1＝讀結果（兩條走勢、分岔、播放）
+build/cg/b07/game/scripts/ui/replay_view.gd:383:func _open_review() -> void:
+build/cg/b07/game/scripts/ui/replay_view.gd:388:	rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁
+build/cg/b07/game/scripts/ui/replay_view.gd:404:	_open("review")
+build/cg/b07/game/scripts/ui/replay_view.gd:407:static func review_changes(orig, now) -> int:
+build/cg/b07/game/scripts/ui/replay_view.gd:442:	if review_changes(rv_orig, rv_army) > 1:
+build/cg/b07/game/scripts/ui/replay_view.gd:468:	if review_changes(rv_orig, trial) > 1:
+build/cg/b07/game/scripts/ui/replay_view.gd:487:	if review_changes(rv_orig, trial) > 1:
+build/cg/b07/game/scripts/ui/replay_view.gd:511:	if review_changes(rv_orig, trial) > 1:
+build/cg/b07/game/scripts/ui/replay_view.gd:518:func review_desc() -> String:
+build/cg/b07/game/scripts/ui/replay_view.gd:550:static func review_run(a0, a1, p_rules = null, cmds: Array = [], ctl := {}) -> Dictionary:
+build/cg/b07/game/scripts/ui/replay_view.gd:586:		rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)
+build/cg/b07/game/scripts/ui/replay_view.gd:593:	rv_base_thread = bg.start(func(): return review_run(a, e, r, lg, ctl), ctl)
+build/cg/b07/game/scripts/ui/replay_view.gd:600:	if overlay != "review":
+build/cg/b07/game/scripts/ui/replay_view.gd:616:		rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」
+build/cg/b07/game/scripts/ui/replay_view.gd:638:		_rv_set_result(review_run(rv_army, rv_enemy, battle_rules, last_cmds))
+build/cg/b07/game/scripts/ui/replay_view.gd:645:	var t: Thread = bg.start(func(): return review_run(a, e, r, lg, ctl), ctl)
+build/cg/b07/game/scripts/ui/replay_view.gd:660:	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
+build/cg/b07/game/scripts/ui/replay_view.gd:683:	replay_snap["overlay"] = "review"
+build/cg/b07/game/scripts/ui/replay_view.gd:686:	_begin_battle(rv_army.copy(), rv_enemy.copy(), "review")
+build/cg/b07/game/scripts/ui/replay_view.gd:692:func _draw_review() -> void:
+build/cg/b07/game/scripts/ui/replay_view.gd:693:	_boss_note("review", "review")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+build/cg/b07/game/scripts/ui/replay_view.gd:737:	_text(Vector2(g0.x, by), L.t("rv_budget", [rv_army.spent(), rv_army.budget, review_changes(rv_orig, rv_army)]), tz("S"), Color.WHITE, false, false, 420)
+build/cg/b07/game/scripts/ui/replay_view.gd:738:	var dsc := review_desc()
+build/cg/b07/game/scripts/ui/replay_view.gd:743:	btn_group = "rv_tabs"
+build/cg/b07/game/scripts/ui/replay_view.gd:745:		_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+build/cg/b07/game/scripts/ui/replay_view.gd:746:	btn_group = ""
+build/cg/b07/game/scripts/ui/replay_view.gd:747:	if rv_tab == 1:
+build/cg/b07/game/scripts/ui/replay_view.gd:768:	_btn(Rect2(bx, 284 + dy + sh, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
+build/cg/b07/game/scripts/ui/replay_view.gd:793:		_text(Vector2(bx, y), L.t("busy_review"), tz("S"), TXT_DIM, false, true, 552)   # 1.2.0 §15.1：基準還在背景算
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:22:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:173:			return func(): overlay = "playroom"; _focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:221:		_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:303:		_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:331:var br_focus := 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:334:	br_focus = _focus
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:337:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:342:	_focus = br_focus
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:393:		"editor":
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:394:			_draw_editor()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:470:				_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:481:	btn_group = "tv_tools"   # 1.5.0 R14：射程、標記、實驗簿三顆小圖示＝一組檢視工具（試煉擺陣原本 13 個，第 4 批漏拍這個變體）
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:483:	btn_group = ""
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:492:		_btn(b3, "", func(): overlay = "notebook"; _focus = 0)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:671:		or (_focus == 0 and hold_keys_down(Save.s("keys"), Save.s("pad")))
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:758:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:875:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:921:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:996:		_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1018:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1112:		call("_open_review")
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1207:		_btn(Rect2(640 - 160, y, 320, 50), L.t("co_apply") if mode == Mode.PUZZLE else L.t("co_review"), func(): _coach_apply(), true, true)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1368:	_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1585:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1665:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1750:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1814:var ed_pick := false               # 正在點選目標
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1864:	if ed_pick:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1868:			ed_pick = false
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1871:			ed_msg = L.t("ed_pick_foe" if want_foe else "ed_pick_own")
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1923:func _draw_editor() -> void:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1924:	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1982:	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; _ed_trio_map()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1985:		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1987:		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", ed_tab == 0, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2000:		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = "", ready, true)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2003:		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2057:	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2199:		_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2283:		_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2316:		_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1858:func ed_toggle(c: Vector2i) -> void:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1881:func _ed_make() -> void:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1922:var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1950:				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1961:	for t in (20 if ed_tab == 0 else 0):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1986:		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1987:		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", ed_tab == 0, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1989:		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1999:	if ed_tab == 0:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2000:		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = "", ready, true)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2007:		_btn(Rect2(bx3, by, bw, 48), L.t("ed_make"), func(): _ed_make(), ready, true)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:2008:		_btn(Rect2(bx3 + bw + 16, by, bw, 48), L.t("ed_back_edit"), func(): ed_tab = 0; ed_msg = "")
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:1668:				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0; set("ed_tab", 0), not _demo()],   # V1.6 #16 出題台
+
+exec
+/bin/bash -lc "nl -ba build/cg/b07/game/scripts/ui/replay_view.gd | sed -n '380,450p;565,815p'; nl -ba build/cg/b07/game/scripts/ui/screens/game_v16.gd | sed -n '1800,1962p'; rg -n 'editor|review|_focus|grid' build/cg/b07/game/scripts/ui/*input* build/cg/b07/game/scripts/ui/*pad*" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 0ms:
+   380	var rv_fsel := -1   # 第六輪：自由陣型覆盤選中的那一隻（索引）
+   381	var rv_tab := 0     # 1.6.0 B07（P2.5）：覆盤按任務分兩頁：0＝改動（換兵、重算）、1＝讀結果（兩條走勢、分岔、播放）
+   382	
+   383	func _open_review() -> void:
+   384		rv_orig = last_armies[0].copy()
+   385		rv_army = last_armies[0].copy()
+   386		rv_enemy = last_armies[1].copy()
+   387		rv_fsel = -1
+   388		rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁
+   389		if rv_orig.deploy == "free":
+   390			# 編輯識別（和戰鬥編號分開，Codex 第一輪）：覆盤時每隻帶 eid，「只改一隻」依 eid 比
+   391			for i in rv_orig.units.size():
+   392				rv_orig.units[i]["eid"] = i
+   393				rv_army.units[i]["eid"] = i
+   394			# 全場：搬移時也要守敵距
+   395			var ep: Array = []
+   396			for u in rv_enemy.units:
+   397				ep.append(Army.pos_of(u))
+   398			if rv_orig.depth > rv_orig.fw / 2:
+   399				rv_army.enemy_pos = ep
+   400				rv_orig.enemy_pos = ep.duplicate()
+   401		rv_sel = Vector2i(-1, -1)
+   402		_rv_dirty()
+   403		_rv_base_start()
+   404		_open("review")
+   405	
+   406	## 跟原本比改了幾隻（換兵種、移位、拿掉、新增都算一隻）。
+   407	static func review_changes(orig, now) -> int:
+   408		if orig.deploy == "free":
+   409			var ma := {}
+   410			for u in orig.units:
+   411				ma[int(u.get("eid", -1))] = [int(u["type"]), int(u["x"]), int(u["y"])]
+   412			var n := 0
+   413			var seen := {}
+   414			for u in now.units:
+   415				var e := int(u.get("eid", -1))
+   416				seen[e] = true
+   417				if not ma.has(e) or ma[e] != [int(u["type"]), int(u["x"]), int(u["y"])]:
+   418					n += 1
+   419			for e in ma:
+   420				if not seen.has(e):
+   421					n += 1
+   422			return n
+   423		var a := {}
+   424		var b := {}
+   425		for u in orig.units:
+   426			a["%d,%d" % [u["col"], u["row"]]] = int(u["type"])
+   427		for u in now.units:
+   428			b["%d,%d" % [u["col"], u["row"]]] = int(u["type"])
+   429		var gone := 0
+   430		var added := 0
+   431		for k in a:
+   432			if not b.has(k) or b[k] != a[k]:
+   433				gone += 1
+   434		for k in b:
+   435			if not a.has(k) or a[k] != b[k]:
+   436				added += 1
+   437		return maxi(gone, added)
+   438	
+   439	func _rv_try(edit: Callable) -> void:
+   440		var before = rv_army.copy()
+   441		edit.call()
+   442		if review_changes(rv_orig, rv_army) > 1:
+   443			rv_army = before
+   444			_toast(L.t("rv_one"), true)
+   445			return
+   446		_rv_dirty()
+   447	
+   448	func _rv_cell(c: Vector2i) -> void:
+   449		if rv_sel.x >= 0 and rv_army.index_at(rv_sel.x, rv_sel.y) != -1 and rv_army.index_at(c.x, c.y) == -1:
+   450			var from := rv_sel
+   565		return {"winner": s.winner, "rem": rem, "log": s.power_log, "log2": s.power_log2, "b": [s.budget_of(0), s.budget_of(1)], "ticks": s.tick}
+   566	
+   567	## V1.4 #1 時光機：兩條戰力紀錄第一次不一樣的 tick（兩隊戰力交錯存放）。完全一樣回 -1。
+   568	static func diverge_tick(a: PackedInt64Array, b: PackedInt64Array) -> int:
+   569		var n := mini(a.size(), b.size())
+   570		for i in n:
+   571			if a[i] != b[i]:
+   572				return i / 2 + 1   # 模擬先加 tick 才記戰力：第一筆是 tick 1（Codex v140-i1）
+   573		return -1 if a.size() == b.size() else n / 2 + 1
+   574	
+   575	## 1.2.0 §15.1：打開覆盤時「原本那一場」的基準重算也放背景（原本在主執行緒同步跑一整場，最壞約 7.5 秒畫面卡住）。
+   576	## 基準算好之前：原本那條顯示「計算中」、重算鈕不能按（分岔 tick 要和基準比）。headless／截圖照舊同步（確定性）。
+   577	var rv_base_thread: Thread = null
+   578	var rv_base_err := ""   # 1.2.0（Codex cat01 #1）：""／"slow"（逾時）／"fail"（開不了執行緒）→ 顯示原因＋「重算原本」鈕
+   579	func _rv_base_start() -> void:
+   580		if rv_base_thread != null:
+   581			bg.retire(rv_base_thread)
+   582			rv_base_thread = null
+   583		rv_base = {}
+   584		rv_base_err = ""
+   585		if not _async_ok():
+   586			rv_base = review_run(rv_orig, rv_enemy, battle_rules, last_cmds)
+   587			return
+   588		var a: Variant = rv_orig.copy()
+   589		var e: Variant = rv_enemy.copy()
+   590		var r: Variant = battle_rules.copy() if battle_rules != null else null
+   591		var lg: Array = last_cmds.duplicate(true)
+   592		var ctl: Dictionary = BgPool.make_ctl(RV_LIMIT_MS)
+   593		rv_base_thread = bg.start(func(): return review_run(a, e, r, lg, ctl), ctl)
+   594		if rv_base_thread == null:
+   595			rv_base_err = "fail"   # 開不了執行緒：不退回主執行緒無期限重算（Codex cat01 #1），顯示失敗、可以再按
+   596	
+   597	func _rv_base_poll() -> void:
+   598		if rv_base_thread == null:
+   599			return
+   600		if overlay != "review":
+   601			bg.retire(rv_base_thread)
+   602			rv_base_thread = null
+   603			return
+   604		if not rv_base_thread.is_alive():
+   605			var res: Dictionary = bg.take(rv_base_thread)
+   606			rv_base_thread = null
+   607			if bool(res.get("cancel", false)):
+   608				rv_base_err = "slow"   # 逾時：顯示「算太久」＋重算鈕（不是永遠停在計算中）
+   609				return
+   610			rv_base = res
+   611			if not rv_result.is_empty():
+   612				_rv_set_result(rv_result)   # 先算好的「如果」要重新和基準比分岔點
+   613	
+   614	func _rv_set_result(res: Dictionary) -> void:
+   615		if rv_result.is_empty() and not res.is_empty():
+   616			rv_tab = 1   # 1.6.0 B07：重算好了＝自動翻到「讀結果」
+   617		rv_result = res
+   618		rv_div = diverge_tick(rv_base.get("log2", PackedInt64Array()), res.get("log2", PackedInt64Array())) if not res.is_empty() else -1
+   619	
+   620	## 第七輪 M3：覆盤重算開背景執行緒（模擬是純計算），畫面不卡；算的時候按鈕不能再按（防重入）。
+   621	var rv_thread: Thread = null
+   622	var rv_gen := 0          # 陣型改一次加一；算完時世代不同就丟掉（Codex r1：舊陣型的結果不能配新陣型）
+   623	var rv_thread_gen := 0
+   624	
+   625	func _rv_dirty() -> void:
+   626		rv_result = {}
+   627		rv_div = -1
+   628		rv_gen += 1
+   629	
+   630	## 1.1.0 H1：可取消、有期限（RV_LIMIT_MS）；改了陣型或離開覆盤就叫停，停了的交給 bg（BgPool）背景回收（不在主執行緒等）。
+   631	## 開不了執行緒就提示、可以再按。
+   632	const RV_LIMIT_MS := 20000
+   633	var rv_ctl := {}
+   634	func _rv_recalc() -> void:
+   635		if rv_thread != null:
+   636			return
+   637		if DisplayServer.get_name() == "headless" or shot_dir != "":
+   638			_rv_set_result(review_run(rv_army, rv_enemy, battle_rules, last_cmds))
+   639			return
+   640		var a: Variant = rv_army.copy()
+   641		var e: Variant = rv_enemy.copy()
+   642		var r: Variant = battle_rules.copy() if battle_rules != null else null
+   643		var lg: Array = last_cmds.duplicate(true)
+   644		var ctl: Dictionary = BgPool.make_ctl(RV_LIMIT_MS)
+   645		var t: Thread = bg.start(func(): return review_run(a, e, r, lg, ctl), ctl)
+   646		if t == null:
+   647			_toast(L.t("rv_fail"), true)
+   648			return
+   649		rv_ctl = ctl
+   650		rv_thread_gen = rv_gen
+   651		rv_thread = t
+   652	
+   653	func _rv_cancel() -> void:
+   654		if rv_thread != null:
+   655			bg.retire(rv_thread)   # 叫停、交給共用回收（N6）
+   656			rv_thread = null
+   657	
+   658	func _rv_poll() -> void:
+   659		_rv_base_poll()
+   660		if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
+   661			_rv_cancel()   # 離開覆盤或改了陣型：舊的不用算完
+   662			return
+   663		if rv_thread != null and not rv_thread.is_alive():
+   664			var res: Dictionary = bg.take(rv_thread)
+   665			rv_thread = null
+   666			if bool(res.get("cancel", false)):
+   667				_toast(L.t("rv_slow"), true)   # 只有逾時會走到這（離開、改陣型在上面就收掉了）
+   668				return
+   669			if rv_thread_gen == rv_gen:
+   670				_rv_set_result(res)
+   671	
+   672	## 結束時：叫停再等（64 tick 內會停）；GIF 也叫停。
+   673	func _rv_exit() -> void:
+   674		_rv_cancel()
+   675		if rv_base_thread != null:
+   676			bg.retire(rv_base_thread)
+   677			rv_base_thread = null
+   678		gif_ctl["stop"] = true   # 真正的等待在 bg.drain()（battle_view._exit_tree）
+   679	
+   680	func _rv_play() -> void:
+   681		rv_last = [rv_army.copy(), rv_enemy.copy()]
+   682		_replay_snapshot()
+   683		replay_snap["overlay"] = "review"
+   684		replay_marks = []
+   685		overlay = ""
+   686		_begin_battle(rv_army.copy(), rv_enemy.copy(), "review")
+   687		# V1.4 #1 時光機：原本那條時間線跟著同步跑，畫成淡圈；從分岔前 2 秒開始看
+   688		_tm_new_ghost()
+   689		if rv_div > 40:
+   690			_seek_async(rv_div - 40)
+   691	
+   692	func _draw_review() -> void:
+   693		_boss_note("review", "review")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+   694		# 第五輪 §4.4：左＝自己的部署區（可改）＋紅方站位（半透明參考）；右＝換兵按鈕（標價）、重算、兩條上下對齊的戰力走勢。
+   695		_panel(Rect2(100, 40, 1080, 720))   # V1.5.2：面板上緣提到 40、底列移到 704，英文／日文 150% 走勢說明不壓到「重播」鈕
+   696		# V1.5.2 L3：說明從緞帶下緣＋16 起；說明換行時左右兩欄一起往下（dy），不壓到「你的部署」與兵種鈕
+   697		var hint := L.t("rv_hint_free" if rv_orig.deploy == "free" else "rv_hint")
+   698		var hy := _h1(Vector2(640, 40), L.t("rv_title")) + GAP_L
+   699		hint = hint + "　" + L.t("rv_note")   # 1.2.0（Codex cat02 #2）：「不一定是敗因」的限制說明放在上方說明裡，一定看得到（原本在底部，放不下就不畫）
+   700		_text(Vector2(640, hy), hint, tz("S"), TXT_DIM, true, false, 960)
+   701		var hend := hy + text_h(hint, tz("S"), 960)
+   702		var dy := maxf(0.0, maxf(hend + GAP_M - (168.0 - tz("C") * 1.5), hend + GAP_L - 160.0))
+   703		var tab_y := 160.0 + dy   # 1.6.0 B07：「改動／讀結果」頁籤列在說明下面，左右兩欄一起往下讓一列
+   704		dy += 52.0
+   705		var cs := 40.0
+   706		var g0 := Vector2(130, 168 + dy)
+   707		_text(g0 - Vector2(0, tz("C") * 1.5), L.t("rv_you_free" if rv_orig.deploy == "free" else "rv_you"), tz("C"), Charts.team_col(0, cbm()), false, true, 236)   # 不壓到右邊「對手站位」
+   708		if rv_orig.deploy == "free":
+   709			_rv_free_board(g0)
+   710		for r in (0 if rv_orig.deploy == "free" else 9):
+   711			for c in 6:
+   712				var cell := Rect2(g0 + Vector2(c, r) * cs, Vector2(cs - 2, cs - 2))
+   713				var sel := rv_sel == Vector2i(c, r)
+   714				var changed := false
+   715				var oi: int = rv_orig.index_at(c, r)
+   716				var ni: int = rv_army.index_at(c, r)
+   717				if (oi == -1) != (ni == -1) or (oi != -1 and ni != -1 and rv_orig.units[oi]["type"] != rv_army.units[ni]["type"]):
+   718					changed = true
+   719				draw_rect(cell, Color(0.25, 0.4, 0.2) if not changed else Color(0.55, 0.42, 0.12))
+   720				if sel:
+   721					draw_rect(cell, ACCENT, false, 3.0)
+   722				if ni != -1:
+   723					Art.unit(self, cell.position + Vector2(cs / 2 - 1, cs - 5), int(rv_army.units[ni]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.54, cbm())
+   724				_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": true, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕
+   725		# 紅方站位（只看不能改）：同一列對齊，右邊是紅方前排
+   726		var cs2 := 26.0
+   727		var g1 := Vector2(g0.x + 6 * cs + 18, g0.y + (9 * cs - 9 * cs2) / 2)
+   728		if rv_orig.deploy != "free":
+   729			_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true, 572.0 - g1.x)   # V1.5.2：不伸進右欄兵種鈕上方
+   730		for r in (0 if rv_orig.deploy == "free" else 9):
+   731			for c in 6:
+   732				draw_rect(Rect2(g1 + Vector2(c, r) * cs2, Vector2(cs2 - 2, cs2 - 2)), Color(0.35, 0.2, 0.2, 0.45))
+   733		for u in (rv_enemy.units if rv_orig.deploy != "free" else []):
+   734			var lc := int(u["col"]) - (Army.COLS - Army.ZONE)
+   735			Art.unit(self, g1 + Vector2(lc * cs2 + cs2 / 2, int(u["row"]) * cs2 + cs2 - 3), int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.75, time, 0.34, cbm())
+   736		var by := g0.y + 9 * cs + 8
+   737		_text(Vector2(g0.x, by), L.t("rv_budget", [rv_army.spent(), rv_army.budget, review_changes(rv_orig, rv_army)]), tz("S"), Color.WHITE, false, false, 420)
+   738		var dsc := review_desc()
+   739		if dsc != "":
+   740			_text(Vector2(g0.x, by + tz("S") * 1.4), dsc, tz("S"), ACCENT, false, false, 420)
+   741		# 1.6.0 B07（P2.5）：右欄按任務分兩頁——「改動」（換兵、拿掉、還原、重算）／「讀結果」（原本 vs 如果的走勢、分岔、播放）
+   742		var bx := 580.0
+   743		btn_group = "rv_tabs"
+   744		for k in 2:
+   745			_btn(Rect2(bx + k * 280, tab_y, 272, 40), L.t(["rv_tab_edit", "rv_tab_read"][k]), func(): rv_tab = k, k == 0 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+   746		btn_group = ""
+   747		if rv_tab == 1:
+   748			_rv_draw_read(bx, dy)
+   749			_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+   750			return
+   751		# 右：換成哪個兵種（頭像＋價錢）／拿掉
+   752		var nt: int = call("_ntypes") if has_method("_ntypes") else D.COUNT
+   753		var ph := price_cell_h()   # 1.4.0 R12：價錢子格高＝墨跡＋上下內距；按鈕跟著長高、下面幾列一起往下
+   754		var bh := maxf(66.0, 35.0 + ph + 5.0)
+   755		var sh := bh - 66.0
+   756		for t in D.COUNT:
+   757			var can: bool = (RuleSet.has(rv_army.pool, t) if battle_rules != null else t < nt)
+   758			var br := Rect2(bx + t * 56, 160 + dy, 52, bh)
+   759			_btn(br, "", _rv_set_type.bind(t), _rv_has_sel() and can)
+   760			var pcell := Rect2(br.position.x, br.end.y - 3 - 2 - ph, br.size.x, ph)   # 價錢那一條（不碰下緣厚度與九宮格邊）
+   761			Art.unit(self, Vector2(br.position.x + 26, pcell.position.y - 4), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0 if can else 0.3, time, 0.5, cbm())
+   762			var pp := last_btn_paper
+   763			probe_cell_begin(pcell)
+   764			_text(ink_center_p(pcell, L.t("gold", [D.cost(t)]), tz("C"), true), L.t("gold", [D.cost(t)]), tz("C"), (_ink(ACCENT) if pp else ACCENT) if can else Color(1, 1, 1, 0.3), true, true)   # 1.6.0 B02：紙面鈕上金字壓成深金
+   765			probe_cell_end()
+   766		_btn(Rect2(bx, 234 + dy + sh, 270, 40), L.t("rv_remove"), _rv_set_type.bind(-1), _rv_has_sel())
+   767		_btn(Rect2(bx + 282, 234 + dy + sh, 270, 40), L.t("rv_reset"), func(): rv_army = rv_orig.copy(); _rv_dirty(); rv_sel = Vector2i(-1, -1); rv_fsel = -1)
+   768		_btn(Rect2(bx, 284 + dy + sh, 552, 48), L.t("busy_review") if rv_thread != null else L.t("rv_recalc"), func(): _rv_recalc(), review_changes(rv_orig, rv_army) == 1 and rv_thread == null and not rv_base.is_empty(), true)
+   769		# 改動頁：重算好了就提示去「讀結果」看（走勢在那一頁）
+   770		var y := 350.0 + dy + sh
+   771		if not rv_result.is_empty():
+   772			_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+   773			_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())
+   774		elif rv_base.is_empty() and rv_base_err != "":
+   775			_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
+   776			_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
+   777		_btn(Rect2(330 if not rv_result.is_empty() else 560, 704, 300 if not rv_result.is_empty() else 160, 44), L.t("back"), func(): overlay = "")
+   778	
+   779	
+   780	## 1.6.0 B07（P2.5）：覆盤「讀結果」頁：原本 vs 如果兩條走勢上下對齊、分岔點、播放「如果」。
+   781	func _rv_draw_read(bx: float, dy: float) -> void:
+   782		var sh := 0.0
+   783		# 兩條戰力走勢上下對齊（同一個時間軸長度）
+   784		var y := 168.0 + dy
+   785		var span: int = maxi(int(rv_base.get("ticks", 1)), int(rv_result.get("ticks", 1)))
+   786		var b0: Array = rv_base.get("b", [100, 100])
+   787		var chh := 70.0 if tz("S") <= 17 else 54.0   # 1.2.0 字級表放大：大字級時走勢圖矮一點（圖可以縮、字不縮），底下說明才不壓到按鈕
+   788		var c0 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
+   789		if rv_base.is_empty() and rv_base_err != "":
+   790			_text(Vector2(bx, y), L.t("rv_slow") if rv_base_err == "slow" else L.t("rv_fail"), tz("S"), Color(1, 0.75, 0.7), false, true, 380)
+   791			_btn(Rect2(bx + 392, y - 6, 160, 36), L.t("rv_base_retry"), func(): _rv_base_start())
+   792		elif rv_base.is_empty():
+   793			_text(Vector2(bx, y), L.t("busy_review"), tz("S"), TXT_DIM, false, true, 552)   # 1.2.0 §15.1：基準還在背景算
+   794		else:
+   795			_text(Vector2(bx, y), L.t("rv_orig", [_rv_outcome(int(rv_base.get("winner", -1)), int(rv_base.get("rem", 0)))]), tz("S"), Color.WHITE, false, true, 552)
+   796			Charts.momentum(self, c0, rv_base.get("log2", PackedInt64Array()), b0[0], b0[1], [], span)
+   797		y += tz("S") * 1.5 + chh + 12.0
+   798		if not rv_result.is_empty():
+   799			_text(Vector2(bx, y), L.t("rv_new", [_rv_outcome(rv_result["winner"], rv_result["rem"])]), tz("S"), ACCENT, false, true, 552)
+   800			var b1: Array = rv_result.get("b", [100, 100])
+   801			var c1 := Rect2(bx, y + tz("S") * 1.5, 552, chh)
+   802			Charts.momentum(self, c1, rv_result.get("log2", PackedInt64Array()), b1[0], b1[1], [], span)
+   803			_rv_div_mark(Rect2(c0.position, Vector2(c0.size.x, c1.end.y - c0.position.y)), span)   # 一條金色粉筆線貫穿兩張圖
+   804			y += tz("S") * 1.5 + chh + 12.0
+   805			if rv_div >= 0:
+   806				# V1.4 #1：兩條時間線從哪一秒開始分岔（播放會從分岔前 2 秒開始）
+   807				_text(Vector2(bx, y), L.t("rv_diverge", [snappedf(rv_div / 20.0, 0.1)]), tz("S"), ACCENT, false, true, 552)
+   808				y += tz("S") * 1.5
+   809			_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+   810	
+   811	
+   812	## V1.4 #1：原本那條時間線（同一組敵陣、原本的我方陣、同樣的軍令紀錄），從頭建一份。
+   813	func _tm_new_ghost() -> void:
+   814		tm_ghost = Sim.new(rv_orig.copy(), rv_enemy.copy(), battle_rules)
+   815		if tm_ghost.cmd_on:
+  1800			var sc := int(e.get("score", 0))
+  1801			var lbl := L.t("dt_row", [int(e.get("rank", 0)), sc / 1000, 999 - sc % 1000])
+  1802			var us: Array = e["units"]
+  1803			_btn(Rect2(400, y, 480, 48), lbl, func(): _daily_top_go(us))
+  1804			y += 56.0
+  1805		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+  1806	
+  1807	## ── #16 殘局出題台：小棋盤擺雙方（左 0～5 欄＝你的解、右 10～15 欄＝敵陣），選目標，作者解要過關才給碼 ──
+  1808	const WS3 = preload("res://scripts/game/workshop.gd")
+  1809	var ed_cells := {}      # Vector2i(欄, 列) → 兵種
+  1810	var ed_type := 0
+  1811	var ed_goal := 0
+  1812	var ed_msg := ""
+  1813	var ed_target := Vector2i(-1, -1)   # V1.6.1 A2：作者指定的目標（斬首＝敵兵、護送／完美＝自己的兵）；-1＝自動
+  1814	var ed_pick := false               # 正在點選目標
+  1815	var ed_foe_i := 0                  # V1.6.1 D2：三考題正在編第幾支敵陣
+  1816	var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
+  1817	var ed_map := 0                    # 1.2.0 §11.10：地形圖（0＝平原；有地形就出 NTP5）
+  1818	var ed_block := {}                 # 這張地形圖上的牆格（Vector2i → true；換圖時重算）
+  1819	
+  1820	## 三考題不能帶地形：切到三考就回平原（不然牆格還擋著、輸出卻是沒地形的碼；Codex cat10 #8）
+  1821	func _ed_trio_map() -> void:
+  1822		if WS3.ED_GOALS[ed_goal] == "trio" and ed_map != 0:
+  1823			_ed_set_map(0)
+  1824	
+  1825	func _ed_set_map(m: int) -> void:
+  1826		ed_map = m
+  1827		ed_block = {}
+  1828		for cx in 16:
+  1829			for cy in 9:
+  1830				if (cx <= 5 or cx >= 10) and WS3.blocked_cell(m, cx, cy, 0 if cx <= 5 else 1):
+  1831					ed_block[Vector2i(cx, cy)] = true
+  1832		for k in ed_block:
+  1833			ed_cells.erase(k)   # 換到這張圖，壓在牆上的兵拿掉
+  1834		if ed_block.has(ed_target):
+  1835			ed_target = Vector2i(-1, -1)
+  1836		ed_msg = ""
+  1837	const ED_CS0 := 32.0
+  1838	## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
+  1839	func ed_cs() -> float:
+  1840		return {100: 32.0, 125: 28.0, 150: 26.0}.get(int(Save.s("text_scale")), ED_CS0)
+  1841	
+  1842	func _ed_rect() -> Rect2:
+  1843		return Rect2(640 - 8 * ed_cs(), 150, 16 * ed_cs(), 9 * ed_cs())
+  1844	
+  1845	func ed_lists() -> Array:
+  1846		var e: Array = []
+  1847		var s: Array = []
+  1848		for k in ed_cells:
+  1849			var v := [int(ed_cells[k]), k.x, k.y]
+  1850			if k.x >= 10:
+  1851				e.append(v)
+  1852			elif k.x <= 5:
+  1853				s.append(v)
+  1854		e.sort()
+  1855		s.sort()
+  1856		return [e, s]
+  1857	
+  1858	func ed_toggle(c: Vector2i) -> void:
+  1859		if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
+  1860			return
+  1861		if ed_block.has(c):
+  1862			ed_msg = L.t("err_terrain")   # 1.2.0 §11.10：牆上不能放
+  1863			return
+  1864		if ed_pick:
+  1865			var want_foe: bool = WS3.ED_GOALS[ed_goal] == "kill"
+  1866			if ed_cells.has(c) and (c.x >= 10) == want_foe:
+  1867				ed_target = c
+  1868				ed_pick = false
+  1869				ed_msg = ""
+  1870			else:
+  1871				ed_msg = L.t("ed_pick_foe" if want_foe else "ed_pick_own")
+  1872			return
+  1873		if c == ed_target:
+  1874			ed_target = Vector2i(-1, -1)   # 目標那隻被換掉或拿掉：回到自動
+  1875		if ed_cells.get(c, -1) == ed_type:
+  1876			ed_cells.erase(c)
+  1877		else:
+  1878			ed_cells[c] = ed_type
+  1879		ed_msg = ""
+  1880	
+  1881	func _ed_make() -> void:
+  1882		var l := ed_lists()
+  1883		var code := ""
+  1884		if WS3.ED_GOALS[ed_goal] == "trio":
+  1885			_ed_sync_foe()
+  1886			var fl: Array = []
+  1887			for f in ed_foes:
+  1888				var e: Array = []
+  1889				for k in f:
+  1890					e.append([int(f[k]), k.x, k.y])
+  1891				e.sort()
+  1892				fl.append(e)
+  1893			code = WS3.encode_trio(fl, l[1])
+  1894		else:
+  1895			code = WS3.encode5(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target, ed_map)   # 1.2.0 §11.10：沒地形時等於 encode4
+  1896		if code == "":
+  1897			ed_msg = L.t("ed_fail")
+  1898			return
+  1899		DisplayServer.clipboard_set(code)
+  1900		call("_ach", "WORKBENCH")   # V1.6.1 D7
+  1901		ed_msg = L.t("ed_ok")
+  1902		_toast(L.t("ws_copied"))
+  1903	
+  1904	## 三考題：右半邊的格子存回目前這一支敵陣
+  1905	func _ed_sync_foe() -> void:
+  1906		var f := {}
+  1907		for k in ed_cells:
+  1908			if k.x >= 10:
+  1909				f[k] = ed_cells[k]
+  1910		ed_foes[ed_foe_i] = f
+  1911	
+  1912	func _ed_switch_foe(i: int) -> void:
+  1913		_ed_sync_foe()
+  1914		for k in ed_cells.keys():
+  1915			if k.x >= 10:
+  1916				ed_cells.erase(k)
+  1917		ed_foe_i = i
+  1918		for k in ed_foes[i]:
+  1919			ed_cells[k] = ed_foes[i][k]
+  1920		ed_msg = ""
+  1921	
+  1922	var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
+  1923	func _draw_editor() -> void:
+  1924		_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+  1925		_dim(0.7)
+  1926		var P := Rect2(80, 40, 1120, 720)
+  1927		_panel(P)
+  1928		probe_skip("R6", "小棋盤是直接畫的格子（不經版面探針），看起來的空白其實是棋盤")
+  1929		var y := _h1_help(Vector2(640, P.position.y + 8), L.t("ed_title"), L.t("ed_help"), tz("S"), 1000)
+  1930		y += tz("C") * 1.5   # 棋盤上方的「你的解／敵陣」欄標（原本壓到說明，版面檢查 en 125%）
+  1931		var G := _ed_rect()
+  1932		G.position.y = y
+  1933		draw_rect(G, Color(0.42, 0.5, 0.28))
+  1934		for cx in 16:
+  1935			for cy in 9:
+  1936				var r := Rect2(G.position + Vector2(cx, cy) * ed_cs(), Vector2(ed_cs(), ed_cs()))
+  1937				if cx > 5 and cx < 10:
+  1938					draw_rect(r, Color(0, 0, 0, 0.35))
+  1939				if ed_block.has(Vector2i(cx, cy)):
+  1940					draw_rect(r.grow(-1), Color("#5a4632"))   # 1.2.0 §11.10 牆格（木刻色塊＋斜線）
+  1941					draw_line(r.position + Vector2(3, 3), r.end - Vector2(3, 3), Color(0, 0, 0, 0.45), 2.0)
+  1942				draw_rect(r, Color(0, 0, 0, 0.2), false, 1.0)
+  1943				var k := Vector2i(cx, cy)
+  1944				if ed_cells.has(k):
+  1945					Art.unit(self, r.position + Vector2(ed_cs() / 2, ed_cs() * 0.82), int(ed_cells[k]), 0 if cx <= 5 else 1, 1.0 if cx <= 5 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
+  1946					if k == ed_target:
+  1947						draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
+  1948						draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
+  1949				if cx <= 5 or cx >= 10:
+  1950					_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
+  1951		_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
+  1952		if WS3.ED_GOALS[ed_goal] == "trio":
+  1953			# 三考：敵陣 1／2／3 分頁（欄標的位置）
+  1954			for fi in 3:
+  1955				var ffi := fi
+  1956				_btn_small(Rect2(G.position + Vector2(10 * ed_cs() + fi * 2 * ed_cs(), -tz("C") * 1.6 - 6), Vector2(2 * ed_cs() - 4, tz("C") * 1.5 + 4)), L.t("ed_foe_n", [fi + 1]), func(): _ed_switch_foe(ffi), true, false, TH_ACTIVE if ed_foe_i == fi else Color(0, 0, 0, 0))
+  1957		else:
+  1958			_text(G.position + Vector2(13 * ed_cs(), -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ed_cs())
+  1959		y = G.end.y + GAP_M
+  1960		# 兵種調色盤（20 種，兩排）；1.6.0 B07（P2.5）驗證段不顯示（只留驗證要用的選擇）
+  1961		for t in (20 if ed_tab == 0 else 0):
+  1962			var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 48.0, 92, 44)   # 1.2.0：列高 52→48（150% 放得下）
+rg: build/cg/b07/game/scripts/ui/*input*: No such file or directory (os error 2)
+rg: build/cg/b07/game/scripts/ui/*pad*: No such file or directory (os error 2)
+
+exec
+/bin/bash -lc "rg -n '\"editor\"|\"review\"|func _rv_free_board|func _focus|_focus = clamp|_focus.*size|JOY_BUTTON|pad_' build/cg/b07/game/scripts/ui | head -180; rg -n 'func _draw|probe_shrink|layout_probe' build/cg/b07/game/scripts/ui/game_screens.gd; rg -n 'func _rv_free_board' build/cg/b07/game/scripts -A70" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 317ms:
+build/cg/b07/game/scripts/ui/replay_view.gd:70:	if play_kind == "review":
+build/cg/b07/game/scripts/ui/replay_view.gd:82:	if play_kind == "review":
+build/cg/b07/game/scripts/ui/replay_view.gd:136:	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+build/cg/b07/game/scripts/ui/replay_view.gd:330:	var armies2: Array = rv_last if play_kind == "review" and not rv_last.is_empty() else last_armies
+build/cg/b07/game/scripts/ui/replay_view.gd:404:	_open("review")
+build/cg/b07/game/scripts/ui/replay_view.gd:600:	if overlay != "review":
+build/cg/b07/game/scripts/ui/replay_view.gd:660:	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
+build/cg/b07/game/scripts/ui/replay_view.gd:683:	replay_snap["overlay"] = "review"
+build/cg/b07/game/scripts/ui/replay_view.gd:686:	_begin_battle(rv_army.copy(), rv_enemy.copy(), "review")
+build/cg/b07/game/scripts/ui/replay_view.gd:693:	_boss_note("review", "review")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+build/cg/b07/game/scripts/ui/replay_view.gd:853:func _rv_free_board(g0: Vector2) -> void:
+build/cg/b07/game/scripts/ui/ui_base.gd:50:	return load("res://scripts/game/keymap.gd").pad_glyph(Save.s("pad"), action, Input.get_joy_name(last_joy))
+build/cg/b07/game/scripts/ui/ui_base.gd:53:	if not pad_mode:
+build/cg/b07/game/scripts/ui/ui_base.gd:59:		_toast(L.t("bc_pad_hint"), true)
+build/cg/b07/game/scripts/ui/ui_base.gd:228:var pad_mode := false
+build/cg/b07/game/scripts/ui/ui_base.gd:265:	"review": {"series": false, "progress": false, "log": false},
+build/cg/b07/game/scripts/ui/ui_base.gd:620:	pad_mode = true
+build/cg/b07/game/scripts/ui/ui_base.gd:623:	_focus = posmod(_focus + d, _btns.size())
+build/cg/b07/game/scripts/ui/ui_base.gd:728:func _focus_glide(rd: Rect2) -> Rect2:
+build/cg/b07/game/scripts/ui/ui_base.gd:729:	if layout_probe or not bool(get("pad_mode")) or bool(Save.s("reduce_motion")):
+build/cg/b07/game/scripts/ui/ui_base.gd:747:	return mag_focus if bool(get("pad_mode")) else get("mouse")
+build/cg/b07/game/scripts/ui/ui_base.gd:839:			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).grow(4.0 if bool(get("pad_mode")) else 0.0).has_point(mag_point()):
+build/cg/b07/game/scripts/ui/ui_base.gd:940:	var hover := hit.has_point(mouse) and not pad_mode
+build/cg/b07/game/scripts/ui/ui_base.gd:941:	var focus := pad_mode and idx == _focus
+build/cg/b07/game/scripts/ui/ui_base.gd:1593:	var hot := (r.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)
+build/cg/b07/game/scripts/ui/ui_base.gd:1633:const OBJ_OF := {"puzzles": "book", "trials": "tube", "codex": "specimen", "settings": "toolbox", "keys": "toolbox", "profile": "shelf", "nemeses": "ebony", "lobby": "notebook", "review": "annot", "owner_daily": "book",
+build/cg/b07/game/scripts/ui/unit_brief.gd:55:	return (r.has_point(mouse) and not pad_mode) or (pad_mode and _btns.size() - 1 == _focus)
+build/cg/b07/game/scripts/ui/lobby_view.gd:565:		_focus = _btns.size()   # 換步後焦點落在主鈕
+build/cg/b07/game/scripts/ui/battle/battle_state.gd:288:		if key.length() == 1 and pad_mode:
+build/cg/b07/game/scripts/ui/battle/battle_state.gd:292:		if pad_mode and key in PS_SYMS:
+build/cg/b07/game/scripts/ui/battle/battle_state.gd:341:		if pad_mode and str(items[i][0]) in PS_SYMS:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:93:		_fp_pad_process(delta, Vector2(stick[JOY_AXIS_LEFT_X], stick[JOY_AXIS_LEFT_Y]))   # 第六輪：平滑游標
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:319:	if pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:554:		"review":
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:687:	if overlay != "settings" or pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:750:		_focus = _btns.size()
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:1668:				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0; set("ed_tab", 0), not _demo()],   # V1.6 #16 出題台
+build/cg/b07/game/scripts/ui/screens/game_place.gd:456:	var c := cursor if pad_mode else _cell_at(mouse)
+build/cg/b07/game/scripts/ui/screens/game_place.gd:460:		if pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_place.gd:474:	var c := cursor if pad_mode else _cell_at(mouse)
+build/cg/b07/game/scripts/ui/screens/game_place.gd:882:		if pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_place.gd:884:			var rt: String = {"ps": "R2", "nintendo": "ZR"}.get(Keymap.pad_family(Input.get_joy_name(last_joy)), "RT")
+build/cg/b07/game/scripts/ui/screens/game_place.gd:888:	if mode == Mode.VS_AI and pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_place.gd:889:		var rt2: String = {"ps": "R2", "nintendo": "ZR"}.get(Keymap.pad_family(Input.get_joy_name(last_joy)), "RT")
+build/cg/b07/game/scripts/ui/screens/game_place.gd:990:	if pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_place.gd:1061:		if pressed and not plan_press_prev and plan_drag < 0 and hit.has_point(mouse) and not pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_place.gd:1277:	if en and ((tr.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)):
+build/cg/b07/game/scripts/ui/screens/game_place.gd:1311:	if en and ((tr.has_point(mouse) and not pad_mode) or (pad_mode and idx == _focus)):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:393:		"editor":
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:453:func _tv_pad_world() -> Vector2i:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:459:	if tv_mark_mode and pad_mode and k == KEY_ENTER:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:460:		if tv_toggle_at(_cur_army(), _tv_pad_world()):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:474:			if tv_toggle_at(_cur_army(), _tv_pad_world() if pad_mode else _tv_world_at(mouse)):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:675:		if pad_mode and int(Save.s("rumble")) > 0:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:686:	var pb := int(pt.get("place", JOY_BUTTON_A))
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1559:	if pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1924:	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+build/cg/b07/game/scripts/ui/battle/battle_fx.gd:72:	if pad_mode:
+build/cg/b07/game/scripts/ui/battle/battle_fx.gd:555:func _focus_dim(world_p: Vector2) -> float:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd:784:	if live and tm_ghost != null and play_kind == "review" and tm_ghost_on:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd:916:		elif live and state == St.BATTLE and _focus_ids.size() == 2 and u.id == int(_focus_ids[1]):
+build/cg/b07/game/scripts/ui/game_screens.gd:14:var pad_x_t := -1.0
+build/cg/b07/game/scripts/ui/game_screens.gd:15:func _pad_x_hold(pressed: bool) -> void:
+build/cg/b07/game/scripts/ui/game_screens.gd:16:	pad_x_t = time if pressed and state == St.PLACE and overlay == "" and bool(call("_can_edit_existing")) else -1.0
+build/cg/b07/game/scripts/ui/game_screens.gd:18:func _pad_clear_tick() -> void:
+build/cg/b07/game/scripts/ui/game_screens.gd:19:	if pad_x_t >= 0.0 and time - pad_x_t >= PAD_CLEAR_SEC:
+build/cg/b07/game/scripts/ui/game_screens.gd:20:		pad_x_t = -1.0
+build/cg/b07/game/scripts/ui/game_screens.gd:23:			_toast(L.t("pad_cleared"))
+build/cg/b07/game/scripts/ui/game_screens.gd:213:		pad_mode = false
+build/cg/b07/game/scripts/ui/game_screens.gd:247:		var db: int = Keymap.pad_to_default(Save.s("pad"), ev.button_index)
+build/cg/b07/game/scripts/ui/game_screens.gd:254:		if ev.button_index == JOY_BUTTON_X:
+build/cg/b07/game/scripts/ui/game_screens.gd:255:			_pad_x_hold(ev.pressed)   # 1.1.0 Q1：長按拿掉鍵＝清空自己的陣
+build/cg/b07/game/scripts/ui/game_screens.gd:256:	if ev is InputEventJoypadButton and ev.pressed and _pad_tool(ev):
+build/cg/b07/game/scripts/ui/game_screens.gd:258:	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
+build/cg/b07/game/scripts/ui/game_screens.gd:260:	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+build/cg/b07/game/scripts/ui/game_screens.gd:261:		pad_mode = true
+build/cg/b07/game/scripts/ui/game_screens.gd:265:		pad_mode = true
+build/cg/b07/game/scripts/ui/game_screens.gd:266:		var map := {JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT,
+build/cg/b07/game/scripts/ui/game_screens.gd:267:			JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_A: KEY_ENTER, JOY_BUTTON_B: KEY_ESCAPE, JOY_BUTTON_X: KEY_BACKSPACE,
+build/cg/b07/game/scripts/ui/game_screens.gd:268:			JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_Y: KEY_TAB, JOY_BUTTON_LEFT_SHOULDER: KEY_Q, JOY_BUTTON_RIGHT_SHOULDER: KEY_E,
+build/cg/b07/game/scripts/ui/game_screens.gd:269:			JOY_BUTTON_BACK: KEY_F1, JOY_BUTTON_LEFT_STICK: KEY_H, JOY_BUTTON_RIGHT_STICK: KEY_P}
+build/cg/b07/game/scripts/ui/game_screens.gd:274:		pad_mode = true
+build/cg/b07/game/scripts/ui/game_screens.gd:281:			pad_mode = true
+build/cg/b07/game/scripts/ui/game_screens.gd:429:## 這裡的 Y、LB 是改鍵換算後的預設鍵（_input 先做 pad_to_default）：改了「暫停」「上一種」的綁定就跟著換，提示也照綁定顯示。
+build/cg/b07/game/scripts/ui/game_screens.gd:431:func _pad_tool(ev: InputEventJoypadButton) -> bool:
+build/cg/b07/game/scripts/ui/game_screens.gd:435:	if ev.button_index == JOY_BUTTON_BACK and mode == Mode.VS_AI:
+build/cg/b07/game/scripts/ui/game_screens.gd:436:		pad_mode = true
+build/cg/b07/game/scripts/ui/game_screens.gd:440:		JOY_BUTTON_Y:
+build/cg/b07/game/scripts/ui/game_screens.gd:442:		JOY_BUTTON_DPAD_RIGHT:
+build/cg/b07/game/scripts/ui/game_screens.gd:444:		JOY_BUTTON_DPAD_LEFT:
+build/cg/b07/game/scripts/ui/game_screens.gd:446:		JOY_BUTTON_LEFT_SHOULDER:
+build/cg/b07/game/scripts/ui/game_screens.gd:450:	pad_mode = true
+build/cg/b07/game/scripts/ui/game_screens.gd:487:	if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
+build/cg/b07/game/scripts/ui/game_screens.gd:507:				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+build/cg/b07/game/scripts/ui/game_screens.gd:564:	pad_mode = true
+build/cg/b07/game/scripts/ui/game_screens.gd:682:	_pad_clear_tick()
+build/cg/b07/game/scripts/ui/game_screens.gd:695:	if shake > rumble_seen + 0.05 and pad_mode and int(Save.s("rumble")) > 0:
+build/cg/b07/game/scripts/ui/game_screens.gd:935:	_draw_pad_footer()
+build/cg/b07/game/scripts/ui/game_screens.gd:944:	if _focus >= _btns.size():
+build/cg/b07/game/scripts/ui/game_screens.gd:962:func _pad_footer_items() -> Array:
+build/cg/b07/game/scripts/ui/game_screens.gd:980:func _draw_pad_footer() -> void:
+build/cg/b07/game/scripts/ui/game_screens.gd:981:	if not pad_mode or (state == St.PLACE and overlay == ""):
+build/cg/b07/game/scripts/ui/game_screens.gd:983:	var items: Array = _pad_footer_items()
+build/cg/b07/game/scripts/ui/game_screens.gd:999:	if not pad_mode:
+build/cg/b07/game/scripts/ui/game_screens.gd:1009:	if pad_mode and _btns_gen == _gen and _focus >= 0 and _focus < _btns.size():
+build/cg/b07/game/scripts/ui/game_screens.gd:1045:			if not _fp_pad_button(int(c["data"]["b"]), bool(c["data"]["pressed"])) and c["data"]["pressed"]:
+build/cg/b07/game/scripts/ui/game_screens.gd:1046:				var mp := {JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_B: KEY_ESCAPE}
+build/cg/b07/game/scripts/ui/battle_view.gd:131:	_pad_cam(delta)
+build/cg/b07/game/scripts/ui/battle_view.gd:532:				if pad_mode and tm == 0 and i < 2:
+build/cg/b07/game/scripts/ui/battle_view.gd:547:	if not pad_mode or int(Save.s("rumble")) <= 0 or time - kill_rumble_t < 0.25:
+build/cg/b07/game/scripts/ui/battle_view.gd:1070:func _pad_cam(delta: float) -> void:
+build/cg/b07/game/scripts/ui/battle_view.gd:1322:	if state != St.BATTLE or view == null or paused or pad_mode or bool(Save.s("plain_ui")):
+build/cg/b07/game/scripts/ui/free_place.gd:43:var fp_pad_a := false
+build/cg/b07/game/scripts/ui/free_place.gd:44:var fp_pad_x := false
+build/cg/b07/game/scripts/ui/free_place.gd:418:	fp_pad_a = false
+build/cg/b07/game/scripts/ui/free_place.gd:419:	fp_pad_x = false
+build/cg/b07/game/scripts/ui/free_place.gd:445:			var at: Vector2i = Vector2i(fp_cur) if (pad_mode or not _fp_in_field(mouse)) else _w_of(mouse)
+build/cg/b07/game/scripts/ui/free_place.gd:473:func _fp_pad_process(delta: float, stick: Vector2) -> void:
+build/cg/b07/game/scripts/ui/free_place.gd:474:	if not _is_free() or not pad_mode:
+build/cg/b07/game/scripts/ui/free_place.gd:485:		elif fp_pad_x:
+build/cg/b07/game/scripts/ui/free_place.gd:488:func _fp_pad_button(b: int, pressed: bool) -> bool:
+build/cg/b07/game/scripts/ui/free_place.gd:493:		JOY_BUTTON_A:
+build/cg/b07/game/scripts/ui/free_place.gd:496:				fp_pad_a = true
+build/cg/b07/game/scripts/ui/free_place.gd:499:				fp_pad_a = false
+build/cg/b07/game/scripts/ui/free_place.gd:502:		JOY_BUTTON_X:
+build/cg/b07/game/scripts/ui/free_place.gd:503:			fp_pad_x = pressed
+build/cg/b07/game/scripts/ui/free_place.gd:510:		JOY_BUTTON_B:
+build/cg/b07/game/scripts/ui/free_place.gd:514:		JOY_BUTTON_Y:
+build/cg/b07/game/scripts/ui/free_place.gd:518:		JOY_BUTTON_LEFT_STICK:
+build/cg/b07/game/scripts/ui/free_place.gd:522:		JOY_BUTTON_RIGHT_STICK:
+build/cg/b07/game/scripts/ui/free_place.gd:526:		JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT:
+build/cg/b07/game/scripts/ui/free_place.gd:528:				var dv := {JOY_BUTTON_DPAD_UP: Vector2(0, -500), JOY_BUTTON_DPAD_DOWN: Vector2(0, 500), JOY_BUTTON_DPAD_LEFT: Vector2(-500, 0), JOY_BUTTON_DPAD_RIGHT: Vector2(500, 0)}
+build/cg/b07/game/scripts/ui/free_place.gd:534:				elif fp_pad_x:
+build/cg/b07/game/scripts/ui/free_place.gd:632:	var hover_w: Vector2i = Vector2i(fp_cur) if pad_mode else _w_of(mouse)   # 手把＝準星（Antigravity 實作第 3 輪，未經複查）
+build/cg/b07/game/scripts/ui/free_place.gd:658:	if _fp_in_field(mouse) or pad_mode:
+build/cg/b07/game/scripts/ui/free_place.gd:659:		var hw: Vector2i = Vector2i(fp_cur) if pad_mode else hover_w
+build/cg/b07/game/scripts/ui/free_place.gd:667:		var tgt := _q(Vector2i(fp_cur) if pad_mode else _w_of(mouse))
+build/cg/b07/game/scripts/ui/free_place.gd:708:		var anchor := _fp_scr(Vector2i(fp_cur)) if pad_mode else mouse
+build/cg/b07/game/scripts/ui/free_place.gd:715:		var r := Rect2(fp_box_a, Vector2.ZERO).expand(_fp_scr(Vector2i(fp_cur)) if pad_mode else mouse)
+build/cg/b07/game/scripts/ui/free_place.gd:719:	if _snap_on() and (_fp_in_field(mouse) or pad_mode):
+build/cg/b07/game/scripts/ui/free_place.gd:727:	if not fp_stroking and fp_drag < 0 and _fp_in_field(mouse) and not pad_mode:
+build/cg/b07/game/scripts/ui/free_place.gd:735:	if pad_mode:
+build/cg/b07/game/scripts/ui/free_place.gd:738:	if not drag_on and (_fp_in_field(mouse) or pad_mode):
+build/cg/b07/game/scripts/ui/free_place.gd:749:	if not drag_on and selected == 15 and (_fp_in_field(mouse) or pad_mode):
+build/cg/b07/game/scripts/ui/free_place.gd:762:	var msg: String = L.t(step + "_pad", [_pk("start") if step == "intro_s3" else _pk("place")]) if pad_mode else L.t(step)
+build/cg/b07/game/scripts/ui/screens/game_core.gd:904:	out["focus"] = not _btns.is_empty() and _focus >= 0 and _focus < _btns.size()
+build/cg/b07/game/scripts/ui/screens/game_result.gd:171:		var y1 := 112.0 + nxt * 1.25 + (float(tz("C")) * 1.4 if play_kind == "review" else 0.0)
+build/cg/b07/game/scripts/ui/screens/game_result.gd:210:	if play_kind == "review":
+build/cg/b07/game/scripts/ui/screens/game_result.gd:671:	if mode == Mode.DUEL or watch_mode or play_kind == "review":
+build/cg/b07/game/scripts/ui/screens/game_result.gd:743:	if w != 0 or watch_mode or play_kind == "review" or last_armies.size() != 2 or not (mode == Mode.VS_AI or mode == Mode.DUEL):
+build/cg/b07/game/scripts/ui/screens/game_result.gd:809:	if play_kind == "review" and rv_last.size() == 2:
+build/cg/b07/game/scripts/ui/screens/game_result.gd:810:		_begin_battle(rv_last[0].copy(), rv_last[1].copy(), "review")
+build/cg/b07/game/scripts/ui/screens/game_result.gd:977:		if idx == _focus and pad_mode:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd:933:		if r.has_point(mouse) and not pad_mode:
+81:			layout_probe = true
+755:func _draw() -> void:
+774:func _draw_inner() -> void:
+779:	probe_shrink.clear()
+911:	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+951:	if not layout_probe and not bool(Save.s("reduce_fx")) and time - _trans_t < 0.25:
+980:func _draw_pad_footer() -> void:
+987:	if layout_probe:
+1076:func _draw_ink_report_field() -> void:
+1118:func _draw_ink_report_screen() -> void:
+1293:	if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
+build/cg/b07/game/scripts/ui/replay_view.gd:853:func _rv_free_board(g0: Vector2) -> void:
+build/cg/b07/game/scripts/ui/replay_view.gd-854-	var full: bool = rv_orig.depth > rv_orig.fw / 2
+build/cg/b07/game/scripts/ui/replay_view.gd-855-	var s := 0.028 if full else 0.038
+build/cg/b07/game/scripts/ui/replay_view.gd-856-	s = minf(s, 450.0 / float(rv_orig.fw if full else rv_orig.depth + Army.EDGE))   # 大地圖別蓋到右邊的控制列（Codex #9）
+build/cg/b07/game/scripts/ui/replay_view.gd-857-	s = minf(s, 340.0 / float(rv_orig.fh))
+build/cg/b07/game/scripts/ui/replay_view.gd-858-	var wpx: float = (rv_orig.fw if full else rv_orig.depth + Army.EDGE) * s
+build/cg/b07/game/scripts/ui/replay_view.gd-859-	var r := Rect2(g0, Vector2(wpx, rv_orig.fh * s))
+build/cg/b07/game/scripts/ui/replay_view.gd-860-	draw_rect(r, Color(0.25, 0.4, 0.2))
+build/cg/b07/game/scripts/ui/replay_view.gd-861-	var rv_tex: Texture2D = _map_tex()
+build/cg/b07/game/scripts/ui/replay_view.gd-862-	if rv_tex != null:
+build/cg/b07/game/scripts/ui/replay_view.gd-863-		draw_texture_rect_region(rv_tex, r, Rect2(Vector2.ZERO, Vector2(wpx / s, rv_orig.fh) * CS / 1000.0))   # 覆盤也看得到地形
+build/cg/b07/game/scripts/ui/replay_view.gd-864-	if full:
+build/cg/b07/game/scripts/ui/replay_view.gd-865-		draw_line(g0 + Vector2(rv_orig.fw / 2.0 * s, 0), g0 + Vector2(rv_orig.fw / 2.0 * s, r.size.y), Color(1, 1, 1, 0.25), 1.0)
+build/cg/b07/game/scripts/ui/replay_view.gd-866-	_rv_map = {"o": g0, "s": s, "r": r}
+build/cg/b07/game/scripts/ui/replay_view.gd-867-	var to_px := func(p: Vector2i) -> Vector2: return g0 + Vector2(p) * s
+build/cg/b07/game/scripts/ui/replay_view.gd-868-	# 殘影：原本位置有改的那隻
+build/cg/b07/game/scripts/ui/replay_view.gd-869-	var now_by := {}
+build/cg/b07/game/scripts/ui/replay_view.gd-870-	for i in rv_army.units.size():
+build/cg/b07/game/scripts/ui/replay_view.gd-871-		now_by[int(rv_army.units[i].get("eid", -1))] = i
+build/cg/b07/game/scripts/ui/replay_view.gd-872-	for u in rv_orig.units:
+build/cg/b07/game/scripts/ui/replay_view.gd-873-		var e := int(u.get("eid", -1))
+build/cg/b07/game/scripts/ui/replay_view.gd-874-		var p0 := Army.pos_of(u)
+build/cg/b07/game/scripts/ui/replay_view.gd-875-		var changed: bool = not now_by.has(e) or Army.pos_of(rv_army.units[now_by[e]]) != p0 or int(rv_army.units[now_by[e]]["type"]) != int(u["type"])
+build/cg/b07/game/scripts/ui/replay_view.gd-876-		if changed:
+build/cg/b07/game/scripts/ui/replay_view.gd-877-			Art.unit(self, to_px.call(p0), int(u["type"]), 0, 1.0, 0.0, 0.0, 0.0, 0.3, time, 0.42, cbm())
+build/cg/b07/game/scripts/ui/replay_view.gd-878-			if now_by.has(e):
+build/cg/b07/game/scripts/ui/replay_view.gd-879-				_dash(to_px.call(p0), to_px.call(Army.pos_of(rv_army.units[now_by[e]])), ACCENT, 2.0)
+build/cg/b07/game/scripts/ui/replay_view.gd-880-	if full:
+build/cg/b07/game/scripts/ui/replay_view.gd-881-		# 全場：敵兵 1.5 格禁區（點空地搬不過去時看得出原因）
+build/cg/b07/game/scripts/ui/replay_view.gd-882-		for u in rv_enemy.units:
+build/cg/b07/game/scripts/ui/replay_view.gd-883-			draw_circle(to_px.call(Army.pos_of(u)), float(rv_army.enemy_gap) * s, Color(1, 0.25, 0.25, 0.10))
+build/cg/b07/game/scripts/ui/replay_view.gd-884-		for u in rv_enemy.units:
+build/cg/b07/game/scripts/ui/replay_view.gd-885-			Art.unit(self, to_px.call(Army.pos_of(u)), int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.7, time, 0.36, cbm())
+build/cg/b07/game/scripts/ui/replay_view.gd-886-	var order: Array = range(rv_army.units.size())
+build/cg/b07/game/scripts/ui/replay_view.gd-887-	order.sort_custom(func(a, b): return int(rv_army.units[a]["y"]) < int(rv_army.units[b]["y"]))
+build/cg/b07/game/scripts/ui/replay_view.gd-888-	for i in order:
+build/cg/b07/game/scripts/ui/replay_view.gd-889-		var p: Vector2 = to_px.call(Army.pos_of(rv_army.units[i]))
+build/cg/b07/game/scripts/ui/replay_view.gd-890-		if i == rv_fsel:
+build/cg/b07/game/scripts/ui/replay_view.gd-891-			draw_arc(p + Vector2(0, -6), 13.0, 0, TAU, 24, ACCENT, 2.5)
+build/cg/b07/game/scripts/ui/replay_view.gd-892-		Art.unit(self, p, int(rv_army.units[i]["type"]), 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42 if full else 0.5, cbm())
+build/cg/b07/game/scripts/ui/replay_view.gd-893-	_btns.append({"r": r, "cb": _rv_free_tap, "en": true})
+build/cg/b07/game/scripts/ui/replay_view.gd-894-	if not full:
+build/cg/b07/game/scripts/ui/replay_view.gd-895-		# 紅方部署區（小、只看）
+build/cg/b07/game/scripts/ui/replay_view.gd-896-		var s2 := 0.018
+build/cg/b07/game/scripts/ui/replay_view.gd-897-		var g1 := Vector2(g0.x + wpx + 14, g0.y + (r.size.y - rv_orig.fh * s2) / 2)
+build/cg/b07/game/scripts/ui/replay_view.gd-898-		_text(Vector2(g1.x, g0.y - tz("C") * 1.5), L.t("rv_enemy"), tz("C"), Charts.team_col(1, cbm()), false, true, 572.0 - g1.x)   # V1.5.2：不伸進右欄兵種鈕上方
+build/cg/b07/game/scripts/ui/replay_view.gd-899-		var x0: int = rv_orig.fw - rv_orig.depth - Army.EDGE
+build/cg/b07/game/scripts/ui/replay_view.gd-900-		draw_rect(Rect2(g1, Vector2((rv_orig.fw - x0) * s2, rv_orig.fh * s2)), Color(0.35, 0.2, 0.2, 0.45))
+build/cg/b07/game/scripts/ui/replay_view.gd-901-		for u in rv_enemy.units:
+build/cg/b07/game/scripts/ui/replay_view.gd-902-			var pe := Army.pos_of(u)
+build/cg/b07/game/scripts/ui/replay_view.gd-903-			Art.unit(self, g1 + Vector2(pe.x - x0, pe.y) * s2, int(u["type"]), 1, -1.0, 0.0, 0.0, 0.0, 0.75, time, 0.3, cbm())
+build/cg/b07/game/scripts/ui/replay_view.gd-904-
+build/cg/b07/game/scripts/ui/replay_view.gd-905-func _dash(a: Vector2, b: Vector2, c: Color, w: float) -> void:
+build/cg/b07/game/scripts/ui/replay_view.gd-906-	var n: int = maxi(1, int(a.distance_to(b) / 8.0))
+build/cg/b07/game/scripts/ui/replay_view.gd-907-	for k in n:
+build/cg/b07/game/scripts/ui/replay_view.gd-908-		if k % 2 == 0:
+build/cg/b07/game/scripts/ui/replay_view.gd-909-			draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), c, w)
+build/cg/b07/game/scripts/ui/replay_view.gd-910-
+build/cg/b07/game/scripts/ui/replay_view.gd-911-func _rv_free_tap() -> void:
+build/cg/b07/game/scripts/ui/replay_view.gd-912-	if _rv_map.is_empty():
+build/cg/b07/game/scripts/ui/replay_view.gd-913-		return
+build/cg/b07/game/scripts/ui/replay_view.gd-914-	var m := get_local_mouse_position()
+build/cg/b07/game/scripts/ui/replay_view.gd-915-	var w: Vector2 = (m - (_rv_map["o"] as Vector2)) / float(_rv_map["s"])
+build/cg/b07/game/scripts/ui/replay_view.gd-916-	_rv_free_click(Vector2i(int(w.x), int(w.y)))
+build/cg/b07/game/scripts/ui/replay_view.gd-917-
+build/cg/b07/game/scripts/ui/replay_view.gd-918-func _rv_outcome(w: int, rem: int) -> String:
+build/cg/b07/game/scripts/ui/replay_view.gd-919-	if w < 0:
+build/cg/b07/game/scripts/ui/replay_view.gd-920-		return L.t("draw")
+build/cg/b07/game/scripts/ui/replay_view.gd-921-	return L.t("rv_win", [rem]) if w == 0 else L.t("rv_lose", [rem])
+build/cg/b07/game/scripts/ui/replay_view.gd-922-
+build/cg/b07/game/scripts/ui/replay_view.gd-923-func _rv_band(r: Rect2, log: PackedInt64Array) -> void:
+
+codex
+已確認「讀結果」頁仍可透過左側棋盤改動陣型，會清掉正在看的結果。我正核對手把切頁後的焦點，以及出題台入口和三考題的狀態切換。
+exec
+/bin/bash -lc "nl -ba build/cg/b07/game/scripts/ui/game_screens.gd | sed -n '490,517p;935,950p'; nl -ba build/cg/b07/game/scripts/ui/ui_base.gd | sed -n '609,646p'; rg -n 'editor|ed_open' build/cg/b07/game --glob '*.gd' | tail -45; nl -ba build/cg/b07/game/scripts/ui/screens/game_menus.gd | sed -n '538,564p'; nl -ba build/cg/b07/game/scripts/ui/replay_view.gd | sed -n '448,468p;488,518p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 208ms:
+   490		# 1.5.0 §1.2 大廳三步：肩鍵（Q／E）＝上一步／下一步，Y（Tab）＝打開／收起進階折頁
+   491		if overlay == "lobby" and not bool(get("lobby_menu")):
+   492			if (k == KEY_Q or k == KEY_E) and not bool(get("lobby_open")):
+   493				call("_lobby_step_by", -1 if k == KEY_Q else 1)
+   494				return
+   495			if k == KEY_TAB:
+   496				set("lobby_open", not bool(get("lobby_open")))
+   497				_btns.clear()   # 開合折頁：舊按鈕立刻失效（同一幀 Y＋A 不會按到開合前的「開戰」；Codex v150 cat03 r3）
+   498				return
+   499		# 有按鈕焦點的畫面（標題、選單、結果、覆蓋層、戰鬥）：方向鍵移焦點、Enter 按下、Esc 返回
+   500		if state != St.PLACE or overlay != "":
+   501			match k:
+   502				KEY_UP, KEY_LEFT:
+   503					_move_focus(-1)
+   504				KEY_DOWN, KEY_RIGHT:
+   505					_move_focus(1)
+   506				KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+   507					if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
+   508						sfx.play("k_click", 0.7)
+   509						_btns[_focus]["cb"].call()
+   510				KEY_F1:
+   511					if state == St.BATTLE and overlay == "" and play_kind != "official":
+   512						call("_breport_open")   # 1.1.0 B10：手把 View／Select＝戰報面板
+   513					elif state == St.BATTLE and overlay == "":
+   514						set("hud_info_until", time + 2.0)   # 1.2.0 §5.6：正式對戰按 View＝叫出 AI 名稱與性格 2 秒
+   515				KEY_PAGEUP, KEY_PAGEDOWN:
+   516					if overlay == "codex":
+   517						_scroll_by("left", -160.0 if k == KEY_PAGEUP else 160.0)
+   935		_draw_pad_footer()
+   936		if toast_t > 0:
+   937			var a := minf(1.0, toast_t * 2)
+   938			var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
+   939			var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
+   940			if overlay == "" and _is_free():
+   941				ty = 50.0   # 第六輪：自由擺放整個戰場都可能有兵，提示改蓋在上方的兵種說明條（Codex 實作第 3 輪 #2）
+   942			draw_rect(Rect2(640 - tw / 2, ty, tw, 44), Color(0, 0, 0, (0.94 if bool(Save.s("text_plate")) else 0.72) * a))   # V1.5：高對比文字底板
+   943			_text(Vector2(640, ty + 6), toast, ts(20), Color(1, 0.88, 0.5, a), true)
+   944		if _focus >= _btns.size():
+   945			_focus = 0
+   946		_btns_gen = _gen
+   947		# V9：畫面切換 0.25 秒淡入（版面檢查、簡化特效時不做）
+   948		if _gen != _trans_gen:
+   949			_trans_gen = _gen
+   950			_trans_t = time
+   609	
+   610	func _toast(s: String, deny := false) -> void:
+   611		toast = s
+   612		var tm := int(Save.s("toast_mult"))
+   613		toast_t = 2.0 * tm if tm > 0 else 600.0   # V1.5：提示停留 標準／加長／很長／手動關（點一下才收）
+   614		toast_born = time
+   615		if deny:
+   616			sfx.play("ui_deny")
+   617	
+   618	
+   619	func _move_focus(d: int) -> void:
+   620		pad_mode = true
+   621		if _btns.is_empty():
+   622			return
+   623		_focus = posmod(_focus + d, _btns.size())
+   624	
+   625	
+   626	## 字太寬就往下一級縮（第五輪：只在字級表內往下走，最小到「註記」，不再縮到 9px；還是太寬就由 _text 換行）。
+   627	func fit(s: String, size: int, maxw: float, bold := false) -> int:
+   628		var sz := size
+   629		var levels: Array = TYPE_SCALE[_scale_key()].values()
+   630		levels.sort()
+   631		while _width(s, sz, bold) > maxw:
+   632			var nxt := -1
+   633			for v in levels:
+   634				if v < sz:
+   635					nxt = v
+   636			if nxt < 0:
+   637				break
+   638			sz = nxt
+   639		if layout_probe and sz < size:
+   640			# 1.6.0 B07（P2.3）：版面檢查記下「字被擠到縮級」——英文 150% 重災頁的量測（縮到最小級還放不下＝over）
+   641			probe_shrink.append([s.substr(0, 60), size, sz, _width(s, sz, bold) > maxw])
+   642		return sz
+   643	
+   644	func _font_for(s: String, size: int, bold: bool) -> Font:
+   645		if _hand_mode and font_title != null:
+   646			return font_title   # 1.2.0：老闆便條、印章用手寫字（憲法 6：只放建議，不承載數值）
+build/cg/b07/game/tools/dev_main.gd:9:const OVERLAY_RIBBON := ["trials", "puzzle_hint", "puzzle_plan", "profile", "nemeses", "paint", "hub_play", "hub_gauntlet", "hub_challenge", "hub_collect", "first_run", "restore", "clear_data", "ghosts", "ga_info", "weekly", "relay", "playroom", "wager", "draft", "reward", "ban", "codes", "gauntlet_resume", "wave_codes", "tutorial", "puzzles", "lobby", "settings", "keys", "credits", "gauntlet_pick", "codex", "review", "demo_end", "share", "rush_end", "coach", "rift", "notebook", "daily_top", "editor", "trio", "trio_result", "coop_hand", "tour", "nb_cmp", "rift_lab", "rush_menu", "coop_sum", "fb_cat", "nb_words", "daily_past", "songbook", "campaign"]
+build/cg/b07/game/tools/dev_main.gd:2424:	overlay = "editor"
+build/cg/b07/game/tools/dev_main.gd:2425:	await _snap("v16_13_editor.png")
+build/cg/b07/game/tools/dev_main.gd:2427:	await _snap("v120_07_editor_map.png")
+build/cg/b07/game/tools/dev_main.gd:2430:	await _snap("v160_13b_editor_verify.png")
+build/cg/b07/game/tools/dev_main.gd:2532:	overlay = "editor"
+build/cg/b07/game/tools/dev_main.gd:2533:	await _snap("v161_05_editor_target.png")
+build/cg/b07/game/scripts/game/guide.gd:53:const V16_ENTRIES := ["rush_open", "trio_open", "rift_open", "fog_open", "ed_open", "coop_open"]
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:190:	["fog_open", "hc_fog_d", "map"], ["ed_open", "hc_ed_d", "puzzle"], ["coop_open", "hc_coop_d", "people"]]
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:393:		"editor":
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:394:			_draw_editor()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1923:func _draw_editor() -> void:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:1924:	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:1668:				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0; set("ed_tab", 0), not _demo()],   # V1.6 #16 出題台
+build/cg/b07/game/scripts/ui/screens/game_result.gd:801:		_toast(L.t("sealed_open", [k + 1]))
+   538				_draw_lobby()
+   539			"settings":
+   540				_draw_settings()
+   541			"keys":
+   542				_draw_keys()
+   543			"credits":
+   544				_panel(Rect2(200, 70, 880, 660))
+   545				_h1(Vector2(640, 76), L.t("credits_title"))
+   546				_text(Vector2(240, 140), FileAccess.get_file_as_string("res://data/credits.txt"), ts(13), Color(1, 1, 1, 0.88))
+   547				_btn(Rect2(560, 680, 160, 36), L.t("back"), func(): _nav_back())
+   548			"slots":
+   549				_draw_slots()
+   550			"gauntlet_pick":
+   551				_draw_gauntlet_pick()
+   552			"codex":
+   553				_draw_codex()
+   554			"review":
+   555				_draw_review()
+   556			_:
+   557				call("_draw_v16_overlay", overlay)   # V1.6 新覆蓋層（game_v16.gd）
+   558		panel_obj = ""
+   559	
+   560	
+   561	
+   562	## V1.2.1 E1：四條音量套用並試聽那一軌（sample＝""不試聽、"amb"＝放 1.5 秒森林環境音）。
+   563	func _apply_volumes(sample: String) -> void:
+   564		_apply_master()
+   448	func _rv_cell(c: Vector2i) -> void:
+   449		if rv_sel.x >= 0 and rv_army.index_at(rv_sel.x, rv_sel.y) != -1 and rv_army.index_at(c.x, c.y) == -1:
+   450			var from := rv_sel
+   451			_rv_try(func(): rv_army.move(from.x, from.y, c.x, c.y))
+   452			rv_sel = c
+   453			return
+   454		rv_sel = c
+   455	
+   456	## 第六輪：自由陣型覆盤——點小戰場：點到兵就選它；選了之後點空地就搬過去。
+   457	func _rv_free_click(w: Vector2i) -> void:
+   458		var hit: int = rv_army.index_near(w.x, w.y, 450)
+   459		if hit >= 0:
+   460			rv_fsel = hit
+   461			return
+   462		if rv_fsel < 0:
+   463			return
+   464		var trial = rv_army.copy()
+   465		if not trial.move_xy(rv_fsel, trial.world_x(Army.quant(trial.own_x(w.x))), Army.quant(w.y)):
+   466			_toast(L.t("err_zone"), true)
+   467			return
+   468		if review_changes(rv_orig, trial) > 1:
+   488			_toast(L.t("rv_one"), true)
+   489			return
+   490		rv_army = trial
+   491		if t < 0:
+   492			rv_fsel = -1
+   493		_rv_dirty()
+   494	
+   495	func _rv_set_type(t: int) -> void:
+   496		if rv_orig.deploy == "free":
+   497			_rv_free_set_type(t)
+   498			return
+   499		if rv_sel.x < 0:
+   500			return
+   501		# 在副本上換，買不起或不合法就保留原兵並提示（Codex S5 #3：原本會變成直接刪兵）
+   502		var c := rv_sel
+   503		var trial = rv_army.copy()
+   504		trial.remove_at(c.x, c.y)
+   505		if t >= 0:
+   506			var why: String = trial.check_place(t, c.x, c.y)
+   507			if why != "":
+   508				_toast(L.t("rv_cant", [L.t("unit_%d" % t)]), true)
+   509				return
+   510			trial.place(t, c.x, c.y)
+   511		if review_changes(rv_orig, trial) > 1:
+   512			_toast(L.t("rv_one"), true)
+   513			return
+   514		rv_army = trial
+   515		_rv_dirty()
+   516	
+   517	## 改了什麼（給畫面顯示）：例如「弓箭手 → 劍士（第 3 列第 5 欄）」
+   518	func review_desc() -> String:
+
+exec
+/bin/bash -lc "nl -ba build/cg/b07/game/scripts/ui/screens/game_v16.gd | sed -n '145,225p'; rg -n 'func _open|func _nav_back' build/cg/b07/game/scripts/ui -A40; nl -ba build/cg/b07/game/scripts/ui/game_screens.gd | sed -n '1010,1050p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 61ms:
+   145		if Guide.demo_end_due(Save.data, _demo(), demo_end_shown):
+   146			demo_end_shown = true
+   147			Funnel.mark("demo_end")
+   148			overlay = "demo_end"   # 試玩版結尾：完整版有什麼＋願望單
+   149	
+   150	## ── #1 新手：建議下一步、新入口標記、試玩版結尾 ──
+   151	func _daily_done_today() -> bool:
+   152		if _demo():
+   153			return true
+   154		var sp: Dictionary = Daily.spec(Daily.today())
+   155		return not (Save.data.get("daily_best", {}).get(sp["key"], []) as Array).is_empty()
+   156	
+   157	func _next_action(k: String) -> Callable:
+   158		match k:
+   159			"tut":
+   160				return func(): _open("tutorial")
+   161			"ai":
+   162				return func(): _open_lobby("ai")
+   163			"puzzle":
+   164				return func(): _open("puzzles")
+   165			"daily":
+   166				return func(): call("_start_daily")
+   167			"gauntlet", "gauntlet_cont":
+   168				return func(): _enter_gauntlet()
+   169			"puzzle_more":
+   170				var pid := Guide.next_puzzle_id(Save.data, PZ.all_puzzles())
+   171				return func(): (_pick_puzzle(pid, false) if pid != "" else _open("puzzles"))
+   172			"playroom":
+   173				return func(): overlay = "playroom"; _focus = 0
+   174			"trials":
+   175				return func(): _open("trials")
+   176		if k.begins_with("v16:"):
+   177			return _entry_action(k.substr(4))
+   178		return func(): pass
+   179	
+   180	## V1.6.1 N1／N2：照卡片定義找某個入口的動作（建議下一步、新玩法導覽共用；點了算看過）
+   181	func _entry_action(key: String) -> Callable:
+   182		for kind in HUBS:
+   183			for it in hub_items(kind):
+   184				if str(it[0]) == key:
+   185					var cb: Callable = it[3]
+   186					return func(): Guide.see(Save.data, key); cb.call()
+   187		return func(): pass
+   188	
+   189	const TOUR := [["rush_open", "hc_rush_d", "clock"], ["trio_open", "hc_trio_d", "people"], ["rift_open", "hc_rift_d", "swap"],
+   190		["fog_open", "hc_fog_d", "map"], ["ed_open", "hc_ed_d", "puzzle"], ["coop_open", "hc_coop_d", "people"]]
+   191	func _tour_row_h(it: Array) -> float:
+   192		return maxf(56.0, maxf(text_h(L.t(str(it[1])), tz("C"), 900.0 - 80.0 - 300.0), text_h(L.t(str(it[0])), tz("S"), 220.0, true)) + 18.0)
+   193	
+   194	func _draw_tour() -> void:
+   195		var rows := TOUR.size()
+   196		var hsum := 0.0
+   197		for it0 in TOUR:
+   198			hsum += _tour_row_h(it0) + 8.0
+   199		var P := modal_rect(900, 12.0 + h1_help_h(L.t("tour_help"), tz("S"), 740) + GAP_L + hsum + GAP_L + 44.0 + GAP_L)
+   200		_panel(P)
+   201		var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tour_title"), L.t("tour_help"), tz("S"), 740)
+   202		for i in rows:
+   203			var it: Array = TOUR[i]
+   204			var rh := _tour_row_h(it)
+   205			var r := Rect2(P.position.x + 40, y, P.size.x - 80, rh)   # V1.6.1：列高照說明行數（英文長說明會換行）
+   206			y += rh + 8.0
+   207			var en: bool = not _demo() or str(it[0]) == "fog_open"
+   208			_btn(r, "", _entry_action(str(it[0])), en, false)   # 不用主按鈕的橘底：說明字在橘底上對比不夠（接觸表看到）
+   209			_ink_mode = last_btn_paper   # 1.6.0 B02（P2.2）：紙面鈕上用墨字
+   210			_icon(str(it[2]), r.position + Vector2(30, rh / 2.0), 26.0, ACCENT if en else TXT_DIM)
+   211			_text(r.position + Vector2(60, 6), L.t(str(it[0])), tz("S"), Color.WHITE if en else TXT_DIM, false, true, 220)
+   212			_text(r.position + Vector2(290, 8), L.t(str(it[1])), tz("C"), TXT_DIM, false, false, r.size.x - 300)
+   213			_ink_mode = false
+   214		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
+   215	
+   216	func _draw_next_step() -> void:
+   217		if overlay == "" and Guide.tour_due(Save.data, _demo()):
+   218			Guide.see(Save.data, "tour161")   # V1.6.1 N2：老玩家第一次開跳一次（之後在收藏卡片裡隨時可看）
+   219			Save.save_data()
+   220			overlay = "tour"
+   221			_focus = 0
+   222			return
+   223		if overlay != "":
+   224			return
+   225		var k := Guide.next_step(Save.data, _daily_done_today(), _demo()) if Save.s("hints") != "off" else ""
+build/cg/b07/game/scripts/ui/codex_view.gd:57:func _open_codex(t: int) -> void:
+build/cg/b07/game/scripts/ui/codex_view.gd-58-	# 開圖鑑前取消擺放畫面的拖曳／塗兵狀態，不然關掉圖鑑後移動滑鼠會繼續放兵（Codex R3 審查 #3）
+build/cg/b07/game/scripts/ui/codex_view.gd-59-	painting = false
+build/cg/b07/game/scripts/ui/codex_view.gd-60-	drag_new = false
+build/cg/b07/game/scripts/ui/codex_view.gd-61-	drag_from = Vector2i(-1, -1)
+build/cg/b07/game/scripts/ui/codex_view.gd-62-	cx_unit = clampi(t, 0, D.total() - 1)
+build/cg/b07/game/scripts/ui/codex_view.gd-63-	cx_zoom = false   # V1.5.1：從擺陣開圖鑑一律回一般頁（召喚物頁的近看狀態不留，Antigravity v151-i1 #6）
+build/cg/b07/game/scripts/ui/codex_view.gd-64-	cx_angle = -1
+build/cg/b07/game/scripts/ui/codex_view.gd-65-	cx_atk_t = -10.0
+build/cg/b07/game/scripts/ui/codex_view.gd-66-	cx_scroll["left"] = 0.0   # 每次打開都從頂端開始（Antigravity：沿用上次捲到底的位置，看起來像數值條不見了）
+build/cg/b07/game/scripts/ui/codex_view.gd-67-	cx_scroll["note"] = 0.0
+build/cg/b07/game/scripts/ui/codex_view.gd-68-	_cx_pick_skill(0)
+build/cg/b07/game/scripts/ui/codex_view.gd-69-	_open("codex")
+build/cg/b07/game/scripts/ui/codex_view.gd-70-
+build/cg/b07/game/scripts/ui/codex_view.gd-71-
+build/cg/b07/game/scripts/ui/codex_view.gd-72-func _cx_skills() -> Array:
+build/cg/b07/game/scripts/ui/codex_view.gd-73-	return CX.unit(cx_unit).get("skills", [])
+build/cg/b07/game/scripts/ui/codex_view.gd-74-
+build/cg/b07/game/scripts/ui/codex_view.gd-75-
+build/cg/b07/game/scripts/ui/codex_view.gd-76-func _cx_pick_unit(t: int) -> void:
+build/cg/b07/game/scripts/ui/codex_view.gd-77-	cx_unit = t
+build/cg/b07/game/scripts/ui/codex_view.gd-78-	cx_angle = -1   # 換兵種回到自動（人形轉到背面後換成沒有背面的兵，不能留著背面角度）
+build/cg/b07/game/scripts/ui/codex_view.gd-79-	cx_spin_t = cx_clock   # 換角色先轉一圈給你看
+build/cg/b07/game/scripts/ui/codex_view.gd-80-	cx_zt = 0.0
+build/cg/b07/game/scripts/ui/codex_view.gd-81-	if t >= D.total():
+build/cg/b07/game/scripts/ui/codex_view.gd-82-		cx_zoom = true   # V1.5.1：召喚物（小史萊姆、小骷髏）沒有排名與數值條，只有近看頁
+build/cg/b07/game/scripts/ui/codex_view.gd-83-		return
+build/cg/b07/game/scripts/ui/codex_view.gd-84-	cx_scroll["left"] = 0.0
+build/cg/b07/game/scripts/ui/codex_view.gd-85-	cx_scroll["note"] = 0.0
+build/cg/b07/game/scripts/ui/codex_view.gd-86-	_cx_pick_skill(0)
+build/cg/b07/game/scripts/ui/codex_view.gd-87-
+build/cg/b07/game/scripts/ui/codex_view.gd-88-
+build/cg/b07/game/scripts/ui/codex_view.gd-89-func _cx_pick_skill(i: int) -> void:
+build/cg/b07/game/scripts/ui/codex_view.gd-90-	cx_scroll["desc"] = 0.0
+build/cg/b07/game/scripts/ui/codex_view.gd-91-	cx_skill = clampi(i, 0, maxi(0, _cx_skills().size() - 1))
+build/cg/b07/game/scripts/ui/codex_view.gd-92-	_cx_restart()
+build/cg/b07/game/scripts/ui/codex_view.gd-93-
+build/cg/b07/game/scripts/ui/codex_view.gd-94-
+build/cg/b07/game/scripts/ui/codex_view.gd-95-func _cx_restart() -> void:
+build/cg/b07/game/scripts/ui/codex_view.gd-96-	var sks := _cx_skills()
+build/cg/b07/game/scripts/ui/codex_view.gd-97-	cx_sim = CX.demo_sim(sks[cx_skill]) if not sks.is_empty() else null
+--
+build/cg/b07/game/scripts/ui/replay_view.gd:383:func _open_review() -> void:
+build/cg/b07/game/scripts/ui/replay_view.gd-384-	rv_orig = last_armies[0].copy()
+build/cg/b07/game/scripts/ui/replay_view.gd-385-	rv_army = last_armies[0].copy()
+build/cg/b07/game/scripts/ui/replay_view.gd-386-	rv_enemy = last_armies[1].copy()
+build/cg/b07/game/scripts/ui/replay_view.gd-387-	rv_fsel = -1
+build/cg/b07/game/scripts/ui/replay_view.gd-388-	rv_tab = 0   # 1.6.0 B07：打開覆盤在「改動」頁
+build/cg/b07/game/scripts/ui/replay_view.gd-389-	if rv_orig.deploy == "free":
+build/cg/b07/game/scripts/ui/replay_view.gd-390-		# 編輯識別（和戰鬥編號分開，Codex 第一輪）：覆盤時每隻帶 eid，「只改一隻」依 eid 比
+build/cg/b07/game/scripts/ui/replay_view.gd-391-		for i in rv_orig.units.size():
+build/cg/b07/game/scripts/ui/replay_view.gd-392-			rv_orig.units[i]["eid"] = i
+build/cg/b07/game/scripts/ui/replay_view.gd-393-			rv_army.units[i]["eid"] = i
+build/cg/b07/game/scripts/ui/replay_view.gd-394-		# 全場：搬移時也要守敵距
+build/cg/b07/game/scripts/ui/replay_view.gd-395-		var ep: Array = []
+build/cg/b07/game/scripts/ui/replay_view.gd-396-		for u in rv_enemy.units:
+build/cg/b07/game/scripts/ui/replay_view.gd-397-			ep.append(Army.pos_of(u))
+build/cg/b07/game/scripts/ui/replay_view.gd-398-		if rv_orig.depth > rv_orig.fw / 2:
+build/cg/b07/game/scripts/ui/replay_view.gd-399-			rv_army.enemy_pos = ep
+build/cg/b07/game/scripts/ui/replay_view.gd-400-			rv_orig.enemy_pos = ep.duplicate()
+build/cg/b07/game/scripts/ui/replay_view.gd-401-	rv_sel = Vector2i(-1, -1)
+build/cg/b07/game/scripts/ui/replay_view.gd-402-	_rv_dirty()
+build/cg/b07/game/scripts/ui/replay_view.gd-403-	_rv_base_start()
+build/cg/b07/game/scripts/ui/replay_view.gd-404-	_open("review")
+build/cg/b07/game/scripts/ui/replay_view.gd-405-
+build/cg/b07/game/scripts/ui/replay_view.gd-406-## 跟原本比改了幾隻（換兵種、移位、拿掉、新增都算一隻）。
+build/cg/b07/game/scripts/ui/replay_view.gd-407-static func review_changes(orig, now) -> int:
+build/cg/b07/game/scripts/ui/replay_view.gd-408-	if orig.deploy == "free":
+build/cg/b07/game/scripts/ui/replay_view.gd-409-		var ma := {}
+build/cg/b07/game/scripts/ui/replay_view.gd-410-		for u in orig.units:
+build/cg/b07/game/scripts/ui/replay_view.gd-411-			ma[int(u.get("eid", -1))] = [int(u["type"]), int(u["x"]), int(u["y"])]
+build/cg/b07/game/scripts/ui/replay_view.gd-412-		var n := 0
+build/cg/b07/game/scripts/ui/replay_view.gd-413-		var seen := {}
+build/cg/b07/game/scripts/ui/replay_view.gd-414-		for u in now.units:
+build/cg/b07/game/scripts/ui/replay_view.gd-415-			var e := int(u.get("eid", -1))
+build/cg/b07/game/scripts/ui/replay_view.gd-416-			seen[e] = true
+build/cg/b07/game/scripts/ui/replay_view.gd-417-			if not ma.has(e) or ma[e] != [int(u["type"]), int(u["x"]), int(u["y"])]:
+build/cg/b07/game/scripts/ui/replay_view.gd-418-				n += 1
+build/cg/b07/game/scripts/ui/replay_view.gd-419-		for e in ma:
+build/cg/b07/game/scripts/ui/replay_view.gd-420-			if not seen.has(e):
+build/cg/b07/game/scripts/ui/replay_view.gd-421-				n += 1
+build/cg/b07/game/scripts/ui/replay_view.gd-422-		return n
+build/cg/b07/game/scripts/ui/replay_view.gd-423-	var a := {}
+--
+build/cg/b07/game/scripts/ui/lobby_view.gd:27:func _open_lobby(kind: String) -> void:
+build/cg/b07/game/scripts/ui/lobby_view.gd-28-	lobby_kind = kind
+build/cg/b07/game/scripts/ui/lobby_view.gd-29-	var code := str(Save.data.get("last_rules", {}).get(kind, ""))
+build/cg/b07/game/scripts/ui/lobby_view.gd-30-	var r = null
+build/cg/b07/game/scripts/ui/lobby_view.gd-31-	if code != "":
+build/cg/b07/game/scripts/ui/lobby_view.gd-32-		var d: Dictionary = RuleSet.from_code(code)
+build/cg/b07/game/scripts/ui/lobby_view.gd-33-		if d["ok"]:
+build/cg/b07/game/scripts/ui/lobby_view.gd-34-			r = d["rules"]
+build/cg/b07/game/scripts/ui/lobby_view.gd-35-			r.preset = str(Save.data.get("last_rules", {}).get(kind + "_preset", "custom"))
+build/cg/b07/game/scripts/ui/lobby_view.gd-36-			if r.preset == "standard":
+build/cg/b07/game/scripts/ui/lobby_view.gd-37-				r.pool = Presets.make("standard", kind, _lobby_unlocked()).pool.duplicate()   # 舊存檔的標準可能只存到解鎖的幾種
+build/cg/b07/game/scripts/ui/lobby_view.gd-38-			var ex = Save.data.get("last_rules", {}).get(kind + "_extra", [])
+build/cg/b07/game/scripts/ui/lobby_view.gd-39-			if ex is Array and ex.size() >= 3:
+build/cg/b07/game/scripts/ui/lobby_view.gd-40-				if ex.size() >= 4:
+build/cg/b07/game/scripts/ui/lobby_view.gd-41-					r.time_of = clampi(int(ex[3]), 0, 2)
+build/cg/b07/game/scripts/ui/lobby_view.gd-42-				r.ai_style = clampi(int(ex[0]), 0, RuleSet.AI_STYLES - 1)
+build/cg/b07/game/scripts/ui/lobby_view.gd-43-				r.map_mode = clampi(int(ex[1]), 0, 2)
+build/cg/b07/game/scripts/ui/lobby_view.gd-44-				r.bans = clampi(int(ex[2]), 0, 2)
+build/cg/b07/game/scripts/ui/lobby_view.gd-45-	if r == null:
+build/cg/b07/game/scripts/ui/lobby_view.gd-46-		r = Presets.make("standard", kind, _lobby_unlocked())
+build/cg/b07/game/scripts/ui/lobby_view.gd-47-		# 第四輪的舊設定當作第一次打開大廳的初始值（Codex 第一輪）
+build/cg/b07/game/scripts/ui/lobby_view.gd-48-		if str(Save.s("roster")) == "classic":
+build/cg/b07/game/scripts/ui/lobby_view.gd-49-			r.pool = [31, 31]
+build/cg/b07/game/scripts/ui/lobby_view.gd-50-		if kind == "duel":
+build/cg/b07/game/scripts/ui/lobby_view.gd-51-			r.place_rule = str(Save.s("duel_rule")) if str(Save.s("duel_rule")) in RuleSet.PLACE_RULES else "snake5"
+build/cg/b07/game/scripts/ui/lobby_view.gd-52-	lobby_r = r
+build/cg/b07/game/scripts/ui/lobby_view.gd-53-	# 存過的規則照原樣保留（Codex 實作第 3 輪：重開雙人大廳不能把兩邊不同的卡池改成一樣）；含未解鎖兵由開戰鈕擋
+build/cg/b07/game/scripts/ui/lobby_view.gd-54-	lobby_open = false
+build/cg/b07/game/scripts/ui/lobby_view.gd-55-	lobby_menu = false
+build/cg/b07/game/scripts/ui/lobby_view.gd-56-	lobby_item = ""
+build/cg/b07/game/scripts/ui/lobby_view.gd-57-	lobby_tab = 0
+build/cg/b07/game/scripts/ui/lobby_view.gd-58-	lobby_step = 2 if code != "" else 0   # 1.5.0：有上次設定＝直接到「確認」（遠征牌→快速對戰→開戰）
+build/cg/b07/game/scripts/ui/lobby_view.gd-59-	_lb_focus_main = true   # 1.6.0 B04（S1 手把 ≤3 步開戰）：一打開焦點就在主鈕（下一步／開戰），A 連按三下就開戰
+build/cg/b07/game/scripts/ui/lobby_view.gd-60-	_open("lobby")
+build/cg/b07/game/scripts/ui/lobby_view.gd-61-
+build/cg/b07/game/scripts/ui/lobby_view.gd-62-## 1.5.0 §1.1 兩步開戰：「最近玩的」點對 AI 快速對戰時，有上次的大廳設定就直接進擺陣、帶上次陣型
+build/cg/b07/game/scripts/ui/lobby_view.gd-63-## （主畫面「最近玩的」→ 擺陣「開戰」＝2 次點擊）；沒有上次設定、或上次設定現在不能開（未解鎖、試玩版）就照舊進大廳。
+build/cg/b07/game/scripts/ui/lobby_view.gd-64-func quick_rematch_ok() -> bool:
+build/cg/b07/game/scripts/ui/lobby_view.gd-65-	# 上次規則要讀得回來、上次陣型要有——任一不行就照舊進大廳（不悄悄換成標準規則；Codex v150 cat02 #4）
+build/cg/b07/game/scripts/ui/lobby_view.gd-66-	var code := str(Save.data.get("last_rules", {}).get("ai", ""))
+build/cg/b07/game/scripts/ui/lobby_view.gd-67-	if code == "" or str(Save.data.get("last_form", "")) == "":
+--
+build/cg/b07/game/scripts/ui/battle/battle_units.gd:400:func _open_drop(u) -> Vector2:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-401-	if start_hold <= 0.0 or play_kind != "official":
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-402-		return Vector2.ZERO
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-403-	var mid := fld_w / 2.0
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-404-	var d: float = absf(float(u.x) - mid) / maxf(1.0, mid)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-405-	var stage := 0 if d < 0.25 else (1 if d < 0.5 else 2)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-406-	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-407-	var k := clampf((ph - DROP_AT[stage]) / 0.25, 0.0, 1.0)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-408-	return Vector2(0, -22.0 * (1.0 - k) * (1.0 - k))
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-409-
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-410-## 1.2.0 第 5 大類 C §7.2 定格表演層：待機、歡呼的姿勢每 1/12 秒才換（24fps 一拍二）；移動、攻擊、命中照常 60Hz。
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-411-## 設定「平滑動作」開了就不量化。
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-412-static func _pose_t(t: float) -> float:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-413-	if bool(Save.s("smooth_pose")):
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-414-		return t
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-415-	return floorf(t * 12.0) / 12.0
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-416-
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-417-## 1.2.0 第 5 大類 A2：受擊後的不倒翁搖：hurt 從 1 掉到 0 的過程擺盪約 1.5 次、幅度隨 hurt 衰減；hurt＝0 時為 0（解析式，不存狀態）。
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-418-static func _tumbler(hurt: float) -> float:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-419-	return 0.07 * sin((1.0 - hurt) * TAU * 1.5) * hurt
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-420-
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-421-## 1.2.0 第 5 大類 A1：落子觸盤後 0.15 秒縱向壓扁再彈回（和那一段的「咚」同步）；回傳 crouch 乘數。
+build/cg/b07/game/scripts/ui/battle/battle_units.gd:422:func _open_squash(u) -> float:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-423-	if start_hold <= 0.0 or play_kind != "official":
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-424-		return 1.0
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-425-	var mid := fld_w / 2.0
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-426-	var d: float = absf(float(u.x) - mid) / maxf(1.0, mid)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-427-	var stage := 0 if d < 0.25 else (1 if d < 0.5 else 2)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-428-	var ph := 1.0 - clampf(start_hold, 0.0, 1.0)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-429-	var land: float = ph - float(DROP_AT[stage]) - 0.25
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-430-	if land < 0.0 or land > 0.15:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-431-		return 1.0
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-432-	return 1.0 - 0.18 * sin(land / 0.15 * PI)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-433-
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-434-## 1.2.0 §5.1 拼花棋盤：橡木厚框（只畫一圈，不蓋盤面）＋內緣刻線＋外緣亮邊＋盤面上漆光（左上亮、右下暗）。回傳有沒有畫。
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-435-func _board_ring(inner: Rect2) -> bool:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-436-	var oak := _ui_tex(MAT_OAK)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-437-	if oak == null:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-438-		return false
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-439-	var outer := inner.grow(18)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-440-	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-441-	for strip in [Rect2(outer.position, Vector2(outer.size.x, 18)), Rect2(Vector2(outer.position.x, inner.end.y), Vector2(outer.size.x, 18)),
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-442-			Rect2(Vector2(outer.position.x, inner.position.y), Vector2(18, inner.size.y)), Rect2(Vector2(inner.end.x, inner.position.y), Vector2(18, inner.size.y))]:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-443-		draw_texture_rect(oak, strip, true, Color(0.95, 0.88, 0.8))
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-444-	if tilt_on():
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-445-		# 1.3.0 §1.1 桌邊視角：鏡頭從南邊斜看，棋盤南側露出一條木頭端面（端面較暗、年輪橫紋、底下貼桌的暗線）
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-446-		var face := Rect2(Vector2(outer.position.x, outer.end.y), Vector2(outer.size.x, BOARD_EDGE_H))
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-447-		draw_texture_rect(oak, face, true, Color(0.55, 0.46, 0.38))
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-448-		for k in 4:   # 端面由上往下變暗（離燈遠）
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-449-			draw_rect(Rect2(face.position + Vector2(0, k * face.size.y / 4.0), Vector2(face.size.x, face.size.y / 4.0)), Color(0.08, 0.05, 0.03, 0.06 * k))
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-450-		for k in 3:
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-451-			draw_line(face.position + Vector2(0, 3 + k * 3), Vector2(face.end.x, face.position.y + 3 + k * 3), Color(0.18, 0.1, 0.05, 0.18), 1.0)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-452-		draw_line(face.position, Vector2(face.end.x, face.position.y), Color(1, 0.9, 0.7, 0.4), 1.5)   # 上緣倒角受光（和框接起來）
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-453-		for cx in [face.position.x, face.end.x]:   # 兩角的倒角斜線：框角往下接到端面，像一塊有厚度的板
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-454-			var dxx := 4.0 if cx == face.position.x else -4.0
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-455-			draw_line(Vector2(cx, face.position.y), Vector2(cx + dxx, face.end.y), Color(0.1, 0.06, 0.03, 0.55), 1.5)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-456-		draw_rect(Rect2(face.position + Vector2(0, face.size.y - 2), Vector2(face.size.x, 2)), Color(0.08, 0.05, 0.03, 0.6))
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-457-	draw_rect(outer, Color("#2a1a10"), false, 2.0)                       # 外緣暗線
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-458-	draw_rect(outer.grow(-2), Color(1, 0.9, 0.7, 0.28), false, 1.0)      # 外緣亮邊（倒角）
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-459-	draw_rect(inner.grow(3), Color("#3a2414"), false, 3.0)               # 內緣刻線
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-460-	draw_rect(inner.grow(1), Color(1, 0.92, 0.75, 0.22), false, 1.0)
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-461-	# 盤面上漆光：左上亮、右下暗（大漸層，貼在盤面上）
+build/cg/b07/game/scripts/ui/battle/battle_units.gd-462-	draw_polygon(PackedVector2Array([inner.position, Vector2(inner.end.x, inner.position.y), Vector2(inner.position.x, inner.end.y)]),
+--
+build/cg/b07/game/scripts/ui/ui_base.gd:1929:func _open(name: String) -> void:
+build/cg/b07/game/scripts/ui/ui_base.gd-1930-	if overlay.begins_with("hub_"):
+build/cg/b07/game/scripts/ui/ui_base.gd-1931-		nav_stack.append(overlay)   # 卡片面板開著時直接開下一頁（例如結果頁「試煉」）：記得回面板
+build/cg/b07/game/scripts/ui/ui_base.gd-1932-	overlay = name
+build/cg/b07/game/scripts/ui/ui_base.gd-1933-	_focus = 0
+build/cg/b07/game/scripts/ui/ui_base.gd-1934-
+build/cg/b07/game/scripts/ui/ui_base.gd-1935-## V1.5.1 返回目的地：打開下一層之前記下「從哪來」，返回鈕、Esc、手把 B 都走 _nav_back（使用者回報：返回都跳回主畫面）。
+build/cg/b07/game/scripts/ui/ui_base.gd-1936-## 卡片面板（hub）畫出來時清空堆疊；開戰也清空。nav_hub＝最後經過的卡片面板，打完回標題時重新打開它。
+build/cg/b07/game/scripts/ui/ui_base.gd-1937-var nav_stack: Array = []
+build/cg/b07/game/scripts/ui/ui_base.gd-1938-var nav_hub := ""
+build/cg/b07/game/scripts/ui/ui_base.gd-1939-
+build/cg/b07/game/scripts/ui/ui_base.gd-1940-var nav_focus := {}   # V1.0.0：卡片面板 → 上次點的那張卡（返回時焦點回原卡）
+build/cg/b07/game/scripts/ui/ui_base.gd-1941-func _nav_push(from: String) -> void:
+build/cg/b07/game/scripts/ui/ui_base.gd-1942-	nav_stack.append(from)
+build/cg/b07/game/scripts/ui/ui_base.gd-1943-
+build/cg/b07/game/scripts/ui/ui_base.gd:1944:func _nav_back(fallback := "") -> void:
+build/cg/b07/game/scripts/ui/ui_base.gd-1945-	if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
+build/cg/b07/game/scripts/ui/ui_base.gd-1946-		nav_hub = ""   # 關掉卡片面板：之後打完不再自動打開它
+build/cg/b07/game/scripts/ui/ui_base.gd-1947-	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
+build/cg/b07/game/scripts/ui/ui_base.gd-1948-	_focus = int(nav_focus.get(overlay, 0))   # V1.0.0（Codex v100-i1 #8）：回到卡片面板時焦點回原卡
+build/cg/b07/game/scripts/ui/ui_base.gd-1949-
+build/cg/b07/game/scripts/ui/ui_base.gd-1950-
+build/cg/b07/game/scripts/ui/ui_base.gd-1951-func _fmt_num(v: float) -> String:
+build/cg/b07/game/scripts/ui/ui_base.gd-1952-	return str(int(v)) if v == floorf(v) else str(v)
+build/cg/b07/game/scripts/ui/ui_base.gd-1953-
+build/cg/b07/game/scripts/ui/ui_base.gd-1954-
+build/cg/b07/game/scripts/ui/ui_base.gd-1955-func _onoff(k: String) -> String:
+build/cg/b07/game/scripts/ui/ui_base.gd-1956-	return L.t("on") if bool(Save.s(k)) else L.t("off")
+build/cg/b07/game/scripts/ui/ui_base.gd-1957-
+build/cg/b07/game/scripts/ui/ui_base.gd-1958-
+build/cg/b07/game/scripts/ui/ui_base.gd-1959-func _cycle_setting(k: String, opts: Array) -> void:
+build/cg/b07/game/scripts/ui/ui_base.gd-1960-	var cur = Save.s(k)
+build/cg/b07/game/scripts/ui/ui_base.gd-1961-	var i := 0
+build/cg/b07/game/scripts/ui/ui_base.gd-1962-	for j in opts.size():
+build/cg/b07/game/scripts/ui/ui_base.gd-1963-		if str(opts[j]) == str(cur):
+build/cg/b07/game/scripts/ui/ui_base.gd-1964-			i = j
+build/cg/b07/game/scripts/ui/ui_base.gd-1965-	Save.set_setting(k, opts[(i + 1) % opts.size()])
+build/cg/b07/game/scripts/ui/ui_base.gd-1966-
+build/cg/b07/game/scripts/ui/ui_base.gd-1967-## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
+build/cg/b07/game/scripts/ui/ui_base.gd-1968-func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
+build/cg/b07/game/scripts/ui/ui_base.gd-1969-		mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1, chip := 0) -> void:
+build/cg/b07/game/scripts/ui/ui_base.gd-1970-	if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
+build/cg/b07/game/scripts/ui/ui_base.gd-1971-		_unit_base(p, scale)
+build/cg/b07/game/scripts/ui/ui_base.gd-1972-	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊（1.3.0：戰場跟拍 1.29 倍仍 < 1.4，用圖集）
+build/cg/b07/game/scripts/ui/ui_base.gd-1973-		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
+build/cg/b07/game/scripts/ui/ui_base.gd-1974-	elif scale <= 1.4 and sprites != null and sprites.prev_has(type):
+build/cg/b07/game/scripts/ui/ui_base.gd-1975-		sprites.draw_prev(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, variant, fid)   # 1.6.0 B09：重建中先用舊圖集（不退回很貴的向量畫）
+build/cg/b07/game/scripts/ui/ui_base.gd-1976-	elif scale <= 1.4 and sprites != null and not sprites.build_done and int(get("state")) == St.TITLE and str(get("shot_dir")) == "" and not layout_probe:
+build/cg/b07/game/scripts/ui/ui_base.gd-1977-		pass   # 1.6.0 B09：開機第一次烘的那不到一秒，標題示範棋盤的兵先不畫（30 多隻向量兵是開機長幀主因），好了再出現
+build/cg/b07/game/scripts/ui/ui_base.gd-1978-	else:
+build/cg/b07/game/scripts/ui/ui_base.gd-1979-		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
+build/cg/b07/game/scripts/ui/ui_base.gd-1980-	if chip > 0:
+build/cg/b07/game/scripts/ui/ui_base.gd-1981-		_chip_at(p, type, face, scale, chip, alpha)
+build/cg/b07/game/scripts/ui/ui_base.gd-1982-
+build/cg/b07/game/scripts/ui/ui_base.gd-1983-## 1.3.0 §5.2：掉漆貼花畫在這隻的座標系裡（跟著尺寸、巨獸、跟拍、面向翻轉；Codex cat04 #5）
+build/cg/b07/game/scripts/ui/ui_base.gd-1984-func _chip_at(p: Vector2, type: int, face: float, scale: float, chip: int, alpha: float) -> void:
+--
+build/cg/b07/game/scripts/ui/screens/game_menus.gd:885:func _open_pause_menu() -> void:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-886-	paused = true
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-887-	overlay = "pause_menu"
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-888-	_focus = 0
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-889-
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-890-func _pause_resume() -> void:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-891-	overlay = ""
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-892-	paused = false
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-893-
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-894-func _settings_close() -> void:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-895-	vol_release()
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-896-	set_adv_open = false   # 1.5.0 §1.3：下次打開回到常用
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-897-	settings_item = ""
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-898-	overlay = settings_ret
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-899-	settings_ret = ""
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-900-
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-901-func _draw_pause_menu() -> void:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-902-	var items: Array = [[L.t("pm_resume"), func(): _pause_resume(), true]]
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-903-	if play_kind == "official":
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-904-		items.append([L.t("skip"), func(): overlay = ""; call("_on_skip"), false])
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-905-	items.append([L.t("pm_settings"), func(): settings_ret = "pause_menu"; overlay = "settings", false])
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-906-	items.append([L.t("fb_btn"), func(): call("_feedback"), false])   # V1.6 #2
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-907-	items.append([L.t("pm_leave"), func(): overlay = ""; _request_leave(), false])   # 確認框開著時戰鬥維持暫停（Antigravity v150-i2 #3）
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-908-	var ph := 96.0 + items.size() * 66.0 + 24.0   # 面板高度照項目數
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-909-	var P := Rect2(440, 400 - ph * 0.5, 400, ph)
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-910-	_panel(P)
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-911-	_text(Vector2(640, P.position.y + 26), L.t("pm_title"), tz("H2"), Color.WHITE, true, true, 340)
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-912-	var y := P.position.y + 96
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-913-	for it in items:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-914-		_btn(Rect2(P.position.x + 50, y, 300, 52), it[0], it[1], true, it[2])
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-915-		y += 66
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-916-
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-917-const SET_COL := Rect2(340, 150, 560, 560)    # 設定頁中央操作欄
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-918-const SET_DESC := Rect2(910, 166, 236, 470)   # 設定頁右側說明欄
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-919-
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-920-func _draw_settings() -> void:
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-921-	vol_rails.clear()
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-922-	_panel(Rect2(110, 96, 1060, 628))
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-923-	# V1.5.2 L8／L9：三欄畫面。左＝分頁、中＝操作欄（340～900，中線 620）、右＝說明欄；底部按鈕以中欄中線置中，
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-924-	# 預設三鈕＋撤回整組放在中欄內（撤回原本 880～990 被說明欄蓋住 80px）
+build/cg/b07/game/scripts/ui/screens/game_menus.gd-925-	probe_axis(SET_COL.get_center().x)
+--
+build/cg/b07/game/scripts/ui/screens/game_modes.gd:401:func _open_relay() -> void:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-402-	var pz: Dictionary = PZ.get_puzzle("ws")
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-403-	rl_orig = []
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-404-	for e in pz.get("enemy", []):
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-405-		rl_orig.append([int(e[0]), int(e[1]), int(e[2])])
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-406-	rl_enemy = rl_orig.duplicate(true)
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-407-	rl_types = pz.get("allowed", []).duplicate()
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-408-	for e in rl_orig:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-409-		if not int(e[0]) in rl_types:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-410-			rl_types.append(int(e[0]))
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-411-	rl_types.sort()
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-412-	rl_sel = Vector2i(-1, -1)
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-413-	rl_code = ""
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-414-	overlay = "relay"
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-415-
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-416-static func relay_at(list: Array, c: int, r: int) -> int:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-417-	for i in list.size():
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-418-		if int(list[i][1]) == c and int(list[i][2]) == r:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-419-			return i
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-420-	return -1
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-421-
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-422-## 改了幾格（換兵種、拿掉、新增都算一格；搬移＝兩格）。
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-423-static func relay_changes(orig: Array, now: Array) -> int:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-424-	var n := 0
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-425-	for c in range(10, 16):
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-426-		for r in 9:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-427-			var a := relay_at(orig, c, r)
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-428-			var b := relay_at(now, c, r)
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-429-			if (a < 0) != (b < 0) or (a >= 0 and b >= 0 and int(orig[a][0]) != int(now[b][0])):
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-430-				n += 1
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-431-	return n
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-432-
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-433-func _relay_set(t: int) -> void:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-434-	if rl_sel.x < 0:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-435-		return
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-436-	var trial: Array = rl_enemy.duplicate(true)
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-437-	var i := relay_at(trial, rl_sel.x, rl_sel.y)
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-438-	if t < 0:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-439-		if i >= 0:
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-440-			trial.remove_at(i)
+build/cg/b07/game/scripts/ui/screens/game_modes.gd-441-	elif i >= 0:
+--
+build/cg/b07/game/scripts/ui/screens/game_result.gd:567:func _open_review_on_first_loss() -> void:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-568-	_open_review()
+build/cg/b07/game/scripts/ui/screens/game_result.gd-569-	var dead_type := -1
+build/cg/b07/game/scripts/ui/screens/game_result.gd-570-	for u in sim.units:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-571-		if u.team == 0 and not u.alive:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-572-			dead_type = u.type
+build/cg/b07/game/scripts/ui/screens/game_result.gd-573-			break
+build/cg/b07/game/scripts/ui/screens/game_result.gd-574-	if dead_type < 0:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-575-		return
+build/cg/b07/game/scripts/ui/screens/game_result.gd-576-	for i in rv_army.units.size():
+build/cg/b07/game/scripts/ui/screens/game_result.gd-577-		if int(rv_army.units[i]["type"]) == dead_type:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-578-			if rv_army.deploy == "free":
+build/cg/b07/game/scripts/ui/screens/game_result.gd-579-				rv_fsel = i
+build/cg/b07/game/scripts/ui/screens/game_result.gd-580-			else:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-581-				rv_sel = Vector2i(int(rv_army.units[i]["col"]), int(rv_army.units[i]["row"]))
+build/cg/b07/game/scripts/ui/screens/game_result.gd-582-			return
+build/cg/b07/game/scripts/ui/screens/game_result.gd-583-
+build/cg/b07/game/scripts/ui/screens/game_result.gd-584-
+build/cg/b07/game/scripts/ui/screens/game_result.gd-585-
+build/cg/b07/game/scripts/ui/screens/game_result.gd-586-## 結果頁第二層：中線對比長條（輸出／承傷切換）＋技能徽章（只列有發生的）＋指紋。
+build/cg/b07/game/scripts/ui/screens/game_result.gd-587-var res_facts_all: Array = []
+build/cg/b07/game/scripts/ui/screens/game_result.gd-588-## 1.2.0：結果頁放不下時的完整事實清單（小面板）
+build/cg/b07/game/scripts/ui/screens/game_result.gd-589-## 1.5.0：星級一列——三顆金色星星圖示（紙面墨色模式不會把文字星號轉成灰）＋條件文字；回傳下一行的 y
+build/cg/b07/game/scripts/ui/screens/game_result.gd-590-func _star_row(y: float, n: int, txt: String) -> float:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-591-	var ink0 := _ink_mode
+build/cg/b07/game/scripts/ui/screens/game_result.gd-592-	_ink_mode = false
+build/cg/b07/game/scripts/ui/screens/game_result.gd-593-	for k in 3:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-594-		_icon("star", Vector2(640 - 26 + k * 26, y + 12), 22.0, Color("#ffd166") if k < n else Color(0.55, 0.5, 0.45, 0.6))
+build/cg/b07/game/scripts/ui/screens/game_result.gd-595-	_ink_mode = ink0
+build/cg/b07/game/scripts/ui/screens/game_result.gd-596-	_text(Vector2(640, y + 28), txt, tz("S"), ACCENT, true, false, 820)
+build/cg/b07/game/scripts/ui/screens/game_result.gd-597-	return y + 28 + text_h(txt, tz("S"), 820) + 4
+build/cg/b07/game/scripts/ui/screens/game_result.gd-598-
+build/cg/b07/game/scripts/ui/screens/game_result.gd-599-const RES_MAIN_MAX := 2
+build/cg/b07/game/scripts/ui/screens/game_result.gd-600-const RIB_PAD := 10.0   # 勝負緞帶下緣留白（原本 4，末行貼邊；Antigravity v150 cat02 r2 #4）
+build/cg/b07/game/scripts/ui/screens/game_result.gd-601-var res_more_items: Array = []
+build/cg/b07/game/scripts/ui/screens/game_result.gd-602-## 1.5.0 §1.5 結果頁「更多」：次要動作的清單（每顆一列，紙籤）
+build/cg/b07/game/scripts/ui/screens/game_result.gd-603-func _draw_res_more() -> void:
+build/cg/b07/game/scripts/ui/screens/game_result.gd-604-	var rowh := maxf(48.0, tz("S") * 2.0 + 8.0)
+build/cg/b07/game/scripts/ui/screens/game_result.gd-605-	var w := 520.0
+build/cg/b07/game/scripts/ui/screens/game_result.gd-606-	var P := modal_rect(w, 12.0 + h1_bottom(0.0) + GAP_L + res_more_items.size() * (rowh + GAP_S) - GAP_S + GAP_L + 44.0 + GAP_L)
+build/cg/b07/game/scripts/ui/screens/game_result.gd-607-	_panel(P)
+--
+build/cg/b07/game/scripts/ui/screens/game_v16.gd:112:func _open_codex(t: int) -> void:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-113-	Funnel.mark("codex_open")
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-114-	super._open_codex(t)
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-115-
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-116-func _finish_battle() -> void:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-117-	super._finish_battle()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-118-	if play_kind != "official" or sim == null:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-119-		return
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-120-	if bool(rush.get("on", false)) and mode == Mode.PUZZLE:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-121-		_rush_settle()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-122-		return
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-123-	if trio_on and mode == Mode.PUZZLE:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-124-		_trio_settle()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-125-	_coop_settle()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-126-	if mode == Mode.VS_AI and not watch_mode and not bool(get("daily_practice")):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-127-		# V1.0.0（Codex v100-i1）：對 AI 的場數與勝場另記（stats 連教學、殘局都算，建議下一步不能用它判斷「打過 AI」）
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-128-		Save.data["ai_games"] = int(Save.data.get("ai_games", 0)) + 1
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-129-		if sim.winner == 0:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-130-			Save.data["ai_wins"] = int(Save.data.get("ai_wins", 0)) + 1
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-131-	if mode != Mode.TUTORIAL and not watch_mode and not bool(get("daily_practice")) and not (rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-132-		Save.data["eff_games"] = int(Save.data.get("eff_games", 0)) + 1   # V1.6.1 N1：有效對局（1.1.0：每日練習不算）
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-133-	_rift_settle()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-134-	_persona_result()
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-135-	if not bool(get("daily_practice")):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-136-		_career_settle()   # 1.1.0（Codex v110-i1 #4）：每日練習不累積熟練度、戰功章
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-137-	Funnel.mark("first_battle")
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-138-	if mode != Mode.DUEL:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-139-		var won: bool = sim.winner == 0
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-140-		Funnel.mark("first_win" if won else "first_loss")
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-141-		if mode == Mode.TUTORIAL and won:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-142-			Funnel.mark("tutorial_done")
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-143-		if mode == Mode.PUZZLE and puzzle_id != "ws" and (won or bool(report.get("goal_ok", false))):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-144-			Funnel.mark("puzzle_clear")   # 工坊、一陣三考不算（三考只打了第一場，Antigravity v160-i2 #4）
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-145-	if Guide.demo_end_due(Save.data, _demo(), demo_end_shown):
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-146-		demo_end_shown = true
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-147-		Funnel.mark("demo_end")
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-148-		overlay = "demo_end"   # 試玩版結尾：完整版有什麼＋願望單
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-149-
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-150-## ── #1 新手：建議下一步、新入口標記、試玩版結尾 ──
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-151-func _daily_done_today() -> bool:
+build/cg/b07/game/scripts/ui/screens/game_v16.gd-152-	if _demo():
+  1010			var fr: Rect2 = _btns[_focus]["r"]
+  1011			if fr.position.x >= 600.0 and fr.position.x < 900.0:
+  1012				for i in rows.size():
+  1013					if absf(fr.position.y - _settings_row_y(i)) < 2.0:
+  1014						settings_item = rows[i][0]
+  1015	
+  1016	
+  1017	
+  1018	
+  1019	
+  1020	
+  1021	
+  1022	## ── 輸入命令佇列的執行端（第三輪 A2；S8 從 ui_base 移下來：基底不再用空函式呼叫上層）──
+  1023	func _process_cmds() -> int:
+  1024		var done := 0
+  1025		_update_gen()
+  1026		var q := _cmds
+  1027		_cmds = []
+  1028		for c in q:
+  1029			if c["gen"] != _gen:
+  1030				# 畫面已經換了：丟掉。但「放開滑鼠」一定要清掉拖曳／塗兵狀態（Codex S1 #2）
+  1031				if c["kind"] == "mb" and not c["data"]["pressed"]:
+  1032					_mb_release_cleanup()
+  1033				elif c["kind"] == "padbtn" and not c["data"]["pressed"]:
+  1034					_fp_abort_drag()   # 手把放開 A／X 的事件過期：同樣清掉（Codex 實作第 3 輪 #1）
+  1035				continue
+  1036			if c["kind"] == "click":
+  1037				done += _do_click(c["data"])
+  1038			elif c["kind"] == "mb":
+  1039				# 滑鼠按鍵（擺放、拖曳、移除）也走同一個佇列，和鍵盤選兵的先後順序一致（Codex S1 #2）
+  1040				_mb_cmd(c["data"])
+  1041				done += 1
+  1042			elif c["kind"] == "paint":
+  1043				_paint_cmd(c["data"])
+  1044			elif c["kind"] == "padbtn":
+  1045				if not _fp_pad_button(int(c["data"]["b"]), bool(c["data"]["pressed"])) and c["data"]["pressed"]:
+  1046					var mp := {JOY_BUTTON_START: KEY_SPACE, JOY_BUTTON_B: KEY_ESCAPE}
+  1047					if mp.has(int(c["data"]["b"])):
+  1048						_key(mp[int(c["data"]["b"])])
+  1049				done += 1
+  1050			elif c["kind"] == "key":
+
+codex
+行號均指快照 `build/cg/b07/game/scripts/ui/`；本輪為靜態只讀審查。
+
+- P1｜`replay_view.gd:724,893`：讀結果頁仍啟用一般／自由棋盤。選兵後點空格可搬兵，清空結果但停在讀結果頁，走勢與播放消失。應依 `rv_tab` 禁止編輯。
+- P2｜`screens/game_v16.gd:2000,2008`：切段未重設焦點。手把按「下一步」後，舊索引越界歸零，落到停用棋盤；返回編輯亦會落在棋盤。應將焦點移至新段主鈕。
+- P2｜`replay_view.gd:616`：結果自動翻頁未移焦點；重算鈕索引越界後歸零，落到可操作棋盤，接著按 A 可能意外改陣。
+
+另查：正式出題入口共用卡片動作，會重設 `ed_tab`；進驗證已清 `ed_pick`。縮級僅探針啟用時 append、每幀清除，未見跨幀累積。
+
+結論：有條件
+tokens used
+63,537

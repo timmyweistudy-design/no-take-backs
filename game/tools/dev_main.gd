@@ -472,7 +472,7 @@ func _layout_report(name: String, img: Image = null) -> void:
 		bad.append({"type": "純黑像素超過 1%", "pct": art["black_pct"]})   # 1.3.0 §4：美感報表的第一條變門檻（憲法 3：禁純黑）
 	var line := JSON.stringify({"shot": name, "lang": L.lang, "scale": int(Save.s("text_scale")), "texts": ui_n, "free_texts": free_n,
 		"median_size": sizes[sizes.size() / 2] if not sizes.is_empty() else 0, "min_size": sizes[0] if not sizes.is_empty() else 0,
-		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art,
+		"violations": bad, "warnings": cres["warn"], "geo_warn": geo_warn, "geo_exempt": geo["exempt"], "art": art, "shrink": probe_shrink.duplicate(),
 		"r11_cells": probe_texts.filter(func(t): return t.get("face") is Rect2).size(),
 		"cap": _cap_info()})   # 1.6.0 R0：固定拍攝契約——每張截圖的拍攝參數（重拍、前後對照要同鏡位同幀）   # 1.3.0：R11 實際量了幾段格子字（0＝沒接上，收尾核對）
 	var f := FileAccess.open(shot_dir.path_join("layout.jsonl"), FileAccess.READ_WRITE if FileAccess.file_exists(shot_dir.path_join("layout.jsonl")) else FileAccess.WRITE)
@@ -1002,8 +1002,10 @@ func _run_screenshots() -> void:
 	var u0: Dictionary = rv_army.units[0]
 	rv_sel = Vector2i(int(u0["col"]), int(u0["row"]))
 	_rv_set_type(D.SHIELD if int(u0["type"]) != D.SHIELD else D.SWORD)
+	rv_tab = 0
+	await _snap("v160_16a_review_edit.png")   # 1.6.0 B07（P2.5）：覆盤「改動」頁（重算前）
 	_rv_recalc()
-	await _snap("16_review.png")
+	await _snap("16_review.png")   # 重算好了自動翻到「讀結果」頁
 	# V1.4 #1 時光機：播放「如果」，原本時間線畫成地上的白圈
 	_rv_play()
 	while seek_target >= 0:
@@ -2439,6 +2441,9 @@ func _shots_v16() -> void:
 	_ed_set_map(1)   # 1.2.0 §11.10 出題台地形（雙橋河谷）
 	await _snap("v120_07_editor_map.png")
 	_ed_set_map(0)
+	ed_tab = 1   # 1.6.0 B07（P2.5）：出題台驗證段
+	await _snap("v160_13b_editor_verify.png")
+	ed_tab = 0
 	overlay = ""
 	if "--shot-open" in OS.get_cmdline_user_args():
 		# 1.2.0 第 11 大類 開發用：實物開合動畫開到一半（不在版面清冊：蓋子蓋住字是設計，不做對比檢查；只在 --shot-open 時拍）

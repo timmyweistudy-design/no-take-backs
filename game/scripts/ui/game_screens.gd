@@ -782,6 +782,7 @@ func _draw_inner() -> void:
 	probe_screen = {}
 	_probe_cell_seq = 0
 	probe_texts.clear()
+	probe_shrink.clear()
 	probe_btns.clear()
 	probe_faces.clear()
 	probe_ctrls.clear()

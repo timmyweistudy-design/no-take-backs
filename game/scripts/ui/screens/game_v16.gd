@@ -1919,13 +1919,15 @@ func _ed_switch_foe(i: int) -> void:
 		ed_cells[k] = ed_foes[i][k]
 	ed_msg = ""
 
+var ed_focus_main := false   # 1.6.0 B07（Codex r1 #2）：切段後焦點放到新段主鈕
+var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
 func _draw_editor() -> void:
 	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	_dim(0.7)
 	var P := Rect2(80, 40, 1120, 720)
 	_panel(P)
 	probe_skip("R6", "小棋盤是直接畫的格子（不經版面探針），看起來的空白其實是棋盤")
-	var y := _h1_help(Vector2(640, P.position.y + 8), L.t("ed_title"), L.t("ed_help"), tz("S"), 1000)
+	var y := _h1_help(Vector2(640, P.position.y + 8), L.t("ed_title"), L.t("ed_help" if ed_tab == 0 else "ed_help_verify"), tz("S"), 1000)   # 1.6.0 B07：驗證段換說明（Hydrogen r1）
 	y += tz("C") * 1.5   # 棋盤上方的「你的解／敵陣」欄標（原本壓到說明，版面檢查 en 125%）
 	var G := _ed_rect()
 	G.position.y = y
@@ -1946,7 +1948,7 @@ func _draw_editor() -> void:
 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
 					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
 			if cx <= 5 or cx >= 10:
-				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": true, "grid": true})
+				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
 	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
 	if WS3.ED_GOALS[ed_goal] == "trio":
 		# 三考：敵陣 1／2／3 分頁（欄標的位置）
@@ -1956,8 +1958,8 @@ func _draw_editor() -> void:
 	else:
 		_text(G.position + Vector2(13 * ed_cs(), -tz("C") * 1.4), L.t("ed_foe"), tz("C"), Color("#ffb0a0"), true, true, 6 * ed_cs())
 	y = G.end.y + GAP_M
-	# 兵種調色盤（20 種，兩排）
-	for t in 20:
+	# 兵種調色盤（20 種，兩排）；1.6.0 B07（P2.5）驗證段不顯示（只留驗證要用的選擇）
+	for t in (20 if ed_tab == 0 else 0):
 		var pr := Rect2(640 - 10 * 50.0 + (t % 10) * 100.0 + 4, y + (t / 10) * 48.0, 92, 44)   # 1.2.0：列高 52→48（150% 放得下）
 		_btn(pr, "", func(): ed_type = t, true, false, TH_ACTIVE if ed_type == t else Color(0, 0, 0, 0))
 		Art.unit(self, pr.position + Vector2(24, 44), t, 0, 1.0, 0.0, 0.0, 0.0, 1.0, time, 0.42, cbm())
@@ -1967,7 +1969,9 @@ func _draw_editor() -> void:
 		_text(ink_center_p(pcell, "%dg" % D.cost(t), tz("C"), true), "%dg" % D.cost(t), tz("C"), Color.WHITE, true, true)
 		_ink_mode = false
 		probe_cell_end()
-	y += 2 * 48.0 + GAP_S
+	if ed_tab == 1:
+		_text(Vector2(640, y + 48.0 - tz("S") * 0.7), L.t("ed_verify_d"), tz("S"), ACCENT, true, true, 900)   # 兵種盤那塊改寫驗證會做什麼
+	y += 2 * 48.0 + GAP_S   # 驗證段也保留這塊高度（版面不跳）
 	var l := ed_lists()
 	var gold := [0, 0]
 	for i in 2:
@@ -1982,22 +1986,33 @@ func _draw_editor() -> void:
 	if gname in WS3.PICK_GOALS:
 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
-		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
-		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", true, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
+		_btn(Rect2(640 - 380, y, 480, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
+		_btn(Rect2(640 + 100 + GAP_S, y, 280 - GAP_S, 44), tl, func(): ed_pick = not ed_pick; ed_msg = L.t("ed_pick_foe" if gname == "kill" else "ed_pick_own") if ed_pick else "", ed_tab == 0, false, TH_ACTIVE if ed_pick else Color(0, 0, 0, 0))
 	else:
-		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc)
+		_btn(Rect2(640 - 380, y, 760, 44), L.t("ed_goal", [L.t("ed_g_" + gname)]), cyc, ed_tab == 0)
 	y += 44 + GAP_S
 	if ed_msg != "":
 		_text(Vector2(640, y), ed_msg, tz("S"), ACCENT, true, true, 1000)
 	var by := P.end.y - GAP_L - 48.0
-	# 1.2.0 §11.10：四顆同寬置中（出題、地形、清空、返回）；三考題不能加地形
+	# 1.2.0 §11.10：四顆同寬置中；三考題不能加地形
+	# 1.6.0 B07（P2.5）按任務分兩段：編輯段＝下一步：驗證／地形／清空／返回；驗證段＝驗證並複製／回去改／返回
 	var bw := 240.0
 	var bx := 640.0 - (4 * bw + 3 * 16.0) / 2.0
-	_btn(Rect2(bx, by, bw, 48), L.t("ed_make"), func(): _ed_make(), not l[0].is_empty() and not l[1].is_empty(), true)
-	var mk: String = MapDefs.MAPS[ed_map]["key"]
-	_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
-	_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
-	_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
+	var ready: bool = not l[0].is_empty() and not l[1].is_empty()
+	if ed_focus_main:
+		_focus = _btns.size()   # 兩段的主鈕都是底列第一顆
+		ed_focus_main = false
+	if ed_tab == 0:
+		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = ""; ed_focus_main = true, ready, true)
+		var mk: String = MapDefs.MAPS[ed_map]["key"]
+		_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
+		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+		_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
+	else:
+		var bx3 := 640.0 - (3 * bw + 2 * 16.0) / 2.0
+		_btn(Rect2(bx3, by, bw, 48), L.t("ed_make"), func(): _ed_make(), ready, true)
+		_btn(Rect2(bx3 + bw + 16, by, bw, 48), L.t("ed_back_edit"), func(): ed_tab = 0; ed_msg = ""; ed_focus_main = true)
+		_btn(Rect2(bx3 + 2 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())
 
 ## ── #17 一陣三考 ──
 const Trio = preload("res://scripts/game/trio.gd")
