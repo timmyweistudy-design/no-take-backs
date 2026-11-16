@@ -1,0 +1,953 @@
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index 93a304b..6b268ee 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -184,30 +184,303 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
+ 
+ 
+ ## 每幀排版：關鍵在前、新的在前；和已放好的（不在淡出中的）重疊就往上推。結果存在 f["rp"]。
++## 1.6.0 B08（P3.3、S4）：再避開兵偶頭胸框（face_rects）、夾在盤內 ≥TEXT_BOARD_PAD；找位置的順序＝原位往上推 → 左右換邊再往上推，
++## 最遠 TEXT_MAX_MOVE。找不到：一般跳字丟掉（計 text_dropped），關鍵跳字放在蓋最少的位置（關鍵不能漏）。
++## 面積：顯示中（不透明度 ≥0.35）的跳字總面積 ≤ 交戰區 × TEXT_AREA_MAX，超過就丟一般跳字（新的、關鍵的先佔）。
++const TEXT_BOARD_PAD := 12.0
++const TEXT_MAX_MOVE := 96.0   # 1.5 格：再遠就看不出是誰的字
++const TEXT_AREA_MAX := 0.15
++const TEXT_LEAD_MIN := 18.0   # 推離原位超過這麼遠就畫引線
++## 1.6.0 B08（P3.4）：裝飾特效上限——單一特效面積 ≤ 交戰區 × FX_AREA_MAX（超過就等比縮）、最亮色相對亮度 ≤ FX_LUM_MAX（保持色相壓暗）；
++## 畫在兵偶頭胸上的小特效（音符、閃光叉、治療十字）壓到 FX_FACE_ALPHA。表示範圍的（隕石落點圈、範圍預告）不縮——語意（P3.5）。
++const FX_AREA_MAX := 0.04
++const FX_LUM_MAX := 0.8
++const FX_FACE_ALPHA := 0.5
++var _fx_faces: Dictionary = {}
++var _fx_eng_area := 0.0
++var fx_stats := {"max_area": 0.0, "max_lum": 0.0}   # 量測：這一幀畫出的裝飾特效裡最大面積比、最亮相對亮度
++
++static func fx_lum_cap(c: Color) -> Color:
++	var l := 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
++	if l <= FX_LUM_MAX:
++		return c
++	var k := FX_LUM_MAX / maxf(l, 1e-4)
++	return Color(c.r * k, c.g * k, c.b * k, c.a)
++
++## 面積 area 的裝飾特效要縮多少（≤1）；同時記量測
++func fx_area_scale(area: float) -> float:
++	var eng := _fx_eng_area if _fx_eng_area > 0.0 else Rect2(ORIGIN, fld_size).get_area()
++	var sc := minf(1.0, sqrt(eng * FX_AREA_MAX / maxf(1.0, area)))
++	fx_stats["max_area"] = maxf(fx_stats["max_area"], area * sc * sc / eng)
++	return sc
++
++## 畫和量用同一支（測試不能在 _draw 外畫圖）
++func glow_radius(f: Dictionary, k: float) -> float:
++	var r: float = GLOW[f["kind"]][1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
++	return r * fx_area_scale(PI * r * r * 0.8)
++
++func boom_radius(k: float) -> float:
++	var br := 14.0 + _smoothstep01(k) * 26.0
++	return br * fx_area_scale(PI * br * br * 0.8 * 0.75)   # 鋸齒星芒約 0.75 個橢圓
++
++func fx_on_face(p: Vector2, rad: float) -> bool:
++	var r := Rect2(p - Vector2(rad, rad), Vector2(rad, rad) * 2.0)
++	for id in _fx_faces:
++		if (_fx_faces[id] as Rect2).intersects(r):
++			return true
++	return false
++
++func fx_col(c: Color) -> Color:   # 壓亮度並記量測（灰階＝畫面值的加權和）
++	var cc := fx_lum_cap(c)
++	fx_stats["max_lum"] = maxf(fx_stats["max_lum"], 0.2126 * cc.r + 0.7152 * cc.g + 0.0722 * cc.b)
++	return cc
++
++func face_rects() -> Dictionary:
++	return {}   # battle_units 覆寫：{兵 id: 頭胸框}（要用到兵的畫面位置與縮放）
++
++func engage_rect() -> Rect2:
++	return Rect2(ORIGIN, fld_size)   # battle_units 覆寫
++
+ func _layout_texts() -> void:
++	var t_us := Time.get_ticks_usec()
++	_fx_faces = face_rects()   # 特效上限（P3.4）同一幀共用；{兵 id: 頭胸框}
++	_fx_eng_area = engage_rect().get_area()
++	fx_stats = {"max_area": 0.0, "max_lum": 0.0}
+ 	var list: Array = []
+ 	for f in fx:
+ 		if f["kind"] == "text" and not f.get("screen", false):
+ 			list.append(f)
++	if list.is_empty():
++		layout_us = Time.get_ticks_usec() - t_us
++		return
+ 	list.sort_custom(func(a, b): return a.get("tier", 1) > b.get("tier", 1) or (a.get("tier", 1) == b.get("tier", 1) and a["t"] < b["t"]))
+-	var placed: Array = []
++	var board := Rect2(ORIGIN, fld_size).grow(-TEXT_BOARD_PAD)
++	var budget := _fx_eng_area * TEXT_AREA_MAX
++	var used := 0.0
++	var placed: Array = []      # 已放好的完整畫出範圍（含紙條、出場壓下）
++	var placed_key: Array = []  # 已放好的關鍵跳字（擠不下的關鍵字併進最近的一個）
++	var drop: Array = []
+ 	for f in list:
+ 		var k: float = f["t"] / f["dur"]
+-		var at: Vector2 = f["p"] + Vector2(0, -k * 26)
++		var slam := 1.0 - minf(float(f["t"]) / 0.1, 1.0)
++		var at: Vector2 = f["p"] + Vector2(0, -k * 26 - 8.0 * slam * slam)   # 出場壓下的 8px 也算進排版（Codex B08 r1 #1）
+ 		var r := _text_rect(f, at)
+-		if true:   # 淡出中的也排，但排在最後（新的、關鍵的先佔位），所以不會推動正在顯示的
+-			var moved := true
+-			var guard := 0
+-			while moved and guard < 24:
+-				moved = false
+-				guard += 1
+-				for q: Rect2 in placed:
+-					if q.intersects(r):
+-						r.position.y = q.position.y - r.size.y - 2.0
+-						moved = true
+-			placed.append(r)
++		var pad := _text_pad(f)
++		var dr := r.grow_individual(pad[0], pad[1], pad[2], pad[3])
++		var key := int(f.get("tier", 1)) >= 2
++		var vis := _text_alpha(f) >= 0.35
++		var own := int(f.get("tid", -1))
++		var res: Array = [dr, true]
++		if vis and used + dr.get_area() > budget:
++			res = [dr, false]   # 超過面積：一般丟、關鍵併
++		else:
++			res = _text_slot(dr, placed, _fx_faces, board, key, own, f.get("off", Vector2.INF), f["p"] + Vector2(0, 10))
++		if not res[1] and vis:
++			if key:
++				# 擠不下的關鍵字：併進最近的關鍵字；附近沒有就只留在底部戰報列（_report_add 已記；和第七輪 D1「混戰時關鍵技能進戰報列」同一條）
++				if not _merge_into(f, placed_key):
++					text_key_to_report += 1
++				drop.append([f, false])
++				continue
++			drop.append([f, true])
++			continue
++		f["off"] = (res[0] as Rect2).position - dr.position   # 下一幀先試同樣的位移
++		f["stuck"] = not res[1]
++		dr = res[0]
++		r.position = dr.position + Vector2(pad[0], pad[1])
++		placed.append(dr)
++		if key:
++			placed_key.append(f)
++		if vis:
++			used += dr.get_area()
+ 		f["rp"] = Vector2(r.get_center().x, r.position.y + 3.0)
+ 		f["rr"] = r
++		f["dr"] = dr
++		var fr: Rect2 = own_face(_fx_faces, own, f["p"] + Vector2(0, 10))
++		f["lead"] = Vector2(fr.get_center().x, fr.position.y - 2.0) if fr.size.x > 0.0 else f["p"] + Vector2(0, 10)
++		f["seg"] = lead_seg(dr, f["lead"], _fx_faces, fr) if r.get_center().distance_to(f["p"] + Vector2(0, -k * 26.0)) > TEXT_LEAD_MIN else []
++	for d in drop:
++		fx.erase(d[0])
++		if d[1]:
++			text_dropped += 1
++	if _relayout and not _relayout_in:
++		_relayout = false
++		_relayout_in = true
++		_layout_texts()   # 重排（合併後的寬度、避讓、面積都重算；只遞迴一層）
++		_relayout_in = false
++		layout_us = Time.get_ticks_usec() - t_us   # 含重排
++		return
++	_relayout = false
++	layout_us = Time.get_ticks_usec() - t_us
++
++var layout_us := 0   # 量測：上一次排版耗時（µs）
++var _relayout := false
++var _relayout_in := false
++var text_key_to_report := 0   # 量測：擠不下、附近也沒有可併的關鍵字，只留在戰報列的次數
++
++## 紙條、出場、描邊實際畫出去的範圍（相對字框 _text_rect 的左、上、右、下外擴）：紙條 _bubble 外擴 4／1／4／2、
++## 下緣細引線 9.5＋點、陰影往左上 1／2；純數字與補血字只有描邊。
++func _text_pad(f: Dictionary) -> Array:
++	if f.get("plain", false) or is_num_text(str(f["s"])):
++		return [3.0, 3.0, 3.0, 3.0]
++	return [5.0, 3.0, 4.0, 14.0]   # 紙條底 2＋引線 9.5＋圓點 1.6＝13.1，取 14（Codex B08 r2 #3）
++
++## 擠不下的關鍵跳字：併進 2.5 格內最近的、已放好的關鍵跳字（「衝鋒！×2（70）」）。關鍵不漏、也不蓋臉。
++func _merge_into(f: Dictionary, keys: Array) -> bool:
++	var near = null
++	for g in keys:
++		if g.get("ek", "") != f.get("ek", ""):
++			continue   # 只併同種（Codex B08 r2 #2：異種累加會混傷害語意）；異種擠不下就只留戰報列
++		var d: float = (g["p"] as Vector2).distance_to(f["p"])
++		if d <= TEXT_MAX_MOVE_KEY and (near == null or d < (near["p"] as Vector2).distance_to(f["p"])):
++			near = g
++	if near == null:
++		return false
++	near["n"] = int(near["n"]) + int(f.get("n", 1))
++	near["sum"] = int(near["sum"]) + int(f.get("sum", 0))
++	var lab := str(f["s"]).split(" ")[0]
++	near["s"] = "%s ×%d（%d）" % [lab, near["n"], near["sum"]]
++	_relayout = true   # 合併後字變寬：這一幀重排一次（Codex B08 r2 #1）
++	return true
++
++## 找一個不疊別的跳字、不蓋別隻兵的頭胸、在盤內的位置（r＝完整畫出範圍）。回傳 [Rect2, 找到乾淨位置?]。
++## 候選：原位、左右各一／兩個字寬，各自往上推、往下（腳下）推；最終位移 ≤ 上限（一般 1.5 格、關鍵 2.5 格）；
++## 推離原位要畫引線時，引線也不准穿過別隻的頭胸。取各方向第一個乾淨位置中離原位最近的；都不行回傳蓋得最少的。
++const TEXT_MAX_MOVE_KEY := 160.0   # 2.5 格
++func _text_slot(r: Rect2, placed: Array, faces: Dictionary, board: Rect2, far := false, own := -1, pref := Vector2.INF, anchor := Vector2.INF) -> Array:
++	if anchor == Vector2.INF:
++		anchor = Vector2(r.get_center().x, r.end.y + 10.0)
++	var lim := TEXT_MAX_MOVE_KEY if far else TEXT_MAX_MOVE
++	var near: Array = []
++	var zone := r.grow_individual(r.size.x + 20.0, lim, r.size.x + 20.0, lim)
++	for id in faces:
++		var q: Rect2 = faces[id]
++		if zone.intersects(q):
++			near.append(q)
++	var own_r: Rect2 = own_face(faces, own, anchor)
++	var lead_to := Vector2(own_r.get_center().x, own_r.position.y - 2.0) if own_r.size.x > 0.0 else anchor
++	# 黏著：上一幀的位移還乾淨就沿用（不每幀重找；跳字也不會左右跳）
++	if pref != Vector2.INF:
++		var pc := Rect2(r.position + pref, r.size)
++		if board.encloses(pc) and pc.position.distance_to(r.position) <= lim and _cand_cost(pc, r, placed, near, own_r, lead_to)[0] == 0.0:
++			return [pc, true]
++	var best := r
++	var best_cost := INF
++	var clean := r
++	var clean_d := INF
++	var side := r.size.x * 0.5 + 10.0
++	var dxs: Array = [0.0]
++	if own_r.size.x > 0.0:
++		dxs.append(own_r.end.x + 4.0 - r.position.x)    # 緊貼自己那隻的右側（引線最短、一看就知道是誰的）
++		dxs.append(own_r.position.x - 4.0 - r.end.x)    # 緊貼左側
++	dxs.append_array([-side, side, -side * 2.0, side * 2.0])
++	for dir in [-1.0, 1.0]:
++		for dx in dxs:
++			var dy := 0.0 if dir < 0.0 else 4.0
++			var last_y := INF
++			while dy <= lim:
++				var c := Rect2(r.position + Vector2(dx, dir * dy), r.size)
++				c.position.x = clampf(c.position.x, board.position.x, maxf(board.position.x, board.end.x - c.size.x))
++				c.position.y = clampf(c.position.y, board.position.y, maxf(board.position.y, board.end.y - c.size.y))
++				if c.position.y == last_y:
++					break   # 被盤邊夾住：再推也是同一個位置
++				last_y = c.position.y
++				var dist := c.position.distance_to(r.position)
++				if dist > lim or dist >= clean_d:
++					break   # 最終位移超過上限（Codex B08 r1 #4），或已經比找到的乾淨位置遠：這個方向不用再推
++				var cj: Array = _cand_cost(c, r, placed, near, own_r, lead_to)
++				if cj[0] == 0.0:
++					clean_d = dist
++					clean = c
++					break   # 這個方向第一個乾淨的位置就是它最近的
++				if cj[0] < best_cost:
++					best_cost = cj[0]
++					best = c
++				dy += maxf(4.0, float(cj[1]) + 2.0)   # 直接跳過擋路那個框
++	if clean_d < INF:
++		return [clean, true]   # Hydrogen B08 r1：推太遠會被看成別隻的字 → 取最近
++	return [best, false]
++
++## 這個跳字「自己那隻」的頭胸框：兵還在錨點附近（≤1.2 格）才算；兵已經走遠（或對不上），引線改指錨點、也不豁免任何框
++func own_face(faces: Dictionary, own: int, anchor: Vector2) -> Rect2:
++	var q: Rect2 = faces.get(own, Rect2())
++	if q.size.x <= 0.0 or anchor == Vector2.INF:
++		return q
++	return q if Vector2(q.get_center().x, q.position.y).distance_to(anchor) <= CS * 1.2 else Rect2()
++
++## 候選位置的代價：疊到已放的跳字、蓋到頭胸（×4）。回傳 [代價, 往前跳多少]。（引線不算：引線在碰到頭胸框前就停，見 lead_seg）
++func _cand_cost(c: Rect2, r: Rect2, placed: Array, near: Array, own_r: Rect2, lead_to: Vector2) -> Array:
++	var cost := 0.0
++	var jump := 0.0
++	var up := c.position.y <= r.position.y
++	for q: Rect2 in placed:
++		if q.intersects(c):
++			cost += c.intersection(q).get_area() + 1.0
++			jump = maxf(jump, (c.end.y - q.position.y) if up else (q.end.y - c.position.y))
++	for q: Rect2 in near:
++		if q.intersects(c):
++			cost += c.intersection(q).get_area() * 4.0 + 1.0
++			jump = maxf(jump, (c.end.y - q.position.y) if up else (q.end.y - c.position.y))
++	return [cost, jump]
++
++## 引線：從字框邊到「自己那隻的頭頂」（兵走遠了就到錨點）。整條不穿過別隻的頭胸框、終點在盤內才畫（引線本身不蓋臉）；
++## 回傳 [起點, 終點]；不畫回傳空陣列。
++func lead_seg(dr: Rect2, lead_to: Vector2, faces: Dictionary, own_r: Rect2) -> Array:
++	var from := Vector2(clampf(lead_to.x, dr.position.x + 6.0, dr.end.x - 6.0), dr.end.y if lead_to.y > dr.get_center().y else dr.position.y)
++	var t_end := 1.0
++	for id in faces:
++		var q: Rect2 = faces[id]
++		if q == own_r:
++			continue
++		var te := seg_entry(from, lead_to, q)
++		if te < t_end:
++			t_end = te
++	# Hydrogen B08 r2：停在半空的短引線反而看不出歸屬 → 整條通（不穿過別隻、終點在盤內）才畫，否則不畫
++	if t_end < 1.0 or not Rect2(ORIGIN, fld_size).has_point(lead_to) or from.distance_to(lead_to) < 6.0:
++		return []
++	return [from, lead_to]
++
++## 線段 a–b 進入矩形 q 的參數 t（0～1）；不相交回傳 2.0；起點就在裡面回傳 0
++static func seg_entry(a: Vector2, b: Vector2, q: Rect2) -> float:
++	var t0 := 0.0
++	var t1 := 1.0
++	var d := b - a
++	for e in [[-d.x, a.x - q.position.x], [d.x, q.end.x - a.x], [-d.y, a.y - q.position.y], [d.y, q.end.y - a.y]]:
++		var pp: float = e[0]
++		var qq: float = e[1]
++		if absf(pp) < 1e-9:
++			if qq < 0.0:
++				return 2.0
++		else:
++			var t := qq / pp
++			if pp < 0.0:
++				t0 = maxf(t0, t)
++			else:
++				t1 = minf(t1, t)
++			if t0 > t1:
++				return 2.0
++	return t0
++
++## 線段 a–b 是否穿過矩形 q（Liang–Barsky 裁切）
++static func seg_hits_rect(a: Vector2, b: Vector2, q: Rect2) -> bool:
++	var t0 := 0.0
++	var t1 := 1.0
++	var d := b - a
++	for e in [[-d.x, a.x - q.position.x], [d.x, q.end.x - a.x], [-d.y, a.y - q.position.y], [d.y, q.end.y - a.y]]:
++		var pp: float = e[0]
++		var qq: float = e[1]
++		if absf(pp) < 1e-9:
++			if qq < 0.0:
++				return false
++		else:
++			var t := qq / pp
++			if pp < 0.0:
++				t0 = maxf(t0, t)
++			else:
++				t1 = minf(t1, t)
++			if t0 > t1:
++				return false
++	return true
+ 
+ 
+ 
+@@ -227,7 +500,29 @@ func text_overlap_stats() -> Dictionary:
+ 		for o: Rect2 in vis + fading:
+ 			if o != fr:
+ 				worst_f = maxf(worst_f, _overlap(fr, o))
+-	return {"visible": vis.size(), "fading": fading.size(), "max_overlap": worst, "max_overlap_fading": worst_f}
++	# 1.6.0 B08（S4）：顯示中跳字（完整畫出範圍：紙條、出場、引線）蓋到別隻兵頭胸框的面積、出盤內 12px 的個數、總面積÷交戰區
++	var face_px := 0.0
++	var clipped := 0
++	var area := 0.0
++	var board := Rect2(ORIGIN, fld_size).grow(-TEXT_BOARD_PAD + 0.5)
++	var faces: Dictionary = face_rects()
++	for f in fx:
++		if f["kind"] != "text" or f.get("screen", false) or not f.has("dr") or _text_alpha(f) < 0.35:
++			continue
++		var dr: Rect2 = f["dr"]
++		area += dr.get_area()
++		if not board.encloses(dr):
++			clipped += 1
++		var own_r: Rect2 = own_face(faces, int(f.get("tid", -1)), f["p"] + Vector2(0, 10))
++		var sg: Array = f.get("seg", [])
++		for id in faces:
++			var q: Rect2 = faces[id]
++			if q.intersects(dr):
++				face_px += dr.intersection(q).get_area()
++			if sg.size() == 2 and q != own_r and seg_hits_rect(sg[0], sg[1], q.grow(-0.5)):
++				face_px += 1.0   # 引線（實際畫的那段）穿過別隻的頭胸
++	return {"visible": vis.size(), "fading": fading.size(), "max_overlap": worst, "max_overlap_fading": worst_f,
++		"face_px": int(face_px), "clipped": clipped, "area_ratio": area / maxf(1.0, engage_rect().get_area())}
+ 
+ 
+ ## 最後時刻（第三輪 V2）：慢動作期間，螢幕上 y<165（橫幅下方那一帶）的戰場跳字淡到 0.2。
+@@ -301,6 +596,9 @@ const FAST_SPEED := 4.0
+ const FAST_SKIP := ["pages", "bonesup", "woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
+ 
+ func _add_fx(d: Dictionary) -> void:
++	for ck in ["c", "tc"]:   # 1.6.0 B08（P3.4）：特效的顏色參數一進來就壓到亮度上限（畫的地方另有字面色的上限）
++		if d.get(ck) is Color:
++			d[ck] = fx_lum_cap(d[ck])
+ 	if bool(Save.s("reduce_fx")) and d["kind"] in ["slimehop", "pages", "bonesup", "woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
+ 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
+ 	if speed >= FAST_SPEED and d["kind"] in FAST_SKIP:
+@@ -451,8 +749,8 @@ func _draw_glow(f: Dictionary, k: float) -> void:
+ 	var gp = f.get("p", f.get("b", null))
+ 	if gp == null:
+ 		return
+-	var r: float = g[1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
+-	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(g[0], 0.32 * (1.0 - k)))
++	var r := glow_radius(f, k)
++	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(fx_col(g[0]), 0.32 * (1.0 - k)))
+ 
+ func _draw_fx(f: Dictionary) -> void:
+ 	var k: float = f["t"] / f["dur"]
+@@ -467,21 +765,21 @@ func _draw_fx(f: Dictionary) -> void:
+ 			if k < 0.3:
+ 				var drop := 1.0 - k / 0.3
+ 				draw_circle(mp - Vector2(-120, 320) * drop, 15.0, Color("#ff8a3c"))
+-				draw_circle(mp - Vector2(-120, 320) * drop, 8.0, Color("#fff0b0"))
++				draw_circle(mp - Vector2(-120, 320) * drop, 8.0, fx_col(Color(0.855, 0.805, 0.59)))
+ 				draw_arc(mp, mr, 0, TAU, 40, Color(1, 0.5, 0.2, 0.7), 2.0, true)
+ 			else:
+ 				var bk := (k - 0.3) / 0.7
+ 				draw_circle(mp, mr * (0.4 + bk * 0.6), Color(1, 0.5, 0.15, 0.45 * (1.0 - bk)))
+-				draw_arc(mp, mr * (0.4 + bk * 0.6), 0, TAU, 40, Color(1, 0.9, 0.6, 1.0 - bk), 4.0, true)
++				draw_arc(mp, mr * (0.4 + bk * 0.6), 0, TAU, 40, Color(0.889, 0.8, 0.534, 1.0 - bk), 4.0, true)
+ 		"spark":
+ 			# V1.5：法術命中的碎光（8 道放射短線＋中心光點）
+ 			var sk: float = f["t"] / f["dur"]
+-			var sc: Color = f.get("c", Color.WHITE)
++			var sc: Color = fx_lum_cap(f.get("c", Color.WHITE))
+ 			var sp0: Vector2 = f["p"]
+ 			for i in 8:
+ 				var dv := Vector2.from_angle(i * TAU / 8.0 + 0.3)
+ 				draw_line(sp0 + dv * (4.0 + sk * 10.0), sp0 + dv * (8.0 + sk * 16.0), Color(sc, 1.0 - sk), 2.4, true)
+-			draw_circle(sp0, 6.0 * (1.0 - sk), Color(sc.lightened(0.5), 0.9 * (1.0 - sk)), true, -1.0, true)
++			draw_circle(sp0, 6.0 * (1.0 - sk), Color(fx_lum_cap(sc.lightened(0.5)), 0.9 * (1.0 - sk)), true, -1.0, true)
+ 		"arrow":
+ 			var a: Vector2 = f["a"]
+ 			var b: Vector2 = f["b"]
+@@ -496,7 +794,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var tl := b - dv * 13.0
+ 				draw_line(tl, b, Color(Art.OUT, 1.0 - q), 4.0, true)
+ 				draw_line(tl, b, Color(Color("#d97706"), 1.0 - q), 2.2, true)
+-				var fc0: Color = f.get("tc", Color.WHITE)
++				var fc0: Color = fx_lum_cap(f.get("tc", Color.WHITE))
+ 				draw_colored_polygon(PackedVector2Array([tl, tl - dv * 5.0 + dv.orthogonal() * 4.0, tl + dv * 3.0]), Color(fc0, 1.0 - q))
+ 				draw_colored_polygon(PackedVector2Array([tl, tl - dv * 5.0 - dv.orthogonal() * 4.0, tl + dv * 3.0]), Color(fc0, 1.0 - q))
+ 				return
+@@ -509,18 +807,18 @@ func _draw_fx(f: Dictionary) -> void:
+ 			for j in 6:
+ 				var kk := maxf(0.0, k - 0.03 * (j + 1))
+ 				var pt := a.lerp(b, kk) + Vector2(0, -sin(kk * PI) * h)
+-				draw_circle(pt, 1.6, Color(1, 1, 1, 0.35 * (1.0 - j / 6.0)), true, -1.0, true)
++				draw_circle(pt, 1.6, Color(0.8, 0.8, 0.8, 0.35 * (1.0 - j / 6.0)), true, -1.0, true)
+ 			draw_line(tail, p, Art.OUT, 4.0, true)
+ 			draw_line(tail, p, Color("#d97706"), 2.2, true)
+ 			var nrm := dirv.orthogonal()
+-			draw_colored_polygon(PackedVector2Array([p + dirv * 5.0, p + nrm * 3.0, p - nrm * 3.0]), Color("#e5e7eb"))
+-			var fc: Color = f.get("tc", Color.WHITE)
++			draw_colored_polygon(PackedVector2Array([p + dirv * 5.0, p + nrm * 3.0, p - nrm * 3.0]), Color(0.794, 0.8, 0.814))
++			var fc: Color = fx_lum_cap(f.get("tc", Color.WHITE))
+ 			draw_colored_polygon(PackedVector2Array([tail, tail - dirv * 5.0 + nrm * 4.0, tail + dirv * 3.0]), fc)
+ 			draw_colored_polygon(PackedVector2Array([tail, tail - dirv * 5.0 - nrm * 4.0, tail + dirv * 3.0]), fc)
+ 		"slash":
+ 			var c: Vector2 = f["p"] + Vector2(f["dir"] * 16, -24)
+ 			var start := -1.3 if f["dir"] > 0 else PI - 1.1
+-			draw_arc(c, 16, start, start + 2.4 * k, 12, Color(1, 1, 1, 1 - k), 3.5, true)
++			draw_arc(c, 16, start, start + 2.4 * k, 12, Color(0.8, 0.8, 0.8, 1 - k), 3.5, true)
+ 		"step":
+ 			var bigs: float = 1.8 if f.get("big", false) else 1.0
+ 			for i in 4:
+@@ -533,11 +831,13 @@ func _draw_fx(f: Dictionary) -> void:
+ 		"flash":
+ 			var c2: Color = f["c"]
+ 			var p0: Vector2 = f["p"]
++			var fa2 := FX_FACE_ALPHA if fx_on_face(p0, 14.0 * (1 + k)) else 1.0   # 1.6.0 B08：蓋在頭胸上就壓淡
++			c2 = fx_col(c2)
+ 			# 雙層描邊（第三輪 V4）：深色底 4px＋亮芯
+ 			for pair in [[Vector2(-14, -14), Vector2(14, 14)], [Vector2(-14, 14), Vector2(14, -14)]]:
+-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(Art.OUT, 0.8 * (1 - k)), 8, true)
+-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(c2, 1 - k), 4, true)
+-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(1, 1, 1, 0.7 * (1 - k)), 1.5, true)
++				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(Art.OUT, 0.8 * (1 - k) * fa2), 8, true)
++				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(c2, (1 - k) * fa2), 4, true)
++				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(fx_col(Color(0.8, 0.8, 0.8)), 0.7 * (1 - k) * fa2), 1.5, true)
+ 		"ripple":
+ 			var c3: Color = f["c"]
+ 			draw_arc(f["p"], 6 + k * 18, -1.2, 1.2, 12, Color(c3, 1 - k), 3, true)
+@@ -550,7 +850,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var rot := k * 9.0 + i
+ 				var d0 := Vector2(cos(rot), sin(rot)) * 6.0
+ 				draw_line(c0 - d0, c0 + d0, Color(Art.OUT, 1.0 - k), 5.0, true)
+-				draw_line(c0 - d0, c0 + d0, Color(0.95, 0.93, 0.85, 1.0 - k), 3.0, true)
++				draw_line(c0 - d0, c0 + d0, Color(0.819, 0.801, 0.732, 1.0 - k), 3.0, true)
+ 		"coins":
+ 			# V1.1 A7：寶箱怪倒下吐出幾枚金幣
+ 			for i in 6:
+@@ -558,7 +858,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var v2 := Vector2(cos(an2), sin(an2)) * k * 34.0 + Vector2(0, k * k * 40.0)
+ 				var c1: Vector2 = f["p"] + v2
+ 				draw_circle(c1, 4.5, Color(Art.OUT, 1.0 - k), true, -1.0, true)
+-				draw_circle(c1, 3.2, Color(1.0, 0.82, 0.3, 1.0 - k), true, -1.0, true)
++				draw_circle(c1, 3.2, Color(0.975, 0.799, 0.292, 1.0 - k), true, -1.0, true)
+ 		"badge":
+ 			var bc: Color = f["c"]
+ 			var bs := 7.0 * (1.0 + 0.4 * sin(minf(k * 2.0, 1.0) * PI))
+@@ -622,15 +922,15 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var pts := PackedVector2Array()
+ 				for j in 3:
+ 					pts.append(c0 + Vector2(cos(rot + j * 2.1), sin(rot + j * 2.1)) * r0)
+-				draw_colored_polygon(pts, Color(0.93, 0.97, 1.0, 1 - k))
++				draw_colored_polygon(pts, Color(0.772, 0.805, 0.83, 1 - k))
+ 				draw_polyline(pts + PackedVector2Array([pts[0]]), Color(Art.OUT, 1 - k), 2.0, true)
+ 		"aim":
+ 			# 警覺：金色瞄準線先拉出來，再淡掉
+ 			var a2: Vector2 = f["a"]
+ 			var b2: Vector2 = f["b"]
+ 			var e2 := a2.lerp(b2, minf(1.0, k * 2.5))
+-			draw_dashed_line(a2, e2, Color(1, 0.84, 0.3, 0.6 * (1 - k)), 1.6, 6.0, true)
+-			draw_arc(b2, 9 - k * 3, 0, TAU, 16, Color(1, 0.84, 0.3, 1 - k), 2.0, true)
++			draw_dashed_line(a2, e2, Color(0.958, 0.805, 0.287, 0.6 * (1 - k)), 1.6, 6.0, true)
++			draw_arc(b2, 9 - k * 3, 0, TAU, 16, Color(0.958, 0.805, 0.287, 1 - k), 2.0, true)
+ 		"hide":
+ 			# 皮甲：琥珀色弧光擋在中箭的那一側
+ 			var d3: float = f["dir"]
+@@ -644,10 +944,10 @@ func _draw_fx(f: Dictionary) -> void:
+ 			var drop := k * k * 8.0
+ 			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Art.OUT, 4.6, true)
+ 			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Art.OUT, 4.6, true)
+-			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Color(1, 1, 1, 1 - k), 3.0, true)
+-			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Color(1, 1, 1, 1 - k), 3.0, true)
++			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Color(0.8, 0.8, 0.8, 1 - k), 3.0, true)
++			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Color(0.8, 0.8, 0.8, 1 - k), 3.0, true)
+ 			if k < 0.25:
+-				draw_circle(c5, 5.0 * (1.0 - k * 4.0), Color(1, 1, 1, 0.9), true, -1.0, true)   # 繃斷的閃白
++				draw_circle(c5, 5.0 * (1.0 - k * 4.0), Color(0.8, 0.8, 0.8, 0.9), true, -1.0, true)   # 繃斷的閃白
+ 		"spore":
+ 			# V1.0.0 角色：毒改濁紫（綠色留給補血），兩顆錯開的斑點
+ 			draw_circle(f["p"] + Vector2(-3.0, -k * 14.0), 3.0 + k * 3.0, Color(0.62, 0.42, 0.78, 0.75 * (1.0 - k)), true, -1.0, true)
+@@ -662,7 +962,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				for s4 in 6:
+ 					var xx := -wd * (10.0 + s4 * 9.0 + k * 20.0)
+ 					pts4.append(f["p"] + Vector2(xx, y4 + sin(s4 * 1.3 + k4) * 1.5))
+-				draw_polyline(pts4, Color(0.92, 0.85, 0.66, a4), 2.0 - k4 * 0.4, true)
++				draw_polyline(pts4, Color(0.865, 0.799, 0.62, a4), 2.0 - k4 * 0.4, true)
+ 		"leaves":
+ 			# 1.4.0 §6.2 醫者治療：三片草葉微粒旋升（綠色只給治療語意）
+ 			for k5 in 3:
+@@ -713,7 +1013,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 			draw_set_transform_matrix(_cam * Transform2D(fall * float(f["dir"]) * 0.6, Vector2(absf(flip), 1.0), 0, tp0))
+ 			draw_rect(Rect2(Vector2(-tw0 / 2, -th0 / 2), Vector2(tw0, th0)), Color(PAL.BAMBOO, a0))
+ 			draw_rect(Rect2(Vector2(-tw0 / 2, -th0 / 2), Vector2(tw0, th0)), Color(PAL.BAMBOO_D, a0), false, 1.5)
+-			draw_line(Vector2(-tw0 / 2 + 3, -th0 / 2 + 3), Vector2(tw0 / 2 - 3, -th0 / 2 + 3), Color(PAL.BAMBOO.lightened(0.3), a0 * 0.8), 1.0)
++			draw_line(Vector2(-tw0 / 2 + 3, -th0 / 2 + 3), Vector2(tw0 / 2 - 3, -th0 / 2 + 3), Color(fx_lum_cap(PAL.BAMBOO.lightened(0.3)), a0 * 0.8), 1.0)
+ 			draw_set_transform_matrix(_cam)
+ 			if flip < -0.85:   # 翻回正面才寫字（字在盤面座標畫，不跟著縮放；版面檢查量得到真實位置）
+ 				_text(tp0 + Vector2(0, -th0 / 2 + 1), str(f["s"]), tsz, Color(PAL.INK, a0), true, true)
+@@ -730,7 +1030,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var kp := clampf(k * 1.6 - pg * 0.5, 0.0, 1.0)
+ 				var w := 9.0 * cos(kp * PI)
+ 				var q := PackedVector2Array([f["p"], f["p"] + Vector2(w, -2.0 - 3.0 * sin(kp * PI)), f["p"] + Vector2(w, 9.0 - 3.0 * sin(kp * PI)), f["p"] + Vector2(0, 9.0)])
+-				draw_colored_polygon(q, Color(0.96, 0.92, 0.8, 0.9 * (1.0 - k * 0.6)))
++				draw_colored_polygon(q, Color(0.835, 0.8, 0.696, 0.9 * (1.0 - k * 0.6)))
+ 		"bonesup":
+ 			# 1.1.0 A7：骷髏拼裝：5 根骨頭從外圈收進來（0.15 秒），收完就是本體
+ 			for bi in 5:
+@@ -738,7 +1038,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var rr := 18.0 * (1.0 - k)
+ 				var c0: Vector2 = f["p"] + Vector2(cos(ab), sin(ab) * 0.8) * rr
+ 				var d0 := Vector2(cos(ab + 1.2), sin(ab + 1.2)) * 4.0
+-				draw_line(c0 - d0, c0 + d0, Color(0.93, 0.9, 0.82, 1.0 - k * 0.5), 2.2, true)
++				draw_line(c0 - d0, c0 + d0, Color(0.826, 0.799, 0.728, 1.0 - k * 0.5), 2.2, true)
+ 		"slimehop":
+ 			# 1.1.0 A7：小史萊姆從母體彈出半圈：沿半圓弧的殘影＋落地壓扁回彈（弧在 0.3 格內）
+ 			var dxh: float = f.get("dir", 1.0)
+@@ -746,12 +1046,12 @@ func _draw_fx(f: Dictionary) -> void:
+ 			if k < 0.6:
+ 				var kh := k / 0.6
+ 				var pos := start.lerp(f["p"], kh) + Vector2(0, -14.0 * sin(kh * PI))
+-				draw_circle(pos + Vector2(0, -6), 4.5, Color(0.45, 1.0, 0.55, 0.7), true, -1.0, true)
++				draw_circle(pos + Vector2(0, -6), 4.5, Color(0.423, 0.941, 0.517, 0.7), true, -1.0, true)
+ 			else:
+ 				var ks := (k - 0.6) / 0.4
+ 				var sq := 1.0 + 0.5 * sin(ks * PI)
+ 				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(sq, 1.0 / sq), 0, f["p"] + Vector2(0, -3)))
+-				draw_circle(Vector2.ZERO, 5.0, Color(0.45, 1.0, 0.55, 0.6 * (1.0 - ks)), true, -1.0, true)
++				draw_circle(Vector2.ZERO, 5.0, Color(0.423, 0.941, 0.517, 0.6 * (1.0 - ks)), true, -1.0, true)
+ 				draw_set_transform_matrix(_cam)
+ 		"woodwave":
+ 			# 1.1.0 A7：鼓手敲擊，腳下兩圈淡木色同心波（貼地，外圈 ≤0.3 格）
+@@ -774,7 +1074,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 		"wool":
+ 			for i8 in 9:
+ 				var an8 := i8 * TAU / 9.0
+-				draw_circle(f["p"] + Vector2(cos(an8), sin(an8) * 0.7) * (8.0 + k * 34.0) + Vector2(0, k * k * 16.0), 5.0 * (1.0 - k), Color(1, 1, 1, 0.9 * (1.0 - k)), true, -1.0, true)
++				draw_circle(f["p"] + Vector2(cos(an8), sin(an8) * 0.7) * (8.0 + k * 34.0) + Vector2(0, k * k * 16.0), 5.0 * (1.0 - k), Color(0.8, 0.8, 0.8, 0.9 * (1.0 - k)), true, -1.0, true)
+ 		"chomp":
+ 			var gap8 := 12.0 * (1.0 - minf(1.0, k * 3.0))
+ 			for s8 in [-1.0, 1.0]:
+@@ -784,12 +1084,12 @@ func _draw_fx(f: Dictionary) -> void:
+ 					tri.append(base8 + Vector2(-15.0 + i9 * 10.0, 0))
+ 					tri.append(base8 + Vector2(-10.0 + i9 * 10.0, s8 * -8.0))
+ 				tri.append(base8 + Vector2(25.0, 0))
+-				draw_polyline(tri, Color(1, 1, 1, 1.0 - k), 3.0, true)
++				draw_polyline(tri, Color(0.8, 0.8, 0.8, 1.0 - k), 3.0, true)
+ 		"timebell":
+ 			var bellr := 18.0 + k * float(F8.SPRITE_R) * CS / 1000.0
+ 			draw_arc(f["p"], bellr, 0, TAU, 48, Color(Art.OUT, 0.5 * (1.0 - k)), 7.0, true)
+-			draw_arc(f["p"], bellr, 0, TAU, 48, Color(1.0, 0.88, 0.5, 0.9 * (1.0 - k)), 4.0, true)
+-			draw_circle(f["p"], bellr, Color(1.0, 0.88, 0.5, 0.08 * (1.0 - k)), true, -1.0, true)
++			draw_arc(f["p"], bellr, 0, TAU, 48, Color(0.911, 0.802, 0.456, 0.9 * (1.0 - k)), 4.0, true)
++			draw_circle(f["p"], bellr, Color(0.911, 0.802, 0.456, 0.08 * (1.0 - k)), true, -1.0, true)
+ 		"soulrise":
+ 			for i10 in 5:
+ 				var an10 := i10 * TAU / 5.0 + k * 3.0
+@@ -799,12 +1099,12 @@ func _draw_fx(f: Dictionary) -> void:
+ 			for i11 in 3:
+ 				var ph11 := fmod(k * 1.5 + i11 * 0.33, 1.0)
+ 				var r11 := maxr * (1.0 - ph11)
+-				draw_arc(f["p"], r11, ph11 * 6.0, ph11 * 6.0 + 4.2, 26, Color(0.6, 0.85, 1.0, 0.4 * ph11), 2.4, true)
++				draw_arc(f["p"], r11, ph11 * 6.0, ph11 * 6.0 + 4.2, 26, Color(0.594, 0.842, 0.99, 0.4 * ph11), 2.4, true)
+ 		"stompring":
+ 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, f["p"]))
+ 			var sr := 14.0 + k * float(F8.GOLEM_R) * CS / 1000.0
+ 			# Antigravity 第 2 輪：環蓋在兵上面，不描黑邊、調淡，才不會切過臉
+-			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(0.92, 0.86, 0.68, 0.5 * (1.0 - k)), 3.5, true)
++			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(0.856, 0.8, 0.633, 0.5 * (1.0 - k)), 3.5, true)
+ 			draw_set_transform_matrix(_cam)
+ 		"vslash":
+ 			# 背刺：一道粗的紫色斬痕
+@@ -820,7 +1120,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var wd := minf(seg * 0.14, 5.0) * (1 - k * 0.4)
+ 				draw_colored_polygon(PackedVector2Array([c6 + a0, c6 + e3 + nrm * (wd + 1.6), c6 + e3 - nrm * (wd + 1.6)]), Color(Art.OUT, 0.6 * (1 - k)))
+ 				draw_colored_polygon(PackedVector2Array([c6 + a0, c6 + e3 + nrm * wd, c6 + e3 - nrm * wd]), Color(0.78, 0.49, 1.0, 1 - k))
+-				draw_line(c6 + a0, c6 + e3, Color(1, 1, 1, 0.75 * (1 - k)), 1.2, true)
++				draw_line(c6 + a0, c6 + e3, Color(0.8, 0.8, 0.8, 0.75 * (1 - k)), 1.2, true)
+ 		"taunt":
+ 			# 第七輪 D7：嘲諷改腳底橢圓，只畫下半弧，不擋臉
+ 			var kj := clampf(k * 1.3, 0.0, 1.0)
+@@ -851,7 +1151,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 			# 爆炸：橘紅鋸齒爆裂圈＋黑煙圈（和平滑同心圓區分，第四輪 §4.4）
+ 			# 爆炸（Antigravity 實作審查：原本像同心圓標靶）：10 尖角的鋸齒星芒＋黃白核心＋4 團往外散的灰煙
+ 			var bp: Vector2 = f["p"] + Vector2(0, -14)
+-			var br := 14.0 + _smoothstep01(k) * 26.0
++			var br := boom_radius(k)
+ 			var spikes := PackedVector2Array()
+ 			for i in 20:
+ 				var an := i * TAU / 20.0 + 0.2
+@@ -861,7 +1161,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 			draw_colored_polygon(spikes, Color(1.0, 0.42, 0.12, 0.92 * fa))
+ 			for i in 20:
+ 				spikes[i] = bp + (spikes[i] - bp) * 0.55
+-			draw_colored_polygon(spikes, Color(1.0, 0.86, 0.35, 0.95 * fa))
++			draw_colored_polygon(spikes, Color(fx_col(Color(0.938, 0.807, 0.328)), 0.95 * fa))
+ 			for i in 4:
+ 				var pa := i * TAU / 4.0 + 0.6
+ 				var pp := bp + Vector2(cos(pa) * (8.0 + k * 30.0), sin(pa) * (6.0 + k * 20.0) - k * 10.0)
+@@ -873,14 +1173,15 @@ func _draw_fx(f: Dictionary) -> void:
+ 			for i in 9:
+ 				var q := float(i) / 8.0
+ 				pts.append(ha.lerp(hb, q) + Vector2(0, -sin(q * PI) * 18.0))
+-			draw_polyline(pts, Color(0.5, 1.0, 0.6, 0.7 * (1.0 - k)), 2.5, true)
+-			_cross(hb + Vector2(0, -k * 14.0), 5.0, Color(0.5, 1.0, 0.6, 1.0 - k))
++			draw_polyline(pts, Color(0.463, 0.925, 0.555, 0.7 * (1.0 - k)), 2.5, true)
++			var hc := hb + Vector2(0, -k * 14.0)
++			_cross(hc, 5.0, Color(fx_col(Color(0.463, 0.925, 0.555)), (1.0 - k) * (FX_FACE_ALPHA if fx_on_face(hc, 5.0) else 1.0)))
+ 		"note":
+ 			# 音符放大 1.6 倍＋深咖啡描邊（Antigravity：原本跟草地小花一樣大）
+ 			var np: Vector2 = f["p"] + Vector2(sin(k * 6.0) * 4.0, -k * 22.0)
+-			var na := 1.0 - k
++			var na := (1.0 - k) * (FX_FACE_ALPHA if fx_on_face(np, 11.0) else 1.0)   # 1.6.0 B08：蓋在頭胸上就壓淡
+ 			var oc := Color(0.24, 0.14, 0.05, na)
+-			var nc := Color(1.0, 0.86, 0.3, na)
++			var nc := Color(fx_col(Color(0.942, 0.81, 0.283)), na)
+ 			draw_circle(np, 6.6, oc, true, -1.0, true)
+ 			draw_line(np + Vector2(5, 1), np + Vector2(5, -16), oc, 4.6, true)
+ 			draw_line(np + Vector2(5, -16), np + Vector2(11, -11), oc, 4.6, true)
+@@ -903,12 +1204,18 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var p3: Vector2 = f.get("rp", f["p"] + Vector2(0, -k * 26))
+ 				var r3: Rect2 = f.get("rr", Rect2(p3, Vector2.ZERO))
+ 				# V1.3 P1：印章式出場：前 0.1 秒從上方 8px 壓下來就停住（泡泡和字一起移，字級與外框幾何不變）
+-				var slam := 1.0 - minf(float(f["t"]) / 0.1, 1.0)
+-				p3.y -= 8.0 * slam * slam
+-				r3.position.y -= 8.0 * slam * slam
++				if not f.has("rr"):   # 還沒排版（第一幀之前）：照舊壓下
++					var slam := 1.0 - minf(float(f["t"]) / 0.1, 1.0)
++					p3.y -= 8.0 * slam * slam
++					r3.position.y -= 8.0 * slam * slam
+ 				var dim := _clutch_dim(p3)
+ 				col.a *= dim
+ 				var numeric := is_num_text(str(f["s"]))
++				# 1.6.0 B08（Hydrogen r1）：避讓把字推離原位（>18px）時，畫一條細引線回到自己那隻兵的頭頂上方（不然會被看成旁邊那隻的字）
++				var sg: Array = f.get("seg", [])
++				if sg.size() == 2:
++					draw_line(sg[0], sg[1], Color(0.16, 0.1, 0.05, 0.75 * col.a), 1.6, true)
++					draw_circle(sg[1], 2.2, Color(0.16, 0.1, 0.05, 0.75 * col.a), true, -1.0, true)
+ 				if not f.get("plain", false) and not numeric:
+ 					_bubble(r3, col.a)   # V1.2 C6：漫畫對話泡（羊皮紙色圓角＋墨線＋朝下的尖角），取代黑色膠囊
+ 				var sz := int(ts(f["size"]) * (1.0 + float(f.get("pop", 0.0)) * 1.4))
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 05428d3..0bac20a 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -510,6 +510,56 @@ const FOCUS_SCALE := 1.4 / 1.25
+ func focus_scale(id: int) -> float:
+ 	return FOCUS_SCALE if follow_id >= 0 and id == follow_id else 1.0
+ 
++## 1.6.0 B08（P3.3、S4）：兵偶頭胸框（戰場座標）——跳字不蓋。腳底點往上 FACE_BOT～FACE_TOP（×HK×巨獸／跟拍縮放），半寬 FACE_HW。
++## 站姿的頭胸對截圖量過（14～54、半寬 17，--face-debug 畫得出來）；再包住姿勢起伏（Codex B08 r1 #2）：跳步 ≤10px、走路起伏 4、
++## 幽靈上下漂 ≤5.5、衝鋒前傾 ≤15°（頭頂橫移約 ±17px）→ 上緣多 12、左右各多 6（HK 單位）。
++const FACE_TOP := 66.0
++const FACE_BOT := 14.0
++const FACE_HW := 23.0
++func face_rects() -> Dictionary:
++	var out := {}
++	if view == null:
++		return out
++	for u in view.units:
++		if not u.alive or u.hidden:
++			continue
++		var sc: float = (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id) * HK
++		var p: Vector2 = _upos(u) + _open_drop(u)
++		out[u.id] = Rect2(p + Vector2(-FACE_HW, -FACE_TOP) * sc, Vector2(FACE_HW * 2.0, FACE_TOP - FACE_BOT) * sc)
++	return out
++
++## 交戰區：和敵兵相距 ≤1.5 格的兵的外接框，往外一格、夾在盤內；沒有交戰＝整個盤。
++func engage_rect() -> Rect2:
++	var board := Rect2(ORIGIN, fld_size)
++	if view == null:
++		return board
++	var ps: Array = [[], []]
++	for u in view.units:
++		if u.alive and not u.hidden:
++			ps[u.team].append(_upos(u))
++	var r := Rect2()
++	var any := false
++	var lim := (CS * 1.5) * (CS * 1.5)
++	for a: Vector2 in ps[0]:
++		for b: Vector2 in ps[1]:
++			if a.distance_squared_to(b) <= lim:
++				var pair := Rect2(a, Vector2.ZERO).expand(b)
++				r = pair if not any else r.merge(pair)
++				any = true
++	if not any:
++		return board
++	return r.grow(CS).intersection(board)
++
++func _draw_face_debug() -> void:
++	var fr: Dictionary = face_rects()
++	for id in fr:
++		draw_rect(fr[id], Color(1, 0, 1, 0.9), false, 1.5)
++	draw_rect(engage_rect(), Color(0, 1, 1, 0.9), false, 2.0)
++	for f in fx:
++		if f["kind"] == "text" and f.has("dr"):
++			draw_rect(f["dr"], Color(1, 1, 0, 0.9), false, 1.0)
++			draw_circle(f["p"], 4.0, Color(0, 1, 1, 0.9))   # 原位錨點
++
+ ## 1.3.0 §3 平原棉布拼貼（64px＝一格）：斜紋（每 6px 一道亮／暗細紋）；grid＝true 時上緣、左緣是壓縫棉線（亮線＋下方暗影、每 4px 一針），左上角一個小線結。
+ static var _cotton := {}
+ static func _cotton_tex(grid: bool) -> Texture2D:
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 96789a6..730003a 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -843,6 +843,8 @@ func _draw_inner() -> void:
+ 	for f in fx:
+ 		if not f.get("screen", false) and f["kind"] == "text":
+ 			_draw_fx(f)
++	if state == St.BATTLE and "--face-debug" in OS.get_cmdline_user_args():
++		_draw_face_debug()   # 1.6.0 B08：開發用，頭胸框／交戰區／跳字框
+ 	if state == St.BATTLE:
+ 		_draw_focus_marks(view)   # 1.5.0 §7：跟拍兵／目標的頭頂記號畫在跳字泡泡之上（不被蓋住；Hydrogen v150 cat07 r3）
+ 	perf_parts["fx"] = Time.get_ticks_usec() - _t
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index c39475b..c6760da 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index 9d010ff..8009e3e 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -1181,3 +1181,189 @@ func test_atlas_pack_v1600() -> void:
+ 			bad += 1
+ 	ok(bad == 0, "包讀回的每張圖＝烘的時候的像素、檔案沒被換（解碼差 0；%d 張）" % sha.size())
+ 
++
++## 1.6.0 B08（S4；P3.3～P3.5）：混戰看得懂——用正式畫面程式逐幀播 6 場（60fps），每幀量：
++## 顯示中跳字蓋到兵偶頭胸框的面積 0、出盤內 12px 的 0、跳字總面積 ≤ 交戰區 15%；關鍵跳字不漏；
++## 裝飾特效單一面積 ≤ 交戰區 4%、最亮 ≤0.8。另有人造擁擠例（頭胸框擋在原位）與找不到位置時的處理。
++func test_melee_read_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g._load_fonts()
++	var pool := F.training_pool(0)
++	var face := 0
++	var clip := 0
++	var area := 0.0
++	var fx_a := 0.0
++	var fx_l := 0.0
++	var frames := 0
++	var shown := 0
++	var lay_us: Array = []
++	# 情境（Codex B08 r1 #6）：0、1 一般 1×；2 倍速 2×；3 倍速 4×（一般跳字不出、關鍵照出）；4 跟拍放大（focus_scale）；
++	# 5 中途暫停 120 幀再播、再跳轉回第 40 tick 重播一段
++	for i in 6:
++		var arm := [pool[i * 3].copy(), pool[(i * 17 + 4) % pool.size()].mirrored()]
++		g._begin_battle(arm[0].copy(), arm[1].copy(), "replay")
++		g.last_armies = arm   # 跳轉從這組陣型快轉
++		g.speed = [1.0, 1.0, 2.0, 4.0, 1.0, 1.0][i]
++		var guard := 0
++		var paused_n := 0
++		var seeked := false
++		while g.state == g.St.BATTLE and not g.view.finished and guard < 9000:
++			guard += 1
++			if i == 4 and g.follow_id < 0:
++				for u in g.view.units:
++					if u.alive:
++						g.follow_id = u.id
++						break
++			if i == 5 and guard == 600:
++				g.paused = true
++			if g.paused:
++				paused_n += 1
++				if paused_n >= 120:
++					g.paused = false
++			if i == 5 and guard == 900 and not seeked:
++				seeked = true
++				g._seek(40)
++			g._process_inner(1.0 / 60.0)
++			frames += 1
++			lay_us.append(g.layout_us)   # 真正那一次排版的耗時（含丟字、併字）
++			var st: Dictionary = g.text_overlap_stats()
++			face = maxi(face, int(st["face_px"]))
++			clip = maxi(clip, int(st["clipped"]))
++			area = maxf(area, float(st["area_ratio"]))
++			shown += int(st["visible"])
++			for f in g.fx:   # 特效量測：和畫圖同一支算半徑（測試不能在 _draw 外畫）；亮度走 fx_col
++				var fk: float = f["t"] / f["dur"]
++				if g.GLOW.has(f["kind"]):
++					g.glow_radius(f, fk)
++					g.fx_col(g.GLOW[f["kind"]][0])
++				elif f["kind"] == "boom":
++					g.boom_radius(fk)
++					g.fx_col(Color(1.0, 0.86, 0.35))
++			fx_a = maxf(fx_a, float(g.fx_stats["max_area"]))
++			fx_l = maxf(fx_l, float(g.fx_stats["max_lum"]))
++	lay_us.sort()
++	var p99: int = lay_us[int(lay_us.size() * 0.99)] if not lay_us.is_empty() else 0
++	ok(p99 < 1500, "跳字排版耗時 p99 <1.5ms（p50 %d µs、p99 %d µs、最大 %d µs）" % [lay_us[lay_us.size() / 2], p99, lay_us[-1]])
++	ok(shown > 100, "混戰量測有量到跳字（%d 幀、顯示中跳字累計 %d）" % [frames, shown])
++	ok(face == 0, "S4：跳字蓋到頭胸框 0 像素（最大 %d）" % face)
++	ok(clip == 0, "S4：跳字出盤內 12px 0 個（最大 %d）" % clip)
++	ok(area <= 0.15, "S4：跳字總面積 ≤ 交戰區 15%%（最大 %.3f）" % area)
++	ok(g.text_key_in > 0 and g.text_key_in == g.text_key_shown, "S4：關鍵跳字一個都不漏（%d／%d；擠不下只留戰報列 %d 次）" % [g.text_key_shown, g.text_key_in, g.text_key_to_report])
++	ok(fx_a <= 0.04 + 1e-6 and fx_l <= 0.8 + 1e-6, "P3.4：裝飾特效單一面積 ≤4%%、最亮 ≤0.8（%.4f、%.3f）" % [fx_a, fx_l])
++	# 人造：頭胸框正好擋在跳字原位 → 找到旁邊或上面的乾淨位置，離原位 ≤1.5 格
++	var r := Rect2(500, 300, 80, 27)
++	var faces := {1: Rect2(500, 290, 40, 50), 2: Rect2(560, 250, 40, 50)}
++	var res: Array = g._text_slot(r, [], faces, Rect2(g.ORIGIN, g.fld_size).grow(-12), false, -1, Vector2.INF, Vector2(540, 282))   # 錨點在頭頂上方（遊戲裡是兵頭上）
++	var hit := false
++	for q: Rect2 in faces.values():
++		hit = hit or q.intersects(res[0])
++	ok(res[1] and not hit and (res[0] as Rect2).position.distance_to(r.position) <= g.TEXT_MAX_MOVE + r.size.x, "跳字避開頭胸框（%s）" % [res[0]])
++	# 盤邊：原位出盤 → 夾回盤內 12px
++	var edge: Array = g._text_slot(Rect2(g.ORIGIN + Vector2(-30, -20), Vector2(80, 27)), [], {}, Rect2(g.ORIGIN, g.fld_size).grow(-12))
++	ok(Rect2(g.ORIGIN, g.fld_size).grow(-12).encloses(edge[0]), "盤邊跳字夾回盤內 12px（%s）" % [edge[0]])
++	# 四面都是頭胸框：找不到乾淨位置 → 回報 false（一般跳字丟、關鍵放蓋最少處）
++	var wall := {}
++	for yy in range(0, 400, 20):
++		for xx in range(300, 760, 30):
++			wall[wall.size()] = Rect2(xx, yy, 30, 20)
++	var none: Array = g._text_slot(Rect2(500, 300, 80, 27), [], wall, Rect2(g.ORIGIN, g.fld_size).grow(-12))
++	ok(not none[1], "找不到乾淨位置時照實回報（一般跳字會丟、關鍵併進最近的關鍵字）")
++	# 最終位移上限（含橫移、夾盤）：任何回報乾淨的位置離原位 ≤1.5 格（一般）／2.5 格（關鍵）
++	var far_bad := 0
++	for yy2 in range(120, 600, 37):
++		for xx2 in range(140, 1100, 53):
++			var rr0 := Rect2(xx2, yy2, 90, 30)
++			for far in [false, true]:
++				var rs: Array = g._text_slot(rr0, [], faces, Rect2(g.ORIGIN, g.fld_size).grow(-12), far)
++				if rs[1] and (rs[0] as Rect2).position.distance_to(rr0.position) > (g.TEXT_MAX_MOVE_KEY if far else g.TEXT_MAX_MOVE) + 0.01:
++					far_bad += 1
++	ok(far_bad == 0, "乾淨位置的最終位移都在上限內（超過 %d 個）" % far_bad)
++	# 引線：推離原位時，引線不准穿過別隻的頭胸（線段—矩形）
++	ok(g.seg_hits_rect(Vector2(0, 0), Vector2(100, 100), Rect2(40, 40, 10, 10)) and not g.seg_hits_rect(Vector2(0, 0), Vector2(100, 0), Rect2(40, 40, 10, 10)), "線段穿過矩形判斷")
++	# 擠不下的關鍵字併進最近的關鍵字（不丟、不蓋臉）
++	var k1 := {"p": Vector2(300, 300), "n": 1, "sum": 35, "s": "衝鋒！ 35", "ek": "charge"}
++	var k2 := {"p": Vector2(340, 300), "n": 1, "sum": 35, "s": "衝鋒！ 35", "ek": "charge"}
++	ok(g._merge_into(k2, [k1]) and int(k1["n"]) == 2 and int(k1["sum"]) == 70, "擠不下的關鍵字併進最近的同種關鍵字（%s）" % k1["s"])
++	# 特效亮度上限（P3.4；Codex B08 r1 #5）：_draw_fx 裡（跳字分支之前）每個字面顏色的加權亮度 ≤0.8，白色常數不直接用
++	var src: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_fx.gd")
++	var a0 := src.find("func _draw_fx(f: Dictionary) -> void:")
++	var body := src.substr(a0, src.find("\t\t\"text\":", a0) - a0)
++	var re := RegEx.create_from_string("Color\\(\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*,\\s*([0-9.]+)")
++	var over: Array = []
++	var nlit := 0
++	for m in re.search_all(body):
++		var lr := float(m.get_string(1))
++		var lg := float(m.get_string(2))
++		var lb := float(m.get_string(3))
++		if lr > 1.0 or lg > 1.0 or lb > 1.0:
++			continue
++		nlit += 1
++		if 0.2126 * lr + 0.7152 * lg + 0.0722 * lb > 0.8005:
++			over.append(m.get_string(0))
++	var hexre := RegEx.create_from_string("Color\\(\"#([0-9a-fA-F]{6})\"")
++	for m in hexre.search_all(body):
++		var hc := Color("#" + m.get_string(1))
++		nlit += 1
++		if 0.2126 * hc.r + 0.7152 * hc.g + 0.0722 * hc.b > 0.8005:
++			over.append(m.get_string(0))
++	var white_raw := body.count("Color.WHITE") - body.count("fx_lum_cap(f.get(")
++	ok(nlit > 40 and over.is_empty() and white_raw == 0, "特效字面色 %d 個全部亮度 ≤0.8（超過：%s；白色常數直接用 %d）" % [nlit, over, white_raw])
++	# 特效亮度上限：純白壓到 0.8、暗色不動
++	var cw: Color = g.fx_lum_cap(Color(1, 1, 1))
++	ok(absf(0.2126 * cw.r + 0.7152 * cw.g + 0.0722 * cw.b - 0.8) < 1e-3 and g.fx_lum_cap(Color(0.3, 0.2, 0.1)) == Color(0.3, 0.2, 0.1), "特效亮度上限：白壓到 0.8、暗色不動")
++	g.free()
++
++## 1.6.0 B08（P3.5）語意保護：B06 的地形落影與 B03 的盤外壓暗不碰隊色與通行格。
++## ①落影只落在可走格（牆格 0，B06 已驗）且每個可走格被影子蓋到的深度 ≤40%、影子不透明度 ≤0.35——格子大半保留原色，通行判讀不變；
++## ②盤外壓暗畫在桌面那一層（盤面、兵、隊色圈都畫在它之後）；③影子、凹槽內影都畫在地圖烘焙層（兵與腳底隊色圈在其後）。
++func test_semantic_guard_v1600() -> void:
++	var MA = load("res://scripts/ui/map_art.gd")
++	var MD = load("res://scripts/core/map_defs.gd")
++	var worst := 0.0
++	var n := 0
++	for mid in range(1, MD.MAPS.size()):
++		for sz in 3:
++			var tt = MD.terrain(mid, sz)
++			if tt == null:
++				continue
++			for tl in [false, true]:
++				var pp = MA._Painter.new()
++				pp.t = tt
++				pp.kind = str(MD.MAPS[mid]["biome"])
++				pp.tilt = tl
++				var Q := 32.0
++				var cover := {}
++				for r in tt.m:
++					for c in tt.n:
++						for sh in [pp.shadow_south(c, r, Q), pp.shadow_east(c, r, Q)]:
++							if sh.size.x <= 0.0:
++								continue
++							n += 1
++							for r2 in range(maxi(0, r - 1), mini(tt.m, r + 3)):
++								for c2 in range(maxi(0, c - 1), mini(tt.n, c + 3)):
++									var cell := Rect2(Vector2(c2, r2) * Q, Vector2(Q, Q))
++									if sh.intersects(cell):
++										var k := Vector2i(c2, r2)
++										cover[k] = float(cover.get(k, 0.0)) + sh.intersection(cell).get_area() / (Q * Q)
++				for k in cover:
++					worst = maxf(worst, cover[k])
++				pp.free()
++	ok(n > 200 and worst <= 0.40, "落影蓋到單一可走格的面積最多 %.0f%%（≤40%%；%d 塊影子）" % [worst * 100.0, n])
++	var src: String = FileAccess.get_file_as_string("res://scripts/ui/map_art.gd")
++	var alphas: Array = []
++	for line in src.split("\n"):
++		if line.find("draw_rect(ssh") >= 0 or line.find("draw_rect(esh") >= 0 or line.find("凹槽北緣內影") >= 0:
++			var m := RegEx.create_from_string("Color\\(([0-9.]+), ([0-9.]+), ([0-9.]+), ([0-9.]+)\\)").search(line)
++			if m != null:
++				alphas.append(float(m.get_string(4)))
++	ok(alphas.size() >= 3 and alphas.max() <= 0.35, "落影、東側影、凹槽內影不透明度 ≤0.35（%s）" % [alphas])
++	var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
++	var i_desk := gs.find("_draw_desk()   #")
++	var i_field := gs.find("\t_draw_field()\n")
++	var i_units := gs.find("_draw_units_of(view, false)")
++	ok(i_desk >= 0 and i_field > i_desk and i_units > i_field, "畫的順序：桌面（含盤外壓暗）→ 盤面與地形 → 兵與隊色圈")
++	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
++	var i_dim := ub.find("Color(DIM_INK, PAL.OFF_BOARD_DIM)")
++	ok(i_dim > ub.find("func _draw_desk()") and i_dim < ub.find("func _desk_props()"), "盤外壓暗在 _draw_desk 裡（盤面畫在它之上，盤內隊色不變）")
+diff --git a/game/tools/layout_check.sh b/game/tools/layout_check.sh
+index 198370b..d088335 100755
+--- a/game/tools/layout_check.sh
++++ b/game/tools/layout_check.sh
+@@ -32,7 +32,7 @@ run_combo() {
+   local combo=$1 lang sc st d
+   IFS=: read -r lang sc st <<< "$combo"
+   d="$OUT/${lang}_${sc}${st:+_${st//,/-}}"; mkdir -p "$d"
+-  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} ${LAYOUT_FIXED:+--shot-fixed} ${LAYOUT_NOPACK:+--no-pack} ${LAYOUT_NO_DESK_PAPER:+--no-desk-paper} --shot-prefix="shot_${lang}_${sc}${st:+_${st//,/-}}__" --layout-check > "$d/run.log" 2>&1 \
++  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} ${LAYOUT_FIXED:+--shot-fixed} ${LAYOUT_NOPACK:+--no-pack} ${LAYOUT_NO_DESK_PAPER:+--no-desk-paper} ${LAYOUT_FACE_DEBUG:+--face-debug} --shot-prefix="shot_${lang}_${sc}${st:+_${st//,/-}}__" --layout-check > "$d/run.log" 2>&1 \
+     || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0" >> "$FAILS"; kill_win "$d"; return; }
+   grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤" >> "$FAILS"; return; }
+   grep -q "^SHOTFAIL" "$d/run.log" && { echo "LAYOUT FAIL：$lang $sc% 截圖存檔失敗：$(grep SHOTFAIL "$d/run.log" | head -3 | tr '\n' ' ')" >> "$FAILS"; return; }

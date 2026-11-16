@@ -184,30 +184,320 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
 
 
 ## 每幀排版：關鍵在前、新的在前；和已放好的（不在淡出中的）重疊就往上推。結果存在 f["rp"]。
+## 1.6.0 B08（P3.3、S4）：再避開兵偶頭胸框（face_rects）、夾在盤內 ≥TEXT_BOARD_PAD；找位置的順序＝原位往上推 → 左右換邊再往上推，
+## 最遠 TEXT_MAX_MOVE。找不到：一般跳字丟掉（計 text_dropped），關鍵跳字放在蓋最少的位置（關鍵不能漏）。
+## 面積：顯示中（不透明度 ≥0.35）的跳字總面積 ≤ 交戰區 × TEXT_AREA_MAX，超過就丟一般跳字（新的、關鍵的先佔）。
+const TEXT_BOARD_PAD := 12.0
+const TEXT_MAX_MOVE := 96.0   # 1.5 格：再遠就看不出是誰的字
+const TEXT_AREA_MAX := 0.15
+const TEXT_LEAD_MIN := 18.0   # 推離原位超過這麼遠就畫引線
+## 1.6.0 B08（P3.4）：裝飾特效上限——單一特效面積 ≤ 交戰區 × FX_AREA_MAX（超過就等比縮）、最亮色相對亮度 ≤ FX_LUM_MAX（保持色相壓暗）；
+## 畫在兵偶頭胸上的小特效（音符、閃光叉、治療十字）壓到 FX_FACE_ALPHA。表示範圍的（隕石落點圈、範圍預告）不縮——語意（P3.5）。
+const FX_AREA_MAX := 0.04
+const FX_LUM_MAX := 0.8
+const FX_FACE_ALPHA := 0.5
+var _fx_faces: Dictionary = {}
+var _fx_eng_area := 0.0
+var fx_stats := {"max_area": 0.0, "max_lum": 0.0}   # 量測：這一幀畫出的裝飾特效裡最大面積比、最亮相對亮度
+
+static func fx_lum_cap(c: Color) -> Color:
+	var l := 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+	if l <= FX_LUM_MAX:
+		return c
+	var k := FX_LUM_MAX / maxf(l, 1e-4)
+	return Color(c.r * k, c.g * k, c.b * k, c.a)
+
+## 面積 area 的裝飾特效要縮多少（≤1）；同時記量測
+func fx_area_scale(area: float) -> float:
+	var eng := _fx_eng_area if _fx_eng_area > 0.0 else Rect2(ORIGIN, fld_size).get_area()
+	var sc := minf(1.0, sqrt(eng * FX_AREA_MAX / maxf(1.0, area)))
+	fx_stats["max_area"] = maxf(fx_stats["max_area"], area * sc * sc / eng)
+	return sc
+
+## 畫和量用同一支（測試不能在 _draw 外畫圖）
+func glow_radius(f: Dictionary, k: float) -> float:
+	var r: float = GLOW[f["kind"]][1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
+	return r * fx_area_scale(PI * r * r * 0.8)
+
+func boom_radius(k: float) -> float:
+	var br := 14.0 + _smoothstep01(k) * 26.0
+	return br * fx_area_scale(PI * br * br * 0.8 * 0.75)   # 鋸齒星芒約 0.75 個橢圓
+
+func fx_on_face(p: Vector2, rad: float) -> bool:
+	var r := Rect2(p - Vector2(rad, rad), Vector2(rad, rad) * 2.0)
+	for id in _fx_faces:
+		if (_fx_faces[id] as Rect2).intersects(r):
+			return true
+	return false
+
+func fx_col(c: Color) -> Color:   # 壓亮度並記量測（灰階＝畫面值的加權和）
+	var cc := fx_lum_cap(c)
+	fx_stats["max_lum"] = maxf(fx_stats["max_lum"], 0.2126 * cc.r + 0.7152 * cc.g + 0.0722 * cc.b)
+	return cc
+
+func face_rects() -> Dictionary:
+	return {}   # battle_units 覆寫：{兵 id: 頭胸框}（要用到兵的畫面位置與縮放）
+
+func engage_rect() -> Rect2:
+	return Rect2(ORIGIN, fld_size)   # battle_units 覆寫
+
 func _layout_texts() -> void:
+	var t_us := Time.get_ticks_usec()
+	_fx_faces = face_rects()   # 特效上限（P3.4）同一幀共用；{兵 id: 頭胸框}
+	_fx_eng_area = engage_rect().get_area()
+	fx_stats = {"max_area": 0.0, "max_lum": 0.0}
 	var list: Array = []
 	for f in fx:
 		if f["kind"] == "text" and not f.get("screen", false):
 			list.append(f)
+	if list.is_empty():
+		layout_us = Time.get_ticks_usec() - t_us
+		return
 	list.sort_custom(func(a, b): return a.get("tier", 1) > b.get("tier", 1) or (a.get("tier", 1) == b.get("tier", 1) and a["t"] < b["t"]))
-	var placed: Array = []
+	var board := Rect2(ORIGIN, fld_size).grow(-TEXT_BOARD_PAD)
+	var budget := _fx_eng_area * TEXT_AREA_MAX
+	var used := 0.0
+	var placed: Array = []      # 已放好的完整畫出範圍（含紙條、出場壓下）
+	var placed_key: Array = []  # 已放好的關鍵跳字（擠不下的關鍵字併進最近的一個）
+	var drop: Array = []
 	for f in list:
 		var k: float = f["t"] / f["dur"]
-		var at: Vector2 = f["p"] + Vector2(0, -k * 26)
+		var slam := 1.0 - minf(float(f["t"]) / 0.1, 1.0)
+		var at: Vector2 = f["p"] + Vector2(0, -k * 26 - 8.0 * slam * slam)   # 出場壓下的 8px 也算進排版（Codex B08 r1 #1）
 		var r := _text_rect(f, at)
-		if true:   # 淡出中的也排，但排在最後（新的、關鍵的先佔位），所以不會推動正在顯示的
-			var moved := true
-			var guard := 0
-			while moved and guard < 24:
-				moved = false
-				guard += 1
-				for q: Rect2 in placed:
-					if q.intersects(r):
-						r.position.y = q.position.y - r.size.y - 2.0
-						moved = true
-			placed.append(r)
+		var pad := _text_pad(f)
+		var dr := r.grow_individual(pad[0], pad[1], pad[2], pad[3])
+		var key := int(f.get("tier", 1)) >= 2
+		var vis := _text_alpha(f) >= 0.35
+		var own := int(f.get("tid", -1))
+		var res: Array = [dr, true]
+		if vis and used + dr.get_area() > budget:
+			res = [dr, false]   # 超過面積：一般丟、關鍵併
+		else:
+			res = _text_slot(dr, placed, _fx_faces, board, key, own, f.get("off", Vector2.INF), f["p"] + Vector2(0, 10))
+		if not res[1] and vis:
+			if key:
+				# 擠不下的關鍵字：併進最近的關鍵字；附近沒有就只留在底部戰報列（_report_add 已記；和第七輪 D1「混戰時關鍵技能進戰報列」同一條）
+				if _relayout_in or not _merge_into(f, placed_key):   # 重排那一次不再合併（Codex B08 r3：合併會讓已排好的框過期）
+					text_key_to_report += 1
+				drop.append([f, false])
+				continue
+			drop.append([f, true])
+			continue
+		f["off"] = (res[0] as Rect2).position - dr.position   # 下一幀先試同樣的位移
+		f["stuck"] = not res[1]
+		dr = res[0]
+		r.position = dr.position + Vector2(pad[0], pad[1])
+		placed.append(dr)
+		if key:
+			placed_key.append(f)
+		if vis:
+			used += dr.get_area()
 		f["rp"] = Vector2(r.get_center().x, r.position.y + 3.0)
 		f["rr"] = r
+		f["dr"] = dr
+		var fr: Rect2 = own_face(_fx_faces, own, f["p"] + Vector2(0, 10))
+		f["lead"] = Vector2(fr.get_center().x, fr.position.y - 2.0) if fr.size.x > 0.0 else f["p"] + Vector2(0, 10)
+		f["seg"] = lead_seg(dr, f["lead"], _fx_faces, fr) if r.get_center().distance_to(f["p"] + Vector2(0, -k * 26.0)) > TEXT_LEAD_MIN else []
+	for d in drop:
+		fx.erase(d[0])
+		if d[1]:
+			text_dropped += 1
+	if _relayout and not _relayout_in:
+		_relayout = false
+		_relayout_in = true
+		_layout_texts()   # 重排（合併後的寬度、避讓、面積都重算；只遞迴一層）
+		_relayout_in = false
+		layout_us = Time.get_ticks_usec() - t_us   # 含重排
+		return
+	_relayout = false
+	layout_us = Time.get_ticks_usec() - t_us
+
+var layout_us := 0   # 量測：上一次排版耗時（µs）
+var _relayout := false
+var _relayout_in := false
+var text_key_to_report := 0   # 量測：擠不下、附近也沒有可併的關鍵字，只留在戰報列的次數
+
+## 紙條、出場、描邊實際畫出去的範圍（相對字框 _text_rect 的左、上、右、下外擴）：紙條 _bubble 外擴 4／1／4／2、
+## 下緣細引線 9.5＋點、陰影往左上 1／2；純數字與補血字只有描邊。
+func _text_pad(f: Dictionary) -> Array:
+	if f.get("plain", false) or is_num_text(str(f["s"])):
+		return [3.0, 3.0, 3.0, 3.0]
+	return [5.0, 3.0, 4.0, 14.0]   # 紙條底 2＋引線 9.5＋圓點 1.6＝13.1，取 14（Codex B08 r2 #3）
+
+## 擠不下的關鍵跳字：併進 2.5 格內最近的、已放好的關鍵跳字（「衝鋒！×2（70）」）。關鍵不漏、也不蓋臉。
+func _merge_into(f: Dictionary, keys: Array) -> bool:
+	var near = null
+	for g in keys:
+		if g.get("ek", "") != f.get("ek", ""):
+			continue   # 只併同種（Codex B08 r2 #2：異種累加會混傷害語意）；異種擠不下就只留戰報列
+		var d: float = (g["p"] as Vector2).distance_to(f["p"])
+		if d <= TEXT_MAX_MOVE_KEY and (near == null or d < (near["p"] as Vector2).distance_to(f["p"])):
+			near = g
+	if near == null:
+		return false
+	near["n"] = int(near["n"]) + int(f.get("n", 1))
+	near["sum"] = int(near["sum"]) + int(f.get("sum", 0))
+	var lab := str(f["s"]).split(" ")[0]
+	near["s"] = "%s ×%d（%d）" % [lab, near["n"], near["sum"]]
+	_relayout = true   # 合併後字變寬：這一幀重排一次（Codex B08 r2 #1）
+	return true
+
+## 找一個不疊別的跳字、不蓋別隻兵的頭胸、在盤內的位置（r＝完整畫出範圍）。回傳 [Rect2, 找到乾淨位置?]。
+## 候選：原位、左右各一／兩個字寬，各自往上推、往下（腳下）推；最終位移 ≤ 上限（一般 1.5 格、關鍵 2.5 格）；
+## 推離原位要畫引線時，引線也不准穿過別隻的頭胸。取各方向第一個乾淨位置中離原位最近的；都不行回傳蓋得最少的。
+const TEXT_MAX_MOVE_KEY := 160.0   # 2.5 格
+func _text_slot(r: Rect2, placed: Array, faces: Dictionary, board: Rect2, far := false, own := -1, pref := Vector2.INF, anchor := Vector2.INF) -> Array:
+	if anchor == Vector2.INF:
+		anchor = Vector2(r.get_center().x, r.end.y + 10.0)
+	var lim := TEXT_MAX_MOVE_KEY if far else TEXT_MAX_MOVE
+	var near: Array = []
+	var zone := r.grow_individual(r.size.x + 20.0, lim, r.size.x + 20.0, lim)
+	for id in faces:
+		var q: Rect2 = faces[id]
+		if zone.intersects(q):
+			near.append(q)
+	var own_r: Rect2 = own_face(faces, own, anchor)
+	var lead_to := Vector2(own_r.get_center().x, own_r.position.y - 2.0) if own_r.size.x > 0.0 else anchor
+	# 黏著：上一幀的位移還乾淨就沿用（不每幀重找；跳字也不會左右跳）
+	if pref != Vector2.INF:
+		var pc := Rect2(r.position + pref, r.size)
+		if board.encloses(pc) and pc.position.distance_to(r.position) <= lim and _cand_cost(pc, r, placed, near, own_r, lead_to)[0] == 0.0:
+			return [pc, true]
+	var best := r
+	var best_cost := INF
+	var clean := r
+	var clean_d := INF
+	var side := r.size.x * 0.5 + 10.0
+	var dxs: Array = [0.0]
+	if own_r.size.x > 0.0:
+		dxs.append(own_r.end.x + 4.0 - r.position.x)    # 緊貼自己那隻的右側（引線最短、一看就知道是誰的）
+		dxs.append(own_r.position.x - 4.0 - r.end.x)    # 緊貼左側
+	dxs.append_array([-side, side, -side * 2.0, side * 2.0])
+	for dir in [-1.0, 1.0]:
+		for dx in dxs:
+			var dy := 0.0 if dir < 0.0 else 4.0
+			var last_y := INF
+			while dy <= lim:
+				var c := Rect2(r.position + Vector2(dx, dir * dy), r.size)
+				c.position.x = clampf(c.position.x, board.position.x, maxf(board.position.x, board.end.x - c.size.x))
+				c.position.y = clampf(c.position.y, board.position.y, maxf(board.position.y, board.end.y - c.size.y))
+				if c.position.y == last_y:
+					break   # 被盤邊夾住：再推也是同一個位置
+				last_y = c.position.y
+				var dist := c.position.distance_to(r.position)
+				if dist > lim or dist >= clean_d:
+					break   # clean_d 是分數（距離＋罰分）：比它遠的不可能更好   # 最終位移超過上限（Codex B08 r1 #4），或已經比找到的乾淨位置遠：這個方向不用再推
+				var cj: Array = _cand_cost(c, r, placed, near, own_r, lead_to)
+				if cj[0] == 0.0:
+					# Hydrogen B08 r3：推離原位又拉不出完整引線＝看不出是誰的 → 重罰，優先選「不用推」或「推了有引線」的位置
+					var score := dist
+					if dist > TEXT_LEAD_MIN and not _lead_clear(c, lead_to, near, own_r):
+						score += 1000.0
+					if score < clean_d:
+						clean_d = score
+						clean = c
+					break   # 這個方向第一個乾淨的位置就是它最近的
+				if cj[0] < best_cost:
+					best_cost = cj[0]
+					best = c
+				dy += maxf(4.0, float(cj[1]) + 2.0)   # 直接跳過擋路那個框
+	if clean_d < INF:
+		return [clean, true]   # Hydrogen B08 r1：推太遠會被看成別隻的字 → 取最近
+	return [best, false]
+
+## 這個跳字「自己那隻」的頭胸框：兵還在錨點附近（≤1.2 格）才算；兵已經走遠（或對不上），引線改指錨點、也不豁免任何框
+func own_face(faces: Dictionary, own: int, anchor: Vector2) -> Rect2:
+	var q: Rect2 = faces.get(own, Rect2())
+	if q.size.x <= 0.0 or anchor == Vector2.INF:
+		return q
+	return q if Vector2(q.get_center().x, q.position.y).distance_to(anchor) <= CS * 1.2 else Rect2()
+
+## 候選位置的代價：疊到已放的跳字、蓋到頭胸（×4）。回傳 [代價, 往前跳多少]。（引線不算：引線在碰到頭胸框前就停，見 lead_seg）
+func _cand_cost(c: Rect2, r: Rect2, placed: Array, near: Array, own_r: Rect2, lead_to: Vector2) -> Array:
+	var cost := 0.0
+	var jump := 0.0
+	var up := c.position.y <= r.position.y
+	for q: Rect2 in placed:
+		if q.intersects(c):
+			cost += c.intersection(q).get_area() + 1.0
+			jump = maxf(jump, (c.end.y - q.position.y) if up else (q.end.y - c.position.y))
+	for q: Rect2 in near:
+		if q.intersects(c):
+			cost += c.intersection(q).get_area() * 4.0 + 1.0
+			jump = maxf(jump, (c.end.y - q.position.y) if up else (q.end.y - c.position.y))
+	return [cost, jump]
+
+## 引線：從字框邊到「自己那隻的頭頂」（兵走遠了就到錨點）。整條不穿過別隻的頭胸框、終點在盤內才畫（引線本身不蓋臉）；
+## 回傳 [起點, 終點]；不畫回傳空陣列。
+func lead_seg(dr: Rect2, lead_to: Vector2, faces: Dictionary, own_r: Rect2) -> Array:
+	var from := Vector2(clampf(lead_to.x, dr.position.x + 6.0, dr.end.x - 6.0), dr.end.y if lead_to.y > dr.get_center().y else dr.position.y)
+	var t_end := 1.0
+	for id in faces:
+		var q: Rect2 = faces[id]
+		if q == own_r:
+			continue
+		var te := seg_entry(from, lead_to, q)
+		if te < t_end:
+			t_end = te
+	# Hydrogen B08 r2：停在半空的短引線反而看不出歸屬 → 整條通（不穿過別隻、終點在盤內）才畫，否則不畫
+	if t_end < 1.0 or not Rect2(ORIGIN, fld_size).has_point(lead_to) or from.distance_to(lead_to) < 6.0:
+		return []
+	return [from, lead_to]
+
+## 同 lead_seg 的判斷，只查附近的頭胸框（找位置時用；附近＝候選範圍外推，引線終點在範圍內）
+func _lead_clear(c: Rect2, lead_to: Vector2, near: Array, own_r: Rect2) -> bool:
+	if not Rect2(ORIGIN, fld_size).has_point(lead_to):
+		return false
+	var from := Vector2(clampf(lead_to.x, c.position.x + 6.0, c.end.x - 6.0), c.end.y if lead_to.y > c.get_center().y else c.position.y)
+	if from.distance_to(lead_to) < 6.0:
+		return false
+	for q: Rect2 in near:
+		if q != own_r and seg_entry(from, lead_to, q) < 1.0:
+			return false
+	return true
+
+## 線段 a–b 進入矩形 q 的參數 t（0～1）；不相交回傳 2.0；起點就在裡面回傳 0
+static func seg_entry(a: Vector2, b: Vector2, q: Rect2) -> float:
+	var t0 := 0.0
+	var t1 := 1.0
+	var d := b - a
+	for e in [[-d.x, a.x - q.position.x], [d.x, q.end.x - a.x], [-d.y, a.y - q.position.y], [d.y, q.end.y - a.y]]:
+		var pp: float = e[0]
+		var qq: float = e[1]
+		if absf(pp) < 1e-9:
+			if qq < 0.0:
+				return 2.0
+		else:
+			var t := qq / pp
+			if pp < 0.0:
+				t0 = maxf(t0, t)
+			else:
+				t1 = minf(t1, t)
+			if t0 > t1:
+				return 2.0
+	return t0
+
+## 線段 a–b 是否穿過矩形 q（Liang–Barsky 裁切）
+static func seg_hits_rect(a: Vector2, b: Vector2, q: Rect2) -> bool:
+	var t0 := 0.0
+	var t1 := 1.0
+	var d := b - a
+	for e in [[-d.x, a.x - q.position.x], [d.x, q.end.x - a.x], [-d.y, a.y - q.position.y], [d.y, q.end.y - a.y]]:
+		var pp: float = e[0]
+		var qq: float = e[1]
+		if absf(pp) < 1e-9:
+			if qq < 0.0:
+				return false
+		else:
+			var t := qq / pp
+			if pp < 0.0:
+				t0 = maxf(t0, t)
+			else:
+				t1 = minf(t1, t)
+			if t0 > t1:
+				return false
+	return true
 
 
 
@@ -227,7 +517,29 @@ func text_overlap_stats() -> Dictionary:
 		for o: Rect2 in vis + fading:
 			if o != fr:
 				worst_f = maxf(worst_f, _overlap(fr, o))
-	return {"visible": vis.size(), "fading": fading.size(), "max_overlap": worst, "max_overlap_fading": worst_f}
+	# 1.6.0 B08（S4）：顯示中跳字（完整畫出範圍：紙條、出場、引線）蓋到別隻兵頭胸框的面積、出盤內 12px 的個數、總面積÷交戰區
+	var face_px := 0.0
+	var clipped := 0
+	var area := 0.0
+	var board := Rect2(ORIGIN, fld_size).grow(-TEXT_BOARD_PAD + 0.5)
+	var faces: Dictionary = face_rects()
+	for f in fx:
+		if f["kind"] != "text" or f.get("screen", false) or not f.has("dr") or _text_alpha(f) < 0.35:
+			continue
+		var dr: Rect2 = f["dr"]
+		area += dr.get_area()
+		if not board.encloses(dr):
+			clipped += 1
+		var own_r: Rect2 = own_face(faces, int(f.get("tid", -1)), f["p"] + Vector2(0, 10))
+		var sg: Array = f.get("seg", [])
+		for id in faces:
+			var q: Rect2 = faces[id]
+			if q.intersects(dr):
+				face_px += dr.intersection(q).get_area()
+			if sg.size() == 2 and q != own_r and seg_hits_rect(sg[0], sg[1], q.grow(-0.5)):
+				face_px += 1.0   # 引線（實際畫的那段）穿過別隻的頭胸
+	return {"visible": vis.size(), "fading": fading.size(), "max_overlap": worst, "max_overlap_fading": worst_f,
+		"face_px": int(face_px), "clipped": clipped, "area_ratio": area / maxf(1.0, engage_rect().get_area())}
 
 
 ## 最後時刻（第三輪 V2）：慢動作期間，螢幕上 y<165（橫幅下方那一帶）的戰場跳字淡到 0.2。
@@ -301,6 +613,9 @@ const FAST_SPEED := 4.0
 const FAST_SKIP := ["pages", "bonesup", "woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "chips", "bones", "coins", "ripple", "note", "hex", "trip", "soulrise"]
 
 func _add_fx(d: Dictionary) -> void:
+	for ck in ["c", "tc"]:   # 1.6.0 B08（P3.4）：特效的顏色參數一進來就壓到亮度上限（畫的地方另有字面色的上限）
+		if d.get(ck) is Color:
+			d[ck] = fx_lum_cap(d[ck])
 	if bool(Save.s("reduce_fx")) and d["kind"] in ["slimehop", "pages", "bonesup", "woodwave", "axearc", "healring", "scorch", "inkring", "dust", "puff", "shard", "chips", "tell", "bones", "coins", "ripple", "note", "hex", "aim", "trip", "spore", "wool", "soulrise"]:
 		return   # 第七輪 K3：簡化特效少掉粒子與裝飾，保留攻擊本身與嘲諷
 	if speed >= FAST_SPEED and d["kind"] in FAST_SKIP:
@@ -451,8 +766,8 @@ func _draw_glow(f: Dictionary, k: float) -> void:
 	var gp = f.get("p", f.get("b", null))
 	if gp == null:
 		return
-	var r: float = g[1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
-	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(g[0], 0.32 * (1.0 - k)))
+	var r := glow_radius(f, k)
+	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(fx_col(g[0]), 0.32 * (1.0 - k)))
 
 func _draw_fx(f: Dictionary) -> void:
 	var k: float = f["t"] / f["dur"]
@@ -467,21 +782,21 @@ func _draw_fx(f: Dictionary) -> void:
 			if k < 0.3:
 				var drop := 1.0 - k / 0.3
 				draw_circle(mp - Vector2(-120, 320) * drop, 15.0, Color("#ff8a3c"))
-				draw_circle(mp - Vector2(-120, 320) * drop, 8.0, Color("#fff0b0"))
+				draw_circle(mp - Vector2(-120, 320) * drop, 8.0, fx_col(Color(0.855, 0.805, 0.59)))
 				draw_arc(mp, mr, 0, TAU, 40, Color(1, 0.5, 0.2, 0.7), 2.0, true)
 			else:
 				var bk := (k - 0.3) / 0.7
 				draw_circle(mp, mr * (0.4 + bk * 0.6), Color(1, 0.5, 0.15, 0.45 * (1.0 - bk)))
-				draw_arc(mp, mr * (0.4 + bk * 0.6), 0, TAU, 40, Color(1, 0.9, 0.6, 1.0 - bk), 4.0, true)
+				draw_arc(mp, mr * (0.4 + bk * 0.6), 0, TAU, 40, Color(0.889, 0.8, 0.534, 1.0 - bk), 4.0, true)
 		"spark":
 			# V1.5：法術命中的碎光（8 道放射短線＋中心光點）
 			var sk: float = f["t"] / f["dur"]
-			var sc: Color = f.get("c", Color.WHITE)
+			var sc: Color = fx_lum_cap(f.get("c", Color.WHITE))
 			var sp0: Vector2 = f["p"]
 			for i in 8:
 				var dv := Vector2.from_angle(i * TAU / 8.0 + 0.3)
 				draw_line(sp0 + dv * (4.0 + sk * 10.0), sp0 + dv * (8.0 + sk * 16.0), Color(sc, 1.0 - sk), 2.4, true)
-			draw_circle(sp0, 6.0 * (1.0 - sk), Color(sc.lightened(0.5), 0.9 * (1.0 - sk)), true, -1.0, true)
+			draw_circle(sp0, 6.0 * (1.0 - sk), Color(fx_lum_cap(sc.lightened(0.5)), 0.9 * (1.0 - sk)), true, -1.0, true)
 		"arrow":
 			var a: Vector2 = f["a"]
 			var b: Vector2 = f["b"]
@@ -496,7 +811,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var tl := b - dv * 13.0
 				draw_line(tl, b, Color(Art.OUT, 1.0 - q), 4.0, true)
 				draw_line(tl, b, Color(Color("#d97706"), 1.0 - q), 2.2, true)
-				var fc0: Color = f.get("tc", Color.WHITE)
+				var fc0: Color = fx_lum_cap(f.get("tc", Color.WHITE))
 				draw_colored_polygon(PackedVector2Array([tl, tl - dv * 5.0 + dv.orthogonal() * 4.0, tl + dv * 3.0]), Color(fc0, 1.0 - q))
 				draw_colored_polygon(PackedVector2Array([tl, tl - dv * 5.0 - dv.orthogonal() * 4.0, tl + dv * 3.0]), Color(fc0, 1.0 - q))
 				return
@@ -509,18 +824,18 @@ func _draw_fx(f: Dictionary) -> void:
 			for j in 6:
 				var kk := maxf(0.0, k - 0.03 * (j + 1))
 				var pt := a.lerp(b, kk) + Vector2(0, -sin(kk * PI) * h)
-				draw_circle(pt, 1.6, Color(1, 1, 1, 0.35 * (1.0 - j / 6.0)), true, -1.0, true)
+				draw_circle(pt, 1.6, Color(0.8, 0.8, 0.8, 0.35 * (1.0 - j / 6.0)), true, -1.0, true)
 			draw_line(tail, p, Art.OUT, 4.0, true)
 			draw_line(tail, p, Color("#d97706"), 2.2, true)
 			var nrm := dirv.orthogonal()
-			draw_colored_polygon(PackedVector2Array([p + dirv * 5.0, p + nrm * 3.0, p - nrm * 3.0]), Color("#e5e7eb"))
-			var fc: Color = f.get("tc", Color.WHITE)
+			draw_colored_polygon(PackedVector2Array([p + dirv * 5.0, p + nrm * 3.0, p - nrm * 3.0]), Color(0.794, 0.8, 0.814))
+			var fc: Color = fx_lum_cap(f.get("tc", Color.WHITE))
 			draw_colored_polygon(PackedVector2Array([tail, tail - dirv * 5.0 + nrm * 4.0, tail + dirv * 3.0]), fc)
 			draw_colored_polygon(PackedVector2Array([tail, tail - dirv * 5.0 - nrm * 4.0, tail + dirv * 3.0]), fc)
 		"slash":
 			var c: Vector2 = f["p"] + Vector2(f["dir"] * 16, -24)
 			var start := -1.3 if f["dir"] > 0 else PI - 1.1
-			draw_arc(c, 16, start, start + 2.4 * k, 12, Color(1, 1, 1, 1 - k), 3.5, true)
+			draw_arc(c, 16, start, start + 2.4 * k, 12, Color(0.8, 0.8, 0.8, 1 - k), 3.5, true)
 		"step":
 			var bigs: float = 1.8 if f.get("big", false) else 1.0
 			for i in 4:
@@ -533,11 +848,13 @@ func _draw_fx(f: Dictionary) -> void:
 		"flash":
 			var c2: Color = f["c"]
 			var p0: Vector2 = f["p"]
+			var fa2 := FX_FACE_ALPHA if fx_on_face(p0, 14.0 * (1 + k)) else 1.0   # 1.6.0 B08：蓋在頭胸上就壓淡
+			c2 = fx_col(c2)
 			# 雙層描邊（第三輪 V4）：深色底 4px＋亮芯
 			for pair in [[Vector2(-14, -14), Vector2(14, 14)], [Vector2(-14, 14), Vector2(14, -14)]]:
-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(Art.OUT, 0.8 * (1 - k)), 8, true)
-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(c2, 1 - k), 4, true)
-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(1, 1, 1, 0.7 * (1 - k)), 1.5, true)
+				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(Art.OUT, 0.8 * (1 - k) * fa2), 8, true)
+				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(c2, (1 - k) * fa2), 4, true)
+				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(fx_col(Color(0.8, 0.8, 0.8)), 0.7 * (1 - k) * fa2), 1.5, true)
 		"ripple":
 			var c3: Color = f["c"]
 			draw_arc(f["p"], 6 + k * 18, -1.2, 1.2, 12, Color(c3, 1 - k), 3, true)
@@ -550,7 +867,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var rot := k * 9.0 + i
 				var d0 := Vector2(cos(rot), sin(rot)) * 6.0
 				draw_line(c0 - d0, c0 + d0, Color(Art.OUT, 1.0 - k), 5.0, true)
-				draw_line(c0 - d0, c0 + d0, Color(0.95, 0.93, 0.85, 1.0 - k), 3.0, true)
+				draw_line(c0 - d0, c0 + d0, Color(0.819, 0.801, 0.732, 1.0 - k), 3.0, true)
 		"coins":
 			# V1.1 A7：寶箱怪倒下吐出幾枚金幣
 			for i in 6:
@@ -558,7 +875,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var v2 := Vector2(cos(an2), sin(an2)) * k * 34.0 + Vector2(0, k * k * 40.0)
 				var c1: Vector2 = f["p"] + v2
 				draw_circle(c1, 4.5, Color(Art.OUT, 1.0 - k), true, -1.0, true)
-				draw_circle(c1, 3.2, Color(1.0, 0.82, 0.3, 1.0 - k), true, -1.0, true)
+				draw_circle(c1, 3.2, Color(0.975, 0.799, 0.292, 1.0 - k), true, -1.0, true)
 		"badge":
 			var bc: Color = f["c"]
 			var bs := 7.0 * (1.0 + 0.4 * sin(minf(k * 2.0, 1.0) * PI))
@@ -622,15 +939,15 @@ func _draw_fx(f: Dictionary) -> void:
 				var pts := PackedVector2Array()
 				for j in 3:
 					pts.append(c0 + Vector2(cos(rot + j * 2.1), sin(rot + j * 2.1)) * r0)
-				draw_colored_polygon(pts, Color(0.93, 0.97, 1.0, 1 - k))
+				draw_colored_polygon(pts, Color(0.772, 0.805, 0.83, 1 - k))
 				draw_polyline(pts + PackedVector2Array([pts[0]]), Color(Art.OUT, 1 - k), 2.0, true)
 		"aim":
 			# 警覺：金色瞄準線先拉出來，再淡掉
 			var a2: Vector2 = f["a"]
 			var b2: Vector2 = f["b"]
 			var e2 := a2.lerp(b2, minf(1.0, k * 2.5))
-			draw_dashed_line(a2, e2, Color(1, 0.84, 0.3, 0.6 * (1 - k)), 1.6, 6.0, true)
-			draw_arc(b2, 9 - k * 3, 0, TAU, 16, Color(1, 0.84, 0.3, 1 - k), 2.0, true)
+			draw_dashed_line(a2, e2, Color(0.958, 0.805, 0.287, 0.6 * (1 - k)), 1.6, 6.0, true)
+			draw_arc(b2, 9 - k * 3, 0, TAU, 16, Color(0.958, 0.805, 0.287, 1 - k), 2.0, true)
 		"hide":
 			# 皮甲：琥珀色弧光擋在中箭的那一側
 			var d3: float = f["dir"]
@@ -644,10 +961,10 @@ func _draw_fx(f: Dictionary) -> void:
 			var drop := k * k * 8.0
 			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Art.OUT, 4.6, true)
 			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Art.OUT, 4.6, true)
-			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Color(1, 1, 1, 1 - k), 3.0, true)
-			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Color(1, 1, 1, 1 - k), 3.0, true)
+			draw_line(c5 + Vector2(-24, 0), c5 + Vector2(-gap, drop), Color(0.8, 0.8, 0.8, 1 - k), 3.0, true)
+			draw_line(c5 + Vector2(gap, drop), c5 + Vector2(24, 0), Color(0.8, 0.8, 0.8, 1 - k), 3.0, true)
 			if k < 0.25:
-				draw_circle(c5, 5.0 * (1.0 - k * 4.0), Color(1, 1, 1, 0.9), true, -1.0, true)   # 繃斷的閃白
+				draw_circle(c5, 5.0 * (1.0 - k * 4.0), Color(0.8, 0.8, 0.8, 0.9), true, -1.0, true)   # 繃斷的閃白
 		"spore":
 			# V1.0.0 角色：毒改濁紫（綠色留給補血），兩顆錯開的斑點
 			draw_circle(f["p"] + Vector2(-3.0, -k * 14.0), 3.0 + k * 3.0, Color(0.62, 0.42, 0.78, 0.75 * (1.0 - k)), true, -1.0, true)
@@ -662,7 +979,7 @@ func _draw_fx(f: Dictionary) -> void:
 				for s4 in 6:
 					var xx := -wd * (10.0 + s4 * 9.0 + k * 20.0)
 					pts4.append(f["p"] + Vector2(xx, y4 + sin(s4 * 1.3 + k4) * 1.5))
-				draw_polyline(pts4, Color(0.92, 0.85, 0.66, a4), 2.0 - k4 * 0.4, true)
+				draw_polyline(pts4, Color(0.865, 0.799, 0.62, a4), 2.0 - k4 * 0.4, true)
 		"leaves":
 			# 1.4.0 §6.2 醫者治療：三片草葉微粒旋升（綠色只給治療語意）
 			for k5 in 3:
@@ -713,7 +1030,7 @@ func _draw_fx(f: Dictionary) -> void:
 			draw_set_transform_matrix(_cam * Transform2D(fall * float(f["dir"]) * 0.6, Vector2(absf(flip), 1.0), 0, tp0))
 			draw_rect(Rect2(Vector2(-tw0 / 2, -th0 / 2), Vector2(tw0, th0)), Color(PAL.BAMBOO, a0))
 			draw_rect(Rect2(Vector2(-tw0 / 2, -th0 / 2), Vector2(tw0, th0)), Color(PAL.BAMBOO_D, a0), false, 1.5)
-			draw_line(Vector2(-tw0 / 2 + 3, -th0 / 2 + 3), Vector2(tw0 / 2 - 3, -th0 / 2 + 3), Color(PAL.BAMBOO.lightened(0.3), a0 * 0.8), 1.0)
+			draw_line(Vector2(-tw0 / 2 + 3, -th0 / 2 + 3), Vector2(tw0 / 2 - 3, -th0 / 2 + 3), Color(fx_lum_cap(PAL.BAMBOO.lightened(0.3)), a0 * 0.8), 1.0)
 			draw_set_transform_matrix(_cam)
 			if flip < -0.85:   # 翻回正面才寫字（字在盤面座標畫，不跟著縮放；版面檢查量得到真實位置）
 				_text(tp0 + Vector2(0, -th0 / 2 + 1), str(f["s"]), tsz, Color(PAL.INK, a0), true, true)
@@ -730,7 +1047,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var kp := clampf(k * 1.6 - pg * 0.5, 0.0, 1.0)
 				var w := 9.0 * cos(kp * PI)
 				var q := PackedVector2Array([f["p"], f["p"] + Vector2(w, -2.0 - 3.0 * sin(kp * PI)), f["p"] + Vector2(w, 9.0 - 3.0 * sin(kp * PI)), f["p"] + Vector2(0, 9.0)])
-				draw_colored_polygon(q, Color(0.96, 0.92, 0.8, 0.9 * (1.0 - k * 0.6)))
+				draw_colored_polygon(q, Color(0.835, 0.8, 0.696, 0.9 * (1.0 - k * 0.6)))
 		"bonesup":
 			# 1.1.0 A7：骷髏拼裝：5 根骨頭從外圈收進來（0.15 秒），收完就是本體
 			for bi in 5:
@@ -738,7 +1055,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var rr := 18.0 * (1.0 - k)
 				var c0: Vector2 = f["p"] + Vector2(cos(ab), sin(ab) * 0.8) * rr
 				var d0 := Vector2(cos(ab + 1.2), sin(ab + 1.2)) * 4.0
-				draw_line(c0 - d0, c0 + d0, Color(0.93, 0.9, 0.82, 1.0 - k * 0.5), 2.2, true)
+				draw_line(c0 - d0, c0 + d0, Color(0.826, 0.799, 0.728, 1.0 - k * 0.5), 2.2, true)
 		"slimehop":
 			# 1.1.0 A7：小史萊姆從母體彈出半圈：沿半圓弧的殘影＋落地壓扁回彈（弧在 0.3 格內）
 			var dxh: float = f.get("dir", 1.0)
@@ -746,12 +1063,12 @@ func _draw_fx(f: Dictionary) -> void:
 			if k < 0.6:
 				var kh := k / 0.6
 				var pos := start.lerp(f["p"], kh) + Vector2(0, -14.0 * sin(kh * PI))
-				draw_circle(pos + Vector2(0, -6), 4.5, Color(0.45, 1.0, 0.55, 0.7), true, -1.0, true)
+				draw_circle(pos + Vector2(0, -6), 4.5, Color(0.423, 0.941, 0.517, 0.7), true, -1.0, true)
 			else:
 				var ks := (k - 0.6) / 0.4
 				var sq := 1.0 + 0.5 * sin(ks * PI)
 				draw_set_transform_matrix(_cam * Transform2D(0, Vector2(sq, 1.0 / sq), 0, f["p"] + Vector2(0, -3)))
-				draw_circle(Vector2.ZERO, 5.0, Color(0.45, 1.0, 0.55, 0.6 * (1.0 - ks)), true, -1.0, true)
+				draw_circle(Vector2.ZERO, 5.0, Color(0.423, 0.941, 0.517, 0.6 * (1.0 - ks)), true, -1.0, true)
 				draw_set_transform_matrix(_cam)
 		"woodwave":
 			# 1.1.0 A7：鼓手敲擊，腳下兩圈淡木色同心波（貼地，外圈 ≤0.3 格）
@@ -774,7 +1091,7 @@ func _draw_fx(f: Dictionary) -> void:
 		"wool":
 			for i8 in 9:
 				var an8 := i8 * TAU / 9.0
-				draw_circle(f["p"] + Vector2(cos(an8), sin(an8) * 0.7) * (8.0 + k * 34.0) + Vector2(0, k * k * 16.0), 5.0 * (1.0 - k), Color(1, 1, 1, 0.9 * (1.0 - k)), true, -1.0, true)
+				draw_circle(f["p"] + Vector2(cos(an8), sin(an8) * 0.7) * (8.0 + k * 34.0) + Vector2(0, k * k * 16.0), 5.0 * (1.0 - k), Color(0.8, 0.8, 0.8, 0.9 * (1.0 - k)), true, -1.0, true)
 		"chomp":
 			var gap8 := 12.0 * (1.0 - minf(1.0, k * 3.0))
 			for s8 in [-1.0, 1.0]:
@@ -784,12 +1101,12 @@ func _draw_fx(f: Dictionary) -> void:
 					tri.append(base8 + Vector2(-15.0 + i9 * 10.0, 0))
 					tri.append(base8 + Vector2(-10.0 + i9 * 10.0, s8 * -8.0))
 				tri.append(base8 + Vector2(25.0, 0))
-				draw_polyline(tri, Color(1, 1, 1, 1.0 - k), 3.0, true)
+				draw_polyline(tri, Color(0.8, 0.8, 0.8, 1.0 - k), 3.0, true)
 		"timebell":
 			var bellr := 18.0 + k * float(F8.SPRITE_R) * CS / 1000.0
 			draw_arc(f["p"], bellr, 0, TAU, 48, Color(Art.OUT, 0.5 * (1.0 - k)), 7.0, true)
-			draw_arc(f["p"], bellr, 0, TAU, 48, Color(1.0, 0.88, 0.5, 0.9 * (1.0 - k)), 4.0, true)
-			draw_circle(f["p"], bellr, Color(1.0, 0.88, 0.5, 0.08 * (1.0 - k)), true, -1.0, true)
+			draw_arc(f["p"], bellr, 0, TAU, 48, Color(0.911, 0.802, 0.456, 0.9 * (1.0 - k)), 4.0, true)
+			draw_circle(f["p"], bellr, Color(0.911, 0.802, 0.456, 0.08 * (1.0 - k)), true, -1.0, true)
 		"soulrise":
 			for i10 in 5:
 				var an10 := i10 * TAU / 5.0 + k * 3.0
@@ -799,12 +1116,12 @@ func _draw_fx(f: Dictionary) -> void:
 			for i11 in 3:
 				var ph11 := fmod(k * 1.5 + i11 * 0.33, 1.0)
 				var r11 := maxr * (1.0 - ph11)
-				draw_arc(f["p"], r11, ph11 * 6.0, ph11 * 6.0 + 4.2, 26, Color(0.6, 0.85, 1.0, 0.4 * ph11), 2.4, true)
+				draw_arc(f["p"], r11, ph11 * 6.0, ph11 * 6.0 + 4.2, 26, Color(0.594, 0.842, 0.99, 0.4 * ph11), 2.4, true)
 		"stompring":
 			draw_set_transform_matrix(_cam * Transform2D(0, Vector2(1, 0.55), 0, f["p"]))
 			var sr := 14.0 + k * float(F8.GOLEM_R) * CS / 1000.0
 			# Antigravity 第 2 輪：環蓋在兵上面，不描黑邊、調淡，才不會切過臉
-			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(0.92, 0.86, 0.68, 0.5 * (1.0 - k)), 3.5, true)
+			draw_arc(Vector2.ZERO, sr, 0, TAU, 36, Color(0.856, 0.8, 0.633, 0.5 * (1.0 - k)), 3.5, true)
 			draw_set_transform_matrix(_cam)
 		"vslash":
 			# 背刺：一道粗的紫色斬痕
@@ -820,7 +1137,7 @@ func _draw_fx(f: Dictionary) -> void:
 				var wd := minf(seg * 0.14, 5.0) * (1 - k * 0.4)
 				draw_colored_polygon(PackedVector2Array([c6 + a0, c6 + e3 + nrm * (wd + 1.6), c6 + e3 - nrm * (wd + 1.6)]), Color(Art.OUT, 0.6 * (1 - k)))
 				draw_colored_polygon(PackedVector2Array([c6 + a0, c6 + e3 + nrm * wd, c6 + e3 - nrm * wd]), Color(0.78, 0.49, 1.0, 1 - k))
-				draw_line(c6 + a0, c6 + e3, Color(1, 1, 1, 0.75 * (1 - k)), 1.2, true)
+				draw_line(c6 + a0, c6 + e3, Color(0.8, 0.8, 0.8, 0.75 * (1 - k)), 1.2, true)
 		"taunt":
 			# 第七輪 D7：嘲諷改腳底橢圓，只畫下半弧，不擋臉
 			var kj := clampf(k * 1.3, 0.0, 1.0)
@@ -851,7 +1168,7 @@ func _draw_fx(f: Dictionary) -> void:
 			# 爆炸：橘紅鋸齒爆裂圈＋黑煙圈（和平滑同心圓區分，第四輪 §4.4）
 			# 爆炸（Antigravity 實作審查：原本像同心圓標靶）：10 尖角的鋸齒星芒＋黃白核心＋4 團往外散的灰煙
 			var bp: Vector2 = f["p"] + Vector2(0, -14)
-			var br := 14.0 + _smoothstep01(k) * 26.0
+			var br := boom_radius(k)
 			var spikes := PackedVector2Array()
 			for i in 20:
 				var an := i * TAU / 20.0 + 0.2
@@ -861,7 +1178,7 @@ func _draw_fx(f: Dictionary) -> void:
 			draw_colored_polygon(spikes, Color(1.0, 0.42, 0.12, 0.92 * fa))
 			for i in 20:
 				spikes[i] = bp + (spikes[i] - bp) * 0.55
-			draw_colored_polygon(spikes, Color(1.0, 0.86, 0.35, 0.95 * fa))
+			draw_colored_polygon(spikes, Color(fx_col(Color(0.938, 0.807, 0.328)), 0.95 * fa))
 			for i in 4:
 				var pa := i * TAU / 4.0 + 0.6
 				var pp := bp + Vector2(cos(pa) * (8.0 + k * 30.0), sin(pa) * (6.0 + k * 20.0) - k * 10.0)
@@ -873,14 +1190,15 @@ func _draw_fx(f: Dictionary) -> void:
 			for i in 9:
 				var q := float(i) / 8.0
 				pts.append(ha.lerp(hb, q) + Vector2(0, -sin(q * PI) * 18.0))
-			draw_polyline(pts, Color(0.5, 1.0, 0.6, 0.7 * (1.0 - k)), 2.5, true)
-			_cross(hb + Vector2(0, -k * 14.0), 5.0, Color(0.5, 1.0, 0.6, 1.0 - k))
+			draw_polyline(pts, Color(0.463, 0.925, 0.555, 0.7 * (1.0 - k)), 2.5, true)
+			var hc := hb + Vector2(0, -k * 14.0)
+			_cross(hc, 5.0, Color(fx_col(Color(0.463, 0.925, 0.555)), (1.0 - k) * (FX_FACE_ALPHA if fx_on_face(hc, 5.0) else 1.0)))
 		"note":
 			# 音符放大 1.6 倍＋深咖啡描邊（Antigravity：原本跟草地小花一樣大）
 			var np: Vector2 = f["p"] + Vector2(sin(k * 6.0) * 4.0, -k * 22.0)
-			var na := 1.0 - k
+			var na := (1.0 - k) * (FX_FACE_ALPHA if fx_on_face(np, 11.0) else 1.0)   # 1.6.0 B08：蓋在頭胸上就壓淡
 			var oc := Color(0.24, 0.14, 0.05, na)
-			var nc := Color(1.0, 0.86, 0.3, na)
+			var nc := Color(fx_col(Color(0.942, 0.81, 0.283)), na)
 			draw_circle(np, 6.6, oc, true, -1.0, true)
 			draw_line(np + Vector2(5, 1), np + Vector2(5, -16), oc, 4.6, true)
 			draw_line(np + Vector2(5, -16), np + Vector2(11, -11), oc, 4.6, true)
@@ -903,12 +1221,18 @@ func _draw_fx(f: Dictionary) -> void:
 				var p3: Vector2 = f.get("rp", f["p"] + Vector2(0, -k * 26))
 				var r3: Rect2 = f.get("rr", Rect2(p3, Vector2.ZERO))
 				# V1.3 P1：印章式出場：前 0.1 秒從上方 8px 壓下來就停住（泡泡和字一起移，字級與外框幾何不變）
-				var slam := 1.0 - minf(float(f["t"]) / 0.1, 1.0)
-				p3.y -= 8.0 * slam * slam
-				r3.position.y -= 8.0 * slam * slam
+				if not f.has("rr"):   # 還沒排版（第一幀之前）：照舊壓下
+					var slam := 1.0 - minf(float(f["t"]) / 0.1, 1.0)
+					p3.y -= 8.0 * slam * slam
+					r3.position.y -= 8.0 * slam * slam
 				var dim := _clutch_dim(p3)
 				col.a *= dim
 				var numeric := is_num_text(str(f["s"]))
+				# 1.6.0 B08（Hydrogen r1）：避讓把字推離原位（>18px）時，畫一條細引線回到自己那隻兵的頭頂上方（不然會被看成旁邊那隻的字）
+				var sg: Array = f.get("seg", [])
+				if sg.size() == 2:
+					draw_line(sg[0], sg[1], Color(0.16, 0.1, 0.05, 0.75 * col.a), 1.6, true)
+					draw_circle(sg[1], 2.2, Color(0.16, 0.1, 0.05, 0.75 * col.a), true, -1.0, true)
 				if not f.get("plain", false) and not numeric:
 					_bubble(r3, col.a)   # V1.2 C6：漫畫對話泡（羊皮紙色圓角＋墨線＋朝下的尖角），取代黑色膠囊
 				var sz := int(ts(f["size"]) * (1.0 + float(f.get("pop", 0.0)) * 1.4))

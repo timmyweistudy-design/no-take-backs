@@ -843,6 +843,8 @@ func _draw_inner() -> void:
 	for f in fx:
 		if not f.get("screen", false) and f["kind"] == "text":
 			_draw_fx(f)
+	if state == St.BATTLE and "--face-debug" in OS.get_cmdline_user_args():
+		_draw_face_debug()   # 1.6.0 B08：開發用，頭胸框／交戰區／跳字框
 	if state == St.BATTLE:
 		_draw_focus_marks(view)   # 1.5.0 §7：跟拍兵／目標的頭頂記號畫在跳字泡泡之上（不被蓋住；Hydrogen v150 cat07 r3）
 	perf_parts["fx"] = Time.get_ticks_usec() - _t

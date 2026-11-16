@@ -1181,3 +1181,189 @@ func test_atlas_pack_v1600() -> void:
 			bad += 1
 	ok(bad == 0, "包讀回的每張圖＝烘的時候的像素、檔案沒被換（解碼差 0；%d 張）" % sha.size())
 
+
+## 1.6.0 B08（S4；P3.3～P3.5）：混戰看得懂——用正式畫面程式逐幀播 6 場（60fps），每幀量：
+## 顯示中跳字蓋到兵偶頭胸框的面積 0、出盤內 12px 的 0、跳字總面積 ≤ 交戰區 15%；關鍵跳字不漏；
+## 裝飾特效單一面積 ≤ 交戰區 4%、最亮 ≤0.8。另有人造擁擠例（頭胸框擋在原位）與找不到位置時的處理。
+func test_melee_read_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g._load_fonts()
+	var pool := F.training_pool(0)
+	var face := 0
+	var clip := 0
+	var area := 0.0
+	var fx_a := 0.0
+	var fx_l := 0.0
+	var frames := 0
+	var shown := 0
+	var lay_us: Array = []
+	# 情境（Codex B08 r1 #6）：0、1 一般 1×；2 倍速 2×；3 倍速 4×（一般跳字不出、關鍵照出）；4 跟拍放大（focus_scale）；
+	# 5 中途暫停 120 幀再播、再跳轉回第 40 tick 重播一段
+	for i in 6:
+		var arm := [pool[i * 3].copy(), pool[(i * 17 + 4) % pool.size()].mirrored()]
+		g._begin_battle(arm[0].copy(), arm[1].copy(), "replay")
+		g.last_armies = arm   # 跳轉從這組陣型快轉
+		g.speed = [1.0, 1.0, 2.0, 4.0, 1.0, 1.0][i]
+		var guard := 0
+		var paused_n := 0
+		var seeked := false
+		while g.state == g.St.BATTLE and not g.view.finished and guard < 9000:
+			guard += 1
+			if i == 4 and g.follow_id < 0:
+				for u in g.view.units:
+					if u.alive:
+						g.follow_id = u.id
+						break
+			if i == 5 and guard == 600:
+				g.paused = true
+			if g.paused:
+				paused_n += 1
+				if paused_n >= 120:
+					g.paused = false
+			if i == 5 and guard == 900 and not seeked:
+				seeked = true
+				g._seek(40)
+			g._process_inner(1.0 / 60.0)
+			frames += 1
+			lay_us.append(g.layout_us)   # 真正那一次排版的耗時（含丟字、併字）
+			var st: Dictionary = g.text_overlap_stats()
+			face = maxi(face, int(st["face_px"]))
+			clip = maxi(clip, int(st["clipped"]))
+			area = maxf(area, float(st["area_ratio"]))
+			shown += int(st["visible"])
+			for f in g.fx:   # 特效量測：和畫圖同一支算半徑（測試不能在 _draw 外畫）；亮度走 fx_col
+				var fk: float = f["t"] / f["dur"]
+				if g.GLOW.has(f["kind"]):
+					g.glow_radius(f, fk)
+					g.fx_col(g.GLOW[f["kind"]][0])
+				elif f["kind"] == "boom":
+					g.boom_radius(fk)
+					g.fx_col(Color(1.0, 0.86, 0.35))
+			fx_a = maxf(fx_a, float(g.fx_stats["max_area"]))
+			fx_l = maxf(fx_l, float(g.fx_stats["max_lum"]))
+	lay_us.sort()
+	var p99: int = lay_us[int(lay_us.size() * 0.99)] if not lay_us.is_empty() else 0
+	ok(p99 < 1500, "跳字排版耗時 p99 <1.5ms（p50 %d µs、p99 %d µs、最大 %d µs）" % [lay_us[lay_us.size() / 2], p99, lay_us[-1]])
+	ok(shown > 100, "混戰量測有量到跳字（%d 幀、顯示中跳字累計 %d）" % [frames, shown])
+	ok(face == 0, "S4：跳字蓋到頭胸框 0 像素（最大 %d）" % face)
+	ok(clip == 0, "S4：跳字出盤內 12px 0 個（最大 %d）" % clip)
+	ok(area <= 0.15, "S4：跳字總面積 ≤ 交戰區 15%%（最大 %.3f）" % area)
+	ok(g.text_key_in > 0 and g.text_key_in == g.text_key_shown, "S4：關鍵跳字一個都不漏（%d／%d；擠不下只留戰報列 %d 次）" % [g.text_key_shown, g.text_key_in, g.text_key_to_report])
+	ok(fx_a <= 0.04 + 1e-6 and fx_l <= 0.8 + 1e-6, "P3.4：裝飾特效單一面積 ≤4%%、最亮 ≤0.8（%.4f、%.3f）" % [fx_a, fx_l])
+	# 人造：頭胸框正好擋在跳字原位 → 找到旁邊或上面的乾淨位置，離原位 ≤1.5 格
+	var r := Rect2(500, 300, 80, 27)
+	var faces := {1: Rect2(500, 290, 40, 50), 2: Rect2(560, 250, 40, 50)}
+	var res: Array = g._text_slot(r, [], faces, Rect2(g.ORIGIN, g.fld_size).grow(-12), false, -1, Vector2.INF, Vector2(540, 282))   # 錨點在頭頂上方（遊戲裡是兵頭上）
+	var hit := false
+	for q: Rect2 in faces.values():
+		hit = hit or q.intersects(res[0])
+	ok(res[1] and not hit and (res[0] as Rect2).position.distance_to(r.position) <= g.TEXT_MAX_MOVE + r.size.x, "跳字避開頭胸框（%s）" % [res[0]])
+	# 盤邊：原位出盤 → 夾回盤內 12px
+	var edge: Array = g._text_slot(Rect2(g.ORIGIN + Vector2(-30, -20), Vector2(80, 27)), [], {}, Rect2(g.ORIGIN, g.fld_size).grow(-12))
+	ok(Rect2(g.ORIGIN, g.fld_size).grow(-12).encloses(edge[0]), "盤邊跳字夾回盤內 12px（%s）" % [edge[0]])
+	# 四面都是頭胸框：找不到乾淨位置 → 回報 false（一般跳字丟、關鍵放蓋最少處）
+	var wall := {}
+	for yy in range(0, 400, 20):
+		for xx in range(300, 760, 30):
+			wall[wall.size()] = Rect2(xx, yy, 30, 20)
+	var none: Array = g._text_slot(Rect2(500, 300, 80, 27), [], wall, Rect2(g.ORIGIN, g.fld_size).grow(-12))
+	ok(not none[1], "找不到乾淨位置時照實回報（一般跳字會丟、關鍵併進最近的關鍵字）")
+	# 最終位移上限（含橫移、夾盤）：任何回報乾淨的位置離原位 ≤1.5 格（一般）／2.5 格（關鍵）
+	var far_bad := 0
+	for yy2 in range(120, 600, 37):
+		for xx2 in range(140, 1100, 53):
+			var rr0 := Rect2(xx2, yy2, 90, 30)
+			for far in [false, true]:
+				var rs: Array = g._text_slot(rr0, [], faces, Rect2(g.ORIGIN, g.fld_size).grow(-12), far)
+				if rs[1] and (rs[0] as Rect2).position.distance_to(rr0.position) > (g.TEXT_MAX_MOVE_KEY if far else g.TEXT_MAX_MOVE) + 0.01:
+					far_bad += 1
+	ok(far_bad == 0, "乾淨位置的最終位移都在上限內（超過 %d 個）" % far_bad)
+	# 引線：推離原位時，引線不准穿過別隻的頭胸（線段—矩形）
+	ok(g.seg_hits_rect(Vector2(0, 0), Vector2(100, 100), Rect2(40, 40, 10, 10)) and not g.seg_hits_rect(Vector2(0, 0), Vector2(100, 0), Rect2(40, 40, 10, 10)), "線段穿過矩形判斷")
+	# 擠不下的關鍵字併進最近的關鍵字（不丟、不蓋臉）
+	var k1 := {"p": Vector2(300, 300), "n": 1, "sum": 35, "s": "衝鋒！ 35", "ek": "charge"}
+	var k2 := {"p": Vector2(340, 300), "n": 1, "sum": 35, "s": "衝鋒！ 35", "ek": "charge"}
+	ok(g._merge_into(k2, [k1]) and int(k1["n"]) == 2 and int(k1["sum"]) == 70, "擠不下的關鍵字併進最近的同種關鍵字（%s）" % k1["s"])
+	# 特效亮度上限（P3.4；Codex B08 r1 #5）：_draw_fx 裡（跳字分支之前）每個字面顏色的加權亮度 ≤0.8，白色常數不直接用
+	var src: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_fx.gd")
+	var a0 := src.find("func _draw_fx(f: Dictionary) -> void:")
+	var body := src.substr(a0, src.find("\t\t\"text\":", a0) - a0)
+	var re := RegEx.create_from_string("Color\\(\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*,\\s*([0-9.]+)")
+	var over: Array = []
+	var nlit := 0
+	for m in re.search_all(body):
+		var lr := float(m.get_string(1))
+		var lg := float(m.get_string(2))
+		var lb := float(m.get_string(3))
+		if lr > 1.0 or lg > 1.0 or lb > 1.0:
+			continue
+		nlit += 1
+		if 0.2126 * lr + 0.7152 * lg + 0.0722 * lb > 0.8005:
+			over.append(m.get_string(0))
+	var hexre := RegEx.create_from_string("Color\\(\"#([0-9a-fA-F]{6})\"")
+	for m in hexre.search_all(body):
+		var hc := Color("#" + m.get_string(1))
+		nlit += 1
+		if 0.2126 * hc.r + 0.7152 * hc.g + 0.0722 * hc.b > 0.8005:
+			over.append(m.get_string(0))
+	var white_raw := body.count("Color.WHITE") - body.count("fx_lum_cap(f.get(")
+	ok(nlit > 40 and over.is_empty() and white_raw == 0, "特效字面色 %d 個全部亮度 ≤0.8（超過：%s；白色常數直接用 %d）" % [nlit, over, white_raw])
+	# 特效亮度上限：純白壓到 0.8、暗色不動
+	var cw: Color = g.fx_lum_cap(Color(1, 1, 1))
+	ok(absf(0.2126 * cw.r + 0.7152 * cw.g + 0.0722 * cw.b - 0.8) < 1e-3 and g.fx_lum_cap(Color(0.3, 0.2, 0.1)) == Color(0.3, 0.2, 0.1), "特效亮度上限：白壓到 0.8、暗色不動")
+	g.free()
+
+## 1.6.0 B08（P3.5）語意保護：B06 的地形落影與 B03 的盤外壓暗不碰隊色與通行格。
+## ①落影只落在可走格（牆格 0，B06 已驗）且每個可走格被影子蓋到的深度 ≤40%、影子不透明度 ≤0.35——格子大半保留原色，通行判讀不變；
+## ②盤外壓暗畫在桌面那一層（盤面、兵、隊色圈都畫在它之後）；③影子、凹槽內影都畫在地圖烘焙層（兵與腳底隊色圈在其後）。
+func test_semantic_guard_v1600() -> void:
+	var MA = load("res://scripts/ui/map_art.gd")
+	var MD = load("res://scripts/core/map_defs.gd")
+	var worst := 0.0
+	var n := 0
+	for mid in range(1, MD.MAPS.size()):
+		for sz in 3:
+			var tt = MD.terrain(mid, sz)
+			if tt == null:
+				continue
+			for tl in [false, true]:
+				var pp = MA._Painter.new()
+				pp.t = tt
+				pp.kind = str(MD.MAPS[mid]["biome"])
+				pp.tilt = tl
+				var Q := 32.0
+				var cover := {}
+				for r in tt.m:
+					for c in tt.n:
+						for sh in [pp.shadow_south(c, r, Q), pp.shadow_east(c, r, Q)]:
+							if sh.size.x <= 0.0:
+								continue
+							n += 1
+							for r2 in range(maxi(0, r - 1), mini(tt.m, r + 3)):
+								for c2 in range(maxi(0, c - 1), mini(tt.n, c + 3)):
+									var cell := Rect2(Vector2(c2, r2) * Q, Vector2(Q, Q))
+									if sh.intersects(cell):
+										var k := Vector2i(c2, r2)
+										cover[k] = float(cover.get(k, 0.0)) + sh.intersection(cell).get_area() / (Q * Q)
+				for k in cover:
+					worst = maxf(worst, cover[k])
+				pp.free()
+	ok(n > 200 and worst <= 0.40, "落影蓋到單一可走格的面積最多 %.0f%%（≤40%%；%d 塊影子）" % [worst * 100.0, n])
+	var src: String = FileAccess.get_file_as_string("res://scripts/ui/map_art.gd")
+	var alphas: Array = []
+	for line in src.split("\n"):
+		if line.find("draw_rect(ssh") >= 0 or line.find("draw_rect(esh") >= 0 or line.find("凹槽北緣內影") >= 0:
+			var m := RegEx.create_from_string("Color\\(([0-9.]+), ([0-9.]+), ([0-9.]+), ([0-9.]+)\\)").search(line)
+			if m != null:
+				alphas.append(float(m.get_string(4)))
+	ok(alphas.size() >= 3 and alphas.max() <= 0.35, "落影、東側影、凹槽內影不透明度 ≤0.35（%s）" % [alphas])
+	var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+	var i_desk := gs.find("_draw_desk()   #")
+	var i_field := gs.find("\t_draw_field()\n")
+	var i_units := gs.find("_draw_units_of(view, false)")
+	ok(i_desk >= 0 and i_field > i_desk and i_units > i_field, "畫的順序：桌面（含盤外壓暗）→ 盤面與地形 → 兵與隊色圈")
+	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+	var i_dim := ub.find("Color(DIM_INK, PAL.OFF_BOARD_DIM)")
+	ok(i_dim > ub.find("func _draw_desk()") and i_dim < ub.find("func _desk_props()"), "盤外壓暗在 _draw_desk 裡（盤面畫在它之上，盤內隊色不變）")

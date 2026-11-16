@@ -510,6 +510,56 @@ const FOCUS_SCALE := 1.4 / 1.25
 func focus_scale(id: int) -> float:
 	return FOCUS_SCALE if follow_id >= 0 and id == follow_id else 1.0
 
+## 1.6.0 B08（P3.3、S4）：兵偶頭胸框（戰場座標）——跳字不蓋。腳底點往上 FACE_BOT～FACE_TOP（×HK×巨獸／跟拍縮放），半寬 FACE_HW。
+## 站姿的頭胸對截圖量過（14～54、半寬 17，--face-debug 畫得出來）；再包住姿勢起伏（Codex B08 r1 #2）：跳步 ≤10px、走路起伏 4、
+## 幽靈上下漂 ≤5.5、衝鋒前傾 ≤15°（頭頂橫移約 ±17px）→ 上緣多 12、左右各多 6（HK 單位）。
+const FACE_TOP := 66.0
+const FACE_BOT := 14.0
+const FACE_HW := 23.0
+func face_rects() -> Dictionary:
+	var out := {}
+	if view == null:
+		return out
+	for u in view.units:
+		if not u.alive or u.hidden:
+			continue
+		var sc: float = (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id) * HK
+		var p: Vector2 = _upos(u) + _open_drop(u)
+		out[u.id] = Rect2(p + Vector2(-FACE_HW, -FACE_TOP) * sc, Vector2(FACE_HW * 2.0, FACE_TOP - FACE_BOT) * sc)
+	return out
+
+## 交戰區：和敵兵相距 ≤1.5 格的兵的外接框，往外一格、夾在盤內；沒有交戰＝整個盤。
+func engage_rect() -> Rect2:
+	var board := Rect2(ORIGIN, fld_size)
+	if view == null:
+		return board
+	var ps: Array = [[], []]
+	for u in view.units:
+		if u.alive and not u.hidden:
+			ps[u.team].append(_upos(u))
+	var r := Rect2()
+	var any := false
+	var lim := (CS * 1.5) * (CS * 1.5)
+	for a: Vector2 in ps[0]:
+		for b: Vector2 in ps[1]:
+			if a.distance_squared_to(b) <= lim:
+				var pair := Rect2(a, Vector2.ZERO).expand(b)
+				r = pair if not any else r.merge(pair)
+				any = true
+	if not any:
+		return board
+	return r.grow(CS).intersection(board)
+
+func _draw_face_debug() -> void:
+	var fr: Dictionary = face_rects()
+	for id in fr:
+		draw_rect(fr[id], Color(1, 0, 1, 0.9), false, 1.5)
+	draw_rect(engage_rect(), Color(0, 1, 1, 0.9), false, 2.0)
+	for f in fx:
+		if f["kind"] == "text" and f.has("dr"):
+			draw_rect(f["dr"], Color(1, 1, 0, 0.9), false, 1.0)
+			draw_circle(f["p"], 4.0, Color(0, 1, 1, 0.9))   # 原位錨點
+
 ## 1.3.0 §3 平原棉布拼貼（64px＝一格）：斜紋（每 6px 一道亮／暗細紋）；grid＝true 時上緣、左緣是壓縫棉線（亮線＋下方暗影、每 4px 一針），左上角一個小線結。
 static var _cotton := {}
 static func _cotton_tex(grid: bool) -> Texture2D:

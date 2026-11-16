@@ -1720,6 +1720,44 @@ func test_parlor_people_v130() -> void:
 	g.free()
 
 ## 1.3.0 第 12 大類：每日老闆出題（挑題固定、只挑還沒三星的、一天一枚印、存檔驗型）
+## 1.6.0 B08 驗收抓到：每日老闆題照真實日期抽，長題名那天英文 150% 按鈕字左右內距不夠（R12）。
+## 全部殘局 × 四語 × 三字級 × 三種星數：od_label 的寬度都放得進按鈕（左右各留 R12 內距），而且至少留題名的頭與星數。
+func test_od_label_fit_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g._load_fonts()
+	var LS = load("res://scripts/game/strings.gd")
+	var PZ = load("res://scripts/game/puzzles.gd")
+	var LRx = load("res://scripts/ui/layout_rules.gd")
+	var Sv = load("res://scripts/game/save.gd")
+	var keep_lang = LS.lang
+	var keep_ts = Sv.settings.get("text_scale", 100)
+	var bad: Array = []
+	var cut := 0
+	var short := 0
+	var n := 0
+	var bw := 592.0
+	var avail: float = bw - 2.0 * maxf(LRx.R12_H_MIN, LRx.R12_H_PCT * bw)
+	for lg in ["zh_TW", "en", "zh_CN", "ja"]:
+		LS.lang = lg
+		for sc in [100, 125, 150]:
+			Sv.settings["text_scale"] = sc
+			for pz in PZ.all_puzzles():
+				for st in [0, 3]:
+					var name: String = LS.field(pz, "")
+					var lab: String = g.od_label(name, st, LS.t("od_todo"), bw)
+					n += 1
+					if g._width(lab, g.ts(18), true) > avail:
+						bad.append("%s %d%% %s" % [lg, sc, lab])
+					if lab.find("…") >= 0:
+						cut += 1
+					if lab.find(LS.t("od_todo")) < 0:
+						short += 1
+	LS.lang = keep_lang
+	Sv.settings["text_scale"] = keep_ts
+	ok(n > 100 and bad.is_empty(), "每日老闆題按鈕字全部放得進（%d 組；拿掉狀態字 %d、題名截短 %d）" % [n, short, cut], str(bad.slice(0, 3)))
+	g.free()
+
 func test_owner_daily_v130() -> void:
 	var OD = load("res://scripts/game/owner_daily.gd")
 	var ids := ["a", "b", "c", "d", "e", "f", "g"]

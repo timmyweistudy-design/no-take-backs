@@ -43,5 +43,7 @@ for iou, a, b in pairs[:12]:
 worst = sorted(score, key=lambda k: -score[k])[:5]
 rep = {"top_pairs": [[iou, NAMES[a], NAMES[b]] for iou, a, b in pairs[:12]], "worst5": [NAMES[k] for k in worst], "worst5_ids": worst,
        "low_contrast": sorted([[contrast[t], NAMES[t]] for t in range(22)])[:5]}
+# 1.6.0 B10：每個兵種和其他兵種的最大 IoU、灰階內部對比（逐兵種，劍士／騎兵試作前後比）
+rep["per"] = {NAMES[t]: {"max_iou": max(v for v, a, b in pairs if t in (a, b)), "contrast": contrast[t]} for t in range(22)}
 json.dump(rep, open(os.path.join(out, "sil_report.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 print(json.dumps(rep, ensure_ascii=False))

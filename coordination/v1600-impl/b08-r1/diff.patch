@@ -1,0 +1,484 @@
+diff --git a/game/scripts/ui/battle/battle_fx.gd b/game/scripts/ui/battle/battle_fx.gd
+index 93a304b..9a7fa3f 100644
+--- a/game/scripts/ui/battle/battle_fx.gd
++++ b/game/scripts/ui/battle/battle_fx.gd
+@@ -184,30 +184,139 @@ func _merge_text(tid: int, kind: String, label: String, dmg: int, p: Vector2, co
+ 
+ 
+ ## 每幀排版：關鍵在前、新的在前；和已放好的（不在淡出中的）重疊就往上推。結果存在 f["rp"]。
++## 1.6.0 B08（P3.3、S4）：再避開兵偶頭胸框（face_rects）、夾在盤內 ≥TEXT_BOARD_PAD；找位置的順序＝原位往上推 → 左右換邊再往上推，
++## 最遠 TEXT_MAX_MOVE。找不到：一般跳字丟掉（計 text_dropped），關鍵跳字放在蓋最少的位置（關鍵不能漏）。
++## 面積：顯示中（不透明度 ≥0.35）的跳字總面積 ≤ 交戰區 × TEXT_AREA_MAX，超過就丟一般跳字（新的、關鍵的先佔）。
++const TEXT_BOARD_PAD := 12.0
++const TEXT_MAX_MOVE := 96.0   # 1.5 格：再遠就看不出是誰的字
++const TEXT_AREA_MAX := 0.15
++## 1.6.0 B08（P3.4）：裝飾特效上限——單一特效面積 ≤ 交戰區 × FX_AREA_MAX（超過就等比縮）、最亮色相對亮度 ≤ FX_LUM_MAX（保持色相壓暗）；
++## 畫在兵偶頭胸上的小特效（音符、閃光叉、治療十字）壓到 FX_FACE_ALPHA。表示範圍的（隕石落點圈、範圍預告）不縮——語意（P3.5）。
++const FX_AREA_MAX := 0.04
++const FX_LUM_MAX := 0.8
++const FX_FACE_ALPHA := 0.5
++var _fx_faces: Array = []
++var _fx_eng_area := 0.0
++var fx_stats := {"max_area": 0.0, "max_lum": 0.0}   # 量測：這一幀畫出的裝飾特效裡最大面積比、最亮相對亮度
++
++static func fx_lum_cap(c: Color) -> Color:
++	var l := 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
++	if l <= FX_LUM_MAX:
++		return c
++	var k := FX_LUM_MAX / maxf(l, 1e-4)
++	return Color(c.r * k, c.g * k, c.b * k, c.a)
++
++## 面積 area 的裝飾特效要縮多少（≤1）；同時記量測
++func fx_area_scale(area: float) -> float:
++	var eng := _fx_eng_area if _fx_eng_area > 0.0 else Rect2(ORIGIN, fld_size).get_area()
++	var sc := minf(1.0, sqrt(eng * FX_AREA_MAX / maxf(1.0, area)))
++	fx_stats["max_area"] = maxf(fx_stats["max_area"], area * sc * sc / eng)
++	return sc
++
++## 畫和量用同一支（測試不能在 _draw 外畫圖）
++func glow_radius(f: Dictionary, k: float) -> float:
++	var r: float = GLOW[f["kind"]][1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
++	return r * fx_area_scale(PI * r * r * 0.8)
++
++func boom_radius(k: float) -> float:
++	var br := 14.0 + _smoothstep01(k) * 26.0
++	return br * fx_area_scale(PI * br * br * 0.8 * 0.75)   # 鋸齒星芒約 0.75 個橢圓
++
++func fx_on_face(p: Vector2, rad: float) -> bool:
++	var r := Rect2(p - Vector2(rad, rad), Vector2(rad, rad) * 2.0)
++	for q: Rect2 in _fx_faces:
++		if q.intersects(r):
++			return true
++	return false
++
++func fx_col(c: Color) -> Color:   # 壓亮度並記量測（灰階＝畫面值的加權和）
++	var cc := fx_lum_cap(c)
++	fx_stats["max_lum"] = maxf(fx_stats["max_lum"], 0.2126 * cc.r + 0.7152 * cc.g + 0.0722 * cc.b)
++	return cc
++
++func face_rects() -> Array:
++	return []   # battle_units 覆寫（要用到兵的畫面位置與縮放）
++
++func engage_rect() -> Rect2:
++	return Rect2(ORIGIN, fld_size)   # battle_units 覆寫
++
+ func _layout_texts() -> void:
++	_fx_faces = face_rects()   # 特效上限（P3.4）同一幀共用
++	fx_stats = {"max_area": 0.0, "max_lum": 0.0}
++	_fx_eng_area = engage_rect().get_area()
+ 	var list: Array = []
+ 	for f in fx:
+ 		if f["kind"] == "text" and not f.get("screen", false):
+ 			list.append(f)
++	if list.is_empty():
++		return
+ 	list.sort_custom(func(a, b): return a.get("tier", 1) > b.get("tier", 1) or (a.get("tier", 1) == b.get("tier", 1) and a["t"] < b["t"]))
++	var faces: Array = _fx_faces
++	var board := Rect2(ORIGIN, fld_size).grow(-TEXT_BOARD_PAD)
++	var budget := _fx_eng_area * TEXT_AREA_MAX
++	var used := 0.0
+ 	var placed: Array = []
++	var drop: Array = []
+ 	for f in list:
+ 		var k: float = f["t"] / f["dur"]
+ 		var at: Vector2 = f["p"] + Vector2(0, -k * 26)
+ 		var r := _text_rect(f, at)
+-		if true:   # 淡出中的也排，但排在最後（新的、關鍵的先佔位），所以不會推動正在顯示的
+-			var moved := true
+-			var guard := 0
+-			while moved and guard < 24:
+-				moved = false
+-				guard += 1
+-				for q: Rect2 in placed:
+-					if q.intersects(r):
+-						r.position.y = q.position.y - r.size.y - 2.0
+-						moved = true
+-			placed.append(r)
++		var key := int(f.get("tier", 1)) >= 2
++		var vis := _text_alpha(f) >= 0.35
++		if vis and not key and used + r.get_area() > budget:
++			drop.append(f)
++			continue
++		var res: Array = _text_slot(r, placed, faces, board, key)
++		if not res[1] and vis and not key:
++			drop.append(f)
++			continue
++		r = res[0]
++		placed.append(r)
++		if vis:
++			used += r.get_area()
+ 		f["rp"] = Vector2(r.get_center().x, r.position.y + 3.0)
+ 		f["rr"] = r
++	for f in drop:
++		fx.erase(f)
++		text_dropped += 1
++
++## 找一個不疊別的跳字、不蓋頭胸、在盤內的位置。回傳 [Rect2, 找到乾淨位置?]；找不到時回傳蓋得最少的候選。
++## 順序：原位往上推 → 左右各一、兩個字寬再往上推 → 往下（腳下）推；一般跳字最遠 TEXT_MAX_MOVE，關鍵（far）最遠 TEXT_MAX_MOVE_KEY。
++const TEXT_MAX_MOVE_KEY := 160.0   # 2.5 格：關鍵字不能丟，擠成一團時寧可遠一點（仍在交戰區附近）
++func _text_slot(r: Rect2, placed: Array, faces: Array, board: Rect2, far := false) -> Array:
++	var lim := TEXT_MAX_MOVE_KEY if far else TEXT_MAX_MOVE
++	var near: Array = []
++	var zone := r.grow(lim + r.size.x * 2.0)
++	for q: Rect2 in faces:
++		if zone.intersects(q):
++			near.append(q)
++	var best := r
++	var best_cost := INF
++	var side := r.size.x * 0.5 + 10.0
++	for dir in [-1.0, 1.0]:
++		for dx in [0.0, -side, side, -side * 2.0, side * 2.0]:
++			var dy := 0.0 if dir < 0.0 else 4.0
++			while dy <= lim:
++				var c := Rect2(r.position + Vector2(dx, dir * dy), r.size)
++				c.position.x = clampf(c.position.x, board.position.x, maxf(board.position.x, board.end.x - c.size.x))
++				c.position.y = clampf(c.position.y, board.position.y, maxf(board.position.y, board.end.y - c.size.y))
++				var cost := 0.0
++				var jump := 0.0
++				for q: Rect2 in placed:
++					if q.intersects(c):
++						cost += c.intersection(q).get_area() + 1.0
++						jump = maxf(jump, (c.end.y - q.position.y) if dir < 0.0 else (q.end.y - c.position.y))
++				for q: Rect2 in near:
++					if q.intersects(c):
++						cost += c.intersection(q).get_area() * 4.0 + 1.0
++						jump = maxf(jump, (c.end.y - q.position.y) if dir < 0.0 else (q.end.y - c.position.y))
++				if cost == 0.0:
++					return [c, true]
++				if cost < best_cost:
++					best_cost = cost
++					best = c
++				dy += maxf(4.0, jump + 2.0)   # 直接跳過擋路那個框
++	return [best, false]
+ 
+ 
+ 
+@@ -227,7 +336,21 @@ func text_overlap_stats() -> Dictionary:
+ 		for o: Rect2 in vis + fading:
+ 			if o != fr:
+ 				worst_f = maxf(worst_f, _overlap(fr, o))
+-	return {"visible": vis.size(), "fading": fading.size(), "max_overlap": worst, "max_overlap_fading": worst_f}
++	# 1.6.0 B08（S4）：顯示中跳字蓋到頭胸框的面積、出盤內 12px 的個數、總面積÷交戰區
++	var face_px := 0.0
++	var clipped := 0
++	var area := 0.0
++	var board := Rect2(ORIGIN, fld_size).grow(-TEXT_BOARD_PAD + 0.5)
++	var faces: Array = face_rects()
++	for r: Rect2 in vis:
++		area += r.get_area()
++		if not board.encloses(r):
++			clipped += 1
++		for q: Rect2 in faces:
++			if q.intersects(r):
++				face_px += r.intersection(q).get_area()
++	return {"visible": vis.size(), "fading": fading.size(), "max_overlap": worst, "max_overlap_fading": worst_f,
++		"face_px": int(face_px), "clipped": clipped, "area_ratio": area / maxf(1.0, engage_rect().get_area())}
+ 
+ 
+ ## 最後時刻（第三輪 V2）：慢動作期間，螢幕上 y<165（橫幅下方那一帶）的戰場跳字淡到 0.2。
+@@ -451,8 +574,8 @@ func _draw_glow(f: Dictionary, k: float) -> void:
+ 	var gp = f.get("p", f.get("b", null))
+ 	if gp == null:
+ 		return
+-	var r: float = g[1] * (0.7 + 0.3 * minf(1.0, k * 3.0))
+-	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(g[0], 0.32 * (1.0 - k)))
++	var r := glow_radius(f, k)
++	draw_texture_rect(_glow_tex, Rect2(gp - Vector2(r, r * 0.8), Vector2(r * 2.0, r * 1.6)), false, Color(fx_col(g[0]), 0.32 * (1.0 - k)))
+ 
+ func _draw_fx(f: Dictionary) -> void:
+ 	var k: float = f["t"] / f["dur"]
+@@ -467,7 +590,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 			if k < 0.3:
+ 				var drop := 1.0 - k / 0.3
+ 				draw_circle(mp - Vector2(-120, 320) * drop, 15.0, Color("#ff8a3c"))
+-				draw_circle(mp - Vector2(-120, 320) * drop, 8.0, Color("#fff0b0"))
++				draw_circle(mp - Vector2(-120, 320) * drop, 8.0, fx_col(Color("#fff0b0")))
+ 				draw_arc(mp, mr, 0, TAU, 40, Color(1, 0.5, 0.2, 0.7), 2.0, true)
+ 			else:
+ 				var bk := (k - 0.3) / 0.7
+@@ -533,11 +656,13 @@ func _draw_fx(f: Dictionary) -> void:
+ 		"flash":
+ 			var c2: Color = f["c"]
+ 			var p0: Vector2 = f["p"]
++			var fa2 := FX_FACE_ALPHA if fx_on_face(p0, 14.0 * (1 + k)) else 1.0   # 1.6.0 B08：蓋在頭胸上就壓淡
++			c2 = fx_col(c2)
+ 			# 雙層描邊（第三輪 V4）：深色底 4px＋亮芯
+ 			for pair in [[Vector2(-14, -14), Vector2(14, 14)], [Vector2(-14, 14), Vector2(14, -14)]]:
+-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(Art.OUT, 0.8 * (1 - k)), 8, true)
+-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(c2, 1 - k), 4, true)
+-				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(1, 1, 1, 0.7 * (1 - k)), 1.5, true)
++				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(Art.OUT, 0.8 * (1 - k) * fa2), 8, true)
++				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(c2, (1 - k) * fa2), 4, true)
++				draw_line(p0 + pair[0] * (1 + k), p0 + pair[1] * (1 + k), Color(fx_col(Color(1, 1, 1)), 0.7 * (1 - k) * fa2), 1.5, true)
+ 		"ripple":
+ 			var c3: Color = f["c"]
+ 			draw_arc(f["p"], 6 + k * 18, -1.2, 1.2, 12, Color(c3, 1 - k), 3, true)
+@@ -851,7 +976,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 			# 爆炸：橘紅鋸齒爆裂圈＋黑煙圈（和平滑同心圓區分，第四輪 §4.4）
+ 			# 爆炸（Antigravity 實作審查：原本像同心圓標靶）：10 尖角的鋸齒星芒＋黃白核心＋4 團往外散的灰煙
+ 			var bp: Vector2 = f["p"] + Vector2(0, -14)
+-			var br := 14.0 + _smoothstep01(k) * 26.0
++			var br := boom_radius(k)
+ 			var spikes := PackedVector2Array()
+ 			for i in 20:
+ 				var an := i * TAU / 20.0 + 0.2
+@@ -861,7 +986,7 @@ func _draw_fx(f: Dictionary) -> void:
+ 			draw_colored_polygon(spikes, Color(1.0, 0.42, 0.12, 0.92 * fa))
+ 			for i in 20:
+ 				spikes[i] = bp + (spikes[i] - bp) * 0.55
+-			draw_colored_polygon(spikes, Color(1.0, 0.86, 0.35, 0.95 * fa))
++			draw_colored_polygon(spikes, Color(fx_col(Color(1.0, 0.86, 0.35)), 0.95 * fa))
+ 			for i in 4:
+ 				var pa := i * TAU / 4.0 + 0.6
+ 				var pp := bp + Vector2(cos(pa) * (8.0 + k * 30.0), sin(pa) * (6.0 + k * 20.0) - k * 10.0)
+@@ -874,13 +999,14 @@ func _draw_fx(f: Dictionary) -> void:
+ 				var q := float(i) / 8.0
+ 				pts.append(ha.lerp(hb, q) + Vector2(0, -sin(q * PI) * 18.0))
+ 			draw_polyline(pts, Color(0.5, 1.0, 0.6, 0.7 * (1.0 - k)), 2.5, true)
+-			_cross(hb + Vector2(0, -k * 14.0), 5.0, Color(0.5, 1.0, 0.6, 1.0 - k))
++			var hc := hb + Vector2(0, -k * 14.0)
++			_cross(hc, 5.0, Color(fx_col(Color(0.5, 1.0, 0.6)), (1.0 - k) * (FX_FACE_ALPHA if fx_on_face(hc, 5.0) else 1.0)))
+ 		"note":
+ 			# 音符放大 1.6 倍＋深咖啡描邊（Antigravity：原本跟草地小花一樣大）
+ 			var np: Vector2 = f["p"] + Vector2(sin(k * 6.0) * 4.0, -k * 22.0)
+-			var na := 1.0 - k
++			var na := (1.0 - k) * (FX_FACE_ALPHA if fx_on_face(np, 11.0) else 1.0)   # 1.6.0 B08：蓋在頭胸上就壓淡
+ 			var oc := Color(0.24, 0.14, 0.05, na)
+-			var nc := Color(1.0, 0.86, 0.3, na)
++			var nc := Color(fx_col(Color(1.0, 0.86, 0.3)), na)
+ 			draw_circle(np, 6.6, oc, true, -1.0, true)
+ 			draw_line(np + Vector2(5, 1), np + Vector2(5, -16), oc, 4.6, true)
+ 			draw_line(np + Vector2(5, -16), np + Vector2(11, -11), oc, 4.6, true)
+diff --git a/game/scripts/ui/battle/battle_units.gd b/game/scripts/ui/battle/battle_units.gd
+index 05428d3..63624cd 100644
+--- a/game/scripts/ui/battle/battle_units.gd
++++ b/game/scripts/ui/battle/battle_units.gd
+@@ -510,6 +510,53 @@ const FOCUS_SCALE := 1.4 / 1.25
+ func focus_scale(id: int) -> float:
+ 	return FOCUS_SCALE if follow_id >= 0 and id == follow_id else 1.0
+ 
++## 1.6.0 B08（P3.3、S4）：兵偶頭胸框（戰場座標）——跳字不蓋。腳底點往上 FACE_BOT～FACE_TOP（×HK×巨獸／跟拍縮放），半寬 FACE_HW。
++## 數字對截圖量過（--face-debug 把框畫出來）。
++const FACE_TOP := 54.0
++const FACE_BOT := 14.0
++const FACE_HW := 17.0
++func face_rects() -> Array:
++	var out: Array = []
++	if view == null:
++		return out
++	for u in view.units:
++		if not u.alive or u.hidden:
++			continue
++		var sc: float = (BossD.DRAW_SCALE if u.boss else 1.0) * focus_scale(u.id) * HK
++		var p: Vector2 = _upos(u) + _open_drop(u)
++		out.append(Rect2(p + Vector2(-FACE_HW, -FACE_TOP) * sc, Vector2(FACE_HW * 2.0, FACE_TOP - FACE_BOT) * sc))
++	return out
++
++## 交戰區：和敵兵相距 ≤1.5 格的兵的外接框，往外一格、夾在盤內；沒有交戰＝整個盤。
++func engage_rect() -> Rect2:
++	var board := Rect2(ORIGIN, fld_size)
++	if view == null:
++		return board
++	var ps: Array = [[], []]
++	for u in view.units:
++		if u.alive and not u.hidden:
++			ps[u.team].append(_upos(u))
++	var r := Rect2()
++	var any := false
++	var lim := (CS * 1.5) * (CS * 1.5)
++	for a: Vector2 in ps[0]:
++		for b: Vector2 in ps[1]:
++			if a.distance_squared_to(b) <= lim:
++				var pair := Rect2(a, Vector2.ZERO).expand(b)
++				r = pair if not any else r.merge(pair)
++				any = true
++	if not any:
++		return board
++	return r.grow(CS).intersection(board)
++
++func _draw_face_debug() -> void:
++	for q: Rect2 in face_rects():
++		draw_rect(q, Color(1, 0, 1, 0.9), false, 1.5)
++	draw_rect(engage_rect(), Color(0, 1, 1, 0.9), false, 2.0)
++	for f in fx:
++		if f["kind"] == "text" and f.has("rr"):
++			draw_rect(f["rr"], Color(1, 1, 0, 0.9), false, 1.0)
++
+ ## 1.3.0 §3 平原棉布拼貼（64px＝一格）：斜紋（每 6px 一道亮／暗細紋）；grid＝true 時上緣、左緣是壓縫棉線（亮線＋下方暗影、每 4px 一針），左上角一個小線結。
+ static var _cotton := {}
+ static func _cotton_tex(grid: bool) -> Texture2D:
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index 96789a6..730003a 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -843,6 +843,8 @@ func _draw_inner() -> void:
+ 	for f in fx:
+ 		if not f.get("screen", false) and f["kind"] == "text":
+ 			_draw_fx(f)
++	if state == St.BATTLE and "--face-debug" in OS.get_cmdline_user_args():
++		_draw_face_debug()   # 1.6.0 B08：開發用，頭胸框／交戰區／跳字框
+ 	if state == St.BATTLE:
+ 		_draw_focus_marks(view)   # 1.5.0 §7：跟拍兵／目標的頭頂記號畫在跳字泡泡之上（不被蓋住；Hydrogen v150 cat07 r3）
+ 	perf_parts["fx"] = Time.get_ticks_usec() - _t
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index c39475b..c6760da 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index 9d010ff..2e366d6 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -1181,3 +1181,131 @@ func test_atlas_pack_v1600() -> void:
+ 			bad += 1
+ 	ok(bad == 0, "包讀回的每張圖＝烘的時候的像素、檔案沒被換（解碼差 0；%d 張）" % sha.size())
+ 
++
++## 1.6.0 B08（S4；P3.3～P3.5）：混戰看得懂——用正式畫面程式逐幀播 6 場（60fps），每幀量：
++## 顯示中跳字蓋到兵偶頭胸框的面積 0、出盤內 12px 的 0、跳字總面積 ≤ 交戰區 15%；關鍵跳字不漏；
++## 裝飾特效單一面積 ≤ 交戰區 4%、最亮 ≤0.8。另有人造擁擠例（頭胸框擋在原位）與找不到位置時的處理。
++func test_melee_read_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g._load_fonts()
++	var pool := F.training_pool(0)
++	var face := 0
++	var clip := 0
++	var area := 0.0
++	var fx_a := 0.0
++	var fx_l := 0.0
++	var frames := 0
++	var shown := 0
++	var lay_us: Array = []
++	for i in 6:
++		g._begin_battle(pool[i * 3].copy(), pool[(i * 17 + 4) % pool.size()].mirrored(), "replay")
++		g.speed = 1.0
++		var guard := 0
++		while g.state == g.St.BATTLE and not g.view.finished and guard < 9000:
++			guard += 1
++			g._process_inner(1.0 / 60.0)
++			frames += 1
++			var t0 := Time.get_ticks_usec()
++			g._layout_texts()   # 再排一次量耗時（同一幀重排結果一樣）
++			lay_us.append(Time.get_ticks_usec() - t0)
++			var st: Dictionary = g.text_overlap_stats()
++			face = maxi(face, int(st["face_px"]))
++			clip = maxi(clip, int(st["clipped"]))
++			area = maxf(area, float(st["area_ratio"]))
++			shown += int(st["visible"])
++			for f in g.fx:   # 特效量測：和畫圖同一支算半徑（測試不能在 _draw 外畫）；亮度走 fx_col
++				var fk: float = f["t"] / f["dur"]
++				if g.GLOW.has(f["kind"]):
++					g.glow_radius(f, fk)
++					g.fx_col(g.GLOW[f["kind"]][0])
++				elif f["kind"] == "boom":
++					g.boom_radius(fk)
++					g.fx_col(Color(1.0, 0.86, 0.35))
++			fx_a = maxf(fx_a, float(g.fx_stats["max_area"]))
++			fx_l = maxf(fx_l, float(g.fx_stats["max_lum"]))
++	lay_us.sort()
++	var p99: int = lay_us[int(lay_us.size() * 0.99)] if not lay_us.is_empty() else 0
++	ok(p99 < 1500, "跳字排版耗時 p99 <1.5ms（p50 %d µs、p99 %d µs、最大 %d µs）" % [lay_us[lay_us.size() / 2], p99, lay_us[-1]])
++	ok(shown > 100, "混戰量測有量到跳字（%d 幀、顯示中跳字累計 %d）" % [frames, shown])
++	ok(face == 0, "S4：跳字蓋到頭胸框 0 像素（最大 %d）" % face)
++	ok(clip == 0, "S4：跳字出盤內 12px 0 個（最大 %d）" % clip)
++	ok(area <= 0.15, "S4：跳字總面積 ≤ 交戰區 15%%（最大 %.3f）" % area)
++	ok(g.text_key_in > 0 and g.text_key_in == g.text_key_shown, "S4：關鍵跳字一個都不漏（%d／%d）" % [g.text_key_shown, g.text_key_in])
++	ok(fx_a <= 0.04 + 1e-6 and fx_l <= 0.8 + 1e-6, "P3.4：裝飾特效單一面積 ≤4%%、最亮 ≤0.8（%.4f、%.3f）" % [fx_a, fx_l])
++	# 人造：頭胸框正好擋在跳字原位 → 找到旁邊或上面的乾淨位置，離原位 ≤1.5 格
++	var r := Rect2(500, 300, 80, 27)
++	var faces := [Rect2(500, 290, 40, 50), Rect2(560, 250, 40, 50)]
++	var res: Array = g._text_slot(r, [], faces, Rect2(g.ORIGIN, g.fld_size).grow(-12))
++	var hit := false
++	for q: Rect2 in faces:
++		hit = hit or q.intersects(res[0])
++	ok(res[1] and not hit and (res[0] as Rect2).position.distance_to(r.position) <= g.TEXT_MAX_MOVE + r.size.x, "跳字避開頭胸框（%s）" % [res[0]])
++	# 盤邊：原位出盤 → 夾回盤內 12px
++	var edge: Array = g._text_slot(Rect2(g.ORIGIN + Vector2(-30, -20), Vector2(80, 27)), [], [], Rect2(g.ORIGIN, g.fld_size).grow(-12))
++	ok(Rect2(g.ORIGIN, g.fld_size).grow(-12).encloses(edge[0]), "盤邊跳字夾回盤內 12px（%s）" % [edge[0]])
++	# 四面都是頭胸框：找不到乾淨位置 → 回報 false（一般跳字丟、關鍵放蓋最少處）
++	var wall: Array = []
++	for yy in range(0, 400, 20):
++		for xx in range(300, 760, 30):
++			wall.append(Rect2(xx, yy, 30, 20))
++	var none: Array = g._text_slot(Rect2(500, 300, 80, 27), [], wall, Rect2(g.ORIGIN, g.fld_size).grow(-12))
++	ok(not none[1], "找不到乾淨位置時照實回報（一般跳字會丟、關鍵不丟）")
++	# 特效亮度上限：純白壓到 0.8、暗色不動
++	var cw: Color = g.fx_lum_cap(Color(1, 1, 1))
++	ok(absf(0.2126 * cw.r + 0.7152 * cw.g + 0.0722 * cw.b - 0.8) < 1e-3 and g.fx_lum_cap(Color(0.3, 0.2, 0.1)) == Color(0.3, 0.2, 0.1), "特效亮度上限：白壓到 0.8、暗色不動")
++	g.free()
++
++## 1.6.0 B08（P3.5）語意保護：B06 的地形落影與 B03 的盤外壓暗不碰隊色與通行格。
++## ①落影只落在可走格（牆格 0，B06 已驗）且每個可走格被影子蓋到的深度 ≤40%、影子不透明度 ≤0.35——格子大半保留原色，通行判讀不變；
++## ②盤外壓暗畫在桌面那一層（盤面、兵、隊色圈都畫在它之後）；③影子、凹槽內影都畫在地圖烘焙層（兵與腳底隊色圈在其後）。
++func test_semantic_guard_v1600() -> void:
++	var MA = load("res://scripts/ui/map_art.gd")
++	var MD = load("res://scripts/core/map_defs.gd")
++	var worst := 0.0
++	var n := 0
++	for mid in range(1, MD.MAPS.size()):
++		for sz in 3:
++			var tt = MD.terrain(mid, sz)
++			if tt == null:
++				continue
++			for tl in [false, true]:
++				var pp = MA._Painter.new()
++				pp.t = tt
++				pp.kind = str(MD.MAPS[mid]["biome"])
++				pp.tilt = tl
++				var Q := 32.0
++				var cover := {}
++				for r in tt.m:
++					for c in tt.n:
++						for sh in [pp.shadow_south(c, r, Q), pp.shadow_east(c, r, Q)]:
++							if sh.size.x <= 0.0:
++								continue
++							n += 1
++							for r2 in range(maxi(0, r - 1), mini(tt.m, r + 3)):
++								for c2 in range(maxi(0, c - 1), mini(tt.n, c + 3)):
++									var cell := Rect2(Vector2(c2, r2) * Q, Vector2(Q, Q))
++									if sh.intersects(cell):
++										var k := Vector2i(c2, r2)
++										cover[k] = float(cover.get(k, 0.0)) + sh.intersection(cell).get_area() / (Q * Q)
++				for k in cover:
++					worst = maxf(worst, cover[k])
++				pp.free()
++	ok(n > 200 and worst <= 0.40, "落影蓋到單一可走格的面積最多 %.0f%%（≤40%%；%d 塊影子）" % [worst * 100.0, n])
++	var src: String = FileAccess.get_file_as_string("res://scripts/ui/map_art.gd")
++	var alphas: Array = []
++	for line in src.split("\n"):
++		if line.find("draw_rect(ssh") >= 0 or line.find("draw_rect(esh") >= 0 or line.find("凹槽北緣內影") >= 0:
++			var m := RegEx.create_from_string("Color\\(([0-9.]+), ([0-9.]+), ([0-9.]+), ([0-9.]+)\\)").search(line)
++			if m != null:
++				alphas.append(float(m.get_string(4)))
++	ok(alphas.size() >= 3 and alphas.max() <= 0.35, "落影、東側影、凹槽內影不透明度 ≤0.35（%s）" % [alphas])
++	var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
++	var i_desk := gs.find("_draw_desk()   #")
++	var i_field := gs.find("\t_draw_field()\n")
++	var i_units := gs.find("_draw_units_of(view, false)")
++	ok(i_desk >= 0 and i_field > i_desk and i_units > i_field, "畫的順序：桌面（含盤外壓暗）→ 盤面與地形 → 兵與隊色圈")
++	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
++	var i_dim := ub.find("Color(DIM_INK, PAL.OFF_BOARD_DIM)")
++	ok(i_dim > ub.find("func _draw_desk()") and i_dim < ub.find("func _desk_props()"), "盤外壓暗在 _draw_desk 裡（盤面畫在它之上，盤內隊色不變）")
+diff --git a/game/tools/layout_check.sh b/game/tools/layout_check.sh
+index 198370b..d088335 100755
+--- a/game/tools/layout_check.sh
++++ b/game/tools/layout_check.sh
+@@ -32,7 +32,7 @@ run_combo() {
+   local combo=$1 lang sc st d
+   IFS=: read -r lang sc st <<< "$combo"
+   d="$OUT/${lang}_${sc}${st:+_${st//,/-}}"; mkdir -p "$d"
+-  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} ${LAYOUT_FIXED:+--shot-fixed} ${LAYOUT_NOPACK:+--no-pack} ${LAYOUT_NO_DESK_PAPER:+--no-desk-paper} --shot-prefix="shot_${lang}_${sc}${st:+_${st//,/-}}__" --layout-check > "$d/run.log" 2>&1 \
++  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} ${LAYOUT_FIXED:+--shot-fixed} ${LAYOUT_NOPACK:+--no-pack} ${LAYOUT_NO_DESK_PAPER:+--no-desk-paper} ${LAYOUT_FACE_DEBUG:+--face-debug} --shot-prefix="shot_${lang}_${sc}${st:+_${st//,/-}}__" --layout-check > "$d/run.log" 2>&1 \
+     || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0" >> "$FAILS"; kill_win "$d"; return; }
+   grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤" >> "$FAILS"; return; }
+   grep -q "^SHOTFAIL" "$d/run.log" && { echo "LAYOUT FAIL：$lang $sc% 截圖存檔失敗：$(grep SHOTFAIL "$d/run.log" | head -3 | tr '\n' ' ')" >> "$FAILS"; return; }

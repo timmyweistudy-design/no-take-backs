@@ -2487,10 +2487,10 @@ func _draw_owner_daily() -> void:
 		var pz := PZ.get_puzzle(id)
 		var st := int(stars.get(id, 0))
 		var mark := L.t("od_done") if id in done else L.t("od_todo")
-		var label := "%s　%s　%s" % [L.field(pz, ""), "★".repeat(st) + "☆".repeat(3 - st), mark]
 		var pid: String = id
 		# 1.5.0 §13：三顆都是次鈕（原本三條亮紅主鈕太刺眼）；左邊一個木章凹槽：做過＝蓋了紅泥章、沒做＝空槽
 		var br := Rect2(P.position.x + 40 + 48, y, P.size.x - 80 - 48, 44)
+		var label := od_label(L.field(pz, ""), st, mark, br.size.x)
 		_btn(br, label, func(): overlay = ""; _pick_puzzle(pid, false))
 		var sc := Vector2(P.position.x + 40 + 20, y + 22)
 		draw_circle(sc, 18.0, Color(0.78, 0.62, 0.42), true, -1.0, true)   # 槽緣木刻高光（Hydrogen v150 cat08 #3：原本太暗看不出是凹槽）
@@ -2515,6 +2515,20 @@ func _draw_owner_daily() -> void:
 		else:
 			draw_rect(sr.grow(-2), Color(TXT_DIM, 0.35), false, 1.5)
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())
+
+## 題單按鈕的字：「題名　★☆☆　狀態」；放不進按鈕（左右各留 R12 內距）時先拿掉狀態字（左邊的章槽已經看得出做沒做），
+## 再放不下就把題名截短加「…」。每日題是照真實日期抽的，長題名的那天才會碰到（1.6.0 B08 驗收在英文 150% 抓到）。
+func od_label(name: String, st: int, mark: String, bw: float) -> String:
+	var LRx = load("res://scripts/ui/layout_rules.gd")
+	var avail: float = bw - 2.0 * maxf(LRx.R12_H_MIN, LRx.R12_H_PCT * bw) - 4.0
+	var stars := "★".repeat(st) + "☆".repeat(3 - st)
+	var full := "%s　%s　%s" % [name, stars, mark]
+	if _width(full, ts(18), true) <= avail:
+		return full
+	var nm := name
+	while nm.length() > 1 and _width("%s　%s" % [nm if nm == name else nm + "…", stars], ts(18), true) > avail:
+		nm = nm.substr(0, nm.length() - 1)
+	return "%s　%s" % [nm if nm == name else nm + "…", stars]
 
 ## 印章冊：第幾頁、這頁蓋了幾格（10 的倍數＝這頁剛好蓋滿，不跳到空白新頁）
 const STAMP_PER_PAGE := 10

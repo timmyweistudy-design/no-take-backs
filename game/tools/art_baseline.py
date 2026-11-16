@@ -56,7 +56,20 @@ def main():
         if v[0] > old[k][0]:
             flips.append('%s：%d → %d（/%d）' % (k, old[k][0], v[0], v[1]))
     # 容差（1.5.0 第 3 批量測）：密集兵團裡單隻棋子在 3:1 門檻上下跳動是量測顆粒——每張畫面最多多 max(3, 15%)、總數最多多 2%
+    # 1.6.0（方案 §1「超出 1.5.0 容差的畫面逐張在 ledger 解釋為主動改版」）：docs/ui-art-explained.json 登記的畫面
+    # 在登記的上限（24 組加總）內不算變差，也不算進總數比較；超過上限照擋。B13a 一次升 1.6.0 新基線後清空。
+    exp_p = os.path.join(os.path.dirname(os.path.abspath(base)), 'ui-art-explained.json')
+    explained = json.load(open(exp_p, encoding='utf-8')) if os.path.exists(exp_p) else {}
+    noted = []
     for shot in sorted(by_c):
+        e = explained.get(shot)
+        if e and by_c[shot] > by_b[shot]:
+            if by_c[shot] <= int(e['max']):
+                noted.append('%s：%d → %d（%s 主動改版，登記上限 %d：%s）' % (shot, by_b[shot], by_c[shot], e['batch'], int(e['max']), e['reason']))
+                lo_c -= by_c[shot] - by_b[shot]
+                continue
+            worse.append('%s：%d → %d（超過 %s 登記上限 %d）' % (shot, by_b[shot], by_c[shot], e['batch'], int(e['max'])))
+            continue
         if by_c[shot] > by_b[shot] + max(SHOT_TOL_ABS, int(by_b[shot] * SHOT_TOL_PCT)):
             worse.append('%s：%d → %d（24 組加總，超過容差）' % (shot, by_b[shot], by_c[shot]))
         elif by_c[shot] > by_b[shot]:
@@ -66,6 +79,8 @@ def main():
     print('ART 固定時鐘棋子低對比 %d（基線 %d）；比基線差的畫面 %d 張、探針消失 %d 筆、新畫面 %d 筆（沒有基線，不算）；單組上下跳動 %d 筆（只列參考）' % (lo_c, lo_b, len(worse), len(lost), len(new), len(flips)))
     for w in worse[:40]:
         print('  ' + w)
+    for w in noted:
+        print('  已解釋 ' + w)
     for k in lost[:20]:
         print('  探針消失 ' + k)
     sys.exit(1 if (worse or lost) else 0)
