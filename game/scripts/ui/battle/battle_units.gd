@@ -466,7 +466,9 @@ func _board_ring(inner: Rect2) -> bool:
 	# 1.2.0 §5.1 盤緣刻字：下緣中央凹刻地圖名（暗字＋下方 1px 亮線）。純裝飾、不經探針（地圖名在大廳與 HUD 另有）；
 	# 字級用表裡的 C，放不進 18px 木框（125%／150%）就不刻
 	var fs := tz("C")
-	if fs <= 16 and MapDefs.MAPS.size() > fld_map:
+	# 1.6.0 B06：擺陣不刻——上框被頂部資訊列（0～92）蓋掉一半，下框露出來只有 16px、字會壓到卡列（Hydrogen B06 r1）；
+	# 和 125／150% 同一條規則：放不進木框就不刻（地圖名在大廳另有）
+	if fs <= 16 and MapDefs.MAPS.size() > fld_map and state != St.PLACE:
 		var nm := L.t("map_" + str(MapDefs.MAPS[fld_map]["key"]))
 		# 1.4.0 §3.4：地圖名刻在盤框左上角（原本下緣中央，會被底部戰報條切到）
 		var bp := Vector2(inner.position.x + 18.0, inner.position.y - 9 + fs * 0.36)
@@ -562,11 +564,17 @@ func _map_prop() -> void:
 			draw_circle(p, 10.0, PAL.DIM_INK, true, -1.0, true)
 			for k in 3:
 				draw_circle(p + Vector2(-4 + k * 4, -1 + (k % 2) * 2), 2.5, PAL.TH_PRIMARY, true, -1.0, true)
-		"canyon":   # 小仙人掌
-			draw_rect(Rect2(p + Vector2(-3, -14), Vector2(6, 22)), PAL.TH_ACTIVE.lerp(Color(0.3, 0.5, 0.25), 0.8))
-			draw_rect(Rect2(p + Vector2(-9, -8), Vector2(6, 4)), Color(0.3, 0.5, 0.25))
-			draw_rect(Rect2(p + Vector2(3, -4), Vector2(6, 4)), Color(0.3, 0.5, 0.25))
-			draw_rect(Rect2(p + Vector2(-6, 8), Vector2(12, 5)), PAL.TH_ACTIVE)
+		"canyon":   # 1.6.0 B06：小陶罐（原本的小仙人掌在桌上看起來像浮著的十字＝桌外雜訊；方案 P1.4）
+			var ell := PackedVector2Array()   # 貼桌接觸影（光源左上；橢圓直接算點，不換畫布矩陣＝不蓋鏡頭）
+			for k in 16:
+				ell.append(p + Vector2(PAL.CONTACT_OFF.x, 9 + PAL.CONTACT_OFF.y) + Vector2(cos(k * TAU / 16.0) * 12.0, sin(k * TAU / 16.0) * 4.8))
+			draw_colored_polygon(ell, Color(sh, PAL.CONTACT_A))
+			var clay := Color(PAL.MAT_WALNUT[2]).lerp(PAL.MAT_WAX[0], 0.35)
+			draw_circle(p + Vector2(0, 2), 10.0, clay, true, -1.0, true)                    # 罐身
+			draw_circle(p + Vector2(3, 5), 7.0, Color(PAL.MAT_WALNUT[1], 0.35), true, -1.0, true)   # 右下背光
+			draw_rect(Rect2(p + Vector2(-5, -11), Vector2(10, 5)), clay.darkened(0.15))     # 罐頸
+			draw_rect(Rect2(p + Vector2(-6, -12), Vector2(12, 2)), clay.lightened(0.2))     # 罐口受光
+			draw_circle(p + Vector2(-4, -1), 2.2, Color(1, 0.95, 0.85, 0.35), true, -1.0, true)   # 左上反光
 
 ## ── 1.3.0 §1 桌邊視角（路線 B：2D 假立體；路線 A 切片的結論見 coordination/v130-impl/cat02-plan.md）──
 ## 鏡頭是正交、偏離俯視 20°：地面座標和 1.2.0 完全一樣（點格、版面、截圖座標都不變），只多出朝南的立面、厚度與燈影。

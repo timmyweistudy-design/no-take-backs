@@ -2724,7 +2724,7 @@ func test_table_seats_v1600() -> void:
 	ok(not (sl["owner"] as Rect2).intersects(sl["cup"]) and not (sl["cup"] as Rect2).intersects(sl["clock"]), "三槽不重疊")
 	ok(TS.right_slots(Rect2(100, 100, 1100, 576)).is_empty(), "盤太寬、桌緣放不下槽＝回空（呼叫端照 HIDE_ORDER 退）")
 	var rep: Dictionary = TS.spec_report()
-	ok(not bool(rep["board_ok"]) and float(rep["edge_r"]) == 112.0, "規格符合度如實回報（盤含框 1056 > 1040、右桌緣 112；B06 決定縮盤）")
+	ok(not bool(rep["board_ok"]) and float(rep["edge_r"]) == 112.0, "規格符合度如實回報（盤含框 1056 > 1040、右桌緣 112；B06 裁決不縮盤：盤面 1024＝16 格×64，縮盤要改格寬＝全部戰鬥座標）")
 	var nr: Rect2 = TS.result_note_rect()
 	ok(nr.end.x <= TS.RESULT_PAPER.position.x - TS.SLOT_GAP and nr.size.y <= TS.RESULT_NOTE_MAX.y, "局內便條在結果紙外左下、不壓紙")
 	for m in [PAL.MAT_WALNUT, PAL.MAT_PAPER, PAL.MAT_WAX, PAL.MAT_CHALK, PAL.MAT_BRASS]:
@@ -2801,6 +2801,133 @@ func test_table_seats_v1600() -> void:
 	UB.ink_deep = false
 	ok(UB._ink(Color("#1c4566")) == Color("#1c4566"), "淺紙（一般）中間調的深隊色不動（深墨才壓）")
 	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
-	ok(gsrc.find("ink_deep = not bool(Save.s(\"plain_ui\"))") >= 0 and gsrc.find("_draw_result()\n\t\t\t\tink_deep = false") >= 0, "只有結果紙開深墨、畫完關掉")
+	ok(gsrc.find("ink_deep = desk_paper") >= 0 and gsrc.find("_draw_inner()\n\tink_deep = false\n\tpaper_tone = Color.WHITE") >= 0, "深墨與桌燈紙：B06 起全站（每幀畫完關掉）")
 	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
-	ok(gr.find("_mat_box(r, \"card2\", PAL.PAPER_DESK_TONE)") >= 0 and gr.find("_contact_shadow(r, 4.0, 0.45)") >= 0, "結果紙：桌燈色調＋共用接觸影")
+	ok(gr.find("_mat_box(r, \"card2\")") >= 0 and gr.find("_contact_shadow(r, 4.0, 0.45)") >= 0, "結果紙：桌燈色調（全站 paper_tone）＋共用接觸影")
+
+
+## 1.6.0 B06：全站桌燈紙（P1.3）、結果頁便條釘位（P1.5）、地形微縮光向（P1.4）、地圖名刻字位置
+func test_desk_table_v1600() -> void:
+	var TS = load("res://scripts/ui/table_seats.gd")
+	var PAL = load("res://scripts/ui/palette.gd")
+	var Sv = load("res://scripts/game/save.gd")
+	# 全站桌燈紙：紙與卡紙乘 paper_tone；標題頁本身（沒疊層）、簡化介面不乘
+	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+	ok(ub.find("if kind == \"paper\":\n\t\ttint = tint * (PAL.PAPER_DESK_TONE_TEX") >= 0 and ub.find("if kind.begins_with(\"card\"):\n\t\ttint = tint * paper_tone") >= 0, "羊皮紙、卡紙都乘桌燈色調")
+	var gsrc: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+	ok(gsrc.find("not bool(Save.s(\"plain_ui\")) and not (state == St.TITLE and overlay == \"\") and overlay != \"lobby\"") >= 0, "桌燈紙的範圍：簡化介面、標題頁本身、大廳（B04）除外")
+	var dark_paper: Color = Color("#efe4cc") * PAL.PAPER_DESK_TONE
+	ok(load("res://tools/dev_main.gd").contrast(Color("#2a1e15"), dark_paper) >= 4.5, "深墨字對桌燈紙 ≥4.5:1")
+	# 地形微縮：地塊烘焙的光向＝全站接觸影方向
+	var MA = load("res://scripts/ui/map_art.gd")
+	ok(MA._Painter.LIGHT_DX == PAL.CONTACT_OFF.x, "地形落影的光向＝CONTACT_OFF（同一盞左上主光）")
+	# 地形語意遮罩（Codex B06 r1 #1）：全部真實地圖×三種大小×兩種視角，落影只落在可走格、不染任何牆格（通行判讀不變）
+	var MD = load("res://scripts/core/map_defs.gd")
+	var bad := 0
+	var n_sh := 0
+	for mid in range(1, MD.MAPS.size()):
+		for sz in 3:
+			var tt = MD.terrain(mid, sz)
+			if tt == null:
+				continue
+			for tl in [false, true]:
+				var pp = MA._Painter.new()
+				pp.t = tt
+				pp.kind = str(MD.MAPS[mid]["biome"])
+				pp.tilt = tl
+				var Q := 32.0
+				for r in tt.m:
+					for c in tt.n:
+						for sh in [pp.shadow_south(c, r, Q), pp.shadow_east(c, r, Q)]:
+							if sh.size.x <= 0.0:
+								continue
+							n_sh += 1
+							for r2 in range(maxi(0, r - 1), mini(tt.m, r + 3)):
+								for c2 in range(maxi(0, c - 1), mini(tt.n, c + 3)):
+									if tt.grid[c2 + r2 * tt.n] == tt.BLOCK and sh.intersects(Rect2(Vector2(c2, r2) * Q, Vector2(Q, Q))):
+										bad += 1
+										if bad <= 3:
+											print("  影子壓到牆格：map %d size %d (%d,%d)→(%d,%d) %s" % [mid, sz, c, r, c2, r2, sh])
+				pp.free()
+	ok(n_sh > 200 and bad == 0, "地形落影 %d 塊、壓到牆格 %d（要 0）" % [n_sh, bad])
+	# 真實地圖沒有「南鄰空、東南是牆」的形狀：人造一個，驗往右偏的落影會裁掉偏進東南牆格的那段
+	var t0 = MD.terrain(1, 1)
+	var fake := {"n": 3, "m": 3, "BLOCK": t0.BLOCK, "FREE": t0.FREE, "grid": [t0.BLOCK, t0.FREE, t0.FREE, t0.FREE, t0.BLOCK, t0.FREE, t0.FREE, t0.FREE, t0.FREE]}
+	var pf = MA._Painter.new()
+	pf.t = fake
+	pf.kind = "ice"
+	var ss: Rect2 = pf.shadow_south(0, 0, 32.0)
+	ok(ss.size.x > 0.0 and not ss.intersects(Rect2(32, 32, 32, 32)), "南影右偏遇到東南牆格＝裁掉（%s）" % ss)
+	pf.free()
+	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+	ok(bu.find("\"canyon\":   # 小仙人掌") < 0 and bu.find("\"canyon\":   # 1.6.0 B06：小陶罐") >= 0, "峽谷桌緣的小仙人掌（像浮著的十字）換成有接觸影的小陶罐")
+	ok(bu.find("fld_map and state != St.PLACE:") >= 0, "擺陣不刻地圖名（上框被資訊列蓋、下框只露 16px 會壓到卡列）")
+	# 便條釘位：從真實 _input 進入
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g._load_fonts()
+	g.time = 10.0
+	g.mode = g.Mode.VS_AI
+	g.state = g.St.RESULT
+	g.result_t = 0.0   # 結果頁開了 10 秒：宣紙戰報早演完（不然點擊是「跳過演出」）
+	g.overlay = ""
+	g.shot_dir = ""
+	g.layout_probe = false
+	var keep_seen = Sv.data.get("seen", null)
+	var keep_lock = Sv.data_locked
+	var keep_ts = Sv.settings.get("text_scale", 100)
+	Sv.data["seen"] = []
+	for sc in [100, 150]:
+		Sv.settings["text_scale"] = sc
+		var lay: Dictionary = g._note_pin_layout()
+		var R: Rect2 = lay["r"]
+		ok(R.end.x <= TS.RESULT_PAPER.position.x - TS.SLOT_GAP and R.position.x >= TS.SLOT_GAP, "%d%%：便條在結果紙外左邊桌緣、不壓紙" % sc)
+		ok(R.end.y == TS.RESULT_PAPER.end.y and R.position.y >= TS.RESULT_PAPER.position.y, "%d%%：下緣對齊紙下緣、往上撐不出桌" % sc)
+		ok(R.encloses(lay["btn"]), "%d%%：打開鈕在便條裡" % sc)
+		if sc == 100:
+			ok(R.size.y <= TS.RESULT_NOTE_MAX.y, "100%：不超過 120 高（方案 §1）")
+	Sv.settings["text_scale"] = keep_ts
+	ok(g._note_pin_shown("result"), "第一次看結果：便條釘在桌緣（不再自動蓋在紙上）")
+	ok(g.overlay == "", "沒有自動跳疊層")
+	var lay2: Dictionary = g._note_pin_layout()
+	g._btns.clear()
+	g._btns.append({"r": lay2["btn"], "cb": g._note_pin_open.bind("result"), "en": true})
+	g._update_gen()   # 畫面世代先對上結果頁（不然佇列裡的點擊會當成過期丟掉）
+	g._btns_gen = g._gen
+	for dn in [true, false]:
+		var e0: InputEventMouseButton = _im_ev("mouse", dn)
+		e0.position = (lay2["btn"] as Rect2).get_center()
+		g._input(e0)
+	g._process_cmds()
+	ok(g.overlay == "boss_note" and g.note_key == "result", "真實輸入：點「打開看」＝展開全文便條")
+	Sv.data_locked = true
+	g._key(KEY_ESCAPE)
+	Sv.data_locked = keep_lock
+	ok(g.overlay == "" and "note_result" in Sv.data["seen"], "Esc＝知道了：關掉並記住")
+	ok(not g._note_pin_shown("result"), "看過就不再釘")
+	Sv.data["seen"] = []
+	# 手把：焦點在「打開看」上按 A（真實 _input → 指令佇列 → Enter → 焦點按鈕）
+	g._focus = 0
+	g._update_gen()
+	g._btns_gen = g._gen
+	for dn in [true, false]:
+		var ja := InputEventJoypadButton.new()
+		ja.device = 0
+		ja.button_index = JOY_BUTTON_A
+		ja.pressed = dn
+		g._input(ja)
+	g._process_cmds()
+	ok(g.overlay == "boss_note" and g.note_key == "result", "真實輸入：手把 A＝打開便條")
+	g.overlay = ""
+	g.shot_dir = "x"
+	ok(not g._note_pin_shown("result"), "截圖流程不釘（專拍用 note_pin_force）")
+	g.note_pin_force = true
+	ok(g._note_pin_shown("result"), "專拍：強制釘")
+	g.overlay = "pause"
+	ok(not g._note_pin_shown("result"), "開著疊層時不釘")
+	if keep_seen == null:
+		Sv.data.erase("seen")
+	else:
+		Sv.data["seen"] = keep_seen
+	g.free()

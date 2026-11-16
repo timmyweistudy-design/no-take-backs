@@ -750,11 +750,21 @@ func _process_inner(delta: float) -> void:
 
 
 # ───────────────────────── 繪圖 ─────────────────────────
+## 量測對照用（`--no-desk-paper`／LAYOUT_NO_DESK_PAPER=1）：關掉桌燈紙，比「紙面暗斑」名單哪些是 B06 造成的
+var no_desk_paper := "--no-desk-paper" in OS.get_cmdline_user_args()
 func _draw() -> void:
 	mag_on = bool(Save.s("magnify"))   # V1.6 #7；V1.6.1 F4：手把也能用（指焦點按鈕上的字）
 	mag_hit = []
 	var _t0 := Time.get_ticks_usec()
+	# 1.6.0 B06（方案 P1.3 主材質全站）：桌燈下的紙——全站紙面（羊皮紙、卡紙）乘桌燈色調、紙上彩色字用深墨（B03 結果紙同一套）。
+	# 標題頁本身（沒有疊層）是首開與主牌的版面，屬 B05；大廳整頁屬 B04（挑戰簿重做紙面；先套桌燈紙會讓說明字的紙紋暗斑 <4.5:1）；
+	# 簡化介面照舊平塗亮紙（雙階色塊規格）。
+	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and overlay != "lobby" and note_ret != "lobby" and not no_desk_paper
+	paper_tone = PAL.PAPER_DESK_TONE if desk_paper else Color.WHITE
+	ink_deep = desk_paper
 	_draw_inner()
+	ink_deep = false
+	paper_tone = Color.WHITE
 	_draw_magnifier()   # V1.6 #7：最上層
 	perf_draw_us = Time.get_ticks_usec() - _t0
 
@@ -886,9 +896,7 @@ func _draw_inner() -> void:
 			if _ink_active():
 				_draw_ink_report_screen()   # 1.2.0 §9.4 宣紙戰報：勝負章蓋下之前不出結果面板
 			else:
-				ink_deep = not bool(Save.s("plain_ui"))   # 1.6.0 B03：結果紙是桌燈下的暗紙，紙上彩色字用深墨
-				_draw_result()
-				ink_deep = false
+				_draw_result()   # 結果紙的桌燈色調與深墨：B06 起全站統一（_draw 開頭設定）
 	_draw_clutch_banner()
 	# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
 	if overlay != _ov_seen:

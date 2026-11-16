@@ -1,0 +1,9 @@
+①紙面：[10_codex](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/10_codex_old_left_new_right.png)、[59b](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/59b_nemeses_old_left_new_right.png) 暖紙統一；[05_result](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/05_result_old_left_new_right.png)(右)與 [v160_05g](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/v160_05g_note_pin_new.png) 藍帶副標改深字配藍底，[strip_old_new_gray](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/strip_old_new_gray.png) 灰階近隱形；[08_settings](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/08_settings_old_left_new_right.png) 左籤右下鈕偏灰(是否須改不確定)。
+②地形：[50](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/50_map_river_place_old_left_new_right.png)/[52](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/52_map_ice_place_old_left_new_right.png)/[53](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/53_map_lava_place_old_left_new_right.png)/[54](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/54_map_canyon_place_old_left_new_right.png) 橋墩影、冰亮邊右下影、熔岩北內影、峽谷右下影一致似微縮、不蓋單位。
+③便條：[v160_05g](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/v160_05g_note_pin_new.png) 左下桌緣膠帶自然不擋紙。
+④必改：
+1.05_result、v160_05g 藍帶副標改淺字。
+2.[02_place](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/02_place_old_left_new_right.png)、50~54、[82_place](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600-impl/b06-r1/hy1/82_place_terrain_old_left_new_right.png) 盤框左下地圖名跨框與兵卡頂緣顯擠，須微調。
+
+結論：有條件
+rc=0

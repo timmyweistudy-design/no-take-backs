@@ -174,7 +174,7 @@ func _draw_draft() -> void:
 			var sc := r.position + Vector2(r.size.x - 26, 26)
 			draw_circle(sc, 17.0, tcol.darkened(0.35), true, -1.0, true)
 			draw_circle(sc, 13.0, tcol, true, -1.0, true)
-			_text(r.position + Vector2(100, 12), L.t("df_mine") if mine else L.t("df_ai"), tz("S"), tcol.darkened(0.45) if paper_on else Color.WHITE, true, true, 150)   # 1.6.0 B02：紙卡上用深隊伍色（白字壓米色紙看不見）
+			_text(r.position + Vector2(100, 12), L.t("df_mine") if mine else L.t("df_ai"), tz("S"), (_ink(tcol) if ink_deep else tcol.darkened(0.45)) if paper_on else Color.WHITE, true, true, 150)   # 1.6.0 B02：紙卡上用深隊伍色（白字壓米色紙看不見）
 	_text(Vector2(640, 582 + dy), L.t("df_count", [df_mine.size(), df_ai.size()]), tz("S"), Color.WHITE, true, true, 700)
 	# V1.5.2 L8：雙按鈕同寬、群組置中
 	var by := maxf(640.0, 582 + dy + tz("S") * 1.3 + GAP_M)

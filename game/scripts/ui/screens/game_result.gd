@@ -121,7 +121,7 @@ func _draw_result() -> void:
 	var paper := not bool(Save.s("plain_ui"))
 	if paper:
 		_contact_shadow(r, 4.0, 0.45)   # 1.6.0 B03（P1.2）：全站同一組接觸影
-		if not _mat_box(r, "card2", PAL.PAPER_DESK_TONE):   # 1.6.0 B03：桌燈下的紙（L* 壓到中階）
+		if not _mat_box(r, "card2"):   # 1.6.0 B03：桌燈下的紙（L* 壓到中階）
 			draw_rect(r, Color("#efe4cf") * PAL.PAPER_DESK_TONE)
 		draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
 		# 1.3.0 §8 三折宣紙：兩道摺痕（左暗右亮的窄漸層，低透明，不影響字的對比）＋上下緣摺口
@@ -495,7 +495,7 @@ func _draw_result() -> void:
 		r14_why = "走勢分頁：時間軸關鍵時刻與「還有 N 條」是內容展開"
 	screen_register("result", "result_main", r14_why)   # 1.5.0 §1.1：主動作＝底列第一顆（豁免理由逐分頁寫明，Codex v150 cat02 #3）
 	if mode == Mode.VS_AI and not watch_mode:
-		_boss_note("result")   # 1.2.0 §12：第一次看結果的便條
+		_note_pin("result")   # 1.2.0 §12 第一次看結果的便條 → 1.6.0 B06（P1.5）釘在紙外左下桌緣，點開才展開
 
 
 

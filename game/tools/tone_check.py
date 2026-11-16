@@ -42,7 +42,10 @@ def crop(a, r):
     return a[y:y + h, x:x + w]
 
 def main():
-    args = [x for i, x in enumerate(sys.argv[1:], 1) if not x.startswith("--") and sys.argv[i - 1] not in ("--expect",)]
+    args = [x for i, x in enumerate(sys.argv[1:], 1) if not x.startswith("--") and sys.argv[i - 1] not in ("--expect", "--board-art")]
+    # --board-art <批次>：該批刻意改了盤面美術（B06 地形影子／冰緣／橋墩／陶罐），盤內逐像素差只列不擋；
+    # 整盤平均偏 ≥0.5 照擋（桌燈紙／壓暗不准染到盤上）。改完盤面的那批要把新輸出存成下一批的對照。
+    board_art = sys.argv[sys.argv.index("--board-art") + 1] if "--board-art" in sys.argv else ""
     strip = sys.argv[sys.argv.index("--strip") + 1] if "--strip" in sys.argv else ""
     if strip in args:
         args.remove(strip)
@@ -110,7 +113,9 @@ def main():
                     # 整盤偏色：每點都 ≤NOISE 但整片往同一方向偏（例如半透明壓暗蓋到盤上），平均有號差 ≥0.5 就算（Codex B03 r1 #5）
                     shift = float(np.abs(crop(sd, BOARD)[crop(keep, BOARD)].mean(axis=0)).max())
                     line += " ｜盤內差 %s %d px、平均偏 %.2f" % (name, n, shift)
-                    if n or shift >= 0.5:
+                    if board_art and n:
+                        line += "（%s 刻意改盤面，只列）" % board_art
+                    if (n and not board_art) or shift >= 0.5:
                         fails.append("%s/%s 盤內差 %d px、平均偏 %.2f" % (combo, name, n, shift))
             rows.append(line)
     for r in rows:

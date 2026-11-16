@@ -1401,14 +1401,18 @@ func _draw_nemeses() -> void:
 		var sp := r.position + Vector2(r.size.x - 74, 44)   # 離紙邊夠遠，英文 150% 的 Unavenged 也放得下
 		if done:
 			draw_set_transform_matrix(ui_xf * Transform2D(-0.18, sp))
+			draw_circle(Vector2.ZERO, 28.0, PAL.MAT_PAPER[2], true, -1.0, true)   # 1.6.0 B06：印面墊淺紙色——桌燈紙變暗後章字仍 ≥4.5:1（章是主層，比紙亮）
 			_hand_ring(Vector2.ZERO, 30.0, Color("#8e1b14", 0.95), 3.0)
 			_hand_ring(Vector2.ZERO, 25.0, Color("#8e1b14", 0.75), 1.4, false, 1)
 			draw_set_transform_matrix(ui_xf)
-			_ink_mode = true
 			var nd := L.t("nem_done")
 			var nsz: int = tz("S") if _width(nd, tz("S"), true) <= 52.0 else tz("C")   # 英文印章字放得進圓圈（收尾第 2 輪）
+			var deep0 := ink_deep
+			ink_deep = false   # 朱紅章字（不走深墨：深墨把紅字壓到和紅圈分不開；印面已墊淺紙色）
+			_ink_mode = true
 			_text(sp - Vector2(0, nsz * 0.62), nd, nsz, Color("#7a140e"), true, true, 56)
 			_ink_mode = false
+			ink_deep = deep0
 		else:
 			_ink_mode = true
 			_text(sp - Vector2(0, tz("C") * 0.62), L.t("nem_open_state"), tz("C"), INK, true, false, 120)

@@ -904,6 +904,7 @@ static func _wcag(a: Color, b: Color) -> float:
 ## V1.2：紙上墨色。灰白字→焦茶墨；亮彩字（金、綠、紅）壓暗成同色系的深色，透明度保留。
 ## 1.6.0 B03：ink_deep＝桌燈下的暗紙（結果紙 L*≈64）：彩色字再壓深、中間調的彩色（隊色小圖示）也壓，對紙 ≥4.5:1
 static var ink_deep := false
+static var paper_tone := Color.WHITE   # 1.6.0 B06：全站紙面乘這個色（桌燈下的紙＝PAL.PAPER_DESK_TONE；game_screens._draw 每幀設定）
 static func _ink(c: Color) -> Color:
 	var lum := c.get_luminance()
 	if ink_deep and c.s >= 0.25:
@@ -1214,6 +1215,58 @@ func _boss_note(key: String, host := "") -> void:
 	overlay = "boss_note"
 	_focus = 0
 
+## 1.6.0 B06（方案 P1.5、§1 桌位表）：結果頁的老闆便條不再蓋在結果紙上——釘在紙外左下桌緣（`Seats.result_note_rect`），
+## 點「打開看」才展開全文（同一個便條疊層，知道了＝記住、之後不再釘）。字放不下時往上撐高（不縮字；英文 150%）。
+var note_pin_force := false   # 截圖專拍（平常截圖流程不釘便條）
+func _note_pin_shown(key: String) -> bool:
+	if overlay != "":
+		return false
+	return note_pin_force or (shot_dir == "" and not layout_probe and preload("res://scripts/game/guide.gd").is_new(Save.data, "note_" + key))
+
+## 便條的框（紙外左下桌緣，下緣對齊結果紙下緣；字多時往上撐）與字行
+func _note_pin_layout() -> Dictionary:
+	var R0 := Seats.result_note_rect()
+	var pad := 12.0
+	var sz := tz("B")
+	_hand_mode = true
+	var lines := wrap_lines(L.t("bn_pin"), sz, R0.size.x - pad * 2.0)
+	_hand_mode = false
+	var lh := sz * line_h(lines.size())
+	var bh := maxf(40.0, tz("S") * 1.9)
+	var h := maxf(R0.size.y, 14.0 + lines.size() * lh + 8.0 + bh + pad)
+	var R := Rect2(R0.position.x, R0.end.y - h, R0.size.x, h)
+	return {"r": R, "pad": pad, "sz": sz, "lines": lines, "lh": lh, "btn": Rect2(R.position.x + pad, R.end.y - pad - bh, R.size.x - pad * 2.0, bh)}
+
+func _note_pin_open(key: String) -> void:
+	note_key = key
+	note_ret = ""
+	overlay = "boss_note"
+	_focus = 0
+
+func _note_pin(key: String) -> void:
+	if not _note_pin_shown(key):
+		return
+	var lay := _note_pin_layout()
+	var R: Rect2 = lay["r"]
+	probe_panel(R)
+	probe_skip("R1", "桌位表固定位置：結果紙外左下桌緣（方案 §1、P1.5），刻意不置中")
+	_contact_shadow(R)
+	if bool(Save.s("plain_ui")) or not _mat_box(R, "card1"):
+		draw_rect(R, PAL.MAT_PAPER[0])
+	probe_faces.append([R, true])
+	var cx := R.get_center().x
+	draw_colored_polygon(PackedVector2Array([Vector2(cx - 30, R.position.y - 7), Vector2(cx + 26, R.position.y - 10),
+		Vector2(cx + 28, R.position.y + 7), Vector2(cx - 28, R.position.y + 10)]), Color(0.93, 0.88, 0.7, 0.82))   # 一段紙膠帶
+	_ink_mode = true
+	_hand_mode = true
+	var y := R.position.y + 14.0
+	for ln in lay["lines"]:
+		_text(Vector2(R.position.x + float(lay["pad"]), y), ln, int(lay["sz"]), INK)
+		y += float(lay["lh"])
+	_hand_mode = false
+	_ink_mode = false
+	_btn(lay["btn"], L.t("bn_pin_open"), _note_pin_open.bind(key))
+
 func _close_boss_note() -> void:
 	preload("res://scripts/game/guide.gd").see(Save.data, "note_" + note_key)
 	Save.save_data()
@@ -1308,6 +1361,8 @@ func _tex_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 		return false
 	if layout_probe:
 		probe_faces.append([r, kind == "paper"])   # 1.6.0 B02：直接畫的紙面／木面也登記（淺紙白字檢查；Codex v1600 B02 #1）
+	if kind == "paper":
+		tint = tint * (PAL.PAPER_DESK_TONE_TEX if paper_tone != Color.WHITE else Color.WHITE)   # 1.6.0 B06：桌燈下的紙（羊皮紙貼圖斑紋深，淺一階）
 	tint = qcol(tint)   # V1.2.1 F1：量化後當鍵，淡出時不會每幀多一個樣式
 	var k := "t|%s|%s" % [kind, tint.to_html()]
 	var sb: StyleBoxTexture = _sb_cache.get(k)
@@ -1338,6 +1393,8 @@ func _mat_box(r: Rect2, kind: String, tint := Color.WHITE) -> bool:
 	var tx := _ui_tex(MAT[kind])
 	if tx == null:
 		return false
+	if kind.begins_with("card"):
+		tint = tint * paper_tone   # 1.6.0 B06：卡紙也是桌燈下的紙
 	tint = qcol(tint)
 	var k := "m|%s|%s" % [kind, tint.to_html()]
 	var sb: StyleBoxTexture = _sb_cache.get(k)

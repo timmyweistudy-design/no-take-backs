@@ -1365,6 +1365,8 @@ func _draw_foe_card(cx: float, y: float, cw: float, eb: int, with_name: bool) ->
 	if bool(Save.s("plain_ui")) or not _tex_box(cr, "paper"):
 		draw_rect(cr, Color(0.93, 0.88, 0.76))
 	var ty := y + 14.0
+	var ink0 := _ink_mode
+	_ink_mode = true   # 1.6.0 B06：紙卡上的字走墨色（桌燈紙較暗，固定的淺棕／藍灰字不到 4.5:1）
 	for ln in lines:
 		_text(Vector2(cr.position.x + cw * 0.5, ty), ln[0], ln[1], ln[2], true, ln[3], tw2)
 		ty += text_h(ln[0], ln[1], tw2, ln[3]) + 8.0
@@ -1377,3 +1379,4 @@ func _draw_foe_card(cx: float, y: float, cw: float, eb: int, with_name: bool) ->
 		if fav != "":
 			ty += text_h(q, tz("C"), tw2) + 6.0
 			_text(Vector2(cr.position.x + cw * 0.5, ty), fav, tz("C"), Color(0.25, 0.3, 0.45), true, false, tw2)
+	_ink_mode = ink0

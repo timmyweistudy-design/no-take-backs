@@ -152,6 +152,8 @@ def plan(a) -> list:
         if a.quick and name == "assets":
             continue
         st.append({"name": name, "kind": "py", "script": f"tools/{py}", "dirs": ["data", "scripts", "fonts", "art", "audio", "licenses", f"tools/{py}"], "entries": []})
+    # 1.6.0 B06：200 畫面批次歸屬（方案 §5）——新畫面登記進 screens.json 沒有歸屬＝失敗
+    st.append({"name": "screen_owner", "kind": "py", "script": "tools/screen_owner.py", "dirs": ["tools/screens.json", "tools/screen_owner.py"], "entries": []})
     return st
 
 

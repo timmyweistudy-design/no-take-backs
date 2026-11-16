@@ -68,5 +68,6 @@ const CONTACT_FEATHER := 6.0
 const CONTACT_A := 0.4
 # 1.6.0 B03：攤在桌上的紙（結果紙）在桌燈下的色調——把 L* 從 1.5.0 的約 86 壓到紙的中階（量測見 tools/tone_check.py）
 const PAPER_DESK_TONE := Color(0.72, 0.68, 0.62)
+const PAPER_DESK_TONE_TEX := Color(0.8, 0.76, 0.7)   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
 # 1.6.0 B03：盤外桌面壓暗（只在盤框外，盤內隊色 ΔE＝0）
 const OFF_BOARD_DIM := 0.18

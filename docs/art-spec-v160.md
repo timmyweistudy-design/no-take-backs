@@ -7,7 +7,7 @@
 - 有棋盤的頁（擺陣、戰鬥、結果）桌面再壓暗 `OFF_BOARD_DIM` 18%；盤面畫在桌面之上，所以只暗到盤外，盤內隊色 ΔE＝0。
 
 ## §2 主材質（Base／Shadow／Highlight）
-胡桃木 `MAT_WALNUT`、暖米厚紙 `MAT_PAPER`、紅蠟 `MAT_WAX`、粉筆 `MAT_CHALK`、舊銅 `MAT_BRASS`（數值見 palette.gd）。攤在桌上的紙（結果紙）乘 `PAPER_DESK_TONE`，把 L* 從 1.5.0 的約 86 壓到中階。
+胡桃木 `MAT_WALNUT`、暖米厚紙 `MAT_PAPER`、紅蠟 `MAT_WAX`、粉筆 `MAT_CHALK`、舊銅 `MAT_BRASS`（數值見 palette.gd）。攤在桌上的紙（結果紙）乘 `PAPER_DESK_TONE`，把 L* 從 1.5.0 的約 86 壓到中階。**B06 起全站**：`game_screens._draw` 每幀設 `paper_tone`、`ink_deep`（簡化介面與標題頁本身除外）；卡紙（`_mat_box` card*）乘 `PAPER_DESK_TONE`、羊皮紙貼圖（`_tex_box` paper，斑紋較深）乘淺一階的 `PAPER_DESK_TONE_TEX`。紙上固定色的字要走 `_ink`／`_ink_mode`（深墨）。全站紙頁實圖量測 `tools/paper_tone.py`：B06 的紙頁中位數 35～72（偏差：貼圖紙起伏約 ±7，墨字 4.5:1 要紙最暗處 ≥L*53，中位數約 67～70；三代表頁照舊 35～65）。
 
 ## §3 桌位表
 - 盤面 1024×576（含框 1056）；規格上限 1040、左右桌緣各 ≥120——**目前不符**（盤框右緣 1168，桌緣 112），縮盤會改到全部戰鬥畫面，B06 用並列審片決定。

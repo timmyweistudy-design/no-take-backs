@@ -127,7 +127,7 @@ static func contrast(a: Color, b: Color) -> float:
 
 ## 從截圖取一段字的背景色：字框內取樣，去掉像字色、像描邊色的像素，剩下的取亮度中位數。
 ## 背景像素不到 15% 回傳 null（背景未知＝不能算通過）。
-static func text_bg(img: Image, r: Rect2, c: Color, oc: Color, sx: float, sy: float):
+static func text_bg(img: Image, r: Rect2, c: Color, oc: Color, sx: float, sy: float, q := 0.2, paper_only := false):
 	var x0 := clampi(int(r.position.x * sx), 0, img.get_width() - 1)
 	var y0 := clampi(int(r.position.y * sy), 0, img.get_height() - 1)
 	var x1 := clampi(int(r.end.x * sx), 0, img.get_width() - 1)
@@ -145,11 +145,13 @@ static func text_bg(img: Image, r: Rect2, c: Color, oc: Color, sx: float, sy: fl
 			all += 1
 			var dc := absf(p.r - c.r) + absf(p.g - c.g) + absf(p.b - c.b)
 			var do := absf(p.r - oc.r) + absf(p.g - oc.g) + absf(p.b - oc.b) if oc.a > 0.0 else 9.0
-			if dc > 0.30 and do > 0.30:
+			if dc > 0.30 and do > 0.30 and not (paper_only and p.s >= 0.55):   # 紙紋暗斑：只取紙色（低彩度），不取印章紅圈、彩色框線
 				bg.append(p)
 			x += step
 		y += step
 	if all == 0 or float(bg.size()) / all < 0.15:
+		if paper_only:
+			return null   # 紙面暗斑模式不退回字框外圍（外圍可能出了紙面、也不限低彩度——Codex B06 r3 #2）：呼叫端記「紙面暗斑未量」
 		# 小字（例如單一數字）字框裡幾乎都是字：改取字框外圍一圈當背景
 		bg = []
 		for k in 24:
@@ -184,7 +186,7 @@ static func text_bg(img: Image, r: Rect2, c: Color, oc: Color, sx: float, sy: fl
 	# 取「最接近字色亮度」那一側的 20% 分位：紙紋、木紋上局部低對比的地方也算進去（Codex v121-impl1：中位數會漏）
 	var lt := rel_lum(c)
 	bg.sort_custom(func(a, b): return absf(rel_lum(a) - lt) < absf(rel_lum(b) - lt))
-	return bg[int(bg.size() * 0.2)]
+	return bg[int(bg.size() * q)]
 
 ## 顏色 p 到線段 a–b（RGB 空間）的距離：判斷是不是兩色的混色（反鋸齒）。
 static func seg_dist(p: Color, a: Color, b: Color) -> float:
@@ -233,6 +235,19 @@ func _contrast_issues(img: Image) -> Dictionary:
 			bad.append({"type": "淺紙白字", "s": t["s"], "fg": c.to_html(false), "at": [int(t["r"].position.x), int(t["r"].position.y)]})
 			continue
 		if ratio >= need:
+			# 1.6.0 B06（Codex B06 r1 #5、r2 #2）：桌燈紙比較暗、紙紋有斑——紙面上的字另驗「字底最接近字色那側的 2% 分位」（暗斑）。
+			# 只驗沒描邊的紙面字（描邊字照 R8）；停用元件另報
+			# 只取「字框 ∩ 紙面內縮 6px（材質毛邊與框線不算紙紋）」
+			var pf: Rect2 = LayoutRules.paper_face((t.get("gr", t["r"]) as Rect2).get_center(), probe_faces, int(t.get("fz", probe_faces.size())))
+			var tr2: Rect2 = (t["r"] as Rect2).intersection(pf.grow(-6.0)) if pf.size.x > 0.0 else Rect2()
+			if not outlined and tr2.size.x >= 6.0 and tr2.size.y >= 6.0:
+				var bg2 = text_bg(img, tr2, c, oc, sx, sy, 0.02, true)
+				if bg2 == null:
+					warn.append({"type": "紙面暗斑未量", "s": t["s"], "at": [int(t["r"].position.x), int(t["r"].position.y)]})   # 取樣不足：照實列出，dark_spot_diff 比開／關新增的
+				else:
+					var r2 := contrast(over.call(c, bg2), bg2)
+					if r2 < need:
+						warn.append({"type": "紙面暗斑對比", "s": t["s"], "ratio": snappedf(r2, 0.01), "need": need, "fg": c.to_html(false), "bg": (bg2 as Color).to_html(false), "at": [int(t["r"].position.x), int(t["r"].position.y)]})
 			continue
 		var item := {"type": "對比不足", "s": t["s"], "ratio": snappedf(ratio, 0.01), "need": need, "fg": c.to_html(false), "bg": (bgc as Color).to_html(false), "at": [int(t["r"].position.x), int(t["r"].position.y)]}   # 1.4.0：帶字色、取樣背景與位置（查錯用）
 		if dis:
@@ -828,6 +843,10 @@ func _run_screenshots() -> void:
 	overlay = "boss_note"
 	await _snap("v120_02_note.png")
 	overlay = ""
+	note_pin_force = true   # 1.6.0 B06（P1.5）：便條釘在結果紙外左下桌緣（收合）
+	await _snap("v160_05g_note_pin.png")
+	await _note_pin_walk()
+	note_pin_force = false
 	overlay = "mood_demo"   # 1.2.0 第 5 大類：表情對照
 	await _snap("v120_03_moods.png")
 	overlay = ""
@@ -2530,3 +2549,50 @@ func _shots_v161() -> void:
 	coop_log = []
 	Save.data = keep
 	_go_title()
+
+
+## 1.6.0 B06（Codex B06 r1 #4）：便條釘位的真實繪製＋手把——真的畫出來（按鈕由繪製登記）、十字鍵從結果頁按鈕走到「打開看」、A 打開、B 關掉。
+## 結果印在 run.log：NOTEPIN OK／FAIL（驗收鏈數 24 組都要 OK）。存檔已是截圖前綴，B 關掉記住的「看過」不碰正式存檔。
+func _note_pin_walk() -> void:
+	# 「停用」組合（:dis）會把所有按鈕畫成停用、A 按不下去；這段驗的是手把能走到並打開便條，走的時候暫時拿掉停用旗標
+	var had_dis: bool = shot_state.has("dis")
+	shot_state.erase("dis")
+	var lay: Dictionary = _note_pin_layout()
+	var target: Vector2 = (lay["btn"] as Rect2).get_center()
+	var find := func() -> int:
+		for i in _btns.size():
+			if (_btns[i]["r"] as Rect2).has_point(target):
+				return i
+		return -1
+	queue_redraw()
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var bi: int = find.call()
+	var rep := {"registered": bi >= 0}
+	var send := func(b: int) -> void:
+		for dn in [true, false]:
+			var e := InputEventJoypadButton.new()
+			e.device = 0
+			e.button_index = b
+			e.pressed = dn
+			_input(e)
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+	_focus = 0
+	var steps := 0
+	for dir in [JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_LEFT]:
+		if _focus == find.call():
+			break
+		await send.call(dir)
+		steps += 1
+	rep["reached"] = _focus == find.call() and _focus >= 0
+	rep["steps"] = steps
+	await send.call(JOY_BUTTON_A)
+	rep["opened"] = overlay == "boss_note" and note_key == "result"
+	await send.call(JOY_BUTTON_B)
+	rep["closed"] = overlay == ""
+	var ok: bool = rep["registered"] and rep["reached"] and rep["opened"] and rep["closed"]
+	print("NOTEPIN ", "OK" if ok else "FAIL", " ", JSON.stringify(rep))
+	overlay = ""
+	if had_dis:
+		shot_state["dis"] = true

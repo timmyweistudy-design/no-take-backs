@@ -309,8 +309,9 @@ class _Painter extends Node2D:
 				if _cell(c4, r4) != t.BLOCK:
 					continue
 				var o4 := Vector2(c4, r4) * Q
-				if _cell(c4, r4 + 1) != t.BLOCK and r4 + 1 < t.m:
-					draw_rect(Rect2(o4 + Vector2(0, Q), Vector2(Q, 12 if kind == "canyon" else 7)), Color(0, 0, 0, 0.32))
+				var ssh := shadow_south(c4, r4, Q)
+				if ssh.size.x > 0.0:
+					draw_rect(ssh, Color(0, 0, 0, 0.32))
 				for d4 in [[1, 0, Vector2(Q, 0), Vector2(Q, Q)], [-1, 0, Vector2.ZERO, Vector2(0, Q)], [0, -1, Vector2.ZERO, Vector2(Q, 0)], [0, 1, Vector2(0, Q), Vector2(Q, Q)]]:
 					var nb := _cell(c4 + d4[0], r4 + d4[1])
 					if nb != t.BLOCK and nb != -1:
@@ -322,15 +323,7 @@ class _Painter extends Node2D:
 				for c5 in t.n:
 					if _cell(c5, r5) != t.FREE:
 						continue
-					var left := false
-					var right := false
-					for dx in range(1, 5):
-						left = left or _cell(c5 - dx, r5 - 0) == t.BLOCK
-						right = right or _cell(c5 + dx, r5) == t.BLOCK
-					var above := false
-					for dy in range(1, 8):
-						above = above or _cell(c5, r5 - dy) == t.BLOCK or _cell(c5, r5 + dy) == t.BLOCK
-					if above and not left and not right:
+					if _bridge(c5, r5):
 						var o5 := Vector2(c5, r5) * Q
 						# 1.2.0 §5 B4 小木片橋：三片直鋪木片（深淺交錯、片縫、上緣受光、兩端釘點），下方投影（光源左上）
 						draw_rect(Rect2(o5 + Vector2(3, 3), Vector2(Q, Q)), Color(0.08, 0.05, 0.03, 0.3))
@@ -347,8 +340,69 @@ class _Painter extends Node2D:
 								draw_circle(pr.position + Vector2(pw * 0.5 - 0.5, ny), 1.3, Color("#3a2a1c"))
 		_personality(Q)
 		_decor(Q)
+		_miniature(Q)
 		if tilt:
 			_relief(Q)
+
+	## 1.6.0 B06（方案 P1.4 地形微縮）：同一盞左上主光下的厚度與接觸——只改畫面、烘進地塊、不改地形格。
+	## 冰緣：冰塊朝北、朝西（迎光）的邊一道亮邊；凸起地形（冰、峽谷）東側地上一條貼地影（桌邊視角的 _relief 已有，正上方視角補上）；
+	## 河：木橋兩端的橋墩（兩根木樁＋往右下的落影）。全部只落在相鄰格 ≤6 px 內，通行判讀不變。
+	const PIER := Color(0.29, 0.188, 0.094)   # 橋墩木樁＝木片的片縫色（同一塊深木）
+	const LIGHT_DX := 3.0   # ＝palette.CONTACT_OFF.x（地塊烘焙不依賴 UI 色票；測試核對兩者相同）
+	func _miniature(Q: float) -> void:
+		if plain:
+			return
+		for r in t.m:
+			for c in t.n:
+				var o := Vector2(c, r) * Q
+				if _cell(c, r) == t.BLOCK:
+					if kind == "ice":
+						if _cell(c, r - 1) != t.BLOCK and _cell(c, r - 1) != -1:
+							draw_line(o + Vector2(1, 1.5), o + Vector2(Q - 1, 1.5), Color(1, 1, 1, 0.55), 1.5)   # 北緣受光
+						if _cell(c - 1, r) != t.BLOCK and _cell(c - 1, r) != -1:
+							draw_line(o + Vector2(1.5, 1), o + Vector2(1.5, Q - 1), Color(1, 1, 1, 0.4), 1.5)    # 西緣受光（比北緣淡）
+					var esh := shadow_east(c, r, Q)
+					if esh.size.x > 0.0:
+						draw_rect(esh, Color(0.06, 0.04, 0.02, 0.18))   # 東側貼地影
+					if (kind == "river" or kind == "lava") and not tilt and _cell(c, r - 1) != t.BLOCK and _cell(c, r - 1) != -1:
+						draw_rect(Rect2(o, Vector2(Q, 3.0)), Color(0.04, 0.03, 0.02, 0.14))   # 凹槽北緣內影（正上方視角也畫、比桌邊視角淡；畫在自己格內）
+				elif kind == "river" and _bridge(c, r):
+					for end in [-1, 1]:   # 上端、下端接河的地方立橋墩
+						if _cell(c, r + end) != t.BLOCK:
+							continue
+						var py := o.y - 6.0 if end < 0 else o.y + Q - 1.0
+						for px in [o.x + Q * 0.5 - 2.5]:   # 一格（半格寬 32 px）一根
+							draw_rect(Rect2(Vector2(px + LIGHT_DX, py + 4.0), Vector2(5.0, 7.0)), Color(0.04, 0.03, 0.05, 0.35))   # 橋墩落在水面的影
+							draw_rect(Rect2(Vector2(px, py), Vector2(5.0, 7.0)), PIER)
+							draw_line(Vector2(px + 0.5, py), Vector2(px + 0.5, py + 7.0), Color(1, 0.92, 0.75, 0.4), 1.0)   # 左緣受光
+
+	## 牆格南側落影（1.2.0 起深 7／峽谷 12；B06 跟全站主光同向往右偏 LIGHT_DX）。只落在南鄰可走格；
+	## 往右偏之後東南格若是牆就裁掉偏出的那段（不染牆的輪廓；Codex B06 r1 #1）。沒有影＝空 Rect2。
+	func shadow_south(c: int, r: int, Q: float) -> Rect2:
+		if _cell(c, r) != t.BLOCK or r + 1 >= t.m or _cell(c, r + 1) == t.BLOCK:
+			return Rect2()
+		var w := Q if _cell(c + 1, r + 1) != t.BLOCK and c + 1 < t.n else Q - LIGHT_DX
+		return Rect2(Vector2(c, r) * Q + Vector2(LIGHT_DX, Q), Vector2(w, 12.0 if kind == "canyon" else 7.0))
+
+	## 凸起地形（冰、峽谷）東側貼地影：正上方視角才畫（桌邊視角 _relief 已有），寬 4、只在東鄰可走格裡
+	func shadow_east(c: int, r: int, Q: float) -> Rect2:
+		if tilt or not (kind == "ice" or kind == "canyon") or _cell(c, r) != t.BLOCK or _cell(c + 1, r) == t.BLOCK or _cell(c + 1, r) == -1:
+			return Rect2()
+		return Rect2(Vector2(c, r) * Q + Vector2(Q, 4.0), Vector2(4.0, Q - 4.0))
+
+	## 河裡的空格且上下有河、左右沒有＝橋（和鋪木板的條件同一份）
+	func _bridge(c: int, r: int) -> bool:
+		if _cell(c, r) != t.FREE:
+			return false
+		var left := false
+		var right := false
+		for dx in range(1, 5):
+			left = left or _cell(c - dx, r) == t.BLOCK
+			right = right or _cell(c + dx, r) == t.BLOCK
+		var above := false
+		for dy in range(1, 8):
+			above = above or _cell(c, r - dy) == t.BLOCK or _cell(c, r + dy) == t.BLOCK
+		return above and not left and not right
 
 	## 1.3.0 §1／§3 桌邊視角（鏡頭從南邊斜看，正交、偏離俯視 20°）：牆格的高度。
 	## 凸起（冰塊、峽谷斷崖）：南側立面畫在**牆格自己裡面**的下緣（頂面不往北移：不蓋北側格、點擊的格子和看到的一致，Codex cat02 #4 #5），
