@@ -1,0 +1,2554 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e633-f7be-7c21-9c2c-c929e19bf7b8
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B18 第 3 輪＝最後一輪）。只讀。專案根目錄＝目前資料夾。
+第 2 輪 coordination/v1600-impl/b18-r1/codex2.md（不可 3 條）；新差異 diff3.patch（同資料夾，基準＝B17 快照）。
+處理：①勝場（stats.wins）與兵種勝場都改依 `swap_ai_my_color`；②會話照 §3.1 寫檔：`swap_ai_run`｛v, round, pts, dead, settled, ai｝——AI 擺好＝承諾寫檔（重啟照存的陣擺回、不重抽）、記分＝settled 前進（同一局不重記，重啟後也是）、整組結束刪掉、寫檔失敗照實說；讀回 `sanitize_run` 驗型與一致性；每局的統計照一般對局記（不是「放棄＝不記」，第 2 輪那句裁決撤回）；③順帶（§3.1 塔路線「讀到較新版本＝唯讀」）：新版存的 tower_route 原樣保留、不遷移不覆寫，塔入口提示需要新版。
+只看修正是否正確、有沒有新問題。附行號。最多 3 條、200 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀核對第 2 輪意見、diff3.patch 與相關程式，聚焦這次三項修正及新問題。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g '*diff3.patch' -g 'codex2.md' -g '*swap*' -g '*save*' -g '*tower*' -g '*stat*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 436ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+game/tests/suites/save.gd.uid
+game/tests/suites/save.gd
+coordination/v1500-impl/cat05-r1/codex2.md
+coordination/v140-impl/cat11-r1/codex2.md
+coordination/v1500-impl/cat04-r1/codex2.md
+coordination/v1600-impl/b18-r1/diff3.patch
+coordination/v1600-impl/b18-r1/codex2.md
+game/scripts/ui/battle/battle_state.gd.uid
+game/scripts/ui/battle/battle_state.gd
+game/scripts/game/tower.gd.uid
+game/scripts/game/tower.gd
+game/scripts/game/swap_duel.gd.uid
+game/scripts/game/swap_duel.gd
+game/scripts/game/save.gd.uid
+game/scripts/game/save.gd
+coordination/v1600-impl/b17-r1/hy1/tower_fork_zh_TW_100.png
+coordination/v1600-impl/b17-r1/hy1/tower_fork_ja_150.png
+coordination/v1600-impl/b17-r1/hy1/tower_fork_en_150.png
+coordination/v1600-impl/b17-r1/diff3.patch
+coordination/v1600-impl/b17-r1/codex2.md
+coordination/v1500-impl/cat02-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/codex2.md
+coordination/v140-impl/cat08-r1/diff3.patch
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v1500-impl/cat03-r1/diff3.patch
+coordination/v1500-impl/cat03-r1/codex2.md
+coordination/v1600-impl/b16-r1/diff3.patch
+coordination/v1600-impl/b16-r1/codex2.md
+coordination/v1500-impl/cat01-r1/diff3.patch
+coordination/v1500-impl/cat01-r1/codex2.md
+coordination/v1600-impl/b08-r1/codex2.md
+coordination/v1500-impl/cat07-r1/diff3.patch
+coordination/v1500-impl/cat07-r1/codex2.md
+coordination/v1600-impl/b02-r1/codex2.md
+coordination/v1600-impl/b15-r1/diff3.patch
+coordination/v1600-impl/b15-r1/codex2.md
+coordination/v1600-impl/b08-r1/diff3.patch
+coordination/v1600-impl/b01-r1/codex2.md
+coordination/v1500-impl/cat06-r1/codex2.md
+coordination/v1600-impl/b14-r1/codex2.md
+coordination/v1600-impl/b04-r1/codex2.md
+coordination/v1600-impl/b05-r1/codex2.md
+coordination/v1600-impl/b07-r1/codex2.md
+coordination/v1600-impl/b10-r1/codex2.md
+coordination/v1600-impl/b12-r1/codex2.md
+coordination/v1600-impl/b12-r1/diff3.patch
+coordination/v1600-impl/b14-r1/diff3.patch
+coordination/v1600-impl/b03-r1/codex2.md
+coordination/v1600-impl/b09-r1/diff3.patch
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1600-impl/b11-r1/diff3.patch
+coordination/v1600-impl/b11-r1/codex2.md
+coordination/v1600-impl/b06-r1/diff3.patch
+coordination/v1600-impl/b06-r1/codex2.md
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b18-r1/codex2.md; cat coordination/v1600-impl/b18-r1/diff3.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+行號指 B18 快照；唯讀靜態審查。
+
+- P1｜game_core.gd:354、game_modes.gd:963：勝場仍排除 DUEL；兵種勝場仍將 AI 勝利算入。須統一依 `swap_ai_my_color` 判定。
+- P1｜game_result.gd:97–103：第 1 局已寫統計、成就及紀錄，中途離開仍留下資料，不符合「放棄整組、不記任何東西」。
+- P1｜game_playroom.gd:414–475：純記憶體會話違反計畫 §3.1:120、B18:159。最少須持久化承諾資料與結算 ID，驗證重啟、重複回呼及寫檔失敗；若維持放棄制，須正式修訂契約。
+- ②、④、⑤及雙局分數去重修正成立；`sw_settled` 未涵蓋上述正式統計副作用。
+
+結論：不可
+--- a/game/scripts/game/swap_duel.gd
++++ b/game/scripts/game/swap_duel.gd
+@@ -30,3 +30,39 @@
+ 	if int(dead[0]) != int(dead[1]):
+ 		return 0 if int(dead[0]) < int(dead[1]) else 1
+ 	return -1
++
++
++## ── 1.6.0 B18（P7.3；§3.1）對 AI 換邊雙局的會話：存檔 swap_ai_run ──
++## {v, round（現在這一局 1／2）, pts, dead, settled（已記分到第幾局）, ai（這一局 AI 那一色的陣：[[兵種, 欄, 列]...]；還沒擺＝[]）}
++## 承諾＝AI 擺好就寫檔（重啟不重抽）；結算＝記分、settled 前進（同一局不重記）；整組結束＝刪掉。
++const RUN_V := 1
++
++static func _iv(x, lo: float, hi: float) -> bool:
++	return (x is int or (x is float and float(x) == floorf(float(x)))) and float(x) >= lo and float(x) <= hi
++
++## 讀回驗型；壞了回 null（＝沒有進行中的一組）
++static func sanitize_run(v):
++	if not v is Dictionary or not _iv(v.get("v"), 1, RUN_V) or not _iv(v.get("round"), 1, ROUNDS) or not _iv(v.get("settled"), 0, ROUNDS):
++		return null
++	var out := {"v": RUN_V, "round": int(v["round"]), "settled": int(v["settled"]), "pts": [], "dead": [], "ai": []}
++	for k in ["pts", "dead"]:
++		var a = v.get(k)
++		if not a is Array or a.size() != 2 or not _iv(a[0], 0, 100000) or not _iv(a[1], 0, 100000):
++			return null
++		out[k] = [int(a[0]), int(a[1])]
++	var ai = v.get("ai")
++	if not ai is Array or ai.size() > 64:
++		return null
++	for u in ai:
++		if not u is Array or u.size() != 3 or not _iv(u[0], 0, 63) or not _iv(u[1], 0, 63) or not _iv(u[2], 0, 63):
++			return null
++		out["ai"].append([int(u[0]), int(u[1]), int(u[2])])
++	if out["settled"] > out["round"] or out["settled"] < out["round"] - 1:
++		return null   # 狀態一致：這一局要嘛還沒記分（settled＝round−1）、要嘛剛記完（settled＝round）
++	return out
++
++static func units_of(army) -> Array:
++	var out: Array = []
++	for u in army.units:
++		out.append([int(u["type"]), int(u["col"]), int(u["row"])])
++	return out
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -190,7 +190,9 @@
+ 	out["tower_best"] = clampi(int(twb), 0, 100000) if (twb is int or twb is float) else 0   # 1.4.0 §11.1 無盡塔最高層
+ 	out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
+ 	# 1.6.0 B17（P7.2）完整續塔：tower_route；沒有或壞了＝從 tower_run 遷移（不猜歷史）。有路線就以路線為準、tower_run 跟著同步（舊版讀得懂）
+-	if out.has("tower_route") or int(out["tower_run"]) > 0:
++	if load("res://scripts/game/tower.gd").route_is_future(out.get("tower_route")):
++		pass   # 1.6.0 B17（§3.1）：新版遊戲存的路線＝原樣保留、不遷移不覆寫（塔入口會提示需要新版）
++	elif out.has("tower_route") or int(out["tower_run"]) > 0:
+ 		var TW = load("res://scripts/game/tower.gd")
+ 		var rt = TW.sanitize_route(out.get("tower_route"))
+ 		if rt == null:
+@@ -385,6 +387,13 @@
+ 	return _is_num(x) and float(x) == floorf(float(x))   # 整數（JSON 讀進來是 float，小數不收；Codex v110-i2 #8）
+ 
+ static func sanitize_extras(out: Dictionary) -> void:
++	# 1.6.0 B18（§3.1）對 AI 換邊雙局的會話：壞了＝沒有進行中的一組
++	if out.has("swap_ai_run"):
++		var swr = preload("res://scripts/game/swap_duel.gd").sanitize_run(out["swap_ai_run"])
++		if swr == null:
++			out.erase("swap_ai_run")
++		else:
++			out["swap_ai_run"] = swr
+ 	# 1.6.0 B15（P6.2）棋課：沒有這個欄位＝舊存檔＝不補（讀回不改寫舊進度）；有就逐則驗型、壞的丟掉
+ 	if out.has("lessons"):
+ 		out["lessons"] = preload("res://scripts/game/lesson.gd").sanitize(out["lessons"])[0]
+--- a/game/scripts/game/tower.gd
++++ b/game/scripts/game/tower.gd
+@@ -121,6 +121,10 @@
+ 		return {"v": ROUTE_V, "floor": 0, "path": "", "seals": 0, "done": 0}
+ 	return {"v": ROUTE_V, "floor": run, "path": "-".repeat((run - 1) / FORK_EVERY), "seals": 0, "done": run - 1}
+ 
++## 存檔的路線版本比遊戲新（§3.1：唯讀、不覆寫）
++static func route_is_future(v) -> bool:
++	return v is Dictionary and (v.get("v") is int or v.get("v") is float) and float(v["v"]) > ROUTE_V and float(v["v"]) < 1.0e6
++
+ static func _int_in(v, lo: float, hi: float) -> bool:
+ 	return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
+ 
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -68,7 +68,9 @@
+ 					var pp: Vector2i = armies[0].pos_of(u)
+ 					armies[0].place_xy(int(u["type"]), pp.x, pp.y)   # 保留的陣型和新的明牌陣衝突的就拿掉
+ 		Mode.DUEL:
+-			if duel_rule != "blind":
++			if bool(get("swap_ai")):
++				call("_swap_ai_prep")   # 1.6.0 B18（P7.3）對 AI 換邊雙局：AI 那一色自動擺好、玩家照暗擺流程擺自己那一色
++			elif duel_rule != "blind":
+ 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule, rules)
+ 				if rules == null:
+ 					tp.armies[0].pool = _pool()
+@@ -344,11 +346,13 @@
+ 		free_intro = false
+ 	Save.data["unlock_games"] = int(Save.data.get("unlock_games", 0)) + 1   # 只是累計場數（判斷新玩家用），不解鎖任何東西
+ 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
++	if bool(get("swap_ai")) and mode == Mode.DUEL:
++		me_won = w >= 0 and w == int(call("swap_ai_my_color"))   # 1.6.0 B18：對 AI 換邊雙局只有你那一色贏才算你贏（Codex B18 r1）
+ 	var stat_key := "stats" if standard else "custom_stats"
+ 	var st: Dictionary = Save.data.get(stat_key, {"wins": 0, "games": 0})
+ 	st["games"] = int(st.get("games", 0)) + 1
+-	if w == 0 and mode != Mode.DUEL:
+-		st["wins"] = int(st.get("wins", 0)) + 1
++	if (w == 0 and mode != Mode.DUEL) or (bool(get("swap_ai")) and me_won):
++		st["wins"] = int(st.get("wins", 0)) + 1   # 1.6.0 B18：對 AI 換邊雙局你那一色贏也算勝場（Codex B18 r2）
+ 	Save.data[stat_key] = st
+ 	_v8_achievements(w)   # 奇幻軍是娛樂變體，要放在「自訂規則提前返回」之前（Codex 第 3 輪）
+ 	# 圖鑑老兵筆記：派這個兵種贏一場 +1（第二輪方案 R3）。第十輪 B4：自訂規則、奇幻軍也算（放在提前返回之前）
+--- a/game/scripts/ui/screens/game_modes.gd
++++ b/game/scripts/ui/screens/game_modes.gd
+@@ -960,7 +960,7 @@
+ 	var wr: Dictionary = Save.data.get("unit_wins_rec", {})
+ 	for k in seen:
+ 		gr[k] = int(gr.get(k, 0)) + 1
+-	if w >= 0 and (w == 0 or mode == Mode.DUEL):
++	if w >= 0 and (w == 0 or mode == Mode.DUEL) and not (bool(get("swap_ai")) and w != int(call("swap_ai_my_color"))):   # 1.6.0 B18：AI 贏的不算你的兵種勝場
+ 		var won := {}
+ 		var wa = armies[w] if w < armies.size() and armies[w] != null else armies[0]
+ 		for u in wa.units:
+--- a/game/scripts/ui/screens/game_playroom.gd
++++ b/game/scripts/ui/screens/game_playroom.gd
+@@ -409,6 +409,81 @@
+ var sw_pts := [0, 0]    # 玩家 A、B 的分數（剩餘戰力百分比合計）
+ var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+ 
++var swap_ai := false   # 1.6.0 B18（P7.3）：對 AI 換邊雙局（第 1 局你藍、第 2 局你紅；AI 擺另一色）
++
++func _swap_ai_start(fresh := false) -> void:
++	var run = SwapDuel.sanitize_run(Save.data.get("swap_ai_run"))
++	if fresh:
++		run = null
++	_swap_start()
++	swap_ai = true
++	sealed_off_for_swap()
++	if run != null:
++		# 重啟續局（§3.1）：從存檔的那一局接著打，分數、已記分的局、AI 擺好的陣都照存的（不重抽）
++		sw_pts = run["pts"].duplicate()
++		sw_dead = run["dead"].duplicate()
++		sw_settled = int(run["settled"])
++		round_no = int(run["round"]) + (1 if int(run["settled"]) == int(run["round"]) else 0)
++		if round_no > SwapDuel.ROUNDS:
++			Save.data.erase("swap_ai_run")
++			round_no = 1
++			sw_pts = [0, 0]
++			sw_dead = [0, 0]
++			sw_settled = -1
++		elif round_no == int(run["round"]):
++			sw_resume_ai = run["ai"].duplicate(true)
++		_toast(L.t("sw_ai_resume", [round_no]))
++	else:
++		Save.data.erase("swap_ai_run")
++		_toast(L.t("sw_ai_intro"))
++	_reset_place()   # 用對 AI 的擺法重開這一局（_start_mode 時還沒設 swap_ai）
++
++var sw_resume_ai: Array = []   # 續局時要放回去的 AI 陣（這一局已承諾過的）
++
++## 承諾／結算寫檔（失敗照實說；記憶體照樣往下，Save 會重試）
++func _swap_ai_commit(ai: Array) -> bool:
++	var run := {"v": SwapDuel.RUN_V, "round": round_no, "pts": sw_pts.duplicate(), "dead": sw_dead.duplicate(), "settled": maxi(sw_settled, round_no - 1), "ai": ai}
++	Save.data["swap_ai_run"] = run
++	if Save.save_data():
++		return true
++	_toast(L.t("save_failed"), true)
++	return false
++
++func sealed_off_for_swap() -> void:
++	if bool(get("sealed_on")):
++		set("sealed_on", false)
++
++## 每局開始：這一局 AI 是藍方（玩家 A 拿紅）＝先把藍方擺好、直接輪到玩家擺紅
++func _swap_ai_prep() -> void:
++	if not swap_ai or mode != Mode.DUEL:
++		return
++	if SwapDuel.owner(round_no, 0) == 1:
++		_swap_ai_fill(0)
++
++## AI 擺 team 這一色（一般難度的組陣；種子取自本局亂數，重播、代碼照常）
++func _swap_ai_fill(team: int) -> void:
++	if not sw_resume_ai.is_empty():
++		# 續局：這一局 AI 的陣早就承諾過了，照存的擺回去
++		var a = Army.new(team, armies[team].budget)
++		if rules != null:
++			a.apply_rules(rules, team)
++		for u in sw_resume_ai:
++			a.place(int(u[0]), int(u[1]), int(u[2]))
++		armies[team] = a
++		sw_resume_ai = []
++	else:
++		var r := RandomNumberGenerator.new()
++		r.seed = rng.randi()
++		var p: int = int(armies[team].pool)
++		var res = AI.build(team, armies[team].budget, r, -1, p, rules)
++		var units: Array = res["army"].units.duplicate(true)
++		armies[team] = res["army"]
++		if rules != null:
++			armies[team].apply_rules(rules, team)
++			armies[team].units = units
++	blind_phase = 1 if team == 0 else 2
++	_swap_ai_commit(SwapDuel.units_of(armies[team]))   # 承諾：AI 的陣寫檔（重啟不重抽）
++
+ func _swap_start() -> void:
+ 	var r = RuleSet.standard()
+ 	var dm: int = RS.mask(_demo())
+@@ -421,23 +496,47 @@
+ 	swap_on = true
+ 	sw_pts = [0, 0]
+ 	sw_dead = [0, 0]
++	sw_settled = -1
+ 	_toast(L.t("sw_intro"))
+ 
++## 1.6.0 B18：你這一局是哪一色（玩家 A＝你）
++func swap_ai_my_color() -> int:
++	return 0 if SwapDuel.owner(round_no, 0) == 0 else 1
++
++var sw_settled := -1   # 1.6.0 B18：已記分的局（同一局重送結算不重記；Codex B18 r1）
++
+ ## 每局正式打完（_finish_battle）：記分；第 2 局後系列結束
+ func _swap_settle() -> void:
+ 	if not swap_on or mode != Mode.DUEL or play_kind != "official" or sim == null:
+ 		return
++	if sw_settled == round_no:
++		return
++	sw_settled = round_no
+ 	var r: Array = SwapDuel.settle(sw_pts, sw_dead, round_no, sim)
+ 	sw_pts = r[0]
+ 	sw_dead = r[1]
+ 	series_over = round_no >= SwapDuel.ROUNDS
++	if swap_ai:
++		if series_over:
++			Save.data.erase("swap_ai_run")   # 整組結束：會話刪掉
++			if not Save.save_data():
++				_toast(L.t("save_failed"), true)
++		else:
++			_swap_ai_commit([])   # 結算：記分、settled 前進（下一局 AI 還沒擺）
+ 
+ ## 擺陣頂部：誰是哪一色（第 2 局換過來）
+ func _swap_who() -> String:
++	if swap_ai:
++		return L.t("sw_ai_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red")])   # 1.6.0 B18：你＝哪一色（AI 拿另一色）
+ 	return L.t("sw_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red"), L.t("red") if SwapDuel.owner(round_no, 0) == 0 else L.t("blue")])
+ 
+ ## 結果頁第一條事實
+ func _swap_fact() -> String:
++	if swap_ai:
++		if not series_over:
++			return L.t("sw_ai_round", [int(sw_pts[0]), int(sw_pts[1])])
++		var va := SwapDuel.verdict(sw_pts, sw_dead)
++		return L.t("sw_ai_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_ai_you") if va == 0 else (L.t("sw_ai_them") if va == 1 else L.t("sw_tie"))])
+ 	if not series_over:
+ 		return L.t("sw_round", [int(sw_pts[0]), int(sw_pts[1])])
+ 	var v := SwapDuel.verdict(sw_pts, sw_dead)
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -24,6 +24,7 @@
+ 		set("challenge_army", null)
+ 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+ 	set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
++	set("swap_ai", false)     # 1.6.0 B18
+ 	set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
+ 	set("cp_on", false)       # 1.2.0 §11.6：_cp_start 會在 _start_mode 之後再設回來
+ 	set("camp_id", "")        # 1.2.0 §11.7：_camp_play 會在 _start_mode 之後再設回來
+@@ -430,7 +431,7 @@
+ 	var n_main := bs.size()   # V1.5：前面這幾顆是主動作（繼續、重試、下一題），後面是次入口
+ 	# 1.5.0 §1.5：底列＝最多 2 顆主動作＋「更多」＋「主選單」；其他（覆盤、教練、分享、重播、代碼、圖鑑、多出來的主動作）收進「更多」
+ 	res_more_items = []
+-	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
++	if (mode == Mode.VS_AI or (bool(get("swap_ai")) and int(call("swap_ai_my_color")) == 0)) and last_armies.size() == 2 and not watch_mode:   # 1.6.0 B18：對 AI 換邊雙局你擺藍的那一局也能覆盤（覆盤以藍方為你）
+ 		if _near_miss():
+ 			bs.insert(0, [L.t("review_near"), func(): _open_review()])   # 第十輪 F4：輸得很近，主推覆盤
+ 			n_main += 1
+@@ -786,7 +787,7 @@
+ 		call("_sealed_start")   # V1.4 #13：三戰打完再來＝重新封三陣（不是重打同一組，Antigravity v140-i3）
+ 		return
+ 	if series_over and bool(get("swap_on")) and mode == Mode.DUEL:
+-		call("_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）
++		call("_swap_ai_start", true) if bool(get("swap_ai")) else call("_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）；1.6.0 B18 對 AI 版照原樣再來
+ 		return
+ 	if series_over:
+ 		wins = [0, 0]
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -818,17 +818,38 @@
+ 	_toast(L.t("save_failed"), true)
+ 	return false
+ 
++var sb_tab := 0   # 1.6.0 B18（P7.4）：0＝我收的、1＝棋館名局
++var _famous_cache = null
++
++## 名局（data/famous_games.json，工具 tools/gen_famous.gd 從固定種子挑的險勝局）：每筆 {c, w, rem, sec}
++func famous_games() -> Array:
++	if _famous_cache == null:
++		var j = JSON.parse_string(FileAccess.get_file_as_string("res://data/famous_games.json"))
++		_famous_cache = []
++		if j is Array:
++			for e in j:
++				if e is Dictionary and e.get("c") is String and e.get("w") in [0, 1, 0.0, 1.0] and _num_in(e.get("rem"), 0, 100) and _num_in(e.get("sec"), 0, 100000) and BattleCode.decode(str(e["c"])).get("ok", false):
++					_famous_cache.append({"c": str(e["c"]), "w": int(e["w"]), "rem": int(e["rem"]), "sec": int(e["sec"])})   # 逐欄驗型（Codex B18 r1）
++	return _famous_cache
++
++static func _num_in(v, lo: float, hi: float) -> bool:
++	return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
++
+ func _draw_songbook() -> void:
+ 	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
++	if sb_tab == 1:
++		_draw_famous()
++		return
+ 	var book: Array = Save.data.get("songbook", [])
+ 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+ 	var bad: Array = Save.data.get("songbook_bad", [])
+ 	var bad_txt := L.t("sb_bad", [bad.size()])
+ 	var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
+-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
++	y = _sb_tabs(y)
+ 	if book.is_empty():
+ 		_text(Vector2(640, y + 10), L.t("sb_empty"), tz("S"), Color(1, 1, 1, 0.88), true, false, 680)   # Antigravity cat08 #4：空狀態要讀得到
+ 	for i in book.size():
+@@ -858,6 +879,37 @@
+ 		btn_group = ""
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
++## 棋譜本兩頁的頁籤（我收的／棋館名局）；回下一行的 y
++func _sb_tabs(y: float) -> float:
++	btn_group = "sb_tabs"
++	for k in 2:
++		_btn(Rect2(640 - 250 + k * 255, y, 245, 40), L.t(["sb_tab_mine", "sb_tab_famous"][k]), func(): sb_tab = k; _focus = 0, true, false, TH_ACTIVE if sb_tab == k else TH_WOOD)
++	btn_group = ""
++	return y + 48.0
++
++## 1.6.0 B18（P7.4）棋館名局：只寫量得到的事實（哪一方險勝、剩幾成、打幾秒）；看＝走看對戰代碼的路
++func _draw_famous() -> void:
++	var fl := famous_games()
++	var rowh := maxf(56.0, tz("S") * 1.4 * 2.0 + 16.0)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_famous_help"), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, fl.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_famous_help"), tz("S"), 680) + GAP_L
++	y = _sb_tabs(y)
++	for i in fl.size():
++		var e: Dictionary = fl[i]
++		var r := Rect2(P.position.x + 30, y, P.size.x - 60, rowh)
++		var paper_ok: bool = not bool(Save.s("plain_ui")) and _tex_box(r, "paper")
++		if not paper_ok:
++			draw_rect(r, Color(0, 0, 0, 0.18))
++		_ink_mode = paper_ok
++		var t := L.t("sb_famous_row", [i + 1, L.t("blue") if int(e.get("w", 0)) == 0 else L.t("red"), int(e.get("rem", 0)), int(e.get("sec", 0))])
++		_text(r.position + Vector2(14, (rowh - text_h(t, tz("S"), r.size.x - 160)) / 2.0), t, tz("S"), INK if paper_ok else Color.WHITE, false, false, r.size.x - 160)
++		_ink_mode = false
++		var c := str(e["c"])
++		_btn(Rect2(r.end.x - 132, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
++		y += rowh + 8.0
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++
+ ## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
+ func _highlights() -> Array:
+ 	var marks: Array = _key_marks() if not report.is_empty() else []
+@@ -2645,6 +2697,9 @@
+ 	if _demo():
+ 		_toast(L.t("demo_locked"), true)
+ 		return
++	if Tower.route_is_future(Save.data.get("tower_route")):
++		_toast(L.t("tw_future"), true)   # §3.1：新版存的路線唯讀（不開打、不覆寫）
++		return
+ 	var rt := _tw_route()
+ 	if int(rt["floor"]) <= 0:
+ 		rt = Tower.new_route()   # 沒有進行中的塔：開一條新路線
+@@ -2721,6 +2776,9 @@
+ 	if _demo():
+ 		_toast(L.t("demo_locked"), true)
+ 		return
++	if Tower.route_is_future(Save.data.get("tower_route")):
++		_toast(L.t("tw_future"), true)
++		return
+ 	var rt := _tw_route()
+ 	if int(rt["floor"]) != floor_no:
+ 		rt = Tower.new_route()   # 不是路線上的這一層（例如規則不合法退回第 1 層）：重開一條
+--- a/game/tests/suites/modes_live.gd
++++ b/game/tests/suites/modes_live.gd
+@@ -413,3 +413,91 @@
+ 
+ func ok_quiet(_c: bool) -> void:
+ 	pass
++
++## 1.6.0 B18（P7.3）對 AI 換邊雙局：第 1 局你擺藍、AI 擺紅；第 2 局 AI 先擺藍、你擺紅；分數跟著人走（SwapDuel 原規則）。
++func test_swap_ai_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var SD = load("res://scripts/game/swap_duel.gd")
++	var LSx = load("res://scripts/game/strings.gd")
++	var Simx = load("res://scripts/core/battle_sim.gd")
++	var SVx = load("res://scripts/game/save.gd")
++	var keep: Dictionary = SVx.data.duplicate(true)
++	var lk: bool = SVx.data_locked
++	SVx.data_locked = false
++	SVx.data.erase("swap_ai_run")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g._swap_ai_start()
++	ok(g.swap_on and g.swap_ai and g.mode == g.Mode.DUEL and g.tp == null and g.blind_phase == 0 and g.armies[1].count() == 0, "第 1 局：輪到你擺藍方，紅方還空著", str([g.blind_phase, g.tp]))
++	var pool := F.training_pool(0)
++	for u in pool[2].units:
++		g.armies[0].place(int(u["type"]), int(u["col"]), int(u["row"]))
++	g._on_start()
++	ok(g.blind_phase == 2 and g.armies[1].count() > 0 and g._ready_to_fight(), "你擺好藍方＝AI 擺紅方，可以開戰（紅 %d 隻）" % g.armies[1].count())
++	ok(g._swap_who().find(LSx.t("blue")) >= 0, "第 1 局標示你是藍方")
++	g.round_no = 2
++	g._reset_place()
++	ok(g.blind_phase == 1 and g.armies[0].count() > 0 and g.armies[1].count() == 0 and g._cur_army() == g.armies[1], "第 2 局：AI 先擺好藍方，輪到你擺紅方")
++	ok(g._swap_who().find(LSx.t("red")) >= 0 and SD.owner(2, 1) == 0, "第 2 局標示你是紅方；紅方分數算給你")
++	ok(g._swap_fact().find("AI") >= 0, "結果頁寫你和 AI（不是玩家 A／B）")
++	ok(g.swap_ai_my_color() == 1, "第 2 局你是紅方")
++	var cg: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_core.gd")
++	var cp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
++	ok(cg.find("me_won = w >= 0 and w == int(call(\"swap_ai_my_color\"))") >= 0 and cp.find("if not ai_blue:") >= 0, "勝場只算你那一色；你擺紅那局不記成你的上一陣")
++	# 同一局重送結算不重記
++	g.mode = g.Mode.DUEL
++	g.play_kind = "official"
++	g.sim = Simx.new(pool[2].copy(), pool[9].mirrored())
++	g.sim.fast = true
++	g.sim.run_to_end()
++	g._swap_settle()
++	var p1: Array = g.sw_pts.duplicate()
++	g._swap_settle()
++	ok(g.sw_pts == p1, "同一局重送結算：分數不重記")
++	ok(not SVx.data.has("swap_ai_run"), "整組結束：會話刪掉")
++	# §3.1 會話：第 1 局 AI 擺好＝承諾寫檔；記分後重啟＝接第 2 局；第 2 局 AI 的陣承諾後重啟不重抽
++	var g2 = GS.new()
++	g2.sfx = FakeSfx.new()
++	g2._swap_ai_start(true)
++	for u in pool[2].units:
++		g2.armies[0].place(int(u["type"]), int(u["col"]), int(u["row"]))
++	g2._on_start()
++	var run1 = SD.sanitize_run(JSON.parse_string(JSON.stringify(SVx.data.get("swap_ai_run"))))
++	ok(run1 != null and int(run1["round"]) == 1 and int(run1["settled"]) == 0 and (run1["ai"] as Array).size() == g2.armies[1].count(), "第 1 局：AI 擺好就寫檔（承諾）")
++	g2.mode = g2.Mode.DUEL
++	g2.play_kind = "official"
++	g2.sim = Simx.new(g2.armies[0].copy(), g2.armies[1].copy())
++	g2.sim.fast = true
++	g2.sim.run_to_end()
++	g2._swap_settle()
++	var pts1: Array = g2.sw_pts.duplicate()
++	var d1: Dictionary = JSON.parse_string(JSON.stringify(SVx.data))   # 重啟＝寫檔讀回＋清理
++	SVx.sanitize_data(d1)
++	ok(int(d1["swap_ai_run"]["settled"]) == 1 and d1["swap_ai_run"]["pts"] == pts1, "記分寫檔：settled 前進、分數存著")
++	g2.free()
++	SVx.data["swap_ai_run"] = d1["swap_ai_run"]
++	var g3 = GS.new()
++	g3.sfx = FakeSfx.new()
++	g3._swap_ai_start()
++	ok(g3.round_no == 2 and g3.sw_pts == pts1 and g3.swap_ai_my_color() == 1 and g3.armies[0].count() > 0 and g3.blind_phase == 1, "重啟後接第 2 局：分數照舊、AI 先擺藍", str([g3.round_no, g3.sw_pts]))
++	var ai2: Array = SD.units_of(g3.armies[0])
++	g3.free()
++	var g4 = GS.new()
++	g4.sfx = FakeSfx.new()
++	g4._swap_ai_start()
++	ok(SD.units_of(g4.armies[0]) == ai2, "第 2 局 AI 的陣承諾過了：再重啟不重抽")
++	g4.sw_settled = 1
++	ok(int(SVx.data["swap_ai_run"]["settled"]) == 1, "第 1 局不會再記一次（settled 從存檔帶回）")
++	SVx.fail_inject = {"tmp": 1}
++	ok(not g4._swap_ai_commit([]) and SVx.has_unsaved(), "寫檔失敗：照實說、標未存")
++	SVx.retry_pending()
++	g4.free()
++	for bad in ["x", {"v": 1, "round": 2, "settled": 0, "pts": [0, 0], "dead": [0, 0], "ai": []}, {"v": 2, "round": 1, "settled": 0, "pts": [0, 0], "dead": [0, 0], "ai": []}, {"v": 1, "round": 1, "settled": 0, "pts": [1.0e30, 0], "dead": [0, 0], "ai": []}]:
++		ok(SD.sanitize_run(bad) == null, "壞會話讀回＝沒有進行中的一組：%s" % str(bad))
++	SVx.data = keep
++	SVx.save_data()
++	SVx.data_locked = lk
++	g.free()
++	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	ok(gm.find("[\"sw_ai_open\", \"hc_sw_ai_d\"") >= 0 and gr.find("call(\"_swap_ai_start\", true) if bool(get(\"swap_ai\")) else call(\"_swap_start\")") >= 0 and gr.find("set(\"swap_ai\", false)") >= 0, "入口、再來一組、換模式清旗標")
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -440,6 +440,10 @@
+ 	var d := {"tower_run": 8, "tower_best": 7}
+ 	SV.sanitize_data(d)
+ 	ok(d["tower_route"] == {"v": 1, "floor": 8, "path": "--", "seals": 0, "done": 7} and not T.fork_due(d["tower_route"]) and int(d["tower_run"]) == 8, "舊 tower_run＝8：同一層、過去兩個岔口記「-」、不補問", str(d.get("tower_route")))
++	var fut := {"v": 9, "floor": 30, "path": "zz", "seals": 4, "done": 29, "new_field": 1}
++	var df := {"tower_run": 30, "tower_route": fut.duplicate(true)}
++	SV.sanitize_data(df)
++	ok(df["tower_route"] == fut and T.route_is_future(df["tower_route"]), "§3.1：新版存的路線原樣保留（不遷移、不覆寫）")
+ 	var d0 := {"tower_run": 0}
+ 	SV.sanitize_data(d0)
+ 	ok(not d0.has("tower_route"), "沒有進行中的塔：不多出欄位")
+@@ -501,6 +505,12 @@
+ 	g.overlay = ""
+ 	g._tower_open()
+ 	ok(g.overlay == "tower_fork", "第 10 層開打前：先選路", str([g.overlay, g._tw_route()]))
++	SV.data["tower_route"] = fut.duplicate(true)
++	g.overlay = ""
++	g.tower_on = false
++	g._tower_open()
++	g._tower_start(5)
++	ok(SV.data["tower_route"] == fut and not g.tower_on, "新版路線：塔入口唯讀（不開打、不覆寫）")
+ 	g.free()
+ 	SV.data = keep
+ 	SV.save_data()
+
+exec
+/bin/bash -lc "rg --files -g AGENTS.md /mnt/c/Users/timmy/projects /home/timmy 2>/dev/null | head -60; nl -ba game/scripts/ui/screens/game_result.gd | sed -n '65,150p'; nl -ba game/scripts/ui/screens/game_playroom.gd | sed -n '400,565p'; rg -n 'swap_ai|_swap_settle|_save_result|_record|_finish_battle' game/scripts/ui/screens/{game_core,game_place,game_result,game_modes}.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 946ms:
+/home/timmy/st-linux-tw4/frontend/node_modules/next/AGENTS.md
+/home/timmy/st-linux/frontend/node_modules/next/AGENTS.md
+    65		var w: int = sim.winner
+    66		var eff: Dictionary = PLAY_EFFECTS[play_kind]
+    67		if eff["series"]:
+    68			if w >= 0:
+    69				wins[w] += 1
+    70			series_over = series_done(wins, round_no, rules)
+    71			if bool(get("sealed_on")) and mode == Mode.DUEL and round_no >= 3:
+    72				series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+    73			if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
+    74				call("_ach", "SEALED_DONE")   # V1.5
+    75			call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+    76		call("_camp_settle")   # 1.2.0 §11.7 戰役評星
+    77		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+    78			set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
+    79			var wc: Array = get("wv_codes")
+    80			wc.append(BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds))   # V1.5.1 D1
+    81		_build_report()
+    82		call("_ghost_settle", w)   # V1.4 #7
+    83		call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
+    84		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
+    85			call("_wave_end", w == 0)   # V1.4 #11：車輪戰結束（輸了或三波打完）
+    86		if mode == Mode.DUEL:
+    87			sfx.play("win" if w >= 0 else "lose")
+    88		elif mode == Mode.PUZZLE and report.has("goal_ok"):
+    89			sfx.play("win" if bool(report["goal_ok"]) else "lose")   # 第十三輪：照過關條件（Codex v13-r1 #6）
+    90		else:
+    91			sfx.play("win" if w == 0 else "lose")
+    92		sfx.play("ui_quill", 0.45)   # V1.3 B4：戰報寫上羊皮紙的筆聲（各模式都有）
+    93		if eff["progress"] and bool(get("daily_practice")):
+    94			call("_daily_finish", w)   # 1.1.0：每日練習只給練習結果提示，不記戰績、成就、對戰紀錄（Codex v110-i2 #3）
+    95		elif eff["progress"]:
+    96			_progress_and_achievements()
+    97			if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
+    98				call("_record_match", w)
+    99			call("_trial_finish", w)
+   100			call("_daily_finish", w)
+   101			call("_tower_finish", w)   # 1.4.0 §11.1
+   102			Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
+   103		if eff["log"]:
+   104			Save.playtest_log(_pt_entry(0))
+   105	
+   106	
+   107	
+   108	func _pt_rate(v: int) -> void:
+   109		pt_rated = true
+   110		if PLAY_EFFECTS[play_kind]["log"]:
+   111			Save.playtest_log(_pt_entry(v))
+   112		_toast(L.t("pt_thanks"))
+   113	
+   114	
+   115	
+   116	func _draw_result() -> void:
+   117		# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
+   118		_dim(0.7)   # 第七輪 E2：整個畫面（含 HUD）壓暗
+   119		var r: Rect2 = Seats.RESULT_PAPER   # 1.6.0 B03：結果紙照桌位表（Codex B03 r1 #1）
+   120		# 1.2.0 §9.4 E3：結果面板是一張紙卡（宣紙戰報的延續）：落影在右下（光源左上）、紙上的字自動換墨色；簡化介面維持原本深色面板
+   121		var paper := not bool(Save.s("plain_ui"))
+   122		if paper:
+   123			_contact_shadow(r, 4.0, 0.45)   # 1.6.0 B03（P1.2）：全站同一組接觸影
+   124			if not _mat_box(r, "card2"):   # 1.6.0 B03：桌燈下的紙（L* 壓到中階）
+   125				draw_rect(r, Color("#efe4cf") * PAL.PAPER_DESK_TONE)
+   126			draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
+   127			# 1.3.0 §8 三折宣紙：兩道摺痕（左暗右亮的窄漸層，低透明，不影響字的對比）＋上下緣摺口
+   128			for fi in [1, 2]:
+   129				var fxp: float = r.position.x + r.size.x * fi / 3.0
+   130				for k3 in 5:
+   131					draw_rect(Rect2(fxp - 5 + k3, r.position.y, 1, r.size.y), Color(DIM_INK, 0.022 * (k3 + 1)))
+   132				draw_rect(Rect2(fxp, r.position.y, 2, r.size.y), Color(1, 0.97, 0.88, 0.22))
+   133				for yy in [r.position.y - 3.0, r.end.y - 3.0]:
+   134					draw_rect(Rect2(fxp - 2, yy, 4, 6), Color(DIM_INK, 0.35))
+   135		else:
+   136			_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
+   137			_box(r, PANEL, TH_EDGE, 10.0, 3.0)
+   138		var w: int = sim.winner
+   139		var title := L.t("draw")
+   140		var col := Color.WHITE
+   141		if w >= 0:
+   142			title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
+   143			col = Art.team_color(w, cbm())
+   144		if mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win":
+   145			title = L.t("goal_ok") if bool(report["goal_ok"]) else L.t("goal_fail")   # 第十三輪：護送、撐住、斬首看條件
+   146			col = Color("#ffd166") if bool(report["goal_ok"]) else Color(1, 1, 1, 0.8)
+   147		var title_sz := tcap(tz("D"), 64)
+   148		# 第十輪 V2、F2：標題離上緣遠一點；橫幅從上面落下（版面檢查、簡化特效不演）
+   149		var drop := 0.0
+   150		if not layout_probe and not bool(Save.s("reduce_fx")):
+   400			cards[mini(ri2, 1)].append(r)
+   401		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+   402	
+   403	func _camp_goal_of(st: Dictionary) -> String:
+   404		return _camp_goal(st) if str(st["goal"]) != "puzzle" else L.t("cmp_g_puzzle")
+   405	
+   406	## ── 1.2.0 §11.5 換邊雙局 ──
+   407	const SwapDuel = preload("res://scripts/game/swap_duel.gd")
+   408	var swap_on := false
+   409	var sw_pts := [0, 0]    # 玩家 A、B 的分數（剩餘戰力百分比合計）
+   410	var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+   411	
+   412	func _swap_start() -> void:
+   413		var r = RuleSet.standard()
+   414		var dm: int = RS.mask(_demo())
+   415		r.pool = [int(r.pool_of(0)) & dm, int(r.pool_of(1)) & dm]   # 標準卡池再扣掉試玩版沒有的兵（Codex cat10 #5）
+   416		r.rounds = 3   # 用三戰兩勝的局數上限，實際由換邊雙局在第 2 局結束
+   417		rules = r
+   418		challenge_army = null
+   419		overlay = ""
+   420		_start_mode(Mode.DUEL)
+   421		swap_on = true
+   422		sw_pts = [0, 0]
+   423		sw_dead = [0, 0]
+   424		_toast(L.t("sw_intro"))
+   425	
+   426	## 每局正式打完（_finish_battle）：記分；第 2 局後系列結束
+   427	func _swap_settle() -> void:
+   428		if not swap_on or mode != Mode.DUEL or play_kind != "official" or sim == null:
+   429			return
+   430		var r: Array = SwapDuel.settle(sw_pts, sw_dead, round_no, sim)
+   431		sw_pts = r[0]
+   432		sw_dead = r[1]
+   433		series_over = round_no >= SwapDuel.ROUNDS
+   434	
+   435	## 擺陣頂部：誰是哪一色（第 2 局換過來）
+   436	func _swap_who() -> String:
+   437		return L.t("sw_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red"), L.t("red") if SwapDuel.owner(round_no, 0) == 0 else L.t("blue")])
+   438	
+   439	## 結果頁第一條事實
+   440	func _swap_fact() -> String:
+   441		if not series_over:
+   442			return L.t("sw_round", [int(sw_pts[0]), int(sw_pts[1])])
+   443		var v := SwapDuel.verdict(sw_pts, sw_dead)
+   444		return L.t("sw_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_a") if v == 0 else (L.t("sw_b") if v == 1 else L.t("sw_tie"))])
+   445	
+   446	## 揭封：第 k 封放回兩邊（鎖定，不能改），之後照一般「開戰」。
+   447	func _sealed_reveal(k: int) -> void:
+   448		armies[0].units = sealed[0][k].duplicate(true)
+   449		armies[1].units = sealed[1][k].duplicate(true)
+   450		blind_phase = 2
+   451	
+   452	
+   453	## ── V1.4 #15 塗裝室：替兩軍的棋子上底漆、漬洗、乾掃，換木座木料與棋盤框。只改外觀，存檔記住。 ──
+   454	## 解鎖：每一列的第 2～4 個選項要成就數 PAINT_UNLOCK[k]（漬洗、乾掃不鎖）。
+   455	const PAINT_UNLOCK := [0, 2, 5, 9]
+   456	const PAINT_ROWS := [["paint_blue", 4, true], ["paint_red", 4, true], ["paint_wash", 3, false], ["paint_dry", 3, false], ["paint_wood", 4, true], ["paint_frame", 4, true]]
+   457	var pt_before := ""
+   458	
+   459	const PAINT_HI := [3, 3, 2, 2, 3, 3]
+   460	
+   461	func _paint_apply() -> void:
+   462		var p = Save.data.get("paint", [0, 0, 1, 1, 0, 0])
+   463		var ach_n: int = Save.data.get("achievements", []).size() + Campaign.cleared(Save.data)   # 1.2.0 §11.7：每通一章戰役＋1
+   464		if p is Array and p.size() == 6:
+   465			for i in 6:
+   466				var v := clampi(int(p[i]), 0, int(PAINT_HI[i]))
+   467				if paint_locked(bool(PAINT_ROWS[i][2]), v, ach_n):
+   468					v = 0   # 存檔被改過、或成就被重置：鎖住的選項退回原色（Antigravity v140-i4）
+   469				Art.paint[i] = v
+   470	
+   471	static func paint_locked(row_locks: bool, k: int, ach_n: int) -> bool:
+   472		return row_locks and ach_n < int(PAINT_UNLOCK[clampi(k, 0, 3)])
+   473	
+   474	var pt_back := "profile"   # V1.5：從哪裡打開塗裝室就回哪裡（戰績頁或主畫面「收藏」）
+   475	
+   476	func _paint_open() -> void:
+   477		pt_before = str(Art.paint)
+   478		pt_back = overlay if overlay != "" and overlay != "paint" else "profile"
+   479		overlay = "paint"
+   480	
+   481	func _paint_close() -> void:
+   482		overlay = pt_back
+   483		if str(Art.paint) != pt_before:
+   484			Save.data["paint"] = Art.paint.duplicate()
+   485			Save.save_data()
+   486			call("_ach", "PAINTER")
+   487	
+   488	## 每點一次就在背景重烘圖集（舊的那次會作廢），左邊預覽用圖集畫，漬洗、乾掃當下就看得到（Codex v140-i4）。
+   489	func _paint_pick(row: int, k: int) -> void:
+   490		if int(Art.paint[row]) == k:
+   491			return
+   492		Art.paint[row] = k
+   493		sfx.play("place")
+   494		_rebuild_sprites()
+   495	
+   496	func _draw_paint() -> void:
+   497		_dim(0.6)
+   498		var P := Rect2(150, 60, 980, 680)
+   499		_panel(P)
+   500		_h1(Vector2(640, 72), L.t("paint_head"))
+   501		var ach_n: int = Save.data.get("achievements", []).size() + Campaign.cleared(Save.data)   # 1.2.0 §11.7：每通一章戰役＋1
+   502		# 左：試塗棋盤（棋盤框＋氈布＋兩軍各三隻）。向量直接畫，改了馬上看得到
+   503		var B := Rect2(184, 150, 320, 430)
+   504		var fr_i := clampi(int(Art.paint[5]), 0, 3)
+   505		draw_rect(B.grow(10), Color("#5b4632") if fr_i == 0 else Color(Art.FRAMES[fr_i]))
+   506		draw_rect(B, Color("#6f9a4a"))
+   507		for i in 4:
+   508			draw_line(B.position + Vector2(0, 86 * (i + 1)), B.position + Vector2(B.size.x, 86 * (i + 1)), Color(0, 0, 0, 0.06), 1.0)
+   509		var types := [0, 1, 2]
+   510		for t in 2:
+   511			for j in 3:
+   512				var p := B.position + Vector2(80 + t * 160, 110 + j * 118)
+   513				_ring(p, t, types[j], 1.4)
+   514				_unit(p, types[j], t, 1.0 if t == 0 else -1.0, 0.0, 0.0, 0.0, 1.0, time, 1.4)   # 用烘好的圖集畫：漬洗、乾掃看得到
+   515		_text(Vector2(B.get_center().x, B.end.y + 20), L.t("paint_note") if not cbm() else L.t("paint_cb"), tz("C"), TXT_DIM, true, false, 340)
+   516		# 右：六列，每列「名稱｜四個色票」排一橫（V1.4 版面檢查：150% 時上下排會壓到完成鈕）
+   517		var x0 := 540.0
+   518		var lw := 186.0
+   519		var rh := maxf(tz("B") * 1.5, 44.0) + 14.0
+   520		var y := 150.0
+   521		for row in PAINT_ROWS.size():
+   522			var spec: Array = PAINT_ROWS[row]
+   523			var by := y + (rh - 14.0 - 40.0) / 2.0
+   524			_text(Vector2(x0, y + (rh - 14.0) / 2.0 - tz("B") * 0.68), L.t(spec[0]), tz("B"), Color.WHITE, false, true, lw)
+   525			for k in int(spec[1]):
+   526				var r := Rect2(x0 + lw + 10 + k * 98, by, 90, 40)
+   527				var lock := paint_locked(bool(spec[2]), k, ach_n) or (row <= 1 and k > 0 and cbm())   # 色盲配色時底漆不能換（Antigravity v140-i4）
+   528				var on := int(Art.paint[row]) == k
+   529				var rr := row
+   530				var kk := k
+   531				_btn(r, "", func(): _paint_pick(rr, kk), not lock, on)
+   532				_paint_swatch(row, k, r, lock, on)
+   533			y += rh
+   534		if ach_n < int(PAINT_UNLOCK[3]):
+   535			_text(Vector2(x0, y + 4), L.t("paint_unlock", [ach_n]), tz("C"), TXT_DIM, false, false, 570)
+   536		_btn(Rect2(560, 672, 160, 44), L.t("paint_done"), func(): _paint_close(), true, true)
+   537	
+   538	## 色票：底漆＝色塊；漬洗／乾掃＝三格深淺；木座＝木料橢圓；棋盤框＝框色條。鎖住的畫鎖頭。
+   539	func _paint_swatch(row: int, k: int, r: Rect2, lock: bool, on: bool) -> void:
+   540		var c := r.get_center()
+   541		if lock:
+   542			_icon("lock", c, 18.0, Color(1, 1, 1, 0.5))
+   543			return
+   544		match row:
+   545			0, 1:
+   546				_paint_well(c, 15.0, Art.PAINTS[row][k])   # 1.5.0 §13：水彩凹槽（原本是平塗圓點）
+   547			2, 3:
+   548				for i in 3:
+   549					var a := 0.25 + 0.5 * float(i <= k)
+   550					var col := Color(0.12, 0.08, 0.05, a) if row == 2 else Color(1.0, 0.95, 0.8, a)
+   551					_paint_well(c + Vector2(-19 + i * 19, 0), 8.5, col)
+   552			4:
+   553				var wd: Array = Art.WOODS[k]
+   554				draw_colored_polygon(_ellipse_pts(c + Vector2(0, 3), 26.0, 9.0), wd[0])
+   555				draw_colored_polygon(_ellipse_pts(c, 26.0, 9.0), wd[1])
+   556			5:
+   557				draw_rect(Rect2(c - Vector2(30, 10), Vector2(60, 20)), Color("#5b4632") if k == 0 else Color(Art.FRAMES[k]))
+   558				draw_rect(Rect2(c - Vector2(22, 5), Vector2(44, 10)), Color("#6f9a4a"))
+   559		if on:
+   560			_hand_ring(c + Vector2(35, -10), 5.0, Color("#e8c46a"), 2.0)
+   561	
+   562	## 調色盤上的一個瓷凹槽：白瓷緣＋上緣內陰影＋積在槽裡的顏料（下半較濃）＋一點濕亮
+   563	func _paint_well(c: Vector2, r: float, col: Color) -> void:
+   564		draw_circle(c + Vector2(0, 1.5), r + 2.0, Color(0, 0, 0, 0.25), true, -1.0, true)   # 落影
+   565		draw_circle(c, r + 2.0, Color("#f3efe6"), true, -1.0, true)                          # 白瓷緣
+game/scripts/ui/screens/game_core.gd:341:	var standard: bool = rules == null or Presets.is_standard_record(rules, kind)
+game/scripts/ui/screens/game_core.gd:407:				_puzzle_record(puzzle_id, armies[0].spent(), armies[0].units.size(), sim.tick)
+game/scripts/ui/screens/game_core.gd:408:				_best_sol_record(puzzle_id, stars)
+game/scripts/ui/screens/game_core.gd:438:			call("_nemesis_record", last_armies[1])
+game/scripts/ui/screens/game_core.gd:801:func _best_sol_record(pid: String, stars: int) -> void:
+game/scripts/ui/screens/game_core.gd:813:func _puzzle_record(pid: String, spent: int, units: int, ticks: int) -> void:
+game/scripts/ui/screens/game_modes.gd:942:func _record_match(w: int) -> void:
+game/scripts/ui/screens/game_modes.gd:1310:func _nemesis_record(enemy) -> void:
+game/scripts/ui/screens/game_result.gd:50:func _finish_battle() -> void:
+game/scripts/ui/screens/game_result.gd:75:		call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+game/scripts/ui/screens/game_result.gd:98:			call("_record_match", w)
+
+exec
+/bin/bash -lc "ls coordination/v1600-impl/b18-r1; nl -ba game/scripts/core/army.gd | sed -n '1,170p'; nl -ba game/scripts/ui/screens/game_result.gd | sed -n '45,67p'; nl -ba game/scripts/ui/screens/game_place.gd | sed -n '1,230p'; rg -n 'tower_route|_tw_route|_tower_' game/scripts/ui/screens/game_v16.gd; rg -n '3.1|B18|承諾|settled|swap_ai_run' docs/* coordination/v1600*/*.md" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1161ms:
+b18-plan.md
+codex-prompt.md
+codex-prompt2.md
+codex-prompt3.md
+codex.err
+codex.md
+codex.raw
+codex2.err
+codex2.md
+codex2.raw
+codex3.err
+codex3.raw
+diff.patch
+diff2.patch
+diff3.patch
+hy-prompt.txt
+hy.err
+hy.md
+hy1
+     1	extends RefCounted
+     2	## 一方的陣型：預算、人數上限、部署區、格子佔用。純資料，不碰畫面。
+     3	
+     4	## 擺放錯誤碼（第七輪 H6）：畫面靠這些常數判斷，不再比對中文字串。查過：這些字串沒有進任何代碼或存檔。
+     5	const E_ZONE := "只能放在自己的部署區"
+     6	const E_TAKEN := "這格已經有兵"
+     7	const E_POOL := "這種兵不在這局的卡池裡"
+     8	const E_GOLD := "錢不夠"
+     9	const E_RESERVE := "要留錢和名額給至少 1 隻戰鬥兵"
+    10	const E_NEAR := "離其他兵太近"
+    11	const E_NEAR_ENEMY := "離敵兵太近"
+    12	const E_CAP_PREFIX := "最多"
+    13	const E_TYPE_CAP_PREFIX := "這種兵最多"
+    14	const D = preload("res://scripts/core/unit_defs.gd")
+    15	const STK = preload("res://scripts/core/sticker_defs.gd")
+    16	
+    17	const COLS := 16
+    18	const ROWS := 9
+    19	const ZONE := 6          # 每邊部署區 6 欄
+    20	const MAX_UNITS := 24
+    21	
+    22	var team: int
+    23	var budget: int
+    24	var units: Array = []    # 每筆 {"type", "col", "row"}
+    25	# 第五輪：自訂規則的部署限制（預設值＝1.3.0 行為）
+    26	var pool := (1 << D.COUNT) - 1   # 可用兵種遮罩
+    27	var unit_cap := MAX_UNITS
+    28	var type_cap := 0                # 單種上限，0＝不限
+    29	var allow_boss := false          # V1.4 #12：只有看重播的對戰碼（紅方）可以帶巨獸；一般陣型碼、挑戰碼不行（Codex、Antigravity v140-i5）
+    30	var guard_combat := false        # 防卡死：還沒擺戰鬥兵時，不准擺到買不起戰鬥兵（只有玩家擺放與 AI 用，載入舊代碼不開）
+    31	# 第六輪：自由排兵（docs/history/2026-11-03-free-placement-plan-v6.md §3）
+    32	# 自由部署的 units 每筆是 {"type", "x", "y"}（世界座標、量化到 50）；格子部署照舊 {"type", "col", "row"}。
+    33	const W := COLS * 1000
+    34	const H := ROWS * 1000
+    35	const EDGE := 200
+    36	const QUANT := 50
+    37	const E_TERRAIN := "err_terrain"
+    38	var deploy := "grid"
+    39	var spacing := 1000              # 己方兩隻的最小中心距離
+    40	var depth := 6000                # 自己視角 x 上限（全場＝15800）
+    41	var enemy_pos: Array = []        # 全場時：敵兵的世界座標（Vector2i），離它們至少 ENEMY_GAP
+    42	var enemy_gap := 1500
+    43	# V9 地圖：場地大小與地形（標準＝16×9、沒有地形）
+    44	var fw := W
+    45	var fh := H
+    46	var terrain = null
+    47	
+    48	func _init(p_team: int = 0, p_budget: int = 100) -> void:
+    49		team = p_team
+    50		budget = p_budget
+    51	
+    52	func spent() -> int:
+    53		var s := 0
+    54		for u in units:
+    55			s += D.cost(u["type"])
+    56		return s
+    57	
+    58	func left() -> int:
+    59		return budget - spent()
+    60	
+    61	func count() -> int:
+    62		return units.size()
+    63	
+    64	func count_of(t: int) -> int:
+    65		var n := 0
+    66		for u in units:
+    67			if u["type"] == t:
+    68				n += 1
+    69		return n
+    70	
+    71	func in_zone(col: int, row: int) -> bool:
+    72		if row < 0 or row >= ROWS:
+    73			return false
+    74		if team == 0:
+    75			return col >= 0 and col < ZONE
+    76		return col >= COLS - ZONE and col < COLS
+    77	
+    78	func index_at(col: int, row: int) -> int:
+    79		for i in units.size():
+    80			if units[i]["col"] == col and units[i]["row"] == row:
+    81				return i
+    82		return -1
+    83	
+    84	## 回傳空字串＝可以放；否則是不能放的原因（顯示給玩家）。
+    85	func check_place(t: int, col: int, row: int) -> String:
+    86		if deploy == "free":
+    87			return check_place_xy(t, col * 1000 + 500, row * 1000 + 500)
+    88		if not in_zone(col, row):
+    89			return E_ZONE
+    90		if index_at(col, row) != -1:
+    91			return E_TAKEN
+    92		if terrain != null and terrain.blocked(col * 1000 + 500, row * 1000 + 500, team):
+    93			return E_TERRAIN   # 第十三輪：地形殘局（格子放在地圖上），牆內格子不能放
+    94		return _check_common(t)
+    95	
+    96	## 位置以外的條件（卡池、人數、單種、錢、防卡死），格子與自由共用。
+    97	func _check_common(t: int) -> String:
+    98		if t < 0 or t >= D.total() or (pool >> t) & 1 == 0:
+    99			return E_POOL
+   100		if count() >= unit_cap:
+   101			return E_CAP_PREFIX + " %d 隻" % unit_cap
+   102		if type_cap > 0 and count_of(t) >= type_cap:
+   103			return E_TYPE_CAP_PREFIX + " %d 隻" % type_cap
+   104		var hc := D.hard_cap(t)     # 第八輪：奇幻兵一隊的硬上限
+   105		if hc > 0 and count_of(t) >= hc:
+   106			return E_TYPE_CAP_PREFIX + " %d 隻" % hc
+   107		if D.cost(t) > left():
+   108			return E_GOLD
+   109		if guard_combat and not D.is_combat(t) and not has_combat():
+   110			var cc := cheapest_combat()
+   111			if count() + 1 >= unit_cap or left() - D.cost(t) < cc:
+   112				return E_RESERVE
+   113		return ""
+   114	
+   115	## 第五輪：有沒有擺戰鬥兵（開戰條件：雙方各至少 1 隻）。
+   116	func has_combat() -> bool:
+   117		for u in units:
+   118			if D.is_combat(int(u["type"])):
+   119				return true
+   120		return false
+   121	
+   122	func cheapest_combat() -> int:
+   123		var c := 1 << 30
+   124		for t in D.total():
+   125			if (pool >> t) & 1 == 1 and D.is_combat(t):
+   126				c = mini(c, D.cost(t))
+   127		return c
+   128	
+   129	func cheapest_in_pool() -> int:
+   130		var c := 1 << 30
+   131		for t in D.total():
+   132			if (pool >> t) & 1 == 1 and (type_cap == 0 or count_of(t) < type_cap):
+   133				c = mini(c, D.cost(t))
+   134		return c
+   135	
+   136	## 第五輪：套用規則（部署層）。
+   137	func apply_rules(r, p_team: int) -> void:
+   138		budget = r.budget_of(p_team)
+   139		pool = r.pool_of(p_team)
+   140		unit_cap = r.unit_cap
+   141		type_cap = r.type_cap
+   142		guard_combat = true
+   143		deploy = r.deploy
+   144		spacing = r.spacing
+   145		depth = r.depth_of()
+   146		enemy_gap = r.ENEMY_GAP
+   147		fw = r.field_w()
+   148		fh = r.field_h()
+   149		terrain = r.terrain()
+   150	
+   151	func _copy_limits(a) -> void:
+   152		a.pool = pool
+   153		a.unit_cap = unit_cap
+   154		a.type_cap = type_cap
+   155		a.guard_combat = guard_combat
+   156		a.deploy = deploy
+   157		a.spacing = spacing
+   158		a.depth = depth
+   159		a.enemy_gap = enemy_gap
+   160		a.enemy_pos = enemy_pos.duplicate()
+   161		a.fw = fw
+   162		a.fh = fh
+   163		a.terrain = terrain
+   164	
+   165	func place(t: int, col: int, row: int) -> bool:
+   166		if deploy == "free":
+   167			return place_xy(t, col * 1000 + 500, row * 1000 + 500)
+   168		if check_place(t, col, row) != "":
+   169			return false
+   170		units.append({"type": t, "col": col, "row": row})
+    45			gauntlet_seed = rng.randi()
+    46		_reset_place()
+    47	
+    48	
+    49	
+    50	func _finish_battle() -> void:
+    51		sfx.set_muffled(false)
+    52		_pc_capture()   # V1.4 #14：最後一格戰場畫面留給戰報卡
+    53		fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
+    54		clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
+    55		state = St.RESULT
+    56		tm_ghost = null
+    57		result_t = time
+    58		set("ink_stamped", false)   # 1.2.0 §9.4
+    59		if play_kind == "official" and sim != null:
+    60			last_cmds = sim.cmd_log.duplicate(true)
+    61		result_tab = 0
+    62		_focus = 0
+    63		slow_left = 0.0
+    64		zoom_target = 1.0
+    65		var w: int = sim.winner
+    66		var eff: Dictionary = PLAY_EFFECTS[play_kind]
+    67		if eff["series"]:
+     1	extends "res://scripts/ui/screens/game_core.gd"
+     2	## 由 game_screens.gd 拆出（V9 P1，行為不變）
+     3	
+     4	# ───────────────────────── 狀態切換 ─────────────────────────
+     5	## 第十輪 B10：玩家按離開。系列打到一半或遠征途中，先確認（自動導頁直接呼叫 _go_title，不跳確認）。
+     6	func _leave_at_risk() -> bool:
+     7		if state == St.TITLE or watch_mode:
+     8			return false
+     9		if mode == Mode.GAUNTLET:
+    10			if state == St.RESULT and sim != null:
+    11				return sim.winner == 0 and gauntlet_stage < 7
+    12			return gauntlet_stage > 1
+    13		if mode == Mode.VS_AI or mode == Mode.DUEL:
+    14			return wins[0] + wins[1] > 0 and not series_over
+    15		return false
+    16	
+    17	func _request_leave() -> void:
+    18		if _leave_at_risk():
+    19			overlay = "leave"
+    20			_focus = 0
+    21		else:
+    22			_go_title()
+    23	
+    24	func _leave_confirm() -> void:
+    25		overlay = ""
+    26		_go_title()
+    27	
+    28	func _go_title() -> void:
+    29		call("_rift_sync")   # 1.2.0 §11.9：回主畫面時補送當週天梯成績（沒有連線事件可接，回主畫面是固定的重試點；Codex cat10 #7）
+    30		var rs = get("rush")
+    31		if rs is Dictionary and bool(rs.get("on", false)):
+    32			rs["on"] = false   # V1.6 #8：離開就結束極速賽（不記紀錄）
+    33		set("rift_on", false)   # V1.6 #10
+    34		set("trio_on", false)   # V1.6 #17
+    35		set("fog_on", false)   # V1.6 #20
+    36		set("tv_mark_mode", false)   # V1.6 #6：標記模式不能帶到別的畫面（Antigravity v160-i1 #1）
+    37		set("tv_marks", [])
+    38		set("ga_coop", false)   # V1.6 #21：續局時從存檔讀回
+    39		set("challenge_army", null)   # 每日高手陣、裂隙的敵陣不能留到一般對 AI（Antigravity v160-i1 #2）
+    40		set("wv_active", false)   # V1.4 #11：離開就結束車輪戰
+    41		set("wv_mode", false)
+    42		set("sealed_on", false)   # V1.4 #13
+    43		set("sealed", [[], []])
+    44		set("ghost_id", "")
+    45		set("wk_active", false)
+    46		set("wg_active", false)   # V1.4 #16：離開就取消押注，不能拿下一場來結算（Codex v140-i2）
+    47		call("_pre_drop")
+    48		Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
+    49		sfx.set_muffled(false)
+    50		watch_mode = false
+    51		clutch_t = 0.0
+    52		state = St.TITLE
+    53		overlay = ""
+    54		set("settings_ret", "")
+    55		nav_stack.clear()
+    56		if nav_hub != "":
+    57			overlay = nav_hub   # V1.5.1：從卡片面板進去打完，回來時回到那個面板
+    58		sim = null
+    59		view = null
+    60		zoom = 1.0
+    61		_focus = int(nav_focus.get(overlay, 0)) if overlay != "" else 0   # V1.0.0（Codex v100-i3）：打完回卡片面板，焦點回原卡
+    62		_new_demo()
+    63		sfx.play_music("music_title")
+    64		sfx.play_ambience("")
+    65	
+    66	
+    67	
+    68	func _new_demo() -> void:
+    69		var r := RandomNumberGenerator.new()
+    70		r.seed = rng.randi()
+    71		demo = Sim.new(AI.build(0, 100, r)["army"], AI.build(1, 100, r)["army"])
+    72		demo.fast = true
+    73		demo_acc = 0.0
+    74	
+    75	
+    76	
+    77	## 第六輪（Codex 實作第 1 輪 #5）：雙人全場被封鎖到跳完手、一方沒有戰鬥兵時，照樣按「開戰」——
+    78	## 模擬在第 0 tick 就依 §3.8 判定（有戰鬥兵的一方勝、雙方都沒有＝和局），不能卡在開戰鈕永久灰掉。
+    79	func _full_blocked_ok() -> bool:
+    80		return mode == Mode.DUEL and tp != null and tp.done() and rules != null and rules.is_free() and rules.fullfield == RuleSet.FULL_DUEL
+    81	
+    82	
+    83	func _ready_to_fight() -> bool:
+    84		if mode == Mode.DUEL:
+    85			if tp != null:
+    86				return tp.done() and (rules == null or _full_blocked_ok() or (armies[0].has_combat() and armies[1].has_combat()))
+    87			return blind_phase == 2
+    88		if rules != null:
+    89			return armies[0].has_combat()
+    90		return armies[0].count() > 0
+    91	
+    92	
+    93	
+    94	## 第五輪：開戰鈕灰掉時要直接寫的原因（空字串＝可以開戰）。
+    95	func _start_block_reason() -> String:
+    96		if state != St.PLACE:
+    97			return ""
+    98		if mode == Mode.DUEL and tp != null and not tp.done():
+    99			return ""
+   100		var a = _cur_army()
+   101		if a.count() == 0:
+   102			return ""
+   103		if rules != null and not a.has_combat() and not _full_blocked_ok():
+   104			return L.t("err_need_combat")
+   105		return ""
+   106	
+   107	
+   108	
+   109	## ── 1.2.0 §11.6 合作布陣 ──
+   110	const CoopPlace = preload("res://scripts/game/coop_place.gd")
+   111	var cp_on := false
+   112	var cp = null
+   113	
+   114	func _cp_on() -> bool:
+   115		return cp_on and cp != null and mode == Mode.VS_AI
+   116	
+   117	func _cp_start() -> void:
+   118		var r = RuleSet.standard()
+   119		var dm: int = RS.mask(_demo())
+   120		r.pool = [int(r.pool_of(0)) & dm, int(r.pool_of(1)) & dm]   # 標準卡池再扣掉試玩版沒有的兵（Codex cat10 #5）
+   121		rules = r
+   122		set("challenge_army", null)
+   123		overlay = ""
+   124		call("_start_mode", Mode.VS_AI)
+   125		cp_on = true
+   126		_cp_reset()
+   127		_toast(L.t("cp_intro"))
+   128	
+   129	func _cp_reset() -> void:
+   130		cp = CoopPlace.new(armies[0].budget, RuleSet.priciest_in(armies[0].pool))
+   131	
+   132	func _cp_head() -> String:
+   133		if cp.done():
+   134			return L.t("cp_ready")
+   135		return L.t("cp_turn", ["P1" if cp.player() == 0 else "P2", cp.hand / 2 + 1, cp.hands_each, cp.cap - cp.spent])
+   136	
+   137	func _on_start() -> void:
+   138		_fp_abort_drag()   # 第六輪：拖曳中按開戰／準備好，拖曳作廢（Codex 實作第 2 輪 #2）
+   139		if _cp_on() and not cp.done():
+   140			cp.end_hand()   # 「結束這一手」：換人；買不起就全部結束
+   141			cp.finish_if_stuck(_cur_army().can_afford_any())
+   142			sfx.play("turn")
+   143			return
+   144		if mode == Mode.DUEL and tp != null and not tp.done():
+   145			if not tp.end_turn():
+   146				_toast(L.t("err_cantskip"), true)
+   147			else:
+   148				sfx.play("turn")
+   149			return
+   150		if mode == Mode.DUEL and tp == null and blind_phase < 2:
+   151			if _cur_army().count() == 0:
+   152				_toast(L.t("err_empty"), true)
+   153				return
+   154			if rules != null and not _cur_army().has_combat():
+   155				_toast(L.t("err_need_combat"), true)
+   156				return
+   157			if bool(get("sealed_on")):
+   158				# V1.4 #13 雙封蠟戰書：每人封三個陣，封好一個就清空再擺下一個；三個都封好才換人
+   159				var tm: int = blind_phase
+   160				var sl: Array = get("sealed")[tm]
+   161				sl.append(_cur_army().units.duplicate(true))
+   162				sfx.play("turn")
+   163				_cur_army().units = []
+   164				if sl.size() < 3:
+   165					_toast(L.t("sealed_done", [sl.size()]))
+   166					return
+   167				blind_phase += 1
+   168				if blind_phase == 2:
+   169					call("_sealed_reveal", 0)
+   170					_toast(L.t("sealed_ready"))
+   171				else:
+   172					_toast(L.t("sealed_swap"))   # Antigravity v140-i3：第三封封完要說換人
+   173				return
+   174			blind_phase += 1
+   175			sfx.play("turn")
+   176			return
+   177		if armies[0].count() == 0 and not _full_blocked_ok():
+   178			_toast(L.t("err_empty"), true)
+   179			return
+   180		if rules != null and not _full_blocked_ok() and (not armies[0].has_combat() or (mode == Mode.DUEL and not armies[1].has_combat())):
+   181			_toast(L.t("err_need_combat"), true)
+   182			return
+   183		for u in armies[0].units:   # 開戰前再驗一次（Codex 實作審查 #1）
+   184			if not _allowed(int(u["type"])) and not (mode == Mode.TUTORIAL or mode == Mode.PUZZLE):
+   185				_toast(L.t("code_locked"), true)
+   186				return
+   187		if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() > gauntlet_changes:
+   188			_toast(L.t("err_changes"), true)
+   189			return
+   190		if mode == Mode.VS_AI and bool(get("wv_active")) and not bool(call("wave_has_lock", armies[0].units, get("wv_lock"))):
+   191			_toast(L.t("wv_missing"), true)   # V1.4 #11：載入陣型等方式把殘兵換掉了
+   192			return
+   193		if mode == Mode.VS_AI and not ai_prebuilt:
+   194			if _build_ai_async():
+   195				return
+   196			_build_ai()
+   197		_on_start_go()
+   198	
+   199	func _on_start_go() -> void:
+   200		last_player_formation = armies[0].units.duplicate(true)
+   201		if mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET:
+   202			Save.data["last_form"] = armies[0].to_code()   # 1.2.0 §11.1「複製上一陣」（下次擺陣按 L）
+   203		_begin_battle(armies[0].copy(), armies[1].copy())
+   204	
+   205	
+   206	
+   207	func _can_edit_existing() -> bool:
+   208		return not (mode == Mode.DUEL and (tp != null or blind_phase == 2)) and not _cp_on()   # 1.2.0 §11.6：合作布陣不能清空／整軍工具（只能撤自己這一手）
+   209	
+   210	
+   211	
+   212	func _locked() -> bool:
+   213		return mode == Mode.DUEL and tp == null and blind_phase == 2
+   214	
+   215	
+   216	
+   217	func _check_place(t: int, c: Vector2i) -> String:
+   218		if _locked():
+   219			return L.t("both_done")
+   220		if not _allowed(t):
+   221			return L.t("err_type")
+   222		if mode == Mode.DUEL and tp != null:
+   223			var why: String = tp.check_place(t, c.x, c.y)
+   224			return _err_key(why)
+   225		if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() + 1 > gauntlet_changes:
+   226			return L.t("err_changes")
+   227		if _cp_on():
+   228			var cw: String = cp.check(D.cost(t))   # 1.2.0 §11.6 合作布陣：這一手的上限、手數
+   229			if cw == "done":
+   230				return L.t("cp_done")
+2642:func _tower_open() -> void:
+2646:	_tower_start(maxi(1, run))
+2648:func _tower_start(floor_no: int) -> void:
+2658:			_tower_start(1)
+2673:func _tower_finish(w: int) -> void:
+docs/2026-11-15-v1.6.0-plan.md:29:**簡化介面**：保留輪廓與雙階色塊（紙＝#e8dcc0／字＝#2a1e15；木＝#3a2b1e／字＝#f3ead6），關紋理與漸暈；邊框對底 ≥3:1；不出現純黑底系統窗。
+docs/2026-11-15-v1.6.0-plan.md:60:- P3.1「勢」箭頭（S4）；P3.2 自動焦點＋鏡頭仲裁（手動優先、倒帶不補）；P3.3 跳字分層與避讓（≤15% 交戰區、盤內 ≥12px）；P3.4 特效明度與面積上限（單一特效灰階 ≤80%、面積 ≤交戰區 4%，畫在兵偶頭肩輪廓之後；音符、閃光、十字改虛線邊或低佔比）；P3.5 語意保護：P1 的盤外退色與地形落影不碰隊色與通行格（P1 與 P3 的分工）。
+docs/2026-11-15-v1.6.0-plan.md:99:- P13.1 棋譜本壞資料隔離與恢復、滿六筆明示替換；P13.2 出題錯誤落點與保留草稿；P13.3 木偶展台（只用 P5 已驗方向）；P13.4 收藏與無障礙長字串；P13.5 競猜木籌（押注區桌物化、獎勵印在結算獎章）。
+docs/2026-11-15-v1.6.0-plan.md:102:- P14.1 問路要付兵錢（布陣前花五金問一路兵種）；P14.2 情報承諾（敵陣先凍結、不退款不重抽）；P14.3 價格是否成決策（真人 5 人 6 題）。新規則走版本分流。
+docs/2026-11-15-v1.6.0-plan.md:109:## 3.1 版本與資料契約（K0、K5 的具體內容）
+docs/2026-11-15-v1.6.0-plan.md:120:- **會話邊界**（P7、P9、P14、P6 各自）：開局→**承諾**（敵陣、路線、陣型、規則、結算 ID 寫檔）→戰鬥→結算（只一次）→續玩→回退；每個邊界中斷、重啟、重複回呼、寫檔失敗各一個測試；模式之間不共用會話資料。B01 交付**存檔遷移與會話邊界測試範本**（`tests/suites/save.gd` 新範本），P6、P7、P9、P14 都用它。
+docs/2026-11-15-v1.6.0-plan.md:141:| B01 | （不可見）量得到慢在哪；存檔遷移範本 | P11.1、P11.4、P10.1、§3.1 範本 | — | `tools/check.py`、`layout_check.sh`、`sprite_cache.gd`、`tests/suites/save.gd` | 6～9＋0＋0 | K7 案例集合差 0；冷熱各 20 次機器登記 | 撤分片、保留量測 |
+docs/2026-11-15-v1.6.0-plan.md:144:| B04 | 大廳變挑戰簿（S1） | P2.4、P2.1、英文頁籤縮寫 | B03 | `lobby_view.gd`；簿紋、木撥片 | 2～3＋1.5～2＋0 | S1 判決：簿紙 45～65%、R14 0、英 150% 裁切 0、手把 ≤3 步、IN-160-01 | 寬度維持、只換樣式 |
+docs/2026-11-15-v1.6.0-plan.md:148:| B08 | 混戰看得懂（S4） | P3.1～P3.5 | B06 審片 | `battle_units.gd`、`battle_fx.gd`、`battle_view.gd`、新 `scripts/game/front_line.gd` | 3～5＋0＋真人 | S4 判決：蓋臉胸像素 0、裁切 0、≤15% 交戰區、IN-160-03；真人 3 秒（K6）未做＝資料不足→只開跳字避讓 | 只留跳字避讓 |
+docs/2026-11-15-v1.6.0-plan.md:157:| B16 | 宣紙戰報＋棋譜本 | P6.5、P13.1 | B15 | `songbook.gd`、`v120_01_ink` | 2～3 | 壞碼隔離、第七筆明示、24 組 0 | — |
+docs/2026-11-15-v1.6.0-plan.md:159:| B18 | 換邊雙局＋棋譜集 | P7.3、P7.4 | B17 | `game_playroom.gd`（`SwapDuel`） | 4～6 | §3.1 會話邊界；鏡像場分數 | 退一般對 AI |
+docs/2026-11-15-v1.6.0-plan.md:164:| B23 | （選配）朋友桌 | P9 | B04、B01 範本 | 新 `tea_session` | 5～8 | §3.1；IN-160-08 | 不開入口 |
+docs/2026-11-15-v1.6.0-plan.md:165:| B24 | （選配）情報取捨 | P14 | B04、B01 範本 | 迷霧推演、規則版本 | 4～7 | §3.1；升規則版本＋平衡、三星、代碼；IN-160-08 | 不開入口 |
+docs/2026-11-15-v1.6.0-plan.md:192:| §13 便條／展台／出題台／棋譜本／烘焙 | P1.5、P13.3、P13.2、P13.1、P10 | |
+docs/2026-11-10-v1.0.0-plan.md:167:事件來源：`battle_sim.gd:654～813,1298～1519,1812` 產生，`battle_view.gd:275～655` 消費（Codex 第 4 輪逐兵核對）。「推算」＝事件不直接給，要畫面端從位置／tick 推，標出來。
+docs/2026-11-10-v1.0.0-plan.md:238:- 前三場隱藏進階模式（違反「不靠場數解鎖」）；騎兵原地刨地、刺客瞬移替身、爆爆羊倒數、小石魔卡拳、骷髏延後實體化（碰模擬時序或暗示假能力）；三考每週精選（新內容承諾）；縮短繼承鏈；圖鑑動態小沙盤；塗裝慣性旋轉；砍相鄰陣法、砍雙封蠟（駁回）；徽章壓成兩級（會掩蓋紀錄資格）。
+docs/2026-11-13-v1.3.0-plan.md:25:### 0.3 底線（不是技術限制，是對玩家的承諾；天馬行空也不能破）
+docs/2026-11-13-v1.3.0-plan.md:29:4. **隊色可判讀**：色盲模式、藍圓紅菱、棋子輪廓對比 ≥3:1；改色要過色覺模擬。
+docs/2026-11-13-v1.3.0-plan.md:117:- **美感報表升級成門檻**：純黑 >1% 擋、棋子輪廓對比 <3:1 比例超過門檻擋。
+docs/2026-11-13-v1.3.0-plan.md:303:- 這是全選的估算，不是發版承諾；新兵數、協同組數、玩法項數要先凍結，否則成本沒有上界。外部：母語審稿、錄音、立繪、關鍵美術交期另排。
+docs/2026-11-13-v1.3.0-plan.md:310:- 分歧紀錄：Antigravity 把 §5 列應做、§6 列選配、§13 列必做、§15 列應做；Codex 相反。主持人裁決：§5 必做（有一致性承諾）、§6 拆 6a 必做／6b 應做、§13 應做（但動態標題便宜可早做）、§15 必做（舊缺陷不能被改版掩蓋）。
+docs/2026-11-13-v1.3.0-plan.md:350:| §4 | 固定圖重拍一致；可見輪廓對比 ≥3:1；純黑 >1% 的畫面 0 張；色覺模擬三種過 |
+docs/2026-11-11-v1.1.0-plan.md:7:> 優先：**P0**＝發版門檻、**P1**＝本版優先、**P2**＝容量允許、**之後**＝不承諾。成本 小／中／大。
+docs/2026-11-11-v1.1.0-plan.md:10:- 1.1.0 是**上線後第一個大更新**。業界做法（次級資料，見 §8）：第一個修正檔只修「影響最大、能驗證、能安全修」的；路線圖用「現在／下一步／之後」不把每個點子變成承諾；Steam beta 分支先測。
+docs/2026-11-11-v1.1.0-plan.md:49:| A19 | 圖集有界快取 | 按本局兵種預熱、召喚物與圖鑑需求另補；量峰值與切頁卡頓後才定目標（不先承諾 <200 MiB；不能為省記憶體造成切頁掉幀） | 中 |
+docs/2026-11-11-v1.1.0-plan.md:105:## 6. 之後（不承諾）與不做
+docs/2026-11-13-v1.4.0-plan.md:132:### 3.1 混戰主次（參考 Riot「Clarity」原理：輪廓、效果重要性、噪音預算）
+docs/2026-11-13-v1.4.0-plan.md:144:- 輪廓對比 <3:1 警告不增加；判讀色差不低於 1.3.0；固定圖重拍一致；混戰定位測試（點兵命中率）不退步。
+docs/2026-11-13-v1.4.0-plan.md:290:### 13.1 提速
+docs/2026-11-13-v1.4.0-plan.md:298:### 13.1b 每項提速的「風險→不漏」對照（Codex 第 3 輪）
+docs/2026-11-13-v1.4.0-plan.md:436:| §11 玩法 | §11.1 無盡塔做完；§11.2、11.3、11.5、11.10 延後（理由見 cat11-plan） | 第 11 類 |
+docs/MODULES.md:149:| `compat.gd` | 143 | 舊兵種相容檢查（第四輪方案 §3.1～3.2）。 |
+docs/2026-11-11-v1.2.0-plan.md:23:### 0.3 保留的四條底線（不是技術限制，是對玩家的承諾）
+docs/2026-11-11-v1.2.0-plan.md:120:- **3.1 字級表 2.0（整表升級，不縮字）**
+docs/2026-11-11-v1.2.0-plan.md:188:  - 成本：先做劍士一種驗證（3～5 日），量完再估全部（不先承諾「小一個數量級」）。
+docs/2026-11-11-v1.2.0-plan.md:273:- **13.1 關鍵美術**：一張「桌上戰爭」主視覺（手繪或高解析渲染），所有膠囊圖由它衍生。
+docs/2026-11-11-v1.2.0-plan.md:300:- **15.8** 所有 12～14px 文字的畫面逐頁重排（§3.1）。
+docs/STATE.md:218:- **1.2.0**：材質 `art/mat/`（`tools/gen/materials.py`，ambientCG CC0，manifest 契約由 `check_assets.py` 檢查，≤64 MiB）；「工藝」字型組為預設（Noto Sans→NTB Sans、霞鶩文楷→NTB Title；圓體可在設定切回）；字級表 2.0（100%：C15 S16 B18 H2 24 H1 34 T44）；元件庫 2.0（木牌按鈕、朱漆主按鈕＋蠟封、布標分頁、黃銅撥片、暖墨暗幕 `_dim`）；每個疊層一個實物外框（`OBJ_OF`），打開前 0.3 秒演開合（只疊畫，截圖／版面／減少特效／簡化不演；開發截圖 `--shot-open`）。
+docs/STATE.md:266:- 1.2.0：沒有真人看過「桌上世界」；聲音沒換真錄音（落子、蓋章沿用 `place_heavy`）、老闆沒有語音；關鍵美術、預告成片、商店截圖重拍、8 方向姿勢、個性小物、塗裝室 2.0、高解析立繪、新兵種都要美術或錄音來源。擴充規則只在沙盒（AI 不會刻意利用、沒有平衡）。圖集烘焙最長一幀約 74 ms（目標 < 40 沒達到）。棋子輪廓對比 < 3:1 約 13.7%（新量法，只當報表）。戰役難度只有程式產生的預算／種子，沒有真人校準。
+docs/STATE.md:283:- V1.3.1：走路中轉身只有 1 個中間角度；4 步相取中點，偶數步和一般 8 步相差 1/8 步（轉身那 0.1 秒腳可能小跳）。最窄轉身格不畫表情。巫毒娃娃、寶箱、沙漏沒有通用表情（臉是自己畫的）。待機小動作是前搖姿勢加回頭看的組合，不是逐種手繪的專屬動作。沒有真人看過 V1.3.1。
+docs/STATE.md:284:- V1.3（V1.3.1 已補齊 22 種）：轉身中間姿勢原本只有 6 種兵（其他 16 種用最窄 0.45 的厚木牌翻面）；中間姿勢是用部件轉換推算，不是畫師畫的。轉身中出手仍用最窄 0.45。轉身中更窄的兩格不畫表情疊加（約 0.1 秒）。
+docs/STATE.md:307:- V1.6.1：沒有真人玩過；三考三星門檻是「求解器找得到的程度」（18 組放寬 s3、10 組放寬 s2），不是設計目標；相鄰陣法槍＋騎、鼓＋狂戰士沒有平衡樣本（AI 很少同時帶）；觸控改名在沒有螢幕鍵盤的裝置只能輪替預設名；實驗簿舊 `ws` 鍵的方案認不出是哪一題，留在存檔不顯示；舊存檔的有效場數是估計；統一檢查約 950 秒（瓶頸是總工作量，要 <600 秒得減測試量，沒做）。（原列的「三考離開時要等背景算完」「找榜修正沒複查」V1.0.0 已解決。）
+docs/STATE.md:319:- 版面：24 組全量嚴格 **4728 張**，違規 24（全是 `91_trial_fixed` 試煉擺陣 R14 13＞12：第 4 批沒拍到這個變體）→ 射程／標記／實驗簿三顆小圖示登記成一組檢視工具，擺陣 4 個變體 × 24 組 96 張重跑**違規 0**；排版警告 0、宣告例外 54；R11 格子字 49226 段。
+docs/STATE.md:320:- 固定時鐘美感（戰鬥 27 畫面 × 24 組 648 張）：低對比棋子 573，基線 568（1.3.0 同條件重拍＋1.5.0 新畫面），**0 張變差**（容差每畫面 max(3,15%)、總數 2%——對方案 §17「不高於」的放寬）。真實時間的美感報表 879／14496 隻只列參考。
+docs/STATE.md:327:- 版面：24 組全量嚴格 **4512 張、違規 0、排版警告 0**、宣告例外 32；R11 格子字 50136 段（4469 張有格子）；R12／R13 違規等級。美感報表：純黑 >1% 的畫面 0 張；棋子輪廓對比 < 3:1 為 941／13680 隻（6.9%，1.3.0 是 5.9%——**沒達到方案「不增加」**：第 5～7 類讓茶漬不被淘汰、加粗虛線底座後一度 10.1%，收尾把茶漬底色減半、虛線底座只畫玩家方與跟拍的那隻後降到 6.9%，剩下的是密集混戰的接觸陰影）；低對比 >8% 的戰鬥截圖 143 張（警告、不擋）。
+docs/STATE.md:334:## 前一次驗收（2026-11-13，1.3.0 收尾）
+docs/STATE.md:336:- 版面：24 組全量嚴格 **4488 張、違規 0、排版警告 0**、宣告例外 32；R11 格子字 47229 段（4445 張有格子）；美感報表：純黑 >1% 的畫面 0 張；棋子輪廓對比 < 3:1 為 792／13536 隻（5.9%），低對比 >8% 的戰鬥截圖 124 張（警告、不擋；1.25 倍角色混戰重疊多）。接觸表看過英文 150% 的 1.3.0 新畫面。
+docs/STATE.md:341:## 前一次驗收（2026-11-13，1.2.0 收尾）
+docs/STATE.md:343:- 版面：24 組全量嚴格 **4440 張**，違規 21（全是戰役紙上星號對比）→ 修好後受影響組與最後改到的畫面（戰鬥、大廳沙盒／新技能、最後時刻）24 組 120 張重跑**違規 0、警告 0**；宣告例外 32。美感報表：純黑 >1% 的畫面 0 張；棋子輪廓對比 < 3:1 為 844／13536 隻（6.2%）。接觸表看過英文 150% 的 1.2.0 新畫面與繁中 100% 全部地圖戰鬥。
+docs/STATE.md:345:- 效能：圖集後處理改直接吃視窗貼圖後 ABBA 2 輪：p50 11.1／11.6、p95 15.3／15.4 ms、貼圖 256.1 MiB 不變、烘焙最長一幀 85.6→74.0 ms（雜訊內，目標 < 40 沒達到）。
+docs/STATE.md:353:- 效能：同一天早上（第一批收尾）繪圖 p50 7.42／p95 10.41 ms、GPU p95 2.57、貼圖 252.4 MiB、開機 4.1 秒。第二批加了底座部件層：先用向量逐隻畫，交錯量測 p95 多約 3.4 ms（約 20%）→ 改烘進木座合成格（每隻仍一次貼圖），交錯 A/B 各兩次 p95 16.22／15.89 對 15.98／15.88 ms，差在雜訊內，貼圖 +0.7 MiB（253.1）。下午機器整體變慢（同一份程式 p95 約 16），絕對值不和舊版比；`docs/perf/v110-draw.json`、圖集上限 `docs/perf/v110-atlas.json`（峰值 396.4 MiB 到頂不再長）。
+docs/STATE.md:369:- 三方：方向三輪（`coordination/v161d/`）；實作審查 Codex 三輪（r1 12 條、r2 5 條、r3 1 條，全修或裁決）；Antigravity 只有 Flash（Argon 額度用完）跑兩輪，13 條裡 2 條屬實並採用，其餘是畫面上不存在的東西或泛用建議（`ledger.md`）。**Codex 第 3 輪那條修正（榜查詢失敗只放掉失敗那一筆）沒有第 4 輪複查**，已過統一檢查與版面。
+docs/STATE.md:395:- 效能（同一台 i7-12700H／RTX 3060，1280×800，4 倍速 24 對 24）：繪圖 p50 7.65、p95 10.42 ms（V1.3.1 為 7.03／10.1），GPU p95 2.82 ms，貼圖記憶體 222.4 MiB（V1.3.1 227.9），開機 3.7 秒；單次量測，`docs/perf/v150-draw.json`。
+docs/STATE.md:403:## 更早的驗收（2026-11-08，V1.3.1 收尾）
+docs/STATE.md:405:- 版面 14 組 1400 張 0 違規；匯出 EXPORT OK；標題顯示 v1.3.1。
+docs/STATE.md:407:- 三方：方案三輪；實作 Codex、Antigravity 各審兩輪，必修全修（`coordination/v131-*`）。沒有真人玩過 V1.3.1。
+docs/2026-11-14-v1.5.0-plan.md:55:### 3.1 一張桌子
+docs/2026-11-14-v1.5.0-plan.md:132:| 美感指標只在固定時鐘量＋基線檔 | 不必重跑求平均 | 固定≠真實 | 真實時間全量照跑違規；美感只比固定時鐘、1.3／1.4 同條件重建基線 |
+docs/2026-11-14-v1.5.0-plan.md:145:- **1.4.0**：固定時鐘下棋子輪廓對比比 1.3.0 多 27 隻（596 對 569／13536），要修回 ≤569（候選：密集處接觸陰影減淡、非焦點兵血條淡化，見 §7）；`03／18／35` 逐畫面對照；轉場輸入閘門完整回歸；無盡塔存陣型、每日→爬塔→覆盤→重啟不串模式；謝幕反應只對 AI（擴到雙人？）；`v140_10_curtain_call` 手勢位置。
+docs/2026-11-14-v1.5.0-plan.md:153:- **應做**：§6 切片通過後量產、§5 剪影與個體差異、§4 材質、§3.1～3.2（桌面與光）、§3.3 切片通過後、§11 切片、§10 的換邊賽與塔分岔、§8 老闆露臉＋2 位常客。
+docs/2026-11-14-v1.5.0-plan.md:211:| §13 1.4.0 輪廓對比退步 | **修了** | 1、3、7 | 茶漬改地面層、密集接觸陰影減淡；固定時鐘 570 對基線 565（0 張變差，在容差內） |
+docs/2026-11-14-v1.5.0-plan.md:213:| §1.2 大廳三步 | **做了** | 3、10、14、17 | 三步頁、肩鍵、換步清按鈕；卡池另一邊唯讀摘要；折頁底列只剩收起＋開戰、代碼與存預設進「我的預設」選單、格狀控制各算一組——折頁 18～48 → 10～13（第 14 批）→ 規則列一頁 3 列、參數條成組後除軍令頁開啟（10）外都 ≤9（第 17 批） |
+docs/ui-art-explained.json:15:  "reason": "B10 剪影試作（劍加長斜伸、馬頭抬高、槍加長、底座加厚）：密集兵團裡鄰兵的新輪廓伸進量測外圈，外圈平均亮度變了，擠在中間的一隻（盾兵）跨過 3:1 門檻（每組約 +1；03_battle、74_cmd_cast 兩張逐隻對過＝盾兵，其餘三張同樣是密集兵團）"
+docs/ui-art-explained.json:20:  "reason": "B10 剪影試作（劍加長斜伸、馬頭抬高、槍加長、底座加厚）：密集兵團裡鄰兵的新輪廓伸進量測外圈，外圈平均亮度變了，擠在中間的一隻（盾兵）跨過 3:1 門檻（每組約 +1；03_battle、74_cmd_cast 兩張逐隻對過＝盾兵，其餘三張同樣是密集兵團）"
+docs/ui-art-explained.json:25:  "reason": "B10 剪影試作（劍加長斜伸、馬頭抬高、槍加長、底座加厚）：密集兵團裡鄰兵的新輪廓伸進量測外圈，外圈平均亮度變了，擠在中間的一隻（盾兵）跨過 3:1 門檻（每組約 +1；03_battle、74_cmd_cast 兩張逐隻對過＝盾兵，其餘三張同樣是密集兵團）"
+docs/ui-art-explained.json:30:  "reason": "B10 剪影試作（劍加長斜伸、馬頭抬高、槍加長、底座加厚）：密集兵團裡鄰兵的新輪廓伸進量測外圈，外圈平均亮度變了，擠在中間的一隻（盾兵）跨過 3:1 門檻（每組約 +1；03_battle、74_cmd_cast 兩張逐隻對過＝盾兵，其餘三張同樣是密集兵團）"
+docs/ui-art-explained.json:35:  "reason": "B10 剪影試作（劍加長斜伸、馬頭抬高、槍加長、底座加厚）：密集兵團裡鄰兵的新輪廓伸進量測外圈，外圈平均亮度變了，擠在中間的一隻（盾兵）跨過 3:1 門檻（每組約 +1；03_battle、74_cmd_cast 兩張逐隻對過＝盾兵，其餘三張同樣是密集兵團）"
+coordination/v1600-impl/b08-plan.md:1:# B08 混戰看得懂（S4；P3.1～P3.5）計畫
+coordination/v1600-impl/b08-plan.md:7:  - **P3.1 勢箭頭、P3.2 自動焦點＋鏡頭仲裁：不放量**。不做半套開關（IN-160-03 的開關測試要在功能存在時才有意義），進度表明列「未完成：等 K6」，不宣稱已驗證。
+coordination/v1600-impl/b18-plan.md:1:# B18 換邊雙局（對 AI）＋棋譜集（P7.3、P7.4）計畫
+coordination/v1600-impl/b18-plan.md:3:方案 §4 B18：§3.1 會話邊界；鏡像場分數。前置 B17。在 B17 快照之上做（`build/cg/b18`），B17、B18 一起搬回。回退：退一般對 AI。
+coordination/v1600-impl/ledger.md:9:- 會話範本 `tests/test_base.gd::session_contract`（承諾後重啟不變、結算只一次且快照不變、壞資料、舊樣本）＋塔套用 `test_session_contract_tower_v1600`：結算走正式 `_tower_finish`、重啟走 JSON 讀回＋`Save.migrate`＋`sanitize_data`、結算後存讀再重送不重領、寫檔失敗（`fail_inject`）記未存→重試寫入承諾的那一層。
+coordination/v1600-impl/ledger.md:29:- 量測工具 `tools/tone_check.py`：桌 ≤25、紙 35～65、主鈕對桌 ≥3:1、盤內逐像素差（>3/255）＋整盤平均偏色 ≥0.5、缺頁／缺組合／對照有而新版沒有＝失敗、非零結束碼、流程條三聯圖。校準：同一份程式固定時鐘連拍兩次逐像素差 0；1.5→1.6 戰鬥盤內 236 點差 2/255，全在一隻弓箭手輪廓的反鋸齒邊（顏色沒變；推測是圖集排列改變——這批新增 0.6 倍頭像——造成取樣差，沒有再追），所以容差留 3/255。
+coordination/v1600-impl/ledger.md:62:- 計畫 `b08-plan.md`。**範圍裁決**：K6 真人 3 秒讀勢沒做 → 照方案退路「只開跳字避讓」：P3.1 勢箭頭、P3.2 自動焦點＋鏡頭仲裁**不做**（不做半套開關），進度表列「未完成：等 K6」。
+coordination/v1600-impl/ledger.md:84:- 驗收（b10a）：完整檢查 7136 項全過、指紋不變；24 組 4824 張 0 違規；固定時鐘 5 張超過容差（每組約 +1）→ 對過 03_battle、74_cmd_cast 是密集兵團中間的盾兵：鄰兵新輪廓伸進量測外圈、外圈平均亮度變了而跨過 3:1，登記 `ui-art-explained.json`（B10），扣掉後 548／568、0 張變差。量測加記「哪幾隻」（`art.low`）供之後查原因。
+coordination/v1600-impl/ledger.md:162:## B16：宣紙戰報＋棋譜本（P6.5、P13.1）
+coordination/v1600-impl/ledger.md:164:- P13.1 壞資料隔離：`songbook.split` 解不開的代碼、亂型別、整欄不是陣列（含 null）都放進 `songbook_bad`（原文截字、最多 6、字典去重；讀檔最多看 32 筆，多的記「+N」放最前面；重複好碼不重解；冊子滿了之後的壞碼也照樣隔離）；棋譜本下方「讀不出來的 N 筆另外收著」＋複製出來（讀回剪貼簿核對才說成功）／清掉（寫不進＝還原、照實說）。全部正常的舊存檔不多欄位。
+docs/ui-layout-rules.md:54:- 一般版面檢查用真實幀時間，戰鬥截圖拍到的 tick 每次不同，「棋子輪廓對比 < 3:1」的數字會浮動 ±20%，**不能拿來比版本**。
+coordination/v1600p/p1-prompt-draft.md:24:- **驗收契約**：固定時鐘美感基線（低對比棋子 573／基線 568、0 張變差，容差每畫面 max(3,15%)、總數 2%）、輸入矩陣 124 組、背景驗收鏈 `run_chain.sh`、改程式前 `chain_busy.sh`。
+coordination/v1600p/r2-decision.md:3:三方配分（Claude／Codex／Hydrogen，合計）：M01 16/9/14＝39｜M07 14/13/12＝39｜M03 12/9/14＝35｜M09 12/14/6＝32｜M05 10/10/7＝27｜M04 8/8/10＝26｜M10 8/7/5＝20｜M02 6/4/8＝18｜M15 5/4/4＝13｜M14 4/4/4＝12｜M11 2/5/3＝10｜M13 2/3/4＝9｜M08 0/3/3＝6｜M06 1/2/2＝5｜M12 0/3/2＝5｜M16 0/2/2＝4。
+coordination/v1600p/r2-merged.md:10:| M03 | **去表單化與紙面字**：大廳挑戰簿、紙面鈕白字、英文 150%、字體 3.0 | C7、D02、A03 | 三階排印（C7.1、D02.1、A01-3）；英文 150% 重災頁改寫（C7.2、A03-3）；紙面白字全面修＋偵測（C8.3、D02.3、A03-2）；大廳挑戰簿（A03-1，R3 必選代表頁）；按任務減選擇（D02.2）；直排木牌（C7.3） | |
+coordination/v1600p/r2-merged.md:11:| M04 | **木偶剪影與底座** | C6.1、D03.1、A04 | 剪影重整（先劍士、騎兵）；色盲旗形（A04-1）；底座厚度（A04-2）；BOSS 權重與血條不遮臉（A04-3） | 盲認門檻：C 寫 ≥90%、D 寫 ≥80%——待 R2 |
+coordination/v1600p/r2-merged.md:14:| M07 | **戰局一眼看懂** | C3、D04、A06-2、A06-3 | 「勢」箭頭（C3.1）；自動焦點（C3.2）＋事件鏡頭仲裁（D04.3）；跳字分層與避讓（C3.3、D04.1、A06-2）；特效明度上限（A06-3）；語意保護外圍退色（D04.2） | |
+coordination/v1600p/r2-merged.md:19:| M12 | **情報取捨**：問路要付兵錢 | D07 | 情報與兵錢、承諾、價格是否成決策 | 新規則，要版本分流 |
+coordination/v1600p/r5-codex.md:5:- §3.1／B15：只明列存檔版本處置，規則碼、證據版本的讀取／拒絕仍不明；B15 六邊界又漏 R3 的重複保存、寫檔失敗。最小修正：補版本矩陣，失敗案例取聯集。
+coordination/v1600p/p5-prompt-final.md:45:- 驗收：固定時鐘美感基線（低對比棋子 573／基線 568、0 張超過容差；容差逐畫面 max(3,15%)、總數 2%——「0 張變差」指沒超過容差，不是每張都沒增加；不可默默放寬或重設基線）、輸入矩陣 124 組、背景驗收鏈、改程式前 `chain_busy.sh`。
+coordination/v1600p/p5-prompt-final.md:48:### 2.3 1.5.0 未做（R1 必須逐項表態：收編升級／重新設計／延後／刻意不做／待確認）
+coordination/v1600p/p3-prompt-combined.md:44:- 驗收：固定時鐘美感基線（低對比棋子 573／基線 568、0 張超過容差；容差逐畫面 max(3,15%)、總數 2%——「0 張變差」指沒超過容差，不是每張都沒增加；不可默默放寬或重設基線）、輸入矩陣 124 組、背景驗收鏈、改程式前 `chain_busy.sh`。
+coordination/v1600p/p3-prompt-combined.md:46:### 2.3 1.5.0 未做（R1 必須逐項表態：收編升級／重新設計／延後／刻意不做／待確認）
+coordination/v1600p/r1-codex.md:47:【提案】十二方向可共存：D01／02／09／10 先提供底座；D03／04／11／12 再放量；D05／06／07／08 各自接入既有旅程。D06 與 D07 是不同會話契約，不強塞進同一局。以下估工合計約工程 **56–98 人日**、美術 **22–43 人日**，低信心、未含外部等待與真人招募；不是一個短衝刺的承諾。
+coordination/v1600p/r1-codex.md:82:| §13 旋轉展台 | 【提案】收編升級 | D11；依 D03 已完成方向展示，不承諾無素材的連續旋轉。 |
+coordination/v1600p/r1-codex.md:120:| D11 舊器物用得安心 | 出題、收藏、看塗裝都有清楚退路。 | E11、zh-153／176／102 | 【已知】棋譜驗型、出題驗證、色盤凹槽已有。 | 精修已有用途，減少挫折。 | 4–7／1–2；壞碼與復原互動。 |
+coordination/v1600p/r1-codex.md:135:| D03.1 剪影重整 | 先做劍士與騎兵，拉開頭身、武器與重心，再擴到全兵種。 | 指：兵種辨識；樣：五人各 20 題、含縮圖色盲；條：K6；量：限時指認；門：各條件正確率 ≥80%；據：新目標；敗：回修剪影，不加標籤補救。 | K2 第一、三層；460×215 與灰階辨武器、底座及角色，尺⑤⑥。 |
+coordination/v1600p/r1-codex.md:148:| D07.2 情報承諾 | 敵陣先凍結；選區與回報同次保存；揭露後不能退款、重抽或先複製完整敵陣碼。 | 指：重抽／旁路洩漏；樣：重啟、切頁、圖鑑、剪貼簿、重複輸入；條：K1、K5；量：敵陣雜湊與可見資料稽核；門：凍結後雜湊改變、額外洩漏 0；據：新契約；敗：關閉交易態。 | K2 空／停用／已購狀態；K3 交接過程不閃出敵陣，尺③⑤。 |
+coordination/v1600p/r1-codex.md:159:| D11.1 棋譜可恢復 | 壞碼隔離、保留可讀原文與恢復入口；滿六筆新增時明示將替換哪一筆。 | 指：資料保全／可恢復；樣：壞碼、混合合法資料、第七筆、寫檔失敗；條：K5；量：載入與重啟前後比；門：合法筆遺失、未告知替換 0；據：新目標；敗：不覆寫原檔。 | K2 沿 zh-153／154；錯誤、空白、滿冊都能辨識與返回，尺③⑤。 |
+coordination/v1600p/r3-codex.md:73:- **基線升版**：舊基線及逐畫面`max(3,15%)`、總數2%容差保留；主動改版須四層觀片、色盲／低對比／R14通過並公開登記，不能直接覆寫。
+coordination/v1600p/r3-codex.md:78:2. 對`zh/en-053、166、167`逐狀態驗英文150%、簡化及24組：文字不縮小、不裁切，裝飾讓位；桌物光向、紙面字色與三階明度成立。
+docs/release/trailer-30s.md:38:- 這一版**還沒錄成片**：要真錄音（§10.1）與關鍵美術（§13.1，外包）到位後一起剪，列給使用者。
+docs/perf/v9-final.json:139:   "worst_ms": 25331
+docs/review/v120/check_profile.md:51:| test_puzzle_solutions | 281351 | 重算標準解（有模擬快取） |
+docs/playtest/loudness.md:9:| tension.wav | V1.6 木頭擬音 | -3.1 | -17.2 | -18.1 | 1499 | 2.0 |  |
+docs/playtest/loudness.md:37:| baa.wav | 戰鬥與其他 | -3.1 | -13.2 | -18.0 | 3379 | 0.3 |  |
+docs/playtest/loudness.md:61:| hit_soft.wav | 戰鬥與其他 | -1.4 | -13.1 | -18.0 | 2245 | 0.12 |  |
+docs/playtest/loudness.md:66:| horn.wav | 戰鬥與其他 | -3.1 | -9.0 | -18.0 | 468 | 0.9 | 比組內中位數大聲 9 dB |
+docs/playtest/loudness.md:85:| squish.wav | 戰鬥與其他 | -3.1 | -11.6 | -18.0 | 1107 | 0.16 | 比組內中位數大聲 6 dB |
+docs/playtest/loudness.md:123:| music_place.ogg | 音樂 | -1.8 | -19.3 | -16.4 | 3211 | 49.95 |  |
+coordination/v1600p/p2-codex.md:61:### 3.1 先讀的資料
+docs/l10n-review/review_zh_CN.csv:40:place_hint_fp_turns,按住拖曳畫出這一手，放開就落子、不能收回；右鍵取消這一筆・沒有位置的一方會自動跳過,Drag to paint this turn's units; they land on release and can't be taken back (right-click cancels the stroke) · a player with no room is skipped,按住拖曳画出这一手，放开就落子、不能收回；右键取消这一笔・没有位置的一方会自动跳过,,,ffe19351
+docs/l10n-review/review_zh_CN.csv:41:place_hint_fp_tools,選取工具或 Ctrl＋拖曳框住一群：拖動整群搬移、M 上下翻轉、Delete 刪除,"Select tool or Ctrl+drag to box a group: drag to move it, M flips it, Delete removes it",选取工具或 Ctrl＋拖曳框住一群：拖动整群搬移、M 上下翻转、Delete 删除,,,10137179
+docs/l10n-review/review_zh_CN.csv:56:score,藍 %d : %d 紅,Blue %d : %d Red,蓝 %d : %d 红,,,63301313
+docs/l10n-review/review_zh_CN.csv:74:reason_bothwipe,同時全滅,Both sides wiped out,同时全灭,,,24ed2381
+docs/l10n-review/review_zh_CN.csv:96:set_speed,預設觀戰速度,Default battle speed,默认观战速度,,,1983d1c2
+docs/l10n-review/review_zh_CN.csv:171:ev_braced,頂住！,Braced!,顶住！,,,683ec3a1
+docs/l10n-review/review_zh_CN.csv:191:menu_codex_short,圖鑑,Codex,图鉴,,,6d3361b0
+docs/l10n-review/review_zh_CN.csv:202:pk_codex,圖鑑,Codex,图鉴,,,6d3361b0
+docs/l10n-review/review_zh_CN.csv:265:roster_all,兵種：全部 %d 種（點一下切換）,Units: All %d (click to switch),兵种：全部 %d 种（点一下切换）,,,31144145
+docs/l10n-review/review_zh_CN.csv:307:rr_cap,人數上限,Unit cap,人数上限,,,3b1cd36a
+docs/l10n-review/review_zh_CN.csv:347:lb_start,開戰 ▶,Start ▶,开战 ▶,,,3a1b70f2
+docs/l10n-review/review_zh_CN.csv:373:lb_cap,人數上限,Unit cap,人数上限,,,3b1cd36a
+docs/l10n-review/review_zh_CN.csv:409:lbd_t_unit_cap,人數上限,Unit cap,人数上限,,,3b1cd36a
+docs/l10n-review/review_zh_CN.csv:464:set_tab_0,畫面,Display,画面,,,a179311e
+docs/l10n-review/review_zh_CN.csv:480:sd_set_playtest,把每場的結果記在這台電腦（不上傳），方便回報問題。,Record each battle's result on this computer (never uploaded) to help with bug reports.,把每场的结果记在这台电脑（不上传），方便回报问题。,,,3911a423
+docs/l10n-review/review_zh_CN.csv:539:save_locked,這份存檔來自比較新的版本。為了保護它，這次遊玩的進度不會儲存；請更新遊戲。,"This save comes from a newer version. To protect it, progress won't be saved this session. Please update the game.",这份存盘来自比较新的版本。为了保护它，这次游玩的进度不会保存；请更新游戏。,,,d835100f
+docs/l10n-review/review_zh_CN.csv:564:key_codex,圖鑑,Codex,图鉴,,,6d3361b0
+docs/l10n-review/review_zh_CN.csv:598:unit_19,小石魔,Pebble Golem,小石魔,,,d9d35131
+docs/l10n-review/review_zh_CN.csv:737:daily_mut_5_d,本週突變：%d 秒、雙方都有%s,"This week: %d seconds, both sides get %s",本周突变：%d 秒、双方都有%s,,,7345b3b1
+docs/l10n-review/review_zh_CN.csv:740:daily_mut_7,神仙打架,Clash of Legends,神仙打架,,,a63d1184
+docs/l10n-review/review_zh_CN.csv:751:ga_node_outpost,前哨戰,Outpost,前哨战,,,3112eb7e
+docs/l10n-review/review_zh_CN.csv:817:demo_locked,這是正式版內容。,This is in the full version.,这是正式版内容。,,,3019f90c
+docs/l10n-review/review_zh_CN.csv:829:cmd_d_0,全隊獲得最大血量 %d%% 的護盾，持續 %d 秒。傷害先扣護盾。,The whole team gets a shield worth %d%% of max HP for %d s. Damage hits the shield first.,全队获得最大血量 %d%% 的护盾，持续 %d 秒。伤害先扣护盾。,,,73a131e9
+docs/l10n-review/review_zh_CN.csv:871:cap_note,最多放 %d 隻,Place at most %d,最多放 %d 个,,,53d1a283
+docs/l10n-review/review_zh_CN.csv:891:rv_diverge,第 %s 秒開始兩條時間線分岔,Timelines split at %ss,第 %s 秒开始两条时间线分岔,,,3b1b3bcd
+docs/l10n-review/review_zh_CN.csv:907:ct_gold,+%d 金,+%dg,+%d 金,,,13438112
+docs/l10n-review/review_zh_CN.csv:911:nem_open,宿敵戰記,Nemeses,宿敌战记,,,b13a13b1
+docs/l10n-review/review_zh_CN.csv:925:nem_place_5,冰湖,Frostmere,冰湖,,,b3d03e14
+docs/l10n-review/review_zh_CN.csv:958:pc_mode,模式：%s,Mode: %s,模式：%s,,,3e418311
+docs/l10n-review/review_zh_CN.csv:1009:pr_waves,車輪戰,Waves,车轮战,,,33410f54
+docs/l10n-review/review_zh_CN.csv:1024:paint_red,紅軍底漆,Red primer,红军底漆,,,ac3e1e4c
+docs/l10n-review/review_zh_CN.csv:1046:gh_beat_new,擊破幽靈！已破 %d／%d,Ghost broken! %d/%d so far,击破幽灵！已破 %d／%d,,,95f3d1cf
+docs/l10n-review/review_zh_CN.csv:1074:map_plates,推進板,Push Plates,推进板,,,a7f32165
+docs/l10n-review/review_zh_CN.csv:1260:set_place_mode,擺兵方式,Placing units,摆兵方式,,,a5835161
+docs/l10n-review/review_zh_CN.csv:1364:ps_open_0,不偏不倚，見招拆招。,No tricks — I'll answer whatever you bring.,不偏不倚，见招拆招。,,,df3a129f
+docs/l10n-review/review_zh_CN.csv:1370:ps_win_0,穩紮穩打，就這樣。,Steady wins. That's all.,稳扎稳打，就这样。,,,3e158497
+docs/l10n-review/review_zh_CN.csv:1390:nb_help,這一關最多存 5 種擺法；用存過的擺法打完，成績會自動記在旁邊。,Up to 5 setups per puzzle; results are recorded automatically when you play a saved setup.,这一关最多存 5 种摆法；用存过的摆法打完，成绩会自动记在旁边。,,,86c76351
+docs/l10n-review/review_zh_CN.csv:1451:trio_pz_hint,同一套陣要連打三支敵軍，三場都贏才過關。,Your one setup must beat all three enemy armies.,同一套阵要连打三支敌军，三场都赢才过关。,,,d3310e98
+docs/l10n-review/review_zh_CN.csv:1490:nb_n_cheap,省錢,Budget,省钱,,,a3a863b1
+docs/l10n-review/review_zh_CN.csv:1519:fb_fail,回報沒能存下來，也沒能複製（存檔資料夾可能是唯讀）,The report couldn't be saved or copied (the save folder may be read-only),回报没能存下来，也没能复制（存盘文件夹可能是唯读）,,,71748341
+docs/l10n-review/review_zh_CN.csv:1521:ns_puzzle_more,繼續殘局 %s,Continue puzzle %s,继续残局 %s,,,9d83c137
+docs/perf/v8-final.json:117:   "worst_ms": 3391
+docs/history/2026-11-04-v1-release-plan-v9.md:42:### 3.1 步態：Q 版跳步，由位移驅動
+docs/history/HANDOFF-v152.md:10:- 版本 **1.5.1** 已完成並推上 `origin main`（最後實作 commit 3611f85；方案 commit 481a0e5 之後）。統一檢查 48 步、4377 項全過；FINGERPRINT `b8fe741bcbfcf800`、數值摘要 `288176c5c9af5a79` 不變。
+docs/history/HANDOFF-v152.md:104:- 結束 14 個卡住的 Godot 程序（沒有權限結束）：PID 15308、19108、15116、5332、16364、29468、27660、6232、14296、1828、21976、31180、30384、23656。
+coordination/v1600p/r4-agy.md:7:- **最小修正**：§1 補齊五材質 Base／Shadow／Highlight 色碼與灰階範圍（依 [r2-decision.md](file:///mnt/c/Users/timmy/projects/no-take-backs/coordination/v1600p/agy_r4/r2-decision.md) 暗木 ≤25%、紙盤 35～65%、主層 ≥75%）、接觸影參數（偏移 px、羽化、陰影色／alpha）、顆粒尺度，及 `plain` 雙階邊框最小對比（≥3:1）。
+docs/history/2026-11-04-grand-optimization-plan-v7.md:13:- **角色**〔G〕〔X〕：最大問題是**隊伍色被配件蓋掉**——刺客固定紫帽、藍方鼓手戴紅帽、醫者白袍、狂戰士赤膊（有隊伍色披肩但面積小）。先做鼓手、狂戰士、刺客 3 種小樣給你看，通過才擴大，**不自動承諾 10 種全部重畫**。
+docs/history/2026-11-04-grand-optimization-plan-v7.md:45:- 戰鬥（03、15）：背刺同時畫紫色閃光 X＋方向斬痕、盾兵嘲諷是橘色雙圈，混戰時疊成一片；「背刺！」跳字往上堆；血條、驚嘆號擋臉〔C〕〔G〕。（〔X〕查核：衝鋒是塵土、破陣已有三角碎片，不是 〔G〕 說的同心圓與四角星，`battle_view.gd:372、409、1057、1072`）
+docs/history/2026-11-04-grand-optimization-plan-v7.md:52:- 自走棋的清楚度：「不告訴你為什麼輸的自走棋，就只是多幾步的拉霸機」〔[Orchard Deck](https://solodevstack.com/blog/orchard-deck-deterministic-card-battler-keywords)〕；獨立自走棋玩家最常抱怨「看不懂發生什麼」〔[itch 留言](https://itch.io/post/13314808)〕。
+docs/history/2026-11-04-grand-optimization-plan-v7.md:106:| 代號 | 兵種 | 問題（13、13b、03、15） | 改法 | 成本 | 優先 |
+docs/history/2026-11-04-grand-optimization-plan-v7.md:123:**流程**〔X〕〔G〕：O2 就先做鼓手、狂戰士、刺客 3 種小樣給你看。**通過條件**：① 塗黑剪影與其他 9 種兩兩分得開；② 灰階下隊伍可分；③ 實際混戰截圖（100% 與 150%）一眼分得出敵我；④ 你核准。通過後再逐批擴到其他兵種，每批都重跑同樣測試；**通過小樣不等於承諾 10 種全部重畫**。
+docs/history/2026-11-04-grand-optimization-plan-v7.md:193:| I2 | 統一檢查 25 分鐘 | 快速版（測試＋少量金標準）；〔X〕先量再承諾分鐘數、別重複跑測試裡已有的 100 場 | S | P1 |
+docs/history/2026-11-04-grand-optimization-plan-v7.md:242:| 1 | 角色小樣 | 先做鼓手、狂戰士、刺客 3 種；通過 §6 的四項條件（含你核准）才逐批擴大；不自動承諾 10 種全畫 |
+docs/history/2026-11-04-grand-optimization-plan-v7.md:244:| 3 | 首發平台 | Windows 首發；Linux 同一份程式一起匯出並做冒煙測試；Steam Deck 當 P1 實玩項目，不承諾「已驗證」標章 |
+docs/l10n-review/review_ja.csv:40:place_hint_fp_turns,按住拖曳畫出這一手，放開就落子、不能收回；右鍵取消這一筆・沒有位置的一方會自動跳過,Drag to paint this turn's units; they land on release and can't be taken back (right-click cancels the stroke) · a player with no room is skipped,ドラッグでこの手の配置を描き、離すと確定します。確定後は戻せません。右クリックで描きかけをキャンセル・置く場所がない側は自動で手番を飛ばします,,,ffe19351
+docs/l10n-review/review_ja.csv:41:place_hint_fp_tools,選取工具或 Ctrl＋拖曳框住一群：拖動整群搬移、M 上下翻轉、Delete 刪除,"Select tool or Ctrl+drag to box a group: drag to move it, M flips it, Delete removes it",選択ツールかCtrl＋ドラッグでまとめて囲めます。ドラッグでまとめて移動、Mで上下反転、Deleteで削除できます,,,10137179
+docs/l10n-review/review_ja.csv:56:score,藍 %d : %d 紅,Blue %d : %d Red,青 %d : %d 赤,,,63301313
+docs/l10n-review/review_ja.csv:74:reason_bothwipe,同時全滅,Both sides wiped out,同時全滅,,,24ed2381
+docs/l10n-review/review_ja.csv:96:set_speed,預設觀戰速度,Default battle speed,標準の観戦速度,,,1983d1c2
+docs/l10n-review/review_ja.csv:171:ev_braced,頂住！,Braced!,踏ん張り！,,,683ec3a1
+docs/l10n-review/review_ja.csv:191:menu_codex_short,圖鑑,Codex,図鑑,,,6d3361b0
+docs/l10n-review/review_ja.csv:202:pk_codex,圖鑑,Codex,図鑑,,,6d3361b0
+docs/l10n-review/review_ja.csv:265:roster_all,兵種：全部 %d 種（點一下切換）,Units: All %d (click to switch),兵種：全%d種（クリックで切替）,,,31144145
+docs/l10n-review/review_ja.csv:307:rr_cap,人數上限,Unit cap,ユニット上限,,,3b1cd36a
+docs/l10n-review/review_ja.csv:347:lb_start,開戰 ▶,Start ▶,開戦 ▶,,,3a1b70f2
+docs/l10n-review/review_ja.csv:373:lb_cap,人數上限,Unit cap,ユニット上限,,,3b1cd36a
+docs/l10n-review/review_ja.csv:409:lbd_t_unit_cap,人數上限,Unit cap,ユニット上限,,,3b1cd36a
+docs/l10n-review/review_ja.csv:464:set_tab_0,畫面,Display,画面,,,a179311e
+docs/l10n-review/review_ja.csv:480:sd_set_playtest,把每場的結果記在這台電腦（不上傳），方便回報問題。,Record each battle's result on this computer (never uploaded) to help with bug reports.,不具合報告に役立つよう、各試合の結果をこのパソコンに記録します。アップロードはしません。,,,3911a423
+docs/l10n-review/review_ja.csv:539:save_locked,這份存檔來自比較新的版本。為了保護它，這次遊玩的進度不會儲存；請更新遊戲。,"This save comes from a newer version. To protect it, progress won't be saved this session. Please update the game.",このセーブデータは新しいバージョンのものです。データを保護するため、今回は進行状況を保存しません。ゲームを更新してください。,,,d835100f
+docs/l10n-review/review_ja.csv:564:key_codex,圖鑑,Codex,図鑑,,,6d3361b0
+docs/l10n-review/review_ja.csv:598:unit_19,小石魔,Pebble Golem,小石魔,,,d9d35131
+docs/l10n-review/review_ja.csv:737:daily_mut_5_d,本週突變：%d 秒、雙方都有%s,"This week: %d seconds, both sides get %s",今週の特殊ルール：%d 秒・両軍に%sがあります,,,7345b3b1
+docs/l10n-review/review_ja.csv:740:daily_mut_7,神仙打架,Clash of Legends,化け物対決,,,a63d1184
+docs/l10n-review/review_ja.csv:751:ga_node_outpost,前哨戰,Outpost,前哨戦,,,3112eb7e
+docs/l10n-review/review_ja.csv:817:demo_locked,這是正式版內容。,This is in the full version.,製品版の内容,,,3019f90c
+docs/l10n-review/review_ja.csv:829:cmd_d_0,全隊獲得最大血量 %d%% 的護盾，持續 %d 秒。傷害先扣護盾。,The whole team gets a shield worth %d%% of max HP for %d s. Damage hits the shield first.,味方全員に最大HPの %d%% 分のシールドを %d 秒間付与します。ダメージは先にシールドが受けます。,,,73a131e9
+docs/l10n-review/review_ja.csv:871:cap_note,最多放 %d 隻,Place at most %d,配置は最大 %d 体,,,53d1a283
+docs/l10n-review/review_ja.csv:891:rv_diverge,第 %s 秒開始兩條時間線分岔,Timelines split at %ss,%s 秒から2つの時間線が分かれます,,,3b1b3bcd
+docs/l10n-review/review_ja.csv:907:ct_gold,+%d 金,+%dg,+%d G,,,13438112
+docs/l10n-review/review_ja.csv:911:nem_open,宿敵戰記,Nemeses,宿敵戦記,,,b13a13b1
+docs/l10n-review/review_ja.csv:925:nem_place_5,冰湖,Frostmere,氷の湖,,,b3d03e14
+docs/l10n-review/review_ja.csv:958:pc_mode,模式：%s,Mode: %s,モード：%s,,,3e418311
+docs/l10n-review/review_ja.csv:1009:pr_waves,車輪戰,Waves,連戦,,,33410f54
+docs/l10n-review/review_ja.csv:1024:paint_red,紅軍底漆,Red primer,赤軍の下地色,,,ac3e1e4c
+docs/l10n-review/review_ja.csv:1046:gh_beat_new,擊破幽靈！已破 %d／%d,Ghost broken! %d/%d so far,幽霊撃破！撃破数 %d／%d,,,95f3d1cf
+docs/l10n-review/review_ja.csv:1074:map_plates,推進板,Push Plates,押し板,,,a7f32165
+docs/l10n-review/review_ja.csv:1260:set_place_mode,擺兵方式,Placing units,配置方法,,,a5835161
+docs/l10n-review/review_ja.csv:1364:ps_open_0,不偏不倚，見招拆招。,No tricks — I'll answer whatever you bring.,奇策なし。出された手に応じるだけ。,,,df3a129f
+docs/l10n-review/review_ja.csv:1370:ps_win_0,穩紮穩打，就這樣。,Steady wins. That's all.,着実に。それだけ。,,,3e158497
+docs/l10n-review/review_ja.csv:1390:nb_help,這一關最多存 5 種擺法；用存過的擺法打完，成績會自動記在旁邊。,Up to 5 setups per puzzle; results are recorded automatically when you play a saved setup.,1問につき5つまで保存。保存した配置で戦うと成績が自動で記録されます。,,,86c76351
+docs/l10n-review/review_ja.csv:1451:trio_pz_hint,同一套陣要連打三支敵軍，三場都贏才過關。,Your one setup must beat all three enemy armies.,同じ布陣で三つの敵軍と戦い、三戦全勝でクリア。,,,d3310e98
+docs/l10n-review/review_ja.csv:1490:nb_n_cheap,省錢,Budget,節約,,,a3a863b1
+docs/l10n-review/review_ja.csv:1519:fb_fail,回報沒能存下來，也沒能複製（存檔資料夾可能是唯讀）,The report couldn't be saved or copied (the save folder may be read-only),レポートを保存もコピーもできませんでした（セーブフォルダが読み取り専用かもしれません）,,,71748341
+docs/l10n-review/review_ja.csv:1521:ns_puzzle_more,繼續殘局 %s,Continue puzzle %s,パズル%sの続き,,,9d83c137
+docs/history/2026-11-04-fantasy-units-plan-v8.md:25:| `compat` 只保護舊 5 種 28 欄 | `tools/compat.gd:3、19`〔X〕 | 要補 10 種基準 |
+docs/history/2026-11-04-fantasy-units-plan-v8.md:81:### 3.1 候選（沒進前十）
+docs/history/2026-11-04-fantasy-units-plan-v8.md:86:**動任何程式前**（先存原版基準、再改分流〔X〕），用目前的程式產生基準：`tests/golden/compat_v1.3_10.json`（舊 10 種逐 tick，含全部 35 欄）。
+docs/playtest/listen.html:6:function rnd(s){return function(){s=(s*1103515245+12345)%2147483648;return s/2147483648}}
+docs/playtest/listen.html:93:<div class=r data-g="0.285"><code>hit_soft</code><audio controls preload=none src="../../game/audio/hit_soft.wav"></audio><span class=tag><small>-13.1 dB</small></span><label><input type=radio name="hit_soft" value=ok>好</label><label><input type=radio name="hit_soft" value=loud>太大聲</label><label><input type=radio name="hit_soft" value=quiet>太小聲</label><label><input type=radio name="hit_soft" value=bad>難聽</label></div>
+docs/release/marketing-and-business.md:41:> 附上試玩版金鑰：XXXXX。如果有興趣做內容，任何形式都歡迎，不需要回覆或曝光承諾。
+docs/release/marketing-and-business.md:46:- 承諾：無課金、無局外養成、首發不承諾 DLC。
+coordination/v1600-impl/b01-plan.md:1:# B01：量測工具與存檔範本（方案 §4 B01：P11.1、P11.4、P10.1、§3.1 範本）
+coordination/v1600-impl/b01-plan.md:5:4. **會話邊界範本**：`tests/test_base.gd::session_contract`（承諾後重啟不變、結算只一次、壞資料不當、舊樣本讀回）；先套無盡塔 `test_session_contract_tower_v1600`。
+docs/perf/v161-draw.json:70:  "mem_static_max_mib": 301.1,
+docs/history/2026-11-03-free-placement-plan-v6.md:68:### 3.1 部署版本（取代「是否在格子中心」的自動判斷）〔X〕
+docs/history/2026-11-03-free-placement-plan-v6.md:198:| 模擬器 | 吃起始座標；§3.1 兩種編號；`free` 時規則摘要進雜湊；不做開戰推開 |
+docs/history/2026-11-01-design-and-plan.md:85:### 3.1 剋制五角形（以這張表為準）
+docs/history/2026-11-01-design-and-plan.md:223:- **效能先量再承諾**〔X〕：48 隻 × 1,800 tick，GDScript 能不能每場 20ms 還沒有證據。M1 用 release 匯出、暖機後跑 100 場，列中位數與 p95。困難 AI 的搜尋改成**離線預先算好**的反制表，遊戲中不現場跑上百場。
+docs/history/2026-11-01-design-and-plan.md:506:| 殘局與教學 | 13/13 |
+docs/history/2026-11-01-optimization-plan.md:107:- **兩方意見不同**：〔G〕主張首發 25 關殘局＋遠征＋每日種子，撐 3.5～5 小時防退款；〔X〕認為 30 關＋遠征＋障礙同時承諾太大。
+docs/history/2026-11-01-optimization-plan.md:241:  - 盲擺要另做「承諾／揭露」機制。
+docs/history/2026-11-01-optimization-plan.md:258:- **維持承諾**：無課金、無局外養成；首發不承諾 DLC〔X〕。
+docs/perf/v151-draw.json:25:      "p95": 3.13,
+docs/history/2026-11-10-v1.6.0-directions.md:17:  - Codex 另外參考 [StarVaders](https://store.steampowered.com/app/2097570/)、[Blue Prince](https://store.steampowered.com/app/1569580/)、[Kaizen](https://store.steampowered.com/app/2275490/)；Antigravity 另外參考 [Tactical Breach Wizards](https://store.steampowered.com/app/1043810/Tactical_Breach_Wizards/)、[Shogun Showdown](https://store.steampowered.com/app/2084000/Shogun_Showdown/)。
+docs/history/2026-11-01-balance-proposal.md:11:| 現行 | 原型數值 | 6/10 | 23.1 | 27% | 12% | 17%～78% |
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:52:| 對戰代碼 | 格式 `NTB2`（`NTB1` 是陣型碼）；已存兩邊預算，測試有 30 對 160 金 | `battle_code.gd:3,10`、`army.gd:102`、`run_tests.gd:1048` |
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:115:### 3.1 規則物件：三層、開戰凍結〔X〕
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:146:   - `judge=2`（新，讓子時才用）：比較「剩餘戰力占自己預算」。時間到用整數交叉相乘避免截斷：令 `Δ = p0×b1 − p1×b0`，`100×|Δ| < 3×1000×b0×b1` 判平手（保留原本「嚴格小於 3%」邊界）。背水、懸念、畫面緩衝、覆盤、成就同樣改用各自預算。
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:262:| **金幣條**（連續條，已擺的兵依**定位分 4 個色系**分段：近戰、遠程、突擊、支援＋大字「93／100 金」） | 擺放、雙人、殘局、大廳 | 取代「每 10 金一格」，4／5／7 金的餘數照實畫；殘局在三星金額處畫金色刻度，超過就變色〔G〕〔X〕 |
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:375:| 狂熱時間表要明確 6 個整數 | 〔X〕 | §3.1（`F=T×2÷3`、`S=T÷18`） |
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:376:| N＝1 只打 1 局 | 〔X〕 | §3.1 |
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:377:| 30 金時每手上限低於最低兵價 | 〔X〕 | §3.1（每手上限至少＝卡池最貴兵價；放不下戰鬥兵的組合在大廳擋） |
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:378:| 開戰條件所有入口都驗、防止花光錢只剩支援兵卡死 | 〔X〕 | §3.1 |
+docs/history/2026-11-03-custom-rules-and-ui-plan-v5.md:386:| 規則變更移除兵、開戰鈕灰掉、花不完的錢都要明確寫原因 | 〔G〕 | §3.1 |
+docs/perf/v150-draw.json:25:      "p95": 3.18,
+docs/history/2026-11-02-new-units-plan-v4.md:200:### 3.1 N0a 安全網：舊結果一個都不能變
+docs/history/2026-11-02-new-units-plan-v4.md:368:| **N0a 安全網**（M） | 工具、報表、測試、AI 表格去掉寫死的 5；金標準補強（§3.1） | `COUNT=5`、digest 不變、1000 場指紋完全相同；測試全過 |
+docs/history/2026-11-02-new-units-plan-v4.md:412:4. **「經典 5 種」模式的承諾**：只保證「只出現舊 5 種兵」，**不保證**舊版的戰鬥結果完全一樣（例如將來修擊退邊界問題時，舊兵的結果也可能跟著變）〔X〕。
+docs/history/2026-11-02-new-units-plan-v4.md:462:- **「經典 5 種」的承諾**：只保證不出現新兵；舊兵的戰鬥行為用相容檢查保證不變（§12.3）。
+docs/history/2026-11-02-new-units-plan-v4.md:498:| 醫者 | +3.3／+3.1／−7.2 ✓ |
+coordination/v1600p/r4-response.md:7:| C3 | Codex 阻擋 | 版本契約、讀取／拒絕、舊場位元組 | 採納：§3.1 |
+coordination/v1600p/r4-response.md:8:| C4 | Codex 阻擋 | 會話邊界、遷移範本無交付批、塔退路 | 採納：§3.1 會話邊界；B01 交付範本；塔退路寫明 |
+docs/history/2026-11-01-optimization-plan-v2.md:29:- 首發前**不加主動技能**，維持「擺好就只能看」的承諾〔X〕〔G〕。
+docs/history/2026-11-01-optimization-plan-v2.md:209:| **F 排版與 UI** | 頂部字小（13～14px）、結果畫面下方空白、殘局選單看不出特色、即時按鈕固定座標難排版 | 見下方「F 排版與 UI 細項」 | P1 | 100% 字級下關鍵字 ≥16px；1280×800、Deck、大字、英文都不截字、沒有焦點死路 |
+docs/history/2026-11-09-v1.5.1-plan.md:101:- 仍需要你的外部事項：Steam 後台成就 31 個、母語校對、Deck 實機、真人試玩；以及 12 個卡住的 Godot 程序（PID 15308、19108、15116、5332、16364、29468、27660、6232、14296、1828、21976、31180）。
+docs/perf/v131-draw.json:95:      "p95": 3.16,
+docs/history/2026-11-07-v1.2.1-plan.md:50:   - 線性 sRGB 算對比：一般字 ≥4.5:1，大字 ≥3:1（WCAG 大字＝24px 以上，或 18.66px 以上粗體，以 1280×800 顯示尺寸算）。
+docs/history/2026-11-07-v1.2.1-plan.md:125:- TFT 檢視面板集中技能資訊 — https://teamfighttactics.leagueoflegends.com/en-au/news/game-updates/teamfight-tactics-patch-13-12-notes/
+coordination/v1600p/p2-agy.md:33:- **驗收契約**：固定時鐘美感基線（低對比棋子 573／基線 568、0 張變差，容差每畫面 max(3,15%)、總數 2%）、輸入矩陣 124 組、背景驗收鏈 `run_chain.sh`、改程式前 `chain_busy.sh`。
+coordination/v1600p/p2-agy.md:57:### 3.1 截圖要怎麼準備（五類必備素材）
+docs/history/2026-11-09-v1.5.0-plan.md:129:### 3.1 遠程演出與時間同步（只動畫面）
+docs/history/2026-11-09-v1.5.0-plan.md:212:- **平衡掃描**：只檢查回歸與異常；任何數值調整另外列出，不混進「指紋不變」的承諾。
+docs/history/2026-11-09-v1.5.0-plan.md:246:| §3.1 遠程時間同步 | 完成 | 沒有手動軍令的局展示緩衝 8 tick，箭／炸彈／法球／補血離手到命中剛好；手動軍令局維持 2 tick（裁決） |
+docs/history/2026-11-09-v1.5.0-plan.md:254:| §4 效能重測 | 完成 | 繪圖 p95 10.42 ms（V1.3.1 10.1）、貼圖 222.4 MiB；`docs/perf/v150-draw.json` |
+coordination/v1600p/r1-agy.md:14:5. **進實機開戰前 10 分鐘（商店承諾兌現檢驗）**：預期整場是一張木桌上的桌遊 → `[flow_zh_TW_100.jpg｜01_title→v150_22a_lobby_step1→22_lobby｜從暗木桌驟然跳進佔滿 95% 畫面的亮白試算表單式選單]` → **強烈出戲**：商店圖從沒放過這三張白紙大廳，實機第二頁就打破木桌幻覺 `[已知]`。
+coordination/v1600p/r1-agy.md:174:| **A03-1** | **大廳桌物化重構（R3 必選代表頁）**：保留外圍 12% 暗木桌邊，把中央大白紙改為「攤在桌上的對戰挑戰簿」（左頁木紋壓印清單＋翻頁蠟印、右頁直接投影在迷你木框棋盤），`< >` 箭頭改木製撥片，單選鈕去黑直角框。 | 點進「對 AI 快速對戰」不再像跳進 Word 表單，而是像打開一本放在桌上的對戰名冊，跟標題和擺陣完全同一個世界。 | 指標：R14 控項數、操作步數、24 組版面通過率／樣本：`22a/22b/22/24_lobby`×24組／條件：124 組輸入鍵盤/滑鼠/手把測試／量法：自動化 R14＋`_input` 矩陣／門檻：違規=0、點擊步數 ≤ 現行(1.5.0)、英文 150% 無折行壓框／依據：§3 與 R14 契約／處置：超字數頁籤改圖示＋工具提示或雙欄排版。 | 固定截圖：`flow_zh_TW_100`、`v150_22a_lobby_step1`、`24_lobby_army`（含 150% 英與簡化）。<br>層級：**第 1 層灰階** ＋ **第 2 層並排**。 |
+docs/perf/s1-baseline.json:83:    "frames": 3321,
+docs/perf/v130-draw.json:87:      "p95": 3.1,
+docs/perf/v130-draw.json:93:      "p95": 3.16,
+docs/history/2026-11-07-v1.2.0-plan.md:55:  - 介面藍、介面紅：起點是 #3A7CA5／#C84B31，但兩色明度太接近（相對亮度 0.180／0.175），實作時要拉開到亮度對比 ≥3:1。
+docs/balance-runs/s6-shield.log:41:勝方剩餘中位數 27.0%、碾壓局 14%（95% 區間 13～15%）、有領先交換 13%（95% 區間 12～14%）、翻盤局 6%（95% 區間 5～7%）
+coordination/v1600p/r2-agy.md:32:- **反對 M03（14 分）**：大廳三步已在 1.5.0 過 24 組與 124 組驗收；重構為雙頁挑戰簿極易扯斷手把焦點與英 150% 折行。導覽白字只需單修色票，不必綁進大廳翻修。
+docs/history/2026-11-08-v1.3.1-plan.md:1:# 落子無悔 V1.3.1 方案：角色做完整（已實作，進度見 §8）
+docs/history/2026-11-08-v1.3.1-plan.md:228:- 試玩包 `build/playtest-v1.3.1/`。
+docs/history/2026-11-06-v1.1.0-plan.md:16:- 已經有頓幀、慢動作、最後一擊慢放（`battle_view.gd:72-94`），也已經依 y 排序（`battle_units.gd:301`）。這兩項要沿用並整合，不重做。
+docs/history/2026-11-06-v1.1.0-plan.md:107:必做核心約 **35～45 人日**（Codex 估 30～40，再加上快照、遷移驗收和整合緩衝）。這是條件預算，不是承諾；「只能先做一半」時，先做 M0＋M1＋M2（兩方都同意）。
+docs/history/2026-11-06-v1.1.0-plan.md:158:| E6 啟動與記憶體 | ✅ | 正式啟動（`--boot-check` 印 `BOOTMS`）到標題第一幀 1.83～1.85 秒 ≤2 秒（先前 2.47 秒是效能模式多載入開發工具）；記憶體 20 場、換色 20 次都不增長（`docs/perf/v110-memory.json`）；不需要預烘圖集 |
+coordination/v1600p/r4-codex.md:7:4. 【阻擋】定位：B15／B16／B21／B22、K5。問題：缺正式狀態／提交邊界；B15所需遷移範本無交付批；固定塔退路未說新run如何保存。影響：關機、寫檔失敗或重複回呼可重抽、重領、洩露封陣。最小修正：逐模式列開局→承諾→戰鬥→結算→續玩與回退契約，保存敵陣、路線、陣型、規則及結算ID。通過條件：各邊界中斷、重啟、重複回呼、寫檔失敗均不污染其他模式，兩條塔路均可完成。
+coordination/v1600p/r4-codex.md:19:10. 【待驗】定位：§4規模、K4、B09／B11／B18。問題：表列合計85.5～140.5人日，另B11美術2～10；其餘美術、量產、審片與外部等待是否含入不明，容量也未分帳。影響：全選成本與效能不可核准。最小修正：分工程／素材／等待／信心，列常駐、暫存、磁碟與共享資源；保留S2新增紋理≤32MiB子額，補塗裝入圖集鍵及超支削減順序。通過條件：放量前登記同機冷熱基準、各次最長幀<40ms、常駐≤64MiB／暫存≤32MiB、離線／即時解碼差0及錯命中0；16.67ms另定場景與量法，未量維持待驗。
+docs/perf/v121-draw.json:56:      "max": 3.14,
+docs/history/2026-11-08-v1.4.0-directions.md:58:- [Tactical Breach Wizards（Steam）](https://store.steampowered.com/app/1043810/Tactical_Breach_Wizards/)；[PC Gamer 2026 報導](https://www.pcgamer.com/games/strategy/tactical-breach-wizards-sold-twice-as-well-as-suspicious-developments-previous-games-but-more-importantly-it-failed-catastrophically-to-lose-an-igf-award-all-we-can-say-is-were-sorry-and-well-try-to-do-worse/)
+docs/balance-runs/archive.manifest:4: "sha256": "632cbfbc729569d0a1bafe8d88b33621fce5f177eb42d93d1c3ef8b1b437155b",
+docs/history/2026-11-08-v1.3.0-plan.md:67:- **起手意圖線**：擺陣時用粉筆畫出每隻兵的起手方向與目標意圖；不承諾真實路徑，也不洩漏隱藏的敵陣。
+docs/history/2026-11-08-v1.3.0-plan.md:138:- 2D 轉身：大家的共識是不要一幀翻面，改成 scale.x 過場；但真正的立體轉身要有中間影格。來源：[Godot 論壇](https://forum.godotengine.org/t/2d-sprites-flip-in-3d-animation-in-a-2d-game/13912)、[HTML5GameDevs](https://www.html5gamedevs.com/topic/13161-how-to-do-a-turning-animation/)。
+docs/perf/r2-cached.json:37:    "p50": 3.17,
+docs/balance-runs/s6-decision.md:9:| 碾壓局 | 16%（15～17%） | 14%（13～15%） |
+docs/balance-runs/s6-base.log:46:勝方剩餘中位數 28.0%、碾壓局 14%（95% 區間 13～15%）、有領先交換 13%（95% 區間 13～14%）、翻盤局 6%（95% 區間 5～7%）
+docs/perf/v110-check-baseline.json:101:   "sec": 170.61784839630127
+docs/perf/v110-draw.json:17:      "max": 23.11,
+docs/perf/v110-draw.json:62:        "tex_mib": 391.1,
+docs/perf/v110-draw.json:191:      "max": 23.11,
+docs/perf/v110-draw.json:203:  "note": "frame_ms 受垂直同步限制（約 16.7）；實際成本看 draw＋process＋gpu。展示速度 4 倍時每幀處理的模擬 tick 比正常多，屬於偏嚴的量法。1.1.0 收尾：同機交錯 A/B（含底座部件 vs 不含）各兩次：p95 16.22/15.89 vs 15.98/15.88 ms，差在雜訊內；當天機器整體比早上慢（同一份程式早上 p95 9.73～10.41），絕對值不和舊版比",
+docs/perf/v110-draw.json:205:  "tex_mem_mib": 253.1,
+docs/balance-runs/s6-shield-hp95/report.md:38:勝方剩餘中位數 27.0%、碾壓局 14%（95% 區間 13～15%）、有領先交換 13%（95% 區間 12～14%）、翻盤局 6%（95% 區間 5～7%）
+docs/perf/v110-atlas.json:47:        "ms": 341,
+docs/perf/v110-atlas.json:174:  "mem_static_max_mib": 301.9,
+docs/perf/v110-atlas.json:199:      "p95": 3.13,
+docs/perf/r2-breakdown.json:38:    "p95": 43.1
+docs/perf/v100-draw.json:70:  "mem_static_max_mib": 301.5,
+docs/perf/v100-draw.json:90:      "p99": 3.14
+docs/perf/v110-draw-base.json:20:      "p99": 3.16
+docs/balance-runs/n2-baseline-report.md:47:| 3 | 82% | [0, 15, 24, 49, 12] | `150158200208338334332336204331202337206210152333424423` |
+docs/balance-runs/n2-baseline-report.md:48:| 4 | 81% | [0, 30, 32, 14, 18] | `233120224214115250230304110343158451444134213157427203205` |
+docs/balance-runs/n2-baseline-report.md:49:| 5 | 74% | [15, 10, 20, 35, 12] | `330204338337154332203336202052056233051206153427424` |
+docs/balance-runs/s6-base/report.md:38:勝方剩餘中位數 28.0%、碾壓局 14%（95% 區間 13～15%）、有領先交換 13%（95% 區間 13～14%）、翻盤局 6%（95% 區間 5～7%）
+docs/balance-runs/n2-baseline/report.md:47:| 3 | 82% | [0, 15, 24, 49, 12] | `150158200208338334332336204331202337206210152333424423` |
+docs/balance-runs/n2-baseline/report.md:48:| 4 | 81% | [0, 30, 32, 14, 18] | `233120224214115250230304110343158451444134213157427203205` |
+docs/balance-runs/n2-baseline/report.md:49:| 5 | 74% | [15, 10, 20, 35, 12] | `330204338337154332203336202052056233051206153427424` |
+docs/balance-runs/r7-a/run.log:5:- 數值摘要 `41a73b34c381b091`、共 5220 筆、耗時 226 秒
+docs/balance-runs/r1-puzzles.txt:15:V {"base_winner":1,"best_rem":63,"class_list":{"[0, 1, 2, 3, 4]":3,"[0, 1, 2, 3]":15,"[0, 1, 2, 4]":9,"[0, 1, 2]":4,"[0, 1, 3, 4]":8,"[0, 1, 3]":7,"[0, 1, 4]":9,"[0, 2, 3, 4]":6,"[0, 2, 3]":5,"[0, 2, 4]":8,"[0, 3, 4]":8,"[0, 3]":3,"[0, 4]":3,"[1, 2, 3, 4]":4,"[1, 2, 3]":4,"[1, 2, 4]":3,"[1, 2]":1,"[1, 3, 4]":11,"[1, 3]":1,"[1, 4]":2,"[2, 3, 4]":7,"[2, 3]":2,"[2, 4]":5,"[3, 4]":3,"[3]":1},"classes":25,"example":[[1,5,7],[3,1,8],[0,2,8],[4,4,2]],"id":"p10","min_spend":12,"ok":true,"star2":20.0,"star3":25.0,"three_star":true,"win_rate":44}
+docs/balance-runs/r7-a/report.md:2:- 數值摘要 `41a73b34c381b091`、共 5220 筆、耗時 226 秒
+docs/balance-runs/v4-final-heal22/report.md:19:| 長槍兵 > 騎兵 | 98% | 93～102% | ✓ |
+docs/balance-runs/v4-final-heal22/report.md:47:| 全補劍士 | +9.5 | +5.8～+13.1 | — | 基準 |
+docs/balance-runs/v4-final-heal22/report.md:92:換成等價劍士 Δ +13.3（雙向群集 95% 區間 +10.5～+16.2）✓；換成陣中最多的舊兵 Δ +17.9、換成弓箭手 Δ +3.1
+docs/balance-runs/v4-final-heal22/report.md:101:| 4 | -13.0 | -17.9～-8.2 | 3.1 |
+docs/balance-runs/v4-classic-band/archive.manifest:4: "sha256": "2783f1f778d453b54731ef5d8828c59bc342ba02aa3e782b0cf738cc08302cb4",
+docs/balance-runs/v12-final/stars-puzzles.txt:3:STAR {"best":[3,30,14],"budget":20.0,"ex":[[3.0,5,1],[3.0,3,8]],"id":"p1","name":"破陣之槍","sols":[[1,28,17],[1,13,16]],"star2":30.0,"star3":14.0}
+docs/balance-runs/v12-final/stars-puzzles.txt:6:STAR {"best":[3,25,20],"budget":30.0,"ex":[[0.0,1,4],[0.0,3,1],[0.0,3.0,4.0],[1.0,2,2]],"id":"p4","name":"背水一戰","sols":[[2,55,30],[2,35,26]],"star2":20.0,"star3":24.0}
+docs/balance-runs/v12-final/stars-puzzles.txt:7:STAR {"best":[3,43,10],"budget":11.0,"ex":[[1.0,3.0,2.0],[0.0,4.0,2.0]],"id":"p5","name":"十面埋伏","sols":[[3,43,10],[2,1,10]],"star2":30.0,"star3":10.0}
+docs/balance-runs/v12-final/stars-puzzles.txt:11:STAR {"best":[3,29,15],"budget":20.0,"ex":[[0.0,2.0,4.0],[1.0,2,2],[0.0,3,3]],"id":"p9","name":"極限拉扯","sols":[[2,43,19],[2,45,18]],"star2":25.0,"star3":16.0}
+docs/balance-runs/v12-final/stars-puzzles.txt:15:STAR {"best":[3,21,18],"budget":18.0,"ex":[[7.0,1.0,4.0],[7.0,2.0,0.0],[7.0,4.0,2.0]],"id":"n3","name":"醫者・撐住","sols":[[3,19,18],[3,21,18]],"star2":5.0,"star3":18.0}
+docs/balance-runs/v12-final/stars-puzzles.txt:19:STAR {"best":[3,17,18],"budget":20.0,"ex":[[11.0,0.0,1.0],[11.0,0.0,0.0],[11.0,5.0,2.0],[11.0,2.0,4.0],[11.0,1.0,4.0],[11.0,4.0,7.0]],"id":"f2","name":"爆爆羊・炸盾牆","sols":[[2,1,18],[3,17,18]],"star2":10.0,"star3":20.0}
+docs/balance-runs/v12-final/stars-puzzles.txt:26:STAR {"best":[3,10,24],"budget":24.0,"ex":[[18.0,5.0,6.0],[18.0,2.0,4.0],[18.0,1.0,5.0],[11.0,0.0,3.0],[11.0,4,7],[11.0,4,8]],"id":"f9","name":"吸塵貓・吸過來炸","sols":[[2,1,24],[0,0,24]],"star2":5.0,"star3":24.0}
+docs/balance-runs/v12-cat/repl.txt:3:R {"n":336,"name":"孢子菇","t":10,"wr":0.321}
+docs/balance-runs/v12-cat/repl.txt:5:R {"n":336,"name":"爆爆羊","t":11,"wr":0.321}
+docs/balance-runs/v12-cat/repl.txt:16:R {"n":336,"name":"長槍兵","t":5,"wr":0.351}
+docs/balance-runs/v12-final/repl.txt:14:R {"n":336,"name":"長槍兵","t":5,"wr":0.351}
+docs/balance-runs/v6-screen/REPORT.md:8:| grid | 98%（93～102） | 90%（81～99） | 100%（100～100） | 100%（100～100） | 95%（88～102） | 100%（100～100） | ✓ | 20.6%（19.5～21.8） | 43.5% | 3.6% | 0.0% | 34.3 |
+docs/balance-runs/v6-screen/REPORT.md:9:| 1000_6000 | 98%（93～102） | 90%（81～99） | 100%（100～100） | 100%（100～100） | 95%（88～102） | 100%（100～100） | ✓ | 21.2%（20.1～22.4） | 44.2% | 3.2% | 0.0% | 33.4 |
+docs/balance-runs/v6-screen/REPORT.md:10:| 1000_7000 | 98%（93～102） | 78%（64～91） | 100%（100～100） | 100%（100～100） | 95%（88～102） | 100%（100～100） | ✓ | 21.6%（20.5～22.8） | 45.6% | 2.3% | 0.0% | 32.8 |
+docs/balance-runs/v6-screen/REPORT.md:11:| 1000_7500 | 100%（100～100） | 78%（64～91） | 100%（100～100） | 98%（93～102） | 98%（93～102） | 100%（100～100） | ✓ | 21.3%（20.2～22.5） | 46.4% | 2.4% | 0.1% | 32.2 |
+docs/balance-runs/v6-screen/REPORT.md:12:| 800_6000 | 98%（93～102） | 90%（81～99） | 100%（100～100） | 100%（100～100） | 95%（88～102） | 100%（100～100） | ✓ | 20.9%（19.8～22.1） | 44.3% | 4.0% | 0.1% | 32.9 |
+docs/balance-runs/v6-screen/REPORT.md:13:| 800_7000 | 98%（93～102） | 78%（64～91） | 100%（100～100） | 100%（100～100） | 95%（88～102） | 100%（100～100） | ✓ | 20.5%（19.3～21.6） | 45.8% | 3.3% | 0.1% | 32.0 |
+docs/balance-runs/v6-screen/REPORT.md:14:| 800_7500 | 100%（100～100） | 78%（64～91） | 100%（100～100） | 98%（93～102） | 98%（93～102） | 100%（100～100） | ✓ | 20.9%（19.7～22.0） | 44.9% | 2.9% | 0.1% | 31.5 |
+docs/balance-runs/v6-screen/REPORT.md:15:| 600_6000 | 98%（93～102） | 90%（81～99） | 100%（100～100） | 100%（100～100） | 95%（88～102） | 100%（100～100） | ✓ | 20.5%（19.4～21.7） | 43.5% | 4.1% | 0.1% | 32.9 |
+docs/balance-runs/v6-screen/REPORT.md:16:| 600_7000 | 98%（93～102） | 78%（64～91） | 100%（100～100） | 100%（100～100） | 95%（88～102） | 100%（100～100） | ✓ | 20.8%（19.6～21.9） | 43.8% | 3.2% | 0.1% | 31.8 |
+docs/balance-runs/v6-screen/REPORT.md:17:| 600_7500 | 100%（100～100） | 78%（64～91） | 100%（100～100） | 98%（93～102） | 98%（93～102） | 100%（100～100） | ✓ | 20.9%（19.7～22.0） | 45.5% | 3.2% | 0.0% | 31.6 |
+docs/balance-runs/v4-final-heal22/archive.manifest:4: "sha256": "1e39668b97e78bda1e6df031170745444e0a57a4030f166609754b7926f312c0",
+docs/balance-runs/v4-final/report.md:19:| 長槍兵 > 騎兵 | 98% | 93～102% | ✓ |
+docs/balance-runs/v4-final/report.md:71:| 全補劍士 | +3.1 | +1.1～+5.1 | -4.7～+11.3 | ✓ |
+docs/balance-runs/v4-final/report.md:101:| 4 | -19.7 | -24.8～-14.6 | 3.1 |
+docs/balance-runs/v4-final-try2/report.md:19:| 長槍兵 > 騎兵 | 98% | 93～102% | ✓ |
+docs/balance-runs/v4-final-try2/report.md:101:| 4 | -7.2 | -11.6～-2.7 | 3.1 |
+docs/balance-runs/v4-final-oldpool/report.md:13:範圍（最小−3～最大+3）：a -5.2～+13.1、b -6.0～+11.0、c -18.1～-4.7
+docs/balance-runs/v4-final-oldpool/report.md:19:| 長槍兵 > 騎兵 | 98% | 93～102% | ✓ |
+docs/balance-runs/v4-final-oldpool/report.md:54:| 補成陣中最多的舊兵種 | +4.2 | +1.6～+6.9 | -5.2～+13.1 | ✓ |
+docs/balance-runs/v4-final-oldpool/report.md:62:| 補成陣中最多的舊兵種 | +0.8 | -2.4～+4.0 | -5.2～+13.1 | ✓ |
+docs/balance-runs/v4-final-oldpool/report.md:70:| 補成陣中最多的舊兵種 | +2.8 | +0.5～+5.2 | -5.2～+13.1 | ✓ |
+docs/balance-runs/v4-final-oldpool/report.md:72:| 全補弓箭手 | -5.6 | -8.1～-3.1 | -18.1～-4.7 | ✓ |
+docs/balance-runs/v4-final-oldpool/report.md:78:| 補成陣中最多的舊兵種 | +1.8 | -0.8～+4.4 | -5.2～+13.1 | ✓ |
+docs/balance-runs/v4-final-oldpool/report.md:86:| 補成陣中最多的舊兵種 | +9.7 | +7.1～+12.2 | -5.2～+13.1 | ✓ |
+docs/balance-runs/v4-final-oldpool/report.md:92:換成等價劍士 Δ +13.3（雙向群集 95% 區間 +10.5～+16.2）✓；換成陣中最多的舊兵 Δ +17.9、換成弓箭手 Δ +3.1
+docs/balance-runs/v4-final-oldpool/report.md:101:| 4 | -12.1 | -16.6～-7.6 | 3.1 |
+docs/balance-runs/v4-final-try1/report.md:19:| 長槍兵 > 騎兵 | 98% | 93～102% | ✓ |
+docs/balance-runs/v4-final-try1/report.md:87:| 全補劍士 | +1.3 | -0.5～+3.1 | -4.5～+10.5 | ✓ |
+docs/balance-runs/v4-final-try1/report.md:101:| 4 | -0.3 | -4.3～+3.7 | 3.1 |
+coordination/v1600-impl/b16-plan.md:1:# B16 宣紙戰報＋棋譜本（P6.5、P13.1）計畫
+coordination/v1600-impl/b16-plan.md:4:- P13.1 壞資料隔離與恢復：`songbook.split`：結構不對或代碼解不開（BattleCode.decode 失敗）的那筆不再靜默丟掉，原文（JSON 字串，截到上限）放進 `Save.data["songbook_bad"]`（最多 6、去重）；棋譜本頁下方「有 N 筆讀不出來，已經另外收著」＋「複製出來」（原文到剪貼簿，可以拿去修或貼給我們）／「清掉」。全部正常的舊存檔不多出欄位。超大時間值歸零（不溢位）。
+coordination/v1600-impl/b16-plan.md:5:- P13.1 第七筆明示：`add_check`（ok／dup／full）。滿六筆時先跳確認框「收進這一場，會擠掉最舊的一筆：『日期 結果』」→「換掉最舊的」／「取消」；取消冊子不變。已收過的照舊移到最上面。
+docs/balance-runs/v6-screen/600_6000/archive.manifest:4: "sha256": "01c87893d0f67dc3d42d748a23b4996f05ba4fd58d0b9943c1b173f6d6d2a119",
+docs/balance-runs/v4-n12-r1/report.md:13:| 刺客 > 醫者 | 98% | 93～102% | ✓ |
+docs/balance-runs/v4-turns-classic/archive.manifest:4: "sha256": "c32461692623b9d3910fb40d8c0db452521104b3b20d96eff9904fef97871fab",
+docs/balance-runs/v6-screen/800_7000/archive.manifest:4: "sha256": "d515d7c286cce0a78a1132cedea7e1af3f37a8cfb1723b1f63a8c69df23b11ad",
+docs/balance-runs/v6-accept-800-7500/report.md:22:| 弓箭手 > 投彈兵 | 98% | 93～102% | ✓ |
+docs/balance-runs/v6-accept-800-7500/report.md:23:| 刺客 > 醫者 | 98% | 93～102% | ✓ |
+docs/balance-runs/v6-accept-800-7500/report.md:105:依實際覆蓋分組（k＝1）：0～2：92 組 Δ +1.1、2～4：92 組 Δ -6.5、4～6：136 組 Δ +1.5、6～∞：160 組 Δ +3.1
+docs/balance-runs/v6-accept-800-7500/archive.manifest:4: "sha256": "c3712e18255b53b110e8ebd1621c0b66c006833dd101eb3d3f55b0a824292d5a",
+docs/balance-runs/v6-accept-800-7500/repl_0_16.raw:27:R {"code":"NTB1.ARIjBhUGZQhjB1IHYghUAGAHYgRkB2MIZAQFBRUAUwRhA2QDYQU.3f13","digest":"288176c5c9af5a79","free":"800,7500","i":32,"k":0,"left":0,"mode":"repl","n":18,"nt":10,"opp":24,"pol":"orig","pool":"30fae08ce37d","rules":"1.3.0","s0":1.0,"s1":1.0,"src":"73c655ac908b","unit":0}
+docs/balance-runs/v6-accept-800-6000/report.md:19:| 長槍兵 > 騎兵 | 98% | 93～102% | ✓ |
+docs/balance-runs/v6-accept-800-6000/report.md:71:| 全補劍士 | +3.1 | +1.1～+5.1 | -4.7～+11.3 | ✓ |
+docs/balance-runs/v6-accept-800-6000/report.md:101:| 4 | -19.7 | -24.8～-14.6 | 3.1 |
+
+exec
+/bin/bash -lc "cat coordination/v1600-impl/b18-r1/codex-prompt3.md; cat coordination/v1600-impl/b18-r1/b18-plan.md; head -60 coordination/v1600-impl/b18-r1/diff2.patch; git status --short; sed -n '112,125p' docs/2026-11-15-v1.6.0-plan.md; nl -ba game/scripts/game/swap_duel.gd; nl -ba game/scripts/ui/screens/game_core.gd | sed -n '20,85p'; nl -ba game/scripts/game/save.gd | sed -n '1,85p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 6422ms:
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B18 第 3 輪＝最後一輪）。只讀。專案根目錄＝目前資料夾。
+第 2 輪 coordination/v1600-impl/b18-r1/codex2.md（不可 3 條）；新差異 diff3.patch（同資料夾，基準＝B17 快照）。
+處理：①勝場（stats.wins）與兵種勝場都改依 `swap_ai_my_color`；②會話照 §3.1 寫檔：`swap_ai_run`｛v, round, pts, dead, settled, ai｝——AI 擺好＝承諾寫檔（重啟照存的陣擺回、不重抽）、記分＝settled 前進（同一局不重記，重啟後也是）、整組結束刪掉、寫檔失敗照實說；讀回 `sanitize_run` 驗型與一致性；每局的統計照一般對局記（不是「放棄＝不記」，第 2 輪那句裁決撤回）；③順帶（§3.1 塔路線「讀到較新版本＝唯讀」）：新版存的 tower_route 原樣保留、不遷移不覆寫，塔入口提示需要新版。
+只看修正是否正確、有沒有新問題。附行號。最多 3 條、200 字內。最後一行「結論：可／有條件／不可」。
+# B18 換邊雙局（對 AI）＋棋譜集（P7.3、P7.4）計畫
+
+方案 §4 B18：§3.1 會話邊界；鏡像場分數。前置 B17。在 B17 快照之上做（`build/cg/b18`），B17、B18 一起搬回。回退：退一般對 AI。
+- P7.3 對 AI 換邊雙局：沿用 1.2.0 `SwapDuel`（分數＝剩餘戰力百分比、跟著人走；平手比倒下數）與暗擺流程（`blind_phase`）。新旗標 `swap_ai`：第 1 局你擺藍→按「準備好」AI 立刻擺紅（`_swap_ai_fill(1)`）→可開戰；第 2 局開局 AI 先擺藍（`_swap_ai_prep`）→輪到你擺紅。AI 用一般難度組陣，種子取自本局亂數（重播、代碼照常）。對 AI 版關掉封蠟戰書、不走輪流落子（tp）。文字改成「你／AI」。入口在「對戰」牌（新）；結果頁「再來一組」照原樣（對 AI 版再開對 AI 版）；換模式清旗標。
+  - 鏡像場分數：SwapDuel 原規則（同一組規則兩局、各當一次藍紅），本批不改計分。
+- P7.4 棋譜集（名局收冊）：棋譜本加頁籤「我收的／棋館名局」。名局＝`tools/gen_famous.gd` 從固定種子掃 AI 對 AI，挑勝方剩不到兩成（≤15%）、打超過 40 秒的前 6 場，存 `data/famous_games.json`（代碼＋勝方＋剩餘＋秒數）。文字只寫這三個事實；看＝走看對戰代碼的路。
+- 測試 `test_swap_ai_v1600`（modes_live）、`test_famous_v1600`（coach_lab：6 場重算都和資料一樣）。截圖 `v160_18a_famous`；`01b_hub_play` 多一張牌。
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -68,7 +68,9 @@
+ 					var pp: Vector2i = armies[0].pos_of(u)
+ 					armies[0].place_xy(int(u["type"]), pp.x, pp.y)   # 保留的陣型和新的明牌陣衝突的就拿掉
+ 		Mode.DUEL:
+-			if duel_rule != "blind":
++			if bool(get("swap_ai")):
++				call("_swap_ai_prep")   # 1.6.0 B18（P7.3）對 AI 換邊雙局：AI 那一色自動擺好、玩家照暗擺流程擺自己那一色
++			elif duel_rule != "blind":
+ 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule, rules)
+ 				if rules == null:
+ 					tp.armies[0].pool = _pool()
+@@ -344,6 +346,8 @@
+ 		free_intro = false
+ 	Save.data["unlock_games"] = int(Save.data.get("unlock_games", 0)) + 1   # 只是累計場數（判斷新玩家用），不解鎖任何東西
+ 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
++	if bool(get("swap_ai")) and mode == Mode.DUEL:
++		me_won = w >= 0 and w == int(call("swap_ai_my_color"))   # 1.6.0 B18：對 AI 換邊雙局只有你那一色贏才算你贏（Codex B18 r1）
+ 	var stat_key := "stats" if standard else "custom_stats"
+ 	var st: Dictionary = Save.data.get(stat_key, {"wins": 0, "games": 0})
+ 	st["games"] = int(st.get("games", 0)) + 1
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -172,6 +172,8 @@
+ 				_toast(L.t("sealed_swap"))   # Antigravity v140-i3：第三封封完要說換人
+ 			return
+ 		blind_phase += 1
++		if blind_phase == 1 and bool(get("swap_ai")):
++			call("_swap_ai_fill", 1)   # 1.6.0 B18：玩家擺好藍方＝AI 擺紅方，直接可以開戰
+ 		sfx.play("turn")
+ 		return
+ 	if armies[0].count() == 0 and not _full_blocked_ok():
+@@ -197,8 +199,10 @@
+ 	_on_start_go()
+ 
+ func _on_start_go() -> void:
+-	last_player_formation = armies[0].units.duplicate(true)
+-	if mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET:
++	var ai_blue: bool = bool(get("swap_ai")) and int(call("swap_ai_my_color")) == 1   # 1.6.0 B18：你擺紅的那一局，藍方是 AI 的陣（不記成你的上一陣；Codex B18 r1）
++	if not ai_blue:
++		last_player_formation = armies[0].units.duplicate(true)
++	if (mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET) and not ai_blue:
+ 		Save.data["last_form"] = armies[0].to_code()   # 1.2.0 §11.1「複製上一陣」（下次擺陣按 L）
+ 	_begin_battle(armies[0].copy(), armies[1].copy())
+ 
+--- a/game/scripts/ui/screens/game_playroom.gd
++++ b/game/scripts/ui/screens/game_playroom.gd
+@@ -409,6 +409,38 @@
+ var sw_pts := [0, 0]    # 玩家 A、B 的分數（剩餘戰力百分比合計）
+ var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+ 
++var swap_ai := false   # 1.6.0 B18（P7.3）：對 AI 換邊雙局（第 1 局你藍、第 2 局你紅；AI 擺另一色）
++
++func _swap_ai_start() -> void:
++	_swap_start()
++	swap_ai = true
++	sealed_off_for_swap()
++	_reset_place()   # 用對 AI 的擺法重開這一局（_start_mode 時還沒設 swap_ai）
++	_toast(L.t("sw_ai_intro"))
+?? coordination/v1600-impl/b09-r1/codex.err
+?? coordination/v1600-impl/b09-r1/codex2.err
+?? coordination/v1600-impl/b09-r1/codex3.err
+?? coordination/v1600-impl/b17-plan.md
+?? coordination/v1600-impl/b17-r1/
+?? coordination/v1600-impl/b18-plan.md
+?? coordination/v1600-impl/b18-r1/
+- **版本矩陣**（R5）：
+| 資料 | 版本鍵 | 讀到較新版本 | 讀到較舊版本 | 壞資料 |
+|---|---|---|---|---|
+| 存檔欄位 | `SAVE_VERSION`＋欄位 schema | 唯讀提示、不覆寫 | 遷移（逐欄驗型） | 隔離 `quarantine`、原檔不動 |
+| 規則碼／分享碼 | `RULES_VERSION`、`EXT_VERSION` | 拒絕並說明「需要新版」 | 照舊版規則跑（版本分流） | 拒絕、不猜 |
+| 棋課證據（P6） | 證據版本＋原局碼雜湊＋規則版本 | 只顯示、不重算 | 標「舊版證據」可重算 | 隔離該筆 |
+| 塔路線（P7） | run 版本＋塔種子 | 唯讀 | 舊整數 run 照舊路線 | 回固定塔、保留原檔 |
+- **讀取／拒絕**：新存檔欄位（`tower_run_v2`、`tower_route`、`lesson_pairs`、`tea_session`、`intel_session`）逐欄驗型；版本號較新＝唯讀提示不覆寫；壞資料隔離到 `quarantine`（1.0.0 起既有機制），原檔不動；舊樣本（1.5.0 存檔）原樣讀回。
+- **會話邊界**（P7、P9、P14、P6 各自）：開局→**承諾**（敵陣、路線、陣型、規則、結算 ID 寫檔）→戰鬥→結算（只一次）→續玩→回退；每個邊界中斷、重啟、重複回呼、寫檔失敗各一個測試；模式之間不共用會話資料。B01 交付**存檔遷移與會話邊界測試範本**（`tests/suites/save.gd` 新範本），P6、P7、P9、P14 都用它。
+- **塔退路**：B15 No-Go 時新 run 欄位保留但不讀，玩家照舊固定塔；已存的新 run 不刪。
+
+## 3.2 輸入與截圖登記（K1 的具體內容）
+新互動都要在 `test_input_matrix` 範本上加案例，並登記 `game/tools/screens.json` 新截圖入口：
+| 案例 ID | 互動 | 必測 |
+     1	extends RefCounted
+     2	## 1.2.0 §11.5 換邊雙局（方案第 5 輪規則）：同一組規則打兩局，玩家 A 第一局藍、第二局紅（先手跟著換）。
+     3	## 每局每色的分數＝剩餘戰力百分比（puzzles.rem_pct：存活單位按兵價加權剩血，再按預算換成百分比）；分數跟著玩家走、不跟顏色。
+     4	## 總分＝兩局相加；平手比兩局合計倒下數少的；再平手＝和局。純函式。
+     5	const PZ = preload("res://scripts/game/puzzles.gd")
+     6	const ROUNDS := 2
+     7	
+     8	## 第 rn 局（1 起）color 色是哪位玩家（0＝A、1＝B）
+     9	static func owner(rn: int, color: int) -> int:
+    10		return color if rn % 2 == 1 else 1 - color
+    11	
+    12	## 一局打完：把兩色的分數與倒下數加到玩家身上。回傳新的 [pts, dead]（不改傳入的陣列）
+    13	static func settle(pts: Array, dead: Array, rn: int, sim) -> Array:
+    14		var p := pts.duplicate()
+    15		var d := dead.duplicate()
+    16		for c in 2:
+    17			var who := owner(rn, c)
+    18			p[who] = int(p[who]) + PZ.rem_pct(sim.power(c), sim.budget_of(c))
+    19			var n := 0
+    20			for u in sim.units:
+    21				if u.team == c and not u.alive and not u.summon:
+    22					n += 1
+    23			d[who] = int(d[who]) + n
+    24		return [p, d]
+    25	
+    26	## 0＝A 勝、1＝B 勝、-1＝和局
+    27	static func verdict(pts: Array, dead: Array) -> int:
+    28		if int(pts[0]) != int(pts[1]):
+    29			return 0 if int(pts[0]) > int(pts[1]) else 1
+    30		if int(dead[0]) != int(dead[1]):
+    31			return 0 if int(dead[0]) < int(dead[1]) else 1
+    32		return -1
+    20	const BADGE_KEYS := ["breaker", "charge", "backstab", "braced", "anticav", "counter", "pike_brace", "splash", "breach", "heal", "drum"]
+    21	const EV_DEATH := "death"
+    22	
+    23	
+    24	func _reset_place(keep_blue := false) -> void:
+    25		state = St.PLACE
+    26		if bool(get("cp_on")):
+    27			call("_cp_reset")   # 1.2.0 §11.6：每一局重新輪手（藍軍保留時，已有的兵不算任何人這一手）
+    28		sim = null
+    29		view = null
+    30		pending_cell = Vector2i(-1, -1)
+    31		ai_prebuilt = false
+    32		_fp_reset()
+    33		# 第一次進擺放畫面自動打開操作說明（第五輪：說明從頂部移到「?」）
+    34		if not bool(Save.data.get("seen_place_help", false)) and (mode == Mode.VS_AI or mode == Mode.DUEL) and shot_dir == "":
+    35			show_place_help = true
+    36			Save.data["seen_place_help"] = true
+    37		fx.clear()
+    38		frags.clear()   # 1.2.0 §8.2
+    39		dying.clear()
+    40		zoom = 1.0
+    41		tp = null
+    42		blind_phase = 0
+    43		foe_tag_open = false   # 1.5.0 §1.4
+    44		_focus = 0
+    45		var keep_ok: bool = keep_blue and not armies.is_empty() and (rules == null or rules.keep_formation)
+    46		var blue_keep = armies[0].copy() if keep_ok else null
+    47		armies = [Army.new(0, 100), Army.new(1, 100)]
+    48		if rules != null and (mode == Mode.VS_AI or mode == Mode.DUEL):
+    49			armies[0].apply_rules(rules, 0)
+    50			armies[1].apply_rules(rules, 1)
+    51		if mode == Mode.GAUNTLET:
+    52			armies[0].pool = _gauntlet_pool()
+    53			armies[1].pool = _gauntlet_pool()
+    54		match mode:
+    55			Mode.VS_AI:
+    56				if blue_keep != null:
+    57					armies[0] = blue_keep
+    58				if rules != null and rules.fullfield == 2:
+    59					# 第六輪：對 AI 明牌全場——AI 先在自己半場擺好並公開，你在全場離敵兵 1.5 格外擺
+    60					_build_ai()
+    61					ai_prebuilt = true
+    62					armies[0].enemy_pos = []
+    63					for u in armies[1].units:
+    64						armies[0].enemy_pos.append(armies[1].pos_of(u))
+    65					var keep: Array = armies[0].units.duplicate(true)
+    66					armies[0].units = []
+    67					for u in keep:
+    68						var pp: Vector2i = armies[0].pos_of(u)
+    69						armies[0].place_xy(int(u["type"]), pp.x, pp.y)   # 保留的陣型和新的明牌陣衝突的就拿掉
+    70			Mode.DUEL:
+    71				if duel_rule != "blind":
+    72					tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule, rules)
+    73					if rules == null:
+    74						tp.armies[0].pool = _pool()
+    75						tp.armies[1].pool = _pool()
+    76					# 1.1.0 B2：輪序紀錄碼要開局（禁牌後）的卡池與預算
+    77					duel_start = {"pools": [tp.armies[0].pool, tp.armies[1].pool], "budgets": [tp.armies[0].budget, tp.armies[1].budget], "rules": rules.copy() if rules != null else null}
+    78			Mode.TUTORIAL, Mode.PUZZLE:
+    79				var pz := PZ.get_puzzle(puzzle_id)
+    80				armies[0] = PZ.player_army(pz)
+    81				armies[1] = PZ.enemy_army(pz)
+    82				selected = int(pz["allowed"][0])
+    83				if puzzle_plan_id != puzzle_id:
+    84					puzzle_plan = PZ.default_plan(pz)   # 第十三輪：同一關重來保留上次設定的時間，換關重設
+    85					puzzle_plan_id = puzzle_id
+     1	extends RefCounted
+     2	## 設定與進度存檔（優化方案 L1、N）：JSON、原子寫入（先寫暫存檔再改名）＋保留上一版備份。
+     3	## 雲端：Steam Auto-Cloud 只同步 user://save.json（進度、陣型）；設定 user://settings.json 留在本機。
+     4	
+     5	const SAVE_VERSION := 4   # 存檔格式版本（schema_version）。2：加 unit_wins（圖鑑老兵筆記，第二輪方案 R3／R8）；3：第五輪自訂規則；4：1.2.0 戰役 campaign、棋譜本、最近玩的、上一陣
+     6	const MAX_PRESETS := 10   # V1.5：5 → 10 格
+     7	static var prefix := ""   # 截圖／測試模式用 "shot_"，不碰玩家真正的存檔
+     8	
+     9	const DEFAULT_SETTINGS := {
+    10		"lang": "zh_TW", "text_scale": 100, "shake": true, "slowmo": true, "flash": true, "colorblind": false, "plain_titles": false, "plain_ui": false, "confirm_place": true,
+    11		"speed": 1.0, "music": 70, "sfx": 80, "ui_vol": 80, "amb_vol": 80, "duel_rule": "snake5", "fullscreen": false, "playtest": false, "roster": "all", "reduce_fx": false, "keys": {}, "pad": {},
+    12		# V1.5 設定七頁：畫面、介面、聲音、操作、戰場與觀戰、無障礙、資料（docs/history/2026-11-09-v1.5.0-plan.md §2）
+    13		"title_bg": "demo", "fps_cap": 60, "vsync": true, "hints": "full", "toast_mult": 1, "master": 100, "night": false, "mono": false,
+    14		"long_press": 0.5, "place_mode": "both", "rumble": 50, "deadzone": 20, "hp_bars": "hurt", "dmg_nums": "merge", "clutch_zoom": true,
+    15		"reduce_motion": false, "text_plate": false, "focus_strong": false, "shake_pct": 25, "flash_pct": 50, "first_done": false,
+    16		"hold_confirm": false, "magnify": false, "ui_font": "craft", "smooth_pose": false, "table_view": true, "spotlight": true, "battle_mag": true, "auto_director": true, "voice_vol": 70,   # 1.2.0 §3.2：介面字型 craft（黑體＋手寫標題，三方 cat02 定案為預設）／classic（圓體）   # V1.6 #7：按住確認、文字放大鏡   # V1.5.1：預設＝新安裝實際拿到的值（老玩家在 sanitize 照舊開關轉 100）
+    17	}
+    18	const ENUMS := {"ui_font": ["classic", "craft"], "place_mode": ["both", "tap"], "title_bg": ["demo", "static"], "hints": ["full", "key", "off"], "hp_bars": ["hurt", "all", "sel", "off"], "dmg_nums": ["merge", "each", "off"],
+    19		"fps_cap": [30, 60, 120, 0], "toast_mult": [1, 2, 3, 0], "rumble": [0, 25, 50, 100], "deadzone": [5, 10, 15, 20, 25, 30, 35, 40], "shake_pct": [0, 25, 50, 100], "flash_pct": [0, 50, 100]}
+    20	const DEFAULT_SAVE := {
+    21		"schema_version": SAVE_VERSION, "slots": ["", "", "", "", ""], "tutorial": 0, "puzzle_stars": {},
+    22		"gauntlet_best": 0, "achievements": [], "stats": {"wins": 0, "games": 0}, "unit_wins": {},
+    23		# 第五輪：解鎖累計場數（標準＋自訂局都算，沙盒不算）、自訂規則戰績、我的預設、上次在大廳用的規則（代碼）
+    24		"ai_games": 0, "ai_wins": 0,   # V1.0.0：對 AI 場數、勝場（新存檔明確 0；老存檔沒有＝回退舊統計）
+    25		"unlock_games": 0, "custom_stats": {"wins": 0, "games": 0}, "rule_presets": [], "last_rules": {}, "gauntlet_pool": 0, "trial_stars": {}, "unit_games": {}, "streak": 0, "best_streak": 0, "decks": [], "free_intro_done": false, "gauntlet_run": {}, "puzzle_tries": {}, "puzzle_first": {}, "trial_tries": {}, "trial_first": {}, "daily_best": {},
+    26	}
+    27	
+    28	static var settings := {}
+    29	static var data := {}
+    30	## 第七輪 R5：存檔來自比這一版新的遊戲。原檔不動、這次進度不寫入，畫面要告知玩家。
+    31	static var data_locked := false
+    32	## 第七輪 R6：這次讀到的來源："none"／"main"／"bak"（"bak"＝主檔壞了，已隔離）。
+    33	static var data_source := "none"
+    34	## 第七輪 R7：寫入失敗還沒補上的檔案（路徑）；retry_pending() 重試。
+    35	static var pending := {}
+    36	## 只給測試用：接下來幾次寫入要假裝失敗（"tmp"＝寫暫存失敗；"rotate"＝輪替備份失敗）。
+    37	static var fail_inject := {}
+    38	
+    39	static func load_all() -> void:
+    40		pending = {}
+    41		settings = sanitize_settings(_read(_sp(), {}).get("value", {}))
+    42		var r := _read(_dp(), {})
+    43		data_source = r["source"]
+    44		var raw: Dictionary = r["value"]
+    45		data_locked = schema_of(raw) > SAVE_VERSION
+    46		# 未來版存檔：記憶體用全新進度，檔案完全不碰（Codex plan7 R5）
+    47		data = migrate({}) if data_locked else migrate(raw)   # 先讀原始內容再遷移（遷移裡才補預設值），不然舊檔會被當成新版（Codex 收尾輪 #1）
+    48	
+    49	## 檔名前綴：測試／截圖的 prefix 在前；試玩版另外一份，進度不帶進正式版（N1、§18-4）。
+    50	static func file_prefix(demo := OS.has_feature("demo")) -> String:
+    51		return prefix + ("demo_" if demo else "")
+    52	
+    53	static func _sp() -> String:
+    54		return "user://%ssettings.json" % file_prefix()
+    55	
+    56	static func _dp() -> String:
+    57		return "user://%ssave.json" % file_prefix()
+    58	
+    59	## 讀一個 JSON 檔；內容不是物件就回傳 null。
+    60	static func _parse(path: String):
+    61		var j := JSON.new()   # 不用 JSON.parse_string：壞檔是預期情況，不該在日誌印 ERROR
+    62		if j.parse(FileAccess.get_file_as_string(path)) != OK:
+    63			return null
+    64		return j.data if typeof(j.data) == TYPE_DICTIONARY else null
+    65	
+    66	## 壞掉的主檔移到旁邊留證據，主檔位置空出來，下一次寫入才不會拿它蓋掉好備份（R6）。
+    67	## V1.0.0 D3：20 個編號都用過時改用時間戳記名（不覆蓋舊證據）；改名失敗就複製再刪；都失敗回 false
+    68	## （主檔留在原地；save_data 只輪替驗證過的主檔，所以壞主檔不會蓋掉備份）。
+    69	static var quarantine_failed := false
+    70	static func _quarantine(path: String) -> bool:
+    71		if int(fail_inject.get("quarantine", 0)) > 0:
+    72			fail_inject["quarantine"] -= 1   # 測試用：模擬隔離失敗
+    73			quarantine_failed = true
+    74			return false
+    75		var dst := ""
+    76		for n in range(1, 21):
+    77			if not FileAccess.file_exists("%s.corrupt%d" % [path, n]):
+    78				dst = "%s.corrupt%d" % [path, n]
+    79				break
+    80		if dst == "":
+    81			dst = "%s.corrupt_%d_%d" % [path, int(Time.get_unix_time_from_system()), Time.get_ticks_msec()]
+    82		if DirAccess.rename_absolute(path, dst) == OK:
+    83			return true
+    84		if DirAccess.copy_absolute(path, dst) == OK and DirAccess.remove_absolute(path) == OK:
+    85			return true
+
+codex
+會話已有持久化與分數去重，但我發現結算標記先於一般統計寫檔，正在核對中斷及重複回呼時會否漏記或重記。另會確認存陣驗證能否擋住非法部署。
+exec
+/bin/bash -lc "ls build/cg/b18/game/scripts/ui/screens/game_playroom.gd build/cg/b18/scripts/ui/screens/game_playroom.gd 2>/dev/null; rg --files build/cg/b18 | head -12; nl -ba game/scripts/ui/screens/game_modes.gd | sed -n '940,990p'; rg -n 'func _toast|toast_text|toast_' game/scripts/ui/screens/game*.gd | head -30; rg -n 'func save_data|sanitize_data|func retry_pending' game/scripts/game/save.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 124ms:
+build/cg/b18/game/scripts/ui/screens/game_playroom.gd
+build/cg/b18/strs11.json
+build/cg/b18/strs10.json
+build/cg/b18/strs13.json
+build/cg/b18/strs12.json
+build/cg/b18/strs14.json
+build/cg/b18/tools/gen/l10n_build.py
+build/cg/b18/tools/gen/addstr.py
+build/cg/b18/tools/gen/l10n_extract.py
+build/cg/b18/tools/gen/l10n_review.py
+build/cg/b18/game/icon.svg.import
+build/cg/b18/game/icon.svg
+build/cg/b18/game/project.godot
+   940	
+   941	## ── 戰績 ──
+   942	func _record_match(w: int) -> void:
+   943		if armies.is_empty() or armies[0] == null:
+   944			return
+   945		var ug: Dictionary = Save.data.get("unit_games", {})
+   946		var seen := {}
+   947		for u in armies[0].units:
+   948			seen[str(int(u["type"]))] = true
+   949		if mode == Mode.DUEL and armies.size() > 1 and armies[1] != null:   # 第十輪 B4：雙人兩邊贏了都算勝場，場數也要兩邊算
+   950			for u2 in armies[1].units:
+   951				seen[str(int(u2["type"]))] = true
+   952		for k in seen:
+   953			ug[k] = int(ug.get(k, 0)) + 1
+   954		Save.data["unit_games"] = ug
+   955		# V1.5.1：戰績頁的兵種勝率用同一組模式記場數與勝場（原本勝場在殘局、教學、試煉也加，勝率偏高；使用者回報）
+   956		# 實驗室徽章（沙盒調數值）不記（Codex／Antigravity v151-i1）
+   957		if rules != null and Presets.badge(rules, "duel" if mode == Mode.DUEL else "ai") == Presets.BADGE_LAB:
+   958			return
+   959		var gr: Dictionary = Save.data.get("unit_games_rec", {})
+   960		var wr: Dictionary = Save.data.get("unit_wins_rec", {})
+   961		for k in seen:
+   962			gr[k] = int(gr.get(k, 0)) + 1
+   963		if w >= 0 and (w == 0 or mode == Mode.DUEL):
+   964			var won := {}
+   965			var wa = armies[w] if w < armies.size() and armies[w] != null else armies[0]
+   966			for u in wa.units:
+   967				won[str(int(u["type"]))] = true
+   968			for k in won:
+   969				wr[k] = int(wr.get(k, 0)) + 1
+   970		Save.data["unit_games_rec"] = gr
+   971		Save.data["unit_wins_rec"] = wr
+   972		if mode == Mode.DUEL:
+   973			return    # 連勝只算單人
+   974		if w == 0:
+   975			Save.data["streak"] = int(Save.data.get("streak", 0)) + 1
+   976			Save.data["best_streak"] = maxi(int(Save.data.get("best_streak", 0)), int(Save.data["streak"]))
+   977		else:
+   978			Save.data["streak"] = 0
+   979	
+   980	## 1.5.0 §1.6 戰績三頁籤（原本一頁塞 5 格數字＋20 格兵種＋32 個成就）：總覽／兵種／徽章櫃；每頁非按鈕格 ≤12
+   981	var pf_tab := 0
+   982	var pf_grp := 0   # 兵種頁：0 王國、1 奇幻
+   983	const CareerPF = preload("res://scripts/game/career.gd")
+   984	
+   985	func _draw_profile() -> void:
+   986		var P := Rect2(50, 24, 1180, 752)
+   987		_panel(P)
+   988		var hy := _h1(Vector2(640, 30), L.t("pf_title")) + GAP_L   # 1.2.0：H1 放大，緞帶上移 4（R2）；頁籤從緞帶下緣＋16 起
+   989		var tabw := 200.0
+   990		for i in 3:
+game/scripts/ui/screens/game_menus.gd:648:	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
+game/scripts/ui/screens/game_menus.gd:801:				["set_toast", _optv("toast_mult", [1, 2, 3, 0], ["v_std", "v_long", "v_xlong", "v_manual"]), func(d): _step_setting("toast_mult", [1, 2, 3, 0], d)],
+game/scripts/ui/screens/game_menus.gd:1083:	{"confirm_place": true, "toast_mult": 0, "long_press": 0.8, "hints": "full"},   # 低操作負擔：提示改成手動關
+170:static func sanitize_data(out: Dictionary) -> void:
+613:	sanitize_data(out)
+664:static func save_data() -> bool:
+673:static func retry_pending() -> bool:
+
+exec
+/bin/bash -lc "nl -ba build/cg/b18/game/scripts/ui/screens/game_playroom.gd | sed -n '410,550p'; nl -ba build/cg/b18/game/scripts/game/swap_duel.gd | sed -n '33,78p'; nl -ba build/cg/b18/game/scripts/ui/screens/game_result.gd | sed -n '60,106p'; nl -ba build/cg/b18/game/scripts/ui/screens/game_v16.gd | sed -n '2665,2825p'; nl -ba build/cg/b18/game/scripts/ui/screens/game_place.gd | sed -n '168,190p'; nl -ba build/cg/b18/game/scripts/game/save.gd | sed -n '660,700p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 62ms:
+   410	var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+   411	
+   412	var swap_ai := false   # 1.6.0 B18（P7.3）：對 AI 換邊雙局（第 1 局你藍、第 2 局你紅；AI 擺另一色）
+   413	
+   414	func _swap_ai_start(fresh := false) -> void:
+   415		var run = SwapDuel.sanitize_run(Save.data.get("swap_ai_run"))
+   416		if fresh:
+   417			run = null
+   418		_swap_start()
+   419		swap_ai = true
+   420		sealed_off_for_swap()
+   421		if run != null:
+   422			# 重啟續局（§3.1）：從存檔的那一局接著打，分數、已記分的局、AI 擺好的陣都照存的（不重抽）
+   423			sw_pts = run["pts"].duplicate()
+   424			sw_dead = run["dead"].duplicate()
+   425			sw_settled = int(run["settled"])
+   426			round_no = int(run["round"]) + (1 if int(run["settled"]) == int(run["round"]) else 0)
+   427			if round_no > SwapDuel.ROUNDS:
+   428				Save.data.erase("swap_ai_run")
+   429				round_no = 1
+   430				sw_pts = [0, 0]
+   431				sw_dead = [0, 0]
+   432				sw_settled = -1
+   433			elif round_no == int(run["round"]):
+   434				sw_resume_ai = run["ai"].duplicate(true)
+   435			_toast(L.t("sw_ai_resume", [round_no]))
+   436		else:
+   437			Save.data.erase("swap_ai_run")
+   438			_toast(L.t("sw_ai_intro"))
+   439		_reset_place()   # 用對 AI 的擺法重開這一局（_start_mode 時還沒設 swap_ai）
+   440	
+   441	var sw_resume_ai: Array = []   # 續局時要放回去的 AI 陣（這一局已承諾過的）
+   442	
+   443	## 承諾／結算寫檔（失敗照實說；記憶體照樣往下，Save 會重試）
+   444	func _swap_ai_commit(ai: Array) -> bool:
+   445		var run := {"v": SwapDuel.RUN_V, "round": round_no, "pts": sw_pts.duplicate(), "dead": sw_dead.duplicate(), "settled": maxi(sw_settled, round_no - 1), "ai": ai}
+   446		Save.data["swap_ai_run"] = run
+   447		if Save.save_data():
+   448			return true
+   449		_toast(L.t("save_failed"), true)
+   450		return false
+   451	
+   452	func sealed_off_for_swap() -> void:
+   453		if bool(get("sealed_on")):
+   454			set("sealed_on", false)
+   455	
+   456	## 每局開始：這一局 AI 是藍方（玩家 A 拿紅）＝先把藍方擺好、直接輪到玩家擺紅
+   457	func _swap_ai_prep() -> void:
+   458		if not swap_ai or mode != Mode.DUEL:
+   459			return
+   460		if SwapDuel.owner(round_no, 0) == 1:
+   461			_swap_ai_fill(0)
+   462	
+   463	## AI 擺 team 這一色（一般難度的組陣；種子取自本局亂數，重播、代碼照常）
+   464	func _swap_ai_fill(team: int) -> void:
+   465		if not sw_resume_ai.is_empty():
+   466			# 續局：這一局 AI 的陣早就承諾過了，照存的擺回去
+   467			var a = Army.new(team, armies[team].budget)
+   468			if rules != null:
+   469				a.apply_rules(rules, team)
+   470			for u in sw_resume_ai:
+   471				a.place(int(u[0]), int(u[1]), int(u[2]))
+   472			armies[team] = a
+   473			sw_resume_ai = []
+   474		else:
+   475			var r := RandomNumberGenerator.new()
+   476			r.seed = rng.randi()
+   477			var p: int = int(armies[team].pool)
+   478			var res = AI.build(team, armies[team].budget, r, -1, p, rules)
+   479			var units: Array = res["army"].units.duplicate(true)
+   480			armies[team] = res["army"]
+   481			if rules != null:
+   482				armies[team].apply_rules(rules, team)
+   483				armies[team].units = units
+   484		blind_phase = 1 if team == 0 else 2
+   485		_swap_ai_commit(SwapDuel.units_of(armies[team]))   # 承諾：AI 的陣寫檔（重啟不重抽）
+   486	
+   487	func _swap_start() -> void:
+   488		var r = RuleSet.standard()
+   489		var dm: int = RS.mask(_demo())
+   490		r.pool = [int(r.pool_of(0)) & dm, int(r.pool_of(1)) & dm]   # 標準卡池再扣掉試玩版沒有的兵（Codex cat10 #5）
+   491		r.rounds = 3   # 用三戰兩勝的局數上限，實際由換邊雙局在第 2 局結束
+   492		rules = r
+   493		challenge_army = null
+   494		overlay = ""
+   495		_start_mode(Mode.DUEL)
+   496		swap_on = true
+   497		sw_pts = [0, 0]
+   498		sw_dead = [0, 0]
+   499		sw_settled = -1
+   500		_toast(L.t("sw_intro"))
+   501	
+   502	## 1.6.0 B18：你這一局是哪一色（玩家 A＝你）
+   503	func swap_ai_my_color() -> int:
+   504		return 0 if SwapDuel.owner(round_no, 0) == 0 else 1
+   505	
+   506	var sw_settled := -1   # 1.6.0 B18：已記分的局（同一局重送結算不重記；Codex B18 r1）
+   507	
+   508	## 每局正式打完（_finish_battle）：記分；第 2 局後系列結束
+   509	func _swap_settle() -> void:
+   510		if not swap_on or mode != Mode.DUEL or play_kind != "official" or sim == null:
+   511			return
+   512		if sw_settled == round_no:
+   513			return
+   514		sw_settled = round_no
+   515		var r: Array = SwapDuel.settle(sw_pts, sw_dead, round_no, sim)
+   516		sw_pts = r[0]
+   517		sw_dead = r[1]
+   518		series_over = round_no >= SwapDuel.ROUNDS
+   519		if swap_ai:
+   520			if series_over:
+   521				Save.data.erase("swap_ai_run")   # 整組結束：會話刪掉
+   522				if not Save.save_data():
+   523					_toast(L.t("save_failed"), true)
+   524			else:
+   525				_swap_ai_commit([])   # 結算：記分、settled 前進（下一局 AI 還沒擺）
+   526	
+   527	## 擺陣頂部：誰是哪一色（第 2 局換過來）
+   528	func _swap_who() -> String:
+   529		if swap_ai:
+   530			return L.t("sw_ai_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red")])   # 1.6.0 B18：你＝哪一色（AI 拿另一色）
+   531		return L.t("sw_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red"), L.t("red") if SwapDuel.owner(round_no, 0) == 0 else L.t("blue")])
+   532	
+   533	## 結果頁第一條事實
+   534	func _swap_fact() -> String:
+   535		if swap_ai:
+   536			if not series_over:
+   537				return L.t("sw_ai_round", [int(sw_pts[0]), int(sw_pts[1])])
+   538			var va := SwapDuel.verdict(sw_pts, sw_dead)
+   539			return L.t("sw_ai_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_ai_you") if va == 0 else (L.t("sw_ai_them") if va == 1 else L.t("sw_tie"))])
+   540		if not series_over:
+   541			return L.t("sw_round", [int(sw_pts[0]), int(sw_pts[1])])
+   542		var v := SwapDuel.verdict(sw_pts, sw_dead)
+   543		return L.t("sw_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_a") if v == 0 else (L.t("sw_b") if v == 1 else L.t("sw_tie"))])
+   544	
+   545	## 揭封：第 k 封放回兩邊（鎖定，不能改），之後照一般「開戰」。
+   546	func _sealed_reveal(k: int) -> void:
+   547		armies[0].units = sealed[0][k].duplicate(true)
+   548		armies[1].units = sealed[1][k].duplicate(true)
+   549		blind_phase = 2
+   550	
+    33	
+    34	
+    35	## ── 1.6.0 B18（P7.3；§3.1）對 AI 換邊雙局的會話：存檔 swap_ai_run ──
+    36	## {v, round（現在這一局 1／2）, pts, dead, settled（已記分到第幾局）, ai（這一局 AI 那一色的陣：[[兵種, 欄, 列]...]；還沒擺＝[]）}
+    37	## 承諾＝AI 擺好就寫檔（重啟不重抽）；結算＝記分、settled 前進（同一局不重記）；整組結束＝刪掉。
+    38	const RUN_V := 1
+    39	
+    40	static func _iv(x, lo: float, hi: float) -> bool:
+    41		return (x is int or (x is float and float(x) == floorf(float(x)))) and float(x) >= lo and float(x) <= hi
+    42	
+    43	## 讀回驗型；壞了回 null（＝沒有進行中的一組）
+    44	static func sanitize_run(v):
+    45		if not v is Dictionary or not _iv(v.get("v"), 1, RUN_V) or not _iv(v.get("round"), 1, ROUNDS) or not _iv(v.get("settled"), 0, ROUNDS):
+    46			return null
+    47		var out := {"v": RUN_V, "round": int(v["round"]), "settled": int(v["settled"]), "pts": [], "dead": [], "ai": []}
+    48		for k in ["pts", "dead"]:
+    49			var a = v.get(k)
+    50			if not a is Array or a.size() != 2 or not _iv(a[0], 0, 100000) or not _iv(a[1], 0, 100000):
+    51				return null
+    52			out[k] = [int(a[0]), int(a[1])]
+    53		var ai = v.get("ai")
+    54		if not ai is Array or ai.size() > 64:
+    55			return null
+    56		for u in ai:
+    57			if not u is Array or u.size() != 3 or not _iv(u[0], 0, 63) or not _iv(u[1], 0, 63) or not _iv(u[2], 0, 63):
+    58				return null
+    59			out["ai"].append([int(u[0]), int(u[1]), int(u[2])])
+    60		if out["settled"] > out["round"] or out["settled"] < out["round"] - 1:
+    61			return null   # 狀態一致：這一局要嘛還沒記分（settled＝round−1）、要嘛剛記完（settled＝round）
+    62		return out
+    63	
+    64	static func units_of(army) -> Array:
+    65		var out: Array = []
+    66		for u in army.units:
+    67			out.append([int(u["type"]), int(u["col"]), int(u["row"])])
+    68		return out
+    60		if play_kind == "official" and sim != null:
+    61			last_cmds = sim.cmd_log.duplicate(true)
+    62		result_tab = 0
+    63		_focus = 0
+    64		slow_left = 0.0
+    65		zoom_target = 1.0
+    66		var w: int = sim.winner
+    67		var eff: Dictionary = PLAY_EFFECTS[play_kind]
+    68		if eff["series"]:
+    69			if w >= 0:
+    70				wins[w] += 1
+    71			series_over = series_done(wins, round_no, rules)
+    72			if bool(get("sealed_on")) and mode == Mode.DUEL and round_no >= 3:
+    73				series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+    74			if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
+    75				call("_ach", "SEALED_DONE")   # V1.5
+    76			call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+    77		call("_camp_settle")   # 1.2.0 §11.7 戰役評星
+    78		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+    79			set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
+    80			var wc: Array = get("wv_codes")
+    81			wc.append(BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds))   # V1.5.1 D1
+    82		_build_report()
+    83		call("_ghost_settle", w)   # V1.4 #7
+    84		call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
+    85		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
+    86			call("_wave_end", w == 0)   # V1.4 #11：車輪戰結束（輸了或三波打完）
+    87		if mode == Mode.DUEL:
+    88			sfx.play("win" if w >= 0 else "lose")
+    89		elif mode == Mode.PUZZLE and report.has("goal_ok"):
+    90			sfx.play("win" if bool(report["goal_ok"]) else "lose")   # 第十三輪：照過關條件（Codex v13-r1 #6）
+    91		else:
+    92			sfx.play("win" if w == 0 else "lose")
+    93		sfx.play("ui_quill", 0.45)   # V1.3 B4：戰報寫上羊皮紙的筆聲（各模式都有）
+    94		if eff["progress"] and bool(get("daily_practice")):
+    95			call("_daily_finish", w)   # 1.1.0：每日練習只給練習結果提示，不記戰績、成就、對戰紀錄（Codex v110-i2 #3）
+    96		elif eff["progress"]:
+    97			_progress_and_achievements()
+    98			if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
+    99				call("_record_match", w)
+   100			call("_trial_finish", w)
+   101			call("_daily_finish", w)
+   102			call("_tower_finish", w)   # 1.4.0 §11.1
+   103			Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
+   104		if eff["log"]:
+   105			Save.playtest_log(_pt_entry(0))
+   106	
+  2665		var full := "%s　%s　%s" % [name, stars, mark]
+  2666		if _width(full, ts(18), true) <= avail:
+  2667			return full
+  2668		var nm := name
+  2669		while nm.length() > 1 and _width("%s　%s" % [nm if nm == name else nm + "…", stars], ts(18), true) > avail:
+  2670			nm = nm.substr(0, nm.length() - 1)
+  2671		return "%s　%s" % [nm if nm == name else nm + "…", stars]
+  2672	
+  2673	## 印章冊：第幾頁、這頁蓋了幾格（10 的倍數＝這頁剛好蓋滿，不跳到空白新頁）
+  2674	const STAMP_PER_PAGE := 10
+  2675	static func stamp_page(n: int) -> Array:
+  2676		if n <= 0:
+  2677			return [1, 0]
+  2678		return [(n - 1) / STAMP_PER_PAGE + 1, (n - 1) % STAMP_PER_PAGE + 1]
+  2679	
+  2680	
+  2681	# ── 1.4.0 §11.1 無盡塔（1.3.0 延伸，stash 補完）──
+  2682	const Tower = preload("res://scripts/game/tower.gd")
+  2683	var tower_on := false
+  2684	var tower_floor := 1
+  2685	var tower_result := -1   # 這一層的正式結算（-1＝還沒、0＝過、1＝沒過）；結果頁的按鈕只看它（覆盤改陣贏了不能跳層，Codex cat11 #2）
+  2686	
+  2687	## 結果頁的無盡塔按鈕：照正式結算，不照畫面上這一場（覆盤、重播）→ [文字鍵, 下一次的層]
+  2688	static func tower_button(result: int, floor_no: int) -> Array:
+  2689		if result == 0:
+  2690			return ["tw_next", floor_no + 1]
+  2691		if result == 1:
+  2692			return ["tw_again", 1]
+  2693		return []
+  2694	
+  2695	## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
+  2696	func _tower_open() -> void:
+  2697		if _demo():
+  2698			_toast(L.t("demo_locked"), true)
+  2699			return
+  2700		if Tower.route_is_future(Save.data.get("tower_route")):
+  2701			_toast(L.t("tw_future"), true)   # §3.1：新版存的路線唯讀（不開打、不覆寫）
+  2702			return
+  2703		var rt := _tw_route()
+  2704		if int(rt["floor"]) <= 0:
+  2705			rt = Tower.new_route()   # 沒有進行中的塔：開一條新路線
+  2706			_tw_save_route(rt)
+  2707		elif int(rt["floor"]) > 1:
+  2708			_toast(L.t("tw_resume", [int(rt["floor"])]))
+  2709		if Tower.fork_due(rt):
+  2710			overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
+  2711			_focus = 0
+  2712			return
+  2713		_tower_start(int(rt["floor"]))
+  2714	
+  2715	## 1.6.0 B17：目前的路線（存檔的 tower_route；沒有就從 tower_run 遷移，不猜歷史）
+  2716	func _tw_route() -> Dictionary:
+  2717		var rt = Tower.sanitize_route(Save.data.get("tower_route"))
+  2718		return rt if rt != null else Tower.migrate_old(int(Save.data.get("tower_run", 0)))
+  2719	
+  2720	## 寫路線（tower_run 同步給舊版）；寫檔失敗照實說（記憶體裡照樣往下，Save 會重試）
+  2721	func _tw_save_route(rt: Dictionary) -> bool:
+  2722		Save.data["tower_route"] = rt
+  2723		Save.data["tower_run"] = int(rt["floor"])
+  2724		if Save.save_data():
+  2725			return true
+  2726		_toast(L.t("save_failed"), true)
+  2727		return false
+  2728	
+  2729	## 岔口：選契約或休整（重複點、晚到的點擊不改路線）。選完存檔、直接開打這一層。
+  2730	func _tw_choose(c: String) -> void:
+  2731		var rt := _tw_route()
+  2732		if not Tower.fork_due(rt):
+  2733			return
+  2734		rt = Tower.choose(rt, c)
+  2735		_tw_save_route(rt)
+  2736		overlay = ""
+  2737		_tower_start(int(rt["floor"]))
+  2738	
+  2739	## 契約卡的說明：三層逐層算封頂後實際加多少（全滿＝原句、全封頂＝已到上限、部分＝逐層列出；Codex B17 r2）
+  2740	static func fork_contract_text(f: int, mask: int) -> String:
+  2741		var eff: Array = []
+  2742		for k in Tower.CONTRACT_SPAN:
+  2743			eff.append(Tower.route_effect(f + k, Tower.CONTRACT_BONUS, mask))
+  2744		if eff.all(func(x): return int(x) == Tower.CONTRACT_BONUS):
+  2745			return L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])
+  2746		if eff.all(func(x): return int(x) == 0):
+  2747			return L.t("tw_fork_c_cap", [Tower.CONTRACT_SPAN])
+  2748		var parts: PackedStringArray = []
+  2749		for x in eff:
+  2750			parts.append("+%d" % int(x))
+  2751		return L.t("tw_fork_c_part", ["／".join(parts)])
+  2752	
+  2753	func _draw_tower_fork() -> void:
+  2754		_dim(0.6)
+  2755		var rt := _tw_route()
+  2756		var f := int(rt["floor"])
+  2757		var cd := fork_contract_text(f, RS.mask(false))
+  2758		var cards := [["c", L.t("tw_fork_c"), cd], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [-Tower.route_effect(f, -Tower.REST_CUT, RS.mask(false))])]]
+  2759		var ch := 0.0
+  2760		for c in cards:
+  2761			ch = maxf(ch, 16.0 + tz("B") * 1.4 + text_h(str(c[2]), tz("S"), 300) + 16.0)
+  2762		var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
+  2763		_panel(P)
+  2764		var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
+  2765		for i in 2:
+  2766			var c: Array = cards[i]
+  2767			var r := Rect2(640 - 340 + i * 350, y, 330, ch)
+  2768			var key: String = c[0]
+  2769			_btn(r, "", func(): _tw_choose(key), Tower.fork_due(rt))   # 兩條路同等份量（不設主鈕；主鈕的圓鈕裝飾會壓到卡片字）
+  2770			_text(r.position + Vector2(165, 16), str(c[1]), tz("B"), INK if last_btn_paper else Color.WHITE, true, true, 300)
+  2771			_text(r.position + Vector2(165, 16 + tz("B") * 1.4), str(c[2]), tz("S"), INK if last_btn_paper else TXT_DIM, true, false, 300)
+  2772		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+  2773		screen_register("result", "tw_fork_c")   # 從結果頁／遠征牌進來的選擇框：照結果類上限檢查（Codex B17 r1）
+  2774	
+  2775	func _tower_start(floor_no: int) -> void:
+  2776		if _demo():
+  2777			_toast(L.t("demo_locked"), true)
+  2778			return
+  2779		if Tower.route_is_future(Save.data.get("tower_route")):
+  2780			_toast(L.t("tw_future"), true)
+  2781			return
+  2782		var rt := _tw_route()
+  2783		if int(rt["floor"]) != floor_no:
+  2784			rt = Tower.new_route()   # 不是路線上的這一層（例如規則不合法退回第 1 層）：重開一條
+  2785			rt["floor"] = floor_no
+  2786			rt["done"] = floor_no - 1
+  2787			rt["path"] = "-".repeat((floor_no - 1) / Tower.FORK_EVERY)
+  2788		var sp: Dictionary = Tower.spec_route(rt, floor_no)
+  2789		var r = Tower.make_rules(sp, RS.mask(false))
+  2790		if not r.validate().is_empty():
+  2791			_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
+  2792			if floor_no > 1:
+  2793				Save.data["tower_run"] = 0
+  2794				_tower_start(1)
+  2795			return
+  2796		set("daily_spec", {})        # 從每日挑戰／每日練習直接進塔：不帶每日狀態（不記每日紀錄、不跳過塔結算，Codex cat11 #1）
+  2797		set("daily_practice", false)
+  2798		rules = r
+  2799		challenge_army = Tower.enemy(sp, r)   # 這一層固定的敵陣（走挑戰碼那條路）
+  2800		overlay = ""
+  2801		_start_mode(Mode.VS_AI)
+  2802		tower_on = true
+  2803		tower_floor = int(sp["floor"])
+  2804		tower_result = -1
+  2805		if _tw_save_route(rt):   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+  2806			_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]) + (L.t("tw_contract_tag") if bool(sp.get("contract", false)) else ""))
+  2807		# 寫不進：留著「存檔失敗」提示（不被開層提示蓋掉；Codex B17 r1）
+  2808	
+  2809	func _tower_finish(w: int) -> void:
+  2810		if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+  2811			return
+  2812		var best := int(Save.data.get("tower_best", 0))
+  2813		var st: Array = Tower.settle(_tw_route(), tower_floor, w == 0)   # 1.6.0 B17：結算只一次（done）；路線＋tower_run 一起寫
+  2814		if bool(st[1]):
+  2815			Save.data["tower_route"] = st[0]
+  2816		Save.data["tower_run"] = int(_tw_route()["floor"])
+  2817		tower_result = 0 if w == 0 else 1
+  2818		if w == 0:
+  2819			var r: Array = Tower.record(best, tower_floor)
+  2820			Save.data["tower_best"] = r[0]
+  2821			_toast(L.t("tw_floor_clear", [tower_floor]))
+  2822		else:
+  2823			_toast(L.t("tw_over", [tower_floor, best]))
+   168				if blind_phase == 2:
+   169					call("_sealed_reveal", 0)
+   170					_toast(L.t("sealed_ready"))
+   171				else:
+   172					_toast(L.t("sealed_swap"))   # Antigravity v140-i3：第三封封完要說換人
+   173				return
+   174			blind_phase += 1
+   175			if blind_phase == 1 and bool(get("swap_ai")):
+   176				call("_swap_ai_fill", 1)   # 1.6.0 B18：玩家擺好藍方＝AI 擺紅方，直接可以開戰
+   177			sfx.play("turn")
+   178			return
+   179		if armies[0].count() == 0 and not _full_blocked_ok():
+   180			_toast(L.t("err_empty"), true)
+   181			return
+   182		if rules != null and not _full_blocked_ok() and (not armies[0].has_combat() or (mode == Mode.DUEL and not armies[1].has_combat())):
+   183			_toast(L.t("err_need_combat"), true)
+   184			return
+   185		for u in armies[0].units:   # 開戰前再驗一次（Codex 實作審查 #1）
+   186			if not _allowed(int(u["type"])) and not (mode == Mode.TUTORIAL or mode == Mode.PUZZLE):
+   187				_toast(L.t("code_locked"), true)
+   188				return
+   189		if mode == Mode.GAUNTLET and gauntlet_stage > 1 and _gauntlet_diff() > gauntlet_changes:
+   190			_toast(L.t("err_changes"), true)
+   660					var bt := path + ".bak.tmp"
+   661					rotated = DirAccess.copy_absolute(path, bt) == OK and _parse(bt) != null and DirAccess.rename_absolute(bt, path + ".bak") == OK
+   662					if not rotated:
+   663						DirAccess.remove_absolute(bt)
+   664				if not rotated:
+   665					DirAccess.remove_absolute(tmp)
+   666					return false
+   667		return DirAccess.rename_absolute(tmp, path) == OK
+   668	
+   669	static func _tracked_write(path: String, d: Dictionary) -> bool:
+   670		var good := _write(path, d)
+   671		if good:
+   672			pending.erase(path)
+   673		else:
+   674			pending[path] = true
+   675		return good
+   676	
+   677	static func save_settings() -> bool:
+   678		return _tracked_write(_sp(), settings)
+   679	
+   680	## 未來版存檔（R5）一律不寫，回傳 true 是因為這不是「寫入失敗」，畫面已經常駐提示。
+   681	static func save_data() -> bool:
+   682		if data_locked:
+   683			return true
+   684		return _tracked_write(_dp(), data)
+   685	
+   686	static func has_unsaved() -> bool:
+   687		return not pending.is_empty()
+   688	
+   689	## R7：上次寫入失敗就再試一次（換畫面、回標題時呼叫）。回傳 true＝現在沒有未存內容。
+   690	static func retry_pending() -> bool:
+   691		if pending.has(_sp()):
+   692			save_settings()
+   693		if pending.has(_dp()):
+   694			save_data()
+   695		return pending.is_empty()
+   696	
+   697	static func s(key: String):
+   698		return settings.get(key, DEFAULT_SETTINGS.get(key))
+   699	
+   700	static func set_setting(key: String, v) -> void:
+
+exec
+/bin/bash -lc "rg -n 'func standard|deploy :|deploy :=' build/cg/b18/game/scripts/core/ruleset.gd; rg -n 'deploy|place_xy|place\\(' build/cg/b18/game/scripts/core/ai.gd | head -35; rg -n '"'^const (COUNT|BASE|TOTAL)|func total'"' build/cg/b18/game/scripts/core/unit_defs.gd; nl -ba build/cg/b18/game/scripts/ui/screens/game_core.gd | sed -n '340,390p'; rg -n 'func _progress_and_achievements|save_data' build/cg/b18/game/scripts/ui/screens/game_core.gd | head -20; rg -n 'func _toast' build/cg/b18/game/scripts/ui -g '*.gd'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 243ms:
+85:var deploy := "grid"
+146:static func standard(p: int = -1):
+rg: build/cg/b18/game/scripts/core/ai.gd: IO error for operation on build/cg/b18/game/scripts/core/ai.gd: No such file or directory (os error 2)
+18:const COUNT := 10
+57:const COUNTER_PCT := 100        # 反擊：被刺客打到立刻回砍，傷害＝劍士攻擊的 100%
+174:static func total() -> int:
+   340		if badge == Presets.BADGE_LAB:
+   341			_save()
+   342			return
+   343		var standard: bool = rules == null or Presets.is_standard_record(rules, kind)
+   344		if free_intro:
+   345			Save.data["free_intro_done"] = true
+   346			free_intro = false
+   347		Save.data["unlock_games"] = int(Save.data.get("unlock_games", 0)) + 1   # 只是累計場數（判斷新玩家用），不解鎖任何東西
+   348		var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
+   349		if bool(get("swap_ai")) and mode == Mode.DUEL:
+   350			me_won = w >= 0 and w == int(call("swap_ai_my_color"))   # 1.6.0 B18：對 AI 換邊雙局只有你那一色贏才算你贏（Codex B18 r1）
+   351		var stat_key := "stats" if standard else "custom_stats"
+   352		var st: Dictionary = Save.data.get(stat_key, {"wins": 0, "games": 0})
+   353		st["games"] = int(st.get("games", 0)) + 1
+   354		if (w == 0 and mode != Mode.DUEL) or (bool(get("swap_ai")) and me_won):
+   355			st["wins"] = int(st.get("wins", 0)) + 1   # 1.6.0 B18：對 AI 換邊雙局你那一色贏也算勝場（Codex B18 r2）
+   356		Save.data[stat_key] = st
+   357		_v8_achievements(w)   # 奇幻軍是娛樂變體，要放在「自訂規則提前返回」之前（Codex 第 3 輪）
+   358		# 圖鑑老兵筆記：派這個兵種贏一場 +1（第二輪方案 R3）。第十輪 B4：自訂規則、奇幻軍也算（放在提前返回之前）
+   359		var types := {}
+   360		if me_won:
+   361			for u in sim.units:
+   362				if u.team == w:
+   363					types[D.report_type(u.type)] = true
+   364			CX.record_win(Save.data, types.keys())
+   365		if not standard:
+   366			# 自訂規則專屬成就（標準成就只看標準局）
+   367			if me_won and mode == Mode.VS_AI and w == 0:
+   368				if rules.budget_of(0) <= 50:
+   369					_ach("CUSTOM_LOWGOLD")
+   370				if rules.budget_of(0) < rules.budget_of(1):
+   371					_ach("CUSTOM_UNDERDOG")
+   372			if me_won and rules.unit_cap >= 36:
+   373				_ach("CUSTOM_BIG")
+   374			_save()
+   375			return
+   376		if me_won:
+   377			_ach("FIRST_WIN")
+   378			if sim.alive_count(w) == 1:
+   379				_ach("LONE_HERO")
+   380			if int(report["sus"]["max_swing_pct"]) >= 15:
+   381				_ach("COMEBACK")
+   382			if sim.power(w) * 100 / (sim.budget * 1000) <= 5:
+   383				_ach("CLOSE_CALL")
+   384			if sim.tick >= Sim.FRENZY_TICK:
+   385				_ach("FRENZY_WIN")
+   386			if types.size() == 5:
+   387				_ach("ALL_TYPES")
+   388			if int(ev_count.get("charge%d" % w, 0)) >= 5:
+   389				_ach("CHARGE_5")
+   390			if int(ev_count.get("backstab%d" % w, 0)) >= 3:
+335:func _progress_and_achievements() -> void:
+464:	if not Save.save_data():
+853:	Save.save_data()
+894:	var w: bool = Save.save_data()
+build/cg/b18/game/scripts/ui/ui_base.gd:243:func _toast_dismiss() -> void:
+build/cg/b18/game/scripts/ui/ui_base.gd:610:func _toast(s: String, deny := false) -> void:
+
+codex
+行號依 B18 快照；唯讀靜態審查。
+
+- P1｜game_result.gd:76、97–103：settled 先存、統計後存；中斷會漏記，重複回呼仍重記。須共同去重、同次提交。
+- P2｜swap_duel.gd:54–61、game_playroom.gd:470–485：非法兵種、越界或重疊陣仍通過；還原忽略 place 失敗並覆存，可能縮陣或卡死。須完整驗陣。
+
+結論：不可
+tokens used
+64,088

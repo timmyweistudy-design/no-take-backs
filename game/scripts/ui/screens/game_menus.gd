@@ -1374,7 +1374,7 @@ func _draw_restore() -> void:
 		_btn(Rect2(380, ry + i * 48, 520, 44), lb, func(): _ask_confirm(L.t("restore_q", [lb]), func(): _progress_restore(nm), "restore"))
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
 
-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]
+const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run", "tower_route"]], ["clr_all", []]]
 
 func _draw_clear_data() -> void:
 	_dim(0.6)
@@ -1659,6 +1659,7 @@ func hub_items(kind: String) -> Array:
 				["menu_duel", "hc_duel_d", "people", func(): overlay = ""; _open_lobby("duel"), true],
 				["fog_open", "hc_fog_d", "map", func(): overlay = ""; call("_fog_start"), true],   # V1.6 #20
 				["sw_open", "hc_sw_d", "swap", func(): overlay = ""; call("_swap_start"), true],   # 1.2.0 §11.5 換邊雙局
+				["sw_ai_open", "hc_sw_ai_d", "swap", func(): overlay = ""; call("_swap_ai_start"), true],   # 1.6.0 B18（P7.3）對 AI 換邊雙局
 				["cp_open", "hc_cp_d", "people", func(): overlay = ""; call("_cp_start"), true]]   # 1.2.0 §11.6 合作布陣
 		"hub_gauntlet":   # V1.0.0 H1／M5：遠征牌＝單人遠征＋雙人接力遠征
 			return [["menu_gauntlet", "hc_gauntlet_d", "flag", func(): overlay = ""; _enter_gauntlet(), not _demo()],

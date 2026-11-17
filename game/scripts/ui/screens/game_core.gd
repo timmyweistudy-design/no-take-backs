@@ -68,7 +68,9 @@ func _reset_place(keep_blue := false) -> void:
 					var pp: Vector2i = armies[0].pos_of(u)
 					armies[0].place_xy(int(u["type"]), pp.x, pp.y)   # 保留的陣型和新的明牌陣衝突的就拿掉
 		Mode.DUEL:
-			if duel_rule != "blind":
+			if bool(get("swap_ai")):
+				call("_swap_ai_prep")   # 1.6.0 B18（P7.3）對 AI 換邊雙局：AI 那一色自動擺好、玩家照暗擺流程擺自己那一色
+			elif duel_rule != "blind":
 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule, rules)
 				if rules == null:
 					tp.armies[0].pool = _pool()
@@ -344,11 +346,13 @@ func _progress_and_achievements() -> void:
 		free_intro = false
 	Save.data["unlock_games"] = int(Save.data.get("unlock_games", 0)) + 1   # 只是累計場數（判斷新玩家用），不解鎖任何東西
 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
+	if bool(get("swap_ai")) and mode == Mode.DUEL:
+		me_won = w >= 0 and w == int(call("swap_ai_my_color"))   # 1.6.0 B18：對 AI 換邊雙局只有你那一色贏才算你贏（Codex B18 r1）
 	var stat_key := "stats" if standard else "custom_stats"
 	var st: Dictionary = Save.data.get(stat_key, {"wins": 0, "games": 0})
 	st["games"] = int(st.get("games", 0)) + 1
-	if w == 0 and mode != Mode.DUEL:
-		st["wins"] = int(st.get("wins", 0)) + 1
+	if (w == 0 and mode != Mode.DUEL) or (bool(get("swap_ai")) and me_won):
+		st["wins"] = int(st.get("wins", 0)) + 1   # 1.6.0 B18：對 AI 換邊雙局你那一色贏也算勝場（Codex B18 r2）
 	Save.data[stat_key] = st
 	_v8_achievements(w)   # 奇幻軍是娛樂變體，要放在「自訂規則提前返回」之前（Codex 第 3 輪）
 	# 圖鑑老兵筆記：派這個兵種贏一場 +1（第二輪方案 R3）。第十輪 B4：自訂規則、奇幻軍也算（放在提前返回之前）

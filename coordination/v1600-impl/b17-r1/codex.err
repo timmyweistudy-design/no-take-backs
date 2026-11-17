@@ -1,0 +1,2562 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e51a-b5ab-7272-aab4-24cecc643d01
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B17 第 1 輪，最多三輪）。只讀。專案根目錄＝目前資料夾。
+計畫 coordination/v1600-impl/b17-plan.md；差異 coordination/v1600-impl/b17-r1/diff.patch（快照 build/cg/b17/game，基準＝現在的 game/）。
+請找：錯誤、S6 各邊界（承諾後重啟、岔口選了還沒開打就關遊戲、打到一半關遊戲、結算後重啟再結算、輸了、規則不合法退回、清除戰績、試玩版、每日挑戰進塔）、路線雜湊是否真的與機器無關、遷移（舊 tower_run 與新路線不一致時誰為準）、模擬是否受影響（只改敵方預算＝規則；舊場次 FINGERPRINT）、IN-160-05 重複點與寫檔失敗、手把與 R14。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀比對計畫、差異與快照，追查指定邊界及存檔流程，最後列出最多六項附行號的問題。
+
+exec
+/bin/bash -lc "pwd; rg --files -g AGENTS.md -g 'b17-plan.md' -g 'diff.patch' -g '*R14*' -g '*S6*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1832ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v130-impl1/diff.patch
+coordination/v130-impl2/diff.patch
+coordination/v130-impl/cat11-r1/diff.patch
+coordination/v121-impl2/diff.patch
+coordination/v130-impl/cat09-r1/diff.patch
+coordination/v121-impl1/diff.patch
+coordination/v130-impl/cat08-r1/diff.patch
+coordination/v140-i2/diff.patch
+coordination/v120-impl2/diff.patch
+coordination/v140-i1/diff.patch
+coordination/v130-impl/cat06-r1/diff.patch
+coordination/v131-impl3/diff.patch
+coordination/v130-impl/cat05-r1/diff.patch
+coordination/v131-impl2/diff.patch
+coordination/v1600-impl/b17-r1/diff.patch
+coordination/v1600-impl/b17-r1/b17-plan.md
+coordination/v1600-impl/b17-plan.md
+coordination/v120-impl/cat11-r1/diff.patch
+coordination/v131-impl1/diff.patch
+coordination/v1500-impl/cat07-r1/diff.patch
+coordination/v130-impl/cat04-r1/diff.patch
+coordination/v1500-impl/cat15-r1/diff.patch
+coordination/v120-impl/cat10-r1/diff.patch
+coordination/v120-impl/cat09-r1/diff.patch
+coordination/v1500-impl/cat14-r1/diff.patch
+coordination/v1500-impl/cat04-r1/diff.patch
+coordination/v130-impl/cat01-r1/diff.patch
+coordination/v1600-impl/b16-r1/diff.patch
+coordination/v1500-impl/cat06-r1/diff.patch
+coordination/v1500-impl/cat02-r1/diff.patch
+coordination/v140-impl/cat12-r1/diff.patch
+coordination/v120-final2/diff.patch
+coordination/v130-impl/cat03-r1/diff.patch
+coordination/v120-final/diff.patch
+coordination/v120-impl/cat08-r1/diff.patch
+coordination/v1500-impl/cat05-r1/diff.patch
+coordination/v140-impl/cat11-r1/diff.patch
+coordination/v1500-impl/cat09-r1/diff.patch
+coordination/v130-impl/cat02-r1/diff.patch
+coordination/v120-impl/cat07-r1/diff.patch
+coordination/v1600-impl/b15-r1/diff.patch
+coordination/v1500-impl/cat08-r1/diff.patch
+coordination/v1500-impl/cat03-r1/diff.patch
+coordination/v140-impl/cat10-r1/diff.patch
+coordination/v1500-impl/cat10-r1/diff.patch
+coordination/v1500-impl/cat01-r1/diff.patch
+coordination/v140-impl/cat08-r1/diff.patch
+coordination/v120-impl/cat06-r1/diff.patch
+coordination/v1600-impl/b05-r1/diff.patch
+coordination/v140-impl/cat02-r1/diff.patch
+coordination/v1600-impl/b14-r1/diff.patch
+coordination/v140-impl/cat09-r1/diff.patch
+coordination/v140-impl/cat05-r1/diff.patch
+coordination/v120-impl/cat05-r1/diff.patch
+coordination/v140-impl/cat01-r1/diff.patch
+coordination/v1600-impl/b01-r1/diff.patch
+coordination/v1600-impl/b02-r1/diff.patch
+coordination/v1600-impl/b04-r1/diff.patch
+coordination/v120-impl/cat04-r1/diff.patch
+coordination/v1600-impl/b12-r1/diff.patch
+coordination/v120-impl/cat03-r1/diff.patch
+coordination/v1600-impl/b09-r1/diff.patch
+coordination/v1600-impl/b02-r1/hy1/diff.patch
+coordination/v1600-impl/b11-r1/diff.patch
+coordination/v1600-impl/b03-r1/diff.patch
+coordination/v1600-impl/b08-r1/diff.patch
+coordination/v1600-impl/b06-r1/diff.patch
+coordination/v1600-impl/b07-r1/diff.patch
+coordination/v1600-impl/b10-r1/diff.patch
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b17-plan.md' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 181ms:
+# B17 塔分岔＋續塔（S6；P7.1、P7.2；IN-160-05）計畫
+
+方案 §4 B17：S6 判決＝路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05（重複點、重啟、寫檔失敗）；換路（K6）資料不足＝照開但不宣稱「有選擇性」。回退：回固定塔（新欄位保留不讀）。
+- P7.1 岔路：每過三層（第 4、7、10…層開打前）選一次：**契約**（接下來 3 層敵方 +8 金，每過一層一枚契約章）／**休整**（下一層敵方 −8 金）。全由「路線字串＋層數」決定（沒有亂數）→ 不重抽；路線雜湊＝sha256(版本|路線|層數) 前 12 字。兩張卡同等份量（不設主鈕）。
+- P7.2 完整續塔：存檔 `tower_route` {v, floor, path, seals, done}；`done`＝已結算到第幾層，同一層再結算不變（不重領）。舊存檔只有 `tower_run`：遷移成同一層、過去的岔口記「-」（不猜當時選什麼、不補問）、done＝前一層。`tower_run` 照樣同步（舊版讀得懂）。清除戰績連 `tower_route` 一起清。
+- 結果頁「爬下一層」改走 `_tower_open`（岔口先選路；輸了路線結束＝開新的）。
+- 寫檔失敗：選路照樣生效（記憶體），提示存檔失敗；開打時再寫一次。重複點／晚到的點擊：該選的岔口已選過＝不改。
+- 文字照實：不宣稱「有選擇性」，只寫兩條路各自的效果。
+- 測試 `test_tower_route_v1600`（含 B01 會話範本 `session_contract`）；舊測試一條原始碼核對跟著改。新截圖 `v160_17a_tower_fork`。
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b17-r1/diff.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 114ms:
+--- a/game/scripts/game/tower.gd
++++ b/game/scripts/game/tower.gd
+@@ -33,3 +33,101 @@
+ 
+ static func sanitize_run(v) -> int:
+ 	return clampi(int(v), 0, 100000) if (v is int or v is float) else 0
++
++## ── 1.6.0 B17（P7.1、P7.2；S6）塔分岔＋完整續塔 ──
++## 每過三層（打完第 3、6、9…層）要選一次路：契約（接下來三層敵方 +CONTRACT_BONUS 金，每過一層記一枚契約章）／休整（下一層敵方 −REST_CUT 金）。
++## 路線狀態（存檔 tower_route）＝{v, floor（下一次要打的層，0＝沒有進行中）, path（每個岔口的選擇：c＝契約、r＝休整、-＝舊存檔沒有紀錄）, seals（契約章）, done（已結算到第幾層）}。
++## 一切只由 path 與層數決定（沒有亂數）：兩台機器同一條路線雜湊一樣、重啟不重抽；結算記 done，同一層不重領。
++## 舊存檔只有 tower_run（層數）：遷移成同一層、過去的岔口記 "-"（不猜當時選了什麼，也不補問）。
++const FORK_EVERY := 3
++const CONTRACT_BONUS := 8
++const CONTRACT_SPAN := 3
++const REST_CUT := 8
++const ROUTE_V := 1
++const FLOOR_MAX := 100000
++
++static func new_route() -> Dictionary:
++	return {"v": ROUTE_V, "floor": 1, "path": "", "seals": 0, "done": 0}
++
++## 這一層開打前要先選路嗎（第 4、7、10…層開打前；這個岔口還沒選）
++static func fork_due(st: Dictionary) -> bool:
++	var f := int(st.get("floor", 0))
++	return f > 1 and (f - 1) % FORK_EVERY == 0 and str(st.get("path", "")).length() < (f - 1) / FORK_EVERY
++
++## 選路：只在該選的時候生效（重複點、晚到的點擊＝原樣回傳）
++static func choose(st: Dictionary, c: String) -> Dictionary:
++	if not fork_due(st) or not c in ["c", "r"]:
++		return st
++	var out := st.duplicate(true)
++	out["path"] = str(st["path"]) + c
++	return out
++
++## 第 k 個岔口（0 起）之後的第一層＝k*3+4
++static func _fork_floor(k: int) -> int:
++	return (k + 1) * FORK_EVERY + 1
++
++## 這一層吃到的路線加減：[敵方加減金, 是不是契約層]
++static func route_adj(path: String, floor_no: int) -> Array:
++	var adj := 0
++	var contract := false
++	for k in path.length():
++		var f0 := _fork_floor(k)
++		if path[k] == "c" and floor_no >= f0 and floor_no < f0 + CONTRACT_SPAN:
++			adj += CONTRACT_BONUS
++			contract = true
++		elif path[k] == "r" and floor_no == f0:
++			adj -= REST_CUT
++	return [adj, contract]
++
++## 帶路線的這一層：spec 的敵方加碼再加減（夾在 0 以上），附 contract
++static func spec_route(st: Dictionary, floor_no: int) -> Dictionary:
++	var sp := spec(floor_no)
++	var ra := route_adj(str(st.get("path", "")), floor_no)
++	sp["bonus"] = maxi(0, int(sp["bonus"]) + int(ra[0]))
++	sp["contract"] = bool(ra[1])
++	return sp
++
++## 結算一層（只一次）：回 [新狀態, 有沒有變]。贏＝下一層、契約層加一枚章；輸＝路線結束（floor 0，章數照留在這次結果裡）。
++static func settle(st: Dictionary, floor_no: int, won: bool) -> Array:
++	if floor_no <= int(st.get("done", 0)) or floor_no != int(st.get("floor", 0)):
++		return [st, false]
++	var out := st.duplicate(true)
++	out["done"] = floor_no
++	if won:
++		out["floor"] = floor_no + 1
++		if bool(route_adj(str(st.get("path", "")), floor_no)[1]):
++			out["seals"] = int(st.get("seals", 0)) + 1
++	else:
++		out["floor"] = 0
++	return [out, true]
++
++## 路線雜湊（S6：兩台機器同一條路線一樣）
++static func route_hash(st: Dictionary) -> String:
++	return ("%d|%s|%d" % [int(st.get("v", ROUTE_V)), str(st.get("path", "")), int(st.get("floor", 0))]).sha256_text().substr(0, 12)
++
++## 舊存檔：只有 tower_run（下一次要打的層）。過去的岔口記 "-"（不猜歷史），done＝前一層（不能重領）。
++static func migrate_old(run: int) -> Dictionary:
++	if run <= 0:
++		return {"v": ROUTE_V, "floor": 0, "path": "", "seals": 0, "done": 0}
++	return {"v": ROUTE_V, "floor": run, "path": "-".repeat((run - 1) / FORK_EVERY), "seals": 0, "done": run - 1}
++
++static func _int_in(v, lo: float, hi: float) -> bool:
++	return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
++
++## 存檔讀回：逐欄驗型；壞了回 null（呼叫端用 tower_run 遷移）。路線長度不能超過層數允許的岔口數。
++static func sanitize_route(v):
++	if not v is Dictionary:
++		return null
++	if not _int_in(v.get("v"), 1, ROUTE_V) or not _int_in(v.get("floor"), 0, FLOOR_MAX) or not _int_in(v.get("seals"), 0, FLOOR_MAX) or not _int_in(v.get("done"), 0, FLOOR_MAX):
++		return null
++	var p = v.get("path")
++	if not p is String or p.length() > FLOOR_MAX / FORK_EVERY:
++		return null
++	for ch in p:
++		if not ch in ["c", "r", "-"]:
++			return null
++	var f := int(v["floor"])
++	var forks_max := maxi(0, (maxi(f, int(v["done"]) + 1) - 1) / FORK_EVERY)
++	if p.length() > forks_max:
++		return null
++	return {"v": int(v["v"]), "floor": f, "path": p, "seals": int(v["seals"]), "done": int(v["done"])}
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -189,6 +189,14 @@
+ 	var twb = out.get("tower_best", 0)
+ 	out["tower_best"] = clampi(int(twb), 0, 100000) if (twb is int or twb is float) else 0   # 1.4.0 §11.1 無盡塔最高層
+ 	out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
++	# 1.6.0 B17（P7.2）完整續塔：tower_route；沒有或壞了＝從 tower_run 遷移（不猜歷史）。有路線就以路線為準、tower_run 跟著同步（舊版讀得懂）
++	if out.has("tower_route") or int(out["tower_run"]) > 0:
++		var TW = load("res://scripts/game/tower.gd")
++		var rt = TW.sanitize_route(out.get("tower_route"))
++		if rt == null:
++			rt = TW.migrate_old(int(out["tower_run"]))
++		out["tower_route"] = rt
++		out["tower_run"] = int(rt["floor"])
+ 	var ods = out.get("od_stamps", 0)
+ 	out["od_stamps"] = clampi(int(ods), 0, 100000) if (ods is int or ods is float) else 0
+ 	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -376,6 +376,8 @@
+ 			_draw_share()
+ 		"songbook":
+ 			_draw_songbook()
++		"tower_fork":
++			_draw_tower_fork()
+ 		"sb_full":
+ 			_draw_sb_full()
+ 		"campaign":
+@@ -2640,16 +2642,77 @@
+ 
+ ## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
+ func _tower_open() -> void:
+-	var run := int(Save.data.get("tower_run", 0))
+-	if run > 1:
+-		_toast(L.t("tw_resume", [run]))
+-	_tower_start(maxi(1, run))
++	if _demo():
++		_toast(L.t("demo_locked"), true)
++		return
++	var rt := _tw_route()
++	if int(rt["floor"]) <= 0:
++		rt = Tower.new_route()   # 沒有進行中的塔：開一條新路線
++		_tw_save_route(rt)
++	elif int(rt["floor"]) > 1:
++		_toast(L.t("tw_resume", [int(rt["floor"])]))
++	if Tower.fork_due(rt):
++		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
++		_focus = 0
++		return
++	_tower_start(int(rt["floor"]))
++
++## 1.6.0 B17：目前的路線（存檔的 tower_route；沒有就從 tower_run 遷移，不猜歷史）
++func _tw_route() -> Dictionary:
++	var rt = Tower.sanitize_route(Save.data.get("tower_route"))
++	return rt if rt != null else Tower.migrate_old(int(Save.data.get("tower_run", 0)))
++
++## 寫路線（tower_run 同步給舊版）；寫檔失敗照實說（記憶體裡照樣往下，Save 會重試）
++func _tw_save_route(rt: Dictionary) -> bool:
++	Save.data["tower_route"] = rt
++	Save.data["tower_run"] = int(rt["floor"])
++	if Save.save_data():
++		return true
++	_toast(L.t("save_failed"), true)
++	return false
++
++## 岔口：選契約或休整（重複點、晚到的點擊不改路線）。選完存檔、直接開打這一層。
++func _tw_choose(c: String) -> void:
++	var rt := _tw_route()
++	if not Tower.fork_due(rt):
++		return
++	rt = Tower.choose(rt, c)
++	_tw_save_route(rt)
++	overlay = ""
++	_tower_start(int(rt["floor"]))
++
++func _draw_tower_fork() -> void:
++	_dim(0.6)
++	var rt := _tw_route()
++	var f := int(rt["floor"])
++	var cards := [["c", L.t("tw_fork_c"), L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [Tower.REST_CUT])]]
++	var ch := 0.0
++	for c in cards:
++		ch = maxf(ch, 16.0 + tz("B") * 1.4 + text_h(str(c[2]), tz("S"), 300) + 16.0)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
++	for i in 2:
++		var c: Array = cards[i]
++		var r := Rect2(640 - 340 + i * 350, y, 330, ch)
++		var key: String = c[0]
++		_btn(r, "", func(): _tw_choose(key), Tower.fork_due(rt))   # 兩條路同等份量（不設主鈕；主鈕的圓鈕裝飾會壓到卡片字）
++		_text(r.position + Vector2(165, 16), str(c[1]), tz("B"), INK if last_btn_paper else Color.WHITE, true, true, 300)
++		_text(r.position + Vector2(165, 16 + tz("B") * 1.4), str(c[2]), tz("S"), INK if last_btn_paper else TXT_DIM, true, false, 300)
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++	screen_register("tower_fork", "tw_fork_c")
+ 
+ func _tower_start(floor_no: int) -> void:
+ 	if _demo():
+ 		_toast(L.t("demo_locked"), true)
+ 		return
+-	var sp: Dictionary = Tower.spec(floor_no)
++	var rt := _tw_route()
++	if int(rt["floor"]) != floor_no:
++		rt = Tower.new_route()   # 不是路線上的這一層（例如規則不合法退回第 1 層）：重開一條
++		rt["floor"] = floor_no
++		rt["done"] = floor_no - 1
++		rt["path"] = "-".repeat((floor_no - 1) / Tower.FORK_EVERY)
++	var sp: Dictionary = Tower.spec_route(rt, floor_no)
+ 	var r = Tower.make_rules(sp, RS.mask(false))
+ 	if not r.validate().is_empty():
+ 		_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
+@@ -2666,15 +2729,17 @@
+ 	tower_on = true
+ 	tower_floor = int(sp["floor"])
+ 	tower_result = -1
+-	Save.data["tower_run"] = tower_floor
+-	Save.save_data()   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+-	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]))
++	_tw_save_route(rt)   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
++	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]) + (L.t("tw_contract_tag") if bool(sp.get("contract", false)) else ""))
+ 
+ func _tower_finish(w: int) -> void:
+ 	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+ 		return
+ 	var best := int(Save.data.get("tower_best", 0))
+-	Save.data["tower_run"] = Tower.next_run(int(Save.data.get("tower_run", 0)), tower_floor, w == 0)
++	var st: Array = Tower.settle(_tw_route(), tower_floor, w == 0)   # 1.6.0 B17：結算只一次（done）；路線＋tower_run 一起寫
++	if bool(st[1]):
++		Save.data["tower_route"] = st[0]
++	Save.data["tower_run"] = int(_tw_route()["floor"])
+ 	tower_result = 0 if w == 0 else 1
+ 	if w == 0:
+ 		var r: Array = Tower.record(best, tower_floor)
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -423,7 +423,7 @@
+ 		if not tb.is_empty():
+ 			bs.clear()
+ 			var nf: int = int(tb[1])
+-			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_start", nf)])
++			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_open")])   # 1.6.0 B17：走路線（岔口先選路；輸了路線已結束＝開新的）
+ 	if watch_mode:
+ 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
+ 
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -1374,7 +1374,7 @@
+ 		_btn(Rect2(380, ry + i * 48, 520, 44), lb, func(): _ask_confirm(L.t("restore_q", [lb]), func(): _progress_restore(nm), "restore"))
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
+ 
+-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]
++const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run", "tower_route"]], ["clr_all", []]]
+ 
+ func _draw_clear_data() -> void:
+ 	_dim(0.6)
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -709,6 +709,17 @@
+ 	overlay = "sb_full"
+ 	await _snap("v160_16e_songbook_full.png")
+ 	sb_pending = {}
++	# 1.6.0 B17（P7.1）：無盡塔岔路（第 4 層開打前）；拍完還原存檔欄位
++	var tr_keep = Save.data.get("tower_route", null)
++	var trun_keep = Save.data.get("tower_run", 0)
++	Save.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++	overlay = "tower_fork"
++	await _snap("v160_17a_tower_fork.png")
++	if tr_keep == null:
++		Save.data.erase("tower_route")
++	else:
++		Save.data["tower_route"] = tr_keep
++	Save.data["tower_run"] = trun_keep
+ 	Save.data["songbook"] = []
+ 	overlay = ""
+ 	difficulty = 1
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -1145,6 +1145,12 @@
+    "一般"
+   ]
+  },
++ "v160_17a_tower_fork.png": {
++  "entry": "遠征→無盡塔→第 4 層開打前（岔路，1.6.0 B17）",
++  "states": [
++   "一般"
++  ]
++ },
+  "v120_05_songbook@empty.png": {
+   "entry": "收藏→棋譜本",
+   "states": [
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -386,3 +386,95 @@
+ 	g.free()
+ 	SV.data = keep
+ 	SV.save_data()
++
++
++## 1.6.0 B17（P7.1、P7.2；S6；IN-160-05）塔分岔＋完整續塔：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 tower_run 讀回；
++## 重複點、重啟、寫檔失敗。
++func test_tower_route_v1600() -> void:
++	var T = load("res://scripts/game/tower.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var st: Dictionary = T.new_route()
++	ok(not T.fork_due(st) and T.choose(st, "c") == st, "第 1 層不用選路；不該選時點了不改")
++	for f in [1, 2, 3]:
++		st = T.settle(st, f, true)[0]
++	ok(int(st["floor"]) == 4 and T.fork_due(st), "打完第 3 層：第 4 層開打前要選路")
++	var st_c: Dictionary = T.choose(st, "c")
++	ok(st_c["path"] == "c" and T.choose(st_c, "r") == st_c and not T.fork_due(st_c), "選了契約；重複點／改點不改路線")
++	ok(T.route_adj("c", 4) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 6) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 7) == [0, false] and T.route_adj("r", 4) == [-T.REST_CUT, false] and T.route_adj("r", 5) == [0, false], "契約：三層 +%d；休整：下一層 −%d" % [T.CONTRACT_BONUS, T.REST_CUT])
++	ok(int(T.spec_route(st_c, 4)["bonus"]) == int(T.spec(4)["bonus"]) + T.CONTRACT_BONUS and int(T.spec_route({"path": "r"}, 4)["bonus"]) == maxi(0, int(T.spec(4)["bonus"]) - T.REST_CUT), "路線改的是這一層的敵方加碼")
++	var s4: Array = T.settle(st_c, 4, true)
++	ok(bool(s4[1]) and int(s4[0]["seals"]) == 1 and int(s4[0]["floor"]) == 5, "契約層過了：一枚契約章")
++	ok(not bool(T.settle(s4[0], 4, true)[1]) and not bool(T.settle(s4[0], 9, true)[1]), "同一層再結算、不是這一層：都不變（不重領）")
++	# 兩機相同：路線雜湊只由版本、選擇、層數決定（寫檔讀回、另一台重算都一樣）
++	var rt: Dictionary = JSON.parse_string(JSON.stringify(s4[0]))
++	ok(T.route_hash(T.sanitize_route(rt)) == T.route_hash(s4[0]) and T.route_hash({"v": 1, "path": "c", "floor": 5}) == ("1|c|5").sha256_text().substr(0, 12), "路線雜湊兩機相同（%s）" % T.route_hash(s4[0]))
++	# 舊存檔 tower_run 讀回（不猜歷史）
++	var d := {"tower_run": 8, "tower_best": 7}
++	SV.sanitize_data(d)
++	ok(d["tower_route"] == {"v": 1, "floor": 8, "path": "--", "seals": 0, "done": 7} and not T.fork_due(d["tower_route"]) and int(d["tower_run"]) == 8, "舊 tower_run＝8：同一層、過去兩個岔口記「-」、不補問", str(d.get("tower_route")))
++	var d0 := {"tower_run": 0}
++	SV.sanitize_data(d0)
++	ok(not d0.has("tower_route"), "沒有進行中的塔：不多出欄位")
++	for bad in ["x", 5, {"v": 1, "floor": 4, "path": "cc", "seals": 0, "done": 3}, {"v": 9, "floor": 1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": -1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "x", "seals": 0, "done": 3}, {"v": 1, "floor": 1.0e30, "path": "", "seals": 0, "done": 0}]:
++		ok(T.sanitize_route(bad) == null, "壞路線讀回＝不用（改由 tower_run 遷移）：%s" % str(bad))
++	var keep: Dictionary = SV.data.duplicate(true)
++	var lk: bool = SV.data_locked
++	SV.data_locked = false
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	# 會話範本：岔口選路承諾 → 重啟不重抽 → 結算一次
++	session_contract("塔分岔", {
++		"start": func():
++			SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++			SV.data["tower_run"] = 4
++			g._tw_choose("c")
++			return g._tw_route(),
++		"commit": func(_s): return SV.data.duplicate(true),
++		"restart": func(sv):
++			var d2: Dictionary = SV.migrate(JSON.parse_string(JSON.stringify(sv)))
++			SV.sanitize_data(d2)
++			SV.data["tower_route"] = d2["tower_route"]
++			SV.data["tower_run"] = d2["tower_run"]
++			return g._tw_route(),
++		"settle": func(s):
++			var b: String = var_to_str(g._tw_route())
++			g.tower_on = true
++			g.mode = g.Mode.VS_AI
++			g.play_kind = "official"
++			g.tower_floor = 4
++			g._tower_finish(0)
++			return [g._tw_route(), var_to_str(g._tw_route()) != b],
++		"same": func(a, b): return a == b,
++		"bad_inputs": ["x", null, {}, {"v": 1}],
++		"sanitize": func(v):
++			var d3 := {"tower_route": v, "tower_run": 3}
++			SV.sanitize_data(d3)
++			return d3["tower_route"],
++		"old_samples": [[{"tower_run": 5}, {"v": 1, "floor": 5, "path": "-", "seals": 0, "done": 4}]],
++	})
++	SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++	g.tower_floor = 1
++	g._tw_choose("c")
++	g.tower_on = true
++	g.mode = g.Mode.VS_AI
++	g.play_kind = "official"
++	var f_started: int = g.tower_floor
++	g._tower_finish(0)
++	ok(f_started == 4 and int(g._tw_route()["seals"]) == 1 and int(g._tw_route()["floor"]) == 5, "岔口選完直接開打第 4 層；過了得契約章", str([f_started, g._tw_route()]))
++	# 寫檔失敗：選路照樣生效、標未存、重試寫進去
++	SV.data["tower_route"] = {"v": 1, "floor": 7, "path": "c", "seals": 3, "done": 6}
++	SV.fail_inject = {"tmp": 1}
++	g._tw_choose("r")
++	ok(g._tw_route()["path"] == "cr" and int(SV.fail_inject.get("tmp", 0)) == 0 and not SV.has_unsaved(), "寫檔失敗：路線照樣生效（在記憶體），開打時再寫一次就補進去", str([g._tw_route(), SV.has_unsaved()]))
++	g._tw_choose("c")
++	ok(g._tw_route()["path"] == "cr", "重複點：已選過不改")
++	# 結果頁：岔口時按「爬下一層」＝先開岔路
++	SV.data["tower_route"] = {"v": 1, "floor": 10, "path": "cr", "seals": 3, "done": 9}
++	g.overlay = ""
++	g._tower_open()
++	ok(g.overlay == "tower_fork", "第 10 層開打前：先選路", str([g.overlay, g._tw_route()]))
++	g.free()
++	SV.data = keep
++	SV.save_data()
++	SV.data_locked = lk
+--- a/game/tests/suites/modes.gd
++++ b/game/tests/suites/modes.gd
+@@ -1643,7 +1643,7 @@
+ 	var i0 := v16.find("func _tower_start(")
+ 	var i1 := v16.find("func _tower_finish(")
+ 	var body := v16.substr(i0, i1 - i0)
+-	ok(body.find("set(\"daily_spec\", {})") >= 0 and body.find("set(\"daily_practice\", false)") >= 0 and body.find("Save.save_data()") >= 0, "進塔清掉每日狀態、續局寫進存檔（Codex cat11 #1、#3）")
++	ok(body.find("set(\"daily_spec\", {})") >= 0 and body.find("set(\"daily_practice\", false)") >= 0 and body.find("_tw_save_route(rt)") >= 0, "進塔清掉每日狀態、續局寫進存檔（Codex cat11 #1、#3；1.6.0 B17 起連路線一起寫）")
+ 	var rs: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+ 	ok(rs.find("call(\"tower_button\", int(get(\"tower_result\"))") >= 0, "結果頁用 tower_result（不是畫面上這一場的勝負）")
+ 	# 讓子規則代碼往返：塔的規則轉成代碼再讀回，兩邊預算一樣（分享、重播、對戰紀錄走代碼）
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600", "test_tower_route_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+
+exec
+/bin/bash -lc "rg -n 'tower_fork|overlay.*back|screen_register|func _btn|func _new_game|func save_data|has_unsaved' build/cg/b17/game/scripts/ui build/cg/b17/game/scripts/game/save.gd | head -110" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '*160*' coordination | head -70" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "sed -n '/test_tower_route_v1600/,"'$p'"' build/cg/b17/game/tests/suites/save.gd | head -180" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg -n 'R14|S6|IN-160-05|FINGERPRINT' coordination/v1600* game/scripts game/tests | head -100" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 212ms:
+func test_tower_route_v1600() -> void:
+	var T = load("res://scripts/game/tower.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var st: Dictionary = T.new_route()
+	ok(not T.fork_due(st) and T.choose(st, "c") == st, "第 1 層不用選路；不該選時點了不改")
+	for f in [1, 2, 3]:
+		st = T.settle(st, f, true)[0]
+	ok(int(st["floor"]) == 4 and T.fork_due(st), "打完第 3 層：第 4 層開打前要選路")
+	var st_c: Dictionary = T.choose(st, "c")
+	ok(st_c["path"] == "c" and T.choose(st_c, "r") == st_c and not T.fork_due(st_c), "選了契約；重複點／改點不改路線")
+	ok(T.route_adj("c", 4) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 6) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 7) == [0, false] and T.route_adj("r", 4) == [-T.REST_CUT, false] and T.route_adj("r", 5) == [0, false], "契約：三層 +%d；休整：下一層 −%d" % [T.CONTRACT_BONUS, T.REST_CUT])
+	ok(int(T.spec_route(st_c, 4)["bonus"]) == int(T.spec(4)["bonus"]) + T.CONTRACT_BONUS and int(T.spec_route({"path": "r"}, 4)["bonus"]) == maxi(0, int(T.spec(4)["bonus"]) - T.REST_CUT), "路線改的是這一層的敵方加碼")
+	var s4: Array = T.settle(st_c, 4, true)
+	ok(bool(s4[1]) and int(s4[0]["seals"]) == 1 and int(s4[0]["floor"]) == 5, "契約層過了：一枚契約章")
+	ok(not bool(T.settle(s4[0], 4, true)[1]) and not bool(T.settle(s4[0], 9, true)[1]), "同一層再結算、不是這一層：都不變（不重領）")
+	# 兩機相同：路線雜湊只由版本、選擇、層數決定（寫檔讀回、另一台重算都一樣）
+	var rt: Dictionary = JSON.parse_string(JSON.stringify(s4[0]))
+	ok(T.route_hash(T.sanitize_route(rt)) == T.route_hash(s4[0]) and T.route_hash({"v": 1, "path": "c", "floor": 5}) == ("1|c|5").sha256_text().substr(0, 12), "路線雜湊兩機相同（%s）" % T.route_hash(s4[0]))
+	# 舊存檔 tower_run 讀回（不猜歷史）
+	var d := {"tower_run": 8, "tower_best": 7}
+	SV.sanitize_data(d)
+	ok(d["tower_route"] == {"v": 1, "floor": 8, "path": "--", "seals": 0, "done": 7} and not T.fork_due(d["tower_route"]) and int(d["tower_run"]) == 8, "舊 tower_run＝8：同一層、過去兩個岔口記「-」、不補問", str(d.get("tower_route")))
+	var d0 := {"tower_run": 0}
+	SV.sanitize_data(d0)
+	ok(not d0.has("tower_route"), "沒有進行中的塔：不多出欄位")
+	for bad in ["x", 5, {"v": 1, "floor": 4, "path": "cc", "seals": 0, "done": 3}, {"v": 9, "floor": 1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": -1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "x", "seals": 0, "done": 3}, {"v": 1, "floor": 1.0e30, "path": "", "seals": 0, "done": 0}]:
+		ok(T.sanitize_route(bad) == null, "壞路線讀回＝不用（改由 tower_run 遷移）：%s" % str(bad))
+	var keep: Dictionary = SV.data.duplicate(true)
+	var lk: bool = SV.data_locked
+	SV.data_locked = false
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	# 會話範本：岔口選路承諾 → 重啟不重抽 → 結算一次
+	session_contract("塔分岔", {
+		"start": func():
+			SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
+			SV.data["tower_run"] = 4
+			g._tw_choose("c")
+			return g._tw_route(),
+		"commit": func(_s): return SV.data.duplicate(true),
+		"restart": func(sv):
+			var d2: Dictionary = SV.migrate(JSON.parse_string(JSON.stringify(sv)))
+			SV.sanitize_data(d2)
+			SV.data["tower_route"] = d2["tower_route"]
+			SV.data["tower_run"] = d2["tower_run"]
+			return g._tw_route(),
+		"settle": func(s):
+			var b: String = var_to_str(g._tw_route())
+			g.tower_on = true
+			g.mode = g.Mode.VS_AI
+			g.play_kind = "official"
+			g.tower_floor = 4
+			g._tower_finish(0)
+			return [g._tw_route(), var_to_str(g._tw_route()) != b],
+		"same": func(a, b): return a == b,
+		"bad_inputs": ["x", null, {}, {"v": 1}],
+		"sanitize": func(v):
+			var d3 := {"tower_route": v, "tower_run": 3}
+			SV.sanitize_data(d3)
+			return d3["tower_route"],
+		"old_samples": [[{"tower_run": 5}, {"v": 1, "floor": 5, "path": "-", "seals": 0, "done": 4}]],
+	})
+	SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
+	g.tower_floor = 1
+	g._tw_choose("c")
+	g.tower_on = true
+	g.mode = g.Mode.VS_AI
+	g.play_kind = "official"
+	var f_started: int = g.tower_floor
+	g._tower_finish(0)
+	ok(f_started == 4 and int(g._tw_route()["seals"]) == 1 and int(g._tw_route()["floor"]) == 5, "岔口選完直接開打第 4 層；過了得契約章", str([f_started, g._tw_route()]))
+	# 寫檔失敗：選路照樣生效、標未存、重試寫進去
+	SV.data["tower_route"] = {"v": 1, "floor": 7, "path": "c", "seals": 3, "done": 6}
+	SV.fail_inject = {"tmp": 1}
+	g._tw_choose("r")
+	ok(g._tw_route()["path"] == "cr" and int(SV.fail_inject.get("tmp", 0)) == 0 and not SV.has_unsaved(), "寫檔失敗：路線照樣生效（在記憶體），開打時再寫一次就補進去", str([g._tw_route(), SV.has_unsaved()]))
+	g._tw_choose("c")
+	ok(g._tw_route()["path"] == "cr", "重複點：已選過不改")
+	# 結果頁：岔口時按「爬下一層」＝先開岔路
+	SV.data["tower_route"] = {"v": 1, "floor": 10, "path": "cr", "seals": 3, "done": 9}
+	g.overlay = ""
+	g._tower_open()
+	ok(g.overlay == "tower_fork", "第 10 層開打前：先選路", str([g.overlay, g._tw_route()]))
+	g.free()
+	SV.data = keep
+	SV.save_data()
+	SV.data_locked = lk
+
+exec
+/bin/bash -lc "nl -ba build/cg/b17/game/scripts/game/tower.gd; nl -ba build/cg/b17/game/scripts/ui/screens/game_v16.gd | sed -n '2630,2790p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 752ms:
+     1	extends RefCounted
+     2	## 1.4.0 §11.1（1.3.0 延伸、stash 補完）：無盡塔——一路往上打，每層一種突變（沿用每日挑戰的 8 種）、地圖與 AI 性格輪換，
+     3	## 敵方預算每層多一點（上限 +60）；輸一場就結束，記最高層數（本機）。每層的規則與敵陣只由層數決定（固定種子、跨機器一樣）。
+     4	const Daily = preload("res://scripts/game/daily.gd")
+     5	const AI = preload("res://scripts/core/ai_army.gd")
+     6	const BONUS_STEP := 4     # 每層敵方多 4 金
+     7	const BONUS_MAX := 60
+     8	
+     9	static func spec(floor_no: int) -> Dictionary:
+    10		var f := maxi(1, floor_no)
+    11		var mut := posmod(f - 1, Daily.MUTATORS)
+    12		return {"floor": f, "mut": mut, "map": 3 if mut == 3 else posmod(f * 5 + 2, 6), "style": posmod(f * 3 + 1, 5),
+    13			"level": clampi((f - 1) / 6, 0, 2), "seed": 70000 + posmod(f * 7919, 1000003), "bonus": mini(BONUS_MAX, (f - 1) * BONUS_STEP)}
+    14	
+    15	## 這一層的規則：每日挑戰的規則（自由部署、單局、突變）再加敵方預算。
+    16	static func make_rules(sp: Dictionary, mask: int):
+    17		var r = Daily.make_rules(sp, mask)
+    18		var RS = load("res://scripts/core/ruleset.gd")
+    19		r.budget = [int(r.budget_of(0)), mini(RS.BUDGET_MAX, int(r.budget_of(1)) + int(sp["bonus"]))]   # 大地圖本來就接近上限：加碼夾在合法範圍內
+    20		r.handicap = int(r.budget[1]) != int(r.budget[0])   # 兩邊預算不同要開讓子，否則 budget_of 兩邊都取藍方（stash 原本漏了，測試抓到）
+    21		return r
+    22	
+    23	static func enemy(sp: Dictionary, r):
+    24		return Daily.enemy(sp, r)
+    25	
+    26	## 記最高層：過了第 f 層＝最高至少 f。回傳 [新最高, 是否刷新]。
+    27	static func record(best: int, cleared_floor: int) -> Array:
+    28		return [maxi(best, cleared_floor), cleared_floor > best]
+    29	
+    30	## 續局：下一次要打的層（0＝沒有進行中的塔）。贏了＝下一層、輸了＝清掉；壞資料＝0。
+    31	static func next_run(run: int, floor_no: int, won: bool) -> int:
+    32		return floor_no + 1 if won else 0
+    33	
+    34	static func sanitize_run(v) -> int:
+    35		return clampi(int(v), 0, 100000) if (v is int or v is float) else 0
+    36	
+    37	## ── 1.6.0 B17（P7.1、P7.2；S6）塔分岔＋完整續塔 ──
+    38	## 每過三層（打完第 3、6、9…層）要選一次路：契約（接下來三層敵方 +CONTRACT_BONUS 金，每過一層記一枚契約章）／休整（下一層敵方 −REST_CUT 金）。
+    39	## 路線狀態（存檔 tower_route）＝{v, floor（下一次要打的層，0＝沒有進行中）, path（每個岔口的選擇：c＝契約、r＝休整、-＝舊存檔沒有紀錄）, seals（契約章）, done（已結算到第幾層）}。
+    40	## 一切只由 path 與層數決定（沒有亂數）：兩台機器同一條路線雜湊一樣、重啟不重抽；結算記 done，同一層不重領。
+    41	## 舊存檔只有 tower_run（層數）：遷移成同一層、過去的岔口記 "-"（不猜當時選了什麼，也不補問）。
+    42	const FORK_EVERY := 3
+    43	const CONTRACT_BONUS := 8
+    44	const CONTRACT_SPAN := 3
+    45	const REST_CUT := 8
+    46	const ROUTE_V := 1
+    47	const FLOOR_MAX := 100000
+    48	
+    49	static func new_route() -> Dictionary:
+    50		return {"v": ROUTE_V, "floor": 1, "path": "", "seals": 0, "done": 0}
+    51	
+    52	## 這一層開打前要先選路嗎（第 4、7、10…層開打前；這個岔口還沒選）
+    53	static func fork_due(st: Dictionary) -> bool:
+    54		var f := int(st.get("floor", 0))
+    55		return f > 1 and (f - 1) % FORK_EVERY == 0 and str(st.get("path", "")).length() < (f - 1) / FORK_EVERY
+    56	
+    57	## 選路：只在該選的時候生效（重複點、晚到的點擊＝原樣回傳）
+    58	static func choose(st: Dictionary, c: String) -> Dictionary:
+    59		if not fork_due(st) or not c in ["c", "r"]:
+    60			return st
+    61		var out := st.duplicate(true)
+    62		out["path"] = str(st["path"]) + c
+    63		return out
+    64	
+    65	## 第 k 個岔口（0 起）之後的第一層＝k*3+4
+    66	static func _fork_floor(k: int) -> int:
+    67		return (k + 1) * FORK_EVERY + 1
+    68	
+    69	## 這一層吃到的路線加減：[敵方加減金, 是不是契約層]
+    70	static func route_adj(path: String, floor_no: int) -> Array:
+    71		var adj := 0
+    72		var contract := false
+    73		for k in path.length():
+    74			var f0 := _fork_floor(k)
+    75			if path[k] == "c" and floor_no >= f0 and floor_no < f0 + CONTRACT_SPAN:
+    76				adj += CONTRACT_BONUS
+    77				contract = true
+    78			elif path[k] == "r" and floor_no == f0:
+    79				adj -= REST_CUT
+    80		return [adj, contract]
+    81	
+    82	## 帶路線的這一層：spec 的敵方加碼再加減（夾在 0 以上），附 contract
+    83	static func spec_route(st: Dictionary, floor_no: int) -> Dictionary:
+    84		var sp := spec(floor_no)
+    85		var ra := route_adj(str(st.get("path", "")), floor_no)
+    86		sp["bonus"] = maxi(0, int(sp["bonus"]) + int(ra[0]))
+    87		sp["contract"] = bool(ra[1])
+    88		return sp
+    89	
+    90	## 結算一層（只一次）：回 [新狀態, 有沒有變]。贏＝下一層、契約層加一枚章；輸＝路線結束（floor 0，章數照留在這次結果裡）。
+    91	static func settle(st: Dictionary, floor_no: int, won: bool) -> Array:
+    92		if floor_no <= int(st.get("done", 0)) or floor_no != int(st.get("floor", 0)):
+    93			return [st, false]
+    94		var out := st.duplicate(true)
+    95		out["done"] = floor_no
+    96		if won:
+    97			out["floor"] = floor_no + 1
+    98			if bool(route_adj(str(st.get("path", "")), floor_no)[1]):
+    99				out["seals"] = int(st.get("seals", 0)) + 1
+   100		else:
+   101			out["floor"] = 0
+   102		return [out, true]
+   103	
+   104	## 路線雜湊（S6：兩台機器同一條路線一樣）
+   105	static func route_hash(st: Dictionary) -> String:
+   106		return ("%d|%s|%d" % [int(st.get("v", ROUTE_V)), str(st.get("path", "")), int(st.get("floor", 0))]).sha256_text().substr(0, 12)
+   107	
+   108	## 舊存檔：只有 tower_run（下一次要打的層）。過去的岔口記 "-"（不猜歷史），done＝前一層（不能重領）。
+   109	static func migrate_old(run: int) -> Dictionary:
+   110		if run <= 0:
+   111			return {"v": ROUTE_V, "floor": 0, "path": "", "seals": 0, "done": 0}
+   112		return {"v": ROUTE_V, "floor": run, "path": "-".repeat((run - 1) / FORK_EVERY), "seals": 0, "done": run - 1}
+   113	
+   114	static func _int_in(v, lo: float, hi: float) -> bool:
+   115		return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
+   116	
+   117	## 存檔讀回：逐欄驗型；壞了回 null（呼叫端用 tower_run 遷移）。路線長度不能超過層數允許的岔口數。
+   118	static func sanitize_route(v):
+   119		if not v is Dictionary:
+   120			return null
+   121		if not _int_in(v.get("v"), 1, ROUTE_V) or not _int_in(v.get("floor"), 0, FLOOR_MAX) or not _int_in(v.get("seals"), 0, FLOOR_MAX) or not _int_in(v.get("done"), 0, FLOOR_MAX):
+   122			return null
+   123		var p = v.get("path")
+   124		if not p is String or p.length() > FLOOR_MAX / FORK_EVERY:
+   125			return null
+   126		for ch in p:
+   127			if not ch in ["c", "r", "-"]:
+   128				return null
+   129		var f := int(v["floor"])
+   130		var forks_max := maxi(0, (maxi(f, int(v["done"]) + 1) - 1) / FORK_EVERY)
+   131		if p.length() > forks_max:
+   132			return null
+   133		return {"v": int(v["v"]), "floor": f, "path": p, "seals": int(v["seals"]), "done": int(v["done"])}
+  2630	const Tower = preload("res://scripts/game/tower.gd")
+  2631	var tower_on := false
+  2632	var tower_floor := 1
+  2633	var tower_result := -1   # 這一層的正式結算（-1＝還沒、0＝過、1＝沒過）；結果頁的按鈕只看它（覆盤改陣贏了不能跳層，Codex cat11 #2）
+  2634	
+  2635	## 結果頁的無盡塔按鈕：照正式結算，不照畫面上這一場（覆盤、重播）→ [文字鍵, 下一次的層]
+  2636	static func tower_button(result: int, floor_no: int) -> Array:
+  2637		if result == 0:
+  2638			return ["tw_next", floor_no + 1]
+  2639		if result == 1:
+  2640			return ["tw_again", 1]
+  2641		return []
+  2642	
+  2643	## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
+  2644	func _tower_open() -> void:
+  2645		if _demo():
+  2646			_toast(L.t("demo_locked"), true)
+  2647			return
+  2648		var rt := _tw_route()
+  2649		if int(rt["floor"]) <= 0:
+  2650			rt = Tower.new_route()   # 沒有進行中的塔：開一條新路線
+  2651			_tw_save_route(rt)
+  2652		elif int(rt["floor"]) > 1:
+  2653			_toast(L.t("tw_resume", [int(rt["floor"])]))
+  2654		if Tower.fork_due(rt):
+  2655			overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
+  2656			_focus = 0
+  2657			return
+  2658		_tower_start(int(rt["floor"]))
+  2659	
+  2660	## 1.6.0 B17：目前的路線（存檔的 tower_route；沒有就從 tower_run 遷移，不猜歷史）
+  2661	func _tw_route() -> Dictionary:
+  2662		var rt = Tower.sanitize_route(Save.data.get("tower_route"))
+  2663		return rt if rt != null else Tower.migrate_old(int(Save.data.get("tower_run", 0)))
+  2664	
+  2665	## 寫路線（tower_run 同步給舊版）；寫檔失敗照實說（記憶體裡照樣往下，Save 會重試）
+  2666	func _tw_save_route(rt: Dictionary) -> bool:
+  2667		Save.data["tower_route"] = rt
+  2668		Save.data["tower_run"] = int(rt["floor"])
+  2669		if Save.save_data():
+  2670			return true
+  2671		_toast(L.t("save_failed"), true)
+  2672		return false
+  2673	
+  2674	## 岔口：選契約或休整（重複點、晚到的點擊不改路線）。選完存檔、直接開打這一層。
+  2675	func _tw_choose(c: String) -> void:
+  2676		var rt := _tw_route()
+  2677		if not Tower.fork_due(rt):
+  2678			return
+  2679		rt = Tower.choose(rt, c)
+  2680		_tw_save_route(rt)
+  2681		overlay = ""
+  2682		_tower_start(int(rt["floor"]))
+  2683	
+  2684	func _draw_tower_fork() -> void:
+  2685		_dim(0.6)
+  2686		var rt := _tw_route()
+  2687		var f := int(rt["floor"])
+  2688		var cards := [["c", L.t("tw_fork_c"), L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [Tower.REST_CUT])]]
+  2689		var ch := 0.0
+  2690		for c in cards:
+  2691			ch = maxf(ch, 16.0 + tz("B") * 1.4 + text_h(str(c[2]), tz("S"), 300) + 16.0)
+  2692		var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
+  2693		_panel(P)
+  2694		var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
+  2695		for i in 2:
+  2696			var c: Array = cards[i]
+  2697			var r := Rect2(640 - 340 + i * 350, y, 330, ch)
+  2698			var key: String = c[0]
+  2699			_btn(r, "", func(): _tw_choose(key), Tower.fork_due(rt))   # 兩條路同等份量（不設主鈕；主鈕的圓鈕裝飾會壓到卡片字）
+  2700			_text(r.position + Vector2(165, 16), str(c[1]), tz("B"), INK if last_btn_paper else Color.WHITE, true, true, 300)
+  2701			_text(r.position + Vector2(165, 16 + tz("B") * 1.4), str(c[2]), tz("S"), INK if last_btn_paper else TXT_DIM, true, false, 300)
+  2702		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+  2703		screen_register("tower_fork", "tw_fork_c")
+  2704	
+  2705	func _tower_start(floor_no: int) -> void:
+  2706		if _demo():
+  2707			_toast(L.t("demo_locked"), true)
+  2708			return
+  2709		var rt := _tw_route()
+  2710		if int(rt["floor"]) != floor_no:
+  2711			rt = Tower.new_route()   # 不是路線上的這一層（例如規則不合法退回第 1 層）：重開一條
+  2712			rt["floor"] = floor_no
+  2713			rt["done"] = floor_no - 1
+  2714			rt["path"] = "-".repeat((floor_no - 1) / Tower.FORK_EVERY)
+  2715		var sp: Dictionary = Tower.spec_route(rt, floor_no)
+  2716		var r = Tower.make_rules(sp, RS.mask(false))
+  2717		if not r.validate().is_empty():
+  2718			_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
+  2719			if floor_no > 1:
+  2720				Save.data["tower_run"] = 0
+  2721				_tower_start(1)
+  2722			return
+  2723		set("daily_spec", {})        # 從每日挑戰／每日練習直接進塔：不帶每日狀態（不記每日紀錄、不跳過塔結算，Codex cat11 #1）
+  2724		set("daily_practice", false)
+  2725		rules = r
+  2726		challenge_army = Tower.enemy(sp, r)   # 這一層固定的敵陣（走挑戰碼那條路）
+  2727		overlay = ""
+  2728		_start_mode(Mode.VS_AI)
+  2729		tower_on = true
+  2730		tower_floor = int(sp["floor"])
+  2731		tower_result = -1
+  2732		_tw_save_route(rt)   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+  2733		_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]) + (L.t("tw_contract_tag") if bool(sp.get("contract", false)) else ""))
+  2734	
+  2735	func _tower_finish(w: int) -> void:
+  2736		if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+  2737			return
+  2738		var best := int(Save.data.get("tower_best", 0))
+  2739		var st: Array = Tower.settle(_tw_route(), tower_floor, w == 0)   # 1.6.0 B17：結算只一次（done）；路線＋tower_run 一起寫
+  2740		if bool(st[1]):
+  2741			Save.data["tower_route"] = st[0]
+  2742		Save.data["tower_run"] = int(_tw_route()["floor"])
+  2743		tower_result = 0 if w == 0 else 1
+  2744		if w == 0:
+  2745			var r: Array = Tower.record(best, tower_floor)
+  2746			Save.data["tower_best"] = r[0]
+  2747			_toast(L.t("tw_floor_clear", [tower_floor]))
+  2748		else:
+  2749			_toast(L.t("tw_over", [tower_floor, best]))
+
+ succeeded in 1775ms:
+build/cg/b17/game/scripts/game/save.gd:672:static func save_data() -> bool:
+build/cg/b17/game/scripts/game/save.gd:677:static func has_unsaved() -> bool:
+build/cg/b17/game/scripts/ui/lobby_view.gd:580:	screen_register("lobby", "lb_next" if (not lobby_open and lobby_step < 2) else "lb_start", lb_why)
+build/cg/b17/game/scripts/ui/ui_base.gd:366:func screen_register(cls: String, main: String, skip_why := "") -> void:
+build/cg/b17/game/scripts/ui/ui_base.gd:929:func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+build/cg/b17/game/scripts/ui/ui_base.gd:1094:func _btn_shine(r: Rect2) -> void:
+build/cg/b17/game/scripts/ui/ui_base.gd:1584:func _btn_small(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+build/cg/b17/game/scripts/ui/ui_base.gd:1590:func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
+build/cg/b17/game/scripts/ui/ui_base.gd:1947:	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
+build/cg/b17/game/scripts/ui/screens/game_place.gd:772:	screen_register("place", "start", "自由部署「工具」抽屜展開中：貼齊、密集兩個開關暫時多出來（收合時在上限內）" if (_is_free() and fp_more) else "")   # 1.5.0 §1.1：主動作＝開戰
+build/cg/b17/game/scripts/ui/screens/game_playroom.gd:482:	overlay = pt_back
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:379:		"tower_fork":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:380:			_draw_tower_fork()
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:792:	screen_register("result", "sb_replace")   # 結果頁的確認框：照結果類上限算（兩顆各算一顆；Codex B16 r1）
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2655:		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2684:func _draw_tower_fork() -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2703:	screen_register("tower_fork", "tw_fork_c")
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:154:	elif Save.has_unsaved():
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:310:	screen_register("title", "plaque_battle")   # 1.5.0 §1.1：主動作＝對戰
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:1058:	screen_register("settings", "back", s_why)   # 1.5.0 §1.1
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:1892:	screen_register("first_run", "fr_first")
+build/cg/b17/game/scripts/ui/screens/game_modes.gd:1004:	screen_register("profile", "back")
+build/cg/b17/game/scripts/ui/screens/game_result.gd:498:	screen_register("result", "result_main", r14_why)   # 1.5.0 §1.1：主動作＝底列第一顆（豁免理由逐分頁寫明，Codex v150 cat02 #3）
+build/cg/b17/game/scripts/ui/screens/game_result.gd:616:	screen_register("result_more", "back")
+
+ succeeded in 1834ms:
+coordination/v1600-impl/b16-r1/hy2/zh_TW_100_v160_16d_songbook_bad.png
+coordination/v1600-impl/b16-r1/hy2/ja_150_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy2/en_150_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy2/en_150_v160_16d_songbook_bad.png
+coordination/v1600-impl/b16-r1/hy1/zh_TW_100_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy1/zh_TW_100_v160_16d_songbook_bad.png
+coordination/v1600-impl/b16-r1/hy1/ja_150_v160_16e_songbook_full.png
+coordination/v1600-impl/b16-r1/hy1/en_150_v160_16d_songbook_bad.png
+coordination/v1600-impl/b03-r1/hy1/art-spec-v160.md
+coordination/v1600-impl/b07-r1/hy2/ja_150_v160_13b_editor_verify_new.png
+coordination/v1600-impl/b07-r1/hy2/en_150_v160_13b_editor_verify_new.png
+coordination/v1600-impl/b14-r1/hy2/v160_14b_settle.png
+coordination/v1600-impl/b14-r1/hy2/v160_14a_fatigue.png
+coordination/v1600-impl/b07-r1/hy1/en_150_v160_13b_editor_verify_new.png
+coordination/v1600-impl/b07-r1/hy1/en_150_v160_16a_review_edit_new.png
+coordination/v1600-impl/b06-r1/hy1/v160_05g_note_pin_new.png
+coordination/v1600-impl/b14-r1/hy1/v160_14a_fatigue.png
+coordination/v1600-impl/b14-r1/hy1/v160_14b_settle.png
+
+ succeeded in 2000ms:
+coordination/v1600-impl/ledger.md:109:- P8.2 卡片面板：五塊木牌 → 三主牌（對戰、遠征、殘局）＋「更多」抽屜（就地展開遊戲間、收藏兩塊縮排小木牌；「更多」不放兵偶、放 ▼／▲）；抽屜開關走 `_home_more_set`（換畫面世代、焦點回到「更多」；Esc／B 先收抽屜）；R14：更多＋抽屜同一組控制。每日未打的小牌一律掛在「更多」（抽屜裡的牌窄，掛不下；Hydrogen r2）。手把流程 PADWALK 改成新索引並涵蓋抽屜與 B 收抽屜。新截圖 `v160_01m_title_more`（歸屬 B05）。
+coordination/v1600-impl/b15-r1/codex3.err:214:+		btn_group = "ls_row%d" % i   # 每列一組（R14 照列算）
+coordination/v1600-impl/b15-r1/codex2.err:110:- P2｜r:888：十五個獨立動作共用 `ls_row`，R14 僅計一項，掩蓋超標。
+coordination/v1600-impl/b15-r1/codex2.err:498:+		btn_group = "ls_row%d" % i   # 每列一組（R14 照列算）
+coordination/v1600-impl/b15-r1/codex2.err:931:   909			btn_group = "ls_row%d" % i   # 每列一組（R14 照列算）
+coordination/v1600-impl/b15-r1/codex.raw:5:- P2｜r:888：十五個獨立動作共用 `ls_row`，R14 僅計一項，掩蓋超標。
+coordination/v1600-impl/b17-r1/diff.patch:8:+## ── 1.6.0 B17（P7.1、P7.2；S6）塔分岔＋完整續塔 ──
+coordination/v1600-impl/b17-r1/diff.patch:75:+## 路線雜湊（S6：兩台機器同一條路線一樣）
+coordination/v1600-impl/b17-r1/diff.patch:303:+## 1.6.0 B17（P7.1、P7.2；S6；IN-160-05）塔分岔＋完整續塔：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 tower_run 讀回；
+coordination/v1600-impl/b15-r1/codex.md:5:- P2｜r:888：十五個獨立動作共用 `ls_row`，R14 僅計一項，掩蓋超標。
+coordination/v1600-impl/b17-r1/codex.err:15:請找：錯誤、S6 各邊界（承諾後重啟、岔口選了還沒開打就關遊戲、打到一半關遊戲、結算後重啟再結算、輸了、規則不合法退回、清除戰績、試玩版、每日挑戰進塔）、路線雜湊是否真的與機器無關、遷移（舊 tower_run 與新路線不一致時誰為準）、模擬是否受影響（只改敵方預算＝規則；舊場次 FINGERPRINT）、IN-160-05 重複點與寫檔失敗、手把與 R14。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1600-impl/b17-r1/codex.err:21:/bin/bash -lc "pwd; rg --files -g AGENTS.md -g 'b17-plan.md' -g 'diff.patch' -g '*R14*' -g '*S6*'" in /mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1600-impl/b17-r1/codex.err:97:# B17 塔分岔＋續塔（S6；P7.1、P7.2；IN-160-05）計畫
+coordination/v1600-impl/b17-r1/codex.err:99:方案 §4 B17：S6 判決＝路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05（重複點、重啟、寫檔失敗）；換路（K6）資料不足＝照開但不宣稱「有選擇性」。回退：回固定塔（新欄位保留不讀）。
+coordination/v1600-impl/b17-r1/codex.err:117:+## ── 1.6.0 B17（P7.1、P7.2；S6）塔分岔＋完整續塔 ──
+coordination/v1600-impl/b17-r1/codex.err:184:+## 路線雜湊（S6：兩台機器同一條路線一樣）
+coordination/v1600-impl/b17-r1/codex.err:412:+## 1.6.0 B17（P7.1、P7.2；S6；IN-160-05）塔分岔＋完整續塔：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 tower_run 讀回；
+coordination/v1600-impl/b17-r1/codex.err:532:/bin/bash -lc "rg -n 'R14|S6|IN-160-05|FINGERPRINT' coordination/v1600* game/scripts game/tests | head -100" in /mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1600-impl/b17-r1/codex.err:662:    37	## ── 1.6.0 B17（P7.1、P7.2；S6）塔分岔＋完整續塔 ──
+coordination/v1600-impl/b17-r1/codex.err:729:   104	## 路線雜湊（S6：兩台機器同一條路線一樣）
+coordination/v1600-impl/b17-r1/codex-prompt.md:3:請找：錯誤、S6 各邊界（承諾後重啟、岔口選了還沒開打就關遊戲、打到一半關遊戲、結算後重啟再結算、輸了、規則不合法退回、清除戰績、試玩版、每日挑戰進塔）、路線雜湊是否真的與機器無關、遷移（舊 tower_run 與新路線不一致時誰為準）、模擬是否受影響（只改敵方預算＝規則；舊場次 FINGERPRINT）、IN-160-05 重複點與寫檔失敗、手把與 R14。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1600-impl/b15-r1/codex.err:16:請找：錯誤、S5 八種失敗邊界有沒有漏（版本不符、壞筆、取消、重啟、過期重算、容量滿、重複保存、寫檔失敗）、正式副作用（統計、進度、成就、紀錄、日誌）、還原是否真的 20/20（含軍令 NTB7、地圖規則、全場陣型、試玩版兵種）、`_ls_watch` 走看代碼路徑會不會留下覆盤狀態、背景執行緒收尾（離開、換頁、戰鬥中）、存檔驗型（JSON 浮點、超大字串、id 碰撞）、手把與 R14。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1600-impl/b15-r1/codex.err:770:build/cg/b15/game/scripts/ui/replay_view.gd:737:			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": rv_tab == 0, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕；1.6.0 B07：讀結果頁不能改
+coordination/v1600-impl/b15-r1/codex.err:810:build/cg/b15/game/scripts/ui/replay_view.gd:737:			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": rv_tab == 0, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕；1.6.0 B07：讀結果頁不能改
+coordination/v1600-impl/b15-r1/codex.err:1431:/bin/bash -lc "rg -n 'func _begin_battle|tm_ghost|replay_snap|rv_result|rv_orig|watch_mode|play_kind' build/cg/b15/game/scripts/ui/{battle_view.gd,game_flow.gd,replay_view.gd} | head -110; rg -n 'rv_tab|rv_tabs|ls_row|R14|group.*size' build/cg/b15/game/scripts/ui | head -100; nl -ba build/cg/b15/game/scripts/game/battle_code.gd | head -230; nl -ba build/cg/b15/game/scripts/game/bg_pool.gd | head -160" in /mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1600-impl/b15-r1/codex.err:1544:build/cg/b15/game/scripts/ui/layout_rules.gd:366:## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
+coordination/v1600-impl/b15-r1/codex.err:1545:build/cg/b15/game/scripts/ui/layout_rules.gd:367:## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+coordination/v1600-impl/b15-r1/codex.err:1546:build/cg/b15/game/scripts/ui/layout_rules.gd:368:const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+coordination/v1600-impl/b15-r1/codex.err:1547:build/cg/b15/game/scripts/ui/layout_rules.gd:369:const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+coordination/v1600-impl/b15-r1/codex.err:1548:build/cg/b15/game/scripts/ui/layout_rules.gd:376:		_add(out, "fail", "R14", cls, "畫面登記了類別卻沒有主動作")
+coordination/v1600-impl/b15-r1/codex.err:1549:build/cg/b15/game/scripts/ui/layout_rules.gd:377:	if not R14_LIMITS.has(cls):
+coordination/v1600-impl/b15-r1/codex.err:1550:build/cg/b15/game/scripts/ui/layout_rules.gd:380:	var lim := int(R14_LIMITS[cls])
+coordination/v1600-impl/b15-r1/codex.err:1551:build/cg/b15/game/scripts/ui/layout_rules.gd:384:		var key := "_ex_R14:" + cls
+coordination/v1600-impl/b15-r1/codex.err:1552:build/cg/b15/game/scripts/ui/layout_rules.gd:387:			out["exempt"].append({"rule": "R14", "id": cls, "why": str(sc["skip"])})
+coordination/v1600-impl/b15-r1/codex.err:1553:build/cg/b15/game/scripts/ui/layout_rules.gd:389:	_add(out, "fail" if cls in R14_ENFORCE else "warn", "R14", cls, "可見可點元件 %d 個，超過「%s」類上限 %d（收進「更多」或拆頁）" % [n, cls, lim])
+coordination/v1600-impl/b15-r1/codex.err:1555:build/cg/b15/game/scripts/ui/free_place.gd:882:		btn_group = "fp_tool" if g == 0 else ""   # 1.5.0 R14：三選一＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1556:build/cg/b15/game/scripts/ui/ui_base.gd:364:## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
+coordination/v1600-impl/b15-r1/codex.err:1557:build/cg/b15/game/scripts/ui/ui_base.gd:368:## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
+coordination/v1600-impl/b15-r1/codex.err:1558:build/cg/b15/game/scripts/ui/screens/game_v16.gd:481:	btn_group = "tv_tools"   # 1.5.0 R14：射程、標記、實驗簿三顆小圖示＝一組檢視工具（試煉擺陣原本 13 個，第 4 批漏拍這個變體）
+coordination/v1600-impl/b15-r1/codex.err:1559:build/cg/b15/game/scripts/ui/lobby_view.gd:278:		btn_group = "cmd_side"   # 1.5.0 R14：兩邊切換＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1560:build/cg/b15/game/scripts/ui/lobby_view.gd:289:		btn_group = "cmdr_cards"   # 1.5.0 R14：將領卡＝一個選擇器
+coordination/v1600-impl/b15-r1/codex.err:1561:build/cg/b15/game/scripts/ui/lobby_view.gd:315:		btn_group = "cmd_cards"   # 1.5.0 R14：軍令卡＝一個多選格
+coordination/v1600-impl/b15-r1/codex.err:1562:build/cg/b15/game/scripts/ui/lobby_view.gd:617:	btn_group = "lb_modes"   # 1.5.0 R14：頂緣模式紙籤＋「我的預設」＝一組分頁
+coordination/v1600-impl/b15-r1/codex.err:1563:build/cg/b15/game/scripts/ui/lobby_view.gd:874:		btn_group = "st_map"   # 1.5.0 R14：地圖左右箭頭＝一個步進器
+coordination/v1600-impl/b15-r1/codex.err:1564:build/cg/b15/game/scripts/ui/lobby_view.gd:887:			btn_group = "lb_size"   # 1.5.0 R14：大小三選一＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1565:build/cg/b15/game/scripts/ui/lobby_view.gd:1185:	btn_group = grp if grp != "" else "st_" + id   # 1.5.0 R14：一個步進器＝一個控制；調同一個選取物件的幾個參數可以共用一組（grp）
+coordination/v1600-impl/b15-r1/codex.err:1566:build/cg/b15/game/scripts/ui/lobby_view.gd:1207:		btn_group = "lb_subtabs"   # 1.5.0 R14：折頁子分頁＝一個選擇器
+coordination/v1600-impl/b15-r1/codex.err:1567:build/cg/b15/game/scripts/ui/lobby_view.gd:1283:const FOLD_ROWS := 3   # 1.5.0 §1.2：折頁一頁最多 3 列規則（R14 大廳上限 9：頂緣 2＋子分頁 1＋收起／開戰 2＋規則 3＋翻頁 1）
+coordination/v1600-impl/b15-r1/codex.err:1568:build/cg/b15/game/scripts/ui/lobby_view.gd:1319:		btn_group = "pool_side"   # 1.5.0 R14：兩邊切換＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1569:build/cg/b15/game/scripts/ui/lobby_view.gd:1345:		btn_group = "pool_filter"   # 1.5.0 R14：篩選膠囊＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1570:build/cg/b15/game/scripts/ui/lobby_view.gd:1367:				btn_group = "pool_cards"   # 1.5.0 R14：兵卡格＝一個選擇器
+coordination/v1600-impl/b15-r1/codex.err:1571:build/cg/b15/game/scripts/ui/lobby_view.gd:1384:	btn_group = "pool_decks"   # 1.5.0 R14：牌組列（隨機、存、1～3）＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1572:build/cg/b15/game/scripts/ui/lobby_view.gd:1409:		btn_group = "sb_units"   # 1.5.0 R14：沙盒兵種格＝一個選擇器
+coordination/v1600-impl/b15-r1/codex.err:1573:build/cg/b15/game/scripts/ui/lobby_view.gd:1419:		btn_group = "sb_params"   # 1.5.0 R14：所選兵種的血量／攻擊／速度＝一張參數條（第 17 批）
+coordination/v1600-impl/b15-r1/codex.err:1574:build/cg/b15/game/scripts/ui/lobby_view.gd:1432:		btn_group = "sb_skills"   # 1.5.0 R14：技能開關格＝一個多選格
+coordination/v1600-impl/b15-r1/codex.err:1575:build/cg/b15/game/scripts/ui/lobby_view.gd:1496:	_draw_lobby_notes(Rect2(x, y, w, R.end.y - y - 8))   # 1.5.0 §1.2：「重置回標準」拿掉——和頂緣「標準」紙籤是同一件事（R14 折頁每格 ≤9）
+coordination/v1600-impl/b15-r1/codex.err:1576:build/cg/b15/game/scripts/ui/screens/game_result.gd:305:			_btns.append({"r": Rect2(mx - 18, ch.position.y, 36, ch.size.y), "cb": func(): _replay_from(tt), "en": true, "grid": true})   # 時間軸上的點（R14 不算按鈕）
+coordination/v1600-impl/b15-r1/codex.err:1577:build/cg/b15/game/scripts/ui/screens/game_result.gd:345:		# 1.5.0：「試著覆盤」不另放一顆（覆盤在「更多」裡；輸得很近時是主動作），避免走勢分頁超過 R14（Codex v150 cat02 #1）
+coordination/v1600-impl/b15-r1/codex.err:1578:build/cg/b15/game/scripts/ui/screens/game_menus.gd:272:		btn_group = "home_more" if i >= 3 else ""   # R14：「更多」和抽屜裡的兩塊＝一個控制（抽屜）
+coordination/v1600-impl/b15-r1/codex.err:1579:build/cg/b15/game/scripts/ui/screens/game_menus.gd:340:		probe_screen = {}   # 1.5.0 R14：底下畫面的登記也清掉，由疊層自己登記（Codex v150 cat02 #2）
+coordination/v1600-impl/b15-r1/codex.err:1580:build/cg/b15/game/scripts/ui/screens/game_menus.gd:939:		btn_group = "set_tabs"   # 1.5.0 R14：分頁列＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1581:build/cg/b15/game/scripts/ui/screens/game_menus.gd:951:	if set_adv_open and settings_tab != 6:   # 1.5.0 §1.3：「這頁恢復預設」低頻，收進抽屜裡；資料頁幾乎都是動作、唯一的開關有單項恢復（R14 上限；Codex v150 cat05 r2 #1）
+coordination/v1600-impl/b15-r1/codex.err:1582:build/cg/b15/game/scripts/ui/screens/game_menus.gd:997:		btn_group = "set_row_%d" % i   # 1.5.0 R14：◀ 值 ▶ ＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1583:build/cg/b15/game/scripts/ui/screens/game_menus.gd:1754:const RECENT_MAX := 1   # 1.5.0 §1.1：標題「最近玩的」只留 1 項（R14 標題上限 9）
+coordination/v1600-impl/b15-r1/codex.err:1584:build/cg/b15/game/scripts/ui/screens/game_menus.gd:1860:	btn_group = "fr_lang"   # R14：同一列選項＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1585:build/cg/b15/game/scripts/ui/screens/game_menus.gd:1869:	btn_group = "fr_text"   # R14：同一列選項＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1586:build/cg/b15/game/scripts/ui/screens/game_menus.gd:1879:	btn_group = "fr_preset"   # R14：同一列選項＝一個控制
+coordination/v1600-impl/b15-r1/codex.err:1594:build/cg/b15/game/scripts/ui/replay_view.gd:737:			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": rv_tab == 0, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕；1.6.0 B07：讀結果頁不能改
+coordination/v1600-impl/b15-r1/codex.err:1603:build/cg/b15/game/scripts/ui/screens/game_place.gd:731:		btn_group = "cards"   # 1.5.0 R14：兵卡牌尺＝一個選擇器（卡上的 ? 同一組）
+coordination/v1600-impl/b15-r1/codex.err:2411:368:## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
+coordination/v1600-impl/b15-r1/codex.err:2443:build/cg/b15/game/scripts/ui/replay_view.gd:737:			_btns.append({"r": cell, "cb": _rv_cell.bind(Vector2i(c, r)), "en": rv_tab == 0, "grid": true})   # 1.5.0 R14：棋盤格不算按鈕；1.6.0 B07：讀結果頁不能改
+coordination/v1600-impl/b15-r1/codex.err:2767:   368	## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
+coordination/v1600-impl/b15-r1/codex.err:2796:- P2｜r:888：十五個獨立動作共用 `ls_row`，R14 僅計一項，掩蓋超標。
+coordination/v1600-impl/b17-r1/b17-plan.md:1:# B17 塔分岔＋續塔（S6；P7.1、P7.2；IN-160-05）計畫
+coordination/v1600-impl/b17-r1/b17-plan.md:3:方案 §4 B17：S6 判決＝路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05（重複點、重啟、寫檔失敗）；換路（K6）資料不足＝照開但不宣稱「有選擇性」。回退：回固定塔（新欄位保留不讀）。
+coordination/v1600-impl/b17-plan.md:1:# B17 塔分岔＋續塔（S6；P7.1、P7.2；IN-160-05）計畫
+coordination/v1600-impl/b17-plan.md:3:方案 §4 B17：S6 判決＝路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05（重複點、重啟、寫檔失敗）；換路（K6）資料不足＝照開但不宣稱「有選擇性」。回退：回固定塔（新欄位保留不讀）。
+game/tests/suites/ui.gd:2380:## 1.5.0 第 2 批：主動作登記＋R14、標題、結果首屏、兩步開戰
+game/tests/suites/ui.gd:2385:			if str(v["type"]) == "R14":
+game/tests/suites/ui.gd:2394:	ok(LR.check({"clicks": 99})["fail"].is_empty(), "沒登記的畫面不查 R14")
+game/tests/suites/ui.gd:2485:	ok("lobby" in LR.R14_ENFORCE, "大廳是已改造類別（R14 超標失敗）")
+game/tests/suites/ui.gd:2489:	ok("place" in LR.R14_ENFORCE and int(LR.R14_LIMITS["place"]) == 12, "擺陣轉成已改造類別（上限 12，超標＝失敗）")
+game/tests/suites/ui.gd:2614:	ok("settings" in LR.R14_ENFORCE, "設定轉成已改造類別（R14 上限 10，超標＝失敗）")
+game/tests/suites/ui.gd:2653:	ok("profile" in LR.R14_ENFORCE and int(LR.R14_LIMITS["profile"]) == 6, "戰績轉成已改造類別（上限 6）")
+game/tests/suites/ui.gd:2677:		ok(lv.find("btn_group = \"%s\"" % grp) >= 0, "大廳折頁 R14 分組：%s" % grp)
+game/tests/suites/ui.gd:2688:		ok(lv.find("btn_group = \"%s\"" % grp) >= 0, "折頁 R14 分組：%s" % grp)
+game/tests/suites/ui.gd:3109:	ok(src0.find("btn_group = \"home_more\" if i >= 3 else \"\"") >= 0, "R14：更多＋抽屜兩塊算一個控制")
+coordination/v1600-impl/b15-r1/codex-prompt.md:4:請找：錯誤、S5 八種失敗邊界有沒有漏（版本不符、壞筆、取消、重啟、過期重算、容量滿、重複保存、寫檔失敗）、正式副作用（統計、進度、成就、紀錄、日誌）、還原是否真的 20/20（含軍令 NTB7、地圖規則、全場陣型、試玩版兵種）、`_ls_watch` 走看代碼路徑會不會留下覆盤狀態、背景執行緒收尾（離開、換頁、戰鬥中）、存檔驗型（JSON 浮點、超大字串、id 碰撞）、手把與 R14。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1600-impl/b15-r1/diff3.patch:142:+		btn_group = "ls_row%d" % i   # 每列一組（R14 照列算）
+coordination/v1600-impl/b15-r1/diff2.patch:383:+		btn_group = "ls_row%d" % i   # 每列一組（R14 照列算）
+game/tests/suites/core.gd:80:	print("FINGERPRINT ", "".join(prints).sha256_text().substr(0, 16), "  數值摘要 ", D.data_digest())
+game/scripts/ui/layout_rules.gd:366:## ── R14（1.5.0 §1.1 一頁一件事）：畫面登記類別與主動作；可見可點元件不超過該類上限。
+game/scripts/ui/layout_rules.gd:367:## 已改造的類別（R14_ENFORCE）超標＝失敗，除非登記豁免理由；還沒改造的類別先警告。登記了類別卻沒有主動作＝失敗。
+game/scripts/ui/layout_rules.gd:368:const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+game/scripts/ui/layout_rules.gd:369:const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+game/scripts/ui/layout_rules.gd:376:		_add(out, "fail", "R14", cls, "畫面登記了類別卻沒有主動作")
+game/scripts/ui/layout_rules.gd:377:	if not R14_LIMITS.has(cls):
+game/scripts/ui/layout_rules.gd:380:	var lim := int(R14_LIMITS[cls])
+game/scripts/ui/layout_rules.gd:384:		var key := "_ex_R14:" + cls
+game/scripts/ui/layout_rules.gd:387:			out["exempt"].append({"rule": "R14", "id": cls, "why": str(sc["skip"])})
+
+exec
+/bin/bash -lc "rg -n 'func _start_mode|tower_on|_tower_finish|daily_spec|func _back|tower_fork' build/cg/b17/game/scripts/ui/{game_flow.gd,game_input.gd,screens/game_v16.gd,screens/game_menus.gd}; nl -ba build/cg/b17/game/scripts/ui/screens/game_v16.gd | sed -n '2735,2775p'" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg -n 'overlay|_btns|_focus|cancel' build/cg/b17/game/scripts/ui/game_input.gd | head -100; nl -ba build/cg/b17/game/scripts/ui/ui_base.gd | sed -n '355,395p'; rg -n 'func _btn|last_btn_paper|probe_text' build/cg/b17/game/scripts/ui/ui_base.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg -n 'func save_data|func has_unsaved|_unsaved|func _toast' build/cg/b17/game/scripts/{game/save.gd,ui/*.gd}; nl -ba build/cg/b17/game/scripts/game/save.gd | sed -n '400,540p'" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg --files -g AGENTS.md -g '*b17*' -g '*fingerprint*' -g '*godot*' | head -60; sed -n '270,305p' coordination/v1600-impl/b17-r1/diff.patch; command -v godot" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 227ms:
+rg: build/cg/b17/game/scripts/ui/game_flow.gd: No such file or directory (os error 2)
+rg: build/cg/b17/game/scripts/ui/game_input.gd: No such file or directory (os error 2)
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:102:					if not (get("daily_spec") as Dictionary).is_empty():
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:379:		"tower_fork":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:380:			_draw_tower_fork()
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:727:	if (daily_spec as Dictionary).is_empty() or w != 0 or daily_practice:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:729:	var day := int(daily_spec.get("day", Daily.today()))   # 跨 UTC 午夜才打完：照開局那天的題（Codex v160-i1 #6）
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:742:	sh_text = Share.daily_text(L, Time.get_date_string_from_unix_time(day * 86400), L.t("daily_mut_%d" % int(daily_spec["mut"])), rem, armies[0].spent(), armies[0].budget, int(sim.tick / 20), int(st["n"]))
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:890:	var rows := 2 + (1 if not (daily_spec as Dictionary).is_empty() else 0) + (1 if pc_shot != null else 0) + (1 if bool(call("_ws_ok", sim.winner if sim != null else -1)) else 0) + (1 if sh_text != "" else 0) + (1 if sol_ok else 0) + (1 if duel_code_ok() else 0)
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:929:	if not (daily_spec as Dictionary).is_empty():
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1055:	if not (get("daily_spec") as Dictionary).is_empty():
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1316:	daily_spec = {}   # 不是每日挑戰
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1373:	daily_spec = {}
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1444:func _start_mode(m: int) -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1509:	if mode != Mode.VS_AI or not (get("daily_spec") as Dictionary).is_empty() or rift_on or int(get("trial_id")) >= 0 or get("challenge_army") != null or fog_on:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1527:	if mode != Mode.VS_AI or sim == null or sim.winner < 0 or not (get("daily_spec") as Dictionary).is_empty() or rift_on or str(get("ghost_id")) != "" or bool(get("wk_active")) or watch_mode:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1853:	daily_spec = {}   # 打高手陣不算今天的每日成績（_start_mode 有挑戰陣時不清，要自己清：Codex v160-i1 #2）
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2631:var tower_on := false
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2655:		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2684:func _draw_tower_fork() -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2703:	screen_register("tower_fork", "tw_fork_c")
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2723:	set("daily_spec", {})        # 從每日挑戰／每日練習直接進塔：不帶每日狀態（不記每日紀錄、不跳過塔結算，Codex cat11 #1）
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2729:	tower_on = true
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2735:func _tower_finish(w: int) -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2736:	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+  2735	func _tower_finish(w: int) -> void:
+  2736		if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+  2737			return
+  2738		var best := int(Save.data.get("tower_best", 0))
+  2739		var st: Array = Tower.settle(_tw_route(), tower_floor, w == 0)   # 1.6.0 B17：結算只一次（done）；路線＋tower_run 一起寫
+  2740		if bool(st[1]):
+  2741			Save.data["tower_route"] = st[0]
+  2742		Save.data["tower_run"] = int(_tw_route()["floor"])
+  2743		tower_result = 0 if w == 0 else 1
+  2744		if w == 0:
+  2745			var r: Array = Tower.record(best, tower_floor)
+  2746			Save.data["tower_best"] = r[0]
+  2747			_toast(L.t("tw_floor_clear", [tower_floor]))
+  2748		else:
+  2749			_toast(L.t("tw_over", [tower_floor, best]))
+
+ succeeded in 212ms:
+rg: build/cg/b17/game/scripts/ui/game_input.gd: IO error for operation on build/cg/b17/game/scripts/ui/game_input.gd: No such file or directory (os error 2)
+   355	var clutch_t := 0.0                # 最後時刻橫幅剩幾秒
+   356	var freeze_fx := false
+   357	## 版面檢查（第三輪 T4）：截圖模式記下每一段介面文字實際畫出的外框，拍照時檢查越界、太小、互相重疊。
+   358	var layout_probe := false
+   359	var _probe_ui := false        # 只量介面層（不量戰場上的跳字）
+   360	var probe_texts: Array = []
+   361	var probe_shrink: Array = []   # 1.6.0 B07：這一幀被 fit() 縮級的字 [字, 要的級, 給的級, 最小級仍放不下]
+   362	var probe_btns: Array = []      # 第五輪：這一幀畫出來的按鈕外框（點擊框大小檢查）
+   363	var probe_faces: Array = []     # 1.6.0 B02：這一幀依繪製順序登記的底面 [範圍, 是不是淺紙面]（淺紙白字檢查：字看它之前最後蓋上的那一層）
+   364	## 1.5.0 §1.1 主動作登記（R14）：這一幀的畫面類別、主動作、豁免理由
+   365	var probe_screen := {}
+   366	func screen_register(cls: String, main: String, skip_why := "") -> void:
+   367		probe_screen = {"cls": cls, "main": main, "skip": skip_why}
+   368	## R14 計數：這一幀可點的元件（棋盤格、時間軸這類宣告 grid 的不算；同一個 btn_group 的按鈕＝一個控制，例：分頁列、步進器的左右箭頭）
+   369	var btn_group := ""
+   370	func click_count() -> int:
+   371		var n := 0
+   372		var seen := {}
+   373		for b in _btns:
+   374			if bool(b.get("grid", false)):
+   375				continue
+   376			var gp := str(b.get("group", ""))
+   377			if gp != "":
+   378				if seen.has(gp):
+   379					continue
+   380				seen[gp] = true
+   381			n += 1
+   382		return n
+   383	var probe_ctrls: Array = []
+   384	# V1.5.2 排版幾何探針（scripts/ui/layout_rules.gd 檢查）：_panel、_h1 自動登記；依附裝飾、同欄對齊、例外由畫面宣告
+   385	var probe_panels: Array = []
+   386	var probe_ribbons: Array = []
+   387	var probe_decos: Array = []
+   388	var probe_aligns: Array = []
+   389	var probe_need := {}   # 這一幀畫面宣告「至少要登記到幾個」的角色（漏登記守衛），例如大廳選了預設就要有 1 條書籤
+   390	
+   391	func probe_reset_geom() -> void:
+   392		probe_need = {}
+   393		probe_hits.clear()
+   394		probe_panels.clear()
+   395		probe_ribbons.clear()
+169:var last_btn_paper := false   # 上一顆 _btn 實際有沒有畫成紙面（呼叫端決定裡面的字要不要墨色）
+360:var probe_texts: Array = []
+856:			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
+929:func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+966:	last_btn_paper = paper_face or (plaque and not primary and enabled) or (cloth and btn_cloth == "tab_linen" and enabled)
+968:		probe_faces.append([rd, last_btn_paper])   # 實際畫出來的面（不含擴大的點擊區；Codex v1600 B02 #2）；深色鈕也登記（紙上的深色鈕裡白字是對的）
+1094:func _btn_shine(r: Rect2) -> void:
+1584:func _btn_small(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+1590:func _btn_quiet(r: Rect2, label: String, action: Callable) -> void:
+
+ succeeded in 1154ms:
+build/cg/b17/game/scripts/game/save.gd:672:static func save_data() -> bool:
+build/cg/b17/game/scripts/game/save.gd:677:static func has_unsaved() -> bool:
+build/cg/b17/game/scripts/ui/replay_view.gd:875:	_toast(L.t("ls_full", [Lesson.CAP]) if st == "full" else L.t({"ok": "ls_saved", "unsaved": "ls_unsaved", "dup": "ls_dup", "bad": "ls_bad"}[st]), st != "ok")
+build/cg/b17/game/scripts/ui/replay_view.gd:992:		_toast(L.t("ls_unsaved"), true)
+build/cg/b17/game/scripts/ui/ui_base.gd:243:func _toast_dismiss() -> void:
+build/cg/b17/game/scripts/ui/ui_base.gd:610:func _toast(s: String, deny := false) -> void:
+   400		out["funnel"] = f2
+   401		var sn = out.get("seen", null)
+   402		if out.has("seen") and not sn is Array:
+   403			out.erase("seen")   # null 或型別錯：當作沒有（下次開遊戲補舊入口），Antigravity v160-i1 #4
+   404		elif sn != null:
+   405			var s2: Array = []
+   406			if sn is Array:
+   407				for x in sn:
+   408					if x is String and str(x).length() <= 32 and s2.size() < 200:
+   409						s2.append(x)
+   410			out["seen"] = s2
+   411		var ms = out.get("mastery", {})
+   412		var m2 := {}
+   413		if ms is Dictionary:
+   414			for k in ms:
+   415				if str(k).is_valid_int() and int(str(k)) >= 0 and int(str(k)) < 22 and _is_num(ms[k]):
+   416					m2[str(int(str(k)))] = clampi(int(ms[k]), 0, 100000000)
+   417		out["mastery"] = m2
+   418		var md = out.get("medals", {})
+   419		var md2 := {}
+   420		if md is Dictionary:
+   421			for k in md:
+   422				var iv := _int_list(md[k], 3)
+   423				if str(k).is_valid_int() and int(str(k)) >= 0 and int(str(k)) < 22 and iv.size() == 3:
+   424					md2[str(int(str(k)))] = [clampi(iv[0], 0, 100000000), clampi(iv[1], 0, 100000000), clampi(iv[2], 0, 100000000)]   # V1.6.1 A1
+   425		out["medals"] = md2
+   426		var nb = out.get("notebook", {})
+   427		var nb2 := {}
+   428		if nb is Dictionary:
+   429			for pid in nb:
+   430				if nb2.size() >= 400:
+   431					break   # 超量就截斷，不整批清空（Antigravity v160-i2 #1）
+   432				var lst = nb[pid]
+   433				if not lst is Array or lst.size() > 5 or str(pid).length() > 24:
+   434					continue
+   435				var l2: Array = []
+   436				for e in lst:
+   437					if not e is Dictionary or not e.get("n") is String or not e.get("u") is Array or (e["u"] as Array).size() > 60:
+   438						continue
+   439					var us: Array = []
+   440					var okk := true
+   441					for u in e["u"]:
+   442						var iu := _int_list(u, 4)
+   443						if iu.size() < 3 or iu[0] < 0 or iu[0] >= 20:
+   444							okk = false
+   445							break
+   446						us.append(iu)
+   447					if okk:
+   448						var rr := _int_list(e.get("r", []), 3)
+   449						var e2 := {"n": str(e["n"]).substr(0, 24), "u": us, "r": rr if rr.size() == 3 else []}   # 成績要剛好 3 個數（Codex v160-i2 C1）
+   450						if e.get("h") is String and str(e["h"]).length() <= 32:
+   451							e2["h"] = str(e["h"])   # V1.6.1 F1：工坊／三考的題目內容雜湊
+   452						l2.append(e2)
+   453				nb2[str(pid)] = l2
+   454		out["notebook"] = nb2
+   455		var cd = out.get("coached", {})
+   456		var cd2 := {}
+   457		if cd is Dictionary:
+   458			for k in cd:
+   459				if cd2.size() >= 400:
+   460					break
+   461				var e = cd[k]
+   462				if str(k).length() <= 24 and e is Dictionary and _is_num(e.get("lv")) and _is_num(e.get("ap", 0)) and _is_num(e.get("self", 0)):
+   463					cd2[str(k)] = {"lv": clampi(int(e["lv"]), 0, 3), "ap": 1 if int(e.get("ap", 0)) == 1 else 0, "self": clampi(int(e.get("self", 0)), 0, 3)}   # V1.6.1 A4
+   464		out["coached"] = cd2
+   465		for k in ["daily_streak"]:
+   466			var st = out.get(k, {})
+   467			var st2 := {}
+   468			if st is Dictionary:
+   469				for kk in ["last", "n", "best"]:
+   470					if _is_num(st.get(kk)):
+   471						st2[kk] = int(st[kk])
+   472			out[k] = st2 if st2.size() == 3 else {}
+   473		var dp = out.get("daily_pend", {})
+   474		if not (dp is Dictionary and _is_num(dp.get("day")) and _is_num(dp.get("score")) and dp.get("det") is Array):
+   475			out.erase("daily_pend")
+   476		else:
+   477			out["daily_pend"] = {"day": int(dp["day"]), "score": int(dp["score"]), "det": _int_list(dp["det"], 62), "ver": clampi(int(dp["ver"]), 1, 999) if _is_num(dp.get("ver")) else 1}
+   478		var rpd = out.get("rift_pend", {})   # 1.2.0 §11.9 天梯待送
+   479		if not (rpd is Dictionary and _is_num(rpd.get("wk")) and _is_num(rpd.get("score")) and _is_num(rpd.get("ver")) and rpd.get("det") is Array):
+   480			out.erase("rift_pend")
+   481		else:
+   482			out["rift_pend"] = {"wk": int(rpd["wk"]), "score": int(rpd["score"]), "det": _int_list(rpd["det"], 62), "ver": int(rpd["ver"])}
+   483		var rdy = out.get("rush_day", {})
+   484		if rdy is Dictionary and _is_num(rdy.get("day")) and _is_num(rdy.get("best")):
+   485			out["rush_day"] = {"day": int(rdy["day"]), "best": clampi(int(rdy["best"]), 0, 100000)}   # V1.6.1 D1
+   486		else:
+   487			out.erase("rush_day")
+   488		if out.has("eff_games"):
+   489			out["eff_games"] = clampi(int(out["eff_games"]), 0, 100000000) if _is_num(out["eff_games"]) else 0   # V1.6.1 N1
+   490		# 1.1.0 N5：殘局最佳解 {關卡 id: {"r": [星, 剩餘, 花費], "u": [[兵種, 欄, 列]…]}}；壞的那筆丟掉
+   491		if out.has("pz_sol"):
+   492			var ps0 = out["pz_sol"]
+   493			var ps1 := {}
+   494			if ps0 is Dictionary:
+   495				for k0 in ps0:
+   496					var good := sol_entry_ok(ps0[k0]) and str(k0).length() <= 24
+   497					if good:
+   498						var e0: Dictionary = ps0[k0]
+   499						var uu: Array = []
+   500						for v in e0["u"]:
+   501							uu.append([int(v[0]), int(v[1]), int(v[2])])
+   502						ps1[str(k0)] = {"r": [int(e0["r"][0]), int(e0["r"][1]), int(e0["r"][2])], "u": uu, "c": (e0.get("c", []) as Array).map(func(v): return int(v))}
+   503			out["pz_sol"] = ps1
+   504		for k in ["ai_games", "ai_wins"]:   # V1.0.0：對 AI 場數、勝場（建議下一步用）
+   505			if out.has(k):
+   506				out[k] = clampi(int(out[k]), 0, 100000000) if _is_num(out[k]) else 0
+   507		out["rush_best"] = clampi(int(out.get("rush_best", 0)) if _is_num(out.get("rush_best", 0)) else 0, 0, 100000)
+   508		for k2 in ["rift_best", "trio_clear", "trio_stars"]:
+   509			var d = out.get(k2, {})
+   510			var d2 := {}
+   511			if d is Dictionary:
+   512				for kk2 in d:
+   513					if d2.size() >= 50:
+   514						break
+   515					var v = d[kk2]
+   516					if k2 == "rift_best":
+   517						var iv := _int_list(v, 2)
+   518						if iv.size() == 2:
+   519							d2[str(kk2)] = iv
+   520					elif _is_num(v):
+   521						d2[str(kk2)] = clampi(int(v), 0, 3) if k2 == "trio_stars" else maxi(0, int(v))
+   522			out[k2] = d2
+   523	
+   524	## 第十輪 I5：遠征存點。少欄位或型別不對就當沒有。
+   525	static func sanitize_run(g) -> Dictionary:
+   526		if not g is Dictionary:
+   527			return {}
+   528		var out := {}
+   529		for k in ["stage", "seed", "gold", "cap", "changes", "pool"]:
+   530			var v = g.get(k)
+   531			if not (v is int or v is float):
+   532				return {}
+   533			out[k] = int(v)
+   534		# V1.4 #3：契約獎勵可以疊在事件上（每站最多 +20 金或 +3 隻），上限放寬
+   535		if out["pool"] <= 0 or out["stage"] < 2 or out["stage"] > 7 or out["gold"] < 0 or out["gold"] > 220 or out["cap"] < 0 or out["cap"] > 40:
+   536			return {}
+   537		var ctr = g.get("contract", -1)
+   538		out["contract"] = clampi(int(ctr), -1, 5) if (ctr is int or ctr is float) else -1
+   539		var cp = g.get("coop", 0)
+   540		out["coop"] = 1 if (cp is int or cp is float) and int(cp) == 1 else 0   # V1.6 #21 雙人接力遠征
+
+ succeeded in 1372ms:
+coordination/v1600-impl/b17-r1/b17-plan.md
+coordination/v1600-impl/b17-plan.md
+game/project.godot
+game/addons/godotsteam/win64/~libgodotsteam.windows.template_debug.x86_64.dll~RF88d0f5a.TMP
+game/addons/godotsteam/win64/libgodotsteam.windows.template_release.x86_64.dll
+game/addons/godotsteam/win64/libgodotsteam.windows.template_debug.x86_64.dll
+game/addons/godotsteam/godotsteam.gdextension
+game/addons/godotsteam/godotsteam.gdextension.uid
+game/addons/godotsteam/linux64/libgodotsteam.linux.template_release.x86_64.so
+game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so
++	overlay = "tower_fork"
++	await _snap("v160_17a_tower_fork.png")
++	if tr_keep == null:
++		Save.data.erase("tower_route")
++	else:
++		Save.data["tower_route"] = tr_keep
++	Save.data["tower_run"] = trun_keep
+ 	Save.data["songbook"] = []
+ 	overlay = ""
+ 	difficulty = 1
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -1145,6 +1145,12 @@
+    "一般"
+   ]
+  },
++ "v160_17a_tower_fork.png": {
++  "entry": "遠征→無盡塔→第 4 層開打前（岔路，1.6.0 B17）",
++  "states": [
++   "一般"
++  ]
++ },
+  "v120_05_songbook@empty.png": {
+   "entry": "收藏→棋譜本",
+   "states": [
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -386,3 +386,95 @@
+ 	g.free()
+ 	SV.data = keep
+ 	SV.save_data()
++
++
++## 1.6.0 B17（P7.1、P7.2；S6；IN-160-05）塔分岔＋完整續塔：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 tower_run 讀回；
++## 重複點、重啟、寫檔失敗。
++func test_tower_route_v1600() -> void:
+/home/timmy/.local/bin/godot
+
+codex
+路線雜湊只取版本、路徑與層數，未含機器資訊；有效的新路線會優先於舊 `tower_run`。我正核對結算持久化、壞狀態讀回及手把返回，確認是否會漏結算或重領。
+
+exec
+/bin/bash -lc "rg -n 'func _back|func .*cancel|tower_on|_tower_finish|func _start_mode|overlay "'!=|overlay ==|ui_cancel'"' build/cg/b17/game/scripts/ui | head -160" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "nl -ba build/cg/b17/game/scripts/ui/screens/game_v16.gd | sed -n '1435,1485p'; nl -ba build/cg/b17/game/scripts/game/save.gd | sed -n '650,730p'; nl -ba build/cg/b17/game/scripts/ui/ui_base.gd | sed -n '605,630p'; rg --files build/cg/b17/game/scripts/ui | head -45" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg -n 'FINGERPRINT|S6|IN-160-05' coordination/v1600-impl --glob '*.md' --glob '"'!b17-r1/*'"' | head -40; rg -n 'tw_fork|tw_contract' build/cg/b17/game/scripts" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 965ms:
+build/cg/b17/game/scripts/ui/ui_base.gd:1215:	if overlay != host or shot_dir != "" or layout_probe:
+build/cg/b17/game/scripts/ui/ui_base.gd:1228:	if overlay != "":
+build/cg/b17/game/scripts/ui/ui_base.gd:1281:	if overlay == "lobby":
+build/cg/b17/game/scripts/ui/ui_base.gd:1945:	if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
+build/cg/b17/game/scripts/ui/replay_view.gd:607:	if overlay != "review":
+build/cg/b17/game/scripts/ui/replay_view.gd:661:func _rv_cancel() -> void:
+build/cg/b17/game/scripts/ui/replay_view.gd:669:	if rv_thread != null and (overlay != "review" or rv_thread_gen != rv_gen):
+build/cg/b17/game/scripts/ui/replay_view.gd:964:	if overlay != "review" or rv_tab != 2:
+build/cg/b17/game/scripts/ui/replay_view.gd:1143:	if play_kind != "replay" or state != St.BATTLE or overlay != "":
+build/cg/b17/game/scripts/ui/free_place.gd:188:func _fs_cancel() -> void:
+build/cg/b17/game/scripts/ui/free_place.gd:302:	if not _is_free() or overlay != "":
+build/cg/b17/game/scripts/ui/free_place.gd:438:	if not _is_free() or overlay != "":
+build/cg/b17/game/scripts/ui/free_place.gd:489:	if not _is_free() or overlay != "":
+build/cg/b17/game/scripts/ui/game_screens.gd:16:	pad_x_t = time if pressed and state == St.PLACE and overlay == "" and bool(call("_can_edit_existing")) else -1.0
+build/cg/b17/game/scripts/ui/game_screens.gd:21:		if state == St.PLACE and overlay == "" and has_method("_clear_mine") and bool(call("_can_edit_existing")):   # 雙人輪流落子：已落子不能清（Codex v110-i1 #1）
+build/cg/b17/game/scripts/ui/game_screens.gd:154:	if not video_mode and overlay != "first_run":
+build/cg/b17/game/scripts/ui/game_screens.gd:218:		if state == St.BATTLE and overlay == "" and (ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
+build/cg/b17/game/scripts/ui/game_screens.gd:234:		if overlay == "codex" and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+build/cg/b17/game/scripts/ui/game_screens.gd:259:	if ev is InputEventJoypadButton and _is_free() and overlay != "" and not ev.pressed and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X]:
+build/cg/b17/game/scripts/ui/game_screens.gd:261:	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+build/cg/b17/game/scripts/ui/game_screens.gd:274:	if ev is InputEventJoypadMotion and ev.axis == JOY_AXIS_RIGHT_Y and overlay == "codex" and absf(ev.axis_value) > maxf(0.1, int(Save.s("deadzone")) / 100.0):   # V1.5：死區照設定
+build/cg/b17/game/scripts/ui/game_screens.gd:292:		if overlay == "":
+build/cg/b17/game/scripts/ui/game_screens.gd:295:	if state != St.PLACE or overlay != "" or not painting:
+build/cg/b17/game/scripts/ui/game_screens.gd:343:	if state == St.BATTLE and overlay == "" and mb.pressed:
+build/cg/b17/game/scripts/ui/game_screens.gd:362:	if state == St.PLACE and overlay == "" and (foe_card_r.has_point(mouse) or foe_tag_r.has_point(mouse)):
+build/cg/b17/game/scripts/ui/game_screens.gd:366:	if state == St.PLACE and overlay == "" and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and _v16_place_click(mouse):
+build/cg/b17/game/scripts/ui/game_screens.gd:368:	if state == St.PLACE and overlay == "" and _fp_mb(d):
+build/cg/b17/game/scripts/ui/game_screens.gd:370:	if overlay != "" or state != St.PLACE:
+build/cg/b17/game/scripts/ui/game_screens.gd:373:			if overlay == "" and state == St.BATTLE and mb.button_index == MOUSE_BUTTON_LEFT:
+build/cg/b17/game/scripts/ui/game_screens.gd:433:	if state != St.PLACE or overlay != "" or Input.get_joy_axis(ev.device, JOY_AXIS_TRIGGER_RIGHT) < 0.5:
+build/cg/b17/game/scripts/ui/game_screens.gd:477:	if state == St.PLACE and overlay == "" and _v16_place_key(k):
+build/cg/b17/game/scripts/ui/game_screens.gd:479:	if state == St.PLACE and overlay == "" and _place_tool_key(k):
+build/cg/b17/game/scripts/ui/game_screens.gd:483:	if state == St.BATTLE and overlay == "" and _cmd_key(k):
+build/cg/b17/game/scripts/ui/game_screens.gd:485:	if state == St.BATTLE and overlay == "" and (k == KEY_BRACKETLEFT or k == KEY_BRACKETRIGHT) and _replay_controls_active():
+build/cg/b17/game/scripts/ui/game_screens.gd:488:	if state == St.BATTLE and overlay == "" and k == KEY_G and play_kind == "review" and tm_ghost != null:
+build/cg/b17/game/scripts/ui/game_screens.gd:492:	if overlay == "lobby" and not bool(get("lobby_menu")):
+build/cg/b17/game/scripts/ui/game_screens.gd:501:	if state != St.PLACE or overlay != "":
+build/cg/b17/game/scripts/ui/game_screens.gd:512:				if state == St.BATTLE and overlay == "" and play_kind != "official":
+build/cg/b17/game/scripts/ui/game_screens.gd:514:				elif state == St.BATTLE and overlay == "":
+build/cg/b17/game/scripts/ui/game_screens.gd:517:				if overlay == "codex":
+build/cg/b17/game/scripts/ui/game_screens.gd:521:				if state == St.BATTLE and overlay == "":
+build/cg/b17/game/scripts/ui/game_screens.gd:526:				if overlay == "" and state == St.TITLE and bool(get("home_more")):
+build/cg/b17/game/scripts/ui/game_screens.gd:528:				elif overlay == "ai_busy":
+build/cg/b17/game/scripts/ui/game_screens.gd:530:				elif overlay == "first_run":
+build/cg/b17/game/scripts/ui/game_screens.gd:533:				elif overlay == "paint":
+build/cg/b17/game/scripts/ui/game_screens.gd:535:				elif overlay == "pause_menu":
+build/cg/b17/game/scripts/ui/game_screens.gd:537:				elif overlay == "settings":
+build/cg/b17/game/scripts/ui/game_screens.gd:539:				elif overlay == "fs_confirm":
+build/cg/b17/game/scripts/ui/game_screens.gd:541:				elif overlay == "confirm":
+build/cg/b17/game/scripts/ui/game_screens.gd:546:				elif overlay == "codex" and bool(get("cx_zoom")) and int(get("cx_unit")) < D.total():
+build/cg/b17/game/scripts/ui/game_screens.gd:548:				elif overlay == "breport":
+build/cg/b17/game/scripts/ui/game_screens.gd:550:				elif overlay == "boss_note":
+build/cg/b17/game/scripts/ui/game_screens.gd:552:				elif overlay == "trio_result":
+build/cg/b17/game/scripts/ui/game_screens.gd:554:				elif overlay == "leave" and state == St.BATTLE and paused:
+build/cg/b17/game/scripts/ui/game_screens.gd:556:				elif overlay != "":
+build/cg/b17/game/scripts/ui/game_screens.gd:668:		lp_t = 0.0 if (ev.pressed and touches.size() == 1 and overlay == "") else -1.0   # 覆蓋層（例如軍令時間軸）不用長按，免得拖曳變右鍵
+build/cg/b17/game/scripts/ui/game_screens.gd:754:	if overlay == "codex":
+build/cg/b17/game/scripts/ui/game_screens.gd:756:	if overlay == "ai_busy":
+build/cg/b17/game/scripts/ui/game_screens.gd:788:	var desk_paper: bool = not bool(Save.s("plain_ui")) and not (state == St.TITLE and overlay == "") and overlay != "first_run" and not no_desk_paper   # 1.6.0 B05：首開便條是一張新紙（亮紙、墨字；Hydrogen B05 r1 #1）
+build/cg/b17/game/scripts/ui/game_screens.gd:790:	paper_book = desk_paper and (overlay == "lobby" or note_ret == "lobby")   # 1.6.0 B04：大廳＝挑戰簿（B06 留給本批）
+build/cg/b17/game/scripts/ui/game_screens.gd:933:	if overlay != _ov_seen:
+build/cg/b17/game/scripts/ui/game_screens.gd:937:	var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+build/cg/b17/game/scripts/ui/game_screens.gd:965:		var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
+build/cg/b17/game/scripts/ui/game_screens.gd:966:		if overlay == "" and _is_free():
+build/cg/b17/game/scripts/ui/game_screens.gd:989:	if overlay == "codex":
+build/cg/b17/game/scripts/ui/game_screens.gd:991:	if overlay != "":
+build/cg/b17/game/scripts/ui/game_screens.gd:1007:	if not pad_mode or (state == St.PLACE and overlay == ""):
+build/cg/b17/game/scripts/ui/game_screens.gd:1022:	if overlay != "settings":
+build/cg/b17/game/scripts/ui/game_screens.gd:1082:			if state == St.PLACE and overlay == "":
+build/cg/b17/game/scripts/ui/game_screens.gd:1319:	if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
+build/cg/b17/game/scripts/ui/screens/game_place.gd:61:	_focus = int(nav_focus.get(overlay, 0)) if overlay != "" else 0   # V1.0.0（Codex v100-i3）：打完回卡片面板，焦點回原卡
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:10:	if overlay != "":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:92:	var sid := overlay if overlay != "" else str(state)
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:217:	if overlay == "" and Guide.tour_due(Save.data, _demo()):
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:223:	if overlay != "":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:671:	if overlay != "confirm" or not bool(Save.s("hold_confirm")):
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:999:	if state == St.PLACE and overlay == "":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1098:	if trio_thread != null and overlay != "trio_result":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1104:	if co_thread != null and overlay != "coach" and not bool(co_ctl.get("stop", false)):
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1109:		if co_thread_key == co_key and str((res as Dictionary).get("status", "")) == "cancel" and overlay == "coach":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1117:			if overlay == "coach" and want != "":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1130:func _coach_cancel() -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1134:func _coach_cancel_quiet() -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1444:func _start_mode(m: int) -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1716:	if overlay != "notebook":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:1832:		if gen != dt_gen or overlay != "daily_top":
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2160:func _trio_cancel() -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2392:	if ga_coop and mode == Mode.GAUNTLET and state == St.PLACE and overlay == "" and coop_seen != gauntlet_stage:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2631:var tower_on := false
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2729:	tower_on = true
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2735:func _tower_finish(w: int) -> void:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2736:	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+build/cg/b17/game/scripts/ui/screens/game_core.gd:903:	out["title"] = state == St.TITLE and overlay == ""
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:92:	if _is_free() and overlay == "":
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:171:	if overlay != "":
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:338:	if overlay != "":
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:457:			var tut := overlay == "tutorial"
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:615:	fs_ret = overlay if overlay != "" else "settings"
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:664:		fs_ret = overlay if overlay != "" and overlay != "fs_confirm" else "settings"
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:696:	if overlay != "settings" or pad_mode:
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:1100:	_ask_confirm(L.t("preset_q", [names.size()]), func(): _apply_preset_now(k), overlay if overlay != "" else "settings", names)   # V1.5.2 L4：傳完整清單，確認框依實高截   # 第一次啟動頁按的預設，確認後回第一次啟動頁（Antigravity v151-i2 #3）
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:1183:		_guard_fs(fp0), overlay if overlay != "" else "settings", names, "、")   # 從「代碼」頁貼的設定碼，確認後回代碼頁
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:1756:	if overlay != "":
+build/cg/b17/game/scripts/ui/units/kit.gd:77:static func _back(ci: CanvasItem, x0: float) -> void:
+build/cg/b17/game/scripts/ui/screens/game_playroom.gd:478:	pt_back = overlay if overlay != "" and overlay != "paint" else "profile"
+build/cg/b17/game/scripts/ui/screens/game_playroom.gd:802:	if g0 != wk_dl_gen or overlay != "wk_ghosts":
+build/cg/b17/game/scripts/ui/screens/game_modes.gd:349:func _ws_cancel() -> void:
+build/cg/b17/game/scripts/ui/screens/game_modes.gd:357:	if state != St.TITLE or overlay != str(ws_pending.get("overlay", "")):
+build/cg/b17/game/scripts/ui/screens/game_result.gd:4:func _start_mode(m: int) -> void:
+build/cg/b17/game/scripts/ui/screens/game_result.gd:27:	set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
+build/cg/b17/game/scripts/ui/screens/game_result.gd:101:		call("_tower_finish", w)   # 1.4.0 §11.1
+build/cg/b17/game/scripts/ui/screens/game_result.gd:420:	if bool(get("tower_on")) and mode == Mode.VS_AI:
+build/cg/b17/game/scripts/ui/battle_view.gd:1096:	if overlay != "" or Input.get_connected_joypads().is_empty():
+
+ succeeded in 1283ms:
+  1435		var y := _h1_help(Vector2(640, P.position.y + 12), L.t("rift_open"), L.t("rf_help"), tz("S"), 600)
+  1436		_text(Vector2(360, y), body, tz("B"), Color.WHITE, false, true, 560)
+  1437		y += text_h(body, tz("B"), 560) + GAP_M
+  1438		_text(Vector2(640, y), best, tz("S"), ACCENT, true, false, 560)
+  1439		y += text_h(best, tz("S"), 560) + GAP_XL
+  1440		_btn(Rect2(640 - 330, y, 320, 52), L.t("rf_go"), func(): overlay = ""; _rift_start(), true, true)
+  1441		_btn(Rect2(650, y, 320 - GAP_S, 52), L.t("rf_lab"), func(): overlay = "rift_lab"; _focus = 0)
+  1442		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): _nav_back())
+  1443	
+  1444	func _start_mode(m: int) -> void:
+  1445		var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.to_code() == rift_code   # 裂隙「再來一局」照舊（同一組規則才算）
+  1446		var mk := "%d:%s:%d:%d" % [m, puzzle_id, int(get("trial_id")), PZ.get_puzzle("ws").hash() if puzzle_id == "ws" else 0]   # 工坊、三考都叫 ws：再比題目內容（Codex v160-i3）
+  1447		if mk != tv_mode_key:
+  1448			tv_marks = []   # 換題、換模式：舊標記不帶過去（同一題重打保留）
+  1449			co_assist = ""   # V1.6.1 A4：換題就是新的嘗試（同一題重打照舊算教練協力）
+  1450		if mk != tv_mode_key or m != Mode.PUZZLE:
+  1451			trio_job += 1   # 換題、換模式：還在算的三考結果作廢
+  1452			_trio_cancel()
+  1453		tv_mode_key = mk
+  1454		fog_on = false
+  1455		tv_mark_mode = false
+  1456		var keep_trio: bool = trio_on and m == Mode.PUZZLE and puzzle_id == "ws" and PZ.get_puzzle("ws").has("trio")   # 一陣三考「重試」照舊
+  1457		rift_on = false
+  1458		trio_on = false
+  1459		super._start_mode(m)
+  1460		rift_on = keep_rift
+  1461		trio_on = keep_trio
+  1462		_prewarm_sprites()
+  1463	
+  1464	## 1.2.0（Antigravity cat01 #1）：圖集烘焙原本在開戰那一刻才觸發，分段後最長一幀 78 ms 會出現在戰鬥開頭。
+  1465	## 改成進擺陣就依兩邊卡池（含召喚物）預烘：擺陣時玩家在思考，分段烘焙藏在這段時間裡；開戰時 _ensure_sprites 只是確認（烘過的不重烘）。
+  1466	func _prewarm_sprites() -> void:
+  1467		if sprites == null or armies.size() < 2:
+  1468			return
+  1469		var want := {}
+  1470		for a in armies:
+  1471			for t in D.total():
+  1472				if int(a.pool) & (1 << t):
+  1473					want[t] = true
+  1474			for u in a.units:
+  1475				want[int(u["type"])] = true
+  1476		if want.has(F8.SLIME):
+  1477			want[F8.MINI_SLIME] = true
+  1478		if want.has(F8.BONE):
+  1479			want[F8.SKELETON] = true
+  1480		var need: Array = want.keys().filter(func(t): return int(t) >= D.COUNT)
+  1481		if not need.is_empty():
+  1482			sprites.ensure(need)   # 兵種頁：卡池裡的都烘（最多 5 頁，上限照舊）
+  1483		var placed := {}
+  1484		for a in armies:
+  1485			for u in a.units:
+   650				else:
+   651					var bt := path + ".bak.tmp"
+   652					rotated = DirAccess.copy_absolute(path, bt) == OK and _parse(bt) != null and DirAccess.rename_absolute(bt, path + ".bak") == OK
+   653					if not rotated:
+   654						DirAccess.remove_absolute(bt)
+   655				if not rotated:
+   656					DirAccess.remove_absolute(tmp)
+   657					return false
+   658		return DirAccess.rename_absolute(tmp, path) == OK
+   659	
+   660	static func _tracked_write(path: String, d: Dictionary) -> bool:
+   661		var good := _write(path, d)
+   662		if good:
+   663			pending.erase(path)
+   664		else:
+   665			pending[path] = true
+   666		return good
+   667	
+   668	static func save_settings() -> bool:
+   669		return _tracked_write(_sp(), settings)
+   670	
+   671	## 未來版存檔（R5）一律不寫，回傳 true 是因為這不是「寫入失敗」，畫面已經常駐提示。
+   672	static func save_data() -> bool:
+   673		if data_locked:
+   674			return true
+   675		return _tracked_write(_dp(), data)
+   676	
+   677	static func has_unsaved() -> bool:
+   678		return not pending.is_empty()
+   679	
+   680	## R7：上次寫入失敗就再試一次（換畫面、回標題時呼叫）。回傳 true＝現在沒有未存內容。
+   681	static func retry_pending() -> bool:
+   682		if pending.has(_sp()):
+   683			save_settings()
+   684		if pending.has(_dp()):
+   685			save_data()
+   686		return pending.is_empty()
+   687	
+   688	static func s(key: String):
+   689		return settings.get(key, DEFAULT_SETTINGS.get(key))
+   690	
+   691	static func set_setting(key: String, v) -> void:
+   692		settings[key] = v
+   693		save_settings()
+   694	
+   695	## V1.5：一次改很多項（預設組合、匯入設定碼）只寫一次檔。
+   696	static func set_settings(d: Dictionary) -> void:
+   697		for k in d:
+   698			settings[k] = d[k]
+   699		save_settings()
+   700	
+   701	## V1.5：備份檔能不能拿來還原：要是進度存檔（有版本欄），而且不是比這版新的格式。
+   702	static func restorable(d) -> bool:
+   703		if not d is Dictionary:
+   704			return false
+   705		var v = d.get("schema_version", d.get("version"))
+   706		if not (v is int or v is float) or int(v) < 1 or int(v) > SAVE_VERSION:
+   707			return false
+   708		# 要有進度存檔一定有的欄位（只有版本欄的 JSON 不算，Codex v150-i2 #2）
+   709		return d.get("stats") is Dictionary and d.get("achievements") is Array
+   710	
+   711	
+   712	## V1.1 F2：本機遊玩紀錄（不上傳、不升存檔版本）。kind＝"puzzle"／"trial"：每打一次 +1；
+   713	## 第一次過關時記下當時的嘗試次數與花費（first＝花費、first_try＝第幾次）。之後重打不改，用來校準三星。
+   714	static func note_try(kind: String, id: String, cleared: bool, cost: int) -> void:
+   715		var tries: Dictionary = data.get(kind + "_tries", {})
+   716		tries[id] = int(tries.get(id, 0)) + 1
+   717		data[kind + "_tries"] = tries
+   718		var first: Dictionary = data.get(kind + "_first", {})
+   719		if cleared and not first.has(id):
+   720			first[id] = cost
+   721			first[id + "@"] = int(tries[id])
+   722		data[kind + "_first"] = first
+   723	
+   724	
+   725	## V1.5.1 E1：試玩回報只匯出這些欄位（白名單；沒有存檔、設定、帳號等任何個人資料）
+   726	const PT_FIELDS := ["v", "session", "game", "event", "mode", "round", "winner", "ticks", "reason", "power", "rating", "rules", "time", "code"]
+   727	
+   728	## 把本機試玩紀錄整理成一份回報（只留白名單欄位）。回傳 {"n": 筆數, "text": 內容}
+   729	static func playtest_report(app_version: String) -> Dictionary:
+   730		var path := "user://%splaytest_log.jsonl" % file_prefix()
+   605	
+   606	func cbm() -> bool:
+   607		return bool(Save.s("colorblind"))
+   608	
+   609	
+   610	func _toast(s: String, deny := false) -> void:
+   611		toast = s
+   612		var tm := int(Save.s("toast_mult"))
+   613		toast_t = 2.0 * tm if tm > 0 else 600.0   # V1.5：提示停留 標準／加長／很長／手動關（點一下才收）
+   614		toast_born = time
+   615		if deny:
+   616			sfx.play("ui_deny")
+   617	
+   618	
+   619	func _move_focus(d: int) -> void:
+   620		pad_mode = true
+   621		if _btns.is_empty():
+   622			return
+   623		_focus = posmod(_focus + d, _btns.size())
+   624	
+   625	
+   626	## 字太寬就往下一級縮（第五輪：只在字級表內往下走，最小到「註記」，不再縮到 9px；還是太寬就由 _text 換行）。
+   627	func fit(s: String, size: int, maxw: float, bold := false) -> int:
+   628		var sz := size
+   629		var levels: Array = TYPE_SCALE[_scale_key()].values()
+   630		levels.sort()
+build/cg/b17/game/scripts/ui/main.gd.uid
+build/cg/b17/game/scripts/ui/codex_view.gd
+build/cg/b17/game/scripts/ui/main.gd
+build/cg/b17/game/scripts/ui/lobby_view.gd.uid
+build/cg/b17/game/scripts/ui/lobby_view.gd
+build/cg/b17/game/scripts/ui/layout_rules.gd.uid
+build/cg/b17/game/scripts/ui/layout_rules.gd
+build/cg/b17/game/scripts/ui/icons.gd.uid
+build/cg/b17/game/scripts/ui/icons.gd
+build/cg/b17/game/scripts/ui/game_screens.gd.uid
+build/cg/b17/game/scripts/ui/game_screens.gd
+build/cg/b17/game/scripts/ui/free_place.gd.uid
+build/cg/b17/game/scripts/ui/free_place.gd
+build/cg/b17/game/scripts/ui/codex_view.gd.uid
+build/cg/b17/game/scripts/ui/replay_view.gd.uid
+build/cg/b17/game/scripts/ui/replay_view.gd
+build/cg/b17/game/scripts/ui/pose_files.gd.uid
+build/cg/b17/game/scripts/ui/pose_files.gd
+build/cg/b17/game/scripts/ui/pose_data.gd.uid
+build/cg/b17/game/scripts/ui/pose_data.gd
+build/cg/b17/game/scripts/ui/palette.gd.uid
+build/cg/b17/game/scripts/ui/palette.gd
+build/cg/b17/game/scripts/ui/optical_offsets.gd.uid
+build/cg/b17/game/scripts/ui/optical_offsets.gd
+build/cg/b17/game/scripts/ui/map_art.gd.uid
+build/cg/b17/game/scripts/ui/map_art.gd
+build/cg/b17/game/scripts/ui/ui_base.gd
+build/cg/b17/game/scripts/ui/table_seats.gd.uid
+build/cg/b17/game/scripts/ui/table_seats.gd
+build/cg/b17/game/scripts/ui/sprite_cache.gd.uid
+build/cg/b17/game/scripts/ui/codex_bake.gd.uid
+build/cg/b17/game/scripts/ui/codex_bake.gd
+build/cg/b17/game/scripts/ui/charts.gd.uid
+build/cg/b17/game/scripts/ui/charts.gd
+build/cg/b17/game/scripts/ui/battle_view.gd.uid
+build/cg/b17/game/scripts/ui/battle_view.gd
+build/cg/b17/game/scripts/ui/sprite_cache.gd
+build/cg/b17/game/scripts/ui/unit_brief.gd
+build/cg/b17/game/scripts/ui/ui_base.gd.uid
+build/cg/b17/game/scripts/ui/view_buffer.gd
+build/cg/b17/game/scripts/ui/unit_brief.gd.uid
+build/cg/b17/game/scripts/ui/view_buffer.gd.uid
+build/cg/b17/game/scripts/ui/art.gd.uid
+build/cg/b17/game/scripts/ui/art.gd
+build/cg/b17/game/scripts/ui/atlas_pack.gd
+
+ succeeded in 1775ms:
+coordination/v1600-impl/b17-r1/codex-prompt.md:3:請找：錯誤、S6 各邊界（承諾後重啟、岔口選了還沒開打就關遊戲、打到一半關遊戲、結算後重啟再結算、輸了、規則不合法退回、清除戰績、試玩版、每日挑戰進塔）、路線雜湊是否真的與機器無關、遷移（舊 tower_run 與新路線不一致時誰為準）、模擬是否受影響（只改敵方預算＝規則；舊場次 FINGERPRINT）、IN-160-05 重複點與寫檔失敗、手把與 R14。附行號。最多 6 條、400 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1600-impl/b06-r1/codex-prompt3.md:6:24 組驗收：檢查 7088 全過、FINGERPRINT 不變、版面 4824 張 0 違規、固定時鐘棋子低對比 573（基線 568，比基線差 0 張）。
+coordination/v1600-impl/b17-r1/b17-plan.md:1:# B17 塔分岔＋續塔（S6；P7.1、P7.2；IN-160-05）計畫
+coordination/v1600-impl/b17-r1/b17-plan.md:3:方案 §4 B17：S6 判決＝路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05（重複點、重啟、寫檔失敗）；換路（K6）資料不足＝照開但不宣稱「有選擇性」。回退：回固定塔（新欄位保留不讀）。
+coordination/v1600-impl/b17-plan.md:1:# B17 塔分岔＋續塔（S6；P7.1、P7.2；IN-160-05）計畫
+coordination/v1600-impl/b17-plan.md:3:方案 §4 B17：S6 判決＝路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 `tower_run` 讀回；IN-160-05（重複點、重啟、寫檔失敗）；換路（K6）資料不足＝照開但不宣稱「有選擇性」。回退：回固定塔（新欄位保留不讀）。
+coordination/v1600-impl/b09-r1/codex-prompt3.md:4:全套檢查 7064 項過、24 組版面 0 違規、FINGERPRINT 不變。
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2688:	var cards := [["c", L.t("tw_fork_c"), L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [Tower.REST_CUT])]]
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2692:	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2694:	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2703:	screen_register("tower_fork", "tw_fork_c")
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2733:	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]) + (L.t("tw_contract_tag") if bool(sp.get("contract", false)) else ""))
+
+exec
+/bin/bash -lc "rg -n 'tw_fork|tw_contract' build/cg/b17/game --glob '"'!*.gd'"' --glob '"'!*.import'"' | head -35; nl -ba build/cg/b17/game/scripts/ui/screens/game_result.gd | sed -n '75,165p'; nl -ba build/cg/b17/game/scripts/ui/game_screens.gd | sed -n '520,570p'; rg -n 'func _nav_back|NAV|hub_.*ga|\"tower' build/cg/b17/game/scripts/ui/screens/game_v16.gd | head -35" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg -n 'func _nav_back|func t\\(|return key|return k|tw_fork' build/cg/b17/game/scripts; rg -n 'FINGERPRINT' build/cg/b17 --glob '*.log' --glob '*.txt' | head -10; diff -qr game/scripts/core build/cg/b17/game/scripts/core" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "rg --files build/cg/b17/game | rg 'l10n|i18n|local|lang'; rg -n '"'^---'"' coordination/v1600-impl/b17-r1/diff.patch; nl -ba build/cg/b17/game/scripts/ui/screens/game_menus.gd | sed -n '1370,1425p'; nl -ba build/cg/b17/game/scripts/ui/layout_rules.gd | sed -n '368,384p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1006ms:
+build/cg/b17/game/data/l10n_extra.csv.import
+build/cg/b17/game/data/l10n_extra.csv
+build/cg/b17/game/data/l10n_extra.ja.translation
+build/cg/b17/game/data/l10n_extra.zh_CN.translation
+1:--- a/game/scripts/game/tower.gd
+105:--- a/game/scripts/game/save.gd
+122:--- a/game/scripts/ui/screens/game_v16.gd
+238:--- a/game/scripts/ui/screens/game_result.gd
+249:--- a/game/scripts/ui/screens/game_menus.gd
+260:--- a/game/tools/dev_main.gd
+280:--- a/game/tools/screens.json
+295:--- a/game/tests/suites/save.gd
+393:--- a/game/tests/suites/modes.gd
+404:--- a/game/tests/run_tests.gd
+  1370		var labs: Array = backup_labels(lst)
+  1371		for i in n:
+  1372			var nm: String = lst[i]
+  1373			var lb: String = labs[i]
+  1374			_btn(Rect2(380, ry + i * 48, 520, 44), lb, func(): _ask_confirm(L.t("restore_q", [lb]), func(): _progress_restore(nm), "restore"))
+  1375		_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
+  1376	
+  1377	const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run", "tower_route"]], ["clr_all", []]]
+  1378	
+  1379	func _draw_clear_data() -> void:
+  1380		_dim(0.6)
+  1381		# V1.5.2 L3／L7／L8：說明從緞帶下緣＋16 起、面板照內容高、底部雙按鈕同寬置中
+  1382		var P := modal_rect(620, 12.0 + h1_help_h(L.t("clear_help"), tz("S"), 560) + CLEAR_KEYS.size() * 58.0 - 8.0 + GAP_XL + 44.0 + GAP_L)
+  1383		_panel(P)
+  1384		var cy := _h1_help(Vector2(640, P.position.y + 12), L.t("set_clear"), L.t("clear_help"), tz("S"), 560)
+  1385		for i in CLEAR_KEYS.size():
+  1386			var on := bool(clear_pick.get(i, false))
+  1387			var ii := i
+  1388			_btn(Rect2(380, cy + i * 58, 520, 50), ("✓ " if on else "") + L.t(CLEAR_KEYS[i][0]), func(): clear_pick[ii] = not bool(clear_pick.get(ii, false)), true, false, Color(0.5, 0.18, 0.15) if on else Color(0, 0, 0, 0))
+  1389		var any := false
+  1390		for k in clear_pick:
+  1391			any = any or bool(clear_pick[k])
+  1392		var by := P.end.y - GAP_L - 44.0
+  1393		_btn(Rect2(380, by, 250, 44), L.t("clear_go"), func(): _clear_data(), any, false, Color(0.55, 0.16, 0.12))
+  1394		_btn(Rect2(650, by, 250, 44), L.t("back"), func(): overlay = "settings")
+  1395	
+  1396	func _clear_data() -> void:
+  1397		if Save.data_locked or state != St.TITLE:
+  1398			return
+  1399		if not _progress_backup():   # 清之前自動備份一份；備份失敗就不清
+  1400			return
+  1401		var nd: Dictionary
+  1402		if bool(clear_pick.get(3, false)):
+  1403			nd = Save.DEFAULT_SAVE.duplicate(true)
+  1404		else:
+  1405			nd = Save.data.duplicate(true)   # 先在複本上清，寫檔成功才換（V1.5.1）
+  1406			for i in 3:
+  1407				if bool(clear_pick.get(i, false)):
+  1408					for k in CLEAR_KEYS[i][1]:
+  1409						if Save.DEFAULT_SAVE.has(k):
+  1410							nd[k] = Save.DEFAULT_SAVE[k].duplicate(true) if Save.DEFAULT_SAVE[k] is Dictionary or Save.DEFAULT_SAVE[k] is Array else Save.DEFAULT_SAVE[k]
+  1411						else:
+  1412							nd.erase(k)
+  1413		Save.sanitize_data(nd)
+  1414		if not _commit_data(nd):
+  1415			return
+  1416		clear_pick = {}
+  1417		overlay = "settings"
+  1418		_toast(L.t("clear_done"))
+  1419	
+  1420	
+  1421	## ◀ ▶ 往前／往後切換設定值（第五輪）。
+  1422	func _step_setting(k: String, opts: Array, d: int) -> void:
+  1423		var cur = Save.s(k)
+  1424		var i := 0
+  1425		for j in opts.size():
+   368	const R14_LIMITS := {"title": 9, "lobby": 9, "place": 12, "battle": 5, "replay": 8, "result": 5, "settings": 10, "codex": 12, "profile": 6, "puzzles": 10}
+   369	const R14_ENFORCE := ["title", "result", "lobby", "place", "settings", "profile"]
+   370	static func _r14(out: Dictionary, d: Dictionary) -> void:
+   371		var sc: Dictionary = d.get("screen", {})
+   372		if sc.is_empty():
+   373			return
+   374		var cls := str(sc.get("cls", ""))
+   375		if str(sc.get("main", "")) == "":
+   376			_add(out, "fail", "R14", cls, "畫面登記了類別卻沒有主動作")
+   377		if not R14_LIMITS.has(cls):
+   378			return
+   379		var n := int(d.get("clicks", 0))
+   380		var lim := int(R14_LIMITS[cls])
+   381		if n <= lim:
+   382			return
+   383		if str(sc.get("skip", "")) != "":
+   384			var key := "_ex_R14:" + cls
+
+ succeeded in 2609ms:
+build/cg/b17/game/data/strings.csv:1824:tw_fork_title,岔路,A fork in the climb,岔路,分かれ道
+build/cg/b17/game/data/strings.csv:1825:tw_fork_help,第 %d 層開打前選一條路。選了就記在這次的塔裡，重開遊戲也不會變。,Pick a path before floor %d. Your choice is saved with this climb and won't change on restart.,第 %d 层开打前选一条路。选了就记在这次的塔里，重开游戏也不会变。,%d階の前に道を選びます。選んだ道はこの挑戦に記録され、再起動しても変わりません。
+build/cg/b17/game/data/strings.csv:1826:tw_fork_c,接契約,Take a contract,接契约,契約を受ける
+build/cg/b17/game/data/strings.csv:1827:tw_fork_c_d,接下來 %d 層，敵方多 %d 金；每過一層得一枚契約章。,Next %d floors: enemy gets +%d gold. Each one cleared earns a contract seal.,接下来 %d 层，敌方多 %d 金；每过一层得一枚契约章。,次の%d階は敵が+%dゴールド。1階突破ごとに契約章を1つ。
+build/cg/b17/game/data/strings.csv:1828:tw_fork_r,休整,Rest,休整,休む
+build/cg/b17/game/data/strings.csv:1829:tw_fork_r_d,下一層敵方少 %d 金。,Next floor: enemy gets −%d gold.,下一层敌方少 %d 金。,次の階は敵が−%dゴールド。
+build/cg/b17/game/data/strings.csv:1830:tw_contract_tag,（契約層）, (contract),（契约层）,（契約階）
+    75			call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+    76		call("_camp_settle")   # 1.2.0 §11.7 戰役評星
+    77		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
+    78			set("wv_surv", call("wave_survivors", last_armies[0], sim))   # 殘兵在結束當下就定（之後看重播不影響）
+    79			var wc: Array = get("wv_codes")
+    80			wc.append(BattleCode.encode(last_armies[0], last_armies[1], battle_rules, last_cmds))   # V1.5.1 D1
+    81		_build_report()
+    82		call("_ghost_settle", w)   # V1.4 #7
+    83		call("_wager_settle")   # V1.4 #16：競猜結算（要在報告建好之後，不然結果行會被蓋掉，Codex v140-i2）
+    84		if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official" and not (w == 0 and int(get("wv_no")) < 3):
+    85			call("_wave_end", w == 0)   # V1.4 #11：車輪戰結束（輸了或三波打完）
+    86		if mode == Mode.DUEL:
+    87			sfx.play("win" if w >= 0 else "lose")
+    88		elif mode == Mode.PUZZLE and report.has("goal_ok"):
+    89			sfx.play("win" if bool(report["goal_ok"]) else "lose")   # 第十三輪：照過關條件（Codex v13-r1 #6）
+    90		else:
+    91			sfx.play("win" if w == 0 else "lose")
+    92		sfx.play("ui_quill", 0.45)   # V1.3 B4：戰報寫上羊皮紙的筆聲（各模式都有）
+    93		if eff["progress"] and bool(get("daily_practice")):
+    94			call("_daily_finish", w)   # 1.1.0：每日練習只給練習結果提示，不記戰績、成就、對戰紀錄（Codex v110-i2 #3）
+    95		elif eff["progress"]:
+    96			_progress_and_achievements()
+    97			if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
+    98				call("_record_match", w)
+    99			call("_trial_finish", w)
+   100			call("_daily_finish", w)
+   101			call("_tower_finish", w)   # 1.4.0 §11.1
+   102			Save.save_data()     # 統計是最後才記的，要再存一次（Codex #7）
+   103		if eff["log"]:
+   104			Save.playtest_log(_pt_entry(0))
+   105	
+   106	
+   107	
+   108	func _pt_rate(v: int) -> void:
+   109		pt_rated = true
+   110		if PLAY_EFFECTS[play_kind]["log"]:
+   111			Save.playtest_log(_pt_entry(v))
+   112		_toast(L.t("pt_thanks"))
+   113	
+   114	
+   115	
+   116	func _draw_result() -> void:
+   117		# 第五輪 §4.4：結果頁兩層。第一層＝勝負＋一句事實描述＋放大的戰力走勢＋MVP；第二層「詳細數據」＝對比長條、技能徽章、指紋。
+   118		_dim(0.7)   # 第七輪 E2：整個畫面（含 HUD）壓暗
+   119		var r: Rect2 = Seats.RESULT_PAPER   # 1.6.0 B03：結果紙照桌位表（Codex B03 r1 #1）
+   120		# 1.2.0 §9.4 E3：結果面板是一張紙卡（宣紙戰報的延續）：落影在右下（光源左上）、紙上的字自動換墨色；簡化介面維持原本深色面板
+   121		var paper := not bool(Save.s("plain_ui"))
+   122		if paper:
+   123			_contact_shadow(r, 4.0, 0.45)   # 1.6.0 B03（P1.2）：全站同一組接觸影
+   124			if not _mat_box(r, "card2"):   # 1.6.0 B03：桌燈下的紙（L* 壓到中階）
+   125				draw_rect(r, Color("#efe4cf") * PAL.PAPER_DESK_TONE)
+   126			draw_rect(r, Color(0.36, 0.24, 0.13, 0.6), false, 2.0)
+   127			# 1.3.0 §8 三折宣紙：兩道摺痕（左暗右亮的窄漸層，低透明，不影響字的對比）＋上下緣摺口
+   128			for fi in [1, 2]:
+   129				var fxp: float = r.position.x + r.size.x * fi / 3.0
+   130				for k3 in 5:
+   131					draw_rect(Rect2(fxp - 5 + k3, r.position.y, 1, r.size.y), Color(DIM_INK, 0.022 * (k3 + 1)))
+   132				draw_rect(Rect2(fxp, r.position.y, 2, r.size.y), Color(1, 0.97, 0.88, 0.22))
+   133				for yy in [r.position.y - 3.0, r.end.y - 3.0]:
+   134					draw_rect(Rect2(fxp - 2, yy, 4, 6), Color(DIM_INK, 0.35))
+   135		else:
+   136			_box(r.grow(5), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), 14.0)
+   137			_box(r, PANEL, TH_EDGE, 10.0, 3.0)
+   138		var w: int = sim.winner
+   139		var title := L.t("draw")
+   140		var col := Color.WHITE
+   141		if w >= 0:
+   142			title = L.t("win_team", [L.t("blue") if w == 0 else L.t("red")])
+   143			col = Art.team_color(w, cbm())
+   144		if mode == Mode.PUZZLE and report.has("goal_ok") and PZ.goal(PZ.get_puzzle(puzzle_id)) != "win":
+   145			title = L.t("goal_ok") if bool(report["goal_ok"]) else L.t("goal_fail")   # 第十三輪：護送、撐住、斬首看條件
+   146			col = Color("#ffd166") if bool(report["goal_ok"]) else Color(1, 1, 1, 0.8)
+   147		var title_sz := tcap(tz("D"), 64)
+   148		# 第十輪 V2、F2：標題離上緣遠一點；橫幅從上面落下（版面檢查、簡化特效不演）
+   149		var drop := 0.0
+   150		if not layout_probe and not bool(Save.s("reduce_fx")):
+   151			var dk := clampf((time - result_t) / 0.25, 0.0, 1.0)
+   152			drop = (1.0 - dk) * (1.0 - dk) * -60.0
+   153		# V1.2 C3：勝負大字墊一條布幔絲帶（勝方隊色、兩端燕尾、金邊），不再是浮在面板上的單色字
+   154		var rib_in := 0.0   # 有緞帶時，摘要第一行用緞帶內寬排版（Codex v120-final：長行跨出緞帶）
+   155		if not bool(Save.s("plain_ui")):
+   156			var l1 := _result_line1(540.0 - 24.0)
+   157			# 緞帶最寬 540；燕尾依剩下的空間縮短，停在左右按鈕前（x 354～926）
+   158			var tw: float = minf(540.0, maxf(minf(540.0, _width(title, title_sz, true)) + 120.0, _width(l1, tz("S")) + 40.0))
+   159			var tail := clampf((572.0 - tw) / 2.0, 10.0, 34.0)
+   160			rib_in = tw - 24.0
+   161			l1 = _result_line1(rib_in)   # 高度用和正文同一個寬度決定的斷行
+   162			var ry0 := 114.0 - title_sz * 0.02
+   163			var ry := ry0 + drop
+   164			# 布幔上下要留白（Antigravity impl1）：往下一級字級（只能用字級表裡的值）
+   165			var lv: Array = TYPE_SCALE[_scale_key()].values()
+   520					# 手把 Y 送的是 Tab：戰鬥中＝暫停（第七輪 A6）
+   521					if state == St.BATTLE and overlay == "":
+   522						_toggle_pause()
+   523					elif k == KEY_TAB:
+   524						_move_focus(1)
+   525				KEY_ESCAPE:
+   526					if overlay == "" and state == St.TITLE and bool(get("home_more")):
+   527						call("_home_more_set", false)   # 1.6.0 B05：返回先收起「更多」抽屜（換世代、焦點回到「更多」）
+   528					elif overlay == "ai_busy":
+   529						pass      # 第十輪 I4：AI 計算中不能取消
+   530					elif overlay == "first_run":
+   531						Save.set_setting("first_done", true)   # V1.5：跳過第一次啟動的問題
+   532						overlay = ""
+   533					elif overlay == "paint":
+   534						call("_paint_close")   # V1.4 #15：Esc／手把 B 也要存塗裝（Codex、Antigravity v140-i4）
+   535					elif overlay == "pause_menu":
+   536						call("_pause_resume")
+   537					elif overlay == "settings":
+   538						call("_settings_close")
+   539					elif overlay == "fs_confirm":
+   540						call("_fs_revert")
+   541					elif overlay == "confirm":
+   542						overlay = str(get("confirm_ret"))
+   543					elif overlay in ["keys", "restore", "clear_data"]:
+   544						set("keys_capture", "")
+   545						overlay = "settings"   # 設定的子頁：Esc 回設定（不是整個關掉，Antigravity v150-i2 #4）
+   546					elif overlay == "codex" and bool(get("cx_zoom")) and int(get("cx_unit")) < D.total():
+   547						set("cx_zoom", false)   # V1.5.1：近看模式先收合
+   548					elif overlay == "breport":
+   549						call("_breport_close")   # 1.1.0 B10：回到重播、焦點與暫停狀態還原
+   550					elif overlay == "boss_note":
+   551						call("_close_boss_note")   # 1.2.0：Esc／手把 B＝知道了（不然下一幀又跳出來，Codex cat03 #1）
+   552					elif overlay == "trio_result":
+   553						call("_trio_back")   # 1.1.0 H3：和結算頁返回鈕同一條路
+   554					elif overlay == "leave" and state == St.BATTLE and paused:
+   555						overlay = "pause_menu"   # 和「留下」一樣回暫停選單（Codex v151-i1 #3）
+   556					elif overlay != "":
+   557						# V1.5.1：Esc／手把 B 和返回鈕同一套目的地；沒登記來處的子頁用它返回鈕的目的地
+   558						call("_nav_back", {"wager": "playroom", "draft": "playroom", "wave_codes": "codes", "ghosts": "playroom", "weekly": "playroom", "rift": "playroom", "nb_words": "notebook", "daily_past": "playroom", "wk_ghosts": "weekly"}.get(overlay, ""))
+   559					elif state == St.BATTLE:
+   560						if play_kind != "official":
+   561							_replay_back()   # 第七輪 A9：重播時 Esc＝返回
+   562						else:
+   563							call("_open_pause_menu")   # V1.5：Esc 開暫停選單（原本直接看結果，移進選單第二項）
+   564					elif state != St.TITLE:
+   565						_request_leave()
+   566			return
+   567		pad_mode = true
+   568		match k:
+   569			KEY_UP: cursor.y = maxi(0, cursor.y - 1)
+   570			KEY_DOWN: cursor.y = mini(8, cursor.y + 1)
+379:		"tower_fork":
+2655:		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
+2662:	var rt = Tower.sanitize_route(Save.data.get("tower_route"))
+2663:	return rt if rt != null else Tower.migrate_old(int(Save.data.get("tower_run", 0)))
+2667:	Save.data["tower_route"] = rt
+2668:	Save.data["tower_run"] = int(rt["floor"])
+2703:	screen_register("tower_fork", "tw_fork_c")
+2720:			Save.data["tower_run"] = 0
+2738:	var best := int(Save.data.get("tower_best", 0))
+2741:		Save.data["tower_route"] = st[0]
+2742:	Save.data["tower_run"] = int(_tw_route()["floor"])
+2746:		Save.data["tower_best"] = r[0]
+
+ succeeded in 4225ms:
+build/cg/b17/game/scripts/ui/ui_base.gd:1944:func _nav_back(fallback := "") -> void:
+build/cg/b17/game/scripts/ui/battle_view.gd:319:		return k if ev.has("src") and ev.has("tgt") else "skip"
+build/cg/b17/game/scripts/ui/pose_data.gd:21:	return keys
+build/cg/b17/game/scripts/ui/lobby_view.gd:267:	return k
+build/cg/b17/game/scripts/ui/battle/battle_units.gd:1798:	return k * (1.0 if still else 0.85 + 0.15 * sin(t * 3.0))
+build/cg/b17/game/scripts/core/terrain.gd:138:	return kind_at(x, y, team) == BLOCK
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2688:	var cards := [["c", L.t("tw_fork_c"), L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [Tower.REST_CUT])]]
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2692:	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2694:	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2703:	screen_register("tower_fork", "tw_fork_c")
+build/cg/b17/game/scripts/game/strings.gd:82:static func t(key: String, args: Array = []) -> String:
+build/cg/b17/game/scripts/ui/screens/game_place.gd:571:		return keep.place_xy(int(u["type"]), Army.quant(p.x), Army.quant(p.y))
+build/cg/b17/game/scripts/ui/screens/game_place.gd:572:	return keep.place(int(u["type"]), clampi(p.x / 1000, 0, 15), clampi(p.y / 1000, 0, 8))
+build/cg/b17/game/scripts/ui/screens/game_modes.gd:615:			return kinds.size() <= 3
+
+exec
+/bin/bash -lc "rg -n 'route_hash|seals' build/cg/b17/game/scripts; nl -ba build/cg/b17/game/scripts/ui/screens/game_menus.gd | sed -n '330,355p'; nl -ba build/cg/b17/game/scripts/ui/game_screens.gd | sed -n '925,946p'; nl -ba build/cg/b17/game/scripts/ui/ui_base.gd | sed -n '929,947p'; rg -n 'func _nav|nav_stack|nav_ret' build/cg/b17/game/scripts/ui/ui_base.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc 'ls coordination/v1600-impl/b17-r1; rg --files build/cg/b17 | head -20; git status --short; diff -q game/data/strings.csv build/cg/b17/game/data/strings.csv' in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "nl -ba build/cg/b17/game/scripts/ui/ui_base.gd | sed -n '1920,1970p'; nl -ba build/cg/b17/game/scripts/ui/screens/game_result.gd | sed -n '1,75p'; rg -n 'has_unsaved|retry_pending' build/cg/b17/game/scripts/ui; nl -ba build/cg/b17/game/scripts/game/daily.gd | sed -n '40,120p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 756ms:
+  1920			_box(r, Color(0, 0, 0, 0), TH_EDGE, 10.0, 3.0)
+  1921		if panel_obj != "" and not bool(Save.s("plain_ui")):
+  1922			_obj_deco(r, panel_obj)
+  1923			if layout_probe:
+  1924				probe_decos.append({"id": "obj_%s" % panel_obj, "kind": "obj", "r": obj_extent(r, panel_obj), "host_r": r, "edge": "screen"})   # 1.3.0：器物裝飾不能出畫面（Codex cat08 #3）
+  1925			obj_open_r = r
+  1926			obj_open_kind = panel_obj
+  1927	
+  1928	
+  1929	func _open(name: String) -> void:
+  1930		if overlay.begins_with("hub_"):
+  1931			nav_stack.append(overlay)   # 卡片面板開著時直接開下一頁（例如結果頁「試煉」）：記得回面板
+  1932		overlay = name
+  1933		_focus = 0
+  1934	
+  1935	## V1.5.1 返回目的地：打開下一層之前記下「從哪來」，返回鈕、Esc、手把 B 都走 _nav_back（使用者回報：返回都跳回主畫面）。
+  1936	## 卡片面板（hub）畫出來時清空堆疊；開戰也清空。nav_hub＝最後經過的卡片面板，打完回標題時重新打開它。
+  1937	var nav_stack: Array = []
+  1938	var nav_hub := ""
+  1939	
+  1940	var nav_focus := {}   # V1.0.0：卡片面板 → 上次點的那張卡（返回時焦點回原卡）
+  1941	func _nav_push(from: String) -> void:
+  1942		nav_stack.append(from)
+  1943	
+  1944	func _nav_back(fallback := "") -> void:
+  1945		if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
+  1946			nav_hub = ""   # 關掉卡片面板：之後打完不再自動打開它
+  1947		overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
+  1948		_focus = int(nav_focus.get(overlay, 0))   # V1.0.0（Codex v100-i1 #8）：回到卡片面板時焦點回原卡
+  1949	
+  1950	
+  1951	func _fmt_num(v: float) -> String:
+  1952		return str(int(v)) if v == floorf(v) else str(v)
+  1953	
+  1954	
+  1955	func _onoff(k: String) -> String:
+  1956		return L.t("on") if bool(Save.s(k)) else L.t("off")
+  1957	
+  1958	
+  1959	func _cycle_setting(k: String, opts: Array) -> void:
+  1960		var cur = Save.s(k)
+  1961		var i := 0
+  1962		for j in opts.size():
+  1963			if str(opts[j]) == str(cur):
+  1964				i = j
+  1965		Save.set_setting(k, opts[(i + 1) % opts.size()])
+  1966	
+  1967	## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
+  1968	func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
+  1969			mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1, chip := 0) -> void:
+  1970		if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
+     1	extends "res://scripts/ui/screens/game_place.gd"
+     2	## 由 game_screens.gd 拆出（V9 P1，行為不變）
+     3	
+     4	func _start_mode(m: int) -> void:
+     5		nav_stack.clear()   # V1.5.1：進擺陣後，從擺陣開的圖鑑返回要回擺陣，不能彈出主畫面的卡片面板（Codex v151-i1 #1）
+     6		free_intro = false
+     7		watch_mode = false
+     8		mode = m
+     9		if m != Mode.VS_AI and m != Mode.DUEL:
+    10			rules = null      # 第五輪：只有對 AI、雙人吃大廳規則；遠征、教學、殘局固定
+    11		elif rules != null:
+    12			difficulty = rules.ai_level
+    13			duel_rule = rules.place_rule
+    14		wins = [0, 0]
+    15		round_no = 1
+    16		series_over = false
+    17		last_player_formation = []
+    18		overlay = ""
+    19		set("trial_id", -1)
+    20		if m != Mode.VS_AI or get("challenge_army") == null:
+    21			set("daily_spec", {})   # V1.1 D2：每日挑戰按「再來一次」時保留（敵陣在 challenge_army）
+    22			set("daily_practice", false)   # 1.1.0 N4：練習旗標跟每日題同進退
+    23		if m != Mode.VS_AI:
+    24			set("challenge_army", null)
+    25		set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+    26		set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
+    27		set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
+    28		set("cp_on", false)       # 1.2.0 §11.6：_cp_start 會在 _start_mode 之後再設回來
+    29		set("camp_id", "")        # 1.2.0 §11.7：_camp_play 會在 _start_mode 之後再設回來
+    30		set("ghost_id", "")       # V1.4 #7：幽靈、每週棋盒也是在 _start_mode 之後才設
+    31		set("wk_active", false)
+    32		set("wv_mode", false)   # V1.4 #11：開別的模式就不是車輪戰（_wave_setup 會在 _start_mode 之後再設回來）
+    33		set("wv_active", false)
+    34		if m == Mode.GAUNTLET:
+    35			set("gauntlet_gold", 0)
+    36			set("gauntlet_cap", 0)
+    37			set("gauntlet_foe_gold", 0)
+    38			set("gauntlet_foe_cap", 0)
+    39			set("gauntlet_contract", -1)
+    40			set("ct_pick", -1)
+    41			set("ct_last", "")
+    42			gauntlet_stage = 1
+    43			gauntlet_prev = []
+    44			gauntlet_changes = 99
+    45			gauntlet_seed = rng.randi()
+    46		_reset_place()
+    47	
+    48	
+    49	
+    50	func _finish_battle() -> void:
+    51		sfx.set_muffled(false)
+    52		_pc_capture()   # V1.4 #14：最後一格戰場畫面留給戰報卡
+    53		fx = fx.filter(func(f): return f["kind"] != "text")   # 結果頁不留戰場跳字（Antigravity S3）
+    54		clutch_t = 0.0   # 最後時刻橫幅不跟到結果頁（第三輪 T4 抓到）
+    55		state = St.RESULT
+    56		tm_ghost = null
+    57		result_t = time
+    58		set("ink_stamped", false)   # 1.2.0 §9.4
+    59		if play_kind == "official" and sim != null:
+    60			last_cmds = sim.cmd_log.duplicate(true)
+    61		result_tab = 0
+    62		_focus = 0
+    63		slow_left = 0.0
+    64		zoom_target = 1.0
+    65		var w: int = sim.winner
+    66		var eff: Dictionary = PLAY_EFFECTS[play_kind]
+    67		if eff["series"]:
+    68			if w >= 0:
+    69				wins[w] += 1
+    70			series_over = series_done(wins, round_no, rules)
+    71			if bool(get("sealed_on")) and mode == Mode.DUEL and round_no >= 3:
+    72				series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
+    73			if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
+    74				call("_ach", "SEALED_DONE")   # V1.5
+    75			call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
+build/cg/b17/game/scripts/ui/screens/game_place.gd:48:	Save.retry_pending()   # 第七輪 R7：上次沒寫成功的補寫；還是失敗，標題頁會常駐提示
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:154:	elif Save.has_unsaved():
+    40		var fantasy := ((1 << 20) - 1) & ~kingdom
+    41		var pool := kingdom
+    42		match int(sp["mut"]):
+    43			0:   # 貼臉肉搏：近戰卡池、最深縱深、60 秒
+    44				pool = pool_of([0, 1, 3, 4, 5, 7, 8, 9])
+    45				r.depth = 7500
+    46				r.ticks = 1200
+    47			1:   # 精兵演武：只能 8 隻、每種 1 隻、高預算
+    48				r.unit_cap = 8
+    49				r.type_cap = 1
+    50				r.budget = [140, 140]
+    51			2:   # 人海戰術：40 隻、只有便宜的兵
+    52				pool = pool_of([0, 1, 2, 5, 8])
+    53				r.unit_cap = 40
+    54			3:   # 禁魔死鬥：冰原、不開技能（map 已在 spec 固定）
+    55				pass
+    56			4:   # 百家爭鳴：每種 1 隻、預算 150
+    57				r.type_cap = 1
+    58				r.budget = [150, 150]
+    59			5:   # 閃電決戰：60 秒、雙方技能全開（護盾、戰吼、隕石）
+    60				r.ticks = 1200
+    61				var m5 := (1 << CMD.AEGIS) | (1 << CMD.WARCRY) | (1 << CMD.METEOR)
+    62				r.cmd_mask = [m5, m5]
+    63			6:   # 孤軍深入：最深縱深、低預算、每種最多 2 隻
+    64				r.depth = 7500
+    65				r.budget = [70, 70]
+    66				r.type_cap = 2
+    67			7:   # 神仙打架：奇幻卡池、高預算、隻數少、技能全開
+    68				pool = fantasy
+    69				r.budget = [150, 150]
+    70				r.unit_cap = 12
+    71				var m7 := (1 << CMD.AEGIS) | (1 << CMD.HEAL) | (1 << CMD.METEOR)
+    72				r.cmd_mask = [m7, m7]
+    73		r.pool = [pool, pool]
+    74	
+    75	## 成績比較：剩餘戰力高的好，一樣就花得少的好。rec＝[剩餘%, 花費]。
+    76	static func better(a: Array, b: Array) -> bool:
+    77		if b.is_empty():
+    78			return true
+    79		return int(a[0]) > int(b[0]) or (int(a[0]) == int(b[0]) and int(a[1]) < int(b[1]))
+    80	
+    81	## 記一場（贏了才記）。回傳 true＝新紀錄。best＝存檔的 daily_best（會被修改、只留最近 KEEP_DAYS 天）。
+    82	static func record(best: Dictionary, sp: Dictionary, rem: int, spent: int) -> bool:
+    83		var k: String = sp["key"]
+    84		var cur: Array = best.get(k, [])
+    85		var nw := better([rem, spent], cur)
+    86		if nw:
+    87			best[k] = [rem, spent]
+    88		var keys: Array = best.keys()
+    89		keys.sort_custom(func(a, b): return int(str(a).get_slice("-", 0)) > int(str(b).get_slice("-", 0)))
+    90		for i in range(KEEP_DAYS, keys.size()):
+    91			best.erase(keys[i])
+    92		return nw
+    93	
+    94	
+    95	## 這一天的完整規則（自由部署、16×9、單局；再套突變）。mask＝能用的兵種（正式版全開）。
+    96	static func make_rules(sp: Dictionary, mask: int):
+    97		var r = Presets.make("standard", "ai", mask)
+    98		r.deploy = "free"
+    99		r.spacing = 800
+   100		r.depth = 6000
+   101		r.fullfield = 0
+   102		var s: Array = MapDefs.SIZE_SUGGEST[1]
+   103		r.budget = [int(s[0]), int(s[0])]
+   104		r.unit_cap = int(s[1])
+   105		r.ticks = int(s[2])
+   106		apply(r, sp)
+   107		return r
+   108	
+   109	## 這一天的敵陣：普通 AI＋固定種子，跟遊戲流程無關（不吃玩家陣型、不吃全域亂數），跨機器一樣。
+   110	static func enemy(sp: Dictionary, r):
+   111		var g := RandomNumberGenerator.new()
+   112		g.seed = int(sp["seed"])
+   113		var p1: int = r.pool_of(1)
+   114		if r.ai_style != 0:
+   115			p1 = AI.style_pool(p1, r.ai_style, g)
+   116		return AI.build(1, r.budget_of(1), g, -1, p1, r)["army"]
+
+ succeeded in 1121ms:
+build/cg/b17/game/scripts/game/tower.gd:39:## 路線狀態（存檔 tower_route）＝{v, floor（下一次要打的層，0＝沒有進行中）, path（每個岔口的選擇：c＝契約、r＝休整、-＝舊存檔沒有紀錄）, seals（契約章）, done（已結算到第幾層）}。
+build/cg/b17/game/scripts/game/tower.gd:50:	return {"v": ROUTE_V, "floor": 1, "path": "", "seals": 0, "done": 0}
+build/cg/b17/game/scripts/game/tower.gd:99:			out["seals"] = int(st.get("seals", 0)) + 1
+build/cg/b17/game/scripts/game/tower.gd:105:static func route_hash(st: Dictionary) -> String:
+build/cg/b17/game/scripts/game/tower.gd:111:		return {"v": ROUTE_V, "floor": 0, "path": "", "seals": 0, "done": 0}
+build/cg/b17/game/scripts/game/tower.gd:112:	return {"v": ROUTE_V, "floor": run, "path": "-".repeat((run - 1) / FORK_EVERY), "seals": 0, "done": run - 1}
+build/cg/b17/game/scripts/game/tower.gd:121:	if not _int_in(v.get("v"), 1, ROUTE_V) or not _int_in(v.get("floor"), 0, FLOOR_MAX) or not _int_in(v.get("seals"), 0, FLOOR_MAX) or not _int_in(v.get("done"), 0, FLOOR_MAX):
+build/cg/b17/game/scripts/game/tower.gd:133:	return {"v": int(v["v"]), "floor": f, "path": p, "seals": int(v["seals"]), "done": int(v["done"])}
+build/cg/b17/game/scripts/ui/screens/game_result.gd:245:			var seals := _res_seals()
+build/cg/b17/game/scripts/ui/screens/game_result.gd:246:			if seals.is_empty():
+build/cg/b17/game/scripts/ui/screens/game_result.gd:253:				_draw_res_seals(mr, seals)   # 1.4.0 §8.2：系列結束＝三枚木印章（MVP、最大輸出、中流砥柱），點開看詳情
+build/cg/b17/game/scripts/ui/screens/game_result.gd:257:			var ty0 := mr.position.y + (MH - tz("B") * 1.4 - text_h(L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), 600 if seals.is_empty() else 440)) * 0.5
+build/cg/b17/game/scripts/ui/screens/game_result.gd:259:			_text(Vector2(mr.position.x + 170, ty0 + tz("B") * 1.4), L.t("mvp_line", [L.t("blue") if mvp.team == 0 else L.t("red"), mvp.dmg_dealt, mvp.kills]), tz("S"), Color(1, 1, 1, 0.85), false, false, 600 if seals.is_empty() else 440)
+build/cg/b17/game/scripts/ui/screens/game_result.gd:494:	elif result_tab == 0 and not _res_seals().is_empty():
+build/cg/b17/game/scripts/ui/screens/game_result.gd:948:func _res_seals() -> Array:
+build/cg/b17/game/scripts/ui/screens/game_result.gd:967:func _draw_res_seals(mr: Rect2, seals: Array) -> void:
+build/cg/b17/game/scripts/ui/screens/game_result.gd:968:	for k in seals.size():
+build/cg/b17/game/scripts/ui/screens/game_result.gd:969:		var c := Vector2(mr.end.x - 34.0 - (seals.size() - 1 - k) * 50.0, mr.get_center().y)
+build/cg/b17/game/scripts/ui/screens/game_result.gd:972:		var sk: Array = seals[k]
+   330		elif Save.s("place_mode") == "tap":
+   331			how = L.t("tut_rm_tap")
+   332		return L.t("tut_remove", [how])
+   333	
+   334	
+   335	
+   336	# ── 覆蓋層 ──
+   337	func _draw_overlay() -> void:
+   338		if overlay != "":
+   339			_btns.clear()   # 覆蓋層底下畫面的按鈕不能被點到（例如擺放畫面的開戰、結果頁的按鈕）
+   340			probe_screen = {}   # 1.5.0 R14：底下畫面的登記也清掉，由疊層自己登記（Codex v150 cat02 #2）
+   341			probe_texts.clear()   # 第五輪：底下畫面的字被遮罩蓋住，版面檢查只量覆蓋層本身
+   342			probe_icons.clear()   # 1.5.0：底下畫面的圖示也一樣（結果頁星級改成圖示後，教練疊層下面的星星被量到）
+   343			probe_btns.clear()
+   344			probe_ctrls.clear()
+   345			probe_reset_geom()
+   346			if state == St.TITLE:
+   347				_dim(0.72)   # 第七輪：標題的示範戰場不透出來
+   348		panel_obj = OBJ_OF.get(overlay, "")   # 1.2.0 §1.2：這個疊層的面板是桌上的哪一件實物（只換外框裝飾，內容版面不動）
+   349		match overlay:
+   350			"trials":
+   351				_draw_trials()
+   352			"puzzle_hint":
+   353				_draw_puzzle_hint()
+   354			"puzzle_plan":
+   355				_draw_plan_overlay()
+   925				if not _ink_active():
+   926					_draw_battle_hud()   # 宣紙戰報演出時頂部 HUD 退場（Antigravity cat03 #3）
+   927				if _ink_active():
+   928					_draw_ink_report_screen()   # 1.2.0 §9.4 宣紙戰報：勝負章蓋下之前不出結果面板
+   929				else:
+   930					_draw_result()   # 結果紙的桌燈色調與深墨：B06 起全站統一（_draw 開頭設定）
+   931		_draw_clutch_banner()
+   932		# V1.2 F1：覆蓋層打開時 0.18 秒淡入（只疊一層漸淡的暗幕，不縮放：按鈕位置和滑鼠永遠一致，Codex v120-impl2）；截圖、版面檢查、簡化特效時不做
+   933		if overlay != _ov_seen:
+   934			_ov_seen = overlay
+   935			_ov_t = time
+   936			_trans_begin()
+   937		var ok_anim: bool = overlay != "" and shot_dir == "" and not layout_probe and not bool(Save.s("reduce_fx"))
+   938		var ok_k := clampf((time - _ov_t) / 0.18, 0.0, 1.0) if ok_anim else 1.0
+   939		obj_open_kind = ""
+   940		var slide := ov_slide_offset()   # 1.4.0 §2.2：器物從桌上的固定位置滑進來（大廳從左、圖鑑從下…）；只動畫面
+   941		var m0 := mouse
+   942		if slide != Vector2.ZERO:
+   943			ui_xf = Transform2D(0.0, slide)   # 疊層裡自己切矩陣的地方都以 ui_xf 為底（不會把滑動蓋掉）
+   944			Art.base = ui_xf
+   945			draw_set_transform_matrix(ui_xf)
+   946			mouse = Vector2(-9999, -9999)     # 滑入中不判 hover（命中框沒位移，高亮會錯位；Codex cat08 #6）
+   929	func _btn(r: Rect2, label: String, action: Callable, enabled := true, primary := false, tint := Color(0, 0, 0, 0)) -> void:
+   930		if layout_probe and get("shot_dir") != "" and (get("shot_state") as Dictionary).has("dis"):
+   931			enabled = false   # V1.2.1：版面檢查的「停用」狀態：全部按鈕畫成停用，檢查停用樣式（手把流程不受影響）
+   932		var idx := _btns.size()
+   933		var hit := r
+   934		if btn_hit_min > r.size.y:
+   935			var dh := (btn_hit_min - r.size.y) * 0.5
+   936			hit = r.grow_individual(0.0, dh, 0.0, dh)
+   937			if layout_probe:
+   938				probe_hits.append(hit)
+   939		_btns.append({"r": hit, "cb": action, "en": enabled, "snd": "k_confirm" if primary else ("k_back" if label == L.t("back") or label == L.t("menu") else "k_click"), "group": btn_group})
+   940		var hover := hit.has_point(mouse) and not pad_mode
+   941		var focus := pad_mode and idx == _focus
+   942		var bg := TH_WOOD_L if not primary else TH_PRIMARY
+   943		if tint.a > 0:
+   944			bg = tint
+   945		if not enabled:
+   946			bg = Color(0.2, 0.17, 0.15)
+   947		elif hover or focus:
+1931:		nav_stack.append(overlay)   # 卡片面板開著時直接開下一頁（例如結果頁「試煉」）：記得回面板
+1937:var nav_stack: Array = []
+1941:func _nav_push(from: String) -> void:
+1942:	nav_stack.append(from)
+1944:func _nav_back(fallback := "") -> void:
+1947:	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
+
+ exited 1 in 16486ms:
+b17-plan.md
+codex-prompt.md
+codex.err
+codex.raw
+diff.patch
+hy-prompt.txt
+hy.err
+hy.md
+hy1
+build/cg/b17/strs7.json
+build/cg/b17/tools/gen/addstr.py
+build/cg/b17/game/icon.svg.import
+build/cg/b17/game/icon.svg
+build/cg/b17/tools/gen/l10n_extract.py
+build/cg/b17/tools/gen/l10n_build.py
+build/cg/b17/tools/gen/l10n_review.py
+build/cg/b17/game/export_presets.cfg
+build/cg/b17/game/tools/visual_diff.py
+build/cg/b17/game/tools/validate_puzzles.gd.uid
+build/cg/b17/game/tools/validate_puzzles.gd
+build/cg/b17/game/tools/unit_review.gd.uid
+build/cg/b17/game/tools/unit_review.gd
+build/cg/b17/game/tools/tone_check.py
+build/cg/b17/game/tools/seal_codes.gd.uid
+build/cg/b17/game/tools/seal_codes.gd
+build/cg/b17/game/tools/screen_owner.py
+build/cg/b17/game/tools/screens.json
+build/cg/b17/game/tools/run_chain.sh
+build/cg/b17/game/tools/requirements.txt
+ M game/data/strings.csv
+ M game/fonts/NTBLatin-B-sub.ttf
+ M game/fonts/NTBLatin-M-sub.ttf
+ M game/fonts/NTBRounded-B-sub.otf
+ M game/fonts/NTBRounded-R-sub.otf
+ M game/fonts/NTBRoundedJP-B-sub.otf
+ M game/fonts/NTBRoundedJP-R-sub.otf
+ M game/fonts/NTBRoundedSC-B-sub.otf
+ M game/fonts/NTBRoundedSC-R-sub.otf
+ M game/fonts/NTBSans-B-sub.otf
+ M game/fonts/NTBSans-R-sub.otf
+ M game/fonts/NTBSansJP-B-sub.otf
+ M game/fonts/NTBSansJP-R-sub.otf
+ M game/fonts/NTBSansSC-B-sub.otf
+ M game/fonts/NTBSansSC-R-sub.otf
+ M game/fonts/NTBTitle-sub.ttf
+ M game/fonts/ThenKhung-sub.ttf
+ M game/scripts/game/save.gd
+ M game/scripts/game/songbook.gd
+ M game/scripts/ui/replay_view.gd
+ M game/scripts/ui/screens/game_result.gd
+ M game/scripts/ui/screens/game_v16.gd
+ M game/tests/run_tests.gd
+ M game/tests/suites/coach_lab.gd
+ M game/tools/dev_main.gd
+ M game/tools/screens.json
+?? coordination/v1600-impl/b09-r1/codex.err
+?? coordination/v1600-impl/b09-r1/codex2.err
+?? coordination/v1600-impl/b09-r1/codex3.err
+?? coordination/v1600-impl/b15-plan.md
+?? coordination/v1600-impl/b15-r1/
+?? coordination/v1600-impl/b16-plan.md
+?? coordination/v1600-impl/b16-r1/
+?? coordination/v1600-impl/b17-plan.md
+?? coordination/v1600-impl/b17-r1/
+?? game/scripts/game/lesson.gd
+Files game/data/strings.csv and build/cg/b17/game/data/strings.csv differ
+
+exec
+/bin/bash -lc "rg -n 'BUDGET_MAX|SIZE_SUGGEST' build/cg/b17/game/scripts/{core/ruleset.gd,core/map_defs.gd,game/map_defs.gd}; nl -ba build/cg/b17/game/scripts/game/daily.gd | sed -n '14,40p'; rg -n 'tower_open|tw_open' build/cg/b17/game/scripts/ui/screens/game_playroom.gd; nl -ba build/cg/b17/game/scripts/ui/game_screens.gd | sed -n '980,1020p'" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "nl -ba build/cg/b17/game/scripts/ui/screens/game_v16.gd | sed -n '215,232p'; rg -n 'SIZE_SUGGEST' build/cg/b17/game/scripts; rg -n 'FINGERPRINT' build --glob '*b17*' --glob '*.log' --glob '*.txt' --max-count 1 | head -8" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 307ms:
+rg: build/cg/b17/game/scripts/game/map_defs.gd: No such file or directory (os error 2)
+build/cg/b17/game/scripts/core/ruleset.gd:39:const BUDGET_MAX := 200
+build/cg/b17/game/scripts/core/ruleset.gd:297:		if b < BUDGET_MIN or b > BUDGET_MAX:
+build/cg/b17/game/scripts/core/map_defs.gd:13:const SIZE_SUGGEST := [[60, 16, 1200], [100, 24, 1800], [130, 30, 2400]]   # 建議 金、人數、tick
+    14	static func today() -> int:
+    15		return int(Time.get_unix_time_from_system()) / 86400
+    16	
+    17	## 這一天的題目規格。mut＝這週的突變（每 7 天換一個），map／style 每天換。
+    18	static func spec(day: int) -> Dictionary:
+    19		var mut := posmod(day / 7, MUTATORS)
+    20		var map_id := 3 if mut == 3 else posmod(day * 5 + 1, 6)
+    21		return {"day": day, "key": "%d-v%d" % [day, VER], "mut": mut, "map": map_id, "style": posmod(day * 7 + 3, 5),
+    22			"level": 1, "seed": 90000 + posmod(day * 2654435761, 1000003)}
+    23	
+    24	static func pool_of(types: Array) -> int:
+    25		var p := 0
+    26		for t in types:
+    27			p |= 1 << int(t)
+    28		return p
+    29	
+    30	## 把突變套到一組（已經是自由部署、單局的）規則上。r＝RuleSet。
+    31	static func apply(r, sp: Dictionary) -> void:
+    32		r.map_id = int(sp["map"])
+    33		r.map_size = 1
+    34		r.ai_style = int(sp["style"])
+    35		r.ai_level = int(sp["level"])
+    36		r.ai_pool_same = false
+    37		r.rounds = 1
+    38		r.preset = "custom"
+    39		var kingdom := (1 << 10) - 1
+    40		var fantasy := ((1 << 20) - 1) & ~kingdom
+   980		if _hover_now != _hover_key:
+   981			_hover_key = _hover_now
+   982			if _hover_now >= 0 and sfx != null:
+   983				sfx.play("k_hover", 0.28)
+   984		_hover_now = -1
+   985	
+   986	
+   987	
+   988	func _pad_footer_items() -> Array:
+   989		if overlay == "codex":
+   990			return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("back")], ["R", L.t("pk_scroll")]]
+   991		if overlay != "":
+   992			return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("back")]]
+   993		match state:
+   994			St.TITLE:
+   995				return [["＋", L.t("pk_move")], [_pk("place"), L.t("pk_select")]]
+   996			St.BATTLE:
+   997				if play_kind != "official":
+   998					return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("back")], [_pk("codex"), L.t("br_title")]]   # 1.1.0 B10
+   999				return [[_pk("place"), L.t("pk_select")], [_pk("back"), L.t("skip")]]
+  1000			St.RESULT:
+  1001				return [["＋", L.t("pk_move")], [_pk("place"), L.t("pk_select")], [_pk("back"), L.t("menu")]]
+  1002		return []
+  1003	
+  1004	## 手把按鍵提示列（第三輪 U7）：用手把時，每個畫面右下角顯示這個畫面能按的鍵（A／B／X／Y 圓形圖示）；
+  1005	## 用鍵盤滑鼠時不顯示手把圖示（Steam Deck 規定兩者不能同時出現）。擺放畫面已經在上方列顯示，這裡略過。
+  1006	func _draw_pad_footer() -> void:
+  1007		if not pad_mode or (state == St.PLACE and overlay == ""):
+  1008			return
+  1009		var items: Array = _pad_footer_items()
+  1010		if items.is_empty():
+  1011			return
+  1012		draw_rect(Rect2(0, 770, 1280, 30), Color(0, 0, 0, 0.45))
+  1013		if layout_probe:
+  1014			probe_boxes.append({"r": Rect2(0, 770, 1280, 30), "inner": Rect2(0, 766, 1280, 34)})   # 提示列是最上層的底（不是底下兵卡的字）
+  1015			probe_faces.append([Rect2(0, 770, 1280, 30), false])   # 1.6.0 B02：壓暗條蓋在紙卡上，條上的白字不算淺紙白字
+  1016		_key_hints(640, 773, items, 14)
+  1017	
+  1018	
+  1019	
+  1020	## 滑鼠停在哪一列：輸入狀態，每幀更新一次（第七輪 H7：原本在繪圖時改狀態）。
+
+ succeeded in 6581ms:
+   215	
+   216	func _draw_next_step() -> void:
+   217		if overlay == "" and Guide.tour_due(Save.data, _demo()):
+   218			Guide.see(Save.data, "tour161")   # V1.6.1 N2：老玩家第一次開跳一次（之後在收藏卡片裡隨時可看）
+   219			Save.save_data()
+   220			overlay = "tour"
+   221			_focus = 0
+   222			return
+   223		if overlay != "":
+   224			return
+   225		var k := Guide.next_step(Save.data, _daily_done_today(), _demo()) if Save.s("hints") != "off" else ""
+   226		# 右上角（示範戰場上方的空白）；高度照字級算
+   227		var NS_RECT := Rect2(830, 20, 400, ceilf(22.0 + tz("C") * 1.25 + tz("S") * 1.35))   # 1.4.0：便箋上下多留空（字框不貼到下緣厚度，R12）；1.5.0 §13：整組上移，不壓示範戰場的框
+   228		call("_draw_recent", (NS_RECT.end.y + 8.0) if k != "" else 20.0)   # 1.2.0 §11.11
+   229		if k == "":
+   230			return
+   231		# 1.4.0 §12.1：原本深藍膠囊（易和藍隊色混）→ 牛皮紙便箋＋黃銅圖釘、墨字、朱紅小旗
+   232		_btn(NS_RECT, "", _next_action(k), true, false, PAL.KRAFT)
+build/cg/b17/game/scripts/core/map_defs.gd:13:const SIZE_SUGGEST := [[60, 16, 1200], [100, 24, 1800], [130, 30, 2400]]   # 建議 金、人數、tick
+build/cg/b17/game/scripts/ui/lobby_view.gd:1035:	var s: Array = MapDefs.SIZE_SUGGEST[z]
+build/cg/b17/game/scripts/game/daily.gd:102:	var s: Array = MapDefs.SIZE_SUGGEST[1]
+build/cg/b17/game/scripts/ui/screens/game_modes.gd:69:	var s: Array = MapDefs.SIZE_SUGGEST[r.map_size]
+build/cg/b17/game/scripts/ui/screens/game_modes.gd:215:		var tb: int = int(x["budget"]) if x.has("budget") else int(MapDefs.SIZE_SUGGEST[int(t[1])][0])
+build/tmp/v16check2/t_determinism.log:6:FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+build/tmp/audit/full.txt:1:CHECK OK：50 步（快取 0）、測試 5333 項、1115 秒｜FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+build/check-cache/t_determinism-3d6fbd7b85ca8ca496c6.log:6:FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+build/tmp/v16check2/fingerprint.txt:1:FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+build/tmp/audit/full/t_determinism.log:6:FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+build/tmp/audit/full/fingerprint.txt:1:FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+build/tmp/v16check/t_determinism.log:6:FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+build/tmp/audit/cached.txt:1:CHECK OK：50 步（快取 33）、測試 5333 項、402 秒｜FINGERPRINT b8fe741bcbfcf800  數值摘要 288176c5c9af5a79
+
+exec
+/bin/bash -lc "nl -ba build/cg/b17/game/scripts/ui/screens/game_menus.gd | sed -n '130,166p'; rg -n 'tower|tw_' build/cg/b17/game/scripts/ui/screens/game_v16.gd | head -18; nl -ba build/cg/b17/game/tests/suites/save.gd | sed -n '419,425p'; rg -n 'func _draw_|_draw_lock' build/cg/b17/game/scripts/ui/screens/game_menus.gd | head -12" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 334ms:
+   130	
+   131	
+   132	
+   133	func _start_free_intro() -> void:
+   134		overlay = ""
+   135		lobby_kind = "ai"
+   136		lobby_r = Presets.make("standard", "ai", _lobby_unlocked())
+   137		lobby_r.rounds = 1
+   138		lobby_r.ai_level = 0
+   139		rules = lobby_r.copy()
+   140		difficulty = 0
+   141		set("challenge_army", null)
+   142		_start_mode(Mode.VS_AI)
+   143		free_intro = true
+   144		free_intro_moved = false
+   145	
+   146	
+   147	
+   148	func _draw_save_notice() -> void:
+   149		var msg := ""
+   150		if Save.data_locked:
+   151			msg = L.t("save_locked")
+   152		elif Save.data_source == "bak":
+   153			msg = L.t("save_from_backup")
+   154		elif Save.has_unsaved():
+   155			msg = L.t("save_failed")
+   156		if msg == "":
+   157			return
+   158		var h := text_h(msg, tz("S"), 760) + 14
+   159		draw_rect(Rect2(490, 8, 780, h), Color(0.35, 0.12, 0.08, 0.92))
+   160		_text(Vector2(500, 12 + tz("S")), msg, tz("S"), Color("#ffe8c8"), false, false, 760)
+   161	
+   162	
+   163	
+   164	const HOME_CX := 255.0   # V1.5.2 L5：主畫面左欄中線（木牌 70～440 的中線）
+   165	
+   166	## 1.4.0 §12.1 標題主次：對戰主牌多高的量；底架 5 隻代表木偶 [腳點, 兵種, 隊, 縮放]（後排小、前排大，錯落）
+379:		"tower_fork":
+380:			_draw_tower_fork()
+2630:const Tower = preload("res://scripts/game/tower.gd")
+2631:var tower_on := false
+2632:var tower_floor := 1
+2633:var tower_result := -1   # 這一層的正式結算（-1＝還沒、0＝過、1＝沒過）；結果頁的按鈕只看它（覆盤改陣贏了不能跳層，Codex cat11 #2）
+2636:static func tower_button(result: int, floor_no: int) -> Array:
+2638:		return ["tw_next", floor_no + 1]
+2640:		return ["tw_again", 1]
+2644:func _tower_open() -> void:
+2648:	var rt := _tw_route()
+2651:		_tw_save_route(rt)
+2653:		_toast(L.t("tw_resume", [int(rt["floor"])]))
+2655:		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
+2658:	_tower_start(int(rt["floor"]))
+2660:## 1.6.0 B17：目前的路線（存檔的 tower_route；沒有就從 tower_run 遷移，不猜歷史）
+2661:func _tw_route() -> Dictionary:
+2662:	var rt = Tower.sanitize_route(Save.data.get("tower_route"))
+   419		for bad in ["x", 5, {"v": 1, "floor": 4, "path": "cc", "seals": 0, "done": 3}, {"v": 9, "floor": 1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": -1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "x", "seals": 0, "done": 3}, {"v": 1, "floor": 1.0e30, "path": "", "seals": 0, "done": 0}]:
+   420			ok(T.sanitize_route(bad) == null, "壞路線讀回＝不用（改由 tower_run 遷移）：%s" % str(bad))
+   421		var keep: Dictionary = SV.data.duplicate(true)
+   422		var lk: bool = SV.data_locked
+   423		SV.data_locked = false
+   424		var g = GS.new()
+   425		g.sfx = FakeSfx.new()
+33:func _draw_gauntlet_pick() -> void:
+56:func _draw_keys() -> void:
+148:func _draw_save_notice() -> void:
+169:func _draw_title() -> void:
+337:func _draw_overlay() -> void:
+634:func _draw_fs_confirm() -> void:
+910:func _draw_pause_menu() -> void:
+929:func _draw_settings() -> void:
+1218:func _draw_confirm() -> void:
+1359:func _draw_restore() -> void:
+1379:func _draw_clear_data() -> void:
+1432:func _draw_slots() -> void:
+
+exec
+/bin/bash -lc "rg -n '_draw_save_notice|_tower_open|tw_open' build/cg/b17/game/scripts/ui; nl -ba build/cg/b17/game/scripts/ui/game_screens.gd | sed -n '948,965p'; nl -ba build/cg/b17/game/scripts/ui/screens/game_core.gd | head -14" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 521ms:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2644:func _tower_open() -> void:
+build/cg/b17/game/scripts/ui/screens/game_result.gd:426:			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_open")])   # 1.6.0 B17：走路線（岔口先選路；輸了路線已結束＝開新的）
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:148:func _draw_save_notice() -> void:
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:173:	_draw_save_notice()
+build/cg/b17/game/scripts/ui/screens/game_menus.gd:1667:				["tw_open", "hc_tw_d", "tower", func(): overlay = ""; call("_tower_open"), not _demo()]]   # 1.4.0 §11.1 無盡塔
+   948		var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
+   949		if obj_open_force >= 0.0:
+   950			open_k = obj_open_force   # 開發截圖：固定在開到一半
+   951		if open_k < 1.0 and obj_open_kind != "":
+   952			_obj_open_anim(obj_open_r, obj_open_kind, open_k)   # 1.2.0 第 11 大類：實物開合（只疊畫；和內容一起滑，Codex cat08 #1）
+   953		if slide != Vector2.ZERO:
+   954			mouse = m0
+   955			ui_xf = Transform2D.IDENTITY
+   956			Art.base = Transform2D.IDENTITY
+   957			draw_set_transform_matrix(Transform2D.IDENTITY)
+   958		_draw_intro()   # 1.3.0 §13 掌燈開門（最上層）
+   959		if ok_k < 1.0:
+   960			draw_rect(Rect2(0, 0, 1280, 800), Color(0.08, 0.05, 0.03, 0.55 * (1.0 - ok_k) * (1.0 - ok_k)))
+   961		_draw_pad_footer()
+   962		if toast_t > 0:
+   963			var a := minf(1.0, toast_t * 2)
+   964			var tw := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, ts(20)).x + 40
+   965			var ty := 40.0 if overlay != "" else 600.0   # 覆蓋層開著時放上面；平常放在兵種提示條（y 654）上面（第四輪 Antigravity）
+     1	extends "res://scripts/ui/free_place.gd"
+     2	## 由 game_screens.gd 拆出（V9 P1，行為不變）
+     3	## 狀態機、模式、輸入、擺放、標題、選單、設定、結果、成就。
+     4	
+     5	## 第七輪 S7：每次啟動一個 session、每局一個 game；彙整工具靠這兩個去重（評分和對戰是兩行，不能重複算局數）。
+     6	var pt_session := str(Time.get_unix_time_from_system()) + "-" + str(randi())
+     7	var pt_game := 0
+     8	
+     9	var keys_capture := ""   # 第七輪 K1：正在改哪個按鍵（"kb:start"／"pad:place"）
+    10	
+    11	# ───────────────────────── 每幀 ─────────────────────────
+    12	## 最小化時 Godot 不繪製，也就沒有垂直同步節流，主迴圈會空轉吃滿一核；降到 10 fps，模擬照常跑（用 delta 累積）。
+    13	var _was_minimized := false
+    14	## 搖桿連發（第三輪 A2）：超過 0.6 才算推、低於 0.35 才算放開（遲滯）；推下立刻一次，0.35 秒後每 0.12 秒一次。
+nl: could not write output: Broken pipe
+
+codex
+- P2｜[tower.gd:86](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b17/game/scripts/game/tower.gd:86)：加減發生在預算封頂前；第21層契約、第37層休整皆被200上限吃掉，實際無效果，違反卡片承諾。
+- P2｜[tower.gd:130](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b17/game/scripts/game/tower.gd:130)：驗型未檢查狀態一致性；floor=4、done=4仍接受，結算永遠被擋；floor=7、path=""則把新選擇錯套到第4層。
+- P2｜[game_v16.gd:2732](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b17/game/scripts/ui/screens/game_v16.gd:2732)：兩次寫檔皆失敗時，下一行開層提示立即覆蓋失敗提示；擺陣頁沒有常駐未存警告，重啟會失去選路。
+- P2｜[game_v16.gd:2703](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b17/game/scripts/ui/screens/game_v16.gd:2703)：登記未知類別tower_fork，R14直接跳過數量檢查。
+
+靜態核對：雜湊無機器依賴；有效新路線優先；核心模擬檔相同，未執行FINGERPRINT。
+
+結論：有條件
+tokens used
+73,301

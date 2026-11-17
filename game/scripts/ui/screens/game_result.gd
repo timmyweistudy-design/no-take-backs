@@ -1,6 +1,8 @@
 extends "res://scripts/ui/screens/game_place.gd"
 ## 由 game_screens.gd 拆出（V9 P1，行為不變）
 
+var sw_dup := false
+
 func _start_mode(m: int) -> void:
 	nav_stack.clear()   # V1.5.1：進擺陣後，從擺陣開的圖鑑返回要回擺陣，不能彈出主畫面的卡片面板（Codex v151-i1 #1）
 	free_intro = false
@@ -24,6 +26,7 @@ func _start_mode(m: int) -> void:
 		set("challenge_army", null)
 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
 	set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
+	set("swap_ai", false)     # 1.6.0 B18
 	set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
 	set("cp_on", false)       # 1.2.0 §11.6：_cp_start 會在 _start_mode 之後再設回來
 	set("camp_id", "")        # 1.2.0 §11.7：_camp_play 會在 _start_mode 之後再設回來
@@ -72,6 +75,7 @@ func _finish_battle() -> void:
 			series_over = true   # V1.4 #13：只封了三陣，平手也不打第四局（Antigravity v140-i3）
 		if series_over and bool(get("sealed_on")) and mode == Mode.DUEL and play_kind == "official":
 			call("_ach", "SEALED_DONE")   # V1.5
+		sw_dup = bool(get("swap_ai")) and int(get("sw_settled")) == round_no   # 1.6.0 B18：這一局已結算過（重複回呼）＝統計也不重記（Codex B18 r3）
 		call("_swap_settle")   # 1.2.0 §11.5：換邊雙局照玩家記分、兩局就結束
 	call("_camp_settle")   # 1.2.0 §11.7 戰役評星
 	if bool(get("wv_active")) and mode == Mode.VS_AI and play_kind == "official":
@@ -92,7 +96,7 @@ func _finish_battle() -> void:
 	sfx.play("ui_quill", 0.45)   # V1.3 B4：戰報寫上羊皮紙的筆聲（各模式都有）
 	if eff["progress"] and bool(get("daily_practice")):
 		call("_daily_finish", w)   # 1.1.0：每日練習只給練習結果提示，不記戰績、成就、對戰紀錄（Codex v110-i2 #3）
-	elif eff["progress"]:
+	elif eff["progress"] and not sw_dup:
 		_progress_and_achievements()
 		if mode == Mode.VS_AI or mode == Mode.GAUNTLET or mode == Mode.DUEL:
 			call("_record_match", w)
@@ -423,14 +427,14 @@ func _draw_result() -> void:
 		if not tb.is_empty():
 			bs.clear()
 			var nf: int = int(tb[1])
-			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_start", nf)])
+			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_open")])   # 1.6.0 B17：走路線（岔口先選路；輸了路線已結束＝開新的）
 	if watch_mode:
 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
 
 	var n_main := bs.size()   # V1.5：前面這幾顆是主動作（繼續、重試、下一題），後面是次入口
 	# 1.5.0 §1.5：底列＝最多 2 顆主動作＋「更多」＋「主選單」；其他（覆盤、教練、分享、重播、代碼、圖鑑、多出來的主動作）收進「更多」
 	res_more_items = []
-	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
+	if (mode == Mode.VS_AI or (bool(get("swap_ai")) and int(call("swap_ai_my_color")) == 0)) and last_armies.size() == 2 and not watch_mode:   # 1.6.0 B18：對 AI 換邊雙局你擺藍的那一局也能覆盤（覆盤以藍方為你）
 		if _near_miss():
 			bs.insert(0, [L.t("review_near"), func(): _open_review()])   # 第十輪 F4：輸得很近，主推覆盤
 			n_main += 1
@@ -786,7 +790,7 @@ func _next_round() -> void:
 		call("_sealed_start")   # V1.4 #13：三戰打完再來＝重新封三陣（不是重打同一組，Antigravity v140-i3）
 		return
 	if series_over and bool(get("swap_on")) and mode == Mode.DUEL:
-		call("_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）
+		call("_swap_ai_start", true) if bool(get("swap_ai")) else call("_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）；1.6.0 B18 對 AI 版照原樣再來
 		return
 	if series_over:
 		wins = [0, 0]

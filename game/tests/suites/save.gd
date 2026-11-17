@@ -386,3 +386,132 @@ func test_session_contract_tower_v1600() -> void:
 	g.free()
 	SV.data = keep
 	SV.save_data()
+
+
+## 1.6.0 B17（P7.1、P7.2；S6；IN-160-05）塔分岔＋完整續塔：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 tower_run 讀回；
+## 重複點、重啟、寫檔失敗。
+func test_tower_route_v1600() -> void:
+	var T = load("res://scripts/game/tower.gd")
+	var SV = load("res://scripts/game/save.gd")
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var st: Dictionary = T.new_route()
+	ok(not T.fork_due(st) and T.choose(st, "c") == st, "第 1 層不用選路；不該選時點了不改")
+	for f in [1, 2, 3]:
+		st = T.settle(st, f, true)[0]
+	ok(int(st["floor"]) == 4 and T.fork_due(st), "打完第 3 層：第 4 層開打前要選路")
+	var st_c: Dictionary = T.choose(st, "c")
+	ok(st_c["path"] == "c" and T.choose(st_c, "r") == st_c and not T.fork_due(st_c), "選了契約；重複點／改點不改路線")
+	ok(T.route_adj("c", 4) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 6) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 7) == [0, false] and T.route_adj("r", 4) == [-T.REST_CUT, false] and T.route_adj("r", 5) == [0, false], "契約：三層 +%d；休整：下一層 −%d" % [T.CONTRACT_BONUS, T.REST_CUT])
+	var LS9 = load("res://scripts/game/strings.gd")
+	var RSm = load("res://scripts/game/roster.gd")
+	var mk: int = RSm.mask(false)
+	var b0: int = int(T.make_rules(T.spec(4), mk).budget_of(1))
+	ok(int(T.make_rules(T.spec_route(st_c, 4), mk).budget_of(1)) == mini(200, b0 + T.CONTRACT_BONUS) and int(T.make_rules(T.spec_route({"path": "r"}, 4), mk).budget_of(1)) == b0 - T.REST_CUT, "路線改的是這一層的敵方預算（封頂後加減）")
+	# 封頂後：休整一定有效；契約到上限＝0（卡片照實寫）
+	var capped := 0
+	var rest_ok := 0
+	for f in range(4, 60, 3):
+		if T.route_effect(f, T.CONTRACT_BONUS, mk) == 0:
+			capped += 1
+		if T.route_effect(f, -T.REST_CUT, mk) == -T.REST_CUT:
+			rest_ok += 1
+	ok(rest_ok == 19, "休整在每個岔口都真的少 %d 金（%d／19）" % [T.REST_CUT, rest_ok])
+	var v16s: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+	ok(v16s.find("L.t(\"tw_fork_c_cap\", [Tower.CONTRACT_SPAN])") >= 0, "契約到上限的岔口照實寫（%d 個岔口到上限）" % capped)
+	# 逐層照實：三層的實際加碼都照算（部分封頂列出每層）
+	var mism := 0
+	for f in range(4, 60, 3):
+		var txt: String = GS.fork_contract_text(f, mk)
+		var eff: Array = []
+		for k in T.CONTRACT_SPAN:
+			eff.append(T.route_effect(f + k, T.CONTRACT_BONUS, mk))
+		var full := eff.all(func(x): return int(x) == T.CONTRACT_BONUS)
+		var none := eff.all(func(x): return int(x) == 0)
+		if (full and txt != LS9.t("tw_fork_c_d", [T.CONTRACT_SPAN, T.CONTRACT_BONUS])) or (none and txt != LS9.t("tw_fork_c_cap", [T.CONTRACT_SPAN])) or (not full and not none and txt != LS9.t("tw_fork_c_part", ["／".join(PackedStringArray(eff.map(func(x): return "+%d" % int(x))))])):   # 部分封頂：三層完整比對（Codex B17 r3）
+			mism += 1
+	ok(mism == 0, "契約卡逐層照實（不符 %d 個岔口）" % mism)
+	var s4: Array = T.settle(st_c, 4, true)
+	ok(bool(s4[1]) and int(s4[0]["seals"]) == 1 and int(s4[0]["floor"]) == 5, "契約層過了：一枚契約章")
+	ok(not bool(T.settle(s4[0], 4, true)[1]) and not bool(T.settle(s4[0], 9, true)[1]), "同一層再結算、不是這一層：都不變（不重領）")
+	# 兩機相同：路線雜湊只由版本、選擇、層數決定（寫檔讀回、另一台重算都一樣）
+	var rt: Dictionary = JSON.parse_string(JSON.stringify(s4[0]))
+	ok(T.route_hash(T.sanitize_route(rt)) == T.route_hash(s4[0]) and T.route_hash({"v": 1, "path": "c", "floor": 5}) == ("1|c|5").sha256_text().substr(0, 12), "路線雜湊兩機相同（%s）" % T.route_hash(s4[0]))
+	# 舊存檔 tower_run 讀回（不猜歷史）
+	var d := {"tower_run": 8, "tower_best": 7}
+	SV.sanitize_data(d)
+	ok(d["tower_route"] == {"v": 1, "floor": 8, "path": "--", "seals": 0, "done": 7} and not T.fork_due(d["tower_route"]) and int(d["tower_run"]) == 8, "舊 tower_run＝8：同一層、過去兩個岔口記「-」、不補問", str(d.get("tower_route")))
+	var fut := {"v": 9, "floor": 30, "path": "zz", "seals": 4, "done": 29, "new_field": 1}
+	var df := {"tower_run": 30, "tower_route": fut.duplicate(true)}
+	SV.sanitize_data(df)
+	ok(df["tower_route"] == fut and T.route_is_future(df["tower_route"]), "§3.1：新版存的路線原樣保留（不遷移、不覆寫）")
+	var d0 := {"tower_run": 0}
+	SV.sanitize_data(d0)
+	ok(not d0.has("tower_route"), "沒有進行中的塔：不多出欄位")
+	for bad in ["x", 5, {"v": 1, "floor": 4, "path": "cc", "seals": 0, "done": 3}, {"v": 9, "floor": 1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": -1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "x", "seals": 0, "done": 3}, {"v": 1, "floor": 1.0e30, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 4}, {"v": 1, "floor": 7, "path": "", "seals": 0, "done": 6}]:
+		ok(T.sanitize_route(bad) == null, "壞路線讀回＝不用（改由 tower_run 遷移）：%s" % str(bad))
+	var keep: Dictionary = SV.data.duplicate(true)
+	var lk: bool = SV.data_locked
+	SV.data_locked = false
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	# 會話範本：岔口選路承諾 → 重啟不重抽 → 結算一次
+	session_contract("塔分岔", {
+		"start": func():
+			SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
+			SV.data["tower_run"] = 4
+			g._tw_choose("c")
+			return g._tw_route(),
+		"commit": func(_s): return SV.data.duplicate(true),
+		"restart": func(sv):
+			var d2: Dictionary = SV.migrate(JSON.parse_string(JSON.stringify(sv)))
+			SV.sanitize_data(d2)
+			SV.data["tower_route"] = d2["tower_route"]
+			SV.data["tower_run"] = d2["tower_run"]
+			return g._tw_route(),
+		"settle": func(s):
+			var b: String = var_to_str(g._tw_route())
+			g.tower_on = true
+			g.mode = g.Mode.VS_AI
+			g.play_kind = "official"
+			g.tower_floor = 4
+			g._tower_finish(0)
+			return [g._tw_route(), var_to_str(g._tw_route()) != b],
+		"same": func(a, b): return a == b,
+		"bad_inputs": ["x", null, {}, {"v": 1}],
+		"sanitize": func(v):
+			var d3 := {"tower_route": v, "tower_run": 3}
+			SV.sanitize_data(d3)
+			return d3["tower_route"],
+		"old_samples": [[{"tower_run": 5}, {"v": 1, "floor": 5, "path": "-", "seals": 0, "done": 4}]],
+	})
+	SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
+	g.tower_floor = 1
+	g._tw_choose("c")
+	g.tower_on = true
+	g.mode = g.Mode.VS_AI
+	g.play_kind = "official"
+	var f_started: int = g.tower_floor
+	g._tower_finish(0)
+	ok(f_started == 4 and int(g._tw_route()["seals"]) == 1 and int(g._tw_route()["floor"]) == 5, "岔口選完直接開打第 4 層；過了得契約章", str([f_started, g._tw_route()]))
+	# 寫檔失敗：選路照樣生效、標未存、重試寫進去
+	SV.data["tower_route"] = {"v": 1, "floor": 7, "path": "c", "seals": 3, "done": 6}
+	SV.fail_inject = {"tmp": 1}
+	g._tw_choose("r")
+	ok(g._tw_route()["path"] == "cr" and int(SV.fail_inject.get("tmp", 0)) == 0 and not SV.has_unsaved(), "寫檔失敗：路線照樣生效（在記憶體），開打時再寫一次就補進去", str([g._tw_route(), SV.has_unsaved()]))
+	g._tw_choose("c")
+	ok(g._tw_route()["path"] == "cr", "重複點：已選過不改")
+	# 結果頁：岔口時按「爬下一層」＝先開岔路
+	SV.data["tower_route"] = {"v": 1, "floor": 10, "path": "cr", "seals": 3, "done": 9}
+	g.overlay = ""
+	g._tower_open()
+	ok(g.overlay == "tower_fork", "第 10 層開打前：先選路", str([g.overlay, g._tw_route()]))
+	SV.data["tower_route"] = fut.duplicate(true)
+	g.overlay = ""
+	g.tower_on = false
+	g._tower_open()
+	g._tower_start(5)
+	ok(SV.data["tower_route"] == fut and not g.tower_on, "新版路線：塔入口唯讀（不開打、不覆寫）")
+	g.free()
+	SV.data = keep
+	SV.save_data()
+	SV.data_locked = lk

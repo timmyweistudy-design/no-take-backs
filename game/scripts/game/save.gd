@@ -189,6 +189,16 @@ static func sanitize_data(out: Dictionary) -> void:
 	var twb = out.get("tower_best", 0)
 	out["tower_best"] = clampi(int(twb), 0, 100000) if (twb is int or twb is float) else 0   # 1.4.0 §11.1 無盡塔最高層
 	out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
+	# 1.6.0 B17（P7.2）完整續塔：tower_route；沒有或壞了＝從 tower_run 遷移（不猜歷史）。有路線就以路線為準、tower_run 跟著同步（舊版讀得懂）
+	if load("res://scripts/game/tower.gd").route_is_future(out.get("tower_route")):
+		pass   # 1.6.0 B17（§3.1）：新版遊戲存的路線＝原樣保留、不遷移不覆寫（塔入口會提示需要新版）
+	elif out.has("tower_route") or int(out["tower_run"]) > 0:
+		var TW = load("res://scripts/game/tower.gd")
+		var rt = TW.sanitize_route(out.get("tower_route"))
+		if rt == null:
+			rt = TW.migrate_old(int(out["tower_run"]))
+		out["tower_route"] = rt
+		out["tower_run"] = int(rt["floor"])
 	var ods = out.get("od_stamps", 0)
 	out["od_stamps"] = clampi(int(ods), 0, 100000) if (ods is int or ods is float) else 0
 	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）
@@ -377,6 +387,13 @@ static func _is_int_num(x) -> bool:
 	return _is_num(x) and float(x) == floorf(float(x))   # 整數（JSON 讀進來是 float，小數不收；Codex v110-i2 #8）
 
 static func sanitize_extras(out: Dictionary) -> void:
+	# 1.6.0 B18（§3.1）對 AI 換邊雙局的會話：壞了＝沒有進行中的一組
+	if out.has("swap_ai_run"):
+		var swr = preload("res://scripts/game/swap_duel.gd").sanitize_run(out["swap_ai_run"])
+		if swr == null:
+			out.erase("swap_ai_run")
+		else:
+			out["swap_ai_run"] = swr
 	# 1.6.0 B15（P6.2）棋課：沒有這個欄位＝舊存檔＝不補（讀回不改寫舊進度）；有就逐則驗型、壞的丟掉
 	if out.has("lessons"):
 		out["lessons"] = preload("res://scripts/game/lesson.gd").sanitize(out["lessons"])[0]

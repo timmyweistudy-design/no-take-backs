@@ -172,6 +172,8 @@ func _on_start() -> void:
 				_toast(L.t("sealed_swap"))   # Antigravity v140-i3：第三封封完要說換人
 			return
 		blind_phase += 1
+		if blind_phase == 1 and bool(get("swap_ai")):
+			call("_swap_ai_fill", 1)   # 1.6.0 B18：玩家擺好藍方＝AI 擺紅方，直接可以開戰
 		sfx.play("turn")
 		return
 	if armies[0].count() == 0 and not _full_blocked_ok():
@@ -197,8 +199,10 @@ func _on_start() -> void:
 	_on_start_go()
 
 func _on_start_go() -> void:
-	last_player_formation = armies[0].units.duplicate(true)
-	if mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET:
+	var ai_blue: bool = bool(get("swap_ai")) and int(call("swap_ai_my_color")) == 1   # 1.6.0 B18：你擺紅的那一局，藍方是 AI 的陣（不記成你的上一陣；Codex B18 r1）
+	if not ai_blue:
+		last_player_formation = armies[0].units.duplicate(true)
+	if (mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET) and not ai_blue:
 		Save.data["last_form"] = armies[0].to_code()   # 1.2.0 §11.1「複製上一陣」（下次擺陣按 L）
 	_begin_battle(armies[0].copy(), armies[1].copy())
 

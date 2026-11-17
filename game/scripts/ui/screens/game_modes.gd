@@ -960,7 +960,7 @@ func _record_match(w: int) -> void:
 	var wr: Dictionary = Save.data.get("unit_wins_rec", {})
 	for k in seen:
 		gr[k] = int(gr.get(k, 0)) + 1
-	if w >= 0 and (w == 0 or mode == Mode.DUEL):
+	if w >= 0 and (w == 0 or mode == Mode.DUEL) and not (bool(get("swap_ai")) and w != int(call("swap_ai_my_color"))):   # 1.6.0 B18：AI 贏的不算你的兵種勝場
 		var won := {}
 		var wa = armies[w] if w < armies.size() and armies[w] != null else armies[0]
 		for u in wa.units:

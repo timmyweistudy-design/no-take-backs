@@ -1,0 +1,1204 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e605-cdf0-7182-9961-075b726cfd00
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B17 第 3 輪＝最後一輪）。只讀。專案根目錄＝目前資料夾。
+第 2 輪 coordination/v1600-impl/b17-r1/codex2.md（契約卡只算首層）；新差異 diff3.patch（同資料夾；快照 build/cg/b17/game）。
+處理：`fork_contract_text(f, mask)` 逐層算三層封頂後實際加碼：全滿＝原句、全為 0＝已到上限、其餘＝逐層列出「+2／+8／+8」；測試對 4～58 層每個岔口核對文字與實際一致。
+只看這個修正。附行號。最多 2 條、150 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀檢查 diff3.patch、相關實作與測試，聚焦三層封頂後的加碼文字是否與實際一致。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'diff3.patch' -g 'codex2.md' -g '*fork*' -g '*b17*'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 207ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v140-impl/cat11-r1/codex2.md
+game/scripts/game/fork_compare.gd.uid
+game/scripts/game/fork_compare.gd
+coordination/v1600-impl/b17-r1/hy1/tower_fork_zh_TW_100.png
+coordination/v1600-impl/b17-r1/hy1/tower_fork_ja_150.png
+coordination/v1600-impl/b17-r1/hy1/tower_fork_en_150.png
+coordination/v1600-impl/b17-r1/diff3.patch
+coordination/v1600-impl/b17-r1/codex2.md
+coordination/v1600-impl/b17-r1/b17-plan.md
+coordination/v1600-impl/b17-plan.md
+coordination/v140-impl/cat08-r1/diff3.patch
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v1600-impl/b16-r1/diff3.patch
+coordination/v1600-impl/b16-r1/codex2.md
+coordination/v1600-impl/b15-r1/diff3.patch
+coordination/v1600-impl/b15-r1/codex2.md
+coordination/v1600-impl/b01-r1/codex2.md
+coordination/v1500-impl/cat07-r1/diff3.patch
+coordination/v1500-impl/cat07-r1/codex2.md
+coordination/v1600-impl/b03-r1/codex2.md
+coordination/v1500-impl/cat04-r1/codex2.md
+coordination/v1600-impl/b14-r1/diff3.patch
+coordination/v1600-impl/b14-r1/codex2.md
+coordination/v1600-impl/b05-r1/codex2.md
+coordination/v1600-impl/b11-r1/diff3.patch
+coordination/v1600-impl/b11-r1/codex2.md
+coordination/v1600-impl/b02-r1/codex2.md
+coordination/v1600-impl/b09-r1/diff3.patch
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1500-impl/cat03-r1/diff3.patch
+coordination/v1500-impl/cat03-r1/codex2.md
+coordination/v1600-impl/b04-r1/codex2.md
+coordination/v1600-impl/b08-r1/diff3.patch
+coordination/v1600-impl/b08-r1/codex2.md
+coordination/v1600-impl/b10-r1/codex2.md
+coordination/v1600-impl/b12-r1/codex2.md
+coordination/v1600-impl/b12-r1/diff3.patch
+coordination/v1500-impl/cat05-r1/codex2.md
+coordination/v1600-impl/b06-r1/diff3.patch
+coordination/v1600-impl/b06-r1/codex2.md
+coordination/v1500-impl/cat06-r1/codex2.md
+coordination/v1600-impl/b07-r1/codex2.md
+coordination/v1500-impl/cat02-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/codex2.md
+coordination/v1500-impl/cat01-r1/codex2.md
+coordination/v1500-impl/cat01-r1/diff3.patch
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b17-r1/codex2.md coordination/v1600-impl/b17-r1/diff3.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+- P2｜[game_v16.gd:2688](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b17/game/scripts/ui/screens/game_v16.gd:2688)：契約卡僅算首層，卻描述接下來三層。第13～15層實際加碼為2／8／8，卡片卻稱全部已封頂、不再加；第19～21層為8／8／0，卻承諾每層加8。應逐層計算並呈現部分封頂。
+- 其餘三項修正靜態核對正確；未執行 Godot 測試。
+
+結論：有條件
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -376,6 +376,8 @@
+ 			_draw_share()
+ 		"songbook":
+ 			_draw_songbook()
++		"tower_fork":
++			_draw_tower_fork()
+ 		"sb_full":
+ 			_draw_sb_full()
+ 		"campaign":
+@@ -2640,16 +2642,92 @@
+ 
+ ## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
+ func _tower_open() -> void:
+-	var run := int(Save.data.get("tower_run", 0))
+-	if run > 1:
+-		_toast(L.t("tw_resume", [run]))
+-	_tower_start(maxi(1, run))
++	if _demo():
++		_toast(L.t("demo_locked"), true)
++		return
++	var rt := _tw_route()
++	if int(rt["floor"]) <= 0:
++		rt = Tower.new_route()   # 沒有進行中的塔：開一條新路線
++		_tw_save_route(rt)
++	elif int(rt["floor"]) > 1:
++		_toast(L.t("tw_resume", [int(rt["floor"])]))
++	if Tower.fork_due(rt):
++		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
++		_focus = 0
++		return
++	_tower_start(int(rt["floor"]))
++
++## 1.6.0 B17：目前的路線（存檔的 tower_route；沒有就從 tower_run 遷移，不猜歷史）
++func _tw_route() -> Dictionary:
++	var rt = Tower.sanitize_route(Save.data.get("tower_route"))
++	return rt if rt != null else Tower.migrate_old(int(Save.data.get("tower_run", 0)))
++
++## 寫路線（tower_run 同步給舊版）；寫檔失敗照實說（記憶體裡照樣往下，Save 會重試）
++func _tw_save_route(rt: Dictionary) -> bool:
++	Save.data["tower_route"] = rt
++	Save.data["tower_run"] = int(rt["floor"])
++	if Save.save_data():
++		return true
++	_toast(L.t("save_failed"), true)
++	return false
++
++## 岔口：選契約或休整（重複點、晚到的點擊不改路線）。選完存檔、直接開打這一層。
++func _tw_choose(c: String) -> void:
++	var rt := _tw_route()
++	if not Tower.fork_due(rt):
++		return
++	rt = Tower.choose(rt, c)
++	_tw_save_route(rt)
++	overlay = ""
++	_tower_start(int(rt["floor"]))
++
++## 契約卡的說明：三層逐層算封頂後實際加多少（全滿＝原句、全封頂＝已到上限、部分＝逐層列出；Codex B17 r2）
++static func fork_contract_text(f: int, mask: int) -> String:
++	var eff: Array = []
++	for k in Tower.CONTRACT_SPAN:
++		eff.append(Tower.route_effect(f + k, Tower.CONTRACT_BONUS, mask))
++	if eff.all(func(x): return int(x) == Tower.CONTRACT_BONUS):
++		return L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])
++	if eff.all(func(x): return int(x) == 0):
++		return L.t("tw_fork_c_cap", [Tower.CONTRACT_SPAN])
++	var parts: PackedStringArray = []
++	for x in eff:
++		parts.append("+%d" % int(x))
++	return L.t("tw_fork_c_part", ["／".join(parts)])
++
++func _draw_tower_fork() -> void:
++	_dim(0.6)
++	var rt := _tw_route()
++	var f := int(rt["floor"])
++	var cd := fork_contract_text(f, RS.mask(false))
++	var cards := [["c", L.t("tw_fork_c"), cd], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [-Tower.route_effect(f, -Tower.REST_CUT, RS.mask(false))])]]
++	var ch := 0.0
++	for c in cards:
++		ch = maxf(ch, 16.0 + tz("B") * 1.4 + text_h(str(c[2]), tz("S"), 300) + 16.0)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
++	for i in 2:
++		var c: Array = cards[i]
++		var r := Rect2(640 - 340 + i * 350, y, 330, ch)
++		var key: String = c[0]
++		_btn(r, "", func(): _tw_choose(key), Tower.fork_due(rt))   # 兩條路同等份量（不設主鈕；主鈕的圓鈕裝飾會壓到卡片字）
++		_text(r.position + Vector2(165, 16), str(c[1]), tz("B"), INK if last_btn_paper else Color.WHITE, true, true, 300)
++		_text(r.position + Vector2(165, 16 + tz("B") * 1.4), str(c[2]), tz("S"), INK if last_btn_paper else TXT_DIM, true, false, 300)
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++	screen_register("result", "tw_fork_c")   # 從結果頁／遠征牌進來的選擇框：照結果類上限檢查（Codex B17 r1）
+ 
+ func _tower_start(floor_no: int) -> void:
+ 	if _demo():
+ 		_toast(L.t("demo_locked"), true)
+ 		return
+-	var sp: Dictionary = Tower.spec(floor_no)
++	var rt := _tw_route()
++	if int(rt["floor"]) != floor_no:
++		rt = Tower.new_route()   # 不是路線上的這一層（例如規則不合法退回第 1 層）：重開一條
++		rt["floor"] = floor_no
++		rt["done"] = floor_no - 1
++		rt["path"] = "-".repeat((floor_no - 1) / Tower.FORK_EVERY)
++	var sp: Dictionary = Tower.spec_route(rt, floor_no)
+ 	var r = Tower.make_rules(sp, RS.mask(false))
+ 	if not r.validate().is_empty():
+ 		_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
+@@ -2666,15 +2744,18 @@
+ 	tower_on = true
+ 	tower_floor = int(sp["floor"])
+ 	tower_result = -1
+-	Save.data["tower_run"] = tower_floor
+-	Save.save_data()   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+-	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]))
++	if _tw_save_route(rt):   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
++		_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]) + (L.t("tw_contract_tag") if bool(sp.get("contract", false)) else ""))
++	# 寫不進：留著「存檔失敗」提示（不被開層提示蓋掉；Codex B17 r1）
+ 
+ func _tower_finish(w: int) -> void:
+ 	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+ 		return
+ 	var best := int(Save.data.get("tower_best", 0))
+-	Save.data["tower_run"] = Tower.next_run(int(Save.data.get("tower_run", 0)), tower_floor, w == 0)
++	var st: Array = Tower.settle(_tw_route(), tower_floor, w == 0)   # 1.6.0 B17：結算只一次（done）；路線＋tower_run 一起寫
++	if bool(st[1]):
++		Save.data["tower_route"] = st[0]
++	Save.data["tower_run"] = int(_tw_route()["floor"])
+ 	tower_result = 0 if w == 0 else 1
+ 	if w == 0:
+ 		var r: Array = Tower.record(best, tower_floor)
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -386,3 +386,122 @@
+ 	g.free()
+ 	SV.data = keep
+ 	SV.save_data()
++
++
++## 1.6.0 B17（P7.1、P7.2；S6；IN-160-05）塔分岔＋完整續塔：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 tower_run 讀回；
++## 重複點、重啟、寫檔失敗。
++func test_tower_route_v1600() -> void:
++	var T = load("res://scripts/game/tower.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var st: Dictionary = T.new_route()
++	ok(not T.fork_due(st) and T.choose(st, "c") == st, "第 1 層不用選路；不該選時點了不改")
++	for f in [1, 2, 3]:
++		st = T.settle(st, f, true)[0]
++	ok(int(st["floor"]) == 4 and T.fork_due(st), "打完第 3 層：第 4 層開打前要選路")
++	var st_c: Dictionary = T.choose(st, "c")
++	ok(st_c["path"] == "c" and T.choose(st_c, "r") == st_c and not T.fork_due(st_c), "選了契約；重複點／改點不改路線")
++	ok(T.route_adj("c", 4) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 6) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 7) == [0, false] and T.route_adj("r", 4) == [-T.REST_CUT, false] and T.route_adj("r", 5) == [0, false], "契約：三層 +%d；休整：下一層 −%d" % [T.CONTRACT_BONUS, T.REST_CUT])
++	var LS9 = load("res://scripts/game/strings.gd")
++	var RSm = load("res://scripts/game/roster.gd")
++	var mk: int = RSm.mask(false)
++	var b0: int = int(T.make_rules(T.spec(4), mk).budget_of(1))
++	ok(int(T.make_rules(T.spec_route(st_c, 4), mk).budget_of(1)) == mini(200, b0 + T.CONTRACT_BONUS) and int(T.make_rules(T.spec_route({"path": "r"}, 4), mk).budget_of(1)) == b0 - T.REST_CUT, "路線改的是這一層的敵方預算（封頂後加減）")
++	# 封頂後：休整一定有效；契約到上限＝0（卡片照實寫）
++	var capped := 0
++	var rest_ok := 0
++	for f in range(4, 60, 3):
++		if T.route_effect(f, T.CONTRACT_BONUS, mk) == 0:
++			capped += 1
++		if T.route_effect(f, -T.REST_CUT, mk) == -T.REST_CUT:
++			rest_ok += 1
++	ok(rest_ok == 19, "休整在每個岔口都真的少 %d 金（%d／19）" % [T.REST_CUT, rest_ok])
++	var v16s: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
++	ok(v16s.find("L.t(\"tw_fork_c_cap\", [Tower.CONTRACT_SPAN])") >= 0, "契約到上限的岔口照實寫（%d 個岔口到上限）" % capped)
++	# 逐層照實：三層的實際加碼都照算（部分封頂列出每層）
++	var mism := 0
++	for f in range(4, 60, 3):
++		var txt: String = GS.fork_contract_text(f, mk)
++		var eff: Array = []
++		for k in T.CONTRACT_SPAN:
++			eff.append(T.route_effect(f + k, T.CONTRACT_BONUS, mk))
++		var full := eff.all(func(x): return int(x) == T.CONTRACT_BONUS)
++		var none := eff.all(func(x): return int(x) == 0)
++		if (full and txt != LS9.t("tw_fork_c_d", [T.CONTRACT_SPAN, T.CONTRACT_BONUS])) or (none and txt != LS9.t("tw_fork_c_cap", [T.CONTRACT_SPAN])) or (not full and not none and txt.find("+%d" % int(eff[0])) < 0):
++			mism += 1
++	ok(mism == 0, "契約卡逐層照實（不符 %d 個岔口）" % mism)
++	var s4: Array = T.settle(st_c, 4, true)
++	ok(bool(s4[1]) and int(s4[0]["seals"]) == 1 and int(s4[0]["floor"]) == 5, "契約層過了：一枚契約章")
++	ok(not bool(T.settle(s4[0], 4, true)[1]) and not bool(T.settle(s4[0], 9, true)[1]), "同一層再結算、不是這一層：都不變（不重領）")
++	# 兩機相同：路線雜湊只由版本、選擇、層數決定（寫檔讀回、另一台重算都一樣）
++	var rt: Dictionary = JSON.parse_string(JSON.stringify(s4[0]))
++	ok(T.route_hash(T.sanitize_route(rt)) == T.route_hash(s4[0]) and T.route_hash({"v": 1, "path": "c", "floor": 5}) == ("1|c|5").sha256_text().substr(0, 12), "路線雜湊兩機相同（%s）" % T.route_hash(s4[0]))
++	# 舊存檔 tower_run 讀回（不猜歷史）
++	var d := {"tower_run": 8, "tower_best": 7}
++	SV.sanitize_data(d)
++	ok(d["tower_route"] == {"v": 1, "floor": 8, "path": "--", "seals": 0, "done": 7} and not T.fork_due(d["tower_route"]) and int(d["tower_run"]) == 8, "舊 tower_run＝8：同一層、過去兩個岔口記「-」、不補問", str(d.get("tower_route")))
++	var d0 := {"tower_run": 0}
++	SV.sanitize_data(d0)
++	ok(not d0.has("tower_route"), "沒有進行中的塔：不多出欄位")
++	for bad in ["x", 5, {"v": 1, "floor": 4, "path": "cc", "seals": 0, "done": 3}, {"v": 9, "floor": 1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": -1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "x", "seals": 0, "done": 3}, {"v": 1, "floor": 1.0e30, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 4}, {"v": 1, "floor": 7, "path": "", "seals": 0, "done": 6}]:
++		ok(T.sanitize_route(bad) == null, "壞路線讀回＝不用（改由 tower_run 遷移）：%s" % str(bad))
++	var keep: Dictionary = SV.data.duplicate(true)
++	var lk: bool = SV.data_locked
++	SV.data_locked = false
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	# 會話範本：岔口選路承諾 → 重啟不重抽 → 結算一次
++	session_contract("塔分岔", {
++		"start": func():
++			SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++			SV.data["tower_run"] = 4
++			g._tw_choose("c")
++			return g._tw_route(),
++		"commit": func(_s): return SV.data.duplicate(true),
++		"restart": func(sv):
++			var d2: Dictionary = SV.migrate(JSON.parse_string(JSON.stringify(sv)))
++			SV.sanitize_data(d2)
++			SV.data["tower_route"] = d2["tower_route"]
++			SV.data["tower_run"] = d2["tower_run"]
++			return g._tw_route(),
++		"settle": func(s):
++			var b: String = var_to_str(g._tw_route())
++			g.tower_on = true
++			g.mode = g.Mode.VS_AI
++			g.play_kind = "official"
++			g.tower_floor = 4
++			g._tower_finish(0)
++			return [g._tw_route(), var_to_str(g._tw_route()) != b],
++		"same": func(a, b): return a == b,
++		"bad_inputs": ["x", null, {}, {"v": 1}],
++		"sanitize": func(v):
++			var d3 := {"tower_route": v, "tower_run": 3}
++			SV.sanitize_data(d3)
++			return d3["tower_route"],
++		"old_samples": [[{"tower_run": 5}, {"v": 1, "floor": 5, "path": "-", "seals": 0, "done": 4}]],
++	})
++	SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++	g.tower_floor = 1
++	g._tw_choose("c")
++	g.tower_on = true
++	g.mode = g.Mode.VS_AI
++	g.play_kind = "official"
++	var f_started: int = g.tower_floor
++	g._tower_finish(0)
++	ok(f_started == 4 and int(g._tw_route()["seals"]) == 1 and int(g._tw_route()["floor"]) == 5, "岔口選完直接開打第 4 層；過了得契約章", str([f_started, g._tw_route()]))
++	# 寫檔失敗：選路照樣生效、標未存、重試寫進去
++	SV.data["tower_route"] = {"v": 1, "floor": 7, "path": "c", "seals": 3, "done": 6}
++	SV.fail_inject = {"tmp": 1}
++	g._tw_choose("r")
++	ok(g._tw_route()["path"] == "cr" and int(SV.fail_inject.get("tmp", 0)) == 0 and not SV.has_unsaved(), "寫檔失敗：路線照樣生效（在記憶體），開打時再寫一次就補進去", str([g._tw_route(), SV.has_unsaved()]))
++	g._tw_choose("c")
++	ok(g._tw_route()["path"] == "cr", "重複點：已選過不改")
++	# 結果頁：岔口時按「爬下一層」＝先開岔路
++	SV.data["tower_route"] = {"v": 1, "floor": 10, "path": "cr", "seals": 3, "done": 9}
++	g.overlay = ""
++	g._tower_open()
++	ok(g.overlay == "tower_fork", "第 10 層開打前：先選路", str([g.overlay, g._tw_route()]))
++	g.free()
++	SV.data = keep
++	SV.save_data()
++	SV.data_locked = lk
+
+exec
+/bin/bash -lc "rg --files -uuu -g AGENTS.md -g '*tower*' build/cg/b17/game; rg -n 'fork_contract_text|fork.*contract|FORK_|fork_mask' build/cg/b17/game" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 785ms:
+build/cg/b17/game/scripts/game/tower.gd.uid
+build/cg/b17/game/scripts/game/tower.gd
+build/cg/b17/game/data/strings.csv:1826:tw_fork_c,接契約,Take a contract,接契约,契約を受ける
+build/cg/b17/game/data/strings.csv:1827:tw_fork_c_d,接下來 %d 層，敵方多 %d 金；每過一層得一枚契約章。,Next %d floors: enemy gets +%d gold. Each one cleared earns a contract seal.,接下来 %d 层，敌方多 %d 金；每过一层得一枚契约章。,次の%d階は敵が+%dゴールド。1階突破ごとに契約章を1つ。
+build/cg/b17/game/data/strings.csv:1831:tw_fork_c_cap,接下來 %d 層敵方已到預算上限，不會再加；每過一層照樣得一枚契約章。,Next %d floors: enemy is already at the budget cap (no extra gold). Each one cleared still earns a contract seal.,接下来 %d 层敌方已到预算上限，不会再加；每过一层照样得一枚契约章。,次の%d階は敵がすでに予算上限（追加なし）。1階突破ごとに契約章を1つ。
+build/cg/b17/game/data/strings.csv:1832:tw_fork_c_part,接下來三層敵方各加 %s 金（到上限的那層不再加）；每過一層得一枚契約章。,Next three floors: enemy gets %s gold (no extra once at the cap). Each one cleared earns a contract seal.,接下来三层敌方各加 %s 金（到上限的那层不再加）；每过一层得一枚契约章。,次の3階は敵が%sゴールド（上限の階は追加なし）。1階突破ごとに契約章を1つ。
+build/cg/b17/game/tests/suites/save.gd:424:		var txt: String = GS.fork_contract_text(f, mk)
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2685:static func fork_contract_text(f: int, mask: int) -> String:
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2702:	var cd := fork_contract_text(f, RS.mask(false))
+build/cg/b17/game/scripts/ui/screens/game_v16.gd:2729:		rt["path"] = "-".repeat((floor_no - 1) / Tower.FORK_EVERY)
+build/cg/b17/game/scripts/game/tower.gd:45:const FORK_EVERY := 3
+build/cg/b17/game/scripts/game/tower.gd:58:	return f > 1 and (f - 1) % FORK_EVERY == 0 and str(st.get("path", "")).length() < (f - 1) / FORK_EVERY
+build/cg/b17/game/scripts/game/tower.gd:70:	return (k + 1) * FORK_EVERY + 1
+build/cg/b17/game/scripts/game/tower.gd:122:	return {"v": ROUTE_V, "floor": run, "path": "-".repeat((run - 1) / FORK_EVERY), "seals": 0, "done": run - 1}
+build/cg/b17/game/scripts/game/tower.gd:134:	if not p is String or p.length() > FLOOR_MAX / FORK_EVERY:
+build/cg/b17/game/scripts/game/tower.gd:145:		var need := (f - 1) / FORK_EVERY
+build/cg/b17/game/scripts/game/tower.gd:146:		var pending := 1 if (f > 1 and (f - 1) % FORK_EVERY == 0) else 0
+build/cg/b17/game/scripts/game/tower.gd:149:	elif p.length() > maxi(0, dn / FORK_EVERY):
+
+exec
+/bin/bash -lc 'for p in /AGENTS.md /mnt/AGENTS.md /mnt/c/AGENTS.md /mnt/c/Users/AGENTS.md /mnt/c/Users/timmy/AGENTS.md /mnt/c/Users/timmy/projects/AGENTS.md /mnt/c/Users/timmy/projects/no-take-backs/AGENTS.md; do if [ -f "$p" ]; then cat "$p"; fi; done
+nl -ba build/cg/b17/game/scripts/game/tower.gd | head -230
+nl -ba build/cg/b17/game/tests/suites/save.gd | sed -n '"'400,443p'
+nl -ba build/cg/b17/game/scripts/ui/screens/game_v16.gd | sed -n '2680,2707p'
+rg --files -uuu build/cg/b17 | rg 'AGENTS.md|godot|test.*sh'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 25ms:
+     1	extends RefCounted
+     2	## 1.4.0 §11.1（1.3.0 延伸、stash 補完）：無盡塔——一路往上打，每層一種突變（沿用每日挑戰的 8 種）、地圖與 AI 性格輪換，
+     3	## 敵方預算每層多一點（上限 +60）；輸一場就結束，記最高層數（本機）。每層的規則與敵陣只由層數決定（固定種子、跨機器一樣）。
+     4	const Daily = preload("res://scripts/game/daily.gd")
+     5	const AI = preload("res://scripts/core/ai_army.gd")
+     6	const BONUS_STEP := 4     # 每層敵方多 4 金
+     7	const BONUS_MAX := 60
+     8	
+     9	static func spec(floor_no: int) -> Dictionary:
+    10		var f := maxi(1, floor_no)
+    11		var mut := posmod(f - 1, Daily.MUTATORS)
+    12		return {"floor": f, "mut": mut, "map": 3 if mut == 3 else posmod(f * 5 + 2, 6), "style": posmod(f * 3 + 1, 5),
+    13			"level": clampi((f - 1) / 6, 0, 2), "seed": 70000 + posmod(f * 7919, 1000003), "bonus": mini(BONUS_MAX, (f - 1) * BONUS_STEP)}
+    14	
+    15	## 這一層的規則：每日挑戰的規則（自由部署、單局、突變）再加敵方預算。
+    16	static func make_rules(sp: Dictionary, mask: int):
+    17		var r = Daily.make_rules(sp, mask)
+    18		var RS = load("res://scripts/core/ruleset.gd")
+    19		r.budget = [int(r.budget_of(0)), mini(RS.BUDGET_MAX, int(r.budget_of(1)) + int(sp["bonus"]))]   # 大地圖本來就接近上限：加碼夾在合法範圍內
+    20		if int(sp.get("route", 0)) != 0:
+    21			# 1.6.0 B17：路線加減在封頂之後算（休整一定有效；契約到上限就沒有加碼，卡片照實寫；Codex B17 r1）
+    22			r.budget[1] = clampi(int(r.budget[1]) + int(sp["route"]), RS.BUDGET_MIN, RS.BUDGET_MAX)
+    23		r.handicap = int(r.budget[1]) != int(r.budget[0])   # 兩邊預算不同要開讓子，否則 budget_of 兩邊都取藍方（stash 原本漏了，測試抓到）
+    24		return r
+    25	
+    26	static func enemy(sp: Dictionary, r):
+    27		return Daily.enemy(sp, r)
+    28	
+    29	## 記最高層：過了第 f 層＝最高至少 f。回傳 [新最高, 是否刷新]。
+    30	static func record(best: int, cleared_floor: int) -> Array:
+    31		return [maxi(best, cleared_floor), cleared_floor > best]
+    32	
+    33	## 續局：下一次要打的層（0＝沒有進行中的塔）。贏了＝下一層、輸了＝清掉；壞資料＝0。
+    34	static func next_run(run: int, floor_no: int, won: bool) -> int:
+    35		return floor_no + 1 if won else 0
+    36	
+    37	static func sanitize_run(v) -> int:
+    38		return clampi(int(v), 0, 100000) if (v is int or v is float) else 0
+    39	
+    40	## ── 1.6.0 B17（P7.1、P7.2；S6）塔分岔＋完整續塔 ──
+    41	## 每過三層（打完第 3、6、9…層）要選一次路：契約（接下來三層敵方 +CONTRACT_BONUS 金，每過一層記一枚契約章）／休整（下一層敵方 −REST_CUT 金）。
+    42	## 路線狀態（存檔 tower_route）＝{v, floor（下一次要打的層，0＝沒有進行中）, path（每個岔口的選擇：c＝契約、r＝休整、-＝舊存檔沒有紀錄）, seals（契約章）, done（已結算到第幾層）}。
+    43	## 一切只由 path 與層數決定（沒有亂數）：兩台機器同一條路線雜湊一樣、重啟不重抽；結算記 done，同一層不重領。
+    44	## 舊存檔只有 tower_run（層數）：遷移成同一層、過去的岔口記 "-"（不猜當時選了什麼，也不補問）。
+    45	const FORK_EVERY := 3
+    46	const CONTRACT_BONUS := 8
+    47	const CONTRACT_SPAN := 3
+    48	const REST_CUT := 8
+    49	const ROUTE_V := 1
+    50	const FLOOR_MAX := 100000
+    51	
+    52	static func new_route() -> Dictionary:
+    53		return {"v": ROUTE_V, "floor": 1, "path": "", "seals": 0, "done": 0}
+    54	
+    55	## 這一層開打前要先選路嗎（第 4、7、10…層開打前；這個岔口還沒選）
+    56	static func fork_due(st: Dictionary) -> bool:
+    57		var f := int(st.get("floor", 0))
+    58		return f > 1 and (f - 1) % FORK_EVERY == 0 and str(st.get("path", "")).length() < (f - 1) / FORK_EVERY
+    59	
+    60	## 選路：只在該選的時候生效（重複點、晚到的點擊＝原樣回傳）
+    61	static func choose(st: Dictionary, c: String) -> Dictionary:
+    62		if not fork_due(st) or not c in ["c", "r"]:
+    63			return st
+    64		var out := st.duplicate(true)
+    65		out["path"] = str(st["path"]) + c
+    66		return out
+    67	
+    68	## 第 k 個岔口（0 起）之後的第一層＝k*3+4
+    69	static func _fork_floor(k: int) -> int:
+    70		return (k + 1) * FORK_EVERY + 1
+    71	
+    72	## 這一層吃到的路線加減：[敵方加減金, 是不是契約層]
+    73	static func route_adj(path: String, floor_no: int) -> Array:
+    74		var adj := 0
+    75		var contract := false
+    76		for k in path.length():
+    77			var f0 := _fork_floor(k)
+    78			if path[k] == "c" and floor_no >= f0 and floor_no < f0 + CONTRACT_SPAN:
+    79				adj += CONTRACT_BONUS
+    80				contract = true
+    81			elif path[k] == "r" and floor_no == f0:
+    82				adj -= REST_CUT
+    83		return [adj, contract]
+    84	
+    85	## 帶路線的這一層：spec 的敵方加碼再加減（夾在 0 以上），附 contract
+    86	static func spec_route(st: Dictionary, floor_no: int) -> Dictionary:
+    87		var sp := spec(floor_no)
+    88		var ra := route_adj(str(st.get("path", "")), floor_no)
+    89		sp["route"] = int(ra[0])   # make_rules 在封頂之後加減
+    90		sp["contract"] = bool(ra[1])
+    91		return sp
+    92	
+    93	## 某一層實際的敵方預算加減（封頂後）：給岔路卡片照實寫（到上限＝0）
+    94	static func route_effect(floor_no: int, adj: int, mask: int) -> int:
+    95		var sp := spec(floor_no)
+    96		var base = make_rules(sp, mask)
+    97		sp["route"] = adj
+    98		return int(make_rules(sp, mask).budget_of(1)) - int(base.budget_of(1))
+    99	
+   100	## 結算一層（只一次）：回 [新狀態, 有沒有變]。贏＝下一層、契約層加一枚章；輸＝路線結束（floor 0，章數照留在這次結果裡）。
+   101	static func settle(st: Dictionary, floor_no: int, won: bool) -> Array:
+   102		if floor_no <= int(st.get("done", 0)) or floor_no != int(st.get("floor", 0)):
+   103			return [st, false]
+   104		var out := st.duplicate(true)
+   105		out["done"] = floor_no
+   106		if won:
+   107			out["floor"] = floor_no + 1
+   108			if bool(route_adj(str(st.get("path", "")), floor_no)[1]):
+   109				out["seals"] = int(st.get("seals", 0)) + 1
+   110		else:
+   111			out["floor"] = 0
+   112		return [out, true]
+   113	
+   114	## 路線雜湊（S6：兩台機器同一條路線一樣）
+   115	static func route_hash(st: Dictionary) -> String:
+   116		return ("%d|%s|%d" % [int(st.get("v", ROUTE_V)), str(st.get("path", "")), int(st.get("floor", 0))]).sha256_text().substr(0, 12)
+   117	
+   118	## 舊存檔：只有 tower_run（下一次要打的層）。過去的岔口記 "-"（不猜歷史），done＝前一層（不能重領）。
+   119	static func migrate_old(run: int) -> Dictionary:
+   120		if run <= 0:
+   121			return {"v": ROUTE_V, "floor": 0, "path": "", "seals": 0, "done": 0}
+   122		return {"v": ROUTE_V, "floor": run, "path": "-".repeat((run - 1) / FORK_EVERY), "seals": 0, "done": run - 1}
+   123	
+   124	static func _int_in(v, lo: float, hi: float) -> bool:
+   125		return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
+   126	
+   127	## 存檔讀回：逐欄驗型；壞了回 null（呼叫端用 tower_run 遷移）。路線長度不能超過層數允許的岔口數。
+   128	static func sanitize_route(v):
+   129		if not v is Dictionary:
+   130			return null
+   131		if not _int_in(v.get("v"), 1, ROUTE_V) or not _int_in(v.get("floor"), 0, FLOOR_MAX) or not _int_in(v.get("seals"), 0, FLOOR_MAX) or not _int_in(v.get("done"), 0, FLOOR_MAX):
+   132			return null
+   133		var p = v.get("path")
+   134		if not p is String or p.length() > FLOOR_MAX / FORK_EVERY:
+   135			return null
+   136		for ch in p:
+   137			if not ch in ["c", "r", "-"]:
+   138				return null
+   139		var f := int(v["floor"])
+   140		var dn := int(v["done"])
+   141		if f > 0:
+   142			# 狀態一致（Codex B17 r1）：下一次要打的層＝已結算的下一層；路線長度＝這一層之前該有的岔口數（岔口還沒選時少一個）
+   143			if dn != f - 1:
+   144				return null
+   145			var need := (f - 1) / FORK_EVERY
+   146			var pending := 1 if (f > 1 and (f - 1) % FORK_EVERY == 0) else 0
+   147			if p.length() > need or p.length() < need - pending:
+   148				return null
+   149		elif p.length() > maxi(0, dn / FORK_EVERY):
+   150			return null
+   151		return {"v": int(v["v"]), "floor": f, "path": p, "seals": int(v["seals"]), "done": int(v["done"])}
+   400			st = T.settle(st, f, true)[0]
+   401		ok(int(st["floor"]) == 4 and T.fork_due(st), "打完第 3 層：第 4 層開打前要選路")
+   402		var st_c: Dictionary = T.choose(st, "c")
+   403		ok(st_c["path"] == "c" and T.choose(st_c, "r") == st_c and not T.fork_due(st_c), "選了契約；重複點／改點不改路線")
+   404		ok(T.route_adj("c", 4) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 6) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 7) == [0, false] and T.route_adj("r", 4) == [-T.REST_CUT, false] and T.route_adj("r", 5) == [0, false], "契約：三層 +%d；休整：下一層 −%d" % [T.CONTRACT_BONUS, T.REST_CUT])
+   405		var LS9 = load("res://scripts/game/strings.gd")
+   406		var RSm = load("res://scripts/game/roster.gd")
+   407		var mk: int = RSm.mask(false)
+   408		var b0: int = int(T.make_rules(T.spec(4), mk).budget_of(1))
+   409		ok(int(T.make_rules(T.spec_route(st_c, 4), mk).budget_of(1)) == mini(200, b0 + T.CONTRACT_BONUS) and int(T.make_rules(T.spec_route({"path": "r"}, 4), mk).budget_of(1)) == b0 - T.REST_CUT, "路線改的是這一層的敵方預算（封頂後加減）")
+   410		# 封頂後：休整一定有效；契約到上限＝0（卡片照實寫）
+   411		var capped := 0
+   412		var rest_ok := 0
+   413		for f in range(4, 60, 3):
+   414			if T.route_effect(f, T.CONTRACT_BONUS, mk) == 0:
+   415				capped += 1
+   416			if T.route_effect(f, -T.REST_CUT, mk) == -T.REST_CUT:
+   417				rest_ok += 1
+   418		ok(rest_ok == 19, "休整在每個岔口都真的少 %d 金（%d／19）" % [T.REST_CUT, rest_ok])
+   419		var v16s: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_v16.gd")
+   420		ok(v16s.find("L.t(\"tw_fork_c_cap\", [Tower.CONTRACT_SPAN])") >= 0, "契約到上限的岔口照實寫（%d 個岔口到上限）" % capped)
+   421		# 逐層照實：三層的實際加碼都照算（部分封頂列出每層）
+   422		var mism := 0
+   423		for f in range(4, 60, 3):
+   424			var txt: String = GS.fork_contract_text(f, mk)
+   425			var eff: Array = []
+   426			for k in T.CONTRACT_SPAN:
+   427				eff.append(T.route_effect(f + k, T.CONTRACT_BONUS, mk))
+   428			var full := eff.all(func(x): return int(x) == T.CONTRACT_BONUS)
+   429			var none := eff.all(func(x): return int(x) == 0)
+   430			if (full and txt != LS9.t("tw_fork_c_d", [T.CONTRACT_SPAN, T.CONTRACT_BONUS])) or (none and txt != LS9.t("tw_fork_c_cap", [T.CONTRACT_SPAN])) or (not full and not none and txt.find("+%d" % int(eff[0])) < 0):
+   431				mism += 1
+   432		ok(mism == 0, "契約卡逐層照實（不符 %d 個岔口）" % mism)
+   433		var s4: Array = T.settle(st_c, 4, true)
+   434		ok(bool(s4[1]) and int(s4[0]["seals"]) == 1 and int(s4[0]["floor"]) == 5, "契約層過了：一枚契約章")
+   435		ok(not bool(T.settle(s4[0], 4, true)[1]) and not bool(T.settle(s4[0], 9, true)[1]), "同一層再結算、不是這一層：都不變（不重領）")
+   436		# 兩機相同：路線雜湊只由版本、選擇、層數決定（寫檔讀回、另一台重算都一樣）
+   437		var rt: Dictionary = JSON.parse_string(JSON.stringify(s4[0]))
+   438		ok(T.route_hash(T.sanitize_route(rt)) == T.route_hash(s4[0]) and T.route_hash({"v": 1, "path": "c", "floor": 5}) == ("1|c|5").sha256_text().substr(0, 12), "路線雜湊兩機相同（%s）" % T.route_hash(s4[0]))
+   439		# 舊存檔 tower_run 讀回（不猜歷史）
+   440		var d := {"tower_run": 8, "tower_best": 7}
+   441		SV.sanitize_data(d)
+   442		ok(d["tower_route"] == {"v": 1, "floor": 8, "path": "--", "seals": 0, "done": 7} and not T.fork_due(d["tower_route"]) and int(d["tower_run"]) == 8, "舊 tower_run＝8：同一層、過去兩個岔口記「-」、不補問", str(d.get("tower_route")))
+   443		var d0 := {"tower_run": 0}
+  2680		_tw_save_route(rt)
+  2681		overlay = ""
+  2682		_tower_start(int(rt["floor"]))
+  2683	
+  2684	## 契約卡的說明：三層逐層算封頂後實際加多少（全滿＝原句、全封頂＝已到上限、部分＝逐層列出；Codex B17 r2）
+  2685	static func fork_contract_text(f: int, mask: int) -> String:
+  2686		var eff: Array = []
+  2687		for k in Tower.CONTRACT_SPAN:
+  2688			eff.append(Tower.route_effect(f + k, Tower.CONTRACT_BONUS, mask))
+  2689		if eff.all(func(x): return int(x) == Tower.CONTRACT_BONUS):
+  2690			return L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])
+  2691		if eff.all(func(x): return int(x) == 0):
+  2692			return L.t("tw_fork_c_cap", [Tower.CONTRACT_SPAN])
+  2693		var parts: PackedStringArray = []
+  2694		for x in eff:
+  2695			parts.append("+%d" % int(x))
+  2696		return L.t("tw_fork_c_part", ["／".join(parts)])
+  2697	
+  2698	func _draw_tower_fork() -> void:
+  2699		_dim(0.6)
+  2700		var rt := _tw_route()
+  2701		var f := int(rt["floor"])
+  2702		var cd := fork_contract_text(f, RS.mask(false))
+  2703		var cards := [["c", L.t("tw_fork_c"), cd], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [-Tower.route_effect(f, -Tower.REST_CUT, RS.mask(false))])]]
+  2704		var ch := 0.0
+  2705		for c in cards:
+  2706			ch = maxf(ch, 16.0 + tz("B") * 1.4 + text_h(str(c[2]), tz("S"), 300) + 16.0)
+  2707		var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
+build/cg/b17/game/project.godot
+build/cg/b17/game/.godot/uid_cache.bin
+build/cg/b17/game/tests/suites/share_codes.gd.uid
+build/cg/b17/game/tests/suites/share_codes.gd
+build/cg/b17/game/.godot/extension_list.cfg
+build/cg/b17/game/.godot/.gdignore
+build/cg/b17/game/.godot/scene_groups_cache.cfg
+build/cg/b17/game/.godot/global_script_class_cache.cfg
+build/cg/b17/game/.godot/shader_cache/SkyShaderGLES3/512d01cf42d193b311f079d8e2068f21b4af8233133e23c18f0490ceda6d9aad/2c82eb5fea9b549e20c9f41e308abf9a4fc5d76f.cache
+build/cg/b17/game/.godot/shader_cache/CanvasShaderGLES3/dc7a37d2638e16253bb456aa885be48ec4c335b0c90b4e0e1edb9b3553340ed2/6bb7c9a2fd1c4a8fa77cb96555b9b4a720209981.cache
+build/cg/b17/game/.godot/editor/heal.wav-1f541e0e14a4ac508da896c71b6f88c3.sample-folding-f56995781b8eb0e17519f806be7e4792.cfg
+build/cg/b17/game/.godot/editor/frenzy.wav-bdeeaf48c0ffaabf75340f63e10cc010.sample-folding-37a6b3b9dce18c42d6ceb92474010223.cfg
+build/cg/b17/game/.godot/editor/filesystem_cache10
+build/cg/b17/game/.godot/editor/export-3ad5c15c4f3250da0cc7c1af1770d85f-main.scn-folding-9e2437740bb336f4fe8437ef104dde6e.cfg
+build/cg/b17/game/.godot/editor/editor_script_doc_cache.res-folding-a7de57390d6e786984ca20c70a831128.cfg
+build/cg/b17/game/.godot/editor/editor_script_doc_cache.res
+build/cg/b17/game/.godot/editor/death.wav-081f95a37f237b6f3ceb7246d5521f75.sample-folding-92b6cbb041a3c4bcf82281549414c095.cfg
+build/cg/b17/game/.godot/editor/clutch.wav-dad39cd2a5a05c35602bc0e86f421274.sample-folding-b720aecc23b96b2a53e299cf4c415074.cfg
+build/cg/b17/game/.godot/editor/chomp.wav-9446fce0971b448d08b36feb01958205.sample-folding-2c557ec8cca112f4e03658eb1aab1e67.cfg
+build/cg/b17/game/.godot/editor/charge_up.wav-a25cba07decaba93d60653777b29cc69.sample-folding-ae106fb57151304de5903c6f919e9bd4.cfg
+build/cg/b17/game/.godot/editor/charge.wav-9ea0e7ab134da578b6f69151780ec24f.sample-folding-d77b9180ed0bdde7aa1cf7867854e839.cfg
+build/cg/b17/game/.godot/editor/bugle.wav-c0932e30ca9bafde81ea901e6676237f.sample-folding-6879321700931090125b81c88810ea24.cfg
+build/cg/b17/game/.godot/editor/brace.wav-34e891af9c352fc7517b34fecc9a4b03.sample-folding-84926471a1aec114cb910cf31d3fe640.cfg
+build/cg/b17/game/.godot/editor/boom.wav-e61cc5e8d3463dbe554b31ed2cbe16e4.sample-folding-c025fdc2202dec62f236a858a8d6c026.cfg
+build/cg/b17/game/.godot/editor/block__4.ogg-4402c4cf1d44004ea79288d04061032b.oggvorbisstr-folding-cc9debdfc4adaad8049ed468027475ce.cfg
+build/cg/b17/game/.godot/editor/block__3.ogg-053c886d4ec915c586e20398c2e5f80a.oggvorbisstr-folding-27bb7d1732dd93c15a4b127cd415e65a.cfg
+build/cg/b17/game/.godot/editor/block__2.ogg-7273656a1464345197d37789abb389d0.oggvorbisstr-folding-9f56089c57abc0e2a485c321e72f3003.cfg
+build/cg/b17/game/.godot/editor/block.wav-862e14aabfa854dd89f6e45e400ee640.sample-folding-22aa755e98a562af82d076a2aa10b1c0.cfg
+build/cg/b17/game/.godot/editor/block.ogg-e8a89a2ebbba880725c85f14576afde9.oggvorbisstr-folding-c9720838b88fee59ed4e75a40cacdd0d.cfg
+build/cg/b17/game/.godot/editor/bell.wav-bbca3f7e09c31602b4ae4d54f1b9f74d.sample-folding-6f716f00aa777846af7203d19e2f9d00.cfg
+build/cg/b17/game/.godot/editor/backstab.wav-0bf7e1ce236573a97d40678c4a234b3a.sample-folding-eb4d7648a8dc514bc729f46549d6e199.cfg
+build/cg/b17/game/.godot/editor/baa.wav-148def3d0676ad6016cb2eb9bcc493a1.sample-folding-5d9216a6c16cd5fdf40d8347d7d68a36.cfg
+build/cg/b17/game/.godot/editor/arrow.wav-42e142190fea51fbcddd647446cc18bf.sample-folding-270776a669b45360fcbd17048bb18ee6.cfg
+build/cg/b17/game/.godot/editor/amb_wind.wav-85fbc2192c6d1c582e72c33e78ad68ae.sample-folding-11e4965344173d4af40c745cb0bcfc2e.cfg
+build/cg/b17/game/.godot/editor/amb_water.wav-bde19eaaa74d1ffafa5c36dd86bf6b66.sample-folding-5a214580cb5924e58bf044082a75316c.cfg
+build/cg/b17/game/.godot/editor/amb_room_near.wav-e2ba9e8c4b1c145480f6f9e8d61a00c6.sample-folding-0035ce0c193e1d8afb7480d78f2bf082.cfg
+build/cg/b17/game/.godot/editor/amb_room_mid.wav-590b95a366ffbacae5b95a27c68e6876.sample-folding-8d3849364ff04ab4258bf68781a08377.cfg
+build/cg/b17/game/.godot/editor/amb_room_far.wav-03e309c4a9003fc5c8428f0a5cb93630.sample-folding-de7b57fa99782a3801394a9b27ca30e3.cfg
+build/cg/b17/game/.godot/editor/amb_lava.wav-09a038b7091712fcb6142a9f8ce1008d.sample-folding-56332efc2e87582661d24ce9be869866.cfg
+build/cg/b17/game/.godot/editor/amb_forest.wav-8a9e7b1b965544906c8d63d1e9bed8c6.sample-folding-af6d1d75d41ae2393d2d3486a8d9a216.cfg
+build/cg/b17/game/.godot/editor/alert.wav-4024987b6a0bbb70c02166a5f2bf5f91.sample-folding-25692210fbc789e40a126442f5e9f087.cfg
+build/cg/b17/game/.godot/editor/aircut.wav-32729c0efa57bce87302fdb784546170.sample-folding-178ad1822ec5afeec7e1764419b39609.cfg
+build/cg/b17/game/.godot/editor/k_tab.ogg-081e1ced55b51934153966b279aee9be.oggvorbisstr-folding-5b9eafaf13c036d33628e88d074aa888.cfg
+build/cg/b17/game/.godot/editor/k_star__2.ogg-49442c6c664b1ad31b7cd6615d8707f9.oggvorbisstr-folding-ee36f4174fd570fc55a1dc2a438511dc.cfg
+build/cg/b17/game/.godot/editor/k_star.wav-6ea939b6872f710e165b0818394a790f.sample-folding-fc67186368d764be4e99ad18cdd02348.cfg
+build/cg/b17/game/.godot/editor/k_star.ogg-040426c9288853583d525c4d015703e8.oggvorbisstr-folding-658ce119c7eac6f7146c1ec47e6c9292.cfg
+build/cg/b17/game/.godot/editor/k_place__2.ogg-7ad11a874ce83a589e6be90f3d0ef46f.oggvorbisstr-folding-10a523186401139fc8a86493f9e2e073.cfg
+build/cg/b17/game/.godot/editor/k_place.wav-6d1f018baea5f2a3616847223d2465a7.sample-folding-7fd8a62c6b62fcf02cd6dccab9645331.cfg
+build/cg/b17/game/.godot/editor/k_place.ogg-115593ffc8f86cfc292ab7e6032ef9e8.oggvorbisstr-folding-ebf0031131c664bf7e1d52f1d937c12d.cfg
+build/cg/b17/game/.godot/editor/k_open.wav-b6e90fc3e8b495387bfda1be03887c72.sample-folding-0e373a4a759c2f5091b7be1789f4ff3e.cfg
+build/cg/b17/game/.godot/editor/k_open.ogg-e0c4d20f4036bfadfb42948146e989d8.oggvorbisstr-folding-3330ff59993b1caac7991b0bc9de7511.cfg
+build/cg/b17/game/.godot/editor/k_hover.wav-23561b45908aec676967a0cdc459223c.sample-folding-c97a7c1378ebb33ce659b2e7e357475c.cfg
+build/cg/b17/game/.godot/editor/k_error.wav-1177074f47456fa71c6c1d8789afb3f0.sample-folding-db47748628234ac27b324b0131836b5c.cfg
+build/cg/b17/game/.godot/editor/k_confirm.wav-aa846cfe1ef477268ee4c567896a8bca.sample-folding-9f3352ec32a364c10c60b5e1beffad9c.cfg
+build/cg/b17/game/.godot/editor/k_close.wav-11c45c313386cd09b71c66dd23bf3be9.sample-folding-ca2b29d38b52b072c2c2a19ed8c1f806.cfg
+build/cg/b17/game/.godot/editor/k_close.ogg-e14616d2a79be70a31490dcbdd5f64ab.oggvorbisstr-folding-9aaf3fb88e8d4031debed88beb0e00d7.cfg
+build/cg/b17/game/.godot/editor/k_click.wav-6d7502c87019cf393038eab3fe2cd8e6.sample-folding-8289d39041c766876ee2b1d7368eac44.cfg
+build/cg/b17/game/.godot/editor/k_back.wav-0134555a979f7077fa4592fa8d8d8a0e.sample-folding-882c2534482818fb9487d694d7f4a7ba.cfg
+build/cg/b17/game/.godot/editor/horn.wav-def4ad9b5f6ce8131f0bb9dfbd016b61.sample-folding-34422b6c301e1692da5175beebd1b658.cfg
+build/cg/b17/game/.godot/editor/hit__3.ogg-1e0441cb9e530b4464de56a6a92917a7.oggvorbisstr-folding-1d1c8f1059b287f8d727f9a7a0bd9429.cfg
+build/cg/b17/game/.godot/editor/hit__2.ogg-7e61899061da451135c1bc251ce3a715.oggvorbisstr-folding-8eb2c415b32b780b6c88b401eddc62d4.cfg
+build/cg/b17/game/.godot/editor/hit_wood__4.ogg-3adae90078dbbf365e9e2322c66b77f8.oggvorbisstr-folding-10ffa4ecda01f4de728336cbcc8e404f.cfg
+build/cg/b17/game/.godot/editor/hit_wood__3.ogg-0e5bb059da68e891b06d6032cbfdd6d1.oggvorbisstr-folding-3a5393a6e8f79a3fdabe567306af421f.cfg
+build/cg/b17/game/.godot/editor/hit_wood__2.ogg-ee317cb2d00420a571f29fad79142705.oggvorbisstr-folding-5b1cd356017b1348c41a868d704fd11e.cfg
+build/cg/b17/game/.godot/editor/hit_wood.wav-20cd010042fe2e0aedb1f8be9eb7766b.sample-folding-010e0305bfb1cf64ff5efc53552eddcc.cfg
+build/cg/b17/game/.godot/editor/hit_wood.ogg-2d40888e38582fab4fde7a0c039af39c.oggvorbisstr-folding-c930952446be76546e52baef404eb276.cfg
+build/cg/b17/game/.godot/editor/hit_soft.wav-2a5366bb966ea0f7ee7244a810c2fb38.sample-folding-c2c44ab673da1d47cec3bef306f4be4d.cfg
+build/cg/b17/game/.godot/editor/hit_metal__4.ogg-7d9759fe5a16e3e69a6fa725f2b63b2c.oggvorbisstr-folding-ef434dc5c18fae1773c8fe7c22b13775.cfg
+build/cg/b17/game/.godot/editor/hit_metal__3.ogg-6ab7067e47f650f82a219f31dadac8ba.oggvorbisstr-folding-4706fc81ed7aa894c0342a20e4779d90.cfg
+build/cg/b17/game/.godot/editor/hit_metal__2.ogg-8b2d7dc11502aea94b4d23a3d5b7ccdb.oggvorbisstr-folding-53c5d975427d0ef30999a47ee70b82d2.cfg
+build/cg/b17/game/.godot/editor/hit_metal.wav-87d37a493b5759e80a2180c91e97a316.sample-folding-7ecb0930f4e83470ce85e5fb30928b05.cfg
+build/cg/b17/game/.godot/editor/hit_metal.ogg-80119d55445f6301fb1f13299df12929.oggvorbisstr-folding-76411f8e00eeffc956d37f5c1ab31daf.cfg
+build/cg/b17/game/.godot/editor/hit.wav-0ce77c86b567f5096583f88ec20be939.sample-folding-24a5c341d073b9e8c566f44675161a86.cfg
+build/cg/b17/game/.godot/editor/hit.ogg-3fb26465f0dedce28fa3a09a4eea5b0a.oggvorbisstr-folding-7001c9b8c6b7dcb0d943b22247251422.cfg
+build/cg/b17/game/.godot/editor/NTBRoundedSC-R-sub.otf-f547d98e42b07e0a8965702af72bc558.fontdata-folding-6edc1630b35c8a072a3613d195e494df.cfg
+build/cg/b17/game/.godot/editor/NTBRoundedSC-B-sub.otf-ccc585452348fc37a6bc7c6e8df24b55.fontdata-folding-e3af1a175c5febdb3b5966d514441a97.cfg
+build/cg/b17/game/.godot/editor/NTBRoundedJP-R-sub.otf-dac9724ea04d6e7a6efd73d7307b2d9a.fontdata-folding-539a96c3819884a5c6196e38dd54cc9a.cfg
+build/cg/b17/game/.godot/editor/NTBRoundedJP-B-sub.otf-079a066075cb6c4eecb84f4bd2003de0.fontdata-folding-4616a20658111871bdb73eb6b137022a.cfg
+build/cg/b17/game/.godot/editor/NTBRounded-R-sub.otf-278c9ee5421a62168218f5ddb70e93dc.fontdata-folding-e8166f377124698f7608e1bacd65edf8.cfg
+build/cg/b17/game/.godot/editor/NTBRounded-B-sub.otf-d231bb23748c764b7c4cf3ba4fe7b5a3.fontdata-folding-832a2b94c9a270d51f53a5ed8f551a5f.cfg
+build/cg/b17/game/.godot/editor/NTBLatin-M-sub.ttf-36527a60f5c02e9db7176a095da64af4.fontdata-folding-0e5e679d28f0a4b51bda8490e0f2150f.cfg
+build/cg/b17/game/.godot/editor/NTBLatin-B-sub.ttf-2a436b87f4534b2068e9febf8c44540e.fontdata-folding-c060c3ddc7530d4b4017d5e3c1986bde.cfg
+build/cg/b17/game/.godot/editor/NotoSansTC-Regular-sub.otf-c04b7aa2d3d173fbc956ecdf1357489a.fontdata-folding-3dcccd7fdefbbe286a69159ae050266a.cfg
+build/cg/b17/game/.godot/editor/NotoSansTC-Bold-sub.otf-05134277b8c390f4c2ff0d0493f74bf5.fontdata-folding-4fde15ef4cc9031e453c05fa62de8a81.cfg
+build/cg/b17/game/.godot/editor/music_title.wav-f463095d63f257f936baeb6dfe5a7303.sample-folding-bd16f439b69fa1779707ead673e8e58d.cfg
+build/cg/b17/game/.godot/editor/music_title.ogg-ce37486694d4756ed252d83a70f8ca4e.oggvorbisstr-folding-948dee6557e970072c36c4fb81114532.cfg
+build/cg/b17/game/.godot/editor/music_puzzle.ogg-b00ceef660fcbf39e59e0239c3e060b3.oggvorbisstr-folding-12c17a4742dc40df9972ecbbfe5cc3c3.cfg
+build/cg/b17/game/.godot/editor/music_place.wav-9efc71ea3870ba6ef16aedc936cc1180.sample-folding-fe8db1e6b6a207e2938ddf5b7671cc81.cfg
+build/cg/b17/game/.godot/editor/music_place.ogg-b5a3dc740a5486e0fbd302e4bdb44aea.oggvorbisstr-folding-2f68d1b9532b5aeb743739d13a8ec7ce.cfg
+build/cg/b17/game/.godot/editor/music_frenzy.wav-fa4643ca5d9fc6f6af94f621021b42e0.sample-folding-d63e3c6358c9fe5bdeff0b8fe3d4ef0c.cfg
+build/cg/b17/game/.godot/editor/music_codex.ogg-43cc5f8d4432fd59f7036ed590a45857.oggvorbisstr-folding-1bf9955969c6185c18c034605aad3447.cfg
+build/cg/b17/game/.godot/editor/music_battle_mel.wav-d7485f73834a25a4e55ef96684195c5a.sample-folding-f2d72bc621fa2c81b2e8c2262ef16341.cfg
+build/cg/b17/game/.godot/editor/music_battle_drums.wav-90f1cede08d932f3d1651c430dac4ce4.sample-folding-a018e0156b58578204c62d78ea03991a.cfg
+build/cg/b17/game/.godot/editor/music_battle_bass.wav-a0fe40e018b8ea7d9faefdb60af6a126.sample-folding-66f2870631b8e73ab3481b870b2e67c9.cfg
+build/cg/b17/game/.godot/editor/music_battle.wav-84f67e893f9d98020da80ff9a5044514.sample-folding-e1ee23a43feeba49972bb4f2692fd1eb.cfg
+build/cg/b17/game/.godot/editor/music_battle.ogg-918bb813a5bdc3f93e038cbee6b76eda.oggvorbisstr-folding-6bfb24b41e7d3f4300a3b5fe4a48d148.cfg
+build/cg/b17/game/.godot/editor/main.tscn-folding-3ad5c15c4f3250da0cc7c1af1770d85f.cfg
+build/cg/b17/game/.godot/editor/lose.wav-1c2fa3974c42e93c49ca553f113e2994.sample-folding-725c62b9a0a6d38ba23286d21dd86799.cfg
+build/cg/b17/game/.godot/editor/l10n_extra.zh_CN.translation-folding-46a788701c8e7feda3894710a79debd1.cfg
+build/cg/b17/game/.godot/editor/l10n_extra.ja.translation-folding-ebbebd1aafc2c89f53d2486f71b4014d.cfg
+build/cg/b17/game/.godot/editor/k_unlock.wav-4c46c7a20f286821afe1cdcdcec6dacb.sample-folding-703eca80bf21bcd2f6312ca3764480f5.cfg
+build/cg/b17/game/.godot/editor/k_unlock.ogg-931e8624cdd3de8a1cd9d963af09d6b9.oggvorbisstr-folding-c410b2611f75674078c1594e81a01153.cfg
+build/cg/b17/game/.godot/editor/k_toggle.wav-427d0399fb0767ac56d8d8b6e48ccd1b.sample-folding-f9bcc5bb2269d3d6b9c2aafc4d3c590b.cfg
+build/cg/b17/game/.godot/editor/k_tab__3.ogg-2018c1a449e2e8a6d3bd7c291834581a.oggvorbisstr-folding-63612e2d0dd5936ae48116c922e3fdd8.cfg
+build/cg/b17/game/.godot/editor/k_tab__2.ogg-f410a8c8cc4978657c709c4a31647eb0.oggvorbisstr-folding-c38bca86529fe2d1b9e6e93860b3b580.cfg
+build/cg/b17/game/.godot/editor/k_tab.wav-eaa6616f614528b83b124a83217c73b1.sample-folding-69237c4a9eb8689665fcbebb308792ab.cfg
+build/cg/b17/game/.godot/editor/squish.wav-31d571b2c748bcb972dcbf6c709b64ee.sample-folding-e8a87b9b9d71e788f6dbab729e3b58f9.cfg
+build/cg/b17/game/.godot/editor/snap.wav-60b33a147ce552f8bc3d7574ec574f42.sample-folding-9c4d2f4b5500a7b2f997f707712b9deb.cfg
+build/cg/b17/game/.godot/editor/slash__5.ogg-a20a5ab650abe1cc8413942d829707aa.oggvorbisstr-folding-d58636768d836830c7f7a329fe15a0b2.cfg
+build/cg/b17/game/.godot/editor/slash__4.ogg-52ec07d55c650e03131403113b3e929d.oggvorbisstr-folding-4bd63439f6e7d024f024071b2d763fec.cfg
+build/cg/b17/game/.godot/editor/slash__3.ogg-e2711111a90a1f772dc960713ac3d40e.oggvorbisstr-folding-782412126c8795cc96d9ccdcd9514502.cfg
+build/cg/b17/game/.godot/editor/slash__2.ogg-d3adec8d598ea69ea50ade976bbf389f.oggvorbisstr-folding-237beecd1484cc94dd5168929d0d1cd7.cfg
+build/cg/b17/game/.godot/editor/slash.wav-751b7ac480acfedb2ca882978eba0cb7.sample-folding-6a555eb0e0ac5768fbaae20424fc0544.cfg
+build/cg/b17/game/.godot/editor/slash.ogg-c66ff9076143a28fe34052e71fdeb987.oggvorbisstr-folding-eacfe38a7f3943b308f56dd48752bdf7.cfg
+build/cg/b17/game/.godot/editor/shatter.wav-36a641607c38dab84500cd90dcc0d8df.sample-folding-f6c2efab21c9182e3bcb07d57ee506f7.cfg
+build/cg/b17/game/.godot/editor/reveal.wav-96df29210ad65cec040df446cfd1c817.sample-folding-63b31a27eaf8adcf932ef013c98872f6.cfg
+build/cg/b17/game/.godot/editor/raise.wav-4cd4fa8bee5c9fae80c3ddd5795c774c.sample-folding-624e323db775c8a75bdc35be2d744749.cfg
+build/cg/b17/game/.godot/editor/project_metadata.cfg
+build/cg/b17/game/.godot/editor/poison.wav-d9ffa9777ee6a251c2c2791c36067502.sample-folding-9b7fe90141c105f23dc93c54d868239d.cfg
+build/cg/b17/game/.godot/editor/place_mid__2.ogg-e7089cbb91a466136108f87dd46685d4.oggvorbisstr-folding-8852ce8f5c46d5981e16a4c30f5f768d.cfg
+build/cg/b17/game/.godot/editor/place_mid.wav-a66834a4087ecb6a5a3d90670bd4edec.sample-folding-a8130b71acfd64956ea1429386d8896c.cfg
+build/cg/b17/game/.godot/editor/place_mid.ogg-7e07440380ed8b5c61028ae0dc78c1ab.oggvorbisstr-folding-3521eb98e3fd3679d144daafae121a32.cfg
+build/cg/b17/game/.godot/editor/place_light__3.ogg-2a88e6d2acbe44f5379b41dfaa2ddaad.oggvorbisstr-folding-a796824a7a95ca585ce867d6cfb380f1.cfg
+build/cg/b17/game/.godot/editor/place_light__2.ogg-28eaabf25e786ca22cd2ba4c29adbda5.oggvorbisstr-folding-4a6497da9dba1b88f40de766ab0974ac.cfg
+build/cg/b17/game/.godot/editor/place_light.wav-45eea444165bfc1153d929b8a265af6f.sample-folding-fdeda7b7246960edf486a1f905860e1e.cfg
+build/cg/b17/game/.godot/editor/place_light.ogg-fea6438607fcaf3d084eae4cac472b50.oggvorbisstr-folding-e9d5abcddf83c700bb31cad2b4b53c81.cfg
+build/cg/b17/game/.godot/editor/place_heavy__2.ogg-992d0af12893d1694155b6d60352cb92.oggvorbisstr-folding-35779f90c66df37420f64e6da8d227b1.cfg
+build/cg/b17/game/.godot/editor/place_heavy.wav-b37fbe5800ab6eb86875b6705afb9d4b.sample-folding-19ada03af4fcbdbfb2f3d3d0baf6dfe4.cfg
+build/cg/b17/game/.godot/editor/place_heavy.ogg-8b0294efec6d0effb30768d7baf4897e.oggvorbisstr-folding-d7c1942054a19e06d63832b1e80d1041.cfg
+build/cg/b17/game/.godot/editor/NTBTitle-sub.ttf-bc5461fbd83081ddc08bdc19b9989ce0.fontdata-folding-8c7e4143e9844412b92a097de1ffbd83.cfg
+build/cg/b17/game/.godot/editor/NTBSansSC-R-sub.otf-4372ac029d4a185ef88c3a557680b0cd.fontdata-folding-8bce46d5c982c8321bd20b0bdbb6645e.cfg
+build/cg/b17/game/.godot/editor/NTBSansSC-B-sub.otf-8fc10985268c1d02a42bd8fd73c34055.fontdata-folding-3d882ba44171d94513cf479df53aa9a0.cfg
+build/cg/b17/game/.godot/editor/NTBSansLatin-R-sub.ttf-a13521ae02f515ee2b5c60220146d6c6.fontdata-folding-0f23278db821e958161cc8ecdac354f5.cfg
+build/cg/b17/game/.godot/editor/NTBSansLatin-B-sub.ttf-7a8a7a1477f0eee200408d5148001436.fontdata-folding-589aa6bdd05e6ba5b766b85fc144dc9f.cfg
+build/cg/b17/game/.godot/editor/NTBSansJP-R-sub.otf-8d921ab11c7e4b65bd64e668cd725aa9.fontdata-folding-f136e1a2341cbbd52585a4a902c4c970.cfg
+build/cg/b17/game/.godot/editor/NTBSansJP-B-sub.otf-c2625860f4189cdf9f259c5564c5b76f.fontdata-folding-ac352bbbc976c63ffb5f37b2d380aae8.cfg
+build/cg/b17/game/.godot/editor/NTBSans-R-sub.otf-761569216a5bcc485ac0d45e0abf7a62.fontdata-folding-8acff64ba1f87be432a3f6f534ec81f3.cfg
+build/cg/b17/game/.godot/editor/NTBSans-B-sub.otf-f1d5c877480f2641634b52fd2deb80f6.fontdata-folding-1013e3dbaf1910529d1da6af79b2b8ce.cfg
+build/cg/b17/game/.godot/editor/ThenKhung-sub.ttf-bf77143df3bd6883484982ade760c1d8.fontdata-folding-84fff1625bf3d897b8133a8c9e1089fc.cfg
+build/cg/b17/game/.godot/editor/tension.wav-d0dd20b811d48b3c3f89bc502036d3af.sample-folding-627fe9389577f1c66744a0a078b40c4d.cfg
+build/cg/b17/game/.godot/editor/taunt.wav-ac2f7f83a7c5b6388fbc1dc8ade9b1f0.sample-folding-79745e32aa219123cb872637a8b84b25.cfg
+build/cg/b17/game/.godot/editor/strings.zh_TW.translation-folding-36f87748067c32a0300560bd9b9992ea.cfg
+build/cg/b17/game/.godot/editor/strings.en.translation-folding-b83c0285fc5c63967dd9db244f83077f.cfg
+build/cg/b17/game/.godot/editor/stomp.wav-792da3269d1ee903aedbb5017eb519f9.sample-folding-1bd215afe900fbd06f99596a237dce5b.cfg
+build/cg/b17/game/.godot/editor/step_wood__3.ogg-93b8cc362870212e728603ce651cf2e6.oggvorbisstr-folding-770d372abd7e12d49b578bed6da5669c.cfg
+build/cg/b17/game/.godot/editor/step_wood__2.ogg-036293b954b978f364e94d4e943f5dd9.oggvorbisstr-folding-2329090f30cf1e3f1cafa0bbee921bfb.cfg
+build/cg/b17/game/.godot/editor/step_wood.wav-583585c91342dda08ad1b7843ef902f5.sample-folding-0af03c9f03a73692c806bd409f0218e0.cfg
+build/cg/b17/game/.godot/editor/step_wood.ogg-fde94da4077aaf4e5d99fac0ab98b2f0.oggvorbisstr-folding-1b72f71db6347a92c80377a1744103d6.cfg
+build/cg/b17/game/.godot/editor/step_stone__3.ogg-af7e346bfe5e772b031c7900a8e7f5a2.oggvorbisstr-folding-35741bb0b647c2562a871fef48437f00.cfg
+build/cg/b17/game/.godot/editor/step_stone__2.ogg-93790a772540097269ba730e5781b8e6.oggvorbisstr-folding-ba77f21880ab7a50822c0fe4913f6b76.cfg
+build/cg/b17/game/.godot/editor/step_stone.wav-b90225a1dc491eba17c4a0f3c2f55256.sample-folding-269c4a0dbf147557e2a2ba6217a9f20e.cfg
+build/cg/b17/game/.godot/editor/step_stone.ogg-f05510c6baeba19e1bb105a51c83b0b9.oggvorbisstr-folding-2524c4a4eec7693cd3a694e88d5e2d75.cfg
+build/cg/b17/game/.godot/editor/step_snow.wav-fdaac8850caaf03e93a78d36f6c306ba.sample-folding-c49736feb115b98c7448acb917c0794a.cfg
+build/cg/b17/game/.godot/editor/step_heavy.wav-6d92f1b1eef9aae5b26256c11b97b887.sample-folding-1c46697cd2802d69ab7ec4acf126b746.cfg
+build/cg/b17/game/.godot/editor/step_grass__4.ogg-9aba50863aa25165df040dcdeb6096c0.oggvorbisstr-folding-a98ad7ec9536d2770ba1e67353d5cc94.cfg
+build/cg/b17/game/.godot/editor/step_grass__3.ogg-efea5b24e0bf7c6dc696c2691d6d2f63.oggvorbisstr-folding-5031bc15185aadaf34d08deb9df20e5f.cfg
+build/cg/b17/game/.godot/editor/step_grass__2.ogg-018d4ff04ce04a7e7c3244f077ce8d97.oggvorbisstr-folding-65aaa81c3a1659874a3a95ba8c623eb0.cfg
+build/cg/b17/game/.godot/editor/step_grass.wav-d077d54ae3acaf2647a6ce334a0f6eb2.sample-folding-4fdbc7c9fc1ce1bd8c33386f9022379c.cfg
+build/cg/b17/game/.godot/editor/step_grass.ogg-aaf07de3301de6f774527897b67559c0.oggvorbisstr-folding-bf96138e0778645fd08af7376a98d7a4.cfg
+build/cg/b17/game/.godot/editor/start.wav-5b4244b23d9f43a6d42d374d55698dc2.sample-folding-5dfc967e868e5ef21e1e02e3b07b106b.cfg
+build/cg/b17/game/.godot/editor/voice_hmm_2.wav-98b6377df9f6ce8aaaf5da81de35ed15.sample-folding-c7e9b194f65ec16dbac8fa0e10201e7b.cfg
+build/cg/b17/game/.godot/editor/voice_hmm_1.wav-5a4219ea976b1d3a371db185527dfa25.sample-folding-60028cd645465fc8bcfa248a890de0a1.cfg
+build/cg/b17/game/.godot/editor/voice_happy_3.wav-a3742bafc44737ab69bf8314f6c95dcc.sample-folding-5a637a951b6d086f0e3373a33b7166d8.cfg
+build/cg/b17/game/.godot/editor/voice_happy_2.wav-0302a5c23678bb000da404f7209f9090.sample-folding-28bcb08951ba39bea7864967a7fc09b2.cfg
+build/cg/b17/game/.godot/editor/voice_happy_1.wav-2f616b516921d0aac6720e6c088529bf.sample-folding-61a893b547b9ccd436a86440e8235244.cfg
+build/cg/b17/game/.godot/editor/vacuum.wav-3ae6deb48fac479dc1803ddbdcd17a72.sample-folding-f28f87528a2abe9cfbdb48be6c8959c0.cfg
+build/cg/b17/game/.godot/editor/ui_quill.wav-be542d0c4fcac0973b8fd10c859ab3f0.sample-folding-e8895fb124d6163e14bc147bbfcc2a07.cfg
+build/cg/b17/game/.godot/editor/ui_deny.wav-4343b832e1061d0bdbcaf282d1d2ab4a.sample-folding-d4feef4e7fb769e6351c705fd1962436.cfg
+build/cg/b17/game/.godot/editor/ui_click.wav-0e8ea9171a5aa44f52d6e6fd79ed475c.sample-folding-22e5def6488dcbe0222ea74a189a8846.cfg
+build/cg/b17/game/.godot/editor/turn.wav-def9623fe50205b5e7ce1871993ea245.sample-folding-3f74353820513106ae4067c8a0745fdf.cfg
+build/cg/b17/game/.godot/editor/timestop.wav-6108bbc0cf23fd6619c94ca65d981dd8.sample-folding-2eef8b8fac7e222f8304fd3a9f2f4d38.cfg
+build/cg/b17/game/.godot/editor/win.wav-a85682759b6fa412fcd878d8f1a6ea9d.sample-folding-fcf7ecc5146b8f58b3cbede2cbb15b51.cfg
+build/cg/b17/game/.godot/editor/voice_sad_3.wav-6d7d4f636604d4a6c26f7a2516d6e38a.sample-folding-20b09dcb74223e5e8c45ab28169c77e0.cfg
+build/cg/b17/game/.godot/editor/voice_sad_2.wav-ab371653011b6a458ccff00435a46372.sample-folding-048d1fa2e165df1c082ceb050130c9d9.cfg
+build/cg/b17/game/.godot/editor/voice_sad_1.wav-a253a08accf90f942b052b884e2dfd02.sample-folding-537fdbc448352e19d0b82bb1b444a9b4.cfg
+build/cg/b17/game/.godot/editor/voice_hmm_3.wav-91f3d61d748a0a8af693f46ff4a98ff0.sample-folding-605b9b0e1aeb54e669e41c9511a324fe.cfg
+build/cg/b17/game/.godot/editor/wood_light.wav-44bd52388146525dfe6de8dafb7fb3bd.sample-folding-62c99c73eea099ec6dda96dd5edae0f7.cfg
+build/cg/b17/game/.godot/editor/wood_hollow.wav-2b6c5e6a0d05d3496e161f7843793bfd.sample-folding-8eb946a6a6b39ae85243b84033febb8e.cfg
+build/cg/b17/game/.godot/editor/wood_heavy.wav-d8db0ed874b864619d364d960ad1c47f.sample-folding-d43d95c02e36ea47965eca6380a627ca.cfg
+build/cg/b17/game/.godot/editor/wood_metal.wav-eeae5c5f1944c0ba273703b66a2663fe.sample-folding-a1df5fff61f136f8eb217e898fca39e1.cfg
+build/cg/b17/game/.godot/editor/wood_topple.wav-137fed1260b67bc9296521ea899bc751.sample-folding-aee4acb3eabb24ec756acb2161ae8e64.cfg
+build/cg/b17/game/addons/godotsteam/license.md
+build/cg/b17/game/addons/godotsteam/godotsteam.gdextension.uid
+build/cg/b17/game/addons/godotsteam/godotsteam.gdextension
+build/cg/b17/game/addons/godotsteam/readme.md
+build/cg/b17/game/.godot/imported/wood_topple.wav-137fed1260b67bc9296521ea899bc751.sample
+build/cg/b17/game/.godot/imported/wood_topple.wav-137fed1260b67bc9296521ea899bc751.md5
+build/cg/b17/game/.godot/imported/wood_metal.wav-eeae5c5f1944c0ba273703b66a2663fe.sample
+build/cg/b17/game/.godot/imported/wood_metal.wav-eeae5c5f1944c0ba273703b66a2663fe.md5
+build/cg/b17/game/.godot/imported/wood_light.wav-44bd52388146525dfe6de8dafb7fb3bd.sample
+build/cg/b17/game/.godot/imported/wood_light.wav-44bd52388146525dfe6de8dafb7fb3bd.md5
+build/cg/b17/game/.godot/imported/wood_hollow.wav-2b6c5e6a0d05d3496e161f7843793bfd.sample
+build/cg/b17/game/.godot/imported/wood_hollow.wav-2b6c5e6a0d05d3496e161f7843793bfd.md5
+build/cg/b17/game/.godot/imported/wood_heavy.wav-d8db0ed874b864619d364d960ad1c47f.sample
+build/cg/b17/game/.godot/imported/wood_heavy.wav-d8db0ed874b864619d364d960ad1c47f.md5
+build/cg/b17/game/.godot/imported/wood.png-77c66770a1cf09a67b6e70e811e7befa.md5
+build/cg/b17/game/.godot/imported/wood.png-77c66770a1cf09a67b6e70e811e7befa.ctex
+build/cg/b17/game/.godot/imported/win.wav-a85682759b6fa412fcd878d8f1a6ea9d.sample
+build/cg/b17/game/.godot/imported/win.wav-a85682759b6fa412fcd878d8f1a6ea9d.md5
+build/cg/b17/game/.godot/imported/wax_red.png-444c5d3efb48495a71bfac229438eeb7.md5
+build/cg/b17/game/.godot/imported/wax_red.png-444c5d3efb48495a71bfac229438eeb7.ctex
+build/cg/b17/game/.godot/imported/wax_gold.png-0913aca0313f638f0bcda7b931cffde2.md5
+build/cg/b17/game/.godot/imported/wax_gold.png-0913aca0313f638f0bcda7b931cffde2.ctex
+build/cg/b17/game/.godot/imported/wax_brown.png-359799557e153635f320e64fab39c6a9.md5
+build/cg/b17/game/.godot/imported/wax_brown.png-359799557e153635f320e64fab39c6a9.ctex
+build/cg/b17/game/.godot/imported/voice_sad_3.wav-6d7d4f636604d4a6c26f7a2516d6e38a.sample
+build/cg/b17/game/.godot/imported/voice_sad_3.wav-6d7d4f636604d4a6c26f7a2516d6e38a.md5
+build/cg/b17/game/.godot/imported/voice_sad_2.wav-ab371653011b6a458ccff00435a46372.sample
+build/cg/b17/game/.godot/imported/voice_sad_2.wav-ab371653011b6a458ccff00435a46372.md5
+build/cg/b17/game/.godot/imported/voice_sad_1.wav-a253a08accf90f942b052b884e2dfd02.sample
+build/cg/b17/game/.godot/imported/voice_sad_1.wav-a253a08accf90f942b052b884e2dfd02.md5
+build/cg/b17/game/.godot/imported/voice_hmm_3.wav-91f3d61d748a0a8af693f46ff4a98ff0.sample
+build/cg/b17/game/.godot/imported/voice_hmm_3.wav-91f3d61d748a0a8af693f46ff4a98ff0.md5
+build/cg/b17/game/.godot/imported/voice_hmm_2.wav-98b6377df9f6ce8aaaf5da81de35ed15.sample
+build/cg/b17/game/.godot/imported/voice_hmm_2.wav-98b6377df9f6ce8aaaf5da81de35ed15.md5
+build/cg/b17/game/.godot/imported/voice_hmm_1.wav-5a4219ea976b1d3a371db185527dfa25.sample
+build/cg/b17/game/.godot/imported/voice_hmm_1.wav-5a4219ea976b1d3a371db185527dfa25.md5
+build/cg/b17/game/.godot/imported/voice_happy_3.wav-a3742bafc44737ab69bf8314f6c95dcc.sample
+build/cg/b17/game/.godot/imported/voice_happy_3.wav-a3742bafc44737ab69bf8314f6c95dcc.md5
+build/cg/b17/game/.godot/imported/voice_happy_2.wav-0302a5c23678bb000da404f7209f9090.sample
+build/cg/b17/game/.godot/imported/voice_happy_2.wav-0302a5c23678bb000da404f7209f9090.md5
+build/cg/b17/game/.godot/imported/voice_happy_1.wav-2f616b516921d0aac6720e6c088529bf.sample
+build/cg/b17/game/.godot/imported/voice_happy_1.wav-2f616b516921d0aac6720e6c088529bf.md5
+build/cg/b17/game/.godot/imported/vignette.png-519649267069d89d8929e6ab719efaf2.md5
+build/cg/b17/game/.godot/imported/vignette.png-519649267069d89d8929e6ab719efaf2.ctex
+build/cg/b17/game/.godot/imported/vacuum.wav-3ae6deb48fac479dc1803ddbdcd17a72.sample
+build/cg/b17/game/.godot/imported/vacuum.wav-3ae6deb48fac479dc1803ddbdcd17a72.md5
+build/cg/b17/game/.godot/imported/ui_quill.wav-be542d0c4fcac0973b8fd10c859ab3f0.sample
+build/cg/b17/game/.godot/imported/ui_quill.wav-be542d0c4fcac0973b8fd10c859ab3f0.md5
+build/cg/b17/game/.godot/imported/ui_deny.wav-4343b832e1061d0bdbcaf282d1d2ab4a.sample
+build/cg/b17/game/.godot/imported/ui_deny.wav-4343b832e1061d0bdbcaf282d1d2ab4a.md5
+build/cg/b17/game/.godot/imported/ui_click.wav-0e8ea9171a5aa44f52d6e6fd79ed475c.sample
+build/cg/b17/game/.godot/imported/ui_click.wav-0e8ea9171a5aa44f52d6e6fd79ed475c.md5
+build/cg/b17/game/.godot/imported/TX_Tileset_Grass.png-912bdca9df2e04e8398b91224488e158.md5
+build/cg/b17/game/.godot/imported/TX_Tileset_Grass.png-912bdca9df2e04e8398b91224488e158.ctex
+build/cg/b17/game/.godot/imported/turn.wav-def9623fe50205b5e7ce1871993ea245.sample
+build/cg/b17/game/.godot/imported/turn.wav-def9623fe50205b5e7ce1871993ea245.md5
+build/cg/b17/game/.godot/imported/timestop.wav-6108bbc0cf23fd6619c94ca65d981dd8.sample
+build/cg/b17/game/.godot/imported/timestop.wav-6108bbc0cf23fd6619c94ca65d981dd8.md5
+build/cg/b17/game/.godot/imported/tile_walnut_d.png-368a4519413de6d60cdd0ffe1d2a9f53.md5
+build/cg/b17/game/.godot/imported/tile_walnut_d.png-368a4519413de6d60cdd0ffe1d2a9f53.ctex
+build/cg/b17/game/.godot/imported/tile_walnut.png-1bdc731c9d4789f1ff94861d07eb100c.md5
+build/cg/b17/game/.godot/imported/tile_walnut.png-1bdc731c9d4789f1ff94861d07eb100c.ctex
+build/cg/b17/game/.godot/imported/tile_paper3.png-813104f59d41493eb78650c336fd9247.md5
+build/cg/b17/game/.godot/imported/tile_paper3.png-813104f59d41493eb78650c336fd9247.ctex
+build/cg/b17/game/.godot/imported/tile_paper2.png-b13a08c644d6775761ba4478b4b1595a.md5
+build/cg/b17/game/.godot/imported/tile_paper2.png-b13a08c644d6775761ba4478b4b1595a.ctex
+build/cg/b17/game/.godot/imported/tile_paper1.png-dd851287490665773975494842190701.md5
+build/cg/b17/game/.godot/imported/tile_paper1.png-dd851287490665773975494842190701.ctex
+build/cg/b17/game/.godot/imported/tile_oak.png-e8bfb254903f926248d8444e32daae42.md5
+build/cg/b17/game/.godot/imported/tile_oak.png-e8bfb254903f926248d8444e32daae42.ctex
+build/cg/b17/game/.godot/imported/tile_madder.png-df5f15d2c01030e84cc4d9c428f1ba7f.md5
+build/cg/b17/game/.godot/imported/tile_madder.png-df5f15d2c01030e84cc4d9c428f1ba7f.ctex
+build/cg/b17/game/.godot/imported/tile_linen.png-8584e87518aec0193da4ed65c546e211.md5
+build/cg/b17/game/.godot/imported/tile_linen.png-8584e87518aec0193da4ed65c546e211.ctex
+build/cg/b17/game/.godot/imported/tile_kraft.png-9b367b7d2ee5026fb941c71a7e6ab9e4.md5
+build/cg/b17/game/.godot/imported/tile_kraft.png-9b367b7d2ee5026fb941c71a7e6ab9e4.ctex
+build/cg/b17/game/.godot/imported/tile_indigo.png-bd1de1eca9d95648a371c8701cb07b81.md5
+build/cg/b17/game/.godot/imported/tile_indigo.png-bd1de1eca9d95648a371c8701cb07b81.ctex
+build/cg/b17/game/.godot/imported/tile_beech.png-3dfe1b82c9bc5c98eb8e2cffe377029b.md5
+build/cg/b17/game/.godot/imported/tile_beech.png-3dfe1b82c9bc5c98eb8e2cffe377029b.ctex
+build/cg/b17/game/.godot/imported/ThenKhung-sub.ttf-bf77143df3bd6883484982ade760c1d8.md5
+build/cg/b17/game/.godot/imported/ThenKhung-sub.ttf-bf77143df3bd6883484982ade760c1d8.fontdata
+build/cg/b17/game/.godot/imported/tension.wav-d0dd20b811d48b3c3f89bc502036d3af.sample
+build/cg/b17/game/.godot/imported/tension.wav-d0dd20b811d48b3c3f89bc502036d3af.md5
+build/cg/b17/game/.godot/imported/taunt.wav-ac2f7f83a7c5b6388fbc1dc8ade9b1f0.sample
+build/cg/b17/game/.godot/imported/taunt.wav-ac2f7f83a7c5b6388fbc1dc8ade9b1f0.md5
+build/cg/b17/game/.godot/imported/strings.csv-82269d72924b7f69d97d39d488388f40.md5
+build/cg/b17/game/.godot/imported/stomp.wav-792da3269d1ee903aedbb5017eb519f9.sample
+build/cg/b17/game/.godot/imported/stomp.wav-792da3269d1ee903aedbb5017eb519f9.md5
+build/cg/b17/game/.godot/imported/step_wood__3.ogg-93b8cc362870212e728603ce651cf2e6.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_wood__3.ogg-93b8cc362870212e728603ce651cf2e6.md5
+build/cg/b17/game/.godot/imported/step_wood__2.ogg-036293b954b978f364e94d4e943f5dd9.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_wood__2.ogg-036293b954b978f364e94d4e943f5dd9.md5
+build/cg/b17/game/.godot/imported/step_wood.wav-583585c91342dda08ad1b7843ef902f5.sample
+build/cg/b17/game/.godot/imported/step_wood.wav-583585c91342dda08ad1b7843ef902f5.md5
+build/cg/b17/game/.godot/imported/step_wood.ogg-fde94da4077aaf4e5d99fac0ab98b2f0.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_wood.ogg-fde94da4077aaf4e5d99fac0ab98b2f0.md5
+build/cg/b17/game/.godot/imported/step_stone__3.ogg-af7e346bfe5e772b031c7900a8e7f5a2.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_stone__3.ogg-af7e346bfe5e772b031c7900a8e7f5a2.md5
+build/cg/b17/game/.godot/imported/step_stone__2.ogg-93790a772540097269ba730e5781b8e6.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_stone__2.ogg-93790a772540097269ba730e5781b8e6.md5
+build/cg/b17/game/.godot/imported/step_stone.wav-b90225a1dc491eba17c4a0f3c2f55256.sample
+build/cg/b17/game/.godot/imported/step_stone.wav-b90225a1dc491eba17c4a0f3c2f55256.md5
+build/cg/b17/game/.godot/imported/step_stone.ogg-f05510c6baeba19e1bb105a51c83b0b9.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_stone.ogg-f05510c6baeba19e1bb105a51c83b0b9.md5
+build/cg/b17/game/.godot/imported/step_snow.wav-fdaac8850caaf03e93a78d36f6c306ba.sample
+build/cg/b17/game/.godot/imported/step_snow.wav-fdaac8850caaf03e93a78d36f6c306ba.md5
+build/cg/b17/game/.godot/imported/step_heavy.wav-6d92f1b1eef9aae5b26256c11b97b887.sample
+build/cg/b17/game/.godot/imported/step_heavy.wav-6d92f1b1eef9aae5b26256c11b97b887.md5
+build/cg/b17/game/.godot/imported/step_grass__4.ogg-9aba50863aa25165df040dcdeb6096c0.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_grass__4.ogg-9aba50863aa25165df040dcdeb6096c0.md5
+build/cg/b17/game/.godot/imported/step_grass__3.ogg-efea5b24e0bf7c6dc696c2691d6d2f63.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_grass__3.ogg-efea5b24e0bf7c6dc696c2691d6d2f63.md5
+build/cg/b17/game/.godot/imported/step_grass__2.ogg-018d4ff04ce04a7e7c3244f077ce8d97.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_grass__2.ogg-018d4ff04ce04a7e7c3244f077ce8d97.md5
+build/cg/b17/game/.godot/imported/step_grass.wav-d077d54ae3acaf2647a6ce334a0f6eb2.sample
+build/cg/b17/game/.godot/imported/step_grass.wav-d077d54ae3acaf2647a6ce334a0f6eb2.md5
+build/cg/b17/game/.godot/imported/step_grass.ogg-aaf07de3301de6f774527897b67559c0.oggvorbisstr
+build/cg/b17/game/.godot/imported/step_grass.ogg-aaf07de3301de6f774527897b67559c0.md5
+build/cg/b17/game/.godot/imported/start.wav-5b4244b23d9f43a6d42d374d55698dc2.sample
+build/cg/b17/game/.godot/imported/start.wav-5b4244b23d9f43a6d42d374d55698dc2.md5
+build/cg/b17/game/.godot/imported/squish.wav-31d571b2c748bcb972dcbf6c709b64ee.sample
+build/cg/b17/game/.godot/imported/squish.wav-31d571b2c748bcb972dcbf6c709b64ee.md5
+build/cg/b17/game/.godot/imported/snap.wav-60b33a147ce552f8bc3d7574ec574f42.sample
+build/cg/b17/game/.godot/imported/snap.wav-60b33a147ce552f8bc3d7574ec574f42.md5
+build/cg/b17/game/.godot/imported/slash__5.ogg-a20a5ab650abe1cc8413942d829707aa.oggvorbisstr
+build/cg/b17/game/.godot/imported/slash__5.ogg-a20a5ab650abe1cc8413942d829707aa.md5
+build/cg/b17/game/.godot/imported/slash__4.ogg-52ec07d55c650e03131403113b3e929d.oggvorbisstr
+build/cg/b17/game/.godot/imported/slash__4.ogg-52ec07d55c650e03131403113b3e929d.md5
+build/cg/b17/game/.godot/imported/slash__3.ogg-e2711111a90a1f772dc960713ac3d40e.oggvorbisstr
+build/cg/b17/game/.godot/imported/slash__3.ogg-e2711111a90a1f772dc960713ac3d40e.md5
+build/cg/b17/game/.godot/imported/slash__2.ogg-d3adec8d598ea69ea50ade976bbf389f.oggvorbisstr
+build/cg/b17/game/.godot/imported/slash__2.ogg-d3adec8d598ea69ea50ade976bbf389f.md5
+build/cg/b17/game/.godot/imported/slash.wav-751b7ac480acfedb2ca882978eba0cb7.sample
+build/cg/b17/game/.godot/imported/slash.wav-751b7ac480acfedb2ca882978eba0cb7.md5
+build/cg/b17/game/.godot/imported/slash.ogg-c66ff9076143a28fe34052e71fdeb987.oggvorbisstr
+build/cg/b17/game/.godot/imported/slash.ogg-c66ff9076143a28fe34052e71fdeb987.md5
+build/cg/b17/game/.godot/imported/shatter.wav-36a641607c38dab84500cd90dcc0d8df.sample
+build/cg/b17/game/.godot/imported/shatter.wav-36a641607c38dab84500cd90dcc0d8df.md5
+build/cg/b17/game/.godot/imported/reveal.wav-96df29210ad65cec040df446cfd1c817.sample
+build/cg/b17/game/.godot/imported/reveal.wav-96df29210ad65cec040df446cfd1c817.md5
+build/cg/b17/game/.godot/imported/raise.wav-4cd4fa8bee5c9fae80c3ddd5795c774c.sample
+build/cg/b17/game/.godot/imported/raise.wav-4cd4fa8bee5c9fae80c3ddd5795c774c.md5
+build/cg/b17/game/.godot/imported/poison.wav-d9ffa9777ee6a251c2c2791c36067502.sample
+build/cg/b17/game/.godot/imported/poison.wav-d9ffa9777ee6a251c2c2791c36067502.md5
+build/cg/b17/game/.godot/imported/plant_08.png-57755dde499154293e9703c677fdff6f.md5
+build/cg/b17/game/.godot/imported/plant_08.png-57755dde499154293e9703c677fdff6f.ctex
+build/cg/b17/game/.godot/imported/plant_07.png-7e66b9230af5ea9e56b18908c67cd105.md5
+build/cg/b17/game/.godot/imported/plant_07.png-7e66b9230af5ea9e56b18908c67cd105.ctex
+build/cg/b17/game/.godot/imported/plant_06.png-8175392ecca5cf6454538a58b419dcb7.md5
+build/cg/b17/game/.godot/imported/plant_06.png-8175392ecca5cf6454538a58b419dcb7.ctex
+build/cg/b17/game/.godot/imported/plant_05.png-e0db4d464c0412c2197eb0366da6ac83.md5
+build/cg/b17/game/.godot/imported/plant_05.png-e0db4d464c0412c2197eb0366da6ac83.ctex
+build/cg/b17/game/.godot/imported/plant_04.png-0f0a37ec630976c3658a3c09d80458b9.md5
+build/cg/b17/game/.godot/imported/plant_04.png-0f0a37ec630976c3658a3c09d80458b9.ctex
+build/cg/b17/game/.godot/imported/plant_03.png-c2af83a6c26b5347c1e249512f7ba3c1.md5
+build/cg/b17/game/.godot/imported/plant_03.png-c2af83a6c26b5347c1e249512f7ba3c1.ctex
+build/cg/b17/game/.godot/imported/plant_02.png-110e5270428a4617538e9ef53e1872c5.md5
+build/cg/b17/game/.godot/imported/plant_02.png-110e5270428a4617538e9ef53e1872c5.ctex
+build/cg/b17/game/.godot/imported/plant_01.png-62083e58ae69a05237d056f50b9ca6e1.md5
+build/cg/b17/game/.godot/imported/plant_01.png-62083e58ae69a05237d056f50b9ca6e1.ctex
+build/cg/b17/game/.godot/imported/plant_00.png-a32f43768a17463a14188c103e3904af.md5
+build/cg/b17/game/.godot/imported/plant_00.png-a32f43768a17463a14188c103e3904af.ctex
+build/cg/b17/game/.godot/imported/place_mid__2.ogg-e7089cbb91a466136108f87dd46685d4.oggvorbisstr
+build/cg/b17/game/.godot/imported/place_mid__2.ogg-e7089cbb91a466136108f87dd46685d4.md5
+build/cg/b17/game/.godot/imported/place_mid.wav-a66834a4087ecb6a5a3d90670bd4edec.sample
+build/cg/b17/game/.godot/imported/place_mid.wav-a66834a4087ecb6a5a3d90670bd4edec.md5
+build/cg/b17/game/.godot/imported/place_mid.ogg-7e07440380ed8b5c61028ae0dc78c1ab.oggvorbisstr
+build/cg/b17/game/.godot/imported/place_mid.ogg-7e07440380ed8b5c61028ae0dc78c1ab.md5
+build/cg/b17/game/.godot/imported/place_light__3.ogg-2a88e6d2acbe44f5379b41dfaa2ddaad.oggvorbisstr
+build/cg/b17/game/.godot/imported/place_light__3.ogg-2a88e6d2acbe44f5379b41dfaa2ddaad.md5
+build/cg/b17/game/.godot/imported/place_light__2.ogg-28eaabf25e786ca22cd2ba4c29adbda5.oggvorbisstr
+build/cg/b17/game/.godot/imported/place_light__2.ogg-28eaabf25e786ca22cd2ba4c29adbda5.md5
+build/cg/b17/game/.godot/imported/place_light.wav-45eea444165bfc1153d929b8a265af6f.sample
+build/cg/b17/game/.godot/imported/place_light.wav-45eea444165bfc1153d929b8a265af6f.md5
+build/cg/b17/game/.godot/imported/place_light.ogg-fea6438607fcaf3d084eae4cac472b50.oggvorbisstr
+build/cg/b17/game/.godot/imported/place_light.ogg-fea6438607fcaf3d084eae4cac472b50.md5
+build/cg/b17/game/.godot/imported/place_heavy__2.ogg-992d0af12893d1694155b6d60352cb92.oggvorbisstr
+build/cg/b17/game/.godot/imported/place_heavy__2.ogg-992d0af12893d1694155b6d60352cb92.md5
+build/cg/b17/game/.godot/imported/place_heavy.wav-b37fbe5800ab6eb86875b6705afb9d4b.sample
+build/cg/b17/game/.godot/imported/place_heavy.wav-b37fbe5800ab6eb86875b6705afb9d4b.md5
+build/cg/b17/game/.godot/imported/place_heavy.ogg-8b0294efec6d0effb30768d7baf4897e.oggvorbisstr
+build/cg/b17/game/.godot/imported/place_heavy.ogg-8b0294efec6d0effb30768d7baf4897e.md5
+build/cg/b17/game/.godot/imported/paper.png-ae9103d9b828c0ee4fbd2bc4f17f1c84.md5
+build/cg/b17/game/.godot/imported/paper.png-ae9103d9b828c0ee4fbd2bc4f17f1c84.ctex
+build/cg/b17/game/.godot/imported/NTBTitle-sub.ttf-bc5461fbd83081ddc08bdc19b9989ce0.md5
+build/cg/b17/game/.godot/imported/NTBTitle-sub.ttf-bc5461fbd83081ddc08bdc19b9989ce0.fontdata
+build/cg/b17/game/.godot/imported/NTBSansSC-R-sub.otf-4372ac029d4a185ef88c3a557680b0cd.md5
+build/cg/b17/game/.godot/imported/NTBSansSC-R-sub.otf-4372ac029d4a185ef88c3a557680b0cd.fontdata
+build/cg/b17/game/.godot/imported/NTBSansSC-B-sub.otf-8fc10985268c1d02a42bd8fd73c34055.md5
+build/cg/b17/game/.godot/imported/NTBSansSC-B-sub.otf-8fc10985268c1d02a42bd8fd73c34055.fontdata
+build/cg/b17/game/.godot/imported/NTBSansLatin-R-sub.ttf-a13521ae02f515ee2b5c60220146d6c6.md5
+build/cg/b17/game/.godot/imported/NTBSansLatin-R-sub.ttf-a13521ae02f515ee2b5c60220146d6c6.fontdata
+build/cg/b17/game/.godot/imported/NTBSansLatin-B-sub.ttf-7a8a7a1477f0eee200408d5148001436.md5
+build/cg/b17/game/.godot/imported/NTBSansLatin-B-sub.ttf-7a8a7a1477f0eee200408d5148001436.fontdata
+build/cg/b17/game/.godot/imported/NTBSansJP-R-sub.otf-8d921ab11c7e4b65bd64e668cd725aa9.md5
+build/cg/b17/game/.godot/imported/NTBSansJP-R-sub.otf-8d921ab11c7e4b65bd64e668cd725aa9.fontdata
+build/cg/b17/game/.godot/imported/NTBSansJP-B-sub.otf-c2625860f4189cdf9f259c5564c5b76f.md5
+build/cg/b17/game/.godot/imported/NTBSansJP-B-sub.otf-c2625860f4189cdf9f259c5564c5b76f.fontdata
+build/cg/b17/game/.godot/imported/NTBSans-R-sub.otf-761569216a5bcc485ac0d45e0abf7a62.md5
+build/cg/b17/game/.godot/imported/NTBSans-R-sub.otf-761569216a5bcc485ac0d45e0abf7a62.fontdata
+build/cg/b17/game/.godot/imported/NTBSans-B-sub.otf-f1d5c877480f2641634b52fd2deb80f6.md5
+build/cg/b17/game/.godot/imported/NTBSans-B-sub.otf-f1d5c877480f2641634b52fd2deb80f6.fontdata
+build/cg/b17/game/.godot/imported/NTBRoundedSC-R-sub.otf-f547d98e42b07e0a8965702af72bc558.md5
+build/cg/b17/game/.godot/imported/NTBRoundedSC-R-sub.otf-f547d98e42b07e0a8965702af72bc558.fontdata
+build/cg/b17/game/.godot/imported/NTBRoundedSC-B-sub.otf-ccc585452348fc37a6bc7c6e8df24b55.md5
+build/cg/b17/game/.godot/imported/NTBRoundedSC-B-sub.otf-ccc585452348fc37a6bc7c6e8df24b55.fontdata
+build/cg/b17/game/.godot/imported/NTBRoundedJP-R-sub.otf-dac9724ea04d6e7a6efd73d7307b2d9a.md5
+build/cg/b17/game/.godot/imported/NTBRoundedJP-R-sub.otf-dac9724ea04d6e7a6efd73d7307b2d9a.fontdata
+build/cg/b17/game/.godot/imported/NTBRoundedJP-B-sub.otf-079a066075cb6c4eecb84f4bd2003de0.md5
+build/cg/b17/game/.godot/imported/NTBRoundedJP-B-sub.otf-079a066075cb6c4eecb84f4bd2003de0.fontdata
+build/cg/b17/game/.godot/imported/NTBRounded-R-sub.otf-278c9ee5421a62168218f5ddb70e93dc.md5
+build/cg/b17/game/.godot/imported/NTBRounded-R-sub.otf-278c9ee5421a62168218f5ddb70e93dc.fontdata
+build/cg/b17/game/.godot/imported/NTBRounded-B-sub.otf-d231bb23748c764b7c4cf3ba4fe7b5a3.md5
+build/cg/b17/game/.godot/imported/NTBRounded-B-sub.otf-d231bb23748c764b7c4cf3ba4fe7b5a3.fontdata
+build/cg/b17/game/.godot/imported/NTBLatin-M-sub.ttf-36527a60f5c02e9db7176a095da64af4.md5
+build/cg/b17/game/.godot/imported/NTBLatin-M-sub.ttf-36527a60f5c02e9db7176a095da64af4.fontdata
+build/cg/b17/game/.godot/imported/NTBLatin-B-sub.ttf-2a436b87f4534b2068e9febf8c44540e.md5
+build/cg/b17/game/.godot/imported/NTBLatin-B-sub.ttf-2a436b87f4534b2068e9febf8c44540e.fontdata
+build/cg/b17/game/.godot/imported/NotoSansTC-Regular-sub.otf-c04b7aa2d3d173fbc956ecdf1357489a.md5
+build/cg/b17/game/.godot/imported/NotoSansTC-Regular-sub.otf-c04b7aa2d3d173fbc956ecdf1357489a.fontdata2684113.tmp
+build/cg/b17/game/.godot/imported/NotoSansTC-Regular-sub.otf-c04b7aa2d3d173fbc956ecdf1357489a.fontdata
+build/cg/b17/game/.godot/imported/NotoSansTC-Bold-sub.otf-05134277b8c390f4c2ff0d0493f74bf5.md5
+build/cg/b17/game/.godot/imported/NotoSansTC-Bold-sub.otf-05134277b8c390f4c2ff0d0493f74bf5.fontdata2684346.tmp
+build/cg/b17/game/.godot/imported/NotoSansTC-Bold-sub.otf-05134277b8c390f4c2ff0d0493f74bf5.fontdata
+build/cg/b17/game/.godot/imported/nine_tab_madder.png-c81655e4a33946f8896291f614a9f815.md5
+build/cg/b17/game/.godot/imported/nine_tab_madder.png-c81655e4a33946f8896291f614a9f815.ctex
+build/cg/b17/game/.godot/imported/nine_tab_linen.png-cce0b36c71968831f0e141715aabf47b.md5
+build/cg/b17/game/.godot/imported/nine_tab_linen.png-cce0b36c71968831f0e141715aabf47b.ctex
+build/cg/b17/game/.godot/imported/nine_tab_indigo.png-b35a09a7466fdac530985f2c4beae237.md5
+build/cg/b17/game/.godot/imported/nine_tab_indigo.png-b35a09a7466fdac530985f2c4beae237.ctex
+build/cg/b17/game/.godot/imported/nine_plaque.png-671e0374b65916cefea2253c1000cbda.md5
+build/cg/b17/game/.godot/imported/nine_plaque.png-671e0374b65916cefea2253c1000cbda.ctex
+build/cg/b17/game/.godot/imported/nine_card3.png-37907642af92c4a02111507b7cf8d5b3.md5
+build/cg/b17/game/.godot/imported/nine_card3.png-37907642af92c4a02111507b7cf8d5b3.ctex
+build/cg/b17/game/.godot/imported/nine_card2.png-3261af6582eda2e405bfdb10412e8d21.md5
+build/cg/b17/game/.godot/imported/nine_card2.png-3261af6582eda2e405bfdb10412e8d21.ctex
+build/cg/b17/game/.godot/imported/nine_card1.png-03405c9c7afbada7eeb6c2085ceb66b9.md5
+build/cg/b17/game/.godot/imported/nine_card1.png-03405c9c7afbada7eeb6c2085ceb66b9.ctex
+build/cg/b17/game/.godot/imported/music_title.wav-f463095d63f257f936baeb6dfe5a7303.sample
+build/cg/b17/game/.godot/imported/music_title.wav-f463095d63f257f936baeb6dfe5a7303.md5
+build/cg/b17/game/.godot/imported/music_title.ogg-ce37486694d4756ed252d83a70f8ca4e.oggvorbisstr
+build/cg/b17/game/.godot/imported/music_title.ogg-ce37486694d4756ed252d83a70f8ca4e.md5
+build/cg/b17/game/.godot/imported/music_puzzle.ogg-b00ceef660fcbf39e59e0239c3e060b3.oggvorbisstr
+build/cg/b17/game/.godot/imported/music_puzzle.ogg-b00ceef660fcbf39e59e0239c3e060b3.md5
+build/cg/b17/game/.godot/imported/music_place.wav-9efc71ea3870ba6ef16aedc936cc1180.sample
+build/cg/b17/game/.godot/imported/music_place.wav-9efc71ea3870ba6ef16aedc936cc1180.md5
+build/cg/b17/game/.godot/imported/music_place.ogg-b5a3dc740a5486e0fbd302e4bdb44aea.oggvorbisstr
+build/cg/b17/game/.godot/imported/music_place.ogg-b5a3dc740a5486e0fbd302e4bdb44aea.md5
+build/cg/b17/game/.godot/imported/music_frenzy.wav-fa4643ca5d9fc6f6af94f621021b42e0.sample
+build/cg/b17/game/.godot/imported/music_frenzy.wav-fa4643ca5d9fc6f6af94f621021b42e0.md5
+build/cg/b17/game/.godot/imported/music_codex.ogg-43cc5f8d4432fd59f7036ed590a45857.oggvorbisstr
+build/cg/b17/game/.godot/imported/music_codex.ogg-43cc5f8d4432fd59f7036ed590a45857.md5
+build/cg/b17/game/.godot/imported/music_battle_mel.wav-d7485f73834a25a4e55ef96684195c5a.sample
+build/cg/b17/game/.godot/imported/music_battle_mel.wav-d7485f73834a25a4e55ef96684195c5a.md5
+build/cg/b17/game/.godot/imported/music_battle_drums.wav-90f1cede08d932f3d1651c430dac4ce4.sample
+build/cg/b17/game/.godot/imported/music_battle_drums.wav-90f1cede08d932f3d1651c430dac4ce4.md5
+build/cg/b17/game/.godot/imported/music_battle_bass.wav-a0fe40e018b8ea7d9faefdb60af6a126.sample
+build/cg/b17/game/.godot/imported/music_battle_bass.wav-a0fe40e018b8ea7d9faefdb60af6a126.md5
+build/cg/b17/game/.godot/imported/music_battle.wav-84f67e893f9d98020da80ff9a5044514.sample
+build/cg/b17/game/.godot/imported/music_battle.wav-84f67e893f9d98020da80ff9a5044514.md5
+build/cg/b17/game/.godot/imported/music_battle.ogg-918bb813a5bdc3f93e038cbee6b76eda.oggvorbisstr
+build/cg/b17/game/.godot/imported/music_battle.ogg-918bb813a5bdc3f93e038cbee6b76eda.md5
+build/cg/b17/game/.godot/imported/lose.wav-1c2fa3974c42e93c49ca553f113e2994.sample
+build/cg/b17/game/.godot/imported/lose.wav-1c2fa3974c42e93c49ca553f113e2994.md5
+build/cg/b17/game/.godot/imported/l10n_extra.csv-92f9bd0d038252cd5aab57428efb91a1.md5
+build/cg/b17/game/.godot/imported/k_unlock.wav-4c46c7a20f286821afe1cdcdcec6dacb.sample
+build/cg/b17/game/.godot/imported/k_unlock.wav-4c46c7a20f286821afe1cdcdcec6dacb.md5
+build/cg/b17/game/.godot/imported/k_unlock.ogg-931e8624cdd3de8a1cd9d963af09d6b9.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_unlock.ogg-931e8624cdd3de8a1cd9d963af09d6b9.md5
+build/cg/b17/game/.godot/imported/k_toggle.wav-427d0399fb0767ac56d8d8b6e48ccd1b.sample
+build/cg/b17/game/.godot/imported/k_toggle.wav-427d0399fb0767ac56d8d8b6e48ccd1b.md5
+build/cg/b17/game/.godot/imported/k_tab__3.ogg-2018c1a449e2e8a6d3bd7c291834581a.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_tab__3.ogg-2018c1a449e2e8a6d3bd7c291834581a.md5
+build/cg/b17/game/.godot/imported/k_tab__2.ogg-f410a8c8cc4978657c709c4a31647eb0.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_tab__2.ogg-f410a8c8cc4978657c709c4a31647eb0.md5
+build/cg/b17/game/.godot/imported/k_tab.wav-eaa6616f614528b83b124a83217c73b1.sample
+build/cg/b17/game/.godot/imported/k_tab.wav-eaa6616f614528b83b124a83217c73b1.md5
+build/cg/b17/game/.godot/imported/k_tab.ogg-081e1ced55b51934153966b279aee9be.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_tab.ogg-081e1ced55b51934153966b279aee9be.md5
+build/cg/b17/game/.godot/imported/k_star__2.ogg-49442c6c664b1ad31b7cd6615d8707f9.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_star__2.ogg-49442c6c664b1ad31b7cd6615d8707f9.md5
+build/cg/b17/game/.godot/imported/k_star.wav-6ea939b6872f710e165b0818394a790f.sample
+build/cg/b17/game/.godot/imported/k_star.wav-6ea939b6872f710e165b0818394a790f.md5
+build/cg/b17/game/.godot/imported/k_star.ogg-040426c9288853583d525c4d015703e8.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_star.ogg-040426c9288853583d525c4d015703e8.md5
+build/cg/b17/game/.godot/imported/k_place__2.ogg-7ad11a874ce83a589e6be90f3d0ef46f.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_place__2.ogg-7ad11a874ce83a589e6be90f3d0ef46f.md5
+build/cg/b17/game/.godot/imported/k_place.wav-6d1f018baea5f2a3616847223d2465a7.sample
+build/cg/b17/game/.godot/imported/k_place.wav-6d1f018baea5f2a3616847223d2465a7.md5
+build/cg/b17/game/.godot/imported/k_place.ogg-115593ffc8f86cfc292ab7e6032ef9e8.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_place.ogg-115593ffc8f86cfc292ab7e6032ef9e8.md5
+build/cg/b17/game/.godot/imported/k_open.wav-b6e90fc3e8b495387bfda1be03887c72.sample
+build/cg/b17/game/.godot/imported/k_open.wav-b6e90fc3e8b495387bfda1be03887c72.md5
+build/cg/b17/game/.godot/imported/k_open.ogg-e0c4d20f4036bfadfb42948146e989d8.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_open.ogg-e0c4d20f4036bfadfb42948146e989d8.md5
+build/cg/b17/game/.godot/imported/k_hover.wav-23561b45908aec676967a0cdc459223c.sample
+build/cg/b17/game/.godot/imported/k_hover.wav-23561b45908aec676967a0cdc459223c.md5
+build/cg/b17/game/.godot/imported/k_error.wav-1177074f47456fa71c6c1d8789afb3f0.sample
+build/cg/b17/game/.godot/imported/k_error.wav-1177074f47456fa71c6c1d8789afb3f0.md5
+build/cg/b17/game/.godot/imported/k_confirm.wav-aa846cfe1ef477268ee4c567896a8bca.sample
+build/cg/b17/game/.godot/imported/k_confirm.wav-aa846cfe1ef477268ee4c567896a8bca.md5
+build/cg/b17/game/.godot/imported/k_close.wav-11c45c313386cd09b71c66dd23bf3be9.sample
+build/cg/b17/game/.godot/imported/k_close.wav-11c45c313386cd09b71c66dd23bf3be9.md5
+build/cg/b17/game/.godot/imported/k_close.ogg-e14616d2a79be70a31490dcbdd5f64ab.oggvorbisstr
+build/cg/b17/game/.godot/imported/k_close.ogg-e14616d2a79be70a31490dcbdd5f64ab.md5
+build/cg/b17/game/.godot/imported/k_click.wav-6d7502c87019cf393038eab3fe2cd8e6.sample
+build/cg/b17/game/.godot/imported/k_click.wav-6d7502c87019cf393038eab3fe2cd8e6.md5
+build/cg/b17/game/.godot/imported/k_back.wav-0134555a979f7077fa4592fa8d8d8a0e.sample
+build/cg/b17/game/.godot/imported/k_back.wav-0134555a979f7077fa4592fa8d8d8a0e.md5
+build/cg/b17/game/.godot/imported/ink_wash.png-b73399fd07691d07564b2afe8a0f6ab7.md5
+build/cg/b17/game/.godot/imported/ink_wash.png-b73399fd07691d07564b2afe8a0f6ab7.ctex
+build/cg/b17/game/.godot/imported/ink_fly.png-21ab4f8637c11d7e85a6c249034fc8bc.md5
+build/cg/b17/game/.godot/imported/ink_fly.png-21ab4f8637c11d7e85a6c249034fc8bc.ctex
+build/cg/b17/game/.godot/imported/ink_dry.png-b7162a9e11d8b1aacc42a36b3c54a593.md5
+build/cg/b17/game/.godot/imported/ink_dry.png-b7162a9e11d8b1aacc42a36b3c54a593.ctex
+build/cg/b17/game/.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.md5
+build/cg/b17/game/.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex
+build/cg/b17/game/.godot/imported/horn.wav-def4ad9b5f6ce8131f0bb9dfbd016b61.sample
+build/cg/b17/game/.godot/imported/horn.wav-def4ad9b5f6ce8131f0bb9dfbd016b61.md5
+build/cg/b17/game/.godot/imported/hit__3.ogg-1e0441cb9e530b4464de56a6a92917a7.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit__3.ogg-1e0441cb9e530b4464de56a6a92917a7.md5
+build/cg/b17/game/.godot/imported/hit__2.ogg-7e61899061da451135c1bc251ce3a715.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit__2.ogg-7e61899061da451135c1bc251ce3a715.md5
+build/cg/b17/game/.godot/imported/hit_wood__4.ogg-3adae90078dbbf365e9e2322c66b77f8.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_wood__4.ogg-3adae90078dbbf365e9e2322c66b77f8.md5
+build/cg/b17/game/.godot/imported/hit_wood__3.ogg-0e5bb059da68e891b06d6032cbfdd6d1.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_wood__3.ogg-0e5bb059da68e891b06d6032cbfdd6d1.md5
+build/cg/b17/game/.godot/imported/hit_wood__2.ogg-ee317cb2d00420a571f29fad79142705.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_wood__2.ogg-ee317cb2d00420a571f29fad79142705.md5
+build/cg/b17/game/.godot/imported/hit_wood.wav-20cd010042fe2e0aedb1f8be9eb7766b.sample
+build/cg/b17/game/.godot/imported/hit_wood.wav-20cd010042fe2e0aedb1f8be9eb7766b.md5
+build/cg/b17/game/.godot/imported/hit_wood.ogg-2d40888e38582fab4fde7a0c039af39c.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_wood.ogg-2d40888e38582fab4fde7a0c039af39c.md5
+build/cg/b17/game/.godot/imported/hit_soft.wav-2a5366bb966ea0f7ee7244a810c2fb38.sample
+build/cg/b17/game/.godot/imported/hit_soft.wav-2a5366bb966ea0f7ee7244a810c2fb38.md5
+build/cg/b17/game/.godot/imported/hit_metal__4.ogg-7d9759fe5a16e3e69a6fa725f2b63b2c.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_metal__4.ogg-7d9759fe5a16e3e69a6fa725f2b63b2c.md5
+build/cg/b17/game/.godot/imported/hit_metal__3.ogg-6ab7067e47f650f82a219f31dadac8ba.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_metal__3.ogg-6ab7067e47f650f82a219f31dadac8ba.md5
+build/cg/b17/game/.godot/imported/hit_metal__2.ogg-8b2d7dc11502aea94b4d23a3d5b7ccdb.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_metal__2.ogg-8b2d7dc11502aea94b4d23a3d5b7ccdb.md5
+build/cg/b17/game/.godot/imported/hit_metal.wav-87d37a493b5759e80a2180c91e97a316.sample
+build/cg/b17/game/.godot/imported/hit_metal.wav-87d37a493b5759e80a2180c91e97a316.md5
+build/cg/b17/game/.godot/imported/hit_metal.ogg-80119d55445f6301fb1f13299df12929.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit_metal.ogg-80119d55445f6301fb1f13299df12929.md5
+build/cg/b17/game/.godot/imported/hit.wav-0ce77c86b567f5096583f88ec20be939.sample
+build/cg/b17/game/.godot/imported/hit.wav-0ce77c86b567f5096583f88ec20be939.md5
+build/cg/b17/game/.godot/imported/hit.ogg-3fb26465f0dedce28fa3a09a4eea5b0a.oggvorbisstr
+build/cg/b17/game/.godot/imported/hit.ogg-3fb26465f0dedce28fa3a09a4eea5b0a.md5
+build/cg/b17/game/.godot/imported/heal.wav-1f541e0e14a4ac508da896c71b6f88c3.sample
+build/cg/b17/game/.godot/imported/heal.wav-1f541e0e14a4ac508da896c71b6f88c3.md5
+build/cg/b17/game/.godot/imported/groove.png-80fa23c99f592104179543818376bd5c.md5
+build/cg/b17/game/.godot/imported/groove.png-80fa23c99f592104179543818376bd5c.ctex
+build/cg/b17/game/.godot/imported/frenzy.wav-bdeeaf48c0ffaabf75340f63e10cc010.sample
+build/cg/b17/game/.godot/imported/frenzy.wav-bdeeaf48c0ffaabf75340f63e10cc010.md5
+build/cg/b17/game/.godot/imported/frame.png-58798b8318c917fd6142f387671c2125.md5
+build/cg/b17/game/.godot/imported/frame.png-58798b8318c917fd6142f387671c2125.ctex
+build/cg/b17/game/.godot/imported/death.wav-081f95a37f237b6f3ceb7246d5521f75.sample
+build/cg/b17/game/.godot/imported/death.wav-081f95a37f237b6f3ceb7246d5521f75.md5
+build/cg/b17/game/.godot/imported/cursor.png-4178ffe34e1419468ffc2979710a183a.md5
+build/cg/b17/game/.godot/imported/cursor.png-4178ffe34e1419468ffc2979710a183a.ctex
+build/cg/b17/game/.godot/imported/clutch.wav-dad39cd2a5a05c35602bc0e86f421274.sample
+build/cg/b17/game/.godot/imported/clutch.wav-dad39cd2a5a05c35602bc0e86f421274.md5
+build/cg/b17/game/.godot/imported/chomp.wav-9446fce0971b448d08b36feb01958205.sample
+build/cg/b17/game/.godot/imported/chomp.wav-9446fce0971b448d08b36feb01958205.md5
+build/cg/b17/game/.godot/imported/charge_up.wav-a25cba07decaba93d60653777b29cc69.sample
+build/cg/b17/game/.godot/imported/charge_up.wav-a25cba07decaba93d60653777b29cc69.md5
+build/cg/b17/game/.godot/imported/charge.wav-9ea0e7ab134da578b6f69151780ec24f.sample
+build/cg/b17/game/.godot/imported/charge.wav-9ea0e7ab134da578b6f69151780ec24f.md5
+build/cg/b17/game/.godot/imported/bugle.wav-c0932e30ca9bafde81ea901e6676237f.sample
+build/cg/b17/game/.godot/imported/bugle.wav-c0932e30ca9bafde81ea901e6676237f.md5
+build/cg/b17/game/.godot/imported/brace.wav-34e891af9c352fc7517b34fecc9a4b03.sample
+build/cg/b17/game/.godot/imported/brace.wav-34e891af9c352fc7517b34fecc9a4b03.md5
+build/cg/b17/game/.godot/imported/boom.wav-e61cc5e8d3463dbe554b31ed2cbe16e4.sample
+build/cg/b17/game/.godot/imported/boom.wav-e61cc5e8d3463dbe554b31ed2cbe16e4.md5
+build/cg/b17/game/.godot/imported/block__4.ogg-4402c4cf1d44004ea79288d04061032b.oggvorbisstr
+build/cg/b17/game/.godot/imported/block__4.ogg-4402c4cf1d44004ea79288d04061032b.md5
+build/cg/b17/game/.godot/imported/block__3.ogg-053c886d4ec915c586e20398c2e5f80a.oggvorbisstr
+build/cg/b17/game/.godot/imported/block__3.ogg-053c886d4ec915c586e20398c2e5f80a.md5
+build/cg/b17/game/.godot/imported/block__2.ogg-7273656a1464345197d37789abb389d0.oggvorbisstr
+build/cg/b17/game/.godot/imported/block__2.ogg-7273656a1464345197d37789abb389d0.md5
+build/cg/b17/game/.godot/imported/block.wav-862e14aabfa854dd89f6e45e400ee640.sample
+build/cg/b17/game/.godot/imported/block.wav-862e14aabfa854dd89f6e45e400ee640.md5
+build/cg/b17/game/.godot/imported/block.ogg-e8a89a2ebbba880725c85f14576afde9.oggvorbisstr
+build/cg/b17/game/.godot/imported/block.ogg-e8a89a2ebbba880725c85f14576afde9.md5
+build/cg/b17/game/.godot/imported/bell.wav-bbca3f7e09c31602b4ae4d54f1b9f74d.sample
+build/cg/b17/game/.godot/imported/bell.wav-bbca3f7e09c31602b4ae4d54f1b9f74d.md5
+build/cg/b17/game/.godot/imported/backstab.wav-0bf7e1ce236573a97d40678c4a234b3a.sample
+build/cg/b17/game/.godot/imported/backstab.wav-0bf7e1ce236573a97d40678c4a234b3a.md5
+build/cg/b17/game/.godot/imported/baa.wav-148def3d0676ad6016cb2eb9bcc493a1.sample
+build/cg/b17/game/.godot/imported/baa.wav-148def3d0676ad6016cb2eb9bcc493a1.md5
+build/cg/b17/game/.godot/imported/arrow.wav-42e142190fea51fbcddd647446cc18bf.sample
+build/cg/b17/game/.godot/imported/arrow.wav-42e142190fea51fbcddd647446cc18bf.md5
+build/cg/b17/game/.godot/imported/amb_wind.wav-85fbc2192c6d1c582e72c33e78ad68ae.sample
+build/cg/b17/game/.godot/imported/amb_wind.wav-85fbc2192c6d1c582e72c33e78ad68ae.md5
+build/cg/b17/game/.godot/imported/amb_water.wav-bde19eaaa74d1ffafa5c36dd86bf6b66.sample
+build/cg/b17/game/.godot/imported/amb_water.wav-bde19eaaa74d1ffafa5c36dd86bf6b66.md5
+build/cg/b17/game/.godot/imported/amb_room_near.wav-e2ba9e8c4b1c145480f6f9e8d61a00c6.sample
+build/cg/b17/game/.godot/imported/amb_room_near.wav-e2ba9e8c4b1c145480f6f9e8d61a00c6.md5
+build/cg/b17/game/.godot/imported/amb_room_mid.wav-590b95a366ffbacae5b95a27c68e6876.sample
+build/cg/b17/game/.godot/imported/amb_room_mid.wav-590b95a366ffbacae5b95a27c68e6876.md5
+build/cg/b17/game/.godot/imported/amb_room_far.wav-03e309c4a9003fc5c8428f0a5cb93630.sample
+build/cg/b17/game/.godot/imported/amb_room_far.wav-03e309c4a9003fc5c8428f0a5cb93630.md5
+build/cg/b17/game/.godot/imported/amb_lava.wav-09a038b7091712fcb6142a9f8ce1008d.sample
+build/cg/b17/game/.godot/imported/amb_lava.wav-09a038b7091712fcb6142a9f8ce1008d.md5
+build/cg/b17/game/.godot/imported/amb_forest.wav-8a9e7b1b965544906c8d63d1e9bed8c6.sample
+build/cg/b17/game/.godot/imported/amb_forest.wav-8a9e7b1b965544906c8d63d1e9bed8c6.md5
+build/cg/b17/game/.godot/imported/alert.wav-4024987b6a0bbb70c02166a5f2bf5f91.sample
+build/cg/b17/game/.godot/imported/alert.wav-4024987b6a0bbb70c02166a5f2bf5f91.md5
+build/cg/b17/game/.godot/imported/aircut.wav-32729c0efa57bce87302fdb784546170.sample
+build/cg/b17/game/.godot/imported/aircut.wav-32729c0efa57bce87302fdb784546170.md5
+build/cg/b17/game/.godot/exported/133200997/export-3ad5c15c4f3250da0cc7c1af1770d85f-main.scn
+build/cg/b17/game/.godot/exported/133200997/file_cache
+build/cg/b17/game/addons/godotsteam/win64/~libgodotsteam.windows.template_debug.x86_64.dll~RF88d0f5a.TMP
+build/cg/b17/game/addons/godotsteam/win64/steam_api64.dll
+build/cg/b17/game/addons/godotsteam/win64/libgodotsteam.windows.template_release.x86_64.dll
+build/cg/b17/game/addons/godotsteam/win64/libgodotsteam.windows.template_debug.x86_64.dll
+build/cg/b17/game/addons/godotsteam/linux64/libgodotsteam.linux.template_release.x86_64.so
+build/cg/b17/game/addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so
+build/cg/b17/game/addons/godotsteam/linux64/libsteam_api.so
+build/cg/b17/game/.godot/shader_cache/PostShaderGLES3/ba21a1f017490c635e2b58a9ae1450b4a59e30676a707d3e8d54dd5011c9d40e/6bb7c9a2fd1c4a8fa77cb96555b9b4a720209981.cache
+build/cg/b17/game/.godot/shader_cache/SceneShaderGLES3/c07718eff07b4a57dd3fe687ee8fc152bb4e185aef8712595dd958b72d1ee620/a38af2d0725c8e99d8492f4c72736f24d6a54cc5.cache
+build/cg/b17/game/.godot/shader_cache/SceneShaderGLES3/c07718eff07b4a57dd3fe687ee8fc152bb4e185aef8712595dd958b72d1ee620/6bb7c9a2fd1c4a8fa77cb96555b9b4a720209981.cache
+build/cg/b17/game/.godot/shader_cache/SceneShaderGLES3/c07718eff07b4a57dd3fe687ee8fc152bb4e185aef8712595dd958b72d1ee620/cafb1506f2db0c3681435e264aa18e216d1a7a40.cache
+build/cg/b17/game/.godot/shader_cache/FeedShaderGLES3/e0eb8fd12e6a21acbc379f0728e1371975445b9cb1a99a27ef9e7d47b6c60703/6bb7c9a2fd1c4a8fa77cb96555b9b4a720209981.cache
+build/cg/b17/game/.godot/shader_cache/CopyShaderGLES3/9b507c56294a895835470d79b310334345ed6e11bca709db31ee1c9acf65f797/6bb7c9a2fd1c4a8fa77cb96555b9b4a720209981.cache
+build/cg/b17/game/.godot/shader_cache/CubemapFilterShaderGLES3/5db87ee5e1bbb5ab524d8107fc2db6c063d14a137c659e1bdf42727f24476b4e/6bb7c9a2fd1c4a8fa77cb96555b9b4a720209981.cache
+
+codex
+- 實作已逐層計算三層加碼，分支符合要求；僅靜態核對。
+- P2｜[save.gd:430](/mnt/c/Users/timmy/projects/no-take-backs/build/cg/b17/game/tests/suites/save.gd:430)：部分封頂只檢查首層數字是否出現，漏列、錯序或後兩層錯誤仍會通過。應比對完整三層文字與實際預算差。
+
+結論：有條件
+tokens used
+23,293

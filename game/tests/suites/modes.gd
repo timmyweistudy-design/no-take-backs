@@ -1643,7 +1643,7 @@ func test_tower_v140() -> void:
 	var i0 := v16.find("func _tower_start(")
 	var i1 := v16.find("func _tower_finish(")
 	var body := v16.substr(i0, i1 - i0)
-	ok(body.find("set(\"daily_spec\", {})") >= 0 and body.find("set(\"daily_practice\", false)") >= 0 and body.find("Save.save_data()") >= 0, "進塔清掉每日狀態、續局寫進存檔（Codex cat11 #1、#3）")
+	ok(body.find("set(\"daily_spec\", {})") >= 0 and body.find("set(\"daily_practice\", false)") >= 0 and body.find("_tw_save_route(rt)") >= 0, "進塔清掉每日狀態、續局寫進存檔（Codex cat11 #1、#3；1.6.0 B17 起連路線一起寫）")
 	var rs: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
 	ok(rs.find("call(\"tower_button\", int(get(\"tower_result\"))") >= 0, "結果頁用 tower_result（不是畫面上這一場的勝負）")
 	# 讓子規則代碼往返：塔的規則轉成代碼再讀回，兩邊預算一樣（分享、重播、對戰紀錄走代碼）

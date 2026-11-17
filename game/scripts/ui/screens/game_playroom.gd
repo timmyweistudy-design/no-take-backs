@@ -409,6 +409,87 @@ var swap_on := false
 var sw_pts := [0, 0]    # 玩家 A、B 的分數（剩餘戰力百分比合計）
 var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
 
+var swap_ai := false   # 1.6.0 B18（P7.3）：對 AI 換邊雙局（第 1 局你藍、第 2 局你紅；AI 擺另一色）
+
+func _swap_ai_start(fresh := false) -> void:
+	var run = SwapDuel.sanitize_run(Save.data.get("swap_ai_run"))
+	if fresh:
+		run = null
+	_swap_start()
+	swap_ai = true
+	sealed_off_for_swap()
+	if run != null:
+		# 重啟續局（§3.1）：從存檔的那一局接著打，分數、已記分的局、AI 擺好的陣都照存的（不重抽）
+		sw_pts = run["pts"].duplicate()
+		sw_dead = run["dead"].duplicate()
+		sw_settled = int(run["settled"])
+		round_no = int(run["round"]) + (1 if int(run["settled"]) == int(run["round"]) else 0)
+		if round_no > SwapDuel.ROUNDS:
+			Save.data.erase("swap_ai_run")
+			round_no = 1
+			sw_pts = [0, 0]
+			sw_dead = [0, 0]
+			sw_settled = -1
+		elif round_no == int(run["round"]):
+			sw_resume_ai = run["ai"].duplicate(true)
+		_toast(L.t("sw_ai_resume", [round_no]))
+	else:
+		Save.data.erase("swap_ai_run")
+		_toast(L.t("sw_ai_intro"))
+	_reset_place()   # 用對 AI 的擺法重開這一局（_start_mode 時還沒設 swap_ai）
+
+var sw_resume_ai: Array = []   # 續局時要放回去的 AI 陣（這一局已承諾過的）
+
+## 承諾／結算寫檔（失敗照實說；記憶體照樣往下，Save 會重試）
+func _swap_ai_commit(ai: Array) -> bool:
+	var run := {"v": SwapDuel.RUN_V, "round": round_no, "pts": sw_pts.duplicate(), "dead": sw_dead.duplicate(), "settled": maxi(sw_settled, round_no - 1), "ai": ai}
+	Save.data["swap_ai_run"] = run
+	if Save.save_data():
+		return true
+	_toast(L.t("save_failed"), true)
+	return false
+
+func sealed_off_for_swap() -> void:
+	if bool(get("sealed_on")):
+		set("sealed_on", false)
+
+## 每局開始：這一局 AI 是藍方（玩家 A 拿紅）＝先把藍方擺好、直接輪到玩家擺紅
+func _swap_ai_prep() -> void:
+	if not swap_ai or mode != Mode.DUEL:
+		return
+	if SwapDuel.owner(round_no, 0) == 1:
+		_swap_ai_fill(0)
+
+## AI 擺 team 這一色（一般難度的組陣；種子取自本局亂數，重播、代碼照常）
+func _swap_ai_fill(team: int) -> void:
+	if not sw_resume_ai.is_empty():
+		# 續局：這一局 AI 的陣早就承諾過了，照存的擺回去
+		var a = Army.new(team, armies[team].budget)
+		if rules != null:
+			a.apply_rules(rules, team)
+		var all_ok := true
+		for u in sw_resume_ai:
+			all_ok = a.place(int(u[0]), int(u[1]), int(u[2])) and all_ok
+		sw_resume_ai = []
+		if all_ok and a.count() > 0:
+			armies[team] = a
+			blind_phase = 1 if team == 0 else 2
+			_swap_ai_commit(SwapDuel.units_of(armies[team]))
+			return
+		_toast(L.t("sw_ai_redraw"), true)   # 存的陣擺不回去（壞資料）：整組重新組陣，不留縮水的陣
+	if true:
+		var r := RandomNumberGenerator.new()
+		r.seed = rng.randi()
+		var p: int = int(armies[team].pool)
+		var res = AI.build(team, armies[team].budget, r, -1, p, rules)
+		var units: Array = res["army"].units.duplicate(true)
+		armies[team] = res["army"]
+		if rules != null:
+			armies[team].apply_rules(rules, team)
+			armies[team].units = units
+	blind_phase = 1 if team == 0 else 2
+	_swap_ai_commit(SwapDuel.units_of(armies[team]))   # 承諾：AI 的陣寫檔（重啟不重抽）
+
 func _swap_start() -> void:
 	var r = RuleSet.standard()
 	var dm: int = RS.mask(_demo())
@@ -421,23 +502,46 @@ func _swap_start() -> void:
 	swap_on = true
 	sw_pts = [0, 0]
 	sw_dead = [0, 0]
+	sw_settled = -1
 	_toast(L.t("sw_intro"))
+
+## 1.6.0 B18：你這一局是哪一色（玩家 A＝你）
+func swap_ai_my_color() -> int:
+	return 0 if SwapDuel.owner(round_no, 0) == 0 else 1
+
+var sw_settled := -1   # 1.6.0 B18：已記分的局（同一局重送結算不重記；Codex B18 r1）
 
 ## 每局正式打完（_finish_battle）：記分；第 2 局後系列結束
 func _swap_settle() -> void:
 	if not swap_on or mode != Mode.DUEL or play_kind != "official" or sim == null:
 		return
+	if sw_settled == round_no:
+		return
+	sw_settled = round_no
 	var r: Array = SwapDuel.settle(sw_pts, sw_dead, round_no, sim)
 	sw_pts = r[0]
 	sw_dead = r[1]
 	series_over = round_no >= SwapDuel.ROUNDS
+	if swap_ai:
+		# 結算只改記憶體裡的存檔資料；和這一局的統計在 _finish_battle 最後同一次 save_data 寫進去（Codex B18 r3）
+		if series_over:
+			Save.data.erase("swap_ai_run")   # 整組結束：會話刪掉
+		else:
+			Save.data["swap_ai_run"] = {"v": SwapDuel.RUN_V, "round": round_no, "pts": sw_pts.duplicate(), "dead": sw_dead.duplicate(), "settled": round_no, "ai": []}
 
 ## 擺陣頂部：誰是哪一色（第 2 局換過來）
 func _swap_who() -> String:
+	if swap_ai:
+		return L.t("sw_ai_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red")])   # 1.6.0 B18：你＝哪一色（AI 拿另一色）
 	return L.t("sw_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red"), L.t("red") if SwapDuel.owner(round_no, 0) == 0 else L.t("blue")])
 
 ## 結果頁第一條事實
 func _swap_fact() -> String:
+	if swap_ai:
+		if not series_over:
+			return L.t("sw_ai_round", [int(sw_pts[0]), int(sw_pts[1])])
+		var va := SwapDuel.verdict(sw_pts, sw_dead)
+		return L.t("sw_ai_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_ai_you") if va == 0 else (L.t("sw_ai_them") if va == 1 else L.t("sw_tie"))])
 	if not series_over:
 		return L.t("sw_round", [int(sw_pts[0]), int(sw_pts[1])])
 	var v := SwapDuel.verdict(sw_pts, sw_dead)

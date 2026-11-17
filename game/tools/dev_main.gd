@@ -697,6 +697,9 @@ func _run_screenshots() -> void:
 	Save.data["songbook"] = [{"c": sb_code, "n": "2026-11-12　" + L.t("sb_win"), "note": L.t("sb_note", [L.t("tl_lead") + " 23s"]), "t": 0},
 		{"c": sb_code + "", "n": "2026-11-11　" + L.t("sb_lose"), "note": L.t("sb_note_none"), "t": 0}]
 	await _snap("v120_05_songbook.png")
+	sb_tab = 1   # 1.6.0 B18（P7.4）棋館名局
+	await _snap("v160_18a_famous.png")
+	sb_tab = 0
 	# 1.6.0 B16（P13.1）：隔離區（讀不出來的紀錄原文還在）＋滿六筆時的替換確認
 	Save.data["songbook_bad"] = ["{\"c\":\"NTB2.broken\",\"n\":\"2026-11-01\"}"]
 	await _snap("v160_16d_songbook_bad.png")
@@ -709,6 +712,17 @@ func _run_screenshots() -> void:
 	overlay = "sb_full"
 	await _snap("v160_16e_songbook_full.png")
 	sb_pending = {}
+	# 1.6.0 B17（P7.1）：無盡塔岔路（第 4 層開打前）；拍完還原存檔欄位
+	var tr_keep = Save.data.get("tower_route", null)
+	var trun_keep = Save.data.get("tower_run", 0)
+	Save.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
+	overlay = "tower_fork"
+	await _snap("v160_17a_tower_fork.png")
+	if tr_keep == null:
+		Save.data.erase("tower_route")
+	else:
+		Save.data["tower_route"] = tr_keep
+	Save.data["tower_run"] = trun_keep
 	Save.data["songbook"] = []
 	overlay = ""
 	difficulty = 1

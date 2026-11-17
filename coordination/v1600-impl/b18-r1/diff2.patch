@@ -1,0 +1,282 @@
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -68,7 +68,9 @@
+ 					var pp: Vector2i = armies[0].pos_of(u)
+ 					armies[0].place_xy(int(u["type"]), pp.x, pp.y)   # 保留的陣型和新的明牌陣衝突的就拿掉
+ 		Mode.DUEL:
+-			if duel_rule != "blind":
++			if bool(get("swap_ai")):
++				call("_swap_ai_prep")   # 1.6.0 B18（P7.3）對 AI 換邊雙局：AI 那一色自動擺好、玩家照暗擺流程擺自己那一色
++			elif duel_rule != "blind":
+ 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule, rules)
+ 				if rules == null:
+ 					tp.armies[0].pool = _pool()
+@@ -344,6 +346,8 @@
+ 		free_intro = false
+ 	Save.data["unlock_games"] = int(Save.data.get("unlock_games", 0)) + 1   # 只是累計場數（判斷新玩家用），不解鎖任何東西
+ 	var me_won := w == 0 or (mode == Mode.DUEL and w >= 0)
++	if bool(get("swap_ai")) and mode == Mode.DUEL:
++		me_won = w >= 0 and w == int(call("swap_ai_my_color"))   # 1.6.0 B18：對 AI 換邊雙局只有你那一色贏才算你贏（Codex B18 r1）
+ 	var stat_key := "stats" if standard else "custom_stats"
+ 	var st: Dictionary = Save.data.get(stat_key, {"wins": 0, "games": 0})
+ 	st["games"] = int(st.get("games", 0)) + 1
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -172,6 +172,8 @@
+ 				_toast(L.t("sealed_swap"))   # Antigravity v140-i3：第三封封完要說換人
+ 			return
+ 		blind_phase += 1
++		if blind_phase == 1 and bool(get("swap_ai")):
++			call("_swap_ai_fill", 1)   # 1.6.0 B18：玩家擺好藍方＝AI 擺紅方，直接可以開戰
+ 		sfx.play("turn")
+ 		return
+ 	if armies[0].count() == 0 and not _full_blocked_ok():
+@@ -197,8 +199,10 @@
+ 	_on_start_go()
+ 
+ func _on_start_go() -> void:
+-	last_player_formation = armies[0].units.duplicate(true)
+-	if mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET:
++	var ai_blue: bool = bool(get("swap_ai")) and int(call("swap_ai_my_color")) == 1   # 1.6.0 B18：你擺紅的那一局，藍方是 AI 的陣（不記成你的上一陣；Codex B18 r1）
++	if not ai_blue:
++		last_player_formation = armies[0].units.duplicate(true)
++	if (mode == Mode.VS_AI or mode == Mode.DUEL or mode == Mode.GAUNTLET) and not ai_blue:
+ 		Save.data["last_form"] = armies[0].to_code()   # 1.2.0 §11.1「複製上一陣」（下次擺陣按 L）
+ 	_begin_battle(armies[0].copy(), armies[1].copy())
+ 
+--- a/game/scripts/ui/screens/game_playroom.gd
++++ b/game/scripts/ui/screens/game_playroom.gd
+@@ -409,6 +409,38 @@
+ var sw_pts := [0, 0]    # 玩家 A、B 的分數（剩餘戰力百分比合計）
+ var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+ 
++var swap_ai := false   # 1.6.0 B18（P7.3）：對 AI 換邊雙局（第 1 局你藍、第 2 局你紅；AI 擺另一色）
++
++func _swap_ai_start() -> void:
++	_swap_start()
++	swap_ai = true
++	sealed_off_for_swap()
++	_reset_place()   # 用對 AI 的擺法重開這一局（_start_mode 時還沒設 swap_ai）
++	_toast(L.t("sw_ai_intro"))
++
++func sealed_off_for_swap() -> void:
++	if bool(get("sealed_on")):
++		set("sealed_on", false)
++
++## 每局開始：這一局 AI 是藍方（玩家 A 拿紅）＝先把藍方擺好、直接輪到玩家擺紅
++func _swap_ai_prep() -> void:
++	if not swap_ai or mode != Mode.DUEL:
++		return
++	if SwapDuel.owner(round_no, 0) == 1:
++		_swap_ai_fill(0)
++
++## AI 擺 team 這一色（一般難度的組陣；種子取自本局亂數，重播、代碼照常）
++func _swap_ai_fill(team: int) -> void:
++	var r := RandomNumberGenerator.new()
++	r.seed = rng.randi()
++	var p: int = int(armies[team].pool)
++	var res = AI.build(team, armies[team].budget, r, -1, p, rules)
++	armies[team] = res["army"]
++	if rules != null:
++		armies[team].apply_rules(rules, team)
++		armies[team].units = res["army"].units.duplicate(true)
++	blind_phase = 1 if team == 0 else 2
++
+ func _swap_start() -> void:
+ 	var r = RuleSet.standard()
+ 	var dm: int = RS.mask(_demo())
+@@ -421,12 +453,22 @@
+ 	swap_on = true
+ 	sw_pts = [0, 0]
+ 	sw_dead = [0, 0]
++	sw_settled = -1
+ 	_toast(L.t("sw_intro"))
+ 
++## 1.6.0 B18：你這一局是哪一色（玩家 A＝你）
++func swap_ai_my_color() -> int:
++	return 0 if SwapDuel.owner(round_no, 0) == 0 else 1
++
++var sw_settled := -1   # 1.6.0 B18：已記分的局（同一局重送結算不重記；Codex B18 r1）
++
+ ## 每局正式打完（_finish_battle）：記分；第 2 局後系列結束
+ func _swap_settle() -> void:
+ 	if not swap_on or mode != Mode.DUEL or play_kind != "official" or sim == null:
+ 		return
++	if sw_settled == round_no:
++		return
++	sw_settled = round_no
+ 	var r: Array = SwapDuel.settle(sw_pts, sw_dead, round_no, sim)
+ 	sw_pts = r[0]
+ 	sw_dead = r[1]
+@@ -434,10 +476,17 @@
+ 
+ ## 擺陣頂部：誰是哪一色（第 2 局換過來）
+ func _swap_who() -> String:
++	if swap_ai:
++		return L.t("sw_ai_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red")])   # 1.6.0 B18：你＝哪一色（AI 拿另一色）
+ 	return L.t("sw_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red"), L.t("red") if SwapDuel.owner(round_no, 0) == 0 else L.t("blue")])
+ 
+ ## 結果頁第一條事實
+ func _swap_fact() -> String:
++	if swap_ai:
++		if not series_over:
++			return L.t("sw_ai_round", [int(sw_pts[0]), int(sw_pts[1])])
++		var va := SwapDuel.verdict(sw_pts, sw_dead)
++		return L.t("sw_ai_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_ai_you") if va == 0 else (L.t("sw_ai_them") if va == 1 else L.t("sw_tie"))])
+ 	if not series_over:
+ 		return L.t("sw_round", [int(sw_pts[0]), int(sw_pts[1])])
+ 	var v := SwapDuel.verdict(sw_pts, sw_dead)
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -24,6 +24,7 @@
+ 		set("challenge_army", null)
+ 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+ 	set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
++	set("swap_ai", false)     # 1.6.0 B18
+ 	set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
+ 	set("cp_on", false)       # 1.2.0 §11.6：_cp_start 會在 _start_mode 之後再設回來
+ 	set("camp_id", "")        # 1.2.0 §11.7：_camp_play 會在 _start_mode 之後再設回來
+@@ -430,7 +431,7 @@
+ 	var n_main := bs.size()   # V1.5：前面這幾顆是主動作（繼續、重試、下一題），後面是次入口
+ 	# 1.5.0 §1.5：底列＝最多 2 顆主動作＋「更多」＋「主選單」；其他（覆盤、教練、分享、重播、代碼、圖鑑、多出來的主動作）收進「更多」
+ 	res_more_items = []
+-	if mode == Mode.VS_AI and last_armies.size() == 2 and not watch_mode:
++	if (mode == Mode.VS_AI or (bool(get("swap_ai")) and int(call("swap_ai_my_color")) == 0)) and last_armies.size() == 2 and not watch_mode:   # 1.6.0 B18：對 AI 換邊雙局你擺藍的那一局也能覆盤（覆盤以藍方為你）
+ 		if _near_miss():
+ 			bs.insert(0, [L.t("review_near"), func(): _open_review()])   # 第十輪 F4：輸得很近，主推覆盤
+ 			n_main += 1
+@@ -786,7 +787,7 @@
+ 		call("_sealed_start")   # V1.4 #13：三戰打完再來＝重新封三陣（不是重打同一組，Antigravity v140-i3）
+ 		return
+ 	if series_over and bool(get("swap_on")) and mode == Mode.DUEL:
+-		call("_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）
++		call("_swap_ai_start" if bool(get("swap_ai")) else "_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）；1.6.0 B18 對 AI 版照原樣再來
+ 		return
+ 	if series_over:
+ 		wins = [0, 0]
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -818,17 +818,38 @@
+ 	_toast(L.t("save_failed"), true)
+ 	return false
+ 
++var sb_tab := 0   # 1.6.0 B18（P7.4）：0＝我收的、1＝棋館名局
++var _famous_cache = null
++
++## 名局（data/famous_games.json，工具 tools/gen_famous.gd 從固定種子挑的險勝局）：每筆 {c, w, rem, sec}
++func famous_games() -> Array:
++	if _famous_cache == null:
++		var j = JSON.parse_string(FileAccess.get_file_as_string("res://data/famous_games.json"))
++		_famous_cache = []
++		if j is Array:
++			for e in j:
++				if e is Dictionary and e.get("c") is String and e.get("w") in [0, 1, 0.0, 1.0] and _num_in(e.get("rem"), 0, 100) and _num_in(e.get("sec"), 0, 100000) and BattleCode.decode(str(e["c"])).get("ok", false):
++					_famous_cache.append({"c": str(e["c"]), "w": int(e["w"]), "rem": int(e["rem"]), "sec": int(e["sec"])})   # 逐欄驗型（Codex B18 r1）
++	return _famous_cache
++
++static func _num_in(v, lo: float, hi: float) -> bool:
++	return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
++
+ func _draw_songbook() -> void:
+ 	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
++	if sb_tab == 1:
++		_draw_famous()
++		return
+ 	var book: Array = Save.data.get("songbook", [])
+ 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+ 	var bad: Array = Save.data.get("songbook_bad", [])
+ 	var bad_txt := L.t("sb_bad", [bad.size()])
+ 	var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
+-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
++	y = _sb_tabs(y)
+ 	if book.is_empty():
+ 		_text(Vector2(640, y + 10), L.t("sb_empty"), tz("S"), Color(1, 1, 1, 0.88), true, false, 680)   # Antigravity cat08 #4：空狀態要讀得到
+ 	for i in book.size():
+@@ -858,6 +879,37 @@
+ 		btn_group = ""
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
++## 棋譜本兩頁的頁籤（我收的／棋館名局）；回下一行的 y
++func _sb_tabs(y: float) -> float:
++	btn_group = "sb_tabs"
++	for k in 2:
++		_btn(Rect2(640 - 250 + k * 255, y, 245, 40), L.t(["sb_tab_mine", "sb_tab_famous"][k]), func(): sb_tab = k; _focus = 0, true, false, TH_ACTIVE if sb_tab == k else TH_WOOD)
++	btn_group = ""
++	return y + 48.0
++
++## 1.6.0 B18（P7.4）棋館名局：只寫量得到的事實（哪一方險勝、剩幾成、打幾秒）；看＝走看對戰代碼的路
++func _draw_famous() -> void:
++	var fl := famous_games()
++	var rowh := maxf(56.0, tz("S") * 1.4 * 2.0 + 16.0)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_famous_help"), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, fl.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_famous_help"), tz("S"), 680) + GAP_L
++	y = _sb_tabs(y)
++	for i in fl.size():
++		var e: Dictionary = fl[i]
++		var r := Rect2(P.position.x + 30, y, P.size.x - 60, rowh)
++		var paper_ok: bool = not bool(Save.s("plain_ui")) and _tex_box(r, "paper")
++		if not paper_ok:
++			draw_rect(r, Color(0, 0, 0, 0.18))
++		_ink_mode = paper_ok
++		var t := L.t("sb_famous_row", [i + 1, L.t("blue") if int(e.get("w", 0)) == 0 else L.t("red"), int(e.get("rem", 0)), int(e.get("sec", 0))])
++		_text(r.position + Vector2(14, (rowh - text_h(t, tz("S"), r.size.x - 160)) / 2.0), t, tz("S"), INK if paper_ok else Color.WHITE, false, false, r.size.x - 160)
++		_ink_mode = false
++		var c := str(e["c"])
++		_btn(Rect2(r.end.x - 132, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
++		y += rowh + 8.0
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++
+ ## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
+ func _highlights() -> Array:
+ 	var marks: Array = _key_marks() if not report.is_empty() else []
+--- a/game/tests/suites/modes_live.gd
++++ b/game/tests/suites/modes_live.gd
+@@ -413,3 +413,43 @@
+ 
+ func ok_quiet(_c: bool) -> void:
+ 	pass
++
++## 1.6.0 B18（P7.3）對 AI 換邊雙局：第 1 局你擺藍、AI 擺紅；第 2 局 AI 先擺藍、你擺紅；分數跟著人走（SwapDuel 原規則）。
++func test_swap_ai_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var SD = load("res://scripts/game/swap_duel.gd")
++	var LSx = load("res://scripts/game/strings.gd")
++	var Simx = load("res://scripts/core/battle_sim.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g._swap_ai_start()
++	ok(g.swap_on and g.swap_ai and g.mode == g.Mode.DUEL and g.tp == null and g.blind_phase == 0 and g.armies[1].count() == 0, "第 1 局：輪到你擺藍方，紅方還空著", str([g.blind_phase, g.tp]))
++	var pool := F.training_pool(0)
++	for u in pool[2].units:
++		g.armies[0].place(int(u["type"]), int(u["col"]), int(u["row"]))
++	g._on_start()
++	ok(g.blind_phase == 2 and g.armies[1].count() > 0 and g._ready_to_fight(), "你擺好藍方＝AI 擺紅方，可以開戰（紅 %d 隻）" % g.armies[1].count())
++	ok(g._swap_who().find(LSx.t("blue")) >= 0, "第 1 局標示你是藍方")
++	g.round_no = 2
++	g._reset_place()
++	ok(g.blind_phase == 1 and g.armies[0].count() > 0 and g.armies[1].count() == 0 and g._cur_army() == g.armies[1], "第 2 局：AI 先擺好藍方，輪到你擺紅方")
++	ok(g._swap_who().find(LSx.t("red")) >= 0 and SD.owner(2, 1) == 0, "第 2 局標示你是紅方；紅方分數算給你")
++	ok(g._swap_fact().find("AI") >= 0, "結果頁寫你和 AI（不是玩家 A／B）")
++	ok(g.swap_ai_my_color() == 1, "第 2 局你是紅方")
++	var cg: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_core.gd")
++	var cp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
++	ok(cg.find("me_won = w >= 0 and w == int(call(\"swap_ai_my_color\"))") >= 0 and cp.find("if not ai_blue:") >= 0, "勝場只算你那一色；你擺紅那局不記成你的上一陣")
++	# 同一局重送結算不重記
++	g.mode = g.Mode.DUEL
++	g.play_kind = "official"
++	g.sim = Simx.new(pool[2].copy(), pool[9].mirrored())
++	g.sim.fast = true
++	g.sim.run_to_end()
++	g._swap_settle()
++	var p1: Array = g.sw_pts.duplicate()
++	g._swap_settle()
++	ok(g.sw_pts == p1, "同一局重送結算：分數不重記")
++	g.free()
++	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	ok(gm.find("[\"sw_ai_open\", \"hc_sw_ai_d\"") >= 0 and gr.find("call(\"_swap_ai_start\" if bool(get(\"swap_ai\")) else \"_swap_start\")") >= 0 and gr.find("set(\"swap_ai\", false)") >= 0, "入口、再來一組、換模式清旗標")

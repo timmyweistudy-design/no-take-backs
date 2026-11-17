@@ -1,0 +1,414 @@
+--- a/game/scripts/game/tower.gd
++++ b/game/scripts/game/tower.gd
+@@ -33,3 +33,101 @@
+ 
+ static func sanitize_run(v) -> int:
+ 	return clampi(int(v), 0, 100000) if (v is int or v is float) else 0
++
++## ── 1.6.0 B17（P7.1、P7.2；S6）塔分岔＋完整續塔 ──
++## 每過三層（打完第 3、6、9…層）要選一次路：契約（接下來三層敵方 +CONTRACT_BONUS 金，每過一層記一枚契約章）／休整（下一層敵方 −REST_CUT 金）。
++## 路線狀態（存檔 tower_route）＝{v, floor（下一次要打的層，0＝沒有進行中）, path（每個岔口的選擇：c＝契約、r＝休整、-＝舊存檔沒有紀錄）, seals（契約章）, done（已結算到第幾層）}。
++## 一切只由 path 與層數決定（沒有亂數）：兩台機器同一條路線雜湊一樣、重啟不重抽；結算記 done，同一層不重領。
++## 舊存檔只有 tower_run（層數）：遷移成同一層、過去的岔口記 "-"（不猜當時選了什麼，也不補問）。
++const FORK_EVERY := 3
++const CONTRACT_BONUS := 8
++const CONTRACT_SPAN := 3
++const REST_CUT := 8
++const ROUTE_V := 1
++const FLOOR_MAX := 100000
++
++static func new_route() -> Dictionary:
++	return {"v": ROUTE_V, "floor": 1, "path": "", "seals": 0, "done": 0}
++
++## 這一層開打前要先選路嗎（第 4、7、10…層開打前；這個岔口還沒選）
++static func fork_due(st: Dictionary) -> bool:
++	var f := int(st.get("floor", 0))
++	return f > 1 and (f - 1) % FORK_EVERY == 0 and str(st.get("path", "")).length() < (f - 1) / FORK_EVERY
++
++## 選路：只在該選的時候生效（重複點、晚到的點擊＝原樣回傳）
++static func choose(st: Dictionary, c: String) -> Dictionary:
++	if not fork_due(st) or not c in ["c", "r"]:
++		return st
++	var out := st.duplicate(true)
++	out["path"] = str(st["path"]) + c
++	return out
++
++## 第 k 個岔口（0 起）之後的第一層＝k*3+4
++static func _fork_floor(k: int) -> int:
++	return (k + 1) * FORK_EVERY + 1
++
++## 這一層吃到的路線加減：[敵方加減金, 是不是契約層]
++static func route_adj(path: String, floor_no: int) -> Array:
++	var adj := 0
++	var contract := false
++	for k in path.length():
++		var f0 := _fork_floor(k)
++		if path[k] == "c" and floor_no >= f0 and floor_no < f0 + CONTRACT_SPAN:
++			adj += CONTRACT_BONUS
++			contract = true
++		elif path[k] == "r" and floor_no == f0:
++			adj -= REST_CUT
++	return [adj, contract]
++
++## 帶路線的這一層：spec 的敵方加碼再加減（夾在 0 以上），附 contract
++static func spec_route(st: Dictionary, floor_no: int) -> Dictionary:
++	var sp := spec(floor_no)
++	var ra := route_adj(str(st.get("path", "")), floor_no)
++	sp["bonus"] = maxi(0, int(sp["bonus"]) + int(ra[0]))
++	sp["contract"] = bool(ra[1])
++	return sp
++
++## 結算一層（只一次）：回 [新狀態, 有沒有變]。贏＝下一層、契約層加一枚章；輸＝路線結束（floor 0，章數照留在這次結果裡）。
++static func settle(st: Dictionary, floor_no: int, won: bool) -> Array:
++	if floor_no <= int(st.get("done", 0)) or floor_no != int(st.get("floor", 0)):
++		return [st, false]
++	var out := st.duplicate(true)
++	out["done"] = floor_no
++	if won:
++		out["floor"] = floor_no + 1
++		if bool(route_adj(str(st.get("path", "")), floor_no)[1]):
++			out["seals"] = int(st.get("seals", 0)) + 1
++	else:
++		out["floor"] = 0
++	return [out, true]
++
++## 路線雜湊（S6：兩台機器同一條路線一樣）
++static func route_hash(st: Dictionary) -> String:
++	return ("%d|%s|%d" % [int(st.get("v", ROUTE_V)), str(st.get("path", "")), int(st.get("floor", 0))]).sha256_text().substr(0, 12)
++
++## 舊存檔：只有 tower_run（下一次要打的層）。過去的岔口記 "-"（不猜歷史），done＝前一層（不能重領）。
++static func migrate_old(run: int) -> Dictionary:
++	if run <= 0:
++		return {"v": ROUTE_V, "floor": 0, "path": "", "seals": 0, "done": 0}
++	return {"v": ROUTE_V, "floor": run, "path": "-".repeat((run - 1) / FORK_EVERY), "seals": 0, "done": run - 1}
++
++static func _int_in(v, lo: float, hi: float) -> bool:
++	return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
++
++## 存檔讀回：逐欄驗型；壞了回 null（呼叫端用 tower_run 遷移）。路線長度不能超過層數允許的岔口數。
++static func sanitize_route(v):
++	if not v is Dictionary:
++		return null
++	if not _int_in(v.get("v"), 1, ROUTE_V) or not _int_in(v.get("floor"), 0, FLOOR_MAX) or not _int_in(v.get("seals"), 0, FLOOR_MAX) or not _int_in(v.get("done"), 0, FLOOR_MAX):
++		return null
++	var p = v.get("path")
++	if not p is String or p.length() > FLOOR_MAX / FORK_EVERY:
++		return null
++	for ch in p:
++		if not ch in ["c", "r", "-"]:
++			return null
++	var f := int(v["floor"])
++	var forks_max := maxi(0, (maxi(f, int(v["done"]) + 1) - 1) / FORK_EVERY)
++	if p.length() > forks_max:
++		return null
++	return {"v": int(v["v"]), "floor": f, "path": p, "seals": int(v["seals"]), "done": int(v["done"])}
+--- a/game/scripts/game/save.gd
++++ b/game/scripts/game/save.gd
+@@ -189,6 +189,14 @@
+ 	var twb = out.get("tower_best", 0)
+ 	out["tower_best"] = clampi(int(twb), 0, 100000) if (twb is int or twb is float) else 0   # 1.4.0 §11.1 無盡塔最高層
+ 	out["tower_run"] = load("res://scripts/game/tower.gd").sanitize_run(out.get("tower_run", 0))   # 進行中的層（回標題保留、下次繼續）
++	# 1.6.0 B17（P7.2）完整續塔：tower_route；沒有或壞了＝從 tower_run 遷移（不猜歷史）。有路線就以路線為準、tower_run 跟著同步（舊版讀得懂）
++	if out.has("tower_route") or int(out["tower_run"]) > 0:
++		var TW = load("res://scripts/game/tower.gd")
++		var rt = TW.sanitize_route(out.get("tower_route"))
++		if rt == null:
++			rt = TW.migrate_old(int(out["tower_run"]))
++		out["tower_route"] = rt
++		out["tower_run"] = int(rt["floor"])
+ 	var ods = out.get("od_stamps", 0)
+ 	out["od_stamps"] = clampi(int(ods), 0, 100000) if (ods is int or ods is float) else 0
+ 	out["campaign"] = load("res://scripts/game/campaign.gd").sanitize(out.get("campaign", {}))   # 1.2.0 §11.7（新鍵逐欄驗型；舊存檔沒有＝空，不需要遷移）
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -376,6 +376,8 @@
+ 			_draw_share()
+ 		"songbook":
+ 			_draw_songbook()
++		"tower_fork":
++			_draw_tower_fork()
+ 		"sb_full":
+ 			_draw_sb_full()
+ 		"campaign":
+@@ -2640,16 +2642,77 @@
+ 
+ ## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
+ func _tower_open() -> void:
+-	var run := int(Save.data.get("tower_run", 0))
+-	if run > 1:
+-		_toast(L.t("tw_resume", [run]))
+-	_tower_start(maxi(1, run))
++	if _demo():
++		_toast(L.t("demo_locked"), true)
++		return
++	var rt := _tw_route()
++	if int(rt["floor"]) <= 0:
++		rt = Tower.new_route()   # 沒有進行中的塔：開一條新路線
++		_tw_save_route(rt)
++	elif int(rt["floor"]) > 1:
++		_toast(L.t("tw_resume", [int(rt["floor"])]))
++	if Tower.fork_due(rt):
++		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
++		_focus = 0
++		return
++	_tower_start(int(rt["floor"]))
++
++## 1.6.0 B17：目前的路線（存檔的 tower_route；沒有就從 tower_run 遷移，不猜歷史）
++func _tw_route() -> Dictionary:
++	var rt = Tower.sanitize_route(Save.data.get("tower_route"))
++	return rt if rt != null else Tower.migrate_old(int(Save.data.get("tower_run", 0)))
++
++## 寫路線（tower_run 同步給舊版）；寫檔失敗照實說（記憶體裡照樣往下，Save 會重試）
++func _tw_save_route(rt: Dictionary) -> bool:
++	Save.data["tower_route"] = rt
++	Save.data["tower_run"] = int(rt["floor"])
++	if Save.save_data():
++		return true
++	_toast(L.t("save_failed"), true)
++	return false
++
++## 岔口：選契約或休整（重複點、晚到的點擊不改路線）。選完存檔、直接開打這一層。
++func _tw_choose(c: String) -> void:
++	var rt := _tw_route()
++	if not Tower.fork_due(rt):
++		return
++	rt = Tower.choose(rt, c)
++	_tw_save_route(rt)
++	overlay = ""
++	_tower_start(int(rt["floor"]))
++
++func _draw_tower_fork() -> void:
++	_dim(0.6)
++	var rt := _tw_route()
++	var f := int(rt["floor"])
++	var cards := [["c", L.t("tw_fork_c"), L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [Tower.REST_CUT])]]
++	var ch := 0.0
++	for c in cards:
++		ch = maxf(ch, 16.0 + tz("B") * 1.4 + text_h(str(c[2]), tz("S"), 300) + 16.0)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
++	for i in 2:
++		var c: Array = cards[i]
++		var r := Rect2(640 - 340 + i * 350, y, 330, ch)
++		var key: String = c[0]
++		_btn(r, "", func(): _tw_choose(key), Tower.fork_due(rt))   # 兩條路同等份量（不設主鈕；主鈕的圓鈕裝飾會壓到卡片字）
++		_text(r.position + Vector2(165, 16), str(c[1]), tz("B"), INK if last_btn_paper else Color.WHITE, true, true, 300)
++		_text(r.position + Vector2(165, 16 + tz("B") * 1.4), str(c[2]), tz("S"), INK if last_btn_paper else TXT_DIM, true, false, 300)
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++	screen_register("tower_fork", "tw_fork_c")
+ 
+ func _tower_start(floor_no: int) -> void:
+ 	if _demo():
+ 		_toast(L.t("demo_locked"), true)
+ 		return
+-	var sp: Dictionary = Tower.spec(floor_no)
++	var rt := _tw_route()
++	if int(rt["floor"]) != floor_no:
++		rt = Tower.new_route()   # 不是路線上的這一層（例如規則不合法退回第 1 層）：重開一條
++		rt["floor"] = floor_no
++		rt["done"] = floor_no - 1
++		rt["path"] = "-".repeat((floor_no - 1) / Tower.FORK_EVERY)
++	var sp: Dictionary = Tower.spec_route(rt, floor_no)
+ 	var r = Tower.make_rules(sp, RS.mask(false))
+ 	if not r.validate().is_empty():
+ 		_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
+@@ -2666,15 +2729,17 @@
+ 	tower_on = true
+ 	tower_floor = int(sp["floor"])
+ 	tower_result = -1
+-	Save.data["tower_run"] = tower_floor
+-	Save.save_data()   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+-	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]))
++	_tw_save_route(rt)   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
++	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]) + (L.t("tw_contract_tag") if bool(sp.get("contract", false)) else ""))
+ 
+ func _tower_finish(w: int) -> void:
+ 	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
+ 		return
+ 	var best := int(Save.data.get("tower_best", 0))
+-	Save.data["tower_run"] = Tower.next_run(int(Save.data.get("tower_run", 0)), tower_floor, w == 0)
++	var st: Array = Tower.settle(_tw_route(), tower_floor, w == 0)   # 1.6.0 B17：結算只一次（done）；路線＋tower_run 一起寫
++	if bool(st[1]):
++		Save.data["tower_route"] = st[0]
++	Save.data["tower_run"] = int(_tw_route()["floor"])
+ 	tower_result = 0 if w == 0 else 1
+ 	if w == 0:
+ 		var r: Array = Tower.record(best, tower_floor)
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -423,7 +423,7 @@
+ 		if not tb.is_empty():
+ 			bs.clear()
+ 			var nf: int = int(tb[1])
+-			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_start", nf)])
++			bs.append([L.t(str(tb[0]), [nf]) if nf > 1 else L.t(str(tb[0])), func(): call("_tower_open")])   # 1.6.0 B17：走路線（岔口先選路；輸了路線已結束＝開新的）
+ 	if watch_mode:
+ 		bs.clear()   # 看對戰代碼：不接正式對局的「下一局」（Codex S5 #2）
+ 
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -1374,7 +1374,7 @@
+ 		_btn(Rect2(380, ry + i * 48, 520, 44), lb, func(): _ask_confirm(L.t("restore_q", [lb]), func(): _progress_restore(nm), "restore"))
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "settings")
+ 
+-const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run"]], ["clr_all", []]]
++const CLEAR_KEYS := [["clr_tutorial", ["tutorial"]], ["clr_puzzles", ["puzzle_stars", "pz_best", "pz_sol", "trial_stars", "coached", "trio_clear", "trio_stars", "notebook", "od"]], ["clr_records", ["stats", "unit_wins", "unit_games", "unit_games_rec", "unit_wins_rec", "custom_stats", "streak", "best_streak", "gauntlet_best", "nemeses", "ghost_beat", "weekly", "eye", "wave_best", "daily_best", "medals", "rush_best", "rush_day", "rift_best", "daily_pend", "daily_streak", "eff_games", "ai_games", "ai_wins", "od_stamps", "tower_best", "tower_run", "tower_route"]], ["clr_all", []]]
+ 
+ func _draw_clear_data() -> void:
+ 	_dim(0.6)
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -709,6 +709,17 @@
+ 	overlay = "sb_full"
+ 	await _snap("v160_16e_songbook_full.png")
+ 	sb_pending = {}
++	# 1.6.0 B17（P7.1）：無盡塔岔路（第 4 層開打前）；拍完還原存檔欄位
++	var tr_keep = Save.data.get("tower_route", null)
++	var trun_keep = Save.data.get("tower_run", 0)
++	Save.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++	overlay = "tower_fork"
++	await _snap("v160_17a_tower_fork.png")
++	if tr_keep == null:
++		Save.data.erase("tower_route")
++	else:
++		Save.data["tower_route"] = tr_keep
++	Save.data["tower_run"] = trun_keep
+ 	Save.data["songbook"] = []
+ 	overlay = ""
+ 	difficulty = 1
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -1145,6 +1145,12 @@
+    "一般"
+   ]
+  },
++ "v160_17a_tower_fork.png": {
++  "entry": "遠征→無盡塔→第 4 層開打前（岔路，1.6.0 B17）",
++  "states": [
++   "一般"
++  ]
++ },
+  "v120_05_songbook@empty.png": {
+   "entry": "收藏→棋譜本",
+   "states": [
+--- a/game/tests/suites/save.gd
++++ b/game/tests/suites/save.gd
+@@ -386,3 +386,95 @@
+ 	g.free()
+ 	SV.data = keep
+ 	SV.save_data()
++
++
++## 1.6.0 B17（P7.1、P7.2；S6；IN-160-05）塔分岔＋完整續塔：路線雜湊兩機相同、各邊界重啟不重抽不重領、舊 tower_run 讀回；
++## 重複點、重啟、寫檔失敗。
++func test_tower_route_v1600() -> void:
++	var T = load("res://scripts/game/tower.gd")
++	var SV = load("res://scripts/game/save.gd")
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var st: Dictionary = T.new_route()
++	ok(not T.fork_due(st) and T.choose(st, "c") == st, "第 1 層不用選路；不該選時點了不改")
++	for f in [1, 2, 3]:
++		st = T.settle(st, f, true)[0]
++	ok(int(st["floor"]) == 4 and T.fork_due(st), "打完第 3 層：第 4 層開打前要選路")
++	var st_c: Dictionary = T.choose(st, "c")
++	ok(st_c["path"] == "c" and T.choose(st_c, "r") == st_c and not T.fork_due(st_c), "選了契約；重複點／改點不改路線")
++	ok(T.route_adj("c", 4) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 6) == [T.CONTRACT_BONUS, true] and T.route_adj("c", 7) == [0, false] and T.route_adj("r", 4) == [-T.REST_CUT, false] and T.route_adj("r", 5) == [0, false], "契約：三層 +%d；休整：下一層 −%d" % [T.CONTRACT_BONUS, T.REST_CUT])
++	ok(int(T.spec_route(st_c, 4)["bonus"]) == int(T.spec(4)["bonus"]) + T.CONTRACT_BONUS and int(T.spec_route({"path": "r"}, 4)["bonus"]) == maxi(0, int(T.spec(4)["bonus"]) - T.REST_CUT), "路線改的是這一層的敵方加碼")
++	var s4: Array = T.settle(st_c, 4, true)
++	ok(bool(s4[1]) and int(s4[0]["seals"]) == 1 and int(s4[0]["floor"]) == 5, "契約層過了：一枚契約章")
++	ok(not bool(T.settle(s4[0], 4, true)[1]) and not bool(T.settle(s4[0], 9, true)[1]), "同一層再結算、不是這一層：都不變（不重領）")
++	# 兩機相同：路線雜湊只由版本、選擇、層數決定（寫檔讀回、另一台重算都一樣）
++	var rt: Dictionary = JSON.parse_string(JSON.stringify(s4[0]))
++	ok(T.route_hash(T.sanitize_route(rt)) == T.route_hash(s4[0]) and T.route_hash({"v": 1, "path": "c", "floor": 5}) == ("1|c|5").sha256_text().substr(0, 12), "路線雜湊兩機相同（%s）" % T.route_hash(s4[0]))
++	# 舊存檔 tower_run 讀回（不猜歷史）
++	var d := {"tower_run": 8, "tower_best": 7}
++	SV.sanitize_data(d)
++	ok(d["tower_route"] == {"v": 1, "floor": 8, "path": "--", "seals": 0, "done": 7} and not T.fork_due(d["tower_route"]) and int(d["tower_run"]) == 8, "舊 tower_run＝8：同一層、過去兩個岔口記「-」、不補問", str(d.get("tower_route")))
++	var d0 := {"tower_run": 0}
++	SV.sanitize_data(d0)
++	ok(not d0.has("tower_route"), "沒有進行中的塔：不多出欄位")
++	for bad in ["x", 5, {"v": 1, "floor": 4, "path": "cc", "seals": 0, "done": 3}, {"v": 9, "floor": 1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": -1, "path": "", "seals": 0, "done": 0}, {"v": 1, "floor": 4, "path": "x", "seals": 0, "done": 3}, {"v": 1, "floor": 1.0e30, "path": "", "seals": 0, "done": 0}]:
++		ok(T.sanitize_route(bad) == null, "壞路線讀回＝不用（改由 tower_run 遷移）：%s" % str(bad))
++	var keep: Dictionary = SV.data.duplicate(true)
++	var lk: bool = SV.data_locked
++	SV.data_locked = false
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	# 會話範本：岔口選路承諾 → 重啟不重抽 → 結算一次
++	session_contract("塔分岔", {
++		"start": func():
++			SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++			SV.data["tower_run"] = 4
++			g._tw_choose("c")
++			return g._tw_route(),
++		"commit": func(_s): return SV.data.duplicate(true),
++		"restart": func(sv):
++			var d2: Dictionary = SV.migrate(JSON.parse_string(JSON.stringify(sv)))
++			SV.sanitize_data(d2)
++			SV.data["tower_route"] = d2["tower_route"]
++			SV.data["tower_run"] = d2["tower_run"]
++			return g._tw_route(),
++		"settle": func(s):
++			var b: String = var_to_str(g._tw_route())
++			g.tower_on = true
++			g.mode = g.Mode.VS_AI
++			g.play_kind = "official"
++			g.tower_floor = 4
++			g._tower_finish(0)
++			return [g._tw_route(), var_to_str(g._tw_route()) != b],
++		"same": func(a, b): return a == b,
++		"bad_inputs": ["x", null, {}, {"v": 1}],
++		"sanitize": func(v):
++			var d3 := {"tower_route": v, "tower_run": 3}
++			SV.sanitize_data(d3)
++			return d3["tower_route"],
++		"old_samples": [[{"tower_run": 5}, {"v": 1, "floor": 5, "path": "-", "seals": 0, "done": 4}]],
++	})
++	SV.data["tower_route"] = {"v": 1, "floor": 4, "path": "", "seals": 0, "done": 3}
++	g.tower_floor = 1
++	g._tw_choose("c")
++	g.tower_on = true
++	g.mode = g.Mode.VS_AI
++	g.play_kind = "official"
++	var f_started: int = g.tower_floor
++	g._tower_finish(0)
++	ok(f_started == 4 and int(g._tw_route()["seals"]) == 1 and int(g._tw_route()["floor"]) == 5, "岔口選完直接開打第 4 層；過了得契約章", str([f_started, g._tw_route()]))
++	# 寫檔失敗：選路照樣生效、標未存、重試寫進去
++	SV.data["tower_route"] = {"v": 1, "floor": 7, "path": "c", "seals": 3, "done": 6}
++	SV.fail_inject = {"tmp": 1}
++	g._tw_choose("r")
++	ok(g._tw_route()["path"] == "cr" and int(SV.fail_inject.get("tmp", 0)) == 0 and not SV.has_unsaved(), "寫檔失敗：路線照樣生效（在記憶體），開打時再寫一次就補進去", str([g._tw_route(), SV.has_unsaved()]))
++	g._tw_choose("c")
++	ok(g._tw_route()["path"] == "cr", "重複點：已選過不改")
++	# 結果頁：岔口時按「爬下一層」＝先開岔路
++	SV.data["tower_route"] = {"v": 1, "floor": 10, "path": "cr", "seals": 3, "done": 9}
++	g.overlay = ""
++	g._tower_open()
++	ok(g.overlay == "tower_fork", "第 10 層開打前：先選路", str([g.overlay, g._tw_route()]))
++	g.free()
++	SV.data = keep
++	SV.save_data()
++	SV.data_locked = lk
+--- a/game/tests/suites/modes.gd
++++ b/game/tests/suites/modes.gd
+@@ -1643,7 +1643,7 @@
+ 	var i0 := v16.find("func _tower_start(")
+ 	var i1 := v16.find("func _tower_finish(")
+ 	var body := v16.substr(i0, i1 - i0)
+-	ok(body.find("set(\"daily_spec\", {})") >= 0 and body.find("set(\"daily_practice\", false)") >= 0 and body.find("Save.save_data()") >= 0, "進塔清掉每日狀態、續局寫進存檔（Codex cat11 #1、#3）")
++	ok(body.find("set(\"daily_spec\", {})") >= 0 and body.find("set(\"daily_practice\", false)") >= 0 and body.find("_tw_save_route(rt)") >= 0, "進塔清掉每日狀態、續局寫進存檔（Codex cat11 #1、#3；1.6.0 B17 起連路線一起寫）")
+ 	var rs: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+ 	ok(rs.find("call(\"tower_button\", int(get(\"tower_result\"))") >= 0, "結果頁用 tower_result（不是畫面上這一場的勝負）")
+ 	# 讓子規則代碼往返：塔的規則轉成代碼再讀回，兩邊預算一樣（分享、重播、對戰紀錄走代碼）
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600", "test_tower_route_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]

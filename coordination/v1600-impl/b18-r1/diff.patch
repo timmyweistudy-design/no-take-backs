@@ -1,0 +1,300 @@
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -68,7 +68,9 @@
+ 					var pp: Vector2i = armies[0].pos_of(u)
+ 					armies[0].place_xy(int(u["type"]), pp.x, pp.y)   # 保留的陣型和新的明牌陣衝突的就拿掉
+ 		Mode.DUEL:
+-			if duel_rule != "blind":
++			if bool(get("swap_ai")):
++				call("_swap_ai_prep")   # 1.6.0 B18（P7.3）對 AI 換邊雙局：AI 那一色自動擺好、玩家照暗擺流程擺自己那一色
++			elif duel_rule != "blind":
+ 				tp = TP.new(armies[0], armies[1], (round_no + 1) % 2, duel_rule, rules)
+ 				if rules == null:
+ 					tp.armies[0].pool = _pool()
+--- a/game/scripts/ui/screens/game_place.gd
++++ b/game/scripts/ui/screens/game_place.gd
+@@ -172,6 +172,8 @@
+ 				_toast(L.t("sealed_swap"))   # Antigravity v140-i3：第三封封完要說換人
+ 			return
+ 		blind_phase += 1
++		if blind_phase == 1 and bool(get("swap_ai")):
++			call("_swap_ai_fill", 1)   # 1.6.0 B18：玩家擺好藍方＝AI 擺紅方，直接可以開戰
+ 		sfx.play("turn")
+ 		return
+ 	if armies[0].count() == 0 and not _full_blocked_ok():
+--- a/game/scripts/ui/screens/game_playroom.gd
++++ b/game/scripts/ui/screens/game_playroom.gd
+@@ -409,6 +409,38 @@
+ var sw_pts := [0, 0]    # 玩家 A、B 的分數（剩餘戰力百分比合計）
+ var sw_dead := [0, 0]   # 玩家 A、B 兩局合計倒下數
+ 
++var swap_ai := false   # 1.6.0 B18（P7.3）：對 AI 換邊雙局（第 1 局你藍、第 2 局你紅；AI 擺另一色）
++
++func _swap_ai_start() -> void:
++	_swap_start()
++	swap_ai = true
++	sealed_off_for_swap()
++	_reset_place()   # 用對 AI 的擺法重開這一局（_start_mode 時還沒設 swap_ai）
++	_toast(L.t("sw_ai_intro"))
++
++func sealed_off_for_swap() -> void:
++	if bool(get("sealed_on")):
++		set("sealed_on", false)
++
++## 每局開始：這一局 AI 是藍方（玩家 A 拿紅）＝先把藍方擺好、直接輪到玩家擺紅
++func _swap_ai_prep() -> void:
++	if not swap_ai or mode != Mode.DUEL:
++		return
++	if SwapDuel.owner(round_no, 0) == 1:
++		_swap_ai_fill(0)
++
++## AI 擺 team 這一色（一般難度的組陣；種子取自本局亂數，重播、代碼照常）
++func _swap_ai_fill(team: int) -> void:
++	var r := RandomNumberGenerator.new()
++	r.seed = rng.randi()
++	var p: int = int(armies[team].pool)
++	var res = AI.build(team, armies[team].budget, r, -1, p, rules)
++	armies[team] = res["army"]
++	if rules != null:
++		armies[team].apply_rules(rules, team)
++		armies[team].units = res["army"].units.duplicate(true)
++	blind_phase = 1 if team == 0 else 2
++
+ func _swap_start() -> void:
+ 	var r = RuleSet.standard()
+ 	var dm: int = RS.mask(_demo())
+@@ -434,10 +466,17 @@
+ 
+ ## 擺陣頂部：誰是哪一色（第 2 局換過來）
+ func _swap_who() -> String:
++	if swap_ai:
++		return L.t("sw_ai_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red")])   # 1.6.0 B18：你＝哪一色（AI 拿另一色）
+ 	return L.t("sw_who", [L.t("blue") if SwapDuel.owner(round_no, 0) == 0 else L.t("red"), L.t("red") if SwapDuel.owner(round_no, 0) == 0 else L.t("blue")])
+ 
+ ## 結果頁第一條事實
+ func _swap_fact() -> String:
++	if swap_ai:
++		if not series_over:
++			return L.t("sw_ai_round", [int(sw_pts[0]), int(sw_pts[1])])
++		var va := SwapDuel.verdict(sw_pts, sw_dead)
++		return L.t("sw_ai_final", [int(sw_pts[0]), int(sw_pts[1]), L.t("sw_ai_you") if va == 0 else (L.t("sw_ai_them") if va == 1 else L.t("sw_tie"))])
+ 	if not series_over:
+ 		return L.t("sw_round", [int(sw_pts[0]), int(sw_pts[1])])
+ 	var v := SwapDuel.verdict(sw_pts, sw_dead)
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -24,6 +24,7 @@
+ 		set("challenge_army", null)
+ 	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+ 	set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
++	set("swap_ai", false)     # 1.6.0 B18
+ 	set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
+ 	set("cp_on", false)       # 1.2.0 §11.6：_cp_start 會在 _start_mode 之後再設回來
+ 	set("camp_id", "")        # 1.2.0 §11.7：_camp_play 會在 _start_mode 之後再設回來
+@@ -786,7 +787,7 @@
+ 		call("_sealed_start")   # V1.4 #13：三戰打完再來＝重新封三陣（不是重打同一組，Antigravity v140-i3）
+ 		return
+ 	if series_over and bool(get("swap_on")) and mode == Mode.DUEL:
+-		call("_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）
++		call("_swap_ai_start" if bool(get("swap_ai")) else "_swap_start")   # 1.2.0 §11.5：再來一組換邊雙局（分數歸零）；1.6.0 B18 對 AI 版照原樣再來
+ 		return
+ 	if series_over:
+ 		wins = [0, 0]
+--- a/game/scripts/ui/screens/game_menus.gd
++++ b/game/scripts/ui/screens/game_menus.gd
+@@ -1659,6 +1659,7 @@
+ 				["menu_duel", "hc_duel_d", "people", func(): overlay = ""; _open_lobby("duel"), true],
+ 				["fog_open", "hc_fog_d", "map", func(): overlay = ""; call("_fog_start"), true],   # V1.6 #20
+ 				["sw_open", "hc_sw_d", "swap", func(): overlay = ""; call("_swap_start"), true],   # 1.2.0 §11.5 換邊雙局
++				["sw_ai_open", "hc_sw_ai_d", "swap", func(): overlay = ""; call("_swap_ai_start"), true],   # 1.6.0 B18（P7.3）對 AI 換邊雙局
+ 				["cp_open", "hc_cp_d", "people", func(): overlay = ""; call("_cp_start"), true]]   # 1.2.0 §11.6 合作布陣
+ 		"hub_gauntlet":   # V1.0.0 H1／M5：遠征牌＝單人遠征＋雙人接力遠征
+ 			return [["menu_gauntlet", "hc_gauntlet_d", "flag", func(): overlay = ""; _enter_gauntlet(), not _demo()],
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -818,17 +818,35 @@
+ 	_toast(L.t("save_failed"), true)
+ 	return false
+ 
++var sb_tab := 0   # 1.6.0 B18（P7.4）：0＝我收的、1＝棋館名局
++var _famous_cache = null
++
++## 名局（data/famous_games.json，工具 tools/gen_famous.gd 從固定種子挑的險勝局）：每筆 {c, w, rem, sec}
++func famous_games() -> Array:
++	if _famous_cache == null:
++		var j = JSON.parse_string(FileAccess.get_file_as_string("res://data/famous_games.json"))
++		_famous_cache = []
++		if j is Array:
++			for e in j:
++				if e is Dictionary and e.get("c") is String and BattleCode.decode(str(e["c"])).get("ok", false):
++					_famous_cache.append(e)
++	return _famous_cache
++
+ func _draw_songbook() -> void:
+ 	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+ 	_dim(0.6)
++	if sb_tab == 1:
++		_draw_famous()
++		return
+ 	var book: Array = Save.data.get("songbook", [])
+ 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
+ 	var bad: Array = Save.data.get("songbook_bad", [])
+ 	var bad_txt := L.t("sb_bad", [bad.size()])
+ 	var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
+-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
+ 	_panel(P)
+ 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
++	y = _sb_tabs(y)
+ 	if book.is_empty():
+ 		_text(Vector2(640, y + 10), L.t("sb_empty"), tz("S"), Color(1, 1, 1, 0.88), true, false, 680)   # Antigravity cat08 #4：空狀態要讀得到
+ 	for i in book.size():
+@@ -858,6 +876,37 @@
+ 		btn_group = ""
+ 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+ 
++## 棋譜本兩頁的頁籤（我收的／棋館名局）；回下一行的 y
++func _sb_tabs(y: float) -> float:
++	btn_group = "sb_tabs"
++	for k in 2:
++		_btn(Rect2(640 - 250 + k * 255, y, 245, 40), L.t(["sb_tab_mine", "sb_tab_famous"][k]), func(): sb_tab = k; _focus = 0, true, false, TH_ACTIVE if sb_tab == k else TH_WOOD)
++	btn_group = ""
++	return y + 48.0
++
++## 1.6.0 B18（P7.4）棋館名局：只寫量得到的事實（哪一方險勝、剩幾成、打幾秒）；看＝走看對戰代碼的路
++func _draw_famous() -> void:
++	var fl := famous_games()
++	var rowh := maxf(56.0, tz("S") * 1.4 * 2.0 + 16.0)
++	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_famous_help"), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, fl.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
++	_panel(P)
++	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_famous_help"), tz("S"), 680) + GAP_L
++	y = _sb_tabs(y)
++	for i in fl.size():
++		var e: Dictionary = fl[i]
++		var r := Rect2(P.position.x + 30, y, P.size.x - 60, rowh)
++		var paper_ok: bool = not bool(Save.s("plain_ui")) and _tex_box(r, "paper")
++		if not paper_ok:
++			draw_rect(r, Color(0, 0, 0, 0.18))
++		_ink_mode = paper_ok
++		var t := L.t("sb_famous_row", [i + 1, L.t("blue") if int(e.get("w", 0)) == 0 else L.t("red"), int(e.get("rem", 0)), int(e.get("sec", 0))])
++		_text(r.position + Vector2(14, (rowh - text_h(t, tz("S"), r.size.x - 160)) / 2.0), t, tz("S"), INK if paper_ok else Color.WHITE, false, false, r.size.x - 160)
++		_ink_mode = false
++		var c := str(e["c"])
++		_btn(Rect2(r.end.x - 132, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
++		y += rowh + 8.0
++	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
++
+ ## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
+ func _highlights() -> Array:
+ 	var marks: Array = _key_marks() if not report.is_empty() else []
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -697,6 +697,9 @@
+ 	Save.data["songbook"] = [{"c": sb_code, "n": "2026-11-12　" + L.t("sb_win"), "note": L.t("sb_note", [L.t("tl_lead") + " 23s"]), "t": 0},
+ 		{"c": sb_code + "", "n": "2026-11-11　" + L.t("sb_lose"), "note": L.t("sb_note_none"), "t": 0}]
+ 	await _snap("v120_05_songbook.png")
++	sb_tab = 1   # 1.6.0 B18（P7.4）棋館名局
++	await _snap("v160_18a_famous.png")
++	sb_tab = 0
+ 	# 1.6.0 B16（P13.1）：隔離區（讀不出來的紀錄原文還在）＋滿六筆時的替換確認
+ 	Save.data["songbook_bad"] = ["{\"c\":\"NTB2.broken\",\"n\":\"2026-11-01\"}"]
+ 	await _snap("v160_16d_songbook_bad.png")
+--- a/game/tools/gen_famous.gd
++++ b/game/tools/gen_famous.gd
+@@ -0,0 +1,28 @@
++extends SceneTree
++## 1.6.0 B18（P7.4）名局：固定種子掃 AI 對 AI 一般組陣，挑「險勝」（勝方剩 ≤15%、打超過 40 秒）的前 6 場，寫 data/famous_games.json。
++## 只寫量得到的事實（勝方、剩餘戰力、秒數），不編故事。
++func _init():
++	var AI = load("res://scripts/core/ai_army.gd")
++	var BC = load("res://scripts/game/battle_code.gd")
++	var Sim = load("res://scripts/core/battle_sim.gd")
++	var out: Array = []
++	var seed := 160400
++	while out.size() < 6 and seed < 161400:
++		seed += 1
++		var r := RandomNumberGenerator.new()
++		r.seed = seed
++		var a0 = AI.build(0, 100, r)["army"]
++		var a1 = AI.build(1, 100, r)["army"]
++		var s = Sim.new(a0.copy(), a1.copy())
++		s.fast = true
++		s.run_to_end()
++		if s.winner < 0:
++			continue
++		var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000))
++		if rem <= 15 and rem >= 1 and s.tick >= 800:
++			out.append({"c": BC.encode(a0, a1), "w": s.winner, "rem": rem, "sec": s.tick / 20, "seed": seed})
++	var f := FileAccess.open("res://data/famous_games.json", FileAccess.WRITE)
++	f.store_string(JSON.stringify(out, "\t"))
++	f.close()
++	print("FAMOUS ", out.size())
++	quit()
+--- a/game/tests/suites/modes_live.gd
++++ b/game/tests/suites/modes_live.gd
+@@ -413,3 +413,28 @@
+ 
+ func ok_quiet(_c: bool) -> void:
+ 	pass
++
++## 1.6.0 B18（P7.3）對 AI 換邊雙局：第 1 局你擺藍、AI 擺紅；第 2 局 AI 先擺藍、你擺紅；分數跟著人走（SwapDuel 原規則）。
++func test_swap_ai_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var SD = load("res://scripts/game/swap_duel.gd")
++	var LSx = load("res://scripts/game/strings.gd")
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g._swap_ai_start()
++	ok(g.swap_on and g.swap_ai and g.mode == g.Mode.DUEL and g.tp == null and g.blind_phase == 0 and g.armies[1].count() == 0, "第 1 局：輪到你擺藍方，紅方還空著", str([g.blind_phase, g.tp]))
++	var pool := F.training_pool(0)
++	for u in pool[2].units:
++		g.armies[0].place(int(u["type"]), int(u["col"]), int(u["row"]))
++	g._on_start()
++	ok(g.blind_phase == 2 and g.armies[1].count() > 0 and g._ready_to_fight(), "你擺好藍方＝AI 擺紅方，可以開戰（紅 %d 隻）" % g.armies[1].count())
++	ok(g._swap_who().find(LSx.t("blue")) >= 0, "第 1 局標示你是藍方")
++	g.round_no = 2
++	g._reset_place()
++	ok(g.blind_phase == 1 and g.armies[0].count() > 0 and g.armies[1].count() == 0 and g._cur_army() == g.armies[1], "第 2 局：AI 先擺好藍方，輪到你擺紅方")
++	ok(g._swap_who().find(LSx.t("red")) >= 0 and SD.owner(2, 1) == 0, "第 2 局標示你是紅方；紅方分數算給你")
++	ok(g._swap_fact().find("AI") >= 0, "結果頁寫你和 AI（不是玩家 A／B）")
++	g.free()
++	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
++	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
++	ok(gm.find("[\"sw_ai_open\", \"hc_sw_ai_d\"") >= 0 and gr.find("call(\"_swap_ai_start\" if bool(get(\"swap_ai\")) else \"_swap_start\")") >= 0 and gr.find("set(\"swap_ai\", false)") >= 0, "入口、再來一組、換模式清旗標")
+--- a/game/tests/suites/coach_lab.gd
++++ b/game/tests/suites/coach_lab.gd
+@@ -810,3 +810,23 @@
+ 	ok(spn[1].size() == 1 and str(spn[1][0]).length() <= SBx.BAD_TEXT, "巢狀／超長：只留截過的原文")
+ 	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+ 	ok(gr.find("res_more_items.append([L.t(\"sb_add\"), func(): call(\"_sb_add_current\")])") >= 0, "結果頁「更多」直接收進棋譜本")
++
++## 1.6.0 B18（P7.4）棋館名局：每一場都解得開、重算的勝方／剩餘／秒數和資料一樣（確定性），文字只寫這三個事實。
++func test_famous_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var BCx = load("res://scripts/game/battle_code.gd")
++	var g = GS.new()
++	var fl: Array = g.famous_games()
++	var same := 0
++	for e in fl:
++		var d: Dictionary = BCx.decode(str(e["c"]))
++		var s = Sim.new(d["a0"], d["a1"], d.get("rules"))
++		s.fast = true
++		s.run_to_end()
++		var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else -1
++		if s.winner == int(e["w"]) and rem == int(e["rem"]) and s.tick / 20 == int(e["sec"]) and rem < 20:
++			same += 1
++	ok(fl.size() == 6 and same == 6, "名局 6 場重算都和資料一樣、都是剩不到兩成的險勝（%d／%d）" % [same, fl.size()])
++	g.sb_tab = 1
++	ok(g.famous_games().size() == fl.size(), "名局只讀一次（快取）")
++	g.free()
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600", "test_tower_route_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600", "test_famous_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120", "test_swap_ai_v1600"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600", "test_tower_route_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]

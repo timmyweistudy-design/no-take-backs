@@ -413,3 +413,106 @@ func test_optional_modes_v120() -> void:
 
 func ok_quiet(_c: bool) -> void:
 	pass
+
+## 1.6.0 B18（P7.3）對 AI 換邊雙局：第 1 局你擺藍、AI 擺紅；第 2 局 AI 先擺藍、你擺紅；分數跟著人走（SwapDuel 原規則）。
+func test_swap_ai_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var SD = load("res://scripts/game/swap_duel.gd")
+	var LSx = load("res://scripts/game/strings.gd")
+	var Simx = load("res://scripts/core/battle_sim.gd")
+	var SVx = load("res://scripts/game/save.gd")
+	var keep: Dictionary = SVx.data.duplicate(true)
+	var lk: bool = SVx.data_locked
+	SVx.data_locked = false
+	SVx.data.erase("swap_ai_run")
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g._swap_ai_start()
+	ok(g.swap_on and g.swap_ai and g.mode == g.Mode.DUEL and g.tp == null and g.blind_phase == 0 and g.armies[1].count() == 0, "第 1 局：輪到你擺藍方，紅方還空著", str([g.blind_phase, g.tp]))
+	var pool := F.training_pool(0)
+	for u in pool[2].units:
+		g.armies[0].place(int(u["type"]), int(u["col"]), int(u["row"]))
+	g._on_start()
+	ok(g.blind_phase == 2 and g.armies[1].count() > 0 and g._ready_to_fight(), "你擺好藍方＝AI 擺紅方，可以開戰（紅 %d 隻）" % g.armies[1].count())
+	ok(g._swap_who().find(LSx.t("blue")) >= 0, "第 1 局標示你是藍方")
+	g.round_no = 2
+	g._reset_place()
+	ok(g.blind_phase == 1 and g.armies[0].count() > 0 and g.armies[1].count() == 0 and g._cur_army() == g.armies[1], "第 2 局：AI 先擺好藍方，輪到你擺紅方")
+	ok(g._swap_who().find(LSx.t("red")) >= 0 and SD.owner(2, 1) == 0, "第 2 局標示你是紅方；紅方分數算給你")
+	ok(g._swap_fact().find("AI") >= 0, "結果頁寫你和 AI（不是玩家 A／B）")
+	ok(g.swap_ai_my_color() == 1, "第 2 局你是紅方")
+	var cg: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_core.gd")
+	var cp: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_place.gd")
+	ok(cg.find("me_won = w >= 0 and w == int(call(\"swap_ai_my_color\"))") >= 0 and cp.find("if not ai_blue:") >= 0, "勝場只算你那一色；你擺紅那局不記成你的上一陣")
+	# 同一局重送結算不重記
+	g.mode = g.Mode.DUEL
+	g.play_kind = "official"
+	g.sim = Simx.new(pool[2].copy(), pool[9].mirrored())
+	g.sim.fast = true
+	g.sim.run_to_end()
+	g._swap_settle()
+	var p1: Array = g.sw_pts.duplicate()
+	g._swap_settle()
+	ok(g.sw_pts == p1, "同一局重送結算：分數不重記")
+	ok(not SVx.data.has("swap_ai_run"), "整組結束：會話刪掉")
+	# §3.1 會話：第 1 局 AI 擺好＝承諾寫檔；記分後重啟＝接第 2 局；第 2 局 AI 的陣承諾後重啟不重抽
+	var g2 = GS.new()
+	g2.sfx = FakeSfx.new()
+	g2._swap_ai_start(true)
+	for u in pool[2].units:
+		g2.armies[0].place(int(u["type"]), int(u["col"]), int(u["row"]))
+	g2._on_start()
+	var run1 = SD.sanitize_run(JSON.parse_string(JSON.stringify(SVx.data.get("swap_ai_run"))))
+	ok(run1 != null and int(run1["round"]) == 1 and int(run1["settled"]) == 0 and (run1["ai"] as Array).size() == g2.armies[1].count(), "第 1 局：AI 擺好就寫檔（承諾）")
+	g2.mode = g2.Mode.DUEL
+	g2.play_kind = "official"
+	g2.sim = Simx.new(g2.armies[0].copy(), g2.armies[1].copy())
+	g2.sim.fast = true
+	g2.sim.run_to_end()
+	g2._swap_settle()
+	var pts1: Array = g2.sw_pts.duplicate()
+	var d1: Dictionary = JSON.parse_string(JSON.stringify(SVx.data))   # 重啟＝寫檔讀回＋清理
+	SVx.sanitize_data(d1)
+	ok(int(d1["swap_ai_run"]["settled"]) == 1 and d1["swap_ai_run"]["pts"] == pts1, "記分寫檔：settled 前進、分數存著")
+	g2.free()
+	SVx.data["swap_ai_run"] = d1["swap_ai_run"]
+	var g3 = GS.new()
+	g3.sfx = FakeSfx.new()
+	g3._swap_ai_start()
+	ok(g3.round_no == 2 and g3.sw_pts == pts1 and g3.swap_ai_my_color() == 1 and g3.armies[0].count() > 0 and g3.blind_phase == 1, "重啟後接第 2 局：分數照舊、AI 先擺藍", str([g3.round_no, g3.sw_pts]))
+	var ai2: Array = SD.units_of(g3.armies[0])
+	g3.free()
+	var g4 = GS.new()
+	g4.sfx = FakeSfx.new()
+	g4._swap_ai_start()
+	ok(SD.units_of(g4.armies[0]) == ai2, "第 2 局 AI 的陣承諾過了：再重啟不重抽")
+	g4.sw_settled = 1
+	ok(int(SVx.data["swap_ai_run"]["settled"]) == 1, "第 1 局不會再記一次（settled 從存檔帶回）")
+	SVx.fail_inject = {"tmp": 1}
+	ok(not g4._swap_ai_commit([]) and SVx.has_unsaved(), "寫檔失敗：照實說、標未存")
+	SVx.retry_pending()
+	g4.free()
+	# 壞陣（重疊、越界）＝整個會話不用；擺不回去（兵種不在卡池）＝重新組陣，不留縮水的陣
+	ok(SD.sanitize_run({"v": 1, "round": 2, "settled": 1, "pts": [0, 0], "dead": [0, 0], "ai": [[0, 1, 1], [1, 1, 1]]}) == null and SD.sanitize_run({"v": 1, "round": 2, "settled": 1, "pts": [0, 0], "dead": [0, 0], "ai": [[0, 99, 1]]}) == null, "存的 AI 陣重疊或越界：會話不用")
+	SVx.data["swap_ai_run"] = {"v": 1, "round": 2, "settled": 1, "pts": [50, 40], "dead": [3, 4], "ai": [[0, 13, 1], [0, 13, 1 + 0]]}
+	var g5 = GS.new()
+	g5.sfx = FakeSfx.new()
+	g5.armies = [load("res://scripts/core/army.gd").new(0, 100), load("res://scripts/core/army.gd").new(1, 100)]
+	g5.sw_resume_ai = [[0, 2, 1], [31, 3, 3]]
+	g5.round_no = 2
+	g5.swap_ai = true
+	g5.mode = g5.Mode.DUEL
+	g5._swap_ai_fill(0)
+	ok(g5.armies[0].count() > 2, "存的陣擺不回去：重新組一個完整的陣（%d 隻）" % g5.armies[0].count())
+	g5.free()
+	var grs: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(grs.find("elif eff[\"progress\"] and not sw_dup:") >= 0, "同一局重複結算：統計也不重記（和會話同一次寫檔）")
+	for bad in ["x", {"v": 1, "round": 2, "settled": 0, "pts": [0, 0], "dead": [0, 0], "ai": []}, {"v": 2, "round": 1, "settled": 0, "pts": [0, 0], "dead": [0, 0], "ai": []}, {"v": 1, "round": 1, "settled": 0, "pts": [1.0e30, 0], "dead": [0, 0], "ai": []}]:
+		ok(SD.sanitize_run(bad) == null, "壞會話讀回＝沒有進行中的一組：%s" % str(bad))
+	SVx.data = keep
+	SVx.save_data()
+	SVx.data_locked = lk
+	g.free()
+	var gm: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_menus.gd")
+	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
+	ok(gm.find("[\"sw_ai_open\", \"hc_sw_ai_d\"") >= 0 and gr.find("call(\"_swap_ai_start\", true) if bool(get(\"swap_ai\")) else call(\"_swap_start\")") >= 0 and gr.find("set(\"swap_ai\", false)") >= 0, "入口、再來一組、換模式清旗標")

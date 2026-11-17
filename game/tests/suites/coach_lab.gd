@@ -810,3 +810,23 @@ func test_songbook_v1600() -> void:
 	ok(spn[1].size() == 1 and str(spn[1][0]).length() <= SBx.BAD_TEXT, "巢狀／超長：只留截過的原文")
 	var gr: String = FileAccess.get_file_as_string("res://scripts/ui/screens/game_result.gd")
 	ok(gr.find("res_more_items.append([L.t(\"sb_add\"), func(): call(\"_sb_add_current\")])") >= 0, "結果頁「更多」直接收進棋譜本")
+
+## 1.6.0 B18（P7.4）棋館名局：每一場都解得開、重算的勝方／剩餘／秒數和資料一樣（確定性），文字只寫這三個事實。
+func test_famous_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var BCx = load("res://scripts/game/battle_code.gd")
+	var g = GS.new()
+	var fl: Array = g.famous_games()
+	var same := 0
+	for e in fl:
+		var d: Dictionary = BCx.decode(str(e["c"]))
+		var s = Sim.new(d["a0"], d["a1"], d.get("rules"))
+		s.fast = true
+		s.run_to_end()
+		var rem := roundi(s.power(s.winner) * 100.0 / (s.budget_of(s.winner) * 1000)) if s.winner >= 0 else -1
+		if s.winner == int(e["w"]) and rem == int(e["rem"]) and s.tick / 20 == int(e["sec"]) and rem < 20:
+			same += 1
+	ok(fl.size() == 6 and same == 6, "名局 6 場重算都和資料一樣、都是剩不到兩成的險勝（%d／%d）" % [same, fl.size()])
+	g.sb_tab = 1
+	ok(g.famous_games().size() == fl.size(), "名局只讀一次（快取）")
+	g.free()

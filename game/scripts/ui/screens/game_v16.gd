@@ -376,6 +376,8 @@ func _draw_v16_overlay(name: String) -> void:
 			_draw_share()
 		"songbook":
 			_draw_songbook()
+		"tower_fork":
+			_draw_tower_fork()
 		"sb_full":
 			_draw_sb_full()
 		"campaign":
@@ -816,17 +818,38 @@ func _sb_bad_clear() -> bool:
 	_toast(L.t("save_failed"), true)
 	return false
 
+var sb_tab := 0   # 1.6.0 B18（P7.4）：0＝我收的、1＝棋館名局
+var _famous_cache = null
+
+## 名局（data/famous_games.json，工具 tools/gen_famous.gd 從固定種子挑的險勝局）：每筆 {c, w, rem, sec}
+func famous_games() -> Array:
+	if _famous_cache == null:
+		var j = JSON.parse_string(FileAccess.get_file_as_string("res://data/famous_games.json"))
+		_famous_cache = []
+		if j is Array:
+			for e in j:
+				if e is Dictionary and e.get("c") is String and e.get("w") in [0, 1, 0.0, 1.0] and _num_in(e.get("rem"), 0, 100) and _num_in(e.get("sec"), 0, 100000) and BattleCode.decode(str(e["c"])).get("ok", false):
+					_famous_cache.append({"c": str(e["c"]), "w": int(e["w"]), "rem": int(e["rem"]), "sec": int(e["sec"])})   # 逐欄驗型（Codex B18 r1）
+	return _famous_cache
+
+static func _num_in(v, lo: float, hi: float) -> bool:
+	return (v is int or (v is float and float(v) == floorf(float(v)))) and float(v) >= lo and float(v) <= hi
+
 func _draw_songbook() -> void:
 	_boss_note("songbook", "songbook")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
 	_dim(0.6)
+	if sb_tab == 1:
+		_draw_famous()
+		return
 	var book: Array = Save.data.get("songbook", [])
 	var rowh := 12.0 + tz("B") * 1.3 + tz("S") * 1.3 + 12.0
 	var bad: Array = Save.data.get("songbook_bad", [])
 	var bad_txt := L.t("sb_bad", [bad.size()])
 	var bad_h := (text_h(bad_txt, tz("S"), 680) + 8.0 + 44.0 + GAP_M) if not bad.is_empty() else 0.0
-	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, book.size()) * (rowh + 8.0) + bad_h + GAP_L + 44.0 + GAP_L)
 	_panel(P)
 	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_help", [SB.MAX]), tz("S"), 680) + GAP_L
+	y = _sb_tabs(y)
 	if book.is_empty():
 		_text(Vector2(640, y + 10), L.t("sb_empty"), tz("S"), Color(1, 1, 1, 0.88), true, false, 680)   # Antigravity cat08 #4：空狀態要讀得到
 	for i in book.size():
@@ -854,6 +877,37 @@ func _draw_songbook() -> void:
 		_btn(Rect2(640 - 250, y, 240, 44), L.t("sb_bad_copy"), func(): _sb_bad_copy())
 		_btn(Rect2(640 + 10, y, 240, 44), L.t("sb_bad_clear"), func(): _sb_bad_clear())
 		btn_group = ""
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+
+## 棋譜本兩頁的頁籤（我收的／棋館名局）；回下一行的 y
+func _sb_tabs(y: float) -> float:
+	btn_group = "sb_tabs"
+	for k in 2:
+		_btn(Rect2(640 - 250 + k * 255, y, 245, 40), L.t(["sb_tab_mine", "sb_tab_famous"][k]), func(): sb_tab = k; _focus = 0, true, false, TH_ACTIVE if sb_tab == k else TH_WOOD)
+	btn_group = ""
+	return y + 48.0
+
+## 1.6.0 B18（P7.4）棋館名局：只寫量得到的事實（哪一方險勝、剩幾成、打幾秒）；看＝走看對戰代碼的路
+func _draw_famous() -> void:
+	var fl := famous_games()
+	var rowh := maxf(56.0, tz("S") * 1.4 * 2.0 + 16.0)
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("sb_famous_help"), tz("S"), 680) + GAP_L + 48.0 + maxf(1.0, fl.size()) * (rowh + 8.0) + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("sb_title"), L.t("sb_famous_help"), tz("S"), 680) + GAP_L
+	y = _sb_tabs(y)
+	for i in fl.size():
+		var e: Dictionary = fl[i]
+		var r := Rect2(P.position.x + 30, y, P.size.x - 60, rowh)
+		var paper_ok: bool = not bool(Save.s("plain_ui")) and _tex_box(r, "paper")
+		if not paper_ok:
+			draw_rect(r, Color(0, 0, 0, 0.18))
+		_ink_mode = paper_ok
+		var t := L.t("sb_famous_row", [i + 1, L.t("blue") if int(e.get("w", 0)) == 0 else L.t("red"), int(e.get("rem", 0)), int(e.get("sec", 0))])
+		_text(r.position + Vector2(14, (rowh - text_h(t, tz("S"), r.size.x - 160)) / 2.0), t, tz("S"), INK if paper_ok else Color.WHITE, false, false, r.size.x - 160)
+		_ink_mode = false
+		var c := str(e["c"])
+		_btn(Rect2(r.end.x - 132, r.position.y + (rowh - 44.0) / 2.0, 120, 44), L.t("sb_watch"), func(): overlay = ""; _watch_code_str(c))
+		y += rowh + 8.0
 	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
 
 ## 1.3.0 §2 精華：最多三段、去重、終局排最後；不足兩個獨立事件只出一段（director_rules.pick_reel）。
@@ -2640,16 +2694,98 @@ static func tower_button(result: int, floor_no: int) -> Array:
 
 ## 遠征牌上的入口：有進行中的塔就從那一層繼續（回標題也保留，方案 §11.11）
 func _tower_open() -> void:
-	var run := int(Save.data.get("tower_run", 0))
-	if run > 1:
-		_toast(L.t("tw_resume", [run]))
-	_tower_start(maxi(1, run))
+	if _demo():
+		_toast(L.t("demo_locked"), true)
+		return
+	if Tower.route_is_future(Save.data.get("tower_route")):
+		_toast(L.t("tw_future"), true)   # §3.1：新版存的路線唯讀（不開打、不覆寫）
+		return
+	var rt := _tw_route()
+	if int(rt["floor"]) <= 0:
+		rt = Tower.new_route()   # 沒有進行中的塔：開一條新路線
+		_tw_save_route(rt)
+	elif int(rt["floor"]) > 1:
+		_toast(L.t("tw_resume", [int(rt["floor"])]))
+	if Tower.fork_due(rt):
+		overlay = "tower_fork"   # 1.6.0 B17（P7.1）：這一層開打前先選路
+		_focus = 0
+		return
+	_tower_start(int(rt["floor"]))
+
+## 1.6.0 B17：目前的路線（存檔的 tower_route；沒有就從 tower_run 遷移，不猜歷史）
+func _tw_route() -> Dictionary:
+	var rt = Tower.sanitize_route(Save.data.get("tower_route"))
+	return rt if rt != null else Tower.migrate_old(int(Save.data.get("tower_run", 0)))
+
+## 寫路線（tower_run 同步給舊版）；寫檔失敗照實說（記憶體裡照樣往下，Save 會重試）
+func _tw_save_route(rt: Dictionary) -> bool:
+	Save.data["tower_route"] = rt
+	Save.data["tower_run"] = int(rt["floor"])
+	if Save.save_data():
+		return true
+	_toast(L.t("save_failed"), true)
+	return false
+
+## 岔口：選契約或休整（重複點、晚到的點擊不改路線）。選完存檔、直接開打這一層。
+func _tw_choose(c: String) -> void:
+	var rt := _tw_route()
+	if not Tower.fork_due(rt):
+		return
+	rt = Tower.choose(rt, c)
+	_tw_save_route(rt)
+	overlay = ""
+	_tower_start(int(rt["floor"]))
+
+## 契約卡的說明：三層逐層算封頂後實際加多少（全滿＝原句、全封頂＝已到上限、部分＝逐層列出；Codex B17 r2）
+static func fork_contract_text(f: int, mask: int) -> String:
+	var eff: Array = []
+	for k in Tower.CONTRACT_SPAN:
+		eff.append(Tower.route_effect(f + k, Tower.CONTRACT_BONUS, mask))
+	if eff.all(func(x): return int(x) == Tower.CONTRACT_BONUS):
+		return L.t("tw_fork_c_d", [Tower.CONTRACT_SPAN, Tower.CONTRACT_BONUS])
+	if eff.all(func(x): return int(x) == 0):
+		return L.t("tw_fork_c_cap", [Tower.CONTRACT_SPAN])
+	var parts: PackedStringArray = []
+	for x in eff:
+		parts.append("+%d" % int(x))
+	return L.t("tw_fork_c_part", ["／".join(parts)])
+
+func _draw_tower_fork() -> void:
+	_dim(0.6)
+	var rt := _tw_route()
+	var f := int(rt["floor"])
+	var cd := fork_contract_text(f, RS.mask(false))
+	var cards := [["c", L.t("tw_fork_c"), cd], ["r", L.t("tw_fork_r"), L.t("tw_fork_r_d", [-Tower.route_effect(f, -Tower.REST_CUT, RS.mask(false))])]]
+	var ch := 0.0
+	for c in cards:
+		ch = maxf(ch, 16.0 + tz("B") * 1.4 + text_h(str(c[2]), tz("S"), 300) + 16.0)
+	var P := modal_rect(760, 12.0 + h1_help_h(L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L + ch + GAP_L + 44.0 + GAP_L)
+	_panel(P)
+	var y := _h1_help(Vector2(640, P.position.y + 12), L.t("tw_fork_title"), L.t("tw_fork_help", [f]), tz("S"), 680) + GAP_L
+	for i in 2:
+		var c: Array = cards[i]
+		var r := Rect2(640 - 340 + i * 350, y, 330, ch)
+		var key: String = c[0]
+		_btn(r, "", func(): _tw_choose(key), Tower.fork_due(rt))   # 兩條路同等份量（不設主鈕；主鈕的圓鈕裝飾會壓到卡片字）
+		_text(r.position + Vector2(165, 16), str(c[1]), tz("B"), INK if last_btn_paper else Color.WHITE, true, true, 300)
+		_text(r.position + Vector2(165, 16 + tz("B") * 1.4), str(c[2]), tz("S"), INK if last_btn_paper else TXT_DIM, true, false, 300)
+	_btn(Rect2(560, P.end.y - GAP_L - 44.0, 160, 44), L.t("back"), func(): overlay = "")
+	screen_register("result", "tw_fork_c")   # 從結果頁／遠征牌進來的選擇框：照結果類上限檢查（Codex B17 r1）
 
 func _tower_start(floor_no: int) -> void:
 	if _demo():
 		_toast(L.t("demo_locked"), true)
 		return
-	var sp: Dictionary = Tower.spec(floor_no)
+	if Tower.route_is_future(Save.data.get("tower_route")):
+		_toast(L.t("tw_future"), true)
+		return
+	var rt := _tw_route()
+	if int(rt["floor"]) != floor_no:
+		rt = Tower.new_route()   # 不是路線上的這一層（例如規則不合法退回第 1 層）：重開一條
+		rt["floor"] = floor_no
+		rt["done"] = floor_no - 1
+		rt["path"] = "-".repeat((floor_no - 1) / Tower.FORK_EVERY)
+	var sp: Dictionary = Tower.spec_route(rt, floor_no)
 	var r = Tower.make_rules(sp, RS.mask(false))
 	if not r.validate().is_empty():
 		_toast(L.t("ch_bad"), true)   # 規則不合法＝提示並回第 1 層（方案 §11.11）
@@ -2666,15 +2802,18 @@ func _tower_start(floor_no: int) -> void:
 	tower_on = true
 	tower_floor = int(sp["floor"])
 	tower_result = -1
-	Save.data["tower_run"] = tower_floor
-	Save.save_data()   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
-	_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]))
+	if _tw_save_route(rt):   # 續局寫進存檔（中途關遊戲也從這一層繼續，Codex cat11 #3）
+		_toast(L.t("tw_head", [tower_floor, L.t("daily_mut_%d" % int(sp["mut"]))]) + (L.t("tw_contract_tag") if bool(sp.get("contract", false)) else ""))
+	# 寫不進：留著「存檔失敗」提示（不被開層提示蓋掉；Codex B17 r1）
 
 func _tower_finish(w: int) -> void:
 	if not tower_on or mode != Mode.VS_AI or play_kind != "official":
 		return
 	var best := int(Save.data.get("tower_best", 0))
-	Save.data["tower_run"] = Tower.next_run(int(Save.data.get("tower_run", 0)), tower_floor, w == 0)
+	var st: Array = Tower.settle(_tw_route(), tower_floor, w == 0)   # 1.6.0 B17：結算只一次（done）；路線＋tower_run 一起寫
+	if bool(st[1]):
+		Save.data["tower_route"] = st[0]
+	Save.data["tower_run"] = int(_tw_route()["floor"])
 	tower_result = 0 if w == 0 else 1
 	if w == 0:
 		var r: Array = Tower.record(best, tower_floor)
