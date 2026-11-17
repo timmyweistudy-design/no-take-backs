@@ -1686,7 +1686,7 @@ func hub_items(kind: String) -> Array:
 				["paint_open", "hc_paint_d", "star", func(): call("_paint_open"), true],
 				["menu_profile", "hc_profile_d", "trophy", func(): overlay = ""; _open("profile"), true],
 				["nem_open", "hc_nem_d", "flag", func(): overlay = "nemeses", not _demo()],
-				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0; set("ed_tab", 0), not _demo()],   # V1.6 #16 出題台
+				["ed_open", "hc_ed_d", "puzzle", func(): overlay = "editor"; _focus = 0; set("ed_tab", 0); call("_ed_load_draft"), not _demo()],   # 1.6.0 B21：帶回草稿   # V1.6 #16 出題台
 				["tour_title", "hc_tour_d", "book", func(): overlay = "tour"; _focus = 0, true],   # V1.6.1 N2 新玩法導覽（常駐）
 				["sb_title", "hc_sb_d", "book", func(): overlay = "songbook"; _focus = 0, true],   # 1.2.0 §11.8 棋譜本
 				["menu_codes", "hc_codes_d", "copy", func(): overlay = "codes"; _focus = 0, true]]   # 1.5.0 §1.1：代碼從標題系統鈕移到收藏（標題只留設定、離開）

@@ -1,17 +1,37 @@
 # 落子無悔：現在的真相
 
-> 第七輪 J3 建立，1.5.0 更新（V1.0.0 起按功能分節；1.5.0 新增的集中在「1.5.0 一頁一景」一節、1.4.0 的在「1.4.0 掌中劇場」一節、1.3.0 的在「1.3.0 棋館活起來」）。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
+> 第七輪 J3 建立，1.6.0 更新（V1.0.0 起按功能分節；1.6.0 新增的集中在「1.6.0 同一張桌」一節、1.5.0 的在「1.5.0 一頁一景」一節、1.4.0 的在「1.4.0 掌中劇場」一節、1.3.0 的在「1.3.0 棋館活起來」）。這份只寫「現在是什麼」，不寫過程。數字來源都在程式裡，有衝突以程式為準；改規則、數值、模式時要同步這份。
 > 歷史與為什麼這樣決定：看 `docs/history/` 的各輪方案。進度：第七輪 `docs/history/2026-11-04-grand-optimization-plan-v7.md` §20、第八輪 `docs/history/2026-11-04-fantasy-units-plan-v8.md` §12、第九輪 `docs/history/2026-11-04-v1-release-plan-v9.md` §14、第十輪 `docs/history/2026-11-05-v1-polish-plan-v10.md` §14，第十一、十二輪追加在同一份 §15；第十三輪 `docs/history/2026-11-06-puzzle-expansion-plan-v13.md` §14、裁決 `coordination/v13-ledger.md`。
 
 ## 版本
 | 項目 | 值 | 位置 |
 |---|---|---|
-| App | 1.5.0（1.0.0 是第一個公開正式版；內部 1.0.x～1.6.1 是開發版。單一來源 `project.godot`，匯出設定同步；標題頁顯示、試玩回報帶版本。存檔與代碼不看 App 版本） | `project.godot` |
+| App | 1.6.0（1.0.0 是第一個公開正式版；內部 1.0.x～1.6.1 是開發版。單一來源 `project.godot`，匯出設定同步；標題頁顯示、試玩回報帶版本。存檔與代碼不看 App 版本） | `project.godot` |
 | 引擎 | Godot 4.6.2-stable（本機、CI、匯出模板要一致，`check_all.sh` 會擋） | `tools/check_all.sh`、`.github/workflows/ci.yml` |
 | 規則版本 | `D.RULES_VERSION`（1.3.0）；用到新兵的場次顯示 1.4.1 | `scripts/core/unit_defs.gd` |
 | 存檔格式 | `SAVE_VERSION` | `scripts/game/save.gd` |
 | GodotSteam | 4.23.2 | `addons/godotsteam/` |
 
+
+## 1.6.0 同一張桌（2026-11-17；方案 `docs/2026-11-15-v1.6.0-plan.md`（文末 §21 實作進度表）、裁決 `coordination/v1600-impl/ledger.md`；24 批做了 20 批，B13a／B13b／B23／B24 沒開工、B22 只有量測裁決，見進度表）
+- **桌面一致**（B03、B06）：主材質、主光、接觸影、桌燈紙色調在 `palette.gd`（規格 `docs/art-spec-v160.md`）；桌位表 `scripts/ui/table_seats.gd` 單一來源；有棋盤的頁盤外壓暗（盤內隊色不變）；全站紙面乘桌燈色調、紙上彩色字走深墨（`ink_deep`）；地形微縮影子方向一致（`map_art.gd`）。歸屬表 `tools/screen_owner.py`（完整檢查一步）。
+- **紙面字**（B02）：版面檢查「淺紙白字」偵測（`probe_faces`＋`layout_rules.paper_white`）。
+- **大廳挑戰簿**（B04）：簿紙 `paper_book`、木撥片頁籤 `btn_plaque`、英文頁籤縮寫 `tab_label`；手把 ≤3 步開戰。
+- **第一幕**（B05）：首開入館便條（`first_run_rect`，左側桌緣）＋「開第一局」直達；標題三主牌＋「更多」抽屜（`_home_more_set`）。
+- **英文 150%**（B07）：`probe_shrink` 量縮級；覆盤分「改動／讀結果／棋課本」三頁、出題台分「編輯／驗證」。
+- **混戰辨讀**（B08）：跳字避讓（`_layout_texts`／`face_rects`）、特效面積與亮度上限、語意保護；勢箭頭與自動焦點**沒做**（等 K6）。
+- **圖集不卡**（B09）：預設外觀離線包 `atlas_pack.gd`（`--bake-pack`，匯出前重烘驗包）、雙緩衝重建。
+- **剪影與轉身**（B10～B12）：劍士、騎兵剪影（待機 IoU ≤0.65）；程式轉身（`turn_crouch`、`hd_blend_c`、展示時鐘 `anim_clock()`）；巨獸直接換邊、骷髏骨棒；連拍工具 `--turn-strip`（腳滑分左右腳量）。其餘兵種**沒做**（B13a 等 K6 盲認）。
+- **桌偶儀式＋疲累**（B14）：開戰敲桌、收盤點頭、儀式可跳過不吞輸入（收盤只讓確認鍵跳、照改鍵換算）；疲累姿勢＋汗滴（30 秒後、血量 <30%）。
+- **覆盤棋課**（B15）：`scripts/game/lesson.gd`＋存檔 `lessons`（上限 30）；敗因卡標「觀察」、重算後標「此條件下已驗證」；棋課本頁重算核對。
+- **棋譜本**（B16、B18）：壞資料隔離 `songbook_bad`（可複製、可清掉）、第七筆明示替換、結果「更多」直接收；棋館名局 `data/famous_games.json`（`tools/gen_famous.gd`）。
+- **無盡塔**（B17）：每三層岔路（契約／休整，封頂後加減）；存檔 `tower_route`（done 擋重領、雜湊兩機相同、舊 `tower_run` 遷移、新版路線唯讀）。
+- **對 AI 換邊雙局**（B18）：`swap_ai`＋存檔 `swap_ai_run`（AI 陣承諾、記分去重、重啟續局）。
+- **商店拍攝**（B19）：`--shot=<夾> --shot-fixed --store` 拍 `store_01～03`（`_shot_store`），`tools/store_thumb.py` 縮圖量測；實機錄影清單 `docs/release/recording-list.md`。
+- **器物聲與連勝桌況**（B20）：`obj_paper`（翻頁鈕）、`obj_stamp`（宣紙戰報蓋章）合成佔位（`tools/gen/gen_audio_v160.py`，真錄音同名替換、走介面音量）；連勝遠征盤外壓暗帶＋木籌（`streak_table`／`streak_bands`，全在棋盤框外）。老闆剪影、常客反應**沒做**（等 B13a 美術）。
+- **出題台與名牌**（B21）：出題錯誤落點（`ed_problems` 紅框）、草稿 `ed_draft`；幽靈陣名牌同頁同字級。展台、競猜木籌**沒做**。
+- **量測**（B01、B22）：完整檢查分片＋`affected_shots.py`；會話範本 `session_contract`；全鏈耗時約 60 分（S8 目標 25 分未達，見 `coordination/v1600-impl/b22-plan.md`）。
+- **新基線未登記**：固定時鐘仍比 1.5.0 基線＋`docs/ui-art-explained.json`（B13a 時一次登記）。
 
 ## 1.5.0 一頁一景（2026-11-15；方案 `docs/2026-11-14-v1.5.0-plan.md`（文末 §21 實作進度表）、裁決 `coordination/v1500-impl/ledger.md`；這版只做了方案的「旅程減法＋排印切片＋戰場辨讀核心＋精修一部分」，其餘見進度表）
 - **一頁一件事 R14**（`layout_rules.gd` `_r14`）：畫面用 `screen_register(類別, 主動作, 豁免理由)` 登記；`click_count()` 數可點元件（`grid` 不算；同一個 `btn_group` 的按鈕＝一個控制，`_btn`／`_btn_quiet` 都帶組）。上限 `R14_LIMITS`；已改造類別 `R14_ENFORCE`＝標題、結果、大廳、擺陣、設定、戰績（超標＝失敗，除非登記理由）；其他類別先警告。豁免理由表在 `docs/ui-layout-exceptions.md`。

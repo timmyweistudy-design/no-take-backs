@@ -1978,6 +1978,8 @@ func _nav_push(from: String) -> void:
 	nav_stack.append(from)
 
 func _nav_back(fallback := "") -> void:
+	if str(get("overlay")) == "editor" and Save.data.has("ed_draft"):
+		Save.save_data()   # 1.6.0 B21（P13.2）：離開出題台＝草稿寫進存檔（重開遊戲也在）
 	if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
 		nav_hub = ""   # 關掉卡片面板：之後打完不再自動打開它
 	overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback

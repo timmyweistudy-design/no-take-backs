@@ -808,6 +808,12 @@ func _draw_ghosts() -> void:
 	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
 	var pages := maxi(1, int(ceil(gs.size() / float(per))))
 	gh_page = clampi(gh_page, 0, pages - 1)
+	# 1.6.0 B21（P13.4）長字串：同一頁的名牌標題用同一個字級（照這一頁最長、最需要縮的那張；原本每張各縮各的，大小不一）
+	var ts: int = tz("B")
+	for k2 in per:
+		var i2 := gh_page * per + k2
+		if i2 < gs.size():
+			ts = mini(ts, fit(L.field(gs[i2], ""), tz("B"), 200, true))   # 取 _text 自己會縮到的那一級的最小值：每張再 fit 也會停在同一級（Codex B21 r2）
 	for k in per:
 		var i := gh_page * per + k
 		if i >= gs.size():
@@ -821,8 +827,8 @@ func _draw_ghosts() -> void:
 		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
 		_ink_mode = on_paper   # 停用／簡化時卡片是深色：字用淺色
 		var gname := L.field(g, "")
-		_text(r.position + Vector2(16, 12), gname, tz("B"), INK if _ink_mode else Color.WHITE, false, true, 200)
-		_text(r.position + Vector2(16, 18 + text_h(gname, tz("B"), 200, true)), ai_tpl_name(str(g.get("tpl", ""))), tz("C"), Color("#4a3622") if _ink_mode else TXT_DIM, false, false, 200)
+		_text(r.position + Vector2(16, 12), gname, ts, INK if _ink_mode else Color.WHITE, false, true, 200)
+		_text(r.position + Vector2(16, 18 + text_h(gname, ts, 200, true)), ai_tpl_name(str(g.get("tpl", ""))), tz("C"), Color("#4a3622") if _ink_mode else TXT_DIM, false, false, 200)
 		# 難度星放右欄、陣型下面（只畫星，不佔左邊文字欄；收尾驗證：英文兩行名稱會擠到）
 		var stars := "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))
 		var sw := minf(_width(stars, tz("C"), true), 96.0)

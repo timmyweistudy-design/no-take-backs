@@ -1,0 +1,2642 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e057-af5e-7e62-8c07-bd403a303796
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（第 3 輪，最後一輪）。只讀。專案根目錄＝目前資料夾。
+B09。第 2 輪意見 coordination/v1600-impl/b09-r1/codex2.md（不可，4 條）；完整差異 coordination/v1600-impl/b09-r1/diff3.patch；最終量測 coordination/v1600-impl/b09-abba.txt。
+改了：①plain_ui／非預設塗裝不讀包（sprite_cache `_pack_on`）；②等鎖後與每次 await 後重查包狀態與世代，缺兵種條＝整包停用（`_baked`、`_bake_page`）；③新增執行期自我測試 `--pack-selftest`（dev_main `_run_pack_selftest`）：真的在讀包中途換色（競態）、真的放壞包看回退，結果 PACKSELFTEST OK（race_hits 10、壞包偵測＋回退即時烘、包與即時烘像素相同）；④雙緩衝：重建時沿用舊圖集畫（`prev`／`draw_prev`），標題冷開機在圖集好之前不畫兵；有畫面最長幀從 58 降到 22.4 ms（scene 包 p95 24.0／max 25.3；即時烘 max 84.2）；代價：重建那段貼圖記憶體暫時多約 177 MiB（峰值 399，仍低於 1.5.0 的 455），暫存 RAM 峰值包 76.7／即時烘 105.6 MiB；磁碟多 61.5 MiB（包不進 git，匯出前 export_check.sh 一定重烘並驗 pack:true）。
+全套檢查 7064 項過、24 組版面 0 違規、FINGERPRINT 不變。
+請判斷：修正是否正確、有沒有新問題、S7 能否判「Go」（我打算寫：烘焙與玩家可見長幀都 <40 ms＝Go；限制：重建暫時多 177 MiB 貼圖、開發機沒包或過期就照舊即時烘）。附行號。最多 4 條必改、300 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀核對前輪意見、完整差異與最終量測，確認競態、回退及 S7 判準，並附上行號。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'codex2.md' -g 'diff3.patch' -g 'b09-abba.txt'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 386ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1500-impl/cat05-r1/codex2.md
+coordination/v1500-impl/cat04-r1/codex2.md
+coordination/v140-impl/cat11-r1/codex2.md
+coordination/v1500-impl/cat07-r1/diff3.patch
+coordination/v1500-impl/cat07-r1/codex2.md
+coordination/v1500-impl/cat02-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/codex2.md
+coordination/v1500-impl/cat01-r1/diff3.patch
+coordination/v1500-impl/cat01-r1/codex2.md
+coordination/v1500-impl/cat03-r1/diff3.patch
+coordination/v1500-impl/cat03-r1/codex2.md
+coordination/v140-impl/cat08-r1/diff3.patch
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v1500-impl/cat06-r1/codex2.md
+coordination/v1600-impl/b09-abba.txt
+coordination/v1600-impl/b09-r1/diff3.patch
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1600-impl/b02-r1/codex2.md
+coordination/v1600-impl/b03-r1/codex2.md
+coordination/v1600-impl/b01-r1/codex2.md
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b09-r1/codex2.md; cat coordination/v1600-impl/b09-abba.txt; cat coordination/v1600-impl/b09-r1/diff3.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+1. `sprite_cache.gd:300,458`：讀包未排除 `plain_ui`，簡化介面仍套用已烘後處理；須納入包鍵或退回即時烘。
+
+2. `sprite_cache.gd:333–340,417`：等鎖後未重查包狀態，停用後仍可讀取、計命中；缺兵種條也未停用整包。須補檢查。
+
+3. `battle_visual.gd:1116,1145`：競態仍只驗字串，錯檔只測雜湊函式；須實跑讀包中換色及壞包回退。
+
+4. `b09-plan.md:14；b09-abba.txt:2–4`：58ms 未達 S7，場景冷測僅4次；85.7MiB 亦未證明容量合格。可登記限制交 B06／B08，但只能稱烘焙子項達標，不能據此給 S7 Go。
+
+結論：不可
+B09 最終 ABBA（chain b09c，2026-11-16；blank＝不畫戰場、scene＝標題示範棋盤；每邊 blank 20／scene 4 程序，冷＋熱 400／80 次重建）
+blank A（即時烘）程序 20、讀包失敗 0｜冷 全部就緒 p50 1085／max 1106 ms、最長幀（含開機頭兩幀）p50 76.9／max 78.6（頭兩幀 max 11.4）｜熱 400 次 最長幀 p50 70.6／p95 73.5／max 87.4、重建 p50 1101 ms｜暫存峰值 max 105.6 MiB
+blank B（離線包）程序 20、讀包失敗 0｜冷 全部就緒 p50 646／max 730 ms、最長幀（含開機頭兩幀）p50 25.1／max 27.1（頭兩幀 max 8.0）｜熱 400 次 最長幀 p50 24.2／p95 26.6／max 28.4、重建 p50 682 ms｜暫存峰值 max 85.7 MiB
+scene A（即時烘）程序 4、讀包失敗 0｜冷 全部就緒 p50 1421／max 1445 ms、最長幀（含開機頭兩幀）p50 75.9／max 76.4（頭兩幀 max 25.9）｜熱 80 次 最長幀 p50 74.8／p95 81.8／max 84.2、重建 p50 1534 ms｜暫存峰值 max 105.6 MiB
+scene B（離線包）程序 4、讀包失敗 0｜冷 全部就緒 p50 636／max 654 ms、最長幀（含開機頭兩幀）p50 22.2／max 22.4（頭兩幀 max 21.4）｜熱 80 次 最長幀 p50 21.9／p95 24.0／max 25.3、重建 p50 655 ms｜暫存峰值 max 76.7 MiB
+PACKSELFTEST OK {"bad_detected":true,"bad_fell_back_paint":true,"bad_ready":true,"bad_why":"讀包失敗 type[0, 1]：拼頁失敗（缺條、錯圖）（整包停用、改回即時繪製）","ok":true,"paint_eq_pack":true,"race_hits":10,"race_pack_still_on"
+diff --git a/game/.gitignore b/game/.gitignore
+index ca408be..1d0ef84 100644
+--- a/game/.gitignore
++++ b/game/.gitignore
+@@ -1,3 +1,4 @@
+ .godot/
+ 
+ *.raw
++/art/pack/
+diff --git a/game/scripts/ui/atlas_pack.gd b/game/scripts/ui/atlas_pack.gd
+new file mode 100644
+index 0000000..5c3094b
+--- /dev/null
++++ b/game/scripts/ui/atlas_pack.gd
+@@ -0,0 +1,156 @@
++extends RefCounted
++## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：開發時（或匯出前）用 `--bake-pack` 把預設塗裝的圖集烘好存成壓縮 Image 資源，
++## 執行時預設外觀直接在背景執行緒讀進來（主執行緒只上傳），不再當場畫向量＋讀回；特殊塗裝、包失效、來源變了＝退回即時烘焙。
++## 包本身不進 git（體積大、每次改畫法都要重烘）：`tools/export_check.sh` 匯出前一定重烘；開發機上沒包或過期就照舊即時烘。
++## 鍵（任何一項不同＝包無效）：來源雜湊（畫法、姿勢、色票、後處理 shader、烘焙程式）、引擎版本、渲染路徑、塗裝（只收預設）、色盲（分兩個夾）。
++
++const DIR := "res://art/pack"
++const MANIFEST := "res://art/pack/manifest.json"
++const DEFAULT_PAINT := "00110"
++const FORMAT_V := 1
++# 會改變烘出來像素的來源（雜湊這些檔；資料夾＝裡面所有 .gd／.json／.gdshader）
++const SOURCES := ["res://scripts/ui/art.gd", "res://scripts/ui/units", "res://scripts/ui/pose_data.gd", "res://scripts/ui/pose_files.gd",
++	"res://scripts/ui/palette.gd", "res://scripts/core/unit_defs.gd", "res://scripts/ui/sprite_cache.gd", "res://shaders/unit_bake.gdshader", "res://data/poses"]
++
++static var dir := DIR      # 測試可指到 user:// 的假包（注入錯圖、過期）
++static var _man := {}      # 清冊快取（第一次 usable() 讀）
++static var _state := -1   # -1 還沒檢查｜0 不能用｜1 能用
++static var why := ""      # 不能用的原因（量測、ledger 用）
++static var misses := 0    # 執行時讀包失敗（壞檔、尺寸不對）次數：一次就整包停用、退回即時烘
++
++static func _files(p: String, out: Array) -> void:
++	if p.ends_with(".gd") or p.ends_with(".json") or p.ends_with(".gdshader"):
++		out.append(p)
++		return
++	var d := DirAccess.open(p)
++	if d == null:
++		return
++	var names: Array = Array(d.get_files())
++	names.sort()
++	for f in names:
++		if f.ends_with(".gd") or f.ends_with(".json") or f.ends_with(".gdshader"):
++			out.append(p + "/" + f)
++
++## 來源雜湊。匯出版（template）回空字串＝不驗來源（.gd 是二進位讀不到原文；匯出前 export_check.sh 一定重烘、成品自我檢查回報 pack）；
++## 開發環境一律算：缺檔也算進雜湊（缺了＝和包不同＝不用包；Codex B09 r1 #1）
++static func src_key() -> String:
++	if OS.has_feature("template"):
++		return ""
++	var files: Array = []
++	for s in SOURCES:
++		_files(s, files)
++	var ctx := HashingContext.new()
++	ctx.start(HashingContext.HASH_SHA256)
++	var n := 0
++	for f in files:
++		var txt := FileAccess.get_file_as_string(f) if FileAccess.file_exists(f) else "<缺檔>"
++		ctx.update(("%s\n" % f).to_utf8_buffer())
++		ctx.update(txt.to_utf8_buffer())
++		n += 1
++	if n == 0:
++		return ""
++	return ctx.finish().hex_encode().substr(0, 16)
++
++static func env_key() -> Dictionary:
++	return {"engine": str(Engine.get_version_info()["string"]), "renderer": RenderingServer.get_current_rendering_method(), "format": FORMAT_V}
++
++static func manifest() -> Dictionary:
++	var mp := dir + "/manifest.json"
++	if not FileAccess.file_exists(mp):
++		return {}
++	var d = JSON.parse_string(FileAccess.get_file_as_string(mp))
++	return d if d is Dictionary else {}
++
++## 讀包前驗檔：位元組雜湊要和清冊一樣（同尺寸的錯圖、換錯檔、壞檔都擋；Codex B09 r1 #2）。在背景執行緒呼叫。
++## 解碼後的像素＝烘的時候的像素，由測試逐張比像素雜湊證明（test_atlas_pack_v1600）
++static func verify_file(cb: int, key: String) -> bool:
++	var want := str((_man.get("fsha", {}) as Dictionary).get("cb%d/%s" % [cb, key], ""))
++	return want != "" and file_sha(path(cb, key)) == want
++
++## 像素雜湊比對（測試與注入用）
++static func verify_pixels(cb: int, key: String, img: Image) -> bool:
++	if img == null:
++		return false
++	var want := str((_man.get("sha", {}) as Dictionary).get("cb%d/%s" % [cb, key], ""))
++	return want != "" and img_sha(img) == want
++
++## 這台機器、這份程式能不能用包（第一次問才檢查；開發環境多驗來源雜湊）
++static func usable() -> bool:
++	if _state >= 0:
++		return _state == 1
++	_state = 0
++	if "--no-pack" in OS.get_cmdline_user_args():
++		why = "停用（--no-pack，量測對照）"
++		return false
++	var m := manifest()
++	_man = m
++	if m.is_empty():
++		why = "沒有包"
++		return false
++	if str(m.get("paint", "")) != DEFAULT_PAINT or (m.get("sha", {}) as Dictionary).size() != int(m.get("files", -1)) or (m.get("fsha", {}) as Dictionary).size() != int(m.get("files", -1)) or int(m.get("selfcheck_mismatch", -1)) != 0:
++		why = "清冊不完整（塗裝、檔數、自我比對）"
++		return false
++	var em := env_match(m, env_key())
++	if em != "":
++		why = em
++		return false
++	var sk := src_key()
++	if sk != "" and sk != str(m.get("src", "")):
++		why = "來源改過（包 %s／現在 %s）：要重做包" % [m.get("src", ""), sk]
++		return false
++	_state = 1
++	why = ""
++	return true
++
++static func reset() -> void:
++	_state = -1
++	_man = {}
++	misses = 0
++
++static func path(cb: int, key: String) -> String:
++	return "%s/cb%d/%s.res" % [dir, cb, key]
++
++static func has(cb: int, key: String) -> bool:
++	return ResourceLoader.exists(path(cb, key))
++
++static var saved_sha := {}   # 烘包時每張圖的像素雜湊（寫進清冊；測試讀回比對＝解碼差 0）
++
++static func img_sha(img: Image) -> String:
++	var ctx := HashingContext.new()
++	ctx.start(HashingContext.HASH_SHA256)
++	ctx.update(("%dx%d:%d|" % [img.get_width(), img.get_height(), img.get_format()]).to_utf8_buffer())
++	ctx.update(img.get_data())
++	return ctx.finish().hex_encode().substr(0, 24)
++
++static func save(cb: int, key: String, img: Image) -> int:
++	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("%s/cb%d" % [dir, cb]))
++	saved_sha["cb%d/%s" % [cb, key]] = img_sha(img)
++	var e := ResourceSaver.save(img, path(cb, key), ResourceSaver.FLAG_COMPRESS)
++	saved_fsha["cb%d/%s" % [cb, key]] = file_sha(path(cb, key))
++	return e
++
++static var saved_fsha := {}   # 烘包時每個檔的位元組雜湊（執行時讀包前比對：換錯檔、壞檔都擋；比解碼後的像素雜湊便宜很多）
++
++static func file_sha(p: String) -> String:
++	var b := FileAccess.get_file_as_bytes(p)
++	if b.is_empty():
++		return ""
++	var ctx := HashingContext.new()
++	ctx.start(HashingContext.HASH_SHA256)
++	ctx.update(b)
++	return ctx.finish().hex_encode().substr(0, 24)
++
++## 清冊的環境鍵和這台比（JSON 數字讀回來是 float）
++static func env_match(m: Dictionary, e: Dictionary) -> String:
++	for k in e:
++		var mv = m.get(k, "")
++		var same: bool = (float(mv) == float(e[k])) if (e[k] is int or e[k] is float) and (mv is int or mv is float) else str(mv) == str(e[k])
++		if not same:
++			return "%s 不同（包 %s／現在 %s）" % [k, mv, e[k]]
++	return ""
++
++static func fail(key: String, reason: String) -> void:
++	misses += 1
++	_state = 0
++	why = "讀包失敗 %s：%s（整包停用、改回即時繪製）" % [key, reason]
++	push_warning(why)
+diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+index bac54d4..dc463a3 100644
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -41,7 +41,7 @@ func _ready() -> void:
+ 	boot_parts["ready_in"] = Time.get_ticks_msec()
+ 	on_battle_finished = _finish_battle
+ 	for a in OS.get_cmdline_user_args():
+-		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check=") or a.begins_with("--sil="):
++		if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check=") or a.begins_with("--sil=") or a.begins_with("--bake-pack=") or a.begins_with("--pack-bench=") or a.begins_with("--pack-selftest="):
+ 			Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
+ 		elif a == "--self-check":
+ 			Save.prefix = "smoke_"
+@@ -94,7 +94,7 @@ func _ready() -> void:
+ 	var _ua := OS.get_cmdline_user_args()
+ 	var _special := "--video" in _ua
+ 	for x in _ua:
+-		if x.begins_with("--perf=") or x.begins_with("--mem-check="):
++		if x.begins_with("--perf=") or x.begins_with("--mem-check=") or x.begins_with("--bake-pack=") or x.begins_with("--pack-bench=") or x.begins_with("--pack-selftest="):
+ 			_special = true
+ 	for x in _ua:
+ 		if x.begins_with("--capsule="):
+diff --git a/game/scripts/ui/main.gd b/game/scripts/ui/main.gd
+index a73b2fc..a986fa1 100644
+--- a/game/scripts/ui/main.gd
++++ b/game/scripts/ui/main.gd
+@@ -2,7 +2,7 @@ extends "res://scripts/ui/game_screens.gd"
+ ## 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。
+ 
+ const DEV := "res://tools/dev_main.gd"
+-const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil="]
++const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil=", "--bake-pack=", "--pack-bench=", "--pack-selftest="]
+ 
+ func _ready() -> void:
+ 	for a in OS.get_cmdline_user_args():
+diff --git a/game/scripts/ui/screens/game_core.gd b/game/scripts/ui/screens/game_core.gd
+index c8c9e84..2a9d416 100644
+--- a/game/scripts/ui/screens/game_core.gd
++++ b/game/scripts/ui/screens/game_core.gd
+@@ -904,6 +904,9 @@ func _self_check() -> void:
+ 	out["focus"] = not _btns.is_empty() and _focus >= 0 and _focus < _btns.size()
+ 	out["size"] = int(ProjectSettings.get_setting("display/window/size/viewport_width")) == 1280 and int(ProjectSettings.get_setting("display/window/size/viewport_height")) == 800
+ 	out["version"] = str(ProjectSettings.get_setting("application/config/version"))
++	var AP = load("res://scripts/ui/atlas_pack.gd")   # 1.6.0 B09：預設外觀離線圖集包帶進成品而且能用（export_check 驗；不列入 ok，NO_PACK=1 可略）
++	out["pack"] = AP.usable()
++	out["pack_why"] = AP.why
+ 	var good := true
+ 	for k in ["strings", "data", "fonts", "audio", "art", "save_roundtrip", "battle_code", "unit_cap", "no_tools", "title", "focus", "size"]:
+ 		good = good and bool(out[k])
+diff --git a/game/scripts/ui/sprite_cache.gd b/game/scripts/ui/sprite_cache.gd
+index da0d4d5..a6fc9d8 100644
+--- a/game/scripts/ui/sprite_cache.gd
++++ b/game/scripts/ui/sprite_cache.gd
+@@ -14,6 +14,7 @@ const Art = preload("res://scripts/ui/art.gd")
+ const D = preload("res://scripts/core/unit_defs.gd")
+ const Gait = preload("res://scripts/ui/units/gait.gd")
+ const Save = preload("res://scripts/game/save.gd")
++const AtlasPack = preload("res://scripts/ui/atlas_pack.gd")   # 1.6.0 B09 預設外觀離線圖集包
+ 
+ const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
+ const RS := 1.6            # 烘焙解析度倍率
+@@ -25,8 +26,8 @@ const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前
+ # 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..23 攻擊兩組（一般／交替或專屬）
+ const FRAMES_PER := 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * 2
+ const COLS := 16
+-const TYPES_PER_PAGE := 6  # 6×2×28＝336 格＝21 列×192＝4032px，不超過 4096
+-const MAX_PAGES := 5
++const TYPES_PER_PAGE := 2  # 1.6.0 B09：6→2（一頁 2×2×28＝112 格＝7 列×192＝1344px）：大頁第一次上傳 GPU 是長幀主因，小頁分散到多幀；總容量不變
++const MAX_PAGES := 15   # 1.6.0 B09：頁變小，頁數上限 ×3（容量同樣 30 種）
+ const TURN_TYPES := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]   # V1.3.1：全部 22 種（V1.3.0 只有 6 種試點）
+ const TURN_C := [0.8, 0.55, 0.3]
+ # V1.3.1 P1：走路中轉身（2 個角度 × 4 個步相，保留步相；每頁 11 種兵）、待機小動作 4 格＋受擊帽子彈起 1 格
+@@ -83,24 +84,47 @@ static func origin_of(type: int) -> Vector2:
+ 	return Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160))
+ 
+ ## 全部清掉，烘舊 10 種和腳底圈。
++var build_done := false   # 1.6.0 B09：這次 build 的全部（腳底圈、舊 10 種、轉身／待機／走路轉身）都好了（量測屏障；Codex B09 r1 #4）
++## 1.6.0 B09 雙緩衝：重建（換色盲、換塗裝）時先留著上一套完整圖集，新的還沒好之前用舊的畫（顏色晚不到一秒才換），
++## 不退回很貴的向量畫法（有畫面時的長幀主因）；新的全部好了就放掉。開機第一次沒有舊的。
++const _SWAP := ["pages", "loc", "ring_tex", "turn_tex", "turn_loc", "wt_pages", "wt_loc", "fid_tex", "fid_loc", "ta_tex", "bw_tex", "ready_cb", "ready_paint"]
++var prev := {}
++
++func prev_has(type: int) -> bool:
++	return not prev.is_empty() and (prev["loc"] as Dictionary).has(type)
++
++func draw_prev(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1) -> void:
++	var cur := {}
++	for k in _SWAP:
++		cur[k] = get(k)
++		set(k, prev[k])
++	draw_unit(ci, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, int(prev["ready_cb"]) == 1, variant, fid)
++	for k in _SWAP:
++		set(k, cur[k])
++
+ func build(cb: bool) -> void:
+ 	if DisplayServer.get_name() == "headless":
+ 		return
+ 	_gen += 1
+-	pages.clear()
+-	loc.clear()
++	if build_done and ring_tex != null:
++		prev = {}
++		for k in _SWAP:
++			prev[k] = get(k)   # 留住舊的容器（下面換成新的，不 clear 舊的）
++	build_done = false
++	pages = []
++	loc = {}
+ 	_queue.clear()
+ 	_baking = []
+ 	_busy = false
+ 	ring_tex = null
+ 	turn_tex = null
+-	turn_loc.clear()
+-	wt_pages.clear()
+-	wt_loc.clear()
++	turn_loc = {}
++	wt_pages = []
++	wt_loc = {}
+ 	fid_tex = null
+-	fid_loc.clear()
+-	ta_tex.clear()
+-	bw_tex.clear()
++	fid_loc = {}
++	ta_tex = {}
++	bw_tex = {}
+ 	bw_order.clear()
+ 	ta_order.clear()
+ 	_ta_queue.clear()
+@@ -118,31 +142,38 @@ func build(cb: bool) -> void:
+ 	if g0 != _gen:
+ 		return
+ 	await _bake_turn(cb)
++	if g0 == _gen:
++		build_done = true
++		prev = {}   # 新的全好了：放掉舊圖集
+ 	if g0 == _gen and not ta_wanted.is_empty():
+ 		ensure_turn_atk(ta_wanted.duplicate())
+ 
+ func _bake_turn(cb: bool) -> void:
+ 	var g0 := _gen
+-	var painter := _TurnPainter.new()
+-	painter.cb = cb
+ 	var n := TURN_TYPES.size() * 2 * TURN_C.size()
+-	var vp := _viewport(Vector2i(COLS * CELL, int(ceil(float(n) / COLS)) * CELL), painter)
+-	await RenderingServer.frame_post_draw
+-	await RenderingServer.frame_post_draw
+-	var img: Image = await _post_vp(vp, TURN_C.size())   # 第 11 大類：省一次讀回＋上傳
++	var tsz := Vector2i(COLS * CELL, int(ceil(float(n) / COLS)) * CELL)
++	var img: Image = await _baked("turn", func() -> Image:
++		var painter := _TurnPainter.new()
++		painter.cb = cb
++		var vp := _viewport(tsz, painter)
++		await RenderingServer.frame_post_draw
++		await RenderingServer.frame_post_draw
++		return await _post_vp(vp, TURN_C.size()), tsz)   # 第 11 大類：省一次讀回＋上傳
+ 	if g0 != _gen or (1 if cb else 0) != ready_cb:
+ 		return
+ 	turn_tex = _mk_tex(img)
+ 	for k in TURN_TYPES.size():
+ 		turn_loc[TURN_TYPES[k]] = k * 2 * TURN_C.size()
+ 	# V1.3.1：待機小動作頁、走路轉身頁（各自世代檢查）
+-	var pf := _ExtraPainter.new()
+-	pf.cb = cb
+-	pf.mode = 1
+-	pf.types = TURN_TYPES
+ 	var nf := TURN_TYPES.size() * 2 * FID_PER
+-	var vpf: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL), pf, nf)
+-	var imf: Image = await _post_vp(vpf, FID_PER)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
++	var fsz := Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL)
++	var imf: Image = await _baked("fid", func() -> Image:
++		var pf := _ExtraPainter.new()
++		pf.cb = cb
++		pf.mode = 1
++		pf.types = TURN_TYPES
++		var vpf: SubViewport = await _paint_steps(fsz, pf, nf)
++		return await _post_vp(vpf, FID_PER), fsz)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+ 	if g0 != _gen or (1 if cb else 0) != ready_cb:
+ 		return
+ 	fid_tex = _mk_tex(imf)
+@@ -152,13 +183,15 @@ func _bake_turn(cb: bool) -> void:
+ 	var pg := 0
+ 	while pg * WT_TYPES_PER_PAGE < TURN_TYPES.size():
+ 		var chunk: Array = TURN_TYPES.slice(pg * WT_TYPES_PER_PAGE, (pg + 1) * WT_TYPES_PER_PAGE)
+-		var pw := _ExtraPainter.new()
+-		pw.cb = cb
+-		pw.mode = 2
+-		pw.types = chunk
+ 		var nw := chunk.size() * 2 * per_w
+-		var vpw: SubViewport = await _paint_steps(Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL), pw, nw)
+-		var imw: Image = await _post_vp(vpw, per_w)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
++		var wsz := Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL)
++		var imw: Image = await _baked("wt%d" % pg, func() -> Image:
++			var pw := _ExtraPainter.new()
++			pw.cb = cb
++			pw.mode = 2
++			pw.types = chunk
++			var vpw: SubViewport = await _paint_steps(wsz, pw, nw)
++			return await _post_vp(vpw, per_w), wsz)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+ 		if g0 != _gen or (1 if cb else 0) != ready_cb:
+ 			return
+ 		wt_pages.append(_mk_tex(imw))
+@@ -189,12 +222,13 @@ func ensure_turn_atk(types: Array) -> void:
+ 	var g0 := _gen
+ 	while not _ta_queue.is_empty():
+ 		var t: int = _ta_queue.pop_front()
+-		var pt := _ExtraPainter.new()
+-		pt.cb = ready_cb == 1
+-		pt.mode = 3
+-		pt.types = [t]
+-		var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, 2 * CELL), pt, ATK_FRAMES * 2 * 2)
+-		var img: Image = await _post_vp(vp, ATK_FRAMES * 2)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
++		var img: Image = await _baked("ta%d" % t, func() -> Image:
++			var pt := _ExtraPainter.new()
++			pt.cb = ready_cb == 1
++			pt.mode = 3
++			pt.types = [t]
++			var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, 2 * CELL), pt, ATK_FRAMES * 2 * 2)
++			return await _post_vp(vp, ATK_FRAMES * 2), Vector2i(COLS * CELL, 2 * CELL))   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+ 		if g0 != _gen:
+ 			return
+ 		ta_tex[t] = _mk_tex(img)
+@@ -203,12 +237,13 @@ func ensure_turn_atk(types: Array) -> void:
+ 		while ta_order.size() > TA_MAX:
+ 			ta_tex.erase(ta_order.pop_front())   # 超過上限：丟最久沒用的
+ 		if not bw_tex.has(t):
+-			var pb := _ExtraPainter.new()
+-			pb.cb = ready_cb == 1
+-			pb.mode = 4
+-			pb.types = [t]
+-			var vpb: SubViewport = await _paint_steps(Vector2i(COLS * CELL, CELL), pb, 2 * WT_PH)
+-			var imb: Image = await _post_vp(vpb, WT_PH)
++			var imb: Image = await _baked("bw%d" % t, func() -> Image:
++				var pb := _ExtraPainter.new()
++				pb.cb = ready_cb == 1
++				pb.mode = 4
++				pb.types = [t]
++				var vpb: SubViewport = await _paint_steps(Vector2i(COLS * CELL, CELL), pb, 2 * WT_PH)
++				return await _post_vp(vpb, WT_PH), Vector2i(COLS * CELL, CELL))
+ 			if g0 != _gen:
+ 				return
+ 			bw_tex[t] = _mk_tex(imb)
+@@ -278,6 +313,114 @@ func stage_report() -> Dictionary:
+ 		out[k] = {"n": e[0], "total_ms": snappedf(int(e[1]) / 1000.0, 0.1), "max_ms": snappedf(int(e[2]) / 1000.0, 0.1)}
+ 	return out
+ 
++## ── 1.6.0 B09（S7）離線包 ──
++var pack_capture := false          # --bake-pack：照常畫，畫完存進包
++var pack_pages: Array = []         # 烘包時留每頁 [兵種, 原圖]（自我核對：拼回來要逐像素一樣）
++var pack_stats := {"hit": 0, "paint": 0}
++
++func _pack_on() -> bool:
++	# 簡化介面不跑後處理 shader（_post_vp），烘出來和包不同：不讀包（Codex B09 r2 #1）
++	return not pack_capture and Art.paint_sig() == AtlasPack.DEFAULT_PAINT and not bool(Save.s("plain_ui")) and AtlasPack.usable()
++
++## 背景執行緒讀包＋驗像素雜湊（主執行緒只等）；壞檔、錯圖回 null。cb 在請求時固定（Codex B09 r1 #3）
++func _load_raw(key: String, cb0: int) -> Image:
++	var p := AtlasPack.path(cb0, key)
++	if not ResourceLoader.exists(p):
++		return null
++	var t0 := Time.get_ticks_usec()
++	var ok := [false]
++	var task := WorkerThreadPool.add_task(func(): ok[0] = AtlasPack.verify_file(cb0, key))   # 先驗檔（位元組雜湊）再讀
++	while not WorkerThreadPool.is_task_completed(task):
++		await RenderingServer.frame_post_draw
++	WorkerThreadPool.wait_for_task_completion(task)
++	if not ok[0] or ResourceLoader.load_threaded_request(p, "Image") != OK:
++		return null
++	while ResourceLoader.load_threaded_get_status(p) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
++		await RenderingServer.frame_post_draw
++	_stat("pack_wait", Time.get_ticks_usec() - t0)   # 牆鐘時間（跨幀），不是單幀成本
++	return ResourceLoader.load_threaded_get(p) as Image
++
++## 一次只讀一份包（暫存上限：拼頁＝一頁＋一條，約 28 MiB；Codex B09 r1 #5）
++var _pack_lock := false
++func _lock() -> void:
++	while _pack_lock:
++		await RenderingServer.frame_post_draw
++	_pack_lock = true
++
++## 一張圖：預設外觀＋包能用＝讀包；否則照舊畫（make 是會 await 的做法），烘包時順便存。
++## await 回來世代變了（build 重來）＝回 null，不算命中也不停用包（呼叫端的世代檢查會丟掉這批；Codex B09 r1 #3）
++func _baked(key: String, make: Callable, size: Vector2i) -> Image:
++	var g0 := _gen
++	var cb0 := ready_cb
++	if _pack_on():
++		await _lock()
++		var on2 := _pack_on()   # 等鎖時可能整包被停用了：重查（Codex B09 r2 #2）
++		var im: Image = await _load_raw(key, cb0) if (g0 == _gen and on2) else null
++		_pack_lock = false
++		if g0 != _gen:
++			return null
++		if not on2:
++			return await _paint_fallback(key, make)
++		if im != null and im.get_size() == size:
++			pack_stats["hit"] += 1
++			return im
++		AtlasPack.fail(key, "缺檔、壞檔或像素指紋不符" if im == null else "大小 %s≠%s" % [im.get_size(), size])
++	return await _paint_fallback(key, make)
++
++func _paint_fallback(key: String, make: Callable) -> Image:
++	var img: Image = await make.call()
++	pack_stats["paint"] += 1
++	if pack_capture and img != null:
++		AtlasPack.save(ready_cb, key, img)
++	return img
++
++## 一頁裡第 k 種兵的格子（2 隊 × FRAMES_PER＝56 格）抄成一條（16 欄 × 4 列）；包以兵種為單位，頁怎麼組都拼得回來
++static func strip_of(page: Image, k: int) -> Image:
++	var per := 2 * FRAMES_PER
++	var s := Image.create(COLS * CELL, int(ceil(float(per) / COLS)) * CELL, false, page.get_format())
++	for c in per:
++		var src := k * per + c
++		s.blit_rect(page, Rect2i((src % COLS) * CELL, (src / COLS) * CELL, CELL, CELL), Vector2i((c % COLS) * CELL, (c / COLS) * CELL))
++	return s
++
++static func page_from(strips: Array, rows: int) -> Image:
++	var per := 2 * FRAMES_PER
++	var pg := Image.create(COLS * CELL, rows * CELL, false, (strips[0] as Image).get_format())
++	for k in strips.size():
++		_blit_strip(pg, strips[k], k)   # 和執行時拼頁同一個函式
++	return pg
++
++## 由兵種條拼頁：一條一條讀、在背景執行緒貼進頁、貼完就放掉（同時只有一頁＋一條在記憶體）
++func _assemble(types: Array, rows: int) -> Image:
++	var g0 := _gen
++	var cb0 := ready_cb
++	var want := Vector2i(COLS * CELL, int(ceil(float(2 * FRAMES_PER) / COLS)) * CELL)
++	await _lock()
++	if not _pack_on():
++		_pack_lock = false
++		return null
++	var page: Image = null
++	for k in types.size():
++		var s: Image = await _load_raw("type%d" % types[k], cb0) if g0 == _gen else null
++		if s == null or s.get_size() != want or g0 != _gen:
++			_pack_lock = false
++			return null
++		if page == null:
++			page = Image.create(COLS * CELL, rows * CELL, false, s.get_format())
++		var kk := k
++		var task := WorkerThreadPool.add_task(func(): _blit_strip(page, s, kk))   # 貼格在背景執行緒
++		while not WorkerThreadPool.is_task_completed(task):
++			await RenderingServer.frame_post_draw
++		WorkerThreadPool.wait_for_task_completion(task)
++	_pack_lock = false
++	return page if g0 == _gen else null
++
++static func _blit_strip(pg: Image, s: Image, k: int) -> void:
++	var per := 2 * FRAMES_PER
++	for c in per:
++		var dst := k * per + c
++		pg.blit_rect(s, Rect2i((c % COLS) * CELL, (c / COLS) * CELL, CELL, CELL), Vector2i((dst % COLS) * CELL, (dst / COLS) * CELL))
++
+ func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
+ 	painter.cell_from = 0
+ 	painter.cell_to = PAINT_CHUNK
+@@ -302,13 +445,30 @@ func _bake_page(types: Array) -> void:
+ 	var cb := ready_cb == 1
+ 	var total := types.size() * 2 * FRAMES_PER
+ 	var rows := int(ceil(float(total) / COLS))
+-	var painter := _Painter.new()
+-	painter.cb = cb
+-	painter.types = types
+-	# 1.2.0 §15.2：一整頁（6 種×2 隊×28 格＝336 個向量角色）在同一幀畫完就是開戰前的長幀（136～215 ms，ABBA 量過不是讀回造成）。
+-	# 改成分段：每幀只畫 PAINT_CHUNK 格，視窗第一次清空、之後不清（累積），畫完整頁才讀回。
+-	var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, rows * CELL), painter, total)
+-	var img: Image = await _post_vp(vp)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
++	var img: Image = null
++	if _pack_on() and not types.all(func(t): return AtlasPack.has(ready_cb, "type%d" % t)):
++		AtlasPack.fail("type%s" % str(types), "缺兵種條")   # 包不完整＝整包停用（Codex B09 r2 #2）
++	if _pack_on():
++		img = await _assemble(types, rows)   # 1.6.0 B09：預設外觀從包裡的兵種條拼頁（背景執行緒），不畫不讀回
++		if gen0 != _gen:
++			return   # 拼到一半重建了：這批作廢，不停用包
++		if img == null:
++			AtlasPack.fail("type%s" % str(types), "拼頁失敗（缺條、錯圖）")
++		else:
++			pack_stats["hit"] += 1
++	if img == null:
++		var painter := _Painter.new()
++		painter.cb = cb
++		painter.types = types
++		# 1.2.0 §15.2：一整頁（6 種×2 隊×28 格＝336 個向量角色）在同一幀畫完就是開戰前的長幀（136～215 ms，ABBA 量過不是讀回造成）。
++		# 改成分段：每幀只畫 PAINT_CHUNK 格，視窗第一次清空、之後不清（累積），畫完整頁才讀回。
++		var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, rows * CELL), painter, total)
++		img = await _post_vp(vp)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
++		pack_stats["paint"] += 1
++		if pack_capture and img != null:
++			for k in types.size():
++				AtlasPack.save(ready_cb, "type%d" % types[k], strip_of(img, k))
++			pack_pages.append([types.duplicate(), img])
+ 	if (1 if cb else 0) != ready_cb or gen0 != _gen:
+ 		return   # 烘的時候換了配色（或重建了）：這一批作廢
+ 	# 新兵頁太多就丟最舊的（舊 10 種那兩頁不丟）
+@@ -362,15 +522,18 @@ func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
+ 	return out
+ 
+ func _bake_ring(cb: bool) -> void:
+-	var painter := _RingPainter.new()
+-	painter.cb = cb
+-	var vp := _viewport(Vector2i(15 * CELL, CELL), painter)   # 1.3.0：第 15 格＝紅方八角木座（跳起來分層畫時用）   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
+ 	var g0 := _gen
+-	await RenderingServer.frame_post_draw
+-	await RenderingServer.frame_post_draw
+-	if g0 == _gen:
+-		ring_tex = _mk_tex(vp.get_texture().get_image())
+-	vp.queue_free()
++	var img: Image = await _baked("ring", func() -> Image:
++		var painter := _RingPainter.new()
++		painter.cb = cb
++		var vp := _viewport(Vector2i(15 * CELL, CELL), painter)   # 1.3.0：第 15 格＝紅方八角木座（跳起來分層畫時用）   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
++		await RenderingServer.frame_post_draw
++		await RenderingServer.frame_post_draw
++		var im := vp.get_texture().get_image()
++		vp.queue_free()
++		return im, Vector2i(15 * CELL, CELL))
++	if g0 == _gen and img != null:
++		ring_tex = _mk_tex(img)
+ 
+ ## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。
+ func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float, variant := 0) -> int:
+diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+index 718e9e3..ca5474f 100644
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -1906,6 +1906,10 @@ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: floa
+ 		_unit_base(p, scale)
+ 	if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊（1.3.0：戰場跟拍 1.29 倍仍 < 1.4，用圖集）
+ 		sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
++	elif scale <= 1.4 and sprites != null and sprites.prev_has(type):
++		sprites.draw_prev(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, variant, fid)   # 1.6.0 B09：重建中先用舊圖集（不退回很貴的向量畫）
++	elif scale <= 1.4 and sprites != null and not sprites.build_done and int(get("state")) == St.TITLE and str(get("shot_dir")) == "" and not layout_probe:
++		pass   # 1.6.0 B09：開機第一次烘的那不到一秒，標題示範棋盤的兵先不畫（30 多隻向量兵是開機長幀主因），好了再出現
+ 	else:
+ 		Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
+ 	if chip > 0:
+diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+index 8d7ed6f..a01889c 100644
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@ extends SceneTree
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]
+diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+index ef99d6f..9d010ff 100644
+--- a/game/tests/suites/battle_visual.gd
++++ b/game/tests/suites/battle_visual.gd
+@@ -1081,3 +1081,103 @@ func test_clutch_frame_v150() -> void:
+ 	ok(GS.clutch_glow(5.0, 0.3, true) == 1.0 and GS.clutch_glow(5.0, 0.3, false) < 1.0, "減少動態：不呼吸（定值）")
+ 	var bu: String = FileAccess.get_file_as_string("res://scripts/ui/battle/battle_units.gd")
+ 	ok(bu.find("draw_rect(fr.grow(11.0 - k * 2.5)") >= 0, "暖光只畫在木框帶上（盤外），不碰盤面")
++
++## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：兵種條拆拼逐像素一致、環境鍵、壞包整包停用、包讀回＝烘的時候的像素（解碼差 0）、過期包不用
++func test_atlas_pack_v1600() -> void:
++	var AP = load("res://scripts/ui/atlas_pack.gd")
++	var SC = load("res://scripts/ui/sprite_cache.gd")
++	# 兵種條：一頁拆成每種一條、再拼回來要逐像素一樣（包以兵種為單位，頁怎麼組都拼得回來）
++	var per: int = 2 * SC.FRAMES_PER
++	var rows := int(ceil(float(SC.TYPES_PER_PAGE * per) / SC.COLS))
++	var page := Image.create(SC.COLS * SC.CELL, rows * SC.CELL, false, Image.FORMAT_RGBA8)
++	var rng := RandomNumberGenerator.new()
++	rng.seed = 1600
++	for c in SC.TYPES_PER_PAGE * per:
++		page.fill_rect(Rect2i((c % SC.COLS) * SC.CELL + rng.randi_range(0, 100), (c / SC.COLS) * SC.CELL + rng.randi_range(0, 100), 60, 60), Color(rng.randf(), rng.randf(), rng.randf(), 1))
++	var strips: Array = []
++	for k in SC.TYPES_PER_PAGE:
++		strips.append(SC.strip_of(page, k))
++	ok(SC.page_from(strips, rows).get_data() == page.get_data(), "兵種條拆開再拼回整頁逐像素一樣")
++	ok(SC.TYPES_PER_PAGE * SC.MAX_PAGES >= 30, "頁變小後總容量不變（≥30 種）")
++	# 環境鍵：JSON 數字讀回是 float 也算同；引擎不同＝不用
++	var e: Dictionary = AP.env_key()
++	var m: Dictionary = e.duplicate()
++	m["format"] = float(e["format"])
++	ok(AP.env_match(m, e) == "", "清冊數字是 float 也比得上")
++	m["engine"] = "4.7.0-stable"
++	ok(AP.env_match(m, e).begins_with("engine"), "引擎版本不同＝包不能用")
++	# 壞包：讀失敗一次就整包停用、退回即時烘
++	AP.reset()
++	AP.fail("type3", "測試")
++	ok(not AP.usable() and AP.misses == 1, "讀包失敗一次＝整包停用")
++	AP.reset()
++	var sc: String = FileAccess.get_file_as_string("res://scripts/ui/sprite_cache.gd")
++	ok(sc.find("Art.paint_sig() == AtlasPack.DEFAULT_PAINT") >= 0, "只有預設塗裝讀包（特殊塗裝照舊即時烘）")
++	ok(sc.find("if g0 != _gen:\n\t\t\treturn null") >= 0, "讀包回來世代變了＝作廢、不停用包（重建競態）")
++	# 注入：user:// 的假包（Codex B09 r1 #6）——換錯檔（同尺寸）、檔案雜湊不符、清冊不完整、來源過期都要擋
++	var real_dir: String = AP.dir
++	AP.dir = "user://test_pack_v1600"
++	AP.saved_sha.clear()
++	AP.saved_fsha.clear()
++	var ia := Image.create(64, 64, false, Image.FORMAT_RGBA8)
++	ia.fill(Color(1, 0, 0, 1))
++	var ib := Image.create(64, 64, false, Image.FORMAT_RGBA8)
++	ib.fill(Color(0, 0, 1, 1))
++	AP.save(0, "a", ia)
++	AP.save(0, "b", ib)
++	var fake: Dictionary = AP.env_key()
++	fake["src"] = AP.src_key()
++	fake["paint"] = AP.DEFAULT_PAINT
++	fake["files"] = 2
++	fake["selfcheck_mismatch"] = 0
++	fake["selfcheck_pages"] = 1
++	fake["sha"] = AP.saved_sha.duplicate()
++	fake["fsha"] = AP.saved_fsha.duplicate()
++	var wf := func(d: Dictionary):
++		var f := FileAccess.open(AP.dir + "/manifest.json", FileAccess.WRITE)
++		f.store_string(JSON.stringify(d))
++		f.close()
++		AP.reset()
++	wf.call(fake)
++	ok(AP.usable() and AP.verify_file(0, "a") and AP.verify_file(0, "b"), "假包：清冊完整、檔案雜湊對得上＝能用")
++	ok(AP.verify_pixels(0, "a", load(AP.path(0, "a"))) and not AP.verify_pixels(0, "a", ib), "像素雜湊：讀回＝烘的；別張同尺寸的圖＝不符")
++	DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.path(0, "b")), ProjectSettings.globalize_path(AP.path(0, "a")))   # 換錯檔（同尺寸）
++	ok(not AP.verify_file(0, "a"), "同尺寸換錯檔＝檔案雜湊不符、不讀")
++	var f2 := fake.duplicate(true)
++	f2["fsha"].erase("cb0/b")
++	wf.call(f2)
++	ok(not AP.usable() and AP.why.begins_with("清冊不完整"), "清冊少一筆檔案雜湊＝整包不用")
++	var f3 := fake.duplicate(true)
++	f3["src"] = "0000000000000000"
++	wf.call(f3)
++	ok(not AP.usable() and AP.why.begins_with("來源改過"), "來源雜湊不同（畫法改過）＝包過期不用")
++	var f4 := fake.duplicate(true)
++	f4["paint"] = "11220"
++	wf.call(f4)
++	ok(not AP.usable(), "清冊塗裝不是預設＝不用")
++	for k in ["a", "b"]:
++		DirAccess.remove_absolute(ProjectSettings.globalize_path(AP.path(0, k)))
++	DirAccess.remove_absolute(ProjectSettings.globalize_path(AP.dir + "/manifest.json"))
++	AP.dir = real_dir
++	AP.reset()
++	var man: Dictionary = AP.manifest()
++	if man.is_empty():
++		ok(not AP.usable(), "沒有包（新複製的專案）＝照舊即時烘")
++		return
++	var stale: bool = str(man.get("src", "")) != AP.src_key()
++	if stale:
++		ok(not AP.usable() and AP.why.begins_with("來源改過"), "包過期（畫法改過）＝執行時不用、匯出前重烘")
++		return
++	ok(int(man.get("selfcheck_mismatch", -1)) == 0 and int(man.get("selfcheck_pages", 0)) > 0, "烘包自我核對：拼回的頁和畫出來的一樣")
++	var sha: Dictionary = man.get("sha", {})
++	ok(sha.size() == int(man.get("files", -1)) and sha.size() >= 100 and (man.get("fsha", {}) as Dictionary).size() == sha.size(), "清冊每張圖都有像素與檔案雜湊（%d 張）" % sha.size())
++	ok(AP.usable(), "真包：這份程式＋這台環境能用")
++	var bad := 0
++	for k in sha:
++		var parts: PackedStringArray = str(k).split("/")
++		var cbn := int(parts[0].substr(2))
++		var img = load(AP.path(cbn, parts[1]))
++		if not (img is Image) or not AP.verify_pixels(cbn, parts[1], img) or not AP.verify_file(cbn, parts[1]):
++			bad += 1
++	ok(bad == 0, "包讀回的每張圖＝烘的時候的像素、檔案沒被換（解碼差 0；%d 張）" % sha.size())
++
+diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+index fbf2a14..e446c57 100644
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1620,6 +1620,195 @@ func _ready() -> void:
+ 			_run_mem_check.call_deferred(a.substr(12))
+ 		elif a.begins_with("--sil="):
+ 			_run_sil.call_deferred(a.substr(6))
++		elif a.begins_with("--bake-pack="):
++			_run_bake_pack.call_deferred(a.substr(12))
++		elif a.begins_with("--pack-bench="):
++			_run_pack_bench.call_deferred(a.substr(13))
++		elif a.begins_with("--pack-selftest="):
++			_run_pack_selftest.call_deferred(a.substr(16))
++
++
++## 1.6.0 B09（Codex r2 #3）實跑：①重建中途換色盲（競態）：最後是新配色、包讀到的頁＝包裡兵種條拼的頁、沒有誤停用；
++## ②壞包：把一條換成別種（同尺寸）→ 驗檔擋下、整包停用、退回即時烘，而且即時烘的頁＝原包拼的頁（包和即時烘逐像素一樣）。
++## 用法：<exe> --path game --resolution 1280x800 -- --pack-selftest=<json 絕對路徑>
++func _run_pack_selftest(out_path: String) -> void:
++	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
++	DisplayServer.window_set_position(Vector2i(-4000, -4000))
++	var AP = preload("res://scripts/ui/atlas_pack.gd")
++	var rep := {}
++	var wait_all := func(cb: bool) -> void:
++		var g := 0
++		while not (sprites.build_done and sprites.is_ready(cb) and not sprites._busy and not sprites._ta_busy) and g < 4000:
++			g += 1
++			await RenderingServer.frame_post_draw
++	var page_eq := func(cbn: int, dir: String) -> bool:   # 目前第 0 頁（舊 10 種的第一頁）＝dir 裡的兵種條拼起來
++		var pe: Dictionary = sprites.pages[0]
++		var got: Image = (pe["tex"] as Texture2D).get_image()
++		var strips: Array = []
++		for t in pe["types"]:
++			strips.append(load("%s/cb%d/type%d.res" % [dir, cbn, t]))
++		var want: Image = sprites.page_from(strips, got.get_height() / sprites.CELL)
++		return got.get_data() == want.get_data()
++	await wait_all.call(false)
++	# ① 競態
++	AP.reset()
++	sprites.pack_stats = {"hit": 0, "paint": 0}
++	sprites.build(false)
++	for i in 3:
++		await RenderingServer.frame_post_draw
++	sprites.build(true)
++	await wait_all.call(true)
++	rep["race_ready_cb"] = sprites.is_ready(true)
++	rep["race_pack_still_on"] = AP.usable() and AP.misses == 0
++	rep["race_hits"] = sprites.pack_stats["hit"]
++	rep["race_paint"] = sprites.pack_stats["paint"]
++	rep["race_page_eq"] = page_eq.call(1, AP.DIR)
++	# ② 壞包：複製一份到 user://，把舊 10 種第一頁的一條換成同尺寸的別種
++	var bad := "user://pack_selftest"
++	for cbd in ["cb0", "cb1"]:
++		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(bad + "/" + cbd))
++		for f in DirAccess.get_files_at(AP.DIR + "/" + cbd):
++			DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.DIR + "/" + cbd + "/" + f), ProjectSettings.globalize_path(bad + "/" + cbd + "/" + f))
++	DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.DIR + "/manifest.json"), ProjectSettings.globalize_path(bad + "/manifest.json"))
++	var t0: int = sprites.pages[0]["types"][0]
++	DirAccess.copy_absolute(ProjectSettings.globalize_path(bad + "/cb0/type%d.res" % (t0 + 1)), ProjectSettings.globalize_path(bad + "/cb0/type%d.res" % t0))
++	AP.dir = bad
++	AP.reset()
++	sprites.pack_stats = {"hit": 0, "paint": 0}
++	sprites.build(false)
++	await wait_all.call(false)
++	rep["bad_detected"] = AP.misses >= 1 and not AP.usable()
++	rep["bad_why"] = AP.why
++	rep["bad_fell_back_paint"] = sprites.pack_stats["paint"] > 0
++	rep["bad_ready"] = sprites.is_ready(false)
++	AP.dir = AP.DIR
++	rep["paint_eq_pack"] = page_eq.call(0, AP.DIR)   # 退回即時烘的頁＝原包拼的頁
++	rep["ok"] = bool(rep["race_ready_cb"]) and bool(rep["race_pack_still_on"]) and int(rep["race_hits"]) > 0 and bool(rep["race_page_eq"]) and bool(rep["bad_detected"]) and bool(rep["bad_fell_back_paint"]) and bool(rep["bad_ready"]) and bool(rep["paint_eq_pack"])
++	AP.reset()
++	var f := FileAccess.open(out_path, FileAccess.WRITE)
++	f.store_string(JSON.stringify(rep, "  "))
++	f.close()
++	print("PACKSELFTEST ", "OK" if rep["ok"] else "FAIL", " ", JSON.stringify(rep))
++	get_tree().quit(0 if rep["ok"] else 1)
++
++
++## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到「全部就緒」build_done 的時間、期間每幀）；熱＝同一程序切色盲重建 20 次。
++## 屏障＝build_done（腳底圈、舊 10 種、轉身／待機／走路轉身全好）＋沒有在烘的新兵頁、轉身出手（Codex B09 r1 #4）。
++## 每次記：最長幀（全部幀，含開機頭兩幀）、頭兩幀另列、暫存記憶體峰值（相對開始時）。--bench-blank＝畫面不畫（只量烘焙）；預設有畫面（玩家實際承受：含圖集沒好時的向量替代畫法）。
++## 加 --no-pack＝即時烘焙對照。用法：<exe> --path game --resolution 1280x800 -- --pack-bench=<json 絕對路徑> [--no-pack] [--bench-blank]
++func _bench_wait(cb: bool) -> Dictionary:
++	var t0 := Time.get_ticks_msec()
++	var last := Time.get_ticks_usec()
++	var frames: Array = []
++	var m0 := Performance.get_monitor(Performance.MEMORY_STATIC)
++	var mpk := m0
++	var t_0 := Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)
++	var tpk := t_0
++	var g := 0
++	while sprites != null and not (sprites.build_done and sprites.is_ready(cb) and not sprites._busy and not sprites._ta_busy) and g < 3000:
++		g += 1
++		await RenderingServer.frame_post_draw
++		var now := Time.get_ticks_usec()
++		frames.append(snappedf((now - last) / 1000.0, 0.1))
++		last = now
++		mpk = maxf(mpk, Performance.get_monitor(Performance.MEMORY_STATIC))
++		tpk = maxf(tpk, Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED))
++	return {"tex_peak_over_mib": snappedf((tpk - t_0) / 1048576.0, 0.1), "tex_peak_mib": snappedf(tpk / 1048576.0, 0.1), "ms": Time.get_ticks_msec() - t0, "longest_frame_ms": frames.max() if not frames.is_empty() else 0.0, "first2": frames.slice(0, 2),
++		"after2_max": frames.slice(2).max() if frames.size() > 2 else 0.0, "frames": frames.size(), "temp_peak_mib": snappedf((mpk - m0) / 1048576.0, 0.1)}
++
++func _run_pack_bench(out_path: String) -> void:
++	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
++	DisplayServer.window_set_position(Vector2i(-4000, -4000))
++	var blank := "--bench-blank" in OS.get_cmdline_user_args()
++	if blank:
++		visible = false   # 只量烘焙本身：畫面不畫
++	var cold: Dictionary = await _bench_wait(false)
++	var warm: Array = []
++	for i in 20:
++		var cb := i % 2 == 0
++		sprites.build(cb)
++		var w: Dictionary = await _bench_wait(cb)
++		w["cb"] = cb
++		warm.append(w)
++	var AP = preload("res://scripts/ui/atlas_pack.gd")
++	var rep := {"blank": blank, "pack": AP.usable(), "why": AP.why, "misses": AP.misses, "cold": cold, "warm": warm, "stats": sprites.pack_stats.duplicate(), "stages": sprites.stage_report(),
++		"tex_mib": snappedf(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0, 0.1), "static_mib": snappedf(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, 0.1)}
++	var f := FileAccess.open(out_path, FileAccess.WRITE)
++	f.store_string(JSON.stringify(rep, "  "))
++	f.close()
++	get_tree().quit()
++
++## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
++## 烘完自我核對（兵種條拼回整頁要逐像素一樣）、寫清冊（來源雜湊、引擎、渲染路徑）。視窗移到畫面外（不搶焦點）。
++## 用法：<exe> --path game --resolution 1280x800 -- --bake-pack=<報告 json 絕對路徑>
++func _run_bake_pack(report_path: String) -> void:
++	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
++	DisplayServer.window_set_position(Vector2i(-4000, -4000))
++	var AP = preload("res://scripts/ui/atlas_pack.gd")
++	var t0 := Time.get_ticks_msec()
++	var rep := {"ok": false}
++	var saved_paint: Array = Art.paint.duplicate()
++	Art.paint = [0, 0, 1, 1, 0, 0]   # 只收預設塗裝
++	sprites.pack_capture = true
++	AP.saved_sha.clear()
++	AP.saved_fsha.clear()
++	var mism := 0
++	var pages_checked := 0
++	for cb in [false, true]:
++		var g := 0
++		while sprites._busy and g < 2000:   # 等開機那次烘完（避免兩次烘交錯）
++			g += 1
++			await get_tree().process_frame
++		sprites.pack_pages.clear()
++		await sprites.build(cb)
++		sprites.ensure(range(D.COUNT, 22))
++		sprites.ensure_turn_atk(range(0, 22))
++		g = 0
++		while (sprites._busy or sprites._ta_busy) and g < 20000:
++			g += 1
++			await get_tree().process_frame
++		for pe in sprites.pack_pages:
++			var types: Array = pe[0]
++			var img: Image = pe[1]
++			var strips: Array = []
++			for t in types:
++				strips.append(load(AP.path(1 if cb else 0, "type%d" % t)))
++			var back: Image = sprites.page_from(strips, img.get_height() / sprites.CELL)
++			pages_checked += 1
++			if back.get_data() != img.get_data():
++				mism += 1
++	sprites.pack_capture = false
++	Art.paint = saved_paint
++	var bytes := 0
++	var files := 0
++	for cbd in ["cb0", "cb1"]:
++		var d := DirAccess.open(AP.DIR + "/" + cbd)
++		if d != null:
++			for f in d.get_files():
++				if f.ends_with(".res"):
++					files += 1
++					bytes += FileAccess.get_file_as_bytes(AP.DIR + "/" + cbd + "/" + f).size()
++	var man: Dictionary = AP.env_key()
++	man["src"] = AP.src_key()
++	man["paint"] = AP.DEFAULT_PAINT
++	man["files"] = files
++	man["bytes"] = bytes
++	man["selfcheck_pages"] = pages_checked
++	man["selfcheck_mismatch"] = mism
++	man["sha"] = AP.saved_sha.duplicate()
++	man["fsha"] = AP.saved_fsha.duplicate()
++	if mism == 0 and files > 0:
++		var mf := FileAccess.open(AP.MANIFEST, FileAccess.WRITE)
++		mf.store_string(JSON.stringify(man, "  "))
++		mf.close()
++	rep = man.duplicate()
++	rep["ok"] = mism == 0 and files > 0
++	rep["ms"] = Time.get_ticks_msec() - t0
++	var rf := FileAccess.open(report_path, FileAccess.WRITE)
++	rf.store_string(JSON.stringify(rep, "  "))
++	rf.close()
++	print("BAKEPACK ", "OK" if rep["ok"] else "FAIL", " files=", files, " MiB=", snappedf(bytes / 1048576.0, 0.1), " mismatch=", mism, " ms=", rep["ms"])
++	get_tree().quit(0 if rep["ok"] else 1)
+ 
+ 
+ ## V1.0.0 角色：剪影辨識表。22 種兵（含召喚物）站成兩排：上排原尺寸、下排 50%；平塗背景，tools/gen/sil_report.py 轉灰階、
+diff --git a/game/tools/export_check.sh b/game/tools/export_check.sh
+index 0a492a3..7e7ee09 100644
+--- a/game/tools/export_check.sh
++++ b/game/tools/export_check.sh
+@@ -29,8 +29,16 @@ sc() {  # 執行檔 期望 demo 標記
+   [ -n "${EXPECT_VERSION:-}" ] && { echo "$line" | grep -q "\"version\":\"$EXPECT_VERSION\"" || { echo "EXPORT FAIL：$3 版本不是 $EXPECT_VERSION"; exit 1; }; }
+   grep -aE "SCRIPT ERROR" "$log" && { echo "EXPORT FAIL：$3 有腳本錯誤"; exit 1; }
+ }
++# 1.6.0 B09：匯出前一定重烘預設外觀離線圖集包（包不進 git；過期的包成品裡沒人驗得出來）。要開渲染視窗（移到畫面外）；NO_PACK=1 略過（成品會即時烘）
++if [ "${NO_PACK:-}" != "1" ]; then
++  timeout 600 "$GODOT" --path "$(wp .)" --resolution 1280x800 -- --bake-pack="$(wp "$OUT/bake-pack.json")" > "$OUT/bake-pack.log" 2>&1
++  grep -a '^BAKEPACK OK' "$OUT/bake-pack.log" || { echo "EXPORT FAIL：離線圖集包烘失敗（看 $OUT/bake-pack.log；NO_PACK=1 可略過）"; exit 1; }
++fi
+ ex "Windows Desktop" "$OUT/win/NoTakeBacks.exe" win
+ sc "$OUT/win/NoTakeBacks.exe" false win
++if [ "${NO_PACK:-}" != "1" ]; then
++  grep -a '^SELFCHECK' "$OUT/selfcheck-win.log" | grep -q '"pack":true' || { echo "EXPORT FAIL：成品沒帶到能用的離線圖集包（看 selfcheck-win.log 的 pack_why）"; exit 1; }
++fi
+ if [ "$MODE" != "--smoke" ]; then
+   ex "Windows Demo" "$OUT/demo/NoTakeBacksDemo.exe" demo
+   sc "$OUT/demo/NoTakeBacksDemo.exe" true demo
+diff --git a/game/tools/layout_check.sh b/game/tools/layout_check.sh
+index abe7d66..2f207bd 100755
+--- a/game/tools/layout_check.sh
++++ b/game/tools/layout_check.sh
+@@ -32,7 +32,7 @@ run_combo() {
+   local combo=$1 lang sc st d
+   IFS=: read -r lang sc st <<< "$combo"
+   d="$OUT/${lang}_${sc}${st:+_${st//,/-}}"; mkdir -p "$d"
+-  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} ${LAYOUT_FIXED:+--shot-fixed} --shot-prefix="shot_${lang}_${sc}${st:+_${st//,/-}}__" --layout-check > "$d/run.log" 2>&1 \
++  timeout 600 "$EXE" --path "$(winpath .)" --resolution 1280x800 -- --shot="$(winpath "$d")" --shot-lang=$lang --shot-text=$sc ${st:+--shot-state=$st} ${LAYOUT_SHOTS:+--shot-only=$LAYOUT_SHOTS} ${LAYOUT_FIXED:+--shot-fixed} ${LAYOUT_NOPACK:+--no-pack} --shot-prefix="shot_${lang}_${sc}${st:+_${st//,/-}}__" --layout-check > "$d/run.log" 2>&1 \
+     || { echo "LAYOUT FAIL：$lang $sc% 截圖程式 exit 非 0" >> "$FAILS"; kill_win "$d"; return; }
+   grep -E "SCRIPT ERROR|Parse Error" "$d/run.log" >/dev/null && { echo "LAYOUT FAIL：$lang $sc% 有腳本錯誤" >> "$FAILS"; return; }
+   grep -q "^SHOTFAIL" "$d/run.log" && { echo "LAYOUT FAIL：$lang $sc% 截圖存檔失敗：$(grep SHOTFAIL "$d/run.log" | head -3 | tr '\n' ' ')" >> "$FAILS"; return; }
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/sprite_cache.gd | sed -n '80,550p'; rg -n 'prev|build_done|B09|S7' game/scripts/ui/battle_visual.gd game/scripts/ui/screens coordination/v1600-impl/b09-plan.md; rg -n '"'^diff|''^@@'"' coordination/v1600-impl/b09-r1/diff3.patch" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 255ms:
+    80		return turn_tex != null and turn_loc.has(t)
+    81	
+    82	## 腳底在格子裡的位置：往前伸得很長的長槍兵靠左、很寬的小石魔靠右，其他都一樣。
+    83	static func origin_of(type: int) -> Vector2:
+    84		return Vector2(70, 160) if type == 5 else (Vector2(90, 160) if type == 19 else Vector2(78, 160))
+    85	
+    86	## 全部清掉，烘舊 10 種和腳底圈。
+    87	var build_done := false   # 1.6.0 B09：這次 build 的全部（腳底圈、舊 10 種、轉身／待機／走路轉身）都好了（量測屏障；Codex B09 r1 #4）
+    88	## 1.6.0 B09 雙緩衝：重建（換色盲、換塗裝）時先留著上一套完整圖集，新的還沒好之前用舊的畫（顏色晚不到一秒才換），
+    89	## 不退回很貴的向量畫法（有畫面時的長幀主因）；新的全部好了就放掉。開機第一次沒有舊的。
+    90	const _SWAP := ["pages", "loc", "ring_tex", "turn_tex", "turn_loc", "wt_pages", "wt_loc", "fid_tex", "fid_loc", "ta_tex", "bw_tex", "ready_cb", "ready_paint"]
+    91	var prev := {}
+    92	
+    93	func prev_has(type: int) -> bool:
+    94		return not prev.is_empty() and (prev["loc"] as Dictionary).has(type)
+    95	
+    96	func draw_prev(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1) -> void:
+    97		var cur := {}
+    98		for k in _SWAP:
+    99			cur[k] = get(k)
+   100			set(k, prev[k])
+   101		draw_unit(ci, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, int(prev["ready_cb"]) == 1, variant, fid)
+   102		for k in _SWAP:
+   103			set(k, cur[k])
+   104	
+   105	func build(cb: bool) -> void:
+   106		if DisplayServer.get_name() == "headless":
+   107			return
+   108		_gen += 1
+   109		if build_done and ring_tex != null:
+   110			prev = {}
+   111			for k in _SWAP:
+   112				prev[k] = get(k)   # 留住舊的容器（下面換成新的，不 clear 舊的）
+   113		build_done = false
+   114		pages = []
+   115		loc = {}
+   116		_queue.clear()
+   117		_baking = []
+   118		_busy = false
+   119		ring_tex = null
+   120		turn_tex = null
+   121		turn_loc = {}
+   122		wt_pages = []
+   123		wt_loc = {}
+   124		fid_tex = null
+   125		fid_loc = {}
+   126		ta_tex = {}
+   127		bw_tex = {}
+   128		bw_order.clear()
+   129		ta_order.clear()
+   130		_ta_queue.clear()
+   131		_ta_busy = false
+   132		ready_cb = 1 if cb else 0
+   133		ready_paint = Art.paint_sig()
+   134		var base: Array = []
+   135		for t in D.COUNT:
+   136			base.append(t)
+   137		var g0 := _gen
+   138		await _bake_ring(cb)
+   139		if g0 != _gen:
+   140			return   # 烘腳底圈時又重建了：交給新的那次
+   141		await ensure(base)
+   142		if g0 != _gen:
+   143			return
+   144		await _bake_turn(cb)
+   145		if g0 == _gen:
+   146			build_done = true
+   147			prev = {}   # 新的全好了：放掉舊圖集
+   148		if g0 == _gen and not ta_wanted.is_empty():
+   149			ensure_turn_atk(ta_wanted.duplicate())
+   150	
+   151	func _bake_turn(cb: bool) -> void:
+   152		var g0 := _gen
+   153		var n := TURN_TYPES.size() * 2 * TURN_C.size()
+   154		var tsz := Vector2i(COLS * CELL, int(ceil(float(n) / COLS)) * CELL)
+   155		var img: Image = await _baked("turn", func() -> Image:
+   156			var painter := _TurnPainter.new()
+   157			painter.cb = cb
+   158			var vp := _viewport(tsz, painter)
+   159			await RenderingServer.frame_post_draw
+   160			await RenderingServer.frame_post_draw
+   161			return await _post_vp(vp, TURN_C.size()), tsz)   # 第 11 大類：省一次讀回＋上傳
+   162		if g0 != _gen or (1 if cb else 0) != ready_cb:
+   163			return
+   164		turn_tex = _mk_tex(img)
+   165		for k in TURN_TYPES.size():
+   166			turn_loc[TURN_TYPES[k]] = k * 2 * TURN_C.size()
+   167		# V1.3.1：待機小動作頁、走路轉身頁（各自世代檢查）
+   168		var nf := TURN_TYPES.size() * 2 * FID_PER
+   169		var fsz := Vector2i(COLS * CELL, int(ceil(float(nf) / COLS)) * CELL)
+   170		var imf: Image = await _baked("fid", func() -> Image:
+   171			var pf := _ExtraPainter.new()
+   172			pf.cb = cb
+   173			pf.mode = 1
+   174			pf.types = TURN_TYPES
+   175			var vpf: SubViewport = await _paint_steps(fsz, pf, nf)
+   176			return await _post_vp(vpf, FID_PER), fsz)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+   177		if g0 != _gen or (1 if cb else 0) != ready_cb:
+   178			return
+   179		fid_tex = _mk_tex(imf)
+   180		for k in TURN_TYPES.size():
+   181			fid_loc[TURN_TYPES[k]] = k * 2 * FID_PER
+   182		var per_w := WT_C.size() * WT_PH
+   183		var pg := 0
+   184		while pg * WT_TYPES_PER_PAGE < TURN_TYPES.size():
+   185			var chunk: Array = TURN_TYPES.slice(pg * WT_TYPES_PER_PAGE, (pg + 1) * WT_TYPES_PER_PAGE)
+   186			var nw := chunk.size() * 2 * per_w
+   187			var wsz := Vector2i(COLS * CELL, int(ceil(float(nw) / COLS)) * CELL)
+   188			var imw: Image = await _baked("wt%d" % pg, func() -> Image:
+   189				var pw := _ExtraPainter.new()
+   190				pw.cb = cb
+   191				pw.mode = 2
+   192				pw.types = chunk
+   193				var vpw: SubViewport = await _paint_steps(wsz, pw, nw)
+   194				return await _post_vp(vpw, per_w), wsz)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+   195			if g0 != _gen or (1 if cb else 0) != ready_cb:
+   196				return
+   197			wt_pages.append(_mk_tex(imw))
+   198			for k in chunk.size():
+   199				wt_loc[chunk[k]] = [pg, k * 2 * per_w]
+   200			pg += 1
+   201	
+   202	## V1.5.1：這場出場的兵種補烘轉身出手格（背景烘；還沒好之前照舊轉正出手）。
+   203	func ensure_turn_atk(types: Array) -> void:
+   204		for t in types:
+   205			ta_wanted.erase(t)
+   206			ta_wanted.append(t)
+   207		while ta_wanted.size() > TA_MAX:
+   208			ta_wanted.pop_front()
+   209		if DisplayServer.get_name() == "headless" or ready_cb < 0:
+   210			return
+   211		for t in types:
+   212			if ta_tex.has(t) and bw_tex.has(t):
+   213				ta_order.erase(t)
+   214				ta_order.append(t)
+   215				bw_order.erase(t)
+   216				bw_order.append(t)   # 背面頁和轉身出手頁一起刷新（Codex cat05 #3）
+   217			elif not t in _ta_queue:
+   218				_ta_queue.append(t)
+   219		if _ta_busy or _ta_queue.is_empty():
+   220			return
+   221		_ta_busy = true
+   222		var g0 := _gen
+   223		while not _ta_queue.is_empty():
+   224			var t: int = _ta_queue.pop_front()
+   225			var img: Image = await _baked("ta%d" % t, func() -> Image:
+   226				var pt := _ExtraPainter.new()
+   227				pt.cb = ready_cb == 1
+   228				pt.mode = 3
+   229				pt.types = [t]
+   230				var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, 2 * CELL), pt, ATK_FRAMES * 2 * 2)
+   231				return await _post_vp(vp, ATK_FRAMES * 2), Vector2i(COLS * CELL, 2 * CELL))   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+   232			if g0 != _gen:
+   233				return
+   234			ta_tex[t] = _mk_tex(img)
+   235			ta_order.erase(t)
+   236			ta_order.append(t)
+   237			while ta_order.size() > TA_MAX:
+   238				ta_tex.erase(ta_order.pop_front())   # 超過上限：丟最久沒用的
+   239			if not bw_tex.has(t):
+   240				var imb: Image = await _baked("bw%d" % t, func() -> Image:
+   241					var pb := _ExtraPainter.new()
+   242					pb.cb = ready_cb == 1
+   243					pb.mode = 4
+   244					pb.types = [t]
+   245					var vpb: SubViewport = await _paint_steps(Vector2i(COLS * CELL, CELL), pb, 2 * WT_PH)
+   246					return await _post_vp(vpb, WT_PH), Vector2i(COLS * CELL, CELL))
+   247				if g0 != _gen:
+   248					return
+   249				bw_tex[t] = _mk_tex(imb)
+   250				bw_order.erase(t)
+   251				bw_order.append(t)
+   252				while bw_order.size() > BW_MAX:
+   253					bw_tex.erase(bw_order.pop_front())
+   254		_ta_busy = false
+   255	
+   256	## 1.3.0 §5.4 往北走（背對鏡頭）：有背面走路頁就畫，回傳 true；沒有（還沒烘好、簡化介面）回 false，呼叫端照舊畫側面。
+   257	func draw_back_walk(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, hurt: float, alpha: float, t: float, scale := 1.0, lean := 0.0, crouch := 1.0, cb := false) -> bool:
+   258		if not bw_tex.has(type) or walk <= 0.0:
+   259			return false
+   260		var ph := int(fposmod(walk, TAU) / TAU * WT_PH) % WT_PH
+   261		_draw_cell(ci, bw_tex[type], team * WT_PH + ph, p, type, team, face, hurt, alpha, t, scale, lean, crouch, false, 0, cb, BW_C, 0.0001 + (ph + 0.5) * TAU / WT_PH)
+   262		return true
+   263	
+   264	## 這場要用到的兵種。缺的才烘；烘的時候呼叫端先直接畫。
+   265	func ensure(types: Array) -> void:
+   266		if DisplayServer.get_name() == "headless" or ready_cb < 0:
+   267			return
+   268		for t in types:
+   269			if not loc.has(t) and not t in _queue and not t in _baking:
+   270				_queue.append(t)
+   271		if _busy or _queue.is_empty():
+   272			return
+   273		_busy = true
+   274		var g0 := _gen   # 世代變了（build 清空並重設狀態）就不再碰共用狀態（Codex v120-final）
+   275		while not _queue.is_empty():
+   276			var chunk: Array = _queue.slice(0, TYPES_PER_PAGE)
+   277			_queue = _queue.slice(chunk.size())
+   278			_baking = chunk
+   279			await _bake_page(chunk)
+   280			if g0 != _gen:
+   281				return
+   282			_baking = []
+   283		_busy = false
+   284	
+   285	func _viewport(size: Vector2i, painter: Node) -> SubViewport:
+   286		var vp := SubViewport.new()
+   287		vp.size = size
+   288		vp.transparent_bg = true
+   289		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+   290		vp.add_child(painter)
+   291		add_child(vp)
+   292		return vp
+   293	
+   294	const PAINT_CHUNK := 28   # 每幀最多畫幾格（一種兵一隊的一整組影格）
+   295	
+   296	## 1.2.0 §15.2：分段畫進同一個視窗（第一次清空、之後累積），每幀最多 PAINT_CHUNK 格；回傳畫好的視窗（呼叫端讀回後釋放）。
+   297	## 1.6.0 B01（P10.1）：烘焙各段耗時——讀回（GPU→CPU）、上傳（建貼圖）、每段畫格；[次數, 總 µs, 最大 µs]。量測用，不影響畫面。
+   298	var stage_stats := {}
+   299	func _stat(k: String, us: int) -> void:
+   300		var e: Array = stage_stats.get(k, [0, 0, 0])
+   301		stage_stats[k] = [int(e[0]) + 1, int(e[1]) + us, maxi(int(e[2]), us)]
+   302	
+   303	func _mk_tex(img: Image) -> ImageTexture:
+   304		var t0 := Time.get_ticks_usec()
+   305		var t := ImageTexture.create_from_image(img)
+   306		_stat("upload", Time.get_ticks_usec() - t0)
+   307		return t
+   308	
+   309	func stage_report() -> Dictionary:
+   310		var out := {}
+   311		for k in stage_stats:
+   312			var e: Array = stage_stats[k]
+   313			out[k] = {"n": e[0], "total_ms": snappedf(int(e[1]) / 1000.0, 0.1), "max_ms": snappedf(int(e[2]) / 1000.0, 0.1)}
+   314		return out
+   315	
+   316	## ── 1.6.0 B09（S7）離線包 ──
+   317	var pack_capture := false          # --bake-pack：照常畫，畫完存進包
+   318	var pack_pages: Array = []         # 烘包時留每頁 [兵種, 原圖]（自我核對：拼回來要逐像素一樣）
+   319	var pack_stats := {"hit": 0, "paint": 0}
+   320	
+   321	func _pack_on() -> bool:
+   322		# 簡化介面不跑後處理 shader（_post_vp），烘出來和包不同：不讀包（Codex B09 r2 #1）
+   323		return not pack_capture and Art.paint_sig() == AtlasPack.DEFAULT_PAINT and not bool(Save.s("plain_ui")) and AtlasPack.usable()
+   324	
+   325	## 背景執行緒讀包＋驗像素雜湊（主執行緒只等）；壞檔、錯圖回 null。cb 在請求時固定（Codex B09 r1 #3）
+   326	func _load_raw(key: String, cb0: int) -> Image:
+   327		var p := AtlasPack.path(cb0, key)
+   328		if not ResourceLoader.exists(p):
+   329			return null
+   330		var t0 := Time.get_ticks_usec()
+   331		var ok := [false]
+   332		var task := WorkerThreadPool.add_task(func(): ok[0] = AtlasPack.verify_file(cb0, key))   # 先驗檔（位元組雜湊）再讀
+   333		while not WorkerThreadPool.is_task_completed(task):
+   334			await RenderingServer.frame_post_draw
+   335		WorkerThreadPool.wait_for_task_completion(task)
+   336		if not ok[0] or ResourceLoader.load_threaded_request(p, "Image") != OK:
+   337			return null
+   338		while ResourceLoader.load_threaded_get_status(p) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+   339			await RenderingServer.frame_post_draw
+   340		_stat("pack_wait", Time.get_ticks_usec() - t0)   # 牆鐘時間（跨幀），不是單幀成本
+   341		return ResourceLoader.load_threaded_get(p) as Image
+   342	
+   343	## 一次只讀一份包（暫存上限：拼頁＝一頁＋一條，約 28 MiB；Codex B09 r1 #5）
+   344	var _pack_lock := false
+   345	func _lock() -> void:
+   346		while _pack_lock:
+   347			await RenderingServer.frame_post_draw
+   348		_pack_lock = true
+   349	
+   350	## 一張圖：預設外觀＋包能用＝讀包；否則照舊畫（make 是會 await 的做法），烘包時順便存。
+   351	## await 回來世代變了（build 重來）＝回 null，不算命中也不停用包（呼叫端的世代檢查會丟掉這批；Codex B09 r1 #3）
+   352	func _baked(key: String, make: Callable, size: Vector2i) -> Image:
+   353		var g0 := _gen
+   354		var cb0 := ready_cb
+   355		if _pack_on():
+   356			await _lock()
+   357			var on2 := _pack_on()   # 等鎖時可能整包被停用了：重查（Codex B09 r2 #2）
+   358			var im: Image = await _load_raw(key, cb0) if (g0 == _gen and on2) else null
+   359			_pack_lock = false
+   360			if g0 != _gen:
+   361				return null
+   362			if not on2:
+   363				return await _paint_fallback(key, make)
+   364			if im != null and im.get_size() == size:
+   365				pack_stats["hit"] += 1
+   366				return im
+   367			AtlasPack.fail(key, "缺檔、壞檔或像素指紋不符" if im == null else "大小 %s≠%s" % [im.get_size(), size])
+   368		return await _paint_fallback(key, make)
+   369	
+   370	func _paint_fallback(key: String, make: Callable) -> Image:
+   371		var img: Image = await make.call()
+   372		pack_stats["paint"] += 1
+   373		if pack_capture and img != null:
+   374			AtlasPack.save(ready_cb, key, img)
+   375		return img
+   376	
+   377	## 一頁裡第 k 種兵的格子（2 隊 × FRAMES_PER＝56 格）抄成一條（16 欄 × 4 列）；包以兵種為單位，頁怎麼組都拼得回來
+   378	static func strip_of(page: Image, k: int) -> Image:
+   379		var per := 2 * FRAMES_PER
+   380		var s := Image.create(COLS * CELL, int(ceil(float(per) / COLS)) * CELL, false, page.get_format())
+   381		for c in per:
+   382			var src := k * per + c
+   383			s.blit_rect(page, Rect2i((src % COLS) * CELL, (src / COLS) * CELL, CELL, CELL), Vector2i((c % COLS) * CELL, (c / COLS) * CELL))
+   384		return s
+   385	
+   386	static func page_from(strips: Array, rows: int) -> Image:
+   387		var per := 2 * FRAMES_PER
+   388		var pg := Image.create(COLS * CELL, rows * CELL, false, (strips[0] as Image).get_format())
+   389		for k in strips.size():
+   390			_blit_strip(pg, strips[k], k)   # 和執行時拼頁同一個函式
+   391		return pg
+   392	
+   393	## 由兵種條拼頁：一條一條讀、在背景執行緒貼進頁、貼完就放掉（同時只有一頁＋一條在記憶體）
+   394	func _assemble(types: Array, rows: int) -> Image:
+   395		var g0 := _gen
+   396		var cb0 := ready_cb
+   397		var want := Vector2i(COLS * CELL, int(ceil(float(2 * FRAMES_PER) / COLS)) * CELL)
+   398		await _lock()
+   399		if not _pack_on():
+   400			_pack_lock = false
+   401			return null
+   402		var page: Image = null
+   403		for k in types.size():
+   404			var s: Image = await _load_raw("type%d" % types[k], cb0) if g0 == _gen else null
+   405			if s == null or s.get_size() != want or g0 != _gen:
+   406				_pack_lock = false
+   407				return null
+   408			if page == null:
+   409				page = Image.create(COLS * CELL, rows * CELL, false, s.get_format())
+   410			var kk := k
+   411			var task := WorkerThreadPool.add_task(func(): _blit_strip(page, s, kk))   # 貼格在背景執行緒
+   412			while not WorkerThreadPool.is_task_completed(task):
+   413				await RenderingServer.frame_post_draw
+   414			WorkerThreadPool.wait_for_task_completion(task)
+   415		_pack_lock = false
+   416		return page if g0 == _gen else null
+   417	
+   418	static func _blit_strip(pg: Image, s: Image, k: int) -> void:
+   419		var per := 2 * FRAMES_PER
+   420		for c in per:
+   421			var dst := k * per + c
+   422			pg.blit_rect(s, Rect2i((c % COLS) * CELL, (c / COLS) * CELL, CELL, CELL), Vector2i((dst % COLS) * CELL, (dst / COLS) * CELL))
+   423	
+   424	func _paint_steps(size: Vector2i, painter: Node, total: int) -> SubViewport:
+   425		painter.cell_from = 0
+   426		painter.cell_to = PAINT_CHUNK
+   427		var vp := _viewport(size, painter)
+   428		vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
+   429		await RenderingServer.frame_post_draw
+   430		var c0 := PAINT_CHUNK
+   431		while c0 < total:
+   432			var t_pf := Time.get_ticks_usec()
+   433			painter.cell_from = c0
+   434			painter.cell_to = c0 + PAINT_CHUNK
+   435			painter.queue_redraw()
+   436			vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+   437			await RenderingServer.frame_post_draw
+   438			_stat("paint_frame", Time.get_ticks_usec() - t_pf)   # 一段畫格＋等到畫完（含當幀其他工作）
+   439			c0 += PAINT_CHUNK
+   440		await RenderingServer.frame_post_draw
+   441		return vp
+   442	
+   443	func _bake_page(types: Array) -> void:
+   444		var gen0 := _gen
+   445		var cb := ready_cb == 1
+   446		var total := types.size() * 2 * FRAMES_PER
+   447		var rows := int(ceil(float(total) / COLS))
+   448		var img: Image = null
+   449		if _pack_on() and not types.all(func(t): return AtlasPack.has(ready_cb, "type%d" % t)):
+   450			AtlasPack.fail("type%s" % str(types), "缺兵種條")   # 包不完整＝整包停用（Codex B09 r2 #2）
+   451		if _pack_on():
+   452			img = await _assemble(types, rows)   # 1.6.0 B09：預設外觀從包裡的兵種條拼頁（背景執行緒），不畫不讀回
+   453			if gen0 != _gen:
+   454				return   # 拼到一半重建了：這批作廢，不停用包
+   455			if img == null:
+   456				AtlasPack.fail("type%s" % str(types), "拼頁失敗（缺條、錯圖）")
+   457			else:
+   458				pack_stats["hit"] += 1
+   459		if img == null:
+   460			var painter := _Painter.new()
+   461			painter.cb = cb
+   462			painter.types = types
+   463			# 1.2.0 §15.2：一整頁（6 種×2 隊×28 格＝336 個向量角色）在同一幀畫完就是開戰前的長幀（136～215 ms，ABBA 量過不是讀回造成）。
+   464			# 改成分段：每幀只畫 PAINT_CHUNK 格，視窗第一次清空、之後不清（累積），畫完整頁才讀回。
+   465			var vp: SubViewport = await _paint_steps(Vector2i(COLS * CELL, rows * CELL), painter, total)
+   466			img = await _post_vp(vp)   # 第 11 大類：直接拿視窗貼圖跑後處理，省一次讀回＋上傳
+   467			pack_stats["paint"] += 1
+   468			if pack_capture and img != null:
+   469				for k in types.size():
+   470					AtlasPack.save(ready_cb, "type%d" % types[k], strip_of(img, k))
+   471				pack_pages.append([types.duplicate(), img])
+   472		if (1 if cb else 0) != ready_cb or gen0 != _gen:
+   473			return   # 烘的時候換了配色（或重建了）：這一批作廢
+   474		# 新兵頁太多就丟最舊的（舊 10 種那兩頁不丟）
+   475		if pages.size() >= MAX_PAGES:
+   476			for i in pages.size():
+   477				if pages[i] != null and int(pages[i]["types"][0]) >= D.COUNT:
+   478					for t in pages[i]["types"]:
+   479						if loc.has(t) and int(loc[t][0]) == i:
+   480							loc.erase(t)
+   481					pages[i] = null
+   482					break
+   483		var pn := pages.size()
+   484		pages.append({"tex": _mk_tex(img), "types": types})
+   485		for k in types.size():
+   486			loc[types[k]] = [pn, k * 2 * FRAMES_PER]
+   487	
+   488	## 1.2.0 第 11 大類（§15.2 A2 後續）：畫好的視窗直接當後處理的輸入（ViewportTexture），只在最後讀回一次。
+   489	## 原本是「讀回 → 建 ImageTexture 上傳 → 後處理 → 再讀回」，每頁多一次整頁讀回與上傳。讀完才釋放來源視窗。
+   490	func _post_vp(src: SubViewport, per := FRAMES_PER) -> Image:
+   491		var sh_path := "res://shaders/unit_bake.gdshader"
+   492		if not ResourceLoader.exists(sh_path) or bool(Save.s("plain_ui")):
+   493			var t_rb := Time.get_ticks_usec()
+   494			var raw := src.get_texture().get_image()
+   495			_stat("readback", Time.get_ticks_usec() - t_rb)
+   496			src.queue_free()
+   497			return raw
+   498		var out := await _post_tex(src.get_texture(), src.size, per)
+   499		src.queue_free()
+   500		return out
+   501	
+   502	## V1.2 D1：烘好的整頁再跑一次後處理 shader（外輪廓＋頂亮底暗）。
+   503	func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
+   504		var tr := TextureRect.new()
+   505		tr.texture = tex
+   506		tr.size = Vector2(size)
+   507		var mat := ShaderMaterial.new()
+   508		mat.shader = load("res://shaders/unit_bake.gdshader")
+   509		mat.set_shader_parameter("cell", float(CELL))
+   510		mat.set_shader_parameter("per", float(per))
+   511		mat.set_shader_parameter("cols", float(COLS))
+   512		mat.set_shader_parameter("sh_amt", float(Art.WASH[clampi(int(Art.paint[2]), 0, 2)]))   # V1.4 #15 漬洗
+   513		mat.set_shader_parameter("hi_amt", float(Art.DRY[clampi(int(Art.paint[3]), 0, 2)]))    # 乾掃
+   514		tr.material = mat
+   515		var vp := _viewport(size, tr)
+   516		await RenderingServer.frame_post_draw
+   517		await RenderingServer.frame_post_draw
+   518		var t_rb := Time.get_ticks_usec()
+   519		var out := vp.get_texture().get_image()
+   520		_stat("readback", Time.get_ticks_usec() - t_rb)
+   521		vp.queue_free()
+   522		return out
+   523	
+   524	func _bake_ring(cb: bool) -> void:
+   525		var g0 := _gen
+   526		var img: Image = await _baked("ring", func() -> Image:
+   527			var painter := _RingPainter.new()
+   528			painter.cb = cb
+   529			var vp := _viewport(Vector2i(15 * CELL, CELL), painter)   # 1.3.0：第 15 格＝紅方八角木座（跳起來分層畫時用）   # V1.3 A3：4 種隊伍圈＋木座＋影子＋4 種合成（木座＋影子＋圈）；1.1.0 B14：合成再分王國／奇幻（底座部件烘進去）
+   530			await RenderingServer.frame_post_draw
+   531			await RenderingServer.frame_post_draw
+   532			var im := vp.get_texture().get_image()
+   533			vp.queue_free()
+   534			return im, Vector2i(15 * CELL, CELL))
+   535		if g0 == _gen and img != null:
+   536			ring_tex = _mk_tex(img)
+   537	
+   538	## variant 1（劍士交替招式）和 2（第四輪新兵的專屬動作）都用第二組攻擊格：新兵沒有交替招式，那一組烘的是專屬動作。
+   539	func frame_index(type: int, team: int, walk: float, atk: float, t: float, px: float, variant := 0) -> int:
+   540		var base: int = int(loc[type][1]) + team * FRAMES_PER
+   541		if atk > 0.0:
+   542			return base + 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * mini(variant, 1) + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+   543		if walk <= Gait.POSE_DAZE + 1.0:
+   544			return base + 2 + WALK_FRAMES + 1
+   545		if walk <= Gait.POSE_DRAG + 1.0:
+   546			return base + 2 + WALK_FRAMES
+   547		if walk != 0.0:
+   548			return base + 2 + int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES
+   549		var ex := 2.0 if type == D.CAVALRY else 3.5   # Art._eyes 的眼睛中心 x
+   550		var blink := fmod(t + ex * 0.13 + fposmod(px * 0.731, 3.7), 3.7) <= 0.12   # V1.3 A2：依位置錯開，同種兵不再一起眨眼
+rg: game/scripts/ui/battle_visual.gd: No such file or directory (os error 2)
+coordination/v1600-impl/b09-plan.md:1:# B09 圖集不卡（S7；P10.2、P10.3）
+coordination/v1600-impl/b09-plan.md:13:## 驗收（S7 判決）
+game/scripts/ui/screens/game_core.gd:5:## 第七輪 S7：每次啟動一個 session、每局一個 game；彙整工具靠這兩個去重（評分和對戰是兩行，不能重複算局數）。
+game/scripts/ui/screens/game_core.gd:87:			if not gauntlet_prev.is_empty():
+game/scripts/ui/screens/game_core.gd:88:				armies[0].units = gauntlet_prev.duplicate(true)
+game/scripts/ui/screens/game_core.gd:93:			var e := AIT.build_full(1, r, lvl, gauntlet_prev, _pool())
+game/scripts/ui/screens/game_core.gd:106:				var t := AIT.choose_type(e, gauntlet_prev, e.left(), r, lvl, _pool())
+game/scripts/ui/screens/game_core.gd:109:				var c := AIT.choose_cell(e, t, gauntlet_prev, r)
+game/scripts/ui/screens/game_core.gd:627:	if gauntlet_prev.is_empty():
+game/scripts/ui/screens/game_core.gd:630:	for u in gauntlet_prev:
+game/scripts/ui/screens/game_core.gd:670:	var prev := c + Vector2(cos(a0), sin(a0)) * r
+game/scripts/ui/screens/game_core.gd:674:		if field.has_point(prev) and field.has_point(q):
+game/scripts/ui/screens/game_core.gd:675:			draw_line(prev, q, col, w, true)
+game/scripts/ui/screens/game_core.gd:676:		prev = q
+game/scripts/ui/screens/game_core.gd:831:	gauntlet_prev = last_armies[0].units.duplicate(true)
+game/scripts/ui/screens/game_core.gd:840:	var prev: Array = []
+game/scripts/ui/screens/game_core.gd:841:	for u in gauntlet_prev:
+game/scripts/ui/screens/game_core.gd:845:		prev.append(o)
+game/scripts/ui/screens/game_core.gd:847:		"changes": gauntlet_changes, "pool": _gauntlet_pool(), "prev": prev,
+game/scripts/ui/screens/game_core.gd:864:	gauntlet_prev = g["prev"].duplicate(true)
+game/scripts/ui/screens/game_core.gd:907:	var AP = load("res://scripts/ui/atlas_pack.gd")   # 1.6.0 B09：預設外觀離線圖集包帶進成品而且能用（export_check 驗；不列入 ok，NO_PACK=1 可略）
+game/scripts/ui/screens/game_modes.gd:682:	var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
+game/scripts/ui/screens/game_modes.gd:709:	var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
+game/scripts/ui/screens/game_modes.gd:738:	for lst in [gauntlet_prev, armies[0].units]:
+game/scripts/ui/screens/game_modes.gd:777:		var cur: Array = last_armies[0].units if last_armies.size() >= 1 and last_armies[0] != null else gauntlet_prev
+game/scripts/ui/screens/game_result.gd:43:		gauntlet_prev = []
+game/scripts/ui/screens/game_menus.gd:602:var fs_prev = null
+game/scripts/ui/screens/game_menus.gd:607:	fs_prev = Save.s("fullscreen")
+game/scripts/ui/screens/game_menus.gd:615:	fs_prev = null
+game/scripts/ui/screens/game_menus.gd:619:	if fs_prev != null:
+game/scripts/ui/screens/game_menus.gd:620:		Save.set_setting("fullscreen", fs_prev)
+game/scripts/ui/screens/game_menus.gd:622:	fs_prev = null
+game/scripts/ui/screens/game_menus.gd:653:func _guard_fs(prev) -> void:
+game/scripts/ui/screens/game_menus.gd:654:	if str(prev) != str(Save.s("fullscreen")):
+game/scripts/ui/screens/game_menus.gd:656:		fs_prev = prev
+game/scripts/ui/screens/game_menus.gd:692:			_vol_preview(p.x)
+game/scripts/ui/screens/game_menus.gd:698:		_vol_preview(p.x)
+game/scripts/ui/screens/game_menus.gd:708:func _vol_preview(x: float) -> void:
+game/scripts/ui/screens/game_place.gd:672:		_fp_gold_preview(gb, a)
+game/scripts/ui/screens/game_place.gd:880:	lines.append(L.t("place_hint_keys", [Keymap.key_name(kt, "prev"), Keymap.key_name(kt, "next"), Keymap.key_name(kt, "start"), Keymap.key_name(kt, "codex")]))
+game/scripts/ui/screens/game_place.gd:885:			lines.append(L.t("place_hint_tools_fp_pad" if _is_free() else "place_hint_tools_pad", [rt, _pk("pause"), _pk("prev")]))
+game/scripts/ui/screens/game_place.gd:967:		a.units = gauntlet_prev.duplicate(true)
+game/scripts/ui/screens/game_place.gd:997:var plan_press_prev := false
+game/scripts/ui/screens/game_place.gd:1061:		if pressed and not plan_press_prev and plan_drag < 0 and hit.has_point(mouse) and not pad_mode:
+game/scripts/ui/screens/game_place.gd:1082:	plan_press_prev = pressed
+game/scripts/ui/screens/game_v16.gd:733:		var prev: Dictionary = Save.data.get("daily_pend", {})
+game/scripts/ui/screens/game_v16.gd:735:		if int(prev.get("day", -1)) != day or int(prev.get("ver", 1)) != Daily.VER or sc > int(prev.get("score", 0)):
+1:diff --git a/game/.gitignore b/game/.gitignore
+5:@@ -1,3 +1,4 @@
+10:diff --git a/game/scripts/ui/atlas_pack.gd b/game/scripts/ui/atlas_pack.gd
+15:@@ -0,0 +1,156 @@
+172:diff --git a/game/scripts/ui/game_screens.gd b/game/scripts/ui/game_screens.gd
+176:@@ -41,7 +41,7 @@ func _ready() -> void:
+185:@@ -94,7 +94,7 @@ func _ready() -> void:
+194:diff --git a/game/scripts/ui/main.gd b/game/scripts/ui/main.gd
+198:@@ -2,7 +2,7 @@ extends "res://scripts/ui/game_screens.gd"
+207:diff --git a/game/scripts/ui/screens/game_core.gd b/game/scripts/ui/screens/game_core.gd
+211:@@ -904,6 +904,9 @@ func _self_check() -> void:
+221:diff --git a/game/scripts/ui/sprite_cache.gd b/game/scripts/ui/sprite_cache.gd
+225:@@ -14,6 +14,7 @@ const Art = preload("res://scripts/ui/art.gd")
+233:@@ -25,8 +26,8 @@ const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前
+244:@@ -83,24 +84,47 @@ static func origin_of(type: int) -> Vector2:
+300:@@ -118,31 +142,38 @@ func build(cb: bool) -> void:
+351:@@ -152,13 +183,15 @@ func _bake_turn(cb: bool) -> void:
+373:@@ -189,12 +222,13 @@ func ensure_turn_atk(types: Array) -> void:
+393:@@ -203,12 +237,13 @@ func ensure_turn_atk(types: Array) -> void:
+413:@@ -278,6 +313,114 @@ func stage_report() -> Dictionary:
+528:@@ -302,13 +445,30 @@ func _bake_page(types: Array) -> void:
+566:@@ -362,15 +522,18 @@ func _post_tex(tex: Texture2D, size: Vector2i, per: int) -> Image:
+593:diff --git a/game/scripts/ui/ui_base.gd b/game/scripts/ui/ui_base.gd
+597:@@ -1906,6 +1906,10 @@ func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: floa
+608:diff --git a/game/tests/run_tests.gd b/game/tests/run_tests.gd
+612:@@ -2,7 +2,7 @@ extends SceneTree
+621:diff --git a/game/tests/suites/battle_visual.gd b/game/tests/suites/battle_visual.gd
+625:@@ -1081,3 +1081,103 @@ func test_clutch_frame_v150() -> void:
+729:diff --git a/game/tools/dev_main.gd b/game/tools/dev_main.gd
+733:@@ -1620,6 +1620,195 @@ func _ready() -> void:
+929:diff --git a/game/tools/export_check.sh b/game/tools/export_check.sh
+933:@@ -29,8 +29,16 @@ sc() {  # 執行檔 期望 demo 標記
+950:diff --git a/game/tools/layout_check.sh b/game/tools/layout_check.sh
+954:@@ -32,7 +32,7 @@ run_combo() {
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/ui_base.gd | sed -n '1880,1960p'; nl -ba game/scripts/ui/sprite_cache.gd | sed -n '550,730p'; cat coordination/v1600-impl/b09-plan.md; rg -n 'S7|40 ms|40ms|177|399|455' coordination/v1600-impl | head -75; nl -ba game/tools/export_check.sh | head -85; nl -ba game/tools/dev_main.gd | sed -n '1630,1770p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 28ms:
+  1880		if overlay.begins_with("hub_") or overlay == "playroom":   # V1.0.0：遊戲間也是卡片面板
+  1881			nav_hub = ""   # 關掉卡片面板：之後打完不再自動打開它
+  1882		overlay = str(nav_stack.pop_back()) if not nav_stack.is_empty() else fallback
+  1883		_focus = int(nav_focus.get(overlay, 0))   # V1.0.0（Codex v100-i1 #8）：回到卡片面板時焦點回原卡
+  1884	
+  1885	
+  1886	func _fmt_num(v: float) -> String:
+  1887		return str(int(v)) if v == floorf(v) else str(v)
+  1888	
+  1889	
+  1890	func _onoff(k: String) -> String:
+  1891		return L.t("on") if bool(Save.s(k)) else L.t("off")
+  1892	
+  1893	
+  1894	func _cycle_setting(k: String, opts: Array) -> void:
+  1895		var cur = Save.s(k)
+  1896		var i := 0
+  1897		for j in opts.size():
+  1898			if str(opts[j]) == str(cur):
+  1899				i = j
+  1900		Save.set_setting(k, opts[(i + 1) % opts.size()])
+  1901	
+  1902	## 畫一隻角色：精靈圖快取好了就貼圖（快很多），否則直接用 Art 畫。畫面相同。
+  1903	func _unit(p: Vector2, type: int, team: int, face: float, walk: float, atk: float, hurt: float, alpha: float, t: float, scale := 1.0,
+  1904			mood := 0, lean := 0.0, crouch := 1.0, variant := 0, fid := -1, chip := 0) -> void:
+  1905		if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
+  1906			_unit_base(p, scale)
+  1907		if scale <= 1.4 and sprites != null and sprites.is_ready(cbm()) and sprites.has_type(type):   # V1.2：大圖（圖鑑、MVP）直接向量畫，放大圖集會糊（1.3.0：戰場跟拍 1.29 倍仍 < 1.4，用圖集）
+  1908			sprites.draw_unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, cbm(), variant, fid)
+  1909		elif scale <= 1.4 and sprites != null and sprites.prev_has(type):
+  1910			sprites.draw_prev(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, mood, lean, crouch, variant, fid)   # 1.6.0 B09：重建中先用舊圖集（不退回很貴的向量畫）
+  1911		elif scale <= 1.4 and sprites != null and not sprites.build_done and int(get("state")) == St.TITLE and str(get("shot_dir")) == "" and not layout_probe:
+  1912			pass   # 1.6.0 B09：開機第一次烘的那不到一秒，標題示範棋盤的兵先不畫（30 多隻向量兵是開機長幀主因），好了再出現
+  1913		else:
+  1914			Art.unit(self, p, type, team, face, walk, atk, hurt, alpha, t, scale, cbm(), mood, lean, crouch, variant)
+  1915		if chip > 0:
+  1916			_chip_at(p, type, face, scale, chip, alpha)
+  1917	
+  1918	## 1.3.0 §5.2：掉漆貼花畫在這隻的座標系裡（跟著尺寸、巨獸、跟拍、面向翻轉；Codex cat04 #5）
+  1919	func _chip_at(p: Vector2, type: int, face: float, scale: float, chip: int, alpha: float) -> void:
+  1920		if bool(Save.s("plain_ui")):
+  1921			return
+  1922		var anc: Vector2 = CHIP_ANCHOR.get(type, Vector2(-5, -20))
+  1923		draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale * (-1.0 if face < 0.0 else 1.0), scale), 0.0, p))
+  1924		draw_texture_rect_region(chip_tex(), Rect2(anc - Vector2(7, 7), Vector2(14, 14)), Rect2(32 if chip == 2 else 0, 0, 32, 32), Color(1, 1, 1, alpha))
+  1925		draw_set_transform_matrix(Art.base)
+  1926	
+  1927	## 1.3.0 §5.2 掉漆貼花：血 <50% 身側剝一塊漆露出淡黃原木胎；<25% 再加一塊＋邊角崩口。
+  1928	## 預烘成 32×32 小圖（兩格：一塊／兩塊），每隻受傷的兵只多 1 次貼圖（1.1.0 教訓：每幀逐隻向量畫 p95 多 20%）。召喚物不掉漆。
+  1929	static var _chip_tex: Texture2D = null
+  1930	static func chip_tex() -> Texture2D:
+  1931		if _chip_tex != null:
+  1932			return _chip_tex
+  1933		var img := Image.create(64, 32, false, Image.FORMAT_RGBA8)
+  1934		img.fill(Color(0, 0, 0, 0))
+  1935		var wood := Color(0.93, 0.82, 0.6, 0.95)
+  1936		var edge := Color(0.32, 0.2, 0.1, 0.8)
+  1937		for cell in 2:
+  1938			var spots: Array = [[Vector2(12, 14), 5.0]] if cell == 0 else [[Vector2(12, 12), 5.0], [Vector2(20, 21), 4.0]]
+  1939			for sp in spots:
+  1940				var c: Vector2 = sp[0] + Vector2(cell * 32, 0)
+  1941				var r: float = sp[1]
+  1942				for y in range(int(c.y - r - 1), int(c.y + r + 2)):
+  1943					for x in range(int(c.x - r - 1), int(c.x + r + 2)):
+  1944						var d := Vector2(x, y).distance_to(c) + (0.8 if (x + y) % 3 == 0 else 0.0)   # 不規則的剝落邊
+  1945						if d <= r - 1.0:
+  1946							img.set_pixel(x, y, wood)
+  1947						elif d <= r:
+  1948							img.set_pixel(x, y, edge)
+  1949		_chip_tex = ImageTexture.create_from_image(img)
+  1950		return _chip_tex
+  1951	
+  1952	## 掉漆在身體上的位置（腳點座標、面朝右）：人形在腰側；騎兵在馬身；奇幻依身形。
+  1953	const CHIP_ANCHOR := {3: Vector2(-10, -16), 10: Vector2(-5, -14), 11: Vector2(-6, -15), 12: Vector2(-6, -12), 13: Vector2(-6, -10),
+  1954		14: Vector2(-4, -20), 15: Vector2(-4, -16), 16: Vector2(-2, -22), 17: Vector2(-4, -18), 18: Vector2(-8, -14), 19: Vector2(-6, -22)}
+  1955	
+  1956	## V1.2 D2：大圖（圖鑑、MVP）站在木製圓底座上，像桌上的棋偶公仔（V1.5.1 抽出來給圖鑑烘焙版大圖共用）
+  1957	func _unit_base(p: Vector2, scale: float) -> void:
+  1958		if true:
+  1959			var bw := 30.0 * scale
+  1960			var bh := 9.0 * scale
+   550		var blink := fmod(t + ex * 0.13 + fposmod(px * 0.731, 3.7), 3.7) <= 0.12   # V1.3 A2：依位置錯開，同種兵不再一起眨眼
+   551		return base + (1 if blink else 0)
+   552	
+   553	func draw_ring(ci: CanvasItem, p: Vector2, team: int, type: int, scale := 1.0, air := 0.0) -> void:
+   554		var idx := team * 2 + (1 if (type == D.SHIELD or type == D.CAVALRY or type == 19) else 0)
+   555		ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+   556		if air <= 0.0:
+   557			# 站在地上（絕大多數）：一次貼好預先合成的三層（效能：每隻 1 次貼圖，不是 3 次）
+   558			var fan := 4 if type >= D.COUNT else 0   # 1.1.0 B14：奇幻兵用樹皮部件那一組合成格
+   559			ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((6 + fan + idx) * CELL, 0, CELL, CELL))
+   560			ci.draw_set_transform_matrix(Art.base)
+   561			return
+   562		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((14 if team == 1 else 4) * CELL, 0, CELL, CELL))   # 木座（紅方八角）
+   563		ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale, scale), 0.0, p))
+   564		Art.base_trim(ci, Vector2.ZERO, type, 1.0)   # 1.1.0 B14：跳起來（少數）才分層畫部件
+   565		ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+   566		if air > 0.0:
+   567			var ss := scale * (1.0 - air * 0.35)
+   568			ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(ss / RS, ss / RS), 0.0, p))
+   569		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(5 * CELL, 0, CELL, CELL))   # 影子（跳起來縮）
+   570		if air > 0.0:
+   571			ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+   572		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2(idx * CELL, 0, CELL, CELL))
+   573		ci.draw_set_transform_matrix(Art.base)
+   574	
+   575	## V1.3.1：史萊姆高光不烘進圖集，貼圖後固定畫在世界的左上（翻面不跳邊）。
+   576	static func slime_shine(ci: CanvasItem, p: Vector2, type: int, scale: float, alpha: float, bob: float) -> void:
+   577		if type != 13 and type != 20:
+   578			return
+   579		var k := 1.0 if type == 13 else 0.66
+   580		var q := p + Vector2(0, bob * scale)
+   581		ci.draw_set_transform_matrix(Art.base)
+   582		ci.draw_circle(q + Vector2(-9.0 * k, -23.8 * k - 1.0) * scale, 3.8 * k * scale, Color(1, 1, 1, 0.6 * alpha), true, -1.0, true)
+   583		ci.draw_circle(q + Vector2(-3.6 * k, -31.5 * k - 1.0) * scale, 1.8 * k * scale, Color(1, 1, 1, 0.6 * alpha), true, -1.0, true)
+   584	
+   585	## V1.3.1：貼額外頁的一格（小動作、受擊帽子、走路轉身）。bob＝要不要加待機呼吸。
+   586	func _draw_cell(ci: CanvasItem, tex: Texture2D, idx: int, p: Vector2, type: int, team: int, face: float, hurt: float, alpha: float, t: float, scale: float, lean: float, crouch: float, bob: bool, mood := 0, cb := false, oc := 1.0, qw := 0.0) -> void:
+   587		var sg := -1.0 if face < 0.0 else 1.0
+   588		var by := Art.idle_bob(t, p) if bob else 0.0
+   589		ci.draw_set_transform_matrix(Art.base * Transform2D(lean * sg, Vector2(scale * sg / RS, scale * crouch / RS), 0.0, p + Vector2(0, by * scale)))
+   590		ci.draw_texture_rect_region(tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
+   591		if hurt > 0.0:
+   592			ci.draw_texture_rect_region(tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(4, 4, 4, hurt * 0.55 * alpha))
+   593		if mood != 0:
+   594			# 表情疊加（Codex v131-impl1：走路轉身、小動作原本漏畫）；轉身格的臉依 oc 往中間移
+   595			ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, sg * oc, qw, 0.0, t, scale, lean, crouch, type) * Gait.body_xf(type, qw))   # 走路轉身要跟步相的離地與身體（Codex v131-impl2）
+   596			Art.overlay(ci, type, team, mood, alpha, t, cb)
+   597		ci.draw_set_transform_matrix(Art.base)
+   598		if bob:
+   599			slime_shine(ci, p, type, scale, alpha, by)   # 只在待機（跳起、壓扁時高光會對不上，不畫）
+   600	
+   601	## 倒棋用：只貼木座（帶透明度）。
+   602	func draw_base(ci: CanvasItem, p: Vector2, scale := 1.0, a := 1.0, team := 0) -> void:
+   603		ci.draw_set_transform_matrix(Art.base * Transform2D(0.0, Vector2(scale / RS, scale / RS), 0.0, p))
+   604		ci.draw_texture_rect_region(ring_tex, Rect2(-RING_ORIGIN, Vector2(CELL, CELL)), Rect2((14 if team == 1 else 4) * CELL, 0, CELL, CELL), Color(1, 1, 1, a))
+   605		ci.draw_set_transform_matrix(Art.base)
+   606	
+   607	func _rect(idx: int) -> Rect2:
+   608		return Rect2((idx % COLS) * CELL, (idx / COLS) * CELL, CELL, CELL)
+   609	
+   610	## 量化後實際烘焙的走路相位／攻擊進度（疊加表情時用，才會跟貼圖對齊）。
+   611	func quant_walk(walk: float) -> float:
+   612		if walk == 0.0:
+   613			return 0.0
+   614		if walk < -50.0:
+   615			return walk
+   616		return 0.0001 + (int(fposmod(walk, TAU) / TAU * WALK_FRAMES) % WALK_FRAMES) * TAU / WALK_FRAMES
+   617	
+   618	func quant_atk(atk: float) -> float:
+   619		if atk <= 0.0:
+   620			return 0.0
+   621		return (clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1) + 0.5) / ATK_FRAMES
+   622	
+   623	## 貼一隻角色。參數與 Art.unit 相同；待機的呼吸位移在這裡加（烘焙時是 0）。
+   624	func draw_unit(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, walk: float, atk: float,
+   625			hurt: float, alpha: float, t: float, scale := 1.0, mood := 0, lean := 0.0, crouch := 1.0, cb := false, variant := 0, fid := -1) -> void:
+   626		if hurt > 0.5 and atk <= 0.0 and walk == 0.0 and absf(face) >= 0.9 and fid_loc.has(type):
+   627			# 受擊那一下帽子彈起（只在待機：帽子格是待機腿，走路、拖行、暈眩不能被蓋掉；受擊優先於小動作）
+   628			_draw_cell(ci, fid_tex, int(fid_loc[type]) + team * FID_PER + FID_PER - 1, p, type, team, face, hurt, alpha, t, scale, lean, crouch, true, mood & ~Art.M_HURT, cb)   # 受擊眼已烘進這格
+   629			return
+   630		if fid >= 0 and hurt <= 0.0 and atk <= 0.0 and walk == 0.0 and absf(face) >= 0.9 and fid_loc.has(type):
+   631			_draw_cell(ci, fid_tex, int(fid_loc[type]) + team * FID_PER + clampi(fid, 0, FID_PER - 2), p, type, team, face, hurt, alpha, t, scale, lean, crouch, true, mood, cb)
+   632			return
+   633		if absf(face) < 0.9 and atk <= 0.0 and walk > 0.0 and wt_loc.has(type):
+   634			# 走路中轉身：依步相取格（不重設腳步）
+   635			var wl: Array = wt_loc[type]
+   636			var ai := 0
+   637			var ph := int(fposmod(walk, TAU) / TAU * WT_PH) % WT_PH
+   638			_draw_cell(ci, wt_pages[wl[0]], int(wl[1]) + team * WT_C.size() * WT_PH + ai * WT_PH + ph, p, type, team, face, hurt, alpha, t, scale, lean, crouch, false, mood, cb, float(WT_C[ai]), 0.0001 + (ph + 0.5) * TAU / WT_PH)
+   639			return
+   640		if absf(face) < 0.9 and has_turn(type):
+   641			if atk <= 0.0:
+   642				_draw_turn(ci, p, type, team, face, hurt, alpha, t, scale, lean, crouch, mood, cb)
+   643				return
+   644			if ta_tex.has(type):
+   645				# V1.5.1 A3：轉身途中出手用轉身攻擊格（一般與交替／專屬都有），不再跳回側面
+   646				var sg := -1.0 if face < 0.0 else 1.0
+   647				var fi := team * ATK_FRAMES * 2 + (ATK_FRAMES if variant > 0 else 0) + clampi(int(atk * ATK_FRAMES), 0, ATK_FRAMES - 1)
+   648				ci.draw_set_transform_matrix(Art.base * Transform2D(lean * sg, Vector2(scale * sg / RS, scale * crouch / RS), 0.0, p + Vector2(0, Art.idle_bob(t, p) * scale)))
+   649				ci.draw_texture_rect_region(ta_tex[type], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(fi), Color(1, 1, 1, alpha))
+   650				if hurt > 0.0:
+   651					ci.draw_texture_rect_region(ta_tex[type], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(fi), Color(4, 4, 4, hurt * 0.55 * alpha))
+   652				if mood != 0:
+   653					# 表情疊加跟著這一格的轉身角度走（和 _draw_turn 一樣）
+   654					ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, sg * TA_C, 0.0, quant_atk(atk), t, scale, lean, crouch, type))
+   655					Art.overlay(ci, type, team, mood, alpha, t, cb)
+   656				ci.draw_set_transform_matrix(Art.base)
+   657				return
+   658			face = 1.0 if face >= 0.0 else -1.0   # V1.5：轉身出手格還沒烘好（或交替招式）時直接轉正出手
+   659		var idx := frame_index(type, team, walk, atk, t, p.x, variant)
+   660		if atk > 0.0:
+   661			walk = 0.0   # 攻擊影格烘焙時沒有走路相位：貼圖與疊加都當成沒在走（Codex 收尾輪 #4）
+   662		var bob := Art.idle_bob(t, p) if walk == 0.0 else 0.0   # 與 Art.unit 相同：沒走路時（含攻擊）都有呼吸
+   663		var xf := Art.base * Transform2D(lean * face, Vector2(scale * face / RS, scale * crouch / RS), 0.0, p + Vector2(0, bob * scale))
+   664		ci.draw_set_transform_matrix(xf)
+   665		ci.draw_texture_rect_region(pages[loc[type][0]]["tex"], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
+   666		if hurt > 0.0:
+   667			# V1.3 A6：受擊閃白改成整隻剪影變白（同一格再貼一次、顏色乘到飽和），不再是一顆白圓
+   668			ci.draw_texture_rect_region(pages[loc[type][0]]["tex"], Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(4, 4, 4, hurt * 0.55 * alpha))
+   669		if mood != 0:
+   670			# 攻擊影格烘焙時沒有走路相位（Codex R5 #3）
+   671			var qa := quant_atk(atk)
+   672			var qw := 0.0 if qa > 0.0 else quant_walk(walk)
+   673			ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, face, qw, qa, t, scale, lean, crouch, type) * Gait.body_xf(type, qw))
+   674			if mood != 0:
+   675				Art.overlay(ci, type, team, mood, alpha, t, cb)
+   676		ci.draw_set_transform_matrix(Art.base)
+   677		if walk == 0.0 and atk <= 0.0:
+   678			slime_shine(ci, p, type, scale, alpha, Art.idle_bob(t, p))   # 跳起、出手壓扁時不畫（位置對不上，Codex v131-impl1）
+   679	
+   680	## V1.3 A1b：轉身中（|face|＜0.9）貼轉身頁：影格本身已經是轉到一半的姿勢，貼圖只翻正負、不再等比夾扁。
+   681	func _draw_turn(ci: CanvasItem, p: Vector2, type: int, team: int, face: float, hurt: float, alpha: float, t: float, scale: float, lean: float, crouch: float, mood := 0, cb := false) -> void:
+   682		var af := absf(face)
+   683		var j := 0 if af >= 0.67 else (1 if af >= 0.42 else 2)
+   684		var idx: int = int(turn_loc[type]) + team * TURN_C.size() + j
+   685		var sg := -1.0 if face < 0.0 else 1.0
+   686		var bob := Art.idle_bob(t, p)
+   687		ci.draw_set_transform_matrix(Art.base * Transform2D(lean * sg, Vector2(scale * sg / RS, scale * crouch / RS), 0.0, p + Vector2(0, bob * scale)))
+   688		ci.draw_texture_rect_region(turn_tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(1, 1, 1, alpha))
+   689		if hurt > 0.0:
+   690			ci.draw_texture_rect_region(turn_tex, Rect2(-origin_of(type), Vector2(CELL, CELL)), _rect(idx), Color(4, 4, 4, hurt * 0.55 * alpha))
+   691		if mood != 0 and j <= 1:
+   692			# 表情疊加（受擊、狂熱…）：轉身中也要有（Codex v130-impl1）；只在接近側面那一格畫，
+   693			# 更窄的兩格臉已經往中間移，正側面的表情位置對不上（Codex v130-impl2），那 0.1 秒不畫
+   694			# V1.3.1 P0-3：表情跟著轉過去的臉走（x 依這一格的 cos 縮）；最窄那格臉太窄（<3px），只保留貼圖、不硬塞表情
+   695			ci.draw_set_transform_matrix(Art.base * Art.unit_xf(p, sg * float(TURN_C[j]), 0.0, 0.0, t, scale, lean, crouch, type))
+   696			Art.overlay(ci, type, team, mood, alpha, t, cb)
+   697		ci.draw_set_transform_matrix(Art.base)
+   698		slime_shine(ci, p, type, scale, alpha, Art.idle_bob(t, p))
+   699	
+   700	## 烘焙用的畫家：一格一格呼叫 Art.unit（face＝+1，翻面由貼圖時處理）。
+   701	class _Painter extends Node2D:
+   702		var cb := false
+   703		var types: Array = []
+   704		var cell_from := 0          # 1.2.0 §15.2：分段烘焙，這一幀只畫 [cell_from, cell_to) 的格子
+   705		var cell_to := 1 << 30
+   706		func _draw() -> void:
+   707			var Art2 = preload("res://scripts/ui/art.gd")
+   708			var D2 = preload("res://scripts/core/unit_defs.gd")
+   709			var saved: Transform2D = Art2.base
+   710			Art2.base = Transform2D.IDENTITY
+   711			var CELL2 := 192
+   712			var RS2 := 1.6
+   713			var W2 := 8
+   714			var per := 2 + W2 + 2 + 8 + 8
+   715			var cols := 16
+   716			for k in types.size():
+   717				var type: int = types[k]
+   718				for team in 2:
+   719					for f in per:
+   720						var idx: int = (k * 2 + team) * per + f
+   721						if idx < cell_from or idx >= cell_to:
+   722							continue
+   723						var cell_o := Vector2((idx % cols) * CELL2, (idx / cols) * CELL2)
+   724						var walk := 0.0
+   725						var atk := 0.0
+   726						var vr := 0
+   727						if f >= 2 and f < 2 + W2:
+   728							walk = 0.0001 + (f - 2) * TAU / W2
+   729						elif f == 2 + W2:
+   730							walk = -100.0   # 拖行（Gait.POSE_DRAG）
+# B09 圖集不卡（S7；P10.2、P10.3）
+
+## 起點（1.5.0，同機：i7-12700H／RTX 3060 Laptop／Godot 4.6.2 Compatibility／Windows，1280×800）
+`--perf`：圖集掃描烘焙最長幀 46.6 ms（歷史值重現）；分段：讀回最長 17.8 ms、上傳 5.8 ms、單段畫格（含等 GPU）190 ms；色盲重建 163 ms；戰鬥整幀 max 154／p99 101 ms。
+
+## 做法
+- 預設外觀離線包 `scripts/ui/atlas_pack.gd`：`--bake-pack` 烘預設塗裝 × 一般／色盲的全部 22 種（兵種條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈），存壓縮 Image 資源 `art/pack/cb{0,1}/*.res`（140 張、61.5 MiB），清冊記來源雜湊（畫法、姿勢、色票、後處理 shader、烘焙程式）、引擎、渲染路徑、格式、每張圖像素雜湊、自我核對（兵種條拼回整頁＝畫出來的頁）。
+- 執行時 `sprite_cache._baked(key, 做法, 尺寸)`：預設塗裝＋包能用＝背景執行緒讀包（`load_threaded_request`），新兵種頁由兵種條在 WorkerThreadPool 拼頁，主執行緒只上傳；尺寸不對／讀失敗＝整包停用退回即時烘；特殊塗裝＝即時烘；開發環境來源改過＝包過期不用。
+- 一頁 6 種 → 2 種（容量不變，`MAX_PAGES` 5→15）。
+- 包不進 git（.gitignore）；`tools/export_check.sh` 匯出前一定重烘、成品自我檢查回報 `pack`；`NO_PACK=1` 可略。
+- 量測：`--pack-bench`（冷＝開機到就緒，熱＝同程序 20 次重建；`--bench-blank` 只量烘焙、`--no-pack` 對照）；`LAYOUT_NOPACK=1`。
+
+## 驗收（S7 判決）
+最長幀 <40 ms（冷熱各 20、ABBA）、解碼像素差 0、來源變更／壞包錯命中 0、容量在預算內。
+coordination/v1600-impl/b09-plan.md:1:# B09 圖集不卡（S7；P10.2、P10.3）
+coordination/v1600-impl/b09-plan.md:13:## 驗收（S7 判決）
+coordination/v1600-impl/b09-plan.md:14:最長幀 <40 ms（冷熱各 20、ABBA）、解碼像素差 0、來源變更／壞包錯命中 0、容量在預算內。
+coordination/v1600-impl/b09-r1/diff3.patch:17:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：開發時（或匯出前）用 `--bake-pack` 把預設塗裝的圖集烘好存成壓縮 Image 資源，
+coordination/v1600-impl/b09-r1/diff3.patch:417:+## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/diff3.patch:630:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：兵種條拆拼逐像素一致、環境鍵、壞包整包停用、包讀回＝烘的時候的像素（解碼差 0）、過期包不用
+coordination/v1600-impl/b09-r1/diff3.patch:809:+## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到「全部就緒」build_done 的時間、期間每幀）；熱＝同一程序切色盲重建 20 次。
+coordination/v1600-impl/b09-r1/diff3.patch:855:+## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+coordination/v1600-impl/b09-abba.sh:2:# B09 S7 第二版：ABBA（A＝--no-pack 即時烘、B＝離線包）。blank：每塊 5 個程序×8 塊＝每邊 20 冷、每程序 20 熱；scene：每塊 1×8＝每邊 4
+coordination/v1600-impl/b09-r1/codex-prompt3.md:3:改了：①plain_ui／非預設塗裝不讀包（sprite_cache `_pack_on`）；②等鎖後與每次 await 後重查包狀態與世代，缺兵種條＝整包停用（`_baked`、`_bake_page`）；③新增執行期自我測試 `--pack-selftest`（dev_main `_run_pack_selftest`）：真的在讀包中途換色（競態）、真的放壞包看回退，結果 PACKSELFTEST OK（race_hits 10、壞包偵測＋回退即時烘、包與即時烘像素相同）；④雙緩衝：重建時沿用舊圖集畫（`prev`／`draw_prev`），標題冷開機在圖集好之前不畫兵；有畫面最長幀從 58 降到 22.4 ms（scene 包 p95 24.0／max 25.3；即時烘 max 84.2）；代價：重建那段貼圖記憶體暫時多約 177 MiB（峰值 399，仍低於 1.5.0 的 455），暫存 RAM 峰值包 76.7／即時烘 105.6 MiB；磁碟多 61.5 MiB（包不進 git，匯出前 export_check.sh 一定重烘並驗 pack:true）。
+coordination/v1600-impl/b09-r1/codex-prompt3.md:5:請判斷：修正是否正確、有沒有新問題、S7 能否判「Go」（我打算寫：烘焙與玩家可見長幀都 <40 ms＝Go；限制：重建暫時多 177 MiB 貼圖、開發機沒包或過期就照舊即時烘）。附行號。最多 4 條必改、300 字內。最後一行「結論：可／有條件／不可」。
+coordination/v1600-impl/b09-r1/codex2.err:16:未解（請判斷）：有畫面時最長幀包 58／即時烘 117 ms——都是圖集沒好時的向量替代畫法（標題示範棋盤 30 多隻），不是烘焙本身（不畫畫面時包 ≤29.7 ms）。要消掉需雙緩衝（重建時沿用舊圖集），重建那段貼圖記憶體暫時多約 80～180 MiB；我打算列為 B09 的已知限制、交 B06／B08 決定，S7 判決寫「烘焙 Go；玩家可見長幀減半但未達 40 ms」。
+coordination/v1600-impl/b09-r1/codex2.err:69:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：開發時（或匯出前）用 `--bake-pack` 把預設塗裝的圖集烘好存成壓縮 Image 資源，
+coordination/v1600-impl/b09-r1/codex2.err:425:+## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:611:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：兵種條拆拼逐像素一致、環境鍵、壞包整包停用、包讀回＝烘的時候的像素（解碼差 0）、過期包不用
+coordination/v1600-impl/b09-r1/codex2.err:724:+## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到「全部就緒」build_done 的時間、期間每幀）；熱＝同一程序切色盲重建 20 次。
+coordination/v1600-impl/b09-r1/codex2.err:767:+## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+coordination/v1600-impl/b09-r1/codex2.err:884:# B09 S7 第二版：ABBA（A＝--no-pack 即時烘、B＝離線包）。blank：每塊 5 個程序×8 塊＝每邊 20 冷、每程序 20 熱；scene：每塊 1×8＝每邊 4
+coordination/v1600-impl/b09-r1/codex2.err:998:   177				wt_loc[chunk[k]] = [pg, k * 2 * per_w]
+coordination/v1600-impl/b09-r1/codex2.err:1115:   294	## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:1220:   399		while c0 < total:
+coordination/v1600-impl/b09-r1/codex2.err:1276:   455	## 原本是「讀回 → 建 ImageTexture 上傳 → 後處理 → 再讀回」，每頁多一次整頁讀回與上傳。讀完才釋放來源視窗。
+coordination/v1600-impl/b09-r1/codex2.err:1356:# B09 圖集不卡（S7；P10.2、P10.3）
+coordination/v1600-impl/b09-r1/codex2.err:1368:## 驗收（S7 判決）
+coordination/v1600-impl/b09-r1/codex2.err:1369:最長幀 <40 ms（冷熱各 20、ABBA）、解碼像素差 0、來源變更／壞包錯命中 0、容量在預算內。
+coordination/v1600-impl/b09-r1/codex2.err:1374:/bin/bash -lc "rg -n 'plain_ui|paint_sig|sprites.build|S7|暫存|40 ms|16 MiB' game/scripts/ui/art.gd game/scripts/ui/screens game/scripts/ui/game_screens.gd coordination/v1600* game/scripts/ui/sprite_cache.gd | head -100; nl -ba game/scripts/ui/atlas_pack.gd | sed -n '15,115p'; nl -ba game/tests/suites/battle_visual.gd | sed -n '1110,1185p'; nl -ba game/tools/dev_main.gd | sed -n '1630,1677p'" in /mnt/c/Users/timmy/projects/no-take-backs
+coordination/v1600-impl/b09-r1/codex2.err:1378:game/scripts/ui/sprite_cache.gd:294:## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:1391:coordination/v1600-impl/b09-abba.sh:2:# B09 S7 第二版：ABBA（A＝--no-pack 即時烘、B＝離線包）。blank：每塊 5 個程序×8 塊＝每邊 20 冷、每程序 20 熱；scene：每塊 1×8＝每邊 4
+coordination/v1600-impl/b09-r1/codex2.err:1392:coordination/v1600-impl/b09-plan.md:1:# B09 圖集不卡（S7；P10.2、P10.3）
+coordination/v1600-impl/b09-r1/codex2.err:1393:coordination/v1600-impl/b09-plan.md:13:## 驗收（S7 判決）
+coordination/v1600-impl/b09-r1/codex2.err:1394:coordination/v1600-impl/b09-plan.md:14:最長幀 <40 ms（冷熱各 20、ABBA）、解碼像素差 0、來源變更／壞包錯命中 0、容量在預算內。
+coordination/v1600-impl/b09-r1/codex2.err:1399:coordination/v1600-impl/b09-r1/diff2.patch:17:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：開發時（或匯出前）用 `--bake-pack` 把預設塗裝的圖集烘好存成壓縮 Image 資源，
+coordination/v1600-impl/b09-r1/codex2.err:1400:coordination/v1600-impl/b09-r1/diff2.patch:373:+## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:1402:coordination/v1600-impl/b09-r1/diff2.patch:399:+## 一次只讀一份包（暫存上限：拼頁＝一頁＋一條，約 28 MiB；Codex B09 r1 #5）
+coordination/v1600-impl/b09-r1/codex2.err:1403:coordination/v1600-impl/b09-r1/diff2.patch:559:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：兵種條拆拼逐像素一致、環境鍵、壞包整包停用、包讀回＝烘的時候的像素（解碼差 0）、過期包不用
+coordination/v1600-impl/b09-r1/codex2.err:1405:coordination/v1600-impl/b09-r1/diff2.patch:672:+## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到「全部就緒」build_done 的時間、期間每幀）；熱＝同一程序切色盲重建 20 次。
+coordination/v1600-impl/b09-r1/codex2.err:1409:coordination/v1600-impl/b09-r1/diff2.patch:715:+## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+coordination/v1600-impl/b09-r1/codex2.err:1411:coordination/v1600p/p3-prompt-combined.md:79:| 2 | 純色向量、程式漸層、直角、重複貼圖 | 主材質表：木、厚紙、蠟封、粉筆灰、銅件磨損共用色盤與顆粒尺度；手工倒角、纖維 | 跨頁材質色溫採樣；紋理記憶體與烘焙尖峰 <40 ms |
+coordination/v1600-impl/b09-r1/codex2.err:1420:coordination/v1600-impl/b01-r1/codex.err:853:105:- **順序（無環；R5 定）**：**B01**（量測、存檔範本）→ **B02**（紙面字，獨立小批可錯開）→ **B03** 代表頁（S2 Go）→ **B09** 容量准入（S7 Go）→ 並列審片逐批解鎖 **B06**（全站桌）→ **B08**（混戰）→ **B10** 兩兵種剪影 → **B13a** 全兵種剪影＋**一次登記 1.6.0 新基線**（P1＋P3＋P4）。動態另一條線：B11 轉身（S3）→ B12 大型驗證 → B13b 全兵種轉身——**剪影量產與新基線不等轉身 Go**。P2、P6、P7、P8 平行接在 B03／B04／B01 之後；P12 美術、P13 展台在 B13a／B13b 之後。原型可並行；量產門檻＝該批前置 Go＋B09 容量准入。
+coordination/v1600-impl/b09-r1/codex2.err:1421:coordination/v1600-impl/b01-r1/codex.err:860:149:| B09 | 圖集不卡（S7） | P10.2、P10.3 | B01 | `sprite_cache.gd`、匯出包 | 5～9＋0.5～1＋0 | S7 判決：最長幀 <40ms、解碼差 0、錯命中 0、容量內 | 安全重烘 |
+coordination/v1600-impl/b09-r1/codex2.err:1424:coordination/v1600-impl/b01-r1/codex.err:2273:### P10 素材不拖住開戰（必做・底座；S7）
+coordination/v1600-impl/b09-r1/codex2.err:1426:coordination/v1600-impl/b01-r1/codex.err:2289:- **順序（無環；R5 定）**：**B01**（量測、存檔範本）→ **B02**（紙面字，獨立小批可錯開）→ **B03** 代表頁（S2 Go）→ **B09** 容量准入（S7 Go）→ 並列審片逐批解鎖 **B06**（全站桌）→ **B08**（混戰）→ **B10** 兩兵種剪影 → **B13a** 全兵種剪影＋**一次登記 1.6.0 新基線**（P1＋P3＋P4）。動態另一條線：B11 轉身（S3）→ B12 大型驗證 → B13b 全兵種轉身——**剪影量產與新基線不等轉身 Go**。P2、P6、P7、P8 平行接在 B03／B04／B01 之後；P12 美術、P13 展台在 B13a／B13b 之後。原型可並行；量產門檻＝該批前置 Go＋B09 容量准入。
+coordination/v1600-impl/b09-r1/codex2.err:1427:coordination/v1600-impl/b01-r1/codex.err:2325:105:- **順序（無環；R5 定）**：**B01**（量測、存檔範本）→ **B02**（紙面字，獨立小批可錯開）→ **B03** 代表頁（S2 Go）→ **B09** 容量准入（S7 Go）→ 並列審片逐批解鎖 **B06**（全站桌）→ **B08**（混戰）→ **B10** 兩兵種剪影 → **B13a** 全兵種剪影＋**一次登記 1.6.0 新基線**（P1＋P3＋P4）。動態另一條線：B11 轉身（S3）→ B12 大型驗證 → B13b 全兵種轉身——**剪影量產與新基線不等轉身 Go**。P2、P6、P7、P8 平行接在 B03／B04／B01 之後；P12 美術、P13 展台在 B13a／B13b 之後。原型可並行；量產門檻＝該批前置 Go＋B09 容量准入。
+coordination/v1600-impl/b09-r1/codex2.err:1428:coordination/v1600-impl/b01-r1/codex.err:2329:149:| B09 | 圖集不卡（S7） | P10.2、P10.3 | B01 | `sprite_cache.gd`、匯出包 | 5～9＋0.5～1＋0 | S7 判決：最長幀 <40ms、解碼差 0、錯命中 0、容量內 | 安全重烘 |
+coordination/v1600-impl/b09-r1/codex2.err:1433:coordination/v1600-impl/b09-r1/diff.patch:17:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：開發時（或匯出前）用 `--bake-pack` 把預設塗裝的圖集烘好存成壓縮 Image 資源，
+coordination/v1600-impl/b09-r1/codex2.err:1434:coordination/v1600-impl/b09-r1/diff.patch:320:+## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:1436:coordination/v1600-impl/b09-r1/diff.patch:474:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：兵種條拆拼逐像素一致、環境鍵、壞包整包停用、包讀回＝烘的時候的像素（解碼差 0）、過期包不用
+coordination/v1600-impl/b09-r1/codex2.err:1438:coordination/v1600-impl/b09-r1/diff.patch:539:+## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到就緒的時間、期間最長一幀）；熱＝同一程序切色盲重建 20 次（每次最長一幀、耗時）。
+coordination/v1600-impl/b09-r1/codex2.err:1440:coordination/v1600-impl/b09-r1/diff.patch:586:+## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+coordination/v1600-impl/b09-r1/codex2.err:1442:coordination/v1600p/p4-codex.md:23:3. **位置：§6 第2尺｜問題：**「紋理記憶體與烘焙尖峰 <40 ms」混用了容量與時間單位。**建議改法：**拆成紋理容量預算（MiB，待量）與烘焙尖峰（ms，本次目標），各引用§7量測條件。
+coordination/v1600-impl/b09-r1/codex2.err:1444:coordination/v1600p/p2-codex.err:567:88:- **切片（R3 最易做壞）**：劍、弓、騎 3 兵種 × 5 方向 走停轉攻。**Go**：30／60／120fps 腳滑 ≤2 邏輯 px（量**實際圖集貼出的支撐腳**，不只驗 `gait` 公式）、`ViewBuffer` 展示的命中 tick 逐格零偏移、暈眩中斷與倒帶姿勢一致、斜向穿幫 0、轉身中縮圖盲認 ≥95%（Hydrogen）、貼圖記憶體增幅 ≤15%、冷烘焙最長一幀 <40 ms（現 46；冷啟探針另寫，`_perf_atlas_sweep` 只量增量）。No-Go＝退回 3/4 前後＋側面，只加轉身過渡格。
+coordination/v1600-impl/b09-r1/codex2.err:1445:coordination/v1600p/p2-codex.err:582:177:- 角色：腳滑 ≤2px、命中 tick 零偏移、斜向穿幫 0、貼圖記憶體增幅 ≤15%、冷烘焙最長一幀 <40 ms。
+coordination/v1600-impl/b09-r1/codex2.err:1446:coordination/v1600p/p2-codex.err:583:183:- 效能量法（量測契約，R5 Codex）：**測試機**＝i7-12700H＋RTX 3060 Laptop、1280×800、VSync 開，ABBA ≥2 輪、每輪 ≥1000 幀；**最低支援配備**＝Steam Deck（1280×800、預設 TDP），Deck 數字由使用者實機量，未量前 33／40 ms 門檻只對測試機成立、Deck 另記；冷啟＝清 `.godot` 快取後第一次開；繪圖 p95 與整幀 p95 分開報；轉場、冷啟另寫探針（`perf_ab.sh` 只測戰鬥）。
+coordination/v1600-impl/b09-r1/codex2.err:1448:coordination/v1600p/p2-codex.err:934:- 角色：腳滑 ≤2px、命中 tick 零偏移、斜向穿幫 0、貼圖記憶體增幅 ≤15%、冷烘焙最長一幀 <40 ms。
+coordination/v1600-impl/b09-r1/codex2.err:1449:coordination/v1600p/p2-codex.err:940:- 效能量法（量測契約，R5 Codex）：**測試機**＝i7-12700H＋RTX 3060 Laptop、1280×800、VSync 開，ABBA ≥2 輪、每輪 ≥1000 幀；**最低支援配備**＝Steam Deck（1280×800、預設 TDP），Deck 數字由使用者實機量，未量前 33／40 ms 門檻只對測試機成立、Deck 另記；冷啟＝清 `.godot` 快取後第一次開；繪圖 p95 與整幀 p95 分開報；轉場、冷啟另寫探針（`perf_ab.sh` 只測戰鬥）。
+coordination/v1600-impl/b09-r1/codex2.err:1453:coordination/v1600-impl/b09-r1/codex2.err:16:未解（請判斷）：有畫面時最長幀包 58／即時烘 117 ms——都是圖集沒好時的向量替代畫法（標題示範棋盤 30 多隻），不是烘焙本身（不畫畫面時包 ≤29.7 ms）。要消掉需雙緩衝（重建時沿用舊圖集），重建那段貼圖記憶體暫時多約 80～180 MiB；我打算列為 B09 的已知限制、交 B06／B08 決定，S7 判決寫「烘焙 Go；玩家可見長幀減半但未達 40 ms」。
+coordination/v1600-impl/b09-r1/codex2.err:1455:coordination/v1600-impl/b09-r1/codex2.err:69:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：開發時（或匯出前）用 `--bake-pack` 把預設塗裝的圖集烘好存成壓縮 Image 資源，
+coordination/v1600-impl/b09-r1/codex2.err:1456:coordination/v1600-impl/b09-r1/codex2.err:425:+## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:1459:coordination/v1600-impl/b09-r1/codex2.err:611:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：兵種條拆拼逐像素一致、環境鍵、壞包整包停用、包讀回＝烘的時候的像素（解碼差 0）、過期包不用
+coordination/v1600-impl/b09-r1/codex2.err:1461:coordination/v1600-impl/b09-r1/codex2.err:724:+## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到「全部就緒」build_done 的時間、期間每幀）；熱＝同一程序切色盲重建 20 次。
+coordination/v1600-impl/b09-r1/codex2.err:1465:coordination/v1600-impl/b09-r1/codex2.err:767:+## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+coordination/v1600-impl/b09-r1/codex2.err:1471:coordination/v1600-impl/b09-r1/codex2.err:884:# B09 S7 第二版：ABBA（A＝--no-pack 即時烘、B＝離線包）。blank：每塊 5 個程序×8 塊＝每邊 20 冷、每程序 20 熱；scene：每塊 1×8＝每邊 4
+coordination/v1600-impl/b09-r1/codex2.err:1473:coordination/v1600-impl/b09-r1/codex2.err:1115:   294	## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:1644:  1177			var parts: PackedStringArray = str(k).split("/")
+coordination/v1600-impl/b09-r1/codex2.err:1693:  1672	## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+coordination/v1600-impl/b09-r1/codex2.err:1856:   177				wt_loc[chunk[k]] = [pg, k * 2 * per_w]
+coordination/v1600-impl/b09-r1/codex2.err:1973:   294	## ── 1.6.0 B09（S7）離線包 ──
+coordination/v1600-impl/b09-r1/codex2.err:2078:   399		while c0 < total:
+coordination/v1600-impl/b09-r1/codex2.err:2134:   455	## 原本是「讀回 → 建 ImageTexture 上傳 → 後處理 → 再讀回」，每頁多一次整頁讀回與上傳。讀完才釋放來源視窗。
+coordination/v1600-impl/b09-r1/codex2.err:2217:coordination/v1600p/agy_r2/r1-codex.md:97:| K4 效能 | R3 先登記實際 CPU／GPU／驅動／電源／OS；Godot 4.6.2、Compatibility、1280×800。同機 ABBA 兩輪；冷／熱各 20 次，報各次最大值與分位數。暫定最長烘焙幀 <40ms；全選新增常駐貼圖 ≤64MiB、額外暫存 ≤32MiB，相對同機新量的 1.5.0。失敗先減素材與同時需求，不降低語意辨識。 |
+coordination/v1600-impl/b09-r1/codex2.err:2220:coordination/v1600p/agy_r5/2026-11-15-v1.6.0-plan.md:166:- **K4 效能**：登記測試機；同機 ABBA 兩輪、冷熱各 20 次；烘焙最長幀 <40ms、新增常駐 ≤64MiB、暫存 ≤32MiB（提案預算）；繪圖 p95 ≤16.67ms。
+coordination/v1600-impl/b09-r1/codex2.err:2221:coordination/v1600p/r1-codex.md:97:| K4 效能 | R3 先登記實際 CPU／GPU／驅動／電源／OS；Godot 4.6.2、Compatibility、1280×800。同機 ABBA 兩輪；冷／熱各 20 次，報各次最大值與分位數。暫定最長烘焙幀 <40ms；全選新增常駐貼圖 ≤64MiB、額外暫存 ≤32MiB，相對同機新量的 1.5.0。失敗先減素材與同時需求，不降低語意辨識。 |
+coordination/v1600-impl/b09-r1/codex2.err:2223:coordination/v1600p/agy_r4/2026-11-15-v1.6.0-plan.md:130:- **K4 效能**：登記測試機；同機 ABBA 兩輪、冷熱各 20 次；烘焙最長幀 <40ms、新增常駐 ≤64MiB、暫存 ≤32MiB（提案預算）；繪圖 p95 ≤16.67ms。
+coordination/v1600-impl/b09-r1/codex2.err:2232:4. `b09-plan.md:14；b09-abba.txt:2–4`：58ms 未達 S7，場景冷測僅4次；85.7MiB 亦未證明容量合格。可登記限制交 B06／B08，但只能稱烘焙子項達標，不能據此給 S7 Go。
+coordination/v1600-impl/b09-r1/diff2.patch:17:+## 1.6.0 B09（S7；P10.2）預設外觀離線圖集包：開發時（或匯出前）用 `--bake-pack` 把預設塗裝的圖集烘好存成壓縮 Image 資源，
+     1	#!/usr/bin/env bash
+     2	# 匯出成品驗收（第七輪 S3）：匯出正式版、試玩版、Linux，對成品跑 --self-check（不開視窗、不碰 Steam、不碰玩家存檔）。
+     3	# 用法：GODOT=<Godot 4.6.2 Windows exe> tools/export_check.sh <輸出資料夾（WSL 路徑，空的或不存在）> [--smoke]
+     4	# --smoke：只驗 Windows 正式版（開發中的快速版）。
+     5	set -uo pipefail
+     6	cd "$(dirname "$0")/.."
+     7	GODOT="${GODOT:?要設 GODOT}"; OUT="${1:?要給輸出資料夾}"; MODE="${2:-}"
+     8	[ -d "$OUT" ] && [ -n "$(ls -A "$OUT" 2>/dev/null)" ] && { echo "EXPORT FAIL：$OUT 不是空的"; exit 2; }
+     9	mkdir -p "$OUT/win" "$OUT/demo" "$OUT/linux"
+    10	rm -rf .godot/exported   # 第七輪：舊的匯出快取會帶到搬走的腳本，匯出成品開不起來（實際踩過：main.gd 拆出 dev_main.gd 之後）
+    11	# 路徑給 Windows 版 Godot：WSL 用 wslpath、Git Bash（CI 的 Windows 執行器）用 cygpath，其他原樣（V1.0.0 T2）
+    12	wp() { if [[ "$GODOT" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then wslpath -w "$1"; elif [[ "$GODOT" == *.exe ]] && command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+    13	ex() {  # 預設名稱 路徑
+    14	  timeout 300 "$GODOT" --headless --path "$(wp .)" --export-release "$1" "$(wp "$2")" > "$OUT/export-$3.log" 2>&1 || { echo "EXPORT FAIL：$1 匯出 exit 非 0"; exit 1; }
+    15	  grep -E "SCRIPT ERROR|Parse Error" "$OUT/export-$3.log" && { echo "EXPORT FAIL：$1 匯出有腳本錯誤"; exit 1; }
+    16	  [ -s "$2" ] || { echo "EXPORT FAIL：$1 沒有產生 $2"; exit 1; }
+    17	}
+    18	sc() {  # 執行檔 期望 demo 標記
+    19	  local log="$OUT/selfcheck-$3.log"
+    20	  timeout 90 "$1" --headless -- --self-check > "$log" 2>&1
+    21	  local rc=$?
+    22	  local line; line=$(grep -a '^SELFCHECK' "$log" | tr -d '\r')
+    23	  echo "$3: $line"
+    24	  [ "$rc" = "0" ] || { echo "EXPORT FAIL：$3 自我檢查 exit $rc（看 $log）"; exit 1; }
+    25	  echo "$line" | grep -q "\"demo\":$2" || { echo "EXPORT FAIL：$3 試玩版標記不對"; exit 1; }
+    26	  echo "$line" | grep -q '"exported":true' || { echo "EXPORT FAIL：$3 不是匯出版"; exit 1; }
+    27	  echo "$line" | grep -q '"engine":"4.6.2' || { echo "EXPORT FAIL：$3 引擎版本不對"; exit 1; }
+    28	  echo "$line" | grep -q '"ok":true' || { echo "EXPORT FAIL：$3 自我檢查 ok 不是 true"; exit 1; }   # V1.0.0 T2
+    29	  [ -n "${EXPECT_VERSION:-}" ] && { echo "$line" | grep -q "\"version\":\"$EXPECT_VERSION\"" || { echo "EXPORT FAIL：$3 版本不是 $EXPECT_VERSION"; exit 1; }; }
+    30	  grep -aE "SCRIPT ERROR" "$log" && { echo "EXPORT FAIL：$3 有腳本錯誤"; exit 1; }
+    31	}
+    32	# 1.6.0 B09：匯出前一定重烘預設外觀離線圖集包（包不進 git；過期的包成品裡沒人驗得出來）。要開渲染視窗（移到畫面外）；NO_PACK=1 略過（成品會即時烘）
+    33	if [ "${NO_PACK:-}" != "1" ]; then
+    34	  timeout 600 "$GODOT" --path "$(wp .)" --resolution 1280x800 -- --bake-pack="$(wp "$OUT/bake-pack.json")" > "$OUT/bake-pack.log" 2>&1
+    35	  grep -a '^BAKEPACK OK' "$OUT/bake-pack.log" || { echo "EXPORT FAIL：離線圖集包烘失敗（看 $OUT/bake-pack.log；NO_PACK=1 可略過）"; exit 1; }
+    36	fi
+    37	ex "Windows Desktop" "$OUT/win/NoTakeBacks.exe" win
+    38	sc "$OUT/win/NoTakeBacks.exe" false win
+    39	if [ "${NO_PACK:-}" != "1" ]; then
+    40	  grep -a '^SELFCHECK' "$OUT/selfcheck-win.log" | grep -q '"pack":true' || { echo "EXPORT FAIL：成品沒帶到能用的離線圖集包（看 selfcheck-win.log 的 pack_why）"; exit 1; }
+    41	fi
+    42	if [ "$MODE" != "--smoke" ]; then
+    43	  ex "Windows Demo" "$OUT/demo/NoTakeBacksDemo.exe" demo
+    44	  sc "$OUT/demo/NoTakeBacksDemo.exe" true demo
+    45	  # Linux 匯出要 linux_release.x86_64 模板。本機只裝了 Windows 模板時明講略過（不是通過）；CI 的 export job 會實跑。
+    46	  linux_tpl() {   # Windows 版 Godot 的模板資料夾裡有沒有 Linux 模板（WSL 與 Git Bash 都要能查）
+    47	    if command -v wslpath >/dev/null 2>&1; then ls "$(wslpath -u "$(cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')")/Godot/export_templates/4.6.2.stable/linux_release.x86_64" >/dev/null 2>&1
+    48	    else ls "${APPDATA:-/nonexistent}/Godot/export_templates/4.6.2.stable/linux_release.x86_64" >/dev/null 2>&1; fi
+    49	  }
+    50	  if [ -n "${LINUX_TEMPLATE_OK:-}" ] || [[ "$GODOT" != *.exe ]] || linux_tpl; then
+    51	    ex "Linux" "$OUT/linux/NoTakeBacks.x86_64" linux
+    52	    mkdir -p "$OUT/linux-demo"
+    53	    ex "Linux Demo" "$OUT/linux-demo/NoTakeBacksDemo.x86_64" linux-demo
+    54	    chmod +x "$OUT/linux/NoTakeBacks.x86_64" "$OUT/linux-demo/NoTakeBacksDemo.x86_64"
+    55	    sc "$OUT/linux/NoTakeBacks.x86_64" false linux
+    56	    sc "$OUT/linux-demo/NoTakeBacksDemo.x86_64" true linux-demo   # V1.0.0 T2：Linux 試玩版也要實際啟動
+    57	  else
+    58	    echo "LINUX SKIPPED：本機沒有 Linux 匯出模板（未驗證，不是通過）"
+    59	  fi
+    60	fi
+    61	du -sh "$OUT"/*/ | sed 's/^/size /'
+    62	# V1.0.0 R0：發版凍結紀錄（commit、各成品雜湊）
+    63	{ echo "commit $(git rev-parse HEAD 2>/dev/null)"; echo "dirty $(git status --porcelain 2>/dev/null | wc -l)"; for f in "$OUT"/*/*.exe "$OUT"/*/*.x86_64 "$OUT"/*/*.pck; do [ -f "$f" ] && sha256sum "$f"; done; } > "$OUT/manifest.txt"
+    64	echo "MANIFEST $OUT/manifest.txt"
+    65	echo "EXPORT OK"
+  1630	
+  1631	## 1.6.0 B09（Codex r2 #3）實跑：①重建中途換色盲（競態）：最後是新配色、包讀到的頁＝包裡兵種條拼的頁、沒有誤停用；
+  1632	## ②壞包：把一條換成別種（同尺寸）→ 驗檔擋下、整包停用、退回即時烘，而且即時烘的頁＝原包拼的頁（包和即時烘逐像素一樣）。
+  1633	## 用法：<exe> --path game --resolution 1280x800 -- --pack-selftest=<json 絕對路徑>
+  1634	func _run_pack_selftest(out_path: String) -> void:
+  1635		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+  1636		DisplayServer.window_set_position(Vector2i(-4000, -4000))
+  1637		var AP = preload("res://scripts/ui/atlas_pack.gd")
+  1638		var rep := {}
+  1639		var wait_all := func(cb: bool) -> void:
+  1640			var g := 0
+  1641			while not (sprites.build_done and sprites.is_ready(cb) and not sprites._busy and not sprites._ta_busy) and g < 4000:
+  1642				g += 1
+  1643				await RenderingServer.frame_post_draw
+  1644		var page_eq := func(cbn: int, dir: String) -> bool:   # 目前第 0 頁（舊 10 種的第一頁）＝dir 裡的兵種條拼起來
+  1645			var pe: Dictionary = sprites.pages[0]
+  1646			var got: Image = (pe["tex"] as Texture2D).get_image()
+  1647			var strips: Array = []
+  1648			for t in pe["types"]:
+  1649				strips.append(load("%s/cb%d/type%d.res" % [dir, cbn, t]))
+  1650			var want: Image = sprites.page_from(strips, got.get_height() / sprites.CELL)
+  1651			return got.get_data() == want.get_data()
+  1652		await wait_all.call(false)
+  1653		# ① 競態
+  1654		AP.reset()
+  1655		sprites.pack_stats = {"hit": 0, "paint": 0}
+  1656		sprites.build(false)
+  1657		for i in 3:
+  1658			await RenderingServer.frame_post_draw
+  1659		sprites.build(true)
+  1660		await wait_all.call(true)
+  1661		rep["race_ready_cb"] = sprites.is_ready(true)
+  1662		rep["race_pack_still_on"] = AP.usable() and AP.misses == 0
+  1663		rep["race_hits"] = sprites.pack_stats["hit"]
+  1664		rep["race_paint"] = sprites.pack_stats["paint"]
+  1665		rep["race_page_eq"] = page_eq.call(1, AP.DIR)
+  1666		# ② 壞包：複製一份到 user://，把舊 10 種第一頁的一條換成同尺寸的別種
+  1667		var bad := "user://pack_selftest"
+  1668		for cbd in ["cb0", "cb1"]:
+  1669			DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(bad + "/" + cbd))
+  1670			for f in DirAccess.get_files_at(AP.DIR + "/" + cbd):
+  1671				DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.DIR + "/" + cbd + "/" + f), ProjectSettings.globalize_path(bad + "/" + cbd + "/" + f))
+  1672		DirAccess.copy_absolute(ProjectSettings.globalize_path(AP.DIR + "/manifest.json"), ProjectSettings.globalize_path(bad + "/manifest.json"))
+  1673		var t0: int = sprites.pages[0]["types"][0]
+  1674		DirAccess.copy_absolute(ProjectSettings.globalize_path(bad + "/cb0/type%d.res" % (t0 + 1)), ProjectSettings.globalize_path(bad + "/cb0/type%d.res" % t0))
+  1675		AP.dir = bad
+  1676		AP.reset()
+  1677		sprites.pack_stats = {"hit": 0, "paint": 0}
+  1678		sprites.build(false)
+  1679		await wait_all.call(false)
+  1680		rep["bad_detected"] = AP.misses >= 1 and not AP.usable()
+  1681		rep["bad_why"] = AP.why
+  1682		rep["bad_fell_back_paint"] = sprites.pack_stats["paint"] > 0
+  1683		rep["bad_ready"] = sprites.is_ready(false)
+  1684		AP.dir = AP.DIR
+  1685		rep["paint_eq_pack"] = page_eq.call(0, AP.DIR)   # 退回即時烘的頁＝原包拼的頁
+  1686		rep["ok"] = bool(rep["race_ready_cb"]) and bool(rep["race_pack_still_on"]) and int(rep["race_hits"]) > 0 and bool(rep["race_page_eq"]) and bool(rep["bad_detected"]) and bool(rep["bad_fell_back_paint"]) and bool(rep["bad_ready"]) and bool(rep["paint_eq_pack"])
+  1687		AP.reset()
+  1688		var f := FileAccess.open(out_path, FileAccess.WRITE)
+  1689		f.store_string(JSON.stringify(rep, "  "))
+  1690		f.close()
+  1691		print("PACKSELFTEST ", "OK" if rep["ok"] else "FAIL", " ", JSON.stringify(rep))
+  1692		get_tree().quit(0 if rep["ok"] else 1)
+  1693	
+  1694	
+  1695	## 1.6.0 B09（S7）冷熱量測：冷＝這個程序開機第一次烘（到「全部就緒」build_done 的時間、期間每幀）；熱＝同一程序切色盲重建 20 次。
+  1696	## 屏障＝build_done（腳底圈、舊 10 種、轉身／待機／走路轉身全好）＋沒有在烘的新兵頁、轉身出手（Codex B09 r1 #4）。
+  1697	## 每次記：最長幀（全部幀，含開機頭兩幀）、頭兩幀另列、暫存記憶體峰值（相對開始時）。--bench-blank＝畫面不畫（只量烘焙）；預設有畫面（玩家實際承受：含圖集沒好時的向量替代畫法）。
+  1698	## 加 --no-pack＝即時烘焙對照。用法：<exe> --path game --resolution 1280x800 -- --pack-bench=<json 絕對路徑> [--no-pack] [--bench-blank]
+  1699	func _bench_wait(cb: bool) -> Dictionary:
+  1700		var t0 := Time.get_ticks_msec()
+  1701		var last := Time.get_ticks_usec()
+  1702		var frames: Array = []
+  1703		var m0 := Performance.get_monitor(Performance.MEMORY_STATIC)
+  1704		var mpk := m0
+  1705		var t_0 := Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)
+  1706		var tpk := t_0
+  1707		var g := 0
+  1708		while sprites != null and not (sprites.build_done and sprites.is_ready(cb) and not sprites._busy and not sprites._ta_busy) and g < 3000:
+  1709			g += 1
+  1710			await RenderingServer.frame_post_draw
+  1711			var now := Time.get_ticks_usec()
+  1712			frames.append(snappedf((now - last) / 1000.0, 0.1))
+  1713			last = now
+  1714			mpk = maxf(mpk, Performance.get_monitor(Performance.MEMORY_STATIC))
+  1715			tpk = maxf(tpk, Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED))
+  1716		return {"tex_peak_over_mib": snappedf((tpk - t_0) / 1048576.0, 0.1), "tex_peak_mib": snappedf(tpk / 1048576.0, 0.1), "ms": Time.get_ticks_msec() - t0, "longest_frame_ms": frames.max() if not frames.is_empty() else 0.0, "first2": frames.slice(0, 2),
+  1717			"after2_max": frames.slice(2).max() if frames.size() > 2 else 0.0, "frames": frames.size(), "temp_peak_mib": snappedf((mpk - m0) / 1048576.0, 0.1)}
+  1718	
+  1719	func _run_pack_bench(out_path: String) -> void:
+  1720		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+  1721		DisplayServer.window_set_position(Vector2i(-4000, -4000))
+  1722		var blank := "--bench-blank" in OS.get_cmdline_user_args()
+  1723		if blank:
+  1724			visible = false   # 只量烘焙本身：畫面不畫
+  1725		var cold: Dictionary = await _bench_wait(false)
+  1726		var warm: Array = []
+  1727		for i in 20:
+  1728			var cb := i % 2 == 0
+  1729			sprites.build(cb)
+  1730			var w: Dictionary = await _bench_wait(cb)
+  1731			w["cb"] = cb
+  1732			warm.append(w)
+  1733		var AP = preload("res://scripts/ui/atlas_pack.gd")
+  1734		var rep := {"blank": blank, "pack": AP.usable(), "why": AP.why, "misses": AP.misses, "cold": cold, "warm": warm, "stats": sprites.pack_stats.duplicate(), "stages": sprites.stage_report(),
+  1735			"tex_mib": snappedf(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0, 0.1), "static_mib": snappedf(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, 0.1)}
+  1736		var f := FileAccess.open(out_path, FileAccess.WRITE)
+  1737		f.store_string(JSON.stringify(rep, "  "))
+  1738		f.close()
+  1739		get_tree().quit()
+  1740	
+  1741	## 1.6.0 B09（S7）烘離線圖集包：預設塗裝 × 一般／色盲，全部 22 種兵的頁條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈。
+  1742	## 烘完自我核對（兵種條拼回整頁要逐像素一樣）、寫清冊（來源雜湊、引擎、渲染路徑）。視窗移到畫面外（不搶焦點）。
+  1743	## 用法：<exe> --path game --resolution 1280x800 -- --bake-pack=<報告 json 絕對路徑>
+  1744	func _run_bake_pack(report_path: String) -> void:
+  1745		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+  1746		DisplayServer.window_set_position(Vector2i(-4000, -4000))
+  1747		var AP = preload("res://scripts/ui/atlas_pack.gd")
+  1748		var t0 := Time.get_ticks_msec()
+  1749		var rep := {"ok": false}
+  1750		var saved_paint: Array = Art.paint.duplicate()
+  1751		Art.paint = [0, 0, 1, 1, 0, 0]   # 只收預設塗裝
+  1752		sprites.pack_capture = true
+  1753		AP.saved_sha.clear()
+  1754		AP.saved_fsha.clear()
+  1755		var mism := 0
+  1756		var pages_checked := 0
+  1757		for cb in [false, true]:
+  1758			var g := 0
+  1759			while sprites._busy and g < 2000:   # 等開機那次烘完（避免兩次烘交錯）
+  1760				g += 1
+  1761				await get_tree().process_frame
+  1762			sprites.pack_pages.clear()
+  1763			await sprites.build(cb)
+  1764			sprites.ensure(range(D.COUNT, 22))
+  1765			sprites.ensure_turn_atk(range(0, 22))
+  1766			g = 0
+  1767			while (sprites._busy or sprites._ta_busy) and g < 20000:
+  1768				g += 1
+  1769				await get_tree().process_frame
+  1770			for pe in sprites.pack_pages:
+
+codex
+`plain_ui` 排除與缺條停包已補上，自我測試也實際走了競態及壞包回退。新雙緩衝會逐兵種切到新圖集；我正核對重建完成時是否仍保留當前戰場需要的兵種，以及量測是否涵蓋這條路徑。
+exec
+/bin/bash -lc "nl -ba coordination/v1600-impl/b09-plan.md; nl -ba game/scripts/ui/sprite_cache.gd | head -82; rg -n 'sprites\\.(build|ensure|draw_ring|draw_base|draw_back_walk)' game/scripts; rg -n 'plain_ui|paint_sig' game/scripts/ui/game_screens.gd game/scripts/ui/ui_base.gd game/scripts/ui/screens/game_menus.gd; rg -n 'S7|P10.3|暫存|冷.*20' coordination/v1600-impl/*.md | head -65; rg --files coordination/v1600-impl | rg 'b09|b06|b08'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 159ms:
+     1	# B09 圖集不卡（S7；P10.2、P10.3）
+     2	
+     3	## 起點（1.5.0，同機：i7-12700H／RTX 3060 Laptop／Godot 4.6.2 Compatibility／Windows，1280×800）
+     4	`--perf`：圖集掃描烘焙最長幀 46.6 ms（歷史值重現）；分段：讀回最長 17.8 ms、上傳 5.8 ms、單段畫格（含等 GPU）190 ms；色盲重建 163 ms；戰鬥整幀 max 154／p99 101 ms。
+     5	
+     6	## 做法
+     7	- 預設外觀離線包 `scripts/ui/atlas_pack.gd`：`--bake-pack` 烘預設塗裝 × 一般／色盲的全部 22 種（兵種條、轉身、待機、走路轉身、轉身出手、背面走路、腳底圈），存壓縮 Image 資源 `art/pack/cb{0,1}/*.res`（140 張、61.5 MiB），清冊記來源雜湊（畫法、姿勢、色票、後處理 shader、烘焙程式）、引擎、渲染路徑、格式、每張圖像素雜湊、自我核對（兵種條拼回整頁＝畫出來的頁）。
+     8	- 執行時 `sprite_cache._baked(key, 做法, 尺寸)`：預設塗裝＋包能用＝背景執行緒讀包（`load_threaded_request`），新兵種頁由兵種條在 WorkerThreadPool 拼頁，主執行緒只上傳；尺寸不對／讀失敗＝整包停用退回即時烘；特殊塗裝＝即時烘；開發環境來源改過＝包過期不用。
+     9	- 一頁 6 種 → 2 種（容量不變，`MAX_PAGES` 5→15）。
+    10	- 包不進 git（.gitignore）；`tools/export_check.sh` 匯出前一定重烘、成品自我檢查回報 `pack`；`NO_PACK=1` 可略。
+    11	- 量測：`--pack-bench`（冷＝開機到就緒，熱＝同程序 20 次重建；`--bench-blank` 只量烘焙、`--no-pack` 對照）；`LAYOUT_NOPACK=1`。
+    12	
+    13	## 驗收（S7 判決）
+    14	最長幀 <40 ms（冷熱各 20、ABBA）、解碼像素差 0、來源變更／壞包錯命中 0、容量在預算內。
+     1	extends Node
+     2	## 角色精靈圖快取（第二輪方案 R2、H；第八輪改分頁）：實測 48 隻時每幀直接程式繪製要 34ms（約 15fps），
+     3	## 所以用同一份 Art.unit 畫法，把兵種×隊伍×動作影格畫進圖集，戰鬥中只貼圖。
+     4	## 第八輪：一張大圖放 22 種會到 3072×11712，Compatibility 渲染器超過 4096 有風險。改成每頁 ≤4096（7 種兵），
+     5	## 開場只烘舊 10 種，新兵上場才烘；還沒烘好時呼叫端直接畫，不會缺圖。頁數有上限，超過丟最舊的新兵頁。
+     6	## 用同一份畫法烘焙，但不是逐像素等價（Codex R1 審查 #3、#4，已知且接受的差異）：
+     7	##  - 走路量化成 6 格、攻擊 8 格；攻擊中不再疊走路相位；走路／攻擊格固定睜眼（只在待機眨眼）。
+     8	## 表情疊加（受擊、暈眩、衝鋒、狂熱、潛行、頂住）不烘焙，貼完圖再用 Art.overlay 在同一個局部座標畫上去。
+     9	##  - 透明度（潛行）是對整張合成好的角色乘 alpha，重疊的部位不會像逐圖元那樣透出底下的線條。
+    10	## 待機呼吸位移在貼圖時加（烘焙時抵銷為 0）；受擊閃白跟著攻擊前衝與走路起伏。
+    11	## 沒有畫面（headless）或還沒建好時，呼叫端退回 Art.unit。
+    12	
+    13	const Art = preload("res://scripts/ui/art.gd")
+    14	const D = preload("res://scripts/core/unit_defs.gd")
+    15	const Gait = preload("res://scripts/ui/units/gait.gd")
+    16	const Save = preload("res://scripts/game/save.gd")
+    17	const AtlasPack = preload("res://scripts/ui/atlas_pack.gd")   # 1.6.0 B09 預設外觀離線圖集包
+    18	
+    19	const CELL := 192          # 每格像素（以 RS 倍率畫）；比角色大一圈，避免相鄰格子滲色
+    20	const RS := 1.6            # 烘焙解析度倍率
+    21	const ORIGIN := Vector2(78, 160)   # 角色腳底在格子裡的位置（第七輪 C0：原本會超框被切掉）
+    22	const RING_ORIGIN := Vector2(96, 140)   # 腳底圈格子的中心（有影子，要留下方空間）
+    23	const WALK_FRAMES := 8     # V9 P2：6→8，另加拖行、暈眩
+    24	const POSE_FRAMES := 2
+    25	const ATK_FRAMES := 8      # 三段式攻擊（R5）要多幾格才看得出前搖／揮擊／後搖
+    26	# 每個兵種、隊伍的影格順序：0 待機、1 眨眼、2..7 走路、8..23 攻擊兩組（一般／交替或專屬）
+    27	const FRAMES_PER := 2 + WALK_FRAMES + POSE_FRAMES + ATK_FRAMES * 2
+    28	const COLS := 16
+    29	const TYPES_PER_PAGE := 2  # 1.6.0 B09：6→2（一頁 2×2×28＝112 格＝7 列×192＝1344px）：大頁第一次上傳 GPU 是長幀主因，小頁分散到多幀；總容量不變
+    30	const MAX_PAGES := 15   # 1.6.0 B09：頁變小，頁數上限 ×3（容量同樣 30 種）
+    31	const TURN_TYPES := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]   # V1.3.1：全部 22 種（V1.3.0 只有 6 種試點）
+    32	const TURN_C := [0.8, 0.55, 0.3]
+    33	# V1.3.1 P1：走路中轉身（2 個角度 × 4 個步相，保留步相；每頁 11 種兵）、待機小動作 4 格＋受擊帽子彈起 1 格
+    34	const WT_C := [0.55]   # V1.3.1 驗收：兩個角度實測貼圖記憶體 +126 MiB 超過 §0 的 104，改一個角度（一頁放得下 22 種）
+    35	const WT_PH := 4
+    36	const WT_TYPES_PER_PAGE := 22
+    37	const FID_PER := 5
+    38	## 每種兵的待機小動作：[前搖姿勢的幅度 0～1（舉武器、掀蓋、抬杖）, 回頭看 0～1]
+    39	# V1.3.1 審查後：幅度加大（Antigravity：1～2px 看不出來）；投彈兵借前搖會讓火罐離手，改成回頭看；羊、幽靈的臉不讀 look，改用前搖
+    40	const FIDGET := {0: [0.35, 0.0], 1: [0.8, 0.0], 2: [0.4, 0.0], 3: [0.35, 1.0], 4: [0.8, 0.0], 5: [0.35, 1.0], 6: [0.0, 1.0],
+    41		7: [0.8, 0.0], 8: [0.3, 1.0], 9: [0.35, 0.0], 10: [0.9, 0.0], 11: [0.5, 0.0], 12: [0.9, 0.0], 13: [0.35, 0.0],
+    42		14: [0.5, 0.0], 15: [0.8, 1.0], 16: [0.35, 0.0], 17: [0.35, 1.0], 18: [0.8, 0.0], 19: [0.3, 1.0], 20: [0.35, 0.0], 21: [0.35, 1.0]}
+    43	
+    44	var pages: Array = []      # 每頁 {tex, types}
+    45	var loc := {}              # 兵種 → [頁, 這一種在頁裡的起始格]
+    46	var ring_tex: Texture2D = null
+    47	var turn_tex: Texture2D = null   # V1.3 A1b：轉身頁（6 種 × 2 隊 × 3 張）
+    48	var turn_loc := {}               # 兵種 → 轉身頁起始格
+    49	var wt_pages: Array = []         # V1.3.1：走路轉身頁
+    50	var wt_loc := {}                 # 兵種 → [頁, 起始格]
+    51	var fid_tex: Texture2D = null    # V1.3.1：待機小動作＋受擊帽子
+    52	## V1.5.1 A3：轉身途中出手（1 個中繼角 ×（一般＋交替／專屬）攻擊各 8 格 × 兩隊＝每種 32 格、約 4.5 MiB），只烘這場出場的兵種，最多留 TA_MAX 種（最久沒用的先丟）
+    53	const TA_C := 0.55
+    54	const TA_MAX := 10
+    55	var ta_tex := {}       # 兵種 → Texture2D（16 欄 × 1 列）
+    56	var ta_order: Array = []   # 最近用到的在後面
+    57	var ta_wanted: Array = []  # 最近要求過的兵種（換色、換塗裝重烘之後自動補回，Codex v151-i1 #6）
+    58	var _ta_busy := false
+    59	## 1.3.0 §5.4：背面走路頁（3/4 背面、4 步相 × 兩隊＝一列 8 格），只烘這一場的兵種、最多 TA_MAX 種、LRU（和轉身出手頁同一套）
+    60	const BW_C := 0.55
+    61	const BW_MAX := 22   # 一場最多 20 種兵＋2 種召喚物：全部留著（約 2.4 MiB／種），不讓在場的兵被淘汰回側面（方案 §19.3 全種類門檻；Codex cat05 #3）
+    62	var bw_tex := {}
+    63	var bw_order: Array = []
+    64	var _ta_queue: Array = []
+    65	var fid_loc := {}
+    66	var ready_paint := ""     # V1.4 #15：這份快取是用哪套塗裝烘的
+    67	var ready_cb := -1         # 這份快取是用哪種配色（一般／色盲）烘焙的
+    68	var _busy := false
+    69	var _gen := 0   # V1.2：每次 build（換色）加一；烘到一半世代變了就作廢（Codex v120-impl2：連切色盲的競態）
+    70	var _queue: Array = []
+    71	var _baking: Array = []
+    72	
+    73	func is_ready(cb: bool) -> bool:
+    74		return ring_tex != null and ready_cb == (1 if cb else 0) and ready_paint == Art.paint_sig()
+    75	
+    76	func has_type(t: int) -> bool:
+    77		return loc.has(t)
+    78	
+    79	func has_turn(t: int) -> bool:
+    80		return turn_tex != null and turn_loc.has(t)
+    81	
+    82	## 腳底在格子裡的位置：往前伸得很長的長槍兵靠左、很寬的小石魔靠右，其他都一樣。
+nl: could not write output: Broken pipe
+game/scripts/ui/ui_base.gd:1911:	elif scale <= 1.4 and sprites != null and not sprites.build_done and int(get("state")) == St.TITLE and str(get("shot_dir")) == "" and not layout_probe:
+game/scripts/ui/ui_base.gd:2067:		sprites.draw_ring(self, p, team, type, scale, air)
+game/scripts/ui/ui_base.gd:2073:		sprites.build(cbm())
+game/scripts/ui/screens/game_v16.gd:1409:		sprites.ensure(need)   # 兵種頁：卡池裡的都烘（最多 5 頁，上限照舊）
+game/scripts/ui/screens/game_v16.gd:1415:		sprites.ensure_turn_atk(placed.keys())   # 轉身出手頁只烘已經在場上的（上限 10 種，不拿整個卡池去洗）
+game/scripts/ui/battle/battle_units.gd:1040:			drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
+game/scripts/ui/battle/battle_units.gd:1200:			sprites.draw_base(self, bp, UNIT_SCALE, 0.8 * lal, int(g["team"]))
+game/scripts/ui/battle/battle_state.gd:373:		sprites.ensure(need.keys())
+game/scripts/ui/battle/battle_state.gd:374:	sprites.ensure_turn_atk(all_t.keys())
+game/scripts/ui/game_screens.gd:86:				Save.settings["plain_ui"] = true
+game/scripts/ui/game_screens.gd:107:	# V1.2：自訂游標（小劍，tools/gen/gen_ui_tex.py 生成）；plain_ui 時用系統游標
+game/scripts/ui/game_screens.gd:108:	if not bool(Save.s("plain_ui")) and ResourceLoader.exists("res://art/ui/cursor.png"):
+game/scripts/ui/game_screens.gd:775:	if (state == St.BATTLE or state == St.PLACE) and not bool(Save.s("plain_ui")):
+game/scripts/ui/game_screens.gd:844:	if vg != null and not bool(Save.s("plain_ui")):
+game/scripts/ui/game_screens.gd:889:				ink_deep = not bool(Save.s("plain_ui"))   # 1.6.0 B03：結果紙是桌燈下的暗紙，紙上彩色字用深墨
+game/scripts/ui/game_screens.gd:909:	var open_k := clampf((time - _ov_t) / 0.3, 0.0, 1.0) if ok_anim and not bool(Save.s("plain_ui")) and not bool(Save.s("reduce_motion")) else 1.0   # 1.4.0：減少動態＝器物也直接開好（和轉場一致，Codex cat08 r2 #4）
+game/scripts/ui/game_screens.gd:1057:	return _ink_k() < INK_DUR and (shot_dir == "" or ink_force) and not bool(Save.s("reduce_fx")) and play_kind == "official" and not bool(Save.s("plain_ui"))
+game/scripts/ui/game_screens.gd:1280:	if overlay == "" or not SLIDE_FROM.has(overlay) or shot_dir != "" or layout_probe or bool(Save.s("reduce_fx")) or bool(Save.s("reduce_motion")) or bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:300:	return not bool(Save.s("reduce_fx")) and not bool(Save.s("plain_ui")) and speed < 4.0
+game/scripts/ui/ui_base.gd:952:	var paper_face := btn_paper and enabled and not bool(Save.s("plain_ui"))
+game/scripts/ui/ui_base.gd:954:	var cloth: bool = btn_cloth != "" and not paper_face and not bool(Save.s("plain_ui")) and _ui_tex(MAT[btn_cloth]) != null   # 1.2.0 §1.3 布標分頁
+game/scripts/ui/ui_base.gd:958:	var plaque: bool = not cloth and not paper_face and (tint.a <= 0.0 or ((sel_on or tint == TH_WOOD) and label != "")) and not bool(Save.s("plain_ui")) and r.size.y >= 26.0 and _ui_tex(MAT["plaque"]) != null
+game/scripts/ui/ui_base.gd:1040:	if (focus or hover) and enabled and not plain_ui_now():
+game/scripts/ui/ui_base.gd:1083:static func plain_ui_now() -> bool:
+game/scripts/ui/ui_base.gd:1084:	return bool(Save.s("plain_ui"))
+game/scripts/ui/ui_base.gd:1114:	if bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1140:	if bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1236:	if bool(Save.s("plain_ui")) or not _mat_box(P, "card1"):
+game/scripts/ui/ui_base.gd:1272:	if bool(Save.s("plain_ui")) or not _tex_box(r.grow_individual(8, 8, 8, 0), "wood", Color(0.3, 0.21, 0.15, 0.97)):
+game/scripts/ui/ui_base.gd:1281:	if fx == null or bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1295:	if bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1375:	if bg.a >= 0.6 and minf(r.size.x, r.size.y) >= 20.0 and not bool(Save.s("plain_ui")) and _tex_box(r, "wood", Color(bg.r * 1.28, bg.g * 1.28, bg.b * 1.28, bg.a)):
+game/scripts/ui/ui_base.gd:1420:		var vo := (maxf(1.2, s * 0.06) * 1.15 + 0.5) if (s >= 14.0 and not bool(Save.s("plain_ui")) and not _ink_mode) else 0.0
+game/scripts/ui/ui_base.gd:1426:	if col.a > 0.3 and s >= 14.0 and not bool(Save.s("plain_ui")) and not _ink_mode:   # 紙上的墨色圖示不厚塗（會糊成一團，Antigravity impl4）
+game/scripts/ui/ui_base.gd:1840:	if not bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1844:	if fx != null and not bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1856:	if panel_obj != "" and not bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1905:	if scale > 1.4 and alpha > 0.5 and not bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:1920:	if bool(Save.s("plain_ui")):
+game/scripts/ui/ui_base.gd:2104:	var vd := maxf(1.0, s * 0.07) * 1.4 if (s >= 14.0 and not bool(Save.s("plain_ui"))) else 0.0
+game/scripts/ui/ui_base.gd:2117:	if bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:175:	if not bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:189:		if not bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:212:	if not bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:255:	if not bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:273:		draw_rect(Rect2(mr2.position, Vector2(4, mr2.size.y)), ACCENT if (i == 0 and fresh) else (Color(0.12, 0.07, 0.03, 0.55) if not bool(Save.s("plain_ui")) else Color(1, 1, 1, 0.35)))   # 1.2.0：籤插進盒的那一端壓暗
+game/scripts/ui/screens/game_menus.gd:499:					Color(0.15, 0.32, 0.22) if st > 0 and plain_ui_now() else Color(0, 0, 0, 0))
+game/scripts/ui/screens/game_menus.gd:639:	"set_text": ["text_scale"], "set_hints": ["hints"], "set_plain_titles": ["plain_titles"], "set_ui_font": ["ui_font"], "set_plain_ui": ["plain_ui"], "set_toast": ["toast_mult"],
+game/scripts/ui/screens/game_menus.gd:791:				["set_plain_ui", L.t("v_simple") if bool(Save.s("plain_ui")) else L.t("v_standard"), func(d): _cycle_setting("plain_ui", [false, true]); _rebuild_sprites()],
+game/scripts/ui/screens/game_menus.gd:970:	if not bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:996:			if (val == L.t("on") or val == L.t("off")) and not bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:1004:			if bool(Save.s("plain_ui")):
+game/scripts/ui/screens/game_menus.gd:1714:		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
+game/scripts/ui/screens/game_menus.gd:1759:		_ink_mode = not bool(Save.s("plain_ui"))
+coordination/v1600-impl/ledger.md:8:- `sprite_cache.gd`：讀回、上傳、每段畫格分段計時（`stage_report()`），`--perf` 圖集掃描附 `stages`；正式冷熱 20 次放 B09。
+coordination/v1600-impl/b01-plan.md:4:3. **烘焙分段量測**：`sprite_cache.gd` 記讀回（GPU→CPU）、上傳（建貼圖）、每段畫格的次數／總時間／最大值（`stage_report()`）；`dev_main --perf` 的圖集掃描輸出附 `stages`。冷熱各 20 次的正式量測放 B09（要開視窗）。
+coordination/v1600-impl/b09-plan.md:1:# B09 圖集不卡（S7；P10.2、P10.3）
+coordination/v1600-impl/b09-plan.md:11:- 量測：`--pack-bench`（冷＝開機到就緒，熱＝同程序 20 次重建；`--bench-blank` 只量烘焙、`--no-pack` 對照）；`LAYOUT_NOPACK=1`。
+coordination/v1600-impl/b09-plan.md:13:## 驗收（S7 判決）
+coordination/v1600-impl/b09-plan.md:14:最長幀 <40 ms（冷熱各 20、ABBA）、解碼像素差 0、來源變更／壞包錯命中 0、容量在預算內。
+coordination/v1600-impl/b09-abba.sh
+coordination/v1600-impl/b09-abba.txt
+coordination/v1600-impl/b09-plan.md
+coordination/v1600-impl/b09-r1/codex2.err
+coordination/v1600-impl/b09-r1/codex.md
+coordination/v1600-impl/b09-r1/codex.err
+coordination/v1600-impl/b09-r1/codex-prompt3.md
+coordination/v1600-impl/b09-r1/codex-prompt2.md
+coordination/v1600-impl/b09-r1/codex-prompt.md
+coordination/v1600-impl/b09-r1/codex3.md
+coordination/v1600-impl/b09-r1/codex3.err
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1600-impl/b09-r1/diff2.patch
+coordination/v1600-impl/b09-r1/diff.patch
+coordination/v1600-impl/b09-r1/diff3.patch
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/ui_base.gd | sed -n '2055,2085p'; nl -ba game/scripts/ui/battle/battle_state.gd | sed -n '340,385p'; nl -ba game/scripts/ui/game_screens.gd | sed -n '36,108p'; nl -ba game/scripts/ui/screens/game_v16.gd | sed -n '1390,1422p'; rg -n '_ensure_battle|_ensure.*sprites|_rebuild_sprites|ensure.*sprites' game/scripts/ui; nl -ba coordination/v1600-impl/b09-abba.txt; cat coordination/v1600-impl/b09-abba.sh" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 52ms:
+  2055		for i in src.size():
+  2056			_hr_buf[i] = c + src[i] * r
+  2057		draw_polyline(_hr_buf, col, w, true)
+  2058	
+  2059	func _ring(p: Vector2, team: int, type: int, scale := 1.0, air := 0.0) -> void:
+  2060		if ring_shadow > 0.0:
+  2061			var sh := PackedVector2Array()
+  2062			for i in 16:
+  2063				var an := i * TAU / 16.0
+  2064				sh.append(p + Vector2(cos(an) * 17.0, 3.0 + sin(an) * 7.0) * Vector2(scale, scale) + Vector2(0, 0))
+  2065			draw_colored_polygon(sh, Color(0.05, 0.08, 0.15, ring_shadow))
+  2066		if sprites != null and sprites.is_ready(cbm()):
+  2067			sprites.draw_ring(self, p, team, type, scale, air)
+  2068		else:
+  2069			Art.ring(self, p, team, type, cbm(), scale, air)
+  2070	
+  2071	func _rebuild_sprites() -> void:
+  2072		if sprites != null:
+  2073			sprites.build(cbm())
+  2074	
+  2075	
+  2076	## 目前模式的名稱（S8：只用到 ui_base 的狀態，從 game_screens 移下來）
+  2077	func _mode_label() -> String:
+  2078		match mode:
+  2079			Mode.VS_AI:
+  2080				var dsp = get("daily_spec")
+  2081				if dsp is Dictionary and not dsp.is_empty():
+  2082					return "%s・%s" % [L.t("menu_daily"), L.t("daily_mut_%d" % int(dsp["mut"]))]   # V1.1 D2
+  2083				return "%s・%s" % [L.t("menu_vs_ai"), L.t(["diff_easy", "diff_normal", "diff_hard"][difficulty])]
+  2084			Mode.DUEL: return "%s・%s" % [L.t("menu_duel"), L.t("rule_custom", [rules.turns]) if duel_rule == "custom" and rules != null else L.t("rule_" + duel_rule)]
+  2085			Mode.TUTORIAL: return L.t("menu_tutorial")
+   340			draw_rect(r, Color(0.75, 0.78, 0.85, 0.9))
+   341			if pad_mode and str(items[i][0]) in PS_SYMS:
+   342				_ps_glyph(r.get_center(), fs * 0.62, str(items[i][0]))
+   343			else:
+   344				_probe_glyph = true
+   345				_text(Vector2(r.get_center().x, y + 1), items[i][0], maxi(fs - 2, KEY_MIN), Color(0.08, 0.08, 0.1), true, true)
+   346				_probe_glyph = false
+   347			x += kw + 6
+   348			_text(Vector2(x, y + 1), items[i][1], fs, Color(1, 1, 1, 0.85))
+   349			x += widths[i][1] + 18
+   350	
+   351	
+   352	## 這場用到的新兵才烘圖（含生出來的兵）；舊 10 種開遊戲就有。
+   353	func _ensure_sprites(armies_: Array) -> void:
+   354		if sprites == null:
+   355			return
+   356		var need := {}
+   357		var all_t := {}   # V1.5.1：這場出場的兵種（轉身出手格只烘這些）
+   358		for a in armies_:
+   359			for u in a.units:
+   360				var t: int = int(u["type"])
+   361				all_t[t] = true
+   362				if t == F8.SLIME:
+   363					all_t[F8.MINI_SLIME] = true
+   364				if t == F8.BONE:
+   365					all_t[F8.SKELETON] = true
+   366				if t >= D.COUNT:
+   367					need[t] = true
+   368					if t == F8.SLIME:
+   369						need[F8.MINI_SLIME] = true
+   370					if t == F8.BONE:
+   371						need[F8.SKELETON] = true
+   372		if not need.is_empty():
+   373			sprites.ensure(need.keys())
+   374		sprites.ensure_turn_atk(all_t.keys())
+   375	
+   376	# ── V9 P2 步態驅動：相位由真實位移算，只影響畫面 ──
+   377	const Gait = preload("res://scripts/ui/units/gait.gd")
+   378	var gait_d := {}       # id → [前一 tick 累積距離, 這一 tick 累積距離]（世界單位）
+   379	var gait_on := {}      # id → 這一 tick 算在走路
+   380	var gait_land := {}    # id → 停步後還在收腳幾 tick
+   381	var drag_t := {}       # id → 被擊退、吸走的拖行姿勢還剩幾秒
+   382	var face_now := {}     # id → 目前朝向（轉身有過場）
+   383	var turn_t := {}       # id → 上次翻面的時間（V1.3 A1a）
+   384	var stop_t := {}       # id → 停步的時間（V1.3 A4）
+   385	var atk_face := {}     # id → 這一擊鎖定的朝向（V1.3.1 P0-2）
+    36			sfx.play_pitched("place_light", 0.18, 0.8)
+    37	
+    38	func _ready() -> void:
+    39		if not Input.joy_connection_changed.is_connected(_trans_joy_changed):
+    40			Input.joy_connection_changed.connect(_trans_joy_changed)   # 1.4.0 第 8 大類
+    41		boot_parts["ready_in"] = Time.get_ticks_msec()
+    42		on_battle_finished = _finish_battle
+    43		for a in OS.get_cmdline_user_args():
+    44			if a.begins_with("--shot=") or a.begins_with("--steam-test=") or a.begins_with("--perf=") or a == "--boot-check" or a.begins_with("--mem-check=") or a.begins_with("--sil=") or a.begins_with("--bake-pack=") or a.begins_with("--pack-bench=") or a.begins_with("--pack-selftest="):
+    45				Save.prefix = "shot_"   # 不讀、不寫玩家真正的存檔
+    46			elif a == "--self-check":
+    47				Save.prefix = "smoke_"
+    48		for a in OS.get_cmdline_user_args():
+    49			if a.begins_with("--shot-prefix="):
+    50				# 1.2.0：版面檢查平行跑時每組用自己的存檔前綴、從乾淨的存檔開始（原本共用 shot_ 會互搶寫入、也會帶到前一組的資料）
+    51				# 防誤刪（Codex cat02 #1）：只在截圖模式、前綴一定是 shot_＋組合名（≥8 字、只有英數底線連字號），只刪這個前綴的存檔類檔名
+    52				var px := a.substr(14)
+    53				# 前綴一定以「__」結尾且只出現一次 → 各組前綴互不為前綴（shot_en_150__ 不會吃到 shot_en_150_plain__ 的檔，Codex cat03 #3）
+    54				var safe := Save.prefix == "shot_" and px.begins_with("shot_") and px.length() >= 9 and px == px.validate_filename() and px.ends_with("__") and px.count("__") == 1
+    55				if safe:
+    56					Save.prefix = px
+    57					var d := DirAccess.open("user://")
+    58					if d != null:
+    59						for f in d.get_files():
+    60							if f.begins_with(px) and (f.ends_with(".json") or f.ends_with(".bak") or f.contains(".corrupt") or f.ends_with(".jsonl") or f.ends_with(".tmp")):
+    61								d.remove(f)
+    62		Save.load_all()
+    63		Guide.seed_seen(Save.data)   # V1.6 #1
+    64		Guide.seed_eff(Save.data)   # V1.6.1 N1
+    65		if Save.prefix == "":
+    66			Funnel.boot()   # V1.6 #2（截圖、自我檢查不算）
+    67		for a in OS.get_cmdline_user_args():
+    68			if a.begins_with("--steam-test="):
+    69				var aid := int(a.substr(13))
+    70				SteamApi.init(aid, false)
+    71				var res: Dictionary = SteamApi.self_test(aid)
+    72				print("STEAMTEST ", JSON.stringify(res))
+    73				get_tree().quit(0 if res["ok"] else 1)
+    74				return
+    75		for a2 in OS.get_cmdline_user_args():   # 截圖驗證用：--shot-lang=en、--shot-text=150（只改這次記憶體中的設定）
+    76			if a2.begins_with("--shot-lang="):
+    77				Save.settings["lang"] = a2.substr(12)
+    78			elif a2.begins_with("--shot-text="):
+    79				Save.settings["text_scale"] = int(a2.substr(12))
+    80			elif a2 == "--layout-check":
+    81				layout_probe = true
+    82			elif a2.begins_with("--shot-state="):   # V1.2.1：版面檢查的狀態矩陣（plain、cb、pad）
+    83				for st in a2.substr(13).split(","):
+    84					shot_state[st] = true
+    85				if shot_state.has("plain"):
+    86					Save.settings["plain_ui"] = true
+    87				if shot_state.has("cb"):
+    88					Save.settings["colorblind"] = true
+    89				if shot_state.has("craft"):
+    90					Save.settings["ui_font"] = "craft"   # 1.2.0 §3.2：工藝字型的 A／B 截圖
+    91		L.lang = Save.s("lang")
+    92		duel_rule = Save.s("duel_rule")
+    93		speed = float(Save.s("speed"))
+    94		var _ua := OS.get_cmdline_user_args()
+    95		var _special := "--video" in _ua
+    96		for x in _ua:
+    97			if x.begins_with("--perf=") or x.begins_with("--mem-check=") or x.begins_with("--bake-pack=") or x.begins_with("--pack-bench=") or x.begins_with("--pack-selftest="):
+    98				_special = true
+    99		for x in _ua:
+   100			if x.begins_with("--capsule="):
+   101				_special = true
+   102		if Save.prefix == "" and not _special:   # 截圖／影片／膠囊模式完全不碰 Steam
+   103			SteamApi.init()
+   104		boot_parts["save"] = Time.get_ticks_msec()
+   105		_load_fonts()
+   106		boot_parts["fonts"] = Time.get_ticks_msec()
+   107		# V1.2：自訂游標（小劍，tools/gen/gen_ui_tex.py 生成）；plain_ui 時用系統游標
+   108		if not bool(Save.s("plain_ui")) and ResourceLoader.exists("res://art/ui/cursor.png"):
+  1390	
+  1391	## 1.2.0（Antigravity cat01 #1）：圖集烘焙原本在開戰那一刻才觸發，分段後最長一幀 78 ms 會出現在戰鬥開頭。
+  1392	## 改成進擺陣就依兩邊卡池（含召喚物）預烘：擺陣時玩家在思考，分段烘焙藏在這段時間裡；開戰時 _ensure_sprites 只是確認（烘過的不重烘）。
+  1393	func _prewarm_sprites() -> void:
+  1394		if sprites == null or armies.size() < 2:
+  1395			return
+  1396		var want := {}
+  1397		for a in armies:
+  1398			for t in D.total():
+  1399				if int(a.pool) & (1 << t):
+  1400					want[t] = true
+  1401			for u in a.units:
+  1402				want[int(u["type"])] = true
+  1403		if want.has(F8.SLIME):
+  1404			want[F8.MINI_SLIME] = true
+  1405		if want.has(F8.BONE):
+  1406			want[F8.SKELETON] = true
+  1407		var need: Array = want.keys().filter(func(t): return int(t) >= D.COUNT)
+  1408		if not need.is_empty():
+  1409			sprites.ensure(need)   # 兵種頁：卡池裡的都烘（最多 5 頁，上限照舊）
+  1410		var placed := {}
+  1411		for a in armies:
+  1412			for u in a.units:
+  1413				placed[int(u["type"])] = true
+  1414		if not placed.is_empty():
+  1415			sprites.ensure_turn_atk(placed.keys())   # 轉身出手頁只烘已經在場上的（上限 10 種，不拿整個卡池去洗）
+  1416	
+  1417	## ── #11 AI 對手人設 ──
+  1418	const Persona = preload("res://scripts/game/persona.gd")
+  1419	
+  1420	func _ai_style() -> int:
+  1421		return int(rules.ai_style) if rules != null else 0
+  1422	
+game/scripts/ui/battle_view.gd:908:	_ensure_sprites([a0, a1])
+game/scripts/ui/game_screens.gd:119:		_rebuild_sprites.call_deferred()
+game/scripts/ui/battle/battle_state.gd:353:func _ensure_sprites(armies_: Array) -> void:
+game/scripts/ui/ui_base.gd:2071:func _rebuild_sprites() -> void:
+game/scripts/ui/screens/game_menus.gd:791:				["set_plain_ui", L.t("v_simple") if bool(Save.s("plain_ui")) else L.t("v_standard"), func(d): _cycle_setting("plain_ui", [false, true]); _rebuild_sprites()],
+game/scripts/ui/screens/game_menus.gd:821:			return [["set_cb", L.t("v_cb") if bool(Save.s("colorblind")) else L.t("v_standard"), func(d): _cycle_setting("colorblind", [false, true]); _rebuild_sprites()],
+game/scripts/ui/screens/game_menus.gd:1126:	_rebuild_sprites()
+game/scripts/ui/screens/game_menus.gd:1320:	_rebuild_sprites()
+game/scripts/ui/screens/game_v16.gd:1392:## 改成進擺陣就依兩邊卡池（含召喚物）預烘：擺陣時玩家在思考，分段烘焙藏在這段時間裡；開戰時 _ensure_sprites 只是確認（烘過的不重烘）。
+game/scripts/ui/screens/game_playroom.gd:494:	_rebuild_sprites()
+     1	B09 最終 ABBA（chain b09c，2026-11-16；blank＝不畫戰場、scene＝標題示範棋盤；每邊 blank 20／scene 4 程序，冷＋熱 400／80 次重建）
+     2	blank A（即時烘）程序 20、讀包失敗 0｜冷 全部就緒 p50 1085／max 1106 ms、最長幀（含開機頭兩幀）p50 76.9／max 78.6（頭兩幀 max 11.4）｜熱 400 次 最長幀 p50 70.6／p95 73.5／max 87.4、重建 p50 1101 ms｜暫存峰值 max 105.6 MiB
+     3	blank B（離線包）程序 20、讀包失敗 0｜冷 全部就緒 p50 646／max 730 ms、最長幀（含開機頭兩幀）p50 25.1／max 27.1（頭兩幀 max 8.0）｜熱 400 次 最長幀 p50 24.2／p95 26.6／max 28.4、重建 p50 682 ms｜暫存峰值 max 85.7 MiB
+     4	scene A（即時烘）程序 4、讀包失敗 0｜冷 全部就緒 p50 1421／max 1445 ms、最長幀（含開機頭兩幀）p50 75.9／max 76.4（頭兩幀 max 25.9）｜熱 80 次 最長幀 p50 74.8／p95 81.8／max 84.2、重建 p50 1534 ms｜暫存峰值 max 105.6 MiB
+     5	scene B（離線包）程序 4、讀包失敗 0｜冷 全部就緒 p50 636／max 654 ms、最長幀（含開機頭兩幀）p50 22.2／max 22.4（頭兩幀 max 21.4）｜熱 80 次 最長幀 p50 21.9／p95 24.0／max 25.3、重建 p50 655 ms｜暫存峰值 max 76.7 MiB
+     6	PACKSELFTEST OK {"bad_detected":true,"bad_fell_back_paint":true,"bad_ready":true,"bad_why":"讀包失敗 type[0, 1]：拼頁失敗（缺條、錯圖）（整包停用、改回即時繪製）","ok":true,"paint_eq_pack":true,"race_hits":10,"race_pack_still_on"
+#!/bin/bash
+# B09 S7 第二版：ABBA（A＝--no-pack 即時烘、B＝離線包）。blank：每塊 5 個程序×8 塊＝每邊 20 冷、每程序 20 熱；scene：每塊 1×8＝每邊 4
+cd /mnt/c/Users/timmy/projects/no-take-backs/game
+G="/mnt/c/Users/timmy/OneDrive/桌面/godot/Godot_v4.6.2-stable_win64.exe"
+W=$(wslpath -w "$PWD")
+for mode in blank scene; do
+  O=$(wslpath -w "$PWD/../build/tmp/b09/abba2_$mode"); mkdir -p ../build/tmp/b09/abba2_$mode
+  per=5; [ $mode = scene ] && per=1
+  i=0
+  for side in A B B A A B B A; do
+    for k in $(seq 1 $per); do
+      i=$((i+1)); extra=""; [ $side = A ] && extra="--no-pack"; [ $mode = blank ] && extra="$extra --bench-blank"
+      timeout 300 "$G" --path "$W" --resolution 1280x800 -- --pack-bench="$O\\${side}_$i.json" $extra </dev/null >/dev/null 2>&1
+    done
+  done
+done
+echo ABBA2_DONE
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/battle_view.gd | sed -n '894,914p'; rg -n '_prewarm_sprites\\(' game/scripts; rg -n 'S7|P10.2|P10.3|32MiB|64MiB' coordination/v1600p/2026-11-15-v1.6.0-plan.md coordination/v1600p/*plan*.md; rg -n 'func _draw|draw_back_walk|is_ready' game/scripts/ui/battle/battle_units.gd | tail -12; git status --short" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 4282ms:
+   894			else:   # 重播／覆盤用底部的控制列，不重複放倍速鈕（Antigravity S5）
+   895				_btn(Rect2(950, 4, 52, 36), "▶" if paused else "Ⅱ", func(): call("_toggle_pause"))   # 第七輪 A6；V1.5.2：頂列一律 y=4、高 36、右緣留 14（原本暫停鈕 y=2 和同列不齊；下緣 40 不碰 y=42 的剩餘隻數；加強焦點框在 _btn 裡夾在畫面內）
+   896				_btn(Rect2(1010, 4, 120, 36), L.t("speed", [_fmt_num(speed)]), func(): speed = speed_step(speed, 1) if speed < float(SPEEDS[SPEEDS.size() - 1]) else float(SPEEDS[0]))   # V1.5.1：照共用表往上一格、到頂回最慢
+   897			_btn(Rect2(1134, 4, 132, 36), L.t("skip"), func(): _on_skip())
+   898		btn_ring_clip = Rect2(1, 1, 1278, 798)
+   899	
+   900	
+   901	
+   902	## 開一場戰鬥（S8 從 game_screens 移下來：重播、覆盤、截圖都會用到）
+   903	func _begin_battle(a0, a1, kind := "official") -> void:
+   904		nav_stack.clear()   # V1.5.1：開戰後，之前的返回堆疊作廢
+   905		_pre_drop()
+   906		play_kind = kind
+   907		tm_ghost = null   # V1.4 #1：時光機的原本時間線只在「如果」播放時存在（_rv_play 之後會再設）
+   908		_ensure_sprites([a0, a1])
+   909		if kind == "official":
+   910			last_armies = [a0.copy(), a1.copy()]
+   911			battle_rules = rules.copy() if rules != null else _puzzle_rules()   # 第十三輪：殘局自帶規則
+   912		sim = Sim.new(a0, a1, battle_rules)
+   913		_cmd_setup(sim, kind)
+   914		view = ViewBuffer.new(sim)
+game/scripts/ui/screens/game_v16.gd:1389:	_prewarm_sprites()
+game/scripts/ui/screens/game_v16.gd:1393:func _prewarm_sprites() -> void:
+rg: coordination/v1600p/2026-11-15-v1.6.0-plan.md: No such file or directory (os error 2)
+rg: coordination/v1600p/*plan*.md: No such file or directory (os error 2)
+688:func _draw_units_of(s, dim: bool) -> void:
+1038:		var cache_ok: bool = sprites != null and sprites.is_ready(cbm()) and not bool(Save.s("plain_ui"))
+1040:			drawn = sprites.draw_back_walk(self, p, u.type, u.team, face, walk, hurt, alpha, ut, usc, lean, crouch, cbm())
+1181:func _draw_death(g: Dictionary, k: float) -> void:
+1199:		if sprites != null and sprites.is_ready(cbm()):
+1253:func _draw_relic(t: int, p: Vector2, face: float, k: float, team: int) -> void:
+1314:func _draw_projectile(type: int, team: int, a: Vector2, b: Vector2, k: float) -> void:
+1366:func _draw_contact_ao(s) -> void:
+1408:func _draw_occluded_bases(s) -> void:
+1531:func _draw_focus_halo(s) -> void:
+1571:func _draw_focus_marks(s) -> void:
+1597:func _draw_clutch_frame() -> void:
+ M game/.gitignore
+ A game/scripts/ui/atlas_pack.gd
+ M game/scripts/ui/game_screens.gd
+ M game/scripts/ui/main.gd
+ M game/scripts/ui/screens/game_core.gd
+ M game/scripts/ui/sprite_cache.gd
+ M game/scripts/ui/ui_base.gd
+ M game/tests/run_tests.gd
+ M game/tests/suites/battle_visual.gd
+ M game/tools/dev_main.gd
+ M game/tools/export_check.sh
+ M game/tools/layout_check.sh
+?? coordination/v1600-impl/b09-abba.sh
+?? coordination/v1600-impl/b09-abba.txt
+?? coordination/v1600-impl/b09-plan.md
+?? coordination/v1600-impl/b09-r1/
+?? game/scripts/ui/atlas_pack.gd.uid
+?? game/scripts/ui/table_seats.gd.uid
+
+exec
+/bin/bash -lc "nl -ba game/scripts/ui/screens/game_v16.gd | sed -n '1373,1391p'; rg -n 'func|_ensure_sprites' game/scripts/ui/battle_view.gd | tail -8" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+  1373		var mk := "%d:%s:%d:%d" % [m, puzzle_id, int(get("trial_id")), PZ.get_puzzle("ws").hash() if puzzle_id == "ws" else 0]   # 工坊、三考都叫 ws：再比題目內容（Codex v160-i3）
+  1374		if mk != tv_mode_key:
+  1375			tv_marks = []   # 換題、換模式：舊標記不帶過去（同一題重打保留）
+  1376			co_assist = ""   # V1.6.1 A4：換題就是新的嘗試（同一題重打照舊算教練協力）
+  1377		if mk != tv_mode_key or m != Mode.PUZZLE:
+  1378			trio_job += 1   # 換題、換模式：還在算的三考結果作廢
+  1379			_trio_cancel()
+  1380		tv_mode_key = mk
+  1381		fog_on = false
+  1382		tv_mark_mode = false
+  1383		var keep_trio: bool = trio_on and m == Mode.PUZZLE and puzzle_id == "ws" and PZ.get_puzzle("ws").has("trio")   # 一陣三考「重試」照舊
+  1384		rift_on = false
+  1385		trio_on = false
+  1386		super._start_mode(m)
+  1387		rift_on = keep_rift
+  1388		trio_on = keep_trio
+  1389		_prewarm_sprites()
+  1390	
+  1391	## 1.2.0（Antigravity cat01 #1）：圖集烘焙原本在開戰那一刻才觸發，分段後最長一幀 78 ms 會出現在戰鬥開頭。
+1321:func hud_meta_visible() -> bool:
+1337:static func intro_should_play(seen: bool, shots: bool, probe: bool, headless: bool, reduce_motion: bool) -> bool:
+1340:func intro_begin() -> void:
+1344:func intro_end() -> void:
+1351:func intro_tick(delta: float) -> void:
+1361:func _draw_intro() -> void:
+1418:func _hitstop_weight(w: int) -> void:
+1426:func _dir_hot(p: Vector2) -> void:
+
+codex
+1. `sprite_cache.gd:357–366,449–456`：讀包後未重查停用狀態；另一協程因缺條停包時，仍可能計命中。須補回查。
+
+2. `sprite_cache.gd:135–147`：只補舊10種就釋放 `prev`；戰場換色後，新兵缺頁且未重新排程，持續退回向量。須補齊在場兵種再釋放。
+
+3. `b09-abba.txt:1,5；b09-plan.md:14`：包路徑已低於40ms，但場景冷測仍僅4次，未涵蓋上述戰場重建；須補20次，並確認177 MiB增量符合預算，才能判S7 Go。
+
+結論：不可
+tokens used
+67,562

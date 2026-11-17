@@ -1,0 +1,881 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e71d-1dfa-7851-9083-37b2d2becb74
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B21 第 3 輪＝最後一輪）。只讀。專案根目錄＝目前資料夾。
+第 2 輪 coordination/v1600-impl/b21-r1/codex2.md（不可 2 條）；新差異 diff3.patch（同資料夾）。
+處理：①讀回草稿途中（ed_loading）換地圖不存草稿，讀完把整理過的草稿存回（測試：讀回後存檔裡的草稿仍是原稿）；②名牌統一字級改成「這一頁每張 fit() 結果的最小值」：_text 內部再 fit 時，較短的名字在這一級本來就放得下、最長的那張也剛好停在這一級（實測英日 150% 名牌全部同一級）。
+只看這兩個修正。附行號。最多 2 條、150 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀第 2 輪意見、diff3.patch 與這兩項修正的相關程式，確認後附行號給出最後結論。
+exec
+/bin/bash -lc "pwd && rg --files -g 'AGENTS.md' -g 'codex2.md' -g 'diff3.patch'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1600ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v140-impl/cat11-r1/codex2.md
+coordination/v1600-impl/b21-r1/diff3.patch
+coordination/v1600-impl/b08-r1/diff3.patch
+coordination/v1600-impl/b08-r1/codex2.md
+coordination/v1500-impl/cat05-r1/codex2.md
+coordination/v1600-impl/b19-r1/diff3.patch
+coordination/v1600-impl/b19-r1/codex2.md
+coordination/v140-impl/cat08-r1/diff3.patch
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v1600-impl/b07-r1/codex2.md
+coordination/v1500-impl/cat04-r1/codex2.md
+coordination/v1600-impl/b18-r1/diff3.patch
+coordination/v1600-impl/b18-r1/codex2.md
+coordination/v1600-impl/b06-r1/diff3.patch
+coordination/v1600-impl/b06-r1/codex2.md
+coordination/v1600-impl/b17-r1/diff3.patch
+coordination/v1600-impl/b17-r1/codex2.md
+coordination/v1500-impl/cat03-r1/diff3.patch
+coordination/v1500-impl/cat03-r1/codex2.md
+coordination/v1500-impl/cat01-r1/diff3.patch
+coordination/v1500-impl/cat01-r1/codex2.md
+coordination/v1500-impl/cat07-r1/diff3.patch
+coordination/v1500-impl/cat07-r1/codex2.md
+coordination/v1500-impl/cat02-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/codex2.md
+coordination/v1600-impl/b16-r1/diff3.patch
+coordination/v1600-impl/b16-r1/codex2.md
+coordination/v1500-impl/cat06-r1/codex2.md
+coordination/v1600-impl/b05-r1/codex2.md
+coordination/v1600-impl/b01-r1/codex2.md
+coordination/v1600-impl/b03-r1/codex2.md
+coordination/v1600-impl/b04-r1/codex2.md
+coordination/v1600-impl/b15-r1/codex2.md
+coordination/v1600-impl/b15-r1/diff3.patch
+coordination/v1600-impl/b02-r1/codex2.md
+coordination/v1600-impl/b12-r1/diff3.patch
+coordination/v1600-impl/b12-r1/codex2.md
+coordination/v1600-impl/b09-r1/diff3.patch
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1600-impl/b11-r1/diff3.patch
+coordination/v1600-impl/b11-r1/codex2.md
+coordination/v1600-impl/b14-r1/diff3.patch
+coordination/v1600-impl/b14-r1/codex2.md
+coordination/v1600-impl/b10-r1/codex2.md
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b21-r1/codex2.md; cat coordination/v1600-impl/b21-r1/diff3.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 20ms:
+cat: coordination/v1600-impl/b21-r1/codex2.md: No such file or directory
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -1960,6 +1960,8 @@
+ 	if ed_block.has(ed_target):
+ 		ed_target = Vector2i(-1, -1)
+ 	ed_msg = ""
++	if not ed_loading and (Save.data.has("ed_draft") or not ed_cells.is_empty()):
++		_ed_save_draft()   # 換地圖也跟著改草稿（讀回草稿途中不存：會用空盤蓋掉原稿；Codex B21 r2）
+ const ED_CS0 := 32.0
+ ## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
+ func ed_cs() -> float:
+@@ -1984,6 +1986,8 @@
+ func ed_toggle(c: Vector2i) -> void:
+ 	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
+ 		return
++	ed_err_cells = []   # 改了就收掉紅框
++	ed_err_side = -1
+ 	if ed_block.has(c):
+ 		ed_msg = L.t("err_terrain")   # 1.2.0 §11.10：牆上不能放
+ 		return
+@@ -1993,6 +1997,7 @@
+ 			ed_target = c
+ 			ed_pick = false
+ 			ed_msg = ""
++			_ed_save_draft()
+ 		else:
+ 			ed_msg = L.t("ed_pick_foe" if want_foe else "ed_pick_own")
+ 		return
+@@ -2003,8 +2008,133 @@
+ 	else:
+ 		ed_cells[c] = ed_type
+ 	ed_msg = ""
++	_ed_save_draft()   # 草稿跟著改（只改記憶體；離開出題台、出題時才寫檔）
++
++## 1.6.0 B21（P13.2）出題錯誤落點：出題前先找出擋住出題的原因與格子 → [[字串鍵, 格子陣列（空＝整個半邊）]...]（空＝可以出）
++static func ed_problems(cells: Dictionary, block: Dictionary) -> Array:
++	var out: Array = []
++	var own: Array = []
++	var foe: Array = []
++	var wall: Array = []
++	var cost := 0
++	for k in cells:
++		if block.has(k):
++			wall.append(k)
++		if k.x <= 5:
++			own.append(k)
++			cost += D.cost(int(cells[k]))
++		elif k.x >= 10:
++			foe.append(k)
++	if own.is_empty():
++		out.append(["ed_err_no_own", []])
++	if foe.is_empty():
++		out.append(["ed_err_no_foe", []])
++	if not wall.is_empty():
++		out.append(["ed_err_wall", wall])
++	if cost > 200:
++		out.append(["ed_err_budget", own])
++	if own.size() > WS3.MAX_UNITS:
++		out.append(["ed_err_many", own])
++	if foe.size() > WS3.MAX_UNITS:
++		out.append(["ed_err_many", foe])
++	return out
++
++var ed_err_cells: Array = []   # 出題失敗時要圈紅的格子
++var ed_loading := false        # 讀回草稿途中（不存草稿）
++var ed_err_side := -1          # 整個半邊出問題（0＝你的半邊、1＝敵方半邊）
++
++## 1.6.0 B21（P13.2）保留草稿：編輯內容存在存檔 ed_draft（打開出題台時沒有內容就帶回）
++func _ed_save_draft() -> void:
++	if WS3.ED_GOALS[ed_goal] == "trio":
++		_ed_sync_foe()
++	var cl: Array = []
++	for k in ed_cells:
++		cl.append([int(ed_cells[k]), k.x, k.y])
++	cl.sort()
++	var fl: Array = []
++	for f in ed_foes:
++		var e: Array = []
++		for k in f:
++			e.append([int(f[k]), k.x, k.y])
++		e.sort()
++		fl.append(e)
++	Save.data["ed_draft"] = {"v": 1, "cells": cl, "goal": ed_goal, "map": ed_map, "t": [ed_target.x, ed_target.y], "foes": fl, "fi": ed_foe_i}
++
++static func _dint(x, lo: float, hi: float) -> bool:
++	return (x is int or (x is float and float(x) == floorf(float(x)))) and float(x) >= lo and float(x) <= hi
++
++static func _ed_cells_ok(list, foe_only := false) -> bool:
++	if not list is Array or list.size() > 160:
++		return false
++	for e in list:
++		if not e is Array or e.size() != 3 or not _dint(e[0], 0, 63) or not _dint(e[1], 0, 15) or not _dint(e[2], 0, 8):
++			return false
++		if (int(e[1]) > 5 and int(e[1]) < 10) or (foe_only and int(e[1]) < 10):
++			return false
++	return true
++
++## 草稿逐欄驗型（缺欄、範圍外、目標不是整數＝整份不帶）
++static func ed_draft_ok(d) -> bool:
++	if not d is Dictionary or not _ed_cells_ok(d.get("cells")):
++		return false
++	if not _dint(d.get("goal"), 0, WS3.ED_GOALS.size() - 1) or not _dint(d.get("map"), 0, MapDefs.MAPS.size() - 1):
++		return false
++	var t = d.get("t")
++	if not t is Array or t.size() != 2 or not _dint(t[0], -1, 15) or not _dint(t[1], -1, 8):
++		return false
++	var fl = d.get("foes", [])
++	if not fl is Array or fl.size() > 3:
++		return false
++	for f in fl:
++		if not _ed_cells_ok(f, true):
++			return false
++	return _dint(d.get("fi", 0), 0, 2)
++
++func _ed_load_draft() -> void:
++	var d = Save.data.get("ed_draft")
++	if not ed_cells.is_empty() or not ed_draft_ok(d):
++		return
++	ed_goal = int(d["goal"])
++	ed_loading = true
++	_ed_set_map(0 if WS3.ED_GOALS[ed_goal] == "trio" else int(d["map"]))   # 三考題只有平原
++	ed_loading = false
++	for e in d["cells"]:
++		var kc := Vector2i(int(e[1]), int(e[2]))
++		if int(e[0]) < D.total() and not ed_block.has(kc):
++			ed_cells[kc] = int(e[0])   # 牆格上的不帶回
++	ed_foes = [{}, {}, {}]
++	var fl: Array = d.get("foes", [])
++	for i in fl.size():
++		for e in fl[i]:
++			if int(e[0]) < D.total():
++				ed_foes[i][Vector2i(int(e[1]), int(e[2]))] = int(e[0])
++	ed_foe_i = int(d.get("fi", 0))
++	var t: Array = d["t"]
++	ed_target = Vector2i(int(t[0]), int(t[1])) if ed_cells.has(Vector2i(int(t[0]), int(t[1]))) else Vector2i(-1, -1)
++	ed_msg = L.t("ed_draft_back") if not ed_cells.is_empty() else ""
++	_ed_save_draft()   # 讀回後把整理過的草稿（拿掉牆格等）存回去
+ 
+ func _ed_make() -> void:
++	ed_err_cells = []
++	ed_err_side = -1
++	if WS3.ED_GOALS[ed_goal] == "trio":
++		_ed_sync_foe()
++		for fi in 3:
++			if (ed_foes[fi] as Dictionary).is_empty():
++				if fi != ed_foe_i:
++					_ed_switch_foe(fi)   # 三考題：哪一支敵陣是空的，就翻到那一支並圈紅
++				ed_msg = L.t("ed_err_trio_foe", [fi + 1])
++				ed_err_side = 1
++				return
++	var probs := ed_problems(ed_cells, ed_block)
++	if not probs.is_empty():
++		ed_msg = L.t(str(probs[0][0]))   # 先講第一個原因、圈出那幾格
++		ed_err_cells = probs[0][1]
++		if ed_err_cells.is_empty():
++			ed_err_side = 0 if str(probs[0][0]) == "ed_err_no_own" else 1
++		return
++	_ed_save_draft()
++	Save.save_data()
+ 	var l := ed_lists()
+ 	var code := ""
+ 	if WS3.ED_GOALS[ed_goal] == "trio":
+@@ -2020,7 +2150,9 @@
+ 	else:
+ 		code = WS3.encode5(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target, ed_map)   # 1.2.0 §11.10：沒地形時等於 encode4
+ 	if code == "":
+-		ed_msg = L.t("ed_fail")
++		# 擺法都合格但出不了題：作者的解法在這組規則下打不贏（或驗證算太久）→ 指到你的解法那半邊
++		ed_msg = L.t("ed_err_sol")
++		ed_err_side = 0
+ 		return
+ 	DisplayServer.clipboard_set(code)
+ 	call("_ach", "WORKBENCH")   # V1.6.1 D7
+@@ -2044,6 +2176,7 @@
+ 	for k in ed_foes[i]:
+ 		ed_cells[k] = ed_foes[i][k]
+ 	ed_msg = ""
++	_ed_save_draft()
+ 
+ var ed_focus_main := false   # 1.6.0 B07（Codex r1 #2）：切段後焦點放到新段主鈕
+ var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
+@@ -2073,6 +2206,8 @@
+ 				if k == ed_target:
+ 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
+ 					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
++			if k in ed_err_cells or (ed_err_side == 0 and cx <= 5) or (ed_err_side == 1 and cx >= 10):
++				draw_rect(r.grow(-2), Color("#ff5a4a", 0.9), false, 2.5)   # 1.6.0 B21：出題錯誤落點（紅框）
+ 			if cx <= 5 or cx >= 10:
+ 				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
+ 	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
+@@ -2108,7 +2243,7 @@
+ 	y += tz("S") * 1.4 + GAP_M
+ 	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
+ 	var gname: String = WS3.ED_GOALS[ed_goal]
+-	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; _ed_trio_map()
++	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; _ed_trio_map(); _ed_save_draft()
+ 	if gname in WS3.PICK_GOALS:
+ 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
+ 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+@@ -2132,7 +2267,7 @@
+ 		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = ""; ed_focus_main = true, ready, true)
+ 		var mk: String = MapDefs.MAPS[ed_map]["key"]
+ 		_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
+-		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
++		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}]; ed_err_cells = []; ed_err_side = -1; Save.data.erase("ed_draft"); Save.save_data())   # 清空＝草稿立刻刪（重開不復活）
+ 		_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
+ 	else:
+ 		var bx3 := 640.0 - (3 * bw + 2 * 16.0) / 2.0
+--- a/game/scripts/ui/screens/game_playroom.gd
++++ b/game/scripts/ui/screens/game_playroom.gd
+@@ -808,6 +808,12 @@
+ 	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
+ 	var pages := maxi(1, int(ceil(gs.size() / float(per))))
+ 	gh_page = clampi(gh_page, 0, pages - 1)
++	# 1.6.0 B21（P13.4）長字串：同一頁的名牌標題用同一個字級（照這一頁最長、最需要縮的那張；原本每張各縮各的，大小不一）
++	var ts: int = tz("B")
++	for k2 in per:
++		var i2 := gh_page * per + k2
++		if i2 < gs.size():
++			ts = mini(ts, fit(L.field(gs[i2], ""), tz("B"), 200, true))   # 取 _text 自己會縮到的那一級的最小值：每張再 fit 也會停在同一級（Codex B21 r2）
+ 	for k in per:
+ 		var i := gh_page * per + k
+ 		if i >= gs.size():
+@@ -821,8 +827,8 @@
+ 		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
+ 		_ink_mode = on_paper   # 停用／簡化時卡片是深色：字用淺色
+ 		var gname := L.field(g, "")
+-		_text(r.position + Vector2(16, 12), gname, tz("B"), INK if _ink_mode else Color.WHITE, false, true, 200)
+-		_text(r.position + Vector2(16, 18 + text_h(gname, tz("B"), 200, true)), ai_tpl_name(str(g.get("tpl", ""))), tz("C"), Color("#4a3622") if _ink_mode else TXT_DIM, false, false, 200)
++		_text(r.position + Vector2(16, 12), gname, ts, INK if _ink_mode else Color.WHITE, false, true, 200)
++		_text(r.position + Vector2(16, 18 + text_h(gname, ts, 200, true)), ai_tpl_name(str(g.get("tpl", ""))), tz("C"), Color("#4a3622") if _ink_mode else TXT_DIM, false, false, 200)
+ 		# 難度星放右欄、陣型下面（只畫星，不佔左邊文字欄；收尾驗證：英文兩行名稱會擠到）
+ 		var stars := "★".repeat(clampi(1 + int(g.get("wr", 0)) / 25, 1, 4))
+ 		var sw := minf(_width(stars, tz("C"), true), 96.0)
+--- a/game/tests/suites/coach_lab.gd
++++ b/game/tests/suites/coach_lab.gd
+@@ -830,3 +830,55 @@
+ 	g.sb_tab = 1
+ 	ok(g.famous_games().size() == fl.size(), "名局只讀一次（快取）")
+ 	g.free()
++
++## 1.6.0 B21（P13.2）出題錯誤落點與保留草稿：擋住出題的原因＋格子；草稿存檔、重開帶回、壞草稿不帶。
++func test_editor_draft_v1600() -> void:
++	var GS = load("res://scripts/ui/game_screens.gd")
++	var SVx = load("res://scripts/game/save.gd")
++	var LSd = load("res://scripts/game/strings.gd")
++	ok(GS.ed_problems({}, {}).size() == 2 and GS.ed_problems({}, {})[0][0] == "ed_err_no_own", "空盤：先說沒有你的兵、再說沒有敵兵")
++	var c := {Vector2i(1, 1): 0, Vector2i(12, 4): 0}
++	ok(GS.ed_problems(c, {}).is_empty(), "兩邊都有兵：可以出")
++	var pw: Array = GS.ed_problems(c, {Vector2i(12, 4): true})
++	ok(pw.size() == 1 and pw[0][0] == "ed_err_wall" and pw[0][1] == [Vector2i(12, 4)], "壓在牆上：圈出那一格")
++	var big := {Vector2i(12, 4): 0}
++	for r in 9:
++		for col in 6:
++			big[Vector2i(col, r)] = 3
++	var pb: Array = GS.ed_problems(big, {})
++	ok(pb.size() >= 1 and pb[0][0] == "ed_err_budget" and (pb[0][1] as Array).size() == 54, "超過 200 金：圈出你的兵")
++	var keep: Dictionary = SVx.data.duplicate(true)
++	var g = GS.new()
++	g.sfx = FakeSfx.new()
++	g.ed_cells = {}
++	g._ed_make()
++	ok(g.ed_err_side == 0 and g.ed_msg == LSd.t("ed_err_no_own"), "按出題時擋下、整個左半邊圈紅", str([g.ed_err_side, g.ed_msg]))
++	g.ed_type = 0
++	g.ed_toggle(Vector2i(2, 3))
++	ok(g.ed_err_side == -1 and SVx.data.get("ed_draft", {}).get("cells", []) == [[0, 2, 3]], "改了就收紅框、草稿跟著改")
++	var d: Dictionary = JSON.parse_string(JSON.stringify(SVx.data))
++	SVx.sanitize_data(d)
++	var g2 = GS.new()
++	g2.sfx = FakeSfx.new()
++	SVx.data["ed_draft"] = d["ed_draft"]
++	g2._ed_load_draft()
++	ok(g2.ed_cells == {Vector2i(2, 3): 0} and g2.ed_msg == LSd.t("ed_draft_back"), "重開（存檔來回）帶回草稿")
++	ok(SVx.data["ed_draft"]["cells"] == [[0, 2, 3]], "讀回途中不會用空盤蓋掉原稿")
++	ok(GS.ed_draft_ok({"cells": [[0, 2, 3]], "goal": 0, "map": 0, "t": [-1, -1], "foes": [[], [[1, 12, 2]], []], "fi": 1}), "完整草稿（含三考題的三支敵陣）合格")
++	# 三考題：空的那一支敵陣翻過去並圈紅
++	var g3 = GS.new()
++	g3.sfx = FakeSfx.new()
++	var WSx = load("res://scripts/game/workshop.gd")
++	g3.ed_goal = WSx.ED_GOALS.find("trio")
++	g3.ed_cells = {Vector2i(1, 1): 0, Vector2i(12, 4): 0}
++	g3.ed_foes = [{}, {}, {}]
++	g3.ed_foe_i = 0
++	g3._ed_make()
++	ok(g3.ed_foe_i == 1 and g3.ed_err_side == 1 and g3.ed_msg == LSd.t("ed_err_trio_foe", [2]), "三考題第 2 支敵陣空的：翻到第 2 支、圈紅", str([g3.ed_foe_i, g3.ed_msg]))
++	ok((SVx.data.get("ed_draft", {}) as Dictionary).get("fi", -1) == 1 and ((SVx.data["ed_draft"]["foes"] as Array)[0] as Array).size() == 1, "草稿存了三支敵陣與目前第幾支")
++	g3.free()
++	for bad in ["x", {"cells": [[0, 7, 3]]}, {"cells": [], "goal": 0, "map": 63, "t": [-1, -1]}, {"cells": [], "goal": 0, "map": 0, "t": ["a", 1]}, {"cells": [], "goal": 0, "map": 0}, {"cells": [[0, 2, 30]], "goal": 0, "map": 0}, {"cells": [[1.0e30, 2, 3]], "goal": 0, "map": 0}, {"cells": [], "goal": 99, "map": 0}]:
++		ok(not GS.ed_draft_ok(bad), "壞草稿不帶回：%s" % str(bad))
++	g.free()
++	g2.free()
++	SVx.data = keep
+
+exec
+/bin/bash -lc "rg --files coordination/v1600-impl/b21-r1; rg -n 'func fit|func _text|func _ed_load_draft|ed_loading|func _ed_set_map|var ts:|ts = mini|func _ed_sync_foe' game/scripts/ui; git status --short" in /mnt/c/Users/timmy/projects/no-take-backs
+exec
+/bin/bash -lc "cat coordination/v1600-impl/b21-r1/codex2.raw; sed -n '610,660p' game/scripts/ui/ui_base.gd; sed -n '810,865p' game/scripts/ui/ui_base.gd; nl -ba game/scripts/ui/screens/game_v16.gd | sed -n '1935,1980p'; sed -n '2020,2055p' game/scripts/ui/screens/game_v16.gd; nl -ba coordination/v1600-impl/b21-r1/diff3.patch | sed -n '1,18p;104,140p;197,222p'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 750ms:
+以下行號依修正後版本。
+
+- game_v16.gd:2097：讀稿呼叫 `_ed_set_map()`，會先以空盤覆寫草稿；還原後未補存。直接返回／關閉再重開，原稿會遺失。
+- game_playroom.gd:840：`_text()` 仍逐張呼叫 `fit()`，兩行標題會再次縮級，統一字級仍未修好；841 的高度也可能與實際繪字不符。
+
+結論：不可
+func _toast(s: String, deny := false) -> void:
+	toast = s
+	var tm := int(Save.s("toast_mult"))
+	toast_t = 2.0 * tm if tm > 0 else 600.0   # V1.5：提示停留 標準／加長／很長／手動關（點一下才收）
+	toast_born = time
+	if deny:
+		sfx.play("ui_deny")
+
+
+func _move_focus(d: int) -> void:
+	pad_mode = true
+	if _btns.is_empty():
+		return
+	_focus = posmod(_focus + d, _btns.size())
+
+
+## 字太寬就往下一級縮（第五輪：只在字級表內往下走，最小到「註記」，不再縮到 9px；還是太寬就由 _text 換行）。
+func fit(s: String, size: int, maxw: float, bold := false) -> int:
+	var sz := size
+	var levels: Array = TYPE_SCALE[_scale_key()].values()
+	levels.sort()
+	while _width(s, sz, bold) > maxw:
+		var nxt := -1
+		for v in levels:
+			if v < sz:
+				nxt = v
+		if nxt < 0:
+			break
+		sz = nxt
+	if layout_probe and sz < size:
+		# 1.6.0 B07（P2.3）：版面檢查記下「字被擠到縮級」——英文 150% 重災頁的量測（縮到最小級還放不下＝over）
+		probe_shrink.append([s.substr(0, 60), size, sz, _width(s, sz, bold) > maxw])
+	return sz
+
+func _font_for(s: String, size: int, bold: bool) -> Font:
+	if _hand_mode and font_title != null:
+		return font_title   # 1.2.0：老闆便條、印章用手寫字（憲法 6：只放建議，不承載數值）
+	if font_craft:
+		# 1.2.0（Codex cat02 #3）工藝字型的分工：D／DX 展示大字＝ThenKhung（logo 氣質不變）；H1、T＝手寫楷體；H2 以下＝正文黑體
+		if bold and not bool(Save.s("plain_titles")) and not _has_digit(s):
+			if font_display != null and size >= tz("D"):
+				return font_display
+			if font_title != null and size >= tz("H1"):
+				return font_title
+		return font_bold if bold else font
+	if bold and font_title != null and size >= tz("H2") and not bool(Save.s("plain_titles")) and not _has_digit(s):
+		return font_title
+	return font_bold if bold else font
+
+static func _has_digit(s: String) -> bool:
+	for i in s.length():
+		var lo := face.position.x + pad + aw / 2.0
+		var hi := face.end.x - pad - aw / 2.0
+		p.x = clampf(p.x, lo, hi) if lo <= hi else face.get_center().x
+	return p
+
+## 宣告「接下來畫的字在這個格子裡」（R11）：非按鈕的格子（價錢小方塊、徽章、分頁字）用。
+func probe_cell_begin(face: Rect2) -> void:
+	_probe_face = face
+	_probe_cell_seq += 1
+	_probe_cell_id = "cell%d" % _probe_cell_seq
+
+func probe_cell_end() -> void:
+	_probe_face = Rect2()
+	_probe_cell_id = ""
+
+func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+	if _ink_mode:
+		c = Color(_ink(c), c.a) if _ink_keep_a else _ink(c)
+	elif outline.a < 0.0 and not (size >= 24 or (bold and size >= 19)) and c.s >= 0.25 and not (c.get_luminance() < 0.35 and c.s < 0.8):   # 深色低彩度的浮雕字不動
+		c = Color(_legible(Color(c, 1.0)), c.a)   # V1.2.1 F5：深描邊上的彩色小字自動提亮到 4.5:1
+	if maxw > 0.0:
+		size = fit(s, size, maxw, bold)
+	var lines := wrap_lines(s, size, maxw, bold) if maxw > 0.0 else s.split("\n")
+	for i in lines.size():
+		var fnt := _font_for(lines[i], size, bold)
+		var w := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if center else 0.0
+		var q := p + Vector2(-w / 2, i * size * line_h(lines.size()) + size * 0.85)
+		if mag_on and _probe_ui and size < 26 and c.a > 0.3:
+			var mw := w if center else fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			if Rect2(q.x, q.y - size * 0.95, mw, size * 1.2).grow(4.0 if bool(get("pad_mode")) else 0.0).has_point(mag_point()):
+				mag_hit = [lines[i], size, bold]
+		var oc := Color(INK, c.a * 0.85) if outline.a < 0.0 else outline
+		# V1.2：深色、低彩度的「墨色字」（印在紙或布條上）不描深邊，改淺色浮雕；先決定樣式再登記探針（Codex v120-impl2）
+		var emboss := outline.a < 0.0 and (_ink_mode or (c.get_luminance() < 0.35 and c.s < 0.8))
+		if emboss:
+			oc = Color(0, 0, 0, 0)
+		var ow := text_outline_w(size)
+		var sh := text_shadow_dy(size)
+		# 版面探針（第五輪補洞）：介面層與戰場層都量、低透明度（>0.05）也量；戰場字標 field
+		# V1.2 A3：外框算進描邊外擴（左右上各半個描邊、下方再加陰影位移），換字與換框才不會靜靜爆框
+		if layout_probe and c.a > 0.05 and lines[i].strip_edges() != "":
+			var ww := fnt.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			var ex := ow * 0.5 if oc.a > 0.0 else 0.0
+			# 直向：原本的框（1.1 倍字高）已經留了上下各約 0.05 字高的空，描邊與陰影只算超出的部分
+			var ey := maxf(0.0, ex - size * 0.05)
+			var eb := maxf(0.0, ey + (sh if oc.a > 0.0 else 0.0) - size * 0.05)
+			probe_texts.append({"r": Rect2(q.x - ex, q.y - size * 0.85 - ey, ww + ex * 2.0, size * 1.1 + ey + eb), "size": size, "s": lines[i], "field": not _probe_ui, "a": c.a, "btn": _probe_btn_label, "own": _probe_btn_rect,
+				"c": c, "oc": oc, "ow": ow if oc.a > 0.0 else 0.0, "bold": bold, "glyph": _probe_glyph, "anim": _probe_anim, "dis": _probe_dis, "fz": probe_faces.size(),
+				"gr": Rect2(q.x, q.y - size * 0.80, ww, size * 0.98),
+				"face": _probe_face if _probe_face.size.x > 0.0 else null, "cell": _probe_cell_id, "ink": Rect2(q + ink_line(fnt, lines[i], size).position, ink_line(fnt, lines[i], size).size)})   # V1.2.1：字形框（不含描邊外擴、陰影與行距），九宮格內距用   # V1.2.1 F5：對比檢查要實際字色與描邊
+		if emboss:
+			draw_string(fnt, q + Vector2(0, 1), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.96, 0.86, 0.45 * c.a))
+		if oc.a > 0.0:
+			# V1.2 A3：先畫柔和的下方陰影，再畫深焦茶描邊（取代純黑），最後正文
+			draw_string_outline(fnt, q + Vector2(0, sh), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, Color(INK_SHADOW, oc.a * 0.55))
+			draw_string_outline(fnt, q, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size, ow, oc)
+  1935	var ed_cells := {}      # Vector2i(欄, 列) → 兵種
+  1936	var ed_type := 0
+  1937	var ed_goal := 0
+  1938	var ed_msg := ""
+  1939	var ed_target := Vector2i(-1, -1)   # V1.6.1 A2：作者指定的目標（斬首＝敵兵、護送／完美＝自己的兵）；-1＝自動
+  1940	var ed_pick := false               # 正在點選目標
+  1941	var ed_foe_i := 0                  # V1.6.1 D2：三考題正在編第幾支敵陣
+  1942	var ed_foes: Array = [{}, {}, {}]  # 三支敵陣（右半邊的格子）
+  1943	var ed_map := 0                    # 1.2.0 §11.10：地形圖（0＝平原；有地形就出 NTP5）
+  1944	var ed_block := {}                 # 這張地形圖上的牆格（Vector2i → true；換圖時重算）
+  1945	
+  1946	## 三考題不能帶地形：切到三考就回平原（不然牆格還擋著、輸出卻是沒地形的碼；Codex cat10 #8）
+  1947	func _ed_trio_map() -> void:
+  1948		if WS3.ED_GOALS[ed_goal] == "trio" and ed_map != 0:
+  1949			_ed_set_map(0)
+  1950	
+  1951	func _ed_set_map(m: int) -> void:
+  1952		ed_map = m
+  1953		ed_block = {}
+  1954		for cx in 16:
+  1955			for cy in 9:
+  1956				if (cx <= 5 or cx >= 10) and WS3.blocked_cell(m, cx, cy, 0 if cx <= 5 else 1):
+  1957					ed_block[Vector2i(cx, cy)] = true
+  1958		for k in ed_block:
+  1959			ed_cells.erase(k)   # 換到這張圖，壓在牆上的兵拿掉
+  1960		if ed_block.has(ed_target):
+  1961			ed_target = Vector2i(-1, -1)
+  1962		ed_msg = ""
+  1963	const ED_CS0 := 32.0
+  1964	## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
+  1965	func ed_cs() -> float:
+  1966		return {100: 32.0, 125: 28.0, 150: 26.0}.get(int(Save.s("text_scale")), ED_CS0)
+  1967	
+  1968	func _ed_rect() -> Rect2:
+  1969		return Rect2(640 - 8 * ed_cs(), 150, 16 * ed_cs(), 9 * ed_cs())
+  1970	
+  1971	func ed_lists() -> Array:
+  1972		var e: Array = []
+  1973		var s: Array = []
+  1974		for k in ed_cells:
+  1975			var v := [int(ed_cells[k]), k.x, k.y]
+  1976			if k.x >= 10:
+  1977				e.append(v)
+  1978			elif k.x <= 5:
+  1979				s.append(v)
+  1980		e.sort()
+	else:
+		code = WS3.encode5(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target, ed_map)   # 1.2.0 §11.10：沒地形時等於 encode4
+	if code == "":
+		ed_msg = L.t("ed_fail")
+		return
+	DisplayServer.clipboard_set(code)
+	call("_ach", "WORKBENCH")   # V1.6.1 D7
+	ed_msg = L.t("ed_ok")
+	_toast(L.t("ws_copied"))
+
+## 三考題：右半邊的格子存回目前這一支敵陣
+func _ed_sync_foe() -> void:
+	var f := {}
+	for k in ed_cells:
+		if k.x >= 10:
+			f[k] = ed_cells[k]
+	ed_foes[ed_foe_i] = f
+
+func _ed_switch_foe(i: int) -> void:
+	_ed_sync_foe()
+	for k in ed_cells.keys():
+		if k.x >= 10:
+			ed_cells.erase(k)
+	ed_foe_i = i
+	for k in ed_foes[i]:
+		ed_cells[k] = ed_foes[i][k]
+	ed_msg = ""
+
+var ed_focus_main := false   # 1.6.0 B07（Codex r1 #2）：切段後焦點放到新段主鈕
+var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
+func _draw_editor() -> void:
+	_boss_note("editor", "editor")   # 1.2.0 §12.2：這個系統第一次出現時一張便條
+	_dim(0.7)
+	var P := Rect2(80, 40, 1120, 720)
+	_panel(P)
+	probe_skip("R6", "小棋盤是直接畫的格子（不經版面探針），看起來的空白其實是棋盤")
+     1	--- a/game/scripts/ui/screens/game_v16.gd
+     2	+++ b/game/scripts/ui/screens/game_v16.gd
+     3	@@ -1960,6 +1960,8 @@
+     4	 	if ed_block.has(ed_target):
+     5	 		ed_target = Vector2i(-1, -1)
+     6	 	ed_msg = ""
+     7	+	if not ed_loading and (Save.data.has("ed_draft") or not ed_cells.is_empty()):
+     8	+		_ed_save_draft()   # 換地圖也跟著改草稿（讀回草稿途中不存：會用空盤蓋掉原稿；Codex B21 r2）
+     9	 const ED_CS0 := 32.0
+    10	 ## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
+    11	 func ed_cs() -> float:
+    12	@@ -1984,6 +1986,8 @@
+    13	 func ed_toggle(c: Vector2i) -> void:
+    14	 	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
+    15	 		return
+    16	+	ed_err_cells = []   # 改了就收掉紅框
+    17	+	ed_err_side = -1
+    18	 	if ed_block.has(c):
+   104	+	var t = d.get("t")
+   105	+	if not t is Array or t.size() != 2 or not _dint(t[0], -1, 15) or not _dint(t[1], -1, 8):
+   106	+		return false
+   107	+	var fl = d.get("foes", [])
+   108	+	if not fl is Array or fl.size() > 3:
+   109	+		return false
+   110	+	for f in fl:
+   111	+		if not _ed_cells_ok(f, true):
+   112	+			return false
+   113	+	return _dint(d.get("fi", 0), 0, 2)
+   114	+
+   115	+func _ed_load_draft() -> void:
+   116	+	var d = Save.data.get("ed_draft")
+   117	+	if not ed_cells.is_empty() or not ed_draft_ok(d):
+   118	+		return
+   119	+	ed_goal = int(d["goal"])
+   120	+	ed_loading = true
+   121	+	_ed_set_map(0 if WS3.ED_GOALS[ed_goal] == "trio" else int(d["map"]))   # 三考題只有平原
+   122	+	ed_loading = false
+   123	+	for e in d["cells"]:
+   124	+		var kc := Vector2i(int(e[1]), int(e[2]))
+   125	+		if int(e[0]) < D.total() and not ed_block.has(kc):
+   126	+			ed_cells[kc] = int(e[0])   # 牆格上的不帶回
+   127	+	ed_foes = [{}, {}, {}]
+   128	+	var fl: Array = d.get("foes", [])
+   129	+	for i in fl.size():
+   130	+		for e in fl[i]:
+   131	+			if int(e[0]) < D.total():
+   132	+				ed_foes[i][Vector2i(int(e[1]), int(e[2]))] = int(e[0])
+   133	+	ed_foe_i = int(d.get("fi", 0))
+   134	+	var t: Array = d["t"]
+   135	+	ed_target = Vector2i(int(t[0]), int(t[1])) if ed_cells.has(Vector2i(int(t[0]), int(t[1]))) else Vector2i(-1, -1)
+   136	+	ed_msg = L.t("ed_draft_back") if not ed_cells.is_empty() else ""
+   137	+	_ed_save_draft()   # 讀回後把整理過的草稿（拿掉牆格等）存回去
+   138	 
+   139	 func _ed_make() -> void:
+   140	+	ed_err_cells = []
+   197	 	if gname in WS3.PICK_GOALS:
+   198	 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
+   199	 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+   200	@@ -2132,7 +2267,7 @@
+   201	 		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = ""; ed_focus_main = true, ready, true)
+   202	 		var mk: String = MapDefs.MAPS[ed_map]["key"]
+   203	 		_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
+   204	-		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+   205	+		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}]; ed_err_cells = []; ed_err_side = -1; Save.data.erase("ed_draft"); Save.save_data())   # 清空＝草稿立刻刪（重開不復活）
+   206	 		_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
+   207	 	else:
+   208	 		var bx3 := 640.0 - (3 * bw + 2 * 16.0) / 2.0
+   209	--- a/game/scripts/ui/screens/game_playroom.gd
+   210	+++ b/game/scripts/ui/screens/game_playroom.gd
+   211	@@ -808,6 +808,12 @@
+   212	 	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
+   213	 	var pages := maxi(1, int(ceil(gs.size() / float(per))))
+   214	 	gh_page = clampi(gh_page, 0, pages - 1)
+   215	+	# 1.6.0 B21（P13.4）長字串：同一頁的名牌標題用同一個字級（照這一頁最長、最需要縮的那張；原本每張各縮各的，大小不一）
+   216	+	var ts: int = tz("B")
+   217	+	for k2 in per:
+   218	+		var i2 := gh_page * per + k2
+   219	+		if i2 < gs.size():
+   220	+			ts = mini(ts, fit(L.field(gs[i2], ""), tz("B"), 200, true))   # 取 _text 自己會縮到的那一級的最小值：每張再 fit 也會停在同一級（Codex B21 r2）
+   221	 	for k in per:
+   222	 		var i := gh_page * per + k
+
+exec
+/bin/bash -lc "rg -n -A 9 'func text_h' game/scripts/ui/ui_base.gd; diff -u coordination/v1600-impl/b21-r1/diff2.patch coordination/v1600-impl/b21-r1/diff3.patch" in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 1 in 219ms:
+718:func text_h(s: String, size: int, maxw := 0.0, bold := false) -> float:
+719-	var n := wrap_lines(s, size, maxw, bold).size()
+720-	return n * size * line_h(n)
+721-
+722-
+723-## V1.6.1 A8：焦點框平滑移動
+724-const FOCUS_GLIDE := 0.08
+725-var fg_from := Rect2()
+726-var fg_to := Rect2()
+727-var fg_at := -9.0
+--- coordination/v1600-impl/b21-r1/diff2.patch	2026-11-17 09:20:41.933955200 +0800
++++ coordination/v1600-impl/b21-r1/diff3.patch	2026-11-17 09:26:46.294544500 +0800
+@@ -4,8 +4,8 @@
+  	if ed_block.has(ed_target):
+  		ed_target = Vector2i(-1, -1)
+  	ed_msg = ""
+-+	if Save.data.has("ed_draft") or not ed_cells.is_empty():
+-+		_ed_save_draft()   # 換地圖也跟著改草稿
+++	if not ed_loading and (Save.data.has("ed_draft") or not ed_cells.is_empty()):
+++		_ed_save_draft()   # 換地圖也跟著改草稿（讀回草稿途中不存：會用空盤蓋掉原稿；Codex B21 r2）
+  const ED_CS0 := 32.0
+  ## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
+  func ed_cs() -> float:
+@@ -26,7 +26,7 @@
+  		else:
+  			ed_msg = L.t("ed_pick_foe" if want_foe else "ed_pick_own")
+  		return
+-@@ -2003,8 +2008,129 @@
++@@ -2003,8 +2008,133 @@
+  	else:
+  		ed_cells[c] = ed_type
+  	ed_msg = ""
+@@ -62,6 +62,7 @@
+ +	return out
+ +
+ +var ed_err_cells: Array = []   # 出題失敗時要圈紅的格子
+++var ed_loading := false        # 讀回草稿途中（不存草稿）
+ +var ed_err_side := -1          # 整個半邊出問題（0＝你的半邊、1＝敵方半邊）
+ +
+ +## 1.6.0 B21（P13.2）保留草稿：編輯內容存在存檔 ed_draft（打開出題台時沒有內容就帶回）
+@@ -116,7 +117,9 @@
+ +	if not ed_cells.is_empty() or not ed_draft_ok(d):
+ +		return
+ +	ed_goal = int(d["goal"])
+++	ed_loading = true
+ +	_ed_set_map(0 if WS3.ED_GOALS[ed_goal] == "trio" else int(d["map"]))   # 三考題只有平原
+++	ed_loading = false
+ +	for e in d["cells"]:
+ +		var kc := Vector2i(int(e[1]), int(e[2]))
+ +		if int(e[0]) < D.total() and not ed_block.has(kc):
+@@ -131,6 +134,7 @@
+ +	var t: Array = d["t"]
+ +	ed_target = Vector2i(int(t[0]), int(t[1])) if ed_cells.has(Vector2i(int(t[0]), int(t[1]))) else Vector2i(-1, -1)
+ +	ed_msg = L.t("ed_draft_back") if not ed_cells.is_empty() else ""
+++	_ed_save_draft()   # 讀回後把整理過的草稿（拿掉牆格等）存回去
+  
+  func _ed_make() -> void:
+ +	ed_err_cells = []
+@@ -156,7 +160,7 @@
+  	var l := ed_lists()
+  	var code := ""
+  	if WS3.ED_GOALS[ed_goal] == "trio":
+-@@ -2020,7 +2146,9 @@
++@@ -2020,7 +2150,9 @@
+  	else:
+  		code = WS3.encode5(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target, ed_map)   # 1.2.0 §11.10：沒地形時等於 encode4
+  	if code == "":
+@@ -167,7 +171,7 @@
+  		return
+  	DisplayServer.clipboard_set(code)
+  	call("_ach", "WORKBENCH")   # V1.6.1 D7
+-@@ -2044,6 +2172,7 @@
++@@ -2044,6 +2176,7 @@
+  	for k in ed_foes[i]:
+  		ed_cells[k] = ed_foes[i][k]
+  	ed_msg = ""
+@@ -175,7 +179,7 @@
+  
+  var ed_focus_main := false   # 1.6.0 B07（Codex r1 #2）：切段後焦點放到新段主鈕
+  var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
+-@@ -2073,6 +2202,8 @@
++@@ -2073,6 +2206,8 @@
+  				if k == ed_target:
+  					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
+  					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
+@@ -184,7 +188,7 @@
+  			if cx <= 5 or cx >= 10:
+  				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
+  	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
+-@@ -2108,7 +2239,7 @@
++@@ -2108,7 +2243,7 @@
+  	y += tz("S") * 1.4 + GAP_M
+  	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
+  	var gname: String = WS3.ED_GOALS[ed_goal]
+@@ -193,7 +197,7 @@
+  	if gname in WS3.PICK_GOALS:
+  		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
+  		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
+-@@ -2132,7 +2263,7 @@
++@@ -2132,7 +2267,7 @@
+  		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = ""; ed_focus_main = true, ready, true)
+  		var mk: String = MapDefs.MAPS[ed_map]["key"]
+  		_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
+@@ -204,24 +208,7 @@
+  		var bx3 := 640.0 - (3 * bw + 2 * 16.0) / 2.0
+ --- a/game/scripts/ui/screens/game_playroom.gd
+ +++ b/game/scripts/ui/screens/game_playroom.gd
+-@@ -795,6 +795,16 @@
+- 	if int(rec.get("pend", 0)) == 1 and SteamApi.available() and int(rec.get("best", 0)) > 0:
+- 		SteamApi.weekly_upload(int(rec["wk"]), int(rec["best"]), PackedInt32Array(rec.get("det", [])))
+- 
+-+## 名牌標題放得下的字級：兩行以內最大的那一級（再小也不低於字級表最小級）
+-+func _gh_title_size(name: String) -> int:
+-+	var levels: Array = TYPE_SCALE[_scale_key()].values()
+-+	levels.sort()
+-+	levels.reverse()
+-+	for v in levels:
+-+		if int(v) <= tz("B") and text_h(name, int(v), 200, true) <= text_h("A\nA", int(v), 200, true) + 0.5:   # 兩行高照實量（Codex B21 r1）
+-+			return int(v)
+-+	return int(levels[-1])
+-+
+- func _draw_ghosts() -> void:
+- 	_dim(0.6)
+- 	var gs := ghosts()
+-@@ -808,6 +818,12 @@
++@@ -808,6 +808,12 @@
+  	# 一頁 12 張羊皮紙名牌（3 欄 × 4 列）；打贏的蓋朱紅「破」印
+  	var pages := maxi(1, int(ceil(gs.size() / float(per))))
+  	gh_page = clampi(gh_page, 0, pages - 1)
+@@ -230,11 +217,11 @@
+ +	for k2 in per:
+ +		var i2 := gh_page * per + k2
+ +		if i2 < gs.size():
+-+			ts = mini(ts, _gh_title_size(L.field(gs[i2], "")))
+++			ts = mini(ts, fit(L.field(gs[i2], ""), tz("B"), 200, true))   # 取 _text 自己會縮到的那一級的最小值：每張再 fit 也會停在同一級（Codex B21 r2）
+  	for k in per:
+  		var i := gh_page * per + k
+  		if i >= gs.size():
+-@@ -821,8 +837,8 @@
++@@ -821,8 +827,8 @@
+  		var on_paper: bool = bool(_btns[_btns.size() - 1]["en"]) and not bool(Save.s("plain_ui"))
+  		_ink_mode = on_paper   # 停用／簡化時卡片是深色：字用淺色
+  		var gname := L.field(g, "")
+@@ -247,7 +234,7 @@
+  		var sw := minf(_width(stars, tz("C"), true), 96.0)
+ --- a/game/tests/suites/coach_lab.gd
+ +++ b/game/tests/suites/coach_lab.gd
+-@@ -830,3 +830,54 @@
++@@ -830,3 +830,55 @@
+  	g.sb_tab = 1
+  	ok(g.famous_games().size() == fl.size(), "名局只讀一次（快取）")
+  	g.free()
+@@ -284,6 +271,7 @@
+ +	SVx.data["ed_draft"] = d["ed_draft"]
+ +	g2._ed_load_draft()
+ +	ok(g2.ed_cells == {Vector2i(2, 3): 0} and g2.ed_msg == LSd.t("ed_draft_back"), "重開（存檔來回）帶回草稿")
+++	ok(SVx.data["ed_draft"]["cells"] == [[0, 2, 3]], "讀回途中不會用空盤蓋掉原稿")
+ +	ok(GS.ed_draft_ok({"cells": [[0, 2, 3]], "goal": 0, "map": 0, "t": [-1, -1], "foes": [[], [[1, 12, 2]], []], "fi": 1}), "完整草稿（含三考題的三支敵陣）合格")
+ +	# 三考題：空的那一支敵陣翻過去並圈紅
+ +	var g3 = GS.new()
+
+ succeeded in 29391ms:
+coordination/v1600-impl/b21-r1/codex2.err
+coordination/v1600-impl/b21-r1/codex-prompt3.md
+coordination/v1600-impl/b21-r1/diff2.patch
+coordination/v1600-impl/b21-r1/codex3.err
+coordination/v1600-impl/b21-r1/codex2.raw
+coordination/v1600-impl/b21-r1/codex3.raw
+coordination/v1600-impl/b21-r1/diff.patch
+coordination/v1600-impl/b21-r1/hy.err
+coordination/v1600-impl/b21-r1/hy-prompt.txt
+coordination/v1600-impl/b21-r1/diff3.patch
+coordination/v1600-impl/b21-r1/hy.md
+coordination/v1600-impl/b21-r1/codex-prompt.md
+coordination/v1600-impl/b21-r1/b21-plan.md
+coordination/v1600-impl/b21-r1/codex-prompt2.md
+coordination/v1600-impl/b21-r1/codex.md
+coordination/v1600-impl/b21-r1/codex.err
+coordination/v1600-impl/b21-r1/codex.raw
+coordination/v1600-impl/b21-r1/hy1/ghosts_en150_after.png
+coordination/v1600-impl/b21-r1/hy1/ghosts_en150_before.png
+game/scripts/ui/battle/battle_fx.gd:323:func _text_pad(f: Dictionary) -> Array:
+game/scripts/ui/battle/battle_fx.gd:350:func _text_slot(r: Rect2, placed: Array, faces: Dictionary, board: Rect2, far := false, own := -1, pref := Vector2.INF, anchor := Vector2.INF) -> Array:
+game/scripts/ui/screens/game_modes.gd:376:		var ts: Array = pz["allowed"].duplicate()   # Codex v110-impl2：可用兵種表也要在試玩版範圍內
+game/scripts/ui/screens/game_v16.gd:925:	var ts: Array = []
+game/scripts/ui/screens/game_v16.gd:1951:func _ed_set_map(m: int) -> void:
+game/scripts/ui/screens/game_v16.gd:2031:func _ed_sync_foe() -> void:
+game/scripts/ui/screens/game_v16.gd:2244:		var ts: Dictionary = Save.data.get("trio_stars", {})
+game/scripts/ui/ui_base.gd:627:func fit(s: String, size: int, maxw: float, bold := false) -> int:
+game/scripts/ui/ui_base.gd:825:func _text(p: Vector2, s: String, size: int, c: Color, center := false, bold := false, maxw := 0.0, outline := Color(0, 0, 0, -1)) -> void:
+game/scripts/ui/battle/battle_state.gd:188:func _text_rect(f: Dictionary, at: Vector2) -> Rect2:
+game/scripts/ui/battle/battle_state.gd:195:static func _text_alpha(f: Dictionary) -> float:
+ M game/scripts/game/sfx.gd
+ M game/scripts/ui/game_screens.gd
+ M game/scripts/ui/main.gd
+ M game/scripts/ui/palette.gd
+ M game/scripts/ui/replay_view.gd
+ M game/scripts/ui/screens/game_result.gd
+ M game/scripts/ui/screens/game_v16.gd
+ M game/scripts/ui/ui_base.gd
+ M game/tests/run_tests.gd
+ M game/tests/suites/ui.gd
+ M game/tools/dev_main.gd
+ M game/tools/screen_owner.py
+ M game/tools/screens.json
+?? coordination/v1600-impl/b09-r1/codex.err
+?? coordination/v1600-impl/b09-r1/codex2.err
+?? coordination/v1600-impl/b09-r1/codex3.err
+?? coordination/v1600-impl/b19-plan.md
+?? coordination/v1600-impl/b19-r1/
+?? coordination/v1600-impl/b20-plan.md
+?? coordination/v1600-impl/b20-r1/
+?? coordination/v1600-impl/b21-plan.md
+?? coordination/v1600-impl/b21-r1/
+?? docs/release/recording-list.md
+?? game/audio/obj_paper.wav
+?? game/audio/obj_paper.wav.import
+?? game/audio/obj_stamp.wav
+?? game/audio/obj_stamp.wav.import
+?? game/scripts/game/lesson.gd.uid
+?? game/tools/gen/gen_audio_v160.py
+?? game/tools/gen_famous.gd.uid
+?? game/tools/store_thumb.py
+
+codex
+- diff3.patch:7、120–137：讀稿換圖已阻止覆寫，還原後補存整理結果。
+- diff3.patch:216–230：逐張 fit 取最小字級，繪字與高度計算一致；兩項未見阻擋問題。
+
+結論：可
+tokens used
+22,315

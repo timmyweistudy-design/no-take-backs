@@ -830,3 +830,55 @@ func test_famous_v1600() -> void:
 	g.sb_tab = 1
 	ok(g.famous_games().size() == fl.size(), "名局只讀一次（快取）")
 	g.free()
+
+## 1.6.0 B21（P13.2）出題錯誤落點與保留草稿：擋住出題的原因＋格子；草稿存檔、重開帶回、壞草稿不帶。
+func test_editor_draft_v1600() -> void:
+	var GS = load("res://scripts/ui/game_screens.gd")
+	var SVx = load("res://scripts/game/save.gd")
+	var LSd = load("res://scripts/game/strings.gd")
+	ok(GS.ed_problems({}, {}).size() == 2 and GS.ed_problems({}, {})[0][0] == "ed_err_no_own", "空盤：先說沒有你的兵、再說沒有敵兵")
+	var c := {Vector2i(1, 1): 0, Vector2i(12, 4): 0}
+	ok(GS.ed_problems(c, {}).is_empty(), "兩邊都有兵：可以出")
+	var pw: Array = GS.ed_problems(c, {Vector2i(12, 4): true})
+	ok(pw.size() == 1 and pw[0][0] == "ed_err_wall" and pw[0][1] == [Vector2i(12, 4)], "壓在牆上：圈出那一格")
+	var big := {Vector2i(12, 4): 0}
+	for r in 9:
+		for col in 6:
+			big[Vector2i(col, r)] = 3
+	var pb: Array = GS.ed_problems(big, {})
+	ok(pb.size() >= 1 and pb[0][0] == "ed_err_budget" and (pb[0][1] as Array).size() == 54, "超過 200 金：圈出你的兵")
+	var keep: Dictionary = SVx.data.duplicate(true)
+	var g = GS.new()
+	g.sfx = FakeSfx.new()
+	g.ed_cells = {}
+	g._ed_make()
+	ok(g.ed_err_side == 0 and g.ed_msg == LSd.t("ed_err_no_own"), "按出題時擋下、整個左半邊圈紅", str([g.ed_err_side, g.ed_msg]))
+	g.ed_type = 0
+	g.ed_toggle(Vector2i(2, 3))
+	ok(g.ed_err_side == -1 and SVx.data.get("ed_draft", {}).get("cells", []) == [[0, 2, 3]], "改了就收紅框、草稿跟著改")
+	var d: Dictionary = JSON.parse_string(JSON.stringify(SVx.data))
+	SVx.sanitize_data(d)
+	var g2 = GS.new()
+	g2.sfx = FakeSfx.new()
+	SVx.data["ed_draft"] = d["ed_draft"]
+	g2._ed_load_draft()
+	ok(g2.ed_cells == {Vector2i(2, 3): 0} and g2.ed_msg == LSd.t("ed_draft_back"), "重開（存檔來回）帶回草稿")
+	ok(SVx.data["ed_draft"]["cells"] == [[0, 2, 3]], "讀回途中不會用空盤蓋掉原稿")
+	ok(GS.ed_draft_ok({"cells": [[0, 2, 3]], "goal": 0, "map": 0, "t": [-1, -1], "foes": [[], [[1, 12, 2]], []], "fi": 1}), "完整草稿（含三考題的三支敵陣）合格")
+	# 三考題：空的那一支敵陣翻過去並圈紅
+	var g3 = GS.new()
+	g3.sfx = FakeSfx.new()
+	var WSx = load("res://scripts/game/workshop.gd")
+	g3.ed_goal = WSx.ED_GOALS.find("trio")
+	g3.ed_cells = {Vector2i(1, 1): 0, Vector2i(12, 4): 0}
+	g3.ed_foes = [{}, {}, {}]
+	g3.ed_foe_i = 0
+	g3._ed_make()
+	ok(g3.ed_foe_i == 1 and g3.ed_err_side == 1 and g3.ed_msg == LSd.t("ed_err_trio_foe", [2]), "三考題第 2 支敵陣空的：翻到第 2 支、圈紅", str([g3.ed_foe_i, g3.ed_msg]))
+	ok((SVx.data.get("ed_draft", {}) as Dictionary).get("fi", -1) == 1 and ((SVx.data["ed_draft"]["foes"] as Array)[0] as Array).size() == 1, "草稿存了三支敵陣與目前第幾支")
+	g3.free()
+	for bad in ["x", {"cells": [[0, 7, 3]]}, {"cells": [], "goal": 0, "map": 63, "t": [-1, -1]}, {"cells": [], "goal": 0, "map": 0, "t": ["a", 1]}, {"cells": [], "goal": 0, "map": 0}, {"cells": [[0, 2, 30]], "goal": 0, "map": 0}, {"cells": [[1.0e30, 2, 3]], "goal": 0, "map": 0}, {"cells": [], "goal": 99, "map": 0}]:
+		ok(not GS.ed_draft_ok(bad), "壞草稿不帶回：%s" % str(bad))
+	g.free()
+	g2.free()
+	SVx.data = keep

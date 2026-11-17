@@ -387,6 +387,9 @@ static func _is_int_num(x) -> bool:
 	return _is_num(x) and float(x) == floorf(float(x))   # 整數（JSON 讀進來是 float，小數不收；Codex v110-i2 #8）
 
 static func sanitize_extras(out: Dictionary) -> void:
+	# 1.6.0 B21（P13.2）出題台草稿：不是字典＝丟掉（內容在打開出題台時逐格驗）
+	if out.has("ed_draft") and not out["ed_draft"] is Dictionary:
+		out.erase("ed_draft")
 	# 1.6.0 B18（§3.1）對 AI 換邊雙局的會話：壞了＝沒有進行中的一組
 	if out.has("swap_ai_run"):
 		var swr = preload("res://scripts/game/swap_duel.gd").sanitize_run(out["swap_ai_run"])

@@ -2,6 +2,60 @@
 
 > 玩家看的更新說明（商店頁「更新」與 Steam 公告用）。開發紀錄看 `docs/STATE.md` 與 `docs/history/`。
 
+# 1.6.0
+
+## 繁體中文
+**1.6.0：同一張桌（第一階段）。** 每一頁都像攤在同一張桌上，打完有東西可以學。
+- **同一張桌**：擺陣、戰鬥、結果都在同一盞桌燈下——盤外桌面暗一點、紙面不再刺眼，紙上的字都看得清。大廳變成一本挑戰簿，頁籤是木撥片。
+- **第一次開遊戲**：左邊桌緣一張便條，選好語言和字級按「開第一局」，兩下就開戰。標題剩三張主牌，其他收在「更多」。
+- **混戰看得懂**：傷害數字會讓開兵的臉；特效不再整片發白。
+- **兵偶**：劍士、騎兵的剪影更好認；轉身先壓一下再翻面；石魔、骷髏也重畫。打太久、血很少的兵會低頭冒汗。開戰會敲一下桌、打完倖存的兵點頭（任何時候按一下就跳過）。
+- **覆盤棋課**：覆盤改一隻重算之後可以「記進棋課」，棋課本隨時重算核對；敗因卡標「觀察」，重算過的標「此條件下已驗證」。
+- **棋譜本**：讀不出來的紀錄另外收著（可以複製出來）；收第七場會先問要擠掉哪一場；結果頁「更多」直接收；新增「棋館名局」六場險勝局。
+- **無盡塔**：每三層一個岔路——接契約（敵人變強、得契約章）或休整；路線存著，關遊戲再開照樣接著爬。
+- **對 AI 換邊雙局**：第一局你擺藍、第二局換你擺紅，兩局加總；中途關遊戲也能接著打。
+- **出題台**：出不了題時直接圈出哪幾格有問題；沒出完的題目會留著。
+- **小地方**：翻頁有翻紙聲、蓋章有蓋印聲；連勝遠征越往後桌燈越窄、桌上的木籌越疊越高。
+
+## English
+**1.6.0 — One Table (part one).** Every screen sits on the same table, and every loss teaches you something.
+- **One table**: deployment, battle and results share the same desk lamp — the desk around the board is dimmer, paper is no longer glaring, and all text on paper is readable. The lobby is now a challenge book with wooden tabs.
+- **First launch**: a note on the left edge of the desk — pick your language and text size, press "Play first match", and you're fighting in two clicks. The title has three main cards; the rest is under "More".
+- **Readable melees**: damage numbers move out of the way of faces; effects no longer white out the board.
+- **Figures**: swordsmen and cavalry have clearer silhouettes; turning now dips before it flips; the golem and skeleton are redrawn. Units that have fought long and are badly hurt hang their heads and sweat. A knock on the table starts the battle and survivors nod at the end (any press skips it).
+- **Lesson book**: after changing one unit and re-running in Review, "Save lesson" keeps the comparison; re-check it any time. The defeat card says "Observed", re-run results say "verified under these conditions".
+- **Replay book**: unreadable entries are set aside (you can copy them out); adding a 7th battle asks which one to drop; add straight from the result's "More"; new "Parlor classics" — six narrow wins.
+- **Endless Tower**: a fork every three floors — take a contract (tougher enemies, contract seals) or rest; your route is saved, so you can quit and keep climbing later.
+- **Swap-sides vs AI**: you deploy blue in game one and red in game two; scores add up, and you can resume after quitting.
+- **Puzzle workbench**: when a puzzle can't be made, the problem cells are outlined in red; unfinished puzzles are kept.
+- **Little things**: page flips rustle, stamps thud; deep in the Gauntlet the desk lamp narrows and your stack of wooden chips grows.
+
+## 简体中文
+**1.6.0：同一张桌（第一阶段）。** 每一页都像摊在同一张桌上，打完有东西可以学。
+- **同一张桌**：摆阵、战斗、结果都在同一盏台灯下——盘外桌面暗一点、纸面不再刺眼，纸上的字都看得清。大厅变成一本挑战簿，页签是木拨片。
+- **第一次开游戏**：左边桌缘一张便条，选好语言和字号按“开第一局”，两下就开战。标题剩三张主牌，其他收在“更多”。
+- **混战看得懂**：伤害数字会让开兵的脸；特效不再整片发白。
+- **兵偶**：剑士、骑兵的剪影更好认；转身先压一下再翻面；石魔、骷髅也重画。打太久、血很少的兵会低头冒汗。开战会敲一下桌、打完幸存的兵点头（任何时候按一下就跳过）。
+- **复盘棋课**：复盘改一个重算之后可以“记进棋课”，棋课本随时重算核对；败因卡标“观察”，重算过的标“此条件下已验证”。
+- **棋谱本**：读不出来的记录另外收着（可以复制出来）；收第七场会先问要挤掉哪一场；结果页“更多”直接收；新增“棋馆名局”六场险胜局。
+- **无尽塔**：每三层一个岔路——接契约（敌人变强、得契约章）或休整；路线存着，关游戏再开照样接着爬。
+- **对 AI 换边双局**：第一局你摆蓝、第二局换你摆红，两局加总；中途关游戏也能接着打。
+- **出题台**：出不了题时直接圈出哪几格有问题；没出完的题目会留着。
+- **小地方**：翻页有翻纸声、盖章有盖印声；连胜远征越往后台灯越窄、桌上的木筹越叠越高。
+
+## 日本語
+**1.6.0：同じ卓（第一段階）。** どの画面も同じ卓の上に。負けからも学べるように。
+- **同じ卓**：配置・戦闘・結果が同じ卓上ランプの下に——盤の外の卓は少し暗く、紙はまぶしくなく、紙の上の文字がしっかり読めます。ロビーは木の見出しが付いた挑戦帳に。
+- **初回起動**：卓の左端にメモが一枚。言語と文字サイズを選んで「最初の一局」を押せば、2クリックで開戦。タイトルは主札3枚、残りは「その他」に。
+- **乱戦が読める**：ダメージ数字が兵の顔をよけます。エフェクトで盤が白飛びしなくなりました。
+- **駒**：剣士と騎兵のシルエットが見分けやすく、向きを変えるときは一度沈んでから反転。ゴーレムと骸骨も描き直し。長く戦って傷ついた兵はうなだれて汗をかきます。開戦で卓をコンと叩き、終わると生き残りがうなずきます（いつでも押せば飛ばせます）。
+- **棋課ノート**：振り返りで1体変えて再計算したら「棋課に記録」。いつでも再計算で確認できます。敗因カードは「観察」、再計算した結果は「この条件で検証済み」と表示。
+- **棋譜帳**：読めない記録は別に保管（コピーで取り出せます）。7局目を収めるときはどれを消すか先に確認。結果の「その他」から直接収められます。新しく「棋館の名局」——僅差の6局。
+- **無限の塔**：3階ごとに分かれ道——契約を受ける（敵が強くなり契約章を得る）か休むか。道のりは保存され、やめても続きから登れます。
+- **AIと入替え二番勝負**：第1局は青、第2局は赤を担当。2局の合計で勝負、途中でやめても再開できます。
+- **出題台**：問題が作れないときは原因のマスを赤枠で示します。作りかけは残ります。
+- **細かいところ**：ページをめくると紙の音、押印には印の音。連勝遠征が進むほど卓上ランプが狭まり、木札が積み上がります。
+
 # 1.5.0
 
 ## 繁體中文

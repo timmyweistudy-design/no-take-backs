@@ -1960,6 +1960,8 @@ func _ed_set_map(m: int) -> void:
 	if ed_block.has(ed_target):
 		ed_target = Vector2i(-1, -1)
 	ed_msg = ""
+	if not ed_loading and (Save.data.has("ed_draft") or not ed_cells.is_empty()):
+		_ed_save_draft()   # 換地圖也跟著改草稿（讀回草稿途中不存：會用空盤蓋掉原稿；Codex B21 r2）
 const ED_CS0 := 32.0
 ## 1.2.0 字級表放大：出題台在 125／150% 垂直放不下（目標列壓到底部按鈕）→ 棋盤格縮小（不縮字）
 func ed_cs() -> float:
@@ -1984,6 +1986,8 @@ func ed_lists() -> Array:
 func ed_toggle(c: Vector2i) -> void:
 	if c.x < 0 or c.x > 15 or c.y < 0 or c.y > 8 or (c.x > 5 and c.x < 10):
 		return
+	ed_err_cells = []   # 改了就收掉紅框
+	ed_err_side = -1
 	if ed_block.has(c):
 		ed_msg = L.t("err_terrain")   # 1.2.0 §11.10：牆上不能放
 		return
@@ -1993,6 +1997,7 @@ func ed_toggle(c: Vector2i) -> void:
 			ed_target = c
 			ed_pick = false
 			ed_msg = ""
+			_ed_save_draft()
 		else:
 			ed_msg = L.t("ed_pick_foe" if want_foe else "ed_pick_own")
 		return
@@ -2003,8 +2008,133 @@ func ed_toggle(c: Vector2i) -> void:
 	else:
 		ed_cells[c] = ed_type
 	ed_msg = ""
+	_ed_save_draft()   # 草稿跟著改（只改記憶體；離開出題台、出題時才寫檔）
+
+## 1.6.0 B21（P13.2）出題錯誤落點：出題前先找出擋住出題的原因與格子 → [[字串鍵, 格子陣列（空＝整個半邊）]...]（空＝可以出）
+static func ed_problems(cells: Dictionary, block: Dictionary) -> Array:
+	var out: Array = []
+	var own: Array = []
+	var foe: Array = []
+	var wall: Array = []
+	var cost := 0
+	for k in cells:
+		if block.has(k):
+			wall.append(k)
+		if k.x <= 5:
+			own.append(k)
+			cost += D.cost(int(cells[k]))
+		elif k.x >= 10:
+			foe.append(k)
+	if own.is_empty():
+		out.append(["ed_err_no_own", []])
+	if foe.is_empty():
+		out.append(["ed_err_no_foe", []])
+	if not wall.is_empty():
+		out.append(["ed_err_wall", wall])
+	if cost > 200:
+		out.append(["ed_err_budget", own])
+	if own.size() > WS3.MAX_UNITS:
+		out.append(["ed_err_many", own])
+	if foe.size() > WS3.MAX_UNITS:
+		out.append(["ed_err_many", foe])
+	return out
+
+var ed_err_cells: Array = []   # 出題失敗時要圈紅的格子
+var ed_loading := false        # 讀回草稿途中（不存草稿）
+var ed_err_side := -1          # 整個半邊出問題（0＝你的半邊、1＝敵方半邊）
+
+## 1.6.0 B21（P13.2）保留草稿：編輯內容存在存檔 ed_draft（打開出題台時沒有內容就帶回）
+func _ed_save_draft() -> void:
+	if WS3.ED_GOALS[ed_goal] == "trio":
+		_ed_sync_foe()
+	var cl: Array = []
+	for k in ed_cells:
+		cl.append([int(ed_cells[k]), k.x, k.y])
+	cl.sort()
+	var fl: Array = []
+	for f in ed_foes:
+		var e: Array = []
+		for k in f:
+			e.append([int(f[k]), k.x, k.y])
+		e.sort()
+		fl.append(e)
+	Save.data["ed_draft"] = {"v": 1, "cells": cl, "goal": ed_goal, "map": ed_map, "t": [ed_target.x, ed_target.y], "foes": fl, "fi": ed_foe_i}
+
+static func _dint(x, lo: float, hi: float) -> bool:
+	return (x is int or (x is float and float(x) == floorf(float(x)))) and float(x) >= lo and float(x) <= hi
+
+static func _ed_cells_ok(list, foe_only := false) -> bool:
+	if not list is Array or list.size() > 160:
+		return false
+	for e in list:
+		if not e is Array or e.size() != 3 or not _dint(e[0], 0, 63) or not _dint(e[1], 0, 15) or not _dint(e[2], 0, 8):
+			return false
+		if (int(e[1]) > 5 and int(e[1]) < 10) or (foe_only and int(e[1]) < 10):
+			return false
+	return true
+
+## 草稿逐欄驗型（缺欄、範圍外、目標不是整數＝整份不帶）
+static func ed_draft_ok(d) -> bool:
+	if not d is Dictionary or not _ed_cells_ok(d.get("cells")):
+		return false
+	if not _dint(d.get("goal"), 0, WS3.ED_GOALS.size() - 1) or not _dint(d.get("map"), 0, MapDefs.MAPS.size() - 1):
+		return false
+	var t = d.get("t")
+	if not t is Array or t.size() != 2 or not _dint(t[0], -1, 15) or not _dint(t[1], -1, 8):
+		return false
+	var fl = d.get("foes", [])
+	if not fl is Array or fl.size() > 3:
+		return false
+	for f in fl:
+		if not _ed_cells_ok(f, true):
+			return false
+	return _dint(d.get("fi", 0), 0, 2)
+
+func _ed_load_draft() -> void:
+	var d = Save.data.get("ed_draft")
+	if not ed_cells.is_empty() or not ed_draft_ok(d):
+		return
+	ed_goal = int(d["goal"])
+	ed_loading = true
+	_ed_set_map(0 if WS3.ED_GOALS[ed_goal] == "trio" else int(d["map"]))   # 三考題只有平原
+	ed_loading = false
+	for e in d["cells"]:
+		var kc := Vector2i(int(e[1]), int(e[2]))
+		if int(e[0]) < D.total() and not ed_block.has(kc):
+			ed_cells[kc] = int(e[0])   # 牆格上的不帶回
+	ed_foes = [{}, {}, {}]
+	var fl: Array = d.get("foes", [])
+	for i in fl.size():
+		for e in fl[i]:
+			if int(e[0]) < D.total():
+				ed_foes[i][Vector2i(int(e[1]), int(e[2]))] = int(e[0])
+	ed_foe_i = int(d.get("fi", 0))
+	var t: Array = d["t"]
+	ed_target = Vector2i(int(t[0]), int(t[1])) if ed_cells.has(Vector2i(int(t[0]), int(t[1]))) else Vector2i(-1, -1)
+	ed_msg = L.t("ed_draft_back") if not ed_cells.is_empty() else ""
+	_ed_save_draft()   # 讀回後把整理過的草稿（拿掉牆格等）存回去
 
 func _ed_make() -> void:
+	ed_err_cells = []
+	ed_err_side = -1
+	if WS3.ED_GOALS[ed_goal] == "trio":
+		_ed_sync_foe()
+		for fi in 3:
+			if (ed_foes[fi] as Dictionary).is_empty():
+				if fi != ed_foe_i:
+					_ed_switch_foe(fi)   # 三考題：哪一支敵陣是空的，就翻到那一支並圈紅
+				ed_msg = L.t("ed_err_trio_foe", [fi + 1])
+				ed_err_side = 1
+				return
+	var probs := ed_problems(ed_cells, ed_block)
+	if not probs.is_empty():
+		ed_msg = L.t(str(probs[0][0]))   # 先講第一個原因、圈出那幾格
+		ed_err_cells = probs[0][1]
+		if ed_err_cells.is_empty():
+			ed_err_side = 0 if str(probs[0][0]) == "ed_err_no_own" else 1
+		return
+	_ed_save_draft()
+	Save.save_data()
 	var l := ed_lists()
 	var code := ""
 	if WS3.ED_GOALS[ed_goal] == "trio":
@@ -2020,7 +2150,9 @@ func _ed_make() -> void:
 	else:
 		code = WS3.encode5(l[0], l[1], WS3.ED_GOALS[ed_goal], ed_target, ed_map)   # 1.2.0 §11.10：沒地形時等於 encode4
 	if code == "":
-		ed_msg = L.t("ed_fail")
+		# 擺法都合格但出不了題：作者的解法在這組規則下打不贏（或驗證算太久）→ 指到你的解法那半邊
+		ed_msg = L.t("ed_err_sol")
+		ed_err_side = 0
 		return
 	DisplayServer.clipboard_set(code)
 	call("_ach", "WORKBENCH")   # V1.6.1 D7
@@ -2044,6 +2176,7 @@ func _ed_switch_foe(i: int) -> void:
 	for k in ed_foes[i]:
 		ed_cells[k] = ed_foes[i][k]
 	ed_msg = ""
+	_ed_save_draft()
 
 var ed_focus_main := false   # 1.6.0 B07（Codex r1 #2）：切段後焦點放到新段主鈕
 var ed_tab := 0   # 1.6.0 B07（P2.5）：出題台 0＝編輯段、1＝驗證段
@@ -2073,6 +2206,8 @@ func _draw_editor() -> void:
 				if k == ed_target:
 					draw_rect(r.grow(-1), Color(0, 0, 0, 0.8), false, 4.0)
 					draw_rect(r.grow(-1), Color("#ff5a4a") if WS3.ED_GOALS[ed_goal] == "kill" else Color("#ffd166"), false, 2.5)
+			if k in ed_err_cells or (ed_err_side == 0 and cx <= 5) or (ed_err_side == 1 and cx >= 10):
+				draw_rect(r.grow(-2), Color("#ff5a4a", 0.9), false, 2.5)   # 1.6.0 B21：出題錯誤落點（紅框）
 			if cx <= 5 or cx >= 10:
 				_btns.append({"r": r, "cb": func(): ed_toggle(k), "en": ed_tab == 0, "grid": true})   # 1.6.0 B07：驗證段棋盤只看不改
 	_text(G.position + Vector2(3 * ed_cs(), -tz("C") * 1.4), L.t("ed_you"), tz("C"), Color("#9fd0ff"), true, true, 6 * ed_cs())
@@ -2108,7 +2243,7 @@ func _draw_editor() -> void:
 	y += tz("S") * 1.4 + GAP_M
 	# 目標鈕獨立一排（英文長說明放得下）；下一排三顆同寬置中（R4）
 	var gname: String = WS3.ED_GOALS[ed_goal]
-	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; _ed_trio_map()
+	var cyc := func(): ed_goal = (ed_goal + 1) % WS3.ED_GOALS.size(); ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; _ed_trio_map(); _ed_save_draft()
 	if gname in WS3.PICK_GOALS:
 		# V1.6.1 A2：可以自己點目標（同一排兩顆，整排置中）
 		var tl: String = L.t("ed_tgt_pick") if ed_pick else (L.t("ed_tgt_auto") if ed_target.x < 0 else L.t("ed_tgt_set", [L.t("unit_%d" % int(ed_cells.get(ed_target, 0)))]))
@@ -2132,7 +2267,7 @@ func _draw_editor() -> void:
 		_btn(Rect2(bx, by, bw, 48), L.t("ed_to_verify"), func(): ed_tab = 1; ed_pick = false; ed_msg = ""; ed_focus_main = true, ready, true)
 		var mk: String = MapDefs.MAPS[ed_map]["key"]
 		_btn(Rect2(bx + bw + 16, by, bw, 48), L.t("ed_map", [L.t("map_" + mk)]), func(): _ed_set_map((ed_map + 1) % MapDefs.MAPS.size()), WS3.ED_GOALS[ed_goal] != "trio")
-		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}])
+		_btn(Rect2(bx + 2 * (bw + 16), by, bw, 48), L.t("clear"), func(): ed_cells = {}; ed_msg = ""; ed_target = Vector2i(-1, -1); ed_pick = false; ed_foes = [{}, {}, {}]; ed_err_cells = []; ed_err_side = -1; Save.data.erase("ed_draft"); Save.save_data())   # 清空＝草稿立刻刪（重開不復活）
 		_btn(Rect2(bx + 3 * (bw + 16), by, bw, 48), L.t("back"), func(): _nav_back())   # V1.0.0（Codex v100-i1 #8）：和 Esc 同一條返回路徑
 	else:
 		var bx3 := 640.0 - (3 * bw + 2 * 16.0) / 2.0
