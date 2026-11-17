@@ -1,0 +1,254 @@
+--- a/game/scripts/ui/ui_base.gd
++++ b/game/scripts/ui/ui_base.gd
+@@ -1139,6 +1139,44 @@
+ 	if int(get("state")) != St.TITLE and str(get("overlay")) == "":   # 疊層（大廳、設定…）打開時不壓（Codex B03 r1 #3）
+ 		draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, PAL.OFF_BOARD_DIM))
+ 	_desk_props()
++	_streak_desk()
++
++## 1.6.0 B20（P12.4）連勝桌況：連勝遠征第 1→7 戰，盤外燈光一戰比一戰收窄（暗角加深）、棋罐旁的木籌一戰多一枚。
++## 只畫在桌面層（棋盤畫在上面）＝盤內不動；簡化介面不畫。回 [暗角加深 α, 木籌枚數]
++static func streak_table(stage: int) -> Array:
++	var k := clampi(stage, 1, 7) - 1
++	return [0.07 * k, k]
++
++## 壓暗帶：[矩形, α]；全部在棋盤框（field 外擴 26）之外——棋盤框內一個像素都不碰
++static func streak_bands(field: Rect2, a0: float) -> Array:
++	var out: Array = []
++	var fr := field.grow(26.0)
++	for k in 2:
++		var g := fr.grow(k * 60.0)
++		var a := a0 * (0.6 + 0.4 * k)
++		for r in [Rect2(0, 0, 1280, maxf(0.0, g.position.y)), Rect2(0, g.end.y, 1280, maxf(0.0, 800.0 - g.end.y)),
++				Rect2(0, g.position.y, maxf(0.0, g.position.x), g.size.y), Rect2(g.end.x, g.position.y, maxf(0.0, 1280.0 - g.end.x), g.size.y)]:
++			if r.size.x > 0.0 and r.size.y > 0.0:
++				out.append([r, a])
++	return out
++
++static var streak_force := -1   # 驗證用：≥1＝桌況照這一戰畫（不改遠征狀態；比「盤內不動」用）
++
++func _streak_desk() -> void:
++	if int(get("mode")) != Mode.GAUNTLET or int(get("state")) == St.TITLE or str(get("overlay")) != "":
++		return
++	var st: Array = streak_table(streak_force if streak_force >= 1 else int(get("gauntlet_stage")))
++	if float(st[0]) > 0.0:
++		# 燈光收窄：只壓棋盤框外（四條帶，由框往外兩層漸深）；棋盤框內一個像素都不碰（盤內不動，B20 驗過逐像素）
++		for b in streak_bands(Rect2(ORIGIN, get("fld_size")), float(st[0])):
++			draw_rect(b[0], Color(DIM_INK, float(b[1])))
++	for i in int(st[1]):
++		# 木籌：右側茶杯與沙漏之間，一枚一枚往上疊（固定位置、低彩度；頂端資訊列會擋住棋罐那一角）
++		var c := Vector2(1228, 560 - i * 5)
++		draw_circle(c + Vector2(3, 4), 11.0, Color(DIM_INK, 0.35), true, -1.0, true)
++		draw_circle(c, 10.0, Color("#b58a5a"), true, -1.0, true)
++		draw_arc(c, 10.0, 0, TAU, 20, Color("#5a3f22", 0.8), 1.4, true)
++		draw_circle(c, 4.0, Color("#8a6038"), true, -1.0, true)
+ 
+ ## 1.6.0 B03（P1.2）接觸影：桌上物件底緣往右下（主光左上 35°）偏移 CONTACT_OFF、羽化 CONTACT_FEATHER（三層由寬到窄疊）。
+ ## 全站同一組數字（docs/art-spec-v160.md §1）；簡化介面只畫一層硬影。
+--- a/game/scripts/game/sfx.gd
++++ b/game/scripts/game/sfx.gd
+@@ -9,14 +9,15 @@
+ 	"poison", "baa", "chomp", "squish", "charge_up", "timestop", "raise", "vacuum", "stomp",
+ 	"k_hover", "k_click", "k_back", "k_confirm", "k_tab", "k_toggle", "k_error", "k_open", "k_close", "k_unlock", "k_star", "k_place",
+ 	"step_grass", "step_snow", "step_wood", "step_stone", "step_heavy", "hit_metal", "hit_wood", "hit_soft", "horn", "ui_quill",
+-	"wood_light", "wood_heavy", "wood_hollow", "wood_metal", "wood_topple"]   # V1.6 #14 擬音（tools/gen/gen_audio_v16.py）
++	"wood_light", "wood_heavy", "wood_hollow", "wood_metal", "wood_topple",   # V1.6 #14 擬音（tools/gen/gen_audio_v16.py）
++	"obj_paper", "obj_stamp"]   # 1.6.0 B20（P12.3）器物聲：翻紙、蓋印（tools/gen/gen_audio_v160.py 合成佔位；真錄音同名替換）
+ # 0 普通命中、1 防禦、2 技能／死亡、3 全場事件與介面
+ const PRIO := {"hit": 0, "slash": 0, "arrow": 0, "block": 1, "brace": 1, "alert": 1, "taunt": 1, "reveal": 1,
+ 	"shatter": 2, "bell": 2, "bugle": 2, "aircut": 2, "snap": 2, "charge": 2, "backstab": 2, "death": 2,
+ 	"step_grass": 0, "step_snow": 0, "step_wood": 0, "step_stone": 0, "step_heavy": 1, "hit_metal": 0, "hit_wood": 0, "hit_soft": 0, "horn": 3,
+ 	"k_hover": 3, "k_click": 3, "k_back": 3, "k_confirm": 3, "k_tab": 3, "k_toggle": 3, "k_error": 3, "k_open": 3, "k_close": 3, "k_unlock": 3, "k_star": 3, "k_place": 3,
+ 	"poison": 0, "squish": 1, "charge_up": 1, "baa": 1, "chomp": 2, "timestop": 2, "raise": 2, "vacuum": 2, "stomp": 2, "clutch": 3, "frenzy": 3, "start": 3, "win": 3, "lose": 3, "turn": 3, "ui_click": 3, "ui_deny": 3, "ui_quill": 3,
+-	"wood_light": 1, "wood_heavy": 1, "wood_hollow": 1, "wood_metal": 1, "wood_topple": 2}
++	"wood_light": 1, "wood_heavy": 1, "wood_hollow": 1, "wood_metal": 1, "wood_topple": 2, "obj_paper": 3, "obj_stamp": 3}
+ var _prio_of := {}       # 聲道 → 正在播的優先權
+ var _started := {}       # 聲道 → 開始時間
+ var _lowpass_idx := -1
+--- a/game/scripts/ui/game_screens.gd
++++ b/game/scripts/ui/game_screens.gd
+@@ -1166,7 +1166,7 @@
+ 	if drop >= 1.0 and not ink_stamped:
+ 		ink_stamped = true
+ 		if sfx != null:
+-			sfx.play("place_heavy", 1.0)   # 蓋章聲
++			sfx.play("obj_stamp", 1.0)   # 蓋章聲（1.6.0 B20：器物聲「蓋印」）
+ 
+ var ink_stamped := false
+ 
+--- a/game/scripts/ui/replay_view.gd
++++ b/game/scripts/ui/replay_view.gd
+@@ -755,7 +755,7 @@
+ 	var bx := 580.0
+ 	btn_group = "rv_tabs"
+ 	for k in 3:   # 1.6.0 B15：第三頁「棋課本」
+-		_btn(Rect2(bx + k * 186, tab_y, 180, 40), L.t(["rv_tab_edit", "rv_tab_read", "rv_tab_book"][k]), func(): rv_tab = k; rv_focus_main = true, k != 1 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
++		_btn(Rect2(bx + k * 186, tab_y, 180, 40), L.t(["rv_tab_edit", "rv_tab_read", "rv_tab_book"][k]), func(): rv_tab = k; rv_focus_main = true; _paper_flip(), k != 1 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
+ 	btn_group = ""
+ 	if rv_tab == 2:
+ 		_rv_draw_book(bx, dy)
+@@ -843,6 +843,11 @@
+ 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
+ 
+ 
++## 1.6.0 B20（P12.3）器物聲：翻頁＝翻紙聲
++func _paper_flip() -> void:
++	if sfx != null:
++		sfx.play("obj_paper", 0.8)
++
+ ## ── 1.6.0 B15（P6.2；S5）棋課本 ──
+ const Lesson = preload("res://scripts/game/lesson.gd")
+ const LS_PER_PAGE := 5
+--- a/game/scripts/ui/screens/game_v16.gd
++++ b/game/scripts/ui/screens/game_v16.gd
+@@ -883,7 +883,7 @@
+ func _sb_tabs(y: float) -> float:
+ 	btn_group = "sb_tabs"
+ 	for k in 2:
+-		_btn(Rect2(640 - 250 + k * 255, y, 245, 40), L.t(["sb_tab_mine", "sb_tab_famous"][k]), func(): sb_tab = k; _focus = 0, true, false, TH_ACTIVE if sb_tab == k else TH_WOOD)
++		_btn(Rect2(640 - 250 + k * 255, y, 245, 40), L.t(["sb_tab_mine", "sb_tab_famous"][k]), func(): sb_tab = k; _focus = 0; call("_paper_flip"), true, false, TH_ACTIVE if sb_tab == k else TH_WOOD)
+ 	btn_group = ""
+ 	return y + 48.0
+ 
+--- a/game/scripts/ui/screens/game_result.gd
++++ b/game/scripts/ui/screens/game_result.gd
+@@ -351,7 +351,7 @@
+ 	else:
+ 		_draw_result_details(Rect2(230, y, 820, 640 - y))
+ 		y = 590.0
+-	_btn(Rect2(926, 112, 140, 40), L.t(["res_tab_flow", "res_details", "res_summary"][clampi(result_tab, 0, 2)]), func(): result_tab = (result_tab + 1) % 3)   # 1.5.0 §1.5：摘要 → 走勢與事件 → 詳細數據
++	_btn(Rect2(926, 112, 140, 40), L.t(["res_tab_flow", "res_details", "res_summary"][clampi(result_tab, 0, 2)]), func(): result_tab = (result_tab + 1) % 3; call("_paper_flip"))   # 1.5.0 §1.5：摘要 → 走勢與事件 → 詳細數據
+ 	if report.has("stars") and result_tab == 0:   # 星級只在摘要頁（走勢、詳細數據頁的內容到底，150% 換行會壓到底列；Codex v150 cat02 r2 #1、r3）
+ 		var pz := PZ.get_puzzle(puzzle_id)
+ 		var stn := int(report["stars"])
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1326,6 +1326,12 @@
+ 	overlay = "ga_info"
+ 	await _snap("60b_ga_info.png")
+ 	gauntlet_contract = -1
++	overlay = ""
++	var md_keep = mode
++	mode = Mode.GAUNTLET
++	gauntlet_stage = 7   # 1.6.0 B20（P12.4）連勝桌況：第 7 戰（盤外燈光最窄、木籌 6 枚）
++	await _snap("v160_20a_streak.png")
++	mode = md_keep
+ 	gauntlet_stage = gst_keep
+ 	rules = RuleSet.standard()
+ 	rules.pool = [RuleSet.all_pool(), RuleSet.all_pool()]
+@@ -2012,7 +2018,7 @@
+ 	ai_name = L.t("diff_normal")   # 固定敵方名稱（不沿用前一場的；Codex B19 r1）
+ 	armies[0] = ar[0].copy()
+ 	await _store_settle()
+-	await _snap("store_01_place.png")
++	await _snap("store_%02d_%s.png" % [1, "place"])   # 名稱用組的：商店圖不在 24 組版面清冊裡（只在 --store 時拍）
+ 	_begin_battle(ar[0].copy(), ar[1].copy(), "official")   # 正式對局的畫面（沒有重播控制列）；截圖模式不結算
+ 	start_hold = 0.0
+ 	var probe = Sim.new(ar[0].copy(), ar[1].copy(), battle_rules)   # 先算這一場在哪個 tick 結束（確定性，和畫面上那一場一樣）
+--- a/game/tools/screens.json
++++ b/game/tools/screens.json
+@@ -671,6 +671,12 @@
+    "一般"
+   ]
+  },
++ "v160_20a_streak.png": {
++  "entry": "連勝遠征→第 7 戰擺陣（連勝桌況，1.6.0 B20）",
++  "states": [
++   "一般"
++  ]
++ },
+  "61_ban.png": {
+   "entry": "雙人→禁牌",
+   "states": [
+--- a/game/tools/gen/gen_audio_v160.py
++++ b/game/tools/gen/gen_audio_v160.py
+@@ -0,0 +1,47 @@
++#!/usr/bin/env python3
++"""1.6.0 B20（P12.3）器物聲合成佔位：翻紙（obj_paper）、蓋印（obj_stamp）。木棋沿用 V1.6 的 wood_*／place_*。
++真錄音到了就用同名檔替換（audio/obj_paper.wav、audio/obj_stamp.wav），程式不用改。
++用法：python3 tools/gen/gen_audio_v160.py（在 game/ 下，輸出到 audio/）。固定種子，重跑結果一樣。只用標準函式庫。"""
++import math, random, struct, wave, os
++SR = 22050
++OUT = os.path.join(os.path.dirname(__file__), "..", "..", "audio")
++r = random.Random(20261117)
++
++def write(name, xs, peak=0.7):
++    m = max(1e-9, max(abs(s) for s in xs))
++    g = peak / m
++    with wave.open(os.path.join(OUT, name + ".wav"), "wb") as w:
++        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
++        w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, s * g)) * 32767)) for s in xs))
++
++def lp(xs, k):
++    y = 0.0; out = []
++    for x in xs:
++        y += k * (x - y); out.append(y)
++    return out
++
++def hp(xs, k):
++    y = 0.0; out = []
++    for x in xs:
++        y += k * (x - y); out.append(x - y)
++    return out
++
++def env(n, a, d):
++    return [min(1.0, i / max(1, a * SR)) * math.exp(-max(0, i - a * SR) / (d * SR)) for i in range(n)]
++
++# 翻紙：一陣帶通的沙沙聲（兩段：拉起、落下），高頻為主、很短
++n = int(0.32 * SR)
++nz = [r.uniform(-1, 1) for _ in range(n)]
++bp = hp(lp(nz, 0.35), 0.08)
++e1 = env(n, 0.03, 0.06)
++e2 = [0.0] * int(0.14 * SR) + env(n - int(0.14 * SR), 0.01, 0.05)
++paper = [bp[i] * (e1[i] + 0.7 * e2[i]) * (1.0 + 0.4 * math.sin(i / SR * 2 * math.pi * 23)) for i in range(n)]
++write("obj_paper", paper, 0.55)
++
++# 蓋印：印泥章壓在紙上——低沉的短「咚」（180 Hz 衰減）＋一點紙面的摩擦
++n = int(0.28 * SR)
++thud = [math.sin(2 * math.pi * (180 - 60 * i / n) * i / SR) * math.exp(-i / (0.045 * SR)) for i in range(n)]
++rub = lp([r.uniform(-1, 1) for _ in range(n)], 0.2)
++rub = [rub[i] * math.exp(-i / (0.02 * SR)) * 0.35 for i in range(n)]
++write("obj_stamp", [thud[i] + rub[i] for i in range(n)], 0.75)
++print("ok")
+--- a/game/tests/suites/ui.gd
++++ b/game/tests/suites/ui.gd
+@@ -3154,3 +3154,28 @@
+ 	ok(rv.find("rv_focus_main = true   # 焦點交給讀結果頁") >= 0 and v16.find("ed_focus_main = true, ready, true)") >= 0, "翻頁／切段後焦點交給新頁主鈕（手把不落到停用棋盤）")
+ 	ok(v16.find("var ed_tab := 0") >= 0 and v16.find("for t in (20 if ed_tab == 0 else 0):") >= 0 and v16.find("\"en\": ed_tab == 0, \"grid\": true") >= 0, "出題分「編輯／驗證」：驗證段收起兵種盤、棋盤只看不改")
+ 	g.free()
++
++## 1.6.0 B20（P12.3、P12.4）器物聲（翻紙、蓋印；合成佔位、真錄音同名替換）＋連勝桌況（盤外燈光收窄、木籌，盤內不動）。
++func test_desk_sound_v1600() -> void:
++	var UB = load("res://scripts/ui/ui_base.gd")
++	var SF = load("res://scripts/game/sfx.gd")
++	ok(UB.streak_table(1) == [0.0, 0] and UB.streak_table(7)[1] == 6 and float(UB.streak_table(7)[0]) > float(UB.streak_table(4)[0]) and UB.streak_table(99) == UB.streak_table(7), "連勝桌況：第 1 戰不變、一戰比一戰暗、木籌一戰多一枚（夾在 7 戰）")
++	ok("obj_paper" in SF.FILES and "obj_stamp" in SF.FILES and FileAccess.file_exists("res://audio/obj_paper.wav") and FileAccess.file_exists("res://audio/obj_stamp.wav"), "器物聲兩個檔都在、都有登記")
++	var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
++	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
++	ok(gs.find("sfx.play(\"obj_stamp\", 1.0)") >= 0, "宣紙戰報蓋章用「蓋印」")
++	var fr := Rect2(UB.ORIGIN, UB.FIELD).grow(26.0)
++	var hit := 0
++	var nb := 0
++	for st in range(1, 8):
++		for b in UB.streak_bands(Rect2(UB.ORIGIN, UB.FIELD), float(UB.streak_table(st)[0])):
++			nb += 1
++			if (b[0] as Rect2).intersects(fr):
++				hit += 1
++	ok(hit == 0 and nb > 0, "連勝桌況的壓暗帶全部在棋盤框外（盤內不動；%d 條、相交 %d）" % [nb, hit])
++	var chip_hit := false
++	for i in 6:
++		if Rect2(Vector2(1228, 560 - i * 5) - Vector2(11, 11), Vector2(22, 22)).intersects(fr):
++			chip_hit = true
++	ok(not chip_hit, "木籌也在棋盤框外")
++	ok(ub.find("_desk_props()\n\t_streak_desk()") >= 0 and ub.find("if int(get(\"mode\")) != Mode.GAUNTLET") >= 0, "連勝桌況只在連勝遠征、畫在桌面層（盤面畫在上面＝盤內不動）")
+--- a/game/tests/run_tests.gd
++++ b/game/tests/run_tests.gd
+@@ -2,7 +2,7 @@
+ ## 測試入口（第七輪 I1 拆檔）：`godot --headless --path . --script res://tests/run_tests.gd [-- --only=<測試組>]`。
+ ## 一律「至少 1 項通過且 0 失敗」才 exit 0（R2）；未知的測試組直接失敗。
+ ## 測試組＝tests/suites/ 的檔名，另外 new＝units。
+-const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600", "test_famous_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120", "test_swap_ai_v1600"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600", "test_tower_route_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
++const FILES := {"coach_lab": ["test_coach_v160", "test_workbench_v160", "test_trio_v160", "test_workbench_r2_v160", "test_nb_key_v161", "test_nb_better_v161", "test_nb_sanitize_hash_v161", "test_coach_search_v161", "test_coach_record_v161", "test_nb_name_input_v161", "test_trio_code_v161", "test_trio_sol3_v161", "test_eff_games_seed_v161", "test_trio_cancel_v100", "test_retry_keep_v100", "test_retry_trial_free_v100", "test_nb_words_v110", "test_ws_archive_v110", "test_solution_code_v110", "test_review_fixes_v110", "test_play_tools_v120", "test_play_tools_fixes_v120", "test_pad_tools_v120", "test_lesson_v1600", "test_songbook_v1600", "test_famous_v1600"], "share_codes": ["test_share_v160", "test_adjacency_code_v160", "test_ntp4_v161", "test_rules_equals_map_v161", "test_signature_v161", "test_code_table_v100", "test_duel_code_v110", "test_ext_rules_frozen_v120", "test_ext_skills_v120", "test_ext_golden_v120", "test_ext_mechanics_v120", "test_ext_guard_ride_v120", "test_lobby_ext_v120"], "reports_platform": ["test_funnel_v160", "test_save_v16_sanitize_v160", "test_state_reset_v160", "test_sanitize_truncate_v160", "test_ach_store_result_v100", "test_medals_v161", "test_quarantine_full_v100", "test_feedback_honest_v100", "test_quarantine_fail_keeps_v100", "test_ai_count_migrate_v100", "test_report_cat_firstbattle_v110", "test_platform_report_v110", "test_ach_cat_v110"], "modes_live": ["test_guide_v160", "test_rush_v160", "test_rift_v160", "test_persona_v160", "test_career_v160", "test_daily_board_v160", "test_fog_v160", "test_coop_v160", "test_fog_free_v161", "test_new_after_v161", "test_rift_history_v161", "test_rush_daily_v161", "test_coop_log_v161", "test_workshop_slow_v100", "test_solo_clog_v100", "test_rift_seeds_v110", "test_chapter_seal_v110", "test_wk_ghosts_v120", "test_handheld_presets_v120", "test_wk_ghosts_steam_v120", "test_optional_modes_v120", "test_swap_ai_v1600"], "battle_visual": ["test_layout_r5_v160", "test_tactical_marks_v160", "test_terrain_ai_v160", "test_access_settings_v160", "test_foley_v160", "test_adjacency_v160", "test_mark_ids_v160", "test_pz_names_l10n_v161", "test_board_double_v161", "test_hold_rebind_v161", "test_lock_targets_v161", "test_sfx_same_cap_v100", "test_adj_pairs_mirror_v100", "test_review_gif_cancel_v110", "test_lock_groups_v110", "test_a7_p2_fx_v110", "test_bg_pool_v110", "test_breport_pad_v110", "test_pure_rules_v110", "test_b14_layers_v110", "test_review_base_async_v120", "test_present_v120", "test_char2_v120", "test_frags_v120", "test_ext_event_routes_v120", "test_table_view_v130", "test_base_shapes_v130", "test_unit_scale_v130", "test_heading_view_v130", "test_director_v130", "test_skill_cues_v130", "test_battle_v140", "test_battle_read_v150", "test_tag_shape_v150", "test_clutch_frame_v150", "test_atlas_pack_v1600", "test_melee_read_v1600", "test_semantic_guard_v1600", "test_silhouette_v1600", "test_turn_rhythm_v1600", "test_large_verify_v1600", "test_ceremony_v1600"], "modes": ["test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_daily_v11", "test_gauntlet_route_v11", "test_loss_summary_v11", "test_workshop_v11", "test_workshop_types_v11", "test_relay_v140", "test_playroom_v140", "test_commanders_v140", "test_waves_v140", "test_sealed_v140", "test_waves_lock_v140", "test_plan_fix_v140", "test_ghosts_v140", "test_sticker_reward_v140", "test_ga_info_v140", "test_sticker_contract_resume_v140", "test_mode_chain_v140", "test_unit_rec_v151", "test_wave_code_v151", "test_tower_v140"], "maps": ["test_maps_v9", "test_maps_mirror_v9", "test_map_events_v140"], "anim": ["test_gait_v9", "test_gait_driver_v9"], "core": ["test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_golden", "test_stickers_v140", "test_boss_v140", "test_golden_v140"], "content": ["test_puzzle_solutions", "test_codex", "test_counter_lib"], "ui": ["test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_play_effects", "test_input_queue", "test_crowd_readability", "test_replay_tools", "test_seek_clutch", "test_clutch_effects", "test_roster_ui", "test_replay_back_v7", "test_keymap_v7", "test_style_cache_v121", "test_ai_names_v121", "test_feel_v130", "test_characters_v131", "test_time_machine_v140", "test_contracts_v140", "test_nemesis_v140", "test_l10n_v140", "test_touch_v140", "test_projectile_timing_v150", "test_codex_controls_v150", "test_pause_menu_v150", "test_overlay_returns_v150", "test_data_swap_title_only_v150", "test_nav_back_v151", "test_cmd_delay_v151", "test_codex_summons_v151", "test_code_kind_speed_v151", "test_place_mode_v151", "test_free_tap_remove_v151", "test_codex_demo_projectile_v151", "test_layout_rules_v152", "test_layout_guard_wired_v152", "test_layout_r11_v130", "test_palette_v130", "test_vol_drag_v130", "test_vessels_v130", "test_info_layers_v130", "test_sound_v130", "test_parlor_people_v130", "test_owner_daily_v130", "test_intro_v130", "test_r12_r13_v140", "test_woodtype_v140", "test_vessels_curtain_v140", "test_transition_v140", "test_sound_v140", "test_people_v140", "test_title_v140", "test_input_matrix_v150", "test_r14_v150", "test_quick_rematch_v150", "test_lobby_steps_v150", "test_place_tidy_v150", "test_settings_drawer_v150", "test_typography_v150", "test_polish_v150", "test_crowded_pages_v150", "test_lobby_fold_v150", "test_title_notes_v150", "test_lobby_fold_menu_v150", "test_loss_jump_v150", "test_paint_wells_v150", "test_lobby_fold_r14_v150", "test_paper_ink_v1600", "test_table_seats_v1600", "test_desk_table_v1600", "test_od_label_fit_v1600", "test_en150_rewrite_v1600", "test_lobby_book_v1600", "test_first_act_v1600", "test_desk_sound_v1600"], "units": ["test_new_units"], "rules": ["test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_code_fuzz_v7"], "free": ["test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6"], "save": ["test_save_migration", "test_save_v7", "test_steam_v7", "test_play_log_v11", "test_records_v140", "test_paint_v140", "test_settings_v150", "test_presets_ten_v150", "test_restorable_v150", "test_playtest_report_v151", "test_backup_dir_prefix_v152", "test_save_v4_migration_v120", "test_session_contract_tower_v1600", "test_tower_route_v1600"], "harness": ["test_harness_v7"], "fantasy": ["test_cat_pull", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]}
+ const ALIASES := {"new": "units"}
+ ## V1.1 E2：新測試只要登記在 FILES；ORDER 只保留舊執行順序，沒列到的依 FILES 順序接在後面。
+ const ORDER := ["test_cat_pull", "test_modes_v9", "test_flows_v9", "test_v10_fixes", "test_v10_input", "test_v10_feel", "test_v10_demo", "test_unit_brief", "test_no_unlock", "test_cmd_sim", "test_cmd_ui", "test_star_solutions", "test_trial_rules_valid", "test_maps_v9", "test_maps_mirror_v9", "test_gait_v9", "test_gait_driver_v9", "test_army_rules", "test_turn_placement", "test_determinism_and_mirror", "test_termination", "test_traits", "test_rule_fixes", "test_suspense", "test_codes_and_snake", "test_rally", "test_nav_r1", "test_puzzle_solutions", "test_codex", "test_event_routes", "test_ui_consumers", "test_sfx_priority", "test_save_migration", "test_play_effects", "test_input_queue", "test_golden", "test_crowd_readability", "test_replay_tools", "test_counter_lib", "test_seek_clutch", "test_clutch_effects", "test_new_units", "test_roster_ui", "test_rules_v5", "test_sandbox_v5", "test_battle_code_v5", "test_rules_e2e_v5", "test_lobby_reopen_v5", "test_free_v6", "test_free_skip_v6", "test_review_free_v6", "test_to_free_keeps_units_v6", "test_free_review_fixes_v6", "test_save_v7", "test_harness_v7", "test_code_fuzz_v7", "test_keymap_v7", "test_replay_back_v7", "test_steam_v7", "test_fantasy_legacy_v8", "test_fantasy_rules_v8", "test_fantasy_regress_v8", "test_fantasy_mirror_v8", "test_fantasy_codes_v8", "test_fantasy_game_v8", "test_fantasy_codex_text_matches_stats"]

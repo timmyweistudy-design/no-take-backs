@@ -1139,6 +1139,42 @@ func _draw_desk() -> void:
 	if int(get("state")) != St.TITLE and str(get("overlay")) == "":   # 疊層（大廳、設定…）打開時不壓（Codex B03 r1 #3）
 		draw_rect(Rect2(0, 0, 1280, 800), Color(DIM_INK, PAL.OFF_BOARD_DIM))
 	_desk_props()
+	_streak_desk()
+
+## 1.6.0 B20（P12.4）連勝桌況：連勝遠征第 1→7 戰，盤外燈光一戰比一戰收窄（暗角加深）、棋罐旁的木籌一戰多一枚。
+## 只畫在桌面層（棋盤畫在上面）＝盤內不動；簡化介面不畫。回 [暗角加深 α, 木籌枚數]
+static func streak_table(stage: int) -> Array:
+	var k := clampi(stage, 1, 7) - 1
+	return [0.07 * k, k]
+
+## 壓暗帶：[矩形, α]；全部在棋盤框（field 外擴 26）之外——棋盤框內一個像素都不碰
+static func streak_bands(field: Rect2, a0: float) -> Array:
+	var out: Array = []
+	var fr := field.grow(26.0)
+	for k in 2:
+		var g := fr.grow(k * 60.0)
+		var a := a0 * (0.6 + 0.4 * k)
+		for r in [Rect2(0, 0, 1280, maxf(0.0, g.position.y)), Rect2(0, g.end.y, 1280, maxf(0.0, 800.0 - g.end.y)),
+				Rect2(0, g.position.y, maxf(0.0, g.position.x), g.size.y), Rect2(g.end.x, g.position.y, maxf(0.0, 1280.0 - g.end.x), g.size.y)]:
+			if r.size.x > 0.0 and r.size.y > 0.0:
+				out.append([r, a])
+	return out
+
+func _streak_desk() -> void:
+	if int(get("mode")) != Mode.GAUNTLET or int(get("state")) == St.TITLE or str(get("overlay")) != "":
+		return
+	var st: Array = streak_table(int(get("gauntlet_stage")))
+	if float(st[0]) > 0.0:
+		# 燈光收窄：只壓棋盤框外（四條帶，由框往外兩層漸深）；棋盤框內一個像素都不碰（盤內不動，B20 驗過逐像素）
+		for b in streak_bands(Rect2(ORIGIN, get("fld_size")), float(st[0])):
+			draw_rect(b[0], Color(DIM_INK, float(b[1])))
+	for i in int(st[1]):
+		# 木籌：右側茶杯與沙漏之間，一枚一枚往上疊（固定位置、低彩度；頂端資訊列會擋住棋罐那一角）
+		var c := Vector2(1228, 560 - i * 5)
+		draw_circle(c + Vector2(3, 4), 11.0, Color(DIM_INK, 0.35), true, -1.0, true)
+		draw_circle(c, 10.0, PAL.CHIP_WOOD, true, -1.0, true)
+		draw_arc(c, 10.0, 0, TAU, 20, Color(PAL.CHIP_EDGE, 0.8), 1.4, true)
+		draw_circle(c, 4.0, PAL.CHIP_CORE, true, -1.0, true)
 
 ## 1.6.0 B03（P1.2）接觸影：桌上物件底緣往右下（主光左上 35°）偏移 CONTACT_OFF、羽化 CONTACT_FEATHER（三層由寬到窄疊）。
 ## 全站同一組數字（docs/art-spec-v160.md §1）；簡化介面只畫一層硬影。

@@ -352,6 +352,7 @@ func _draw_result() -> void:
 		_draw_result_details(Rect2(230, y, 820, 640 - y))
 		y = 590.0
 	_btn(Rect2(926, 112, 140, 40), L.t(["res_tab_flow", "res_details", "res_summary"][clampi(result_tab, 0, 2)]), func(): result_tab = (result_tab + 1) % 3)   # 1.5.0 §1.5：摘要 → 走勢與事件 → 詳細數據
+	call("_paper_btn")
 	if report.has("stars") and result_tab == 0:   # 星級只在摘要頁（走勢、詳細數據頁的內容到底，150% 換行會壓到底列；Codex v150 cat02 r2 #1、r3）
 		var pz := PZ.get_puzzle(puzzle_id)
 		var stn := int(report["stars"])

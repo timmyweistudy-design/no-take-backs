@@ -1094,6 +1094,8 @@ func _run_screenshots() -> void:
 	await _shots_v16()
 	# 1.6.0 B04／B05：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
 	await _shot_fatigue()   # 1.6.0 B14：另開一場長戰鬥，放在所有截圖之後（不動到前面截圖的戰鬥狀態）
+	if "--store" in OS.get_cmdline_user_args():
+		await _shot_store()   # 1.6.0 B19（P8.3）商店拍攝 Preset（只在 --store 時拍；不在 24 組版面檢查裡）
 	await _lobby_pad_walk()
 	await _first_run_walk()
 	await _pad_walk()
@@ -1324,6 +1326,12 @@ func _shots_v9() -> void:
 	overlay = "ga_info"
 	await _snap("60b_ga_info.png")
 	gauntlet_contract = -1
+	overlay = ""
+	var md_keep = mode
+	mode = Mode.GAUNTLET
+	gauntlet_stage = 7   # 1.6.0 B20（P12.4）連勝桌況：第 7 戰（盤外燈光最窄、木籌 6 枚）
+	await _snap("v160_20a_streak.png")
+	mode = md_keep
 	gauntlet_stage = gst_keep
 	rules = RuleSet.standard()
 	rules.pool = [RuleSet.all_pool(), RuleSet.all_pool()]
@@ -1963,6 +1971,81 @@ func _ts_draw_one(p: Vector2, type: int, team: int, st: Dictionary) -> String:
 		return "vector"
 	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
 	return "atlas"
+
+## 1.6.0 B19（P8.3）商店拍攝 Preset：固定 seed／陣型／tick／動畫時鐘／機位（K2）。用 --resolution 1920x1080 跑（Steam 商店截圖尺寸）。
+## 預設：戰鬥鏡頭 1.25 倍、對準兩軍中線；前排各往後退一欄（拉開距離，交鋒前看得到兩條陣線）。
+## 輸出：store_01_place、store_02_clash（交鋒）、store_03_late（尾聲）、store_04_result；印 STORESHOTS OK＋張數。
+const STORE_ZOOM := 1.25
+const STORE_TICKS := [90, -60]   # 交鋒＝兩軍剛要接觸；尾聲＝結束前 3 秒（負數＝從結束往回算；Hydrogen B19 r2）
+func store_armies() -> Array:
+	var FF = preload("res://scripts/core/formations.gd")
+	var pool: Array = FF.training_pool(0)
+	var b = pool[2].copy()
+	var r = pool[9].mirrored()
+	b.shift_all(-1)   # 前排往後一欄（出界那一步整筆還原＝擺不下就照原位）
+	r.shift_all(-1)
+	return [b, r]
+
+func _store_center() -> Vector2:
+	var sum := Vector2.ZERO
+	var n := 0
+	for u in view.units:
+		if u.alive and not u.hidden:
+			sum += _upos(u)
+			n += 1
+	var c: Vector2 = (sum / n) if n > 0 else ORIGIN + fld_size / 2
+	# 夾在戰場裡（鏡頭框不出戰場；上下留給戰力條與時間軸）
+	var hw := fld_size.x / (2.0 * STORE_ZOOM)
+	var hh := fld_size.y / (2.0 * STORE_ZOOM)
+	return Vector2(clampf(c.x, ORIGIN.x + hw, ORIGIN.x + fld_size.x - hw), clampf(c.y, ORIGIN.y + hh, ORIGIN.y + fld_size.y - hh))
+
+## 接在正式截圖流程最後（--shot=<夾> --store；--shot-only=store_ 開頭的四張就只存這四張）。開一場新的戰鬥，不影響前面的截圖。
+## 換畫面的木色轉場遮罩：換畫面後第一次重畫才開始計時，固定時鐘下時間不走 → 先畫幾幀再把計時清掉
+func _store_settle() -> void:
+	for k in 3:
+		queue_redraw()
+		await get_tree().process_frame
+		set("_trans_t", -100.0)
+
+func _shot_store() -> void:
+	intro_end()   # 前面首開走查會再開一次掌燈開門（整個畫面壓暗）：先收掉
+	paused = false
+	var ar: Array = store_armies()
+	difficulty = 1
+	_start_mode(Mode.VS_AI)
+	overlay = ""
+	show_place_help = false
+	ai_name = L.t("diff_normal")   # 固定敵方名稱（不沿用前一場的；Codex B19 r1）
+	armies[0] = ar[0].copy()
+	await _store_settle()
+	await _snap("store_%02d_%s.png" % [1, "place"])   # 名稱用組的：商店圖不在 24 組版面清冊裡（只在 --store 時拍）
+	_begin_battle(ar[0].copy(), ar[1].copy(), "official")   # 正式對局的畫面（沒有重播控制列）；截圖模式不結算
+	start_hold = 0.0
+	var probe = Sim.new(ar[0].copy(), ar[1].copy(), battle_rules)   # 先算這一場在哪個 tick 結束（確定性，和畫面上那一場一樣）
+	probe.fast = true
+	probe.run_to_end()
+	var end_tick: int = int(probe.tick)
+	var n := 1
+	for t0 in STORE_TICKS:
+		var t: int = int(t0) if int(t0) >= 0 else maxi(0, end_tick + int(t0))
+		while not view.finished and view.tick < t:
+			_sim_step(false)
+		# 受擊閃白、表情是那一刻的實況（_frame_alive 只動鏡頭、不推進特效時間；不假裝等過；Codex B19 r2）
+		slow_left = 0.0
+		clutch_t = 0.0
+		# 機位：借用雙指縮放的「停住」路徑（戰鬥自己的鏡頭邏輯不會把它拉回全景；Hydrogen B19 r1）
+		pinch_zoom = STORE_ZOOM
+		pinch_center = _store_center()
+		zoom = STORE_ZOOM
+		zoom_target = STORE_ZOOM
+		zoom_center = pinch_center
+		await _store_settle()
+		n += 1
+		await _snap("store_0%d_%s.png" % [n, "clash" if n == 2 else "late"])
+	pinch_zoom = 1.0
+	zoom = 1.0
+	zoom_target = 1.0
+	print("STORESHOTS OK 3")
 
 func _run_turn_strip(out_dir: String) -> void:
 	Save.prefix = "shot_"

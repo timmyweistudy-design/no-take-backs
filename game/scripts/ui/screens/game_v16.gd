@@ -884,6 +884,7 @@ func _sb_tabs(y: float) -> float:
 	btn_group = "sb_tabs"
 	for k in 2:
 		_btn(Rect2(640 - 250 + k * 255, y, 245, 40), L.t(["sb_tab_mine", "sb_tab_famous"][k]), func(): sb_tab = k; _focus = 0, true, false, TH_ACTIVE if sb_tab == k else TH_WOOD)
+		call("_paper_btn")
 	btn_group = ""
 	return y + 48.0
 

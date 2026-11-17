@@ -757,6 +757,8 @@ func _draw_review() -> void:
 	for k in 3:   # 1.6.0 B15：第三頁「棋課本」
 		_btn(Rect2(bx + k * 186, tab_y, 180, 40), L.t(["rv_tab_edit", "rv_tab_read", "rv_tab_book"][k]), func(): rv_tab = k; rv_focus_main = true, k != 1 or not rv_result.is_empty() or not rv_base.is_empty(), false, TH_ACTIVE if rv_tab == k else TH_WOOD)
 	btn_group = ""
+	for kk in 3:
+		_btns[_btns.size() - 3 + kk]["snd"] = "obj_paper"   # 1.6.0 B20（P12.3）：翻頁＝翻紙聲（取代點擊聲，不疊兩聲）
 	if rv_tab == 2:
 		_rv_draw_book(bx, dy)
 		_btn(Rect2(560, 704, 160, 44), L.t("back"), func(): overlay = "")
@@ -842,6 +844,11 @@ func _rv_draw_read(bx: float, dy: float) -> void:
 			rv_focus_main = false
 		_btn(Rect2(650, 704, 300, 44), L.t("rv_play"), func(): _rv_play())   # V1.4：和「返回」同一列（Antigravity v140-i1）；V1.5.2 L8：雙按鈕同寬、整組置中
 
+
+## 1.6.0 B20（P12.3）器物聲：翻頁＝翻紙聲——按鈕的音效改成翻紙（_btns 的 snd；按下時只播這一聲）
+func _paper_btn() -> void:
+	if not _btns.is_empty():
+		_btns[-1]["snd"] = "obj_paper"
 
 ## ── 1.6.0 B15（P6.2；S5）棋課本 ──
 const Lesson = preload("res://scripts/game/lesson.gd")

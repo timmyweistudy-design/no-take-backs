@@ -3154,3 +3154,30 @@ func test_en150_rewrite_v1600() -> void:
 	ok(rv.find("rv_focus_main = true   # 焦點交給讀結果頁") >= 0 and v16.find("ed_focus_main = true, ready, true)") >= 0, "翻頁／切段後焦點交給新頁主鈕（手把不落到停用棋盤）")
 	ok(v16.find("var ed_tab := 0") >= 0 and v16.find("for t in (20 if ed_tab == 0 else 0):") >= 0 and v16.find("\"en\": ed_tab == 0, \"grid\": true") >= 0, "出題分「編輯／驗證」：驗證段收起兵種盤、棋盤只看不改")
 	g.free()
+
+## 1.6.0 B20（P12.3、P12.4）器物聲（翻紙、蓋印；合成佔位、真錄音同名替換）＋連勝桌況（盤外燈光收窄、木籌，盤內不動）。
+func test_desk_sound_v1600() -> void:
+	var UB = load("res://scripts/ui/ui_base.gd")
+	var SF = load("res://scripts/game/sfx.gd")
+	ok(UB.streak_table(1) == [0.0, 0] and UB.streak_table(7)[1] == 6 and float(UB.streak_table(7)[0]) > float(UB.streak_table(4)[0]) and UB.streak_table(99) == UB.streak_table(7), "連勝桌況：第 1 戰不變、一戰比一戰暗、木籌一戰多一枚（夾在 7 戰）")
+	ok("obj_paper" in SF.FILES and "obj_stamp" in SF.FILES and FileAccess.file_exists("res://audio/obj_paper.wav") and FileAccess.file_exists("res://audio/obj_stamp.wav"), "器物聲兩個檔都在、都有登記")
+	var gs: String = FileAccess.get_file_as_string("res://scripts/ui/game_screens.gd")
+	var ub: String = FileAccess.get_file_as_string("res://scripts/ui/ui_base.gd")
+	ok(gs.find("sfx.play(\"obj_stamp\", 1.0)") >= 0, "宣紙戰報蓋章用「蓋印」")
+	ok(SF.is_ui("obj_paper") and SF.is_ui("obj_stamp"), "器物聲走介面音量")
+	ok(gs.find("sfx.play(str(_btns[_focus].get(\"snd\", \"k_click\")), 0.7)") >= 0 and ub.find("streak_force") < 0, "鍵盤／手把確認也只播按鈕自己的一聲；沒有留測試鉤子")
+	var fr := Rect2(UB.ORIGIN, UB.FIELD).grow(26.0)
+	var hit := 0
+	var nb := 0
+	for st in range(1, 8):
+		for b in UB.streak_bands(Rect2(UB.ORIGIN, UB.FIELD), float(UB.streak_table(st)[0])):
+			nb += 1
+			if (b[0] as Rect2).intersects(fr):
+				hit += 1
+	ok(hit == 0 and nb > 0, "連勝桌況的壓暗帶全部在棋盤框外（盤內不動；%d 條、相交 %d）" % [nb, hit])
+	var chip_hit := false
+	for i in 6:
+		if Rect2(Vector2(1228, 560 - i * 5) - Vector2(11, 11), Vector2(22, 22)).intersects(fr):
+			chip_hit = true
+	ok(not chip_hit, "木籌也在棋盤框外")
+	ok(ub.find("_desk_props()\n\t_streak_desk()") >= 0 and ub.find("if int(get(\"mode\")) != Mode.GAUNTLET") >= 0, "連勝桌況只在連勝遠征、畫在桌面層（盤面畫在上面＝盤內不動）")

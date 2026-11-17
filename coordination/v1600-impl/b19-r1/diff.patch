@@ -1,0 +1,128 @@
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1094,6 +1094,8 @@
+ 	await _shots_v16()
+ 	# 1.6.0 B04／B05：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
+ 	await _shot_fatigue()   # 1.6.0 B14：另開一場長戰鬥，放在所有截圖之後（不動到前面截圖的戰鬥狀態）
++	if "--store" in OS.get_cmdline_user_args():
++		await _shot_store()   # 1.6.0 B19（P8.3）商店拍攝 Preset（只在 --store 時拍；不在 24 組版面檢查裡）
+ 	await _lobby_pad_walk()
+ 	await _first_run_walk()
+ 	await _pad_walk()
+@@ -1964,6 +1966,68 @@
+ 	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
+ 	return "atlas"
+ 
++## 1.6.0 B19（P8.3）商店拍攝 Preset：固定 seed／陣型／tick／動畫時鐘／機位（K2）。用 --resolution 1920x1080 跑（Steam 商店截圖尺寸）。
++## 預設：戰鬥鏡頭 1.25 倍、對準兩軍中線；前排各往後退一欄（拉開距離，交鋒前看得到兩條陣線）。
++## 輸出：store_01_place、store_02_clash（交鋒）、store_03_late（尾聲）、store_04_result；印 STORESHOTS OK＋張數。
++const STORE_ZOOM := 1.25
++const STORE_TICKS := [150, 520]
++func store_armies() -> Array:
++	var FF = preload("res://scripts/core/formations.gd")
++	var pool: Array = FF.training_pool(0)
++	var b = pool[2].copy()
++	var r = pool[9].mirrored()
++	b.shift_all(-1)   # 前排往後一欄（出界那一步整筆還原＝擺不下就照原位）
++	r.shift_all(-1)
++	return [b, r]
++
++func _store_center() -> Vector2:
++	var sum := Vector2.ZERO
++	var n := 0
++	for u in view.units:
++		if u.alive and not u.hidden:
++			sum += _upos(u)
++			n += 1
++	return (sum / n) if n > 0 else ORIGIN + fld_size / 2
++
++## 接在正式截圖流程最後（--shot=<夾> --store；--shot-only=store_ 開頭的四張就只存這四張）。開一場新的戰鬥，不影響前面的截圖。
++## 換畫面的木色轉場遮罩：換畫面後第一次重畫才開始計時，固定時鐘下時間不走 → 先畫幾幀再把計時清掉
++func _store_settle() -> void:
++	for k in 3:
++		queue_redraw()
++		await get_tree().process_frame
++		set("_trans_t", -100.0)
++
++func _shot_store() -> void:
++	intro_end()   # 前面首開走查會再開一次掌燈開門（整個畫面壓暗）：先收掉
++	paused = false
++	var ar: Array = store_armies()
++	difficulty = 1
++	_start_mode(Mode.VS_AI)
++	overlay = ""
++	show_place_help = false
++	armies[0] = ar[0].copy()
++	await _store_settle()
++	await _snap("store_01_place.png")
++	_begin_battle(ar[0].copy(), ar[1].copy(), "official")   # 正式對局的畫面（沒有重播控制列）；截圖模式不結算
++	start_hold = 0.0
++	var n := 1
++	for t in STORE_TICKS:
++		while not view.finished and view.tick < int(t):
++			_sim_step(false)
++		for k in 20:
++			_frame_alive(0.05)
++		slow_left = 0.0
++		clutch_t = 0.0
++		zoom = STORE_ZOOM
++		zoom_target = STORE_ZOOM
++		zoom_center = _store_center()
++		await _store_settle()
++		n += 1
++		await _snap("store_0%d_%s.png" % [n, "clash" if n == 2 else "late"])
++	zoom = 1.0
++	zoom_target = 1.0
++	print("STORESHOTS OK 3")
++
+ func _run_turn_strip(out_dir: String) -> void:
+ 	Save.prefix = "shot_"
+ 	for a in OS.get_cmdline_user_args():
+--- a/game/scripts/ui/main.gd
++++ b/game/scripts/ui/main.gd
+@@ -2,7 +2,7 @@
+ ## 主場景腳本。出貨版只有遊戲本身；帶開發參數且專案裡有 tools/ 時，換成 tools/dev_main.gd（第七輪 H3）。
+ 
+ const DEV := "res://tools/dev_main.gd"
+-const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil=", "--bake-pack=", "--pack-bench=", "--pack-selftest=", "--turn-strip="]
++const DEV_FLAGS := ["--shot=", "--capsule=", "--video", "--perf=", "--mem-check=", "--sil=", "--bake-pack=", "--pack-bench=", "--pack-selftest=", "--turn-strip=", "--store"]
+ 
+ func _ready() -> void:
+ 	for a in OS.get_cmdline_user_args():
+--- a/game/tools/store_thumb.py
++++ b/game/tools/store_thumb.py
+@@ -0,0 +1,34 @@
++#!/usr/bin/env python3
++"""1.6.0 B19（P8.3；K2 自動部分）商店圖縮圖辨識：把商店截圖縮到 Steam 小圖寬（462px）後量
++① 藍、紅兩隊隊色像素各占多少（都要 ≥0.4%＝縮小後還看得到兩邊的兵）；② 兩隊平均色的 ΔE（CIE76，≥40＝顏色分得開）；
++③ 畫面平均亮度（≥55＝沒被遮罩壓暗）。真人「縮圖辨識」（K2 人工）另外做，這裡只是自動門檻。
++用法：PYTHONPATH=build/pylibnp python3 game/tools/store_thumb.py <資料夾>；印 STORETHUMB OK／FAIL。"""
++import sys, os, glob
++import numpy as np
++from PIL import Image
++
++def lab(rgb):
++    c = rgb / 255.0
++    c = np.where(c > 0.04045, ((c + 0.055) / 1.055) ** 2.4, c / 12.92)
++    m = np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]])
++    xyz = c @ m.T / np.array([0.9505, 1.0, 1.089])
++    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
++    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
++
++bad = 0
++files = sorted(glob.glob(os.path.join(sys.argv[1], "store_*.png")))
++for p in files:
++    im = Image.open(p).convert("RGB")
++    im = im.resize((462, int(im.height * 462 / im.width)), Image.LANCZOS)
++    a = np.asarray(im).astype(float)
++    r, g, b = a[..., 0], a[..., 1], a[..., 2]
++    blue = (b > r + 40) & (b > g + 10) & (b > 120)
++    red = (r > g + 60) & (r > b + 40) & (r > 140)
++    pb, pr = blue.mean() * 100, red.mean() * 100
++    de = float(np.linalg.norm(lab(a[blue].mean(0)) - lab(a[red].mean(0)))) if blue.any() and red.any() else 0.0
++    lum = a.mean()
++    ok = pb >= 0.4 and pr >= 0.4 and de >= 40 and lum >= 55
++    bad += 0 if ok else 1
++    print("%-24s 藍 %.2f%%  紅 %.2f%%  ΔE %.0f  亮度 %.0f  %s" % (os.path.basename(p), pb, pr, de, lum, "OK" if ok else "FAIL"))
++print("STORETHUMB %s（%d 張、不合格 %d）" % ("OK" if files and bad == 0 else "FAIL", len(files), bad))
++sys.exit(0 if files and bad == 0 else 1)

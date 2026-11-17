@@ -77,3 +77,7 @@ const BOOK_FLAT_A := 0.7
 const BOOK_FRAME_DIM := 0.15   # 大廳外框（暗木框）再壓暗，L* 15.7→約 13.5（S1 要 12～15）   # 1.6.0 B06：羊皮紙貼圖（art/ui/paper.png）斑紋比卡紙深，乘 0.72 最暗處 L*≈51、墨字 4.17:1 → 淺一階（最暗處 ≥L*55，墨字 ≥4.5:1）
 # 1.6.0 B03：盤外桌面壓暗（只在盤框外，盤內隊色 ΔE＝0）
 const OFF_BOARD_DIM := 0.18
+## 1.6.0 B20（P12.4）連勝桌況的木籌
+const CHIP_WOOD := Color("#b58a5a")
+const CHIP_EDGE := Color("#5a3f22")
+const CHIP_CORE := Color("#8a6038")

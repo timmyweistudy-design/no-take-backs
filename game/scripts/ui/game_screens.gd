@@ -506,7 +506,7 @@ func _key(k: int) -> void:
 				_move_focus(1)
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				if _btns_gen == _gen and _focus >= 0 and _focus < _btns.size() and _btns[_focus]["en"]:   # 按鈕清單要是這個畫面的
-					sfx.play("k_click", 0.7)
+					sfx.play(str(_btns[_focus].get("snd", "k_click")), 0.7)   # 1.6.0 B20：鍵盤／手把確認和滑鼠同一個音（翻頁鈕＝翻紙，不疊兩聲）
 					_btns[_focus]["cb"].call()
 			KEY_F1:
 				if state == St.BATTLE and overlay == "" and play_kind != "official":
@@ -1166,7 +1166,7 @@ func _draw_ink_report_screen() -> void:
 	if drop >= 1.0 and not ink_stamped:
 		ink_stamped = true
 		if sfx != null:
-			sfx.play("place_heavy", 1.0)   # 蓋章聲
+			sfx.play("obj_stamp", 1.0)   # 蓋章聲（1.6.0 B20：器物聲「蓋印」）
 
 var ink_stamped := false
 

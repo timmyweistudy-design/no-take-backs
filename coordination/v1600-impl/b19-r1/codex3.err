@@ -1,0 +1,723 @@
+OpenAI Codex v0.167.0
+--------
+workdir: /mnt/c/Users/timmy/projects/no-take-backs
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1e6e8-050b-7323-972a-6aa237a95e2c
+--------
+user
+你是《落子無悔》(Godot 4.6.2) 1.6.0 實作的程式審查（B19 第 3 輪＝最後一輪）。只讀。專案根目錄＝目前資料夾。
+第 2 輪 coordination/v1600-impl/b19-r1/codex2.md；新差異 diff3.patch（同資料夾）。
+處理：①store_thumb 裁切上界改 y=75（戰力條以下）；②拿掉假裝等閃白的迴圈，註明截圖是那一刻實況；另：尾聲改成結束前 3 秒（先用同一組陣型算結束 tick）、倍率 1.25、交鋒 tick 90。
+只看這些修正。附行號。最多 2 條、150 字內。最後一行「結論：可／有條件／不可」。
+
+codex
+我會只讀第 2 輪紀錄與 diff3.patch，核對指定修正及行號。
+exec
+/bin/bash -lc "pwd; rg --files -g 'AGENTS.md' -g 'codex2.md' -g 'diff3.patch'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 350ms:
+/mnt/c/Users/timmy/projects/no-take-backs
+coordination/v140-impl/cat11-r1/codex2.md
+coordination/v1500-impl/cat06-r1/codex2.md
+coordination/v1500-impl/cat05-r1/codex2.md
+coordination/v140-impl/cat08-r1/diff3.patch
+coordination/v140-impl/cat08-r1/codex2.md
+coordination/v1500-impl/cat04-r1/codex2.md
+coordination/v1500-impl/cat02-r1/diff3.patch
+coordination/v1500-impl/cat02-r1/codex2.md
+coordination/v1500-impl/cat01-r1/diff3.patch
+coordination/v1500-impl/cat01-r1/codex2.md
+coordination/v1500-impl/cat03-r1/diff3.patch
+coordination/v1500-impl/cat03-r1/codex2.md
+coordination/v1500-impl/cat07-r1/diff3.patch
+coordination/v1500-impl/cat07-r1/codex2.md
+coordination/v1600-impl/b19-r1/diff3.patch
+coordination/v1600-impl/b19-r1/codex2.md
+coordination/v1600-impl/b18-r1/diff3.patch
+coordination/v1600-impl/b18-r1/codex2.md
+coordination/v1600-impl/b09-r1/codex2.md
+coordination/v1600-impl/b04-r1/codex2.md
+coordination/v1600-impl/b09-r1/diff3.patch
+coordination/v1600-impl/b06-r1/diff3.patch
+coordination/v1600-impl/b06-r1/codex2.md
+coordination/v1600-impl/b15-r1/codex2.md
+coordination/v1600-impl/b15-r1/diff3.patch
+coordination/v1600-impl/b08-r1/diff3.patch
+coordination/v1600-impl/b08-r1/codex2.md
+coordination/v1600-impl/b17-r1/diff3.patch
+coordination/v1600-impl/b17-r1/codex2.md
+coordination/v1600-impl/b07-r1/codex2.md
+coordination/v1600-impl/b05-r1/codex2.md
+coordination/v1600-impl/b02-r1/codex2.md
+coordination/v1600-impl/b03-r1/codex2.md
+coordination/v1600-impl/b12-r1/codex2.md
+coordination/v1600-impl/b12-r1/diff3.patch
+coordination/v1600-impl/b14-r1/diff3.patch
+coordination/v1600-impl/b14-r1/codex2.md
+coordination/v1600-impl/b16-r1/diff3.patch
+coordination/v1600-impl/b16-r1/codex2.md
+coordination/v1600-impl/b01-r1/codex2.md
+coordination/v1600-impl/b11-r1/codex2.md
+coordination/v1600-impl/b11-r1/diff3.patch
+coordination/v1600-impl/b10-r1/codex2.md
+
+exec
+/bin/bash -lc 'cat coordination/v1600-impl/b19-r1/codex2.md; cat coordination/v1600-impl/b19-r1/diff3.patch' in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 0ms:
+- `store_thumb.py:22` 裁切從 y=50 起，仍包含延至約 y=68 的紅藍戰力條，隊色比例仍可能被介面灌高；上界應移至戰場內。
+- `dev_main.gd:2022–2023` 的 `_frame_alive()` 只調鏡頭，不推進時間或特效；迴圈 40 次不等於等待 2 秒，閃白、表情與殘影未確實消退。
+
+結論：有條件
+--- a/game/tools/dev_main.gd
++++ b/game/tools/dev_main.gd
+@@ -1094,6 +1094,8 @@
+ 	await _shots_v16()
+ 	# 1.6.0 B04／B05：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
+ 	await _shot_fatigue()   # 1.6.0 B14：另開一場長戰鬥，放在所有截圖之後（不動到前面截圖的戰鬥狀態）
++	if "--store" in OS.get_cmdline_user_args():
++		await _shot_store()   # 1.6.0 B19（P8.3）商店拍攝 Preset（只在 --store 時拍；不在 24 組版面檢查裡）
+ 	await _lobby_pad_walk()
+ 	await _first_run_walk()
+ 	await _pad_walk()
+@@ -1964,6 +1966,81 @@
+ 	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
+ 	return "atlas"
+ 
++## 1.6.0 B19（P8.3）商店拍攝 Preset：固定 seed／陣型／tick／動畫時鐘／機位（K2）。用 --resolution 1920x1080 跑（Steam 商店截圖尺寸）。
++## 預設：戰鬥鏡頭 1.25 倍、對準兩軍中線；前排各往後退一欄（拉開距離，交鋒前看得到兩條陣線）。
++## 輸出：store_01_place、store_02_clash（交鋒）、store_03_late（尾聲）、store_04_result；印 STORESHOTS OK＋張數。
++const STORE_ZOOM := 1.25
++const STORE_TICKS := [90, -60]   # 交鋒＝兩軍剛要接觸；尾聲＝結束前 3 秒（負數＝從結束往回算；Hydrogen B19 r2）
++func store_armies() -> Array:
++	var FF = preload("res://scripts/core/formations.gd")
++	var pool: Array = FF.training_pool(0)
++	var b = pool[2].copy()
++	var r = pool[9].mirrored()
++	b.shift_all(-1)   # 前排往後一欄（出界那一步整筆還原＝擺不下就照原位）
++	r.shift_all(-1)
++	return [b, r]
++
++func _store_center() -> Vector2:
++	var sum := Vector2.ZERO
++	var n := 0
++	for u in view.units:
++		if u.alive and not u.hidden:
++			sum += _upos(u)
++			n += 1
++	var c: Vector2 = (sum / n) if n > 0 else ORIGIN + fld_size / 2
++	# 夾在戰場裡（鏡頭框不出戰場；上下留給戰力條與時間軸）
++	var hw := fld_size.x / (2.0 * STORE_ZOOM)
++	var hh := fld_size.y / (2.0 * STORE_ZOOM)
++	return Vector2(clampf(c.x, ORIGIN.x + hw, ORIGIN.x + fld_size.x - hw), clampf(c.y, ORIGIN.y + hh, ORIGIN.y + fld_size.y - hh))
++
++## 接在正式截圖流程最後（--shot=<夾> --store；--shot-only=store_ 開頭的四張就只存這四張）。開一場新的戰鬥，不影響前面的截圖。
++## 換畫面的木色轉場遮罩：換畫面後第一次重畫才開始計時，固定時鐘下時間不走 → 先畫幾幀再把計時清掉
++func _store_settle() -> void:
++	for k in 3:
++		queue_redraw()
++		await get_tree().process_frame
++		set("_trans_t", -100.0)
++
++func _shot_store() -> void:
++	intro_end()   # 前面首開走查會再開一次掌燈開門（整個畫面壓暗）：先收掉
++	paused = false
++	var ar: Array = store_armies()
++	difficulty = 1
++	_start_mode(Mode.VS_AI)
++	overlay = ""
++	show_place_help = false
++	ai_name = L.t("diff_normal")   # 固定敵方名稱（不沿用前一場的；Codex B19 r1）
++	armies[0] = ar[0].copy()
++	await _store_settle()
++	await _snap("store_01_place.png")
++	_begin_battle(ar[0].copy(), ar[1].copy(), "official")   # 正式對局的畫面（沒有重播控制列）；截圖模式不結算
++	start_hold = 0.0
++	var probe = Sim.new(ar[0].copy(), ar[1].copy(), battle_rules)   # 先算這一場在哪個 tick 結束（確定性，和畫面上那一場一樣）
++	probe.fast = true
++	probe.run_to_end()
++	var end_tick: int = int(probe.tick)
++	var n := 1
++	for t0 in STORE_TICKS:
++		var t: int = int(t0) if int(t0) >= 0 else maxi(0, end_tick + int(t0))
++		while not view.finished and view.tick < t:
++			_sim_step(false)
++		# 受擊閃白、表情是那一刻的實況（_frame_alive 只動鏡頭、不推進特效時間；不假裝等過；Codex B19 r2）
++		slow_left = 0.0
++		clutch_t = 0.0
++		# 機位：借用雙指縮放的「停住」路徑（戰鬥自己的鏡頭邏輯不會把它拉回全景；Hydrogen B19 r1）
++		pinch_zoom = STORE_ZOOM
++		pinch_center = _store_center()
++		zoom = STORE_ZOOM
++		zoom_target = STORE_ZOOM
++		zoom_center = pinch_center
++		await _store_settle()
++		n += 1
++		await _snap("store_0%d_%s.png" % [n, "clash" if n == 2 else "late"])
++	pinch_zoom = 1.0
++	zoom = 1.0
++	zoom_target = 1.0
++	print("STORESHOTS OK 3")
++
+ func _run_turn_strip(out_dir: String) -> void:
+ 	Save.prefix = "shot_"
+ 	for a in OS.get_cmdline_user_args():
+--- a/game/tools/store_thumb.py
++++ b/game/tools/store_thumb.py
+@@ -0,0 +1,36 @@
++#!/usr/bin/env python3
++"""1.6.0 B19（P8.3；K2 自動部分）商店圖縮圖辨識：把商店截圖縮到 Steam 小圖寬（462px）後量
++① 藍、紅兩隊隊色像素各占多少（都要 ≥0.4%＝縮小後還看得到兩邊的兵）；② 兩隊平均色的 ΔE（CIE76，≥40＝顏色分得開）；
++③ 畫面平均亮度（≥55＝沒被遮罩壓暗）。真人「縮圖辨識」（K2 人工）另外做，這裡只是自動門檻。
++用法：PYTHONPATH=build/pylibnp python3 game/tools/store_thumb.py <資料夾>；印 STORETHUMB OK／FAIL。"""
++import sys, os, glob
++import numpy as np
++from PIL import Image
++
++def lab(rgb):
++    c = rgb / 255.0
++    c = np.where(c > 0.04045, ((c + 0.055) / 1.055) ** 2.4, c / 12.92)
++    m = np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]])
++    xyz = c @ m.T / np.array([0.9505, 1.0, 1.089])
++    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
++    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
++
++bad = 0
++files = sorted(glob.glob(os.path.join(sys.argv[1], "store_*.png")))
++for p in files:
++    im = Image.open(p).convert("RGB")
++    im = im.crop((40, 75, 1240, 690))   # 只看戰場區：上面的戰力條、下面的兵種盤／開戰鈕／時間軸都是介面色，不算兵（Codex B19 r1）
++    im = im.resize((462, int(im.height * 462 / im.width)), Image.LANCZOS)
++    a = np.asarray(im).astype(float)
++    r, g, b = a[..., 0], a[..., 1], a[..., 2]
++    blue = (b > r + 40) & (b > g + 10) & (b > 120)
++    red = (r > g + 60) & (r > b + 40) & (r > 140)
++    pb, pr = blue.mean() * 100, red.mean() * 100
++    de = float(np.linalg.norm(lab(a[blue].mean(0)) - lab(a[red].mean(0)))) if blue.any() and red.any() else 0.0
++    lum = a.mean()
++    place = "place" in os.path.basename(p)   # 擺陣畫面看不到紅軍（對方地盤遮著）：只要求藍軍看得到；量到的紅多半是藍兵身上的紅配件
++    ok = pb >= 0.4 and (place or (pr >= 0.4 and de >= 40)) and lum >= 55
++    bad += 0 if ok else 1
++    print("%-24s 藍 %.2f%%  紅 %.2f%%  ΔE %.0f  亮度 %.0f  %s" % (os.path.basename(p), pb, pr, de, lum, "OK" if ok else "FAIL"))
++print("STORETHUMB %s（%d 張、不合格 %d）" % ("OK" if files and bad == 0 else "FAIL", len(files), bad))
++sys.exit(0 if files and bad == 0 else 1)
+
+exec
+/bin/bash -lc "rg -n 'STORE_ZOOM|STORE_TICKS|var probe|end_tick|那一刻|im.crop|func _begin_battle|Sim.new|func _sim_step|TICK|seed|func run_to_end' game/tools/dev_main.gd game/tools/store_thumb.py game/scripts/core/sim.gd; rg -n 'func _begin_battle|func _sim_step' game" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1435ms:
+rg: game/tools/store_thumb.py: No such file or directory (os error 2)
+rg: game/scripts/core/sim.gd: No such file or directory (os error 2)
+game/tools/dev_main.gd:585:		r.seed = 777 + k
+game/tools/dev_main.gd:593:	r_fallback.seed = 777   # 找不到接近的對手時也用固定種子（不然每次錄出不同的仗）
+game/tools/dev_main.gd:602:	var t = Sim.new(a0.copy(), a1.copy())
+game/tools/dev_main.gd:695:	ra.seed = 4242
+game/tools/dev_main.gd:744:		r.seed = 777 + k
+game/tools/dev_main.gd:866:	# 1.6.0 B14（P5.4）收盤：結束後倖存的兵點一下頭（點到最低那一刻）
+game/tools/dev_main.gd:871:	if mode == Mode.VS_AI:   # 1.4.0 §10.1 謝幕：對手木偶的反應＋老闆依勝負的手勢（播完 0.7 秒那一刻）
+game/tools/dev_main.gd:1121:	r.seed = 4242
+game/tools/dev_main.gd:1344:	Save.data["gauntlet_run"] = {"stage": 4, "seed": 1, "gold": 10, "cap": 2, "changes": 3, "pool": 0, "prev": []}
+game/tools/dev_main.gd:1430:	rr.seed = 919
+game/tools/dev_main.gd:1659:		"units_start": units_start, "display_speed": 4.0, "battle_ticks": sim.tick, "reached_frenzy": sim.tick >= Sim.FRENZY_TICK,
+game/tools/dev_main.gd:1688:			seed(20261111)   # 1.2.0 §14.6：視覺回歸模式固定全域亂數（特效、待機錯開），同一份程式重拍要一致
+game/tools/dev_main.gd:2202:		rng2.seed = 4242 + i
+game/tools/dev_main.gd:2667:	r.seed = sd
+game/scripts/ui/battle_view.gd:228:func _sim_step(with_fx: bool) -> void:
+game/scripts/ui/battle_view.gd:928:func _begin_battle(a0, a1, kind := "official") -> void:
+game/scripts/ui/screens/game_v16.gd:615:func _begin_battle(a0, a1, kind := "official") -> void:
+
+exec
+/bin/bash -lc "rg --files game | rg '/(sim|battle).*gd"'$'"'; sed -n '228,262p' game/scripts/ui/battle_view.gd; sed -n '928,976p' game/scripts/ui/battle_view.gd; sed -n '615,641p' game/scripts/ui/screens/game_v16.gd; rg -n 'TICK_RATE|TICK_DT|const DT|func run_to_end|func _init|var fast|fast' game/scripts/sim* game/scripts/core  " in /mnt/c/Users/timmy/projects/no-take-backs
+ exited 2 in 182ms:
+game/tests/sim_cache.gd
+game/scripts/game/battle_code.gd
+game/scripts/ui/battle_view.gd
+game/tests/suites/battle_visual.gd
+game/scripts/core/battle_sim.gd
+game/scripts/ui/battle/battle_state.gd
+game/scripts/ui/battle/battle_fx.gd
+game/scripts/ui/battle/battle_units.gd
+game/scripts/ui/battle/frags.gd
+func _sim_step(with_fx: bool) -> void:
+	_pump_view()
+	_check_final(with_fx)
+	for u in view.units:
+		prev_pos[u.id] = Vector2(u.x, u.y)
+	if not view.advance():
+		view.finished = true
+		return
+	if tm_ghost != null:
+		call("_tm_sync")
+	_gait_tick(with_fx)
+	_status_tags(with_fx)   # 1.3.0 §7.1 狀態竹籤
+	_pump_view()
+	_check_clutch(with_fx)   # 每一個畫面 tick 都判定（原本每一幀判一次，觸發的 tick 會跟幀率有關）
+	if view.frenzy and not frenzy_seen:
+		frenzy_seen = true
+		if with_fx:
+			_fx_text(Vector2(640, 140), L.t("frenzy_banner"), Color.ORANGE_RED, 2.0, 30, true)
+			sfx.play("frenzy")
+			sfx.play_music("music_frenzy")
+	var deaths := 0
+	for ev in view.events:
+		var k: String = ev["kind"]
+		var s = view.unit_by_id(ev["src"]) if ev.has("src") else null
+		if s != null:   # V1.4 #10：沙盤機關的事件沒有來源單位（src＝-1）
+			var key := "%s%d" % [k, s.team]
+			ev_count[key] = int(ev_count.get(key, 0)) + 1
+			if k == EV.BLAST and not ev.has("dmg"):   # 第八輪：爆炸演出一筆一次；逐目標傷害不算次數（BOOM_5）
+				ev_count["blast_fx%d" % s.team] = int(ev_count.get("blast_fx%d" % s.team, 0)) + 1
+		if k == EV.DEATH:
+			deaths += 1
+			if int(first_fall[0]) < 0:
+				var du = view.unit_by_id(int(ev.get("id", -1)))
+				if du != null and du.team == 0:
+					first_fall = [view.tick, int(ev["id"])]   # 1.5.0 §11：藍方第一隻倒下（逐 tick 事件，順播與跳轉一致）
+func _begin_battle(a0, a1, kind := "official") -> void:
+	nav_stack.clear()   # V1.5.1：開戰後，之前的返回堆疊作廢
+	_pre_drop()
+	play_kind = kind
+	tm_ghost = null   # V1.4 #1：時光機的原本時間線只在「如果」播放時存在（_rv_play 之後會再設）
+	_ensure_sprites([a0, a1])
+	if kind == "official":
+		last_armies = [a0.copy(), a1.copy()]
+		battle_rules = rules.copy() if rules != null else _puzzle_rules()   # 第十三輪：殘局自帶規則
+	sim = Sim.new(a0, a1, battle_rules)
+	_cmd_setup(sim, kind)
+	view = ViewBuffer.new(sim)
+	atk_seq.clear()
+	clutch_tick = -1
+	replay_total = 0
+	if kind != "official":
+		# 重播／覆盤：先用確定性模擬算出整場長度，時間軸以實際秒數為滿（Antigravity S5）
+		var pa0 = a0.copy()
+		var pa1 = a1.copy()
+		var pr = battle_rules.copy() if battle_rules != null else null
+		var plog: Array = last_cmds.duplicate(true)
+		replay_bm = []
+		var run_pre := func() -> Array:
+			var pre = Sim.new(pa0, pa1, pr)
+			if pre.cmd_on:
+				pre.cmd_play(plog)
+			pre.fast = true
+			var bm: Array = []
+			while not pre.finished:
+				pre.step()
+				BM.collect(pre, bm)   # 1.2.0 §11.2：預跑順手收書籤（不多跑一次模擬）
+			return [pre.tick, bm]
+		if _async_ok():
+			pre_thread = Thread.new()
+			pre_thread.start(run_pre)
+		else:
+			var pv: Array = run_pre.call()
+			replay_total = int(pv[0])
+			replay_bm = pv[1]
+	paused = false
+	follow_id = -1
+	battle_marks.clear()
+	first_fall = [-1, -1]
+	report_log.clear()
+	skip_busy = false
+	seek_target = -1
+	if kind == "official":
+		replay_snap = {}
+	start_hold = 0.0
+func _begin_battle(a0, a1, kind := "official") -> void:
+	super._begin_battle(a0, a1, kind)
+	if kind == "official":
+		Funnel.first_battle_time()   # 1.1.0 A24
+	if bool(rush.get("on", false)) and kind == "official":
+		call("_on_skip")   # 極速賽：不看戰鬥，直接算結果
+	tv_ids = []
+	if sim == null or tv_marks.is_empty():
+		return
+	tv_ids = tv_ids_for(a0, tv_marks)
+
+## 標記的位置 → 模擬的兵 id。開戰時展示緩衝已經讓模擬先跑幾格（位置變了），所以照模擬的編號規則從陣型算：
+## 格子＝隊伍×1000＋列×16＋欄；自由＝同隊依 (y, 自己視角 x) 排序的第 k 隻（battle_sim.gd 開頭）。
+static func tv_ids_for(a0, marks: Array) -> Array:
+	var out: Array = []
+	var free: bool = str(a0.deploy) == "free"
+	var order: Array = []
+	if free:
+		for u in a0.units:
+			var pp: Vector2i = a0.pos_of(u)
+			order.append([pp.y * 100000 + pp.x, pp])
+		order.sort_custom(func(p, q): return p[0] < q[0])
+	for m in marks:
+		if free:
+			for k in order.size():
+				if order[k][1] == m:
+					out.append(k)
+rg: game/scripts/sim*: No such file or directory (os error 2)
+game/scripts/core/army.gd:48:func _init(p_team: int = 0, p_budget: int = 100) -> void:
+game/scripts/core/battle_sim.gd:154:var fast := false              # 平衡工具用：不算每 tick 指紋（結果完全一樣，只是沒有指紋）
+game/scripts/core/battle_sim.gd:172:func _init(army0, army1, p_rules = null) -> void:
+game/scripts/core/battle_sim.gd:355:func run_to_end() -> void:
+game/scripts/core/battle_sim.gd:1041:	if not fast:
+game/scripts/core/hard_ai.gd:56:		s.fast = true
+game/scripts/core/sticker_defs.gd:20:const ICONS := ["", "fast", "skull", "shield", "slow", "heart", "speed"]
+game/scripts/core/terrain.gd:23:func _init(rects: Array, p_w: int, p_h: int) -> void:
+game/scripts/core/turn_placement.gd:30:func _init(a0, a1, p_first := 0, p_rule := "cap10", p_rules = null) -> void:
+
+exec
+/bin/bash -lc "rg -n 'func _cmd_setup|TICK|DT|func run_to_end' game/scripts/core/battle_sim.gd game/scripts/ui/battle/battle_state.gd game/scripts/ui/*gd; sed -n '172,195p' game/scripts/core/battle_sim.gd; sed -n '350,364p' game/scripts/core/battle_sim.gd; rg -n -A30 'func _cmd_setup' game/scripts/ui -g '*.gd'; nl -ba coordination/v1600-impl/b19-r1/diff3.patch | head -100" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 308ms:
+game/scripts/ui/game_screens.gd:261:	if ev is InputEventJoypadButton and _is_free() and overlay == "" and ev.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y, JOY_BUTTON_LEFT_STICK, JOY_BUTTON_RIGHT_STICK, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+game/scripts/ui/game_screens.gd:270:			JOY_BUTTON_BACK: KEY_F1, JOY_BUTTON_LEFT_STICK: KEY_H, JOY_BUTTON_RIGHT_STICK: KEY_P}
+game/scripts/ui/free_place.gd:518:		JOY_BUTTON_LEFT_STICK:
+game/scripts/ui/free_place.gd:522:		JOY_BUTTON_RIGHT_STICK:
+game/scripts/core/battle_sim.gd:19:const MAX_TICKS := D.MATCH_TICKS
+game/scripts/core/battle_sim.gd:20:const FRENZY_TICK := D.FRENZY_TICK
+game/scripts/core/battle_sim.gd:122:var max_ticks := MAX_TICKS     # 第五輪：一局 tick 數、狂熱時間表改成每場參數（標準值＝1.3.0 常數）
+game/scripts/core/battle_sim.gd:123:var frenzy_at := FRENZY_TICK
+game/scripts/core/battle_sim.gd:201:					cmd_ready[tm].append(CMD.START_TICKS)
+game/scripts/core/battle_sim.gd:256:					n.st_t = STK.CHARGE_TICKS
+game/scripts/core/battle_sim.gd:276:			n.stealth = D.STEALTH_TICKS
+game/scripts/core/battle_sim.gd:355:func run_to_end() -> void:
+game/scripts/core/battle_sim.gd:950:			u.breach = D.BREACH_TICKS
+game/scripts/core/battle_sim.gd:960:			u.stun = D.STUN_TICKS
+game/scripts/core/battle_sim.gd:981:			u.slow = D.SLOW_TICKS
+game/scripts/core/battle_sim.gd:1669:		e.pull_t = F8.CAT_PULL_TICKS
+game/scripts/core/battle_sim.gd:1670:		e.stun = maxi(e.stun, F8.CAT_PULL_TICKS + 1)   # 被吸的時候不能出手（放招當 tick 會先扣 1）
+game/scripts/core/battle_sim.gd:1671:		e.pull_x = dx * amt / l / F8.CAT_PULL_TICKS
+game/scripts/core/battle_sim.gd:1672:		e.pull_y = dy * amt / l / F8.CAT_PULL_TICKS
+game/scripts/core/battle_sim.gd:1772:		zones.append([u.x, u.y, tick + F8.ROCK_TICKS, u.team])
+game/scripts/core/battle_sim.gd:1868:					u.shield_t = CMD.AEGIS_TICKS
+game/scripts/core/battle_sim.gd:1872:					u.haste_t = CMD.scaled(CMD.WAR_TICKS, cmd_power)
+game/scripts/core/battle_sim.gd:1890:					u.stun = maxi(u.stun, CMD.scaled(CMD.FREEZE_TICKS, cmd_power))
+game/scripts/ui/battle_view.gd:450:func _cmd_setup(s, kind: String) -> void:
+game/scripts/ui/battle_view.gd:563:				var phase_len: float = float(CmdD.START_TICKS) if c_ready <= CmdD.START_TICKS else float(sim.cmd_cd)   # 開戰準備期的總長是 START_TICKS，之後是冷卻（Codex v151-i2）
+game/scripts/ui/battle_view.gd:1092:	zoom_center = zoom_center.lerp(r[1], minf(1.0, delta * (4.0 if view.tick < DirR.TOUR_TICKS else 1.5)))
+game/scripts/ui/battle_view.gd:1343:const HUD_META_TICKS := 60   # 開場 3 秒
+game/scripts/ui/battle_view.gd:1349:	if view.tick < HUD_META_TICKS:
+game/scripts/ui/lobby_view.gd:360:			r.cmd_cd = CmdD.CD_TICKS[wrapi(CmdD.CD_TICKS.find(r.cmd_cd) + d, 0, CmdD.CD_TICKS.size())]
+game/scripts/ui/lobby_view.gd:397:			r.ticks = _step_in(r.ticks, RuleSet.TICK_CHOICES, d)
+func _init(army0, army1, p_rules = null) -> void:
+	budget = army0.budget
+	budgets = [budget, budget]
+	var legacy: bool = p_rules == null or p_rules.sim_is_legacy()
+	if not legacy:
+		rules = p_rules.copy()
+		max_ticks = rules.ticks
+		frenzy_at = rules.frenzy_tick()
+		attr_step = rules.attrition_step()
+		judge = rules.judge()
+		if judge == 2:
+			budgets = [army0.budget, army1.budget]
+		for k in rules.skills_off:
+			skill_off[k] = true
+		fw = rules.field_w()
+		fh = rules.field_h()
+		terrain = rules.terrain()
+		map_ev = MapDefs.events(rules.map_id) if not rules.map_is_default() else []
+		if not map_ev.is_empty() and terrain != null:
+			terrain = terrain.clone()   # 會崩塌：這一場自己一份地形，不改到共用快取
+		if rules.cmd_on():
+			cmd_on = true
+			cmd_mask = rules.cmd_mask.duplicate()
+			cmd_cd = rules.cmd_cd
+func diff_permille(t: int) -> int:
+	if judge == 2 and 2 * t + 1 < power_log2.size():
+		return power_log2[2 * t] * 1000 / budgets[0] - power_log2[2 * t + 1] * 1000 / budgets[1]
+	return power_log[t] * 1000 / maxi(1, budget) if t < power_log.size() else 0
+
+func run_to_end() -> void:
+	while not finished:
+		step()
+
+# ───────────────────────── 一個 tick ─────────────────────────
+func step() -> void:
+	if finished:
+		return
+	tick += 1
+	frenzy = tick >= frenzy_at and not skill_off.has("frenzy")
+game/scripts/ui/battle_view.gd:450:func _cmd_setup(s, kind: String) -> void:
+game/scripts/ui/battle_view.gd-451-	if not s.cmd_on:
+game/scripts/ui/battle_view.gd-452-		return
+game/scripts/ui/battle_view.gd-453-	if kind == "official" and mode == Mode.PUZZLE:
+game/scripts/ui/battle_view.gd-454-		s.cmd_play(PZ.cmd_log(PZ.get_puzzle(puzzle_id), puzzle_plan))   # 第十三輪：時序殘局照戰前設定的時間放
+game/scripts/ui/battle_view.gd-455-	elif kind == "official":
+game/scripts/ui/battle_view.gd-456-		s.cmd_auto = [false, mode == Mode.VS_AI]
+game/scripts/ui/battle_view.gd-457-	else:
+game/scripts/ui/battle_view.gd-458-		s.cmd_play(last_cmds)
+game/scripts/ui/battle_view.gd-459-
+game/scripts/ui/battle_view.gd-460-## 按第 slot 格（這一隊帶的第幾招）。成功回 true。
+game/scripts/ui/battle_view.gd-461-func _cmd_press(team: int, slot: int) -> bool:
+game/scripts/ui/battle_view.gd-462-	if sim == null or not sim.cmd_on or play_kind != "official" or sim.finished or mode == Mode.PUZZLE:
+game/scripts/ui/battle_view.gd-463-		return false
+game/scripts/ui/battle_view.gd-464-	if team == 1 and mode != Mode.DUEL:
+game/scripts/ui/battle_view.gd-465-		return false
+game/scripts/ui/battle_view.gd-466-	var list: Array = CmdD.list_of(int(sim.cmd_mask[team]))
+game/scripts/ui/battle_view.gd-467-	if slot >= list.size():
+game/scripts/ui/battle_view.gd-468-		return false
+game/scripts/ui/battle_view.gd-469-	if sim.cast(team, int(list[slot])):
+game/scripts/ui/battle_view.gd-470-		sfx.play("k_confirm", 0.8)
+game/scripts/ui/battle_view.gd-471-		return true
+game/scripts/ui/battle_view.gd-472-	sfx.play("k_error", 0.7)
+game/scripts/ui/battle_view.gd-473-	return false
+game/scripts/ui/battle_view.gd-474-
+game/scripts/ui/battle_view.gd-475-## 鍵盤：藍方 1 2 3（手把 LB、RB 送的是 Q、E），雙人紅方 8 9 0。是技能鍵就回 true。
+game/scripts/ui/battle_view.gd-476-func _cmd_key(k: int) -> bool:
+game/scripts/ui/battle_view.gd-477-	if sim == null or not sim.cmd_on or play_kind != "official":
+game/scripts/ui/battle_view.gd-478-		return false
+game/scripts/ui/battle_view.gd-479-	var slot: int = {KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_Q: 0, KEY_E: 1}.get(k, -1)
+game/scripts/ui/battle_view.gd-480-	if slot >= 0:
+     1	--- a/game/tools/dev_main.gd
+     2	+++ b/game/tools/dev_main.gd
+     3	@@ -1094,6 +1094,8 @@
+     4	 	await _shots_v16()
+     5	 	# 1.6.0 B04／B05：會真的開戰的走查放在所有截圖之後（開戰會動到全域亂數與時間，放在中間會讓後面固定時鐘的戰鬥截圖變樣；b04c 抓到 74_cmd_cast）
+     6	 	await _shot_fatigue()   # 1.6.0 B14：另開一場長戰鬥，放在所有截圖之後（不動到前面截圖的戰鬥狀態）
+     7	+	if "--store" in OS.get_cmdline_user_args():
+     8	+		await _shot_store()   # 1.6.0 B19（P8.3）商店拍攝 Preset（只在 --store 時拍；不在 24 組版面檢查裡）
+     9	 	await _lobby_pad_walk()
+    10	 	await _first_run_walk()
+    11	 	await _pad_walk()
+    12	@@ -1964,6 +1966,81 @@
+    13	 	sprites.draw_unit(self, p, type, team, face, walk, 0.0, 0.0, 1.0, 0.0, UNIT_SCALE, 0, 0.0, 1.0, cbm())
+    14	 	return "atlas"
+    15	 
+    16	+## 1.6.0 B19（P8.3）商店拍攝 Preset：固定 seed／陣型／tick／動畫時鐘／機位（K2）。用 --resolution 1920x1080 跑（Steam 商店截圖尺寸）。
+    17	+## 預設：戰鬥鏡頭 1.25 倍、對準兩軍中線；前排各往後退一欄（拉開距離，交鋒前看得到兩條陣線）。
+    18	+## 輸出：store_01_place、store_02_clash（交鋒）、store_03_late（尾聲）、store_04_result；印 STORESHOTS OK＋張數。
+    19	+const STORE_ZOOM := 1.25
+    20	+const STORE_TICKS := [90, -60]   # 交鋒＝兩軍剛要接觸；尾聲＝結束前 3 秒（負數＝從結束往回算；Hydrogen B19 r2）
+    21	+func store_armies() -> Array:
+    22	+	var FF = preload("res://scripts/core/formations.gd")
+    23	+	var pool: Array = FF.training_pool(0)
+    24	+	var b = pool[2].copy()
+    25	+	var r = pool[9].mirrored()
+    26	+	b.shift_all(-1)   # 前排往後一欄（出界那一步整筆還原＝擺不下就照原位）
+    27	+	r.shift_all(-1)
+    28	+	return [b, r]
+    29	+
+    30	+func _store_center() -> Vector2:
+    31	+	var sum := Vector2.ZERO
+    32	+	var n := 0
+    33	+	for u in view.units:
+    34	+		if u.alive and not u.hidden:
+    35	+			sum += _upos(u)
+    36	+			n += 1
+    37	+	var c: Vector2 = (sum / n) if n > 0 else ORIGIN + fld_size / 2
+    38	+	# 夾在戰場裡（鏡頭框不出戰場；上下留給戰力條與時間軸）
+    39	+	var hw := fld_size.x / (2.0 * STORE_ZOOM)
+    40	+	var hh := fld_size.y / (2.0 * STORE_ZOOM)
+    41	+	return Vector2(clampf(c.x, ORIGIN.x + hw, ORIGIN.x + fld_size.x - hw), clampf(c.y, ORIGIN.y + hh, ORIGIN.y + fld_size.y - hh))
+    42	+
+    43	+## 接在正式截圖流程最後（--shot=<夾> --store；--shot-only=store_ 開頭的四張就只存這四張）。開一場新的戰鬥，不影響前面的截圖。
+    44	+## 換畫面的木色轉場遮罩：換畫面後第一次重畫才開始計時，固定時鐘下時間不走 → 先畫幾幀再把計時清掉
+    45	+func _store_settle() -> void:
+    46	+	for k in 3:
+    47	+		queue_redraw()
+    48	+		await get_tree().process_frame
+    49	+		set("_trans_t", -100.0)
+    50	+
+    51	+func _shot_store() -> void:
+    52	+	intro_end()   # 前面首開走查會再開一次掌燈開門（整個畫面壓暗）：先收掉
+    53	+	paused = false
+    54	+	var ar: Array = store_armies()
+    55	+	difficulty = 1
+    56	+	_start_mode(Mode.VS_AI)
+    57	+	overlay = ""
+    58	+	show_place_help = false
+    59	+	ai_name = L.t("diff_normal")   # 固定敵方名稱（不沿用前一場的；Codex B19 r1）
+    60	+	armies[0] = ar[0].copy()
+    61	+	await _store_settle()
+    62	+	await _snap("store_01_place.png")
+    63	+	_begin_battle(ar[0].copy(), ar[1].copy(), "official")   # 正式對局的畫面（沒有重播控制列）；截圖模式不結算
+    64	+	start_hold = 0.0
+    65	+	var probe = Sim.new(ar[0].copy(), ar[1].copy(), battle_rules)   # 先算這一場在哪個 tick 結束（確定性，和畫面上那一場一樣）
+    66	+	probe.fast = true
+    67	+	probe.run_to_end()
+    68	+	var end_tick: int = int(probe.tick)
+    69	+	var n := 1
+    70	+	for t0 in STORE_TICKS:
+    71	+		var t: int = int(t0) if int(t0) >= 0 else maxi(0, end_tick + int(t0))
+    72	+		while not view.finished and view.tick < t:
+    73	+			_sim_step(false)
+    74	+		# 受擊閃白、表情是那一刻的實況（_frame_alive 只動鏡頭、不推進特效時間；不假裝等過；Codex B19 r2）
+    75	+		slow_left = 0.0
+    76	+		clutch_t = 0.0
+    77	+		# 機位：借用雙指縮放的「停住」路徑（戰鬥自己的鏡頭邏輯不會把它拉回全景；Hydrogen B19 r1）
+    78	+		pinch_zoom = STORE_ZOOM
+    79	+		pinch_center = _store_center()
+    80	+		zoom = STORE_ZOOM
+    81	+		zoom_target = STORE_ZOOM
+    82	+		zoom_center = pinch_center
+    83	+		await _store_settle()
+    84	+		n += 1
+    85	+		await _snap("store_0%d_%s.png" % [n, "clash" if n == 2 else "late"])
+    86	+	pinch_zoom = 1.0
+    87	+	zoom = 1.0
+    88	+	zoom_target = 1.0
+    89	+	print("STORESHOTS OK 3")
+    90	+
+    91	 func _run_turn_strip(out_dir: String) -> void:
+    92	 	Save.prefix = "shot_"
+    93	 	for a in OS.get_cmdline_user_args():
+    94	--- a/game/tools/store_thumb.py
+    95	+++ b/game/tools/store_thumb.py
+    96	@@ -0,0 +1,36 @@
+    97	+#!/usr/bin/env python3
+    98	+"""1.6.0 B19（P8.3；K2 自動部分）商店圖縮圖辨識：把商店截圖縮到 Steam 小圖寬（462px）後量
+    99	+① 藍、紅兩隊隊色像素各占多少（都要 ≥0.4%＝縮小後還看得到兩邊的兵）；② 兩隊平均色的 ΔE（CIE76，≥40＝顏色分得開）；
+   100	+③ 畫面平均亮度（≥55＝沒被遮罩壓暗）。真人「縮圖辨識」（K2 人工）另外做，這裡只是自動門檻。
+
+exec
+/bin/bash -lc "rg -n 'cmd_auto|cmd_mask|func cmd_on|func _start_mode|rules =' game/scripts/core/battle_sim.gd game/scripts/core/rule* game/scripts/ui/game_flow.gd game/tools/dev_main.gd; rg -n -A24 'func _start_mode' game/scripts/ui -g '*.gd'" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 151ms:
+rg: game/scripts/ui/game_flow.gd: No such file or directory (os error 2)
+game/tools/dev_main.gd:573:		rules = Presets.make("fantasy", "ai", RS.mask(false))
+game/tools/dev_main.gd:775:	rules = null
+game/tools/dev_main.gd:1328:	rules = RuleSet.standard()
+game/tools/dev_main.gd:1348:	rules = null
+game/tools/dev_main.gd:1371:		rules = lobby_r.copy()
+game/tools/dev_main.gd:1392:	rules = null
+game/tools/dev_main.gd:1419:	rules = lobby_r.copy()
+game/tools/dev_main.gd:1460:	rules = null
+game/tools/dev_main.gd:1468:	rules = _free_rules()
+game/tools/dev_main.gd:1515:	rules = _free_rules(2)
+game/tools/dev_main.gd:1524:	rules = _free_rules(1)
+game/tools/dev_main.gd:1535:	rules = null
+game/tools/dev_main.gd:2342:	rules = null
+game/tools/dev_main.gd:2403:	rules = RuleSet.standard()
+game/tools/dev_main.gd:2410:	rules = null
+game/tools/dev_main.gd:2474:	lobby_r.cmd_mask = [7, 24]
+game/tools/dev_main.gd:2476:	rules = lobby_r.copy()
+game/tools/dev_main.gd:2501:	rules = r2
+game/tools/dev_main.gd:2513:	rules = null
+game/tools/dev_main.gd:2562:	rules = RuleSet.standard()
+game/tools/dev_main.gd:2580:	rules = RuleSet.standard()
+game/tools/dev_main.gd:2594:	rules = RuleSet.standard()
+game/scripts/core/ruleset.gd:69:var cmd_mask := [0, 0]         # 雙方帶哪幾種；都 0＝關閉
+game/scripts/core/ruleset.gd:182:	r.cmd_mask = cmd_mask.duplicate()
+game/scripts/core/ruleset.gd:213:func cmd_on() -> bool:
+game/scripts/core/ruleset.gd:214:	return int(cmd_mask[0]) != 0 or int(cmd_mask[1]) != 0
+game/scripts/core/ruleset.gd:281:			var m0 := int(cmd_mask[tm0])
+game/scripts/core/ruleset.gd:401:		base.append_array(["cmd", cmd_mask[0], cmd_mask[1], cmd_uses, cmd_cd, cmd_power])
+game/scripts/core/ruleset.gd:411:	return JSON.stringify(key_fields()) == JSON.stringify(o.key_fields()) and cmd_mask == o.cmd_mask and (not cmd_on() or (cmd_uses == o.cmd_uses and cmd_cd == o.cmd_cd and cmd_power == o.cmd_power)) and adj == o.adj \
+game/scripts/core/ruleset.gd:469:		var j7 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power, 1 if adj else 0, EXT_VERSION, ext_skills, 1 if synergy else 0])
+game/scripts/core/ruleset.gd:473:		var j6 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power, 1])
+game/scripts/core/ruleset.gd:477:		var j5 := JSON.stringify((key_fields() if not deploy_is_default() else key_fields() + [DEPLOYS.find(deploy), spacing, depth, fullfield]) + [map_id, map_size, 1 if vents else 0, int(cmd_mask[0]), int(cmd_mask[1]), cmd_uses, cmd_cd, cmd_power])
+game/scripts/core/ruleset.gd:617:		r.cmd_mask = [int(cmd_f[0]), int(cmd_f[1])]
+game/scripts/core/battle_sim.gd:125:var rules = null               # 第五輪：這一場凍結的規則（null＝標準）
+game/scripts/core/battle_sim.gd:159:var cmd_mask := [0, 0]
+game/scripts/core/battle_sim.gd:168:var cmd_auto := [false, false]   # 哪一隊由 AI 決定
+game/scripts/core/battle_sim.gd:172:func _init(army0, army1, p_rules = null) -> void:
+game/scripts/core/battle_sim.gd:175:	var legacy: bool = p_rules == null or p_rules.sim_is_legacy()
+game/scripts/core/battle_sim.gd:177:		rules = p_rules.copy()
+game/scripts/core/battle_sim.gd:194:			cmd_mask = rules.cmd_mask.duplicate()
+game/scripts/core/battle_sim.gd:200:					cmd_left[tm].append(rules.cmd_uses if (cmd_mask[tm] >> i) & 1 == 1 else 0)
+game/scripts/core/battle_sim.gd:1850:				if cmd_auto[tm]:
+game/scripts/core/battle_sim.gd:1914:	for s in CMD.list_of(int(cmd_mask[team])):
+game/scripts/ui/screens/game_v16.gd:1496:func _start_mode(m: int) -> void:
+game/scripts/ui/screens/game_v16.gd-1497-	var keep_rift: bool = rift_on and m == Mode.VS_AI and rules != null and rules.to_code() == rift_code   # 裂隙「再來一局」照舊（同一組規則才算）
+game/scripts/ui/screens/game_v16.gd-1498-	var mk := "%d:%s:%d:%d" % [m, puzzle_id, int(get("trial_id")), PZ.get_puzzle("ws").hash() if puzzle_id == "ws" else 0]   # 工坊、三考都叫 ws：再比題目內容（Codex v160-i3）
+game/scripts/ui/screens/game_v16.gd-1499-	if mk != tv_mode_key:
+game/scripts/ui/screens/game_v16.gd-1500-		tv_marks = []   # 換題、換模式：舊標記不帶過去（同一題重打保留）
+game/scripts/ui/screens/game_v16.gd-1501-		co_assist = ""   # V1.6.1 A4：換題就是新的嘗試（同一題重打照舊算教練協力）
+game/scripts/ui/screens/game_v16.gd-1502-	if mk != tv_mode_key or m != Mode.PUZZLE:
+game/scripts/ui/screens/game_v16.gd-1503-		trio_job += 1   # 換題、換模式：還在算的三考結果作廢
+game/scripts/ui/screens/game_v16.gd-1504-		_trio_cancel()
+game/scripts/ui/screens/game_v16.gd-1505-	tv_mode_key = mk
+game/scripts/ui/screens/game_v16.gd-1506-	fog_on = false
+game/scripts/ui/screens/game_v16.gd-1507-	tv_mark_mode = false
+game/scripts/ui/screens/game_v16.gd-1508-	var keep_trio: bool = trio_on and m == Mode.PUZZLE and puzzle_id == "ws" and PZ.get_puzzle("ws").has("trio")   # 一陣三考「重試」照舊
+game/scripts/ui/screens/game_v16.gd-1509-	rift_on = false
+game/scripts/ui/screens/game_v16.gd-1510-	trio_on = false
+game/scripts/ui/screens/game_v16.gd-1511-	super._start_mode(m)
+game/scripts/ui/screens/game_v16.gd-1512-	rift_on = keep_rift
+game/scripts/ui/screens/game_v16.gd-1513-	trio_on = keep_trio
+game/scripts/ui/screens/game_v16.gd-1514-	_prewarm_sprites()
+game/scripts/ui/screens/game_v16.gd-1515-
+game/scripts/ui/screens/game_v16.gd-1516-## 1.2.0（Antigravity cat01 #1）：圖集烘焙原本在開戰那一刻才觸發，分段後最長一幀 78 ms 會出現在戰鬥開頭。
+game/scripts/ui/screens/game_v16.gd-1517-## 改成進擺陣就依兩邊卡池（含召喚物）預烘：擺陣時玩家在思考，分段烘焙藏在這段時間裡；開戰時 _ensure_sprites 只是確認（烘過的不重烘）。
+game/scripts/ui/screens/game_v16.gd-1518-func _prewarm_sprites() -> void:
+game/scripts/ui/screens/game_v16.gd-1519-	if sprites == null or armies.size() < 2:
+game/scripts/ui/screens/game_v16.gd-1520-		return
+--
+game/scripts/ui/screens/game_result.gd:6:func _start_mode(m: int) -> void:
+game/scripts/ui/screens/game_result.gd-7-	nav_stack.clear()   # V1.5.1：進擺陣後，從擺陣開的圖鑑返回要回擺陣，不能彈出主畫面的卡片面板（Codex v151-i1 #1）
+game/scripts/ui/screens/game_result.gd-8-	free_intro = false
+game/scripts/ui/screens/game_result.gd-9-	watch_mode = false
+game/scripts/ui/screens/game_result.gd-10-	mode = m
+game/scripts/ui/screens/game_result.gd-11-	if m != Mode.VS_AI and m != Mode.DUEL:
+game/scripts/ui/screens/game_result.gd-12-		rules = null      # 第五輪：只有對 AI、雙人吃大廳規則；遠征、教學、殘局固定
+game/scripts/ui/screens/game_result.gd-13-	elif rules != null:
+game/scripts/ui/screens/game_result.gd-14-		difficulty = rules.ai_level
+game/scripts/ui/screens/game_result.gd-15-		duel_rule = rules.place_rule
+game/scripts/ui/screens/game_result.gd-16-	wins = [0, 0]
+game/scripts/ui/screens/game_result.gd-17-	round_no = 1
+game/scripts/ui/screens/game_result.gd-18-	series_over = false
+game/scripts/ui/screens/game_result.gd-19-	last_player_formation = []
+game/scripts/ui/screens/game_result.gd-20-	overlay = ""
+game/scripts/ui/screens/game_result.gd-21-	set("trial_id", -1)
+game/scripts/ui/screens/game_result.gd-22-	if m != Mode.VS_AI or get("challenge_army") == null:
+game/scripts/ui/screens/game_result.gd-23-		set("daily_spec", {})   # V1.1 D2：每日挑戰按「再來一次」時保留（敵陣在 challenge_army）
+game/scripts/ui/screens/game_result.gd-24-		set("daily_practice", false)   # 1.1.0 N4：練習旗標跟每日題同進退
+game/scripts/ui/screens/game_result.gd-25-	if m != Mode.VS_AI:
+game/scripts/ui/screens/game_result.gd-26-		set("challenge_army", null)
+game/scripts/ui/screens/game_result.gd-27-	set("sealed_on", false)   # V1.4 #13：_sealed_start 會在 _start_mode 之後再設回來
+game/scripts/ui/screens/game_result.gd-28-	set("swap_on", false)     # 1.2.0 §11.5：_swap_start 會在 _start_mode 之後再設回來
+game/scripts/ui/screens/game_result.gd-29-	set("swap_ai", false)     # 1.6.0 B18
+game/scripts/ui/screens/game_result.gd-30-	set("tower_on", false)    # 1.4.0 §11.1：_tower_start 會在 _start_mode 之後再設回來
+
+exec
+/bin/bash -lc "sed -n '1625,1648p' game/tools/dev_main.gd; rg -n -A12 'func _shot_fatigue' game/tools/dev_main.gd; rg -n 'DT|TICK_RATE' game/scripts/core/defs.gd; sed -n '1966,1972p' game/tools/dev_main.gd" in /mnt/c/Users/timmy/projects/no-take-backs
+ succeeded in 1ms:
+	mode = Mode.VS_AI
+	_begin_battle(a0, a1, "replay")   # 量測不寫進度
+	speed = 4.0
+	var rows: Array = []   # [draw, proc, gpu, frame, frenzy]
+	var units_start: int = view.alive_count(0) + view.alive_count(1)
+	var last := Time.get_ticks_usec()
+	var guard := 0
+	while state == St.BATTLE and guard < 40000:
+		guard += 1
+		await RenderingServer.frame_post_draw
+		var now := Time.get_ticks_usec()
+		rows.append([perf_draw_us / 1000.0, perf_proc_us / 1000.0, RenderingServer.viewport_get_measured_render_time_gpu(vp), (now - last) / 1000.0, view.frenzy])
+		last = now
+	var pick := func(col: int, which: int) -> Array:
+		var o: Array = []
+		for r2 in rows:
+			if which == 0 or (which == 1 and not r2[4]) or (which == 2 and r2[4]):
+				o.append(r2[col])
+		return o
+	var sect := func(which: int) -> Dictionary:
+		return {"frames": pick.call(0, which).size(), "draw_ms": _pstats(pick.call(0, which)), "process_ms": _pstats(pick.call(1, which)),
+			"gpu_ms": _pstats(pick.call(2, which)), "frame_ms": _pstats(pick.call(3, which))}
+	var tex_battle := snappedf(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0, 0.1)   # 對戰時（掃圖集之前）
+	var atlas := await _perf_atlas_sweep()
+2941:func _shot_fatigue() -> void:
+2942-	var FF = preload("res://scripts/core/formations.gd")
+2943-	var pool: Array = FF.training_pool(0)
+2944-	_begin_battle(pool[2].copy(), pool[9].mirrored(), "replay")
+2945-	start_hold = 0.0
+2946-	while not view.finished and view.tick < 640:
+2947-		_sim_step(false)
+2948-	for k in 30:
+2949-		_frame_alive(0.1)   # 讓受擊閃白、表情退掉（同 04_clutch 的做法）
+2950-	slow_left = 0.0
+2951-	clutch_t = 0.0
+2952-	zoom = 1.0
+2953-	# 拉近到血最少的疲累兵（亂戰裡看得到姿勢與汗滴；Hydrogen B14 r1）
+rg: game/scripts/core/defs.gd: IO error for operation on game/scripts/core/defs.gd: No such file or directory (os error 2)
+
+func _run_turn_strip(out_dir: String) -> void:
+	Save.prefix = "shot_"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--turn-strip-types="):
+			ts_types = []
+			for tk in a.substr(19).split(","):
+
+codex
+- `store_thumb.py:22` 已改 y=75；`dev_main.gd:2028` 已移除假等待並註明當刻實況。
+- `dev_main.gd:1972–1973、2019–2025` 已設倍率 1.25、交鋒 tick 90，並以同陣型預算終局 tick，再回推 60 tick。
+
+結論：可
+tokens used
+39,128
